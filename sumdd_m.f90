@@ -36,13 +36,14 @@ contains
    subroutine drpdr_local (array, local_sum)
    ! This is a local version of drpdr that takes an array of reals on 
    ! one processor and returns the double-real sum
+   ! Note that it accumulates into local_sum so this has to be zeroed
+   ! before use.
       implicit none 
       real, dimension(:), intent(in)  :: array
-      complex, intent(out) :: local_sum
+      complex, intent(inout) :: local_sum
       real :: e, t1, t2 
       integer :: i
       
-      local_sum = cmplx (0.0,0.0) 
       do i=1,size(array)
          t1 = array(i) + real(local_sum) 
          e = t1 - array(i) 
