@@ -1059,7 +1059,7 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
         ! All this combined into a single reduction
         temparray = (/ psavge, pslavge, preccavge, precavge, gke,
      &                 cllav, clmav,clhav, cltav /)
-        call MPI_Reduce ( temparray, gtemparray, 9, MPI_REAL, MPI_MAX,0,
+        call MPI_Reduce ( temparray, gtemparray, 9, MPI_REAL, MPI_SUM,0,
      &                  MPI_COMM_WORLD, ierr )
         if ( myid == 0 ) then
            print 97, gtemparray(1:5) ! psavge,pslavge,preccavge,precavge,gke
