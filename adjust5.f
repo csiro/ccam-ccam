@@ -182,6 +182,7 @@
      &                   (bam(k)*(1.+epst(iq))*tbar2d(iq))
             rhsl(iq,k) = rhsl(iq,k)/hdtds -helm(iq,k)*pe(iq,k)
          enddo                  ! iq loop
+
 !         Diagnostics would require extra bounds calls
 !         if(diag.and.k.le.2)then !  only for last k of loop (i.e. 1)
 !            iq=idjd
@@ -353,12 +354,12 @@
         ! be changed
         ! Note that use of same arrays for input and output is strictly a
         ! violation of fortran standard
-        if(nvad.eq.4) call vadvtvd(t(1:ifull,:),t(1:ifull,:),
-     &                             u(1:ifull,:),u(1:ifull,:),
-     &                             v(1:ifull,:),v(1:ifull,:))
-        if(nvad.eq.7) call vadv30(t(1:ifull,:),t(1:ifull,:),
-     &                            u(1:ifull,:),u(1:ifull,:),
-     &                            v(1:ifull,:),v(1:ifull,:)) ! for vadvbess
+        if(nvad.eq.4) call vadvtvd(t(1:ifull,:),
+     &                             u(1:ifull,:),
+     &                             v(1:ifull,:))
+        if(nvad.eq.7) call vadv30(t(1:ifull,:),
+     &                            u(1:ifull,:),
+     &                            v(1:ifull,:)) ! for vadvbess
         if( ( diag.or.nmaxpr.eq.1) .and. mydiag ) then
           print *,'after vertical advection in adjust5'
           write (6,"('qg  ',9f8.3/4x,9f8.3)") 1000.*qg(idjd,:)
