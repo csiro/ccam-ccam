@@ -808,6 +808,14 @@ c     .                 (.6-.6*fracsum(imo))*sfc(isoilm(iq))
           wb(iq,k)=wb(iq,ms)
          enddo    !  k loop
         enddo     ! iq loop
+        do k=1,ms
+         do iq=1,ifull
+!         safest to redefine wbice preset here
+!         following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
+          wbice(iq,k)=
+     .            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
+         enddo
+        enddo     !  k=1,ms
         if ( mydiag ) then
            iveg=ivegt(idjd)
            isoil=isoilm(idjd)
