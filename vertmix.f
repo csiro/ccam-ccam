@@ -7,6 +7,7 @@
 c     parameter (ipwr=1)       ! really can use (ipwr=min(1,nlocal))
 c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       parameter (kcl_top=kl-2) ! maximum level for cloud top (conjob & vertmix)
+!     parameter (kscmom=0)     ! 0 usual, 1 turns on shal_conv momentum
       parameter (ndvmod=0)     ! 0 default, 1+ for dvmod tests
 !     typically tied_con=6., tied_over=2., tied_rh=.75
 !     nlocal in parm.h         ! 0 local scheme, 1 or 2 non-local scheme
@@ -26,7 +27,6 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       include 'sigs.h'
       include 'soil.h'
       include 'tracers.h'  ! ngas, nllp, ntrac
-      include 'xarrs.h'
       include 'const_phys.h'
       common/work3/qs(ifull,kl),delthet(ifull,kl),
      .             thebas(ifull,kl),cu(ifull,kl),dum3(ifull,kl)
@@ -68,8 +68,8 @@ c     set coefficients for Louis scheme
         print *,'dsig ',dsig
         print *,'delh ',delh
 	 print *,'in vertmix'
-        write (6,"('uin ',19f7.2/(8x,19f7.2))") (u(idjd,k),k=1,kl) 
-        write (6,"('vin ',19f7.2/(8x,19f7.2))") (v(idjd,k),k=1,kl) 
+        write (6,"('uin ',12f7.2/(8x,12f7.2))") (u(idjd,k),k=1,kl) 
+        write (6,"('vin ',12f7.2/(8x,12f7.2))") (v(idjd,k),k=1,kl) 
       endif
       rlogs1=log(sig(1))
       rlogs2=log(sig(2))
@@ -94,16 +94,17 @@ c     set coefficients for Louis scheme
       enddo      !  k loop
       do k=1,kl-1  ! top level set separately to 0 for gt & guv
        rkh(:,k)=0.
-       rkm(:,k)=0.
        delthet(:,k)=rhs(:,k+1)-rhs(:,k)  ! rhs is theta here
       enddo      !  k loop
 
       if(ktau.eq.1)then
 !       set ksctop for shallow convection
         ksctop=1    ! ksctop will be first level below sigkcst
-        do while(sig(ksctop+1).gt.sigksct)  !  e.g. sigksct=.8
-         ksctop=ksctop+1
-        enddo
+	 if(ksc.gt.92)then
+          do while(sig(ksctop+1).gt.sigksct)  !  e.g. sigksct=.8
+           ksctop=ksctop+1
+          enddo
+	 endif  !(ksc.gt.92)
         kscbase=1  ! kscbase will be first level above sigkcsb
         do while(sig(kscbase).gt.sigkscb)  !  e.g. sigkscb=.99
          kscbase=kscbase+1
@@ -127,6 +128,30 @@ c     set coefficients for Louis scheme
          alfqq1_l(k)=0.
         enddo     ! k loop
       endif
+
+c     ************ section for jlm shallow convection *******************
+      if(ksc.eq.91)then
+        do k=1,kl/2    
+         do iq=1,ifull
+          if(ktsav(iq).lt.0.and.k.lt.abs(ktsav(iq)))then
+	     rkh(iq,k)=tied_con
+	     rkh(iq,k+1)=tied_over
+          endif ! (ktsav(iq).lt.0.and.k.lt.abs(ktsav(iq)))
+         enddo  ! iq loop
+        enddo   !  k loop
+      endif     ! (ksc.eq.91)
+      if(ksc.eq.92)then
+        do k=1,kl/2    
+         do iq=1,ifull
+          if(ktsav(iq).lt.0.and.k.lt.abs(ktsav(iq))
+     .                            .and.k.ge.kbsav(iq))then
+	     rkh(iq,k)=tied_con
+	     rkh(iq,k+1)=tied_over
+          endif ! (ktsav(iq).lt.0.and.k.lt.abs(ktsav(iq)).and....)
+         enddo  ! iq loop
+        enddo   !  k loop
+      endif     ! (ksc.eq.92)
+c     *********** end of jlm shallow convection section *****************
 
 c     ************ section for Tiedtke shallow convection *******************
       if(ksc.eq.99)then
@@ -193,21 +218,31 @@ c         thebas(iq,k)=t(iq,k)+hlcp*qbas  + hght
         enddo   ! k loop
 !       suppress pseudo-deep convection        
         theeb(:)=rkh(:,ksctop)  ! not really theeb, just for foll. test
-        do k=kscbase,ksctop+1     ! +1 to include tied_over points
+        do k=kscbase,ksctop+1   ! +1 to include tied_over points
           do iq=1,ifull
             if(theeb(iq).gt..9*tied_con)then  ! to allow for tied_over
               rkh(iq,k)=0.
             endif
           enddo  ! iq loop
         enddo   ! k loop
-        if(ntest.eq.2)then
-          do iq=1,ifull
-            if(rkh(iq,ksctop-1).gt..9*tied_con)then
-              print *,'iq,land,rkh ',iq,land(iq),rkh(iq,ksctop-1)
-            endif
-          enddo
-        endif   ! (ntest.eq.2)
-      endif     ! (ksc.eq.97)c     *********** end of Tiedtke_jlm shallow convection 97 *************
+	if(ntest.eq.2)then
+	  do iq=1,ifull
+  	    if(rkh(iq,ksctop-1).gt..9*tied_con)then 
+	      print *,'iq,land,rkh ',iq,land(iq),rkh(iq,ksctop-1)
+	    endif
+	  enddo
+	endif   ! (ntest.eq.2)
+      endif     ! (ksc.eq.97)
+c     *********** end of Tiedtke_jlm shallow convection 97 *************
+      if(kscmom.eq.1)then
+        do k=1,kl-1  ! top level set separately to 0 for gt & guv
+          rkm(:,k)=rkh(:,k)
+        enddo   !  k loop
+      else
+        do k=1,kl-1  
+          rkm(:,k)=0.
+        enddo   !  k loop
+      endif     ! (kscmom.eq.1)
 
 c     ************ section for Geleyn shallow convection *******************
       if(ksc.eq.-99)then
@@ -223,22 +258,25 @@ c     *********** end of Geleyn shallow convection section *****************
       if( (ntest.ne.0.or.diag) .and. mydiag)then
         iq=idjd
         print *,'for shallow convection in vertmix '
+        print *,'ktsav,ksctop ',ktsav(idjd),ksctop
+        print *,'rkh_shal ',(rkh(idjd,k),k=1,ksctop)
 	 print *,'kbsav,ktsav,theeb: ',kbsav(iq),ktsav(iq),theeb(iq)
-        write (6,"('rh   ',19f7.2/(8x,19f7.2))") 
+        write (6,"('rkh_shal ',12f7.2/(9x,12f7.2))")(rkh(idjd,k),k=1,kl)
+        write (6,"('rh   ',12f7.2/(5x,12f7.2))") 
      .             (100.*qg(idjd,k)/qs(idjd,k),k=1,kl)
-        write (6,"('qs   ',19f7.3/(8x,19f7.3))") 
+        write (6,"('qs   ',12f7.3/(5x,12f7.3))") 
      .             (1000.*qs(idjd,k),k=1,kl)
-        write (6,"('qg   ',19f7.3/(8x,19f7.3))") 
+        write (6,"('qg   ',12f7.3/(5x,12f7.3))") 
      .             (1000.*qg(idjd,k),k=1,kl)
-        write (6,"('qbas ',19f7.3/(8x,19f7.3))") 
+        write (6,"('qbas ',12f7.3/(5x,12f7.3))") 
      .             (1000.*qg(idjd,k)/tied_rh,k=1,kl)
-        write (6,"('t    ',19f7.2/(8x,19f7.2))") 
+        write (6,"('t    ',12f7.2/(5x,12f7.2))") 
      .             (t(idjd,k),k=1,kl)
-        write (6,"('thebas',19f7.2/(8x,19f7.2))") 
+        write (6,"('thebas',12f7.2/(6x,12f7.2))") 
      .             (thebas(iq,k),k=1,kl)
-c        write (6,"('hs',19f7.2/(8x,19f7.2))") 
+c        write (6,"('hs  ',12f7.2/(4x,12f7.2))") 
 c     .             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
-        write (6,"('thee',19f7.2/(8x,19f7.2))") 
+        write (6,"('thee',12f7.2/(4x,12f7.2))") 
      .            (prcpv(k)*t(iq,k)*(t(iq,k) + .5*hlcp*qs(iq,k))
      .                             /(t(iq,k) - .5*hlcp*qs(iq,k)),k=1,kl)
       endif
@@ -332,17 +370,17 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
 
       if( (diag.or.ntest.ge.1) .and. mydiag )then
         print *,'before possible call to pbldif in vertmix'
-          write (6,"('rkh0 ',16f8.3)") (rkh(idjd,k),k=1,16)
-          write (6,"('rkm0 ',16f8.3)") (rkm(idjd,k),k=1,16)
-        write (6,"('uav ',19f7.2/(8x,19f7.2))") (uav(idjd,k),k=1,kl) 
-        write (6,"('vav ',19f7.2/(8x,19f7.2))") (vav(idjd,k),k=1,kl) 
-        write (6,"('thet',19f7.2/(8x,19f7.2))") (rhs(idjd,k),k=1,kl) 
-        write (6,"('t   ',19f7.2/(8x,19f7.2))") (t(idjd,k),k=1,kl) 
-        write (6,"('qg ',19f7.3/(8x,19f7.3))") 
+        write (6,"('rkh0 ',16f8.3)") (rkh(idjd,k),k=1,16)
+        write (6,"('rkm0 ',16f8.3)") (rkm(idjd,k),k=1,16)
+        write (6,"('uav ',12f7.2/(8x,12f7.2))") (uav(idjd,k),k=1,kl) 
+        write (6,"('vav ',12f7.2/(8x,12f7.2))") (vav(idjd,k),k=1,kl) 
+        write (6,"('thet',12f7.2/(8x,12f7.2))") (rhs(idjd,k),k=1,kl) 
+        write (6,"('t   ',12f7.2/(8x,12f7.2))") (t(idjd,k),k=1,kl) 
+        write (6,"('qg ',12f7.3/(8x,12f7.3))") 
      .             (1000.*qg(idjd,k),k=1,kl)
-        write (6,"('qs ',19f7.3/(8x,19f7.3))") 
+        write (6,"('qs ',12f7.3/(8x,12f7.3))") 
      .             (1000.*qs(idjd,k),k=1,kl)
-        write (6,"('thee',19f7.2/(8x,19f7.2))") 
+        write (6,"('thee',12f7.2/(8x,12f7.2))") 
      .        (prcpv(k)*t(idjd,k)*(t(idjd,k) + .5*hlcp*qs(idjd,k))
      .                   /(t(idjd,k) - .5*hlcp*qs(idjd,k)),k=1,kl)
       endif
@@ -355,8 +393,8 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
 	   print *,'after pbldif in vertmix'
           write (6,"('rkh1 ',16f8.3)") (rkh(idjd,k),k=1,16)
           write (6,"('rkm1 ',16f8.3)") (rkm(idjd,k),k=1,16)
-          write (6,"('thet',19f7.2/(8x,19f7.2))") (rhs(idjd,k),k=1,kl) 
-          write (6,"('qg ',19f7.3/(8x,19f7.3))") 
+          write (6,"('thet',12f7.2/(8x,12f7.2))") (rhs(idjd,k),k=1,kl) 
+          write (6,"('qg ',12f7.3/(8x,12f7.3))") 
      .              (1000.*qg(idjd,k),k=1,kl)
         endif
         if(diag)then
@@ -467,8 +505,13 @@ c     now do moisture
 c     could add extra sfce moisture flux term for crank-nicholson
       call trim(at,ct,rhs,0)    ! for qg
       qg(1:ifull,:)=rhs(1:ifull,:)
+      if(diag,and.mydiag)then
+        print *,'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
+        write (6,"('qg ',12f7.3/(8x,12f7.3))") 
+     .             (1000.*qg(idjd,k),k=1,kl)
+      endif
 
-      if(ifullw.eq.ifull)then
+      if(ldr.ne.0)then
 c       now do qfg
 	 do k=1,kl
 	  do iq=1,ifullw
@@ -493,7 +536,7 @@ c       now do qlg
           qlg(iq,k)=rhs(iq,k)
          enddo
         enddo
-      endif    ! (ifullw.eq.ifull)
+      endif    ! (ldr.ne.0)
 
 c     now do trace gases
       if(ngas.gt.0)call tracervmix( at, ct, rhs )
@@ -529,17 +572,17 @@ c     now do v; with properly unstaggered au,cu
       v(1:ifull,:)=rhs(1:ifull,:)
       if((diag.or.ntest.ge.1).and.mydiag)then
         print *,'after trim in vertmix '
-        write (6,"('thet',19f7.2/(8x,19f7.2))") 
+        write (6,"('thet',12f7.2/(8x,12f7.2))") 
      .              (sigkap(k)*t(idjd,k),k=1,kl) 
-        write (6,"('t   ',19f7.2/(8x,19f7.2))") (t(idjd,k),k=1,kl) 
-        write (6,"('qg ',19f7.3/(8x,19f7.3))") 
+        write (6,"('t   ',12f7.2/(8x,12f7.2))") (t(idjd,k),k=1,kl) 
+        write (6,"('qg ',12f7.3/(8x,12f7.3))") 
      .             (1000.*qg(idjd,k),k=1,kl)
-        write (6,"('u   ',19f7.2/(8x,19f7.2))") (u(idjd,k),k=1,kl) 
-        write (6,"('v   ',19f7.2/(8x,19f7.2))") (v(idjd,k),k=1,kl) 
+        write (6,"('u   ',12f7.2/(8x,12f7.2))") (u(idjd,k),k=1,kl) 
+        write (6,"('v   ',12f7.2/(8x,12f7.2))") (v(idjd,k),k=1,kl) 
         print *,'cduv,cduv+1,cduvj+1,tss ',
      .           cduv(idjd),cduv(idjd+1),cduv(idjd+il),tss(idjd)
-        write (6,"('au ',19f7.3/(8x,19f7.3))") (au(idjd,k),k=1,kl) 
-        write (6,"('cu ',19f7.3/(8x,19f7.3))") (cu(idjd,k),k=1,kl) 
+        write (6,"('au ',12f7.3/(8x,12f7.3))") (au(idjd,k),k=1,kl) 
+        write (6,"('cu ',12f7.3/(8x,12f7.3))") (cu(idjd,k),k=1,kl) 
 c       call maxmin(u,'uv',ktau,1.,kl)
 c       call maxmin(v,'vv',ktau,1.,kl)
       endif
