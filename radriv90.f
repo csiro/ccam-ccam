@@ -380,6 +380,7 @@ c           endif          ! if( sice(iq) )
      .                (1.-fracice(iq))*.05/(coszro(i)+0.15)
         endif       ! if( land(iq)) .. else..
 
+         alb(iq) = cuvrf(i,1)   ! save current albedo in alb array for outfile
          if(iaero.ne.0)then
            cosz = max ( coszro(i), 1.e-4)
            delta =  coszro(i)*beta_ave*alpha*so4t(iq)*
@@ -389,7 +390,6 @@ c          delta =   beta_ave*alpha*so4t(iq)*
 c    &			          (1.-cuvrf(i,1))**2/cosz
            cuvrf(i,1)=min(1., delta+cuvrf(i,1)) ! surface albedo
          endif!(iaero.ne.0)then
-         alb(iq) = cuvrf(i,1)   ! save current albedo in alb array for outfile
          cirrf(i,1)  = cuvrf(i,1)
       end do ! i=1,imax
 
@@ -514,7 +514,7 @@ c       write(24,*)coszro2
           sint(i) = dfsw(i,1)*h1m3   ! solar in top
           sout(i) = ufsw(i,1)*h1m3   ! solar out top
           sg(i)   = sg(i)*h1m3       ! solar absorbed at the surface
-          sgdn(i) = sg(i) / ( 1 - cuvrf(i,1) )
+          sgdn(i) = sg(i) / ( 1 - alb(i) )
       end do
       if(ntest.gt.0.and.j.eq.jdrad)then
         print *,'idrad,j,sint,sout,soutclr,sg,cuvrf1 ',
@@ -597,8 +597,9 @@ c     cloud amounts for saving
 
 !     Use explicit indexing rather than array notation so that we can run
 !     over the end of the first index
-      if(j.eq.1)koundiag=koundiag+1
-      do i=1,imax
+      if(ktau>1)then ! averages not added at time zero
+        if(j==1)koundiag=koundiag+1  
+        do i=1,imax
 	  iq=i+(j-1)*il
          sint_ave(iq) = sint_ave(iq) + sint(i)
          sot_ave(iq)  = sot_ave(iq)  + sout(i)
@@ -613,8 +614,9 @@ c     cloud amounts for saving
          cll_ave(iq)  = cll_ave(iq)  + cloudlo(iq)
          clm_ave(iq)  = clm_ave(iq)  + cloudmi(iq)
          clh_ave(iq)  = clh_ave(iq)  + cloudhi(iq)
-      end do
-
+        end do
+      endif   ! (ktau>1)
+      
       end if  ! odcalc
       
       if (solarfit) then 
@@ -629,10 +631,12 @@ c     cloud amounts for saving
           sg(i) = sgsave(iq)
          end do
       end if  ! (solarfit) .. else ..
-      do i=1,imax
+      if(ktau>1)then ! averages not added at time zero
+       do i=1,imax
 	  iq=i+(j-1)*il
          sgn_ave(iq)  = sgn_ave(iq)  + sg(i)
-      end do
+       end do
+      endif  ! (ktau>1)
       
 ! Set up the CC model radiation fields
 c slwa is negative net radiational htg at ground

@@ -328,8 +328,8 @@ c     this routine creates attributes and writes output
 
       integer ixp,iyp,idlev,idnt,idms
       common/cdfind/ixp,iyp,idlev,idnt,idms
-      real dpsdt
-      common/dpsdt/dpsdt(ifull)    ! shared adjust5 & openhist
+      real dpsdt,dpsdtb,dpsdtbb
+      common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull) !globpe,adjust5,outcdf
       real shalrk
       common/shalrk/shalrk(ifull,6)
       real pmsl,aa,bb,cc,dum2
@@ -620,9 +620,9 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
         lname = 'Avg flux into tgg1 layer'
         call attrib(idnc,idim2,3,'ga_ave',lname,'W/m2',-1000.,1000.)
         lname = 'Avg ice water path'
-        call attrib(idnc,idim2,3,'iwp_ave',lname,'m',0.,2.)
+        call attrib(idnc,idim2,3,'iwp_ave',lname,'kg/m2',0.,2.)
         lname = 'Avg liquid water path'
-        call attrib(idnc,idim2,3,'lwp_ave',lname,'m',0.,2.)
+        call attrib(idnc,idim2,3,'lwp_ave',lname,'kg/m2',0.,2.)
 	 if(ntrac.gt.0)then ! ntrac because may have nllp>0
          do igas=1,ntrac
 	   write(numba,'(i2.2)') igas

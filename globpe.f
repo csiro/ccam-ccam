@@ -62,6 +62,8 @@
       integer leap,nbarewet,nsigmf
       integer nnrad,idcld
       real alph_p,alph_pm,delneg,delpos,alph_q
+      real dpsdt,dpsdtb,dpsdtbb
+      common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull) !globpe,adjust5,outcdf
       real epst
       common/epst/epst(ifull)
       common/leap_yr/leap  ! 1 to allow leap years
@@ -634,6 +636,11 @@ c     set up cc geometry
         u(1:ifull,:)=ux(1:ifull,:)   
         v(1:ifull,:)=vx(1:ifull,:)   
         tn(1:ifull,:)=0.
+      elseif(nvsplit==5)then
+        tn(1:ifull,:)=(t(1:ifull,:)-tx(1:ifull,:))/dt ! t tend. from phys.
+        t(1:ifull,:)=tx(1:ifull,:)   
+        un(1:ifull,:)=0. 
+        vn(1:ifull,:)=0.
       endif   ! (nvsplit<3.or.ktau==1) .. elseif ..
 
       if(mup.ne.1.or.(ktau==1.and.mspec==mspeca))then
@@ -762,6 +769,17 @@ c    .      (sign(1.,savs1(iq,3)).ne.sign(1.,savs(iq,3))))then    ! .410
          endif
         enddo
       endif ! (ktau>2.and.epsp<0.)
+      if(ktau>2.and.epsp>1.)then ! 
+        if(mydiag.and.ktau==3)print *,'using epsp= ',epsp
+        do iq=1,ifull
+         if((sign(1.,dpsdt(iq)).ne.sign(1.,dpsdtb(iq))).and.
+     .      (sign(1.,dpsdtbb(iq)).ne.sign(1.,dpsdtb(iq))))then
+           epst(iq)=epsp-1.
+         else
+           epst(iq)=0.
+         endif
+        enddo
+      endif ! (ktau>2.and.epsp<0.)
 c     if(ktau>2.and.epsp<0.)then  ! for MCx8
 c       if(mydiag.and.ktau==3)print *,'using epsp= ',epsp
 c     	  do iq=1,ifull
@@ -862,7 +880,7 @@ c     endif ! (ktau>2.and.epsp<0.)
       endif  ! (mfix_qg==0.or.mspec==2)
 79    dt=dtin                    ! ****** end of introductory time loop
       mspeca=1
-      if(nvsplit==3)then
+      if(nvsplit>=3)then
         tx(1:ifull,:)=t(1:ifull,:)   ! saved for beginning of next step
         ux(1:ifull,:)=u(1:ifull,:)   
         vx(1:ifull,:)=v(1:ifull,:)   
