@@ -107,12 +107,13 @@ module cc_mpi
    integer, public, save :: model_begin, model_end
    integer, public, save :: maincalc_begin, maincalc_end
    integer, public, save :: gather_begin, gather_end
+   integer, public, save :: distribute_begin, distribute_end
    integer, public, save :: reduce_begin, reduce_end
    integer, public, save :: precon_begin, precon_end
    integer, public, save :: mpiwait_begin, mpiwait_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents=23
+   integer, parameter :: nevents=24
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -139,6 +140,7 @@ module cc_mpi
 contains
 
    subroutine ccmpi_setup()
+      use sumdd_m
       include 'xyzinfo.h'
       include 'xyzinfo_g.h'
       include 'map.h'
@@ -147,6 +149,7 @@ contains
       include 'vecsuv_g.h'
       include 'latlong.h'
       include 'latlong_g.h'
+      integer :: ierr
 
       call proc_setup(npanels,ifull)
 
@@ -239,6 +242,10 @@ contains
 !!$      call bounds(byv)
 !!$      call bounds(bzv)
 
+#ifdef sumdd
+!     operator MPI_SUMDR is created based on an external function DRPDR. 
+      call MPI_OP_CREATE (DRPDR, .TRUE., MPI_SUMDR, ierr) 
+#endif
    end subroutine ccmpi_setup
 
    subroutine ccmpi_distribute2(af,a1)
@@ -252,6 +259,8 @@ contains
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
+
+      call start_log(distribute_begin)
 !cdir iexpand(indp, indg)
       if ( myid == 0 .and. .not. present(a1) ) then
          print*, "Error: ccmpi_distribute argument required on proc 0"
@@ -300,6 +309,7 @@ contains
          end if
 
       end if
+      call end_log(distribute_end)
 
    end subroutine ccmpi_distribute2
 
@@ -314,6 +324,7 @@ contains
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
+      call start_log(distribute_begin)
 !cdir iexpand(indp, indg)
       if ( myid == 0 .and. .not. present(a1) ) then
          print*, "Error: ccmpi_distribute argument required on proc 0"
@@ -362,6 +373,7 @@ contains
          end if
 
       end if
+      call end_log(distribute_end)
 
    end subroutine ccmpi_distribute2i
 
@@ -376,6 +388,7 @@ contains
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
+      call start_log(distribute_begin)
 !cdir iexpand(indp, indg)
       if ( myid == 0 .and. .not. present(a1) ) then
          print*, "Error: ccmpi_distribute argument required on proc 0"
@@ -424,6 +437,7 @@ contains
          end if
 
       end if
+      call end_log(distribute_end)
 
    end subroutine ccmpi_distribute3
 
@@ -2295,7 +2309,6 @@ contains
          end if
          if ( nxproc*nyproc /= n ) then
             print*, "Error in splitting up faces"
-            call MPI_finalize(ierr)
             call MPI_Abort(MPI_COMM_WORLD,ierr)
          end if
 
@@ -2395,6 +2408,9 @@ contains
       call vtbegin(event, ierr)
 #endif
 #ifdef simple_timer
+#ifdef scyld
+      double precision :: MPI_Wtime
+#endif
       start_time(event) = MPI_Wtime()
 #endif 
    end subroutine start_log
@@ -2409,6 +2425,9 @@ contains
       call vtend(event, ierr)
 #endif
 #ifdef simple_timer
+#ifdef scyld
+      double precision :: MPI_Wtime
+#endif
       tot_time(event) = tot_time(event) + MPI_Wtime() - start_time(event)
 #endif 
    end subroutine end_log
@@ -2616,15 +2635,19 @@ contains
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
-      reduce_begin = 21
+      distribute_begin = 21
+      distribute_end = distribute_begin
+      event_name(distribute_begin) = "Distribute"
+
+      reduce_begin = 22
       reduce_end = reduce_begin
       event_name(reduce_begin) = "Reduce"
 
-      precon_begin = 22
+      precon_begin = 23
       precon_end = precon_begin
       event_name(precon_begin) = "Precon"
 
-      mpiwait_begin = 23
+      mpiwait_begin = 24
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
 
