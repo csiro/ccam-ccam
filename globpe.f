@@ -9,6 +9,7 @@
 !     sign convention:
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
+      use ieee_m
       include 'newmpar.h'
       parameter (ijkij=ijk+ifull)
       include 'aalat.h'
@@ -85,6 +86,7 @@
       data mdays/31,28,31,30,31,30,31,31,30,31,30,31, 31/
       dimension psa(12001),psm(12001)
       logical prnt,odcalc
+      integer ieee
       character comm*60,comment*60,rundate*10,header*47,text*2
       namelist/cardin/dt,ntau,nwt,npa,npb,npc,nhorps
      1 ,ia,ib,ja,jb,iaero,khdif,khor
@@ -138,6 +140,10 @@ c     tdiff is difference between t and 123.16, subject to 0 <= tdiff <= 220
       tdiff(tm)=min(max(tm-123.16 , 0.) , 220.)
       establ(tm) =(1.-(tdiff(tm)-aint(tdiff(tm))))*table(int(tdiff(tm)))
      &           + (tdiff(tm)-aint(tdiff(tm)))*table(int(tdiff(tm))+1)
+
+      ieee = ieee_handler("set", "division", ihandler)
+      ieee = ieee_handler("set", "invalid", ihandler)
+      ieee = ieee_handler("set", "overflow", ihandler)
 
       ia=il/2
       ib=ia+3
