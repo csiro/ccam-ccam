@@ -14,7 +14,7 @@ c     called by indata and nestin for newtop.ge.1
 c     first dum inserted so as not to conflict with zsb in nestin
       common/work2/dum(ifull),ps(ifull),psold(ifull),dum2(ifull,15)
       real told(kl),qgold(kl)
-      do iq=1,ij
+      do iq=1,ifull
        psold(iq)=1.e5*exp(psl(iq))
        psl(iq)=psl(iq)+(zsold(iq)-max(0.,zs(iq)))/(rdry*t(iq,1))
        ps(iq)=1.e5*exp(psl(iq))
