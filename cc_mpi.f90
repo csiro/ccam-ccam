@@ -1450,12 +1450,7 @@ contains
       integer :: i2, j2, n2
       integer :: send_len, recv_len
 
-#ifdef mpilog
-      ierr = MPE_log_event(bounds_begin,0,"")
-#endif
-#ifdef vampir
-      call vtbegin(bounds_begin, ierr)
-#endif
+      call start_log(bounds_begin)
 
       double = .false.
       if (present(nrows)) then
@@ -1529,12 +1524,7 @@ contains
          end do
       end if
 
-#ifdef mpilog
-      ierr = MPE_log_event(bounds_end,0,"")
-#endif
-#ifdef vampir
-      call vtend(bounds_end, ierr)
-#endif
+      call end_log(bounds_end)
 
    end subroutine bounds2
 
@@ -1552,13 +1542,7 @@ contains
       integer :: send_len, recv_len, kx
 
 
-#ifdef mpilog
-      ierr = MPE_log_event(bounds_begin,0,"")
-#endif
-#endif
-#ifdef vampir
-      call vtbegin(bounds_begin, ierr)
-#endif
+      call start_log(bounds_begin)
 
       double = .false.
       if (present(nrows)) then
@@ -1637,12 +1621,7 @@ contains
          end do
       end if
 
-#ifdef mpilog
-      ierr = MPE_log_event(bounds_end,0,"")
-#endif
-#ifdef vampir
-      call vtend(bounds_end, ierr)
-#endif
+      call end_log(bounds_end)
 
    end subroutine bounds3
 
@@ -1660,12 +1639,7 @@ contains
       integer :: i2, j2, n2
       integer :: send_len, recv_len
 
-#ifdef mpilog
-      ierr = MPE_log_event(boundsuv_begin,0,"")
-#endif
-#ifdef vampir
-      call vtbegin(boundsuv_begin, ierr)
-#endif
+      call start_log(boundsuv_begin)
 
       double = .false.
       if (present(nrows)) then
@@ -1765,12 +1739,7 @@ contains
          end do
       end if
 
-#ifdef mpilog
-      ierr = MPE_log_event(boundsuv_end,0,"")
-#endif
-#ifdef vampir
-      call vtend(boundsuv_end, ierr)
-#endif
+      call end_log(boundsuv_end)
 
    end subroutine boundsuv2
 
@@ -1789,12 +1758,7 @@ contains
       integer :: i2, j2, n2
       integer :: send_len, recv_len
 
-#ifdef mpilog
-      ierr = MPE_log_event(boundsuv_begin,0,"")
-#endif
-#ifdef vampir
-      call vtbegin(boundsuv_begin, ierr)
-#endif
+      call start_log(boundsuv_begin)
 
       double = .false.
       if (present(nrows)) then
@@ -1894,12 +1858,7 @@ contains
          end do
       end if
 
-#ifdef mpilog
-      ierr = MPE_log_event(boundsuv_end,0,"")
-#endif
-#ifdef vampir
-      call vtend(boundsuv_end, ierr)
-#endif
+      call end_log(boundsuv_end)
 
    end subroutine boundsuv3
 
@@ -1924,12 +1883,7 @@ contains
       integer :: count, ip, jp
       integer :: iq, iqk, k, idel, jdel, nf
 
-#ifdef mpilog
-      ierr = MPE_log_event(deptsync_begin,0,"")
-#endif
-#ifdef vampir
-      call vtbegin(deptsync_begin, ierr)
-#endif
+      call start_log(deptsync_begin)
       dslen = 0
       drlen = 0
       dindex = 0
@@ -1993,12 +1947,7 @@ contains
          drlen(rproc) = count/4
       end do
 
-#ifdef mpilog
-      ierr = MPE_log_event(deptsync_end,0,"")
-#endif
-#ifdef vampir
-      call vtend(deptsync_end, ierr)
-#endif
+      call end_log(deptsync_end)
 !!!      print*, "DEPTSYNC", myid, drlen, dindex(:,:10,:)
 
    end subroutine deptsync
@@ -2013,12 +1962,7 @@ contains
       integer, dimension(2*nproc) :: ireq
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
 
-#ifdef mpilog
-      ierr = MPE_log_event(intssync_begin,0,"")
-#endif
-#ifdef vampir
-      call vtbegin(intssync_begin, ierr)
-#endif
+      call start_log(intssync_begin)
 
       ! When sending the results, roles of dslen and drlen are reversed
       nreq = 0
@@ -2050,12 +1994,7 @@ contains
             s(dindex(1,iq,iproc),dindex(2,iq,iproc)) = buf(iq,iproc)
          end do
       end do
-#ifdef mpilog
-      ierr = MPE_log_event(intssync_end,0,"")
-#endif
-#ifdef vampir
-      call vtend(intssync_end, ierr)
-#endif
+      call end_log(intssync_end)
 
    end subroutine intssync
 
