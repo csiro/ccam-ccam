@@ -16,12 +16,12 @@
 !     this gives order for nritch advection options - not used nowadays
 
       integer m,mex,mfix,mfix_qg,mspec,mup,nonl,nritch,nritch_t,nrot,      &
-     &        nstag,nstagu,ntbar,nvsplit,nxmap
+     &        nstag,nstagu,ntbar,nvsplit,nxmap,precon
       real    epsp,epsu,epsf,restol
       common/paramdyn/epsp,epsu,epsf,m,mex,mfix,mfix_qg,                   &
      &                mspec,mup,nonl,nritch,nritch_t,nrot,                 &
      &                nstag,nstagu,ntbar,                                  &
-     &                nvsplit,nxmap,restol
+     &                nvsplit,nxmap,restol,precon
 !              (ntbar=0)           ! 0 for standard
 !              (ntbar=(kl+1)/2)    ! level# for tbar2d with T set in nonlin
 !           nspec_us set to 1 by nritch=102 (unstaggering at opposite ktau)
