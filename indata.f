@@ -59,7 +59,6 @@
       integer kk
       common/sigin/sigin(kl),kk  ! for vertint, infile
 !     common/work3/p(ifull,kl),dum3(ifull,kl,4)
-!     watch out in retopo for work/zss
       real zss, psav, tsss, dum0, dumzs, aa, bb, dum2
       common/work2/zss(ifull),psav(ifull),tsss(ifull),dum0(ifull),
      &  dumzs(ifull,3),aa(ifull),bb(ifull),dum2(ifull,9)
@@ -85,8 +84,8 @@
       real aamax, aamax_g, c, cent, 
      &     coslat, coslong, costh, den, diffb, diffg, dist,
      &     epsmax, fracs, fracwet, ftsoil, gwdfac, hefact,
-     &     helim, hemax, hemax_g, polenx, poleny,
-     &     polenz, rad, radu, radv, ri, rj, rlai, rlat_d, rlon_d,
+     &     helim, hemax, hemax_g, polenx, poleny, polenz, pslavge,
+     &     rad, radu, radv, ri, rj, rlai, rlat_d, rlon_d,
      &     rmax, rmin, rmax_g, rmin_g, sinlat, sinlong, sinth, snalb,
      &     sumdsig, thet, timegb, tsoil, uzon, vmer, w,
      &     wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, distnew,
@@ -234,7 +233,7 @@
       if(io_in<4)then
          kdate_sav=kdate_s
          ktime_sav=ktime_s
-	 if(io_in==1.or.io_in==3)then
+	  if(io_in==1.or.io_in==3)then
             call infile(meso2,kdate,ktime,nem2,
      &                  timegb,ds,psl,ps,zss,aa,bb,
      &                  tss,precip,wb,wbice,alb,snowd,sicedep,
@@ -256,14 +255,22 @@
             endif  ! (newtop>=0)
          endif                  ! (io_in==1.or.io_in==3)
 
-	 if(io_in==-1.or.io_in==-3)then
+	  if(io_in==-1.or.io_in==-3)then
             call onthefly(kdate,ktime,psl,zss,tss,wb,wbice,snowd,
      &                    sicedep,
      &                    t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
      &                    qg(1:ifull,:),tgg,
      &                    tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,0)
-	 endif   ! (io_in==-1.or.io_in==-3)
-	 	 
+	  endif   ! (io_in==-1.or.io_in==-3)
+	 	
+	  if(nproc==1)then
+          pslavge=0.
+          do iq=1,ifull
+           pslavge=pslavge+psl(iq)*wts(iq)
+          enddo
+	   write (6,"('initial pslavge ',f10.6)") pslavge
+	  endif 
+		 
          if(newtop==2)then
 !           reduce sea tss to mslp      e.g. for qcca in ncep gcm
             do iq=1,ifull
@@ -315,16 +322,17 @@
            land(:)=.false.
          endif  !  (nhstest<0)
 	  
-         if(newtop>=1)then    ! don't need to do retopo during restart
-            do iq=1,ifull
-               if(land(iq))then
+         if(newtop>=1)then    
+!          best not to do retopo during restart, as netcdf can slightly alter zs
+           do iq=1,ifull
+              if(land(iq))then
                   tss(iq)=tss(iq)+(zss(iq)-zs(iq))*stdlapse/grav
                   do k=1,ms
                      tgg(iq,k)=tgg(iq,k)+(zss(iq)-zs(iq))*stdlapse/grav
                   enddo
                endif     ! (land(iq))
-            enddo        ! iq loop
-            if ( mydiag ) then
+           enddo        ! iq loop
+           if ( mydiag ) then
                print *,'newtop>=1 new_land_tss,zsold,zs: ',
      &                    tss(idjd),zss(idjd),zs(idjd)
 !              compensate psl, t(,,1), qg as read in from infile
@@ -335,23 +343,30 @@
                write(6,"('100*psl#  in',9f7.2)") 100.*diagvals(psl)
 !     &          ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
                print *,'now call retopo from indata'
-            end if ! ( mydiag )
-            call retopo(psl,zss,zs,t(1:ifull,:),qg(1:ifull,:))
-            if(nmaxpr==1.and.mydiag)then
+           end if ! ( mydiag )
+           call retopo(psl,zss,zs,t(1:ifull,:),qg(1:ifull,:))
+           if(nmaxpr==1.and.mydiag)then
                write(6,"('100*psl# out',9f7.2)") 100.*diagvals(psl)
 !     &          ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
-            endif
-        endif   ! (newtop>=1)
+           endif
+	    if(nproc==1)then
+              pslavge=0.
+              do iq=1,ifull
+               pslavge=pslavge+psl(iq)*wts(iq)
+              enddo
+	       write (6,"('after retopo pslavge ',f10.6)") pslavge
+           endif 
+         endif   ! (newtop>=1)
 
-!       ensure qg etc big enough, but not too big in top levels (from Sept '04)
-        qg (1:ifull,:)=max(qg (1:ifull,:),qgmin)
-        qlg(1:ifull,:)=max(qlg(1:ifull,:),qgmin)
-        qfg(1:ifull,:)=max(qfg(1:ifull,:),qgmin)
-	 do k=kl-2,kl
-         qg (1:ifull,k)=min(qg (1:ifull,k),10.*qgmin)
-         qlg(1:ifull,k)=min(qlg(1:ifull,k),10.*qgmin)
-         qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
-	 enddo
+!        ensure qg etc big enough, but not too big in top levels (from Sept '04)
+         qg (1:ifull,:)=max(qg (1:ifull,:),qgmin)
+         qlg(1:ifull,:)=max(qlg(1:ifull,:),qgmin)
+         qfg(1:ifull,:)=max(qfg(1:ifull,:),qgmin)
+	  do k=kl-2,kl
+          qg (1:ifull,k)=min(qg (1:ifull,k),10.*qgmin)
+          qlg(1:ifull,k)=min(qlg(1:ifull,k),10.*qgmin)
+          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
+	  enddo
 
       endif   ! (io_in<4)
 
@@ -1002,7 +1017,7 @@
         call readreal('smoist.dat',w,2*ifull) ! special read of w & w2
       endif
 
-      if(nhstest<0)then  ! aquaplanet test
+      if(nhstest<0)then  ! aquaplanet test 
         zs(:)=0.
         land(:)=.false.
         sice(:)=.false.
@@ -1011,35 +1026,35 @@
         tss(:)=273.16
         do iq=1,ifull
          if((nhstest==-1.or.nhstest<=-6).and.abs(rlatt(iq))<pi/3.)
-     .     tss(iq)=273.16 +27.*(1.-sin(1.5*rlatt(iq))**2)   ! Expt 1
+     .     tss(iq)=273.16 +27.*(1.-sin(1.5*rlatt(iq))**2)   ! Expt 1 control
          if(nhstest==-2.and.abs(rlatt(iq))<pi/3.)
-     .     tss(iq)=273.16 +27.*(1.-3.*abs(rlatt(iq))/pi)    ! Expt 2
+     .     tss(iq)=273.16 +27.*(1.-3.*abs(rlatt(iq))/pi)    ! Expt 2 peaked
          if(nhstest==-3.and.abs(rlatt(iq))<pi/3.)
-     .     tss(iq)=273.16 +27.*(1.-sin(1.5*rlatt(iq))**4)   ! Expt 3
+     .     tss(iq)=273.16 +27.*(1.-sin(1.5*rlatt(iq))**4)   ! Expt 3 flat
          if(nhstest==-4.and.abs(rlatt(iq))<pi/3.)
-     .     tss(iq)=273.16 +13.5*(1.-sin(1.5*rlatt(iq))**2)  ! Expt 4
-     .                    +13.5*(1.-sin(1.5*rlatt(iq))**4)  ! Expt 4
-         if(nhstest==-5.and.rlatt(iq)>pi/36..and.rlatt(iq)<pi/3.)
+     .     tss(iq)=273.16 +13.5*(1.-sin(1.5*rlatt(iq))**2)  ! Expt 4 qobs
+     .                    +13.5*(1.-sin(1.5*rlatt(iq))**4)  ! Expt 4     control5n
+         if(nhstest==-5.and.rlatt(iq)>pi/36..and.rlatt(iq)<pi/3.) ! control5n
      .     tss(iq)=273.16 +27.*(1.-sin((rlatt(iq)-pi/36.)*90./55.)**2) ! Expt 5
          if(nhstest==-5.and.rlatt(iq)>-pi/3..and.rlatt(iq)<=pi/36.)
      .     tss(iq)=273.16 +27.*(1.-sin((rlatt(iq)-pi/36.)*90./65.)**2) ! Expt 5
-         if(nhstest==-6.and.abs(rlatt(iq))<pi/12.)then
+         if(nhstest==-6.and.abs(rlatt(iq))<pi/12.)then    ! Expt6 1keq
 	   if(rlongg(iq)<pi/3..or.rlongg(iq)>5.*pi/3)
-     .     tss(iq)=tss(iq)+1.*(cos(1.5*rlongg(iq))*cos(6.*rlatt(iq)))**2 !Expt6
+     .     tss(iq)=tss(iq)+1.*(cos(1.5*rlongg(iq))*cos(6.*rlatt(iq)))**2  
          endif  ! (nhstest==-6....)
-         if(nhstest==-7.and.abs(rlatt(iq))<pi/12.)then
+         if(nhstest==-7.and.abs(rlatt(iq))<pi/12.)then          ! Expt7 3keq
 	   if(rlongg(iq)<pi/3..or.rlongg(iq)>5.*pi/3)
-     .     tss(iq)=tss(iq)+3.*(cos(1.5*rlongg(iq))*cos(6.*rlatt(iq)))**2 !Expt7
+     .     tss(iq)=tss(iq)+3.*(cos(1.5*rlongg(iq))*cos(6.*rlatt(iq)))**2  
          endif  ! (nhstest==-7....)
-         if(nhstest==-8.and.abs(rlatt(iq))<pi/6.)
-     .     tss(iq)=tss(iq)+3.*cos(rlongg(iq))*cos(3.*rlatt(iq))**2   ! Expt 8
+         if(nhstest==-8.and.abs(rlatt(iq))<pi/6.)               ! Expt 8  3kw1
+     .     tss(iq)=tss(iq)+3.*cos(rlongg(iq))*cos(3.*rlatt(iq))**2    
         enddo   ! iq loop
 	 do k=1,ms
 	  tgg(:,k)=tss(:)
 	  wb(:,k)=0.
 	 enddo
 	 if(io_in>4)then    ! not reading initial input file
-          kdate=19790321
+!         kdate=19790321     - not from Feb '05
 	   do k=1,kl
 c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
            do iq=1,ifull
