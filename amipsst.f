@@ -190,9 +190,9 @@
 6     continue
 
 !     Could calculate these in each process but this makes the code simpler
-      call MPI_BCAST(rat1,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_BCAST(rat2,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_BCAST(update,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(rat1,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(rat2,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(update,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
       if ( update ) then
          if ( myid == 0 ) then
             call ccmpi_distribute(ssta, ssta_g)

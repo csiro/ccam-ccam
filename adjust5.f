@@ -399,14 +399,14 @@
          local_sum = (0.,0.)
          call drpdr_local(tmparr, local_sum(1))
          call drpdr_local(tmparr2, local_sum(2))
-         call MPI_ALLREDUCE ( local_sum, global_sum, 2, MPI_COMPLEX,
+         call MPI_Allreduce ( local_sum, global_sum, 2, MPI_COMPLEX,
      &                        MPI_SUMDR, MPI_COMM_WORLD, ierr )
          delpos = real(global_sum(1))
          delneg = real(global_sum(2))
 #else
 
          delarr_l(1:2) = (/ delpos_l, delneg_l /)
-         call MPI_ALLREDUCE ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,
+         call MPI_Allreduce ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,
      &                        MPI_COMM_WORLD, ierr )
          delpos = delarr(1)
          delneg = delarr(2)
@@ -486,13 +486,13 @@ c       print *,'qgsav,qg_in',qgsav(idjd,1),qg(idjd,1,1)
 #endif
         enddo                   ! k loop
 #ifdef sumdd
-         call MPI_ALLREDUCE ( local_sum, global_sum, 2, MPI_COMPLEX,
+         call MPI_Allreduce ( local_sum, global_sum, 2, MPI_COMPLEX,
      &                        MPI_SUMDR, MPI_COMM_WORLD, ierr )
          delpos = real(global_sum(1))
          delneg = real(global_sum(2))
 #else
         delarr_l(1:2) = (/ delpos_l, delneg_l /)
-        call MPI_ALLREDUCE ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,
+        call MPI_Allreduce ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,
      &                       MPI_COMM_WORLD, ierr )
         delpos = delarr(1)
         delneg = delarr(2)
@@ -544,7 +544,7 @@ c       print *,'qgsav,qg_in',qgsav(idjd,1),qg(idjd,1,1)
           enddo   ! k loop
          enddo    ! iq loop
          delarr_l(1:2) = (/ delpos_l, delneg_l /)
-         call MPI_ALLREDUCE ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,
+         call MPI_Allreduce ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,
      &                        MPI_COMM_WORLD, ierr )
          delpos = delarr(1)
          delneg = delarr(2)
@@ -578,7 +578,7 @@ c       print *,'qgsav,qg_in',qgsav(idjd,1),qg(idjd,1,1)
             delneg_l = delneg_l+min(-1.e-20,tr(iq,k,ng)-trsav(iq,k,ng))
            enddo   ! ng loop
            delarr_l = (/ delpos_l, delneg_l, sumdiffb_l /)
-           call MPI_ALLREDUCE ( delarr_l, delarr, 3, MPI_REAL, MPI_SUM,
+           call MPI_Allreduce ( delarr_l, delarr, 3, MPI_REAL, MPI_SUM,
      &                          MPI_COMM_WORLD, ierr )
            delpos = delarr(1)
            delneg = delarr(2)
