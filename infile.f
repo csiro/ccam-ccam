@@ -509,6 +509,7 @@ c       nrungcm=0
       include 'newmpar.h'
       include 'darcdf.h'
       include 'extraout.h'
+      include 'kuocom.h'    ! ldr
       include 'liqwpar.h'  ! ifullw
       include 'mapproj.h'   ! du,tanl,rnml,stl1,stl2
       include 'morepbl.h'
@@ -623,7 +624,7 @@ c       find lat/lon of four corner points
       schmidtx=ahead(7)
       if(mydiag) print *,'newin  rlong0x,rlat0x,schmidtx ',
      &                    rlong0x,rlat0x,schmidtx
-      if(schmidtx.lt.0..or.schmidtx.gt.1.)then
+      if(schmidtx.le.0..or.schmidtx.gt.1.)then
 !      read it where Jack put it
        rlong0x =ahead(6)
        rlat0x  =ahead(7)
@@ -932,7 +933,7 @@ c     turn OFF fatal netcdf errors; from here on
       if(ier.ne.0)then
         call histrd4(ncid,iarch,ier,'mixr',ik,jk,kk,qg)  !   g/kg
       endif
-      if(ifullw.eq.ifull)then
+      if(ldr.ne.0)then
         call histrd4(ncid,iarch,ier,'qfg',ik,jk,kk,qfg(1:ifullw,:))       !  kg/kg
         call histrd4(ncid,iarch,ier,'qlg',ik,jk,kk,qlg(1:ifullw,:))       !  kg/kg
         if(ier.ne.0)then
@@ -940,7 +941,7 @@ c     turn OFF fatal netcdf errors; from here on
           qfg=0. 
           qlg=0. 
         endif
-      endif     ! (ifullw.eq.ifull)
+      endif     ! (ldr.ne.0)
 
       if ( myid == 0 ) print *,'in newin nested = ',nested
       if(nested.eq.0)then   !  following only at start of run #############
@@ -1099,7 +1100,7 @@ c***************************************************************************
       implicit none
       include 'newmpar.h'
       include 'parm.h'
-      include 'netcdf.h'
+      include 'netcdf.inc'
       include 'mpif.h'
       integer idnc, iarch, ier, ik, jk
       integer istrt,iend,jstrt,jend,kstrt,kend,numi,numj,numk
