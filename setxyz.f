@@ -28,6 +28,7 @@ c    .    ,dum2(12*il*jl -4*(iquad)*(iquad) )
                        ! diagnostic prints
 !     These can no longer be shared because they use true global ifull.
       real rlong4(ifull,4),rlat4(ifull,4)
+      common /workglob/ rlong4, rlat4 ! Shared with onthefly.f
       real em4(iquad,iquad)
      .    ,ax4(iquad,iquad),ay4(iquad,iquad),az4(iquad,iquad)
      .    ,axx(ifull),ayy(ifull),azz(ifull)
@@ -303,32 +304,21 @@ c     print *,'less b  ',less
 !----------------------------------------------------------------------------
 c     calculate grid information using quadruple resolution grid
       if(npanels.eq.5)then
-       call jimcc(em4,ax4,ay4,az4,myid)
+        call jimcc(em4,ax4,ay4,az4,myid)
 	if(ktau.eq.0.and.myid==0)then
-	 print *,'ntang = ',ntang
-        print *,'xx4 first & last ',xx4(1,1),xx4(iquad,iquad)
-        print *,'xx4 (5,5),(7,7),(9,9) ',xx4(5,5),xx4(7,7),xx4(9,9)
-        print *,'yy4 first & last ',yy4(1,1),yy4(iquad,iquad)
-        print *,'yy4 (5,5),(7,7),(9,9) ',yy4(5,5),yy4(7,7),yy4(9,9)
-        print *,'xx4, yy4 central',xx4(2*il+1,2*il+1),yy4(2*il+1,2*il+1)
+          print *,'ntang = ',ntang
+          print *,'xx4 first & last ',xx4(1,1),xx4(iquad,iquad)
+          print *,'xx4 (5,5),(7,7),(9,9) ',xx4(5,5),xx4(7,7),xx4(9,9)
+          print *,'yy4 first & last ',yy4(1,1),yy4(iquad,iquad)
+          print *,'yy4 (5,5),(7,7),(9,9) ',yy4(5,5),yy4(7,7),yy4(9,9)
+          print *,'xx4, yy4 central',xx4(2*il+1,2*il+1),
+     &                               yy4(2*il+1,2*il+1)
 	endif  ! (ktau.eq.0)
 
 !     rotpole(1,) is x-axis of rotated coords in terms of orig Cartesian
 !     rotpole(2,) is y-axis of rotated coords in terms of orig Cartesian
 !     rotpole(3,) is z-axis of rotated coords in terms of orig Cartesian
-      coslong=cos(rlong0*pi/180.)
-      sinlong=sin(rlong0*pi/180.)
-      coslat=cos(rlat0*pi/180.)
-      sinlat=sin(rlat0*pi/180.)
-      rotpole(1,1)=coslong*sinlat
-      rotpole(1,2)=-sinlong
-      rotpole(1,3)=coslong*coslat
-      rotpole(2,1)=sinlong*sinlat
-      rotpole(2,2)=coslong
-      rotpole(2,3)=sinlong*coslat
-      rotpole(3,1)=-coslat
-      rotpole(3,2)=0.
-      rotpole(3,3)=sinlat
+        rotpole = calc_rotpole(rlong0,rlat0)
 
 c     if(nset.eq.1)then
 !       following for x4,y4,z4
