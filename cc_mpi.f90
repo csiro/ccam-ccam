@@ -24,8 +24,8 @@ module cc_mpi
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
              indp, indg, deptsync, intssync, start_log, end_log, check_dims, &
              log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg, &
-             ccglobal_sum
-   private :: indv_mpi, ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
+             ccglobal_sum, indv_mpi, indglobal
+   private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
               ccmpi_gather2, ccmpi_gather3, checksize, get_dims, get_dims_gx,&
               ccglobal_posneg2, ccglobal_posneg3, ccglobal_sum2, ccglobal_sum3
    interface ccmpi_gather
@@ -112,6 +112,7 @@ module cc_mpi
    integer, public, save :: physloadbal_begin, physloadbal_end
    integer, public, save :: phys_begin, phys_end
    integer, public, save :: outfile_begin, outfile_end
+   integer, public, save :: indata_begin, indata_end
    integer, public, save :: model_begin, model_end
    integer, public, save :: maincalc_begin, maincalc_end
    integer, public, save :: gather_begin, gather_end
@@ -121,7 +122,7 @@ module cc_mpi
    integer, public, save :: mpiwait_begin, mpiwait_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents=24
+   integer, parameter :: nevents=25
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -492,7 +493,7 @@ contains
 !cdir nodep
                   do i=1,ipan
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
-                     iqg = ind(i+ipoff,j+jpoff,n-npoff) ! True global 1D index
+                     iqg = indglobal(i+ipoff,j+jpoff,n-npoff) ! True global 1D index
                      iq = indp(i,j,n)
                      ag(iqg) = abuf(iq)
                   end do
@@ -548,7 +549,7 @@ contains
             do n=1,npan
                do j=1,jpan
                   do i=1,ipan
-                     iqg = ind(i+ipoff,j+jpoff,n-npoff) ! True global 1D index
+                     iqg = indglobal(i+ipoff,j+jpoff,n-npoff) ! True global 1D index
                      iq = indp(i,j,n)
                      ag(iqg,:) = abuf(iq,:)
                   end do
@@ -1638,7 +1639,6 @@ contains
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer :: send_len, recv_len, kx
 
-
       call start_log(bounds_begin)
 
       double = .false.
@@ -2151,20 +2151,20 @@ contains
       i = i - ioff
    end subroutine indv_mpi
 
-   function ind(i,j,n) result(iq)
+   function indglobal(i,j,n) result(iq)
       integer, intent(in) :: i, j, n
       integer :: iq
 
-      ! Calculate a global index from the processors indices
-      ! n in range 1..npan
+      ! Calculate a 1D global index from the global indices
+      ! n in range 0:npanels
       iq = i + (j-1)*il_g + n*il_g*il_g
-   end function ind
+   end function indglobal
 
    function indg(i,j,n) result(iq)
       integer, intent(in) :: i, j, n
       integer :: iq
 
-      ! Calculate a global index from the processors indices
+      ! Calculate a 1D global index from the local processors indices
       ! n in range 1..npan
       iq = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g*il_g
    end function indg
@@ -2173,7 +2173,7 @@ contains
       integer, intent(in) :: i, j, n
       integer :: iq
 
-      ! Calculate a local index from the processors indices
+      ! Calculate a 1D local index from the local processors indices
       ! Note that face number runs from 1 here.
       iq = i + (j-1)*ipan + (n-1)*ipan*jpan
    end function indp
@@ -2347,7 +2347,7 @@ contains
          do n=0,npanels
             do j=1,il_g
                do i=1,il_g
-                  qproc(ind(i,j,n)) = fproc(i,j,n)
+                  qproc(indglobal(i,j,n)) = fproc(i,j,n)
                end do
             end do
          end do
@@ -2506,6 +2506,9 @@ contains
       outfile_begin = MPE_Log_get_event_number()
       outfile_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(outfile_begin, outfile_end, "Outfile", "Yellow")
+      indata_begin = MPE_Log_get_event_number()
+      indata_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(indata_begin, indata_end, "Indata", "Yellow")
 #endif
 #ifdef vampir
       ! Start at 1000 to avoid clashes with MPI calls
@@ -2560,6 +2563,9 @@ contains
       outfile_begin = 1017
       outfile_end =  outfile_begin
       call vtsymdef(outfile_begin, "Outfile", "Outfile", ierr)
+      indata_begin = 1018
+      indata_end =  indata_begin
+      call vtsymdef(indata_begin, "Indata", "Indata", ierr)
 #endif
 #ifdef simple_timer
 
@@ -2658,6 +2664,10 @@ contains
       mpiwait_begin = 24
       mpiwait_end = mpiwait_begin
       event_name(mpiwait_begin) = "MPI_Wait"
+
+      indata_begin = 25
+      indata_end =  indata_begin
+      event_name(indata_begin) = "Indata"
 
 #endif
    end subroutine log_setup
