@@ -2,6 +2,7 @@
      .     qgscrn,tscrn,uscrn,u10,scrrel,                           ! arrays
      .     bprm,cms,chs,fmroot,nalpha)
       use cc_mpi, only : mydiag
+      use diag_m
 !     has fixer at bottom to ensure tscrn and qgscrn bounded (& non-neg)
       parameter (ntest=0)   ! ntest= 0 for diags off; ntest= 1 for diags on
 c**************** needed sopt for SX5 compiler if ntest=1 (19/3/04)      
@@ -61,7 +62,9 @@ c     chn3=(vkar/log(z3onzt))**2
         call maxmin(qlg,'ql',ktau,1.e3,kl)
         call maxmin(t,' t',ktau,1.,kl)
         call maxmin(wb,'wb',ktau,1.,ms)
-        call maxmin(tggsn,'tgg',ktau,1.,ms+3)
+!        call maxmin(tggsn,'tgg',ktau,1.,ms+3)
+        call maxmin(tggsn,'tggsn',ktau,1.,3)
+        call maxmin(tgg,'tgg',ktau,1.,ms)
         call maxmin(tss,'ts',ktau,1.,1)
         call maxmin(precip,'pr',ktau,1.,1)
         call maxmin(eg,'eg',ktau,1.,1)
