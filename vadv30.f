@@ -38,7 +38,7 @@ c     does t, u,v then qg, [q1, q2,]
       equivalence (dersh,gwrk),(sdotder,wrk1)
       data sddk/kl2*0./
       tfact=1./nvadh   ! simpler alternative
-      if(ktau.eq.1)then
+      if(ktau.eq.1.and.mydiag)then
         print *,'in vadv30 nvdep,nvint: ',nvdep,nvint
       endif
 
@@ -377,7 +377,7 @@ c                          ! 2 for zero gradient at top & bottom full-levels
       dimension kdel(ifull,kl)
       common/work3/tgrad(ifull,kl),toutt(ifull,kl),dum(3*ijk)
 c     st() is the sigma displacement array
-      if(ktau.eq.1)then
+      if(ktau.eq.1.and.mydiag)then
         print *,'in vadvbess with ntopp = ',ntopp
       endif
 
@@ -423,7 +423,7 @@ c     st() is the sigma displacement array
         tout=toutt
       endif
 
-      if(diag)then
+      if(diag.and.mydiag)then
         print *,'tout  ',(tout (idjd,k),k=1,kl)
       endif
       return
