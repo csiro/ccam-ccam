@@ -7,6 +7,7 @@ c     called from globpe (now not tendencies),
 c     called for -ve nhor
 c     for +ve nhor see hordifg 
 c     It has -ve nhorps option:
+c        nhorps=0  does everything
 c        nhorps=-1 does only T & qg horiz diff.
 c        nhorps=-2 does only u &  v horiz diff.
 c        nhorps=-3 does only qg     horiz diff.
@@ -23,7 +24,6 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       include 'parm.h'
       include 'sigs.h'
       include 'vecsuv.h'   ! vecsuv info
-      include 'xarrs.h'
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
