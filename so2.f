@@ -279,7 +279,7 @@ c     .            iocean/
       do j=1,jl
         do i=1,il
           iq=i+(j-1)*il
-          psong     = ps(iq)/g
+          psong     = ps(iq)/grav
 
                                      
 * ---- define dry deposition values
