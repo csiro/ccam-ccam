@@ -62,7 +62,7 @@ c     watch out in retopo for work/zss
       real zss, psav, tsss, dum0, dumzs, aa, bb, dum2
       common/work2/zss(ifull),psav(ifull),tsss(ifull),dum0(ifull),
      &  dumzs(ifull,3),aa(ifull),bb(ifull),dum2(ifull,9)
-      real tbarr(kl),qgin(kl)
+      real tbarr(kl),qgin(kl),zbub(kl)
       character co2in*80,radonin*80,surfin*80,header*80,qgfile*20
 
 !     for the held-suarez test
@@ -182,6 +182,19 @@ c     note that kdate, ktime will be overridden by infile values for io_in<4
          else
             call ccmpi_distribute(dumzs(:,2))
          end if
+         if(nspecial.eq.2)then  ! to flood Madagascar, or similar 
+          do iq=1,ifull
+           if(rlatt(iq)*180./pi.gt.-28.and.rlatt(iq)*180./pi.lt.-11.and.
+     .       rlongg(iq)*180./pi.gt.42.and.rlongg(iq)*180./pi.lt.51.)then
+             if(zs(iq).gt.0.)then   
+	        print *,'zeroing iq,zs ',iq,zs(iq)
+	        zs(iq)=-.6   ! usual sea points come in as -1.  
+	        dumzs(iq,2)=0.
+             endif  ! (zs(iq).gt.0.)
+           endif    ! (rlatt(iq)*180./pi  ....)
+          enddo
+         endif       ! (nspecial.eq.2)
+
          do iq=1,ifull
             if(dumzs(iq,2).ge.0.5)then
                land(iq)=.true. 
@@ -215,6 +228,7 @@ c     note that kdate, ktime will be overridden by infile values for io_in<4
       if(nhstest.lt.0)then  ! aquaplanet test -22   from June 2003
         do iq=1,ifull
          zs(iq)=0.
+         land(iq)=.false.
         enddo   ! iq loop
       endif  !  (nhstest.lt.0)
 
@@ -274,16 +288,20 @@ c     note that kdate, ktime will be overridden by infile values for io_in<4
          end if
 
          if (mydiag) print *,'t into indata ',t(idjd,:)
-         if(kk.lt.kl)then
-            if (mydiag) print *,
+!         if(kk.lt.kl)then
+         if(abs(sig(2)-sigin(2)).gt.0.0001)then   ! 11/03
+            if (mydiag) then
+               print *,
      &            '** interpolating multilevel data vertically to new'//
      &            ' sigma levels'
+               print*,'calling vertint with kk,sigin ',kk,sigin(1:kk)
+            end if
             call vertint(t, 1)
             if ( mydiag ) print *,'t after vertint ',t(idjd,:)
             call vertint(qg,2)
             call vertint(u, 3)
             call vertint(v, 4)
-         endif
+         endif  ! (abs(sig(2)-sigin(2)).gt..0001)
 
          if ( mydiag ) then
             print *,'newtop, zsold, zs,tss_in,land '
@@ -367,6 +385,17 @@ c     ratha and rathb are used to interpolate full level values to half levels
         enddo
         bet(1)=rdry*(1.-sig(1))/sig(1)
       endif
+      if(lapsbot.eq.3)then   ! possibly suits nh  4/2/04
+        betm(:)=0.
+        do k=2,kl
+         bet(k)=r*log(sig(k-1)/sig(k))
+        enddo
+        bet(1)=-r*log(sig(1))
+      endif  ! (lapsbot.eq.3)
+      if(myid==0)then
+         print *,'bet ',bet
+         print *,'betm ',betm
+      end if
 
       do iq=1,ifull
        ps(iq)=1.e5*exp(psl(iq))
@@ -530,6 +559,65 @@ c             using components of gaussian grid u and v with theta
          enddo      ! iq loop
       endif  ! io_in.eq.11
 
+      if(io_in.eq.27)then
+c       cold bubble test 
+c       constants: 
+        Tbubb=300. ! potential temperature
+	 tss(:)=Tbubb
+        do k=1,kl
+c         Height of sigma-levels at t=0
+          zbub(k)=(cp*Tbubb/g)*(1.-sig(k)**(r/cp))  !Hydrostatic lapse rate
+!         phi(k)=g*zbub(k)  !geopotential
+	 enddo
+c       u and v on the cc grid,
+        u(:,:)=0.
+        v(:,:)=0.
+        ps(:) = 1.e5        !initial surface pressure
+        psl(:) = .01        !initial lnps
+        zs(:)=0.            !zero topography 
+        qg(:,:)=1.e-6       !Moisture? Dry atmosphere for bubble  
+        f(:)=0.
+        fu(:)=0.
+        fv(:)=0.
+        do k=1,kl
+C        Height of sigma-levels at t=0
+         t(:,k)=Tbubb-zbub(k)*g/cp  !environmental temperature
+	  if(sig(k).lt..4)t(:,k)=t(:,k-1)
+        enddo
+c       Inserting the bubble
+c       radius of bubble in the horizontal:
+        xt=4000.
+        yt=4000.
+        zt=2000.
+        ic=il_g/2    ! Indices on the global grid
+        jc=3*il_g/2
+        emcent=em(3*il_g*il_g/2)
+	if(myid==0) print *,'emcent, ds/emcent ',emcent,ds/emcent
+        xc=ic*ds/emcent
+        yc=jc*ds/emcent
+        zc=3000. !center in the vertical
+        do n=1,npan
+          do j=1,jpan
+            do i=1,ipan
+              iq=indp(i,j,n)
+              iqg=indg(i,j,n)         ! Global index
+              jg = 1 + (iqg-1)/il_g   ! Global indices
+              ig = iqg - (jg-1)*il_g
+              xbub=ig*ds/emcent  !gridpoint horizontal distance
+              ybub=jg*ds/emcent  !gridpoint horizontal distance
+              do k=1,kl
+                dist=sqrt(((xbub-xc)/xt)**2+((ybub-yc)/yt)**2+
+     &                   ((zbub(k)-zc)/zt)**2)
+                if(dist.le.1)then
+                  t(iq,k)=t(iq,k)-15.*((cos(dist*pi/2.))**2)
+                endif
+              enddo
+            enddo
+          enddo
+       enddo
+        call printa('t   ',t(1,nlv),0,nlv,ia,ib,ja,jb,200.,1.)
+      endif  ! io_in.eq.27, cold bubble test
+
       if ( myid == 0 ) print *,'ps test ',(ps(ii),ii=1,il)
 
 c     section for setting up davies, defining ps from psl
@@ -567,7 +655,7 @@ c     section for setting up davies, defining ps from psl
 !!!        if(nbd.eq.-3)then   ! special form with no nudging on panel 1
 !!!          do npan=0,5
 !!!           do j=il/2+1,il
-!!!!           linearly between 0 (at il/2) and 1/48 (at il+1)
+!!!!           linearly between 0 (at il/2) and 1/abs(nud_hrs) (at il+1)
 !!!            rhs=(j-il/2)/((il/2+1.)*abs(nud_hrs))
 !!!            do i=1,il
 !!!             if(npan.eq.0)davt(ind(i,il+1-j,npan))=rhs
@@ -583,18 +671,25 @@ c     section for setting up davies, defining ps from psl
 !!!           enddo  ! i loop
 !!!          enddo   ! j loop
 !!!        endif  !  (nbd.eq.-3) 
-c        do jj=1,jl,il/4
-c	  j=jj
-c         print 97,j,davt(1,j),davt(2,j),davt(3,j),davt(il/2,j),
-c     &              davt(il-2,j),davt(il-1,j),davt(il,j)
-c	  j=jj+1
-c         print 97,j,davt(1,j),davt(2,j),davt(3,j),davt(il/2,j),
-c     &              davt(il-2,j),davt(il-1,j),davt(il,j)
-c	  j=jj+2
-c         print 97,j,davt(1,j),davt(2,j),davt(3,j),davt(il/2,j),
-c     &              davt(il-2,j),davt(il-1,j),davt(il,j)
-c97       format('j,davt',i3,7f9.5)
-c        enddo
+!!!        if(nbd.eq.-4)then   ! another special form with no nudging on panel 1
+!!!          do npan=0,5
+!!!           do j=il/2+1,il
+!!!!           linearly between 0 (at j=.5) and 1/abs(nud_hrs) (at j=il+.5)
+!!!            rhs=(j-.5)/(il*abs(nud_hrs))
+!!!            do i=1,il
+!!!             if(npan.eq.0)davt(ind(i,il+1-j,npan))=rhs
+!!!             if(npan.eq.2)davt(ind(j,i,npan))=rhs
+!!!             if(npan.eq.3)davt(ind(j,i,npan))=rhs
+!!!             if(npan.eq.5)davt(ind(i,il+1-j,npan))=rhs
+!!!            enddo  ! i loop
+!!!           enddo   ! j loop
+!!!          enddo    ! npan loop
+!!!          do j=1,il  ! full nudging on furthest panel
+!!!           do i=1,il
+!!!            davt(ind(j,i,4))=1./abs(nud_hrs)  !  e.g. 1/48
+!!!           enddo  ! i loop
+!!!          enddo   ! j loop
+!!!        endif  !  (nbd.eq.-3) 
       endif  ! (nbd.ne.0.and.nud_hrs.ne.0)
 
       if(io_in.ge.4)then   ! i.e. for special test runs without infile
@@ -682,10 +777,24 @@ c     read data for biospheric scheme if required
      &                  fracwet*sfc(isoilm(iq)) 
 c          wb(iq,ms)= .5*swilt(isoilm(iq))+ .5*sfc(isoilm(iq)) ! till july 01
            if(abs(rlatt(iq)*180./pi).lt.18.)wb(iq,ms)=sfc(isoilm(iq)) ! tropics
+!          following jlm subtropics from Aug 2003 (.1/.9), (.7, .3)
+c           if(rlatt(iq)*180./pi.lt.18..and.rlatt(iq)*180./pi.gt.8.)
+c     .       wb(iq,ms)=(.4-.6*fracsum(imo))*swilt(isoilm(iq))+   ! NH
+c     .                 (.6+.6*fracsum(imo))*sfc(isoilm(iq))
+c           if(rlatt(iq)*180./pi.gt.-18..and.rlatt(iq)*180./pi.lt.-8.)
+c     .       wb(iq,ms)=(.4+.6*fracsum(imo))*swilt(isoilm(iq))+   ! SH
+c     .                 (.6-.6*fracsum(imo))*sfc(isoilm(iq))
+!          following jlm subtropics from Aug 2003 (.1/.9), (.6, .4)
+           if(rlatt(iq)*180./pi.lt.20..and.rlatt(iq)*180./pi.gt.8.)
+     .       wb(iq,ms)=(.35-.5*fracsum(imo))*swilt(isoilm(iq))+   ! NH
+     .                 (.65+.5*fracsum(imo))*sfc(isoilm(iq))
+           if(rlatt(iq)*180./pi.gt.-16..and.rlatt(iq)*180./pi.lt.-8.)
+     .       wb(iq,ms)=(.35+.5*fracsum(imo))*swilt(isoilm(iq))+   ! SH
+     .                 (.65-.5*fracsum(imo))*sfc(isoilm(iq))
            if(rlatt(iq)*180./pi.gt.-32..and.
      &        rlatt(iq)*180./pi.lt.-22..and.
      &        rlongg(iq)*180./pi.gt.117..and.rlongg(iq)*180./pi.lt.146.)
-     &        wb(iq,ms)=swilt(isoilm(iq)) ! dry interior of australia
+     &        wb(iq,ms)=swilt(isoilm(iq)) ! dry interior of Australia
          endif    !  (land(iq))
          do k=1,ms-1
           wb(iq,k)=wb(iq,ms)
@@ -721,48 +830,50 @@ c          wb(iq,ms)= .5*swilt(isoilm(iq))+ .5*sfc(isoilm(iq)) ! till july 01
         print *,
      &    'reading previously saved wb,tgg,tss (land),snowd,sice from ',
      &         surfin
-        open(unit=77,file=surfin,form='formatted',status='old')
-        read(77,'(a80)') header
+        open(unit=87,file=surfin,form='formatted',status='old')
+        read(87,'(a80)') header
         print *,'header: ',header
-        read(77,*) wb
-        read(77,*) tgg
-        read(77,*) aa           ! only use land values of tss
-        read(77,*) snowd
-        read(77,*) sicedep
-        close(77)
+        read(87,*) wb
+        read(87,*) tgg
+        read(87,*) aa           ! only use land values of tss
+        read(87,*) snowd
+        read(87,*) sicedep
+        close(87)
         if(ico2.ne.0)then
+          ico2x=max(1,ico2)
           print *,'reading previously saved co2 from ',co2in
-          open(unit=77,file=co2in,form='formatted',status='old')
-          read(77,'(a80)') header
+          open(unit=87,file=co2in,form='formatted',status='old')
+          read(87,'(a80)') header
           print *,'header: ',header
-          read(77,'(12f7.2)') ((tr(iq,k,ico2),iq=1,ilt*jlt),k=1,klt)
+          read(87,'(12f7.2)') ((tr(iq,k,ico2x),iq=1,ilt*jlt),k=1,klt)
           rmin=0.
           rmax=0.
 	   do k=1,klt
 	    do iq=1,ilt*jlt
-            rmin=min(rmin,tr(iq,k,ico2))
-            rmax=max(rmax,tr(iq,k,ico2))
+            rmin=min(rmin,tr(iq,k,ico2x))
+            rmax=max(rmax,tr(iq,k,ico2x))
            enddo
           enddo
           print *,'min,max for co2 ',rmin,rmax
-          close(77)
+          close(87)
         endif
         if(iradon.ne.0)then
+         iradonx=max(1,iradon)
           print *,'reading previously saved radon from ',radonin
-          open(unit=77,file=radonin,form='formatted',status='old')
-          read(77,'(a80)') header
+          open(unit=87,file=radonin,form='formatted',status='old')
+          read(87,'(a80)') header
           print *,'header: ',header
-          read(77,*) ((tr(iq,k,iradon),iq=1,ilt*jlt),k=1,klt)
+          read(87,*) ((tr(iq,k,iradonx),iq=1,ilt*jlt),k=1,klt)
           rmin=0.
           rmax=0.
 	   do k=1,klt
 	    do iq=1,ilt*jlt
-            rmin=min(rmin,tr(iq,k,iradon))
-            rmax=max(rmax,tr(iq,k,iradon))
+            rmin=min(rmin,tr(iq,k,iradonx))
+            rmax=max(rmax,tr(iq,k,iradonx))
            enddo
           enddo
           print *,'min,max for radon ',rmin,rmax
-          close(77)
+          close(87)
         endif
         do iq=1,ifull
          sice(iq)=.false.
@@ -771,9 +882,9 @@ c          wb(iq,ms)= .5*swilt(isoilm(iq))+ .5*sfc(isoilm(iq)) ! till july 01
         enddo   ! iq loop
 	 if(nrungcm.eq.-5)then
 	   print *,'reading special qgfile file: ',qgfile
-          open(unit=77,file=qgfile,form='unformatted',status='old')
-          read(77) qg
-          close(77)
+          open(unit=87,file=qgfile,form='unformatted',status='old')
+          read(87) qg
+          close(87)
 	 endif   ! (nrungcm.eq.-5)
       endif    !  (nrungcm.le.-3)
 
@@ -1372,7 +1483,7 @@ c                         if( tsoil .ge. tstom ) ftsoil=1.
      &        n-noff,em(iq),emu(iq),emv(iq),f(iq),fu(iq),fv(iq)
       enddo
 
-!     What to do about this????
+!     What to do about this???? Should each processor write it's own part
 
 !!!      write(22,920)
 !!! 920  format('                             land            isoilm')
@@ -1388,7 +1499,8 @@ c                         if( tsoil .ge. tstom ) ftsoil=1.
 !!!     &               land(iq),sice(iq),zs(iq)/grav,alb(iq),
 !!!     &               isoilm(iq),ivegt(iq),
 !!!     &               tss(iq),t(iq,1),tgg(iq,2),tgg(iq,ms),
-!!!     &               wb(iq,1),wb(iq,ms),ico2em(iq),radonem(iq)
+!!!     &               wb(iq,1),wb(iq,ms),
+!!!     &               ico2em(min(iq,ilt*jlt)),radonem(min(iq,ilt*jlt))
 !!! 922    format(i6,2i4,2f8.3 ,2l2,f7.1,f5.2 ,2i3 ,4f7.1 ,2f6.2, i6,f5.2)
 !!!       enddo
 !!!      enddo
@@ -1547,8 +1659,18 @@ c    &              .05,.85,.85,.55,.65,.2,.05,.5, .0, .0, 0.,         ! 21-31
      &      mismatch = .true.
        if( rdatacheck(land,zolnd,'zolnd',idatafix,fzodflt))
      &      mismatch = .true.
-       if( idatacheck(land,ivegt,'ivegt',idatafix,ivegdflt))
-     &      mismatch = .true.
+c      if( idatacheck(land,ivegt,'ivegt',idatafix,ivegdflt))
+c    .      mismatch = .true.
+       ivegmin=100
+       ivegmax=-100
+       do iq=1,ifull
+	 if(land(iq))then
+	   ivegmin=min(ivegt(iq),ivegmin)
+	   ivegmax=max(ivegt(iq),ivegmax)
+	 endif
+       enddo
+       print *,'ivegmin,ivegmax ',ivegmin,ivegmax
+       if(ivegmin.lt.1.or.ivegmax.gt.44)stop
        if( idatacheck(land,isoilm,'isoilm',idatafix,isoildflt))
      &      mismatch = .true.
        if(newsoilm.gt.0)then
@@ -1569,18 +1691,10 @@ c      if(mismatch.and.idatafix.eq.0)      ! stop in indata for veg
 c    &                      stop ' rdnsib: landmask/field mismatch'
 
 c --- rescale and patch up vegie data if necessary
-      ivegmin=44
-      ivegmax=0
-      do iq=1,ifull
-       ivegmin=min(ivegmin,ivegt(iq))
-       ivegmax=max(ivegmax,ivegt(iq))
-      enddo
-      print*, "IVEG", myid, ivegmin, ivegmax
       call MPI_Allreduce(ivegmin, ivegmin_g, 1, MPI_INTEGER, MPI_MIN, 
      &                  MPI_COMM_WORLD, ierr )
       call MPI_Allreduce(ivegmax, ivegmax_g, 1, MPI_INTEGER, MPI_MAX, 
      &                  MPI_COMM_WORLD, ierr )
-      if ( mydiag ) print *,'ivegmin,ivegmax ',ivegmin_g,ivegmax_g
       if(ivegmax_g.lt.14)then
        if ( mydiag ) print *,
      &      '**** in this run veg types increased from 1-13 to 32-44'
@@ -1630,7 +1744,7 @@ c     set sensible default for nso2lev for vertmix, in case so2 not done
       integer iso2emindex(ns), iso2lev(0:nsulfl)
       real    so2em(ns)
       character sname*34, title*100, file*(*)
-      data ludat/77/
+      data ludat/87/
 
        print*, "Error no MPI version of rdso2em yet"
        stop
@@ -2030,7 +2144,7 @@ c  8 - broadleaf shrubs with groundcover
 c  9 - broadleaf shrubs with bare soil
 c 10 - dwarf trees and shrubs with groundcover
 c 11 - bare soil
-c 12 - winter wheat and broadleaf deciduous trees 
+! 12 - agriculture or C3 grassland (newer defn)
  
 c                             soil type
 c       texture               
