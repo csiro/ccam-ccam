@@ -746,7 +746,7 @@ c                +y*(1+y)*(2-y)*c3}/2
 c     this one does bi-linear interpolation only
 c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
 c                    but for bi-linear only need 0:il+1 &  0:il+1
-      call start_log(intsbl_begin)
+      call start_log(ints_begin)
       call bounds(s)
       do k=1,kl
          do n=1,npan
@@ -832,6 +832,6 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
 
       call intssync(s)
 
-      call end_log(intsbl_end)
+      call end_log(ints_end)
       return
       end

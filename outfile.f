@@ -85,6 +85,7 @@ c     mev2 = 2 for il even (1 for il odd)
 !!!       print *,'snowout written for ktau =',ktau
 !!!      endif  ! (ktau.eq.nsnowout)
 
+      call start_log(outfile_begin)
       ndt=dt
       io_outt=io_out
       if(iout.eq.19)io_outt=io_rest  !  choice for writing restart file
@@ -308,6 +309,7 @@ c---------------------------------------------------------------------------
                call ncclos(idnc,ier)
                write(6,*) "call ncclos(idnc,ier) ",idnc,ier
             end if
+            call end_log(outfile_end)
             return              ! done with restart data
          endif                  !  (iout.eq.19)
          if ( myid==0 ) print *,'calling outcdf from outfile'
@@ -319,5 +321,6 @@ c---------------------------------------------------------------------------
          endif
       endif ! (io_outt.eq.1)
 
+      call end_log(outfile_end)
       return
       end
