@@ -89,7 +89,8 @@ c     watch out in retopo for work/zss
      &     rmax, rmin, sinlat, sinlong, sinth, snalb, sumdsig,
      &     timegb, tsoil, uzon, vmer, w,
      &     wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, distnew,
-     &     xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent, deli, delj
+     &     xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent,
+     &     deli, delj, centi, distx, rhs
 
       real, dimension(44), parameter :: vegpmin = (/
      &              .98,.85,.85,.5,.2,.1 ,.85,.5,.2,.5,                ! 1-10
@@ -115,7 +116,9 @@ c     watch out in retopo for work/zss
      &              .5, .5, .5, .5, .5, .5, .5, .5, .5, .5, .5, ! 21-31 winter
      & .5,.5, .6, .6, .6, .25, .3 , .25, .2, .25, .05, .6, .5 /)! 32-44 winter
       real, dimension(ifull_g) :: glob2d
+      real, dimension(ifull_g) :: davt_g
 
+      call start_log(indata_begin)
       bam(1)=114413.
 c     now always read eig file fri  12-18-1992
 !     All processes read this
@@ -261,7 +264,8 @@ c     note that kdate, ktime will be overridden by infile values for io_in<4
 	 if(io_in.eq.-1.or.io_in.eq.-3)then
             call onthefly(kdate,ktime,psl,zss,tss,wb,wbice,snowd,
      &                    sicedep,
-     &                    t,u,v,qg,tgg,
+     &                    t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
+     &                    qg(1:ifull,:),tgg,
      &                    tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,0)
 	 endif   ! (io_in.eq.-1.or.io_in.eq.-3)
 	 	 
@@ -601,7 +605,7 @@ c       radius of bubble in the horizontal:
         do n=1,npan
           do j=1,jpan
             do i=1,ipan
-              iq=indp(i,j,n)
+              iq=indp(i,j,n)          ! Index on this processor
               iqg=indg(i,j,n)         ! Global index
               jg = 1 + (iqg-1)/il_g   ! Global indices
               ig = iqg - (jg-1)*il_g
@@ -625,74 +629,76 @@ c       radius of bubble in the horizontal:
 c     section for setting up davies, defining ps from psl
       if(nbd.ne.0.and.nud_hrs.ne.0)then
          call davset   ! as entry in subr. davies, sets psls,qgg,tt,uu,vv
-!        Not implemented properly yet.
-!!!        do iq=1,ifull
-!!!         davt(iq)=0.
-!!!        enddo  ! iq loop
-!!!        if(nbd.gt.0)then
-!!!          do iq=1,ifull
-!!!           davt(iq)=1./abs(nud_hrs)  !  e.g. 1/48
-!!!          enddo  ! iq loop
-!!!        endif  !  (nbd.gt.0)
-!!!        if(nbd.eq.-1)then   ! linearly increasing nudging, just on panel 4
-!!!	   centi=.5*(il+1)
-!!!          do j=1,il  
-!!!           do i=1,il
-!!!	     dist=max(abs(i-centi),abs(j-centi)) ! dist from centre of panel
-!!!	     distx=dist/(.5*il)  ! between 0. and 1.
-!!!            davt(ind(j,i,4))=(1.-distx)/abs(nud_hrs)  !  e.g. 1/24
-!!!           enddo  ! i loop
-!!!          enddo   ! j loop
-!!!        endif  !  (nbd.eq.-1) 
-!!!        if(nbd.eq.-2)then   ! quadr. increasing nudging, just on panel 4
-!!!	   centi=.5*(il+1)
-!!!          do j=1,il  
-!!!           do i=1,il
-!!!	     dist=max(abs(i-centi),abs(j-centi)) ! dist from centre of panel
-!!!	     distx=dist/(.5*il)  ! between 0. and 1.
-!!!            davt(ind(j,i,4))=(1.-distx**2)/abs(nud_hrs)  !  e.g. 1/24
-!!!           enddo  ! i loop
-!!!          enddo   ! j loop
-!!!        endif  !  (nbd.eq.-2) 
-!!!        if(nbd.eq.-3)then   ! special form with no nudging on panel 1
-!!!          do npan=0,5
-!!!           do j=il/2+1,il
-!!!!           linearly between 0 (at il/2) and 1/abs(nud_hrs) (at il+1)
-!!!            rhs=(j-il/2)/((il/2+1.)*abs(nud_hrs))
-!!!            do i=1,il
-!!!             if(npan.eq.0)davt(ind(i,il+1-j,npan))=rhs
-!!!             if(npan.eq.2)davt(ind(j,i,npan))=rhs
-!!!             if(npan.eq.3)davt(ind(j,i,npan))=rhs
-!!!             if(npan.eq.5)davt(ind(i,il+1-j,npan))=rhs
-!!!            enddo  ! i loop
-!!!           enddo   ! j loop
-!!!          enddo    ! npan loop
-!!!          do j=1,il  ! full nudging on furthest panel
-!!!           do i=1,il
-!!!            davt(ind(j,i,4))=1./abs(nud_hrs)  !  e.g. 1/48
-!!!           enddo  ! i loop
-!!!          enddo   ! j loop
-!!!        endif  !  (nbd.eq.-3) 
-!!!        if(nbd.eq.-4)then   ! another special form with no nudging on panel 1
-!!!          do npan=0,5
-!!!           do j=il/2+1,il
-!!!!           linearly between 0 (at j=.5) and 1/abs(nud_hrs) (at j=il+.5)
-!!!            rhs=(j-.5)/(il*abs(nud_hrs))
-!!!            do i=1,il
-!!!             if(npan.eq.0)davt(ind(i,il+1-j,npan))=rhs
-!!!             if(npan.eq.2)davt(ind(j,i,npan))=rhs
-!!!             if(npan.eq.3)davt(ind(j,i,npan))=rhs
-!!!             if(npan.eq.5)davt(ind(i,il+1-j,npan))=rhs
-!!!            enddo  ! i loop
-!!!           enddo   ! j loop
-!!!          enddo    ! npan loop
-!!!          do j=1,il  ! full nudging on furthest panel
-!!!           do i=1,il
-!!!            davt(ind(j,i,4))=1./abs(nud_hrs)  !  e.g. 1/48
-!!!           enddo  ! i loop
-!!!          enddo   ! j loop
-!!!        endif  !  (nbd.eq.-3) 
-      endif  ! (nbd.ne.0.and.nud_hrs.ne.0)
+         if ( myid == 0 ) then
+           ! Set up the weights using global array and indexing
+           ! This needs the global function indglobal for calculating the 1D index
+           davt_g(:) = 0.
+           if(nbd.gt.0)then
+             davt_g(:) = 1./abs(nud_hrs) !  e.g. 1/48
+           endif                !  (nbd.gt.0)
+           if(nbd.eq.-1)then    ! linearly increasing nudging, just on panel 4
+             centi=.5*(il_g+1)
+             do j=1,il_g
+               do i=1,il_g
+                 dist=max(abs(i-centi),abs(j-centi)) ! dist from centre of panel
+                 distx=dist/(.5*il_g) ! between 0. and 1.
+                 davt_g(indglobal(j,i,4))=(1.-distx)/abs(nud_hrs) !  e.g. 1/24
+               enddo            ! i loop
+             enddo              ! j loop
+           endif                !  (nbd.eq.-1) 
+           if(nbd.eq.-2)then    ! quadr. increasing nudging, just on panel 4
+             centi=.5*(il_g+1)
+             do j=1,il_g  
+               do i=1,il_g
+                 dist=max(abs(i-centi),abs(j-centi)) ! dist from centre of panel
+                 distx=dist/(.5*il_g) ! between 0. and 1.
+                 davt_g(indglobal(j,i,4))=(1.-distx**2)/abs(nud_hrs) !  e.g. 1/24
+               enddo            ! i loop
+             enddo              ! j loop
+           endif                !  (nbd.eq.-2) 
+           if(nbd.eq.-3)then    ! special form with no nudging on panel 1
+             do n=0,5
+               do j=il_g/2+1,il_g
+!                linearly between 0 (at il/2) and 1/abs(nud_hrs) (at il+1)
+                 rhs=(j-il_g/2)/((il_g/2+1.)*abs(nud_hrs))
+                 do i=1,il_g
+                   if(n.eq.0)davt_g(indglobal(i,il_g+1-j,n))=rhs
+                   if(n.eq.2)davt_g(indglobal(j,i,n))=rhs
+                   if(n.eq.3)davt_g(indglobal(j,i,n))=rhs
+                   if(n.eq.5)davt_g(indglobal(i,il_g+1-j,n))=rhs
+                 enddo          ! i loop
+               enddo            ! j loop
+             enddo              ! n loop
+             do j=1,il_g          ! full nudging on furthest panel
+               do i=1,il_g
+                 davt_g(indglobal(j,i,4))=1./abs(nud_hrs) !  e.g. 1/48
+               enddo            ! i loop
+             enddo              ! j loop
+           endif                !  (nbd.eq.-3) 
+           if(nbd.eq.-4)then    ! another special form with no nudging on panel 1
+             do n=0,5
+               do j=il_g/2+1,il_g
+!                linearly between 0 (at j=.5) and 1/abs(nud_hrs) (at j=il+.5)
+                 rhs=(j-.5)/(il_g*abs(nud_hrs))
+                 do i=1,il_g
+                   if(n.eq.0)davt_g(indglobal(i,il_g+1-j,n))=rhs
+                   if(n.eq.2)davt_g(indglobal(j,i,n))=rhs
+                   if(n.eq.3)davt_g(indglobal(j,i,n))=rhs
+                   if(n.eq.5)davt_g(indglobal(i,il_g+1-j,n))=rhs
+                 enddo          ! i loop
+               enddo            ! j loop
+             enddo              ! n loop
+             do j=1,il_g        ! full nudging on furthest panel
+               do i=1,il_g
+                 davt_g(indglobal(j,i,4))=1./abs(nud_hrs) !  e.g. 1/48
+               enddo            ! i loop
+             enddo              ! j loop
+           endif                !  (nbd.eq.-3) 
+           call ccmpi_distribute(davt,davt_g)
+         else
+           call ccmpi_distribute(davt)
+         end if ! myid==0
+      endif                    ! (nbd.ne.0.and.nud_hrs.ne.0)
 
       if(io_in.ge.4)then   ! i.e. for special test runs without infile
 c       set default tgg etc to level 2 temperatures, if not read in above
@@ -1634,6 +1640,7 @@ c         endif  ! (schmidt.gt. .29.and.schmidt.lt. .31)
       do iq=1,ifull
        albsav(iq)=alb(iq)
       enddo   ! iq loop
+      call end_log(indata_end)
       return
       end
 
