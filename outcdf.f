@@ -105,7 +105,7 @@ c Create dimensions, lon, lat
            ydim = ncddef(idnc, 'latitude', jl_g, ier)
         end if
         zdim= ncddef(idnc, 'lev', kl, ier)
-        msdim= ncddef(idnc, 'ms', ms, ier)
+        msdim= ncddef(idnc, 'zsoil', ms, ier)
         tdim= ncddef(idnc, 'time',ncunlim,ier)
         print *,"xdim,ydim,zdim,tdim"
         print *,xdim,ydim,zdim,tdim
@@ -126,8 +126,9 @@ c define coords.
         call ncaptc(idnc,idlev,'long_name',NCCHAR,11,'sigma_level',ier)
         print *,'idlev=',idlev
 
-        idms = ncvdef(idnc,'ms',NCFLOAT,1,msdim,ier)
+        idms = ncvdef(idnc,'zsoil',NCFLOAT,1,msdim,ier)
         call ncaptc(idnc,idms,'point_spacing',NCCHAR,6,'uneven',ier)
+        call ncaptc(idnc,idms,'units',NCCHAR,1,'m',ier)
         print *,'idms=',idms
 
         print *,'tdim,idnc=',tdim,idnc
@@ -343,6 +344,7 @@ c     this routine creates attributes and writes output
       character*3 mon(12)
       real cfrac, dum3f
       common/nonlsav/cfrac(ifull,kl),dum3f(ifull,kl,2) ! globpe,leoncld,radriv90
+      real zsoil(ms)
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
 
@@ -727,8 +729,13 @@ c       Leave define mode
         idv = ncvid(idnc,'lev',ier)
         call ncvpt(idnc,idv,1,kl,sig,ier)
 
-        call ncvpt(idnc,idms,1,ms,zse,ier)
-        write(6,*)"idms,ms,zse,ier=",idms,ms,zse,ier
+        zsoil(1)=.5*zse(1)
+        zsoil(2)=zse(1)+zse(2)*.5
+        zsoil(3)=zse(1)+zse(2)+zse(3)*.5
+        zsoil(4)=zse(1)+zse(2)+zse(3)+zse(4)*.5
+        zsoil(5)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)*.5
+        zsoil(6)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6)*.5
+        call ncvpt(idnc,idms,1,ms,zsoil,ier)
 
         idv = ncvid(idnc,'ds',ier)
         call ncvpt1(idnc,idv,1,ds,ier)
