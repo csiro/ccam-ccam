@@ -107,7 +107,7 @@
 #ifdef __INTEL_COMPILER
       integer ieee
 #endif
-      character comm*60,comment*60,rundate*10,header*47,text*2
+      character comm*60,comment*60,rundate*8,header*47,text*2
       character(len=10) :: timeval
       integer, dimension(8) :: tvals1, tvals2
 
