@@ -2,7 +2,7 @@
 !     usual scheme
       use cc_mpi
       implicit none
-      integer, parameter :: nhorjlm=1 ! 1 for jlm 3D deformation rather than Smagorinsky
+!      integer, parameter :: nhorjlm=1 ! 1 for jlm 3D deformation rather than Smagorinsky
 c     called from globpe (now not tendencies),
 c     called for -ve nhor
 c     for +ve nhor see hordifg 
