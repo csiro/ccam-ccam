@@ -715,7 +715,9 @@ c---temperature loop---
       do 305 i=1,28 
          x(i)=h1p4387*anu/xtemv(i)
          x1(i)=exp(x(i))
-         sc(i)=c1/((x1(i)-one)+h1m20) 
+!         Optimiser may rearrange parentheses and give divide by zero
+!         sc(i)=c1/((x1(i)-one)+h1m20) 
+         sc(i)=c1/max(x1(i)-one, h1m20) 
          dsc(i)=sc(i)*sc(i)*x(i)*x1(i)/(xtemv(i)*c1)
 305      continue 
       if (ia.eq.2) then 
