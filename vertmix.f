@@ -505,7 +505,7 @@ c     now do moisture
 c     could add extra sfce moisture flux term for crank-nicholson
       call trim(at,ct,rhs,0)    ! for qg
       qg(1:ifull,:)=rhs(1:ifull,:)
-      if(diag,and.mydiag)then
+      if(diag.and.mydiag)then
         print *,'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
         write (6,"('qg ',12f7.3/(8x,12f7.3))") 
      .             (1000.*qg(idjd,k),k=1,kl)
