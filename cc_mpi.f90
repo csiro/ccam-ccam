@@ -22,7 +22,8 @@ module cc_mpi
    integer, save, private :: nreq
 
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
-             indp, indg, deptsync, intssync, start_log, end_log, check_dims
+             indp, indg, deptsync, intssync, start_log, end_log, check_dims, &
+             log_on, log_off, log_setup
    private :: indv_mpi, ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
               ccmpi_gather2, ccmpi_gather3, checksize, get_dims, get_dims_gx
    interface ccmpi_gather
@@ -83,7 +84,6 @@ module cc_mpi
 
    logical, public, save :: mydiag ! True if diagnostic point id, jd is in my region
 
-#if defined(vampir)  || defined(mpilog)
    integer, public, save :: bounds_begin, bounds_end
    integer, public, save :: boundsa_begin, boundsa_end
    integer, public, save :: boundsb_begin, boundsb_end
@@ -99,7 +99,6 @@ module cc_mpi
    integer, public, save :: intssync_begin, intssync_end
    integer, public, save :: stag_begin, stag_end
    integer, public, save :: toij_begin, toij_end
-#endif
 
 #ifdef mpilog
    public :: mpe_log_event, mpe_log_get_event_number, mpe_describe_state
@@ -220,7 +219,7 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       real, dimension(ifull), intent(out) :: af
       real, dimension(ifull_g), intent(in), optional :: a1
-      integer :: i, j, n, iq, iqg, n1, n2, iq1, iq2, itag=0, iproc, ierr, count
+      integer :: i, j, n, iq, iqg, itag=0, iproc, ierr, count
       integer, dimension(MPI_STATUS_SIZE) :: status
 !     Note ipfull = ipan*jpan*npan
       real, dimension(ipan*jpan*npan) :: sbuf
@@ -280,10 +279,10 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       integer, dimension(ifull), intent(out) :: af
       integer, dimension(ifull_g), intent(in), optional :: a1
-      integer :: i, j, n, iq, iqg, n1, n2, iq1, iq2, itag=0, iproc, ierr, count
+      integer :: i, j, n, iq, iqg, itag=0, iproc, ierr, count
       integer, dimension(MPI_STATUS_SIZE) :: status
 !     Note ipfull = ipan*jpan*npan
-      real, dimension(ipan*jpan*npan) :: sbuf
+      integer, dimension(ipan*jpan*npan) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
@@ -340,7 +339,7 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       real, dimension(ifull,kl), intent(out) :: af
       real, dimension(ifull_g,kl), intent(in), optional :: a1
-      integer :: i, j, n, iq, iqg, n1, n2, iq1, iq2, itag=0, iproc, ierr, count
+      integer :: i, j, n, iq, iqg, itag=0, iproc, ierr, count
       integer, dimension(MPI_STATUS_SIZE) :: status
 !     Note ipfull = ipan*jpan*npan
       real, dimension(ipan*jpan*npan,kl) :: sbuf
@@ -374,12 +373,12 @@ contains
                do j=1,jpan
                   do i=1,ipan
                      iq = i+ipoff + (j+jpoff-1)*il + (n-npoff)*il*il
-                     slen = slen+kl
+                     slen = slen+1
                      sbuf(slen,:) = a1(iq,:)
                   end do
                end do
             end do
-            call MPI_SSend( sbuf, slen, MPI_REAL, iproc, itag, &
+            call MPI_SSend( sbuf, slen*kl, MPI_REAL, iproc, itag, &
                             MPI_COMM_WORLD, ierr )
          end do
       else ! myid /= 0
@@ -505,12 +504,10 @@ contains
 
       include 'indices.h'
       include 'indices_g.h'
-      integer :: n, ir, nr, i, j, iq, iqx, count
-      logical :: double
-      integer :: bstart, ierr, itag = 0, iproc, rproc, sproc
+      integer :: n, nr, i, j, iq, iqx, count
+      integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      real :: tmp
-      integer :: i2, j2, n2, iqg
+      integer :: iqg
       integer :: iext, iql, iloc, jloc, nloc
 
       ! Just set values that point to values within own processors region.
@@ -1442,12 +1439,10 @@ contains
       ! Copy the boundary regions
       real, dimension(ifull+iextra), intent(inout) :: t
       integer, intent(in), optional :: nrows
-      integer :: n, ir, i, j, iq, iqx, count
+      integer :: n, i, j, iq
       logical :: double
-      integer :: bstart, ierr, itag = 0, iproc, rproc, sproc
+      integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      real :: tmp
-      integer :: i2, j2, n2
       integer :: send_len, recv_len
 
       call start_log(bounds_begin)
@@ -1533,12 +1528,10 @@ contains
       ! argument (for helmsol).
       real, dimension(ifull+iextra,kl), intent(inout) :: t
       integer, intent(in), optional :: nrows, klim
-      integer :: n, ir, i, j, iq, iqx, count
+      integer :: n, i, j, iq
       logical :: double
-      integer :: bstart, ierr, itag = 0, iproc, rproc, sproc
+      integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      real :: tmp
-      integer :: i2, j2, n2
       integer :: send_len, recv_len, kx
 
 
@@ -1631,12 +1624,11 @@ contains
       ! direction changes.
       real, dimension(ifull+iextra), intent(inout) :: u, v
       integer, intent(in), optional :: nrows
-      integer :: n, ir, i, j, iq, iqx, count
+      integer :: n, i, j, iq
       logical :: double
-      integer :: bstart, ierr, itag = 0, iproc, rproc, sproc
+      integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       real :: tmp
-      integer :: i2, j2, n2
       integer :: send_len, recv_len
 
       call start_log(boundsuv_begin)
@@ -1749,13 +1741,11 @@ contains
       ! direction changes.
       real, dimension(ifull+iextra,kl), intent(inout) :: u, v
       integer, intent(in), optional :: nrows
-      integer :: n, ir, i, j, iq, iqx, count
+      integer :: n, i, j, iq
       logical :: double
-      integer :: bstart, ierr, itag = 0, iproc, rproc, sproc
-      integer, dimension(0:nproc) :: buflen
+      integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       real, dimension(kl) :: tmp
-      integer :: i2, j2, n2
       integer :: send_len, recv_len
 
       call start_log(boundsuv_begin)
@@ -1879,9 +1869,8 @@ contains
       integer :: nreq, itag = 99, ierr, rproc, sproc
       integer, dimension(2*nproc) :: ireq
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
-      real, dimension(0:nproc) :: dslen_r, drlen_r
       integer :: count, ip, jp
-      integer :: iq, iqk, k, idel, jdel, nf
+      integer :: iq, k, idel, jdel, nf
 
       call start_log(deptsync_begin)
       dslen = 0
@@ -1958,7 +1947,6 @@ contains
       real, dimension(maxsize,0:nproc) :: buf
       integer :: nreq, itag = 0, ierr, rproc, sproc
       integer :: iq
-      integer, dimension(0:nproc) :: kount
       integer, dimension(2*nproc) :: ireq
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
 
@@ -2269,7 +2257,7 @@ contains
       integer, intent(in) :: event
       integer :: ierr
 #ifdef mpilog
-      ierr = MPE_log_event(bounds_begin,0,"")
+      ierr = MPE_log_event(event,0,"")
 #endif
 #ifdef vampir
       call vtbegin(event, ierr)
@@ -2280,12 +2268,120 @@ contains
       integer, intent(in) :: event
       integer :: ierr
 #ifdef mpilog
-      ierr = MPE_log_event(bounds_begin,0,"")
+      ierr = MPE_log_event(event,0,"")
 #endif
 #ifdef vampir
       call vtend(event, ierr)
 #endif
    end subroutine end_log
+
+   subroutine log_off()
+#ifdef vampir
+      call vttraceoff()
+#endif
+   end subroutine log_off
+   
+   subroutine log_on()
+#ifdef vampir
+      call vttraceon()
+#endif
+   end subroutine log_on
+
+   subroutine log_setup()
+      integer :: ierr
+#ifdef mpilog
+      bounds_begin = MPE_Log_get_event_number()
+      bounds_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(bounds_begin, bounds_end, "Bounds", "yellow")
+      boundsa_begin = MPE_Log_get_event_number()
+      boundsa_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(boundsa_begin, boundsa_end, "BoundsA", "DarkOrange1")
+      boundsb_begin = MPE_Log_get_event_number()
+      boundsb_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(boundsb_begin, boundsb_end, "BoundsB", "DarkOrange1")
+      boundsuv_begin = MPE_Log_get_event_number()
+      boundsuv_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(boundsuv_begin, boundsuv_end, "BoundsUV", "khaki")
+      ints_begin = MPE_Log_get_event_number()
+      ints_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(ints_begin, ints_end, "Ints","goldenrod")
+      intsbl_begin = MPE_Log_get_event_number()
+      intsbl_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(intsbl_begin, intsbl_end, "IntsBL", "goldenrod")
+      nonlin_begin = MPE_Log_get_event_number()
+      nonlin_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(nonlin_begin, nonlin_end, "Nonlin", "IndianRed")
+      helm_begin = MPE_Log_get_event_number()
+      helm_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(helm_begin, helm_end, "Helm", "magenta1")
+      adjust_begin = MPE_Log_get_event_number()
+      adjust_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(adjust_begin, adjust_end, "Adjust", "blue")
+      upglobal_begin = MPE_Log_get_event_number()
+      upglobal_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(upglobal_begin, upglobal_end, "Upglobal", "ForestGreen")
+      depts_begin = MPE_Log_get_event_number()
+      depts_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(depts_begin, depts_end, "Depts", "pink1")
+      deptsync_begin = MPE_Log_get_event_number()
+      deptsync_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(deptsync_begin, deptsync_end, "Deptsync", "YellowGreen")
+      intssync_begin = MPE_Log_get_event_number()
+      intssync_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(intssync_begin, intssync_end, "Intssync", "YellowGreen")
+      stag_begin = MPE_Log_get_event_number()
+      stag_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(stag_begin, stag_end, "Stag", "YellowGreen")
+      toij_begin = MPE_Log_get_event_number()
+      toij_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(toij_begin, toij_end, "Toij", "blue")
+#endif
+#ifdef vampir
+      bounds_begin = 1
+      bounds_end = bounds_begin
+      call vtsymdef(bounds_begin, "Bounds", "Bounds", ierr)
+      boundsa_begin = 2
+      boundsa_end = boundsa_end
+      call vtsymdef(boundsa_begin, "BoundsA", "BoundsA", ierr)
+      boundsb_begin = 3
+      boundsb_end = boundsb_begin
+      call vtsymdef(boundsb_begin, "BoundsB", "BoundsB", ierr)
+      boundsuv_begin = 4
+      boundsuv_end = boundsuv_begin
+      call vtsymdef(boundsuv_begin, "BoundsUV", "BoundsUV", ierr)
+      ints_begin = 14
+      ints_end = ints_begin 
+      call vtsymdef(ints_begin, "Ints", "Ints", ierr)
+      nonlin_begin = 5
+      nonlin_end = ints_begin 
+      call vtsymdef(nonlin_begin, "Nonlin", "Nonlin", ierr)
+      helm_begin = 6
+      helm_end = helm_begin
+      call vtsymdef(helm_begin, "Helm", "Helm", ierr)
+      adjust_begin = 7
+      adjust_end = adjust_begin
+      call vtsymdef(adjust_begin, "Adjust", "Adjust", ierr)
+      upglobal_begin = 8
+      upglobal_end = upglobal_begin
+      call vtsymdef(upglobal_begin, "Upglobal", "Upglobal", ierr)
+      depts_begin = 9
+      depts_end = depts_begin
+      call vtsymdef(depts_begin, "Depts", "Depts", ierr)
+      deptsync_begin = 10
+      deptsync_end = deptsync_begin
+      call vtsymdef(deptsync_begin, "Deptsync", "Deptsync", ierr)
+      intssync_begin = 11
+      intssync_end = intssync_begin
+      call vtsymdef(intssync_begin, "Intssync", "Intssync", ierr)
+      stag_begin = 12
+      stag_end = stag_begin
+      call vtsymdef(stag_begin, "Stag", "Stag", ierr)
+      toij_begin = 13
+      toij_end =  toij_begin
+      call vtsymdef(toij_begin, "Toij", "Toij", ierr)
+#endif
+   end subroutine log_setup
+   
 
    subroutine check_dims
 !    Check that the dimensions defined in the newmpar and newmpar_gx file
