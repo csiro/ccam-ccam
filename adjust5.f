@@ -654,7 +654,7 @@ c       print *,'qgsav,qg_in',qgsav(idjd,1),qg(idjd,1,1)
                zzw(iq)=zzw(iq)-.25*alfF(iw(iq)) ! i-1,j coeff
             end if
             if ( edge_n .and. edge_e ) then
-               iq=indp(il,il,n)
+               iq=indp(il,jl,n)
                zzn(iq)=zzn(iq)+.25*alfF(in(iq)) ! i,j+1 coeff
                zze(iq)=zze(iq)-.25*alfF(ie(iq)) ! i+1,j coeff
             end if
@@ -664,7 +664,7 @@ c       print *,'qgsav,qg_in',qgsav(idjd,1),qg(idjd,1,1)
                zze(iq)=zze(iq)+.25*alfF(ie(iq)) ! i+1,j coeff
             end if
             if ( edge_n .and. edge_w ) then
-               iq=indp(1,il,n)
+               iq=indp(1,jl,n)
                zzn(iq)=zzn(iq)-.25*alfF(in(iq)) ! i,j+1 coeff
                zzw(iq)=zzw(iq)+.25*alfF(iw(iq)) ! i-1,j coeff
             end if
