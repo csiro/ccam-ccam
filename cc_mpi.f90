@@ -580,6 +580,7 @@ contains
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer :: iqg
       integer :: iext, iql, iloc, jloc, nloc
+      logical :: swap
 
       ! Just set values that point to values within own processors region.
       ! Other values are set up later
@@ -1272,7 +1273,6 @@ contains
 !     In the first pass through, set up list of points to be requested from
 !     other processors. In the 1D code values on the same processor are
 !     copied only if they have to be swapped.
-!     (Actually make this a second stage optimisation).
 !     This only makes a difference on 1, 2 or 3 processors.
 
       iext = 0
@@ -1285,6 +1285,11 @@ contains
             iqx = iw_g(iqg)
             ! Which processor has this point
             rproc = qproc(iqx)
+            ! Only need to add to bounds region if it's on another processor
+            ! or if it's on this processor and needs to be swapped.
+            ! Decide if u/v need to be swapped. My face is n-noff
+            swap = edge_w .and. swap_w(n-noff)
+            if ( rproc == myid .and. .not. swap ) cycle
             call check_bnds_alloc(rproc, iext)
             bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
             bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqx
@@ -1293,8 +1298,7 @@ contains
             bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iext
             iql = indp(i,j,n)  !  Local index
             iwu(iql) = ifull+iext
-            ! Decide if u/v need to be swapped. My face is n-noff
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = edge_w .and. swap_w(n-noff)
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
          end do
 
          !     N edge (V)
@@ -1303,6 +1307,8 @@ contains
             iqg = indg(i,j,n)
             iqx = in_g(iqg)
             rproc = qproc(iqx)
+            swap = edge_n .and. swap_n(n-noff)
+            if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iext)
             bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
@@ -1313,7 +1319,7 @@ contains
             bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iext
             iql = indp(i,j,n)  !  Local index
             inv(iql) = ifull+iext
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = edge_n .and. swap_n(n-noff)
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
          end do
 
          !     E edge, U
@@ -1322,6 +1328,8 @@ contains
             iqg = indg(i,j,n)
             iqx = ie_g(iqg)
             rproc = qproc(iqx)
+            swap = edge_e .and. swap_e(n-noff)
+            if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc, iext)
             bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
@@ -1331,7 +1339,7 @@ contains
             bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iext
             iql = indp(i,j,n)  !  Local index
             ieu(iql) = ifull+iext
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = edge_e .and. swap_e(n-noff)
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
          end do
 
          !     S edge, V
@@ -1340,6 +1348,8 @@ contains
             iqg = indg(i,j,n)
             iqx = is_g(iqg)
             rproc = qproc(iqx)
+            swap = edge_s .and. swap_s(n-noff)
+            if ( rproc == myid .and. .not. swap ) cycle
             call check_bnds_alloc(rproc, iext)
             bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
             bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqx
@@ -1348,7 +1358,7 @@ contains
             bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iext
             iql = indp(i,j,n)  !  Local index
             isv(iql) = ifull+iext
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = edge_s .and. swap_s(n-noff)
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
          end do
       end do ! n=1,npan
 
@@ -1369,6 +1379,8 @@ contains
             iqx = iww_g(iqg)
             ! Which processor has this point
             rproc = qproc(iqx)
+            swap = edge_w .and. swap_w(n-noff)
+            if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc,iext)
             bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
@@ -1379,7 +1391,7 @@ contains
             iql = indp(i,j,n)  !  Local index
             iwwu(iql) = ifull+iext
             ! Decide if u/v need to be swapped. My face is n-noff
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = edge_w .and. swap_w(n-noff)
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
          end do
 
          !     N edge (V)
@@ -1388,6 +1400,8 @@ contains
             iqg = indg(i,j,n)
             iqx = inn_g(iqg)
             rproc = qproc(iqx)
+            swap = edge_n .and. swap_n(n-noff)
+            if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc,iext)
             bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
@@ -1398,7 +1412,7 @@ contains
             bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iext
             iql = indp(i,j,n)  !  Local index
             innv(iql) = ifull+iext
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = edge_n .and. swap_n(n-noff)
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
          end do
 
          !     E edge, U
@@ -1407,6 +1421,8 @@ contains
             iqg = indg(i,j,n)
             iqx = iee_g(iqg)
             rproc = qproc(iqx)
+            swap = edge_e .and. swap_e(n-noff)
+            if ( rproc == myid .and. .not. swap ) cycle
             ! Add this point to request list
             call check_bnds_alloc(rproc,iext)
             bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
@@ -1416,7 +1432,7 @@ contains
             bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iext
             iql = indp(i,j,n)  !  Local index
             ieeu(iql) = ifull+iext
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = edge_e .and. swap_e(n-noff)
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
          end do
 
          !     S edge, V
@@ -1425,6 +1441,8 @@ contains
             iqg = indg(i,j,n)
             iqx = iss_g(iqg)
             rproc = qproc(iqx)
+            swap = edge_s .and. swap_s(n-noff)
+            if ( rproc == myid .and. .not. swap ) cycle
             call check_bnds_alloc(rproc,iext)
             bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
             bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqx
@@ -1433,7 +1451,7 @@ contains
             bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iext
             iql = indp(i,j,n)  !  Local index
             issv(iql) = ifull+iext
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = edge_s .and. swap_s(n-noff)
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
          end do
       end do ! n=1,npan
 
