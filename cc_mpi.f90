@@ -96,6 +96,9 @@ module cc_mpi
    ! Number of points for each processor.
    integer, dimension(:), allocatable, public, save :: dslen, drlen
 
+   ! True if processor is a nearest neighbour
+   logical, dimension(0:nproc-1), public, save :: neighbour
+
    logical, public, save :: mydiag ! True if diagnostic point id, jd is in my region
 
    integer, public, save :: bounds_begin, bounds_end
@@ -1352,6 +1355,10 @@ contains
       bnds(:)%rlen2_uv = bnds(:)%rlen_uv
       bnds(:)%slen2_uv = bnds(:)%slen_uv
 
+!     Nearest neighbours are defined as those points which send/recv 
+!     boundary information.
+      neighbour = bnds(:)%rlen2 > 0
+
 #ifdef DEBUG
       print*, "Bounds", myid, "SLEN ", bnds(:)%slen
       print*, "Bounds", myid, "RLEN ", bnds(:)%rlen
@@ -1359,6 +1366,7 @@ contains
       print*, "Bounds", myid, "RLENX", bnds(:)%rlenx
       print*, "Bounds", myid, "SLEN2", bnds(:)%slen2
       print*, "Bounds", myid, "RLEN2", bnds(:)%rlen2
+      print*, "Neighbour", myid, neighbour
 #endif
 
 ! 1D code doesn't use double row U/V
@@ -2048,26 +2056,34 @@ contains
             end if
          end do
       end do
+
 !     In this case the length of each buffer is unknown and will not
 !     be symmetric between processors. Therefore need to get the length
 !     from the message status
-
-
-!     TODO !!!!!
-!     This should be restricted to nearest neighbours rather than all
-!     processors
       nreq = 0
       do iproc = 1,nproc-1  !
+         ! Is there any advantage to this ordering here or would send/recv
+         ! to the same processor be just as good?
          sproc = modulo(myid+iproc,nproc)  ! Send to
          rproc = modulo(myid-iproc,nproc)  ! Recv from
-         ! Send, even if length is zero
-         nreq = nreq + 1
-         call MPI_ISend( buf(1,1,sproc), 4*dslen(sproc), &
-                 MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-         nreq = nreq + 1
-         ! Use the maximum size in the recv call.
-         call MPI_IRecv( dpoints(1,1,rproc), 4*maxsize, &
+         if ( neighbour(sproc) ) then
+            ! Send, even if length is zero
+            nreq = nreq + 1
+            call MPI_ISend( buf(1,1,sproc), 4*dslen(sproc), &
+                    MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         else
+            if ( dslen(sproc) > 0 ) then
+               print*, "Error, dslen > 0 for non neighhour",      &
+                    myid, sproc, dslen(sproc)
+               stop
+            end if
+         end if
+         if ( neighbour(rproc) ) then
+            nreq = nreq + 1
+            ! Use the maximum size in the recv call.
+            call MPI_IRecv( dpoints(1,1,rproc), 4*maxsize, &
                          MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
       end do
       if ( nreq > 0 ) then
          call start_log(mpiwait_begin)
@@ -2078,11 +2094,14 @@ contains
 !     Now get the actual sizes from the status
       nreq = 0
       do iproc = 1,nproc-1  !
+         sproc = modulo(myid+iproc,nproc)  ! Send to
          rproc = modulo(myid-iproc,nproc)  ! Recv from
-         ! To get recv status, advance nreq by 2
-         nreq = nreq + 2
-         call MPI_Get_count(status(1,nreq), MPI_REAL, count, ierr)
-         drlen(rproc) = count/4
+         if ( neighbour(sproc) ) nreq = nreq + 1 ! Advance because sent to this one
+         if ( neighbour(rproc) ) then
+            nreq = nreq + 1
+            call MPI_Get_count(status(1,nreq), MPI_REAL, count, ierr)
+            drlen(rproc) = count/4
+         end if
       end do
 
       call end_log(deptsync_end)
