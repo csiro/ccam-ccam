@@ -1,5 +1,6 @@
       subroutine leoncld(cfrac)
       use diag_m
+      use cc_mpi, only : mydiag
       implicit none
       include 'newmpar.h'
       include 'liqwpar.h' ! ifullw
@@ -117,7 +118,7 @@ c     Set up convective cloud column
       enddo
 
       if(ktau.eq.1)print *,'in leoncloud acon,bcon,Rcm ',acon,bcon,Rcm
-      if(diag)then
+      if(diag.and.mydiag)then
         print *,'entering leoncld'
 c        do k=1,kl
 cc         do iq=1,ifull
@@ -158,7 +159,7 @@ c     before calling newcloud
         enddo
       enddo
       tenv(:,:)=t(1:ifull,:) !Assume T is the same in and out of convective cloud
-      if(diag)then
+      if(diag.and.mydiag)then
         print *,'before newcloud'
         write (6,"('t   ',9f8.2/4x,9f8.2)") (t(idjd,k),k=1,kl)
         write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
@@ -175,7 +176,7 @@ c     Calculate cloud fraction and cloud water mixing ratios
       call newcloud(dt,1,land,prf,kbase,ktop,rhoa,cdso4, !Inputs
      &     tenv,qenv,qlg(1:ifull,:),qfg(1:ifull,:),   !In and out  t here is tenv
      &     cfrac,ccov,cfa,qca)   !Outputs
-      if(diag)then
+      if(diag.and.mydiag)then
         print *,'after newcloud'
         write (6,"('tnv ',9f8.2/4x,9f8.2)") (tenv(idjd,k),k=1,kl)
         write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
@@ -199,7 +200,7 @@ c     Weight output variables according to non-convective fraction of grid-box
           endif
         enddo
       enddo
-      if(diag)then
+      if(diag.and.mydiag)then
         print *,'before newrain'
         write (6,"('t  ',9f8.2/4x,9f8.2)") (t(idjd,k),k=1,kl)
         write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
@@ -215,11 +216,13 @@ c     Calculate precipitation and related processes
      &    preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,  !Outputs
      &    fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
       if(diag)then
-        print *,'after newrain'
-        write (6,"('t  ',9f8.2/4x,9f8.2)") (t(idjd,k),k=1,kl)
-        write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
-        write (6,"('qf ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
-        write (6,"('ql ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
+        if (mydiag) then
+          print *,'after newrain'
+          write (6,"('t  ',9f8.2/4x,9f8.2)") (t(idjd,k),k=1,kl)
+          write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
+          write (6,"('qf ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
+          write (6,"('ql ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
+        end if
         call maxmin(t,' t',ktau,1.,kl)
         call maxmin(qg,'qg',ktau,1.e3,kl)
         call maxmin(qfg,'qf',ktau,1.e3,kl)
