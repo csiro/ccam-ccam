@@ -37,7 +37,7 @@ c     mtimer, mtimeb are in minutes
       end if
       if(mtimeb.eq.-1)then
         mtimeb=mtimer  ! zero in fact
-        if ( myud==0 )
+        if ( myid==0 )
      &  print *,'set nesting fields to those already read in via indata'
         do iq=1,ifull
          pslb(iq)=psl(iq)
@@ -80,8 +80,8 @@ c     read tb etc  - for globpea, straight into tb etc
 !                above are:   tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag
       endif   ! (io_in.eq.1.or.io_in.eq.3)
       if (mydiag) then
-        write (6,"('zsb# nestin  ',9f7.1)"), diagvals(zsb)
-        write (6,"('tssb# nestin ',9f7.1)"), diagvals(tssb) 
+        write (6,"('zsb# nestin  ',9f7.1)") diagvals(zsb)
+        write (6,"('tssb# nestin ',9f7.1)") diagvals(tssb) 
       end if
    
       if(abs(rlong0  -rlong0x).gt..01.or.
