@@ -4,8 +4,8 @@
       real convpsav,alflnd,alfsea ,cldh_lnd,cldm_lnd,cldl_lnd,
      .     cldh_sea,cldm_sea,cldl_sea,convfact,convtime,
      .     detrain,detrainx,dsig2,dsig4,
-     .     epsconv,fldown,rhcv,rhmois,rhsat,sigcb,sigcll,
-     .     sigkscb,sigcll,sigkscb,sigksct,tied_con,tied_over,tied_rh
+     .     epsconv,fldown,rhcv,rhmois,rhsat,sigcb,
+     .     sigcll,sigkscb,sigksct,tied_con,tied_over,tied_rh
       
       common/kuocom/
      .   kbsav(ifull),ktsav(ifull),convpsav(ifull) ! used by conjob

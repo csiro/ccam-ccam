@@ -5,10 +5,9 @@
 !                              within adjust5 on u,v
 !     nuv in parm.h:  now always 10
 !          !  0y for increments   , 1y for actual values, 2y for true increments
-      parameter (hl=2.5104e6)
       include 'newmpar.h'
       include 'arrays.h'
-      include 'constant.h'
+      include 'const_phys.h'
       include 'indices.h'
       include 'map.h'
       include 'morepbl.h'  ! condx,eg
@@ -33,23 +32,24 @@
      . wcud(ifull),wcvd(ifull),dum3(3*ijk - 6*ifull)
       common/work3b/wrk1(ifull,kl),wrk2(ifull,kl)   ! just work arrays here
       common/work3sav/qgsav(ifull,kl),trsav(ilt*jlt,klt,ngasmax) ! passed from nonlin
+      ! Need work common for these???
+      ! These need to be adjacent
+      real cc(ifull,kl), dd(ifull,kl)
+      common /workxx/ cc, dd
       common/work2/zz(ifull),zzn(ifull),zze(ifull),zzw(ifull),
-     . zzs(ifull),aa(ifull),bb(ifull),cc(ifull),dd(ifull),
+     . zzs(ifull),aa(ifull),bb(ifull),
      . pslxint(ifull),pfact(ifull),alff(ifull),alf(ifull),alfe(ifull),
-     . alfn(ifull),pslsav(ifull),alfu(ifull),alfv(ifull)
+     . alfn(ifull),pslsav(ifull),alfu(ifull),alfv(ifull),dum2(2*ifull)
       dimension pe(ifull,kl),e(ifull,kl)
-      dimension helm(ifull),rhsl(ifull),delps(ifull)
+      real helm(ifull,kl),rhsl(ifull,kl),delps(ifull)
       dimension indsw(8),indne(8),indse(4),indnw(4)
       real d(ifull,kl),pextras(ifull,kl),omgf(ifull,kl)
       equivalence (d,vn),(omgf,pe,tn),(e,p),(pextras,dpsldt)
-      equivalence (cc,rhsl),(dd,helm),(bb,delps)
       data indsw/1,3,5,6,8,9,12,13/,indne/0,3,4,6,7,9,11,13/
       data indse/1,4,7,12/,indnw/0,5,8,11/
       save indsw,indne,indse,indnw
       ! If the time step hasn't changed, used the same acceleration as 
       ! previously
-      real, save :: dtlast = 0.0
-      real, save, dimension(kl) :: accel
       ind(i,j,n)=i+(j-1)*il+n*il*il
       hdt=dt/2.
       hdtds=hdt/ds
@@ -194,7 +194,7 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
 
 !     calculate heights from the tx array
       do iq=1,ifull
-       p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+r*tbar2d(iq)*pslxint(iq) ! (2.21)
+       p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! (2.21)
       enddo     ! iq loop
       do k=2,kl
        do iq=1,ifull
@@ -211,58 +211,48 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
 !     redefine ux, vx
       do k=1,kl
        do iq=1,ifull
-        cc(iq)=ux(iq,k)/emu(iq)*alfu(iq)
-        dd(iq)=vx(iq,k)/emv(iq)*alfv(iq)
+        cc(iq,k)=ux(iq,k)/emu(iq)*alfu(iq)
+        dd(iq,k)=vx(iq,k)/emv(iq)*alfv(iq)
        enddo    ! iq loop
 
 !      form divergence of rhs (ux & vx) terms: xd
 !cdir nodep
        do iq=1,ifull
-         d(iq,k)=cc(iq)-cc(iwu2(iq))+dd(iq)-dd(isv2(iq))
+         d(iq,k)=cc(iq,k)-cc(iwu(iq),k)+dd(iq,k)-dd(isv(iq),k)
        enddo    ! iq loop
       enddo     ! k  loop
 
 !     transform p & d to eigenvector space
-      do k=kl,1,-1   ! reverse order just to suit diagnostic prints
-       do iq=1,ifull
-        pe(iq,k)=einv(k,1)*p(iq,1)
-        rhsl(iq)=einv(k,1)*d(iq,1)
-       enddo    ! iq loop
-       do l=2,kl
-        do iq=1,ifull
-         pe(iq,k)=pe(iq,k)+einv(k,l)*p(iq,l)         ! xp in eig space
-         rhsl(iq)=rhsl(iq)+einv(k,l)*d(iq,l)      ! xd in eig space
-        enddo   ! iq loop
-       enddo    ! l loop
+      do k=1,kl
+         do iq=1,ifull
+            pe(iq,k)=einv(k,1)*p(iq,1)
+            rhsl(iq,k)=einv(k,1)*d(iq,1)
+         enddo
+         do l=2,kl
+            do iq=1,ifull
+               pe(iq,k)=pe(iq,k)+einv(k,l)*p(iq,l) ! xp in eig space
+               rhsl(iq,k)=rhsl(iq,k)+einv(k,l)*d(iq,l) ! xd in eig space
+            enddo
+         enddo                  ! l loop
 
-       do iq=1,ifull
-!       if(ntbar.eq.0)then
-!         helm(iq)=pfact(iq)/bam(k)   ! for adjust9/5  coeff of P
-!       endif  ! (ntbar.eq.0)
-!!      helm(iq)=pfact(iq)/bam(k) *tbar(1)/tbar2d(iq) ! for ntbar>0
-        helm(iq)=pfact(iq)*tbar(1)/
-     .             (bam(k)*(1.+epst(iq))*tbar2d(iq))
-        rhsl(iq)=rhsl(iq)/hdtds -helm(iq)*pe(iq,k)
-       enddo    ! iq loop
-       if(diag.and.k.le.2)then   !  only for last k of loop (i.e. 1)
-        iq=idjd
-        print  *,'adjust5(k) p & n e w s ',k,p(iq,k),
-     .   p(in(iq),k),p(ie(iq),k),p(iw(iq),k),p(is(iq),k)
-        print  *,'adjust5(k) pe & n e w s ',k,pe(iq,k),
-     .   pe(in(iq),k),pe(ie(iq),k),pe(iw(iq),k),pe(is(iq),k)
-        print  *,'adjust5(k) rhsl & n e w s ',k,rhsl(iq),
-     .   rhsl(in(iq)),rhsl(ie(iq)),rhsl(iw(iq)),rhsl(is(iq))
-       endif  ! (diag.and.k.le.2)
-
-!      Calculate the optimum acceleration using a point
-!      in the middle of the first face
-       if ( dt /= dtlast ) then
-          call optmx(il,schmidt,dt,bam(k),accel(k))
-       end if
-!!       call optm(dt,bam(k),acc)
-!!     call optm(dt,bam(k)*(1.+epsp),acc)
-       call helmsol(accel(k),helm,pe(1,k),rhsl)
+         do iq=1,ifull
+            helm(iq,k) = pfact(iq)*tbar(1)/
+     &                   (bam(k)*(1.+epst(iq))*tbar2d(iq))
+            rhsl(iq,k) = rhsl(iq,k)/hdtds -helm(iq,k)*pe(iq,k)
+         enddo                  ! iq loop
+         if(diag.and.k.le.2)then !  only for last k of loop (i.e. 1)
+            iq=idjd
+            print  *,'adjust5(k) p & n e w s ',k,p(iq,k),
+     &        p(in(iq),k),p(ie(iq),k),p(iw(iq),k),p(is(iq),k)
+            print  *,'adjust5(k) pe & n e w s ',k,pe(iq,k),
+     &        pe(in(iq),k),pe(ie(iq),k),pe(iw(iq),k),pe(is(iq),k)
+            print  *,'adjust5(k) rhsl & n e w s ',k,rhsl(iq,k),
+     &       rhsl(in(iq),k),rhsl(ie(iq),k),rhsl(iw(iq),k),rhsl(is(iq),k)
+         endif                  ! (diag.and.k.le.2)
       enddo    ! k loop
+
+      call helmsol(helm,pe,rhsl)
+
       if(diag)then   !  only for last k of loop (i.e. 1)
         iq=idjd
         print  *,'adjust5(1) pslxint & n e w s',pslxint(iq),
@@ -271,11 +261,11 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
         call printa('psnt',pslxint,ktau,0,ia,ib,ja,jb,0.,100.)
         print *,'adjust5 tx ',(tx(idjd,k),k=1,kl)
         call printa('tx  ',tx(1,nlv),ktau,nlv,ia,ib,ja,jb,200.,1.)
-        print  *,'adjust5(1) helm & n e w s',helm(iq),
-     .   helm(in(iq)),helm(ie(iq)),helm(iw(iq)),helm(is(iq))
-        print  *,'adjust5(1) rhsl & n e w s',rhsl(iq),
-     .   rhsl(in(iq)),rhsl(ie(iq)),rhsl(iw(iq)),rhsl(is(iq))
-        call printa('rhsl',rhsl,ktau,1,ia,ib,ja,jb,0.,0.)
+        print  *,'adjust5(1) helm & n e w s',helm(iq,1),
+     .   helm(in(iq),1),helm(ie(iq),1),helm(iw(iq),1),helm(is(iq),1)
+        print  *,'adjust5(1) rhsl & n e w s',rhsl(iq,1),
+     .   rhsl(in(iq),1),rhsl(ie(iq),1),rhsl(iw(iq),1),rhsl(is(iq),1)
+        call printa('rhsl',rhsl(1,1),ktau,1,ia,ib,ja,jb,0.,0.)
         print  *,'adjust5 pe ',(pe(iq,k),k=1,kl)
         print  *,'adjust5 pe e ',(pe(ie(iq),k),k=1,kl)
         print  *,'adjust5 pe w ',(pe(iw(iq),k),k=1,kl)
@@ -285,59 +275,59 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
 !     only use method II inversion nowadays
       do k=1,kl
 !      first p from pe
-       do iq=1,ifull
-        p(iq,k)=emat(k,1)*pe(iq,1)
-       enddo    ! iq loop
-       do l=2,kl      ! this is the remaining expensive loop
-        do iq=1,ifull
-         p(iq,k)=p(iq,k)+emat(k,l)*pe(iq,l)
-        enddo   ! iq loop
-       enddo    !  l loop
+         do iq=1,ifull
+            p(iq,k)=emat(k,1)*pe(iq,1)
+         enddo                  ! iq loop
+         do l=2,kl              ! this is the remaining expensive loop
+            do iq=1,ifull
+               p(iq,k)=p(iq,k)+emat(k,l)*pe(iq,l)
+            enddo               ! iq loop
+         enddo                  !  l loop
 
 !      now u & v
-       if(k.eq.nlv.and.diag)then
-         iq=idjd
-         print *,'iq,k,fu,alfu,alfu*ux(iq,k) ',
-     .    iq,k,fu(iq),alfu(iq),alfu(iq)*ux(iq,k)
-         print *,'alfF & n e w s (in(iq)),alfF(ine(iq)),alfF(is(iq))',
-     .           'alfF(ise(iq)),alfe(iq) ',alfF(in(iq)),alfF(ine(iq))
-     .           ,alfF(is(iq)),alfF(ise(iq)),alfe(iq)
-         sum=alf(ie(iq))-alf(iq)+.25*(alfF(in(iq))+
-     .        alfF(ine(iq))-alfF(is(iq))-alfF(ise(iq))) -alfe(iq)
-         print *,'sum  ',sum
-         print *,'p & n e w s ne se ',p(iq,k),p(in(iq),k),
-     .    p(ie(iq),k),p(iw(iq),k),p(is(iq),k),
-     .    p(ine(iq),k),p(ise(iq),k)
-       endif
+         if(k.eq.nlv.and.diag)then
+            iq=idjd
+            print*,'iq,k,fu,alfu,alfu*ux(iq,k) ',
+     &               iq,k,fu(iq),alfu(iq),alfu(iq)*ux(iq,k)
+            print*,'alfF & n e w s (in(iq)),alfF(ine(iq)),alfF(is(iq))',
+     &           'alfF(ise(iq)),alfe(iq) ',alfF(in(iq)),alfF(ine(iq))
+     &           ,alfF(is(iq)),alfF(ise(iq)),alfe(iq)
+            sum=alf(ie(iq))-alf(iq)+.25*(alfF(in(iq))+
+     &        alfF(ine(iq))-alfF(is(iq))-alfF(ise(iq))) -alfe(iq)
+            print*,'sum  ',sum
+            print*,'p & n e w s ne se ',p(iq,k),p(in(iq),k),
+     &           p(ie(iq),k),p(iw(iq),k),p(is(iq),k),
+     &           p(ine(iq),k),p(ise(iq),k)
+         endif
 !cdir nodep
-       do iq=1,ifull
-c       u(iq,k)=alfu(iq)*ux(iq,k)
-        cc(iq) =alfu(iq)*ux(iq,k)   ! globpea
-     .   -hdtds*emu(iq)*
-     .     ( alf(ie(iq))*p(ie(iq),k)-alf(iq)*p(iq,k)
-     .   -.5*alfe(iq)*(p(iq,k)+p(ie(iq),k))
-     .   +.25*(alfF(in(iq))*p(in(iq),k) +alfF(ine(iq))*p(ine(iq),k)
-     .      -alfF(is(iq))*p(is(iq),k) -alfF(ise(iq))*p(ise(iq),k)) )
-c       v(iq,k)=alfv(iq)*vx(iq,k)
-        dd(iq) =alfv(iq)*vx(iq,k)   ! globpea
-     .   -hdtds*emv(iq)*
-     .     ( alf(in(iq))*p(in(iq),k)-alf(iq)*p(iq,k)
-     .   -.5*alfn(iq)*(p(iq,k)+p(in(iq),k))
-     .   -.25*(alfF(ien(iq))*p(ien(iq),k) +alfF(ie(iq))*p(ie(iq),k)
-     .      -alfF(iwn(iq))*p(iwn(iq),k) -alfF(iw(iq))*p(iw(iq),k)) )
-       enddo    ! iq loop
+         do iq=1,ifull
+!           u(iq,k)=alfu(iq)*ux(iq,k)
+            cc(iq,k) = alfu(iq)*ux(iq,k) ! globpea
+     &       -hdtds*emu(iq)*
+     &       ( alf(ie(iq))*p(ie(iq),k)-alf(iq)*p(iq,k)
+     &       -.5*alfe(iq)*(p(iq,k)+p(ie(iq),k))
+     &       +.25*(alfF(in(iq))*p(in(iq),k) +alfF(ine(iq))*p(ine(iq),k)
+     &       -alfF(is(iq))*p(is(iq),k) -alfF(ise(iq))*p(ise(iq),k)) )
+!           v(iq,k)=alfv(iq)*vx(iq,k)
+            dd(iq,k) =alfv(iq)*vx(iq,k) ! globpea
+     &       -hdtds*emv(iq)*
+     &       ( alf(in(iq))*p(in(iq),k)-alf(iq)*p(iq,k)
+     &       -.5*alfn(iq)*(p(iq,k)+p(in(iq),k))
+     &       -.25*(alfF(ien(iq))*p(ien(iq),k) +alfF(ie(iq))*p(ie(iq),k)
+     &       -alfF(iwn(iq))*p(iwn(iq),k) -alfF(iw(iq))*p(iw(iq),k)) )
+         enddo                  ! iq loop
 
 !      calculate linear part only of sigma-dot and omega/ps
 !cdir nodep
-       do iq=1,ifull
-        d(iq,k)=(cc(iq)/emu(iq)-cc(iwu2(iq))/emu(iwu2(iq))  ! globpea
-     .          +dd(iq)/emv(iq)-dd(isv2(iq))/emv(isv2(iq))) ! globpea
-     .          *em(iq)**2/ds
-       enddo    ! iq loop
-
-!      straightforward rev. cubic interp of u and v (i.e. nuv=10)
-       call unstaguv(cc,dd,u(1,k),v(1,k))  ! usual
+         do iq=1,ifull
+            d(iq,k)=(cc(iq,k)/emu(iq)-cc(iwu(iq),k)/emu(iwu2(iq)) ! globpea
+     &          +dd(iq,k)/emv(iq)-dd(isv(iq),k)/emv(isv2(iq))) ! globpea
+     &          *em(iq)**2/ds
+         enddo                  ! iq loop
       enddo     ! k  loop ---------------------------------------------------------
+
+!     straightforward rev. cubic interp of u and v (i.e. nuv=10)
+      call unstaguv(cc,dd,u,v)  ! usual
 
       if(diag.or.nmaxpr.eq.1)then
         write (6,"('div_adj(1-9) ',9f8.2)") (d(idjd,k)*1.e6,k=1,9)
@@ -607,6 +597,5 @@ c       print *,'qgsav,qg_in',qgsav(idjd,1),qg(idjd,1,1)
           call printa('qg  ',qg(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.e3)
         endif
       endif
-      dtlast = dt ! Save value for optmx
       return
       end

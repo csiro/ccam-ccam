@@ -9,11 +9,12 @@
 !     sign convention:
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
+      use ieee_m
       include 'newmpar.h'
       parameter (ijkij=ijk+ifull)
       include 'aalat.h'
       include 'arrays.h'   ! ts, t, u, v, psl, ps, zs
-      include 'constant.h'
+      include 'const_phys.h'
       include 'darcdf.h'   ! idnc,ncid,idifil  - stuff for netcdf
       include 'dates.h'    ! dtin,mtimer
       include 'extraout.h'
@@ -85,6 +86,7 @@
       data mdays/31,28,31,30,31,30,31,31,30,31,30,31, 31/
       dimension psa(12001),psm(12001)
       logical prnt,odcalc
+      integer ieee
       character comm*60,comment*60,rundate*10,header*47,text*2
       namelist/cardin/dt,ntau,nwt,npa,npb,npc,nhorps
      1 ,ia,ib,ja,jb,iaero,khdif,khor
@@ -126,7 +128,7 @@
      .        ,sigkscb,sigksct,tied_con,tied_over,tied_rh,comm
       data nmidiab/0/
       data kscreen/0/
-      data pi/3.1415926536/,itr1/23/,jtr1/13/,itr2/25/,jtr2/11/
+      data itr1/23/,jtr1/13/,itr2/25/,jtr2/11/
       data comment/' '/,comm/' '/,irest/0/,jalbfix/0/,nalpha/1/
       data mexrest/6/,mins_rad/120/
       data nwt0/0/,nwrite/0/
@@ -138,6 +140,11 @@ c     tdiff is difference between t and 123.16, subject to 0 <= tdiff <= 220
       tdiff(tm)=min(max(tm-123.16 , 0.) , 220.)
       establ(tm) =(1.-(tdiff(tm)-aint(tdiff(tm))))*table(int(tdiff(tm)))
      &           + (tdiff(tm)-aint(tdiff(tm)))*table(int(tdiff(tm))+1)
+
+      ieee = ieee_handler("set", "division", ihandler)
+      ieee = ieee_handler("set", "invalid", ihandler)
+      ieee = ieee_handler("set", "overflow", ihandler)
+
       ia=il/2
       ib=ia+3
       ntbar=(kl+1)/2  ! just a default
@@ -273,7 +280,7 @@ c     set up cc geometry
 
       if(nstn.gt.nstnmax)stop 'nstn>nstnmax'
       if(nstn.eq.0)mstn=0
-      call date(rundate)
+      call date_and_time(rundate)
       print *,'RUNDATE IS ',rundate
 
 !     open input files
@@ -677,7 +684,7 @@ c         qg(:,:)=max(qg(:,:),qgmin)  ! testing
      .       " rad_1 rad_2   ps   wbav")
                isoil=isoilm(iq)
                write (iunp(nn),953) land(iq),isoil,ivegt(iq),zo(iq),
-     .                              zs(iq)/9.806
+     .                              zs(iq)/grav
 953            format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
                write (iunp(nn),954) sigmf(iq),swilt(isoil),sfc(isoil),
      .                              ssat(isoil),alb(iq)
@@ -1031,7 +1038,7 @@ c     stop
       include 'newmpar.h'
       include 'aalat.h'
       include 'arrays.h'  ! ts, t, u, v, psl, ps, zs
-      include 'constant.h'
+      include 'const_phys.h'
       include 'pbl.h'     ! cduv, cdtq, tss, qg
       include 'sigs.h'
       include 'tracers.h'  ! ngas, nllp, ntrac
@@ -1047,7 +1054,7 @@ c     stop
         do k=1,klt
          do iq=1,ilt*jlt       
           tr(iq,k,min(ntracmax,ngas+4))=
-     .	               t(iq,k)*(1.e-5*ps(iq)*sig(k))**(-r/cp)
+     .	               t(iq,k)*(1.e-5*ps(iq)*sig(k))**(-rdry/cp)
          enddo
         enddo
       endif   ! (nllp.ge.4)

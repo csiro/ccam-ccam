@@ -12,7 +12,8 @@ c  OUTPUT
 c    DUO3N   ozone mixing ratio
 c
       include 'newmpar.h'
-      parameter(pi=3.141592653589793,tpi=2.*pi,rlag=14.8125)
+      include 'const_phys.h'
+      parameter(rlag=14.8125)
       parameter(year=365)
 
       real duo3n(npts,kl), sigma(kl), alat(npts)

@@ -1,137 +1,104 @@
-      subroutine helmsol(accel,helm,s,rhs)
+      subroutine helmsol(helm,s,rhs)
 
-!     Solve Helmholtz equation.
-!     For conformal-cubic this requires a 3 phase scheme
-!     while for conformal-octagon it requires a 4 phase scheme
-!     rather than simple red-black
+!     Solve Helmholtz equation using simple conjugate gradient method.
+!     Each mode is solved separately. Highest numbered modes 
+!     converge fastest.
 
+      implicit none
       include 'newmpar.h'
       include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
       include 'parm.h'
       include 'parmdyn.h'
-!     itmax is maximum number of iterations allowed
-      parameter(itmax=100,mev1=il+1-il/2*2,mev2=3-mev1)
-c     mev1 = 1 for il even (2 for il odd)
-c     mev2 = 2 for il even (1 for il odd)
+      integer, parameter :: itmax=100 ! maximum number of iterations allowed
 !     Arguments
-      real accel            ! SOR acceleration factor 
-      real helm(ifull)      ! Helmholtz coefficients
-      real s(ifull)         ! Solution
-      real rhs(ifull)       ! RHS
-      common/work2/zz(ifull),zzn(ifull),zze(ifull),zzw(ifull),
+      real helm(ifull,kl)      ! Helmholtz coefficients
+      real s(ifull,kl)         ! Solution
+      real rhs(ifull,kl)       ! RHS
+      real zz(ifull),zzn(ifull),zze(ifull),zzw(ifull),
      . zzs(ifull),dum(il,jl,13)
+      common/work2/zz,zzn,zze,zzw,zzs,dum
 !     real z(ifull,5)       ! Point coefficients, approx 1,1,1,1,-4.
-      logical close_enough
-      integer ip(2*il*il,3)! Cube only
-      logical first
-      save ip, first
-      real, dimension(ifull) :: accfactor
+      real, dimension(ifull,kl) :: fac, r, d, h
 
-      integer nface6(4,3)   ! Faces to use in each phase    (c-cub)
-      integer ioff6(4,3)    ! Starting offset for each face (c-cub)
-      integer nface14(8,4)  ! Faces to use in each phase    (c-oct)
-      integer ioff14(8,4)   ! Starting offset for each face (c-oct)
-      data nface6 / 0, 1, 3, 4,   0, 2, 3, 5,   1, 2, 4, 5 /
-!     data ioff6 / 1, 1, 1, 1,   2, 1, 2, 1,   2, 2, 2, 2 /    ! up till 27/4/97
-      data ioff6 / 1,mev1,mev2,2,  2,1,mev1,mev2,  mev2,2,1,mev1 / ! jlm general
-!     data ioff6 / 1, 1, 2, 2,   2, 1, 1, 2,   2, 2, 1, 1 /        ! jlm even il
-!     data ioff6 / 1, 2, 1, 2,   2, 1, 2, 1,   1, 2, 1, 2 /        ! jlm odd il
+      real, dimension(kl) :: delta_0, delta_1, tau, alpha, beta, smag
+      integer iq, iter, k, klim
+      real, dimension(kl) :: dsolmax, smax
+      real :: dsol
 
-      data nface14/ 2, 4, 5,10,11,12,-1,-1,   2, 7, 8,10, 0, 1,-1,-1,
-     .       1, 3, 5, 6, 7, 9,11,13,   4, 6, 8, 9,12,13, 0, 3/
-      data ioff14 /1,mev1,1,2,mev2,2,-1,-1,   2,1,mev1,1,2,mev2,-1,-1, ! general
-     .       mev1,1,2,mev2,2,1,mev1,mev2, mev2,mev1,mev2,2,1,mev1,1,2/ ! general
-!     data ioff14 / 1, 1, 1, 2, 2, 2,-1,-1,   2, 1, 1, 1, 2, 2,-1,-1,  ! even il
-!    .       1, 1, 2, 2, 2, 1, 1, 2,      2, 1, 2, 2, 1, 1, 1, 2/      ! even il
-!     data ioff14 / 1, 2, 1, 2, 1, 2,-1,-1,   2, 1, 2, 1, 2, 1,-1,-1,  ! odd il
-!    .       2, 1, 2, 1, 2, 1, 2, 1,      1, 2, 1, 2, 1, 2, 1, 2/      ! odd il
-      data first /.true./
+      do k=1,kl
+         fac(:,k) = -1.0/(helm(:,k)-zz(:))
+      end do
 
-      ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,npanels
+      delta_0 = 0.
+      do k=1,kl
+         do iq=1,ifull
+            r(iq,k) = ( zze(iq)*s(ie(iq),k) + zzw(iq)*s(iw(iq),k) +
+     &                  zzn(iq)*s(in(iq),k) + zzs(iq)*s(is(iq),k) -
+     &                  rhs(iq,k) ) * fac(iq,k) + s(iq,k)
 
-      if ( first ) then
-         do iphase = 1,3         !  mrd code to run fast on NEC
-            np = 0
-            do iface=1,4
-               if = nface6(iface,iphase)
-               istart = ioff6(iface,iphase) ! 1 or 2
-               do j=1,il
-                  istart = 3 - istart ! 1 or 2 alternately
-                  do i=istart,il,2
-                     iq=ind(i,j,if)
-                     np = np + 1
-                     ip(np,iphase) = iq
-                  end do
-               end do
+            delta_0(k) = delta_0(k) + r(iq,k)*r(iq,k)
+         end do
+      end do
+
+      d(:,:) = -r(:,:)
+      klim = kl ! All modes at first
+      do iter = 1, itmax
+
+         alpha = 0.
+         do k=1,klim
+            do iq=1,ifull
+               h(iq,k) = ( zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) +
+     &                     zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) ) *
+     &                   fac(iq,k) + d(iq,k)
+               alpha(k) = alpha(k) + d(iq,k)*h(iq,k)
             end do
          end do
-         first = .false.
+
+         tau(1:klim) = delta_0(1:klim) / alpha(1:klim)
+         delta_1 = 0.
+         smag = 0.
+         do k=1,klim
+            do iq=1,ifull
+               s(iq,k) = s(iq,k) + tau(k) * d(iq,k)
+               r(iq,k) = r(iq,k) + tau(k) * h(iq,k)
+               delta_1(k) = delta_1(k) + r(iq,k)*r(iq,k) ! Magnitude of residual
+               smag(k) = smag(k) + s(iq,k)*s(iq,k)
+            end do
+         end do
+!        Check which modes have converged
+         do k=klim,1,-1
+            if ( sqrt(delta_1(k)) > restol*sqrt(smag(k)) ) then
+               ! This mode hasn't converged yet
+               exit
+            end if
+         end do
+!        Now k is the lowest mode yet to converge
+         klim = k
+         if ( klim == 0 ) exit
+         beta(1:klim) = delta_1(1:klim) / delta_0(1:klim)
+         delta_0(1:klim) = delta_1(1:klim)
+         do k=1,klim
+            d(:,k) = -r(:,k) + beta(k) * d(:,k)
+         end do
+         if (diag .or. ktau<6) then
+            print*, "Iterations", iter, klim, delta_1(1:klim)
+         end if
+      end do
+
+      if (diag .or. ktau<6) then
+         dsolmax = 0.
+         smax = 0.
+         do k=1,kl
+            do iq=1,ifull
+               dsol = ( zzn(iq)*s(in(iq),k) + zzw(iq)*s(iw(iq),k) +
+     &                  zze(iq)*s(ie(iq),k) + zzs(iq)*s(is(iq),k) +
+     &                      ( zz(iq)-helm(iq,k) )*s(iq,k) - rhs(iq,k) )
+               dsolmax(k) = max(dsolmax(k),abs(dsol))
+               smax(k) = max(smax(k),abs(s(iq,k)))
+            end do
+         end do
+         print*,'helmsol iterations ', iter, "final error", dsolmax/smax
       end if
 
-      close_enough = .false.
-      iter = 0
-
-      accfactor(:) = accel/(helm(:)-zz(:))
-      if(npanels.eq.5)then
-        do while ( iter.lt.itmax .and. .not.close_enough )
-           dsolmax=0.
-           smax=0.
-           close_enough=.true.
-           ! Using acceleration of 1.0 on the first iteration improves 
-           ! convergence when there's a good initial guess.
-           if ( iter == 0 ) then
-              accfactor(:) = 1.0/(helm(:)-zz(:))
-           else
-              accfactor(:) = accel/(helm(:)-zz(:))
-           end if
-           do iphase = 1,3
-*cdir nodep
-              do i=1,2*il*il
-                 iq=ip(i,iphase)
-                 dsol= ( zzn(iq)*s(in(iq)) + zzw(iq)*s(iw(iq)) +
-     &                         zze(iq)*s(ie(iq)) + zzs(iq)*s(is(iq)) +
-     &                      ( zz(iq)-helm(iq) )*s(iq) - rhs(iq) )
-     &                      * accfactor(iq)
-                 s(iq) = s(iq) + dsol
-                 dsolmax=max(dsolmax,abs(dsol))
-                 smax=max(smax,abs(s(iq)))
-              end do
-           end do
-           if (dsolmax.gt.restol*smax)close_enough=.false.
-           iter = iter + 1
-        end do
-      elseif(npanels.eq.13)then
-        do while ( iter.lt.itmax .and. .not.close_enough )
-           dsolmax=0.
-           smax=0.
-           close_enough=.true.
-           do iphase = 1,4
-              do iface=1,6+(iphase-1)/2*2   ! to 6 for 1 & 2; to 8 for 3 & 4
-                 if = nface14(iface,iphase)
-                 istart = ioff14(iface,iphase)  ! 1 or 2
-                 do j=1,il
-                    istart = 3 - istart ! 1 or 2 alternately
-                    do i=istart,il,2
-                       iq=ind(i,j,if)
-                       dsol= ( zzn(iq)*s(in(iq)) + zzw(iq)*s(iw(iq)) +
-     &                         zze(iq)*s(ie(iq)) + zzs(iq)*s(is(iq)) +
-     &                      ( zz(iq)-helm(iq) )*s(iq) - rhs(iq) )
-     &                      * accfactor(iq)
-                       s(iq) = s(iq) + dsol
-                       dsolmax=max(dsolmax,abs(dsol))
-                       smax=max(smax,abs(s(iq)))
-c                      if ( abs(dsol) .gt. abs(restol*s(iq)) )
-c    &                      close_enough=.false.
-                    end do
-                 end do
-              end do
-           end do
-           if (dsolmax.gt.restol*smax)close_enough=.false.
-           iter = iter + 1
-        end do
-      endif    !  (npanels.eq.5)elseif(npanels.eq.13)
-
-      if (diag.or.ktau.lt.6)print*,'helmsol acc, iterations ',
-     .                        accel, iter
       return
       end

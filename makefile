@@ -2,25 +2,13 @@
 
 # Specify any desired preprocessor or compiler flags here; -R2 for .L files.
 
-FF = /usr/local/f90_230/bin/f90 -Yf/usr/local/f90_230/lib
-FF = /usr/local/f90_253/bin/f90 -Yf/usr/local/f90_253/lib
-FF =  /SX/usr/bin/sxf90
-# Flags for all optimisation levels
-#XFLAGS = -Wf"-O nodiv -pvctl noassume" -R2 -float0 -ew -ftrace
-#XFLAGS = -g -Wf"-O nodiv -pvctl noassume loopcnt=24000" -R2 -float0 -ew -ftrace -L/usr/local/f90_240/lib
-#XFLAGS = -Wf"-O nodiv -pvctl noassume loopcnt=24000" -R2 -float0 -ew -ftrace -L/usr/local/f90_230/lib
-XFLAGS = -Wf"-O nodiv -pvctl noassume loopcnt=24000" -R2 -float0 -ew -ftrace 
+FF = ifort
+XFLAGS = -I /home/dix043/include_ifort # -stand
 
 # Standard optimisation level - vopt usually fine
-OPT = -Chopt
-OPT = -Cvsafe
-OPT = -Csopt
-OPT = -Cvopt
+OPT = -O 
 
-#LIBS = /usr/local/lib/libnetcdf64.a
-LIBS = /usr/local/lib/libnetcdf3.5-ew.a
-LIBS = /cs/u/csdar/csmrd/portal/lib_nec/libnetcdf3.5-ew.a
-LIBS = /cs/u/csdar/csmrd/portal/lib_nec/libnetcdf.a
+LIBS = -L /home/dix043/lib -lnetcdf_ifc -lmrd90_ifort
 
 # The following lines specify extra compiler FLAGS. Uncomment one of them
 # to use that option or add extra options as required. It is assumed that 
@@ -40,7 +28,8 @@ retopo.o      scrnout.o     setxyz.o      sflux.o       so2.o       \
 soilsnow.o    sst.o         staguv.o          \
 trim.o        upglobal.o    updps.o       vadv30.o        \
 vadvtvd.o     vertmix.o     onthefly.o    latltoij.o  \
-esibda.o      icefall.o     leoncld.o     newcloud.o    newrain.o 
+esibda.o      icefall.o     leoncld.o     newcloud.o    newrain.o \
+dummy.o
 
 NEWRADOBS =   cldblk.o      clddia.o      cldset.o      clo89.o     \
 cloud.o  cloud2.o  co2_read.o    e1e288.o      e3v88.o       extras.o    \
@@ -52,8 +41,8 @@ resetd.o      spa88.o       swr99.o       table.o       zenith.o
 # command must begin with a TAB or make will get confused.
 # first of the following will be done
 
-hsmodel :$(OBJS) $(NEWRADOBS)
-	$(FF) $(XFLAGS) $(OBJS) $(NEWRADOBS) $(LIBS) -o globpea.new9    
+globpea :$(OBJS) $(NEWRADOBS)
+	$(FF) $(XFLAGS) $(OBJS) $(NEWRADOBS) $(LIBS) -o globpea
 
 # This section gives the rules for building object modules.
 
@@ -63,31 +52,8 @@ hsmodel :$(OBJS) $(NEWRADOBS)
 .f.o:
 	$(FF) -c $(OPT) $(XFLAGS) $<
 
-# Files which require non-standard optimisation
-# version 212 seems OK for infile (prev. vsafe)
-# version 212 still needs special treatment for :adjust5(vopt), sflux,soilsnow(vsafe)
-# and iabsdate( was faulty for hopt) for differing months
-# version 212 needs sopt for indata (just nrungcm=1 section) - OK now
-# 18/12/00 it now seems sflux & soilsnow OK, but use vopt to be cautious
-# scrnout needs vsafe for C48 runs (but vopt fine with noassume)
-#indata.o:indata.f
-#	$(FF) -c -Csopt $(XFLAGS) $<
-adjust5.o:adjust5.f
-	$(FF) -c -Cvopt $(XFLAGS) $<
-#fst88.o:fst88.f
-#	$(FF) -c -Cvsafe $(XFLAGS) $<
-#swr99.o:swr99.f
-#	$(FF) -c -Cvsafe $(XFLAGS) $<
-sflux.o:sflux.f
-	$(FF) -c -Cvopt  $(XFLAGS) $<
-soilsnow.o:soilsnow.f
-	$(FF) -c -Cvopt  $(XFLAGS) $<
-scrnout.o:scrnout.f
-	$(FF) -c -Cvopt   $(XFLAGS) $<
-staguv.o:staguv.f
-	$(FF) -c -Cvopt   $(XFLAGS) $<
-#iabsdate.o:iabsdate.f
-#	$(FF) -c -Cvopt $(XFLAGS) $<
+clean:
+	rm *.o *.mod globpea
 
 # Files which depend on include files....You should only need to change this
 # section if you add or remove 'include' statements.
@@ -109,11 +75,12 @@ clo89.o fst88.o radriv90.o spa88.o : cldcom.h
 
 co2_read.o lwr88.o : co2dta.h
 
-adjust5.o co2.o conjob.o convjlm.o depts.o globpe.o gwdrag.o indata.o \
-mslp.o nonlin.o setxyz.o so2.o soilsnow.o upglobal.o \
-vertmix.o : constant.h
+adjust5.o clddia.o cldset.o co2.o conjob.o convjlm.o depts.o globpe.o \
+gwdrag.o indata.o latltoij.o mslp.o nestin.o nonlin.o o3set.o onthefly.o \
+pbldif.o radriv90.o retopo.o scamrdn.o scrnout.o setxyz.o sflux.o so2.o \
+soilsnow.o upglobal.o vertmix.o : const_phys.h
 
-icefall.f leoncld.o newcloud.o newrain.o : const_phys.h
+cloud2.o icefall.o leoncld.o newcloud.o newrain.o : const_phys.h
 
 icefall.f leoncld.o newcloud.o newrain.o : cparams.h
 

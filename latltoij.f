@@ -10,6 +10,7 @@ c     contains a version of xytoij
       parameter (ntest=0)
       include 'newmpar.h'
       include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
+      include 'const_phys.h'
       include 'parm.h'
       include 'parmdyn.h'
       real rotpolei(3,3)
@@ -43,7 +44,6 @@ c               1.5   1.5   1.5     2.5  -0.5  -0.5
 
       save num,rotpolei,alf,schmidtp,alfp,schmidtm,alfm
       data nmaploop/3/,numtst/-1/,num/0/
-      data pi/3.1415926536/
 c     print *,'entering latltoij;num,rlongin,rlatin,schmidt,schm13 '
 c    .                          ,num,rlongin,rlatin,schmidt,schm13
 !     if(num.eq.0)then     ! not with onthefly

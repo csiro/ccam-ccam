@@ -264,6 +264,9 @@ subroutine zenith(fjd,r,dlt,slag,xlat,xlon,dhr,npts,coszrs,frac)
                            cos(ha-delw)*sin(delw))/(dele+delw))
    endwhere
 
+   ! Need with the ifort compiler and IEEE trapping?
+   width = 0.
+   mid = 0.
    where ( rise .and. set .and. .not. done )
       width = ha
       mid = 0.0

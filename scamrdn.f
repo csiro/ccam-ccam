@@ -3,6 +3,7 @@ c reads the parameters for scam from scamfil into common block scamc
 
       include 'newmpar.h'
       include 'arrays.h'
+      include 'const_phys.h'
       include 'filnames.h'  ! list of files, read in once only
       include 'nsibd.h'     ! ivegt,isoilm
       include 'parm.h'      ! id,jd,idjd
@@ -15,7 +16,6 @@ c reads the parameters for scam from scamfil into common block scamc
       include 'soilv.h'
 
 * --- physical
-      parameter (r=287., g=9.806)
 c     dimension ssat(9),swilt(9)                               ! sflux,rdnsib
 c     data ssat/.398,.479,.482,.443,.426,.482,.420,.45,.479/   ! sflux,rdnsib
 c     data swilt/.072,.216,.286,.135,.219,.283,.175,.395,.216/ ! sflux,rdnsib
@@ -62,7 +62,7 @@ c      write(*,*)(store(1,i),i=1,nstore)
 110   format(f10.3,a8)
 
       param0(2) = dt
-      param0(1) = -r*t(il/2,jl/2,1)*log(sig(1))/g
+      param0(1) = -rdry*t(il/2,jl/2,1)*log(sig(1))/grav
 
       write(*,111) (pname0(i),param0(i),i=1,npara0)
 111   format(/,4(1x,a8,1x,f8.2))

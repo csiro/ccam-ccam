@@ -1,9 +1,12 @@
       subroutine retopo(psl,zsold,zs,t,qg)
+c     this version (Aug 2003) allows -ve zsold (from spectral model),
+c     but assumes new zs is positive for atmospheric purposes
 c     this routine redefines psl, ps, t to compensate for zsold going to zs
 c     (but does not overwrite zs itself here)
 c     called by indata and nestin for newtop.ge.1
 !     nowadays just for ps and atmospheric fields Mon  08-23-1999
       include 'newmpar.h'
+      include 'const_phys.h'
       include 'parm.h'
       include 'sigs.h'
       real psl(ifull),zsold(ifull),zs(ifull)
@@ -11,10 +14,9 @@ c     called by indata and nestin for newtop.ge.1
 c     first dum inserted so as not to conflict with zsb in nestin
       common/work2/dum(ifull),ps(ifull),psold(ifull),dum2(ifull,15)
       real told(kl),qgold(kl)
-      data g/9.806/,r/287./
       do iq=1,ij
        psold(iq)=1.e5*exp(psl(iq))
-       psl(iq)=psl(iq)+(zsold(iq)-zs(iq))/(r*t(iq,1))
+       psl(iq)=psl(iq)+(zsold(iq)-max(0.,zs(iq)))/(rdry*t(iq,1))
        ps(iq)=1.e5*exp(psl(iq))
       enddo
 c     now alter temperatures to compensate for new topography

@@ -10,7 +10,8 @@ c    cf      cloud fraction
 c    kth     level of cloud top
 c    kbh     level of cloud base
 c
-      parameter(pi=3.141592653589793,tpi=2.*pi,rlag=14.8125)
+      include 'const_phys.h'
+      parameter(rlag=14.8125)
       parameter(year=365.25)
 
       real cf(5),kth(5),kbh(5)
