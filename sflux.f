@@ -1318,9 +1318,9 @@ ca   &                       +beta/airr(iq) ) ! re-factored by jlm
          delta_t=sign(min(abs(delta_t0),.5*abs(delta_tx(iq))),delta_t0)
          tgfnew(iq)=tgfnew(iq)+delta_t
          delta_tx(iq)=tgfnew(iq)-otgf(iq)
-!        following to limit change to 3 degrees as fh may be poor  May '04
+!        following to limit change to 8 degrees as fh may be poor  May '04
          tgfnew(iq)=otgf(iq)+
-     .              sign(min(abs(delta_tx(iq)),3.),delta_tx(iq))
+     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
 	 enddo  ! ip loop
         if(ntest.eq.1.and.mydiag)then 
 	   iq=idjd
