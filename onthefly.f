@@ -157,7 +157,8 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
             print *,'xx4,xx4_sav,yy4,yy4_sav ',
      .           xx4(id,jd),xx4_sav(id,jd),yy4(id,jd),yy4_sav(id,jd)
          endif                  ! (nmaxpr.eq.1)
-!     put source values into xx4, yy4; target values into xx4_sav,yy4_sav
+!     Put source values into xx4, yy4; target values into xx4_sav,yy4_sav
+!     This is necessary because latltoij uses xx4,yy4 from common.
          do j=1,iquad
             do i=1,iquad
                xx_s=xx4_sav(i,j)
@@ -354,8 +355,8 @@ c      endif
         print *,'after fill wb'
         write(6,"('wb_s(1)#  ',9f7.3)") 
      .          ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
-        print *,'before ints4 psl(idjd2),pmsl(idjd2),zss(idjd2) ',
-     .                        psl(idjd),pmsl(idjd2),zss(idjd2)
+        print *,'before ints4 psl(idjd2),zss(idjd2) ',
+     .                        psl(idjd),zss(idjd2)
       endif  ! (nmaxpr.eq.1)
 
       if(nfly.gt.0)then
