@@ -21,7 +21,8 @@ module cc_mpi
    integer, dimension(2*nproc), save, private :: ireq
    integer, save, private :: nreq
 
-   public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, indp, indg, deptsync, intssync
+   public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
+             indp, indg, deptsync, intssync
    private :: indv_mpi, ccmpi_distribute2, ccmpi_distribute3, &
               ccmpi_gather2, ccmpi_gather3, checksize
    interface ccmpi_gather
@@ -101,24 +102,6 @@ module cc_mpi
 #endif
 
 #ifdef mpilog
-#ifdef scyld
-   public :: mpe_log_event_, mpe_log_get_event_number_, mpe_describe_state_
-   interface 
-      function mpe_log_event_ (event, idata, string) result(val)
-         integer, intent(in) :: event, idata
-         character(len=*), intent(in) :: string
-         integer :: val
-      end function mpe_log_event_
-      function mpe_log_get_event_number_() result(val)
-         integer :: val
-      end function mpe_log_get_event_number_
-      function mpe_describe_state_(start,finish, name, color) result(val)
-         integer, intent(in) :: start, finish
-         character(len=*), intent(in) :: name, color
-         integer :: val
-      end function mpe_describe_state_
-   end interface
-#else
    public :: mpe_log_event, mpe_log_get_event_number, mpe_describe_state
    interface 
       function mpe_log_event (event, idata, string) result(val)
@@ -135,7 +118,6 @@ module cc_mpi
          integer :: val
       end function mpe_describe_state
    end interface
-#endif
 #endif
 
 contains
@@ -277,35 +259,17 @@ contains
                   end do
                end do
             end do
-#ifdef scyld
-            call MPI_SSend_( sbuf, slen, MPI_REAL, iproc, itag, &
-                            MPI_COMM_WORLD, ierr )
-#else
             call MPI_SSend( sbuf, slen, MPI_REAL, iproc, itag, &
                             MPI_COMM_WORLD, ierr )
-#endif
          end do
       else ! myid /= 0
-#ifdef scyld
-         call MPI_Recv_( af, ipan*jpan*npan, MPI_REAL, 0, itag, &
-                        MPI_COMM_WORLD, status, ierr )
-#else
          call MPI_Recv( af, ipan*jpan*npan, MPI_REAL, 0, itag, &
                         MPI_COMM_WORLD, status, ierr )
-#endif
          ! Check that the length is the expected value.
-#ifdef scyld
-         call MPI_Get_count_(status, MPI_REAL, count, ierr)
-#else
          call MPI_Get_count(status, MPI_REAL, count, ierr)
-#endif
          if ( count /= ifull ) then
             print*, "Error, wrong length in ccmpi_distribute", myid, ifull, count
-#ifdef scyld
-            call MPI_Abort_(MPI_COMM_WORLD)
-#else
             call MPI_Abort(MPI_COMM_WORLD)
-#endif
          end if
 
       end if
@@ -355,35 +319,17 @@ contains
                   end do
                end do
             end do
-#ifdef scyld
-            call MPI_SSend_( sbuf, slen, MPI_REAL, iproc, itag, &
-                            MPI_COMM_WORLD, ierr )
-#else
             call MPI_SSend( sbuf, slen, MPI_REAL, iproc, itag, &
                             MPI_COMM_WORLD, ierr )
-#endif
          end do
       else ! myid /= 0
-#ifdef scyld
-         call MPI_Recv_( af, ipan*jpan*npan*kl, MPI_REAL, 0, itag, &
-                        MPI_COMM_WORLD, status, ierr )
-#else
          call MPI_Recv( af, ipan*jpan*npan*kl, MPI_REAL, 0, itag, &
                         MPI_COMM_WORLD, status, ierr )
-#endif
          ! Check that the length is the expected value.
-#ifdef scyld
-         call MPI_Get_count_(status, MPI_REAL, count, ierr)
-#else
          call MPI_Get_count(status, MPI_REAL, count, ierr)
-#endif
          if ( count /= ifull*kl ) then
             print*, "Error, wrong length in ccmpi_distribute", myid, ifull*kl, count
-#ifdef scyld
-            call MPI_Abort_(MPI_COMM_WORLD)
-#else
             call MPI_Abort(MPI_COMM_WORLD)
-#endif
          end if
 
       end if
@@ -419,13 +365,8 @@ contains
             end do
          end do
          do iproc=1,nproc-1
-#ifdef scyld
-            call MPI_Recv_( abuf, ipan*jpan*npan, MPI_REAL, iproc, itag, &
-                        MPI_COMM_WORLD, status, ierr )
-#else
             call MPI_Recv( abuf, ipan*jpan*npan, MPI_REAL, iproc, itag, &
                         MPI_COMM_WORLD, status, ierr )
-#endif
             ! Panel range on the source processor
             call proc_region(iproc,ipoff,jpoff,npoff)
             ! Use the face indices for unpacking
@@ -442,13 +383,8 @@ contains
          end do
       else
          abuf = a
-#ifdef scyld
-         call MPI_SSend_( abuf, ipan*jpan*npan, MPI_REAL, 0, itag, &
-                         MPI_COMM_WORLD, ierr )
-#else
          call MPI_SSend( abuf, ipan*jpan*npan, MPI_REAL, 0, itag, &
                          MPI_COMM_WORLD, ierr )
-#endif
       end if
 
    end subroutine ccmpi_gather2
@@ -482,13 +418,8 @@ contains
             end do
          end do
          do iproc=1,nproc-1
-#ifdef scyld
-            call MPI_Recv_( abuf, ipan*jpan*npan*kl, MPI_REAL, iproc, itag, &
-                        MPI_COMM_WORLD, status, ierr )
-#else
             call MPI_Recv( abuf, ipan*jpan*npan*kl, MPI_REAL, iproc, itag, &
                         MPI_COMM_WORLD, status, ierr )
-#endif
             ! Panel range on the source processor
             call proc_region(iproc,ipoff,jpoff,npoff)
             ! Use the face indices for unpacking
@@ -504,13 +435,8 @@ contains
          end do
       else
          abuf = a
-#ifdef scyld
-         call MPI_SSend_( abuf, ipan*jpan*npan*kl, MPI_REAL, 0, itag, &
-                         MPI_COMM_WORLD, ierr )
-#else
          call MPI_SSend( abuf, ipan*jpan*npan*kl, MPI_REAL, 0, itag, &
                          MPI_COMM_WORLD, ierr )
-#endif
       end if
 
    end subroutine ccmpi_gather3
@@ -1129,11 +1055,7 @@ contains
 
       if ( iext > iextra ) then
          print*, "IEXT too large", iext, iextra
-#ifdef scyld
-         call MPI_Abort_(MPI_COMM_WORLD)
-#else
          call MPI_Abort(MPI_COMM_WORLD)
-#endif
       end if
 
 
@@ -1152,30 +1074,16 @@ contains
             nreq = nreq + 1
             ! Using array(1) rather than array is neccessary on the NEC
             ! (only a problem with pointers, not regular arrays).
-#ifdef scyld
-            call MPI_ISend_( bnds(sproc)%request_list(1), bnds(sproc)%rlen, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_ISend( bnds(sproc)%request_list(1), bnds(sproc)%rlen, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_IRecv_( bnds(sproc)%send_list(1), bnds(sproc)%len, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_IRecv( bnds(sproc)%send_list(1), bnds(sproc)%len, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
       end do
 
       if ( nreq > 0 ) then
-#ifdef scyld
-         call MPI_Waitall_(nreq,ireq,status,ierr)
-#else
          call MPI_Waitall(nreq,ireq,status,ierr)
-#endif
       end if
 
 !     Now get the actual sizes from the status
@@ -1185,11 +1093,7 @@ contains
          if (bnds(sproc)%rlen > 0 ) then
             ! To get recv status, advance nreq by 2
             nreq = nreq + 2
-#ifdef scyld
-            call MPI_Get_count_(status(1,nreq), MPI_INTEGER, count, ierr)
-#else
             call MPI_Get_count(status(1,nreq), MPI_INTEGER, count, ierr)
-#endif
             ! This the number of points I have to send to rproc.
             bnds(sproc)%slen = count
          end if
@@ -1203,30 +1107,16 @@ contains
          if (bnds(sproc)%rlen > 0 ) then
             ! Send list of requests
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_ISend_( bnds(sproc)%request_list(1), bnds(sproc)%rlen2, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_ISend( bnds(sproc)%request_list(1), bnds(sproc)%rlen2, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
             nreq = nreq + 1
             ! Use the maximum size in the recv call.
-#ifdef scyld
-            call MPI_IRecv_( bnds(sproc)%send_list(1), bnds(sproc)%len, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_IRecv( bnds(sproc)%send_list(1), bnds(sproc)%len, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
       end do
       if ( nreq > 0 ) then
-#ifdef scyld
-         call MPI_Waitall_(nreq,ireq,status,ierr)
-#else
          call MPI_Waitall(nreq,ireq,status,ierr)
-#endif
       end if
 
 !     Now get the actual sizes from the status
@@ -1236,11 +1126,7 @@ contains
          if (bnds(sproc)%rlen > 0 ) then
             ! To get recv status, advance nreq by 2
             nreq = nreq + 2
-#ifdef scyld
-            call MPI_Get_count_(status(1,nreq), MPI_INTEGER, count, ierr)
-#else
             call MPI_Get_count(status(1,nreq), MPI_INTEGER, count, ierr)
-#endif
             ! This the number of points I have to send to rproc.
             bnds(sproc)%slen2 = count
          end if
@@ -1358,30 +1244,16 @@ contains
          if ( bnds(sproc)%rlen_uv > 0 ) then
             ! Send list of requests
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_ISend_( bnds(sproc)%request_list_uv(1), bnds(sproc)%rlen_uv, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_ISend( bnds(sproc)%request_list_uv(1), bnds(sproc)%rlen_uv, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
             nreq = nreq + 1
             ! Use the maximum size in the recv call.
-#ifdef scyld
-            call MPI_IRecv_(  bnds(sproc)%send_list_uv(1),  bnds(sproc)%len, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_IRecv(  bnds(sproc)%send_list_uv(1),  bnds(sproc)%len, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
       end do
       if ( nreq > 0 ) then
-#ifdef scyld
-         call MPI_Waitall_(nreq,ireq,status,ierr)
-#else
          call MPI_Waitall(nreq,ireq,status,ierr)
-#endif
       end if
 
 !     Now get the actual sizes from the status
@@ -1391,11 +1263,7 @@ contains
          if ( bnds(sproc)%rlen_uv > 0 ) then
             ! To get recv status, advance nreq by 2
             nreq = nreq + 2
-#ifdef scyld
-            call MPI_Get_count_(status(1,nreq), MPI_INTEGER, count, ierr)
-#else
             call MPI_Get_count(status(1,nreq), MPI_INTEGER, count, ierr)
-#endif
             ! This the number of points I have to send to rproc.
             bnds(sproc)%slen_uv = count
          end if
@@ -1408,30 +1276,16 @@ contains
          if ( bnds(sproc)%rlen_uv > 0 ) then
             ! Send list of requests
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_ISend_( bnds(sproc)%request_list_uv(1), bnds(sproc)%rlen2_uv, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_ISend( bnds(sproc)%request_list_uv(1), bnds(sproc)%rlen2_uv, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
             nreq = nreq + 1
             ! Use the maximum size in the recv call.
-#ifdef scyld
-            call MPI_IRecv_( bnds(sproc)%send_list_uv(1), bnds(sproc)%len, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_IRecv( bnds(sproc)%send_list_uv(1), bnds(sproc)%len, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
       end do
       if ( nreq > 0 ) then
-#ifdef scyld
-         call MPI_Waitall_(nreq,ireq,status,ierr)
-#else
          call MPI_Waitall(nreq,ireq,status,ierr)
-#endif
       end if
 
 !     Now get the actual sizes from the status
@@ -1441,11 +1295,7 @@ contains
          if ( bnds(sproc)%rlen_uv > 0 ) then
             ! To get recv status, advance nreq by 2
             nreq = nreq + 2
-#ifdef scyld
-            call MPI_Get_count_(status(1,nreq), MPI_INTEGER, count, ierr)
-#else
             call MPI_Get_count(status(1,nreq), MPI_INTEGER, count, ierr)
-#endif
             ! This the number of points I have to send to rproc.
             bnds(sproc)%slen2_uv = count
          end if
@@ -1458,30 +1308,16 @@ contains
          if ( bnds(sproc)%rlen_uv > 0 ) then
             ! Send list of requests
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_ISend_( bnds(sproc)%uv_swap(1), bnds(sproc)%rlen2_uv, &
-                 MPI_LOGICAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_ISend( bnds(sproc)%uv_swap(1), bnds(sproc)%rlen2_uv, &
                  MPI_LOGICAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
             nreq = nreq + 1
             ! Use the maximum size in the recv call.
-#ifdef scyld
-            call MPI_IRecv_( bnds(sproc)%send_swap(1), bnds(sproc)%len, &
-                 MPI_LOGICAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_IRecv( bnds(sproc)%send_swap(1), bnds(sproc)%len, &
                  MPI_LOGICAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
       end do
       if ( nreq > 0 ) then
-#ifdef scyld
-         call MPI_Waitall_(nreq,ireq,status,ierr)
-#else
          call MPI_Waitall(nreq,ireq,status,ierr)
-#endif
       end if
 
 
@@ -1538,11 +1374,7 @@ contains
       character(len=*) :: str
       if ( ind == huge(1) ) then
          print*, str, " not set", myid, i, j, n, iq
-#ifdef scyld
-         call MPI_Abort_(MPI_COMM_WORLD)
-#else
          call MPI_Abort(MPI_COMM_WORLD)
-#endif
       end if
    end subroutine check_set
 
@@ -1559,11 +1391,7 @@ contains
       integer :: send_len, recv_len
 
 #ifdef mpilog
-#ifdef scyld
-      ierr = MPE_log_event_(bounds_begin,0,"")
-#else
       ierr = MPE_log_event(bounds_begin,0,"")
-#endif
 #endif
 #ifdef vampir
       call vtbegin(bounds_begin, ierr)
@@ -1590,13 +1418,8 @@ contains
          end if
          if ( recv_len /= 0 ) then
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_IRecv_( bnds(rproc)%rbuf(1),  bnds(rproc)%len, &
-                 MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_IRecv( bnds(rproc)%rbuf(1),  bnds(rproc)%len, &
                  MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
@@ -1606,22 +1429,13 @@ contains
                bnds(sproc)%sbuf(iq) = t(indp(i,j,n))
             end do
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_ISend_( bnds(sproc)%sbuf(1), send_len, &
-                 MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_ISend( bnds(sproc)%sbuf(1), send_len, &
                  MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
       end do
 
       if ( nreq > 0 ) then
-#ifdef scyld
-         call MPI_Waitall_(nreq,ireq,status,ierr)
-#else
          call MPI_Waitall(nreq,ireq,status,ierr)
-#endif
       end if
 
       do iproc = 1,nproc-1  !
@@ -1656,11 +1470,7 @@ contains
       end if
 
 #ifdef mpilog
-#ifdef scyld
-      ierr = MPE_log_event_(bounds_end,0,"")
-#else
       ierr = MPE_log_event(bounds_end,0,"")
-#endif
 #endif
 #ifdef vampir
       call vtend(bounds_end, ierr)
@@ -1683,9 +1493,6 @@ contains
 
 
 #ifdef mpilog
-#ifdef scyld
-      ierr = MPE_log_event_(bounds_begin,0,"")
-#else
       ierr = MPE_log_event(bounds_begin,0,"")
 #endif
 #endif
@@ -1719,13 +1526,8 @@ contains
          end if
          if ( recv_len /= 0 ) then
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_IRecv_( bnds(rproc)%rbuf(1), bnds(rproc)%len, &
-                 MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_IRecv( bnds(rproc)%rbuf(1), bnds(rproc)%len, &
                  MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
@@ -1735,22 +1537,13 @@ contains
                bnds(sproc)%sbuf(1+(iq-1)*kx:iq*kx) = t(indp(i,j,n),1:kx)
             end do
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_ISend_( bnds(sproc)%sbuf(1), send_len*kx, &
-                 MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_ISend( bnds(sproc)%sbuf(1), send_len*kx, &
                  MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
       end do
 
       if ( nreq > 0 ) then
-#ifdef scyld
-         call MPI_Waitall_(nreq,ireq,status,ierr)
-#else
          call MPI_Waitall(nreq,ireq,status,ierr)
-#endif
       end if
 
       do iproc = 1,nproc-1  !
@@ -1785,11 +1578,7 @@ contains
       end if
 
 #ifdef mpilog
-#ifdef scyld
-      ierr = MPE_log_event_(bounds_end,0,"")
-#else
       ierr = MPE_log_event(bounds_end,0,"")
-#endif
 #endif
 #ifdef vampir
       call vtend(bounds_end, ierr)
@@ -1812,11 +1601,7 @@ contains
       integer :: send_len, recv_len
 
 #ifdef mpilog
-#ifdef scyld
-      ierr = MPE_log_event_(boundsuv_begin,0,"")
-#else
       ierr = MPE_log_event(boundsuv_begin,0,"")
-#endif
 #endif
 #ifdef vampir
       call vtbegin(boundsuv_begin, ierr)
@@ -1831,11 +1616,7 @@ contains
 
       if ( double ) then
          print*, "NROWS=2 not implemented in 1D boundsuv"
-#ifdef scyld
-         call MPI_Abort_(MPI_COMM_WORLD)
-#else
          call MPI_Abort(MPI_COMM_WORLD)
-#endif
       end if
 
 !     Set up the buffers to send
@@ -1852,13 +1633,8 @@ contains
          end if
          if ( recv_len /= 0 ) then
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_IRecv_( bnds(rproc)%rbuf(1), bnds(rproc)%len, &
-                 MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_IRecv( bnds(rproc)%rbuf(1), bnds(rproc)%len, &
                  MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
@@ -1875,22 +1651,13 @@ contains
                end if
             end do
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_ISend_( bnds(sproc)%sbuf(1), send_len, &
-                 MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_ISend( bnds(sproc)%sbuf(1), send_len, &
                  MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
       end do
 
       if ( nreq > 0 ) then
-#ifdef scyld
-         call MPI_Waitall_(nreq,ireq,status,ierr)
-#else
          call MPI_Waitall(nreq,ireq,status,ierr)
-#endif
       end if
 
       do iproc = 1,nproc-1  !
@@ -1939,11 +1706,7 @@ contains
       end if
 
 #ifdef mpilog
-#ifdef scyld
-      ierr = MPE_log_event_(boundsuv_end,0,"")
-#else
       ierr = MPE_log_event(boundsuv_end,0,"")
-#endif
 #endif
 #ifdef vampir
       call vtend(boundsuv_end, ierr)
@@ -1967,11 +1730,7 @@ contains
       integer :: send_len, recv_len
 
 #ifdef mpilog
-#ifdef scyld
-      ierr = MPE_log_event_(boundsuv_begin,0,"")
-#else
       ierr = MPE_log_event(boundsuv_begin,0,"")
-#endif
 #endif
 #ifdef vampir
       call vtbegin(boundsuv_begin, ierr)
@@ -1986,11 +1745,7 @@ contains
 
       if ( double ) then
          print*, "NROWS=2 not implemented in 1D boundsuv"
-#ifdef scyld
-         call MPI_Abort_(MPI_COMM_WORLD)
-#else
          call MPI_Abort(MPI_COMM_WORLD)
-#endif
       end if
 
 !     Set up the buffers to send
@@ -2007,13 +1762,8 @@ contains
          end if
          if ( recv_len /= 0 ) then
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_IRecv_( bnds(rproc)%rbuf(1), bnds(rproc)%len, &
-                 MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_IRecv( bnds(rproc)%rbuf(1), bnds(rproc)%len, &
                  MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
          if ( send_len > 0 ) then
             ! Build up list of points
@@ -2030,22 +1780,13 @@ contains
                end if
             end do
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_ISend_( bnds(sproc)%sbuf(1), send_len*kl, &
-                 MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_ISend( bnds(sproc)%sbuf(1), send_len*kl, &
                  MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
       end do
 
       if ( nreq > 0 ) then
-#ifdef scyld
-         call MPI_Waitall_(nreq,ireq,status,ierr)
-#else
          call MPI_Waitall(nreq,ireq,status,ierr)
-#endif
       end if
 
       do iproc = 1,nproc-1  !
@@ -2094,11 +1835,7 @@ contains
       end if
 
 #ifdef mpilog
-#ifdef scyld
-      ierr = MPE_log_event_(boundsuv_end,0,"")
-#else
       ierr = MPE_log_event(boundsuv_end,0,"")
-#endif
 #endif
 #ifdef vampir
       call vtend(boundsuv_end, ierr)
@@ -2128,11 +1865,7 @@ contains
       integer :: iq, iqk, k, idel, jdel, nf
 
 #ifdef mpilog
-#ifdef scyld
-      ierr = MPE_log_event_(deptsync_begin,0,"")
-#else
       ierr = MPE_log_event(deptsync_begin,0,"")
-#endif
 #endif
 #ifdef vampir
       call vtbegin(deptsync_begin, ierr)
@@ -2179,29 +1912,15 @@ contains
          rproc = modulo(myid-iproc,nproc)  ! Recv from
          ! Send, even if length is zero
          nreq = nreq + 1
-#ifdef scyld
-         call MPI_ISend_( buf(1,1,sproc), 4*dslen(sproc), &
-                 MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
          call MPI_ISend( buf(1,1,sproc), 4*dslen(sproc), &
                  MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          nreq = nreq + 1
          ! Use the maximum size in the recv call.
-#ifdef scyld
-         call MPI_IRecv_( dpoints(1,1,rproc), 4*maxsize, &
-                         MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
          call MPI_IRecv( dpoints(1,1,rproc), 4*maxsize, &
                          MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
       end do
       if ( nreq > 0 ) then
-#ifdef scyld
-         call MPI_Waitall_(nreq,ireq,status,ierr)
-#else
          call MPI_Waitall(nreq,ireq,status,ierr)
-#endif
       end if
 
 !     Now get the actual sizes from the status
@@ -2210,20 +1929,12 @@ contains
          rproc = modulo(myid-iproc,nproc)  ! Recv from
          ! To get recv status, advance nreq by 2
          nreq = nreq + 2
-#ifdef scyld
-         call MPI_Get_count_(status(1,nreq), MPI_REAL, count, ierr)
-#else
          call MPI_Get_count(status(1,nreq), MPI_REAL, count, ierr)
-#endif
          drlen(rproc) = count/4
       end do
 
 #ifdef mpilog
-#ifdef scyld
-      ierr = MPE_log_event_(deptsync_end,0,"")
-#else
       ierr = MPE_log_event(deptsync_end,0,"")
-#endif
 #endif
 #ifdef vampir
       call vtend(deptsync_end, ierr)
@@ -2243,11 +1954,7 @@ contains
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
 
 #ifdef mpilog
-#ifdef scyld
-      ierr = MPE_log_event_(intssync_begin,0,"")
-#else
       ierr = MPE_log_event(intssync_begin,0,"")
-#endif
 #endif
 #ifdef vampir
       call vtbegin(intssync_begin, ierr)
@@ -2260,31 +1967,17 @@ contains
          rproc = modulo(myid-iproc,nproc)  ! Recv from
          if ( drlen(sproc) /= 0 ) then
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_ISend_( sextra(1,sproc), drlen(sproc), &
-                 MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_ISend( sextra(1,sproc), drlen(sproc), &
                  MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
          if ( dslen(rproc) /= 0 ) then
             nreq = nreq + 1
-#ifdef scyld
-            call MPI_IRecv_( buf(1,rproc), dslen(rproc), &
-                            MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#else
             call MPI_IRecv( buf(1,rproc), dslen(rproc), &
                             MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-#endif
          end if
       end do
       if ( nreq > 0 ) then
-#ifdef scyld
-         call MPI_Waitall_(nreq,ireq,status,ierr)
-#else
          call MPI_Waitall(nreq,ireq,status,ierr)
-#endif
       end if
 
       do iproc=0,nproc-1
@@ -2298,11 +1991,7 @@ contains
          end do
       end do
 #ifdef mpilog
-#ifdef scyld
-      ierr = MPE_log_event_(intssync_end,0,"")
-#else
       ierr = MPE_log_event(intssync_end,0,"")
-#endif
 #endif
 #ifdef vampir
       call vtend(intssync_end, ierr)
@@ -2322,11 +2011,7 @@ contains
       i = iq - (j - 1)*il_g - n*il_g*il_g
       if ( fproc(i,j,n) /= myid ) then
          write(*,"(a,5i5)") "Consistency failure in indv_mpi", myid, iq, i, j, n
-#ifdef scyld
-         call MPI_Abort_(MPI_COMM_WORLD)
-#else
          call MPI_Abort(MPI_COMM_WORLD)
-#endif
       end if
       ! Reduced to values on my processor
       n = n + noff
@@ -2401,20 +2086,12 @@ contains
          if ( kl*bnds(rproc)%rlen >=  bnds(rproc)%len ) then
             print*, "Error, maximum length error in check_bnds_alloc"
             print*, myid, rproc, bnds(rproc)%rlen,  bnds(rproc)%len, kl
-#ifdef scyld
-            call MPI_Abort_(MPI_COMM_WORLD,ierr)
-#else
             call MPI_Abort(MPI_COMM_WORLD,ierr)
-#endif
          end if
          if ( iext >= iextra ) then
             print*, "Error, iext maximum length error in check_bnds_alloc"
             print*, myid, iext, iextra
-#ifdef scyld
-            call MPI_Abort_(MPI_COMM_WORLD,ierr)
-#else
             call MPI_Abort(MPI_COMM_WORLD,ierr)
-#endif
          end if
       end if
    end subroutine check_bnds_alloc
@@ -2512,29 +2189,17 @@ contains
          print*, "NX, NY", nxproc, nyproc, n
          if ( nxproc*nyproc /= n ) then
             print*, "Error in splitting up faces"
-#ifdef scyld
-            call MPI_finalize_(ierr)
-#else
             call MPI_finalize(ierr)
-#endif
             stop
          end if
          if ( modulo(il_g,nxproc) /= 0 ) then
             print*, "Error, il not a multiple of nxproc"
-#ifdef scyld
-            call MPI_finalize_(ierr)
-#else
             call MPI_finalize(ierr)
-#endif
             stop
          end if
          if ( modulo(il_g,nyproc) /= 0 ) then
             print*, "Error, il not a multiple of nyproc"
-#ifdef scyld
-            call MPI_finalize_(ierr)
-#else
             call MPI_finalize(ierr)
-#endif
             stop
          end if
          ipan = il_g/nxproc
@@ -2602,4 +2267,3 @@ contains
    end subroutine proc_region
 
 end module cc_mpi
-
