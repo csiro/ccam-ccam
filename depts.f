@@ -74,7 +74,9 @@ c     convert to grid point numbering
       do k=1,kl
          call toij5 (k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
       end do
-      if(ntest.eq.1)then
+!     Share off processor departure points.
+      call deptsync(nface,xg,yg)
+      if(ntest.eq.1.and.mydiag)then
         print *,'2nd guess for k = ',nlv
         print *,'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
         print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
