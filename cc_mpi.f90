@@ -601,6 +601,10 @@ contains
       iwu = huge(1)
       inv = huge(1)
       isv = huge(1)
+      ieeu = huge(1)
+      iwwu = huge(1)
+      innv = huge(1)
+      issv = huge(1)
       lwws = huge(1)
       lws = huge(1)
       lwss = huge(1)
@@ -725,8 +729,8 @@ contains
          end do
       end do
 
-      ! Correct within the same face only ( not necessarily the same
-      ! processor, but will be corrected later.
+      ! Correct within the same face only (not necessarily the same
+      ! processor, but will be corrected later).
       ieu = ie
       iwu = iw
       inv = in
@@ -754,11 +758,9 @@ contains
 
 
 !     In the first pass through, set up list of points to be requested from
-!     other processors. This is basically the same in the face and 1D versions,
-!     except that the face version calculates an index for unpacking into
-!     the boundary region, while the 1D code puts it at the end and
-!     updates the index arrays appropriately.
-
+!     other processors. These points are placed in the "iextra" region at the
+!     end of arrays. The indirect indices are updated to point into this 
+!     region.
       iext = 0
       do n=1,npan
 
@@ -767,8 +769,8 @@ contains
          do j=1,jpan
             ! 1D code takes care of corners separately at the end so only goes
             ! over 1,jpan here.
-               iq = indg(i,j,n)
-               iqx = iw_g(iq)
+            iq = indg(i,j,n)
+            iqx = iw_g(iq)
 
             ! iqx is the global index of the required neighbouring point.
 
@@ -789,8 +791,8 @@ contains
          !     N edge
          j=jpan
          do i=1,ipan
-               iq = indg(i,j,n)
-               iqx = in_g(iq)
+            iq = indg(i,j,n)
+            iqx = in_g(iq)
 
             ! Which processor has this point
             rproc = qproc(iqx)
@@ -809,8 +811,8 @@ contains
          !     E edge
          i = ipan
          do j=1,jpan
-               iq = indg(i,j,n)
-               iqx = ie_g(iq)
+            iq = indg(i,j,n)
+            iqx = ie_g(iq)
 
             ! Which processor has this point
             rproc = qproc(iqx)
@@ -829,8 +831,8 @@ contains
          !     S edge
          j=1
          do i=1,ipan
-               iq = indg(i,j,n)
-               iqx = is_g(iq)
+            iq = indg(i,j,n)
+            iqx = is_g(iq)
 
             ! Which processor has this point
             rproc = qproc(iqx)
@@ -971,14 +973,13 @@ contains
 
 !     Now set up the second row
       bnds(:)%rlen2 = bnds(:)%rlenx  ! so that they're appended.
-
       do n=1,npan
 
          !     Start with W edge
          i = 1
          do j=1,jpan
-               iq = indg(i,j,n)
-               iqx = iww_g(iq)
+            iq = indg(i,j,n)
+            iqx = iww_g(iq)
 
             ! Which processor has this point
             rproc = qproc(iqx)
@@ -997,8 +998,8 @@ contains
          !     N edge
          j=jpan
          do i=1,ipan
-               iq = indg(i,j,n)
-               iqx = inn_g(iq)
+            iq = indg(i,j,n)
+            iqx = inn_g(iq)
 
             ! Which processor has this point
             rproc = qproc(iqx)
@@ -1017,8 +1018,8 @@ contains
          !     E edge
          i = ipan
          do j=1,jpan
-               iq = indg(i,j,n)
-               iqx = iee_g(iq)
+            iq = indg(i,j,n)
+            iqx = iee_g(iq)
 
             ! Which processor has this point
             rproc = qproc(iqx)
@@ -1037,8 +1038,8 @@ contains
          !     S edge
          j=1
          do i=1,ipan
-               iq = indg(i,j,n)
-               iqx = iss_g(iq)
+            iq = indg(i,j,n)
+            iqx = iss_g(iq)
 
             ! Which processor has this point
             rproc = qproc(iqx)
@@ -1263,7 +1264,6 @@ contains
          call MPI_Waitall(nreq,ireq,status,ierr)
       end if
 
-
 !     Start of UV section
 
       bnds(:)%rlen_uv = 0
@@ -1271,8 +1271,9 @@ contains
 
 !     In the first pass through, set up list of points to be requested from
 !     other processors. In the 1D code values on the same processor are
-!     copied if they have to be swapped.
+!     copied only if they have to be swapped.
 !     (Actually make this a second stage optimisation).
+!     This only makes a difference on 1, 2 or 3 processors.
 
       iext = 0
       do n=1,npan
@@ -1354,6 +1355,87 @@ contains
 !     Second pass
       bnds(:)%rlen2_uv = bnds(:)%rlen_uv
       bnds(:)%slen2_uv = bnds(:)%slen_uv
+      ieeu = iee
+      iwwu = iww
+      innv = inn
+      issv = iss
+
+      do n=1,npan
+
+         !     Start with W edge, U values
+         i = 1
+         do j=1,jpan
+            iqg = indg(i,j,n)
+            iqx = iww_g(iqg)
+            ! Which processor has this point
+            rproc = qproc(iqx)
+            ! Add this point to request list
+            call check_bnds_alloc(rproc,iext)
+            bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iext
+            iql = indp(i,j,n)  !  Local index
+            iwwu(iql) = ifull+iext
+            ! Decide if u/v need to be swapped. My face is n-noff
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = edge_w .and. swap_w(n-noff)
+         end do
+
+         !     N edge (V)
+         j=jpan
+         do i=1,ipan
+            iqg = indg(i,j,n)
+            iqx = inn_g(iqg)
+            rproc = qproc(iqx)
+            ! Add this point to request list
+            call check_bnds_alloc(rproc,iext)
+            bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
+            ! to show that this is v rather than u, flip sign
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iext
+            iql = indp(i,j,n)  !  Local index
+            innv(iql) = ifull+iext
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = edge_n .and. swap_n(n-noff)
+         end do
+
+         !     E edge, U
+         i = ipan
+         do j=1,jpan
+            iqg = indg(i,j,n)
+            iqx = iee_g(iqg)
+            rproc = qproc(iqx)
+            ! Add this point to request list
+            call check_bnds_alloc(rproc,iext)
+            bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = iext
+            iql = indp(i,j,n)  !  Local index
+            ieeu(iql) = ifull+iext
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = edge_e .and. swap_e(n-noff)
+         end do
+
+         !     S edge, V
+         j=1
+         do i=1,ipan
+            iqg = indg(i,j,n)
+            iqx = iss_g(iqg)
+            rproc = qproc(iqx)
+            call check_bnds_alloc(rproc,iext)
+            bnds(rproc)%rlen2_uv = bnds(rproc)%rlen2_uv + 1
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen2_uv) = -iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen2_uv) = -iext
+            iql = indp(i,j,n)  !  Local index
+            issv(iql) = ifull+iext
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = edge_s .and. swap_s(n-noff)
+         end do
+      end do ! n=1,npan
 
 !     Nearest neighbours are defined as those points which send/recv 
 !     boundary information.
@@ -1368,9 +1450,6 @@ contains
       print*, "Bounds", myid, "RLEN2", bnds(:)%rlen2
       print*, "Neighbour", myid, neighbour
 #endif
-
-! 1D code doesn't use double row U/V
-
 
 !     Now, for each processor send the list of points I want.
 !     Send all possible pairs and don't assume anything about the symmetry.
@@ -1460,6 +1539,25 @@ contains
          call MPI_Waitall(nreq,ireq,status,ierr)
       end if
 
+!     Indices that are missed above (should be a better way to get these)
+      do n=1,npan
+         do j=1,jpan
+            iwwu(indp(2,j,n)) = iwu(indp(1,j,n))
+            ieeu(indp(ipan-1,j,n)) = ieu(indp(ipan,j,n))
+         end do
+         do i=1,ipan
+            issv(indp(i,2,n)) = isv(indp(i,1,n))
+            innv(indp(i,jpan-1,n)) = inv(indp(i,jpan,n))
+         end do
+      end do
+
+#ifdef DEBUG
+      print*, "Bounds", myid, "SLEN_UV ", bnds(:)%slen_uv
+      print*, "Bounds", myid, "RLEN_UV ", bnds(:)%rlen_uv
+      print*, "Bounds", myid, "SLEN2_UV ", bnds(:)%slen2_uv
+      print*, "Bounds", myid, "RLEN2_UV ", bnds(:)%rlen2_uv
+#endif
+
 !  At the moment send_lists use global indices. Convert these to local.
       do iproc = 1,nproc-1  !
          sproc = modulo(myid+iproc,nproc)  ! Send to
@@ -1505,6 +1603,10 @@ contains
                call check_set( iwu(iq), "IWU", i, j, n, iq)
                call check_set( inv(iq), "INV", i, j, n, iq)
                call check_set( isv(iq), "ISV", i, j, n, iq)
+               call check_set( ieeu(iq), "IEEU", i, j, n, iq)
+               call check_set( iwwu(iq), "IWWU", i, j, n, iq)
+               call check_set( innv(iq), "INNV", i, j, n, iq)
+               call check_set( issv(iq), "ISSV", i, j, n, iq)
             end do
          end do
          call check_set( lwws(n), "LWWS", 1, 1, n, 1)
@@ -1765,11 +1867,6 @@ contains
          end if
       end if
 
-      if ( double ) then
-         print*, "NROWS=2 not implemented in 1D boundsuv"
-         call MPI_Abort(MPI_COMM_WORLD)
-      end if
-
 !     Set up the buffers to send
       nreq = 0
       do iproc = 1,nproc-1  !
@@ -1881,11 +1978,6 @@ contains
          if ( nrows == 2 ) then
             double = .true.
          end if
-      end if
-
-      if ( double ) then
-         print*, "NROWS=2 not implemented in 1D boundsuv"
-         call MPI_Abort(MPI_COMM_WORLD)
       end if
 
 !     Set up the buffers to send
