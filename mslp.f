@@ -5,7 +5,7 @@
       include 'newmpar.h'
       include 'const_phys.h'
       include 'parm.h'
-      real pmsl(ifull),psl(ifull),zs(ifull),t(ifull+iextra,kl)
+      real pmsl(ifull),psl(ifull),zs(ifull),t(ifull,kl)
       include 'sigs.h'
       save lev
       c=grav/stdlapse
