@@ -67,7 +67,7 @@ contains
  9       format(/1x,a4,' ktau =',i7,'  level =',i3,'  addon =',g8.2,   &      
      & '  has been mult by',1pe8.1)
          print 91,(j,j=j1,j2)
-91       format(4x,25i6)
+91       format(4x,25i11)
          do i=i1,i2
             write(unit=*,fmt="(i5)", advance="no") i
             do j=ja,jb
@@ -75,7 +75,7 @@ contains
                nlocal = n + noff
                ilocal = i-ioff
                jlocal = j - n*il_g - joff
-               write(unit=*,fmt="(f6.2)", advance="no")                &
+               write(unit=*,fmt="(f11.6)", advance="no")                &
      &              (a(indp(ilocal,jlocal,nlocal))-bias)*fact
             end do
             write(*,*)
@@ -209,9 +209,12 @@ contains
       integer :: i, j, n, jf, ilocal, jlocal, nloc, iq
 
 !     Return the equivalent of arr(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+!     Note that this doesn't get off-processor values correctly!
+!     Restrict range so that it still works if id=1 etc
       iq = 0
-      do j=jd-1,jd+1
-         do i=id-1,id+1
+      res = 0. ! As a sort of missing value
+      do j=max(jd-1,1),min(jd+1,jl_g)
+         do i=max(id-1,1),min(id+1,il_g)
             iq = iq + 1
             n = (j-1)/il_g  ! Global n
             jf = j - n*il_g ! Value on face
@@ -220,8 +223,6 @@ contains
                ilocal = i-ioff
                jlocal = j - n*il_g - joff
                res(iq) = a(indp(ilocal,jlocal,nloc))
-            else
-               res(iq) = 0.
             end if
          end do
       end do
@@ -237,8 +238,9 @@ contains
 
 !     Return the equivalent of arr(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
       iq = 0
-      do j=jd-1,jd+1
-         do i=id-1,id+1
+      res = 0
+      do j=max(jd-1,1),min(jd+1,jl_g)
+         do i=max(id-1,1),min(id+1,il_g)
             iq = iq + 1
             n = (j-1)/il_g  ! Global n
             jf = j - n*il_g ! Value on face
@@ -247,8 +249,6 @@ contains
                ilocal = i-ioff
                jlocal = j - n*il_g - joff
                res(iq) = a(indp(ilocal,jlocal,nloc))
-            else
-               res(iq) = 0
             end if
          end do
       end do
@@ -264,8 +264,9 @@ contains
 
 !     Return the equivalent of arr(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
       iq = 0
-      do j=jd-1,jd+1
-         do i=id-1,id+1
+      res = .false.
+      do j=max(jd-1,1),min(jd+1,jl_g)
+         do i=max(id-1,1),min(id+1,il_g)
             iq = iq + 1
             n = (j-1)/il_g  ! Global n
             jf = j - n*il_g ! Value on face
@@ -274,8 +275,6 @@ contains
                ilocal = i-ioff
                jlocal = j - n*il_g - joff
                res(iq) = a(indp(ilocal,jlocal,nloc))
-            else
-               res(iq) = .false.
             end if
          end do
       end do
