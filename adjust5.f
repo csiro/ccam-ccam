@@ -520,7 +520,7 @@
          enddo   ! iq loop
         enddo    ! k loop
         call ccglobal_posneg(wrk1,delpos,delneg)
-        ratio = -delneg/max(delpos,1.e-40)
+        ratio = -delneg/max(delpos,1.e-30)
         if(mfix_qg.eq.1)alph_q = min(ratio,sqrt(ratio))  ! best option
         if(mfix_qg.eq.2)alph_q = sqrt(ratio)
 !       this is cunning 2-sided scheme
@@ -532,7 +532,7 @@
          enddo   ! iq loop
         enddo    ! k loop
         call ccglobal_posneg(wrk1,delpos,delneg)
-        ratio = -delneg/max(delpos,1.e-40)
+        ratio = -delneg/max(delpos,1.e-30)
         if(mfix_qg.eq.1)alph_q = min(ratio,sqrt(ratio))  ! best option
         if(mfix_qg.eq.2)alph_q = sqrt(ratio)
 !       this is cunning 2-sided scheme
