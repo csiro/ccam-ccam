@@ -26,8 +26,8 @@ c      lg - latitude index (ranges from 1 at poles to LAT at equator)
 c      
 c      land - logical variable for surface type ( = T for land points)
 c      prf - pressure at full levels (in hPa. NB: not SI units)
-c      kbase - k index of convective cloud base 
-c      ktop - k index of convective cloud top
+c      kbase - k index of convective cloud base   *** not used
+c      ktop - k index of convective cloud top     *** not used
 c
 c In/Out:
 c
@@ -56,6 +56,7 @@ C Global parameters
       include 'newmpar.h'
       include 'const_phys.h' !Input physical constants
       include 'cparams.h'    !Input cloud scheme parameters
+      include 'kuocom.h'     !Input cloud scheme parameters rcrit_l & rcrit_s
       include 'params.h'     !Input model grid dimensions (modified params.h for CCAM)
       include 'sigs.h'
 
@@ -90,7 +91,6 @@ C Local work arrays and variables
       real qtot(ln2,nl),tliq(ln2,nl),qsg(ln2,nl)
       real fice(ln2,nl)
       real qcold(ln2,nl)
-      real rcrcvb(ln2)
       real Cdrop(ln2,nl)
       real rcrit(ln2,nl)
 
@@ -110,7 +110,6 @@ C Local work arrays and variables
       real dqsdt
       real es
       real esl
-      real facu
       real fd
       real fi
       real fl
@@ -234,11 +233,15 @@ c Precompute the array of critical relative humidities
       do k=1,nl
         do mg=1,ln2
           if(land(mg))then
-c            rcrit(mg,k)=max(0.75,sig(k)**2)
-            rcrit(mg,k)=max(0.75,sig(k))
+c           rcrit(mg,k)=max(0.75,sig(k)**2)
+!           rcrit(mg,k)=max(0.75,sig(k))
+!           rcrit(mg,k)=max(0.75,min(.99,sig(k)))    ! same as T63
+            rcrit(mg,k)=max(rcrit_l,min(.99,sig(k))) ! .75 for same as T63
           else
-            rcrit(mg,k)=max(0.85,sig(k)**2)
-c            rcrit(mg,k)=max(0.9,sig(k))
+!           rcrit(mg,k)=max(0.85,sig(k)**2)
+c           rcrit(mg,k)=max(0.9,sig(k))
+!           rcrit(mg,k)=max(0.85,min(.99,sig(k)))    ! same as T63
+            rcrit(mg,k)=max(rcrit_s,min(.99,sig(k))) ! .85 for same as T63
           endif
 C***          if(k.eq.1)rcrit(mg,k)=0.999
 C***          if(k.eq.2)rcrit(mg,k)=0.99
@@ -268,19 +271,19 @@ c Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
           if(ttg(mg,k).lt.tfrz.and.ttg(mg,k).gt.Tice)qs=qsl
           dqsdt=qs*hlrvap/tliq(mg,k)**2
 
-          al=1/(1+(hlcp+fi*hlfcp)*dqsdt)    !Smith's notation
+          al=1./(1.+(hlcp+fi*hlfcp)*dqsdt)    !Smith's notation
           qc=qtot(mg,k)-qs
 
           delq=(1-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
           cfrac(mg,k)=1.
           qcg(mg,k)=al*qc
           if(qc.lt.delq)then
-            cfrac(mg,k)=1-0.5*((qc-delq)/delq)**2
-            qcg(mg,k)=al*(qc-(qc-delq)**3/(6*delq**2))
+            cfrac(mg,k)=1.-0.5*((qc-delq)/delq)**2
+            qcg(mg,k)=al*(qc-(qc-delq)**3/(6.*delq**2))
           endif
           if(qc.le.0.)then
             cfrac(mg,k)=0.5*((qc+delq)/delq)**2
-            qcg(mg,k)=al*(qc+delq)**3/(6*delq**2)
+            qcg(mg,k)=al*(qc+delq)**3/(6.*delq**2)
           endif
           if(qc.le.-delq)then
             cfrac(mg,k)=0.

@@ -81,9 +81,9 @@ c     start of processing loop
      . t,u,v,qg,tgg,
      . tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,nested)
 
-      do k=1,kl
-       sig(k)=sigin(k)
-      enddo
+!      do k=1,kl            ! removed 9/10//03
+!       sig(k)=sigin(k)
+!      enddo
      
       rlong0=rlong0x
       rlat0=rlat0x

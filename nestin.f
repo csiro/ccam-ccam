@@ -12,6 +12,7 @@ c     int2d code - not used for globpea
       include 'map.h'
       include 'parm.h'     ! qgmin
       include 'pbl.h'      ! sice
+      include 'sigs.h'
       include 'soil.h'     ! tss
       include 'soilsnow.h' ! tgg
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
@@ -100,7 +101,7 @@ c     print additional information
      .         timeg,mtimer,mtimea,mtimeb
       print *,'ds,ds_r ',ds,ds_r
 
-!     if(mod(ktau,nmaxpr).eq.0.or.diag)then
+      if(mod(ktau,nmaxpr).eq.0.or.diag)then
 c       following is useful if troublesome data is read in
         print *,'following max/min values printed from nestin'
         call maxmin(ub,'ub',ktau,1.,kl)
@@ -109,15 +110,19 @@ c       following is useful if troublesome data is read in
         call maxmin(qb,'qb',ktau,1.e3,kl)
         print *,'following are really psl not ps'
         call maxmin(pslb,'ps',ktau,100.,1)
-!     endif
+      endif
 
       qb(:,:)=max(qb(:,:),qgmin)
 
-      if(kk.lt.kl)then
+!      if(kk.lt.kl)then
+      if(abs(sig(2)-sigin(2)).gt..0001)then   ! 11/03
 c       this section allows for different number of vertical levels
 c       presently assume sigin (up to kk) levels are set up as per nsig=6
 c       option in eigenv, though original csiro9 levels are sufficiently
 c       close for these interpolation purposes.
+        if(ktau.eq.1)then
+	   print*,'calling vertint with kk,sigin ',kk,(sigin(k),k=1,kk)
+	 endif
         if(diag)then
           print *,'kk,sigin ',kk,(sigin(k),k=1,kk)
           print *,'tb before vertint ',(tb(idjd,k),k=1,kk)
@@ -131,7 +136,7 @@ c       close for these interpolation purposes.
         if(diag)print *,'qb after vertint ',(qb(idjd,k),k=1,kk)
         call vertint(ub,3)
         call vertint(vb,4)
-      endif  ! (kk.lt.kl)
+      endif  ! (abs(sig(2)-sigin(2)).gt..0001)
 
 c     N.B. tssb (sea) only altered for newtop=2 (done here now)
       if(newtop.eq.2)then
@@ -197,7 +202,7 @@ c     now use tt, uu, vv arrays for time interpolated values
       vv (:,:)=cona*va(:,:)+conb*vb(:,:)
 
 c     calculate time interpolated tss (into tssi)
-      if(namip.eq.0)return     ! namip SSTs/sea-ice take precedence
+      if(namip.gt.0)return     ! namip SSTs/sea-ice take precedence
       tssi(:)=cona*tssa(:)+conb*tssb(:)  
       do iq=1,ifull
        if(.not.land(iq))then

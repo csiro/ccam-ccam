@@ -279,15 +279,17 @@ c     reincorporate land mask into surface temperature
 !!!         write (77,'(12f7.1)') sicedep
 !!!         close (77)
 !!!         if(ico2.gt.0)then
+!!!           ico2x=max(1,ico2)
 !!!           open(unit=77,file=co2out,form='formatted',status='unknown')
 !!!           write (77,*) kdate,ktime,' ktau = ',ktau
-!!!           write (77,'(12f7.2)')((tr(iq,k,ico2),iq=1,ilt*jlt),k=1,klt)
+!!!           write (77,'(12f7.2)')((tr(iq,k,ico2x),iq=1,ilt*jlt),k=1,klt)
 !!!           close (77)
 !!!         endif  ! (ico2.gt.0)
 !!!         if(iradon.gt.0)then
+!!! 	      iradonx=max(1,iradon)
 !!!           open(unit=77,file=radonout,form='formatted',status='unknown')
 !!!           write (77,*) kdate,ktime,' ktau = ',ktau
-!!!           write (77,'(12f7.1)')((tr(iq,k,iradon),iq=1,ilt*jlt),k=1,klt)
+!!!           write (77,'(12f7.1)')((tr(iq,k,iradonx),iq=1,ilt*jlt),k=1,klt)
 !!!           close (77)
 !!!         endif  ! (ico2.gt.0)
 !!!         if(nrungcm.eq.-2.or.nrungcm.eq.-5)then
