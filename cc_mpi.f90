@@ -23,7 +23,7 @@ module cc_mpi
 
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
              indp, indg, deptsync, intssync, start_log, end_log, check_dims, &
-             log_on, log_off, log_setup
+             log_on, log_off, log_setup, phys_loadbal
    private :: indv_mpi, ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
               ccmpi_gather2, ccmpi_gather3, checksize, get_dims, get_dims_gx
    interface ccmpi_gather
@@ -99,6 +99,7 @@ module cc_mpi
    integer, public, save :: intssync_begin, intssync_end
    integer, public, save :: stag_begin, stag_end
    integer, public, save :: toij_begin, toij_end
+   integer, public, save :: physloadbal_begin, physloadbal_end
 
 #ifdef mpilog
    public :: mpe_log_event, mpe_log_get_event_number, mpe_describe_state
@@ -2335,6 +2336,9 @@ contains
       toij_begin = MPE_Log_get_event_number()
       toij_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(toij_begin, toij_end, "Toij", "blue")
+      physloadbal_begin = MPE_Log_get_event_number()
+      physloadbal_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(physloadbal_begin, physloadbal_end, "Physloadbal", "blue")
 #endif
 #ifdef vampir
       bounds_begin = 1
@@ -2379,6 +2383,9 @@ contains
       toij_begin = 13
       toij_end =  toij_begin
       call vtsymdef(toij_begin, "Toij", "Toij", ierr)
+      physloadbal_begin = 14
+      physloadbal_end =  physloadbal_begin
+      call vtsymdef(physloadbal_begin, "Physloadbal", "Physloadbal", ierr)
 #endif
    end subroutine log_setup
    
@@ -2394,7 +2401,6 @@ contains
 
    end subroutine check_dims
    
-
    function get_dims() result(dims)
       include 'newmpar.h'
       integer, dimension(2) :: dims
@@ -2406,7 +2412,15 @@ contains
       integer, dimension(2) :: dims
       dims = (/ il, kl /)
    end function get_dims_gx
-   
+
+   subroutine phys_loadbal()
+!     This forces a sychronisation to make the physics load imbalance overhead
+!     explicit
+      integer :: ierr
+      call start_log(physloadbal_begin)
+      call MPI_Barrier( MPI_COMM_WORLD, ierr )
+      call end_log(physloadbal_end)
+   end subroutine phys_loadbal
    
 end module cc_mpi
 
