@@ -48,8 +48,6 @@
       save indsw,indne,indse,indnw
       ! If the time step hasn't changed, used the same acceleration as 
       ! previously
-      real, save :: dtlast = 0.0
-      real, save, dimension(kl) :: accel
       ind(i,j,n)=i+(j-1)*il+n*il*il
       hdt=dt/2.
       hdtds=hdt/ds
@@ -254,14 +252,7 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
      .   rhsl(in(iq)),rhsl(ie(iq)),rhsl(iw(iq)),rhsl(is(iq))
        endif  ! (diag.and.k.le.2)
 
-!      Calculate the optimum acceleration using a point
-!      in the middle of the first face
-       if ( dt /= dtlast ) then
-          call optmx(il,schmidt,dt,bam(k),accel(k))
-       end if
-!!       call optm(dt,bam(k),acc)
-!!     call optm(dt,bam(k)*(1.+epsp),acc)
-       call helmsol(accel(k),helm,pe(1,k),rhsl)
+       call helmsol(helm,pe(1,k),rhsl)
       enddo    ! k loop
       if(diag)then   !  only for last k of loop (i.e. 1)
         iq=idjd
@@ -607,6 +598,5 @@ c       print *,'qgsav,qg_in',qgsav(idjd,1),qg(idjd,1,1)
           call printa('qg  ',qg(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.e3)
         endif
       endif
-      dtlast = dt ! Save value for optmx
       return
       end
