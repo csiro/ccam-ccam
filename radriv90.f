@@ -183,6 +183,7 @@ c    .               k,ii,qg(ii,jd,k),t(ii,jd,k),rhg(ii,jd,k)
 c           print *,'tetw,tetwm,teti,tetim ',tetw,tetwm,teti,tetim
 c        endif
       end do    ! k=1,ksigtop
+      rhg(:,ksigtop+1:kl) = 0.
       if(ncvcloud.gt.0)then  ! jlm simple convective cloud enhancement
         frac=.01*ncvcloud    ! e.g. ncvcloud=90
         do k=kuocb,kcl_top
