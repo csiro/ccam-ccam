@@ -2129,6 +2129,9 @@ contains
       integer :: count, ip, jp
       integer :: iq, k, idel, jdel, nf
 
+      ! This does nothing in the one processor case
+      if ( nproc == 1 ) return
+
       call start_log(deptsync_begin)
       dslen = 0
       drlen = 0
@@ -2151,9 +2154,6 @@ contains
                   call MPI_Abort(MPI_COMM_WORLD,ierr)
                end if
 #endif
-!!$            if ( mydiag .and. iq==1 ) then
-!!$               print*, "DEPTS", k, xg(iq,k), xg(iq,k), nface(iq,k), ip,jp, iproc
-!!$            end if
                ! Add this point to the list of requests I need to send to iproc
                dslen(iproc) = dslen(iproc) + 1
 #ifdef debug
