@@ -1,4 +1,4 @@
-      subroutine conjob      ! globpea & rcsb (non-chen)
+      subroutine conjob      ! globpea & rcsb (non-chen); nkuo=46 only
       include 'newmpar.h'
       parameter (itermax=1)  ! originally 2 - not available in vect. version
       parameter (ntest=0)    ! 1 or 2 to turn on; for 3 uncomment !!! lines
@@ -24,7 +24,6 @@ c     Hal's ds() renamed dsh()
       include 'sigs.h'
       include 'soil.h'
       include 'tracers.h'  ! ngas, nllp, ntrac
-      include 'xarrs.h'
       common/epst/epst(ifull)
       common/work2/alphac(ifull),conrev(ifull),fluxr(ifull)
      .  ,heatpc(ifull),rhmx(ifull),smin(ifull),sumd(ifull)
@@ -87,13 +86,13 @@ c     loop over all points : L/S rainfall, then conv
       if(ntest.ne.0.or.diag)then
         print *,'near beginning of conjob; idjd = ',idjd
         print *,'itermax,nrenorm,no2layer ',itermax,nrenorm,no2layer
-        write (6,"('rh  ',19f7.2/(8x,19f7.2))") 
+        write (6,"('rh  ',12f7.2/(8x,12f7.2))") 
      .             (100.*qq(idjd,k)/qsg(idjd,k),k=1,kl)
-        write (6,"('qs ',19f7.3/(8x,19f7.3))") 
+        write (6,"('qs ',12f7.3/(8x,12f7.3))") 
      .             (1000.*qsg(idjd,k),k=1,kl)
-        write (6,"('qg ',19f7.3/(8x,19f7.3))") 
+        write (6,"('qg ',12f7.3/(8x,12f7.3))") 
      .             (1000.*qq(idjd,k),k=1,kl)
-        write (6,"('tt ',19f7.2/(8x,19f7.2))") 
+        write (6,"('tt ',12f7.2/(8x,12f7.2))") 
      .             (tt(idjd,k),k=1,kl)
         print *,'gam ',(gam(idjd,k),k=1,kl)
       endif
@@ -124,9 +123,9 @@ c      Here rnrt is the rainfall rate in gm/m**2/sec
       if(ntest.ne.0.or.diag)then
         print *,'before evap of large scale rain: kbsav_ls,rnrt ',
      .                                   kbsav_ls(idjd),rnrt(idjd)
-        write (6,"('qg ',19f7.3/(8x,19f7.3))") 
+        write (6,"('qg ',12f7.3/(8x,12f7.3))") 
      .             (1000.*qq(idjd,k),k=1,kl)
-        write (6,"('tt ',19f7.2/(8x,19f7.2))") 
+        write (6,"('tt ',12f7.2/(8x,12f7.2))") 
      .             (tt(idjd,k),k=1,kl)
       endif
 
@@ -278,13 +277,13 @@ c           if(evapls.gt.0.)print *,'iq,k,evapls ',iq,k,evapls
       if(ntest.ne.0.or.diag)then
         print *,'before convection: rnrt,rnrtc ',
      .                                rnrt(idjd),rnrtc(idjd)
-        write (6,"('rh   ',19f7.2/(8x,19f7.2))") 
+        write (6,"('rh   ',12f7.2/(8x,12f7.2))") 
      .             (100.*qq(idjd,k)/qsg(idjd,k),k=1,kl)
-        write (6,"('qs   ',19f7.3/(8x,19f7.3))") 
+        write (6,"('qs   ',12f7.3/(8x,12f7.3))") 
      .             (1000.*qsg(idjd,k),k=1,kl)
-        write (6,"('qq   ',19f7.3/(8x,19f7.3))") 
+        write (6,"('qq   ',12f7.3/(8x,12f7.3))") 
      .             (1000.*qq(idjd,k),k=1,kl)
-        write (6,"('tt   ',19f7.2/(8x,19f7.2))") 
+        write (6,"('tt   ',12f7.2/(8x,12f7.2))") 
      .             (tt(idjd,k),k=1,kl)
       endif
       if(rhcv.lt.0.)go to 2
@@ -368,12 +367,12 @@ c      enddo
         do k=kuocb+1,kcl_top
          s(k)=s(k-1)+ss(idjd,k)  ! to give "usual" s
 	 enddo
-        write (6,"('s/cp ',19f7.2/(8x,19f7.2))") (s(k),k=1,kl)
-        write (6,"('h/cp ',19f7.2/(8x,19f7.2))") 
+        write (6,"('s/cp ',12f7.2/(8x,12f7.2))") (s(k),k=1,kl)
+        write (6,"('h/cp ',12f7.2/(8x,12f7.2))") 
      .             (s(k)+hlcp*qq(idjd,k),k=1,kl)
-        write (6,"('hs/cp',19f7.2/(8x,19f7.2))") 
+        write (6,"('hs/cp',12f7.2/(8x,12f7.2))") 
      .             (s(k)+hlcp*qsg(idjd,k),k=1,kl)
-        write (6,"('uh a ',19f7.2/(8x,19f7.2))") (uh(idjd,k),k=1,kl)
+        write (6,"('uh a ',12f7.2/(8x,12f7.2))") (uh(idjd,k),k=1,kl)
       endif
 
 c     check for conv at each point from level=kuocb up
@@ -405,7 +404,7 @@ c         run up the levels stopping when no instability
       if(ntest.ne.0.or.diag)then
         print *,"after stab test: kbsav,ktsav,sumss ",
      .                            kbsav(idjd),ktsav(idjd),sumss(idjd)
-        write (6,"('uh b ',19f7.2/(8x,19f7.2))") (uh(idjd,k),k=1,kl)
+        write (6,"('uh b ',12f7.2/(8x,12f7.2))") (uh(idjd,k),k=1,kl)
         print *,'ss ',(ss(idjd,k),k=1,ktsav(idjd))
         print *,'gam ',(gam(idjd,k),k=1,ktsav(idjd))
       endif
@@ -612,11 +611,11 @@ c         rnrtc(iq)=1000.*rnrtc(iq)                           !  gm/m**2/sec
         do k=1,kbsav(idjd)-1
          dq(idjd,k)=0.   ! just for clean diagnostic
         enddo
-        write (6,"('1000*dq ',19f6.3/(8x,19f6.3))") 
+        write (6,"('1000*dq ',12f6.3/(8x,12f6.3))") 
      .             (1000.*dq(idjd,k),k=1,ktsav(idjd))
-        write (6,"('qg ',19f7.3/(8x,19f7.3))") 
+        write (6,"('qg ',12f7.3/(8x,12f7.3))") 
      .             (1000.*qq(idjd,k),k=1,kl)
-        write (6,"('tt      ',19f6.1/(8x,19f6.1))") 
+        write (6,"('tt      ',12f6.1/(8x,12f6.1))") 
      .             (tt(idjd,k),k=1,kl)
 c       print *,'dq ',(dq(idjd,k),k=1,ktsav(idjd))  ! really dq
 c       print *,'tt ',(tt(idjd,k),k=1,kl)
@@ -733,9 +732,9 @@ c       reaching the next level (or the surface).
 8     if(ntest.ne.0.or.diag)then
         print *,'near end of conjob: rnrt,rnrtc ',
      .                                  rnrt(idjd),rnrtc(idjd)
-        write (6,"('qg ',19f7.3/(8x,19f7.3))") 
+        write (6,"('qg ',12f7.3/(8x,12f7.3))") 
      .             (1000.*qq(idjd,k),k=1,kl)
-        write (6,"('tt ',19f7.2/(8x,19f7.2))") 
+        write (6,"('tt ',12f7.2/(8x,12f7.2))") 
      .             (tt(idjd,k),k=1,kl)
       endif
 
@@ -766,80 +765,8 @@ c       reaching the next level (or the surface).
         enddo    ! ntr loop    
       endif      ! ilt.gt.1
 
-      if(npanels.eq.0)then     ! for DARLAM
-        i1=3       ! for DARLAM
-        j1=3       ! for DARLAM
-        imax=il-1  ! for DARLAM
-        jmax=jl-1  ! for DARLAM
-        do j=j1,jmax
-         do i=i1,imax
-	  iq=i+(j-1)*il
-         prcon= .001*dt*rnrtc(iq)
-         condc(iq)=prcon              ! convective precip for this timestep
-         precc(iq)=precc(iq)+prcon
-         prl_s= .001*dt*rnrt(iq)
-         condx(iq)=prcon+prl_s        ! total precip for this timestep
-         precip(iq)=precip(iq)+prcon+prl_s
-         enddo  !  i loop
-        enddo   !  j loop
-        if(ndavconv.eq.0)then  
-          do iq=1,ifull
-           factdav(iq)=1.
-          enddo
-        else         ! i.e. for ndavconv=1 or 2
-          do iq=1,ifull
-           factdav(iq)=1.-davt(iq)  ! to reduce heating near boundaries
-          enddo
-        endif        ! (ndavconv.eq.0) .. else ..
-        if(ndavconv.eq.2)then     ! davies-style for qg near boundaries too
-          do k=1,kl
-           do j=j1,jmax
-            do i=i1,imax
-	      iq=i+(j-1)*il
-             qg(iq,k)=qg(iq,k)+factdav(iq)*(qq(iq,k)-qg(iq,k))
-            enddo  !  i loop
-           enddo   !  j loop
-          enddo    !  k loop
-        else         ! i.e. for ndavconv=1 don't reduce moisture changes
-          do k=1,kl
-           do j=j1,jmax
-            do i=i1,imax
-	      iq=i+(j-1)*il
-             qg(iq,k)=qq(iq,k)
-            enddo  !  i loop
-           enddo   !  j loop
-          enddo    !  k loop
-        endif      ! (ndavconv.eq.2)
-        if(nkuo.eq.4)then
-          do k=1,kl
-           do j=j1,jmax
-            do i=i1,imax
-	      iq=i+(j-1)*il
-             tx(iq,k)=tx(iq,k)+factdav(iq)*(tt(iq,k)-t(iq,k))
-            enddo  !  i loop
-           enddo   !  j loop
-          enddo    !  k loop
-        elseif(nkuo.eq.44)then
-          do k=1,kl
-           do j=j1,jmax
-            do i=i1,imax
-	      iq=i+(j-1)*il
-             tn(iq,k)=tn(iq,k)+factdav(iq)*(tt(iq,k)-t(iq,k))/dt
-            enddo  !  i loop
-           enddo   !  j loop
-          enddo    !  k loop
-        else       ! nkuo=45, 46  DARLAM only
-          do k=1,kl
-           do j=j1,jmax
-            do i=i1,imax
-	      iq=i+(j-1)*il
-             t(iq,k)=t(iq,k)+factdav(iq)*(tt(iq,k)-t(iq,k))
-            enddo  !  i loop
-           enddo   !  j loop
-          enddo    !  k loop
-        endif      !  (nkuo.eq.4) .. else ..
-      else         ! usual conformal-cubic
-        qg(1:ifull,:)=qq(1:ifull,:)
+!     usual conformal-cubic (DARLAM option removed)
+        qg(:,:)=qq(:,:)
 c       print *,'B rnrt,rnrtc,condx ',
 c    .             rnrt(idjd),rnrtc(idjd),condx(idjd)
         do iq=1,ifull
@@ -850,18 +777,7 @@ c    .             rnrt(idjd),rnrtc(idjd),condx(idjd)
          condx(iq)=prcon+prl_s        ! total precip for this timestep
          precip(iq)=precip(iq)+prcon+prl_s
         enddo
-        if(nkuo.eq.4)then
-           tx(1:ifull,:)=tx(1:ifull,:)+tt(1:ifull,:)-t(1:ifull,:)
-         else      ! nkuo=44,45
-           tn(1:ifull,:)=tn(1:ifull,:)+(tt(1:ifull,:)-t(1:ifull,:))/dt
-         endif     !  (nkuo.eq.4)
-      endif        ! (npanels.eq.0)
-
-c     if(raindrag.lt.0.)then
-c       do iq=1,ifull
-c        psl(iq)=psl(iq)+grav*condx(iq)/ps(iq)
-c       enddo
-c     endif
+        t(:,:)=tt(:,:)           ! usually split from June '03
 
       if(ntest.eq.1)then
         print *,'D rnrt,rnrtc,condx ',
