@@ -115,16 +115,12 @@ c Calculate precipitation and related processes
 
 !=======================================================================
 !      if(ncfrp.eq.1)then  ! from here to the end
-        do iq=1,icfrp
-          tautot(iq)=0.
-          cldmax(iq)=0.
-          ctoptmp(iq)=0.
-          ctoppre(iq)=0.
-          do k=1,kl
-            fice(iq,k)=0.
-          enddo
-          kcldfmax(iq)=0.
-        enddo
+        tautot(:)=0.
+        cldmax(:)=0.
+        ctoptmp(:)=0.
+        ctoppre(:)=0.
+        fice(:,:)=0.
+        kcldfmax(:)=0.
 c       cfrp data
         do k=1,kl-1
           do iq=1,icfrp
@@ -166,7 +162,9 @@ c Ice clouds
         enddo ! k
 c Code to get vertically integrated value...
 c top down to get highest level with cfrac=cldmax (kcldfmax)
-        do k=kl,1,-1
+!        do k=kl,1,-1
+!       Need to start at kl-1 to work with NaN initialisation.
+        do k=kl-1,1,-1
           do iq=1,icfrp
             tautot(iq)=tautot(iq)+cfrac(iq,k)*(fice(iq,k)
      &                *taui(iq,k)+(1.-fice(iq,k))*taul(iq,k))
