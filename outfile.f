@@ -94,7 +94,7 @@ c     mev2 = 2 for il even (1 for il odd)
      &                              iout,kdate,ktime,mtimer
       end if
 
-      call mslp(pmsl,psl,zs,t)
+      call mslp(pmsl,psl,zs,t(1:ifull,:))
 c     reincorporate land mask into surface temperature
       do iq=1,ifull
        tssout(iq)=tss(iq)
