@@ -264,6 +264,7 @@ c Set up rk and Cdrop
            enddo
           enddo
         endif
+        cdrop(:,nl) = 0. ! mrd
 
 c This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
 
