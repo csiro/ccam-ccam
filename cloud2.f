@@ -41,11 +41,12 @@ c******************************************************************************
      &                  cdso4,land,sigh,prf,dprf,cosz,     !Inputs
      &                  cll,clm,clh)                       !Outputs
 
-c      implicit none
+      implicit none
 C Global parameters
       include 'newmpar.h'
       include 'const_phys.h' !Input physical constants
       include 'cparams.h'    !Input cloud scheme parameters
+      include 'kuocom.h'     ! ldr
       include 'params.h'     !Input model grid dimensions (modified params.h for CCAM)
       include 'rdparm.h'     !Input radiation scheme parameters
       include 'hcon.h'       !Input radiation physical constants
@@ -113,7 +114,7 @@ C Local work arrays and variables
       real dz
       real em
       real eps
-      real fcon
+      real f1,f2,fcon
       real qlpath
       real refac
       real refac1
@@ -193,101 +194,76 @@ c     no cloud exists. also, for this purpose, the cloud index is set
 c     at one (p=0)
 c     Don't set cirrf, cuvrf, cirab at the surface because these are set
 c     the albedo by radfs.
-      do 130 i=1,imax
-         camt(i,1)=zero
-         emcld(i,1)=one
-         ktop(i,1)=1
-         kbtm(i,1)=1
-         ktopsw(i,1)=1
-         kbtmsw(i,1)=1
- 130  continue
-      do 140 k=2,lp1
-         do 140 i=1,imax
-         camt(i,k)=zero
-         emcld(i,k)=one
-         cirrf(i,k)=0.
-         cuvrf(i,k)=0.
-         cirab(i,k)=0.
-         ktop(i,k)=1
-         kbtm(i,k)=1
-         ktopsw(i,k)=1
-         kbtmsw(i,k)=1
- 140  continue
+         camt(:,1)=zero
+         emcld(:,1)=one
+         ktop(:,1)=1
+         kbtm(:,1)=1
+         ktopsw(:,1)=1
+         kbtmsw(:,1)=1
+      do k=2,lp1
+         camt(:,k)=zero
+         emcld(:,k)=one
+         cirrf(:,k)=0.
+         cuvrf(:,k)=0.
+         cirab(:,k)=0.
+         ktop(:,k)=1
+         kbtm(:,k)=1
+         ktopsw(:,k)=1
+         kbtmsw(:,k)=1
+      enddo
 c***NOW SET CLOUD AND CLOUD INDEX FIELDS DEPENDING ON THE NO. OF CLOUDS
       nc=1
-      do 150 mg=1,imax
 c---FIRST, THE ground layer (nc=1)
-         emcld(mg,nc)=one
-         camt(mg,nc)=one
-         ktop(mg,nc)=lp1
-         kbtm(mg,nc)=lp1
-         ktopsw(mg,nc)=lp1
-         kbtmsw(mg,nc)=lp1
- 150  continue
+         emcld(:,nc)=one
+         camt(:,nc)=one
+         ktop(:,nc)=lp1
+         kbtm(:,nc)=lp1
+         ktopsw(:,nc)=lp1
+         kbtmsw(:,nc)=lp1
 
       If (cldoff) Then
-
-         do 10 mg=1,imax
-            cll(mg)=0.
-            clm(mg)=0.
-            clh(mg)=0.
-            nclds(mg)=0
- 10      continue
-
+            cll(:)=0.
+            clm(:)=0.
+            clh(:)=0.
+            nclds(:)=0
       Else
-        
-        do mg=1,imax
-          nclds(mg)=0
-          cll(mg)=0.
-          clm(mg)=0.
-          clh(mg)=0.
-c          cldliq(mg)=0.
-          qlptot(mg)=0.
-          taultot(mg)=0.
-        enddo
-        
+          nclds(:)=0
+          cll(:)=0.
+          clm(:)=0.
+          clh(:)=0.
+c         cldliq(:)=0.
+          qlptot(:)=0.
+          taultot(:)=0.      
         
 c Diagnose low, middle and high clouds; nlow,nmid are set up in initax.f
         
         do k=1,nlow
-          do mg=1,imax
-            cll(mg)=cll(mg)+cfrac(mg,k)-cll(mg)*cfrac(mg,k)
-          enddo
+            cll(:)=cll(:)+cfrac(:,k)-cll(:)*cfrac(:,k)
         enddo
         do k=nlow+1,nmid
-          do mg=1,imax
-            clm(mg)=clm(mg)+cfrac(mg,k)-clm(mg)*cfrac(mg,k)
-          enddo
+            clm(:)=clm(:)+cfrac(:,k)-clm(:)*cfrac(:,k)
         enddo
         do k=nmid+1,nl-1
-          do mg=1,imax
-            clh(mg)=clh(mg)+cfrac(mg,k)-clh(mg)*cfrac(mg,k)
-          enddo
+            clh(:)=clh(:)+cfrac(:,k)-clh(:)*cfrac(:,k)
         enddo
 
 c Set up rk and Cdrop
 
         if(naerosol_i(1).gt.0)then
           do k=1,nl-1
-            do mg=1,imax
-              Cdrop(mg,k)=cdso4(mg,k)
-            enddo
+              Cdrop(:,k)=cdso4(:,k)
           enddo
         else
-          do mg=1,imax
+          do k=1,nl-1
+           do mg=1,imax
             if(.not.land(mg))then !sea
-              do k=1,nl-1
                 Cdrop(mg,k)=Cdrops
-              enddo
             else            !land
-              do k=1,nl-1
                 Cdrop(mg,k)=Cdropl
-              enddo
             endif
+           enddo
           enddo
         endif
-
-       if(lw.eq.22)then
 
 c This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
 
@@ -296,8 +272,10 @@ c This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 
 c            eps = 1. - 0.7 * exp(-0.008e-6*cdrop(mg,k)) !Upper bound
 c            eps = 1. - 0.7 * exp(-0.001e-6*cdrop(mg,k)) !Lower bound
             eps = 1. - 0.7 * exp(-0.003e-6*cdrop(mg,k)) !mid range
-            beta = ((1+2*eps**2)**2/(1+eps**2))**(1./3)
-            rk(mg,k)=1./(beta**3)
+!           beta = ((1+2*eps**2)**2/(1+eps**2))**(1./3)
+!           rk(mg,k)=1./(beta**3)
+            rk(mg,k)= (1.+eps**2)/(1.+2.*eps**2)**2
+!           beta=1./rk(mg,k)**(1./3)   ! calc for diag only
 
 C***            write(26,'(2f12.3)')1.e-6*cdrop(mg,k),beta
 C***            eps = 1. - 0.7 * exp(-0.008e-6*cdrop(mg,k)) !Upper bound
@@ -306,16 +284,15 @@ C***            write(27,'(2f12.3)')1.e-6*cdrop(mg,k),beta
           enddo
         enddo
 
-       else
-
-        rk(:,:)=0.67 ! land
-        do mg=1,imax
-          if(.not.land(mg))then !sea
-            rk(mg,:)=0.8
-          endif
-        enddo
-
-       endif
+c        do k=1,nl
+c         do mg=1,imax
+c          if(land(mg))then 
+c            rk(mg,k)=0.67 ! land
+c	   else
+c            rk(mg,k)=0.8  !sea
+c          endif
+c         enddo
+c        enddo
 
 c Define the emissivity (Em), and the SW properties (Re, Ab) for liquid (w)
 c and ice (i) clouds respectively.
@@ -350,7 +327,7 @@ c Martin etal 1994, JAS 51, 1823-1842) due to the extra factor of 2 in the
 c formula for reffl. Use mid cloud value of Reff for emissivity.
                 
               Reffl(mg,k)=
-     &             (3*2*Wliq/(4*rhow*pi*rk(mg,k)*Cdrop(mg,k)))**(1./3)
+     &           (3.*2.*Wliq/(4.*rhow*pi*rk(mg,k)*Cdrop(mg,k)))**(1./3.)
 c              Reffl(mg,k)=
 c     &             (3*Wliq/(4*rhow*pi*rk(mg,k)*Cdrop(mg,k)))**(1./3)
               qlpath=Wliq*dz
@@ -380,8 +357,11 @@ c Or, water-cloud emissivity following the Sunshine scheme
         enddo
               
 c Ice clouds : Choose scheme according to resolution
-       IF(lw.eq.22)THEN
-
+!      IF(lw.eq.22)THEN
+       IF(ldr.gt.0)THEN  ! 1,2,3  corresponds to previous lw=22 option
+        
+	 refac1=0.85
+        refac2=0.95
         do k=1,nl-1
           do mg=1,imax
             if((cfrac(mg,k).gt.0).and.(qfg(mg,k).gt.1.0e-8))then
@@ -405,8 +385,10 @@ c Ice-cloud emissivity following Platt
           enddo
         enddo
 
-       ELSE
+       ELSE  ! i.e. for ldr = -1,-2,-3
 
+        refac1=0.90
+        refac2=1.00
         do k=1,nl-1
           do mg=1,imax
             if((cfrac(mg,k).gt.0).and.(qfg(mg,k).gt.1.0e-8))then
@@ -438,7 +420,7 @@ c             trani=min(0.70,trani)
           enddo
         enddo
 
-       ENDIF
+       ENDIF  ! (ldr.gt.0) .. ELSE ..
 
 c Calculate the effective radius of liquid water clouds seen from above
 
@@ -453,16 +435,16 @@ C***        enddo
 c Calculate the SW cloud radiative properties for liquid water and ice clouds
 c respectively, following Tony Slingo's (1989) Delta-Eddington scheme.
 
-        do k=1,nl
-          do mg=1,imax
-            if(cfrac(mg,k).gt.0.)then
+!       do k=1,nl
+!         do mg=1,imax
+!           if(cfrac(mg,k).gt.0.)then
 C***              write(26,'(5f12.4)')cfrac(mg,k),taul(mg,k),taui(mg,k),
 C***     &             coszro(mg),fice(mg,k)
 C***              write(27,'(3f12.4)')
 C***     &             cfrac(mg,k),1.e6*reffl(mg,k),1.e6*reffi(mg,k)
-            endif
-         enddo
-       enddo
+!           endif
+!        enddo
+!      enddo
 
         call slingo (Reffl, taul, cosz, !inputs
      &       Rew1, Rew2, Abw )  !outputs
@@ -470,13 +452,6 @@ C***     &             cfrac(mg,k),1.e6*reffl(mg,k),1.e6*reffi(mg,k)
         call slingi (Reffi, taui, cosz, !inputs
      &       Rei1, Rei2, Abi )  !outputs
 
-        if(lw.eq.22)then
-          refac1=0.85
-          refac2=0.95
-        else
-          refac1=0.90
-          refac2=1.00
-        endif
         do k=1,nl-1
           do mg=1,imax
             if(cfrac(mg,k).gt.0.)then
@@ -486,12 +461,12 @@ c             refac=0.7*fcon+0.9*(1-fcon)
 c Mk3 with no direct aerosol effect :
 c             refac=0.7*fcon+0.85*(1-fcon)
 c Mk3 with direct aerosol effect :
-              refac=refac1*fcon+refac2*(1-fcon)
+              refac=refac1*fcon+refac2*(1.-fcon)
 
               Rei1(mg,k)=min(refac*Rei1(mg,k),1.)
-              Rei2(mg,k)=min(refac*Rei2(mg,k),1.-2*Abi(mg,k))
+              Rei2(mg,k)=min(refac*Rei2(mg,k),1.-2.*Abi(mg,k))
               Rew1(mg,k)=min(refac*Rew1(mg,k),1.)
-              Rew2(mg,k)=min(refac*Rew2(mg,k),1.-2*Abw(mg,k))
+              Rew2(mg,k)=min(refac*Rew2(mg,k),1.-2.*Abw(mg,k))
             endif
           enddo
         enddo
@@ -502,16 +477,16 @@ c Weight cloud properties by liquid/ice fraction
           do mg=1,imax
             if(cfrac(mg,k).gt.0.)then
 
-              Re1 = fice(mg,k)*Rei1(mg,k) + (1-fice(mg,k))*Rew1(mg,k)
-              Re2 = fice(mg,k)*Rei2(mg,k) + (1-fice(mg,k))*Rew2(mg,k)
-              Em = fice(mg,k)*Emi(mg,k) + (1-fice(mg,k))*Emw(mg,k)
-              if(qlg(mg,k).gt.0)write(26,'(2g12.3)')qlg(mg,k),rei1(mg,k)
-              if(qfg(mg,k).gt.0)write(27,'(2g12.3)')qfg(mg,k),emi(mg,k)
+              Re1 = fice(mg,k)*Rei1(mg,k) + (1.-fice(mg,k))*Rew1(mg,k)
+              Re2 = fice(mg,k)*Rei2(mg,k) + (1.-fice(mg,k))*Rew2(mg,k)
+              Em = fice(mg,k)*Emi(mg,k) + (1.-fice(mg,k))*Emw(mg,k)
+!             if(qlg(mg,k).gt.0)write(26,'(2g12.3)')qlg(mg,k),rei1(mg,k)
+!             if(qfg(mg,k).gt.0)write(27,'(2g12.3)')qfg(mg,k),emi(mg,k)
 
 c             if(prf(mg,k).gt.800.) Em = 1.
               Ab = fice(mg,k)*Abi(mg,k) + (1-fice(mg,k))*Abw(mg,k)
 
-              write(30,*)'mg, nclds(mg) ',mg, nclds(mg)
+!             write(30,*)'mg, nclds(mg) ',mg, nclds(mg)
               nclds(mg)=nclds(mg)+1
               nc=nclds(mg)+1
               camt(mg,nc)=cfrac(mg,k)
