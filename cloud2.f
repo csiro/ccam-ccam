@@ -114,7 +114,7 @@ C Local work arrays and variables
       real dz
       real em
       real eps
-      real f1,f2,fcon
+      real f1,f2,fcon,onem
       real qlpath
       real refac
       real refac1
@@ -264,11 +264,10 @@ c Set up rk and Cdrop
            enddo
           enddo
         endif
-        cdrop(:,nl) = 0. ! mrd
 
 c This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
 
-        do k=1,nl
+        do k=1,nl-1
           do mg=1,imax
 c            eps = 1. - 0.7 * exp(-0.008e-6*cdrop(mg,k)) !Upper bound
 c            eps = 1. - 0.7 * exp(-0.001e-6*cdrop(mg,k)) !Lower bound
@@ -369,7 +368,8 @@ c Ice clouds : Choose scheme according to resolution
               rhoa=100*prf(mg,k)/(rdry*ttg(mg,k))
               dz=(dprf(mg,k)/prf(mg,k))*rdry*ttg(mg,k)/grav
               Wice=rhoa*qfg(mg,k)/(cfrac(mg,k)*fice(mg,k)) !kg/m**3
-              Reffi(mg,k)=3.73e-4*Wice**0.216 !Lohmann et al. (1999)
+!             Reffi(mg,k)=3.73e-4*Wice**0.216 !Lohmann et al. (1999)
+              Reffi(mg,k)=min(150.e-6,3.73e-4*Wice**0.216) !Lohmann et al.(1999)
               taui(mg,k)=1.5*Wice*dz/(rhoice*Reffi(mg,k))
               deltai=min(0.5*taui(mg,k), 45.) !IR optical depth for ice.
               taui(mg,k)=tau_sfac(mg,k)*taui(mg,k)
@@ -413,7 +413,7 @@ c Ice-cloud emissivity following the Sunshine scheme
               temp_correction=max(1.0, temp_correction)
               trani = exp(-1.66*temp_correction * tciwc*cldht
      &              / (0.630689d-01+0.265874*tciwc))
-c-- Limit ice cloud emessivities
+c-- Limit ice cloud emissivities
 c             trani=min(0.70,trani)
               if(k.gt.nlow) trani=min(0.70,trani)
               Emi(mg,k) = 1.0 - trani    ! em is (1 - transmittance)
@@ -453,6 +453,7 @@ C***     &             cfrac(mg,k),1.e6*reffl(mg,k),1.e6*reffi(mg,k)
         call slingi (Reffi, taui, cosz, !inputs
      &       Rei1, Rei2, Abi )  !outputs
 
+        onem=1.-1.e-6   ! to avoid possible later 0/0
         do k=1,nl-1
           do mg=1,imax
             if(cfrac(mg,k).gt.0.)then
@@ -464,10 +465,10 @@ c             refac=0.7*fcon+0.85*(1-fcon)
 c Mk3 with direct aerosol effect :
               refac=refac1*fcon+refac2*(1.-fcon)
 
-              Rei1(mg,k)=min(refac*Rei1(mg,k),1.)
-              Rei2(mg,k)=min(refac*Rei2(mg,k),1.-2.*Abi(mg,k))
-              Rew1(mg,k)=min(refac*Rew1(mg,k),1.)
-              Rew2(mg,k)=min(refac*Rew2(mg,k),1.-2.*Abw(mg,k))
+              Rei1(mg,k)=min(refac*Rei1(mg,k),onem)
+              Rei2(mg,k)=min(refac*Rei2(mg,k),onem-2.*Abi(mg,k))
+              Rew1(mg,k)=min(refac*Rew1(mg,k),onem)
+              Rew2(mg,k)=min(refac*Rew2(mg,k),onem-2.*Abw(mg,k))
             endif
           enddo
         enddo
