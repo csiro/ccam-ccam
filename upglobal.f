@@ -38,10 +38,10 @@
       real tnsav, unsav, vnsav
       common/nonlsav/tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl)
       real theta(kl), factr(kl)
-      integer intsch, iq, k, kk, lev, ntr
+      integer intsch, iq, k, kk, lev, ntr, ierr, its, nits, nvadh_pass
       real denb, dtm, dtp, phi1, tav, tempry, tsurf, vdot1,
      &     vdot2, vec1x, vec1y, vec1z, vec2x, vec2y, vec2z, vec3x,
-     &     vec3y, vec3z, vecdot
+     &     vec3y, vec3z, vecdot, sdmx, sdmx_g
       integer, save :: num_hight = 0, numunstab = 0
 
       call start_log(upglobal_begin)
@@ -78,7 +78,7 @@
 
       if(nvad.eq.-4)then ! also called further down for nvadh=2
          sdmx = maxval(abs(sdot))
-         call MPI_AllReduce(sdmax, sdmax_g, 1, MPI_REAL, MPI_MAX, 0,
+         call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX, 0,
      &                      MPI_COMM_WORLD, ierr )
 	 nits=1+sdmx_g/nvadh
 	 nvadh_pass=nvadh*nits
@@ -86,11 +86,12 @@
      &      print *,'in upglobal sdmx,nits,nvadh_pass ',
      &                           sdmx_g,nits,nvadh_pass
          do its=1,nits
-            call vadvtvd(tx,ux,vx,nvadh_pass) 
+            call vadvtvd(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
+     &                   nvadh_pass) 
 	 enddo
       endif  ! (nvad.eq.-4)
-      if(nvad.le.-7) call vadv30(tx,ux,vx)  ! for vadvbess
-
+      if(nvad.le.-7)
+     &     call vadv30(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:))       ! for vadvbess
 
 !     call depts3d   ! this one has its own k loop; was nvad<0 option
 
@@ -361,10 +362,12 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
       if(nvadh.eq.2.and.nvad.lt.0)then                 ! final dt/2 's worth
         if(nvad.eq.-4)then
           do its=1,nits
-            call vadvtvd(tx,ux,vx,nvadh_pass) 
+            call vadvtvd(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
+     &                   nvadh_pass) 
           enddo
         endif  ! (nvad.eq.-4)
-        if(nvad.le.-7)call vadv30(tx,ux,vx)  ! for vadvbess
+        if(nvad.le.-7)
+     &     call vadv30(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:)) ! for vadvbess
       endif     !  (nvadh.eq.2.and.nvad.lt.0)then
 
 !     now interpolate ux,vx to the staggered grid; special globpea call
