@@ -15,9 +15,23 @@
 !                  jl:   -         6*il     14*il
 !                quad:   1         4*il+1   6*il+1
 
-      integer, parameter :: il = il_g, jl = jl_g/nproc  ! 1, 2, 3, 6, 12 proc
-!      integer, parameter :: il = il_g/2, jl = il        ! 24 proc
-!
+
+      integer, parameter :: nprocmax = 96
+!     This array defines the split up of processors. Zero values are 
+!     for values of nproc that won't work.
+      integer, parameter, dimension(nprocmax) :: nxp = (/                &
+     &         1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1,                       & 
+     &         0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 2,                       &
+     &         0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 2,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,                       &
+     &         0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 2,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4    /)    
+      integer, parameter :: nyp = nproc/nxp(nproc)
+
+      integer, parameter :: il=il_g/nxp(nproc), jl=jl_g/nyp
+
       integer, parameter :: npan=max(1,(npanels+1)/nproc)
       integer, parameter :: ifull = il*jl, ijk = il*jl*kl
 
@@ -25,5 +39,8 @@
 !     The first row has 8 possible corner points per panel and the 
 !     second has 16. In practice these are not all distinct so there could
 !     be some optimisation.
-      integer, parameter :: iextra = 4*(il+jl)+24*npan
+!      integer, parameter :: iextra = 4*(il+jl)+24*npan
+!     For the double row version of boundsuv need perimeter of each face
+!     This can be optimised later 
+      integer, parameter :: iextra = max(4*(il+jl)+24*npan, npan*8*il)
 
