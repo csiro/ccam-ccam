@@ -984,7 +984,9 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
           write(6,'("g2avge ",f8.3)') spavge
         endif   ! (ngas.gt.0)
         call maxmin(wb,'wb',ktau,1.,ms)
-        call maxmin(tggsn,'tgg',ktau,1.,ms+3)
+!        call maxmin(tggsn,'tgg',ktau,1.,ms+3)
+        call maxmin(tggsn,'tggsn',ktau,1.,3)
+        call maxmin(tgg,'tgg',ktau,1.,ms)
         call maxmin(tss,'ts',ktau,1.,1)
         call maxmin(precip,'pr',ktau,1.,1)
         call maxmin(precc,'pc',ktau,1.,1)
@@ -1115,7 +1117,7 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
         call log_on()
       endif    ! (ktau.eq.ntau.or.mod(ktau,nwt).eq.0)
       if(prnt)then
-       call mslp(pmsl,psl,zs,t)
+       call mslp(pmsl,psl,zs,t(1:ifull,:))
        call printa('pmsl',pmsl,ktau,0,ia,ib,ja,jb,1.e5,.01)
        call printa('prec',precip,ktau,0,ia,ib,ja,jb,0.,10.)
       endif
