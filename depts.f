@@ -16,7 +16,7 @@ c     modify toij5 for Cray
       real xg, yg
       common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
 !     Work common for these?
-      real uc(ifull,kl),vc(ifull,kl),wc(ifull,kl), temp(ifull)
+      real uc(ifull,kl),vc(ifull,kl),wc(ifull,kl), temp(ifull,kl)
       real x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)   ! upglobal depts 
       integer iq, k, intsch
 
@@ -46,20 +46,23 @@ c     convert to grid point numbering
         print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
       endif
 
+      intsch=mod(ktau,2)
+      temp = uc
+      call ints(temp,intsch,nface,xg,yg,2)
       do k=1,kl
-!        ints will be multilevel soon
-         intsch=mod(ktau,2)
-         temp = uc(:,k)
-         call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
-         x3d(:,k) = x - 0.5*(uc(:,k)+temp)     ! 2nd guess
-         temp = vc(:,k)
-         call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
-         y3d(:,k) = y - 0.5*(vc(:,k)+temp)     ! 2nd guess
-         temp = wc(:,k)
-         call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
-         z3d(:,k) = z - 0.5*(wc(:,k)+temp)     ! 2nd guess
+         x3d(:,k) = x(:) - 0.5*(uc(:,k)+temp(:,k)) ! 2nd guess
       end do
-      
+      temp = vc
+      call ints(temp,intsch,nface,xg,yg,2)
+      do k=1,kl
+         y3d(:,k) = y(:) - 0.5*(vc(:,k)+temp(:,k)) ! 2nd guess
+      end do
+      temp = wc
+      call ints(temp,intsch,nface,xg,yg,2)
+      do k=1,kl
+         z3d(:,k) = z(:) - 0.5*(wc(:,k)+temp(:,k)) ! 2nd guess
+      end do
+
       do k=1,kl
          call toij5 (k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
       end do
@@ -69,16 +72,20 @@ c     convert to grid point numbering
         print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
       endif
 
+      temp = uc
+      call ints(temp,intsch,nface,xg,yg,2)
       do k=1,kl
-         temp = uc(:,k)
-         call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
-         x3d(:,k) = x - 0.5*(uc(:,k)+temp)     ! 3rd guess
-         temp = vc(:,k)
-         call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
-         y3d(:,k) = y - 0.5*(vc(:,k)+temp)     ! 3rd guess
-         temp = wc(:,k)
-         call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
-         z3d(:,k) = z - 0.5*(wc(:,k)+temp)     ! 3rd guess
+         x3d(:,k) = x(:) - 0.5*(uc(:,k)+temp(:,k)) ! 3rd guess
+      end do
+      temp = vc
+      call ints(temp,intsch,nface,xg,yg,2)
+      do k=1,kl
+         y3d(:,k) = y(:) - 0.5*(vc(:,k)+temp(:,k)) ! 3rd guess
+      end do
+      temp = wc
+      call ints(temp,intsch,nface,xg,yg,2)
+      do k=1,kl
+         z3d(:,k) = z(:) - 0.5*(wc(:,k)+temp(:,k)) ! 3rd guess
       end do
 
       do k=1,kl
