@@ -1,5 +1,7 @@
 c=======================================================================
       subroutine outcdf(rundate,nmi,itype,ms_out)
+      use cc_mpi
+      implicit none
       include 'newmpar.h'
       include 'darcdf.h'   ! idnc,ncid,idifil  - stuff for netcdf
       include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg,mtimer
@@ -12,16 +14,18 @@ c=======================================================================
       include 'parmvert.h'
       include 'tracers.h'  ! ngas, nllp, ntrac, tr
       character rundate*10
+      integer nmi, itype, ms_out
 
-      parameter(nihead=54)
+      integer, parameter :: nihead=54
       integer nahead(nihead)
 
-      parameter(nrhead=14)
+      integer, parameter :: nrhead=14
       real ahead(nrhead)
 
       include 'netcdf.inc'
       character cdffile*80
 
+      integer ixp,iyp,idlev,idnt,idms
       common/cdfind/ixp,iyp,idlev,idnt,idms
 
       integer dim(4),dims(4)
@@ -32,11 +36,13 @@ c=======================================================================
       data month/'jan','feb','mar','apr','may','jun'
      &          ,'jul','aug','sep','oct','nov','dec'/
 
-      data iarch1/0/
-      data idnc1/0/, idnc0/0/, idncm1/0/
-      data nspare/0/
+      integer :: ndt, iarch, icy, icm, icd, ich, icmi, ics, idv, ier,
+     &           imode
+      integer, save :: iarch1=0, idnc1=0, idnc0=0, idncm1=0, nspare=0
+
       ndt=dt
 
+      if ( myid == 0 ) then     ! File setup
       if ( itype.eq.1 ) then
 c itype=1 outfile
         iarch1=iarch1+1
@@ -74,8 +80,8 @@ c Turn off the data filling
         imode = ncsfil(idnc,ncnofill,ier)
         print *,'imode=',imode
 c Create dimensions, lon, lat
-        xdim = ncddef(idnc, 'longitude', il, ier)
-        ydim = ncddef(idnc, 'latitude', jl, ier)
+        xdim = ncddef(idnc, 'longitude', il_g, ier)
+        ydim = ncddef(idnc, 'latitude', jl_g, ier)
         zdim= ncddef(idnc, 'lev', kl, ier)
         msdim= ncddef(idnc, 'ms', ms, ier)
         tdim= ncddef(idnc, 'time',ncunlim,ier)
@@ -137,8 +143,8 @@ c define coords.
         dims(4) = tdim
 
 c create the attributes of the header record of the file
-        nahead(1)=il         ! needed by cc2hist
-        nahead(2)=jl         ! needed by cc2hist
+        nahead(1)=il_g       ! needed by cc2hist
+        nahead(2)=jl_g       ! needed by cc2hist
         nahead(3)=kl         ! needed by cc2hist
         nahead(4)=m
         nahead(5)=nsd        ! not needed now
@@ -231,8 +237,11 @@ c create the attributes of the header record of the file
       endif ! ( iarch=1 ) then
 
       print*,'call openhist for itype= ',itype
-      call openhist(iarch,itype,dim,nmi)
+      end if ! myid == 0
+      ! openhist writes some fields so needs to be called by all processes
+      call openhist(iarch,itype,dim)
 
+      if ( myid == 0 ) then
       call ncsnc(idnc,ier)
       if(ier.ne.0)write(6,*)"ncsnc idnc,ier=",idnc,ier
 
@@ -246,11 +255,13 @@ c       itype=0 climcdf
 c       itype=-1 restfile
         idncm1=idnc
       endif ! ( itype.eq.1 ) then
-
+      end if ! myid == 0
       return ! cdfout
       end
 c=======================================================================
       subroutine openhist(iarch,itype,dim)
+      use cc_mpi
+      implicit none
 
 c     this routine creates attributes and writes output
 
@@ -261,6 +272,7 @@ c     this routine creates attributes and writes output
       include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg,mtimer
       include 'extraout.h'
       include 'filnames.h' ! list of files, read in once only
+      include 'histave.h'
       include 'kuocom.h'
       include 'liqwpar.h'  ! ifullw
       include 'map.h'
@@ -273,6 +285,7 @@ c     this routine creates attributes and writes output
       include 'parmvert.h'
       include 'pbl.h'
       include 'prec.h'
+      include 'raddiag.h'
       include 'scamdim.h'
       include 'screen.h'
       include 'sigs.h'
@@ -283,29 +296,30 @@ c     this routine creates attributes and writes output
       include 'trcom2.h'
       include 'vvel.h'    ! sdot, dpsldt
 
+      integer iarch, itype
       character lname*50,expdesc*50,numba*2
       integer dim(4)
       integer idim2(3)
-      real xpnt(il),ypnt(jl)
+      real xpnt(il_g),ypnt(jl_g)
 
+      integer ixp,iyp,idlev,idnt,idms
       common/cdfind/ixp,iyp,idlev,idnt,idms
+      real dpsdt
       common/dpsdt/dpsdt(ifull)    ! shared adjust5 & openhist
-      common/histave/eg_ave(ifull),fg_ave(ifull),ga_ave(ifull),
-     .    epot_ave(ifull),cbas_ave(ifull),ctop_ave(ifull),
-     .    qscrn_ave(ifull),tmaxscr(ifull),tminscr(ifull),tscr_ave(ifull)
-!       *** qscrn_ave not presently written     
-      common/raddiag/sint_ave(ifull), sot_ave (ifull), soc_ave (ifull),
-     &               sgn_ave (ifull), rtu_ave (ifull), rtc_ave (ifull),
-     &               rgn_ave (ifull), rgc_ave (ifull), cld_ave (ifull), 
-     &               cll_ave (ifull), clm_ave (ifull), clh_ave (ifull), 
-     &               koundiag
+      real pmsl,aa,bb,cc,dum2
       common/work2/pmsl(ifull),aa(ifull),bb(ifull),cc(ifull),
      &             dum2(ifull,14)
+      real tmpry
       common/work3c/tmpry(ifull,kl)
 
+      integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter,
+     &     idv, ier, iq, isoil, j, k, igas, nwtperday
+      real trmax, trmin
       character*3 mon(12)
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
+
+      if ( myid == 0 ) then
 
       print *,'openhist iarch,idnc=',iarch,idnc
 !     if(itype.ne.-1)then  ! don't scale up for restart file as done already
@@ -338,36 +352,36 @@ c       Sigma levels
         lname = 'timer (hrs)'
         idnter = ncvdef(idnc,'timer',ncfloat,1,dim(4),ier)
         call ncaptc(idnc,idnter,'long_name',ncchar
-     &             ,lngstr(lname),lname,ier)
+     &             ,len_trim(lname),lname,ier)
 
         lname = 'mtimer (mins)'
         idmtimer = ncvdef(idnc,'mtimer',nclong,1,dim(4),ier)
         call ncaptc(idnc,idmtimer,'long_name',ncchar
-     &             ,lngstr(lname),lname,ier)
+     &             ,len_trim(lname),lname,ier)
 
         lname = 'timeg (UTC)'
         idnteg = ncvdef(idnc,'timeg',ncfloat,1,dim(4),ier)
         call ncaptc(idnc,idnteg,'long_name',ncchar
-     &             ,lngstr(lname),lname,ier)
+     &             ,len_trim(lname),lname,ier)
 
         lname = 'number of time steps from start'
         idktau = ncvdef(idnc,'ktau',nclong,1,dim(4),ier)
         call ncaptc(idnc,idktau,'long_name',ncchar
-     &             ,lngstr(lname),lname,ier)
+     &             ,len_trim(lname),lname,ier)
 
         lname = 'year-month-day at start of run'
         idkdate = ncvdef(idnc,'kdate',nclong,1,dim(4),ier)
         call ncaptc(idnc,idkdate,'long_name',ncchar
-     &             ,lngstr(lname),lname,ier)
+     &             ,len_trim(lname),lname,ier)
 
         lname = 'hour-minute at start of run'
         idktime = ncvdef(idnc,'ktime',nclong,1,dim(4),ier)
         call ncaptc(idnc,idktime,'long_name',ncchar
-     &             ,lngstr(lname),lname,ier)
+     &             ,len_trim(lname),lname,ier)
 
         idv = ncvdef(idnc,'sigma', ncfloat, 1, dim(3),ier)
         call ncaptc(idnc,idv,'positive',ncchar
-     &             ,lngstr('down'),'down',ier)
+     &             ,len_trim('down'),'down',ier)
 
         print *,'define attributes of variables'
 
@@ -606,14 +620,14 @@ c       Leave define mode
         call ncendf(idnc,ier)
         print *,'leave define mode: ier=',ier
 
-        do i=1,il
+        do i=1,il_g
          xpnt(i) = float(i)
         end do
-        call ncvpt(idnc,ixp,1,il,xpnt,ier)
-        do j=1,jl
+        call ncvpt(idnc,ixp,1,il_g,xpnt,ier)
+        do j=1,jl_g
          ypnt(j) = float(j)
         end do
-        call ncvpt(idnc,iyp,1,jl,ypnt,ier)
+        call ncvpt(idnc,iyp,1,jl_g,ypnt,ier)
 
         call ncvpt(idnc,idlev,1,kl,sig,ier)
 
@@ -666,6 +680,8 @@ c     set time to number of minutes since start
       print *,'timer,timeg=',timer,timeg
 
       print *,'now write out variables'
+
+      end if ! myid == 0
 
       if(ktau.eq.0.or.itype.eq.-1)then  ! also for restart file
 !       write time-invariant fields      
@@ -793,7 +809,7 @@ c     set time to number of minutes since start
        call histwrt3(taux,'taux',idnc,iarch)
        call histwrt3(tauy,'tauy',idnc,iarch)
 c      "extra" outputs
-       print *,'nextout, idnc: ',nextout,idnc
+       if ( myid == 0 ) print *,'nextout, idnc: ',nextout,idnc
        if(nextout.eq.1) then
          call histwrt3(rtu_ave,'rtu_ave',idnc,iarch)
          call histwrt3(rtc_ave,'rtc_ave',idnc,iarch)
@@ -809,25 +825,25 @@ c      "extra" outputs
        endif  ! nextout.eq.1
       endif    ! (ktau.gt.0)
 
-      print *,'netcdf save of 3d variables'
-      call histwrt4(t,'temp',idnc,iarch)
-      call histwrt4(u,'u',idnc,iarch)
-      call histwrt4(v,'v',idnc,iarch)
+      if ( myid == 0 ) print *,'netcdf save of 3d variables'
+      call histwrt4(t(1:ifull,:),'temp',idnc,iarch)
+      call histwrt4(u(1:ifull,:),'u',idnc,iarch)
+      call histwrt4(v(1:ifull,:),'v',idnc,iarch)
       do k=1,kl
 	do iq=1,ifull
 	 tmpry(iq,k)=ps(iq)*dpsldt(iq,k)
 	enddo
       enddo
       call histwrt4(tmpry,'omega',idnc,iarch)  ! 3d variable
-      call histwrt4(qg,'mixr',idnc,iarch)
+      call histwrt4(qg(1:ifull,:),'mixr',idnc,iarch)
       if(ifullw.eq.ifull)then
-        call histwrt4(qfg,'qfg',idnc,iarch)
-        call histwrt4(qlg,'qlg',idnc,iarch)
+        call histwrt4(qfg(1:ifullw,:),'qfg',idnc,iarch)
+        call histwrt4(qlg(1:ifullw,:),'qlg',idnc,iarch)
       endif
       if(ntrac.gt.0)then 
        do igas=1,ntrac
 	 write(numba,'(i2.2)') igas
-        call histwrt4(tr(1,1,igas),'tr'//numba,idnc,iarch)
+        call histwrt4(tr(1:ilt*jlt,:,igas),'tr'//numba,idnc,iarch)
        enddo ! igas loop
       endif  ! (ntrac.gt.0)
 
@@ -873,7 +889,6 @@ c=======================================================================
       integer cdfid, idv, dim(3)
       character name*(*), lname*(*), units*(*)
       real xmin, xmax
-      integer lngstr
 
       idv = ncvdef(cdfid, name, ncshort, ndim, dim, ier)
       if ( ier.ne.0 ) then
@@ -881,9 +896,10 @@ c=======================================================================
         stop
       end if
 
-      call ncaptc(cdfid,idv,'long_name',ncchar,lngstr(lname),lname,ier)
-      if(lngstr(units).ne.0)then
-        call ncaptc(cdfid,idv,'units',ncchar,lngstr(units),units,ier)
+      call ncaptc(cdfid,idv,'long_name',ncchar,len_trim(lname),lname,
+     &            ier)
+      if(len_trim(units).ne.0)then
+        call ncaptc(cdfid,idv,'units',ncchar,len_trim(units),units,ier)
       end if
       call ncapt(cdfid,idv,'valid_min'    ,ncshort,1,minv,ier)
       call ncapt(cdfid,idv,'valid_max'    ,ncshort,1,maxv,ier)
@@ -897,76 +913,75 @@ c=======================================================================
       return
       end
 c=======================================================================
-      function lngstr( string )
-      character*(*) string
-      ilen = len(string)
-c     print*,'string=',string
-c     print*,'ilen=',ilen
-      do 100 lngstr=ilen,1,-1
-        if ( string(lngstr:lngstr) .ne. ' ' ) go to 99
-  100 continue
-      lngstr = 0
-   99 continue
-      return
-      end
-c=======================================================================
       subroutine histwrt3(var,sname,idnc,iarch)
 c Write 2d+t fields from the savegrid array.
 
+      use cc_mpi
+      implicit none
       include 'newmpar.h'
       include 'parm.h'
+      include 'netcdf.inc'
 
+      integer idnc, iarch
       integer mid, start(3), count(3)
-      integer*2 ipack(il,jl) ! was integer*2 
+      integer*2 ipack(ifull_g) ! was integer*2 
       character* (*) sname
 c     character*8 sname
       integer*2 minv, maxv, missval ! was integer*2 
       parameter(minv = -32500, maxv = 32500, missval = -32501)
 
-      real var(il,jl)
+      real var(ifull)
+      integer iq, ier, imn, imx, jmn, jmx
+      real addoff, pvar, scale_f, varn, varx, xmax, xmin
+      real, dimension(ifull_g) :: globvar
 
-      start(1) = 1
-      start(2) = 1
-      start(3) = iarch
-      count(1) = il
-      count(2) = jl
-      count(3) = 1
+      if ( myid == 0 ) then
+         call ccmpi_gather(var, globvar)
+         start(1) = 1
+         start(2) = 1
+         start(3) = iarch
+         count(1) = il_g
+         count(2) = jl_g
+         count(3) = 1
 
 c find variable index
-      mid = ncvid(idnc,sname,ier)
-      call ncagt(idnc,mid,'add_offset',addoff,ier)
-      call ncagt(idnc,mid,'scale_factor',scale_f,ier)
+         mid = ncvid(idnc,sname,ier)
+         call ncagt(idnc,mid,'add_offset',addoff,ier)
+         call ncagt(idnc,mid,'scale_factor',scale_f,ier)
 
-      xmin=addoff+scale_f*minv
+         xmin=addoff+scale_f*minv
 !     xmax=xmin+scale_f*float(maxv-minv)
-      xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
+         xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
 
-      varn= 1.e29
-      varx=-1.e29
-      do j=1,jl
-        do i=1,il
-	   if(var(i,j).lt.varn)then
-	     varn=var(i,j)
-	     imn=i
-	     jmn=j
-	   endif
-	   if(var(i,j).gt.varx)then
-	     varx=var(i,j)
-	     imx=i
-	     jmx=j
-	   endif
-          pvar = max(xmin,min(xmax,var(i,j))) ! limited output variable
-          ipack(i,j)=nint((pvar-addoff)/scale_f)
-          ipack(i,j)=max(min(ipack(i,j),maxv),minv)
-	end do
-      end do
+         do iq=1,ifull_g
+            pvar = max(xmin,min(xmax,globvar(iq)))
+            ipack(iq)=nint((pvar-addoff)/scale_f)
+            ipack(iq)=max(min(ipack(iq),maxv),minv)
+         end do
 
-      call ncvpt(idnc, mid, start, count, ipack, ier)
-      if(ier.ne.0)stop "in histwrt3 ier not zero"
+         call ncvpt(idnc, mid, start, count, ipack, ier)
+         if(ier.ne.0)stop "in histwrt3 ier not zero"
+      else
+         call ccmpi_gather(var)
+      end if
 
-      if(mod(ktau,nmaxpr).eq.0)
-     &      write(6,'("histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)')
-     .            sname,iarch,varn,imn,jmn,varx,imx,jmx,var(id,jd)
+      if ( myid==0 .and. mod(ktau,nmaxpr).eq.0 ) then
+         varn = minval(globvar)
+         varx = maxval(globvar)
+         ! This should work ???? but sum trick is more portable???
+         ! iq = minloc(globvar,dim=1)
+         iq = sum(minloc(globvar))
+         ! Convert this 1D index to 2D
+         imn = 1 + modulo(iq-1,il_g)
+         jmn = 1 + (iq-1)/il_g
+         iq = sum(maxloc(globvar))
+         ! Convert this 1D index to 2D
+         imx = 1 + modulo(iq-1,il_g)
+         jmx = 1 + (iq-1)/il_g
+         write(6,'("histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)')
+     &             sname,iarch,varn,imn,jmn,varx,imx,jmx,
+     &             globvar(id+(jd-1)*il_g)
+      end if
 
       return
       end ! histwrt3
@@ -974,61 +989,69 @@ c=======================================================================
       subroutine histwrt4(var,sname,idnc,iarch)
 c Write 3d+t fields from the savegrid array.
 
+      use cc_mpi
+      implicit none
       include 'newmpar.h'
       include 'parm.h'
+      include 'netcdf.inc'
 
+      integer idnc, iarch
       integer mid, start(4), count(4)
-      integer*2 ipack(il,jl,kl) ! was integer*2 
+      integer*2 ipack(ifull_g,kl) ! was integer*2 
       character* (*) sname
 c     character*8 sname
       integer*2 minv, maxv, missval ! was integer*2 
       parameter(minv = -32500, maxv = 32500, missval = -32501)
 
-      real var(il,jl,kl)
+      real var(ifull,kl)
+      integer ier, imx, jmx, k, kmx, iq
+      real addoff, pvar, scale_f, varn, varx, xmax, xmin
+      real, dimension(ifull_g,kl) :: globvar
+      integer, dimension(2) :: max_result
 
-      start(1) = 1
-      start(2) = 1
-      start(3) = 1
-      start(4) = iarch
-      count(1) = il
-      count(2) = jl
-      count(3) = kl
-      count(4) = 1
+      if ( myid == 0 ) then
+         call ccmpi_gather(var, globvar)
+         start(1) = 1
+         start(2) = 1
+         start(3) = 1
+         start(4) = iarch
+         count(1) = il_g
+         count(2) = jl_g
+         count(3) = kl
+         count(4) = 1
 
 c find variable index
-      mid = ncvid(idnc,sname,ier)
-      call ncagt(idnc,mid,'add_offset',addoff,ier)
-      call ncagt(idnc,mid,'scale_factor',scale_f,ier)
+         mid = ncvid(idnc,sname,ier)
+         call ncagt(idnc,mid,'add_offset',addoff,ier)
+         call ncagt(idnc,mid,'scale_factor',scale_f,ier)
 
-      xmin=addoff+scale_f*minv
+         xmin=addoff+scale_f*minv
 !     xmax=xmin+scale_f*float(maxv-minv)
-      xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
+         xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
+         do k=1,kl
+            do iq=1,ifull_g
+               pvar = max(xmin,min(xmax,globvar(iq,k)))
+               ipack(iq,k)=nint((pvar-addoff)/scale_f)
+               ipack(iq,k)=max(min(ipack(iq,k),maxv),minv)
+            end do
+         end do
+         call ncvpt(idnc, mid, start, count, ipack, ier)
+      else
+         call ccmpi_gather(var)
+      end if
 
-      varn= 1.e29
-      varx=-1.e29
-      do k=1,kl
-       do j=1,jl
-        do i=1,il
-          pvar = max(xmin,min(xmax,var(i,j,k))) ! limited output variable
-          ipack(i,j,k)=nint((pvar-addoff)/scale_f)
-          ipack(i,j,k)=max(min(ipack(i,j,k),maxv),minv)
-          varn=min(varn,var(i,j,k))
-c         varx=max(varx,var(i,j,k))
-	   if(var(i,j,k).gt.varx)then
-	     varx=var(i,j,k)
-	     imx=i
-	     jmx=j
-	     kmx=k
-	   endif
-	end do
-       end do
-      end do
-
-      call ncvpt(idnc, mid, start, count, ipack, ier)
-
-      if(mod(ktau,nmaxpr).eq.0)
-     &      write(6,'("histwrt4 ",a7,i4,2f12.4,3i4)') 
-     .                            sname,iarch,varn,varx,imx,jmx,kmx
+      if ( myid==0 .and. mod(ktau,nmaxpr).eq.0 ) then
+         varn = minval(globvar)
+         varx = maxval(globvar)
+         max_result = maxloc(globvar)
+         kmx = max_result(2)
+         iq = max_result(1)
+         ! Convert this 1D index to 2D
+         imx = 1 + modulo(iq-1,il_g)
+         jmx = 1 + (iq-1)/il_g
+         write(6,'("histwrt4 ",a7,i4,2f12.4,3i4)')
+     &         sname,iarch,varn,varx,imx,jmx,kmx
+      end if
 
       return
       end ! histwrt4
