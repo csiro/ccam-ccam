@@ -362,7 +362,7 @@
         endif
         if(nvad.eq.4)then
           sdmx = maxval(abs(sdot))
-          call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX, 0,
+          call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX,
      &                       MPI_COMM_WORLD, ierr )
           nits=1+sdmx_g/nvadh
           nvadh_pass=nvadh*nits
