@@ -9,18 +9,21 @@
       include 'arrays.h'
       include 'const_phys.h'
       include 'indices.h'
+      include 'kuocom.h'   ! ldr
       include 'liqwpar.h'  ! ifullw
       include 'map.h'
       include 'nlin.h'
       include 'parm.h'
       include 'parmdyn.h'  
       include 'parmhor.h'  ! mhint, m_bs, nt_adv
+      include 'parmvert.h'  
       include 'sigs.h'
       include 'tracers.h'
       include 'vecsuv.h'   ! vecsuv info
       include 'vvel.h'     ! sdot
       include 'xarrs.h'
       include 'xyzinfo.h'  ! x,y,z,wts
+      include 'mpif.h'
       real epst
       common/epst/epst(ifull)
       real ubar, vbar
@@ -72,6 +75,22 @@
          endif
 	 enddo
       endif           
+
+      if(nvad.eq.-4)then ! also called further down for nvadh=2
+         sdmx = maxval(abs(sdot))
+         call MPI_AllReduce(sdmax, sdmax_g, 1, MPI_REAL, MPI_MAX, 0,
+     &                      MPI_COMM_WORLD, ierr )
+	 nits=1+sdmx_g/nvadh
+	 nvadh_pass=nvadh*nits
+	 if(mydiag.and.mod(ktau,nmaxpr).eq.0)
+     &      print *,'in upglobal sdmx,nits,nvadh_pass ',
+     &                           sdmx_g,nits,nvadh_pass
+         do its=1,nits
+            call vadvtvd(tx,ux,vx,nvadh_pass) 
+	 enddo
+      endif  ! (nvad.eq.-4)
+      if(nvad.le.-7) call vadv30(tx,ux,vx)  ! for vadvbess
+
 
 !     call depts3d   ! this one has its own k loop; was nvad<0 option
 
@@ -133,7 +152,7 @@
           do k=1,kl
              if(nt_adv.eq.3) then   ! 1. up to sig=.4
                    factr(k)=stdlapse*(rdry*300./grav)
-                   if(sig(k).lt..3)factr(k)=0.
+                   if(sig(k).lt.0.3)factr(k)=0.
              endif   ! (nt_adv.eq.3)then   
              if(nt_adv.eq.4) ! (1, .5, 0) for sig=(1, .75, .5)
      &          factr(k)=max(2.*sig(k)-1., 0.)*stdlapse*(rdry*300./grav)
@@ -277,10 +296,10 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
 
        if(mspec.eq.1.and.mup.ne.0)then   ! advect qg after preliminary step
           call ints(qg,intsch,nface,xg,yg,4)
-          if(ifullw.gt.1)then
+          if(ldr.ne.0)then
              call ints(qlg,intsch,nface,xg,yg,4)
              call ints(qfg,intsch,nface,xg,yg,4)
-          endif                 ! ifullw.gt.1
+          endif                 ! ldr.ne.0
           if(ilt.gt.1)then
              do ntr=1,ntrac
                 call ints(tr(1,1,ntr),intsch,nface,xg,yg,5)
@@ -321,7 +340,7 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
        dtm=dt*(1.-epsf)
        dtp=dt*(1.+epsf)
 
-       if(m.eq.6)then    ! i.e.second part of m=6 coriolis treatment
+       if(m.eq.6)then    ! i.e.second part of usual m=6 coriolis treatment
           do k=1,kl
              do iq=1,ifull
                 ux(iq,k)=ux(iq,k)+.5*dt*un(iq,k)
@@ -339,7 +358,16 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
           stop
        end if
 
-!      now interpolate ux,vx to the staggered grid; special globpea call
+      if(nvadh.eq.2.and.nvad.lt.0)then                 ! final dt/2 's worth
+        if(nvad.eq.-4)then
+          do its=1,nits
+            call vadvtvd(tx,ux,vx,nvadh_pass) 
+          enddo
+        endif  ! (nvad.eq.-4)
+        if(nvad.le.-7)call vadv30(tx,ux,vx)  ! for vadvbess
+      endif     !  (nvadh.eq.2.and.nvad.lt.0)then
+
+!     now interpolate ux,vx to the staggered grid; special globpea call
       call staguv(ux,vx,ux,vx)
       if(diag)then
          if ( mydiag ) print *,
