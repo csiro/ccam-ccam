@@ -1,8 +1,9 @@
-      subroutine vadvtvd(tarr,uarr,varr)   ! globpea  version
+      subroutine vadvtvd(tarr,uarr,varr,nvadh_pass)   ! globpea  version
 c                              vadvbott & vadvyu at bottom
 !     can show adding tbar has no effect
       use cc_mpi, only : mydiag, myid
       include 'newmpar.h'
+      parameter (npslx=1)  ! 0 off, 1 on for nvad=-4
 !     parameter (sdotfilt=0.)  ! tried .3 - not useful
 !     parameter (nimp=1)  !  0 for original explicit non-flux TVD term
 !                            1 for implicit non-flux TVD term
@@ -17,6 +18,7 @@ c     split vertical advection routine; tvd scheme; used with nonlin or upglobal
 c     In flux limiter, assuming zero gradient for all top and bottom
 c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
       include 'arrays.h'
+      include 'kuocom.h'     ! also with kbsav,ktsav
       include 'liqwpar.h'  ! ifullw
       include 'map.h'
       include 'parm.h'
@@ -25,6 +27,7 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
       include 'sigs.h'
       include 'tracers.h'
       include 'vvel.h'
+      include 'xarrs.h'
 c     common/work2/aa(ifull),dum2(ifull,17) 
 !     N.B. first 3 arrays of work3 are available from nonlin, all from upglobal
       common/work3/delt(ifull,0:kl),fluxh(ifull,0:kl),
@@ -38,22 +41,13 @@ c     common/work2/aa(ifull),dum2(ifull,17)
       data num/0/,nsign/1/
       save num,nsign   ! -1,1, -1,1 and so on
 
-c     if(nvadh.eq.2)then
-c       nsign=-nsign      !  -1,1, -1,1 and so on
-c       if(nsign.lt.0)then
-c         tfact=.5*(1.-epsp)
-c       else
-c        tfact=.5*(1.+epsp)
-c       endif
-c     else       ! i.e. nvadh.ne.2
-c       tfact=1.
-c     endif
-      tfact=1./nvadh   ! simpler alternative
+      tfact=1./nvadh_pass 
 
       if(num.eq.0.and.myid==0)then
         num=1
-        print *,'In vadvtvd nvad,nvadh,nimp,nthub,ntvd,tfact ',
-     .                      nvad,nvadh,nimp,nthub,ntvd,tfact
+        print *,'In vadvtvd nvad,nvadh_pass,npslx ',
+     .                      nvad,nvadh_pass,npslx
+        print *,'nimp,nthub,ntvd,tfact ',nimp,nthub,ntvd,tfact
       endif
 
 c     note sdot coming through is at level k-.5
@@ -194,6 +188,43 @@ c     v
        enddo    ! iq loop
       enddo     ! k loop
 
+      if(npslx.eq.1.and.nvad.eq.-4)then
+      do k=1,kl-1
+       do iq=1,ifull
+         delt(iq,k)=pslx(iq,k+1)-pslx(iq,k)
+       enddo    ! iq loop
+      enddo     ! k loop
+      do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+       do iq=1,ifull
+        kp=sign(1.,sdot(iq,k+1))
+        kx=k+(1-kp)/2  !  k for sdot +ve,  k+1 for sdot -ve
+        rat=delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+        if(ntvd.eq.1)phi=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
+        if(ntvd.eq.2)phi=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
+        if(ntvd.eq.3)phi=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
+        if(nthub.eq.1)fluxhi=.5*(pslx(iq,k)+pslx(iq,k+1))
+        if(nthub.eq.2)then     ! higher order scheme
+          fluxhi=.5*(pslx(iq,k)+pslx(iq,k+1)
+     .                  -delt(iq,k)*tfact*sdot(iq,k))
+        endif  ! (nthub.eq.2)
+        fluxlo=pslx(iq,kx)
+        fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phi*(fluxhi-fluxlo))
+       enddo    ! iq loop
+      enddo     ! k loop
+      do k=1,kl
+       do iq=1,ifull
+        if(nimp.eq.1)then
+         hdsdot=.5*tfact*(sdot(iq,k+1)-sdot(iq,k))
+         pslx(iq,k)=(pslx(iq,k)+tfact*(fluxh(iq,k-1)-fluxh(iq,k))
+     .               +hdsdot*pslx(iq,k) )/(1.-hdsdot)
+        else
+         pslx(iq,k)=pslx(iq,k)+tfact*(fluxh(iq,k-1)-fluxh(iq,k)
+     .               +pslx(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
+        endif   ! (nimp.eq.1)
+       enddo    ! iq loop
+      enddo     ! k loop
+      endif  ! (npslx.eq.1.and.nvad.eq.-4)
+
       if(mspec.eq.1)then   ! advect qg and gases after preliminary step
 c     qg
       do k=1,kl-1
@@ -259,7 +290,7 @@ c           qg(iq,k)=qg(iq,k)+deltaqg
 c         endif
 c        enddo   ! iq loop
 
-      if(ifullw.gt.1)then
+      if(ldr.ne.0)then
        do k=1,kl-1       ! qlg first
         do iq=1,ifull
           delt(iq,k)=qlg(iq,k+1)-qlg(iq,k)
@@ -338,7 +369,7 @@ c        enddo   ! iq loop
          endif   ! (nimp.eq.1)
         enddo     ! iq loop
        enddo      ! k loop
-      endif      ! if(ifullw.gt.1)
+      endif      ! if(ldr.ne.0)
 
       if(ilt.gt.1)then
       do ntr=1,ntrac
