@@ -56,7 +56,10 @@
      &     psav, psavk, psavklog, psavlog, ratio, rk, sdmax, sigt,
      &     sigtlog, sigxx, sinlat, sinth, sumdiffb, termlin, tt, tvv,
      &     uzon, zonx, zony, zonz, zsint
-
+      real :: delneg_l, delpos_l  ! Local versions
+      real, dimension(2) :: delarr, delarr_l
+      integer :: ierr
+      
       call start_log(nonlin_begin)
 
       if(epsp.lt.-1.)then
@@ -199,15 +202,20 @@ c     .      ,pslx(id-1,jd-1,nlv),pslx(id-1,jd+1,nlv),pslx(id+1,jd-1,nlv)
       if(abs(mfix).eq.5.and.mspec.eq.1)then
 !       perform conservation fix on tr1,tr2 as affected by vadv, hadv, hordif
         do ng=1,2
-         delpos=0.
-         delneg=0.
+         delpos_l=0.
+         delneg_l=0.
          do iq=1,ifull
           do k=1,kl
-           tempry(iq,k)=tr(iq,k,ng)-trsav(iq,k,ng)  ! has increments
-           delpos=delpos+max(0.,-dsig(k)*tempry(iq,k)/em(iq)**2)
-           delneg=delneg+min(0.,-dsig(k)*tempry(iq,k)/em(iq)**2)
+           tempry(iq,k) = tr(iq,k,ng)-trsav(iq,k,ng)  ! has increments
+           delpos_l = delpos_l + max(0.,-dsig(k)*tempry(iq,k)/em(iq)**2)
+           delneg_l = delneg_l + min(0.,-dsig(k)*tempry(iq,k)/em(iq)**2)
           enddo   ! k loop
          enddo    ! iq loop
+         delarr_l(1:2) = (/ delpos_l, delneg_l /)
+         call MPI_Allreduce ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,
+     &                        MPI_COMM_WORLD, ierr )
+         delpos = delarr(1)
+         delneg = delarr(2)
          ratio = -delneg/delpos
          beta = min(ratio,sqrt(ratio))
          betav=1./max(1.,beta)  ! for cunning 2-sided
@@ -550,10 +558,10 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
         call printa('aa2 ',aa2,ktau,nlv,ia,ib,ja,jb,0.,1.)
         call printa('bb  ',bb,ktau,nlv,ia,ib,ja,jb,0.,1.)
         call printa('bb2 ',bb2,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('cc  ',cc,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('cc2 ',cc2,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('dd  ',dd,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('dd2 ',dd2,ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('cc  ',cc,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
+        call printa('cc2 ',cc2,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
+        call printa('dd  ',dd,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
+        call printa('dd2 ',dd2,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
       endif                     ! (diag.and.k.eq.nlv)
 
 !     finish evaluation of tx,ux,vx by adding in part of nonlinear terms
