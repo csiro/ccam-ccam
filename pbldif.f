@@ -1,8 +1,8 @@
       subroutine pbldif(theta,rkh,rkm,uav,vav)
 !     vectorized version      
       parameter (ntest=0)
-      parameter (nrkmin=2)  !   1 original; 2 new
-      parameter (npblmin=2)
+      parameter (nrkmin=2)  ! 1 original; 2 new
+      parameter (npblmin=1) ! 1 original (best for Oz); 2 new ; 3 newer
       include 'newmpar.h'
       parameter (kmax=kl/2)
 C------------------------------------------------------------------------
@@ -59,6 +59,7 @@ C Input & Output arguments
 C     also qg                      ! mixing ratio [kg/kg}
 
 C     local work arrays (note work3c and work3f stuff passed thru too)
+      common/nonlsav/cfrac(ifull,kl),betatt(ifull,kl),betaqt(ifull,kl) 
       common/work3/cgh(ifull,kl), ! counter-gradient term for heat [K/m]
      .             cgq(ifull,kl), ! counter-gradient term for constituents
      .             rino(ifull,kl),dum3(ifull,2*kl)
@@ -154,7 +155,7 @@ C****************************************************************
       enddo         ! k  loop
       cgh(:,:)=0.   ! 3D
       cgq(:,:)=0.   ! 3D
-      if(ktau.eq.0)print *,'in pbldif nrkmin,npblmin: ',nrkmin,npblmin 
+      if(ktau.eq.1)print *,'in pbldif nrkmin,npblmin: ',nrkmin,npblmin 
 
 C Compute kinematic surface fluxes
          do iq=1,ifull
@@ -253,11 +254,9 @@ C convective temperature excess:
          enddo     ! i loop
         enddo      ! k loop
 
-C
 C Points for which pblh exceeds number of pbl layers allowed;
 C set to maximum
  
-C
 C PBL height must be greater than some minimum mechanical mixing depth
 C Several investigators have proposed minimum mechanical mixing depth
 C relationships as a function of the local friction velocity, u*.  We 
@@ -281,6 +280,19 @@ C latitude value for f so that c = 0.07/f = 700.
          pblh(iq) = max(pblh(iq),pblmin)
        end do
       endif  ! (npblmin.eq.2)
+      if(npblmin.eq.3)then
+        do iq=1,ifull
+         pblmin  = .07*ustar(iq)/max(1.e-4,abs(f(iq))) ! to ~agree 39.5N
+         pblh(iq) = max(pblh(iq),pblmin)
+       end do
+      endif  ! (npblmin.eq.3)
+c     if(npblmin.eq.4)then  !  older Zilit., stable only
+c       do iq=1,ifull
+c        pblmin=.5*sqrt(ustar(iq)*max(0.,obklen(iq))/
+c    .                            max(.5e-4,abs(f(iq))))
+c        pblh(iq) = max(pblh(iq),pblmin)
+c      end do
+c     endif  ! (npblmin.eq.4)
 
 C pblh is now available; do preparation for diffusivity calculation:
 
@@ -295,16 +307,46 @@ C and moisture perturbations depending on stability.
             wstr(iq)    = (heatv(iq)*grav*pblh(iq)/thvref(iq))**(1./3.)
           end if
         end do
-C
+
 C Main level loop to compute the diffusivities and 
 C counter-gradient terms:
-C
+
+	  if(nlocal.eq.3)then
+!          suppress nonlocal scheme over the sea   jlm
+           do iq=1,ifull
+	     if(.not.land(iq))pblh(iq)=0.
+           enddo
+	  endif  !  (nlocal.eq.3)
+
+	  if(nlocal.eq.4)then
+!          suppress nonlocal scheme for column if cloudy layer in pbl   jlm
+           do k=1,kl/2
+            do iq=1,ifull
+	      if(zg(iq,k).lt.pblh(iq).and.cfrac(iq,k).gt.0.)pblh(iq)=0.
+            enddo
+           enddo
+	  endif  !  (nlocal.eq.4)
+
         do 1000 k=1,kmax-1
-C
+	  if(nlocal.eq.2)then
+!          suppress nonlocal scheme if cloudy layers in pbl   jlm
+!          note this allows layers below to be done as nonlocal
+           do iq=1,ifull
+	     if(zg(iq,k).lt.pblh(iq).and.cfrac(iq,k).gt.0.)pblh(iq)=0.
+           enddo
+	  endif  !  (nlocal.eq.2)
+
+c	  if(nlocal.eq.4)then  ! turns out identical to nlocal=2
+c!          activate nonlocal scheme only below cloudy layers   jlm
+c           do iq=1,ifull
+c	     if(cfrac(iq,k).gt.0.)pblh(iq)=min(pblh(iq),zg(iq,k)-5.)
+c           enddo
+c	  endif  !  (nlocal.eq.4)
+
 C Find levels within boundary layer:
 C This is where Kh is at half model levels 
 C zmzp = 0.5*(zm + zp)
-C
+
            do iq=1,ifull
               fak1 = ustar(iq)*pblh(iq)*vk
               zm = zg(iq,k)
@@ -361,8 +403,8 @@ C term: pblk is Kc in eq. (4.d.16)
 		    endif    ! (ntest.eq.1)
                   rkm(iq,k) = max(pblk,rkmin)        
                   rkh(iq,k) = rkm(iq,k)
-                endif      ! unstbl(i)
-             endif         ! zm(i) .lt. pblh(iq)
+                endif      ! (heatv(iq).gt.0.)    unstbl(i)
+              endif         ! zm(i) .lt. pblh(iq)
            enddo           ! iq=1,ifull
 
 1000     continue           !end of k loop
