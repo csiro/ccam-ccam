@@ -316,6 +316,7 @@ c     this routine creates attributes and writes output
      &     idv, ier, iq, isoil, j, k, igas, nwtperday
       real trmax, trmin
       character*3 mon(12)
+      real cfrac, dum3f
       common/nonlsav/cfrac(ifull,kl),dum3f(ifull,kl,2) ! globpe,leoncld,radriv90
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
