@@ -12,7 +12,7 @@
       include 'arrays.h'
 c     include 'constant.h'
       include 'dava.h'    ! davt
-      include 'kuocom.h'  ! kbsav,ktsav,convfact,convpsav,ndavconv
+      include 'kuocom.h'  ! acon,bcon,Rcm
       include 'map.h'     ! land
       include 'morepbl.h'
       include 'nlin.h'
@@ -32,10 +32,13 @@ c for cfrp
       real reffl,tau_sfac,wliq,rk,cdrop,qlpath,wice,sigmai,cfd,fcf
       common/leoncfrp/tautot(icfrp),cldmax(icfrp)
      &               ,ctoptmp(icfrp),ctoppre(icfrp)
-
+      common/work3b/cfrad(ifull,kl),dum3b(ifull,kl)    ! leoncld & radriv90
+      common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! ditto
+      real cfrad,dum3b,qccon,qlrad,qfrad
 
 c Local variables
-      integer iq,k
+      integer iq,k,ncl
+      real rainx,ccw,fl !Stuff for convective cloud fraction
 
       real prf(ifullw,kl)     !Pressure on full levels (hPa)
       real dprf(ifullw,kl)    !Pressure thickness (hPa)
@@ -50,6 +53,13 @@ c Local variables
       real ccrain(ifullw,kl)  !Convective raining cloud cover
       real precs(ifullw)      !Amount of stratiform precipitation in timestep (mm)
       real preci(ifullw)      !Amount of stratiform snowfall in timestep (mm)
+      real cldcon(ifullw)     !Convective cloud fraction in column
+      real wcon(ifullw)       !Convective cloud water content (in-cloud, prescribed)
+      real clcon(ifullw,kl)   !Convective cloud fraction in layer 
+      real qsg(ifullw,kl)     !Saturation mixing ratio
+      real qcl(ifullw,kl)     !Vapour mixing ratio inside convective cloud
+      real qenv(ifullw,kl)    !Vapour mixing ratio outside convective cloud
+      real tenv(ifullw,kl)    !Temperature outside convective cloud
 
 c These outputs are not used in this model at present
       real qevap(ifullw,kl)
@@ -73,6 +83,7 @@ c These outputs are not used in this model at present
           prf(iq,k)=0.01*ps(iq)*sig(k) !Looks like ps is SI units
           dprf(iq,k)=-0.01*ps(iq)*dsig(k) !dsig is -ve
           rhoa(iq,k)=100.*prf(iq,k)/(rdry*t(iq,k))
+          qsg(iq,k)=qsat(100.*prf(iq,k),t(iq,k))
           if(land(iq))then
             cdso4(iq,k)=cdropl
           else
@@ -81,29 +92,149 @@ c These outputs are not used in this model at present
         enddo
       enddo
 
-      kbase(:)=0  !Not used for now
-      ktop(:)=0
+      kbase(:)=0  ! default
+      ktop(:) =0  ! default
       dz(:,:)=100.*dprf(:,:)/(rhoa(:,:)*grav)
 c     fluxc(:,:)=rnrt3d(:,:)*1.e-3*dt ! kg/m2 (should be same level as rnrt3d)
       fluxc(:,:)=0. !For now... above line may be wrong
       ccrain(:,:)=0.1  !Assume this for now
       precs(:)=0.
 
-c Calculate cloud fraction and cloud water mixing ratios
+c     Set up convective cloud column
+!     acon=0.2    !Cloud fraction for non-precipitating convection  kuocom.h
+!     bcon=0.07   !Rate at which conv cloud frac increases with R   kuocom.h
+      do iq=1,ifull
+        if(ktsav(iq).lt.kl)then
+          ktop(iq)=ktsav(iq)
+          kbase(iq)=kbsav(iq)+1
+          rainx=condc(iq)*86400./dt !mm/day
+          cldcon(iq)=min(acon + bcon*log(1.0+rainx),0.8) !NCAR
+          wcon(iq)=wlc
+        else
+          cldcon(iq)=0.
+          wcon(iq)=0.
+        endif
+      enddo
 
+      if(ktau.eq.1)print *,'in leoncloud acon,bcon,Rcm ',acon,bcon,Rcm
+      if(diag)then
+        print *,'entering leoncld'
+c        do k=1,kl
+cc         do iq=1,ifull
+c          if(k.le.ktop(iq).and.k.ge.kbase(iq))then
+c            write(47,'(2g13.4)') qsg(iq,k),qg(iq,k)
+c	   endif
+c	  enddo
+c	 enddo
+        write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
+        write (6,"('qf ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
+        write (6,"('ql ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
+      endif
+
+c     Calculate convective cloud fraction and adjust moisture variables 
+c     before calling newcloud
+      do k=1,kl
+        do iq=1,ifull
+          if(k.le.ktop(iq).and.k.ge.kbase(iq))then
+            ncl=ktop(iq)-kbase(iq)+1
+            clcon(iq,k)=1.0-(1.0-cldcon(iq))**(1.0/ncl) !Random overlap
+            ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
+!!27/4/04   qccon(iq,k)=clcon(iq,k)*ccw*0.25 ! 0.25 reduces updraft value to cloud value
+            qccon(iq,k)=clcon(iq,k)*ccw
+            qcl(iq,k)=qsg(iq,k)
+!           N.B. get silly qenv (becoming >qg) if qg>qsg (jlm)	     
+            qcl(iq,k)=max(qsg(iq,k),qg(iq,k))  ! jlm
+            qenv(iq,k)=max(1.e-8,
+     &                 qg(iq,k)-clcon(iq,k)*qcl(iq,k))/(1-clcon(iq,k))
+            qcl(iq,k)=(qg(iq,k)-(1-clcon(iq,k))*qenv(iq,k))/clcon(iq,k)
+            qlg(iq,k)=qlg(iq,k)/(1-clcon(iq,k))
+            qfg(iq,k)=qfg(iq,k)/(1-clcon(iq,k))
+          else
+            clcon(iq,k)=0.
+            qccon(iq,k)=0.
+            qcl(iq,k)=0.
+            qenv(iq,k)=qg(iq,k)
+          endif
+        enddo
+      enddo
+      tenv(:,:)=t(1:ifull,:) !Assume T is the same in and out of convective cloud
+      if(diag)then
+        print *,'before newcloud'
+        write (6,"('t   ',9f8.2/4x,9f8.2)") (t(idjd,k),k=1,kl)
+        write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
+        write (6,"('qf  ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
+        write (6,"('ql  ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
+        write (6,"('qnv ',9f8.3/4x,9f8.3)")(1000.*qenv(idjd,k),k=1,kl)
+        write (6,"('qsg ',9f8.3/4x,9f8.3)")(1000.*qsg(idjd,k),k=1,kl)
+        write (6,"('qcl ',9f8.3/4x,9f8.3)")(1000.*qcl(idjd,k),k=1,kl)
+        write (6,"('clc ',9f8.3/4x,9f8.3)")(clcon(idjd,k),k=1,kl)
+	 print *,'cldcon,kbase,ktop ',cldcon(idjd),kbase(idjd),ktop(idjd)
+      endif
+
+c     Calculate cloud fraction and cloud water mixing ratios
       call newcloud(dt,1,land,prf,kbase,ktop,rhoa,cdso4, !Inputs
-     &     t(1:ifull,:),qg(1:ifull,:),qlg(1:ifull,:),qfg(1:ifull,:),   !In and out
+     &     tenv,qenv,qlg(1:ifull,:),qfg(1:ifull,:),   !In and out  t here is tenv
      &     cfrac,ccov,cfa,qca)   !Outputs
+      if(diag)then
+        print *,'after newcloud'
+        write (6,"('tnv ',9f8.2/4x,9f8.2)") (tenv(idjd,k),k=1,kl)
+        write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
+        write (6,"('qf  ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
+        write (6,"('ql  ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
+        write (6,"('qnv ',9f8.3/4x,9f8.3)")(1000.*qenv(idjd,k),k=1,kl)
+      endif
 
+c     Weight output variables according to non-convective fraction of grid-box            
+      do k=1,kl
+        do iq=1,ifull
+          t(iq,k)=clcon(iq,k)*t(iq,k)+(1-clcon(iq,k))*tenv(iq,k)
+          qg(iq,k)=clcon(iq,k)*qcl(iq,k)+(1-clcon(iq,k))*qenv(iq,k)
+          if(k.ge.kbase(iq).and.k.le.ktop(iq))then
+            cfrac(iq,k)=cfrac(iq,k)*(1-clcon(iq,k))
+            ccov(iq,k)=ccov(iq,k)*(1-clcon(iq,k))              
+            qlg(iq,k)=qlg(iq,k)*(1-clcon(iq,k))
+            qfg(iq,k)=qfg(iq,k)*(1-clcon(iq,k))
+            cfa(iq,k)=cfa(iq,k)*(1-clcon(iq,k))
+            qca(iq,k)=qca(iq,k)*(1-clcon(iq,k))              
+          endif
+        enddo
+      enddo
+      if(diag)then
+        print *,'before newrain'
+        write (6,"('t  ',9f8.2/4x,9f8.2)") (t(idjd,k),k=1,kl)
+        write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
+        write (6,"('qf ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
+        write (6,"('ql ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
+      endif
 
-c Calculate precipitation and related processes
-      
+c     Calculate precipitation and related processes      
       call newrain(land,1,dt,fluxc,rhoa,dz,ccrain,prf,cdso4,  !Inputs
      &    cfa,qca,                                            !Inputs
      &    t(1:ifull,:),qlg(1:ifull,:),qfg(1:ifull,:),
      &    precs,qg(1:ifull,:),cfrac,ccov, !In and Out
      &    preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,  !Outputs
      &    fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
+      if(diag)then
+        print *,'after newrain'
+        write (6,"('t  ',9f8.2/4x,9f8.2)") (t(idjd,k),k=1,kl)
+        write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
+        write (6,"('qf ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
+        write (6,"('ql ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
+        call maxmin(t,' t',ktau,1.,kl)
+        call maxmin(qg,'qg',ktau,1.e3,kl)
+        call maxmin(qfg,'qf',ktau,1.e3,kl)
+        call maxmin(qlg,'ql',ktau,1.e3,kl)
+      endif
+
+c     Add convective cloud water into fields for radiation
+      do k=1,kl
+        do iq=1,ifull
+          cfrad(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
+          fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
+          qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
+          qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
+        enddo
+      enddo
 
       
 ! added by jjk 27-07-03
@@ -115,12 +246,16 @@ c Calculate precipitation and related processes
 
 !=======================================================================
 !      if(ncfrp.eq.1)then  ! from here to the end
-        tautot(:)=0.
-        cldmax(:)=0.
-        ctoptmp(:)=0.
-        ctoppre(:)=0.
-        fice(:,:)=0.
-        kcldfmax(:)=0.
+        do iq=1,icfrp
+          tautot(iq)=0.
+          cldmax(iq)=0.
+          ctoptmp(iq)=0.
+          ctoppre(iq)=0.
+          do k=1,kl
+            fice(iq,k)=0.
+          enddo
+          kcldfmax(iq)=0.
+        enddo
 c       cfrp data
         do k=1,kl-1
           do iq=1,icfrp
