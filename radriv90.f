@@ -209,7 +209,10 @@ c        endif
       end if
 
 !     Main loop over rows. imax/il is the number of rows done at once
-      if(mod(ifull,imax).ne.0)stop 'illegal setting of imax in rdparm'
+      if(mod(ifull,imax).ne.0)then
+        print *,'nproc,il,jl,ifull,imax ',nproc,il,jl,ifull,imax
+        stop 'illegal setting of imax in rdparm'
+      endif
       do 100 j=1,jl,imax/il
       if(ntest.eq.1)print *,'in radriv90 j = ',j
 !     Calculate zenith angle for the solarfit calculation.

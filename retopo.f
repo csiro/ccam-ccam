@@ -6,16 +6,18 @@ c     (but does not overwrite zs itself here)
 c     called by indata and nestin for newtop.ge.1
 !     nowadays just for ps and atmospheric fields Mon  08-23-1999
       use cc_mpi, only : mydiag
+      implicit none
       include 'newmpar.h'
       include 'const_phys.h'
       include 'parm.h'
       include 'sigs.h'
       real psl(ifull),zsold(ifull),zs(ifull)
       real qg(ifull,kl),t(ifull,kl)
-c     first dum inserted so as not to conflict with zsb in nestin
-      common/work2/dum(ifull),ps(ifull),psold(ifull),dum2(ifull,15)
-      real told(kl),qgold(kl)
+      real told(kl),qgold(kl),ps(ifull),psold(ifull),pslold(ifull)
+      integer ii,iq,jj,k,kkk
+      real sig2
       do iq=1,ifull
+       pslold(iq)=psl(iq)
        psold(iq)=1.e5*exp(psl(iq))
        psl(iq)=psl(iq)+(zsold(iq)-zs(iq))/(rdry*t(iq,1))
        ps(iq)=1.e5*exp(psl(iq))
@@ -26,6 +28,12 @@ c     now alter temperatures to compensate for new topography
         print *,'entering retopo, old qg ',(qg(idjd,k),k=1,kl)
         print *,'zsold,zs,psold,ps ',
      .           zsold(idjd),zs(idjd),psold(idjd),ps(idjd)
+        if(nproc==1)then
+          write (6,"('psl0#  ',9f10.6)") 
+     .           ((pslold(ii+jj*il),ii=idjd-1,idjd+1),jj=1,-1,-1)
+          write (6,"('psl#   ',9f10.6)") 
+     .           ((psl(ii+jj*il),ii=idjd-1,idjd+1),jj=1,-1,-1)
+	 endif
       endif  ! (ktau.lt.100)
       do iq=1,ifull
        do k=1,kl
