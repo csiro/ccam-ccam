@@ -309,10 +309,11 @@
           write (6,"('prec# in',3f7.2,1x,3f7.2,1x,3f7.2)") 
      &          diagvals(precip)
 !     .           ((precip(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-          print *,'t in ',(t(idjd,k),k=1,kk),t(ifull,kk)
-          print *,'u in ',(u(idjd,k),k=1,kk),u(ifull,kk)
-          print *,'v in ',(v(idjd,k),k=1,kk),v(ifull,kk)
-          print *,'qg in ',(qg(idjd,k),k=1,kk),qg(ifull,kk)
+!  Printing the ifull value gives confusing results in the parallel version
+          print *,'t in ',(t(idjd,k),k=1,kk)!,t(ifull,kk)
+          print *,'u in ',(u(idjd,k),k=1,kk)!,u(ifull,kk)
+          print *,'v in ',(v(idjd,k),k=1,kk)!,v(ifull,kk)
+          print *,'qg in ',(qg(idjd,k),k=1,kk)!,qg(ifull,kk)
           print *,'N.B. following are meaningless during nestin read'
           print *,'tgg(1)# ', diagvals(tgg(:,1))
 !     .           ((tgg(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
