@@ -5,7 +5,7 @@
      .     cldh_sea,cldm_sea,cldl_sea,convfact,convshr,convtime,
      .     detrain,detrainx,dsig2,dsig4,
      .     epsconv,fldown,rcrit_l,rcrit_s,rhcv,rhmois,rhsat,
-     .     sigcb,sigcll,sigkscb,sigcll,sig_ct,sigkscb,sigksct,
+     .     sigcb,sigcll,sigkscb,sig_ct,sigksct,
      .     tied_con,tied_over,tied_rh
       
       common/kuocom/
