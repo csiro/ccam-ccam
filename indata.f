@@ -15,7 +15,7 @@ c     note: unformatted qg in g/kg
       include 'newmpar.h'
       include 'aalat.h'
       include 'arrays.h'
-      include 'constant.h'
+      include 'const_phys.h'
       include 'dates.h'     ! mtimer
       include 'dava.h'      ! davt
       include 'filnames.h'  ! list of files, read in once only
@@ -63,7 +63,6 @@ c     watch out in retopo for work/zss
 c     namelist/soilin/ zoland    not needed any more
       data lapsbot/0/,pmsl/1.010e5/,thlapse/3.e-3/
       data tsea/290./,gauss/2./,heightin/2000./,hfact/.1/
-      data pi/3.1415926536/
 
       real vegpmin(44),vegpmax(44)
       data vegpmin/ .98,.85,.85,.5,.2,.1 ,.85,.5,.2,.5,                ! 1-10
@@ -91,7 +90,6 @@ c    &              .20,.85,.85,.50,.80,.7,.40,.5, .0, .0, 0.,         ! 21-31
 
       ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
 
-      roncp=r/cp
       bam(1)=114413.
 c     now always read eig file fri  12-18-1992
       read(28,*)kmax,lapsbot,isoth,nsig
@@ -195,8 +193,8 @@ c     note that kdate, ktime will be overridden by infile values for io_in<4
           do iq=1,ifull
            if(tss(iq).lt.0.)then
              if(abs(zss(iq)).gt.1000.)print *,'zss,tss_sea in, out ',
-     .            iq,zss(iq),tss(iq),tss(iq)-zss(iq)*.0065/9.806
-             tss(iq)=tss(iq)-zss(iq)*.0065/9.806  ! n.b. -
+     .            iq,zss(iq),tss(iq),tss(iq)-zss(iq)*stdlapse/grav
+             tss(iq)=tss(iq)-zss(iq)*stdlapse/grav  ! n.b. -
            endif
           enddo
         endif  ! (newtop.eq.2)
@@ -226,9 +224,9 @@ c     note that kdate, ktime will be overridden by infile values for io_in<4
         if(newtop.ge.1)then ! don't need to do retopo during restart
           do iq=1,ifull
            if(land(iq))then
-             tss(iq)=tss(iq)+(zss(iq)-zs(iq))*.0065/9.806
+             tss(iq)=tss(iq)+(zss(iq)-zs(iq))*stdlapse/grav
              do k=1,ms
-              tgg(iq,k)=tgg(iq,k)+(zss(iq)-zs(iq))*.0065/9.806
+              tgg(iq,k)=tgg(iq,k)+(zss(iq)-zs(iq))*stdlapse/grav
              enddo
            endif
           enddo   ! iq loop
@@ -273,7 +271,7 @@ c     ratha and rathb are used to interpolate full level values to half levels
       rata(kl)=(sigmh(kl)-sig(kl))/sigmh(kl)
       ratb(kl)=sig(kl)/sigmh(kl)
       do k=1,kl-1
-       bet(k+1)=r*log(sig(k)/sig(k+1))*.5
+       bet(k+1)=rdry*log(sig(k)/sig(k+1))*.5
        rata(k)=(sigmh(k)-sig(k))/(sigmh(k)-sigmh(k+1))
        ratb(k)=(sig(k)-sigmh(k+1))/(sigmh(k)-sigmh(k+1))
        ratha(k)=(sigmh(k+1)-sig(k))/(sig(k+1)-sig(k))
@@ -283,18 +281,18 @@ c     ratha and rathb are used to interpolate full level values to half levels
       print *,'ratb ',ratb
       print *,'ratha ',ratha
       print *,'rathb ',rathb
-      c=g/65.e-4
-      bet(1)=c *(sig(1)**(-r/c)-1)
-      if(lapsbot.eq.1)bet(1)=-r*log(sig(1))
+      c=grav/stdlapse
+      bet(1)=c *(sig(1)**(-rdry/c)-1)
+      if(lapsbot.eq.1)bet(1)=-rdry*log(sig(1))
       do k=1,kl
        betm(k)=bet(k)
       enddo
       if(lapsbot.eq.2)then   ! may need refinement for non-equal spacing
         do k=2,kl
-         bet(k)=.5*r*(sig(k-1)-sig(k))/sig(k)
-         betm(k)=.5*r*(sig(k-1)-sig(k))/sig(k-1)
+         bet(k)=.5*rdry*(sig(k-1)-sig(k))/sig(k)
+         betm(k)=.5*rdry*(sig(k-1)-sig(k))/sig(k-1)
         enddo
-        bet(1)=r*(1.-sig(1))/sig(1)
+        bet(1)=rdry*(1.-sig(1))/sig(1)
       endif
 
       do iq=1,ifull
@@ -329,10 +327,10 @@ c       for rotated coordinate version, see jmcg's notes
             u(iq,k)=uin*max(1.-radu/(.5*il),0.)
             v(iq,k)=vin*max(1.-radv/(.5*il),0.)
 c           if((n.eq.0.or.n.eq.2).and.io_in.ge.6.and.k.eq.kl)
-c    .        zs(iq)=g*heightin*max(1.-rad/(.5*il),0.)
+c    .        zs(iq)=grav*heightin*max(1.-rad/(.5*il),0.)
             if(io_in.ge.7.and.k.eq.kl)then
               ps(iq)=1.e5*(1.-log(1. + thlapse*zs(iq)
-     .             /(g*tsea))  *g/(cp*thlapse)) **(cp/r)
+     .             /(grav*tsea))  *grav/(cp*thlapse)) **(cp/rdry)
               psl(iq)= log(1.e-5*ps(iq))
             endif
            enddo  ! n loop
@@ -833,7 +831,7 @@ c        fix for antarctic snow
       endif    ! (nhstest.lt.0)
 
 c     zmin here is approx height of the lowest level in the model
-      zmin=-r*280.*log(sig(1))/9.806
+      zmin=-rdry*280.*log(sig(1))/grav
       print *,'zmin = ',zmin
       gwdfac=.01*lgwd   ! most runs used .02 up to fri  10-10-1997
       helim=800.       ! hal used 800.
@@ -868,9 +866,9 @@ c****    himalayas etc.
         enddo
         print *,'hemax = ',hemax
         if(hemax.eq.0.)then
-c         use he of 30% of orography, i.e. zs*.3/9.806
+c         use he of 30% of orography, i.e. zs*.3/grav
           do iq=1,ifull
-           he(iq)=min(hefact*zs(iq)*.3/9.806 , helim)
+           he(iq)=min(hefact*zs(iq)*.3/grav , helim)
            hemax=max(he(iq),hemax)
           enddo ! iq loop
         endif   ! (hemax.eq.0.)
@@ -1105,7 +1103,6 @@ c     initialize snow variables for sib3 and sib4
         enddo   ! iq loop
         print *,'in indata set snowd,ssdn: ',snowd(idjd),ssdn(idjd,1)
         if(nqg_set.lt.11)then
-          tfrz=273.1
           do iq=1,ifull
 	   do k=1,ms
 !           following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
@@ -1155,7 +1152,7 @@ c        sigmf(iq)=max(.01,min(sigmf(iq),.8))           ! in case wb odd
        tstom=298.
        if(iveg.eq.6+31)tstom=302.
        if(iveg.ge.10.and.iveg.le.21.and.
-     .    abs(rlatt(iq)*180./3.14).lt.25.)tstom=302.
+     .    abs(rlatt(iq)*180./pi).lt.25.)tstom=302.
        tsoil=min(tstom, .5*(.3333*tgg(iq,2)+.6667*tgg(iq,3)
      &            +.95*tgg(iq,4) + .05*tgg(iq,5)))
        ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
@@ -1213,7 +1210,7 @@ c                         if( tsoil .ge. tstom ) ftsoil=1.
      .              abs(zs(iw(iq))-zs(iq)),
      .              abs(zs(in(iq))-zs(iq)),
      .              abs(zs(is(iq))-zs(iq)) )
-         if(zsdiff.gt.100.*9.806)then           ! 100 m diff version
+         if(zsdiff.gt.100.*grav)then           ! 100 m diff version
            epst(iq)=abs(epsp)
          else
            epst(iq)=0.
@@ -1227,7 +1224,7 @@ c                         if( tsoil .ge. tstom ) ftsoil=1.
      .              abs(zs(iw(iq))-zs(iq)),
      .              abs(zs(in(iq))-zs(iq)),
      .              abs(zs(is(iq))-zs(iq)) )
-         epst(iq)=min(epsmax*zsdiff/(600.*9.806),epsmax) ! sliding 0. to epsmax
+         epst(iq)=min(epsmax*zsdiff/(600.*grav),epsmax) ! sliding 0. to epsmax
         enddo
       endif
       if(epsp.gt.99.)then  ! e.g. 200. to give epsmax=.2 for orog=600 m
@@ -1237,7 +1234,7 @@ c                         if( tsoil .ge. tstom ) ftsoil=1.
      .              zs(iq)-zs(iw(iq)),
      .              zs(iq)-zs(in(iq)),
      .              zs(iq)-zs(is(iq)),0. )
-         epst(iq)=min(epsmax*zsdiff/(600.*9.806),epsmax) ! sliding 0. to epsmax
+         epst(iq)=min(epsmax*zsdiff/(600.*grav),epsmax) ! sliding 0. to epsmax
         enddo
       endif
 
@@ -1259,7 +1256,7 @@ c                         if( tsoil .ge. tstom ) ftsoil=1.
         along(iq)=rlongg(iq)*180./pi    ! wed  10-28-1998
         alat(iq)=rlatt(iq)*180./pi
         write(22,922) iq,i,j,rlongg(iq)*180./pi,rlatt(iq)*180./pi,
-     .               land(iq),sice(iq),zs(iq)/9.806,alb(iq),
+     .               land(iq),sice(iq),zs(iq)/grav,alb(iq),
      .               isoilm(iq),ivegt(iq),
      .               tss(iq),t(iq,1),tgg(iq,2),tgg(iq,ms),
      .               wb(iq,1),wb(iq,ms),ico2em(iq),radonem(iq)
@@ -1348,7 +1345,7 @@ c         endif  ! (schmidt.gt. .29.and.schmidt.lt. .31)
          wet3=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil)) 
          print 98,iunp(nn),istn(nn),jstn(nn),iq,slon(nn),slat(nn),
      .          land(iq),rlongg(iq)*180/pi,rlatt(iq)*180/pi,
-     .    isoilm(iq),ivegt(iq),zs(iq)/9.806,alb(iq),
+     .    isoilm(iq),ivegt(iq),zs(iq)/grav,alb(iq),
      .    wb(iq,3),wet3,sigmf(iq),zolnd(iq),rsmin(iq),he(iq)
 98        format(i3,i4,i5,i6,2f7.2 ,l3,2f7.2, i3,i6,f7.1,f5.2,
      .           4f5.2,f5.1,f7.1)
@@ -1375,7 +1372,7 @@ c         endif  ! (schmidt.gt. .29.and.schmidt.lt. .31)
 c     subroutine to read in  data sets required for biospheric scheme.
       include 'newmpar.h'
       include 'arrays.h'
-      include 'constant.h'
+      include 'const_phys.h'
       include 'filnames.h'  ! list of files, read in once only in darlam
       include 'map.h'
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
@@ -1483,7 +1480,7 @@ c     set sensible default for nso2lev for vertmix, in case so2 not done
       subroutine rdso2em( file, iso2em, jso2em, so2em, iso2emindex,
      .       iso2lev, nso2lev, so2background, nsulfl, ns )
       include 'newmpar.h'
-      include 'constant.h'
+      include 'const_phys.h'
       include 'dates.h'     ! constants such as ds and dt
       include 'filnames.h'  ! list of files, read in once only in darlam
       include 'map.h'       ! array em(iq)
@@ -1612,7 +1609,7 @@ c      stop 'rdso2em: about to exit routine'
        end
 
       function rdatacheck( mask,fld,lbl,idfix,val )
-      include 'constant.h'
+      include 'const_phys.h'
       include 'newmpar.h'
       real fld(ifull)
       integer ifld(ifull)
@@ -1694,7 +1691,7 @@ c            if( fld(iq).lt.from ) then
 
       subroutine tracini
 c --- provide initial tracer values (may be overwritten by infile)
-      include 'constant.h'
+      include 'const_phys.h'
       include 'newmpar.h'
       include 'parm.h'   ! rlat0, rlong0
       include 'tracers.h'

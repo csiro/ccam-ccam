@@ -11,7 +11,7 @@
 
       include 'newmpar.h'
       include 'arrays.h'    ! for t
-      include 'constant.h'
+      include 'const_phys.h'
       include 'davb.h'      ! for qgg
       include 'kuocom.h'    ! for sigcll,nclddia,nstab_cld,nrhcrit
       include 'map.h'       ! em
@@ -95,7 +95,7 @@ c              set cloud base
 !       constants for jlm stability enhancement of low cloud
 !       if(nstab_cld.eq.1)ktop=kl+1-icld(1,3)                 ! proper k of cll top
         ktop=kl+1-(icld(1,3)+icld(2,3))/2   ! middle of cll  nstab_cld=2
-        ztop=r*300.*(1.-sig(ktop))/(9.806*1000.) ! in km
+        ztop=rdry*300.*(1.-sig(ktop))/(grav*1000.) ! in km
 
 c       calculate & print critical relative humidity for land then sea
         if(nrhcrit.eq.7)then
@@ -213,7 +213,7 @@ c      calculate critical relative humidity                           *
       if(nstab_cld.gt.0)then
 !       use t diff between surface and top of lowest layer
 !       ktop=kl+1-(icld(1,3)+icld(2,3))/2           ! proper k of middle of cll
-!       ztop=r*300.*(1.-sig(ktop))/(9.806*1000.) ! in km
+!       ztop=r*300.*(1.-sig(ktop))/(grav*1000.) ! in km
         tdiff=tss(iq)-t(iq,ktop)
 !       if(nstab_cld.eq.1)stab=max((tdiff/ztop-6.5)/6. ,0.) ! 6 deg/km for 10% eff.
 !       if(nstab_cld.eq.2)stab=max((tdiff/ztop-6.5)/1.5,0.) ! 3 deg/km for 20% eff.
@@ -253,7 +253,7 @@ c     ---------------------------------------------------------------------*
 c       print *,'rtt cooling rate (deg/day) from prev call radrive '
 c       print 91,(86400.*rtt(iq,k),k=1,kl)
         print *,'approx. adiabatic cooling rate (deg/day) '
-        print 91,(-86400.*r*t(iq,k)*
+        print 91,(-86400.*rdry*t(iq,k)*
      .   .5*(sdot(iq,k)+sdot(iq,k+1))*dsig(k)/(dt*cp*sig(k)),k=1,kl-1)
         print *,'sdot*100 '
         print 91,(100.*sdot(iq,k),k=1,kl)

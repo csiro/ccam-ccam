@@ -8,7 +8,7 @@ c     sets up x, y, z on sphere and unit u,v vectors
 c     note that x,y,z have been normalized by rearth, the radius of the earth
 c     suffix 6 denotes hex (6)
       include 'newmpar.h'
-      include 'constant.h'   ! rearth
+      include 'const_phys.h'   ! rearth
       include 'latlong.h'  ! rlatt,rlongg
       include 'map.h'
       include 'parm.h'
@@ -43,7 +43,6 @@ c    .    ,dum2(12*il*jl -4*(iquad)*(iquad) )
       data npan6w/5,105,1,101,3,103/,npan6s/104,0,100,2,102,4/
 c     character*80 chars
       data ndiag/0/
-      data pi/3.1415926536/
       ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,npanels
 c     When using the ifull notation: in, ie, iw and is give the
 c     indices for the n, e, w, s neighbours respectively

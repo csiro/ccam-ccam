@@ -20,7 +20,7 @@ c     runoff - total runoff
 c----------------------------------------------------------------------
       include 'newmpar.h'   
 c     include 'arrays.h'    ! t
-      include 'constant.h'  ! cp
+      include 'const_phys.h'  ! cp
       include 'parm.h'      ! ktau,dt
       include 'soilsnow.h'
       include 'soilv.h'
@@ -40,7 +40,6 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
       common/soilzs/zshh(ms+1),ww(ms)
       dimension  etac(3)
 
-      data tfrz/273.1/,hl/2.5104e6/,hlf/0.335e6/
       data csice /2.100e3/, cswat /4.218e3/, rhowat /1000./  ! for calgammv
       data cgsnow/2090./,rhosnow/200./                       ! for calgammv
 !     data snmin/1000./  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
@@ -128,11 +127,11 @@ c     update land points.
 !         etat=3.e7*exp(8.1e-2*(273.1-tggd))
 !         etac(k)=etat*exp(.021*ssdn(iq,k))
          enddo
-         ssdn(iq,1)=ssdn(iq,1)+dt*9.806*.5*.07*ssdn(iq,1)
+         ssdn(iq,1)=ssdn(iq,1)+dt*grav*.5*.07*ssdn(iq,1)
      &              *ssdn(iq,1)/etac(1)
-         ssdn(iq,2)=ssdn(iq,2)+dt*9.806*ssdn(iq,2)*
+         ssdn(iq,2)=ssdn(iq,2)+dt*grav*ssdn(iq,2)*
      &           (.07*ssdn(iq,1)+.5*smass(iq,2))/etac(2)
-         ssdn(iq,3)=ssdn(iq,3)+dt*9.806*ssdn(iq,3)*
+         ssdn(iq,3)=ssdn(iq,3)+dt*grav*ssdn(iq,3)*
      &           (.07*ssdn(iq,1)+smass(iq,2)+.5*smass(iq,3))/etac(3)
          tr1  =  snowd(iq)-osnowd(iq)
          xx=max(0. , .07-smass(iq,1)/ssdn(iq,1))
@@ -309,7 +308,7 @@ c***********************************************************************
 !     parameter (nglacier=2)  ! 0 original, 1 off, 2 new from Eva; to parm.h
       include 'newmpar.h'   
       include 'arrays.h'
-      include 'constant.h'  ! cp
+      include 'const_phys.h'  ! cp
       include 'parm.h'      ! ktau,dt
       include 'sigs.h'
       include 'soil.h'      ! land,sice,sicedep,alb
@@ -330,7 +329,6 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
       common/work3c/gammzz(ifull,ms),dum3c(ijk-ifull*ms)
       common/soilzs/zshh(ms+1),ww(ms)
       dimension rnof1(ifull)
-      data tfrz/273.1/,hl/2.5104e6/,hlf/0.335e6/
 
       dimension smelt1(3)
       dimension c3(9)
@@ -364,7 +362,7 @@ c      runoff(iq)=0.  ! already re-set in globpe.f
              snowd(iq)=max(snowd(iq) + condxpr(iq), 0.)
 	      sno(iq)=sno(iq)+condxpr(iq)  ! snow precip accum in mm
 !            update air temperatures to allow for freezing of rain
-             dtemp=hlf*g*condxpr(iq)/
+             dtemp=hlf*grav*condxpr(iq)/
      .                (cp*(sigmh(kl/3)-sigmh(kl/2+1))*ps(iq))
              do k=kl/3,kl/2    ! 6,9 for 18 level
               t(iq,k)=t(iq,k)+dtemp    ! jlm suggestion
@@ -381,7 +379,7 @@ c      runoff(iq)=0.  ! already re-set in globpe.f
              snowd(iq)=max(snowd(iq) + condxpr(iq), 0.)
 	      sno(iq)=sno(iq)+condxpr(iq)  ! snow precip accum in mm
 !            update air temperatures to allow for freezing of rain
-             dtemp=hlf*g*condxpr(iq)/
+             dtemp=hlf*grav*condxpr(iq)/
      .                (cp*(sigmh(kl/3)-sigmh(kl/2+1))*ps(iq))
              do k=kl/3,kl/2    ! 6,9 for 18 level
               t(iq,k)=t(iq,k)+dtemp    ! jlm suggestion
@@ -1259,10 +1257,10 @@ c***********************************************************************
 !       etac(k)=etat*exp(.021*ssdn(iq,k))
       enddo
       ssdn(iq,1)=ssdn(iq,1)
-     .           +dt*9.806*.5*.07*ssdn(iq,1)*ssdn(iq,1)/etac(1)
-      ssdn(iq,2)=ssdn(iq,2)+dt*9.806*ssdn(iq,2)*
+     .           +dt*grav*.5*.07*ssdn(iq,1)*ssdn(iq,1)/etac(1)
+      ssdn(iq,2)=ssdn(iq,2)+dt*grav*ssdn(iq,2)*
      &        (.07*ssdn(iq,1)+.5*smass(iq,2))/etac(2)
-      ssdn(iq,3)=ssdn(iq,3)+dt*9.806*ssdn(iq,3)*
+      ssdn(iq,3)=ssdn(iq,3)+dt*grav*ssdn(iq,3)*
      &        (.07*ssdn(iq,1)+smass(iq,2)+.5*smass(iq,3))/etac(3)
  
       tr1  =  snowd(iq)-osnowd(iq)

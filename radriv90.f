@@ -55,7 +55,7 @@
      &               cll_ave (ifull), clm_ave (ifull), clh_ave (ifull), 
      &               koundiag
 
-      parameter(cong = 1004.64 / 9.806 ) ! Heat capacity/grav
+      parameter(cong = cp/grav)
       parameter(csolar=1.96)
 c     parameters for the aerosol calculation
       real beta_ave, alpha

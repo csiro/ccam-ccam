@@ -41,6 +41,7 @@ C >>>>>>>>>  (Use ricr = 0.3 in this formulation)
 C
 C-----------------------------------------------------------------------
       include 'arrays.h'       !t
+      include 'const_phys.h'
       include 'extraout.h'     !ustar
       include 'kuocom.h'
       include 'morepbl.h'      !fg,eg
@@ -119,7 +120,6 @@ C------------------------------Commons----------------------------------
       real betas   ! Constant in surface layer gradient expression
       real betah   ! Constant in temperature gradient expression
       real fak     ! Constant in surface temperature excess
-      real g       ! Gravitational acceleration
       real fakn    ! Constant in turbulent prandtl number
       real ricr    ! Critical richardson number
       real sffrac  ! Surface layer fraction of boundary layer
@@ -128,18 +128,14 @@ C------------------------------Commons----------------------------------
       real binm    ! betam * sffrac
       real binh    ! betah * sffrac
 C
-      real cpair     ! Specific heat of dry air
-      real rair      ! Gas const for dry air
       real zkmin     ! Minimum kneutral*f(ri)
       real rkmin     ! minimum eddy coefficients based on Hourdin et. al. (2001)
 C
 C
 C Initialize COMCON
 C
-      data rair/287.04/,hl/2.5104e6/,cpair/1.00464e3/
       data betam, betas, betah, sffrac / 15.0, 5.0, 15.0, 0.1 /
       data fakn,fak,vk,zkmin,c1/7.2, 8.5, 0.4, 0.01, 0.61/
-      data g /9.80616/
       data ricr /0.25/
       data fac/100./
 
@@ -148,12 +144,12 @@ C
       ccon   = fak*sffrac*vk
 C****************************************************************
       do iq=1,ifull
-       zg(iq,1)=bet(1)*t(iq,1)/g
+       zg(iq,1)=bet(1)*t(iq,1)/grav
       enddo      ! iq loop
       do k=2,kl
        do iq=1,ifull
         zg(iq,k)=zg(iq,k-1)+
-     .           (bet(k)*t(iq,k)+betm(k)*t(iq,k-1))/g
+     .           (bet(k)*t(iq,k)+betm(k)*t(iq,k-1))/grav
        enddo        ! iq loop
       enddo         ! k  loop
       cgh(:,:)=0.   ! 3D
@@ -163,9 +159,9 @@ C****************************************************************
 C Compute kinematic surface fluxes
          do iq=1,ifull
            pmid=ps(iq)*sigmh(1) 
-           rrho = rair*t(iq,1)/pmid
+           rrho = rdry*t(iq,1)/pmid
            ustar(iq) = max(ustar(iq),0.01)
-           rkhfs(iq) = fg(iq)*rrho/cpair           !khfs=w'theta'
+           rkhfs(iq) = fg(iq)*rrho/cp           !khfs=w'theta'
            rkqfs(iq) = eg(iq)*rrho/hl              !kqfs=w'q'
 
 C Compute various arrays for use later:
@@ -175,7 +171,7 @@ C Compute various arrays for use later:
            wm(iq)     = 0.
 c          obklen at t point
            obklen(iq) = -thvref(iq)*ustar(iq)**3/
-     $             (g*vk*(heatv(iq) + sign(1.e-10,heatv(iq))))
+     $             (grav*vk*(heatv(iq) + sign(1.e-10,heatv(iq))))
          
 C >>>> Define first a new factor fac=100 for use in Richarson number
 C      Calculate virtual potential temperature first level
@@ -198,7 +194,7 @@ C
      $          + fac*ustar(iq)**2
 c           vvk = max(vvk,tiny)
             tkv = theta(iq,k)*(1. + 0.61*qg(iq,k))
-            rino(iq,k) = g*(tkv - thvref(iq))*(zg(iq,k)-zg(iq,1))
+            rino(iq,k) = grav*(tkv - thvref(iq))*(zg(iq,k)-zg(iq,1))
      $                    /max(thvref(iq)*vvk,tiny)
             if(rino(iq,k).ge.ricr.and.iflag(iq).eq.0)then
               pblh(iq) = zg(iq,k-1) + (ricr - rino(iq,k-1))/
@@ -237,7 +233,7 @@ C convective temperature excess:
      $        + fac*ustar(iq)**2
           vvk = max(vvk,tiny)
           tkv = theta(iq,k)*(1. + 0.61*qg(iq,k))
-          rino(iq,k) = g*(tkv - tlv(iq))*(zg(iq,k)-zg(iq,1))
+          rino(iq,k) = grav*(tkv - tlv(iq))*(zg(iq,k)-zg(iq,1))
      $                  /max(thvref(iq)*vvk,tiny)     ! (see (4.d.18)
          enddo  !  i loop
         enddo   !  k loop
@@ -296,7 +292,7 @@ C and moisture perturbations depending on stability.
             phiminv(iq) =     (1. - binm*pblh(iq)/obklen(iq))**(1./3.)
             phihinv(iq) = sqrt(1. - binh*pblh(iq)/obklen(iq))
             wm(iq)      = ustar(iq)*phiminv(iq)
-            wstr(iq)    = (heatv(iq)*g*pblh(iq)/thvref(iq))**(1./3.)
+            wstr(iq)    = (heatv(iq)*grav*pblh(iq)/thvref(iq))**(1./3.)
           end if
         end do
 C
@@ -371,7 +367,7 @@ C term: pblk is Kc in eq. (4.d.16)
 
 1000     continue           !end of k loop
 
-      ztodtgor = dtin*g/rair
+      ztodtgor = dtin*grav/rdry
 
 C     update theta and qtg due to counter gradient
       do k=2,kmax-1

@@ -4,7 +4,7 @@
 c     modify toij5 for Cray
       integer, parameter :: ntest=0
       include 'newmpar.h'
-      include 'constant.h'   ! rearth
+      include 'const_phys.h'   ! rearth
       include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
       include 'map.h'
       include 'parm.h'
@@ -106,7 +106,7 @@ c     modify toij5 for Cray
       implicit none
       integer, parameter :: ntest=0
       include 'newmpar.h'
-      include 'constant.h'   ! rearth
+      include 'const_phys.h'   ! rearth
       include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
       include 'map.h'
       include 'parm.h'

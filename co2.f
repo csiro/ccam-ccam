@@ -4,7 +4,7 @@ c                 as well as co2vmix  and other gases
       include 'newmpar.h'
       include 'aalat.h'     ! along
       include 'arrays.h'
-      include 'constant.h'
+      include 'const_phys.h'
       include 'dates.h'     ! timeg
       include 'extraout.h'
       include 'map.h'       ! zs,land
@@ -15,6 +15,7 @@ c     include 'soil.h'
       include 'soilsnow.h'  ! tgg,wb,snowd
       include 'tracers.h'
       include 'trcom2.h' ! nstn,slat,slon,istn,jstn, nstn2 etc.
+      include 'pbl.h'    ! slwa
 
       parameter (ftcrit = 293.1, fco2const =3.17097e-7*1.5)
 c     parameter (ftcrit = 293.1, fco2const = 3.1536e-6)
@@ -132,7 +133,7 @@ c       trsrc(iq,2)   = pnfo2            ! check why ,2
       return
       end
       subroutine o2sflux
-      include 'constant.h'
+      include 'const_phys.h'
       include 'newmpar.h'
       include 'tracers.h'
       common/work3/vmixarrs(il,jl,kl,3),trsrc(il,jl,kl),spare(ifull,kl)
@@ -148,7 +149,7 @@ c       be called before the o2 routines
       end
 
       subroutine radonsflux
-      include 'constant.h'
+      include 'const_phys.h'
       include 'newmpar.h'
       include 'aalat.h'
       include 'arrays.h'
@@ -249,7 +250,7 @@ c      data radonm/ .8  ,.8  ,.95 ,.25 ,.67 ,.87 ,.6  ,.4  ,.4
       end
 
       subroutine radonvmix(updtr, fluxfact )
-      include 'constant.h'
+      include 'const_phys.h'
       include 'newmpar.h'
       include 'arrays.h'
       include 'parm.h'    ! dt

@@ -7,7 +7,7 @@
       parameter (mfix_rad=0) ! used to make gases 2 to ng add up to gas 1
       include 'newmpar.h'
       include 'arrays.h'
-      include 'constant.h' ! r,g,cp,cpv,roncp
+      include 'const_phys.h' ! r,g,cp,cpv,roncp
       include 'indices.h'  ! in,is,iw,ie,inn,iss,iww,iee
       include 'latlong.h'
       include 'map.h'
@@ -43,7 +43,6 @@
       real phip(ifull,nphip),dphip(ifull,nphip)    ! 1052 to 2 every 25
       real dphi_dx(ifull,kl),dphi_dy(ifull,kl)
       real siglog(kl),plog(nphip),dplog(nphip)
-      data pi/3.1415926536/
 
       if(epsp.lt.-1.)then
 !        e.g. -20. gives epst=.2 for sdmax=1.
@@ -325,11 +324,11 @@ c	.       (sig(kx)-sigt)*tv(iqq,kx+1))/(sig(kx)-sig(kx+1))
            tt=((sigtlog-siglog(kx+1))*tv(iqq,kx)+(siglog(kx)-sigtlog)*
      .                         tv(iqq,kx+1))/(siglog(kx)-siglog(kx+1))
          endif
-!        phip(iq,k)=phip(iq,k-1)+287.*tt*delp/presst
-	  phip(iq,k)=phip(iq,k-1)-287.*tt*dplog(k)
+!        phip(iq,k)=phip(iq,k-1)+rdry*tt*delp/presst
+	  phip(iq,k)=phip(iq,k-1)-rdry*tt*dplog(k)
 c	  if(ntest.eq.1.and.iq.eq.idjd.and.k.gt.410)then
 c	    press=presst-.5*delp
-c	    print *,iqq,k,kx,press,sigt,tt,phip(iq,k),-287.*tt*dplog(k)
+c	    print *,iqq,k,kx,press,sigt,tt,phip(iq,k),-rdry*tt*dplog(k)
 c	  endif  ! (ntest.eq.1.and.iq.eq.idjd)
 	 enddo   ! k loop
        enddo    !  iq loop
@@ -423,14 +422,14 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
       if(ntest.eq.1.and.nphip.gt.1)then
        print *,ktau,'dphi_dx  & (approx.) usual way'
        do k=1,kl
-        rtav=.5*287.*(tv(idjd,k)+tv(ie(idjd),k))
+        rtav=.5*rdry*(tv(idjd,k)+tv(ie(idjd),k))
         print *,ktau,'dphidx',k,
      .                dphi_dx(idjd,k),p(ie(idjd),k)-p(idjd,k)
      .                +rtav*(psl(ie(idjd))-psl(idjd))
        enddo    ! k  loop
        print *,ktau,'dphi_dy  & (approx.) usual way'
        do k=1,kl
-        rtav=.5*287.*(tv(idjd,k)+tv(in(idjd),k))
+        rtav=.5*rdry*(tv(idjd,k)+tv(in(idjd),k))
         print *,ktau,'dphidy',k,
      .                dphi_dy(idjd,k),p(in(idjd),k)-p(idjd,k)
      .                +rtav*(psl(in(idjd))-psl(idjd))
@@ -439,13 +438,13 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
 
       do k=1,kl
        do iq=1,ifull
-        p(iq,k)=p(iq,k)+r*tv(iq,k)*psl(iq)
+        p(iq,k)=p(iq,k)+rdry*tv(iq,k)*psl(iq)
        enddo     ! iq loop
       enddo      ! k  loop
 
 !     calculate "basic-linear" geopotential height and put in tempry
       do iq=1,ifull            ! tempry used by pextras
-       tempry(iq,1)=zs(iq)+bet(1)*t(iq,1)+r*tbar2d(iq)*psl(iq)
+       tempry(iq,1)=zs(iq)+bet(1)*t(iq,1)+rdry*tbar2d(iq)*psl(iq)
       enddo      ! iq loop
       do k=2,kl
        do iq=1,ifull
@@ -478,9 +477,9 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
 !cdir nodep
          do iq=1,ifull  ! calculate staggered contributions first
             cc(iq,k)=emu(iq)*(psl(ie(iq))+psl(iq))*
-     .                          (tv(ie(iq),k)-tv(iq,k))*.5*r/ds
+     .                          (tv(ie(iq),k)-tv(iq,k))*.5*rdry/ds
             dd(iq,k)=emv(iq)*(psl(in(iq))+psl(iq))*
-     .                          (tv(in(iq),k)-tv(iq,k))*.5*r/ds
+     .                          (tv(in(iq),k)-tv(iq,k))*.5*rdry/ds
          enddo                  ! iq loop
 
 !cdir nodep

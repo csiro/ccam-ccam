@@ -14,6 +14,7 @@ c     N.B. no trace_gases yet
 c     has jlm nhorx option as last digit of nhor, e.g. -157
       include 'newmpar.h'
       include 'arrays.h'
+      include 'const_phys.h'
       include 'indices.h'
       include 'map.h'
       include 'nlin.h'
@@ -50,7 +51,7 @@ c     expect power nf to be about 1 or 2 (see data statement)
       if(abs(nhor).ge.50)then
          nhora=10*(abs(nhor)/10)    ! e.g. 150  for nhor=-157
          nhorx=abs(nhor)-nhora      ! e.g.   7  for nhor=-157
-         delphi=nhora*9.806
+         delphi=nhora*grav
       endif
 
       do iq=1,ifull

@@ -21,9 +21,8 @@
       parameter (kcl_top=kl-2) !max level for cloud top (convjlm,radrive,vertmix)
 !     parameter (dsig2=.1, dsig4=.7)  ! used with detrainx
 c     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
-      parameter (ars=461.,grav=9.806,hl=2.5104e6,hlars=hl/ars)
       include 'arrays.h'
-      include 'constant.h'
+      include 'const_phys.h'
       include 'dava.h'     ! davt
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
       include 'liqwpar.h'  ! ifullw
@@ -66,8 +65,6 @@ c     tdiff is difference between t and 123.16, subject to 0 <= tdiff <= 220
       Aev(tm) = 2.008e-9*tm**2 - 1.385e-6*tm + 2.424e-4  !For UKMO evap scheme
       Asb(tm) = max (-5.2e-9*tm**2+2.5332e-6*tm-2.9111e-4,1.e-5) !For UKMO subl
 
-      hlcp=hl/cp
-      roncp=r/cp
       do k=1,kl
        dsk(k)=-dsig(k)    !   dsk = delta sigma (positive)
        alfm(k)=min(.5,alfcon/(1.e-10+sig(1)-sig(k)))  ! e.g. alfcon=.01
@@ -851,7 +848,6 @@ c          if(nums.lt.20)then
 
       if(nevapls.eq.5)then ! even newer UKMO Thu  03-05-1998
         rKa=2.4e-2
-        rvap=461.
         Dva=2.21
         cfls=1. ! cld frac7 large scale
         cflscon=4560.*cfls**.3125
@@ -865,7 +861,7 @@ c           es(iq,k)=qs(iq,k)*pk/.622
             Apr=hl*hl/(rKa*tt(iq,k)*(rvap*tt(iq,k))-1.)
             Bpr=rvap*tt(iq,k)*pk/(Dva*es(iq,k))
             Fr=fluxr(iq)/(cfls*dt)
-            rhoa=pk/(r*tt(iq,k))
+            rhoa=pk/(rdry*tt(iq,k))
             dz=pk/(rhoa*grav)
             Vr=max(.01 , 11.3*Fr**(1./9.)/sqrt(rhoa)) ! Actual fall speed
             dtev=dz/Vr

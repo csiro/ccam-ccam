@@ -5,10 +5,9 @@
 !                              within adjust5 on u,v
 !     nuv in parm.h:  now always 10
 !          !  0y for increments   , 1y for actual values, 2y for true increments
-      parameter (hl=2.5104e6)
       include 'newmpar.h'
       include 'arrays.h'
-      include 'constant.h'
+      include 'const_phys.h'
       include 'indices.h'
       include 'map.h'
       include 'morepbl.h'  ! condx,eg
@@ -195,7 +194,7 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
 
 !     calculate heights from the tx array
       do iq=1,ifull
-       p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+r*tbar2d(iq)*pslxint(iq) ! (2.21)
+       p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! (2.21)
       enddo     ! iq loop
       do k=2,kl
        do iq=1,ifull

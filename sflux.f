@@ -14,15 +14,14 @@
 c     with leads option via fracice (using tgg1 and tgg3)
 c     now in parm.h with zero as default and used in rdnsib/rdnscam
 c     cp specific heat at constant pressure joule/kgm/deg
-      parameter (ars=461.,cp=1004.64,hl=2.5104e6,r=287.,hlars=hl/ars)
       parameter (bprm=5.,cms=5.,chs=2.6,vkar=.4)
-      parameter (hlfusion=.336e6,tfrz=273.1)
-      parameter (d3=2.5,stbo=5.67e-08)
+      parameter (d3=2.5)
       parameter (cgsoil=1000.,gksoil=.300e-6,rhog=1600.,d1land=.03)
       parameter (fmroot=.57735)   ! was .4 till 7 Feb 1996
       parameter (chn10=.00136733)   ! sea only
       include 'newmpar.h'
       include 'arrays.h'
+      include 'const_phys.h'
       include 'extraout.h' ! ustar
       include 'gdrag.h'
       include 'map.h'      ! land
@@ -83,7 +82,7 @@ c     TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
       zobgin = .05   ! jlm: NB seems to be .01 in csiro9 Fri  12-06-1996
       alzzin=log(zmin/zobgin)   ! pre-calculated for all except snow points
       ztv=exp(vkar/sqrt(chn10)) /10.  ! proper inverse of ztsea
-      z1onzt=300.*r*(1.-sig(1))*ztv /9.806
+      z1onzt=300.*rdry*(1.-sig(1))*ztv /grav
       chnsea=(vkar/log(z1onzt))**2    ! should give .00085 for csiro9
 
       if(nspecial.eq.1)then
@@ -210,10 +209,10 @@ c     using av_vmod (1. for no time averaging)
 !      *****  check next comment
 !       sflux called at beginning of time loop, hence savu, savv
 
-      srcp =sig(1)**(r/cp)
+      srcp =sig(1)**(rdry/cp)
       ga(:)=0.              !  for ocean points in ga_ave diagnostic
       theta(:)=t(:,1)/srcp
-      rho(:)=ps(:)/(r*tss(:))
+      rho(:)=ps(:)/(rdry*tss(:))
       do iq=1,ifull
        uav=av_vmod*u(iq,1)+(1.-av_vmod)*savu(iq,1)   
        vav=av_vmod*v(iq,1)+(1.-av_vmod)*savv(iq,1)  
@@ -270,11 +269,11 @@ c ***                     for heat and moisture  cdtq                   ! sea
        constz=ps(iq)-es                                                 ! sea
        qsttg(iq)= .622*es/constz                                        ! sea
        drst=qsttg(iq)*ps(iq)*hlars/(constz*tgg(iq,2)**2)                ! sea
-       xx(iq)=9.806*zmin*(1.-tgg(iq,2)*srcp/t(iq,1))                    ! sea
+       xx(iq)=grav*zmin*(1.-tgg(iq,2)*srcp/t(iq,1))                     ! sea
        ri(iq)=xx(iq)/vmod(iq)**2                                        ! sea
 !      if(ngas.gt.0)stop 'call co2sflux'                                ! sea
 c      this is in-line ocenzo using latest coefficient, i.e. .018       ! sea
-       consea=vmod(iq)*.018/9.806                                       ! sea
+       consea=vmod(iq)*.018/grav                                        ! sea
        zo(iq)=.01                                                       ! sea
        if(xx(iq).gt.0.)then             ! stable sea points             ! sea
          fm=vmod(iq) /(1.+bprm*ri(iq))**2                               ! sea
@@ -372,7 +371,7 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! sea
        constz=ps(iq)-es                                                 ! sice
        qsttg(iq)= .622*es/constz                                        ! sice
        drst=qsttg(iq)*ps(iq)*hlars/(tgg(iq,3)*tgg(iq,3)*constz)         ! sice
-       xx(iq)=9.806*zmin*(1.-tgg(iq,3)*srcp/t(iq,1))                    ! sice
+       xx(iq)=grav*zmin*(1.-tgg(iq,3)*srcp/t(iq,1))                     ! sice
        ri(iq)=xx(iq)/vmod(iq)**2                                        ! sice
        factch(iq)=sqrt(7.4)  ! same as land from 27/4/99                ! sice
 !      factch(iq)=1.   ! factch is sqrt(zo/zt) for use in unstable fh   ! sice
@@ -484,7 +483,7 @@ c      fh itself was only used outside this loop in sib0 (jlm)          ! land
        es = establ(tss(iq))                                             ! land
        constz=ps(iq)-es                                                 ! land
        qsttg(iq)=       .622*es/constz     ! only used in scrnout?      ! land
-       xx(iq)=9.806*zmin*(1.-tss(iq)*srcp/t(iq,1))                      ! land
+       xx(iq)=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       ! land
        ri(iq)=xx(iq)/vmod(iq)**2                                        ! land
 c      factch is sqrt(zo/zt) for land use in unstable fh                ! land
        factch(iq)=sqrt(7.4)                                             ! land
@@ -657,11 +656,9 @@ c***  end of surface updating loop
       parameter (newfgf=0)  ! 0 for original; 2 with tscrn; 3 with aft too
       parameter (ndiag_arr=0) ! 0 off; 1 for diag arrays on
       parameter (neva=0)    ! neva= 0 for diags off; neva= 1 for eva's diags on
-      parameter (ars=461.,cp=1004.64,hl=2.5104e6,r=287.,hlars=hl/ars)
-      parameter (stbo=5.67e-8)
-      parameter (hlfusion=.336e6,tfrz=273.1)
       include 'newmpar.h'
       include 'arrays.h'
+      include 'const_phys.h'
       include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg
       include 'extraout.h'
       include 'latlong.h'  ! rlatt,rlongg
@@ -774,7 +771,7 @@ c      impact on the fractional vegetation cover
        tstom(iq)=298.
        if(iveg.eq.6+31)tstom(iq)=302.
        if(iveg.ge.10.and.iveg.le.21.and.
-     .    abs(rlatt(iq)*180./3.14).lt.25.)tstom(iq)=302.
+     .    abs(rlatt(iq)*180./pi).lt.25.)tstom(iq)=302.
        if(ntest.eq.1.and.iq.eq.idjd) then
          print *,'in sib3a ip,iq,idjd,iveg ',ip,iq,idjd,iveg
          print*,'snowd,zo,zolnd,tstom ',
@@ -833,7 +830,7 @@ c      bare ground calculation
        qsttg(iq)=.622*esattg/(ps(iq)-esattg)
        tgss2=tgss*tgss
        dqsttg(iq)=qsttg(iq)*ps(iq)*hlars/((ps(iq)-esattg)*tgss2)
-       rgg(iq) =  stbo*tgss2**2   ! i.e. stbo*tgss**4
+       rgg(iq) =  stefbo*tgss2**2   ! i.e. stefbo*tgss**4
        dirad(iq)=4.*rgg(iq)/tgss
 c      sensible heat flux
        dfgdt(iq)=taftfhg(iq)*rho(iq)*cp
@@ -1012,7 +1009,7 @@ c         evaporation from the bare ground
        iq=iperm(ip)
        if(snowd(iq).gt.1.)then
          egg(iq)=epot(iq)
-         cls(iq)=1.+hlfusion/hl
+         cls(iq)=1.+hlf/hl
        else
          egg(iq)=min(egg(iq),wb(iq,1)*zse(1)*1000.*hl/dt)
          cls(iq)=1.
@@ -1127,7 +1124,7 @@ c                                              sensible heat flux
             if(newfgf.eq.2)fgf(iq)=rho(iq)*aft(iq)*cp*
      .                                (tgf(iq)-tscrn(iq))
 c           fgf(iq)=min(800.,fgf(iq)) !***********************
-            rdg(iq) =  stbo*tgf(iq)**4
+            rdg(iq) =  stefbo*tgf(iq)**4
 !           residf(iq) = (-slwa(iq) -rdg(iq))*(1.-extin(iq))
 !    .                    -fgf(iq) -evapxf(iq)
             residf(iq) = -slwa(iq) -rdg(iq) -fgf(iq) -evapxf(iq)
@@ -1247,7 +1244,7 @@ c                                         water interception by the canopy
          if(newfgf.eq.1)fgf(iq) = prz*(tgfnew(iq)-tscrn(iq))
          if(newfgf.eq.2)fgf(iq)=rho(iq)*aft(iq)*cp*
      .                             (tgfnew(iq)-tscrn(iq))
-         rdg(iq) =  stbo*tgfnew(iq)**4
+         rdg(iq) =  stefbo*tgfnew(iq)**4
          residf(iq) = -slwa(iq) - rdg(iq) - fgf(iq) - evapxf(iq)
          dirad1 = 4.*rdg(iq)/300.
 !        next 2 expressions can be approximated without effects

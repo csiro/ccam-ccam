@@ -8,6 +8,7 @@
 c     for nsib=2 don't calculate tscrn here
       include 'newmpar.h'
       include 'arrays.h'
+      include 'const_phys.h'
       include 'map.h'
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
@@ -32,8 +33,6 @@ c     for nsib=2 don't calculate tscrn here
       real wetfac(ifull),factch(ifull),qsttg(ifull),ustar(ifull)
      .     ,zo(ifull),qsurf(ifull)  ! qsurf is just work array, only used here
 
-      data cp/1004.64/,r/287./,hl/2.5104e6/
-
 c     J. McGregor's vector version
 c     with prior contributions from K. Walsh and M. Dix
 c     tolerance for iteration,iteration maximum
@@ -48,7 +47,7 @@ c TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
       establ(tm) =(1.-(tdiff(tm)-aint(tdiff(tm))))*table(int(tdiff(tm)))
      &           + (tdiff(tm)-aint(tdiff(tm)))*table(int(tdiff(tm))+1)
 
-      srcp =sig(1)**(r/cp)
+      srcp =sig(1)**(rdry/cp)
       ztv=exp(vkar/sqrt(chn10)) /10.  ! proper inverse of ztsea
 c     z3onzt=3.*ztv
 c     chn3=(vkar/log(z3onzt))**2
@@ -119,18 +118,18 @@ c       else
 c         iq=ip                  ! for C-C
 c       endif
         theta=t(iq,1)/srcp
-        rho=ps(iq)/(r*tss(iq))
+        rho=ps(iq)/(rdry*tss(iq))
         zscronzo=zscr/zo(iq)
 
 c       calculate stable / unstable criterion tstarx; also qstarx
         tstarx = -fg(iq) / ( rho*cp*ustar(iq))
         qstarx = -eg(iq) / ( rho*hl*ustar(iq))
 
-        c  = -9.806*tstarx*zscr*af(iq)*sqrt(af(iq))
+        c  = -grav*tstarx*zscr*af(iq)*sqrt(af(iq))
      .        /(aft(iq) *tss(iq)*ustar(iq)**2)
-c       c3 = -9.806*tstarx*3.*af3(iq)*sqrt(af3(iq))
+c       c3 = -grav*tstarx*3.*af3(iq)*sqrt(af3(iq))
 c    .        /(aft3(iq)*tss(iq)*ustar(iq)**2)
-        c10= -9.806*tstarx*10.*af10(iq)*sqrt(af10(iq)) ! fixed 1/5/03
+        c10= -grav*tstarx*10.*af10(iq)*sqrt(af10(iq)) ! fixed 1/5/03
      .       /(aft10(iq)*tss(iq)*ustar(iq)**2)
 
 c       section for solving for screen height values of various parameters
@@ -302,7 +301,7 @@ c       print *,'  t1,tstarx,rich,y ',t(iq,1),tstarx,rich,y
           if(land(iq))then
 !           bare ground part here
             tstarx = -fgg(iq) / ( rho*cp*ustar(iq))
-            c=-9.806*tstarx*zscr*af(iq) *sqrt(af(iq) )
+            c=-grav*tstarx*zscr*af(iq) *sqrt(af(iq) )
      .       /(aft(iq) *tgg(iq,1)*ustar(iq)**2)
             if(tstarx .ge. 0.)then
               rich   = ( -1. + sqrt(1.-4.*bprm*c) ) /(2.*bprm)
@@ -333,7 +332,7 @@ c       print *,'  t1,tstarx,rich,y ',t(iq,1),tstarx,rich,y
 
 !           vegetation part here
             tstarx = -fgf(iq)/(rho*cp*ustar(iq))
-            c=-9.806*tstarx*zscr*af(iq) *sqrt(af(iq) )
+            c=-grav*tstarx*zscr*af(iq) *sqrt(af(iq) )
      .         /(aft(iq) *tgf(iq)*ustar(iq)**2)
             if(tstarx .ge. 0.)then
               rich   = ( -1. + sqrt(1.-4.*bprm*c) ) /(2.*bprm)

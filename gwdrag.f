@@ -4,7 +4,7 @@
       parameter(fc2=1.,ndzx=1)    !  as per jlm      gwd1b
       include 'newmpar.h'
       include 'arrays.h'
-      include 'constant.h'
+      include 'const_phys.h'
       include 'gdrag.h'
       include 'nlin.h'
       include 'morepbl.h'
@@ -24,7 +24,7 @@ c     real fr2vsav(ifull,kl),uusav(ifull,kl)   ! jlm diag
 c     interface mods for darlam & globpe
       do k=1,kl
        dsk(k)=-dsig(k)
-       sigk(k)=sig(k)**(r/cp)
+       sigk(k)=sig(k)**(rdry/cp)
        delt(k)=1.
       enddo
       delt(kl)=0.
@@ -37,8 +37,8 @@ c       put theta in thf()
       enddo    ! k loop
 
 c     calc d(theta)/dz  at half-levels , using 1/dz at level k-.5
-      if(ndzx.eq.0)dzx=-g*sig(1)/(dsig(1)*r)                   ! Hal's
-      if(ndzx.eq.1)dzx=.5*g*(1.+sig(1))/((1.-sig(1))*r)        ! fixup by jlm
+      if(ndzx.eq.0)dzx=-grav*sig(1)/(dsig(1)*rdry)                ! Hal's
+      if(ndzx.eq.1)dzx=.5*grav*(1.+sig(1))/((1.-sig(1))*rdry)     ! fixup by jlm
       do iq=1,ifull
        dzi=dzx/t(iq,1)
        dthdz(iq,1)=max(thf(iq,1)-tss(iq),0.)*dzi  ! was wrong dzi - jlm
@@ -46,8 +46,8 @@ c      form new wmag at surface
        wmag(iq)=max(sqrt(u(iq,1)**2+v(iq,1)**2),1.)
       enddo    ! iq loop
       do k=2,kl
-       if(ndzx.eq.0)dzx=-2.*g*sig(k)/(dsig(k)*r)                  ! Hal's
-       if(ndzx.eq.1)dzx=g*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*r) ! fixup by jlm
+       if(ndzx.eq.0)dzx=-2.*grav*sig(k)/(dsig(k)*rdry)                  ! Hal's
+       if(ndzx.eq.1)dzx=grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry) ! fixup by jlm
        do iq=1,ifull
         dzi=dzx/(t(iq,k-1)+t(iq,k))               ! gwdrag
         dthdz(iq,k)=(thf(iq,k)-thf(iq,k-1))*dzi
@@ -61,8 +61,8 @@ c      calculate bvng,  (Brunt-Vaisala-N-ground)
 c      limit value of bvng to about 50 degrees per 166 m
 !      if unstable (surface to bl) then no gwd (set bvng=0)
 !            - happens automatically via next line & effect on bvng & alam
-       bvng(iq)=min(.1,sqrt(g*dthdz(iq,1)/tss(iq)))
-       bvnf(iq,kl)=sqrt(max(1.e-20,g*dthdz(iq,kl)/thf(iq,kl)))    ! jlm fixup
+       bvng(iq)=min(.1,sqrt(grav*dthdz(iq,1)/tss(iq)))
+       bvnf(iq,kl)=sqrt(max(1.e-20,grav*dthdz(iq,kl)/thf(iq,kl)))    ! jlm fixup
 c****  froude number calcs
 c****  calculate (fc/f)**2 where fc**2=fc2=0.5  (for Hal & Ch., 1. for jlm)
 c**    calc fc2*(t*/n*/wmag)/he**2
@@ -73,7 +73,7 @@ c     calculate bvnf at other levels,  (Brunt-Vaisala-N-full)
       do k=1,kl-1
        do iq=1,ifull
         bvnf(iq,k)=sqrt( max(1.e-20,
-     .      g*(dthdz(iq,k)+dthdz(iq,k+1))/(thf(iq,k)+thf(iq,k+1))) ) ! jlm fixup
+     .      grav*(dthdz(iq,k)+dthdz(iq,k+1))/(thf(iq,k)+thf(iq,k+1))) ) ! jlm fixup
        enddo   ! iq loop
       enddo    ! k loop
 

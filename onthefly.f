@@ -15,6 +15,7 @@
 !           2) kl is assumed to be the same for both grids
       include 'newmpar.h'
       include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
+      include 'const_phys.h'
       include 'latlong.h'  ! rlatt,rlongg,
       include 'map.h'  ! zs,land & used for giving info after all setxyz
       include 'parm.h'
@@ -50,7 +51,7 @@
      . ssdnn(ifull),osnowd(ifull),snage(ifull)
       integer isflag(ifull)
 c     data pi/3.1415926536/,id1/16/,jd1/79/
-      data pi/3.1415926536/,id1/3/,jd1/60/
+      data id1/3/,jd1/60/
 
       nqg_set=8    
 !     save cc target file geometry

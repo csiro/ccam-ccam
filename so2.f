@@ -5,7 +5,7 @@ c                            so2sflux and so2vmix
 
 * clobber the so2 tracer & accumulate it
 
-      include 'constant.h'
+      include 'const_phys.h'
       include 'newmpar.h'
       include 'tracers.h'
 
@@ -30,7 +30,7 @@ c --- coupled with the modified routine conjob
 * ---
 * ............ updates dtr
 *
-      include 'constant.h'
+      include 'const_phys.h'
       include 'newmpar.h'
       include 'parm.h'
       include 'sigs.h'          ! dsig
@@ -115,7 +115,7 @@ c --- coupled with the modified routine conjob
 c ----   the purpose of this routine is to initialise the tracer (so2) source block
 c ----  from a list of point sources
 * ----
-      include 'constant.h'
+      include 'const_phys.h'
       include 'newmpar.h'
       include 'arrays.h'
       include 'nsibd.h'
@@ -156,7 +156,7 @@ c ----  from a list of point sources
 
       subroutine so2sflux
       include 'newmpar.h'
-      include 'constant.h'
+      include 'const_phys.h'
       include 'arrays.h'
       include 'map.h'
       include 'nsibd.h'
@@ -195,7 +195,7 @@ c     data    firstcall/.true./,j/1/,k/1/
       end
       subroutine so2vmix( updtr )
 
-      include 'constant.h'
+      include 'const_phys.h'
       include 'newmpar.h'
       include 'arrays.h'
       include 'map.h'
@@ -246,7 +246,7 @@ c     .            iocean/
       integer i,j,k
       real    updtr(ifull,kl)
       real    kappa_d
-      real    c, emis, cem, r_t, r_tdt
+      real    c, emis, r_t, r_tdt
 
       data    c/5.2/, emis/0.1/
 

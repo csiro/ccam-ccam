@@ -23,6 +23,7 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       include 'soil.h'
       include 'tracers.h'  ! ngas, nllp, ntrac
       include 'xarrs.h'
+      include 'const_phys.h'
       common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
       common/savuv/savu(ifull,kl),savv(ifull,kl)
       common/work3/qs(ifull,kl),delthet(ifull,kl),
@@ -45,7 +46,6 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       equivalence (rkh,wrk1),(rkm,wrk2)
       equivalence (tmnht,at,un),(zh,au,wrk3)
 !     equivalence (gamat,ct)
-      data r/287./,hl/2.5104e6/,cp/1.00464e3/
 c     set coefficients for Louis scheme
       data bprm/4.7/,cm/7.4/,ch/5.3/,amxlsq/100./,vkar3/.35/,vkar4/.4/
       data bprmj/5./,cmj/5./,chj/2.6/
@@ -58,9 +58,7 @@ c tdiff is difference between t and 123.16, subject to 0 <= tdiff <= 220
       establ(tm) =(1.-(tdiff(tm)-aint(tdiff(tm))))*table(int(tdiff(tm)))
      &           + (tdiff(tm)-aint(tdiff(tm)))*table(int(tdiff(tm))+1)
 
-      hlcp=hl/cp
-      roncp=r/cp
-      rong=r/9.806
+      rong=rdry/grav
       do k=1,kl-1
        sighkap(k)=sigmh(k+1)**(-roncp)
        delons(k)=rong *((sig(k+1)-sig(k))/sigmh(k+1))
@@ -120,7 +118,7 @@ c tdiff is difference between t and 123.16, subject to 0 <= tdiff <= 220
 	 write (6,"(' sigkscb,sigksct,tied_con,tied_over,tied_rh:',
      .       5f8.3)")sigkscb,sigksct,tied_con,tied_over,tied_rh
         do k=1,kl
-         prcpv(k)=sig(k)**(-r/cp)
+         prcpv(k)=sig(k)**(-rdry/cp)
         enddo    ! k loop
         do k=1,kl
          alfqq_s(k)=alfsea
@@ -256,7 +254,7 @@ c     .             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         endif    ! (ndvmod.eq.0)
 
 c       x is bulk ri *(dvmod **2)
-        x(iq)=9.806*dz(iq)*(delthet(iq,k)/
+        x(iq)=grav*dz(iq)*(delthet(iq,k)/
      .   (tmnht(iq,k)*sighkap(k))+.61*(qg(iq,k+1)-qg(iq,k)))
 
 c       fm and fh denote f(Louis style)*dvmod
@@ -403,8 +401,8 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
         endif
       endif      !   (ncvmix.gt.0)
 
-      conflux=9.806*dt/dsig(1)
-      condrag=9.806*dt/(dsig(1)*r)
+      conflux=grav*dt/dsig(1)
+      condrag=grav*dt/(dsig(1)*rdry)
 c     first do theta (then convert back to t)
       at(:,1)=0.
       rhs(:,1)=rhs(:,1)-(conflux/cp)*fg(:)/ps(:)
@@ -543,7 +541,7 @@ c       call maxmin(v,'vv',ktau,1.,kl)
 c     this routine does the vertical mixing of tracers
       parameter (ntest=0)  ! 1 for diag prints
       include 'newmpar.h'
-      include 'constant.h'
+      include 'const_phys.h'
       include 'dates.h'         ! dt
       include 'nsibd.h'
       include 'parm.h'
@@ -552,7 +550,7 @@ c     this routine does the vertical mixing of tracers
       include 'tracers.h'       ! jlm don't need to pass co2fact etc?
       common/work3/vmixarrs(ifull,kl,3),trsrc(ifull,kl),spare(ifull,kl)
       real updtr(ifull,kl),at(ifull,kl),ct(ifull,kl)
-      trfact = g * dt / dsig(1)
+      trfact = grav * dt / dsig(1)
       co2fact=1000.*trfact*fair_molm/fc_molm
       o2fact=1000.*trfact*fair_molm/fo2_molm
 
@@ -609,7 +607,7 @@ c         print *,'can mel conc lev1 ',ktau,tr(46,57,1,2),tr(39,52,1,2)
       if(iso2.gt.0) then
         so2fact(1) = trfact
         do i=2,nso2lev
-          so2fact(i) = g * dt / dsig(i)
+          so2fact(i) = grav * dt / dsig(i)
         end do  !   i=1,nso2lev
         if( iso2.gt.0.and.nso2lev.lt.1 )stop 'vertmix: nso2lev.lt.1'
       endif
@@ -647,7 +645,7 @@ c         print *,'can mel conc lev1 ',ktau,tr(46,57,1,2),tr(39,52,1,2)
 *............................................................
 c     not needed, except for setting darlam boundary values?
       subroutine trimcopy(at,ct,updtr,itracer)
-      include 'constant.h'
+      include 'const_phys.h'
       include 'newmpar.h'
       include 'parm.h'
       include 'tracers.h'
