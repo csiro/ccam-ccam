@@ -2,7 +2,6 @@
       use cc_mpi
       use diag_m
       implicit none
-      integer, parameter :: moistfix=2 ! 0 earlier; 1 for cube-root fix; 2 best, with ps
       integer, parameter :: mfix_rad=0 ! used to make gases 2 to ng add up to gas 1
       integer, parameter :: ntest=0
       integer, parameter :: nys=0      ! for nys=1 use sun & yeh 1997 monotonic filter
@@ -34,7 +33,7 @@
       real d,dpsdt,epst
       common/dpsdt/dpsdt(ifull)    ! shared adjust5 & openhist
       common/epst/epst(ifull)
-      real alph_p, alph_pm, delneg, delpos, alph_q
+      real alph_p, alph_pm, delneg, delpos, delnegk, delposk, alph_q
       common/mfixdiag/alph_p,alph_pm,delneg,delpos,alph_q
       real :: sumdiffb_l  ! Local versions
       real, dimension(3) :: delarr, delarr_l
@@ -64,7 +63,7 @@
       real, save :: dtsave = 0.0
       real :: hdt, hdtds, sdmx, sdmx_g, sum, qgminm, ratio, sumdiffb,
      &        alph_g
-      integer :: i, its, j, k, l, n, nits, nvadh_pass, iq, ng, ierr
+      integer :: its, k, l, nits, nvadh_pass, iq, ng, ierr
       real :: sumin, sumout, sumsav
       real :: delpos_l, delneg_l
 
@@ -86,8 +85,7 @@
          if ( mydiag ) then
             print *,'ux_stag ',ux(idjd,:)
             print *,'vx_stag ',vx(idjd,:)
-            write (6,"('qg ',12f7.3/(8x,12f7.3))") 
-     &             1000.*qg(idjd,:)
+            write (6,"('qg ',12f7.3/(8x,12f7.3))") 1000.*qg(idjd,:)
          end if
          call maxmin(alf,'a ',ktau,1.,1)
          call maxmin(alfe,'ae',ktau,1.,1)
@@ -192,7 +190,7 @@
          enddo                  ! iq loop
 
 !         Diagnostics would require extra bounds calls
-!         if(diag.and.k.le.2)then !  only for last k of loop (i.e. 1)
+!         if(diag.and.k<=2)then !  only for last k of loop (i.e. 1)
 !            iq=idjd
 !            print  *,'adjust5(k) p & n e w s ',k,p(iq,k),
 !     &        p(in(iq),k),p(ie(iq),k),p(iw(iq),k),p(is(iq),k)
@@ -200,7 +198,7 @@
 !     &        pe(in(iq),k),pe(ie(iq),k),pe(iw(iq),k),pe(is(iq),k)
 !            print  *,'adjust5(k) rhsl & n e w s ',k,rhsl(iq,k),
 !     &       rhsl(in(iq),k),rhsl(ie(iq),k),rhsl(iw(iq),k),rhsl(is(iq),k)
-!         endif                  ! (diag.and.k.le.2)
+!         endif                  ! (diag.and.k<=2)
       enddo    ! k loop
 
       call bounds(pe)
@@ -289,7 +287,7 @@
       call unstaguv(cc(1:ifull,:),dd(1:ifull,:),
      &              u(1:ifull,:),v(1:ifull,:)) ! usual
 
-      if( (diag.or.nmaxpr.eq.1) .and. mydiag ) then
+      if( (diag.or.nmaxpr==1) .and. mydiag ) then
          write (6,"('diva ',9f8.2/4x,9f8.2)") d(idjd,:)*1.e6
          write (6,"('omgfnl*dt    ',9f8.4)") omgfnl(idjd,:)*dt
       endif
@@ -346,15 +344,15 @@
      .           +hdt*(1.+epst(iq))*tbar2d(iq)*omgf(iq,k)*roncp/sig(k)
        enddo    ! iq loop
       enddo     ! k  loop
-      if((diag.or.nmaxpr.eq.1).and.mydiag)then
+      if((diag.or.nmaxpr==1).and.mydiag)then
         write (6,"('sdota',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
         write (6,"('omgfa',9f8.3/5x,9f8.3)")
      .            ps(idjd)*dpsldt(idjd,1:kl)
       endif
 
-      if(nvadh.eq.2.and.nvad.gt.0)then                 ! final dt/2 's worth
-        if ( (diag.or.nmaxpr.eq.1) .and. mydiag ) then
-         print *,'before vertical advection in adjust5'
+      if(nvadh==2.and.nvad>0)then                 ! final dt/2 's worth
+        if ( (diag.or.nmaxpr==1) .and. mydiag ) then
+         print *,'before vertical advection in adjust5 for ktau= ',ktau
          write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
          write (6,"('u   ',9f8.2/4x,9f8.2)") u(idjd,:)
          write (6,"('v   ',9f8.2/4x,9f8.2)") v(idjd,:)
@@ -367,7 +365,7 @@
      &                       MPI_COMM_WORLD, ierr )
           nits=1+sdmx_g/nvadh
           nvadh_pass=nvadh*nits
-          if(mydiag.and.mod(ktau,nmaxpr).eq.0)
+          if(mydiag.and.mod(ktau,nmaxpr)==0)
      &      print *,'in adjust5 sdmx,nits,nvadh_pass ',
      &                          sdmx_g,nits,nvadh_pass
           do its=1,nits
@@ -377,154 +375,158 @@
      &                   nvadh_pass)
           enddo
         endif  !  nvad==4 .or. nvad==9
-        if(nvad.ge.7) call vadv30(t(1:ifull,:),
+        if(nvad>=7) call vadv30(t(1:ifull,:),
      &                            u(1:ifull,:),
      &                            v(1:ifull,:)) ! for vadvbess
-        if( ( diag.or.nmaxpr.eq.1) .and. mydiag ) then
+        if( ( diag.or.nmaxpr==1) .and. mydiag ) then
           print *,'after vertical advection in adjust5'
           write (6,"('qg  ',9f8.3/4x,9f8.3)") 1000.*qg(idjd,:)
           write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
           write (6,"('thet',9f8.2/4x,9f8.2)")  
      .                  t(idjd,:)*sig(:)**(-roncp)
-        write (6,"('u   ',9f8.2/4x,9f8.2)") u(idjd,:)
-        write (6,"('v   ',9f8.2/4x,9f8.2)") v(idjd,:)
+          write (6,"('u   ',9f8.2/4x,9f8.2)") u(idjd,:)
+          write (6,"('v   ',9f8.2/4x,9f8.2)") v(idjd,:)
         endif
-      endif     !  (nvadh.eq.2.and.nvad.gt.0)
+      endif     !  (nvadh==2.and.nvad>0)
 
-!     could call nestin here (using xarrs instead of davb.h)
-      if(mspec.eq.1.and.nbd.ne.0)call davies  ! before mfix mass fix in C-C
-      if (mfix.gt.0) then   ! perform conservation fix on psl
+      if (mfix.ne.0) then   ! perform conservation fix on psl
 !         delpos is the sum of all positive changes over globe
 !         delneg is the sum of all negative changes over globe
 !         alph_p is chosen to satisfy alph_p*delpos + delneg/alph_p = 0
-!         _l means local to this processor        
-         do iq=1,ifull
-            delps(iq) = psl(iq)-pslsav(iq)
-         end do
+!             _l means local to this processor        
+         delps(1:ifull) = psl(1:ifull)-pslsav(1:ifull)
          call ccglobal_posneg(delps,delpos,delneg)
-	 if(ntest.eq.1)then
+	  if(ntest==1)then
             call ccglobal_sum(pslsav,sumsav)
             call ccglobal_sum(psl,sumin)
-	 endif  ! (ntest.eq.1)
-         if(mfix.eq.1)then
+	  endif  ! (ntest==1)
+         if(mfix==1)then
             alph_p = sqrt( -delneg/delpos)
             alph_pm=1./alph_p
-         endif                  ! (mfix.eq.1)
-         if(mfix.eq.2)then
-            if(delpos.gt.-delneg)then
+         endif                  ! (mfix==1)
+         if(mfix==2)then
+            if(delpos>-delneg)then
                alph_p =1.
                alph_pm=-delpos/delneg
             else
                alph_p=-delneg/delpos
                alph_pm =1.
             endif
-         endif                  ! (mfix.eq.2)
+         endif                  ! (mfix==2)
          do iq=1,ifull
             psl(iq) = pslsav(iq) +
      &           alph_p*max(0.,delps(iq)) + alph_pm*min(0.,delps(iq))
          enddo
-	 if(ntest.eq.1)then
+	 if(ntest==1)then
            if(myid==0) print *,'psl_delpos,delneg,alph_p,alph_pm ',
      &                 delpos,delneg,alph_p,alph_pm
            call ccglobal_sum(psl,sumout)
            if(myid==0)
      &        print *,'psl_sumsav,sumin,sumout ',sumsav,sumin,sumout
-	 endif  ! (ntest.eq.1)
-      endif                     !  mfix.gt.0
+	 endif  ! (ntest==1)
+      endif                     !  mfix.ne.0
 
-      do iq=1,ifull
-       aa(iq)=ps(iq)  ! saved for gas fixers below, and other diags
-       ps(iq)=1.e5*exp(psl(iq))
-       dpsdt(iq)=(ps(iq)-aa(iq))*24.*3600./(100.*dt) ! diagnostic in hPa/day
-      enddo     !  iq loop
+      aa(1:ifull)=ps(1:ifull)  ! saved for gas fixers below, and other diags
+      ps(1:ifull)=1.e5*exp(psl(1:ifull))
+!     following diagnostic is in hPa/day      
+      dpsdt(1:ifull)=(ps(1:ifull)-aa(1:ifull))*24.*3600./(100.*dt)
       call bounds(psl)
       call bounds(ps) ! Better to calculate everywhere defined ???
 
-      if(mfix_qg.gt.0.and.mspec.eq.1)then
+      if(mfix_qg.ne.0.and.mspec==1)then
 !       qgmin=1.e-6   !  in parm.h 
         qgminm=qgmin
-        if(moistfix.eq.1)then  !  cube-root method
-          qgminm=qgmin**(1./3.)
-          do k=1,kl
-	    do iq=1,ifull
-!           qg(iq,k)=cbrt(qg(iq,k))
-            qg(iq,k)=     qg(iq,k)**(1./3.)
-!           qgsav(iq,k)=cbrt(qgsav(iq,k))
-            qgsav(iq,k)=     qgsav(iq,k)**(1./3.)
-           enddo   ! iq loop
-          enddo    ! k  loop
-        endif      ! (moistfix.eq.1)
 !  	 default is moistfix=2 now, with ps weighting
         do k=1,kl
-	  do iq=1,ifull
-            qg(iq,k)=qg(iq,k)*ps(iq)
-            qgsav(iq,k)=qgsav(iq,k)*aa(iq)
-         enddo   ! iq loop
+         qg(1:ifull,k)=qg(1:ifull,k)*ps(1:ifull)
+         qgsav(1:ifull,k)=qgsav(1:ifull,k)*aa(1:ifull)
         enddo    ! k  loop
-        if(ntest.eq.1)then
+        if(ntest==1)then
           call ccglobal_sum(qgsav,sumsav)
           call ccglobal_sum(qg,sumin)
-	endif  ! (ntest.eq.1)
+	 endif  ! (ntest==1)
 !       perform conservation fix on qg, as affected by vadv, hadv, hordif
 !       N.B. won't cope with any -ves from conjob
 !       delpos is the sum of all positive changes over globe
 !       delneg is the sum of all negative changes over globe
         do k=1,kl
-         do iq=1,ifull
-          wrk1(iq,k)=max(qg(iq,k),                            ! increments
-     .              (qgminm-qfg(iq,k)-qlg(iq,k))*ps(iq),0.) -qgsav(iq,k) 
-         enddo                ! iq loop
-        enddo                   ! k loop
-        call ccglobal_posneg(wrk1,delpos,delneg)
+         wrk1(1:ifull,k)=max( qg(1:ifull,k),0.,               ! increments  
+     .              (qgminm-qfg(1:ifull,k)-qlg(1:ifull,k))*ps(1:ifull) ) 
+     .                                       -qgsav(1:ifull,k)   
+        enddo                 ! k loop
+        if(ntest==2.and.nproc==1)then
+          delpos=0.
+          delneg=0.
+          do k=1,kl
+           delposk=0.
+           delnegk=0.
+           do iq=1,ifull
+            delpos=delpos+max(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
+            delneg=delneg+min(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
+            delposk=delposk+max(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
+            delnegk=delnegk+min(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
+           enddo   ! iq loop
+           if(mod(ktau,nmaxpr)==0.or.nmaxpr==1)
+     .                   print *,'delposk delnegk ',k,delposk,delnegk
+          enddo    ! k loop
+	 else
+          call ccglobal_posneg(wrk1,delpos,delneg)  ! usual
+	 endif
         ratio = -delneg/delpos
-        if(mfix_qg.eq.1)alph_q = min(ratio,sqrt(ratio))  ! best option
-        if(mfix_qg.eq.2)alph_q = sqrt(ratio)
+        if(mfix_qg==1)alph_q = min(ratio,sqrt(ratio))  ! best option
+        if(mfix_qg==2)alph_q = sqrt(ratio)
         do k=1,kl        ! this is cunning 2-sided scheme
          do iq=1,ifull
            qg(iq,k)=qgsav(iq,k)+
      &       alph_q*max(0.,wrk1(iq,k))+min(0.,wrk1(iq,k))/max(1.,alph_q)
          enddo   ! iq loop
         enddo    ! k  loop
-        if(moistfix.eq.1)then
-          qg(:,:)=qg(:,:)**3
-        endif      ! (moistfix.eq.1)
-        if(ntest.eq.1)then
-	  if(myid==0) print *,'qg_delpos,delneg,ratio,alph_q ',
-     &                         delpos,delneg,ratio,alph_q
+        if(ntest==1.or.nmaxpr==1)then
+	  if(mydiag) print *,'qg_delpos,delneg,ratio,alph_q,wrk1 ',
+     &                       delpos,delneg,ratio,alph_q,wrk1(idjd,nlv)
           call ccglobal_sum(qg,sumout)
-	  if(myid==0) print *,'qg_sumsav,sumin,sumout ',sumsav,sumin,sumout
-	 endif  ! (ntest.eq.1)
+	  if(mydiag) print *,'qg_sumsav,sumin,sumout ',sumsav,sumin,sumout
+	 endif  ! (ntest==1.or.nmaxpr==1)
 
 !  	 undo ps weighting
         do k=1,kl
-	  do iq=1,ifull
-            qg(iq,k)=qg(iq,k)/ps(iq)
-          enddo   ! iq loop
+	  if(mfix_qg>0)then
+           qg(1:ifull,k)=qg(1:ifull,k)/ps(1:ifull)
+	  else
+           qg(1:ifull,k)=qg(1:ifull,k)/(ps(1:ifull)*wts(1:ifull))
+	  endif
         enddo    ! k  loop
 	 delpos=delpos/1.e5
  	 delneg=delneg/1.e5  ! for diag print in globpe
-      endif        !  (mfix_qg.gt.0.and.mspec.eq.1)
+      endif        !  (mfix_qg.ne.0.and.mspec==1)
 
-      if(mfix_qg.gt.0.and.mspec.eq.1.and.ldr.ne.0)then
+      if(mfix_qg.ne.0.and.mspec==1.and.ldr.ne.0)then
         do k=1,kl
+	  if(mfix_qg>0)then
           qfg(1:ifull,k)=qfg(1:ifull,k)*ps(1:ifull)
           qfgsav(1:ifull,k)=qfgsav(1:ifull,k)*aa(1:ifull)
           qlg(1:ifull,k)=qlg(1:ifull,k)*ps(1:ifull)
           qlgsav(1:ifull,k)=qlgsav(1:ifull,k)*aa(1:ifull)
+	  else
+          qfg(1:ifull,k)=qfg(1:ifull,k)*ps(1:ifull)*wts(1:ifull)
+          qfgsav(1:ifull,k)=qfgsav(1:ifull,k)*aa(1:ifull)*wts(1:ifull)
+          qlg(1:ifull,k)=qlg(1:ifull,k)*ps(1:ifull)*wts(1:ifull)
+          qlgsav(1:ifull,k)=qlgsav(1:ifull,k)*aa(1:ifull)*wts(1:ifull)
+	  endif
         enddo    ! k  loop
 !       perform conservation fix on qfg, qlg as affected by vadv, hadv, hordif
 !       N.B. won't cope with any -ves from conjob
 !       delpos is the sum of all positive changes over globe
 !       delneg is the sum of all negative changes over globe
         do k=1,kl
-           do iq=1,ifull
-              wrk1(iq,k)=max(qfg(iq,k),0.)-qfgsav(iq,k) ! increments
+         do iq=1,ifull
+          wrk1(iq,k)=max(qfg(iq,k),0.)-qfgsav(iq,k) ! increments
          enddo   ! iq loop
         enddo    ! k loop
         call ccglobal_posneg(wrk1,delpos,delneg)
         ratio = -delneg/max(delpos,1.e-30)
-        if(mfix_qg.eq.1)alph_q = min(ratio,sqrt(ratio))  ! best option
-        if(mfix_qg.eq.2)alph_q = sqrt(ratio)
+        if(mfix_qg==1)alph_q = min(ratio,sqrt(ratio))  ! best option
+        if(mfix_qg==2)alph_q = sqrt(ratio)
 !       this is cunning 2-sided scheme
         qfg(1:ifull,:)=qfgsav(:,:)+
      .     alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
@@ -535,8 +537,8 @@
         enddo    ! k loop
         call ccglobal_posneg(wrk1,delpos,delneg)
         ratio = -delneg/max(delpos,1.e-30)
-        if(mfix_qg.eq.1)alph_q = min(ratio,sqrt(ratio))  ! best option
-        if(mfix_qg.eq.2)alph_q = sqrt(ratio)
+        if(mfix_qg==1)alph_q = min(ratio,sqrt(ratio))  ! best option
+        if(mfix_qg==2)alph_q = sqrt(ratio)
 !       this is cunning 2-sided scheme
         qlg(1:ifull,:)=qlgsav(:,:)+
      .     alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
@@ -545,29 +547,30 @@
          qfg(1:ifull,k)=qfg(1:ifull,k)/ps(1:ifull)
          qlg(1:ifull,k)=qlg(1:ifull,k)/ps(1:ifull)
         enddo    ! k  loop
-      endif      !  (mfix_qg.gt.0.and.mspec.eq.1.and.ldr.ne.0)
+      endif      !  (mfix_qg.ne0.and.mspec==1.and.ldr.ne.0)
 
-
-      if(mfix_qg.gt.0.and.mspec.eq.1.and.ngas.ge.1)then
+      if(mfix_qg.ne.0.and.mspec==1.and.ngas>=1)then
 !       perform conservation fix on tr1,tr2 as affected by vadv, hadv, hordif
         do ng=1,ngas
 !  	 default now with ps weighting
         do k=1,kl
-	   do iq=1,ifull
-           tr(iq,k,ng)=tr(iq,k,ng)*ps(iq)
-           trsav(iq,k,ng)=trsav(iq,k,ng)*aa(iq)
-          enddo   ! iq loop
+	  if(mfix_qg>0)then
+           tr(1:ifull,k,ng)=tr(1:ifull,k,ng)*ps(1:ifull)
+           trsav(1:ifull,k,ng)=trsav(1:ifull,k,ng)*aa(1:ifull)
+	  else
+           tr(1:ifull,k,ng)=tr(1:ifull,k,ng)*ps(1:ifull)*wts(1:ifull)
+           trsav(1:ifull,k,ng)=trsav(1:ifull,k,ng)*aa(1:ifull)
+     .                                                  *wts(1:ifull)
+	  endif
          enddo    ! k  loop
-         do iq=1,ifull
           do k=1,kl
-           wrk1(iq,k)=max(tr(iq,k,ng),gasmin(ng)*ps(iq))
-     .                                         -trsav(iq,k,ng)  ! has increments
+           wrk1(1:ifull,k)=max(tr(1:ifull,k,ng),            ! has increments
+     .            gasmin(ng)*ps(1:ifull))         -trsav(1:ifull,k,ng) 
           enddo   ! k loop
-         enddo    ! iq loop
          call ccglobal_posneg(wrk1,delpos,delneg)
          ratio = -delneg/delpos
-         if(mfix_qg.eq.1)alph_g = min(ratio,sqrt(ratio))  ! why min?
-         if(mfix_qg.eq.2)alph_g = sqrt(ratio)
+         if(mfix_qg==1)alph_g = min(ratio,sqrt(ratio))  
+         if(mfix_qg==2)alph_g = sqrt(ratio)
          do k=1,kl   ! this is cunning 2-sided scheme
 	   do iq=1,ifull
           tr(iq,k,ng)=trsav(iq,k,ng)+
@@ -575,12 +578,14 @@
           enddo   ! iq loop
          enddo    ! k  loop
          do k=1,kl
-           do iq=1,ifull
-             tr(iq,k,ng)=tr(iq,k,ng)/ps(iq)
-           enddo   ! iq loop
+	   if(mfix_qg>0)then
+            tr(1:ifull,k,ng)=tr(1:ifull,k,ng)/ps(1:ifull)
+	   else
+            tr(1:ifull,k,ng)=tr(1:ifull,k,ng)/(ps(1:ifull)*wts(1:ifull))
+	   endif
          enddo    ! k  loop
         enddo    ! ng loop
-        if(mfix_rad.gt.0)then  ! to make gases 2 to ng add up to gas 1
+        if(mfix_rad>0)then  ! to make gases 2 to ng add up to gas 1
          do k=1,kl
 	   do iq=1,ifull
            sumdiffb_l = 0.
@@ -607,9 +612,18 @@
            enddo   ! ng loop
           enddo   ! iq loop
          enddo    ! k  loop
-        endif     ! (mfix_rad.gt.0)
-      endif       !  mfix_qg.gt.0
+        endif     ! (mfix_rad>0)
+      endif       !  mfix_qg.ne.0
 
+      if ( (diag.or.nmaxpr==1) .and. mydiag ) then
+        print *,'at end of adjust5 for ktau= ',ktau
+	 print *,'aa,ps ',aa(idjd),ps(idjd)
+        write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
+        write (6,"('qgs',9f8.3/4x,9f8.3)")
+     &                         (1000.*qgsav(idjd,k)/aa(idjd),k=1,kl)
+        write (6,"('qf ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
+        write (6,"('ql ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
+      endif
       if(diag)then
          if ( mydiag ) then
             iq=idjd
@@ -632,12 +646,9 @@
          do iq=1,ifull
             aa(iq)=ps(iq)-aa(iq)
          enddo
-         call printa('dps ',aa,ktau,0,ia,ib,ja,jb,0.,.01)
+         call printa('dps ',cc,ktau,0,ia,ib,ja,jb,0.,.01)
          call printa('ps  ',ps,ktau,0,ia,ib,ja,jb,1.e5,.01)
-         if ( mydiag ) then
-            write (6,"('qg ',12f7.3/(8x,12f7.3))") 1000.*qg(idjd,:)
-         end if
-         if(sig(nlv).lt..3)then
+         if(sig(nlv)<.3)then
             call printa('qg  ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e6)
          else
             call printa('qg  ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e3)
@@ -665,7 +676,7 @@
       integer :: iq, n
 
       hdt = 0.5*dt
-      if(m.lt.6)then
+      if(m<6)then
         do iq=1,ifull
          alf(iq)=1.+epsu
          alff(iq)=0.
@@ -679,7 +690,7 @@
          alfu(iq)=1./(1.+(hdt*(1.+epsf)*fu(iq))**2) ! i.e. alf/(1+epsu)
          alfv(iq)=1./(1.+(hdt*(1.+epsf)*fv(iq))**2) ! i.e. alf/(1+epsu)
         enddo     ! iq loop
-      endif  ! (m.lt.6)... else ...
+      endif  ! (m<6)... else ...
       ! These really only need to be recomputed when time step changes.
       call bounds(alf)
       call bounds(alff,corner=.true.)
@@ -704,7 +715,7 @@
        zzs(iq)=alf(is(iq))+.5*alfn(isv(iq))            ! i,j-1 coeff
       enddo     ! iq loop
 !     N.B. there are some special z values at the 8 vertices
-      if(npanels.eq.5)then
+      if(npanels==5)then
          do n=1,npan            ! 0,5
             if ( edge_s .and. edge_w ) then
                iq=indp(1,1,n)
@@ -727,5 +738,5 @@
                zzw(iq)=zzw(iq)+.25*alfF(iw(iq)) ! i-1,j coeff
             end if
         enddo   ! n loop
-      endif     ! (npanels.eq.5)
+      endif     ! (npanels==5)
       end subroutine adjust_init

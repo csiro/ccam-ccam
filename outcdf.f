@@ -597,8 +597,12 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
         call attrib(idnc,idim2,3,'cbas_ave',lname,'sigma',0.,1.1)
         lname = 'Avg cloud top'
         call attrib(idnc,idim2,3,'ctop_ave',lname,'sigma',0.,1.1)
+        lname = 'Avg dew flux'
+        call attrib(idnc,idim2,3,'dew_ave',lname,'W/m2',-100.,1000.)
         lname = 'Avg potential evaporation'
         call attrib(idnc,idim2,3,'epot_ave',lname,'W/m2',-1000.,10.e3)
+        lname = 'Potential evaporation'
+        call attrib(idnc,idim2,3,'epot',lname,'W/m2',-1000.,10.e3)
         lname = 'Latent heat flux'
         call attrib(idnc,idim2,3,'eg',lname,'W/m2',-1000.,3000.)
         lname = 'Avg latent heat flux'
@@ -894,6 +898,7 @@ c     set time to number of minutes since start
          call histwrt3(tscr_ave,'tscr_ave',idnc,iarch,local)
          call histwrt3(cbas_ave,'cbas_ave',idnc,iarch,local)
          call histwrt3(ctop_ave,'ctop_ave',idnc,iarch,local)
+         call histwrt3(dew_ave,'dew_ave',idnc,iarch,local)
          call histwrt3(epot_ave,'epot_ave',idnc,iarch,local)
          call histwrt3(eg_ave,'eg_ave',idnc,iarch,local)
          call histwrt3(fg_ave,'fg_ave',idnc,iarch,local)
@@ -910,6 +915,7 @@ c     set time to number of minutes since start
        call histwrt3(u10,'u10',idnc,iarch,local)
        call histwrt3(uscrn,'uscrn',idnc,iarch,local)
        call histwrt3(rnet,'rnet',idnc,iarch,local)
+       call histwrt3(epot,'epot',idnc,iarch,local)
        call histwrt3(eg,'eg',idnc,iarch,local)
        call histwrt3(fg,'fg',idnc,iarch,local)
        call histwrt3(taux,'taux',idnc,iarch,local)

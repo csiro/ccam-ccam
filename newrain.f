@@ -54,7 +54,7 @@ c      qaccr - accretion by snow of cloud liquid water (kg/kg)
 c
 ***************************************************************************
 
-      subroutine newrain(land,lg,tdt,fluxc,rhoa,dz,ccrain,prf,cdso4,!Inputs
+      subroutine newrain(land,lg,tdt,fluxc,rhoa,dz,ccrain,prf,cdrop,!Inputs
      &                  cfa,qca,
      &                  ttg,qlg,qfg,precs,qtg,cfrac,ccov,   !In and Out
      &                  preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,
@@ -78,7 +78,6 @@ C Argument list
       real dz(ln2,nl)
       real ccrain(ln2,nl)
       real prf(ln2,nl)
-      real cdso4(ln2,nl)
       real ttg(ln2,nl)
       real qlg(ln2,nl)
       real qfg(ln2,nl)
@@ -119,7 +118,7 @@ C Local work arrays and variables
       real cfrain(ln2,nl)
       real cfmelt(ln2,nl)
       real fluxrain(ln2)
-      real Cdrop(ln2,nl)
+      real cdrop(ln2,nl)
       real fracr(ln2,nl)
 c     logical qlgtest,qfgtest
 c     double precision Frpr, Frprb, Frprc
@@ -209,7 +208,7 @@ C Start code : ----------------------------------------------------------
           write(25,91)'dz',(dz(mg,k),k=1,nl)
           write(25,91)'ccrain',(ccrain(mg,k),k=1,nl)
           write(25,91)'prf',(prf(mg,k),k=1,nl)
-          write(25,9)'cdso4',(cdso4(mg,k),k=1,nl)
+          write(25,9)'cdrop',(cdrop(mg,k),k=1,nl)
           write(25,91)'ttg ',(ttg(mg,k),k=1,nl)
           write(25,9)'qtg ',(qtg(mg,k),k=1,nl)
           write(25,9)'qsg ',(qsg(mg,k),k=1,nl)
@@ -256,29 +255,7 @@ c Previous line not good for roundoff; next few lines are better
         enddo
       enddo
 
-c Define Cdrop
-
-      if(naerosol_i(2).gt.0)then
-        do k=1,nl-1
-        do mg=1,ln2
-          Cdrop(mg,k)=cdso4(mg,k)
-        enddo
-        enddo
-      else
-        do mg=1,ln2
-          if(land(mg))then
-            Cdrop(mg,1)=Cdropl
-          else
-            Cdrop(mg,1)=Cdrops
-          endif
-        enddo
-        do k=2,nl-1
-        do mg=1,ln2
-          Cdrop(mg,k)=Cdrop(mg,1)
-        enddo
-        enddo
-      endif
-
+c Define cdrop  - passed through as cdso4, defined in leoncld.f
 
 ***************** Cut here to insert new auto scheme ********************            
 
@@ -295,12 +272,12 @@ C***              ql=qlg(mg,k)
 C***              cfla=0.
 C***              dqla=0.
 C***              if(cfa(mg,k).gt.0.)then
-C***                qcrit=(4*pi/3)*rhow*Rcm**3*Cdrop(mg,k)/rhoa(mg,k)
+C***                qcrit=(4*pi/3)*rhow*Rcm**3*cdrop(mg,k)/rhoa(mg,k)
 C***                cfla=cfa(mg,k)*clfr(mg,k)/(clfr(mg,k)+cifr(mg,k))
 C***                qla=qca(mg,k)/cfa(mg,k)
 C***                if(qla.gt.qcrit)then
 C***                  Crate=Aurate*
-C***     &                rhoa(mg,k)*(rhoa(mg,k)/(Cdrop(mg,k)*rhow))**(1./3)
+C***     &                rhoa(mg,k)*(rhoa(mg,k)/(cdrop(mg,k)*rhow))**(1./3)
 C***c                  Crate=0.1818*Crate !TEMPORARY
 C***                  ql1=1/pow75(qla**(-4./3)+(4./3)*Crate*delt)
 C***c                  ql1=qla-crate*delt !Simple explicit
@@ -322,7 +299,7 @@ C***              dql=qlg(mg,k)-ql
 
 c Or, using old autoconv scheme...
 
-              qcrit=(4*pi/3)*rhow*Rcm**3*Cdrop(mg,k)/rhoa(mg,k)
+              qcrit=(4*pi/3)*rhow*Rcm**3*cdrop(mg,k)/rhoa(mg,k)
               qcic=qlg(mg,k)/clfr(mg,k) !In cloud value
 
               if(qcic.lt.qcrit)then
@@ -330,7 +307,7 @@ c Or, using old autoconv scheme...
                 dqlo=0.
               else
                 Crate=Aurate*
-     &                rhoa(mg,k)*(rhoa(mg,k)/(Cdrop(mg,k)*rhow))**(1./3)
+     &                rhoa(mg,k)*(rhoa(mg,k)/(cdrop(mg,k)*rhow))**(1./3)
                 ql1=1./pow75(qcic**(-4./3)+(4./3)*Crate*delt)
                 ql1=max(ql1, qcrit) !Intermediate qlg after auto
                 Frb=dz(mg,k)*rhoa(mg,k)*(qcic-ql1)/delt
@@ -572,7 +549,7 @@ c          write(25,9)'qsl ',(qsl(mg,k),k=1,nl)
           write(25,9)'cfrac ',(cfrac(mg,k),k=1,nl)
           write(25,9)'qlg ',(qlg(mg,k),k=1,nl)
           write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
-          write(25,9)'cdso4 ',(cdso4(mg,k),k=1,nl)
+          write(25,9)'cdrop ',(cdrop(mg,k),k=1,nl)
           write(25,9)'cfa ',(cfa(mg,k),k=1,nl)
           write(25,9)'qca ',(qca(mg,k),k=1,nl)
           write(25,9)'fluxr ',(fluxr(mg,k),k=1,nl)

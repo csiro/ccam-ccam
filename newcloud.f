@@ -45,7 +45,7 @@ c      ccov - cloud cover looking from above (currently = cloud fraction)
 c 
 c******************************************************************************
 
-      subroutine newcloud(tdt,lg,land,prf,kbase,ktop,rhoa,cdso4,  !Inputs
+      subroutine newcloud(tdt,lg,land,prf,kbase,ktop,rhoa,cdrop,  !Inputs
      &                    ttg,qtg,qlg,qfg,                        !In and out
      &                    cfrac,ccov,cfa,qca)                     !Outputs
 
@@ -75,7 +75,6 @@ C Argument list
       real qfg(ln2,nl)
       real cfrac(ln2,nl)
       real ccov(ln2,nl)
-      real cdso4(ln2,nl)
       real cfa(ln2,nl)
       real qca(ln2,nl)
 
@@ -92,7 +91,7 @@ C Local work arrays and variables
       real qtot(ln2,nl),tliq(ln2,nl),qsg(ln2,nl)
       real fice(ln2,nl)
       real qcold(ln2,nl)
-      real Cdrop(ln2,nl)
+      real cdrop(ln2,nl)
       real rcrit(ln2,nl)
 
       integer k
@@ -184,28 +183,7 @@ C Start code : ----------------------------------------------------------
         endif
       endif
 
-c Define Cdrop
-
-      if(naerosol_i(2).gt.0)then
-        do k=1,nl
-          do mg=1,ln2
-            Cdrop(mg,k)=cdso4(mg,k)
-          enddo
-        enddo
-      else
-        do mg=1,ln2
-          if(land(mg))then
-            Cdrop(mg,1)=Cdropl
-          else
-            Cdrop(mg,1)=Cdrops
-          endif
-        enddo
-        do k=2,nl
-          do mg=1,ln2
-            Cdrop(mg,k)=Cdrop(mg,1)
-          enddo
-        enddo
-      endif
+c Define cdrop  - passed through as cdso4, defined in leoncld.f
 
 c First melt cloud ice or freeze cloud water to give correct ice fraction fice.
 c Then calculate the cloud conserved variables qtot and tliq.
@@ -306,7 +284,7 @@ c This (qca) is the cloud-water mixing ratio inside cfa divided by cfa.
 c The new variable qc2 is like qc above, but is used for integration limits
 c only, not the integrand
 
-C***          qcrit=(4*pi/3)*rhow*Rcm**3*Cdrop(mg,k)/rhoa(mg,k)
+C***          qcrit=(4*pi/3)*rhow*Rcm**3*cdrop(mg,k)/rhoa(mg,k)
 C***          qc2=qtot(mg,k)-qs-qcrit/al 
 C***          cfa(mg,k)=1.
 C***          qca(mg,k)=al*qc
@@ -499,7 +477,7 @@ c            ccov(mg,k)=cfrac(mg,k)**(2./3)
           write(25,9)'qtg ',(qtg(mg,k),k=1,nl)
           write(25,9)'qsg ',(qsg(mg,k),k=1,nl)
           write(25,9)'cfrac ',(cfrac(mg,k),k=1,nl)
-          write(25,9)'cdso4 ',(cdso4(mg,k),k=1,nl)
+          write(25,9)'cdrop ',(cdrop(mg,k),k=1,nl)
           write(25,9)'cfa ',(cfa(mg,k),k=1,nl)
           write(25,9)'qca ',(qca(mg,k),k=1,nl)
           write(25,9)'qtot ',(qtot(mg,k),k=1,nl)

@@ -14,6 +14,7 @@
 c     include 'constant.h'
       include 'dava.h'    ! davt
       include 'kuocom.h'  ! acon,bcon,Rcm
+      include 'latlong.h' ! rlatt,rlongg
       include 'map.h'     ! land
       include 'morepbl.h'
       include 'nlin.h'
@@ -30,7 +31,7 @@ c for cfrp
       real fice(icfrp,kl)
       integer kcldfmax(icfrp)
       real tautot,cldmax,ctoptmp,ctoppre
-      real reffl,tau_sfac,wliq,rk,cdrop,qlpath,wice,sigmai,cfd,fcf
+      real reffl,tau_sfac,wliq,rk,qlpath,wice,sigmai,cfd,fcf
       common/leoncfrp/tautot(icfrp),cldmax(icfrp)
      &               ,ctoptmp(icfrp),ctoppre(icfrp)
       common/work3b/cfrad(ifull,kl),dum3b(ifull,kl)    ! leoncld & radriv90
@@ -86,10 +87,18 @@ c These outputs are not used in this model at present
           rhoa(iq,k)=100.*prf(iq,k)/(rdry*t(iq,k))
           qsg(iq,k)=qsat(100.*prf(iq,k),t(iq,k))
           if(land(iq))then
-            cdso4(iq,k)=cdropl
+            if(rlatt(iq)>0.)then	     
+              cdso4(iq,k)=cdropl_nh
+	     else
+              cdso4(iq,k)=cdropl_sh
+	     endif
           else
-            cdso4(iq,k)=cdrops
-          endif
+            if(rlatt(iq)>0.)then	     
+              cdso4(iq,k)=cdrops_nh
+	     else
+              cdso4(iq,k)=cdrops_sh
+	     endif
+          endif  ! (land(iq)) .. else ..
         enddo
       enddo
 
@@ -117,8 +126,8 @@ c     Set up convective cloud column
         endif
       enddo
 
-      if(diag.and.mydiag)then
-!       if(nmaxpr==1.and.mydiag)then
+!     if(diag.and.mydiag)then
+      if(nmaxpr==1.and.mydiag)then
         if(ktau.eq.1)print *,'in leoncloud acon,bcon,Rcm ',acon,bcon,Rcm
         print *,'entering leoncld'
         write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
@@ -153,8 +162,8 @@ c     before calling newcloud
         enddo
       enddo
       tenv(:,:)=t(1:ifull,:) !Assume T is the same in and out of convective cloud
-      if(diag.and.mydiag)then
-!     if(nmaxpr==1.and.mydiag)then
+!     if(diag.and.mydiag)then
+      if(nmaxpr==1.and.mydiag)then
         print *,'before newcloud'
         write (6,"('t   ',9f8.2/4x,9f8.2)") (t(idjd,k),k=1,kl)
         write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
@@ -171,8 +180,8 @@ c     Calculate cloud fraction and cloud water mixing ratios
       call newcloud(dt,1,land,prf,kbase,ktop,rhoa,cdso4, !Inputs
      &     tenv,qenv,qlg(1:ifull,:),qfg(1:ifull,:),   !In and out  t here is tenv
      &     cfrac,ccov,cfa,qca)   !Outputs
-      if(diag.and.mydiag)then
-!     if(nmaxpr==1.and.mydiag)then
+!     if(diag.and.mydiag)then
+      if(nmaxpr==1.and.mydiag)then
         print *,'after newcloud'
         write (6,"('tnv ',9f8.2/4x,9f8.2)") (tenv(idjd,k),k=1,kl)
         write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
@@ -196,8 +205,8 @@ c     Weight output variables according to non-convective fraction of grid-box
           endif
         enddo
       enddo
-      if(diag.and.mydiag)then
-!     if(nmaxpr==1.and.mydiag)then
+!     if(diag.and.mydiag)then
+      if(nmaxpr==1.and.mydiag)then
         print *,'before newrain'
         write (6,"('t  ',9f8.2/4x,9f8.2)") (t(idjd,k),k=1,kl)
         write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
@@ -212,8 +221,8 @@ c     Calculate precipitation and related processes
      &    precs,qg(1:ifull,:),cfrac,ccov, !In and Out
      &    preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,  !Outputs
      &    fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
-      if(diag.and.mydiag)then
-!     if(nmaxpr==1.and.mydiag)then
+!     if(diag.and.mydiag)then
+      if(nmaxpr==1.and.mydiag)then
         print *,'after newrain'
         write (6,"('t  ',9f8.2/4x,9f8.2)") (t(idjd,k),k=1,kl)
         write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
@@ -246,7 +255,7 @@ c     Add convective cloud water into fields for radiation
       enddo
 
 !=======================================================================
-!      if(ncfrp.eq.1)then  ! from here to the end
+!      if(ncfrp.eq.1)then  ! from here to the end; Jack's diag stuff
         do iq=1,icfrp
           tautot(iq)=0.
           cldmax(iq)=0.
@@ -274,15 +283,13 @@ c             Liquid water clouds
                 Wliq=rhoa(iq,k)*qlg(iq,k)/(cfrac(iq,k)*(1-fice(iq,k))) !kg/m^3
                 if(.not.land(iq))then !sea
                   rk=0.8
-                  Cdrop=Cdrops
                 else            !land
                   rk=0.67
-                  Cdrop=Cdropl
                 endif
 c Reffl is the effective radius at the top of the cloud (calculated following
 c Martin etal 1994, JAS 51, 1823-1842) due to the extra factor of 2 in the
 c formula for reffl. Use mid cloud value of Reff for emissivity.
-                Reffl=(3*2*Wliq/(4*rhow*pi*rk*Cdrop))**(1./3)
+                Reffl=(3*2*Wliq/(4*rhow*pi*rk*cdso4(iq,k)))**(1./3)
                 qlpath=Wliq*dz(iq,k)
                 taul(iq,k)=tau_sfac*1.5*qlpath/(rhow*Reffl)
               endif ! qlg

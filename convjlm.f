@@ -13,7 +13,7 @@
      .    ,conrev,convmax,delq,dels,deltaq,delq_av,delt_av
      .    ,den1,den2,den3,detr,dprec,dqrx,dqsdt
      .    ,es,entrainp,entrr,entrradd
-     .    ,factdav,factr,facuv,fldow,fldownn
+     .    ,factdav,facuv,fldow,fldownn
      .    ,fluxq,fluxr,fluxb,flux_dsk,fluxup,fluxt
      .    ,frac,fraca,fracb,gam,hbas,hbase,heatlev,hs
      .    ,pwater,pwater0,qavg,qavgb,qbas,qbase,qdown,qentrr,qliqw,qprec
@@ -61,7 +61,7 @@ c     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
       include 'tracers.h'  ! ngas, nllp, ntrac
       include 'vvel.h'
       real cfrac,duml,dumm
-      common/nonlsav/cfrac(ifull,kl),duml(ifull,kl,2)
+      common/work3a/cfrac(ifull,kl),duml(ifull,kl,2)
       common/work2/ktmax(ifull),conrev(ifull),fluxr(ifull)
      .  ,fluxb(ifull),dumm(ifull),kbsav_ls(ifull)
      .  ,rnrt(ifull),rnrtc(ifull),sumqs(ifull),sumqt(ifull)

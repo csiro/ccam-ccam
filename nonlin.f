@@ -293,27 +293,6 @@ cx      enddo      ! k  loop
          end if
       endif
 
-      if(abs(mfix).eq.5.and.mspec.eq.1)then
-!       perform conservation fix on tr1,tr2 as affected by vadv, hadv, hordif
-        do ng=1,2
-          do k=1,kl
-            do iq=1,ifull
-               tempry(iq,k) = tr(iq,k,ng)-trsav(iq,k,ng)  ! has increments
-            enddo
-          enddo
-          call ccglobal_posneg(tempry,delpos,delneg)
-          ratio = -delneg/delpos
-          beta = min(ratio,sqrt(ratio))
-          betav=1./max(1.,beta) ! for cunning 2-sided
-          do k=1,kl
-            do iq=1,ifull
-              tr(iq,k,ng)=trsav(iq,k,ng)+
-     &          beta*max(0.,tempry(iq,k)) + betav*min(0.,tempry(iq,k))
-            enddo  ! iq loop  
-          enddo   !  k loop    
-        enddo    ! ng loop
-      endif      !  abs(mfix).eq.5
-
       if ( nhstest.eq.1 ) then ! Held and Suarez test case
          call hs_phys
       endif

@@ -49,7 +49,7 @@
 
       intsch=mod(ktau,2)
 
-      if(m.eq.6)then
+      if(m==6)then
         do k=1,kl
          do iq=1,ifull
 !         finish off RHS terms; this coriolis term was once in nonlin
@@ -57,20 +57,22 @@
           vx(iq,k)=vx(iq,k)-.5*dt*(1.-epsf)*f(iq)*u(iq,k)
          enddo     ! iq loop
         enddo      ! k loop
-      endif  ! (m.eq.6)
+      endif  ! (m==6)
 
       if ( mydiag ) then
-         if(tx(idjd,kl).gt.264)then
+cy         if(tx(idjd,kl)>264)then  !cb
+           if(t(idjd,kl)+tx(idjd,kl)>264)then  !cy
             print *
-            print *,'upglobal a',ktau,id,jd,tx(idjd,kl)
-         endif                  ! (tx(idjd,kl).gt.264.)
+            print *,'upglobal a',ktau,id,jd,t(idjd,kl)+tx(idjd,kl)
+         endif                  ! (tx(idjd,kl)>264.)
       end if
 
       if(num_hight<100)then
         do iq=1,ifull
-         if(tx(iq,kl)>264.)then
+cy         if(tx(iq,kl)>264.)then  !cb
+           if(t(iq,kl)+tx(iq,kl)>264.)then  ! cy
            print *,'upglobal ktau,myid,iq,large_tx  ',ktau,myid,iq,
-     &           tx(iq,kl)
+     &           t(iq,kl)+tx(iq,kl)
            write (6,"('sdot_iq',9f7.3/4x,9f7.3)") (sdot(iq,kk),kk=1,kl)
 	    num_hight=num_hight+1
          endif
@@ -78,12 +80,13 @@
       endif           
 
       if(nvad==-4.or.nvad==-9)then ! also called further down for nvadh=2
+!        not valid with new tx/epst treatment      
          sdmx = maxval(abs(sdot))
          call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX, 
      &                      MPI_COMM_WORLD, ierr )
 	 nits=1+sdmx_g/nvadh
 	 nvadh_pass=nvadh*nits
-	 if(mydiag.and.mod(ktau,nmaxpr).eq.0)
+	 if(mydiag.and.mod(ktau,nmaxpr)==0)
      &      print *,'in upglobal sdmx,nits,nvadh_pass ',
      &                           sdmx_g,nits,nvadh_pass
          do its=1,nits
@@ -91,35 +94,53 @@
      &                   nvadh_pass) 
 	 enddo
       endif  ! (nvad==-4.or.nvad==-9)
-      if(nvad.le.-7)
+      if(nvad<=-7)
      &     call vadv30(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:))       ! for vadvbess
 
 !     call depts3d   ! this one has its own k loop; was nvad<0 option
 
-      if(ndept.eq.0) call depts(x3d,y3d,z3d)
-      if(ndept.eq.1) call depts1(x3d,y3d,z3d)
+      if(ndept==0) call depts(x3d,y3d,z3d)
+      if(ndept==1) call depts1(x3d,y3d,z3d)
 
       do k=1,kl   
        dd(:,k)=zs(:)/(rdry*nritch_t)    ! now default, nritch_t=300
-       if(nritch.gt.300)then   ! jlm special bi-linear treatment 303
-         do iq=1,ifull
-          pslx(iq,k)=pslx(iq,k)+dd(iq,k)
-         enddo   ! iq loop
-       endif     ! nritch.gt.300
       end do     ! k loop
 
-       if(nritch.gt.300.or.nt_adv.gt.0)then   ! jlm special bi-linear treatment 303
-         aa(:,:)=dd(1:ifull,:)     ! for nt_adv schemes holding zs/(r*t)
+      if(epsp<0.)then  
+       if(nritch>300)then   ! jlm special bi-linear treatment 303
+        do k=1,kl   
+         uc(:,k)=psl(:)+dd(:,k)  ! uc just as temporary storage
+        enddo    ! k loop
+       endif     ! nritch>300
+       if(nritch>300.or.nt_adv>0)then   ! jlm special bi-linear treatment 303
+         aa(:,:)=dd(1:ifull,:)    ! save zs/(r*t) for nt_adv schemes 
          call ints_bl(dd,intsch,nface,xg,yg)
-       endif     ! (nritch.gt.300.or.nt_adv.gt.0)
-
+       endif     ! (nritch>300.or.nt_adv>0)
+       if(mup.ne.0)call ints(uc,intsch,nface,xg,yg,1)
+       if(mup.ne.0)call ints(pslx,intsch,nface,xg,yg,1)
+       do k=1,kl   
+        pslx(1:ifull,k)=uc(1:ifull,k)-pslx(1:ifull,k)*dt*.5*(1.-epst(:))
+       end do    ! k loop
+      else       ! i.e. epsp>0.
+       do k=1,kl   
+!       N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
+        pslx(1:ifull,k)=psl(1:ifull)-pslx(1:ifull,k)*dt*.5*(1.-epst(:))!cx
+       end do    ! k loop
+       if(nritch>300)then   ! jlm special bi-linear treatment 303
+         pslx(:,:)=pslx(:,:)+dd(:,:)
+       endif     ! nritch>300
+       if(nritch>300.or.nt_adv>0)then   ! jlm special bi-linear treatment 303
+         aa(:,:)=dd(1:ifull,:)     ! save zs/(r*t) for nt_adv schemes 
+         call ints_bl(dd,intsch,nface,xg,yg)
+       endif     ! (nritch>300.or.nt_adv>0)
        if(mup.ne.0) call ints(pslx,intsch,nface,xg,yg,1)
+      endif      ! (epsp<0.) .. else ..
 
        if(nritch>0)then
          pslx(:,:)=pslx(:,:)-dd(:,:)
-	endif   ! (nritch.gt.0)  
+	endif   ! (nritch>0)  
 
-!      if(nritch.ge.404.and.ktau.eq.1)then  ! set in globpe now
+!      if(nritch>=404.and.ktau==1)then  ! set in globpe now
 !	  nt_adv=nritch-400   ! for backward compatibility to nritch=407
 !	  print *,'resetting nritch,nt_adv,ktau ',nritch,nt_adv,ktau 
 !	endif
@@ -128,7 +149,7 @@
           do k=1,kl
              if(nt_adv==3) then   ! 1. up to sig=.4
                    factr(k)=stdlapse*(rdry*nritch_t/grav)
-                   if(sig(k).lt.0.3)factr(k)=0.
+                   if(sig(k)<0.3)factr(k)=0.
              endif   ! (nt_adv==3)then   
              if(nt_adv==4) ! (1, .5, 0) for sig=(1, .75, .5)
      &          factr(k)=max(2.*sig(k)-1., 0.)*stdlapse*(rdry*300./grav)
@@ -152,15 +173,28 @@
                 if(sig(k)>.5)factr(k)=stdlapse*(rdry*nritch_t/grav)
                 if(sig(k)<.2)factr(k)=0.
              endif
-             do iq=1,ifull
-                cc(iq,k)=tx(iq,k)+aa(iq,k)*factr(k)
-             enddo              ! iq loop
-          end do ! k
-          call ints(cc,intsch,nface,xg,yg,3)
-          do k=1,kl
-             tx(1:ifull,k) = cc(1:ifull,k) - dd(1:ifull,k)*factr(k)
-          end do
+             cc(1:ifull,k)=t(1:ifull,k)+aa(:,k)*factr(k)   !cy  
+cy             cc(1:ifull,k)=tx(1:ifull,k)+aa(:,k)*factr(k)   !cb
+         end do   ! k
+	  if(epsp<0.)then 
+           call ints(cc,intsch,nface,xg,yg,3)
+           call ints(tx,intsch,nface,xg,yg,3)
+           do k=1,kl
+ 	     cc(1:ifull,k)=cc(1:ifull,k)+(1.-epst(:))*tx(1:ifull,k)  ! 09/04
+           enddo   ! k
+	  else
+           do k=1,kl
+ 	     cc(1:ifull,k)=cc(1:ifull,k)+(1.-epst(:))*tx(1:ifull,k)  !09/04cy
+           enddo   ! k
+           call ints(cc,intsch,nface,xg,yg,3)     
+	  endif
+         do k=1,kl
+          tx(1:ifull,k) = cc(1:ifull,k) - dd(1:ifull,k)*factr(k)
+         end do
        else
+         do k=1,kl
+	   tx(1:ifull,k)=t(1:ifull,k)+(1.-epst(:))*tx(1:ifull,k)   !09/04cy
+         end do
          call ints(tx,intsch,nface,xg,yg,3)
        endif  ! (nt_adv>0) .. else ..
 
@@ -216,7 +250,7 @@ c       print *,'staggered ux and vx:'
 
 c      print *,'end  upg. k x3d,y3d,z3d ',
 c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
-       if(nrot.eq.1)then
+       if(nrot==1)then
 !        rotate wind vector to arrival point
           do k=1,kl
              do iq=1,ifull
@@ -232,7 +266,7 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
                 denb = vec1x**2 + vec1y**2 + vec1z**2
 !         N.B. rotation formula is singular for small denb,
 !         but the rotation is unnecessary in this case
-                if(denb.gt.1.e-4)then
+                if(denb>1.e-4)then
                    vecdot = x3d(iq,k)*x(iq) + y3d(iq,k)*y(iq) +
      &                      z3d(iq,k)*z(iq)
                    vec2x = x3d(iq,k)*vecdot - x(iq)
@@ -248,10 +282,10 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
                    uc(iq,k) = vdot1*vec1x + vdot2*vec3x
                    vc(iq,k) = vdot1*vec1y + vdot2*vec3y
                    wc(iq,k) = vdot1*vec1z + vdot2*vec3z
-                endif           ! (denb.gt.1.e-4)
+                endif           ! (denb>1.e-4)
              enddo              ! iq loop
           end do ! k
-       endif       ! nrot.eq.1
+       endif       ! nrot==1
 
 !      convert back to conformal-cubic velocity components (unstaggered)
 !      globpea: this can be sped up later
@@ -263,27 +297,27 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
      &                  bz(iq)*wc(iq,k)
           enddo                 ! iq loop
        end do
-       if(diag.and.k.eq.nlv)then
+       if(diag.and.k==nlv)then
           if ( mydiag ) print *,
      &         'after advection in upglobal; unstaggered ux and vx:'
           call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
           call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
        endif
 
-       if(mspec.eq.1.and.mup.ne.0)then   ! advect qg after preliminary step
+       if(mspec==1.and.mup.ne.0)then   ! advect qg after preliminary step
           call ints(qg,intsch,nface,xg,yg,4)
           if(ldr.ne.0)then
              call ints(qlg,intsch,nface,xg,yg,4)
              call ints(qfg,intsch,nface,xg,yg,4)
           endif                 ! ldr.ne.0
-          if(ilt.gt.1)then
+          if(ilt>1)then
              do ntr=1,ntrac
                 call ints(tr(1,1,ntr),intsch,nface,xg,yg,5)
              enddo
-          endif ! ilt.gt.1
-       endif     ! mspec.eq.1
+          endif ! ilt>1
+       endif     ! mspec==1
 
-       if(nonl.eq.3)then   ! Adams-Bashforth style
+       if(nonl==3)then   ! Adams-Bashforth style
           call ints(tn,intsch,nface,xg,yg,3)
 !         convert un, vn to cartesian velocity components
           do k=1,kl
@@ -310,13 +344,13 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
                 vn(iq,k)=0.
              enddo     ! iq loop
           end do
-       endif       ! (nonl.eq.3)
+       endif       ! (nonl==3)
 
 !      there are various possibilities for changing wind direction
        dtm=dt*(1.-epsf)
        dtp=dt*(1.+epsf)
 
-       if(m.eq.6)then    ! i.e.second part of usual m=6 coriolis treatment
+       if(m==6)then    ! i.e.second part of usual m=6 coriolis treatment
           do k=1,kl
              do iq=1,ifull
                 ux(iq,k)=ux(iq,k)+.5*dt*un(iq,k)
@@ -334,37 +368,32 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
           stop
        end if
 
-      if(nvadh.eq.2.and.nvad.lt.0)then                 ! final dt/2 's worth
-        if(nvad.eq.-4.or.nvad.eq.-9)then
+      if(nvadh==2.and.nvad<0)then                 ! final dt/2 's worth
+        if(nvad==-4.or.nvad==-9)then
           do its=1,nits
             call vadvtvd(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
      &                   nvadh_pass) 
           enddo
-        endif  ! (nvad.eq.-4.or.nvad.eq.-9)
-        if(nvad.le.-7)
+        endif  ! (nvad==-4.or.nvad==-9)
+        if(nvad<=-7)
      &     call vadv30(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:)) ! for vadvbess
-      endif     !  (nvadh.eq.2.and.nvad.lt.0)then
+      endif     !  (nvadh==2.and.nvad<0)then
 
 !     now interpolate ux,vx to the staggered grid; special globpea call
       call staguv(ux,vx,ux,vx)
-      if(diag)then
-         if ( mydiag ) print *,
-     &        'near end of upglobal staggered ux and vx:'
-         call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
-         call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
-      endif
-
-      if(diag.and.mydiag)then
-        print *,'near end of upglobal'
-        print *,'tn ',(tn(idjd,k),k=1,kl)
-        print *,'tx ',(tx(idjd,k),k=1,kl)
+      if( diag.and.mydiag ) then
+        print *,'near end of upglobal staggered ux and vx:'
+        call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
         print *,'un ',(un(idjd,k),k=1,kl)
         print *,'vn ',(vn(idjd,k),k=1,kl)
+        print *,'tn ',(tn(idjd,k),k=1,kl)
+        print *,'tx ',(tx(idjd,k),k=1,kl)
       endif
 
       tx(1:ifull,:) = tx(1:ifull,:)+.5*dt*tn(1:ifull,:) ! moved from adjust5 30/11/00
 
-      if(ntest.gt.4)then
+      if(ntest>4)then
 !       diag check for unstable layers
         do iq=1,ifull
          do k=1,kl
@@ -378,27 +407,19 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
             write (6,"('sdot',9f7.3/4x,9f7.3)") (sdot(iq,kk),kk=1,kl)
 c           print *,'sdot', (sdot(iq,kk),kk=1,kl)
             numunstab=numunstab+1
-c           if(numunstab.eq.100)stop 'numunstab=30'
+c           if(numunstab==100)stop 'numunstab=30'
           endif
          enddo
         enddo
       endif
-      
-!     dry adiabatic adjustment on tx (Sept '04)      
-      do k=1,kl
-       theta(:,k)=tx(1:ifull,k)*sig(k)**(-rdry/cp)
-      enddo
-      do k=1,kl-1
-       do iq=1,ifull
-	 if(theta(iq,k)>theta(iq,k+1))then
-!         following expression is thetav	 
-	   theta(iq,k+1)=(dsig(k)*theta(iq,k)+dsig(k+1)*theta(iq,k+1))/
-     &                  (dsig(k)+dsig(k+1))
-          tx(iq,k+1)=theta(iq,k+1)*sig(k+1)**(rdry/cp)
-          tx(iq,k  )=theta(iq,k+1)*sig(k  )**(rdry/cp)
-	 endif
-   	enddo
-      enddo
+
+      if( ( diag.or.nmaxpr==1) .and. mydiag ) then
+        print *,'near end of upglobal for ktau= ',ktau
+        write (6,"('tx  ',9f8.2/4x,9f8.2)") tx(idjd,:)
+        write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,kk),kk=1,kl)
+        write (6,"('ql ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,kk),kk=1,kl)
+        write (6,"('qf ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,kk),kk=1,kl)
+      endif     
 
       call end_log(upglobal_end)
       return

@@ -433,18 +433,24 @@ c       Stuff needed for cloud2 routine...
           do i=1,imax
             iq=i+(j-1)*il
             t2(i,k)=t(iq,k)
-c           ql2(i,k)=qlg(iq,k)
-c           qf2(i,k)=qfg(iq,k)
-c           cf2(i,k)=cfrac(iq,k)
             ql2(i,k)=qlrad(iq,k)
             qf2(i,k)=qfrad(iq,k)
             cf2(i,k)=cfrad(iq,k)
             qc2(i,k)=qccon(iq,k)
+!           will need this test eventually: if(naerosol_i(1).gt.0)then .. else
             if(land(iq))then
-              cd2(i,k)=cdropl
+              if(rlatt(iq)>0.)then	     
+                cd2(i,k)=cdropl_nh
+		else
+                cd2(i,k)=cdropl_sh
+		endif
             else
-              cd2(i,k)=cdrops
-            endif
+              if(rlatt(iq)>0.)then	     
+                cd2(i,k)=cdrops_nh
+		else
+                cd2(i,k)=cdrops_sh
+		endif
+            endif  ! (land(iq)) .. else ..
             land2(i)=land(iq)
             p2(i,k)=0.01*ps(iq)*sig(k) !Looks like ps is SI units
             dp2(i,k)=-0.01*ps(iq)*dsig(k) !dsig is -ve
