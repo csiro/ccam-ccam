@@ -158,15 +158,10 @@ c     .      ,pslx(id-1,jd-1,nlv),pslx(id-1,jd+1,nlv),pslx(id+1,jd-1,nlv)
 
       if(nvad.ne.0)then
 !       do vertical advection in split mode
-        if(nvad.eq.4)call vadvtvd(t(1:ifull,:),tx(1:ifull,:),
-     &                            u(1:ifull,:),ux,
-     &                            v(1:ifull,:),vx)  ! can now call from globpe too
-        if(nvad.eq.7)call vadv30(t(1:ifull,:),tx(1:ifull,:),
-     &                           u(1:ifull,:),ux,
-     &                           v(1:ifull,:),vx)              ! for vadvbess
-        t(1:ifull,:)=tx(1:ifull,:)
-        u(1:ifull,:)=ux(1:ifull,:)
-        v(1:ifull,:)=vx(1:ifull,:)
+        if(nvad.eq.4)call vadvtvd(t(1:ifull,:),
+     &                            u(1:ifull,:),
+     &                            v(1:ifull,:))  ! can now call from globpe too
+        if(nvad.eq.7)call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:))
         if( (diag.or.nmaxpr.eq.1) .and. mydiag )then
          print *,'in nonlin after vertical advection'
          write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,kk),kk=1,kl)
