@@ -1,6 +1,9 @@
 c $Log$
-c Revision 1.1  2003/08/13 01:24:20  dix043
-c Initial revision
+c Revision 1.2  2004/05/05 07:09:51  dix043
+c JMcG change - May 2004
+c
+c Revision 1.1.1.1  2003/08/13 01:24:20  dix043
+c Imported sources
 c
 c Revision 1.34  2003/02/26 04:01:15  rot032
 c Bring Rcm value back to same as in HBG's version (7.5 um).
@@ -135,9 +138,10 @@ c Tunable parameters for qcloud scheme
 
 c The following are used in the Manton-Cotton rain parameterization
 
-      real Cdrops, Cdropl, Rcm, Ec, Aurate
+      real Cdrops, Cdropl, Ec, Aurate
       parameter (Cdrops=1.0e8, Cdropl=3.0e8) !Cloud droplet conc (sea/land)
-      parameter (Rcm=7.5e-6) !Threshold cloud dropl R for coalescence to begin
+!     parameter (Rcm=7.5e-6) !Threshold cloud dropl R for coalescence to begin
+!!    parameter (Rcm=10.e-6) !Threshold cloud dropl R for coalescence to begin
       parameter (Ec=0.55) !Mean collection efficiency for cloud drops
       parameter (Aurate=0.104*grav*Ec/um) !Part of rate constant
 
