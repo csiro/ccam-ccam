@@ -582,10 +582,10 @@ c       open(unit=96,file=tminfile,form='unformatted',status='unknown')
          print*, "Start of loop time ", timeval
       end if
       call log_on()
-      do 88 kktau=1,ntau   ! ****** start of main time loop
 #ifdef simple_timer
       call start_log(maincalc_begin)
 #endif
+      do 88 kktau=1,ntau   ! ****** start of main time loop
       ktau=kktau
       timer = timer + hrs_dt      ! timer now only used to give timeg
       timeg=mod(timer+hourst,24.)
@@ -930,10 +930,6 @@ c         qg(:,:)=max(qg(:,:),qgmin)  ! testing
 !     calls.
       call phys_loadbal
       call end_log(phys_end)
-#ifdef simple_timer
-      ! Avoid counting the diagnostics and outfile in this
-      call end_log(maincalc_end)
-#endif
 
       if(ndi.eq.-ktau)then
         nmaxpr=1
@@ -1104,6 +1100,10 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
         call outfile(20,il,jl,kl,psa,psm,rundate,nmi,nsnowout,nwrite)
 	 
         if(ktau.eq.ntau.and.irest.eq.1) then
+#ifdef simple_timer
+          ! Don't include the time for writing the restart file
+          call end_log(maincalc_end)
+#endif
 !         write restart file
           if(io_rest.eq.2)open
      &      (unit=19,file=restfile,form='formatted',status='unknown')
@@ -1112,6 +1112,9 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
           call outfile(19,il,jl,kl,psa,psm,rundate,nmi,nsnowout,nwrite)
           if(myid==0)print *,'finished writing restart file in outfile'
           close(19)
+#ifdef simple_timer
+          call start_log(maincalc_begin)
+#endif
         endif  ! (ktau.eq.ntau.and.irest.eq.1)
         call log_on()
       endif    ! (ktau.eq.ntau.or.mod(ktau,nwt).eq.0)
@@ -1185,6 +1188,9 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
       call vtflush(ierr)
 #endif
 88    continue                   ! *** end of main time loop
+#ifdef simple_timer
+      call end_log(maincalc_end)
+#endif
       call log_off()
       if (myid==0) then
          call date_and_time(time=timeval,values=tvals2)
