@@ -1,100 +1,3 @@
-      module readvar_m
-      use cc_mpi
-      implicit none
-      private
-      public :: readvar
-      interface readvar
-        module procedure readvar2, readvar3, readvar2i
-      end interface
-      contains
-
-      subroutine readvar2(un,var,skip)
-      include 'newmpar.h'
-      integer, intent(in) :: un
-      real, dimension(:), intent(out) :: var
-      logical, intent(in) :: skip
-      real, dimension(ifull_g) :: varg
-
-      if ( skip ) then
-         if ( myid == 0 ) then
-            read(un)
-         end if
-      else
-         if ( myid == 0 ) then
-            read(un) varg
-            ! Use explicit ranges here because some arguments might be extended.
-            call ccmpi_distribute(var(1:ifull),varg)
-         else
-            call ccmpi_distribute(var(1:ifull))
-         end if
-      end if
-
-      end subroutine readvar2
-
-      subroutine readvar2i(un,var,skip)
-      include 'newmpar.h'
-      integer, intent(in) :: un
-      integer, dimension(:), intent(out) :: var
-      logical, intent(in) :: skip
-      integer, dimension(ifull_g) :: varg
-
-      if ( skip ) then
-         if ( myid == 0 ) then
-            read(un)
-         end if
-      else
-         if ( myid == 0 ) then
-            read(un) varg
-            ! Use explicit ranges here because some arguments might be extended.
-            call ccmpi_distribute(var(1:ifull),varg)
-         else
-            call ccmpi_distribute(var(1:ifull))
-         end if
-      end if
-
-      end subroutine readvar2i
-
-      subroutine readvar3(un,var,skip)
-      include 'newmpar.h'
-      integer, intent(in) :: un
-      real, dimension(:,:), intent(out) :: var
-      logical, intent(in) :: skip
-      real, dimension(ifull_g,size(var,2)) :: varg
-      integer :: k, kk
-
-      kk = size(var,2)
-
-      if ( skip ) then
-         if ( myid == 0 ) then
-            read(un)
-         end if
-      else
-         if ( myid == 0 ) then
-            read(un) varg
-            ! Use explicit ranges here because some arguments might be extended.
-            ! ccmpi_distribute3 expects kl, it's not general
-            if ( kk == kl ) then
-               call ccmpi_distribute(var(1:ifull,:),varg)
-            else
-               do k=1,kk
-                  call ccmpi_distribute(var(1:ifull,k),varg(:,k))
-               end do
-            end if
-         else
-            if ( kk == kl ) then
-               call ccmpi_distribute(var(1:ifull,:))
-            else
-               do k=1,kk
-                  call ccmpi_distribute(var(1:ifull,k))
-               end do
-            end if
-         end if
-      end if
-
-      end subroutine readvar3
-
-      end module readvar_m
-
       subroutine infile(io_in2,kdate_r,ktime_r,nem2,
      . timeg_r,ds_r,psl,pmsl,zs,em,f,
      . tss,precip,wb,wbice,alb,snowd,sicedep,
@@ -109,7 +12,6 @@
 !     From March 2000 exact kdate, ktime are calculated and compared
       use cc_mpi
       use diag_m
-      use readvar_m
       implicit none
       include 'newmpar.h'
       include 'extraout.h'
@@ -235,15 +137,15 @@
 !       call MPI_Bcast(timer,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
 !       call MPI_Bcast(timeg,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
 
-        call readvar(10,psl,skip)
-        call readvar(10,pmsl,skip)
+        call readglobvar(10,psl,skip)
+        call readglobvar(10,pmsl,skip)
 c     this is actually pmsl for io_in=3
-        call readvar(10,zs,skip)
+        call readglobvar(10,zs,skip)
 c     following assumes data written with nem=1 option
-        call readvar(10,em,skip)
-        call readvar(10,f,skip)
-        call readvar(10,tss,skip)
-        call readvar(10,precip,skip)
+        call readglobvar(10,em,skip)
+        call readglobvar(10,f,skip)
+        call readglobvar(10,tss,skip)
+        call readglobvar(10,precip,skip)
         if(ncalled.lt.4.and.mydiag.and..not.skip)then
           write (6,"('100*psl# in',3f7.2,1x,3f7.2,1x,3f7.2)") 
      .              100.*diagvals(psl)
@@ -261,18 +163,18 @@ c
 c     soil temp and moisture
         if(nqg_r.ge.8)then
           do k=1,ms
-            call readvar(10,tgg(:,k),skip)
+            call readglobvar(10,tgg(:,k),skip)
           end do
           do k=1,ms
-            call readvar(10,wb(:,k),skip)
+            call readglobvar(10,wb(:,k),skip)
           end do
         else      ! from old write, meant for nsib=0 or 1
 c         read subsoil temps in this case, lower one first
-          call readvar(10,tgg(:,ms),skip)
-          call readvar(10,tgg(:,2),skip)
+          call readglobvar(10,tgg(:,ms),skip)
+          call readglobvar(10,tgg(:,2),skip)
 c         read subsoil moistures, upper one first
-          call readvar(10,wb(:,1),skip)
-          call readvar(10,wb(:,ms),skip)
+          call readglobvar(10,wb(:,1),skip)
+          call readglobvar(10,wb(:,ms),skip)
           tgg(:,1) = abs(tss(:))
           wb(:,2)  = wb(:,1)    ! layer initialisation of moisture
           do k=3,ms-1
@@ -292,21 +194,21 @@ c         read subsoil moistures, upper one first
           print *,'wb(ms)# ', diagvals(wb(:,ms))
         endif
         if(nqg_r.ge.4) then     ! N.B. some ifile's have ngq=3
-          call readvar(10,alb,skip)
+          call readglobvar(10,alb,skip)
           if(ncalled.lt.4.and. mydiag .and. .not.skip)then
             print *,'alb# ', diagvals(alb)
           endif
         endif
         if(nqg_r.ge.5)then
 c       precc just read in to dummy array
-          call readvar(10,precip,skip)
+          call readglobvar(10,precip,skip)
           if(ncalled.lt.4 .and. mydiag .and. .not.skip)then
             print *,'precc# ', diagvals(precip)
           endif
         endif
         if(nqg_r.ge.6)then
 c       snowd read in to snowd array
-          call readvar(10, snowd, skip)
+          call readglobvar(10, snowd, skip)
           if ( myid == 0 ) then
 c       N.B. these cloudlo, cloudmi, cloudhi not used because recalc. in radn
             read(10)           ! cloudlo
@@ -314,7 +216,7 @@ c       N.B. these cloudlo, cloudmi, cloudhi not used because recalc. in radn
             read(10)           ! cloudhi
           end if
 
-          call readvar(10,sicedep,skip) ! these were for nqg>=7
+          call readglobvar(10,sicedep,skip) ! these were for nqg>=7
           if ( myid == 0 ) then
             read(10)           ! tscrn
             read(10)           ! qgscrn
@@ -351,22 +253,22 @@ c         when no snowd available initially, e.g. COMPARE III (jlm formula)
           read(10)
         endif
         if(nqg_r.ge.11)then
-          call readvar(10,wbice,skip)
+          call readglobvar(10,wbice,skip)
         endif
         if(nqg_r.ge.12)then
           print *,
      &        'reading snow variables: tggsn,smass,ssdn,snage,isflag'
-          call readvar(10,tggsn,skip)
+          call readglobvar(10,tggsn,skip)
           if ( mydiag .and. .not.skip )
      &       print *,'tggsn(1)# ', diagvals(tggsn(:,1))
-          call readvar(10,smass,skip)
-          call readvar(10,ssdn,skip)
-          call readvar(10,ssdnn,skip)
-          call readvar(10,osnowd,skip) ! not saved for netcdf
-          call readvar(10,snage,skip)
+          call readglobvar(10,smass,skip)
+          call readglobvar(10,ssdn,skip)
+          call readglobvar(10,ssdnn,skip)
+          call readglobvar(10,osnowd,skip) ! not saved for netcdf
+          call readglobvar(10,snage,skip)
           if ( myid == 0 ) print *,'o kdate_r,ktime_r,mtimer_r: ',
      &         kdate_r,ktime_r,mtimer_r
-          call readvar(10,isflag,skip)
+          call readglobvar(10,isflag,skip)
           if ( mydiag .and. .not.skip )
      &       print *,'isflag(1)# ', diagvals(isflag)
         endif ! nqg = 12
@@ -375,10 +277,10 @@ c         when no snowd available initially, e.g. COMPARE III (jlm formula)
           read(10) ! tscrn3hr
         endif
 
-        call readvar(10,t,skip)
-        call readvar(10,u,skip)
-        call readvar(10,v,skip)
-        call readvar(10,qg,skip)
+        call readglobvar(10,t,skip)
+        call readglobvar(10,u,skip)
+        call readglobvar(10,v,skip)
+        call readglobvar(10,qg,skip)
         if ( mydiag .and. .not.skip ) then
           print *,'t in ',t(idjd,:)
           print *,'u in ',u(idjd,:)
@@ -405,7 +307,7 @@ c         when no snowd available initially, e.g. COMPARE III (jlm formula)
             if(ntrac.eq.ntrac2)then
               if(ncalled.lt.4.and.myid==0)
      &              print *,'read tr for ntr= ',ntr
-              call readvar(10,tr(:,:,ntr),skip) ! ((tr(iq,k,ntr),iq=1,ilt*jlt),k=1,klt)
+              call readglobvar(10,tr(:,:,ntr),skip) ! ((tr(iq,k,ntr),iq=1,ilt*jlt),k=1,klt)
             else
               if(ncalled.lt.4.and.myid==0) 
      &              print *,'dummy read tr for ntr= ',ntr
