@@ -48,8 +48,10 @@
       include 'srccom.h'
       include 'swocom.h'
       include 'tfcom.h'
-      common/work3c/rhg(ifull,kl) ! N.B. common/work3/ used in cloud,radrive
+      common/work3c/rhg(ifull,kl) ! N.B. common/work3c/ used in cloud,radrive
       common/work3d/rtt(ifull,kl) ! just to pass between radriv90 & globpe
+      common/work3b/cfrad(ifull,kl),dum3b(ifull,kl)    ! leoncld & radriv90
+      common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! ditto
 
       parameter(cong = cp/grav)
       parameter(csolar=1.96)
@@ -72,7 +74,7 @@ c     parameters for the aerosol calculation
 c     Following are for cloud2 routine
       common/nonlsav/cfrac(ifull,kl),           ! globpe,leoncld,radriv90
      &     t2(imax,kl),ql2(imax,kl),qf2(imax,kl),cf2(imax,kl),
-     &     qccon(imax,kl),cd2(imax,kl),p2(imax,kl),
+     &     qc2(imax,kl),cd2(imax,kl),p2(imax,kl),
      &     dp2(imax,kl),cll(imax),clm(imax),clh(imax)
      &     ,dum3f(2*ifull*kl-8*imax*kl-3*imax)
       logical land2(imax)
@@ -431,9 +433,13 @@ c       Stuff needed for cloud2 routine...
           do i=1,imax
             iq=i+(j-1)*il
             t2(i,k)=t(iq,k)
-            ql2(i,k)=qlg(iq,k)
-            qf2(i,k)=qfg(iq,k)
-            cf2(i,k)=cfrac(iq,k)
+c           ql2(i,k)=qlg(iq,k)
+c           qf2(i,k)=qfg(iq,k)
+c           cf2(i,k)=cfrac(iq,k)
+            ql2(i,k)=qlrad(iq,k)
+            qf2(i,k)=qfrad(iq,k)
+            cf2(i,k)=cfrad(iq,k)
+            qc2(i,k)=qccon(iq,k)
             if(land(iq))then
               cd2(i,k)=cdropl
             else
@@ -452,7 +458,8 @@ c  Clear sky calculation
 c       set up cloud for this time and latitude
         if(ldr.ne.0)then  !Call LDR cloud scheme
 c         write(24,*)coszro2
-          call cloud2(cldoff,1,t2,ql2,qf2,cf2,qccon,
+c         call cloud2(cldoff,1,t2,ql2,qf2,cf2,qccon,
+          call cloud2(cldoff,1,t2,ql2,qf2,cf2,qc2,
      &                cd2,land2,sigh,p2,dp2,coszro,      !Inputs
      &                cll,clm,clh)                       !Outputs
         else
