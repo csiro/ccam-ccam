@@ -70,11 +70,11 @@ c     parameters for the aerosol calculation
       save hlwsav, hswsav, sgamp
       
 c     Following are for cloud2 routine
-      common/work3f/cfrac(ifull,kl),           ! globpe,leoncld,radriv90
-     &              dum3f(2*ifull*kl)
-      real t2(imax,kl),ql2(imax,kl),qf2(imax,kl),cf2(imax,kl),
+      common/nonlsav/cfrac(ifull,kl),           ! globpe,leoncld,radriv90
+     &     t2(imax,kl),ql2(imax,kl),qf2(imax,kl),cf2(imax,kl),
      &     qccon(imax,kl),cd2(imax,kl),p2(imax,kl),
      &     dp2(imax,kl),cll(imax),clm(imax),clh(imax)
+     &     ,dum3f(2*ifull*kl-8*imax*kl-3*imax)
       logical land2(imax)
 
 !     From initfs
@@ -424,7 +424,7 @@ c     Calculate half level pressures and temperatures by linear interp
          temp2(i,lp1) = temp(i,lp1)
       end do ! i=1,imax
       
-      if(ifullw.eq.ifull)then  
+      if(ldr.ne.0)then  
 c       Stuff needed for cloud2 routine...    
         qccon(:,:)=0.
         do k=1,kl   
@@ -444,20 +444,20 @@ c       Stuff needed for cloud2 routine...
             dp2(i,k)=-0.01*ps(iq)*dsig(k) !dsig is -ve
           enddo
         enddo
-      endif  ! (ifullw.eq.ifull)
+      endif  ! (ldr.ne.0)
 
 c  Clear sky calculation
       if (clforflag) then
         cldoff=.true.
 c       set up cloud for this time and latitude
-        if(ifullw.eq.ifull)then  !Call LDR cloud scheme
+        if(ldr.ne.0)then  !Call LDR cloud scheme
 c         write(24,*)coszro2
           call cloud2(cldoff,1,t2,ql2,qf2,cf2,qccon,
      &                cd2,land2,sigh,p2,dp2,coszro,      !Inputs
      &                cll,clm,clh)                       !Outputs
         else
           call cloud(cldoff,sig,j) ! jlm
-        endif  ! (ifullw.eq.ifull)
+        endif  ! (ldr.ne.0)
         call swr99(fsw,hsw,sg,ufsw,dfsw,press,press2,coszro,
      &             taudar,rh2o,rrco2,ssolar,qo3,nclds,
      &             ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt)
@@ -474,7 +474,7 @@ c         write(24,*)coszro2
 
 c     Cloudy sky calculation
       cldoff=.false.
-      if(ifullw.eq.ifull)then  !Call LDR cloud scheme
+      if(ldr.ne.0)then  !Call LDR cloud scheme
 c       write(24,*)
 c       write(24,*)coszro2
         call cloud2(cldoff,1,t2,ql2,qf2,cf2,qccon,
@@ -488,7 +488,7 @@ c       write(24,*)coszro2
         enddo
       else
         call cloud(cldoff,sig,j) ! jlm
-      endif  ! (ifullw.eq.ifull)
+      endif  ! (ldr.ne.0)
       call swr99(fsw,hsw,sg,ufsw,dfsw,press,press2,coszro,
      &           taudar,rh2o,rrco2,ssolar,qo3,nclds,
      &           ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt)
