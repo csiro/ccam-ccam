@@ -480,8 +480,9 @@ c Factor 0.5 here accounts for leapfrog scheme
 
       do mg=1,ln2
         precs(mg)=precs(mg)+0.5*(fluxr(mg,1)+fluxi(mg,1))
-c preci() may already have contribution from ukconv
-        preci(mg)=preci(mg)+0.5*fluxi(mg,1)
+c In Mk3 preci() may already have contribution from ukconv, but not here
+c        preci(mg)=preci(mg)+0.5*fluxi(mg,1)
+        preci(mg)=0.5*fluxi(mg,1)
       enddo
 
 c Remove small amounts of cloud
