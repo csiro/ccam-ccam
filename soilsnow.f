@@ -2,6 +2,7 @@
 c    This batch of code has only the vector version soilsnowv
 c************************* soilsnowv follows  ****some to be vectorized*****
       subroutine soilsnowv
+      use diag_m
       parameter (ntest=0)   ! 3: forces 3-layer snow, 1: for snow diag prints
 !        for snow diag prints set ntest to 1 throughout
 !        or, usefully can edit 'ntest.gt.0' to 'ktau.gt.nnn'
@@ -22,12 +23,12 @@ c----------------------------------------------------------------------
 c     include 'arrays.h'    ! t
       include 'const_phys.h'  ! cp
       include 'parm.h'      ! ktau,dt
+      include 'permsurf.h'
       include 'soilsnow.h'
       include 'soilv.h'
       include 'nsibd.h'     ! soilm
       include 'morepbl.h'   ! need runoff
 
-      common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
 c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
       common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
      . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
@@ -310,6 +311,7 @@ c***********************************************************************
       include 'arrays.h'
       include 'const_phys.h'  ! cp
       include 'parm.h'      ! ktau,dt
+      include 'permsurf.h'
       include 'sigs.h'
       include 'soil.h'      ! land,sice,sicedep,alb
       include 'soilsnow.h'
@@ -317,7 +319,6 @@ c***********************************************************************
       include 'morepbl.h'        ! need runoff
       include 'nsibd.h'
 
-      common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
 c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
       common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
      . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
@@ -548,6 +549,7 @@ c***********************************************************************
       include 'nlin.h'
       include 'nsibd.h'
       include 'parm.h'      ! ktau,dt
+      include 'permsurf.h'
       include 'soilsnow.h'
       include 'soilv.h'
       real at(ifull,kl),ct(ifull,kl)   ! assume kl .ge. ms+3
@@ -560,7 +562,6 @@ c     dt   - time step
 c     isoil - soil type
 c     ism    - 0 if all soil layers frozen, otherwise set to 1
 c
-      common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
 
       dimension wbh(ms+1),z1(ms+1),z2(ms+1),z3(ms+1)
 c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
@@ -964,6 +965,7 @@ c***********************************************************************
       include 'newmpar.h'
       include 'nlin.h'
       include 'parm.h'      ! ktau,dt
+      include 'permsurf.h'
       include 'soilsnow.h'
       include 'soilv.h'
       include 'nsibd.h'
@@ -976,7 +978,6 @@ c     ga - heat flux from the atmosphere (ground heat flux)
 c     ccnsw - soil conductivity
 c     dt  - time step 
 
-      common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
       common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
      . ,wetfac(ifull),degdw(ifull),cie(ifull)
      . ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)
@@ -1216,6 +1217,7 @@ c***********************************************************************
       subroutine snowprv(iq)    ! N.B. this one is not vectorized
 
       include 'newmpar.h'   
+      include 'const_phys.h'
       include 'parm.h'      ! ktau,dt
       include 'soilsnow.h'
       include 'soilv.h'
@@ -1224,7 +1226,6 @@ c***********************************************************************
       common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
      .              dum3b(ijk*2-2*ifull*ms-3*ifull)
       dimension  etac(3)
-      data tfrz/273.1/
 
       if( isflag(iq).eq.0) then
           tggsn(iq,1) = tgg(iq,1)
