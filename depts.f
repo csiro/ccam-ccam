@@ -1,3 +1,98 @@
+      subroutine depts1(x3d,y3d,z3d)  ! input ubar,vbar are unstaggered vels for level k
+!     3D version
+      implicit none
+c     modify toij5 for Cray
+      integer, parameter :: ntest=0
+      include 'newmpar.h'
+      include 'constant.h'   ! rearth
+      include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
+      include 'map.h'
+      include 'parm.h'
+      include 'vecsuv.h'   ! vecsuv info
+      include 'xyzinfo.h'  ! x,y,z,wts
+      real ubar, vbar
+      common/uvbar/ubar(ifull,kl),vbar(ifull,kl)
+      integer nface
+      real xg, yg
+      common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
+!     Work common for these?
+      real uc(ifull,kl),vc(ifull,kl),wc(ifull,kl), temp(ifull)
+      real x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)   ! upglobal depts 
+      integer iq, k, intsch
+
+      do k=1,kl
+         do iq=1,ifull
+c           departure point x, y, z is called x3d, y3d, z3d
+c           first find corresponding cartesian vels
+            uc(iq,k)=(ax(iq)*ubar(iq,k) + bx(iq)*vbar(iq,k))*dt/rearth ! unit sphere 
+            vc(iq,k)=(ay(iq)*ubar(iq,k) + by(iq)*vbar(iq,k))*dt/rearth ! unit sphere 
+            wc(iq,k)=(az(iq)*ubar(iq,k) + bz(iq)*vbar(iq,k))*dt/rearth ! unit sphere 
+            x3d(iq,k)=x(iq)-uc(iq,k) ! 1st guess
+            y3d(iq,k)=y(iq)-vc(iq,k)
+            z3d(iq,k)=z(iq)-wc(iq,k)
+         enddo                  ! iq loop
+      end do
+
+c     convert to grid point numbering
+      do k=1,kl
+         call toij5 (k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
+      end do
+
+      if(ntest.eq.1)then
+        print *,'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
+        print *,'uc,vc,wc ',uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
+        print *,'1st guess for k = ',nlv
+        print *,'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
+        print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
+      endif
+
+      do k=1,kl
+!        ints will be multilevel soon
+         intsch=mod(ktau,2)
+         temp = uc(:,k)
+         call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
+         x3d(:,k) = x - 0.5*(uc(:,k)+temp)     ! 2nd guess
+         temp = vc(:,k)
+         call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
+         y3d(:,k) = y - 0.5*(vc(:,k)+temp)     ! 2nd guess
+         temp = wc(:,k)
+         call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
+         z3d(:,k) = z - 0.5*(wc(:,k)+temp)     ! 2nd guess
+      end do
+      
+      do k=1,kl
+         call toij5 (k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
+      end do
+      if(ntest.eq.1)then
+        print *,'2nd guess for k = ',nlv
+        print *,'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
+        print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
+      endif
+
+      do k=1,kl
+         temp = uc(:,k)
+         call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
+         x3d(:,k) = x - 0.5*(uc(:,k)+temp)     ! 3rd guess
+         temp = vc(:,k)
+         call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
+         y3d(:,k) = y - 0.5*(vc(:,k)+temp)     ! 3rd guess
+         temp = wc(:,k)
+         call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
+         z3d(:,k) = z - 0.5*(wc(:,k)+temp)     ! 3rd guess
+      end do
+
+      do k=1,kl
+         call toij5 (k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
+      end do
+      if(ntest.eq.1)then
+        print *,'3rd guess for k = ',nlv
+        print *,'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
+        print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
+      endif
+
+      return
+      end
+
       subroutine depts(x3d,y3d,z3d)   ! input ubar,vbar are unstaggered vels for level k
 !     3D version
 c     modify toij5 for Cray
