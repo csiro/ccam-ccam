@@ -19,8 +19,8 @@
       include 'soil.h'      ! sice,sicedep,tice, fracice alb
       include 'soilsnow.h' ! new soil arrays for scam - tgg too
       include 'mpif.h'
-      real, dimension(ifull_g) ::  ssta_g, sstb_g, aice_g, bice_g
-      real, dimension(ifull) :: ssta, sstb, aice, bice
+      real, save, dimension(ifull_g) ::  ssta_g, sstb_g, aice_g, bice_g
+      real, save, dimension(ifull) :: ssta, sstb, aice, bice
       real fracice_in, dum2b
       common/work2b/fracice_in(ifull),dum2b(ifull,2)
       character*22 header
@@ -29,7 +29,7 @@
       logical update
       integer iyr, imo, iday, iyr_m, imo_m, imonth, iyear, idjd_g,
      &        iyr_p, imo_p, ierr, iq
-      save ssta,sstb,aice,bice,iyr,imo,iday,iyr_m,imo_m
+      save iyr,imo,iday,iyr_m,imo_m
       real rat1, rat2
 
       idjd_g = id + (jd-1)*il_g
