@@ -557,9 +557,11 @@ c     set up cc geometry
       sint_ave(:) = 0.  ! solar_in_top
       sot_ave(:)  = 0.  ! solar_out_top
       soc_ave(:)  = 0.  ! solar_out_top (clear sky)
+      sgdn_ave(:) = 0.  ! solar_ground (down-welling) +ve down
       sgn_ave(:)  = 0.  ! solar_ground (net) +ve down
       rtu_ave(:)  = 0.  ! LW_out_top 
       rtc_ave(:)  = 0.  ! LW_out_top (clear sky)
+      rgdn_ave(:) = 0.  ! LW_ground (down-welling)  +ve up
       rgn_ave(:)  = 0.  ! LW_ground (net)  +ve up
       rgc_ave(:)  = 0.  ! LW_ground (clear sky)
       cld_ave(:)  = 0.
@@ -1276,9 +1278,11 @@ c         enddo
         sint_ave(:) = sint_ave(:)/max(koundiag,1)
         sot_ave(:)  =  sot_ave(:)/max(koundiag,1)
         soc_ave(:)  =  soc_ave(:)/max(koundiag,1)
+        sgdn_ave(:) =  sgdn_ave(:)/max(koundiag,1)
         sgn_ave(:)  =  sgn_ave(:)/min(ntau,nperday)  ! because of solar fit
         rtu_ave(:)  =  rtu_ave(:)/max(koundiag,1)
         rtc_ave(:)  =  rtc_ave(:)/max(koundiag,1)
+        rgdn_ave(:) =  rgdn_ave(:)/max(koundiag,1)
         rgn_ave(:)  =  rgn_ave(:)/max(koundiag,1)
         rgc_ave(:)  =  rgc_ave(:)/max(koundiag,1)
         cld_ave(:)  =  cld_ave(:)/max(koundiag,1)
@@ -1363,9 +1367,11 @@ c         enddo
         sint_ave(:) = 0.
         sot_ave(:)  = 0.
         soc_ave(:)  = 0.
+        sgdn_ave(:) = 0.
         sgn_ave(:)  = 0.
         rtu_ave(:)  = 0.
         rtc_ave(:)  = 0.
+        rgdn_ave(:) = 0.
         rgn_ave(:)  = 0.
         rgc_ave(:)  = 0.
         cld_ave(:)  = 0.

@@ -68,6 +68,7 @@ c     parameters for the aerosol calculation
       real sg(imax), sgclr(imax), sint(imax), sout(imax), soutclr(imax)
       real rg(imax), rgclr(imax), rt(imax), rtclr(imax)
       real sga(imax),sgamp(ifull)
+      real sgdn(imax), rgdn(imax)
       real hlwsav(ifull,kl),hswsav(ifull,kl)
       save hlwsav, hswsav, sgamp
       
@@ -509,6 +510,7 @@ c       write(24,*)coszro2
           sint(i) = dfsw(i,1)*h1m3   ! solar in top
           sout(i) = ufsw(i,1)*h1m3   ! solar out top
           sg(i)   = sg(i)*h1m3       ! solar absorbed at the surface
+          sgdn(i) = sg(i) / ( 1 - cuvrf(i,1) )
       end do
       if(ntest.gt.0.and.j.eq.jdrad)then
         print *,'idrad,j,sint,sout,soutclr,sg,cuvrf1 ',
@@ -529,6 +531,8 @@ c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
          rtclr(i) = ( gxctsclr(i)+flx1e1clr(i) ) * h1m3 ! clr sky lw at top
          rg(i) = grnflx(i)*h1m3                         ! longwave at surface
          rgclr(i) = grnflxclr(i)*h1m3         ! clear sky longwave at surface
+         ! rg is net upwards = sigma T^4 - Rdown
+         rgdn(i) = stefbo*temp(i,lp1)**4 - rg(i)
       end do
 
       do k=1,kl
@@ -599,6 +603,8 @@ c     cloud amounts for saving
          rtc_ave(iq)  = rtc_ave(iq)  + rtclr(i)
          rgn_ave(iq)  = rgn_ave(iq)  + rg(i)
          rgc_ave(iq)  = rgc_ave(iq)  + rgclr(i)
+         rgdn_ave(iq) = rgdn_ave(iq) + rgdn(i)
+         sgdn_ave(iq) = sgdn_ave(iq) + sgdn(i)
          cld_ave(iq)  = cld_ave(iq)  + cloudtot(iq)
          cll_ave(iq)  = cll_ave(iq)  + cloudlo(iq)
          clm_ave(iq)  = clm_ave(iq)  + cloudmi(iq)
@@ -618,7 +624,7 @@ c     cloud amounts for saving
 	   iq=i+(j-1)*il
           sg(i) = sgsave(iq)
          end do
-      end if
+      end if  ! (solarfit) .. else ..
       do i=1,imax
 	  iq=i+(j-1)*il
          sgn_ave(iq)  = sgn_ave(iq)  + sg(i)

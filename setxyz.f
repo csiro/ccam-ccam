@@ -741,21 +741,21 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
         print *,'At centre of the faces:'
         do n=0,npanels
          iq=ind((il+1)/2,(il+1)/2,n)
-         print '('' n,iq,x,y,z,long,lat,f ''i3,i5,3f7.3,2f8.2,f9.5)',n,
+         print '('' n,iq,x,y,z,long,lat,f '',i3,i5,3f7.3,2f8.2,f9.5)',n,
      .     iq,x(iq),y(iq),z(iq),
      .     rlongg(iq)*180./pi,rlatt(iq)*180./pi,f(iq)
         enddo
         print *,'At mid-x along edges:'
         do n=0,npanels
          iq=ind((il+1)/2,1,n)
-         print '('' n,iq,x,y,z,long,lat,f ''i3,i5,3f7.3,2f8.2,f9.5)',n,
+         print '('' n,iq,x,y,z,long,lat,f '',i3,i5,3f7.3,2f8.2,f9.5)',n,
      .     iq,x(iq),y(iq),z(iq),
      .     rlongg(iq)*180./pi,rlatt(iq)*180./pi,f(iq)
         enddo
         print *,'At mid-y along edges:'
         do n=0,npanels
          iq=ind(1,(il+1)/2,n)
-         print '('' n,iq,x,y,z,long,lat,f ''i3,i5,3f7.3,2f8.2,f9.5)',n,
+         print '('' n,iq,x,y,z,long,lat,f '',i3,i5,3f7.3,2f8.2,f9.5)',n,
      .     iq,x(iq),y(iq),z(iq),
      .     rlongg(iq)*180./pi,rlatt(iq)*180./pi,f(iq)
         enddo

@@ -529,6 +529,8 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
           call attrib(idnc,idim2,3,'rtu_ave',lname,'W/m2',0.,800.)
           lname = 'Clear sky LW at TOA'
           call attrib(idnc,idim2,3,'rtc_ave',lname,'W/m2',0.,800.)
+          lname = 'LW downwelling at ground'
+          call attrib(idnc,idim2,3,'rgdn_ave',lname,'W/m2',-500.,1000.)
           lname = 'LW down at ground'
           call attrib(idnc,idim2,3,'rgn_ave',lname,'W/m2',-500.,1000.)
           lname = 'Clear sky LW at ground'
@@ -539,6 +541,8 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
           call attrib(idnc,idim2,3,'sot_ave',lname,'W/m2',0.,1000.)
           lname = 'Clear sky SW out at TOA'
           call attrib(idnc,idim2,3,'soc_ave',lname,'W/m2',0.,900.)
+          lname = 'Solar downwelling at ground'
+          call attrib(idnc,idim2,3,'sgdn_ave',lname,'W/m2',-500.,2000.)
           lname = 'Solar down at ground'
           call attrib(idnc,idim2,3,'sgn_ave',lname,'W/m2',-500.,2000.)
           lname = 'Surface pressure tendency'
@@ -926,13 +930,15 @@ c      "extra" outputs
 	 if(mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)then
            call histwrt3(rtu_ave,'rtu_ave',idnc,iarch,local)
            call histwrt3(rtc_ave,'rtc_ave',idnc,iarch,local)
+           call histwrt3(rgdn_ave,'rgdn_ave',idnc,iarch,local)
            call histwrt3(rgn_ave,'rgn_ave',idnc,iarch,local)
            call histwrt3(rgc_ave,'rgc_ave',idnc,iarch,local)
            call histwrt3(sint_ave,'sint_ave',idnc,iarch,local)
            call histwrt3(sot_ave,'sot_ave',idnc,iarch,local)
            call histwrt3(soc_ave,'soc_ave',idnc,iarch,local)
+           call histwrt3(sgdn_ave,'sgdn_ave',idnc,iarch,local)
            call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local)
- 	 endif   ! (mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)
+	 endif   ! (mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)
          call histwrt3(dpsdt,'dpsdt',idnc,iarch,local)
          call histwrt3(pblh,'pblh',idnc,iarch,local)
          call histwrt3(ustar,'ustar',idnc,iarch,local)

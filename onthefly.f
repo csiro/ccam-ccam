@@ -4,6 +4,7 @@
      .   tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,nested)
 !     Target points use values interpolated to their 4 grid "corners";
 !     these corner values are then averaged to the grid centres
+!     N.B. this means will get different fields with io_in=-1 from io_in=1
 !     Called by either indata or nestin
 !     nested=0  for calls from indata; 1  for calls from nestin     
 
@@ -77,7 +78,7 @@
 
 c     start of processing loop 
       nemi=2   !  assume source land-mask based on tss sign first
-      if(ktau.lt.3)print *,'search for kdate_s,ktime_s >= ',
+      if(ktau.lt.3.and.myid==0)print *,'search for kdate_s,ktime_s >= ',
      &                                 kdate_s,ktime_s
       id_t=id
       jd_t=jd
@@ -117,7 +118,7 @@ c     start of processing loop
             print *,'io_in2,kdate_r,ktime_r,ktau,ds',
      &               io_in2,kdate_r,ktime_r,ktau,ds
             print *,'ds,ds_t ',ds,ds_t
-            print *,'a zss(idjd1) ',zss(idjd1)
+            if ( nproc == 1 ) print *,'a zss(idjd1) ',zss(idjd1)
             print *,'rotpoles:'
             do i=1,3
                print 9,(i,j,j=1,3),(rotpoles(i,j),j=1,3)
@@ -177,8 +178,11 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
          schmidt=schmidtx
          if(nmaxpr.eq.1)then
             print *,'before latltoij for id,jd: ',id,jd
-            print *,'rlong4(1-4) ',(rlong4(idjd,m),m=1,4)
-            print *,'rlat4(1-4) ',(rlat4(idjd,m),m=1,4)
+            if ( nproc == 1 ) then
+               ! Diagnostics will only be correct if nproc==1
+               print *,'rlong4(1-4) ',(rlong4(idjd,m),m=1,4)
+               print *,'rlat4(1-4) ',(rlat4(idjd,m),m=1,4)
+            end if
             print *,'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,schmidtx 
          endif                  ! (nmaxpr.eq.1)
          do m=1,4
@@ -187,7 +191,8 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
      &                       xg4(iq,m),yg4(iq,m),nface4(iq,m))
             enddo
          enddo
-         if(myid==0 .and. nmaxpr.eq.1)then
+         if(nproc == 1 .and. nmaxpr.eq.1)then
+           ! Diagnostics will only be correct if nproc==1
            id2=nint(xg4(idjd,1))
            jd2=il*nface4(idjd,1)+nint(yg4(idjd,1))
            idjd2=id2+il*(jd2-1)
@@ -229,7 +234,7 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
                wcc(iq)=uc(iq)*rotpoles(3,1)+vc(iq)*rotpoles(3,2)
      &                                +wc(iq)*rotpoles(3,3)
             enddo               ! iq loop
-            if(ktau.lt.3.and.k.eq.1)then
+            if(ktau.lt.3.and.k.eq.1.and.nproc==1)then
                print *,'uc,vc,wc: ',uc(id),vc(idjd1),wc(idjd1)
                print *,'ucc,vcc,wcc: ',ucc(idjd1),vcc(idjd1),wcc(idjd1)
                print *,'calling ints4 for k= ',k
@@ -268,7 +273,7 @@ c      endif
                v_g(iq) = bx_g(iq)*uct(iq) + by_g(iq)*vct(iq) +
      &                   bz_g(iq)*wct(iq)
             enddo               ! iq loop
-            if(ktau.lt.3.and.k.eq.1)then
+            if(ktau.lt.3.and.k.eq.1.and.nproc==1)then
                ! This only works if idjd is on processor 0
                print *,'interp. ucc,vcc,wcc: ',ucc(idjd),vcc(idjd),
      &                  wcc(idjd)
@@ -335,7 +340,7 @@ c      endif
          endif                  ! (tss(iq).gt.0) .. else ..
       enddo
       
-      if(myid==0 .and. nmaxpr.eq.1)then
+      if(nproc==1 .and. nmaxpr.eq.1)then
         print *,'before fill tss ',tss(idjd2)
         print *,'before fill tss_l, tss_s ',tss_l(idjd2),tss_s(idjd2)
         print *,'before fill/ints4 sicedep ',sicedep(idjd2)
@@ -351,7 +356,7 @@ c      endif
         call fill_cc(tgg(1,k),spval)
         call fill_cc(wb(1,k),spval)
       enddo
-      if(myid==0 .and.nmaxpr.eq.1)then
+      if(nproc==1 .and.nmaxpr.eq.1)then
         print *,'after fill tss_l, tss_s ',tss_l(idjd2),tss_s(idjd2)
         print *,'after fill sicedep ',sicedep(idjd2)
         print *,'after fill wb'
@@ -382,7 +387,7 @@ c     call doints4(precip,   nface4,xg4,yg4,nord)
        call doints4(tgg(1,k),nface4,xg4,yg4,nord)
        call doints4(wb(1,k) ,nface4,xg4,yg4,nord)
       enddo
-      if(myid==0 .and. nmaxpr.eq.1)then
+      if(nproc==1 .and. nmaxpr.eq.1)then
          print *,'after ints4 idjd,zss(idjd) ',idjd,zss(idjd)
 	 print *,'after ints4 psl,pmsl ',psl(idjd),pmsl(idjd)
          print *,'after ints4 wb_t'
@@ -394,7 +399,7 @@ c     call ints4(precc,    nface4,xg4,yg4,nord)
       if(nqg.ge.6)then
         call doints4(snowd,  nface4,xg4,yg4,nord)
         call doints4(sicedep,nface4,xg4,yg4,nord)
-        print *,'after ints4 sicedep ',sicedep(idjd)
+        if ( nproc==1 ) print *,'after ints4 sicedep ',sicedep(idjd)
 c       call ints4(cloudlo,nface4,xg4,yg4,nord)
 c       call ints4(cloudmi,nface4,xg4,yg4,nord)
 c       call ints4(cloudhi,nface4,xg4,yg4,nord)
@@ -417,7 +422,7 @@ c     incorporate target land mask effects, e.g. into surface temperature
 !           zs(iq)=-.1   ! dont do this
          endif
       enddo                     ! iq loop
-      if(myid==0 .and. nmaxpr.eq.1)then
+      if(nproc==1 .and. nmaxpr.eq.1)then
          print *,'after ints tss_l, tss_s ',tss_l(idjd),tss_s(idjd)
          print *,'after ints tss',tss(idjd)
       endif  ! (nmaxpr.eq.1)
@@ -728,4 +733,3 @@ c     routine fills in interior of an array which has undefined points
       a_io(:) = a(1:ifull)
       return
       end
-

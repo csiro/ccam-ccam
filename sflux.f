@@ -34,7 +34,7 @@ c     cp specific heat at constant pressure joule/kgm/deg
       include 'parm.h'
       include 'pbl.h'
       include 'permsurf.h'
-      include 'prec.h'
+      include 'prec.h'     ! evap
       include 'savuvt.h'
       include 'scamdim.h'  ! dimension of patches
       include 'screen.h'   ! tscrn,qgscrn,uscrn,scrrel,u10
@@ -642,10 +642,8 @@ c ----------------------------------------------------------------------
 
 c ----------------------------------------------------------------------
 
-c    end of all land options
-c     do iq=1,ifull
-c      evap(iq)=evap(iq)+dt*eg(iq)/hl
-c     enddo
+c     end of calls to sib1,2,3
+      evap(:)=evap(:)+dt*eg(:)/hl ! time integrated value in mm (wrong for snow)
 
       if(diag.or.ntest.gt.0)then
         if (mydiag) print *,'before call scrnout'

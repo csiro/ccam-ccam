@@ -70,7 +70,7 @@
       
       call start_log(nonlin_begin)
 
-      if(epsp.lt.-1.)then
+      if(epsp<-1.)then
 !        e.g. -20. gives epst=.2 for sdmax=1.
         do iq=1,ifull
          sdmax=0.
@@ -88,8 +88,8 @@
         qlgsav(1:ifull,:)=qlg(1:ifull,:)
       endif   ! (ldr.ne.0)
 
-      if(ngas.ge.1)then
-        if(mfix_rad.gt.0.and.mspec.eq.1)then ! make gases 2 to ng add up to g1
+      if(ngas>=1)then
+        if(mfix_rad>0.and.mspec==1)then ! make gases 2 to ng add up to g1
          do k=1,kl              ! here it is just from effects of physics
 	   do iq=1,ifull
           sumdiffb=0.
@@ -106,7 +106,7 @@
            enddo   ! ng loop
           enddo    ! iq loop
          enddo     ! k  loop
-        endif      ! (mfix_rad.gt.0)
+        endif      ! (mfix_rad>0)
         do ng=1,ngas   ! re-set trsav prior to vadv, hadv, hordif
          do k=1,kl               
 	   do iq=1,ifull
@@ -114,13 +114,13 @@
           enddo   ! iq loop
          enddo    ! k  loop
         enddo     ! ng loop
-      endif       ! (ngas.ge.1)
+      endif       ! (ngas>=1)
 
       if(nuvfilt.ne.0)then
         uin(1:ifull,:) = u(1:ifull,:)
         vin(1:ifull,:) = v(1:ifull,:)
         call boundsuv(uin,vin,nrows=2)
-	 if(nuvfilt.eq.1)then
+	 if(nuvfilt==1)then
          do k=1,kl
 !cdir nodep
          do iq=1,ifull  
@@ -166,8 +166,8 @@
 	   endif
 	  enddo
 	 enddo   ! k  loop
-	 endif   ! (nuvfilt.eq.1)then
-	 if(nuvfilt.gt.1)then
+	 endif   ! (nuvfilt==1)then
+	 if(nuvfilt>1)then
          do k=nuvfilt,kl  ! e.g. 5
 !cdir nodep
          do iq=1,ifull  
@@ -177,11 +177,12 @@
      &          +4.*vin(inv(iq),k)-vin(innv(iq),k))/16.
 	  enddo  ! iq loop
 	 enddo   ! k  loop
-	 endif   ! (nuvfilt.gt.1)then
-      endif     ! (nuvfilt.gt.0)
+	 endif   ! (nuvfilt>1)then
+      endif     ! (nuvfilt>0)
 
       ! Diagnostics and neigh calculation below require this.
-      call bounds(ps)
+      if(diag.or.nphip>0)call bounds(ps)
+      if(nud_p>0)call bounds(psl)    ! only needed with nudging of psl
 
       if(diag)then
          if ( mydiag ) then
@@ -215,7 +216,7 @@
          end if
       endif
 
-      if( (diag.or.nmaxpr.eq.1) .and. mydiag )then
+      if( (diag.or.nmaxpr==1) .and. mydiag )then
         print *,'in nonlin before possible vertical advection'
         write (6,"('divn ',9f8.2/4x,9f8.2)") (d(idjd,kk)*1.e6,kk=1,kl)
         write (6,"('sdotn',9f8.3/5x,9f8.3)") (sdot(idjd,kk),kk=1,kl)
@@ -228,22 +229,22 @@
       endif
 
 !     do vertical advection in split mode
-      if(nvad.eq.4.or.nvad.eq.9)then
+      if(nvad==4.or.nvad==9)then
          sdmx = maxval(abs(sdot))
          call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX,
      &                      MPI_COMM_WORLD, ierr )
 	 nits=1+sdmx_g/nvadh
 	 nvadh_pass=nvadh*nits
-	 if(mydiag.and.mod(ktau,nmaxpr).eq.0)
+	 if(mydiag.and.mod(ktau,nmaxpr)==0)
      &      print *,'in nonlin sdmx,nits,nvadh_pass ',
      &                         sdmx_g,nits,nvadh_pass
          do its=1,nits
             call vadvtvd(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
      &                   nvadh_pass) 
 	 enddo
-      endif  ! (nvad.eq.4.or.nvad.eq.9)
+      endif  ! (nvad==4.or.nvad==9)
 
-      if(nvad.ge.7)then
+      if(nvad>=7)then
          call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:))  ! for vadvbess
       end if
 
@@ -252,7 +253,7 @@ cx!       N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
 cx        pslx(1:ifull,k)=psl(1:ifull)-pslx(1:ifull,k)*dt*.5*(1.-epst(:)) !ca
 cx      enddo      ! k  loop
 
-      if(nvad.gt.0.and.(diag.or.nmaxpr.eq.1).and.mydiag)then
+      if(nvad>0.and.(diag.or.nmaxpr==1).and.mydiag)then
        print *,'in nonlin after vertical advection'
        write (6,"('t   ',9f8.2/4x,9f8.2)") (t(idjd,kk),kk=1,kl)
        write (6,"('thet',9f8.2/4x,9f8.2)")  
@@ -277,11 +278,11 @@ cx      enddo      ! k  loop
        write (6,"('omgf#',9f8.3)") ((ps(ii+(jj-1)*il)*
      .             omgf(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
         print *,'pslx ',(pslx(idjd,k),k=1,kl)
-      endif  ! (nvad.gt.0.and.(diag.or.nmaxpr.eq.1))
+      endif  ! (nvad>0.and.(diag.or.nmaxpr==1))
       if(diag)then
          if ( mydiag ) write (6,"('qg ',12f7.3/(8x,12f7.3))") 
      &             (1000.*qg(idjd,k),k=1,kl)
-         if(sig(nlv).lt..3)then
+         if(sig(nlv)<.3)then
             call printa('qg  ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e6)
          else
             call printa('qg  ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e3)
@@ -293,7 +294,7 @@ cx      enddo      ! k  loop
          end if
       endif
 
-      if ( nhstest.eq.1 ) then ! Held and Suarez test case
+      if ( nhstest==1 ) then ! Held and Suarez test case
          call hs_phys
       endif
 
@@ -320,27 +321,27 @@ cx      enddo      ! k  loop
       tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:))*
      &                t(1:ifull,:)         ! just add-on at this stage 
       contv=(1.61-cpv/cp)/.61      ! about -.26/.61
-      if(ntbar.eq.-1.or.(ntbar.eq.-2.and.num.eq.0))then
+      if(ntbar==-1.or.(ntbar==-2.and.num==0))then
         do iq=1,ifull
          tbar2d(iq)=t(iq,1)+contv*tv(iq,1)
         enddo   ! iq loop
         num=1
-      endif     ! (ntbar.eq.-1.or....)
-      if(ntbar.eq.0)then
+      endif     ! (ntbar==-1.or....)
+      if(ntbar==0)then
         do iq=1,ifull
          tbar2d(iq)=tbar(1)
         enddo   ! iq loop
-      endif     ! (ntbar.eq.0)
-      if(ntbar.gt.0)then
+      endif     ! (ntbar==0)
+      if(ntbar>0)then
         do iq=1,ifull
          tbar2d(iq)=t(iq,ntbar)
         enddo   ! iq loop
-      endif     ! (ntbar.gt.0)
-      if(ntbar.eq.-3)then
+      endif     ! (ntbar>0)
+      if(ntbar==-3)then
         do iq=1,ifull
          tbar2d(iq)=max(t(iq,1),t(iq,2),t(iq,3),t(iq,kl))
         enddo   ! iq loop
-      endif     ! (ntbar.gt.0)
+      endif     ! (ntbar>0)
 cy      tx(1:ifull,:)=t(1:ifull,:)  ! cb
 
       do k=1,kl
@@ -364,7 +365,7 @@ cy        tx(iq,k)=tx(iq,k) +.5*dt*(1.-epst(iq))*termlin  ! cb
         print *,'termx ',(t(iq,k)+contv*tvv)*omgf(iq,k)*roncp/sig(k)
       endif
 
-      if(nwhite.eq.1)then
+      if(nwhite==1)then
         coslat=cos(rlat0*pi/180.)
         sinlat=sin(rlat0*pi/180.)
         polenx=-coslat
@@ -381,17 +382,17 @@ cy        tx(iq,k)=tx(iq,k) +.5*dt*(1.-epst(iq))*termlin  ! cb
          do k=1,kl
           uzon= costh*u(iq,k)-sinth*v(iq,k)
           tv(iq,k)=tv(iq,k)+t(iq,k)*uzon*factor
-c         if(iq.eq.idjd.and.k.eq.12)print *,'u,v,uzon,factor,prod ',
+c         if(iq==idjd.and.k==12)print *,'u,v,uzon,factor,prod ',
 c    .      u(iq,k),v(iq,k),uzon,factor,t(iq,k)*uzon*factor
          enddo      ! k  loop    
         enddo      ! iq loop
-      endif  ! (nwhite.eq.1)
+      endif  ! (nwhite==1)
 
       call bounds(tv)
 
 !     phip calculation section
-      if(nphip.gt.1)then
-       if(ktau.eq.1.and.mydiag)print *,
+      if(nphip>1)then
+       if(ktau==1.and.mydiag)print *,
      .  'phip calculation with nphip,ps,zs: ',nphip,ps(idjd),zs(idjd)
        delp=2.5e2  ! e.g. 2.5 hPa
 	do k=1,kl
@@ -411,20 +412,20 @@ c    .      u(iq,k),v(iq,k),uzon,factor,t(iq,k)*uzon*factor
 !	  choose temperature at level k-.5
  	  iqq=iq
 	  presst=1052.e2-(k-1.5)*delp  ! in Pa
-	  if(presst.gt.ps(iq))then
+	  if(presst>ps(iq))then
 	    iqq=neigh(iq)
 	  endif
-         if(meth.eq.0)then
+         if(meth==0)then
 	    sigt=max(sig(kl),min(sig(1),presst/ps(iqq)))
            do kk=2,kl
-            if(sigt.le.sig(kk-1))then
+            if(sigt<=sig(kk-1))then
               kx=kk-1
             endif
            enddo  ! kk loop
            tt=((sigt-sig(kx+1))*tv(iqq,kx)+
      .        (sig(kx)-sigt)*tv(iqq,kx+1))/(sig(kx)-sig(kx+1))
          endif
-         if(meth.eq.1)then
+         if(meth==1)then
 	    sigt=max(.00463,min(.99537,presst/ps(iqq)))
            sigxx=sigt*(1.-sigt)
 c          rk=kl+.5-kl*sigt - kl*sigxx*(.5-sigt)*(12.5+28.*sigxx)/
@@ -442,10 +443,10 @@ c	.       (sig(kx)-sigt)*tv(iqq,kx+1))/(sig(kx)-sig(kx+1))
          endif
 !        phip(iq,k)=phip(iq,k-1)+rdry*tt*delp/presst
 	  phip(iq,k)=phip(iq,k-1)-rdry*tt*dplog(k)
-c	  if(ntest.eq.1.and.iq.eq.idjd.and.k.gt.410)then
+c	  if(ntest==1.and.iq==idjd.and.k>410)then
 c	    press=presst-.5*delp
 c	    print *,iqq,k,kx,press,sigt,tt,phip(iq,k),-rdry*tt*dplog(k)
-c	  endif  ! (ntest.eq.1.and.iq.eq.idjd)
+c	  endif  ! (ntest==1.and.iq==idjd)
 	 enddo   ! k loop
        enddo    !  iq loop
        do iq=1,ifull
@@ -455,12 +456,12 @@ c	  endif  ! (ntest.eq.1.and.iq.eq.idjd)
 	 do k=1,nphip
 	  phip(iq,k)=phip(iq,k)+zs(iq)-zsint
 	 enddo  ! k loop	  
-c	 if(ntest.eq.1.and.iq.eq.idjd)then
+c	 if(ntest==1.and.iq==idjd)then
 c	   print *,'ktau,pp,kpp,zsint ',ktau,pp,kpp,zsint
 c	   do k=nphip-10,nphip
 c	    print *,k,phip(iq,k)
 c	   enddo  ! k loop	  
-c	 endif    ! (ntest.eq.1.and.iq.eq.idjd)
+c	 endif    ! (ntest==1.and.iq==idjd)
        enddo     !  iq loop
 
        ! Required by strict shape matching with APAC compiler.
@@ -486,9 +487,9 @@ c	  dphi_dx(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
 !	  next lines for log interp
 	  dphi_dx(iq,k)=((psavklog-plog(kpp))*dphip(iq,kpp+1)+
      . 	  (plog(kpp+1)-psavklog)*dphip(iq,kpp))/dplog(kpp+1)
-c	  if(ntest.eq.1.and.iq.eq.idjd)then
+c	  if(ntest==1.and.iq==idjd)then
 c	    print *,'k,psavk,pp,kpp ',k,psavk,pp,kpp
-c	  endif ! (ntest.eq.1.and.iq.eq.idjd)
+c	  endif ! (ntest==1.and.iq==idjd)
         enddo  ! k loop
        enddo   !  iq loop
 !      dphi_dy calculation
@@ -513,7 +514,7 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
      . 	  (plog(kpp+1)-psavklog)*dphip(iq,kpp))/dplog(kpp+1)
         enddo  ! k loop
        enddo   !  iq loop
-	if(ntest.eq.1.and.mydiag)then
+	if(ntest==1.and.mydiag)then
   	  iq=idjd
 	  print *,'ps,pse,psn ',ktau,ps(iq),ps(ie(iq)),ps(in(iq))
 	  print *,'psl,psle,psln ',psl(iq),psl(ie(iq)),psl(in(iq))
@@ -525,8 +526,8 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
 	   print *,'k,tv,tve,tvn ',
      .             k,tv(iq,k),tv(ie(iq),k),tv(in(iq),k)
 	  enddo
-	endif   ! (ntest.eq.1)
-      endif    ! (nphip.gt.1)
+	endif   ! (ntest==1)
+      endif    ! (nphip>1)
       	   
 !     only has code with npex=1 higher order grad expressions
 !     calculate "full-linear" geopotential height terms using tv and save in p
@@ -541,7 +542,7 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
 
 !        Get rid of these diagnostics because they would require extra
 !        bounds(p) call
-!!!      if(ntest.eq.1.and.nphip.gt.1.and.mydiag)then
+!!!      if(ntest==1.and.nphip>1.and.mydiag)then
 !!!       print *,ktau,'dphi_dx  & (approx.) usual way'
 !!!       do k=1,kl
 !!!        rtav=.5*rdry*(tv(idjd,k)+tv(ie(idjd),k))
@@ -556,7 +557,7 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
 !!!     .                dphi_dy(idjd,k),p(in(idjd),k)-p(idjd,k)
 !!!     .                +rtav*(psl(in(idjd))-psl(idjd))
 !!!       enddo    ! k  loop
-!!!      endif     ! (ntest.eq.1.and.nphip.gt.1)
+!!!      endif     ! (ntest==1.and.nphip>1)
 
       do k=1,kl
        do iq=1,ifull
@@ -576,12 +577,12 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
       enddo      ! k  loop
 !     save "full-linear" - "basic-linear" geopotential height in pextras
       pextras(:,:)=p(1:ifull,:)-tempry(:,:)
-      if(npgf.gt.0)then
+      if(npgf>0)then
 !       N.B. these pextras terms can bebundled in here with un, vn
 !       but their horiz derivs need to be staggered too
         pexx(1:ifull,:)=pextras(:,:)
 	 pextras(:,:)=0.
-	 if(npgf.eq.1)p(1:ifull,:)=tempry(:,:)
+	 if(npgf==1)p(1:ifull,:)=tempry(:,:)
         call bounds(pexx)
       endif
       call bounds(p)
@@ -605,14 +606,14 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
             dd(iq,k)=emv(iq)*(psl(in(iq))+psl(iq))*
      .                          (tv(in(iq),k)-tv(iq,k))*.5*rdry/ds
          enddo                  ! iq loop
-	  if(npgf.eq.1)then
+	  if(npgf==1)then
 !cdir nodep
            do iq=1,ifull  ! in following pexx is really pextras
             cc(iq,k)=cc(iq,k)-emu(iq)*(pexx(ie(iq),k)-pexx(iq,k))/ds
             dd(iq,k)=dd(iq,k)-emv(iq)*(pexx(in(iq),k)-pexx(iq,k))/ds
            enddo                  ! iq loop
-	  endif  ! (npgf.eq.1)
-	  if(npgf.eq.2)then
+	  endif  ! (npgf==1)
+	  if(npgf==2)then
 !cdir nodep
            do iq=1,ifull  ! in following pexx is really pextras
             cc(iq,k)=cc(iq,k)-.5*(1.+epsu)*emu(iq)*
@@ -620,10 +621,10 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
             dd(iq,k)=dd(iq,k)-.5*(1.+epsu)*emv(iq)*
      .                          (pexx(in(iq),k)-pexx(iq,k))/ds
            enddo                  ! iq loop
-	  endif  ! (npgf.eq.2)
+	  endif  ! (npgf==2)
 
 !cdir nodep
-         if(nphip.gt.1.and.k.le.1)then
+         if(nphip>1.and.k<=1)then
             do iq=1,ifull       ! calculate nphip contributions 
                cc(iq,k)=-emu(iq)*(dphi_dx(iq,k)
      .                     -p(ie(iq),k)+p(iq,k))/ds
@@ -635,13 +636,13 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
                print *,"phi's ",k,dphi_dx(iq,k),p(ie(iq),k)-p(iq,k),
      .                      dphi_dy(iq,k),p(in(iq),k)-p(iq,k)
             end if
-         endif                  ! (nphip.gt.1)
+         endif                  ! (nphip>1)
       end do ! k
       call unstaguv(aa,bb,aa2,bb2) ! convert to unstaggered positions
       call unstaguv(cc,dd,cc2,dd2)
       ux(1:ifull,:)=u(1:ifull,:)+aa2(1:ifull,:)
       vx(1:ifull,:)=v(1:ifull,:)+bb2(1:ifull,:)
-      if(nonl.lt.0)then
+      if(nonl<0)then
         ux(1:ifull,:)=ux(1:ifull,:)+dt*un(1:ifull,:) ! possible physics contrib
         vx(1:ifull,:)=vx(1:ifull,:)+dt*vn(1:ifull,:) ! possible physics contrib
         un(1:ifull,:)=0.
@@ -659,10 +660,10 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
         call printa('cc2 ',cc2,ktau,nlv,ia,ib,ja,jb,0.,dt)
         call printa('dd  ',dd,ktau,nlv,ia,ib,ja,jb,0.,dt)
         call printa('dd2 ',dd2,ktau,nlv,ia,ib,ja,jb,0.,dt)
-      endif                     ! (diag.and.k.eq.nlv)
+      endif                     ! (diag.and.k==nlv)
 
-      if(nonl.lt.0)then
-        if(ktau.gt.2)then
+      if(nonl<0)then
+        if(ktau>2)then
 	   aa(:,:)=tn(:,:)+.5*(tnsav(:,:)-tnsavv(:,:))
 	   bb(:,:)=un(:,:)+.5*(unsav(:,:)-unsavv(:,:))
 	   cc(:,:)=vn(:,:)+.5*(vnsav(:,:)-vnsavv(:,:))
@@ -686,13 +687,13 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
       endif
 !     finish evaluation of tx,ux,vx by adding in part of nonlinear terms
       cnon=.5    ! cnon=.5 shares tn,un,vn between here & upglobal/adjust
-      if(abs(nonl).eq.1.or.nonl.eq.11)cnon=1.   ! cnon=1. all done here
-      if(abs(nonl).eq.2)then
+      if(abs(nonl)==1.or.nonl==11)cnon=1.   ! cnon=1. all done here
+      if(abs(nonl)==2)then
         tn(:,:)=2.*tn(:,:)   ! all tn added in adjust
         un(:,:)=2.*un(:,:)   ! all un added in adjust
         vn(:,:)=2.*vn(:,:)   ! all vn added in adjust
-      elseif(nonl.eq.3)then   ! Adams-Bashforth style
-        if(ktau.eq.1)then
+      elseif(nonl==3)then   ! Adams-Bashforth style
+        if(ktau==1)then
           tnsav(:,:)=tn(:,:)
           unsav(:,:)=un(:,:)
           vnsav(:,:)=vn(:,:)
@@ -741,7 +742,7 @@ cy        tx(1:ifull,:) = tx(1:ifull,:) + cnon*dt*tn(1:ifull,:)  !cb
          call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
       endif
 
-      if(abs(nonl).eq.1.or.nonl.eq.11)then   ! option A
+      if(abs(nonl)==1.or.nonl==11)then   ! option A
         un(:,:)=0. 
         vn(:,:)=0.
         tn(:,:)=0.
