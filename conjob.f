@@ -766,7 +766,7 @@ c       reaching the next level (or the surface).
       endif      ! ilt.gt.1
 
 !     usual conformal-cubic (DARLAM option removed)
-        qg(:,:)=qq(:,:)
+        qg(1:ifull,:)=qq(:,:)
 c       print *,'B rnrt,rnrtc,condx ',
 c    .             rnrt(idjd),rnrtc(idjd),condx(idjd)
         do iq=1,ifull
@@ -777,7 +777,7 @@ c    .             rnrt(idjd),rnrtc(idjd),condx(idjd)
          condx(iq)=prcon+prl_s        ! total precip for this timestep
          precip(iq)=precip(iq)+prcon+prl_s
         enddo
-        t(:,:)=tt(:,:)           ! usually split from June '03
+        t(1:ifull,:)=tt(:,:)           ! usually split from June '03
 
       if(ntest.eq.1)then
         print *,'D rnrt,rnrtc,condx ',
