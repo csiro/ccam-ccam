@@ -1,4 +1,8 @@
+#ifdef scyld
+      subroutine globpe 
+#else
       Program globpe  
+#endif
 !      PE model on conformal-cubic grid - descended from darlam
 !      N.B. on a Cray, set ncray=1 in depts.f, latltoij
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -132,7 +136,7 @@
      & ,kwt,m,mex,nbd,ndi,ndi2,nem,nhor,nlv
      & ,nmaxpr,nmi,nmidiab,nonl,nrot,nps,nqg,nrad,nsd,ntsea
      & ,ntsur,nvad,nvadh,nvmix,nxmap,itr1,jtr1,itr2,jtr2,id,jd
-     & ,restol,kdate_s,ktime_s,newtop,idcld,mup
+     & ,restol,precon,kdate_s,ktime_s,newtop,idcld,mup
      & ,lgwd,ngwd,kscreen,rhsat,sigcb
      & ,nextout,hdifmax,jalbfix
      & ,nalpha,nqg_set
@@ -177,14 +181,16 @@
       ! Check that declarations in include files match
       call check_dims()
 
-      call mpi_init(ierr)       ! Start
-      call mpi_comm_size(MPI_COMM_WORLD, nproc_in, ierr) ! Find # of processes
+#ifndef scyld
+      call MPI_Init(ierr)       ! Start
+#endif
+      call MPI_Comm_size(MPI_COMM_WORLD, nproc_in, ierr) ! Find # of processes
       if ( nproc_in /= nproc ) then
          print*, "Error, model is compiled for ", nproc, " processors."
          print*, "Trying to run with", nproc_in
          call MPI_Abort(MPI_COMM_WORLD)
       end if
-      call mpi_comm_rank(MPI_COMM_WORLD, myid, ierr) ! Find my id
+      call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr) ! Find my id
 
 
       call log_off()
@@ -209,7 +215,7 @@
       ! All processors read the namelist, standard input doesn't work properly
       open(unit=99,file="input",form="formatted",status="old")
       if(myid==0)
-     &     print *,'Globpe model compiled for il,jl,kl = ',il,jl,kl
+     &     print *,'Globpe model compiled for il,jl,kl = ',il_g,jl_g ,kl
       read (99, cardin)
       nperday =nint(24.*3600./dt)
       if(nwt.eq.-99)nwt=nperday      ! set default nwt to 24 hours
@@ -332,9 +338,9 @@ c     if(kscreen.lt.kountr)stop 'will cause koundiag problems'
      &           ilx,jlx,rlong0,rlat0,schmidt,dsx,header
         if(ilx.ne.il_g.or.jlx.ne.jl_g)stop 'wrong topo file supplied'
       endif      ! (io_in.le.4)
-      call MPI_BCAST(rlong0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_BCAST(rlat0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_BCAST(schmidt,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(rlong0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(rlat0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(schmidt,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
 !     N.B. to display orog alone, run with io_in=4, nbd=0, nsib=0      
 
 c     set up cc geometry
@@ -381,12 +387,12 @@ c     set up cc geometry
 !     replaces block data bdata in new Fels-Schwarzkopf radiation code.
 !     All processes read these
       if(nrad.eq.4)then
-        print *,'Radiative data read from file ',radfile
+        if (myid==0) print *,'Radiative data read from file ',radfile
         open(16,file=o3file,form='formatted',status='old')
         open(15,file=radfile,form='formatted',status='old')
       endif
       if(iaero.ne.0)then
-         if(myid==0)print *,'so4total data read from file ',so4tfile
+         if (myid==0) print *,'so4total data read from file ',so4tfile
          call readreal(so4tfile,so4t,ifull)
       endif
 
@@ -1152,7 +1158,9 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
       call simple_timer_finalize
 #endif
 
-      call mpi_finalize(ierr)
+#ifndef scyld
+      call MPI_Finalize(ierr)
+#endif
  
       end
 
@@ -1379,7 +1387,8 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
       data epsp/.1/,epsu/.1/,epsf/0./,m/6/,mex/4/,mfix/1/,mfix_qg/2/,
      &     mup/1/,nonl/0/,nritch/407/,nritch_t/0/,nrot/1/,
      &     nstag/-3/,nstagu/-3/,ntbar/-1/,
-     &     nvsplit/2/,nxmap/0/,restol/1.e-6/ ! changed from 5.e-6 on 25/7/03
+     &     nvsplit/2/,nxmap/0/,restol/1.e-6/, ! changed from 5.e-6 on 25/7/03
+     &     precon/0/
 
       data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/          ! rare
       data slat2/nstn2*-89./,slon2/nstn2*0./,iunp2/nstn2*6/             ! rare
