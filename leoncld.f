@@ -92,7 +92,7 @@ c     fluxc(:,:)=rnrt3d(:,:)*1.e-3*dt ! kg/m2 (should be same level as rnrt3d)
 c Calculate cloud fraction and cloud water mixing ratios
 
       call newcloud(dt,1,land,prf,kbase,ktop,rhoa,cdso4, !Inputs
-     &     t,qg,qlg,qfg,   !In and out
+     &     t(1:ifull,:),qg(1:ifull,:),qlg(1:ifull,:),qfg(1:ifull,:),   !In and out
      &     cfrac,ccov,cfa,qca)   !Outputs
 
 
@@ -100,7 +100,8 @@ c Calculate precipitation and related processes
       
       call newrain(land,1,dt,fluxc,rhoa,dz,ccrain,prf,cdso4,  !Inputs
      &    cfa,qca,                                            !Inputs
-     &    t,qlg,qfg,precs,qg,cfrac,ccov,                      !In and Out
+     &    t(1:ifull,:),qlg(1:ifull,:),qfg(1:ifull,:),
+     &    precs,qg(1:ifull,:),cfrac,ccov, !In and Out
      &    preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,  !Outputs
      &    fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
 
