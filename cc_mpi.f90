@@ -91,7 +91,6 @@ module cc_mpi
    integer, public, save :: boundsb_begin, boundsb_end
    integer, public, save :: boundsuv_begin, boundsuv_end
    integer, public, save :: ints_begin, ints_end
-   integer, public, save :: intsbl_begin, intsbl_end
    integer, public, save :: nonlin_begin, nonlin_end
    integer, public, save :: helm_begin, helm_end
    integer, public, save :: adjust_begin, adjust_end
@@ -102,6 +101,17 @@ module cc_mpi
    integer, public, save :: stag_begin, stag_end
    integer, public, save :: toij_begin, toij_end
    integer, public, save :: physloadbal_begin, physloadbal_end
+   integer, public, save :: phys_begin, phys_end
+   integer, public, save :: outfile_begin, outfile_end
+   integer, public, save :: model_begin, model_end
+   integer, public, save :: maincalc_begin, maincalc_end
+   integer, public, save :: gather_begin, gather_end
+#ifdef simple_timer
+   public :: simple_timer_finalize
+   integer, parameter :: nevents=20
+   double precision, dimension(nevents), save :: tot_time = 0., start_time
+   character(len=15), dimension(nevents), save :: event_name
+#endif 
 
 #ifdef mpilog
    public :: mpe_log_event, mpe_log_get_event_number, mpe_describe_state
@@ -121,8 +131,6 @@ module cc_mpi
       end function mpe_describe_state
    end interface
 #endif
-
-   real, public, save :: loadbaltime = 0.0
 
 contains
 
@@ -424,6 +432,8 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: i, j, n, iq, iqg
 
+
+      call start_log(gather_begin)
 !cdir iexpand(indp, indg, ind)
       if ( myid == 0 .and. .not. present(ag) ) then
          print*, "Error: ccmpi_gather argument required on proc 0"
@@ -467,6 +477,8 @@ contains
                          MPI_COMM_WORLD, ierr )
       end if
 
+      call end_log(gather_end)
+
    end subroutine ccmpi_gather2
 
    subroutine ccmpi_gather3(a,ag)
@@ -480,6 +492,7 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: i, j, n, iq, iqg
 
+      call start_log(gather_begin)
 !cdir iexpand(indp, indg, ind)
       if ( myid == 0 .and. .not. present(ag) ) then
          print*, "Error: ccmpi_gather argument required on proc 0"
@@ -519,6 +532,7 @@ contains
          call MPI_SSend( abuf, ipan*jpan*npan*kl, MPI_REAL, 0, itag, &
                          MPI_COMM_WORLD, ierr )
       end if
+      call end_log(gather_end)
 
    end subroutine ccmpi_gather3
 
@@ -2324,6 +2338,9 @@ contains
 #ifdef vampir
       call vtbegin(event, ierr)
 #endif
+#ifdef simple_timer
+      start_time(event) = MPI_Wtime()
+#endif 
    end subroutine start_log
 
    subroutine end_log ( event )
@@ -2335,6 +2352,9 @@ contains
 #ifdef vampir
       call vtend(event, ierr)
 #endif
+#ifdef simple_timer
+      tot_time(event) = tot_time(event) + MPI_Wtime() - start_time(event)
+#endif 
    end subroutine end_log
 
    subroutine log_off()
@@ -2367,9 +2387,6 @@ contains
       ints_begin = MPE_Log_get_event_number()
       ints_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(ints_begin, ints_end, "Ints","goldenrod")
-      intsbl_begin = MPE_Log_get_event_number()
-      intsbl_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(intsbl_begin, intsbl_end, "IntsBL", "goldenrod")
       nonlin_begin = MPE_Log_get_event_number()
       nonlin_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(nonlin_begin, nonlin_end, "Nonlin", "IndianRed")
@@ -2400,6 +2417,12 @@ contains
       physloadbal_begin = MPE_Log_get_event_number()
       physloadbal_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(physloadbal_begin, physloadbal_end, "PhysLBbal", "blue")
+      phys_begin = MPE_Log_get_event_number()
+      phys_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(phys_begin, phys_end, "Phys", "Yellow")
+      outfile_begin = MPE_Log_get_event_number()
+      outfile_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(outfile_begin, outfile_end, "Outfile", "Yellow")
 #endif
 #ifdef vampir
       ! Start at 1000 to avoid clashes with MPI calls
@@ -2448,6 +2471,95 @@ contains
       physloadbal_begin = 1015
       physloadbal_end =  physloadbal_begin
       call vtsymdef(physloadbal_begin, "PhysLBal", "PhysLBal", ierr)
+      phys_begin = 1016
+      phys_end =  physloadbal_begin
+      call vtsymdef(phys_begin, "Phys", "Phys", ierr)
+      outfile_begin = 1017
+      outfile_end =  outfileloadbal_begin
+      call vtsymdef(outfile_begin, "Outfile", "Outfile", ierr)
+#endif
+#ifdef simple_timer
+
+      model_begin = 1
+      model_end =  model_begin
+      event_name(model_begin) = "Whole Model"
+
+      maincalc_begin = 2
+      maincalc_end =  maincalc_begin
+      event_name(maincalc_begin) = "Main Calc loop"
+
+      phys_begin = 3
+      phys_end =  phys_begin
+      event_name(phys_begin) = "Phys"
+
+      physloadbal_begin = 4
+      physloadbal_end =  physloadbal_begin
+      event_name(physloadbal_begin) = "Phys Load Bal"
+
+      ints_begin = 5
+      ints_end = ints_begin 
+      event_name(ints_begin) = "Ints"
+
+      nonlin_begin = 6
+      nonlin_end = nonlin_begin 
+      event_name(nonlin_begin) = "Nonlin"
+
+      helm_begin = 7
+      helm_end = helm_begin
+      event_name(helm_begin) = "Helm"
+
+      adjust_begin = 8
+      adjust_end = adjust_begin
+      event_name(Adjust_begin) = "Adjust"
+
+      upglobal_begin = 9
+      upglobal_end = upglobal_begin
+      event_name(upglobal_begin) = "Upglobal"
+
+      depts_begin = 10
+      depts_end = depts_begin
+      event_name(depts_begin) = "Depts"
+
+      stag_begin = 11
+      stag_end = stag_begin
+      event_name(stag_begin) = "Stag"
+
+      toij_begin = 12
+      toij_end =  toij_begin
+      event_name(toij_begin) = "Toij"
+
+      outfile_begin = 13
+      outfile_end =  outfile_begin
+      event_name(outfile_begin) = "Outfile"
+
+      bounds_begin = 14
+      bounds_end = bounds_begin
+      event_name(bounds_begin) = "Bounds"
+
+      boundsa_begin = 15
+      boundsa_end = boundsa_end
+      event_name(boundsa_begin) = "BoundsA"
+
+      boundsb_begin = 16
+      boundsb_end = boundsb_begin
+      event_name(boundsb_begin) = "BoundsB"
+
+      boundsuv_begin = 17
+      boundsuv_end = boundsuv_begin
+      event_name(boundsuv_begin) = "BoundsUV"
+
+      deptsync_begin = 18
+      deptsync_end = deptsync_begin
+      event_name(deptsync_begin) = "Deptsync"
+
+      intssync_begin = 19
+      intssync_end = intssync_begin
+      event_name(intssync_begin) = "Intssync"
+
+      gather_begin = 20
+      gather_end = gather_begin
+      event_name(gather_begin) = "Gather"
+
 #endif
    end subroutine log_setup
    
@@ -2479,16 +2591,35 @@ contains
 !     This forces a sychronisation to make the physics load imbalance overhead
 !     explicit. 
       integer :: ierr
-      integer, dimension(8) :: tvals1, tvals2
-      call date_and_time(values=tvals1)
       call start_log(physloadbal_begin)
       call MPI_Barrier( MPI_COMM_WORLD, ierr )
       call end_log(physloadbal_end)
-      call date_and_time(values=tvals2)
-      loadbaltime = loadbaltime + 3600*(tvals2(5)-tvals1(5)) +   &
-            60*(tvals2(6)-tvals1(6)) + (tvals2(7)-tvals1(7)) +   &
-            0.001 * (tvals2(8)-tvals1(8))
    end subroutine phys_loadbal
+
+#ifdef simple_timer
+      subroutine simple_timer_finalize()
+         ! Calculate the mean, min and max times for each case
+         integer :: i, ierr
+         double precision, dimension(nevents) :: emean, emax, emin
+         call MPI_Reduce(tot_time, emean, nevents, MPI_DOUBLE_PRECISION, &
+                         MPI_SUM, 0, MPI_COMM_WORLD, ierr )
+         call MPI_Reduce(tot_time, emax, nevents, MPI_DOUBLE_PRECISION, &
+                         MPI_MAX, 0, MPI_COMM_WORLD, ierr )
+         call MPI_Reduce(tot_time, emin, nevents, MPI_DOUBLE_PRECISION, &
+                         MPI_MIN, 0, MPI_COMM_WORLD, ierr )
+         if ( myid == 0 ) then
+            print*, "==============================================="
+            print*, "  Times over all processes"
+            print*, "  Routine        Mean time  Min time  Max time"
+            do i=1,nevents
+               if ( emean(i) > 0. ) then
+                  ! This stops boundsa, b getting written when they're not used.
+                  write(*,"(a,3f10.3)") event_name(i), emean(i)/nproc, emin(i), emax(i)
+               end if
+            end do
+         end if
+      end subroutine simple_timer_finalize
+#endif
    
 end module cc_mpi
 
