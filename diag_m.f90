@@ -93,14 +93,26 @@ contains
       integer, intent(in) :: ktau, kup
       real, intent(in) :: fact
       real, dimension(:,:), intent(in) :: u
-      real :: umin(kl),umax(kl)
-!      integer iumax(kl),jumax(kl),iumin(kl),jumin(kl)
-      integer k, ierr
+      real, dimension(kup) :: umin, umax
+      integer, dimension(2,kup) :: ijumax,ijumin
+      integer, dimension(1) :: iqg
+      integer :: i, j, k, ierr
       real, dimension(kl) :: gumax, gumin
 
       do k=1,kup
          umax(k) = maxval(u(1:ifull,k))*fact
          umin(k) = minval(u(1:ifull,k))*fact
+         if ( nproc == 1 ) then
+            iqg = maxloc(u(1:ifull,k))
+            ! Convert to global indices
+            j = 1 + (iqg(1)-1)/il_g
+            i = iqg(1) - (j-1)*il_g
+            ijumax(:,k) = (/ i, j /)
+            iqg = minloc(u(1:ifull,k))
+            j = 1 + (iqg(1)-1)/il_g
+            i = iqg(1) - (j-1)*il_g
+            ijumin(:,k) = (/ i, j /)
+         end if
       end do
       call MPI_Reduce ( umax, gumax, kup, MPI_REAL, MPI_MAX, 0,         &
      &                  MPI_COMM_WORLD, ierr )
@@ -111,39 +123,41 @@ contains
       if(kup.eq.1)then
         print 970,ktau,char,gumax(1),char,gumin(1)
 970     format(i7,1x,a2,'max ',f8.3,3x,a2,'min ',f8.3)
-!!!        print 9705,ktau,iumax(1),jumax(1),iumin(1),jumin(1)
-!!!9705    format(i7,'  posij',i4,i4,10x,i3,i4)
+        if ( nproc == 1 ) then
+          print 9705,ktau,ijumax(:,1),ijumin(:,1)
+        end if
+9705    format(i7,'  posij',i4,i4,10x,i3,i4)
         return
       endif   !  (kup.eq.1)
 
       if(gumax(1).ge.1000.)then   ! for radon
-        print 961,ktau,char,(gumax(k),k=1,kup)
+        print 961,ktau,char,gumax
 961     format(i7,1x,a2,'max ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
-!!!        print 977,ktau,(iumax(k),jumax(k),k=1,kup)
-        print 962,ktau,char,(gumin(k),k=1,kup)
+        if (nproc==1) print 977,ktau,ijumax
+        print 962,ktau,char,gumin
 962     format(i7,1x,a2,'min ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
-!!!        print 977,ktau,(iumin(k),jumin(k),k=1,kup)
+        if (nproc==1) print 977,ktau,ijumin
       elseif(kup.le.10)then  ! format for tggsn
         print 971,ktau,char,(gumax(k),k=1,kup)
-!!!        print 977,ktau,(iumax(k),jumax(k),k=1,kup)
+        if (nproc==1) print 977,ktau,ijumax
         print 972,ktau,char,(gumin(k),k=1,kup)
-!!!        print 977,ktau,(iumin(k),jumin(k),k=1,kup)
+        if (nproc==1) print 977,ktau,ijumin
        elseif(gumax(kup).gt.30.)then  ! format for T, & usually u,v
-        print 971,ktau,char,(gumax(k),k=1,10),char,(gumax(k),k=11,kup)
+        if (nproc==1) print 971,ktau,char,gumax(1:10),char,gumax(11:kup)
 !!!971     format(i7,1x,a2,'max ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
 971     format(i7,1x,a2,'max ',10f7.2/(a10,'maX ',10f7.2)/(14x,10f7.2))
-!!!        print 977,ktau,(iumax(k),jumax(k),k=1,kup)
-        print 972,ktau,char,(gumin(k),k=1,kup)
+        if (nproc==1) print 977,ktau,ijumax
+        print 972,ktau,char,gumin
 972     format(i7,1x,a2,'min ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
-!!!        print 977,ktau,(iumin(k),jumin(k),k=1,kup)
+        if (nproc==1) print 977,ktau,ijumin
 977     format(i7,'  posij',10(i3,i4)/(14x,10(i3,i4))/(14x,10(i3,i4)))
       else  ! for qg & sd
-        print 981,ktau,char,(gumax(k),k=1,kup)
+        print 981,ktau,char,gumax
 981     format(i7,1x,a2,'max ',10f7.3/(14x,10f7.3)/(14x,10f7.3))
-!!!        print 977,ktau,(iumax(k),jumax(k),k=1,kup)
-        print 982,ktau,char,(gumin(k),k=1,kup)
+        if (nproc==1) print 977,ktau,ijumax
+        print 982,ktau,char,gumin
 982     format(i7,1x,a2,'min ',10f7.3/(14x,10f7.3)/(14x,10f7.3))
-!!!        print 977,ktau,(iumin(k),jumin(k),k=1,kup)
+        if (nproc==1) print 977,ktau,ijumin
       endif
       end if ! myid == 0
       return
@@ -158,13 +172,25 @@ contains
       real, intent(in) :: fact
       real, dimension(:), intent(in) :: u
       real :: umin, umax
-!      integer iumax(kl),jumax(kl),iumin(kl),jumin(kl)
-      integer ierr
+      integer, dimension(2) :: ijumax,ijumin
+      integer ierr, i, j
+      integer, dimension(1) :: iqg
       real :: gumax, gumin
 
 
       umax = maxval(u(1:ifull))*fact
       umin = minval(u(1:ifull))*fact
+      if (nproc == 1) then
+         iqg = maxloc(u(1:ifull))
+         ! Convert to global indices
+         j = 1 + (iqg(1)-1)/il_g
+         i = iqg(1) - (j-1)*il_g
+         ijumax = (/ i, j /)
+         iqg = minloc(u(1:ifull))
+         j = 1 + (iqg(1)-1)/il_g
+         i = iqg(1) - (j-1)*il_g
+         ijumin = (/ i, j /)
+      end if
 
       call MPI_Reduce ( umax, gumax, 1, MPI_REAL, MPI_MAX, 0,         &
      &                  MPI_COMM_WORLD, ierr )
@@ -174,8 +200,8 @@ contains
       if ( myid == 0 ) then
         print 970,ktau,char,gumax,char,gumin
 970     format(i7,1x,a2,'max ',f8.3,3x,a2,'min ',f8.3)
-!!!        print 9705,ktau,iumax(1),jumax(1),iumin(1),jumin(1)
-!!!9705    format(i7,'  posij',i4,i4,10x,i3,i4)
+        if ( nproc==1) print 9705,ktau,ijumax,ijumin
+9705    format(i7,'  posij',i4,i4,10x,i3,i4)
       end if ! myid == 0
       return
    end subroutine maxmin1
