@@ -86,8 +86,8 @@ c     watch out in retopo for work/zss
      &     epsmax, fracs, fracwet, ftsoil, gwdfac, hefact,
      &     helim, hemax, hemax_g, polenx, poleny,
      &     polenz, rad, radu, radv, ri, rj, rlai, rlat_d, rlon_d,
-     &     rmax, rmin, sinlat, sinlong, sinth, snalb, sumdsig,
-     &     timegb, tsoil, uzon, vmer, w,
+     &     rmax, rmin, rmax_g, rmin_g, sinlat, sinlong, sinth, snalb,
+     &     sumdsig, timegb, tsoil, uzon, vmer, w,
      &     wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, distnew,
      &     xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent,
      &     deli, delj, centi, distx, rhs
@@ -821,8 +821,6 @@ c     .                 (.6-.6*fracsum(imo))*sfc(isoilm(iq))
       endif       !  ((nrungcm.eq.-1.or.nrungcm.eq.-2)
 
       if(nrungcm.le.-3)then
-         print*, "NRUNGCM <= -3 not implemented in MPI version yet"
-         stop
 !       for sequence of runs starting with values saved from last run
         if(ktime.eq.1200)then
           co2in=co2_12      ! 'co2.12'
@@ -835,53 +833,59 @@ c     .                 (.6-.6*fracsum(imo))*sfc(isoilm(iq))
           surfin=surf_00    ! 'surf.00'
           qgfile='qg_00'
         endif
+        if ( myid == 0 ) then
         print *,
      &    'reading previously saved wb,tgg,tss (land),snowd,sice from ',
      &         surfin
         open(unit=87,file=surfin,form='formatted',status='old')
         read(87,'(a80)') header
         print *,'header: ',header
-        read(87,*) wb
-        read(87,*) tgg
-        read(87,*) aa           ! only use land values of tss
-        read(87,*) snowd
-        read(87,*) sicedep
-        close(87)
+        end if
+        call readglobvar(87, wb, fmt="*")
+        call readglobvar(87, tgg, fmt="*")
+        call readglobvar(87, aa, fmt="*")           ! only use land values of tss
+        call readglobvar(87, snowd, fmt="*")
+        call readglobvar(87, sicedep, fmt="*")
+        if ( myid == 0 ) close(87)
         if(ico2.ne.0)then
           ico2x=max(1,ico2)
-          print *,'reading previously saved co2 from ',co2in
-          open(unit=87,file=co2in,form='formatted',status='old')
-          read(87,'(a80)') header
-          print *,'header: ',header
-          read(87,'(12f7.2)') ((tr(iq,k,ico2x),iq=1,ilt*jlt),k=1,klt)
-          rmin=0.
-          rmax=0.
-	   do k=1,klt
-	    do iq=1,ilt*jlt
-            rmin=min(rmin,tr(iq,k,ico2x))
-            rmax=max(rmax,tr(iq,k,ico2x))
-           enddo
-          enddo
-          print *,'min,max for co2 ',rmin,rmax
-          close(87)
+          if ( myid == 0 ) then
+             print *,'reading previously saved co2 from ',co2in
+             open(unit=87,file=co2in,form='formatted',status='old')
+             read(87,'(a80)') header
+             print *,'header: ',header
+          end if
+          call readglobvar(87, tr(:,:,ico2x), fmt='(12f7.2)') 
+          rmin = minval(tr(:,:,ico2x))
+          rmax = maxval(tr(:,:,ico2x))
+          call MPI_Reduce(rmin, rmin_g, 1, MPI_REAL, MPI_MIN, 0,
+     &                    MPI_COMM_WORLD, ierr )
+          call MPI_Reduce(rmax, rmax_g, 1, MPI_REAL, MPI_MAX, 0,
+     &                    MPI_COMM_WORLD, ierr )
+          if ( myid == 0 ) then
+             print *,'min,max for co2 ',rmin,rmax
+             close(87)
+          end if
         endif
         if(iradon.ne.0)then
-         iradonx=max(1,iradon)
-          print *,'reading previously saved radon from ',radonin
-          open(unit=87,file=radonin,form='formatted',status='old')
-          read(87,'(a80)') header
-          print *,'header: ',header
-          read(87,*) ((tr(iq,k,iradonx),iq=1,ilt*jlt),k=1,klt)
-          rmin=0.
-          rmax=0.
-	   do k=1,klt
-	    do iq=1,ilt*jlt
-            rmin=min(rmin,tr(iq,k,iradonx))
-            rmax=max(rmax,tr(iq,k,iradonx))
-           enddo
-          enddo
-          print *,'min,max for radon ',rmin,rmax
-          close(87)
+          iradonx=max(1,iradon)
+          if ( myid == 0 ) then
+             print *,'reading previously saved radon from ',radonin
+             open(unit=87,file=radonin,form='formatted',status='old')
+             read(87,'(a80)') header
+             print *,'header: ',header
+          end if
+          call readglobvar(87, tr(:,:,iradonx), fmt="*")
+          rmin = minval(tr(:,:,iradonx))
+          rmax = maxval(tr(:,:,iradonx))
+          call MPI_Reduce(rmin, rmin_g, 1, MPI_REAL, MPI_MIN, 0,
+     &                    MPI_COMM_WORLD, ierr )
+          call MPI_Reduce(rmax, rmax_g, 1, MPI_REAL, MPI_MAX, 0,
+     &                    MPI_COMM_WORLD, ierr )
+          if ( myid == 0 ) then
+             print *,'min,max for radon ',rmin,rmax
+             close(87)
+          end if
         endif
         do iq=1,ifull
          sice(iq)=.false.
@@ -889,10 +893,12 @@ c     .                 (.6-.6*fracsum(imo))*sfc(isoilm(iq))
          if(land(iq))tss(iq)=aa(iq)
         enddo   ! iq loop
 	 if(nrungcm.eq.-5)then
-	   print *,'reading special qgfile file: ',qgfile
-          open(unit=87,file=qgfile,form='unformatted',status='old')
-          read(87) qg
-          close(87)
+           if (myid==0) then
+             print *,'reading special qgfile file: ',qgfile
+             open (unit=87,file=qgfile,form='unformatted',status='old')
+           end if
+           call readglobvar(87, qg)
+           if ( myid==0 ) close(87)
 	 endif   ! (nrungcm.eq.-5)
       endif    !  (nrungcm.le.-3)
 
