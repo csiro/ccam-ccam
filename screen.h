@@ -1,2 +1,2 @@
-      common/screen/tscrn(ifull),qgscrn(ifull),uscrn(ifull),
-     .  scrrel(ifull),u10(ifull)
+      real, dimension(ifull) :: tscrn, qgscrn, uscrn, scrrel, u10
+      common/screen/tscrn,qgscrn,uscrn,scrrel,u10

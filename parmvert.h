@@ -1,6 +1,8 @@
 !     vertical [advection] options (globpe, vadvtvd,vadv30,vadv30in)
+      integer nvad, nvadh
       common/paramvrt/nvad,nvadh
 
+      integer nimp, nthub, ntvd
 !     for RMIP1 following were (1,1,2); during 2002 were (0,2,3)
       parameter (nimp=0)  !  0 for original explicit non-flux TVD term
 !                            1 for implicit non-flux TVD term

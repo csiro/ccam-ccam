@@ -1,8 +1,11 @@
-      parameter (mxst=13)  ! max_no_of_soil_types
-      common/soilpr/swilt(0:mxst),ssat(0:mxst),sfc(0:mxst),
-     & bch(mxst),cnsd(mxst),css(mxst),hsbh(mxst),hyds(mxst),
-     & i2bp3(mxst),ibp2(mxst),rhos(mxst),sucs(mxst),
-     & clay(mxst),sand(mxst),silt(mxst),
-     & rlaim44(44),rlais44(44),scveg44(44),rsunc44(44),slveg44(44),
-     & froot(5),zse(ms)
+      integer, parameter :: mxst=13       ! max_no_of_soil_types
+      real, dimension(0:mxst) :: swilt, ssat, sfc
+      real, dimension(mxst)   :: bch, cnsd, css, hsbh, hyds, rhos, sucs,
+     &                           clay, sand, silt
+      integer, dimension(mxst) :: i2bp3, ibp2
+      real, dimension(44) :: rlaim44,rlais44,scveg44,rsunc44,slveg44
+      real :: froot(5), zse(ms)
+      common/soilpr/swilt,ssat,sfc,bch,cnsd,css,hsbh,hyds,i2bp3,ibp2,
+     &              rhos,sucs,clay,sand,silt,rlaim44,rlais44,scveg44,
+     &              rsunc44,slveg44,froot,zse
 

@@ -1,3 +1,4 @@
+      integer nqg_r,nqg_set
       common/parm_nqg/nqg_r,nqg_set
 !     nqg_r is value read in during infile/newin
 !     nqg_set is real value to be used for presetting initial fields

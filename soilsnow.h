@@ -1,4 +1,8 @@
 !     this one forces tggsn to directly precede tgg
+      real tggsn, tgg, wb, wbice, smass, ssdn, ssdnn, snowd, osnowd,
+     &     snage, sno, gflux, sgflux, otgsoil
+      integer isflag
+
       common /soilcom/
      .     tggsn(ifull,3) ! snow temperatures
      .   , tgg(ifull,ms)  ! soil temperature (in K)

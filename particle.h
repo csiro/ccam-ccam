@@ -1,7 +1,9 @@
 c     particle.h
 c     used in up30, darlam
-      parameter(npartmax=1000,krelease=1)
-      common/specks/nparticl,xrel,yrel,xpart(npartmax),ypart(npartmax)
+      integer, parameter :: npartmax=1000,krelease=1
+      integer nparticl
+      real xrel,yrel,xpart(npartmax),ypart(npartmax)
+      common/specks/nparticl,xrel,yrel,xpart,ypart
 c     npartmax is maximum number of particles
 c     nparticl is current number of particles
 c     (xrel, yrel) gives release point (every time step)
