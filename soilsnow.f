@@ -2,7 +2,7 @@
 c    This batch of code has only the vector version soilsnowv
 c************************* soilsnowv follows  ****some to be vectorized*****
       subroutine soilsnowv
-      use cc_mpi, only : mydiag
+      use cc_mpi, only : mydiag, myid
       use diag_m
       parameter (ntest=0)   ! 3: forces 3-layer snow, 1: for snow diag prints
 !        for snow diag prints set ntest to 1 throughout
@@ -226,7 +226,7 @@ c            smass(iq,2)=max(0.,.45*(snowd(iq)-smass(iq,1)))  ! jlm fix
         print *,'wbfice ',(wbfice(idjd,k),k=1,ms)
       endif
       if(diag.or.ntest.eq.1)then
-        print *,'in soilsnow printing wbfice_max'
+        if ( myid == 0 ) print *,'in soilsnow printing wbfice_max'
         call maxmin(wbfice,'ic',ktau,1.,6)
         if ( mydiag ) print *,'sdepth c2 ',(sdepth(idjd,k),k=1,3)
       endif
