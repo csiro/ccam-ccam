@@ -1,4 +1,4 @@
-      subroutine staguv(u,v,uout,vout)   !  unstaguv as an entry
+      subroutine staguv(u,v,uout,vout)
 !     stripped down version just with nstag=nstagu=-3, mstagpt=-3      
 !     staguv    may be called from adjust5, upglobal
 !     unstaguv  may be called from adjust5,  nonlin
@@ -13,6 +13,7 @@ c     nstagu now in parm.h ! same but for unstaguv
 c     N.B. staguv & unstaguv previously required 2D arrays as input
 c     - no longer, as transferred here to uin and vin
 c     assume k level already given
+      implicit none
       include 'newmpar.h'
       include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
       include 'map.h'
@@ -20,207 +21,253 @@ c     assume k level already given
       include 'parmdyn.h'
       include 'vecsuv.h'   ! vecsuv info
       include 'vecsuva.h'  ! vecsuva info
-      real u(ifull),v(ifull),uout(ifull),vout(ifull)
-      real ua(2*ifull),va(ifull),ud(2*ifull),vd(ifull) ! work arrays
-      real ub(2*ifull),vb(ifull)                       ! work arrays
-      equivalence (ua(ifull+1),va),(ud(ifull+1),vd)    ! to ensure contiguous
-      equivalence (ub(ifull+1),vb)                     ! to ensure contiguous
-      real uin(2*ifull),vin(ifull)                     ! work arrays
-      equivalence (uin(ifull+1),vin)                   ! to ensure contiguous
-      data itnmax/3/
+      real u(ifull,kl),v(ifull,kl),uout(ifull,kl),vout(ifull,kl)
+      real ua(ifull,2*kl),va(ifull,kl),ud(ifull,2*kl),vd(ifull,kl) ! work arrays
+      real ub(ifull,2*kl),vb(ifull,kl)                       ! work arrays
+      equivalence (ua(1,kl+1),va),(ud(1,kl+1),vd)    ! to ensure contiguous
+      equivalence (ub(1,kl+1),vb)                     ! to ensure contiguous
+      real uin(ifull,2*kl),vin(ifull,kl)                     ! work arrays
+      equivalence (uin(1,kl+1),vin)                   ! to ensure contiguous
+      integer, parameter :: itnmax=3
+      integer :: i, iq, itn, j, k
 
 c     unstaggered u & v as input; staggered as output
-      do iq=1,ifull
-       uin(iq)=u(iq)
-       vin(iq)=v(iq)
-      enddo   ! iq loop
+      do k=1,kl
+         do iq=1,ifull
+            uin(iq,k) = u(iq,k)
+            vin(iq,k) = v(iq,k)
+         end do
+      end do
 
 !     if(nstag.eq.-3)then
 !       call reva6(uin,vin,uout,vout,ua,va,ub,vb,ud,vd)
 !     endif    !  (nstag.eq.-3)
 !cdir nodep
 c       do iq=1,ifull   ! precalculate rhs terms
-c         ud(iwu2(iq))= uin(iwu2(iq))/2.+uin(iq)+uin(ieu2(iq))/10.
-c         vd(isv2(iq))= vin(isv2(iq))/2.+vin(iq)+vin(inv2(iq))/10.
+c         ud(iwu(iq))= uin(iwu(iq))/2.+uin(iq)+uin(ieu(iq))/10.
+c         vd(isv(iq))= vin(isv(iq))/2.+vin(iq)+vin(inv(iq))/10.
 c       enddo
+      do k=1,kl
          do iq=2,ifull-1
-          ud(iq-1)= uin(iq-1)/2.+uin(iq)+uin(iq+1)/10.
-         enddo
+            ud(iq-1,k) = uin(iq-1,k)/2. + uin(iq,k) + uin(iq+1,k)/10.
+         end do
          do iq=il+1,ifull-il
-          vd(iq-il)= vin(iq-il)/2.+vin(iq)+vin(iq+il)/10.
-         enddo
-	  do j=1,jl
-	   iq=1+(j-1)*il
-          ud(iwu2(iq))= uin(iwu2(iq))/2.+uin(iq)+uin(ieu2(iq))/10.
-	   iq=il+(j-1)*il
-          ud(iwu2(iq))= uin(iwu2(iq))/2.+uin(iq)+uin(ieu2(iq))/10.
-	  enddo
-	  do j=1,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           vd(isv2(iq))= vin(isv2(iq))/2.+vin(iq)+vin(inv2(iq))/10.
- 	   enddo
-	  enddo
-	  do j=2*il,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           vd(isv2(iq))= vin(isv2(iq))/2.+vin(iq)+vin(inv2(iq))/10.
- 	   enddo
-	  enddo
+          vd(iq-il,k) = vin(iq-il,k)/2. + vin(iq,k) + vin(iq+il,k)/10.
+         end do
+         do j=1,jl
+            iq=1+(j-1)*il
+            ud(iwu(iq),k) = uin(iwu(iq),k)/2. + uin(iq,k) +
+     &                       uin(ieu(iq),k)/10.
+            iq=il+(j-1)*il
+            ud(iwu(iq),k) = uin(iwu(iq),k)/2. + uin(iq,k) +
+     &                       uin(ieu(iq),k)/10.
+         end do
+         do j=1,jl,2*il
+            do i=1,il
+               iq=i+(j-1)*il
+               vd(isv(iq),k) = vin(isv(iq),k)/2. + vin(iq,k) +
+     &                          vin(inv(iq),k)/10.
+            end do
+         end do
+         do j=2*il,jl,2*il
+            do i=1,il
+               iq=i+(j-1)*il
+               vd(isv(iq),k) = vin(isv(iq),k)/2. + vin(iq,k) +
+     &                          vin(inv(iq),k)/10.
+            end do
+         end do
+      end do ! k
 c        do iq=1,ifull
-c          ua(iq)=ud(iq)-ud(ieu2(iq))/2.   ! 1st guess
-c          va(iq)=vd(iq)-vd(inv2(iq))/2.   ! 1st guess
+c          ua(iq)=ud(iq)-ud(ieu(iq))/2.   ! 1st guess
+c          va(iq)=vd(iq)-vd(inv(iq))/2.   ! 1st guess
 c        enddo
 !cdir nodep
-         do iq=1,ifull-1
-          ua(iq)=ud(iq)-ud(iq+1)/2.
-         enddo
-         do iq=1,ifull-il
-          va(iq)=vd(iq)-vd(iq+il)/2.
-         enddo
-	  do j=1,jl
-	   iq=il+(j-1)*il
-          ua(iq)=ud(iq)-ud(ieu2(iq))/2.    ! 1st guess
-	  enddo
-	  do j=2*il,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           va(iq)=vd(iq)-vd(inv2(iq))/2.   ! 1st guess
- 	   enddo
-	  enddo
 
-        do itn=1,itnmax  ! each loop is a double iteration
+      do k=1,kl
+         do iq=1,ifull-1
+            ua(iq,k) = ud(iq,k) - ud(iq+1,k)/2.
+         end do
+         do iq=1,ifull-il
+            va(iq,k) = vd(iq,k) - vd(iq+il,k)/2.
+         end do
+         do j=1,jl
+            iq=il+(j-1)*il
+            ua(iq,k) = ud(iq,k) - ud(ieu(iq),k)/2. ! 1st guess
+         end do
+         do j=2*il,jl,2*il
+            do i=1,il
+               iq=i+(j-1)*il
+               va(iq,k) = vd(iq,k) - vd(inv(iq),k)/2. ! 1st guess
+            end do
+         end do
+      end do  ! k loop
+
+      do itn=1,itnmax           ! each loop is a double iteration
 !cdir nodep
 c         do iq=1,ifull
-c          ub(iq)=ua(ieu2(iq))
-c          vb(iq)=va(inv2(iq))
-c         enddo
-         do iq=1,ifull-1
-          ub(iq)=ua(iq+1)
-         enddo
-         do iq=1,ifull-il
-          vb(iq)=va(iq+il)
-         enddo
-	  do j=1,jl
-	   iq=il+(j-1)*il
-          ub(iq)=ua(ieu2(iq))
-	  enddo
-	  do j=2*il,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           vb(iq)=va(inv2(iq))
- 	   enddo
-	  enddo
+c          ub(iq)=ua(ieu(iq))
+c          vb(iq)=va(inv(iq))
+c         end do
+         do k=1,kl
+            do iq=1,ifull-1
+               ub(iq,k) = ua(iq+1,k)
+            end do
+            do iq=1,ifull-il
+               vb(iq,k) = va(iq+il,k)
+            end do
+            do j=1,jl
+               iq=il+(j-1)*il
+               ub(iq,k) = ua(ieu(iq),k)
+            end do
+            do j=2*il,jl,2*il
+               do i=1,il
+                  iq=i+(j-1)*il
+                  vb(iq,k) = va(inv(iq),k)
+               end do
+            end do
+         end do
 !cdir nodep
 c       do iq=1,ifull
-c         uin(iq)=(ud(iq)-.5*ud(ieu2(iq))
-c    .                 -ua(iwu2(iq))/10. +ub(ieu2(iq))/4.)/.95
-c         vin(iq)=(vd(iq)-.5*vd(inv2(iq))
-c    .                 -va(isv2(iq))/10. +vb(inv2(iq))/4.)/.95
-c        enddo
-	  do iq=2,ifull-1
-          uin(iq)=(ud(iq)-.5*ud(iq+1)
-     .                 -ua(iq-1)/10. +ub(iq+1)/4.)/.95
-         enddo
-         do iq=il+1,ifull-il
-          vin(iq)=(vd(iq)-.5*vd(iq+il)
-     .                 -va(iq-il)/10. +vb(iq+il)/4.)/.95
-         enddo
-	  do j=1,jl
-	   iq=1+(j-1)*il
-          uin(iq)=(ud(iq)-.5*ud(ieu2(iq))
-     .                 -ua(iwu2(iq))/10. +ub(ieu2(iq))/4.)/.95
-	   iq=il+(j-1)*il
-          uin(iq)=(ud(iq)-.5*ud(ieu2(iq))
-     .                 -ua(iwu2(iq))/10. +ub(ieu2(iq))/4.)/.95
-	  enddo
-	  do j=1,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           vin(iq)=(vd(iq)-.5*vd(inv2(iq))
-     .                 -va(isv2(iq))/10. +vb(inv2(iq))/4.)/.95
- 	   enddo
-	  enddo
-	  do j=2*il,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           vin(iq)=(vd(iq)-.5*vd(inv2(iq))
-     .                 -va(isv2(iq))/10. +vb(inv2(iq))/4.)/.95
- 	   enddo
-	  enddo
+c         uin(iq)=(ud(iq)-.5*ud(ieu(iq))
+c    &                 -ua(iwu(iq))/10. +ub(ieu(iq))/4.)/.95
+c         vin(iq)=(vd(iq)-.5*vd(inv(iq))
+c    &                 -va(isv(iq))/10. +vb(inv(iq))/4.)/.95
+c        end do
+         do k=1,kl
+            do iq=2,ifull-1
+               uin(iq,k) = (ud(iq,k)-.5*ud(iq+1,k)
+     &                 -ua(iq-1,k)/10. +ub(iq+1,k)/4.)/.95
+            end do
+            do iq=il+1,ifull-il
+               vin(iq,k) = (vd(iq,k)-.5*vd(iq+il,k)
+     &                -va(iq-il,k)/10. +vb(iq+il,k)/4.)/.95
+            end do
+            do j=1,jl
+               iq=1+(j-1)*il
+               uin(iq,k) = (ud(iq,k)-.5*ud(ieu(iq),k)
+     &                 -ua(iwu(iq),k)/10. +ub(ieu(iq),k)/4.)/.95
+               iq=il+(j-1)*il
+               uin(iq,k) = (ud(iq,k)-.5*ud(ieu(iq),k)
+     &                 -ua(iwu(iq),k)/10. +ub(ieu(iq),k)/4.)/.95
+            end do
+            do j=1,jl,2*il
+               do i=1,il
+                  iq=i+(j-1)*il
+                  vin(iq,k) = (vd(iq,k)-.5*vd(inv(iq),k)
+     &                   -va(isv(iq),k)/10. +vb(inv(iq),k)/4.)/.95
+               end do
+            end do
+            do j=2*il,jl,2*il
+               do i=1,il
+                  iq=i+(j-1)*il
+                  vin(iq,k) = (vd(iq,k)-.5*vd(inv(iq),k)
+     &                   -va(isv(iq),k)/10. +vb(inv(iq),k)/4.)/.95
+               end do
+            end do
+         end do                 ! k
 
 !cdir nodep
 c         do iq=1,ifull
-c          ub(iq)=uin(ieu2(iq))
-c          vb(iq)=vin(inv2(iq))
-c         enddo
-         do iq=1,ifull-1
-          ub(iq)=uin(iq+1)
-         enddo
-         do iq=1,ifull-il
-          vb(iq)=vin(iq+il)
-         enddo
-	  do j=1,jl
-	   iq=il+(j-1)*il
-          ub(iq)=uin(ieu2(iq))
-	  enddo
-	  do j=2*il,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           vb(iq)=vin(inv2(iq))
- 	   enddo
-	  enddo
+c          ub(iq)=uin(ieu(iq))
+c          vb(iq)=vin(inv(iq))
+c         end do
+         do k=1,kl
+            do iq=1,ifull-1
+               ub(iq,k) = uin(iq+1,k)
+            end do
+            do iq=1,ifull-il
+               vb(iq,k) = vin(iq+il,k)
+            end do
+            do j=1,jl
+               iq=il+(j-1)*il
+               ub(iq,k) = uin(ieu(iq),k)
+            end do
+            do j=2*il,jl,2*il
+               do i=1,il
+                  iq=i+(j-1)*il
+                  vb(iq,k) = vin(inv(iq),k)
+               end do
+            end do
+         end do ! k
 !cdir nodep
 c        do iq=1,ifull
-c         ua(iq)=(ud(iq)-.5*ud(ieu2(iq))
-c    .                 -uin(iwu2(iq))/10. +ub(ieu2(iq))/4.)/.95
-c         va(iq)=(vd(iq)-.5*vd(inv2(iq))
-c    .                 -vin(isv2(iq))/10. +vb(inv2(iq))/4.)/.95
-c        enddo
-	  do iq=2,ifull-1
-          ua(iq)=(ud(iq)-.5*ud(iq+1)
-     .                 -uin(iq-1)/10. +ub(iq+1)/4.)/.95
-         enddo
-         do iq=il+1,ifull-il
-          va(iq)=(vd(iq)-.5*vd(iq+il)
-     .                 -vin(iq-il)/10. +vb(iq+il)/4.)/.95
-         enddo
-	  do j=1,jl
-	   iq=1+(j-1)*il
-          ua(iq)=(ud(iq)-.5*ud(ieu2(iq))
-     .                 -uin(iwu2(iq))/10. +ub(ieu2(iq))/4.)/.95
-	   iq=il+(j-1)*il
-          ua(iq)=(ud(iq)-.5*ud(ieu2(iq))
-     .                 -uin(iwu2(iq))/10. +ub(ieu2(iq))/4.)/.95
-	  enddo
-	  do j=1,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           va(iq)=(vd(iq)-.5*vd(inv2(iq))
-     .                 -vin(isv2(iq))/10. +vb(inv2(iq))/4.)/.95
- 	   enddo
-	  enddo
-	  do j=2*il,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           va(iq)=(vd(iq)-.5*vd(inv2(iq))
-     .                 -vin(isv2(iq))/10. +vb(inv2(iq))/4.)/.95
- 	   enddo
-	  enddo
-        enddo  ! itn=1,itnmax
+c         ua(iq)=(ud(iq)-.5*ud(ieu(iq))
+c    &                 -uin(iwu(iq))/10. +ub(ieu(iq))/4.)/.95
+c         va(iq)=(vd(iq)-.5*vd(inv(iq))
+c    &                 -vin(isv(iq))/10. +vb(inv(iq))/4.)/.95
+c        end do
+         do k=1,kl
+            do iq=2,ifull-1
+               ua(iq,k) = (ud(iq,k)-.5*ud(iq+1,k)
+     &                 -uin(iq-1,k)/10. +ub(iq+1,k)/4.)/.95
+            end do
+            do iq=il+1,ifull-il
+               va(iq,k) = (vd(iq,k)-.5*vd(iq+il,k)
+     &                 -vin(iq-il,k)/10. +vb(iq+il,k)/4.)/.95
+            end do
+            do j=1,jl
+               iq=1+(j-1)*il
+               ua(iq,k) = (ud(iq,k)-.5*ud(ieu(iq),k)
+     &                 -uin(iwu(iq),k)/10. +ub(ieu(iq),k)/4.)/.95
+               iq=il+(j-1)*il
+               ua(iq,k) = (ud(iq,k)-.5*ud(ieu(iq),k)
+     &                 -uin(iwu(iq),k)/10. +ub(ieu(iq),k)/4.)/.95
+            end do
+            do j=1,jl,2*il
+               do i=1,il
+                  iq=i+(j-1)*il
+                  va(iq,k) = (vd(iq,k)-.5*vd(inv(iq),k)
+     &                 -vin(isv(iq),k)/10. +vb(inv(iq),k)/4.)/.95
+               end do
+            end do
+            do j=2*il,jl,2*il
+               do i=1,il
+                  iq=i+(j-1)*il
+                  va(iq,k) = (vd(iq,k)-.5*vd(inv(iq),k)
+     &                 -vin(isv(iq),k)/10. +vb(inv(iq),k)/4.)/.95
+               end do
+            end do
+         end do ! k
+      end do                    ! itn=1,itnmax
 	 
-        do iq=1,ifull      ! final values for output
-         uout(iq)=ua(iq)
-         vout(iq)=va(iq)
-        enddo   ! iq loop
+      do k=1,kl
+         do iq=1,ifull          ! final values for output
+            uout(iq,k) = ua(iq,k)
+            vout(iq,k) = va(iq,k)
+         end do
+      end do
+
       return
 
-      entry unstaguv(u,v,uout,vout)
+      end
+
+
+      subroutine unstaguv(u,v,uout,vout)
 c     staggered u & v as input; unstaggered as output
-      do iq=1,ifull
-       uin(iq)=u(iq)
-       vin(iq)=v(iq)
-      enddo   ! iq loop
+      implicit none
+      include 'newmpar.h'
+      include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
+      include 'map.h'
+      include 'parm.h'
+      include 'parmdyn.h'
+      include 'vecsuv.h'   ! vecsuv info
+      include 'vecsuva.h'  ! vecsuva info
+      real u(ifull,kl),v(ifull,kl),uout(ifull,kl),vout(ifull,kl)
+      real ua(ifull,2*kl),va(ifull,kl),ud(ifull,2*kl),vd(ifull,kl) ! work arrays
+      real ub(ifull,2*kl),vb(ifull,kl)                       ! work arrays
+      equivalence (ua(1,kl+1),va),(ud(1,kl+1),vd)    ! to ensure contiguous
+      equivalence (ub(1,kl+1),vb)                     ! to ensure contiguous
+      real uin(ifull,2*kl),vin(ifull,kl)                     ! work arrays
+      equivalence (uin(1,kl+1),vin)                   ! to ensure contiguous
+      integer, parameter :: itnmax=3
+      integer :: i, iq, itn, j, k
+
+      do k=1,kl
+         do iq=1,ifull
+            uin(iq,k) = u(iq,k)
+            vin(iq,k) = v(iq,k)
+         end do
+      end do
 
 !     if(nstagu.eq.-3)then
 !       call revb6(uin,vin,uout,vout,ua,va,ub,vb,ud,vd)
@@ -228,180 +275,198 @@ c     staggered u & v as input; unstaggered as output
  
 !cdir nodep
 c       do iq=1,ifull   ! precalculate rhs terms
-c         ud(ieu2(iq))= uin(ieu2(iq))/2.+uin(iq)+uin(iwu2(iq))/10.
-c         vd(inv2(iq))= vin(inv2(iq))/2.+vin(iq)+vin(isv2(iq))/10.
-c       enddo
+c         ud(ieu(iq))= uin(ieu(iq))/2.+uin(iq)+uin(iwu(iq))/10.
+c         vd(inv(iq))= vin(inv(iq))/2.+vin(iq)+vin(isv(iq))/10.
+c       end do
+      do k=1,kl
          do iq=2,ifull-1
-          ud(iq+1)= uin(iq+1)/2.+uin(iq)+uin(iq-1)/10.
-         enddo
+            ud(iq+1,k) = uin(iq+1,k)/2. + uin(iq,k) + uin(iq-1,k)/10.
+         end do
          do iq=il+1,ifull-il
-          vd(iq+il)= vin(iq+il)/2.+vin(iq)+vin(iq-il)/10.
-         enddo
-	  do j=1,jl
-	   iq=1+(j-1)*il
-          ud(ieu2(iq))= uin(ieu2(iq))/2.+uin(iq)+uin(iwu2(iq))/10.
-	   iq=il+(j-1)*il
-          ud(ieu2(iq))= uin(ieu2(iq))/2.+uin(iq)+uin(iwu2(iq))/10.
-	  enddo
-	  do j=1,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           vd(inv2(iq))= vin(inv2(iq))/2.+vin(iq)+vin(isv2(iq))/10.
- 	   enddo
-	  enddo
-	  do j=2*il,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           vd(inv2(iq))= vin(inv2(iq))/2.+vin(iq)+vin(isv2(iq))/10.
- 	   enddo
-	  enddo
+            vd(iq+il,k) = vin(iq+il,k)/2. + vin(iq,k) + vin(iq-il,k)/10.
+         end do
+         do j=1,jl
+            iq=1+(j-1)*il
+            ud(ieu(iq),k) = uin(ieu(iq),k)/2. + uin(iq,k) +
+     &                      uin(iwu(iq),k)/10.
+            iq=il+(j-1)*il
+            ud(ieu(iq),k) = uin(ieu(iq),k)/2. + uin(iq,k) +
+     &                      uin(iwu(iq),k)/10.
+         end do
+         do j=1,jl,2*il
+            do i=1,il
+               iq=i+(j-1)*il
+               vd(inv(iq),k) = vin(inv(iq),k)/2. + vin(iq,k) +
+     &                         vin(isv(iq),k)/10.
+            end do
+         end do
+         do j=2*il,jl,2*il
+            do i=1,il
+               iq=i+(j-1)*il
+               vd(inv(iq),k) = vin(inv(iq),k)/2. + vin(iq,k) +
+     &                         vin(isv(iq),k)/10.
+            end do
+         end do
+      end do ! k
 c        do iq=1,ifull
-c          ua(iq)=ud(iq)-ud(iwu2(iq))/2.   ! 1st guess
-c          va(iq)=vd(iq)-vd(isv2(iq))/2.   ! 1st guess
-c        enddo
+c          ua(iq)=ud(iq)-ud(iwu(iq))/2.   ! 1st guess
+c          va(iq)=vd(iq)-vd(isv(iq))/2.   ! 1st guess
+c        end do
 !cdir nodep
+      do k=1,kl
          do iq=2,ifull
-          ua(iq)=ud(iq)-ud(iq-1)/2.
-         enddo
+            ua(iq,k) = ud(iq,k)-ud(iq-1,k)/2.
+         end do
          do iq=il+1,ifull
-          va(iq)=vd(iq)-vd(iq-il)/2.
-         enddo
-	  do j=1,jl
-	   iq=1+(j-1)*il
-          ua(iq)=ud(iq)-ud(iwu2(iq))/2.    ! 1st guess
-	  enddo
-	  do j=1,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           va(iq)=vd(iq)-vd(isv2(iq))/2.   ! 1st guess
- 	   enddo
-	  enddo
+            va(iq,k) = vd(iq,k)-vd(iq-il,k)/2.
+         end do
+         do j=1,jl
+            iq=1+(j-1)*il
+            ua(iq,k) = ud(iq,k)-ud(iwu(iq),k)/2. ! 1st guess
+         end do
+         do j=1,jl,2*il
+            do i=1,il
+               iq=i+(j-1)*il
+               va(iq,k) = vd(iq,k)-vd(isv(iq),k)/2. ! 1st guess
+            end do
+         end do
+      end do ! k
 
-        do itn=1,itnmax  ! each loop is a double iteration
+      do itn=1,itnmax           ! each loop is a double iteration
 !cdir nodep
 c         do iq=1,ifull
-c          ub(iq)=ua(iwu2(iq))
-c          vb(iq)=va(isv2(iq))
-c         enddo
+c          ub(iq)=ua(iwu(iq))
+c          vb(iq)=va(isv(iq))
+c         end do
 !cdir nodep
-         do iq=2,ifull
-          ub(iq)=ua(iq-1)
-         enddo
-         do iq=il+1,ifull
-          vb(iq)=va(iq-il)
-         enddo
-	  do j=1,jl
-	   iq=1+(j-1)*il
-          ub(iq)=ua(iwu2(iq))
-	  enddo
-	  do j=1,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           vb(iq)=va(isv2(iq))
- 	   enddo
-	  enddo
+         do k=1,kl
+            do iq=2,ifull
+               ub(iq,k) = ua(iq-1,k)
+            end do
+            do iq=il+1,ifull
+               vb(iq,k) = va(iq-il,k)
+            end do
+            do j=1,jl
+               iq=1+(j-1)*il
+               ub(iq,k) = ua(iwu(iq),k)
+            end do
+            do j=1,jl,2*il
+               do i=1,il
+                  iq=i+(j-1)*il
+                  vb(iq,k) = va(isv(iq),k)
+               end do
+            end do
+         end do ! k
 !cdir nodep
 c        do iq=1,ifull
-c         uin(iq)=(ud(iq)-.5*ud(iwu2(iq))
-c    .                 -ua(ieu2(iq))/10. +ub(iwu2(iq))/4.)/.95
-c         vin(iq)=(vd(iq)-.5*vd(isv2(iq))
-c    .                 -va(inv2(iq))/10. +vb(isv2(iq))/4.)/.95
-c        enddo
-         do iq=2,ifull-1
-          uin(iq)=(ud(iq)-.5*ud(iq-1)
-     .                 -ua(iq+1)/10. +ub(iq-1)/4.)/.95
-         enddo
-         do iq=il+1,ifull-il
-          vin(iq)=(vd(iq)-.5*vd(iq-il)
-     .                 -va(iq+il)/10. +vb(iq-il)/4.)/.95
-         enddo
-	  do j=1,jl
-	   iq=1+(j-1)*il
-          uin(iq)=(ud(iq)-.5*ud(iwu2(iq))
-     .                 -ua(ieu2(iq))/10. +ub(iwu2(iq))/4.)/.95
-	   iq=il+(j-1)*il
-          uin(iq)=(ud(iq)-.5*ud(iwu2(iq))
-     .                 -ua(ieu2(iq))/10. +ub(iwu2(iq))/4.)/.95
-	  enddo
-	  do j=1,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           vin(iq)=(vd(iq)-.5*vd(isv2(iq))
-     .                 -va(inv2(iq))/10. +vb(isv2(iq))/4.)/.95
- 	   enddo
-	  enddo
-	  do j=2*il,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           vin(iq)=(vd(iq)-.5*vd(isv2(iq))
-     .                 -va(inv2(iq))/10. +vb(isv2(iq))/4.)/.95
- 	   enddo
-	  enddo
+c         uin(iq)=(ud(iq)-.5*ud(iwu(iq))
+c    &                 -ua(ieu(iq))/10. +ub(iwu(iq))/4.)/.95
+c         vin(iq)=(vd(iq)-.5*vd(isv(iq))
+c    &                 -va(inv(iq))/10. +vb(isv(iq))/4.)/.95
+c        end do
+         do k=1,kl
+            do iq=2,ifull-1
+               uin(iq,k) = (ud(iq,k)-.5*ud(iq-1,k)
+     &                 -ua(iq+1,k)/10. +ub(iq-1,k)/4.)/.95
+            end do
+            do iq=il+1,ifull-il
+               vin(iq,k) = (vd(iq,k)-.5*vd(iq-il,k)
+     &                 -va(iq+il,k)/10. +vb(iq-il,k)/4.)/.95
+            end do
+            do j=1,jl
+               iq=1+(j-1)*il
+               uin(iq,k) = (ud(iq,k)-.5*ud(iwu(iq),k)
+     &                 -ua(ieu(iq),k)/10. +ub(iwu(iq),k)/4.)/.95
+               iq=il+(j-1)*il
+               uin(iq,k) = (ud(iq,k)-.5*ud(iwu(iq),k)
+     &                 -ua(ieu(iq),k)/10. +ub(iwu(iq),k)/4.)/.95
+            end do
+            do j=1,jl,2*il
+               do i=1,il
+                  iq=i+(j-1)*il
+                  vin(iq,k) = (vd(iq,k)-.5*vd(isv(iq),k)
+     &                 -va(inv(iq),k)/10. +vb(isv(iq),k)/4.)/.95
+               end do
+            end do
+            do j=2*il,jl,2*il
+               do i=1,il
+                  iq=i+(j-1)*il
+                  vin(iq,k) = (vd(iq,k)-.5*vd(isv(iq),k)
+     &                 -va(inv(iq),k)/10. +vb(isv(iq),k)/4.)/.95
+               end do
+            end do
+         end do ! k
 
 !cdir nodep
 c         do iq=1,ifull
-c          ub(iq)=uin(iwu2(iq))
-c          vb(iq)=vin(isv2(iq))
-c         enddo
+c          ub(iq)=uin(iwu(iq))
+c          vb(iq)=vin(isv(iq))
+c         end do
 !cdir nodep
-         do iq=2,ifull
-          ub(iq)=uin(iq-1)
-         enddo
-         do iq=il+1,ifull
-         vb(iq)=vin(iq-il)
-         enddo
-	  do j=1,jl
-	   iq=1+(j-1)*il
-          ub(iq)=uin(iwu2(iq))
-	  enddo
-	  do j=1,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           vb(iq)=vin(isv2(iq))
- 	   enddo
-	  enddo
+         do k=1,kl
+            do iq=2,ifull
+               ub(iq,k) = uin(iq-1,k)
+            end do
+            do iq=il+1,ifull
+               vb(iq,k) = vin(iq-il,k)
+            end do
+            do j=1,jl
+               iq=1+(j-1)*il
+               ub(iq,k) = uin(iwu(iq),k)
+            end do
+            do j=1,jl,2*il
+               do i=1,il
+                  iq=i+(j-1)*il
+                  vb(iq,k) = vin(isv(iq),k)
+               end do
+            end do
+         end do ! k
 !cdir nodep
 c        do iq=1,ifull
-c         ua(iq)=(ud(iq)-.5*ud(iwu2(iq))
-c    .                 -uin(ieu2(iq))/10. +ub(iwu2(iq))/4.)/.95
-c         va(iq)=(vd(iq)-.5*vd(isv2(iq))
-c    .                 -vin(inv2(iq))/10. +vb(isv2(iq))/4.)/.95
-c        enddo
-         do iq=2,ifull-1
-          ua(iq)=(ud(iq)-.5*ud(iq-1)
-     .                 -uin(iq+1)/10. +ub(iq-1)/4.)/.95
-         enddo
-         do iq=il+1,ifull-il
-          va(iq)=(vd(iq)-.5*vd(iq-il)
-     .                 -vin(iq+il)/10. +vb(iq-il)/4.)/.95
-         enddo
-	  do j=1,jl
-	   iq=1+(j-1)*il
-          ua(iq)=(ud(iq)-.5*ud(iwu2(iq))
-     .                 -uin(ieu2(iq))/10. +ub(iwu2(iq))/4.)/.95
-	   iq=il+(j-1)*il
-          ua(iq)=(ud(iq)-.5*ud(iwu2(iq))
-     .                 -uin(ieu2(iq))/10. +ub(iwu2(iq))/4.)/.95
-	  enddo
-	  do j=1,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           va(iq)=(vd(iq)-.5*vd(isv2(iq))
-     .                 -vin(inv2(iq))/10. +vb(isv2(iq))/4.)/.95
- 	   enddo
-	  enddo
-	  do j=2*il,jl,2*il
-	   do i=1,il
-	    iq=i+(j-1)*il
-           va(iq)=(vd(iq)-.5*vd(isv2(iq))
-     .                 -vin(inv2(iq))/10. +vb(isv2(iq))/4.)/.95
- 	   enddo
-	  enddo
-        enddo  ! itn=1,itnmax
-
-        do iq=1,ifull      ! final values for output
-         uout(iq)=ua(iq)
-         vout(iq)=va(iq)
-        enddo   ! iq loop
+c         ua(iq)=(ud(iq)-.5*ud(iwu(iq))
+c    &                 -uin(ieu(iq))/10. +ub(iwu(iq))/4.)/.95
+c         va(iq)=(vd(iq)-.5*vd(isv(iq))
+c    &                 -vin(inv(iq))/10. +vb(isv(iq))/4.)/.95
+c        end do
+         do k=1,kl
+            do iq=2,ifull-1
+               ua(iq,k) = (ud(iq,k)-.5*ud(iq-1,k)
+     &                 -uin(iq+1,k)/10. +ub(iq-1,k)/4.)/.95
+            end do
+            do iq=il+1,ifull-il
+               va(iq,k) = (vd(iq,k)-.5*vd(iq-il,k)
+     &              -vin(iq+il,k)/10. +vb(iq-il,k)/4.)/.95
+            end do
+            do j=1,jl
+               iq=1+(j-1)*il
+               ua(iq,k) = (ud(iq,k)-.5*ud(iwu(iq),k)
+     &                 -uin(ieu(iq),k)/10. +ub(iwu(iq),k)/4.)/.95
+               iq=il+(j-1)*il
+               ua(iq,k) = (ud(iq,k)-.5*ud(iwu(iq),k)
+     &                 -uin(ieu(iq),k)/10. +ub(iwu(iq),k)/4.)/.95
+            end do
+            do j=1,jl,2*il
+               do i=1,il
+                  iq=i+(j-1)*il
+                  va(iq,k) = (vd(iq,k)-.5*vd(isv(iq),k)
+     &                 -vin(inv(iq),k)/10. +vb(isv(iq),k)/4.)/.95
+               end do
+            end do
+            do j=2*il,jl,2*il
+               do i=1,il
+                  iq=i+(j-1)*il
+                  va(iq,k) = (vd(iq,k)-.5*vd(isv(iq),k)
+     &                 -vin(inv(iq),k)/10. +vb(isv(iq),k)/4.)/.95
+               end do
+            end do
+         end do ! k
+      end do                    ! itn=1,itnmax
+      
+      do k=1,kl
+         do iq=1,ifull          ! final values for output
+            uout(iq,k) = ua(iq,k)
+            vout(iq,k) = va(iq,k)
+         end do
+      end do
       return
       end        
