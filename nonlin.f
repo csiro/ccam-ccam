@@ -160,7 +160,7 @@
       endif
 
 !     do vertical advection in split mode
-      if(nvad.eq.4)then
+      if(nvad.eq.4.or.nvad.eq.9)then
          sdmx = maxval(abs(sdot))
          call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX,
      &                      MPI_COMM_WORLD, ierr )
@@ -173,7 +173,7 @@
             call vadvtvd(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
      &                   nvadh_pass) 
 	 enddo
-      endif  ! (nvad.eq.4)
+      endif  ! (nvad.eq.4.or.nvad.eq.9)
 
       if(nvad.ge.7)then
          call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:))  ! for vadvbess
@@ -261,12 +261,15 @@
          call printa('sgdf',aa(:,1),ktau,nlv,ia,ib,ja,jb,0.,10.)
       endif
 
-      tv=.61*qg*t  ! 3D - just add-on at this stage (after vadv)
+!     extra qfg & qlg terms included in tv from April 04
+      tv(1:ifull,:) = (.61*qg(1:ifull,:)-qfg(1:ifull,:)-qlg(1:ifull,:))*
+     &                t(1:ifull,:)         ! just add-on at this stage 
       contv=(1.61-cpv/cp)/.61      ! about -.26/.61
       if(ntbar.eq.-1.or.(ntbar.eq.-2.and.num.eq.0))then
         do iq=1,ifull
          tbar2d(iq)=t(iq,1)+contv*tv(iq,1)
         enddo   ! iq loop
+        num=1
       endif     ! (ntbar.eq.-1.or....)
       if(ntbar.eq.0)then
         do iq=1,ifull
