@@ -13,6 +13,7 @@ c=======================================================================
       include 'parmhor.h'  ! mhint, m_bs, nt_adv, ndept
       include 'parmvert.h'
       include 'tracers.h'  ! ngas, nllp, ntrac, tr
+      include 'version.h'
       character rundate*10
       integer nmi, itype, ms_out
 
@@ -370,6 +371,9 @@ c       Experiment description
         expdesc = 'CCAM model run'
         call ncaptc(idnc,ncglobal,'expdesc',ncchar,50,expdesc,ier)
         write(6,*)"expdesc ier=",ier
+
+c       Model version
+        call ncaptc(idnc,ncglobal,'version',ncchar,10,version,ier)
 
         if ( local ) then
            ier = nf_put_att_int(idnc,nf_global,"processor_num",nf_int,
@@ -842,8 +846,8 @@ c     set time to number of minutes since start
          call histwrt3(rndmax,'maxrnd',idnc,iarch,local)
          call histwrt3(tmaxscr,'tmaxscr',idnc,iarch,local)
          call histwrt3(tminscr,'tminscr',idnc,iarch,local)
-         call histwrt3(u10max,'u10max',idnc,iarch)
-         call histwrt3(v10max,'v10max',idnc,iarch)
+         call histwrt3(u10max,'u10max',idnc,iarch,local)
+         call histwrt3(v10max,'v10max',idnc,iarch,local)
 !        if writes done more than once per day, 
 !        needed to augment accumulated 3-hourly rainfall in rnd06 to rnd21 
 !        to allow for intermediate zeroing of precip()
