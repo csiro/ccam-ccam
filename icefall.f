@@ -35,7 +35,7 @@ c      ttg - temperature (K)
 c      qsg - saturation mixing ratio (kg/kg)
 c      qlg - cloud liquid water mixing ratio (kg/kg)
 c      qfg - cloud ice mixing ratio (kg/kg)
-c      qtg - water vapour mixing ratio (kg/kg)
+c      qtg - water vapour mixing ratio (kg/kg) - called qg in C-CAM
 c      cfrac - stratiform cloud fraction
 c      cfmelt - fraction of grid box occupied by falling ice that melts
 c
