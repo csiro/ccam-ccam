@@ -38,16 +38,14 @@ c CDIR$ TASK COMMON VTEMP
       include 'tabcom.h'
       include 'kdacom.h'
       include 'tfcom.h'
-      parameter (ndum=5*ijk- imax*(ll3p*5 +11*lp1 +4*llp1 +2)) !jlm
-      common /work3/ it1(imax,ll3p),ival(imax,lp1),
-     &  dtot1(imax,ll3p),dtot2(imax,ll3p),dtot3(imax,ll3p),
+      integer it1(imax,ll3p),ival(imax,lp1)
+      real dtot1(imax,ll3p),dtot2(imax,ll3p),dtot3(imax,ll3p),
      &  dtot4(imax,ll3p),dtot5(imax,llp1),dtot6(imax,llp1),
      &  dtot7(imax,llp1),dtot8(imax,llp1),
      &  f1(imax,lp1),f2(imax,lp1),f3(imax,lp1),
      &  fxo(imax,lp1),fyo(imax,lp1),dt(imax,lp1),du(imax,lp1),
      &  ww1(imax,lp1),ww2(imax,lp1),
      &  tmp3(imax,lp1),tmp5(imax),tmp9(imax)
-     .  ,dummy(ndum)
 c---variables equivalenced to common block variables
       dimension t1(5040),t2(5040),t4(5040)
       dimension em1v(5040),em1vw(5040)

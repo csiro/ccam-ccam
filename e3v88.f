@@ -18,14 +18,12 @@ c CDIR$ TASK COMMON VTEMP
       include 'hcon.h'
       include 'rdparm.h'
       include 'tabcom.h'
-      parameter (ndum=5*ijk- 10*imax*llp1) !jlm
-      common /work3/ it(imax,llp1)
-      common /work3/ fyo(imax,llp1),
-     &                 ww1(imax,llp1),
-     &                 tval(imax,llp1),dt(imax,llp1),ww2(imax,llp1),
-     &                 uval(imax,llp1),du(imax,llp1),
-     &                 fxo(imax,llp1),tmp3(imax,llp1)
-     .  ,dummy(ndum)
+      integer it(imax,llp1)
+      real fyo(imax,llp1),
+     &     ww1(imax,llp1),
+     &     tval(imax,llp1),dt(imax,llp1),ww2(imax,llp1),
+     &     uval(imax,llp1),du(imax,llp1),
+     &     fxo(imax,llp1),tmp3(imax,llp1)
       dimension emv(imax,llp1),tv(imax,llp1),av(imax,llp1)
       dimension em3v(5040)
       equivalence (em3v(1),em3(1,1))

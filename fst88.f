@@ -77,15 +77,13 @@ c CDIR$ TASK COMMON VTEMP
       include 'srccom.h'
       include 'tfcom.h'
       include 'cldcom.h'
-      parameter (ndum=5*ijk- imax*(2*llp1 +8*lp1 +l +lp1m +8)) !jlm
-      common /work3/ ixo(imax,lp1),itop(imax),ibot(imax),indtc(imax)
-      common /work3/ vtmp1(imax,lp1),vtmp2(imax,lp1),
+      integer ixo(imax,lp1),itop(imax),ibot(imax),indtc(imax)
+      real vtmp1(imax,lp1),vtmp2(imax,lp1),
      & vtmp3(imax,lp1),c(imax,llp1),alp(imax,llp1),dsorc(imax,lp1),
      & totphi(imax,lp1),toto3(imax,lp1),tphio3(imax,lp1),rlog(imax,l),
      & delptc(imax),ptop(imax),pbot(imax),ftop(imax),
      & fbot(imax)
-      common /work3/ over1d(imax,lp1m)  !Need over1d in common for SGI
-     .  ,dummy(ndum)
+      real  over1d(imax,lp1m)
       dimension vtmp3x(imax+1,lp1),dsorcx(imax+1,lp1)
 c---dimension of variables equivalenced to those in vtemp---
       dimension tval(imax,lp1),vsum1(imax,lp1),heatem(imax,lp1) 

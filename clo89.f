@@ -20,9 +20,7 @@ c
       include 'radisw.h'
       include 'cldcom.h'
 c 
-      parameter (ndum=5*ijk- imax*(lp1*lp1) -lp1*lp1) !jlm for 64-bit machine
-      common /work3/ tempc(lp1,lp1,imax),cldfip(lp1,lp1)
-     .  ,dummy(ndum)
+      real tempc(lp1,lp1,imax),cldfip(lp1,lp1)
 c 
       do 11 ip=1,imax
       if (nclds(ip).eq.0) then
