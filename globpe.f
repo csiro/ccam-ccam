@@ -531,6 +531,8 @@ c       open(unit=96,file=tminfile,form='unformatted',status='unknown')
       rndmax=0.
       tmaxscr=0.
       tminscr=400.
+      u10max(:)=0.
+      v10max(:)=0.
       tscr_ave=0.
       qscrn_ave=0.
       epot_ave=0.
@@ -932,6 +934,7 @@ c         qg(:,:)=max(qg(:,:),qgmin)  ! testing
      &       rtsave(idjd),rgsave(idjd)
           write (6,"('cll,clm,clh,clt  ',9f8.2)") 
      &      cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
+          write (6,"('u10max,v10max  ',9f8.2)") u10max(iq),v10max(iq)
           write (6,"('kbsav,ktsav,convpsav ',2i3,f8.4,9f8.2)")
      &                kbsav(idjd),ktsav(idjd),convpsav(idjd)
           write (6,"('t  ',9f8.2/4x,9f8.2)") (t(idjd,kk),kk=1,kl)
@@ -1090,6 +1093,13 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
       fg_ave = fg_ave+fg     
       tscr_ave = tscr_ave+tscrn    ! take avge in outfile
       qscrn_ave = qscrn_ave+qgscrn 
+      do iq=1,ifull
+        if(u10(iq)**2.gt.u10max(iq)**2+v10max(iq)**2)then
+          spare1(iq)=max(.001,sqrt(u(iq,1)**2+v(iq,1)**2))  ! speed lev 1
+          u10max(iq)=u10(iq)*u(iq,1)/spare1(iq)
+          v10max(iq)=u10(iq)*v(iq,1)/spare1(iq)
+	endif
+      enddo
 
 !     section for IEEE writing out screen temperature and surface temp. - gone
 !     rnd03 to rnd21 are accumulated in mm     
@@ -1209,6 +1219,8 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
         rndmax (:) = 0.
         tmaxscr(:) = tscrn(:) 
         tminscr(:) = tscrn(:) 
+        u10max(:)=0.
+        v10max(:)=0.
         rnd_3hr(:,8)=0.   ! i.e. rnd24(:)=0.
         if(namip.gt.0)then
           if (myid==0)

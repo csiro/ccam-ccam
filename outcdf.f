@@ -480,8 +480,12 @@ c       For time varying surface fields
         call attrib(idnc,idim2,3,'tscrn',lname,'K',100.,400.)
         lname = 'Screen mixing ratio'
         call attrib(idnc,idim2,3,'qgscrn',lname,'kg/kg',0.,.06)
+        lname = 'x-component max 10m wind'
+        call attrib(idnc,idim2,3,'u10max',lname,'m/s',0.,60.)
+        lname = 'y-component max 10m wind'
+        call attrib(idnc,idim2,3,'v10max',lname,'m/s',0.,60.)
         lname = '10m wind speed'
-        call attrib(idnc,idim2,3,'u10',lname,'K',0.,60.)
+        call attrib(idnc,idim2,3,'u10',lname,'m/s',0.,60.)
 c       lname = '3m wind speed'
 c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
         lname = 'Screen level wind speed'
@@ -838,6 +842,8 @@ c     set time to number of minutes since start
          call histwrt3(rndmax,'maxrnd',idnc,iarch,local)
          call histwrt3(tmaxscr,'tmaxscr',idnc,iarch,local)
          call histwrt3(tminscr,'tminscr',idnc,iarch,local)
+         call histwrt3(u10max,'u10max',idnc,iarch)
+         call histwrt3(v10max,'v10max',idnc,iarch)
 !        if writes done more than once per day, 
 !        needed to augment accumulated 3-hourly rainfall in rnd06 to rnd21 
 !        to allow for intermediate zeroing of precip()
