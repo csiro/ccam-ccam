@@ -1,4 +1,9 @@
 !     include 'newmpar.h'
+      integer la,itb,jtb,klh,ktm
+      real thl,deta,aeta,eta,hbm2,htm,res,dtq2
+     &              , pl,rdq,rdth,rdp,rdthe
+     &              , qs0,sqs,the0,sthe,ptbl,ttbl
+     .              , sm,pd,prec,cuprec,cldefi,t,q
       parameter (la=25)
 
       common / eta / deta(kl), aeta(kl), eta(kl+1)
@@ -11,7 +16,6 @@
      &              , pl,  rdq, rdth, rdp, rdthe
      &              , qs0(jtb), sqs(jtb), the0(itb), sthe(itb)
      &              , ptbl(itb,jtb), ttbl(jtb,itb)
-      real thl
       data thl/210./
 
       common /vrbls/ pd(ifull)
