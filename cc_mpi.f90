@@ -106,9 +106,12 @@ module cc_mpi
    integer, public, save :: model_begin, model_end
    integer, public, save :: maincalc_begin, maincalc_end
    integer, public, save :: gather_begin, gather_end
+   integer, public, save :: reduce_begin, reduce_end
+   integer, public, save :: precon_begin, precon_end
+   integer, public, save :: mpiwait_begin, mpiwait_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents=20
+   integer, parameter :: nevents=23
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -146,8 +149,10 @@ contains
 
       call proc_setup(npanels,ifull)
 
+#ifdef DEBUG
       print*, "Grid", npan, ipan, jpan
       print*, "Offsets", myid, ioff, joff, noff
+#endif
 
       if ( nproc < npanels+1 ) then
          ! This is the maximum size, each face has 4 edges
@@ -249,7 +254,7 @@ contains
 !cdir iexpand(indp, indg)
       if ( myid == 0 .and. .not. present(a1) ) then
          print*, "Error: ccmpi_distribute argument required on proc 0"
-         stop
+         call MPI_Abort(MPI_COMM_WORLD,ierr)
       end if
       ! Copy internal region
       if ( myid == 0 ) then
@@ -311,7 +316,7 @@ contains
 !cdir iexpand(indp, indg)
       if ( myid == 0 .and. .not. present(a1) ) then
          print*, "Error: ccmpi_distribute argument required on proc 0"
-         stop
+         call MPI_Abort(MPI_COMM_WORLD,ierr)
       end if
       ! Copy internal region
       if ( myid == 0 ) then
@@ -373,7 +378,7 @@ contains
 !cdir iexpand(indp, indg)
       if ( myid == 0 .and. .not. present(a1) ) then
          print*, "Error: ccmpi_distribute argument required on proc 0"
-         stop
+         call MPI_Abort(MPI_COMM_WORLD,ierr)
       end if
       ! Copy internal region
       if ( myid == 0 ) then
@@ -437,7 +442,7 @@ contains
 !cdir iexpand(indp, indg, ind)
       if ( myid == 0 .and. .not. present(ag) ) then
          print*, "Error: ccmpi_gather argument required on proc 0"
-         stop
+         call MPI_Abort(MPI_COMM_WORLD,ierr)
       end if
 
       itag = itag + 1
@@ -496,7 +501,7 @@ contains
 !cdir iexpand(indp, indg, ind)
       if ( myid == 0 .and. .not. present(ag) ) then
          print*, "Error: ccmpi_gather argument required on proc 0"
-         stop
+         call MPI_Abort(MPI_COMM_WORLD,ierr)
       end if
 
       itag = itag + 1
@@ -1318,10 +1323,12 @@ contains
       bnds(:)%rlen2_uv = bnds(:)%rlen_uv
       bnds(:)%slen2_uv = bnds(:)%slen_uv
 
+#ifdef DEBUG
       print*, "Bounds", myid, "SLEN", bnds(:)%slen
       print*, "Bounds", myid, "RLEN", bnds(:)%rlen
       print*, "Bounds", myid, "SLEN2", bnds(:)%slen2
       print*, "Bounds", myid, "RLEN2", bnds(:)%rlen2
+#endif
 
 ! 1D code doesn't use double row U/V
 
@@ -1543,7 +1550,9 @@ contains
       end do
 
       if ( nreq > 0 ) then
+         call start_log(mpiwait_begin)
          call MPI_Waitall(nreq,ireq,status,ierr)
+         call end_log(mpiwait_end)
       end if
 
       do iproc = 1,nproc-1  !
@@ -1634,7 +1643,9 @@ contains
       end do
 
       if ( nreq > 0 ) then
+         call start_log(mpiwait_begin)
          call MPI_Waitall(nreq,ireq,status,ierr)
+         call end_log(mpiwait_end)
       end if
 
       do iproc = 1,nproc-1  !
@@ -1733,7 +1744,9 @@ contains
       end do
 
       if ( nreq > 0 ) then
+         call start_log(mpiwait_begin)
          call MPI_Waitall(nreq,ireq,status,ierr)
+         call end_log(mpiwait_end)
       end if
 
       do iproc = 1,nproc-1  !
@@ -1850,7 +1863,9 @@ contains
       end do
 
       if ( nreq > 0 ) then
+         call start_log(mpiwait_begin)
          call MPI_Waitall(nreq,ireq,status,ierr)
+         call end_log(mpiwait_end)
       end if
 
       do iproc = 1,nproc-1  !
@@ -1962,7 +1977,7 @@ contains
 #ifdef debug
                if ( iproc == myid ) then
                   print*, "Inconsistency in deptsync"
-                  stop
+                  call MPI_Abort(MPI_COMM_WORLD,ierr)
                end if
 #endif
 !!$            if ( mydiag .and. iq==1 ) then
@@ -1999,7 +2014,9 @@ contains
                          MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
       end do
       if ( nreq > 0 ) then
+         call start_log(mpiwait_begin)
          call MPI_Waitall(nreq,ireq,status,ierr)
+         call end_log(mpiwait_end)
       end if
 
 !     Now get the actual sizes from the status
@@ -2045,7 +2062,9 @@ contains
          end if
       end do
       if ( nreq > 0 ) then
+         call start_log(mpiwait_begin)
          call MPI_Waitall(nreq,ireq,status,ierr)
+         call end_log(mpiwait_end)
       end if
 
       do iproc=0,nproc-1
@@ -2112,9 +2131,10 @@ contains
    subroutine checksize(len, mesg)
       integer, intent(in) :: len
       character(len=*), intent(in) :: mesg
+      integer :: ierr
       if ( len > maxsize ) then
          print*, "Error, maxsize exceeded in ", mesg
-         stop
+         call MPI_Abort(MPI_COMM_WORLD,ierr)
       end if
    end subroutine checksize
 
@@ -2213,7 +2233,7 @@ contains
       if ( nproc <= npanels+1 ) then
          if ( modulo(npanels+1,nproc) /= 0 ) then
             print*, "Error, number of processors must divide number of panels"
-            stop
+            call MPI_Abort(MPI_COMM_WORLD,ierr)
          end if
 !         npan = (npanels+1)/nproc
          ipan = il_g
@@ -2228,43 +2248,43 @@ contains
       else  ! nproc >= npanels+1
          if ( modulo (nproc, npanels+1) /= 0 ) then
             print*, "Error, number of processors must be a multiple of number of panels"
-            stop
+            call MPI_Abort(MPI_COMM_WORLD,ierr)
          end if
 !         npan = 1
          n = nproc / (npanels+1)
-         !     n must be a power of 2
-         nxproc = 1 ! Number of processors in x direction
-         nyproc = 1 ! Number of processors in y direction
-         do
-            nxproc = nxproc*2
-            n = n / 2
-            if ( n == 1 ) exit
-            nyproc = nyproc*2
-            n = n / 2
-            if ( n == 1 ) exit
+         !  n is the number of processors on each face
+         !  Try to factor this into two values are close as possible.
+         !  nxproc is the smaller of the 2.
+         nxproc = nint(sqrt(real(n)))
+         do nxproc = nint(sqrt(real(n))), 1, -1
+            ! This will always exit because it's trivially true for nxproc=1
+            if ( modulo(n,nxproc) == 0 ) exit
          end do
-         n = nproc / (npanels+1)
-         print*, "NX, NY", nxproc, nyproc, n
+         nyproc = n / nxproc
+         if ( myid == 0 ) then
+            print*, "NXPROC, NYPROC", nxproc, nyproc
+         end if
          if ( nxproc*nyproc /= n ) then
             print*, "Error in splitting up faces"
             call MPI_finalize(ierr)
-            stop
+            call MPI_Abort(MPI_COMM_WORLD,ierr)
          end if
+
+         ! Still need to check that the processor distribution is compatible
+         ! with the grid.
          if ( modulo(il_g,nxproc) /= 0 ) then
-            print*, "Error, il not a multiple of nxproc"
-            call MPI_finalize(ierr)
-            stop
+            print*, "Error, il not a multiple of nxproc", il_g, nxproc
+            call MPI_Abort(MPI_COMM_WORLD,ierr)
          end if
          if ( modulo(il_g,nyproc) /= 0 ) then
-            print*, "Error, il not a multiple of nyproc"
-            call MPI_finalize(ierr)
-            stop
+            print*, "Error, il not a multiple of nyproc", il_g, nyproc
+            call MPI_Abort(MPI_COMM_WORLD,ierr)
          end if
          ipan = il_g/nxproc
          jpan = il_g/nyproc
 
          iproc = 0
-         qproc = -9999
+         qproc = -9999 ! Mask value so any points not set are obvious.
          do n=0,npanels
             do j=1,il_g,jpan
                do i=1,il_g,ipan
@@ -2284,6 +2304,16 @@ contains
 
          ! Set offsets for this processor
          call proc_region(myid,ioff,joff,noff)
+      end if
+
+!     Check that the values calculated here match those set as parameters
+      if ( ipan /= il ) then
+         print*, "Error, parameter mismatch, ipan /= il", ipan, il
+         call MPI_Abort(MPI_COMM_WORLD,ierr)
+      end if
+      if ( jpan*npan /= jl ) then
+         print*, "Error, parameter mismatch, jpan*npan /= jl", jpan, npan, jl
+         call MPI_Abort(MPI_COMM_WORLD,ierr)
       end if
 
 !      ipfull = ipan*jpan*npan
@@ -2319,12 +2349,9 @@ contains
       else
          myface = procid / (nxproc*nyproc)
          npoff = 1 - myface
+         ! mtmp is the processor index on this face, 0:(nxprox*nyproc-1)
          mtmp = procid - myface*(nxproc*nyproc)
-         if ( nyproc == 1 ) then
-            jpoff = 0
-         else
-            jpoff = mtmp/nyproc * jpan
-         end if
+         jpoff = (mtmp/nxproc) * jpan
          ipoff = modulo(mtmp,nxproc)*ipan
       end if
    end subroutine proc_region
@@ -2475,7 +2502,7 @@ contains
       phys_end =  physloadbal_begin
       call vtsymdef(phys_begin, "Phys", "Phys", ierr)
       outfile_begin = 1017
-      outfile_end =  outfileloadbal_begin
+      outfile_end =  outfile_begin
       call vtsymdef(outfile_begin, "Outfile", "Outfile", ierr)
 #endif
 #ifdef simple_timer
@@ -2560,6 +2587,18 @@ contains
       gather_end = gather_begin
       event_name(gather_begin) = "Gather"
 
+      reduce_begin = 21
+      reduce_end = reduce_begin
+      event_name(reduce_begin) = "Reduce"
+
+      precon_begin = 22
+      precon_end = precon_begin
+      event_name(precon_begin) = "Precon"
+
+      mpiwait_begin = 23
+      mpiwait_end = mpiwait_begin
+      event_name(mpiwait_begin) = "MPI_Wait"
+
 #endif
    end subroutine log_setup
    
@@ -2568,9 +2607,10 @@ contains
 !    Check that the dimensions defined in the newmpar and newmpar_gx file
 !    match. A single routine can't include both of these because declarations
 !    would conflict so return them from separate functions
+      integer :: ierr
       if ( .not. all(get_dims()==get_dims_gx()) ) then
          print*, "Error, mismatch in newmpar.h and newmpar_gx.h"
-         stop
+         call MPI_Abort(MPI_COMM_WORLD,ierr)
       end if
 
    end subroutine check_dims
