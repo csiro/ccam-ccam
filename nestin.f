@@ -1,4 +1,5 @@
       subroutine nestin                ! for globpea
+      use cc_mpi, only : myid, mydiag
       use diag_m
       include 'newmpar.h'
 c     ik,jk,kk are array dimensions read in infile - not for globpea
@@ -29,12 +30,15 @@ c     int2d code - not used for globpea
       data num/0/,mtimea/0/,mtimeb/-1/
       save num,mtimea,mtimeb
 c     mtimer, mtimeb are in minutes
-      if(ktau.lt.100)print *,'in nestin ktau,mtimer,mtimea,mtimeb ',
-     .                                  ktau,mtimer,mtimea,mtimeb
-      if(ktau.lt.100)print *,'with kdate_s,ktime_s >= ',kdate_s,ktime_s
+      if(ktau.lt.100.and.myid==0)then
+        print *,'in nestin ktau,mtimer,mtimea,mtimeb ',
+     &                                  ktau,mtimer,mtimea,mtimeb
+        print *,'with kdate_s,ktime_s >= ',kdate_s,ktime_s
+      end if
       if(mtimeb.eq.-1)then
         mtimeb=mtimer  ! zero in fact
-        print *,'set nesting fields to those already read in via indata'
+        if ( myud==0 )
+     &  print *,'set nesting fields to those already read in via indata'
         do iq=1,ifull
          pslb(iq)=psl(iq)
          tssb(iq)=tss(iq)
@@ -75,40 +79,47 @@ c     read tb etc  - for globpea, straight into tb etc
      .	    dum3a,dum3a,dum3a, dum2,dum3,dum4,dum5,1)
 !                above are:   tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag
       endif   ! (io_in.eq.1.or.io_in.eq.3)
-      write (6,"('zsb# nestin  ',9f7.1)") 
-     .          ((zsb(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-      write (6,"('tssb# nestin ',9f7.1)") 
-     .          ((tssb(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+      if (mydiag) then
+        write (6,"('zsb# nestin  ',9f7.1)"), diagvals(zsb)
+        write (6,"('tssb# nestin ',9f7.1)"), diagvals(tssb) 
+      end if
    
       if(abs(rlong0  -rlong0x).gt..01.or.
-     .   abs(rlat0    -rlat0x).gt..01.or.
-     .   abs(schmidt-schmidtx).gt..01)stop "grid mismatch in infile"
+     &   abs(rlat0    -rlat0x).gt..01.or.
+     &   abs(schmidt-schmidtx).gt..01)stop "grid mismatch in infile"
 
       kdhour=(ktime_r-ktime)/100                      ! integer hour diff
       kdmin=(ktime_r-100*(ktime_r/100))-(ktime-100*(ktime/100))
-      print *,'nesting file has: kdate_r,ktime_r,kdhour,kdmin ',
-     .                           kdate_r,ktime_r,kdhour,kdmin
+      if ( myid == 0 ) then
+        print *,'nesting file has: kdate_r,ktime_r,kdhour,kdmin ',
+     &                             kdate_r,ktime_r,kdhour,kdmin
+      end if
       mtimeb=60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate))
      .               +60*kdhour+kdmin
 c     mtimeb=60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate))
 c    .               +nint(60*(ktime_r-ktime)/100.)  ! up till 29/11/02
-      print *,'kdate_r,iabsdate ',kdate_r,iabsdate(kdate_r,kdate)
-      print *,'giving mtimeb = ',mtimeb
-
+      if ( myid == 0 ) then
+        print *,'kdate_r,iabsdate ',kdate_r,iabsdate(kdate_r,kdate)
+        print *,'giving mtimeb = ',mtimeb
 c     print additional information
-      print *,' kdate ',kdate,' ktime ',ktime
-      print *,'timeg,mtimer,mtimea,mtimeb: ',
-     .         timeg,mtimer,mtimea,mtimeb
-      print *,'ds,ds_r ',ds,ds_r
+        print *,' kdate ',kdate,' ktime ',ktime
+        print *,'timeg,mtimer,mtimea,mtimeb: ',
+     &           timeg,mtimer,mtimea,mtimeb
+        print *,'ds,ds_r ',ds,ds_r
+      end if
 
       if(mod(ktau,nmaxpr).eq.0.or.diag)then
 c       following is useful if troublesome data is read in
-        print *,'following max/min values printed from nestin'
+        if ( myid == 0 ) then
+          print *,'following max/min values printed from nestin'
+        end if
         call maxmin(ub,'ub',ktau,1.,kl)
         call maxmin(vb,'vb',ktau,1.,kl)
         call maxmin(tb,'tb',ktau,1.,kl)
         call maxmin(qb,'qb',ktau,1.e3,kl)
-        print *,'following are really psl not ps'
+        if ( myid == 0 ) then
+          print *,'following are really psl not ps'
+        end if
         call maxmin(pslb,'ps',ktau,100.,1)
       endif
 
@@ -120,20 +131,20 @@ c       this section allows for different number of vertical levels
 c       presently assume sigin (up to kk) levels are set up as per nsig=6
 c       option in eigenv, though original csiro9 levels are sufficiently
 c       close for these interpolation purposes.
-        if(ktau.eq.1)then
-	   print*,'calling vertint with kk,sigin ',kk,(sigin(k),k=1,kk)
+        if(ktau.eq.1.and.mydiag)then
+	   print*,'calling vertint with kk,sigin ',kk,sigin(1:kk)
 	 endif
-        if(diag)then
+        if(diag.and.mydiag)then
           print *,'kk,sigin ',kk,(sigin(k),k=1,kk)
           print *,'tb before vertint ',(tb(idjd,k),k=1,kk)
         endif
         call vertint(tb,1)  ! transforms tb from kk to kl
-        if(diag)then
+        if(diag.and.mydiag)then
           print *,'tb after vertint ',(tb(idjd,k),k=1,kk)
           print *,'qb before vertint ',(qb(idjd,k),k=1,kk)
         endif
         call vertint(qb,2)
-        if(diag)print *,'qb after vertint ',(qb(idjd,k),k=1,kk)
+        if(diag.and.mydiag)print *,'qb after vertint ',qb(idjd,1:kk)
         call vertint(ub,3)
         call vertint(vb,4)
       endif  ! (abs(sig(2)-sigin(2)).gt..0001)
@@ -161,7 +172,7 @@ c	enddo
 c       in these cases redefine pslb, tb and (effectively) zsb using zs
 c       this keeps inner-mesh land mask & zs
 c       presently simplest to do whole pslb, tb (& qb) arrays
-        if(nmaxpr.eq.1)then
+        if(nmaxpr.eq.1.and.mydiag)then
           print *,'zs (idjd) :',zs(idjd)
           print *,'zsb (idjd) :',zsb(idjd)
           print *,'psl (idjd) :',psl(idjd)
@@ -169,7 +180,7 @@ c       presently simplest to do whole pslb, tb (& qb) arrays
           print *,'now call retopo from nestin'
         endif
         call retopo(pslb,zsb,zs,tb,qb)
-        if(nmaxpr.eq.1)then
+        if(nmaxpr.eq.1.and.mydiag)then
           print *,'pslb out(idjd) :',pslb(idjd)
           print *,'after pslb print; num= ',num
         endif
