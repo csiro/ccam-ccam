@@ -228,8 +228,7 @@ c       screen specific humidity
           print *,'nalpha,fh,fm,fm10 ',nalpha,fh,fm,fm10
           print *,'qstarx,tstarx ',qstarx,tstarx
           print *,'af,afroot,aft ',af(iq),afroot(iq),aft(iq)
-          print *,'afroot3,afroot10,tstarx ',
-     .             afroot3(iq),afroot10(iq),tstarx
+          print *,'afroot10,tstarx ',afroot10(iq),tstarx
           print *,'c,rich,zscr ',c,rich,zscr
         endif ! (ntest.ne.0.and.iq.eq.idjd)
       enddo   ! iq=1,ifull
