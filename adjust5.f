@@ -1,6 +1,7 @@
       subroutine adjust5
       use cc_mpi
       use diag_m
+      use sumdd_m
       implicit none
       integer, parameter :: moistfix=2 ! 0 earlier; 1 for cube-root fix; 2 best, with ps
       integer, parameter :: mfix_rad=0 ! used to make gases 2 to ng add up to gas 1
@@ -26,6 +27,7 @@
       include 'vecsuva.h'  ! vecsuva info
       include 'vvel.h'     ! sdot
       include 'xarrs.h'
+      include 'xyzinfo.h'
       include 'mpif.h'
       real dpsdt
       common/dpsdt/dpsdt(ifull)    ! shared adjust5 & openhist
@@ -59,6 +61,11 @@
       real, save :: dtsave = 0.0
       real hdt, hdtds, sum, qgminm, ratio, sumdiffb, alph_g
       integer i, j, k, l, n, iq, ng, ierr
+#ifdef sumdd
+      complex, dimension(2) :: local_sum, global_sum
+!     Temporary array for the drpdr_local function
+      real, dimension(ifull) :: tmparr, tmparr2 
+#endif
 
       call start_log(adjust_begin)
       hdt=dt/2.
@@ -308,8 +315,6 @@
        pslsav(iq)=psl(iq)   ! in work2 (not last because of vadvtvd)
        psl(iq)=pslxint(iq)-hdt*e(iq,1)  *(1.+epst(iq))
       enddo     ! iq loop
-      ! Check which routines this is required in
-      call bounds(psl) ! Needed in various places later
 
       do k=1,kl
        do iq=1,ifull
@@ -382,14 +387,30 @@
          delneg_l = 0.
          do iq=1,ifull
             delps(iq) = psl(iq)-pslsav(iq)
-            delpos_l = delpos_l + max(0.,delps(iq)/em(iq)**2)
-            delneg_l = delneg_l + min(0.,delps(iq)/em(iq)**2)
+#ifdef sumdd         
+            tmparr(iq)  = max(0.,delps(iq)*wts(iq))
+            tmparr2(iq) = min(0.,delps(iq)*wts(iq))
+#else
+            delpos_l = delpos_l + max(0.,delps(iq)*wts(iq))
+            delneg_l = delneg_l + min(0.,delps(iq)*wts(iq))
+#endif
          enddo
+#ifdef sumdd
+         local_sum = (0.,0.)
+         call drpdr_local(tmparr, local_sum(1))
+         call drpdr_local(tmparr2, local_sum(2))
+         call MPI_ALLREDUCE ( local_sum, global_sum, 2, MPI_COMPLEX,
+     &                        MPI_SUMDR, MPI_COMM_WORLD, ierr )
+         delpos = real(global_sum(1))
+         delneg = real(global_sum(2))
+#else
+
          delarr_l(1:2) = (/ delpos_l, delneg_l /)
          call MPI_ALLREDUCE ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,
      &                        MPI_COMM_WORLD, ierr )
          delpos = delarr(1)
          delneg = delarr(2)
+#endif
          if(mfix.eq.1)then
             alph_p = sqrt( -delneg/delpos)
             alph_pm=1./alph_p
@@ -414,6 +435,7 @@
        ps(iq)=1.e5*exp(psl(iq))
        dpsdt(iq)=(ps(iq)-aa(iq))*24.*3600./(100.*dt) ! diagnostic in hPa/day
       enddo     !  iq loop
+      call bounds(psl)
       call bounds(ps) ! Better to calculate everywhere defined ???
 
       if(mfix_qg.gt.0.and.mspec.eq.1)then
@@ -444,18 +466,37 @@
         delpos_l=0.
         delneg_l=0.
 c       print *,'qgsav,qg_in',qgsav(idjd,1),qg(idjd,1,1)
-        do iq=1,ifull
-         do k=1,kl
-          wrk1(iq,k)=max(qg(iq,k),qgminm*ps(iq))-qgsav(iq,k)  ! increments
-          delpos_l = delpos_l + max(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
-          delneg_l = delneg_l + min(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
-         enddo   ! k loop
-        enddo    ! iq loop
+#ifdef sumdd
+        local_sum = (0.,0.)
+#endif
+        do k=1,kl
+           do iq=1,ifull
+              wrk1(iq,k)=max(qg(iq,k),qgminm*ps(iq))-qgsav(iq,k) ! increments
+#ifdef sumdd
+              tmparr(iq)  = max(0.,-dsig(k)*wrk1(iq,k)*wts(iq))
+              tmparr2(iq) = min(0.,-dsig(k)*wrk1(iq,k)*wts(iq))
+#else
+              delpos_l = delpos_l + max(0.,-dsig(k)*wrk1(iq,k)*wts(iq))
+              delneg_l = delneg_l + min(0.,-dsig(k)*wrk1(iq,k)*wts(iq))
+#endif
+           enddo                ! iq loop
+#ifdef sumdd
+           call drpdr_local(tmparr, local_sum(1))
+           call drpdr_local(tmparr2, local_sum(2))
+#endif
+        enddo                   ! k loop
+#ifdef sumdd
+         call MPI_ALLREDUCE ( local_sum, global_sum, 2, MPI_COMPLEX,
+     &                        MPI_SUMDR, MPI_COMM_WORLD, ierr )
+         delpos = real(global_sum(1))
+         delneg = real(global_sum(2))
+#else
         delarr_l(1:2) = (/ delpos_l, delneg_l /)
         call MPI_ALLREDUCE ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,
      &                       MPI_COMM_WORLD, ierr )
         delpos = delarr(1)
         delneg = delarr(2)
+#endif
         ratio = -delneg/delpos
         if(mfix_qg.eq.1)alph_q = min(ratio,sqrt(ratio))  ! why min?
         if(mfix_qg.eq.2)alph_q = sqrt(ratio)
