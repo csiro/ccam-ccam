@@ -38,7 +38,7 @@ c      ttg - temperature (K)
 c      qlg - cloud liquid water mixing ratio (kg/kg)
 c      qfg - cloud ice mixing ratio (kg/kg)
 c      precs - amount of stratiform precipitation in timestep (mm)
-c      qtg - water vapour mixing ratio (kg/kg)
+c      qtg - water vapour mixing ratio (kg/kg) - called qg in C-CAM
 c      cfrac - stratiform cloud fraction
 c      ccov - stratiform cloud *cover* looking from above (currently = cfrac)
 c
@@ -65,6 +65,7 @@ C Global parameters
       include 'newmpar.h'
       include 'const_phys.h' !Input physical constants
       include 'cparams.h'    !Input cloud scheme parameters
+      include 'kuocom.h'     !acon,bcon,Rcm
       include 'params.h'     !Input model grid dimensions (modified PARAMS.f for CCAM)
 
 C Argument list
