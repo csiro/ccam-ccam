@@ -1,15 +1,14 @@
-      integer meso,nem,ngwd,nps,npsav,nsd,nrungcm,newtop,nhor,nhorps,    &
+      integer meso,nps,npsav,nsd,nem,ngwd,nrungcm,newtop,nhor,nhorps,    &
      &        khor,khdif,kountr,ndiur,nrad,nvmix,nlocal,nhorjlm,         &
-     &        nhstest,namip,nspecial,newrough,newsoilm,nsib,nsoil,       &
+     &        nhstest,namip,nspecial,nsib,nsoil,newsoilm,                &
      &        ntsea,ntsur,ntsur2,lgwd,newztsea,nglacier,                 &
      &        nbd,kbotdav,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,         &
-     &        ktau,ndi,ndi2,ntau,nperavg,nperday,nmaxpr,nlv,             &
+     &        ktau,ndi,ndi2,ntau,nperday,nmaxpr,nlv,                     &
      &        ia,ib,ja,jb,id,jd,idjd,                                    &
      &        io_clim,io_in,io_out,io_rest,io_spec,                      &
      &        nwt,kwt,nqg,nrun,nrunx,nextout,nclim,nfly                  
       real qgmin,hdiff,hdifmax,rlong0,rlat0,schmidt,schm13,              &
-     &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,          &
-     &     ds,dt,dtin,timea
+     &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,chn10,ds,dt,dtin,timea
       logical diag, localhist
       common/parm1/meso,nps,npsav,nsd,nem,ngwd,nrungcm,newtop            &
      &  ,qgmin        ! min value, esp. for stratosphere           [1.e-6]
@@ -24,13 +23,13 @@
 
       common/parmgeom/rlong0,rlat0,schmidt,schm13
 
-      common/parmsfce/newrough,newsoilm,nsib,nsoil,ntsea,ntsur,ntsur2,            &
+      common/parmsfce/nsib,nsoil,newsoilm,ntsea,ntsur,ntsur2,            &
      &                lgwd,newztsea,aleadfr,av_vmod,vmodmin,snmin,       &
-     &                tss_sh,nglacier,charnock,chn10
+     &                tss_sh,nglacier,chn10
 
       common/parmnudg/nbd,kbotdav,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs
 
-      common/parmtime/ktau,ntau,nperavg,nperday,ds,dt,dtin,timea,nmaxpr, &
+      common/parmtime/ktau,ntau,nperday,ds,dt,dtin,timea,nmaxpr,         &
      &                diag,nlv,ia,ib,ja,jb,id,jd,idjd,ndi,ndi2
 
       common/parmio/io_clim,io_in,io_out,io_rest,io_spec,                &  ! type of I/O

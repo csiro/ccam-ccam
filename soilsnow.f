@@ -34,7 +34,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
       common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
      . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull),
+     . ism(ifull),fwtop(ifull),epot(ifull),
      . dum3(5*ijk-16*ifull)
       common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
      .              dum3b(ijk*2-2*ifull*ms-3*ifull)
@@ -335,7 +335,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
       common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
      . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull),
+     . ism(ifull),fwtop(ifull),epot(ifull),
      . dum3(5*ijk-16*ifull)
       common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
      .              dum3b(ijk*2-2*ifull*ms-3*ifull)
@@ -616,7 +616,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
       common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
      . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull),
+     . ism(ifull),fwtop(ifull),epot(ifull),
      . dum3(5*ijk-16*ifull)
       common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
      .              dum3b(ijk*2-2*ifull*ms-3*ifull)
@@ -1036,7 +1036,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
       common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
      . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull), coefa(ifull),coefb(ifull),
+     . ism(ifull),fwtop(ifull),epot(ifull),  coefa(ifull),coefb(ifull),
      . dum3(5*ijk-18*ifull)
       common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
      .              dum3b(ijk*2-2*ifull*ms-3*ifull)

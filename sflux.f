@@ -52,11 +52,11 @@ c     cp specific heat at constant pressure joule/kgm/deg
      . ,aft(ifull),fh(ifull),ri(ifull),theta(ifull)
      . ,gamm(ifull),rg(ifull),vmod(ifull),taftfhg_temp(ifull) ! rg in radriv90
 !     following common block makes available other arrays for diag. output 
-      common/work3/egg(ifull),evapxf(ifull),ewww(ifull),fgf(ifull),
+      common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
      . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull),   ! watch soilsnow.f after epot
-     . extin(ifull),af(ifull),spare3(ifull),xx(ifull),
+     . ism(ifull),fwtop(ifull),epot(ifull),   ! watch soilsnow.f after epot
+     . extin(ifull),af(ifull),spare1(ifull),xx(ifull),
      . dum3(5*ijk-20*ifull)
       dimension ipermp(ifull)    ! temporary permutation array
       equivalence (ipermp,dirad)
@@ -728,11 +728,11 @@ c***  end of surface updating loop
      . ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)
      . ,aft(ifull),fh(ifull),ri(ifull),theta(ifull)
      . ,gamm(ifull),rg(ifull),vmod(ifull),dgdtg(ifull)
-      common/work3/egg(ifull),evapxf(ifull),ewww(ifull),fgf(ifull),
+      common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
      . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull),
-     . extin(ifull),af(ifull),spare3(ifull),xx(ifull),
+     . ism(ifull),fwtop(ifull),epot(ifull),
+     . extin(ifull),af(ifull),spare1(ifull),xx(ifull),
      . dum3(5*ijk-20*ifull)
       common/work3c/airr(ifull),cc(ifull),condxg(ifull),delta_tx(ifull),
      . evapfb1(ifull),evapfb2(ifull),evapfb3(ifull),evapfb4(ifull),
@@ -1129,11 +1129,11 @@ c                                            transpiration
             esatf = establ(tgf(iq))
             qsatgf=.622*esatf/(ps(iq)-esatf)
 c                                                     wet evaporation
-            ewww(iq) = rho(iq)*taftfh(iq) *(qsatgf-qg(iq,1))
+            Ewww(iq) = rho(iq)*taftfh(iq) *(qsatgf-qg(iq,1))
             if(qsatgf.ge.qg(iq,1)) then
-              ewww(iq)  = min(rmc(iq)/dt , rmc(iq)*ewww(iq)/rmcmax(iq) )
+              Ewww(iq)  = min(rmc(iq)/dt , rmc(iq)*Ewww(iq)/rmcmax(iq) )
             endif         ! qsatgf.ge.qg(iq,1)
-            rmc(iq)=omc(iq)+cc(iq) -ewww(iq)*dt
+            rmc(iq)=omc(iq)+cc(iq) -Ewww(iq)*dt
 c                         precipitation reaching the ground under the canopy
 c                                            water interception by the canopy
             condxg(iq)=max(condx(iq)-cc(iq)+
@@ -1157,8 +1157,8 @@ c                                            water interception by the canopy
      &                  (wb(iq,5)-swilt(isoil))*zse(5)*1000.))
             evapfb(iq)=(evapfb1(iq)+evapfb2(iq)+evapfb3(iq)+evapfb4(iq)+
      &                  evapfb5(iq))/tsigmf(iq)
-            evapxf(iq) = (evapfb(iq)/dt + ewww(iq))*hl
-c           evapw =  ewww(iq)*hl  ! not used
+            evapxf(iq) = (evapfb(iq)/dt + Ewww(iq))*hl
+c           evapw =  Ewww(iq)*hl  ! not used
 c                                              sensible heat flux
             prz = rho(iq)*taftfh(iq)*cp
             if(newfgf.eq.0)fgf(iq)=prz*(tgf(iq)-theta(iq))  ! original/usual
@@ -1255,17 +1255,17 @@ c                                            transpiration
          esatf = establ(tgfnew(iq))
          qsatgf=.622*esatf/(ps(iq)-esatf)
 c                                                  wet evaporation
-         ewwwa = rho(iq) *(qsatgf-qg(iq,1))/airr(iq)
+         Ewwwa = rho(iq) *(qsatgf-qg(iq,1))/airr(iq)
 !        if(qsatgf.ge.qg(iq,1)) then  ! no dew
-!          ewww(iq)  = min(omc(iq)/dt , ewww(iq)*omc(iq)/rmcmax(iq) )
+!          Ewww(iq)  = min(omc(iq)/dt , Ewww(iq)*omc(iq)/rmcmax(iq) )
 !        endif         ! qsatgf.ge.qg(iq,1)
 !        above 3 lines are equivalent to:
-c        ewww(iq)=min(ewww(iq),omc(iq)/dt,ewww(iq)*omc(iq)/rmcmax(iq))
+c        Ewww(iq)=min(Ewww(iq),omc(iq)/dt,Ewww(iq)*omc(iq)/rmcmax(iq))
          rmcav=.5*(omc(iq)+rmc(iq))
-         ewww(iq)=min(ewwwa,rmcav/dt,ewwwa*rmcav/rmcmax(iq))
+         Ewww(iq)=min(Ewwwa,rmcav/dt,Ewwwa*rmcav/rmcmax(iq))
 !                     dew(-ve), no_dew ,        no_dew
 !        rmc is reservoir on leaf
-         rmc(iq)=omc(iq)+cc(iq) -ewww(iq)*dt
+         rmc(iq)=omc(iq)+cc(iq) -Ewww(iq)*dt
 c                      precipitation reaching the ground under the canopy
 c                                         water interception by the canopy
          condxg(iq)=max(condx(iq)-cc(iq)+max(0.,rmc(iq)-rmcmax(iq)),0.) ! keep 
@@ -1283,7 +1283,7 @@ c                                         water interception by the canopy
          evapfb5(iq)=min(betetrdt*froot(5),evapfb5a(iq))
          evapfb(iq)=(evapfb1(iq)+evapfb2(iq)+evapfb3(iq)+evapfb4(iq)+
      &               evapfb5(iq))/tsigmf(iq)
-         evapxf(iq) = (evapfb(iq)/dt + ewww(iq))*hl  ! converting to W/m**2
+         evapxf(iq) = (evapfb(iq)/dt + Ewww(iq))*hl  ! converting to W/m**2
          prz = rho(iq)*cp*taftfh(iq)
          if(newfgf.eq.0)fgf(iq) = prz*(tgfnew(iq)-theta(iq))  ! original/usual
          if(newfgf.eq.1)fgf(iq) = prz*(tgfnew(iq)-tscrn(iq))
@@ -1322,8 +1322,8 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
            print *,'theta,tscrn,slwa ',
      .             theta(iq),tscrn(iq),slwa(iq)
            print *,'taftfh,condxg ',taftfh(iq),condxg(iq)
-c          print *,'ewwwa,ewww,Etr ',ewwwa,ewww(iq),Etr
-           print *,'ewww ',ewww(iq)
+c          print *,'Ewwwa,Ewww,Etr ',Ewwwa,Ewww(iq),Etr
+           print *,'Ewww ',Ewww(iq)
            print *,'rdg,fgf,evapxf,evapfb ',
      .              rdg(iq),fgf(iq),evapxf(iq),evapfb(iq)
            esatf = establ(tgfnew(iq))
@@ -1351,7 +1351,7 @@ c          print *,'ewwwa,ewww,Etr ',ewwwa,ewww(iq),Etr
          fgf(iq)  = fgg(iq)
          rdg(iq)=rgg(iq)
           tgf(iq) = tss(iq)
-          ewww(iq) = 0.
+          Ewww(iq) = 0.
        else
          tgf(iq)=tgfnew(iq)
          wb(iq,1)=wb(iq,1)-evapfb1(iq)/(zse(1)*1000.)
@@ -1378,8 +1378,8 @@ c          print *,'ewwwa,ewww,Etr ',ewwwa,ewww(iq),Etr
      .            isoil,ssat(isoil),tsigmf(iq),rlai(iq)
          print *,'tgg1,t1,theta,tscrn '
      .           ,tgg(iq,1),t(iq,1),theta(iq),tscrn(iq)
-         print *,'qg1,qsttg,ewww '
-     .           ,qg(iq,1),qsttg(iq),ewww(iq)
+         print *,'qg1,qsttg,Ewww '
+     .           ,qg(iq,1),qsttg(iq),Ewww(iq)
          print *,'dfgdt,taftfhg,rho ',dfgdt(iq),taftfhg(iq),rho(iq)
          print *,'rmc,rmcmax(iq),qsatgf ',rmc(iq),rmcmax(iq),qsatgf
        endif
@@ -1402,7 +1402,7 @@ c       iveg=ivegt(iq)
 c       isoil = isoilm(iq)
 c       if( tsigmf(iq).gt. .01)then
 c         evapf=fev(iq)*dt/(hl*tsigmf(iq))
-c         evapxf(iq) = (evapf/dt + ewww(iq))*hl
+c         evapxf(iq) = (evapf/dt + Ewww(iq))*hl
 c       endif  !  ( tsigmf(iq).gt. .01)
 c       if(eg(iq).lt.0.)then
 c         print *,'iq,eg,snowd,tgg ',iq,eg(iq),snowd(iq),tgg(iq,1)
@@ -1440,7 +1440,7 @@ c                                               combined fluxes
         print *,'tgg ',(tgg(iq,k),k=1,ms)
         print *,'wb ',(wb(iq,k),k=1,ms)
         print *,'snowd ',snowd(iq)
-        print *,'evapfb,fev,ewww ',evapfb(iq),fev(iq),ewww(iq)
+        print *,'evapfb,fev,Ewww ',evapfb(iq),fev(iq),Ewww(iq)
         print *,'tsigmf,evapxf,egg ',tsigmf(iq),evapxf(iq),egg(iq)
         print *,'deltat,degdt,wb,zse ',
      .           tgg(iq,1)-otgsoil(iq),degdt(iq),wb(iq,1),zse(1)
