@@ -1,1 +1,2 @@
-      common/gdrag/he(ifull),helo(ifull)
+      real, dimension(ifull) :: he, helo
+      common/gdrag/he,helo

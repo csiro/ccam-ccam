@@ -1,1 +1,2 @@
-      common/aalat/alat(ifull),along(ifull)
+      real, dimension(ifull) :: alat, along
+      common/aalat/alat,along

@@ -1,5 +1,6 @@
-      common/extraout/cloudlo(ifull),cloudmi(ifull),cloudhi(ifull),
-     .   cloudtot(ifull),rgsave(ifull),rtsave(ifull),sintsave(ifull),
-     .   sgsave(ifull),rtclsave(ifull),sgclsave(ifull),
-     .   taux(ifull),tauy(ifull),ustar(ifull)
+      real, dimension(ifull) :: cloudlo, cloudmi, cloudhi, cloudtot,
+     &                          rgsave, rtsave, sintsave, sgsave,
+     &                          rtclsave, sgclsave, taux, tauy, ustar
+      common/extraout/cloudlo,cloudmi,cloudhi,cloudtot,rgsave,rtsave,
+     &     sintsave,sgsave,rtclsave,sgclsave,taux,tauy,ustar
 
