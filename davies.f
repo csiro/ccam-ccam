@@ -11,14 +11,14 @@ c     kbotdav: for original scheme put kbot=1; 4 for 18-level?
 
 !     and new nud_p, nud_t, nud_q, nud_uv just off/on switches (0/1)
       if(nud_hrs.lt.0)then
+!       large-scale style with davies-style weights (already scaled for nud_hrs)
+!       N.B. nbd.lt.0 sets up special weights in indata.f
         if(nmaxpr.eq.1.and.ktau.lt.5)then
 	   print *,'davies in  uu,vv,qgg(kl) ',
      .             uu(idjd,nlv),vv(idjd,nlv),qgg(idjd,kl)
           print *,'davies in  u,v,qg(kl) ',
      .           u(idjd,nlv),v(idjd,nlv),qg(idjd,kl)
         endif
-!       large-scale style with davies-style weights (already scaled for nud_hrs)
-!       N.B. nbd.lt.0 sets up special weights in indata.f
         if(nud_p.ne.0)then
           do iq=1,ifull
            psl(iq)=psl(iq)+(psls(iq)-psl(iq))
