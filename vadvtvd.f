@@ -1,7 +1,6 @@
-      subroutine vadvtvd(tin,tout,uin,uout,vin,vout)   ! globpea  version
+      subroutine vadvtvd(tarr,uarr,varr)   ! globpea  version
 c                              vadvbott & vadvyu at bottom
 !     can show adding tbar has no effect
-!     N.B. uin and uout may share same storage (similarly tin, vin)
       use cc_mpi, only : mydiag, myid
       include 'newmpar.h'
 !     parameter (sdotfilt=0.)  ! tried .3 - not useful
@@ -33,8 +32,7 @@ c     common/work2/aa(ifull),dum2(ifull,17)
       common/work3b/dum3b(ifull,kl),uav(ifull,kl)
       real udiff(ifull,kl)
       equivalence (udiff,delt)  ! udiff just used for qg, before delt
-      real tin(ifull,kl),tout(ifull,kl),uin(ifull,kl),uout(ifull,kl),
-     .     vin(ifull,kl),vout(ifull,kl)
+      real tarr(ifull,kl),uarr(ifull,kl),varr(ifull,kl)
       real sig3(kl)
       integer num,nsign
       data num/0/,nsign/1/
@@ -75,7 +73,7 @@ c      fluxh(k) is located at level k+.5
 c     t
       do k=1,kl-1
        do iq=1,ifull
-         delt(iq,k)=tin(iq,k+1)-tin(iq,k)
+         delt(iq,k)=tarr(iq,k+1)-tarr(iq,k)
        enddo    ! iq loop
       enddo     ! k loop
       do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
@@ -86,19 +84,19 @@ c     t
         if(ntvd.eq.1)phi=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
         if(ntvd.eq.2)phi=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
         if(ntvd.eq.3)phi=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-        if(nthub.eq.1)fluxhi=.5*(tin(iq,k)+tin(iq,k+1))
+        if(nthub.eq.1)fluxhi=.5*(tarr(iq,k)+tarr(iq,k+1))
         if(nthub.eq.2)then     ! higher order scheme
-          fluxhi=.5*(tin(iq,k)+tin(iq,k+1)
+          fluxhi=.5*(tarr(iq,k)+tarr(iq,k+1)
      .                  -delt(iq,k)*tfact*sdot(iq,k))
         endif  ! (nthub.eq.2)
-        fluxlo=tin(iq,kx)
+        fluxlo=tarr(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phi*(fluxhi-fluxlo))
 c       if(iq.eq.idjd)print *
 c       if(iq.eq.idjd)print *,'k,nthub,ntvd,sdot(k+1) ',
 c    .                         k,nthub,ntvd,sdot(iq,k+1)
 c       if(iq.eq.idjd)print *,'delt -,.,+ '
 c    .            ,delt(iq,k-1),delt(iq,k),delt(iq,k+1)
-c       if(iq.eq.idjd)print *,'rat,phi,tin ',rat,phi,tin(iq,kx)
+c       if(iq.eq.idjd)print *,'rat,phi,tin ',rat,phi,tarr(iq,kx)
 c       if(iq.eq.idjd)print *,'kp,kx,fluxlo,fluxhi,fluxh ',
 c    .                         kp,kx,fluxlo,fluxhi,fluxh(iq,k)
        enddo    ! iq loop
@@ -108,25 +106,26 @@ c    .                         kp,kx,fluxlo,fluxhi,fluxh(iq,k)
         if(nimp.eq.1)then
 !        N.B. nimp=1 gives especially silly results if sdot>1	 
          hdsdot=.5*tfact*(sdot(iq,k+1)-sdot(iq,k))
-         tout(iq,k)=(tin(iq,k)+tfact*(fluxh(iq,k-1)-fluxh(iq,k))
-     .               +hdsdot*tin(iq,k) )/(1.-hdsdot)
+         tarr(iq,k)=(tarr(iq,k)+tfact*(fluxh(iq,k-1)-fluxh(iq,k))
+     .               +hdsdot*tarr(iq,k) )/(1.-hdsdot)
         else
-         tout(iq,k)=tin(iq,k)+tfact*(fluxh(iq,k-1)-fluxh(iq,k)
-     .               +tin(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
+         tarr(iq,k)=tarr(iq,k)+tfact*(fluxh(iq,k-1)-fluxh(iq,k)
+     .               +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
         endif   ! (nimp.eq.1)
        enddo    ! iq loop
       enddo     ! k loop
       if( (diag.or.nmaxpr.eq.1) .and. mydiag )then
-        write (6,"('tin ',9f8.2/4x,9f8.2)") (tin(idjd,k),k=1,kl)
-        write (6,"('tadd',9f8.2/4x,9f8.2)") 
-     .        (tfact*(tin(idjd,k)*(sdot(idjd,k+1)-sdot(idjd,k))),k=1,kl)
-        write (6,"('tout',9f8.2/4x,9f8.2)") (tout(idjd,k),k=1,kl)
+!        These diagnostics don't work with single input/output argument
+!        write (6,"('tin ',9f8.2/4x,9f8.2)") (tin(idjd,k),k=1,kl)
+!        write (6,"('tadd',9f8.2/4x,9f8.2)") 
+!     .        (tfact*(tin(idjd,k)*(sdot(idjd,k+1)-sdot(idjd,k))),k=1,kl)
+        write (6,"('tout',9f8.2/4x,9f8.2)") (tarr(idjd,k),k=1,kl)
       endif
 
 c     u
       do k=1,kl-1
        do iq=1,ifull
-         delt(iq,k)=uin(iq,k+1)-uin(iq,k)
+         delt(iq,k)=uarr(iq,k+1)-uarr(iq,k)
        enddo    ! iq loop
       enddo     ! k loop
       do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
@@ -137,12 +136,12 @@ c     u
         if(ntvd.eq.1)phi=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
         if(ntvd.eq.2)phi=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
         if(ntvd.eq.3)phi=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-        if(nthub.eq.1)fluxhi=.5*(uin(iq,k)+uin(iq,k+1))
+        if(nthub.eq.1)fluxhi=.5*(uarr(iq,k)+uarr(iq,k+1))
         if(nthub.eq.2)then     ! higher order scheme
-          fluxhi=.5*(uin(iq,k)+uin(iq,k+1)
+          fluxhi=.5*(uarr(iq,k)+uarr(iq,k+1)
      .                  -delt(iq,k)*tfact*sdot(iq,k))
         endif  ! (nthub.eq.2)
-        fluxlo=uin(iq,kx)
+        fluxlo=uarr(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phi*(fluxhi-fluxlo))
        enddo    ! iq loop
       enddo     ! k loop
@@ -150,11 +149,11 @@ c     u
        do iq=1,ifull
         if(nimp.eq.1)then
          hdsdot=.5*tfact*(sdot(iq,k+1)-sdot(iq,k))
-         uout(iq,k)=(uin(iq,k)+tfact*(fluxh(iq,k-1)-fluxh(iq,k))
-     .               +hdsdot*uin(iq,k) )/(1.-hdsdot)
+         uarr(iq,k)=(uarr(iq,k)+tfact*(fluxh(iq,k-1)-fluxh(iq,k))
+     .               +hdsdot*uarr(iq,k) )/(1.-hdsdot)
         else
-         uout(iq,k)=uin(iq,k)+tfact*(fluxh(iq,k-1)-fluxh(iq,k)
-     .               +uin(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
+         uarr(iq,k)=uarr(iq,k)+tfact*(fluxh(iq,k-1)-fluxh(iq,k)
+     .               +uarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
         endif   ! (nimp.eq.1)
        enddo    ! iq loop
       enddo     ! k loop
@@ -162,7 +161,7 @@ c     u
 c     v
       do k=1,kl-1
        do iq=1,ifull
-         delt(iq,k)=vin(iq,k+1)-vin(iq,k)
+         delt(iq,k)=varr(iq,k+1)-varr(iq,k)
        enddo    ! iq loop
       enddo     ! k loop
       do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
@@ -173,12 +172,12 @@ c     v
         if(ntvd.eq.1)phi=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
         if(ntvd.eq.2)phi=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
         if(ntvd.eq.3)phi=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-        if(nthub.eq.1)fluxhi=.5*(vin(iq,k)+vin(iq,k+1))
+        if(nthub.eq.1)fluxhi=.5*(varr(iq,k)+varr(iq,k+1))
         if(nthub.eq.2)then     ! higher order scheme
-          fluxhi=.5*(vin(iq,k)+vin(iq,k+1)
+          fluxhi=.5*(varr(iq,k)+varr(iq,k+1)
      .                  -delt(iq,k)*tfact*sdot(iq,k))
         endif  ! (nthub.eq.2)
-        fluxlo=vin(iq,kx)
+        fluxlo=varr(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phi*(fluxhi-fluxlo))
        enddo    ! iq loop
       enddo     ! k loop
@@ -186,11 +185,11 @@ c     v
        do iq=1,ifull
         if(nimp.eq.1)then
          hdsdot=.5*tfact*(sdot(iq,k+1)-sdot(iq,k))
-         vout(iq,k)=(vin(iq,k)+tfact*(fluxh(iq,k-1)-fluxh(iq,k))
-     .               +hdsdot*vin(iq,k) )/(1.-hdsdot)
+         varr(iq,k)=(varr(iq,k)+tfact*(fluxh(iq,k-1)-fluxh(iq,k))
+     .               +hdsdot*varr(iq,k) )/(1.-hdsdot)
         else
-         vout(iq,k)=vin(iq,k)+tfact*(fluxh(iq,k-1)-fluxh(iq,k)
-     .               +vin(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
+         varr(iq,k)=varr(iq,k)+tfact*(fluxh(iq,k-1)-fluxh(iq,k)
+     .               +varr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
         endif   ! (nimp.eq.1)
        enddo    ! iq loop
       enddo     ! k loop

@@ -1,4 +1,4 @@
-      subroutine vadv30(tin,tout,uin,uout,vin,vout)   
+      subroutine vadv30(targ,uarg,varg)   
 !     only calls vadvbess (nvad=7) from Aug 2003      
       use cc_mpi, only : mydiag
       parameter (ntest=0) !  0: usual   1: for diagnostic prints
@@ -31,8 +31,7 @@ c     does t, u,v then qg, [q1, q2,]
       common/work3c/kdel(ifull,kl)
       common/work3d/sd(ifull,kl)
       common/work3f/st(ifull,kl),anew(ifull,kl),gwrk(ifull,kl)
-      real tin(ifull,kl),tout(ifull,kl),uin(ifull,kl),uout(ifull,kl),
-     .     vin(ifull,kl),vout(ifull,kl) ! N.B. tin & tout etc. may be equivalent
+      real targ(ifull,kl),uarg(ifull,kl),varg(ifull,kl)
       real bb(kl),sddk(0:kl+1)
       real dersh(ifull,kl),sdotder(ifull,kl+1)
       equivalence (dersh,gwrk),(sdotder,wrk1)
@@ -350,10 +349,10 @@ c       interpolate sdot to full-level sd with cubic polynomials
          write (6,"('Bess st',9f8.3/4x,9f8.3)") (st(idjd,kk),kk=1,kl)
           print *,'new kdel ',(kdel(idjd,k),k=1,kl)
         endif
-        call vadvbess(tin,tout,st,kdel,1)                          
-        call vadvbess(uin,uout,st,kdel,2)                          
-        call vadvbess(vin,vout,st,kdel,2)                          
-        call vadvbess(qg(1:ifull,:),qg(1:ifull,:),st,kdel,3)             
+        call vadvbess(targ,st,kdel,1)                          
+        call vadvbess(uarg,st,kdel,2)                          
+        call vadvbess(varg,st,kdel,2)                          
+        call vadvbess(qg(1:ifull,:),st,kdel,3)             
         if(ilt.gt.1)then
           do ntr=1,ntrac
            call vadvbess(tr(1:ilt*jlt,:,ntr),tr(1:ilt*jlt,:,ntr),st,
@@ -365,7 +364,7 @@ c       interpolate sdot to full-level sd with cubic polynomials
 
 c     this one also returns t, u, v, q -  but tendencies formed in vadv30
 !     watch out for replacing qg in place!
-      subroutine vadvbess(t,tout,st,kdel,ifield)
+      subroutine vadvbess(t,st,kdel,ifield)
       use cc_mpi, only : mydiag
       parameter (ntopp=1)  ! 1 for 1-sided gradient at top & bottom full-levels
 c                          ! 2 for zero gradient at top & bottom full-levels
@@ -373,7 +372,7 @@ c                          ! 2 for zero gradient at top & bottom full-levels
       include 'parm.h'
       include 'parmvert.h'
       include 'sigs.h'
-      real t(ifull,kl),tout(ifull,kl),st(ifull,kl)
+      real t(ifull,kl),st(ifull,kl)
       dimension kdel(ifull,kl)
       common/work3/tgrad(ifull,kl),toutt(ifull,kl),dum(3*ijk)
 c     st() is the sigma displacement array
@@ -418,13 +417,13 @@ c     st() is the sigma displacement array
 
 !     can impose non-negative constraint here
       if(ifield.eq.3)then
-        tout=max(toutt,0.)
+        t=max(toutt,0.)
       else
-        tout=toutt
+        t=toutt
       endif
 
       if(diag.and.mydiag)then
-        print *,'tout  ',(tout (idjd,k),k=1,kl)
+        print *,'tout  ',(t(idjd,k),k=1,kl)
       endif
       return
       end
