@@ -317,7 +317,7 @@ c---------------------------------------------------------------------------
          if ( myid==0 ) print *,'calling outcdf from outfile'
          call outcdf(rundate,nmi,1,ms_out)  
 
-         if(ktau.eq.ntau.and.myid==0)then
+         if(ktau.eq.ntau.and.(myid==0.or.localhist))then
             call ncclos(idnc,ier)
             write(6,*) "calling ncclos(idnc,ier) ",idnc,ier
          endif
