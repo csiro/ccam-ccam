@@ -4,6 +4,7 @@ c     ik,jk,kk are array dimensions read in infile - not for globpea
 c     int2d code - not used for globpea
       include 'aalat.h'
       include 'arrays.h'
+      include 'const_phys.h'
       include 'dates.h'    ! mtimer
       include 'dava.h'
       include 'davb.h'     ! psls,qgg,tt,uu,vv
@@ -136,7 +137,7 @@ c     N.B. tssb (sea) only altered for newtop=2 (done here now)
 !       reduce sea tss to mslp      e.g. for QCCA in NCEP GCM
         do iq=1,ifull
          if(tssb(iq).lt.0.)tssb(iq)=
-     .                       tssb(iq)-zsb(iq)*.0065/9.806  ! N.B. -
+     .                       tssb(iq)-zsb(iq)*stdlapse/grav  ! N.B. -
         enddo
       endif  ! (newtop.eq.2)
 
