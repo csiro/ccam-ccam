@@ -25,7 +25,7 @@ c     doing x-interpolation before y-interpolation
       integer idel, iq, jdel, nn
       real a3, a4, c1, c2, c3, c4, cmax, cmin, sss, xxg, yyg
       integer i, j, k, n, ind, ip, jp, iproc, ierr
-      ! This is really indp
+      ! This is really indp, just repeated here to get inlining to work
       ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
       call start_log(ints_begin)
