@@ -26,7 +26,6 @@ c     include 'constant.h'
 
 c Local variables
       integer iq,k
-      real tdiff,tm,establ,table
 
       real prf(ifullw,kl)     !Pressure on full levels (hPa)
       real dprf(ifullw,kl)    !Pressure thickness (hPa)
