@@ -214,7 +214,7 @@ c create the attributes of the header record of the file
         nahead(48)=lgwd
         nahead(49)=mup
         nahead(50)=nritch
-        nahead(51)=ifullw
+        nahead(51)=ldr
         nahead(52)=nevapls
         nahead(53)=nevapcc
         nahead(54)=0.  !nhadq
@@ -328,6 +328,8 @@ c     this routine creates attributes and writes output
       common/cdfind/ixp,iyp,idlev,idnt,idms
       real dpsdt
       common/dpsdt/dpsdt(ifull)    ! shared adjust5 & openhist
+      real shalrk
+      common/shalrk/shalrk(ifull,6)
       real pmsl,aa,bb,cc,dum2
       common/work2/pmsl(ifull),aa(ifull),bb(ifull),cc(ifull),
      &             dum2(ifull,14)
@@ -466,6 +468,8 @@ c       For time varying surface fields
         call attrib(idnc,idim2,3,'rnd21',lname,'mm',0.,1000.)
         lname = '24hr precipitation'
         call attrib(idnc,idim2,3,'rnd24',lname,'mm',0.,1000.)
+        lname = 'Maximum precip rate in a timestep'
+        call attrib(idnc,idim2,3,'maxrnd',lname,'mm/day',0.,2000.)
         lname = 'Maximum screen temperature'
         call attrib(idnc,idim2,3,'tmaxscr',lname,'K',100.,400.)
         lname = 'Minimum screen temperature'
@@ -544,7 +548,7 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
    	  call attrib(idnc,idim2,3,'u10_24',mname//'24hr','m/s',-99.,99.)
   	  call attrib(idnc,idim2,3,'v10_24',nname//'24hr','m/s',-99.,99.)
         endif     ! nextout >= 2
-        if(nextout==3) then  ! also 3-hourly u10 & v10
+        if(nextout>=3) then  ! also 3-hourly u10 & v10
    	  call attrib(idnc,idim2,3,'u10_03',mname//'3hr','m/s',-99.,99.)
   	  call attrib(idnc,idim2,3,'v10_03',nname//'3hr','m/s',-99.,99.)
    	  call attrib(idnc,idim2,3,'u10_09',mname//'9hr','m/s',-99.,99.)
@@ -553,7 +557,15 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
   	  call attrib(idnc,idim2,3,'v10_15',nname//'15hr','m/s',-99.,99.)
    	  call attrib(idnc,idim2,3,'u10_21',mname//'21hr','m/s',-99.,99.)
   	  call attrib(idnc,idim2,3,'v10_21',nname//'21hr','m/s',-99.,99.)
-        endif     ! nextout==3
+        endif     ! nextout >= 3
+        if(nextout>=4) then  
+   	  call attrib(idnc,idim2,3,'shark1','shal conv 1','m2/s',0.,10.)
+   	  call attrib(idnc,idim2,3,'shark2','shal conv 2','m2/s',0.,10.)
+   	  call attrib(idnc,idim2,3,'shark3','shal conv 3','m2/s',0.,10.)
+   	  call attrib(idnc,idim2,3,'shark4','shal conv 4','m2/s',0.,10.)
+   	  call attrib(idnc,idim2,3,'shark5','shal conv 5','m2/s',0.,10.)
+   	  call attrib(idnc,idim2,3,'shark6','shal conv 6','m2/s',0.,10.)
+        endif     ! nextout >= 4
 
         lname = 'Soil temperature lev 1'
         call attrib(idnc,idim2,3,'tgg1',lname,'K',100.,400.)
@@ -585,6 +597,10 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
         call attrib(idnc,idim2,3,'fg_ave',lname,'W/m2',-3000.,3000.)
         lname = 'Avg flux into tgg1 layer'
         call attrib(idnc,idim2,3,'ga_ave',lname,'W/m2',-1000.,1000.)
+        lname = 'Avg ice water path'
+        call attrib(idnc,idim2,3,'iwp_ave',lname,'m',0.,2.)
+        lname = 'Avg liquid water path'
+        call attrib(idnc,idim2,3,'lwp_ave',lname,'m',0.,2.)
 	 if(ntrac.gt.0)then ! ntrac because may have nllp>0
          do igas=1,ntrac
 	   write(numba,'(i2.2)') igas
@@ -804,20 +820,22 @@ c     set time to number of minutes since start
       call histwrt3(snowd,'snd',idnc,iarch,local)
       
       if(ktau.gt.0)then
-       if(nwt.ne.nperday.and.itype.ne.-1)then  
-!       scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
-!       but, don't scale up for restart file as just done in previous write
-!       ktau in next line in case ntau (& thus ktau) < nwt 
-        precip=precip*real(nperday)/min(nwt,max(1,ktau))     
-        precc =precc *real(nperday)/min(nwt,max(1,ktau))     
-        sno   =sno   *real(nperday)/min(nwt,max(1,ktau))     
-        runoff=runoff*real(nperday)/min(nwt,max(1,ktau))    
-       endif   ! (nwt.ne.nperday.and.itype.ne.-1)
+!       if(nwt.ne.nperday.and.itype.ne.-1)then  
+!!       scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
+!!       but, don't scale up for restart file as just done in previous write
+!!       ktau in next line in case ntau (& thus ktau) < nwt 
+!        precip=precip*real(nperday)/min(nwt,max(1,ktau))     
+!        precc =precc *real(nperday)/min(nwt,max(1,ktau))     
+!        sno   =sno   *real(nperday)/min(nwt,max(1,ktau))     
+!        runoff=runoff*real(nperday)/min(nwt,max(1,ktau))    
+!       endif   ! (nwt.ne.nperday.and.itype.ne.-1)
        call histwrt3(precip,'rnd',idnc,iarch,local)
        call histwrt3(precc,'rnc',idnc,iarch,local)
        call histwrt3(sno,'sno',idnc,iarch,local)
        call histwrt3(runoff,'runoff',idnc,iarch,local)
        if(mod(ktau,nperday).eq.0.or.ktau.eq.ntau)then  ! only write once per day
+         if(itype.ne.-1)rndmax(:)=rndmax(:)*86400./dt ! scale up to mm/day
+         call histwrt3(rndmax,'maxrnd',idnc,iarch,local)
          call histwrt3(tmaxscr,'tmaxscr',idnc,iarch,local)
          call histwrt3(tminscr,'tminscr',idnc,iarch,local)
 !        if writes done more than once per day, 
@@ -842,7 +860,7 @@ c     set time to number of minutes since start
            call histwrt3(u10_3hr(1,8),'u10_24',idnc,iarch,local)
            call histwrt3(v10_3hr(1,8),'v10_24',idnc,iarch,local)
          endif  ! nextout.ge.2
-         if(nextout.eq.3) then  ! also 3-hourly u10 & v10
+         if(nextout.ge.3) then  ! also 3-hourly u10 & v10
            call histwrt3(u10_3hr(1,1),'u10_03',idnc,iarch,local)
            call histwrt3(v10_3hr(1,1),'v10_03',idnc,iarch,local)
            call histwrt3(u10_3hr(1,3),'u10_09',idnc,iarch,local)
@@ -851,39 +869,51 @@ c     set time to number of minutes since start
            call histwrt3(v10_3hr(1,5),'v10_15',idnc,iarch,local)
            call histwrt3(u10_3hr(1,7),'u10_21',idnc,iarch,local)
            call histwrt3(v10_3hr(1,7),'v10_21',idnc,iarch,local)
-         endif  ! nextout.eq.3
-	endif   ! (mod(ktau,nperday).eq.0.or.ktau.eq.ntau)
-       call histwrt3(tscr_ave,'tscr_ave',idnc,iarch,local)
+         endif  ! nextout.ge.3
+         if(nextout.ge.4) then  ! shallow convection diags
+           call histwrt3(shalrk(1,1),'shark1',idnc,iarch,local)
+           call histwrt3(shalrk(1,2),'shark2',idnc,iarch,local)
+           call histwrt3(shalrk(1,3),'shark3',idnc,iarch,local)
+           call histwrt3(shalrk(1,4),'shark4',idnc,iarch,local)
+           call histwrt3(shalrk(1,5),'shark5',idnc,iarch,local)
+           call histwrt3(shalrk(1,6),'shark6',idnc,iarch,local)
+         endif  ! nextout.ge.4
+         call histwrt3(tscr_ave,'tscr_ave',idnc,iarch,local)
+         call histwrt3(cbas_ave,'cbas_ave',idnc,iarch,local)
+         call histwrt3(ctop_ave,'ctop_ave',idnc,iarch,local)
+         call histwrt3(epot_ave,'epot_ave',idnc,iarch,local)
+         call histwrt3(eg_ave,'eg_ave',idnc,iarch,local)
+         call histwrt3(fg_ave,'fg_ave',idnc,iarch,local)
+         call histwrt3(ga_ave,'ga_ave',idnc,iarch,local)
+         call histwrt3(riwp_ave,'iwp_ave',idnc,iarch,local)
+         call histwrt3(rlwp_ave,'lwp_ave',idnc,iarch,local)
+         call histwrt3(cll_ave,'cll',idnc,iarch,local)
+         call histwrt3(clm_ave,'clm',idnc,iarch,local)
+         call histwrt3(clh_ave,'clh',idnc,iarch,local)
+         call histwrt3(cld_ave,'cld',idnc,iarch,local)
+ 	endif   ! (mod(ktau,nperday).eq.0.or.ktau.eq.ntau)
        call histwrt3(tscrn,'tscrn',idnc,iarch,local)
        call histwrt3(qgscrn,'qgscrn',idnc,iarch,local)
        call histwrt3(u10,'u10',idnc,iarch,local)
        call histwrt3(uscrn,'uscrn',idnc,iarch,local)
        call histwrt3(rnet,'rnet',idnc,iarch,local)
-       call histwrt3(cbas_ave,'cbas_ave',idnc,iarch,local)
-       call histwrt3(ctop_ave,'ctop_ave',idnc,iarch,local)
-       call histwrt3(epot_ave,'epot_ave',idnc,iarch,local)
        call histwrt3(eg,'eg',idnc,iarch,local)
-       call histwrt3(eg_ave,'eg_ave',idnc,iarch,local)
        call histwrt3(fg,'fg',idnc,iarch,local)
-       call histwrt3(fg_ave,'fg_ave',idnc,iarch,local)
-       call histwrt3(ga_ave,'ga_ave',idnc,iarch,local)
-       call histwrt3(cll_ave,'cll',idnc,iarch,local)
-       call histwrt3(clm_ave,'clm',idnc,iarch,local)
-       call histwrt3(clh_ave,'clh',idnc,iarch,local)
-       call histwrt3(cld_ave,'cld',idnc,iarch,local)
        call histwrt3(taux,'taux',idnc,iarch,local)
        call histwrt3(tauy,'tauy',idnc,iarch,local)
 c      "extra" outputs
        if(nextout>=1) then
          if ( myid == 0 ) print *,'nextout, idnc: ',nextout,idnc
-         call histwrt3(rtu_ave,'rtu_ave',idnc,iarch,local)
-         call histwrt3(rtc_ave,'rtc_ave',idnc,iarch,local)
-         call histwrt3(rgn_ave,'rgn_ave',idnc,iarch,local)
-         call histwrt3(rgc_ave,'rgc_ave',idnc,iarch,local)
-         call histwrt3(sint_ave,'sint_ave',idnc,iarch,local)
-         call histwrt3(sot_ave,'sot_ave',idnc,iarch,local)
-         call histwrt3(soc_ave,'soc_ave',idnc,iarch,local)
-         call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local)
+	 if(mod(ktau,nperday).eq.0)then
+           call histwrt3(rtu_ave,'rtu_ave',idnc,iarch,local)
+           call histwrt3(rtc_ave,'rtc_ave',idnc,iarch,local)
+           call histwrt3(rgn_ave,'rgn_ave',idnc,iarch,local)
+           call histwrt3(rgc_ave,'rgc_ave',idnc,iarch,local)
+           call histwrt3(sint_ave,'sint_ave',idnc,iarch,local)
+           call histwrt3(sot_ave,'sot_ave',idnc,iarch,local)
+           call histwrt3(soc_ave,'soc_ave',idnc,iarch,local)
+           call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local)
+ 	 endif   ! (mod(ktau,nperday).eq.0)
          call histwrt3(dpsdt,'dpsdt',idnc,iarch,local)
          call histwrt3(pblh,'pblh',idnc,iarch,local)
          call histwrt3(ustar,'ustar',idnc,iarch,local)
