@@ -38,15 +38,16 @@ c
       include 'tfcom.h'
 c 
       parameter (ndum=5*ijk- imax*(2*lp1*lp1 +9*lp1 +4*l +4)) !jlm
-      common /work3/ co2r(imax,lp1,lp1),dift(imax,lp1,lp1)
-      common /work3/ co2r1(imax,lp1),dco2d1(imax,lp1)
-      common /work3/ d2cd21(imax,lp1),d2cd22(imax,lp1)
-      common /work3/ co2r2(imax,lp1),dco2d2(imax,lp1)
-      common /work3/ co2mr(imax,l),co2md(imax,l),co2m2d(imax,l)
-      common /work3/ tdav(imax,lp1),tstdav(imax,lp1),
+!     Changed from work3 to work3lwr for now. Problems with differing lengths
+      common /work3lwr/ co2r(imax,lp1,lp1),dift(imax,lp1,lp1)
+      common /work3lwr/ co2r1(imax,lp1),dco2d1(imax,lp1)
+      common /work3lwr/ d2cd21(imax,lp1),d2cd22(imax,lp1)
+      common /work3lwr/ co2r2(imax,lp1),dco2d2(imax,lp1)
+      common /work3lwr/ co2mr(imax,l),co2md(imax,l),co2m2d(imax,l)
+      common /work3lwr/ tdav(imax,lp1),tstdav(imax,lp1),
      & vv(imax,l),vsum3(imax,lp1),vsum1(imax),vsum2(imax)
-      common /work3/ a1(imax),a2(imax)
-     .  ,dummy(ndum)
+      common /work3lwr/ a1(imax),a2(imax)
+!     .  ,dummy(ndum)
       dimension diftd(imax,lp1,lp1) 
       dimension dco2dt(imax,lp1,lp1),d2cdt2(imax,lp1,lp1) 
       dimension texpsl(imax,lp1),tlsqu(imax,lp1)
