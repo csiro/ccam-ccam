@@ -1,5 +1,6 @@
       subroutine davies    ! for globpea - only large-scale available
-      parameter (ntest=0)
+      use cc_mpi, only : mydiag
+      parameter(ntest=0)
 c     see nbox in parm: nbox=9 for efficient 9x9 ls forcing
 c     kbotdav: for original scheme put kbot=1; 4 for 18-level?
       include 'newmpar.h' ! il,jl,kl,ij
@@ -13,23 +14,23 @@ c     kbotdav: for original scheme put kbot=1; 4 for 18-level?
       if(nud_hrs.lt.0)then
 !       large-scale style with davies-style weights (already scaled for nud_hrs)
 !       N.B. nbd.lt.0 sets up special weights in indata.f
-        if(nmaxpr.eq.1.and.ktau.lt.5)then
-	   print *,'davies in  uu,vv,qgg(kl) ',
-     .             uu(idjd,nlv),vv(idjd,nlv),qgg(idjd,kl)
+        if(nmaxpr.eq.1.and.ktau.lt.5.and.mydiag)then
+          print *,'davies in  uu,vv,qgg(kl) ',
+     &             uu(idjd,nlv),vv(idjd,nlv),qgg(idjd,kl)
           print *,'davies in  u,v,qg(kl) ',
-     .           u(idjd,nlv),v(idjd,nlv),qg(idjd,kl)
+     &           u(idjd,nlv),v(idjd,nlv),qg(idjd,kl)
         endif
         if(nud_p.ne.0)then
           do iq=1,ifull
            psl(iq)=psl(iq)+(psls(iq)-psl(iq))
-     .                        *davt(iq)*dt/3600.
+     &                        *davt(iq)*dt/3600.
           enddo  ! iq loop
         endif  ! (nud_p.ne.0)
         if(nud_t.ne.0)then
           do k=kbotdav,kl
            do iq=1,ifull
             t(iq,k)=t(iq,k)+(tt(iq,k)-t(iq,k))
-     .                         *davt(iq)*dt/3600.
+     &                         *davt(iq)*dt/3600.
            enddo  ! iq loop
           enddo   ! k loop
         endif     ! (nud_t.ne.0)
@@ -42,7 +43,7 @@ c     kbotdav: for original scheme put kbot=1; 4 for 18-level?
           do k=kbotdav,kupper
            do iq=1,ifull
             qg(iq,k)=qg(iq,k)+(qgg(iq,k)-qg(iq,k))
-     .                           *davt(iq)*dt/3600.
+     &                           *davt(iq)*dt/3600.
            enddo  ! iq loop
           enddo   ! k loop
         endif     ! (nud_q.ne.0)
@@ -50,9 +51,9 @@ c     kbotdav: for original scheme put kbot=1; 4 for 18-level?
           do k=kbotdav,kl
            do iq=1,ifull
             u(iq,k)=u(iq,k)+(uu(iq,k)-u(iq,k))
-     .                         *davt(iq)*dt/3600.
+     &                         *davt(iq)*dt/3600.
             v(iq,k)=v(iq,k)+(vv(iq,k)-v(iq,k))
-     .                         *davt(iq)*dt/3600.
+     &                         *davt(iq)*dt/3600.
            enddo  ! iq loop
           enddo   ! k loop
         endif     ! (nud_uv.eq.1)
@@ -66,16 +67,16 @@ c     kbotdav: for original scheme put kbot=1; 4 for 18-level?
 c             u(iq,k)=u(iq,k)+(rat*u(iq,k)-u(iq,k))
 c    .                           *davt(iq)*dt/3600.
               u(iq,k)=u(iq,k)+u(iq,k)*(rat-1.)
-     .                           *davt(iq)*dt/3600.
+     &                           *davt(iq)*dt/3600.
               v(iq,k)=v(iq,k)+v(iq,k)*(rat-1.)
-     .                           *davt(iq)*dt/3600.
+     &                           *davt(iq)*dt/3600.
 	     endif ! (speed.gt.1.)
            enddo  ! iq loop
           enddo   ! k loop
         endif     ! (nud_uv.eq.2)
-        if(nmaxpr.eq.1.and.ktau.lt.5)then
+        if(nmaxpr.eq.1.and.ktau.lt.5.and.mydiag)then
           print *,'davies out u,v,qg(kl) ',
-     .           u(idjd,nlv),v(idjd,nlv),qg(idjd,kl)
+     &           u(idjd,nlv),v(idjd,nlv),qg(idjd,kl)
         endif
         return
       endif       ! (nud_hrs.lt.0)
@@ -84,7 +85,7 @@ c     following not usually done in globpe, because nud_hrs usually < 0
 c     surface pressure
 c     regular boundary forcing
 c     apply large scale forcing to psl
-      if(ntest.eq.1)print *,'calling lsforc for psl: ',nud_p
+      if(ntest.eq.1.and.mydiag)print *,'calling lsforc for psl: ',nud_p
       if(nud_p.ne.0)call lsforc(psl,psls,nud_hrs)
 
 c-----------------------------------------------------------------------
@@ -105,23 +106,23 @@ c      apply large scale forcing to qg - usually off (e.g. SARCS, 140-yr)
       enddo
 
       return
+      end
 c=======================================================================
-      entry davset
-      do iq=1,ij
-       psls(iq)=psl(iq)
-      enddo ! iq
-      do k=1,kl
-       do iq=1,ij
-        tt(iq,k)=t(iq,k)
-        qgg(iq,k)=qg(iq,k)
-        uu(iq,k)=u(iq,k)
-        vv(iq,k)=v(iq,k)
-       enddo ! iq
-      enddo ! k
+      subroutine davset
+      implicit none
+      include 'newmpar.h' ! il,jl,kl,ij
+      include 'arrays.h' ! t,u,v,ps
+      include 'davb.h'
+      psls(1:ifull) = psl(1:ifull)
+      tt(1:ifull,:) = t(1:ifull,:)
+      qgg(1:ifull,:) = qg(1:ifull,:)
+      uu(1:ifull,:) = u(1:ifull,:)
+      vv(1:ifull,:) = v(1:ifull,:)
       return
       end
 c=======================================================================
       subroutine lsforc(adat,bdat,nrelaxt)  ! globpea: ia=ja=1
+      use cc_mpi, only : mydiag
       parameter (ntest=0)
 c     only nbox=1 set up for globpea so far
 c force lam towards boundary/large-scale data for filtered part only
@@ -142,11 +143,12 @@ c     input variables
        relaxt=nrelaxt
        factor=-mod(timer-.001,-relaxt)/relaxt
        coef=abs(factor*coef)
-       if(timer.lt.1.)print *,'timer,factor,coef ',timer,factor,coef
+       if(timer.lt.1..and.mydiag)print *,'timer,factor,coef ',timer,factor,coef
       endif   !  (nrelaxt.lt.0)
-      if(ntest.eq.1)print *,'in davies; nbox,nrelaxt,coef: ',
-     .                                   nbox,nrelaxt,coef
-      if(ntest.eq.1)print *,'adat_in,bdat: ',adat(idjd),bdat(idjd)
+      if(ntest.eq.1.and.mydiag)then
+        print *,'in davies; nbox,nrelaxt,coef: ',nbox,nrelaxt,coef
+        print *,'adat_in,bdat: ',adat(idjd),bdat(idjd)
+      end if
 
       if(nbox.eq.9)stop 'nbox=9 not ready yet'
 
@@ -155,7 +157,7 @@ c     input variables
           adat(iq)=adat(iq)+coef*(bdat(iq)-adat(iq))
         enddo  ! iq loop
       endif    ! (nbox.eq.1)
-      if(ntest.eq.1)print *,'adat_out: ',adat(idjd)
+      if(ntest.eq.1.and.mydiag)print *,'adat_out: ',adat(idjd)
 
       return
       end
