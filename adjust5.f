@@ -259,10 +259,10 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
         call printa('psnt',pslxint,ktau,0,ia,ib,ja,jb,0.,100.)
         print *,'adjust5 tx ',(tx(idjd,k),k=1,kl)
         call printa('tx  ',tx(1,nlv),ktau,nlv,ia,ib,ja,jb,200.,1.)
-        print  *,'adjust5(1) helm & n e w s',helm(iq,k),
-     .   helm(in(iq),k),helm(ie(iq),k),helm(iw(iq),k),helm(is(iq),k)
-        print  *,'adjust5(1) rhsl & n e w s',rhsl(iq,k),
-     .   rhsl(in(iq),k),rhsl(ie(iq),k),rhsl(iw(iq),k),rhsl(is(iq),k)
+        print  *,'adjust5(1) helm & n e w s',helm(iq,1),
+     .   helm(in(iq),1),helm(ie(iq),1),helm(iw(iq),1),helm(is(iq),1)
+        print  *,'adjust5(1) rhsl & n e w s',rhsl(iq,1),
+     .   rhsl(in(iq),1),rhsl(ie(iq),1),rhsl(iw(iq),1),rhsl(is(iq),1)
         call printa('rhsl',rhsl(1,1),ktau,1,ia,ib,ja,jb,0.,0.)
         print  *,'adjust5 pe ',(pe(iq,k),k=1,kl)
         print  *,'adjust5 pe e ',(pe(ie(iq),k),k=1,kl)
