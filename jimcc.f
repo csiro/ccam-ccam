@@ -1,9 +1,9 @@
-      subroutine jimcc
+      subroutine jimcc(em4,ax4,ay4,az4)
 c     like jim6.f but without stretch option
 c     hedra1 data is hardwired
 c     xx-->xx4, yy-->yy4, fm-->em4, dxa-->ax4, dxb-->ay4, dxc-->az4
 c     dya, dyb, dyc commented out (not needed)
-      include 'newmpar.h'
+      include 'newmpar_gx.h'
       include 'parm.h'    ! ktau
       parameter(n=4*il ,np=n+1,non2=n/2)    !jlm for quad res. grid
       parameter(ipanel=2,ngrmax=1,ndiagj=0)
@@ -12,11 +12,9 @@ c     common/work2/em4(iquad,iquad)     ! to agree with call jim
 c    .    ,ax4(iquad,iquad),ay4(iquad,iquad),az4(iquad,iquad)
 c    .    ,xa(np,np)
 c    .    ,dum2(18*il*jl - 4*(iquad)*(iquad) -np*np )
-      common/work3/em4(iquad,iquad)     ! to agree with call jim
+      real em4(iquad,iquad)
      .    ,ax4(iquad,iquad),ay4(iquad,iquad),az4(iquad,iquad)
-     .    ,xa(np,np)
-     .    ,dum3(5*ijk- 4*(iquad)*(iquad) -np*np )
-      real xb(np,np),xc(np,np)
+      real xa(np,np),xb(np,np),xc(np,np)
       equivalence (xb,xx4),(xc,yy4)  ! just to save on storage  jlm
 c     real dya(np,np),dyb(np,np),dyc(np,np)
 c     ngr = 1  at unstaggered positions
@@ -1152,6 +1150,7 @@ c  permute columns according to ipiv
       enddo
       return
       end
-      include 'jimco.f'
-      include 'nfft.f'
+!     Not in MPI version
+!      include 'jimco.f'
+!      include 'nfft.f'
 
