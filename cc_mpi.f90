@@ -227,6 +227,7 @@ contains
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
+!cdir iexpand(indp, indg)
       if ( myid == 0 .and. .not. present(a1) ) then
          print*, "Error: ccmpi_distribute argument required on proc 0"
          stop
@@ -236,6 +237,7 @@ contains
          ! First copy own region
          do n=1,npan
             do j=1,jpan
+!cdir nodep
                do i=1,ipan
                   iqg = indg(i,j,n)  ! True global index
                   iq = indp(i,j,n)
@@ -287,6 +289,7 @@ contains
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
+!cdir iexpand(indp, indg)
       if ( myid == 0 .and. .not. present(a1) ) then
          print*, "Error: ccmpi_distribute argument required on proc 0"
          stop
@@ -296,6 +299,7 @@ contains
          ! First copy own region
          do n=1,npan
             do j=1,jpan
+!cdir nodep
                do i=1,ipan
                   iqg = indg(i,j,n)  ! True global index
                   iq = indp(i,j,n)
@@ -347,6 +351,7 @@ contains
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
+!cdir iexpand(indp, indg)
       if ( myid == 0 .and. .not. present(a1) ) then
          print*, "Error: ccmpi_distribute argument required on proc 0"
          stop
@@ -407,6 +412,7 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: i, j, n, iq, iqg
 
+!cdir iexpand(indp, indg)
       if ( myid == 0 .and. .not. present(ag) ) then
          print*, "Error: ccmpi_gather argument required on proc 0"
          stop
@@ -460,6 +466,7 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: i, j, n, iq, iqg
 
+!cdir iexpand(indp, indg)
       if ( myid == 0 .and. .not. present(ag) ) then
          print*, "Error: ccmpi_gather argument required on proc 0"
          stop
@@ -1378,6 +1385,29 @@ contains
          call MPI_Waitall(nreq,ireq,status,ierr)
       end if
 
+!  At the moment send_lists use global indices. Convert these to local.
+      do iproc = 1,nproc-1  !
+         sproc = modulo(myid+iproc,nproc)  ! Send to
+         do iq=1,bnds(sproc)%slen2
+            ! send_list(iq) is global point index, i, j, n are local
+            call indv_mpi(bnds(sproc)%send_list(iq),i,j,n)
+            bnds(sproc)%send_list(iq) = indp(i,j,n)
+         end do
+         do iq=1,bnds(sproc)%slen2_uv
+            ! send_list(iq) is global point index, i, j, n are local
+            ! Use abs because sign is used as u/v flag
+            call indv_mpi(abs(bnds(sproc)%send_list_uv(iq)),i,j,n)
+            bnds(sproc)%send_list_uv(iq) = sign(indp(i,j,n),bnds(sproc)%send_list_uv(iq))
+         end do
+      end do
+      do iq=1,bnds(myid)%rlen2
+         call indv_mpi(bnds(myid)%request_list(iq),i,j,n)
+         bnds(myid)%request_list(iq) = indp(i,j,n)
+      end do
+      do iq=1,bnds(myid)%rlen2_uv
+         call indv_mpi(abs(bnds(myid)%request_list_uv(iq)),i,j,n)
+         bnds(myid)%request_list_uv(iq) = sign(indp(i,j,n),bnds(myid)%request_list_uv(iq))
+      end do
 
 !  Final check for values that haven't been set properly
       do n=1,npan
@@ -1475,9 +1505,7 @@ contains
          if ( send_len > 0 ) then
             ! Build up list of points
             do iq=1,send_len
-               ! send_list(iq) is global point index, i, j, n are local
-               call indv_mpi(bnds(sproc)%send_list(iq),i,j,n)
-               bnds(sproc)%sbuf(iq) = t(indp(i,j,n))
+               bnds(sproc)%sbuf(iq) = t(bnds(sproc)%send_list(iq))
             end do
             nreq = nreq + 1
             call MPI_ISend( bnds(sproc)%sbuf(1), send_len, &
@@ -1511,14 +1539,10 @@ contains
       else
          recv_len = bnds(myid)%rlen
       end if
-      if ( recv_len > 0 ) then
-         do iq=1,recv_len
-            ! request_list is same as send_list in this case
-            call indv_mpi(bnds(myid)%request_list(iq),i,j,n)
-            ! i, j, n are local
-            t(ifull+bnds(myid)%unpack_list(iq)) = t(indp(i,j,n))
-         end do
-      end if
+      do iq=1,recv_len
+         ! request_list is same as send_list in this case
+         t(ifull+bnds(myid)%unpack_list(iq)) = t(bnds(myid)%request_list(iq))
+      end do
 
       call end_log(bounds_end)
 
@@ -1570,9 +1594,7 @@ contains
          if ( send_len > 0 ) then
             ! Build up list of points
             do iq=1,send_len
-               ! send_list(iq) is point index.
-               call indv_mpi(bnds(sproc)%send_list(iq),i,j,n)
-               bnds(sproc)%sbuf(1+(iq-1)*kx:iq*kx) = t(indp(i,j,n),1:kx)
+               bnds(sproc)%sbuf(1+(iq-1)*kx:iq*kx) = t(bnds(sproc)%send_list(iq),1:kx)
             end do
             nreq = nreq + 1
             call MPI_ISend( bnds(sproc)%sbuf(1), send_len*kx, &
@@ -1606,14 +1628,10 @@ contains
       else
          recv_len = bnds(myid)%rlen
       end if
-      if ( recv_len > 0 ) then
-         do iq=1,recv_len
-            ! request_list is same as send_list in this case
-            call indv_mpi(bnds(myid)%request_list(iq),i,j,n)
-            ! i, j, n are local
-            t(ifull+bnds(myid)%unpack_list(iq),:) = t(indp(i,j,n),:)
-         end do
-      end if
+      do iq=1,recv_len
+         ! request_list is same as send_list in this case
+         t(ifull+bnds(myid)%unpack_list(iq),:) = t(bnds(myid)%request_list(iq),:)
+      end do
 
       call end_log(bounds_end)
 
@@ -1666,15 +1684,12 @@ contains
          if ( send_len > 0 ) then
             ! Build up list of points
             do iq=1,send_len
-               ! send_list_uv(iq) is point index.
                ! Use abs because sign is used as u/v flag
-               call indv_mpi(abs(bnds(sproc)%send_list_uv(iq)),i,j,n)
-               !
                if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                      bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(iq) = u(indp(i,j,n))
+                  bnds(sproc)%sbuf(iq) = u(abs(bnds(sproc)%send_list_uv(iq)))
                else
-                  bnds(sproc)%sbuf(iq) = v(indp(i,j,n))
+                  bnds(sproc)%sbuf(iq) = v(abs(bnds(sproc)%send_list_uv(iq)))
                end if
             end do
             nreq = nreq + 1
@@ -1716,12 +1731,11 @@ contains
          end if
          do iq=1,recv_len
             ! request_list is same as send_list in this case
-            call indv_mpi(abs( bnds(myid)%request_list_uv(iq)),i,j,n)
             if ( ( bnds(myid)%request_list_uv(iq) > 0) .neqv. &
                       bnds(myid)%uv_swap(iq) ) then  ! haven't copied to send_swap yet
-               tmp = u(indp(i,j,n))
+               tmp = u(abs(bnds(myid)%request_list_uv(iq)))
             else
-               tmp = v(indp(i,j,n))
+               tmp = v(abs(bnds(myid)%request_list_uv(iq)))
             end if
             ! unpack_list(iq) is index into extended region
             if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
@@ -1785,13 +1799,11 @@ contains
             do iq=1,send_len
                ! send_list_uv(iq) is point index.
                ! Use abs because sign is used as u/v flag
-               call indv_mpi(abs(bnds(sproc)%send_list_uv(iq)),i,j,n)
-               !
                if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                      bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(1+(iq-1)*kl:iq*kl) = u(indp(i,j,n),:)
+                  bnds(sproc)%sbuf(1+(iq-1)*kl:iq*kl) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
                else
-                  bnds(sproc)%sbuf(1+(iq-1)*kl:iq*kl) = v(indp(i,j,n),:)
+                  bnds(sproc)%sbuf(1+(iq-1)*kl:iq*kl) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
                end if
             end do
             nreq = nreq + 1
@@ -1833,12 +1845,11 @@ contains
          end if
          do iq=1,recv_len
             ! request_list is same as send_list in this case
-            call indv_mpi(abs(bnds(myid)%request_list_uv(iq)),i,j,n)
             if ( (bnds(myid)%request_list_uv(iq) > 0) .neqv. &
                      bnds(myid)%uv_swap(iq) ) then  ! haven't copied to send_swap yet
-               tmp = u(indp(i,j,n),:)
+               tmp = u(abs(bnds(myid)%request_list_uv(iq)),:)
             else
-               tmp = v(indp(i,j,n),:)
+               tmp = v(abs(bnds(myid)%request_list_uv(iq)),:)
             end if
             ! unpack_list(iq) is index into extended region
             if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
