@@ -2415,11 +2415,14 @@ contains
    subroutine start_log ( event )
       integer, intent(in) :: event
       integer :: ierr
+#ifdef vampir
+      include "VT.inc"
+#endif
 #ifdef mpilog
       ierr = MPE_log_event(event,0,"")
 #endif
 #ifdef vampir
-      call vtbegin(event, ierr)
+      call vtenter(event, VT_NOSCL, ierr)
 #endif
 #ifdef simple_timer
 #ifdef scyld
@@ -2432,11 +2435,14 @@ contains
    subroutine end_log ( event )
       integer, intent(in) :: event
       integer :: ierr
+#ifdef vampir
+      include "VT.inc"
+#endif
 #ifdef mpilog
       ierr = MPE_log_event(event,0,"")
 #endif
 #ifdef vampir
-      call vtend(event, ierr)
+      call vtleave(VT_NOSCL, ierr)
 #endif
 #ifdef simple_timer
 #ifdef scyld
@@ -2460,6 +2466,7 @@ contains
 
    subroutine log_setup()
       integer :: ierr
+      integer :: classhandle
 #ifdef mpilog
       bounds_begin = MPE_Log_get_event_number()
       bounds_end = MPE_Log_get_event_number()
@@ -2517,61 +2524,42 @@ contains
       ierr = MPE_Describe_state(indata_begin, indata_end, "Indata", "Yellow")
 #endif
 #ifdef vampir
-      ! Start at 1000 to avoid clashes with MPI calls
-      bounds_begin = 1001
+      call vtfuncdef("Bounds", classhandle, bounds_begin, ierr)
       bounds_end = bounds_begin
-      call vtsymdef(bounds_begin, "Bounds", "Bounds", ierr)
-      boundsa_begin = 1002
+      call vtfuncdef("BoundsA", classhandle, boundsa_begin, ierr)
       boundsa_end = boundsa_end
-      call vtsymdef(boundsa_begin, "BoundsA", "BoundsA", ierr)
-      boundsb_begin = 1003
+      call vtfuncdef("BoundsB", classhandle, boundsb_begin, ierr)
       boundsb_end = boundsb_begin
-      call vtsymdef(boundsb_begin, "BoundsB", "BoundsB", ierr)
-      boundsuv_begin = 1004
+      call vtfuncdef("BoundsUV", classhandle, boundsuv_begin, ierr)
       boundsuv_end = boundsuv_begin
-      call vtsymdef(boundsuv_begin, "BoundsUV", "BoundsUV", ierr)
-      ints_begin = 1005
+      call vtfuncdef("Ints", classhandle, ints_begin, ierr)
       ints_end = ints_begin 
-      call vtsymdef(ints_begin, "Ints", "Ints", ierr)
-      nonlin_begin = 1006
+      call vtfuncdef("Nonlin", classhandle, nonlin_begin, ierr)
       nonlin_end = nonlin_begin 
-      call vtsymdef(nonlin_begin, "Nonlin", "Nonlin", ierr)
-      helm_begin = 1007
+      call vtfuncdef("Helm", classhandle, helm_begin, ierr)
       helm_end = helm_begin
-      call vtsymdef(helm_begin, "Helm", "Helm", ierr)
-      adjust_begin = 1008
+      call vtfuncdef("Adjust", classhandle, adjust_begin, ierr)
       adjust_end = adjust_begin
-      call vtsymdef(adjust_begin, "Adjust", "Adjust", ierr)
-      upglobal_begin = 1009
+      call vtfuncdef("Upglobal", classhandle, upglobal_begin, ierr)
       upglobal_end = upglobal_begin
-      call vtsymdef(upglobal_begin, "Upglobal", "Upglobal", ierr)
-      depts_begin = 1010
+      call vtfuncdef("Depts", classhandle, depts_begin, ierr)
       depts_end = depts_begin
-      call vtsymdef(depts_begin, "Depts", "Depts", ierr)
-      deptsync_begin = 1011
+      call vtfuncdef("Deptsync", classhandle, deptsync_begin, ierr)
       deptsync_end = deptsync_begin
-      call vtsymdef(deptsync_begin, "Deptsync", "Deptsync", ierr)
-      intssync_begin = 1012
+      call vtfuncdef("Intssync", classhandle, intssync_begin, ierr)
       intssync_end = intssync_begin
-      call vtsymdef(intssync_begin, "Intssync", "Intssync", ierr)
-      stag_begin = 1013
+      call vtfuncdef("Stag", classhandle, stag_begin, ierr)
       stag_end = stag_begin
-      call vtsymdef(stag_begin, "Stag", "Stag", ierr)
-      toij_begin = 1014
+      call vtfuncdef("Toij", classhandle, toij_begin, ierr)
       toij_end =  toij_begin
-      call vtsymdef(toij_begin, "Toij", "Toij", ierr)
-      physloadbal_begin = 1015
+      call vtfuncdef("PhysLBal", classhandle, physloadbal_begin, ierr)
       physloadbal_end =  physloadbal_begin
-      call vtsymdef(physloadbal_begin, "PhysLBal", "PhysLBal", ierr)
-      phys_begin = 1016
+      call vtfuncdef("Phys", classhandle, phys_begin, ierr)
       phys_end =  physloadbal_begin
-      call vtsymdef(phys_begin, "Phys", "Phys", ierr)
-      outfile_begin = 1017
+      call vtfuncdef("Outfile", classhandle, outfile_begin, ierr)
       outfile_end =  outfile_begin
-      call vtsymdef(outfile_begin, "Outfile", "Outfile", ierr)
-      indata_begin = 1018
+      call vtfuncdef("Indata", classhandle, indata_begin, ierr)
       indata_end =  indata_begin
-      call vtsymdef(indata_begin, "Indata", "Indata", ierr)
 #endif
 #ifdef simple_timer
 
@@ -2835,7 +2823,7 @@ contains
     end subroutine ccglobal_posneg3
 
     subroutine ccglobal_sum2 (array, result)
-       ! Calculate global sums of positive and negative values of array
+       ! Calculate global sum of an array
        use sumdd_m
        include 'newmpar.h'
        include 'xyzinfo.h'
@@ -2871,7 +2859,7 @@ contains
     end subroutine ccglobal_sum2
 
     subroutine ccglobal_sum3 (array, result)
-       ! Calculate global sums of positive and negative values of array
+       ! Calculate global sum of 3D array, appyling vertical weighting
        use sumdd_m
        include 'newmpar.h'
        include 'sigs.h'
