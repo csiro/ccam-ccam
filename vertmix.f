@@ -1,6 +1,6 @@
       subroutine vertmix
 !     inputs & outputs: t,u,v,qg
-      use cc_mpi, only : mydiag
+      use cc_mpi, only : mydiag, myid
       use diag_m
       include 'newmpar.h'
       parameter (ntest=0)
@@ -170,37 +170,44 @@ c     *********** end of Tiedtke shallow convection section *****************
 
 c     ************ Tiedtke_jlm shallow convection 97 ***************
       if(ksc.eq.97)then
-        do k=kscbase,ksctop-1
-         do iq=1,ifull
-	   qbas=min(qg(iq,k)/tied_rh,qs(iq,k))
-c         thebas(iq,k)=t(iq,k)+hlcp*qbas  + hght
-          thebas(iq,k)=prcpv(k)*t(iq,k)*(t(iq,k) + .5*hlcp*qbas)
-     .                                 /(t(iq,k) - .5*hlcp*qbas)
-         enddo  ! iq loop
-        enddo   ! k loop
-	 theeb(:)=thebas(:,kscbase)
-        do k=kscbase+1,ksctop+1
-         do iq=1,ifull
-          thee=prcpv(k)*t(iq,k)*(t(iq,k) + .5*hlcp*qs(iq,k))
-     .                         /(t(iq,k) - .5*hlcp*qs(iq,k))
-          if(theeb(iq).gt.thee)then
-            rkh(iq,k-1)=tied_con                !  m**2/sec  6., originally 10.
-            rkh(iq,k)=tied_over                 !  m**2/sec
-	   else
-	     theeb(iq)=thebas(iq,k) ! ready for next k in k-loop
-          endif
-         enddo  ! iq loop
-        enddo   ! k loop
-!       suppress pseudo-deep convection	 
         do k=kscbase,ksctop
-         do iq=1,ifull
-          if(rkh(iq,ksctop).gt..9*tied_con)then  ! to allow for tied_over=0.
-            rkh(iq,k)=0.
-          endif
-         enddo  ! iq loop
+          do iq=1,ifull
+            qbas=min(qg(iq,k)/tied_rh,qs(iq,k))
+c         thebas(iq,k)=t(iq,k)+hlcp*qbas  + hght
+            thebas(iq,k)=prcpv(k)*t(iq,k)*(t(iq,k) + .5*hlcp*qbas)
+     &                                   /(t(iq,k) - .5*hlcp*qbas)
+          enddo                     ! iq loop
+        enddo                     ! k loop
+        theeb(:)=thebas(:,kscbase)
+        do k=kscbase+1,ksctop+1
+          do iq=1,ifull
+            thee=prcpv(k)*t(iq,k)*(t(iq,k) + .5*hlcp*qs(iq,k))
+     &                           /(t(iq,k) - .5*hlcp*qs(iq,k))
+            if(theeb(iq).gt.thee)then
+              rkh(iq,k-1)=tied_con !  m**2/sec  6., originally 10.
+              rkh(iq,k)=tied_over !  m**2/sec
+            else
+              theeb(iq)=thebas(iq,k) ! ready for next k in k-loop
+            endif
+          enddo  ! iq loop
         enddo   ! k loop
-      endif     ! (ksc.eq.97)
-c     *********** end of Tiedtke_jlm shallow convection 97 *************
+!       suppress pseudo-deep convection        
+        theeb(:)=rkh(:,ksctop)  ! not really theeb, just for foll. test
+        do k=kscbase,ksctop+1     ! +1 to include tied_over points
+          do iq=1,ifull
+            if(theeb(iq).gt..9*tied_con)then  ! to allow for tied_over
+              rkh(iq,k)=0.
+            endif
+          enddo  ! iq loop
+        enddo   ! k loop
+        if(ntest.eq.2)then
+          do iq=1,ifull
+            if(rkh(iq,ksctop-1).gt..9*tied_con)then
+              print *,'iq,land,rkh ',iq,land(iq),rkh(iq,ksctop-1)
+            endif
+          enddo
+        endif   ! (ntest.eq.2)
+      endif     ! (ksc.eq.97)c     *********** end of Tiedtke_jlm shallow convection 97 *************
 
 c     ************ section for Geleyn shallow convection *******************
       if(ksc.eq.-99)then
