@@ -39,68 +39,137 @@ c     unstaggered u & v as input; staggered as output
             vin(iq,k) = v(iq,k)
          end do
       end do
-      call boundsuv(uin,vin)
 
-      ! This is the nstag=3, mstagpt=-3 code.
-      ! The MPI version can't have index arrays on the LHS.
+      if ( nstag==3 .or. (nstag==5 .and. modulo(ktau,2)==0) ) then
 
-      do k=1,kl
+         call boundsuv(uin,vin,nrows=2)
+         do k=1,kl
 !cdir nodep
-         do iq=1,ifull          ! precalculate rhs terms
-            ud(iq,k)= uin(iwu(iq),k)/10.+uin(iq,k)+uin(ieu(iq),k)/2.
-            vd(iq,k)= vin(isv(iq),k)/10.+vin(iq,k)+vin(inv(iq),k)/2.
-         enddo
-      enddo
+            do iq=1,ifull       ! precalculate rhs terms with iwwu2 & issv2
+               ud(iq,k)=uin(iq,k)/2.+uin(ieu(iq),k)+uin(ieeu(iq),k)/10.
+               vd(iq,k)=vin(iq,k)/2.+vin(inv(iq),k)+vin(innv(iq),k)/10.
+            end do
+         end do
 
-      call boundsuv(ud,vd)
-
-      do k=1,kl
-!cdir nodep
-         do iq=1,ifull
-            ua(iq,k)=ud(iq,k)-ud(iwu(iq),k)/2. ! 1st guess
-            va(iq,k)=vd(iq,k)-vd(isv(iq),k)/2. ! 1st guess
-         enddo
-      enddo
-
-      do itn=1,itnmax           ! each loop is a double iteration
-         call boundsuv(ua,va)
+         call boundsuv(ud,vd)
          do k=1,kl
 !cdir nodep
             do iq=1,ifull
-               ub(iq,k)=ua(iwu(iq),k)
-               vb(iq,k)=va(isv(iq),k)
-            enddo
-         enddo
-         call boundsuv(ub,vb)
-         do k=1,kl
+               ua(iq,k)=ud(iq,k)-ud(ieu(iq),k)/2. ! 1st guess
+               va(iq,k)=vd(iq,k)-vd(inv(iq),k)/2. ! 1st guess
+            end do
+         end do
+
+         do itn=1,itnmax        ! each loop is a double iteration
+
+            call boundsuv(ua,va)
+            do k=1,kl
 !cdir nodep
-            do iq=1,ifull
-               uin(iq,k)=(ud(iq,k)-.5*ud(iwu(iq),k)
-     &                 -ua(ieu(iq),k)/10. +ub(iwu(iq),k)/4.)/.95
-               vin(iq,k)=(vd(iq,k)-.5*vd(isv(iq),k)
-     &                 -va(inv(iq),k)/10. +vb(isv(iq),k)/4.)/.95
-            enddo
-         enddo
+               do iq=1,ifull
+                  ub(iq,k)=ua(ieu(iq),k)
+                  vb(iq,k)=va(inv(iq),k)
+               end do
+            end do
+
+            call boundsuv(ub,vb)
+            do k=1,kl
+!cdir nodep
+               do iq=1,ifull
+                  uin(iq,k)=(ud(iq,k)-.5*ud(ieu(iq),k)
+     &                 -ua(iwu(iq),k)/10. +ub(ieu(iq),k)/4.)/.95
+                  vin(iq,k)=(vd(iq,k)-.5*vd(inv(iq),k)
+     &                 -va(isv(iq),k)/10. +vb(inv(iq),k)/4.)/.95
+               end do
+            end do
+
+            call boundsuv(uin,vin)
+            do k=1,kl
+!cdir nodep
+               do iq=1,ifull
+                  ub(iq,k)=uin(ieu(iq),k)
+                  vb(iq,k)=vin(inv(iq),k)
+               end do
+            end do
+
+            call boundsuv(ub,vb)
+            do k=1,kl
+!cdir nodep
+               do iq=1,ifull
+                  ua(iq,k)=(ud(iq,k)-.5*ud(ieu(iq),k)
+     &                 -uin(iwu(iq),k)/10. +ub(ieu(iq),k)/4.)/.95
+                  va(iq,k)=(vd(iq,k)-.5*vd(inv(iq),k)
+     &                 -vin(isv(iq),k)/10. +vb(inv(iq),k)/4.)/.95
+               end do
+            end do
+
+         end do                  ! itn=1,itnmax
+
+      else if ( nstag==4 .or. (nstag==5 .and. modulo(ktau,2)==1)) then
+
          call boundsuv(uin,vin)
+
+         do k=1,kl
+!cdir nodep
+            do iq=1,ifull       ! precalculate rhs terms
+               ud(iq,k)= uin(iwu(iq),k)/10.+uin(iq,k)+uin(ieu(iq),k)/2.
+               vd(iq,k)= vin(isv(iq),k)/10.+vin(iq,k)+vin(inv(iq),k)/2.
+            enddo
+         enddo
+
+         call boundsuv(ud,vd)
+
          do k=1,kl
 !cdir nodep
             do iq=1,ifull
-               ub(iq,k)=uin(iwu(iq),k)
-               vb(iq,k)=vin(isv(iq),k)
+               ua(iq,k)=ud(iq,k)-ud(iwu(iq),k)/2. ! 1st guess
+               va(iq,k)=vd(iq,k)-vd(isv(iq),k)/2. ! 1st guess
             enddo
-         end do
-         call boundsuv(ub,vb)
+         enddo
+
+         do itn=1,itnmax        ! each loop is a double iteration
+            call boundsuv(ua,va)
+            do k=1,kl
 !cdir nodep
-         do k=1,kl
-            do iq=1,ifull
-               ua(iq,k)=(ud(iq,k)-.5*ud(iwu(iq),k)
-     &              -uin(ieu(iq),k)/10. +ub(iwu(iq),k)/4.)/.95
-               va(iq,k)=(vd(iq,k)-.5*vd(isv(iq),k)
-     &              -vin(inv(iq),k)/10. +vb(isv(iq),k)/4.)/.95
+               do iq=1,ifull
+                  ub(iq,k)=ua(iwu(iq),k)
+                  vb(iq,k)=va(isv(iq),k)
+               enddo
             enddo
-         end do
-      end do                     ! itn=1,itnmax
+            call boundsuv(ub,vb)
+            do k=1,kl
+!cdir nodep
+               do iq=1,ifull
+                  uin(iq,k)=(ud(iq,k)-.5*ud(iwu(iq),k)
+     &                 -ua(ieu(iq),k)/10. +ub(iwu(iq),k)/4.)/.95
+                  vin(iq,k)=(vd(iq,k)-.5*vd(isv(iq),k)
+     &                 -va(inv(iq),k)/10. +vb(isv(iq),k)/4.)/.95
+               enddo
+            enddo
+            call boundsuv(uin,vin)
+            do k=1,kl
+!cdir nodep
+               do iq=1,ifull
+                  ub(iq,k)=uin(iwu(iq),k)
+                  vb(iq,k)=vin(isv(iq),k)
+               enddo
+            end do
+            call boundsuv(ub,vb)
+!cdir nodep
+            do k=1,kl
+               do iq=1,ifull
+                  ua(iq,k)=(ud(iq,k)-.5*ud(iwu(iq),k)
+     &                 -uin(ieu(iq),k)/10. +ub(iwu(iq),k)/4.)/.95
+                  va(iq,k)=(vd(iq,k)-.5*vd(isv(iq),k)
+     &                 -vin(inv(iq),k)/10. +vb(isv(iq),k)/4.)/.95
+               enddo
+            end do
+         end do                 ! itn=1,itnmax
 	 
+      else
+         print*, "Error, unsupported nstag option:", nstag
+         stop
+      end if
+
       do k=1,kl
          do iq=1,ifull          ! final values for output
             uout(iq,k) = ua(iq,k)
@@ -139,63 +208,135 @@ c     staggered u & v as input; unstaggered as output
             vin(iq,k) = v(iq,k)
          end do
       end do
-      call boundsuv(uin,vin)
 
-      do k=1,kl
-!cdir nodep
-         do iq=1,ifull          ! precalculate rhs terms
-            ud(iq,k)= uin(ieu(iq),k)/10.+uin(iq,k)+uin(iwu(iq),k)/2.
-            vd(iq,k)= vin(inv(iq),k)/10.+vin(iq,k)+vin(isv(iq),k)/2.
-         enddo
-      enddo
-      call boundsuv(ud,vd)
-      do k=1,kl
-!cdir nodep
-         do iq=1,ifull
-            ua(iq,k)=ud(iq,k)-ud(ieu(iq),k)/2. ! 1st guess
-            va(iq,k)=vd(iq,k)-vd(inv(iq),k)/2. ! 1st guess
-         enddo
-      enddo
+      if ( nstagu==3 .or. (nstagu==5 .and. modulo(ktau,2)==0)) then
 
-      do itn=1,itnmax           ! each loop is a double iteration
-         call boundsuv(ua,va)
+         call boundsuv(uin,vin,nrows=2)
+         do k=1,kl
+!cdir nodep
+            do iq=1,ifull       ! precalculate rhs terms with iwwu2 & issv2
+               ud(iq,k)=uin(iq,k)/2.+uin(iwu(iq),k)+uin(iwwu(iq),k)/10.
+               vd(iq,k)=vin(iq,k)/2.+vin(isv(iq),k)+vin(issv(iq),k)/10.
+            end do
+         end do
+
+         call boundsuv(ud,vd)
          do k=1,kl
 !cdir nodep
             do iq=1,ifull
-               ub(iq,k)=ua(ieu(iq),k)
-               vb(iq,k)=va(inv(iq),k)
-            enddo
-         enddo
-         call boundsuv(ub,vb)
-         do k=1,kl
+               ua(iq,k)=ud(iq,k)-ud(iwu(iq),k)/2. ! 1st guess
+               va(iq,k)=vd(iq,k)-vd(isv(iq),k)/2. ! 1st guess
+            end do
+         end do
+
+         do itn=1,itnmax        ! each loop is a double iteration
+
+            call boundsuv(ua,va)
+            do k=1,kl
 !cdir nodep
-            do iq=1,ifull
-               uin(iq,k)=(ud(iq,k)-.5*ud(ieu(iq),k)
-     &              -ua(iwu(iq),k)/10. +ub(ieu(iq),k)/4.)/.95
-               vin(iq,k)=(vd(iq,k)-.5*vd(inv(iq),k)
-     &              -va(isv(iq),k)/10. +vb(inv(iq),k)/4.)/.95
-            enddo
-         enddo
+               do iq=1,ifull
+                  ub(iq,k)=ua(iwu(iq),k)
+                  vb(iq,k)=va(isv(iq),k)
+               end do
+            end do
+            
+            call boundsuv(ub,vb)
+            do k=1,kl
+!cdir nodep
+               do iq=1,ifull
+                  uin(iq,k)=(ud(iq,k)-.5*ud(iwu(iq),k)
+     &                 -ua(ieu(iq),k)/10. +ub(iwu(iq),k)/4.)/.95
+                  vin(iq,k)=(vd(iq,k)-.5*vd(isv(iq),k)
+     &                 -va(inv(iq),k)/10. +vb(isv(iq),k)/4.)/.95
+               end do
+            end do
+
+            call boundsuv(uin,vin)
+            do k=1,kl
+!cdir nodep
+               do iq=1,ifull
+                  ub(iq,k)=uin(iwu(iq),k)
+                  vb(iq,k)=vin(isv(iq),k)
+               end do
+            end do
+
+            call boundsuv(ub,vb)
+            do k=1,kl
+!cdir nodep
+               do iq=1,ifull
+                  ua(iq,k)=(ud(iq,k)-.5*ud(iwu(iq),k)
+     &                 -uin(ieu(iq),k)/10. +ub(iwu(iq),k)/4.)/.95
+                  va(iq,k)=(vd(iq,k)-.5*vd(isv(iq),k)
+     &                 -vin(inv(iq),k)/10. +vb(isv(iq),k)/4.)/.95
+               end do
+            end do
+
+         end do                 ! itn=1,itnmax
+
+      else if ( nstagu==4 .or. (nstagu==5 .and. modulo(ktau,2)==1)) then
+
          call boundsuv(uin,vin)
+
+         do k=1,kl
+!cdir nodep
+            do iq=1,ifull       ! precalculate rhs terms
+               ud(iq,k)= uin(ieu(iq),k)/10.+uin(iq,k)+uin(iwu(iq),k)/2.
+               vd(iq,k)= vin(inv(iq),k)/10.+vin(iq,k)+vin(isv(iq),k)/2.
+            enddo
+         enddo
+         call boundsuv(ud,vd)
          do k=1,kl
 !cdir nodep
             do iq=1,ifull
-               ub(iq,k)=uin(ieu(iq),k)
-               vb(iq,k)=vin(inv(iq),k)
+               ua(iq,k)=ud(iq,k)-ud(ieu(iq),k)/2. ! 1st guess
+               va(iq,k)=vd(iq,k)-vd(inv(iq),k)/2. ! 1st guess
             enddo
          enddo
-         call boundsuv(ub,vb)
-         do k=1,kl
+
+         do itn=1,itnmax        ! each loop is a double iteration
+            call boundsuv(ua,va)
+            do k=1,kl
 !cdir nodep
-            do iq=1,ifull
-               ua(iq,k)=(ud(iq,k)-.5*ud(ieu(iq),k)
-     &              -uin(iwu(iq),k)/10. +ub(ieu(iq),k)/4.)/.95
-               va(iq,k)=(vd(iq,k)-.5*vd(inv(iq),k)
-     &              -vin(isv(iq),k)/10. +vb(inv(iq),k)/4.)/.95
+               do iq=1,ifull
+                  ub(iq,k)=ua(ieu(iq),k)
+                  vb(iq,k)=va(inv(iq),k)
+               enddo
             enddo
-         enddo
-      enddo                     ! itn=1,itnmax
+            call boundsuv(ub,vb)
+            do k=1,kl
+!cdir nodep
+               do iq=1,ifull
+                  uin(iq,k)=(ud(iq,k)-.5*ud(ieu(iq),k)
+     &                 -ua(iwu(iq),k)/10. +ub(ieu(iq),k)/4.)/.95
+                  vin(iq,k)=(vd(iq,k)-.5*vd(inv(iq),k)
+     &                 -va(isv(iq),k)/10. +vb(inv(iq),k)/4.)/.95
+               enddo
+            enddo
+            call boundsuv(uin,vin)
+            do k=1,kl
+!cdir nodep
+               do iq=1,ifull
+                  ub(iq,k)=uin(ieu(iq),k)
+                  vb(iq,k)=vin(inv(iq),k)
+               enddo
+            enddo
+            call boundsuv(ub,vb)
+            do k=1,kl
+!cdir nodep
+               do iq=1,ifull
+                  ua(iq,k)=(ud(iq,k)-.5*ud(ieu(iq),k)
+     &                 -uin(iwu(iq),k)/10. +ub(ieu(iq),k)/4.)/.95
+                  va(iq,k)=(vd(iq,k)-.5*vd(inv(iq),k)
+     &                 -vin(isv(iq),k)/10. +vb(inv(iq),k)/4.)/.95
+               enddo
+            enddo
+         enddo                  ! itn=1,itnmax
       
+      else
+         print*, "Error, unsupported nstagu option:", nstagu
+         stop
+      end if
+
       do k=1,kl
          do iq=1,ifull          ! final values for output
             uout(iq,k) = ua(iq,k)
