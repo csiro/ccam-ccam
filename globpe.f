@@ -10,7 +10,9 @@
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
       use cc_mpi
+#ifdef __IFC
       use ieee_m
+#endif
       use diag_m
       implicit none
       include 'newmpar.h'
@@ -102,7 +104,9 @@
      &     (/31,28,31,30,31,30,31,31,30,31,30,31, 31/)
       real psa(12001),psm(12001)
       logical prnt,odcalc
+#ifdef __IFC
       integer ieee
+#endif
       character comm*60,comment*60,rundate*10,header*47,text*2
       character(len=10) :: timeval
       integer, dimension(8) :: tvals1, tvals2
@@ -111,10 +115,10 @@
       integer iaero, ier, igas,ii, ilx, io_nest, iq, irest, isoil, itr1,
      &     itr2, jalbfix, jj, jlx, jtr1, jtr2, k, kk, kktau, 
      &     kscreen, mexrest, mins_dt, mins_gmt, mspeca, mtimer_in,
-     &     nalpha, ndi, ndi2, newsnow, ng, nlx, nmaxprsav,
+     &     nalpha, newsnow, ng, nlx, nmaxprsav,
      &     nmi, nmidiab, npa, npb, npc, nper3hr, nper6hr, nper9hr,
-     &     nper12hr, nper15hr, nper18hr, nper21hr, nperday, 
-     &     nrad, nsnowout, nwrite, nwt0, nwtsav, 
+     &     nper12hr, nper15hr, nper18hr, nper21hr, 
+     &     nsnowout, nwrite, nwt0, nwtsav, 
      &     mins_rad, mtimer_sav
       real clhav, cllav, clmav, cltav, con, 
      &     div_int, dsx, dtds, es, gke, hourst, hrs_dt,
@@ -186,9 +190,11 @@
       call log_off()
       call log_setup()
 
+#ifdef __IFC
       ieee = ieee_handler("set", "division", ihandler)
       ieee = ieee_handler("set", "invalid", ihandler)
       ieee = ieee_handler("set", "overflow", ihandler)
+#endif
 
       ia=il/2
       ib=ia+3
@@ -717,8 +723,13 @@ c         qg(:,:)=max(qg(:,:),qgmin)  ! testing
 	    mtimer=mtimer_sav
           endif    ! (nhstest.lt.0)
           t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:) 
-          if(nmaxpr.eq.1)call maxmin(rtt,'rt',ktau,1.e4,kl)
-          if(nmaxpr.eq.1)call maxmin(slwa,'sl',ktau,.1,1)
+          if(nmaxpr.eq.1) then
+             ! Account for load bal explicitly rather than implicitly in
+             ! the reduce in maxmin.
+             call phys_loadbal
+             call maxmin(rtt,'rt',ktau,1.e4,kl)
+             call maxmin(slwa,'sl',ktau,.1,1)
+          end if
         elseif(mod(ktau,kountr).eq.0.or. ktau.eq.1)then
 !         use preset slwa array (use +ve nrad)
           slwa(:)=-10*nrad  
@@ -878,6 +889,11 @@ c         qg(:,:)=max(qg(:,:),qgmin)  ! testing
          endif  ! (mod(ktau,nmaxpr).eq.0)
          call vertmix
 	 endif  ! (ntsur.eq.-6)
+
+!     This is the end of the physics. The next routine makes the load imbalance
+!     overhead explicit rather than having it hidden in one of the diagnostic
+!     calls.
+      call phys_loadbal
 
       if(ndi.eq.-ktau)then
         nmaxpr=1
@@ -1066,12 +1082,6 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
         endif ! (namip.gt.0)
       endif   ! (mod(ktau,nperday).eq.0)
 
-      call log_off()
-      if (myid==0) then
-         call date_and_time(time=timeval,values=tvals2)
-         print*, "End of time loop ", timeval
-      end if
-
 !     zero the other averaged fields every nwt
       if(mod(ktau,nwt).eq.0)then ! nwt for now ***
 !       re-set the diag arrays for the next time
@@ -1104,6 +1114,12 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
         if(nllp.gt.0)call setllp ! tied in with nwt at present
       endif  ! (mod(ktau,nwt).eq.0)
 88    continue                   ! *** end of main time loop
+      call log_off()
+      if (myid==0) then
+         call date_and_time(time=timeval,values=tvals2)
+         print*, "End of time loop ", timeval
+      end if
+
       if(myid==0) then
          print *,'normal termination of run'
          call date_and_time(time=timeval)
@@ -1112,6 +1128,7 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
      &      60*(tvals2(6)-tvals1(6)) + (tvals2(7)-tvals1(7)) + 
      &      0.001 * (tvals2(8)-tvals1(8))
       end if
+      print*, "LOAD BAL TIME", myid, loadbaltime
 
       call mpi_finalize(ierr)
  
@@ -1123,7 +1140,7 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
       include 'parm.h'
       character *(*) filename
       character header*47
-      integer itss(*)
+      integer itss(ifullx)
       integer glob2d(ifull_g)
 
       if ( ifullx /= ifull ) then
@@ -1166,7 +1183,7 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
       include 'parm.h'
       character *(*) filename
       character header*47
-      real tss(*)
+      real tss(ifullx)
       real glob2d(ifull_g)
       integer ierr
 
