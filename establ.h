@@ -1,6 +1,9 @@
 c $Log$
-c Revision 1.1  2003/08/13 01:24:20  dix043
-c Initial revision
+c Revision 1.2  2003/09/05 02:34:26  dix043
+c Make sure variable names won't clash with anything else.
+c
+c Revision 1.1.1.1  2003/08/13 01:24:20  dix043
+c Imported sources
 c
 c Revision 1.7  2000/11/14 03:11:35  rot032
 c Energy/water balance for land-surface and sea-ice, plus tidy ups from HBG
@@ -31,16 +34,20 @@ c Arithmetic statement functions to replace call to establ.
 c T is temp in Kelvin, which should lie between 123.16 and 343.16;
 c TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
 
-      real t, tdiff, establ, qsat, pp, estabi, qsati
-      tdiff(t)=min(max( t-123.16, 0.), 219.)
+      real tdiff, establ, qsat, estabi, qsati
+      ! Use local names that shouldn't conflict with anything else
+      real t_, pp_
+      tdiff(t_)=min(max( t_-123.16, 0.), 219.)
 
-      establ(t) = (1.-(tdiff(t)-aint(tdiff(t))))*table(int(tdiff(t)))
-     &           + (tdiff(t)-aint(tdiff(t)))*table(int(tdiff(t))+1)
-      qsat(pp,t) = epsil*establ(t)/(pp-establ(t)) !Usual formula
-c      qsat(pp,t) = epsil*establ(t)/pp !Consistent with V4-5 to V4-7
+      establ(t_) =
+     &       (1.-(tdiff(t_)-aint(tdiff(t_))))*table(int(tdiff(t_)))
+     &     + (tdiff(t_)-aint(tdiff(t_)))*table(int(tdiff(t_))+1)
+      qsat(pp_,t_) = epsil*establ(t_)/(pp_-establ(t_)) !Usual formula
+c      qsat(pp_,t) = epsil*establ(t_)/pp_ !Consistent with V4-5 to V4-7
 
 c These give the ice values needed for the qcloud scheme
-      estabi(t) = (1.-(tdiff(t)-aint(tdiff(t))))*tablei(int(tdiff(t)))
-     &           + (tdiff(t)-aint(tdiff(t)))*tablei(int(tdiff(t))+1)
-      qsati(pp,t) = epsil*estabi(t)/(pp-estabi(t)) !Usual formula
-c      qsati(pp,t) = epsil*estabi(t)/pp !Consistent with V4-5 to V4-7
+      estabi(t_) =
+     &      (1.-(tdiff(t_)-aint(tdiff(t_))))*tablei(int(tdiff(t_)))
+     &    + (tdiff(t_)-aint(tdiff(t_)))*tablei(int(tdiff(t_))+1)
+      qsati(pp_,t_) = epsil*estabi(t_)/(pp_-estabi(t_)) !Usual formula
+c      qsati(pp_,t_) = epsil*estabi(t_)/pp_ !Consistent with V4-5 to V4-7
