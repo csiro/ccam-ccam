@@ -46,7 +46,6 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
       data cgsnow/2090./,rhosnow/200./                       ! for calgammv
 !     data snmin/1000./  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
 
-
 c     update land points.
       if(ktau.eq.1)then
         if(ntest.eq.3)snmin=.11   ! to force 3-layer snow for testing
@@ -56,6 +55,17 @@ c     update land points.
           wblf(iq,k)   = -99.  ! just to put something in array
          enddo
         enddo
+	 do iq=1,ifull
+	  if(isflag(iq).eq.0)then
+           ssdnn(iq) = ssdn(iq,1)
+	  else
+           sdepth(iq,1)=smass(iq,1)/ssdn(iq,1)
+           sdepth(iq,2)=smass(iq,2)/ssdn(iq,2)
+           sdepth(iq,3)=smass(iq,3)/ssdn(iq,3)
+           z1snow = sdepth(iq,1)+sdepth(iq,2)+sdepth(iq,3) ! real snow depth in m
+           ssdnn(iq)  = snowd(iq)/z1snow
+	  endif
+	 enddo
       endif   ! (ktau.eq.1)
 
       if ( mydiag ) sdepth(idjd,1:3)=0.  ! default to avoid *** in globpe.f display
@@ -307,7 +317,8 @@ c***********************************************************************
       use cc_mpi, only : mydiag
       parameter (ntest=0)    ! 3: forces 3-layer snow, 1: for snow diag prints
       parameter (ncondxpr=1) ! 0: old sfce scheme, 1: jlm mid-level suggestion
-!     parameter (nglacier=2)  ! 0 original, 1 off, 2 new from Eva; to parm.h
+      parameter (newsmelt=1) ! 0: old, 1: new from Aug 2003
+!     parameter (nglacier=1)  ! 0 original, 1 off, 2 new from Eva; to parm.h
       include 'newmpar.h'   
       include 'arrays.h'
       include 'const_phys.h'  ! cp
@@ -426,20 +437,55 @@ c            prevent snow depth going negative
              endif
            endif  ! (tgg(iq,1).ge.tfrz)then
          else     ! 3-layer scheme,  isflag=1
-           sgamm = ssdn(iq,1)*2105. * sdepth(iq,1)
-!          tggsn(iq,1)=tggsn(iq,1)-evapsn*(hlf+hl) /sgamm   ! done in sflux
-           do k=1,3
+            k=1
+            smelt1(k)=0.
+            if(tggsn(iq,k).gt.tfrz)then
+              sgamm   = ssdn(iq,k)*2105. * sdepth(iq,k)
+              snowflx=(tggsn(iq,k)-tfrz)*sgamm
+              smelt1(k)= min(snowflx/hlf ,0.9*smass(iq,k))
+              smass(iq,k) = smass(iq,k) - smelt1(k)
+              tggsn(iq,k)= min(tggsn(iq,k)-smelt1(k)*hlf/sgamm, tfrz)
+              if(newsmelt.eq.1.and.isoilm(iq).eq.9)then !snow melt refreezing   
+               sgamm=ssdn(iq,k+1)*2105.*sdepth(iq,k+1)
+               snowflx=smelt1(k)*hlf/dt
+               tggsn(iq,k+1)=tggsn(iq,k+1)+snowflx*dt/sgamm
+               ssdn(iq,k+1)=min((smass(iq,k+1)+smelt1(k))
+     .               /(smass(iq,k+1)/ssdn(iq,k+1)+smelt1(k)/1000.),450.)
+               smass(iq,k+1) = smass(iq,k+1) + smelt1(k)
+               sdepth(iq,k+1)=smass(iq,k+1)/ssdn(iq,k+1) ! to give new sgamm
+               smelt1(k)=0.
+             endif  ! (newsmelt.eq.1.and.isoilm(iq).eq.9)
+            endif   ! (tggsn(iq,k).gt.tfrz)
+            k=2
+            smelt1(k)=0.
+            if(tggsn(iq,k).gt.tfrz)then
+              sgamm   = ssdn(iq,k)*2105. * sdepth(iq,k)
+              snowflx=(tggsn(iq,k)-tfrz)*sgamm
+              smelt1(k)= min(snowflx/hlf ,0.9*smass(iq,k))
+              smass(iq,k) = smass(iq,k) - smelt1(k)
+              tggsn(iq,k)= min(tggsn(iq,k)-smelt1(k)*hlf/sgamm, tfrz)
+              if(newsmelt.eq.1.and.isoilm(iq).eq.9)then !snow melt refreezing   
+               sgamm=ssdn(iq,k+1)*2105.*sdepth(iq,k+1)
+               snowflx=smelt1(k)*hlf/dt
+               tggsn(iq,k+1)=tggsn(iq,k+1)+snowflx*dt/sgamm
+               ssdn(iq,k+1)=min((smass(iq,k+1)+smelt1(k))
+     .               /(smass(iq,k+1)/ssdn(iq,k+1)+smelt1(k)/1000.),450.)
+               smass(iq,k+1) = smass(iq,k+1) + smelt1(k)
+               sdepth(iq,k+1)=smass(iq,k+1)/ssdn(iq,k+1) ! to give new sgamm
+               smelt1(k)=0.
+             endif  ! (newsmelt.eq.1.and.isoilm(iq).eq.9)
+            endif   ! (tggsn(iq,k).gt.tfrz)
+            k=3
             smelt1(k)=0.
             if( tggsn(iq,k).gt.tfrz ) then
               sgamm   = ssdn(iq,k)*2105. * sdepth(iq,k)
               snowflx=(tggsn(iq,k)-tfrz)*sgamm
               smelt1(k)= min(snowflx/hlf ,0.9*smass(iq,k))
               smass(iq,k) = smass(iq,k) - smelt1(k)
-              snowd(iq)=max(snowd(iq)-smelt1(k),0.)
               tggsn(iq,k)= min(tggsn(iq,k)-smelt1(k)*hlf/sgamm, tfrz)
-            endif
-           enddo
+            endif   ! (tggsn(iq,k).gt.tfrz)
            smelt=smelt1(1)+smelt1(2)+smelt1(3)
+           snowd(iq)=snowd(iq) - smelt
          endif  ! (isflag(iq).eq.0) .. else ..
        endif    !  (snowd(iq).gt.0.)t
 
@@ -1009,67 +1055,60 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
        bt(:,k)=1.
        ct(:,k)=0.
       enddo
-      coeff(1)=0.
-      coeff(ms+1)=0.
 
+      do k=1,ms
 *cdir nodep
-      do ip=1,ipland  ! all land points in this nsib=1 or 3 loop
-       iq=iperm(ip)
-       isoil = isoilm(iq)
-       if(isoil.eq.9)then
-         do k=1,ms
+       do ip=1,ipland  ! all land points in this nsib=1 or 3 loop
+        iq=iperm(ip)
+        isoil = isoilm(iq)
+        if(isoil.eq.9)then
           ccnsw(iq,k)=2.5
-         enddo
-       else
-         do k=1,ms
+        else
           ew=wblf(iq,k)*ssat(isoil)
-          eww=min(ew , .5*ssat(isoil))
-          ccf=max(1. , sqrt(min(2. , .5*ssat(isoil)/eww)))
+!         eww=min(ew , .5*ssat(isoil))
+!         ccf=max(1. , sqrt(min(2. , .5*ssat(isoil)/eww)))
+          ccf=sqrt(.5/max(.25,min(wblf(iq,k),.5)))  ! jlm: equiv to above
           ei=wbfice(iq,k)*ssat(isoil)
 !         ccnsw(iq,k)= min(cnsd(isoil)*(60.)**ew*(250.)**ei , 2.2)*ccf
           ccnsw(iq,k)= min(cnsd(isoil)*exp(ew*log(60.)+ei*log(250.))
      .                  , 2.2)*ccf
-         enddo
-       endif  ! (isoil.eq.9 .. else ..)
+        endif  ! (isoil.eq.9) ... else ...
+       enddo
       enddo
 
+      coeff(1)=0.
+      coeff(ms+1)=0.
 *cdir nodep
       do ip=1,ipland  ! all land points in this nsib=1 or 3 loop
        iq=iperm(ip)
-       if( isflag(iq).eq. 0 ) then
+       if( isflag(iq).eq.0) then
          isoil = isoilm(iq)
          scondss = max(0.2,min(2.576e-6*ssdn(iq,1)*ssdn(iq,1)
      &                    +.074,1.))   ! or should it be 0.8?
          xx=max(0.,snowd(iq)/ssdnn(iq))
          xy=zse(1)/(zse(1)+xx)
          if( xx .gt.0.) ccnsw(iq,1)=ccnsw(iq,1)*xy + (1.-xy)*scondss
-!         tzs(1)=zse(1)+xx
-
-!         do k=2,ms
-!           coeff(k)=1./(.5*(tzs(k-1)/ccnsw(k-1)+tzs(k)/ccnsw(k)))
-!         enddo
-         do k=3,ms
-           coeff(k)=2./(zse(k-1)/ccnsw(iq,k-1)+zse(k)/ccnsw(iq,k))
-         enddo
          coeff(2)=2./((zse(1)+xx)/ccnsw(iq,1)+zse(2)/ccnsw(iq,2))
          coefa(iq)=0.         ! jlm for B
          coefb(iq)=coeff(2)   ! jlm for B
+         do k=3,ms
+          coeff(k)=2./(zse(k-1)/ccnsw(iq,k-1)+zse(k)/ccnsw(iq,k))
+         enddo
 
          k=1
          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
      *    +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
-     *     rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
-         gammzz(iq,k)=gammzz(iq,k) + 
-     &                               cgsnow*snowd(iq)  ! changed back 21/5/01
-c    &                               cgsnow*snowd(iq)/ssdnn(iq)  ! for k=1
+     *    rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
+         gammzz(iq,k)=gammzz(iq,k) +  cgsnow*snowd(iq) 
          dtg=dt/gammzz(iq,k)
          at(iq,k)= -dtg*coeff(k)
          ct(iq,k)= -dtg*coeff(k+1)     ! c3(ms)=0 & not really used
          bt(iq,k)= 1.-at(iq,k)-ct(iq,k)
+
          do k=2,ms
           gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
      *     +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
-     *      rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
+     *     rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
           dtg=dt/gammzz(iq,k)
           at(iq,k)= -dtg*coeff(k)
           ct(iq,k)= -dtg*coeff(k+1)     ! c3(ms)=0 & not really used
@@ -1092,21 +1131,10 @@ c    &                               cgsnow*snowd(iq)/ssdnn(iq)  ! for k=1
            print *,'bt ',(bt(iq,k),k=1,ms)
            print *,'ct ',(ct(iq,k),k=1,ms)
            print *,'rhs ',(tgg(iq,k),k=1,ms)
-c          print *,'ttgg ',ttgg  ! A
          endif  ! (ntest.gt.0.and.iq.eq.idjd)
 
-c        do k=1,ms              ! A
-c         tgg(iq,k)=ttgg(k)     ! A
-c        enddo                  ! A
-c        sgflux(iq)=0.                               ! A
-c        gflux(iq)=coeff(2)*(tgg(iq,1)-tgg(iq,2))    ! A
        endif  ! ( isflag(iq).eq. 0 )
       enddo   ! ip=1,ipland           land points
-cx    call trimb(at(1,1),bt(1,1),ct(1,1),tgg,ms)               ! B
-!     do iq=1,ifull
-!        sgflux(iq)=0.
-!        gflux(iq)=coefb(iq)*(tgg(iq,1)-tgg(iq,2))
-!     enddo
 
       coeff(1-3)=0.
 ! ****** next cdir nodep does not work on SX5 ****************      
@@ -1114,57 +1142,56 @@ cx    call trimb(at(1,1),bt(1,1),ct(1,1),tgg,ms)               ! B
       do ip=1,ipland  ! all land points in this nsib=1 or 3 loop
 !      N.B. vectorized version assumes tggsn precedes tgg in memory
        iq=iperm(ip)
-       if( isflag(iq).ne. 0 ) then   ! 3-layer snow points done here
+       if( isflag(iq).ne.0) then   ! 3-layer snow points done here
          isoil = isoilm(iq)
-         do k=1,3
-          sconds(k) = max(0.2,min(2.576e-6*ssdn(iq,k)*ssdn(iq,k)
-     &                    +.074,1.))   ! or should it be 0.8?
-         enddo
-!        ccnsw(1-3)=sconds(1)  ! not needed
-!        ccnsw(2-3)=sconds(2)  ! not needed
-!        ccnsw(3-3)=sconds(3)  ! not needed
-c        do k=2,ms+3
-c          coeff(k)=2./(tzs(k-1)/ccnsw(k-1)+tzs(k)/ccnsw(k))
-c        enddo
-         do k=2,3    ! for coeff(-1) & coeff(0)
-           coeff(k-3)=2./(sdepth(iq,k-1)/sconds(k-1)
-     .                  +sdepth(iq,k)/sconds(k))
-         enddo
+	  do k=1,3
+          sconds(k)=max(.2,min(2.576e-6*ssdn(iq,k)*ssdn(iq,k)+.074,1.))
+	  enddo
          coeff(1)=2./(sdepth(iq,3)/sconds(3) +zse(1)/ccnsw(iq,1))
          do k=2,ms
-           coeff(k)=2./(zse(k-1)/ccnsw(iq,k-1)+zse(k)/ccnsw(iq,k))
-         enddo
+          coeff(k)=2./(zse(k-1)/ccnsw(iq,k-1)+zse(k)/ccnsw(iq,k))
+	  enddo
+	  k=3
+         coeff(k-3)=2./(sdepth(iq,k-1)/sconds(k-1)  ! coeff(0)
+     .                   +sdepth(iq,k)/sconds(k))
+         sgamm   = ssdn(iq,k)*2105. * sdepth(iq,k)
+         dtg=dt/sgamm
+         at(iq,k-3) = -dtg*coeff(k-3)
+         ct(iq,k-3) = -dtg*coeff(k-2)
+         bt(iq,k-3)= 1.-at(iq,k-3)-ct(iq,k-3)
+	  k=2  
+         coeff(k-3)=2./(sdepth(iq,k-1)/sconds(k-1)  ! coeff(-1)
+     .                   +sdepth(iq,k)/sconds(k))
+         sgamm   = ssdn(iq,k)*2105. * sdepth(iq,k)
+         dtg=dt/sgamm
+         at(iq,k-3) = -dtg*coeff(k-3)
+         ct(iq,k-3) = -dtg*coeff(k-2)
+         bt(iq,k-3)= 1.-at(iq,k-3)-ct(iq,k-3)
+	  k=1 
+         sgamm   = ssdn(iq,k)*2105. * sdepth(iq,k)
+         dtg=dt/sgamm
+         at(iq,k-3) = -dtg*coeff(k-3)
+         ct(iq,k-3) = -dtg*coeff(k-2)
+         bt(iq,k-3)= 1.-at(iq,k-3)-ct(iq,k-3)
+     
          coefa(iq)=coeff(2-3)     ! jlm B
          coefb(iq)=coeff(4-3)     ! jlm B
 
-         do k=1,3
-           sgamm   = ssdn(iq,k)*2105. * sdepth(iq,k)
-           dtg=dt/sgamm
-c          rhs(k-3) = tggsn(iq,k)        ! A
-           at(iq,k-3) = -dtg*coeff(k-3)
-           ct(iq,k-3) = -dtg*coeff(k-2)
-           bt(iq,k-3)= 1.-at(iq,k-3)-ct(iq,k-3)
-         enddo
          do k=1,ms
-!         gammzz(iq,k)=calgammv(iq,isoil,k,wblf(iq,k)*ssat(isoil),
-!    &                       wbfice(iq,k)*ssat(isoil))
           gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
      *     +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
      *      rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
           dtg=dt/gammzz(iq,k)
-c         rhs(k) = tgg(iq,k)        ! A
           at(iq,k)= -dtg*coeff(k)
           ct(iq,k) = -dtg*coeff(k+1)      ! c3(ms)=0 & not really used
           bt(iq,k)= 1.-at(iq,k)-ct(iq,k)
          enddo
+
          sgamm   = ssdn(iq,1)*2105. * sdepth(iq,1)
-!        rhs(1-3) = rhs(1-3)+ga(iq)*dt/sgamm
-c        new code
          bt(iq,-2)=bt(iq,-2)-dgdtg(iq)*dt/sgamm             ! 9/5/02
          tggsn(iq,1)=tggsn(iq,1)+
      .             (ga(iq)-tggsn(iq,1)*dgdtg(iq))*dt/sgamm ! 9/5/-2
 
-c         tggsn(iq,1)=tggsn(iq,1)+ga(iq)*dt/sgamm
          rhs(1-3)=tggsn(iq,1)    ! A
          if(ntest.gt.0.and.iq.eq.idjd)then
            print *,'in stempv 3-layer snow code '
@@ -1179,27 +1206,24 @@ c         tggsn(iq,1)=tggsn(iq,1)+ga(iq)*dt/sgamm
      .                 (tggsn(iq,k),k=1,3),(tgg(iq,k),k=1,ms)
          endif  ! (ntest.gt.0.and.iq.eq.idjd)
 
-c        do k=1,3                                ! A
-c         tggsn(iq,k)=ttgg(k)                    ! A
-c        enddo                                   ! A
-c        do k=1,ms                               ! A
-c         tgg(iq,k)=ttgg(k+3)                    ! A
-c        enddo                                   ! A
        endif  ! ( isflag(iq).ne. 0 )
       enddo   ! ip=1,ipland           land points
 
 !     note in the following that tgg and tggsn are stacked together
       call trimb(at(1,-2),bt(1,-2),ct(1,-2),tggsn,ms+3)           ! B
 
+      do k=2,ms
+       do iq=1,ifull
+        isoil = isoilm(iq)
+        if(isoil.eq.9)then
+          tgg(iq,k)=min(tgg(iq,k),273.1)  ! jlm 7/6/00
+        endif
+       enddo   
+      enddo
+
 *cdir nodep
       do ip=1,ipland  ! all land points in this nsib=1 or 3 loop
        iq=iperm(ip)
-       isoil = isoilm(iq)
-       if(isoil.eq.9)then
-         do k=2,ms
-          tgg(iq,k)=min(tgg(iq,k),273.1)  ! jlm 7/6/00
-         enddo
-       endif
        sgflux(iq)=coefa(iq)*(tggsn(iq,1)-tggsn(iq,2))
        gflux(iq) =coefb(iq)*(  tgg(iq,1)-  tgg(iq,2))  ! +ve downwards
       enddo   ! ip=1,ipland           land points
@@ -1218,7 +1242,7 @@ c        enddo                                   ! A
 c***********************************************************************
 
       subroutine snowprv(iq)    ! N.B. this one is not vectorized
-
+      parameter (newsmlt=1) ! 0: old, 1: new from Aug 2003
       include 'newmpar.h'   
       include 'const_phys.h'
       include 'parm.h'      ! ktau,dt
@@ -1300,30 +1324,44 @@ c***********************************************************************
       else
 c                                            snow melting
         sdepth(iq,1)   = .07
-        sd1         = max(.005,smass(iq,1)/ssdn(iq,1)) !current depth of
-c                                                     the 1st layer
-        sm1         = max(.01,smass(iq,1))     !current mass of the 1st layer
+        sd1= max(.005,smass(iq,1)/ssdn(iq,1)) !current depth of 1st layer
+        sm1= max(.01,smass(iq,1))             !current mass of 1st layer
         excd        = .07-sd1
         smass(iq,1)=max(140.*.07,
      &            min(500. , sd1*ssdn(iq,1)+excd*ssdn(iq,2) ) )
         ssdn(iq,1)=smass(iq,1)/.07
-        excm        = smass(iq,1)-sm1
-        excd        = excm/ssdn(iq,1)
-        osm2        = smass(iq,2)
-        smass(iq,2) = max(.01,smass(iq,2)-pr*excm)
-        sdepth(iq,2)= max(.02,osm2/ssdn(iq,2)-pr*excd)
-        ssdn(iq,2)  = max(140.,min(500.,smass(iq,2)/sdepth(iq,2)))
-
-        if( ssdn(iq,2) .lt. ossdn2 ) then
+	 if(newsmlt.eq.0)then  ! old way
+          excm        = smass(iq,1)-sm1
+          excd        = excm/ssdn(iq,1)
+          osm2        = smass(iq,2)
+          smass(iq,2) = max(.01,smass(iq,2)-pr*excm)
+          sdepth(iq,2)= max(.02,osm2/ssdn(iq,2)-pr*excd)
+          ssdn(iq,2)  = max(140.,min(500.,smass(iq,2)/sdepth(iq,2)))
+          if( ssdn(iq,2) .lt. ossdn2 ) then
             ssdn(iq,2)=ossdn2
             smass(iq,2)=.45*(snowd(iq)-smass(iq,1))
             sdepth(iq,2)=max(.02,smass(iq,2)/ssdn(iq,2))
-        endif
- 
-        smass(iq,3)  = max(.01 , snowd(iq)-smass(iq,1)-smass(iq,2))
-        sdepth(iq,3) = max(.02 , smass(iq,3)/ssdn(iq,3))
-
-      endif
+          endif
+          smass(iq,3)  = max(.01 , snowd(iq)-smass(iq,1)-smass(iq,2))
+          sdepth(iq,3) = max(.02 , smass(iq,3)/ssdn(iq,3))
+	 endif  ! (newsmlt.eq.0)
+	 if(newsmlt.eq.1)then  ! new way
+          excm       = max(0.,smass(iq,1)-sm1)
+          otggsn1    = tggsn(iq,1)
+          tggsn(iq,1)= tggsn(iq,1)*sm1/smass(iq,1) + 
+     &                             (1.-sm1/smass(iq,1))*tggsn(iq,2)
+          smass(iq,2) = max(.01,smass(iq,2)-pr*excm)
+          sdepth(iq,2)= max(.02,smass(iq,2)/ssdn(iq,2))
+          smass(iq,3) = max(.01 , snowd(iq)-smass(iq,1)-smass(iq,2))
+          sdepth(iq,3)= max(.02 , smass(iq,3)/ssdn(iq,3))
+          if(sdepth(iq,3).lt.sdepth(iq,2)) then
+            smass(iq,2)=.45*(snowd(iq)-smass(iq,1))
+            sdepth(iq,2)=max(.02,smass(iq,2)/ssdn(iq,2))
+            smass(iq,3) = max(.01 , snowd(iq)-smass(iq,1)-smass(iq,2))
+            sdepth(iq,3)= max(.02 , smass(iq,3)/ssdn(iq,3))
+          endif  ! (sdepth(iq,3).lt.sdepth(iq,2))
+	 endif    ! (newsmlt.eq.1)
+      endif      ! ( tr1.ge.0.) ... else ...
 
       return
       end
