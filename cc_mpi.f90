@@ -24,7 +24,7 @@ module cc_mpi
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
              indp, indg, deptsync, intssync, start_log, end_log, check_dims, &
              log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg, &
-             ccglobal_sum, indv_mpi, indglobal, readglobvar, writeglobvar
+             ccglobal_sum, iq2iqg, indv_mpi, indglobal, readglobvar, writeglobvar
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
               ccmpi_gather2, ccmpi_gather3, checksize, get_dims, get_dims_gx,&
               ccglobal_posneg2, ccglobal_posneg3, ccglobal_sum2, ccglobal_sum3
@@ -2275,6 +2275,8 @@ contains
       integer , intent(out) :: j
       integer , intent(out) :: n
 
+      ! Calculate local i, j, n from global iq
+
       ! Global i, j, n
       n = (iq - 1)/(il_g*il_g)
       j = 1 + (iq - n*il_g*il_g - 1)/il_g
@@ -2315,6 +2317,21 @@ contains
       ! Note that face number runs from 1 here.
       iq = i + (j-1)*ipan + (n-1)*ipan*jpan
    end function indp
+
+   function iq2iqg(iq) result(iqg)
+      integer, intent(in) :: iq
+      integer :: iqg
+      integer :: i, j, n
+
+      ! Calculate global iqg from local iq
+
+      ! Calculate local i, j, n
+      n = 1 + (iq-1) / (il*jl)  ! In range 1 .. npan
+      j = 1 + ( iq - (n-1)*(il*jl) - 1) / il
+      i = iq - (j-1)*il - (n-1)*(il*jl)
+      iqg = indg(i,j,n)
+
+   end function iq2iqg
 
    subroutine checksize(len, mesg)
       integer, intent(in) :: len
