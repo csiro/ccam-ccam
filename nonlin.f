@@ -37,7 +37,7 @@
       common/nonlsav/tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl)
       real tbar2d
       common/tbar2d/tbar2d(ifull)
-      ! Need work common for these.
+      ! Need work common for these?
       real aa(ifull,kl),bb(ifull,kl),cc(ifull,kl),dd(ifull,kl),
      &     aa2(ifull,kl),bb2(ifull,kl),cc2(ifull,kl),dd2(ifull,kl)
 !      common/work2/aa(ifull),bb(ifull),cc(ifull),dd(ifull),
@@ -45,23 +45,22 @@
 !     .             ee(ifull),ff(ifull),dum2(ifull,7),pskap(ifull)
       real p(ifull+iextra,kl),tempry(ifull,kl),
      &     tv(ifull+iextra,kl)
-      real qgsav, , qfgsav, qlgsav, trsav
-      common/work3sav/qgsav(ifull,kl),trsav(ilt*jlt,klt,ngasmax)  ! passed to adjust5
+      real d, spare
+      common/work3/d(ifull,kl),spare(ifull,4*kl)   ! From updps
+      real qgsav, qfgsav, qlgsav, trsav
       common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
-     .             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
+     &             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
       real pextras(ifull,kl),omgf(ifull,kl)
       equivalence (omgf,pextras,dpsldt)
       real phip(ifull+iextra,nphip),dphip(ifull,nphip)    ! 1052 to 2 every 25
       real dphi_dx(ifull,kl),dphi_dy(ifull,kl)
       real siglog(kl),plog(nphip),dplog(nphip)
-      integer iq, iqq, k, kk, kpp, kx, ng, ii, jj
+      integer iq, iqq, k, kk, kpp, kx, ng, ii, jj, its, nits, nvadh_pass
       real betav, cnon, contv, coslat, costh, delneg, delp, delpos, den,
      &     drk, factor, omg_rot, polenx, polenz, pp, pressp, presst,
-     &     psav, psavk, psavklog, psavlog, ratio, rk, sdmax, sdmax_g,
+     &     psav, psavk, psavklog, psavlog, ratio, rk, sdmax, 
      &     sigt, sigtlog, sigxx, sinlat, sinth, sumdiffb, termlin, tt,
-     &     tvv, uzon, zonx, zony, zonz, zsint
-      real :: delneg_l, delpos_l  ! Local versions
-      real, dimension(2) :: delarr, delarr_l
+     &     tvv, uzon, zonx, zony, zonz, zsint, sdmx, sdmx_g
       integer :: ierr
       integer, save :: num = 0
       
@@ -163,7 +162,7 @@
 !     do vertical advection in split mode
       if(nvad.eq.4)then
          sdmx = maxval(abs(sdot))
-         call MPI_AllReduce(sdmax, sdmax_g, 1, MPI_REAL, MPI_MAX, 0,
+         call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX,
      &                      MPI_COMM_WORLD, ierr )
 	 nits=1+sdmx_g/nvadh
 	 nvadh_pass=nvadh*nits
@@ -221,29 +220,21 @@
       if(abs(mfix).eq.5.and.mspec.eq.1)then
 !       perform conservation fix on tr1,tr2 as affected by vadv, hadv, hordif
         do ng=1,2
-         delpos_l=0.
-         delneg_l=0.
-         do iq=1,ifull
           do k=1,kl
-           tempry(iq,k) = tr(iq,k,ng)-trsav(iq,k,ng)  ! has increments
-           delpos_l = delpos_l + max(0.,-dsig(k)*tempry(iq,k)/em(iq)**2)
-           delneg_l = delneg_l + min(0.,-dsig(k)*tempry(iq,k)/em(iq)**2)
-          enddo   ! k loop
-         enddo    ! iq loop
-         delarr_l(1:2) = (/ delpos_l, delneg_l /)
-         call MPI_Allreduce ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,
-     &                        MPI_COMM_WORLD, ierr )
-         delpos = delarr(1)
-         delneg = delarr(2)
-         ratio = -delneg/delpos
-         beta = min(ratio,sqrt(ratio))
-         betav=1./max(1.,beta)  ! for cunning 2-sided
-         do k=1,kl
-	   do iq=1,ifull
-           tr(iq,k,ng)=trsav(iq,k,ng)+
-     .       beta*max(0.,tempry(iq,k)) + betav*min(0.,tempry(iq,k))
-          enddo  ! iq loop  
-         enddo   !  k loop    
+            do iq=1,ifull
+               tempry(iq,k) = tr(iq,k,ng)-trsav(iq,k,ng)  ! has increments
+            enddo
+          enddo
+          call ccglobal_posneg(tempry,delpos,delneg)
+          ratio = -delneg/delpos
+          beta = min(ratio,sqrt(ratio))
+          betav=1./max(1.,beta) ! for cunning 2-sided
+          do k=1,kl
+            do iq=1,ifull
+              tr(iq,k,ng)=trsav(iq,k,ng)+
+     &          beta*max(0.,tempry(iq,k)) + betav*min(0.,tempry(iq,k))
+            enddo  ! iq loop  
+          enddo   !  k loop    
         enddo    ! ng loop
       endif      !  abs(mfix).eq.5
 
@@ -265,7 +256,7 @@
             aa(iq,1)=rata(nlv)*sdot(iq,nlv+1)+ratb(nlv)*sdot(iq,nlv)
          enddo
          if ( mydiag )
-     &        print *,'k,aa,emu,emv',nlv,aa(idjd),emu(idjd),emv(idjd)
+     &      print *,'k,aa,emu,emv',nlv,aa(idjd,nlv),emu(idjd),emv(idjd)
 
          call printa('sgdf',aa(:,1),ktau,nlv,ia,ib,ja,jb,0.,10.)
       endif
