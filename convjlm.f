@@ -125,6 +125,7 @@ c     convective first, then L/S rainfall
       ktmax(:)=kl      ! preset 1 level above current topmost-permitted ktsav
       kbsav_ls(:)=0    ! for L/S
       ktsav(:)=kl      ! preset value to show no deep or shallow convection
+      kbsav(:)=kl      ! preset value to show no deep or shallow convection
 
       tt(1:ifull,:)=t(1:ifull,:)       
       qq(1:ifull,:)=qg(1:ifull,:)      
@@ -661,12 +662,21 @@ c          if(nums.lt.20)then
           do iq=1,ifull
            if(sig(kt_sav(iq)).gt.sig_ct)then  ! typically sig_ct ~ .8
              convpsav(iq)=0.         ! N.B. will get same result on later itns
-             kbsav(iq)=kb_sav(iq) 
-	      ktsav(iq)=-kt_sav(iq)  ! for possible use in vertmix
+             if(ktsav(iq).eq.kl)then
+               kbsav(iq)=kb_sav(iq) 
+               ktsav(iq)=kt_sav(iq)  ! for possible use in vertmix
+	     endif  ! (ktsav(iq).eq.kl)
            endif
           enddo  ! iq loop
         endif    !  (sig_ct.lt.0.).. else ..
 !     endif
+      
+      do iq=1,ifull
+       if(ktsav(iq).eq.kl.and.convpsav(iq).gt.0.)then
+         kbsav(iq)=kb_sav(iq) 
+         ktsav(iq)=kt_sav(iq)  
+       endif  ! (ktsav(iq).eq.kl.and.convpsav(iq).gt.0.)
+      enddo   ! iq loop
 
       if(itn.lt.iterconv)then 
         convpsav(:)=convfact*convpsav(:) ! typically convfact=1.02  
