@@ -24,7 +24,7 @@ module cc_mpi
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
              indp, indg, deptsync, intssync, start_log, end_log, check_dims, &
              log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg, &
-             ccglobal_sum, indv_mpi, indglobal
+             ccglobal_sum, indv_mpi, indglobal, readglobvar
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
               ccmpi_gather2, ccmpi_gather3, checksize, get_dims, get_dims_gx,&
               ccglobal_posneg2, ccglobal_posneg3, ccglobal_sum2, ccglobal_sum3
@@ -45,6 +45,9 @@ module cc_mpi
    end interface
    interface ccglobal_sum
       module procedure ccglobal_sum2, ccglobal_sum3
+   end interface
+   interface readglobvar
+      module procedure readglobvar2, readglobvar3, readglobvar2i
    end interface
 
    ! Define neighbouring faces
@@ -2050,6 +2053,9 @@ contains
 !     from the message status
 
 
+!     TODO !!!!!
+!     This should be restricted to nearest neighbours rather than all
+!     processors
       nreq = 0
       do iproc = 1,nproc-1  !
          sproc = modulo(myid+iproc,nproc)  ! Send to
@@ -2907,6 +2913,132 @@ contains
 #endif
 
     end subroutine ccglobal_sum3
+
+    ! Read and distribute a global variable
+    ! Optional arguments for format and to skip over records
+    subroutine readglobvar2(un,var,skip,fmt)
+      include 'newmpar.h'
+      integer, intent(in) :: un
+      real, dimension(:), intent(out) :: var
+      logical, intent(in), optional :: skip
+      character, intent(in), optional :: fmt
+      real, dimension(ifull_g) :: varg
+      logical :: doskip
+
+      doskip = .false.
+      if ( present(skip) ) doskip = skip
+
+      if ( doskip ) then
+         if ( myid == 0 ) then
+            read(un)
+         end if
+      else
+         if ( myid == 0 ) then
+            if ( present(fmt) ) then
+               if ( fmt == "*" ) then
+                  read(un,*) varg
+               else
+                  read(un,fmt) varg
+               end if
+            else
+               read(un) varg
+            end if
+            ! Use explicit ranges here because some arguments might be extended.
+            call ccmpi_distribute(var(1:ifull),varg)
+         else
+            call ccmpi_distribute(var(1:ifull))
+         end if
+      end if
+
+   end subroutine readglobvar2
+
+   subroutine readglobvar2i(un,var,skip,fmt)
+      include 'newmpar.h'
+      integer, intent(in) :: un
+      integer, dimension(:), intent(out) :: var
+      logical, intent(in), optional :: skip
+      character, intent(in), optional :: fmt
+      integer, dimension(ifull_g) :: varg
+      logical :: doskip
+
+      doskip = .false.
+      if ( present(skip) ) doskip = skip
+
+      if ( doskip ) then
+         if ( myid == 0 ) then
+            read(un)
+         end if
+      else
+         if ( myid == 0 ) then
+            if ( present(fmt) ) then
+               if ( fmt == "*" ) then
+                  read(un,*) varg
+               else
+                  read(un,fmt) varg
+               end if
+            else
+               read(un) varg
+            end if
+            ! Use explicit ranges here because some arguments might be extended.
+            call ccmpi_distribute(var(1:ifull),varg)
+         else
+            call ccmpi_distribute(var(1:ifull))
+         end if
+      end if
+
+   end subroutine readglobvar2i
+
+   subroutine readglobvar3(un,var,skip,fmt)
+      include 'newmpar.h'
+      integer, intent(in) :: un
+      real, dimension(:,:), intent(out) :: var
+      logical, intent(in), optional :: skip
+      real, dimension(ifull_g,size(var,2)) :: varg
+      character, intent(in), optional :: fmt
+      integer :: k, kk
+      logical :: doskip
+
+      doskip = .false.
+      if ( present(skip) ) doskip = skip
+
+      kk = size(var,2)
+
+      if ( doskip ) then
+         if ( myid == 0 ) then
+            read(un)
+         end if
+      else
+         if ( myid == 0 ) then
+            if ( present(fmt) ) then
+               if ( fmt == "*" ) then
+                  read(un,*) varg
+               else
+                  read(un,fmt) varg
+               end if
+            else
+               read(un) varg
+            end if
+            ! Use explicit ranges here because some arguments might be extended.
+            ! ccmpi_distribute3 expects kl, it's not general
+            if ( kk == kl ) then
+               call ccmpi_distribute(var(1:ifull,:),varg)
+            else
+               do k=1,kk
+                  call ccmpi_distribute(var(1:ifull,k),varg(:,k))
+               end do
+            end if
+         else
+            if ( kk == kl ) then
+               call ccmpi_distribute(var(1:ifull,:))
+            else
+               do k=1,kk
+                  call ccmpi_distribute(var(1:ifull,k))
+               end do
+            end if
+         end if
+      end if
+
+   end subroutine readglobvar3
 
 end module cc_mpi
 
