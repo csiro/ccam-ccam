@@ -1,8 +1,10 @@
-      integer, parameter :: nstnmax=10, nstn2=3
-      integer mstn,nstn,istn,jstn,iunp,istn2,jstn2,iunp2,
-     &        iaustw,iauste,iaustn,iausts
-      real slat,slon,slat2,slon2
-      common / trcom2 / mstn,nstn,slat(nstnmax),slon(nstnmax),
-     &                  istn(nstnmax),jstn(nstnmax),iunp(nstnmax)
-     & ,slat2(nstn2),slon2(nstn2),istn2(nstn2),jstn2(nstn2),iunp2(nstn2)
-     & ,iaustw,iauste,iaustn,iausts
+      integer, parameter :: nstnmax=20, nstn2=3
+      integer :: mstn,nstn,iaustw,iauste,iaustn,iausts
+      integer, dimension(nstnmax) :: istn,jstn,iunp
+      integer, dimension(nstn2)   :: istn2,jstn2,iunp2
+      real, dimension(nstnmax)    :: slat,slon,zstn
+      real, dimension(nstn2)      :: slat2,slon2
+      character(len=3) name_stn
+      common /trcom2/ mstn,nstn,slat,slon,istn,jstn,iunp,zstn,
+     &                slat2,slon2,istn2,jstn2,iunp2,
+     &                iaustw,iauste,iaustn,iausts,name_stn
