@@ -410,6 +410,7 @@ c     turn OFF fatal netcdf errors; from here on
         call histrd1(ncid,iarch,ier,'snd',ik,jk,snowd)
         if(ier.ne.0.or.nqg_set.lt.6)then  ! preset snowd here if not avail.
 !         when no snowd available initially, e.g. COMPARE III (jlm formula)
+          snowd(:)=0.      ! added Feb '05
           do iq=1,ifull                             ! "do" missing till 5/6/01
 !           for this one,snow lin. increases from 5 to 55, for T 270 down to 260
             if(abs(tss(iq)).lt.270.)snowd(iq)=
