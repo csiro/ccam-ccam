@@ -222,10 +222,10 @@ c     *********** end of Geleyn shallow convection section *****************
 
 c       x is bulk ri *(dvmod **2)
         if(nvmix.gt.0.and.nvmix.lt.4)then  ! new one allowing for cloudy air
-	   if(nvmix.eq.1)w1=dsig(k)/(dsig(k)+dsig(k+1)) 
-	   if(nvmix.eq.2)w1=.5                          
-	   if(nvmix.eq.3)w1=1.                          
-          w2=1.-w1                 !weight for upper level
+           if(nvmix.eq.1)w1=dsig(k+1)/(dsig(k)+dsig(k+1)) 
+           if(nvmix.eq.2)w1=.5                          
+           if(nvmix.eq.3)w1=1.      !weight for lower level             
+           w2=1.-w1                 !weight for upper level
           do iq=1,ifull
 c          dz1=zh(iq,k)-zh(iq,k-1) !thickness of layer k
 c          dz2=zh(iq,k+1)-zh(iq,k) !thickness of layer k+1
