@@ -4,7 +4,7 @@
       use cc_mpi, only : mydiag
       parameter (ntest=0)   ! ntest= 0 for diags off; ntest= 1 for diags on
       parameter (jlmspec=0) ! jlmspec=0 for original method over land
-      parameter (chn10=.00136733)   ! sea only, same as in sflux
+!      parameter (chn10=.00136733)   ! sea only, same as in sflux via parm.h
       parameter (vkar=.4,zscr=1.8)
 c     for nsib=2 don't calculate tscrn here
       include 'newmpar.h'
