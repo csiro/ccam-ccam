@@ -371,11 +371,13 @@ c       Model run number
 
 c       Experiment description
         expdesc = 'CCAM model run'
-        call ncaptc(idnc,ncglobal,'expdesc',ncchar,50,expdesc,ier)
+        call ncaptc(idnc,ncglobal,'expdesc',ncchar,len_trim(expdesc),
+     &              expdesc,ier)
         write(6,*)"expdesc ier=",ier
 
 c       Model version
-        call ncaptc(idnc,ncglobal,'version',ncchar,10,version,ier)
+        call ncaptc(idnc,ncglobal,'version',ncchar,len_trim(version),
+     &              version,ier)
 
         if ( local ) then
            ier = nf_put_att_int(idnc,nf_global,"processor_num",nf_int,
@@ -1002,7 +1004,7 @@ c=======================================================================
       integer cdfid, idv, dim(3)
       character name*(*), lname*(*), units*(*)
       real xmin, xmax
-      integer, parameter :: vtype = ncfloat
+      integer, parameter :: vtype = ncshort
 
       idv = ncvdef(cdfid, name, vtype, ndim, dim, ier)
       if ( ier.ne.0 ) then
