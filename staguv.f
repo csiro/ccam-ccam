@@ -24,10 +24,10 @@ c     assume k level already given
       include 'vecsuva.h'  ! vecsuva info
       real, dimension(ifull,kl), intent(in)  :: u, v
       real, dimension(ifull,kl), intent(out) :: uout, vout
-      real, dimension(ifull+iextra,kl) :: ua, va, ub, vb, ud, vd,
+      real, dimension(ifull+iextra,kl) :: ua, va, ud, vd,
      &                                    uin, vin
       integer, parameter :: itnmax=3
-      integer :: i, iq, itn, j, k
+      integer :: iq, itn, k
 
       call start_log(stag_begin)
 c     unstaggered u & v as input; staggered as output
@@ -62,43 +62,25 @@ c     unstaggered u & v as input; staggered as output
 
          do itn=1,itnmax        ! each loop is a double iteration
 
-            call boundsuv(ua,va)
-            do k=1,kl
-!cdir nodep
-               do iq=1,ifull
-                  ub(iq,k)=ua(ieu(iq),k)
-                  vb(iq,k)=va(inv(iq),k)
-               end do
-            end do
-
-            call boundsuv(ub,vb)
+            call boundsuv(ua,va,nrows=2)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
                   uin(iq,k)=(ud(iq,k)-.5*ud(ieu(iq),k)
-     &                 -ua(iwu(iq),k)/10. +ub(ieu(iq),k)/4.)/.95
+     &                 -ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
                   vin(iq,k)=(vd(iq,k)-.5*vd(inv(iq),k)
-     &                 -va(isv(iq),k)/10. +vb(inv(iq),k)/4.)/.95
+     &                 -va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
                end do
             end do
 
-            call boundsuv(uin,vin)
-            do k=1,kl
-!cdir nodep
-               do iq=1,ifull
-                  ub(iq,k)=uin(ieu(iq),k)
-                  vb(iq,k)=vin(inv(iq),k)
-               end do
-            end do
-
-            call boundsuv(ub,vb)
+            call boundsuv(uin,vin,nrows=2)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
                   ua(iq,k)=(ud(iq,k)-.5*ud(ieu(iq),k)
-     &                 -uin(iwu(iq),k)/10. +ub(ieu(iq),k)/4.)/.95
+     &                 -uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
                   va(iq,k)=(vd(iq,k)-.5*vd(inv(iq),k)
-     &                 -vin(isv(iq),k)/10. +vb(inv(iq),k)/4.)/.95
+     &                 -vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
                end do
             end do
 
@@ -127,40 +109,26 @@ c     unstaggered u & v as input; staggered as output
          enddo
 
          do itn=1,itnmax        ! each loop is a double iteration
-            call boundsuv(ua,va)
-            do k=1,kl
-!cdir nodep
-               do iq=1,ifull
-                  ub(iq,k)=ua(iwu(iq),k)
-                  vb(iq,k)=va(isv(iq),k)
-               enddo
-            enddo
-            call boundsuv(ub,vb)
+            call boundsuv(ua,va,nrows=2)
+
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
                   uin(iq,k)=(ud(iq,k)-.5*ud(iwu(iq),k)
-     &                 -ua(ieu(iq),k)/10. +ub(iwu(iq),k)/4.)/.95
+     &                 -ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
                   vin(iq,k)=(vd(iq,k)-.5*vd(isv(iq),k)
-     &                 -va(inv(iq),k)/10. +vb(isv(iq),k)/4.)/.95
+     &                 -va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
                enddo
             enddo
-            call boundsuv(uin,vin)
-            do k=1,kl
-!cdir nodep
-               do iq=1,ifull
-                  ub(iq,k)=uin(iwu(iq),k)
-                  vb(iq,k)=vin(isv(iq),k)
-               enddo
-            end do
-            call boundsuv(ub,vb)
+
+            call boundsuv(uin,vin,nrows=2)
 !cdir nodep
             do k=1,kl
                do iq=1,ifull
                   ua(iq,k)=(ud(iq,k)-.5*ud(iwu(iq),k)
-     &                 -uin(ieu(iq),k)/10. +ub(iwu(iq),k)/4.)/.95
+     &                 -uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
                   va(iq,k)=(vd(iq,k)-.5*vd(isv(iq),k)
-     &                 -vin(inv(iq),k)/10. +vb(isv(iq),k)/4.)/.95
+     &                 -vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
                enddo
             end do
          end do                 ! itn=1,itnmax
@@ -196,10 +164,10 @@ c     staggered u & v as input; unstaggered as output
       include 'vecsuva.h'  ! vecsuva info
       real, dimension(ifull,kl), intent(in)  :: u, v
       real, dimension(ifull,kl), intent(out) :: uout, vout
-      real, dimension(ifull+iextra,kl) :: ua, va, ub, vb, ud, vd,
+      real, dimension(ifull+iextra,kl) :: ua, va, ud, vd,
      &                                    uin, vin
       integer, parameter :: itnmax=3
-      integer :: i, iq, itn, j, k
+      integer :: iq, itn, k
 
       call start_log(stag_begin)
       do k=1,kl
@@ -231,43 +199,25 @@ c     staggered u & v as input; unstaggered as output
 
          do itn=1,itnmax        ! each loop is a double iteration
 
-            call boundsuv(ua,va)
-            do k=1,kl
-!cdir nodep
-               do iq=1,ifull
-                  ub(iq,k)=ua(iwu(iq),k)
-                  vb(iq,k)=va(isv(iq),k)
-               end do
-            end do
-            
-            call boundsuv(ub,vb)
+            call boundsuv(ua,va,nrows=2)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
                   uin(iq,k)=(ud(iq,k)-.5*ud(iwu(iq),k)
-     &                 -ua(ieu(iq),k)/10. +ub(iwu(iq),k)/4.)/.95
+     &                 -ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
                   vin(iq,k)=(vd(iq,k)-.5*vd(isv(iq),k)
-     &                 -va(inv(iq),k)/10. +vb(isv(iq),k)/4.)/.95
+     &                 -va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
                end do
             end do
 
-            call boundsuv(uin,vin)
-            do k=1,kl
-!cdir nodep
-               do iq=1,ifull
-                  ub(iq,k)=uin(iwu(iq),k)
-                  vb(iq,k)=vin(isv(iq),k)
-               end do
-            end do
-
-            call boundsuv(ub,vb)
+            call boundsuv(uin,vin,nrows=2)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
                   ua(iq,k)=(ud(iq,k)-.5*ud(iwu(iq),k)
-     &                 -uin(ieu(iq),k)/10. +ub(iwu(iq),k)/4.)/.95
+     &                 -uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
                   va(iq,k)=(vd(iq,k)-.5*vd(isv(iq),k)
-     &                 -vin(inv(iq),k)/10. +vb(isv(iq),k)/4.)/.95
+     &                 -vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
                end do
             end do
 
@@ -294,40 +244,24 @@ c     staggered u & v as input; unstaggered as output
          enddo
 
          do itn=1,itnmax        ! each loop is a double iteration
-            call boundsuv(ua,va)
-            do k=1,kl
-!cdir nodep
-               do iq=1,ifull
-                  ub(iq,k)=ua(ieu(iq),k)
-                  vb(iq,k)=va(inv(iq),k)
-               enddo
-            enddo
-            call boundsuv(ub,vb)
+            call boundsuv(ua,va,nrows=2)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
                   uin(iq,k)=(ud(iq,k)-.5*ud(ieu(iq),k)
-     &                 -ua(iwu(iq),k)/10. +ub(ieu(iq),k)/4.)/.95
+     &                 -ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
                   vin(iq,k)=(vd(iq,k)-.5*vd(inv(iq),k)
-     &                 -va(isv(iq),k)/10. +vb(inv(iq),k)/4.)/.95
+     &                 -va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
                enddo
             enddo
-            call boundsuv(uin,vin)
-            do k=1,kl
-!cdir nodep
-               do iq=1,ifull
-                  ub(iq,k)=uin(ieu(iq),k)
-                  vb(iq,k)=vin(inv(iq),k)
-               enddo
-            enddo
-            call boundsuv(ub,vb)
+            call boundsuv(uin,vin,nrows=2)
             do k=1,kl
 !cdir nodep
                do iq=1,ifull
                   ua(iq,k)=(ud(iq,k)-.5*ud(ieu(iq),k)
-     &                 -uin(iwu(iq),k)/10. +ub(ieu(iq),k)/4.)/.95
+     &                 -uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
                   va(iq,k)=(vd(iq,k)-.5*vd(inv(iq),k)
-     &                 -vin(isv(iq),k)/10. +vb(inv(iq),k)/4.)/.95
+     &                 -vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
                enddo
             enddo
          enddo                  ! itn=1,itnmax
