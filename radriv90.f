@@ -43,17 +43,13 @@
       include 'hcon.h'
       include 'lwout.h'
       include 'radisw.h'
+      include 'raddiag.h'
       include 'rdflux.h'
       include 'srccom.h'
       include 'swocom.h'
       include 'tfcom.h'
       common/work3c/rhg(ifull,kl) ! N.B. common/work3/ used in cloud,radrive
       common/work3d/rtt(ifull,kl) ! just to pass between radriv90 & globpe
-      common/raddiag/sint_ave(ifull), sot_ave (ifull), soc_ave (ifull),
-     &               sgn_ave (ifull), rtu_ave (ifull), rtc_ave (ifull),
-     &               rgn_ave (ifull), rgc_ave (ifull), cld_ave (ifull), 
-     &               cll_ave (ifull), clm_ave (ifull), clh_ave (ifull), 
-     &               koundiag
 
       parameter(cong = cp/grav)
       parameter(csolar=1.96)
@@ -64,7 +60,6 @@ c     parameters for the aerosol calculation
 !     input arguments
       logical odcalc  ! True for full radiation calculation
 
-      common / es_table / table(0:220)
       real sigh(kl+1)
 
 !     Radiation fields (CSIRO GCM names)
@@ -105,13 +100,7 @@ c     Stuff from cldset
       data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
       save first
       data first /.true./
-
-c arithmetic statement functions to replace call to establ.
-c t is temp in kelvin, which should lie between 123.16 and 343.16;
-c tdiff is difference between t and 123.16, subject to 0 <= tdiff <= 220
-      tdiff(tm)=min(max(tm-123.16 , 0.) , 220.)
-      establ(tm) =(1.-(tdiff(tm)-aint(tdiff(tm))))*table(int(tdiff(tm)))
-     &           + (tdiff(tm)-aint(tdiff(tm)))*table(int(tdiff(tm))+1)
+      include 'establ.h'
 
       do k=kl,1,-1
          if(sig(k).le. .15)ksigtop=k  ! top level for RH calc for clouds
