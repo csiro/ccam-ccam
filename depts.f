@@ -380,8 +380,8 @@ c     use 4* resolution grid il --> 4*il
        xg(iq,k)=min(max(-.99999,xg(iq,k)),.99999)
        yg(iq,k)=min(max(-.99999,yg(iq,k)),.99999)
 c      first guess for ri, rj and nearest i,j
-       ri=1.+(1.+xg(iq,k))*2*il
-       rj=1.+(1.+yg(iq,k))*2*il
+       ri=1.+(1.+xg(iq,k))*2*il_g
+       rj=1.+(1.+yg(iq,k))*2*il_g
        do loop=1,nmaploop
         i=nint(ri)
         j=nint(rj)
