@@ -24,7 +24,7 @@ module cc_mpi
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
              indp, indg, deptsync, intssync, start_log, end_log, check_dims, &
              log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg, &
-             ccglobal_sum, indv_mpi, indglobal, readglobvar
+             ccglobal_sum, indv_mpi, indglobal, readglobvar, writeglobvar
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
               ccmpi_gather2, ccmpi_gather3, checksize, get_dims, get_dims_gx,&
               ccglobal_posneg2, ccglobal_posneg3, ccglobal_sum2, ccglobal_sum3
@@ -48,6 +48,9 @@ module cc_mpi
    end interface
    interface readglobvar
       module procedure readglobvar2, readglobvar3, readglobvar2i
+   end interface
+   interface writeglobvar
+      module procedure writeglobvar2, writeglobvar3
    end interface
 
    ! Define neighbouring faces
@@ -3038,7 +3041,7 @@ contains
       integer, intent(in) :: un
       real, dimension(:), intent(out) :: var
       logical, intent(in), optional :: skip
-      character, intent(in), optional :: fmt
+      character(len=*), intent(in), optional :: fmt
       real, dimension(ifull_g) :: varg
       logical :: doskip
 
@@ -3074,7 +3077,7 @@ contains
       integer, intent(in) :: un
       integer, dimension(:), intent(out) :: var
       logical, intent(in), optional :: skip
-      character, intent(in), optional :: fmt
+      character(len=*), intent(in), optional :: fmt
       integer, dimension(ifull_g) :: varg
       logical :: doskip
 
@@ -3111,7 +3114,7 @@ contains
       real, dimension(:,:), intent(out) :: var
       logical, intent(in), optional :: skip
       real, dimension(ifull_g,size(var,2)) :: varg
-      character, intent(in), optional :: fmt
+      character(len=*), intent(in), optional :: fmt
       integer :: k, kk
       logical :: doskip
 
@@ -3156,6 +3159,75 @@ contains
       end if
 
    end subroutine readglobvar3
+
+    ! Gather and write a global variable
+    ! Optional argument for format
+    subroutine writeglobvar2(un,var,fmt)
+      include 'newmpar.h'
+      integer, intent(in) :: un
+      real, dimension(:), intent(in) :: var
+      character(len=*), intent(in), optional :: fmt
+      real, dimension(ifull_g) :: varg
+
+      if ( myid == 0 ) then
+         ! Use explicit ranges here because some arguments might be extended.
+         call ccmpi_gather(var(1:ifull),varg)
+         if ( present(fmt) ) then
+            if ( fmt == "*" ) then
+               write(un,*) varg
+            else
+               write(un,fmt) varg
+            end if
+         else
+            write(un) varg
+         end if
+      else
+         call ccmpi_gather(var(1:ifull))
+      end if
+
+   end subroutine writeglobvar2
+
+   subroutine writeglobvar3(un,var,fmt)
+      include 'newmpar.h'
+      integer, intent(in) :: un
+      real, dimension(:,:), intent(in) :: var
+      real, dimension(ifull_g,size(var,2)) :: varg
+      character(len=*), intent(in), optional :: fmt
+      integer :: k, kk
+
+      kk = size(var,2)
+
+      if ( myid == 0 ) then
+         ! Use explicit ranges here because some arguments might be extended.
+         ! ccmpi_gather3 expects kl, it's not general
+         if ( kk == kl ) then
+            call ccmpi_gather(var(1:ifull,:),varg)
+         else
+            do k=1,kk
+               call ccmpi_gather(var(1:ifull,k),varg(:,k))
+            end do
+         end if
+         if ( present(fmt) ) then
+            if ( fmt == "*" ) then
+               write(un,*) varg
+            else
+               write(un,fmt) varg
+            end if
+         else
+            write(un) varg
+         end if
+      else
+         if ( kk == kl ) then
+            call ccmpi_gather(var(1:ifull,:))
+         else
+            do k=1,kk
+               call ccmpi_gather(var(1:ifull,k))
+            end do
+         end if
+      end if
+
+   end subroutine writeglobvar3
+
 
 end module cc_mpi
 
