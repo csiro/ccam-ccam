@@ -1,10 +1,13 @@
-FC = ifc
-INC = -I /home/dix043/include_ifc  -I /home/dix043/mpich-1.2.2/include
+FC = ifort
+INC = -I /home/dix043/include_ifort  -I /home/dix043/mpich-1.2.2/include
 
 # Need -fpp for a couple of routines
-FFLAGS = -O -WB -w -fpp
+FFLAGS = -O -WB -w -fpp -Dsimple_timer
 
-LIBS = -L /home/dix043/lib -lnetcdf_ifc -lmrd90_ifc -Vaxlib -L/home/dix043/mpich-1.2.2/lib -lmpich_ifc
+LIBS = -L /home/dix043/lib -lnetcdf_ifc -lmrd90_ifort -L/home/dix043/mpich-1.2.2/lib -lmpich_ifc
+#Logging
+#LIBS = -Vaxlib -L /home/dix043/lib -L /home/dix043/mpich-1.2.2/lib -lmrd90_ifc -lnetcdf_ifc  -lfmpich_ifc -llmpe -lmpe -lmpich_ifc
+
 LDFLAGS = 
 
 SRC =        adjust5.f     amipsst.f     co2.f         conjob.f    \
@@ -28,20 +31,14 @@ cc_mpi.f90  diag_m.f90
 
 .SUFFIXES:.f90
 
-.f90.o:
-	$(FC) -c $(FFLAGS) $(INC) $<
-.f.o:
-	$(FC) -c $(FFLAGS) $(INC) $<
-
-# Remove mod rule from Modula 2
-%.o : %.mod
-
 # Include the dependency-list created by makedepf90 below
 include .depend
 
 clean:
-	rm *.o *.mod globpea .depend
+	rm *.o *.mod globpea .depend *.time
 
+# This requires the modified version of makedepf90 and Daniel Grimwood's
+# perl scripts for managing the compilation cascade.
+RULE = '@compile_mod.perl -fc "$(FC) -c $(FFLAGS) $(INC) $$<"  -provides "%t" -requires "$$^" -cmp "compare_module_file.perl -compiler INTEL-ifort-on-LINUX"'
 depend .depend:
-	makedepf90 -o globpea $(SRC) > .depend
-
+	makedepf90 -m %m.mod -r $(RULE) -o globpea $(SRC) > .depend
