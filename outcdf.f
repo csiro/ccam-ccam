@@ -39,26 +39,42 @@ c=======================================================================
       integer :: ndt, iarch, icy, icm, icd, ich, icmi, ics, idv, ier,
      &           imode
       integer, save :: iarch1=0, idnc1=0, idnc0=0, idncm1=0, nspare=0
+      logical :: local ! Each processor writes its local region
 
       ndt=dt
+      ! The localhist variable controls whether the local file option is used
+      ! at all. In any case it's only used for the outfile.
+      local = localhist .and. itype == 1 ! Only for outfile
 
-      if ( myid == 0 ) then     ! File setup
+      if ( myid == 0 .or. local ) then     ! File setup
       if ( itype.eq.1 ) then
 c itype=1 outfile
         iarch1=iarch1+1
         iarch=iarch1
-        cdffile=ofile
+        if ( local ) then
+           write(cdffile,"(a,'.',i2.2)") trim(ofile), myid
+        else
+           cdffile=ofile
+        end if
         idnc=idnc1
       elseif ( itype.eq.0 ) then
 c itype=0 climcdf
         iarch=1
-        cdffile=climcdf
+        if ( local ) then
+           write(cdffile,"(a,'.',i2.2)") trim(climcdf), myid
+        else
+           cdffile=climcdf
+        end if
         idnc=idnc0
         mtimer=mtimer-1440  ! N.B. only done right at end of run, so OK
       elseif ( itype.eq.-1 ) then
 c itype=-1 restfile
         iarch=1
-        cdffile=restfile
+        if ( local ) then
+           write(cdffile,"(a,'.',i2.2)") trim(restfile), myid
+        else
+           cdffile=restfile
+        end if
         idnc=idncm1
       else 
         stop "wrong itype in cdfout"
@@ -80,8 +96,13 @@ c Turn off the data filling
         imode = ncsfil(idnc,ncnofill,ier)
         print *,'imode=',imode
 c Create dimensions, lon, lat
-        xdim = ncddef(idnc, 'longitude', il_g, ier)
-        ydim = ncddef(idnc, 'latitude', jl_g, ier)
+        if ( local ) then
+           xdim = ncddef(idnc, 'longitude', il, ier)
+           ydim = ncddef(idnc, 'latitude', jl, ier)
+        else
+           xdim = ncddef(idnc, 'longitude', il_g, ier)
+           ydim = ncddef(idnc, 'latitude', jl_g, ier)
+        end if
         zdim= ncddef(idnc, 'lev', kl, ier)
         msdim= ncddef(idnc, 'ms', ms, ier)
         tdim= ncddef(idnc, 'time',ncunlim,ier)
@@ -239,9 +260,9 @@ c create the attributes of the header record of the file
       print*,'call openhist for itype= ',itype
       end if ! myid == 0
       ! openhist writes some fields so needs to be called by all processes
-      call openhist(iarch,itype,dim)
+      call openhist(iarch,itype,dim,local)
 
-      if ( myid == 0 ) then
+      if ( myid == 0 .or. local ) then
       call ncsnc(idnc,ier)
       if(ier.ne.0)write(6,*)"ncsnc idnc,ier=",idnc,ier
 
@@ -259,7 +280,7 @@ c       itype=-1 restfile
       return ! cdfout
       end
 c=======================================================================
-      subroutine openhist(iarch,itype,dim)
+      subroutine openhist(iarch,itype,dim,local)
       use cc_mpi
       implicit none
 
@@ -297,6 +318,7 @@ c     this routine creates attributes and writes output
       include 'vvel.h'    ! sdot, dpsldt
 
       integer iarch, itype
+      logical, intent(in) :: local
       character lname*40,mname*21,nname*21,expdesc*50,numba*2
       integer dim(4)
       integer idim2(3)
@@ -321,7 +343,7 @@ c     this routine creates attributes and writes output
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
 
-      if ( myid == 0 ) then
+      if ( myid == 0 .or. local ) then
 
       print *,'openhist iarch,idnc=',iarch,idnc
 !     if(itype.ne.-1)then  ! don't scale up for restart file as done already
@@ -346,6 +368,11 @@ c       Experiment description
         expdesc = 'CCAM model run'
         call ncaptc(idnc,ncglobal,'expdesc',ncchar,50,expdesc,ier)
         write(6,*)"expdesc ier=",ier
+
+        if ( local ) then
+           ier = nf_put_att_int(idnc,nf_global,"processor_num",nf_int,
+     &                          1,myid)
+        end if           
 
 c       Sigma levels
         print *,'sig=',sig
@@ -647,14 +674,26 @@ c       Leave define mode
         call ncendf(idnc,ier)
         print *,'leave define mode: ier=',ier
 
-        do i=1,il_g
-         xpnt(i) = float(i)
-        end do
-        call ncvpt(idnc,ixp,1,il_g,xpnt,ier)
-        do j=1,jl_g
-         ypnt(j) = float(j)
-        end do
-        call ncvpt(idnc,iyp,1,jl_g,ypnt,ier)
+        if ( local ) then
+           ! Set these to global indices
+           do i=1,ipan
+              xpnt(i) = float(i) + ioff
+           end do
+           call ncvpt(idnc,ixp,1,il,xpnt,ier)
+           do j=1,jl
+              ypnt(j) = float(j) + (myid*ifull)/il_g
+           end do
+           call ncvpt(idnc,iyp,1,jl,ypnt,ier)
+        else
+           do i=1,il_g
+              xpnt(i) = float(i)
+           end do
+           call ncvpt(idnc,ixp,1,il_g,xpnt,ier)
+           do j=1,jl_g
+              ypnt(j) = float(j)
+           end do
+           call ncvpt(idnc,iyp,1,jl_g,ypnt,ier)
+        end if
 
         call ncvpt(idnc,idlev,1,kl,sig,ier)
 
@@ -708,45 +747,45 @@ c     set time to number of minutes since start
 
       print *,'now write out variables'
 
-      end if ! myid == 0
+      end if ! myid == 0 .or. local
 
       if(ktau.eq.0.or.itype.eq.-1)then  ! also for restart file
 !       write time-invariant fields      
-        call histwrt3(em,'map',idnc,iarch)
-        call histwrt3(f,'cor',idnc,iarch)
-        call histwrt3(rsmin,'rsmin',idnc,iarch)
-        call histwrt3(sigmf,'sigmf',idnc,iarch)
-        call histwrt3(zolnd,'zolnd',idnc,iarch)
+        call histwrt3(em,'map',idnc,iarch,local)
+        call histwrt3(f,'cor',idnc,iarch,local)
+        call histwrt3(rsmin,'rsmin',idnc,iarch,local)
+        call histwrt3(sigmf,'sigmf',idnc,iarch,local)
+        call histwrt3(zolnd,'zolnd',idnc,iarch,local)
         do iq=1,ifull
          aa(iq)=isoilm(iq)
         enddo
-        call histwrt3(aa,'soilt',idnc,iarch)
+        call histwrt3(aa,'soilt',idnc,iarch,local)
         do iq=1,ifull
 !        N.B. subtract 31 to get sib values
          aa(iq)=ivegt(iq)
         enddo
-        call histwrt3(aa,'vegt',idnc,iarch)
+        call histwrt3(aa,'vegt',idnc,iarch,local)
         do iq=1,ifull
          isoil=isoilm(iq)
          aa(iq)=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
         enddo
-        call histwrt3(aa,'wetfrac',idnc,iarch)
+        call histwrt3(aa,'wetfrac',idnc,iarch,local)
       endif ! (ktau.eq.0) 
 
-      call histwrt3(zs,'zht',idnc,iarch)   ! always from 13/9/02
-      call histwrt3(psl,'psf',idnc,iarch)
+      call histwrt3(zs,'zht',idnc,iarch,local)   ! always from 13/9/02
+      call histwrt3(psl,'psf',idnc,iarch,local)
       do iq=1,ifull
         aa(iq)=pmsl(iq)/100.
       enddo
-      call histwrt3(aa,'pmsl',idnc,iarch)
-      call histwrt3(tss,'tsu',idnc,iarch)
-      call histwrt3(alb,'alb',idnc,iarch)
-      call histwrt3(tgg(1,1),'tgg1',idnc,iarch)
-      call histwrt3(tgg(1,2),'tgg2',idnc,iarch)
-      call histwrt3(tgg(1,3),'tgg3',idnc,iarch)
-      call histwrt3(tgg(1,4),'tgg4',idnc,iarch)
-      call histwrt3(tgg(1,5),'tgg5',idnc,iarch)
-      call histwrt3(tgg(1,6),'tgg6',idnc,iarch)
+      call histwrt3(aa,'pmsl',idnc,iarch,local)
+      call histwrt3(tss,'tsu',idnc,iarch,local)
+      call histwrt3(alb,'alb',idnc,iarch,local)
+      call histwrt3(tgg(1,1),'tgg1',idnc,iarch,local)
+      call histwrt3(tgg(1,2),'tgg2',idnc,iarch,local)
+      call histwrt3(tgg(1,3),'tgg3',idnc,iarch,local)
+      call histwrt3(tgg(1,4),'tgg4',idnc,iarch,local)
+      call histwrt3(tgg(1,5),'tgg5',idnc,iarch,local)
+      call histwrt3(tgg(1,6),'tgg6',idnc,iarch,local)
       do iq=1,ifull
 !      calculate wb/field_capacity;  up to 3.0 for sand (isoil=1)	   
 	isoil=isoilm(iq)
@@ -758,11 +797,11 @@ c     set time to number of minutes since start
      .         zse(4)*wb(iq,4)+zse(5)*wb(iq,5)+zse(6)*wb(iq,6))/
      .	       ((zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6))*sfc(isoil))
       enddo
-      call histwrt3(aa,'wbfshal',idnc,iarch)
-      call histwrt3(bb,'wbfroot',idnc,iarch)
-      call histwrt3(cc,'wbftot',idnc,iarch)
-      call histwrt3(sicedep,'siced',idnc,iarch)
-      call histwrt3(snowd,'snd',idnc,iarch)
+      call histwrt3(aa,'wbfshal',idnc,iarch,local)
+      call histwrt3(bb,'wbfroot',idnc,iarch,local)
+      call histwrt3(cc,'wbftot',idnc,iarch,local)
+      call histwrt3(sicedep,'siced',idnc,iarch,local)
+      call histwrt3(snowd,'snd',idnc,iarch,local)
       
       if(ktau.gt.0)then
        if(nwt.ne.nperday.and.itype.ne.-1)then  
@@ -774,134 +813,134 @@ c     set time to number of minutes since start
         sno   =sno   *real(nperday)/min(nwt,max(1,ktau))     
         runoff=runoff*real(nperday)/min(nwt,max(1,ktau))    
        endif   ! (nwt.ne.nperday.and.itype.ne.-1)
-       call histwrt3(precip,'rnd',idnc,iarch)
-       call histwrt3(precc,'rnc',idnc,iarch)
-       call histwrt3(sno,'sno',idnc,iarch)
-       call histwrt3(runoff,'runoff',idnc,iarch)
+       call histwrt3(precip,'rnd',idnc,iarch,local)
+       call histwrt3(precc,'rnc',idnc,iarch,local)
+       call histwrt3(sno,'sno',idnc,iarch,local)
+       call histwrt3(runoff,'runoff',idnc,iarch,local)
        if(mod(ktau,nperday).eq.0.or.ktau.eq.ntau)then  ! only write once per day
-         call histwrt3(tmaxscr,'tmaxscr',idnc,iarch)
-         call histwrt3(tminscr,'tminscr',idnc,iarch)
+         call histwrt3(tmaxscr,'tmaxscr',idnc,iarch,local)
+         call histwrt3(tminscr,'tminscr',idnc,iarch,local)
 !        if writes done more than once per day, 
 !        needed to augment accumulated 3-hourly rainfall in rnd06 to rnd21 
 !        to allow for intermediate zeroing of precip()
 !        but not needed from 17/9/03 with introduction of rnd24
-         call histwrt3(rnd_3hr(1,1),'rnd03',idnc,iarch)
-         call histwrt3(rnd_3hr(1,2),'rnd06',idnc,iarch)
-         call histwrt3(rnd_3hr(1,3),'rnd09',idnc,iarch)
-         call histwrt3(rnd_3hr(1,4),'rnd12',idnc,iarch)
-         call histwrt3(rnd_3hr(1,5),'rnd15',idnc,iarch)
-         call histwrt3(rnd_3hr(1,6),'rnd18',idnc,iarch)
-         call histwrt3(rnd_3hr(1,7),'rnd21',idnc,iarch)
-         call histwrt3(rnd_3hr(1,8),'rnd24',idnc,iarch)
+         call histwrt3(rnd_3hr(1,1),'rnd03',idnc,iarch,local)
+         call histwrt3(rnd_3hr(1,2),'rnd06',idnc,iarch,local)
+         call histwrt3(rnd_3hr(1,3),'rnd09',idnc,iarch,local)
+         call histwrt3(rnd_3hr(1,4),'rnd12',idnc,iarch,local)
+         call histwrt3(rnd_3hr(1,5),'rnd15',idnc,iarch,local)
+         call histwrt3(rnd_3hr(1,6),'rnd18',idnc,iarch,local)
+         call histwrt3(rnd_3hr(1,7),'rnd21',idnc,iarch,local)
+         call histwrt3(rnd_3hr(1,8),'rnd24',idnc,iarch,local)
          if(nextout.ge.2) then ! 6-hourly u10 & v10
-           call histwrt3(u10_3hr(1,2),'u10_06',idnc,iarch)
-           call histwrt3(v10_3hr(1,2),'v10_06',idnc,iarch)
-           call histwrt3(u10_3hr(1,4),'u10_12',idnc,iarch)
-           call histwrt3(v10_3hr(1,4),'v10_12',idnc,iarch)
-           call histwrt3(u10_3hr(1,6),'u10_18',idnc,iarch)
-           call histwrt3(v10_3hr(1,6),'v10_18',idnc,iarch)
-           call histwrt3(u10_3hr(1,8),'u10_24',idnc,iarch)
-           call histwrt3(v10_3hr(1,8),'v10_24',idnc,iarch)
+           call histwrt3(u10_3hr(1,2),'u10_06',idnc,iarch,local)
+           call histwrt3(v10_3hr(1,2),'v10_06',idnc,iarch,local)
+           call histwrt3(u10_3hr(1,4),'u10_12',idnc,iarch,local)
+           call histwrt3(v10_3hr(1,4),'v10_12',idnc,iarch,local)
+           call histwrt3(u10_3hr(1,6),'u10_18',idnc,iarch,local)
+           call histwrt3(v10_3hr(1,6),'v10_18',idnc,iarch,local)
+           call histwrt3(u10_3hr(1,8),'u10_24',idnc,iarch,local)
+           call histwrt3(v10_3hr(1,8),'v10_24',idnc,iarch,local)
          endif  ! nextout.ge.2
          if(nextout.eq.3) then  ! also 3-hourly u10 & v10
-           call histwrt3(u10_3hr(1,1),'u10_03',idnc,iarch)
-           call histwrt3(v10_3hr(1,1),'v10_03',idnc,iarch)
-           call histwrt3(u10_3hr(1,3),'u10_09',idnc,iarch)
-           call histwrt3(v10_3hr(1,3),'v10_09',idnc,iarch)
-           call histwrt3(u10_3hr(1,5),'u10_15',idnc,iarch)
-           call histwrt3(v10_3hr(1,5),'v10_15',idnc,iarch)
-           call histwrt3(u10_3hr(1,7),'u10_21',idnc,iarch)
-           call histwrt3(v10_3hr(1,7),'v10_21',idnc,iarch)
+           call histwrt3(u10_3hr(1,1),'u10_03',idnc,iarch,local)
+           call histwrt3(v10_3hr(1,1),'v10_03',idnc,iarch,local)
+           call histwrt3(u10_3hr(1,3),'u10_09',idnc,iarch,local)
+           call histwrt3(v10_3hr(1,3),'v10_09',idnc,iarch,local)
+           call histwrt3(u10_3hr(1,5),'u10_15',idnc,iarch,local)
+           call histwrt3(v10_3hr(1,5),'v10_15',idnc,iarch,local)
+           call histwrt3(u10_3hr(1,7),'u10_21',idnc,iarch,local)
+           call histwrt3(v10_3hr(1,7),'v10_21',idnc,iarch,local)
          endif  ! nextout.eq.3
 	endif   ! (mod(ktau,nperday).eq.0.or.ktau.eq.ntau)
-       call histwrt3(tscr_ave,'tscr_ave',idnc,iarch)
-       call histwrt3(tscrn,'tscrn',idnc,iarch)
-       call histwrt3(qgscrn,'qgscrn',idnc,iarch)
-       call histwrt3(u10,'u10',idnc,iarch)
-       call histwrt3(uscrn,'uscrn',idnc,iarch)
-       call histwrt3(rnet,'rnet',idnc,iarch)
-       call histwrt3(cbas_ave,'cbas_ave',idnc,iarch)
-       call histwrt3(ctop_ave,'ctop_ave',idnc,iarch)
-       call histwrt3(epot_ave,'epot_ave',idnc,iarch)
-       call histwrt3(eg,'eg',idnc,iarch)
-       call histwrt3(eg_ave,'eg_ave',idnc,iarch)
-       call histwrt3(fg,'fg',idnc,iarch)
-       call histwrt3(fg_ave,'fg_ave',idnc,iarch)
-       call histwrt3(ga_ave,'ga_ave',idnc,iarch)
-       call histwrt3(cll_ave,'cll',idnc,iarch)
-       call histwrt3(clm_ave,'clm',idnc,iarch)
-       call histwrt3(clh_ave,'clh',idnc,iarch)
-       call histwrt3(cld_ave,'cld',idnc,iarch)
-       call histwrt3(taux,'taux',idnc,iarch)
-       call histwrt3(tauy,'tauy',idnc,iarch)
+       call histwrt3(tscr_ave,'tscr_ave',idnc,iarch,local)
+       call histwrt3(tscrn,'tscrn',idnc,iarch,local)
+       call histwrt3(qgscrn,'qgscrn',idnc,iarch,local)
+       call histwrt3(u10,'u10',idnc,iarch,local)
+       call histwrt3(uscrn,'uscrn',idnc,iarch,local)
+       call histwrt3(rnet,'rnet',idnc,iarch,local)
+       call histwrt3(cbas_ave,'cbas_ave',idnc,iarch,local)
+       call histwrt3(ctop_ave,'ctop_ave',idnc,iarch,local)
+       call histwrt3(epot_ave,'epot_ave',idnc,iarch,local)
+       call histwrt3(eg,'eg',idnc,iarch,local)
+       call histwrt3(eg_ave,'eg_ave',idnc,iarch,local)
+       call histwrt3(fg,'fg',idnc,iarch,local)
+       call histwrt3(fg_ave,'fg_ave',idnc,iarch,local)
+       call histwrt3(ga_ave,'ga_ave',idnc,iarch,local)
+       call histwrt3(cll_ave,'cll',idnc,iarch,local)
+       call histwrt3(clm_ave,'clm',idnc,iarch,local)
+       call histwrt3(clh_ave,'clh',idnc,iarch,local)
+       call histwrt3(cld_ave,'cld',idnc,iarch,local)
+       call histwrt3(taux,'taux',idnc,iarch,local)
+       call histwrt3(tauy,'tauy',idnc,iarch,local)
 c      "extra" outputs
        if(nextout>=1) then
          if ( myid == 0 ) print *,'nextout, idnc: ',nextout,idnc
-         call histwrt3(rtu_ave,'rtu_ave',idnc,iarch)
-         call histwrt3(rtc_ave,'rtc_ave',idnc,iarch)
-         call histwrt3(rgn_ave,'rgn_ave',idnc,iarch)
-         call histwrt3(rgc_ave,'rgc_ave',idnc,iarch)
-         call histwrt3(sint_ave,'sint_ave',idnc,iarch)
-         call histwrt3(sot_ave,'sot_ave',idnc,iarch)
-         call histwrt3(soc_ave,'soc_ave',idnc,iarch)
-         call histwrt3(sgn_ave,'sgn_ave',idnc,iarch)
-         call histwrt3(dpsdt,'dpsdt',idnc,iarch)
-         call histwrt3(pblh,'pblh',idnc,iarch)
-         call histwrt3(ustar,'ustar',idnc,iarch)
+         call histwrt3(rtu_ave,'rtu_ave',idnc,iarch,local)
+         call histwrt3(rtc_ave,'rtc_ave',idnc,iarch,local)
+         call histwrt3(rgn_ave,'rgn_ave',idnc,iarch,local)
+         call histwrt3(rgc_ave,'rgc_ave',idnc,iarch,local)
+         call histwrt3(sint_ave,'sint_ave',idnc,iarch,local)
+         call histwrt3(sot_ave,'sot_ave',idnc,iarch,local)
+         call histwrt3(soc_ave,'soc_ave',idnc,iarch,local)
+         call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local)
+         call histwrt3(dpsdt,'dpsdt',idnc,iarch,local)
+         call histwrt3(pblh,'pblh',idnc,iarch,local)
+         call histwrt3(ustar,'ustar',idnc,iarch,local)
        endif  ! nextout>=1
       endif    ! (ktau.gt.0)
 
       if ( myid == 0 ) print *,'netcdf save of 3d variables'
-      call histwrt4(t(1:ifull,:),'temp',idnc,iarch)
-      call histwrt4(u(1:ifull,:),'u',idnc,iarch)
-      call histwrt4(v(1:ifull,:),'v',idnc,iarch)
+      call histwrt4(t(1:ifull,:),'temp',idnc,iarch,local)
+      call histwrt4(u(1:ifull,:),'u',idnc,iarch,local)
+      call histwrt4(v(1:ifull,:),'v',idnc,iarch,local)
       do k=1,kl
 	do iq=1,ifull
 	 tmpry(iq,k)=ps(iq)*dpsldt(iq,k)
 	enddo
       enddo
-      call histwrt4(tmpry,'omega',idnc,iarch)  ! 3d variable
-      call histwrt4(qg(1:ifull,:),'mixr',idnc,iarch)
+      call histwrt4(tmpry,'omega',idnc,iarch,local)  ! 3d variable
+      call histwrt4(qg(1:ifull,:),'mixr',idnc,iarch,local)
       if(ldr.ne.0)then
-        call histwrt4(qfg(1:ifullw,:),'qfg',idnc,iarch)
-        call histwrt4(qlg(1:ifullw,:),'qlg',idnc,iarch)
-        call histwrt4(cfrac,'cfrac',idnc,iarch)
+        call histwrt4(qfg(1:ifullw,:),'qfg',idnc,iarch,local)
+        call histwrt4(qlg(1:ifullw,:),'qlg',idnc,iarch,local)
+        call histwrt4(cfrac,'cfrac',idnc,iarch,local)
       endif
       if(ntrac.gt.0)then 
        do igas=1,ntrac
 	 write(numba,'(i2.2)') igas
-        call histwrt4(tr(1:ilt*jlt,:,igas),'tr'//numba,idnc,iarch)
+        call histwrt4(tr(1:ilt*jlt,:,igas),'tr'//numba,idnc,iarch,local)
        enddo ! igas loop
       endif  ! (ntrac.gt.0)
 
       if(itype.eq.-1)then   ! extra stuff just needed for restart file
-       call histwrt4(sdot(1,2),'sdot',idnc,iarch)
-       call histwrt3(wb(1,1),'wb1',idnc,iarch)
-       call histwrt3(wb(1,2),'wb2',idnc,iarch)
-       call histwrt3(wb(1,3),'wb3',idnc,iarch)
-       call histwrt3(wb(1,4),'wb4',idnc,iarch)
-       call histwrt3(wb(1,5),'wb5',idnc,iarch)
-       call histwrt3(wb(1,6),'wb6',idnc,iarch)
-       call histwrt3(wbice(1,1),'wbice1',idnc,iarch)
-       call histwrt3(wbice(1,2),'wbice2',idnc,iarch)
-       call histwrt3(wbice(1,3),'wbice3',idnc,iarch)
-       call histwrt3(wbice(1,4),'wbice4',idnc,iarch)
-       call histwrt3(wbice(1,5),'wbice5',idnc,iarch)
-       call histwrt3(wbice(1,6),'wbice6',idnc,iarch)
-       call histwrt3(tggsn(1,1),'tggsn1',idnc,iarch)
-       call histwrt3(tggsn(1,2),'tggsn2',idnc,iarch)
-       call histwrt3(tggsn(1,3),'tggsn3',idnc,iarch)
-       call histwrt3(smass(1,1),'smass1',idnc,iarch)
-       call histwrt3(smass(1,2),'smass2',idnc,iarch)
-       call histwrt3(smass(1,3),'smass3',idnc,iarch)
-       call histwrt3(ssdn(1,1),'ssdn1',idnc,iarch)
-       call histwrt3(ssdn(1,2),'ssdn2',idnc,iarch)
-       call histwrt3(ssdn(1,3),'ssdn3',idnc,iarch)
-       call histwrt3(snage,'snage',idnc,iarch)
+       call histwrt4(sdot(1,2),'sdot',idnc,iarch,local)
+       call histwrt3(wb(1,1),'wb1',idnc,iarch,local)
+       call histwrt3(wb(1,2),'wb2',idnc,iarch,local)
+       call histwrt3(wb(1,3),'wb3',idnc,iarch,local)
+       call histwrt3(wb(1,4),'wb4',idnc,iarch,local)
+       call histwrt3(wb(1,5),'wb5',idnc,iarch,local)
+       call histwrt3(wb(1,6),'wb6',idnc,iarch,local)
+       call histwrt3(wbice(1,1),'wbice1',idnc,iarch,local)
+       call histwrt3(wbice(1,2),'wbice2',idnc,iarch,local)
+       call histwrt3(wbice(1,3),'wbice3',idnc,iarch,local)
+       call histwrt3(wbice(1,4),'wbice4',idnc,iarch,local)
+       call histwrt3(wbice(1,5),'wbice5',idnc,iarch,local)
+       call histwrt3(wbice(1,6),'wbice6',idnc,iarch,local)
+       call histwrt3(tggsn(1,1),'tggsn1',idnc,iarch,local)
+       call histwrt3(tggsn(1,2),'tggsn2',idnc,iarch,local)
+       call histwrt3(tggsn(1,3),'tggsn3',idnc,iarch,local)
+       call histwrt3(smass(1,1),'smass1',idnc,iarch,local)
+       call histwrt3(smass(1,2),'smass2',idnc,iarch,local)
+       call histwrt3(smass(1,3),'smass3',idnc,iarch,local)
+       call histwrt3(ssdn(1,1),'ssdn1',idnc,iarch,local)
+       call histwrt3(ssdn(1,2),'ssdn2',idnc,iarch,local)
+       call histwrt3(ssdn(1,3),'ssdn3',idnc,iarch,local)
+       call histwrt3(snage,'snage',idnc,iarch,local)
        do iq=1,ifull
         aa(iq)=isflag(iq)
        enddo
-       call histwrt3(aa,'sflag',idnc,iarch)
+       call histwrt3(aa,'sflag',idnc,iarch,local)
       endif  ! (itype.eq.-1)
 
       return
@@ -943,7 +982,7 @@ c=======================================================================
       return
       end
 c=======================================================================
-      subroutine histwrt3(var,sname,idnc,iarch)
+      subroutine histwrt3(var,sname,idnc,iarch,local)
 c Write 2d+t fields from the savegrid array.
 
       use cc_mpi
@@ -953,6 +992,7 @@ c Write 2d+t fields from the savegrid array.
       include 'netcdf.inc'
 
       integer idnc, iarch
+      logical, intent(in) :: local
       integer mid, start(3), count(3)
       integer*2 ipack(ifull_g) ! was integer*2 
       character* (*) sname
@@ -964,6 +1004,35 @@ c     character*8 sname
       integer iq, ier, imn, imx, jmn, jmx, vtype
       real addoff, pvar, scale_f, varn, varx, xmax, xmin
       real, dimension(ifull_g) :: globvar
+
+      if ( local ) then
+         start = (/ 1, 1, iarch /)
+         count = (/ il, jl, 1 /)
+         mid = ncvid(idnc,sname,ier)
+
+!        Check variable type
+         ier = nf_inq_vartype(idnc, mid, vtype)
+         if ( vtype == ncshort ) then
+            call ncagt(idnc,mid,'add_offset',addoff,ier)
+            call ncagt(idnc,mid,'scale_factor',scale_f,ier)
+
+            xmin=addoff+scale_f*minv
+!     xmax=xmin+scale_f*float(maxv-minv)
+            xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
+
+            do iq=1,ifull
+               pvar = max(xmin,min(xmax,var(iq)))
+               ipack(iq)=nint((pvar-addoff)/scale_f)
+               ipack(iq)=max(min(ipack(iq),maxv),minv)
+            end do
+
+            call ncvpt(idnc, mid, start, count, ipack, ier)
+         else
+            call ncvpt(idnc, mid, start, count, var, ier)
+         end if
+         if(ier.ne.0)stop "in histwrt3 ier not zero"
+
+      else
 
       if ( myid == 0 ) then
          call ccmpi_gather(var, globvar)
@@ -1019,11 +1088,12 @@ c find variable index
      &             sname,iarch,varn,imn,jmn,varx,imx,jmx,
      &             globvar(id+(jd-1)*il_g)
       end if
+      end if ! local
 
       return
       end ! histwrt3
 c=======================================================================
-      subroutine histwrt4(var,sname,idnc,iarch)
+      subroutine histwrt4(var,sname,idnc,iarch,local)
 c Write 3d+t fields from the savegrid array.
 
       use cc_mpi
@@ -1033,6 +1103,7 @@ c Write 3d+t fields from the savegrid array.
       include 'netcdf.inc'
 
       integer idnc, iarch
+      logical, intent(in) :: local
       integer mid, start(4), count(4)
       integer*2 ipack(ifull_g,kl) ! was integer*2 
       character* (*) sname
@@ -1046,6 +1117,34 @@ c     character*8 sname
       real, dimension(ifull_g,kl) :: globvar
       integer, dimension(2) :: max_result
 
+      if ( local ) then
+         start = (/ 1, 1, 1, iarch /)
+         count = (/ il, jl, kl, 1 /)
+
+c find variable index
+         mid = ncvid(idnc,sname,ier)
+!        Check variable type
+         ier = nf_inq_vartype(idnc, mid, vtype)
+         if ( vtype == ncshort ) then
+            call ncagt(idnc,mid,'add_offset',addoff,ier)
+            call ncagt(idnc,mid,'scale_factor',scale_f,ier)
+
+            xmin=addoff+scale_f*minv
+!     xmax=xmin+scale_f*float(maxv-minv)
+            xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
+            do k=1,kl
+               do iq=1,ifull_g
+                  pvar = max(xmin,min(xmax,var(iq,k)))
+                  ipack(iq,k)=nint((pvar-addoff)/scale_f)
+                  ipack(iq,k)=max(min(ipack(iq,k),maxv),minv)
+               end do
+            end do
+            call ncvpt(idnc, mid, start, count, ipack, ier)
+         else
+            call ncvpt(idnc, mid, start, count, var, ier)
+         end if
+
+      else ! not local
       if ( myid == 0 ) then
          call ccmpi_gather(var, globvar)
          start(1) = 1
@@ -1095,6 +1194,7 @@ c find variable index
          write(6,'("histwrt4 ",a7,i4,2f12.4,3i4)')
      &         sname,iarch,varn,varx,imx,jmx,kmx
       end if
+      end if ! local
 
       return
       end ! histwrt4

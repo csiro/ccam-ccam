@@ -154,7 +154,7 @@
      & ,rlong0,rlat0,schmidt   ! usually come in with topofile
      & ,kbotdav,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nlocal,nvsplit
      & ,nbarewet,nsigmf,qgmin
-     & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,nfly             
+     & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,nfly,localhist             
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/ 
       namelist/skyin/kountr,mins_rad,ndiur  ! kountr not used from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -785,7 +785,6 @@ c         qg(:,:)=max(qg(:,:),qgmin)  ! testing
            poleny=0.
            polenz=sinlat
            do nn=1,nstn
-             print*, "STATION", nn, mystn(nn)
 !            Check if this station is in this processors region
              if ( .not. mystn(nn) ) cycle 
              if(ktau.eq.1)write (iunp(nn),950) kdate,ktime
@@ -1419,7 +1418,8 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
      &  ,idcld  /1/,lgwd/2/,nbd/0/,nsib/3/            
      &  ,nbox/1/,nvadh/1/       ! globpe only
      &  ,kbotdav/1/,nlocal/1/
-     &  ,nud_p/1/,nud_q/0/,nud_t/1/,nud_uv/1/,nud_hrs/-24/
+     &  ,nud_p/1/,nud_q/0/,nud_t/1/,nud_uv/1/,nud_hrs/-24/,
+     &  localhist/.false./
       data namip/0/,nhstest/0/,nspecial/0/
       data schmidt/1./,rlong0/0./,rlat0/90./,ndiur/1/
      & ,newsoilm/0/,nglacier/1/,nhorps /1/,newztsea/1/                   

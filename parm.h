@@ -9,7 +9,7 @@
      &        nwt,kwt,nqg,nrun,nrunx,nextout,nclim,nfly                  
       real qgmin,hdiff,hdifmax,rlong0,rlat0,schmidt,schm13,              &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,chn10,ds,dt,dtin,timea
-      logical diag
+      logical diag, localhist
       common/parm1/meso,nps,npsav,nsd,nem,ngwd,nrungcm,newtop            &
      &  ,qgmin        ! min value, esp. for stratosphere           [1.e-6]
  
@@ -33,5 +33,5 @@
      &                diag,nlv,ia,ib,ja,jb,id,jd,idjd,ndi,ndi2
 
       common/parmio/io_clim,io_in,io_out,io_rest,io_spec,                &  ! type of I/O
-     &              nwt,kwt,nqg,nrun,nrunx,nextout,nclim,nfly  
+     &              nwt,kwt,nqg,nrun,nrunx,nextout,nclim,nfly,localhist  
 
