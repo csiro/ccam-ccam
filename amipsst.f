@@ -155,6 +155,7 @@
 
 !     amipice for namip=1   N.B. used below to mask the SSTs
       print*, "NAMIP=1 not implemented in MPI version"
+!     This would be easy to do if required.
       stop
 !!!4     read(76,'(i2,1x,i6,a22)') imonth,iyear,header
 !!!      print *,'reading ice data:',imonth,iyear,header
