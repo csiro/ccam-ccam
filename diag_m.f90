@@ -123,9 +123,15 @@ contains
         print 962,ktau,char,(gumin(k),k=1,kup)
 962     format(i7,1x,a2,'min ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
 !!!        print 977,ktau,(iumin(k),jumin(k),k=1,kup)
-      elseif(gumax(kup).gt.30.)then  ! format for T, & usually u,v
+      elseif(kup.le.10)then  ! format for tggsn
         print 971,ktau,char,(gumax(k),k=1,kup)
-971     format(i7,1x,a2,'max ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
+!!!        print 977,ktau,(iumax(k),jumax(k),k=1,kup)
+        print 972,ktau,char,(gumin(k),k=1,kup)
+!!!        print 977,ktau,(iumin(k),jumin(k),k=1,kup)
+       elseif(gumax(kup).gt.30.)then  ! format for T, & usually u,v
+        print 971,ktau,char,(gumax(k),k=1,kup)
+!!!971     format(i7,1x,a2,'max ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
+971     format(i7,1x,a2,'max ',10f7.2/(a10,'maX ',10f7.2)/(14x,10f7.2))
 !!!        print 977,ktau,(iumax(k),jumax(k),k=1,kup)
         print 972,ktau,char,(gumin(k),k=1,kup)
 972     format(i7,1x,a2,'min ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
