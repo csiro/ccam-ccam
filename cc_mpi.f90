@@ -22,14 +22,14 @@ module cc_mpi
    integer, save, private :: nreq
 
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
-             indp, indg, deptsync, intssync
-   private :: indv_mpi, ccmpi_distribute2, ccmpi_distribute3, &
-              ccmpi_gather2, ccmpi_gather3, checksize
+             indp, indg, deptsync, intssync, start_log, end_log, check_dims
+   private :: indv_mpi, ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
+              ccmpi_gather2, ccmpi_gather3, checksize, get_dims, get_dims_gx
    interface ccmpi_gather
       module procedure ccmpi_gather2, ccmpi_gather3
    end interface
    interface ccmpi_distribute
-      module procedure ccmpi_distribute2, ccmpi_distribute3
+      module procedure ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3
    end interface
    interface bounds
       module procedure bounds2, bounds3
@@ -275,6 +275,66 @@ contains
       end if
 
    end subroutine ccmpi_distribute2
+
+   subroutine ccmpi_distribute2i(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      integer, dimension(ifull), intent(out) :: af
+      integer, dimension(ifull_g), intent(in), optional :: a1
+      integer :: i, j, n, iq, iqg, n1, n2, iq1, iq2, itag=0, iproc, ierr, count
+      integer, dimension(MPI_STATUS_SIZE) :: status
+!     Note ipfull = ipan*jpan*npan
+      real, dimension(ipan*jpan*npan) :: sbuf
+      integer :: npoff, ipoff, jpoff ! Offsets for target
+      integer :: slen
+
+      if ( myid == 0 .and. .not. present(a1) ) then
+         print*, "Error: ccmpi_distribute argument required on proc 0"
+         stop
+      end if
+      ! Copy internal region
+      if ( myid == 0 ) then
+         ! First copy own region
+         do n=1,npan
+            do j=1,jpan
+               do i=1,ipan
+                  iqg = indg(i,j,n)  ! True global index
+                  iq = indp(i,j,n)
+                  af(iq) = a1(iqg)
+               end do
+            end do
+         end do
+         ! Send appropriate regions to all other processes. In this version
+         ! processor regions are no longer necessarily a continuous iq range.
+         do iproc=1,nproc-1
+            ! Panel range on the target processor
+            call proc_region(iproc,ipoff,jpoff,npoff)
+!            print*, "TARGET", ipoff, jpoff, npoff
+            slen = 0
+            do n=1,npan
+               do j=1,jpan
+                  do i=1,ipan
+                     iq = i+ipoff + (j+jpoff-1)*il + (n-npoff)*il*il
+                     slen = slen+1
+                     sbuf(slen) = a1(iq)
+                  end do
+               end do
+            end do
+            call MPI_SSend( sbuf, slen, MPI_INTEGER, iproc, itag, &
+                            MPI_COMM_WORLD, ierr )
+         end do
+      else ! myid /= 0
+         call MPI_Recv( af, ipan*jpan*npan, MPI_INTEGER, 0, itag, &
+                        MPI_COMM_WORLD, status, ierr )
+         ! Check that the length is the expected value.
+         call MPI_Get_count(status, MPI_INTEGER, count, ierr)
+         if ( count /= ifull ) then
+            print*, "Error, wrong length in ccmpi_distribute", myid, ifull, count
+            call MPI_Abort(MPI_COMM_WORLD)
+         end if
+
+      end if
+
+   end subroutine ccmpi_distribute2i
 
    subroutine ccmpi_distribute3(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
@@ -2266,4 +2326,52 @@ contains
       end if
    end subroutine proc_region
 
+   subroutine start_log ( event )
+      integer, intent(in) :: event
+      integer :: ierr
+#ifdef mpilog
+      ierr = MPE_log_event(bounds_begin,0,"")
+#endif
+#ifdef vampir
+      call vtbegin(event, ierr)
+#endif
+   end subroutine start_log
+
+   subroutine end_log ( event )
+      integer, intent(in) :: event
+      integer :: ierr
+#ifdef mpilog
+      ierr = MPE_log_event(bounds_begin,0,"")
+#endif
+#ifdef vampir
+      call vtend(event, ierr)
+#endif
+   end subroutine end_log
+
+   subroutine check_dims
+!    Check that the dimensions defined in the newmpar and newmpar_gx file
+!    match. A single routine can't include both of these because declarations
+!    would conflict so return them from separate functions
+      if ( .not. all(get_dims()==get_dims_gx()) ) then
+         print*, "Error, mismatch in newmpar.h and newmpar_gx.h"
+         stop
+      end if
+
+   end subroutine check_dims
+   
+
+   function get_dims() result(dims)
+      include 'newmpar.h'
+      integer, dimension(2) :: dims
+      dims = (/ il_g, kl /)
+   end function get_dims
+
+   function get_dims_gx() result(dims)
+      include 'newmpar_gx.h'
+      integer, dimension(2) :: dims
+      dims = (/ il, kl /)
+   end function get_dims_gx
+   
+   
 end module cc_mpi
+
