@@ -1,4 +1,4 @@
-c Imported from CSIRO GCM
+! Imported from CSIRO GCM
 
       real, parameter :: stefbo=5.67e-8 !Stefan-Boltzmann constant
       real, parameter :: erad=6.37122e6, eradsq=erad*erad !Radius of earth
@@ -37,16 +37,16 @@ c Imported from CSIRO GCM
       real, parameter :: stdlapse=6.5e-3
 
 ! --- chemical
-      real, parameter :: fAIR_MolM = 28.965,
-     &           fH_MolM   =  1.00794,
-     &           fC_MolM   = 12.011,
-     &           fO_MolM   = 15.9994,
-     &           fS_MolM   = 32.066,
+      real, parameter :: fAIR_MolM = 28.965
+      real, parameter :: fH_MolM   =  1.00794
+      real, parameter :: fC_MolM   = 12.011
+      real, parameter :: fO_MolM   = 15.9994
+      real, parameter :: fS_MolM   = 32.066
 
-     &           fH2_MolM  = 2*fH_MolM,			! molecular hydrogen
-     &           fO2_MolM  = 2*fO_MolM,			! molecular oxygen
-     &           fCO2_MolM =   fC_MolM   +   fO2_MolM,	! carbon dioxide
-     &           fSO2_MolM =   fS_MolM   +   fO2_MolM,	! sulphur dioxide
-     &           fSO4_MolM =   fSO2_MolM +   fO2_MolM,	! sulphate
-     &           fCH4_MolM =   fC_MolM   + 2*fH2_MolM,	! methane
-     &           fH2O_MolM =   fO_MolM   +   fH2_MolM	! water
+      real, parameter :: fH2_MolM  = 2*fH_MolM                  ! molecular hydrogen
+      real, parameter :: fO2_MolM  = 2*fO_MolM                  ! molecular oxygen
+      real, parameter :: fCO2_MolM = fC_MolM   +   fO2_MolM     ! carbon dioxide
+      real, parameter :: fSO2_MolM = fS_MolM   +   fO2_MolM     ! sulphur dioxide
+      real, parameter :: fSO4_MolM = fSO2_MolM +   fO2_MolM     ! sulphate
+      real, parameter :: fCH4_MolM = fC_MolM   + 2*fH2_MolM     ! methane
+      real, parameter :: fH2O_MolM = fO_MolM   +   fH2_MolM     ! water
