@@ -68,10 +68,9 @@ c     ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
 !     call depts3d   ! this one has its own k loop; was nvad<0 option
 
       if(ndept.eq.0) call depts(x3d,y3d,z3d)
+      if(ndept.eq.1) call depts1(x3d,y3d,z3d)
 
       do k=1,kl  !   start of main k loop
-       ! This option not implemented now
-       if(ndept.eq.1)call depts1(k)    ! this one without its own k loop
 
        if(m.eq.7)then    ! i.e. m=7 coriolis treatment
          do iq=1,ifull
@@ -408,14 +407,14 @@ c    .                              f(idjd),fxx(idjd)
        endif  ! (m.eq.7)
 
 !      now interpolate ux,vx to the staggered grid; special globpea call
-       call staguv(ux(1,k),vx(1,k),ux(1,k),vx(1,k))
-       if(diag.and.k.eq.nlv)then
-        print *,'near end of upglobal staggered ux and vx:'
-        call printa('ux  ',ux(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('vx  ',vx(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-       endif
-
       enddo      ! main k loop
+
+      call staguv(ux,vx,ux,vx)
+      if(diag)then
+         print *,'near end of upglobal staggered ux and vx:'
+         call printa('ux  ',ux(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+         call printa('vx  ',vx(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+      endif
 
       if(diag)then
         print *,'near end of upglobal'

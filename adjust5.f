@@ -33,16 +33,19 @@
      . wcud(ifull),wcvd(ifull),dum3(3*ijk - 6*ifull)
       common/work3b/wrk1(ifull,kl),wrk2(ifull,kl)   ! just work arrays here
       common/work3sav/qgsav(ifull,kl),trsav(ilt*jlt,klt,ngasmax) ! passed from nonlin
+      ! Need work common for these???
+      ! These need to be adjacent
+      real cc(ifull,kl), dd(ifull,kl)
+      common /workxx/ cc, dd
       common/work2/zz(ifull),zzn(ifull),zze(ifull),zzw(ifull),
-     . zzs(ifull),aa(ifull),bb(ifull),cc(ifull),dd(ifull),
+     . zzs(ifull),aa(ifull),bb(ifull),
      . pslxint(ifull),pfact(ifull),alff(ifull),alf(ifull),alfe(ifull),
-     . alfn(ifull),pslsav(ifull),alfu(ifull),alfv(ifull)
+     . alfn(ifull),pslsav(ifull),alfu(ifull),alfv(ifull),dum2(2*ifull)
       dimension pe(ifull,kl),e(ifull,kl)
       real helm(ifull,kl),rhsl(ifull,kl),delps(ifull)
       dimension indsw(8),indne(8),indse(4),indnw(4)
       real d(ifull,kl),pextras(ifull,kl),omgf(ifull,kl)
       equivalence (d,vn),(omgf,pe,tn),(e,p),(pextras,dpsldt)
-!      equivalence (cc,rhsl),(dd,helm),(bb,delps)
       data indsw/1,3,5,6,8,9,12,13/,indne/0,3,4,6,7,9,11,13/
       data indse/1,4,7,12/,indnw/0,5,8,11/
       save indsw,indne,indse,indnw
@@ -209,14 +212,14 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
 !     redefine ux, vx
       do k=1,kl
        do iq=1,ifull
-        cc(iq)=ux(iq,k)/emu(iq)*alfu(iq)
-        dd(iq)=vx(iq,k)/emv(iq)*alfv(iq)
+        cc(iq,k)=ux(iq,k)/emu(iq)*alfu(iq)
+        dd(iq,k)=vx(iq,k)/emv(iq)*alfv(iq)
        enddo    ! iq loop
 
 !      form divergence of rhs (ux & vx) terms: xd
 !cdir nodep
        do iq=1,ifull
-         d(iq,k)=cc(iq)-cc(iwu2(iq))+dd(iq)-dd(isv2(iq))
+         d(iq,k)=cc(iq,k)-cc(iwu(iq),k)+dd(iq,k)-dd(isv(iq),k)
        enddo    ! iq loop
       enddo     ! k  loop
 
@@ -273,59 +276,59 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
 !     only use method II inversion nowadays
       do k=1,kl
 !      first p from pe
-       do iq=1,ifull
-        p(iq,k)=emat(k,1)*pe(iq,1)
-       enddo    ! iq loop
-       do l=2,kl      ! this is the remaining expensive loop
-        do iq=1,ifull
-         p(iq,k)=p(iq,k)+emat(k,l)*pe(iq,l)
-        enddo   ! iq loop
-       enddo    !  l loop
+         do iq=1,ifull
+            p(iq,k)=emat(k,1)*pe(iq,1)
+         enddo                  ! iq loop
+         do l=2,kl              ! this is the remaining expensive loop
+            do iq=1,ifull
+               p(iq,k)=p(iq,k)+emat(k,l)*pe(iq,l)
+            enddo               ! iq loop
+         enddo                  !  l loop
 
 !      now u & v
-       if(k.eq.nlv.and.diag)then
-         iq=idjd
-         print *,'iq,k,fu,alfu,alfu*ux(iq,k) ',
-     .    iq,k,fu(iq),alfu(iq),alfu(iq)*ux(iq,k)
-         print *,'alfF & n e w s (in(iq)),alfF(ine(iq)),alfF(is(iq))',
-     .           'alfF(ise(iq)),alfe(iq) ',alfF(in(iq)),alfF(ine(iq))
-     .           ,alfF(is(iq)),alfF(ise(iq)),alfe(iq)
-         sum=alf(ie(iq))-alf(iq)+.25*(alfF(in(iq))+
-     .        alfF(ine(iq))-alfF(is(iq))-alfF(ise(iq))) -alfe(iq)
-         print *,'sum  ',sum
-         print *,'p & n e w s ne se ',p(iq,k),p(in(iq),k),
-     .    p(ie(iq),k),p(iw(iq),k),p(is(iq),k),
-     .    p(ine(iq),k),p(ise(iq),k)
-       endif
+         if(k.eq.nlv.and.diag)then
+            iq=idjd
+            print*,'iq,k,fu,alfu,alfu*ux(iq,k) ',
+     &               iq,k,fu(iq),alfu(iq),alfu(iq)*ux(iq,k)
+            print*,'alfF & n e w s (in(iq)),alfF(ine(iq)),alfF(is(iq))',
+     &           'alfF(ise(iq)),alfe(iq) ',alfF(in(iq)),alfF(ine(iq))
+     &           ,alfF(is(iq)),alfF(ise(iq)),alfe(iq)
+            sum=alf(ie(iq))-alf(iq)+.25*(alfF(in(iq))+
+     &        alfF(ine(iq))-alfF(is(iq))-alfF(ise(iq))) -alfe(iq)
+            print*,'sum  ',sum
+            print*,'p & n e w s ne se ',p(iq,k),p(in(iq),k),
+     &           p(ie(iq),k),p(iw(iq),k),p(is(iq),k),
+     &           p(ine(iq),k),p(ise(iq),k)
+         endif
 !cdir nodep
-       do iq=1,ifull
-c       u(iq,k)=alfu(iq)*ux(iq,k)
-        cc(iq) =alfu(iq)*ux(iq,k)   ! globpea
-     .   -hdtds*emu(iq)*
-     .     ( alf(ie(iq))*p(ie(iq),k)-alf(iq)*p(iq,k)
-     .   -.5*alfe(iq)*(p(iq,k)+p(ie(iq),k))
-     .   +.25*(alfF(in(iq))*p(in(iq),k) +alfF(ine(iq))*p(ine(iq),k)
-     .      -alfF(is(iq))*p(is(iq),k) -alfF(ise(iq))*p(ise(iq),k)) )
-c       v(iq,k)=alfv(iq)*vx(iq,k)
-        dd(iq) =alfv(iq)*vx(iq,k)   ! globpea
-     .   -hdtds*emv(iq)*
-     .     ( alf(in(iq))*p(in(iq),k)-alf(iq)*p(iq,k)
-     .   -.5*alfn(iq)*(p(iq,k)+p(in(iq),k))
-     .   -.25*(alfF(ien(iq))*p(ien(iq),k) +alfF(ie(iq))*p(ie(iq),k)
-     .      -alfF(iwn(iq))*p(iwn(iq),k) -alfF(iw(iq))*p(iw(iq),k)) )
-       enddo    ! iq loop
+         do iq=1,ifull
+!           u(iq,k)=alfu(iq)*ux(iq,k)
+            cc(iq,k) = alfu(iq)*ux(iq,k) ! globpea
+     &       -hdtds*emu(iq)*
+     &       ( alf(ie(iq))*p(ie(iq),k)-alf(iq)*p(iq,k)
+     &       -.5*alfe(iq)*(p(iq,k)+p(ie(iq),k))
+     &       +.25*(alfF(in(iq))*p(in(iq),k) +alfF(ine(iq))*p(ine(iq),k)
+     &       -alfF(is(iq))*p(is(iq),k) -alfF(ise(iq))*p(ise(iq),k)) )
+!           v(iq,k)=alfv(iq)*vx(iq,k)
+            dd(iq,k) =alfv(iq)*vx(iq,k) ! globpea
+     &       -hdtds*emv(iq)*
+     &       ( alf(in(iq))*p(in(iq),k)-alf(iq)*p(iq,k)
+     &       -.5*alfn(iq)*(p(iq,k)+p(in(iq),k))
+     &       -.25*(alfF(ien(iq))*p(ien(iq),k) +alfF(ie(iq))*p(ie(iq),k)
+     &       -alfF(iwn(iq))*p(iwn(iq),k) -alfF(iw(iq))*p(iw(iq),k)) )
+         enddo                  ! iq loop
 
 !      calculate linear part only of sigma-dot and omega/ps
 !cdir nodep
-       do iq=1,ifull
-        d(iq,k)=(cc(iq)/emu(iq)-cc(iwu2(iq))/emu(iwu2(iq))  ! globpea
-     .          +dd(iq)/emv(iq)-dd(isv2(iq))/emv(isv2(iq))) ! globpea
-     .          *em(iq)**2/ds
-       enddo    ! iq loop
-
-!      straightforward rev. cubic interp of u and v (i.e. nuv=10)
-       call unstaguv(cc,dd,u(1,k),v(1,k))  ! usual
+         do iq=1,ifull
+            d(iq,k)=(cc(iq,k)/emu(iq)-cc(iwu(iq),k)/emu(iwu2(iq)) ! globpea
+     &          +dd(iq,k)/emv(iq)-dd(isv(iq),k)/emv(isv2(iq))) ! globpea
+     &          *em(iq)**2/ds
+         enddo                  ! iq loop
       enddo     ! k  loop ---------------------------------------------------------
+
+!     straightforward rev. cubic interp of u and v (i.e. nuv=10)
+      call unstaguv(cc,dd,u,v)  ! usual
 
       if(diag.or.nmaxpr.eq.1)then
         write (6,"('div_adj(1-9) ',9f8.2)") (d(idjd,k)*1.e6,k=1,9)

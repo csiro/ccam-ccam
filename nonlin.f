@@ -28,9 +28,13 @@
       common/nonlsav/tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl)
       common/savuv/savu(ifull,kl),savv(ifull,kl)
       common/tbar2d/tbar2d(ifull)
-      common/work2/aa(ifull),bb(ifull),cc(ifull),dd(ifull),
-     .             aa2(ifull),bb2(ifull),cc2(ifull),dd2(ifull),
-     .             ee(ifull),ff(ifull),dum2(ifull,7),pskap(ifull)
+      ! Need work common for these.
+      real aa(ifull,kl),bb(ifull,kl),cc(ifull,kl),dd(ifull,kl),
+     .     aa2(ifull,kl),bb2(ifull,kl),cc2(ifull,kl),dd2(ifull,kl),
+     .     ee(ifull),ff(ifull),pskap(ifull)
+!      common/work2/aa(ifull),bb(ifull),cc(ifull),dd(ifull),
+!     .             aa2(ifull),bb2(ifull),cc2(ifull),dd2(ifull),
+!     .             ee(ifull),ff(ifull),dum2(ifull,7),pskap(ifull)
       common/work3/d(ifull,kl),p(ifull,kl),tempry(ifull,kl),tv(ifull,kl)
      .             ,spare(ifull,kl)      
       common/work3sav/qgsav(ifull,kl),trsav(ilt*jlt,klt,ngasmax)  ! passed to adjust5
@@ -203,10 +207,10 @@ c     .      ,pslx(id-1,jd-1,nlv),pslx(id-1,jd+1,nlv),pslx(id+1,jd-1,nlv)
         print *,'omgf ',(omgf(idjd,k),k=1,kl)
         call printa('omgf',omgf(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.e5)
         do iq=1,ifull
-         aa(iq)=rata(nlv)*sdot(iq,nlv+1)+ratb(nlv)*sdot(iq,nlv)
+         aa(iq,1)=rata(nlv)*sdot(iq,nlv+1)+ratb(nlv)*sdot(iq,nlv)
         enddo    ! iq loop
-        print *,'k,aa,emu',nlv,aa(idjd),emu(idjd)
-        call printa('sgdf',aa,ktau,nlv,ia,ib,ja,jb,0.,10.)
+        print *,'k,aa,emu',nlv,aa(idjd,1),emu(idjd)
+        call printa('sgdf',aa(1,1),ktau,nlv,ia,ib,ja,jb,0.,10.)
       endif
 
       tv=.61*qg*t  ! 3D - just add-on at this stage (after vadv)
@@ -464,52 +468,54 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
 !     Following now always basically morder=24 2nd order, Corby style scheme
       do k=1,kl
 !cdir nodep
-       do iq=1,ifull  ! calculate staggered contributions first
-        aa(iq)=-emu(iq)*(p(ie(iq),k)-p(iq,k))*
+         do iq=1,ifull          ! calculate staggered contributions first
+            aa(iq,k)=-emu(iq)*(p(ie(iq),k)-p(iq,k))*
      .                                      (1.-epsu)*.5*dt/ds    ! 2nd order
-        bb(iq)=-emv(iq)*(p(in(iq),k)-p(iq,k) )*
+            bb(iq,k)=-emv(iq)*(p(in(iq),k)-p(iq,k) )*
      .                                      (1.-epsu)*.5*dt/ds    ! 2nd order
-       enddo   ! iq loop
+         enddo                  ! iq loop
 !      morder=24 scheme with residual terms for un, vn
 !cdir nodep
          do iq=1,ifull  ! calculate staggered contributions first
-          cc(iq)=emu(iq)*(psl(ie(iq))+psl(iq))*
+            cc(iq,k)=emu(iq)*(psl(ie(iq))+psl(iq))*
      .                          (tv(ie(iq),k)-tv(iq,k))*.5*r/ds
-          dd(iq)=emv(iq)*(psl(in(iq))+psl(iq))*
+            dd(iq,k)=emv(iq)*(psl(in(iq))+psl(iq))*
      .                          (tv(in(iq),k)-tv(iq,k))*.5*r/ds
-         enddo   ! iq loop
+         enddo                  ! iq loop
 
 !cdir nodep
-       if(nphip.gt.1.and.k.le.1)then
-         do iq=1,ifull  ! calculate nphip contributions 
-          cc(iq)=-emu(iq)*(dphi_dx(iq,k)
+         if(nphip.gt.1.and.k.le.1)then
+            do iq=1,ifull       ! calculate nphip contributions 
+               cc(iq,k)=-emu(iq)*(dphi_dx(iq,k)
      .                     -p(ie(iq),k)+p(iq,k))/ds
-          dd(iq)=-emv(iq)*(dphi_dy(iq,k)
+               dd(iq,k)=-emv(iq)*(dphi_dy(iq,k)
      .                     -p(in(iq),k)+p(iq,k))/ds
-         enddo   ! iq loop
-	  iq=idjd
-	  print *,"phi's ",k,dphi_dx(iq,k),p(ie(iq),k)-p(iq,k),
+            enddo               ! iq loop
+            iq=idjd
+            print *,"phi's ",k,dphi_dx(iq,k),p(ie(iq),k)-p(iq,k),
      .                      dphi_dy(iq,k),p(in(iq),k)-p(iq,k)
-       endif     ! (nphip.gt.1)
-       call unstaguv(aa,bb,aa2,bb2) ! convert to unstaggered positions
-       call unstaguv(cc,dd,cc2,dd2)
-       do iq=1,ifull   
-        ux(iq,k)=u(iq,k)+aa2(iq)
-        vx(iq,k)=v(iq,k)+bb2(iq)
-        un(iq,k)=un(iq,k)+cc2(iq)
-        vn(iq,k)=vn(iq,k)+dd2(iq)
-       enddo  ! iq loop
-       if(diag.and.k.eq.nlv)then
-        call printa('aa  ',aa,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('aa2 ',aa2,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('bb  ',bb,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('bb2 ',bb2,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('cc  ',cc,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('cc2 ',cc2,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('dd  ',dd,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('dd2 ',dd2,ktau,nlv,ia,ib,ja,jb,0.,1.)
-       endif  ! (diag.and.k.eq.nlv)
-      enddo   ! k  loop
+         endif                  ! (nphip.gt.1)
+      end do ! k
+      call unstaguv(aa,bb,aa2,bb2) ! convert to unstaggered positions
+      call unstaguv(cc,dd,cc2,dd2)
+      do k=1,kl
+         do iq=1,ifull   
+            ux(iq,k)=u(iq,k)+aa2(iq,k)
+            vx(iq,k)=v(iq,k)+bb2(iq,k)
+            un(iq,k)=un(iq,k)+cc2(iq,k)
+            vn(iq,k)=vn(iq,k)+dd2(iq,k)
+         enddo                  ! iq loop
+      end do
+      if(diag)then
+        call printa('aa  ',aa(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('aa2 ',aa2(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('bb  ',bb(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('bb2 ',bb2(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('cc  ',cc(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('cc2 ',cc2(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('dd  ',dd(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('dd2 ',dd2(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+      endif                     ! (diag.and.k.eq.nlv)
 
 !     finish evaluation of tx,ux,vx by adding in part of nonlinear terms
       cnon=.5    ! cnon=.5 shares tn,un,vn between here & upglobal/adjust
