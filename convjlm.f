@@ -17,7 +17,7 @@
      .    ,frac,fraca,fracb,gam,hbase,heatlev,hs
      .    ,pwater,pwater0,qavg,qavgb,qbas,qbase,qdown,qliqw,qprec
      .    ,qq,qs,qsk,qxcess
-     .    ,rkmid,rnd_av,rnrt,rnrtc,rnrtcn
+     .    ,rkmid,rnrt,rnrtc,rnrtcn
      .    ,s,savg,savgb,sbas,sbase,sum,sumqs,sumqt,sumss
      .    ,tm,totprec,tt,tdown,veldt
      
@@ -777,15 +777,14 @@ c          if(iq.eq.idjd)print *,'k,frac ',k,frac
         iq=idjd
         delq_av=0.
         delt_av=0.
-        rnd_av=rnd_av+rnrtc(iq)
         heatlev=0.
         do k=1,kl
          delq_av=delq_av+dsk(k)*convpsav(iq)*delq(iq,k)
          delt_av=delt_av+dsk(k)*convpsav(iq)*dels(iq,k)/cp
          heatlev=heatlev+sig(k)*dsk(k)*convpsav(iq)*dels(iq,k)/cp
         enddo
-        print *,'delq_av,delt_exp,rnd_av,rnd_exp ',
-     .         delq_av,-delq_av*hl/cp,rnd_av,-delq_av*conrev(iq)
+        print *,'delq_av,delt_exp,rnd_exp ',
+     .         delq_av,-delq_av*hl/cp,-delq_av*conrev(iq)
         if(delt_av.ne.0.)print *,'ktau,itn,kbsav,ktsav,delt_av,heatlev',
      .        ktau,itn,kb_sav(idjd),kt_sav(idjd),delt_av,heatlev/delt_av
       endif   ! (ntest.ne.0.or.diag)
