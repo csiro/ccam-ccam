@@ -3,6 +3,7 @@
      .     bprm,cms,chs,fmroot,nalpha)
       use cc_mpi, only : mydiag
       use diag_m
+!     allows for zo>zscr from 30/7/04
 !     has fixer at bottom to ensure tscrn and qgscrn bounded (& non-neg)
       parameter (ntest=0)   ! ntest= 0 for diags off; ntest= 1 for diags on
 c**************** needed sopt for SX5 compiler if ntest=1 (19/3/04)      
@@ -98,16 +99,17 @@ c        stop
 c      endif
 c     enddo
       do iq=1,ifull
+       zscrr=max(zscr,zo(iq)+.05)
        zlog(iq)=log(zo(iq))
-       zscronzo(iq)=zscr/zo(iq)
-       afroot(iq)=vkar/(log(zscr)-zlog(iq))
+       zscronzo(iq)=zscrr/zo(iq)
+       afroot(iq)=vkar/(log(zscrr)-zlog(iq))
        af(iq)=afroot(iq)*afroot(iq)
 c      constants for calculating 3m, 10m winds
 c      afroot3(iq) = vkar/(log(3.)-zlog(iq))
 c      af3(iq) = afroot3(iq)*afroot3(iq)
        afroot10(iq) = vkar/(log(10.)-zlog(iq))
        af10(iq) = afroot10(iq)*afroot10(iq)
-       aft(iq)=vkar*afroot(iq)/(2. + log(zscr)-zlog(iq))
+       aft(iq)=vkar*afroot(iq)/(2. + log(zscrr)-zlog(iq))
        aft10(iq)=vkar* afroot10(iq) /(2. + log(10.)-zlog(iq))
       enddo   ! iq loop
       if(ntest.eq.1.and.mydiag)print *,'scrnout zlog ',zlog(idjd)
