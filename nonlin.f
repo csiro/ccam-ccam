@@ -52,7 +52,7 @@
       real siglog(kl),plog(nphip),dplog(nphip)
       integer iq, iqq, k, kk, kpp, kx, ng, ii, jj
       real betav, cnon, contv, coslat, costh, delneg, delp, delpos, den,
-     &     drk, factor, omg_rot, pi, polenx, polenz, pp, pressp, presst,
+     &     drk, factor, omg_rot, polenx, polenz, pp, pressp, presst,
      &     psav, psavk, psavklog, psavlog, ratio, rk, sdmax, sigt,
      &     sigtlog, sigxx, sinlat, sinth, sumdiffb, termlin, tt, tvv,
      &     uzon, zonx, zony, zonz, zsint
@@ -384,8 +384,7 @@ c	 endif    ! (ntest.eq.1.and.iq.eq.idjd)
        enddo     !  iq loop
 
        ! Required by strict shape matching with APAC compiler.
-       ! call bounds(phip(:,1))  ! Assumes nphip=1
-       call bounds(phip)
+       call bounds(phip(:,1))  ! Assumes nphip=1
 
 !      dphi_dx calculation
        do k=1,nphip
