@@ -933,7 +933,7 @@ c     zmin here is approx height of the lowest level in the model
         enddo   ! iq loop
         if (mydiag) print *,'for lgwd>0, typical zo#: ', diagvals(aa)
 !     & 	 ((aa(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-        call mpi_reduce(aamax, aamax_g, 1, MPI_REAL, MPI_MAX, 0,
+        call MPI_Reduce(aamax, aamax_g, 1, MPI_REAL, MPI_MAX, 0,
      &                  MPI_COMM_WORLD, ierr )
         if (myid==0) print *,'for lgwd>0, aamax: ',aamax_g
       endif
@@ -950,7 +950,7 @@ c****    himalayas etc.
          he(iq)=min(hefact*he(iq),helim)
         enddo
         if (myid==0) print *,'hemax = ',hemax
-        call mpi_allreduce(hemax, hemax_g, 1, MPI_REAL, MPI_MAX, 
+        call MPI_Allreduce(hemax, hemax_g, 1, MPI_REAL, MPI_MAX, 
      &                  MPI_COMM_WORLD, ierr )
         hemax = hemax_g
         if(hemax.eq.0.)then
@@ -960,7 +960,7 @@ c         use he of 30% of orography, i.e. zs*.3/grav
            hemax=max(he(iq),hemax)
           enddo ! iq loop
         endif   ! (hemax.eq.0.)
-        call mpi_reduce(hemax, hemax_g, 1, MPI_REAL, MPI_MAX, 0,
+        call MPI_Reduce(hemax, hemax_g, 1, MPI_REAL, MPI_MAX, 0,
      &                  MPI_COMM_WORLD, ierr )
         if (myid==0) print *,'final hemax = ',hemax_g
       endif     ! (ngwd.ne.0)
@@ -1576,9 +1576,9 @@ c --- rescale and patch up vegie data if necessary
        ivegmax=max(ivegmax,ivegt(iq))
       enddo
       print*, "IVEG", myid, ivegmin, ivegmax
-      call mpi_allreduce(ivegmin, ivegmin_g, 1, MPI_INTEGER, MPI_MIN, 
+      call MPI_Allreduce(ivegmin, ivegmin_g, 1, MPI_INTEGER, MPI_MIN, 
      &                  MPI_COMM_WORLD, ierr )
-      call mpi_allreduce(ivegmax, ivegmax_g, 1, MPI_INTEGER, MPI_MAX, 
+      call MPI_Allreduce(ivegmax, ivegmax_g, 1, MPI_INTEGER, MPI_MAX, 
      &                  MPI_COMM_WORLD, ierr )
       if ( mydiag ) print *,'ivegmin,ivegmax ',ivegmin_g,ivegmax_g
       if(ivegmax_g.lt.14)then
