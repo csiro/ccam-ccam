@@ -1,12 +1,13 @@
       integer kbsav,ktsav,iterconv,ksc,kscmom,kscsea,kuocb,ldr,
      .        methdetr,methprec,nclddia,ncvcloud,ncvmix,ndavconv,
      .        nevapcc,nevapls,nkuo,nrhcrit,nstab_cld,nuvconv 
-      real convpsav,alflnd,alfsea ,cldh_lnd,cldm_lnd,cldl_lnd,
-     .     cldh_sea,cldm_sea,cldl_sea,convfact,convshr,convtime,
+      real alflnd,alfsea ,cldh_lnd,cldm_lnd,cldl_lnd,cldh_sea,cldm_sea,
+     .     cldl_sea,convfact,convpsav,convtime,
      .     detrain,detrainx,dsig2,dsig4,
-     .     epsconv,fldown,rcrit_l,rcrit_s,rhcv,rhmois,rhsat,
-     .     sigcb,sigcll,sigkscb,sig_ct,sigksct,
+     .     epsconv,fldown,rhcv,rhmois,rhsat,shaltime,
+     .     sigcb,sigcll,sigkscb,sigcll,sig_ct,sigkscb,sigksct,
      .     tied_con,tied_over,tied_rh
+      real acon,bcon,rcm,rcrit_l,rcrit_s
       
       common/kuocom/
      .   kbsav(ifull),ktsav(ifull),convpsav(ifull) ! used by conjob
@@ -16,8 +17,8 @@
      .  ,cldh_lnd,cldm_lnd,cldl_lnd !      for old nrhcrit=5     [95.,85.,75.]
      .  ,cldh_sea,cldm_sea,cldl_sea !      for old nrhcrit=5     [95.,90.,80.]
      .  ,convfact     ! overshooting factor for mass flux            [1.]
-     .  ,convshr      ! convective shear inhibitor                   [99.]
-     .  ,convtime     ! adjustment time (hrs) of cu scheme (.3?)     [0.]
+!    .  ,convrh       ! convective rh    inhibitor                   [0.]
+     .  ,convtime     ! adjustment time (h) of cu scheme             [.3]
      .  ,detrain      ! fraction of precip into detrainment          [.1]
      .  ,detrainx     ! fraction into detrainment for shallow clouds [1.]
      .  ,dsig2        ! delta-sigma2 for end of shallow clouds       [.1]
@@ -42,11 +43,10 @@
      .  ,nrhcrit      ! Hal's original 0; for jlm 7, 8               [8 ] 
      .  ,nstab_cld    ! 0 off, 3 for stability-enhanced cll          [0]
      .  ,nuvconv      ! 0 off, 1 to turn on momentum mixing          [0]
-     .  ,rcrit_l      ! rcrit_land for ldr newcloud                  [.75]
-     .  ,rcrit_s      ! rcrit_sea  for ldr newcloud                  [.85]
      .  ,rhcv         ! RH trigger for convective scheme             [.75]
      .  ,rhmois       ! used by conjob, convjlm for nevapcc=5        [.1]
      .  ,rhsat        ! saturation trigger for large-scale rain      [1.]
+     .  ,shaltime     ! shallow convection time scale (h)            [0.]
      .  ,sigcb        ! sig value for base of convection scheme      [1.]
      .  ,sigcll       ! sig value of low cloud base (for cll)        [.95]
      .  ,sig_ct       ! min sig value of cloud tops (for convjlm)    [.8]
@@ -55,3 +55,10 @@
      .  ,tied_con     ! tiedtke diffsn const. e.g. 25., 20. or       [6.]
      .  ,tied_over    ! tiedtke overshooting constant                [2.]
      .  ,tied_rh      ! tiedtke RH trigger:                          [.75]
+
+      common/ldr/
+     .   acon    ! Cloud fraction for non-precipitating convection   [.2]
+     .  ,bcon    ! Rate at which conv cloud frac increases with R    [.07]
+     .  ,rcm     ! Threshold cloud dropl R for coalescence to begin  [1.e-5]
+     .  ,rcrit_l ! rcrit_land for ldr newcloud                       [.75]
+     .  ,rcrit_s ! rcrit_sea  for ldr newcloud                       [.85]
