@@ -33,7 +33,7 @@ c In/Out:
 c
 c from arguments
 c      ttg - temperature (K)
-c      qtg - water vapour mixing ratio (kg/kg)
+c      qtg - water vapour mixing ratio (kg/kg) - called qenv in leoncld
 c      qlg - cloud liquid water mixing ratio (kg/kg)
 c      qfg - cloud ice mixing ratio (kg/kg)
 c
@@ -274,7 +274,7 @@ c Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
           al=1./(1.+(hlcp+fi*hlfcp)*dqsdt)    !Smith's notation
           qc=qtot(mg,k)-qs
 
-          delq=(1-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
+          delq=(1.-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
           cfrac(mg,k)=1.
           qcg(mg,k)=al*qc
           if(qc.lt.delq)then
@@ -403,7 +403,8 @@ c Use qs=qsg.
             al=1/(1+(hlcp+fi*hlfcp)*dqsdt) !Smith's notation
             qc=qtot(mg,k)-qs
 
-            delq=(1-rcrit(mg,k))*qs   !UKMO style (equivalent to above)
+            delq=(1.-rcrit(mg,k))*qs   !UKMO style (equivalent to above)
+!           get cfrac= 0 for qtot=rcrit*qs, .5 for qc=0, 1 for qc=(1-rcrit)*qs
             cfrac(mg,k)=1.
             qcg(mg,k)=al*qc
             if(qc.lt.delq)then
