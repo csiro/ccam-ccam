@@ -10,12 +10,15 @@
       integer, parameter :: MPI_REAL      = 26
       integer, parameter :: MPI_DOUBLE_PRECISION = 27
       integer, parameter :: MPI_INTEGER   = 28
+      integer, parameter :: MPI_2REAL     = 32
 !
 !     Collective operations
 !
       integer, parameter :: MPI_MAX    = 100
       integer, parameter :: MPI_MIN    = 101
       integer, parameter :: MPI_SUM    = 102
+      integer, parameter :: MPI_MINLOC = 110
+      integer, parameter :: MPI_MAXLOC = 111
 !
 !     Communicator
 !
