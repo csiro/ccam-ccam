@@ -226,7 +226,7 @@
             enddo               ! iq loop
          enddo                  !  l loop
       end do
-      call bounds(p)
+      call bounds(p,corner=.true.)
 
 !      now u & v
       if(diag.and.mydiag)then
@@ -624,7 +624,7 @@ c       print *,'qgsav,qg_in',qgsav(idjd,1),qg(idjd,1,1)
       endif  ! (m.lt.6)... else ...
       ! These really only need to be recomputed when time step changes.
       call bounds(alf)
-      call bounds(alff)
+      call bounds(alff,corner=.true.)
 !cdir nodep
       do iq=1,ifull
        pfact(iq)=4.*( ds/(dt*em(iq)) )**2    ! for adjust9/5
