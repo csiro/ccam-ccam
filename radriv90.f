@@ -71,10 +71,10 @@ c     parameters for the aerosol calculation
       
 c     Following are for cloud2 routine
       common/work3f/cfrac(ifull,kl),           ! globpe,leoncld,radriv90
-     &     t2(imax,kl),ql2(imax,kl),qf2(imax,kl),cf2(imax,kl),
+     &              dum3f(2*ifull*kl)
+      real t2(imax,kl),ql2(imax,kl),qf2(imax,kl),cf2(imax,kl),
      &     qccon(imax,kl),cd2(imax,kl),p2(imax,kl),
      &     dp2(imax,kl),cll(imax),clm(imax),clh(imax)
-     &     ,dum3f(2*ifull*kl-8*imax*kl-3*imax)
       logical land2(imax)
 
 !     From initfs
