@@ -1,5 +1,5 @@
 ! Global version only for use in setxyz, jimcc, jimco.
-! Must match the standard newmpar.h. The program itself can't check this!!!!
+! Must match the standard newmpar.h (the model checks for consistency).
 
       integer il, npanels, jl, kl, ksl, ms, ifull, ij, ijk, iquad
 !     plan to replace ij by ifull eventually
