@@ -1,6 +1,8 @@
-      subroutine depts1(k)  ! input ubar,vbar are unstaggered vels for level k
+      subroutine depts(x3d,y3d,z3d)   ! input ubar,vbar are unstaggered vels for level k
+!     3D version
 c     modify toij5 for Cray
-      parameter (ntest=0)      
+      implicit none
+      integer, parameter :: ntest=0
       include 'newmpar.h'
       include 'constant.h'   ! rearth
       include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
@@ -8,164 +10,110 @@ c     modify toij5 for Cray
       include 'parm.h'
       include 'vecsuv.h'   ! vecsuv info
       include 'xyzinfo.h'  ! x,y,z,wts
+      real ubar, vbar
       common/uvbar/ubar(ifull,kl),vbar(ifull,kl)
+      integer nface
+      real xg, yg
       common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
-      common/work2/uc(ifull),vc(ifull),wc(ifull)
-     .            ,temp(ifull),dum(ifull,14)
-      common/work2c/x3d(ifull),y3d(ifull),z3d(ifull)   ! upglobal depts 
-      do iq=1,ifull
-c      departure point x, y, z is called x3d, y3d, z3d
-c      first find corresponding cartesian vels
-       uc(iq)=(ax(iq)*ubar(iq,k) + bx(iq)*vbar(iq,k))*dt/rearth ! unit sphere 
-       vc(iq)=(ay(iq)*ubar(iq,k) + by(iq)*vbar(iq,k))*dt/rearth ! unit sphere 
-       wc(iq)=(az(iq)*ubar(iq,k) + bz(iq)*vbar(iq,k))*dt/rearth ! unit sphere 
-       x3d(iq)=x(iq)-uc(iq)  ! 1st guess
-       y3d(iq)=y(iq)-vc(iq)
-       z3d(iq)=z(iq)-wc(iq)
-      enddo   ! iq loop
-
-c     convert to grid point numbering
-      call toij5 (k,x3d,y3d,z3d)   ! maybe remove k dependency
-      if(ntest.eq.1)then
-        print *,'ubar,vbar ',ubar(idjd,k),vbar(idjd,k)
-        print *,'uc,vc,wc ',uc(idjd),vc(idjd),wc(idjd)
-        print *,'1st guess for k = ',k
-        print *,'x3d,y3d,z3d ',x3d(idjd),y3d(idjd),z3d(idjd)
-        print *,'xg,yg,nface ',xg(idjd,k),yg(idjd,k),nface(idjd,k)
-      endif
-      intsch=mod(ktau,2)
-      temp=uc
-      call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
-      x3d=x-.5*(uc+temp)  ! 2nd guess
-      temp=vc
-      call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
-      y3d=y-.5*(vc+temp)  ! 2nd guess
-      temp=wc
-      call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
-      z3d=z-.5*(wc+temp)  ! 2nd guess
-      
-      call toij5 (k,x3d,y3d,z3d)   ! maybe remove k dependency
-      if(ntest.eq.1)then
-        print *,'2nd guess for k = ',k
-        print *,'x3d,y3d,z3d ',x3d(idjd),y3d(idjd),z3d(idjd)
-        print *,'xg,yg,nface ',xg(idjd,k),yg(idjd,k),nface(idjd,k)
-      endif
-      temp=uc
-      call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
-      x3d=x-.5*(uc+temp)  ! 3rd guess
-      temp=vc
-      call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
-      y3d=y-.5*(vc+temp)  ! 3rd guess
-      temp=wc
-      call ints(temp,intsch,nface(1,k),xg(1,k),yg(1,k),2)
-      z3d=z-.5*(wc+temp)  ! 3rd guess
-
-      call toij5 (k,x3d,y3d,z3d)   ! maybe remove k dependency
-      if(ntest.eq.1)then
-        print *,'3rd guess for k = ',k
-        print *,'x3d,y3d,z3d ',x3d(idjd),y3d(idjd),z3d(idjd)
-        print *,'xg,yg,nface ',xg(idjd,k),yg(idjd,k),nface(idjd,k)
-      endif
-
-      return
-      end
-
-      subroutine depts(k)   ! input ubar,vbar are unstaggered vels for level k
-c     modify toij5 for Cray
-      parameter (ntest=0)      
-      include 'newmpar.h'
-      include 'constant.h'   ! rearth
-      include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
-      include 'map.h'
-      include 'parm.h'
-      include 'vecsuv.h'   ! vecsuv info
-      include 'xyzinfo.h'  ! x,y,z,wts
-      common/uvbar/ubar(ifull,kl),vbar(ifull,kl)
-      common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
-      common/work2/gx(ifull),gy(ifull),gz(ifull)
-     .            ,derx(ifull),dery(ifull),derz(ifull),dum(ifull,12)
-      common/work2c/x3d(ifull),y3d(ifull),z3d(ifull)   ! upglobal depts 
+      ! Is there an appropriate work common for this?
+      real gx(ifull,kl),gy(ifull,kl),gz(ifull,kl),
+     &     derx(ifull,kl),dery(ifull,kl),derz(ifull,kl)
+      real x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
+      integer nit, ndiag
       data nit/3/,ndiag/0/
-      if(ntest.eq.1)then
-        print *,'entering depts for k = ',k
-        print *,'ubar,vbar ',ubar(idjd,k),vbar(idjd,k)
-      endif
-       do iq=1,ifull
-c       departure point x, y, z is called x3d, y3d, z3d
-c       first find corresponding cartesian vels
-        uc=ax(iq)*ubar(iq,k) + bx(iq)*vbar(iq,k)
-        vc=ay(iq)*ubar(iq,k) + by(iq)*vbar(iq,k)
-        wc=az(iq)*ubar(iq,k) + bz(iq)*vbar(iq,k)
-c       for gnomic can do first term analytically!
-        derx(iq)=-uc*dt/rearth    ! because working on unit sphere
-        dery(iq)=-vc*dt/rearth
-        derz(iq)=-wc*dt/rearth
-        x3d(iq)=x(iq)+derx(iq)
-        y3d(iq)=y(iq)+dery(iq)
-        z3d(iq)=z(iq)+derz(iq)
-c       for other terms want vels in units of double grid-points/timestep
-        ubar(iq,k)=ubar(iq,k)*dt *.5*em(iq)/ds
-        vbar(iq,k)=vbar(iq,k)*dt *.5*em(iq)/ds
-       enddo   ! iq loop
-       if(ntest.eq.1)then
-         print *,'itn,x3d,y3d,z3d,u,v: ',1,x3d(idjd),y3d(idjd),z3d(idjd)
-     .          ,ubar(idjd,k),vbar(idjd,k)
-         print *,'x,ax,bx,derx: ',x(idjd),ax(idjd),bx(idjd),derx(idjd)
-       endif
-       if(ndiag.eq.2)then
-         call printp('derx',derx)
-         call printp('dery',dery)
-         call printp('derz',derz)
-         call printp('x3d ',x3d)
-         call printp('y3d ',y3d)
-         call printp('z3d ',z3d)
-       endif
+      integer :: iq, itn, k
+      real :: uc, vc, wc
 
-       do itn=2,nit
-*cdir nodep
+      if(ntest.eq.1)then
+        print *,'entering depts'
+        print *,'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
+      endif
+      do k=1,kl
          do iq=1,ifull
-           gx(iq)=-(ubar(iq,k)*(derx(ie(iq))-derx(iw(iq)))
-     .             +vbar(iq,k)*(derx(in(iq))-derx(is(iq))) )/itn
-           gy(iq)=-(ubar(iq,k)*(dery(ie(iq))-dery(iw(iq)))
-     .             +vbar(iq,k)*(dery(in(iq))-dery(is(iq))) )/itn
-           gz(iq)=-(ubar(iq,k)*(derz(ie(iq))-derz(iw(iq)))
-     .             +vbar(iq,k)*(derz(in(iq))-derz(is(iq))) )/itn
-          enddo   ! iq loop
+!           departure point x, y, z is called x3d, y3d, z3d
+!           first find corresponding cartesian vels
+            uc = ax(iq)*ubar(iq,k) + bx(iq)*vbar(iq,k)
+            vc = ay(iq)*ubar(iq,k) + by(iq)*vbar(iq,k)
+            wc = az(iq)*ubar(iq,k) + bz(iq)*vbar(iq,k)
+!           for gnomic can do first term analytically!
+            derx(iq,k) = -uc*dt/rearth ! because working on unit sphere
+            dery(iq,k) = -vc*dt/rearth
+            derz(iq,k) = -wc*dt/rearth
+            x3d(iq,k) = x(iq)+derx(iq,k)
+            y3d(iq,k) = y(iq)+dery(iq,k)
+            z3d(iq,k) = z(iq)+derz(iq,k)
+!           for other terms want vels in units of double grid-points/timestep
+            ubar(iq,k) = ubar(iq,k)*dt *.5*em(iq)/ds
+            vbar(iq,k) = vbar(iq,k)*dt *.5*em(iq)/ds
+         enddo ! iq loop
+      end do
+      if(ntest.eq.1)then
+         print *,'itn,x3d,y3d,z3d,u,v: ',1,x3d(idjd,nlv),y3d(idjd,nlv),
+     &        z3d(idjd,nlv),ubar(idjd,nlv),vbar(idjd,nlv)
+         print *,'x,ax,bx,derx: ',x(idjd),ax(idjd),bx(idjd),
+     &        derx(idjd,nlv)
+      endif
+!       Need a version that works on 3D arrays
+!       if(ndiag.eq.2)then
+!         call printp('derx',derx)
+!         call printp('dery',dery)
+!         call printp('derz',derz)
+!         call printp('x3d ',x3d)
+!         call printp('y3d ',y3d)
+!         call printp('z3d ',z3d)
+!       endif
+
+      do itn=2,nit
+         do k=1,kl
+*cdir nodep
+            do iq=1,ifull
+               gx(iq,k) = -(ubar(iq,k)*(derx(ie(iq),k)-derx(iw(iq),k))
+     &               + vbar(iq,k)*(derx(in(iq),k)-derx(is(iq),k)) )/itn
+               gy(iq,k) = -(ubar(iq,k)*(dery(ie(iq),k)-dery(iw(iq),k))
+     &               + vbar(iq,k)*(dery(in(iq),k)-dery(is(iq),k)) )/itn
+               gz(iq,k) = -(ubar(iq,k)*(derz(ie(iq),k)-derz(iw(iq),k))
+     &               + vbar(iq,k)*(derz(in(iq),k)-derz(is(iq),k)) )/itn
+            enddo               ! iq loop
+         end do
 
 c        if(diag)print *,'depts itn,nit,dt: ',itn,nit,dt
 
-         do iq=1,ifull
-          derx(iq)=gx(iq)
-          dery(iq)=gy(iq)
-          derz(iq)=gz(iq)
-          x3d(iq)=x3d(iq)+derx(iq)
-          y3d(iq)=y3d(iq)+dery(iq)
-          z3d(iq)=z3d(iq)+derz(iq)
-         enddo   ! iq loop
+         do k=1,kl
+            do iq=1,ifull
+               derx(iq,k) = gx(iq,k)
+               dery(iq,k) = gy(iq,k)
+               derz(iq,k) = gz(iq,k)
+               x3d(iq,k) = x3d(iq,k)+derx(iq,k)
+               y3d(iq,k) = y3d(iq,k)+dery(iq,k)
+               z3d(iq,k) = z3d(iq,k)+derz(iq,k)
+            enddo               ! iq loop
+         end do
 
 c        if(diag)print *,'itn,x3d,y3d,z3d,u,v: ',itn,x3d(idjd),y3d(idjd)
 c    .                    ,z3d(idjd),ubar(idjd,1),vbar(idjd,1)
-         if(ndiag.eq.2)then
-c          call printp('gx   ',gx)
-c          call printp('gy   ',gy)
-c          call printp('gz   ',gz)
-           call printp('derx',derx)
-           call printp('dery',dery)
-           call printp('derz',derz)
-           call printp('x3d ',x3d)
-           call printp('y3d ',y3d)
-           call printp('z3d ',z3d)
-         endif
-       enddo       ! itn=2,nit
+!         if(ndiag.eq.2)then
+!c          call printp('gx   ',gx)
+!c          call printp('gy   ',gy)
+!c          call printp('gz   ',gz)
+!           call printp('derx',derx)
+!           call printp('dery',dery)
+!           call printp('derz',derz)
+!           call printp('x3d ',x3d)
+!           call printp('y3d ',y3d)
+!           call printp('z3d ',z3d)
+!         endif
+      enddo                     ! itn=2,nit
 
 c     convert to grid point numbering
-      if(npanels.eq.5) call toij5 (k,x3d,y3d,z3d)   ! maybe remove k dependency
-      if(npanels.eq.13)call toij13(k,x3d,y3d,z3d)   ! maybe remove k dependency
+      do k=1,kl
+         if(npanels.eq.5) call toij5 (k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
+         if(npanels.eq.13)call toij13(k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
+      end do
 
       if(ntest.eq.1)then
         print *,'at end of depts for k = ',k
-        print *,'x3d,y3d,z3d ',x3d(idjd),y3d(idjd),z3d(idjd)
-        print *,'xg,yg,nface ',xg(idjd,k),yg(idjd,k),nface(idjd,k)
+        print *,'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
+        print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
       endif
       if(ndiag.eq.2)then
         print *,'after toij5/toij13'
