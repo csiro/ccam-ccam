@@ -1,4 +1,5 @@
       subroutine setxyz(myid)
+      use utilities
       parameter (ntang=2)   ! ntang=0 for tang. vectors from rancic et al.
                             !         not for stretched as vecpanel not ready
                             ! ntang=1 for tang. vectors by finite diffs
@@ -130,6 +131,10 @@ c     print *,'isb il/2,n ',is(ind(il/2,1,n)),n
        isv2(iq)=is(iq)    ! N.B. use for unstaggered u,v in hordifg
        ieu2(iq)=ie(iq)    ! N.B. use for unstaggered u,v in hordifg
        inv2(iq)=in(iq)    ! N.B. use for unstaggered u,v in hordifg
+       iwwu2(iq)=iww(iq)  ! for MPI version of nstag=3   
+       issv2(iq)=iss(iq)   
+       ieeu2(iq)=iee(iq)    
+       innv2(iq)=inn(iq)    
        ieu(iq)=ie(iq)     ! N.B. use for staguv3
        inv(iq)=in(iq)     ! N.B. use for staguv3
 !      following are extras not needed in model, just here for bdy values
@@ -150,6 +155,9 @@ c      print *,'ina il/2,n ',in(ind(il/2,il,n)),n
          iwn(iq)=in(in(iq))
          inv2(iq)=in(iq) - ifull   ! converts 2D v array into u array
          inv(iq)=in(iq) - ijk      ! converts 3D v array into u array
+         innv2(iq)=inn(iq) - ifull ! converts 2D v array into u array
+         iq=ind(i,il-1,n)
+         innv2(iq)=inn(iq) - ifull ! converts 2D v array into u array
         enddo  ! i loop
       endif      ! (npann(n).ge.100)
 c     print *,'inb il/2,n ',in(ind(il/2,il,n)),n
@@ -162,6 +170,9 @@ c     print *,'iea il/2,n ',ie(ind(il,il/2,n)),n
          ise(iq)=ie(ie(iq))
          ieu2(iq)=ie(iq) + ifull   ! converts 2D u array into v array
          ieu(iq)=ie(iq) + ijk      ! converts 3D u array into v array
+         ieeu2(iq)=iee(iq) + ifull ! converts 2D u array into v array
+         iq=ind(il-1,j,n)
+         ieeu2(iq)=iee(iq) + ifull ! converts 2D u array into v array
         enddo   ! j loop
       endif      ! (npane(n).ge.100)
 c     print *,'ieb il/2,n ',ie(ind(il,il/2,n)),n
@@ -174,6 +185,9 @@ c     print *,'iwa il/2,n ',iw(ind(1,il/2,n)),n
          isw(iq)=ie(iw(iq)) ! in temporary arrays
          iwu2(iq)=iw(iq) + ifull   ! converts 2D u array into v array
          iwu(iq)=iw(iq) + ijk      ! converts 3D u array into v array
+         iwwu2(iq)=iww(iq) + ifull ! converts 2D u array into v array
+         iq=ind(2,j,n)
+         iwwu2(iq)=iww(iq) + ifull ! converts 2D u array into v array
         enddo   ! j loop
       endif      ! (npanw(n).ge.100)
 c     print *,'iwb il/2,n ',iw(ind(1,il/2,n)),n
@@ -186,6 +200,9 @@ c     print *,'isa il/2,n ',is(ind(il/2,1,n)),n
          iws(iq)=in(is(iq)) ! in temporary arrays
          isv2(iq)=is(iq) - ifull   ! converts 2D v array into u array
          isv(iq)=is(iq) - ijk      ! converts 3D v array into u array
+         issv2(iq)=iss(iq) - ifull ! converts 2D v array into u array
+         iq=ind(i,2,n)
+         issv2(iq)=iss(iq) - ifull ! converts 2D v array into u array
         enddo   ! i loop
       endif      ! (npans(n).ge.100)
 c     print *,'isb il/2,n ',is(ind(il/2,1,n)),n

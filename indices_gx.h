@@ -5,7 +5,8 @@
 
 !     second line are used in interpolation routines
       integer iw,isw,is,ise,ie,ine,in,iwn,ien,inn,iss,iww,iee,iwu,isv,
-     &        iwu2,isv2,ieu2,inv2,iev2,inu2,ieu,inv,
+     &        iwu2,isv2,ieu2,inv2,iev2,inu2,iwwu2,issv2,ieeu2,innv2,
+     &        ieu,inv,
      &        lwws,lws,lwss,les,lees,less,lwwn,lwnn,leen,lenn,lsww,  
      &        lsw ,lssw,lsee,lsse,lnww,lnw,lnnw,lnee,lnne,  
      &        npann,npane,npanw,npans  
@@ -16,6 +17,7 @@
      &               inn(ifull),iss(ifull),iww(ifull),iee(ifull),
      &               iwu(ifull),isv(ifull),    ! these for sflux, vertmix
      &               iwu2(ifull),isv2(ifull),ieu2(ifull),inv2(ifull) ! div calcs
+     &              ,iwwu2(ifull),issv2(ifull),ieeu2(ifull),innv2(ifull) 
      &               ,iev2(ifull),inu2(ifull)  ! upglobal
      &               ,ieu(ifull),inv(ifull)    ! staguv3
      &               ,lwws(0:npanels),lws (0:npanels),lwss(0:npanels)  ! ints
