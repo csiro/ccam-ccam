@@ -313,6 +313,9 @@ C***          if(qc2.le.-delq)then
 C***            cfa(mg,k)=0.
 C***            qca(mg,k)=0.
 C***          endif
+          ! Set these to zero so negative indefinite initialisation works
+          cfa(mg,k)=0.
+          qca(mg,k)=0.
 
         enddo
       enddo
