@@ -63,7 +63,8 @@ module cc_mpi
       ! Flag for whether u and v need to be swapped
       logical, dimension(:), pointer :: uv_swap, send_swap
       ! Number of points for each processor. Also double row versions.
-      integer :: slen, rlen, slen2, rlen2
+      ! lenx is first row plux corner points.
+      integer :: slen, rlen, slenx, rlenx, slen2, rlen2
       ! Number of points for each processor.
       integer :: slen_uv, rlen_uv, slen2_uv, rlen2_uv
       integer :: len
@@ -717,6 +718,8 @@ contains
       bnds(:)%len = 0
       bnds(:)%rlen = 0
       bnds(:)%slen = 0
+      bnds(:)%rlenx = 0
+      bnds(:)%slenx = 0
       bnds(:)%rlen2 = 0
       bnds(:)%slen2 = 0
 
@@ -815,6 +818,8 @@ contains
          end do
       end do ! n=1,npan
 
+      bnds(:)%rlenx = bnds(:)%rlen  ! so that they're appended.
+      
 !     Now handle the special corner values that need to be remapped
 !     This adds to rlen, so needs to come before the _XX stuff.
       do n=1,npan
@@ -829,11 +834,11 @@ contains
          rproc = qproc(iqx)
          if ( rproc /= myid ) then ! Add to list
             call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen = bnds(rproc)%rlen + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen) = iqx
+            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
             ! Increment extended region index
             iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
+            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
             ine(iq) = ifull+iext
          end if
 
@@ -842,11 +847,11 @@ contains
          rproc = qproc(iqx)
          if ( rproc /= myid ) then ! Add to list
             call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen = bnds(rproc)%rlen + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen) = iqx
+            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
             ! Increment extended region index
             iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
+            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
             ien(iq) = ifull+iext
          end if
 
@@ -857,11 +862,11 @@ contains
          rproc = qproc(iqx)
          if ( rproc /= myid ) then ! Add to list
             call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen = bnds(rproc)%rlen + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen) = iqx
+            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
             ! Increment extended region index
             iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
+            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
             ise(iq) = ifull+iext
          end if
 
@@ -872,11 +877,11 @@ contains
          rproc = qproc(iqx)
          if ( rproc /= myid ) then ! Add to list
             call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen = bnds(rproc)%rlen + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlen) = iqx
+            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
             ! Increment extended region index
             iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
+            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
             iwn(iq) = ifull+iext
          end if
 
@@ -935,10 +940,8 @@ contains
 
       end do
 
-
-
 !     Now set up the second row
-      bnds(:)%rlen2 =  bnds(:)%rlen  ! so that they're appended.
+      bnds(:)%rlen2 = bnds(:)%rlenx  ! so that they're appended.
 
       do n=1,npan
 
@@ -1163,47 +1166,11 @@ contains
 !     The state of being a neighbour is reflexive so only expect to
 !     recv from those processors I send to (are there grid arrangements for
 !     which this would not be true?)
-
-      nreq = 0
-      do iproc = 1,nproc-1  !
-         ! Send and recv from same proc
-         sproc = modulo(myid+iproc,nproc)  ! Send to
-         if (bnds(sproc)%rlen > 0 ) then
-            ! Send list of requests
-            nreq = nreq + 1
-            ! Using array(1) rather than array is neccessary on the NEC
-            ! (only a problem with pointers, not regular arrays).
-            call MPI_ISend( bnds(sproc)%request_list(1), bnds(sproc)%rlen, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-            nreq = nreq + 1
-            call MPI_IRecv( bnds(sproc)%send_list(1), bnds(sproc)%len, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-         end if
-      end do
-
-      if ( nreq > 0 ) then
-         call MPI_Waitall(nreq,ireq,status,ierr)
-      end if
-
-!     Now get the actual sizes from the status
-      nreq = 0
-      do iproc = 1,nproc-1  !
-         sproc = modulo(myid+iproc,nproc)
-         if (bnds(sproc)%rlen > 0 ) then
-            ! To get recv status, advance nreq by 2
-            nreq = nreq + 2
-            call MPI_Get_count(status(1,nreq), MPI_INTEGER, count, ierr)
-            ! This the number of points I have to send to rproc.
-            bnds(sproc)%slen = count
-         end if
-      end do
-
-!     For simplicity do exactly the same thing for rlen2, even though the
-!     data are largely repeated.
+!     Get the complete request lists by using rlen2
       nreq = 0
       do iproc = 1,nproc-1  !
          sproc = modulo(myid+iproc,nproc)  ! Send to
-         if (bnds(sproc)%rlen > 0 ) then
+         if (bnds(sproc)%rlen2 > 0 ) then
             ! Send list of requests
             nreq = nreq + 1
             call MPI_ISend( bnds(sproc)%request_list(1), bnds(sproc)%rlen2, &
@@ -1222,7 +1189,7 @@ contains
       nreq = 0
       do iproc = 1,nproc-1  !
          sproc = modulo(myid+iproc,nproc)  ! Recv from
-         if (bnds(sproc)%rlen > 0 ) then
+         if (bnds(sproc)%rlen2 > 0 ) then
             ! To get recv status, advance nreq by 2
             nreq = nreq + 2
             call MPI_Get_count(status(1,nreq), MPI_INTEGER, count, ierr)
@@ -1230,6 +1197,42 @@ contains
             bnds(sproc)%slen2 = count
          end if
       end do
+
+!     For rlen and rlenx, just communicate the lengths. The indices have 
+!     already been taken care of.
+      nreq = 0
+      do iproc = 1,nproc-1  !
+         ! Send and recv from same proc
+         sproc = modulo(myid+iproc,nproc)  ! Send to
+         if (bnds(sproc)%rlen > 0 ) then
+            nreq = nreq + 1
+            call MPI_ISend( bnds(sproc)%rlen, 1, &
+                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            nreq = nreq + 1
+            call MPI_IRecv( bnds(sproc)%slen, 1, &
+                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+      end do
+      if ( nreq > 0 ) then
+         call MPI_Waitall(nreq,ireq,status,ierr)
+      end if
+
+      nreq = 0
+      do iproc = 1,nproc-1  !
+         ! Send and recv from same proc
+         sproc = modulo(myid+iproc,nproc)  ! Send to
+         if (bnds(sproc)%rlenx > 0 ) then
+            nreq = nreq + 1
+            call MPI_ISend( bnds(sproc)%rlenx, 1, &
+                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            nreq = nreq + 1
+            call MPI_IRecv( bnds(sproc)%slenx, 1, &
+                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+      end do
+      if ( nreq > 0 ) then
+         call MPI_Waitall(nreq,ireq,status,ierr)
+      end if
 
 
 !     Start of UV section
@@ -1324,8 +1327,10 @@ contains
       bnds(:)%slen2_uv = bnds(:)%slen_uv
 
 #ifdef DEBUG
-      print*, "Bounds", myid, "SLEN", bnds(:)%slen
-      print*, "Bounds", myid, "RLEN", bnds(:)%rlen
+      print*, "Bounds", myid, "SLEN ", bnds(:)%slen
+      print*, "Bounds", myid, "RLEN ", bnds(:)%rlen
+      print*, "Bounds", myid, "SLENX", bnds(:)%slenx
+      print*, "Bounds", myid, "RLENX", bnds(:)%rlenx
       print*, "Bounds", myid, "SLEN2", bnds(:)%slen2
       print*, "Bounds", myid, "RLEN2", bnds(:)%rlen2
 #endif
@@ -1490,7 +1495,6 @@ contains
          call check_set( lnne(n), "LNNE", 1, 1, n, 1)
       end do
 
-
    end subroutine bounds_setup
 
    subroutine check_set(ind,str,i,j,n,iq)
@@ -1502,12 +1506,13 @@ contains
       end if
    end subroutine check_set
 
-   subroutine bounds2(t, nrows)
+   subroutine bounds2(t, nrows, corner)
       ! Copy the boundary regions
       real, dimension(ifull+iextra), intent(inout) :: t
       integer, intent(in), optional :: nrows
+      logical, intent(in), optional :: corner
       integer :: iq
-      logical :: double
+      logical :: double, extra
       integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer :: send_len, recv_len
@@ -1515,10 +1520,15 @@ contains
       call start_log(bounds_begin)
 
       double = .false.
+      extra = .false.
       if (present(nrows)) then
          if ( nrows == 2 ) then
             double = .true.
          end if
+      end if
+      ! corner is irrelevant in double case
+      if ( .not. double .and. present(corner) ) then
+         extra = corner
       end if
 
 !     Set up the buffers to send
@@ -1529,6 +1539,9 @@ contains
          if ( double ) then
             recv_len = bnds(rproc)%rlen2
             send_len = bnds(sproc)%slen2
+         else if ( extra ) then
+            recv_len = bnds(rproc)%rlenx
+            send_len = bnds(sproc)%slenx
          else
             recv_len = bnds(rproc)%rlen
             send_len = bnds(sproc)%slen
@@ -1559,6 +1572,8 @@ contains
          rproc = modulo(myid-iproc,nproc)  ! Recv from
          if ( double ) then
             recv_len = bnds(rproc)%rlen2
+         else if ( extra ) then
+            recv_len = bnds(rproc)%rlenx
          else
             recv_len = bnds(rproc)%rlen
          end if
@@ -1574,6 +1589,8 @@ contains
       ! to be fixed up. This will only be in the case when nproc < npanels.
       if ( double ) then
          recv_len = bnds(myid)%rlen2
+      else if ( extra ) then
+         recv_len = bnds(myid)%rlenx
       else
          recv_len = bnds(myid)%rlen
       end if
@@ -1587,13 +1604,14 @@ contains
 
    end subroutine bounds2
 
-   subroutine bounds3(t, nrows, klim)
+   subroutine bounds3(t, nrows, klim, corner)
       ! Copy the boundary regions. Only this routine requires the extra klim
       ! argument (for helmsol).
       real, dimension(ifull+iextra,kl), intent(inout) :: t
       integer, intent(in), optional :: nrows, klim
+      logical, intent(in), optional :: corner
       integer :: iq
-      logical :: double
+      logical :: double, extra
       integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer :: send_len, recv_len, kx
@@ -1606,6 +1624,10 @@ contains
          if ( nrows == 2 ) then
             double = .true.
          end if
+      end if
+      ! corner is irrelevant in double case
+      if ( .not. double .and. present(corner) ) then
+         extra = corner
       end if
       if ( present(klim) ) then
          kx = klim
@@ -1621,6 +1643,9 @@ contains
          if ( double ) then
             recv_len = bnds(rproc)%rlen2
             send_len = bnds(sproc)%slen2
+         else if ( extra ) then
+            recv_len = bnds(rproc)%rlenx
+            send_len = bnds(sproc)%slenx
          else
             recv_len = bnds(rproc)%rlen
             send_len = bnds(sproc)%slen
@@ -1652,6 +1677,8 @@ contains
          rproc = modulo(myid-iproc,nproc)  ! Recv from
          if ( double ) then
             recv_len = bnds(rproc)%rlen2
+         else if ( extra ) then
+            recv_len = bnds(rproc)%rlenx
          else
             recv_len = bnds(rproc)%rlen
          end if
@@ -1668,6 +1695,8 @@ contains
       ! to be fixed up. This will only be in the case when nproc < npanels.
       if ( double ) then
          recv_len = bnds(myid)%rlen2
+      else if ( extra ) then
+         recv_len = bnds(myid)%rlenx
       else
          recv_len = bnds(myid)%rlen
       end if
@@ -2181,15 +2210,16 @@ contains
       type(bounds_info), dimension(0:), intent(inout) :: bnds
       integer :: rproc, iloc,jloc,nloc
 
+      ! This processes extra corner points, so adds to rlenx
       ! Which processor has this point
       rproc = qproc(iqx)
       if ( rproc /= myid ) then ! Add to list
          call check_bnds_alloc(rproc, iext)
-         bnds(rproc)%rlen = bnds(rproc)%rlen + 1
-         bnds(rproc)%request_list(bnds(rproc)%rlen) = iqx
+         bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+         bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
          ! Increment extended region index
          iext = iext + 1
-         bnds(rproc)%unpack_list(bnds(rproc)%rlen) = iext
+         bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
          larray(n) = ifull+iext
       else
          ! If it's on this processor, just use the local index
