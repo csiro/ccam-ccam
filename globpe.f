@@ -225,7 +225,6 @@
       read (99, kuonml)
       
       if(nritch.ge.404)nt_adv=nritch-400  ! for compatibility to nritch=407
-      if(detrainx.eq.0.)detrainx=detrain
       dsig4=max(dsig2+.01,dsig4)
 
       if ( myid == 0 ) then
