@@ -4,7 +4,7 @@
 !     m=6 had three options; only option 3 has been adopted here
       include 'newmpar.h'
       include 'arrays.h'
-      include 'constant.h'
+      include 'const_phys.h'
       include 'indices.h'
       include 'liqwpar.h'  ! ifullw
       include 'map.h'
@@ -27,7 +27,7 @@
       real x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
       common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
       common/nonlsav/tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl)
-      real theta(kl)
+      real theta(kl), factr(kl)
       save numunstab,num_hight
       data numunstab/0/,num_hight/0/
 c     ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
@@ -75,20 +75,20 @@ c     ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
          if(nritch_t.lt.0)then   !  e.g. -3
            lev=-nritch_t
            do iq=1,ifull
-            phi1=t(iq,lev)*r*(1.-sig(lev))/sig(lev) !phi of sig(lev) above sfc
-            tsurf=t(iq,lev)+phi1*.0065/g
-            tav=tsurf+zs(iq)*.5*.0065/g
-            dd(iq,k)=zs(iq)/(r*tav)   ! dlnps to give ln(pmsl)
+            phi1=t(iq,lev)*rdry*(1.-sig(lev))/sig(lev) !phi of sig(lev) above sfc
+            tsurf=t(iq,lev)+phi1*stdlapse/grav
+            tav=tsurf+zs(iq)*.5*stdlapse/grav
+            dd(iq,k)=zs(iq)/(rdry*tav)   ! dlnps to give ln(pmsl)
            enddo
          endif
          if(nritch_t.eq.0)then    ! default nritch_t is 0
            do iq=1,ifull
-            dd(iq,k)=zs(iq)/(r*t(iq,k))
+            dd(iq,k)=zs(iq)/(rdry*t(iq,k))
            enddo
          endif
          if(nritch_t.gt.0)then
            do iq=1,ifull
-            dd(iq,k)=zs(iq)/(r*nritch_t)    ! e.g. nritch_t=300
+            dd(iq,k)=zs(iq)/(rdry*nritch_t)    ! e.g. nritch_t=300
            enddo
          endif
        endif  ! (nritch.ne.0.or.nt_adv.gt.0) 
@@ -123,37 +123,39 @@ c     ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
        if(nt_adv.gt.0)then   ! special T advection treatments follow
           do k=1,kl
              if(nt_adv.eq.3) then   ! 1. up to sig=.4
-     &             factr=6.5e-3*(r*300./g)
-                   if(sig(k).lt..3)factr=0.
+                   factr(k)=stdlapse*(rdry*300./grav)
+                   if(sig(k).lt..3)factr(k)=0.
              endif   ! (nt_adv.eq.3)then   
              if(nt_adv.eq.4) ! (1, .5, 0) for sig=(1, .75, .5)
-     &             factr=max(2.*sig(k)-1. , 0.)*6.5e-3*(r*300./g)
+     &          factr(k)=max(2.*sig(k)-1., 0.)*stdlapse*(rdry*300./grav)
              if(nt_adv.eq.5)    ! 1 to 0 for sig=1 to 0
-     &             factr=sig(k)*6.5e-3*(r*300./g)
+     &             factr(k)=sig(k)*stdlapse*(rdry*300./grav)
              if(nt_adv.eq.6)    ! (1, .5625, 0) for sig=(1, .5, .2)
-     &             factr=max(0.,1.25*(sig(k)-.2)*(2.-sig(k)))
-     &                   *6.5e-3*(r*300./g)
+     &             factr(k)=max(0.,1.25*(sig(k)-.2)*(2.-sig(k)))
+     &                   *stdlapse*(rdry*300./grav)
              if(nt_adv.eq.7)    ! 1 up to .4, then lin decr. to .2, then 0
-     &             factr=max(0.,min(1.,(sig(k)-.2)/(.4-.2)))
-     &                   *6.5e-3*(r*300./g)
+     &             factr(k)=max(0.,min(1.,(sig(k)-.2)/(.4-.2)))
+     &                   *stdlapse*(rdry*300./grav)
              if(nt_adv.eq.8)then ! (1,1,.84375,.5,.15625,0) for sig=(1,.6,.5,.4,.2)  
-                factr=3.*((sig(k)-.2)/.4)**2 -2.*((sig(k)-.2)/.4)**3
-     &           *6.5e-3*(r*300./g)
-                if(sig(k).gt..6)factr=6.5e-3*(r*300./g)
-                if(sig(k).lt..2)factr=0.
+                factr(k)=3.*((sig(k)-.2)/.4)**2 -2.*((sig(k)-.2)/.4)**3
+     &           *stdlapse*(rdry*300./grav)
+                if(sig(k).gt..6)factr(k)=stdlapse*(rdry*300./grav)
+                if(sig(k).lt..2)factr(k)=0.
              endif
              if(nt_adv.eq.9)then ! (1,1,.741,.259,0) for sig=(1,.5,.4,.3,.2) 
-                factr=3.*((sig(k)-.2)/.3)**2 -2.*((sig(k)-.2)/.3)**3
-     &           *6.5e-3*(r*300./g)
-                if(sig(k).gt..5)factr=6.5e-3*(r*300./g)
-                if(sig(k).lt..2)factr=0.
+                factr(k)=3.*((sig(k)-.2)/.3)**2 -2.*((sig(k)-.2)/.3)**3
+     &           *stdlapse*(rdry*300./grav)
+                if(sig(k).gt..5)factr(k)=stdlapse*(rdry*300./grav)
+                if(sig(k).lt..2)factr(k)=0.
              endif
              do iq=1,ifull
-                cc(iq,k)=tx(iq,k)+aa(iq,k)*factr
+                cc(iq,k)=tx(iq,k)+aa(iq,k)*factr(k)
              enddo              ! iq loop
           end do ! k
           call ints(cc,intsch,nface,xg,yg,3)
-          tx(:,:) = cc(:,:) - dd(:,:)*factr
+          do k=1,kl
+             tx(:,k) = cc(:,k) - dd(:,k)*factr(k)
+          end do
        else
          call ints(tx,intsch,nface,xg,yg,3)
        endif  ! (nt_adv.ge.4)
@@ -343,7 +345,7 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
 !       diag check for unstable layers
         do iq=1,ifull
          do k=1,kl
-          theta(k)=tx(iq,k)*sig(k)**(-r/cp)
+          theta(k)=tx(iq,k)*sig(k)**(-rdry/cp)
          enddo
          do k=ntest,kl   ! e.g. 8,kl
           if(theta(k).lt.theta(k-1))then  ! based on tx
