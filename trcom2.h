@@ -4,7 +4,7 @@
       integer, dimension(nstn2)   :: istn2,jstn2,iunp2
       real, dimension(nstnmax)    :: slat,slon,zstn
       real, dimension(nstn2)      :: slat2,slon2
-      character(len=3) name_stn
+      character(len=3), dimension(nstnmax) :: name_stn
       common /trcom2/ mstn,nstn,slat,slon,istn,jstn,iunp,zstn,
      &                slat2,slon2,istn2,jstn2,iunp2,
      &                iaustw,iauste,iaustn,iausts,name_stn

@@ -23,8 +23,8 @@
 !cdir nodep
          do iq=1,ifull
 !         N.B. this div is calculated on the staggered grid
-          d(iq,k)=(cc(iq)/emu(iq)-cc(iwu2(iq))/emu(iwu2(iq))  
-     .            +dd(iq)/emv(iq)-dd(isv2(iq))/emv(isv2(iq)))  
+          d(iq,k)=(cc(iq,k)/emu(iq)-cc(iwu(iq),k)/emu(iwu(iq))  
+     .            +dd(iq,k)/emv(iq)-dd(isv(iq),k)/emv(isv(iq)))  
      .            *em(iq)**2/ds
          enddo   ! iq loop
         enddo    ! k  loop
@@ -60,24 +60,24 @@
 !       integrate vertically {0 to 1} to get d(ln(psl))/dt
         derpsl(:)=0.
         do k=1,kl
-         derpsl(:)=derpsl(:)-dsig(k)*(pslx(:,k)-d(:,k))
+         derpsl(:)=derpsl(:)-dsig(k)*(pslx(1:ifull,k)-d(:,k))
         enddo      ! k  loop
 !       put -D(ln(psl))/Dt into pslx, i.e. to equal D+d(sdot)/d(sig)
         do k=1,kl
-         pslx(:,k)=-derpsl(:)+pslx(:,k)
+         pslx(1:ifull,k)=-derpsl(:)+pslx(1:ifull,k)
         enddo      ! k  loop
 
 !     calculate sdot (at level k-.5) by vert. integ. {0 to sig(k-.5)} 
       sdot(:,1)=0.
       sdot(:,kl+1)=0.
       do k=kl,2,-1
-       sdot(:,k)=sdot(:,k+1)-dsig(k)*(pslx(:,k)-d(:,k))
+       sdot(:,k)=sdot(:,k+1)-dsig(k)*(pslx(1:ifull,k)-d(:,k))
       enddo      ! k  loop
 
 !     full-level omega/ps into omgf (equivalenced to dpsldt)
       do k=1,kl
        omgf(:,k)=rata(k)*sdot(:,k+1)+ratb(k)*sdot(:,k)
-     .           -sig(k)*pslx(:,k)
+     .           -sig(k)*pslx(1:ifull,k)
       enddo      ! k  loop
 
 !     convert sdot (at level k-.5) into units of grid-steps/timestep
