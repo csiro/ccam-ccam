@@ -44,15 +44,7 @@ c Local variables
       real dum3d(ifullw,kl)   !Dummy 3d outputs from newrain (not needed here)
 
       integer kbase(ifullw),ktop(ifullw) !Bottom and top of convective cloud 
-
-      common /es_table/ table(0:220)
-c     arithmetic statement functions to replace call to establ.
-c     t is temp in kelvin, which should lie between 123.16 and 343.16;
-c     tdiff is difference between t and 123.16, subject to 0 <= tdiff <= 220
-      tdiff(tm)=min(max(tm-123.16 , 0.) , 220.)
-      establ(tm) =(1.-(tdiff(tm)-aint(tdiff(tm))))*table(int(tdiff(tm)))
-     &           + (tdiff(tm)-aint(tdiff(tm)))*table(int(tdiff(tm))+1)
-
+      include 'establ.h'
 
       do k=1,kl   
          do iq=1,ifull
