@@ -14,9 +14,6 @@
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
       use cc_mpi
-#ifdef __INTEL_COMPILER
-      use ieee_m
-#endif
       use diag_m
       implicit none
       include 'newmpar.h'
@@ -113,9 +110,6 @@
      &     (/31,28,31,30,31,30,31,31,30,31,30,31, 31/)
       real psa(12001),psm(12001)
       logical prnt,odcalc
-#ifdef __INTEL_COMPILER
-      integer ieee
-#endif
       character comm*60,comment*60,rundate*8,header*47,text*2
       character(len=10) :: timeval
       integer, dimension(8) :: tvals1, tvals2
@@ -207,12 +201,6 @@
       call log_setup()
 #ifdef simple_timer
       call start_log(model_begin)
-#endif
-
-#ifdef __INTEL_COMPILER
-      ieee = ieee_handler("set", "division", ihandler)
-      ieee = ieee_handler("set", "invalid", ihandler)
-      ieee = ieee_handler("set", "overflow", ihandler)
 #endif
 
       ia=il/2
