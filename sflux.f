@@ -155,7 +155,6 @@ c        endif  ! (nrungcm.eq.4)
 !                create values for tice, and set averaged tss
                  tgg(iq,3)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m level 1
                  fracice(iq)=.5    
-                 zo(iq)=.001   ! default for scrnout
                endif  ! (fracice(iq).eq.0.)
                tss(iq)=tgg(iq,3)*fracice(iq)+tgg(iq,1)*(1.-fracice(iq))
              endif   !  (tss(iq).gt.271.2) ... else ...
@@ -230,11 +229,12 @@ c     using av_vmod (1. for no time averaging)
         vmod(:)=ndvmod  ! just for tests
       endif    ! (ndvmod.eq.0)
 
-      if(namip.lt.2)then  ! generalize later
-        ipsea0=ipsice+1   ! used without leads
-      else
-        ipsea0=ipland+1   ! used with leads  - just namip=2 at present
-      endif
+!     if(namip.lt.2)then  ! generalize later
+!       ipsea0=ipsice+1   ! used without leads
+!     else
+!       ipsea0=ipland+1   ! used with leads  - just namip=2 at present
+!     endif
+      ipsea0=ipland+1   ! used with leads  - always from June '04   
       if(ntest.eq.2.and.mydiag)print *,'before sea loop'
 !      from June '03 use basic sea temp from tgg1 (so leads is sensible)      
 !cdir nodep
@@ -260,7 +260,7 @@ c     using av_vmod (1. for no time averaging)
          tgg(iq,2)=tgg(iq,1)+min(dtsol,8.)             ! of ssts        ! sea
        endif   ! (ntss_sh.eq.0) .. else ..
        if(nplens.ne.0)then
-!        calculate running total of daily precip in mm/day   jlm
+!        calculate running total (over last 24 h) of daily precip in mm  jlm
          plens(iq)=(1.-dt/86400.)*plens(iq)+condx(iq)  ! in mm/day
 !        scale so that nplens m/s wind for 1/2 hr reduces effect by 1/1.2
 !        plens(iq)=plens(iq)/(1.+ustar(iq)*dt*.2/(nplens*1800.))
@@ -279,7 +279,7 @@ c ***                     for heat and moisture  cdtq                   ! sea
        ri(iq)=xx(iq)/vmod(iq)**2                                        ! sea
 !      if(ngas.gt.0)stop 'call co2sflux'                                ! sea
 c      this is in-line ocenzo using latest coefficient, i.e. .018       ! sea
-       consea=vmod(iq)*.018/grav                                        ! sea
+       consea=vmod(iq)*charnock/grav  ! usually charnock=.018           ! sea
        zo(iq)=.01                                                       ! sea
        if(xx(iq).gt.0.)then             ! stable sea points             ! sea
          fm=vmod(iq) /(1.+bprm*ri(iq))**2   ! N.B. this is vmod*fm      ! sea
@@ -707,6 +707,7 @@ c***  end of surface updating loop
       include 'extraout.h'
       include 'latlong.h'  ! rlatt,rlongg
       include 'liqwpar.h'  ! qfg,qlg
+      include 'map.h'
       include 'morepbl.h'
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
@@ -1094,10 +1095,10 @@ c                                             leaf area index
 c                                    components of the stomatal resistance
           sstar = 30.
           if( zo(iq) .lt. .5 ) sstar = 150.
-          f= 1.1*sgsave(iq)/(rlai(iq)*sstar)
-c         f= 1.1*slwa(iq)/(rlai(iq)*sstar)
+          ff= 1.1*sgsave(iq)/(rlai(iq)*sstar)
+c         ff= 1.1*slwa(iq)/(rlai(iq)*sstar)
           rsi = rsmin(iq) * rlai(iq)
-          f1= (1.+f)/(f+rsi/5000.)
+          f1= (1.+ff)/(ff+rsi/5000.)
           den=sfc(isoil)-swilt(isoil)                          ! sib3
           wbav=(max(0.,froot(1)*(wb(iq,1)-swilt(isoil)))+
      &         max(0.,froot(2)*(wb(iq,2)-swilt(isoil)))+
@@ -1118,7 +1119,7 @@ c                       depth of the reservoir of water on the canopy
           if(ntest.eq.1.and.iq.eq.idjd)then
            print *,'rlai,srlai,wbav,den ',rlai(iq),srlai,wbav,den
            print *,'f1,f2,f3,f4 ',f1,f2,f3,f4
-           print *,'f,f124,rsi,res ',f,f1*f2/f4,rsi,res(iq)
+           print *,'ff,f124,rsi,res ',ff,f1*f2/f4,rsi,res(iq)
           endif
 
           otgf(iq)=tgf(iq)
@@ -1209,10 +1210,10 @@ c                                  components of the stomatal resistance
 !       sstar = 30.
 !       if( zo(iq) .lt. .5 ) sstar = 150.
 	 sstar=90.+sign(60.,.5-zo(iq))  ! equiv to above 2 lines
-        f= 1.1*sgsave(iq)/(rlai(iq)*sstar)
-c       f= 1.1*slwa(iq)/(rlai(iq)*sstar)
+        ff= 1.1*sgsave(iq)/(rlai(iq)*sstar)
+c       ff= 1.1*slwa(iq)/(rlai(iq)*sstar)
         rsi = rsmin(iq) * rlai(iq)
-        f1= (1.+f)/(f+rsi/5000.)
+        f1= (1.+ff)/(ff+rsi/5000.)
         den=sfc(isoil)-swilt(isoil)                          ! sib3
         wbav=(max(0.,froot(1)*(wb(iq,1)-swilt(isoil)))+
      &        max(0.,froot(2)*(wb(iq,2)-swilt(isoil)))+
@@ -1233,7 +1234,7 @@ c                     depth of the reservoir of water on the canopy
         if(ntest.eq.1.and.iq.eq.idjd)then
           print *,'rlai,srlai,wbav,den ',rlai(iq),srlai,wbav,den
           print *,'f1,f2,f3,f4 ',f1,f2,f3,f4
-          print *,'f,f124,rsi,res ',f,f1*f2/f4,rsi,res(iq)
+          print *,'ff,f124,rsi,res ',ff,f1*f2/f4,rsi,res(iq)
 	  print *,'qg,qfg,qlg ',qg(iq,1),qfg(iq,1),qlg(iq,1)
         endif
         otgf(iq)=tgf(iq)
@@ -1288,9 +1289,8 @@ c                                         water interception by the canopy
          if(newfgf.eq.1)fgf(iq) = prz*(tgfnew(iq)-tscrn(iq))
          if(newfgf.eq.2)fgf(iq)=rho(iq)*aft(iq)*cp*
      .                             (tgfnew(iq)-tscrn(iq))
-!        for +ve flux, can look toward level 2 (anticipating mixed PBL)	  
-c        if(newfgf.eq.3)fgf(iq)=prz*min(tgfnew(iq)-theta(iq),
-c    &                                  max(0.,tgfnew(iq)-theta12(iq)) )
+!	  limit extreme fgf to avoid undue tgf oscillations  June '04
+         fgf(iq)=max(-1000.,min(fgf(iq),1000.))
          rdg(iq) =  stefbo*tgfnew(iq)**4
          residf(iq) = -slwa(iq) - rdg(iq) - fgf(iq) - evapxf(iq)
          dirad1 = 4.*rdg(iq)/300.
@@ -1311,12 +1311,13 @@ ca   &                       +beta/airr(iq) ) ! re-factored by jlm
          delta_t=sign(min(abs(delta_t0),.5*abs(delta_tx(iq))),delta_t0)
          tgfnew(iq)=tgfnew(iq)+delta_t
          delta_tx(iq)=tgfnew(iq)-otgf(iq)
-!        following to limit change to 8 degrees as fh may be poor  May '04
-         tgfnew(iq)=otgf(iq)+
-     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
-	 enddo  ! ip loop
+c!        following to limit change to 8 degrees as fh may be poor  May '04
+c         tgfnew(iq)=otgf(iq)+
+c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
+	  enddo  ! ip loop
          if((ntest.eq.1.or.diag).and.mydiag)then 
-	   iq=idjd
+	   if(land(idjd))then
+	    iq=idjd
            print *,'icount,iq,omc,rmc ',icount,iq,omc(iq),rmc(iq)
            print *,'theta,tscrn,slwa ',
      .             theta(iq),tscrn(iq),slwa(iq)
@@ -1335,9 +1336,10 @@ c          print *,'Ewwwa,Ewww,Etr ',Ewwwa,Ewww(iq),Etr
            print *,'beta,airr,res ',beta,airr(iq),res(iq)
            print *,'delta_tx ',delta_tx(iq)
            print *,'otgf,tgfnew,residf ',otgf(iq),tgfnew(iq),residf(iq)
-         endif ! (ntest.eq.1)
-       enddo   !  icount=1,5
-      endif    ! (itnmeth.gt.0) 
+	   endif ! (land(idjd))
+         endif  ! ((ntest.eq.1.or.diag).and.mydiag)
+       enddo    !  icount=1,5
+      endif     ! (itnmeth.gt.0) 
 
 !cdir nodep
       do ip=1,ipland  ! all land points in this nsib=3 loop

@@ -1,9 +1,9 @@
-      integer kbsav,ktsav,iterconv,ksc,kscmom,kscsea,kuocb,ldr,
+      integer kbsav,ktsav,iterconv,ksc,kscmom,kscsea,kuocb,ldr,mbase,
      .        methdetr,methprec,nclddia,ncvcloud,ncvmix,ndavconv,
      .        nevapcc,nevapls,nkuo,nrhcrit,nstab_cld,nuvconv 
       real alflnd,alfsea ,cldh_lnd,cldm_lnd,cldl_lnd,cldh_sea,cldm_sea,
      .     cldl_sea,convfact,convpsav,convtime,
-     .     detrain,detrainx,dsig2,dsig4,
+     .     detrain,detrainx,dsig2,dsig4,entrain,
      .     epsconv,fldown,rhcv,rhmois,rhsat,shaltime,
      .     sigcb,sigcll,sigkscb,sig_ct,sigksct,
      .     tied_con,tied_over,tied_rh
@@ -23,6 +23,7 @@
      .  ,detrainx     ! fraction into detrainment for shallow clouds [1.]
      .  ,dsig2        ! delta-sigma2 for end of shallow clouds       [.1]
      .  ,dsig4        ! delta-sigma4 for start of deep clouds        [.7]
+     .  ,entrain      ! entrainment factor                           [0.]
      .  ,epsconv      ! value of epsp which may be used in conjob    [0. off]
      .  ,fldown       ! fraction of convective flux into downdraft   [.6]
      .  ,iterconv     ! number of iterations in convjlm              [1]
@@ -31,6 +32,7 @@
      .  ,kscsea       ! 1 for doing Tiedtke only over sea            [0]
      .  ,kuocb        ! level of min. cloud base, calc. from sigcb   [1]
      .  ,ldr          ! ldr scheme options; 0 for off                [?]
+     .  ,mbase        ! base test: 1 cfrac; 2 cfrac and omega        [0] 
      .  ,methdetr     ! meth_shallow_detrainment for convjlm, 2 off  [2]
      .  ,methprec     ! meth_precip (deep_detrainment) for convjlm   [8]
      .  ,nclddia      ! conversion of RH to cloudiness, 0, 3, or     [5]

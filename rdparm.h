@@ -20,7 +20,8 @@ c   Source file must also include newmpar.h, before rdparm.h
      &        inltep, nnlte, lp1i, llp1i, ll3pi, nb1, ko2, ko21, ko2m
 
       parameter (l=kl)
-      parameter (imax=il*6)  ! can multiply by a divisor of jl
+c     parameter (imax=il*6)  ! can multiply by a divisor of jl
+      parameter (imax=il*8)  ! can multiply by a divisor of jl
       parameter (nblw=163,nblx=47,nbly=15)
       parameter (nblm=nbly-1) 
       parameter (lp1=l+1,lp2=l+2,lp3=l+3) 

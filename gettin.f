@@ -6,17 +6,17 @@ c  called only by darlam and vmodes
       include 'arrays.h'
       include 'savuvt.h'
       if(n.eq.0)then
-        savt(:,:)=t(:,:)
-        savpsl(:)=psl(:)
+        savt(:,:)=t(1:ifull,:)
+        savpsl(:)=psl(1:ifull)
       else    ! for n=1, n=2
-        t(:,:)=savt(:,:)   ! for n=1, n=2
-        psl(:)=savpsl(:)   ! for n=1, n=2
+        t(1:ifull,:)=savt(:,:)   ! for n=1, n=2
+        psl(1:ifull)=savpsl(:)   ! for n=1, n=2
       endif
 
 c     following called by vmodes during initialization
       if(n.eq.2)then
-        u(:,:)=savu(:,:)  ! only for n=2 (VMI init)
-        v(:,:)=savv(:,:)
+        u(1:ifull,:)=savu(:,:)  ! only for n=2 (VMI init)
+        v(1:ifull,:)=savv(:,:)
       endif
       return
       end

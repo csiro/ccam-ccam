@@ -65,7 +65,8 @@ C Global parameters
       include 'newmpar.h'
       include 'const_phys.h' !Input physical constants
       include 'cparams.h'    !Input cloud scheme parameters
-      include 'kuocom.h'     !acon,bcon,Rcm
+      include 'kuocom.h'     !acon,bcon,Rcm,ktsav,nevapls
+      include 'morepbl.h'    !condx        
       include 'params.h'     !Input model grid dimensions (modified PARAMS.f for CCAM)
 
 C Argument list
@@ -403,11 +404,17 @@ c Evaporation of rain
               bl=1+0.5*Cev*delt*(1+hlcp*dqsdt)
               evap=delt*(Cev/bl)*(qsl(mg,k)-qtg(mg,k))
               satevap=(qsl(mg,k)-qtg(mg,k))/(1+hlcp*dqsdt) !Evap to saturate
-c              Vr=11.3*Fr**(1./9.)/sqrt(rhoa(mg,k)) !Actual fall speed
+c              Vr=11.3*Fr**(1./9.)/sqrt(rhoa(mg,k))  !Actual fall speed
 c              Vr=5./sqrt(rhoa(mg,k))                !Nominal fall speed
 
               clrevap=(1-clfr(mg,k))*qpf
               evap=max(0., min(evap,satevap,qpf,clrevap))
+              if(nevapls==-1)evap=0.
+              if(nevapls==-2.and.k<=ktsav(mg).
+     &                       and.condx(mg)>0.)evap=0.
+              if(nevapls==-3)evap=.5*evap
+              if(nevapls==-4.and.k<=ktsav(mg).
+     &                       and.condx(mg)>0.)evap=.5*evap
               frclr(mg,k)=rhodz*(clrevap-evap)          !over delt
               qevap(mg,k)=qevap(mg,k)+evap
               qtg(mg,k)=qtg(mg,k)+evap

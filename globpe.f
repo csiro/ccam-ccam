@@ -59,11 +59,12 @@
       include 'netcdf.inc'
       include 'mpif.h'
 
-      real alph_p,alph_pm,delneg,delpos,alph_q
-      common/mfixdiag/alph_p,alph_pm,delneg,delpos,alph_q
-      integer nbarewet,nsigmf
-      common/nsib/nbarewet,nsigmf
+      integer leap,nbarewet,nsigmf
       integer nnrad,idcld
+      real alph_p,alph_pm,delneg,delpos,alph_q
+      common/leap_yr/leap  ! 1 to allow leap years
+      common/mfixdiag/alph_p,alph_pm,delneg,delpos,alph_q
+      common/nsib/nbarewet,nsigmf
       common/radnml/nnrad,idcld
 
       real savu1(ifull,kl),savv1(ifull,kl)
@@ -138,7 +139,7 @@
      & ,kwt,m,mex,nbd,ndi,ndi2,nem,nhor,nlv
      & ,nmaxpr,nmi,nmidiab,nonl,nrot,nps,nqg,nrad,nsd,ntsea
      & ,ntsur,ntvdr,nvad,nvadh,nvmix,nxmap,itr1,jtr1,itr2,jtr2,id,jd
-     & ,restol,precon,kdate_s,ktime_s,newtop,idcld,mup
+     & ,restol,precon,kdate_s,ktime_s,leap,newtop,idcld,mup
      & ,lgwd,ngwd,kscreen,rhsat,sigcb
      & ,nextout,hdifmax,jalbfix
      & ,nalpha,nqg_set
@@ -147,9 +148,9 @@
      & ,nrungcm,nsib,slat,slon,iunp,zstn,name_stn,slat2,slon2,iunp2
      & ,mexrest,ndept,nritch,nritch_t,nt_adv
      & ,mfix,mfix_qg,namip,nh,npex,nhstest,nspecial
-     & ,newsnow,nsnowout,newsoilm,nglacier,newztsea
+     & ,newsnow,nsnowout,newrough,newsoilm,nglacier,newztsea
      & ,epsp,epsu,epsf
-     & ,av_vmod,chn10,tss_sh,vmodmin,snmin
+     & ,av_vmod,charnock,chn10,tss_sh,vmodmin,snmin
      & ,rlong0,rlat0,schmidt   ! usually come in with topofile
      & ,kbotdav,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nlocal,nvsplit
      & ,nbarewet,nsigmf,qgmin
@@ -166,8 +167,8 @@
      &        ,cldh_lnd,cldm_lnd,cldl_lnd
      &        ,cldh_sea,cldm_sea,cldl_sea
      &        ,convfact,convtime,shaltime
-     &        ,detrain,detrainx,dsig2,dsig4,epsconv,fldown
-     &        ,iterconv,ksc,kscmom,kscsea,ldr,methdetr,methprec
+     &        ,detrain,detrainx,dsig2,dsig4,entrain,epsconv,fldown
+     &        ,iterconv,ksc,kscmom,kscsea,ldr,mbase,methdetr,methprec
      &        ,nclddia,ncvcloud
      &        ,ncvmix,ndavconv,nevapcc,nevapls,nkuo,nrhcrit,nstab_cld
      &        ,nuvconv,rhcv,rhmois,rhsat
@@ -268,9 +269,10 @@
       write (6,'(3f7.2,i6,i10,3i8)')
      .    alflnd,alfsea,fldown,iterconv,ncvcloud,nevapcc,nevapls,nuvconv
       print *,'Cumulus convection options C:'
-      print *,' methprec detrain methdetr detrainx  dsig2    dsig4'
-      write (6,'(i6,f10.2,i8,4f9.2)') methprec,detrain,
-     .                               methdetr,detrainx,dsig2,dsig4
+      print *,' mbase methprec detrain entrain methdetr detrainx',
+     .        '  dsig2 dsig4'
+      write (6,'(2i6,2f10.2,i8,4f8.2)') mbase,methprec,detrain,entrain,
+     .                                  methdetr,detrainx,dsig2,dsig4
       print *,'Shallow convection options:'
       print *,'  ksc  kscsea kscmom sigkscb sigksct ',
      .        'tied_con tied_over tied_rh '
@@ -288,14 +290,14 @@
       write (6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,
      &                                sigcll
       print *,'Soil, canopy and PBL options A:'
-      print *,' jalbfix nalpha nbarewet nglacier nrungcm  nsib  nsigmf',
-     &        ' ntsea ntsur'
-      write (6,'(i5,8i8)')
-     &          jalbfix,nalpha,nbarewet,nglacier,nrungcm,nsib,nsigmf,
-     &          ntsea,ntsur
+      print *,' jalbfix nalpha nbarewet newrough nglacier nrungcm',
+     &        ' nsib  nsigmf ntsea ntsur'
+      write (6,'(i5,9i8)')
+     &          jalbfix,nalpha,nbarewet,newrough,nglacier,nrungcm,nsib,
+     &          nsigmf,ntsea,ntsur
       print *,'Soil, canopy and PBL options B:'
-      print *,' av_vmod  tss_sh vmodmin   chn10 '
-      write (6,'(3f8.2,f10.5)')av_vmod,tss_sh,vmodmin,chn10    
+      print *,' av_vmod  tss_sh vmodmin charnock chn10 '
+      write (6,'(3f8.2,f8.3,f9.5)')av_vmod,tss_sh,vmodmin,charnock,chn10    
       if(nbd.ne.0)then
         print *,'Nudging options:'
         print *,' nbd    nbox  nud_p  nud_q  nud_t  nud_uv nud_hrs',
@@ -821,8 +823,8 @@ c         qg(:,:)=max(qg(:,:),qgmin)  ! testing
            do nn=1,nstn
 !            Check if this station is in this processors region
              if ( .not. mystn(nn) ) cycle 
-             if(ktau.eq.1)write (iunp(nn),950) kdate,ktime
-950          format("#",i9,i5)
+             if(ktau.eq.1)write (iunp(nn),950) kdate,ktime,leap
+950          format("#",i9,2i5)
              i=istn(nn)
              j=jstn(nn)
              iq=i+(j-1)*il
@@ -1492,19 +1494,20 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
      &    xgsmax(0:44),xjmax0(0:44)
       integer, parameter :: ijkij=ijk+ifull
       data sdot/ijkij*0./   ! for vvel.h
+      common/leap_yr/leap  ! 1 to allow leap years
       common/nsib/nbarewet,nsigmf
       common/radnml/nnrad,idcld   ! darlam, clddia
 
 !     for cardin
       data ja/1/,jb/jl/,id/1/,jd/1/,ndi/1/,ndi2/0/                     
      & ,io_clim/1/ ,io_in/1/   ,io_out/1/  ,io_rest/1/ ,io_spec/0/    
-     & ,kdate_s/-1/ ,ktime_s/-1/ ,khdif/5/, nhorjlm/0/
+     & ,kdate_s/-1/ ,ktime_s/-1/ ,leap/0/,khdif/5/, nhorjlm/1/
      & ,nem/2/     ,newtop/1/  ,nextout/1/,nfly/2/                    
      & ,ngwd/0/     ,nhor/155/  ,nlv/2/                    
      & ,nmaxpr/5/,nperavg/-99/,nqg/5/,nrungcm/0/      
-     & ,ntsea/6/,ntvdr/0/,nvad/4/,nvmix/4/,nwt/-99/       
+     & ,ntsea/6/,ntvdr/1/,nvad/4/,nvmix/4/,nwt/-99/       
      &   ,vmodmin/2./
-     &  ,idcld  /1/,lgwd/2/,nbd/0/,nsib/3/            
+     &  ,idcld  /1/,lgwd/0/,nbd/0/,newrough/0/,nsib/3/            
      &  ,nbox/1/,nvadh/1/       ! globpe only
      &  ,kbotdav/1/,nlocal/1/
      &  ,nud_p/1/,nud_q/0/,nud_t/1/,nud_uv/1/,nud_hrs/-24/,
@@ -1513,7 +1516,7 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
       data schmidt/1./,rlong0/0./,rlat0/90./,ndiur/1/
      & ,newsoilm/0/,nglacier/1/,nhorps /1/,newztsea/1/                   
      & ,nrun/0 /,ntsur/5/,nt_adv/0/,ndept/1/
-     & ,av_vmod/1./,chn10/.00136733/,tss_sh/0./
+     & ,av_vmod/1./,charnock/.018/,chn10/.00136733/,tss_sh/0./
      & ,qgmin/1.e-6/                           ! 3.e-6 was too cloudy at poles    
 
       data khor/0/,kwt/kl/,mstn/0/,nps/2/,npsav /1/       
@@ -1522,8 +1525,8 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
       
 !     some variables in parmdyn.h      
       data epsp/.1/,epsu/.1/,epsf/0./,m/6/,mex/4/,mfix/1/,mfix_qg/1/,
-     &     mup/1/,nh/0/,nonl/0/,npex/1/,nritch/407/,nritch_t/0/,nrot/1/,
-     &     nstag/-3/,nstagu/-3/,ntbar/-1/,
+     &     mup/1/,nh/0/,nonl/0/,npex/1/,nritch/407/,nritch_t/300/,
+     &     nrot/1/,nstag/-3/,nstagu/-3/,ntbar/-1/,
      &     nvsplit/2/,nxmap/0/,restol/1.e-6/, ! changed from 5.e-6 on 25/7/03
      &     precon/0/
 
@@ -1539,10 +1542,10 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
       data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
       data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
       data convfact/1.02/,convtime/.3/,shaltime/0./
-      data detrain/.05/,detrainx/1./,dsig2/.1/,dsig4/.55/
+      data detrain/.05/,detrainx/1./,dsig2/.1/,dsig4/.55/,entrain/0./
       data epsconv/0./,fldown/.6/,iterconv/2/
       data ksc/0/,kscsea/0/,kscmom/0/,ldr/1/ 
-      data methdetr/2/,methprec/8/
+      data mbase/0/,methdetr/2/,methprec/8/
       data nclddia/5/,ncvcloud/0/,ncvmix/0/,ndavconv/0/
       data nevapcc/0/,nevapls/5/
       data nkuo/23/,nrad/4/,nrhcrit/10/,nstab_cld/0/,nuvconv/0/

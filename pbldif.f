@@ -458,7 +458,7 @@ C    strongly violated.
 C    Original code rewritten by Rosinski 7/8/91 to vectorize in longitude.
 
 !     simpler alernative
-       qg=max(qg,qgmin)   ! 3D guided by McCormick et al 1993
+c      qg=max(qg,qgmin)   ! 3D guided by McCormick et al 1993
 
       if(nlocal.eq.5)then
 !       restoring pblh to have it available in convjlm/vertmix jlm

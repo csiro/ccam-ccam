@@ -131,6 +131,7 @@ c	 enddo
         write (6,"('qf ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
         write (6,"('ql ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
       endif
+        write (6,"('qf g',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
 
 c     Calculate convective cloud fraction and adjust moisture variables 
 c     before calling newcloud
@@ -159,6 +160,7 @@ c     before calling newcloud
         enddo
       enddo
       tenv(:,:)=t(1:ifull,:) !Assume T is the same in and out of convective cloud
+        write (6,"('qf h',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
       if(diag.and.mydiag)then
         print *,'before newcloud'
         write (6,"('t   ',9f8.2/4x,9f8.2)") (t(idjd,k),k=1,kl)
@@ -184,6 +186,7 @@ c     Calculate cloud fraction and cloud water mixing ratios
         write (6,"('ql  ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
         write (6,"('qnv ',9f8.3/4x,9f8.3)")(1000.*qenv(idjd,k),k=1,kl)
       endif
+        write (6,"('qf i',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
 
 c     Weight output variables according to non-convective fraction of grid-box            
       do k=1,kl
@@ -207,6 +210,7 @@ c     Weight output variables according to non-convective fraction of grid-box
         write (6,"('qf ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
         write (6,"('ql ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
       endif
+        write (6,"('qf j',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
 
 c     Calculate precipitation and related processes      
       call newrain(land,1,dt,fluxc,rhoa,dz,ccrain,prf,cdso4,  !Inputs
@@ -228,6 +232,7 @@ c     Calculate precipitation and related processes
         call maxmin(qfg,'qf',ktau,1.e3,kl)
         call maxmin(qlg,'ql',ktau,1.e3,kl)
       endif
+        write (6,"('qf k',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
 
 c     Add convective cloud water into fields for radiation
       do k=1,kl
@@ -298,6 +303,7 @@ c Ice clouds
             endif !cfrac
           enddo ! iq
         enddo ! k
+        write (6,"('qf l',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
 c Code to get vertically integrated value...
 c top down to get highest level with cfrac=cldmax (kcldfmax)
 !        do k=kl,1,-1

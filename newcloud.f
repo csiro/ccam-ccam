@@ -58,10 +58,11 @@ C Global parameters
       include 'cparams.h'    !Input cloud scheme parameters
       include 'kuocom.h'     !Input cloud scheme parameters rcrit_l & rcrit_s
       include 'params.h'     !Input model grid dimensions (modified params.h for CCAM)
+      include 'parm.h'
       include 'sigs.h'
 
 C Argument list
-      real tdt
+      real tdt,den1
       integer lg
       logical land(ln2)
       real prf(ln2,nl)
@@ -172,33 +173,33 @@ C Start code : ----------------------------------------------------------
           write(25,91)'ttg ',(ttg(mg,k),k=1,nl)
           write(25,9)'qtg ',(qtg(mg,k),k=1,nl)
           write(25,9)'qlg ',(qlg(mg,k),k=1,nl)
-          write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
-          write(25,*)
-        endif
-      endif
+	  write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
+	  write(25,*)
+	  endif
+	  endif
 
 c Define Cdrop
 
-      if(naerosol_i(2).gt.0)then
-        do k=1,nl
-          do mg=1,ln2
-            Cdrop(mg,k)=cdso4(mg,k)
-          enddo
-        enddo
-      else
-        do mg=1,ln2
-          if(land(mg))then
-            Cdrop(mg,1)=Cdropl
-          else
-            Cdrop(mg,1)=Cdrops
-          endif
-        enddo
-        do k=2,nl
-          do mg=1,ln2
-            Cdrop(mg,k)=Cdrop(mg,1)
-          enddo
-        enddo
-      endif
+	  if(naerosol_i(2).gt.0)then
+	  do k=1,nl
+	  do mg=1,ln2
+	  Cdrop(mg,k)=cdso4(mg,k)
+	  enddo
+	  enddo
+	  else
+	  do mg=1,ln2
+	  if(land(mg))then
+	  Cdrop(mg,1)=Cdropl
+	  else
+	  Cdrop(mg,1)=Cdrops
+	  endif
+	  enddo
+	  do k=2,nl
+	do mg=1,ln2
+Cdrop(mg,k)=Cdrop(mg,1)
+	enddo
+	enddo
+	endif
 
 c First melt cloud ice or freeze cloud water to give correct ice fraction fice.
 c Then calculate the cloud conserved variables qtot and tliq.
@@ -206,12 +207,12 @@ c Note that qcg is the total cloud water (liquid+frozen)
 
 
 
-      do k=1,nl
-        do mg=1,ln2
-          if(ttg(mg,k).ge.tfrz)then
-            fice(mg,k)=0.
-          elseif(ttg(mg,k).ge.tice)then
-            if(qfg(mg,k).gt.1.0e-12)then
+	do k=1,nl
+	do mg=1,ln2
+	if(ttg(mg,k).ge.tfrz)then
+	fice(mg,k)=0.
+	elseif(ttg(mg,k).ge.tice)then
+	if(qfg(mg,k).gt.1.0e-12)then
               fice(mg,k)=min(qfg(mg,k)/(qfg(mg,k)+qlg(mg,k)), 1.)
             else
               fice(mg,k)=0.
@@ -470,6 +471,18 @@ c            ccov(mg,k)=cfrac(mg,k)**(2./3)
         enddo
       endif
 
+      
+      if(nproc==1.and.ktau.eq.10)then
+        do k=1,kl
+	  do mg=il*il+1,2*il*il
+	   den1=qfg(mg,k)+qlg(mg,k)
+	   if(land(mg).and.den1>0.)then
+           write(27,'(4f9.4,2i6)')
+     .     ttg(mg,k),qfg(mg,k)/den1,1000.*qfg(mg,k),1000.*qlg(mg,k),mg,k
+          endif
+	  enddo
+	 enddo     
+      endif  ! (nproc==1.and.ktau.eq.10) 
 
       
       if(debug)then

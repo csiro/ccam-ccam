@@ -489,9 +489,9 @@ c       For time varying surface fields
         lname = 'Screen mixing ratio'
         call attrib(idnc,idim2,3,'qgscrn',lname,'kg/kg',0.,.06)
         lname = 'x-component max 10m wind'
-        call attrib(idnc,idim2,3,'u10max',lname,'m/s',0.,60.)
+        call attrib(idnc,idim2,3,'u10max',lname,'m/s',-99.,99.)
         lname = 'y-component max 10m wind'
-        call attrib(idnc,idim2,3,'v10max',lname,'m/s',0.,60.)
+        call attrib(idnc,idim2,3,'v10max',lname,'m/s',-99.,99.)
         lname = '10m wind speed'
         call attrib(idnc,idim2,3,'u10',lname,'m/s',0.,60.)
 c       lname = '3m wind speed'
@@ -835,21 +835,12 @@ c     set time to number of minutes since start
       call histwrt3(cc,'wbftot',idnc,iarch,local)
       call histwrt3(sicedep,'siced',idnc,iarch,local)
       call histwrt3(snowd,'snd',idnc,iarch,local)
+      call histwrt3(precip,'rnd',idnc,iarch,local)
+      call histwrt3(precc,'rnc',idnc,iarch,local)
+      call histwrt3(sno,'sno',idnc,iarch,local)
+      call histwrt3(runoff,'runoff',idnc,iarch,local)
       
       if(ktau.gt.0)then
-!       if(nwt.ne.nperday.and.itype.ne.-1)then  
-!!       scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
-!!       but, don't scale up for restart file as just done in previous write
-!!       ktau in next line in case ntau (& thus ktau) < nwt 
-!        precip=precip*real(nperday)/min(nwt,max(1,ktau))     
-!        precc =precc *real(nperday)/min(nwt,max(1,ktau))     
-!        sno   =sno   *real(nperday)/min(nwt,max(1,ktau))     
-!        runoff=runoff*real(nperday)/min(nwt,max(1,ktau))    
-!       endif   ! (nwt.ne.nperday.and.itype.ne.-1)
-       call histwrt3(precip,'rnd',idnc,iarch,local)
-       call histwrt3(precc,'rnc',idnc,iarch,local)
-       call histwrt3(sno,'sno',idnc,iarch,local)
-       call histwrt3(runoff,'runoff',idnc,iarch,local)
        if(mod(ktau,nperday).eq.0.or.ktau.eq.ntau)then  ! only write once per day
          if(itype.ne.-1)rndmax(:)=rndmax(:)*86400./dt ! scale up to mm/day
          call histwrt3(rndmax,'maxrnd',idnc,iarch,local)
@@ -897,6 +888,9 @@ c     set time to number of minutes since start
            call histwrt3(shalrk(1,5),'shark5',idnc,iarch,local)
            call histwrt3(shalrk(1,6),'shark6',idnc,iarch,local)
          endif  ! nextout.ge.4
+ 	endif   ! (mod(ktau,nperday).eq.0.or.ktau.eq.ntau)
+       if(mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)then 
+!        only write these once per avg period
          call histwrt3(tscr_ave,'tscr_ave',idnc,iarch,local)
          call histwrt3(cbas_ave,'cbas_ave',idnc,iarch,local)
          call histwrt3(ctop_ave,'ctop_ave',idnc,iarch,local)
@@ -910,7 +904,7 @@ c     set time to number of minutes since start
          call histwrt3(clm_ave,'clm',idnc,iarch,local)
          call histwrt3(clh_ave,'clh',idnc,iarch,local)
          call histwrt3(cld_ave,'cld',idnc,iarch,local)
- 	endif   ! (mod(ktau,nperday).eq.0.or.ktau.eq.ntau)
+       endif   ! (mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)
        call histwrt3(tscrn,'tscrn',idnc,iarch,local)
        call histwrt3(qgscrn,'qgscrn',idnc,iarch,local)
        call histwrt3(u10,'u10',idnc,iarch,local)
@@ -923,7 +917,7 @@ c     set time to number of minutes since start
 c      "extra" outputs
        if(nextout>=1) then
          if ( myid == 0 ) print *,'nextout, idnc: ',nextout,idnc
-	 if(mod(ktau,nperday).eq.0)then
+	 if(mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)then
            call histwrt3(rtu_ave,'rtu_ave',idnc,iarch,local)
            call histwrt3(rtc_ave,'rtc_ave',idnc,iarch,local)
            call histwrt3(rgn_ave,'rgn_ave',idnc,iarch,local)
@@ -932,11 +926,11 @@ c      "extra" outputs
            call histwrt3(sot_ave,'sot_ave',idnc,iarch,local)
            call histwrt3(soc_ave,'soc_ave',idnc,iarch,local)
            call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local)
- 	 endif   ! (mod(ktau,nperday).eq.0)
+ 	 endif   ! (mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)
          call histwrt3(dpsdt,'dpsdt',idnc,iarch,local)
          call histwrt3(pblh,'pblh',idnc,iarch,local)
          call histwrt3(ustar,'ustar',idnc,iarch,local)
-       endif  ! nextout>=1
+       endif   ! nextout>=1
       endif    ! (ktau.gt.0)
 
       if ( myid == 0 ) print *,'netcdf save of 3d variables'

@@ -33,7 +33,7 @@ c     common/work2/aa(ifull),dum2(ifull,17)
 !     N.B. first 3 arrays of work3 are available from nonlin, all from upglobal
       common/work3/delt(ifull,0:kl),fluxh(ifull,0:kl),
      .             dum3(3*ijk-2*ifull)
-      common/work3b/dum3b(ifull,kl),uav(ifull,kl)
+      common/work3b/xin(ifull,kl),uav(ifull,kl)
       real udiff(ifull,kl)
       equivalence (udiff,delt)  ! udiff just used for qg, before delt
       real tarr(ifull,kl),uarr(ifull,kl),varr(ifull,kl)
@@ -72,6 +72,7 @@ c      fluxh(k) is located at level k+.5
       enddo    ! iq loop
 
 c     t
+      if(ntvdr.eq.2)xin(:,:)=tarr(1:ifull,:)
       do k=1,kl-1
        do iq=1,ifull
          delt(iq,k)=tarr(iq,k+1)-tarr(iq,k)
@@ -115,6 +116,15 @@ c    .                         kp,kx,fluxlo,fluxhi,fluxh(iq,k)
         endif   ! (nimp.eq.1)
        enddo    ! iq loop
       enddo     ! k loop
+!!    tarr(1:ifull,1)=max(xin(:,1),min(tarr(1:ifull,1),xin(:,2)))
+!!    tarr(1:ifull,kl)=max(xin(:,kl),min(tarr(1:ifull,kl),xin(:,kl-1)))
+      if(ntvdr.eq.2)then  ! different top & bottom
+        do iq=1,ifull
+         if(sdot(iq,2).gt.0.)tarr(iq,1)=xin(iq,1)
+         if(sdot(iq,kl).lt.0.)tarr(iq,kl)=xin(iq,kl)
+        enddo
+        xin(:,:)=uarr(1:ifull,:)
+      endif      ! (ntvdr.eq.2)
       if( (diag.or.nmaxpr.eq.1) .and. mydiag )then
 !        These diagnostics don't work with single input/output argument
 !        write (6,"('tin ',9f8.2/4x,9f8.2)") (tin(idjd,k),k=1,kl)
@@ -126,7 +136,7 @@ c    .                         kp,kx,fluxlo,fluxhi,fluxh(iq,k)
 c     u
       do k=1,kl-1
        do iq=1,ifull
-         delt(iq,k)=uarr(iq,k+1)-uarr(iq,k)
+        delt(iq,k)=uarr(iq,k+1)-uarr(iq,k)
        enddo    ! iq loop
       enddo     ! k loop
       do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
@@ -158,6 +168,15 @@ c     u
         endif   ! (nimp.eq.1)
        enddo    ! iq loop
       enddo     ! k loop
+!!    uarr(1:ifull,1)=max(xin(:,1),min(uarr(1:ifull,1),xin(:,2)))
+!!    uarr(1:ifull,kl)=max(xin(:,kl),min(uarr(1:ifull,kl),xin(:,kl-1)))
+      if(ntvdr.eq.2)then  ! different top & bottom
+        do iq=1,ifull
+         if(sdot(iq,2).gt.0.)uarr(iq,1)=xin(iq,1)
+         if(sdot(iq,kl).lt.0.)uarr(iq,kl)=xin(iq,kl)
+        enddo
+        xin(:,:)=varr(1:ifull,:)
+      endif      ! (ntvdr.eq.2)
 
 c     v
       do k=1,kl-1
@@ -194,6 +213,15 @@ c     v
         endif   ! (nimp.eq.1)
        enddo    ! iq loop
       enddo     ! k loop
+!!    varr(1:ifull,1)=max(xin(:,1),min(varr(1:ifull,1),xin(:,2)))
+!!    varr(1:ifull,kl)=max(xin(:,kl),min(varr(1:ifull,kl),xin(:,kl-1)))
+      if(ntvdr.eq.2)then  ! different top & bottom
+        do iq=1,ifull
+         if(sdot(iq,2).gt.0.)varr(iq,1)=xin(iq,1)
+         if(sdot(iq,kl).lt.0.)varr(iq,kl)=xin(iq,kl)
+        enddo
+        xin(:,:)=qg(1:ifull,:)
+      endif      ! (ntvdr.eq.2)
 
       if(npslx.eq.1.and.nvad.le.-4)then  ! handles -9 too
       do k=1,kl-1
@@ -303,6 +331,15 @@ c        enddo   ! iq loop
         if(nqq.eq.3)then
           qg(1:ifull,:)=qg(1:ifull,:)**3
         endif       ! (nqq.eq.3)
+!!    qg(1:ifull,1)=max(xin(:,1),min(qg(1:ifull,1),xin(:,2)))
+!!    qg(1:ifull,kl)=max(xin(:,kl),min(qg(1:ifull,kl),xin(:,kl-1)))
+      if(ntvdr.eq.2)then  ! different top & bottom
+        do iq=1,ifull
+         if(sdot(iq,2).gt.0.)qg(iq,1)=xin(iq,1)
+         if(sdot(iq,kl).lt.0.)qg(iq,kl)=xin(iq,kl)
+        enddo
+        xin(:,:)=qlg(1:ifull,:)
+      endif      ! (ntvdr.eq.2)
 
       if(ldr.ne.0)then
        do k=1,kl-1       ! qlg first
@@ -344,6 +381,15 @@ c        enddo   ! iq loop
          endif   ! (nimp.eq.1)
         enddo     ! iq loop
        enddo      ! k loop
+!!     qlg(1:ifull,1)=max(xin(:,1),min(qlg(1:ifull,1),xin(:,2)))
+!!     qlg(1:ifull,kl)=max(xin(:,kl),min(qlg(1:ifull,kl),xin(:,kl-1)))
+       if(ntvdr.eq.2)then  ! different top & bottom
+         do iq=1,ifull
+          if(sdot(iq,2).gt.0.)qlg(iq,1)=xin(iq,1)
+          if(sdot(iq,kl).lt.0.)qlg(iq,kl)=xin(iq,kl)
+         enddo
+         xin(:,:)=qfg(1:ifull,:)
+       endif      ! (ntvdr.eq.2)
        do k=1,kl-1       ! qfg next
         do iq=1,ifull
           delt(iq,k)=qfg(iq,k+1)-qfg(iq,k)
@@ -383,6 +429,14 @@ c        enddo   ! iq loop
          endif   ! (nimp.eq.1)
         enddo     ! iq loop
        enddo      ! k loop
+!!     qfg(1:ifull,1)=max(xin(:,1),min(qfg(1:ifull,1),xin(:,2)))
+!!     qfg(1:ifull,kl)=max(xin(:,kl),min(qfg(1:ifull,kl),xin(:,kl-1)))
+       if(ntvdr.eq.2)then  ! different top & bottom
+         do iq=1,ifull
+          if(sdot(iq,2).gt.0.)qfg(iq,1)=xin(iq,1)
+          if(sdot(iq,kl).lt.0.)qfg(iq,kl)=xin(iq,kl)
+         enddo
+       endif      ! (ntvdr.eq.2)
       endif      ! if(ldr.ne.0)
 
       if(ilt.gt.1)then

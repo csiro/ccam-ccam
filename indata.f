@@ -302,11 +302,11 @@ c     note that kdate, ktime will be overridden by infile values for io_in<4
      &            ' sigma levels'
                print*,'calling vertint with kk,sigin ',kk,sigin(1:kk)
             end if
-            call vertint(t, 1)
+            call vertint(t(1:ifull,:), 1) ! vertint expects 1:ifull
             if ( mydiag ) print *,'t after vertint ',t(idjd,:)
-            call vertint(qg,2)
-            call vertint(u, 3)
-            call vertint(v, 4)
+            call vertint(qg(1:ifull,:),2)
+            call vertint(u(1:ifull,:), 3)
+            call vertint(v(1:ifull,:), 4)
          endif  ! (abs(sig(2)-sigin(2)).gt..0001)
 
          if ( mydiag ) then
@@ -847,7 +847,7 @@ c     .                 (.6-.6*fracsum(imo))*sfc(isoilm(iq))
         print *,'header: ',header
         end if
 	 if(nrungcm.eq.-5)then
-          call readglobvar(87, tgg, fmt="*")  ! this line as dummy read 
+          call readglobvar(87, tgg, fmt="*")  ! this line acts as dummy read 
 	 else
           call readglobvar(87, wb, fmt="*")
 	 endif
@@ -1408,7 +1408,7 @@ c                         if( tsoil .ge. tstom ) ftsoil=1.
        rsmin(iq) = rsunc44(iveg)/rlai   
       enddo    !  ip=1,ipland
       
-      if(jalbfix.eq.1)then  ! jlm fix-up for albedos, esp. over sandy bare soil
+      if(jalbfix==1)then  ! jlm fix-up for albedos, esp. over sandy bare soil
          if ( mydiag ) then
             isoil=isoilm(idjd)
             print *,'before jalbfix isoil,sand,alb,rsmin ',
@@ -1423,7 +1423,9 @@ c                         if( tsoil .ge. tstom ) ftsoil=1.
          if ( mydiag ) then
             print *,'after jalbfix sigmf,alb ',sigmf(idjd),alb(idjd)
          end if
-      endif  ! (jalbfix..eq.1)
+      endif  ! (jalbfix==1)
+
+      if(newrough==1)call calczo(.05)
       
 !***  no fiddling with initial tss, snow, sice, w, w2, gases beyond this point
       call bounds(zs)
@@ -1498,27 +1500,27 @@ c                         if( tsoil .ge. tstom ) ftsoil=1.
      &        n-noff,em(iq),emu(iq),emv(iq),f(iq),fu(iq),fv(iq)
       enddo
 
-!     What to do about this???? Should each processor write it's own part
-
-!!!      write(22,920)
-!!! 920  format('                             land            isoilm')
-!!!      write(22,921)
-!!! 921  format('  iq     i   j rlong   rlat     sice  zs(m) alb  ivegt tss
-!!!     &    t1    tgg2   tgg6     wb1  wb6    ico2  radon')
-!!!      do j=1,jl
-!!!       do i=1,il
-!!!        iq=i+(j-1)*il
-!!!        along(iq)=rlongg(iq)*180./pi    ! wed  10-28-1998
-!!!        alat(iq)=rlatt(iq)*180./pi
-!!!        write(22,922) iq,i,j,rlongg(iq)*180./pi,rlatt(iq)*180./pi,
-!!!     &               land(iq),sice(iq),zs(iq)/grav,alb(iq),
-!!!     &               isoilm(iq),ivegt(iq),
-!!!     &               tss(iq),t(iq,1),tgg(iq,2),tgg(iq,ms),
-!!!     &               wb(iq,1),wb(iq,ms),
-!!!     &               ico2em(min(iq,ilt*jlt)),radonem(min(iq,ilt*jlt))
-!!! 922    format(i6,2i4,2f8.3 ,2l2,f7.1,f5.2 ,2i3 ,4f7.1 ,2f6.2, i6,f5.2)
-!!!       enddo
-!!!      enddo
+      if(nproc==1)then
+       write(22,920)
+920    format('                             land            isoilm')
+       write(22,921)
+921    format('  iq     i   j rlong   rlat     sice  zs(m) alb  ivegt'
+     &    ' tss    t1    tgg2   tgg6     wb1  wb6    ico2  radon')
+       do j=1,jl
+        do i=1,il
+         iq=i+(j-1)*il
+         along(iq)=rlongg(iq)*180./pi    ! wed  10-28-1998
+         alat(iq)=rlatt(iq)*180./pi
+         write(22,922) iq,i,j,rlongg(iq)*180./pi,rlatt(iq)*180./pi,
+     &              land(iq),sice(iq),zs(iq)/grav,alb(iq),
+     &              isoilm(iq),ivegt(iq),
+     &              tss(iq),t(iq,1),tgg(iq,2),tgg(iq,ms),
+     &              wb(iq,1),wb(iq,ms),
+     &              ico2em(min(iq,ilt*jlt)),radonem(min(iq,ilt*jlt))
+922      format(i6,2i4,2f8.3 ,2l2,f7.1,f5.2 ,2i3 ,4f7.1 ,2f6.2, i6,f5.2)
+        enddo
+       enddo
+      endif  ! (nproc==1)
 
       if(nsib.ge.1)then   !  check here for soil & veg mismatches
          if (mydiag) print *,'idjd,land,isoil,ivegt ',
@@ -2097,7 +2099,7 @@ c --- provide initial tracer values (may be overwritten by infile)
       end
 
 !=======================================================================
-      subroutine calzo(zobgin)     ! presently no option to call
+      subroutine calczo(zobgin)     !  option to call from July '04
       include 'newmpar.h'
       include 'arrays.h'
       include 'map.h'   
@@ -2106,23 +2108,23 @@ c --- provide initial tracer values (may be overwritten by infile)
       include 'soil.h'      ! zolnd
       include 'soilsnow.h'  ! tgg,wb
 
-      xx=-1.e29
-      xn= 1.e29
+      zomax=-1.e29
+      zomin= 1.e29
       do iq=1,ifull
         if(land(iq))then
           iveg=ivegt(iq)
           tsoil  = 0.5*(tgg(iq,ms)+tgg(iq,2))
           sdep=0.
           call cruf1 (iveg,tsoil,sdep,zolnd(iq),zobgin)
-          xx=max(xx,zolnd(iq))
-          xn=min(xn,zolnd(iq))
+          zomax=max(zomax,zolnd(iq))
+          zomin=min(zomin,zolnd(iq))
         endif ! (land(iq))then
       enddo   ! iq loop
 
-      write(6,*)"zolnd x,n=",xx,xn
+      write(6,*)"calczo zolnd: zomin,zomax=",zomin,zomax
 
-      return ! calzo
-      end ! calzo
+      return ! calczo
+      end    ! calczo
 !=======================================================================
       subroutine cruf1 (iv,tsoil,sdep,z0m,zobgin)
 c kf, 1997

@@ -1,4 +1,4 @@
-      real savt(ifull+iextra,kl),savpsl(ifull+iextra)
+      real savt(ifull,kl),savpsl(ifull)
       common/savt/savt,savpsl
-      real savu(ifull+iextra,kl),savv(ifull+iextra,kl)
-      common/savuv/savu,savv
+      real savs(ifull,2:kl),savu(ifull,kl),savv(ifull,kl)
+      common/savuv/savs,savu,savv
