@@ -19,8 +19,8 @@ c     cp specific heat at constant pressure joule/kgm/deg
       parameter (bprm=5.,cms=5.,chs=2.6,vkar=.4)
       parameter (d3=2.5)
       parameter (cgsoil=1000.,gksoil=.300e-6,rhog=1600.,d1land=.03)
-      parameter (fmroot=.57735)   ! was .4 till 7 Feb 1996
-      parameter (chn10=.00136733)   ! sea only
+      parameter (fmroot=.57735)     ! was .4 till 7 Feb 1996
+!     parameter (chn10=.00136733)   ! sea only - in parm.h from 2004
       include 'newmpar.h'
       include 'arrays.h'
       include 'const_phys.h'
@@ -652,6 +652,7 @@ c***  end of surface updating loop
       subroutine sib3(nalpha)     ! new version of sib1 with soilsnowv
       use cc_mpi
       parameter (ntest=0) ! ntest= 0 for diags off; ntest= 1 for diags on
+!                           N.B. needs vsafe for correct diags
       parameter (itnmeth=5) ! 0 for original N_R iteration method
 !     parameter (nsigmf=1)  ! 0 for original tsigmf usage in sib3; prefer 1
 !     parameter (nbarewet=2)  ! 0 for original bare-soil-wetfac; 1 simplest; 2 for jlm
@@ -695,7 +696,7 @@ c***  end of surface updating loop
      . evapfb1(ifull),evapfb2(ifull),evapfb3(ifull),evapfb4(ifull),
      . evapfb5(ifull),evapfb1a(ifull),evapfb2a(ifull),evapfb3a(ifull),
      . evapfb4a(ifull),evapfb5a(ifull),otgf(ifull),rmcmax(ifull),
-     . tgfnew(ifull),evapfb(ifull)
+     . tgfnew(ifull),evapfb(ijk-17*ifull)  ! to allow > 18 levels
       common/work3d/dqsttg(ifull),tstom(ifull),rlai(ifull),
      .   cls(ifull),omc(ifull),dum3d(ijk-5*ifull)  ! allows L9
       include 'establ.h'
@@ -1066,12 +1067,11 @@ c         f2=1.0
 c         if(wbav.lt.0.5) f2=max(1.0 , 0.5/ max( wbav,1.e-7))
           f4=max(1.-.0016*(tstom(iq)-t(iq,1))**2 , .05) ! zero for delta_t=25
           airr(iq) = 1./taftfh(iq)
-          cc(iq) =min(condx(iq) , 4./(1440./rmstep))  ! jlm speedup
+          cc(iq) =min(condx(iq) , 4./(1440./rmstep))  ! jlm speedup for 4 mm/day
 c                       depth of the reservoir of water on the canopy
           rmcmax(iq) = max(0.5,srlai) * .1
           omc(iq) = rmc(iq)  ! value from previous timestep as starting guess
-          f3=max(1.-.00025*(establ(t(iq,1))-qg(iq,1)*ps(iq)/.622)
-     .                                                           ,.05)
+          f3=max(1.-.00025*(establ(t(iq,1))-qg(iq,1)*ps(iq)/.622), .05)
           res(iq)=max(30.,rsmin(iq)*f1*f2/(f3*f4))
           if(ntest.eq.1.and.iq.eq.idjd)then
            print *,'rlai,srlai,wbav,den ',rlai(iq),srlai,wbav,den
@@ -1216,8 +1216,10 @@ c                                                  wet evaporation
 !          Ewww(iq)  = min(omc(iq)/dt , Ewww(iq)*omc(iq)/rmcmax(iq) )
 !        endif         ! qsatgf.ge.qg(iq,1)
 !        above 3 lines are equivalent to:
-         Ewww(iq)=min(Ewww(iq),omc(iq)/dt,Ewww(iq)*omc(iq)/rmcmax(iq))
-!                        dew(-ve)  no_dew          no_dew
+c        Ewww(iq)=min(Ewww(iq),omc(iq)/dt,Ewww(iq)*omc(iq)/rmcmax(iq))
+         rmcav=.5*(omc(iq)+rmc(iq))
+         Ewww(iq)=min(Ewww(iq),rmcav/dt,Ewww(iq)*rmcav/rmcmax(iq))
+!                     dew(-ve), no_dew ,        no_dew
 !        rmc is reservoir on leaf
          rmc(iq)=omc(iq)+cc(iq) -Ewww(iq)*dt
 c                      precipitation reaching the ground under the canopy
@@ -1262,8 +1264,8 @@ ca   &                       +beta/airr(iq) ) ! re-factored by jlm
 !        above few lines equivalent to next one:
          delta_t=sign(min(abs(delta_t0),.5*abs(delta_tx(iq))),delta_t0)
          tgfnew(iq)=tgfnew(iq)+delta_t
-         delta_tx(iq)=tgfnew(iq)-tgf(iq)
-         if(ntest.eq.1.and.iq.eq.idjd)then
+         delta_tx(iq)=tgfnew(iq)-otgf(iq)
+         if(ntest.eq.1.and.iq.eq.idjd)then ! N.B. needs vsafe for correct diags
            print *,'icount,iq,omc(iq),rmc ',icount,iq,omc(iq),rmc(iq)
            print *,'theta,tscrn,slwa ',
      .              theta(iq),tscrn(iq),slwa(iq)
