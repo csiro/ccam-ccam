@@ -62,6 +62,10 @@ c     transfer mtimeb fields to mtimea
       ua(1:ifull,:)=ub(1:ifull,:)
       va(1:ifull,:)=vb(1:ifull,:)
 
+!     Both infile and onthefly should have an argument that says they've
+!     been called from nestin and don't need to return all variables.
+!     This would be cleaner than the use of all the dummy variables.
+
 c     read tb etc  - for globpea, straight into tb etc
       if(io_in.eq.1.or.io_in.eq.3)then
       call infile(meso2,kdate_r,ktime_r,nem2, ! different from DARLAM
