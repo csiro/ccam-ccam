@@ -1,4 +1,4 @@
-      subroutine vadv30(targ,uarg,varg)   
+      subroutine vadv30(tarr,uarr,varr)   
 !     only calls vadvbess or vadvbess8 (nvad=7,8) from Aug 2003      
       use cc_mpi, only : mydiag
       parameter (ntest=0) !  0: usual   1: for diagnostic prints
@@ -32,7 +32,7 @@ c     does t, u,v then qg, [q1, q2,]
       common/work3c/kdel(ifull,kl)
       common/work3d/sd(ifull,kl)
       common/work3f/st(ifull,kl),anew(ifull,kl),gwrk(ifull,kl)
-      real targ(ifull,kl),uarg(ifull,kl),varg(ifull,kl)
+      real tarr(ifull,kl),uarr(ifull,kl),varr(ifull,kl)
       real bb(kl),sddk(0:kl+1)
       real dersh(ifull,kl),sdotder(ifull,kl+1)
       equivalence (dersh,gwrk),(sdotder,wrk1)
@@ -442,7 +442,7 @@ c     .                                 +tgrad(iq,kk)+tgrad(iq,kk+1) )))
      .                          +del_s*(tgrad(iq,kk)+tgrad(iq,kk+1)) )))     
        enddo
       enddo
-      if(diag)then
+      if(diag.and.mydiag)then
         print *,'t in  ',(t(idjd,k),k=1,kl)
         print *,'tgrad ',(tgrad(idjd,k),k=1,kl)
         print *,'toutt ',(toutt(idjd,k),k=1,kl)
@@ -455,7 +455,7 @@ c     .                                 +tgrad(iq,kk)+tgrad(iq,kk+1) )))
         t=toutt
       endif
 
-      if(diag)then
+      if(diag.and.mydiag)then
         print *,'tout  ',(t(idjd,k),k=1,kl)
       endif
       return
@@ -465,6 +465,7 @@ c     .                                 +tgrad(iq,kk)+tgrad(iq,kk+1) )))
 !     same as vadvbess but with B & S limiter      
 !     returns t, u, v, q -  but tendencies formed in nonlin/adjust5
 !     watch out for replacing qg in place!
+      use cc_mpi, only : mydiag
       parameter (ntopp=1)  ! 1 for 1-sided gradient at top & bottom full-levels
 c                          ! 2 for zero gradient at top & bottom full-levels
       include 'newmpar.h'
@@ -472,155 +473,6 @@ c                          ! 2 for zero gradient at top & bottom full-levels
       include 'parmvert.h'
       include 'sigs.h'
       real t(ifull,kl),st(ifull,kl)
-      dimension kdel(ifull,kl)
-      common/work3/tgrad(ifull,kl),toutt(ifull,kl),dum(3*ijk)
-c     st() is the sigma displacement array
-c     if(ktau.eq.1)then
-c       print *,'in vadvbess8 with ntopp = ',ntopp
-c     endif
-
-      if(ntopp.eq.1)then  ! 1-sided
-        do iq=1,ifull
-         tgrad(iq,1)=(t(iq,2)-t(iq,1))/(sig(2)-sig(1))
-         tgrad(iq,kl)=(t(iq,kl)-t(iq,kl-1))/(sig(kl)-sig(kl-1))
-        enddo
-      endif  ! (ntopp.eq.1)
-      if(ntopp.eq.2)then
-        do iq=1,ifull
-         tgrad(iq,1)=0.
-         tgrad(iq,kl)=0.
-        enddo
-      endif  ! (ntopp.eq.2)
-
-      do k=2,kl-1
-       conkm=(sig(k)-sig(k+1))/((sig(k-1)-sig(k))*(sig(k-1)-sig(k+1)))
-       conk=(2.*sig(k)-sig(k-1)-sig(k+1))/
-     .                           ((sig(k)-sig(k-1))*(sig(k)-sig(k+1)))
-       conkp=(sig(k)-sig(k-1))/((sig(k+1)-sig(k-1))*(sig(k+1)-sig(k)))
-       do iq=1,ifull
-        tgrad(iq,k)=conkm*t(iq,k-1)+conk*t(iq,k)+conkp*t(iq,k+1)
-       enddo   ! iq loop
-      enddo    ! k loop
-
-      do k=1,kl
-       do iq=1,ifull
-        kk=kdel(iq,k)
-        del_s=sig(kk+1)-sig(kk)
-        toutt(iq,k)=t(iq,kk)+st(iq,k)*(del_s*tgrad(iq,kk)
-     .                      +st(iq,k)*(3.*(t(iq,kk+1)-t(iq,kk))
-     .                           -del_s*(2.*tgrad(iq,kk)+tgrad(iq,kk+1)) 
-     .                      +st(iq,k)*(2.*(t(iq,kk)-t(iq,kk+1))
-     .                          +del_s*(tgrad(iq,kk)+tgrad(iq,kk+1)) )))     
-        cmin=min(t(iq,kk),t(iq,kk+1)) 
-        cmax=max(t(iq,kk),t(iq,kk+1)) 
-        toutt(iq,k)= min(max(cmin,toutt(iq,k)),cmax)  
-       enddo
-      enddo
-      if(diag)then
-        print *,'t in  ',(t(idjd,k),k=1,kl)
-        print *,'tgrad ',(tgrad(idjd,k),k=1,kl)
-        print *,'toutt ',(toutt(idjd,k),k=1,kl)
-      endif
-
-!     can impose non-negative constraint here
-      if(ifield.eq.3)then
-        t=max(toutt,0.)
-      else
-        t=toutt
-      endif
-
-      if(diag)then
-        print *,'tout  ',(t(idjd,k),k=1,kl)
-      endif
-      return
-      end
-
-
-
-
-      parameter (ntopp=1)  ! 1 for 1-sided gradient at top & bottom full-levels
-c                          ! 2 for zero gradient at top & bottom full-levels
-      include 'newmpar.h'
-      include 'parm.h'
-      include 'parmvert.h'
-      include 'sigs.h'
-      real t(ifull,kl),st(ifull,kl)
-      dimension kdel(ifull,kl)
-      common/work3/tgrad(ifull,kl),toutt(ifull,kl),dum(3*ijk)
-c     st() is the sigma displacement array
-c     if(ktau.eq.1)then
-c       print *,'in vadvbess with ntopp = ',ntopp
-c     endif
-
-      if(ntopp.eq.1)then  ! 1-sided
-        do iq=1,ifull
-         tgrad(iq,1)=(t(iq,2)-t(iq,1))/(sig(2)-sig(1))
-         tgrad(iq,kl)=(t(iq,kl)-t(iq,kl-1))/(sig(kl)-sig(kl-1))
-        enddo
-      endif  ! (ntopp.eq.1)
-      if(ntopp.eq.2)then
-        do iq=1,ifull
-         tgrad(iq,1)=0.
-         tgrad(iq,kl)=0.
-        enddo
-      endif  ! (ntopp.eq.2)
-
-      do k=2,kl-1
-       conkm=(sig(k)-sig(k+1))/((sig(k-1)-sig(k))*(sig(k-1)-sig(k+1)))
-       conk=(2.*sig(k)-sig(k-1)-sig(k+1))/
-     .                           ((sig(k)-sig(k-1))*(sig(k)-sig(k+1)))
-       conkp=(sig(k)-sig(k-1))/((sig(k+1)-sig(k-1))*(sig(k+1)-sig(k)))
-       do iq=1,ifull
-        tgrad(iq,k)=conkm*t(iq,k-1)+conk*t(iq,k)+conkp*t(iq,k+1)
-       enddo   ! iq loop
-      enddo    ! k loop
-
-      do k=1,kl
-       do iq=1,ifull
-        kk=kdel(iq,k)
-c        toutt(iq,k)=t(iq,kk)+st(iq,k)*(tgrad(iq,kk)
-c     .                      +st(iq,k)*(3.*(t(iq,kk+1)-t(iq,kk))
-c     .                                 -2.*tgrad(iq,kk)-tgrad(iq,kk+1)
-c     .                      +st(iq,k)*(2.*(t(iq,kk)-t(iq,kk+1))
-c     .                                 +tgrad(iq,kk)+tgrad(iq,kk+1) )))     
-        del_s=sig(kk+1)-sig(kk)
-        toutt(iq,k)=t(iq,kk)+st(iq,k)*(del_s*tgrad(iq,kk)
-     .                      +st(iq,k)*(3.*(t(iq,kk+1)-t(iq,kk))
-     .                           -del_s*(2.*tgrad(iq,kk)+tgrad(iq,kk+1)) 
-     .                      +st(iq,k)*(2.*(t(iq,kk)-t(iq,kk+1))
-     .                          +del_s*(tgrad(iq,kk)+tgrad(iq,kk+1)) )))     
-       enddo
-      enddo
-      if(diag)then
-        print *,'t in  ',(t(idjd,k),k=1,kl)
-        print *,'tgrad ',(tgrad(idjd,k),k=1,kl)
-        print *,'toutt ',(toutt(idjd,k),k=1,kl)
-      endif
-
-!     can impose non-negative constraint here
-      if(ifield.eq.3)then
-        tout=max(toutt,0.)
-      else
-        tout=toutt
-      endif
-
-      if(diag)then
-        print *,'tout  ',(tout (idjd,k),k=1,kl)
-      endif
-      return
-      end
-
-      subroutine vadvbess8(t,tout,st,kdel,ifield)
-!     same as vadvbess but with B & S limiter      
-!     returns t, u, v, q -  but tendencies formed in nonlin/adjust5
-!     watch out for replacing qg in place!
-      parameter (ntopp=1)  ! 1 for 1-sided gradient at top & bottom full-levels
-c                          ! 2 for zero gradient at top & bottom full-levels
-      include 'newmpar.h'
-      include 'parm.h'
-      include 'parmvert.h'
-      include 'sigs.h'
-      real t(ifull,kl),tout(ifull,kl),st(ifull,kl)
       dimension kdel(ifull,kl)
       common/work3/tgrad(ifull,kl),toutt(ifull,kl),dum(3*ijk)
 c     st() is the sigma displacement array
