@@ -1,5 +1,6 @@
       subroutine sflux(nalpha)              ! for globpe code
       use diag_m
+      use cc_mpi
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
       parameter (ndvmod=0)  ! 0 default, 1+ for dvmod tests
       parameter (ntss_sh=0) ! 0 for original, 3 for **3, 4 for **4
@@ -81,6 +82,8 @@ c     degdt is degdt (was ceva in surfupa/b)
       chnsea=(vkar/log(z1onzt))**2    ! should give .00085 for csiro9
 
       if(nspecial.eq.1)then
+         print*, "SFLUX, nspecial==1 doesn't work in MPI version"
+         stop
         do j=68,71  ! Eyre
          do i=27,28
           iq=i+(j-1)*il
@@ -110,7 +113,7 @@ c     degdt is degdt (was ceva in surfupa/b)
       endif   !  (nspecial.eq.1)
 
       if(ktau.eq.1.and.nrungcm.eq.3)then  ! for runs for PIRCS
-        print *,'entering sflux w2: ',wb(idjd,ms)
+        if (mydiag) print *,'entering sflux w2: ',wb(idjd,ms)
 c       due to uncertainty about NCEP value of field capacity, it may be
 c       more appropriate to define it as 75% of ssat (for PIRCS93)
         sfc(2)=.75*ssat(2)
@@ -132,7 +135,7 @@ c           wb(iq,1)=sfc(isoil)
 c           wb(iq,ms)=sfc(isoil)
 c        enddo        !  ip=1,ipland
 c        endif  ! (nrungcm.eq.4)
-        print *,'then w2: ',wb(idjd,ms)
+        if (mydiag) print *,'then w2: ',wb(idjd,ms)
       endif          !  (ktau.eq.1.and.nrungcm.eq.3)
 
 !     at start of each day allow for sice mask changes
@@ -182,13 +185,15 @@ c        endif  ! (nrungcm.eq.4)
           enddo   !  ip loop
           ipsice=indexi
         endif        ! (nbd.ne.0.or.namip.ne.0)
-        print *,'ktau,ipland,ipsice,ipsea update in sflux: ',
-     .           ktau,ipland,ipsice,ipsea
-        print *,'nblend,newztsea,ntaft,ztv,chnsea: ',
-     .           nblend,newztsea,ntaft,ztv,chnsea   
+        if ( myid == 0 ) then
+           print *,'ktau,ipland,ipsice,ipsea update in sflux: ',
+     .              ktau,ipland,ipsice,ipsea
+           print *,'nblend,newztsea,ntaft,ztv,chnsea: ',
+     .              nblend,newztsea,ntaft,ztv,chnsea   
+        end if
       endif          ! (mod(ktau,nperday).eq.1)
 
-      if((diag.or.ntest.eq.1).and.id.le.il.and.jd.le.jl)then
+      if((diag.or.ntest.eq.1).and.mydiag)then
         print *,'entering sflux ktau,nsib,ivegt,isoilm,land '
      .         ,ktau,nsib,ivegt(idjd),isoilm(idjd),land(idjd)
         print *,'idjd,id,jd,slwa,sgsave ',
@@ -224,7 +229,7 @@ c     using av_vmod (1. for no time averaging)
       else
         ipsea0=ipland+1   ! used with leads  - just namip=2 at present
       endif
-      if(ntest.eq.2)print *,'before sea loop'
+      if(ntest.eq.2.and.mydiag)print *,'before sea loop'
 !      from June '03 use basic sea temp from tgg1 (so leads is sensible)      
 !cdir nodep
       do ip=ipsea0,ipsea                                                ! sea
@@ -342,6 +347,7 @@ c      cduv is now drag coeff *vmod                                     ! sea
 c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! sea
        taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                                ! sea
        tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                                ! sea
+       ! note that iq==idjd  can only be true on the correct process
        if(ntest.eq.1.and.iq.eq.idjd)then                                ! sea
          print *,'in sea loop for iq,idjd,ip,ipsea0: ',                 ! sea
      .                            iq,idjd,ip,ipsea0                     ! sea
@@ -354,7 +360,7 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! sea
          print *,'vmod,cduv,fg ',vmod(iq),cduv(iq),fg(iq)               ! sea
        endif                                                            ! sea
       enddo    !  ip=ipsea0,ipsea                                       ! sea
-      if(ntest.eq.2)print *,'after sea loop'
+      if(ntest.eq.2.and.mydiag)print *,'after sea loop'
 
       zminlog=log(zmin)
 !cdir nodep
@@ -466,7 +472,6 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! sice
        endif   ! (ntest.eq.1.and.iq.eq.idjd)                            ! sice
       enddo       ! ip=ipland+1,ipsice                                  ! sice
       if(ntest.eq.2)print *,'after sice loop'
-
 
 c----------------------------------------------------------------------
 
@@ -623,19 +628,21 @@ c     enddo
 
 c***  end of surface updating loop
 
-      if((diag.or.ntest.eq.1).and.id.le.il.and.jd.le.jl)then
-        print *,'at end of sflux, after call scrnout'
-        print *,'slwa,rdg,eg,fg ',
-     .           slwa(idjd),rdg(idjd),eg(idjd),fg(idjd)
-        print *,'tscrn,cduv,zolnd ',
-     .           tscrn(idjd),cduv(idjd),zolnd(idjd)
-        print *,'degdt,dfgdt,snowd,sice ',
-     .           degdt(idjd),dfgdt(idjd),snowd(idjd),sice(idjd)
-        print *,'u1,v1,qg1 ',u(idjd,1),v(idjd,1),qg(idjd,1)
-        print *,'w,w2,condx ',
-     .           wb(idjd,1),wb(idjd,ms),condx(idjd)
-        print *,'t1,tss,tgg_2,tgg_ms ',
-     .           t(idjd,1),tss(idjd),tgg(idjd,2),tgg(idjd,ms)
+      if(diag.or.ntest.eq.1)then
+         if ( mydiag ) then
+            print *,'at end of sflux, after call scrnout'
+            print *,'slwa,rdg,eg,fg ',
+     .               slwa(idjd),rdg(idjd),eg(idjd),fg(idjd)
+            print *,'tscrn,cduv,zolnd ',
+     .               tscrn(idjd),cduv(idjd),zolnd(idjd)
+            print *,'degdt,dfgdt,snowd,sice ',
+     .               degdt(idjd),dfgdt(idjd),snowd(idjd),sice(idjd)
+            print *,'u1,v1,qg1 ',u(idjd,1),v(idjd,1),qg(idjd,1)
+            print *,'w,w2,condx ',
+     .               wb(idjd,1),wb(idjd,ms),condx(idjd)
+            print *,'t1,tss,tgg_2,tgg_ms ',
+     .               t(idjd,1),tss(idjd),tgg(idjd,2),tgg(idjd,ms)
+         end if
         call maxmin(tscrn,'tc',ktau,1.,1)
         call maxmin(scrrel,'rh',ktau,1.,1)
       endif
@@ -643,6 +650,7 @@ c***  end of surface updating loop
       end
 
       subroutine sib3(nalpha)     ! new version of sib1 with soilsnowv
+      use cc_mpi
       parameter (ntest=0) ! ntest= 0 for diags off; ntest= 1 for diags on
       parameter (itnmeth=5) ! 0 for original N_R iteration method
 !     parameter (nsigmf=1)  ! 0 for original tsigmf usage in sib3; prefer 1
@@ -730,22 +738,24 @@ c        code where eta provided (e.g. for PIRCS)
 !eak         wbavst(iq)=0.
         enddo         ! ip=1,ipland
 
-        iveg=ivegt(idjd)
-        isoil = isoilm(idjd)
-        tsoil=0.5*(0.3333*tgg(idjd,2)+0.6667*tgg(idjd,3)
+        if ( mydiag ) then
+           iveg=ivegt(idjd)
+           isoil = isoilm(idjd)
+           tsoil=0.5*(0.3333*tgg(idjd,2)+0.6667*tgg(idjd,3)
      &             +0.95*tgg(idjd,4) +  0.05*tgg(idjd,5))
-        ftsoil=max( 0. , 1.-.0016*(298.-tsoil)*max(0.,298.-tsoil) )
-        tsigmf(idjd)=max(0.,sigmf(idjd)-scveg44(iveg)*(1.-ftsoil))
-        print *,'nsib,iveg,isoil,nalpha,nsigmf,tsigmf,newfgf ',
+           ftsoil=max( 0. , 1.-.0016*(298.-tsoil)*max(0.,298.-tsoil) )
+           tsigmf(idjd)=max(0.,sigmf(idjd)-scveg44(iveg)*(1.-ftsoil))
+           print *,'nsib,iveg,isoil,nalpha,nsigmf,tsigmf,newfgf ',
      .           nsib,iveg,isoil,nalpha,nsigmf,tsigmf(idjd),newfgf
-        print *,'tsoil,ftsoil,scveg44,sigmf ',
+           print *,'tsoil,ftsoil,scveg44,sigmf ',
      .           tsoil,ftsoil,scveg44(iveg),sigmf(idjd)
-        print *,'swilt,sfc,wb1-6 ',
+           print *,'swilt,sfc,wb1-6 ',
      .           swilt(isoil),sfc(isoil),(wb(idjd,k),k=1,ms)
-        rlai_d= max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil))
-        srlai=rlai_d+rlais44(iveg)
-        rsmin(idjd)=rsunc44(iveg)/rlai_d ! now always done
-        print *,'rlai,srlai,rsmin ',rlai_d,srlai,rsmin(idjd)
+           rlai_d= max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil))
+           srlai=rlai_d+rlais44(iveg)
+           rsmin(idjd)=rsunc44(iveg)/rlai_d ! now always done
+           print *,'rlai,srlai,rsmin ',rlai_d,srlai,rsmin(idjd)
+        end if
       endif           ! (ktau.eq.1)
       rmstep=dt/60.
 
@@ -970,7 +980,7 @@ c        evaporation from the bare ground
 c        following reduces degdt by factor of 10 for dew
          degdt(iq)=.55*deg+sign(.45*deg,qtgnet)
         enddo   ! ip=1,ipland
-        if(ntest.eq.1)then  ! SX5: don't put this test in above loop
+        if(ntest.eq.1.and.mydiag)then  ! SX5: don't put this test in above loop
           iq=idjd
           print *,'epot,egg,wetfac,tgg1 ',
      .             epot(iq),egg(iq),wetfac(iq),tgg(iq,1)
@@ -1318,7 +1328,6 @@ ca   &                       +beta/airr(iq) ) ! re-factored by jlm
 !-------------------------------------
 c     print *,'before soilsnow'
       call soilsnowv
- 
 c     print *,'after soilsnow'
 !cdir nodep
       do ip=1,ipland  ! all land points in this nsib=3 loop

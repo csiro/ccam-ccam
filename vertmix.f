@@ -1,5 +1,6 @@
       subroutine vertmix
 !     inputs & outputs: t,u,v,qg
+      use cc_mpi, only : mydiag
       use diag_m
       include 'newmpar.h'
       parameter (ntest=0)
@@ -62,7 +63,7 @@ c     set coefficients for Louis scheme
        delh(k)=-rong *dsig(k)/sig(k)  ! sign of delh defined so always +ve
        sigkap(k)=sig(k)**(-roncp)
       enddo      ! k loop
-      if(diag.or.ntest.ge.1)then
+      if( (diag.or.ntest.ge.1).and.mydiag)then
         print *,'sig ',sig
         print *,'dsig ',dsig
         print *,'delh ',delh
@@ -210,7 +211,7 @@ c     ************ section for Geleyn shallow convection *******************
       endif     ! (ksc.eq.-99)
 c     *********** end of Geleyn shallow convection section *****************
 
-      if(ntest.ne.0.or.diag)then
+      if( (ntest.ne.0.or.diag) .and. mydiag)then
         iq=idjd
         print *,'for shallow convection in vertmix '
 	 print *,'kbsav,ktsav,theeb: ',kbsav(iq),ktsav(iq),theeb(iq)
@@ -304,7 +305,7 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
          enddo   ! iq loop
        endif     ! (nvmix.ne.0)
 
-       if(diag.or.ntest.eq.2)then
+       if((diag.or.ntest.eq.2).and.mydiag)then
          print *,'k,dt,delsig,sqmxl,dzr ',
      .            k,dt,delsig,sqmxl(idjd),dzr(idjd)
          print *,'k,t,t+,ps ',k,t(idjd,k),t(idjd,k+1),ps(idjd)
@@ -320,7 +321,7 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
        endif
       enddo      ! end of k loop
 
-      if(diag.or.ntest.ge.1)then
+      if( (diag.or.ntest.ge.1) .and. mydiag )then
         print *,'before possible call to pbldif in vertmix'
           write (6,"('rkh0 ',16f8.3)") (rkh(idjd,k),k=1,16)
           write (6,"('rkm0 ',16f8.3)") (rkm(idjd,k),k=1,16)
@@ -341,7 +342,7 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
         call pbldif(rhs,rkh,rkm,uav,vav)
 !       n.b. *** pbldif partially updates qg and theta (t done during trim)	 
 !       ncar info is returned in rkm_nl and rkh_nl arrays
-        if(diag.or.ntest.ge.1)then
+        if( (diag.or.ntest.ge.1) .and. mydiag )then
 	   print *,'after pbldif in vertmix'
           write (6,"('rkh1 ',16f8.3)") (rkh(idjd,k),k=1,16)
           write (6,"('rkm1 ',16f8.3)") (rkm(idjd,k),k=1,16)
@@ -370,8 +371,10 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
       gt(:,kl)=0.
       if(diag)then
         call maxmin(guv,'gu',ktau,1.e3,kl)
-        print *,'vertmix guv ',(guv(idjd,k),k=1,kl)
-        print *,'vertmix gt ',(gt(idjd,k),k=1,kl)
+        if ( mydiag ) then
+           print *,'vertmix guv ',(guv(idjd,k),k=1,kl)
+           print *,'vertmix gt ',(gt(idjd,k),k=1,kl)
+        end if
         call printa('t   ',t,ktau,nlv,ia,ib,ja,jb,200.,1.)
         call printa('tss ',tss,ktau,nlv,ia,ib,ja,jb,200.,1.)
         call printa('eg  ',eg,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -389,7 +392,7 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
      .       guv(iq,k)=guv(iq,k)-convpsav(iq)*.5      ! with factor of .5
           enddo  ! iq loop
         enddo    ! k loop
-        if(diag)then
+        if(diag.and.mydiag)then
           print *,'vertmix after conv; kb,kt,convp'
      .     ,kbsav(idjd),ktsav(idjd),convpsav(idjd)
           print *,'new guv',(guv(idjd,k),k=1,kl)
@@ -427,7 +430,7 @@ c     first do theta (then convert back to t)
          enddo   ! iq loop
         enddo    !  k loop
       endif      !  (npanels.gt.0) .. else ..
-      if(diag.or.ntest.eq.2)then
+      if((diag.or.ntest.eq.2).and.mydiag)then
         print *,'ktau,fg,tss,ps ',ktau,fg(idjd),tss(idjd),ps(idjd)
         print *,'at ',(at(idjd,k),k=1,kl)
         print *,'ct ',(ct(idjd,k),k=1,kl)
@@ -441,9 +444,11 @@ c     first do theta (then convert back to t)
         enddo  ! iq loop
       enddo      !  k loop
       if(diag)then
-        print *,'vertmix eg,fg,cdtq,land '
+         if (mydiag) then
+            print *,'vertmix eg,fg,cdtq,land '
      .                  ,eg(idjd),fg(idjd),cdtq(idjd),land(idjd)
-        print *,'vertmix theta after trim ',(rhs(idjd,k),k=1,kl)
+            print *,'vertmix theta after trim ',(rhs(idjd,k),k=1,kl)
+         end if
         call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
       endif
 
@@ -496,7 +501,7 @@ c     now do trace gases
         cu(iq,k) =-guv(iq,k)/dsig(k)    ! globpea
        enddo   ! iq loop
       enddo    !  k loop
-      if(diag.or.ntest.eq.2)then
+      if((diag.or.ntest.eq.2).and.mydiag)then
         print *,'au ',(au(idjd,k),k=1,kl)
         print *,'cu ',(cu(idjd,k),k=1,kl)
       endif      ! (ntest.eq.2)
@@ -505,7 +510,7 @@ c     first do u
       rhs(1:ifull,:)=u(1:ifull,:)
       call trim(au,cu,rhs,0)
       u(1:ifull,:)=rhs(1:ifull,:)
-      if(diag)then
+      if(diag.and.mydiag)then
         print *,'vertmix au ',(au(idjd,k),k=1,kl)
       endif
 
@@ -513,7 +518,7 @@ c     now do v; with properly unstaggered au,cu
       rhs(1:ifull,:)=v(1:ifull,:)
       call trim(au,cu,rhs,0)    ! note now that au, cu unstaggered globpea
       v(1:ifull,:)=rhs(1:ifull,:)
-      if(diag.or.ntest.ge.1)then
+      if((diag.or.ntest.ge.1).and.mydiag)then
         print *,'after trim in vertmix '
         write (6,"('thet',19f7.2/(8x,19f7.2))") 
      .              (sigkap(k)*t(idjd,k),k=1,kl) 
@@ -534,6 +539,7 @@ c       call maxmin(v,'vv',ktau,1.,kl)
 
       subroutine tracervmix( at, ct, updtr )
 c     this routine does the vertical mixing of tracers
+      use cc_mpi, only : mydiag
       use diag_m
       parameter (ntest=0)  ! 1 for diag prints
       include 'newmpar.h'
@@ -563,30 +569,38 @@ c          = - conflux * phi / ps
 
       if( iradon.ne.0 ) then
 	 k2=max(2*iradon,1)/max(iradon,1)  ! 1 for iradon=0	 
-        if(ntest.eq.1)print *,'ktau,iradon,trfact ',ktau,iradon,trfact
+        if(ntest.eq.1.and.mydiag)
+     &        print *,'ktau,iradon,trfact ',ktau,iradon,trfact
         call radonsflux
-        if(ntest.eq.1)print *,'after radsflux tr1&2,trsrc ',
-     .  tr(idjd,1,max(1,iradon)),tr(idjd,k2,max(1,iradon)),trsrc(idjd,1)
+        if(ntest.eq.1.and.mydiag)
+     &       print *,'after radsflux tr1&2,trsrc ',
+     &  tr(idjd,1,max(1,iradon)),tr(idjd,k2,max(1,iradon)),trsrc(idjd,1)
         call radonvmix (updtr, trfact )
-        if(ntest.eq.1)print *,'after radonvmix tr1&2,updtr ',
-     .  tr(idjd,1,max(1,iradon)),tr(idjd,k2,max(1,iradon)),updtr(idjd,1)
+        if(ntest.eq.1.and.mydiag)
+     &       print *,'after radonvmix tr1&2,updtr ',
+     &  tr(idjd,1,max(1,iradon)),tr(idjd,k2,max(1,iradon)),updtr(idjd,1)
         call trimcopy(at,ct,updtr,iradon) ! same as trim but holds bdy vals
-        if(ntest.eq.1)print *,'after trim tr1&2,updtr ',
-     .  tr(idjd,1,max(1,iradon)),tr(idjd,k2,max(1,iradon)),updtr(idjd,1)
+        if(ntest.eq.1.and.mydiag)
+     &       print *,'after trim tr1&2,updtr ',
+     &  tr(idjd,1,max(1,iradon)),tr(idjd,k2,max(1,iradon)),updtr(idjd,1)
       end if
 
       if( ico2.ne.0 ) then
 	 k2=max(2*ico2,1)/max(ico2,1)  ! 1 for ico2=0
-        if(ntest.eq.1)print *,'ktau,ico2,co2fact ',ktau,ico2,co2fact
+        if(ntest.eq.1.and.mydiag)
+     &        print *,'ktau,ico2,co2fact ',ktau,ico2,co2fact
         call co2sflux
-        if(ntest.eq.1)print *,'after co2sflux tr1&2,trsrc ',
-     .      tr(idjd,1,max(1,ico2)),tr(idjd,k2,max(1,ico2)),trsrc(idjd,1)
+        if(ntest.eq.1.and.mydiag)
+     &       print *,'after co2sflux tr1&2,trsrc ',
+     &      tr(idjd,1,max(1,ico2)),tr(idjd,k2,max(1,ico2)),trsrc(idjd,1)
         call co2vmix(updtr, co2fact )
-        if(ntest.eq.1)print *,'after co2vmix tr1&2,updtr ',
-     .      tr(idjd,1,max(1,ico2)),tr(idjd,k2,max(1,ico2)),updtr(idjd,1)
+        if(ntest.eq.1.and.mydiag)
+     &       print *,'after co2vmix tr1&2,updtr ',
+     &      tr(idjd,1,max(1,ico2)),tr(idjd,k2,max(1,ico2)),updtr(idjd,1)
         call trimcopy(at,ct,updtr,ico2)
-        if(ntest.eq.1)print *,'after trim tr1&2,updtr ',
-     .      tr(idjd,1,max(1,ico2)),tr(idjd,k2,max(1,ico2)),updtr(idjd,1)
+        if(ntest.eq.1.and.mydiag)
+     &       print *,'after trim tr1&2,updtr ',
+     &      tr(idjd,1,max(1,ico2)),tr(idjd,k2,max(1,ico2)),updtr(idjd,1)
         if(ntest.eq.1)then
 c         print *,'can mel sources ',ktau,trsrc(46,57,1),trsrc(39,52,1)
 c         print *,'can mel conc lev1 ',ktau,tr(46,57,1,2),tr(39,52,1,2)

@@ -55,10 +55,12 @@
         enddo      ! k loop
       endif  ! (m.eq.6)
 
-      if(tx(idjd,kl).gt.264..and.mydiag)then
-        print *
-        print *,'upglobal a',ktau,id,jd,tx(idjd,kl)
-      endif           ! (tx(idjd,kl).gt.264.)
+      if ( mydiag ) then
+         if(tx(idjd,kl).gt.264)then
+            print *
+            print *,'upglobal a',ktau,id,jd,tx(idjd,kl)
+         endif                  ! (tx(idjd,kl).gt.264.)
+      end if
 
       if(num_hight.lt.100)then
         do iq=1,ifull

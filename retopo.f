@@ -5,6 +5,7 @@ c     this routine redefines psl, ps, t to compensate for zsold going to zs
 c     (but does not overwrite zs itself here)
 c     called by indata and nestin for newtop.ge.1
 !     nowadays just for ps and atmospheric fields Mon  08-23-1999
+      use cc_mpi, only : mydiag
       include 'newmpar.h'
       include 'const_phys.h'
       include 'parm.h'
@@ -20,7 +21,7 @@ c     first dum inserted so as not to conflict with zsb in nestin
        ps(iq)=1.e5*exp(psl(iq))
       enddo
 c     now alter temperatures to compensate for new topography
-      if(ktau.lt.100)then
+      if(ktau.lt.100.and.mydiag)then
         print *,'entering retopo, old t ',(t(idjd,k),k=1,kl)
         print *,'entering retopo, old qg ',(qg(idjd,k),k=1,kl)
         print *,'zsold,zs,psold,ps ',
@@ -47,7 +48,7 @@ c         assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
         endif
        enddo  ! k loop
       enddo   ! iq loop
-      if(ktau.lt.100)then
+      if(ktau.lt.100.and.mydiag)then
         print *,'retopo new t ',(t(idjd,k),k=1,kl)
         print *,'retopo new qg ',(qg(idjd,k),k=1,kl)
       endif  ! (ktau.lt.100)

@@ -2,7 +2,7 @@
 c                              vadvbott & vadvyu at bottom
 !     can show adding tbar has no effect
 !     N.B. uin and uout may share same storage (similarly tin, vin)
-      use cc_mpi, only : mydiag
+      use cc_mpi, only : mydiag, myid
       include 'newmpar.h'
 !     parameter (sdotfilt=0.)  ! tried .3 - not useful
 !     parameter (nimp=1)  !  0 for original explicit non-flux TVD term
@@ -52,7 +52,7 @@ c       tfact=1.
 c     endif
       tfact=1./nvadh   ! simpler alternative
 
-      if(num.eq.0)then
+      if(num.eq.0.and.myid==0)then
         num=1
         print *,'In vadvtvd nvad,nvadh,nimp,nthub,ntvd,tfact ',
      .                      nvad,nvadh,nimp,nthub,ntvd,tfact
