@@ -290,6 +290,11 @@ c Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
             qcg(mg,k)=0.
           endif
 
+          ! Roundoff check
+          if ( qcg(mg,k) <= 0. ) then
+             cfrac(mg,k) = 0.
+          end if
+
 c Calculate the cloud fraction (cfa) in which ql exceeds qcrit, and
 c the corresponding gridbox-mean cloud water mixing ratio qca. 
 c This (qca) is the cloud-water mixing ratio inside cfa divided by cfa.
