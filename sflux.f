@@ -381,7 +381,7 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! sea
        constz=ps(iq)-es                                                 ! sice
        qsttg(iq)= .622*es/constz                                        ! sice
        drst=qsttg(iq)*ps(iq)*hlars/(tgg(iq,3)*tgg(iq,3)*constz)         ! sice
-       xx(iq)=gravzmin*(1.-tgg(iq,3)*srcp/t(iq,1))                      ! sice
+       xx(iq)=grav*zmin*(1.-tgg(iq,3)*srcp/t(iq,1))                     ! sice
        ri_ice=xx(iq)/vmod(iq)**2                                        ! sice
        factch(iq)=sqrt(7.4)  ! same as land from 27/4/99                ! sice
 !      factch(iq)=1.   ! factch is sqrt(zo/zt) for use in unstable fh   ! sice
