@@ -1,3 +1,100 @@
+      module readvar_m
+      use cc_mpi
+      implicit none
+      private
+      public :: readvar
+      interface readvar
+        module procedure readvar2, readvar3, readvar2i
+      end interface
+      contains
+
+      subroutine readvar2(un,var,skip)
+      include 'newmpar.h'
+      integer, intent(in) :: un
+      real, dimension(:), intent(out) :: var
+      logical, intent(in) :: skip
+      real, dimension(ifull_g) :: varg
+
+      if ( skip ) then
+         if ( myid == 0 ) then
+            read(un)
+         end if
+      else
+         if ( myid == 0 ) then
+            read(un) varg
+            ! Use explicit ranges here because some arguments might be extended.
+            call ccmpi_distribute(var(1:ifull),varg)
+         else
+            call ccmpi_distribute(var(1:ifull))
+         end if
+      end if
+
+      end subroutine readvar2
+
+      subroutine readvar2i(un,var,skip)
+      include 'newmpar.h'
+      integer, intent(in) :: un
+      integer, dimension(:), intent(out) :: var
+      logical, intent(in) :: skip
+      integer, dimension(ifull_g) :: varg
+
+      if ( skip ) then
+         if ( myid == 0 ) then
+            read(un)
+         end if
+      else
+         if ( myid == 0 ) then
+            read(un) varg
+            ! Use explicit ranges here because some arguments might be extended.
+            call ccmpi_distribute(var(1:ifull),varg)
+         else
+            call ccmpi_distribute(var(1:ifull))
+         end if
+      end if
+
+      end subroutine readvar2i
+
+      subroutine readvar3(un,var,skip)
+      include 'newmpar.h'
+      integer, intent(in) :: un
+      real, dimension(:,:), intent(out) :: var
+      logical, intent(in) :: skip
+      real, dimension(ifull_g,size(var,2)) :: varg
+      integer :: k, kk
+
+      kk = size(var,2)
+
+      if ( skip ) then
+         if ( myid == 0 ) then
+            read(un)
+         end if
+      else
+         if ( myid == 0 ) then
+            read(un) varg
+            ! Use explicit ranges here because some arguments might be extended.
+            ! ccmpi_distribute3 expects kl, it's not general
+            if ( kk == kl ) then
+               call ccmpi_distribute(var(1:ifull,:),varg)
+            else
+               do k=1,kk
+                  call ccmpi_distribute(var(1:ifull,k),varg(:,k))
+               end do
+            end if
+         else
+            if ( kk == kl ) then
+               call ccmpi_distribute(var(1:ifull,:))
+            else
+               do k=1,kk
+                  call ccmpi_distribute(var(1:ifull,k))
+               end do
+            end if
+         end if
+      end if
+
+      end subroutine readvar3
+
+      end module readvar_m
+
       subroutine infile(io_in2,kdate_r,ktime_r,nem2,
      . timeg_r,ds_r,psl,pmsl,zs,em,f,
      . tss,precip,wb,wbice,alb,snowd,sicedep,
@@ -12,6 +109,7 @@
 !     From March 2000 exact kdate, ktime are calculated and compared
       use cc_mpi
       use diag_m
+      use readvar_m
       implicit none
       include 'newmpar.h'
       include 'extraout.h'
@@ -20,6 +118,8 @@
       include 'screen.h'
       include 'stime.h'  ! kdate_s,ktime_s  sought values for data read
       include 'tracers.h'
+      include 'mpif.h'
+      include 'dates.h'
       integer io_in2, kdate_r, ktime_r, nem2, nested
       real timeg_r, ds_r
       real sigin
@@ -37,12 +137,18 @@
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      . ssdnn(ifull),osnowd(ifull),snage(ifull)
       integer isflag(ifull)
-      real timeg
       integer ktau_r, ibb, jbb, i, ii, jj, k, iq, mtimer_in
+      integer ik, jk, m2, nsd2, nx1, nps2, mex2, mup2, mtimer_r, nmi2,
+     &        ndt2, npsav2, nhor2, khdif2, kwt2, nx3, nx4, nvad2,
+     &        nunst2, nrun2, nrunx2, ndum, nn, ntsea2, ms2, nkuo2,
+     &        nextras, ntrac2, nij, nijk, imax, id2, jmax, jd2, n, ntr
+      real timer_r, difknbd, rhkuo, du, tanl, dumpsa, dumpsm
+      integer :: ierr
 
       character rundat2*10
       integer, save :: ncalled=0
       integer, save :: nqg_setin
+      logical :: skip
 
       if(ncalled.eq.0)then
         nqg_setin=nqg_set   ! to allow for reading nested first
@@ -53,238 +159,261 @@
       mtimer_in = 0
 
       if(abs(io_in).eq.3)then   
-         print*, "Error: binary input not supported in MPI version"
-         stop
-!!!3     read(10,end=8) kdate_r,ktime_r,ktau_r,ik,jk,kk,m2,nsd2,
-!!!     .  io_in2,nx1,nps2,mex2,mup2,nem2,mtimer_r,nmi2,ndt2,
-!!!     .  npsav2,rundat2,nhor2,nkuo2,khdif2,kwt2,nx3,nx4,
-!!!     .  timer_r,timeg_r,ds_r,nvad2,nqg_r,nunst2,nrun2,nrunx2,
-!!!     .  (ndum,nn=1,8),ntsur2,(ndum,nn=1,3),ntsea2,ms2,nextras,
-!!!     .   ndum,ntrac2,difknbd,rhkuo,du,tanl,rlong0x,rlat0x,schmidtx
-!!!      print *
-!!!      print *,'in:',kdate_r,ktime_r,ktau_r,ik,jk,kk,m2,nsd2,io_in2,
-!!!     .  nps2,mex2,mup2,nem2,mtimer_r,
-!!!     .  nmi2,ndt2,npsav2,rundat2,nhor2,nkuo2,khdif2,kwt2,
-!!!     .  nx3,nx4,timer_r,timeg_r,ds_r,nvad2,nqg_r,nunst2,nrun2,nrunx2,ms2
-!!!      print *,'values read in for timer_r, mtimer_r: ',timer_r,mtimer_r
-!!!      if(kk.gt.kwt2)stop 'kk.gt.kwt2'
-!!!      if(mtimer_r.eq.10)mtimer_r=0  ! till jjk fixes up input file 
-!!!      if(mtimer_r.ne.0)then  ! preferred
-!!!!       assume mtimer_r is read in correctly and set timer_r from that
-!!!        timer_r=mtimer_r/60.
-!!!      else ! mtimer_r = 0
-!!!        mtimer_r=nint(60.*timer_r)
-!!!      endif
-!!!      print *,'giving timer_r, mtimer_r: ',timer_r,mtimer_r
-!!!      mtimer_in=mtimer_r
-!!!      call datefix(kdate_r,ktime_r,mtimer_r)   ! for Y2K, or mtimer_r>0
-!!!      print *,'after datefix kdate_r,ktime_r,mtimer_r: ',
-!!!     .                       kdate_r,ktime_r,mtimer_r
-!!!      nij=ik*jk
-!!!      nijk=nij*kk
-!!!      imax=min(ik,il)
-!!!      id2=max(ik-il,0)
-!!!      jmax=min(jk,jl)
-!!!      jd2=max(jk-jl,0)
-!!!      read(10) (sigin(i),i=1,kk)
-!!!      nqg_set=min(nqg_r,nqg_setin)
-!!!      if(ncalled.lt.4)then
-!!!        print *,'ds_r,nqg_r,nqg_set,mtimer_r:',
-!!!     .           ds_r,nqg_r,nqg_set,mtimer_r
-!!!        print *,'ik,imax,id2 ',ik,imax,id2
-!!!        print *,'jk,jmax,jd2 ',jk,jmax,jd2
-!!!        print *,'rlong0x,rlat0x,schmidtx',rlong0x,rlat0x,schmidtx
-!!!        print *,'sig in: ',(sigin(i),i=1,kk)
-!!!      endif    ! (ncalled.lt.4)
-!!!      read(10) psl
-!!!      read(10) pmsl
-!!!c     this is actually pmsl for io_in=3
-!!!      read(10) zs
-!!!c     following assumes data written with nem=1 option
-!!!      read(10) em
-!!!      read(10) f
-!!!      read(10) tss
-!!!      read(10) precip
-!!!      if(ncalled.lt.4)then
-!!!        write (6,"('100*psl# in',3f7.2,1x,3f7.2,1x,3f7.2)") 
-!!!     .              ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        print *,'pmsl# in: ',
-!!!     . 	 ((pmsl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        write (6,"('zs# in  ',3f7.1,1x,3f7.1,1x,3f7.1)") 
-!!!     .              ((zs(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        print *,'em# in: ',
-!!!     . 	 ((em(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        print *,'f# in: ',((f(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        write (6,"('tss# in ',3f7.1,1x,3f7.1,1x,3f7.1)") 
-!!!     .              ((tss(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        write (6,"('prec# in',3f7.2,1x,3f7.2,1x,3f7.2)") 
-!!!     .         ((precip(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!      endif
-!!!c
-!!!c     soil temp and moisture
-!!!      if(nqg_r.ge.8)then
-!!!        read(10) ((tgg(iq,k),iq=1,ifull),k=1,ms)
-!!!        read(10) (( wb(iq,k),iq=1,ifull),k=1,ms)
-!!!      else      ! from old write, meant for nsib=0 or 1
-!!!c       read subsoil temps in this case, lower one first
-!!!        read(10) (tgg(iq,ms),iq=1,ifull)
-!!!        read(10) (tgg(iq,2),iq=1,ifull)
-!!!c       read subsoil moistures, upper one first
-!!!        read(10)(wb(iq,1),iq=1,ifull)
-!!!        read(10)(wb(iq,ms),iq=1,ifull)
-!!!        do iq=1,ifull
-!!!         tgg(iq,1) = abs(tss(iq))
-!!!         wb(iq,2)  = wb(iq,1)    ! layer initialisation of moisture
-!!!         do k=3,ms-1
-!!!          wb(iq,k)  = wb(iq,ms)  ! layer initialisation of moisture
-!!!         enddo
-!!!         tgg(iq,3) = tgg(iq,2)   ! initial temper. from GCM runs with 3 layers
-!!!         do k=4,ms-1
-!!!          tgg(iq,k) = tgg(iq,ms) ! initial temper. from GCM runs with 3 layers
-!!!         enddo
-!!!        enddo  ! iq loop
-!!!      endif    ! (nqg_r.ge.8)  .. else ..
-!!!      if(ncalled.lt.4)then
-!!!        print *,'infile '
-!!!        print *,'tgg(1)# ',
-!!!     .         ((tgg(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        print *,'tgg(2)# ',
-!!!     .         ((tgg(ii+(jj-1)*il,2),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        print *,'tgg(ms)# ',
-!!!     .         ((tgg(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        print *,'wb(1)# ',
-!!!     .         ((wb(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        print *,'wb(ms)# ',
-!!!     .         ((wb(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!      endif
-!!!      if(nqg_r.ge.4) then   ! N.B. some ifile's have ngq=3
-!!!        read(10) alb
-!!!        if(ncalled.lt.4)then
-!!!         print *,'alb# ',((alb(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        endif
-!!!      endif
-!!!      if(nqg_r.ge.5)then
-!!!c       precc just read in to dummy array
-!!!        read(10) precip
-!!!        if(ncalled.lt.4)then
-!!!          print *,'precc# ',
-!!!     . 	   ((precip(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        endif
-!!!      endif
-!!!      if(nqg_r.ge.6)then
-!!!c       snowd read in to snowd array
-!!!        read(10) snowd
-!!!c       N.B. these cloudlo, cloudmi, cloudhi not used because recalc. in radn
-!!!        read(10) dum1  ! cloudlo
-!!!        read(10) dum2  ! cloudmi
-!!!        read(10) dum3  ! cloudhi
-!!!
-!!!        read(10) sicedep  ! these were for nqg>=7
-!!!        read(10) dum1  ! tscrn
-!!!        read(10) dum2  ! qgscrn
-!!!        read(10) dum3  ! u10
-!!!        if(ncalled.lt.4)then
-!!!        write (6,"('snowd# in',9f7.2)") 
-!!!     .            ((snowd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        write (6,"('sicedep# in',9f7.2)") 
-!!!     .           ((sicedep(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        endif
-!!!      endif   ! (nqg_r.ge.6)
-!!!      if(nqg_set.lt.6)then
-!!!c       when no snowd available initially, e.g. COMPARE III (jlm formula)
-!!!        do iq=1,ifull                             ! "do" missing till 5/6/01
-!!!!         if(tss(iq).lt.270.)snowd(iq)=max(50.,snowd(iq))
-!!!!         for this one,snow lin. increases from 5 to 55, for T 270 down to 260
-!!!          if(abs(tss(iq)).lt.270.)snowd(iq)=
-!!!     .                                min(55.,5.*(271.-abs(tss(iq))))   
-!!!        enddo
-!!!        if(ncalled.lt.4)then
-!!!          print *,'setting snowd in infile, because nqg_set = ',nqg_set  
-!!!        write (6,"('snowd# preset to',9f7.2)") 
-!!!     .            ((snowd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!        endif
-!!!      endif   ! (nqg_set.lt.6)
-!!!      if(nqg_r.ge.9)then  ! eg, fg, taux, tauy, runoff
-!!!        read(10) (dummy,iq=1,ifull)
-!!!        read(10) (dummy,iq=1,ifull)
-!!!        read(10) (dummy,iq=1,ifull)
-!!!        read(10) (dummy,iq=1,ifull)
-!!!        read(10) (dummy,iq=1,ifull)
-!!!      endif
-!!!      if(nqg_r.ge.10)then  ! tmaxscr, tminscr, tscr_ave
-!!!        read(10) (dummy,iq=1,ifull)
-!!!        read(10) (dummy,iq=1,ifull)
-!!!        read(10) (dummy,iq=1,ifull)
-!!!      endif
-!!!      if(nqg_r.ge.11)then
-!!!	read(10) wbice
-!!!      endif
-!!!      if(nqg_r.ge.12)then
-!!!        print *,'reading snow variables: tggsn,smass,ssdn,snage,isflag'
-!!!	read(10) tggsn
-!!!       print *,'tggsn(1)# ',
-!!!     .         ((tggsn(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!	read(10) smass
-!!!	read(10) ssdn
-!!!	read(10) ssdnn
-!!!	read(10) osnowd  ! not saved for netcdf
-!!!	read(10) snage
-!!!      print *,'o kdate_r,ktime_r,mtimer_r: ',kdate_r,ktime_r,mtimer_r
-!!!	read(10) isflag
-!!!       print *,'isflag(1)# ',
-!!!     .         ((isflag(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-!!!      endif ! nqg = 12
-!!!      if(nqg_r.ge.13)then
-!!!        read(10) (dummy,iq=1,ifull) ! rtsave
-!!!        read(10) ((dummy,iq=1,ifull),n=1,8) ! tscrn3hr
-!!!      endif
-!!!
-!!!      read(10) (( t(iq,k),iq=1,ifull),k=1,kk)
-!!!        print *,'t in ',(t(idjd,k),k=1,kk),t(ifull,kk)
-!!!      read(10) (( u(iq,k),iq=1,ifull),k=1,kk)
-!!!        print *,'u in ',(u(idjd,k),k=1,kk),u(ifull,kk)
-!!!      read(10) (( v(iq,k),iq=1,ifull),k=1,kk)
-!!!      read(10) ((qg(iq,k),iq=1,ifull),k=1,kk)
-!!!        print *,'qg in ',(qg(idjd,k),k=1,kk),qg(ifull,kk)
-!!!      if(npsav2.gt.0)then
-!!!        read(10) (dumpsa,dumpsm,n=1,npsav2)
-!!!      endif
-!!!      if(ncalled.lt.4)then
-!!!        print *,'t in ',(t(idjd,k),k=1,kk),t(ifull,kk)
-!!!        print *,'u in ',(u(idjd,k),k=1,kk),u(ifull,kk)
-!!!        print *,'v in ',(v(idjd,k),k=1,kk),v(ifull,kk)
-!!!        print *,'qg in ',(qg(idjd,k),k=1,kk),qg(ifull,kk)
-!!!        print *,'last psa,psm ',dumpsa,dumpsm
-!!!        print *,'nsd2,ntrac2 ',nsd2,ntrac2
-!!!      endif  ! (ncalled.lt.4)
-!!!
-!!!      if(nsd2.eq.1)then    ! Thu  04-15-1993
-!!!        if(ncalled.lt.4)print *,'about to read sdot'
-!!!        read(10) (precip,i=1,kk)   ! sdot array into dummy precip array
-!!!      endif
-!!!      if(ntrac2.gt.1)then
-!!!        do ntr=1,ntrac2
-!!!         if(ntrac.eq.ntrac2)then
-!!!           if(ncalled.lt.4)print *,'read tr for ntr= ',ntr
-!!!           read(10) ((tr(iq,k,ntr),iq=1,ilt*jlt),k=1,klt)
-!!!         else
-!!!           if(ncalled.lt.4)print *,'dummy read tr for ntr= ',ntr
-!!!           read(10) dummy 
-!!!         endif  ! (ntrac.eq.ntrac2)
-!!!        enddo
-!!!      endif
-!!!
-!!!      print *,'kdate_r,ktime_r: ',kdate_r,ktime_r,
-!!!     .        'kdate_s,ktime_s >= ',kdate_s,ktime_s
-!!!      if( kdate_s.gt.kdate_r.or.
-!!!     .    (kdate_s.eq.kdate_r.and.ktime_s.gt.ktime_r))go to 3
-!!!      if(ncalled.eq.1)then
-!!!!       insist on exactly correct date for first call to infile
-!!!        if(kdate_s.ne.kdate_r.or.ktime_s.ne.ktime_r)then
-!!!          print *,'required date not on ifile'
-!!!          stop
-!!!        endif
-!!!      endif  ! (ncalled.eq.1)
+ 3      continue
+        if (myid == 0 ) then
+          read(10,end=8) kdate_r,ktime_r,ktau_r,ik,jk,kk,m2,nsd2,
+     &         io_in2,nx1,nps2,mex2,mup2,nem2,mtimer_r,nmi2,ndt2,
+     &         npsav2,rundat2,nhor2,nkuo2,khdif2,kwt2,nx3,nx4,
+     &         timer_r,timeg_r,ds_r,nvad2,nqg_r,nunst2,nrun2,nrunx2,
+     &         (ndum,nn=1,8),ntsur2,(ndum,nn=1,3),ntsea2,ms2,nextras,
+     &         ndum,ntrac2,difknbd,rhkuo,du,tanl,rlong0x,rlat0x,schmidtx
+          print *
+          print *,'in:',kdate_r,ktime_r,ktau_r,ik,jk,kk,m2,nsd2,io_in2,
+     &                 nps2,mex2,mup2,nem2,mtimer_r,
+     &                 nmi2,ndt2,npsav2,rundat2,nhor2,nkuo2,khdif2,kwt2,
+     &                 nx3,nx4,timer_r,timeg_r,ds_r,nvad2,nqg_r,nunst2,
+     &                 nrun2,nrunx2,ms2
+          print *,'values read in for timer_r, mtimer_r: ',
+     &          timer_r,mtimer_r
+          if(kk.gt.kwt2)stop 'kk.gt.kwt2'
+          if(mtimer_r.eq.10)mtimer_r=0 ! till jjk fixes up input file 
+          if(mtimer_r.ne.0)then ! preferred
+!           assume mtimer_r is read in correctly and set timer_r from that
+            timer_r=mtimer_r/60.
+          else  ! mtimer_r = 0
+            mtimer_r=nint(60.*timer_r)
+          endif
+          print *,'giving timer_r, mtimer_r: ',timer_r,mtimer_r
+          mtimer_in=mtimer_r
+          call datefix(kdate_r,ktime_r,mtimer_r) ! for Y2K, or mtimer_r>0
+          print *,'after datefix kdate_r,ktime_r,mtimer_r: ',
+     &                       kdate_r,ktime_r,mtimer_r
+          nij=ik*jk
+          nijk=nij*kk
+          imax=min(ik,il)
+          id2=max(ik-il,0)
+          jmax=min(jk,jl)
+          jd2=max(jk-jl,0)
+          read(10) (sigin(i),i=1,kk)
+          nqg_set=min(nqg_r,nqg_setin)
+          if(ncalled.lt.4)then
+            print *,'ds_r,nqg_r,nqg_set,mtimer_r:',
+     &            ds_r,nqg_r,nqg_set,mtimer_r
+            print *,'ik,imax,id2 ',ik,imax,id2
+            print *,'jk,jmax,jd2 ',jk,jmax,jd2
+            print *,'rlong0x,rlat0x,schmidtx',rlong0x,rlat0x,schmidtx
+            print *,'sig in: ',(sigin(i),i=1,kk)
+          endif                  ! (ncalled.lt.4)
+
+
+          print *,'kdate_r,ktime_r: ',kdate_r,ktime_r,
+     .            'kdate_s,ktime_s >= ',kdate_s,ktime_s
+          if( kdate_s.gt.kdate_r.or.
+     .      (kdate_s.eq.kdate_r.and.ktime_s.gt.ktime_r)) then
+             skip = .true.
+          else
+             skip = .false.
+          end if
+          if(ncalled.eq.1)then
+!       insist on exactly correct date for first call to infile
+             if(kdate_s.ne.kdate_r.or.ktime_s.ne.ktime_r)then
+                print *,'required date not on ifile'
+                stop
+             endif
+          endif                 ! (ncalled.eq.1)
+        endif  ! myid == 0 
+
+        call MPI_Bcast(nqg_r,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(ntrac2,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(skip,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(kk,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(sigin,kk,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(kdate,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(ktime,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(ktau_r,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(mtimer,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+!       call MPI_Bcast(timer,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+!       call MPI_Bcast(timeg,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+
+        call readvar(10,psl,skip)
+        call readvar(10,pmsl,skip)
+c     this is actually pmsl for io_in=3
+        call readvar(10,zs,skip)
+c     following assumes data written with nem=1 option
+        call readvar(10,em,skip)
+        call readvar(10,f,skip)
+        call readvar(10,tss,skip)
+        call readvar(10,precip,skip)
+        if(ncalled.lt.4.and.mydiag.and..not.skip)then
+          write (6,"('100*psl# in',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     .              100.*diagvals(psl)
+          print *,'pmsl# in: ', diagvals(pmsl)
+          write (6,"('zs# in  ',3f7.1,1x,3f7.1,1x,3f7.1)") 
+     .              diagvals(zs)
+          print *,'em# in: ', diagvals(em)
+          print *,'f# in: ', diagvals(f)
+          write (6,"('tss# in ',3f7.1,1x,3f7.1,1x,3f7.1)") 
+     .              diagvals(tss)
+          write (6,"('prec# in',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     .         diagvals(precip)
+        endif
+c
+c     soil temp and moisture
+        if(nqg_r.ge.8)then
+          do k=1,ms
+            call readvar(10,tgg(:,k),skip)
+          end do
+          do k=1,ms
+            call readvar(10,wb(:,k),skip)
+          end do
+        else      ! from old write, meant for nsib=0 or 1
+c         read subsoil temps in this case, lower one first
+          call readvar(10,tgg(:,ms),skip)
+          call readvar(10,tgg(:,2),skip)
+c         read subsoil moistures, upper one first
+          call readvar(10,wb(:,1),skip)
+          call readvar(10,wb(:,ms),skip)
+          tgg(:,1) = abs(tss(:))
+          wb(:,2)  = wb(:,1)    ! layer initialisation of moisture
+          do k=3,ms-1
+            wb(:,k)  = wb(:,ms) ! layer initialisation of moisture
+          enddo
+          tgg(:,3) = tgg(:,2)   ! initial temper. from GCM runs with 3 layers
+          do k=4,ms-1
+            tgg(:,k) = tgg(:,ms) ! initial temper. from GCM runs with 3 layers
+          enddo
+        endif    ! (nqg_r.ge.8)  .. else ..
+        if(ncalled.lt.4 .and. mydiag .and. .not.skip)then
+          print *,'infile '
+          print *,'tgg(1)# ', diagvals(tgg(:,1))
+          print *,'tgg(2)# ', diagvals(tgg(:,2))
+          print *,'tgg(ms)# ', diagvals(tgg(:,ms))
+          print *,'wb(1)# ', diagvals(wb(:,1))
+          print *,'wb(ms)# ', diagvals(wb(:,ms))
+        endif
+        if(nqg_r.ge.4) then     ! N.B. some ifile's have ngq=3
+          call readvar(10,alb,skip)
+          if(ncalled.lt.4.and. mydiag .and. .not.skip)then
+            print *,'alb# ', diagvals(alb)
+          endif
+        endif
+        if(nqg_r.ge.5)then
+c       precc just read in to dummy array
+          call readvar(10,precip,skip)
+          if(ncalled.lt.4 .and. mydiag .and. .not.skip)then
+            print *,'precc# ', diagvals(precip)
+          endif
+        endif
+        if(nqg_r.ge.6)then
+c       snowd read in to snowd array
+          call readvar(10, snowd, skip)
+          if ( myid == 0 ) then
+c       N.B. these cloudlo, cloudmi, cloudhi not used because recalc. in radn
+            read(10)           ! cloudlo
+            read(10)           ! cloudmi
+            read(10)           ! cloudhi
+          end if
+
+          call readvar(10,sicedep,skip) ! these were for nqg>=7
+          if ( myid == 0 ) then
+            read(10)           ! tscrn
+            read(10)           ! qgscrn
+            read(10)           ! u10
+          endif
+          if(ncalled.lt.4 .and. mydiag .and. .not.skip)then
+            write (6,"('snowd# in',9f7.2)") diagvals(snowd)
+            write (6,"('sicedep# in',9f7.2)") diagvals(sicedep)
+          endif
+        endif   ! (nqg_r.ge.6)
+        if(nqg_set.lt.6)then
+c         when no snowd available initially, e.g. COMPARE III (jlm formula)
+!         if(tss(iq).lt.270.)snowd(iq)=max(50.,snowd(iq))
+!         for this one,snow lin. increases from 5 to 55, for T 270 down to 260
+          where ( tss < 270. )
+            snowd = min(55.,5.*(271.-abs(tss)))   
+          endwhere
+          if(ncalled.lt.4 .and. mydiag .and. .not.skip)then
+            print *,'setting snowd in infile, because nqg_set = ',
+     &            nqg_set  
+            write (6,"('snowd# preset to',9f7.2)") diagvals(snowd)
+          endif
+        endif                    ! (nqg_set.lt.6)
+        if(nqg_r.ge.9.and.myid==0)then ! eg, fg, taux, tauy, runoff
+          read(10)
+          read(10)
+          read(10)
+          read(10)
+          read(10)
+        endif
+        if(nqg_r.ge.10.and.myid==0)then ! tmaxscr, tminscr, tscr_ave
+          read(10)
+          read(10)
+          read(10)
+        endif
+        if(nqg_r.ge.11)then
+          call readvar(10,wbice,skip)
+        endif
+        if(nqg_r.ge.12)then
+          print *,
+     &        'reading snow variables: tggsn,smass,ssdn,snage,isflag'
+          call readvar(10,tggsn,skip)
+          if ( mydiag .and. .not.skip )
+     &       print *,'tggsn(1)# ', diagvals(tggsn(:,1))
+          call readvar(10,smass,skip)
+          call readvar(10,ssdn,skip)
+          call readvar(10,ssdnn,skip)
+          call readvar(10,osnowd,skip) ! not saved for netcdf
+          call readvar(10,snage,skip)
+          if ( myid == 0 ) print *,'o kdate_r,ktime_r,mtimer_r: ',
+     &         kdate_r,ktime_r,mtimer_r
+          call readvar(10,isflag,skip)
+          if ( mydiag .and. .not.skip )
+     &       print *,'isflag(1)# ', diagvals(isflag)
+        endif ! nqg = 12
+        if(nqg_r.ge.13.and.myid==0)then
+          read(10) ! rtsave
+          read(10) ! tscrn3hr
+        endif
+
+        call readvar(10,t,skip)
+        call readvar(10,u,skip)
+        call readvar(10,v,skip)
+        call readvar(10,qg,skip)
+        if ( mydiag .and. .not.skip ) then
+          print *,'t in ',t(idjd,:)
+          print *,'u in ',u(idjd,:)
+          print *,'qg in ',qg(idjd,:)
+        end if
+        if(npsav2.gt.0 .and. myid == 0)then
+           read(10) (dumpsa,dumpsm,n=1,npsav2)
+        endif
+        if(ncalled.lt.4 .and. mydiag .and. .not.skip)then
+          print *,'t in ',t(idjd,:)
+          print *,'u in ',u(idjd,:)
+          print *,'v in ',v(idjd,:)
+          print *,'qg in ',qg(idjd,:)
+!          print *,'last psa,psm ',dumpsa,dumpsm
+!          print *,'nsd2,ntrac2 ',nsd2,ntrac2
+        endif  ! (ncalled.lt.4)
+
+        if(nsd2.eq.1.and.myid==0)then    ! Thu  04-15-1993
+          if(ncalled.lt.4)print *,'about to read sdot'
+          read(10) 
+        endif 
+        if(ntrac2.gt.1)then
+          do ntr=1,ntrac2
+            if(ntrac.eq.ntrac2)then
+              if(ncalled.lt.4.and.myid==0)
+     &              print *,'read tr for ntr= ',ntr
+              call readvar(10,tr(:,:,ntr),skip) ! ((tr(iq,k,ntr),iq=1,ilt*jlt),k=1,klt)
+            else
+              if(ncalled.lt.4.and.myid==0) 
+     &              print *,'dummy read tr for ntr= ',ntr
+              if (myid == 0 ) read(10)
+            endif  ! (ntrac.eq.ntrac2)
+          enddo
+        endif
+
       endif  ! (abs(io_in).eq.3)
 
       if(abs(io_in).eq.1)then   ! for netcdf
@@ -365,7 +494,7 @@ c       nrungcm=0
      &                                       kdate_s,ktime_s
       end if
       return
-!!!8     print *,'end of data reading file in infile'
+8     print *,'end of data reading file in infile'
       stop
       end
 
