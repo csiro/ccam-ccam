@@ -79,7 +79,7 @@
 
       integer i1, ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth,
      &     iveg, iyr, j1, jj, k, kdate_sav, kmax, ktime_sav, l,
-     &     meso2, nem2, nface, nn, npgb, nsig, i, j, n,
+     &     meso2, nem2, nface, nn, nsig, i, j, n,
      &     ix, jx, ixjx, ierr, ico2x, iradonx, ic, jc, iqg, ig, jg,
      &     isav, jsav
       real aamax, aamax_g, c, cent, 
@@ -88,7 +88,7 @@
      &     helim, hemax, hemax_g, polenx, poleny,
      &     polenz, rad, radu, radv, ri, rj, rlai, rlat_d, rlon_d,
      &     rmax, rmin, rmax_g, rmin_g, sinlat, sinlong, sinth, snalb,
-     &     sumdsig, thet, timegb, tsoil, uzon, vmer, w,
+     &     sumdsig, timegb, tsoil, uzon, vmer, w,
      &     wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, distnew,
      &     xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent,
      &     deli, delj, centi, distx, rhs
@@ -231,7 +231,7 @@
 !     &            ((he(ii+jj*il),ii=idjd-1,idjd+1),jj=1,-1,-1)
       end if
 
-      if(nhstest<0)then ! aquaplanet test -1 to -8 or -22, or pgb from June 2003
+      if(nhstest<0)then  ! aquaplanet test -22   from June 2003
         do iq=1,ifull
          zs(iq)=0.
          land(iq)=.false.
@@ -257,11 +257,9 @@
             end if
             if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)stop
      &       'stopping in indata, not finding correct kdate/ktime'
-            if(newtop>=0)then  ! no check if just plotting zs
             if(abs(rlong0  -rlong0x)>.01.or.
      &         abs(rlat0    -rlat0x)>.01.or.
      &       abs(schmidt-schmidtx)>.01)stop "grid mismatch in indata"
-            endif  ! (newtop>=0)
          endif                  ! (io_in==1.or.io_in==3)
 
 	 if(io_in==-1.or.io_in==-3)then
@@ -539,8 +537,16 @@
                psl(iq) = .01
                zs(iq) = 0.
             enddo               ! iq loop
-         enddo ! k loop
-      endif   ! held-suarez test case (also aquaplanet initial)
+!!       just to get something started set the meridional wind to a small
+!!       value on the first face
+!        do j=1,il
+!           do i=1,il
+!              iq=ind(i,j,0)
+!              v(iq,k) = 0.1
+!           end do
+!        end do
+         enddo
+      endif  ! held-suarez test case
 
       if(io_in==11)then
 !       advection test, once around globe per 10 days
@@ -1005,55 +1011,29 @@
 
       if(nhstest<0)then  ! aquaplanet test
         kdate=19790321
-        zs(:)=0.
-        land(:)=.false.
-        sice(:)=.false.
-        sicedep(:)=0.
-        snowd(:)=0.
-        tss(:)=273.16
         do iq=1,ifull
-         if((nhstest==-1.or.nhstest<=-6).and.abs(rlatt(iq))<pi/3.)
-     .     tss(iq)=273.16 +27.*(1.-sin(1.5*rlatt(iq))**2)   ! Expt 1
-         if(nhstest==-2.and.abs(rlatt(iq))<pi/3.)
-     .     tss(iq)=273.16 +27.*(1.-3.*abs(rlatt(iq))/pi)    ! Expt 2
-         if(nhstest==-3.and.abs(rlatt(iq))<pi/3.)
-     .     tss(iq)=273.16 +27.*(1.-sin(1.5*rlatt(iq))**4)   ! Expt 3
-         if(nhstest==-4.and.abs(rlatt(iq))<pi/3.)
-     .     tss(iq)=273.16 +13.5*(1.-sin(1.5*rlatt(iq))**2)  ! Expt 4
-     .                    +13.5*(1.-sin(1.5*rlatt(iq))**4)  ! Expt 4
-         if(nhstest==-5.and.rlatt(iq)>pi/36..and.rlatt(iq)<pi/3.)
-     .     tss(iq)=273.16 +27.*(1.-sin((rlatt(iq)-pi/36.)*90./55.)**2) ! Expt 5
-         if(nhstest==-5.and.rlatt(iq)>-pi/3..and.rlatt(iq)<=pi/36.)
-     .     tss(iq)=273.16 +27.*(1.-sin((rlatt(iq)-pi/36.)*90./65.)**2) ! Expt 5
-         if(nhstest==-6.and.abs(rlatt(iq))<pi/12.)then
-	   if(rlongg(iq)<pi/3..or.rlongg(iq)>5.*pi/3)
-     .     tss(iq)=tss(iq)+1.*(cos(1.5*rlongg(iq))*cos(6.*rlatt(iq)))**2 !Expt6
-         endif  ! (nhstest==-6....)
-         if(nhstest==-7.and.abs(rlatt(iq))<pi/12.)then
-	   if(rlongg(iq)<pi/3..or.rlongg(iq)>5.*pi/3)
-     .     tss(iq)=tss(iq)+3.*(cos(1.5*rlongg(iq))*cos(6.*rlatt(iq)))**2 !Expt7
-         endif  ! (nhstest==-7....)
-         if(nhstest==-8.and.abs(rlatt(iq))<pi/6.)
-     .     tss(iq)=tss(iq)+3.*cos(rlongg(iq))*cos(3.*rlatt(iq))**2   ! Expt 8
+         zs(iq)=0.
+         land(iq)=.false.
+         sice(iq)=.false.
+         sicedep(iq)=0.
+         snowd(iq)=0.
+         if(abs(rlatt(iq))<pi/3.)then
+           tss(iq)=273.16 +27.*(1.-sin(rlatt(iq)*90./60.)**2)
+         else
+           tss(iq)=273.16
+         endif
         enddo   ! iq loop
 	 do k=1,ms
 	  tgg(:,k)=tss(:)
 	  wb(:,k)=0.
 	 enddo
-	 do k=1,kl
-c        qg(:,k)=.01*sig(k)**3  ! Nov 2004
-         do iq=1,ifull
-          qg(iq,k)=.01*(1.-abs(rlatt(iq))*2./pi)**3*sig(k)**3  ! Nov 2004
-	  enddo
-        enddo
-        if(nhstest==-11.or.nhstest==-12)then  ! pgb test,. npgb=-1 or -2
+        if(nhstest>-22)then  ! pgb test, e.g. nhtest=-1 or -2
 	   ix=il/2
 	   jx=1.19*il
-          ix=id
+           ix=id
 	   jx=jd
-	   npgb=nhstest+10
-	   do j=jx+npgb,jx-npgb
-           do i=ix+npgb,ix-npgb
+	   do j=jx+nhstest,jx-nhstest
+           do i=ix+nhstest,ix-nhstest
             iq=i+(j-1)*il
             zs(iq)=.1	   
             land(iq)=.true.
@@ -1066,7 +1046,7 @@ c        qg(:,k)=.01*sig(k)**3  ! Nov 2004
 	   ixjx=ix+(jx-1)*il
 	   print *,'ix,jx,long,lat ',
      &             ix,jx,rlongg(ixjx)*180./pi,rlatt(ixjx)*180./pi
-        endif  ! (nhstest==-11.or.nhstest==-12)
+        endif  ! (nhstest>-22)
       endif    ! (nhstest<0)
 
 !     zmin here is approx height of the lowest level in the model
@@ -1486,7 +1466,23 @@ c        qg(:,k)=.01*sig(k)**3  ! Nov 2004
      &       zs(ie(idjd)),zs(iw(idjd)),zs(in(idjd)),zs(is(idjd))
       end if
 
-      epst(1:ifull)=abs(epsp)
+      if(epsp>=0.)then
+        do iq=1,ifull
+         epst(iq)=epsp
+        enddo
+      else
+        do iq=1,ifull
+         zsdiff=max(abs(zs(ie(iq))-zs(iq)),
+     &              abs(zs(iw(iq))-zs(iq)),
+     &              abs(zs(in(iq))-zs(iq)),
+     &              abs(zs(is(iq))-zs(iq)) )
+         if(zsdiff>100.*grav)then           ! 100 m diff version
+           epst(iq)=abs(epsp)
+         else
+           epst(iq)=0.
+         endif
+        enddo
+      endif
       if(epsp>1.)then   ! e.g. 20. to give epsmax=.2 for del_orog=600 m
         epsmax=epsp/100.
         do iq=1,ifull      ! sliding epsf to epsmax
@@ -1517,42 +1513,23 @@ c        qg(:,k)=.01*sig(k)**3  ! Nov 2004
       enddo
 
       if(nproc==1)then
-        coslong=cos(rlong0*pi/180.)   
-        sinlong=sin(rlong0*pi/180.)
-        coslat=cos(rlat0*pi/180.)
-        sinlat=sin(rlat0*pi/180.)
-        polenx=-coslat
-        poleny=0.
-        polenz=sinlat
-        write(22,920)
-920     format(46x,'land            isoilm')
-        write(22,921)
-921     format('   iq    i   j  rlong    rlat    thet    map'
-     &         '   sice zs(m) alb   ivegt  tss    t1    tgg2   tgg6'
-     &         '   wb1   wb6   ico2  radon')
+       write(22,920)
+920    format('                             land            isoilm')
+       write(22,921)
+921    format('  iq     i   j rlong   rlat     sice  zs(m) alb  ivegt'
+     &    ' tss    t1    tgg2   tgg6     wb1  wb6    ico2  radon')
        do j=1,jl
         do i=1,il
          iq=i+(j-1)*il
-         along(iq)=rlongg(iq)*180./pi    
+         along(iq)=rlongg(iq)*180./pi    ! wed  10-28-1998
          alat(iq)=rlatt(iq)*180./pi
-         zonx=            -polenz*y(iq)
-         zony=polenz*x(iq)-polenx*z(iq)
-         zonz=polenx*y(iq)
-c        den=sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )  ! allow for poles
-c        costh= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
-c        sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
-	  thet=atan2(-zonx*bx(iq)-zony*by(iq)-zonz*bz(iq), ! N.B. -pi to pi
-     &               zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))*180./pi
-         if(thet<0.)thet=thet+360.
-c        uzon= costh*u(iq,1)-sinth*v(iq,1)
-c        vmer= sinth*u(iq,1)+costh*v(iq,1)	  
          write(22,922) iq,i,j,rlongg(iq)*180./pi,rlatt(iq)*180./pi,
-     &          thet,em(iq),land(iq),sice(iq),zs(iq)/grav,alb(iq),
+     &              land(iq),sice(iq),zs(iq)/grav,alb(iq),
      &              isoilm(iq),ivegt(iq),
      &              tss(iq),t(iq,1),tgg(iq,2),tgg(iq,ms),
      &              wb(iq,1),wb(iq,ms),
      &              ico2em(min(iq,ilt*jlt)),radonem(min(iq,ilt*jlt))
-922      format(i6,2i4,3f8.3,f8.4,2l2,f7.1,f5.2,2i3,4f7.1,2f6.2,i6,f5.2)
+922      format(i6,2i4,2f8.3 ,2l2,f7.1,f5.2 ,2i3 ,4f7.1 ,2f6.2, i6,f5.2)
         enddo
        enddo
       endif  ! (nproc==1)
