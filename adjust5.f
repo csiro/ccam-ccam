@@ -59,8 +59,6 @@
       real, save :: dtsave = 0.0
       real hdt, hdtds, sum, qgminm, ratio, sumdiffb, alph_g
       integer i, j, k, l, n, iq, ng, ierr
-      integer :: ind
-      ind(i,j,n) = i + (j-1)*ipan + (n-1)*ipan*jpan
 
       call start_log(adjust_begin)
       hdt=dt/2.
@@ -649,19 +647,27 @@ c       print *,'qgsav,qg_in',qgsav(idjd,1),qg(idjd,1,1)
       enddo     ! iq loop
 !     N.B. there are some special z values at the 8 vertices
       if(npanels.eq.5)then
-        do n=1,npan ! 0,5
-         iq=indp(1,1,n)
-         zzs(iq)=zzs(iq)+.25*alfF(is(iq))   ! i,j-1 coeff
-         zzw(iq)=zzw(iq)-.25*alfF(iw(iq))   ! i-1,j coeff
-         iq=indp(il,il,n)
-         zzn(iq)=zzn(iq)+.25*alfF(in(iq))   ! i,j+1 coeff
-         zze(iq)=zze(iq)-.25*alfF(ie(iq))   ! i+1,j coeff
-         iq=indp(il,1,n)
-         zzs(iq)=zzs(iq)-.25*alfF(is(iq))   ! i,j-1 coeff
-         zze(iq)=zze(iq)+.25*alfF(ie(iq))   ! i+1,j coeff
-         iq=indp(1,il,n)
-         zzn(iq)=zzn(iq)-.25*alfF(in(iq))   ! i,j+1 coeff
-         zzw(iq)=zzw(iq)+.25*alfF(iw(iq))   ! i-1,j coeff
+         do n=1,npan            ! 0,5
+            if ( edge_s .and. edge_w ) then
+               iq=indp(1,1,n)
+               zzs(iq)=zzs(iq)+.25*alfF(is(iq)) ! i,j-1 coeff
+               zzw(iq)=zzw(iq)-.25*alfF(iw(iq)) ! i-1,j coeff
+            end if
+            if ( edge_n .and. edge_e ) then
+               iq=indp(il,il,n)
+               zzn(iq)=zzn(iq)+.25*alfF(in(iq)) ! i,j+1 coeff
+               zze(iq)=zze(iq)-.25*alfF(ie(iq)) ! i+1,j coeff
+            end if
+            if ( edge_s .and. edge_e ) then
+               iq=indp(il,1,n)
+               zzs(iq)=zzs(iq)-.25*alfF(is(iq)) ! i,j-1 coeff
+               zze(iq)=zze(iq)+.25*alfF(ie(iq)) ! i+1,j coeff
+            end if
+            if ( edge_n .and. edge_w ) then
+               iq=indp(1,il,n)
+               zzn(iq)=zzn(iq)-.25*alfF(in(iq)) ! i,j+1 coeff
+               zzw(iq)=zzw(iq)+.25*alfF(iw(iq)) ! i-1,j coeff
+            end if
         enddo   ! n loop
       endif     ! (npanels.eq.5)
       end subroutine adjust_init
