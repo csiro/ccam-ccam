@@ -106,8 +106,8 @@ contains
          ! Simpler to use real to hold the integer location. 
          ! No rounding problem for practical numbers of points
          ! Convert this to a global index
-         umax(2,k) = maxloc(u(1:ifull,k),dim=1) + myid*ifull
-         umin(2,k) = minloc(u(1:ifull,k),dim=1) + myid*ifull
+         umax(2,k) = iq2iqg(maxloc(u(1:ifull,k),dim=1))
+         umin(2,k) = iq2iqg(minloc(u(1:ifull,k),dim=1))
       end do
 
       call MPI_Reduce ( umax, gumax, kup, MPI_2REAL, MPI_MAXLOC, 0,       &
@@ -151,7 +151,7 @@ contains
         print 977,ktau,ijumin
        elseif(gumax(1,kup).gt.30.)then  ! format for T, & usually u,v
         print 971,ktau,char,gumax(1,1:10),char,gumax(1,11:kup)
-!!!971     format(i7,1x,a2,'max ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
+!!!971  format(i7,1x,a2,'max ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
 971     format(i7,1x,a2,'max ',10f7.2/(a10,'maX ',10f7.2)/(14x,10f7.2))
         print 977,ktau,ijumax
         print 972,ktau,char,gumin(1,:)
@@ -159,8 +159,9 @@ contains
         print 977,ktau,ijumin
 977     format(i7,'  posij',10(i3,i4)/(14x,10(i3,i4))/(14x,10(i3,i4)))
       else  ! for qg & sd
-        print 981,ktau,char,gumax(1,:)
-981     format(i7,1x,a2,'max ',10f7.3/(14x,10f7.3)/(14x,10f7.3))
+        print 981,ktau,char,gumax(1,1:10),char,gumax(1,11:kup)
+!!!981  format(i7,1x,a2,'max ',10f7.3/(14x,10f7.3)/(14x,10f7.3))
+981     format(i7,1x,a2,'max ',10f7.3/(a10,'maX ',10f7.3)/(14x,10f7.3))
         print 977,ktau,ijumax
         print 982,ktau,char,gumin(1,:)
 982     format(i7,1x,a2,'min ',10f7.3/(14x,10f7.3)/(14x,10f7.3))
@@ -187,8 +188,8 @@ contains
 
       umax(1) = maxval(u(1:ifull))*fact
       umin(1) = minval(u(1:ifull))*fact
-      umax(2) = maxloc(u(1:ifull),dim=1) + myid*ifull
-      umin(2) = minloc(u(1:ifull),dim=1) + myid*ifull
+      umax(2) = iq2iqg(maxloc(u(1:ifull),dim=1))
+      umin(2) = iq2iqg(minloc(u(1:ifull),dim=1))
       call MPI_Reduce ( umax, gumax, 1, MPI_2REAL, MPI_MAXLOC, 0,         &
      &                  MPI_COMM_WORLD, ierr )
       call MPI_Reduce ( umin, gumin, 1, MPI_2REAL, MPI_MINLOC, 0,         &
@@ -251,7 +252,7 @@ contains
 !     Restrict range so that it still works if id=1 etc
       iq = 0
       res = 0. ! As a sort of missing value
-      do j=max(jd-1,1),min(jd+1,jl_g)
+      do j=min(jd+1,jl_g),max(jd-1,1),-1
          do i=max(id-1,1),min(id+1,il_g)
             iq = iq + 1
             n = (j-1)/il_g  ! Global n
