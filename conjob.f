@@ -41,13 +41,7 @@ c     Hal's ds() renamed dsh()
 !     set convective relaxation time (convtime [was btcnv], usually 1 hour)
 !     data convtime/1./,rhcv/.75/,rhmois/.6/ ! usually 1., .75, .6 now in kuocom
 
-      common /es_table/ table(0:220)
-c     arithmetic statement functions to replace call to establ.
-c     t is temp in kelvin, which should lie between 123.16 and 343.16;
-c     tdiff is difference between t and 123.16, subject to 0 <= tdiff <= 220
-      tdiff(tm)=min(max(tm-123.16 , 0.) , 220.)
-      establ(tm) =(1.-(tdiff(tm)-aint(tdiff(tm))))*table(int(tdiff(tm)))
-     &           + (tdiff(tm)-aint(tdiff(tm)))*table(int(tdiff(tm))+1)
+      include 'establ.h'
       Aev(tm) = 2.008e-9*tm**2 - 1.385e-6*tm + 2.424e-4  !For UKMO evap scheme
       Asb(tm) = max (-5.2e-9*tm**2+2.5332e-6*tm-2.9111e-4,1.e-5) !For UKMO subl
 !!!   ntest=3   !!!
@@ -845,7 +839,7 @@ c       reaching the next level (or the surface).
           enddo    !  k loop
         endif      !  (nkuo.eq.4) .. else ..
       else         ! usual conformal-cubic
-        qg(:,:)=qq(:,:)
+        qg(1:ifull,:)=qq(1:ifull,:)
 c       print *,'B rnrt,rnrtc,condx ',
 c    .             rnrt(idjd),rnrtc(idjd),condx(idjd)
         do iq=1,ifull
@@ -857,9 +851,9 @@ c    .             rnrt(idjd),rnrtc(idjd),condx(idjd)
          precip(iq)=precip(iq)+prcon+prl_s
         enddo
         if(nkuo.eq.4)then
-           tx(:,:)=tx(:,:)+tt(:,:)-t(:,:)
+           tx(1:ifull,:)=tx(1:ifull,:)+tt(1:ifull,:)-t(1:ifull,:)
          else      ! nkuo=44,45
-           tn(:,:)=tn(:,:)+(tt(:,:)-t(:,:))/dt
+           tn(1:ifull,:)=tn(1:ifull,:)+(tt(1:ifull,:)-t(1:ifull,:))/dt
          endif     !  (nkuo.eq.4)
       endif        ! (npanels.eq.0)
 
