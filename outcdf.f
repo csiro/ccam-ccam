@@ -681,7 +681,7 @@ c       Leave define mode
            end do
            call ncvpt(idnc,ixp,1,il,xpnt,ier)
            do j=1,jl
-              ypnt(j) = float(j) + (myid*ifull)/il_g
+              ypnt(j) = float(j) + jl*((myid*il)/il_g)
            end do
            call ncvpt(idnc,iyp,1,jl,ypnt,ier)
         else
