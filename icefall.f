@@ -63,6 +63,7 @@ C Global parameters
       include 'newmpar.h'
       include 'const_phys.h' !Input physical constants
       include 'cparams.h'    !Input cloud scheme parameters
+      include 'kuocom.h'     ! ldr
       include 'params.h'     !Input model grid dimensions (modified PARAMS.f for CCAM)
 
 C Argument list
@@ -216,31 +217,38 @@ c Set up ice fall speed field and other arrays
         slopes(mg,nl)=0.
       enddo
 
-      if(lw.eq.22)then
-
-      do k=nl-1,1,-1
-        do mg=1,ln2
-          vi2(mg,k)=vi2(mg,k+1)
-          if(cifr(mg,k).gt.0.)then
-            vi2(mg,k)=3.23*(rhoi(mg,k)/cifr(mg,k))**0.17
-          endif
+      if(abs(ldr).eq.1)then  ! 1 for R21 runs, like prev lw=22
+        do k=nl-1,1,-1
+          do mg=1,ln2
+            vi2(mg,k)=vi2(mg,k+1)
+            if(cifr(mg,k).gt.0.)then
+              vi2(mg,k)=3.23*(rhoi(mg,k)/cifr(mg,k))**0.17
+            endif
+          enddo
         enddo
-      enddo
+      endif   ! (abs(ldr).eq.1)
 
-      else
-
-      do k=nl-1,1,-1
-        do mg=1,ln2
-          vi2(mg,k)=vi2(mg,k+1)
-          if(cifr(mg,k).gt.0.)then
-c           vi2(mg,k)=3.23*(rhoi(mg,k)/cifr(mg,k))**0.17
-c           vi2(mg,k)=0.9*3.23*(rhoi(mg,k)/cifr(mg,k))**0.17
-            vi2(mg,k)=max(0.1,2.05+0.35*log10(qfg(mg,k)/cifr(mg,k)))
-          endif
+      if(abs(ldr).eq.2)then  
+        do k=nl-1,1,-1
+          do mg=1,ln2
+            vi2(mg,k)=vi2(mg,k+1)
+            if(cifr(mg,k).gt.0.)then
+              vi2(mg,k)=0.9*3.23*(rhoi(mg,k)/cifr(mg,k))**0.17
+            endif
+          enddo
         enddo
-      enddo
+      endif   ! (abs(ldr).eq.2)
 
-      endif
+      if(abs(ldr).eq.3)then  
+        do k=nl-1,1,-1
+          do mg=1,ln2
+            vi2(mg,k)=vi2(mg,k+1)
+            if(cifr(mg,k).gt.0.)then
+              vi2(mg,k)=max(0.1,2.05+0.35*log10(qfg(mg,k)/cifr(mg,k)))
+            endif
+          enddo
+        enddo
+      endif   ! (abs(ldr).eq.3)
 
       do k=nl-1,1,-1
         do mg=1,ln2
