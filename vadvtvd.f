@@ -4,6 +4,7 @@ c                              vadvbott & vadvyu at bottom
       use cc_mpi, only : mydiag, myid
       include 'newmpar.h'
       parameter (npslx=1)  ! 0 off, 1 on for nvad=-4
+      parameter (nqq=0)    ! 0 off, 3 possible
 !     parameter (sdotfilt=0.)  ! tried .3 - not useful
 !     parameter (nimp=1)  !  0 for original explicit non-flux TVD term
 !                            1 for implicit non-flux TVD term
@@ -45,8 +46,8 @@ c     common/work2/aa(ifull),dum2(ifull,17)
 
       if(num.eq.0.and.myid==0)then
         num=1
-        print *,'In vadvtvd nvad,nvadh_pass,npslx ',
-     .                      nvad,nvadh_pass,npslx
+        print *,'In vadvtvd nvad,nvadh_pass,nqq,npslx ',
+     .                      nvad,nvadh_pass,nqq,npslx
         print *,'nimp,nthub,ntvd,tfact ',nimp,nthub,ntvd,tfact
       endif
 
@@ -188,7 +189,7 @@ c     v
        enddo    ! iq loop
       enddo     ! k loop
 
-      if(npslx.eq.1.and.nvad.eq.-4)then
+      if(npslx.eq.1.and.nvad.le.-4)then  ! handles -9 too
       do k=1,kl-1
        do iq=1,ifull
          delt(iq,k)=pslx(iq,k+1)-pslx(iq,k)
@@ -225,8 +226,12 @@ c     v
       enddo     ! k loop
       endif  ! (npslx.eq.1.and.nvad.eq.-4)
 
-      if(mspec.eq.1)then   ! advect qg and gases after preliminary step
+      if(mspec.eq.1.and.abs(nvad).ne.9)then   ! advect qg and gases after preliminary step
 c     qg
+        if(nqq.eq.3)then
+!         qg(:,:)=cbrt(qg(:,:))
+          qg(1:ifull,:)=qg(1:ifull,:)**(1./3.)
+        endif       ! (nqq.eq.3)
       do k=1,kl-1
        do iq=1,ifull
          delt(iq,k)=qg(iq,k+1)-qg(iq,k)
@@ -289,6 +294,9 @@ c         else
 c           qg(iq,k)=qg(iq,k)+deltaqg
 c         endif
 c        enddo   ! iq loop
+        if(nqq.eq.3)then
+          qg(1:ifull,:)=qg(1:ifull,:)**3
+        endif       ! (nqq.eq.3)
 
       if(ldr.ne.0)then
        do k=1,kl-1       ! qlg first
@@ -415,7 +423,7 @@ c        enddo   ! iq loop
       enddo      ! ntr loop
       endif      ! if(ilt.gt.1)
 
-      endif       ! if(mspec.eq.1)
+      endif       ! if(mspec.eq.1.and.abs(nvad).ne.9)
 
       return
       end

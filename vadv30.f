@@ -365,7 +365,7 @@ c       interpolate sdot to full-level sd with cubic polynomials
               enddo
             endif   ! (ilt.gt.1)
           endif     ! (mspec.eq.1)
-	 else  
+         elseif(abs(nvad).eq.8)then 
           call vadvbess8(tarr,st,kdel,1)                          
           call vadvbess8(uarr,st,kdel,2)                          
           call vadvbess8(varr,st,kdel,2)                          
@@ -381,7 +381,20 @@ c       interpolate sdot to full-level sd with cubic polynomials
               enddo
             endif   ! (ilt.gt.1)
           endif     ! (mspec.eq.1)
-	 endif     ! (abs(nvad).eq.7)  .. else ..
+         elseif(abs(nvad).eq.9)then   !  just qg and gases  
+          if(mspec.eq.1)then
+             call vadvbess(qg(1:ifull,:),st,kdel,3)    
+             if(ldr.ne.0)then
+               call vadvbess8(qlg(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet   
+               call vadvbess8(qfg(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet   
+             endif  ! (ldr.ne.0)                      
+            if(ilt.gt.1)then
+              do ntr=1,ntrac
+               call vadvbess(tr(1:ilt*jlt,:,ntr),st,kdel,3)    ! tr next
+              enddo
+            endif   ! (ilt.gt.1)
+          endif     ! (mspec.eq.1)
+         endif     ! (abs(nvad).eq.7)  .. else .. ..
 	 return
       end
 

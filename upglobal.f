@@ -76,7 +76,7 @@
 	 enddo
       endif           
 
-      if(nvad.eq.-4)then ! also called further down for nvadh=2
+      if(nvad.eq.-4.or.nvad.eq.-9)then ! also called further down for nvadh=2
          sdmx = maxval(abs(sdot))
          call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX, 
      &                      MPI_COMM_WORLD, ierr )
@@ -89,7 +89,7 @@
             call vadvtvd(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
      &                   nvadh_pass) 
 	 enddo
-      endif  ! (nvad.eq.-4)
+      endif  ! (nvad.eq.-4.or.nvad.eq.-9)
       if(nvad.le.-7)
      &     call vadv30(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:))       ! for vadvbess
 
@@ -360,12 +360,12 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
        end if
 
       if(nvadh.eq.2.and.nvad.lt.0)then                 ! final dt/2 's worth
-        if(nvad.eq.-4)then
+        if(nvad.eq.-4.or.nvad.eq.-9)then
           do its=1,nits
             call vadvtvd(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
      &                   nvadh_pass) 
           enddo
-        endif  ! (nvad.eq.-4)
+        endif  ! (nvad.eq.-4.or.nvad.eq.-9)
         if(nvad.le.-7)
      &     call vadv30(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:)) ! for vadvbess
       endif     !  (nvadh.eq.2.and.nvad.lt.0)then
