@@ -222,7 +222,7 @@
       read (99, cardin)
       nperday =nint(24.*3600./dt)
       if(nwt==-99)nwt=nperday          ! set default nwt to 24 hours
-      if(nperavg==-99)nperavg=nperday  ! set default nperavg to 24 hours
+      if(nperavg==-99)nperavg=nwt      ! set default nperavg to nwt
       if(nwrite==0)nwrite=nperday  ! only used for outfile IEEE
       read (99, skyin)
 !     if(kountr==-99)kountr=7200./dt  ! set default radiation to < ~2 hours
@@ -779,21 +779,7 @@ c    .      (sign(1.,savs1(iq,3)).ne.sign(1.,savs(iq,3))))then    ! .410
            epst(iq)=0.
          endif
         enddo
-      endif ! (ktau>2.and.epsp<0.)
-c     if(ktau>2.and.epsp<0.)then  ! for MCx8
-c       if(mydiag.and.ktau==3)print *,'using epsp= ',epsp
-c     	  do iq=1,ifull
-c        if(sign(1.,sdot(iq,3)-savs(iq,3)).ne.
-c    .      sign(1.,savs(iq,3)-savs1(iq,3)))then
-c          epst(iq)=abs(epsp)
-c        elseif(sign(1.,sdot(iq,kl-2)-savs(iq,kl-2)).ne.
-c    .          sign(1.,savs(iq,kl-2)-savs1(iq,kl-2)))then
-c          epst(iq)=abs(epsp)
-c        else
-c          epst(iq)=0.
-c        endif
-c       enddo
-c     endif ! (ktau>2.and.epsp<0.)
+      endif ! (ktau>2.and.epsp>1.)
 
       if(ktau<10.and.mydiag)then
        print *,'savu,u,ubar ',ktau,savu(idjd,1),u(idjd,1),ubar(idjd,1)
@@ -1226,7 +1212,7 @@ c         enddo
         if ( myid == 0 ) then
            print 97, gtemparray(1:5) ! psavge,pslavge,preccavge,precavge,gke
  97        format(' average ps, psl, precc, prec, gke: ',
-     &           f10.2,f9.5,3f7.2)
+     &           f10.2,f10.6,2f6.2,f7.2)
            print 971, gtemparray(6:9) ! cllav,clmav,clhav,cltav
  971       format(' global_average cll, clm, clh, clt: ',4f6.2)
            print 972,alph_p,alph_pm,delneg,delpos,alph_q
