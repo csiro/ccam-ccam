@@ -39,9 +39,15 @@ end subroutine MPI_Bcast
 
 subroutine MPI_Reduce ( xin, xout, n, type, op, proc, comm, ierr )
    ! Just copy input to output
+   implicit none
+   include 'mpif.h'
    integer ::  n, type, op, proc, comm, ierr
-   real, dimension(n) :: xin, xout
-   xout = xin
+   real, dimension(*) :: xin, xout
+   if ( type == MPI_2REAL ) then
+      xout(1:2*n) = xin(1:2*n)
+   else
+      xout(1:n) = xin(1:n)
+   end if
    ierr = 0
 end subroutine MPI_Reduce
 
