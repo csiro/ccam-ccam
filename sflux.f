@@ -269,6 +269,10 @@ c     using av_vmod (1. for no time averaging)
 !        produce a cooling of 4 K for an effective plens of 10 mm/day
          tgg(iq,2)=tgg(iq,2)-min(.4*plens(iq) , 6.)
        endif   !  (nplens.ne.0)
+	if(ntsea==1.and.condx(iq)>.1)tgg(iq,2)=t(iq,2)  
+	if(ntsea==2.and.condx(iq)>.1)tgg(iq,2)=t(iq,1)  
+	if(ntsea==3.and.condx(iq)>.1)tgg(iq,2)=.5*(t(iq,2)+tgg(iq,1))  
+	if(ntsea==4.and.condx(iq)>.1)tgg(iq,2)=.5*(t(iq,1)+tgg(iq,1))  
 c ***  drag coefficients  for momentum           cduv                   ! sea
 c ***                     for heat and moisture  cdtq                   ! sea
        es = establ(tgg(iq,2))                                           ! sea
@@ -621,6 +625,8 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! land
          endif  ! (ntaft.eq.2)
         enddo
       endif  ! (ntaft.eq.0.or.ktau.eq.1)  .. else ..
+c     print *,'xxx0 ri,af,cduv,ustar ',
+c    .              ri(idjd),af(idjd),cduv(idjd),ustar(idjd)
 
 c ----------------------------------------------------------------------
 
@@ -649,6 +655,30 @@ c     end of calls to sib1,2,3
         if (mydiag) print *,'before call scrnout'
         call maxmin(t,' t',ktau,1.,kl)
       endif
+
+      if(ntsur==6)then      
+c       option to recalculate cduv, ustar (gives better uscrn, u10)
+        do iq=1,ifull
+         afroot=vkar/log(zmin/zo(iq))    ! land formula is bit different above                             
+         af(iq)=afroot**2                                             
+         xx(iq)=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       
+         ri(iq)=xx(iq)/vmod(iq)**2                                       
+         if(xx(iq).gt.0.)then                                            
+           fm=vmod(iq)*max(fmroot*fmroot,1./(1.+bprm*ri(iq))**2)         
+         else                                                             
+           root=sqrt(-xx(iq)*zmin/zo(iq))  
+           denma=vmod(iq)+cms*2.*bprm*af(iq)*root                        
+           fm=vmod(iq)-(2.*bprm *xx(iq))/denma                            
+c          n.b. fm denotes ustar**2/(vmod(iq)*af)                         
+         endif                                                            
+c        cduv is now drag coeff *vmod                                     
+         cduv(iq) =af(iq)*fm                                             
+         ustar(iq) = sqrt(vmod(iq)*cduv(iq))                             
+c        Surface stresses taux, tauy: diagnostic only - unstaggered now   
+         taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                                
+         tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                                
+        enddo     
+      endif  ! (ntsur==6)
 
 !     always call scrnout from 19/9/02
       call scrnout(zo,ustar,factch,wetfac,qsttg,            ! arrays
