@@ -17,7 +17,7 @@ c     first dum inserted so as not to conflict with zsb in nestin
       real told(kl),qgold(kl)
       do iq=1,ifull
        psold(iq)=1.e5*exp(psl(iq))
-       psl(iq)=psl(iq)+(zsold(iq)-max(0.,zs(iq)))/(rdry*t(iq,1))
+       psl(iq)=psl(iq)+(zsold(iq)-zs(iq))/(rdry*t(iq,1))
        ps(iq)=1.e5*exp(psl(iq))
       enddo
 c     now alter temperatures to compensate for new topography
