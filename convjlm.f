@@ -63,7 +63,7 @@ c     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
 
       do k=1,kl
        dsk(k)=-dsig(k)    !   dsk = delta sigma (positive)
-       alfm(k)=min(.5,alfcon/(1.e-10+sig(1)-sig(k)))  ! e.g. alfcon=.01
+       alfm(k)=min(.5,alfcon/(max(1.e-10,sig(1)-sig(k))))  ! e.g. alfcon=.01
        alfss(k)=1.-alfm(k)
         if(nalfs.eq.0)alfss(k)=1.  ! for no alf effect
       enddo     ! k loop
@@ -114,7 +114,7 @@ c     convective then L/S rainfall
       dels(:,:)=1.e-20
       delq(:,:)=0.
       phi(:,1)=bet(1)*tt(:,1)
- 
+
       do k=2,kl
        do iq=1,ifull
         phi(iq,k)=phi(iq,k-1)+bet(k)*tt(iq,k)+betm(k)*tt(iq,k-1)
