@@ -47,17 +47,17 @@ c      these are values on the sphere
          xc(i,1)=max(-1.,xc(i,1)) ! for rounding errors
        enddo
        do j=1,(np+1)/2
-        do i=j,(np+1/2)  ! rest of bottom LH corner
+        do i=j+1,(np+1/2)  ! rest of bottom LH corner
          xa(j,i)=xa(i,j)
          xb(j,i)=xc(i,j)
          xc(j,i)=xb(i,j)
         enddo
-        do i=1,(np+1/2)  ! all of bottom RH corner
+        do i=1,np/2        ! all of bottom RH corner
          xa(np+1-i,j)=xa(i,j)
          xb(np+1-i,j)=-xb(i,j)
          xc(np+1-i,j)=xc(i,j)
         enddo
-        do i=1,np        ! all of top half
+        do i=1,np          ! all of top half
          xa(i,np+1-j)=xa(i,j)
          xb(i,np+1-j)=xb(i,j)
          xc(i,np+1-j)=-xc(i,j)
