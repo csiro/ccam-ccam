@@ -41,16 +41,12 @@ c CDIR$ TASK COMMON VTEMP
       include 'cldcom.h'
       include 'lwout.h'
 c 
-c     parameter (ndum=4*ijk- imax*(3*lp1 +11*l)) !jlm for 32-bit machine
-      parameter (ndum=5*ijk- imax*(3*lp1 +9*l))  !jlm for 64-bit machine
-      common /work3/ phitmp(imax,l),psitmp(imax,l),
-     .          tt(imax,l),fac1(imax,l),     ! double precision
+      real      phitmp(imax,l),psitmp(imax,l),
      .          fac2(imax,l),
      &          ctmp(imax,lp1),x(imax,l),y(imax,l),
      &          topm(imax,l),topphi(imax,l),
      &          ctmp3(imax,lp1),ctmp2(imax,lp1)
-     .  ,dummy(ndum)
-      real*8 tt,fac1
+      double precision tt(imax,l),fac1(imax,l) ! double precision
       dimension f(imax,l),ff(imax,l),ag(imax,l),agg(imax,l)
       equivalence (f,ag,phitmp) 
       equivalence (ff,agg,psitmp)
