@@ -1,72 +1,88 @@
 module diag_m
    implicit none
-   public :: printa, maxmin, average
-   private :: maxmin1, maxmin2
+   public :: printa, maxmin, average, diagvals
+   private :: maxmin1, maxmin2, printa1, printa2
    interface maxmin
       module procedure maxmin1, maxmin2
    end interface
+   interface printa
+      module procedure printa1, printa2
+   end interface
+   interface diagvals
+      module procedure diagvals_r, diagvals_i, diagvals_l
+   end interface
 contains
-   subroutine printa(name,a,ktau,level,i1,i2,j1,j2,bias,facti)
+   subroutine printa2(name,a,ktau,level,i1,i2,j1,j2,bias,facti)
       ! printa has to work with arrays dimension both ifull and ifull+iextra
       ! printb has printj entry, and automatic choice of fact if facti=0.
-      ! printa is always passed a 1D section. Level isn't used. Really need
-      ! overloaded version. But for now, just use 1D
+      ! Have both 1D and multi-level versions.
+      use cc_mpi
+      include 'newmpar.h'
+      character(len=*), intent(in) :: name
+      real, dimension(:,:), intent(in) :: a
+      integer, intent(in) :: ktau, level, i1, i2, j1, j2
+      real, intent(in) :: bias, facti
+
+      call printa1(name,a(:,level),ktau,level,i1,i2,j1,j2,bias,facti)
+   end subroutine printa2
+
+   subroutine printa1(name,a,ktau,level,i1,i2,j1,j2,bias,facti)
+      ! printa has to work with arrays dimension both ifull and ifull+iextra
+      ! printb has printj entry, and automatic choice of fact if facti=0.
+      ! Have both 1D and multi-level versions.
       use cc_mpi
       include 'newmpar.h'
       character(len=*), intent(in) :: name
       real, dimension(:), intent(in) :: a
       integer, intent(in) :: ktau, level, i1, i2, j1, j2
       real, intent(in) :: bias, facti
-      integer jrow, k1, k2
-      integer i, ia, ib, j, ja, jb, k, n, nlocal
-      real fact
+      integer i, j, ja, jb, n, n2, ilocal, jlocal, nlocal
+      real fact, atmp
 
       ! The indices i1, i2, j1, j2 are global
-      n = (j1-1)/il ! Global n
-      j = j1 - n*il ! Value on face
+      n = (j1-1)/il_g ! Global n
+      j = j1 - n*il_g ! Value on face
       if ( myid == fproc(i1,j,n) ) then
-         nlocal = n + noff
-         ja = j1 - n*il - joff
-         jb = j2 - n*il - joff
-         jb = min(jb,ja+24,il)
+         ! Check if whole region is on this processor
+         n2 = (j2-1)/il_g
+         if ( fproc(i2, j2-n2*il_g, n2) /= myid ) then
+            print*, "Error, printa region covers more than one processor"
+            stop
+         end if
+         ja=j1
+         jb=min(ja+24,j2)
          fact=facti
          ! Calculate factor from the middle of the face 
          ! This will be consistent for 1-6 processors at least
-         if(facti.eq.0.) fact=10./abs(a(indp(ipan/2,jpan/2,nlocal)))
+         nlocal = n + noff
+         if(facti.eq.0.) then
+            atmp = abs(a(indp(ipan/2,jpan/2,nlocal)))
+            if ( atmp > 0 ) then
+               fact = 10./atmp
+            else 
+               fact = 1.0
+            end if
+         end if
          print 9 ,name,ktau,level,bias,fact
  9       format(/1x,a4,' ktau =',i7,'  level =',i3,'  addon =',g8.2,   &      
      & '  has been mult by',1pe8.1)
          print 91,(j,j=j1,j2)
 91       format(4x,25i6)
-         do i=i1-ioff,i2-ioff
-            write(unit=*,fmt="(i5)", advance="no") i+ioff
+         do i=i1,i2
+            write(unit=*,fmt="(i5)", advance="no") i
             do j=ja,jb
+               n = (j-1)/il_g ! Global n
+               nlocal = n + noff
+               ilocal = i-ioff
+               jlocal = j - n*il_g - joff
                write(unit=*,fmt="(f6.2)", advance="no")                &
-     &              (a(indp(i,j,nlocal))-bias)*fact
+     &              (a(indp(ilocal,jlocal,nlocal))-bias)*fact
             end do
             write(*,*)
          end do
       end if
 
-!!!c     following entry prints j cross section in standard orientation
-!!!      entry printj(name,a,ktau,jrow,i1,i2,j1,j2,k1,k2,bias,facti)
-!!!      fact=facti
-!!!      if(facti.eq.0.)fact=10./abs(a((i1+i2)/2,(j1+j2)/2,(k1+k2)/2))
-!!!      print 93 ,name,ktau,jrow,bias,fact
-!!!93    format(/1x,a4,' ktau =',i7,'  for j =',i3,'  addon =',g8.2,
-!!!     1 '  has been mult by',1pe8.1)
-!!!      ia=i1
-!!!32    ib=min(ia+24,i2)
-!!!      print 91,(i,i=ia,ib)
-!!!      do 38 k=k2,k1,-1
-!!!      do 35 i=ia,ib
-!!!35    col(i)=(a(i,jrow,k)-bias)*fact
-!!!38    print 92,k,(col(i),i=ia,ib)
-!!!      if(ib.eq.i2)return
-!!!      ia=ib+1
-!!!      go to 32
-
-   end subroutine printa
+   end subroutine printa1
 
 ! has more general format & scaling factor  with subroutine average at bottom
    subroutine maxmin2(u,char,ktau,fact,kup)
@@ -79,26 +95,17 @@ contains
       real, dimension(:,:), intent(in) :: u
       real :: umin(kl),umax(kl)
 !      integer iumax(kl),jumax(kl),iumin(kl),jumin(kl)
-      integer i, j, k, iq, ierr
+      integer k, ierr
       real, dimension(kl) :: gumax, gumin
-
 
       do k=1,kup
          umax(k) = maxval(u(1:ifull,k))*fact
          umin(k) = minval(u(1:ifull,k))*fact
       end do
-#ifdef scyld
-      call MPI_Reduce_( umax, gumax, kup, MPI_REAL, MPI_MAX, 0,         &
-     &                   MPI_COMM_WORLD, ierr )
-      call MPI_Reduce_( umin, gumin, kup, MPI_REAL, MPI_MIN, 0,         &
-     &                  MPI_COMM_WORLD, ierr )
-#else
       call MPI_Reduce ( umax, gumax, kup, MPI_REAL, MPI_MAX, 0,         &
      &                  MPI_COMM_WORLD, ierr )
       call MPI_Reduce ( umin, gumin, kup, MPI_REAL, MPI_MIN, 0,         &
      &                  MPI_COMM_WORLD, ierr )
-#endif
-
 
       if ( myid == 0 ) then
       if(kup.eq.1)then
@@ -146,25 +153,17 @@ contains
       real, dimension(:), intent(in) :: u
       real :: umin, umax
 !      integer iumax(kl),jumax(kl),iumin(kl),jumin(kl)
-      integer i, j, k, iq, ierr
+      integer ierr
       real :: gumax, gumin
 
 
       umax = maxval(u(1:ifull))*fact
       umin = minval(u(1:ifull))*fact
 
-#ifdef scyld
-      call MPI_Reduce_( umax, gumax, 1, MPI_REAL, MPI_MAX, 0,         &
-     &                  MPI_COMM_WORLD, ierr )
-      call MPI_Reduce_( umin, gumin, 1, MPI_REAL, MPI_MIN, 0,         &
-     &                  MPI_COMM_WORLD, ierr )
-#else
       call MPI_Reduce ( umax, gumax, 1, MPI_REAL, MPI_MAX, 0,         &
      &                  MPI_COMM_WORLD, ierr )
       call MPI_Reduce ( umin, gumin, 1, MPI_REAL, MPI_MIN, 0,         &
      &                  MPI_COMM_WORLD, ierr )
-#endif
-
 
       if ( myid == 0 ) then
         print 970,ktau,char,gumax,char,gumin
@@ -192,18 +191,94 @@ contains
             spmean(k) = spmean(k)+speed(iq,k)*wts(iq)
          enddo                  !  iq loop
       end do
-#ifdef scyld
-      call MPI_Reduce_( spmean, spmean_g, kl, MPI_REAL, MPI_SUM, 0,   &
-     &                  MPI_COMM_WORLD, ierr )
-#else
       call MPI_Reduce ( spmean, spmean_g, kl, MPI_REAL, MPI_SUM, 0,   &
      &                  MPI_COMM_WORLD, ierr )
-#endif
-
       spavge_g = 0.0
       do k=1,kl
          spavge_g = spavge_g-dsig(k)*spmean_g(k) ! dsig is -ve
       end do
 
    end subroutine average
+
+   function diagvals_r(a) result (res)
+      use cc_mpi
+      include 'newmpar.h'
+      include 'parm.h'
+      real, intent(in), dimension(:) :: a
+      real, dimension(9) :: res
+      integer :: i, j, n, jf, ilocal, jlocal, nloc, iq
+
+!     Return the equivalent of arr(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+      iq = 0
+      do j=jd-1,jd+1
+         do i=id-1,id+1
+            iq = iq + 1
+            n = (j-1)/il_g  ! Global n
+            jf = j - n*il_g ! Value on face
+            if ( fproc(i, jf, n) == myid ) then
+               nloc = n + noff
+               ilocal = i-ioff
+               jlocal = j - n*il_g - joff
+               res(iq) = a(indp(ilocal,jlocal,nloc))
+            else
+               res(iq) = 0.
+            end if
+         end do
+      end do
+   end function diagvals_r
+
+   function diagvals_i(a) result (res)
+      use cc_mpi
+      include 'newmpar.h'
+      include 'parm.h'
+      integer, intent(in), dimension(:) :: a
+      integer, dimension(9) :: res
+      integer :: i, j, n, jf, ilocal, jlocal, nloc, iq
+
+!     Return the equivalent of arr(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+      iq = 0
+      do j=jd-1,jd+1
+         do i=id-1,id+1
+            iq = iq + 1
+            n = (j-1)/il_g  ! Global n
+            jf = j - n*il_g ! Value on face
+            if ( fproc(i, jf, n) == myid ) then
+               nloc = n + noff
+               ilocal = i-ioff
+               jlocal = j - n*il_g - joff
+               res(iq) = a(indp(ilocal,jlocal,nloc))
+            else
+               res(iq) = 0
+            end if
+         end do
+      end do
+   end function diagvals_i
+
+   function diagvals_l(a) result (res)
+      use cc_mpi
+      include 'newmpar.h'
+      include 'parm.h'
+      logical, intent(in), dimension(:) :: a
+      logical, dimension(9) :: res
+      integer :: i, j, n, jf, ilocal, jlocal, nloc, iq
+
+!     Return the equivalent of arr(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+      iq = 0
+      do j=jd-1,jd+1
+         do i=id-1,id+1
+            iq = iq + 1
+            n = (j-1)/il_g  ! Global n
+            jf = j - n*il_g ! Value on face
+            if ( fproc(i, jf, n) == myid ) then
+               nloc = n + noff
+               ilocal = i-ioff
+               jlocal = j - n*il_g - joff
+               res(iq) = a(indp(ilocal,jlocal,nloc))
+            else
+               res(iq) = .false.
+            end if
+         end do
+      end do
+   end function diagvals_l
+
 end module diag_m
