@@ -59,7 +59,7 @@
       real, dimension(ifull) :: dum1, dum2, dum3, dum4, dum5
       integer isflag(ifull)
       ! Will get odd results unless this is on process 0 ???
-      integer, parameter :: id1=3, jd1=60
+!!    integer, parameter :: id1=3, jd1=60
       real :: rlong0_t, rlat0_t, schmidt_t,  rlong0x, rlat0x, schmidtx,
      &         ds_t, timegb, xx_s, yy_s, spval
       integer :: nemi, id_t, jd_t, idjd1, io_in2, kdate_r, ktime_r,
@@ -82,9 +82,10 @@ c     start of processing loop
       id_t=id
       jd_t=jd
       idjd_t=idjd ! Only id+il_g*(jd-1) if it's on process 0.
-      id=id1
-      jd=jd1
-      idjd=id+il_g*(jd-1)
+!!    activate id1,jd1 only if you know approx. corresponding "source" id,jd      
+!!    id=id1
+!!    jd=jd1
+!!    idjd=id+il_g*(jd-1)
       idjd1=idjd
 
       ! infile reads and distributes data to appropriate processors, so
@@ -186,11 +187,12 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
      &                       xg4(iq,m),yg4(iq,m),nface4(iq,m))
             enddo
          enddo
-         id2=nint(xg4(idjd,1))
-         jd2=il*nface4(idjd,1)+nint(yg4(idjd,1))
-         idjd2=id2+il*(jd2-1)
-         if(nmaxpr.eq.1)then
-            print *,'after latltoij giving id2,jd2: ',id2,jd2
+         if(myid==0 .and. nmaxpr.eq.1)then
+           id2=nint(xg4(idjd,1))
+           jd2=il*nface4(idjd,1)+nint(yg4(idjd,1))
+           idjd2=id2+il*(jd2-1)
+            print *,'after latltoij giving id2,jd2,idjd2: ',
+     .                                     id2,jd2,idjd2
             print *,'nface4(1-4) ',(nface4(idjd,m),m=1,4)
             print *,'xg4(1-4) ',(xg4(idjd,m),m=1,4)
             print *,'yg4(1-4) ',(yg4(idjd,m),m=1,4)

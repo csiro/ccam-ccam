@@ -13,16 +13,16 @@ c      nl - number of vertical levels
 c
 c from common/fewflags in FEWFLAGS.f
 c      debug - namelist flag to control single column debugging
-c      lgdebug - latitude index for single column debugging
+c      lgdebug - latitude index for single column debugging (1 for CCAM)
 c      insdebug - hemisphere index for single column debugging
-c      mgdebug  - longitude index for single column debugging
+c      mgdebug  - index for single column debugging (set to idjd for CCAM)
 c
 c see also include files physparams.h (model physical constants)
 c                        cparams.h    (cloud scheme parameters)
 c
 c from arguments
 c      tdt - leapfrog timestep (seconds)
-c      lg - latitude index (ranges from 1 at poles to LAT at equator)
+c      lg - latitude index (always 1 for CCAM)
 c      
 c      land - logical variable for surface type ( = T for land points)
 c      prf - pressure at full levels (in hPa. NB: not SI units)
@@ -132,8 +132,8 @@ C Local data, functions etc
       integer naerosol_i(2)
       data  ukconv, naerosol_i / .false., 2*0 /
       logical debug
-      integer lgdebug,mgdebug,insdebug
-      data debug,lgdebug,mgdebug,insdebug /.false.,1,10106,1/
+      integer lgdebug,mgdebug,insdebug   ! 1,idjd
+      data debug,lgdebug,insdebug /.false.,1,1/
       save ukconv,naerosol_i,debug,lgdebug,mgdebug,insdebug
 
       real esdiff(-40:0)  !Table of es(liq) - es(ice) (MKS), -40 <= t <= 0 C
@@ -165,7 +165,13 @@ C Start code : ----------------------------------------------------------
       root6i=1./root6
 
       if(debug)then
+        lgdebug=1
+	 mgdebug=idjd
+        print *,'entering newcloud debug,lgdebug,mgdebug ',
+     .                             debug,lgdebug,mgdebug
         if(lg.eq.lgdebug)then
+	   qtg(idjd,kl)=2.e-6
+	   qfg(idjd,kl)=10.e-6
           ns=insdebug
           mg=mgdebug+(ns-1)*lon
           write(25,'(a,3i3)')'IPASS=1, before newcloud'
@@ -173,46 +179,44 @@ C Start code : ----------------------------------------------------------
           write(25,91)'ttg ',(ttg(mg,k),k=1,nl)
           write(25,9)'qtg ',(qtg(mg,k),k=1,nl)
           write(25,9)'qlg ',(qlg(mg,k),k=1,nl)
-	  write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
-	  write(25,*)
-	  endif
-	  endif
+          write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
+          write(25,*)
+        endif
+      endif
 
 c Define Cdrop
 
-	  if(naerosol_i(2).gt.0)then
-	  do k=1,nl
-	  do mg=1,ln2
-	  Cdrop(mg,k)=cdso4(mg,k)
-	  enddo
-	  enddo
-	  else
-	  do mg=1,ln2
-	  if(land(mg))then
-	  Cdrop(mg,1)=Cdropl
-	  else
-	  Cdrop(mg,1)=Cdrops
-	  endif
-	  enddo
-	  do k=2,nl
-	do mg=1,ln2
-Cdrop(mg,k)=Cdrop(mg,1)
-	enddo
-	enddo
-	endif
+      if(naerosol_i(2).gt.0)then
+        do k=1,nl
+          do mg=1,ln2
+            Cdrop(mg,k)=cdso4(mg,k)
+          enddo
+        enddo
+      else
+        do mg=1,ln2
+          if(land(mg))then
+            Cdrop(mg,1)=Cdropl
+          else
+            Cdrop(mg,1)=Cdrops
+          endif
+        enddo
+        do k=2,nl
+          do mg=1,ln2
+            Cdrop(mg,k)=Cdrop(mg,1)
+          enddo
+        enddo
+      endif
 
 c First melt cloud ice or freeze cloud water to give correct ice fraction fice.
 c Then calculate the cloud conserved variables qtot and tliq.
 c Note that qcg is the total cloud water (liquid+frozen)
 
-
-
-	do k=1,nl
-	do mg=1,ln2
-	if(ttg(mg,k).ge.tfrz)then
-	fice(mg,k)=0.
-	elseif(ttg(mg,k).ge.tice)then
-	if(qfg(mg,k).gt.1.0e-12)then
+      do k=1,nl
+        do mg=1,ln2
+          if(ttg(mg,k).ge.tfrz)then
+            fice(mg,k)=0.
+          elseif(ttg(mg,k).ge.tice)then
+            if(qfg(mg,k).gt.1.0e-12)then
               fice(mg,k)=min(qfg(mg,k)/(qfg(mg,k)+qlg(mg,k)), 1.)
             else
               fice(mg,k)=0.
@@ -345,7 +349,7 @@ c Do the vapour deposition calculation in the liquid part of mixed-phase clouds
 
 c Calculate deposition on cloud ice
 
-      do k=1,nl-1
+      do k=1,nl   ! was nl-1 until Sept '04
         do mg=1,ln2
           if(cfrac(mg,k).gt.0.)then
             Tk=tliq(mg,k)+hlcp*(qlg(mg,k)+qfg(mg,k))/cfrac(mg,k) !T in liq cloud

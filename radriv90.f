@@ -72,7 +72,7 @@ c     parameters for the aerosol calculation
       save hlwsav, hswsav, sgamp
       
 c     Following are for cloud2 routine
-      common/nonlsav/cfrac(ifull,kl),           ! globpe,leoncld,radriv90
+      common/work3a/cfrac(ifull,kl),           ! globpe,radriv90
      &     t2(imax,kl),ql2(imax,kl),qf2(imax,kl),cf2(imax,kl),
      &     qc2(imax,kl),cd2(imax,kl),p2(imax,kl),
      &     dp2(imax,kl),cll(imax),clm(imax),clh(imax)

@@ -38,7 +38,7 @@ c
 c******************************************************************************
  
       subroutine cloud2(cldoff,lg,ttg,qlg,qfg,cfrac,qccon,
-     &                  cdso4,land,sigh,prf,dprf,cosz,     !Inputs
+     &                  cdrop,land,sigh,prf,dprf,cosz,     !Inputs
      &                  cll,clm,clh)                       !Outputs
 
       implicit none
@@ -59,7 +59,6 @@ C Argument list
       real qfg(imax,l)
       real cfrac(imax,l)
       real qccon(imax,l)
-      real cdso4(imax,nl)
       logical land(imax)
       real sigh(nl+1)
       real prf(imax,l)
@@ -97,7 +96,7 @@ C Local work arrays and variables
       real Emi(imax,l), Abi(imax,l), Rei1(imax,l), Rei2(imax,l) !Ice clouds
       real qlptot(imax),taultot(imax)
       real fice(imax,l),tau_sfac(imax,l)
-      real rk(imax,nl),Cdrop(imax,nl)
+      real rk(imax,nl),cdrop(imax,nl)
 
       integer i
       integer k
@@ -180,7 +179,7 @@ c..   The FULL level is 1 below the half level indicator
             write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
             write(25,91)'cfrac ',(cfrac(mg,k),k=1,nl)
             write(25,9)'qccon ',(qccon(mg,k),k=1,nl)
-            write(25,9)'cdso4 ',(cdso4(mg,k),k=1,nl)
+            write(25,9)'cdrop ',(cdrop(mg,k),k=1,nl)
             write(25,91)'prf ',(prf(mg,k),k=1,nl)
             write(25,91)'dprf ',(dprf(mg,k),k=1,nl)
             write(25,91)'cosz ',cosz(mg)
@@ -247,23 +246,7 @@ c Diagnose low, middle and high clouds; nlow,nmid are set up in initax.f
             clh(:)=clh(:)+cfrac(:,k)-clh(:)*cfrac(:,k)
         enddo
 
-c Set up rk and Cdrop
-
-        if(naerosol_i(1).gt.0)then
-          do k=1,nl-1
-              Cdrop(:,k)=cdso4(:,k)
-          enddo
-        else
-          do k=1,nl-1
-           do mg=1,imax
-            if(.not.land(mg))then !sea
-                Cdrop(mg,k)=Cdrops
-            else            !land
-                Cdrop(mg,k)=Cdropl
-            endif
-           enddo
-          enddo
-        endif
+c Set up rk and cdrop (now as cdso4 from radriv90.f)
 
 c This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
 
@@ -509,7 +492,7 @@ c             if(prf(mg,k).gt.800.) Em = 1.
             ns=insdebug
             mg=mgdebug+(ns-1)*lon
             write(25,'(a,i1)')'After cloud2'
-            write(25,9)'cdso4 ',(cdso4(mg,k),k=1,nl)
+            write(25,9)'cdrop ',(cdrop(mg,k),k=1,nl)
             write(25,91)'Rew ',((Rew1(mg,k)+Rew2(mg,k))/2,k=1,nl)
             write(25,91)'Rei ',((Rei1(mg,k)+Rei2(mg,k))/2,k=1,nl)
             write(25,91)'Abw ',(Abw(mg,k),k=1,nl)

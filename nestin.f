@@ -2,8 +2,8 @@
       use cc_mpi, only : myid, mydiag
       use diag_m
       include 'newmpar.h'
-c     ik,jk,kk are array dimensions read in infile - not for globpea
-c     int2d code - not used for globpea
+!     ik,jk,kk are array dimensions read in infile - not for globpea
+!     int2d code - not used for globpea
       include 'aalat.h'
       include 'arrays.h'
       include 'const_phys.h'
@@ -29,13 +29,13 @@ c     int2d code - not used for globpea
       integer num,mtimea,mtimeb
       data num/0/,mtimea/0/,mtimeb/-1/
       save num,mtimea,mtimeb
-c     mtimer, mtimeb are in minutes
-      if(ktau.lt.100.and.myid==0)then
+!     mtimer, mtimeb are in minutes
+      if(ktau<100.and.myid==0)then
         print *,'in nestin ktau,mtimer,mtimea,mtimeb ',
      &                                  ktau,mtimer,mtimea,mtimeb
         print *,'with kdate_s,ktime_s >= ',kdate_s,ktime_s
       end if
-      if(mtimeb.eq.-1)then
+      if(mtimeb==-1)then
         mtimeb=mtimer  ! zero in fact
         if ( myid==0 )
      &  print *,'set nesting fields to those already read in via indata'
@@ -44,14 +44,14 @@ c     mtimer, mtimeb are in minutes
          tssb(iq)=tss(iq)
         enddo
         tb(1:ifull,:)=t(1:ifull,:)
-        qb(1:ifull,:)=max(qg(1:ifull,:),qgmin)
+        qb(1:ifull,:)=qg(1:ifull,:)
         ub(1:ifull,:)=u(1:ifull,:)
         vb(1:ifull,:)=v(1:ifull,:)
         return
-      endif       ! (mtimeb.eq.-1)
+      endif       ! (mtimeb==-1)
 
-      if(mtimer.gt.0.and.mtimer.le.mtimeb)go to 6  ! allows for dt<1 minute
-c     transfer mtimeb fields to mtimea
+      if(mtimer>0.and.mtimer<=mtimeb)go to 6  ! allows for dt<1 minute
+!     transfer mtimeb fields to mtimea
       mtimea=mtimeb
       do iq=1,ifull
        psla(iq)=pslb(iq)
@@ -62,35 +62,35 @@ c     transfer mtimeb fields to mtimea
       ua(1:ifull,:)=ub(1:ifull,:)
       va(1:ifull,:)=vb(1:ifull,:)
 
-!     Both infile and onthefly should have an argument that says they've
+!     Both infile and onthefly have an argument (nested) that says they've
 !     been called from nestin and don't need to return all variables.
 !     This would be cleaner than the use of all the dummy variables.
 
-c     read tb etc  - for globpea, straight into tb etc
-      if(io_in.eq.1.or.io_in.eq.3)then
+!     read tb etc  - for globpea, straight into tb etc
+      if(io_in==1.or.io_in==3)then
       call infile(meso2,kdate_r,ktime_r,nem2, ! different from DARLAM
      .  timeg_b,ds_r,pslb,dum1,zsb,dum2,dum3, ! timeg_r,ds_r,psl,pmsl,zs,em,f
      .  tssb,dum4,dum3a,dum3a,dum5,dum6,dum7, ! tss,precip,wb,wbice,alb,snowd,sicedep
      .  tb,ub,vb,qb,dum3a,                    ! t,u,v,qg,tgg
-     .	 dum3a,dum3a,dum3a, dum2,dum3,dum4,dum5,1)
-!                above are:   tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag
-      endif   ! (io_in.eq.1.or.io_in.eq.3)
+     .	           dum3a,dum3a,dum3a,dum2, dum3,  dum4, dum5,  1)
+!      above are: tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,nested
+      endif   ! (io_in==1.or.io_in==3)
 
-      if(io_in.eq.-1.or.io_in.eq.-3)then
+      if(io_in==-1.or.io_in==-3)then
           call onthefly(kdate_r,ktime_r,
      .     pslb,zsb,tssb,dum3a,dum3a,dum6,dum7,
      .     tb,ub,vb,qb,dum3a,                    ! t,u,v,qg,tgg
-     .	    dum3a,dum3a,dum3a, dum2,dum3,dum4,dum5,1)
-!                above are:   tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag
-      endif   ! (io_in.eq.1.or.io_in.eq.3)
+     .	           dum3a,dum3a,dum3a,dum2, dum3,  dum4, dum5,  1)
+!      above are: tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,nested
+      endif   ! (io_in==1.or.io_in==3)
       if (mydiag) then
         write (6,"('zsb# nestin  ',9f7.1)") diagvals(zsb)
         write (6,"('tssb# nestin ',9f7.1)") diagvals(tssb) 
       end if
    
-      if(abs(rlong0  -rlong0x).gt..01.or.
-     &   abs(rlat0    -rlat0x).gt..01.or.
-     &   abs(schmidt-schmidtx).gt..01)stop "grid mismatch in infile"
+      if(abs(rlong0  -rlong0x)>.01.or.
+     &   abs(rlat0    -rlat0x)>.01.or.
+     &   abs(schmidt-schmidtx)>.01)stop "grid mismatch in infile"
 
       kdhour=(ktime_r-ktime)/100                      ! integer hour diff
       kdmin=(ktime_r-100*(ktime_r/100))-(ktime-100*(ktime/100))
@@ -100,20 +100,26 @@ c     read tb etc  - for globpea, straight into tb etc
       end if
       mtimeb=60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate))
      .               +60*kdhour+kdmin
-c     mtimeb=60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate))
-c    .               +nint(60*(ktime_r-ktime)/100.)  ! up till 29/11/02
+!     mtimeb=60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate))
+!    .               +nint(60*(ktime_r-ktime)/100.)  ! up till 29/11/02
       if ( myid == 0 ) then
         print *,'kdate_r,iabsdate ',kdate_r,iabsdate(kdate_r,kdate)
         print *,'giving mtimeb = ',mtimeb
-c     print additional information
+!     print additional information
         print *,' kdate ',kdate,' ktime ',ktime
         print *,'timeg,mtimer,mtimea,mtimeb: ',
      &           timeg,mtimer,mtimea,mtimeb
         print *,'ds,ds_r ',ds,ds_r
       end if
 
-      if(mod(ktau,nmaxpr).eq.0.or.diag)then
-c       following is useful if troublesome data is read in
+!     ensure qb big enough, but not too big in top levels (from Sept '04)
+      qb(1:ifull,:)=max(qb(1:ifull,:),qgmin)
+      do k=kl-2,kl
+       qb(1:ifull,k)=min(qb(1:ifull,k),10.*qgmin)
+      enddo
+
+      if(mod(ktau,nmaxpr)==0.or.ktau==2.or.diag)then
+!       following is useful if troublesome data is read in
         if ( myid == 0 ) then
           print *,'following max/min values printed from nestin'
         end if
@@ -127,15 +133,13 @@ c       following is useful if troublesome data is read in
         call maxmin(pslb,'ps',ktau,100.,1)
       endif
 
-      qb(:,:)=max(qb(:,:),qgmin)
-
-!      if(kk.lt.kl)then
-      if(abs(sig(2)-sigin(2)).gt..0001)then   ! 11/03
-c       this section allows for different number of vertical levels
-c       presently assume sigin (up to kk) levels are set up as per nsig=6
-c       option in eigenv, though original csiro9 levels are sufficiently
-c       close for these interpolation purposes.
-        if(ktau.eq.1.and.mydiag)then
+!     if(kk<kl)then
+      if(abs(sig(2)-sigin(2))>.0001)then   ! 11/03
+!       this section allows for different number of vertical levels
+!       presently assume sigin (up to kk) levels are set up as per nsig=6
+!       option in eigenv, though original csiro9 levels are sufficiently
+!       close for these interpolation purposes.
+        if(ktau==1.and.mydiag)then
 	   print*,'calling vertint with kk,sigin ',kk,sigin(1:kk)
 	 endif
         if(diag.and.mydiag)then
@@ -151,32 +155,32 @@ c       close for these interpolation purposes.
         if(diag.and.mydiag)print *,'qb after vertint ',qb(idjd,1:kk)
         call vertint(ub,3)
         call vertint(vb,4)
-      endif  ! (abs(sig(2)-sigin(2)).gt..0001)
+      endif  ! (abs(sig(2)-sigin(2))>.0001)
 
-c     N.B. tssb (sea) only altered for newtop=2 (done here now)
-      if(newtop.eq.2)then
+!     N.B. tssb (sea) only altered for newtop=2 (done here now)
+      if(newtop==2)then
 !       reduce sea tss to mslp      e.g. for QCCA in NCEP GCM
         do iq=1,ifull
-         if(tssb(iq).lt.0.)tssb(iq)=
+         if(tssb(iq)<0.)tssb(iq)=
      .                       tssb(iq)-zsb(iq)*stdlapse/grav  ! N.B. -
         enddo
-      endif  ! (newtop.eq.2)
+      endif  ! (newtop==2)
 
       do iq=1,ifull
         tssb(iq) = abs(tssb(iq))
       enddo
 !     test code in nestin for modifying SSTs
-c	do j=270,288
-c	 do i=9,22
-c	  tssb(i,j)=tssb(i,j)-.5
-c	 enddo
-c	enddo      
+!	do j=270,288
+!	 do i=9,22
+!	  tssb(i,j)=tssb(i,j)-.5
+!	 enddo
+!	enddo      
 
-      if(newtop.ge.1)then
-c       in these cases redefine pslb, tb and (effectively) zsb using zs
-c       this keeps inner-mesh land mask & zs
-c       presently simplest to do whole pslb, tb (& qb) arrays
-        if(nmaxpr.eq.1.and.mydiag)then
+      if(newtop>=1)then
+!       in these cases redefine pslb, tb and (effectively) zsb using zs
+!       this keeps inner-mesh land mask & zs
+!       presently simplest to do whole pslb, tb (& qb) arrays
+        if(nmaxpr==1.and.mydiag)then
           print *,'zs (idjd) :',zs(idjd)
           print *,'zsb (idjd) :',zsb(idjd)
           print *,'psl (idjd) :',psl(idjd)
@@ -184,13 +188,13 @@ c       presently simplest to do whole pslb, tb (& qb) arrays
           print *,'now call retopo from nestin'
         endif
         call retopo(pslb,zsb,zs,tb,qb)
-        if(nmaxpr.eq.1.and.mydiag)then
+        if(nmaxpr==1.and.mydiag)then
           print *,'pslb out(idjd) :',pslb(idjd)
           print *,'after pslb print; num= ',num
         endif
-      endif   !  newtop.ge.1
+      endif   !  newtop>=1
 
-      if(num.eq.0)then
+      if(num==0)then
         num=1
         call printa('zs  ',zs        ,ktau,0  ,ia,ib,ja,jb,0.,.01)
         call printa('zsb ',zsb       ,ktau,0  ,ia,ib,ja,jb,0.,.01)
@@ -204,9 +208,9 @@ c       presently simplest to do whole pslb, tb (& qb) arrays
         call printa('vb  ',vb,ktau,nlv,ia,ib,ja,jb,0.,1.)
         call printa('davt',davt,0,0,ia,ib,ja,jb,0.,10.)
         return
-      endif   !  num.eq.0
+      endif   !  num==0
 
-c     now use tt, uu, vv arrays for time interpolated values
+!     now use tt, uu, vv arrays for time interpolated values
 6     timerm=ktau*dt/60.   ! real value in minutes (in case dt < 60 seconds)
       cona=(mtimeb-timerm)/real(mtimeb-mtimea)
       conb=(timerm-mtimea)/real(mtimeb-mtimea)
@@ -216,17 +220,17 @@ c     now use tt, uu, vv arrays for time interpolated values
       uu (:,:)=cona*ua(:,:)+conb*ub(:,:)
       vv (:,:)=cona*va(:,:)+conb*vb(:,:)
 
-c     calculate time interpolated tss (into tssi)
-      if(namip.gt.0)return     ! namip SSTs/sea-ice take precedence
+!     calculate time interpolated tss (into tssi)
+      if(namip>0)return     ! namip SSTs/sea-ice take precedence
       tssi(:)=cona*tssa(:)+conb*tssb(:)  
       do iq=1,ifull
        if(.not.land(iq))then
-	  if(tssi(iq).gt.273.2)then
+	  if(tssi(iq)>273.2)then
 	    tss(iq)=tssi(iq)
 	    tgg(iq,1)=tssi(iq)
 !          all others are for implied sea ice points
 !          N.B. fracice, sice etc are updated once daily in sflux
-	  elseif(tss(iq).gt.273.2)then  
+	  elseif(tss(iq)>273.2)then  
 	    tss(iq)=tssi(iq)
 	    tgg(iq,1)=tssi(iq)
 !          if already sea ice implied, use present tss, tgg1

@@ -7,7 +7,7 @@ c     *                                                                *
 c     ******************************************************************
 
       include 'newmpar.h'
-      include 'betts1.h'
+      include 'betts1.h'   !  includes work3a
       include 'morepbl.h'
       include 'parm.h'
       include 'prec.h'

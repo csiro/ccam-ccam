@@ -31,9 +31,8 @@
       include 'xarrs.h'
       include 'xyzinfo.h'
       include 'mpif.h'
-      real dpsdt
+      real d,dpsdt,epst
       common/dpsdt/dpsdt(ifull)    ! shared adjust5 & openhist
-      real epst
       common/epst/epst(ifull)
       real alph_p, alph_pm, delneg, delpos, alph_q
       common/mfixdiag/alph_p,alph_pm,delneg,delpos,alph_q
@@ -45,6 +44,7 @@
       real p(ifull+iextra,kl),omgfnl(ifull,kl)
       real wrk1, wrk2  ! wrk2 not used here
       common/work3b/wrk1(ifull,kl),wrk2(ifull,kl)   ! just work arrays here
+      common/work3d/d(ifull,kl) ! possibly shared adjust5 & updps
       real qgsav, qfgsav, qlgsav, trsav
       common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
      &             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
@@ -57,7 +57,7 @@
      &     dd(ifull+iextra,kl),pslxint(ifull),pslsav(ifull)
       real pe(ifull+iextra,kl),e(ifull,kl)
       real helm(ifull+iextra,kl),rhsl(ifull+iextra,kl),delps(ifull)
-      real d(ifull,kl),pextras(ifull,kl),omgf(ifull,kl)
+      real pextras(ifull,kl),omgf(ifull,kl)
 !     This is a genuine rather than space saving equivalence
       equivalence (pextras,dpsldt)
 !     Save this so we can check whether initialisation needs to be redone
@@ -361,6 +361,7 @@
          write (6,"('qg  ',9f8.3/4x,9f8.3)") 1000.*qg(idjd,:)
         endif
         if ( nvad==4 .or. nvad==9 ) then
+	  if(mup==-3)call updps(1)
           sdmx = maxval(abs(sdot))
           call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX,
      &                       MPI_COMM_WORLD, ierr )
@@ -469,9 +470,10 @@
 !       delpos is the sum of all positive changes over globe
 !       delneg is the sum of all negative changes over globe
         do k=1,kl
-           do iq=1,ifull
-              wrk1(iq,k)=max(qg(iq,k),qgminm*ps(iq))-qgsav(iq,k) ! increments
-           enddo                ! iq loop
+         do iq=1,ifull
+          wrk1(iq,k)=max(qg(iq,k),                            ! increments
+     .              (qgminm-qfg(iq,k)-qlg(iq,k))*ps(iq),0.) -qgsav(iq,k) 
+         enddo                ! iq loop
         enddo                   ! k loop
         call ccglobal_posneg(wrk1,delpos,delneg)
         ratio = -delneg/delpos

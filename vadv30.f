@@ -28,9 +28,9 @@ c     does t, u,v then qg, [q1, q2,]
       include 'tracers.h'
       include 'vvel.h'
       include 'xarrs.h'
-      common/work3b/wrk1(ifull,kl),ders(ifull,kl)   ! just work arrays here
-      common/work3c/kdel(ifull,kl)
-      common/work3d/sd(ifull,kl)
+      real wrk1(ifull,kl),ders(ifull,kl)   ! just work arrays here
+      integer kdel(ifull,kl)
+      real sd(ifull,kl)
       common/work3f/st(ifull,kl),anew(ifull,kl),gwrk(ifull,kl)
       real tarr(ifull,kl),uarr(ifull,kl),varr(ifull,kl)
       real bb(kl),sddk(0:kl+1)
@@ -38,7 +38,7 @@ c     does t, u,v then qg, [q1, q2,]
       equivalence (dersh,gwrk),(sdotder,wrk1)
       data sddk/kl2*0./
       tfact=1./nvadh   ! simpler alternative
-      if(ktau.eq.1.and.mydiag)then
+      if(ktau==1.and.mydiag)then
         print *,'in vadv30 ktau,nvad,nvdep,nvint:',ktau,nvad,nvdep,nvint
       endif
 
@@ -46,7 +46,7 @@ c     note sdot coming through is at level k-.5
 c     & was converted in updps/adjust5 to units of grid-steps/timestep  (+ve upwards)
 
 c     Determine departure points st for all i,j,k:
-      if(nvdep.eq.1)then
+      if(nvdep==1)then
 !       this method not so good if trajectory > 1/2 grid length
         do iq=1,ifull
          do k=1,kl   ! tfact gives ~1/2 timestep's worth
@@ -55,8 +55,8 @@ c     Determine departure points st for all i,j,k:
      .                  (2.+delsd+delsd*delsd/6.)   ! cont. fraction for exp
          enddo   ! k loop
         enddo  ! iq loop
-      endif     ! (nvdep.eq.1)
-      if(nvdep.eq.0)then  ! original jlm method follows 
+      endif     ! (nvdep==1)
+      if(nvdep==0)then  ! original jlm method follows 
         do iq=1,ifull
          do k=1,kl
 c         interpolate sdot to full-level sd with cubic polynomials
@@ -77,9 +77,9 @@ c        OK for sd, sdd to go off ends of array as sdot(1)=0., sdot(kl+1)=0.
           st(iq,k)=k -tfact*(sd(iq,k) -tfact*(sddk(k) -tfact*sddd))
          enddo   ! k loop
         enddo  ! iq loop
-      endif   ! (nvdep.eq.0)
+      endif   ! (nvdep==0)
        
-      if(nvdep.eq.2)then  !  jlm method in 2003
+      if(nvdep==2)then  !  jlm method in 2003
         do iq=1,ifull
          sd(iq,1) =.75*sdot(iq,2) -.125*sdot(iq,3)     ! quadratic at ends
          sd(iq,kl)=.75*sdot(iq,kl)-.125*sdot(iq,kl-1)  ! quadratic at ends
@@ -100,9 +100,9 @@ c       build in 1/2 & 1/6 into sdd & sddd
           st(iq,k)=k -tfact*(sd(iq,k) -tfact*(sdd -tfact*sddd))
          enddo  ! iq loop
         enddo   ! k loop
-      endif   ! (nvdep.eq.2) 
+      endif   ! (nvdep==2) 
        
-      if(nvdep.eq.3)then  !  jlm method in 2003 - quadratic right at end
+      if(nvdep==3)then  !  jlm method in 2003 - quadratic right at end
         do iq=1,ifull
          sd(iq,1) =.25*sdot(iq,2)     ! quadratic right at end
          sd(iq,kl)=.25*sdot(iq,kl)    ! quadratic right at end
@@ -123,9 +123,9 @@ c       build in 1/2 & 1/6 into sdd & sddd
           st(iq,k)=k -tfact*(sd(iq,k) -tfact*(sdd -tfact*sddd))
          enddo  ! iq loop
         enddo   ! k loop
-      endif   ! (nvdep.eq.3) 
+      endif   ! (nvdep==3) 
        
-      if(nvdep.eq.4)then  !  newer method similar to depts3d - very poor
+      if(nvdep==4)then  !  newer method similar to depts3d - very poor
         do iq=1,ifull
          sd(iq,1) =.25*sdot(iq,2)     ! quadratic right at end
          sd(iq,kl)=.25*sdot(iq,kl)    ! quadratic right at end
@@ -158,9 +158,9 @@ c	 do itn=2,2
          ders=wrk1   ! 3D
          st=st+ders  ! 3D
 	 enddo  ! itn loop
-      endif    ! (nvdep.eq.4) 
+      endif    ! (nvdep==4) 
        
-      if(nvdep.eq.5)then  !  newer method similar to depts3d  itn=2
+      if(nvdep==5)then  !  newer method similar to depts3d  itn=2
         do iq=1,ifull
          sd(iq,1) =.25*sdot(iq,2)     ! quadratic right at end
          sd(iq,kl)=.25*sdot(iq,kl)    ! quadratic right at end
@@ -199,9 +199,9 @@ c       interpolate sdot to full-level sd with cubic polynomials
          enddo  ! iq loop
          ders=wrk1   ! 3D
          st=st+ders  ! 3D
-      endif    ! (nvdep.eq.5) 
+      endif    ! (nvdep==5) 
        
-      if(nvdep.eq.6)then  !  newer method similar to depts3d  
+      if(nvdep==6)then  !  newer method similar to depts3d  
         do iq=1,ifull
          sd(iq,1) =.25*sdot(iq,2)     ! quadratic right at end
          sd(iq,kl)=.25*sdot(iq,kl)    ! quadratic right at end
@@ -252,9 +252,9 @@ c       interpolate sdot to full-level sd with cubic polynomials
          ders(iq,kl)=tfact*sd(iq,kl)*wrk1(iq,kl-1)/itn  ! new ders
         enddo  ! iq loop
         st=st+ders  ! 3D
-      endif    ! (nvdep.eq.6) 
+      endif    ! (nvdep==6) 
        
-      if(nvdep.eq.7)then  !  iterative
+      if(nvdep==7)then  !  iterative
         do iq=1,ifull
          sd(iq,1) =.25*sdot(iq,2)     ! quadratic right at end
          sd(iq,kl)=.25*sdot(iq,kl)    ! quadratic right at end
@@ -278,7 +278,7 @@ c       interpolate sdot to full-level sd with cubic polynomials
           st(iq,k)=k -tfact*sd(iq,k)        ! 1st guess
          enddo  ! iq loop
         enddo   ! k loop
-        if( (diag.or.ntest.eq.1) .and. mydiag )then
+        if( (diag.or.ntest==1) .and. mydiag )then
           print *,'1st guess:  '
           write (6,"('st  ',9f8.3/4x,9f8.3)") (st(idjd,kk),kk=1,kl)
         endif
@@ -303,7 +303,7 @@ c       interpolate sdot to full-level sd with cubic polynomials
           st(iq,k)=k -.5*tfact*(sd(iq,k)+gwrk(iq,k))        ! 2nd guess
          enddo  ! iq loop
         enddo   ! k loop
-        if( (diag.or.ntest.eq.1) .and. mydiag )then
+        if( (diag.or.ntest==1) .and. mydiag )then
           print *,'2nd guess:  '
           write (6,"('st  ',9f8.3/4x,9f8.3)") (st(idjd,kk),kk=1,kl)
         endif
@@ -328,9 +328,9 @@ c       interpolate sdot to full-level sd with cubic polynomials
           st(iq,k)=k -.5*tfact*(sd(iq,k)+gwrk(iq,k))        ! 3rd guess
          enddo  ! iq loop
         enddo   ! k loop
-      endif   ! (nvdep.eq.7) 
+      endif   ! (nvdep==7) 
        
-      if( (diag.or.ntest.eq.1) .and. mydiag )then
+      if( (diag.or.ntest==1) .and. mydiag )then
          write (6,"('sdot',9f8.3/4x,9f8.3)") (sdot(idjd,kk),kk=1,kl)
          write (6,"('sd  ',9f8.3/4x,9f8.3)") (sd(idjd,kk),kk=1,kl)
          write (6,"('st  ',9f8.3/4x,9f8.3)") (st(idjd,kk),kk=1,kl)
@@ -345,56 +345,56 @@ c       interpolate sdot to full-level sd with cubic polynomials
              st(iq,k)=st(iq,k)-kdel(iq,k)               ! 0 <= st   <= 1.
          enddo  ! iq loop
         enddo   ! k loop
-        if( (diag.or.ntest.eq.1) .and. mydiag )then
+        if( (diag.or.ntest==1) .and. mydiag )then
          write (6,"('Bess st',9f8.3/4x,9f8.3)") (st(idjd,kk),kk=1,kl)
           print *,'new kdel ',(kdel(idjd,k),k=1,kl)
         endif
-	 if(abs(nvad).eq.7)then
+	 if(abs(nvad)==7)then
           call vadvbess(tarr,st,kdel,1)                          
           call vadvbess(uarr,st,kdel,2)                          
           call vadvbess(varr,st,kdel,2)                          
-          if(mspec.eq.1)then
+          if(mspec==1)then
 	     call vadvbess(qg(1:ifull,:),st,kdel,3)    
 	     if(ldr.ne.0)then
 	       call vadvbess8(qlg(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet   
 	       call vadvbess8(qfg(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet   
 	     endif  ! (ldr.ne.0)                      
-            if(ilt.gt.1)then
+            if(ilt>1)then
               do ntr=1,ntrac
                call vadvbess(tr(1:ilt*jlt,:,ntr),st,kdel,3)    ! tr next
               enddo
-            endif   ! (ilt.gt.1)
-          endif     ! (mspec.eq.1)
-         elseif(abs(nvad).eq.8)then 
+            endif   ! (ilt>1)
+          endif     ! (mspec==1)
+         elseif(abs(nvad)==8)then 
           call vadvbess8(tarr,st,kdel,1)                          
           call vadvbess8(uarr,st,kdel,2)                          
           call vadvbess8(varr,st,kdel,2)                          
-          if(mspec.eq.1)then
+          if(mspec==1)then
 	     call vadvbess8(qg(1:ifull,:),st,kdel,3)                          
 	     if(ldr.ne.0)then
 	       call vadvbess8(qlg(1:ifullw,:),st,kdel,3)  
 	       call vadvbess8(qfg(1:ifullw,:),st,kdel,3)  
 	     endif  ! (ldr.ne.0)                      
-            if(ilt.gt.1)then
+            if(ilt>1)then
               do ntr=1,ntrac
                call vadvbess8(tr(1:ilt*jlt,:,ntr),st,kdel,3)    ! tr next
               enddo
-            endif   ! (ilt.gt.1)
-          endif     ! (mspec.eq.1)
-         elseif(abs(nvad).eq.9)then   !  just qg and gases  
-          if(mspec.eq.1)then
+            endif   ! (ilt>1)
+          endif     ! (mspec==1)
+         elseif(abs(nvad)==9)then   !  just qg and gases  
+          if(mspec==1)then
              call vadvbess(qg(1:ifull,:),st,kdel,3)    
              if(ldr.ne.0)then
                call vadvbess8(qlg(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet   
                call vadvbess8(qfg(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet   
              endif  ! (ldr.ne.0)                      
-            if(ilt.gt.1)then
+            if(ilt>1)then
               do ntr=1,ntrac
                call vadvbess(tr(1:ilt*jlt,:,ntr),st,kdel,3)    ! tr next
               enddo
-            endif   ! (ilt.gt.1)
-          endif     ! (mspec.eq.1)
-         endif     ! (abs(nvad).eq.7)  .. else .. ..
+            endif   ! (ilt>1)
+          endif     ! (mspec==1)
+         endif     ! (abs(nvad)==7)  .. else .. ..
 	 return
       end
 
@@ -412,22 +412,22 @@ c                          ! 2 for zero gradient at top & bottom full-levels
       dimension kdel(ifull,kl)
       common/work3/tgrad(ifull,kl),toutt(ifull,kl),dum(3*ijk)
 c     st() is the sigma displacement array
-c     if(ktau.eq.1)then
+c     if(ktau==1)then
 c       print *,'in vadvbess with ntopp = ',ntopp
 c     endif
 
-      if(ntopp.eq.1)then  ! 1-sided
+      if(ntopp==1)then  ! 1-sided
         do iq=1,ifull
          tgrad(iq,1)=(t(iq,2)-t(iq,1))/(sig(2)-sig(1))
          tgrad(iq,kl)=(t(iq,kl)-t(iq,kl-1))/(sig(kl)-sig(kl-1))
         enddo
-      endif  ! (ntopp.eq.1)
-      if(ntopp.eq.2)then
+      endif  ! (ntopp==1)
+      if(ntopp==2)then
         do iq=1,ifull
          tgrad(iq,1)=0.
          tgrad(iq,kl)=0.
         enddo
-      endif  ! (ntopp.eq.2)
+      endif  ! (ntopp==2)
 
       do k=2,kl-1
        conkm=(sig(k)-sig(k+1))/((sig(k-1)-sig(k))*(sig(k-1)-sig(k+1)))
@@ -462,7 +462,7 @@ c     .                                 +tgrad(iq,kk)+tgrad(iq,kk+1) )))
       endif
 
 !     can impose non-negative constraint here
-      if(ifield.eq.3)then
+      if(ifield==3)then
         t=max(toutt,0.)
       else
         t=toutt
@@ -489,22 +489,22 @@ c                          ! 2 for zero gradient at top & bottom full-levels
       dimension kdel(ifull,kl)
       common/work3/tgrad(ifull,kl),toutt(ifull,kl),dum(3*ijk)
 c     st() is the sigma displacement array
-c     if(ktau.eq.1)then
+c     if(ktau==1)then
 c       print *,'in vadvbess8 with ntopp = ',ntopp
 c     endif
 
-      if(ntopp.eq.1)then  ! 1-sided
+      if(ntopp==1)then  ! 1-sided
         do iq=1,ifull
          tgrad(iq,1)=(t(iq,2)-t(iq,1))/(sig(2)-sig(1))
          tgrad(iq,kl)=(t(iq,kl)-t(iq,kl-1))/(sig(kl)-sig(kl-1))
         enddo
-      endif  ! (ntopp.eq.1)
-      if(ntopp.eq.2)then
+      endif  ! (ntopp==1)
+      if(ntopp==2)then
         do iq=1,ifull
          tgrad(iq,1)=0.
          tgrad(iq,kl)=0.
         enddo
-      endif  ! (ntopp.eq.2)
+      endif  ! (ntopp==2)
 
       do k=2,kl-1
        conkm=(sig(k)-sig(k+1))/((sig(k-1)-sig(k))*(sig(k-1)-sig(k+1)))
@@ -537,7 +537,7 @@ c     endif
       endif
 
 !     can impose non-negative constraint here
-      if(ifield.eq.3)then
+      if(ifield==3)then
         t=max(toutt,0.)
       else
         t=toutt

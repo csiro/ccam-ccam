@@ -35,11 +35,12 @@
       integer nface
       real xg, yg
       common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
-      real tnsav, unsav, vnsav
+      real tnsav, unsav, vnsav, tnsavv, unsavv, vnsavv 
       common/nonlsav/tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl)
-      real theta(kl), factr(kl)
-      integer intsch, iq, k, kk, lev, ntr, ierr, its, nits, nvadh_pass
-      real denb, dtm, dtp, phi1, tav, tempry, tsurf, vdot1,
+     &              ,tnsavv(ifull,kl),unsavv(ifull,kl),vnsavv(ifull,kl)
+      real theta(ifull,kl), factr(kl)
+      integer intsch, iq, k, kk, ntr, ierr, its, nits, nvadh_pass
+      real denb, dtm, dtp, phi1, tempry, vdot1,
      &     vdot2, vec1x, vec1y, vec1z, vec2x, vec2y, vec2z, vec3x,
      &     vec3y, vec3z, vecdot, sdmx, sdmx_g
       integer, save :: num_hight = 0, numunstab = 0
@@ -65,9 +66,9 @@
          endif                  ! (tx(idjd,kl).gt.264.)
       end if
 
-      if(num_hight.lt.100)then
+      if(num_hight<100)then
         do iq=1,ifull
-         if(tx(iq,kl).gt.264.)then
+         if(tx(iq,kl)>264.)then
            print *,'upglobal ktau,myid,iq,large_tx  ',ktau,myid,iq,
      &           tx(iq,kl)
            write (6,"('sdot_iq',9f7.3/4x,9f7.3)") (sdot(iq,kk),kk=1,kl)
@@ -76,7 +77,7 @@
 	 enddo
       endif           
 
-      if(nvad.eq.-4.or.nvad.eq.-9)then ! also called further down for nvadh=2
+      if(nvad==-4.or.nvad==-9)then ! also called further down for nvadh=2
          sdmx = maxval(abs(sdot))
          call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX, 
      &                      MPI_COMM_WORLD, ierr )
@@ -89,7 +90,7 @@
             call vadvtvd(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
      &                   nvadh_pass) 
 	 enddo
-      endif  ! (nvad.eq.-4.or.nvad.eq.-9)
+      endif  ! (nvad==-4.or.nvad==-9)
       if(nvad.le.-7)
      &     call vadv30(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:))       ! for vadvbess
 
@@ -98,50 +99,24 @@
       if(ndept.eq.0) call depts(x3d,y3d,z3d)
       if(ndept.eq.1) call depts1(x3d,y3d,z3d)
 
-      do k=1,kl
-
-       if(nritch.ne.0.or.nt_adv.gt.0)then
-         if(nritch_t.lt.0)then   !  e.g. -3
-           lev=-nritch_t
-           do iq=1,ifull
-            phi1=t(iq,lev)*rdry*(1.-sig(lev))/sig(lev) !phi of sig(lev) above sfc
-            tsurf=t(iq,lev)+phi1*stdlapse/grav
-            tav=tsurf+zs(iq)*.5*stdlapse/grav
-            dd(iq,k)=zs(iq)/(rdry*tav)   ! dlnps to give ln(pmsl)
-           enddo
-         endif
-         if(nritch_t.eq.0)then    ! default nritch_t is 0
-           do iq=1,ifull
-            dd(iq,k)=zs(iq)/(rdry*t(iq,k))
-           enddo
-         endif
-         if(nritch_t.gt.0)then
-           do iq=1,ifull
-            dd(iq,k)=zs(iq)/(rdry*nritch_t)    ! e.g. nritch_t=300
-           enddo
-         endif
-       endif  ! (nritch.ne.0.or.nt_adv.gt.0) 
-
+      do k=1,kl   
+       dd(:,k)=zs(:)/(rdry*nritch_t)    ! now default, nritch_t=300
        if(nritch.gt.300)then   ! jlm special bi-linear treatment 303
          do iq=1,ifull
           pslx(iq,k)=pslx(iq,k)+dd(iq,k)
          enddo   ! iq loop
        endif     ! nritch.gt.300
-      end do  ! k
+      end do     ! k loop
 
        if(nritch.gt.300.or.nt_adv.gt.0)then   ! jlm special bi-linear treatment 303
-          aa(1:ifull,:)=dd(1:ifull,:)         ! for nt_adv schemes holding zs/(r*t)
-          call ints_bl(dd,intsch,nface,xg,yg)
+         aa(:,:)=dd(1:ifull,:)     ! for nt_adv schemes holding zs/(r*t)
+         call ints_bl(dd,intsch,nface,xg,yg)
        endif     ! (nritch.gt.300.or.nt_adv.gt.0)
 
        if(mup.ne.0) call ints(pslx,intsch,nface,xg,yg,1)
 
-       if(nritch.gt.0)then
-          do k=1,kl
-             do iq=1,ifull
-                pslx(iq,k)=pslx(iq,k)-dd(iq,k)
-             enddo              ! iq loop
-          end do
+       if(nritch>0)then
+         pslx(:,:)=pslx(:,:)-dd(:,:)
 	endif   ! (nritch.gt.0)  
 
 !      if(nritch.ge.404.and.ktau.eq.1)then  ! set in globpe now
@@ -149,33 +124,33 @@
 !	  print *,'resetting nritch,nt_adv,ktau ',nritch,nt_adv,ktau 
 !	endif
 	
-       if(nt_adv.gt.0)then   ! special T advection treatments follow
+       if(nt_adv>0)then   ! special T advection treatments follow
           do k=1,kl
-             if(nt_adv.eq.3) then   ! 1. up to sig=.4
-                   factr(k)=stdlapse*(rdry*300./grav)
+             if(nt_adv==3) then   ! 1. up to sig=.4
+                   factr(k)=stdlapse*(rdry*nritch_t/grav)
                    if(sig(k).lt.0.3)factr(k)=0.
-             endif   ! (nt_adv.eq.3)then   
-             if(nt_adv.eq.4) ! (1, .5, 0) for sig=(1, .75, .5)
+             endif   ! (nt_adv==3)then   
+             if(nt_adv==4) ! (1, .5, 0) for sig=(1, .75, .5)
      &          factr(k)=max(2.*sig(k)-1., 0.)*stdlapse*(rdry*300./grav)
-             if(nt_adv.eq.5)    ! 1 to 0 for sig=1 to 0
-     &             factr(k)=sig(k)*stdlapse*(rdry*300./grav)
-             if(nt_adv.eq.6)    ! (1, .5625, 0) for sig=(1, .5, .2)
+             if(nt_adv==5)    ! 1 to 0 for sig=1 to 0
+     &             factr(k)=sig(k)*stdlapse*(rdry*nritch_t/grav)
+             if(nt_adv==6)    ! (1, .5625, 0) for sig=(1, .5, .2)
      &             factr(k)=max(0.,1.25*(sig(k)-.2)*(2.-sig(k)))
-     &                   *stdlapse*(rdry*300./grav)
-             if(nt_adv.eq.7)    ! 1 up to .4, then lin decr. to .2, then 0
+     &                   *stdlapse*(rdry*nritch_t/grav)
+             if(nt_adv==7)    ! 1 up to .4, then lin decr. to .2, then 0
      &             factr(k)=max(0.,min(1.,(sig(k)-.2)/(.4-.2)))
-     &                   *stdlapse*(rdry*300./grav)
-             if(nt_adv.eq.8)then ! (1,1,.84375,.5,.15625,0) for sig=(1,.6,.5,.4,.2)  
+     &                   *stdlapse*(rdry*nritch_t/grav)
+             if(nt_adv==8)then ! (1,1,.84375,.5,.15625,0) for sig=(1,.6,.5,.4,.2)  
                 factr(k)=3.*((sig(k)-.2)/.4)**2 -2.*((sig(k)-.2)/.4)**3
-     &           *stdlapse*(rdry*300./grav)
-                if(sig(k).gt..6)factr(k)=stdlapse*(rdry*300./grav)
-                if(sig(k).lt..2)factr(k)=0.
+     &           *stdlapse*(rdry*nritch_t/grav)
+                if(sig(k)>.6)factr(k)=stdlapse*(rdry*nritch_t/grav)
+                if(sig(k)<.2)factr(k)=0.
              endif
-             if(nt_adv.eq.9)then ! (1,1,.741,.259,0) for sig=(1,.5,.4,.3,.2) 
+             if(nt_adv==9)then ! (1,1,.741,.259,0) for sig=(1,.5,.4,.3,.2) 
                 factr(k)=3.*((sig(k)-.2)/.3)**2 -2.*((sig(k)-.2)/.3)**3
-     &           *stdlapse*(rdry*300./grav)
-                if(sig(k).gt..5)factr(k)=stdlapse*(rdry*300./grav)
-                if(sig(k).lt..2)factr(k)=0.
+     &           *stdlapse*(rdry*nritch_t/grav)
+                if(sig(k)>.5)factr(k)=stdlapse*(rdry*nritch_t/grav)
+                if(sig(k)<.2)factr(k)=0.
              endif
              do iq=1,ifull
                 cc(iq,k)=tx(iq,k)+aa(iq,k)*factr(k)
@@ -187,7 +162,7 @@
           end do
        else
          call ints(tx,intsch,nface,xg,yg,3)
-       endif  ! (nt_adv.ge.4)
+       endif  ! (nt_adv>0) .. else ..
 
 !      now comes ux & vx section
        if(diag)then
@@ -393,13 +368,13 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
 !       diag check for unstable layers
         do iq=1,ifull
          do k=1,kl
-          theta(k)=tx(iq,k)*sig(k)**(-rdry/cp)
+          theta(iq,k)=tx(iq,k)*sig(k)**(-rdry/cp)
          enddo
          do k=ntest,kl   ! e.g. 8,kl
-          if(theta(k).lt.theta(k-1))then  ! based on tx
+          if(theta(iq,k)<theta(iq,k-1))then  ! based on tx
             print *,"unstable layer in upglobal for ktau,iq,k's,del ",
-     &                               ktau,iq,k-1,k,theta(k-1)-theta(k)
-	     write (6,"('theta',9f7.2/5x,9f7.2)") theta
+     &                           ktau,iq,k-1,k,theta(iq,k-1)-theta(iq,k)
+	     write (6,"('theta',9f7.2/5x,9f7.2)") (theta(iq,kk),kk=1,kl)
             write (6,"('sdot',9f7.3/4x,9f7.3)") (sdot(iq,kk),kk=1,kl)
 c           print *,'sdot', (sdot(iq,kk),kk=1,kl)
             numunstab=numunstab+1
@@ -408,6 +383,22 @@ c           if(numunstab.eq.100)stop 'numunstab=30'
          enddo
         enddo
       endif
+      
+!     dry adiabatic adjustment on tx (Sept '04)      
+      do k=1,kl
+       theta(:,k)=tx(1:ifull,k)*sig(k)**(-rdry/cp)
+      enddo
+      do k=1,kl-1
+       do iq=1,ifull
+	 if(theta(iq,k)>theta(iq,k+1))then
+!         following expression is thetav	 
+	   theta(iq,k+1)=(dsig(k)*theta(iq,k)+dsig(k+1)*theta(iq,k+1))/
+     &                  (dsig(k)+dsig(k+1))
+          tx(iq,k+1)=theta(iq,k+1)*sig(k+1)**(rdry/cp)
+          tx(iq,k  )=theta(iq,k+1)*sig(k  )**(rdry/cp)
+	 endif
+   	enddo
+      enddo
 
       call end_log(upglobal_end)
       return

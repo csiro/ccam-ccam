@@ -323,6 +323,7 @@ c     log scaled sfc.press
 c     call histrd1(ncid,iarch,ier,'mslp',ik,jk,pmsl)  ! not needed
       call histrd1(ncid,iarch,ier,'zht',ik,jk,zs)
       call histrd1(ncid,iarch,ier,'tsu',ik,jk,tss)
+      tss(:)=abs(tss(:))
 
 c     turn on fatal netcdf errors
       if ( myid == 0 ) call ncpopt(NCVERBOS+NCFATAL)
@@ -339,7 +340,7 @@ c     turn OFF fatal netcdf errors; from here on
       if(ier.ne.0)then
         call histrd4(ncid,iarch,ier,'mixr',ik,jk,kk,qg)  !   g/kg
       endif
-      if(ldr.ne.0)then
+      if(ldr.ne.0.and.nested==0)then   ! only from indata, altered Sept '04
         call histrd4(ncid,iarch,ier,'qfg',ik,jk,kk,qfg(1:ifullw,:))       !  kg/kg
         call histrd4(ncid,iarch,ier,'qlg',ik,jk,kk,qlg(1:ifullw,:))       !  kg/kg
         if(ier.ne.0)then
@@ -681,7 +682,7 @@ c unpack data
       include 'parm.h'
       common/work3/dum3(ifull,kl,3),told(ifull,kl),spare(ijk)
       common/sigin/sigin(kl),kk                    ! for vertint, infile
-      dimension t(ifull,kl),ka(kl),kb(kl),wta(kl),wtb(kl)
+      dimension t(ifull,kl),ka(kl),kb(kl),wta(kl),wtb(kl)  ! for mpi
       save num,ka,kb,wta,wtb,klapse
       data num/0/,klapse/0/
       if(num.eq.0)then
@@ -728,6 +729,8 @@ c unpack data
          t(iq,k)=wta(k)*told(iq,ka(k))+wtb(k)*told(iq,kb(k))
        enddo   ! iq loop
       enddo    ! k loop
+c     print *,'in vertint told',told(idjd,:)
+c     print *,'in vertint t',t(idjd,:)
 
       if(n.eq.1.and.klapse.ne.0)then  ! for T lapse correction
         do k=1,klapse

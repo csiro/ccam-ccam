@@ -30,6 +30,7 @@ c      fst88
 c 
       include 'newmpar.h'
       include 'hcon.h'
+      include 'parm.h'
       include 'rdparm.h'
       include 'radisw.h'
       include 'co2dta.h'
@@ -115,6 +116,15 @@ c
       cntval(i,k)=texpsl(i,k)*rh2o(i,k)*var2(i,k)*betinw/
      &             (rh2o(i,k)+rath2omw)
 131   continue
+c     do k=1,l
+c      do i=1,imax
+c      if(cntval(i,k)>1.e7)then
+c        print *,'ktau ',ktau
+c       print *,'i,k,temp,texpsl,rh2o,var2,betinw,cntval ',i,k,
+c    .  temp(i,k),texpsl(i,k),rh2o(i,k),var2(i,k),betinw,cntval(i,k)
+c      endif
+c      enddo
+c      enddo
 !      print*, ' 131 '
 !      print*, ' In lwr qo3 1', (qo3(1,k),k=1,l)
 !      print*, ' In lwr qo3 2', (qo3(2,k),k=1,l)
@@ -249,4 +259,5 @@ c***apply to all co2 tfs
       call fst88
 !      print*, ' lwr88 done '
       return
-      end 
+      end
+ 

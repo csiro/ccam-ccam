@@ -1,5 +1,6 @@
       subroutine staguv(u,v,uout,vout)
-!     stripped down version just with nstag=nstagu=-3, mstagpt=-3      
+!     stripped down version just with nstag=nstagu=3, mstagpt=-3      
+!     also now includes nstag=nstagu=4 & 5
 !     staguv    may be called from adjust5, upglobal
 !     unstaguv  may be called from adjust5,  nonlin
 c     nstag now in parm.h  ! for nstag=0   staguv uses cubic interpolation
@@ -14,6 +15,7 @@ c     N.B. staguv & unstaguv previously required 2D arrays as input
 c     - no longer, as transferred here to uin and vin
 c     assume k level already given
       use cc_mpi
+c     use diag_m             ! for calls to maxmin
       implicit none
       include 'newmpar.h'
       include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee

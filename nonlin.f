@@ -4,6 +4,7 @@
       implicit none
 !     has only morder=24, & nphip options
       integer, parameter :: meth=1     ! 0 or 1 for nphip scheme
+      integer, parameter :: npgf=1     ! 0 or 2 for test scheme
       integer, parameter :: nphip=1    ! 1:off, 421:on  1052,2,-2.5
       integer, parameter :: ntest=0
       integer, parameter :: nwhite=0   ! 0:off, 1:on
@@ -33,8 +34,9 @@
       common/epst/epst(ifull)
       integer neigh
       common/neigh/neigh(ifull)
-      real tnsav, unsav, vnsav
+      real tnsav, unsav, vnsav, tnsavv, unsavv, vnsavv
       common/nonlsav/tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl)
+     &              ,tnsavv(ifull,kl),unsavv(ifull,kl),vnsavv(ifull,kl)
       real tbar2d
       common/tbar2d/tbar2d(ifull)
       ! Need work common for these?
@@ -45,8 +47,9 @@
 !     .             ee(ifull),ff(ifull),dum2(ifull,7),pskap(ifull)
       real p(ifull+iextra,kl),tempry(ifull,kl),
      &     tv(ifull+iextra,kl)
-      real d, spare
-      common/work3/d(ifull,kl),spare(ifull,4*kl)   ! From updps
+      real d, pexx, spare
+      common/work3/d(ifull,kl),pexx(ifull+iextra,kl),
+     .             spare(ifull*3*kl-iextra*kl)   ! From updps
       real qgsav, qfgsav, qlgsav, trsav
       common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
      &             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
@@ -61,6 +64,7 @@
      &     psav, psavk, psavklog, psavlog, ratio, rk, sdmax, 
      &     sigt, sigtlog, sigxx, sinlat, sinth, sumdiffb, termlin, tt,
      &     tvv, uzon, zonx, zony, zonz, zsint, sdmx, sdmx_g
+      real, dimension(ifull+iextra,kl) :: uin, vin
       integer :: ierr
       integer, save :: num = 0
       
@@ -111,6 +115,70 @@
          enddo    ! k  loop
         enddo     ! ng loop
       endif       ! (ngas.ge.1)
+
+      if(nuvfilt.ne.0)then
+        uin(1:ifull,:) = u(1:ifull,:)
+        vin(1:ifull,:) = v(1:ifull,:)
+        call boundsuv(uin,vin,nrows=2)
+	 if(nuvfilt.eq.1)then
+         do k=1,kl
+!cdir nodep
+         do iq=1,ifull  
+	   if(((uin(iwu(iq),k)<uin(iq,k)).and.
+     &        (uin(iq,k)>uin(ieu(iq),k)).and.
+     &        (uin(ieu(iq),k)<uin(ieeu(iq),k))).or.
+     &       ((uin(iwu(iq),k)>uin(iq,k)).and.
+     &        (uin(iq,k)<uin(ieu(iq),k)).and.
+     &        (uin(ieu(iq),k)>uin(ieeu(iq),k))))then
+            u(iq,k)=.5*(uin(iq,k)+uin(ieu(iq),k))
+            u(ieu(iq),k)=.5*(uin(iq,k)+uin(ieu(iq),k))
+	   endif
+	   if(((vin(isv(iq),k)<vin(iq,k)).and.
+     &        (vin(iq,k)>vin(inv(iq),k)).and.
+     &        (vin(inv(iq),k)<vin(innv(iq),k))).or.
+     &       ((vin(isv(iq),k)>vin(iq,k)).and.
+     &        (vin(iq,k)<vin(inv(iq),k)).and.
+     &        (vin(inv(iq),k)>vin(innv(iq),k))))then
+            v(iq,k)=.5*(vin(iq,k)+vin(inv(iq),k))
+            v(inv(iq),k)=.5*(vin(iq,k)+vin(inv(iq),k))
+	   endif
+	  enddo  ! iq loop
+!        following loops only really needed for MPI version	  
+	  do jj=1,il
+	   iq=1+(jj-1)*il  ! just for i=1 in other dirn
+	   if(((uin(ieu(iq),k)<uin(iq,k)).and.
+     &        (uin(iq,k)>uin(iwu(iq),k)).and.
+     &        (uin(iwu(iq),k)<uin(iwwu(iq),k))).or.
+     &       ((uin(ieu(iq),k)>uin(iq,k)).and.
+     &        (uin(iq,k)<uin(iwu(iq),k)).and.
+     &        (uin(ieu(iq),k)>uin(iwwu(iq),k))))then
+            u(iq,k)=.5*(uin(iq,k)+uin(iwu(iq),k))
+	   endif
+	  enddo
+	  do iq=1,il  ! just doing j=1 in other dirn
+	   if(((vin(inv(iq),k)<vin(iq,k)).and.
+     &        (vin(iq,k)>vin(isv(iq),k)).and.
+     &        (vin(isv(iq),k)<vin(issv(iq),k))).or.
+     &       ((vin(inv(iq),k)>vin(iq,k)).and.
+     &        (vin(iq,k)<vin(isv(iq),k)).and.
+     &        (vin(isv(iq),k)>vin(issv(iq),k))))then
+            v(iq,k)=.5*(vin(iq,k)+vin(isv(iq),k))
+	   endif
+	  enddo
+	 enddo   ! k  loop
+	 endif   ! (nuvfilt.eq.1)then
+	 if(nuvfilt.gt.1)then
+         do k=nuvfilt,kl  ! e.g. 5
+!cdir nodep
+         do iq=1,ifull  
+          u(iq,k)=(-uin(iwwu(iq),k)+4.*uin(iwu(iq),k)+10.*uin(iq,k)
+     &          +4.*uin(ieu(iq),k)-uin(ieeu(iq),k))/16.
+          v(iq,k)=(-vin(issv(iq),k)+4.*vin(isv(iq),k)+10.*vin(iq,k)
+     &          +4.*vin(inv(iq),k)-vin(innv(iq),k))/16.
+	  enddo  ! iq loop
+	 enddo   ! k  loop
+	 endif   ! (nuvfilt.gt.1)then
+      endif     ! (nuvfilt.gt.0)
 
       ! Diagnostics and neigh calculation below require this.
       call bounds(ps)
@@ -179,27 +247,35 @@
          call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:))  ! for vadvbess
       end if
 
-      do k=1,kl
-!       N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
-        pslx(1:ifull,k)=psl(1:ifull)-pslx(1:ifull,k)*dt*.5*(1.-epst(:))
-      enddo      ! k  loop
+cx      do k=1,kl  ! following done in upglobal from 04/09
+cx!       N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
+cx        pslx(1:ifull,k)=psl(1:ifull)-pslx(1:ifull,k)*dt*.5*(1.-epst(:)) !ca
+cx      enddo      ! k  loop
 
       if(nvad.gt.0.and.(diag.or.nmaxpr.eq.1).and.mydiag)then
        print *,'in nonlin after vertical advection'
-       write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,kk),kk=1,kl)
        write (6,"('t   ',9f8.2/4x,9f8.2)") (t(idjd,kk),kk=1,kl)
        write (6,"('thet',9f8.2/4x,9f8.2)")  
      .              (t(idjd,k)*sig(k)**(-roncp),k=1,kl)
+       write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,kk),kk=1,kl)
+       write (6,"('ql ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,kk),kk=1,kl)
+       write (6,"('qf ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,kk),kk=1,kl)
        write (6,"('u   ',9f8.2/4x,9f8.2)") (u(idjd,kk),kk=1,kl)
        write (6,"('v   ',9f8.2/4x,9f8.2)") (v(idjd,kk),kk=1,kl)
        write (6,"('t#  ',9f8.2)") 
-     .           ((t(ii+(jj-1)*il,nlv),ii=id-1,id+1),jj=jd-1,jd+1)
+     .           ((t(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+       write (6,"('qg# ',9f8.3)") 
+     .          ((1000.*qg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+       write (6,"('ql# ',9f8.3)") 
+     .          ((1000.*qlg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+       write (6,"('qf# ',9f8.3)") 
+     .          ((1000.*qfg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
        write (6,"('u#  ',9f8.2)") 
-     .           ((u(ii+(jj-1)*il,nlv),ii=id-1,id+1),jj=jd-1,jd+1)
+     .           ((u(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
        write (6,"('v#  ',9f8.2)") 
-     .           ((v(ii+(jj-1)*il,nlv),ii=id-1,id+1),jj=jd-1,jd+1)
+     .           ((v(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
        write (6,"('omgf#',9f8.3)") ((ps(ii+(jj-1)*il)*
-     .             omgf(ii+(jj-1)*il,nlv),ii=id-1,id+1),jj=jd-1,jd+1)
+     .             omgf(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
         print *,'pslx ',(pslx(idjd,k),k=1,kl)
       endif  ! (nvad.gt.0.and.(diag.or.nmaxpr.eq.1))
       if(diag)then
@@ -281,6 +357,12 @@
          tbar2d(iq)=t(iq,ntbar)
         enddo   ! iq loop
       endif     ! (ntbar.gt.0)
+      if(ntbar.eq.-3)then
+        do iq=1,ifull
+         tbar2d(iq)=max(t(iq,1),t(iq,2),t(iq,3),t(iq,kl))
+        enddo   ! iq loop
+      endif     ! (ntbar.gt.0)
+cy      tx(1:ifull,:)=t(1:ifull,:)  ! cb
 
       do k=1,kl
        do iq=1,ifull
@@ -289,7 +371,8 @@
      .           +contv*tv(iq,k))*omgf(iq,k)*roncp/sig(k) -termlin
         tv(iq,k)=t(iq,k)+tv(iq,k)
 !       add in  cnon*dt*tn(iq,k)  term at bottom
-        tx(iq,k)=t(iq,k) +.5*dt*(1.-epst(iq))*termlin
+cy        tx(iq,k)=tx(iq,k) +.5*dt*(1.-epst(iq))*termlin  ! cb
+        tx(iq,k)=.5*dt*termlin  ! t and epst later  cy
        enddo     ! iq loop
       enddo      ! k  loop
       if(diag.and.mydiag)then
@@ -501,7 +584,6 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
         p(iq,k)=p(iq,k)+rdry*tv(iq,k)*psl(iq)
        enddo     ! iq loop
       enddo      ! k  loop
-      call bounds(p)
 
 !     calculate "basic-linear" geopotential height and put in tempry
       do iq=1,ifull            ! tempry used by pextras
@@ -514,14 +596,16 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
        enddo     ! iq loop
       enddo      ! k  loop
 !     save "full-linear" - "basic-linear" geopotential height in pextras
-      do k=1,kl
-       do iq=1,ifull
-        pextras(iq,k)=p(iq,k)-tempry(iq,k)
-       enddo  ! iq loop  
-      enddo   !  k loop    
-!     N.B. these pextras terms (actually their horiz derivs) could have
-!     been bundled in here with un, vn but they would have to be staggered
-!     later
+      pextras(:,:)=p(1:ifull,:)-tempry(:,:)
+      if(npgf.gt.0)then
+!       N.B. these pextras terms can bebundled in here with un, vn
+!       but their horiz derivs need to be staggered too
+        pexx(1:ifull,:)=pextras(:,:)
+	 pextras(:,:)=0.
+	 if(npgf.eq.1)p(1:ifull,:)=tempry(:,:)
+        call bounds(pexx)
+      endif
+      call bounds(p)
 
 !     Now set up in ux,vx the tendencies from "full-linear" terms.
 !     The following un, vn contributions include residual psl.grad(T) terms
@@ -542,6 +626,22 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
             dd(iq,k)=emv(iq)*(psl(in(iq))+psl(iq))*
      .                          (tv(in(iq),k)-tv(iq,k))*.5*rdry/ds
          enddo                  ! iq loop
+	  if(npgf.eq.1)then
+!cdir nodep
+           do iq=1,ifull  ! in following pexx is really pextras
+            cc(iq,k)=cc(iq,k)-emu(iq)*(pexx(ie(iq),k)-pexx(iq,k))/ds
+            dd(iq,k)=dd(iq,k)-emv(iq)*(pexx(in(iq),k)-pexx(iq,k))/ds
+           enddo                  ! iq loop
+	  endif  ! (npgf.eq.1)
+	  if(npgf.eq.2)then
+!cdir nodep
+           do iq=1,ifull  ! in following pexx is really pextras
+            cc(iq,k)=cc(iq,k)-.5*(1.+epsu)*emu(iq)*
+     .                          (pexx(ie(iq),k)-pexx(iq,k))/ds
+            dd(iq,k)=dd(iq,k)-.5*(1.+epsu)*emv(iq)*
+     .                          (pexx(in(iq),k)-pexx(iq,k))/ds
+           enddo                  ! iq loop
+	  endif  ! (npgf.eq.2)
 
 !cdir nodep
          if(nphip.gt.1.and.k.le.1)then
@@ -560,14 +660,16 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
       end do ! k
       call unstaguv(aa,bb,aa2,bb2) ! convert to unstaggered positions
       call unstaguv(cc,dd,cc2,dd2)
-      do k=1,kl
-         do iq=1,ifull   
-            ux(iq,k)=u(iq,k)+aa2(iq,k)
-            vx(iq,k)=v(iq,k)+bb2(iq,k)
-            un(iq,k)=un(iq,k)+cc2(iq,k)
-            vn(iq,k)=vn(iq,k)+dd2(iq,k)
-         enddo                  ! iq loop
-      end do
+      ux(1:ifull,:)=u(1:ifull,:)+aa2(1:ifull,:)
+      vx(1:ifull,:)=v(1:ifull,:)+bb2(1:ifull,:)
+      if(nonl.lt.0)then
+        ux(1:ifull,:)=ux(1:ifull,:)+dt*un(1:ifull,:) ! possible physics contrib
+        vx(1:ifull,:)=vx(1:ifull,:)+dt*vn(1:ifull,:) ! possible physics contrib
+        un(1:ifull,:)=0.
+        vn(1:ifull,:)=0.
+      endif
+      un(1:ifull,:)=un(1:ifull,:)+cc2(1:ifull,:)
+      vn(1:ifull,:)=vn(1:ifull,:)+dd2(1:ifull,:)
       if(diag)then
         if(mydiag) print *,'tv ',(tv(idjd,kk),kk=1,kl)
         call printa('aa  ',aa,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -580,10 +682,33 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
         call printa('dd2 ',dd2,ktau,nlv,ia,ib,ja,jb,0.,dt)
       endif                     ! (diag.and.k.eq.nlv)
 
+      if(nonl.lt.0)then
+        if(ktau.gt.2)then
+	   aa(:,:)=tn(:,:)+.5*(tnsav(:,:)-tnsavv(:,:))
+	   bb(:,:)=un(:,:)+.5*(unsav(:,:)-unsavv(:,:))
+	   cc(:,:)=vn(:,:)+.5*(vnsav(:,:)-vnsavv(:,:))
+	   tnsavv(:,:)=tnsav(:,:)
+	   tnsav(:,:)=tn(:,:)
+	   tn(:,:)=aa(:,:)
+	   unsavv(:,:)=unsav(:,:)
+	   unsav(:,:)=un(:,:)
+	   un(:,:)=bb(:,:)
+	   vnsavv(:,:)=vnsav(:,:)
+	   vnsav(:,:)=vn(:,:)
+	   vn(:,:)=cc(:,:)
+	 else
+	   tnsavv(:,:)=tnsav(:,:)
+	   tnsav(:,:)=tn(:,:)
+	   unsavv(:,:)=unsav(:,:)
+	   unsav(:,:)=un(:,:)
+	   vnsavv(:,:)=vnsav(:,:)
+	   vnsav(:,:)=vn(:,:)
+	 endif
+      endif
 !     finish evaluation of tx,ux,vx by adding in part of nonlinear terms
       cnon=.5    ! cnon=.5 shares tn,un,vn between here & upglobal/adjust
-      if(nonl.eq.1.or.nonl.eq.11)cnon=1.   ! cnon=1. all done here
-      if(nonl.eq.2)then
+      if(abs(nonl).eq.1.or.nonl.eq.11)cnon=1.   ! cnon=1. all done here
+      if(abs(nonl).eq.2)then
         tn(:,:)=2.*tn(:,:)   ! all tn added in adjust
         un(:,:)=2.*un(:,:)   ! all un added in adjust
         vn(:,:)=2.*vn(:,:)   ! all vn added in adjust
@@ -593,14 +718,17 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
           unsav(:,:)=un(:,:)
           vnsav(:,:)=vn(:,:)
         endif
-        tx(1:ifull,:) = tx(1:ifull,:) + 1.5*dt*tn(1:ifull,:) -
-     &                  0.5*dt*tnsav(1:ifull,:)
+        t(1:ifull,:)  = t(1:ifull,:) + 1.5*dt*tn(1:ifull,:) -  !cy
+     &                  0.5*dt*tnsav(1:ifull,:)                !cy
+cy        tx(1:ifull,:) = tx(1:ifull,:) + 1.5*dt*tn(1:ifull,:) -  !cb
+cy     &                  0.5*dt*tnsav(1:ifull,:)                 !cb
         ux(1:ifull,:) = ux(1:ifull,:) + 1.5*dt*un(1:ifull,:) -
      &                  0.5*dt*unsav(1:ifull,:)
         vx(1:ifull,:) = vx(1:ifull,:) + 1.5*dt*vn(1:ifull,:) -
      &                  0.5*dt*vnsav(1:ifull,:)
       else       ! (nonl=0, 1, or 11)  usual code has nonl=0
-        tx(1:ifull,:) = tx(1:ifull,:) + cnon*dt*tn(1:ifull,:)
+        t(1:ifull,:)  = t(1:ifull,:)  + cnon*dt*tn(1:ifull,:) !cy
+cy        tx(1:ifull,:) = tx(1:ifull,:) + cnon*dt*tn(1:ifull,:)  !cb
         ux(1:ifull,:) = ux(1:ifull,:) + cnon*dt*un(1:ifull,:)
         vx(1:ifull,:) = vx(1:ifull,:) + cnon*dt*vn(1:ifull,:)
       endif
@@ -617,10 +745,13 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
 !!!     Requires extra bounds call
 !!!        print  *,'pslx -1,0,1 ',(pslx(idjd+n,nlv),n=-1,1)
          call printa('pslx',pslx,ktau,nlv,ia,ib,ja,jb,0.,100.)
+         if ( mydiag ) print *,'tnsav*dt b ',(tnsav(idjd,k)*dt,k=1,kl)
          if ( mydiag ) print *,'tn*dt b ',(tn(idjd,k)*dt,k=1,kl)
          call printa('tn  ',tn,ktau,nlv,ia,ib,ja,jb,0.,100.*dt)
+         if ( mydiag ) print *,'unsav*dt b ',(unsav(idjd,k)*dt,k=1,kl)
          if ( mydiag ) print *,'un*dt b ',(un(idjd,k)*dt,k=1,kl)
          call printa('un  ',un,ktau,nlv,ia,ib,ja,jb,0.,100.*dt)
+         if ( mydiag ) print *,'vnsav*dt b ',(vnsav(idjd,k)*dt,k=1,kl)
          if ( mydiag ) print *,'vn*dt b ',(vn(idjd,k)*dt,k=1,kl)
          call printa('vn  ',vn,ktau,nlv,ia,ib,ja,jb,0.,100.*dt)
          if ( mydiag ) print *,'tx ',(tx(idjd,k),k=1,kl)
@@ -631,7 +762,7 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
          call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
       endif
 
-      if(nonl.eq.1.or.nonl.eq.11)then   ! option A
+      if(abs(nonl).eq.1.or.nonl.eq.11)then   ! option A
         un(:,:)=0. 
         vn(:,:)=0.
         tn(:,:)=0.

@@ -1,4 +1,7 @@
 c $Log$
+c Revision 1.3  2005/02/02 01:09:19  mcg130
+c *** empty log message ***
+c
 c Revision 1.2  2004/05/05 07:09:51  dix043
 c JMcG change - May 2004
 c
@@ -138,8 +141,10 @@ c Tunable parameters for qcloud scheme
 
 c The following are used in the Manton-Cotton rain parameterization
 
-      real Cdrops, Cdropl, Ec, Aurate
-      parameter (Cdrops=1.0e8, Cdropl=3.0e8) !Cloud droplet conc (sea/land)
+      real cdrops_nh, cdropl_nh, cdrops_sh, cdropl_sh, Ec, Aurate
+      parameter (cdrops_nh=1.e8, cdropl_nh=3.e8) !Cloud droplet conc sea/land nh
+!     parameter (cdrops_sh=1.e8, cdropl_sh=3.e8) !Cloud droplet conc sea/land sh
+      parameter (cdrops_sh=.5e8, cdropl_sh=1.e8) !Cloud droplet conc sea/land sh
 !     parameter (Rcm=7.5e-6) !Threshold cloud dropl R for coalescence to begin
 !!    parameter (Rcm=10.e-6) !Threshold cloud dropl R for coalescence to begin
       parameter (Ec=0.55) !Mean collection efficiency for cloud drops

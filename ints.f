@@ -88,6 +88,23 @@ c           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
                sx(ipan+1,jpan+1,n,k) = s(ien(ind(ipan,jpan,n)),k)
             enddo               ! n loop
 
+            if(ntest.eq.1.and.mydiag.and.nfield==4.and.k==nlv)then !just moisture
+!             just set up for single processor
+              if(nproc.eq.1)then
+                n=1+jd/il
+		  jdel=jd+il-n*il
+	         print *,'qg,qlg,qfg for id,jd,n,jdel ',id,jd,n,jdel
+		  print *,'ipan,jpan,npan ',ipan,jpan,npan
+		  iq=idjd
+		  print *,'xg,yg,nface ',xg(iq,k),yg(iq,k),nface(iq,k)
+		  print *,'ioff,joff,noff ',ioff,joff,noff
+		  do j=jdel+2,jdel-2,-1
+                 write (6,"('qg#5 ',5f8.3)") 
+     .            (1000.*sx(i,j,n,k),i=id-2,id+2)
+                enddo
+              endif
+	     endif
+
             if(nfield.lt.mh_bs)then
                do iq=1,ifull    ! non Berm-Stan option
 !                 Convert face index from 0:npanels to array indices

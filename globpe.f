@@ -67,17 +67,17 @@
       common/nsib/nbarewet,nsigmf
       common/radnml/nnrad,idcld
 
-      real savu1(ifull,kl),savv1(ifull,kl)
-      common/savuv1/savu1,savv1 ! can eventually go
+      real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)
+      real sbar(ifull,2:kl)
+      common/savuv1/savs1,savu1,savv1,sbar 
+      real ubar(ifull,kl),vbar(ifull,kl)
+      common/uvbar/ubar,vbar
 
       real shalrk(ifull,6)
       common/shalrk/shalrk
 
       real taftfh(ifull),taftfhg(ifull)
       common/tafts/taftfh,taftfhg
-
-      real ubar(ifull,kl),vbar(ifull,kl)
-      common/uvbar/ubar,vbar
 
       real, dimension(ifull) :: dirad,dfgdt,degdt,wetfac,degdw,cie,
      &                          factch,qsttg,rho,zo,aft,fh,spare1,theta,
@@ -102,7 +102,7 @@
       common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) !leoncld etc
       real cfrac, dum3f
       real qgsav, qfgsav, qlgsav, trsav
-      common/nonlsav/cfrac(ifull,kl),dum3f(ifull,kl,2) ! globpe,leoncld,radriv90
+      common/work3a/cfrac(ifull,kl),dum3f(ifull,kl,2) ! globpe,radriv90
       common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
      .             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
       real spmean(kl),div(kl),omgf(ifull,kl),pmsl(ifull)
@@ -143,7 +143,7 @@
      & ,lgwd,ngwd,kscreen,rhsat,sigcb
      & ,nextout,hdifmax,jalbfix
      & ,nalpha,nqg_set
-     & ,nstag,nstagu,ntbar,nwrite
+     & ,nstag,nstagu,ntbar,nuvfilt,nwrite
      & ,irest,nrun,mstn,nstn,rel_lat,rel_long
      & ,nrungcm,nsib,slat,slon,iunp,zstn,name_stn,slat2,slon2,iunp2
      & ,mexrest,ndept,nritch,nritch_t,nt_adv
@@ -231,18 +231,18 @@
 
       if ( myid == 0 ) then
       print *,'Dynamics options A:'
-      print *,'   m    mfix  mfix_qg  mup    nonl   npex   nrot   nh'
-      write (6,'(i5,8i7)')m,mfix,mfix_qg,mup,nonl,npex,nrot,nh
+      print *,'   m    mex   mfix  mfix_qg   mup    nh    nonl   npex' 
+      write (6,'(i5,8i7)')m,mex,mfix,mfix_qg,mup,nh,nonl,npex
       print *,'Dynamics options B:'
-      print *,'nritch nritch_t ntbar epsp   epsu   epsf '
-      write (6,'(i5,2i7,1x,4f7.3)')nritch,nritch_t,ntbar,
+      print *,'nritch nritch_t  nrot  ntbar epsp   epsu   epsf '
+      write (6,'(i5,3i7,1x,4f7.3)')nritch,nritch_t,nrot,ntbar,
      &          epsp,epsu,epsf
       print *,'Horizontal advection/interpolation options:'
       print *,' ndept  nt_adv  m_bs  mh_bs  mhint '
       write (6,'(i5,11i7)') ndept,nt_adv,m_bs,mh_bs,mhint
       print *,'Horizontal wind staggering options:'
-      print *,'mstagpt nstag nstagu'
-      write (6,'(i5,11i7)') mstagpt,nstag,nstagu
+      print *,'mstagpt nstag nstagu nuvfilt'
+      write (6,'(i5,11i7)') mstagpt,nstag,nstagu,nuvfilt
       print *,'Vertical advection options:'
       print *,'  nvad  nvadh  '
       write (6,'(i5,11i7)') nvad,nvadh
@@ -612,41 +612,148 @@ c       open(unit=98,file=scrnfile,form='unformatted',status='unknown')
 
       do 79 mspec=mspeca,1,-1    ! start of introductory time loop
       dtds=dt/ds
+      if(nvsplit.lt.3.or.ktau.eq.1)then
+        un(1:ifull,:)=0. 
+        vn(1:ifull,:)=0.
+        tn(1:ifull,:)=0.
+      elseif(nvsplit.eq.3)then
+        tn(1:ifull,:)=(t(1:ifull,:)-tx(1:ifull,:))/dt ! tend. from phys. at end of previous step
+        un(1:ifull,:)=(u(1:ifull,:)-ux(1:ifull,:))/dt
+        vn(1:ifull,:)=(v(1:ifull,:)-vx(1:ifull,:))/dt
+        t(1:ifull,:)=tx(1:ifull,:)   
+        u(1:ifull,:)=ux(1:ifull,:)   
+        v(1:ifull,:)=vx(1:ifull,:)   
+      elseif(nvsplit.eq.4)then
+        un(1:ifull,:)=(u(1:ifull,:)-ux(1:ifull,:))/dt ! u,v tend. from phys.
+        vn(1:ifull,:)=(v(1:ifull,:)-vx(1:ifull,:))/dt
+        u(1:ifull,:)=ux(1:ifull,:)   
+        v(1:ifull,:)=vx(1:ifull,:)   
+        tn(1:ifull,:)=0.
+      endif   ! (nvsplit.lt.3.or.ktau.eq.1) .. elseif ..
+
+      if(mup.ne.1.or.(ktau.eq.1.and.mspec.eq.mspeca))then
+        call updps(0) ! usually called very first time or for clean restart option
+      endif
 
 !     set up tau +.5 velocities in ubar, vbar
       if(ktau.lt.10.and.mydiag)then
        print*,'ktau,mex,mspec,mspeca:',ktau,mex,mspec,mspeca
-       print *,'ubar,savu,u ',ktau,ubar(idjd,1),savu(idjd,1),u(idjd,1)
       endif
-      if(ktau.eq.1)then
+      if(ktau==1)then
 !       this sets (ubar,vbar) to ktau=1.5 values on 2nd time through
+        sbar(1:ifull,2:kl)=sdot(1:ifull,2:kl)
         ubar(1:ifull,:)=u(1:ifull,:)
         vbar(1:ifull,:)=v(1:ifull,:)
-      elseif(mex.eq.1)then
+      elseif(mex==1)then
+        sbar(1:ifull,2:kl)=sdot(1:ifull,2:kl)
         ubar(1:ifull,:)=u(1:ifull,:)
         vbar(1:ifull,:)=v(1:ifull,:)
-      elseif(ktau.eq.2.or.mex.eq.2)then        
+      elseif(ktau==2.or.mex==2)then        
 !       (tau+.5) from tau, tau-1
+        sbar(1:ifull,:)=sdot(1:ifull,2:kl)*1.5-savs(1:ifull,:)*.5
         ubar(1:ifull,:)=u(1:ifull,:)*1.5-savu(1:ifull,:)*.5
         vbar(1:ifull,:)=v(1:ifull,:)*1.5-savv(1:ifull,:)*.5
-      elseif(ktau.eq.3.or.mex.eq.4)then
-!       (tau+.5) from tau, tau-1, tau-2
-        ubar(1:ifull,:)=u(1:ifull,:)*15./8.-savu(1:ifull,:)*10./8.
-     &                             +ubar(1:ifull,:)*3./8. ! ubar is savu1 here
-        vbar(1:ifull,:)=v(1:ifull,:)*15./8.-savv(1:ifull,:)*10./8.
-     &                             +vbar(1:ifull,:)*3./8. ! vbar is savv1 here
-      endif  !  (ktau.eq.1) .. else ..
-      if(ktau.lt.10.and.mydiag)then
+      elseif(mex==3)then
+!       (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
+        sbar(:,:)=sdot(:,2:kl)+.5*(savs(:,:)-savs1(:,:))
+        ubar(:,:)=u(1:ifull,:)+.5*(savu(:,:)-savu1(:,:))
+        vbar(:,:)=v(1:ifull,:)+.5*(savv(:,:)-savv1(:,:))
+      elseif(mex==6)then
+	 do k=2,kl
+	  do iq=1,ifull
+	   if((sign(1.,sdot(iq,k)).ne.sign(1.,savs(iq,k))).and.
+     .       (sign(1.,savs1(iq,k)).ne.sign(1.,savs(iq,k))))then
+            sbar(iq,k)=sdot(iq,k)+.5*(savs(iq,k)-savs1(iq,k))
+          else
+            sbar(iq,k)=sdot(iq,k)*15./8.-savs(iq,k)*10./8.
+     .                                  +savs1(iq,k)*3./8.
+	   endif  ! (sign(1.,sdot(iq,k))..
+	   if((sign(1.,u(iq,k)).ne.sign(1.,savu(iq,k))).and.
+     .       (sign(1.,savu1(iq,k)).ne.sign(1.,savu(iq,k))))then
+            ubar(iq,k)=u(iq,k)+.5*(savu(iq,k)-savu1(iq,k))
+          else
+            ubar(iq,k)=u(iq,k)*15./8.-savu(iq,k)*10./8.
+     .                               +savu1(iq,k)*3./8.
+	   endif  ! (sign(1.,sdot(iq,k))..
+	   if((sign(1.,v(iq,k)).ne.sign(1.,savv(iq,k))).and.
+     .       (sign(1.,savv1(iq,k)).ne.sign(1.,savv(iq,k))))then
+            vbar(iq,k)=v(iq,k)+.5*(savv(iq,k)-savv1(iq,k))
+          else
+            vbar(iq,k)=v(iq,k)*15./8.-savv(iq,k)*10./8.
+     .                               +savv1(iq,k)*3./8.
+	   endif  ! (sign(1.,sdot(iq,k))..
+	  enddo   ! iq loop
+	 enddo    ! k loop
+      elseif(mex==7)then
+	 do k=2,kl
+	  do iq=1,ifull
+	   if((sign(1.,sdot(iq,k)).ne.sign(1.,savs(iq,k))).and.
+     .       (sign(1.,savs1(iq,k)).ne.sign(1.,savs(iq,k))))then
+            sbar(iq,k)=sdot(iq,k)+.5*(savs(iq,k)-savs1(iq,k))
+          else
+            sbar(iq,k)=sdot(iq,k)
+	   endif  ! (sign(1.,sdot(iq,k))..
+	   if((sign(1.,u(iq,k)).ne.sign(1.,savu(iq,k))).and.
+     .       (sign(1.,savu1(iq,k)).ne.sign(1.,savu(iq,k))))then
+            ubar(iq,k)=u(iq,k)+.5*(savu(iq,k)-savu1(iq,k))
+          else
+            ubar(iq,k)=u(iq,k)*15./8.-savu(iq,k)*10./8.
+     .                               +savu1(iq,k)*3./8.
+	   endif  ! (sign(1.,sdot(iq,k))..
+	   if((sign(1.,v(iq,k)).ne.sign(1.,savv(iq,k))).and.
+     .       (sign(1.,savv1(iq,k)).ne.sign(1.,savv(iq,k))))then
+            vbar(iq,k)=v(iq,k)+.5*(savv(iq,k)-savv1(iq,k))
+          else
+            vbar(iq,k)=v(iq,k)*15./8.-savv(iq,k)*10./8.
+     .                               +savv1(iq,k)*3./8.
+	   endif  ! (sign(1.,sdot(iq,k))..
+	  enddo   ! iq loop
+	 enddo    ! k loop
+      elseif(mex==8)then
+!       (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
+        sbar(:,:)=sdot(:,2:kl)+.5*(savs(:,:)-savs1(:,:))
+        ubar(:,:)=u(1:ifull,:)*15./8.-savu(:,:)*10./8.+savu1(:,:)*3./8.
+        vbar(:,:)=v(1:ifull,:)*15./8.-savv(:,:)*10./8.+savv1(:,:)*3./8.
+      else  ! i.e. mex >=4 and ktau>=3
+!       (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
+        ubar(:,:)=u(1:ifull,:)*15./8.-savu(:,:)*10./8.+savu1(:,:)*3./8.
+        vbar(:,:)=v(1:ifull,:)*15./8.-savv(:,:)*10./8.+savv1(:,:)*3./8.
+	 if(mex==5)then
+	   do k=2,kl
+	    do iq=1,ifull
+	     if((sign(1.,sdot(iq,k)).ne.sign(1.,savs(iq,k))).and.
+     .         (sign(1.,savs1(iq,k)).ne.sign(1.,savs(iq,k))))then
+              sbar(iq,k)=sdot(iq,k)+.5*(savs(iq,k)-savs1(iq,k))
+            else
+              sbar(iq,k)=sdot(iq,k)*15./8.-savs(iq,k)*10./8.
+     .                                    +savs1(iq,k)*3./8.
+	     endif
+	    enddo
+	   enddo
+	 endif
+      endif    ! (ktau==1) .. else ..
+      if(mod(ktau,nmaxpr).eq.0.and.mydiag)then
+        write (6,"(i4,' savs1,savs,sdot,sbar',4f8.4)") ktau,
+     .      savs1(idjd,nlv),savs(idjd,nlv),sdot(idjd,nlv),sbar(idjd,nlv)
+        write (6,"(i4,' savu1,savu,u,ubar',4f8.2)") ktau,
+     .      savu1(idjd,nlv),savu(idjd,nlv),u(idjd,nlv),ubar(idjd,nlv)
+        write (6,"(i4,' savv1,savv,v,vbar',4f8.2)") ktau,
+     .      savv1(idjd,nlv),savv(idjd,nlv),v(idjd,nlv),vbar(idjd,nlv)
+      endif
+      if(ktau<10.and.mydiag)then
        print *,'savu,u,ubar ',ktau,savu(idjd,1),u(idjd,1),ubar(idjd,1)
       endif
       if(ktau.eq.1.and.mspec.eq.1.and.mex.ne.1)then
         u(1:ifull,:)=savu(1:ifull,:)  ! reset u,v to original values
         v(1:ifull,:)=savv(1:ifull,:)
       endif
+      savs1(1:ifull,:)=savs(1:ifull,:)  
       savu1(1:ifull,:)=savu(1:ifull,:)  
       savv1(1:ifull,:)=savv(1:ifull,:)
+      savs(1:ifull,:) =sdot(1:ifull,2:kl)  
       savu(1:ifull,:) =u(1:ifull,:)  ! before any time-splitting occurs
       savv(1:ifull,:) =v(1:ifull,:)
+      if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
 
       prnt=.false.
       if(ktau.ge.npa.and.mod(ktau-npa,npc).eq.0)prnt=.true.
@@ -666,21 +773,6 @@ c       open(unit=98,file=scrnfile,form='unformatted',status='unknown')
 	 enddo
       endif      ! (ngas.ge.1)
 
-      if(nvsplit.eq.3.and.ktau.gt.1)then
-        tn(1:ifull,:)=(t(1:ifull,:)-tx(1:ifull,:))/dt  ! tend. from phys. at end of previous step
-        un(1:ifull,:)=(u(1:ifull,:)-ux(1:ifull,:))/dt
-        vn(1:ifull,:)=(v(1:ifull,:)-vx(1:ifull,:))/dt
-        t(1:ifull,:)=tx(1:ifull,:)   
-        u(1:ifull,:)=ux(1:ifull,:)   
-        v(1:ifull,:)=vx(1:ifull,:)   
-      else
-        un(1:ifull,:)=0. 
-        vn(1:ifull,:)=0.
-        tn(1:ifull,:)=0.
-      endif   ! (nvsplit.eq.3.and.ktau.gt.1) .. else ..
-      if(mup.gt.1.or.(ktau.eq.1.and.mspec.eq.mspeca))then
-        call updps  ! usually called very first time or for clean restart option
-      endif
       call nonlin
       if(diag)then
          if (mydiag) print *,'before hadv'
@@ -712,8 +804,9 @@ c       open(unit=98,file=scrnfile,form='unformatted',status='unknown')
         savt(1:ifull,:)=t(1:ifull,:)  ! can be used in nonlin during next step
       endif
 
-      ubar(1:ifull,:) = savu1(1:ifull,:)  ! 3D really saving savu1 in ubar here 
-      vbar(1:ifull,:) = savv1(1:ifull,:)  ! 3D really saving savv1 in vbar here 
+!!      sbar(1:ifull,:) = savs1(1:ifull,:)  ! 3D really saving savs1 in sbar here 
+!!      ubar(1:ifull,:) = savu1(1:ifull,:)  ! 3D really saving savu1 in ubar here 
+!!      vbar(1:ifull,:) = savv1(1:ifull,:)  ! 3D really saving savv1 in vbar here 
 
       call adjust5
 
@@ -781,6 +874,10 @@ c       print*,'Calling prognostic cloud scheme'
           endif    ! (nhstest.lt.0)
 c         rtt=0.   ! 3D before radn section
 c         qg(:,:)=max(qg(:,:),qgmin)  ! testing
+c         do iq=1,ifull
+c          if(t(iq,kl)<100.)print *,'ktau,iq,tk<100 ',ktau,iq,t(iq,kl)
+c          if(t(iq,1 )<100.)print *,'ktau,iq,t1<100 ',ktau,iq,t(iq,1 )
+c         enddo
           call radrive (odcalc,iaero)
           if(nhstest.lt.0)then ! aquaplanet test -22  
 	    mtimer=mtimer_sav
@@ -972,12 +1069,10 @@ c         qg(:,:)=max(qg(:,:),qgmin)  ! testing
       call end_log(phys_end)
 
       if(ndi.eq.-ktau)then
-        nmaxpr=1
+        nmaxpr=1             ! reset 6 lines on
         ndi2=ktau+9
 !       nwt=1
       endif
-c      print *,'ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5  ',
-c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5 
       if(ktau.eq.-ndi+40)then
          if(mydiag)print *,'reset nmaxpr'
          nmaxpr=nmaxprsav
@@ -1526,7 +1621,7 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
 !     some variables in parmdyn.h      
       data epsp/.1/,epsu/.1/,epsf/0./,m/6/,mex/4/,mfix/1/,mfix_qg/1/,
      &     mup/1/,nh/0/,nonl/0/,npex/1/,nritch/407/,nritch_t/300/,
-     &     nrot/1/,nstag/-3/,nstagu/-3/,ntbar/-1/,
+     &     nrot/1/,nstag/-3/,nstagu/-3/,nuvfilt/0/,ntbar/-1/,
      &     nvsplit/2/,nxmap/0/,restol/1.e-6/, ! changed from 5.e-6 on 25/7/03
      &     precon/0/
 

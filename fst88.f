@@ -67,6 +67,7 @@ c CDIR$ TASK COMMON VTEMP
 
       include 'newmpar.h'
       include 'hcon.h'
+c     include 'parm.h'
       include 'rdparm.h'
       include 'radisw.h'
       include 'rnddta.h'
@@ -421,6 +422,10 @@ c
       vtmp3(i,1)=exp(hm1ez*totvo2(i,1))
       totevv(i,1)=one/vtmp3(i,1)
 481   continue
+c     do i=1,imax*lp1
+c     if(vtmp3(i,1).eq.0.)print *,'ktau,i,totvo2 ',
+c    .                             ktau,i,totvo2(i,1)
+c     enddo
       do 501 k=1,lp1
       do 501 kp=1,k 
       do 503 i=1,imax 

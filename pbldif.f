@@ -59,7 +59,7 @@ C Input & Output arguments
 C     also qg                      ! mixing ratio [kg/kg}
 
 C     local work arrays (note work3c and work3f stuff passed thru too)
-      common/nonlsav/cfrac(ifull,kl),betatt(ifull,kl),betaqt(ifull,kl) 
+      common/work3a/cfrac(ifull,kl),betatt(ifull,kl),betaqt(ifull,kl) 
       common/work3/cgh(ifull,kl), ! counter-gradient term for heat [K/m]
      .             cgq(ifull,kl), ! counter-gradient term for constituents
      .             rino(ifull,kl),dum3(ifull,2*kl)

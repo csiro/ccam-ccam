@@ -29,7 +29,7 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       include 'sigs.h'
       include 'soil.h'
       include 'tracers.h'  ! ngas, nllp, ntrac
-      common/nonlsav/cfrac(ifull,kl),betatt(ifull,kl),betaqt(ifull,kl) 
+      common/work3a/cfrac(ifull,kl),betatt(ifull,kl),betaqt(ifull,kl) 
       common/shalrk/shalrk(ifull,6)
       common/work3/delthet(ifull,kl),
      .    thebas(ifull,kl),cu(ifull,kl),thee(ifull,kl),qs(ifull,kl)
@@ -178,7 +178,7 @@ c       if(abs(ksc).gt.92)then  !  abs from 16/3/04
           enddo
 c	 endif  !(abs(ksc).gt.92)
         kscbase=1  ! kscbase will be first level above sigkcsb
-        do while(sig(kscbase).gt.sigkscb)  !  e.g. sigkscb=.99
+        do while(sig(kscbase).gt.sigkscb.and.sigkscb.gt.0.) ! e.g. sigkscb=.99
          kscbase=kscbase+1
         enddo
         if ( myid == 0 ) then
