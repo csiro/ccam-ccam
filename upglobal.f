@@ -65,7 +65,8 @@
       if(num_hight.lt.100)then
         do iq=1,ifull
          if(tx(iq,kl).gt.264.)then
-           print *,'upglobal ktau,iq,large_tx  ',ktau,iq,tx(iq,kl)
+           print *,'upglobal ktau,myid,iq,large_tx  ',ktau,myid,iq,
+     &           tx(iq,kl)
            write (6,"('sdot_iq',9f7.3/4x,9f7.3)") (sdot(iq,kk),kk=1,kl)
 	    num_hight=num_hight+1
          endif
