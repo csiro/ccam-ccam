@@ -242,17 +242,10 @@ c     modify toij5 for Cray
      .     xgz/0., 0.,-1.,-1., 0., 0./, ygz/1., 0., 0., 0., 0., 1./
       data nmaploop/3/,ndiag/0/,num/0/
       save num
+
       if(num.eq.0.and.ncray.eq.0)then  ! check if divide by itself is working
-	do iq=1,100
-	 xstr(iq)=-1.+.0002*iq
-	 ystr(iq)=min(abs(xstr(iq)),4.)
-	 zstr(iq)=xstr(iq)/ystr(iq)
-	enddo 
-	do iq=1,100
-!       print *,'iq,xstr,ystr,zstr ',iq,xstr(iq),ystr(iq),zstr(iq)
-	 if(zstr(iq).ne.-1.)stop 'must use ncray=1 on this PC'
-	enddo     
-       num=1
+         call checkdiv(xstr,ystr,zstr)
+         num=1
       endif
 
 !     if necessary, transform (x3d, y3d, z3d) to equivalent
@@ -475,3 +468,30 @@ c      convert  xg, yg ( .5 to il+.5) and nface
       enddo   ! iq loop
       return
       end
+
+      subroutine checkdiv(xstr,ystr,zstr)
+!     Check whether optimisation uses multiplication by reciprocal so
+!     that x/x /= 1.
+      implicit none
+      include 'newmpar.h'
+      real xstr(ifull),ystr(ifull),zstr(ifull)
+      real denxyz
+      integer iq
+      integer, parameter :: n=100
+
+      call random_number(xstr(1:n))
+      ystr(1:n) = 0.9*xstr(1:n)
+      zstr(1:n) = 0.8*xstr(1:n)
+      ! By construction here, xstr is largest, so xstr(iq)/denxyz should be
+      ! 1.
+      do iq=1,n
+        denxyz=max( abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq)) )
+        xstr(iq) = xstr(iq)/denxyz
+        ystr(iq) = ystr(iq)/denxyz
+        zstr(iq) = zstr(iq)/denxyz
+      end do
+      if ( any(xstr(1:n)/=1.0) ) then
+         print*, "Error, must use ncray=1 on this machine"
+         stop
+      end if
+      end subroutine checkdiv
