@@ -8,7 +8,7 @@
      &        io_clim,io_in,io_out,io_rest,io_spec,                      &
      &        nwt,kwt,nqg,nrun,nrunx,nextout,nclim,nfly                  
       real qgmin,hdiff,hdifmax,rlong0,rlat0,schmidt,schm13,              &
-     &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,ds,dt,dtin,timea
+     &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,chn10,ds,dt,dtin,timea
       logical diag
       common/parm1/meso,nps,npsav,nsd,nem,ngwd,nrungcm,newtop            &
      &  ,qgmin        ! min value, esp. for stratosphere           [1.e-6]
@@ -25,7 +25,7 @@
 
       common/parmsfce/nsib,nsoil,newsoilm,ntsea,ntsur,ntsur2,            &
      &                lgwd,newztsea,aleadfr,av_vmod,vmodmin,snmin,       &
-     &                tss_sh,nglacier
+     &                tss_sh,nglacier,chn10
 
       common/parmnudg/nbd,kbotdav,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs
 
