@@ -134,7 +134,7 @@
       integer :: nproc_in, ierr
 
       namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps
-     & ,ia,ib,ja,jb,iaero,khdif,khor
+     & ,ia,ib,ja,jb,iaero,khdif,khor,nhorjlm
      & ,kwt,m,mex,nbd,ndi,ndi2,nem,nhor,nlv
      & ,nmaxpr,nmi,nmidiab,nonl,nrot,nps,nqg,nrad,nsd,ntsea
      & ,ntsur,nvad,nvadh,nvmix,nxmap,itr1,jtr1,itr2,jtr2,id,jd
@@ -251,8 +251,8 @@
         write (6,'(i5,11i7)') nimp,nthub,ntvd
       endif
       print *,'Horizontal mixing options:'
-      print *,' khdif  khor   nhor   nhorps'
-      write (6,'(i5,11i7)') khdif,khor,nhor,nhorps
+      print *,' khdif  khor   nhor   nhorps nhorjlm'
+      write (6,'(i5,11i7)') khdif,khor,nhor,nhorps,nhorjlm
       print *,'Vertical mixing/physics options:'
       print *,' nvmix nlocal nvsplit ncvmix lgwd   ngwd'
       write (6,'(i5,5i7)') nvmix,nlocal,nvsplit,ncvmix,lgwd,ngwd
@@ -1485,7 +1485,7 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
 !     for cardin
       data ja/1/,jb/jl/,id/1/,jd/1/,ndi/1/,ndi2/0/                     
      & ,io_clim/1/ ,io_in/1/   ,io_out/1/  ,io_rest/1/ ,io_spec/0/    
-     & ,kdate_s/-1/ ,ktime_s/-1/ ,khdif/5/                            
+     & ,kdate_s/-1/ ,ktime_s/-1/ ,khdif/5/, nhorjlm/0/
      & ,nem/2/     ,newtop/1/  ,nextout/1/,nfly/2/                    
      & ,ngwd/0/     ,nhor/155/  ,nlv/2/                    
      & ,nmaxpr/5/  ,nqg/5/,nrungcm/0/      

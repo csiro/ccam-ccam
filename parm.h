@@ -1,5 +1,5 @@
       integer meso,nps,npsav,nsd,nem,ngwd,nrungcm,newtop,nhor,nhorps,    &
-     &        khor,khdif,kountr,ndiur,nrad,nvmix,nlocal,                 &
+     &        khor,khdif,kountr,ndiur,nrad,nvmix,nlocal,nhorjlm,         &
      &        nhstest,namip,nspecial,nsib,nsoil,newsoilm,                &
      &        ntsea,ntsur,ntsur2,lgwd,newztsea,nglacier,                 &
      &        nbd,kbotdav,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,         &
@@ -13,7 +13,7 @@
       common/parm1/meso,nps,npsav,nsd,nem,ngwd,nrungcm,newtop            &
      &  ,qgmin        ! min value, esp. for stratosphere           [1.e-6]
  
-      common/parmhdff/nhor,nhorps,hdiff(kl),khor,khdif,hdifmax
+      common/parmhdff/nhor,nhorps,hdiff(kl),khor,khdif,hdifmax,nhorjlm
 
       common/parmradn/kountr,ndiur,nrad   
 
