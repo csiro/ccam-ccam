@@ -38,11 +38,11 @@
      . pslxint(ifull),pfact(ifull),alff(ifull),alf(ifull),alfe(ifull),
      . alfn(ifull),pslsav(ifull),alfu(ifull),alfv(ifull)
       dimension pe(ifull,kl),e(ifull,kl)
-      dimension helm(ifull),rhsl(ifull),delps(ifull)
+      real helm(ifull,kl),rhsl(ifull,kl),delps(ifull)
       dimension indsw(8),indne(8),indse(4),indnw(4)
       real d(ifull,kl),pextras(ifull,kl),omgf(ifull,kl)
       equivalence (d,vn),(omgf,pe,tn),(e,p),(pextras,dpsldt)
-      equivalence (cc,rhsl),(dd,helm),(bb,delps)
+!      equivalence (cc,rhsl),(dd,helm),(bb,delps)
       data indsw/1,3,5,6,8,9,12,13/,indne/0,3,4,6,7,9,11,13/
       data indse/1,4,7,12/,indnw/0,5,8,11/
       save indsw,indne,indse,indnw
@@ -221,39 +221,36 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
       enddo     ! k  loop
 
 !     transform p & d to eigenvector space
-      do k=kl,1,-1   ! reverse order just to suit diagnostic prints
-       do iq=1,ifull
-        pe(iq,k)=einv(k,1)*p(iq,1)
-        rhsl(iq)=einv(k,1)*d(iq,1)
-       enddo    ! iq loop
-       do l=2,kl
-        do iq=1,ifull
-         pe(iq,k)=pe(iq,k)+einv(k,l)*p(iq,l)         ! xp in eig space
-         rhsl(iq)=rhsl(iq)+einv(k,l)*d(iq,l)      ! xd in eig space
-        enddo   ! iq loop
-       enddo    ! l loop
+      do k=1,kl
+         do iq=1,ifull
+            pe(iq,k)=einv(k,1)*p(iq,1)
+            rhsl(iq,k)=einv(k,1)*d(iq,1)
+         enddo
+         do l=2,kl
+            do iq=1,ifull
+               pe(iq,k)=pe(iq,k)+einv(k,l)*p(iq,l) ! xp in eig space
+               rhsl(iq,k)=rhsl(iq,k)+einv(k,l)*d(iq,l) ! xd in eig space
+            enddo
+         enddo                  ! l loop
 
-       do iq=1,ifull
-!       if(ntbar.eq.0)then
-!         helm(iq)=pfact(iq)/bam(k)   ! for adjust9/5  coeff of P
-!       endif  ! (ntbar.eq.0)
-!!      helm(iq)=pfact(iq)/bam(k) *tbar(1)/tbar2d(iq) ! for ntbar>0
-        helm(iq)=pfact(iq)*tbar(1)/
-     .             (bam(k)*(1.+epst(iq))*tbar2d(iq))
-        rhsl(iq)=rhsl(iq)/hdtds -helm(iq)*pe(iq,k)
-       enddo    ! iq loop
-       if(diag.and.k.le.2)then   !  only for last k of loop (i.e. 1)
-        iq=idjd
-        print  *,'adjust5(k) p & n e w s ',k,p(iq,k),
-     .   p(in(iq),k),p(ie(iq),k),p(iw(iq),k),p(is(iq),k)
-        print  *,'adjust5(k) pe & n e w s ',k,pe(iq,k),
-     .   pe(in(iq),k),pe(ie(iq),k),pe(iw(iq),k),pe(is(iq),k)
-        print  *,'adjust5(k) rhsl & n e w s ',k,rhsl(iq),
-     .   rhsl(in(iq)),rhsl(ie(iq)),rhsl(iw(iq)),rhsl(is(iq))
-       endif  ! (diag.and.k.le.2)
-
-       call helmsol(helm,pe(1,k),rhsl)
+         do iq=1,ifull
+            helm(iq,k) = pfact(iq)*tbar(1)/
+     &                   (bam(k)*(1.+epst(iq))*tbar2d(iq))
+            rhsl(iq,k) = rhsl(iq,k)/hdtds -helm(iq,k)*pe(iq,k)
+         enddo                  ! iq loop
+         if(diag.and.k.le.2)then !  only for last k of loop (i.e. 1)
+            iq=idjd
+            print  *,'adjust5(k) p & n e w s ',k,p(iq,k),
+     &        p(in(iq),k),p(ie(iq),k),p(iw(iq),k),p(is(iq),k)
+            print  *,'adjust5(k) pe & n e w s ',k,pe(iq,k),
+     &        pe(in(iq),k),pe(ie(iq),k),pe(iw(iq),k),pe(is(iq),k)
+            print  *,'adjust5(k) rhsl & n e w s ',k,rhsl(iq,k),
+     &       rhsl(in(iq),k),rhsl(ie(iq),k),rhsl(iw(iq),k),rhsl(is(iq),k)
+         endif                  ! (diag.and.k.le.2)
       enddo    ! k loop
+
+      call helmsol(helm,pe,rhsl)
+
       if(diag)then   !  only for last k of loop (i.e. 1)
         iq=idjd
         print  *,'adjust5(1) pslxint & n e w s',pslxint(iq),
@@ -262,11 +259,11 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
         call printa('psnt',pslxint,ktau,0,ia,ib,ja,jb,0.,100.)
         print *,'adjust5 tx ',(tx(idjd,k),k=1,kl)
         call printa('tx  ',tx(1,nlv),ktau,nlv,ia,ib,ja,jb,200.,1.)
-        print  *,'adjust5(1) helm & n e w s',helm(iq),
-     .   helm(in(iq)),helm(ie(iq)),helm(iw(iq)),helm(is(iq))
-        print  *,'adjust5(1) rhsl & n e w s',rhsl(iq),
-     .   rhsl(in(iq)),rhsl(ie(iq)),rhsl(iw(iq)),rhsl(is(iq))
-        call printa('rhsl',rhsl,ktau,1,ia,ib,ja,jb,0.,0.)
+        print  *,'adjust5(1) helm & n e w s',helm(iq,k),
+     .   helm(in(iq),k),helm(ie(iq),k),helm(iw(iq),k),helm(is(iq),k)
+        print  *,'adjust5(1) rhsl & n e w s',rhsl(iq,k),
+     .   rhsl(in(iq),k),rhsl(ie(iq),k),rhsl(iw(iq),k),rhsl(is(iq),k)
+        call printa('rhsl',rhsl(1,1),ktau,1,ia,ib,ja,jb,0.,0.)
         print  *,'adjust5 pe ',(pe(iq,k),k=1,kl)
         print  *,'adjust5 pe e ',(pe(ie(iq),k),k=1,kl)
         print  *,'adjust5 pe w ',(pe(iw(iq),k),k=1,kl)
