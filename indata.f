@@ -79,7 +79,7 @@ c     watch out in retopo for work/zss
       integer i1, ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth,
      &     iveg, iyr, j1, jj, k, kdate_sav, kmax, ktime_sav, l,
      &     meso2, nem2, nface, nn, nsig, i, j, n,
-     &     ix, jx, ixjx, ierr
+     &     ix, jx, ixjx, ierr, ico2x, iradonx, ic, jc, iqg, ig, jg
       real aamax, aamax_g, c, cent, 
      &     coslat, coslong, costh, den, diffb, diffg, dist,
      &     epsmax, fracs, fracwet, ftsoil, gwdfac, hefact,
@@ -87,7 +87,8 @@ c     watch out in retopo for work/zss
      &     polenz, rad, radu, radv, ri, rj, rlai, rlat_d, rlon_d,
      &     rmax, rmin, sinlat, sinlong, sinth, snalb, sumdsig,
      &     timegb, tsoil, uzon, vmer, w,
-     &     wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, distnew
+     &     wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, distnew,
+     &     xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent
 
       real, dimension(44), parameter :: vegpmin = (/
      &              .98,.85,.85,.5,.2,.1 ,.85,.5,.2,.5,                ! 1-10
@@ -388,9 +389,9 @@ c     ratha and rathb are used to interpolate full level values to half levels
       if(lapsbot.eq.3)then   ! possibly suits nh  4/2/04
         betm(:)=0.
         do k=2,kl
-         bet(k)=r*log(sig(k-1)/sig(k))
+         bet(k)=rdry*log(sig(k-1)/sig(k))
         enddo
-        bet(1)=-r*log(sig(1))
+        bet(1)=-rdry*log(sig(1))
       endif  ! (lapsbot.eq.3)
       if(myid==0)then
          print *,'bet ',bet
@@ -566,7 +567,7 @@ c       constants:
 	 tss(:)=Tbubb
         do k=1,kl
 c         Height of sigma-levels at t=0
-          zbub(k)=(cp*Tbubb/g)*(1.-sig(k)**(r/cp))  !Hydrostatic lapse rate
+          zbub(k)=(cp*Tbubb/grav)*(1.-sig(k)**(rdry/cp))  !Hydrostatic lapse rate
 !         phi(k)=g*zbub(k)  !geopotential
 	 enddo
 c       u and v on the cc grid,
@@ -581,7 +582,7 @@ c       u and v on the cc grid,
         fv(:)=0.
         do k=1,kl
 C        Height of sigma-levels at t=0
-         t(:,k)=Tbubb-zbub(k)*g/cp  !environmental temperature
+         t(:,k)=Tbubb-zbub(k)*grav/cp  !environmental temperature
 	  if(sig(k).lt..4)t(:,k)=t(:,k-1)
         enddo
 c       Inserting the bubble
@@ -615,7 +616,7 @@ c       radius of bubble in the horizontal:
             enddo
           enddo
        enddo
-        call printa('t   ',t(1,nlv),0,nlv,ia,ib,ja,jb,200.,1.)
+        call printa('t   ',t,0,nlv,ia,ib,ja,jb,200.,1.)
       endif  ! io_in.eq.27, cold bubble test
 
       if ( myid == 0 ) print *,'ps test ',(ps(ii),ii=1,il)
