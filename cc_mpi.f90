@@ -23,9 +23,11 @@ module cc_mpi
 
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
              indp, indg, deptsync, intssync, start_log, end_log, check_dims, &
-             log_on, log_off, log_setup, phys_loadbal
+             log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg, &
+             ccglobal_sum
    private :: indv_mpi, ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
-              ccmpi_gather2, ccmpi_gather3, checksize, get_dims, get_dims_gx
+              ccmpi_gather2, ccmpi_gather3, checksize, get_dims, get_dims_gx,&
+              ccglobal_posneg2, ccglobal_posneg3, ccglobal_sum2, ccglobal_sum3
    interface ccmpi_gather
       module procedure ccmpi_gather2, ccmpi_gather3
    end interface
@@ -37,6 +39,12 @@ module cc_mpi
    end interface
    interface boundsuv
       module procedure boundsuv2, boundsuv3
+   end interface
+   interface ccglobal_posneg
+      module procedure ccglobal_posneg2, ccglobal_posneg3
+   end interface
+   interface ccglobal_sum
+      module procedure ccglobal_sum2, ccglobal_sum3
    end interface
 
    ! Define neighbouring faces
@@ -2712,6 +2720,183 @@ contains
          end if
       end subroutine simple_timer_finalize
 #endif
-   
+
+    subroutine ccglobal_posneg2 (array, delpos, delneg)
+       ! Calculate global sums of positive and negative values of array
+       use sumdd_m
+       include 'newmpar.h'
+       include 'xyzinfo.h'
+       real, intent(in), dimension(ifull) :: array
+       real, intent(out) :: delpos, delneg
+       real :: delpos_l, delneg_l
+       real, dimension(2) :: delarr, delarr_l
+       integer :: iq, ierr
+#ifdef sumdd
+       complex, dimension(2) :: local_sum, global_sum
+!      Temporary array for the drpdr_local function
+       real, dimension(ifull) :: tmparr, tmparr2 
+#endif
+
+       delpos_l = 0.
+       delneg_l = 0.
+       do iq=1,ifull
+#ifdef sumdd         
+          tmparr(iq)  = max(0.,array(iq)*wts(iq))
+          tmparr2(iq) = min(0.,array(iq)*wts(iq))
+#else
+          delpos_l = delpos_l + max(0.,array(iq)*wts(iq))
+          delneg_l = delneg_l + min(0.,array(iq)*wts(iq))
+#endif
+       enddo
+#ifdef sumdd
+       local_sum = (0.,0.)
+       call drpdr_local(tmparr, local_sum(1))
+       call drpdr_local(tmparr2, local_sum(2))
+       call MPI_Allreduce ( local_sum, global_sum, 2, MPI_COMPLEX,     &
+                            MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       delpos = real(global_sum(1))
+       delneg = real(global_sum(2))
+#else
+       delarr_l(1:2) = (/ delpos_l, delneg_l /)
+       call MPI_Allreduce ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,    &
+                            MPI_COMM_WORLD, ierr )
+       delpos = delarr(1)
+       delneg = delarr(2)
+#endif
+
+    end subroutine ccglobal_posneg2
+    
+    subroutine ccglobal_posneg3 (array, delpos, delneg)
+       ! Calculate global sums of positive and negative values of array
+       use sumdd_m
+       include 'newmpar.h'
+       include 'sigs.h'
+       include 'xyzinfo.h'
+       real, intent(in), dimension(ifull,kl) :: array
+       real, intent(out) :: delpos, delneg
+       real :: delpos_l, delneg_l
+       real, dimension(2) :: delarr, delarr_l
+       integer :: k, iq, ierr
+#ifdef sumdd
+       complex, dimension(2) :: local_sum, global_sum
+!      Temporary array for the drpdr_local function
+       real, dimension(ifull) :: tmparr, tmparr2 
+#endif
+
+       delpos_l = 0.
+       delneg_l = 0.
+#ifdef sumdd         
+       local_sum = (0.,0.)
+#endif
+       do k=1,kl
+          do iq=1,ifull
+#ifdef sumdd         
+             tmparr(iq)  = max(0.,-dsig(k)*array(iq,k)*wts(iq))
+             tmparr2(iq) = min(0.,-dsig(k)*array(iq,k)*wts(iq))
+#else
+             delpos_l = delpos_l + max(0.,-dsig(k)*array(iq,k)*wts(iq))
+             delneg_l = delneg_l + min(0.,-dsig(k)*array(iq,k)*wts(iq))
+#endif
+          end do
+#ifdef sumdd
+          call drpdr_local(tmparr, local_sum(1))
+          call drpdr_local(tmparr2, local_sum(2))
+#endif
+       end do ! k loop
+#ifdef sumdd
+       call MPI_Allreduce ( local_sum, global_sum, 2, MPI_COMPLEX,     &
+                            MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       delpos = real(global_sum(1))
+       delneg = real(global_sum(2))
+#else
+       delarr_l(1:2) = (/ delpos_l, delneg_l /)
+       call MPI_Allreduce ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,    &
+                            MPI_COMM_WORLD, ierr )
+       delpos = delarr(1)
+       delneg = delarr(2)
+#endif
+
+    end subroutine ccglobal_posneg3
+
+    subroutine ccglobal_sum2 (array, result)
+       ! Calculate global sums of positive and negative values of array
+       use sumdd_m
+       include 'newmpar.h'
+       include 'xyzinfo.h'
+       real, intent(in), dimension(ifull) :: array
+       real, intent(out) :: result
+       real :: result_l
+       integer :: iq, ierr
+#ifdef sumdd
+       complex :: local_sum, global_sum
+!      Temporary array for the drpdr_local function
+       real, dimension(ifull) :: tmparr
+#endif
+
+       result_l = 0.
+       do iq=1,ifull
+#ifdef sumdd         
+          tmparr(iq)  = array(iq)*wts(iq)
+#else
+          result_l = result_l + array(iq)*wts(iq)
+#endif
+       enddo
+#ifdef sumdd
+       local_sum = (0.,0.)
+       call drpdr_local(tmparr, local_sum)
+       call MPI_Allreduce ( local_sum, global_sum, 1, MPI_COMPLEX,     &
+                            MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       result = real(global_sum)
+#else
+       call MPI_Allreduce ( result_l, result, 1, MPI_REAL, MPI_SUM,    &
+                            MPI_COMM_WORLD, ierr )
+#endif
+
+    end subroutine ccglobal_sum2
+
+    subroutine ccglobal_sum3 (array, result)
+       ! Calculate global sums of positive and negative values of array
+       use sumdd_m
+       include 'newmpar.h'
+       include 'sigs.h'
+       include 'xyzinfo.h'
+       real, intent(in), dimension(ifull,kl) :: array
+       real, intent(out) :: result
+       real :: result_l
+       integer :: k, iq, ierr
+#ifdef sumdd
+       complex :: local_sum, global_sum
+!      Temporary array for the drpdr_local function
+       real, dimension(ifull) :: tmparr
+#endif
+
+       result_l = 0.
+#ifdef sumdd
+       local_sum = (0.,0.)
+#endif
+       do k=1,kl
+          do iq=1,ifull
+#ifdef sumdd         
+             tmparr(iq)  = -dsig(k)*array(iq,k)*wts(iq)
+#else
+             result_l = result_l - dsig(k)*array(iq,k)*wts(iq)
+#endif
+          enddo
+#ifdef sumdd
+          call drpdr_local(tmparr, local_sum)
+#endif
+       end do ! k
+
+#ifdef sumdd
+       call MPI_Allreduce ( local_sum, global_sum, 1, MPI_COMPLEX,    &
+                            MPI_SUMDR, MPI_COMM_WORLD, ierr )
+       result = real(global_sum)
+#else
+       call MPI_Allreduce ( result_l, result, 1, MPI_REAL, MPI_SUM,   &
+                            MPI_COMM_WORLD, ierr )
+#endif
+
+    end subroutine ccglobal_sum3
+
 end module cc_mpi
 
