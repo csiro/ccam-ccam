@@ -1991,7 +1991,6 @@ contains
       drlen = 0
       dindex = 0
       do k=1,kl
-!cdir nodep
          do iq=1,ifull
             nf = nface(iq,k) + noff ! Make this a local index
             idel = int(xg(iq,k)) - ioff
