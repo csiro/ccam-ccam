@@ -1,5 +1,5 @@
       subroutine leoncld(cfrac)
-
+      use diag_m
       implicit none
       include 'newmpar.h'
       include 'liqwpar.h' ! ifullw
