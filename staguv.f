@@ -23,8 +23,9 @@ c     use diag_m             ! for calls to maxmin
       real, dimension(ifull,kl), intent(out) :: uout, vout
       real, dimension(ifull+iextra,kl) :: ua, va, ud, vd,
      &                                    uin, vin
+      common/ktau_stag/ktau_stag
       integer, parameter :: itnmax=3
-      integer :: iq, itn, k, nstagin, num
+      integer :: iq, itn, k, nstagin, num, ktau_stag
       save nstagin,num
       data num/0/
 
@@ -36,11 +37,12 @@ c     use diag_m             ! for calls to maxmin
 	   nstagu=4
 	 endif
         nstagin=nstag
-	 nstag=nstagu
+	 nstag=nstagu	 
       endif
+      ktau_stag=ktau
 !     N.B. swapping only done in unstaguv, during calls from nonlin      
-c      print *,'ktau,nstag,nstagu,mod,mod2 ',
-c     .         ktau,nstag,nstagu,mod(ktau,abs(nstagin)),mod(ktau,2)
+c     print *,'ktau,nstag,nstagu,mod,mod2 ',
+c    .         ktau,nstag,nstagu,mod(ktau,abs(nstagin)),mod(ktau,2)
 
       ! Copying could be avoided if input arrays were dimensioned ifull+iextra
       do k=1,kl
@@ -180,8 +182,9 @@ c     staggered u & v as input; unstaggered as output
       real, dimension(ifull,kl), intent(out) :: uout, vout
       real, dimension(ifull+iextra,kl) :: ua, va, ud, vd,
      &                                    uin, vin
+      common/ktau_stag/ktau_stag
       integer, parameter :: itnmax=3
-      integer :: iq, itn, k, nstagin, num
+      integer :: iq, itn, k, nstagin, num, ktau_stag
       save nstagin,num
       data num/0/
 
@@ -192,19 +195,30 @@ c     staggered u & v as input; unstaggered as output
 	   nstag=-1
 	   nstagu=4
 	 endif
+	 if(nstag==6)then  
+	   nstagu=4
+	 endif
         nstagin=nstag
 	 nstag=nstagu
+	 ktau_stag=0   ! only set to ktau in call to staguv
       endif
 !     N.B. swapping only done in unstaguv, during calls from nonlin      
       if(num<ktau)then  ! following only for very first time each ktau
-        num=ktau
         if(nstagin<0.and.mod(ktau,abs(nstagin))==0)then
           nstag=7-nstagu   ! swap between 3 & 4
 	   nstagu=nstag
+          num=ktau
+        endif
+        if(nstagin==6.and.ktau==ktau_stag)then
+!         this swapping only done in unstaguv, during calls from adjust5     
+          nstag=7-nstagu   ! swap between 3 & 4
+	   nstagu=nstag
+          num=ktau
         endif
       endif  !  (num<ktau)
-c     print *,'u ktau,nstag,nstagu,mod,mod2 ',
+c     print *,'uns ktau,nstag,nstagu,mod,mod2 ',
 c    .         ktau,nstag,nstagu,mod(ktau,abs(nstagin)),mod(ktau,2)
+c     print *,'nstagin,ktau_stag ',nstagin,ktau_stag
       do k=1,kl
          do iq=1,ifull
             uin(iq,k) = u(iq,k)
