@@ -1,6 +1,8 @@
       subroutine hordifgt    !  globpea version    N.B. k loop in here
 !     usual scheme
-      parameter (nhorjlm=0)   ! 1 for jlm 3D deformation rather than Smagorinsky
+      use cc_mpi
+      implicit none
+      integer, parameter :: nhorjlm=1 ! 1 for jlm 3D deformation rather than Smagorinsky
 c     called from globpe (now not tendencies),
 c     called for -ve nhor
 c     for +ve nhor see hordifg 
@@ -22,10 +24,14 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       include 'sigs.h'
       include 'vecsuv.h'   ! vecsuv info
       include 'xarrs.h'
-      common/work2/uc(ifull),vc(ifull),wc(ifull),ee(ifull),ff(ifull) 
-     .      ,xfact(ifull),yfact(ifull),t_kh(ifull),tx_fact(ifull)
-     .      ,ty_fact(ifull),ptemp(ifull),dum(7*ifull)
-      data nf/2/
+      real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
+     &                                    yfact, t_kh
+      real, dimension(ifull) :: ptemp, tx_fact, ty_fact
+      integer, parameter :: nf=2
+!     Local variables
+      integer iq, k, nhora, nhorx
+      real aa, bb, cc, delphi, emi, hdif, ucc, vcc, wcc
+      integer i, j, n, ind
       ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
 
 c     nhorx used in hordif  ! previous code effectively has nhorx=0
@@ -61,154 +67,201 @@ c     expect power nf to be about 1 or 2 (see data statement)
       enddo   !  iq loop
 c     above code independent of k
 
-       if(diag)then
+      if(diag.and.mydiag)then
          print *,'hordifgt u ',(u(idjd,k),k=1,kl)
          print *,'hordifgt v ',(v(idjd,k),k=1,kl)
          print *,'ax,ay,az ',ax(idjd),ay(idjd),az(idjd)
          print *,'bx,by,bz ',bx(idjd),by(idjd),bz(idjd)
-       endif
+      endif
 
       do k=1,kl
-       hdif=dt*hdiff(k)/ds  ! N.B.  hdiff(k)=khdif*.1 
 !        in hordifgt, need to calculate Cartesian components 
          do iq=1,ifull
-          uc(iq)=ax(iq)*u(iq,k) + bx(iq)*v(iq,k)
-          vc(iq)=ay(iq)*u(iq,k) + by(iq)*v(iq,k)
-          wc(iq)=az(iq)*u(iq,k) + bz(iq)*v(iq,k)
-         enddo     ! iq loop
+            uc(iq,k) = ax(iq)*u(iq,k) + bx(iq)*v(iq,k)
+            vc(iq,k) = ay(iq)*u(iq,k) + by(iq)*v(iq,k)
+            wc(iq,k) = az(iq)*u(iq,k) + bz(iq)*v(iq,k)
+         enddo
+      end do
+      call bounds(uc)
+      call bounds(vc)
+      call bounds(wc)
 
       if(nhorjlm.eq.1)then
 c      jlm scheme using 3D uc, vc, wc
-       do iq=1,ifull
-        cc=(uc(ie(iq))-uc(iw(iq)))**2+(uc(in(iq))-uc(is(iq)))**2
-     .    +(vc(ie(iq))-vc(iw(iq)))**2+(vc(in(iq))-vc(is(iq)))**2
-     .    +(wc(ie(iq))-wc(iw(iq)))**2+(wc(in(iq))-wc(is(iq)))**2
-!       N.B. using double grid length
-        t_kh(iq)= .5*sqrt(cc)*hdif/em(iq)  ! this one without em in D terms
-       enddo   !  iq loop
+         do k=1,kl
+            do iq=1,ifull
+               cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 +
+     &              (uc(in(iq),k)-uc(is(iq),k))**2 +
+     &              (vc(ie(iq),k)-vc(iw(iq),k))**2 +
+     &              (vc(in(iq),k)-vc(is(iq),k))**2 +
+     &              (wc(ie(iq),k)-wc(iw(iq),k))**2 +
+     &              (wc(in(iq),k)-wc(is(iq),k))**2
+               hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1 
+!              N.B. using double grid length
+               t_kh(iq,k)= .5*sqrt(cc)*hdif/em(iq) ! this one without em in D terms
+            enddo               !  iq loop
+         end do
 
       else
-c      uses (dv/dx+du/dy)**2 + .5*(du/dx)**2 + .5*(dv/dy)**2
-c      following Kikuchi et al. 1981      now Smag. Wed  04-30-1997
-!      N.B. original Smag. had m on top (in D formulae) and khdif=3.2
-!      More recently (21/9/00) I think original Smag has khdif=0.8
-!      Smag's actual diffusion also differentiated Dt and Ds
-c      t_kh is kh at t points
+         print*, "NHORJLM /= 1 not implemented in MPI version"
+         stop
 
-c      use ee and ff arrays temporarily for x and y derivs for 2nd deformation
-       do iq=1,ifull
-        ee(iq)= v(ie(iq),k)-v(iw(iq),k)              ! globpea
-        ff(iq)= u(in(iq),k)-u(is(iq),k)              ! globpea
-!       some bdy vals changed in next loops
-       enddo   !  iq loop
+!        Need to understand the special panel boundary stuff
 
-c      some special boundary values switch signs as well as vel components
-       do n=0,npanels
-c       following treats unusual panel boundaries
-        if(npann(n).ge.100)then
-          do i=1,il
-           iq=ind(i,il,n)
-           ff(iq)= -v(in(iq),k)-u(iq-il,k)     ! globpea sign switch too
-          enddo  ! i loop
-        endif      ! (npann(n).ge.100)
-        if(npane(n).ge.100)then
-          do j=1,il
-           iq=ind(il,j,n)
-           ee(iq)= -u(ie(iq),k)-v(iq-1,k)     ! globpea sign switch too
-          enddo   ! j loop
-        endif      ! (npane(n).ge.100)
-        if(npanw(n).ge.100)then
-          do j=1,il
-           iq=ind(1,j,n)
-           ee(iq)= v(iq+1,k)+u(iw(iq),k)      ! globpea sign switch too
-          enddo   ! j loop
-        endif      ! (npanw(n).ge.100)
-        if(npans(n).ge.100)then
-          do i=1,il
-           iq=ind(i,1,n)
-           ff(iq)= u(iq+1,k)+v(is(iq),k)      ! globpea sign switch too
-          enddo   ! i loop
-        endif      ! (npans(n).ge.100)
-       enddo      ! n loop
+!!!c      uses (dv/dx+du/dy)**2 + .5*(du/dx)**2 + .5*(dv/dy)**2
+!!!c      following Kikuchi et al. 1981      now Smag. Wed  04-30-1997
+!!!!      N.B. original Smag. had m on top (in D formulae) and khdif=3.2
+!!!!      More recently (21/9/00) I think original Smag has khdif=0.8
+!!!!      Smag's actual diffusion also differentiated Dt and Ds
+!!!c      t_kh is kh at t points
+!!!
+!!!c      use ee and ff arrays temporarily for x and y derivs for 2nd deformation
+!!!       do iq=1,ifull
+!!!        ee(iq)= v(ie(iq),k)-v(iw(iq),k)              ! globpea
+!!!        ff(iq)= u(in(iq),k)-u(is(iq),k)              ! globpea
+!!!!       some bdy vals changed in next loops
+!!!       enddo   !  iq loop
+!!!
+!!!c      some special boundary values switch signs as well as vel components
+!!!       do n=0,npanels
+!!!c       following treats unusual panel boundaries
+!!!        if(npann(n).ge.100)then
+!!!          do i=1,il
+!!!           iq=ind(i,il,n)
+!!!           ff(iq)= -v(in(iq),k)-u(iq-il,k)     ! globpea sign switch too
+!!!          enddo  ! i loop
+!!!        endif      ! (npann(n).ge.100)
+!!!        if(npane(n).ge.100)then
+!!!          do j=1,il
+!!!           iq=ind(il,j,n)
+!!!           ee(iq)= -u(ie(iq),k)-v(iq-1,k)     ! globpea sign switch too
+!!!          enddo   ! j loop
+!!!        endif      ! (npane(n).ge.100)
+!!!        if(npanw(n).ge.100)then
+!!!          do j=1,il
+!!!           iq=ind(1,j,n)
+!!!           ee(iq)= v(iq+1,k)+u(iw(iq),k)      ! globpea sign switch too
+!!!          enddo   ! j loop
+!!!        endif      ! (npanw(n).ge.100)
+!!!        if(npans(n).ge.100)then
+!!!          do i=1,il
+!!!           iq=ind(i,1,n)
+!!!           ff(iq)= u(iq+1,k)+v(is(iq),k)      ! globpea sign switch too
+!!!          enddo   ! i loop
+!!!        endif      ! (npans(n).ge.100)
+!!!       enddo      ! n loop
+!!!
+!!!       do iq=1,ifull
+!!!c       better to use ordinary u & v for divergence-type calcs
+!!!        aa=.5*(u(ieu(iq),k)-u(iwu(iq),k))    ! globpea code
+!!!        bb=.5*(v(inv(iq),k)-v(isv(iq),k))    ! globpea code
+!!!        cc=.5*(ee(iq)+ff(iq))   !  .5 because double grid length
+!!!!       cc=cc**2+(aa**2+bb**2)*.5   ! this one for Kikuchi
+!!!        cc=cc**2+(aa-bb)**2         ! this one for Smagorinsky
+!!!        t_kh(iq)= sqrt(cc)*hdif/em(iq)  ! this one without em in D terms
+!!!       enddo   !  iq loop
+!!!c      ee now finished with (not used till now in globpea)
+       endif    !  (nhorjlm.eq.1)
 
-       do iq=1,ifull
-c       better to use ordinary u & v for divergence-type calcs
-        aa=.5*(u(ieu(iq),k)-u(iwu(iq),k))    ! globpea code
-        bb=.5*(v(inv(iq),k)-v(isv(iq),k))    ! globpea code
-        cc=.5*(ee(iq)+ff(iq))   !  .5 because double grid length
-!       cc=cc**2+(aa**2+bb**2)*.5   ! this one for Kikuchi
-        cc=cc**2+(aa-bb)**2         ! this one for Smagorinsky
-        t_kh(iq)= sqrt(cc)*hdif/em(iq)  ! this one without em in D terms
-       enddo   !  iq loop
-c      ee now finished with (not used till now in globpea)
-      endif    !  (nhorjlm.eq.1)
-
-       do iq=1,ifull
-        xfact(iq)=(t_kh(ie(iq))+t_kh(iq))*.5
-        yfact(iq)=(t_kh(in(iq))+t_kh(iq))*.5
-       enddo   !  iq loop
-       if((nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1)then
+      call bounds(t_kh)
+      do k=1,kl
          do iq=1,ifull
-          xfact(iq)=xfact(iq)*tx_fact(iq)
-          yfact(iq)=yfact(iq)*ty_fact(iq)
-         enddo   !  iq loop
-       endif   ! (nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1
+            xfact(iq,k) = (t_kh(ie(iq),k)+t_kh(iq,k))*.5
+            yfact(iq,k) = (t_kh(in(iq),k)+t_kh(iq,k))*.5
+         enddo
+         if((nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1)then
+            do iq=1,ifull
+               xfact(iq,k) = xfact(iq,k)*tx_fact(iq)
+               yfact(iq,k) = yfact(iq,k)*ty_fact(iq)
+            enddo               !  iq loop
+         endif                  ! (nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1
+      end do
+      call boundsuv(xfact,yfact)
 
-       if(nhorps.eq.0.or.nhorps.eq.-2)then ! for nhorps=-1,-3 don't diffuse u,v
-         do iq=1,ifull
-          emi=1./em(iq)**2
-          ucc=( uc(iq)*emi
-     .      +xfact(iq)*uc(ie(iq)) +xfact(iwu2(iq))*uc(iw(iq))
-     .      +yfact(iq)*uc(in(iq)) +yfact(isv2(iq))*uc(is(iq)) )
-     .      /(emi+xfact(iq)+xfact(iwu2(iq))+yfact(iq)+yfact(isv2(iq)))
-          vcc=( vc(iq)*emi
-     .      +xfact(iq)*vc(ie(iq)) +xfact(iwu2(iq))*vc(iw(iq))
-     .      +yfact(iq)*vc(in(iq)) +yfact(isv2(iq))*vc(is(iq)) )
-     .      /(emi+xfact(iq)+xfact(iwu2(iq))+yfact(iq)+yfact(isv2(iq)))
-          wcc=( wc(iq)*emi
-     .      +xfact(iq)*wc(ie(iq)) +xfact(iwu2(iq))*wc(iw(iq))
-     .      +yfact(iq)*wc(in(iq)) +yfact(isv2(iq))*wc(is(iq)) )
-     .      /(emi+xfact(iq)+xfact(iwu2(iq))+yfact(iq)+yfact(isv2(iq)))
-          u(iq,k)=ax(iq)*ucc +ay(iq)*vcc +az(iq)*wcc
-          v(iq,k)=bx(iq)*ucc +by(iq)*vcc +bz(iq)*wcc
-         enddo   !  iq loop
+      if(nhorps.eq.0.or.nhorps.eq.-2)then ! for nhorps=-1,-3 don't diffuse u,v
+         do k=1,kl
+            do iq=1,ifull
+               emi=1./em(iq)**2
+               ucc = ( uc(iq,k)*emi +
+     &                 xfact(iq,k)*uc(ie(iq),k) +
+     &                 xfact(iwu(iq),k)*uc(iw(iq),k) +
+     &                 yfact(iq,k)*uc(in(iq),k) +
+     &                 yfact(isv(iq),k)*uc(is(iq),k) ) /
+     &              ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
+     &                yfact(iq,k)+yfact(isv(iq),k) )
+               vcc = ( vc(iq,k)*emi +
+     &                 xfact(iq,k)*vc(ie(iq),k) +
+     &                 xfact(iwu(iq),k)*vc(iw(iq),k) +
+     &                 yfact(iq,k)*vc(in(iq),k) +
+     &                 yfact(isv(iq),k)*vc(is(iq),k) ) /
+     &               ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
+     &                 yfact(iq,k)+yfact(isv(iq),k) )
+               wcc = ( wc(iq,k)*emi +
+     &                 xfact(iq,k)*wc(ie(iq),k) +
+     &                 xfact(iwu(iq),k)*wc(iw(iq),k) +
+     &                 yfact(iq,k)*wc(in(iq),k) +
+     &                 yfact(isv(iq),k)*wc(is(iq),k) ) /
+     &               ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
+     &                 yfact(iq,k) + yfact(isv(iq),k) )
+               u(iq,k) = ax(iq)*ucc + ay(iq)*vcc + az(iq)*wcc
+               v(iq,k) = bx(iq)*ucc + by(iq)*vcc + bz(iq)*wcc
+            enddo   !  iq loop
+         end do
        endif   ! nhorps.ge.0
 
-       if(diag)then
-         print *,'k,id,jd,idjd ',k,id,jd,idjd
-         print *,'k, xfact, xfactw ',k,xfact(idjd),xfact(iwu2(idjd))
-         print *,'k, yfact, yfacts ',k,yfact(idjd),yfact(isv2(idjd))
-         print *,'k, uc,uce,ucw,ucn,ucs '
-     .     ,k,uc(idjd),uc(ie(idjd)),uc(iw(idjd))
-     .     ,uc(in(idjd)),uc(is(idjd))
-         print *,'k,ee,ff,u,v ',
-     .            k,ee(idjd),ff(idjd),u(idjd,k),v(idjd,k)
+       if(diag.and.mydiag)then
+          do k=1,kl
+             print *,'k,id,jd,idjd ',k,id,jd,idjd
+             print *,'k, xfact, xfactw ',k,xfact(idjd,k),
+     &                                   xfact(iwu(idjd),k)
+             print *,'k, yfact, yfacts ',k,yfact(idjd,k),
+     &                                   yfact(isv(idjd),k)
+             print *,'k, uc,uce,ucw,ucn,ucs '
+     &        ,k,uc(idjd,k),uc(ie(idjd),k),uc(iw(idjd),k)
+     &        ,uc(in(idjd),k),uc(is(idjd),k)
+             print *,'k,ee,ff,u,v ',
+     &            k,ee(idjd,k),ff(idjd,k),u(idjd,k),v(idjd,k)
+          end do
        endif
 
        if(nhorps.ne.-2)then   ! for nhorps=-2 don't diffuse T, qg
 c        do t diffusion based on potential temperature ff
-         do iq=1,ifull
-          ee(iq)=qg(iq,k)
-          ff(iq)=t(iq,k)/ptemp(iq)  ! watch out for Chen!
-         enddo   !  iq loop
-         if(nhorps.ne.-3)then   ! for nhorps=-3 don't diffuse T; only qg
-           do iq=1,ifull
-            emi=1./em(iq)**2
-            t(iq,k)= ptemp(iq) * ( ff(iq)*emi
-     .        +xfact(iq)*ff(ie(iq)) +xfact(iwu2(iq))*ff(iw(iq))
-     .        +yfact(iq)*ff(in(iq)) +yfact(isv2(iq))*ff(is(iq)) )
-     .        /(emi+xfact(iq)+xfact(iwu2(iq))+yfact(iq)+yfact(isv2(iq)))
-           enddo   !  iq loop
-         endif   ! (nhorps.ne.-3)
-         do iq=1,ifull
-          emi=1./em(iq)**2
-          qg(iq,k)=( ee(iq)*emi
-     .      +xfact(iq)*ee(ie(iq)) +xfact(iwu2(iq))*ee(iw(iq))
-     .      +yfact(iq)*ee(in(iq)) +yfact(isv2(iq))*ee(is(iq)) )
-     .      /(emi+xfact(iq)+xfact(iwu2(iq))+yfact(iq)+yfact(isv2(iq)))
-         enddo   !  iq loop
-       endif    ! (nhorps.ge.-1)
+          do k=1,kl
+             do iq=1,ifull
+                ee(iq,k)=qg(iq,k)
+                ff(iq,k)=t(iq,k)/ptemp(iq) ! watch out for Chen!
+             enddo              !  iq loop
+          end do
+          call bounds(ee)
+          call bounds(ff)
+          if(nhorps.ne.-3)then  ! for nhorps=-3 don't diffuse T; only qg
+             do k=1,kl
+                do iq=1,ifull
+                   emi=1./em(iq)**2
+                   t(iq,k)= ptemp(iq) *
+     &                      ( ff(iq,k)*emi +
+     &                        xfact(iq,k)*ff(ie(iq),k) +
+     &                        xfact(iwu(iq),k)*ff(iw(iq),k) +
+     &                        yfact(iq,k)*ff(in(iq),k) +
+     &                        yfact(isv(iq),k)*ff(is(iq),k) ) /
+     &                      ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
+     &                        yfact(iq,k) + yfact(isv(iq),k) )
+                enddo           !  iq loop
+             end do
+          endif                 ! (nhorps.ne.-3)
+          do k=1,kl
+             do iq=1,ifull
+                emi=1./em(iq)**2
+                qg(iq,k) = ( ee(iq,k)*emi +
+     &                       xfact(iq,k)*ee(ie(iq),k) +
+     &                       xfact(iwu(iq),k)*ee(iw(iq),k) +
+     &                       yfact(iq,k)*ee(in(iq),k) +
+     &                       yfact(isv(iq),k)*ee(is(iq),k) ) /
+     &                     ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
+     &                       yfact(iq,k)+yfact(isv(iq),k))
+             enddo              !  iq loop
+          end do
+       endif                    ! (nhorps.ge.-1)
 
-      enddo    !  k loop
       return
       end

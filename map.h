@@ -1,7 +1,5 @@
-      real em,emu,emv,f,fu,fv,dmdx,dmdy,dmdxv,dmdyu,zs
-      logical land
-      common/map/em(ifull),emu(ifull),emv(ifull)
-     .          ,f(ifull),fu(ifull),fv(ifull)
-     .          ,dmdx(ifull),dmdy(ifull),dmdxv(ifull),dmdyu(ifull)
-     .          ,zs(ifull),land(ifull)
+      real, dimension(ifull+iextra) :: em, emu, emv, f, fu, fv, zs
+      real, dimension(ifull) :: dmdx, dmdy, dmdxv, dmdyu
+      logical land(ifull)
 
+      common /map/ em,emu,emv,f,fu,fv,dmdx,dmdy,dmdxv,dmdyu,zs,land

@@ -1,6 +1,9 @@
       subroutine upglobal      ! globpea version   use ritchie 103
+      use cc_mpi
+      use diag_m
+      implicit none
 !     parameter (nrot=1)       ! nrot=1 to rotate velocity vectors (parmdyn.h)
-      parameter (ntest=0)      ! ~8+ for diagnostic stability tests
+      integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
 !     m=6 had three options; only option 3 has been adopted here
       include 'newmpar.h'
       include 'arrays.h'
@@ -18,26 +21,29 @@
       include 'vvel.h'     ! sdot
       include 'xarrs.h'
       include 'xyzinfo.h'  ! x,y,z,wts
+      real epst
       common/epst/epst(ifull)
+      real ubar, vbar
       common/uvbar/ubar(ifull,kl),vbar(ifull,kl)
       ! Need work common for these
-      real uavx(ifull),vavx(ifull),uc(ifull,kl),vc(ifull,kl),
-     &     wc(ifull,kl),aa(ifull,kl),bb(ifull),cc(ifull,kl),
-     &     dd(ifull,kl)
+      real, dimension(ifull+iextra,kl) :: uc, vc, wc, cc, dd
+      real aa(ifull,kl)
       real x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
+      integer nface
+      real xg, yg
       common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
+      real tnsav, unsav, vnsav
       common/nonlsav/tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl)
       real theta(kl), factr(kl)
-      save numunstab,num_hight
-      data numunstab/0/,num_hight/0/
-c     ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
+      integer intsch, iq, k, kk, lev, ntr
+      real denb, dtm, dtp, phi1, tav, tempry, tsurf, vdot1,
+     &     vdot2, vec1x, vec1y, vec1z, vec2x, vec2y, vec2z, vec3x,
+     &     vec3y, vec3z, vecdot
+      integer, save :: num_hight = 0, numunstab = 0
+
+      call start_log(upglobal_begin)
+
       intsch=mod(ktau,2)
-      psavg1=0.
-      psavg2=0.
-      psmax1=-100.
-      psmax2=-100.
-      psmin1=0.
-      psmin2=0.
 
       if(m.eq.6)then
         do k=1,kl
@@ -49,7 +55,7 @@ c     ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
         enddo      ! k loop
       endif  ! (m.eq.6)
 
-      if(tx(idjd,kl).gt.264.)then
+      if(tx(idjd,kl).gt.264..and.mydiag)then
         print *
         print *,'upglobal a',ktau,id,jd,tx(idjd,kl)
       endif           ! (tx(idjd,kl).gt.264.)
@@ -101,7 +107,7 @@ c     ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
       end do  ! k
 
        if(nritch.gt.300.or.nt_adv.gt.0)then   ! jlm special bi-linear treatment 303
-          aa(:,:)=dd(:,:)         ! for nt_adv schemes holding zs/(r*t)
+          aa(1:ifull,:)=dd(1:ifull,:)         ! for nt_adv schemes holding zs/(r*t)
           call ints_bl(dd,intsch,nface,xg,yg)
        endif     ! (nritch.gt.300.or.nt_adv.gt.0)
 
@@ -154,23 +160,27 @@ c     ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
           end do ! k
           call ints(cc,intsch,nface,xg,yg,3)
           do k=1,kl
-             tx(:,k) = cc(:,k) - dd(:,k)*factr(k)
+             tx(1:ifull,k) = cc(1:ifull,k) - dd(1:ifull,k)*factr(k)
           end do
        else
          call ints(tx,intsch,nface,xg,yg,3)
        endif  ! (nt_adv.ge.4)
 
 !      now comes ux & vx section
-       if(diag.and.k.eq.nlv)then
+       if(diag)then
 c       print *,'staggered ux and vx:'
-        print *,'unstaggered now as uavx and vavx: globpea uses ux & vx'
-        print *,'ux ',(ux(idjd,kk),kk=1,nlv)
-        call printa('uavx',ux(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-        print *,'vx ',(vx(idjd,kk),kk=1,nlv)
-        call printa('vavx',vx(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-        print *,'unstaggered u and v as uav and vav: globpea uses u & v'
-        call printa('uav ',u(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('vav ',v(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+          if ( mydiag ) then
+             print *,
+     &         'unstaggered now as uavx and vavx: globpea uses ux & vx'
+             print *,'ux ',(ux(idjd,kk),kk=1,nlv)
+          end if
+          call printa('uavx',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
+          if (mydiag) print *,'vx ',(vx(idjd,kk),kk=1,nlv)
+          call printa('vavx',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
+          if ( mydiag ) print *,
+     &       'unstaggered u and v as uav and vav: globpea uses u & v'
+          call printa('uav ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
+          call printa('vav ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
        endif
 
 !      convert uavx, vavx to cartesian velocity components
@@ -182,15 +192,17 @@ c       print *,'staggered ux and vx:'
           enddo                 ! iq loop
        end do
        if(diag)then
-          print *,'uc,vc,wc before advection'
-          write (6,'(a,18e20.10)') 'uc,vc,wc '
-     .                           ,uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
-          call printa('uc  ',uc(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-          call printa('vc  ',vc(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-          call printa('wc  ',wc(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-          call printa('xg  ',xg(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-          call printa('yg  ',yg(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-          print *,'nface ',(nface(idjd,kk),kk=1,kl)
+          if ( mydiag ) then
+             print *,'uc,vc,wc before advection'
+             write (6,'(a,18e20.10)') 'uc,vc,wc '
+     &                           ,uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
+          end if
+          call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
+          call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
+          call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
+          call printa('xg  ',xg,ktau,nlv,ia,ib,ja,jb,0.,1.)
+          call printa('yg  ',yg,ktau,nlv,ia,ib,ja,jb,0.,1.)
+          if ( mydiag ) print *,'nface ',(nface(idjd,kk),kk=1,kl)
        endif
        if(mup.ne.0)then
           call ints(uc,intsch,nface,xg,yg,2)
@@ -198,10 +210,10 @@ c       print *,'staggered ux and vx:'
           call ints(wc,intsch,nface,xg,yg,2)
        endif
        if(diag)then
-          print *,'uc,vc,wc after advection'
-          call printa('uc  ',uc(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-          call printa('vc  ',vc(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-          call printa('wc  ',wc(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+          if ( mydiag ) print *,'uc,vc,wc after advection'
+          call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
+          call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
+          call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
        endif
 
 c      print *,'end  upg. k x3d,y3d,z3d ',
@@ -254,9 +266,10 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
           enddo                 ! iq loop
        end do
        if(diag.and.k.eq.nlv)then
-          print *,'after advection in upglobal; unstaggered ux and vx:'
-          call printa('ux  ',ux(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-          call printa('vx  ',vx(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+          if ( mydiag ) print *,
+     &         'after advection in upglobal; unstaggered ux and vx:'
+          call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
+          call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
        endif
 
        if(mspec.eq.1.and.mup.ne.0)then   ! advect qg after preliminary step
@@ -326,12 +339,13 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
 !      now interpolate ux,vx to the staggered grid; special globpea call
       call staguv(ux,vx,ux,vx)
       if(diag)then
-         print *,'near end of upglobal staggered ux and vx:'
-         call printa('ux  ',ux(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-         call printa('vx  ',vx(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+         if ( mydiag ) print *,
+     &        'near end of upglobal staggered ux and vx:'
+         call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
+         call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
       endif
 
-      if(diag)then
+      if(diag.and.mydiag)then
         print *,'near end of upglobal'
         print *,'tn ',(tn(idjd,k),k=1,kl)
         print *,'tx ',(tx(idjd,k),k=1,kl)
@@ -339,7 +353,7 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
         print *,'vn ',(vn(idjd,k),k=1,kl)
       endif
 
-      tx(:,:)=tx(:,:)+.5*dt*tn(:,:) ! moved from adjust5 30/11/00
+      tx(1:ifull,:) = tx(1:ifull,:)+.5*dt*tn(1:ifull,:) ! moved from adjust5 30/11/00
 
       if(ntest.gt.4)then
 !       diag check for unstable layers
@@ -350,7 +364,7 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
          do k=ntest,kl   ! e.g. 8,kl
           if(theta(k).lt.theta(k-1))then  ! based on tx
             print *,"unstable layer in upglobal for ktau,iq,k's,del ",
-     .                               ktau,iq,k-1,k,theta(k-1)-theta(k)
+     &                               ktau,iq,k-1,k,theta(k-1)-theta(k)
 	     write (6,"('theta',9f7.2/5x,9f7.2)") theta
             write (6,"('sdot',9f7.3/4x,9f7.3)") (sdot(iq,kk),kk=1,kl)
 c           print *,'sdot', (sdot(iq,kk),kk=1,kl)
@@ -361,5 +375,6 @@ c           if(numunstab.eq.100)stop 'numunstab=30'
         enddo
       endif
 
+      call end_log(upglobal_end)
       return
       end

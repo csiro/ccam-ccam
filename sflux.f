@@ -1,4 +1,5 @@
       subroutine sflux(nalpha)              ! for globpe code
+      use diag_m
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
       parameter (ndvmod=0)  ! 0 default, 1+ for dvmod tests
       parameter (ntss_sh=0) ! 0 for original, 3 for **3, 4 for **4
@@ -29,7 +30,9 @@ c     cp specific heat at constant pressure joule/kgm/deg
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
       include 'pbl.h'
+      include 'permsurf.h'
       include 'prec.h'
+      include 'savuvt.h'
       include 'scamdim.h'  ! dimension of patches
       include 'screen.h'   ! tscrn,qgscrn,uscrn,scrrel,u10
       include 'sigs.h'
@@ -39,7 +42,6 @@ c     cp specific heat at constant pressure joule/kgm/deg
       include 'tracers.h'  ! ngas, nllp, ntrac
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
       include 'vvel.h'
-      common/savuv/savu(ifull,kl),savv(ifull,kl)
       common/tafts/taftfh(ifull),taftfhg(ifull)
       common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
      . ,wetfac(ifull),degdw(ifull),cie(ifull)
@@ -53,12 +55,12 @@ c     cp specific heat at constant pressure joule/kgm/deg
      . ism(ifull),fwtop(ifull),epot(ifull),   ! watch soilsnow.f after epot
      . extin(ifull),af(ifull),ri(ifull),xx(ifull),
      . dum3(5*ijk-20*ifull)
-      common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
       dimension ipermp(ifull)    ! temporary permutation array
       equivalence (ipermp,dirad)
       real plens(ifull)
       save plens
       data plens/ifull*0./
+      include 'establ.h'
 
 c     stability dependent drag coefficients using Louis (1979,blm) f'
 c     n.b. cduv, cdtq are returned as drag coeffs mult by vmod
@@ -71,13 +73,6 @@ c     fg is sensible heat flux (was h0)
 c     eg is latent heat flux (was wv)
 c     dfgdt is dfgdt (was csen in surfupa/b)
 c     degdt is degdt (was ceva in surfupa/b)
-
-      common /es_table/ table(0:220)
-c     T is temp in Kelvin, which should lie between 123.16 and 343.16;
-c     TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
-      tdiff(tm)=min(max(tm-123.16 , 0.) , 220.)
-      establ(tm)=(1.-(tdiff(tm)-aint(tdiff(tm))))*table(int(tdiff(tm)))
-     &           + (tdiff(tm)-aint(tdiff(tm)))*table(int(tdiff(tm))+1)
 
       zobgin = .05   ! jlm: NB seems to be .01 in csiro9 Fri  12-06-1996
       alzzin=log(zmin/zobgin)   ! pre-calculated for all except snow points
@@ -211,8 +206,8 @@ c     using av_vmod (1. for no time averaging)
 
       srcp =sig(1)**(rdry/cp)
       ga(:)=0.              !  for ocean points in ga_ave diagnostic
-      theta(:)=t(:,1)/srcp
-      rho(:)=ps(:)/(rdry*tss(:))
+      theta(:)=t(1:ifull,1)/srcp
+      rho(:)=ps(1:ifull)/(rdry*tss(:))
       do iq=1,ifull
        uav=av_vmod*u(iq,1)+(1.-av_vmod)*savu(iq,1)   
        vav=av_vmod*v(iq,1)+(1.-av_vmod)*savv(iq,1)  
@@ -666,6 +661,7 @@ c***  end of surface updating loop
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
       include 'pbl.h'
+      include 'permsurf.h'
       include 'scamdim.h'  ! dimension of patches
       include 'screen.h'   ! tscrn etc
       include 'sigs.h'
@@ -675,7 +671,6 @@ c***  end of surface updating loop
       include 'tracers.h'  ! ngas, nllp, ntrac
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
       common/nsib/nbarewet,nsigmf
-      common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
       common/tafts/taftfh(ifull),taftfhg(ifull)
       common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
      . ,wetfac(ifull),degdw(ifull),cie(ifull)
@@ -695,14 +690,8 @@ c***  end of surface updating loop
      . tgfnew(ifull),evapfb(ifull)
       common/work3d/dqsttg(ifull),tstom(ifull),rlai(ifull),
      .   cls(ifull),omc(ifull),dum3d(ijk-5*ifull)  ! allows L9
-      common /es_table/ table(0:220)
-c     real dgdtgsav(ifull)
-c     save dgdtgsav
-c     T is temp in Kelvin, which should lie between 123.16 and 343.16;
-c     TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
-      tdiff(tm)=min(max(tm-123.16 , 0.) , 220.)
-      establ(tm)=(1.-(tdiff(tm)-aint(tdiff(tm))))*table(int(tdiff(tm)))
-     &           + (tdiff(tm)-aint(tdiff(tm)))*table(int(tdiff(tm))+1)
+      include 'establ.h'
+
 !     fle(isoil,w)=(w-swilt(isoil))/(sfc(isoil)-swilt(isoil))           !0 Eva's
 !     fle(isoil,w)= w/ssat(isoil)                                       !1 simplest bare
 !     fle(isoil,w)= (w-frac*max( w,swilt(isoil) ))/                     !2 jlm sugg. bare

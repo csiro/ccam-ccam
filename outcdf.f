@@ -889,8 +889,9 @@ c=======================================================================
       integer cdfid, idv, dim(3)
       character name*(*), lname*(*), units*(*)
       real xmin, xmax
+      integer, parameter :: vtype = ncfloat
 
-      idv = ncvdef(cdfid, name, ncshort, ndim, dim, ier)
+      idv = ncvdef(cdfid, name, vtype, ndim, dim, ier)
       if ( ier.ne.0 ) then
         print*, ier,' Error in variable declaration ', name
         stop
@@ -901,6 +902,7 @@ c=======================================================================
       if(len_trim(units).ne.0)then
         call ncaptc(cdfid,idv,'units',ncchar,len_trim(units),units,ier)
       end if
+      if ( vtype == ncshort ) then
       call ncapt(cdfid,idv,'valid_min'    ,ncshort,1,minv,ier)
       call ncapt(cdfid,idv,'valid_max'    ,ncshort,1,maxv,ier)
       call ncapt(cdfid,idv,'missing_value',ncshort,1,missval,ier)
@@ -909,6 +911,7 @@ c=======================================================================
       addoff=xmin-scalef*minv
       call ncapt(cdfid,idv,'add_offset',ncfloat,1,addoff,ier)
       call ncapt(cdfid,idv,'scale_factor',ncfloat,1,scalef,ier)
+      end if
       call ncaptc(cdfid,idv,'FORTRAN_format',ncchar,5,'G11.4',ier)
       return
       end
@@ -931,7 +934,7 @@ c     character*8 sname
       parameter(minv = -32500, maxv = 32500, missval = -32501)
 
       real var(ifull)
-      integer iq, ier, imn, imx, jmn, jmx
+      integer iq, ier, imn, imx, jmn, jmx, vtype
       real addoff, pvar, scale_f, varn, varx, xmax, xmin
       real, dimension(ifull_g) :: globvar
 
@@ -946,20 +949,27 @@ c     character*8 sname
 
 c find variable index
          mid = ncvid(idnc,sname,ier)
-         call ncagt(idnc,mid,'add_offset',addoff,ier)
-         call ncagt(idnc,mid,'scale_factor',scale_f,ier)
 
-         xmin=addoff+scale_f*minv
+!        Check variable type
+         ier = nf_inq_vartype(idnc, mid, vtype)
+         if ( vtype == ncshort ) then
+            call ncagt(idnc,mid,'add_offset',addoff,ier)
+            call ncagt(idnc,mid,'scale_factor',scale_f,ier)
+
+            xmin=addoff+scale_f*minv
 !     xmax=xmin+scale_f*float(maxv-minv)
-         xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
+            xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
 
-         do iq=1,ifull_g
-            pvar = max(xmin,min(xmax,globvar(iq)))
-            ipack(iq)=nint((pvar-addoff)/scale_f)
-            ipack(iq)=max(min(ipack(iq),maxv),minv)
-         end do
+            do iq=1,ifull_g
+               pvar = max(xmin,min(xmax,globvar(iq)))
+               ipack(iq)=nint((pvar-addoff)/scale_f)
+               ipack(iq)=max(min(ipack(iq),maxv),minv)
+            end do
 
-         call ncvpt(idnc, mid, start, count, ipack, ier)
+            call ncvpt(idnc, mid, start, count, ipack, ier)
+         else
+            call ncvpt(idnc, mid, start, count, globvar, ier)
+         end if
          if(ier.ne.0)stop "in histwrt3 ier not zero"
       else
          call ccmpi_gather(var)
@@ -1004,7 +1014,7 @@ c     character*8 sname
       parameter(minv = -32500, maxv = 32500, missval = -32501)
 
       real var(ifull,kl)
-      integer ier, imx, jmx, k, kmx, iq
+      integer ier, imx, jmx, k, kmx, iq, vtype
       real addoff, pvar, scale_f, varn, varx, xmax, xmin
       real, dimension(ifull_g,kl) :: globvar
       integer, dimension(2) :: max_result
@@ -1022,20 +1032,26 @@ c     character*8 sname
 
 c find variable index
          mid = ncvid(idnc,sname,ier)
-         call ncagt(idnc,mid,'add_offset',addoff,ier)
-         call ncagt(idnc,mid,'scale_factor',scale_f,ier)
+!        Check variable type
+         ier = nf_inq_vartype(idnc, mid, vtype)
+         if ( vtype == ncshort ) then
+            call ncagt(idnc,mid,'add_offset',addoff,ier)
+            call ncagt(idnc,mid,'scale_factor',scale_f,ier)
 
-         xmin=addoff+scale_f*minv
+            xmin=addoff+scale_f*minv
 !     xmax=xmin+scale_f*float(maxv-minv)
-         xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
-         do k=1,kl
-            do iq=1,ifull_g
-               pvar = max(xmin,min(xmax,globvar(iq,k)))
-               ipack(iq,k)=nint((pvar-addoff)/scale_f)
-               ipack(iq,k)=max(min(ipack(iq,k),maxv),minv)
+            xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
+            do k=1,kl
+               do iq=1,ifull_g
+                  pvar = max(xmin,min(xmax,globvar(iq,k)))
+                  ipack(iq,k)=nint((pvar-addoff)/scale_f)
+                  ipack(iq,k)=max(min(ipack(iq,k),maxv),minv)
+               end do
             end do
-         end do
-         call ncvpt(idnc, mid, start, count, ipack, ier)
+            call ncvpt(idnc, mid, start, count, ipack, ier)
+         else
+            call ncvpt(idnc, mid, start, count, globvar, ier)
+         end if
       else
          call ccmpi_gather(var)
       end if

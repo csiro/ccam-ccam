@@ -1,7 +1,10 @@
       subroutine adjust5
-      parameter (moistfix=2) ! 0 earlier; 1 for cube-root fix; 2 best, with ps
-      parameter (mfix_rad=0) ! used to make gases 2 to ng add up to gas 1
-      parameter (nys=0)      ! for nys=1 use sun & yeh 1997 monotonic filter
+      use cc_mpi
+      use diag_m
+      implicit none
+      integer, parameter :: moistfix=2 ! 0 earlier; 1 for cube-root fix; 2 best, with ps
+      integer, parameter :: mfix_rad=0 ! used to make gases 2 to ng add up to gas 1
+      integer, parameter :: nys=0      ! for nys=1 use sun & yeh 1997 monotonic filter
 !                              within adjust5 on u,v
 !     nuv in parm.h:  now always 10
 !          !  0y for increments   , 1y for actual values, 2y for true increments
@@ -23,134 +26,72 @@
       include 'vecsuva.h'  ! vecsuva info
       include 'vvel.h'     ! sdot
       include 'xarrs.h'
+      include 'mpif.h'
+      real dpsdt
       common/dpsdt/dpsdt(ifull)    ! shared adjust5 & openhist
+      real epst
       common/epst/epst(ifull)
+      real alph_p, alph_pm, delneg, delpos, alph_q
       common/mfixdiag/alph_p,alph_pm,delneg,delpos,alph_q
+      real :: delneg_l, delpos_l, sumdiffb_l  ! Local versions
+      real, dimension(3) :: delarr, delarr_l
+      real tbar2d
       common/tbar2d/tbar2d(ifull)
-      common/work3/p(ifull,kl),omgfnl(ifull,kl),
-     . wcu(ifull),wcv(ifull),wcua(ifull),wcva(ifull),
-     . wcud(ifull),wcvd(ifull),dum3(3*ijk - 6*ifull)
+      ! Work common here ????
+      real p(ifull+iextra,kl),omgfnl(ifull,kl)
+      real wrk1, wrk2  ! wrk2 not used here
       common/work3b/wrk1(ifull,kl),wrk2(ifull,kl)   ! just work arrays here
+      real qgsav, trsav
       common/work3sav/qgsav(ifull,kl),trsav(ilt*jlt,klt,ngasmax) ! passed from nonlin
-      ! Need work common for these???
-      ! These need to be adjacent
-      real cc(ifull,kl), dd(ifull,kl)
-      common /workxx/ cc, dd
-      common/work2/zz(ifull),zzn(ifull),zze(ifull),zzw(ifull),
-     . zzs(ifull),aa(ifull),bb(ifull),
-     . pslxint(ifull),pfact(ifull),alff(ifull),alf(ifull),alfe(ifull),
-     . alfn(ifull),pslsav(ifull),alfu(ifull),alfv(ifull),dum2(2*ifull)
-      dimension pe(ifull,kl),e(ifull,kl)
-      real helm(ifull,kl),rhsl(ifull,kl),delps(ifull)
-      dimension indsw(8),indne(8),indse(4),indnw(4)
+      real zz(ifull),zzn(ifull),zze(ifull),zzw(ifull),
+     &     zzs(ifull),pfact(ifull),alff(ifull+iextra),alf(ifull+iextra),
+     &     alfe(ifull+iextra),alfn(ifull+iextra),alfu(ifull),alfv(ifull)
+      common /zzalf/ zz,zzn,zze,zzw,zzs,pfact,alff,alf,alfe,alfn,
+     &     alfu,alfv
+      real aa(ifull),cc(ifull+iextra,kl),
+     &     dd(ifull+iextra,kl),pslxint(ifull),pslsav(ifull)
+      real pe(ifull+iextra,kl),e(ifull,kl)
+      real helm(ifull+iextra,kl),rhsl(ifull+iextra,kl),delps(ifull)
       real d(ifull,kl),pextras(ifull,kl),omgf(ifull,kl)
-      equivalence (d,vn),(omgf,pe,tn),(e,p),(pextras,dpsldt)
-      data indsw/1,3,5,6,8,9,12,13/,indne/0,3,4,6,7,9,11,13/
-      data indse/1,4,7,12/,indnw/0,5,8,11/
-      save indsw,indne,indse,indnw
-      ! If the time step hasn't changed, used the same acceleration as 
-      ! previously
-      ind(i,j,n)=i+(j-1)*il+n*il*il
+!     This is a genuine rather than space saving equivalence
+      equivalence (pextras,dpsldt)
+!     Save this so we can check whether initialisation needs to be redone
+      real, save :: dtsave = 0.0
+      real hdt, hdtds, sum, qgminm, ratio, sumdiffb, alph_g
+      integer i, j, k, l, n, iq, ng, ierr
+      integer :: ind
+      ind(i,j,n) = i + (j-1)*ipan + (n-1)*ipan*jpan
+
+      call start_log(adjust_begin)
       hdt=dt/2.
       hdtds=hdt/ds
 
-      if(m.lt.6)then
-        do iq=1,ifull
-         alf(iq)=1.+epsu
-         alff(iq)=0.
-         alfu(iq)=1.   ! i.e. alf/(1+epsu)
-         alfv(iq)=1.   ! i.e. alf/(1+epsu)
-        enddo     ! iq loop
-      else
-        do iq=1,ifull
-         alf(iq)=(1.+epsu)/(1.+(hdt*(1.+epsf)*f(iq))**2)
-         alfF(iq)=alf(iq)*f(iq)*hdt*(1.+epsf)      ! now includes hdt in alfF
-         alfu(iq)=1./(1.+(hdt*(1.+epsf)*fu(iq))**2) ! i.e. alf/(1+epsu)
-         alfv(iq)=1./(1.+(hdt*(1.+epsf)*fv(iq))**2) ! i.e. alf/(1+epsu)
-        enddo     ! iq loop
-      endif  ! (m.lt.6)... else ...
-!cdir nodep
-      do iq=1,ifull
-       pfact(iq)=4.*( ds/(dt*em(iq)) )**2    ! for adjust9/5
-       alfe(iq)=alf(ie(iq))-alf(iq)
-     .     +.25*(alff(ine(iq))+alfF(in(iq))-alfF(ise(iq))-alfF(is(iq)))
-       alfn(iq)=alf(in(iq))-alf(iq)
-     .     -.25*(alfF(ien(iq))+alfF(ie(iq))-alfF(iwn(iq))-alfF(iw(iq)))
-      enddo     ! iq loop
+      if ( dt /= dtsave ) then 
+         call adjust_init
+         dtsave = dt
+      end if
 
-!cdir nodep
-      do iq=1,ifull
-!      need care with vector quantities on w (odd) & s (even) panel boundaries
-       zz(iq)=.5*(alfe(iwu2(iq))-alfe(iq)+alfn(isv2(iq))-alfn(iq))
-     .                     -4.*alf(iq)                  ! i,j   coeff
-       zzn(iq)=alf(in(iq))-.5*alfn(iq)                  ! i,j+1 coeff
-       zzw(iq)=alf(iw(iq))+.5*alfe(iwu2(iq))            ! i-1,j coeff
-       zze(iq)=alf(ie(iq))-.5*alfe(iq)                  ! i+1,j coeff
-       zzs(iq)=alf(is(iq))+.5*alfn(isv2(iq))            ! i,j-1 coeff
-      enddo     ! iq loop
-!     N.B. there are some special z values at the 8 vertices
-      if(npanels.eq.5)then
-        do n=0,5
-         iq=ind(1,1,n)
-         zzs(iq)=zzs(iq)+.25*alfF(is(iq))   ! i,j-1 coeff
-         zzw(iq)=zzw(iq)-.25*alfF(iw(iq))   ! i-1,j coeff
-         iq=ind(il,il,n)
-         zzn(iq)=zzn(iq)+.25*alfF(in(iq))   ! i,j+1 coeff
-         zze(iq)=zze(iq)-.25*alfF(ie(iq))   ! i+1,j coeff
-         iq=ind(il,1,n)
-         zzs(iq)=zzs(iq)-.25*alfF(is(iq))   ! i,j-1 coeff
-         zze(iq)=zze(iq)+.25*alfF(ie(iq))   ! i+1,j coeff
-         iq=ind(1,il,n)
-         zzn(iq)=zzn(iq)-.25*alfF(in(iq))   ! i,j+1 coeff
-         zzw(iq)=zzw(iq)+.25*alfF(iw(iq))   ! i-1,j coeff
-        enddo   ! n loop
-      endif     ! (npanels.eq.5)
-      if(npanels.eq.13)then
-        do nn=1,8
-         iq=ind(1,1,indsw(nn))
-         zzs(iq)=zzs(iq)+.25*alfF(is(iq))   ! i,j-1 coeff
-         zzw(iq)=zzw(iq)-.25*alfF(iw(iq))   ! i-1,j coeff
-         iq=ind(il,il,indne(nn))
-         zzn(iq)=zzn(iq)+.25*alfF(in(iq))   ! i,j+1 coeff
-         zze(iq)=zze(iq)-.25*alfF(ie(iq))   ! i+1,j coeff
-        enddo   ! nn loop
-        do nn=1,4
-         iq=ind(il,1,indse(nn))
-         zzs(iq)=zzs(iq)-.25*alfF(is(iq))   ! i,j-1 coeff
-         zze(iq)=zze(iq)+.25*alfF(ie(iq))   ! i+1,j coeff
-         iq=ind(1,il,indnw(nn))
-         zzn(iq)=zzn(iq)-.25*alfF(in(iq))   ! i,j+1 coeff
-         zzw(iq)=zzw(iq)+.25*alfF(iw(iq))   ! i-1,j coeff
-        enddo   ! nn loop
-      endif     ! (npanels.eq.13)
       if(diag)then
-        print *,'entering adjust5'
-        iq=id+il*(jd-1)
-        print *,'tx ',(tx(idjd,k),k=1,kl)
-        call printa('tx  ',tx(1,nlv),ktau,nlv,ia,ib,ja,jb,200.,1.)
-        print *,'ux_stag ',(ux(idjd,k),k=1,kl)
-        print *,'vx_stag ',(vx(idjd,k),k=1,kl)
-        write (6,"('qg ',19f7.3/(8x,19f7.3))") 
-     .             (1000.*qg(idjd,k),k=1,kl)
-c       print *,'alf & n e',alf(iq),alf(in(iq)),alf(ie(iq))
-c       call printa('alf ',alf,ktau,0,ia,ib,ja,jb,0.,100.)
-c       print *,'alfF & n e w s',alfF(iq),alfF(in(iq)),alfF(ie(iq))
-c    .                            ,alfF(iw(iq)),alfF(is(iq))
-c       print *,'alfF: ne se en wn',alfF(ine(iq)),alfF(ise(iq))
-c    .                             ,alfF(ien(iq)),alfF(iwn(iq))
-c       print *,'alfe & n e w s',alfe(iq),alfe(in(iq)),alfe(ie(iq))
-c    .                          ,alfe(iw(iq)),alfe(is(iq))
-c       call printa('alfe',alfe,ktau,0,ia,ib,ja,jb,0.,1000.)
-c       print *,'alfn & n e w s',alfn(iq),alfn(in(iq)),alfn(ie(iq))
-c    .                          ,alfn(iw(iq)),alfn(is(iq))
-c       call printa('alfn',alfn,ktau,0,ia,ib,ja,jb,0.,1000.)
-c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
-        call maxmin(alf,'a ',ktau,1.,1)
-        call maxmin(alfe,'ae',ktau,1.,1)
-        call maxmin(alfn,'an',ktau,1.,1)
-        print  *,'pslx ',(pslx(idjd,k),k=1,kl)
-        print  *,'pslx w ',(pslx(iw(idjd),k),k=1,kl)
-        call printa('pslx',pslx(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,100.)
+         if ( mydiag ) then
+            print *,'entering adjust5'
+            print *,'tx ',tx(idjd,:)
+         end if
+         call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,200.,1.)
+         if ( mydiag ) then
+            print *,'ux_stag ',ux(idjd,:)
+            print *,'vx_stag ',vx(idjd,:)
+            write (6,"('qg ',19f7.3/(8x,19f7.3))") 
+     &             1000.*qg(idjd,:)
+         end if
+         call maxmin(alf,'a ',ktau,1.,1)
+         call maxmin(alfe,'ae',ktau,1.,1)
+         call maxmin(alfn,'an',ktau,1.,1)
+         if ( mydiag ) then
+            print  *,'pslx ',pslx(idjd,:)
+!!!         Would require extra bounds call         
+!!!         print  *,'pslx w ',pslx(iw(idjd),:)
+         end if
+         call printa('pslx',pslx,ktau,nlv,ia,ib,ja,jb,0.,100.)
       endif
 
 !     recompute nonlinear sigma-dot contribution for updating tn, tx
@@ -210,17 +151,20 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
 
 !     redefine ux, vx
       do k=1,kl
-       do iq=1,ifull
-        cc(iq,k)=ux(iq,k)/emu(iq)*alfu(iq)
-        dd(iq,k)=vx(iq,k)/emv(iq)*alfv(iq)
-       enddo    ! iq loop
+         do iq=1,ifull
+            cc(iq,k)=ux(iq,k)/emu(iq)*alfu(iq)
+            dd(iq,k)=vx(iq,k)/emv(iq)*alfv(iq)
+         end do
+      end do
+      call boundsuv(cc,dd)
 
 !      form divergence of rhs (ux & vx) terms: xd
+      do k=1,kl
 !cdir nodep
-       do iq=1,ifull
-         d(iq,k)=cc(iq,k)-cc(iwu(iq),k)+dd(iq,k)-dd(isv(iq),k)
-       enddo    ! iq loop
-      enddo     ! k  loop
+         do iq=1,ifull
+            d(iq,k)=cc(iq,k)-cc(iwu(iq),k)+dd(iq,k)-dd(isv(iq),k)
+         enddo
+      enddo
 
 !     transform p & d to eigenvector space
       do k=1,kl
@@ -240,36 +184,36 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
      &                   (bam(k)*(1.+epst(iq))*tbar2d(iq))
             rhsl(iq,k) = rhsl(iq,k)/hdtds -helm(iq,k)*pe(iq,k)
          enddo                  ! iq loop
-         if(diag.and.k.le.2)then !  only for last k of loop (i.e. 1)
-            iq=idjd
-            print  *,'adjust5(k) p & n e w s ',k,p(iq,k),
-     &        p(in(iq),k),p(ie(iq),k),p(iw(iq),k),p(is(iq),k)
-            print  *,'adjust5(k) pe & n e w s ',k,pe(iq,k),
-     &        pe(in(iq),k),pe(ie(iq),k),pe(iw(iq),k),pe(is(iq),k)
-            print  *,'adjust5(k) rhsl & n e w s ',k,rhsl(iq,k),
-     &       rhsl(in(iq),k),rhsl(ie(iq),k),rhsl(iw(iq),k),rhsl(is(iq),k)
-         endif                  ! (diag.and.k.le.2)
+!         Diagnostics would require extra bounds calls
+!         if(diag.and.k.le.2)then !  only for last k of loop (i.e. 1)
+!            iq=idjd
+!            print  *,'adjust5(k) p & n e w s ',k,p(iq,k),
+!     &        p(in(iq),k),p(ie(iq),k),p(iw(iq),k),p(is(iq),k)
+!            print  *,'adjust5(k) pe & n e w s ',k,pe(iq,k),
+!     &        pe(in(iq),k),pe(ie(iq),k),pe(iw(iq),k),pe(is(iq),k)
+!            print  *,'adjust5(k) rhsl & n e w s ',k,rhsl(iq,k),
+!     &       rhsl(in(iq),k),rhsl(ie(iq),k),rhsl(iw(iq),k),rhsl(is(iq),k)
+!         endif                  ! (diag.and.k.le.2)
       enddo    ! k loop
 
-      call helmsol(helm,pe,rhsl)
+      call bounds(pe)
+      call helmsol(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
+      call bounds(pe)
 
       if(diag)then   !  only for last k of loop (i.e. 1)
-        iq=idjd
-        print  *,'adjust5(1) pslxint & n e w s',pslxint(iq),
-     .   pslxint(in(iq)),pslxint(ie(iq)),pslxint(iw(iq)),
-     .   pslxint(is(iq))
-        call printa('psnt',pslxint,ktau,0,ia,ib,ja,jb,0.,100.)
-        print *,'adjust5 tx ',(tx(idjd,k),k=1,kl)
-        call printa('tx  ',tx(1,nlv),ktau,nlv,ia,ib,ja,jb,200.,1.)
-        print  *,'adjust5(1) helm & n e w s',helm(iq,1),
-     .   helm(in(iq),1),helm(ie(iq),1),helm(iw(iq),1),helm(is(iq),1)
-        print  *,'adjust5(1) rhsl & n e w s',rhsl(iq,1),
-     .   rhsl(in(iq),1),rhsl(ie(iq),1),rhsl(iw(iq),1),rhsl(is(iq),1)
-        call printa('rhsl',rhsl(1,1),ktau,1,ia,ib,ja,jb,0.,0.)
-        print  *,'adjust5 pe ',(pe(iq,k),k=1,kl)
-        print  *,'adjust5 pe e ',(pe(ie(iq),k),k=1,kl)
-        print  *,'adjust5 pe w ',(pe(iw(iq),k),k=1,kl)
-        call printa('pe  ',pe(1,1),ktau,1,ia,ib,ja,jb,0.,0.)
+         ! Some diagnostics that would require extra bounds calls have been removed
+         call printa('psnt',pslxint,ktau,0,ia,ib,ja,jb,0.,100.)
+         if ( mydiag ) then
+            print *,'adjust5 tx ',tx(idjd,:)
+         end if
+         call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,200.,1.)
+         call printa('rhsl',rhsl,ktau,1,ia,ib,ja,jb,0.,0.)
+         if ( mydiag ) then
+            print  *,'adjust5 pe ',pe(idjd,:)
+            print  *,'adjust5 pe e ',pe(ie(idjd),:)
+            print  *,'adjust5 pe w ',pe(iw(idjd),:)
+         end if
+         call printa('pe  ',pe,ktau,1,ia,ib,ja,jb,0.,0.)
       endif
 
 !     only use method II inversion nowadays
@@ -283,22 +227,25 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
                p(iq,k)=p(iq,k)+emat(k,l)*pe(iq,l)
             enddo               ! iq loop
          enddo                  !  l loop
+      end do
+      call bounds(p)
 
 !      now u & v
-         if(k.eq.nlv.and.diag)then
-            iq=idjd
-            print*,'iq,k,fu,alfu,alfu*ux(iq,k) ',
-     &               iq,k,fu(iq),alfu(iq),alfu(iq)*ux(iq,k)
-            print*,'alfF & n e w s (in(iq)),alfF(ine(iq)),alfF(is(iq))',
-     &           'alfF(ise(iq)),alfe(iq) ',alfF(in(iq)),alfF(ine(iq))
-     &           ,alfF(is(iq)),alfF(ise(iq)),alfe(iq)
-            sum=alf(ie(iq))-alf(iq)+.25*(alfF(in(iq))+
-     &        alfF(ine(iq))-alfF(is(iq))-alfF(ise(iq))) -alfe(iq)
-            print*,'sum  ',sum
-            print*,'p & n e w s ne se ',p(iq,k),p(in(iq),k),
-     &           p(ie(iq),k),p(iw(iq),k),p(is(iq),k),
-     &           p(ine(iq),k),p(ise(iq),k)
-         endif
+      if(diag.and.mydiag)then
+         print*,'iq,k,fu,alfu,alfu*ux(iq,k) ',
+     &           idjd,nlv,fu(idjd),alfu(idjd),alfu(idjd)*ux(idjd,nlv)
+         print*,'alfF & n e w s (in(iq)),alfF(ine(iq)),alfF(is(iq))',
+     &          'alfF(ise(iq)),alfe(iq) ',alfF(in(idjd)),alfF(ine(idjd))
+     &           ,alfF(is(idjd)),alfF(ise(idjd)),alfe(idjd)
+         sum = alf(ie(idjd))-alf(idjd)+.25*(alfF(in(idjd))+
+     &        alfF(ine(idjd))-alfF(is(idjd))-alfF(ise(idjd)))-alfe(idjd)
+         print*,'sum  ',sum
+         print*,'p & n e w s ne se ',p(idjd,nlv),p(in(idjd),nlv),
+     &           p(ie(idjd),nlv),p(iw(idjd),nlv),p(is(idjd),nlv),
+     &           p(ine(idjd),nlv),p(ise(idjd),nlv)
+      endif
+
+      do k=1,kl
 !cdir nodep
          do iq=1,ifull
 !           u(iq,k)=alfu(iq)*ux(iq,k)
@@ -315,23 +262,29 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
      &       -.5*alfn(iq)*(p(iq,k)+p(in(iq),k))
      &       -.25*(alfF(ien(iq))*p(ien(iq),k) +alfF(ie(iq))*p(ie(iq),k)
      &       -alfF(iwn(iq))*p(iwn(iq),k) -alfF(iw(iq))*p(iw(iq),k)) )
-         enddo                  ! iq loop
+         enddo    
+      end do
 
+      call boundsuv(cc,dd)
 !      calculate linear part only of sigma-dot and omega/ps
+      do k=1,kl
 !cdir nodep
          do iq=1,ifull
-            d(iq,k)=(cc(iq,k)/emu(iq)-cc(iwu(iq),k)/emu(iwu2(iq)) ! globpea
-     &          +dd(iq,k)/emv(iq)-dd(isv(iq),k)/emv(isv2(iq))) ! globpea
+            d(iq,k)=(cc(iq,k)/emu(iq)-cc(iwu(iq),k)/emu(iwu(iq)) ! globpea
+     &          +dd(iq,k)/emv(iq)-dd(isv(iq),k)/emv(isv(iq))) ! globpea
      &          *em(iq)**2/ds
          enddo                  ! iq loop
       enddo     ! k  loop ---------------------------------------------------------
 
 !     straightforward rev. cubic interp of u and v (i.e. nuv=10)
-      call unstaguv(cc,dd,u,v)  ! usual
+!     This is necessary because staguv expects arrays dimensioned 
+!     (ifull,kl). 
+      call unstaguv(cc(1:ifull,:),dd(1:ifull,:),
+     &              u(1:ifull,:),v(1:ifull,:)) ! usual
 
-      if(diag.or.nmaxpr.eq.1)then
-        write (6,"('div_adj(1-9) ',9f8.2)") (d(idjd,k)*1.e6,k=1,9)
-        write (6,"('omgfnl*dt    ',9f8.4)") (omgfnl(idjd,k)*dt,k=1,9)
+      if( (diag.or.nmaxpr.eq.1) .and. mydiag ) then
+         write (6,"('div_adj(1-9) ',9f8.2)") (d(idjd,k)*1.e6,k=1,9)
+         write (6,"('omgfnl*dt    ',9f8.4)") (omgfnl(idjd,k)*dt,k=1,9)
       endif
 
 !     vert. integ. div into e
@@ -356,6 +309,8 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
        pslsav(iq)=psl(iq)   ! in work2 (not last because of vadvtvd)
        psl(iq)=pslxint(iq)-hdt*e(iq,1)  *(1.+epst(iq))
       enddo     ! iq loop
+      ! Check which routines this is required in
+      call bounds(psl) ! Needed in various places later
 
       do k=1,kl
        do iq=1,ifull
@@ -388,64 +343,79 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
       enddo     ! k  loop
 
       if(nvadh.eq.2)then                 ! final dt/2 's worth
-        if(diag.or.nmaxpr.eq.1)then
+        if ( (diag.or.nmaxpr.eq.1) .and. mydiag ) then
          print *,'before vertical advection in adjust5'
-         write (6,"('sdot',9f8.3/4x,9f8.3)") (sdot(idjd,kk),kk=1,kl)
-         write (6,"('t   ',9f8.2/4x,9f8.2)") (t(idjd,kk),kk=1,kl)
-         write (6,"('u   ',9f8.2/4x,9f8.2)") (u(idjd,kk),kk=1,kl)
-         write (6,"('v   ',9f8.2/4x,9f8.2)") (v(idjd,kk),kk=1,kl)
-         write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,kk),kk=1,kl)
+         write (6,"('sdot',9f8.3/4x,9f8.3)") sdot(idjd,:)
+         write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
+         write (6,"('u   ',9f8.2/4x,9f8.2)") u(idjd,:)
+         write (6,"('v   ',9f8.2/4x,9f8.2)") v(idjd,:)
+         write (6,"('qg  ',9f8.3/4x,9f8.3)") 1000.*qg(idjd,:)
         endif
-        if(nvad.eq.4)call vadvtvd(t,t,u,u,v,v)
-        if(nvad.eq.7)call vadv30(t,t,u,u,v,v)   ! for vadvbess
-        if(diag.or.nmaxpr.eq.1)then
+        ! For now use this form of call so that vadvtvd doesn't need to 
+        ! be changed
+        ! Note that use of same arrays for input and output is strictly a
+        ! violation of fortran standard
+        if(nvad.eq.4) call vadvtvd(t(1:ifull,:),t(1:ifull,:),
+     &                             u(1:ifull,:),u(1:ifull,:),
+     &                             v(1:ifull,:),v(1:ifull,:))
+        if(nvad.eq.7) call vadv30(t(1:ifull,:),t(1:ifull,:),
+     &                            u(1:ifull,:),u(1:ifull,:),
+     &                            v(1:ifull,:),v(1:ifull,:)) ! for vadvbess
+        if( ( diag.or.nmaxpr.eq.1) .and. mydiag ) then
           print *,'after vertical advection in adjust5'
-          write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,kk),kk=1,kl)
-          write (6,"('t   ',9f8.2/4x,9f8.2)") (t(idjd,kk),kk=1,kl)
+          write (6,"('qg  ',9f8.3/4x,9f8.3)") 1000.*qg(idjd,:)
+          write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
           write (6,"('thet',9f8.2/4x,9f8.2)")  
-     .                 (t(idjd,k)*sig(k)**(-roncp),k=1,kl)
-        write (6,"('u   ',9f8.2/4x,9f8.2)") (u(idjd,kk),kk=1,kl)
-        write (6,"('v   ',9f8.2/4x,9f8.2)") (v(idjd,kk),kk=1,kl)
+     .                  t(idjd,:)*sig(:)**(-roncp)
+        write (6,"('u   ',9f8.2/4x,9f8.2)") u(idjd,:)
+        write (6,"('v   ',9f8.2/4x,9f8.2)") v(idjd,:)
         endif
       endif     !  (nvadh.eq.2)then
 
 !     could call nestin here (using xarrs instead of davb.h)
       if(mspec.eq.1.and.nbd.ne.0)call davies  ! before mfix mass fix in C-C
-      if(mfix.gt.0)then   ! perform conservation fix on psl
-!       delpos is the sum of all positive changes over globe
-!       delneg is the sum of all negative changes over globe
-!       alph_p is chosen to satisfy alph_p*delpos + delneg/alph_p = 0
-        delpos=0.
-        delneg=0.
-        do iq=1,ifull
-         delps(iq)=psl(iq)-pslsav(iq)
-         delpos=delpos+max(0.,delps(iq)/em(iq)**2)
-         delneg=delneg+min(0.,delps(iq)/em(iq)**2)
-        enddo   ! iq loop
-        if(mfix.eq.1)then
-          alph_p = sqrt( -delneg/delpos)
-          alph_pm=1./alph_p
-        endif   ! (mfix.eq.1)
-        if(mfix.eq.2)then
-          if(delpos.gt.-delneg)then
-            alph_p =1.
-            alph_pm=-delpos/delneg
-          else
-            alph_p=-delneg/delpos
-            alph_pm =1.
-          endif
-        endif   ! (mfix.eq.2)
-        do iq=1,ifull
-         psl(iq)=pslsav(iq)+
-     .         alph_p*max(0.,delps(iq)) + alph_pm*min(0.,delps(iq))
-        enddo   ! iq loop
-      endif     !  mfix.gt.0
+      if (mfix.gt.0) then   ! perform conservation fix on psl
+!         delpos is the sum of all positive changes over globe
+!         delneg is the sum of all negative changes over globe
+!         alph_p is chosen to satisfy alph_p*delpos + delneg/alph_p = 0
+!         _l means local to this processor        
+         delpos_l = 0.
+         delneg_l = 0.
+         do iq=1,ifull
+            delps(iq) = psl(iq)-pslsav(iq)
+            delpos_l = delpos_l + max(0.,delps(iq)/em(iq)**2)
+            delneg_l = delneg_l + min(0.,delps(iq)/em(iq)**2)
+         enddo
+         delarr_l(1:2) = (/ delpos_l, delneg_l /)
+         call MPI_ALLREDUCE ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,
+     &                        MPI_COMM_WORLD, ierr )
+         delpos = delarr(1)
+         delneg = delarr(2)
+         if(mfix.eq.1)then
+            alph_p = sqrt( -delneg/delpos)
+            alph_pm=1./alph_p
+         endif                  ! (mfix.eq.1)
+         if(mfix.eq.2)then
+            if(delpos.gt.-delneg)then
+               alph_p =1.
+               alph_pm=-delpos/delneg
+            else
+               alph_p=-delneg/delpos
+               alph_pm =1.
+            endif
+         endif                  ! (mfix.eq.2)
+         do iq=1,ifull
+            psl(iq) = pslsav(iq) +
+     &           alph_p*max(0.,delps(iq)) + alph_pm*min(0.,delps(iq))
+         enddo
+      endif                     !  mfix.gt.0
 
       do iq=1,ifull
        aa(iq)=ps(iq)  ! saved for gas fixers below, and other diags
        ps(iq)=1.e5*exp(psl(iq))
        dpsdt(iq)=(ps(iq)-aa(iq))*24.*3600./(100.*dt) ! diagnostic in hPa/day
       enddo     !  iq loop
+      call bounds(ps) ! Better to calculate everywhere defined ???
 
       if(mfix_qg.gt.0.and.mspec.eq.1)then
 !       qgmin=1.e-6   !  in parm.h 
@@ -472,16 +442,21 @@ c       print *,'isv2,alfn(isv2),zzs ',isv2(iq),alfn(isv2(iq)),zzs(iq)
 !       N.B. won't cope with any -ves from conjob
 !       delpos is the sum of all positive changes over globe
 !       delneg is the sum of all negative changes over globe
-        delpos=0.
-        delneg=0.
+        delpos_l=0.
+        delneg_l=0.
 c       print *,'qgsav,qg_in',qgsav(idjd,1),qg(idjd,1,1)
         do iq=1,ifull
          do k=1,kl
           wrk1(iq,k)=max(qg(iq,k),qgminm*ps(iq))-qgsav(iq,k)  ! increments
-          delpos=delpos+max(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
-          delneg=delneg+min(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
+          delpos_l = delpos_l + max(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
+          delneg_l = delneg_l + min(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
          enddo   ! k loop
         enddo    ! iq loop
+        delarr_l(1:2) = (/ delpos_l, delneg_l /)
+        call MPI_ALLREDUCE ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,
+     &                       MPI_COMM_WORLD, ierr )
+        delpos = delarr(1)
+        delneg = delarr(2)
         ratio = -delneg/delpos
         if(mfix_qg.eq.1)alph_q = min(ratio,sqrt(ratio))  ! why min?
         if(mfix_qg.eq.2)alph_q = sqrt(ratio)
@@ -518,16 +493,21 @@ c       print *,'qgsav,qg_in',qgsav(idjd,1),qg(idjd,1,1)
            trsav(iq,k,ng)=trsav(iq,k,ng)*aa(iq)
           enddo   ! iq loop
          enddo    ! k  loop
-         delpos=0.
-         delneg=0.
+         delpos_l = 0.
+         delneg_l = 0.
          do iq=1,ifull
           do k=1,kl
            wrk1(iq,k)=max(tr(iq,k,ng),gasmin(ng)*ps(iq))
      .                                         -trsav(iq,k,ng)  ! has increments
-           delpos=delpos+max(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
-           delneg=delneg+min(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
+           delpos_l = delpos_l + max(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
+           delneg_l = delneg_l + min(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
           enddo   ! k loop
          enddo    ! iq loop
+         delarr_l(1:2) = (/ delpos_l, delneg_l /)
+         call MPI_ALLREDUCE ( delarr_l, delarr, 2, MPI_REAL, MPI_SUM,
+     &                        MPI_COMM_WORLD, ierr )
+         delpos = delarr(1)
+         delneg = delarr(2)
          ratio = -delneg/delpos
          if(mfix_qg.eq.1)alph_g = min(ratio,sqrt(ratio))  ! why min?
          if(mfix_qg.eq.2)alph_g = sqrt(ratio)
@@ -549,14 +529,20 @@ c       print *,'qgsav,qg_in',qgsav(idjd,1),qg(idjd,1,1)
         if(mfix_rad.gt.0)then  ! to make gases 2 to ng add up to gas 1
          do k=1,kl
 	   do iq=1,ifull
-           sumdiffb=0.
-           delpos=0.
-           delneg=0.
+           sumdiffb_l = 0.
+           delpos_l = 0.
+           delneg_l = 0.
            do ng=2,ngas        
-            sumdiffb=sumdiffb+tr(iq,k,ng)
-            delpos=delpos+max( 1.e-20,tr(iq,k,ng)-trsav(iq,k,ng))
-            delneg=delneg+min(-1.e-20,tr(iq,k,ng)-trsav(iq,k,ng))
+            sumdiffb_l = sumdiffb_l + tr(iq,k,ng)
+            delpos_l = delpos_l+max( 1.e-20,tr(iq,k,ng)-trsav(iq,k,ng))
+            delneg_l = delneg_l+min(-1.e-20,tr(iq,k,ng)-trsav(iq,k,ng))
            enddo   ! ng loop
+           delarr_l = (/ delpos_l, delneg_l, sumdiffb_l /)
+           call MPI_ALLREDUCE ( delarr_l, delarr, 3, MPI_REAL, MPI_SUM,
+     &                          MPI_COMM_WORLD, ierr )
+           delpos = delarr(1)
+           delneg = delarr(2)
+           sumdiffb = delarr(3)
            ratio=(tr(iq,k,1)-sumdiffb)/(delpos-delneg)
            do ng=2,ngas        
             tr(iq,k,ng)=max(0.,trsav(iq,k,ng)
@@ -569,33 +555,113 @@ c       print *,'qgsav,qg_in',qgsav(idjd,1),qg(idjd,1,1)
       endif       !  mfix_qg.gt.0
 
       if(diag)then
-        iq=idjd
-        print  *,'adjust5 d ',(d(iq,k),k=1,kl)
-        print  *,'adjust5 d: e ',(d(ie(iq),k),k=1,kl)
-        print  *,'adjust5 d: w ',(d(iw(iq),k),k=1,kl)
-        print  *,'adjust5 idjd,e ',idjd,(e(idjd,k),k=1,kl)
-        print  *,'adjust5 psl & n e w s',psl(iq),
-     .   psl(in(iq)),psl(ie(iq)),psl(iw(iq)),psl(is(iq))
-        call printa('psl ',psl,ktau,0,ia,ib,ja,jb,0.,100.)
-        print *,'adjust5 t ',(t(idjd,k),k=1,kl)
-        call printa('t   ',t(1,nlv),ktau,nlv,ia,ib,ja,jb,200.,1.)
-        print *,'adjust5 u ',(u(idjd,k),k=1,kl)
-        call printa('u   ',u(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-        print *,'adjust5 v ',(v(idjd,k),k=1,kl)
-        call printa('v   ',v(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-        print *,'ps diagnostic from end of adjust:'
-        do iq=1,ifull
-         aa(iq)=ps(iq)-aa(iq)
-        enddo
-        call printa('dps ',aa,ktau,0,ia,ib,ja,jb,0.,.01)
-        call printa('ps  ',ps,ktau,0,ia,ib,ja,jb,1.e5,.01)
-        write (6,"('qg ',19f7.3/(8x,19f7.3))") 
-     .             (1000.*qg(idjd,k),k=1,kl)
-        if(sig(nlv).lt..3)then
-          call printa('qg  ',qg(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.e6)
-        else
-          call printa('qg  ',qg(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.e3)
-        endif
+         if ( mydiag ) then
+            iq=idjd
+            print  *,'adjust5 d ',d(iq,:)
+!            Would require bounds call
+!            print  *,'adjust5 d: e ',d(ie(iq),:)
+!            print  *,'adjust5 d: w ',d(iw(iq),:)
+            print  *,'adjust5 idjd,e ',idjd, e(idjd,:)
+            print  *,'adjust5 psl & n e w s',psl(iq),
+     &          psl(in(iq)),psl(ie(iq)),psl(iw(iq)),psl(is(iq))
+         end if
+         call printa('psl ',psl,ktau,0,ia,ib,ja,jb,0.,100.)
+         if ( mydiag ) print *,'adjust5 t ',t(idjd,:)
+         call printa('t   ',t,ktau,nlv,ia,ib,ja,jb,200.,1.)
+         if ( mydiag ) print *,'adjust5 u ',u(idjd,:)
+         call printa('u   ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
+         if ( mydiag ) print *,'adjust5 v ',v(idjd,:)
+         call printa('v   ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
+         if ( mydiag ) print *,'ps diagnostic from end of adjust:'
+         do iq=1,ifull
+            aa(iq)=ps(iq)-aa(iq)
+         enddo
+         call printa('dps ',aa,ktau,0,ia,ib,ja,jb,0.,.01)
+         call printa('ps  ',ps,ktau,0,ia,ib,ja,jb,1.e5,.01)
+         if ( mydiag ) then
+            write (6,"('qg ',19f7.3/(8x,19f7.3))") 1000.*qg(idjd,:)
+         end if
+         if(sig(nlv).lt..3)then
+            call printa('qg  ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e6)
+         else
+            call printa('qg  ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e3)
+         endif
       endif
-      return
-      end
+
+      call end_log(adjust_end)
+
+      end subroutine adjust5
+
+      subroutine adjust_init
+      use cc_mpi
+      implicit none
+      include 'newmpar.h'
+      include 'parm.h'
+      include 'parmdyn.h'
+      include 'indices.h'
+      include 'map.h'
+      real zz(ifull),zzn(ifull),zze(ifull),zzw(ifull),
+     &     zzs(ifull),pfact(ifull),alff(ifull+iextra),alf(ifull+iextra),
+     &     alfe(ifull+iextra),alfn(ifull+iextra),alfu(ifull),alfv(ifull)
+      common /zzalf/ zz,zzn,zze,zzw,zzs,pfact,alff,alf,alfe,alfn,
+     &     alfu,alfv
+      real :: hdt
+      integer :: iq, n
+
+      hdt = 0.5*dt
+      if(m.lt.6)then
+        do iq=1,ifull
+         alf(iq)=1.+epsu
+         alff(iq)=0.
+         alfu(iq)=1.   ! i.e. alf/(1+epsu)
+         alfv(iq)=1.   ! i.e. alf/(1+epsu)
+        enddo     ! iq loop
+      else
+        do iq=1,ifull
+         alf(iq)=(1.+epsu)/(1.+(hdt*(1.+epsf)*f(iq))**2)
+         alfF(iq)=alf(iq)*f(iq)*hdt*(1.+epsf)      ! now includes hdt in alfF
+         alfu(iq)=1./(1.+(hdt*(1.+epsf)*fu(iq))**2) ! i.e. alf/(1+epsu)
+         alfv(iq)=1./(1.+(hdt*(1.+epsf)*fv(iq))**2) ! i.e. alf/(1+epsu)
+        enddo     ! iq loop
+      endif  ! (m.lt.6)... else ...
+      ! These really only need to be recomputed when time step changes.
+      call bounds(alf)
+      call bounds(alff)
+!cdir nodep
+      do iq=1,ifull
+       pfact(iq)=4.*( ds/(dt*em(iq)) )**2    ! for adjust9/5
+       alfe(iq)=alf(ie(iq))-alf(iq)
+     .     +.25*(alff(ine(iq))+alfF(in(iq))-alfF(ise(iq))-alfF(is(iq)))
+       alfn(iq)=alf(in(iq))-alf(iq)
+     .     -.25*(alfF(ien(iq))+alfF(ie(iq))-alfF(iwn(iq))-alfF(iw(iq)))
+      enddo     ! iq loop
+      call boundsuv(alfe,alfn)
+
+!cdir nodep
+      do iq=1,ifull
+!      need care with vector quantities on w (odd) & s (even) panel boundaries
+       zz(iq)=.5*(alfe(iwu(iq))-alfe(iq)+alfn(isv(iq))-alfn(iq))
+     .                     -4.*alf(iq)                  ! i,j   coeff
+       zzn(iq)=alf(in(iq))-.5*alfn(iq)                  ! i,j+1 coeff
+       zzw(iq)=alf(iw(iq))+.5*alfe(iwu(iq))            ! i-1,j coeff
+       zze(iq)=alf(ie(iq))-.5*alfe(iq)                  ! i+1,j coeff
+       zzs(iq)=alf(is(iq))+.5*alfn(isv(iq))            ! i,j-1 coeff
+      enddo     ! iq loop
+!     N.B. there are some special z values at the 8 vertices
+      if(npanels.eq.5)then
+        do n=1,npan ! 0,5
+         iq=indp(1,1,n)
+         zzs(iq)=zzs(iq)+.25*alfF(is(iq))   ! i,j-1 coeff
+         zzw(iq)=zzw(iq)-.25*alfF(iw(iq))   ! i-1,j coeff
+         iq=indp(il,il,n)
+         zzn(iq)=zzn(iq)+.25*alfF(in(iq))   ! i,j+1 coeff
+         zze(iq)=zze(iq)-.25*alfF(ie(iq))   ! i+1,j coeff
+         iq=indp(il,1,n)
+         zzs(iq)=zzs(iq)-.25*alfF(is(iq))   ! i,j-1 coeff
+         zze(iq)=zze(iq)+.25*alfF(ie(iq))   ! i+1,j coeff
+         iq=indp(1,il,n)
+         zzn(iq)=zzn(iq)-.25*alfF(in(iq))   ! i,j+1 coeff
+         zzw(iq)=zzw(iq)+.25*alfF(iw(iq))   ! i-1,j coeff
+        enddo   ! n loop
+      endif     ! (npanels.eq.5)
+      end subroutine adjust_init

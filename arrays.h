@@ -1,3 +1,3 @@
-      real t,u,v,qg,psl,ps
-      common/arrays/t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl)
-     . ,psl(ifull),ps(ifull)
+      real, dimension(ifull+iextra,kl) :: t, u, v, qg
+      real, dimension(ifull+iextra)    :: psl, ps
+      common /arrays/ t, u, v, qg, psl, ps

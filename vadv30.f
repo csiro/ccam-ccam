@@ -1,5 +1,6 @@
       subroutine vadv30(tin,tout,uin,uout,vin,vout)   
 !     only calls vadvbess (nvad=7) from Aug 2003      
+      use cc_mpi, only : mydiag
       parameter (ntest=0) !  0: usual   1: for diagnostic prints
       parameter (nvdep=7) !  0  for original;
 !                            1  for newer average vels
@@ -277,7 +278,7 @@ c       interpolate sdot to full-level sd with cubic polynomials
           st(iq,k)=k -tfact*sd(iq,k)        ! 1st guess
          enddo  ! iq loop
         enddo   ! k loop
-        if(diag.or.ntest.eq.1)then
+        if( (diag.or.ntest.eq.1) .and. mydiag )then
           print *,'1st guess:  '
           write (6,"('st  ',9f8.3/4x,9f8.3)") (st(idjd,kk),kk=1,kl)
         endif
@@ -302,7 +303,7 @@ c       interpolate sdot to full-level sd with cubic polynomials
           st(iq,k)=k -.5*tfact*(sd(iq,k)+gwrk(iq,k))        ! 2nd guess
          enddo  ! iq loop
         enddo   ! k loop
-        if(diag.or.ntest.eq.1)then
+        if( (diag.or.ntest.eq.1) .and. mydiag )then
           print *,'2nd guess:  '
           write (6,"('st  ',9f8.3/4x,9f8.3)") (st(idjd,kk),kk=1,kl)
         endif
@@ -329,7 +330,7 @@ c       interpolate sdot to full-level sd with cubic polynomials
         enddo   ! k loop
       endif   ! (nvdep.eq.7) 
        
-      if(diag.or.ntest.eq.1)then
+      if( (diag.or.ntest.eq.1) .and. mydiag )then
          print *,'vadv30  ktau,nvint,nvdep:  ',
      .                    ktau,nvint,nvdep
          write (6,"('sdot',9f8.3/4x,9f8.3)") (sdot(idjd,kk),kk=1,kl)
@@ -345,17 +346,18 @@ c       interpolate sdot to full-level sd with cubic polynomials
              st(iq,k)=st(iq,k)-kdel(iq,k)               ! 0 <= st   <= 1.
          enddo  ! iq loop
         enddo   ! k loop
-        if(diag.or.ntest.eq.1)then
+        if( (diag.or.ntest.eq.1) .and. mydiag )then
          write (6,"('Bess st',9f8.3/4x,9f8.3)") (st(idjd,kk),kk=1,kl)
           print *,'new kdel ',(kdel(idjd,k),k=1,kl)
         endif
         call vadvbess(tin,tout,st,kdel,1)                          
         call vadvbess(uin,uout,st,kdel,2)                          
         call vadvbess(vin,vout,st,kdel,2)                          
-        call vadvbess(qg,qg,st,kdel,3)                          
+        call vadvbess(qg(1:ifull,:),qg(1:ifull,:),st,kdel,3)             
         if(ilt.gt.1)then
           do ntr=1,ntrac
-           call vadvbess(tr(1,1,ntr),tr(1,1,ntr),st,kdel,3)           ! tr next
+           call vadvbess(tr(1:ilt*jlt,:,ntr),tr(1:ilt*jlt,:,ntr),st,
+     &                   kdel,3)       ! tr next
           enddo
         endif   ! (ilt.gt.1)
 	 return
@@ -364,6 +366,7 @@ c       interpolate sdot to full-level sd with cubic polynomials
 c     this one also returns t, u, v, q -  but tendencies formed in vadv30
 !     watch out for replacing qg in place!
       subroutine vadvbess(t,tout,st,kdel,ifield)
+      use cc_mpi, only : mydiag
       parameter (ntopp=1)  ! 1 for 1-sided gradient at top & bottom full-levels
 c                          ! 2 for zero gradient at top & bottom full-levels
       include 'newmpar.h'
@@ -407,7 +410,7 @@ c     st() is the sigma displacement array
      .                                 +tgrad(iq,kk)+tgrad(iq,kk+1) )))     
        enddo
       enddo
-      if(diag)then
+      if(diag.and.mydiag)then
         print *,'t in  ',(t(idjd,k),k=1,kl)
         print *,'tgrad ',(tgrad(idjd,k),k=1,kl)
         print *,'toutt ',(toutt(idjd,k),k=1,kl)

@@ -7,14 +7,14 @@ c     schmidt included
 c     sets up x, y, z on sphere and unit u,v vectors
 c     note that x,y,z have been normalized by rearth, the radius of the earth
 c     suffix 6 denotes hex (6)
-      include 'newmpar.h'
+      include 'newmpar_gx.h'
       include 'const_phys.h'   ! rearth
-      include 'latlong.h'  ! rlatt,rlongg
-      include 'map.h'
+      include 'latlong_gx.h'  ! rlatt,rlongg
+      include 'map_gx.h'
       include 'parm.h'
-      include 'xyzinfo.h'  ! x,y,z,wts
-      include 'vecsuv.h'   ! vecsuv info
-      include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
+      include 'xyzinfo_gx.h'  ! x,y,z,wts
+      include 'vecsuv_gx.h'   ! vecsuv info
+      include 'indices_gx.h' ! in,is,iw,ie,inn,iss,iww,iee
       include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
 c     common/work3/inw(ifull),isw(ifull),ies(ifull),iws(ifull)  ! just for bdys
 c    .             ,dum3(4*ijk-4*ifull)
@@ -24,13 +24,13 @@ c    .    ,axx(ifull),ayy(ifull),azz(ifull)
 c    .    ,bxx(ifull),byy(ifull),bzz(ifull)
 c    .    ,dum2(12*il*jl -4*(iquad)*(iquad) )
 !     next one shared with cctocc4 & onthefly
-      common/work3b/rlong4(ifull,4),rlat4(ifull,4),dum3d(2*ijk-8*ifull) 
-      common/work3/em4(iquad,iquad)     ! to agree with call jimcc
+!     These can no longer be shared because they use true global ifull.
+      real rlong4(ifull,4),rlat4(ifull,4)
+      real em4(iquad,iquad)
      .    ,ax4(iquad,iquad),ay4(iquad,iquad),az4(iquad,iquad)
      .    ,axx(ifull),ayy(ifull),azz(ifull)
      .    ,bxx(ifull),byy(ifull),bzz(ifull)
-     .  ,inw(ifull),ies(ifull),iws(ifull)  ! just for bdys
-     .  ,dum3(5*ijk -4*(iquad)*(iquad)-9*ifull) 
+      integer inw(ifull),ies(ifull),iws(ifull)  ! just for bdys
       real rotpole(3,3)
 !     dimension npann(0:13),npane(0:13),npanw(0:13),npans(0:13)  ! in indices.h
       dimension npan6n(0:5),npan6e(0:5),npan6w(0:5),npan6s(0:5)
@@ -48,7 +48,7 @@ c     When using the ifull notation: in, ie, iw and is give the
 c     indices for the n, e, w, s neighbours respectively
 c     a, b denote unit vectors in the direction of x, y (e & n) respectively
       schm13=1.            ! only used for conf-octagon
-      idjd=id+il*(jd-1)
+      idjd_g = id+il*(jd-1)  ! Global value
       do iq=1,ifull
        in(iq)=iq+il
        is(iq)=iq-il
@@ -301,7 +301,7 @@ c     print *,'less b  ',less
 !----------------------------------------------------------------------------
 c     calculate grid information using quadruple resolution grid
       if(npanels.eq.5)then
-       call jimcc
+       call jimcc(em4,ax4,ay4,az4)
 	if(ktau.eq.0)then
 	 print *,'ntang = ',ntang
         print *,'xx4 first & last ',xx4(1,1),xx4(iquad,iquad)
@@ -486,115 +486,8 @@ c         if(i.eq.(il+1)/2.and.j.eq.(il+1)/2)print *,'xx,yy: ',xx,yy
       endif     ! (npanels.eq.5)
 
       if(npanels.eq.13)then
-        call jimco
-        dsfact=(3.+3.*sqrt(2.))*il/(2.*pi)     ! con-octagon
-        ds=rearth/dsfact
-!       Silicon Graphics has trouble with (1,1) so set here
-        xx4(1,1)=0.
-        yy4(1,1)=0.
-        em4(1,1)=1.
-        print *,'xyz (1,1) ',xx4(1,1),yy4(1,1),em4(1,1)
-        print *,'xyz (iquad,1) ',xx4(iquad,1),yy4(iquad,1),em4(iquad,1)
-        print *,'xyz (1,iquad) ',xx4(1,iquad),yy4(1,iquad),em4(1,iquad)
-        print *,'xyz (iquad,iquad) '
-     .          ,xx4(iquad,iquad),yy4(iquad,iquad),em4(iquad,iquad)
-        print *,'xyz (iquad/2,iquad/2) '
-     .   ,xx4(iquad/2,iquad/2),yy4(iquad/2,iquad/2),em4(iquad/2,iquad/2)
-        do j=il/2+1,il
-         jj=4*j -2*il -1
-         do i=(il+1)/2,il        ! NE corner of panel 2
-          ii=4*i -2*il -1
-          x6(i,j,2)=xx4(ii,jj)
-          y6(i,j,2)=yy4(ii,jj)
-          z6(i,j,2)=em4(ii,jj)
-!         define SE corner of panel 2
-          x6(i,il+1-j,2)=-x6(i,j,2)
-          y6(i,il+1-j,2)= y6(i,j,2)
-          z6(i,il+1-j,2)= z6(i,j,2)
-         enddo  ! i loop
-         do i=1,il               ! N half of panel 4
-          ii=4*(i+il) -2*il -1
-          x6(i,j,4)=xx4(ii,jj)
-          y6(i,j,4)=yy4(ii,jj)
-          z6(i,j,4)=em4(ii,jj)
-!         define S half of panel 4
-          x6(i,il+1-j,4)=-x6(i,j,4)
-          y6(i,il+1-j,4)= y6(i,j,4)
-          z6(i,il+1-j,4)= z6(i,j,4)
-         enddo  ! i loop
-        enddo   ! j loop
-        do jx=1,il
-         jj=4*(jx+il) -2*il -1
-c        do iyy=1,jx             ! SW half of panel 6
-c         iy=il+1-iyy
-         do iy=jx,il             ! SW half of panel 6
-          iyy=il+1-iy
-          ii=4*(iyy+il) -2*il -1
-          x6(jx,iy,6)=xx4(ii,jj)  ! still octagon
-          y6(jx,iy,6)=yy4(ii,jj)
-          z6(jx,iy,6)=em4(ii,jj)
-!         define other half of panel 6
-          x6(iy,jx,6)= x6(jx,iy,6)
-          y6(iy,jx,6)= y6(jx,iy,6)
-          z6(iy,jx,6)=-z6(jx,iy,6)
-         enddo  ! iyy loop
-         do i=1,il/2             ! W half of panel 2
-!         define W half of panel 2
-          x6(i,jx,2)= x6(il+1-i,jx,2)
-          y6(i,jx,2)=-y6(il+1-i,jx,2)
-          z6(i,jx,2)= z6(il+1-i,jx,2)
-         enddo  ! i loop
-        enddo   ! jx loop
-!       define remaining 11 panels
-        do j=1,il
-         do i=1,il
-          x6(i,j,10)= y6(i,j,2)            ! C2
-          y6(i,j,10)= x6(i,j,2)
-          z6(i,j,10)=-z6(i,j,2)
-          x6(i,j,3)= y6(i,j,6)             ! SE
-          y6(i,j,3)=-x6(i,j,6)
-          z6(i,j,3)= z6(i,j,6)
-          x6(i,j,9)=-y6(i,j,6)             ! NW
-          y6(i,j,9)= x6(i,j,6)
-          z6(i,j,9)= z6(i,j,6)
-          x6(i,j,13)=-x6(i,j,6)             ! SW
-          y6(i,j,13)=-y6(i,j,6)
-          z6(i,j,13)= z6(i,j,6)
-          x6(i,j,1)= y6(il+1-j,i,4)       ! SC1
-          y6(i,j,1)=-x6(il+1-j,i,4)
-          z6(i,j,1)= z6(il+1-j,i,4)
-          x6(i,j,7)=-y6(i,j,4)            ! NC1
-          y6(i,j,7)= x6(i,j,4)
-          z6(i,j,7)= z6(i,j,4)
-          x6(i,j,12)=-x6(il+1-j,i,4)       ! WC1
-          y6(i,j,12)=-y6(il+1-j,i,4)
-          z6(i,j,12)= z6(il+1-j,i,4)
-          x6(i,j,5)= x6(il+1-i,j,4)       ! EC2
-          y6(i,j,5)= y6(il+1-i,j,4)
-          z6(i,j,5)=-z6(il+1-i,j,4)
-          x6(i,j,11)= x6(j,il+1-i,4)       ! WC2
-          y6(i,j,11)=-y6(j,il+1-i,4)
-          z6(i,j,11)=-z6(j,il+1-i,4)
-          x6(i,j,8)=-y6(il+1-i,j,4)     ! =x6(il+1-i,j,7)       ! NC2
-          y6(i,j,8)= x6(il+1-i,j,4)
-          z6(i,j,8)=-z6(il+1-i,j,4)
-          x6(i,j,0)= y6(j,i,4)          ! =x6(i,il+1-j,1)       ! SC2
-          y6(i,j,0)=-x6(j,i,4)
-          z6(i,j,0)=-z6(j,i,4)
-         enddo  ! i loop
-        enddo   ! j loop
-!       for conformal octagon, save only xx4 and yy4
-!           as absolute values and as if schmidt=.5
-!           flip xx and yy (fix up later in jimco & above)
-        schm13=.1
-        alf=(1.-schm13**2)/(1.+schm13**2)
-        do jj=1,iquad
-         do ii=1,iquad
-          temp      =abs(xx4(ii,jj))*schm13*(1.+alf)/(1.+alf*em4(ii,jj))
-          xx4(ii,jj)=abs(yy4(ii,jj))*schm13*(1.+alf)/(1.+alf*em4(ii,jj))
-          yy4(ii,jj)=temp
-         enddo    ! ii loop
-        enddo     ! jj loop
+         print*, "npanels = 13 not implemented in MPI version"
+         stop
       endif       ! (npanels.eq.13)
 
       if(ktau.eq.0)print *,'basic grid length ds =',ds
@@ -914,7 +807,7 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
       end
       subroutine indv(iq,i,j,n)
 c     calculates simple i,j,n indices from supplied iq
-      include 'newmpar.h'
+      include 'newmpar_gx.h'
       n=(iq-1)/(il*il)
       j=1+(iq-n*il*il-1)/il
       i=iq-(j-1)*il-n*il*il
@@ -929,7 +822,7 @@ c     calculates simple i,j,n indices from supplied iq
       end
       subroutine vecpanel(ax6,ay6,az6)
 c     define vectors on panels 1:5 from panel 0
-      include 'newmpar.h'
+      include 'newmpar_gx.h'
       dimension ax6(il,il,0:5),ay6(il,il,0:5),az6(il,il,0:5)
       do j=1,il
        do i=1,il
@@ -957,7 +850,7 @@ c     define vectors on panels 1:5 from panel 0
       end
 
       subroutine printp(name,s6)
-      include 'newmpar.h'
+      include 'newmpar_gx.h'
       character *4 name
       dimension s6(il,il,0:5)  ! no longer access s(ifull-1), s(ifull)
       dimension s1f(0:il+1,3*il),s2f(0:il+1,3*il)
@@ -979,8 +872,8 @@ c     s2 is Oz-SP section i.e.  2-4-5
       end
 
       subroutine strip2(s,s6,s1,s2)
-      include 'newmpar.h'
-      include 'indices.h'
+      include 'newmpar_gx.h'
+      include 'indices_gx.h'
       dimension in6(il,il,0:5),is6(il,il,0:5),iw6(il,il,0:5)
      .         ,ie6(il,il,0:5)
       equivalence (in,in6),(is,is6),(iw,iw6),(ie,ie6)
@@ -1021,7 +914,7 @@ c      print *,'j,iw6(1,j,0),s1(0,j,1) ',j,iw6(1,j,0),s1(0,j,1)
 c     calculate vector components of c = a x b
 c     where each RHS component represents 3 vector components
 c     this one need not have contiguous memory in common
-      include 'newmpar.h'
+      include 'newmpar_gx.h'
       dimension a1(ifull),a2(ifull),a3(ifull)
       dimension b1(ifull),b2(ifull),b3(ifull)
       dimension c1(ifull),c2(ifull),c3(ifull)
@@ -1033,9 +926,9 @@ c     this one need not have contiguous memory in common
       return
       end
       function crossmod(iq,i4a,j4a,i4b,j4b)  ! version for gnewst
-      include 'newmpar.h'
+      include 'newmpar_gx.h'
       include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
-      include 'xyzinfo.h'  ! x,y,z,wts
+      include 'xyzinfo_gx.h'  ! x,y,z,wts
       y4a=xx4(i4a,j4a)
       z4a=yy4(i4a,j4a)
       x4a=1.
@@ -1073,8 +966,8 @@ c     endif
       end
 
       blockdata setxyz_blockdata
-      include 'newmpar.h'
-      include 'indices.h'
+      include 'newmpar_gx.h'
+      include 'indices_gx.h'
 !     following was set in setxyz
       data npann/  1, 2,107,  4,106,  6,  7,109,  9,112, 11, 12,102,101/
       data npane/103, 3,  4,105,  5,110,108,  8, 10, 11,100,113, 13,  0/

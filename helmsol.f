@@ -1,32 +1,36 @@
-      subroutine helmsol(helm,s,rhs)
+      subroutine helmsol(zz,zzn,zze,zzw,zzs,helm,s,rhs)
 
 !     Solve Helmholtz equation using simple conjugate gradient method.
 !     Each mode is solved separately. Highest numbered modes 
 !     converge fastest.
 
+      use cc_mpi
       implicit none
       include 'newmpar.h'
       include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
       include 'parm.h'
       include 'parmdyn.h'
+      include 'mpif.h'
       integer, parameter :: itmax=100 ! maximum number of iterations allowed
 !     Arguments
-      real helm(ifull,kl)      ! Helmholtz coefficients
-      real s(ifull,kl)         ! Solution
-      real rhs(ifull,kl)       ! RHS
-      real zz(ifull),zzn(ifull),zze(ifull),zzw(ifull),
-     . zzs(ifull),dum(il,jl,13)
-      common/work2/zz,zzn,zze,zzw,zzs,dum
+      real, intent(in), dimension(ifull) :: zz,zzn,zze,zzw,zzs
+      real helm(ifull+iextra,kl)      ! Helmholtz coefficients
+      real s(ifull+iextra,kl)         ! Solution
+      real rhs(ifull+iextra,kl)       ! RHS
 !     real z(ifull,5)       ! Point coefficients, approx 1,1,1,1,-4.
-      real, dimension(ifull,kl) :: fac, r, d, h
+      real, dimension(ifull,kl) :: fac, r, h
+      real, dimension(ifull+iextra,kl) :: d
 
       real, dimension(kl) :: delta_0, delta_1, tau, alpha, beta, smag
-      integer iq, iter, k, klim
-      real, dimension(kl) :: dsolmax, smax
-      real :: dsol
+      real, dimension(kl) :: gdelta_0, gdelta_1, gsmag, galpha
+      real, dimension(2*kl) :: arr, garr
+      integer iq, iter, k, klim, ierr
 
+      call start_log(helm_begin)
+
+      ! Assume bounds(s) has been done before call.
       do k=1,kl
-         fac(:,k) = -1.0/(helm(:,k)-zz(:))
+         fac(1:ifull,k) = -1.0/(helm(1:ifull,k)-zz(1:ifull))
       end do
 
       delta_0 = 0.
@@ -36,14 +40,26 @@
      &                  zzn(iq)*s(in(iq),k) + zzs(iq)*s(is(iq),k) -
      &                  rhs(iq,k) ) * fac(iq,k) + s(iq,k)
 
+!            if ( k == 1 ) then
+!               print*, "HELMSOL R", myid, iq, r(iq,k)
+!            end if
             delta_0(k) = delta_0(k) + r(iq,k)*r(iq,k)
          end do
       end do
-
-      d(:,:) = -r(:,:)
+      call MPI_ALLREDUCE ( delta_0, gdelta_0, kl, MPI_REAL, MPI_SUM,
+     &                     MPI_COMM_WORLD, ierr )
+      if ( diag .and. mydiag ) then
+         print*, "HELMSOL HELM", helm(idjd,:)
+         print*, "HELMSOL S", s(idjd,:)
+         print*, "HELMSOL RHS", rhs(idjd,:)
+         print*, "HELMSOL R", r(idjd,:)
+         print*, "GDELTA0", gdelta_0
+      end if
+      d(1:ifull,:) = -r(:,:)
       klim = kl ! All modes at first
       do iter = 1, itmax
 
+         call bounds(d, klim=klim)
          alpha = 0.
          do k=1,klim
             do iq=1,ifull
@@ -53,8 +69,9 @@
                alpha(k) = alpha(k) + d(iq,k)*h(iq,k)
             end do
          end do
-
-         tau(1:klim) = delta_0(1:klim) / alpha(1:klim)
+         call MPI_ALLREDUCE ( alpha, galpha, klim, MPI_REAL, MPI_SUM,
+     &                        MPI_COMM_WORLD, ierr )
+         tau(1:klim) = gdelta_0(1:klim) / galpha(1:klim)
          delta_1 = 0.
          smag = 0.
          do k=1,klim
@@ -65,9 +82,17 @@
                smag(k) = smag(k) + s(iq,k)*s(iq,k)
             end do
          end do
+         ! Combine delta1 and smag into single array for reduction.
+         arr(1:klim) = delta_1(1:klim)
+         arr(klim+1:2*klim) = smag(1:klim)
+         call MPI_ALLREDUCE ( arr, garr, 2*klim, MPI_REAL, MPI_SUM,
+     &                        MPI_COMM_WORLD, ierr )
+         gdelta_1(1:klim) = garr(1:klim)
+         gsmag(1:klim) = garr(klim+1:2*klim)
+
 !        Check which modes have converged
          do k=klim,1,-1
-            if ( sqrt(delta_1(k)) > restol*sqrt(smag(k)) ) then
+            if ( sqrt(gdelta_1(k)) > restol*sqrt(gsmag(k)) ) then
                ! This mode hasn't converged yet
                exit
             end if
@@ -75,30 +100,16 @@
 !        Now k is the lowest mode yet to converge
          klim = k
          if ( klim == 0 ) exit
-         beta(1:klim) = delta_1(1:klim) / delta_0(1:klim)
-         delta_0(1:klim) = delta_1(1:klim)
+         beta(1:klim) = gdelta_1(1:klim) / gdelta_0(1:klim)
+         gdelta_0(1:klim) = gdelta_1(1:klim)
          do k=1,klim
-            d(:,k) = -r(:,k) + beta(k) * d(:,k)
+            d(1:ifull,k) = -r(:,k) + beta(k) * d(1:ifull,k)
          end do
-         if (diag .or. ktau<6) then
-            print*, "Iterations", iter, klim, delta_1(1:klim)
+         if ( (diag .or. ktau<6) .and. myid == 0 ) then
+            print*, "Iterations", iter, klim, gdelta_1(1:klim)
          end if
       end do
 
-      if (diag .or. ktau<6) then
-         dsolmax = 0.
-         smax = 0.
-         do k=1,kl
-            do iq=1,ifull
-               dsol = ( zzn(iq)*s(in(iq),k) + zzw(iq)*s(iw(iq),k) +
-     &                  zze(iq)*s(ie(iq),k) + zzs(iq)*s(is(iq),k) +
-     &                      ( zz(iq)-helm(iq,k) )*s(iq,k) - rhs(iq,k) )
-               dsolmax(k) = max(dsolmax(k),abs(dsol))
-               smax(k) = max(smax(k),abs(s(iq,k)))
-            end do
-         end do
-         print*,'helmsol iterations ', iter, "final error", dsolmax/smax
-      end if
-
+      call end_log(helm_end)
       return
       end

@@ -1,5 +1,6 @@
       subroutine vertmix
 !     inputs & outputs: t,u,v,qg
+      use diag_m
       include 'newmpar.h'
       parameter (ntest=0)
 c     parameter (ipwr=1)       ! really can use (ipwr=min(1,nlocal))
@@ -19,13 +20,13 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       include 'morepbl.h'
       include 'parm.h'
       include 'pbl.h'
+      include 'permsurf.h'
+      include 'savuvt.h'
       include 'sigs.h'
       include 'soil.h'
       include 'tracers.h'  ! ngas, nllp, ntrac
       include 'xarrs.h'
       include 'const_phys.h'
-      common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
-      common/savuv/savu(ifull,kl),savv(ifull,kl)
       common/work3/qs(ifull,kl),delthet(ifull,kl),
      .             thebas(ifull,kl),cu(ifull,kl),dum3(ifull,kl)
       common/work3b/uav(ifull,kl),vav(ifull,kl)   
@@ -49,14 +50,8 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
 c     set coefficients for Louis scheme
       data bprm/4.7/,cm/7.4/,ch/5.3/,amxlsq/100./,vkar3/.35/,vkar4/.4/
       data bprmj/5./,cmj/5./,chj/2.6/
-      common /es_table/ table(0:220)
       save kscbase,ksctop,prcpv
-c arithmetic statement functions to replace call to establ.
-c t is temp in kelvin, which should lie between 123.16 and 343.16;
-c tdiff is difference between t and 123.16, subject to 0 <= tdiff <= 220
-      tdiff(tm)=min(max(tm-123.16 , 0.) , 220.)
-      establ(tm) =(1.-(tdiff(tm)-aint(tdiff(tm))))*table(int(tdiff(tm)))
-     &           + (tdiff(tm)-aint(tdiff(tm)))*table(int(tdiff(tm))+1)
+      include 'establ.h'
 
       rong=rdry/grav
       do k=1,kl-1
@@ -79,10 +74,10 @@ c tdiff is difference between t and 123.16, subject to 0 <= tdiff <= 220
       rlogs2=log(sig(2))
       rlogh1=log(sigmh(2))
       rlog12=1./(rlogs1-rlogs2)
-      tmnht(:,1)=(t(:,2)*rlogs1-t(:,1)*rlogs2+
-     .           (t(:,1)-t(:,2))*rlogh1)*rlog12
+      tmnht(1:ifull,1)=(t(1:ifull,2)*rlogs1-t(1:ifull,1)*rlogs2+
+     .           (t(1:ifull,1)-t(1:ifull,2))*rlogh1)*rlog12
 !     n.b. an approximate zh is quite adequate for this routine
-      zh(:,1)=t(:,1)*delh(1)
+      zh(1:ifull,1)=t(1:ifull,1)*delh(1)
       do k=2,kl-1
        do iq=1,ifull
         zh(iq,k)=zh(iq,k-1)+t(iq,k)*delh(k)
@@ -239,8 +234,8 @@ c     .             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
       endif
 
 !     following now defined in vertmix (don't need to pass from sflux)
-      uav(:,:)=av_vmod*u(:,:)+(1.-av_vmod)*savu(:,:)   ! 3D
-      vav(:,:)=av_vmod*v(:,:)+(1.-av_vmod)*savv(:,:)   ! 3D
+      uav(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*savu(1:ifull,:)   ! 3D
+      vav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*savv(1:ifull,:)   ! 3D
       do k=1,kl-1
        do iq=1,ifull
         dz(iq) =-tmnht(iq,k)*delons(k)  ! this is z(k+1)-z(k)
@@ -355,7 +350,7 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
      .              (1000.*qg(idjd,k),k=1,kl)
         endif
         if(diag)then
-          call printa('rkh ',rkh(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+          call printa('rkh ',rkh,ktau,nlv,ia,ib,ja,jb,0.,1.)
           call printa('cond',condx,ktau,1,ia,ib,ja,jb,0.,1.)
           call printa('zs  ',zs,ktau,1,ia,ib,ja,jb,0.,1.)
         endif
@@ -377,11 +372,11 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
         call maxmin(guv,'gu',ktau,1.e3,kl)
         print *,'vertmix guv ',(guv(idjd,k),k=1,kl)
         print *,'vertmix gt ',(gt(idjd,k),k=1,kl)
-        call printa('t   ',t(1,nlv),ktau,nlv,ia,ib,ja,jb,200.,1.)
+        call printa('t   ',t,ktau,nlv,ia,ib,ja,jb,200.,1.)
         call printa('tss ',tss,ktau,nlv,ia,ib,ja,jb,200.,1.)
         call printa('eg  ',eg,ktau,nlv,ia,ib,ja,jb,0.,1.)
         call printa('fg  ',fg,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('thet',rhs(1,nlv),ktau,nlv,ia,ib,ja,jb,200.,1.)
+        call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
       endif
 
       if(ncvmix.gt.0)then  ! cumulus mixing of momentum - jlm version
@@ -405,7 +400,7 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
       condrag=grav*dt/(dsig(1)*rdry)
 c     first do theta (then convert back to t)
       at(:,1)=0.
-      rhs(:,1)=rhs(:,1)-(conflux/cp)*fg(:)/ps(:)
+      rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/cp)*fg(1:ifull)/ps(1:ifull)
 
       if(npanels.gt.0)then
         do k=2,kl
@@ -449,15 +444,15 @@ c     first do theta (then convert back to t)
         print *,'vertmix eg,fg,cdtq,land '
      .                  ,eg(idjd),fg(idjd),cdtq(idjd),land(idjd)
         print *,'vertmix theta after trim ',(rhs(idjd,k),k=1,kl)
-        call printa('thet',rhs(1,nlv),ktau,nlv,ia,ib,ja,jb,200.,1.)
+        call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
       endif
 
 c     now do moisture
-      rhs(:,:)=qg(:,:)
-      rhs(:,1)=rhs(:,1)-(conflux/hl)*eg(:)/ps(:)
+      rhs(1:ifull,:)=qg(1:ifull,:)
+      rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/hl)*eg(1:ifull)/ps(1:ifull)
 c     could add extra sfce moisture flux term for crank-nicholson
       call trim(at,ct,rhs,0)    ! for qg
-      qg(:,:)=rhs(:,:)
+      qg(1:ifull,:)=rhs(1:ifull,:)
 
       if(ifullw.eq.ifull)then
 c       now do qfg
@@ -507,17 +502,17 @@ c     now do trace gases
       endif      ! (ntest.eq.2)
 
 c     first do u
-      rhs(:,:)=u(:,:)
+      rhs(1:ifull,:)=u(1:ifull,:)
       call trim(au,cu,rhs,0)
-      u(:,:)=rhs(:,:)
+      u(1:ifull,:)=rhs(1:ifull,:)
       if(diag)then
         print *,'vertmix au ',(au(idjd,k),k=1,kl)
       endif
 
 c     now do v; with properly unstaggered au,cu
-      rhs(:,:)=v(:,:)
+      rhs(1:ifull,:)=v(1:ifull,:)
       call trim(au,cu,rhs,0)    ! note now that au, cu unstaggered globpea
-      v(:,:)=rhs(:,:)
+      v(1:ifull,:)=rhs(1:ifull,:)
       if(diag.or.ntest.ge.1)then
         print *,'after trim in vertmix '
         write (6,"('thet',19f7.2/(8x,19f7.2))") 
@@ -539,6 +534,7 @@ c       call maxmin(v,'vv',ktau,1.,kl)
 
       subroutine tracervmix( at, ct, updtr )
 c     this routine does the vertical mixing of tracers
+      use diag_m
       parameter (ntest=0)  ! 1 for diag prints
       include 'newmpar.h'
       include 'const_phys.h'
@@ -594,8 +590,8 @@ c          = - conflux * phi / ps
         if(ntest.eq.1)then
 c         print *,'can mel sources ',ktau,trsrc(46,57,1),trsrc(39,52,1)
 c         print *,'can mel conc lev1 ',ktau,tr(46,57,1,2),tr(39,52,1,2)
-          call printa('co2 ',tr(1,1,k2),ktau,1,ia,ib,ja,jb,357.,1.)
-          call printa('rado',tr(1,1,1),ktau,1,ia,ib,ja,jb,0.,1.)
+          call printa('co2 ',tr(:,:,k2),ktau,1,ia,ib,ja,jb,357.,1.)
+          call printa('rado',tr(:,:,1),ktau,1,ia,ib,ja,jb,0.,1.)
         endif  ! (ntest.eq.1)
       endif
 

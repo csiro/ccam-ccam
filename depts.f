@@ -1,5 +1,6 @@
       subroutine depts1(x3d,y3d,z3d)  ! input ubar,vbar are unstaggered vels for level k
 !     3D version
+      use cc_mpi
       implicit none
 c     modify toij5 for Cray
       integer, parameter :: ntest=0
@@ -16,10 +17,12 @@ c     modify toij5 for Cray
       real xg, yg
       common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
 !     Work common for these?
-      real uc(ifull,kl),vc(ifull,kl),wc(ifull,kl), temp(ifull,kl)
+!     temp needs iextra becaue it's used in ints
+      real uc(ifull,kl),vc(ifull,kl),wc(ifull,kl), temp(ifull+iextra,kl)
       real x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)   ! upglobal depts 
       integer iq, k, intsch
 
+      call start_log(depts_begin)
       do k=1,kl
          do iq=1,ifull
 c           departure point x, y, z is called x3d, y3d, z3d
@@ -37,8 +40,10 @@ c     convert to grid point numbering
       do k=1,kl
          call toij5 (k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
       end do
+!     Share off processor departure points.
+      call deptsync(nface,xg,yg)
 
-      if(ntest.eq.1)then
+      if(ntest.eq.1.and.mydiag)then
         print *,'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
         print *,'uc,vc,wc ',uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
         print *,'1st guess for k = ',nlv
@@ -47,20 +52,23 @@ c     convert to grid point numbering
       endif
 
       intsch=mod(ktau,2)
-      temp = uc
+      temp(1:ifull,:) = uc(1:ifull,:)
       call ints(temp,intsch,nface,xg,yg,2)
       do k=1,kl
-         x3d(:,k) = x(:) - 0.5*(uc(:,k)+temp(:,k)) ! 2nd guess
+         x3d(1:ifull,k) = x(1:ifull) -
+     &                    0.5*(uc(1:ifull,k)+temp(1:ifull,k)) ! 2nd guess
       end do
-      temp = vc
+      temp(1:ifull,:) = vc(1:ifull,:)
       call ints(temp,intsch,nface,xg,yg,2)
       do k=1,kl
-         y3d(:,k) = y(:) - 0.5*(vc(:,k)+temp(:,k)) ! 2nd guess
+         y3d(1:ifull,k) = y(1:ifull) -
+     &                    0.5*(vc(1:ifull,k)+temp(1:ifull,k)) ! 2nd guess
       end do
-      temp = wc
+      temp(1:ifull,:) = wc(1:ifull,:)
       call ints(temp,intsch,nface,xg,yg,2)
       do k=1,kl
-         z3d(:,k) = z(:) - 0.5*(wc(:,k)+temp(:,k)) ! 2nd guess
+         z3d(1:ifull,k) = z(1:ifull) -
+     &                    0.5*(wc(1:ifull,k)+temp(1:ifull,k)) ! 2nd guess
       end do
 
       do k=1,kl
@@ -72,37 +80,45 @@ c     convert to grid point numbering
         print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
       endif
 
-      temp = uc
+      temp(1:ifull,:) = uc(1:ifull,:)
       call ints(temp,intsch,nface,xg,yg,2)
       do k=1,kl
-         x3d(:,k) = x(:) - 0.5*(uc(:,k)+temp(:,k)) ! 3rd guess
+         x3d(1:ifull,k) = x(1:ifull) -
+     &                    0.5*(uc(1:ifull,k)+temp(1:ifull,k)) ! 3rd guess
       end do
-      temp = vc
+      temp(1:ifull,:) = vc(1:ifull,:)
       call ints(temp,intsch,nface,xg,yg,2)
       do k=1,kl
-         y3d(:,k) = y(:) - 0.5*(vc(:,k)+temp(:,k)) ! 3rd guess
+         y3d(1:ifull,k) = y(1:ifull) -
+     &                    0.5*(vc(1:ifull,k)+temp(1:ifull,k)) ! 3rd guess
       end do
-      temp = wc
+      temp(1:ifull,:) = wc(1:ifull,:)
       call ints(temp,intsch,nface,xg,yg,2)
       do k=1,kl
-         z3d(:,k) = z(:) - 0.5*(wc(:,k)+temp(:,k)) ! 3rd guess
+         z3d(1:ifull,k) = z(1:ifull) -
+     &                    0.5*(wc(1:ifull,k)+temp(1:ifull,k)) ! 3rd guess
       end do
 
       do k=1,kl
          call toij5 (k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
       end do
-      if(ntest.eq.1)then
+      if(ntest.eq.1.and.mydiag)then
         print *,'3rd guess for k = ',nlv
         print *,'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
         print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
       endif
 
+!     Share off processor departure points.
+      call deptsync(nface,xg,yg)
+
+      call end_log(depts_end)
       return
       end
 
       subroutine depts(x3d,y3d,z3d)   ! input ubar,vbar are unstaggered vels for level k
 !     3D version
 c     modify toij5 for Cray
+      use cc_mpi
       implicit none
       integer, parameter :: ntest=0
       include 'newmpar.h'
@@ -118,17 +134,17 @@ c     modify toij5 for Cray
       real xg, yg
       common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
       ! Is there an appropriate work common for this?
-      real gx(ifull,kl),gy(ifull,kl),gz(ifull,kl),
-     &     derx(ifull,kl),dery(ifull,kl),derz(ifull,kl)
+      real, dimension(ifull,kl) :: gx, gy, gz
+      real, dimension(ifull+iextra,kl) :: derx, dery, derz
       real x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
-      integer nit, ndiag
-      data nit/3/,ndiag/0/
+      integer, parameter :: nit=3, ndiag=0
       integer :: iq, itn, k
       real :: uc, vc, wc
 
-      if(ntest.eq.1)then
-        print *,'entering depts'
-        print *,'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
+      call start_log(depts_begin)
+      if(ntest.eq.1.and.mydiag)then
+         print *,'entering depts'
+         print *,'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
       endif
       do k=1,kl
          do iq=1,ifull
@@ -166,6 +182,9 @@ c     modify toij5 for Cray
 !       endif
 
       do itn=2,nit
+         call bounds(derx)
+         call bounds(dery)
+         call bounds(derz)
          do k=1,kl
 *cdir nodep
             do iq=1,ifull
@@ -209,25 +228,33 @@ c    .                    ,z3d(idjd),ubar(idjd,1),vbar(idjd,1)
 c     convert to grid point numbering
       do k=1,kl
          if(npanels.eq.5) call toij5 (k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
-         if(npanels.eq.13)call toij13(k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
+!         Not implemented in the MPI version.
+!         if(npanels.eq.13)call toij13(k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
       end do
 
-      if(ntest.eq.1)then
+      if(ntest.eq.1.and.mydiag)then
         print *,'at end of depts for k = ',k
         print *,'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
         print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
       endif
-      if(ndiag.eq.2)then
-        print *,'after toij5/toij13'
-        call printp('xg  ',xg)
-        call printp('yg  ',yg)
-      endif
+!     printp not implemented in MPI version.
+!      if(ndiag.eq.2)then
+!        print *,'after toij5/toij13'
+!        call printp('xg  ',xg)
+!        call printp('yg  ',yg)
+!      endif
+
+!     Share off processor departure points.
+      call deptsync(nface,xg,yg)
+
+      call end_log(depts_end)
       return
       end
 
       subroutine toij5(k,x3d,y3d,z3d)
+      use cc_mpi
 c     modify toij5 for Cray
-      parameter (ncray=0)    ! 0 for most computers, 1 for Cray
+      parameter (ncray=1)    ! 0 for most computers, 1 for Cray
       parameter (ntest=0)
       include 'newmpar.h'
       include 'parm.h'
@@ -243,6 +270,7 @@ c     modify toij5 for Cray
       data nmaploop/3/,ndiag/0/,num/0/
       save num
 
+      call start_log(toij_begin)
       if(num.eq.0.and.ncray.eq.0)then  ! check if divide by itself is working
          call checkdiv(xstr,ystr,zstr)
          num=1
@@ -372,103 +400,9 @@ c      expect xg, yg to range between .5 and il+.5
        xg(iq,k)=.25*(ri+3.) -.5  ! -.5 for stag; back to normal ri, rj defn
        yg(iq,k)=.25*(rj+3.) -.5  ! -.5 for stag
       enddo   ! iq loop
+      call end_log(toij_end)
       return
       end
-
-      subroutine toij13(k,x3d,y3d,z3d)  ! no Schmidt
-      include 'newmpar.h'
-      include 'parm.h'
-      include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
-      common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
-      real x3d(ifull),y3d(ifull),z3d(ifull)
-      include 'xyzinfo.h'  ! x,y,z,wts
-      dimension npanetab(-1:1,-1:4),acon(-1:1,-1:4),bcon(-1:1,-1:4)
-      dimension     xadd(-1:1,-1:4),yadd(-1:1,-1:4)
-      data nmaploop/3/
-      data npanetab/9,12,13, 7,2,1, 6,4,3, 6,5,3, 8,10,0, 9,11,13/
-      data acon/0,1,1, -1,0,0, -1,0,0, 0,0,-1, 1,1,0, 1,1,0/
-      data bcon/1,0,0, 0,-1,-1, 0,-1,-1, -1,-1,0, 0,0,1, 0,0,1/
-      data xadd/ -.5,  .5, -.5,   -.5,  .5,  .5,    -.5,-.5,-.5,
-     .          -1.5,-1.5, 1.5,    1.5, .5, 3.5,    1.5, .5, 4.5/
-      data yadd/ 1.5, 1.5, 1.5,     .5, .5, 1.5,    1.5, .5, 1.5,
-     .           -.5,  .5, 2.5,   -2.5,-2.5,-.5,   -3.5,-3.5,-.5/
-c        acon:   0    -1    -1       0     1     1     9  7  6   6  8  9
-c                1     0     0       0     1     1    12  2  4   5 10 11
-c                1     0     0      -1     0     0    13  1  3   3  0 13
-c        bcon:   1     0     0      -1     0     0
-c                0    -1    -1      -1     0     0
-c                0    -1    -1       0     1     1
-c        xadd: -0.5  -0.5  -0.5    -1.5   1.5   1.5      correct ones
-c               0.5   0.5  -0.5    -1.5   0.5   0.5
-c              -0.5   0.5  -0.5     1.5   3.5   4.5
-c        yadd:  1.5   0.5   1.5    -0.5  -2.5  -3.5
-c               1.5   0.5   0.5     0.5  -2.5  -3.5
-c               1.5   1.5   1.5     2.5  -0.5  -0.5
-
-c     first convert to equivalent of schmidt=.5 (or .1 better) grid
-      alf=(1.-schmidt**2)/(1.+schmidt**2)  ! value of z on "equator"
-!     schm13=.1  ! originally used .5 ! now comes from setxyz through parm.h
-      schmidtp=schm13/schmidt        ! for z3d above the "equator"
-      alfp=(1.-schmidtp**2)/(1.+schmidtp**2)
-      schmidtm=1./(schm13*schmidt)   ! for z3d below the "equator"
-      alfm=(1.-schmidtm**2)/(1.+schmidtm**2)
-      do iq=1,ifull
-       if(z3d(iq).gt.alf)then
-         zsign=1.
-         xstr=x3d(iq)*schmidtp*(1.+alfp)/(1.+alfp*z3d(iq))
-         ystr=y3d(iq)*schmidtp*(1.+alfp)/(1.+alfp*z3d(iq))
-       else
-         zsign=-1.
-         xstr=x3d(iq)*schmidtm*(1.+alfm)/(1.+alfm*z3d(iq))
-         ystr=y3d(iq)*schmidtm*(1.+alfm)/(1.+alfm*z3d(iq))
-       endif     !  (z3d(iq).gt.alf)
-!      could avoid above "if", by first doing 1/schmidt, then schmidt13
-!      using abs(z3d). Extra operations may then increase errors slightly?
-c      now remember departure quadrants
-       xsign=sign(1.,xstr)
-       ysign=sign(1.,ystr)
-
-c      use 4* resolution grid
-c      N.B. for toij13, have xx4 and yy4 between 0 and .5 (after schmidtx)
-       xgr=abs(xstr)
-       ygr=abs(ystr)
-c      first guess for ri, rj (1 to 6*il+1) and nearest i,j
-       ri=1.+xgr*(iquad-1)/xx4(iquad,1)    ! divide by schm13 "equator" radius
-       rj=1.+ygr*(iquad-1)/xx4(iquad,1)
-       do loop=1,nmaploop
-!       ri=max(1. , min(real(iquad)-.0001,ri) )  !  not needed
-!       rj=max(1. , min(real(iquad)-.0001,rj) )  !  not needed
-        i=nint(ri)
-        j=nint(rj)
-        is=sign(1.,ri-i)
-        js=sign(1.,rj-j)
-c       predict new value for ri, rj
-        dxx=xx4(i+is,j)-xx4(i,j)
-        dyx=xx4(i,j+js)-xx4(i,j)
-        dxy=yy4(i+is,j)-yy4(i,j)
-        dyy=yy4(i,j+js)-yy4(i,j)
-        den=dxx*dyy-dyx*dxy
-        ri=i+is*((xgr-xx4(i,j))*dyy-(ygr-yy4(i,j))*dyx)/den
-        rj=j+js*((ygr-yy4(i,j))*dxx-(xgr-xx4(i,j))*dxy)/den
-       enddo  ! loop loop
-!      write ri,rj on a BIG grid (-1.5*il to 1.5*il, -1.5*il to 4.5*il)
-!      where the Y variable is wrapping around the globe
-!      and the "north pole" is now at (0.,0.)
-       ri=.25*(ri-1.)*xsign
-       rj=.25*( (rj-1.)*ysign*zsign + (1.-zsign)*real(6*il) )
-!      allocate to a box (-1:1, -1:4)
-        ibox=max(-1,min(nint(ri/il),1))   ! allows for -1.5 or 1.5
-        jbox=max(-1,min(nint(rj/il),4))   ! allows for -1.5 or 4.5
-c      convert  xg, yg ( .5 to il+.5) and nface
-       nface(iq,k)=npanetab(ibox,jbox)
-       xg(iq,k)=.5 +xadd(ibox,jbox)*real(il)
-     .             +acon(ibox,jbox)*ri -bcon(ibox,jbox)*rj
-       yg(iq,k)=.5 +yadd(ibox,jbox)*real(il)
-     .             +bcon(ibox,jbox)*ri +acon(ibox,jbox)*rj
-      enddo   ! iq loop
-      return
-      end
-
       subroutine checkdiv(xstr,ystr,zstr)
 !     Check whether optimisation uses multiplication by reciprocal so
 !     that x/x /= 1.

@@ -1,5 +1,6 @@
       subroutine convjlm      ! jlm convective scheme - Version v3
 !     has fldownn depending on delta sigma      
+      use diag_m
       include 'newmpar.h'
       parameter (ntest=0)      ! 1 or 2 to turn on
 !     parameter (iterconv=1)   ! to kuocom.h
@@ -55,13 +56,7 @@ c     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
       equivalence (phi,s),(delu,revc,delq),(delv,dels)
 !     data rhcv/.75/                  now in kuocom
 
-      common /es_table/ table(0:220)
-c     arithmetic statement functions to replace call to establ.
-c     t is temp in kelvin, which should lie between 123.16 and 343.16;
-c     tdiff is difference between t and 123.16, subject to 0 <= tdiff <= 220
-      tdiff(tm)=min(max(tm-123.16 , 0.) , 220.)
-      establ(tm) =(1.-(tdiff(tm)-aint(tdiff(tm))))*table(int(tdiff(tm)))
-     &           + (tdiff(tm)-aint(tdiff(tm)))*table(int(tdiff(tm))+1)
+      include 'establ.h'
       Aev(tm) = 2.008e-9*tm**2 - 1.385e-6*tm + 2.424e-4  !For UKMO evap scheme
       Asb(tm) = max (-5.2e-9*tm**2+2.5332e-6*tm-2.9111e-4,1.e-5) !For UKMO subl
 
@@ -97,14 +92,14 @@ c     tdiff is difference between t and 123.16, subject to 0 <= tdiff <= 220
 
 c     convective then L/S rainfall
       qliqw(:,:)=0.  
-      conrev(:)=1000.*ps(:)/(grav*dt) ! factor to convert precip to g/m2/s
+      conrev(1:ifull)=1000.*ps(1:ifull)/(grav*dt) ! factor to convert precip to g/m2/s
       rnrt(:)=0.       ! initialize large-scale rainfall array
       rnrtc(:)=0.      ! initialize convective  rainfall array
       ktmax(:)=kl      ! preset 1 level above current topmost-permitted ktsav
       kbsav_ls(:)=0    ! for L/S
 
-      tt(:,:)=t(:,:)       
-      qq(:,:)=qg(:,:)      
+      tt(1:ifull,:)=t(1:ifull,:)       
+      qq(1:ifull,:)=qg(1:ifull,:)      
       factr=dt/max(dt,convtime*3600.)  ! to re-scale convpsav
 
 !__________________________beginning of convective calculations_____________________
@@ -168,7 +163,7 @@ c       calculate hs
         pwater0=0.   ! in mm     
         do k=1,kl
          iq=idjd
-         pwater0=pwater0-dsig(k)*qg(idjd,k)*ps(idjd)/g
+         pwater0=pwater0-dsig(k)*qg(idjd,k)*ps(idjd)/grav
          if(land(iq))then
            qbass(k)=alfqq_l(k)*qq(iq,k)+alfqq1_l(k)*qq(iq,1) 
          else
@@ -773,9 +768,9 @@ c          if(nums.lt.20)then
 
       if(factr.lt.1.)then
         rnrtc(:)=factr*rnrtc(:)
-        qq(:,:)=qg(:,:)+factr*(qq(:,:)-qg(:,:))      
-        qliqw(:,:)=factr*qliqw(:,:)      
-        tt(:,:)= t(:,:)+factr*(tt(:,:)- t(:,:))      
+        qq(1:ifull,:)=qg(1:ifull,:)+factr*(qq(1:ifull,:)-qg(1:ifull,:))      
+        qliqw(1:ifull,:)=factr*qliqw(1:ifull,:)      
+        tt(1:ifull,:)= t(1:ifull,:)+factr*(tt(1:ifull,:)- t(1:ifull,:))      
       endif  ! (factr.lt.1.)
 
 !     update qq, tt for evap of qliqw (qliqw arose from moistening)
@@ -787,8 +782,8 @@ c          if(nums.lt.20)then
           enddo
          enddo
       else
-        qq(:,:)=qq(:,:)+qliqw(:,:)         
-        tt(:,:)=tt(:,:)-hl*qliqw(:,:)/cp   
+        qq(1:ifull,:)=qq(1:ifull,:)+qliqw(1:ifull,:)         
+        tt(1:ifull,:)=tt(1:ifull,:)-hl*qliqw(1:ifull,:)/cp   
       endif  ! (ifullw.eq.ifull)
 !__________________________end of convective calculations_____________________
      
@@ -893,12 +888,12 @@ c           if(evapls.gt.0.)print *,'iq,k,evapls ',iq,k,evapls
 !__________________________end of large-scale calculations_____________________
 
 
-8     qg(:,:)=qq(:,:)                   
+8     qg(1:ifull,:)=qq(1:ifull,:)                   
       condc(:)=.001*dt*rnrtc(:)      ! convective precip for this timestep
       precc(:)=precc(:)+condc(:)        
       condx(:)=condc(:)+.001*dt*rnrt(:) ! total precip for this timestep
       precip(:)=precip(:)+condx(:)      
-      t(:,:)=tt(:,:)             
+      t(1:ifull,:)=tt(1:ifull,:)             
 
       if(ntest.eq.1.or.diag)then
         print *,'at end of convjlm: rnrt,rnrtc ',
@@ -909,7 +904,7 @@ c           if(evapls.gt.0.)print *,'iq,k,evapls ',iq,k,evapls
      .             (tt(idjd,k),k=1,kl)
         pwater=0.   ! in mm     
           do k=1,kl
-         pwater=pwater-dsig(k)*qg(idjd,k)*ps(idjd)/g
+         pwater=pwater-dsig(k)*qg(idjd,k)*ps(idjd)/grav
           enddo
           print *,'pwater0,pwater+condx,pwater ',
      .           pwater0,pwater+condx(idjd),pwater

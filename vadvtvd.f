@@ -2,6 +2,7 @@
 c                              vadvbott & vadvyu at bottom
 !     can show adding tbar has no effect
 !     N.B. uin and uout may share same storage (similarly tin, vin)
+      use cc_mpi, only : mydiag
       include 'newmpar.h'
 !     parameter (sdotfilt=0.)  ! tried .3 - not useful
 !     parameter (nimp=1)  !  0 for original explicit non-flux TVD term
@@ -115,7 +116,7 @@ c    .                         kp,kx,fluxlo,fluxhi,fluxh(iq,k)
         endif   ! (nimp.eq.1)
        enddo    ! iq loop
       enddo     ! k loop
-      if(diag.or.nmaxpr.eq.1)then
+      if( (diag.or.nmaxpr.eq.1) .and. mydiag )then
         write (6,"('tin ',9f8.2/4x,9f8.2)") (tin(idjd,k),k=1,kl)
         write (6,"('tadd',9f8.2/4x,9f8.2)") 
      .        (tfact*(tin(idjd,k)*(sdot(idjd,k+1)-sdot(idjd,k))),k=1,kl)

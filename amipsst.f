@@ -1,6 +1,7 @@
       subroutine amipsst
+      use cc_mpi
+      implicit none
 !     this one primarily does namip=2      
-!     Has entry amipice
 !     A routine for the con-cubic model which will interpolate
 !     linearly in time between two sst data sets.
 !     iday is a variable which is equal to the number of
@@ -17,13 +18,23 @@
       include 'pbl.h'       ! tss
       include 'soil.h'      ! sice,sicedep,tice, fracice alb
       include 'soilsnow.h' ! new soil arrays for scam - tgg too
-      real ssta(ifull),sstb(ifull),aice(ifull),bice(ifull)
+      include 'mpif.h'
+      real, dimension(ifull_g) ::  ssta_g, sstb_g, aice_g, bice_g
+      real, dimension(ifull) :: ssta, sstb, aice, bice
+      real fracice_in, dum2b
       common/work2b/fracice_in(ifull),dum2b(ifull,2)
-      dimension icemask(il)
       character*22 header
-      integer mdays(0:13)
-      data mdays/31, 31,28,31,30,31,30,31,31,30,31,30,31, 31/
+      integer, parameter, dimension(0:13) :: mdays =
+     &     (/ 31, 31,28,31,30,31,30,31,31,30,31,30,31, 31 /)
+      logical update
+      integer iyr, imo, iday, iyr_m, imo_m, imonth, iyear, idjd_g,
+     &        iyr_p, imo_p, ierr, iq
       save ssta,sstb,aice,bice,iyr,imo,iday,iyr_m,imo_m
+      real rat1, rat2
+
+      idjd_g = id + (jd-1)*il_g
+      if ( myid == 0 ) then
+      update = .false.
 
       print *,'amipsst  called'
       iyr=kdate/10000
@@ -40,6 +51,7 @@
 
       if(ktau.eq.0)then
 !       ***  this code may need generalizing for multi-month runs
+        update = .true.
         iyr_m=iyr
         imo_m=imo-1
         if(imo_m.eq.0)then
@@ -50,67 +62,60 @@
 2       read(75,'(i2,1x,i6,a22)') imonth,iyear,header
         print *,'reading sst data:',imonth,iyear,header
         print *,'comparing with imo_m,iyr_m ',imo_m,iyr_m
-        read(75,*) ssta
-        do iq=1,ifull
-         ssta(iq)=ssta(iq)*.01 -50. +273.16
-        enddo
-        print *,'ssta(idjd) ',ssta(idjd)
+        read(75,*) ssta_g
+        ssta_g(:)=ssta_g(:)*.01 -50. +273.16
+        print *,'ssta(idjd) ',ssta_g(idjd_g)
         if(iyr_m.ne.iyear.or.imo_m.ne.imonth)go to 2
 
         read(75,'(i2,1x,i6,a22)') imonth,iyear,header
         print *,'reading sstb data:',imonth,iyear,header
         print *,'should agree with imo,iyr ',imo,iyr
         if(iyr.ne.iyear.or.imo.ne.imonth)stop
-        read(75,*) sstb
-        do iq=1,ifull
-         sstb(iq)=sstb(iq)*.01 -50. +273.16
-        enddo
-        print *,'sstb(idjd) ',sstb(idjd)
+        read(75,*) sstb_g
+        sstb_g(:)=sstb_g(:)*.01 -50. +273.16
+        print *,'sstb(idjd) ',sstb_g(idjd_g)
 	 
         open(unit=76,file=icefile,status='old',form='formatted')	 
 	 if(namip.eq.2)then   ! sice also read at middle of month
 21        read(76,'(i2,1x,i6,a22)') imonth,iyear,header
           print *,'reading a_sice data:',imonth,iyear,header
           print *,'comparing with imo_m,iyr_m ',imo_m,iyr_m
-          read(76,*) aice
-          print *,'aice(idjd) ',aice(idjd)
+          read(76,*) aice_g
+          print *,'aice(idjd) ',aice_g(idjd_g)
           if(iyr_m.ne.iyear.or.imo_m.ne.imonth)go to 21
           read(76,'(i2,1x,i6,a22)') imonth,iyear,header
           print *,'reading b_sice data:',imonth,iyear,header
           print *,'should agree with imo,iyr ',imo,iyr
           if(iyr.ne.iyear.or.imo.ne.imonth)stop
-          read(76,*) bice
-          print *,'bice(idjd) ',bice(idjd)
+          read(76,*) bice_g
+          print *,'bice(idjd) ',bice_g(idjd_g)
 	 endif   ! (namip.eq.2) 
       endif     ! (ktau.eq.0)
 
       if(iday.eq.mdays(imo)/2)then
-        do iq=1,ifull
-         ssta(iq)=sstb(iq)   ! rotate data sets
-         aice(iq)=bice(iq)   ! rotate data sets
-        enddo
-        iyr_p=iyr
-        imo_p=imo+1
-        if(imo_p.eq.13)then
-          imo_p=1
-          iyr_p=iyr+1
-        endif  ! (imo_p.eq.13)
+         update = .true.
+         ssta_g(:)=sstb_g(:)    ! rotate data sets
+         aice_g(:)=bice_g(:)    ! rotate data sets
+         iyr_p=iyr
+         imo_p=imo+1
+         if(imo_p.eq.13)then
+            imo_p=1
+            iyr_p=iyr+1
+         endif                  ! (imo_p.eq.13)
 	 
 !       read in next months data
 3       read(75,'(i2,1x,i6,a22)') imonth,iyear,header
         print *,'reading sstb data:',imonth,iyear,header
         print *,'comparing with imo_p,iyr_p ',imo_p,iyr_p
-        read(75,*) sstb
-        do iq=1,ifull
-         sstb(iq)=sstb(iq)*.01 -50. +273.16
-        enddo
+        read(75,*) sstb_g
+        sstb_g(:)=sstb_g(:)*.01 -50. +273.16
         if(iyr_p.ne.iyear.or.imo_p.ne.imonth)go to 3
 
         if(namip.eq.2)then   ! sice also read at middle of month
 31        read(76,'(i2,1x,i6,a22)') imonth,iyear,header
           print *,'reading b_sice data:',imonth,iyear,header
           print *,'comparing with imo_p,iyr_p ',imo_p,iyr_p
-          read(76,*) bice
+          read(76,*) bice_g
           if(iyr_p.ne.iyear.or.imo_p.ne.imonth)go to 31
         endif  ! (namip.eq.2)
       endif    ! (iday.eq.mdays(imo)/2)
@@ -127,45 +132,67 @@
       if(iday.gt.1.or.namip.eq.2)go to 6
 
 !     amipice for namip=1   N.B. used below to mask the SSTs
-4     read(76,'(i2,1x,i6,a22)') imonth,iyear,header
-      print *,'reading ice data:',imonth,iyear,header
-      print *,'with imo,iyr ',imo,iyr
-!     print *,'with imo,iyr,imo_p,iyr_p ',imo,iyr,imo_p,iyr_p
-      do j=1,jl
-       read(76,'(100i1)') (icemask(i),i=1,il)
-       do i=1,il
-	 iq=i+(j-1)*il
-        sice(iq)=.false.
-        sicedep(iq)=0.
-        fracice(iq)=0.  
-        if(.not.land(iq).and.icemask(i).eq.1)then
-          sice(iq)=.true.
-          sicedep(iq)=.5
-          fracice(iq)=1.  ! as used in amip1 runs
-	   ii=i
-	   jj=j
-	   iiq=iq
-        endif
-       enddo
-      enddo    
-      do iq=1,ifull
-       fracice(iq)=1.  ! as used in amip1 runs
-      enddo  
-      print *,'in amipsst; sice,sicedep,fracice: ',
-     .                     sice(idjd),sicedep(idjd),fracice(idjd)
-      print *,'in amipsst; ii,jj,sice,sicedep,fracice: ',ii,jj,
-     .                 sice(iiq),sicedep(iiq),fracice(iiq)
-      if(iyr.ne.iyear.or.imo.ne.imonth)go to 4
+      print*, "NAMIP=1 not implemented in MPI version"
+      stop
+!!!4     read(76,'(i2,1x,i6,a22)') imonth,iyear,header
+!!!      print *,'reading ice data:',imonth,iyear,header
+!!!      print *,'with imo,iyr ',imo,iyr
+!!!!     print *,'with imo,iyr,imo_p,iyr_p ',imo,iyr,imo_p,iyr_p
+!!!      do j=1,jl_g
+!!!         read(76,'(100i1)') (icemask(i),i=1,il_g)
+!!!         do i=1,il_g
+!!!            iq=i+(j-1)*il_g
+!!!            sice(iq)=.false.
+!!!            sicedep(iq)=0.
+!!!            fracice(iq)=0.  
+!!!            if(.not.land(iq).and.icemask(i).eq.1)then
+!!!               sice(iq)=.true.
+!!!               sicedep(iq)=.5
+!!!               fracice(iq)=1.   ! as used in amip1 runs
+!!!               ii=i
+!!!               jj=j
+!!!               iiq=iq
+!!!            endif
+!!!         enddo
+!!!      enddo    
+!!!      fracice(:)=1.            ! as used in amip1 runs
+!!!      print *,'in amipsst; sice,sicedep,fracice: ',
+!!!     .                     sice(idjd_g),sicedep(idjd_g),fracice(idjd_g)
+!!!      print *,'in amipsst; ii,jj,sice,sicedep,fracice: ',ii,jj,
+!!!     .                 sice(iiq),sicedep(iiq),fracice(iiq)
+!!!      if(iyr.ne.iyear.or.imo.ne.imonth)go to 4
+
+      end if ! myid==0
 
 !     Each day interpolate non-land sst's
-6     do iq=1,ifull  
+6     continue
+
+!     Could calculate these in each process but this makes the code simpler
+      call MPI_BCAST(rat1,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_BCAST(rat2,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_BCAST(update,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+      if ( update ) then
+         if ( myid == 0 ) then
+            call ccmpi_distribute(ssta, ssta_g)
+            call ccmpi_distribute(sstb, sstb_g)
+            call ccmpi_distribute(aice, aice_g)
+            call ccmpi_distribute(bice, bice_g)
+         else
+            call ccmpi_distribute(ssta)
+            call ccmpi_distribute(sstb)
+            call ccmpi_distribute(aice)
+            call ccmpi_distribute(bice)
+         end if
+      end if
+
+      do iq=1,ifull  
        if(.not.land(iq))then
          tgg(iq,1)=rat1*ssta(iq)+rat2*sstb(iq)  ! sea water temperature
 c        alb(iq)=.11       ! set in indata/radriv90
        endif      ! (.not.land(iq))
       enddo
-      print *,'rat1,rat2,land,ssta,sstb,tgg1: ',
-     .           rat1,rat2,land(idjd),ssta(idjd),sstb(idjd),tgg(idjd,1)
+      if ( mydiag ) print *,'rat1,rat2,land,ssta,sstb,tgg1: ',
+     %           rat1,rat2,land(idjd),ssta(idjd),sstb(idjd),tgg(idjd,1)
       fracice_in(:)=min(.01*(rat1*aice(:)+rat2*bice(:)),1.) ! convert from %
       do iq=1,ifull
         if(fracice_in(iq).le..02)fracice_in(iq)=0.
@@ -182,8 +209,8 @@ c        alb(iq)=.11       ! set in indata/radriv90
 	    endif  ! (fracice(iq).gt.0.)
          endif    ! (.not.land(iq))
         enddo
-        print *,'rat1,rat2,sice,aice,bice,fracice: ',
-     .          rat1,rat2,sice(idjd),aice(idjd),bice(idjd),fracice(idjd)
+        if (mydiag) print *,'rat1,rat2,sice,aice,bice,fracice: ',
+     &          rat1,rat2,sice(idjd),aice(idjd),bice(idjd),fracice(idjd)
         return
       endif       ! (ktau.eq.0)
       
@@ -201,7 +228,7 @@ c        alb(iq)=.11       ! set in indata/radriv90
          tss(iq)=tgg(iq,3)*fracice(iq)+tgg(iq,1)*(1.-fracice(iq))
        endif      ! (.not.land(iq))
       enddo
-      print *,'rat1,rat2,sice,aice,bice,fracice: ',
-     .        rat1,rat2,sice(idjd),aice(idjd),bice(idjd),fracice(idjd)
+      if (mydiag) print *,'rat1,rat2,sice,aice,bice,fracice: ',
+     &        rat1,rat2,sice(idjd),aice(idjd),bice(idjd),fracice(idjd)
       return
       end

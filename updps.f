@@ -2,6 +2,7 @@
 !     this one includes stuff moved from beginning of nonlin
 !     written so ee & omgfnl lines can be removed if not needed
 c     simplest nps=2 only
+      use cc_mpi
       include 'newmpar.h'
       include 'arrays.h'
       include 'indices.h'
@@ -13,6 +14,10 @@ c     simplest nps=2 only
       common/work3/d(ifull,kl),e(ifull,kl),ee(ifull,kl),dum2(ifull,2*kl)
       real omgf(ifull,kl)
       equivalence (omgf,dpsldt)
+
+      call bounds(psl)
+      call boundsuv(u,v)
+
       do k=1,kl
 *cdir nodep
        do iq=1,ifull

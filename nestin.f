@@ -1,4 +1,5 @@
       subroutine nestin                ! for globpea
+      use diag_m
       include 'newmpar.h'
 c     ik,jk,kk are array dimensions read in infile - not for globpea
 c     int2d code - not used for globpea
@@ -37,10 +38,10 @@ c     mtimer, mtimeb are in minutes
          pslb(iq)=psl(iq)
          tssb(iq)=tss(iq)
         enddo
-        tb(:,:)=t(:,:)
-        qb(:,:)=max(qg(:,:),qgmin)
-        ub(:,:)=u(:,:)
-        vb(:,:)=v(:,:)
+        tb(1:ifull,:)=t(1:ifull,:)
+        qb(1:ifull,:)=max(qg(1:ifull,:),qgmin)
+        ub(1:ifull,:)=u(1:ifull,:)
+        vb(1:ifull,:)=v(1:ifull,:)
         return
       endif       ! (mtimeb.eq.-1)
 
@@ -51,10 +52,10 @@ c     transfer mtimeb fields to mtimea
        psla(iq)=pslb(iq)
        tssa(iq)=tssb(iq)
       enddo
-      ta(:,:)=tb(:,:)
-      qa(:,:)=qb(:,:)
-      ua(:,:)=ub(:,:)
-      va(:,:)=vb(:,:)
+      ta(1:ifull,:)=tb(1:ifull,:)
+      qa(1:ifull,:)=qb(1:ifull,:)
+      ua(1:ifull,:)=ub(1:ifull,:)
+      va(1:ifull,:)=vb(1:ifull,:)
 
 c     read tb etc  - for globpea, straight into tb etc
       if(io_in.eq.1.or.io_in.eq.3)then
@@ -175,12 +176,12 @@ c       presently simplest to do whole pslb, tb (& qb) arrays
         call printa('zsb ',zsb       ,ktau,0  ,ia,ib,ja,jb,0.,.01)
         call printa('psl ',psl       ,ktau,0  ,ia,ib,ja,jb,0.,1.e2)
         call printa('pslb',pslb      ,ktau,0  ,ia,ib,ja,jb,0.,1.e2)
-        call printa('t   ',t(1,nlv),ktau,nlv,ia,ib,ja,jb,200.,1.)
-        call printa('tb  ',tb(1,nlv),ktau,nlv,ia,ib,ja,jb,200.,1.)
-        call printa('u   ',u(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('ub  ',ub(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('v   ',v(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('vb  ',vb(1,nlv),ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('t   ',t,ktau,nlv,ia,ib,ja,jb,200.,1.)
+        call printa('tb  ',tb,ktau,nlv,ia,ib,ja,jb,200.,1.)
+        call printa('u   ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('ub  ',ub,ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('v   ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('vb  ',vb,ktau,nlv,ia,ib,ja,jb,0.,1.)
         call printa('davt',davt,0,0,ia,ib,ja,jb,0.,10.)
         return
       endif   !  num.eq.0
