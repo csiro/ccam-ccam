@@ -25,7 +25,7 @@
      .      ,uc(ifull),vc(ifull),wc(ifull) 
      .      ,aa(ifull),bb(ifull),cc(ifull),dd(ifull),cc2(ifull)
      .      ,delcor(ifull),fxx(ifull),dum2(6*ifull)
-      common/work2c/x3d(ifull),y3d(ifull),z3d(ifull)   ! upglobal depts 
+      real x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
       common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
       common/nonlsav/tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl)
       real theta(kl)
@@ -67,8 +67,10 @@ c     ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
 
 !     call depts3d   ! this one has its own k loop; was nvad<0 option
 
+      if(ndept.eq.0) call depts(x3d,y3d,z3d)
+
       do k=1,kl  !   start of main k loop
-       if(ndept.eq.0)call depts(k)     ! this one without its own k loop
+       ! This option not implemented now
        if(ndept.eq.1)call depts1(k)    ! this one without its own k loop
 
        if(m.eq.7)then    ! i.e. m=7 coriolis treatment
@@ -227,20 +229,20 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
 !         y3d(iq)=y3d(iq)/dena
 !         z3d(iq)=z3d(iq)/dena
 !         cross product n1xn2 into vec1
-          vec1x=y3d(iq)*z(iq)-y(iq)*z3d(iq)
-          vec1y=z3d(iq)*x(iq)-z(iq)*x3d(iq)
-          vec1z=x3d(iq)*y(iq)-x(iq)*y3d(iq)
+          vec1x=y3d(iq,k)*z(iq)-y(iq)*z3d(iq,k)
+          vec1y=z3d(iq,k)*x(iq)-z(iq)*x3d(iq,k)
+          vec1z=x3d(iq,k)*y(iq)-x(iq)*y3d(iq,k)
           denb=vec1x**2+vec1y**2+vec1z**2
 !         N.B. rotation formula is singular for small denb,
 !         but the rotation is unnecessary in this case
           if(denb.gt.1.e-4)then
-            vecdot=x3d(iq)*x(iq)+y3d(iq)*y(iq)+z3d(iq)*z(iq)
-            vec2x=x3d(iq)*vecdot-x(iq)
-            vec2y=y3d(iq)*vecdot-y(iq)
-            vec2z=z3d(iq)*vecdot-z(iq)
-            vec3x=x3d(iq)-vecdot*x(iq)
-            vec3y=y3d(iq)-vecdot*y(iq)
-            vec3z=z3d(iq)-vecdot*z(iq)
+            vecdot=x3d(iq,k)*x(iq)+y3d(iq,k)*y(iq)+z3d(iq,k)*z(iq)
+            vec2x=x3d(iq,k)*vecdot-x(iq)
+            vec2y=y3d(iq,k)*vecdot-y(iq)
+            vec2z=z3d(iq,k)*vecdot-z(iq)
+            vec3x=x3d(iq,k)-vecdot*x(iq)
+            vec3y=y3d(iq,k)-vecdot*y(iq)
+            vec3z=z3d(iq,k)-vecdot*z(iq)
             vdot1=(vec1x*uc(iq) +vec1y*vc(iq) +vec1z*wc(iq))/denb
             vdot2=(vec2x*uc(iq) +vec2y*vc(iq) +vec2z*wc(iq))/denb
             uc(iq)=vdot1*vec1x + vdot2*vec3x
