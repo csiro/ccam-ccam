@@ -1,6 +1,7 @@
 c     co2.f bundles together co2sflux and other gases
 c                 as well as co2vmix  and other gases
       subroutine co2sflux
+      use cc_mpi, only : mydiag
       include 'newmpar.h'
       include 'aalat.h'     ! along
       include 'arrays.h'
@@ -118,7 +119,7 @@ c       trsrc(iq,2)   = pnfo2            ! check why ,2
 
       enddo ! iq=1,ifull
 
-      if(ntest.eq.1)then
+      if(ntest.eq.1.and.mydiag)then
        iq=idjd
        timel=timeg+along(iq)/15.        ! local time between 0 and 48 h
        print *,'ktau,iq,along,timeg,timel ',
