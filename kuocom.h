@@ -5,7 +5,7 @@
      .     cldl_sea,convfact,convpsav,convtime,
      .     detrain,detrainx,dsig2,dsig4,
      .     epsconv,fldown,rhcv,rhmois,rhsat,shaltime,
-     .     sigcb,sigcll,sigkscb,sigcll,sig_ct,sigkscb,sigksct,
+     .     sigcb,sigcll,sigkscb,sig_ct,sigksct,
      .     tied_con,tied_over,tied_rh
       real acon,bcon,rcm,rcrit_l,rcrit_s
       
