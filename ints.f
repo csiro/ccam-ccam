@@ -747,7 +747,7 @@ c     this one does bi-linear interpolation only
 c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
 c                    but for bi-linear only need 0:il+1 &  0:il+1
       call start_log(ints_begin)
-      call bounds(s)
+      call bounds(s,corner=.true.)
       do k=1,kl
          do n=1,npan
             do j=1,jpan
