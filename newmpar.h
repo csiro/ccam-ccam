@@ -1,6 +1,6 @@
 !     This version is for the MPI code. Variables with suffix _g
 !     are truly global, others refer to a processor's own region.
-      integer, parameter :: nproc = 2  ! Number of processors to use
+      integer, parameter :: nproc = 1  ! Number of processors to use
 
       integer, parameter :: kl=18  ! Vertical levels
       integer, parameter :: ms=6  ! Levels in surface scheme
@@ -39,8 +39,4 @@
 !     The first row has 8 possible corner points per panel and the 
 !     second has 16. In practice these are not all distinct so there could
 !     be some optimisation.
-!      integer, parameter :: iextra = 4*(il+jl)+24*npan
-!     For the double row version of boundsuv need perimeter of each face
-!     This can be optimised later 
-      integer, parameter :: iextra = max(4*(il+jl)+24*npan, npan*8*il)
-
+      integer, parameter :: iextra = 4*(il+jl)+24*npan
