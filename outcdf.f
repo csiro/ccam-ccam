@@ -13,7 +13,6 @@ c=======================================================================
       include 'parmhor.h'  ! mhint, m_bs, nt_adv, ndept
       include 'parmvert.h'
       include 'tracers.h'  ! ngas, nllp, ntrac, tr
-      include 'version.h'
       character rundate*10
       integer nmi, itype, ms_out
 
@@ -317,6 +316,7 @@ c     this routine creates attributes and writes output
       include 'soilv.h'   ! sfc,zse
       include 'tracers.h'
       include 'trcom2.h'
+      include 'version.h'
       include 'vvel.h'    ! sdot, dpsldt
 
       integer iarch, itype
