@@ -11,7 +11,7 @@
      .       ,ntest,ntr,nums
       real Aev,Asb,alfcon,alfq,alfs,alfqarr,alfsarr
      .    ,conrev,convmax,delq,dels,deltaq,delq_av,delt_av
-     .    ,detr,dprec,dqrx,dqsdt,es
+     .    ,den1,den2,den3,detr,dprec,dqrx,dqsdt,es
      .    ,factdav,factr,factuv,fldow,fldownn
      .    ,fluxq,fluxr,fluxb,flux_dsk,fluxup,fluxt
      .    ,frac,fraca,fracb,gam,hbase,heatlev,hs
@@ -539,21 +539,27 @@ c           dels(iq,k)=dels(iq,kb_sav(iq))/(1.-sigmh(kb_sav(iq)+1))
 !       want: new_hbas>=new_hs(k), i.e. in limiting case:
 !       [h+alfsarr*M*dels+alfqarr*M*hl*delq]_base 
 !                                          = [hs+M*dels+M*hlcp*dels*dqsdt]_k
-        fluxt(iq,k)=(sbase(iq)+hl*qbase(iq)-hs(iq,k))/
-     .              (dels(iq,k)*(1.+hlcp*dqsdt(iq,k))
-     .              -alfsarr(iq)*dels(iq,kb_sav(iq))
-     .              -alfqarr(iq)*hl*delq(iq,kb_sav(iq)) ) 
 
-c        if(k.gt.kb_sav(iq).and.k.le.kt_sav(iq).and.
-c     .     fluxt(iq,k).gt.0.)then
-c           convpsav(iq)=min(convpsav(iq),fluxt(iq,k))
-c        endif   ! (k.gt.kb_sav(iq).and.k.lt.kt_sav(iq).and.fluxt(iq,k).gt.0.)
 !       may occasionally get -ve fluxt, for supersaturated layers
         if(k.gt.kb_sav(iq).and.k.le.kt_sav(iq))then
+          fluxt(iq,k)=(sbase(iq)+hl*qbase(iq)-hs(iq,k))/
+     .                (dels(iq,k)*(1.+hlcp*dqsdt(iq,k))
+     .                -alfsarr(iq)*dels(iq,kb_sav(iq))
+     .                -alfqarr(iq)*hl*delq(iq,kb_sav(iq)) ) 
           convpsav(iq)=min(convpsav(iq),max(0.,fluxt(iq,k)))
         endif   ! (k.gt.kb_sav(iq).and.k.lt.kt_sav(iq))
-
        enddo    ! iq loop
+       if((ntest.ne.0.or.diag).and.mydiag)then
+        iq=idjd
+        if(k.gt.kb_sav(iq).and.k.le.kt_sav(iq))then
+	  den1=dels(iq,k)*(1.+hlcp*dqsdt(iq,k))
+	  den2=alfsarr(iq)*dels(iq,kb_sav(iq))
+	  den3=alfqarr(iq)*hl*delq(iq,kb_sav(iq))
+          fluxt(iq,k)=(sbase(iq)+hl*qbase(iq)-hs(iq,k))/
+     .                (den1-den2-den3) 
+          print *,'k,den1,den2,den3,fluxt(k) ',k,den1,den2,den3,fluxt(k)
+        endif   ! (k.gt.kb_sav(iq).and.k.lt.kt_sav(iq))
+       endif   ! ((ntest.ne.0.or.diag).and.mydiag)
       enddo     ! k loop      
 
       if(ntest.eq.2)then

@@ -6,7 +6,7 @@
 !      PE model on conformal-cubic grid
 !      N.B. on a Cray, set ncray=1 in depts.f, latltoij
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!      input files are :namelist (via standard input)
+!      input files are :namelist (via file called "input")
 !                       "nrun.dat"
 !      data input and output file names are specified in namelist 'datafile'
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -115,12 +115,12 @@
       integer, dimension(8) :: tvals1, tvals2
 
 !     Local variables
-      integer iaero, ier, igas,ii, ilx, io_nest, iq, irest, isoil, itr1,
-     &     itr2, jalbfix, jj, jlx, jtr1, jtr2, k,k2,  kk, kktau, 
+      integer iaero, ier, igas, ilx, io_nest, iq, irest, isoil, itr1,
+     &     itr2, jalbfix, jlx, jtr1, jtr2, k,k2,  kk, kktau, 
      &     kscreen, mexrest, mins_dt, mins_gmt, mspeca, mtimer_in,
      &     nalpha, newsnow, ng, nlx, nmaxprsav,
      &     nmi, nmidiab, npa, npb, npc, n3hr, 
-     &     nsnowout, nwrite, nwt0, nwtsav, 
+     &     nsnowout, nwrite, nwtsav, 
      &     mins_rad, mtimer_sav, nn, i, j, iqt
       integer, dimension(8) :: nper3hr
       real clhav, cllav, clmav, cltav, con, 
@@ -133,16 +133,16 @@
       real, dimension(9) :: temparray, gtemparray ! For global sums
       integer :: nproc_in, ierr
 
-      namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps
+      namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps,nperavg
      & ,ia,ib,ja,jb,iaero,khdif,khor,nhorjlm
      & ,kwt,m,mex,nbd,ndi,ndi2,nem,nhor,nlv
      & ,nmaxpr,nmi,nmidiab,nonl,nrot,nps,nqg,nrad,nsd,ntsea
-     & ,ntsur,nvad,nvadh,nvmix,nxmap,itr1,jtr1,itr2,jtr2,id,jd
+     & ,ntsur,ntvdr,nvad,nvadh,nvmix,nxmap,itr1,jtr1,itr2,jtr2,id,jd
      & ,restol,precon,kdate_s,ktime_s,newtop,idcld,mup
      & ,lgwd,ngwd,kscreen,rhsat,sigcb
      & ,nextout,hdifmax,jalbfix
      & ,nalpha,nqg_set
-     & ,nstag,nstagu,ntbar,nwt0,nwrite
+     & ,nstag,nstagu,ntbar,nwrite
      & ,irest,nrun,mstn,nstn,rel_lat,rel_long
      & ,nrungcm,nsib,slat,slon,iunp,zstn,name_stn,slat2,slon2,iunp2
      & ,mexrest,ndept,nritch,nritch_t,nt_adv
@@ -179,7 +179,7 @@
       data itr1/23/,jtr1/13/,itr2/25/,jtr2/11/
       data comment/' '/,comm/' '/,irest/1/,jalbfix/0/,nalpha/1/
       data mexrest/6/,mins_rad/120/
-      data nwt0/0/,nwrite/0/
+      data nwrite/0/
       data nsnowout/999999/
       include 'establ.h'
 
@@ -216,7 +216,8 @@
      &     print *,'Globpe model compiled for il,jl,kl = ',il_g,jl_g ,kl
       read (99, cardin)
       nperday =nint(24.*3600./dt)
-      if(nwt.eq.-99)nwt=nperday      ! set default nwt to 24 hours
+      if(nwt.eq.-99)nwt=nperday          ! set default nwt to 24 hours
+      if(nperavg.eq.-99)nperavg=nperday  ! set default nperavg to 24 hours
       if(nwrite.eq.0)nwrite=nperday  ! only used for outfile IEEE
       read (99, skyin)
 !     if(kountr.eq.-99)kountr=7200./dt  ! set default radiation to < ~2 hours
@@ -246,8 +247,8 @@
       write (6,'(i5,11i7)') nvad,nvadh
       if(nvad.eq.4.or.nvad.eq.-4)then
         print *,'Vertical advection options for TVD:'
-        print *,' nimp   nthub  ntvd'
-        write (6,'(i5,11i7)') nimp,nthub,ntvd
+        print *,' nimp   nthub  ntvd  ntvdr'
+        write (6,'(i5,11i7)') nimp,nthub,ntvd,ntvdr
       endif
       print *,'Horizontal mixing options:'
       print *,' khdif  khor   nhor   nhorps nhorjlm'
@@ -306,9 +307,9 @@
       print *,' namip nhstest nspecial'
       write (6,'(i5,7i7)') namip,nhstest,nspecial 
       print *,'I/O options:'
-      print *,' nfly  io_in io_nest io_out io_rest nwt'
+      print *,' nfly  io_in io_nest io_out io_rest nperavg nwt'
       write (6,'(i5,7i7)') 
-     &          nfly,io_in,io_nest,io_out,io_rest,nwt
+     &          nfly,io_in,io_nest,io_out,io_rest,nperavg,nwt
       if(ntrac.ne.0)then
         print *,'Trace gas options:'
         print *,' iradon  ico2  ngas   nllp   ntrac'
@@ -474,7 +475,7 @@ c     set up cc geometry
       if(kscreen.ne.0) then
 c       open(unit=95,file=tmaxfile,form='unformatted',status='unknown')
 c       open(unit=96,file=tminfile,form='unformatted',status='unknown')
-        open(unit=98,file=scrnfile,form='unformatted',status='unknown')
+c       open(unit=98,file=scrnfile,form='unformatted',status='unknown')
       end if
       end if ! myid == 0
 
@@ -528,40 +529,40 @@ c       open(unit=96,file=tminfile,form='unformatted',status='unknown')
       end if
       
 !     Zero/set the diagnostic arrays
-      rndmax=0.
-      tmaxscr=0.
-      tminscr=400.
+      rndmax(:)=0.
+      tmaxscr(:)=0.
+      tminscr(:)=400.
       u10max(:)=0.
       v10max(:)=0.
-      tscr_ave=0.
-      qscrn_ave=0.
-      epot_ave=0.
-      eg_ave=0.
-      fg_ave=0.
-      ga_ave=0.
-      riwp_ave=0.
-      rlwp_ave=0.
-      precc=0.
-      precip=0.
+      tscr_ave(:)=0.
+      qscrn_ave(:)=0.
+      epot_ave(:)=0.
+      eg_ave(:)=0.
+      fg_ave(:)=0.
+      ga_ave(:)=0.
+      riwp_ave(:)=0.
+      rlwp_ave(:)=0.
+      precc(:)=0.
+      precip(:)=0.
       rnd_3hr(:,8)=0. ! i.e. rnd24(:)=0.
-      cbas_ave=0.
-      ctop_ave=0.
+      cbas_ave(:)=0.
+      ctop_ave(:)=0.
       shalrk(:,:)=0.
-      sno=0.
-      runoff=0.
+      sno(:)=0.
+      runoff(:)=0.
       koundiag=0
-      sint_ave = 0.  ! solar_in_top
-      sot_ave  = 0.  ! solar_out_top
-      soc_ave  = 0.  ! solar_out_top (clear sky)
-      sgn_ave  = 0.  ! solar_ground (net) +ve down
-      rtu_ave  = 0.  ! LW_out_top 
-      rtc_ave  = 0.  ! LW_out_top (clear sky)
-      rgn_ave  = 0.  ! LW_ground (net)  +ve up
-      rgc_ave  = 0.  ! LW_ground (clear sky)
-      cld_ave  = 0.
-      cll_ave  = 0.
-      clm_ave  = 0.
-      clh_ave  = 0.
+      sint_ave(:) = 0.  ! solar_in_top
+      sot_ave(:)  = 0.  ! solar_out_top
+      soc_ave(:)  = 0.  ! solar_out_top (clear sky)
+      sgn_ave(:)  = 0.  ! solar_ground (net) +ve down
+      rtu_ave(:)  = 0.  ! LW_out_top 
+      rtc_ave(:)  = 0.  ! LW_out_top (clear sky)
+      rgn_ave(:)  = 0.  ! LW_ground (net)  +ve up
+      rgc_ave(:)  = 0.  ! LW_ground (clear sky)
+      cld_ave(:)  = 0.
+      cll_ave(:)  = 0.
+      clm_ave(:)  = 0.
+      clh_ave(:)  = 0.
 	 
       if(nmi.eq.0.and.nwt.gt.0)then
 !       write out the first restart data set 
@@ -1118,33 +1119,33 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
 	 if(n3hr.gt.8)n3hr=1
       endif    ! (mod(ktau,nperday).eq.nper3hr(n3hr))
 
-      if(ktau.eq.ntau.or.mod(ktau,nperday).eq.0)then
-        epot_ave=   epot_ave/min(ntau,nperday)
-        eg_ave=      eg_ave/min(ntau,nperday)
-        fg_ave=      fg_ave/min(ntau,nperday)
-        ga_ave=      ga_ave/min(ntau,nperday)
-        riwp_ave=  riwp_ave/min(ntau,nperday)
-        rlwp_ave=  rlwp_ave/min(ntau,nperday)
-        tscr_ave=  tscr_ave/min(ntau,nperday)
-        qscrn_ave=qscrn_ave/min(ntau,nperday)
-        shalrk(:,:)=shalrk(:,:)/min(ntau,nperday)
+      if(ktau.eq.ntau.or.mod(ktau,nperavg).eq.0)then
+        epot_ave(:)  =  epot_ave(:)/min(ntau,nperavg)
+        eg_ave(:)    =    eg_ave(:)/min(ntau,nperavg)
+        fg_ave(:)    =    fg_ave(:)/min(ntau,nperavg)
+        ga_ave(:)    =    ga_ave(:)/min(ntau,nperavg)
+        riwp_ave(:)  =  riwp_ave(:)/min(ntau,nperavg)
+        rlwp_ave(:)  =  rlwp_ave(:)/min(ntau,nperavg)
+        tscr_ave(:)  =  tscr_ave(:)/min(ntau,nperavg)
+        qscrn_ave(:) = qscrn_ave(:)/min(ntau,nperavg)
+        shalrk(:,:)  =  shalrk(:,:)/min(ntau,nperavg)
         if(myid==0)
-     &       print *,'ktau,koundiag,nperday =',ktau,koundiag,nperday
-        sint_ave = sint_ave/max(koundiag,1)
-        sot_ave  =  sot_ave/max(koundiag,1)
-        soc_ave  =  soc_ave/max(koundiag,1)
-        sgn_ave  =  sgn_ave/min(ntau,nperday)  ! because of solar fit
-        rtu_ave  =  rtu_ave/max(koundiag,1)
-        rtc_ave  =  rtc_ave/max(koundiag,1)
-        rgn_ave  =  rgn_ave/max(koundiag,1)
-        rgc_ave  =  rgc_ave/max(koundiag,1)
-        cld_ave  =  cld_ave/max(koundiag,1)
-        cll_ave  =  cll_ave/max(koundiag,1)
-        clm_ave  =  clm_ave/max(koundiag,1)
-        clh_ave  =  clh_ave/max(koundiag,1)
-        cbas_ave(:)=1.1-cbas_ave(:)/max(1.e-4,precc(:))  ! 1.1 for no precc
-        ctop_ave(:)=1.1-ctop_ave(:)/max(1.e-4,precc(:))  ! 1.1 for no precc
-      endif    ! (ktau.eq.ntau.or.mod(ktau,nperday).eq.0)
+     &       print *,'ktau,koundiag,nperavg =',ktau,koundiag,nperavg
+        sint_ave(:) = sint_ave(:)/max(koundiag,1)
+        sot_ave(:)  =  sot_ave(:)/max(koundiag,1)
+        soc_ave(:)  =  soc_ave(:)/max(koundiag,1)
+        sgn_ave(:)  =  sgn_ave(:)/min(ntau,nperday)  ! because of solar fit
+        rtu_ave(:)  =  rtu_ave(:)/max(koundiag,1)
+        rtc_ave(:)  =  rtc_ave(:)/max(koundiag,1)
+        rgn_ave(:)  =  rgn_ave(:)/max(koundiag,1)
+        rgc_ave(:)  =  rgc_ave(:)/max(koundiag,1)
+        cld_ave(:)  =  cld_ave(:)/max(koundiag,1)
+        cll_ave(:)  =  cll_ave(:)/max(koundiag,1)
+        clm_ave(:)  =  clm_ave(:)/max(koundiag,1)
+        clh_ave(:)  =  clh_ave(:)/max(koundiag,1)
+        cbas_ave(:) = 1.1-cbas_ave(:)/max(1.e-4,precc(:))  ! 1.1 for no precc
+        ctop_ave(:) = 1.1-ctop_ave(:)/max(1.e-4,precc(:))  ! 1.1 for no precc
+      endif    ! (ktau.eq.ntau.or.mod(ktau,nperavg).eq.0)
       
       if(ktau.eq.ntau.or.mod(ktau,nwt).eq.0)then
         call log_off()
@@ -1175,20 +1176,21 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
        call printa('prec',precip,ktau,0,ia,ib,ja,jb,0.,10.)
       endif
 
-      if(mod(ktau,nperday).eq.0)then   ! re-set at the end of each 24 hours
-         precavge=0.
+      if(mod(ktau,nperavg).eq.0)then   
+!       produce some diags & reset most averages once every nperavg      
+        precavge=0.
 	 eg_gave=0.
-         do iq=1,ifull
-           precavge=precavge+precip(iq)*wts(iq)
-           eg_gave=eg_gave+eg_ave(iq)*wts(iq)
-         enddo
+        do iq=1,ifull
+         precavge=precavge+precip(iq)*wts(iq)
+         eg_gave=eg_gave+eg_ave(iq)*wts(iq)
+        enddo
 	 eg_gave=eg_gave*86400./hl  ! in mm/day
-         pwatr=0.   ! in mm
-         do k=1,kl
-           do iq=1,ifull
-            qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
-            pwatr=pwatr-dsig(k)*wts(iq)*qtot*ps(iq)/grav
-           enddo
+        pwatr=0.   ! in mm
+        do k=1,kl
+         do iq=1,ifull
+          qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
+          pwatr=pwatr-dsig(k)*wts(iq)*qtot*ps(iq)/grav
+         enddo
         enddo
         temparray(1:3) = (/ precavge, eg_gave, pwatr /)
         call MPI_Reduce ( temparray, gtemparray, 3, MPI_REAL, MPI_MAX,0,
@@ -1200,6 +1202,37 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
            print 985,preccavge,precavge,pwatr,eg_gave
         end if
 985     format(' average precc,prec,pwatr,eg_gave: ',4f7.3)
+        if(mydiag) print *,'tmaxscr,tscrn,tscr_ave ',
+     .           tmaxscr(idjd),tscrn(idjd),tscr_ave(idjd)
+!       also zero most averaged fields every nperavg
+        cbas_ave(:)=0.
+        ctop_ave(:)=0.
+        epot_ave(:)=0.
+        eg_ave(:)=0.
+        fg_ave(:)=0.
+        riwp_ave(:)=0.
+        rlwp_ave(:)=0.
+        qscrn_ave(:) = 0.
+        tscr_ave(:) = 0.
+        shalrk(:,:)=0.
+        if(myid==0) print *,'resetting tscr_ave for ktau = ',ktau
+        koundiag=0
+        sint_ave(:) = 0.
+        sot_ave(:)  = 0.
+        soc_ave(:)  = 0.
+        sgn_ave(:)  = 0.
+        rtu_ave(:)  = 0.
+        rtc_ave(:)  = 0.
+        rgn_ave(:)  = 0.
+        rgc_ave(:)  = 0.
+        cld_ave(:)  = 0.
+        cll_ave(:)  = 0.
+        clm_ave(:)  = 0.
+        clh_ave(:)  = 0.
+        if(nllp.gt.0)call setllp ! tied in with nperavg at present
+      endif  ! (mod(ktau,nperavg).eq.0)
+
+      if(mod(ktau,nperday).eq.0)then   ! re-set at the end of each 24 hours
         if(ntau.lt.10*nperday.and.nstn.gt.0)then     ! print stn info
           do nn=1,nstn
            if ( .not. mystn(nn) ) cycle
@@ -1214,8 +1247,11 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
 956        format(i5,i3,a5,6f7.1)
           enddo
         endif  ! (ntau.lt.10*nperday)
-        if(mydiag) print *,'tmaxscr,tscrn,tscr_ave ',
-     .           tmaxscr(idjd),tscrn(idjd),tscr_ave(idjd)
+!       zero precip, precc, sno, runoff) fields each nperday 
+        precip(:)=0.  ! converted to mm/day in outcdf
+        precc(:)=0.   ! converted to mm/day in outcdf
+        sno(:)=0.     ! converted to mm/day in outcdf
+        runoff(:)=0.  ! converted to mm/day in outcdf
         rndmax (:) = 0.
         tmaxscr(:) = tscrn(:) 
         tminscr(:) = tscrn(:) 
@@ -1230,40 +1266,6 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
         endif ! (namip.gt.0)
       endif   ! (mod(ktau,nperday).eq.0)
 
-!     also zero the other averaged fields every nperday
-      if(mod(ktau,nperday).eq.0)then ! *** now also nperdayfor these ***
-!       re-set the diag arrays for the next time
-!       zero precip, precc, sno, runoff) fields each nwt 
-        precip=0.  ! converted to mm/day in outcdf
-        precc=0.   ! converted to mm/day in outcdf
-        sno=0.     ! converted to mm/day in outcdf
-        runoff=0.  ! converted to mm/day in outcdf
-        cbas_ave=0.
-        ctop_ave=0.
-        epot_ave=0.
-        eg_ave=0.
-        fg_ave=0.
-        riwp_ave=0.
-        rlwp_ave=0.
-        qscrn_ave = 0.
-        tscr_ave = 0.
-        shalrk(:,:)=0.
-        if(myid==0) print *,'resetting tscr_ave for ktau = ',ktau
-        koundiag=0
-        sint_ave = 0.
-        sot_ave  = 0.
-        soc_ave  = 0.
-        sgn_ave  = 0.
-        rtu_ave  = 0.
-        rtc_ave  = 0.
-        rgn_ave  = 0.
-        rgc_ave  = 0.
-        cld_ave  = 0.
-        cll_ave  = 0.
-        clm_ave  = 0.
-        clh_ave  = 0.
-        if(nllp.gt.0)call setllp ! tied in with nwt at present
-      endif  ! (mod(ktau,nperday).eq.0)
 #ifdef vampir
       ! Flush vampir trace information to disk to save memory.
       call vtflush(ierr)
@@ -1499,8 +1501,8 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
      & ,kdate_s/-1/ ,ktime_s/-1/ ,khdif/5/, nhorjlm/0/
      & ,nem/2/     ,newtop/1/  ,nextout/1/,nfly/2/                    
      & ,ngwd/0/     ,nhor/155/  ,nlv/2/                    
-     & ,nmaxpr/5/  ,nqg/5/,nrungcm/0/      
-     & ,ntsea/6/   ,nvad/4/    ,nvmix/4/   ,nwt/-99/       
+     & ,nmaxpr/5/,nperavg/-99/,nqg/5/,nrungcm/0/      
+     & ,ntsea/6/,ntvdr/0/,nvad/4/,nvmix/4/,nwt/-99/       
      &   ,vmodmin/2./
      &  ,idcld  /1/,lgwd/2/,nbd/0/,nsib/3/            
      &  ,nbox/1/,nvadh/1/       ! globpe only

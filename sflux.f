@@ -8,7 +8,7 @@
 !     parameter (lake=0)    ! 0 usual, 1 for specified lake points
 !                             - replaced by nspecial in parm.h
       parameter (ntest=0)   ! ntest= 0 for diags off; ntest= 1 for diags on
-      parameter (ntaft=2)   ! 0 for original,
+      parameter (ntaft=3)   ! 0 for original, 2 usual
 !                   1 & 2 tafthf constrained by prior values with 2 faster
 !                   3 uses measure of prior tgf in calc. fh
 !     parameter (newztsea=0)   ! 0 for original, 1 for correct zt over sea
@@ -155,6 +155,7 @@ c        endif  ! (nrungcm.eq.4)
 !                create values for tice, and set averaged tss
                  tgg(iq,3)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m level 1
                  fracice(iq)=.5    
+                 zo(iq)=.001   ! default for scrnout
                endif  ! (fracice(iq).eq.0.)
                tss(iq)=tgg(iq,3)*fracice(iq)+tgg(iq,1)*(1.-fracice(iq))
              endif   !  (tss(iq).gt.271.2) ... else ...
@@ -345,9 +346,8 @@ c        Now heat ; allow for smaller zo via aft and factch             ! sea
                                                                         ! sea
        conh=rho(iq)*aft(iq)*cp                                          ! sea
        conw=rho(iq)*aft(iq)*hl                                          ! sea
-	qgtot=qg(iq,1)+qfg(iq,1)+qlg(iq,1)
        fg(iq)=conh*fh(iq)*(tgg(iq,2)-theta(iq))                         ! sea
-       eg(iq)=conw*fh(iq)*(qsttg(iq)-qgtot)                             ! sea
+       eg(iq)=conw*fh(iq)*(qsttg(iq)-qg(iq,1))                          ! sea
        epot(iq) = eg(iq)                                                ! sea
 c      cduv is now drag coeff *vmod                                     ! sea
        cduv(iq) =af(iq)*fm                                              ! sea
@@ -376,7 +376,6 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! sea
 !      non-leads for sea ice points                                     ! sice
 !      N.B. tgg( ,3) holds tice                                         ! sice
        iq=iperm(ip)                                                     ! sice
-       qgtot=qg(iq,1)+qfg(iq,1)+qlg(iq,1)
        es = establ(tgg(iq,3))                                           ! sice
        constz=ps(iq)-es                                                 ! sice
        qsttg(iq)= .622*es/constz                                        ! sice
@@ -421,17 +420,17 @@ c        Now heat ; allow for smaller zo via aft and factch             ! sice
        endif                                                            ! sice
                                                                         ! sice
        if(nalpha.eq.1)then    ! beta scheme         sice here           ! sice
-         epotice=conw*fh(iq)*(qsttg(iq)-qgtot)                          ! sice
+         epotice=conw*fh(iq)*(qsttg(iq)-qg(iq,1))                       ! sice
          egice  =wetfac(iq)*epotice                                     ! sice
          degdt(iq)=wetfac(iq)*conw*fh(iq)*drst                          ! sice
        else                   ! alpha scheme                            ! sice
 c        following trick reduces -ve evap (dew) to 1/10th value         ! sice
-         qtgnet=qsttg(iq)*wetfac(iq) -qgtot                             ! sice
+         qtgnet=qsttg(iq)*wetfac(iq) -qg(iq,1)                          ! sice
          qtgair=qsttg(iq)*wetfac(iq)-max(qtgnet,.1*qtgnet)              ! sice
          eg2=-conw*fh(iq)*qtgair                                        ! sice
          eg1=conw*fh(iq)*qsttg(iq)                                      ! sice
          egice   =eg1*wetfac(iq) +eg2                                   ! sice
-         epotice    = conw*fh(iq)*(qsttg(iq)-qgtot)                     ! sice
+         epotice    = conw*fh(iq)*(qsttg(iq)-qg(iq,1))                  ! sice
          deg=wetfac(iq)*conw*fh(iq)*drst                                ! sice
 c        following reduces degdt by factor of 10 for dew                ! sice
          degdt(iq)=.55*deg+sign(.45*deg,qtgnet)                         ! sice
@@ -999,8 +998,7 @@ c     print *,'before nalpha'
          iq=iperm(ip)
          isoil = isoilm(iq)
          conw_fh=rho(iq)*taftfhg(iq)*hl    ! taftfhg(iq)=aftlandg*fhbg
-         qgtot=qg(iq,1)+qfg(iq,1)+qlg(iq,1)
-         epot(iq) = conw_fh*(qsttg(iq)-qgtot)
+         epot(iq) = conw_fh*(qsttg(iq)-qg(iq,1))
          egg(iq)=wetfac(iq)*epot(iq)
          degdt(iq)=wetfac(iq)*conw_fh*dqsttg(iq)
 !        degdw(iq)=conw_fh*(qsttg(iq)-qg(iq,1))/ssat(isoil)  ! not used in sib3
@@ -1012,15 +1010,14 @@ c     print *,'before nalpha'
          iq=iperm(ip)
          isoil = isoilm(iq)
          conw_fh=rho(iq)*taftfhg(iq)*hl    ! taftfhg(iq)=aftlandg*fhbg
-         qgtot=qg(iq,1)+qfg(iq,1)+qlg(iq,1)
-         qtgnet=  qsttg(iq)*wetfac(iq) -qgtot
+         qtgnet=  qsttg(iq)*wetfac(iq) -qg(iq,1)
          qtgair=  qsttg(iq)*wetfac(iq)-max(qtgnet,.1*qtgnet)
          eg2=   -conw_fh*qtgair
          eg1=    conw_fh*qsttg(iq)
 !        degdw(iq)=eg1/ssat(isoil)                         ! not used in sib3
 c        evaporation from the bare ground
          egg(iq)=eg1*wetfac(iq) +eg2
-         epot(iq) = conw_fh*(qsttg(iq)-qgtot)
+         epot(iq) = conw_fh*(qsttg(iq)-qg(iq,1))
          deg=wetfac(iq)*conw_fh*dqsttg(iq)
 c        following reduces degdt by factor of 10 for dew
          degdt(iq)=.55*deg+sign(.45*deg,qtgnet)
@@ -1032,15 +1029,14 @@ c        following reduces degdt by factor of 10 for dew
      .             epot(iq),egg(iq),tgg(iq,1),snowd(iq)
           isoil = isoilm(iq)
           conw_fh=rho(iq)*taftfhg(iq)*hl    ! taftfhg(iq)=aftlandg*fhbg
-          qgtot=qg(iq,1)+qfg(iq,1)+qlg(iq,1)
-          qtgnet=  qsttg(iq)*wetfac(iq) -qgtot
+          qtgnet=  qsttg(iq)*wetfac(iq) -qg(iq,1)
           qtgair=  qsttg(iq)*wetfac(iq)-max(qtgnet,.1*qtgnet)
           eg2=   -conw_fh*qtgair
           eg1=    conw_fh*qsttg(iq)
 !         degdw(iq)=eg1/ssat(isoil)                         ! not used in sib3
 c         evaporation from the bare ground
           egg(iq)=eg1*wetfac(iq) +eg2
-          epot(iq) = conw_fh*(qsttg(iq)-qgtot)
+          epot(iq) = conw_fh*(qsttg(iq)-qg(iq,1))
           egg_alph1=wetfac(iq)*epot(iq)
           print *,'then iq,isoil,conw_fh,qsttg,qtgair ',
      .             iq,isoil,conw_fh,qsttg(iq),qtgair
@@ -1164,7 +1160,7 @@ c                                            water interception by the canopy
 c           evapw =  Ewww(iq)*hl  ! not used
 c                                              sensible heat flux
             prz = rho(iq)*taftfh(iq)*cp
-            if(newfgf.eq.0)fgf(iq)=prz*(tgf(iq)-theta(iq))  ! original
+            if(newfgf.eq.0)fgf(iq)=prz*(tgf(iq)-theta(iq))  ! original/usual
             if(newfgf.eq.1)fgf(iq)=prz*(tgf(iq)-tscrn(iq))
             if(newfgf.eq.2)fgf(iq)=rho(iq)*aft(iq)*cp*
      .                                (tgf(iq)-tscrn(iq))
@@ -1232,15 +1228,13 @@ c       if(wbav.lt.0.5) f2=max(1.0 , 0.5/ max( wbav,1.e-7))
 c                     depth of the reservoir of water on the canopy
         rmcmax(iq) = max(0.5,srlai) * .1
         omc(iq) = rmc(iq)  ! value from previous timestep as starting guess
-        qgtot=qg(iq,1)+qfg(iq,1)+qlg(iq,1)
-        f3=max(1.-.00025*(establ(t(iq,1))-qgtot*ps(iq)/.622)
-     .                                                        ,.05)
+        f3=max(1.-.00025*(establ(t(iq,1))-qg(iq,1)*ps(iq)/.622),.05)
         res(iq)=max(30.,rsmin(iq)*f1*f2/(f3*f4))
         if(ntest.eq.1.and.iq.eq.idjd)then
           print *,'rlai,srlai,wbav,den ',rlai(iq),srlai,wbav,den
           print *,'f1,f2,f3,f4 ',f1,f2,f3,f4
           print *,'f,f124,rsi,res ',f,f1*f2/f4,rsi,res(iq)
-	  print *,'qg,qfg,qlg,qgtot ',qg(iq,1),qfg(iq,1),qlg(iq,1),qgtot
+	  print *,'qg,qfg,qlg ',qg(iq,1),qfg(iq,1),qlg(iq,1)
         endif
         otgf(iq)=tgf(iq)
         tgfnew(iq)=tgf(iq)
@@ -1260,8 +1254,7 @@ c                                            transpiration
          esatf = establ(tgfnew(iq))
          qsatgf=.622*esatf/(ps(iq)-esatf)
 c                                                  wet evaporation
-         qgtot=qg(iq,1)+qfg(iq,1)+qlg(iq,1)
-         Ewwwa = rho(iq) *(qsatgf-qgtot)/airr(iq)
+         Ewwwa = rho(iq) *(qsatgf-qg(iq,1))/airr(iq)
 !        if(qsatgf.ge.qg(iq,1)) then  ! no dew
 !          Ewww(iq)  = min(omc(iq)/dt , Ewww(iq)*omc(iq)/rmcmax(iq) )
 !        endif         ! qsatgf.ge.qg(iq,1)
@@ -1279,8 +1272,8 @@ c                                         water interception by the canopy
 !        beta =  min(rmc(iq)/rmcmax(iq),1.)   ! min not needed
          beta =      rmc(iq)/rmcmax(iq)
 !!       if( qsatgf .lt. qg(iq,1) ) beta = 1.   ! i.e. dew
-         Etr=rho(iq)*(qsatgf-qgtot)/(airr(iq) +res(iq))
-         Etr=rho(iq)*max(0.,qsatgf-qgtot)/(airr(iq) +res(iq))  ! jlm
+!        Etr=rho(iq)*(qsatgf-qg(iq,1))/(airr(iq) +res(iq))
+         Etr=rho(iq)*max(0.,qsatgf-qg(iq,1))/(airr(iq) +res(iq))  ! jlm
          betetrdt =(1.-beta)*Etr*dt*tsigmf(iq)   ! fixed 23/5/01
          evapfb1(iq)=min(betetrdt*froot(1),evapfb1a(iq))
          evapfb2(iq)=min(betetrdt*froot(2),evapfb2a(iq))
@@ -1322,7 +1315,7 @@ ca   &                       +beta/airr(iq) ) ! re-factored by jlm
          tgfnew(iq)=otgf(iq)+
      .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
 	 enddo  ! ip loop
-        if(ntest.eq.1.and.mydiag)then 
+         if((ntest.eq.1.or.diag).and.mydiag)then 
 	   iq=idjd
            print *,'icount,iq,omc,rmc ',icount,iq,omc(iq),rmc(iq)
            print *,'theta,tscrn,slwa ',
@@ -1365,7 +1358,7 @@ c          print *,'Ewwwa,Ewww,Etr ',Ewwwa,Ewww(iq),Etr
          wb(iq,4)=wb(iq,4)-evapfb4(iq)/(zse(4)*1000.)
          wb(iq,5)=wb(iq,5)-evapfb5(iq)/(zse(5)*1000.)
          condxpr(iq)=(1.-tsigmf(iq))*condx(iq)+ tsigmf(iq)*condxg(iq)
-         if(ntest.eq.1.and.abs(residf(iq)).gt.3.)
+         if(ntest.eq.1.and.abs(residf(iq)).gt.10.)
      .      print *,'iq,otgf(iq),tgf,delta_tx,residf '
      .              ,iq,otgf(iq),tgf(iq),delta_tx(iq),residf(iq)
        endif          ! tsigmf .le. .01   ... else ...

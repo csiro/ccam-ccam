@@ -327,6 +327,17 @@ C counter-gradient terms:
            enddo
 	  endif  !  (nlocal.eq.4)
 
+	  if(nlocal.eq.5)then
+!          suppress nonlocal scheme for column if cloudy layer in pbl   jlm
+!          restores pblh at the bottom to have it available in convjlm/vertmix
+           do k=1,kl/2
+            do iq=1,ifull
+	      if(zg(iq,k).lt.pblh(iq).and.cfrac(iq,k).gt.0.)
+     &         pblh(iq)=-pblh(iq)  
+            enddo
+           enddo
+	  endif  !  (nlocal.eq.5)
+
         do 1000 k=1,kmax-1
 	  if(nlocal.eq.2)then
 !          suppress nonlocal scheme if cloudy layers in pbl   jlm
@@ -335,13 +346,6 @@ C counter-gradient terms:
 	     if(zg(iq,k).lt.pblh(iq).and.cfrac(iq,k).gt.0.)pblh(iq)=0.
            enddo
 	  endif  !  (nlocal.eq.2)
-
-c	  if(nlocal.eq.4)then  ! turns out identical to nlocal=2
-c!          activate nonlocal scheme only below cloudy layers   jlm
-c           do iq=1,ifull
-c	     if(cfrac(iq,k).gt.0.)pblh(iq)=min(pblh(iq),zg(iq,k)-5.)
-c           enddo
-c	  endif  !  (nlocal.eq.4)
 
 C Find levels within boundary layer:
 C This is where Kh is at half model levels 
@@ -455,6 +459,11 @@ C    Original code rewritten by Rosinski 7/8/91 to vectorize in longitude.
 
 !     simpler alernative
        qg=max(qg,qgmin)   ! 3D guided by McCormick et al 1993
+
+      if(nlocal.eq.5)then
+!       restoring pblh to have it available in convjlm/vertmix jlm
+        pblh(:)=abs(pblh(:))
+      endif  !  (nlocal.eq.5)
 
       return
       end

@@ -367,8 +367,8 @@
           nits=1+sdmx_g/nvadh
           nvadh_pass=nvadh*nits
           if(mydiag.and.mod(ktau,nmaxpr).eq.0)
-     &      print *,'in upglobal sdmx,nits,nvadh_pass ',
-     &                           sdmx_g,nits,nvadh_pass
+     &      print *,'in adjust5 sdmx,nits,nvadh_pass ',
+     &                          sdmx_g,nits,nvadh_pass
           do its=1,nits
            ! For now use this form of call so that vadvtvd doesn't need to 
            ! be changed. With assumed shape arguments this wouldn't be necessary

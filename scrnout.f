@@ -87,10 +87,16 @@ c     calculate "surface" specific humidity
          else
            qsurf(iq) = .1*qsttg(iq)*wetfac(iq) + .9*qg(iq,1)
          endif
-        enddo   ! iq=1,ifull
+        enddo   ! iq loop
       endif   ! (nalpha.eq.1) then .. else ..
 
       if(ntest.ne.0.and.mydiag)print *,'scrnout zo ',zo(idjd)
+c     do iq=1,ifull
+c      if(zo(iq).ge.zscr.or.zo(iq).le.0.)then
+c        print *,'scrnout zscr,zo,land,iq ',zscr,zo(iq),land(iq),iq
+c        stop
+c      endif
+c     enddo
       do iq=1,ifull
        zlog(iq)=log(zo(iq))
        zscronzo(iq)=zscr/zo(iq)
@@ -101,15 +107,10 @@ c      afroot3(iq) = vkar/(log(3.)-zlog(iq))
 c      af3(iq) = afroot3(iq)*afroot3(iq)
        afroot10(iq) = vkar/(log(10.)-zlog(iq))
        af10(iq) = afroot10(iq)*afroot10(iq)
-      enddo   ! iq=1,ifull
-
-      if(ntest.eq.1.and.mydiag)print *,'scrnout zlog ',zlog(idjd)
-!cdir nodep
-      do ip=1,ipsice      ! just land and sice points
-       iq=iperm(ip)
        aft(iq)=vkar*afroot(iq)/(2. + log(zscr)-zlog(iq))
        aft10(iq)=vkar* afroot10(iq) /(2. + log(10.)-zlog(iq))
-      enddo
+      enddo   ! iq loop
+      if(ntest.eq.1.and.mydiag)print *,'scrnout zlog ',zlog(idjd)
 
 !cdir nodep
       do ip=ipland+1,ipsea      ! sice and sea points

@@ -44,11 +44,17 @@ c     common/work2/aa(ifull),dum2(ifull,17)
 
       tfact=1./nvadh_pass 
 
-      if(num.eq.0.and.myid==0)then
+      if(num.eq.0)then
         num=1
-        print *,'In vadvtvd nvad,nvadh_pass,nqq,npslx ',
-     .                      nvad,nvadh_pass,nqq,npslx
-        print *,'nimp,nthub,ntvd,tfact ',nimp,nthub,ntvd,tfact
+        if(ntvdr.eq.0)then  ! to produce old nvad=4 interps for fluxhi
+	   ratha(:)=.5
+	   rathb(:)=.5
+        endif
+        if(myid==0)then
+          print *,'In vadvtvd nvad,nvadh_pass,nqq,npslx,ntvdr ',
+     .                        nvad,nvadh_pass,nqq,npslx,ntvdr
+          print *,'nimp,nthub,ntvd,tfact ',nimp,nthub,ntvd,tfact
+        endif
       endif
 
 c     note sdot coming through is at level k-.5
@@ -79,10 +85,10 @@ c     t
         if(ntvd.eq.1)phi=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
         if(ntvd.eq.2)phi=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
         if(ntvd.eq.3)phi=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-        if(nthub.eq.1)fluxhi=.5*(tarr(iq,k)+tarr(iq,k+1))
+        if(nthub.eq.1)fluxhi=rathb(k)*tarr(iq,k)+ratha(k)*tarr(iq,k+1)
         if(nthub.eq.2)then     ! higher order scheme
-          fluxhi=.5*(tarr(iq,k)+tarr(iq,k+1)
-     .                  -delt(iq,k)*tfact*sdot(iq,k))
+          fluxhi=rathb(k)*tarr(iq,k)+ratha(k)*tarr(iq,k+1)
+     .                  -.5*delt(iq,k)*tfact*sdot(iq,k)
         endif  ! (nthub.eq.2)
         fluxlo=tarr(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phi*(fluxhi-fluxlo))
@@ -131,10 +137,10 @@ c     u
         if(ntvd.eq.1)phi=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
         if(ntvd.eq.2)phi=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
         if(ntvd.eq.3)phi=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-        if(nthub.eq.1)fluxhi=.5*(uarr(iq,k)+uarr(iq,k+1))
+        if(nthub.eq.1)fluxhi=rathb(k)*uarr(iq,k)+ratha(k)*uarr(iq,k+1)
         if(nthub.eq.2)then     ! higher order scheme
-          fluxhi=.5*(uarr(iq,k)+uarr(iq,k+1)
-     .                  -delt(iq,k)*tfact*sdot(iq,k))
+          fluxhi=rathb(k)*uarr(iq,k)+ratha(k)*uarr(iq,k+1)
+     .                  -.5*delt(iq,k)*tfact*sdot(iq,k)
         endif  ! (nthub.eq.2)
         fluxlo=uarr(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phi*(fluxhi-fluxlo))
@@ -167,10 +173,10 @@ c     v
         if(ntvd.eq.1)phi=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
         if(ntvd.eq.2)phi=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
         if(ntvd.eq.3)phi=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-        if(nthub.eq.1)fluxhi=.5*(varr(iq,k)+varr(iq,k+1))
+        if(nthub.eq.1)fluxhi=rathb(k)*varr(iq,k)+ratha(k)*varr(iq,k+1)
         if(nthub.eq.2)then     ! higher order scheme
-          fluxhi=.5*(varr(iq,k)+varr(iq,k+1)
-     .                  -delt(iq,k)*tfact*sdot(iq,k))
+          fluxhi=rathb(k)*varr(iq,k)+ratha(k)*varr(iq,k+1)
+     .                  -.5*delt(iq,k)*tfact*sdot(iq,k)
         endif  ! (nthub.eq.2)
         fluxlo=varr(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phi*(fluxhi-fluxlo))
@@ -203,10 +209,10 @@ c     v
         if(ntvd.eq.1)phi=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
         if(ntvd.eq.2)phi=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
         if(ntvd.eq.3)phi=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-        if(nthub.eq.1)fluxhi=.5*(pslx(iq,k)+pslx(iq,k+1))
+        if(nthub.eq.1)fluxhi=rathb(k)*pslx(iq,k)+ratha(k)*pslx(iq,k+1)
         if(nthub.eq.2)then     ! higher order scheme
-          fluxhi=.5*(pslx(iq,k)+pslx(iq,k+1)
-     .                  -delt(iq,k)*tfact*sdot(iq,k))
+          fluxhi=rathb(k)*pslx(iq,k)+ratha(k)*pslx(iq,k+1)
+     .                  -.5*delt(iq,k)*tfact*sdot(iq,k)
         endif  ! (nthub.eq.2)
         fluxlo=pslx(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phi*(fluxhi-fluxlo))
@@ -250,10 +256,10 @@ c     qg
         if(ntvd.eq.1)phi=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
         if(ntvd.eq.2)phi=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
         if(ntvd.eq.3)phi=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-        if(nthub.eq.1)fluxhi=.5*(qg(iq,k)+qg(iq,k+1))
+        if(nthub.eq.1)fluxhi=rathb(k)*qg(iq,k)+ratha(k)*qg(iq,k+1)
         if(nthub.eq.2)then     ! higher order scheme
-          fluxhi=.5*(qg(iq,k)+qg(iq,k+1)
-     .                  -delt(iq,k)*tfact*sdot(iq,k))
+          fluxhi=rathb(k)*qg(iq,k)+ratha(k)*qg(iq,k+1)
+     .                  -.5*delt(iq,k)*tfact*sdot(iq,k)
         endif  ! (nthub.eq.2)
         fluxlo=qg(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phi*(fluxhi-fluxlo))
@@ -315,10 +321,10 @@ c        enddo   ! iq loop
          if(ntvd.eq.1)phi=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
          if(ntvd.eq.2)phi=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
          if(ntvd.eq.3)phi=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-         if(nthub.eq.1)fluxhi=.5*(qlg(iq,k)+qlg(iq,k+1))
+         if(nthub.eq.1)fluxhi=rathb(k)*qlg(iq,k)+ratha(k)*qlg(iq,k+1)
          if(nthub.eq.2)then     ! higher order scheme
-           fluxhi=.5*(qlg(iq,k)+qlg(iq,k+1)
-     .                   -delt(iq,k)*tfact*sdot(iq,k))
+           fluxhi=rathb(k)*qlg(iq,k)+ratha(k)*qlg(iq,k+1)
+     .                   -.5*delt(iq,k)*tfact*sdot(iq,k)
          endif  ! (nthub.eq.2)
          fluxlo=qlg(iq,kx)
          fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phi*(fluxhi-fluxlo))
@@ -354,10 +360,10 @@ c        enddo   ! iq loop
          if(ntvd.eq.1)phi=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
          if(ntvd.eq.2)phi=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
          if(ntvd.eq.3)phi=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-         if(nthub.eq.1)fluxhi=.5*(qfg(iq,k)+qfg(iq,k+1))
+         if(nthub.eq.1)fluxhi=rathb(k)*qfg(iq,k)+ratha(k)*qfg(iq,k+1)
          if(nthub.eq.2)then     ! higher order scheme
-           fluxhi=.5*(qfg(iq,k)+qfg(iq,k+1)
-     .                   -delt(iq,k)*tfact*sdot(iq,k))
+           fluxhi=rathb(k)*qfg(iq,k)+ratha(k)*qfg(iq,k+1)
+     .                   -.5*delt(iq,k)*tfact*sdot(iq,k)
          endif  ! (nthub.eq.2)
          fluxlo=qfg(iq,kx)
          fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phi*(fluxhi-fluxlo))
@@ -397,10 +403,11 @@ c        enddo   ! iq loop
         if(ntvd.eq.1)phi=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
         if(ntvd.eq.2)phi=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
         if(ntvd.eq.3)phi=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-        if(nthub.eq.1)fluxhi=.5*(tr(iq,k,ntr)+tr(iq,k+1,ntr))
+        if(nthub.eq.1)fluxhi=rathb(k)*tr(iq,k,ntr)+
+     .                                    ratha(k)*tr(iq,k+1,ntr)
         if(nthub.eq.2)then     ! higher order scheme
-          fluxhi=.5*(tr(iq,k,ntr)+tr(iq,k+1,ntr)
-     .                  -delt(iq,k)*tfact*sdot(iq,k))
+          fluxhi=rathb(k)*tr(iq,k,ntr)+ratha(k)*tr(iq,k+1,ntr)
+     .                  -.5*delt(iq,k)*tfact*sdot(iq,k)
         endif  ! (nthub.eq.2)
         fluxlo=tr(iq,kx,ntr)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phi*(fluxhi-fluxlo))

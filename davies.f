@@ -143,7 +143,8 @@ c     input variables
        relaxt=nrelaxt
        factor=-mod(timer-.001,-relaxt)/relaxt
        coef=abs(factor*coef)
-       if(timer.lt.1..and.mydiag)print *,'timer,factor,coef ',timer,factor,coef
+       if(timer.lt.1..and.mydiag)print *,'timer,factor,coef ',
+     .                                    timer,factor,coef
       endif   !  (nrelaxt.lt.0)
       if(ntest.eq.1.and.mydiag)then
         print *,'in davies; nbox,nrelaxt,coef: ',nbox,nrelaxt,coef

@@ -63,7 +63,8 @@ C Global parameters
       include 'newmpar.h'
       include 'const_phys.h' !Input physical constants
       include 'cparams.h'    !Input cloud scheme parameters
-      include 'kuocom.h'     ! ldr
+      include 'kuocom.h'     !ktsav,ldr,nevapls
+      include 'morepbl.h'    !condx  
       include 'params.h'     !Input model grid dimensions (modified PARAMS.f for CCAM)
 
 C Argument list
@@ -266,6 +267,8 @@ c Set up the Rate constant for snow sublimation
           Bprpr=rvap*Tk/((Dva/pk)*es)
          curly=0.65*slopes(mg,k)**2+0.493*slopes(mg,k)!Factor in curly brackets
      &         *sqrt(slopes(mg,k)*vi2(mg,k+1)*rhoa(mg,k)/um)
+         if(nevapls.eq.-1)curly=0.
+         if(nevapls.eq.-2.and.condx(mg).gt.0..and.k.le.ktsav(mg))curly=0.
 
 c Define the rate constant for sublimation of snow, omitting factor rhoi
 

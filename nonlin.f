@@ -167,8 +167,8 @@
 	 nits=1+sdmx_g/nvadh
 	 nvadh_pass=nvadh*nits
 	 if(mydiag.and.mod(ktau,nmaxpr).eq.0)
-     &      print *,'in upglobal sdmx,nits,nvadh_pass ',
-     &                           sdmx_g,nits,nvadh_pass
+     &      print *,'in nonlin sdmx,nits,nvadh_pass ',
+     &                         sdmx_g,nits,nvadh_pass
          do its=1,nits
             call vadvtvd(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
      &                   nvadh_pass) 

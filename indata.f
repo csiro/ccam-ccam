@@ -14,7 +14,7 @@ c     indataj can read land-sea mask from topofile
 c             alat, along calc now done here; defaults in blockdtb
 c             sets hourst (gmt) from ktime
 c             precc, precip setup moved to bottom
-c     note: unformatted qg in g/kg
+c     note: unformatted qg in g/kg (i.e. for io_in=3)
       include 'newmpar.h'
       include 'aalat.h'
       include 'arrays.h'
@@ -63,7 +63,7 @@ c     watch out in retopo for work/zss
       common/work2/zss(ifull),psav(ifull),tsss(ifull),dum0(ifull),
      &  dumzs(ifull,3),aa(ifull),bb(ifull),dum2(ifull,9)
       real tbarr(kl),qgin(kl),zbub(kl)
-      character co2in*80,radonin*80,surfin*80,header*80,qgfile*20
+      character co2in*80,radonin*80,surfin*80,header*80
 
 !     for the held-suarez test
       real, parameter :: delty = 60. ! pole to equator variation in equal temperature
@@ -725,7 +725,7 @@ c     for the moment assume precip read in at end of 24 h period
       enddo   ! iq loop
       if ( myid == 0 ) print *,'zoland: ',zoland
 
-      if(nqg_set.lt.7)then  ! initialize sicedep from tss (i.e. not read in)
+      if(io_in.eq.3.and.nqg_set.lt.7)then  ! initialize sicedep from tss 
 !       n.b. this stuff & other nqg_set to be removed when always netcdf input
          if (myid==0) print *,
      &        'preset sice to .5 via tss, because nqg_set: ',nqg_set
@@ -736,16 +736,16 @@ c     for the moment assume precip read in at end of 24 h period
            sicedep(iq)=0.     
          endif
         enddo   ! iq loop
-      endif ! (nqg_set.lt.7)
+      endif ! (io_in.eq.3.and.nqg_set.lt.7)
 
       do iq=1,ifull
        sice(iq)=.false.
        if(land(iq))then   
          sicedep(iq)=0. 
-	  fracice(iq)=0.          
+	 fracice(iq)=0.          
        elseif(sicedep(iq).gt.0.)then             
          sice(iq)=.true.
-	  fracice(iq)=1.  ! present default without leads
+	 fracice(iq)=1.  ! present default without leads
          snowd(iq)=0.    ! no snow presently allowed on sea-ice
        endif
       enddo   ! iq loop
@@ -764,14 +764,13 @@ c     read data for biospheric scheme if required
 !     nrungcm<0 controls presets for snowd, wb, tgg and other soil variables
 !     they can be: preset/read_in_from_previous_run
 !                  written_out/not_written_out    after 24 h    as follows:
-!          nrungcm = -1     preset        | not written to separate file
-!                    -2     preset        |     written  & qg
-!                    -3     read_in       |     written  (usually preferred)
-!                    -4     read_in       | not written
-!                    -5     read_in & qg  |     written  & qg
-      if(nrungcm.eq.-1.or.nrungcm.eq.-2)then
+!          nrungcm = -1  preset           | not written to separate file
+!                    -2  preset           |     written  
+!                    -3  read_in          |     written  (usually preferred)
+!                    -4  read_in          | not written
+!                    -5  read_in (not wb) |     written  (should be good)
+      if(nrungcm.eq.-1.or.nrungcm.eq.-2.or.nrungcm.eq.-5)then  ! setting wb
 !       when no soil moisture available initially
-!       new code follows; july 2001 jlm
         iyr=kdate/10000
         imo=(kdate-10000*iyr)/100
         do iq=1,ifull
@@ -826,7 +825,7 @@ c     .                 (.6-.6*fracsum(imo))*sfc(isoilm(iq))
            print *,'fracs,fracwet,initial_wb: ',
      &              fracs,fracwet,wb(idjd,ms)
         end if
-      endif       !  ((nrungcm.eq.-1.or.nrungcm.eq.-2)
+      endif       !  ((nrungcm.eq.-1.or.nrungcm.eq.-2.or.nrungcm.eq.-5)
 
       if(nrungcm.le.-3)then
 !       for sequence of runs starting with values saved from last run
@@ -834,12 +833,10 @@ c     .                 (.6-.6*fracsum(imo))*sfc(isoilm(iq))
           co2in=co2_12      ! 'co2.12'
           radonin=radon_12  ! 'radon.12'
           surfin=surf_12    ! 'surf.12'
-          qgfile='qg_12'
         else
           co2in=co2_00      !  'co2.00'
           radonin=radon_00  ! 'radon.00'
           surfin=surf_00    ! 'surf.00'
-          qgfile='qg_00'
         endif
         if ( myid == 0 ) then
         print *,
@@ -849,9 +846,13 @@ c     .                 (.6-.6*fracsum(imo))*sfc(isoilm(iq))
         read(87,'(a80)') header
         print *,'header: ',header
         end if
-        call readglobvar(87, wb, fmt="*")
+	 if(nrungcm.eq.-5)then
+          call readglobvar(87, tgg, fmt="*")  ! this line as dummy read 
+	 else
+          call readglobvar(87, wb, fmt="*")
+	 endif
         call readglobvar(87, tgg, fmt="*")
-        call readglobvar(87, aa, fmt="*")           ! only use land values of tss
+        call readglobvar(87, aa, fmt="*")       ! only use land values of tss
         call readglobvar(87, snowd, fmt="*")
         call readglobvar(87, sicedep, fmt="*")
         if ( myid == 0 ) close(87)
@@ -899,15 +900,7 @@ c     .                 (.6-.6*fracsum(imo))*sfc(isoilm(iq))
          sice(iq)=.false.
          if(sicedep(iq).gt.0.)sice(iq)=.true.
          if(land(iq))tss(iq)=aa(iq)
-        enddo   ! iq loop
-	 if(nrungcm.eq.-5)then
-           if (myid==0) then
-             print *,'reading special qgfile file: ',qgfile
-             open (unit=87,file=qgfile,form='unformatted',status='old')
-           end if
-           call readglobvar(87, qg)
-           if ( myid==0 ) close(87)
-	 endif   ! (nrungcm.eq.-5)
+        enddo  ! iq loop
       endif    !  (nrungcm.le.-3)
 
       if(nrungcm.ne.0)then  ! not for restart 
