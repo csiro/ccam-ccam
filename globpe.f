@@ -128,11 +128,11 @@
       integer, dimension(8) :: nper3hr
       real clhav, cllav, clmav, cltav, con, 
      &     div_int, dsx, dtds, es, gke, hourst, hrs_dt,
-     &     precavge, preccavge, psavge,
+     &     evapavge, precavge, preccavge, psavge,
      &     pslavge, pwater, rel_lat, rel_long, rlwup, spavge,
      &     coslong, sinlong, coslat, sinlat, polenx, poleny, polenz,
      &     zonx, zony, zonz, den, costh, sinth, uzon, vmer, rh1, rh2,
-     &     ico2x, iradonx, wbav, pwatr, pwatr_l, qtot, eg_gave
+     &     ico2x, iradonx, wbav, pwatr, pwatr_l, qtot
       real, dimension(9) :: temparray, gtemparray ! For global sums
       integer :: nproc_in, ierr
 
@@ -142,7 +142,7 @@
      & ,nmaxpr,nmi,nmidiab,nonl,nrot,nps,nqg,nrad,nsd,ntsea
      & ,ntsur,ntvdr,nvad,nvadh,nvmix,nxmap,itr1,jtr1,itr2,jtr2,id,jd
      & ,restol,precon,kdate_s,ktime_s,leap,newtop,idcld,mup
-     & ,lgwd,ngwd,kscreen,rhsat,sigcb
+     & ,lgwd,ngwd,kscreen,rhsat
      & ,nextout,hdifmax,jalbfix
      & ,nalpha,nqg_set
      & ,nstag,nstagu,ntbar,nuvfilt,nwrite
@@ -545,6 +545,7 @@ c     set up cc geometry
       ga_ave(:)=0.
       riwp_ave(:)=0.
       rlwp_ave(:)=0.
+      evap(:)=0.
       precc(:)=0.
       precip(:)=0.
       rnd_3hr(:,8)=0. ! i.e. rnd24(:)=0.
@@ -1064,9 +1065,9 @@ c         enddo
           write (6,"('rgg,rdg,sgflux,div_int,ps,qgscrn',5f8.2,f8.3)")
      .       rgg(idjd),rdg(idjd),sgflux(idjd),
      .       div_int,.01*ps(idjd),1000.*qgscrn(idjd)
-          write (6,"('zo,cduv,wetfac,sno,precc,precip',2f8.5,4f8.2)")
-     &       zo(idjd),cduv(idjd)/vmod(idjd),wetfac(idjd),
-     &       sno(idjd),precc(idjd),precip(idjd)
+          write (6,"('zo,cduv,wetfac,sno,evap,precc,precip',
+     &       2f8.5,5f8.2)") zo(idjd),cduv(idjd)/vmod(idjd),wetfac(idjd),
+     &       sno(idjd),evap(idjd),precc(idjd),precip(idjd)
           write (6,"('dew_,eg_,epot,eg,fg,ga,gflux',9f8.2)") 
      &       dew_ave(idjd),eg_ave(idjd),epot(idjd),eg(idjd),fg(idjd),
      &       ga(idjd),gflux(idjd)
@@ -1325,12 +1326,11 @@ c         enddo
       if(mod(ktau,nperavg)==0)then   
 !       produce some diags & reset most averages once every nperavg      
         precavge=0.
-	 eg_gave=0.
+	 evapavge=0.
         do iq=1,ifull
          precavge=precavge+precip(iq)*wts(iq)
-         eg_gave=eg_gave+eg_ave(iq)*wts(iq)
+         evapavge=evapavge+evap(iq)*wts(iq)   ! in mm/day
         enddo
-	 eg_gave=eg_gave*86400./hl  ! in mm/day
         pwatr=0.   ! in mm
         do k=1,kl
          do iq=1,ifull
@@ -1338,16 +1338,16 @@ c         enddo
           pwatr=pwatr-dsig(k)*wts(iq)*qtot*ps(iq)/grav
          enddo
         enddo
-        temparray(1:3) = (/ precavge, eg_gave, pwatr /)
+        temparray(1:3) = (/ precavge, evapavge, pwatr /)
         call MPI_Reduce ( temparray, gtemparray, 3, MPI_REAL, MPI_MAX,0,
      &                  MPI_COMM_WORLD, ierr )
         if ( myid == 0 ) then
            precavge = gtemparray(1)
-           eg_gave  = gtemparray(2)
+           evapavge  = gtemparray(2)
            pwatr    = gtemparray(3)
-           print 985,preccavge,precavge,pwatr,eg_gave
+           print 985,pwatr,preccavge,precavge,evapavge
         end if
-985     format(' average precc,prec,pwatr,eg_gave: ',4f7.3)
+985     format(' average pwatr,precc,prec,evap: ',4f7.3)
         if(mydiag) print *,'tmaxscr,tscrn,tscr_ave ',
      .           tmaxscr(idjd),tscrn(idjd),tscr_ave(idjd)
 !       also zero most averaged fields every nperavg
@@ -1378,6 +1378,12 @@ c         enddo
         cll_ave(:)  = 0.
         clm_ave(:)  = 0.
         clh_ave(:)  = 0.
+!       zero evap, precip, precc, sno, runoff fields each nperavg (3/12/04) 
+        evap(:)=0.  
+        precip(:)=0.  ! converted to mm/day in outcdf
+        precc(:)=0.   ! converted to mm/day in outcdf
+        sno(:)=0.     ! converted to mm/day in outcdf
+        runoff(:)=0.  ! converted to mm/day in outcdf
         if(nllp>0)call setllp ! tied in with nperavg at present
       endif  ! (mod(ktau,nperavg)==0)
 
@@ -1396,11 +1402,6 @@ c         enddo
 956        format(i5,i3,a5,6f7.1)
           enddo
         endif  ! (ntau<10*nperday)
-!       zero precip, precc, sno, runoff) fields each nperday 
-        precip(:)=0.  ! converted to mm/day in outcdf
-        precc(:)=0.   ! converted to mm/day in outcdf
-        sno(:)=0.     ! converted to mm/day in outcdf
-        runoff(:)=0.  ! converted to mm/day in outcdf
         rndmax (:) = 0.
         tmaxscr(:) = tscrn(:) 
         tminscr(:) = tscrn(:) 
@@ -1646,24 +1647,24 @@ c         enddo
       common/radnml/nnrad,idcld   ! darlam, clddia
 
 !     for cardin
-      data ja/1/,jb/jl/,id/1/,jd/1/,ndi/1/,ndi2/0/                     
+      data ia/1/,ib/3/,id/2/,ja/1/,jb/10/,jd/5/,ndi/1/,ndi2/0/                     
      & ,io_clim/1/ ,io_in/1/   ,io_out/1/  ,io_rest/1/ ,io_spec/0/    
      & ,kdate_s/-1/ ,ktime_s/-1/ ,leap/0/,khdif/5/, nhorjlm/1/
-     & ,nem/2/     ,newtop/1/  ,nextout/1/,nfly/2/                    
-     & ,ngwd/0/,nhor/155/  ,nlv/2/                    
-     & ,nmaxpr/5/,nperavg/-99/,nqg/5/,nrungcm/0/      
-     & ,ntsea/6/,ntvdr/1/,nvad/4/,nvmix/4/,nwt/-99/       
+     & ,nem/2/     ,newtop/1/  ,nextout/3/,nfly/2/                    
+     & ,ngwd/-5/,nhor/0/  ,nlv/2/          ! prev. had nhor/155/            
+     & ,nmaxpr/5/,nperavg/-99/,nqg/12/,nrungcm/-1/      
+     & ,ntsea/6/,ntvdr/1/,nvad/4/,nvadh/2/,nvmix/4/,nwt/-99/       
      &   ,vmodmin/2./
      &  ,idcld  /1/,lgwd/0/,nbd/0/,newrough/0/,nsib/3/            
-     &  ,nbox/1/,nvadh/1/       ! globpe only
-     &  ,kbotdav/1/,nlocal/1/
-     &  ,nud_p/1/,nud_q/0/,nud_t/1/,nud_uv/1/,nud_hrs/-24/,
+     &  ,nbox/1/       
+     &  ,kbotdav/4/,nlocal/5/
+     &  ,nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/-24/,
      &  localhist/.false./
       data namip/0/,nhstest/0/,nspecial/0/
       data schmidt/1./,rlong0/0./,rlat0/90./,ndiur/1/
      & ,newsoilm/0/,nglacier/1/,nhorps /1/,newztsea/1/                   
      & ,nrun/0 /,ntsur/5/,nt_adv/0/,ndept/1/
-     & ,av_vmod/1./,charnock/.018/,chn10/.00136733/,tss_sh/0./
+     & ,av_vmod/.7/,charnock/.018/,chn10/.00125/,tss_sh/0./
      & ,qgmin/1.e-6/                           ! 3.e-6 was too cloudy at poles    
 
       data khor/0/,kwt/kl/,mstn/0/,nps/2/,npsav /1/       
@@ -1673,8 +1674,8 @@ c         enddo
 !     some variables in parmdyn.h      
       data epsp/.1/,epsu/.1/,epsf/0./,m/6/,mex/4/,mfix/1/,mfix_qg/1/,
      &     mup/1/,nh/0/,nonl/0/,npex/1/,nritch/407/,nritch_t/300/,
-     &     nrot/1/,nstag/-3/,nstagu/-3/,nuvfilt/0/,ntbar/-1/,
-     &     nvsplit/2/,nxmap/0/,restol/1.e-6/, ! changed from 5.e-6 on 25/7/03
+     &     nrot/1/,nstag/3/,nstagu/3/,nuvfilt/0/,ntbar/0/,
+     &     nvsplit/3/,nxmap/0/,restol/1.e-6/, ! changed from 5.e-6 on 25/7/03
      &     precon/0/
 
       data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/,
@@ -1682,20 +1683,20 @@ c         enddo
       data slat2/nstn2*-89./,slon2/nstn2*0./,iunp2/nstn2*6/             
 
 !     following for sib3
-      data nbarewet/2/,nsigmf/1/
+      data nbarewet/7/,nsigmf/1/
 
 !     variables in kuonml used in kuocom
       data alflnd/1.15/,alfsea/1.05/
       data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
       data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
       data convfact/1.02/,convtime/.3/,shaltime/0./
-      data detrain/.05/,detrainx/1./,dsig2/.1/,dsig4/.55/,entrain/0./
+      data detrain/.4/,detrainx/0./,dsig2/.15/,dsig4/.4/,entrain/.3/
       data epsconv/0./,fldown/.6/,iterconv/2/
-      data ksc/0/,kscsea/0/,kscmom/0/,ldr/1/ 
+      data ksc/0/,kscsea/0/,kscmom/1/,ldr/2/ 
       data mbase/0/,methdetr/2/,methprec/8/
       data nclddia/5/,ncvcloud/0/,ncvmix/0/,ndavconv/0/
-      data nevapcc/0/,nevapls/5/
-      data nkuo/23/,nrad/4/,nrhcrit/10/,nstab_cld/0/,nuvconv/0/
+      data nevapcc/0/,nevapls/-4/
+      data nkuo/23/,nrad/4/,nrhcrit/10/,nstab_cld/0/,nuvconv/5/
       data rhcv/0./,rhmois/.1/,rhsat/1./
       data sigcb/1./,sigcll/.95/,sig_ct/.8/,sigkscb/.98/,sigksct/.75/
       data tied_con/6./,tied_over/2./,tied_rh/.75/

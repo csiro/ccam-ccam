@@ -126,11 +126,10 @@ c    .                         kp,kx,fluxlo,fluxhi,fluxh(iq,k)
         xin(:,:)=uarr(1:ifull,:)
       endif      ! (ntvdr.eq.2)
       if( (diag.or.nmaxpr.eq.1) .and. mydiag )then
-!        These diagnostics don't work with single input/output argument
-!        write (6,"('tin ',9f8.2/4x,9f8.2)") (tin(idjd,k),k=1,kl)
-!        write (6,"('tadd',9f8.2/4x,9f8.2)") 
-!     .        (tfact*(tin(idjd,k)*(sdot(idjd,k+1)-sdot(idjd,k))),k=1,kl)
+!       These diagnostics don't work with single input/output argument
         write (6,"('tout',9f8.2/4x,9f8.2)") (tarr(idjd,k),k=1,kl)
+        write (6,"('t#  ',9f8.2)") 
+     .           ((tarr(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
       endif
 
 c     u
@@ -177,6 +176,11 @@ c     u
         enddo
         xin(:,:)=varr(1:ifull,:)
       endif      ! (ntvdr.eq.2)
+      if( diag .and. mydiag )then
+        write (6,"('uout',9f8.2/4x,9f8.2)") (uarr(idjd,k),k=1,kl)
+        write (6,"('u#  ',9f8.2)") 
+     .           ((uarr(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+      endif
 
 c     v
       do k=1,kl-1
@@ -222,6 +226,11 @@ c     v
         enddo
         xin(:,:)=qg(1:ifull,:)
       endif      ! (ntvdr.eq.2)
+      if( diag .and. mydiag )then
+        write (6,"('vout',9f8.2/4x,9f8.2)") (varr(idjd,k),k=1,kl)
+        write (6,"('v#  ',9f8.2)") 
+     .           ((varr(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+      endif
 
       if(npslx.eq.1.and.nvad.le.-4)then  ! handles -9 too
       do k=1,kl-1
@@ -340,6 +349,11 @@ c        enddo   ! iq loop
         enddo
         xin(:,:)=qlg(1:ifull,:)
       endif      ! (ntvdr.eq.2)
+      if( diag .and. mydiag )then
+        write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
+        write (6,"('qg# ',9f8.2)") 
+     .           ((1000.*qg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+      endif
 
       if(ldr.ne.0)then
        do k=1,kl-1       ! qlg first
@@ -390,6 +404,11 @@ c        enddo   ! iq loop
          enddo
          xin(:,:)=qfg(1:ifull,:)
        endif      ! (ntvdr.eq.2)
+       if( diag .and. mydiag )then
+        write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
+        write (6,"('qlg#',9f8.2)") 
+     .           ((1000.*qlg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+       endif
        do k=1,kl-1       ! qfg next
         do iq=1,ifull
           delt(iq,k)=qfg(iq,k+1)-qfg(iq,k)
@@ -437,6 +456,11 @@ c        enddo   ! iq loop
           if(sdot(iq,kl).lt.0.)qfg(iq,kl)=xin(iq,kl)
          enddo
        endif      ! (ntvdr.eq.2)
+       if( diag .and. mydiag )then
+        write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
+        write (6,"('qfg#',9f8.2)") 
+     .           ((1000.*qfg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+       endif
       endif      ! if(ldr.ne.0)
 
       if(ilt.gt.1)then

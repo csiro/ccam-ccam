@@ -170,7 +170,7 @@
 
 !     read in fresh zs, land-sea mask (land where +ve), variances
 !     Need to share iostat around here to do it properly?
-      if(io_in<=4)then
+      if(io_in<=4.and.nhstest>=0)then
          if (myid==0) then
             print *,'before read zs from topofile'
             ! read(66,*,end=58)(zs(iq),iq=1,ifull) ! formatted zs
@@ -200,7 +200,6 @@
            endif    ! (rlatt(iq)*180./pi  ....)
           enddo
          endif       ! (nspecial==2)
-
          do iq=1,ifull
             if(dumzs(iq,2)>=0.5)then
                land(iq)=.true. 
@@ -222,7 +221,7 @@
          go to 59
  58      print *,'end-of-file reached on topofile'
  59      close(66)
-      endif   ! (io_in<=4)
+      endif   ! (io_in<=4.and.nhstest>=0)
 
       if ( mydiag ) then
          write(6,"('zs#_topof ',9f7.1)") diagvals(zs)
@@ -230,13 +229,6 @@
          write(6,"('he#_topof ',9f7.1)") diagvals(he)
 !     &            ((he(ii+jj*il),ii=idjd-1,idjd+1),jj=1,-1,-1)
       end if
-
-      if(nhstest<0)then ! aquaplanet test -1 to -8 or -22, or pgb from June 2003
-        do iq=1,ifull
-         zs(iq)=0.
-         land(iq)=.false.
-        enddo   ! iq loop
-      endif  !  (nhstest<0)
 
       hourst = 0. ! Some io_in options don't set it.
       if(io_in<4)then
@@ -258,9 +250,9 @@
             if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)stop
      &       'stopping in indata, not finding correct kdate/ktime'
             if(newtop>=0)then  ! no check if just plotting zs
-            if(abs(rlong0  -rlong0x)>.01.or.
-     &         abs(rlat0    -rlat0x)>.01.or.
-     &       abs(schmidt-schmidtx)>.01)stop "grid mismatch in indata"
+              if(abs(rlong0  -rlong0x)>.01.or.
+     &           abs(rlat0    -rlat0x)>.01.or.
+     &         abs(schmidt-schmidtx)>.01)stop "grid mismatch in indata"
             endif  ! (newtop>=0)
          endif                  ! (io_in==1.or.io_in==3)
 
@@ -297,7 +289,7 @@
          end if
 
          if (mydiag) print *,'t into indata ',t(idjd,:)
-!         if(kk<kl)then
+!        if(kk<kl)then
          if(abs(sig(2)-sigin(2))>0.0001)then   ! 11/03
             if (mydiag) then
                print *,
@@ -316,6 +308,13 @@
             print *,'newtop, zsold, zs,tss_in,land '
      &              ,newtop,zss(idjd),zs(idjd),tss(idjd),land(idjd)
          end if
+
+         if(nhstest<0)then  ! aquaplanet test -1 to -8 or -22
+           zs(:)=0.         ! or pgb from June 2003
+           he(:)=0.         
+           land(:)=.false.
+         endif  !  (nhstest<0)
+	  
          if(newtop>=1)then    ! don't need to do retopo during restart
             do iq=1,ifull
                if(land(iq))then
@@ -323,12 +322,12 @@
                   do k=1,ms
                      tgg(iq,k)=tgg(iq,k)+(zss(iq)-zs(iq))*stdlapse/grav
                   enddo
-               endif
-            enddo               ! iq loop
+               endif     ! (land(iq))
+            enddo        ! iq loop
             if ( mydiag ) then
                print *,'newtop>=1 new_land_tss,zsold,zs: ',
      &                    tss(idjd),zss(idjd),zs(idjd)
-!         compensate psl, t(,,1), qg as read in from infile
+!              compensate psl, t(,,1), qg as read in from infile
                write(6,"('zs#  in     ',9f7.1)") diagvals(zs)
 !     &              ((zs(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
                write(6,"('zss# in     ',9f7.1)") diagvals(zss)
@@ -336,12 +335,12 @@
                write(6,"('100*psl#  in',9f7.2)") 100.*diagvals(psl)
 !     &          ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
                print *,'now call retopo from indata'
-            end if
+            end if ! ( mydiag )
             call retopo(psl,zss,zs,t(1:ifull,:),qg(1:ifull,:))
             if(nmaxpr==1.and.mydiag)then
                write(6,"('100*psl# out',9f7.2)") 100.*diagvals(psl)
 !     &          ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
-          endif
+            endif
         endif   ! (newtop>=1)
 
 !       ensure qg etc big enough, but not too big in top levels (from Sept '04)
@@ -1004,7 +1003,6 @@
       endif
 
       if(nhstest<0)then  ! aquaplanet test
-        kdate=19790321
         zs(:)=0.
         land(:)=.false.
         sice(:)=.false.
@@ -1040,12 +1038,15 @@
 	  tgg(:,k)=tss(:)
 	  wb(:,k)=0.
 	 enddo
-	 do k=1,kl
-c        qg(:,k)=.01*sig(k)**3  ! Nov 2004
-         do iq=1,ifull
-          qg(iq,k)=.01*(1.-abs(rlatt(iq))*2./pi)**3*sig(k)**3  ! Nov 2004
-	  enddo
-        enddo
+	 if(io_in>4)then    ! not reading initial input file
+          kdate=19790321
+	   do k=1,kl
+c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
+           do iq=1,ifull
+            qg(iq,k)=.01*(1.-abs(rlatt(iq))*2./pi)**3*sig(k)**3  ! Nov 2004
+	    enddo
+          enddo
+	 endif  ! (io_in>4)
         if(nhstest==-11.or.nhstest==-12)then  ! pgb test,. npgb=-1 or -2
 	   ix=il/2
 	   jx=1.19*il
@@ -1508,6 +1509,7 @@ c        qg(:,k)=.01*sig(k)**3  ! Nov 2004
          epst(iq)=min(epsmax*zsdiff/(600.*grav),epsmax) ! sliding 0. to epsmax
         enddo
       endif
+      if(epsp>1..and.epsp<2.)epst(:)=epsp-1.
 
       print *,'at centre of the panels:'
       do n=1,npan

@@ -3,17 +3,12 @@
 !     also now includes nstag=nstagu=4 & 5
 !     staguv    may be called from adjust5, upglobal
 !     unstaguv  may be called from adjust5,  nonlin
-c     nstag now in parm.h  ! for nstag=0   staguv uses cubic interpolation
-c                          ! for nstag=1   staguv goes via cartesian components
-c                          ! for nstag=2   staguv linear with em terms
-c                          ! for nstag=3-5 staguv: jlm reversible 2/1/98
-c                          ! for nstag=7   staguv: jlm reversible Akima
-c                          ! for nstag=10  staguv: jlm rev_stag
-c                          !    only -3 used nowadays
+c     nstag now in parm.h  ! for nstag=3-5 staguv: jlm reversible 
+c                          ! -ve switches every abs(nstag) time steps
 c     nstagu now in parm.h ! same but for unstaguv
 c     N.B. staguv & unstaguv previously required 2D arrays as input
 c     - no longer, as transferred here to uin and vin
-c     assume k level already given
+c     unstaggered u & v as input; staggered as output
       use cc_mpi
 c     use diag_m             ! for calls to maxmin
       implicit none
@@ -29,10 +24,23 @@ c     use diag_m             ! for calls to maxmin
       real, dimension(ifull+iextra,kl) :: ua, va, ud, vd,
      &                                    uin, vin
       integer, parameter :: itnmax=3
-      integer :: iq, itn, k
+      integer :: iq, itn, k, nstagin, num
+      save nstagin,num
+      data num/0/
 
       call start_log(stag_begin)
-c     unstaggered u & v as input; staggered as output
+      if(num==0)then
+        num=1
+	 if(nstag==5)then   ! to be backward compatible with pre-Oct '04
+	   nstag=-1
+	   nstagu=4
+	 endif
+        nstagin=nstag
+	 nstag=nstagu
+      endif
+!     N.B. swapping only done in unstaguv, during calls from nonlin      
+c      print *,'ktau,nstag,nstagu,mod,mod2 ',
+c     .         ktau,nstag,nstagu,mod(ktau,abs(nstagin)),mod(ktau,2)
 
       ! Copying could be avoided if input arrays were dimensioned ifull+iextra
       do k=1,kl
@@ -42,7 +50,9 @@ c     unstaggered u & v as input; staggered as output
          end do
       end do
 
-      if ( nstag==3 .or. (nstag==5 .and. modulo(ktau,2)==0) ) then
+c     if ( nstag==3 .or. (nstagin==5 .and. modulo(ktau,2)==0) ) then
+      if ( nstag==3 ) then
+c         print *,'doing nstag3 for ktau = ',ktau
 
          call boundsuv(uin,vin,nrows=2)
          do k=1,kl
@@ -88,7 +98,9 @@ c     unstaggered u & v as input; staggered as output
 
          end do                  ! itn=1,itnmax
 
-      else if ( nstag==4 .or. (nstag==5 .and. modulo(ktau,2)==1)) then
+c     else if ( nstag==4 .or. (nstagin==5 .and. modulo(ktau,2)==1)) then
+      else if ( nstag==4 ) then
+c         print *,'doing nstag4 for ktau = ',ktau
 
          call boundsuv(uin,vin)
 
@@ -169,9 +181,30 @@ c     staggered u & v as input; unstaggered as output
       real, dimension(ifull+iextra,kl) :: ua, va, ud, vd,
      &                                    uin, vin
       integer, parameter :: itnmax=3
-      integer :: iq, itn, k
+      integer :: iq, itn, k, nstagin, num
+      save nstagin,num
+      data num/0/
 
       call start_log(stag_begin)
+      if(num==0)then
+        num=1
+	 if(nstag==5)then   ! to be backward compatible with pre-Oct '04
+	   nstag=-1
+	   nstagu=4
+	 endif
+        nstagin=nstag
+	 nstag=nstagu
+      endif
+!     N.B. swapping only done in unstaguv, during calls from nonlin      
+      if(num<ktau)then  ! following only for very first time each ktau
+        num=ktau
+        if(nstagin<0.and.mod(ktau,abs(nstagin))==0)then
+          nstag=7-nstagu   ! swap between 3 & 4
+	   nstagu=nstag
+        endif
+      endif  !  (num<ktau)
+c     print *,'u ktau,nstag,nstagu,mod,mod2 ',
+c    .         ktau,nstag,nstagu,mod(ktau,abs(nstagin)),mod(ktau,2)
       do k=1,kl
          do iq=1,ifull
             uin(iq,k) = u(iq,k)
@@ -179,7 +212,9 @@ c     staggered u & v as input; unstaggered as output
          end do
       end do
 
-      if ( nstagu==3 .or. (nstagu==5 .and. modulo(ktau,2)==0)) then
+c     if ( nstagu==3 .or. (nstagu==5 .and. modulo(ktau,2)==0)) then
+      if ( nstagu==3 ) then
+c         print *,'doing unstag3 for ktau = ',ktau
 
          call boundsuv(uin,vin,nrows=2)
          do k=1,kl
@@ -225,7 +260,9 @@ c     staggered u & v as input; unstaggered as output
 
          end do                 ! itn=1,itnmax
 
-      else if ( nstagu==4 .or. (nstagu==5 .and. modulo(ktau,2)==1)) then
+c     else if ( nstagu==4 .or. (nstagu==5 .and. modulo(ktau,2)==1)) then
+      else if ( nstagu==4 ) then
+c         print *,'doing unstag4 for ktau = ',ktau
 
          call boundsuv(uin,vin)
 

@@ -651,7 +651,7 @@ c     end of calls to sib1,2,3
       endif
 
 !     always call scrnout from 19/9/02
-      call scrnout(zo,ustar,fg,eg,factch,rho,wetfac,qsttg,   ! arrays
+      call scrnout(zo,ustar,factch,wetfac,qsttg,            ! arrays
      .       qgscrn,tscrn,uscrn,u10,scrrel,                 ! arrays
      .       bprm,cms,chs,fmroot,nalpha)
 
@@ -876,8 +876,6 @@ c      sensible heat flux
        dfgdt(iq)=taftfhg(iq)*rho(iq)*cp
        fgg(iq)=dfgdt(iq)*(tgss-theta(iq))
       enddo         ! ip=1,ipland
- 
-c     print *,'before wetfac'
 
       if(nbarewet.eq.0)then  ! original Eva's, same as NCAR
 !cdir nodep
@@ -988,8 +986,16 @@ c     .              betaa,betab,betac,wetfac(iq)
 c         endif
         enddo   ! ip=1,ipland
       endif     ! (nbarewet.eq.7)
- 
-c     print *,'before nalpha'
+
+      if(nbarewet==8)then  ! like NCAR but uses ssat
+!cdir nodep
+        do ip=1,ipland  ! all land points in this nsib=3 loop
+         iq=iperm(ip)
+         isoil = isoilm(iq)
+         fle=(wb(iq,1)-swilt(isoil))/(ssat(isoil)-swilt(isoil))          
+         wetfac(iq)=max( 0.,min(1.,fle) )
+        enddo   ! ip=1,ipland
+      endif     ! (nbarewet==8)
 
       if(nalpha.eq.1)then    ! beta scheme
 !cdir nodep
@@ -1022,7 +1028,7 @@ c        following reduces degdt by factor of 10 for dew
          degdt(iq)=.55*deg+sign(.45*deg,qtgnet)
         enddo   ! ip=1,ipland
       endif    ! (nalpha.eq.1) .. else ..
-        if(ntest.eq.1.and.mydiag)then  ! SX5: don't put this test in above loop
+      if((ntest.eq.1.or.diag).and.mydiag)then 
           iq=idjd
           print *,'epot,egg,tgg1,snowd ',
      .             epot(iq),egg(iq),tgg(iq,1),snowd(iq)
@@ -1040,9 +1046,8 @@ c         evaporation from the bare ground
           print *,'then iq,isoil,conw_fh,qsttg,qtgair ',
      .             iq,isoil,conw_fh,qsttg(iq),qtgair
           print *,'eg1,eg2,wetfac ',eg1,eg2,wetfac(iq)
-          print *,'epot,egg,egg_alph1 ',
-     .             epot(iq),egg(iq),egg_alph1
-        endif  ! (ntest.eq.1)
+          print *,'epot,egg,egg_alph1 ',epot(iq),egg(iq),egg_alph1
+      endif  ! (ntest.eq.1)
 
 !cdir nodep
       do ip=1,ipland  ! all land points in this nsib=3 loop
@@ -1365,7 +1370,9 @@ c          print *,'ewwwa,ewww,Etr ',ewwwa,ewww(iq),Etr
        fev(iq)=evapfb(iq)/dt*hl*tsigmf(iq) ! passed to soilsnow to update wb
        fes(iq)=(1.-tsigmf(iq))*egg(iq)*cls(iq)  ! also passed to soilsnow
        otgsoil(iq)=isflag(iq)*tggsn(iq,1) + (1-isflag(iq))*tgg(iq,1)
-       if(ntest.eq.1.and.iq.eq.idjd)then
+      enddo  !  ip=1,ipland
+      if((ntest.eq.1.or.diag).and.mydiag)then 
+         iq=idjd
          isoil = isoilm(iq)
          iveg=ivegt(iq)
          print *,'in sib3 before soilsnowv'
@@ -1379,16 +1386,11 @@ c          print *,'ewwwa,ewww,Etr ',ewwwa,ewww(iq),Etr
          print *,'qg1,qsttg,ewww '
      .           ,qg(iq,1),qsttg(iq),ewww(iq)
          print *,'dfgdt,taftfhg,rho ',dfgdt(iq),taftfhg(iq),rho(iq)
-         print *,'rmc,rmcmax(iq),qsatgf ',rmc(iq),rmcmax(iq),qsatgf
-       endif
-       if(ntest.ne.0)then
-	  if(abs(tgf(iq)-otgf(iq)).gt.4.9)then
-	    write(6,"('ktau,iq,otgf,tgf,dtgf,t1,t2',i4,i6,5f8.2)")
+         print *,'rmc,rmcmax(iq) ',rmc(iq),rmcmax(iq)
+	  if(abs(tgf(iq)-otgf(iq)).gt.4.9)
+     .      write(6,"('ktau,iq,otgf,tgf,dtgf,t1,t2',i4,i6,5f8.2)")
      .        ktau,iq,otgf(iq),tgf(iq),tgf(iq)-otgf(iq),t(iq,1),t(iq,2)
-c          write(45,'(2g13.4)') sqrt(u(iq,1)**2+v(iq,1)**2),fg(iq)
-	  endif
-	endif
-      enddo  !  ip=1,ipland
+      endif
 !-------------------------------------
 c     print *,'before soilsnow'
       call soilsnowv
@@ -1433,18 +1435,6 @@ c                                               combined fluxes
 !      rnet(iq)=-slwa(iq)-(1.-tsigmf(iq))*rgg(iq)
 !    .   -tsigmf(iq)*(extin(iq)*rgg(iq) + (1.-extin(iq))*rdg(iq)) ! 9/3/99
 
-       if(ntest.eq.1.and.iq.eq.idjd)then
-        print *,'even further down sib3 after soilsnowv'
-        print *,'tgg ',(tgg(iq,k),k=1,ms)
-        print *,'wb ',(wb(iq,k),k=1,ms)
-        print *,'snowd ',snowd(iq)
-        print *,'evapfb,fev,ewww ',evapfb(iq),fev(iq),ewww(iq)
-        print *,'tsigmf,evapxf,egg ',tsigmf(iq),evapxf(iq),egg(iq)
-        print *,'deltat,degdt,wb,zse ',
-     .           tgg(iq,1)-otgsoil(iq),degdt(iq),wb(iq,1),zse(1)
-        print *,'isflag,eg,fg ',isflag(iq),eg(iq),fg(iq)
-       endif
-
         tgss=isflag(iq)*tggsn(iq,1) + (1-isflag(iq))*tgg(iq,1)  ! jlm
         if(tsigmf(iq).le. .01) then
           tss(iq) = tgss
@@ -1472,6 +1462,19 @@ c                                               combined fluxes
 !eak       endif  ! (ndiag_arr.eq.1)
 
       enddo   ! ip=1,ipland
+
+      if((ntest.eq.1.or.diag).and.mydiag)then 
+        iq=idjd
+        print *,'even further down sib3 after soilsnowv'
+        print *,'tgg ',(tgg(iq,k),k=1,ms)
+        print *,'wb ',(wb(iq,k),k=1,ms)
+        print *,'isflag,snowd ',isflag(iq),snowd(iq)
+        print *,'evapfb,fev,ewww ',evapfb(iq),fev(iq),ewww(iq)
+        print *,'tsigmf,evapxf,egg ',tsigmf(iq),evapxf(iq),egg(iq)
+        print *,'deltat,degdt,wb,zse ',
+     .           tgg(iq,1)-otgsoil(iq),degdt(iq),wb(iq,1),zse(1)
+        print *,'eg,fg ',eg(iq),fg(iq)
+      endif
 
       return
       end

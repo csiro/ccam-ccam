@@ -603,6 +603,8 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
         call attrib(idnc,idim2,3,'ctop_ave',lname,'sigma',0.,1.1)
         lname = 'Avg dew flux'
         call attrib(idnc,idim2,3,'dew_ave',lname,'W/m2',-100.,1000.)
+        lname = 'Avg evaporation'
+        call attrib(idnc,idim2,3,'evap',lname,'mm',-100.,100.)
         lname = 'Avg potential evaporation'
         call attrib(idnc,idim2,3,'epot_ave',lname,'W/m2',-1000.,10.e3)
         lname = 'Potential evaporation'
@@ -903,6 +905,7 @@ c     set time to number of minutes since start
          call histwrt3(cbas_ave,'cbas_ave',idnc,iarch,local)
          call histwrt3(ctop_ave,'ctop_ave',idnc,iarch,local)
          call histwrt3(dew_ave,'dew_ave',idnc,iarch,local)
+         call histwrt3(evap,'evap',idnc,iarch,local)
          call histwrt3(epot_ave,'epot_ave',idnc,iarch,local)
          call histwrt3(eg_ave,'eg_ave',idnc,iarch,local)
          call histwrt3(fg_ave,'fg_ave',idnc,iarch,local)
@@ -927,7 +930,7 @@ c     set time to number of minutes since start
 c      "extra" outputs
        if(nextout>=1) then
          if ( myid == 0 ) print *,'nextout, idnc: ',nextout,idnc
-	 if(mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)then
+	  if(mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)then
            call histwrt3(rtu_ave,'rtu_ave',idnc,iarch,local)
            call histwrt3(rtc_ave,'rtc_ave',idnc,iarch,local)
            call histwrt3(rgdn_ave,'rgdn_ave',idnc,iarch,local)
@@ -938,7 +941,7 @@ c      "extra" outputs
            call histwrt3(soc_ave,'soc_ave',idnc,iarch,local)
            call histwrt3(sgdn_ave,'sgdn_ave',idnc,iarch,local)
            call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local)
-	 endif   ! (mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)
+	  endif   ! (mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)
          call histwrt3(dpsdt,'dpsdt',idnc,iarch,local)
          call histwrt3(pblh,'pblh',idnc,iarch,local)
          call histwrt3(ustar,'ustar',idnc,iarch,local)

@@ -30,8 +30,8 @@
       include 'xarrs.h'
       include 'xyzinfo.h'
       include 'mpif.h'
-      real d,dpsdt,epst
-      common/dpsdt/dpsdt(ifull)    ! shared adjust5 & openhist
+      real d,dpsdt,dpsdtb,dpsdtbb,epst
+      common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull) !globpe,adjust5,outcdf
       common/epst/epst(ifull)
       real alph_p, alph_pm, delneg, delpos, delnegk, delposk, alph_q
       common/mfixdiag/alph_p,alph_pm,delneg,delpos,alph_q
@@ -63,7 +63,7 @@
       real, save :: dtsave = 0.0
       real :: hdt, hdtds, sdmx, sdmx_g, sum, qgminm, ratio, sumdiffb,
      &        alph_g
-      integer :: its, k, l, nits, nvadh_pass, iq, ng, ierr
+      integer :: ii, jj, its, k, l, nits, nvadh_pass, iq, ng, ierr
       real :: sumin, sumout, sumsav
       real :: delpos_l, delneg_l
 
@@ -122,7 +122,7 @@
       do k=1,kl-1
        do iq=1,ifull
         omgfnl(iq,k)=-rata(k)*e(iq,k+1)-ratb(k)*e(iq,k)
-     .                 -sig(k)*pslx(iq,k)
+     &                 -sig(k)*pslx(iq,k)
        enddo    ! iq loop
       enddo     ! k loop
       do iq=1,ifull
@@ -133,7 +133,7 @@
        do iq=1,ifull
 !       N.B. the omgfnl term on LHS of (2.4) not yet added in
         tx(iq,k)=tx(iq,k)+hdt*                         ! (2.9)
-     .             tbar2d(iq)*omgfnl(iq,k)*roncp/sig(k)  ! with correct epsp
+     &             tbar2d(iq)*omgfnl(iq,k)*roncp/sig(k)  ! with correct epsp
        enddo    ! iq loop
       enddo     ! k loop
 
@@ -341,13 +341,13 @@
 !       N.B. omgfnl part already incorp. into tx above
         dpsldt(iq,k)=omgfnl(iq,k)/(1.+epst(iq))+omgf(iq,k)
         t(iq,k)=tx(iq,k)
-     .           +hdt*(1.+epst(iq))*tbar2d(iq)*omgf(iq,k)*roncp/sig(k)
+     &           +hdt*(1.+epst(iq))*tbar2d(iq)*omgf(iq,k)*roncp/sig(k)
        enddo    ! iq loop
       enddo     ! k  loop
       if((diag.or.nmaxpr==1).and.mydiag)then
         write (6,"('sdota',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
         write (6,"('omgfa',9f8.3/5x,9f8.3)")
-     .            ps(idjd)*dpsldt(idjd,1:kl)
+     &            ps(idjd)*dpsldt(idjd,1:kl)
       endif
 
       if(nvadh==2.and.nvad>0)then                 ! final dt/2 's worth
@@ -383,7 +383,7 @@
           write (6,"('qg  ',9f8.3/4x,9f8.3)") 1000.*qg(idjd,:)
           write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
           write (6,"('thet',9f8.2/4x,9f8.2)")  
-     .                  t(idjd,:)*sig(:)**(-roncp)
+     &                  t(idjd,:)*sig(:)**(-roncp)
           write (6,"('u   ',9f8.2/4x,9f8.2)") u(idjd,:)
           write (6,"('v   ',9f8.2/4x,9f8.2)") v(idjd,:)
         endif
@@ -428,7 +428,9 @@
 
       aa(1:ifull)=ps(1:ifull)  ! saved for gas fixers below, and other diags
       ps(1:ifull)=1.e5*exp(psl(1:ifull))
-!     following diagnostic is in hPa/day      
+!     following diagnostic is in hPa/day  
+      dpsdtbb(:)=dpsdtb(:)    
+      dpsdtb(:)=dpsdt(:)    
       dpsdt(1:ifull)=(ps(1:ifull)-aa(1:ifull))*24.*3600./(100.*dt)
       call bounds(psl)
       call bounds(ps) ! Better to calculate everywhere defined ???
@@ -451,8 +453,8 @@
 !       delneg is the sum of all negative changes over globe
         do k=1,kl
          wrk1(1:ifull,k)=max( qg(1:ifull,k),0.,               ! increments  
-     .              (qgminm-qfg(1:ifull,k)-qlg(1:ifull,k))*ps(1:ifull) ) 
-     .                                       -qgsav(1:ifull,k)   
+     &              (qgminm-qfg(1:ifull,k)-qlg(1:ifull,k))*ps(1:ifull) ) 
+     &                                       -qgsav(1:ifull,k)   
         enddo                 ! k loop
         if(ntest==2.and.nproc==1)then
           delpos=0.
@@ -467,7 +469,7 @@
             delnegk=delnegk+min(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
            enddo   ! iq loop
            if(mod(ktau,nmaxpr)==0.or.nmaxpr==1)
-     .                   print *,'delposk delnegk ',k,delposk,delnegk
+     &                   print *,'delposk delnegk ',k,delposk,delnegk
           enddo    ! k loop
 	 else
           call ccglobal_posneg(wrk1,delpos,delneg)  ! usual
@@ -529,7 +531,7 @@
         if(mfix_qg==2)alph_q = sqrt(ratio)
 !       this is cunning 2-sided scheme
         qfg(1:ifull,:)=qfgsav(:,:)+
-     .     alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
+     &     alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
         do k=1,kl
          do iq=1,ifull
           wrk1(iq,k)=max(qlg(iq,k),0.)-qlgsav(iq,k)  ! increments
@@ -541,7 +543,7 @@
         if(mfix_qg==2)alph_q = sqrt(ratio)
 !       this is cunning 2-sided scheme
         qlg(1:ifull,:)=qlgsav(:,:)+
-     .     alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
+     &     alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
 !  	 undo ps weighting
         do k=1,kl
          qfg(1:ifull,k)=qfg(1:ifull,k)/ps(1:ifull)
@@ -560,12 +562,12 @@
 	  else
            tr(1:ifull,k,ng)=tr(1:ifull,k,ng)*ps(1:ifull)*wts(1:ifull)
            trsav(1:ifull,k,ng)=trsav(1:ifull,k,ng)*aa(1:ifull)
-     .                                                  *wts(1:ifull)
+     &                                                  *wts(1:ifull)
 	  endif
          enddo    ! k  loop
           do k=1,kl
            wrk1(1:ifull,k)=max(tr(1:ifull,k,ng),            ! has increments
-     .            gasmin(ng)*ps(1:ifull))         -trsav(1:ifull,k,ng) 
+     &            gasmin(ng)*ps(1:ifull))         -trsav(1:ifull,k,ng) 
           enddo   ! k loop
          call ccglobal_posneg(wrk1,delpos,delneg)
          ratio = -delneg/delpos
@@ -574,7 +576,7 @@
          do k=1,kl   ! this is cunning 2-sided scheme
 	   do iq=1,ifull
           tr(iq,k,ng)=trsav(iq,k,ng)+
-     .     alph_g*max(0.,wrk1(iq,k)) + min(0.,wrk1(iq,k))/max(1.,alph_g)
+     &     alph_g*max(0.,wrk1(iq,k)) + min(0.,wrk1(iq,k))/max(1.,alph_g)
           enddo   ! iq loop
          enddo    ! k  loop
          do k=1,kl
@@ -607,8 +609,8 @@
            ratio=(tr(iq,k,1)-sumdiffb)/(delpos-delneg)
            do ng=2,ngas        
             tr(iq,k,ng)=max(0.,trsav(iq,k,ng)
-     .         +(1.+ratio)*max(0.,tr(iq,k,ng)-trsav(iq,k,ng))
-     .         +(1.-ratio)*min(0.,tr(iq,k,ng)-trsav(iq,k,ng)) )
+     &         +(1.+ratio)*max(0.,tr(iq,k,ng)-trsav(iq,k,ng))
+     &         +(1.-ratio)*min(0.,tr(iq,k,ng)-trsav(iq,k,ng)) )
            enddo   ! ng loop
           enddo   ! iq loop
          enddo    ! k  loop
@@ -618,6 +620,8 @@
       if ( (diag.or.nmaxpr==1) .and. mydiag ) then
         print *,'at end of adjust5 for ktau= ',ktau
 	 print *,'aa,ps ',aa(idjd),ps(idjd)
+        write (6,"('dpsdt#  ',9f8.2)") 
+     &            ((dpsdt(ii+jj*il),ii=idjd-1,idjd+1),jj=1,-1,-1)
         write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
         write (6,"('qgs',9f8.3/4x,9f8.3)")
      &                         (1000.*qgsav(idjd,k)/aa(idjd),k=1,kl)
@@ -698,9 +702,9 @@
       do iq=1,ifull
        pfact(iq)=4.*( ds/(dt*em(iq)) )**2    ! for adjust9/5
        alfe(iq)=alf(ie(iq))-alf(iq)
-     .     +.25*(alff(ine(iq))+alfF(in(iq))-alfF(ise(iq))-alfF(is(iq)))
+     &     +.25*(alff(ine(iq))+alfF(in(iq))-alfF(ise(iq))-alfF(is(iq)))
        alfn(iq)=alf(in(iq))-alf(iq)
-     .     -.25*(alfF(ien(iq))+alfF(ie(iq))-alfF(iwn(iq))-alfF(iw(iq)))
+     &     -.25*(alfF(ien(iq))+alfF(ie(iq))-alfF(iwn(iq))-alfF(iw(iq)))
       enddo     ! iq loop
       call boundsuv(alfe,alfn)
 
@@ -708,7 +712,7 @@
       do iq=1,ifull
 !      need care with vector quantities on w (odd) & s (even) panel boundaries
        zz(iq)=.5*(alfe(iwu(iq))-alfe(iq)+alfn(isv(iq))-alfn(iq))
-     .                     -4.*alf(iq)                  ! i,j   coeff
+     &                     -4.*alf(iq)                  ! i,j   coeff
        zzn(iq)=alf(in(iq))-.5*alfn(iq)                  ! i,j+1 coeff
        zzw(iq)=alf(iw(iq))+.5*alfe(iwu(iq))            ! i-1,j coeff
        zze(iq)=alf(ie(iq))-.5*alfe(iq)                  ! i+1,j coeff

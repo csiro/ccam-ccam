@@ -213,7 +213,7 @@ c            smass(iq,2)=max(0.,.45*(snowd(iq)-smass(iq,1)))  ! jlm fix
        endif
       enddo   ! land points
 
-      if(ntest.gt.0.and.mydiag)then
+      if((ntest.gt.0.or.diag).and.mydiag)then 
         print *,'in soilsnowv before stempv,  ktau= ',ktau
         print *,'ga,dt,ssdn ',ga(idjd),dt,(ssdn(idjd,k),k=1,3)
         print *,'osnowd,snowd,isflag',
@@ -224,11 +224,9 @@ c            smass(iq,2)=max(0.,.45*(snowd(iq)-smass(iq,1)))  ! jlm fix
 	 print *,'wbice ',(wbice(idjd,k),k=1,ms)
         print *,'wblf ',(wblf(idjd,k),k=1,ms)
         print *,'wbfice ',(wbfice(idjd,k),k=1,ms)
-      endif
-      if(diag.or.ntest.eq.1)then
-        if ( myid == 0 ) print *,'in soilsnow printing wbfice_max'
-        call maxmin(wbfice,'ic',ktau,1.,6)
-        if ( mydiag ) print *,'sdepth c2 ',(sdepth(idjd,k),k=1,3)
+c       print *,'in soilsnow printing wbfice_max'
+c       call maxmin(wbfice,'ic',ktau,1.,6)
+        print *,'sdepth c2 ',(sdepth(idjd,k),k=1,3)
       endif
 
       call stempv 
@@ -300,7 +298,7 @@ c       endif
 
       call surfbv
 
-      if(ntest.gt.0.and.mydiag)then
+      if((ntest.gt.0.or.diag).and.mydiag)then 
         print *,'after surfbv,isflag ',isflag(idjd)
         print *,'tgg ',(tgg(idjd,k),k=1,ms)
         print *,'wb ',(wb(idjd,k),k=1,ms)
@@ -350,7 +348,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
       if(ktau.eq.1.and.mydiag)then
         print *,'ncondxpr,nglacier ',ncondxpr,nglacier
       endif
-      if(ntest.gt.0.and.mydiag)then
+      if((ntest.gt.0.or.diag).and.mydiag)then 
         print *,'entering surfbv  condxpr',condxpr(idjd)
         print *,'osnowd,snowd,isflag',
      .           osnowd(idjd),snowd(idjd),isflag(idjd)
@@ -499,7 +497,7 @@ c            prevent snow depth going negative
        fwtop(iq)=weting/dt-segg
       enddo               ! ip loop
 
-      if(ntest.gt.0.and.mydiag)then
+      if((ntest.gt.0.or.diag).and.mydiag)then 
         print *,'in surfbv before smoisturev  condxpr',condxpr(idjd)
         print *,'osnowd,snowd,isflag',
      .           osnowd(idjd),snowd(idjd),isflag(idjd)
@@ -509,7 +507,7 @@ c            prevent snow depth going negative
 
       call smoisturev
 
-      if(ntest.gt.0.and.mydiag)then
+      if((ntest.gt.0.or.diag).and.mydiag)then 
         print *,'in surfbv after smoisturev '
         print *,'osnowd,snowd,isflag,ssat,runoff',
      .    osnowd(idjd),snowd(idjd),isflag(idjd),
@@ -570,7 +568,7 @@ c----      change local tg to account for energy - clearly not best method
 	 enddo    ! iq loop
        endif     ! (nglacier.eq.2)
 
-      if(ntest.gt.0.and.mydiag)then
+      if((ntest.gt.0.or.diag).and.mydiag)then 
         iq=idjd
         print *,'end surfbv  rnof1,runoff ',rnof1(idjd),runoff(idjd)
         sgamm   = ssdn(iq,1)*2105. * sdepth(iq,1)
@@ -636,7 +634,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
         enddo
         print *,'in smoisturev; nmeth,ntest = ',nmeth,ntest  
       endif  ! (ktau.eq.1)
-      if(ntest.gt.0.and.mydiag)then
+      if((ntest.gt.0.or.diag).and.mydiag)then 
         isoil=isoilm(idjd)
         print *,'entering smoisturev i2bp3,swilt,sfc,ssat: ',
      .                i2bp3(isoil),swilt(isoil),sfc(isoil),ssat(isoil)
@@ -764,7 +762,7 @@ c             iqmn=iq
 c           endif
 c          enddo
 c        endif
-        if(ntest.gt.0.and.mydiag)then
+        if((ntest.gt.0.or.diag).and.mydiag)then 
 	   print *,'midway through nmeth<=0'
 	   print *,'fluxh ',(fluxh(iq,k),k=1,ms)
           write (6,"('wb   ',6f8.3)") (wb(idjd,k),k=1,ms)
@@ -985,7 +983,7 @@ c       rhs(1) = wblf(iq,1)      ! for A
         wbice(iq,k)=min(wbice(iq,k),.99*wb(iq,k))
        enddo
       enddo
-      if(ntest.gt.0.and.mydiag)then
+      if((ntest.gt.0.or.diag).and.mydiag)then 
         print *,'at end of smoisturev,fwtop ',fwtop(idjd)
         print *,'tgg ',(tgg(idjd,k),k=1,ms)
         write (6,"('wb   ',6f8.3)") (wb(idjd,k),k=1,ms)
@@ -1227,7 +1225,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
        sgflux(iq)=coefa(iq)*(tggsn(iq,1)-tggsn(iq,2))
        gflux(iq) =coefb(iq)*(  tgg(iq,1)-  tgg(iq,2))  ! +ve downwards
       enddo   ! ip=1,ipland           land points
-      if(ntest.gt.0.and.mydiag)then
+      if((ntest.gt.0.or.diag).and.mydiag)then 
         print *,'at end of stempv '
 	 write (6,"('wb   ',6f8.3)") (wb(idjd,k),k=1,ms)
 	 write (6,"('wbice',6f8.3)") (wbice(idjd,k),k=1,ms)

@@ -1,4 +1,4 @@
-      subroutine scrnout(zo,ustar,fg,eg,factch,qsurf,wetfac,qsttg,  ! arrays
+      subroutine scrnout(zo,ustar,factch,wetfac,qsttg,              ! arrays
      .     qgscrn,tscrn,uscrn,u10,scrrel,                           ! arrays
      .     bprm,cms,chs,fmroot,nalpha)
       use cc_mpi, only : mydiag
@@ -16,6 +16,7 @@ c     for nsib=2 don't calculate tscrn here
       include 'const_phys.h'
       include 'liqwpar.h'  ! ifullw,qfg,qlg  just for diags
       include 'map.h'
+      include 'morepbl.h'  ! condx,fg,eg
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
       include 'pbl.h'
@@ -37,10 +38,11 @@ c     for nsib=2 don't calculate tscrn here
      .          afroot(ifull),afroot10(ifull),
      . dum3b(2*ijk-11*ifull-2*ms*ifull)
       common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
-      real fg(ifull),eg(ifull),qgscrn(ifull),tscrn(ifull)
+      real qgscrn(ifull),tscrn(ifull)
      . ,uscrn(ifull),u10(ifull),scrrel(ifull)
       real wetfac(ifull),factch(ifull),qsttg(ifull),ustar(ifull)
-     .     ,zo(ifull),qsurf(ifull)  ! qsurf is just work array, only used here
+     .     ,zo(ifull)
+      real qsurf(ifull)  ! qsurf is just local array, only used here
 
       include 'establ.h'
 
@@ -55,8 +57,8 @@ c     chn3=(vkar/log(z3onzt))**2
 
       if(diag.or.ntest.gt.0)then
         if ( mydiag ) then
-          print *,'extra diags from scrnout'
-          print *,'wetfac qsttg ',wetfac(idjd),qsttg(idjd)
+         print *,'in scrnout; wetfac,qsttg: ',wetfac(idjd),qsttg(idjd)
+         print *,'in scrnout; epot,eg,fg: ',epot(idjd),eg(idjd),fg(idjd)
         end if
         call maxmin(qg,'qg',ktau,1.e3,kl)
         call maxmin(qfg,'qf',ktau,1.e3,kl)

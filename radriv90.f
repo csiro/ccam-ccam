@@ -152,7 +152,11 @@ C---------------------------------------------------------------------*
 c     Set number of years before present for orbital parameters.
 c     Allowed values are 0, 6000 and 21000.
       bpyear = 0.
-      fjd = float(mod(mins,525600))/1440.  ! 525600 = 1440*365
+      if(nhstest<0)then  ! aquaplanet test
+        fjd = 79.+mod(mins,1440)/1440.       ! set to 21 March +frac of day
+      else
+        fjd = float(mod(mins,525600))/1440.  ! 525600 = 1440*365
+      endif
       if(ntest.gt.0)then
         print *,'kdate,jyear,jmonth,jhour,jmin,mtimer,mstart,mins,fjd ;'
      .          ,kdate,jyear,jmonth,jhour,jmin,mtimer,mstart,mins,fjd
