@@ -4,8 +4,7 @@ c  saves and re-reads initial arrays of t and psl
 c  called only by darlam and vmodes
       include 'newmpar.h'
       include 'arrays.h'
-      common/savt/savt(ifull,kl),savpsl(ifull)
-      common/savuv/savu(ifull,kl),savv(ifull,kl)
+      include 'savuvt.h'
       if(n.eq.0)then
         savt(:,:)=t(:,:)
         savpsl(:)=psl(:)
