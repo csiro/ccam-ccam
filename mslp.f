@@ -1,5 +1,6 @@
       subroutine mslp(pmsl,psl,zs,t)
       use cc_mpi, only : mydiag
+!     this one will ignore negative zs (i.e. over the ocean)
       parameter (meth=1) ! 0 for original, 1 for other jlm - always now
       include 'newmpar.h'
       include 'const_phys.h'
@@ -23,8 +24,8 @@ c     endif  ! (meth.eq.0)
         do iq=1,ifull
          phi1=t(iq,lev)*rdry*(1.-sig(lev))/sig(lev) ! phi of sig(lev) above sfce
          tsurf=t(iq,lev)+phi1*stdlapse/grav
-         tav=tsurf+zs(iq)*.5*stdlapse/grav
-         dlnps=zs(iq)/(rdry*tav)
+         tav=tsurf+max(0.,zs(iq))*.5*stdlapse/grav
+         dlnps=max(0.,zs(iq))/(rdry*tav)
          pmsl(iq)=1.e5*exp(psl(iq)+dlnps)
         enddo
       endif  ! (meth.eq.1)
@@ -38,8 +39,8 @@ c     endif  ! (meth.eq.0)
       do iq=1,ifull
        phi1=t(iq,lev)*rdry*(1.-sig(lev))/sig(lev) ! phi of sig(lev) above sfce
        tsurf=t(iq,lev)+phi1*stdlapse/grav
-       tav=tsurf+zs(iq)*.5*stdlapse/grav
-       dlnps=zs(iq)/(rdry*tav)
+       tav=tsurf+max(0.,zs(iq))*.5*stdlapse/grav
+       dlnps=max(0.,zs(iq))/(rdry*tav)
        psl(iq)=log(1.e-5*pmsl(iq)) -dlnps
       enddo
       if(nmaxpr.eq.1)then
