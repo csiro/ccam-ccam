@@ -25,6 +25,7 @@ c     doing x-interpolation before y-interpolation
       integer idel, iq, jdel, nn
       real a3, a4, c1, c2, c3, c4, cmax, cmin, sss, xxg, yyg
       integer i, j, k, n, ind, ip, jp, iproc, ierr
+      ! This is really indp
       ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
       call start_log(ints_begin)
@@ -98,10 +99,17 @@ c           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
                   idel = idel - ioff
                   jdel = jdel - joff
                   n = nface(iq,k) + noff ! Make this a local index
+#ifdef SX
+                  ! For better vectorisation calculate all values
+                  idel = max(0,min(idel,ipan))
+                  jdel = max(0,min(jdel,jpan))
+                  n = max(1,min(n,npan))
+#else
                   if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
      &                 jdel > jpan .or. n < 1 .or. n > npan ) then
                      cycle      ! Will be calculated on another processor
                   end if
+#endif
 c          if(ntest.eq.1)then
 c            if(xxg.lt.0..or.xxg.gt.1..or.yyg.lt.0..or.yyg.gt.1.)
 c    &        print *,'intsb problem iq xxg,yyg ',iq,xxg,yyg
@@ -161,10 +169,17 @@ c                +x*(1+x)*(2-x)*c3}/2
                   idel = idel - ioff
                   jdel = jdel - joff
                   n = nface(iq,k) + noff ! Make this a local index
+#ifdef SX
+                  ! For better vectorisation calculate all values
+                  idel = max(0,min(idel,ipan))
+                  jdel = max(0,min(jdel,jpan))
+                  n = max(1,min(n,npan))
+#else
                   if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
      &                 jdel > jpan .or. n < 1 .or. n > npan ) then
                      cycle      ! Will be calculated on another processor
                   end if
+#endif
                   c1 = sx(idel-1,jdel,n,k) ! manually unrolled loop
                   c2 = sx(idel  ,jdel,n,k)
                   c3 = sx(idel+1,jdel,n,k)
@@ -233,11 +248,13 @@ c                +x*(1+x)*(2-x)*c3}/2
                   jp = min(il_g,max(1,nint(dpoints(3,iq,iproc))))
                   n = nint(dpoints(1,iq,iproc)) + noff ! Local index
                   !  Need global face index in fproc call
+#ifdef debug
                   if ( fproc(ip,jp,n-noff) /= myid ) then
                      print*, "Error in ints", myid, n, iq, iproc,
      &                     dpoints(:,iq,iproc)
                      call MPI_Abort(MPI_COMM_WORLD,ierr)
                   end if
+#endif
                   idel = int(dpoints(2,iq,iproc))
                   xxg = dpoints(2,iq,iproc) - idel
                   jdel = int(dpoints(3,iq,iproc))
@@ -304,11 +321,13 @@ c                +x*(1+x)*(2-x)*c3}/2
                   jp = min(il_g,max(1,nint(dpoints(3,iq,iproc))))
                   n = nint(dpoints(1,iq,iproc)) + noff ! Local index
                   !  Need global face index in fproc call
+#ifdef debug
                   if ( fproc(ip,jp,n-noff) /= myid ) then
                      print*, "Error in ints", myid, n, iq, iproc,
      &                     dpoints(:,iq,iproc)
                      call MPI_Abort(MPI_COMM_WORLD,ierr)
                   end if
+#endif
                   idel = int(dpoints(2,iq,iproc))
                   xxg = dpoints(2,iq,iproc) - idel
                   jdel = int(dpoints(3,iq,iproc))
@@ -376,7 +395,7 @@ c       first extend s arrays into sx - this one -1:il+2 & -1:il+2
             do n=1,npan         ! first simple copy into larger array
                do j=1,jpan
                   do i=1,ipan
-                     sx(i,j,n,k)=s(indp(i,j,n),k)
+                     sx(i,j,n,k)=s(ind(i,j,n),k)
                   enddo         ! i loop
                enddo            ! j loop
             enddo               ! n loop
@@ -435,10 +454,17 @@ c          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
                   idel = idel - ioff
                   jdel = jdel - joff
                   n = nface(iq,k) + noff ! Make this a local index
+#ifdef SX
+                  ! For better vectorisation calculate all values
+                  idel = max(0,min(idel,ipan))
+                  jdel = max(0,min(jdel,jpan))
+                  n = max(1,min(n,npan))
+#else
                   if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
      &                 jdel > jpan .or. n < 1 .or. n > npan ) then
                      cycle      ! Will be calculated on another processor
                   end if
+#endif
                   c1 = sx(idel,jdel-1,n,k) ! manually unrolled loop
                   c2 = sx(idel,jdel  ,n,k)
                   c3 = sx(idel,jdel+1,n,k)
@@ -494,10 +520,17 @@ c               +y*(1+y)*(2-y)*c3}/2
                   idel = idel - ioff
                   jdel = jdel - joff
                   n = nface(iq,k) + noff ! Make this a local index
+#ifdef SX
+                  ! For better vectorisation calculate all values
+                  idel = max(0,min(idel,ipan))
+                  jdel = max(0,min(jdel,jpan))
+                  n = max(1,min(n,npan))
+#else
                   if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
      &                 jdel > jpan .or. n < 1 .or. n > npan ) then
                      cycle      ! Will be calculated on another processor
                   end if
+#endif
                   c1 = sx(idel,jdel-1,n,k) ! manually unrolled loop
                   c2 = sx(idel,jdel  ,n,k)
                   c3 = sx(idel,jdel+1,n,k)
@@ -563,11 +596,13 @@ c                +y*(1+y)*(2-y)*c3}/2
                   jp = min(il_g,max(1,nint(dpoints(3,iq,iproc))))
                   n = nint(dpoints(1,iq,iproc)) + noff ! Local index
                   !  Need global face index in fproc call
+#ifdef debug
                   if ( fproc(ip,jp,n-noff) /= myid ) then
                      print*, "Error in ints_bl", myid, n, iq, iproc,
      &                 dpoints(:,iq,iproc)
                      call MPI_Abort(MPI_COMM_WORLD,ierr)
                   end if
+#endif
                   idel = int(dpoints(2,iq,iproc))
                   xxg = dpoints(2,iq,iproc) - idel
                   jdel = int(dpoints(3,iq,iproc))
@@ -633,11 +668,13 @@ c               +y*(1+y)*(2-y)*c3}/2
                   jp = min(il_g,max(1,nint(dpoints(3,iq,iproc))))
                   n = nint(dpoints(1,iq,iproc)) + noff ! Local index
                   !  Need global face index in fproc call
+#ifdef debug
                   if ( fproc(ip,jp,n-noff) /= myid ) then
                      print*, "Error in ints_bl", myid, n, iq, iproc,
      &                 dpoints(:,iq,iproc)
                      call MPI_Abort(MPI_COMM_WORLD,ierr)
                   end if
+#endif
                   idel = int(dpoints(2,iq,iproc))
                   xxg = dpoints(2,iq,iproc) - idel
                   jdel = int(dpoints(3,iq,iproc))
@@ -743,10 +780,17 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
             idel = idel - ioff
             jdel = jdel - joff
             n = nface(iq,k) + noff ! Make this a local index
+#ifdef SX
+            ! For better vectorisation calculate all values
+            idel = max(0,min(idel,ipan))
+            jdel = max(0,min(jdel,jpan))
+            n = max(1,min(n,npan))
+#else
             if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.
      &           jdel > jpan .or. n < 1 .or. n > npan ) then
                cycle            ! Will be calculated on another processor
             end if
+#endif
             s(iq,k) =      yyg*(      xxg*sx(idel+1,jdel+1,n,k)
      &                 +(1.-xxg)*sx(idel,jdel+1,n,k))
      &      +(1.-yyg)*(      xxg*sx(idel+1,jdel,n,k)
@@ -765,11 +809,13 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
             jp = min(il_g,max(1,nint(dpoints(3,iq,iproc))))
             n = nint(dpoints(1,iq,iproc)) + noff ! Local index
          !  Need global face index in fproc call
+#ifdef debug
             if ( fproc(ip,jp,n-noff) /= myid ) then
                print*, "Error in ints_bl", myid, n, iq, iproc,
      &              dpoints(:,iq,iproc)
                call MPI_Abort(MPI_COMM_WORLD,ierr)
             end if
+#endif
             idel = int(dpoints(2,iq,iproc))
             xxg = dpoints(2,iq,iproc) - idel
             jdel = int(dpoints(3,iq,iproc))
