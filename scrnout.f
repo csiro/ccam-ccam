@@ -13,6 +13,7 @@ c     for nsib=2 don't calculate tscrn here
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
       include 'pbl.h'
+      include 'permsurf.h'
       include 'scamdim.h'
       include 'sigs.h'
       include 'soil.h'
@@ -27,7 +28,6 @@ c     for nsib=2 don't calculate tscrn here
      .          af(ifull),af10(ifull),deltheta(ifull),
      .          afroot(ifull),afroot10(ifull),
      . dum3b(2*ijk-11*ifull-2*ms*ifull)
-      common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
       real fg(ifull),eg(ifull),qgscrn(ifull),tscrn(ifull)
      . ,uscrn(ifull),u10(ifull),scrrel(ifull)
       real wetfac(ifull),factch(ifull),qsttg(ifull),ustar(ifull)
@@ -38,14 +38,7 @@ c     with prior contributions from K. Walsh and M. Dix
 c     tolerance for iteration,iteration maximum
 
       data scrtol/.01/,itermax/8/
-
-      common /es_table/ table(0:220)
-c Arithmetic statement functions to replace call to establ.
-c T is temp in Kelvin, which should lie between 123.16 and 343.16;
-c TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
-      tdiff(tm)=min(max(tm-123.16 , 0.) , 220.)
-      establ(tm) =(1.-(tdiff(tm)-aint(tdiff(tm))))*table(int(tdiff(tm)))
-     &           + (tdiff(tm)-aint(tdiff(tm)))*table(int(tdiff(tm))+1)
+      include 'establ.h'
 
       srcp =sig(1)**(rdry/cp)
       ztv=exp(vkar/sqrt(chn10)) /10.  ! proper inverse of ztsea
