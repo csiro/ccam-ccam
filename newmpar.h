@@ -15,11 +15,15 @@
 !                  jl:   -         6*il     14*il
 !                quad:   1         4*il+1   6*il+1
 
-      ! For 1 - 6 processors
-      integer, parameter :: il = il_g, jl = jl_g/nproc
+      integer, parameter :: il = il_g, jl = jl_g/nproc  ! 1, 2, 3, 6, 12 proc
+!      integer, parameter :: il = il_g/2, jl = il        ! 24 proc
+!
+      integer, parameter :: npan=max(1,(npanels+1)/nproc)
       integer, parameter :: ifull = il*jl, ijk = il*jl*kl
-      ! For 1-6
-      integer, parameter :: iextra = (4*(npanels+1)*(il_g+il_g+8))/nproc
-      integer, parameter :: npan=(npanels+1)/nproc
-      !  iextra = 4*npan*(ipan+jpan+8)
+
+!     The perimeter of the processor region has length 2*(il+jl).
+!     The first row has 8 possible corner points per panel and the 
+!     second has 16. In practice these are not all distinct so there could
+!     be some optimisation.
+      integer, parameter :: iextra = 4*(il+jl)+24*npan
 
