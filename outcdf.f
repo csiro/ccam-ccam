@@ -269,8 +269,8 @@ c     this routine creates attributes and writes output
       include 'aalat.h'
       include 'arrays.h'
       include 'darcdf.h'   ! idnc,ncid,idifil  - stuff for netcdf
-      include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg,mtimer
-      include 'extraout.h'
+      include 'dates.h'    ! ktime,kdate,timer,timeg,xg,yg,mtimer
+      include 'extraout.h' ! u10_3hr,v10_3hr
       include 'filnames.h' ! list of files, read in once only
       include 'histave.h'
       include 'kuocom.h'
@@ -297,7 +297,7 @@ c     this routine creates attributes and writes output
       include 'vvel.h'    ! sdot, dpsldt
 
       integer iarch, itype
-      character lname*50,expdesc*50,numba*2
+      character lname*40,mname*21,nname*21,expdesc*50,numba*2
       integer dim(4)
       integer idim2(3)
       real xpnt(il_g),ypnt(jl_g)
@@ -316,6 +316,7 @@ c     this routine creates attributes and writes output
      &     idv, ier, iq, isoil, j, k, igas, nwtperday
       real trmax, trmin
       character*3 mon(12)
+      common/nonlsav/cfrac(ifull,kl),dum3f(ifull,kl,2) ! globpe,leoncld,radriv90
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
 
@@ -392,6 +393,7 @@ c       Sigma levels
         call attrib(idnc,idim2,3,'pmsl',lname,'hPa',800.,1200.)
         lname = 'Surface geopotential'
         call attrib(idnc,idim2,2,'zht',lname,'m2/s2',-100.,90.e3)
+c       call attrib(idnc,idim2,2,'zht',lname,'m2/s2',-1.e6,90.e3) ! ocean too
 
 c       For time invariant surface fields
         lname = 'Map factor'
@@ -403,7 +405,7 @@ c       For time invariant surface fields
         lname = 'Vegetation fraction'
         call attrib(idnc,idim2,2,'sigmf',lname,'none',0.,1.)
         lname = 'Surface roughness'
-        call attrib(idnc,idim2,2,'zolnd',lname,'none',0.,40.)
+        call attrib(idnc,idim2,2,'zolnd',lname,'m',0.,40.)
         lname = 'Soil type'
         call attrib(idnc,idim2,2,'soilt',lname,'none',0.,40.)
         lname = 'Vegetation type'
@@ -416,6 +418,10 @@ c       For time varying surface fields
         call attrib(idnc,idim2,3,'tsu',lname,'K',0.,350.)
         lname = 'Precipitation'
         call attrib(idnc,idim2,3,'rnd',lname,'mm/day',0.,1000.)
+        lname = 'Convective precipitation'
+        call attrib(idnc,idim2,3,'rnc',lname,'mm/day',0.,1000.)
+        call attrib(idnc,idim2,3,'sno','snowfall','mm/day',0.,1000.)
+        call attrib(idnc,idim2,3,'runoff','Runoff','mm/day',0.,1000.)
         lname = '3hr precipitation'
         call attrib(idnc,idim2,3,'rnd03',lname,'mm',0.,1000.)
         lname = '6hr precipitation'
@@ -430,11 +436,8 @@ c       For time varying surface fields
         call attrib(idnc,idim2,3,'rnd18',lname,'mm',0.,1000.)
         lname = '21hr precipitation'
         call attrib(idnc,idim2,3,'rnd21',lname,'mm',0.,1000.)
-        lname = 'Convective precipitation'
-        call attrib(idnc,idim2,3,'rnc',lname,'mm/day',0.,1000.)
-        lname = 'Snowfall'
-        call attrib(idnc,idim2,3,'sno',lname,'mm/day',0.,1000.)
-        call attrib(idnc,idim2,3,'runoff','Runoff','mm/day',0.,1000.)
+        lname = '24hr precipitation'
+        call attrib(idnc,idim2,3,'rnd24',lname,'mm',0.,1000.)
         lname = 'Maximum screen temperature'
         call attrib(idnc,idim2,3,'tmaxscr',lname,'K',100.,400.)
         lname = 'Minimum screen temperature'
@@ -466,9 +469,9 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
         call attrib(idnc,idim2,3,'clh',lname,'frac',0.,1.)
         lname = 'Total cloud ave'
         call attrib(idnc,idim2,3,'cld',lname,'frac',0.,1.)
-        lname = 'Wind stress x-direction'
+        lname = 'x-component wind stress'
         call attrib(idnc,idim2,3,'taux',lname,'N/m2',-50.,50.)
-        lname = 'Wind stress y-direction'
+        lname = 'y-component wind stress'
         call attrib(idnc,idim2,3,'tauy',lname,'N/m2',-50.,50.)
         lname = 'Soil moisture as frac FC levels 1-2'
         call attrib(idnc,idim2,3,'wbfshal',lname,'frac',0.,4.)
@@ -476,7 +479,7 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
         call attrib(idnc,idim2,3,'wbfroot',lname,'frac',0.,4.)
         lname = 'Soil moisture as frac FC levels 1-6'
         call attrib(idnc,idim2,3,'wbftot',lname,'frac',0.,4.)
-        if(nextout.eq.1) then
+        if(nextout >= 1) then
           print *,'nextout=',nextout
           lname = 'LW at TOA'
           call attrib(idnc,idim2,3,'rtu_ave',lname,'W/m2',0.,800.)
@@ -500,7 +503,29 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
           call attrib(idnc,idim2,3,'pblh',lname,'m',0.,6000.)
           lname = 'friction velocity'
           call attrib(idnc,idim2,3,'ustar',lname,'m/s',0.,10.)
-        end if     ! nextout.eq.1
+        end if     ! nextout >= 1
+        if(nextout >= 2) then  ! 6-hourly u10 & v10
+	  mname ='x-component 10m wind '
+	  nname ='y-component 10m wind '
+   	  call attrib(idnc,idim2,3,'u10_06',mname//'6hr','m/s',-99.,99.)
+  	  call attrib(idnc,idim2,3,'v10_06',nname//'6hr','m/s',-99.,99.)
+   	  call attrib(idnc,idim2,3,'u10_12',mname//'12hr','m/s',-99.,99.)
+  	  call attrib(idnc,idim2,3,'v10_12',nname//'12hr','m/s',-99.,99.)
+   	  call attrib(idnc,idim2,3,'u10_18',mname//'18hr','m/s',-99.,99.)
+  	  call attrib(idnc,idim2,3,'v10_18',nname//'18hr','m/s',-99.,99.)
+   	  call attrib(idnc,idim2,3,'u10_24',mname//'24hr','m/s',-99.,99.)
+  	  call attrib(idnc,idim2,3,'v10_24',nname//'24hr','m/s',-99.,99.)
+        endif     ! nextout >= 2
+        if(nextout==3) then  ! also 3-hourly u10 & v10
+   	  call attrib(idnc,idim2,3,'u10_03',mname//'3hr','m/s',-99.,99.)
+  	  call attrib(idnc,idim2,3,'v10_03',nname//'3hr','m/s',-99.,99.)
+   	  call attrib(idnc,idim2,3,'u10_09',mname//'9hr','m/s',-99.,99.)
+  	  call attrib(idnc,idim2,3,'v10_09',nname//'9hr','m/s',-99.,99.)
+   	  call attrib(idnc,idim2,3,'u10_15',mname//'15hr','m/s',-99.,99.)
+  	  call attrib(idnc,idim2,3,'v10_15',nname//'15hr','m/s',-99.,99.)
+   	  call attrib(idnc,idim2,3,'u10_21',mname//'21hr','m/s',-99.,99.)
+  	  call attrib(idnc,idim2,3,'v10_21',nname//'21hr','m/s',-99.,99.)
+        endif     ! nextout==3
 
         lname = 'Soil temperature lev 1'
         call attrib(idnc,idim2,3,'tgg1',lname,'K',100.,400.)
@@ -559,9 +584,10 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
         call attrib(idnc,dim,4,'omega',lname,'Pa/s',-50.,50.)
         lname= 'Water mixing ratio'
         call attrib(idnc,dim,4,'mixr',lname,'kg/kg',0.,.05)
-        if(ifullw.eq.ifull)then
+        if(ldr.ne.0)then
           call attrib(idnc,dim,4,'qfg','Frozen water','kg/kg',0.,.02)
           call attrib(idnc,dim,4,'qlg','Liquid water','kg/kg',0.,.02)
+          call attrib(idnc,dim,4,'cfrac','Cloud fraction','none',0.,1.)
         endif
 
         if(itype.eq.-1)then   ! extra stuff just needed for restart file
@@ -751,43 +777,42 @@ c     set time to number of minutes since start
        call histwrt3(precc,'rnc',idnc,iarch)
        call histwrt3(sno,'sno',idnc,iarch)
        call histwrt3(runoff,'runoff',idnc,iarch)
-       if(mod(ktau,nperday).eq.0)then  ! N.B. only write once per day
+       if(mod(ktau,nperday).eq.0.or.ktau.eq.ntau)then  ! only write once per day
          call histwrt3(tmaxscr,'tmaxscr',idnc,iarch)
          call histwrt3(tminscr,'tminscr',idnc,iarch)
 !        if writes done more than once per day, 
-!        need to augment accumulated 3-hourly rainfall in rnd06 to rnd21 
+!        needed to augment accumulated 3-hourly rainfall in rnd06 to rnd21 
 !        to allow for intermediate zeroing of precip()
-!        this correction allows for writes of 2,4 or 8 times per day
-         nwtperday=nperday/nwt
-	  print *,'nwtperday	',nwtperday	
-	  if(nwtperday.eq.8)then
-  	    rnd06=rnd06+rnd03
-	    rnd09=rnd09+rnd06
-	    rnd12=rnd12+rnd09
-	    rnd15=rnd15+rnd12
-	    rnd18=rnd18+rnd15
-	    rnd21=rnd21+rnd18
-	  endif
-	  if(nwtperday.eq.4)then
-	    rnd09=rnd09+rnd06
-	    rnd12=rnd12+rnd06
-	    rnd15=rnd15+rnd12
-	    rnd18=rnd18+rnd12
-	    rnd21=rnd21+rnd18
-	  endif
-	  if(nwtperday.eq.2)then
-	    rnd15=rnd15+rnd12
-	    rnd18=rnd18+rnd12
-	    rnd21=rnd21+rnd12
-	  endif
-         call histwrt3(rnd03,'rnd03',idnc,iarch)
-         call histwrt3(rnd06,'rnd06',idnc,iarch)
-         call histwrt3(rnd09,'rnd09',idnc,iarch)
-         call histwrt3(rnd12,'rnd12',idnc,iarch)
-         call histwrt3(rnd15,'rnd15',idnc,iarch)
-         call histwrt3(rnd18,'rnd18',idnc,iarch)
-         call histwrt3(rnd21,'rnd21',idnc,iarch)
-	endif
+!        but not needed from 17/9/03 with introduction of rnd24
+         call histwrt3(rnd_3hr(1,1),'rnd03',idnc,iarch)
+         call histwrt3(rnd_3hr(1,2),'rnd06',idnc,iarch)
+         call histwrt3(rnd_3hr(1,3),'rnd09',idnc,iarch)
+         call histwrt3(rnd_3hr(1,4),'rnd12',idnc,iarch)
+         call histwrt3(rnd_3hr(1,5),'rnd15',idnc,iarch)
+         call histwrt3(rnd_3hr(1,6),'rnd18',idnc,iarch)
+         call histwrt3(rnd_3hr(1,7),'rnd21',idnc,iarch)
+         call histwrt3(rnd_3hr(1,8),'rnd24',idnc,iarch)
+         if(nextout.ge.2) then ! 6-hourly u10 & v10
+           call histwrt3(u10_3hr(1,2),'u10_06',idnc,iarch)
+           call histwrt3(v10_3hr(1,2),'v10_06',idnc,iarch)
+           call histwrt3(u10_3hr(1,4),'u10_12',idnc,iarch)
+           call histwrt3(v10_3hr(1,4),'v10_12',idnc,iarch)
+           call histwrt3(u10_3hr(1,6),'u10_18',idnc,iarch)
+           call histwrt3(v10_3hr(1,6),'v10_18',idnc,iarch)
+           call histwrt3(u10_3hr(1,8),'u10_24',idnc,iarch)
+           call histwrt3(v10_3hr(1,8),'v10_24',idnc,iarch)
+         endif  ! nextout.ge.2
+         if(nextout.eq.3) then  ! also 3-hourly u10 & v10
+           call histwrt3(u10_3hr(1,1),'u10_03',idnc,iarch)
+           call histwrt3(v10_3hr(1,1),'v10_03',idnc,iarch)
+           call histwrt3(u10_3hr(1,3),'u10_09',idnc,iarch)
+           call histwrt3(v10_3hr(1,3),'v10_09',idnc,iarch)
+           call histwrt3(u10_3hr(1,5),'u10_15',idnc,iarch)
+           call histwrt3(v10_3hr(1,5),'v10_15',idnc,iarch)
+           call histwrt3(u10_3hr(1,7),'u10_21',idnc,iarch)
+           call histwrt3(v10_3hr(1,7),'v10_21',idnc,iarch)
+         endif  ! nextout.eq.3
+	endif   ! (mod(ktau,nperday).eq.0.or.ktau.eq.ntau)
        call histwrt3(tscr_ave,'tscr_ave',idnc,iarch)
        call histwrt3(tscrn,'tscrn',idnc,iarch)
        call histwrt3(qgscrn,'qgscrn',idnc,iarch)
@@ -809,8 +834,8 @@ c     set time to number of minutes since start
        call histwrt3(taux,'taux',idnc,iarch)
        call histwrt3(tauy,'tauy',idnc,iarch)
 c      "extra" outputs
-       if ( myid == 0 ) print *,'nextout, idnc: ',nextout,idnc
-       if(nextout.eq.1) then
+       if(nextout>=1) then
+         if ( myid == 0 ) print *,'nextout, idnc: ',nextout,idnc
          call histwrt3(rtu_ave,'rtu_ave',idnc,iarch)
          call histwrt3(rtc_ave,'rtc_ave',idnc,iarch)
          call histwrt3(rgn_ave,'rgn_ave',idnc,iarch)
@@ -822,7 +847,7 @@ c      "extra" outputs
          call histwrt3(dpsdt,'dpsdt',idnc,iarch)
          call histwrt3(pblh,'pblh',idnc,iarch)
          call histwrt3(ustar,'ustar',idnc,iarch)
-       endif  ! nextout.eq.1
+       endif  ! nextout>=1
       endif    ! (ktau.gt.0)
 
       if ( myid == 0 ) print *,'netcdf save of 3d variables'
@@ -836,9 +861,10 @@ c      "extra" outputs
       enddo
       call histwrt4(tmpry,'omega',idnc,iarch)  ! 3d variable
       call histwrt4(qg(1:ifull,:),'mixr',idnc,iarch)
-      if(ifullw.eq.ifull)then
+      if(ldr.ne.0)then
         call histwrt4(qfg(1:ifullw,:),'qfg',idnc,iarch)
         call histwrt4(qlg(1:ifullw,:),'qlg',idnc,iarch)
+        call histwrt4(cfrac,'cfrac',idnc,iarch)
       endif
       if(ntrac.gt.0)then 
        do igas=1,ntrac
