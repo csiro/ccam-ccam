@@ -73,22 +73,20 @@ c     watch out in retopo for work/zss
       integer :: lapsbot=0
       real :: pmsl=1.010e5, thlapse=3.e-3, tsea=290., gauss=2.,
      &        heightin=2000., hfact=0.1, uin=0., vin=0.
-      real gauss,heightin,hfact,pmsl,qgin,tbarr,tsea,uin,vin,thlapse
       namelist/tin/gauss,heightin,hfact,pmsl,qgin,tbarr,tsea,uin,vin
      &             ,thlapse,kdate,ktime
 
       integer i1, ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth,
      &     iveg, iyr, j1, jj, k, kdate_sav, kmax, ktime_sav, l,
-     &     lapsbot, meso2, nem2, nface, nn, npan, nsig, i, j, n,
+     &     meso2, nem2, nface, nn, nsig, i, j, n,
      &     ix, jx, ixjx, ierr
       real aamax, aamax_g, c, cent, 
      &     coslat, coslong, costh, den, diffb, diffg, dist,
-     &     epsmax, fracs, fracwet, ftsoil, gauss, gwdfac, hefact,
-     &     heightin, helim, hemax, hemax_g, hfact, pi, pmsl, polenx,
-     &     poleny,
+     &     epsmax, fracs, fracwet, ftsoil, gwdfac, hefact,
+     &     helim, hemax, hemax_g, polenx, poleny,
      &     polenz, rad, radu, radv, ri, rj, rlai, rlat_d, rlon_d,
      &     rmax, rmin, sinlat, sinlong, sinth, snalb, sumdsig,
-     &     tfrz, thlapse, timegb, tsea, tsoil, uin, uzon, vin, vmer, w,
+     &     timegb, tsoil, uzon, vmer, w,
      &     wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, distnew
 
       real, dimension(44), parameter :: vegpmin = (/
@@ -150,7 +148,7 @@ c     read in namelist for uin,vin,tbarr etc. for special runs
 c     note that kdate, ktime will be overridden by infile values for io_in<4
       if (myid==0) print *,'now read namelist tinit'
       read (99, tin)
-      write(6, tin)
+      if (myid==0) write(6, tin)
 
       do iq=1,ifull
        snowd(iq)=0.
@@ -201,7 +199,7 @@ c     note that kdate, ktime will be overridden by infile values for io_in<4
          else
             call ccmpi_distribute(he)
          end if
-         print *,'he read in from topofile',he(idjd)
+         if ( mydiag ) print *,'he read in from topofile',he(idjd)
          go to 59
  58      print *,'end-of-file reached on topofile'
  59      close(66)
@@ -692,14 +690,16 @@ c          wb(iq,ms)= .5*swilt(isoilm(iq))+ .5*sfc(isoilm(iq)) ! till july 01
           wb(iq,k)=wb(iq,ms)
          enddo    !  k loop
         enddo     ! iq loop
-        iveg=ivegt(idjd)
-        isoil=isoilm(idjd)
-        if (mydiag) print *,'isoil,iveg,month,fracsum,rlatt: ',
+        if ( mydiag ) then
+           iveg=ivegt(idjd)
+           isoil=isoilm(idjd)
+           print *,'isoil,iveg,month,fracsum,rlatt: ',
      &           isoil,iveg,imo,fracsum(imo),rlatt(idjd)
-         fracs=sign(1.,rlatt(idjd))*fracsum(imo)  ! +ve for local summer
-	 fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
-         if (mydiag) print *,'fracs,fracwet,initial_wb: ',
-     &        fracs,fracwet,wb(idjd,ms)
+           fracs=sign(1.,rlatt(idjd))*fracsum(imo) ! +ve for local summer
+           fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
+           print *,'fracs,fracwet,initial_wb: ',
+     &              fracs,fracwet,wb(idjd,ms)
+        end if
       endif       !  ((nrungcm.eq.-1.or.nrungcm.eq.-2)
 
       if(nrungcm.le.-3)then
@@ -1282,16 +1282,20 @@ c                         if( tsoil .ge. tstom ) ftsoil=1.
       enddo    !  ip=1,ipland
       
       if(jalbfix.eq.1)then  ! jlm fix-up for albedos, esp. over sandy bare soil
-        isoil=isoilm(idjd)
-        print *,'before jalbfix isoil,sand,alb,rsmin ',
+         if ( mydiag ) then
+            isoil=isoilm(idjd)
+            print *,'before jalbfix isoil,sand,alb,rsmin ',
      &                          isoil,sand(isoil),alb(idjd),rsmin(idjd)
-        do ip=1,ipland  
-         iq=iperm(ip)
-         isoil = isoilm(iq)
-         alb(iq)=max(alb(iq),sigmf(iq)*alb(iq)
+         end if
+         do ip=1,ipland  
+            iq=iperm(ip)
+            isoil = isoilm(iq)
+            alb(iq)=max(alb(iq),sigmf(iq)*alb(iq)
      &        +(1.-sigmf(iq))*(sand(isoil)*.35+(1.-sand(isoil))*.06))
-        enddo        !  ip=1,ipland
-        print *,'after jalbfix sigmf,alb ',sigmf(idjd),alb(idjd)
+         enddo                  !  ip=1,ipland
+         if ( mydiag ) then
+            print *,'after jalbfix sigmf,alb ',sigmf(idjd),alb(idjd)
+         end if
       endif  ! (jalbfix..eq.1)
       
 !***  no fiddling with initial tss, snow, sice, w, w2, gases beyond this point
