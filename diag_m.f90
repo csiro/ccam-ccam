@@ -129,7 +129,7 @@ contains
         print 972,ktau,char,(gumin(k),k=1,kup)
 !!!        print 977,ktau,(iumin(k),jumin(k),k=1,kup)
        elseif(gumax(kup).gt.30.)then  ! format for T, & usually u,v
-        print 971,ktau,char,(gumax(k),k=1,kup)
+        print 971,ktau,char,(gumax(k),k=1,10),char,(gumax(k),k=11,kup)
 !!!971     format(i7,1x,a2,'max ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
 971     format(i7,1x,a2,'max ',10f7.2/(a10,'maX ',10f7.2)/(14x,10f7.2))
 !!!        print 977,ktau,(iumax(k),jumax(k),k=1,kup)
