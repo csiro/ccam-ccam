@@ -1,4 +1,4 @@
-      subroutine jimcc(em4,ax4,ay4,az4)
+      subroutine jimcc(em4,ax4,ay4,az4,myid)
 c     like jim6.f but without stretch option
 c     hedra1 data is hardwired
 c     xx-->xx4, yy-->yy4, fm-->em4, dxa-->ax4, dxb-->ay4, dxc-->az4
@@ -12,6 +12,7 @@ c     common/work2/em4(iquad,iquad)     ! to agree with call jim
 c    .    ,ax4(iquad,iquad),ay4(iquad,iquad),az4(iquad,iquad)
 c    .    ,xa(np,np)
 c    .    ,dum2(18*il*jl - 4*(iquad)*(iquad) -np*np )
+      integer :: myid
       real em4(iquad,iquad)
      .    ,ax4(iquad,iquad),ay4(iquad,iquad),az4(iquad,iquad)
       real xa(np,np),xb(np,np),xc(np,np)
@@ -27,7 +28,7 @@ c         = 4  at i+.5,j+.5   positions
        call rgrid(xa,xb,xc,ax4,ay4,az4,            em4,np,ipanel,ngr)
 c      these are values on the sphere
 
-      if(ktau.eq.0)then
+      if(ktau.eq.0.and.myid==0)then
        do j=1,np,np-1
         do i=1,np,np-1
          print *,'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)
@@ -63,7 +64,7 @@ c      these are values on the sphere
         enddo
        enddo
 
-      if(ktau.eq.0)then
+      if(ktau.eq.0.and.myid==0)then
        do j=1,np,np-1
         do i=1,np,np-1
          print *,'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)

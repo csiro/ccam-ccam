@@ -1,4 +1,5 @@
       subroutine clddia(rhum,sigf,cf,ktd,kbd,icld,i,j) ! jlm
+      use cc_mpi, only : myid
       parameter (maprhcrt=0)  ! 1 for grid size dependent rhcrit
       parameter (nconv_cld=0) ! 1,2,3 for convective enhancement of clouds
       parameter (ntest=0)     ! 0 to turn off test prints   jd ~ every 6th j
@@ -65,6 +66,7 @@ c     ---------------------------------------------------------------------*
       iq=i+(j-1)*il
       if(start)then
         cldlev(2,3)=sigcll
+         if (myid==0) then
 	 write (6,"('cldlev:',6f8.3)") cldlev
 c       ---------------------------------------------------------------------*
 c       on first calculation calculate the high, middle and low              *
@@ -74,6 +76,7 @@ c       ---------------------------------------------------------------------*
      .           nrhcrit,nclddia,nstab_cld,maprhcrt,nconv_cld,sigcll
         if(nrhcrit.gt.7)print *,'with clm HML = ',clmx
         if(maprhcrt.ne.0)print *,'N.B. grid-dependent maprhcrt used'
+        end if
         if(nrhcrit.eq.0.and.nstab_cld.gt.0)stop 'invalid nstab_cld'
 
         k1 = 1
@@ -89,7 +92,7 @@ c              set cloud base
             endif
           end do ! k=k1,kl-1
           k1 = icld(2,nc) + 1
-          print *,'nc,icld_top,_bott; then k values: ',
+          if (myid==0) print *,'nc,icld_top,_bott; then k values: ',
      .        nc,icld(1,nc),icld(2,nc),  kl+1-icld(2,nc),kl+1-icld(1,nc)
         end do ! nc=1,3
 !       constants for jlm stability enhancement of low cloud
@@ -99,7 +102,7 @@ c              set cloud base
 
 c       calculate & print critical relative humidity for land then sea
         if(nrhcrit.eq.7)then
-          print *,'nrhcrit=7, so rhcrit done point by point'
+          if(myid==0)print *,'nrhcrit=7, so rhcrit done point by point'
 c         ----- land --------------------------------------------------------*
           do k=icld(1,1),icld(2,1) ! high clds; k here goes from top dn
            rhcrit(k)=cldh_lnd
@@ -110,8 +113,10 @@ c         ----- land --------------------------------------------------------*
           do k=icld(1,3),icld(2,3)   ! low clouds     ; k here goes from top dn
            rhcrit(k)=cldl_lnd
           enddo
-          print *,'rhcrit over land:'
-          print 91,(rhcrit(k),k=kl,1,-1)
+          if (myid==0) then
+             print *,'rhcrit over land:'
+             print 91,(rhcrit(k),k=kl,1,-1)
+          end if
  91       format(f5.1,' L',4f5.1,' M',5f5.1,' H',4f5.1,' |',4f5.1)
 !         the above format is suitable for 18-level runs
 c         ----- sea  --------------------------------------------------------*
@@ -124,15 +129,19 @@ c         ----- sea  --------------------------------------------------------*
           do k=icld(1,3),icld(2,3)   ! low clouds     ; k here goes from top dn
            rhcrit(k)=cldl_sea
           enddo
-          print *,'rhcrit over sea:'
-          print 91,(rhcrit(k),k=kl,1,-1)
+          if (myid==0) then
+             print *,'rhcrit over sea:'
+             print 91,(rhcrit(k),k=kl,1,-1)
+          end if
         elseif(nrhcrit.eq.0)then
           do k=1,kl
            eta=sigf(k)
            rhcrit(k)=(1.-eta*(1.-eta)*(.268+3.464*eta))*100.        ! Hal's
           enddo
-          print *,'rhcrit for old nrhcrit=0 scheme:'
-          print 91,(rhcrit(k),k=kl,1,-1)
+          if (myid==0) then
+             print *,'rhcrit for old nrhcrit=0 scheme:'
+             print 91,(rhcrit(k),k=kl,1,-1)
+          end if
         endif  ! (nrhcrit.eq.7)
         start = .false.
       endif   ! (start)
@@ -167,7 +176,8 @@ c      calculate critical relative humidity                           *
            rhcrit(k)=fact95+factmap*cldl_sea
           enddo
         endif  ! (land(iq))  .. else ..
-        if(ntest.eq.1.and.j.eq.jd.and.id-1.eq.mod(i-1,il))then
+        if(ntest.eq.1.and.j.eq.jd.and.id-1.eq.mod(i-1,il)
+     &       .and.myid==0)then
 	   print *,'ds,em,dx,factmap ',ds,em(iq),dx,factmap
 	   print *,'rhcrit ',rhcrit
 	 endif
@@ -204,7 +214,8 @@ c      calculate critical relative humidity                           *
         do k=icld(1,3),icld(2,3)
          rhcrit(k)=min(rhcrit(k)-rhsub,100.) ! not more than 100% (not needed)
         enddo
-        if(ntest.eq.1.and.j.eq.jd.and.id-1.eq.mod(i-1,il))then
+        if(ntest.eq.1.and.j.eq.jd.and.id-1.eq.mod(i-1,il)
+     &       .and.myid==0)then
           print *,'i,nstab_cld,rhsub ',i,nstab_cld,rhsub
           print *,'land,tss,t ',land(iq),tss(iq),t(iq,ktop)
         endif
@@ -223,7 +234,8 @@ c      calculate critical relative humidity                           *
         do k=icld(1,3),icld(2,3)
          rhcrit(k)=min(rhcrit(k)-rhsub,100.) ! not more than 100%
         enddo
-        if(ntest.eq.1.and.j.eq.jd.and.id-1.eq.mod(i-1,il))then
+        if(ntest.eq.1.and.j.eq.jd.and.id-1.eq.mod(i-1,il)
+     &       .and.myid==0)then
           print *,'i,nstab_cld,ktop,ztop ',i,nstab_cld,ktop,ztop
           print *,'land,tss,t ',land(iq),tss(iq),t(iq,ktop)
           print *,'stab,rhsub ',stab,rhsub
@@ -235,7 +247,8 @@ c                                                                          *
 c     cloud parameter calculation
 c                                                                          *
 c     ---------------------------------------------------------------------*
-      if(ntest.ge.1.and.j.eq.jd.and.id-1.eq.mod(i-1,il))then
+      if(ntest.ge.1.and.j.eq.jd.and.id-1.eq.mod(i-1,il)
+     &     .and.myid==0)then
         print *,'rhcrit:'
         print 91,(rhcrit(k),k=kl,1,-1)
         print 92,(k,k=1,kl)
@@ -372,7 +385,8 @@ c           calc. cloud fraction (max for layer)
               iswitch=1
             endif  ! (iswitch.eq.0)
             kbd(nc)=k
-            if(ntest.eq.2.and.j.eq.jd.and.id-1.eq.mod(i-1,il))
+            if(ntest.eq.2.and.j.eq.jd.and.id-1.eq.mod(i-1,il)
+     &           .and.myid==0)
      .      print *,'rh_max>rhcrit with k,cld,cloud_frac= '
      .                                 ,k,cld,cf(nc)
           endif  ! ( rhum(k).gt.rhcrit(k) )
@@ -403,7 +417,8 @@ c         print *,'i,j,rainrt,convlayr ',i,j,rainrt,convlayr
         endif   ! (condc(iq).gt.0.)
       endif     ! (nconv_cld.eq.3)
 
-      if(ntest.ge.1.and.j.eq.jd.and.id-1.eq.mod(i-1,il))then
+      if(ntest.ge.1.and.j.eq.jd.and.id-1.eq.mod(i-1,il)
+     &     .and.myid==0)then
         print *,'cf  LMH ',(cf(nc),nc=3,1,-1)
         print *,'ktd LMH ',(ktd(nc),nc=3,1,-1)
         print *,'kbd LMH ',(kbd(nc),nc=3,1,-1)

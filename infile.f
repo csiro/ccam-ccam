@@ -536,7 +536,8 @@ c       find lat/lon of four corner points
       ik=nahead(1)
       jk=nahead(2)
       kk=nahead(3)
-      if(ktau.le.1)print *,'in newin; ktau,ik,jk,kk=', ktau,ik,jk,kk
+      if(ktau.le.1.and.myid==0)
+     &     print *,'in newin; ktau,ik,jk,kk=', ktau,ik,jk,kk
 
 !!!      if(ds_r.gt.0..and.npanels.eq.0)then
 !!!c       find i/j in input grid of model grid

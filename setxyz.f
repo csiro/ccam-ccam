@@ -1,4 +1,4 @@
-      subroutine setxyz
+      subroutine setxyz(myid)
       parameter (ntang=2)   ! ntang=0 for tang. vectors from rancic et al.
                             !         not for stretched as vecpanel not ready
                             ! ntang=1 for tang. vectors by finite diffs
@@ -24,6 +24,8 @@ c    .    ,axx(ifull),ayy(ifull),azz(ifull)
 c    .    ,bxx(ifull),byy(ifull),bzz(ifull)
 c    .    ,dum2(12*il*jl -4*(iquad)*(iquad) )
 !     next one shared with cctocc4 & onthefly
+      integer :: myid  ! This is passed as an argument just to control the 
+                       ! diagnostic prints
 !     These can no longer be shared because they use true global ifull.
       real rlong4(ifull,4),rlat4(ifull,4)
       real em4(iquad,iquad)
@@ -301,8 +303,8 @@ c     print *,'less b  ',less
 !----------------------------------------------------------------------------
 c     calculate grid information using quadruple resolution grid
       if(npanels.eq.5)then
-       call jimcc(em4,ax4,ay4,az4)
-	if(ktau.eq.0)then
+       call jimcc(em4,ax4,ay4,az4,myid)
+	if(ktau.eq.0.and.myid==0)then
 	 print *,'ntang = ',ntang
         print *,'xx4 first & last ',xx4(1,1),xx4(iquad,iquad)
         print *,'xx4 (5,5),(7,7),(9,9) ',xx4(5,5),xx4(7,7),xx4(9,9)
@@ -475,7 +477,7 @@ c         to save space have equivalenced x,x0  etc
 c         if(i.eq.(il+1)/2.and.j.eq.(il+1)/2)print *,'xx,yy: ',xx,yy
          enddo  ! i loop
         enddo   ! j loop
-	 if(ktau.eq.0)then
+	 if(ktau.eq.0.and.myid==0)then
           print *,'ax6 (1,1,0) & (2,2,0) ',ax6(1,1,0),ax6(2,2,0)
           print *,'ay6 (1,1,0) & (2,2,0) ',ay6(1,1,0),ay6(2,2,0)
           print *,'az6 (1,1,0) & (2,2,0) ',az6(1,1,0),az6(2,2,0)
@@ -490,10 +492,11 @@ c         if(i.eq.(il+1)/2.and.j.eq.(il+1)/2)print *,'xx,yy: ',xx,yy
          stop
       endif       ! (npanels.eq.13)
 
-      if(ktau.eq.0)print *,'basic grid length ds =',ds
+      if(ktau.eq.0.and.myid==0)print *,'basic grid length ds =',ds
       if(schmidt.ne.1.)then
         alf=(1.-schmidt**2)/(1.+schmidt**2)
-        print *,'doing schmidt with schmidt,alf: ',schmidt,alf
+        if(myid==0)
+     &       print *,'doing schmidt with schmidt,alf: ',schmidt,alf
         do iq=1,ifull
          xin=x(iq)
          yin=y(iq)
@@ -522,7 +525,7 @@ c        enddo  ! n loop
       if(ndiag.eq.2)call printp('x   ', x)
       if(ndiag.eq.2)call printp('y   ', y)
       if(ndiag.eq.2)call printp('z   ', z)
-      if(ktau.eq.0)then
+      if(ktau.eq.0.and.myid==0)then
         print *,'On each panel (ntang=0)_em for ',
      .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(il,il)'
         do n=0,npanels
@@ -632,7 +635,7 @@ c    .                  (emv(isv2(iq))+emv(iq)))
         endif   ! (ntang.eq.2)
       endif     ! (ntang.eq.0)
       
-      if(ktau.eq.0)then
+      if(ktau.eq.0.and.myid==0)then
         do iq=il-2,il
          print *,'iq,em,emu,emv',iq,em(iq),emu(iq),emv(iq)
         enddo   ! iq loop
@@ -668,7 +671,7 @@ c     now use 1/(em**2) to cope with schmidt, rotated and ocatagon coordinates
 !c     *** only useful as diagnostic for gnew
 !      cosa(iq)=ax(iq)*bx(iq)+ay(iq)*by(iq)+az(iq)*bz(iq)
       enddo   ! iq loop
-      if(ktau.eq.0)then
+      if(ktau.eq.0.and.myid==0)then
         print *,'sumwts/ifull ',sumwts/ifull  ! ideally equals 4*pi ??
         print *,'in setxyz rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
       endif  ! (ktau.eq.0)
@@ -727,7 +730,7 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
         call printp('lat ',rlat)
         call printp('long',rlong)
       endif
-      if(ktau.eq.0)then
+      if(ktau.eq.0.and.myid==0)then
         print *,'At centre of the faces:'
         do n=0,npanels
          iq=ind((il+1)/2,(il+1)/2,n)

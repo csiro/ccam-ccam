@@ -1,6 +1,7 @@
       subroutine scrnout(zo,ustar,fg,eg,factch,qsurf,wetfac,qsttg,  ! arrays
      .     qgscrn,tscrn,uscrn,u10,scrrel,                           ! arrays
      .     bprm,cms,chs,fmroot,nalpha)
+      use cc_mpi, only : mydiag
       parameter (ntest=0)   ! ntest= 0 for diags off; ntest= 1 for diags on
       parameter (jlmspec=0) ! jlmspec=0 for original method over land
       parameter (chn10=.00136733)   ! sea only, same as in sflux
@@ -47,7 +48,7 @@ c     chn3=(vkar/log(z3onzt))**2
       zscronzt=zscr*ztv
       chnscr=(vkar/log(zscronzt))**2
 
-      if(ntest.eq.1)print *,'scrnout wetfac qsttg ',
+      if(ntest.eq.1.and.mydiag)print *,'scrnout wetfac qsttg ',
      .                               wetfac(idjd),qsttg(idjd)
 c     calculate "surface" specific humidity
 !     N.B. qsttg is coming in as before-calling-sib3 value of qs_tss
@@ -67,7 +68,7 @@ c     calculate "surface" specific humidity
         enddo   ! iq=1,ifull
       endif   ! (nalpha.eq.1) then .. else ..
 
-      if(ntest.eq.1)print *,'scrnout zo ',zo(idjd)
+      if(ntest.eq.1.and.mydiag)print *,'scrnout zo ',zo(idjd)
       do iq=1,ifull
        zlog(iq)=log(zo(iq))
        zscronzo=zscr/zo(iq)
@@ -80,7 +81,7 @@ c      af3(iq) = afroot3(iq)*afroot3(iq)
        af10(iq) = afroot10(iq)*afroot10(iq)
       enddo   ! iq=1,ifull
 
-      if(ntest.eq.1)print *,'scrnout zlog ',zlog(idjd)
+      if(ntest.eq.1.and.mydiag)print *,'scrnout zlog ',zlog(idjd)
 !cdir nodep
       do ip=1,ipsice      ! just land and sice points
        iq=iperm(ip)
@@ -249,7 +250,7 @@ c       if(tstarx.lt.0.)rich=-y*y
 c       print *,'tstarx,rich,fg ',tstarx,rich,fg(iq)
        endif
       enddo
-      if(ntest.ne.0.or.diag)then
+      if((ntest.ne.0.or.diag).and.mydiag)then
         iq=idjd
         es = establ(tscrn(iq))
         constz=ps(iq)-es

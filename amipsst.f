@@ -60,35 +60,51 @@
         endif
         open(unit=75,file=sstfile,status='old',form='formatted')
 2       read(75,'(i2,1x,i6,a22)') imonth,iyear,header
-        print *,'reading sst data:',imonth,iyear,header
-        print *,'comparing with imo_m,iyr_m ',imo_m,iyr_m
+        if (myid==0) then
+           print *,'reading sst data:',imonth,iyear,header
+           print *,'comparing with imo_m,iyr_m ',imo_m,iyr_m
+        end if
         read(75,*) ssta_g
         ssta_g(:)=ssta_g(:)*.01 -50. +273.16
-        print *,'ssta(idjd) ',ssta_g(idjd_g)
+        if (myid==0) then
+           print *,'ssta(idjd) ',ssta_g(idjd_g)
+        end if
         if(iyr_m.ne.iyear.or.imo_m.ne.imonth)go to 2
 
         read(75,'(i2,1x,i6,a22)') imonth,iyear,header
-        print *,'reading sstb data:',imonth,iyear,header
-        print *,'should agree with imo,iyr ',imo,iyr
+        if (myid==0) then
+           print *,'reading sstb data:',imonth,iyear,header
+           print *,'should agree with imo,iyr ',imo,iyr
+        end if
         if(iyr.ne.iyear.or.imo.ne.imonth)stop
         read(75,*) sstb_g
         sstb_g(:)=sstb_g(:)*.01 -50. +273.16
-        print *,'sstb(idjd) ',sstb_g(idjd_g)
+        if (myid==0) then
+           print *,'sstb(idjd) ',sstb_g(idjd_g)
+        end if
 	 
         open(unit=76,file=icefile,status='old',form='formatted')	 
 	 if(namip.eq.2)then   ! sice also read at middle of month
 21        read(76,'(i2,1x,i6,a22)') imonth,iyear,header
-          print *,'reading a_sice data:',imonth,iyear,header
-          print *,'comparing with imo_m,iyr_m ',imo_m,iyr_m
+          if (myid==0) then
+             print *,'reading a_sice data:',imonth,iyear,header
+             print *,'comparing with imo_m,iyr_m ',imo_m,iyr_m
+          end if
           read(76,*) aice_g
-          print *,'aice(idjd) ',aice_g(idjd_g)
+          if (myid==0) then
+             print *,'aice(idjd) ',aice_g(idjd_g)
+          end if
           if(iyr_m.ne.iyear.or.imo_m.ne.imonth)go to 21
           read(76,'(i2,1x,i6,a22)') imonth,iyear,header
-          print *,'reading b_sice data:',imonth,iyear,header
-          print *,'should agree with imo,iyr ',imo,iyr
+          if (myid==0) then
+             print *,'reading b_sice data:',imonth,iyear,header
+             print *,'should agree with imo,iyr ',imo,iyr
+          end if
           if(iyr.ne.iyear.or.imo.ne.imonth)stop
           read(76,*) bice_g
-          print *,'bice(idjd) ',bice_g(idjd_g)
+          if (myid==0) then
+             print *,'bice(idjd) ',bice_g(idjd_g)
+          end if
 	 endif   ! (namip.eq.2) 
       endif     ! (ktau.eq.0)
 
@@ -105,16 +121,20 @@
 	 
 !       read in next months data
 3       read(75,'(i2,1x,i6,a22)') imonth,iyear,header
-        print *,'reading sstb data:',imonth,iyear,header
-        print *,'comparing with imo_p,iyr_p ',imo_p,iyr_p
+        if (myid==0) then
+           print *,'reading sstb data:',imonth,iyear,header
+           print *,'comparing with imo_p,iyr_p ',imo_p,iyr_p
+        end if
         read(75,*) sstb_g
         sstb_g(:)=sstb_g(:)*.01 -50. +273.16
         if(iyr_p.ne.iyear.or.imo_p.ne.imonth)go to 3
 
         if(namip.eq.2)then   ! sice also read at middle of month
 31        read(76,'(i2,1x,i6,a22)') imonth,iyear,header
-          print *,'reading b_sice data:',imonth,iyear,header
-          print *,'comparing with imo_p,iyr_p ',imo_p,iyr_p
+          if (myid==0) then
+             print *,'reading b_sice data:',imonth,iyear,header
+             print *,'comparing with imo_p,iyr_p ',imo_p,iyr_p
+          end if
           read(76,*) bice_g
           if(iyr_p.ne.iyear.or.imo_p.ne.imonth)go to 31
         endif  ! (namip.eq.2)
@@ -128,7 +148,9 @@
      .                               (mdays(imo+1)+mdays(imo))
         rat2=(2.*iday-mdays(imo))/(mdays(imo+1)+mdays(imo))
       endif
-      print *,'month_imo,iday',imo,iday
+      if (myid==0) then
+         print *,'month_imo,iday',imo,iday
+      end if
       if(iday.gt.1.or.namip.eq.2)go to 6
 
 !     amipice for namip=1   N.B. used below to mask the SSTs

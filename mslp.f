@@ -1,4 +1,5 @@
       subroutine mslp(pmsl,psl,zs,t)
+      use cc_mpi, only : mydiag
       parameter (meth=1) ! 0 for original, 1 for other jlm - always now
       include 'newmpar.h'
       include 'const_phys.h'
@@ -27,7 +28,7 @@ c     endif  ! (meth.eq.0)
          pmsl(iq)=1.e5*exp(psl(iq)+dlnps)
         enddo
       endif  ! (meth.eq.1)
-      if(nmaxpr.eq.1)then
+      if(nmaxpr.eq.1.and.mydiag)then
         print *,'meth,lev,sig(lev) ',meth,lev,sig(lev)
         print *,'zs,t_lev,psl,pmsl ',
      .           zs(idjd),t(idjd,lev),psl(idjd),pmsl(idjd)

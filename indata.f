@@ -624,7 +624,8 @@ c     for the moment assume precip read in at end of 24 h period
 
       if(nqg_set.lt.7)then  ! initialize sicedep from tss (i.e. not read in)
 !       n.b. this stuff & other nqg_set to be removed when always netcdf input
-        print *,'preset sice to .5 via tss, because nqg_set: ',nqg_set
+         if (myid==0) print *,
+     &        'preset sice to .5 via tss, because nqg_set: ',nqg_set
         do iq=1,ifull
          if(tss(iq).le.271.2)then
            sicedep(iq)=2.  ! changed from .5 on 26/3/03
@@ -948,7 +949,7 @@ c****    according to Palmer this prevents 2-grid noise at steep edge of
 c****    himalayas etc.
          he(iq)=min(hefact*he(iq),helim)
         enddo
-        print *,'hemax = ',hemax
+        if (myid==0) print *,'hemax = ',hemax
         call mpi_allreduce(hemax, hemax_g, 1, MPI_REAL, MPI_MAX, 
      &                  MPI_COMM_WORLD, ierr )
         hemax = hemax_g
@@ -961,11 +962,11 @@ c         use he of 30% of orography, i.e. zs*.3/grav
         endif   ! (hemax.eq.0.)
         call mpi_reduce(hemax, hemax_g, 1, MPI_REAL, MPI_MAX, 0,
      &                  MPI_COMM_WORLD, ierr )
-        print *,'final hemax = ',hemax_g
+        if (myid==0) print *,'final hemax = ',hemax_g
       endif     ! (ngwd.ne.0)
 
       if(namip.gt.0)then
-        print *,'calling amipsst at beginning of run'
+        if(myid==0)print *,'calling amipsst at beginning of run'
         call amipsst
       endif   ! namip.gt.0
 
@@ -1751,6 +1752,7 @@ c      stop 'rdso2em: about to exit routine'
        end
 
       function rdatacheck( mask,fld,lbl,idfix,val )
+      use cc_mpi, only : myid
       include 'const_phys.h'
       include 'newmpar.h'
       real fld(ifull)
@@ -1769,7 +1771,8 @@ c      stop 'rdso2em: about to exit routine'
       to   = 0.
       toval =.false.
 
-10    write(*,*)' datacheck: verifying field ',lbl
+ 10   continue
+      if (myid==0) write(*,*)' datacheck: verifying field ',lbl
 
       err =.false.
       do iq=1,ifull
@@ -1806,7 +1809,8 @@ c            if( fld(iq).lt.from ) then
       ito   = 0
       toval =.false.
 
-20    write(*,*)' datacheck: verifying field ',lbl
+20    continue
+      if(myid==0) write(*,*)' datacheck: verifying field ',lbl
       err =.false.
       do iq=1,ifull
           if( mask(iq) ) then
@@ -1902,6 +1906,7 @@ c --- provide initial tracer values (may be overwritten by infile)
       end
 
       subroutine insoil
+      use cc_mpi, only : myid
       include 'newmpar.h'
 !     include 'scamdim.h'
       include 'soilv.h'
@@ -1914,8 +1919,10 @@ c --- provide initial tracer values (may be overwritten by infile)
          hsbh(isoil)  = hyds(isoil)*abs(sucs(isoil))*bch(isoil) !difsat*etasat
          ibp2(isoil)  = nint(bch(isoil))+2
          i2bp3(isoil) = 2*nint(bch(isoil))+3
-         write(6,"('isoil,ssat,sfc,swilt,hsbh ',i2,3f7.3,e11.4)") 
+         if ( myid == 0 ) then
+            write(6,"('isoil,ssat,sfc,swilt,hsbh ',i2,3f7.3,e11.4)") 
      &            isoil,ssat(isoil),sfc(isoil),swilt(isoil),hsbh(isoil)
+         end if
         enddo
         cnsd(9)=2.51
 

@@ -108,11 +108,13 @@ c     set coefficients for Louis scheme
         do while(sig(kscbase).gt.sigkscb)  !  e.g. sigkscb=.99
          kscbase=kscbase+1
         enddo
+        if ( myid == 0 ) then
         print *,'For shallow convection:'
         print *,'ksc,kscbase,ksctop,kscsea ',
      .           ksc,kscbase,ksctop,kscsea
 	 write (6,"(' sigkscb,sigksct,tied_con,tied_over,tied_rh:',
      .       5f8.3)")sigkscb,sigksct,tied_con,tied_over,tied_rh
+        end if
         do k=1,kl
          prcpv(k)=sig(k)**(-rdry/cp)
         enddo    ! k loop

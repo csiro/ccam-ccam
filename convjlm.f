@@ -1,5 +1,6 @@
       subroutine convjlm      ! jlm convective scheme - Version v3
 !     has fldownn depending on delta sigma      
+      use cc_mpi, only : mydiag
       use diag_m
       include 'newmpar.h'
       parameter (ntest=0)      ! 1 or 2 to turn on
@@ -136,7 +137,7 @@ c       calculate hs
        enddo  ! iq loop
       enddo   ! k loop
 
-      if(ktau.eq.1)then
+      if(ktau.eq.1.and.mydiag)then
        print *,'itn,iterconv,nbase,no2layer,nuvconv ',
      .          itn,iterconv,nbase,no2layer,nuvconv
        print *,'methdetr,detrain,detrainx,dsig2,dsig4 ',
@@ -150,7 +151,7 @@ c       calculate hs
        write (6,"('alfqq_s ',19f7.3/(8x,19f7.3))") alfqq_s
        write (6,"('alfss   ',19f7.3/(8x,19f7.3))") alfss
       endif
-      if(ntest.ne.0.or.diag)then
+      if((ntest.ne.0.or.diag).and.mydiag)then
         print *,'near beginning of convjlm loop; ktau,itn,id,jd: ',
      .                                           ktau,itn,id,jd
         write (6,"('rh   ',19f7.2/(8x,19f7.2))") 
@@ -257,7 +258,7 @@ c        if(sig(kt_sav(iq)).gt..8)then
         enddo  ! iq loop
       endif
 
-      if(ntest.ne.0.or.diag)then
+      if((ntest.ne.0.or.diag).and.mydiag)then
        iq=idjd
        iq=idjd
        kdown=min(kl,kb_sav(iq)+nint(.6+.75*(kt_sav(iq)-kb_sav(iq))))
@@ -308,7 +309,7 @@ c    .           (tdown-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
        delq(iq,kb_sav(iq))=delq(iq,kb_sav(iq))-qbase(iq)
        dels(iq,kb_sav(iq))=dels(iq,kb_sav(iq))-sbase(iq)
       enddo  ! iq loop
-      if(ntest.ne.0.or.diag)then
+      if((ntest.ne.0.or.diag).and.mydiag)then
        print *,"delsa ",(dels(idjd,k),k=1,kt_sav(idjd))
        print *,"delqa ",(delq(idjd,k),k=1,kt_sav(idjd))
       endif
@@ -328,7 +329,7 @@ c         qavg=.5*(qq(iq,k)+qq(iq,k-1))
         endif  ! (k.gt.kb_sav(iq).and.k.le.kt_sav(iq))
        enddo   ! iq loop
       enddo    ! k loop
-      if(ntest.ne.0.or.diag)then
+      if((ntest.ne.0.or.diag).and.mydiag)then
        print *,"delsb ",(dels(idjd,k),k=1,kt_sav(idjd))
        print *,"delqb ",(delq(idjd,k),k=1,kt_sav(idjd))
       endif
@@ -349,7 +350,7 @@ c        qavgb=.5*(qq(iq,k)+qq(iq,k-1))
         endif
        enddo   ! iq loop
       enddo    ! k loop
-      if(ntest.ne.0.or.diag)then
+      if((ntest.ne.0.or.diag).and.mydiag)then
        print *,"delsc ",(dels(idjd,k),k=1,kt_sav(idjd))
        print *,"delqc ",(delq(idjd,k),k=1,kt_sav(idjd))
       endif
@@ -410,7 +411,7 @@ c        qavgb=.5*(qq(iq,k)+qq(iq,k-1))
        endif     ! (methdetr.eq.1)  .. else ..
       endif  ! (detrainx.gt.0.)
 
-      if(ntest.ne.0.or.diag)then
+      if((ntest.ne.0.or.diag).and.mydiag)then
         print *,"before diag print of dels,delh "
         iq=idjd
         nlayersd=max(1,nint((kt_sav(iq)-kb_sav(iq)-.1)/
@@ -456,7 +457,7 @@ c           dels(iq,k)=dels(iq,kb_sav(iq))/(1.-sigmh(kb_sav(iq)+1))
        enddo     ! iq loop
       enddo      ! k loop
 
-      if(ntest.ne.0.or.diag)then
+      if((ntest.ne.0.or.diag).and.mydiag)then
         print *,"before convpsav calc, after division by dsk"
         print *,"dels ",(dels(idjd,k),k=1,kt_sav(idjd))
         print *,"delq ",(delq(idjd,k),k=1,kt_sav(idjd))
@@ -531,7 +532,7 @@ c        if(sig(kt_sav(iq)).gt.sigksct)then
       endif                              ! (itn.lt.iterconv)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
       
-      if(ntest.ne.0.or.diag)then
+      if((ntest.ne.0.or.diag).and.mydiag)then
         iq=idjd
         detr=max( detrain,detrain+(dsig4-sig(kb_sav(iq))+
      .            sig(kt_sav(iq)))*(detrainx-detrain)/(dsig4-dsig2) )
@@ -652,7 +653,7 @@ c          if(nums.lt.20)then
        enddo   ! k loop
       endif    ! (methprec.eq.1)  .. else ..
 
-      if(ntest.ne.0.or.diag)then
+      if((ntest.ne.0.or.diag).and.mydiag)then
         iq=idjd
 !       N.B. convpsav(iq) is already mult by dt jlm: mass flux is convpsav/dt
         print *,"after convection: ktau,itn,kbsav,ktsav ",
@@ -760,7 +761,7 @@ c          if(nums.lt.20)then
         enddo    ! ntr loop    
       endif      ! ilt.gt.1
       
-      if(ntest.ne.0.or.diag)then
+      if((ntest.ne.0.or.diag).and.mydiag)then
         write (6,"('uuc ',19f6.1/(8x,19f6.1))") (u(idjd,k),k=1,kl)
         write (6,"('vvc ',19f6.1/(8x,19f6.1))") (v(idjd,k),k=1,kl)
       endif
@@ -787,7 +788,7 @@ c          if(nums.lt.20)then
       endif  ! (ifullw.eq.ifull)
 !__________________________end of convective calculations_____________________
      
-      if(ntest.ne.0.or.diag)then
+      if((ntest.ne.0.or.diag).and.mydiag)then
         print *,"after convection"
         write (6,"('qge ',19f7.3/(8x,19f7.3))")(1000.*qq(idjd,k),k=1,kl)
         write (6,"('tte ',19f6.1/(8x,19f6.1))")(tt(idjd,k),k=1,kl)
@@ -832,7 +833,7 @@ c          if(nums.lt.20)then
 !     here the rainfall rate rnrt has been converted to g/m**2/sec
       fluxr(:)=rnrt(:)*1.e-3*dt ! kg/m2      
 
-      if(ntest.ne.0.or.diag)then
+      if((ntest.ne.0.or.diag).and.mydiag)then
         print *,'after large scale rain: kbsav_ls,rnrt ',
      .                                   kbsav_ls(idjd),rnrt(idjd)
         write (6,"('qg ',19f7.3/(8x,19f7.3))") 
@@ -895,7 +896,8 @@ c           if(evapls.gt.0.)print *,'iq,k,evapls ',iq,k,evapls
       precip(:)=precip(:)+condx(:)      
       t(1:ifull,:)=tt(1:ifull,:)             
 
-      if(ntest.eq.1.or.diag)then
+      if((ntest.eq.1.or.diag))then
+        if(mydiag) then
         print *,'at end of convjlm: rnrt,rnrtc ',
      .                              rnrt(idjd),rnrtc(idjd)
         write (6,"('qg ',19f7.3/(8x,19f7.3))") 
@@ -912,6 +914,7 @@ c           if(evapls.gt.0.)print *,'iq,k,evapls ',iq,k,evapls
      .             rnrt(idjd),rnrtc(idjd),condx(idjd)
         print *,'precc,precip ',
      .           precc(idjd),precip(idjd)
+        endif
         call maxmin(rnrtc,'rc',ktau,1.,1)
       endif
       return

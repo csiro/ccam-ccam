@@ -16,6 +16,7 @@ c  This routine reads the CO2 transmission coefficients from the
 c  co2_datafile (filename set in namelist)
 c  was unit 15 for DARLAM, unit 17 for conformal-cubic
 
+      use cc_mpi, only : myid
       include 'newmpar.h'
       include 'rdparm.h'  ! needed before other radiation common blocks
       include 'co2dta.h'
@@ -24,7 +25,7 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
       real sigma(kl), sigin(kl)
       data lu/15/
       read(lu,*) nlev
-      print *,'co2_read nlev=',nlev
+      if (myid==0) print *,'co2_read nlev=',nlev
 c     Check that the number of levels is the same
       if ( nlev.ne.kl ) then
 	  print*, ' ERROR - Number of levels wrong in co2_data file'
@@ -33,7 +34,7 @@ c     Check that the number of levels is the same
 c     Check that the sigma levels are the same
 c     Note that the radiation data has the levels in the reverse order
       read(lu,*) (sigin(i),i=kl,1,-1)
-      print *,'co2_read sigin=',sigin
+      if (myid==0) print *,'co2_read sigin=',sigin
       do k=1,kl
 	  if ( abs(sigma(k)-sigin(k)) .gt. sigtol ) then
 	      print*, ' ERROR - sigma level wrong in co2_data file'
@@ -42,7 +43,8 @@ c     Note that the radiation data has the levels in the reverse order
           end if
       end do
       read(lu,*) rrvco2
-      write(*,*) ' CO2 mixing ratio is ', rrvco2*1e6,' ppmv'
+      if (myid==0)
+     &     write(*,*) ' CO2 mixing ratio is ', rrvco2*1e6,' ppmv'
       read(lu,*) stemp
       read(lu,*) gtemp
       read(lu,*) cdt51
@@ -72,6 +74,5 @@ c     Note that the radiation data has the levels in the reverse order
       read(lu,*) co211
       read(lu,*) co218
       close(lu)
-      print *,'done co2_read'
       return
       end
