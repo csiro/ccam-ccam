@@ -360,7 +360,7 @@
          write (6,"('v   ',9f8.2/4x,9f8.2)") v(idjd,:)
          write (6,"('qg  ',9f8.3/4x,9f8.3)") 1000.*qg(idjd,:)
         endif
-        if ( nvad==4 .or. nvar==9 ) then
+        if ( nvad==4 .or. nvad==9 ) then
           sdmx = maxval(abs(sdot))
           call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX,
      &                       MPI_COMM_WORLD, ierr )
@@ -375,7 +375,7 @@
             call vadvtvd(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
      &                   nvadh_pass)
           enddo
-        endif  !  nvad==4 .or. nvar==9
+        endif  !  nvad==4 .or. nvad==9
         if(nvad.ge.7) call vadv30(t(1:ifull,:),
      &                            u(1:ifull,:),
      &                            v(1:ifull,:)) ! for vadvbess
