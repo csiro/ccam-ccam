@@ -12,6 +12,8 @@
       include 'arrays.h'
       include 'const_phys.h' ! r,g,cp,cpv,roncp
       include 'indices.h'  ! in,is,iw,ie,inn,iss,iww,iee
+      include 'kuocom.h'   ! ldr
+      include 'liqwpar.h'  ! qfg,qlg
       include 'latlong.h'
       include 'map.h'
       include 'morepbl.h'  ! condx
@@ -43,8 +45,10 @@
 !     .             ee(ifull),ff(ifull),dum2(ifull,7),pskap(ifull)
       real p(ifull+iextra,kl),tempry(ifull,kl),
      &     tv(ifull+iextra,kl)
-      real qgsav, trsav
+      real qgsav, , qfgsav, qlgsav, trsav
       common/work3sav/qgsav(ifull,kl),trsav(ilt*jlt,klt,ngasmax)  ! passed to adjust5
+      common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
+     .             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
       real pextras(ifull,kl),omgf(ifull,kl)
       equivalence (omgf,pextras,dpsldt)
       real phip(ifull+iextra,nphip),dphip(ifull,nphip)    ! 1052 to 2 every 25
@@ -53,12 +57,13 @@
       integer iq, iqq, k, kk, kpp, kx, ng, ii, jj
       real betav, cnon, contv, coslat, costh, delneg, delp, delpos, den,
      &     drk, factor, omg_rot, polenx, polenz, pp, pressp, presst,
-     &     psav, psavk, psavklog, psavlog, ratio, rk, sdmax, sigt,
-     &     sigtlog, sigxx, sinlat, sinth, sumdiffb, termlin, tt, tvv,
-     &     uzon, zonx, zony, zonz, zsint
+     &     psav, psavk, psavklog, psavlog, ratio, rk, sdmax, sdmax_g,
+     &     sigt, sigtlog, sigxx, sinlat, sinth, sumdiffb, termlin, tt,
+     &     tvv, uzon, zonx, zony, zonz, zsint
       real :: delneg_l, delpos_l  ! Local versions
       real, dimension(2) :: delarr, delarr_l
       integer :: ierr
+      integer, save :: num = 0
       
       call start_log(nonlin_begin)
 
@@ -73,14 +78,13 @@
         enddo         
       endif
 
-      do k=1,kl
-       do iq=1,ifull
-!       *** following qgsav should be before first vadv call
-        qgsav(iq,k)=qg(iq,k)      ! for qg  conservation in adjust5
-!       N.B. [D + dsigdot/dsig] saved in adjust5 as pslx
-        pslx(iq,k)=psl(iq)-pslx(iq,k)*dt*.5*(1.-epst(iq))
-       enddo     ! iq loop
-      enddo      ! k  loop
+!     *** following qgsav should be before first vadv call
+      qgsav(1:ifull,:)=qg(1:ifull,:)      ! for qg  conservation in adjust5
+      if(ldr.ne.0)then
+        qfgsav(1:ifull,:)=qfg(1:ifull,:)
+        qlgsav(1:ifull,:)=qlg(1:ifull,:)
+      endif   ! (ldr.ne.0)
+
       if(ngas.ge.1)then
         if(mfix_rad.gt.0.and.mspec.eq.1)then ! make gases 2 to ng add up to g1
          do k=1,kl              ! here it is just from effects of physics
@@ -135,9 +139,6 @@
          end if
          call printa('v   ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
          if ( mydiag ) then
-            print *,'pslx ',(pslx(idjd,k),k=1,kl)
-c        print *,'pslx(nlv) ne sw nw se ',pslx(id+1,jd+1,nlv)
-c     .      ,pslx(id-1,jd-1,nlv),pslx(id-1,jd+1,nlv),pslx(id+1,jd-1,nlv)
             print *,'tn*dt a0 ',(tn(idjd,k)*dt,k=1,kl)
             print *,'un*dt a0 ',(un(idjd,k)*dt,k=1,kl)
             print *,'vn*dt a0 ',(vn(idjd,k)*dt,k=1,kl)
@@ -147,45 +148,63 @@ c     .      ,pslx(id-1,jd-1,nlv),pslx(id-1,jd+1,nlv),pslx(id+1,jd-1,nlv)
          end if
       endif
 
-      un(:,:)=0. !   needed (whilst un equiv in vertmix)
-      vn(:,:)=0.
-      tn(:,:)=0.
       if( (diag.or.nmaxpr.eq.1) .and. mydiag )then
-        print *,'in nonlin before vertical advection'
-        write (6,"('sdot',9f8.3/4x,9f8.3)") (sdot(idjd,kk),kk=1,kl)
+        print *,'in nonlin before possible vertical advection'
+        write (6,"('divn ',9f8.2/4x,9f8.2)") (d(idjd,kk)*1.e6,kk=1,kl)
+        write (6,"('sdotn',9f8.3/5x,9f8.3)") (sdot(idjd,kk),kk=1,kl)
+        write (6,"('omgfn',9f8.3/5x,9f8.3)")
+     .            (ps(idjd)*omgf(idjd,kk),kk=1,kl)
         write (6,"('t   ',9f8.2/4x,9f8.2)") (t(idjd,kk),kk=1,kl)
         write (6,"('u   ',9f8.2/4x,9f8.2)") (u(idjd,kk),kk=1,kl)
         write (6,"('v   ',9f8.2/4x,9f8.2)") (v(idjd,kk),kk=1,kl)
         write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,kk),kk=1,kl)
       endif
 
-      if(nvad.ne.0)then
-!       do vertical advection in split mode
-        if(nvad.eq.4)call vadvtvd(t(1:ifull,:),
-     &                            u(1:ifull,:),
-     &                            v(1:ifull,:))  ! can now call from globpe too
-        if(nvad.eq.7)call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:))
-        if( (diag.or.nmaxpr.eq.1) .and. mydiag )then
-         print *,'in nonlin after vertical advection'
-         write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,kk),kk=1,kl)
-         write (6,"('t   ',9f8.2/4x,9f8.2)") (t(idjd,kk),kk=1,kl)
-         write (6,"('thet',9f8.2/4x,9f8.2)")  
-     .                (t(idjd,k)*sig(k)**(-roncp),k=1,kl)
-         write (6,"('u   ',9f8.2/4x,9f8.2)") (u(idjd,kk),kk=1,kl)
-         write (6,"('v   ',9f8.2/4x,9f8.2)") (v(idjd,kk),kk=1,kl)
-         write (6,"('t#  ',9f8.2)") diagvals(t(:,nlv))
-!     .             ((t(ii+(jj-1)*il,nlv),ii=id-1,id+1),jj=jd-1,jd+1)
-         write (6,"('u#  ',9f8.2)") diagvals(u(:,nlv))
-!     .             ((u(ii+(jj-1)*il,nlv),ii=id-1,id+1),jj=jd-1,jd+1)
-         write (6,"('v#  ',9f8.2)")  diagvals(v(:,nlv))
-!     .             ((v(ii+(jj-1)*il,nlv),ii=id-1,id+1),jj=jd-1,jd+1)
-         write (6,"('omgf#',9f8.3)") diagvals(ps)*diagvals(omgf(:,nlv))
-!         write (6,"('omgf#',9f8.3)") ((ps(ii+(jj-1)*il)*
-!     .               omgf(ii+(jj-1)*il,nlv),ii=id-1,id+1),jj=jd-1,jd+1)
-        endif
-      endif      ! (nvad.ne.0)
+!     do vertical advection in split mode
+      if(nvad.eq.4)then
+         sdmx = maxval(abs(sdot))
+         call MPI_AllReduce(sdmax, sdmax_g, 1, MPI_REAL, MPI_MAX, 0,
+     &                      MPI_COMM_WORLD, ierr )
+	 nits=1+sdmx_g/nvadh
+	 nvadh_pass=nvadh*nits
+	 if(mydiag.and.mod(ktau,nmaxpr).eq.0)
+     &      print *,'in upglobal sdmx,nits,nvadh_pass ',
+     &                           sdmx_g,nits,nvadh_pass
+         do its=1,nits
+            call vadvtvd(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
+     &                   nvadh_pass) 
+	 enddo
+      endif  ! (nvad.eq.4)
+
+      if(nvad.ge.7)then
+         call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:))  ! for vadvbess
+      end if
+
+      do k=1,kl
+!       N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
+        pslx(1:ifull,k)=psl(1:ifull)-pslx(1:ifull,k)*dt*.5*(1.-epst(:))
+      enddo      ! k  loop
+
+      if(nvad.gt.0.and.(diag.or.nmaxpr.eq.1).and.mydiag)then
+       print *,'in nonlin after vertical advection'
+       write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,kk),kk=1,kl)
+       write (6,"('t   ',9f8.2/4x,9f8.2)") (t(idjd,kk),kk=1,kl)
+       write (6,"('thet',9f8.2/4x,9f8.2)")  
+     .              (t(idjd,k)*sig(k)**(-roncp),k=1,kl)
+       write (6,"('u   ',9f8.2/4x,9f8.2)") (u(idjd,kk),kk=1,kl)
+       write (6,"('v   ',9f8.2/4x,9f8.2)") (v(idjd,kk),kk=1,kl)
+       write (6,"('t#  ',9f8.2)") 
+     .           ((t(ii+(jj-1)*il,nlv),ii=id-1,id+1),jj=jd-1,jd+1)
+       write (6,"('u#  ',9f8.2)") 
+     .           ((u(ii+(jj-1)*il,nlv),ii=id-1,id+1),jj=jd-1,jd+1)
+       write (6,"('v#  ',9f8.2)") 
+     .           ((v(ii+(jj-1)*il,nlv),ii=id-1,id+1),jj=jd-1,jd+1)
+       write (6,"('omgf#',9f8.3)") ((ps(ii+(jj-1)*il)*
+     .             omgf(ii+(jj-1)*il,nlv),ii=id-1,id+1),jj=jd-1,jd+1)
+        print *,'pslx ',(pslx(idjd,k),k=1,kl)
+      endif  ! (nvad.gt.0.and.(diag.or.nmaxpr.eq.1))
       if(diag)then
-         if ( mydiag ) write (6,"('qg ',19f7.3/(8x,19f7.3))") 
+         if ( mydiag ) write (6,"('qg ',12f7.3/(8x,12f7.3))") 
      &             (1000.*qg(idjd,k),k=1,kl)
          if(sig(nlv).lt..3)then
             call printa('qg  ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e6)
@@ -245,17 +264,19 @@ c     .      ,pslx(id-1,jd-1,nlv),pslx(id-1,jd+1,nlv),pslx(id+1,jd-1,nlv)
          do iq=1,ifull
             aa(iq,1)=rata(nlv)*sdot(iq,nlv+1)+ratb(nlv)*sdot(iq,nlv)
          enddo
-         if ( mydiag ) print *,'k,aa,emu',nlv,aa(idjd,1),emu(idjd)
+         if ( mydiag )
+     &        print *,'k,aa,emu,emv',nlv,aa(idjd),emu(idjd),emv(idjd)
+
          call printa('sgdf',aa(:,1),ktau,nlv,ia,ib,ja,jb,0.,10.)
       endif
 
       tv=.61*qg*t  ! 3D - just add-on at this stage (after vadv)
       contv=(1.61-cpv/cp)/.61      ! about -.26/.61
-      if(ntbar.lt.0)then
+      if(ntbar.eq.-1.or.(ntbar.eq.-2.and.num.eq.0))then
         do iq=1,ifull
          tbar2d(iq)=t(iq,1)+contv*tv(iq,1)
         enddo   ! iq loop
-      endif     ! (ntbar.lt.0)
+      endif     ! (ntbar.eq.-1.or....)
       if(ntbar.eq.0)then
         do iq=1,ifull
          tbar2d(iq)=tbar(1)
@@ -554,14 +575,15 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
          enddo                  ! iq loop
       end do
       if(diag)then
+        if(mydiag) print *,'tv ',(tv(idjd,kk),kk=1,kl)
         call printa('aa  ',aa,ktau,nlv,ia,ib,ja,jb,0.,1.)
         call printa('aa2 ',aa2,ktau,nlv,ia,ib,ja,jb,0.,1.)
         call printa('bb  ',bb,ktau,nlv,ia,ib,ja,jb,0.,1.)
         call printa('bb2 ',bb2,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        call printa('cc  ',cc,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
-        call printa('cc2 ',cc2,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
-        call printa('dd  ',dd,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
-        call printa('dd2 ',dd2,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
+        call printa('cc  ',cc,ktau,nlv,ia,ib,ja,jb,0.,dt)
+        call printa('cc2 ',cc2,ktau,nlv,ia,ib,ja,jb,0.,dt)
+        call printa('dd  ',dd,ktau,nlv,ia,ib,ja,jb,0.,dt)
+        call printa('dd2 ',dd2,ktau,nlv,ia,ib,ja,jb,0.,dt)
       endif                     ! (diag.and.k.eq.nlv)
 
 !     finish evaluation of tx,ux,vx by adding in part of nonlinear terms
@@ -592,8 +614,8 @@ c	  dphi_dy(iq,k)=(pp-kpp)*dphip(iq,kpp+1)+(kpp+1-pp)*dphip(iq,kpp)
       if(diag)then
          if ( mydiag ) then
             print *,'at end of nonlin; nvad,idjd = ', nvad,idjd
-            print *,'p1 . & e ',p(idjd,1),p(ie(idjd),1)
-            print *,'p1 . & n ',p(idjd,1),p(in(idjd),1)
+            print *,'p1 . & e ',p(idjd,nlv),p(ie(idjd),nlv)
+            print *,'p1 . & n ',p(idjd,nlv),p(in(idjd),nlv)
             print *,'psl . & e ',psl(idjd),psl(ie(idjd))
             print *,'psl . & n ',psl(idjd),psl(in(idjd))
          end if
