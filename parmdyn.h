@@ -21,7 +21,7 @@
       common/paramdyn/epsp,epsu,epsf,m,mex,mfix,mfix_qg,                   &
      &                mspec,mup,nonl,nritch,nritch_t,nrot,                 &
      &                nstag,nstagu,ntbar,                                  &
-     &                nvsplit,nxmap,restol,precon,
+     &                nvsplit,nxmap,restol,precon,                         &
      &                nh,npex      ! for future use
 !              (ntbar=0)           ! 0 for standard
 !              (ntbar=(kl+1)/2)    ! level# for tbar2d with T set in nonlin
