@@ -10,7 +10,7 @@
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
       use cc_mpi
-#ifdef __IFC
+#ifdef __INTEL_COMPILER
       use ieee_m
 #endif
       use diag_m
@@ -104,7 +104,7 @@
      &     (/31,28,31,30,31,30,31,31,30,31,30,31, 31/)
       real psa(12001),psm(12001)
       logical prnt,odcalc
-#ifdef __IFC
+#ifdef __INTEL_COMPILER
       integer ieee
 #endif
       character comm*60,comment*60,rundate*10,header*47,text*2
@@ -185,12 +185,15 @@
          call MPI_Abort(MPI_COMM_WORLD)
       end if
       call mpi_comm_rank(MPI_COMM_WORLD, myid, ierr) ! Find my id
-      print*, "I am ", myid, " of ", nproc_in
+
 
       call log_off()
       call log_setup()
+#ifdef simple_timer
+      call start_log(model_begin)
+#endif
 
-#ifdef __IFC
+#ifdef __INTEL_COMPILER
       ieee = ieee_handler("set", "division", ihandler)
       ieee = ieee_handler("set", "invalid", ihandler)
       ieee = ieee_handler("set", "overflow", ihandler)
@@ -336,7 +339,7 @@ c     if(kscreen.lt.kountr)stop 'will cause koundiag problems'
 
 c     set up cc geometry
 !     All processors call setxyz
-      call setxyz
+      call setxyz(myid)
       call ccmpi_setup()
       call setaxu    ! globpea code
       call bounds(axu)
@@ -578,6 +581,9 @@ c      endif
       end if
       call log_on()
       do 88 kktau=1,ntau   ! ****** start of main time loop
+#ifdef simple_timer
+      call start_log(maincalc_begin)
+#endif
       ktau=kktau
       timer = timer + hrs_dt      ! timer now only used to give timeg
       timeg=mod(timer+hourst,24.)
@@ -692,6 +698,7 @@ c      endif
 
       if(nhor.lt.0)call hordifgt  ! now not tendencies
       if(diag.and.mydiag)print *,'after hordifgt t ',t(idjd,:)
+      call start_log(phys_begin)
       if(ngwd.lt.0)call gwdrag  ! <0 for split
       if(nkuo.eq.23)call convjlm     ! split convjlm 
       if ( nkuo /= 0 ) then
@@ -890,10 +897,16 @@ c         qg(:,:)=max(qg(:,:),qgmin)  ! testing
          call vertmix
 	 endif  ! (ntsur.eq.-6)
 
+
 !     This is the end of the physics. The next routine makes the load imbalance
 !     overhead explicit rather than having it hidden in one of the diagnostic
 !     calls.
       call phys_loadbal
+      call end_log(phys_end)
+#ifdef simple_timer
+      ! Avoid counting the diagnostics and outfile in this
+      call end_log(maincalc_end)
+#endif
 
       if(ndi.eq.-ktau)then
         nmaxpr=1
@@ -992,8 +1005,10 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
  971       format(' global_average cll, clm, clh, clt: ',4f6.2)
            print 972,alph_p,alph_pm,delneg,delpos,alph_q
  972       format(' alph_p,alph_pm,delneg,delpos,alph_q: ',5f8.4)
-           print 98,ktau,
-     &          ((ps(ii+(jj-1)*il),ii=id-4,id+4,4),jj=jd-4,jd+4,4)
+        end if
+        if ( mydiag ) then
+           print 98,ktau, diagvals(ps)
+!     &          ((ps(ii+(jj-1)*il),ii=id-4,id+4,4),jj=jd-4,jd+4,4)
  98        format(i7,' ps diag:',-2p9f7.1)
            if(t(idjd,kl).gt.258.)then
               print *,'t(idjd,kl) > 258. for idjd = ',idjd
@@ -1113,6 +1128,10 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
         clh_ave  = 0.
         if(nllp.gt.0)call setllp ! tied in with nwt at present
       endif  ! (mod(ktau,nwt).eq.0)
+#ifdef vampir
+      ! Flush vampir trace information to disk to save memory.
+      call vtflush(ierr)
+#endif
 88    continue                   ! *** end of main time loop
       call log_off()
       if (myid==0) then
@@ -1128,7 +1147,10 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
      &      60*(tvals2(6)-tvals1(6)) + (tvals2(7)-tvals1(7)) + 
      &      0.001 * (tvals2(8)-tvals1(8))
       end if
-      print*, "LOAD BAL TIME", myid, loadbaltime
+#ifdef simple_timer
+      call end_log(model_end)
+      call simple_timer_finalize
+#endif
 
       call mpi_finalize(ierr)
  
