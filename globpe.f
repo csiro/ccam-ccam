@@ -122,12 +122,15 @@
      &     nalpha, newsnow, ng, nlx, nmaxprsav,
      &     nmi, nmidiab, npa, npb, npc, n3hr, 
      &     nsnowout, nwrite, nwt0, nwtsav, 
-     &     mins_rad, mtimer_sav
+     &     mins_rad, mtimer_sav, nn, i, j, iqt
       integer, dimension(8) :: nper3hr
       real clhav, cllav, clmav, cltav, con, 
      &     div_int, dsx, dtds, es, gke, hourst, hrs_dt,
      &     precavge, preccavge, psavge,
-     &     pslavge, pwater, rel_lat, rel_long, rlwup, spavge
+     &     pslavge, pwater, rel_lat, rel_long, rlwup, spavge,
+     &     coslong, sinlong, coslat, sinlat, polenx, poleny, polenz,
+     &     zonx, zony, zonz, den, costh, sinth, uzon, vmer, rh1, rh2,
+     &     ico2x, iradonx, wbav
       real, dimension(9) :: temparray, gtemparray ! For global sums
       integer :: nproc_in, ierr
 
@@ -774,68 +777,71 @@ c         qg(:,:)=max(qg(:,:),qgmin)  ! testing
          epot_ave = epot_ave+epot  ! 2D 
          ga_ave = ga_ave+ga        ! 2D   
          if(mstn.eq.0.and.nstn.gt.0)then ! writing station data every time step
-              print*, "Stations not implemented in MPI version"
-!!!           coslong=cos(rlong0*pi/180.)   ! done here, where work2 has arrays
-!!!           sinlong=sin(rlong0*pi/180.)
-!!!           coslat=cos(rlat0*pi/180.)
-!!!           sinlat=sin(rlat0*pi/180.)
-!!!           polenx=-coslat
-!!!           poleny=0.
-!!!           polenz=sinlat
-!!!           do nn=1,nstn
-!!!             if(ktau.eq.1)write (iunp(nn),950) kdate,ktime
-!!!950          format("#",i9,i5)
-!!!             i=istn(nn)
-!!!             j=jstn(nn)
-!!!             iq=i+(j-1)*il
-!!!             zonx=            -polenz*y(iq)
-!!!             zony=polenz*x(iq)-polenx*z(iq)
-!!!             zonz=polenx*y(iq)
-!!!             den=sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )  ! allow for poles
-!!!             costh= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
-!!!             sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
-!!!             uzon= costh*u(iq,1)-sinth*v(iq,1)
-!!!             vmer= sinth*u(iq,1)+costh*v(iq,1)
-!!!             es=establ(t(iq,1))
-!!!             rh1=100.*qg(iq,1)*(ps(iq)*sig(1)-es)/(.622*es)
-!!!             es=establ(t(iq,2))
-!!!             rh2=100.*qg(iq,2)*(ps(iq)*sig(2)-es)/(.622*es)
-!!!             wbav=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)
-!!!     .        +zse(4)*wb(iq,4))/(zse(1)+zse(2)+zse(3)+zse(4))
-!!!             ico2x=max(1,ico2)
-!!!	      iradonx=max(1,iradon)
-!!!	      k2=min(2,klt)
-!!!             write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
-!!!     .         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
-!!!     .         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
-!!!     .         wb(iq,1),wb(iq,2),
-!!!     .         cloudlo(iq),cloudmi(iq)+1.,cloudhi(iq)+2.,
-!!!     .         cloudtot(iq)+3.,
-!!!     .         fg(iq),eg(iq),(1.-tsigmf(iq))*fgg(iq),
-!!!     .         (1.-tsigmf(iq))*egg(iq),rnet(iq),sgsave(iq),
-!!!     .         qg(iq,1)*1.e3,uzon,vmer,precc(iq),
-!!!     .         qg(iq,2)*1.e3,rh1,rh2,tr(iq,1,ico2x),tr(iq,k2,ico2x),
-!!!     .         tr(iq,1,iradonx),tr(iq,k2,iradonx) ,.01*ps(iq),wbav
-!!!951          format(i4,8f7.2, 2f6.3, 4f5.2, 5f7.1,f6.1,
-!!!     .              f5.1,2f6.1,f7.2, f5.1,2f6.1, 4(1x,f5.1) ,f7.1,f6.3)
-!!!             if(ktau.eq.ntau)then
-!!!               write (iunp(nn),952)
-!!!952            format("#   tscrn  precip  tss   tgg1   tgg2   tgg3",
-!!!     .       "    t1     tgf    wb1   wb2 cldl cldm cldh  cld",
-!!!     .       "     fg     eg    fgg    egg    rnet   sg   qg1   uu",
-!!!     .       "     vv   precc  qg2  rh1   rh2  co2_1 co2_2",
-!!!     .       " rad_1 rad_2   ps   wbav")
-!!!               isoil=isoilm(iq)
-!!!               write (iunp(nn),953) land(iq),isoil,ivegt(iq),zo(iq),
-!!!     .                              zs(iq)/9.806
-!!!953            format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
-!!!               write (iunp(nn),954) sigmf(iq),swilt(isoil),sfc(isoil),
-!!!     .                              ssat(isoil),alb(iq)
-!!!954            format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
-!!!               write (iunp(nn),955) i,j,ico2em(iq),radonem(iq)
-!!!955            format("#i,j,ico2em,radonem: ",2i4,i6,f7.3)
-!!!             endif
-!!!           enddo
+           coslong=cos(rlong0*pi/180.)   ! done here, where work2 has arrays
+           sinlong=sin(rlong0*pi/180.)
+           coslat=cos(rlat0*pi/180.)
+           sinlat=sin(rlat0*pi/180.)
+           polenx=-coslat
+           poleny=0.
+           polenz=sinlat
+           do nn=1,nstn
+             print*, "STATION", nn, mystn(nn)
+!            Check if this station is in this processors region
+             if ( .not. mystn(nn) ) cycle 
+             if(ktau.eq.1)write (iunp(nn),950) kdate,ktime
+950          format("#",i9,i5)
+             i=istn(nn)
+             j=jstn(nn)
+             iq=i+(j-1)*il
+             zonx=            -polenz*y(iq)
+             zony=polenz*x(iq)-polenx*z(iq)
+             zonz=polenx*y(iq)
+             den=sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )  ! allow for poles
+             costh= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
+             sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
+             uzon= costh*u(iq,1)-sinth*v(iq,1)
+             vmer= sinth*u(iq,1)+costh*v(iq,1)
+             es=establ(t(iq,1))
+             rh1=100.*qg(iq,1)*(ps(iq)*sig(1)-es)/(.622*es)
+             es=establ(t(iq,2))
+             rh2=100.*qg(iq,2)*(ps(iq)*sig(2)-es)/(.622*es)
+             wbav=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)
+     .        +zse(4)*wb(iq,4))/(zse(1)+zse(2)+zse(3)+zse(4))
+             ico2x=max(1,ico2)
+             iradonx=max(1,iradon)
+             iqt = min(iq,ilt*jlt) ! Avoid bounds problems if there are no tracers
+             k2=min(2,klt)
+             write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
+     .         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
+     .         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
+     .         wb(iq,1),wb(iq,2),
+     .         cloudlo(iq),cloudmi(iq)+1.,cloudhi(iq)+2.,
+     .         cloudtot(iq)+3.,
+     .         fg(iq),eg(iq),(1.-tsigmf(iq))*fgg(iq),
+     .         (1.-tsigmf(iq))*egg(iq),rnet(iq),sgsave(iq),
+     .         qg(iq,1)*1.e3,uzon,vmer,precc(iq),
+     .         qg(iq,2)*1.e3,rh1,rh2,tr(iqt,1,ico2x),tr(iqt,k2,ico2x),
+     .         tr(iqt,1,iradonx),tr(iqt,k2,iradonx) ,.01*ps(iq),wbav
+951          format(i4,8f7.2, 2f6.3, 4f5.2, 5f7.1,f6.1,
+     .              f5.1,2f6.1,f7.2, f5.1,2f6.1, 4(1x,f5.1) ,f7.1,f6.3)
+             if(ktau.eq.ntau)then
+               write (iunp(nn),952)
+952            format("#   tscrn  precip  tss   tgg1   tgg2   tgg3",
+     .       "    t1     tgf    wb1   wb2 cldl cldm cldh  cld",
+     .       "     fg     eg    fgg    egg    rnet   sg   qg1   uu",
+     .       "     vv   precc  qg2  rh1   rh2  co2_1 co2_2",
+     .       " rad_1 rad_2   ps   wbav")
+               isoil=isoilm(iq)
+               write (iunp(nn),953) land(iq),isoil,ivegt(iq),zo(iq),
+     .                              zs(iq)/9.806
+953            format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
+               write (iunp(nn),954) sigmf(iq),swilt(isoil),sfc(isoil),
+     .                              ssat(isoil),alb(iq)
+954            format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
+               write (iunp(nn),955) i,j,ico2em(iqt),radonem(iqt)
+955            format("#i,j,ico2em,radonem: ",2i4,i6,f7.3)
+             endif
+           enddo
          endif   ! (mstn.eq.0.and.nstn.gt.0)
          if(mod(ktau,nmaxpr).eq.0.and.mydiag)then
           print *
@@ -1115,20 +1121,20 @@ c     &         ktau,ndi,nmaxpr,nmaxprsav,nwt,nwtsav,-ndi+5
       endif
 
       if(mod(ktau,nperday).eq.0)then   ! re-set at the end of each 24 hours
-!         Stations not implemented in MPI code yet
-!!!        if(ntau.lt.10*nperday.and.nstn.gt.0)then     ! print stn info
-!!!          do nn=1,nstn
-!!!           i=istn(nn)
-!!!           j=jstn(nn)
-!!!           iq=i+(j-1)*il
-!!!	    print 956,ktau,iunp(nn),name_stn(nn),
-!!!     .      rnd_3hr(iq,4),rnd_3hr(iq,8),                  ! 12 hr & 24 hr
-!!!     .      tmaxscr(iq)-273.16+(zs(iq)/g-zstn(nn))*.0065,
-!!!     .      tminscr(iq)-273.16+(zs(iq)/g-zstn(nn))*.0065,
-!!!     .      tmaxscr(iq)-273.16,tminscr(iq)-273.16
-!!!956        format(i5,i3,a5,6f7.1)
-!!!          enddo
-!!!        endif  ! (ntau.lt.10*nperday)
+        if(ntau.lt.10*nperday.and.nstn.gt.0)then     ! print stn info
+          do nn=1,nstn
+           if ( .not. mystn(nn) ) cycle
+           i=istn(nn)
+           j=jstn(nn)
+           iq=i+(j-1)*il
+	    print 956,ktau,iunp(nn),name_stn(nn),
+     .      rnd_3hr(iq,4),rnd_3hr(iq,8),                  ! 12 hr & 24 hr
+     .      tmaxscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,
+     .      tminscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,
+     .      tmaxscr(iq)-273.16,tminscr(iq)-273.16
+956        format(i5,i3,a5,6f7.1)
+          enddo
+        endif  ! (ntau.lt.10*nperday)
         if(mydiag) print *,'tmaxscr,tscrn,tscr_ave ',
      .           tmaxscr(idjd),tscrn(idjd),tscr_ave(idjd)
         tmaxscr  = tscrn  ! 2D

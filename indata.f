@@ -79,7 +79,8 @@ c     watch out in retopo for work/zss
       integer i1, ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth,
      &     iveg, iyr, j1, jj, k, kdate_sav, kmax, ktime_sav, l,
      &     meso2, nem2, nface, nn, nsig, i, j, n,
-     &     ix, jx, ixjx, ierr, ico2x, iradonx, ic, jc, iqg, ig, jg
+     &     ix, jx, ixjx, ierr, ico2x, iradonx, ic, jc, iqg, ig, jg,
+     &     isav, jsav
       real aamax, aamax_g, c, cent, 
      &     coslat, coslong, costh, den, diffb, diffg, dist,
      &     epsmax, fracs, fracwet, ftsoil, gwdfac, hefact,
@@ -88,7 +89,7 @@ c     watch out in retopo for work/zss
      &     rmax, rmin, sinlat, sinlong, sinth, snalb, sumdsig,
      &     timegb, tsoil, uzon, vmer, w,
      &     wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, distnew,
-     &     xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent
+     &     xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent, deli, delj
 
       real, dimension(44), parameter :: vegpmin = (/
      &              .98,.85,.85,.5,.2,.1 ,.85,.5,.2,.5,                ! 1-10
@@ -1529,45 +1530,61 @@ c	       if(rlatt(iq)*180./pi.gt.-50.)then
       endif      ! (nsib.ge.1)
 
       if(nstn.gt.0)then
-         print*, "Stations not implemented in MPI version yet"
-         stop
         print *,'land stations'
-        print *,'lu istn jstn  iq   slon   slat land rlong  rlat',
-     &   ' isoil iveg zs(m) alb  wb3  wet3 sigmf zo   rsm   he'
+        write(*,"(a)")
+     &       ' lu istn jstn  iq   slon   slat land rlong  rlat'
+     &    // ' isoil iveg zs(m) alb  wb3  wet3 sigmf zo   rsm   he'
         do nn=1,nstn
-         call latltoij(slon(nn),slat(nn),ri,rj,nface)
-         istn(nn)=nint(ri)
-         jstn(nn)=nint(rj) +nface*il
-         iq=istn(nn)+(jstn(nn)-1)*il
-	  if(.not.land(iq))then
-!          simple search for neighbouring land point (not over panel bndries)
-	    ii=nint(ri)
-	    jj=nint(rj)
-	    dist=100.
-	    distnew=(nint(ri)+1-ri)**2 +(nint(rj)-rj)**2 
-	    if(land(iq+1).and.distnew.lt.dist)then
-	      ii=nint(ri)+1
-	      dist=distnew
-	    endif
-	    distnew=(nint(ri)-1-ri)**2 +(nint(rj)-rj)**2 
-	    if(land(iq-1).and.distnew.lt.dist)then
-	      ii=nint(ri)-1
-	      dist=distnew
-	    endif
-	    distnew=(nint(ri)-ri)**2 +(nint(rj)+1-rj)**2 
-	    if(land(iq+il).and.distnew.lt.dist)then
-	      jj=nint(rj)+1
-	      dist=distnew
-	    endif
-	    distnew=(nint(ri)-ri)**2 +(nint(rj)-1-rj)**2 
-	    if(land(iq-il).and.distnew.lt.dist)then
-	      jj=nint(rj)-1
-	      dist=distnew
-	    endif
-           istn(nn)=ii
-           jstn(nn)=jj+nface*il
-           iq=istn(nn)+(jstn(nn)-1)*il
-	  endif  ! (.not.land(iq))
+           call latltoij(slon(nn),slat(nn),ri,rj,nface)
+           ! These are global indices
+           ig=nint(ri)
+           jg=nint(rj) + nface*il_g
+           mystn(nn) = fproc(ig,nint(rj),nface) == myid
+           if ( mystn(nn) ) then
+             iqg = ig + (jg-1)*il_g
+             deli = nint(ri) - ri
+             delj = nint(rj) - rj
+           ! Local indices on this processor
+             call indv_mpi(iqg,ii,jj,n)
+             iq = ii + (jj-1)*ipan + (n-1)*ipan*jpan
+!             print*, "Station", nn, iqg, ii, jj, n, iq
+             if(.not.land(iq))then
+!              simple search for neighbouring land point (not over panel bndries)
+	       isav = ii
+               jsav = jj
+               dist=100.
+               if ( isav < ipan ) then
+                 distnew = (deli+1)**2 + delj**2 
+                 if(land(iq+1).and.distnew.lt.dist)then
+                   ii=isav+1
+                   dist=distnew
+                 endif
+               end if
+               if ( isav > 1 ) then
+                 distnew = (deli-1)**2 + delj**2 
+                 if(land(iq-1).and.distnew.lt.dist)then
+                   ii=isav-1
+                   dist=distnew
+                 endif
+               end if
+               if ( jsav < jpan ) then
+                 distnew = deli**2 + (delj+1)**2 
+                 if(land(iq+ipan).and.distnew.lt.dist)then
+                   jj=jsav+1
+                   dist=distnew
+                 endif
+               end if
+               if ( jsav >= 1 ) then
+                 distnew = deli**2 +(delj-1)**2 
+                 if(land(iq-ipan).and.distnew.lt.dist)then
+                   jj=jsav-1
+                   dist=distnew
+                 endif
+               end if
+             endif              ! (.not.land(iq))
+             istn(nn) = ii
+             jstn(nn) = jj+(n-1)*ipan
+             iq = istn(nn) + (jstn(nn)-1)*ipan
 !        following removed on 30/1/02	  
 c         if(schmidt.gt. .29.and.schmidt.lt. .31)then
 c!          n.b. following should only be for stretched grid
@@ -1585,17 +1602,24 @@ c           if(nn.eq.7)sigmf(iq)=.195  ! fix-up for perth
 c           if(nn.eq.8)sigmf(iq)=.5    ! fix-up for darwin
 c           if(nn.eq.8)zolnd(iq)=.3   ! fix-up for darwin     was   .79
 c         endif  ! (schmidt.gt. .29.and.schmidt.lt. .31)
-         iveg=ivegt(iq)
-         isoil = isoilm(iq)
-         wet3=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil)) 
-         print 98,iunp(nn),istn(nn),jstn(nn),iq,slon(nn),slat(nn),
+             iveg=ivegt(iq)
+             isoil = isoilm(iq)
+             wet3=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil)) 
+             print 98,iunp(nn),istn(nn),jstn(nn),iq,slon(nn),slat(nn),
      &          land(iq),rlongg(iq)*180/pi,rlatt(iq)*180/pi,
-     &    isoilm(iq),ivegt(iq),zs(iq)/grav,alb(iq),
-     &    wb(iq,3),wet3,sigmf(iq),zolnd(iq),rsmin(iq),he(iq)
+     &          isoilm(iq),ivegt(iq),zs(iq)/grav,alb(iq),
+     &          wb(iq,3),wet3,sigmf(iq),zolnd(iq),rsmin(iq),he(iq),
+     &          myid
+           end if               ! mystn
 98        format(i3,i4,i5,i6,2f7.2 ,l3,2f7.2, i3,i6,f7.1,f5.2,
-     &           4f5.2,f5.1,f7.1)
+     &           4f5.2,f5.1,f7.1,i4)
+             ! Put a barrier here to force stations to be printed in the right order
+          call MPI_Barrier( MPI_COMM_WORLD, ierr )
         enddo  ! nn=1,nstn
         if(mstn.eq.2)then   ! then eva's stn2 values too
+          ! These aren't printed anywhere, so don't implement it here yet.
+          print*, "mstn = 2 option not implemented"
+          stop
           do nn=1,nstn2
            call latltoij(slon2(nn),slat2(nn),ri,rj,nface)
            istn2(nn)=nint(ri)
