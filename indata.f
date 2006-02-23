@@ -13,7 +13,7 @@
 !             precc, precip setup moved to bottom
 !     note: unformatted qg in g/kg (i.e. for io_in=3)
       include 'newmpar.h'
-      include 'aalat.h'
+      include 'aalat.h'     ! alat,along
       include 'arrays.h'
       include 'const_phys.h'
       include 'dates.h'     ! mtimer
@@ -196,6 +196,7 @@
            endif    ! (rlatt(iq)*180./pi  ....)
           enddo
          endif       ! (nspecial==2)
+
          do iq=1,ifull
             if(dumzs(iq,2)>=0.5)then
                land(iq)=.true. 
@@ -244,12 +245,12 @@
             end if
             if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)stop
      &       'stopping in indata, not finding correct kdate/ktime'
-            if(nspecial>100)then
-!             allows nudging from mesonest with different kdate
-              kdate=nspecial
-              kdate_s=nspecial
-              print *,'re-setting kate & kdate_s to nspecial'
-            endif  ! (nspecial>100)
+c            if(nspecial>100)then
+c!             allows nudging from mesonest with different kdate
+c              kdate=nspecial
+c              kdate_s=nspecial
+c              print *,'re-setting kate & kdate_s to nspecial'
+c            endif  ! (nspecial>100)
             if(newtop>=0)then  ! no check if just plotting zs
               if(abs(rlong0  -rlong0x)>.01.or.
      &           abs(rlat0    -rlat0x)>.01.or.
@@ -431,9 +432,11 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
          print *,'betm ',betm
       end if
 
-      do iq=1,ifull
-       ps(iq)=1.e5*exp(psl(iq))
-      enddo  !  iq loop
+      ps(:)=1.e5*exp(psl(:))
+      if(nspecial>100)then ! increase ps globally by nspecial Pa
+        ps(:)=ps(:)+nspecial
+        psl(:)=log(1.e-5*ps(:))
+      endif  ! (nspecial>100)       
 
       if(io_in>=5)then
          nsib=0
@@ -696,9 +699,9 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
                enddo            ! i loop
              enddo              ! j loop
            endif                !  (nbd==-3) 
-           if(nbd==-4)then    ! another special form with no nudging on panel 1
+           if(abs(nbd)==4)then    ! another special form with no nudging on panel 1
              do n=0,5
-               do j=il_g/2+1,il_g
+               do j=1,il_g
 !                linearly between 0 (at j=.5) and 1/nud_hrs (at j=il+.5)
                  rhs=(j-.5)/(il_g*nud_hrs)
                  do i=1,il_g
@@ -715,7 +718,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
                enddo            ! i loop
              enddo              ! j loop
            endif                !  (nbd==-4) 
-           if(nbd==-5)then    ! another special form with some nudging on panel 1
+           if(abs(nbd)==5)then    ! another special form with some nudging on panel 1
              do n=0,5
                do j=il_g/2+1,il_g
 !                linearly between 0 (at j=.5) and 1/nud_hrs (at j=il+.5)
@@ -791,13 +794,13 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
 
 !     nrungcm<0 controls presets for snowd, wb, tgg and other soil variables
 !     they can be: preset/read_in_from_previous_run
-!                  written_out/not_written_out    after 24 h    as follows:
+!                  written_out/not_written_out    after 24 h as follows:
 !          nrungcm = -1  preset           | not written to separate file
 !                    -2  preset           |     written  
-!                    -3  read_in          |     written  (usually preferred)
+!                    -3  read_in          |     written  (usual for NWP)
 !                    -4  read_in          | not written
 !                    -5  read_in (not wb) |     written  (should be good)
-      if(nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)then  ! setting wb
+      if(nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)then  ! presetting wb
 !       when no soil moisture available initially
         iyr=kdate/10000
         imo=(kdate-10000*iyr)/100
@@ -831,10 +834,10 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
      &        rlongg(iq)*180./pi>117..and.rlongg(iq)*180./pi<146.)
      &        wb(iq,ms)=swilt(isoilm(iq)) ! dry interior of Australia
          endif    !  (land(iq))
-         do k=1,ms-1
-          wb(iq,k)=wb(iq,ms)
-         enddo    !  k loop
         enddo     ! iq loop
+        do k=1,ms-1
+         wb(:,k)=wb(:,ms)
+        enddo    !  k loop
         do k=1,ms
          do iq=1,ifull
 !         safest to redefine wbice preset here
@@ -867,20 +870,20 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
           surfin=surf_00    ! 'surf.00'
         endif
         if ( myid == 0 ) then
-        print *,
-     &    'reading previously saved wb,tgg,tss (land),snowd,sice from ',
+         print *,
+     &   'reading previously saved wb,tgg,tss (land),snowd,sice from ',
      &         surfin
-        open(87,file=surfin,form='formatted',status='old')
-        read(87,'(a80)') header
-        print *,'header: ',header
+         open(87,file=surfin,form='formatted',status='old')
+         read(87,'(a80)') header
+         print *,'header: ',header
         end if
         if(nrungcm==-5)then
-          call readglobvar(87, tgg, fmt="*")  ! this line acts as dummy read 
+          call readglobvar(87, tgg, fmt="*") ! this acts as dummy read 
         else
           call readglobvar(87, wb, fmt="*")
         endif
         call readglobvar(87, tgg, fmt="*")
-        call readglobvar(87, aa, fmt="*")       ! only use land values of tss
+        call readglobvar(87, aa, fmt="*")    ! only use land values of tss
         call readglobvar(87, snowd, fmt="*")
         call readglobvar(87, sicedep, fmt="*")
         if ( myid == 0 ) close(87)
@@ -1465,7 +1468,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
       
 !***  no fiddling with initial tss, snow, sice, w, w2, gases beyond this point
       call bounds(zs)
-      if(nbd==3)then   ! separate (global) davu from (f-f) davt
+      if(nbd>=3)then   ! separate (global) davu from (f-f) davt
         davu(:) = 1./nudu_hrs    !  e.g. 1/48
         print *,'all davu set to ',1./nudu_hrs 
       else 

@@ -1,7 +1,6 @@
       subroutine davies    ! for globpea - only large-scale available
       use cc_mpi, only : mydiag
       parameter(ntest=0)
-c     kbotdav: for original scheme put kbot=1; 4 for 18-level?
 c     from Nov 05, separate davu & davt, just abs(nud_hrs) used)
       include 'newmpar.h' ! il,jl,kl,ij
       include 'arrays.h' ! t,u,v,ps
@@ -35,7 +34,7 @@ c     from Nov 05, separate davu & davt, just abs(nud_hrs) used)
         endif     ! (nud_t.ne.0)
         if(nud_q.ne.0)then
           if(nud_q.lt.0)then
-            kupper=kl/2     ! only nudge bottom half of atmos for qg
+            kupper=kl/2 ! option to only nudge bottom half of atmos for qg
           else
             kupper=kl
           endif  ! (nud_q.lt.0)
@@ -47,7 +46,7 @@ c     from Nov 05, separate davu & davt, just abs(nud_hrs) used)
           enddo   ! k loop
         endif     ! (nud_q.ne.0)
         if(nud_uv.eq.1)then
-          do k=kbotdav,kl
+          do k=kbotu,kl
            do iq=1,ifull
             u(iq,k)=u(iq,k)+(uu(iq,k)-u(iq,k))
      &                         *davu(iq)*dt/3600.
@@ -55,9 +54,19 @@ c     from Nov 05, separate davu & davt, just abs(nud_hrs) used)
      &                         *davu(iq)*dt/3600.
            enddo  ! iq loop
           enddo   ! k loop
+          if(kbotdav<kbotu)then  ! Feb 06
+            do k=kbotdav,kbotu-1
+             do iq=1,ifull
+              u(iq,k)=u(iq,k)+(uu(iq,k)-u(iq,k))
+     &                           *davt(iq)*dt/3600.
+              v(iq,k)=v(iq,k)+(vv(iq,k)-v(iq,k))
+     &                           *davt(iq)*dt/3600.
+             enddo  ! iq loop
+            enddo   ! k loop
+          endif
         endif     ! (nud_uv.eq.1)
-        if(nud_uv.eq.2)then   ! speed option
-          do k=kbotdav,kl
+        if(nud_uv.eq.2)then   ! speed option (not useful)
+          do k=kbotu,kl
            do iq=1,ifull
 	     speed=sqrt(u(iq,k)**2+v(iq,k)**2)
 	     if(speed.gt.1.)then
