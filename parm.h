@@ -8,7 +8,7 @@
      &        io_clim,io_in,io_out,io_rest,io_spec,                      &
      &        nwt,kwt,nqg,nrun,nrunx,nextout,nclim,nfly                  
       real qgmin,hdiff,hdifmax,rlong0,rlat0,schmidt,schm13,              &
-     &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,          &
+     &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
      &     ds,dt,dtin,timea
       logical diag, localhist
       common/parm1/meso,nps,npsav,nsd,nem,ngwd,nrungcm,newtop            &
@@ -26,7 +26,7 @@
 
       common/parmsfce/newrough,newsoilm,nsib,nsoil,ntsea,ntsur,ntsur2,            &
      &                lgwd,newztsea,aleadfr,av_vmod,vmodmin,snmin,       &
-     &                tss_sh,nglacier,charnock,chn10
+     &                tss_sh,nglacier,charnock,chn10,zobgin
 
       common/parmnudg/nbd,kbotdav,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs
 

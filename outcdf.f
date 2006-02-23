@@ -447,7 +447,7 @@ c       For time invariant surface fields
         lname = 'Soil type'
         call attrib(idnc,idim2,2,'soilt',lname,'none',0.,40.)
         lname = 'Vegetation type'
-        call attrib(idnc,idim2,2,'vegt',lname,'none',0.,40.)
+        call attrib(idnc,idim2,2,'vegt',lname,'none',0.,44.)
         lname = 'Initial wetness fraction layer 3'
         call attrib(idnc,idim2,2,'wetfrac',lname,'none',-2.,2.)
 

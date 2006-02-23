@@ -154,7 +154,7 @@
      & ,mfix,mfix_qg,namip,nh,npex,nhstest,nspecial
      & ,newsnow,nsnowout,newrough,newsoilm,nglacier,newztsea
      & ,epsp,epsu,epsf
-     & ,av_vmod,charnock,chn10,tss_sh,vmodmin,snmin
+     & ,av_vmod,charnock,chn10,snmin,tss_sh,vmodmin,zobgin
      & ,rlong0,rlat0,schmidt   ! usually come in with topofile
      & ,kbotdav,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nlocal,nvsplit
      & ,nbarewet,nsigmf,qgmin
@@ -300,8 +300,9 @@
      &          jalbfix,nalpha,nbarewet,newrough,nglacier,nrungcm,nsib,
      &          nsigmf,ntsea,ntsur
       print *,'Soil, canopy and PBL options B:'
-      print *,' av_vmod  tss_sh vmodmin charnock chn10 '
-      write (6,'(3f8.2,f8.3,f9.5)')av_vmod,tss_sh,vmodmin,charnock,chn10    
+      print *,' av_vmod  tss_sh vmodmin  zobgin charnock chn10'
+      write (6,'(4f8.2,f8.3,f9.5)')
+     &          av_vmod,tss_sh,vmodmin,zobgin,charnock,chn10    
       if(nbd.ne.0)then
         print *,'Nudging options:'
         print *,' nbd    nbox  nud_p  nud_q  nud_t  nud_uv nud_hrs',
@@ -1667,8 +1668,8 @@ c         enddo
       data namip/0/,nhstest/0/,nspecial/0/
       data schmidt/1./,rlong0/0./,rlat0/90./,ndiur/1/
      & ,newsoilm/0/,nglacier/1/,nhorps /1/,newztsea/1/                   
-     & ,nrun/0 /,ntsur/5/,nt_adv/0/,ndept/1/
-     & ,av_vmod/.7/,charnock/.018/,chn10/.00125/,tss_sh/0./
+     & ,nrun/0 /,ntsur/6/,nt_adv/0/,ndept/1/
+     & ,av_vmod/.7/,charnock/.018/,chn10/.00125/,tss_sh/0./,zobgin/.05/
      & ,qgmin/1.e-6/                           ! 3.e-6 was too cloudy at poles    
 
       data khor/0/,kwt/kl/,mstn/0/,nps/2/,npsav /1/       

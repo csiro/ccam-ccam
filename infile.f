@@ -323,7 +323,7 @@ c     log scaled sfc.press
 c     call histrd1(ncid,iarch,ier,'mslp',ik,jk,pmsl)  ! not needed
       call histrd1(ncid,iarch,ier,'zht',ik,jk,zs)
       call histrd1(ncid,iarch,ier,'tsu',ik,jk,tss)
-      tss(:)=abs(tss(:))
+!***  tss(:)=abs(tss(:)) ! not here because -ves needed for onthefly
 
 c     turn on fatal netcdf errors
       if ( myid == 0 ) call ncpopt(NCVERBOS+NCFATAL)
@@ -369,11 +369,9 @@ c     turn OFF fatal netcdf errors; from here on
             call histrd1(ncid,iarch,ier,'wb4',ik,jk,wb(1,4))
             call histrd1(ncid,iarch,ier,'wb5',ik,jk,wb(1,5))
           else  ! set other levels having read tgg2, tgg6, wb2, wb6
-           do iq=1,ifull
-            tgg(iq,1)=tss(iq)   ! initial temperature at second layer(6.5.97 KF)
-            tgg(iq,3)=tgg(iq,2) ! initial temper. from GCM runs with 3 layers
-            wb(iq,1) =wb(iq,2)  ! layer initialisation of moisture
-           enddo  ! iq
+            tgg(:,1)=abs(tss(:)) ! initial temperature at second layer(6.5.97 KF)
+            tgg(:,3)=tgg(:,2) ! initial temper. from GCM runs with 3 layers
+            wb(:,1) =wb(:,2)  ! layer initialisation of moisture
            do k=3,ms-1          ! don't want to change value of tgg(,2) and tgg(,ms)
             do iq=1,ifull
              wb(iq,k) =wb(iq,ms)   ! layer initialisation of moisture
@@ -390,11 +388,9 @@ c     turn OFF fatal netcdf errors; from here on
            call histrd1(ncid,iarch,ier,'tb3',ik,jk,tgg(1,2))
            call histrd1(ncid,iarch,ier,'wfg',ik,jk,wb(1,2))
            call histrd1(ncid,iarch,ier,'wfb',ik,jk,wb(1,ms))
-           do iq=1,ifull
-            tgg(iq,1)=tss(iq)   ! initial temperature at second layer(6.5.97 KF)
-            tgg(iq,3)=tgg(iq,2) ! initial temper. from GCM runs with 3 layers
-            wb(iq,1) =wb(iq,2)  ! layer initialisation of moisture
-           enddo  ! iq
+           tgg(:,1)=abs(tss(:)) ! initial temperature at second layer(6.5.97 KF)
+           tgg(:,3)=tgg(:,2) ! initial temper. from GCM runs with 3 layers
+           wb(:,1) =wb(:,2)  ! layer initialisation of moisture
            do k=3,ms-1          ! don't want to change value of tgg(,2) and tgg(,ms)
             do iq=1,ifull
              wb(iq,k) =wb(iq,ms)   ! layer initialisation of moisture
@@ -475,7 +471,7 @@ c     turn OFF fatal netcdf errors; from here on
         call histrd1(ncid,iarch,ier,'siced',ik,jk,sicedep)  ! presets to follow
         if(ier.ne.0)then  ! for siced
  	   if(myid==0) print *,'pre-setting siced in newin'
-           where ( tss <= 271.2 ) 
+           where ( abs(tss) <= 271.2 ) 
               sicedep = 2. 
            elsewhere
               sicedep = 0.     

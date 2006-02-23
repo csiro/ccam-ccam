@@ -2,16 +2,16 @@
       use diag_m
       use cc_mpi
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
-      parameter (ndvmod=0)  ! 0 default, 1+ for dvmod tests
       parameter (ntss_sh=0) ! 0 for original, 3 for **3, 4 for **4
       parameter (nplens=0)  ! 0 to turn off plens, 10 (e.g.) is on
 !     parameter (lake=0)    ! 0 usual, 1 for specified lake points
 !                             - replaced by nspecial in parm.h
       parameter (ntest=0)   ! ntest= 0 for diags off; ntest= 1 for diags on
-      parameter (ntaft=3)   ! 0 for original, 2 usual
+      parameter (ntaft=3)   ! 0 for original, 3 nowadays
 !                   1 & 2 tafthf constrained by prior values with 2 faster
 !                   3 uses measure of prior tgf in calc. fh
-!     parameter (newztsea=0)   ! 0 for original, 1 for correct zt over sea
+!     parameter (newztsea=1)   ! 0 for original, 1 for correct zt over sea
+!     vmag introduced Mar '05 as vmod being used in ri
 !     From 11/8/98 runoff() is accumulated & zeroed with precip
 !     Now using tgg(,3) for the tice calculations
 c     with leads option via fracice (using tgg1 and tgg3)
@@ -39,7 +39,7 @@ c     cp specific heat at constant pressure joule/kgm/deg
       include 'scamdim.h'  ! dimension of patches
       include 'screen.h'   ! tscrn,qgscrn,uscrn,scrrel,u10
       include 'sigs.h'
-      include 'soil.h'     ! ... zmin zolnd zolog sice fracice alb
+      include 'soil.h'     ! ... zmin zolod zolog sice fracice alb
       include 'soilv.h'    ! ... ssat
       include 'soilsnow.h' ! new soil arrays for scam - tgg too
       include 'tracers.h'  ! ngas, nllp, ntrac
@@ -56,18 +56,17 @@ c     cp specific heat at constant pressure joule/kgm/deg
      . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
      . ism(ifull),fwtop(ifull),spare2(ifull),   ! watch soilsnow.f after epot
-     . extin(ifull),af(ifull),spare3(ifull),xx(ifull),
-     . dum3(5*ijk-20*ifull)
+     . extin(ifull),af(ifull),dum3(5*ijk-18*ifull)
       dimension ipermp(ifull)    ! temporary permutation array
       equivalence (ipermp,dirad)
-      real plens(ifull)
+      real plens(ifull),vmag(ifull)
       save plens
       data plens/ifull*0./
       include 'establ.h'
 
 c     stability dependent drag coefficients using Louis (1979,blm) f'
 c     n.b. cduv, cdtq are returned as drag coeffs mult by vmod
-c          (cduv=cduv*wmag; cdtq=cdtq*wmag; vmod=wmag)
+c          (cduv=cduv*vmod; cdtq=cdtq*vmod)
 
 c     t, u, v, qg are current values
 c     tss is surface temperature
@@ -77,8 +76,9 @@ c     eg is latent heat flux (was wv)
 c     dfgdt is dfgdt (was csen in surfupa/b)
 c     degdt is degdt (was ceva in surfupa/b)
 
-      zobgin = .05   ! jlm: NB seems to be .01 in csiro9 Fri  12-06-1996
-      alzzin=log(zmin/zobgin)   ! pre-calculated for all except snow points
+      ri_max=(1./fmroot -1.)/bprm  ! i.e. .14641
+c     zobgin = .05   ! jlm: NB seems to be .01 in csiro9. Mar '05: in parm.h
+      zologbgin=log(zmin/zobgin)   ! pre-calculated for all except snow points
       ztv=exp(vkar/sqrt(chn10)) /10.  ! proper inverse of ztsea
       z1onzt=300.*rdry*(1.-sig(1))*ztv /grav
       chnsea=(vkar/log(z1onzt))**2    ! should give .00085 for csiro9
@@ -221,13 +221,8 @@ c     using av_vmod (1. for no time averaging)
       do iq=1,ifull
        uav=av_vmod*u(iq,1)+(1.-av_vmod)*savu(iq,1)   
        vav=av_vmod*v(iq,1)+(1.-av_vmod)*savv(iq,1)  
-       ustar(iq)=sqrt(uav**2+vav**2)  ! i.e. vmod for tss_sh
+       vmod(iq)=sqrt(uav**2+vav**2)  ! i.e. vmod for tss_sh
       enddo
-      if(ndvmod.eq.0)then
-        vmod(:)=max( ustar(:) , vmodmin)
-      else
-        vmod(:)=ndvmod  ! just for tests
-      endif    ! (ndvmod.eq.0)
 
 !     if(namip.lt.2)then  ! generalize later
 !       ipsea0=ipsice+1   ! used without leads
@@ -244,31 +239,34 @@ c     using av_vmod (1. for no time averaging)
        wetfac(iq)=1.                                                    ! sea
 !      tgg2 holds effective skin sst for this loop 
        if(ntss_sh.eq.0)then
-         dtsol=.01*sgsave(iq)/(1.+.25*ustar(iq)**2)    ! solar heating  ! sea
+         dtsol=.01*sgsave(iq)/(1.+.25*vmod(iq)**2)     ! solar heating  ! sea
          tgg(iq,2)=tgg(iq,1)+tss_sh*min(dtsol,8.)      ! of ssts        ! sea
        elseif(ntss_sh.eq.1)then                                         ! sea
          dtsol=tss_sh*.01*sgsave(iq)/                                   ! sea
-     .                (1.+.25*ustar(iq)**2)            ! solar heating  ! sea
+     .                (1.+.25*vmod(iq)**2)             ! solar heating  ! sea
          tgg(iq,2)=tgg(iq,1)+min(dtsol,8.)             ! of ssts        ! sea
        elseif(ntss_sh.eq.3)then                                         ! sea
          dtsol=tss_sh*.01*sgsave(iq)/                                   ! sea
-     .                (1.+.035*ustar(iq)**3)           ! solar heating  ! sea
+     .                (1.+.035*vmod(iq)**3)            ! solar heating  ! sea
          tgg(iq,2)=tgg(iq,1)+min(dtsol,8.)             ! of ssts        ! sea
        elseif(ntss_sh.eq.4)then                                         ! sea
          dtsol=tss_sh*.01*sgsave(iq)/                                   ! sea
-     .                (1.+ustar(iq)**4/81.)            ! solar heating  ! sea
+     .                (1.+vmod(iq)**4/81.)             ! solar heating  ! sea
          tgg(iq,2)=tgg(iq,1)+min(dtsol,8.)             ! of ssts        ! sea
        endif   ! (ntss_sh.eq.0) .. else ..
        if(nplens.ne.0)then
 !        calculate running total (over last 24 h) of daily precip in mm  jlm
          plens(iq)=(1.-dt/86400.)*plens(iq)+condx(iq)  ! in mm/day
 !        scale so that nplens m/s wind for 1/2 hr reduces effect by 1/1.2
-!        plens(iq)=plens(iq)/(1.+ustar(iq)*dt*.2/(nplens*1800.))
-         plens(iq)=plens(iq)/(1.+ustar(iq)*dt*.2/
+!        plens(iq)=plens(iq)/(1.+vmod(iq)*dt*.2/(nplens*1800.))
+         plens(iq)=plens(iq)/(1.+vmod(iq)*dt*.2/
      .                    max(nplens*1800.,1.))      ! avoids Cray compiler bug
 !        produce a cooling of 4 K for an effective plens of 10 mm/day
          tgg(iq,2)=tgg(iq,2)-min(.4*plens(iq) , 6.)
        endif   !  (nplens.ne.0)
+	
+       vmag(:)=max( vmod(:) , vmodmin)
+       if(ntsur.ne.7)vmod(:)=vmag(:)	! gives usual way
 	if(ntsea==1.and.condx(iq)>.1)tgg(iq,2)=t(iq,2)  
 	if(ntsea==2.and.condx(iq)>.1)tgg(iq,2)=t(iq,1)  
 	if(ntsea==3.and.condx(iq)>.1)tgg(iq,2)=.5*(t(iq,2)+tgg(iq,1))  
@@ -279,34 +277,33 @@ c ***                     for heat and moisture  cdtq                   ! sea
        constz=ps(iq)-es                                                 ! sea
        qsttg(iq)= .98*.622*es/constz   ! with Zeng 1998 for sea water   ! sea
        drst=qsttg(iq)*ps(iq)*hlars/(constz*tgg(iq,2)**2)                ! sea
-       xx(iq)=grav*zmin*(1.-tgg(iq,2)*srcp/t(iq,1))                     ! sea
-       ri(iq)=xx(iq)/vmod(iq)**2                                        ! sea
+       xx=grav*zmin*(1.-tgg(iq,2)*srcp/t(iq,1))                         ! sea
+       ri(iq)=min(xx/vmag(iq)**2 , ri_max)                              ! sea
 !      if(ngas.gt.0)stop 'call co2sflux'                                ! sea
 c      this is in-line ocenzo using latest coefficient, i.e. .018       ! sea
        consea=vmod(iq)*charnock/grav  ! usually charnock=.018           ! sea
        zo(iq)=.01                                                       ! sea
-       if(xx(iq).gt.0.)then             ! stable sea points             ! sea
+       if(ri(iq).gt.0.)then             ! stable sea points             ! sea
          fm=vmod(iq) /(1.+bprm*ri(iq))**2   ! N.B. this is vmod*fm      ! sea
          con=consea*fm                                                  ! sea
          do it=1,3                                                      ! sea
           afroot=vkar/log(zmin/zo(iq))                                  ! sea
           af(iq)=afroot**2                                              ! sea
           daf=2.*af(iq)*afroot/(vkar*zo(iq))                            ! sea
-          zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-con*af(iq))/
-     .                                                 (1.-con*daf))    ! sea
+          zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-con*af(iq))/(1.-con*daf))    ! sea
          enddo    ! it=1,3                                              ! sea
-         afroot=vkar/log(zmin/zo(iq))                                  ! sea
-         af(iq)=afroot**2                                              ! sea
+         afroot=vkar/log(zmin/zo(iq))                                   ! sea
+         af(iq)=afroot**2                                               ! sea
        else                        ! unstable sea points                ! sea
          do it=1,3                                                      ! sea
           afroot=vkar/log(zmin/zo(iq))                                  ! sea
           af(iq)=afroot**2                                              ! sea
           daf=2.*af(iq)*afroot/(vkar*zo(iq))                            ! sea
-          con1=cms*2.*bprm*sqrt(-xx(iq)*zmin/zo(iq))                    ! sea
-          den=vmod(iq)+af(iq)*con1                                      ! sea
+          con1=cms*2.*bprm*sqrt(-ri(iq)*zmin/zo(iq))                    ! sea
+          den=1.+af(iq)*con1                                            ! sea
           dden=con1*(daf-.5*af(iq)/zo(iq))                              ! sea
-          fm=vmod(iq)-(2.*bprm *xx(iq))/den                             ! sea
-          dfm=2.*bprm*xx(iq)*dden/den**2                                ! sea
+          fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/den                      ! sea
+          dfm=2.*bprm*ri(iq)*dden/den**2                                ! sea
           zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-consea*af(iq)*fm)/           ! sea
      .                     (1.-consea*(daf*fm+af(iq)*dfm)))             ! sea
          enddo    ! it=1,3                                              ! sea
@@ -334,18 +331,18 @@ c       factch=sqrt(zo*exp(vkar*vkar/(chnsea*log(zmin/zo)))/zmin)       ! sea
       do ip=ipsea0,ipsea                                                ! sea
        iq=iperm(ip)                                                     ! sea
 c      Having settled on zo (and thus af) now do actual fh and fm calcs ! sea
-       if(xx(iq).gt.0.)then                                             ! sea
-         fm=vmod(iq)*max(fmroot*fmroot,1./(1.+bprm*ri(iq))**2)          ! sea
+       if(ri(iq).gt.0.)then                                             ! sea
+         fm=vmod(iq)/(1.+bprm*ri(iq))**2                                ! sea
          fh(iq)=fm                                                      ! sea
        else        ! xx is -ve                                          ! sea
-         root=sqrt(-xx(iq)*zmin/zo(iq))                                 ! sea
+         root=sqrt(-ri(iq)*zmin/zo(iq))                                 ! sea
 c        First do momentum                                              ! sea
-         denma=vmod(iq)+cms*2.*bprm*af(iq)*root                         ! sea
-         fm=vmod(iq)-(2.*bprm *xx(iq))/denma                            ! sea
+         denma=1.+cms*2.*bprm*af(iq)*root                               ! sea
+         fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma                     ! sea
 c        n.b. fm denotes ustar**2/(vmod(iq)*af)                         ! sea
 c        Now heat ; allow for smaller zo via aft and factch             ! sea
-         denha=vmod(iq)+chs*2.*bprm*factch(iq)*aft(iq)*root             ! sea
-         fh(iq)=vmod(iq)-(2.*bprm *xx(iq))/denha                        ! sea
+         denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root                   ! sea
+         fh(iq)=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha                 ! sea
        endif                                                            ! sea
                                                                         ! sea
        conh=rho(iq)*aft(iq)*cp                                          ! sea
@@ -364,7 +361,7 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! sea
          print *,'in sea loop for iq,idjd,ip,ipsea0: ',                 ! sea
      .                            iq,idjd,ip,ipsea0                     ! sea
          print *,'zmin,zo,factch ',zmin,zo(iq),factch(iq)               ! sea         
-         print *,'xx,ri,ustar,es ',xx(iq),ri(iq),ustar(iq),es           ! sea
+         print *,'ri,ustar,es ',ri(iq),ustar(iq),es                     ! sea
          print *,'af,aft,tgg2 ',af(iq),aft(iq),tgg(iq,2)                ! sea
          print *,'tgg2,tss,theta ',tgg(iq,2),tss(iq),theta(iq)          ! sea
          print *,'chnsea,rho,t1 ',chnsea,rho(iq),t(iq,1)                ! sea
@@ -376,7 +373,7 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! sea
 
       zminlog=log(zmin)
 !cdir nodep
-      do ip=ipland+1,ipsice  ! all sea-ice points in this loop          ! sice
+      do ip=ipland+1,ipsice  ! only sea-ice points in this loop         ! sice
 !      non-leads for sea ice points                                     ! sice
 !      N.B. tgg( ,3) holds tice                                         ! sice
        iq=iperm(ip)                                                     ! sice
@@ -384,8 +381,8 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! sea
        constz=ps(iq)-es                                                 ! sice
        qsttg(iq)= .622*es/constz                                        ! sice
        drst=qsttg(iq)*ps(iq)*hlars/(tgg(iq,3)*tgg(iq,3)*constz)         ! sice
-       xx(iq)=grav*zmin*(1.-tgg(iq,3)*srcp/t(iq,1))                     ! sice
-       ri_ice=xx(iq)/vmod(iq)**2                                        ! sice
+       xx=grav*zmin*(1.-tgg(iq,3)*srcp/t(iq,1))                         ! sice
+       ri_ice=min(xx/vmag(iq)**2 , ri_max)                              ! sice
        factch(iq)=sqrt(7.4)  ! same as land from 27/4/99                ! sice
 !      factch(iq)=1.   ! factch is sqrt(zo/zt) for use in unstable fh   ! sice
        zoice=.001                                                       ! sice
@@ -395,19 +392,19 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! sea
 !      aft(iq)=af                                 ! up till 27/4/99     ! sice
        wetfac(iq)=1+.008*(tgg(iq,3)-273.16)  ! .008*tgg(iq,3)-1.18528   ! sice
                                                                         ! sice
-c      Having settled on zo (and thus af) now do actual fh and fm calcs ! sice
-       if(xx(iq).gt.0.)then                                             ! sice
-         fm=vmod(iq)*max(fmroot*fmroot,1./(1.+bprm*ri_ice)**2)          ! sice
+c      now do fh and fm calcs for sice                                  ! sice
+       if(ri(iq).gt.0.)then                                             ! sice
+         fm=vmod(iq)/(1.+bprm*ri_ice)**2                                ! sice
          fh(iq)=fm                                                      ! sice
        else                                                             ! sice
-         root=sqrt(-xx(iq)*zmin/zoice)                                  ! sice
+         root=sqrt(-ri(iq)*zmin/zoice)                                  ! sice
 c        First do momentum                                              ! sice
-         denma=vmod(iq)+cms*2.*bprm*af(iq)*root                         ! sice
-         fm=vmod(iq)-(2.*bprm *xx(iq))/denma                            ! sice
+         denma=1.+cms*2.*bprm*af(iq)*root                               ! sice
+         fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma                     ! sice
 c        n.b. fm denotes ustar**2/(vmod(iq)*af)                         ! sice
 c        Now heat ; allow for smaller zo via aft and factch             ! sice
-         denha=vmod(iq)+chs*2.*bprm*factch(iq)*aft(iq)*root             ! sice
-         fh(iq)=vmod(iq)-(2.*bprm *xx(iq))/denha                        ! sice
+         denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root                   ! sice
+         fh(iq)=vmod(iq)-(2.*bprm *ri(iq))/denha                        ! sice
        endif                                                            ! sice
                                                                         ! sice
        conh=rho(iq)*aft(iq)*cp                                          ! sice
@@ -417,7 +414,7 @@ c        Now heat ; allow for smaller zo via aft and factch             ! sice
        if(ntest.eq.1.and.iq.eq.idjd)then                                ! sice
          print *,'in sice loop'                                         ! sice
          print *,'zmin,zo,wetfac ',zmin,zoice,wetfac(iq)                ! sice
-         print *,'xx,ri_ice,es ',xx(iq),ri_ice,es                       ! sice
+         print *,'ri_ice,es ',ri_ice,es                                 ! sice
          print *,'af,aft,ustar ',af(iq),aft(iq),ustar(iq)               ! sice
          print *,'chnsea,rho ',chnsea,rho(iq)                           ! sice
          print *,'fm,fh,conh ',fm,fh(iq),conh                           ! sice
@@ -477,7 +474,7 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! sice
        taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                                ! sice
        tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                                ! sice
        if(ntest.eq.1.and.iq.eq.idjd)then                                ! sice
-         print *,'ri,vmod,cduv ',ri(iq),vmod(iq),cduv(iq)               ! sice
+         print *,'ri,vmag,vmod,cduv ',ri(iq),vmag(iq),vmod(iq),cduv(iq) ! sice
          print *,'tss,tgg2,tgg3 ',tss(iq),tgg(iq,2),tgg(iq,3)           ! sice
          print *,'theta,t1,deltat ',theta(iq),t(iq,1),deltat            ! sice
          print *,'b1,ga,gbot ',b1,ga(iq),gbot                           ! sice
@@ -496,36 +493,31 @@ c      fh itself was only used outside this loop in sib0 (jlm)          ! land
        zobg=zobgin                                                      ! land
        es = establ(tss(iq))                                             ! land
        constz=ps(iq)-es                                                 ! land
-       qsttg(iq)=       .622*es/constz     ! only used in scrnout?      ! land
+       qsttg(iq)=       .622*es/constz     ! primarily for scrnout      ! land
 c      factch is sqrt(zo/zt) for land use in unstable fh                ! land
        factch(iq)=sqrt(7.4)                                             ! land
-       if(snowd(iq).gt.0.)then    ! Fri  12-06-1996 (with soilsnow too) ! land
-!        reduce zo over snow; done in darlam & globpe on 12-06-1996     ! land
-!        zo=max(zo -.001*snowd(iq), .01)  ! wrongly till 24/2/97        ! land
+       if(snowd(iq).gt.0.)then                                          ! land
+!        reduce zo over snow;
+         zobg=max(zobgin -snowd(iq)*0.00976/12., 0.00024)               ! land
+         zologbg=log(zmin/zobg)                                         ! land
 !        following line is bit simpler than csiro9                      ! land
          zo(iq)=max(zolnd(iq) -.001*snowd(iq), .01)                     ! land
-         zologsnw=log(zmin/zo(iq))                                      ! land
-         zobg=max(zobgin -snowd(iq)*0.00976/12., 0.00024)               ! land
-         alzz=log(zmin/zobg)                                            ! land
-         if(nblend.eq.1)then ! blended zo for momentum: reduce for snow?! land
-           afland=(vkar/((1.-sigmf(iq))*alzz+sigmf(iq)*zologsnw))**2    ! land
-         else                                                           ! land
-           afland=(vkar/zologsnw)**2                                    ! land
-         endif   !   (nblend.eq.1)                                      ! land
-         aftland=vkar**2/( zologsnw * (2.+zologsnw) )                   ! land
+         zologx=log(zmin/zo(iq))                                        ! land
        else  ! land but not snow                                        ! land
          zo(iq)=zolnd(iq)                                               ! land
-         alzz=alzzin                                                    ! land
-         if(nblend.eq.1)then  ! blended zo for momentum                 ! land
-           afland=(vkar/                                                ! land
-     .               ((1.-sigmf(iq))*alzz+sigmf(iq)*zolog(iq)))**2      ! land
-         else    ! non-blended zo for momentum                          ! land
-           afland=(vkar/zolog(iq))**2                                   ! land
-         endif   ! (nblend.eq.1)                                        ! land
-         aftland=vkar**2/( zolog(iq) * (2.+zolog(iq)) )                 ! land
+         zologbg=zologbgin                                              ! land
+         zologx=zolog(iq)
        endif     ! (snowd(iq).gt.0.)                                    ! land
+       if(nblend.eq.1)then  ! blended zo for momentum                   ! land
+!        note that Dorman & Sellers zo is already an average, 
+!        accounting for sigmf, so may not wish to further blend zo	
+         afland=(vkar/((1.-sigmf(iq))*zologbg+sigmf(iq)*zologx))**2     ! land
+       else    ! non-blended zo for momentum                            ! land
+         afland=(vkar/zologx)**2                                        ! land
+       endif   ! (nblend.eq.1)                                          ! land
+       aftland=vkar**2/( zologx * (2.+zologx) )                         ! land
        aft(iq)=aftland                                                  ! land
-       aftlandg=vkar**2/( alzz * (2.+alzz) )                            ! land
+       aftlandg=vkar**2/( zologbg * (2.+zologbg) )                      ! land
 c      lgwd>0 enhances cduv (momentum) over orog under (stable & unst) condns
        if(lgwd.gt.0)then
          af(iq)=afland+helo(iq)       ! jlm special gwd4b               ! land
@@ -535,38 +527,38 @@ c      lgwd>0 enhances cduv (momentum) over orog under (stable & unst) condns
        
 	if(ntaft.eq.3.and.ktau.gt.1)then
 !        do vegetation calulation for fh	
-         xx(iq)=grav*zmin*(1.-tgf(iq)*srcp/t(iq,1)) ! actually otgf     ! land
-         ri(iq)=xx(iq)/vmod(iq)**2                                      ! land
-         if(xx(iq).gt.0.)then                                           ! land
-           fh(iq)=vmod(iq)*max(fmroot*fmroot,1./(1.+bprm*ri(iq))**2)    ! land
+         xx=grav*zmin*(1.-tgf(iq)*srcp/t(iq,1))     ! actually otgf     ! land
+         ri(iq)=min(xx/vmag(iq)**2 , ri_max)                            ! land
+         if(ri(iq).gt.0.)then                                           ! land
+           fh(iq)=vmod(iq)/(1.+bprm*ri(iq))**2                          ! land
          else                                                           ! land
-           root=sqrt(-xx(iq)*zmin/zo(iq))  ! ignoring blending here     ! land
+           root=sqrt(-ri(iq)*zmin/zo(iq))  ! ignoring blending here     ! land
 c          Now heat ; allow for smaller zo via aft and factch           ! land
-           denha=vmod(iq)+chs*2.*bprm*factch(iq)*aft(iq)*root           ! land
-           fh(iq)=vmod(iq)-(2.*bprm *xx(iq))/denha                      ! land
+           denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root                 ! land
+           fh(iq)=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha               ! land
          endif                                                          ! land
          taftfh(iq)=aft(iq)*fh(iq)       ! uses fmroot above, for sib3  ! land 
 	endif   ! (ntaft.eq.3.and.ktau.gt.1)
                                                                         ! land
 c      Having settled on zo (and thus af) now do actual fh and fm calcs ! land
-       xx(iq)=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       ! land
-       ri(iq)=xx(iq)/vmod(iq)**2                                        ! land
-       if(xx(iq).gt.0.)then                                             ! land
-         fm=vmod(iq)*max(fmroot*fmroot,1./(1.+bprm*ri(iq))**2)          ! land
+       xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                           ! land
+       ri(iq)=min(xx/vmag(iq)**2 , ri_max)                              ! land
+       if(ri(iq).gt.0.)then                                             ! land
+         fm=vmod(iq)/(1.+bprm*ri(iq))**2                                ! land
          fh(iq)=fm                                                      ! land
          fhbg=fh(iq)                                                    ! land
        else                                                             ! land
-         root=sqrt(-xx(iq)*zmin/zo(iq))  ! ignoring blending here       ! land
+         root=sqrt(-ri(iq)*zmin/zo(iq))  ! ignoring blending here       ! land
 c        First do momentum                                              ! land
-         denma=vmod(iq)+cms*2.*bprm*af(iq)*root                         ! land
-         fm=vmod(iq)-(2.*bprm *xx(iq))/denma                            ! land
+         denma=1.+cms*2.*bprm*af(iq)*root                               ! land
+         fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma                     ! land
 c        n.b. fm denotes ustar**2/(vmod(iq)*af)                         ! land
 c        Now heat ; allow for smaller zo via aft and factch             ! land
-         denha=vmod(iq)+chs*2.*bprm*factch(iq)*aft(iq)*root             ! land
-         fh(iq)=vmod(iq)-(2.*bprm *xx(iq))/denha                        ! land
-         rootbg=sqrt(-xx(iq)*zmin/zobg)                                 ! land
-         denhabg=vmod(iq)+chs*2.*bprm*factch(iq)*aftlandg*rootbg        ! land
-         fhbg=vmod(iq)-(2.*bprm *xx(iq))/denhabg                        ! land
+         denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root                   ! land
+         fh(iq)=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha                 ! land
+         rootbg=sqrt(-ri(iq)*zmin/zobg)                                 ! land
+         denhabg=1.+chs*2.*bprm*factch(iq)*aftlandg*rootbg              ! land
+         fhbg=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denhabg                 ! land
        endif                                                            ! land
        taftfhg_temp(iq)=aftlandg*fhbg  ! uses fmroot above, for sib3    ! land
        taftfhg(iq)=aftlandg*fhbg ! value used for ntaft=3 (may need improving)
@@ -578,20 +570,17 @@ c      cdtq(iq) =aft(iq)*fh(iq)                                         ! land
 c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! land
        taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                                ! land
        tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                                ! land
-      enddo     ! ip=1,ipland                                           ! land
-      if(ntest.eq.2)print *,'after land loop'
- 
        if(ntest.eq.1.and.iq.eq.idjd)then                                ! land
          print *,'in main land loop'                                    ! land
-         print *,'zmin,zobg ',zmin,zobg                                 ! land
-         print *,'afland,aftland,alzz ',afland,aftland,alzz             ! land
-         print *,'af,xx,vmod,es ',af(iq),xx(iq),vmod(iq),es             ! land
+         print *,'zmin,zobg,zobgin,snowd ',zmin,zobg,zobgin,snowd(iq)   ! land
+         print *,'afland,aftland,zologbg ',afland,aftland,zologbg       ! land
+         print *,'af,vmag,vmod,es ',af(iq),vmag(iq),vmod(iq),es         ! land
          print *,'tss,theta,t1 ',tss(iq),theta(iq),t(iq,1)              ! land
-         print *,'aft,chnsea,fm,fh,rho,conh '                           ! land
-     .           ,aft(iq),chnsea,fm,fh(iq),rho(iq),conh                 ! land
-         print *,'ri,vmod,cduv,fg ',
-     .            ri(iq),vmod(iq),cduv(iq),fg(iq)                       ! land
-       endif                                                            ! land
+         print *,'aft,fm,fh,rho,conh ',aft(iq),fm,fh(iq),rho(iq),conh   ! land
+         print *,'ri,vmod,cduv,fg ',ri(iq),vmod(iq),cduv(iq),fg(iq)     ! land
+       endif  ! (ntest.eq.1.and.iq.eq.idjd)                             ! land
+      enddo     ! ip=1,ipland                                           ! land
+
       if(ntaft.eq.0.or.ktau.eq.1)then
         do iq=1,ifull  ! will only use land values
          taftfh(iq)=aft(iq)*fh(iq) ! uses fmroot above                  ! land
@@ -625,9 +614,9 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! land
          endif  ! (ntaft.eq.2)
         enddo
       endif  ! (ntaft.eq.0.or.ktau.eq.1)  .. else ..
-c     print *,'xxx0 ri,af,cduv,ustar ',
-c    .              ri(idjd),af(idjd),cduv(idjd),ustar(idjd)
-
+      if(ntest>0)then
+        print *,'before sib3 zo,zolnd,af ',zo(idjd),zolnd(idjd),af(idjd)
+      endif
 c ----------------------------------------------------------------------
 
       if(nsib.eq.1.or.nsib.eq.3)then
@@ -656,34 +645,34 @@ c     end of calls to sib1,2,3
         call maxmin(t,' t',ktau,1.,kl)
       endif
 
-      if(ntsur==6)then      
-c       option to recalculate cduv, ustar (gives better uscrn, u10)
+      if(ntsur.ne.5)then    ! ntsur=6 is default from Mar '05  
+c       preferred option to recalculate cduv, ustar (gives better uscrn, u10)
         do iq=1,ifull
          afroot=vkar/log(zmin/zo(iq))    ! land formula is bit different above                             
          af(iq)=afroot**2                                             
-         xx(iq)=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       
-         ri(iq)=xx(iq)/vmod(iq)**2                                       
-         if(xx(iq).gt.0.)then                                            
-           fm=vmod(iq)*max(fmroot*fmroot,1./(1.+bprm*ri(iq))**2)         
+         xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       
+         ri(iq)=min(xx/vmag(iq)**2 , ri_max)                                       
+         if(ri(iq).gt.0.)then                                            
+           fm=vmod(iq)/(1.+bprm*ri(iq))**2         ! Fm * vmod
          else                                                             
-           root=sqrt(-xx(iq)*zmin/zo(iq))  
-           denma=vmod(iq)+cms*2.*bprm*af(iq)*root                        
-           fm=vmod(iq)-(2.*bprm *xx(iq))/denma                            
+           root=sqrt(-ri(iq)*zmin/zo(iq))  
+           denma=1.+cms*2.*bprm*af(iq)*root                        
+           fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma     ! Fm * vmod                        
 c          n.b. fm denotes ustar**2/(vmod(iq)*af)                         
          endif                                                            
 c        cduv is now drag coeff *vmod                                     
-         cduv(iq) =af(iq)*fm                                             
+         cduv(iq) =af(iq)*fm                       ! Cd * vmod                                
          ustar(iq) = sqrt(vmod(iq)*cduv(iq))                             
 c        Surface stresses taux, tauy: diagnostic only - unstaggered now   
          taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                                
          tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                                
         enddo     
-      endif  ! (ntsur==6)
+       endif  ! (ntsur==6)
 
 !     always call scrnout from 19/9/02
       call scrnout(zo,ustar,factch,wetfac,qsttg,            ! arrays
-     .       qgscrn,tscrn,uscrn,u10,scrrel,                 ! arrays
-     .       bprm,cms,chs,fmroot,nalpha)
+     .       qgscrn,tscrn,uscrn,u10,scrrel,af,aft,ri,vmod,  ! arrays
+     .       bprm,cms,chs,chnsea,nalpha)
 
 c***  end of surface updating loop
 
@@ -760,8 +749,7 @@ c***  end of surface updating loop
      . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
      . ism(ifull),fwtop(ifull),spare2(ifull),
-     . extin(ifull),af(ifull),spare3(ifull),xx(ifull),
-     . dum3(5*ijk-20*ifull)
+     . extin(ifull),af(ifull),dum3(5*ijk-18*ifull)
       common/work3c/airr(ifull),cc(ifull),condxg(ifull),delta_tx(ifull),
      . evapfb1(ifull),evapfb2(ifull),evapfb3(ifull),evapfb4(ifull),
      . evapfb5(ifull),evapfb1a(ifull),evapfb2a(ifull),evapfb3a(ifull),

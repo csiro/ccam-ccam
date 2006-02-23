@@ -263,6 +263,7 @@
      &                    tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,0)
 	  endif   ! (io_in==-1.or.io_in==-3)
 	 	
+         tss(:)=abs(tss(:)) ! not done in infile because -ve needed for onthefly
 	  if(nproc==1)then
           pslavge=0.
           do iq=1,ifull
@@ -735,7 +736,6 @@
 
 !     for the moment assume precip read in at end of 24 h period
       do iq=1,ifull
-       tss(iq)=abs(tss(iq))
        zolnd(iq)=zoland       ! just a default - uaully read in
 !      initialize following to allow for leads with sice
        eg(iq)=0.
@@ -1017,7 +1017,7 @@
         call readreal('smoist.dat',w,2*ifull) ! special read of w & w2
       endif
 
-      if(nhstest<0)then  ! aquaplanet test 
+      if(nhstest<0)then  ! aquaplanet (APE) test 
         zs(:)=0.
         land(:)=.false.
         sice(:)=.false.
@@ -1038,15 +1038,15 @@
      .     tss(iq)=273.16 +27.*(1.-sin((rlatt(iq)-pi/36.)*90./55.)**2) ! Expt 5
          if(nhstest==-5.and.rlatt(iq)>-pi/3..and.rlatt(iq)<=pi/36.)
      .     tss(iq)=273.16 +27.*(1.-sin((rlatt(iq)-pi/36.)*90./65.)**2) ! Expt 5
-         if(nhstest==-6.and.abs(rlatt(iq))<pi/12.)then    ! Expt6 1keq
-	   if(rlongg(iq)<pi/3..or.rlongg(iq)>5.*pi/3)
-     .     tss(iq)=tss(iq)+1.*(cos(1.5*rlongg(iq))*cos(6.*rlatt(iq)))**2  
-         endif  ! (nhstest==-6....)
-         if(nhstest==-7.and.abs(rlatt(iq))<pi/12.)then          ! Expt7 3keq
-	   if(rlongg(iq)<pi/3..or.rlongg(iq)>5.*pi/3)
-     .     tss(iq)=tss(iq)+3.*(cos(1.5*rlongg(iq))*cos(6.*rlatt(iq)))**2  
+         if(nhstest==-6.and.abs(rlatt(iq))<pi/12.)then      ! Expt6 1keq
+	   if(rlongg(iq)<pi/6..or.rlongg(iq)>11.*pi/6.)      ! corrected .503
+     .     tss(iq)=tss(iq)+1.*(cos(3.*rlongg(iq))*cos(6.*rlatt(iq)))**2  
+         endif  ! (nhstest==-6....)                      
+         if(nhstest==-7.and.abs(rlatt(iq))<pi/12.)then      ! Expt7 3keq
+	   if(rlongg(iq)<pi/6..or.rlongg(iq)>11.*pi/6.)      ! corrected .503
+     .     tss(iq)=tss(iq)+3.*(cos(3.*rlongg(iq))*cos(6.*rlatt(iq)))**2  
          endif  ! (nhstest==-7....)
-         if(nhstest==-8.and.abs(rlatt(iq))<pi/6.)               ! Expt 8  3kw1
+         if(nhstest==-8.and.abs(rlatt(iq))<pi/6.)           ! Expt 8  3kw1
      .     tss(iq)=tss(iq)+3.*cos(rlongg(iq))*cos(3.*rlatt(iq))**2    
         enddo   ! iq loop
 	 do k=1,ms
@@ -1109,34 +1109,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
         call MPI_Reduce(aamax, aamax_g, 1, MPI_REAL, MPI_MAX, 0,
      &                  MPI_COMM_WORLD, ierr )
         if (myid==0) print *,'for lgwd>0, aamax: ',aamax_g
-      endif
-
-      if(ngwd.ne.0)then
-        hemax=0.
-        do iq=1,ifull
-         hemax=max(he(iq),hemax)
-!****    limit launching height : Palmer et al use limit on variance of
-!****    (400 m)**2. we use launching height = std dev. we limit
-!****    launching height to  2*400=800 m. this may be a bit severe.
-!****    according to Palmer this prevents 2-grid noise at steep edge of
-!****    himalayas etc.
-         he(iq)=min(hefact*he(iq),helim)
-        enddo
-        if (myid==0) print *,'hemax = ',hemax
-        call MPI_Allreduce(hemax, hemax_g, 1, MPI_REAL, MPI_MAX, 
-     &                  MPI_COMM_WORLD, ierr )
-        hemax = hemax_g
-        if(hemax==0.)then
-!         use he of 30% of orography, i.e. zs*.3/grav
-          do iq=1,ifull
-           he(iq)=min(hefact*zs(iq)*.3/grav , helim)
-           hemax=max(he(iq),hemax)
-          enddo ! iq loop
-        endif   ! (hemax==0.)
-        call MPI_Reduce(hemax, hemax_g, 1, MPI_REAL, MPI_MAX, 0,
-     &                  MPI_COMM_WORLD, ierr )
-        if (myid==0) print *,'final hemax = ',hemax_g
-      endif     ! (ngwd.ne.0)
+      endif   ! (lgwd>0)
 
       if(namip>0)then
         if(myid==0)print *,'calling amipsst at beginning of run'
@@ -1145,7 +1118,6 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 
       snalb=.8
       do iq=1,ifull
-       zolog(iq)=log(zmin/zolnd(iq))   ! for land use in sflux
        if(.not.land(iq))then
 !        from June '03 tgg1	holds actual sea temp, tss holds net temp 
          tgg(iq,1)=max(271.3,tss(iq)) 
@@ -1472,11 +1444,45 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
          end if
       endif  ! (jalbfix==1)
 
-      if(newrough==1)call calczo(.05)
+      if(newrough>0)then
+        call calczo(.05)
+        print *,'after calczo zolnd ',zolnd(idjd)
+	 if(newrough>2)then
+	   zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
+	 endif
+      endif
+
+      if(ngwd.ne.0)then
+        hemax=0.
+        do iq=1,ifull
+         hemax=max(he(iq),hemax)
+!****    limit launching height : Palmer et al use limit on variance of
+!****    (400 m)**2. we use launching height = std dev. we limit
+!****    launching height to  2*400=800 m. this may be a bit severe.
+!****    according to Palmer this prevents 2-grid noise at steep edge of
+!****    himalayas etc.
+         he(iq)=min(hefact*he(iq),helim)
+        enddo
+        if (myid==0) print *,'hemax = ',hemax
+        call MPI_Allreduce(hemax, hemax_g, 1, MPI_REAL, MPI_MAX, 
+     &                  MPI_COMM_WORLD, ierr )
+        hemax = hemax_g
+        if(hemax==0.)then
+!         use he of 30% of orography, i.e. zs*.3/grav
+          do iq=1,ifull
+           he(iq)=min(hefact*zs(iq)*.3/grav , helim)
+           hemax=max(he(iq),hemax)
+          enddo ! iq loop
+        endif   ! (hemax==0.)
+        call MPI_Reduce(hemax, hemax_g, 1, MPI_REAL, MPI_MAX, 0,
+     &                  MPI_COMM_WORLD, ierr )
+        if (myid==0) print *,'final hemax = ',hemax_g
+      endif     ! (ngwd.ne.0)
       
 !***  no fiddling with initial tss, snow, sice, w, w2, gases beyond this point
       call bounds(zs)
       do iq=1,ifull
+       zolog(iq)=log(zmin/zolnd(iq))   ! for land use in sflux
 	neigh(iq)=iq  ! default value
 	zsmin=zs(iq)
 	if(zs(ie(iq))<zsmin)then
@@ -1760,6 +1766,7 @@ c    &              .54, .0/
 	 if(land(iq))then
 	   ivegmin=min(ivegt(iq),ivegmin)
 	   ivegmax=max(ivegt(iq),ivegmax)
+c         if(ivegt(iq)>40)print *,'iq, ivegt ',iq,ivegt(iq)
 	 endif
        enddo
        print *,'ivegmin,ivegmax ',ivegmin,ivegmax
@@ -1796,11 +1803,11 @@ c    &              .54, .0/
        enddo
       endif
  
-      zobg = .05
+c     zobg = .05
       alb(:)=.01*alb(:)
       zolnd(:)=.01*zolnd(:)
 !     zolnd(:)=min(zolnd(:) , 1.5)   ! suppressed 30/7/04
-      zolnd(:)=max(zolnd(:) , zobg)
+      zolnd(:)=max(zolnd(:) , zobgin)
 
       do iq=1,ifull
         if(land(iq))then
@@ -2146,18 +2153,37 @@ c so2em  - emission values at iso2em grid point
       end
 
 !=======================================================================
-      subroutine calczo(zobgin)     !  option to call from July '04
+      subroutine calczo    !  option to call from July '04
       include 'newmpar.h'
       include 'arrays.h'
       include 'map.h'   
       include 'nsibd.h' ! ivegt
+      include 'parm.h'
 !     include 'scamdim.h'
       include 'soil.h'      ! zolnd
       include 'soilsnow.h'  ! tgg,wb
+      real xhc(0:44)
+c     vegetation height
+      data xhc    / 0.0,                                               ! 0
+     &             30.0,28.0,25.0,17.0,12.0,10.0, 9.0, 7.0, 5.5, 3.0,  ! 1-10
+     &              2.5, 2.0, 1.0, 0.6, 0.5, 0.5,0.45,0.75, 0.6,0.45,
+     &              0.4, 0.6, 0.6,0.24,0.25,0.35, 0.3, 2.5, 0.0, 0.0,
+     &              0.0,                                               ! 31
+     & 32.,20.,20.,17.,17., 1., 1., 1., 0.5, 0.6, 0., 1.,0./ !sellers 1996 j.climate
 
       zomax=-1.e29
       zomin= 1.e29
-      do iq=1,ifull
+      if(newrough>=2)then
+       do iq=1,ifull
+        if(land(iq))then
+          iveg=ivegt(iq)
+	   zolnd(iq)=max(zobgin , .1*xhc(iveg))
+          zomax=max(zomax,zolnd(iq))
+          zomin=min(zomin,zolnd(iq))
+        endif ! (land(iq))then
+       enddo   ! iq loop
+      else
+       do iq=1,ifull
         if(land(iq))then
           iveg=ivegt(iq)
           tsoil  = 0.5*(tgg(iq,ms)+tgg(iq,2))
@@ -2166,14 +2192,14 @@ c so2em  - emission values at iso2em grid point
           zomax=max(zomax,zolnd(iq))
           zomin=min(zomin,zolnd(iq))
         endif ! (land(iq))then
-      enddo   ! iq loop
+       enddo   ! iq loop
+      endif
 
       write(6,*)"calczo zolnd: zomin,zomax=",zomin,zomax
-
       return ! calczo
       end    ! calczo
 !=======================================================================
-      subroutine cruf1 (iv,tsoil,sdep,z0m,zobgin)
+      subroutine cruf1 (iv,tsoil,sdep,zolnd,zobgin)
 c kf, 1997
 c for each vegetation type (= iv), assign veg height, total lai, albedo,
 c and computed aerodynamic, radiative and interception properties.
@@ -2220,19 +2246,19 @@ c   ephemeral lake (salt)                sl    30     0     0  0
 c   urban                                 u    31     0     0  0
 c   stand alone: hc,rlai from param1      -    44     -   100  -
 
-c   above are dean's. below are sib (add 31 to get model iveg)
-c  1 - broadleaf evergreen trees (tropical forest)
-c  2 - broadleaf deciduous trees
-c  3 - broadleaf and needleaf trees
-c  4 - needleaf evergreen trees
-c  5 - needleaf deciduous trees 
-c  6 - broadleaf trees with ground cover (savannah)
-c  7 - groundcover only (perennial)
-c  8 - broadleaf shrubs with groundcover
-c  9 - broadleaf shrubs with bare soil
-c 10 - dwarf trees and shrubs with groundcover
-c 11 - bare soil
-! 12 - agriculture or C3 grassland (newer defn)
+c   above are dean's. below are sib (added 31 to get model iveg)
+c  32  1 - broadleaf evergreen trees (tropical forest)
+c  33  2 - broadleaf deciduous trees
+c  34  3 - broadleaf and needleaf trees
+c  35  4 - needleaf evergreen trees
+c  36  5 - needleaf deciduous trees 
+c  37  6 - broadleaf trees with ground cover (savannah)
+c  38  7 - groundcover only (perennial)
+c  39  8 - broadleaf shrubs with groundcover
+c  40  9 - broadleaf shrubs with bare soil
+c  42 10 - dwarf trees and shrubs with groundcover
+c  42 11 - bare soil
+!  43 12 - agriculture or C3 grassland (newer defn)
  
 !                             soil type
 !       texture               
@@ -2317,12 +2343,13 @@ c   by the factor season (0 =< season =< 1).
       vrlai = max(0.0,(xvlai(iv)-xslveg(iv)*(1.-ftsoil))*xpfc(iv))
       hc    = max(0.0,xhc(iv) - sdep)
       rlai  = vrlai*hc/max(0.01,xhc(iv))
-c   find roughness length z0m from hc and rlai:
-      call cruf2(hc,rlai,usuh,z0m,disp,coexp)
+c   find roughness length zolnd from hc and rlai:
+      call cruf2(hc,rlai,usuh,zolnd,disp,coexp)
 c   set aerodynamic variables for bare soil and vegetated cases:
-      z0m=max(min(z0m, 1.5), zobgin)
+!     zolnd=min(zolnd , 1.5)   ! suppressed 2/3/05
+      zolnd=max(zolnd, zobgin)
       if (rlai<0.001 .or. hc<.05) then
-        z0m    = zobgin      ! bare soil surface
+        zolnd    = zobgin      ! bare soil surface
         hc     = 0.0  
         rlai   = 0.0
       endif

@@ -83,6 +83,7 @@
      .	           dum3a,dum3a,dum3a,dum2, dum3,  dum4, dum5,  1)
 !      above are: tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,nested
       endif   ! (io_in==1.or.io_in==3)
+      tssb(:) = abs(tssb(:))  ! moved here Mar '03
       if (mydiag) then
         write (6,"('zsb# nestin  ',9f7.1)") diagvals(zsb)
         write (6,"('tssb# nestin ',9f7.1)") diagvals(tssb) 
@@ -166,9 +167,6 @@
         enddo
       endif  ! (newtop==2)
 
-      do iq=1,ifull
-        tssb(iq) = abs(tssb(iq))
-      enddo
 !     test code in nestin for modifying SSTs
 !	do j=270,288
 !	 do i=9,22

@@ -517,7 +517,8 @@ c       write(24,*)coszro2
           sint(i) = dfsw(i,1)*h1m3   ! solar in top
           sout(i) = ufsw(i,1)*h1m3   ! solar out top
           sg(i)   = sg(i)*h1m3       ! solar absorbed at the surface
-          sgdn(i) = sg(i) / ( 1 - alb(i) )
+          iq=i+(j-1)*il              ! fixed Mar '05
+          sgdn(i) = sg(i) / ( 1. - alb(iq) )
       end do
       if(ntest.gt.0.and.j.eq.jdrad)then
         print *,'idrad,j,sint,sout,soutclr,sg,cuvrf1 ',
