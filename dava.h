@@ -1,2 +1,2 @@
-      real davt
-      common/dava/davt(ifull)  !  not need: davu(ifull),davv(ifull)
+      real davt,davu
+      common/dava/davt(ifull),davu(ifull) 

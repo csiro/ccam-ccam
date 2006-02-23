@@ -78,7 +78,7 @@
 
 c     start of processing loop 
       nemi=2   !  assume source land-mask based on tss sign first
-      if(ktau.lt.3.and.myid==0)print *,'search for kdate_s,ktime_s >= ',
+      if(ktau<3.and.myid==0)print *,'search for kdate_s,ktime_s >= ',
      &                                 kdate_s,ktime_s
       id_t=id
       jd_t=jd
@@ -104,7 +104,7 @@ c     start of processing loop
      
 !     Purpose of setxyz call is to get rlat4 rlong4 (and so xx4 yy4) 
 !     for the source grid. Only process 0 needs to do this here
-      if ( myid == 0 ) then
+      if ( myid==0 ) then
          rlong0=rlong0x
          rlat0=rlat0x
          schmidt=schmidtx
@@ -113,17 +113,17 @@ c     start of processing loop
 !     rotpole(2,) is y-axis of rotated coords in terms of orig Cartesian
 !     rotpole(3,) is z-axis of rotated coords in terms of orig Cartesian
          rotpoles = calc_rotpole(rlong0,rlat0)
-         if(ktau.lt.3)then
+         if(ktau<3)then
             print *,'nfly,nord ',nfly,nord
             print *,'io_in2,kdate_r,ktime_r,ktau,ds',
      &               io_in2,kdate_r,ktime_r,ktau,ds
             print *,'ds,ds_t ',ds,ds_t
-            if ( nproc == 1 ) print *,'a zss(idjd1) ',zss(idjd1)
+            if ( nproc==1 ) print *,'a zss(idjd1) ',zss(idjd1)
             print *,'rotpoles:'
             do i=1,3
                print 9,(i,j,j=1,3),(rotpoles(i,j),j=1,3)
             enddo
-         endif                  ! (ktau.lt.3)
+         endif                  ! (ktau<3)
 !        save "source" ax, bx etc  - used in transforming source u & v
          ax_s(:) = ax_g(:)
          ay_s(:) = ay_g(:)
@@ -150,7 +150,7 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
 !     rotpole(2,) is y-axis of rotated coords in terms of orig Cartesian
 !     rotpole(3,) is z-axis of rotated coords in terms of orig Cartesian
          rotpole = calc_rotpole(rlong0,rlat0)
-         if(nmaxpr.eq.1)then
+         if(nmaxpr==1)then   ! already in myid==0 loop
             print *,'rotpole:'
             do i=1,3
                print 9,(i,j,j=1,3),(rotpole(i,j),j=1,3)
@@ -158,7 +158,7 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
             enddo
             print *,'xx4,xx4_sav,yy4,yy4_sav ',
      .           xx4(id,jd),xx4_sav(id,jd),yy4(id,jd),yy4_sav(id,jd)
-         endif                  ! (nmaxpr.eq.1)
+         endif                  ! (nmaxpr==1)
 !     Put source values into xx4, yy4; target values into xx4_sav,yy4_sav
 !     This is necessary because latltoij uses xx4,yy4 from common.
          do j=1,iquad
@@ -176,22 +176,22 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
          rlong0=rlong0x
          rlat0=rlat0x
          schmidt=schmidtx
-         if(nmaxpr.eq.1)then
+         if(nmaxpr==1)then  ! already in myid==0 loop
             print *,'before latltoij for id,jd: ',id,jd
-            if ( nproc == 1 ) then
+            if ( nproc==1 ) then
                ! Diagnostics will only be correct if nproc==1
                print *,'rlong4(1-4) ',(rlong4(idjd,m),m=1,4)
                print *,'rlat4(1-4) ',(rlat4(idjd,m),m=1,4)
             end if
             print *,'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,schmidtx 
-         endif                  ! (nmaxpr.eq.1)
+         endif                  ! (nmaxpr==1)
          do m=1,4
             do iq=1,ifull_g
                call latltoij(rlong4(iq,m),rlat4(iq,m),
      &                       xg4(iq,m),yg4(iq,m),nface4(iq,m))
             enddo
          enddo
-         if(nproc == 1 .and. nmaxpr.eq.1)then
+         if(nproc==1.and.nmaxpr==1)then
            ! Diagnostics will only be correct if nproc==1
            id2=nint(xg4(idjd,1))
            jd2=il*nface4(idjd,1)+nint(yg4(idjd,1))
@@ -209,14 +209,14 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
 
       end if ! myid==0
 
-      if(nfly.eq.2)then         ! needs pmsl in this case (preferred)
+      if(nfly==2)then         ! needs pmsl in this case (preferred)
          call mslp(pmsl,psl,zss,t)  
       endif
 
       ! All the following processing is done on processor 0
       ! Avoid memory blow out by only having single level global arrays
       do k=1,kl
-         if ( myid == 0 ) then
+         if ( myid==0 ) then
             call ccmpi_gather(u(:,k), u_g)
             call ccmpi_gather(v(:,k), v_g)
             call ccmpi_gather(t(:,k), t_g)
@@ -234,7 +234,7 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
                wcc(iq)=uc(iq)*rotpoles(3,1)+vc(iq)*rotpoles(3,2)
      &                                +wc(iq)*rotpoles(3,3)
             enddo               ! iq loop
-            if(ktau.lt.3.and.k.eq.1.and.nproc==1)then
+            if(ktau<3.and.k==1.and.nproc==1)then
                print *,'uc,vc,wc: ',uc(id),vc(idjd1),wc(idjd1)
                print *,'ucc,vcc,wcc: ',ucc(idjd1),vcc(idjd1),wcc(idjd1)
                print *,'calling ints4 for k= ',k
@@ -248,12 +248,12 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
             call ints4(ucc, nface4,xg4,yg4,nord)
             call ints4(vcc, nface4,xg4,yg4,nord)
             call ints4(wcc, nface4,xg4,yg4,nord)
-c      if(nsd.eq.1)then
+c      if(nsd==1)then
 c        call ints4(sdot(1,k),   nface4,xg4,yg4,nord)
 c      endif
 
 c      ********************** N.B. tracers not ready yet
-c      if(iltin.gt.1)then
+c      if(iltin>1)then
 c        do ntr=1,ntracin
 c         call ints4(tr(1,k,ntr),nface4,xg4,yg4,nord)
 c        enddo
@@ -273,7 +273,7 @@ c      endif
                v_g(iq) = bx_g(iq)*uct(iq) + by_g(iq)*vct(iq) +
      &                   bz_g(iq)*wct(iq)
             enddo               ! iq loop
-            if(ktau.lt.3.and.k.eq.1.and.nproc==1)then
+            if(ktau<3.and.k==1.and.nproc==1)then
                ! This only works if idjd is on processor 0
                print *,'interp. ucc,vcc,wcc: ',ucc(idjd),vcc(idjd),
      &                  wcc(idjd)
@@ -295,28 +295,28 @@ c      endif
             call ccmpi_distribute(v(:,k))
             call ccmpi_distribute(t(:,k))
             call ccmpi_distribute(qg(:,k))
-         end if ! myid == 0
+         end if ! myid==0
       enddo  ! k loop
 
 !     below we interpolate quantities which may be affected by land-sea mask
 
 !     set up land-sea mask from either tss or zss
-      if(nemi.eq.2)then
+      if(nemi==2)then
          numneg=0
          do iq=1,ifull
-            if(tss(iq).gt.0)then ! over land
+            if(tss(iq)>0)then ! over land
                land(iq)=.true.
             else                ! over sea
                land(iq)=.false.
                numneg=numneg+1
-            endif               ! (tss(iq).gt.0) .. else ..
+            endif               ! (tss(iq)>0) .. else ..
          enddo
-         if(numneg.eq.0)nemi=1  ! should be using zss in that case
-      endif                     !  (nemi.eq.2)
-      if ( myid == 0 )print *,'using nemi = ',nemi
-      if(nemi.eq.1)then
+         if(numneg==0)nemi=1  ! should be using zss in that case
+      endif                     !  (nemi==2)
+      if ( myid==0 )print *,'using nemi = ',nemi
+      if(nemi==1)then
          land(:) = zss(:) > 0.
-      endif                     !  (nemi.eq.1)
+      endif                     !  (nemi==1)
 
       spval=999.
       do iq=1,ifull
@@ -337,17 +337,17 @@ c      endif
                tgg(iq,k)=spval
                wb(iq,k)=spval
             enddo
-         endif                  ! (tss(iq).gt.0) .. else ..
+         endif                  ! (tss(iq)>0) .. else ..
       enddo
       
-      if(nproc==1 .and. nmaxpr.eq.1)then
+      if(nproc==1.and.nmaxpr==1)then
         print *,'before fill tss ',tss(idjd2)
         print *,'before fill tss_l, tss_s ',tss_l(idjd2),tss_s(idjd2)
         print *,'before fill/ints4 sicedep ',sicedep(idjd2)
         print *,'before fill wb'
         write(6,"('wb_s(1)#  ',9f7.3)") 
      .          ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
-      endif  ! (nmaxpr.eq.1)
+      endif  ! (nproc==1.and.nmaxpr==1)
       call fill_cc(tss_l,spval)
       call fill_cc(tss_s,spval)
       call fill_cc(snowd,spval)
@@ -356,7 +356,7 @@ c      endif
         call fill_cc(tgg(1,k),spval)
         call fill_cc(wb(1,k),spval)
       enddo
-      if(nproc==1 .and.nmaxpr.eq.1)then
+      if(nproc==1.and.nmaxpr==1)then
         print *,'after fill tss_l, tss_s ',tss_l(idjd2),tss_s(idjd2)
         print *,'after fill sicedep ',sicedep(idjd2)
         print *,'after fill wb'
@@ -364,9 +364,9 @@ c      endif
      .          ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
         print *,'before ints4 psl(idjd2),zss(idjd2) ',
      .                        psl(idjd),zss(idjd2)
-      endif  ! (nmaxpr.eq.1)
+      endif  ! (nproc==1.and.nmaxpr==1)
 
-      if(nfly.gt.0)then
+      if(nfly>0)then
         norder=1
       else
         norder=nord
@@ -375,11 +375,11 @@ c      endif
       ! The routine doints4 does the gather, calls ints4 and redistributes
       call doints4(psl ,     nface4,xg4,yg4,norder)
       call doints4(zss ,nface4,xg4,yg4,norder)  
-      if(nfly.eq.2)then
+      if(nfly==2)then
         call doints4(pmsl,   nface4,xg4,yg4,nord)
 !       invert pmsl to get psl
         call to_psl(pmsl,psl,zss,t)  
-      endif  ! (nfly.eq.2)
+      endif  ! (nfly==2)
       call doints4(tss_l ,   nface4,xg4,yg4,nord)
       call doints4(tss_s ,   nface4,xg4,yg4,nord)
 c     call doints4(precip,   nface4,xg4,yg4,nord)
@@ -387,16 +387,16 @@ c     call doints4(precip,   nface4,xg4,yg4,nord)
        call doints4(tgg(1,k),nface4,xg4,yg4,nord)
        call doints4(wb(1,k) ,nface4,xg4,yg4,nord)
       enddo
-      if(nproc==1 .and. nmaxpr.eq.1)then
+      if(nproc==1.and.nmaxpr==1)then
          print *,'after ints4 idjd,zss(idjd) ',idjd,zss(idjd)
 	 print *,'after ints4 psl,pmsl ',psl(idjd),pmsl(idjd)
          print *,'after ints4 wb_t'
          write(6,"('wb_t(1)#  ',9f7.3)") 
      .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
-      endif  ! (nmaxpr.eq.1)
+      endif  ! (nproc==1.and.nmaxpr==1)
 c     call ints4(alb ,     nface4,xg4,yg4,nord)
 c     call ints4(precc,    nface4,xg4,yg4,nord)
-      if(nqg.ge.6)then
+      if(nqg>=6)then
         call doints4(snowd,  nface4,xg4,yg4,nord)
         call doints4(sicedep,nface4,xg4,yg4,nord)
         if ( nproc==1 ) print *,'after ints4 sicedep ',sicedep(idjd)
@@ -404,7 +404,7 @@ c       call ints4(cloudlo,nface4,xg4,yg4,nord)
 c       call ints4(cloudmi,nface4,xg4,yg4,nord)
 c       call ints4(cloudhi,nface4,xg4,yg4,nord)
       endif
-      if(nqg.ge.7)then
+      if(nqg>=7)then
 c       call ints4(tscrn,  nface4,xg4,yg4,nord)
 
 c       call ints4(qgscrn, nface4,xg4,yg4,nord)
@@ -422,10 +422,10 @@ c     incorporate target land mask effects, e.g. into surface temperature
 !           zs(iq)=-.1   ! dont do this
          endif
       enddo                     ! iq loop
-      if(nproc==1 .and. nmaxpr.eq.1)then
+      if(nproc==1.and.nmaxpr==1)then
          print *,'after ints tss_l, tss_s ',tss_l(idjd),tss_s(idjd)
          print *,'after ints tss',tss(idjd)
-      endif  ! (nmaxpr.eq.1)
+      endif  ! (nproc==1.and.nmaxpr==1)
 
 !     end of processing loop
 
@@ -433,7 +433,7 @@ c     incorporate target land mask effects, e.g. into surface temperature
       rlong0x=rlong0_t  ! for indata cross-check
       rlat0x=rlat0_t
       schmidtx=schmidt_t
-      if ( myid == 0 ) then  ! Others weren't changed
+      if ( myid==0 ) then  ! Others weren't changed
          xx4(:,:) = xx4_sav(:,:)
          yy4(:,:) = yy4_sav(:,:)
       end if
@@ -485,7 +485,7 @@ c     incorporate target land mask effects, e.g. into surface temperature
       integer :: iq, m
       integer :: idx = 25, jdx = 218, idjdx=10441
 
-      if(nord.eq.1)then
+      if(nord==1)then
          do m=1,4
             call ints_blb(s,wrk(1,m),nface4(1,m),xg4(1,m),yg4(1,m))
          enddo
@@ -493,8 +493,8 @@ c     incorporate target land mask effects, e.g. into surface temperature
          do m=1,4
             call intsb(s,wrk(1,m),nface4(1,m),xg4(1,m),yg4(1,m))
          enddo
-      endif   ! (nord.eq.1)  .. else ..
-      if(ntest.gt.0)then
+      endif   ! (nord==1)  .. else ..
+      if(ntest>0)then
          print *,'in ints4 for id,jd,nord: ',id,jd,nord
          print *,'nface4(1-4) ',(nface4(idjd,m),m=1,4)
          print *,'xg4(1-4) ',(xg4(idjd,m),m=1,4)
@@ -562,7 +562,7 @@ c         (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
       enddo    ! n loop
 
       do iq=1,ifull_g
-c       if(iq.eq.idjd)print *,'iq,nface,xg,yg ',
+c       if(iq==idjd)print *,'iq,nface,xg,yg ',
 c    .                         iq,nface(iq),xg(iq),yg(iq)
         n=nface(iq)
         idel=int(xg(iq))
@@ -570,7 +570,7 @@ c    .                         iq,nface(iq),xg(iq),yg(iq)
 c       yg here goes from .5 to il +.5
         jdel=int(yg(iq))
         yyg=yg(iq)-jdel
-c       if(iq.eq.idjd)then
+c       if(iq==idjd)then
 c         print *,'iq,idel,xxg,jdel,yyg,n ',
 c    .             iq,idel,xxg,jdel,yyg,n
 c         print *,'sx nn=1',sx(idel  ,jdel-1,n),sx(idel+1,jdel-1,n)
@@ -604,7 +604,7 @@ c      following does Bermejo Staniforth
         aaa=((1.-yyg)*((2.-yyg)*((1.+yyg)*r(2)-yyg*r(1)/3.)
      .      -yyg*(1.+yyg)*r(4)/3.)
      .      +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-c       if(iq.eq.idjd)print *,'before BS aaa sx sx+ sx0+ sx++',aaa,
+c       if(iq==idjd)print *,'before BS aaa sx sx+ sx0+ sx++',aaa,
 c    .                         sx(idel,jdel,n),sx(idel+1,jdel,n),
 c    .                         sx(idel,jdel+1,n),sx(idel+1,jdel+1,n)
         aaa=min( aaa , max( sx(idel,jdel,n),sx(idel+1,jdel,n),
@@ -691,7 +691,7 @@ c     routine fills in interior of an array which has undefined points
          num=num+1
          do iq=1,ifull
             b(iq)=a(iq)
-            if(a(iq).eq.value)then
+            if(a(iq)==value)then
                neighb=0
                av=0.
                if(a(in(iq)).ne.value)then
@@ -710,7 +710,7 @@ c     routine fills in interior of an array which has undefined points
                   neighb=neighb+1
                   av=av+a(is(iq))
                endif
-               if(neighb.gt.0)then
+               if(neighb>0)then
                   b(iq)=av/neighb
                   avx=av
                else
@@ -723,12 +723,12 @@ c     routine fills in interior of an array which has undefined points
          enddo
          call MPI_AllReduce(nrem, nrem_g, 1, MPI_INTEGER, MPI_SUM, 
      &                      MPI_COMM_WORLD, ierr )
-         if(nrem_g.gt.0.and.myid==0)then
-            if(num.le.2) then
+         if(nrem_g>0.and.myid==0)then
+            if(num<=2) then
                print *,'after 1/2 time thru fill loop num,nrem,avx = ',
      &                                           num,nrem_g,avx
             end if
-         endif                  ! (nrem.gt.0)
+         endif                  ! (nrem>0)
       end do
       a_io(:) = a(1:ifull)
       return

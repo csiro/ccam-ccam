@@ -807,6 +807,60 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
        dmdx(iq)=.5*(em(ie(iq))-em(iw(iq)))/ds  
        dmdy(iq)=.5*(em(in(iq))-em(is(iq)))/ds  
       enddo   ! iq loop
+      if(myid==0)then
+        ratmin=100.
+	 ratmax=0.
+        do n=0,npanels
+         do i=1,il
+	   iq=ind(i,il/2,n)
+	   rat=em(iq)/em(ie(iq))
+	    if(rat<ratmin)then
+	      ratmin=rat
+	      imin=i
+	    endif
+	    if(rat>ratmax)then
+	      ratmax=rat
+	      imax=i
+	    endif
+	  enddo
+	  print *,'ratio for j=il/2 on npanel ',n
+         write (6,"(12f6.3)")
+     &         (em(ind(i,il/2,n))/em(ie(ind(i,il/2,n))),i=1,il)
+	 enddo
+	 print *,'for j=il/2 & myid=0, ratmin,ratmax = ',ratmin,ratmax
+	 print *,'with imin,imax ',imin,jmin,imax,jmax
+        ratmin=100.
+	 ratmax=0.
+        do n=0,npanels
+	  do j=1,il
+          do i=1,il
+	    iq=ind(i,j,n)
+	    rat=em(iq)/em(ie(iq))
+	    if(rat<ratmin)then
+	      ratmin=rat
+	      imin=i
+	      jmin=j
+	    endif
+	    if(rat>ratmax)then
+	      ratmax=rat
+	      imax=i
+	      jmax=j
+	    endif
+	   enddo
+	  enddo
+	 enddo
+	 print *,'for all j & myid=0, ratmin,ratmax = ',ratmin,ratmax
+	 print *,'with imin,jmin,imax,jmax ',imin,jmin,imax,jmax
+        write (6,"('1st 10 ratios',10f6.3)") (em(iq)/em(ie(iq)),iq=1,10)
+	 numpts=0
+	 do iq=1,ifull
+	   rlatdeg=rlatt(iq)*180./pi
+	   rlondeg=rlongg(iq)*180./pi
+	  if(rlatdeg>20..and.rlatdeg<60.
+     &      .and.rlondeg>230..and.rlatdeg<300.)numpts=numpts+1
+        enddo
+	 print *,'points in SGMIP region ',numpts
+      endif
 
       return
       end

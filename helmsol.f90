@@ -225,7 +225,8 @@
 #endif
          call end_log(reduce_end)
          if ( (diag .or. ktau<6) .and. myid == 0 ) then
-            print*, "Iterations", iter, klim, sqrt(abs(ggamma_1(1:klim)))
+            write(6,'("Iterations",i4,i3,6g13.6/(10x,6g13.6))')   &
+     &                 iter, klim, sqrt(abs(ggamma_1(1:klim)))
          end if
          !  Check which modes have converged
          do k=klim,1,-1

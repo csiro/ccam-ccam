@@ -17,12 +17,12 @@
 
       integer m,mex,mfix,mfix_qg,mspec,mup,nonl,nritch,nritch_t,nrot,      &
      &  nstag,nstagu,ntbar,nuvfilt,nvsplit,nxmap,precon,nh,npex,nomg
-      real    epsp,epsu,epsf,restol
+      real    epsp,epsu,epsf,epsnh,restol
       common/paramdyn/epsp,epsu,epsf,m,mex,mfix,mfix_qg,                   &
      &                mspec,mup,nomg,nonl,nritch,nritch_t,nrot,                 &
      &                nstag,nstagu,ntbar,nuvfilt,                          &
      &                nvsplit,nxmap,restol,precon,                         &
-     &                nh,npex      ! for future use
+     &                nh,epsnh,npex      ! for future use
 !              (ntbar=0)           ! 0 for standard
 !              (ntbar=(kl+1)/2)    ! level# for tbar2d with T set in nonlin
 !           nspec_us set to 1 by nritch=102 (unstaggering at opposite ktau)

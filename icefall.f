@@ -265,32 +265,37 @@ c Set up ice fall speed field and other arrays
 
 c     following are alternative slightly-different versions of above
 c     used for I runs from 29/4/05 till 30/8/05
-c      if(abs(ldr)==1)then  ! 1 for R21 runs, like prev lw=22
-c        do k=nl-1,1,-1
-c          do mg=1,ln2
-c            vi2(mg,k)=max( vi2(mg,k+1),3.23*(rhoi(mg,k)/
-c     &                                max(cifr(mg,k),1.e-30))**0.17 )
-c          enddo
-c        enddo
-c      endif   ! (abs(ldr)==1)
-c
-c      if(abs(ldr)==2)then  
-c        do k=nl-1,1,-1
-c          do mg=1,ln2
-c            vi2(mg,k)=max( vi2(mg,k+1),.9*3.23*(rhoi(mg,k)/
-c     &                                max(cifr(mg,k),1.e-30))**0.17 )
-c          enddo
-c        enddo
-c      endif   ! (abs(ldr)==2)
-c
-c      if(abs(ldr)==3)then  
-c        do k=nl-1,1,-1
-c          do mg=1,ln2
-c            vi2(mg,k)=max( vi2(mg,k+1),2.05+
-c     &       0.35*log10(max(qfg(mg,k),1.e-30)/max(cifr(mg,k),1.e-30)) )
-c          enddo
-c        enddo
-c      endif   ! (abs(ldr)==3)
+c     for given qfg, large cifr implies small ice crystals, 
+c     with a small fall speed. 
+c     Note that for very small qfg, cifr is small.
+c     But rhoi is like qfg, so ratio should also be small and OK.
+      if(abs(ldr)==11)then  ! 1 for R21 runs, like prev lw=22
+        do k=nl-1,1,-1
+          do mg=1,ln2
+            vi2(mg,k)=max( vi2(mg,k+1),3.23*(rhoi(mg,k)/
+     &                                max(cifr(mg,k),1.e-30))**0.17 )
+          enddo
+        enddo
+      endif   ! (abs(ldr)==11)
+
+      if(abs(ldr)==22)then  
+        do k=nl-1,1,-1
+          do mg=1,ln2
+            vi2(mg,k)=max( vi2(mg,k+1),.9*3.23*(rhoi(mg,k)/
+     &                                max(cifr(mg,k),1.e-30))**0.17 )
+          enddo
+        enddo
+      endif   ! (abs(ldr)==22)
+
+      if(abs(ldr)==33)then  
+        do k=nl-1,1,-1
+         do mg=1,ln2
+c          following max gives vi2=.1 for qfg=cifr=0
+           vi2(mg,k)=max( vi2(mg,k+1),2.05 +0.35*
+     &      log10(max(qfg(mg,k),2.68e-36)/max(cifr(mg,k),1.e-30)) )
+          enddo
+        enddo
+      endif   ! (abs(ldr)==33)
 
       do k=nl-1,1,-1
         do mg=1,ln2
@@ -514,10 +519,10 @@ c Re-create qfg field
 c Diagnostics for debugging
       if(nmaxpr==1.and.mydiag)then
 	print *,'diags from icefall for idjd ',idjd
-	print *,'vi2',(vi2(idjd,k),k=1,nl)   ! NB ln2=ifull     
-	print *,'cfrac',(cfrac(idjd,k),k=1,nl)  
-	print *,'cifr',(cifr(idjd,k),k=1,nl)    
-	print *,'qfg',(qfg(idjd,k),k=1,nl)   
+       write (6,"('vi2 ',9f8.3/4x,9f8.3)") vi2(idjd,:)
+       write (6,"('cfraci',9f8.3/6x,9f8.3)") cfrac(idjd,:)
+       write (6,"('cifr  ',9f8.3/6x,9f8.3)") cifr(idjd,:)
+       write (6,"('qfg   ',3p9f8.3/6x,9f8.3)") qfg(idjd,:)
       endif
 
       if(debug)then

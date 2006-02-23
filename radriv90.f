@@ -13,6 +13,8 @@
 
       use swr99_m
       use zenith_m
+      use cc_mpi
+      use diag_m
       include 'newmpar.h'
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
 !        for diag prints set ntest=1
@@ -48,9 +50,9 @@
       include 'srccom.h'
       include 'swocom.h'
       include 'tfcom.h'
-      common/work3c/rhg(ifull,kl) ! N.B. common/work3c/ used in cloud,radrive
+      common/cfrac/cfrac(ifull,kl)
+      common/work3c/rhg(ifull,kl) ! shared between cloud &radriv90
       common/work3d/rtt(ifull,kl) ! just to pass between radriv90 & globpe
-      common/work3b/cfrad(ifull,kl),dum3b(ifull,kl)    ! leoncld & radriv90
       common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! ditto
 
       parameter(cong = cp/grav)
@@ -73,11 +75,9 @@ c     parameters for the aerosol calculation
       save hlwsav, hswsav, sgamp
       
 c     Following are for cloud2 routine
-      common/work3a/cfrac(ifull,kl),           ! globpe,radriv90
-     &     t2(imax,kl),ql2(imax,kl),qf2(imax,kl),cf2(imax,kl),
+      real t2(imax,kl),ql2(imax,kl),qf2(imax,kl),cf2(imax,kl),
      &     qc2(imax,kl),cd2(imax,kl),p2(imax,kl),
      &     dp2(imax,kl),cll(imax),clm(imax),clh(imax)
-     &     ,dum3f(2*ifull*kl-8*imax*kl-3*imax)
       logical land2(imax)
 
 !     From initfs
@@ -123,11 +123,17 @@ c     Stuff from cldset
          call co2_read(sig)
          call radtable
          rrco2=rrvco2*ratco2mw
-c Stuff from o3set
-c       Rearrange the seasonal mean O3 data to allow interpolation
-c       Define the amplitudes of the mean, annual and semi-annual cycles
-	call o3_read(sig)
-	call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
+         if(amipo3)then
+c           AMIP2 ozone
+            call o3read_amip
+            print *,'AMIP2 ozone input'
+        else
+c          Stuff from o3set
+c          Rearrange the seasonal mean O3 data to allow interpolation
+c          Define the amplitudes of the mean, annual and semi-annual cycles
+           call o3_read(sig)
+           call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
+        end if
       end if  ! (first)
 
 C---------------------------------------------------------------------*
@@ -162,44 +168,26 @@ c     Allowed values are 0, 6000 and 21000.
      .          ,kdate,jyear,jmonth,jhour,jmin,mtimer,mstart,mins,fjd
       endif
 
-      do k=1,ksigtop  ! up to top level for RH calc for clouds
-         do iq=1,ifull
-            est = establ(t(iq,k))
-            p = sig(k)*ps(iq)
-!           rhg(iq,k) = qg(iq,k)/max(.622*est/(p-est),1.e-10) ! DARLAM
-            rhg(iq,k) = qg(iq,k)/max(.622*est/(p-est),1.5e-6) ! C-C
-         end do ! iq loop
-c        if(ntest.gt.0)then
-c          print *,'in radriv90 for ktau= ',ktau
-c           ii=id
-c           esw=613.3*exp((17.502*t(ii,jd,k)-4780.8)/(t(ii,jd,k)-32.19))
-c           esi=613.2*exp((22.425*t(ii,jd,k)-6133.)/(t(ii,jd,k)-.61))
-c           qgrsw = .622*esw/(ps(ii,jd)*sig(k)-esw)
-c           qgrsi = .622*esi/(ps(ii,jd)*sig(k)-esi)
-c           tetw=qg(ii,jd,k)/qgrsw
-c           teti=qg(ii,jd,k)/qgrsi
-c           tcent=t(ii,jd,k)-273.16                       ! Murray version
-c           esw=610.78*exp(17.2694*tcent/(tcent+237.3))   ! Murray version
-c           esi=610.78*exp(21.8746*tcent/(tcent+265.5))   ! Murray version
-c           qgrsw = .622*esw/(ps(ii,jd)*sig(k)-esw)
-c           qgrsi = .622*esi/(ps(ii,jd)*sig(k)-esi)
-c           tetwm=qg(ii,jd,k)/qgrsw
-c           tetim=qg(ii,jd,k)/qgrsi
-c           print *,'k,ii,qg,t,rhg ',
-c    .               k,ii,qg(ii,jd,k),t(ii,jd,k),rhg(ii,jd,k)
-c           print *,'tetw,tetwm,teti,tetim ',tetw,tetwm,teti,tetim
-c        endif
-      end do    ! k=1,ksigtop
-      rhg(:,ksigtop+1:kl) = 0.
-      if(ncvcloud.gt.0)then  ! jlm simple convective cloud enhancement
-        frac=.01*ncvcloud    ! e.g. ncvcloud=90
-        do k=kuocb,kcl_top
-         do iq=1,ifull
-           if(kbsav(iq).gt.0.and.k.ge.kbsav(iq).and.k.le.ktsav(iq))
-     .       rhg(iq,k)=max(rhg(iq,k),frac) ! e.g. at least 90%
-          enddo   ! iq loop
-        enddo     ! k loop
-      endif  !  (ncvcloud.gt.0)
+      if(ldr==0)then
+        do k=1,ksigtop  ! up to top level for RH calc for clouds
+           do iq=1,ifull
+              est = establ(t(iq,k))
+              p = sig(k)*ps(iq)
+!             rhg(iq,k) = qg(iq,k)/max(.622*est/(p-est),1.e-10) ! DARLAM
+              rhg(iq,k) = qg(iq,k)/max(.622*est/(p-est),1.5e-6) ! C-C
+           end do ! iq loop
+        end do    ! k=1,ksigtop
+        rhg(:,ksigtop+1:kl) = 0.
+        if(ncvcloud.gt.0)then  ! jlm simple convective cloud enhancement
+          frac=.01*ncvcloud    ! e.g. ncvcloud=90
+          do k=kuocb,kcl_top
+           do iq=1,ifull
+             if(kbsav(iq).gt.0.and.k.ge.kbsav(iq).and.k.le.ktsav(iq))
+     .         rhg(iq,k)=max(rhg(iq,k),frac) ! e.g. at least 90%
+            enddo ! iq loop
+          enddo   ! k loop
+        endif     ! (ncvcloud.gt.0)
+      endif       ! (ldr==0)
 
 !     Calculate sun position
       if ( solarfit .or. odcalc ) then
@@ -235,9 +223,6 @@ c     calculations
       call zenith(fjd,r1,dlt,slag,rlatt(1+(j-1)*il),
      &            rlongg(1+(j-1)*il),dhr,imax,coszro,taudar)
 
-c     Set up ozone for this time and row
-      call o3set(rlatt(1+(j-1)*il),imax,mins,duo3n,sig)
-
 c     Set up basic variables, reversing the order of the vertical levels
       do i=1,imax
          iq=i+(j-1)*il
@@ -245,6 +230,20 @@ c     Set up basic variables, reversing the order of the vertical levels
          press(i,lp1) = ps(iq) * 10. ! Convert to cgs
          cirab(i,1) = zero
       end do
+
+c     Set up ozone for this time and row
+      if (amipo3) then
+         call o3set_amip ( rlatt(1+(j-1)*il:(j-1)*il+imax), imax, mins,
+     &                     sigh, ps(1+(j-1)*il:(j-1)*il+imax), qo3 )
+      else
+         call o3set(rlatt(1+(j-1)*il),imax,mins,duo3n,sig)
+c        Conversion of o3 from units of cm stp to gm/gm
+         do k=1,kl
+            do i=1,imax
+               qo3(i,k) = duo3n(i,k)*1.01325e+02/press(i,lp1)
+            end do
+         end do
+      end if
 
 !     Set up surface albedo. The input value is > 1 over ocean points where
 !     the zenith angle dependent formula should be used.
@@ -399,13 +398,11 @@ c    &			          (1.-cuvrf(i,1))**2/cosz
       do k=1,kl
          kr = kl+1-k
          do i=1,imax
-	     iq=i+(j-1)*il
+	    iq=i+(j-1)*il
             press(i,kr) = ps(iq) * sig(k) * 10. ! Convert to cgs
             temp(i,kr) = t(iq,k)
 c           Set min value to avoid numerical problems
             rh2o(i,kr) = max(qg(iq,k) ,1.e-7)
-c           Conversion of o3 from units of cm stp to gm/gm
-            qo3(i,k) = duo3n(i,k)*1.01325e+02/press(i,lp1)
          end do ! i=1,imax
       end do    ! k=1,kl
 
@@ -433,7 +430,7 @@ c     Calculate half level pressures and temperatures by linear interp
          temp2(i,1) = temp(i,1)
          temp2(i,lp1) = temp(i,lp1)
       end do ! i=1,imax
-      
+
       if(ldr.ne.0)then  
 c       Stuff needed for cloud2 routine...    
         qccon(:,:)=0.
@@ -443,7 +440,7 @@ c       Stuff needed for cloud2 routine...
             t2(i,k)=t(iq,k)
             ql2(i,k)=qlrad(iq,k)
             qf2(i,k)=qfrad(iq,k)
-            cf2(i,k)=cfrad(iq,k)
+            cf2(i,k)=cfrac(iq,k) ! called cfrad till Oct '05
             qc2(i,k)=qccon(iq,k)
 !           will need this test eventually: if(naerosol_i(1).gt.0)then .. else
             if(land(iq))then
@@ -681,14 +678,16 @@ c       endif
 
  100  continue  ! Row loop (j)
       if(ntest.gt.0)then
-        print *,'cloudlo,cloudmi,cloudhi,cloudtot ',cloudlo(idjd),
-     .                   cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
         print *,'rgsave,rtsave,sintsave ',
      .           rgsave(idjd),rtsave(idjd),sintsave(idjd)
         print *,'sgsave,rtclsave,sgclsave ',
      .           sgsave(idjd),rtclsave(idjd),sgclsave(idjd)
         print *,'alb ',alb(idjd)
       endif
-
+      if(nmaxpr==1.and.mydiag)then
+        write (6,"('cfracr',9f8.3/6x,9f8.3)") cfrac(idjd,:)
+        write (6,"('cloudlo,cloudmi,cloudhi,cloudtot',4f8.3)")
+     .          cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
+      endif
       return
       end

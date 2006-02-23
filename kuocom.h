@@ -1,10 +1,10 @@
       integer kbsav,ktsav,iterconv,ksc,kscmom,kscsea,kuocb,ldr,mbase,
-     .        methdetr,methprec,nclddia,ncvcloud,ncvmix,ndavconv,
+     .        mdelay,methdetr,methprec,nclddia,ncvcloud,ncvmix,
      .        nevapcc,nevapls,nkuo,nrhcrit,nstab_cld,nuvconv 
       real alflnd,alfsea ,cldh_lnd,cldm_lnd,cldl_lnd,cldh_sea,cldm_sea,
      .     cldl_sea,convfact,convpsav,convtime,
      .     detrain,detrainx,dsig2,dsig4,entrain,
-     .     epsconv,fldown,rhcv,rhmois,rhsat,shaltime,
+     .     fldown,rhcv,rhmois,rhsat,shaltime,
      .     sigcb,sigcll,sigkscb,sig_ct,sigksct,
      .     tied_con,tied_over,tied_rh
       real acon,bcon,rcm,rcrit_l,rcrit_s
@@ -24,7 +24,6 @@
      .  ,dsig2        ! delta-sigma2 for end of shallow clouds       [.1]
      .  ,dsig4        ! delta-sigma4 for start of deep clouds        [.7]
      .  ,entrain      ! entrainment factor                           [0.]
-     .  ,epsconv      ! value of epsp which may be used in conjob    [0. off]
      .  ,fldown       ! fraction of convective flux into downdraft   [.6]
      .  ,iterconv     ! number of iterations in convjlm              [1]
      .  ,ksc          ! shallow convection switch (99 for Tiedtke on)[0]
@@ -33,12 +32,12 @@
      .  ,kuocb        ! level of min. cloud base, calc. from sigcb   [1]
      .  ,ldr          ! ldr scheme options; 0 for off                [?]
      .  ,mbase        ! base test: 1 cfrac; 2 cfrac and omega        [0] 
+     .  ,mdelay       ! convective delay time in secs                [0] 
      .  ,methdetr     ! meth_shallow_detrainment for convjlm, 2 off  [2]
      .  ,methprec     ! meth_precip (deep_detrainment) for convjlm   [8]
      .  ,nclddia      ! conversion of RH to cloudiness, 0, 3, or     [5]
      .  ,ncvcloud     ! convective cloud enhancement in radrive      [0]
      .  ,ncvmix       ! cumulus mixing in vertmix                    [0]
-     .  ,ndavconv     ! used by conjob & convjlm only for DARLAM     [0]
      .  ,nevapcc      ! evap scheme of convective rain               [0]
      .  ,nevapls      ! evap scheme of large-scale rain              [5]
      .  ,nkuo         ! convective scheme                            [23]

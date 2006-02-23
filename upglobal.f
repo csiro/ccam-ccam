@@ -26,7 +26,8 @@
       include 'mpif.h'
       real epst
       common/epst/epst(ifull)
-      real ubar, vbar
+      common/nharrs/phi(ifull,kl),h_nh(ifull+iextra,kl)
+      real phi, h_nh, ubar, vbar
       common/uvbar/ubar(ifull,kl),vbar(ifull,kl)
       ! Need work common for these
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, cc, dd
@@ -74,7 +75,7 @@ cy         if(tx(iq,kl)>264.)then  !cb
            if(t(iq,kl)+tx(iq,kl)>264.)then  ! cy
            print *,'upglobal ktau,myid,iq,large_tx  ',ktau,myid,iq,
      &           t(iq,kl)+tx(iq,kl)
-           write (6,"('sdot_iq',9f7.3/4x,9f7.3)") sdot(iq,1:kl)
+           write (6,"('sdot_iq',9f7.3/7x,9f7.3)") sdot(iq,1:kl)
 	    num_hight=num_hight+1
          endif
 	 enddo
@@ -338,8 +339,8 @@ cy             cc(1:ifull,k)=tx(1:ifull,k)+aa(:,k)*factr(k)   !cb
      &                  az(iq)*wc(iq,k)
              vx(iq,k) = bx(iq)*uc(iq,k) + by(iq)*vc(iq,k) +
      &                  bz(iq)*wc(iq,k)
-          enddo                 ! iq loop
-       end do
+          enddo ! iq loop
+       end do   ! k loop
        if(diag.and.k==nlv)then
           if ( mydiag ) print *,
      &         'after advection in upglobal; unstaggered ux and vx:'
@@ -353,12 +354,37 @@ cy             cc(1:ifull,k)=tx(1:ifull,k)+aa(:,k)*factr(k)   !cb
              call ints(qlg,intsch,nface,xg,yg,4)
              call ints(qfg,intsch,nface,xg,yg,4)
           endif                 ! ldr.ne.0
-          if(ilt>1)then
-             do ntr=1,ntrac
-                call ints(tr(1,1,ntr),intsch,nface,xg,yg,5)
-             enddo
-          endif ! ilt>1
+          if(ngas>0.or.nextout>=4)then
+	     if(nmaxpr==1.and.mydiag)then
+              write (6,"('xg#',9f8.2)")
+     &           ((xg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('yg#',9f8.2)")
+     &           ((yg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('nface#',9i8)")
+     &           ((nface(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('xlat#',9f8.2)")
+     &           ((tr(ii+jj*il,nlv,ngas+1),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('xlon#',9f8.2)")
+     &           ((tr(ii+jj*il,nlv,ngas+2),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('xpre#',9f8.2)")
+     &           ((tr(ii+jj*il,nlv,ngas+3),ii=idjd-1,idjd+1),jj=1,-1,-1)
+	     endif
+            do ntr=1,ntrac
+             call ints(tr(1,1,ntr),intsch,nface,xg,yg,5)
+            enddo
+	     if(nmaxpr==1.and.mydiag)then
+              write (6,"('ylat#',9f8.2)")
+     &           ((tr(ii+jj*il,nlv,ngas+1),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('ylon#',9f8.2)")
+     &           ((tr(ii+jj*il,nlv,ngas+2),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('ypre#',9f8.2)")
+     &           ((tr(ii+jj*il,nlv,ngas+3),ii=idjd-1,idjd+1),jj=1,-1,-1)
+	     endif
+          endif  ! (ngas>0.or.nextout>=4)
        endif     ! mspec==1
+       if(nh.ne.0)then
+        call ints(h_nh,intsch,nface,xg,yg,2) ! 2?
+       endif  ! (nh.ne.0)
 
        if(nonl==3)then   ! Adams-Bashforth style
           call ints(tn,intsch,nface,xg,yg,3)
@@ -425,7 +451,7 @@ cy             cc(1:ifull,k)=tx(1:ifull,k)+aa(:,k)*factr(k)   !cb
         print *,'un_u ',un(idjd,:)
         print *,'vn_u ',vn(idjd,:)
         print *,'tn_u ',tn(idjd,:)
-        write (6,"('tx_u1 ',9f8.2/4x,9f8.2)") tx(idjd,:)
+        write (6,"('tx_u1',9f8.2/5x,9f8.2)") tx(idjd,:)
       endif
 
       tx(1:ifull,:) = tx(1:ifull,:)+.5*dt*tn(1:ifull,:) ! moved from adjust5 30/11/00
@@ -451,10 +477,10 @@ c           if(numunstab==100)stop 'numunstab=30'
 
       if( ( diag.or.nmaxpr==1) .and. mydiag ) then
         print *,'near end of upglobal for ktau= ',ktau
-        write (6,"('tx_u2 ',9f8.2/4x,9f8.2)") tx(idjd,:)
-        write (6,"('qg_u ',9f8.3/4x,9f8.3)")  1000.*qg(idjd,:)
-        write (6,"('ql_u ',9f8.3/4x,9f8.3)")  1000.*qlg(idjd,:)
-        write (6,"('qf_u ',9f8.3/4x,9f8.3)")  1000.*qfg(idjd,:)
+        write (6,"('tx_u2',9f8.2/5x,9f8.2)")  tx(idjd,:)
+        write (6,"('qg_u',3p9f8.3/4x,9f8.3)") qg(idjd,:)
+        write (6,"('ql_u',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
+        write (6,"('qf_u',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
       endif     
 
       call end_log(upglobal_end)

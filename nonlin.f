@@ -3,7 +3,7 @@
       use diag_m
       implicit none
 !     has only morder=24, & nphip options
-      integer, parameter :: meth=1     ! 0 or 1 for nphip scheme
+      integer, parameter :: meth=1     ! 0 or 1, just for nphip scheme
       integer, parameter :: npgf=1     ! 0 or 2 for test scheme
       integer, parameter :: nphip=1    ! 1:off, 421:on  1052,2,-2.5
       integer, parameter :: ntest=0
@@ -34,7 +34,8 @@
       common/epst/epst(ifull)
       integer neigh
       common/neigh/neigh(ifull)
-      real tnsav, unsav, vnsav, tnsavv, unsavv, vnsavv
+      common/nharrs/phi(ifull,kl),h_nh(ifull+iextra,kl)
+      real phi, h_nh, tnsav, unsav, vnsav, tnsavv, unsavv, vnsavv
       common/nonlsav/tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl)
      &              ,tnsavv(ifull,kl),unsavv(ifull,kl),vnsavv(ifull,kl)
       real tbar2d
@@ -43,8 +44,6 @@
      &     aa2(ifull,kl),bb2(ifull,kl),cc2(ifull,kl),dd2(ifull,kl)
       real p(ifull+iextra,kl),tempry(ifull,kl),
      &     tv(ifull+iextra,kl)
-      real d, pexx
-      common/work3d/d(ifull,kl)   ! From updps or adjust5
       real qgsav, qfgsav, qlgsav, trsav
       common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
      &             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
@@ -187,13 +186,13 @@
             print *,'at beginning of nonlin'
 	     print *,'meth,npgf,nphip,nwhite,roncp ',
      &               meth,npgf,nphip,nwhite,roncp
-            write (6,"('tn0*dt',10f8.3)") tn(idjd,:)*dt
-            write (6,"('un0*dt',10f8.3)") un(idjd,:)*dt
-            write (6,"('vn0*dt',10f8.3)") vn(idjd,:)*dt
-            write (6,"('tbar',10f8.2)") tbar(:)
-            write (6,"('sig ',10f8.5)") sig(:)
-            write (6,"('rata',10f8.5)") rata(:)
-            write (6,"('ratb',10f8.5)") ratb(:)
+            write (6,"('tn0*dt',9f8.3/6x,9f8.3)") tn(idjd,:)*dt
+            write (6,"('un0*dt',9f8.3/6x,9f8.3)") un(idjd,:)*dt
+            write (6,"('vn0*dt',9f8.3/6x,9f8.3)") vn(idjd,:)*dt
+            write (6,"('tbar',9f8.3/4x,9f8.3)") tbar(:)
+            write (6,"('sig ',9f8.5/4x,9f8.5)") sig(:)
+            write (6,"('rata',9f8.5/4x,9f8.5)") rata(:)
+            write (6,"('ratb',9f8.5/4x,9f8.5)") ratb(:)
             write (6,"('em & news',5f9.5)") em(idjd),
      &          em(in(idjd)),em(ie(idjd)),em(iw(idjd)),em(is(idjd))
             write (6,"('emu,emu_w,emv,emv_s',4f9.5)") 
@@ -218,12 +217,11 @@
 
       if( (diag.or.nmaxpr==1) .and. mydiag )then
         print *,'in nonlin before possible vertical advection'
-        write (6,"('divn5p',5p10f8.2)") d(idjd,:)
-        write (6,"('sdotn',10f8.3)")    sdot(idjd,1:kl)
-        write (6,"('t   ',10f8.2)")     t(idjd,:)
-        write (6,"('u   ',10f8.2)")     u(idjd,:)
-        write (6,"('v   ',10f8.2)")     v(idjd,:)
-        write (6,"('qg  ',3p10f8.3)")   qg(idjd,:)
+        write (6,"('sdotn',9f8.4/5x,9f8.4)")    sdot(idjd,1:kl)
+        write (6,"('t   ',9f8.3/4x,9f8.3)")     t(idjd,:)
+        write (6,"('u   ',9f8.3/4x,9f8.3)")     u(idjd,:)
+        write (6,"('v   ',9f8.3/4x,9f8.3)")     v(idjd,:)
+        write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
       endif
 
 !     do vertical advection in split mode
@@ -272,13 +270,10 @@ cx      enddo      ! k  loop
      &           ((u(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
        write (6,"('v#  ',9f8.2)") 
      &           ((v(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
-       write (6,"('omgf#',9f8.3)") ((ps(ii+(jj-1)*il)*
-     &             omgf(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
         print *,'pslx ',pslx(idjd,:)
-      endif  ! (nvad>0.and.(diag.or.nmaxpr==1))
+      endif  ! (nvad>0.and.(diag.or.nmaxpr==1).and.mydiag)
       if(diag)then
-         if ( mydiag ) write (6,"('qg ',12f7.3/(8x,12f7.3))") 
-     &             1000.*qg(idjd,:)
+         if ( mydiag ) write (6,"('qg ',3p9f8.5/4x,9f8.5)") qg(idjd,:)
          if(sig(nlv)<.3)then
             call printa('qg  ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e6)
          else
@@ -296,11 +291,7 @@ cx      enddo      ! k  loop
       endif
 
       if(diag)then
-         if ( mydiag ) then
-            print *,'sdot ',sdot(idjd,:)
-         end if
          call printa('sdot',sdot,ktau,nlv+1,ia,ib,ja,jb,0.,10.)
-         if ( mydiag ) print *,'omgf ',omgf(idjd,:)
          call printa('omgf',omgf,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
          do iq=1,ifull
             aa(iq,1)=rata(nlv)*sdot(iq,nlv+1)+ratb(nlv)*sdot(iq,nlv)
@@ -342,6 +333,51 @@ cx      enddo      ! k  loop
         enddo   ! iq loop
       endif     ! (ntbar==-4)
 
+      if(nh.ne.0)then
+        if(ktau==1)then
+         phi(:,1)=zs(1:ifull)+bet(1)*t(1:ifull,1) ! move down & use tv?
+         do k=2,kl
+          phi(:,k)=phi(:,k-1)+bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1)
+         enddo    ! k  loop
+        endif     ! (ktau==1)
+        do k=1,kl
+         h_nh(1:ifull,k)=tbar2d(:)*omgf(:,k)/sig(k) 
+	 enddo
+	 print *,'h_nh.a ',(h_nh(idjd,k),k=1,kl)
+	 if(nh==3)then  ! add in other term explicitly
+	   do k=2,kl-1
+	    h_nh(1:ifull,k)=h_nh(1:ifull,k)
+     &        -(1.-epsnh)*.5*dt*grav*grav*
+     &        (sig(k)*(phi(:,k+1)-phi(:,k-1))/(sig(k+1)-sig(k-1))+
+     &        rdry*t(1:ifull,k))/(rdry*rdry*tbar(k))
+	   enddo
+	 endif  ! (nh==3)
+	 if(nh==2)then  ! was -2 add in other term explicitly, more consistently
+	   do k=2,kl
+	    h_nh(1:ifull,k)=h_nh(1:ifull,k)
+     &	      -(1.-epsnh)*.5*dt*grav*grav*(
+     &       -(phi(:,k)-phi(:,k-1))*rdry/bet(k)
+     &       +rdry*t(1:ifull,k))/(rdry*rdry*tbar(k))
+	   enddo
+	   k=1
+	   h_nh(1:ifull,k)=h_nh(1:ifull,k)
+     &     -(1.-epsnh)*.5*dt*grav*grav*(
+     &     -(phi(:,k)-zs(1:ifull))*rdry/bet(k)
+     &      +rdry*t(1:ifull,k))/(rdry*rdry*tbar(k))
+	 endif  ! (nh==2)
+	 if(nh==4)then  ! was -3 add in other term explicitly, more accurately?
+	   do k=2,kl-1
+	    h_nh(1:ifull,k)=h_nh(1:ifull,k)
+     &	    -(1.-epsnh)*.5*dt*grav*grav*( sig(k)*
+     &     ((sig(k)-sig(k-1))*(phi(:,k+1)-phi(:,k))/(sig(k+1)-sig(k))+
+     &     ((sig(k+1)-sig(k))*(phi(:,k)-phi(:,k-1))/(sig(k)-sig(k-1))))/
+     &      (sig(k+1)-sig(k-1))  
+     &         +rdry*t(1:ifull,k))/(rdry*rdry*tbar(k))
+	   enddo
+	 endif  ! (nh==4)
+	 if(mydiag)print *,'h_nh.b ',(h_nh(idjd,k),k=1,kl)
+      endif      ! (nh.ne.0)
+
       if(ktau==1.or.nomg==0)then
         omgfsav(:,:)=omgf(:,:)  ! original treatment
       elseif(nomg==1)then
@@ -376,6 +412,8 @@ cy         tx(iq,k)=tx(iq,k) +.5*dt*(1.-epst(iq))*termlin  ! cb
      &           contv,tbar2d(iq),tbar2d(iq)*omgf(iq,k)*roncp/sig(k)
         print *,'tvv,tn ',tvv,tn(iq,k)
         print *,'termx ',(t(iq,k)+contv*tvv)*omgf(iq,k)*roncp/sig(k)
+        write (6,"('omgf#  ',9f8.3)") ((ps(ii+(jj-1)*il)*
+     &              omgf(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
         write (6,"('omgfn  ',9f8.3/7x,9f8.3)") ps(idjd)*omgf(idjd,:)
         write (6,"('omgfsav',9f8.3/7x,9f8.3)") ps(idjd)*omgfsav(idjd,:)
       endif
@@ -547,14 +585,15 @@ c    &                         phip(in(iq),nphip)
       	   
 !     only has code with npex=1 higher order grad expressions
 !     calculate "full-linear" geopotential height terms using tv and save in p
-      do iq=1,ifull
-       p(iq,1)=zs(iq)+bet(1)*tv(iq,1)
-      enddo    ! iq loop
-      do k=2,kl
-       do iq=1,ifull
-        p(iq,k)=p(iq,k-1)+bet(k)*tv(iq,k)+betm(k)*tv(iq,k-1)
-       enddo   ! iq loop
-      enddo    ! k  loop
+      if(nh<=0.or.ktau==1)then
+        p(1:ifull,1)=zs(1:ifull)+bet(1)*tv(1:ifull,1)
+        do k=2,kl
+         p(1:ifull,k)=p(1:ifull,k-1)
+     &               +bet(k)*tv(1:ifull,k)+betm(k)*tv(1:ifull,k-1)
+        enddo    ! k  loop
+      else       ! for nh, use phi from previous step
+        p(1:ifull,:)=phi(:,:)
+      endif      ! (nh==0.or.ktau==1) .. else ..
 
 !        Get rid of these diagnostics because they would require extra
 !        bounds(p) call

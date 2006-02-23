@@ -74,7 +74,7 @@
       real :: pmsl=1.010e5, thlapse=3.e-3, tsea=290., gauss=2.,
      &        heightin=2000., hfact=0.1, uin=0., vin=0.
       namelist/tin/gauss,heightin,hfact,pmsl,qgin,tbarr,tsea,uin,vin
-     &             ,thlapse,kdate,ktime
+     &             ,thlapse
 
       integer i1, ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth,
      &     iveg, iyr, j1, jj, k, kdate_sav, kmax, ktime_sav, l,
@@ -145,8 +145,9 @@
 !       enddo
 !     endif
       if (myid==0) then
-         print *,'tbar: ',tbar
-         print *,'bam: ',bam
+        print *,'tbar: ',tbar
+        print *,'bam: ',bam
+	 if(nh.ne.0)call eig(sig,sigmh,tbar(1),lapsbot,isoth,dt,epsnh,nh)
       end if
 
 !     read in namelist for uin,vin,tbarr etc. for special runs
@@ -248,6 +249,12 @@
             end if
             if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)stop
      &       'stopping in indata, not finding correct kdate/ktime'
+            if(nspecial>100)then
+!             allows nudging from mesonest with different kdate
+	       kdate=nspecial
+		kdate_s=nspecial
+		print *,'re-setting kate & kdate_s to nspecial'
+	     endif  ! (nspecial>100)
             if(newtop>=0)then  ! no check if just plotting zs
               if(abs(rlong0  -rlong0x)>.01.or.
      &           abs(rlat0    -rlat0x)>.01.or.
@@ -649,12 +656,13 @@
 !     section for setting up davies, defining ps from psl
       if(nbd.ne.0.and.nud_hrs.ne.0)then
          call davset   ! as entry in subr. davies, sets psls,qgg,tt,uu,vv
+         print *,'nbd,nproc,myid = ',nbd,nproc,myid
          if ( myid == 0 ) then
            ! Set up the weights using global array and indexing
            ! This needs the global function indglobal for calculating the 1D index
            davt_g(:) = 0.
-           if(nbd>0)then
-             davt_g(:) = 1./abs(nud_hrs) !  e.g. 1/48
+           if(nbd==1)then
+             davt_g(:) = 1./nud_hrs !  e.g. 1/48
            endif                !  (nbd>0)
            if(nbd==-1)then    ! linearly increasing nudging, just on panel 4
              centi=.5*(il_g+1)
@@ -676,11 +684,11 @@
                enddo            ! i loop
              enddo              ! j loop
            endif                !  (nbd==-2) 
-           if(nbd==-3)then    ! special form with no nudging on panel 1
+           if(abs(nbd)==3)then !usual far-field with no nudging on panel 1
              do n=0,5
                do j=il_g/2+1,il_g
 !                linearly between 0 (at il/2) and 1/abs(nud_hrs) (at il+1)
-                 rhs=(j-il_g/2)/((il_g/2+1.)*abs(nud_hrs))
+                 rhs=(j-il_g/2)/((il_g/2+1.)*nud_hrs)
                  do i=1,il_g
                    if(n==0)davt_g(indglobal(i,il_g+1-j,n))=rhs
                    if(n==2)davt_g(indglobal(j,i,n))=rhs
@@ -691,15 +699,15 @@
              enddo              ! n loop
              do j=1,il_g          ! full nudging on furthest panel
                do i=1,il_g
-                 davt_g(indglobal(j,i,4))=1./abs(nud_hrs) !  e.g. 1/48
+                 davt_g(indglobal(j,i,4))=1./nud_hrs !  e.g. 1/48
                enddo            ! i loop
              enddo              ! j loop
            endif                !  (nbd==-3) 
            if(nbd==-4)then    ! another special form with no nudging on panel 1
              do n=0,5
                do j=il_g/2+1,il_g
-!                linearly between 0 (at j=.5) and 1/abs(nud_hrs) (at j=il+.5)
-                 rhs=(j-.5)/(il_g*abs(nud_hrs))
+!                linearly between 0 (at j=.5) and 1/nud_hrs (at j=il+.5)
+                 rhs=(j-.5)/(il_g*nud_hrs)
                  do i=1,il_g
                    if(n==0)davt_g(indglobal(i,il_g+1-j,n))=rhs
                    if(n==2)davt_g(indglobal(j,i,n))=rhs
@@ -710,15 +718,15 @@
              enddo              ! n loop
              do j=1,il_g        ! full nudging on furthest panel
                do i=1,il_g
-                 davt_g(indglobal(j,i,4))=1./abs(nud_hrs) !  e.g. 1/48
+                 davt_g(indglobal(j,i,4))=1./nud_hrs !  e.g. 1/48
                enddo            ! i loop
              enddo              ! j loop
            endif                !  (nbd==-4) 
            if(nbd==-5)then    ! another special form with some nudging on panel 1
              do n=0,5
                do j=il_g/2+1,il_g
-!                linearly between 0 (at j=.5) and 1/abs(nud_hrs) (at j=il+.5)
-                 rhs=(.5*il_g+j-.5)/(1.5*il_g*abs(nud_hrs))
+!                linearly between 0 (at j=.5) and 1/nud_hrs (at j=il+.5)
+                 rhs=(.5*il_g+j-.5)/(1.5*il_g*nud_hrs)
                  do i=1,il_g
                    if(n==0)davt_g(indglobal(i,il_g+1-j,n))=rhs
                    if(n==2)davt_g(indglobal(j,i,n))=rhs
@@ -731,13 +739,13 @@
 	      do j=1,jl
 	       do i=1,il
 		 rhs=max(abs(i-.5-ril2),abs(j-.5-ril2))/
-     &                 (1.5*il_g*abs(nud_hrs))
+     &                 (1.5*il_g*nud_hrs)
                davt_g(indglobal(i,il_g+1-j,1))=rhs  ! panel 1
 		enddo
 	      enddo
              do j=1,il_g        ! full nudging on furthest panel
                do i=1,il_g
-                 davt_g(indglobal(j,i,4))=1./abs(nud_hrs) !  e.g. 1/48
+                 davt_g(indglobal(j,i,4))=1./nud_hrs !  e.g. 1/48
                enddo            ! i loop
              enddo              ! j loop
            endif                !  (nbd==-5) 
@@ -745,8 +753,13 @@
          else
            call ccmpi_distribute(davt)
          end if ! myid==0
-         if(mydiag.and.diag)
-     &    call printa('davt',davt,0,0,ia,ib,ja,jb,0.,real(abs(nud_hrs)))
+!        davu calc moved below next bounds call
+         if(nproc==1)then
+	    print *,'davt for i=il/2'
+	    write(6,'(20f6.3)') (davt(iq),iq=il/2,ifull,il)
+	  endif
+          if(diag)
+     &      call printa('davt',davt,0,0,ia,ib,ja,jb,0.,real(nud_hrs))     
       endif                    ! (nbd.ne.0.and.nud_hrs.ne.0)
 
       if(io_in>=4)then   ! i.e. for special test runs without infile
@@ -771,7 +784,6 @@
        fg(iq)=0.
        cduv(iq)=0.
       enddo   ! iq loop
-      if ( myid == 0 ) print *,'zoland: ',zoland
 
       if(io_in==3.and.nqg_set<7)then  ! initialize sicedep from tss 
 !       n.b. this stuff & other nqg_set to be removed when always netcdf input
@@ -1190,6 +1202,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
          write(6,"('sice#   ',3l7,1x,3l7,1x,3l7)") 
      &       diagvals(sice)
 !     &       ((sice(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+         print *,'following from rdnsib'
          write(6,"('zo#     ',3f7.2,1x,3f7.2,1x,3f7.2)") 
      &       diagvals(zolnd)
 !     &       ((zolnd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
@@ -1479,6 +1492,10 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 	 if(newrough>2)then
 	   zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
 	 endif
+        if ( mydiag ) then
+          print *,'after calczo with newrough = ',newrough
+          write(6,"('zo#    ',3f7.2,1x,3f7.2,1x,3f7.2)") diagvals(zolnd)
+        end if
       endif
 
       if(ngwd.ne.0)then
@@ -1510,6 +1527,12 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
       
 !***  no fiddling with initial tss, snow, sice, w, w2, gases beyond this point
       call bounds(zs)
+      if(nbd==3)then   ! separate (global) davu from (f-f) davt
+        davu(:) = 1./nudu_hrs    !  e.g. 1/48
+	 print *,'all davu set to ',1./nudu_hrs 
+      else 
+        davu(:) = davt(:)
+      endif
       do iq=1,ifull
        zolog(iq)=log(zmin/zolnd(iq))   ! for land use in sflux
 	neigh(iq)=iq  ! default value
@@ -1568,6 +1591,8 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
      &        n-noff,em(iq),emu(iq),emv(iq),f(iq),fu(iq),fv(iq)
       enddo
 
+      along(:)=rlongg(:)*180./pi    
+      alat(:)=rlatt(:)*180./pi
       if(nproc==1)then
         coslong=cos(rlong0*pi/180.)   
         sinlong=sin(rlong0*pi/180.)
@@ -1585,8 +1610,6 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
        do j=1,jl
         do i=1,il
          iq=i+(j-1)*il
-         along(iq)=rlongg(iq)*180./pi    
-         alat(iq)=rlatt(iq)*180./pi
          zonx=            -polenz*y(iq)
          zony=polenz*x(iq)-polenx*z(iq)
          zonz=polenx*y(iq)

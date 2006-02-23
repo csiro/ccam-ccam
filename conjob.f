@@ -39,6 +39,7 @@ c     Hal's ds() renamed dsh()
       real algf(kl),delt(kl),dsk(kl),rhs(kl),sigadd(kl),s(kl)
 !     set convective relaxation time (convtime [was btcnv], usually 1 hour)
 !     data convtime/1./,rhcv/.75/,rhmois/.6/ ! usually 1., .75, .6 now in kuocom
+      data epsconv/0./
 
       include 'establ.h'
       Aev(tm) = 2.008e-9*tm**2 - 1.385e-6*tm + 2.424e-4  !For UKMO evap scheme

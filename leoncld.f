@@ -34,9 +34,8 @@ c for cfrp
       real reffl,tau_sfac,wliq,rk,qlpath,wice,sigmai,cfd,fcf
       common/leoncfrp/tautot(icfrp),cldmax(icfrp)
      &               ,ctoptmp(icfrp),ctoppre(icfrp)
-      common/work3b/cfrad(ifull,kl),dum3b(ifull,kl)    ! leoncld & radriv90
       common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! ditto
-      real cfrad,dum3b,qccon,qlrad,qfrad
+      real qccon,qlrad,qfrad
 
 c Local variables
       integer iq,k,ncl
@@ -130,9 +129,9 @@ c     Set up convective cloud column
       if(nmaxpr==1.and.mydiag)then
         if(ktau.eq.1)print *,'in leoncloud acon,bcon,Rcm ',acon,bcon,Rcm
         print *,'entering leoncld'
-        write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
-        write (6,"('qf ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
-        write (6,"('ql ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
+        write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
+        write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
+        write (6,"('ql  ',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
       endif
 
 c     Calculate convective cloud fraction and adjust moisture variables 
@@ -165,14 +164,14 @@ c     before calling newcloud
 !     if(diag.and.mydiag)then
       if(nmaxpr==1.and.mydiag)then
         print *,'before newcloud'
-        write (6,"('t   ',9f8.2/4x,9f8.2)") (t(idjd,k),k=1,kl)
-        write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
-        write (6,"('qf  ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
-        write (6,"('ql  ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
-        write (6,"('qnv ',9f8.3/4x,9f8.3)")(1000.*qenv(idjd,k),k=1,kl)
-        write (6,"('qsg ',9f8.3/4x,9f8.3)")(1000.*qsg(idjd,k),k=1,kl)
-        write (6,"('qcl ',9f8.3/4x,9f8.3)")(1000.*qcl(idjd,k),k=1,kl)
-        write (6,"('clc ',9f8.3/4x,9f8.3)")(clcon(idjd,k),k=1,kl)
+        write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
+        write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
+        write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
+        write (6,"('ql  ',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
+        write (6,"('qnv ',3p9f8.3/4x,9f8.3)") qenv(idjd,:)
+        write (6,"('qsg ',3p9f8.3/4x,9f8.3)") qsg(idjd,:)
+        write (6,"('qcl ',3p9f8.3/4x,9f8.3)") qcl(idjd,:)
+        write (6,"('clc ',9f8.3/4x,9f8.3)") clcon(idjd,:)
 	 print *,'cldcon,kbase,ktop ',cldcon(idjd),kbase(idjd),ktop(idjd)
       endif
 
@@ -183,11 +182,11 @@ c     Calculate cloud fraction and cloud water mixing ratios
 !     if(diag.and.mydiag)then
       if(nmaxpr==1.and.mydiag)then
         print *,'after newcloud'
-        write (6,"('tnv ',9f8.2/4x,9f8.2)") (tenv(idjd,k),k=1,kl)
-        write (6,"('qg  ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
-        write (6,"('qf  ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
-        write (6,"('ql  ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
-        write (6,"('qnv ',9f8.3/4x,9f8.3)")(1000.*qenv(idjd,k),k=1,kl)
+        write (6,"('tnv ',9f8.2/4x,9f8.2)") tenv(idjd,:)
+        write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
+        write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
+        write (6,"('ql  ',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
+        write (6,"('qnv ',3p9f8.3/4x,9f8.3)") qenv(idjd,:)
       endif
 
 c     Weight output variables according to non-convective fraction of grid-box            
@@ -205,13 +204,18 @@ c     Weight output variables according to non-convective fraction of grid-box
           endif
         enddo
       enddo
-!     if(diag.and.mydiag)then
       if(nmaxpr==1.and.mydiag)then
         print *,'before newrain'
-        write (6,"('t  ',9f8.2/4x,9f8.2)") (t(idjd,k),k=1,kl)
-        write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
-        write (6,"('qf ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
-        write (6,"('ql ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
+        write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
+        write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
+        write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
+        write (6,"('ql  ',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
+      endif
+      if(diag)then
+        call maxmin(t,' t',ktau,1.,kl)
+        call maxmin(qg,'qg',ktau,1.e3,kl)
+        call maxmin(qfg,'qf',ktau,1.e3,kl)
+        call maxmin(qlg,'ql',ktau,1.e3,kl)
       endif
 
 c     Calculate precipitation and related processes      
@@ -221,13 +225,12 @@ c     Calculate precipitation and related processes
      &    precs,qg(1:ifull,:),cfrac,ccov, !In and Out
      &    preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,  !Outputs
      &    fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
-!     if(diag.and.mydiag)then
       if(nmaxpr==1.and.mydiag)then
         print *,'after newrain'
-        write (6,"('t  ',9f8.2/4x,9f8.2)") (t(idjd,k),k=1,kl)
-        write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,k),k=1,kl)
-        write (6,"('qf ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,k),k=1,kl)
-        write (6,"('ql ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,k),k=1,kl)
+        write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
+        write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
+        write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
+        write (6,"('ql  ',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
       end if
       if(diag)then
         call maxmin(t,' t',ktau,1.,kl)
@@ -236,26 +239,8 @@ c     Calculate precipitation and related processes
         call maxmin(qlg,'ql',ktau,1.e3,kl)
       endif
 
-c     Add convective cloud water into fields for radiation
-      do k=1,kl
-        do iq=1,ifull
-          cfrad(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
-          fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
-          qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
-          qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
-        enddo
-      enddo
-
-      
-! added by jjk 27-07-03
-! factor of 2 is because used .5 in newrain.f (24-mar-2000, jjk)
-      do iq=1,ifullw        
-        condx(iq)=condx(iq)+precs(iq)*2.
-        precip(iq)=precip(iq)+precs(iq)*2.
-      enddo
-
-!=======================================================================
-!      if(ncfrp.eq.1)then  ! from here to the end; Jack's diag stuff
+!========================= Jack's diag stuff =========================
+!      if(ncfrp.eq.1)then  ! from here to near end; Jack's diag stuff
         do iq=1,icfrp
           tautot(iq)=0.
           cldmax(iq)=0.
@@ -331,6 +316,24 @@ c top down to get highest level with cfrac=cldmax (kcldfmax)
           endif ! (cldmax(iq).gt.1.e-10) then
         enddo   ! iq
 !      endif    ! ncfrp.eq.1
+!========================= end of Jack's diag stuff ======================
+
+c     Add convective cloud water into fields for radiation
+!     cfrad replaced by updating cfrac Oct 2005
+      do k=1,kl
+        do iq=1,ifull
+          cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
+          fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
+          qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
+          qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
+        enddo
+      enddo
+
+!     factor of 2 is because used .5 in newrain.f (24-mar-2000, jjk)
+      do iq=1,ifullw        
+        condx(iq)=condx(iq)+precs(iq)*2.
+        precip(iq)=precip(iq)+precs(iq)*2.
+      enddo
 
       return
       end

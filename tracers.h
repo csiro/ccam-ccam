@@ -6,8 +6,8 @@
      .     so2background,co2fact,condrag,so2em,so2fact
       parameter(iradon=0,ico2=0,iso2=0,iso4=0,ich4=0,io2=0,ngas=0)
 !     parameter(iradon=1,ico2=2,iso2=0,iso4=0,ich4=0,io2=0,ngas=2)
-      parameter(nllp=0)              ! set this or next lines
-!     parameter(nllp=3)
+!     parameter(nllp=0)              ! set this or next lines
+      parameter(nllp=3)
 
       parameter(ntrac=ngas+nllp)
 
@@ -15,15 +15,14 @@
 !     parameter(ntracmax=ntrac)             ! set this or next line
 !     parameter(ntracmax=1)                 ! no gases & nllp=0
 
-      parameter(npwr=min(ntrac,1))        ! i.e. 0 or 1
+      parameter(npwr=min(ntrac,1))        ! i.e. 0 or 1 for no_gas/gas
       parameter(ilt=il**npwr,jlt=jl**npwr,klt=kl**npwr) ! gives one of next two   
-!     parameter(ilt= il,jlt= jl,klt=kl)      ! set this or next line
+!     parameter(ilt= il,jlt= jl,klt=kl)      ! gases
 !     parameter(ilt=  1,jlt=  1,klt= 1)      ! no gases & nllp=0
-      integer, parameter :: itxtra = 0 ! iextra if used
 
       parameter(indso2=0,ilso2=1,jlso2=1)
 
-      common/tracer/tr(ilt*jlt+itxtra,klt,ntracmax),
+      common/tracer/tr(ilt*jlt+npwr*iextra,klt,ntracmax),
      &              sumtr(ilso2*jlso2,-2:klt)
       common/c_tracer/ nsumtr,cem,k_t,alpha,beta  
       common/emission/radonem(ilt*jlt),ico2em(ilt*jlt)

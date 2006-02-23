@@ -30,20 +30,21 @@
       include 'xarrs.h'
       include 'xyzinfo.h'
       include 'mpif.h'
-      real d,dpsdt,dpsdtb,dpsdtbb,epst
-      common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull)!globpe,adjust5,outcdf
+      real dpsdt,dpsdtb,dpsdtbb,epst
+      common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull) !globpe, adjust5,outcdf
       common/epst/epst(ifull)
       real alph_p, alph_pm, delneg, delpos, delnegk, delposk, alph_q
       common/mfixdiag/alph_p,alph_pm,delneg,delpos,alph_q
       real :: sumdiffb_l  ! Local versions
       real, dimension(3) :: delarr, delarr_l
-      real tbar2d
+      common/nharrs/phi(ifull,kl),h_nh(ifull+iextra,kl)
+      real phi, h_nh, tbar2d
       common/tbar2d/tbar2d(ifull)
       ! Work common here ????
       real p(ifull+iextra,kl),omgfnl(ifull,kl)
       real wrk1, wrk2  ! wrk2 not used here
       common/work3b/wrk1(ifull,kl),wrk2(ifull,kl)   ! just work arrays here
-      common/work3d/d(ifull,kl) ! possibly shared adjust5 & updps
+      real d(ifull,kl)   ! NOT shared updps
       real qgsav, qfgsav, qlgsav, trsav
       common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
      &             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
@@ -55,7 +56,6 @@
       real aa(ifull),cc(ifull+iextra,kl),
      &     dd(ifull+iextra,kl),pslxint(ifull),pslsav(ifull)
       real pe(ifull+iextra,kl),e(ifull,kl)
-      real ee(ifull,kl)  ! array used for m>=7
       real helm(ifull+iextra,kl),rhsl(ifull+iextra,kl),delps(ifull)
       real pextras(ifull,kl),omgf(ifull,kl)
       real bb(ifull),pse(ifull+iextra),psn(ifull+iextra)
@@ -68,7 +68,7 @@
      &        alph_g
       integer :: ii, jj, its, k, l, nits, nvadh_pass, iq, ng, ierr
       real :: sumin, sumout, sumsav
-      real :: delpos_l, delneg_l
+      real :: delpos_l, delneg_l, const_nh
 
       call start_log(adjust_begin)
       hdt=dt/2.
@@ -90,17 +90,13 @@
              write (6,"('vx_stag',-5p10f8.2)") vx(idjd,:)
 	    endif
            write (6,"('qg_a1',3p10f7.3)") qg(idjd,:)
+           print  *,'pslx ',pslx(idjd,:)
          end if
+         call printa('pslx',pslx,ktau,nlv,ia,ib,ja,jb,0.,100.)
          call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,200.,1.)
          call maxmin(alf,'a ',ktau,1.,1)
          call maxmin(alfe,'ae',ktau,1.,1)
          call maxmin(alfn,'an',ktau,1.,1)
-         if ( mydiag ) then
-            print  *,'pslx ',pslx(idjd,:)
-!!!         Would require extra bounds call         
-!!!         print  *,'pslx w ',pslx(iw(idjd),:)
-         end if
-         call printa('pslx',pslx,ktau,nlv,ia,ib,ja,jb,0.,100.)
       endif
 
 !     recompute nonlinear sigma-dot contribution for updating tn, tx
@@ -148,6 +144,35 @@
         p(iq,k)=p(iq,k-1)+bet(k)*tx(iq,k)+betm(k)*tx(iq,k-1)
        enddo    ! iq loop
       enddo     ! k loop
+
+      if(nh>0)then
+        const_nh=-2.*rdry/((1.+epsnh)*dt*grav*grav) ! bet inc. an r term        
+!       add in departure values of p-related nh terms  & omgfnl terms    
+c        wrk1(:,1)=bet(1)*const_nh*tbar(1)*(h_nh(1:ifull,1)
+c     .                 -sig(1)*omgfnl(:,1)/(tbar(1)*(1.+epsnh)) )	 
+c        do k=2,kl
+c         wrk1(:,k)=wrk1(:,k-1)+const_nh*tbar(k)*(
+c     .             bet(k)*h_nh(1:ifull,k)+betm(k)*h_nh(1:ifull,k-1) 
+c     .            -bet(k)*sig(k)*omgfnl(:,k)/(tbar(k)*(1.+epsnh)) 	 
+c     .            -betm(k)*sig(k-1)*omgfnl(:,k-1)/(tbar(k)*(1.+epsnh)) )
+c        enddo   ! k loop
+        wrk1(:,1)=bet(1)*const_nh*tbar(1)*(h_nh(1:ifull,1)
+     .                 -tbar2d(:)*omgfnl(:,1)/(sig(1)*(1.+epst(:))) )	 
+        do k=2,kl
+         wrk1(:,k)=wrk1(:,k-1)+const_nh*tbar(k)*(
+     .        bet(k)*h_nh(1:ifull,k)+betm(k)*h_nh(1:ifull,k-1) 
+     .       -bet(k)*tbar2d(:)*omgfnl(:,k)/(sig(k)*(1.+epst(:))) 	 
+     .       -betm(k)*tbar2d(:)*omgfnl(:,k-1)/(sig(k-1)*(1.+epst(:))) )
+        enddo   ! k loop
+        if(diag.and.mydiag)then   
+          print *,'adjust5 omgfnl ',(omgfnl(idjd,k),k=1,kl)
+          print *,'adjust5 h_nh ',(h_nh(idjd,k),k=1,kl)
+          print *,'adjust5 pa ',(p(idjd,k),k=1,kl)
+          print *,'adjust5 wrk1 ',(wrk1(idjd,k),k=1,kl)
+          print *,'adjust5 pextras ',(pextras(idjd,k),k=1,kl)
+        endif
+	 p(1:ifull,:)=p(1:ifull,:)+wrk1(:,:)  ! nh
+      endif     ! (nh>0)
 
 c     do k=1,kl
 c       do iq=1,ifull
@@ -312,6 +337,13 @@ c      enddo    ! k  loop
        pslsav(iq)=psl(iq)   ! in work2 (not last because of vadvtvd)
        psl(iq)=pslxint(iq)-hdt*wrk2(iq,1)  *(1.+epst(iq))  ! Eq. 116
       enddo     ! iq loop
+
+      if(nh.ne.0)then
+!       update phi for use in next time step; check tbar or tbar2d ***    
+        do k=1,kl
+         phi(:,k)=p(1:ifull,k)-rdry*tbar2d(:)*psl(1:ifull)
+	 enddo
+      endif  ! (nh.ne.0)
 
       if(m==6)then
         do k=1,kl
@@ -547,7 +579,7 @@ c       call bounds(ps)
             delposk=delposk+max(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
             delnegk=delnegk+min(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
            enddo   ! iq loop
-           if(mod(ktau,nmaxpr)==0.or.nmaxpr==1)
+           if(mod(ktau,nmaxpr)==0.or.nmaxpr==1) ! for nproc=1
      &                   print *,'delposk delnegk ',k,delposk,delnegk
           enddo    ! k loop
 	 else
@@ -562,7 +594,7 @@ c       call bounds(ps)
      &       alph_q*max(0.,wrk1(iq,k))+min(0.,wrk1(iq,k))/max(1.,alph_q)
          enddo   ! iq loop
         enddo    ! k  loop
-        if(ntest==1.or.nmaxpr==1)then
+        if(ntest==1.or.nmaxpr==1)then  ! has mydiag on prints
 	  if(mydiag) print *,'qg_delpos,delneg,ratio,alph_q,wrk1 ',
      &                       delpos,delneg,ratio,alph_q,wrk1(idjd,nlv)
           call ccglobal_sum(qg,sumout)

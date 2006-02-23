@@ -29,25 +29,22 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       include 'sigs.h'
       include 'soil.h'
       include 'tracers.h'  ! ngas, nllp, ntrac
-      common/work3a/cfrac(ifull,kl),betatt(ifull,kl),betaqt(ifull,kl) 
-      common/shalrk/shalrk(ifull,6)
+      common/cfrac/cfrac(ifull,kl)
+      real betatt(ifull,kl),betaqt(ifull,kl),rhs(ifull,kl)
       common/work3/delthet(ifull,kl),
      &    thebas(ifull,kl),cu(ifull,kl),thee(ifull,kl),qs(ifull,kl)
       common/work3b/uav(ifull,kl),vav(ifull,kl)   
 !     n.b. uav & vav also used by pbldif; all of work3 used by tracervmix
-      common/work3c/rhs(ifull,kl)   
       common/work3f/wrk1(ijk),wrk2(ijk),wrk3(ijk) 
-      common/work2/csq(ifull),delq(ifull),dvmod(ifull)
-     & ,dz(ifull),dzr(ifull),fm(ifull),fh(ifull),ri(ifull),sqmxl(ifull)
-     & ,x(ifull),zhv(ifull),theeb(ifull),sigsp(ifull),kbase(ifull)
-     & ,ktop(ifull),dum2(ifull,3)
-      real sighkap(kl),delons(kl),delh(kl),prcpv(kl)
-      real sigkap(kl)
+      real csq(ifull),dvmod(ifull),dz(ifull),dzr(ifull),
+     &     fm(ifull),fh(ifull),sqmxl(ifull),
+     &     x(ifull),zhv(ifull),theeb(ifull),sigsp(ifull)
+      integer kbase(ifull),ktop(ifull)
+      real sighkap(kl),sigkap(kl),delons(kl),delh(kl),prcpv(kl)
       real at(ifull,kl),au(ifull,kl),ct(ifull,kl)
       real zh(ifull,kl),tmnht(ifull,kl)
-      real gt(ifull,kl),guv(ifull,kl)
+      real gt(ifull,kl),guv(ifull,kl),ri(ifull,kl)
       real rkm(ifull,kl),rkh(ifull,kl),rk_shal(ifull,kl)
-!     equivalence (gt,rkh_nl),(guv,rkm_nl)
       equivalence (rkh,wrk1),(rkm,wrk2),(rk_shal,uav)
       equivalence (tmnht,at,un),(zh,au,wrk3)
 !     equivalence (gamat,ct)
@@ -71,8 +68,8 @@ c     set coefficients for Louis scheme
         print *,'dsig ',dsig
         print *,'delh ',delh
 	 print *,'in vertmix'
-        write (6,"('uin ',12f7.2/(8x,12f7.2))") (u(idjd,k),k=1,kl) 
-        write (6,"('vin ',12f7.2/(8x,12f7.2))") (v(idjd,k),k=1,kl) 
+        write (6,"('uin ',9f8.3/4x,9f8.3)") u(idjd,:) 
+        write (6,"('vin ',9f8.3/4x,9f8.3)") v(idjd,:) 
       endif
       rlogs1=log(sig(1))
       rlogs2=log(sig(2))
@@ -118,7 +115,7 @@ c because we use theta derivative rather than (dry static energy)/cp.
             betatt(iq,k)=(betat-dqsdt*betac)/sigkap(k)           !Beta_t_tilde
             betaqt(iq,k)=betaq+betac                             !Beta_q_tilde
          enddo   ! iq loop
-	  if(ntest==2.and.mydiag)then
+	  if(diag.and.mydiag)then
 	     iq=idjd
             es=establ(t(iq,k))
             pk=ps(iq)*sig(k)
@@ -268,8 +265,8 @@ c        newest code, stable same as csiro9 here (originally for nvmix=4)
          do iq=1,ifull
           sqmxl(iq)=(vkar4*zh(iq,k)/(1.+vkar4*zh(iq,k)/amxlsq))**2
           dvmod(iq)=max( dvmod(iq) , 1. )
-          ri(iq)=x(iq)/dvmod(iq)**2
-          if(ri(iq)< 0.)then  ! unstable case
+          ri(iq,k)=x(iq)/dvmod(iq)**2
+          if(ri(iq,k)< 0.)then  ! unstable case
 c           first do momentum
             denma=dvmod(iq)+cmj*( 2.*bprmj*sqmxl(iq)*
      &                            sqrt(-x(iq)*csq(iq)) )
@@ -280,7 +277,7 @@ c           now heat
             fh(iq)=dvmod(iq)-(2.*bprmj *x(iq))/denha
           else                     ! stable case
 c           the following is the original Louis stable formula
-            fm(iq)=dvmod(iq)/(1.+4.7*ri(iq))**2
+            fm(iq)=dvmod(iq)/(1.+4.7*ri(iq,k))**2
             fh(iq)=fm(iq)
           endif
          enddo   ! iq loop
@@ -321,7 +318,7 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
          esp=establ(t(idjd,k+1))
          print *,'k,es,es+,delthet ',k,es,esp,delthet(idjd,k)
          print *,'k,fm,dvmod,ri,csq ',
-     &            k,fm(idjd),dvmod(idjd),ri(idjd),csq(idjd)
+     &            k,fm(idjd),dvmod(idjd),ri(idjd,k),csq(idjd)
          dqtot=qg(iq,k+1)+qlg(iq,k+1)+qfg(iq,k+1)
      &     -  (qg(iq,k)  +qlg(iq,k)  +qfg(iq,k))
          print *,'qfg,qfg+ ',qfg(idjd,k),qfg(idjd,k+1)
@@ -336,32 +333,35 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
 
       if( (diag.or.ntest>=1) .and. mydiag )then
         print *,'before possible call to pbldif in vertmix'
-        write (6,"('rkh0 ',16f8.3)") (rkh(idjd,k),k=1,16)
-        write (6,"('rkm0 ',16f8.3)") (rkm(idjd,k),k=1,16)
-        write (6,"('uav ',12f7.2/(8x,12f7.2))") (uav(idjd,k),k=1,kl) 
-        write (6,"('vav ',12f7.2/(8x,12f7.2))") (vav(idjd,k),k=1,kl) 
-        write (6,"('thet',12f7.2/(8x,12f7.2))") (rhs(idjd,k),k=1,kl) 
-        write (6,"('t   ',12f7.2/(8x,12f7.2))") (t(idjd,k),k=1,kl) 
-        write (6,"('qg ',12f7.3/(8x,12f7.3))") 
-     &             (1000.*qg(idjd,k),k=1,kl)
-        write (6,"('qs ',12f7.3/(8x,12f7.3))") 
-     &             (1000.*qs(idjd,k),k=1,kl)
-        write (6,"('thee',12f7.2/(8x,12f7.2))") 
+        write (6,"('uav ',9f8.3/4x,9f8.3)") uav(idjd,:) 
+        write (6,"('vav ',9f8.3/4x,9f8.3)") vav(idjd,:)
+        write (6,"('thet',9f8.3/4x,9f8.3)") rhs(idjd,:)
+        write (6,"('t   ',9f8.3/4x,9f8.3)") t(idjd,:)
+        write (6,"('qg ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
+        write (6,"('qs ',3p9f8.3/4x,9f8.3)") qs(idjd,:)
+        write (6,"('thee',9f8.3/4x,9f8.3)") 
      &        (prcpv(k)*t(idjd,k)*(t(idjd,k) + .5*hlcp*qs(idjd,k))
      &                   /(t(idjd,k) - .5*hlcp*qs(idjd,k)),k=1,kl)
+      endif
+      if(nmaxpr==1.and.mydiag)then
+        write (6,"('rino_v',9f8.3/6x,9f8.3)") ri(idjd,1:kl-1)
+        write (6,"('rkh0',9f8.3/4x,9f8.3)") rkh(idjd,1:kl-2)
+        write (6,"('rkm0',9f8.3/4x,9f8.3)") rkm(idjd,1:kl-2)
       endif
 
       if(nlocal.ne.0)then
         call pbldif(rhs,rkh,rkm,uav,vav)
 !       n.b. *** pbldif partially updates qg and theta (t done during trim)	 
 !       and updates rkh and rkm arrays
+        if(nmaxpr==1.and.mydiag)then
+          write (6,"('rkh1',9f8.3/4x,9f8.3)") rkh(idjd,1:kl-2)
+          write (6,"('rkm1',9f8.3/4x,9f8.3)") rkm(idjd,1:kl-2)
+        endif
         if( (diag.or.ntest>=1) .and. mydiag )then
 	   print *,'after pbldif in vertmix'
-          write (6,"('rkh1 ',16f8.3)") (rkh(idjd,k),k=1,16)
-          write (6,"('rkm1 ',16f8.3)") (rkm(idjd,k),k=1,16)
-          write (6,"('thet',12f7.2/(8x,12f7.2))") (rhs(idjd,k),k=1,kl) 
-          write (6,"('qg ',12f7.3/(8x,12f7.3))") 
-     &              (1000.*qg(idjd,k),k=1,kl)
+          write (6,"('thet',9f8.3/4x,9f8.3)") rhs(idjd,:)
+          write (6,"('qg ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
+     &              
         endif
         if(diag)then
           call printa('rkh ',rkh,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -565,6 +565,7 @@ c**  .                               and.ktop(iq)<=ksctop)then
           enddo   ! k loop
         endif     ! (ksc==96)
 	 if(nmaxpr==1.and.mydiag)then
+          write (6,"('rino_v',9f8.3/6x,9f8.3)") ri(idjd,1:kl-1)
 	   iq=idjd
 	   print *,'ksc,kbase,ktop,theeb ',
      &             ksc,kbase(idjd),ktop(idjd),theeb(idjd)
@@ -579,7 +580,7 @@ c         print *'qs(1-6) ',(qs(iq,k),k=1,6)
           print *,'thee ',(prcpv(k)*t(iq,k)*(t(iq,k) + .5*hlcp*qs(iq,k))
      &                       /(t(iq,k) - .5*hlcp*qs(iq,k)),k=1,ksctop+1)
           print *,'rk_shal ',(rk_shal(idjd,k),k=1,ksctop+2)
-	 endif     ! (nmaxpr==1)
+	 endif     ! (nmaxpr==1.and.mydiag)
       endif       ! (ksc>=93.and.ksc<=96)
 c     *********** end of Tiedtke_ldr shallow convection 93-96 *********
 
@@ -636,11 +637,6 @@ c     add in effects of shallow convection
          rkm(:,k)=rkm(:,k)+rk_shal(:,k)
         enddo   !  k loop
       endif     ! (kscmom==1)
-      if(nextout==4)then
-        do k=1,6
-         shalrk(:,k)=shalrk(:,k)+rk_shal(:,k)
-        enddo
-      endif
       
       if(ntest.ne.0.or.diag)then
         do iq=1,ifull

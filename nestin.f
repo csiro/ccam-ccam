@@ -93,7 +93,8 @@
      &   abs(rlat0    -rlat0x)>.01.or.
      &   abs(schmidt-schmidtx)>.01)stop "grid mismatch in infile"
 
-      kdhour=(ktime_r-ktime)/100                      ! integer hour diff
+!     kdhour=(ktime_r-ktime)/100     ! integer hour diff
+      kdhour=ktime_r/100-ktime/100   ! integer hour diff from Oct '05
       kdmin=(ktime_r-100*(ktime_r/100))-(ktime-100*(ktime/100))
       if ( myid == 0 ) then
         print *,'nesting file has: kdate_r,ktime_r,kdhour,kdmin ',

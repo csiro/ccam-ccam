@@ -17,7 +17,7 @@
       include 'xarrs.h'
       include 'xyzinfo.h'  ! x,y,z,wts
       real derpsl(ifull),cc(ifull+iextra,kl),dd(ifull+iextra,kl)
-      common/work3d/d(ifull,kl) ! possibly shared adjust5 & updps
+      real d(ifull,kl)   ! NOT shared adjust5 or nonlin
       real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)
       real sbar(ifull,2:kl)
       common/savuv1/savs1,savu1,savv1,sbar 
@@ -213,5 +213,9 @@
 	 enddo   ! iq loop
       endif     ! (mup<=-4)
 
+      if( (diag.or.nmaxpr==1) .and. mydiag )then
+        print *,'in updps'
+        write (6,"('div5p',5p10f8.2)") d(idjd,:)
+      endif
       return
       end

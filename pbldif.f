@@ -1,8 +1,10 @@
       subroutine pbldif(theta,rkh,rkm,uav,vav)
 !     vectorized version      
+      use cc_mpi, only : mydiag, myid
+      use diag_m
       parameter (ntest=0)
-      parameter (nrkmin=2)  ! 1 original; 2 new
-      parameter (npblmin=1) ! 1 original (best for Oz); 2 new ; 3 newer
+      parameter (nrkmin=2)  ! 1 original (& from 0510); 2 new; 3 newer
+      parameter (npblmin=4) ! 1 original (best for Oz); 2 new ; 3,4 newer
       include 'newmpar.h'
       parameter (kmax=kl/2)
 C------------------------------------------------------------------------
@@ -108,7 +110,7 @@ C
       real obklen               ! Obukhov length
       real term                 ! intermediate calculation
       real fac                  ! interpolation factor
-      real pblmin               ! min pbl height due to mechanical mixing
+c     real pblmin               ! min pbl height due to mechanical mixing
 
 c     logical unstbl(il)        ! pts w/unstbl pbl (positive virtual ht flx)
 C------------------------------Commons----------------------------------
@@ -128,18 +130,18 @@ C------------------------------Commons----------------------------------
       real ccon    ! fak * sffrac * vk
       real binm    ! betam * sffrac
       real binh    ! betah * sffrac
-C
-      real zkmin     ! Minimum kneutral*f(ri)
-      real rkmin     ! minimum eddy coefficients based on Hourdin et. al. (2001)
-C
-C
+
+      real zkmin   ! Minimum kneutral*f(ri)
+      real rkmin   ! minimum eddy coeffs based on Hourdin et. al. (2001)
+
 C Initialize COMCON
-C
+
       data betam, betas, betah, sffrac / 15.0, 5.0, 15.0, 0.1 /
       data fakn,fak,vk,zkmin,c1/7.2, 8.5, 0.4, 0.01, 0.61/
       data ricr /0.25/
-      data fac/100./
-
+      
+      fac=100.
+      if(nlocal==6)fac=10.
       binh   = betah*sffrac
       binm   = betam*sffrac
       ccon   = fak*sffrac*vk
@@ -155,7 +157,7 @@ C****************************************************************
       enddo         ! k  loop
       cgh(:,:)=0.   ! 3D
       cgq(:,:)=0.   ! 3D
-      if(ktau.eq.1)print *,'in pbldif nrkmin,npblmin: ',nrkmin,npblmin 
+      if(ktau==1)print *,'in pbldif nrkmin,npblmin: ',nrkmin,npblmin 
 
 C Compute kinematic surface fluxes
          do iq=1,ifull
@@ -197,14 +199,18 @@ c           vvk = max(vvk,tiny)
             tkv = theta(iq,k)*(1. + 0.61*qg(iq,k))
             rino(iq,k) = grav*(tkv - thvref(iq))*(zg(iq,k)-zg(iq,1))
      $                    /max(thvref(iq)*vvk,tiny)
-            if(rino(iq,k).ge.ricr.and.iflag(iq).eq.0)then
+            if(rino(iq,k)>=ricr.and.iflag(iq)==0)then
               pblh(iq) = zg(iq,k-1) + (ricr - rino(iq,k-1))/
      $                                (rino(iq,k) - rino(iq,k-1))
      $                               *(zg(iq,k) - zg(iq,k-1))
               iflag(iq)=1
-            endif  ! (rino(iq,k).ge.ricr.and.iflag(iq).eq.0)
+            endif  ! (rino(iq,k)>=ricr.and.iflag(iq)==0)
            enddo  ! iq loop
           enddo   ! k loop
+	if(nmaxpr==1.and.mydiag)then
+          write (6,"('rino_pa',9f8.3/2x,9f8.3)") rino(idjd,1:kmax)
+          write (6,"('zg',9f8.1/2x,9f8.1)") zg(idjd,1:kmax)
+	endif
 
 C Set pbl height to maximum value where computation exceeds number of
 C layers allowed
@@ -213,7 +219,7 @@ C Improve estimate of pbl height for the unstable points.
 C Find unstable points (virtual heat flux is positive):
 C
          do iq=1,ifull
-          if(heatv(iq).gt.0.)then  ! unstable case
+          if(heatv(iq)>0.)then  ! unstable case
             phiminv(iq) =     (1. - binm*pblh(iq)/obklen(iq))**(1./3.)
             wm(iq)= ustar(iq)*phiminv(iq)
 C           therm: 2nd term in eq. (4.d.19):
@@ -242,15 +248,15 @@ C convective temperature excess:
         iflag(:)=0
         do k=2,kmax
          do iq=1,ifull
-          if(heatv(iq).gt.0..and.iflag(iq).eq.0)then  ! unstable case
+          if(heatv(iq)>0..and.iflag(iq)==0)then  ! unstable case
             pblh(iq) = zg(iq,kl)    ! large default for unstable case
-            if(rino(iq,k).ge.ricr)then
+            if(rino(iq,k)>=ricr)then
               pblh(iq) = zg(iq,k-1) + (ricr - rino(iq,k-1))/
      $                                (rino(iq,k) - rino(iq,k-1))
      $                                *(zg(iq,k) - zg(iq,k-1))
               iflag(iq)=1  ! i.e. found it
-            endif ! (rino(iq,k).ge.ricr)
-          endif    ! (heatv(iq).gt.0..and.iflag(iq).eq.0)
+            endif ! (rino(iq,k)>=ricr)
+          endif    ! (heatv(iq)>0..and.iflag(iq)==0)
          enddo     ! i loop
         enddo      ! k loop
 
@@ -268,31 +274,19 @@ C and Berkowicz (1988) [BLM, Vol 43] for which they recommend 0.07/f
 C where f was evaluated at 39.5 N and 52 N.  Thus we use a typical mid
 C latitude value for f so that c = 0.07/f = 700.
  
-      if(npblmin.eq.1)then
-        do iq=1,ifull
-         pblmin  = 700.0*ustar(iq)
-         pblh(iq) = max(pblh(iq),min(200.,pblmin))
-       end do
-      endif  ! (npblmin.eq.1)
-      if(npblmin.eq.2)then
-        do iq=1,ifull
-         pblmin  = .07*ustar(iq)/max(.5e-4,abs(f(iq)))
-         pblh(iq) = max(pblh(iq),pblmin)
-       end do
-      endif  ! (npblmin.eq.2)
-      if(npblmin.eq.3)then
-        do iq=1,ifull
-         pblmin  = .07*ustar(iq)/max(1.e-4,abs(f(iq))) ! to ~agree 39.5N
-         pblh(iq) = max(pblh(iq),pblmin)
-       end do
-      endif  ! (npblmin.eq.3)
-c     if(npblmin.eq.4)then  !  older Zilit., stable only
+      if(npblmin==1)pblh(:) = max(pblh(:),min(200.,700.*ustar(:)))
+      if(npblmin==2)pblh(:) =
+     &              max(pblh(:),.07*ustar(:)/max(.5e-4,abs(f(1:ifull))))
+      if(npblmin==3)pblh(:) =                      ! to ~agree 39.5N
+     &              max(pblh(:),.07*ustar(:)/max(1.e-4,abs(f(1:ifull))))
+      if(npblmin==4)pblh(:) = max(pblh(:),50.)
+c     if(npblmin==4)then  !  older Zilit., stable only
 c       do iq=1,ifull
 c        pblmin=.5*sqrt(ustar(iq)*max(0.,obklen(iq))/
 c    .                            max(.5e-4,abs(f(iq))))
 c        pblh(iq) = max(pblh(iq),pblmin)
 c      end do
-c     endif  ! (npblmin.eq.4)
+c     endif  ! (npblmin==4)
 
 C pblh is now available; do preparation for diffusivity calculation:
 
@@ -300,7 +294,7 @@ C Do additional preparation for unstable cases only, set temperature
 C and moisture perturbations depending on stability.
 
          do iq=1,ifull
-          if(heatv(iq).gt.0.)then  ! unstable case
+          if(heatv(iq)>0.)then  ! unstable case
             phiminv(iq) =     (1. - binm*pblh(iq)/obklen(iq))**(1./3.)
             phihinv(iq) = sqrt(1. - binh*pblh(iq)/obklen(iq))
             wm(iq)      = ustar(iq)*phiminv(iq)
@@ -311,107 +305,113 @@ C and moisture perturbations depending on stability.
 C Main level loop to compute the diffusivities and 
 C counter-gradient terms:
 
-	  if(nlocal.eq.3)then
+	  if(nlocal==3)then
 !          suppress nonlocal scheme over the sea   jlm
            do iq=1,ifull
 	     if(.not.land(iq))pblh(iq)=0.
            enddo
-	  endif  !  (nlocal.eq.3)
+	  endif  !  (nlocal==3)
 
-	  if(nlocal.eq.4)then
+	  if(nlocal==4)then
 !          suppress nonlocal scheme for column if cloudy layer in pbl   jlm
            do k=1,kl/2
             do iq=1,ifull
-	      if(zg(iq,k).lt.pblh(iq).and.cfrac(iq,k).gt.0.)pblh(iq)=0.
+	      if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)pblh(iq)=0.
             enddo
            enddo
-	  endif  !  (nlocal.eq.4)
+	  endif  !  (nlocal==4)
 
-	  if(nlocal.eq.5)then
+	  if(nlocal==5)then
 !          suppress nonlocal scheme for column if cloudy layer in pbl   jlm
 !          restores pblh at the bottom to have it available in convjlm/vertmix
            do k=1,kl/2
             do iq=1,ifull
-	      if(zg(iq,k).lt.pblh(iq).and.cfrac(iq,k).gt.0.)
+	      if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)
      &         pblh(iq)=-pblh(iq)  
             enddo
            enddo
-	  endif  !  (nlocal.eq.5)
+	  endif  !  (nlocal==5)
 
-        do 1000 k=1,kmax-1
-	  if(nlocal.eq.2)then
+        do k=1,kmax-1
+	  if(nlocal==2)then
 !          suppress nonlocal scheme if cloudy layers in pbl   jlm
 !          note this allows layers below to be done as nonlocal
            do iq=1,ifull
-	     if(zg(iq,k).lt.pblh(iq).and.cfrac(iq,k).gt.0.)pblh(iq)=0.
+	     if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)pblh(iq)=0.
            enddo
-	  endif  !  (nlocal.eq.2)
+	  endif  !  (nlocal==2)
 
 C Find levels within boundary layer:
 C This is where Kh is at half model levels 
 C zmzp = 0.5*(zm + zp)
 
            do iq=1,ifull
-              fak1 = ustar(iq)*pblh(iq)*vk
-              zm = zg(iq,k)
-              zp = zg(iq,k+1)
-!             if ( zkmin.eq.0.0 .and. zp.gt.pblh(iq)) zp = pblh(iq) ! zkmin=.01
-              if (zm .lt. pblh(iq)) then
-                zmzp = 0.5*(zm + zp)
-                zh = zmzp/pblh(iq)
-                zl = zmzp/obklen(iq)
-                zzh= 0.
-                if (zh.le.1.0) zzh = (1. - zh)**2
-C
+            fak1 = ustar(iq)*pblh(iq)*vk
+            zm = zg(iq,k)
+            zp = zg(iq,k+1)
+!           if ( zkmin==0.0 .and. zp>pblh(iq)) zp = pblh(iq) ! zkmin=.01
+            if (zm < pblh(iq)) then
+              zmzp = 0.5*(zm + zp)
+              zh = zmzp/pblh(iq)
+              zl = zmzp/obklen(iq)
+              zzh= 0.
+              if (zh<=1.0) zzh = (1. - zh)**2
+
 C stblev for points zm < plbh and stable and neutral
 C unslev for points zm < plbh and unstable
-C
-                if(heatv(iq).gt.0.)then  ! unstable case
-                  fak2   = wm(iq)*pblh(iq)*vk
+              if(heatv(iq)>0.)then  ! unstable case
+                fak2   = wm(iq)*pblh(iq)*vk
 C unssrf, unstable within surface layer of pbl
 C Unstable for surface layer; counter-gradient terms zero
-                  if (zh.lt.sffrac) then
-!                   term = cbrt(1. - betam*zl)
-                    term =     (1. - betam*zl)**(1./3.)
-                    pblk = fak1*zh*zzh*term
-                    pr = term/sqrt(1. - betah*zl)
-                  else
+                if (zh<sffrac) then
+!                 term = cbrt(1. - betam*zl)
+                  term =     (1. - betam*zl)**(1./3.)
+                  pblk = fak1*zh*zzh*term
+                  pr = term/sqrt(1. - betah*zl)
+                else
 C unsout, unstable within outer   layer of pbl
 C Unstable for outer layer; counter-gradient terms non-zero:
-                    pblk = fak2*zh*zzh
-                    fak3 = fakn*wstr(iq)/wm(iq)
-                    cgs     = fak3/(pblh(iq)*wm(iq))
-                    cgh(iq,k) = rkhfs(iq)*cgs                 !eq. (4.d.17)
-                    cgq(iq,k) = rkqfs(iq)*cgs                 !eq. (4.d.17)
-                    pr = phiminv(iq)/phihinv(iq) + ccon*fak3/fak
-                  end if
-                  rkm(iq,k) = max(pblk,rkm(iq,k))
-                  rkh(iq,k) = max(pblk/pr,rkh(iq,k))
-                else      ! following are stable or neutral
+                  pblk = fak2*zh*zzh
+                  fak3 = fakn*wstr(iq)/wm(iq)
+                  cgs     = fak3/(pblh(iq)*wm(iq))
+                  cgh(iq,k) = rkhfs(iq)*cgs                 !eq. (4.d.17)
+                  cgq(iq,k) = rkqfs(iq)*cgs                 !eq. (4.d.17)
+                  pr = phiminv(iq)/phihinv(iq) + ccon*fak3/fak
+                end if
+                rkm(iq,k) = max(pblk,rkm(iq,k))
+                rkh(iq,k) = max(pblk/pr,rkh(iq,k))
+              elseif(nlocal>0)then    ! following are stable or neutral
 C Stable and neutral points; set diffusivities; counter-gradient
 C terms zero for stable case:
 C term: pblk is Kc in eq. (4.d.16)
-                  pblk = fak1*zh*zzh/(betas + zl)
-                  if (zl.le.1.) then   ! 0 < z/L < 1.
-                    pblk = fak1*zh*zzh/(1. + betas*zl)
-                  endif
-                  if(nrkmin.eq.1)rkmin=rkh(iq,k)
-                  if(nrkmin.eq.2)rkmin=vk*ustar(iq)*zmzp*zzh
-		    if(ntest.eq.1)then
-		      if(iq.eq.idjd)then
-		        print *,'in pbldif k,ustar,zmzp,zh,zl,zzh ',
-     .                                   k,ustar(iq),zmzp,zh,zl,zzh
-		        print *,'rkh_L,rkmin,pblk,fak1,pblh ',
-     .                         rkh(iq,k),rkmin,pblk,fak1,pblh(iq)
-		      endif  ! (iq.eq.idjd)
-		    endif    ! (ntest.eq.1)
-                  rkm(iq,k) = max(pblk,rkmin)        
-                  rkh(iq,k) = rkm(iq,k)
-                endif      ! (heatv(iq).gt.0.)    unstbl(i)
-              endif         ! zm(i) .lt. pblh(iq)
-           enddo           ! iq=1,ifull
-
-1000     continue           !end of k loop
+c but reverts to Louis stable treatment for nlocal=-1
+                pblk = fak1*zh*zzh/(betas + zl)
+                if (zl<=1.) then   ! 0 < z/L < 1.
+                  pblk = fak1*zh*zzh/(1. + betas*zl)
+                endif
+                if(nrkmin==2)rkmin=vk*ustar(iq)*zmzp*zzh
+                if(nrkmin==3)rkmin=max(rkh(iq,k),vk*ustar(iq)*zmzp*zzh)
+                if(nrkmin==1.or.nlocal==6)rkmin=rkh(iq,k)
+		  if(ntest==1)then
+		    if(iq==idjd)then
+		      print *,'in pbldif k,ustar,zmzp,zh,zl,zzh ',
+     .                                 k,ustar(iq),zmzp,zh,zl,zzh
+		      print *,'rkh_L,rkmin,pblk,fak1,pblh ',
+     .                       rkh(iq,k),rkmin,pblk,fak1,pblh(iq)
+		    endif  ! (iq==idjd)
+		  endif    ! (ntest==1)
+                rkm(iq,k) = max(pblk,rkmin)        
+                rkh(iq,k) = rkm(iq,k)
+              endif      ! (heatv(iq)>0.)    unstbl(i)
+            endif        ! zm < pblh(iq)
+           enddo         ! iq=1,ifull
+       enddo             !end of k loop
+	if(nmaxpr==1.and.mydiag)then
+          write (6,"('rino_pb',9f8.3/2x,9f8.3)") rino(idjd,1:kmax)
+	   print *,'ricr,obklen,heatv,pblh ',
+     &             ricr,obklen(idjd),heatv(idjd),pblh(idjd)
+	   iq=idjd
+	endif
 
       ztodtgor = dtin*grav/rdry
 
@@ -442,7 +442,7 @@ C     update theta and qtg due to counter gradient
      $        sigotbk*rkh(iq,k)*cgq(iq,k)
       end do
 
-      if (ntest.gt.0) then
+      if (ntest>0) then
          print *,'pbldif'
          print *,'rkh= ',(rkh(idjd,k),k=1,kl)
          print *,'theta= ',(theta(idjd,k),k=1,kl)
@@ -460,10 +460,10 @@ C    Original code rewritten by Rosinski 7/8/91 to vectorize in longitude.
 !     simpler alernative
 c      qg=max(qg,qgmin)   ! 3D guided by McCormick et al 1993
 
-      if(nlocal.eq.5)then
+      if(nlocal==5)then
 !       restoring pblh to have it available in convjlm/vertmix jlm
         pblh(:)=abs(pblh(:))
-      endif  !  (nlocal.eq.5)
+      endif  !  (nlocal==5)
 
       return
       end
