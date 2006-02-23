@@ -46,8 +46,8 @@ contains
          ! Check if whole region is on this processor
          n2 = (j2-1)/il_g
          if ( fproc(i2, j2-n2*il_g, n2) /= myid ) then
-            print*, "Error, printa region covers more than one processor"
-            stop
+           write(0,*)"Error, printa region covers more than one processor"
+           stop    
          end if
          ja=j1
          jb=min(ja+24,j2)
@@ -106,8 +106,8 @@ contains
          ! Simpler to use real to hold the integer location. 
          ! No rounding problem for practical numbers of points
          ! Convert this to a global index
-         umax(2,k) = iq2iqg(maxloc(u(1:ifull,k),dim=1))
-         umin(2,k) = iq2iqg(minloc(u(1:ifull,k),dim=1))
+         umax(2,k) = maxloc(u(1:ifull,k),dim=1) + myid*ifull
+         umin(2,k) = minloc(u(1:ifull,k),dim=1) + myid*ifull
       end do
 
       call MPI_Reduce ( umax, gumax, kup, MPI_2REAL, MPI_MAXLOC, 0,       &
@@ -188,8 +188,8 @@ contains
 
       umax(1) = maxval(u(1:ifull))*fact
       umin(1) = minval(u(1:ifull))*fact
-      umax(2) = iq2iqg(maxloc(u(1:ifull),dim=1))
-      umin(2) = iq2iqg(minloc(u(1:ifull),dim=1))
+      umax(2) = maxloc(u(1:ifull),dim=1) + myid*ifull
+      umin(2) = minloc(u(1:ifull),dim=1) + myid*ifull
       call MPI_Reduce ( umax, gumax, 1, MPI_2REAL, MPI_MAXLOC, 0,         &
      &                  MPI_COMM_WORLD, ierr )
       call MPI_Reduce ( umin, gumin, 1, MPI_2REAL, MPI_MINLOC, 0,         &

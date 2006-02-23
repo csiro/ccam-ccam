@@ -29,7 +29,8 @@
       save num
       data num/0/
 !     called for mup.ne.1, but always called for first time step
-!     usual is mup=1, using simple centred. (2 to force it every step)
+!     usual is mup=1, using simple centred. 
+!              mup=2 to force it every step; 4 to use prior pslx
       
       if(mup<=-4)then
         if(ktau<3)then
@@ -57,7 +58,9 @@
      .            *em(iq)**2/ds
          enddo   ! iq loop
         enddo    ! k  loop
-      else                               ! usual
+      endif       ! (mup>=5) 
+      
+      if(mup<5)then       ! ************usual***********
         call bounds(psl)
         call boundsuv(u,v)
         do k=1,kl
@@ -71,7 +74,7 @@
      .        *em(iq)**2/(2.*ds)  
           enddo   ! iq loop
          enddo    ! k  loop
-      endif       ! (mup>=5) .. else ..
+      endif       ! (mup<5) 
 	
       if(mup==-1.or.mup<=-4.or.(mup==-3.and.iadj==0))then
         tx(:,1)=zs(:)/(rdry*300.)
@@ -125,7 +128,7 @@
           endif 
           enddo   ! iq loop
          enddo    ! k  loop
-      elseif(mup.ne.5.or.num==0)then  ! usual
+      elseif(mup<4.or.num==0)then  ! ************usual***********
         num=1
 !       put -D(ln(psl))/Dt +d(ln(psl))/dt into pslx (i.e. Nps)
         do k=1,kl
@@ -153,7 +156,7 @@
 	     print *,'part2AA ',(-pslx(iq,k),k=1,kl)
 	    endif
 	  endif
-       endif       ! (mup.ne.5.or.num==0)
+       endif       ! (mup<4.or.num==0)
 
 !      integrate vertically {0 to 1} to get d(ln(psl))/dt
        derpsl(:)=0.
@@ -213,9 +216,21 @@
 	 enddo   ! iq loop
       endif     ! (mup<=-4)
 
-      if( (diag.or.nmaxpr==1) .and. mydiag )then
-        print *,'in updps'
-        write (6,"('div5p',5p10f8.2)") d(idjd,:)
+      if(diag.or.nmaxpr==1)then
+        if(mydiag)then
+          print *,'in updps'
+          write (6,"('div5p',5p10f8.2)") d(idjd,:)
+          iq=idjd
+          k=nlv
+          print *,'iq,ie,iw,in,is ',iq,ie(iq),iw(iq),in(iq),is(iq)
+          print *,'em_iq,ie,iw,in,is ',
+     &             em(iq),em(ie(iq)),em(iw(iq)),em(in(iq)),em(is(iq))
+          print *,'iq,ieu,iwu,inv,isv ',
+     &             iq,ieu(iq),iwu(iq),inv(iq),isv(iq)
+          print *,'u_iq,ieu,iwu ',u(iq,k),u(ieu(iq),k),u(iwu(iq),k)
+          print *,'v_iq,inv,isv ',v(iq,k),v(inv(iq),k),v(isv(iq),k)
+        endif
+        call printa('div5',d,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
       endif
       return
       end

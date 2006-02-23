@@ -1,7 +1,16 @@
 FC = sxmpif90
 
-FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -M flunf -pvctl noassume  -pvctl loopcnt=40000" -P stack
+# -ew is 64 bit precision (-dw for 32 bit)
+# nodiv: division may not be changed to mult.
+# noassume: array decl. not used to give assumed length of do loop
+# loopcnt=  specifies max value of iteration count for a do loop (default 5000)
+#     applies just to sflux   Needs 70000 for C200
+#     applies just to sflux   Needs 180000 for C200 1 proc
+#     applies just to sflux,soilsnow   40000 now OK for C200 3 proc
+
 FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -pvctl noassume  -pvctl loopcnt=40000" -P stack
+FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -pvctl noassume  -pvctl loopcnt=70000" -P stack
+FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -M flunf -pvctl noassume  -pvctl loopcnt=40000" -P stack
 
 LIBS = -lnetcdf 
 
@@ -10,6 +19,7 @@ LDFLAGS =
 OBJS = adjust5.o amipsst.o co2.o conjob.o betts.o bett_cuc.o bettinit.o \
 bettrain.o bettspli.o convjlm.o depts.o esbda.o gettin.o globpe.o gwdrag.o \
 hordifg.o hs_phys.o iabsdate.o indata.o infile.o ints.o helmsol.o jimcc.o\
+helmsor.o optmx.o\
 mslp.o nestin.o nonlin.o outcdf.o outfile.o pbldif.o radriv90.o retopo.o \
 scrnout.o setxyz.o sflux.o so2.o soilsnow.o sst.o staguv.o trim.o upglobal.o eig.o \
 updps.o vadv30.o vadvtvd.o vertmix.o esibda.o icefall.o leoncld.o newcloud.o \
@@ -52,7 +62,7 @@ cldset.o : cldset.f const_phys.h
 clo89.o : clo89.f cldcom.h radisw.h rdparm.h newmpar.h 
 cloud2.o : cloud2.f radisw.h hcon.h rdparm.h params.h kuocom.h cparams.h const_phys.h newmpar.h 
 cloud.o : cloud.f radisw.h rdparm.h parm.h extraout.h newmpar.h 
-co2blk.o : co2blk.f 
+Co2blk.o : co2blk.f 
 co2dta.o : co2dta.f 
 co2.o : co2.f vvel.h sigs.h pbl.h trcom2.h tracers.h soilsnow.h scamdim.h parm.h nsibd.h map.h extraout.h dates.h const_phys.h arrays.h aalat.h newmpar.h cc_mpi.o 
 co2_read.o : co2_read.f radisw.h co2dta.h rdparm.h newmpar.h cc_mpi.o 

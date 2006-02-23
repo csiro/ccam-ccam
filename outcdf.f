@@ -1,5 +1,7 @@
 ce=======================================================================
       subroutine outcdf(rundate,nmi,itype,ms_out)
+!     itype=-1  for restart file
+!            1  for outfile
       use cc_mpi
       implicit none
       include 'newmpar.h'
@@ -42,74 +44,59 @@ ce=======================================================================
       logical :: local ! Each processor writes its local region
 
       ndt=dt
-      ! The localhist variable controls whether the local file option is used
-      ! at all. In any case it's only used for the outfile.
+      ! The localhist variable controls whether the local file option
+      !  is used at all. In any case it's only used for the restfile.
       local = localhist .and. itype == 1 ! Only for outfile
+c     print *,'entering outcdf for myid,local ',myid,local
 
-      if ( myid == 0 .or. local ) then     ! File setup
-      if ( itype==1 ) then
-c itype=1 outfile
+      if(myid==0 .or. local)then !  #########################
+!      File setup follows
+       if(itype==1)then
+c       itype=1 outfile
         iarch1=iarch1+1
         iarch=iarch1
-        if ( local ) then
+        if(local)then
            write(cdffile,"(a,'.',i2.2)") trim(ofile), myid
         else
            cdffile=ofile
-        end if
+        endif
         idnc=idnc1
-      elseif ( itype==0 ) then
-c itype=0 climcdf
+       else
+c       itype=-1 restfile
         iarch=1
-        if ( local ) then
-           write(cdffile,"(a,'.',i2.2)") trim(climcdf), myid
-        else
-           cdffile=climcdf
-        end if
-        idnc=idnc0
-        mtimer=mtimer-1440  ! N.B. only done right at end of run, so OK
-      elseif ( itype==-1 ) then
-c itype=-1 restfile
-        iarch=1
-        if ( local ) then
+        if(local)then
            write(cdffile,"(a,'.',i2.2)") trim(restfile), myid
         else
            cdffile=restfile
-        end if
+        endif
         idnc=idncm1
-      else 
-        stop "wrong itype in cdfout"
-      endif ! ( itype==1 ) then
+       endif ! ( itype==1)then
 
-      write(6,'("outcdf itype,idnc,iarch,cdffile=",3i5," ",a80)')
-     &                  itype,idnc,iarch,cdffile
+       write(6,'("outcdf itype,idnc,iarch,cdffile=",3i5," ",a80)')
+     &                   itype,idnc,iarch,cdffile
 
-c#######################################################################
-c netcdf output
-c#######################################################################
-
-      if ( iarch<1 ) stop "wrong iarch in cdfout"
-      if ( iarch==1 ) then
+       if(iarch==1)then
         print *,'nccre of ',cdffile
         idnc = nccre(cdffile, ncclob, ier)
         print *,'idnc,ier=',idnc,ier
-c Turn off the data filling
+c       Turn off the data filling
         imode = ncsfil(idnc,ncnofill,ier)
         print *,'imode=',imode
-c Create dimensions, lon, lat
-        if ( local ) then
+c       Create dimensions, lon, lat
+        if(local)then
            xdim = ncddef(idnc, 'longitude', il, ier)
            ydim = ncddef(idnc, 'latitude', jl, ier)
         else
            xdim = ncddef(idnc, 'longitude', il_g, ier)
            ydim = ncddef(idnc, 'latitude', jl_g, ier)
-        end if
+        endif
         zdim= ncddef(idnc, 'lev', kl, ier)
         msdim= ncddef(idnc, 'zsoil', ms, ier)
         tdim= ncddef(idnc, 'time',ncunlim,ier)
         print *,"xdim,ydim,zdim,tdim"
         print *,xdim,ydim,zdim,tdim
 
-c define coords.
+c       define coords.
         ixp = ncvdef(idnc,'longitude',NCFLOAT,1,xdim,ier)
         call ncaptc(idnc,ixp,'point_spacing',NCCHAR,4,'even',ier)
         call ncaptc(idnc,ixp,'units',NCCHAR,12,'degrees_east',ier)
@@ -164,7 +151,7 @@ c define coords.
         dims(3) = msdim
         dims(4) = tdim
 
-c create the attributes of the header record of the file
+c       create the attributes of the header record of the file
         nahead(1)=il_g       ! needed by cc2hist
         nahead(2)=jl_g       ! needed by cc2hist
         nahead(3)=kl         ! needed by cc2hist
@@ -187,7 +174,7 @@ c create the attributes of the header record of the file
         nahead(20)=0  !iaa
         nahead(21)=0  !jaa
         nahead(22)=nvad
-        nahead(23)=nqg       ! not needed now      
+        nahead(23)=0       ! not needed now      
         nahead(24)=0  !lbd
         nahead(25)=nrun
         nahead(26)=nrunx
@@ -256,29 +243,26 @@ c create the attributes of the header record of the file
         if(ier.ne.0)write(6,*)"ncvdef stl2 idnc,ier=",idnc,ier
         idv=ncvdef(idnc,'dt',ncfloat,0,1,ier)
         if(ier.ne.0)write(6,*)"ncvdef dt idnc,ier=",idnc,ier
-      endif ! ( iarch=1 ) then
+       endif ! ( iarch=1)then
 
-      print*,'call openhist for itype= ',itype
-      end if ! myid == 0
+       print*,'call openhist for itype= ',itype
+      endif ! (myid==0.or.local) #########################
       ! openhist writes some fields so needs to be called by all processes
       call openhist(iarch,itype,dim,local)
+c     print *,'after openhist for myid = ',myid
 
-      if ( myid == 0 .or. local ) then
-      call ncsnc(idnc,ier)
-      if(ier.ne.0)write(6,*)"ncsnc idnc,ier=",idnc,ier
-
-      if ( itype==1 ) then
-c       itype=1 outfile
-        idnc1=idnc
-      elseif ( itype==0 ) then
-c       itype=0 climcdf
-        idnc0=idnc
-      elseif ( itype==-1 ) then
-c       itype=-1 restfile
-        idncm1=idnc
-      endif ! ( itype==1 ) then
-      end if ! myid == 0
-      return ! cdfout
+      if(myid==0.or.local)then
+        call ncsnc(idnc,ier)
+        if(ier.ne.0)write(6,*)"ncsnc idnc,ier=",idnc,ier
+        if(itype==1)then
+c         itype=1 outfile
+          idnc1=idnc
+        elseif(itype==-1)then
+c         itype=-1 restfile
+          idncm1=idnc
+        endif  ! ( itype==1)then
+      endif    ! (myid==0.or.local)
+      return   ! outcdf  
       end
 c=======================================================================
       subroutine openhist(iarch,itype,dim,local)
@@ -340,21 +324,17 @@ c     this routine creates attributes and writes output
      &     idv, ier, iq, isoil, j, k, igas
       real trmax, trmin
       character*3 mon(12)
-      real cfrac, dum3f
-      common/work3a/cfrac(ifull,kl),dum3f(ifull,kl,2) ! globpe,radriv90
+      real cfrac
+      common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
       real zsoil(ms)
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
 
-      if ( myid == 0 .or. local ) then
+      if(myid == 0 .or. local)then  !#########################
+       print *,'openhist iarch,idnc=',iarch,idnc
 
-      print *,'openhist iarch,idnc=',iarch,idnc
-!     if(itype.ne.-1)then  ! don't scale up for restart file as done already
-!       insert stuff here if re-scaling clouds etc
-!     endif  ! (itype.ne.-1)
-
-c     if this is the first archive, set up some global attributes
-      if(iarch==1) then
+c      if this is the first archive, set up some global attributes
+       if(iarch==1) then
         print *,'dim=',dim
         idim(1)=dim(1)
         idim(2)=dim(2)
@@ -377,10 +357,10 @@ c       Model version
         call ncaptc(idnc,ncglobal,'version',ncchar,len_trim(version),
      &              version,ier)
 
-        if ( local ) then
+        if(local)then
            ier = nf_put_att_int(idnc,nf_global,"processor_num",nf_int,
      &                          1,myid)
-        end if           
+        endif           
 
 c       Sigma levels
         print *,'sig=',sig
@@ -433,7 +413,7 @@ c       call attrib(idnc,idim,2,'zht',lname,'m2/s2',-1.e6,90.e3,0) ! ocean too
 
 c       For time invariant surface fields
         lname = 'Map factor'
-        call attrib(idnc,idim,2,'map',lname,'none',0.,20.,0)
+        call attrib(idnc,idim,2,'map',lname,'none',.001,1500.,0)
         lname = 'Coriolis factor'
         call attrib(idnc,idim,2,'cor',lname,'1/sec',-1.5e-4,1.5e-4,0)
         lname = 'Rsmin'
@@ -488,6 +468,10 @@ c       For time varying surface fields
         call attrib(idnc,idim,3,'tscrn',lname,'K',100.,400.,0)
         lname = 'Screen mixing ratio'
         call attrib(idnc,idim,3,'qgscrn',lname,'kg/kg',0.,.06,0)
+        lname = 'Maximum screen relative humidity'
+        call attrib(idnc,idim,3,'rhmaxscr',lname,'%',0.,200.,1)
+        lname = 'Minimum screen relative humidity'
+        call attrib(idnc,idim,3,'rhminscr',lname,'%',0.,200.,1)
         lname = 'x-component max 10m wind'
         call attrib(idnc,idim,3,'u10max',lname,'m/s',-99.,99.,1)
         lname = 'y-component max 10m wind'
@@ -500,11 +484,12 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         call attrib(idnc,idim,3,'uscrn',lname,'K',0.,40.,0)
         lname = 'Surface albedo'
         call attrib(idnc,idim,3,'alb',lname,'none',0.,1.,0)
-        lname = 'Sea ice depth (Instantaneous)'
-        call attrib(idnc,idim,3,'siced',lname,'cm',0.,500.,0)
-        lname = 'snow depth (liquid water)'
-        call attrib(idnc,idim,3,'snd',lname,'cm',0.,1000.,0)
-
+        lname = 'Sea ice depth'
+        call attrib(idnc,idim,3,'siced',lname,'m',0.,50.,0)
+        lname = 'Sea ice fraction'
+        call attrib(idnc,idim,3,'fracice',lname,'none',0.,1.,0)
+        lname = 'Snow depth (liquid water)'
+        call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         lname = 'Low cloud ave'
         call attrib(idnc,idim,3,'cll',lname,'frac',0.,1.,0)
         lname = 'Mid cloud ave'
@@ -531,7 +516,7 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           call attrib(idnc,idim,3,'rtc_ave',lname,'W/m2',0.,800.,0)
           lname = 'LW downwelling at ground'
           call attrib(idnc,idim,3,'rgdn_ave',lname,'W/m2',-500.,1.e3,0)
-          lname = 'LW down at ground'
+          lname = 'LW net at ground (+ve up)'
           call attrib(idnc,idim,3,'rgn_ave',lname,'W/m2',-500.,1000.,0)
           lname = 'Clear sky LW at ground'
           call attrib(idnc,idim,3,'rgc_ave',lname,'W/m2',-500.,1000.,0)
@@ -543,7 +528,7 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           call attrib(idnc,idim,3,'soc_ave',lname,'W/m2',0.,900.,0)
           lname = 'Solar downwelling at ground'
           call attrib(idnc,idim,3,'sgdn_ave',lname,'W/m2',-500.,2.e3,0)
-          lname = 'Solar down at ground'
+          lname = 'Solar net at ground (+ve down)'
           call attrib(idnc,idim,3,'sgn_ave',lname,'W/m2',-500.,2000.,0)
           lname = 'Surface pressure tendency'
           call attrib(idnc,idim,3,'dpsdt',lname,'hPa/day',-400.,400.,0)
@@ -551,40 +536,40 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           call attrib(idnc,idim,3,'pblh',lname,'m',0.,6000.,0)
           lname = 'friction velocity'
           call attrib(idnc,idim,3,'ustar',lname,'m/s',0.,10.,0)
-        end if     ! nextout >= 1
+        endif     ! nextout >= 1
         if(nextout >= 2) then  ! 6-hourly u10 & v10
-	  mnam ='x-component 10m wind '
-	  nnam ='y-component 10m wind '
-   	  call attrib(idnc,idim,3,'u10_06',mnam//'6hr','m/s',-99.,99.,1)
-  	  call attrib(idnc,idim,3,'v10_06',nnam//'6hr','m/s',-99.,99.,1)
-   	  call attrib(idnc,idim,3,'u10_12',mnam//'12hr','m/s',-99.,99.,1)
-  	  call attrib(idnc,idim,3,'v10_12',nnam//'12hr','m/s',-99.,99.,1)
-   	  call attrib(idnc,idim,3,'u10_18',mnam//'18hr','m/s',-99.,99.,1)
-  	  call attrib(idnc,idim,3,'v10_18',nnam//'18hr','m/s',-99.,99.,1)
-   	  call attrib(idnc,idim,3,'u10_24',mnam//'24hr','m/s',-99.,99.,1)
-  	  call attrib(idnc,idim,3,'v10_24',nnam//'24hr','m/s',-99.,99.,1)
-	  mnam ='tscrn 6-hrly'
-	  nnam ='rhum level_1 6-hrly'
-    	  call attrib(idnc,idim,3,'tscr_06',mnam//'6hr','K',100.,400.,1)
-    	  call attrib(idnc,idim,3,'tscr_12',mnam//'12hr','K',100.,400.,1)
-    	  call attrib(idnc,idim,3,'tscr_18',mnam//'18hr','K',100.,400.,1)
-    	  call attrib(idnc,idim,3,'tscr_24',mnam//'24hr','K',100.,400.,1)
-  	  call attrib(idnc,idim,3,'rh1_06',nnam//'6hr','m/s',-9.,200.,1)
-  	  call attrib(idnc,idim,3,'rh1_12',nnam//'12hr','m/s',-9.,200.,1)
-  	  call attrib(idnc,idim,3,'rh1_18',nnam//'18hr','m/s',-9.,200.,1)
-  	  call attrib(idnc,idim,3,'rh1_24',nnam//'24hr','m/s',-9.,200.,1)
+         mnam ='x-component 10m wind '
+         nnam ='y-component 10m wind '
+         call attrib(idnc,idim,3,'u10_06',mnam//'6hr','m/s',-99.,99.,1)
+         call attrib(idnc,idim,3,'v10_06',nnam//'6hr','m/s',-99.,99.,1)
+         call attrib(idnc,idim,3,'u10_12',mnam//'12hr','m/s',-99.,99.,1)
+         call attrib(idnc,idim,3,'v10_12',nnam//'12hr','m/s',-99.,99.,1)
+         call attrib(idnc,idim,3,'u10_18',mnam//'18hr','m/s',-99.,99.,1)
+         call attrib(idnc,idim,3,'v10_18',nnam//'18hr','m/s',-99.,99.,1)
+         call attrib(idnc,idim,3,'u10_24',mnam//'24hr','m/s',-99.,99.,1)
+         call attrib(idnc,idim,3,'v10_24',nnam//'24hr','m/s',-99.,99.,1)
+         mnam ='tscrn 6-hrly'
+         nnam ='rhum level_1 6-hrly'
+         call attrib(idnc,idim,3,'tscr_06',mnam//'6hr','K',100.,400.,1)
+         call attrib(idnc,idim,3,'tscr_12',mnam//'12hr','K',100.,400.,1)
+         call attrib(idnc,idim,3,'tscr_18',mnam//'18hr','K',100.,400.,1)
+         call attrib(idnc,idim,3,'tscr_24',mnam//'24hr','K',100.,400.,1)
+         call attrib(idnc,idim,3,'rh1_06',nnam//'6hr','m/s',-9.,200.,1)
+         call attrib(idnc,idim,3,'rh1_12',nnam//'12hr','m/s',-9.,200.,1)
+         call attrib(idnc,idim,3,'rh1_18',nnam//'18hr','m/s',-9.,200.,1)
+         call attrib(idnc,idim,3,'rh1_24',nnam//'24hr','m/s',-9.,200.,1)
         endif     ! nextout >= 2
         if(nextout>=3) then  ! also 3-hourly u10 & v10
-	  mnam ='x-component 10m wind '
-	  nnam ='y-component 10m wind '
-   	  call attrib(idnc,idim,3,'u10_03',mnam//'3hr','m/s',-99.,99.,1)
-  	  call attrib(idnc,idim,3,'v10_03',nnam//'3hr','m/s',-99.,99.,1)
-   	  call attrib(idnc,idim,3,'u10_09',mnam//'9hr','m/s',-99.,99.,1)
-  	  call attrib(idnc,idim,3,'v10_09',nnam//'9hr','m/s',-99.,99.,1)
-   	  call attrib(idnc,idim,3,'u10_15',mnam//'15hr','m/s',-99.,99.,1)
-  	  call attrib(idnc,idim,3,'v10_15',nnam//'15hr','m/s',-99.,99.,1)
-   	  call attrib(idnc,idim,3,'u10_21',mnam//'21hr','m/s',-99.,99.,1)
-  	  call attrib(idnc,idim,3,'v10_21',nnam//'21hr','m/s',-99.,99.,1)
+         mnam ='x-component 10m wind '
+         nnam ='y-component 10m wind '
+         call attrib(idnc,idim,3,'u10_03',mnam//'3hr','m/s',-99.,99.,1)
+         call attrib(idnc,idim,3,'v10_03',nnam//'3hr','m/s',-99.,99.,1)
+         call attrib(idnc,idim,3,'u10_09',mnam//'9hr','m/s',-99.,99.,1)
+         call attrib(idnc,idim,3,'v10_09',nnam//'9hr','m/s',-99.,99.,1)
+         call attrib(idnc,idim,3,'u10_15',mnam//'15hr','m/s',-99.,99.,1)
+         call attrib(idnc,idim,3,'v10_15',nnam//'15hr','m/s',-99.,99.,1)
+         call attrib(idnc,idim,3,'u10_21',mnam//'21hr','m/s',-99.,99.,1)
+         call attrib(idnc,idim,3,'v10_21',nnam//'21hr','m/s',-99.,99.,1)
         endif     ! nextout >= 3
 
         lname = 'Soil temperature lev 1'
@@ -641,13 +626,13 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         call attrib(idnc,idim,3,'iwp_ave',lname,'kg/m2',0.,2.,0)
         lname = 'Avg liquid water path'
         call attrib(idnc,idim,3,'lwp_ave',lname,'kg/m2',0.,2.,0)
-	 if(ngas>0)then 
+        if(ngas>0)then 
          do igas=1,ngas
-	   write(numba,'(i2.2)') igas
+          write(numba,'(i2.2)') igas
 !         N.B. may need to set trmax manually if starting with zero concentration	 
           trmax=1.  ! N.B. trmax only set first time, with iarch=1
-	   if(igas==iRADON)trmax=1000.  ! typical large value is 1000.
-          trmin=0.
+          if(igas==iRADON)trmax=1000.  ! typical large value is 1000.
+          trmin=gasmin(igas)
           do k=1,kl
            do iq=1,ifull
             trmax=max(trmax,tr(iq,k,igas))
@@ -657,20 +642,22 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           lname = 'Tracer'//numba
           call attrib(idnc,dim,4,'tr'//numba,lname,'ppm',trmin,trmax,0)
          enddo ! igas loop
-	 endif  ! (ngas>0)
+       endif  ! (ngas>0)
 
         print *,'3d variables'
-	 if(nextout>=4)then 
+        if(nextout>=4)then 
           lname = 'Delta latitude'
           call attrib(idnc,dim,4,'del_lat',lname,'deg',-60.,60.,1)
           lname = 'Delta longitude'
           call attrib(idnc,dim,4,'del_lon',lname,'deg',-180.,180.,1)
           lname = 'Delta pressure'
           call attrib(idnc,dim,4,'del_p',lname,'hPa',-900.,900.,1)
-	 endif  ! (nextout>=4)
-	 call attrib(idnc,dim,4,'temp','Air temperature','K',100.,350.,0)
-   	 call attrib(idnc,dim,4,'u','x-compt wind','m/s',-150.,150.,0)
-        call attrib(idnc,dim,4,'v','y-compt wind','m/s',-150.,150.,0)
+        endif  ! (nextout>=4)
+        call attrib(idnc,dim,4,'temp','Air temperature','K',100.,350.,0)
+        lname= 'x-component wind'
+        call attrib(idnc,dim,4,'u',lname,'m/s',-150.,150.,0)
+        lname= 'y-component wind'
+        call attrib(idnc,dim,4,'v',lname,'m/s',-150.,150.,0)
         lname= 'vertical velocity'
         call attrib(idnc,dim,4,'omega',lname,'Pa/s',-50.,50.,0)
         lname= 'Water mixing ratio'
@@ -681,9 +668,9 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          call attrib(idnc,dim,4,'cfrac','Cloud fraction','none',0.,1.,0)
         endif
 
-        if(itype==-1)then   ! extra stuff just needed for restart file
+        if(itype==-1)then   ! extra stuff just written for restart file
          lname= 'sdot: change in grid spacing per time step +.5'
-         call attrib(idnc,dim,4,'sdot',lname,'1/ts',-3.,3.,0) ! just restart file
+         call attrib(idnc,dim,4,'sdot',lname,'1/ts',-3.,3.,0) 
          lname = 'Soil ice lev 1'
          call attrib(idnc,idim,3,'wbice1',lname,'m3/m3',0.,1.,0)
          lname = 'Soil ice lev 2'
@@ -725,7 +712,7 @@ c       Leave define mode
         call ncendf(idnc,ier)
         print *,'leave define mode: ier=',ier
 
-        if ( local ) then
+        if(local)then
            ! Set these to global indices
            do i=1,ipan
               xpnt(i) = float(i) + ioff
@@ -744,7 +731,7 @@ c       Leave define mode
               ypnt(j) = float(j)
            end do
            call ncvpt(idnc,iyp,1,jl_g,ypnt,ier)
-        end if
+        endif
 
         call ncvpt(idnc,idlev,1,kl,sig,ier)
 
@@ -776,34 +763,29 @@ c       Leave define mode
         call ncvpt1(idnc,idv,1,stl2,ier)
         idv = ncvid(idnc,'dt',ier)
         call ncvpt1(idnc,idv,1,dt,ier)
-      endif ! iarch==1
-!------------------------------------------------------------------      
-
-      print *,'outcdf processing kdate,ktime,ktau,mtimer: ',
-     .                           kdate,ktime,ktau,mtimer
-
-c     set time to number of minutes since start 
-      idv = ncvid(idnc,'time',ier)
-      call ncvpt1(idnc,idv,iarch,mtimer,ier)
-
-      idv = ncvid(idnc,'timer',ier)
-      call ncvpt1(idnc,idv,iarch,timer,ier)
-      idv = ncvid(idnc,'mtimer',ier)
-      call ncvpt1(idnc,idv,iarch,mtimer,ier)
-      idv = ncvid(idnc,'timeg',ier)
-      call ncvpt1(idnc,idv,iarch,timeg,ier)
-      idv = ncvid(idnc,'ktau',ier)
-      call ncvpt1(idnc,idv,iarch,ktau,ier)
-      idv = ncvid(idnc,'kdate',ier)
-      call ncvpt1(idnc,idv,iarch,kdate,ier)
-      idv = ncvid(idnc,'ktime',ier)
-      call ncvpt1(idnc,idv,iarch,ktime,ier)
-      print *,'kdate,ktime,ktau=',kdate,ktime,ktau
-      print *,'timer,timeg=',timer,timeg
-
-      print *,'now write out variables'
-
-      end if ! myid == 0 .or. local
+       endif ! iarch==1
+!      -----------------------------------------------------------      
+       print *,'outcdf processing kdate,ktime,ktau,mtimer: ',
+     .                            kdate,ktime,ktau,mtimer
+c      set time to number of minutes since start 
+       idv = ncvid(idnc,'time',ier)
+       call ncvpt1(idnc,idv,iarch,mtimer,ier)
+       idv = ncvid(idnc,'timer',ier)
+       call ncvpt1(idnc,idv,iarch,timer,ier)
+       idv = ncvid(idnc,'mtimer',ier)
+       call ncvpt1(idnc,idv,iarch,mtimer,ier)
+       idv = ncvid(idnc,'timeg',ier)
+       call ncvpt1(idnc,idv,iarch,timeg,ier)
+       idv = ncvid(idnc,'ktau',ier)
+       call ncvpt1(idnc,idv,iarch,ktau,ier)
+       idv = ncvid(idnc,'kdate',ier)
+       call ncvpt1(idnc,idv,iarch,kdate,ier)
+       idv = ncvid(idnc,'ktime',ier)
+       call ncvpt1(idnc,idv,iarch,ktime,ier)
+       print *,'kdate,ktime,ktau=',kdate,ktime,ktau
+       print *,'timer,timeg=',timer,timeg
+       print *,'now write out variables'
+      endif ! myid == 0 .or. local
 
       if(ktau==0.or.itype==-1)then  ! also for restart file
 !       write time-invariant fields      
@@ -826,7 +808,7 @@ c     set time to number of minutes since start
          aa(iq)=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
         enddo
         call histwrt3(aa,'wetfrac',idnc,iarch,local)
-      endif ! (ktau==0) 
+      endif ! (ktau==0.or.itype==-1) 
 
       call histwrt3(zs,'zht',idnc,iarch,local)   ! always from 13/9/02
       call histwrt3(psl,'psf',idnc,iarch,local)
@@ -850,12 +832,12 @@ c     set time to number of minutes since start
       call histwrt3(wb(1,6),'wb6',idnc,iarch,local)
       do iq=1,ifull
 !      calculate wb/field_capacity;  up to 3.0 for sand (isoil=1)	   
-	isoil=isoilm(iq)
-	aa(iq)=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2))/
+       isoil=isoilm(iq)
+       aa(iq)=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2))/
      .	       ((zse(1)+zse(2))*sfc(isoil))
-	bb(iq)=(zse(3)*wb(iq,3)+zse(4)*wb(iq,4))/
+       bb(iq)=(zse(3)*wb(iq,3)+zse(4)*wb(iq,4))/
      .	       ((zse(3)+zse(4))*sfc(isoil))
-	cc(iq)=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)+
+       cc(iq)=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)+
      .         zse(4)*wb(iq,4)+zse(5)*wb(iq,5)+zse(6)*wb(iq,6))/
      .	       ((zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6))*sfc(isoil))
       enddo
@@ -863,6 +845,7 @@ c     set time to number of minutes since start
       call histwrt3(bb,'wbfroot',idnc,iarch,local)
       call histwrt3(cc,'wbftot',idnc,iarch,local)
       call histwrt3(sicedep,'siced',idnc,iarch,local)
+      call histwrt3(fracice,'fracice',idnc,iarch,local)
       call histwrt3(snowd,'snd',idnc,iarch,local)
       
       if(ktau>0.and.nwt.ne.nperday.and.itype.ne.-1)then  ! reinstated July '05
@@ -880,12 +863,14 @@ c     set time to number of minutes since start
       call histwrt3(runoff,'runoff',idnc,iarch,local)
       call histwrt3(tpan,'tpan',idnc,iarch,local)
       
-      if(ktau>0.and.itype.ne.-1)then  ! these not writeen to restart file
+      if(ktau>0.and.itype.ne.-1)then  ! these not written to restart file
        if(mod(ktau,nperday)==0.or.ktau==ntau)then  ! only write once per day
          rndmax(:)=rndmax(:)*86400./dt ! scale up to mm/day
          call histwrt3(rndmax,'maxrnd',idnc,iarch,local)
          call histwrt3(tmaxscr,'tmaxscr',idnc,iarch,local)
          call histwrt3(tminscr,'tminscr',idnc,iarch,local)
+         call histwrt3(rhmaxscr,'rhmaxscr',idnc,iarch,local)
+         call histwrt3(rhminscr,'rhminscr',idnc,iarch,local)
          call histwrt3(u10max,'u10max',idnc,iarch,local)
          call histwrt3(v10max,'v10max',idnc,iarch,local)
 !        if writes done more than once per day, 
@@ -934,9 +919,9 @@ c         print *,'before corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
            do iq=1,ilt*jlt        
             tr(iq,k,ngas+1)=tr(iq,k,ngas+1)-alat(iq)
             tr(iq,k,ngas+2)=tr(iq,k,ngas+2)-along(iq)
-	     if(tr(iq,k,ngas+2)>180.)
+            if(tr(iq,k,ngas+2)>180.)
      &                         tr(iq,k,ngas+2)=tr(iq,k,ngas+2)-360.
-	     if(tr(iq,k,ngas+2)<-180.)
+            if(tr(iq,k,ngas+2)<-180.)
      &                         tr(iq,k,ngas+2)=tr(iq,k,ngas+2)+360.
             tr(iq,k,ngas+3)=tr(iq,k,ngas+3)-.01*ps(iq)*sig(k)  ! in hPa
            enddo
@@ -948,7 +933,7 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
           call histwrt4(tr(1:ifull,:,ngas+2),'del_lon',idnc,iarch,local)
           call histwrt4(tr(1:ifull,:,ngas+3),'del_p',idnc,iarch,local)
          endif  ! nextout>=4
- 	endif    ! (mod(ktau,nperday)==0.or.ktau==ntau)
+       endif    ! (mod(ktau,nperday)==0.or.ktau==ntau)
        if(mod(ktau,nperavg)==0.or.ktau==ntau)then 
 !        only write these once per avg period
          call histwrt3(tscr_ave,'tscr_ave',idnc,iarch,local)
@@ -980,8 +965,8 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
        call histwrt3(tauy,'tauy',idnc,iarch,local)
 c      "extra" outputs
        if(nextout>=1) then
-         if ( myid == 0 ) print *,'nextout, idnc: ',nextout,idnc
-	  if(mod(ktau,nperavg)==0.or.ktau==ntau)then
+         if(myid == 0 ) print *,'nextout, idnc: ',nextout,idnc
+         if(mod(ktau,nperavg)==0.or.ktau==ntau)then
            call histwrt3(rtu_ave,'rtu_ave',idnc,iarch,local)
            call histwrt3(rtc_ave,'rtc_ave',idnc,iarch,local)
            call histwrt3(rgdn_ave,'rgdn_ave',idnc,iarch,local)
@@ -992,21 +977,21 @@ c      "extra" outputs
            call histwrt3(soc_ave,'soc_ave',idnc,iarch,local)
            call histwrt3(sgdn_ave,'sgdn_ave',idnc,iarch,local)
            call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local)
-	  endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
+         endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
          call histwrt3(dpsdt,'dpsdt',idnc,iarch,local)
          call histwrt3(pblh,'pblh',idnc,iarch,local)
          call histwrt3(ustar,'ustar',idnc,iarch,local)
        endif   ! nextout>=1
       endif    ! (ktau>0.and.itype.ne.-1)
 
-      if ( myid == 0 ) print *,'netcdf save of 3d variables'
+      if(myid == 0 ) print *,'netcdf save of 3d variables'
       call histwrt4(t(1:ifull,:),'temp',idnc,iarch,local)
       call histwrt4(u(1:ifull,:),'u',idnc,iarch,local)
       call histwrt4(v(1:ifull,:),'v',idnc,iarch,local)
       do k=1,kl
-	do iq=1,ifull
-	 tmpry(iq,k)=ps(iq)*dpsldt(iq,k)
-	enddo
+       do iq=1,ifull
+        tmpry(iq,k)=ps(iq)*dpsldt(iq,k)
+       enddo
       enddo
       call histwrt4(tmpry,'omega',idnc,iarch,local)  ! 3d variable
       call histwrt4(qg(1:ifull,:),'mixr',idnc,iarch,local)
@@ -1017,7 +1002,7 @@ c      "extra" outputs
       endif
       if(ngas>0)then 
        do igas=1,ngas
-	 write(numba,'(i2.2)') igas
+        write(numba,'(i2.2)') igas
         call histwrt4(tr(1:ilt*jlt,:,igas),'tr'//numba,idnc,iarch,local)
        enddo ! igas loop
       endif  ! (ngasc>0)
@@ -1061,17 +1046,17 @@ c=======================================================================
       integer, parameter :: vtype = ncshort
 
       idv = ncvdef(cdfid, name, vtype, ndim, dim, ier)
-      if ( ier.ne.0 ) then
-        print*, ier,' Error in variable declaration ', name
+      if(ier.ne.0)then
+        write(0,*) ier,' Error in variable declaration ', name
         stop
-      end if
+      endif
 
       call ncaptc(cdfid,idv,'long_name',ncchar,len_trim(lname),lname,
      &            ier)
       if(len_trim(units).ne.0)then
         call ncaptc(cdfid,idv,'units',ncchar,len_trim(units),units,ier)
-      end if
-      if ( vtype == ncshort ) then
+      endif
+      if(vtype == ncshort)then
         call ncapt(cdfid,idv,'valid_min'    ,ncshort,1,minv,ier)
         call ncapt(cdfid,idv,'valid_max'    ,ncshort,1,maxv,ier)
         call ncapt(cdfid,idv,'missing_value',ncshort,1,missval,ier)
@@ -1080,7 +1065,7 @@ c=======================================================================
         addoff=xmin-scalef*minv
         call ncapt(cdfid,idv,'add_offset',ncfloat,1,addoff,ier)
         call ncapt(cdfid,idv,'scale_factor',ncfloat,1,scalef,ier)
-      end if
+      endif
       call ncaptc(cdfid,idv,'FORTRAN_format',ncchar,5,'G11.4',ier)
       if(daily>0)then
         call ncaptc(cdfid,idv,'valid_time',ncchar,5,'daily',ier) 
@@ -1111,14 +1096,14 @@ c     character*8 sname
       real addoff, pvar, scale_f, varn, varx, xmax, xmin
       real, dimension(ifull_g) :: globvar
 
-      if ( local ) then
+      if(local)then
          start = (/ 1, 1, iarch /)
          count = (/ il, jl, 1 /)
          mid = ncvid(idnc,sname,ier)
 
 !        Check variable type
          ier = nf_inq_vartype(idnc, mid, vtype)
-         if ( vtype == ncshort ) then
+         if(vtype == ncshort)then
             call ncagt(idnc,mid,'add_offset',addoff,ier)
             call ncagt(idnc,mid,'scale_factor',scale_f,ier)
 
@@ -1135,12 +1120,14 @@ c     character*8 sname
             call ncvpt(idnc, mid, start, count, ipack, ier)
          else
             call ncvpt(idnc, mid, start, count, var, ier)
-         end if
-         if(ier.ne.0)stop "in histwrt3 ier not zero"
-
+         endif
+         if(ier.ne.0)then
+           write(0,*) "in histwrt3 ier not zero"
+           stop
+         endif
       else
 
-      if ( myid == 0 ) then
+      if(myid == 0)then
          call ccmpi_gather(var, globvar)
          start(1) = 1
          start(2) = 1
@@ -1154,12 +1141,12 @@ c find variable index
 
 !        Check variable type
          ier = nf_inq_vartype(idnc, mid, vtype)
-         if ( vtype == ncshort ) then
+         if(vtype == ncshort)then
             call ncagt(idnc,mid,'add_offset',addoff,ier)
             call ncagt(idnc,mid,'scale_factor',scale_f,ier)
 
             xmin=addoff+scale_f*minv
-!     xmax=xmin+scale_f*float(maxv-minv)
+!           xmax=xmin+scale_f*float(maxv-minv)
             xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
 
             do iq=1,ifull_g
@@ -1171,13 +1158,16 @@ c find variable index
             call ncvpt(idnc, mid, start, count, ipack, ier)
          else
             call ncvpt(idnc, mid, start, count, globvar, ier)
-         end if
-         if(ier.ne.0)stop "in histwrt3 ier not zero"
+         endif
+         if(ier.ne.0)then
+           write(0,*) "In histwrt3 ier not zero"
+           stop
+         endif
       else
          call ccmpi_gather(var)
-      end if
+      endif
 
-      if ( myid==0 .and. mod(ktau,nmaxpr)==0 ) then
+      if(myid==0 .and. mod(ktau,nmaxpr)==0)then
          varn = minval(globvar)
          varx = maxval(globvar)
          ! This should work ???? but sum trick is more portable???
@@ -1193,8 +1183,8 @@ c find variable index
          write(6,'("histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)')
      &             sname,iarch,varn,imn,jmn,varx,imx,jmx,
      &             globvar(id+(jd-1)*il_g)
-      end if
-      end if ! local
+      endif
+      endif ! local
 
       return
       end ! histwrt3
@@ -1223,7 +1213,7 @@ c     character*8 sname
       real, dimension(ifull_g,kl) :: globvar
       integer, dimension(2) :: max_result
 
-      if ( local ) then
+      if(local)then
          start = (/ 1, 1, 1, iarch /)
          count = (/ il, jl, kl, 1 /)
 
@@ -1231,7 +1221,7 @@ c find variable index
          mid = ncvid(idnc,sname,ier)
 !        Check variable type
          ier = nf_inq_vartype(idnc, mid, vtype)
-         if ( vtype == ncshort ) then
+         if(vtype == ncshort)then
             call ncagt(idnc,mid,'add_offset',addoff,ier)
             call ncagt(idnc,mid,'scale_factor',scale_f,ier)
 
@@ -1248,10 +1238,10 @@ c find variable index
             call ncvpt(idnc, mid, start, count, ipack, ier)
          else
             call ncvpt(idnc, mid, start, count, var, ier)
-         end if
+         endif
 
       else ! not local
-      if ( myid == 0 ) then
+      if(myid == 0)then
          call ccmpi_gather(var, globvar)
          start(1) = 1
          start(2) = 1
@@ -1266,7 +1256,7 @@ c find variable index
          mid = ncvid(idnc,sname,ier)
 !        Check variable type
          ier = nf_inq_vartype(idnc, mid, vtype)
-         if ( vtype == ncshort ) then
+         if(vtype == ncshort)then
             call ncagt(idnc,mid,'add_offset',addoff,ier)
             call ncagt(idnc,mid,'scale_factor',scale_f,ier)
 
@@ -1283,12 +1273,12 @@ c find variable index
             call ncvpt(idnc, mid, start, count, ipack, ier)
          else
             call ncvpt(idnc, mid, start, count, globvar, ier)
-         end if
+         endif
       else
          call ccmpi_gather(var)
-      end if
+      endif
 
-      if ( myid==0 .and. mod(ktau,nmaxpr)==0 ) then
+      if(myid==0 .and. mod(ktau,nmaxpr)==0)then
          varn = minval(globvar)
          varx = maxval(globvar)
          max_result = maxloc(globvar)
@@ -1299,8 +1289,8 @@ c find variable index
          jmx = 1 + (iq-1)/il_g
          write(6,'("histwrt4 ",a7,i4,2f12.4,3i4)')
      &         sname,iarch,varn,varx,imx,jmx,kmx
-      end if
-      end if ! local
+      endif
+      endif ! local
 
       return
       end ! histwrt4
@@ -1311,7 +1301,10 @@ c find variable index
       data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
       common/leap_yr/leap  ! 1 to allow leap years
  
-      if(leap.ne.0)stop 'leap years not catered for in mtimerget'
+      if(leap.ne.0)then     
+        write(0,*) 'leap years not catered for in mtimerget'
+        stop
+      endif
 !     Set up number of minutes from beginning of year
 !     For GCM runs assume year is <1980 (e.g. ~321-460 for 140 year run)
       jyear1=kdate1/10000

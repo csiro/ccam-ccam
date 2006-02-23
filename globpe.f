@@ -22,6 +22,7 @@
       include 'const_phys.h'
       include 'darcdf.h'   ! idnc,ncid,idifil  - stuff for netcdf
       include 'dates.h'    ! dtin,mtimer
+      include 'establ.h'
       include 'extraout.h'
       include 'filnames.h' ! list of files, read in once only
       include 'histave.h'
@@ -36,7 +37,6 @@
       include 'parm.h'
       include 'parmdyn.h'  
       include 'parmhor.h'  ! mhint, m_bs, mh_bs, nt_adv, ndept
-      include 'parm_nqg.h' ! nqg_r,nqg_set
       include 'parmvert.h'
       include 'pbl.h'      ! cduv, cdtq, tss, qg
       include 'prec.h'
@@ -50,7 +50,7 @@
       include 'soilv.h'
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
       include 'tracers.h'  ! ngas, nllp, ntrac, tr
-      include 'trcom2.h'   ! nstn,slat,slon,istn,jstn, nstn2 etc.
+      include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
       include 'vecsuv.h'
       include 'vecsuva.h'
       include 'vvel.h'     ! sdot
@@ -102,8 +102,8 @@
       real qccon, qlrad, qfrad
       common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) !leoncld etc
       real cfrac
-      real qgsav, qfgsav, qlgsav, trsav
       common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
+      real qgsav, qfgsav, qlgsav, trsav
       common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
      &             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
       real spmean(kl),div(kl),omgf(ifull,kl),pmsl(ifull)
@@ -122,41 +122,40 @@
      &     mexrest, mins_dt, mins_gmt, mspeca, mtimer_in,
      &     nalpha, newsnow, ng, nlx, nmaxprsav,
      &     nmi, npa, npb, npc, n3hr, 
-     &     nsnowout, nwrite, nwtsav, 
-     &     mins_rad, mtimer_sav, nn, i, j, iqt, ico2x, iradonx
+     &     nsnowout, nwrite, nwtsav,
+     &     mins_rad, mtimer_sav, nn, i, j
+     &     ,mstn  ! not used in 2006
       integer, dimension(8) :: nper3hr
       real clhav, cllav, clmav, cltav, con, 
      &     div_int, dsx, dtds, es, gke, hourst, hrs_dt,
      &     evapavge, precavge, preccavge, psavge,
      &     pslavge, pwater, rel_lat, rel_long, rlwup, spavge,
-     &     coslong, sinlong, coslat, sinlat, polenx, poleny, polenz,
-     &     zonx, zony, zonz, den, costh, sinth, uzon, vmer, rh1, rh2,
-     &     wbav, pwatr, pwatr_l, qtot, rh_s
+     &     pwatr, pwatr_l, qtot
       real, dimension(9) :: temparray, gtemparray ! For global sums
       integer :: nproc_in, ierr
 
       namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps,nperavg
      & ,ia,ib,ja,jb,iaero,khdif,khor,nhorjlm
      & ,m,mex,nbd,ndi,ndi2,nem,nhor,nlv
-     & ,nmaxpr,nmi,nomg,nonl,nrot,nqg,nrad,ntaft,ntsea
+     & ,nmaxpr,nmi,nomg,nonl,nrot,nrad,ntaft,ntsea
      & ,ntsur,ntvdr,nvad,nvadh,nvmix,nxmap,itr1,jtr1,itr2,jtr2,id,jd
      & ,restol,precon,kdate_s,ktime_s,leap,newtop,idcld,mup
      & ,lgwd,ngwd,rhsat
      & ,nextout,hdifmax,jalbfix
-     & ,nalpha,nqg_set
+     & ,nalpha
      & ,nstag,nstagu,ntbar,nuvfilt,nwrite
-     & ,irest,nrun,mstn,nstn,rel_lat,rel_long
-     & ,nrungcm,nsib,slat,slon,iunp,zstn,name_stn,slat2,slon2,iunp2
+     & ,irest,nrun,nstn,rel_lat,rel_long,nrungcm,nsib
+     & ,istn,jstn,iunp,nrotstn,slat,slon,zstn,name_stn
      & ,mexrest,ndept,nritch,nritch_t,nt_adv
-     & ,mfix,mfix_qg,namip,nh,npex,nhstest,nspecial,panfg,panzo
+     & ,mfix,mfix_qg,namip,amipo3,nh,npex,nhstest,nspecial,panfg,panzo
      & ,newsnow,nsnowout,newrough,newsoilm,nglacier,newztsea
      & ,epsp,epsu,epsf,epsnh
      & ,av_vmod,charnock,chn10,snmin,tss_sh,vmodmin,zobgin
      & ,rlong0,rlat0,schmidt   ! usually come in with topofile
      & ,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
-     & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,nfly,localhist
-     &,amipo3
+     & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,nfly,localhist   
+     & ,mstn,nqg   ! not used in 2006          
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -182,7 +181,6 @@
       data mexrest/6/,mins_rad/60/
       data nwrite/0/
       data nsnowout/999999/
-      include 'establ.h'
 
       ! Check that declarations in include files match
       call check_dims()
@@ -206,15 +204,16 @@
 
       ia=il/2
       ib=ia+3
-      ntbar=(kl+1)/2  ! just a default
+      ntbar=(kl+1)/4  ! just a default
 
       ! Some extra default values
       rel_lat = 0.
       rel_long = 0.
       ! All processors read the namelist, standard input doesn't work properly
-      open(unit=99,file="input",form="formatted",status="old")
+      open(99,file="input",form="formatted",status="old")
       if(myid==0)
-     &     print *,'Globpe model compiled for il,jl,kl = ',il_g,jl_g ,kl
+     &     print *,'Globpe model compiled for il,jl,kl,nproc = ',
+     &                                        il_g,jl_g ,kl,nproc 
       read (99, cardin)
       nperday =nint(24.*3600./dt)
       do n3hr=1,8
@@ -226,7 +225,7 @@
       if(nwrite==0)nwrite=nperday  ! only used for outfile IEEE
       read (99, skyin)
       kountr=nint(mins_rad*60./dt)  ! set default radiation to ~mins_rad m
-      mins_rad=nint(kountr*dt/60.) ! redefine to actual value
+      mins_rad=nint(kountr*dt/60.)  ! redefine to actual value
       read (99, datafile)
       read (99, kuonml)
       
@@ -239,8 +238,8 @@
       if ( myid == 0 ) then   ! **** do namelist fixes above this ***
       print *,'Dynamics options A:'
       print *,'   m    mex   mfix  mfix_qg   mup    nh    nomg   nonl',    
-     &          '   npex' 
-      write (6,'(i5,8i7)')m,mex,mfix,mfix_qg,mup,nh,nomg,nonl,npex
+     &          '   npex  precon' 
+      write(6,'(i5,9i7)')m,mex,mfix,mfix_qg,mup,nh,nomg,nonl,npex,precon
       print *,'Dynamics options B:'
       print *,'nritch nritch_t nrot  ntbar  nxmap  epsp   epsu   epsf',
      &        '  epsnh '
@@ -293,10 +292,11 @@
       write (6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,
      &                                 rcrit_l,rcrit_s
       print *,'Radiation options:'
-      print *,' nrad  ndiur mins_rad kountr'
-      write (6,'(i5,5i7)') nrad,ndiur,mins_rad,kountr
+      print *,' nrad  ndiur mins_rad kountr  dt'
+      write (6,'(i5,3i7,f10.2)') nrad,ndiur,mins_rad,kountr,dt
 !     for 6-hourly output of sint_ave etc, want 6*60 = N*mins_rad      
-      if(mod(6*60,mins_rad).ne.0)stop 'prefer 6*60 = N*mins_rad '
+      if(nrad==4.and.mod(6*60,mins_rad).ne.0)
+     &                              stop 'prefer 6*60 = N*mins_rad '
       print *,'Diagnostic cloud options:'
       print *,'  ldr nclddia nstab_cld nrhcrit sigcll '
       write (6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,
@@ -320,8 +320,9 @@
      &    nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
       endif
       print *,'Special and test options:'
-      print *,' namip nhstest nspecial panfg panzo'
-      write (6,'(i5,2i7,f10.1,f8.4)') namip,nhstest,nspecial,panfg,panzo
+      print *,' namip amipo3 nhstest nspecial panfg panzo'
+      write (6,'(i5,L7,2i7,f10.1,f8.4)') 
+     &          namip,amipo3,nhstest,nspecial,panfg,panzo
       print *,'I/O options:'
       print *,' nfly  io_in io_nest io_out io_rest  nwt  nperavg'
       write (6,'(i5,4i7,2i8)') 
@@ -338,6 +339,7 @@
       write (6, datafile)
       write(6, kuonml)
       end if ! myid=0
+c     precon=abs(precon)
       if(newtop>2)stop 'newtop>2 no longer allowed'
       if(mfix_qg>0.and.(nkuo==4.or.nvad==44))
      &        stop 'nkuo=4,nvad=44: mfix_qg>0 not allowed'
@@ -347,7 +349,7 @@
       if(io_in<=4.and.myid==0)then
 !       open new topo file and check its dimensions
 !       here used to supply rlong0,rlat0,schmidt
-        open(unit=66,file=topofile,recl=2000,status='old')
+        open(66,file=topofile,recl=2000,status='old')
         print *,'reading topofile header'
 !       read(66,'(i3,i4,2f6.1,f5.2,f9.0,a47)')
 c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
@@ -379,8 +381,6 @@ c     set up cc geometry
      &         id,jd,con*rlongg(idjd),con*rlatt(idjd)
       end if
 
-      if(nstn>nstnmax)stop 'nstn>nstnmax'
-      if(nstn==0)mstn=0
       if ( myid == 0 ) then
          call date_and_time(rundate)
          print *,'RUNDATE IS ',rundate
@@ -390,12 +390,12 @@ c     set up cc geometry
 
 !     open input files
 !     Note that all processes read the eigenv file
-      open(unit=28,file=eigenv,status='old',form='formatted')
+      open(28,file=eigenv,status='old',form='formatted')
       if (myid==0) then
          if(io_in==2)
-     &       open(unit=10,file=ifile,form='formatted',status='old')
+     &       open(10,file=ifile,form='formatted',status='old')
          if(abs(io_in)==3)
-     &       open(unit=10,file=ifile,form='unformatted',status='old')
+     &       open(10,file=ifile,form='unformatted',status='old')
          if(abs(io_in)==1)then ! netcdf input
             idifil = ncopn ( ifile,0,ier ) ! 0 denotes read-only
             print *,'idifil,ier,ifile ',idifil,ier,ifile
@@ -450,8 +450,8 @@ c     set up cc geometry
       pwatr_l=0.   ! in mm
       do k=1,kl
         do iq=1,ifull
-	  qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
-          pwatr_l=pwatr_l-dsig(k)*wts(iq)*qtot*ps(iq)
+         qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
+         pwatr_l=pwatr_l-dsig(k)*wts(iq)*qtot*ps(iq)
         enddo
       enddo
       pwatr_l = pwatr_l/grav
@@ -467,7 +467,7 @@ c     set up cc geometry
       endif   ! (ntrac>0)
 
       if (myid == 0 ) then
-        close (10)
+        close(10)
       end if
       if(nbd.ne.0)then
          io_in=io_nest ! Needs to be seen by all processors
@@ -475,24 +475,24 @@ c     set up cc geometry
            if(abs(io_in)==1)then
              idifil = ncopn(mesonest,0,ier )  ! 0 denotes read-only
              print *,'idifil,ier,mesonest ',idifil,ier,mesonest
-	     if(ier.ne.0)then
-	       print *,'cannot open netcdf mesofile ',nf_strerror(ier)
-	       stop
-	     endif
-	   endif  ! (abs(io_in)==1)
+             if(ier.ne.0)then
+               print *,'cannot open netcdf mesofile ',nf_strerror(ier)
+               stop
+             endif
+           endif  ! (abs(io_in)==1)
            if(io_in==2)
-     &       open(unit=10,file=mesonest,form='FORMATTED',status='OLD')
+     &       open(10,file=mesonest,form='FORMATTED',status='OLD')
            if(abs(io_in)==3)
-     &       open(unit=10,file=mesonest,form='UNFORMATTED',status='OLD')
+     &       open(10,file=mesonest,form='UNFORMATTED',status='OLD')
          endif ! myid == 0
       endif !
 !     open output files; name is stored in namelist file
       if ( myid == 0 ) then
         if(io_out==2)
-     &    open(unit=20,file=ofile,form='formatted',status='unknown')
+     &    open(20,file=ofile,form='formatted',status='unknown')
         if(io_out==3)
-     &    open(unit=20,file=ofile,form='unformatted',status='unknown')
-        if(ilt>1)open(unit=37,file='tracers_latest',status='unknown')
+     &    open(20,file=ofile,form='unformatted',status='unknown')
+c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       end if ! myid == 0
 
 !     sig(kuocb) occurs for level just BELOW sigcb
@@ -522,6 +522,8 @@ c     set up cc geometry
         if (myid==0) print *,'khor,hdiff: ',khor,hdiff
       endif
 
+!     *** be careful not to choose ia,ib,ja,jb to cover more than
+!         one processor, or myid=0 may stop here!!!
       call printa('zs  ',zs,0,0,ia,ib,ja,jb,0.,.01)
       call printa('tss ',tss,0,0,ia,ib,ja,jb,200.,1.)
       if(mydiag) print *,'wb(idjd) ',(wb(idjd,k),k=1,6)
@@ -539,13 +541,15 @@ c     set up cc geometry
          write(11,*) nrun
          write(11,cardin)
          write(11,datafile)
-         close (11)
+         close(11)
       end if
       
 !     Zero/set the diagnostic arrays
       rndmax(:)=0.
       tmaxscr(:)=0.
       tminscr(:)=400.
+      rhmaxscr(:)=0.
+      rhminscr(:)=400.
       u10max(:)=0.
       v10max(:)=0.
       tscr_ave(:)=0.
@@ -580,9 +584,10 @@ c     set up cc geometry
       cll_ave(:)  = 0.
       clm_ave(:)  = 0.
       clh_ave(:)  = 0.
-	 
+ 
       if(nmi==0.and.nwt>0)then
 !       write out the first restart data set 
+        print *,'calling outfile myid= ',myid
         call outfile(20,il,jl,kl,psa,psm,rundate,nmi,nsnowout,nwrite)
         if(newtop<0)stop  ! just for outcdf to plot zs  & write fort.22
       endif    ! (nmi==0.and.nwt.ne.0)
@@ -678,56 +683,56 @@ c     if((mup.ne.1.and.mup.ne.3).or.(ktau==1.and.mspec==mspeca))then
         ubar(:,:)=u(1:ifull,:)+.5*(savu(:,:)-savu1(:,:))
         vbar(:,:)=v(1:ifull,:)+.5*(savv(:,:)-savv1(:,:))
       elseif(mex==6)then
-	 do k=2,kl
-	  do iq=1,ifull
-	   if((sign(1.,sdot(iq,k)).ne.sign(1.,savs(iq,k))).and.
+        do k=2,kl
+         do iq=1,ifull
+          if((sign(1.,sdot(iq,k)).ne.sign(1.,savs(iq,k))).and.
      &       (sign(1.,savs1(iq,k)).ne.sign(1.,savs(iq,k))))then
             sbar(iq,k)=sdot(iq,k)+.5*(savs(iq,k)-savs1(iq,k))
           else
             sbar(iq,k)=sdot(iq,k)*15./8.-savs(iq,k)*10./8.
      &                                  +savs1(iq,k)*3./8.
-	   endif  ! (sign(1.,sdot(iq,k))..
-	   if((sign(1.,u(iq,k)).ne.sign(1.,savu(iq,k))).and.
+          endif  ! (sign(1.,sdot(iq,k))..
+          if((sign(1.,u(iq,k)).ne.sign(1.,savu(iq,k))).and.
      &       (sign(1.,savu1(iq,k)).ne.sign(1.,savu(iq,k))))then
             ubar(iq,k)=u(iq,k)+.5*(savu(iq,k)-savu1(iq,k))
           else
             ubar(iq,k)=u(iq,k)*15./8.-savu(iq,k)*10./8.
      &                               +savu1(iq,k)*3./8.
-	   endif  ! (sign(1.,sdot(iq,k))..
-	   if((sign(1.,v(iq,k)).ne.sign(1.,savv(iq,k))).and.
+          endif  ! (sign(1.,sdot(iq,k))..
+          if((sign(1.,v(iq,k)).ne.sign(1.,savv(iq,k))).and.
      &       (sign(1.,savv1(iq,k)).ne.sign(1.,savv(iq,k))))then
             vbar(iq,k)=v(iq,k)+.5*(savv(iq,k)-savv1(iq,k))
           else
             vbar(iq,k)=v(iq,k)*15./8.-savv(iq,k)*10./8.
      &                               +savv1(iq,k)*3./8.
-	   endif  ! (sign(1.,sdot(iq,k))..
-	  enddo   ! iq loop
-	 enddo    ! k loop
+          endif  ! (sign(1.,sdot(iq,k))..
+         enddo   ! iq loop
+        enddo    ! k loop
       elseif(mex==7)then
-	 do k=2,kl
-	  do iq=1,ifull
-	   if((sign(1.,sdot(iq,k)).ne.sign(1.,savs(iq,k))).and.
+        do k=2,kl
+         do iq=1,ifull
+          if((sign(1.,sdot(iq,k)).ne.sign(1.,savs(iq,k))).and.
      &       (sign(1.,savs1(iq,k)).ne.sign(1.,savs(iq,k))))then
             sbar(iq,k)=sdot(iq,k)+.5*(savs(iq,k)-savs1(iq,k))
           else
             sbar(iq,k)=sdot(iq,k)
-	   endif  ! (sign(1.,sdot(iq,k))..
-	   if((sign(1.,u(iq,k)).ne.sign(1.,savu(iq,k))).and.
+          endif  ! (sign(1.,sdot(iq,k))..
+          if((sign(1.,u(iq,k)).ne.sign(1.,savu(iq,k))).and.
      &       (sign(1.,savu1(iq,k)).ne.sign(1.,savu(iq,k))))then
             ubar(iq,k)=u(iq,k)+.5*(savu(iq,k)-savu1(iq,k))
           else
             ubar(iq,k)=u(iq,k)*15./8.-savu(iq,k)*10./8.
      &                               +savu1(iq,k)*3./8.
-	   endif  ! (sign(1.,sdot(iq,k))..
-	   if((sign(1.,v(iq,k)).ne.sign(1.,savv(iq,k))).and.
+          endif  ! (sign(1.,sdot(iq,k))..
+          if((sign(1.,v(iq,k)).ne.sign(1.,savv(iq,k))).and.
      &       (sign(1.,savv1(iq,k)).ne.sign(1.,savv(iq,k))))then
             vbar(iq,k)=v(iq,k)+.5*(savv(iq,k)-savv1(iq,k))
           else
             vbar(iq,k)=v(iq,k)*15./8.-savv(iq,k)*10./8.
      &                               +savv1(iq,k)*3./8.
-	   endif  ! (sign(1.,sdot(iq,k))..
-	  enddo   ! iq loop
-	 enddo    ! k loop
+          endif  ! (sign(1.,sdot(iq,k))..
+         enddo   ! iq loop
+        enddo    ! k loop
       elseif(mex==8)then
 !       (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
         sbar(:,:)=sdot(:,2:kl)+.5*(savs(:,:)-savs1(:,:))
@@ -737,19 +742,19 @@ c     if((mup.ne.1.and.mup.ne.3).or.(ktau==1.and.mspec==mspeca))then
 !       (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
         ubar(:,:)=u(1:ifull,:)*15./8.-savu(:,:)*10./8.+savu1(:,:)*3./8.
         vbar(:,:)=v(1:ifull,:)*15./8.-savv(:,:)*10./8.+savv1(:,:)*3./8.
-	 if(mex==5)then
-	   do k=2,kl
-	    do iq=1,ifull
-	     if((sign(1.,sdot(iq,k)).ne.sign(1.,savs(iq,k))).and.
+        if(mex==5)then
+          do k=2,kl
+           do iq=1,ifull
+            if((sign(1.,sdot(iq,k)).ne.sign(1.,savs(iq,k))).and.
      &         (sign(1.,savs1(iq,k)).ne.sign(1.,savs(iq,k))))then
               sbar(iq,k)=sdot(iq,k)+.5*(savs(iq,k)-savs1(iq,k))
             else
               sbar(iq,k)=sdot(iq,k)*15./8.-savs(iq,k)*10./8.
      &                                    +savs1(iq,k)*3./8.
-	     endif
-	    enddo
-	   enddo
-	 endif
+            endif
+           enddo
+          enddo
+        endif
       endif    ! (ktau==1) .. else ..
       if(mod(ktau,nmaxpr)==0.and.mydiag)then
         nlx=max(2,nlv)  ! as savs not defined for k=1
@@ -813,12 +818,12 @@ c    &      (sign(1.,savs1(iq,3)).ne.sign(1.,savs(iq,3))))then    ! .410
       if(ngas>=1)then ! re-set trsav prior to vadv, hadv, hordif
 !       N.B. nllp arrays are after gas arrays
         do igas=1,ngas
-	  do k=1,klt
-	   do iq=1,ilt*jlt	 
+         do k=1,klt
+          do iq=1,ilt*jlt 
            trsav(iq,k,igas)=tr(iq,k,igas) ! 4D for tr conservation in adjust5
-	   enddo
-	  enddo
-	 enddo
+          enddo
+         enddo
+        enddo
       endif      ! (ngas>=1)
 
       call nonlin
@@ -857,6 +862,7 @@ c    &      (sign(1.,savs1(iq,3)).ne.sign(1.,savs(iq,3))))then    ! .410
 !!      vbar(1:ifull,:) = savv1(1:ifull,:)  ! 3D really saving savv1 in vbar here 
 
       call adjust5
+c     if(precon_in<0)precon=0
       if(mspec==1.and.nbd.ne.0)call davies  ! nesting now after mass fixers
 
       if(mspec==2)then     ! for very first step restore mass & T fields
@@ -866,10 +872,10 @@ c    &      (sign(1.,savs1(iq,3)).ne.sign(1.,savs(iq,3))))then    ! .410
         qfg(1:ifull,:)=max(qfg(1:ifull,:),0.) 
         qlg(1:ifull,:)=max(qlg(1:ifull,:),0.) 
         do k=1,kl
-	  do iq=1,ifull
-	   if(qfg(iq,k)+qlg(iq,k)<qgmin)qg(iq,k)=max(qg(iq,k),qgmin)
-	  enddo
-	 enddo
+         do iq=1,ifull
+          if(qfg(iq,k)+qlg(iq,k)<qgmin)qg(iq,k)=max(qg(iq,k),qgmin)
+         enddo
+        enddo
       endif  ! (mfix_qg==0.or.mspec==2)
 79    dt=dtin                    ! ****** end of introductory time loop
       mspeca=1
@@ -907,16 +913,16 @@ c    &      (sign(1.,savs1(iq,3)).ne.sign(1.,savs(iq,3))))then    ! .410
       if(ldr.ne.0)then
 c       print*,'Calling prognostic cloud scheme'
         call leoncld(cfrac)  !Output
-	do k=1,kl
- 	  riwp_ave(:)=riwp_ave(:)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
-	  rlwp_ave(:)=rlwp_ave(:)-qlrad(:,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
-	enddo
-	if(nmaxpr==1.and.mydiag)then
+        do k=1,kl
+         riwp_ave(:)=riwp_ave(:)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
+         rlwp_ave(:)=rlwp_ave(:)-qlrad(:,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
+        enddo
+        if(nmaxpr==1.and.mydiag)then
           write (6,"('qfrad',3p9f8.3/5x,9f8.3)") qfrad(idjd,:)
           write (6,"('qlrad',3p9f8.3/5x,9f8.3)") qlrad(idjd,:)
           write (6,"('qf   ',3p9f8.3/5x,9f8.3)") qfg(idjd,:)
-	endif
-      endif	 ! (ldr.ne.0)
+        endif
+      endif  ! (ldr.ne.0)
       rnd_3hr(:,8)=rnd_3hr(:,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
 
 !       put radiation here
@@ -924,8 +930,8 @@ c       print*,'Calling prognostic cloud scheme'
 !         Fels-Schwarzkopf radiation
           odcalc=mod(ktau,kountr)==0 .or. ktau==1 ! ktau-1 better
           nnrad=kountr
-          if(nhstest<0)then ! aquaplanet test -22  
-	    mtimer_sav=mtimer
+          if(nhstest<0)then ! aquaplanet test -1 to -8  
+           mtimer_sav=mtimer
            mtimer=mins_gmt     ! so radn scheme repeatedly works thru same day
           endif    ! (nhstest<0)
 c         rtt=0.   ! 3D before radn section
@@ -935,8 +941,8 @@ c          if(t(iq,kl)<100.)print *,'ktau,iq,tk<100 ',ktau,iq,t(iq,kl)
 c          if(t(iq,1 )<100.)print *,'ktau,iq,t1<100 ',ktau,iq,t(iq,1 )
 c         enddo
           call radrive (odcalc,iaero)
-          if(nhstest<0)then ! aquaplanet test -22  
-	    mtimer=mtimer_sav
+          if(nhstest<0)then ! aquaplanet test -1 to -8  
+            mtimer=mtimer_sav
           endif    ! (nhstest<0)
           t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:) 
           if(nmaxpr==1) then
@@ -946,14 +952,14 @@ c         enddo
              call maxmin(rtt,'rt',ktau,1.e4,kl)
              call maxmin(slwa,'sl',ktau,.1,1)
           end if
-        elseif(mod(ktau,kountr)==0.or. ktau==1)then
+        else
 !         use preset slwa array (use +ve nrad)
           slwa(:)=-10*nrad  
 !         N.B. no rtt array for this nrad option
         endif  !  if(nrad==4)
 
- 	 egg(:)=0.   ! reset for fort.60 files
-	 fgg(:)=0.   ! reset for fort.60 files
+        egg(:)=0.   ! reset for fort.60 files
+        fgg(:)=0.   ! reset for fort.60 files
         if(ntsur<=1.or.nhstest==2)then ! Held & Suarez or no surf fluxes
          eg(:)=0.
          fg(:)=0.
@@ -962,91 +968,19 @@ c         enddo
         endif     ! (ntsur<=1.or.nhstest==2) 
         if(nhstest==2)call hs_phys
         if(ntsur>1)then  ! should be better after convjlm
-	  call sflux(nalpha)
-         epan_ave = epan_ave+epan  ! 2D 
-         ga_ave = ga_ave+ga        ! 2D   
-         if(mstn==0.and.nstn>0)then ! writing station data every time step
-           coslong=cos(rlong0*pi/180.)   ! done here, where work2 has arrays
-           sinlong=sin(rlong0*pi/180.)
-           coslat=cos(rlat0*pi/180.)
-           sinlat=sin(rlat0*pi/180.)
-           polenx=-coslat
-           poleny=0.
-           polenz=sinlat
-           do nn=1,nstn
-!            Check if this station is in this processors region
-             if ( .not. mystn(nn) ) cycle 
-             if(ktau==1)write (iunp(nn),950) kdate,ktime,leap
-950          format("#",i9,2i5)
-             i=istn(nn)
-             j=jstn(nn)
-             iq=i+(j-1)*il
-             zonx=            -polenz*y(iq)
-             zony=polenz*x(iq)-polenx*z(iq)
-             zonz=polenx*y(iq)
-             den=sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )  ! allow for poles
-             costh= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
-             sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
-             uzon= costh*u(iq,1)-sinth*v(iq,1)
-             vmer= sinth*u(iq,1)+costh*v(iq,1)
-             es=establ(t(iq,1))
-             rh1=100.*qg(iq,1)*(ps(iq)*sig(1)-es)/(.622*es)
-             es=establ(t(iq,2))
-             rh2=100.*qg(iq,2)*(ps(iq)*sig(2)-es)/(.622*es)
-             es=establ(tscrn(iq))
-             rh_s=100.*qgscrn(iq)*(ps(iq)-es)/(.622*es)
-             wbav=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)
-     &        +zse(4)*wb(iq,4))/(zse(1)+zse(2)+zse(3)+zse(4))
-             ico2x=max(1,ico2)
-             iradonx=max(1,iradon)
-             iqt = min(iq,ilt*jlt) ! Avoid bounds problems if there are no tracers
-             k2=min(2,klt)
-             write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
-     &         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
-     &         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
-     &         wb(iq,1),wb(iq,2),
-     &         cloudlo(iq),cloudmi(iq)+1.,cloudhi(iq)+2.,
-     &         cloudtot(iq)+3.,
-     &         fg(iq),eg(iq),(1.-tsigmf(iq))*fgg(iq),
-     &         (1.-tsigmf(iq))*egg(iq),rnet(iq),sgsave(iq),
-     &         qg(iq,1)*1.e3,uzon,vmer,precc(iq),
-     &         qg(iq,2)*1.e3,rh1,rh2,tr(iqt,1,ico2x),tr(iqt,k2,ico2x),
-     &         tr(iqt,1,iradonx),tr(iqt,k2,iradonx) ,.01*ps(iq),wbav,
-     &         epot(iq),qgscrn(iq)*1.e3,rh_s,u10(iq),uscrn(iq)
-!              N.B. qgscrn formula needs to be greatly improved
-951          format(i4,6f7.2, 
-     &              2f7.2, 2f6.3, 4f5.2,                ! t1 ... cld
-     &              5f7.1,f6.1,f5.1,                    ! fg ... qg1
-     &              2f6.1,f7.2, f5.1,2f6.1, 2(1x,f5.1), ! uu ... co2_2
-     &              2(1x,f5.1) ,f7.1,f6.3,f7.1,5f6.1)   ! rad_1 ... rh_s
-             if(ktau==ntau)then
-               write (iunp(nn),952)
-952            format("#    tscrn  precip  tss   tgg1   tgg2   tgg3",
-     &       "    t1     tgf    wb1   wb2 cldl cldm cldh  cld",
-     &       "     fg     eg    fgg    egg    rnet   sg   qg1",
-     &       "   uu     vv   precc qg2  rh1   rh2   co2_1 co2_2",
-     &       " rad_1 rad_2  ps   wbav   epot qgscrn   rh_s  u10 uscrn")
-              isoil=isoilm(iq)
-               write (iunp(nn),953) land(iq),isoil,ivegt(iq),zo(iq),
-     &                              zs(iq)/grav
-953            format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
-               write (iunp(nn),954) sigmf(iq),swilt(isoil),sfc(isoil),
-     &                              ssat(isoil),alb(iq)
-954            format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
-               write (iunp(nn),955) i,j,ico2em(iqt),radonem(iqt)
-955            format("#i,j,ico2em,radonem: ",2i4,i6,f7.3)
-             endif
-           enddo
-         endif   ! (mstn==0.and.nstn>0)
-         if(mod(ktau,nmaxpr)==0.and.mydiag)then
+          call sflux(nalpha)
+          epan_ave = epan_ave+epan  ! 2D 
+          ga_ave = ga_ave+ga        ! 2D   
+          if(nstn>0.and.nrotstn(1)==0)call stationa ! write every time step
+          if(mod(ktau,nmaxpr)==0.and.mydiag)then
           print *
           write (6,
      .	   "('ktau =',i5,' gmt(h,m):',f6.2,i5,' runtime(h,m):',f7.2,i6)")
      .	      ktau,timeg,mins_gmt,timer,mtimer
 !         some surface (or point) diagnostics
           isoil = isoilm(idjd)
-          print *,'land,sice,isoil,ivegt,isflag ',
-     &           land(idjd),sice(idjd),isoil,ivegt(idjd),isflag(idjd)
+          print *,'land,isoil,ivegt,isflag ',
+     &           land(idjd),isoil,ivegt(idjd),isflag(idjd)
           write (6,"('snage,snowd,osnowd,alb,tsigmf   ',f8.4,4f8.2)")
      &       snage(idjd),snowd(idjd),osnowd(idjd),alb(idjd),tsigmf(idjd)
           write (6,"('sicedep,fracice,runoff ',3f8.2)")
@@ -1066,7 +1000,7 @@ c         enddo
           iq=idjd
           div_int=0.
           do k=1,kl
-	    qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
+           qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
             pwater=pwater-dsig(k)*qtot*ps(idjd)/grav
             div(k)=(u(ieu(iq),k)/emu(ieu(iq))
      &             -u(iwu(iq),k)/emu(iwu(iq))  
@@ -1075,18 +1009,19 @@ c         enddo
      &              *em(iq)**2/(2.*ds)  *1.e6
             div_int=div_int-div(k)*dsig(k)
           enddo
-          write (6,"('pwater,condc,condx,rndmax,ustar,pblh',9f8.2)")
-     &       pwater,condc(idjd),condx(idjd),rndmax(idjd),ustar(idjd),
-     &       pblh(idjd)
+          write (6,"('pwater,condc,condx,rndmax,rmc',9f8.3)")
+     &       pwater,condc(idjd),condx(idjd),rndmax(idjd),rmc(idjd)
+          write (6,"('wetfac,sno,evap,precc,precip',
+     &       6f8.2)") wetfac(idjd),sno(idjd),evap(idjd),precc(idjd),
+     &       precip(idjd)
           write (6,"('tmin,tmax,tscr,tss,tgf,tpan',9f8.2)")
      &       tminscr(idjd),tmaxscr(idjd),tscrn(idjd),tss(idjd),
      &       tgf(idjd),tpan(idjd)
+          write (6,"('u10,ustar,pblh',9f8.2)")
+     &       u10(idjd),ustar(idjd),pblh(idjd)
           write (6,"('rgg,rdg,sgflux,div_int,ps,qgscrn',5f8.2,f8.3)")
      &       rgg(idjd),rdg(idjd),sgflux(idjd),
      &       div_int,.01*ps(idjd),1000.*qgscrn(idjd)
-          write (6,"('u10,wetfac,sno,evap,precc,precip',
-     &       6f8.2)") u10(idjd),wetfac(idjd),
-     &       sno(idjd),evap(idjd),precc(idjd),precip(idjd)
           write (6,"('dew_,eg_,epot,epan,eg,fg,ga',9f8.2)") 
      &       dew_ave(idjd),eg_ave(idjd),epot(idjd),epan(idjd),eg(idjd),
      &       fg(idjd),ga(idjd)
@@ -1099,7 +1034,8 @@ c         enddo
      &       rtsave(idjd),rgsave(idjd)
           write (6,"('cll,clm,clh,clt ',9f8.2)") 
      &       cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
-          write (6,"('u10max,v10max   ',9f8.2)") u10max(iq),v10max(iq)
+          write (6,"('u10max,v10max,rhmin,rhmax   ',9f8.2)")
+     &                u10max(iq),v10max(iq),rhminscr(iq),rhmaxscr(iq)
           write (6,"('kbsav,ktsav,convpsav ',2i3,f8.4,9f8.2)")
      &                kbsav(idjd),ktsav(idjd),convpsav(idjd)
           write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
@@ -1114,20 +1050,19 @@ c         enddo
            spmean(k)=100.*qg(idjd,k)*(ps(idjd)*sig(k)-es)/(.622*es)
            spmean(k)=100.*qg(idjd,k)*(ps(idjd)*sig(k)-es)/(.622*es)
           enddo
-	   nlx=min(nlv,kl-8)
+          nlx=min(nlv,kl-8)
           write (6,"('rh(nlx+) ',9f8.2)") (spmean(k),k=nlx,nlx+8)
           write (6,"('div(nlx+)',9f8.2)") (div(k),k=nlx,nlx+8)
           write (6,"('omgf ',9f8.3/5x,9f8.3)")   ! in Pa/s
      &              ps(idjd)*omgf(idjd,:)
           write (6,"('sdot ',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
-	   if(nextout>=4)write (6,"('xlat,long,pres ',3f8.2)")
+          if(nextout>=4)write (6,"('xlat,long,pres ',3f8.2)")
      &     tr(idjd,nlv,ngas+1),tr(idjd,nlv,ngas+2),tr(idjd,nlv,ngas+3)
-         endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
- 	 endif   ! (ntsur>1)
-	 if(ntsur>=1)then ! calls vertmix but not sflux for ntsur=1
+          endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
+        endif   ! (ntsur>1)
+        if(ntsur>=1)then ! calls vertmix but not sflux for ntsur=1
           call vertmix 
-	 endif  ! (ntsur>=1)
-
+        endif  ! (ntsur>=1)
 
 !     This is the end of the physics. The next routine makes the load imbalance
 !     overhead explicit rather than having it hidden in one of the diagnostic
@@ -1145,7 +1080,7 @@ c         enddo
          nmaxpr=nmaxprsav
          nwt=nwtsav
       endif
-      if(mod(ktau,nmaxpr)==0)then
+      if(mod(ktau,nmaxpr)==0.or.ktau==ntau)then
         call maxmin(u,' u',ktau,1.,kl)
         call maxmin(v,' v',ktau,1.,kl)
         speed(:,:)=u(1:ifull,:)**2+v(1:ifull,:)**2 ! 3D
@@ -1183,14 +1118,18 @@ c         enddo
           write(6,'("g2avge ",f8.3)') spavge
         endif   ! (ngas>0)
         call maxmin(wb,'wb',ktau,1.,ms)
-!        call maxmin(tggsn,'tgg',ktau,1.,ms+3)
+!       call maxmin(tggsn,'tgg',ktau,1.,ms+3)
         call maxmin(tggsn,'tggsn',ktau,1.,3)
-        call maxmin(tgg,'tgg',ktau,1.,ms)
+        call maxmin(tgg,'tg',ktau,1.,ms)
+        call maxmin(tgf,'tf',ktau,1.,ms)
         call maxmin(tss,'ts',ktau,1.,1)
+        call maxmin(pblh,'pb',ktau,1.,1)
         call maxmin(precip,'pr',ktau,1.,1)
         call maxmin(precc,'pc',ktau,1.,1)
         call maxmin(convpsav,'co',ktau,1.,1)
-        call maxmin(sno,'sn',ktau,1.,1)      ! as mm
+        call maxmin(sno,'sn',ktau,1.,1)        ! as mm during timestep
+        call maxmin(snowflx,'sm',ktau,1.,1)    ! snow melt flux
+        call maxmin(rhscrn,'rh',ktau,1.,1)
         call maxmin(ps,'ps',ktau,.01,1)
         psavge=0.
         pslavge=0.
@@ -1253,18 +1192,20 @@ c         enddo
 !     N.B. runoff is accumulated in sflux
       tmaxscr = max(tmaxscr,tscrn)
       tminscr = min(tminscr,tscrn)
+      rhmaxscr = max(rhmaxscr,rhscrn)
+      rhminscr = min(rhminscr,rhscrn)
       rndmax = max(rndmax,condx)
       dew_ave = dew_ave-min(0.,eg)    
       eg_ave = eg_ave+eg    
       fg_ave = fg_ave+fg     
-      tscr_ave = tscr_ave+tscrn    ! take avge in outfile
+      tscr_ave = tscr_ave+tscrn 
       qscrn_ave = qscrn_ave+qgscrn 
       do iq=1,ifull
         if(u10(iq)**2>u10max(iq)**2+v10max(iq)**2)then
           spare1(iq)=max(.001,sqrt(u(iq,1)**2+v(iq,1)**2))  ! speed lev 1
           u10max(iq)=u10(iq)*u(iq,1)/spare1(iq)
           v10max(iq)=u10(iq)*v(iq,1)/spare1(iq)
-	endif
+       endif
       enddo
 
 !     section for IEEE writing out screen temperature and surface temp. - gone
@@ -1279,17 +1220,17 @@ c         enddo
           spare1(:)=max(.001,sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2))
           u10_3hr(:,n3hr)=u10(:)*u(1:ifull,1)/spare1(:)
           v10_3hr(:,n3hr)=u10(:)*v(1:ifull,1)/spare1(:)
-	   if(mod(n3hr,2)==0)then  ! 6-hourly fields done here
+          if(mod(n3hr,2)==0)then  ! 6-hourly fields done here
             tscr_6hr(:,n3hr/2)=tscrn(:)
-	     do iq=1,ifull
+            do iq=1,ifull
              es=establ(t(iq,1))
              rh1_6hr(iq,n3hr/2)=100.*qg(iq,1)*
      &                          (ps(iq)*sig(1)-es)/(.622*es)
-	     enddo
-	   endif  ! (mod(n3hr,2)==0)
+            enddo
+          endif  ! (mod(n3hr,2)==0)
         endif    ! (nextout==2)
-	 n3hr=n3hr+1
-	 if(n3hr>8)n3hr=1
+        n3hr=n3hr+1
+        if(n3hr>8)n3hr=1
       endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
 
       if(ktau==ntau.or.mod(ktau,nperavg)==0)then
@@ -1325,7 +1266,7 @@ c         enddo
       if(ktau==ntau.or.mod(ktau,nwt)==0)then
         call log_off()
         call outfile(20,il,jl,kl,psa,psm,rundate,nmi,nsnowout,nwrite)
-	 
+ 
         if(ktau==ntau.and.irest==1) then
 #ifdef simple_timer
           ! Don't include the time for writing the restart file
@@ -1333,9 +1274,9 @@ c         enddo
 #endif
 !         write restart file
           if(io_rest==2)open
-     &      (unit=19,file=restfile,form='formatted',status='unknown')
+     &      (19,file=restfile,form='formatted',status='unknown')
           if(io_rest==3)open
-     &      (unit=19,file=restfile,form='unformatted',status='unknown')
+     &      (19,file=restfile,form='unformatted',status='unknown')
           call outfile(19,il,jl,kl,psa,psm,rundate,nmi,nsnowout,nwrite)
           if(myid==0)print *,'finished writing restart file in outfile'
           close(19)
@@ -1350,11 +1291,12 @@ c         enddo
        call printa('pmsl',pmsl,ktau,0,ia,ib,ja,jb,1.e5,.01)
        call printa('prec',precip,ktau,0,ia,ib,ja,jb,0.,10.)
       endif
+      if(nstn>0.and.nrotstn(1)>0.and.mod(mtimer,60)==0)call stationb
 
       if(mod(ktau,nperavg)==0)then   
 !       produce some diags & reset most averages once every nperavg      
         precavge=0.
-	 evapavge=0.
+        evapavge=0.
         do iq=1,ifull
          precavge=precavge+precip(iq)*wts(iq)
          evapavge=evapavge+evap(iq)*wts(iq)   ! in mm/day
@@ -1376,8 +1318,6 @@ c         enddo
            print 985,pwatr,preccavge,precavge,evapavge
         end if
 985     format(' average pwatr,precc,prec,evap: ',4f7.3)
-        if(mydiag) print *,'tmaxscr,tscrn,tscr_ave ',
-     &           tmaxscr(idjd),tscrn(idjd),tscr_ave(idjd)
 !       also zero most averaged fields every nperavg
         cbas_ave(:)=0.
         ctop_ave(:)=0.
@@ -1420,7 +1360,7 @@ c         enddo
            i=istn(nn)
            j=jstn(nn)
            iq=i+(j-1)*il
-	    print 956,ktau,iunp(nn),name_stn(nn),
+           print 956,ktau,iunp(nn),name_stn(nn),
      &      rnd_3hr(iq,4),rnd_3hr(iq,8),                  ! 12 hr & 24 hr
      &      tmaxscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,
      &      tminscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,
@@ -1431,7 +1371,9 @@ c         enddo
         rndmax (:) = 0.
         tmaxscr(:) = tscrn(:) 
         tminscr(:) = tscrn(:) 
-        u10max(:)=0.
+        rhmaxscr(:) = rhscrn(:) 
+        rhminscr(:) = rhscrn(:) 
+       u10max(:)=0.
         v10max(:)=0.
         rnd_3hr(:,8)=0.       ! i.e. rnd24(:)=0.
         if(nextout>=4)call setllp ! from Nov 11, reset once per day
@@ -1492,7 +1434,7 @@ c         enddo
       end if
       if ( myid == 0 ) then
          print *,'reading data via readint from ',filename
-         open(unit=87,file=filename,status='old')
+         open(87,file=filename,status='old')
          read(87,'(i3,i4,2f6.1,f6.3,f8.0,a47)',iostat=ierr)
      &          ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
          if ( ierr == 0 ) then
@@ -1505,7 +1447,7 @@ c         enddo
          else if ( ierr < 0 ) then ! Error, so really unformatted file
             close(87)
             print *,'now doing unformatted read'
-            open(unit=87,file=filename,status='old',form='unformatted')
+            open(87,file=filename,status='old',form='unformatted')
             read(87) glob2d
             close(87)
          else ! ierr > 0
@@ -1536,7 +1478,7 @@ c         enddo
       end if
       if ( myid == 0 ) then
          print *,'reading data via readreal from ',filename
-         open(unit=87,file=filename,status='old')
+         open(87,file=filename,status='old')
          read(87,'(i3,i4,2f6.1,f6.3,f8.0,a47)',iostat=ierr)
      &          ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
          if ( ierr == 0 ) then
@@ -1549,7 +1491,7 @@ c         enddo
          else if ( ierr < 0 ) then ! Error, so really unformatted file
             close(87)
             print *,'now doing unformatted read'
-            open(unit=87,file=filename,status='old',form='unformatted')
+            open(87,file=filename,status='old',form='unformatted')
             read(87) glob2d
             close(87)
          else ! ierr > 0
@@ -1657,13 +1599,12 @@ c     endif
       include 'parm.h'
       include 'parmdyn.h'  ! nstag,epsp,epsu
       include 'parmhor.h'  ! mhint, m_bs
-      include 'parm_nqg.h'   ! nqg_r,nqg_set
       include 'parmvert.h'
       include 'scamdim.h'   ! passes npmax=ifull
       include 'soil.h'   
       include 'soilv.h'
       include 'stime.h'
-      include 'trcom2.h'  ! nstn,slat,slon,istn,jstn, nstn2 etc.
+      include 'trcom2.h'  ! nstn,slat,slon,istn,jstn etc.
       include 'vvel.h'    ! sdot
       real rlai,hc,disp,usuh,coexp,zruffs,trans,rt0us,rt1usa,rt1usb,
      &    xgsmax,xjmax0
@@ -1686,8 +1627,8 @@ c     endif
 !     Dynamics options A & B      
       data m/6/,mex/4/,mfix/1/,mfix_qg/1/,mup/1/,nh/0/,nomg/0/,nonl/0/,
      &     npex/1/
-      data nritch/407/,nritch_t/300/,nrot/1/,ntbar/6/,nxmap/0/,
-     &     epsp/1.2/,epsu/0./,epsf/0./,epsnh/0./,restol/1.e-6/,precon/0/
+      data nritch/407/,nritch_t/300/,nrot/1/,nxmap/0/,
+     &     epsp/1.1/,epsu/0./,epsf/0./,epsnh/0./,restol/2.e-7/,precon/0/
       data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/,nrunx/0/
 !     Horiz advection options
       data ndept/1/,nt_adv/7/
@@ -1719,24 +1660,22 @@ c     endif
       data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./  ! not used for ldr
       data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./  ! not used for ldr
 !     Soil, canopy, PBL options
-      data nbarewet/0/,newrough/2/,nglacier/1/,
+      data nbarewet/0/,newrough/0/,nglacier/1/,
      &     nrungcm/-1/,nsib/3/,nsigmf/1/,
      &     ntaft/2/,ntsea/6/,ntsur/6/,av_vmod/.7/,tss_sh/1./,
      &     vmodmin/2./,zobgin/.02/,charnock/.018/,chn10/.00125/
       data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
 !     Special and test options
-      data namip/0/,nhstest/0/,nspecial/0/,panfg/4./,panzo/.001/
+      data namip/0/,amipo3/.false./,nhstest/0/,nspecial/0/,
+     &     panfg/4./,panzo/.001/
 !     I/O options
       data nfly/2/,io_in/1/,io_out/1/,io_rest/1/,nperavg/-99/,nwt/-99/
       data io_clim/1/,io_spec/0/,nextout/3/,localhist/.false./
-      data amipo3/.false./
-      data nqg/12/,nqg_set/99/    
       
-      data mstn/0/,nstn/0/  
+      data nstn/0/  
       data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/,
-     &     zstn/nstnmax*0./,name_stn/nstnmax*'   '/          
-      data slat2/nstn2*-89./,slon2/nstn2*0./,iunp2/nstn2*6/             
+     &     zstn/nstnmax*0./,name_stn/nstnmax*'   '/,nrotstn/nstnmax*0/  
 
 c     initialize file names to something
       data albfile/' '/,icefile/' '/,maskfile/' '/
@@ -1841,3 +1780,421 @@ c     &     25e-5,25e-5,20e-5,15e-5,25e-5,7e-5,7e-5,7e-5,15e-5,15e-5,
 c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
 
       end
+      subroutine stationa
+      use cc_mpi
+      use diag_m
+      implicit none
+      include 'newmpar.h'
+      include 'arrays.h'   ! ts, t, u, v, psl, ps, zs
+      include 'const_phys.h'
+      include 'dates.h'    ! dtin,mtimer
+      include 'establ.h'
+      include 'extraout.h'
+      include 'map.h'      ! em, f, dpsldt, fu, fv, etc
+      include 'nsibd.h'    ! sib, tsigmf, isoilm
+      include 'morepbl.h'
+      include 'parm.h'
+      include 'pbl.h'      ! cduv, cdtq, tss, qg
+      include 'prec.h'
+      include 'screen.h'   ! tscrn etc
+      include 'sigs.h'
+      include 'soil.h'
+      include 'soilsnow.h'
+      include 'soilv.h'
+      include 'tracers.h'  ! ngas, nllp, ntrac, tr
+      include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
+      include 'vecsuv.h'
+      include 'xyzinfo.h'  ! x,y,z,wts
+      common/leap_yr/leap  ! 1 to allow leap years
+      real, dimension(ifull) :: dirad,dfgdt,degdt,wetfac,degdw,cie,
+     &                          factch,qsttg,rho,zo,aft,fh,spare1,theta,
+     &                          gamm,rg,vmod,dgdtg
+      common/work2/dirad,dfgdt,degdt,wetfac,degdw,cie,factch,qsttg,rho,
+     &     zo,aft,fh,spare1,theta,gamm,rg,vmod,dgdtg
+
+      real, dimension(ifull) :: egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,
+     &                          residf,ga,condxpr,fev,fes,fwtop,spare2
+      integer, dimension(ifull) :: ism
+      real, dimension(ifull,kl) :: dum3a,speed,spare
+      real, dimension(2*ijk-16*ifull) :: dum3
+      common/work3/egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,residf,ga,
+     &     condxpr,fev,fes,ism,fwtop,spare2,dum3,dum3a,speed,spare
+
+      real wblf,wbfice,sdepth,dum3b
+      common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
+     &              dum3b(ijk*2-2*ifull*ms-3*ifull)
+      integer i,j,iq,ico2x,iqt,iradonx,isoil,k2,leap,nn
+      real coslong, sinlong, coslat, sinlat, polenx, poleny, polenz,
+     &     zonx, zony, zonz, den, costh, sinth, uzon, vmer, rh1, rh2,
+     &     es,wbav, rh_s
+           coslong=cos(rlong0*pi/180.)   ! done here, where work2 has arrays
+           sinlong=sin(rlong0*pi/180.)
+           coslat=cos(rlat0*pi/180.)
+           sinlat=sin(rlat0*pi/180.)
+           polenx=-coslat
+           poleny=0.
+           polenz=sinlat
+           do nn=1,nstn
+!            Check if this station is in this processors region
+             if ( .not. mystn(nn) ) cycle 
+             if(ktau==1)write (iunp(nn),950) kdate,ktime,leap
+950          format("#",i9,2i5)
+             i=istn(nn)
+             j=jstn(nn)
+             iq=i+(j-1)*il
+             zonx=            -polenz*y(iq)
+             zony=polenz*x(iq)-polenx*z(iq)
+             zonz=polenx*y(iq)
+             den=sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) ) 
+             costh= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
+             sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
+             uzon= costh*u(iq,1)-sinth*v(iq,1)
+             vmer= sinth*u(iq,1)+costh*v(iq,1)
+             es=establ(t(iq,1))
+             rh1=100.*qg(iq,1)*(ps(iq)*sig(1)-es)/(.622*es)
+             es=establ(t(iq,2))
+             rh2=100.*qg(iq,2)*(ps(iq)*sig(2)-es)/(.622*es)
+             es=establ(tscrn(iq))
+             rh_s=100.*qgscrn(iq)*(ps(iq)-es)/(.622*es)
+             wbav=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)
+     &        +zse(4)*wb(iq,4))/(zse(1)+zse(2)+zse(3)+zse(4))
+             ico2x=max(1,ico2)
+             iradonx=max(1,iradon)
+             iqt = min(iq,ilt*jlt) ! Avoid bounds problems if there are no tracers
+             k2=min(2,klt)
+             write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
+     &         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
+     &         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
+     &         wb(iq,1),wb(iq,2),
+     &         cloudlo(iq),cloudmi(iq)+1.,cloudhi(iq)+2.,
+     &         cloudtot(iq)+3.,
+     &         fg(iq),eg(iq),(1.-tsigmf(iq))*fgg(iq),
+     &         (1.-tsigmf(iq))*egg(iq),rnet(iq),sgsave(iq),
+     &         qg(iq,1)*1.e3,uzon,vmer,precc(iq),
+     &         qg(iq,2)*1.e3,rh1,rh2,tr(iqt,1,ico2x),tr(iqt,k2,ico2x),
+     &         tr(iqt,1,iradonx),tr(iqt,k2,iradonx) ,.01*ps(iq),wbav,
+     &         epot(iq),qgscrn(iq)*1.e3,rh_s,u10(iq),uscrn(iq)
+!              N.B. qgscrn formula needs to be greatly improved
+951          format(i4,6f7.2, 
+     &              2f7.2, 2f6.3, 4f5.2,                ! t1 ... cld
+     &              5f7.1,f6.1,f5.1,                    ! fg ... qg1
+     &              2f6.1,f7.2, f5.1,2f6.1, 2(1x,f5.1), ! uu ... co2_2
+     &              2(1x,f5.1) ,f7.1,f6.3,f7.1,5f6.1)   ! rad_1 ... rh_s
+             if(ktau==ntau)then
+               write (iunp(nn),952)
+952            format("#    tscrn  precip  tss   tgg1   tgg2   tgg3",
+     &       "    t1     tgf    wb1   wb2 cldl cldm cldh  cld",
+     &       "     fg     eg    fgg    egg    rnet   sg   qg1",
+     &       "   uu     vv   precc qg2  rh1   rh2   co2_1 co2_2",
+     &       " rad_1 rad_2  ps   wbav   epot qgscrn   rh_s  u10 uscrn")
+              isoil=isoilm(iq)
+               write (iunp(nn),953) land(iq),isoil,ivegt(iq),zo(iq),
+     &                              zs(iq)/grav
+953            format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
+               write (iunp(nn),954) sigmf(iq),swilt(isoil),sfc(isoil),
+     &                              ssat(isoil),alb(iq)
+954            format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
+               write (iunp(nn),955) i,j,ico2em(iqt),radonem(iqt)
+955            format("#i,j,ico2em,radonem: ",2i4,i6,f7.3)
+             endif
+           enddo
+      return	    
+      end               
+      subroutine stationb  ! primarily for ICTS
+      use cc_mpi
+      use diag_m
+      implicit none
+      include 'newmpar.h'
+      include 'arrays.h'   ! ts, t, u, v, psl, ps, zs
+      include 'const_phys.h'
+      include 'dates.h'    ! dtin,mtimer
+      include 'establ.h'
+      include 'extraout.h'
+      include 'histave.h'
+      include 'liqwpar.h'  ! ifullw,qfg,qlg
+      include 'map.h'      ! em, f, dpsldt, fu, fv, etc
+      include 'nsibd.h'    ! sib, tsigmf, isoilm
+      include 'morepbl.h'
+      include 'parm.h'
+      include 'pbl.h'      ! cduv, cdtq, tss, qg
+      include 'prec.h'
+      include 'raddiag.h'
+      include 'screen.h'   ! tscrn etc
+      include 'sigs.h'
+      include 'soil.h'
+      include 'soilsnow.h'
+      include 'soilv.h'
+      include 'tracers.h'  ! ngas, nllp, ntrac, tr
+      include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
+      include 'vecsuv.h'
+      include 'xyzinfo.h'  ! x,y,z,wts
+      real cfrac
+      common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
+      real sgx,sgdnx,rgx,rgdnx,soutx,sintx,rtx
+      common/radstuff/sgx(ifull),sgdnx(ifull),rgx(ifull),rgdnx(ifull),
+     &             soutx(ifull),sintx(ifull),rtx(ifull)
+      real p(ifull,kl),tv(ifull,kl),energy(ifull,kl)
+      equivalence (tv,energy)
+      real pmsl(ifull)
+      integer i,j,iq,k,nn,kdateb,ktimeb,mtimerb,npres,iyr,imo,iday,itim
+      integer niq,nr,iqq(9)
+      real costh(9),sinth(9),energint(9),pwater(9),off,sca
+      real uzon(9,kl),vmer(9,kl)
+      real tt(9,4),uu(9,4),vv(9,4),pp(9,4),qgg(9,4)
+      real press(kl),pres(4)
+      data pres/850.,700.,500.,250./
+      real coslong, sinlong, coslat, sinlat, polenx, poleny, polenz,
+     &     zonx, zony, zonz, den, 
+     &     qtot,div,div_inte,div_intq,fa,fb
+      integer ix(15),jx(15)
+      data ix/-1,0,1,1,1,0,-1,-1, -1,0,1,1,1,0,-1/  ! clockwise from NW
+      data jx/1,1,1,0,-1,-1,-1,0, 1,1,1,0,-1,-1,-1/ ! clockwise from NW
+      call mslp(pmsl,psl,zs,t(1:ifull,:))
+      off=0.
+      sca=1.
+      tv(:,:)=t(1:ifull,:)+(.61*qg(1:ifull,:)-qfg(1:ifull,:)
+     &                             -qlg(1:ifull,:))*t(1:ifull,:)  
+      p(1:ifull,1)=zs(1:ifull)+bet(1)*tv(1:ifull,1)
+      do k=2,kl
+      p(1:ifull,k)=p(1:ifull,k-1)
+     &            +bet(k)*tv(1:ifull,k)+betm(k)*tv(1:ifull,k-1)
+      enddo    ! k  loop
+      energy(:,:)=(cp-rdry)*t(1:ifull,:)+p(:,:)+
+     &            .5*(u(1:ifull,:)**2+v(1:ifull,:)**2)
+      coslong=cos(rlong0*pi/180.)   
+      sinlong=sin(rlong0*pi/180.)
+      coslat=cos(rlat0*pi/180.)
+      sinlat=sin(rlat0*pi/180.)
+      polenx=-coslat
+      poleny=0.
+      polenz=sinlat
+      kdateb=kdate
+      ktimeb=ktime
+      mtimerb=mtimer
+!     could alter the following to update kdateb more elegantly	    
+      call datefix(kdateb,ktimeb,mtimerb)
+      iyr=kdateb/10000
+      imo=(kdateb-iyr*10000)/100
+      iday=kdateb-iyr*10000-imo*100
+      itim=ktimeb/100
+      print *,'new kdateb,ktimeb,mtimerb ',kdateb,ktimeb,mtimerb
+      print *,'new iyr,imo,iday,itim,off,sca ',iyr,imo,iday,itim,off,sca
+      do nn=1,nstn
+c      print *,'nn,iunp,mystn ',nn,iunp(nn),mystn(nn)
+!      Check if this station is in this processors region
+       if ( .not. mystn(nn) ) cycle 
+         i=istn(nn)
+         j=jstn(nn)
+         nr=nrotstn(nn)
+         iqq(1)=i+(j-1)*il
+         iqq(2)=i+ix(nr)+(j+jx(nr)-1)*il
+         iqq(3)=i+ix(nr+1)+(j+jx(nr+1)-1)*il
+         iqq(4)=i+ix(nr+2)+(j+jx(nr+2)-1)*il
+         iqq(5)=i+ix(nr+3)+(j+jx(nr+3)-1)*il
+         iqq(6)=i+ix(nr+4)+(j+jx(nr+4)-1)*il
+         iqq(7)=i+ix(nr+5)+(j+jx(nr+5)-1)*il
+         iqq(8)=i+ix(nr+6)+(j+jx(nr+6)-1)*il
+         iqq(9)=i+ix(nr+7)+(j+jx(nr+7)-1)*il
+         do niq=1,9
+          iq=iqq(niq)
+          zonx=            -polenz*y(iq)
+          zony=polenz*x(iq)-polenx*z(iq)
+          zonz=polenx*y(iq)
+          den=sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )  ! allow for poles
+          costh(niq)= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
+          sinth(niq)=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
+          do k=1,kl
+           uzon(niq,k)=costh(niq)*u(iq,k)-sinth(niq)*v(iq,k)    
+           vmer(niq,k)=sinth(niq)*u(iq,k)+costh(niq)*v(iq,k)    
+          enddo
+c 	   print *,'nn,niq,costh,sinth ',nn,niq,costh(niq),sinth(niq)
+         enddo     ! niq=1,9
+         do k=1,kl
+          write (iunp(nn),"('T         ',i6,3i3,i4,f8.0,g8.1,9f8.3)") 
+     &	         iyr,imo,iday,itim,k,off,sca,t(iqq(:),k)
+          write (iunp(nn),"('U         ',i6,3i3,i4,f8.0,g8.1,9f8.3)") 
+     &	         iyr,imo,iday,itim,k,off,sca,uzon(:,k)
+          write (iunp(nn),"('V         ',i6,3i3,i4,f8.0,g8.1,9f8.3)") 
+     &	         iyr,imo,iday,itim,k,off,sca,vmer(:,k)
+          write (iunp(nn),"('GPH       ',i6,3i3,i4,f8.0,g8.1,9f8.0)") 
+     &	         iyr,imo,iday,itim,k,off,sca,p(iqq(:),k)
+          write (iunp(nn),"('QV        ',i6,3i3,i4,f8.0,g8.1,9f8.5)") 
+     &	         iyr,imo,iday,itim,k,off,sca,qg(iqq(:),k)
+          write (iunp(nn),"('QC        ',i6,3i3,i4,f8.0,g8.1,9f8.5)") 
+     &	         iyr,imo,iday,itim,k,off,sca,qlg(iqq(:),k)
+          write (iunp(nn),"('QI        ',i6,3i3,i4,f8.0,g8.1,9f8.5)") 
+     &	         iyr,imo,iday,itim,k,off,sca,qfg(iqq(:),k)
+          write (iunp(nn),"('CLC       ',i6,3i3,i4,f8.0,g8.1,9f8.3)") 
+     &	         iyr,imo,iday,itim,k,off,sca,cfrac(iqq(:),k)
+         enddo   ! k  loop
+!        default values for 850, 700, 500, 250 (in case below ground)	  
+         uu(:,:)=-99.
+         vv(:,:)=-99.
+         tt(:,:)=-99.
+         pp(:,:)=-99.
+         qgg(:,:)=-.99
+         do niq=1,9
+          iq=iqq(niq)
+          do k=1,kl
+           press(k)=.01*sig(k)*ps(iq)  ! in hPa
+          enddo
+          k=kl-1
+          npres=4
+22        k=k-1
+          if(pres(npres)<press(k-1))then  ! e.g. 250>press(k)
+!	    just use linear interpolation
+            fa=(press(k-1)-pres(npres))/(press(k-1)-press(k))
+            fb=1.-fa
+            tt(niq,npres)=fa*t(iq,k)+fb*t(iq,k-1)
+            uu(niq,npres)=fa*uzon(niq,k)+fb*uzon(niq,k-1)
+            vv(niq,npres)=fa*vmer(niq,k)+fb*vmer(niq,k-1)
+            pp(niq,npres)=fa*p(iq,k)+fb*p(iq,k-1)
+            qgg(niq,npres)=fa*qg(iq,k)+fb*qg(iq,k-1)
+c	    if(nn<3.and.niq==1)then
+c             print *,'k,npres,pres,press ',k,npres,pres(npres),press(k)
+c             print *,'fa,fb,pp,pk,pk-1 ',
+c    &          fa,fb,pp(niq,npres),p(niq,k),p(niq,k-1)
+c           endif
+            npres=npres-1
+          endif
+          if(k>2.and.npres>0)go to 22  
+         enddo   ! niq loop
+         write (iunp(nn),"('T         ',i6,3i3,' 850',f8.0,g8.1,9f8.3)") 
+     &	  iyr,imo,iday,itim,off,sca,tt(:,1)
+         write (iunp(nn),"('U         ',i6,3i3,' 850',f8.0,g8.1,9f8.3)") 
+     &	  iyr,imo,iday,itim,off,sca,uu(:,1)
+         write (iunp(nn),"('V         ',i6,3i3,' 850',f8.0,g8.1,9f8.3)") 
+     &	  iyr,imo,iday,itim,off,sca,vv(:,1)
+         write (iunp(nn),"('GPH       ',i6,3i3,' 850',f8.0,g8.1,9f8.0)")
+     &	  iyr,imo,iday,itim,off,sca,pp(:,1)
+         write (iunp(nn),"('QV        ',i6,3i3,' 850',f8.0,g8.1,9f8.5)")
+     &	  iyr,imo,iday,itim,off,sca,qgg(:,1)
+         write (iunp(nn),"('T         ',i6,3i3,' 700',f8.0,g8.1,9f8.3)") 
+     &	  iyr,imo,iday,itim,off,sca,tt(:,2)
+         write (iunp(nn),"('U         ',i6,3i3,' 700',f8.0,g8.1,9f8.3)") 
+     &	  iyr,imo,iday,itim,off,sca,uu(:,2)
+         write (iunp(nn),"('V         ',i6,3i3,' 700',f8.0,g8.1,9f8.3)") 
+     &	  iyr,imo,iday,itim,off,sca,vv(:,2)
+         write (iunp(nn),"('GPH       ',i6,3i3,' 700',f8.0,g8.1,9f8.0)") 
+     &	  iyr,imo,iday,itim,off,sca,pp(:,2)
+         write (iunp(nn),"('QV        ',i6,3i3,' 700',f8.0,g8.1,9f8.5)") 
+     &	  iyr,imo,iday,itim,off,sca,qgg(:,2)
+         write (iunp(nn),"('T         ',i6,3i3,' 500',f8.0,g8.1,9f8.3)") 
+     &	  iyr,imo,iday,itim,off,sca,tt(:,3)
+         write (iunp(nn),"('U         ',i6,3i3,' 500',f8.0,g8.1,9f8.3)") 
+     &	  iyr,imo,iday,itim,off,sca,uu(:,3)
+         write (iunp(nn),"('V         ',i6,3i3,' 500',f8.0,g8.1,9f8.3)") 
+     &	  iyr,imo,iday,itim,off,sca,vv(:,3)
+         write (iunp(nn),"('GPH       ',i6,3i3,' 500',f8.0,g8.1,9f8.0)")
+     &	  iyr,imo,iday,itim,off,sca,pp(:,3)
+         write (iunp(nn),"('QV        ',i6,3i3,' 500',f8.0,g8.1,9f8.5)")
+     &	  iyr,imo,iday,itim,off,sca,qgg(:,3)
+         write (iunp(nn),"('T         ',i6,3i3,' 250',f8.0,g8.1,9f8.3)") 
+     &	  iyr,imo,iday,itim,off,sca,tt(:,4)
+         write (iunp(nn),"('U         ',i6,3i3,' 250',f8.0,g8.1,9f8.3)") 
+     &	  iyr,imo,iday,itim,off,sca,uu(:,4)
+         write (iunp(nn),"('V         ',i6,3i3,' 250',f8.0,g8.1,9f8.3)") 
+     &	  iyr,imo,iday,itim,off,sca,vv(:,4)
+         write (iunp(nn),"('GPH       ',i6,3i3,' 250',f8.0,g8.1,9f8.0)")
+     &	  iyr,imo,iday,itim,off,sca,pp(:,4)
+         write (iunp(nn),"('QV        ',i6,3i3,' 250',f8.0,g8.1,9f8.5)") 
+     &	  iyr,imo,iday,itim,off,sca,qgg(:,4)
+
+         do niq=1,9
+          iq=iqq(niq)
+          pwater(niq)=0.   ! in mm
+          energint(niq)=0.   ! in mm
+          do k=1,kl
+           qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
+           pwater(niq)=pwater(niq)-dsig(k)*qtot*ps(iq)/grav
+           energint(niq)=energint(niq)-dsig(k)*energy(iq,k)*ps(iq)/grav
+          enddo  ! k   loop
+         enddo   ! niq loop
+!        integ div terms, just for niq=1	  
+         iq=iqq(1)
+         div_intq=0.
+         div_inte=0.
+         do k=1,kl
+          div=(qg(iq+1,k)*u(iq+1,k)/emu(iq+1)
+     &        -qg(iq-1,k)*u(iq-1,k)/emu(iq-1)  
+     &        +qg(iq+il,k)*v(iq+il,k)/emv(iq+il)
+     &        -qg(iq-il,k)*v(iq-il,k)/emv(iq-il)) 
+     &              *em(iq)**2/(2.*ds)  *1.e6
+          div_intq=div_intq-div*dsig(k)*ps(iq)/grav
+          div=(energy(iq+1,k)*u(iq+1,k)/emu(iq+1)
+     &        -energy(iq-1,k)*u(iq-1,k)/emu(iq-1)  
+     &        +energy(iq+il,k)*v(iq+il,k)/emv(iq+il)
+     &        -energy(iq-il,k)*v(iq-il,k)/emv(iq-il)) 
+     &              *em(iq)**2/(2.*ds)  
+          div_inte=div_inte-div*dsig(k)*ps(iq)/grav
+        enddo  ! k   loop
+         write (iunp(nn),"('CLCT      ',i6,3i3,'   1',f8.0,g8.1,9f8.3)") 
+     &	         iyr,imo,iday,itim,off,sca,cloudtot(iqq(:)) 
+         write (iunp(nn),"('DZ_PBL    ',i6,3i3,'   1',f8.0,g8.1,9f8.1)") 
+     &	         iyr,imo,iday,itim,off,sca,pblh(iqq(:))
+         write (iunp(nn),"('EVAP_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.3)") 
+     &	         iyr,imo,iday,itim,off,sca,evap(iqq(:))
+         write(iunp(nn),"('IDIV_ENERG',i6,3i3,'   1',f8.0,2f8.0,8g8.1)") 
+     &	         iyr,imo,iday,itim,off,sca,div_inte,(1.e20,k=2,9) ! niq=1 
+         write(iunp(nn),"('IDIV_WATER',i6,3i3,'   1',f8.0,2f8.1,8g8.1)") 
+     &	         iyr,imo,iday,itim,off,sca,div_intq,(1.e20,k=2,9) ! niq=1 
+         sca=1.e9
+         write(iunp(nn),"('IENERGY ',i8,3i3,'   1',f8.0,g8.1,-9p9f8.5)")
+     &	         iyr,imo,iday,itim,off,sca,energint(:)
+         sca=1.
+c        if(nn<6)print *,'energint ',energint
+         write (iunp(nn),"('ISOILW    ',i6,3i3,'   1',f8.0,g8.1,9f8.3)")
+     &	   iyr,imo,iday,itim,off,sca,
+     &                  wb(iqq(:),1)*zse(1)+wb(iqq(:),2)*zse(2)+
+     &                  wb(iqq(:),3)*zse(3)+wb(iqq(:),4)*zse(4)+
+     &                  wb(iqq(:),5)*zse(5)+wb(iqq(:),6)*zse(6)  !  check
+         write (iunp(nn),"('IWATER    ',i6,3i3,'   1',f8.0,g8.1,9f8.3)")
+     &	         iyr,imo,iday,itim,off,sca,pwater(:)
+         write (iunp(nn),"('PMSL      ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
+     &	         iyr,imo,iday,itim,off,sca,pmsl(iqq(:))*.01
+         write (iunp(nn),"('PS        ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
+     &	         iyr,imo,iday,itim,off,sca,ps(iqq(:))*.01
+         write (iunp(nn),"('QV_2M     ',i6,3i3,'   1',f8.0,g8.1,9f8.5)") 
+     &	         iyr,imo,iday,itim,off,sca,qgscrn(iqq(:))
+         write (iunp(nn),"('RELHUM_2M ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
+     &	         iyr,imo,iday,itim,off,sca,rhscrn(iqq(:))
+c     &	         rh_s(:)
+         write (iunp(nn),"('RUNOFF    ',i6,3i3,'   1',f8.0,g8.1,9f8.3)")
+     &	         iyr,imo,iday,itim,off,sca,runoff(iqq(:))
+         write (iunp(nn),"('T_2M      ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
+     &	         iyr,imo,iday,itim,off,sca,tscrn(iqq(:))
+         write (iunp(nn),"('T_SKIN    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
+     &	         iyr,imo,iday,itim,off,sca,tss(iqq(:))
+         write (iunp(nn),"('TMAX_2M   ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
+     &	         iyr,imo,iday,itim,off,sca,tmaxscr(iqq(:))
+         write (iunp(nn),"('TMIN_2M   ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
+     &	         iyr,imo,iday,itim,off,sca,tminscr(iqq(:))
+         write (iunp(nn),"('TOT_PREC  ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
+     &	         iyr,imo,iday,itim,off,sca,precip(iqq(:))
+         write (iunp(nn),"('VABS_10M  ',i6,3i3,'   1',f8.0,g8.1,9f8.3)")
+     &	         iyr,imo,iday,itim,off,sca,u10(iqq(:))
+         write (iunp(nn),"('W_SNOW    ',i6,3i3,'   1',f8.0,g8.1,9f8.3)") 
+     &	         iyr,imo,iday,itim,off,sca,snowd(iqq(:))*.001  ! converts mm to m
+         write (iunp(nn),"('SWUP_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
+     &	         iyr,imo,iday,itim,off,sca,sgdnx(iqq(:))-sgx(iqq(:)) 
+         write (iunp(nn),"('SWDOWN_S  ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
+     &	         iyr,imo,iday,itim,off,sca,sgdnx(iqq(:))
+         write (iunp(nn),"('LWUP_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
+     &	         iyr,imo,iday,itim,off,sca,rgdnx(iqq(:))+rgx(iqq(:))
+         write (iunp(nn),"('LWDOWN_S  ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
+     &	         iyr,imo,iday,itim,off,sca,rgdnx(iqq(:))
+         write (iunp(nn),"('SWUP_T    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
+     &	         iyr,imo,iday,itim,off,sca,soutx(iqq(:))  
+         write (iunp(nn),"('SWDOWN_T  ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
+     &	         iyr,imo,iday,itim,off,sca,sintx(iqq(:))
+         write (iunp(nn),"('LWUP_T    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
+     &	         iyr,imo,iday,itim,off,sca,rtx(iqq(:))  
+         write (iunp(nn),"('SHFL_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
+     &	         iyr,imo,iday,itim,off,sca,fg(iqq(:))
+         write (iunp(nn),"('LHFL_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
+     &	         iyr,imo,iday,itim,off,sca,eg(iqq(:))
+         write (iunp(nn),"('SMHFL     ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
+     &	         iyr,imo,iday,itim,off,sca,snowflx(iqq(:))
+      enddo   ! nn=1,nstn
+      return    
+      end               

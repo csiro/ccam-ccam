@@ -512,14 +512,6 @@ c         if(i.eq.(il+1)/2.and.j.eq.(il+1)/2)print *,'xx,yy: ',xx,yy
          y(iq)=yin*schmidt*(1.+alf)/(1.+alf*zin)
          z(iq)=(alf+zin)/(1.+alf*zin)
          em(iq)=em(iq)*schmidt*(1.+alf*zin)/(1.-alf)
-c        do n=0,npanels
-c         iqcc=ind((il+1)/2,(il+1)/2,n)
-c         if(iq.eq.iqcc)then
-c           print *,'After Schmidt at centre of face n:',n
-c           print '('' xin,yin,zin,x,y,z ''3f7.3,2x,3f7.3)',
-c    .                 xin,yin,zin,x(iq),y(iq),z(iq)
-c         endif
-c        enddo  ! n loop
         enddo   ! iq loop
 
         do iq=1,ifull
@@ -741,21 +733,21 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
         print *,'At centre of the faces:'
         do n=0,npanels
          iq=ind((il+1)/2,(il+1)/2,n)
-         print '('' n,iq,x,y,z,long,lat,f ''i3,i5,3f7.3,2f8.2,f9.5)',n,
+         print '('' n,iq,x,y,z,long,lat,f ''i2,i7,3f7.3,2f8.2,f9.5)',n,
      .     iq,x(iq),y(iq),z(iq),
      .     rlongg(iq)*180./pi,rlatt(iq)*180./pi,f(iq)
         enddo
         print *,'At mid-x along edges:'
         do n=0,npanels
          iq=ind((il+1)/2,1,n)
-         print '('' n,iq,x,y,z,long,lat,f ''i3,i5,3f7.3,2f8.2,f9.5)',n,
+         print '('' n,iq,x,y,z,long,lat,f ''i2,i7,3f7.3,2f8.2,f9.5)',n,
      .     iq,x(iq),y(iq),z(iq),
      .     rlongg(iq)*180./pi,rlatt(iq)*180./pi,f(iq)
         enddo
         print *,'At mid-y along edges:'
         do n=0,npanels
          iq=ind(1,(il+1)/2,n)
-         print '('' n,iq,x,y,z,long,lat,f ''i3,i5,3f7.3,2f8.2,f9.5)',n,
+         print '('' n,iq,x,y,z,long,lat,f ''i2,i7,3f7.3,2f8.2,f9.5)',n,
      .     iq,x(iq),y(iq),z(iq),
      .     rlongg(iq)*180./pi,rlatt(iq)*180./pi,f(iq)
         enddo
@@ -823,7 +815,7 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
 	      imax=i
 	    endif
 	  enddo
-	  print *,'ratio for j=il/2 on npanel ',n
+	  print *,'em ratio for j=il/2 on npanel ',n
          write (6,"(12f6.3)")
      &         (em(ind(i,il/2,n))/em(ie(ind(i,il/2,n))),i=1,il)
 	 enddo

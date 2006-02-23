@@ -5,22 +5,17 @@
       use cc_mpi, only : mydiag
       use diag_m
       implicit none
-      integer itn,iq,k,k13,k23,kb,kbsav_ls,kb_sav,kcl_top
-     .       ,khalf,khalfd,khalfp,kt,kt_sav,ktmax
+      integer itn,iq,k,k13,k23,kb,kcl_top
+     .       ,khalf,khalfd,khalfp,kt
      .       ,nalfs,nfluxq,nfluxdsk,nlayers,nlayersd,nlayersp
      .       ,ntest,ntr,nums
-      real Aev,Asb,alfcon,alfq,alfs,alfqarr,alfsarr
-     .    ,conrev,convmax,convtimx,delq,dels,deltaq,delq_av,delt_av
-     .    ,den1,den2,den3,detr,dprec,dqrx,dqsdt
-     .    ,es,entrainp,entrr,entrradd
-     .    ,facuv,fldow,fldownn
-     .    ,fluxq,fluxr,fluxb,flux_dsk,fluxup,fluxt
-     .    ,frac,fraca,fracb,gam,hbas,hbase,heatlev,hs
-     .    ,pwater,pwater0,qavg,qavgb,qbas,qbase,qdown,qentrr,qliqw,qprec
-     .    ,qq,qs,qsk,qxcess
-     .    ,rkmid,rnrt,rnrtc,rnrtcn
-     .    ,s,savg,savgb,sbas,sbase,sentrr,sum
-     .    ,tm,totprec,tt,tdown,veldt
+      real Aev,Asb,alfcon,alfq,alfs,cfraclim
+     .    ,convmax,convtimx,deltaq,delq_av,delt_av
+     .    ,den1,den2,den3,detr,dprec,dqrx,dskm
+     .    ,entrainp,entrr,entrradd,facuv,fldownn,fluxup
+     .    ,frac,fraca,fracb,gam,hbas,hbase,heatlev
+     .    ,pwater,pwater0,qavg,qavgb,qbas,qentrr,qprec,qsk,rkmid
+     .    ,savg,savgb,sbas,sentrr,sum,tm,totprec,veldt
      
      .    ,rKa,Dva,cfls,cflscon,rhodz,qpf,pk,Apr,Bpr,Fr,rhoa,dz,Vr
      .    ,dtev,qr,qgdiff,Cev2,qr2,Cevx,alphal,blx,evapls,revq
@@ -63,23 +58,19 @@
       include 'vvel.h'
       real cfrac
       common/cfrac/cfrac(ifull,kl)
-      dimension ktmax(ifull),conrev(ifull),fluxr(ifull)
-     .  ,fluxb(ifull),kbsav_ls(ifull)
-     .  ,rnrt(ifull),rnrtc(ifull),qbase(ifull),fldow(ifull)
-     .  ,qxcess(ifull),fluxq(ifull),tdown(ifull),qdown(ifull)
-      dimension sbase(ifull),alfqarr(ifull),alfsarr(ifull)
-      dimension rnrtcn(ifull),kb_sav(ifull),kt_sav(ifull)
-      dimension tt(ifull,kl),qq(ifull,kl),qs(ifull,kl)
-     .  ,dqsdt(ifull,kl),es(ifull,kl)  ! es array mainly for diag prints
-      dimension s(ifull,kl),hs(ifull,kl)
-      dimension fluxt(ifull,kl)   ! 3d for diags
-      dimension delq(ifull,kl),dels(ifull,kl),qliqw(ifull,kl)
-      real dsk(kl),phi(ifull,kl),delu(ifull,kl),delv(ifull,kl)
-      real revc(ifull,kl)  ! just for evap diags
-      real alfss(kl),alfm(kl),qbass(kl)
+      integer ktmax(ifull),kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
+      real alfqarr(ifull),alfsarr(ifull),conrev(ifull)
+      real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
+      real delv(ifull,kl),dqsdt(ifull,kl),es(ifull,kl) 
+      real fldow(ifull),fluxq(ifull),fluxb(ifull)
+      real fluxr(ifull),flux_dsk(ifull),fluxt(ifull,kl),hs(ifull,kl)  
+      real phi(ifull,kl),qbase(ifull),qdown(ifull),qliqw(ifull,kl)
+      real qq(ifull,kl),qs(ifull,kl),qxcess(ifull)
+      real revc(ifull,kl),rnrt(ifull),rnrtc(ifull),rnrtcn(ifull)
+      real s(ifull,kl),sbase(ifull),tdown(ifull),tt(ifull,kl)
+      real alfss(kl),alfm(kl)
       real alfqq_l(kl),alfqq_s(kl),alfqq1_l(kl),alfqq1_s(kl)
-      real h0(kl),q0(kl),t0(kl)  ! for idjd diags
-!!    equivalence (phi,s),(delu,revc,delq),(delv,dels)
+      real dsk(kl),qbass(kl),h0(kl),q0(kl),t0(kl)  
       equivalence (delu,revc,delq),(delv,dels)
 !     data rhcv/.75/                  now in kuocom
       integer kdown(ifull),kscbase,ksctop
@@ -109,7 +100,7 @@
            alfqq_s(k)=1.-alfsea*sig(k)**8   ! e.g. alfsea=.5; =0. for off
            alfqq_l(k)=1.-alflnd*sig(k)**8   ! e.g. alflnd=.4; =0. for off
           enddo     ! k loop
-	 else   ! this is alflnd < 0, i.e. oldest alfcon method
+        else   ! this is alflnd < 0, i.e. oldest alfcon method
           do k=1,kl
            alfqq_s(k)=1.-alfm(k)
            alfqq_l(k)=1.-alfm(k)
@@ -150,7 +141,7 @@ c     convective first, then L/S rainfall
         do iq=1,ifull 
          convtimx=max(abs(convtime)-(timeconv(iq)-mdelay/3600.),0.)
          factr(iq)=dt/max(dt,convtimx*3600.) 
-	 enddo
+        enddo
       else                                          ! original option
         factr(:)=dt/max(dt,convtime*3600.)          ! to re-scale convpsav
 !     testing linear from -15 to 0 to 15:  1 to 4 to 1
@@ -224,16 +215,16 @@ c       calculate hs
         pwater0=0.   ! in mm     
         do k=1,kl
          iq=idjd
-	  h0(k)=s(idjd,k)/cp+hlcp*qq(idjd,k)
-	  q0(k)=qq(idjd,k)
-	  t0(k)=tt(idjd,k)
+         h0(k)=s(idjd,k)/cp+hlcp*qq(idjd,k)
+         q0(k)=qq(idjd,k)
+         t0(k)=tt(idjd,k)
          pwater0=pwater0-dsig(k)*qg(idjd,k)*ps(idjd)/grav
          if(land(iq))then
            qbass(k)=alfqq_l(k)*qq(iq,k)+alfqq1_l(k)*qq(iq,1) 
          else
            qbass(k)=alfqq_s(k)*qq(iq,k)+alfqq1_s(k)*qq(iq,1) 
          endif
-	  qbass(k)=min(qbass(k),max(qq(iq,k),qs(iq,k)))  ! added 3/6/03
+         qbass(k)=min(qbass(k),max(qq(iq,k),qs(iq,k)))  ! added 3/6/03
         enddo
         write (6,"('qbas ',12f7.3/(5x,12f7.3))") 1000.*qbass(:)
         write (6,"('tt   ',12f7.2/(5x,12f7.2))") tt(idjd,:)
@@ -265,11 +256,28 @@ c       calculate hs
          enddo
        endif
        if(mbase>0)then
-!        cfrac now has both stratif & conv from previous timestep	
+!        cfrac has both stratif & conv from previous timestep	
          do iq=1,ifull
           if(cfrac(iq,k)<.01*mbase)kdown(iq)=0
          enddo
        endif  ! (mbase>0)
+       if(mbase<0)then
+!        cfrac has both stratif & conv from previous timestep	
+         do iq=1,ifull
+          dskm=.001*ds/em(iq)
+!         mbase=-80 gives .9, .8, .6, .2, .1 for 8, 16, 32, 64, 72 km
+!         mbase=-40 gives .9, .8, .6, .2, .1 for 4,  8, 16, 32, 36 km
+!         mbase=-16 gives .9, .8, .5, .2, .1 for 2,  4,  8, 16, 32, 36 km
+!          cfraclim=max(1.+dskm/mbase,.1)
+!        superseded by
+!         mbase=-22 gives  .78, .462, .275, .1 for 4, 8, 16, 62 km
+          cfraclim=min(1.,max(.1,-.1*mbase/sqrt(sqrt(dskm*dskm**2))))
+          if(cfrac(iq,k)<cfraclim)kdown(iq)=0
+!         next line added 13/1/06 because of cfrac problems in newrain
+c          if(cfrac(iq,k)<cfraclim.
+c     &                     and.qq(iq,k)<.95*qs(iq,k))kdown(iq)=0
+         enddo
+       endif  ! (mbase<0)
        do iq=1,ifull
 !       find tentative cloud base, and bottom of below-cloud layer
         if(kdown(iq)==1)then   ! kdown just 0 or 1 here
@@ -280,7 +288,7 @@ c       calculate hs
             qbas=alfqq_s(k-1)*qq(iq,k-1)+alfqq1_s(k-1)*qq(iq,1) 
             alfq=alfqq_s(k-1)   
           endif  ! (land(iq)) .. else ..
-	   qbas=min(qbas,max(qs(iq,k-1),qq(iq,k-1)))    ! added 3/6/03
+          qbas=min(qbas,max(qs(iq,k-1),qq(iq,k-1)))    ! added 3/6/03
           alfs=alfss(k-1)  ! simple one
           sbas=alfs*s(iq,k-1)+(1.-alfs)*s(iq,1) ! e.g. alfs=1.
 !         now choose base layer to also have local max of qbase      
@@ -300,7 +308,7 @@ c            endif   ! (dpsldt(iq,k)<dsig2)
         endif   ! (kdown(iq)==1)
        enddo    ! iq loop
        if(ntest>0.and.mydiag) then
-	  iq=idjd
+         iq=idjd
          if(land(iq))then
            qbas=alfqq_l(k-1)*qq(iq,k-1)+alfqq1_l(k-1)*qq(iq,1) 
            alfq=alfqq_l(k-1)   
@@ -308,13 +316,13 @@ c            endif   ! (dpsldt(iq,k)<dsig2)
            qbas=alfqq_s(k-1)*qq(iq,k-1)+alfqq1_s(k-1)*qq(iq,1) 
            alfq=alfqq_s(k-1)   
          endif  ! (land(iq)) .. else ..
-	  qbas=min(qbas,max(qs(iq,k-1),qq(iq,k-1)))   
+         qbas=min(qbas,max(qs(iq,k-1),qq(iq,k-1)))   
          alfs=alfss(k-1)  ! simple one
          sbas=alfs*s(iq,k-1)+(1.-alfs)*s(iq,1) 
-	  print *,'k,kdown,kb_sav,kt_sav ',
+         print *,'k,kdown,kb_sav,kt_sav ',
      &            k,kdown(iq),kb_sav(iq),kt_sav(iq)
-	  print *,'phi(,k-1)/g,pblh ',phi(iq,k-1)/9.806,pblh(iq)
-	  print *,'qbas,qs(.,k),qq(.,k) ',qbas,qs(iq,k),qq(iq,k)
+         print *,'phi(,k-1)/g,pblh ',phi(iq,k-1)/9.806,pblh(iq)
+         print *,'qbas,qs(.,k),qq(.,k) ',qbas,qs(iq,k),qq(iq,k)
          print *,'k,(sbas+hl*qbas)/cp,hs(iq,k)/cp ',
      .            k,(sbas+hl*qbas)/cp,hs(iq,k)/cp
        endif    ! (ntest>0.and.mydiag) 
@@ -344,7 +352,7 @@ c            endif   ! (dpsldt(iq,k)<dsig2)
               entr(iq)=entrradd
               qentr(iq)=qentrr
               sentr(iq)=sentrr
-	     endif
+            endif
           endif   ! (kt_sav(iq)==k-1.and.k<ktmax(iq))
          enddo    ! iq loop
         enddo     ! k loop
@@ -372,8 +380,8 @@ c	     print *,'dsig(k-1),hbase,hs ',dsig(k-1),hbase,hs(iq,k)
               entr(iq)=entrr
               qentr(iq)=qentrr
               sentr(iq)=sentrr
-		fluxr(iq)=entrainp
-	     endif
+              fluxr(iq)=entrainp
+            endif
           endif   ! (kt_sav(iq)==k-1.and.k<ktmax(iq))
          enddo    ! iq loop
         enddo     ! k loop
@@ -463,10 +471,10 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
 
       if(alfsea>0)then 
         fraca=1.    ! effectively used from 23/5/03
-	fracb=0.    ! to avoid giving -ve qg for the layer
+        fracb=0.    ! to avoid giving -ve qg for the layer
       else
         fraca=.5
-	fracb=.5
+        fracb=.5
       endif  ! (alfsea>0)
 
 !     subsidence and (possible) "shallow" detrainment
@@ -486,7 +494,7 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
           if(k<kt_sav(iq))then
             dels(iq,k)=dels(iq,k)+dsig(k)*entr(iq)*s(iq,k)  ! entr into updraft
             delq(iq,k)=delq(iq,k)+dsig(k)*entr(iq)*qq(iq,k) ! entr into updraft
-	   endif
+          endif
         endif  ! (k>kb_sav(iq).and.k<=kt_sav(iq))
        enddo   ! iq loop
       enddo    ! k loop
@@ -559,7 +567,7 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
          nlayers=kt_sav(iq)-kb_sav(iq)
          sum=.5*nlayers*(nlayers+1)
          do k=kb_sav(iq)+1,kt_sav(iq)
-	   deltaq=qxcess(iq)*(kt_sav(iq)+1-k)/sum ! moistening
+          deltaq=qxcess(iq)*(kt_sav(iq)+1-k)/sum ! moistening
           delq(iq,k)=delq(iq,k)+deltaq
           dels(iq,k)=dels(iq,k)-deltaq*hl
          enddo  
@@ -627,10 +635,12 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
 !     calculate base mass flux 
       do iq=1,ifull
 !      if(kt_sav(iq)<kl)then 
-       if(kb_sav(iq)<kl)then   ! from Oct 03, same answers, but more effic.
-         if(nfluxdsk==1)convpsav(iq)=dsk(kb_sav(iq))
-         if(nfluxdsk==2)convpsav(iq)=.5*dsk(kb_sav(iq))
-         if(nfluxdsk==-2)convpsav(iq)=dsk(kb_sav(iq))/(2*iterconv)
+       if(kb_sav(iq)<kl)then   ! from Oct 03, same answers but more effic.
+!        prevents withdrawal of unrealistally large moisture	
+         if(nfluxdsk==1)flux_dsk(iq)=dsk(kb_sav(iq))
+         if(nfluxdsk==2)flux_dsk(iq)=.5*dsk(kb_sav(iq))
+         if(nfluxdsk==-2)flux_dsk(iq)=dsk(kb_sav(iq))/(2*iterconv) !usual
+         convpsav(iq)=flux_dsk(iq)
          if(nfluxq==1)then  ! does little cf flux_dsk - will be removed
 !          fluxq limiter: new_qq(kb)=new_qq(kt)
 !          i.e. [qq+M*delq]_kb=[qq+M*delq]_kt
@@ -680,9 +690,9 @@ c         endif
        if((ntest>0.or.diag).and.mydiag)then
         iq=idjd
         if(k>kb_sav(iq).and.k<=kt_sav(iq))then
-	   den1=dels(iq,k)*(1.+hlcp*dqsdt(iq,k))
-	   den2=alfsarr(iq)*dels(iq,kb_sav(iq))
-	   den3=alfqarr(iq)*hl*delq(iq,kb_sav(iq))
+          den1=dels(iq,k)*(1.+hlcp*dqsdt(iq,k))
+          den2=alfsarr(iq)*dels(iq,kb_sav(iq))
+          den3=alfqarr(iq)*hl*delq(iq,kb_sav(iq))
           fluxt(iq,k)=(sbase(iq)+hl*qbase(iq)-hs(iq,k))/
      .                (den1-den2-den3) 
           print *,'k,den1,den2,den3,fluxt ',k,den1,den2,den3,fluxt(iq,k)
@@ -694,10 +704,10 @@ c         endif
         convmax=0.
         do iq=1,ifull
          if(convpsav(iq)>convmax.and.kb_sav(iq)==2)then
-	    print *,'ktau,iq,convpsav,fluxt3,kb_sav2,kt_sav ',
+           print *,'ktau,iq,convpsav,fluxt3,kb_sav2,kt_sav ',
      .            ktau,iq,convpsav(iq),fluxt(iq,3),kb_sav(iq),kt_sav(iq)
            idjd=iq
-	    convmax=convpsav(iq)
+           convmax=convpsav(iq)
          endif
         enddo	
       endif   !  (ntest==2)
@@ -708,10 +718,8 @@ c         endif
         detr=min(detr,detrainx)	
         print *,'detr,delta_sig,qxcess ',
      .           detr,sig(kb_sav(iq))-sig(kt_sav(iq)),qxcess(iq)
-        flux_dsk=dsk(kb_sav(idjd))*convfact
-        if(nfluxdsk==2)flux_dsk=.5*dsk(kb_sav(idjd))*convfact
         write(6,"('flux_dsk,fluxq,fluxb,convpsav',5f9.5)")
-     .             flux_dsk,fluxq(idjd),fluxb(idjd),convpsav(idjd)
+     .             flux_dsk(iq),fluxq(idjd),fluxb(idjd),convpsav(idjd)
         write(6,"('fluxt',9f8.3/(5x,9f8.3))") fluxt(iq,1:kt_sav(iq))
         write(6,"('delQ*dsk6p',6p9f8.3/(10x,9f8.3))")
      .    (convpsav(idjd)*delq(idjd,k)*dsk(k),k=1,kl)
@@ -770,7 +778,7 @@ c          if(nums<20)then
         enddo  ! iq loop
       endif    ! (ntest>0.or.diag)
       if(nmaxpr==1.and.mydiag)then
-	 print *,'net potential delq (g/kg) & delt for this itn:'
+        print *,'net potential delq (g/kg) & delt for this itn:'
         write(6,"('delQ',3p9f8.3/(4x,9f8.3))")
      .   (convpsav(idjd)*delq(idjd,k),k=1,kl)
         write(6,"('delT',9f8.3/(4x,9f8.3))")
@@ -787,10 +795,10 @@ c          if(nums<20)then
         do iq=1,ifull
          if(sigmh(kb_sav(iq)+1)-sigmh(kt_sav(iq)+1)<-sig_ct)then  
            convpsav(iq)=0.         ! N.B. will get same result on later itns
-	   if(ktsav(iq)==kl)then
+           if(ktsav(iq)==kl)then
              kbsav(iq)=kb_sav(iq) 
              ktsav(iq)=kt_sav(iq)  ! for possible use in vertmix
-	   endif  ! (ktsav(iq)==kl)
+           endif  ! (ktsav(iq)==kl)
          endif
         enddo  ! iq loop
       else
@@ -800,26 +808,26 @@ c          if(nums<20)then
            if(ktsav(iq)==kl)then
              kbsav(iq)=kb_sav(iq) 
              ktsav(iq)=kt_sav(iq)  ! for possible use in vertmix
-	   endif  ! (ktsav(iq)==kl)
+           endif  ! (ktsav(iq)==kl)
          endif
         enddo  ! iq loop
       endif    !  (sig_ct<0.).. else ..
-	 
+ 
       if(itn==1)then
-	 do iq=1,ifull
-	  if(convpsav(iq)>0.)then
-	    timeconv(iq)=timeconv(iq)+dt/3600.
-	  else
-	    timeconv(iq)=0.
-	  endif
-	 enddo
+        do iq=1,ifull
+         if(convpsav(iq)>0.)then
+           timeconv(iq)=timeconv(iq)+dt/3600.
+         else
+           timeconv(iq)=0.
+         endif
+        enddo
       endif  ! (itn==1)
       if(mdelay>0)then  ! suppresses conv. unless occurred for >= mdelay secs
-	 do iq=1,ifull
-	   if(timeconv(iq)<mdelay/3600.)then
-	    convpsav(iq)=0.
-	   endif
-	 enddo
+        do iq=1,ifull
+         if(timeconv(iq)<mdelay/3600.)then
+           convpsav(iq)=0.
+         endif
+        enddo
       endif  ! (mdelay>0)
       
       do iq=1,ifull
@@ -888,13 +896,13 @@ c          if(nums<20)then
       elseif(methprec==-3)then          ! moisten mostly middle third
        do k=kuocb+1,kl-1 
         do iq=1,ifull  
-	  sum=.25*(kt_sav(iq)-kb_sav(iq))**2
-	  rkmid=.5*(kt_sav(iq)+kb_sav(iq)+1)
+         sum=.25*(kt_sav(iq)-kb_sav(iq))**2
+         rkmid=.5*(kt_sav(iq)+kb_sav(iq)+1)
 c        if(iq==idjd)print *,'iq,kb_sav,kt_sav,sum,rkmid ',
 c     .      	          iq,kb_sav(iq),kt_sav(iq),sum,rkmid
          if(k>kb_sav(iq).and.k<=kt_sav(iq))then
-	    frac=kt_sav(iq)-rkmid+.5-abs(rkmid-k)
-	    if(abs(rkmid-k)<.1)frac=frac-.25    ! for central rkmid value
+           frac=kt_sav(iq)-rkmid+.5-abs(rkmid-k)
+           if(abs(rkmid-k)<.1)frac=frac-.25    ! for central rkmid value
 c          if(iq==idjd)print *,'k,frac ',k,frac
            deltaq=convpsav(iq)*qxcess(iq)*frac/(sum*dsk(k))         
            qliqw(iq,k)=qliqw(iq,k)+deltaq
@@ -946,8 +954,8 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
         facuv=.1*nuvconv ! full effect for nuvconv=10
         delu(:,:)=0.
         delv(:,:)=0.
-	 do k=kl,1,-1
-	  do iq=1,ifull
+        do k=kl,1,-1
+         do iq=1,ifull
           if(k==kt_sav(iq))then                 ! delu and delv for top layer
             delu(iq,k)=u(iq,kb_sav(iq))-u(iq,k)
             delv(iq,k)=v(iq,kb_sav(iq))-v(iq,k)
@@ -959,7 +967,7 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
         enddo    ! k loop
 !       update u & v using actual delu and delv (i.e. divided by dsk)
         do k=1,kl-1   
-	  do iq=1,ifull
+         do iq=1,ifull
           u(iq,k)=u(iq,k)+facuv*factr(iq)*convpsav(iq)*delu(iq,k)/dsk(k)
           v(iq,k)=v(iq,k)+facuv*factr(iq)*convpsav(iq)*delv(iq,k)/dsk(k)
          enddo  ! iq loop
@@ -970,8 +978,8 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
         facuv=.1*(nuvconv-100) ! full effect for nuvconv=110
         delu(:,:)=0.
         delv(:,:)=0.
-	 do k=kl,1,-1
-	  do iq=1,ifull
+        do k=kl,1,-1
+         do iq=1,ifull
           if(k==kt_sav(iq))then                 ! delu and delv for top layer
             delu(iq,k)=u(iq,kb_sav(iq))-u(iq,k)
             delv(iq,k)=v(iq,kb_sav(iq))-v(iq,k)
@@ -991,7 +999,7 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
         enddo    ! k loop
 !       update u & v using actual delu and delv (i.e. divided by dsk)
         do k=1,kl-1   
-	  do iq=1,ifull
+         do iq=1,ifull
           u(iq,k)=u(iq,k)+facuv*factr(iq)*convpsav(iq)*delu(iq,k)/dsk(k)
           v(iq,k)=v(iq,k)+facuv*factr(iq)*convpsav(iq)*delv(iq,k)/dsk(k)
          enddo  ! iq loop
@@ -1003,8 +1011,8 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
         facuv=.1*(nuvconv-200) ! full effect for nuvconv=210
         delu(:,:)=0.
         delv(:,:)=0.
-	 do k=1,kl-1
-	  do iq=1,ifull
+        do k=1,kl-1
+         do iq=1,ifull
           if(k==kt_sav(iq))then                 ! delu and delv for top layer
             delu(iq,k)=u(iq,k-1)-u(iq,k)
             delv(iq,k)=v(iq,k-1)-v(iq,k)
@@ -1019,7 +1027,7 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
         enddo    ! k loop
 !       update u & v using actual delu and delv (i.e. divided by dsk)
         do k=1,kl-1   
-	  do iq=1,ifull
+         do iq=1,ifull
           u(iq,k)=u(iq,k)+facuv*factr(iq)*convpsav(iq)*delu(iq,k)/dsk(k)
           v(iq,k)=v(iq,k)+facuv*factr(iq)*convpsav(iq)*delv(iq,k)/dsk(k)
          enddo  ! iq loop
@@ -1031,8 +1039,8 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
         facuv=.1*(nuvconv-300) ! full effect for nuvconv=310
         delu(:,:)=0.
         delv(:,:)=0.
-	 do k=kl,1,-1
-	  do iq=1,ifull
+        do k=kl,1,-1
+         do iq=1,ifull
           if(k==kt_sav(iq))then                 ! delu and delv for top layer
             delu(iq,k)=.5*(u(iq,kb_sav(iq))+u(iq,k-1))-u(iq,k)
             delv(iq,k)=.5*(v(iq,kb_sav(iq))+v(iq,k-1))-v(iq,k)
@@ -1049,7 +1057,7 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
         enddo    ! k loop
 !       update u & v using actual delu and delv (i.e. divided by dsk)
         do k=1,kl-1   
-	  do iq=1,ifull
+         do iq=1,ifull
           u(iq,k)=u(iq,k)+facuv*factr(iq)*convpsav(iq)*delu(iq,k)/dsk(k)
           v(iq,k)=v(iq,k)+facuv*factr(iq)*convpsav(iq)*delv(iq,k)/dsk(k)
          enddo  ! iq loop
@@ -1065,9 +1073,9 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
         facuv=.1*(nuvconv-500) ! full effect for nuvconv=510
         delu(:,:)=0.
         delv(:,:)=0.
-	 do k=1,kl-1
-	  do iq=1,ifull
-	  if(kt_sav(iq)<kl)then
+        do k=1,kl-1
+         do iq=1,ifull
+         if(kt_sav(iq)<kl)then
           if(k==kt_sav(iq))then                 ! delu and delv for top layer
             delu(iq,k)=u(iq,kb_sav(iq))-u(iq,k)
             delv(iq,k)=v(iq,kb_sav(iq))-v(iq,k)
@@ -1089,12 +1097,12 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
             delu(iq,k)=fldow(iq)*(u(iq,kdown(iq))-u(iq,k))   
             delv(iq,k)=fldow(iq)*(v(iq,kdown(iq))-v(iq,k))
           endif  ! (k==kb_sav(iq))  .. else ..    
-	  endif   ! (kt_sav(iq)<kl)
+          endif   ! (kt_sav(iq)<kl)
          enddo   ! iq loop
         enddo    ! k loop
 !       update u & v using actual delu and delv (i.e. divided by dsk)
         do k=1,kl-1   
-	  do iq=1,ifull
+         do iq=1,ifull
           u(iq,k)=u(iq,k)+facuv*factr(iq)*convpsav(iq)*delu(iq,k)/dsk(k)
           v(iq,k)=v(iq,k)+facuv*factr(iq)*convpsav(iq)*delv(iq,k)/dsk(k)
          enddo  ! iq loop
@@ -1135,18 +1143,19 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
       endif
 
       if(nmaxpr==1.and.mydiag)then
-        write (6,"('ktau,itn,kb_sav,kt_sav,timeconv,factr,convpsav ',
-     &  i5,3i3,2f5.2,f8.5)") ktau,itn,kb_sav(idjd),kt_sav(idjd),
-     &  timeconv(idjd),factr(idjd),convpsav(idjd)
+        write (6,"('ktau,itn,kb_sav,kt_sav,timeconv,factr,'
+     &  'flux_dsk,convpsav ',i5,3i3,2f5.2,2f8.5)")
+     &   ktau,itn,kb_sav(idjd),kt_sav(idjd),
+     &   timeconv(idjd),factr(idjd),flux_dsk(idjd),convpsav(idjd)
       endif
 
       enddo     ! itn=1,iterconv
 
       rnrtc(:)=factr(:)*rnrtc(:)
       do k=1,kl
-      qq(1:ifull,k)=qg(1:ifull,k)+factr(:)*(qq(1:ifull,k)-qg(1:ifull,k))      
+      qq(1:ifull,k)=qg(1:ifull,k)+factr(:)*(qq(1:ifull,k)-qg(1:ifull,k))
       qliqw(1:ifull,k)=factr(:)*qliqw(1:ifull,k)      
-      tt(1:ifull,k)= t(1:ifull,k)+factr(:)*(tt(1:ifull,k)- t(1:ifull,k))      
+      tt(1:ifull,k)= t(1:ifull,k)+factr(:)*(tt(1:ifull,k)- t(1:ifull,k))
       enddo
 
 !     update qq, tt for evap of qliqw (qliqw arose from moistening)
@@ -1158,9 +1167,9 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
            if(tt(iq,k)<253.16)then   ! i.e. -20C
              qfg(iq,k)=qfg(iq,k)+qliqw(iq,k)
              tt(iq,k)=tt(iq,k)+3.35e5*qliqw(iq,k)/cp   ! fusion heating
-	    else
+           else
              qlg(iq,k)=qlg(iq,k)+qliqw(iq,k)
-	    endif
+           endif
           enddo
          enddo
       else
@@ -1174,8 +1183,8 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
         write (6,"('qge ',12f7.3/(8x,12f7.3))")(1000.*qq(idjd,k),k=1,kl)
         write (6,"('tte ',12f6.1/(8x,12f6.1))")(tt(idjd,k),k=1,kl)
         print *,'rnrtc ',rnrtc(idjd)
-	 delt_av=0.
-	 heatlev=0.
+        delt_av=0.
+        heatlev=0.
 !       following calc of integ. column heatlev really needs iterconv=1  
          do k=kl-2,1,-1
           delt_av=delt_av-dsk(k)*revc(idjd,k)*hlcp
@@ -1316,7 +1325,7 @@ c           if(evapls>0.)print *,'iq,k,evapls ',iq,k,evapls
         write (6,"('hs/cp',12f7.2/(5x,12f7.2))") 
      .             (hs(idjd,k)/cp,k=1,kl)
         write (6,"('k  ',12i7/(3x,12i7))") (k,k=1,kl)
-	 print *,'following are h,q,t changes during timestep'
+        print *,'following are h,q,t changes during timestep'
         write (6,"('delh ',12f7.3/(5x,12f7.3))") 
      .             (s(idjd,k)/cp+hlcp*qq(idjd,k)-h0(k),k=1,kl)
         write (6,"('delq ',3p12f7.3/(5x,12f7.3))") 
@@ -1325,7 +1334,7 @@ c           if(evapls>0.)print *,'iq,k,evapls ',iq,k,evapls
      .             (tt(idjd,k)-t0(k),k=1,kl)
         flux_dsk=.5*dsk(kb_sav(idjd))  ! may depend on nfluxdsk
         write(6,"('flux_dsk,fluxq,fluxb,convpsav',5f8.5)")
-     .             flux_dsk,fluxq(idjd),fluxb(idjd),convpsav(idjd)
+     .             flux_dsk(idjd),fluxq(idjd),fluxb(idjd),convpsav(idjd)
         write(6,"('fluxt',9f8.5/(5x,9f8.5))")
      .            (fluxt(iq,k),k=1,kt_sav(iq))
         pwater=0.   ! in mm     
@@ -1367,7 +1376,7 @@ c           if(evapls>0.)print *,'iq,k,evapls ',iq,k,evapls
         print *,'For shallow convection, set in convjlm:'
         print *,'ksc,kscbase,ksctop,kscsea ',
      .           ksc,kscbase,ksctop,kscsea
-	 write (6,"(' sigkscb,sigksct,tied_con,tied_over,tied_rh:',
+        write (6,"(' sigkscb,sigksct,tied_con,tied_over,tied_rh:',
      .       5f8.3)")sigkscb,sigksct,tied_con,tied_over,tied_rh
         end if
         do k=1,kl
@@ -1392,7 +1401,7 @@ c           if(evapls>0.)print *,'iq,k,evapls ',iq,k,evapls
               ktsav(iq)=k
 !             rk_shal(iq,k-1)=tied_con                
 !             rk_shal(iq,k)=tied_over                 
-	     endif
+            endif
           endif ! (qg(iq,kscbase)>.....)
          enddo  ! iq loop
         enddo   ! end of k=kscbase+1,ksctop loop
@@ -1401,14 +1410,14 @@ c           if(evapls>0.)print *,'iq,k,evapls ',iq,k,evapls
       
       if(ntest==-1.and.nproc==1.and.ktau==10)then
         do k=1,kl
-	  do iq=il*il+1,2*il*il
-	   den1=qfg(iq,k)+qlg(iq,k)
-	   if(land(iq).and.den1>0.)then
+         do iq=il*il+1,2*il*il
+          den1=qfg(iq,k)+qlg(iq,k)
+          if(land(iq).and.den1>0.)then
             write(26,'(4f9.4,2i6)')
-     .	     t(iq,k),qfg(iq,k)/den1,1000.*qfg(iq,k),1000.*qlg(iq,k),iq,k
+     &       t(iq,k),qfg(iq,k)/den1,1000.*qfg(iq,k),1000.*qlg(iq,k),iq,k
           endif
-	  enddo
-	 enddo     
+         enddo
+        enddo     
       endif  ! (ntest==-1.and.nproc==1)    
       return
       end

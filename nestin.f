@@ -10,29 +10,30 @@
       include 'dates.h'    ! mtimer
       include 'dava.h'
       include 'davb.h'     ! psls,qgg,tt,uu,vv
+      include 'latlong.h'
       include 'map.h'
       include 'parm.h'     ! qgmin
-      include 'pbl.h'      ! sice
+      include 'pbl.h'      ! tss
+      include 'permsurf.h' ! iperm etc
       include 'sigs.h'
-      include 'soil.h'     ! tss
+      include 'soil.h'     ! sicedep fracice
       include 'soilsnow.h' ! tgg
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
       common/nest/ta(ifull,kl),ua(ifull,kl),va(ifull,kl),psla(ifull),
      .            tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),pslb(ifull),
-     .            qa(ifull,kl),qb(ifull,kl),tssa(ifull),tssb(ifull)
+     .            qa(ifull,kl),qb(ifull,kl),tssa(ifull),tssb(ifull),
+     .            sicedepb(ifull),fraciceb(ifull)
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
       common/sigin/sigin(kl),kk  ! for vertint, infile
-      common/work2/zsb(ifull),dum1(ifull),tssi(ifull),dum2(ifull),
-     .  dum3(ifull),dum4(ifull),dum5(ifull),dum6(ifull),dum7(ifull),
-     .                        dumxx(ifull,18-9)
-      common/work3/dum3a(ifull,kl),dum3b(ifull,kl,4)
+      real zsb(ifull)
+c     integer ipermp(ifull)    ! temporary permutation array
       integer num,mtimea,mtimeb
       data num/0/,mtimea/0/,mtimeb/-1/
       save num,mtimea,mtimeb
 !     mtimer, mtimeb are in minutes
       if(ktau<100.and.myid==0)then
         print *,'in nestin ktau,mtimer,mtimea,mtimeb ',
-     &                                  ktau,mtimer,mtimea,mtimeb
+     &                     ktau,mtimer,mtimea,mtimeb
         print *,'with kdate_s,ktime_s >= ',kdate_s,ktime_s
       end if
       if(mtimeb==-1)then
@@ -42,6 +43,8 @@
         do iq=1,ifull
          pslb(iq)=psl(iq)
          tssb(iq)=tss(iq)
+         sicedepb(iq)=sicedep(iq)  ! maybe not needed
+         fraciceb(iq)=fracice(iq)
         enddo
         tb(1:ifull,:)=t(1:ifull,:)
         qb(1:ifull,:)=qg(1:ifull,:)
@@ -51,38 +54,81 @@
       endif       ! (mtimeb==-1)
 
       if(mtimer>0.and.mtimer<=mtimeb)go to 6  ! allows for dt<1 minute
-!     transfer mtimeb fields to mtimea
+!     transfer mtimeb fields to mtimea and update sice variables
       mtimea=mtimeb
-      do iq=1,ifull
-       psla(iq)=pslb(iq)
-       tssa(iq)=tssb(iq)
-      enddo
+      psla(:)=pslb(:)
+      tssa(:)=tssb(:)
       ta(1:ifull,:)=tb(1:ifull,:)
       qa(1:ifull,:)=qb(1:ifull,:)
       ua(1:ifull,:)=ub(1:ifull,:)
       va(1:ifull,:)=vb(1:ifull,:)
-
-!     Both infile and onthefly have an argument (nested) that says they've
-!     been called from nestin and don't need to return all variables.
-!     This would be cleaner than the use of all the dummy variables.
+!     following sice updating code moved from sflux Jan '06      
+!     check whether present ice points should change to/from sice points
+      do iq=1,ifull
+       if(fraciceb(iq)>0.)then
+!        N.B. if already a sice point, keep present tice (in tgg3)
+         if(fracice(iq)==0.)then
+           tgg(iq,3)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
+         endif  ! (fracice(iq)==0.)
+!        set averaged tss (tgg1 setting already done)
+         tss(iq)=tgg(iq,3)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq))
+       endif  ! (fraciceb(iq)==0.)
+      enddo	! iq loop
+      sicedep(:)=sicedepb(:)  ! from Jan 06
+      fracice(:)=fraciceb(:)
+!     because of new zs etc, ensure that sice is only over sea
+      do iq=1,ifull
+       if(fracice(iq)<.02)fracice(iq)=0.
+       if(land(iq))then
+         sicedep(iq)=0.
+         fracice(iq)=0.
+       else
+         if(fracice(iq)>0..and.sicedep(iq)==0.)then
+!          assign to 2. in NH and 1. in SH (according to spo)
+!          do this in indata, amipdata and nestin because of onthefly
+           if(rlatt(iq)>0.)then
+             sicedep(iq)=2.
+           else
+             sicedep(iq)=1.
+           endif ! (rlatt(iq)>0.)
+         elseif(fracice(iq)==0..and.sicedep(iq)>0.)then  ! e.g. from Mk3  
+           fracice(iq)=1.
+         endif  ! (fracice(iq)>0..and.sicedep(iq)==0.) .. elseif ..
+       endif    ! (land(iq))
+      enddo     ! iq loop
+c!     update surface permutation array and sice
+c      ipermp(:)=iperm(:)
+c      indexi=ipland
+c      indexs=ipsea+1
+c!cdir nodep
+c      do ip=ipland+1,ipsea
+c       iq=ipermp(ip)
+c       if(fracice(iq)>0.)then
+c         indexi=indexi+1     ! sice point
+c         iperm(indexi)=iq    ! sice point
+c         sice(iq)=.true.
+c       else
+c         indexs=indexs-1     ! sea point
+c         iperm(indexs)=iq    ! sea point
+c         sice(iq)=.false.
+c       endif  ! (fracice(iq)>0.)
+c      enddo   !  ip loop
+c      ipsice=indexi
+c      if ( myid == 0 ) then
+c         print *,'ktau,ipland,ipsice,ipsea update in nestin: ',
+c     .            ktau,ipland,ipsice,ipsea
+c      end if
 
 !     read tb etc  - for globpea, straight into tb etc
-      if(io_in==1.or.io_in==3)then
-      call infile(meso2,kdate_r,ktime_r,nem2, ! different from DARLAM
-     .  timeg_b,ds_r,pslb,dum1,zsb,dum2,dum3, ! timeg_r,ds_r,psl,pmsl,zs,em,f
-     .  tssb,dum4,dum3a,dum3a,dum5,dum6,dum7, ! tss,precip,wb,wbice,alb,snowd,sicedep
-     .  tb,ub,vb,qb,dum3a,                    ! t,u,v,qg,tgg
-     .	           dum3a,dum3a,dum3a,dum2, dum3,  dum4, dum5,  1)
-!      above are: tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,nested
-      endif   ! (io_in==1.or.io_in==3)
+      if(io_in==1)then
+        call infil(1,kdate_r,ktime_r,timeg_b,ds_r, 
+     .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
+      endif   ! (io_in==1)
 
-      if(io_in==-1.or.io_in==-3)then
-          call onthefly(kdate_r,ktime_r,
-     .     pslb,zsb,tssb,dum3a,dum3a,dum6,dum7,
-     .     tb,ub,vb,qb,dum3a,                    ! t,u,v,qg,tgg
-     .	           dum3a,dum3a,dum3a,dum2, dum3,  dum4, dum5,  1)
-!      above are: tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,nested
-      endif   ! (io_in==1.or.io_in==3)
+      if(io_in==-1)then
+         call onthefl(1,kdate_r,ktime_r,
+     &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb) 
+      endif   ! (io_in==1)
       tssb(:) = abs(tssb(:))  ! moved here Mar '03
       if (mydiag) then
         write (6,"('zsb# nestin  ',9f7.1)") diagvals(zsb)
@@ -142,8 +188,8 @@
 !       option in eigenv, though original csiro9 levels are sufficiently
 !       close for these interpolation purposes.
         if(ktau==1.and.mydiag)then
-	   print*,'calling vertint with kk,sigin ',kk,sigin(1:kk)
-	 endif
+          print*,'calling vertint with kk,sigin ',kk,sigin(1:kk)
+        endif
         if(diag.and.mydiag)then
           print *,'kk,sigin ',kk,(sigin(k),k=1,kk)
           print *,'tb before vertint ',(tb(idjd,k),k=1,kk)
@@ -168,16 +214,9 @@
         enddo
       endif  ! (newtop==2)
 
-!     test code in nestin for modifying SSTs
-!	do j=270,288
-!	 do i=9,22
-!	  tssb(i,j)=tssb(i,j)-.5
-!	 enddo
-!	enddo      
-
       if(newtop>=1)then
 !       in these cases redefine pslb, tb and (effectively) zsb using zs
-!       this keeps inner-mesh land mask & zs
+!       this keeps fine-mesh land mask & zs
 !       presently simplest to do whole pslb, tb (& qb) arrays
         if(nmaxpr==1.and.mydiag)then
           print *,'zs (idjd) :',zs(idjd)
@@ -219,23 +258,13 @@
       uu (:,:)=cona*ua(:,:)+conb*ub(:,:)
       vv (:,:)=cona*va(:,:)+conb*vb(:,:)
 
-!     calculate time interpolated tss (into tssi)
+!     calculate time interpolated tss 
       if(namip>0)return     ! namip SSTs/sea-ice take precedence
-      tssi(:)=cona*tssa(:)+conb*tssb(:)  
       do iq=1,ifull
        if(.not.land(iq))then
-	  if(tssi(iq)>273.2)then
-	    tss(iq)=tssi(iq)
-	    tgg(iq,1)=tssi(iq)
-!          all others are for implied sea ice points
-!          N.B. fracice, sice etc are updated once daily in sflux
-	  elseif(tss(iq)>273.2)then  
-	    tss(iq)=tssi(iq)
-	    tgg(iq,1)=tssi(iq)
-!          if already sea ice implied, use present tss, tgg1
-         endif	    
+         tss(iq)=cona*tssa(iq)+conb*tssb(iq)
+         tgg(iq,1)=tss(iq)
        endif  ! (.not.land(iq))
-      enddo  
-	      
+      enddo   ! iq loop 
       return
       end

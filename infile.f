@@ -1,8 +1,8 @@
-      subroutine infile(io_in2,kdate_r,ktime_r,nem2,
-     . timeg_r,ds_r,psl,pmsl,zs,em,f,
-     . tss,precip,wb,wbice,alb,snowd,sicedep,
-     . t,u,v,qg,tgg,
-     . tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,nested)
+      subroutine infile(nested,kdate_r,ktime_r,timeg_r,ds_r,
+     .                  psl,zs,tss,sicedep,fracice,t,u,v,qg,
+!     following not used or returned if called by nestin (i.e.nested=1)   
+     .                  tgg,wb,wbice,alb,snowd,
+     .                  tggsn,smass,ssdn,ssdnn,snage,isflag)
 !     note kk; vertint.f is attached below
 !     kdate_r and ktime_r are returned from this routine.
 !     They must equal or exceed kdate_s and ktime_s
@@ -11,9 +11,7 @@
 !     nested=0  for calls from indata; 1  for calls from nestin     
 !     From March 2000 exact kdate, ktime are calculated and compared
 
-!     This is called from nestin and onthefly with various dummy variables
-!     because some fields aren't required.
-!     Would it be better to do this with optional arguments?
+!     This is called from nestin and onthefly 
 
       use cc_mpi
       use diag_m
@@ -24,24 +22,20 @@
       include 'liqwpar.h'  ! ifullw
       include 'netcdf.inc'
       include 'parm.h'
-      include 'parm_nqg.h'  ! nqg_r,nqg_set
       include 'stime.h'     ! kdate_s,ktime_s  sought values for data read
       include 'tracers.h'
       include 'mpif.h'
 
-
-      integer io_in2, kdate_r, ktime_r, nem2, nested
+      integer kdate_r, ktime_r, nested
       real timeg_r, ds_r
-      real psl(ifull),pmsl(ifull),zs(ifull),em(ifull),f(ifull),
-     . tss(ifull),precip(ifull),wb(ifull,ms),wbice(ifull,ms),
-     . snowd(ifull),alb(ifull),sicedep(ifull),
+      real psl(ifull),zs(ifull),
+     . tss(ifull),wb(ifull,ms),wbice(ifull,ms),
+     . snowd(ifull),alb(ifull),sicedep(ifull),fracice(ifull),
      . t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     . ssdnn(ifull),osnowd(ifull),snage(ifull)
+     . ssdnn(ifull),snage(ifull)
       integer isflag(ifull)
       integer ktau_r, ibb, jbb, i
-      real timer_r, difknbd, du, tanl
-
       integer ini,inj,ink,m2,nsd2,mesi,nbd2
      & ,nps2,mex2,mup2,nemi,mtimer,nmi2,ndt2,npsav2,nhor2,nkuo2,khdif2
      & ,kwt2,iaa2,jaa2,nvad2,nqgi,lbd2,nrun2,nrunx2
@@ -72,47 +66,38 @@
       data monn/'jan','feb','mar','apr','may','jun'
      &         ,'jul','aug','sep','oct','nov','dec'/
 
-      integer, save :: ncidold=-1, ncalled=0, iarchi, nqg_setin
+      integer, save :: ncidold=-1, ncalled=0, iarchi
       integer itype, ilen, ier, ierr, ik, jk, k, ndim, nvars, ngatts,
      &        nulid, nd, isiz, ix, iy, narch, idy, imo, iyr, ihr,
-     &        mtimer_in, iq, ii, jj, idv
-      real dss, xgn, ygn, timer
+     &        mtimer_in, iq, idv
+      real dss, timer
+      entry infil(nested,kdate_r,ktime_r,timeg_r,ds_r,
+     .                  psl,zs,tss,sicedep,fracice,t,u,v,qg)
 
-      if ( abs(io_in) /= 1 ) then
-         print*,
-     &    "Error: only abs(io_in)=1 (netcdf) input longer supported."
-         call MPI_Abort(MPI_COMM_WORLD)
-      endif
-
-      if(ncalled==0)nqg_setin=nqg_set
       ncalled=ncalled+1
       
 c     save model map projs.
       dss=ds_r
       if(dss>0..and.npanels==0)then   ! for possible DARLAM option
-         print*,
+        write(0,*)
      &   "Error, npanels=0 DARLAM option not implemented in MPI version"
-         stop
+        stop
       endif ! (dss>0..and.npanels==0)then
 
-      if ( myid == 0 ) then
+      if(myid==0)then
 !        N.B. ncid,ncidold and iarchi only get used for myid=0      
          ncid=idifil
-         if ( ncid.ne.ncidold ) iarchi=1
+         if(ncid.ne.ncidold)iarchi=1
          ncidold=ncid
          print *,'newin ncid,ncidold,iarchi ',ncid,ncidold,iarchi
          call ncainq(ncid,ncglobal,'int_header',itype,ilen,ier)
          call ncagt(ncid,ncglobal,'int_header',nahead,ier)
          call ncainq(ncid,ncglobal,'real_header',itype,ilen,ier)
          call ncagt(ncid,ncglobal,'real_header',ahead,ier)
-      end if
+      endif  ! (myid==0)
       call MPI_Bcast(nahead,nihead,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(ahead,nrhead,MPI_REAL,0,MPI_COMM_WORLD,ierr)
 
-      io_in2=1
-      nem2=nemi
-      nqg_r=nqgi
-      nqg_set=min(nqg_r,nqg_setin)
       ibb=iaa2
       jbb=jaa2
       ntsur2=ntsuri
@@ -128,20 +113,20 @@ c     save model map projs.
        schmidtx=ahead(8)
        if(myid==0)print *,'newin  rlong0x,rlat0x,schmidtx ',
      &                            rlong0x,rlat0x,schmidtx
-      endif      
+      endif  ! (schmidtx<=0..or.schmidtx>1.)
       if(ktau<=1)then
-         if(myid==0)then
-            print *,'nahead ',nahead
-            print *,'ahead ',ahead
-            write(6,'("io_in2,nem2,ntsur2,nqg_r,nqg_set,ibb,jbb",7i6)')
-     &                 io_in2,nem2,ntsur2,nqg_r,nqg_set,ibb,jbb
-         end if
+        if(myid==0)then
+          print *,'nahead ',nahead
+          print *,'ahead ',ahead
+          write(6,'("ntsur2,ibb,jbb",7i6)')
+     &               ntsur2,ibb,jbb
+        endif  ! (myid==0)
         if(ahead(7)==0.)then
-	    if(myid==0)print *,'***** schmidt etc not in netcdf header!!!'
-!          assume very old file 	   
-           rlong0x =0.
-           rlat0x  =0.
-           schmidtx=1.
+          if(myid==0)print *,'***** schmidt etc not in netcdf header!!!'
+!         assume very old file 	   
+          rlong0x =0.
+          rlat0x  =0.
+          schmidtx=1.
         endif  ! (ahead(7)==0.)then
       endif    ! (ktau<=1)
       
@@ -150,25 +135,25 @@ c     save model map projs.
       kk=nahead(3)
 
 c     turn OFF fatal netcdf errors
-      if (myid==0) then
+      if(myid==0)then
         if(ktau<=1)print *,'in newin; ktau,ik,jk,kk=', ktau,ik,jk,kk
          call ncpopt(0)
          call ncagt(ncid,ncglobal,'sigma',sigin,ier)
-         if ( ier.ne.0 ) then
+         if(ier.ne.0)then
             call ncagt(ncid,ncglobal,'sigma_lev',sigin,ier)
             print *,'ier=',ier
-            if ( ier.ne.0 ) then
+            if(ier.ne.0)then
                idv = ncvid(ncid,'lev',ier)
                if(ier.ne.0)idv = ncvid(ncid,'layer',ier)
                call ncvgt(ncid,idv,1,kk,sigin,ier)
                print *,'ier=',ier
-            endif
-         endif
+            endif ! (ier.ne.0)
+         endif    ! (ier.ne.0)
          if(ktau<=1)write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
 c        Get dimensions
          call ncinq(ncid,ndim,nvars,ngatts,nulid,ier)
          if(ktau<=1)print *,'ncid,ndim,nvars,ngatts,nulid,ier'
-     &                     ,ncid,ndim,nvars,ngatts,nulid,ier
+     &                      ,ncid,ndim,nvars,ngatts,nulid,ier
          do nd=1,ndim
             call ncdinq(ncid,nd,dimnam,isiz,ier)
             if(ier.ne.0)write(6,*) 'ncdinq dim1 ier=',ier
@@ -178,7 +163,7 @@ c        Get dimensions
             if(dimnam=='time')narch=isiz
          enddo
          if(ktau<=1)write(6,'("ix,iy,narch=",3i6)') ix,iy,narch
-      end if      ! ( myid == 0 )
+      endif   ! (myid==0)
       call MPI_Bcast(sigin,kk,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(ix,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(iy,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -190,7 +175,7 @@ c        Get dimensions
       timerco(2) = 1
 
 c***********************************************************************
-      if ( myid == 0 ) then
+      if(myid==0)then
         iarchi=iarchi-1
 19      iarchi=iarchi+1
         timest(2) = iarchi
@@ -200,7 +185,7 @@ c       turn OFF fatal netcdf errors
         print *,'timestamp idv,ier,iarchi=',idv,ier,iarchi
 c       turn ON fatal netcdf errors
         call ncpopt(NCVERBOS+NCFATAL)
-        if ( ier==0 ) then
+        if(ier==0)then
            timeco(1)=1
            timeco(2)=iarchi
            call ncvgt1(ncid,idv,timeco,kdate_r,ier)
@@ -218,20 +203,16 @@ c       turn ON fatal netcdf errors
            timeco(1)=2
            timeco(2)=iarchi
            call ncvgt1(ncid,idv,timeco,timeg_r,ier)
-        else                    ! ier.ne.0
+        else    ! ier.ne.0
 !          new style
            idv = ncvid(ncid,'kdate',ier)
            call ncvgt1(ncid,idv,iarchi,kdate_r,ier)
 !          turn off fatal ncdf errors
            call ncpopt(0)
            idv = ncvid(ncid,'timer',ier)
-           if ( ier==0 ) then
-              call ncvgt1(ncid,idv,iarchi,timer,ier)
-           endif                ! ( ier==0 ) then
+           if(ier==0)call ncvgt1(ncid,idv,iarchi,timer,ier)
            idv = ncvid(ncid,'mtimer',ier)
-           if ( ier==0 ) then
-              call ncvgt1(ncid,idv,iarchi,mtimer,ier)
-           endif                ! ( ier==0 ) then
+           if(ier==0)call ncvgt1(ncid,idv,iarchi,mtimer,ier)
 !          turn on fatal ncdf errors
            call ncpopt(NCVERBOS+NCFATAL)
            idv = ncvid(ncid,'ktime',ier)
@@ -240,14 +221,15 @@ c       turn ON fatal netcdf errors
            call ncvgt1(ncid,idv,iarchi,ktau_r,ier)
            idv = ncvid(ncid,'timeg',ier)
            call ncvgt1(ncid,idv,iarchi,timeg_r,ier)
-        endif                   ! ier = 0 .. else ..
+        endif  ! (ier==0) .. else ..
         if(kdate_r==0)then
-           write(6,*)'kdate = 0; create kdate from time_origin'
+           print *,
+     &      'kdate_r = 0; create kdate from time_origin, nested=',nested
            idv = ncvid(ncid,'time',ier)
-!          write(6,*)'time idv=',idv,ier
+!          print *,'time idv=',idv,ier
            call ncpopt(0)
            call ncagtc(ncid,idv,'time_origin',dimnam,80,ier)
-!          write(6,*)'time_origin=',dimnam,lens,ier
+           print *,'time_origin=',dimnam,ier
            call ncpopt(NCVERBOS+NCFATAL)
            read(dimnam,'(i2)') idy
            read(dimnam,'(3x,a3)') cmon
@@ -259,14 +241,14 @@ c       turn ON fatal netcdf errors
            read(dimnam,'(12x,i2)') ihr
            kdate_r=idy+100*(imo+100*iyr)
            ktime_r=ihr*100
-        endif                   ! (kdate_r==0)
+        endif  ! (kdate_r==0)
         print *,'kdate,ktime,ktau,timer_in: ',kdate_r,ktime_r,ktau,timer
 !       fix up timer in 140-year run for roundoff (jlm Mon  01-11-1999)
         if(timer>1048583.)then ! applies year 440 mid-month 9
            timer=timer+.125
         elseif(timer>1048247.)then ! applies year 440 month 9
            timer=timer+.0625
-        endif
+        endif  ! (timer>1048583.)
         print *,'dtin,ktau_r: ',dtin,ktau_r
         print *,'kdate,ktime: ',kdate_r,ktime_r,
      .          'kdate_s,ktime_s >= ',kdate_s,ktime_s
@@ -278,28 +260,29 @@ c       turn ON fatal netcdf errors
           timer=mtimer/60.
         else                    ! mtimer = 0
           mtimer=nint(60.*timer)
-        endif
+        endif  ! (mtimer.ne.0)
         print *,'giving timer, mtimer: ',timer,mtimer
         mtimer_in=mtimer
         call datefix(kdate_r,ktime_r,mtimer) ! for Y2K, or mtimer>0
-        if (2400*kdate_r+ktime_r<2400*kdate_s+ktime_s)go to 19
+        if(2400*kdate_r+ktime_r<2400*kdate_s+ktime_s)go to 19
 !---------------------------------------------------------------------
         
         print *,'found suitable date/time in newin'
-        print *,'in ',ik,jk,kk,m2,nsd2,io_in2,nbd2
-     & ,nps2,mex2,mup2,nem2,mtimer,nmi2,ndt2,npsav2,nhor2,nkuo2,khdif2
-     & ,kwt2,iaa2,jaa2,nvad2,nqg_r,lbd2,nrun2,nrunx2
+        print *,'in ',ik,jk,kk,m2,nsd2,nbd2
+     & ,nps2,mex2,mup2,mtimer,nmi2,ndt2,npsav2,nhor2,nkuo2,khdif2
+     & ,kwt2,iaa2,jaa2,nvad2,lbd2,nrun2,nrunx2
      & ,khor2,ksc2,kountr2,ndiur2,nhort2,nhorps2,nsoil2,ivirt2
      & ,ntsur2,nrad2,kuocb2,nvmix2,ntsea2,ms2,nextras2,ilt2,ntrac2
 
-        print *,'newin ds_r,nqg_r,mtimer: ',ds_r,nqg_r,mtimer
+        print *,'newin ds_r,mtimer: ',ds_r,mtimer
         if(mtimer_in>0.and.nrungcm==2)then
-           print *,
+           write(0,*)
      &          '*** re-setting NRUNGCM nrungcm from 2 to 0 because ',
      &             'not starting from gcm file'
            stop 'wrong nrungcm used'
-        endif
-      end if ! myid == 0
+        endif  ! (mtimer_in>0.and.nrungcm==2)
+      endif    ! myid == 0
+      
       ! Now share the time variables (is this actually necessary?)
       call MPI_Bcast(kdate_r,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(ktime_r,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -311,13 +294,12 @@ c       turn ON fatal netcdf errors
 c     begin reading data
 c     log scaled sfc.press
       call histrd1(ncid,iarchi,ier,'psf',ik,jk,psl)
-c     call histrd1(ncid,iarchi,ier,'mslp',ik,jk,pmsl)  ! not needed
       call histrd1(ncid,iarchi,ier,'zht',ik,jk,zs)
       call histrd1(ncid,iarchi,ier,'tsu',ik,jk,tss)
 !***  tss(:)=abs(tss(:)) ! not here because -ves needed for onthefly
 
 c     turn on fatal netcdf errors
-      if ( myid == 0 ) call ncpopt(NCVERBOS+NCFATAL)
+      if(myid == 0)call ncpopt(NCVERBOS+NCFATAL)
 c     temperature
       call histrd4(ncid,iarchi,ier,'temp',ik,jk,kk,t)
 c     u wind component
@@ -326,27 +308,86 @@ c     v wind component
       call histrd4(ncid,iarchi,ier,'v',ik,jk,kk,v)
 c     mixing ratio
 c     turn OFF fatal netcdf errors; from here on
-      if ( myid == 0 ) call ncpopt(0)
+      if(myid == 0)call ncpopt(0)
       call histrd4(ncid,iarchi,ier,'q',ik,jk,kk,qg)       !  kg/kg
       if(ier.ne.0)then
         call histrd4(ncid,iarchi,ier,'mixr',ik,jk,kk,qg)  !   g/kg
-      endif
-      if(ldr.ne.0.and.nested==0)then   ! only from indata, altered Sept '04
-        call histrd4(ncid,iarchi,ier,'qfg',ik,jk,kk,qfg(1:ifullw,:))       !  kg/kg
-        call histrd4(ncid,iarchi,ier,'qlg',ik,jk,kk,qlg(1:ifullw,:))       !  kg/kg
-        if(ier.ne.0)then
-!         set default qfg, qlg to zero if not available on input file	
-          qfg=0. 
-          qlg=0. 
-        endif
-      endif     ! (ldr.ne.0)
+      endif  ! (ier.ne.0)
+      sicedep(:)=0.
+      fracice(:)=0.
+      call histrd1(ncid,iarchi,ier,'siced',ik,jk,sicedep)  
+      call histrd1(ncid,iarchi,ierr,'fracice',ik,jk,fracice)  
+      if(ier==0)then  ! i.e. sicedep read in 
+        do iq=1,ifull
+         if(sicedep(iq)<.05)then ! for sflux
+           sicedep(iq)=0.
+           fracice(iq)=0.
+         endif
+        enddo
+        if(ierr.ne.0)then ! i.e. sicedep read in; fracice not read in
+          where(sicedep>0.)
+            fracice=1.
+          endwhere
+        endif  ! (ierr.ne.0)  fracice
+      endif    ! (ier==0)
+      if(ier.ne.0)then     ! sicedep not read in
+        if(ierr.ne.0)then  ! neither sicedep nor fracice read in
+          fracice(:)=0.
+	   if(myid==0) print *,'pre-setting siced in newin from tss'
+          where(abs(tss) <= 271.2)
+            fracice=1.
+          endwhere
+c       else  ! i.e. only fracice read in;  done in indata, nestin
+c         do iq=1,ifull 
+c          if(fracice(iq)>.01)then
+c            sicedep(iq)=2.
+c          else
+c            sicedep(iq)=0.
+c            fracice(iq)=0.
+c          endif
+c         enddo
+        endif  ! (ierr.ne.0)
+      endif    ! (ier.ne.0) .. else ..    for sicedep
+      if(ncalled<4.and.mydiag)then
+        print *,'sig in: ',(sigin(i),i=1,kk)
+        write (6,"('100*psl# in',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &              100.*diagvals(psl)
+!     .           ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+        write (6,"('zs# in  ',3f7.1,1x,3f7.1,1x,3f7.1)") 
+     &     diagvals(zs)
+!     .           ((zs(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+        write (6,"('tss# in ',3f7.1,1x,3f7.1,1x,3f7.1)") 
+     &     diagvals(tss)
+!     .           ((tss(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+        print *,'ier,ierr for siced, fracice ',ier,ierr
+        write (6,"('siced# in ',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &     diagvals(sicedep)
+        write (6,"('fracice# in ',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &     diagvals(fracice)
+!       Printing the ifull value gives confusing results in the 
+!       parallel version
+        print *,'t in ',(t(idjd,k),k=1,kk)!,t(ifull,kk)
+        print *,'u in ',(u(idjd,k),k=1,kk)!,u(ifull,kk)
+        print *,'v in ',(v(idjd,k),k=1,kk)!,v(ifull,kk)
+        print *,'qg in ',(qg(idjd,k),k=1,kk)!,qg(ifull,kk)
+      endif  ! (ncalled<4.and.mydiag)
 
-      if ( myid == 0 ) print *,'in newin nested = ',nested
-      if(nested==0)then   !  following only at start of run #############
+      if(myid == 0)print *,'in newin nested = ',nested
+!########################################################################
+      if(nested==0)then   !  following only at start of run 
 !       read fields which may be there on restart, but maybe not initially
+        if(ldr.ne.0)then   ! following in kg/kg
+          call histrd4(ncid,iarchi,ier,'qfg',ik,jk,kk,qfg(1:ifullw,:))
+          call histrd4(ncid,iarchi,ier,'qlg',ik,jk,kk,qlg(1:ifullw,:))
+          if(ier.ne.0)then
+!           set default qfg, qlg to zero if not available on input 	
+            qfg(:,:)=0. 
+            qlg(:,:)=0. 
+          endif ! (ier.ne.0)
+        endif   ! (ldr.ne.0)
         call histrd1(ncid,iarchi,ier,'alb',ik,jk,alb)
-        call histrd1(ncid,iarchi,ier,'tgg2',ik,jk,tgg(1,2))
-        if(ier==0)then  ! at least tgg6, wb2, wb6 will be available
+        call histrd1(ncid,iarchi,ierr,'tgg2',ik,jk,tgg(1,2))
+        if(ierr==0)then  ! at least tgg6, wb2, wb6 will be available
           call histrd1(ncid,iarchi,ier,'tgg6',ik,jk,tgg(1,6))
           call histrd1(ncid,iarchi,ier,'wb2',ik,jk,wb(1,2))
           call histrd1(ncid,iarchi,ier,'wb6',ik,jk,wb(1,6))
@@ -363,81 +404,83 @@ c     turn OFF fatal netcdf errors; from here on
             tgg(:,1)=abs(tss(:)) ! initial temp. at 2nd layer(6.5.97 KF)
             tgg(:,3)=tgg(:,2) ! initial temp.. from GCM runs with 3 layers
             wb(:,1) =wb(:,2)  ! layer initialisation of moisture
-           do k=3,ms-1        ! don't want to change  tgg(,2) and tgg(,ms)
-            do iq=1,ifull
-             wb(iq,k) =wb(iq,ms)   ! layer initialisation of moisture
-            enddo  ! iq
-           enddo   ! k
-           do k=4,ms-1
-            do iq=1,ifull
-             tgg(iq,k)=tgg(iq,ms) ! initial temp from GCM runs with 3 layers
-            enddo  ! iq
-           enddo   ! k
-          endif
-        else
-           call histrd1(ncid,iarchi,ier,'tb2',ik,jk,tgg(1,ms))
-           call histrd1(ncid,iarchi,ier,'tb3',ik,jk,tgg(1,2))
-           call histrd1(ncid,iarchi,ier,'wfg',ik,jk,wb(1,2))
-           call histrd1(ncid,iarchi,ier,'wfb',ik,jk,wb(1,ms))
-           tgg(:,1)=abs(tss(:)) ! initial temp at 2nd layer(6.5.97 KF)
-           tgg(:,3)=tgg(:,2) ! initial temp. from GCM runs with 3 layers
-           wb(:,1) =wb(:,2)  ! layer initialisation of moisture
-           do k=3,ms-1       ! don't want to change  tgg(,2) and tgg(,ms)
-            do iq=1,ifull
-             wb(iq,k) =wb(iq,ms)   ! layer initialisation of moisture
-            enddo  ! iq
-           enddo   ! k
-           do k=4,ms-1
-            do iq=1,ifull
-             tgg(iq,k)=tgg(iq,ms) ! initial temp. from GCM runs with 3 layers
-            enddo  ! iq
-           enddo   ! k
-        endif    ! (ier==0)
-        if ( myid == 0 ) print *,'about to read snowd'
+            do k=3,ms-1       ! don't want to change  tgg(,2) and tgg(,ms)
+             do iq=1,ifull
+              wb(iq,k) =wb(iq,ms)   ! layer initialisation of moisture
+             enddo  ! iq
+            enddo   ! k
+            do k=4,ms-1
+             do iq=1,ifull
+              tgg(iq,k)=tgg(iq,ms) ! init temp from GCM runs with 3 layers
+             enddo  ! iq
+            enddo   ! k
+          endif     ! (ier==0) .. else ..
+        else        ! i.e. ierr.ne.0
+          call histrd1(ncid,iarchi,ier,'tb2',ik,jk,tgg(1,ms))
+          call histrd1(ncid,iarchi,ier,'tb3',ik,jk,tgg(1,2))
+          call histrd1(ncid,iarchi,ier,'wfg',ik,jk,wb(1,2))
+          call histrd1(ncid,iarchi,ier,'wfb',ik,jk,wb(1,ms))
+          tgg(:,1)=abs(tss(:)) ! initial temp at 2nd layer(6.5.97 KF)
+          tgg(:,3)=tgg(:,2) ! initial temp. from GCM runs with 3 layers
+          wb(:,1) =wb(:,2)  ! layer initialisation of moisture
+          do k=3,ms-1       ! don't want to change  tgg(,2) and tgg(,ms)
+           do iq=1,ifull
+            wb(iq,k) =wb(iq,ms)   ! layer initialisation of moisture
+           enddo  ! iq
+          enddo   ! k
+          do k=4,ms-1
+           do iq=1,ifull
+            tgg(iq,k)=tgg(iq,ms) ! init temp. from GCM runs with 3 layers
+           enddo  ! iq
+          enddo   ! k
+c	   only being tested for nested=0; no need to test for mesonest
+           if(tgg(1,1)<200..or.tgg(1,2)<200..or.tgg(1,6)<200.)then
+             write(0,*) 'impossibly cold initial tgg1, tgg2 or tgg6' 
+             stop
+           endif     
+        endif    ! (ierr==0) .. else ..
+        if(myid == 0)print *,'about to read snowd'
         call histrd1(ncid,iarchi,ier,'snd',ik,jk,snowd)
-        if(ier.ne.0.or.nqg_set<6)then  ! preset snowd here if not avail.
+        if(ier.ne.0)then  ! preset snowd here if not avail.
 !         when no snowd available initially, e.g. COMPARE III (jlm formula)
           snowd(:)=0.      ! added Feb '05
-          do iq=1,ifull                             ! "do" missing till 5/6/01
-!           for this one,snow lin. increases from 5 to 55, for T 270 down to 260
-            if(abs(tss(iq))<270.)snowd(iq)=
-     .                                min(55.,5.*(271.-abs(tss(iq))))   
+          do iq=1,ifull    ! "do" missing till 5/6/01
+!          for this one,snow lin. increases from 5 to 55, for T 270 down to 260
+           if(abs(tss(iq))<270.)
+     &                   snowd(iq)=min(55.,5.*(271.-abs(tss(iq))))
           enddo
           if(ncalled<4.and.mydiag)then
-           print *,'setting snowd in newin, ier,nqg_set= '  ,ier,nqg_set
+           print *,'setting snowd in newin, ier= '  ,ier
            print *,'snowd# preset to: ', diagvals(snowd)
 !     .            ((snowd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-          endif
-        endif  ! (ier.ne.0.or.nqg_set<6)
+          endif ! (ncalled<4.and.mydiag)
+        endif   ! (ier.ne.0)
         call histrd1(ncid,iarchi,ier,'smass1',ik,jk,smass(1,1))
         if(ier.ne.0)then  ! for smass1
-         if(myid==0)
+          if(myid==0)
      &          print *,'setting smass,wbice etc in newin, ier= '  ,ier
- 	  do iq=1,ifull
-          smass(iq,1)=0.
-          smass(iq,2)=0.
-	   smass(iq,3)=0.
-	   if(snowd(iq)>100.)then
-            ssdn(iq,1)=240.
-	   else
-	     ssdn(iq,1) = 140.
-	   endif		! (snowd(iq)>100.)
-          do k=2,3
-	    ssdn(iq,k)=ssdn(iq,1)
-          enddo
-	   ssdnn(iq)  = ssdn(iq,1)
-	   isflag(iq) = 0
-	   snage(iq)  = 0.
-	   if(snowd(iq)>0.)tgg(iq,1)=min(tgg(iq,1),270.1)
-         enddo   ! iq loop
-         do iq=1,ifull
-           do k=1,ms
+          smass(:,:)=0.
+          tggsn(:,:)=280.     ! just a default
+          isflag(:) = 0
+          snage(:)  = 0.
+          do iq=1,ifull
+           if(snowd(iq)>100.)then
+             ssdn(iq,1)=240.
+           else
+             ssdn(iq,1) = 140.
+           endif  ! (snowd(iq)>100.)
+           do k=2,3
+            ssdn(iq,k)=ssdn(iq,1)
+           enddo
+           ssdnn(iq)  = ssdn(iq,1)
+           if(snowd(iq)>0.)tgg(iq,1)=min(tgg(iq,1),270.1)
+          enddo   ! iq loop
+          do k=1,ms
 !           following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
-            wbice(iq,k)=
-     .             min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
-	    enddo ! ms
-         enddo  ! iq loop
-        else    ! assume all these variables available in restart file
+            wbice(:,k)=
+     &           min(.99,max(0.,.99*(273.1-tgg(:,k))/5.))*wb(:,k) ! jlm
+          enddo ! ms
+        else     ! assume all these variables available in restart file
          call histrd1(ncid,iarchi,ier,'smass2',ik,jk,smass(1,2))
          call histrd1(ncid,iarchi,ier,'smass3',ik,jk,smass(1,3))
          call histrd1(ncid,iarchi,ier,'ssdn1',ik,jk,ssdn(1,1))
@@ -454,65 +497,21 @@ c     turn OFF fatal netcdf errors; from here on
          call histrd1(ncid,iarchi,ier,'wbice6',ik,jk,wbice(1,6))
          call histrd1(ncid,iarchi,ier,'snage',ik,jk,snage)
          call histrd1(ncid,iarchi,ier,'sflag',ik,jk,tmp)
-         do iq=1,ifull
-          isflag(iq)=nint(tmp(iq))
-         enddo
+         isflag(:)=nint(tmp(:))
         endif  ! (ier.ne.0) ... else ...   for smass1
-      
-        call histrd1(ncid,iarchi,ier,'siced',ik,jk,sicedep)  ! presets to follow
-        if(ier.ne.0)then  ! for siced
- 	   if(myid==0) print *,'pre-setting siced in newin'
-           where ( abs(tss) <= 271.2 ) 
-              sicedep = 2. 
-           elsewhere
-              sicedep = 0.     
-           endwhere
-        endif
-
-         if ( mydiag ) then
-            print *,'at end of newin kdate,ktime,ktau,tss: ',
-     &                     kdate_r,ktime_r,ktau,tss(idjd)
-            print *,'tgg ',(tgg(idjd,k),k=1,ms)
-            print *,'wb ',(wb(idjd,k),k=1,ms)
-            print *,'wbice ',(wbice(idjd,k),k=1,ms)
-         end if
-      endif  ! (nested==0)   !  only done at start of run 
-
-      iarchi=iarchi+1
-
-      if ( mydiag ) then
-         write(6,'("end newin kdate,ktime,ktau_r,mtimer,timer,ds_r="
-     &      ,4i10,2f10.1)')kdate_r,ktime_r,ktau_r,mtimer,timer,ds_r
-      end if
-
-      if(ncalled<4.and.mydiag)then
-          print *,'sig in: ',(sigin(i),i=1,kk)
-          write (6,"('100*psl# in',3f7.2,1x,3f7.2,1x,3f7.2)") 
-     &              100.*diagvals(psl)
-!     .              ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-          write (6,"('zs# in  ',3f7.1,1x,3f7.1,1x,3f7.1)") 
-     &              diagvals(zs)
-!     .              ((zs(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-          print *,'em# in: ', diagvals(em)
-!     . 	   ((em(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-          print *,'f# in: ', diagvals(f)
-!     . 	   ((f(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-          write (6,"('tss# in ',3f7.1,1x,3f7.1,1x,3f7.1)") 
-     &          diagvals(tss)
-!     .              ((tss(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-          write (6,"('prec# in',3f7.2,1x,3f7.2,1x,3f7.2)") 
-     &          diagvals(precip)
-!     .           ((precip(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-!  Printing the ifull value gives confusing results in the parallel version
-          print *,'t in ',(t(idjd,k),k=1,kk)!,t(ifull,kk)
-          print *,'u in ',(u(idjd,k),k=1,kk)!,u(ifull,kk)
-          print *,'v in ',(v(idjd,k),k=1,kk)!,v(ifull,kk)
-          print *,'qg in ',(qg(idjd,k),k=1,kk)!,qg(ifull,kk)
-          print *,'N.B. following are meaningless during nestin read'
+        if(mydiag)then
+          print *,'at end of newin kdate,ktime,ktau,tss: ',
+     &                             kdate_r,ktime_r,ktau,tss(idjd)
+          print *,'tgg ',(tgg(idjd,k),k=1,ms)
+          print *,'wb ',(wb(idjd,k),k=1,ms)
+          print *,'wbice ',(wbice(idjd,k),k=1,ms)
+        endif ! (mydiag)
+        if(ncalled<4.and.mydiag)then
           print *,'tgg(1)# ', diagvals(tgg(:,1))
 !     .           ((tgg(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
           print *,'tgg(2)# ', diagvals(tgg(:,2))
 !     .           ((tgg(ii+(jj-1)*il,2),ii=id-1,id+1),jj=jd-1,jd+1)
+          print *,'tgg(3)# ', diagvals(tgg(:,3))
           print *,'tgg(ms)# ', diagvals(tgg(:,ms))
 !     .           ((tgg(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
           print *,'wb(1)# ', diagvals(wb(:,1))
@@ -523,7 +522,15 @@ c     turn OFF fatal netcdf errors; from here on
 !     . 	   ((alb(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
           print *,'snowd# in: ', diagvals(snowd)
 !     .           ((snowd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-       endif                    ! (ncalled<4)
+        endif ! (ncalled<4.and.mydiag)
+      endif   ! (nested==0)   !  only done at start of run 
+! ########################################################################
+
+      iarchi=iarchi+1
+      if(mydiag)then
+         write(6,'("end newin kdate,ktime,ktau_r,mtimer,timer,ds_r="
+     &      ,4i10,2f10.1)')kdate_r,ktime_r,ktau_r,mtimer,timer,ds_r
+      endif ! (mydiag)
 
 !     reset kdate_s and ktime_s ready for next (nesting) call to infile
       kdate_s=kdate_r
@@ -531,14 +538,14 @@ c     turn OFF fatal netcdf errors; from here on
 
       qg(1:ifull,:) = max(qg(1:ifull,:),1.e-6)
 
-      if ( mydiag ) then
+      if(mydiag)then
          print *,'end infile; next read will be kdate_s,ktime_s >= ',
-     &                                       kdate_s,ktime_s
-      end if
+     &                                          kdate_s,ktime_s
+      endif  ! (mydiag)
 
       end subroutine infile
 
-c***************************************************************************
+c*************************************************************************
       subroutine histrd1(ncid,iarchi,ier,name,ik,jk,var)
       use cc_mpi
       implicit none
@@ -549,14 +556,14 @@ c***************************************************************************
       integer ncid, iarchi, ier, ik, jk
       integer*2 ivar(ik*jk)
       logical odiag
-      parameter ( odiag=.false. )
+      parameter(odiag=.false. )
       character name*(*)
       integer start(3),count(3)
       real var(ifull)
       real globvar(ifull_g), vmax, vmin, addoff, sf
       integer ierr, idv
 
-      if (myid==0) then
+      if(myid==0)then
          start = (/ 1, 1, iarchi /)
          count = (/ ik, jk, 1 /)
 
@@ -581,24 +588,24 @@ c     obtain scaling factors and offsets from attributes
 
 c     unpack data
             globvar = ivar*sf+addoff
-            if(mod(ktau,nmaxpr)==0.or.odiag) then
+            if(mod(ktau,nmaxpr)==0.or.odiag)then
                vmax = maxval(globvar)
                vmin = minval(globvar)
                write(6,'("done histrd1 ",a6,i4,i3,3e14.6)')
      &           name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*il_g)
-            end if
-         end if ! ier
-      end if ! myid == 0
+            endif
+         endif ! ier
+      endif ! myid == 0
       ! Have to return correct value of ier on all processes because it's 
       ! used for initialisation in calling routine
       call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      if (ier==0) then
-         if ( myid == 0 ) then
+      if(ier==0)then
+         if(myid == 0)then
             call ccmpi_distribute(var,globvar)
          else
             call ccmpi_distribute(var)
-         end if
-      end if
+         endif
+      endif
 
       return ! histrd1
       end
@@ -618,45 +625,40 @@ c***************************************************************************
       real globvar(ifull_g,kl), vmax, vmin, addoff, sf
       integer ierr, idv
 
-      if (myid == 0 ) then
-
+      if(myid == 0)then
          start = (/ 1, 1, 1, iarchi /)
          count = (/ il_g, jl_g, kk, 1 /)
-
-c     get variable idv
+c        get variable idv
          idv = ncvid(ncid,name,ier)
          if(ier.ne.0)then
             print *,'***absent hist4 field for ncid,name,idv,ier: ',
-     &                                     ncid,name,idv,ier
+     &                                         ncid,name,idv,ier
          else
-
-c read in all data
-            call ncvgt(ncid,idv,start,count,ivar,ier)
-
-c obtain scaling factors and offsets from attributes
-            call ncagt(ncid,idv,'add_offset',addoff,ier)
-            call ncagt(ncid,idv,'scale_factor',sf,ier)
-
-c unpack data
-            globvar = ivar*sf + addoff
-            if(mod(ktau,nmaxpr)==0) then
-               vmax = maxval(globvar)
-               vmin = minval(globvar)
-               write(6,'("done histrd4 ",a6,i4,i3,3f12.4)') 
+c          read in all data
+           call ncvgt(ncid,idv,start,count,ivar,ier)
+c          obtain scaling factors and offsets from attributes
+           call ncagt(ncid,idv,'add_offset',addoff,ier)
+           call ncagt(ncid,idv,'scale_factor',sf,ier)
+c          unpack data
+           globvar = ivar*sf + addoff
+           if(mod(ktau,nmaxpr)==0)then
+             vmax = maxval(globvar)
+             vmin = minval(globvar)
+             write(6,'("done histrd4 ",a6,i4,i3,3f12.4)') 
      &           name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*il_g,nlv)
-            end if
-         end if ! ier
-      end if ! myid == 0
+           endif
+         endif ! ier
+      endif ! myid == 0
       ! Have to return correct value of ier on all processes because it's 
       ! used for initialisation in calling routine
       call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      if (ier==0) then
-         if ( myid == 0 ) then
+      if(ier==0)then
+         if(myid == 0)then
             call ccmpi_distribute(var,globvar)
          else
             call ccmpi_distribute(var)
-         end if
-      end if
+         endif
+      endif
 
       return ! histrd4
       end
@@ -668,9 +670,9 @@ c unpack data
       include 'newmpar.h'
       include 'sigs.h'
       include 'parm.h'
-      common/work3/dum3(ifull,kl,3),told(ifull,kl),spare(ijk)
       common/sigin/sigin(kl),kk                    ! for vertint, infile
       dimension t(ifull,kl),ka(kl),kb(kl),wta(kl),wtb(kl)  ! for mpi
+      real told(ifull,kl)
       save num,ka,kb,wta,wtb,klapse
       data num/0/,klapse/0/
       if(num==0)then
@@ -736,6 +738,8 @@ c     print *,'in vertint t',t(idjd,:)
       end
 
       subroutine datefix(kdate_r,ktime_r,mtimer_r)
+      include 'newmpar.h'
+      include 'parm.h'
       common/leap_yr/leap  ! 1 to allow leap years
       integer mdays(12)
       data mdays/31,28,31,30,31,30,31,31,30,31,30,31/
@@ -745,7 +749,7 @@ c     print *,'in vertint t',t(idjd,:)
         print *,'For Y2K kdate_r altered to: ',kdate_r
       endif
 
-      if(mtimer_r==0) then
+      if(mtimer_r==0)then
          print*,'mtimer_r==0: so return in datefix'
          return
       endif
@@ -760,7 +764,7 @@ c     print *,'in vertint t',t(idjd,:)
        iyr=iyr+1
        mtimer_r=mtimer_r-minsyr
       enddo
-      print *,'a datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
+      if(diag)print *,'a datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
      .                   iyr,imo,iday,ihr,imins,mtimer_r
 
       mdays(2)=28
@@ -774,13 +778,13 @@ c     print *,'in vertint t',t(idjd,:)
          if(mod(iyr,4)==0.and.leap==1)mdays(2)=29
        endif
       enddo
-      print *,'b datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
+      if(diag)print *,'b datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
      .                   iyr,imo,iday,ihr,imins,mtimer_r
       do while (mtimer_r>minsday)
        mtimer_r=mtimer_r-minsday
        iday=iday+1
       enddo
-      print *,'c datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
+      if(diag)print *,'c datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
      .                   iyr,imo,iday,ihr,imins,mtimer_r
 
 !     at this point mtimer_r has been reduced to fraction of a day
@@ -797,13 +801,13 @@ c     print *,'in vertint t',t(idjd,:)
         imins=imins-60
         ihr=ihr+1
       endif
-      print *,'d datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
+      if(diag)print *,'d datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
      .                   iyr,imo,iday,ihr,imins,mtimer_r
       if(ihr>23)then
         ihr=ihr-24
         iday=iday+1
       endif
-      print *,'e datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
+      if(diag)print *,'e datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
      .                   iyr,imo,iday,ihr,imins,mtimer_r
 
       if(iday>mdays(imo))then
@@ -818,7 +822,7 @@ c     print *,'in vertint t',t(idjd,:)
       kdate_r=iday+100*(imo+100*iyr)
       ktime_r=ihr*100+imins
       mtimer=0
-      print *,'leaving datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
+      if(diag)print *,'end datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
      .                         iyr,imo,iday,ihr,imins,mtimer_r
       print *,'leaving datefix kdate_r,ktime_r: ',kdate_r,ktime_r
 

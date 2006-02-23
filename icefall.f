@@ -10,11 +10,7 @@ c      lon - number of points around a latitude circle
 c      ln2 - number of points for NH+SH latitude circles sequentially
 c      nl - number of vertical levels
 c
-c from common/fewflags in FEWFLAGS.f
-c      debug - namelist flag to control single column debugging
-c      lgdebug - latitude index for single column debugging
-c      insdebug - hemisphere index for single column debugging
-c      mgdebug  - longitude index for single column debugging
+c      ntest - 0=off, 1=on to control single column debugging
 c
 c see also include files physparams.h (model physical constants)
 c                        cparams.h    (cloud scheme parameters)
@@ -112,12 +108,7 @@ c     real qaggi(ln2,nl)
       real slopes(ln2,nl)
       real vi2(ln2,nl)
 
-      integer k
-      integer ma
-      integer mg
-c     integer njumps
-      integer ns
-      integer nt
+      integer k,mg,ntest
 
       real alph
       real alphaf
@@ -145,13 +136,8 @@ c     integer njumps
       real sublflux
       real tc
       real tk
-
-C Local data, functions etc
-      logical debug
-      integer lgdebug,mgdebug,insdebug
-      data debug,lgdebug,mgdebug,insdebug /.false.,1,1,1/
-      save debug,lgdebug,mgdebug,insdebug
-
+      parameter (ntest=0)  ! 0=off, 1=on
+ 
 C Start code : ----------------------------------------------------------
 
 c Set up timestep for ice processes
@@ -182,10 +168,12 @@ c          qacci(mg,k)=0.
         enddo
       enddo
 
-      if(debug)then
-        if(lg==lgdebug)then
-          ns=insdebug
-          mg=mgdebug+(ns-1)*lon
+      if(nmaxpr==1.and.mydiag)then
+        print *,'diags from icefall for idjd ',idjd
+        write (6,"('clfra ',9f8.3/6x,9f8.3)") clfr(idjd,:)
+      endif
+      if(ntest>0)then
+          mg=idjd
           write(25,'(a,3i3)')'IPASS=1, before icefall.'
           write(25,91)'cfrac ',(cfrac(mg,k),k=1,nl)
           write(25,91)'cifr ',(cifr(mg,k),k=1,nl)
@@ -193,8 +181,8 @@ c          qacci(mg,k)=0.
           write(25,9)'qlg ',(qlg(mg,k),k=1,nl)
           write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
           write(25,*)
-        endif
-
+      endif  ! (ntest>0)
+      if(ntest==2)then
         do k=1,nl
           do mg=1,ln2
             if(cfrac(mg,k)>0)then
@@ -210,7 +198,7 @@ c          qacci(mg,k)=0.
             endif
           enddo
         enddo
-      endif
+      endif  ! (ntest==2)
 
 c Set up ice fall speed field and other arrays
 
@@ -496,7 +484,6 @@ c Update the rhoi and cifr fields
 c Now fluxice is flux leaving layer k
             fluxi(mg,k)=fluxi(mg,k)+fluxice(mg)
 
-
           enddo
         enddo
 
@@ -509,26 +496,24 @@ c Re-create qfg field
       do k=1,nl
         do mg=1,ln2
           qfg(mg,k)=rhoi(mg,k)/rhoa(mg,k)
-	   if(qfg(mg,k)<0.)then
-	     print *,'k,mg,lg,qfg_rhoi ',k,mg,lg,qfg(mg,k)
-	     stop
-	   endif
+          if(qfg(mg,k)<0.)then
+            print *,'k,mg,lg,qfg_rhoi ',k,mg,lg,qfg(mg,k)
+            stop
+          endif
         enddo
       enddo
 
 c Diagnostics for debugging
       if(nmaxpr==1.and.mydiag)then
-	print *,'diags from icefall for idjd ',idjd
-       write (6,"('vi2 ',9f8.3/4x,9f8.3)") vi2(idjd,:)
-       write (6,"('cfraci',9f8.3/6x,9f8.3)") cfrac(idjd,:)
-       write (6,"('cifr  ',9f8.3/6x,9f8.3)") cifr(idjd,:)
-       write (6,"('qfg   ',3p9f8.3/6x,9f8.3)") qfg(idjd,:)
+        write (6,"('vi2 ',9f8.3/4x,9f8.3)") vi2(idjd,:)
+        write (6,"('cfraci',9f8.3/6x,9f8.3)") cfrac(idjd,:)
+        write (6,"('cifr  ',9f8.3/6x,9f8.3)") cifr(idjd,:)
+        write (6,"('clfrb ',9f8.3/6x,9f8.3)") clfr(idjd,:)
+        write (6,"('qfg   ',3p9f8.3/6x,9f8.3)") qfg(idjd,:)
       endif
 
-      if(debug)then
-        if(lg==lgdebug)then
-          ns=insdebug
-          mg=mgdebug+(ns-1)*lon
+      if(ntest>0)then
+          mg=idjd
           write(25,'(a,3i3)')'IPASS=1, after icefall.'
           write(25,91)'cfrac ',(cfrac(mg,k),k=1,nl)
           write(25,91)'cifr ',(cifr(mg,k),k=1,nl)
@@ -543,7 +528,7 @@ c Diagnostics for debugging
 c          write(25,9)'qfdiv ',(qfdiv(mg,k),k=1,nl)
           write(25,*)
 
-          ma=(ns-1)*lon
+c          ma=(ns-1)*lon
 C***          do k=1,nl
 C***            do mg=1+ma,lon+ma
 C***              mb=mg-ma
@@ -572,8 +557,7 @@ C***                endif
 C***              endif
 C***            enddo
 C***          enddo
-        endif
-      endif
+      endif  ! (ntest>0)
 
  1    format(3(a,g10.3))
  91   format(a,30f10.3)

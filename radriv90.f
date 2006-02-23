@@ -36,7 +36,7 @@
       include 'pbl.h'
       include 'scamdim.h'
       include 'sigs.h'
-      include 'soil.h'      ! rhgdum ... zmin  sice alb
+      include 'soil.h'      ! rhgdum ... zmin  sicedep alb
       include 'soilsnow.h'  ! tgg,wb,snowd
       include 'soilv.h'
 !     For the radiation code
@@ -73,6 +73,9 @@ c     parameters for the aerosol calculation
       real sgdn(imax), rgdn(imax)
       real hlwsav(ifull,kl),hswsav(ifull,kl)
       save hlwsav, hswsav, sgamp
+!     when there is time incorporate properly here      
+      common/radstuff/sgx(ifull),sgdnx(ifull),rgx(ifull),rgdnx(ifull),
+     &             soutx(ifull),sintx(ifull),rtx(ifull)
       
 c     Following are for cloud2 routine
       real t2(imax,kl),ql2(imax,kl),qf2(imax,kl),cf2(imax,kl),
@@ -202,13 +205,13 @@ c     Allowed values are 0, 6000 and 21000.
         stop 'illegal setting of imax in rdparm'
       endif
       do 100 j=1,jl,imax/il
+      istart=1+(j-1)*il
+      iend=istart+imax-1
       if(ntest.eq.1)print *,'in radriv90 j = ',j
 !     Calculate zenith angle for the solarfit calculation.
       if ( solarfit ) then
 !        This call averages zenith angle just over this time step.
          dhr = dt/3600.0
-         istart=1+(j-1)*il
-         iend=istart+imax-1
 c        call zenith(fjd,r1,dlt,slag,rlatt(1+(j-1)*il),
 c    &               rlongg(1+(j-1)*il),dhr,imax,coszro2,taudar2)
          call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),
@@ -276,16 +279,16 @@ c        Conversion of o3 from units of cm stp to gm/gm
              albs=max(min(albs,.38),.11)
              cuvrf(i,1) = tsigmf(iq)*albsav(iq) + (1.-tsigmf(iq))*albs
              if(ntest.gt.0.and.i.eq.idrad.and.j.eq.jdrad)then
-               print *,'iq,land,sice,wbw,wbs,snowd ',
-     .                  iq,land(iq),sice(iq),wbw,wbs,snowd(iq)
+               print *,'iq,land,sicedep,wbw,wbs,snowd ',
+     .                  iq,land(iq),sicedep(iq),wbw,wbs,snowd(iq)
                print *,'wbdp,wpav,wb ',wbdp,wbav,wb(iq,1)
                print *,'albsav,albav,albs ',albsav(iq),albav,albs
                print *,'cuvrf1 ',cuvrf(i,1)
              endif
            endif    ! (nalbwb.eq.0)
            if(snowd(iq).gt.0.)then
-c           new snow albedo (needs osnowd from the previous dt)
-	     dnsnow=min(1.,.1*max(0.,snowd(iq)-osnowd(iq)))   ! new snow (cm H2O)
+c            new snow albedo (needs osnowd from the previous dt)
+             dnsnow=min(1.,.1*max(0.,snowd(iq)-osnowd(iq)))  ! new snow (cm H2O)
 c	     Snow age depends on snow crystal growth, freezing of melt water,
 c	     accumulation of dirt and amount of new snow.
 !	     if(isflag(iq).eq.1)then
@@ -294,59 +297,59 @@ c	     accumulation of dirt and amount of new snow.
 !	       ttbg=min(tgg(iq,1),273.1)
 !           endif
             ttbg=isflag(iq)*tggsn(iq,1) + (1-isflag(iq))*tgg(iq,1)
-	     ttbg=min(ttbg,273.1)
-	     ar1 = 5000.*( 1./273.1 - 1./ttbg) ! crystal growth  (-ve)
-	     exp_ar1=exp(ar1)
-	     ar2 = 10.*ar1                     ! freezing of melt water
-            exp_ar2=exp(ar2)
-	     snr=snowd(iq)/max(ssdnn(iq),100.)
-	     if(isoilm(iq).eq.9)then   ! fixes for Arctic & Antarctic
+            ttbg=min(ttbg,273.1)
+            ar1 = 5000.*( 1./273.1 - 1./ttbg) ! crystal growth  (-ve)
+            exp_ar1=exp(ar1)                  ! e.g. exp(0 to -4)
+            ar2 = 10.*ar1                     ! freezing of melt water
+            exp_ar2=exp(ar2)                  ! e.g. exp(0 to -40)
+            snr=snowd(iq)/max(ssdnn(iq),100.)
+            if(isoilm(iq).eq.9)then   ! fixes for Arctic & Antarctic
               ar3=.001
-	       dnsnow=max(dnsnow,.0015)
-	       snrat=min(1.,snr/(snr+.001))
+              dnsnow=max(dnsnow,.0015)
+              snrat=min(1.,snr/(snr+.001))
             else
-	       ar3=.3	 		              ! accumulation of dirt
+              ar3=.3               ! accumulation of dirt
               snrat=min(1.,snr/(snr+.02))
             endif
-	     dtau=1.e-6*( exp_ar1 + exp_ar2 + ar3 ) * dt
-	     if(snowd(iq).le. 1.)then
+            dtau=1.e-6*(exp_ar1+exp_ar2+ar3)*dt  ! <~.1 in a day
+            if(snowd(iq).le. 1.)then
               snage(iq)=0.
             else
               snage(iq)=max(0.,(snage(iq) + dtau)*(1.-dnsnow))
             endif
 
 c	     Snow albedo is dependent on zenith angle and  snow age.
-	     alvo = 0.95		        !alb. for vis. on a new snow
-	     aliro = 0.65			 !alb. for near-infr. on a new snow
-	     fage = 1.-1./(1.+snage(iq))	 !age factor
+            alvo = 0.95	        !alb. for vis. on a new snow
+            aliro = 0.65        !alb. for near-infr. on a new snow
+            fage = 1.-1./(1.+snage(iq))	 !age factor
 
             if(ntest.eq.1.and.iq.eq.idjd)then
-	       print *,'ar1,ar2,snowd,ssdnn ',
+              print *,'ar1,ar2,snowd,ssdnn ',
      .                 ar1,ar2,snowd(iq),ssdnn(iq)
-	       print *,'exp_ar1,exp_ar2,ar3 ',
+              print *,'exp_ar1,exp_ar2,ar3 ',
      .                 exp_ar1,exp_ar2,ar3
-	       print *,'dnsnow,snr,snrat,dtau,snage,fage ',
+              print *,'dnsnow,snr,snrat,dtau,snage,fage ',
      .                 dnsnow,snr,snrat,dtau,snage(iq),fage
-	     endif
+             endif
 
 c	     albedo zenith dependence
 c	     alvd = alvo * (1.0-cs*fage); alird = aliro * (1.-cn*fage)
 c                   where cs = 0.2, cn = 0.5, b = 2.0
-	     cczen=max(.17365, coszro(i))
-	     fzen=( 1.+1./2.)/(1.+2.*2.*cczen) -1./2.
-	     if( cczen .gt. 0.5 ) fzen = 0.
-	     fzenm = max ( fzen, 0. )
-	     alvd = alvo * (1.0-0.2*fage)
-	     alv = .4 * fzenm * (1.-alvd) + alvd
-	     alird = aliro*(1.-.5*fage)
-	     alir = .4 * fzenm * (1.0-alird) + alird
-	     talb = .5 * ( alv + alir )		        ! snow albedo
+             cczen=max(.17365, coszro(i))
+             fzen=( 1.+1./2.)/(1.+2.*2.*cczen) -1./2.
+             if( cczen .gt. 0.5 ) fzen = 0.
+             fzenm = max ( fzen, 0. )
+             alvd = alvo * (1.0-0.2*fage)
+             alv = .4 * fzenm * (1.-alvd) + alvd
+             alird = aliro*(1.-.5*fage)
+             alir = .4 * fzenm * (1.0-alird) + alird
+             talb = .5 * ( alv + alir )        ! snow albedo
 c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
-	     cc=min(1.,snr/max(snr+zolnd(iq),0.02))
-	     tsigmfx=(1.-cc)*tsigmf(iq)              ! mult by snow free veg. fraction
+             cc=min(1.,snr/max(snr+zolnd(iq),0.02))
+             tsigmfx=(1.-cc)*tsigmf(iq)      ! mult by snow free veg. fraction
 
             alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
-	     if(nsib.ge.3)then 
+            if(nsib.ge.3)then 
               cuvrf(i,1)=alss
             else
               cuvrf(i,1)=min(.8,(1.-tsigmfx)*alss+tsigmfx*albsav(iq))
@@ -360,23 +363,13 @@ c           endif
 c           cuvrf(i,1)=min(snalb ,
 c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
             if(ntest.gt.0.and.i.eq.idrad.and.j.eq.jdrad)then
-              print *,'i,j,land,sice,snowd,snrat ',
-     .                 i,j,land(iq),sice(iq),snowd(iq),snrat
+              print *,'i,j,land,sicedep,snowd,snrat ',
+     .                 i,j,land(iq),sicedep(iq),snowd(iq),snrat
               print *,'albsav,dnsnow,talb,cuvrf1 ',
      .                 albsav(iq),dnsnow,talb,cuvrf(i,1)
             endif
            endif          !  snowd(iq).gt.0.
          else             !  over the ocean or sea ice
-c           if( sice(iq) )then
-c!            surface albedo for sea ice points
-c             if(tss(iq).gt.273.1)then
-c               cuvrf(i,1)=.55  ! Mark 3 style
-c             else
-c               cuvrf(i,1)=.65  ! Mark 3 style
-c             endif
-c           else           ! over the ocean
-c             cuvrf(i,1) = 0.05/(coszro(i)+0.15)
-c           endif          ! if( sice(iq) )
 !          following for CCAM from 11/6/03
            cuvrf(i,1)=.65*fracice(iq)+
      .                (1.-fracice(iq))*.05/(coszro(i)+0.15)
@@ -386,7 +379,7 @@ c           endif          ! if( sice(iq) )
          if(iaero.ne.0)then
            cosz = max ( coszro(i), 1.e-4)
            delta =  coszro(i)*beta_ave*alpha*so4t(iq)*
-     &			          ((1.-cuvrf(i,1))/cosz)**2
+     &	                    ((1.-cuvrf(i,1))/cosz)**2
 !          above formula equiv. to next lines, but avoids dark-area problems
 c          delta =   beta_ave*alpha*so4t(iq)*
 c    &			          (1.-cuvrf(i,1))**2/cosz
@@ -398,7 +391,7 @@ c    &			          (1.-cuvrf(i,1))**2/cosz
       do k=1,kl
          kr = kl+1-k
          do i=1,imax
-	    iq=i+(j-1)*il
+            iq=i+(j-1)*il
             press(i,kr) = ps(iq) * sig(k) * 10. ! Convert to cgs
             temp(i,kr) = t(iq,k)
 c           Set min value to avoid numerical problems
@@ -413,7 +406,7 @@ c     Calculate half level pressures and temperatures by linear interp
       do k=1,kl+1
          kr=kl+2-k
          do i=1,imax
-	     iq=i+(j-1)*il
+            iq=i+(j-1)*il
             press2(i,kr) = ps(iq) * sigh(k) * 10.
          end do ! i=1,imax
       end do    ! k=1,kl+1
@@ -430,7 +423,7 @@ c     Calculate half level pressures and temperatures by linear interp
          temp2(i,1) = temp(i,1)
          temp2(i,lp1) = temp(i,lp1)
       end do ! i=1,imax
-
+      
       if(ldr.ne.0)then  
 c       Stuff needed for cloud2 routine...    
         qccon(:,:)=0.
@@ -444,17 +437,17 @@ c       Stuff needed for cloud2 routine...
             qc2(i,k)=qccon(iq,k)
 !           will need this test eventually: if(naerosol_i(1).gt.0)then .. else
             if(land(iq))then
-              if(rlatt(iq)>0.)then	     
+              if(rlatt(iq)>0.)then     
                 cd2(i,k)=cdropl_nh
-		else
+              else
                 cd2(i,k)=cdropl_sh
-		endif
+              endif
             else
-              if(rlatt(iq)>0.)then	     
+              if(rlatt(iq)>0.)then     
                 cd2(i,k)=cdrops_nh
-		else
+              else
                 cd2(i,k)=cdrops_sh
-		endif
+              endif
             endif  ! (land(iq)) .. else ..
             land2(i)=land(iq)
             p2(i,k)=0.01*ps(iq)*sig(k) !Looks like ps is SI units
@@ -542,7 +535,7 @@ c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
 
       do k=1,kl
          do i=1,imax
-	   iq=i+(j-1)*il
+          iq=i+(j-1)*il
 c         total heating rate
 c----     note : htk now in Watts/M**2 (no pressure at level weighting)
 c         Convert from cgs to SI units
@@ -566,17 +559,17 @@ c             fitting need be done.
            else
               sga(i) = sg(i) / (coszro(i)*taudar(i))
            end if
-	end do
+        end do
       else
         do i=1,imax
           sga(i) = 0.
-	end do
+        end do
       end if    !  ( solarfit )
 
 !     Save things for non-radiation time steps
       fractss=.05
       do i=1,imax
-	  iq=i+(j-1)*il
+         iq=i+(j-1)*il
          sgsave(iq) = sg(i)   ! repeated after solarfit
          sgamp(iq) = sga(i)
 c        Save the value excluding Ts^4 part.  This is allowed to change.
@@ -591,7 +584,7 @@ c        Save the value excluding Ts^4 part.  This is allowed to change.
 
 c     cloud amounts for saving
       do i=1,imax
-	  iq=i+(j-1)*il
+         iq=i+(j-1)*il
          cloudtot(iq) = 1. - (1.-cloudlo(iq)) * (1.-cloudmi(iq)) *
      &        (1.-cloudhi(iq))
       end do
@@ -601,7 +594,7 @@ c     cloud amounts for saving
       if(ktau>1)then ! averages not added at time zero
         if(j==1)koundiag=koundiag+1  
         do i=1,imax
-	  iq=i+(j-1)*il
+         iq=i+(j-1)*il
          sint_ave(iq) = sint_ave(iq) + sint(i)
          sot_ave(iq)  = sot_ave(iq)  + sout(i)
          soc_ave(iq)  = soc_ave(iq)  + soutclr(i)
@@ -623,18 +616,18 @@ c     cloud amounts for saving
       if (solarfit) then 
 !        Calculate the solar using the saved amplitude.
          do i=1,imax
-	   iq=i+(j-1)*il
+          iq=i+(j-1)*il
           sg(i) = sgamp(iq)*coszro2(i)*taudar2(i)
          end do
       else
          do i=1,imax
-	   iq=i+(j-1)*il
+          iq=i+(j-1)*il
           sg(i) = sgsave(iq)
          end do
       end if  ! (solarfit) .. else ..
       if(ktau>1)then ! averages not added at time zero
        do i=1,imax
-	  iq=i+(j-1)*il
+         iq=i+(j-1)*il
          sgn_ave(iq)  = sgn_ave(iq)  + sg(i)
        end do
       endif  ! (ktau>1)
@@ -644,7 +637,7 @@ c slwa is negative net radiational htg at ground
 ! Note that this does not include the upward LW radiation from the surface.
 ! That is included in sflux.f
       do i=1,imax
-	  iq=i+(j-1)*il
+         iq=i+(j-1)*il
          slwa(iq) = -sg(i)+rgsave(iq)
          sgsave(iq) = sg(i)   ! this is the repeat after solarfit 26/7/02
       end do
@@ -654,7 +647,7 @@ c slwa is negative net radiational htg at ground
 ! to a cooling rate.
       do k=1,kl
          do i=1,imax
-	     iq=i+(j-1)*il
+            iq=i+(j-1)*il
             rtt(iq,k) = (hswsav(iq,k)+hlwsav(iq,k)) /
      &                   (cong*ps(iq)*dsig(k))
          end do
@@ -676,7 +669,16 @@ c           print *,"rtt(i,j,k)=",rtt(i,j,k)
 c        enddo
 c       endif
 
- 100  continue  ! Row loop (j)
+!     clean up following, & use for rgsave etc
+      sgx(istart:iend)=sg(:)
+      sgdnx(istart:iend)=sgdn(:)
+      rgx(istart:iend)=rg(:)
+      rgdnx(istart:iend)=rgdn(:)
+      soutx(istart:iend)=sout(:)
+      sintx(istart:iend)=sint(:)
+      rtx(istart:iend)=rt(:)
+
+ 100  continue  ! Row loop (j)  j=1,jl,imax/il
       if(ntest.gt.0)then
         print *,'rgsave,rtsave,sintsave ',
      .           rgsave(idjd),rtsave(idjd),sintsave(idjd)

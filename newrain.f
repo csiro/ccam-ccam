@@ -12,11 +12,7 @@ c      lon - number of points around a latitude circle
 c      ln2 - number of points for NH+SH latitude circles sequentially
 c      nl - number of vertical levels
 c
-c from common/fewflags in FEWFLAGS.f
-c      debug - namelist flag to control single column debugging
-c      lgdebug - latitude index for single column debugging
-c      insdebug - hemisphere index for single column debugging
-c      mgdebug  - longitude index for single column debugging
+c      ntest - 0=off, 1=on to control single column debugging
 c
 c see also include files physparams.h (model physical constants)
 c                        cparams.h    (cloud scheme parameters)
@@ -60,6 +56,7 @@ c
      &                  preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,
      &                  fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
 
+      use cc_mpi, only : mydiag
       implicit none
 C Global parameters
       include 'newmpar.h'
@@ -68,6 +65,7 @@ C Global parameters
       include 'kuocom.h'     !acon,bcon,Rcm,ktsav,nevapls
       include 'morepbl.h'    !condx        
       include 'params.h'     !Input model grid dimensions (modified PARAMS.f for CCAM)
+      include 'parm.h'
 
 C Argument list
       logical land(ln2)
@@ -101,7 +99,6 @@ C Argument list
 C Local shared common blocks (see TASK COMMON/TASKLOCAL above)
 
 C Global data blocks
-c      include 'FEWFLAGS.f'   !Input debug, lgdebug etc.
 c      include 'PRINTT.f'
 c      include 'TIMEX.f'
 
@@ -120,22 +117,16 @@ C Local work arrays and variables
       real fluxrain(ln2)
       real cdrop(ln2,nl)
       real fracr(ln2,nl)
-c     logical qlgtest,qfgtest
 c     double precision Frpr, Frprb, Frprc
 
-      integer k
-      integer mb
-      integer mg
-      integer njumps
-      integer ns
-      integer nt
+      integer k,mb,mg,njumps,ns,nt,ntest
 
       real apr
       real bpr
       real bl
       real cdt
       real cev
-      real cftemp
+c     real cftemp
       real clrevap
       real coll
       real crate
@@ -164,10 +155,7 @@ c      real fcol
 C Local data, functions etc
       integer naerosol_i(2)
       data naerosol_i / 2*0 /
-      logical debug
-      integer lgdebug,mgdebug,insdebug
-      data debug,lgdebug,mgdebug,insdebug /.false.,1,10106,1/
-      save naerosol_i,debug,lgdebug,mgdebug,insdebug
+      parameter (ntest=0)  ! 0=off, 1=on
 
       real esdiff(-40:0)  !Table of es(liq) - es(ice) (MKS), -40 <= t <= 0 C
       data esdiff / 
@@ -199,11 +187,9 @@ c These give the ice values needed for the qcloud scheme
 
 C Start code : ----------------------------------------------------------
 
-      if(debug)then
-        if(lg.eq.lgdebug)then
-          ns=insdebug
-          mg=mgdebug+(ns-1)*lon
-          write(25,'(a,3i3)')'IPASS=1, Before newrain.'
+        if(ntest>0)then
+          mg=idjd
+          write(25,'(a,3i3)')'IPASS=1, Before newrain ktau= ',ktau
           write(25,91)'rhoa',(rhoa(mg,k),k=1,nl)
           write(25,91)'dz',(dz(mg,k),k=1,nl)
           write(25,91)'ccrain',(ccrain(mg,k),k=1,nl)
@@ -219,8 +205,7 @@ C Start code : ----------------------------------------------------------
           write(25,9)'qca ',(qca(mg,k),k=1,nl)
           write(25,9)'fluxc ',(fluxc(mg,k),k=1,nl)
           write(25,*)
-        endif
-      endif
+        endif  ! (ntest>0)
 
       delt=tdt
       njumps=nint(tdt/delt)
@@ -391,8 +376,8 @@ c              Vr=5./sqrt(rhoa(mg,k))                !Nominal fall speed
      &                       and.condx(mg)>0.)evap=0.
               if(nevapls==-3)evap=.5*evap
               if(nevapls==-4.and.k<=ktsav(mg).
-     &                       and.condx(mg)>0.)evap=.5*evap
-              frclr(mg,k)=rhodz*(clrevap-evap)          !over delt
+     &                       and.condx(mg)>0.)evap=.5*evap ! usual
+              frclr(mg,k)=rhodz*(clrevap-evap)             !over delt
               qevap(mg,k)=qevap(mg,k)+evap
               qtg(mg,k)=qtg(mg,k)+evap
               ttg(mg,k)=ttg(mg,k) - hlcp*evap
@@ -489,25 +474,32 @@ c Remove small amounts of cloud
         enddo
       enddo
 
-c Adjust cloud fraction (and cloud cover) after precipitation
+c      Adjust cloud fraction (and cloud cover) after precipitation
+      if(nmaxpr==1.and.mydiag)then
+        print *,'diags from newrain for idjd ',idjd
+        write (6,"('cfrac ',9f8.3/6x,9f8.3)") cfrac(idjd,:)
+        write (6,"('cftemp',9f8.3/6x,9f8.3)") cifr(idjd,:)+clfr(idjd,:)
+        write (6,"('ccov_in',9f8.3/6x,9f8.3)") ccov(idjd,:)
+      endif
 
-      do k=1,nl-1
-        do mg=1,ln2
-c Next 3 lines commented for m35-m38 runs.
-C***          if(qlgsav(mg,k).gt.0.)then
-C***            clfr(mg,k)=clfr(mg,k)*qlg(mg,k)/qlgsav(mg,k)
-C***          endif
-          cftemp=min(cifr(mg,k)+clfr(mg,k), 1.)
-          if(cfrac(mg,k).gt.0.)then
-            ccov(mg,k)=min(1., ccov(mg,k)*cftemp/cfrac(mg,k))
-          else
-            ccov(mg,k)=cftemp
-          endif
-          cfrac(mg,k)=cftemp
-        enddo
-      enddo
+c     from 16/1/06, ccov cfrac NOT UPDATED here
+c      do k=1,nl-1
+c        do mg=1,ln2
+cc Next 3 lines commented for m35-m38 runs.
+cC***          if(qlgsav(mg,k).gt.0.)then
+cC***            clfr(mg,k)=clfr(mg,k)*qlg(mg,k)/qlgsav(mg,k)
+cC***          endif
+c          cftemp=min(cifr(mg,k)+clfr(mg,k), 1.)
+c          if(cfrac(mg,k).gt.0.)then
+c            ccov(mg,k)=min(1., ccov(mg,k)*cftemp/cfrac(mg,k))
+c          else
+c            ccov(mg,k)=cftemp
+c          endif
+c          cfrac(mg,k)=cftemp
+c        enddo
+c      enddo
 
-      if(debug)then
+      if(ntest==2)then
         do k=1,nl
           do mg=1,ln2
             if(cfrac(mg,k).gt.0)then
@@ -534,13 +526,13 @@ C***          endif
             endif
           enddo
         enddo
+      endif  ! (ntest==2)
 
 c Diagnostics for debugging
 
-        if(lg.eq.lgdebug)then
-          ns=insdebug
-          mg=mgdebug+(ns-1)*lon
-          write(25,'(a,3i3)')'IPASS=1, after newrain.'
+        if(ntest>0)then
+          mg=idjd
+          write(25,'(a,3i3)')'IPASS=1, after newrain  ktau= ',ktau
           write(25,91)'ttg ',(ttg(mg,k),k=1,nl)
           write(25,9)'qtg ',(qtg(mg,k),k=1,nl)
           write(25,9)'qsg ',(qsg(mg,k),k=1,nl)
@@ -564,8 +556,7 @@ c          write(25,9)'qsl ',(qsl(mg,k),k=1,nl)
           write(25,9)'cfrain ',(cfrain(mg,k),k=1,nl-1)
           write(25,9)'fracr ',(fracr(mg,k),k=1,nl-1)
           write(25,*)
-        endif
-      endif
+        endif  ! (ntest>0)
  1    format(3(a,f10.5))
  91   format(a,30f10.3)
  9    format(a,30g10.3)

@@ -1,7 +1,8 @@
-      subroutine onthefly(kdate_r,ktime_r,
-     .   psl,zss,tss,wb,wbice,snowd,sicedep,
-     .   t,u,v,qg,tgg,
-     .   tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,nested)
+      subroutine onthefly(nested,kdate_r,ktime_r,
+     .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
+!     following not used or returned if called by nestin (i.e.nested=1)   
+     .                    tgg,wb,wbice,snowd,
+     .                    tggsn,smass,ssdn,ssdnn,snage,isflag)
 !     Target points use values interpolated to their 4 grid "corners";
 !     these corner values are then averaged to the grid centres
 !     N.B. this means will get different fields with io_in=-1 from io_in=1
@@ -23,7 +24,6 @@
       include 'latlong.h'  ! rlatt,rlongg,
       include 'map.h'  ! zs,land & used for giving info after all setxyz
       include 'parm.h'
-      include 'parm_nqg.h'  ! nqg_r,nqg_set
       include 'sigs.h'
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
       include 'tracers.h'
@@ -51,11 +51,11 @@
 
 !     These are local arrays, not the versions in arrays.h
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
-      real psl(ifull),zss(ifull),tss(ifull),
+      real psl(ifull),zss(ifull),tss(ifull),fracice(ifull),
      & wb(ifull,ms),wbice(ifull,ms),snowd(ifull),sicedep(ifull),
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     & ssdnn(ifull),osnowd(ifull),snage(ifull)
+     & ssdnn(ifull),snage(ifull)
       ! Dummy variables here replace the aliasing use of aa, bb in infile call
       real, dimension(ifull) :: dum1, dum2, dum3, dum4, dum5
       integer isflag(ifull)
@@ -63,11 +63,12 @@
 !!    integer, parameter :: id1=3, jd1=60
       real :: rlong0_t, rlat0_t, schmidt_t,  rlong0x, rlat0x, schmidtx,
      &         ds_t, timegb, xx_s, yy_s, spval
-      integer :: nemi, id_t, jd_t, idjd1, io_in2, kdate_r, ktime_r,
+      integer :: nemi, id_t, jd_t, idjd1, kdate_r, ktime_r,
      &           nem2, nested, i, j, k, m, iq, id2, jd2, idjd2, ii, jj,
      &           np, numneg, norder, ierr, idjd_t
+      entry onthefl(nested,kdate_r,ktime_r,
+     .                    psl,zss,tss,sicedep,fracice,t,u,v,qg)
 
-      nqg_set=8    
 !     save cc target file geometry
       rlong0_t=rlong0
       rlat0_t=rlat0
@@ -79,7 +80,7 @@
 c     start of processing loop 
       nemi=2   !  assume source land-mask based on tss sign first
       if(ktau<3.and.myid==0)print *,'search for kdate_s,ktime_s >= ',
-     &                                 kdate_s,ktime_s
+     &                                           kdate_s,ktime_s
       id_t=id
       jd_t=jd
       idjd_t=idjd ! Only id+il_g*(jd-1) if it's on process 0.
@@ -92,11 +93,15 @@ c     start of processing loop
       ! infile reads and distributes data to appropriate processors, so
       ! all processors must call it here.
       ! illegal aliasing of arguments removed now
-      call infile(io_in2,kdate_r,ktime_r,nem2,
-     &            timegb,ds,psl,dum1,zss,dum2,dum3,
-     &            tss,dum4,wb,wbice,dum5,snowd,sicedep,
-     &            t,u,v,qg,tgg,
-     &            tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,nested)
+      if(nested==0)then
+        call infile(nested,kdate_r,ktime_r,timegb,ds,
+     &            psl,zss,tss,sicedep,fracice,t,u,v,qg,
+     &            tgg,wb,wbice,dum5,snowd,  ! dum5 is alb
+     &            tggsn,smass,ssdn,ssdnn,snage,isflag) 
+      else
+        call infil(nested,kdate_r,ktime_r,timegb,ds,
+     &            psl,zss,tss,sicedep,fracice,t,u,v,qg)
+      endif   
 
 !      do k=1,kl            ! removed 9/10//03
 !       sig(k)=sigin(k)
@@ -115,8 +120,8 @@ c     start of processing loop
          rotpoles = calc_rotpole(rlong0,rlat0)
          if(ktau<3)then
             print *,'nfly,nord ',nfly,nord
-            print *,'io_in2,kdate_r,ktime_r,ktau,ds',
-     &               io_in2,kdate_r,ktime_r,ktau,ds
+            print *,'kdate_r,ktime_r,ktau,ds',
+     &               kdate_r,ktime_r,ktau,ds
             print *,'ds,ds_t ',ds,ds_t
             if ( nproc==1 ) print *,'a zss(idjd1) ',zss(idjd1)
             print *,'rotpoles:'
@@ -248,9 +253,6 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
             call ints4(ucc, nface4,xg4,yg4,nord)
             call ints4(vcc, nface4,xg4,yg4,nord)
             call ints4(wcc, nface4,xg4,yg4,nord)
-c      if(nsd==1)then
-c        call ints4(sdot(1,k),   nface4,xg4,yg4,nord)
-c      endif
 
 c      ********************** N.B. tracers not ready yet
 c      if(iltin>1)then
@@ -324,44 +326,32 @@ c      endif
             tss_l(iq)=tss(iq)
             tss_s(iq)=spval
             sicedep(iq)=spval
-         else                    ! over sea
-	    numneg=numneg+1
+            fracice(iq)=spval
+         else                   ! over sea
+            numneg=numneg+1
             tss_s(iq)=abs(tss(iq))
             tss_l(iq)=spval
-!           w(iq)=spval
-!           w2(iq)=spval
-!           ts(iq)=spval
-!           ts(iq,2)=spval
-            snowd(iq)=spval
-            do k=1,ms
-               tgg(iq,k)=spval
-               wb(iq,k)=spval
-            enddo
-         endif                  ! (tss(iq)>0) .. else ..
-      enddo
+         endif  !   (land(iq)) .. else ..
+      enddo     ! iq loop
       
       if(nproc==1.and.nmaxpr==1)then
         print *,'before fill tss ',tss(idjd2)
         print *,'before fill tss_l, tss_s ',tss_l(idjd2),tss_s(idjd2)
         print *,'before fill/ints4 sicedep ',sicedep(idjd2)
-        print *,'before fill wb'
-        write(6,"('wb_s(1)#  ',9f7.3)") 
-     .          ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
+c        print *,'before fill wb'
+c        write(6,"('wb_s(1)#  ',9f7.3)") 
+c     .          ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
       endif  ! (nproc==1.and.nmaxpr==1)
       call fill_cc(tss_l,spval)
       call fill_cc(tss_s,spval)
-      call fill_cc(snowd,spval)
       call fill_cc(sicedep,spval)
-      do k=1,ms
-        call fill_cc(tgg(1,k),spval)
-        call fill_cc(wb(1,k),spval)
-      enddo
+      call fill_cc(fracice,spval)
       if(nproc==1.and.nmaxpr==1)then
         print *,'after fill tss_l, tss_s ',tss_l(idjd2),tss_s(idjd2)
         print *,'after fill sicedep ',sicedep(idjd2)
-        print *,'after fill wb'
-        write(6,"('wb_s(1)#  ',9f7.3)") 
-     .          ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
+c        print *,'after fill wb'
+c        write(6,"('wb_s(1)#  ',9f7.3)") 
+c     .          ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
         print *,'before ints4 psl(idjd2),zss(idjd2) ',
      .                        psl(idjd),zss(idjd2)
       endif  ! (nproc==1.and.nmaxpr==1)
@@ -382,46 +372,83 @@ c      endif
       endif  ! (nfly==2)
       call doints4(tss_l ,   nface4,xg4,yg4,nord)
       call doints4(tss_s ,   nface4,xg4,yg4,nord)
-c     call doints4(precip,   nface4,xg4,yg4,nord)
-      do k=1,ms
-       call doints4(tgg(1,k),nface4,xg4,yg4,nord)
-       call doints4(wb(1,k) ,nface4,xg4,yg4,nord)
-      enddo
       if(nproc==1.and.nmaxpr==1)then
          print *,'after ints4 idjd,zss(idjd) ',idjd,zss(idjd)
-	 print *,'after ints4 psl,pmsl ',psl(idjd),pmsl(idjd)
-         print *,'after ints4 wb_t'
-         write(6,"('wb_t(1)#  ',9f7.3)") 
-     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
+         print *,'after ints4 psl,pmsl ',psl(idjd),pmsl(idjd)
+c        print *,'after ints4 wb_t'
+c        write(6,"('wb_t(1)#  ',9f7.3)") 
+c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
       endif  ! (nproc==1.and.nmaxpr==1)
-c     call ints4(alb ,     nface4,xg4,yg4,nord)
-c     call ints4(precc,    nface4,xg4,yg4,nord)
-      if(nqg>=6)then
+      call doints4(sicedep,nface4,xg4,yg4,nord)
+      call doints4(fracice,nface4,xg4,yg4,nord)
+      if ( nproc==1 ) print *,'after ints4 sicedep ',sicedep(idjd)
+      if(nested==0)then
+        do iq=1,ifull
+         if(.not.land(iq))then       
+            snowd(iq)=spval
+            do k=1,ms
+               tgg(iq,k)=spval
+               wb(iq,k)=spval
+            enddo
+         endif  !   (.not.land(iq)) 
+        enddo   ! iq loop
+        call fill_cc(snowd,spval)
+        do k=1,ms
+         call fill_cc(tgg(1,k),spval)
+         call fill_cc(wb(1,k),spval)
+        enddo
         call doints4(snowd,  nface4,xg4,yg4,nord)
-        call doints4(sicedep,nface4,xg4,yg4,nord)
-        if ( nproc==1 ) print *,'after ints4 sicedep ',sicedep(idjd)
-c       call ints4(cloudlo,nface4,xg4,yg4,nord)
-c       call ints4(cloudmi,nface4,xg4,yg4,nord)
-c       call ints4(cloudhi,nface4,xg4,yg4,nord)
-      endif
-      if(nqg>=7)then
-c       call ints4(tscrn,  nface4,xg4,yg4,nord)
-
-c       call ints4(qgscrn, nface4,xg4,yg4,nord)
-c       call ints4(u10,    nface4,xg4,yg4,nord)
-      endif
-
-c     incorporate target land mask effects, e.g. into surface temperature
-      do iq=1,ifull
-         tss(iq)=tss_l(iq)
+        do k=1,ms
+         call doints4(tgg(1,k),nface4,xg4,yg4,nord)
+         call doints4(wb(1,k) ,nface4,xg4,yg4,nord)
+        enddo
+c       incorporate target land mask effects for initial fields
+        do iq=1,ifull
          if(land_t(iq))then
-            sicedep(iq)=0.
+           tss(iq)=tss_l(iq)
          else
-            tss(iq)=tss_s(iq)   ! no sign switch in CCAM
-            snowd(iq)=0.
-!           zs(iq)=-.1   ! dont do this
+           tgg(iq,1)=tss_s(iq)   ! no sign switch in CCAM
          endif
-      enddo                     ! iq loop
+        enddo  ! iq loop
+!       onthefly not yet handling wbice, tggsn, smass etc  
+!       so set infile-style defaults
+        smass(:,:)=0.
+        tggsn(:,:)=280.     ! just a default
+        isflag(:) = 0
+        snage(:)  = 0.
+        do iq=1,ifull
+         if(snowd(iq)>100.)then
+           ssdn(iq,1)=240.
+         else
+           ssdn(iq,1) = 140.
+         endif  ! (snowd(iq)>100.)
+         do k=2,3
+          ssdn(iq,k)=ssdn(iq,1)
+         enddo
+         ssdnn(iq)  = ssdn(iq,1)
+         if(snowd(iq)>0.)tgg(iq,1)=min(tgg(iq,1),270.1)
+        enddo   ! iq loop
+        do k=1,ms
+!         following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
+          wbice(:,k)=
+     &         min(.99,max(0.,.99*(273.1-tgg(:,k))/5.))*wb(:,k) ! jlm
+         enddo ! ms
+      endif    ! (nested==0)
+
+c     incorporate other target land mask effects
+      do iq=1,ifull
+         if(land_t(iq))then
+           tss(iq)=tss_l(iq)
+           sicedep(iq)=0.
+           fracice(iq)=0.
+         else
+           tss(iq)=tss_s(iq)   ! no sign switch in CCAM
+           if(sicedep(iq)<.05)then ! for sflux
+             sicedep(iq)=0.
+             fracice(iq)=0.
+           endif
+         endif
+      enddo  ! iq loop
       if(nproc==1.and.nmaxpr==1)then
          print *,'after ints tss_l, tss_s ',tss_l(idjd),tss_s(idjd)
          print *,'after ints tss',tss(idjd)

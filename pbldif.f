@@ -2,11 +2,13 @@
 !     vectorized version      
       use cc_mpi, only : mydiag, myid
       use diag_m
+      implicit none
+      integer ntest,nrkmin,npblmin,kmax
       parameter (ntest=0)
       parameter (nrkmin=2)  ! 1 original (& from 0510); 2 new; 3 newer
       parameter (npblmin=4) ! 1 original (best for Oz); 2 new ; 3,4 newer
       include 'newmpar.h'
-      parameter (kmax=kl/2)
+      parameter (kmax=3*kl/4)  ! changed from kl/2 on 30/1/06
 C------------------------------------------------------------------------
 C 
 C Atmospheric boundary layer computation.
@@ -60,12 +62,15 @@ C Input & Output arguments
       real theta(ifull,kl)         ! potential temperature [K]
 C     also qg                      ! mixing ratio [kg/kg}
 
-C     local work arrays (note work3c and work3f stuff passed thru too)
-      common/work3a/cfrac(ifull,kl),betatt(ifull,kl),betaqt(ifull,kl) 
+      real cfrac
+      common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
       common/work3/cgh(ifull,kl), ! counter-gradient term for heat [K/m]
      .             cgq(ifull,kl), ! counter-gradient term for constituents
      .             rino(ifull,kl),dum3(ifull,2*kl)
       common/work3d/zg(ifull,kl)
+      integer iq,iflag
+      real c1,zg,cgh,cgq,ztodtgor,delsig,tmp1,sigotbk,sigotbkm1
+      real dum2,dum3
       real cgs                     ! counter-gradient star (cg/flux)
 !     real pblh(ifull)             ! boundary-layer height [m] - in morepbl.h
 C     Not used at the moment
@@ -207,10 +212,10 @@ c           vvk = max(vvk,tiny)
             endif  ! (rino(iq,k)>=ricr.and.iflag(iq)==0)
            enddo  ! iq loop
           enddo   ! k loop
-	if(nmaxpr==1.and.mydiag)then
-          write (6,"('rino_pa',9f8.3/2x,9f8.3)") rino(idjd,1:kmax)
-          write (6,"('zg',9f8.1/2x,9f8.1)") zg(idjd,1:kmax)
-	endif
+          if(nmaxpr==1.and.mydiag)then
+            write (6,"('zg',9f8.1)") zg(idjd,1:kmax)
+            write (6,"('rino_pa',9f8.3)") rino(idjd,1:kmax)
+          endif
 
 C Set pbl height to maximum value where computation exceeds number of
 C layers allowed
@@ -255,7 +260,7 @@ C convective temperature excess:
      $                                (rino(iq,k) - rino(iq,k-1))
      $                                *(zg(iq,k) - zg(iq,k-1))
               iflag(iq)=1  ! i.e. found it
-            endif ! (rino(iq,k)>=ricr)
+            endif  ! (rino(iq,k)>=ricr)
           endif    ! (heatv(iq)>0..and.iflag(iq)==0)
          enddo     ! i loop
         enddo      ! k loop
@@ -305,41 +310,41 @@ C and moisture perturbations depending on stability.
 C Main level loop to compute the diffusivities and 
 C counter-gradient terms:
 
-	  if(nlocal==3)then
+         if(nlocal==3)then
 !          suppress nonlocal scheme over the sea   jlm
            do iq=1,ifull
-	     if(.not.land(iq))pblh(iq)=0.
+            if(.not.land(iq))pblh(iq)=0.
            enddo
-	  endif  !  (nlocal==3)
+         endif  !  (nlocal==3)
 
-	  if(nlocal==4)then
+         if(nlocal==4)then
 !          suppress nonlocal scheme for column if cloudy layer in pbl   jlm
            do k=1,kl/2
             do iq=1,ifull
-	      if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)pblh(iq)=0.
+             if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)pblh(iq)=0.
             enddo
            enddo
-	  endif  !  (nlocal==4)
+         endif  !  (nlocal==4)
 
-	  if(nlocal==5)then
+         if(nlocal==5)then
 !          suppress nonlocal scheme for column if cloudy layer in pbl   jlm
 !          restores pblh at the bottom to have it available in convjlm/vertmix
            do k=1,kl/2
             do iq=1,ifull
-	      if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)
+              if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)
      &         pblh(iq)=-pblh(iq)  
             enddo
            enddo
-	  endif  !  (nlocal==5)
+         endif  !  (nlocal==5)
 
         do k=1,kmax-1
-	  if(nlocal==2)then
+         if(nlocal==2)then
 !          suppress nonlocal scheme if cloudy layers in pbl   jlm
 !          note this allows layers below to be done as nonlocal
            do iq=1,ifull
-	     if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)pblh(iq)=0.
+            if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)pblh(iq)=0.
            enddo
-	  endif  !  (nlocal==2)
+         endif  !  (nlocal==2)
 
 C Find levels within boundary layer:
 C This is where Kh is at half model levels 
@@ -392,29 +397,29 @@ c but reverts to Louis stable treatment for nlocal=-1
                 if(nrkmin==2)rkmin=vk*ustar(iq)*zmzp*zzh
                 if(nrkmin==3)rkmin=max(rkh(iq,k),vk*ustar(iq)*zmzp*zzh)
                 if(nrkmin==1.or.nlocal==6)rkmin=rkh(iq,k)
-		  if(ntest==1)then
-		    if(iq==idjd)then
-		      print *,'in pbldif k,ustar,zmzp,zh,zl,zzh ',
+                if(ntest==1)then
+                  if(iq==idjd)then
+                    print *,'in pbldif k,ustar,zmzp,zh,zl,zzh ',
      .                                 k,ustar(iq),zmzp,zh,zl,zzh
-		      print *,'rkh_L,rkmin,pblk,fak1,pblh ',
+                    print *,'rkh_L,rkmin,pblk,fak1,pblh ',
      .                       rkh(iq,k),rkmin,pblk,fak1,pblh(iq)
-		    endif  ! (iq==idjd)
-		  endif    ! (ntest==1)
+                  endif  ! (iq==idjd)
+                endif    ! (ntest==1)
                 rkm(iq,k) = max(pblk,rkmin)        
                 rkh(iq,k) = rkm(iq,k)
               endif      ! (heatv(iq)>0.)    unstbl(i)
             endif        ! zm < pblh(iq)
            enddo         ! iq=1,ifull
        enddo             !end of k loop
-	if(nmaxpr==1.and.mydiag)then
-          write (6,"('rino_pb',9f8.3/2x,9f8.3)") rino(idjd,1:kmax)
-	   print *,'ricr,obklen,heatv,pblh ',
-     &             ricr,obklen(idjd),heatv(idjd),pblh(idjd)
-	   iq=idjd
-	endif
+       if(diag.and.mydiag)then
+         if(heatv(idjd)>0.)   ! not meaningful or used otherwise
+     &      write (6,"('rino_pb',9f8.3)") rino(idjd,1:kmax)
+         print *,'ricr,obklen,heatv,pblh ',
+     &            ricr,obklen(idjd),heatv(idjd),pblh(idjd)
+         write (6,"('rkh_p',9f9.3/5x,9f9.3)") rkh(idjd,1:kl-2)
+       endif
 
       ztodtgor = dtin*grav/rdry
-
 C     update theta and qtg due to counter gradient
       do k=2,kmax-1
          do iq=1,ifull

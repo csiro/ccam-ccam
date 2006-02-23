@@ -86,17 +86,17 @@ c These outputs are not used in this model at present
           rhoa(iq,k)=100.*prf(iq,k)/(rdry*t(iq,k))
           qsg(iq,k)=qsat(100.*prf(iq,k),t(iq,k))
           if(land(iq))then
-            if(rlatt(iq)>0.)then	     
+            if(rlatt(iq)>0.)then     
               cdso4(iq,k)=cdropl_nh
-	     else
+            else
               cdso4(iq,k)=cdropl_sh
-	     endif
+            endif
           else
-            if(rlatt(iq)>0.)then	     
+            if(rlatt(iq)>0.)then     
               cdso4(iq,k)=cdrops_nh
-	     else
+            else
               cdso4(iq,k)=cdrops_sh
-	     endif
+            endif
           endif  ! (land(iq)) .. else ..
         enddo
       enddo
@@ -172,7 +172,7 @@ c     before calling newcloud
         write (6,"('qsg ',3p9f8.3/4x,9f8.3)") qsg(idjd,:)
         write (6,"('qcl ',3p9f8.3/4x,9f8.3)") qcl(idjd,:)
         write (6,"('clc ',9f8.3/4x,9f8.3)") clcon(idjd,:)
-	 print *,'cldcon,kbase,ktop ',cldcon(idjd),kbase(idjd),ktop(idjd)
+        print *,'cldcon,kbase,ktop ',cldcon(idjd),kbase(idjd),ktop(idjd)
       endif
 
 c     Calculate cloud fraction and cloud water mixing ratios
@@ -218,6 +218,20 @@ c     Weight output variables according to non-convective fraction of grid-box
         call maxmin(qlg,'ql',ktau,1.e3,kl)
       endif
 
+!     Add convective cloud water into fields for radiation
+!     cfrad replaced by updating cfrac Oct 2005
+!     Moved up 16/1/06 (and ccov,cfrac NOT UPDATED in newrain)
+!     done because sometimes newrain drops out all qlg, ending up with 
+!     zero cloud (although it will be rediagnosed as 1 next timestep)
+      do k=1,kl
+        do iq=1,ifull
+c         cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
+          fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
+          qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
+          qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
+        enddo
+      enddo
+
 c     Calculate precipitation and related processes      
       call newrain(land,1,dt,fluxc,rhoa,dz,ccrain,prf,cdso4,  !Inputs
      &    cfa,qca,                                            !Inputs
@@ -239,8 +253,22 @@ c     Calculate precipitation and related processes
         call maxmin(qlg,'ql',ktau,1.e3,kl)
       endif
 
+!     Add convective cloud water into fields for radiation
+!     cfrad replaced by updating cfrac Oct 2005
+!     Moved up 16/1/06 (and ccov,cfrac NOT UPDATED in newrain)
+!     done because sometimes newrain drops out all qlg, ending up with 
+!     zero cloud (although it will be rediagnosed as 1 next timestep)
+      do k=1,kl
+        do iq=1,ifull
+          cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
+c          fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
+c          qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
+c          qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
+        enddo
+      enddo
+
 !========================= Jack's diag stuff =========================
-!      if(ncfrp.eq.1)then  ! from here to near end; Jack's diag stuff
+       if(ncfrp.eq.1)then  ! from here to near end; Jack's diag stuff
         do iq=1,icfrp
           tautot(iq)=0.
           cldmax(iq)=0.
@@ -259,7 +287,8 @@ c       cfrp data
             Reffl=0.
             if(cfrac(iq,k).gt.0)then
               tau_sfac=1.
-              fice(iq,k) = qfg(iq,k)/(qfg(iq,k)+qlg(iq,k))
+c             fice(iq,k) = qfg(iq,k)/(qfg(iq,k)+qlg(iq,k))
+              fice(iq,k) = qfrad(iq,k)/(qfrad(iq,k)+qlrad(iq,k)) ! 16/1/06
               !rhoa=100.*prf(iq,k)/(rdry*t(iq,k))
               !dpdp=dprf(iq,k)/prf(iq,k)
               !dz=dpdp*rdry*t(iq,k)/grav
@@ -315,19 +344,8 @@ c top down to get highest level with cfrac=cldmax (kcldfmax)
 
           endif ! (cldmax(iq).gt.1.e-10) then
         enddo   ! iq
-!      endif    ! ncfrp.eq.1
+       endif    ! ncfrp.eq.1
 !========================= end of Jack's diag stuff ======================
-
-c     Add convective cloud water into fields for radiation
-!     cfrad replaced by updating cfrac Oct 2005
-      do k=1,kl
-        do iq=1,ifull
-          cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
-          fl=max(0.0,min(1.0,(t(iq,k)-ticon)/(273.15-ticon)))
-          qlrad(iq,k)=qlg(iq,k)+fl*qccon(iq,k)
-          qfrad(iq,k)=qfg(iq,k)+(1.-fl)*qccon(iq,k)
-        enddo
-      enddo
 
 !     factor of 2 is because used .5 in newrain.f (24-mar-2000, jjk)
       do iq=1,ifullw        

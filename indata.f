@@ -1,6 +1,3 @@
-!     include 'latltoij.f'  ! watch out for ncray=1
-!     has sigmf (& alb) fix-ups for adelaide, perth, darwin, sydney, brisbane
-
       subroutine indata(hourst,newsnow,jalbfix)! nb  newmask not yet passed thru
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
       use cc_mpi
@@ -31,13 +28,12 @@
       include 'nsibd.h'     ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
       include 'parmdyn.h'   ! epsp
-      include 'parm_nqg.h'  ! nqg_r,nqg_set
       include 'pbl.h'
       include 'permsurf.h'
       include 'prec.h'
 !     include 'scamdim.h'
       include 'sigs.h'
-      include 'soil.h'      ! sice,sicedep,fracice
+      include 'soil.h'      ! sicedep,fracice
       include 'soilsnow.h'  ! tgg,wb
       include 'soilv.h'
       include 'stime.h'
@@ -78,7 +74,7 @@
 
       integer i1, ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth,
      &     iveg, iyr, j1, jj, k, kdate_sav, kmax, ktime_sav, l,
-     &     meso2, nem2, nface, nn, npgb, nsig, i, j, n,
+     &     nface, nn, npgb, nsig, i, j, n,
      &     ix, jx, ixjx, ierr, ico2x, iradonx, ic, jc, iqg, ig, jg,
      &     isav, jsav
       real aamax, aamax_g, c, cent, 
@@ -147,7 +143,7 @@
       if (myid==0) then
         print *,'tbar: ',tbar
         print *,'bam: ',bam
-	 if(nh.ne.0)call eig(sig,sigmh,tbar(1),lapsbot,isoth,dt,epsnh,nh)
+        if(nh.ne.0)call eig(sig,sigmh,tbar(1),lapsbot,isoth,dt,epsnh,nh)
       end if
 
 !     read in namelist for uin,vin,tbarr etc. for special runs
@@ -193,9 +189,9 @@
            if(rlatt(iq)*180./pi>-28.and.rlatt(iq)*180./pi<-11.and.
      .       rlongg(iq)*180./pi>42.and.rlongg(iq)*180./pi<51.)then
              if(zs(iq)>0.)then   
-	        print *,'zeroing iq,zs ',iq,zs(iq)
-	        zs(iq)=-.6   ! usual sea points come in as -1.  
-	        dumzs(iq,2)=0.
+               print *,'zeroing iq,zs ',iq,zs(iq)
+               zs(iq)=-.6   ! usual sea points come in as -1.  
+               dumzs(iq,2)=0.
              endif  ! (zs(iq)>0.)
            endif    ! (rlatt(iq)*180./pi  ....)
           enddo
@@ -234,15 +230,14 @@
       if(io_in<4)then
          kdate_sav=kdate_s
          ktime_sav=ktime_s
-	  if(io_in==1.or.io_in==3)then
-            call infile(meso2,kdate,ktime,nem2,
-     &                  timegb,ds,psl,ps,zss,aa,bb,
-     &                  tss,precip,wb,wbice,alb,snowd,sicedep,
-     &                  t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
-     &                  qg(1:ifull,:),tgg,
-     &                  tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,0)
+         if(io_in==1)then
+            call infile(0,kdate,ktime,timegb,ds,
+     &           psl,zss,tss,sicedep,fracice,
+     &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
+     &           tgg,wb,wbice,alb,snowd,
+     &           tggsn,smass,ssdn,ssdnn,snage,isflag)
             if ( mydiag ) then
-               print *,'meso2,timegb,ds,zss',meso2,timegb,ds,zss(idjd)
+               print *,'timegb,ds,zss',timegb,ds,zss(idjd)
                print *,'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
                print *,'kdate_s,ktime_s >= ',kdate_s,ktime_s
                print *,'kdate,ktime ',kdate,ktime
@@ -251,10 +246,10 @@
      &       'stopping in indata, not finding correct kdate/ktime'
             if(nspecial>100)then
 !             allows nudging from mesonest with different kdate
-	       kdate=nspecial
-		kdate_s=nspecial
-		print *,'re-setting kate & kdate_s to nspecial'
-	     endif  ! (nspecial>100)
+              kdate=nspecial
+              kdate_s=nspecial
+              print *,'re-setting kate & kdate_s to nspecial'
+            endif  ! (nspecial>100)
             if(newtop>=0)then  ! no check if just plotting zs
               if(abs(rlong0  -rlong0x)>.01.or.
      &           abs(rlat0    -rlat0x)>.01.or.
@@ -262,23 +257,22 @@
             endif  ! (newtop>=0)
          endif                  ! (io_in==1.or.io_in==3)
 
-	  if(io_in==-1.or.io_in==-3)then
-            call onthefly(kdate,ktime,psl,zss,tss,wb,wbice,snowd,
-     &                    sicedep,
-     &                    t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
-     &                    qg(1:ifull,:),tgg,
-     &                    tggsn,smass,ssdn, ssdnn,osnowd,snage,isflag,0)
-	  endif   ! (io_in==-1.or.io_in==-3)
-	 	
+         if(io_in==-1)then
+            call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,
+     &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
+     &           tgg,wb,wbice,snowd,
+     &           tggsn,smass,ssdn,ssdnn,snage,isflag)
+         endif   ! (io_in==-1.or.io_in==-3)
+ 
          tss(:)=abs(tss(:)) ! not done in infile because -ve needed for onthefly
-	  if(nproc==1)then
-          pslavge=0.
-          do iq=1,ifull
-           pslavge=pslavge+psl(iq)*wts(iq)
-          enddo
-	   write (6,"('initial pslavge ',f10.6)") pslavge
-	  endif 
-		 
+         if(nproc==1)then
+           pslavge=0.
+           do iq=1,ifull
+            pslavge=pslavge+psl(iq)*wts(iq)
+           enddo
+           write (6,"('initial pslavge ',f10.6)") pslavge
+         endif 
+ 
          if(newtop==2)then
 !           reduce sea tss to mslp      e.g. for qcca in ncep gcm
             do iq=1,ifull
@@ -304,7 +298,6 @@
          end if
 
          if (mydiag) print *,'t into indata ',t(idjd,:)
-!        if(kk<kl)then
          if(abs(sig(2)-sigin(2))>0.0001)then   ! 11/03
             if (mydiag) then
                print *,
@@ -329,7 +322,7 @@
            he(:)=0.         
            land(:)=.false.
          endif  !  (nhstest<0)
-	  
+  
          if(newtop>=1)then    
 !          best not to do retopo during restart, as netcdf can slightly alter zs
            do iq=1,ifull
@@ -357,24 +350,24 @@
                write(6,"('100*psl# out',9f7.2)") 100.*diagvals(psl)
 !     &          ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
            endif
-	    if(nproc==1)then
+           if(nproc==1)then
               pslavge=0.
               do iq=1,ifull
                pslavge=pslavge+psl(iq)*wts(iq)
               enddo
-	       write (6,"('after retopo pslavge ',f10.6)") pslavge
+              write (6,"('after retopo pslavge ',f10.6)") pslavge
            endif 
          endif   ! (newtop>=1)
 
 !        ensure qg etc big enough, but not too big in top levels (from Sept '04)
          qg (1:ifull,:)=max(qg (1:ifull,:),qgmin)
-         qlg(1:ifull,:)=max(qlg(1:ifull,:),qgmin)
-         qfg(1:ifull,:)=max(qfg(1:ifull,:),qgmin)
-	  do k=kl-2,kl
+c         qlg(1:ifull,:)=max(qlg(1:ifull,:),qgmin)
+c         qfg(1:ifull,:)=max(qfg(1:ifull,:),qgmin)
+         do k=kl-2,kl
           qg (1:ifull,k)=min(qg (1:ifull,k),10.*qgmin)
-          qlg(1:ifull,k)=min(qlg(1:ifull,k),10.*qgmin)
-          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
-	  enddo
+c          qlg(1:ifull,k)=min(qlg(1:ifull,k),10.*qgmin)
+c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
+         enddo
 
       endif   ! (io_in<4)
 
@@ -596,12 +589,12 @@
 !       cold bubble test 
 !       constants: 
         Tbubb=300. ! potential temperature
-	 tss(:)=Tbubb
+        tss(:)=Tbubb
         do k=1,kl
 !         Height of sigma-levels at t=0
-          zbub(k)=(cp*Tbubb/grav)*(1.-sig(k)**(rdry/cp))  !Hydrostatic lapse rate
+          zbub(k)=(cp*Tbubb/grav)*(1.-sig(k)**(rdry/cp)) !Hydrostatic lapse rate
 !         phi(k)=g*zbub(k)  !geopotential
-	 enddo
+        enddo
 !       u and v on the cc grid,
         u(:,:)=0.
         v(:,:)=0.
@@ -615,7 +608,7 @@
         do k=1,kl
 !        Height of sigma-levels at t=0
          t(:,k)=Tbubb-zbub(k)*grav/cp  !environmental temperature
-	  if(sig(k)<.4)t(:,k)=t(:,k-1)
+         if(sig(k)<.4)t(:,k)=t(:,k-1)
         enddo
 !       Inserting the bubble
 !       radius of bubble in the horizontal:
@@ -625,7 +618,7 @@
         ic=il_g/2    ! Indices on the global grid
         jc=3*il_g/2
         emcent=em(3*il_g*il_g/2)
-	if(myid==0) print *,'emcent, ds/emcent ',emcent,ds/emcent
+        if(myid==0) print *,'emcent, ds/emcent ',emcent,ds/emcent
         xc=ic*ds/emcent
         yc=jc*ds/emcent
         zc=3000. !center in the vertical
@@ -735,14 +728,14 @@
                  enddo          ! i loop
                enddo            ! j loop
              enddo              ! n loop
-	      ril2=il_g/2
-	      do j=1,jl
-	       do i=1,il
-		 rhs=max(abs(i-.5-ril2),abs(j-.5-ril2))/
+             ril2=il_g/2
+             do j=1,jl
+              do i=1,il
+               rhs=max(abs(i-.5-ril2),abs(j-.5-ril2))/
      &                 (1.5*il_g*nud_hrs)
                davt_g(indglobal(i,il_g+1-j,1))=rhs  ! panel 1
-		enddo
-	      enddo
+              enddo
+             enddo
              do j=1,il_g        ! full nudging on furthest panel
                do i=1,il_g
                  davt_g(indglobal(j,i,4))=1./nud_hrs !  e.g. 1/48
@@ -755,9 +748,9 @@
          end if ! myid==0
 !        davu calc moved below next bounds call
          if(nproc==1)then
-	    print *,'davt for i=il/2'
-	    write(6,'(20f6.3)') (davt(iq),iq=il/2,ifull,il)
-	  endif
+           print *,'davt for i=il/2'
+           write(6,'(20f6.3)') (davt(iq),iq=il/2,ifull,il)
+         endif
           if(diag)
      &      call printa('davt',davt,0,0,ia,ib,ja,jb,0.,real(nud_hrs))     
       endif                    ! (nbd.ne.0.and.nud_hrs.ne.0)
@@ -785,40 +778,15 @@
        cduv(iq)=0.
       enddo   ! iq loop
 
-      if(io_in==3.and.nqg_set<7)then  ! initialize sicedep from tss 
-!       n.b. this stuff & other nqg_set to be removed when always netcdf input
-         if (myid==0) print *,
-     &        'preset sice to .5 via tss, because nqg_set: ',nqg_set
-        do iq=1,ifull
-         if(tss(iq)<=271.2)then
-           sicedep(iq)=2.  ! changed from .5 on 26/3/03
-         else
-           sicedep(iq)=0.     
-         endif
-        enddo   ! iq loop
-      endif ! (io_in==3.and.nqg_set<7)
-
-      do iq=1,ifull
-       sice(iq)=.false.
-       if(land(iq))then   
-         sicedep(iq)=0. 
-	  fracice(iq)=0.          
-       elseif(sicedep(iq)>0.)then             
-         sice(iq)=.true.
-	  fracice(iq)=1.  ! present default without leads
-         snowd(iq)=0.    ! no snow presently allowed on sea-ice
-       endif
-      enddo   ! iq loop
-
 !     read data for biospheric scheme if required
       if(nsib>=1)then
         call insoil   !  bundled in with sscam2
         call rdnsib   !  for usual defn of isoil, iveg etc
       else
         do iq=1,ifull
-	  ivegt(iq)=1   ! default for h_s etc
-	  isoilm(iq)=1  ! default for h_s etc
-	 enddo
+         ivegt(iq)=1   ! default for h_s etc
+         isoilm(iq)=1  ! default for h_s etc
+        enddo
       endif      ! (nsib>=1)
 
 !     nrungcm<0 controls presets for snowd, wb, tgg and other soil variables
@@ -838,8 +806,8 @@
            iveg=ivegt(iq)
            isoil=isoilm(iq)
 !          fracsum(imo) is .5 for nh summer value, -.5 for nh winter value
-	    fracs=sign(1.,rlatt(iq))*fracsum(imo)  ! +ve for local summer
-	    fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
+           fracs=sign(1.,rlatt(iq))*fracsum(imo)  ! +ve for local summer
+           fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
            wb(iq,ms)= (1.-fracwet)*swilt(isoilm(iq))+ 
      &                  fracwet*sfc(isoilm(iq)) 
 !          wb(iq,ms)= .5*swilt(isoilm(iq))+ .5*sfc(isoilm(iq)) ! till july 01
@@ -902,15 +870,15 @@
         print *,
      &    'reading previously saved wb,tgg,tss (land),snowd,sice from ',
      &         surfin
-        open(unit=87,file=surfin,form='formatted',status='old')
+        open(87,file=surfin,form='formatted',status='old')
         read(87,'(a80)') header
         print *,'header: ',header
         end if
-	 if(nrungcm==-5)then
+        if(nrungcm==-5)then
           call readglobvar(87, tgg, fmt="*")  ! this line acts as dummy read 
-	 else
+        else
           call readglobvar(87, wb, fmt="*")
-	 endif
+        endif
         call readglobvar(87, tgg, fmt="*")
         call readglobvar(87, aa, fmt="*")       ! only use land values of tss
         call readglobvar(87, snowd, fmt="*")
@@ -957,21 +925,13 @@
           end if
         endif
         do iq=1,ifull
-         sice(iq)=.false.
-         if(sicedep(iq)>0.)sice(iq)=.true.
          if(land(iq))tss(iq)=aa(iq)
         enddo  ! iq loop
       endif    !  (nrungcm<=-3)
 
       if(nrungcm.ne.0)then  ! not for restart 
-        do iq=1,ifull   ! often do this:
-         tgg(iq,1) = tss(iq)
-        enddo
-        do k=1,3
-         do iq=1,ifull
-          tggsn(iq,k)=280.   ! just a default
-         enddo   ! iq loop
-        enddo    ! k loop
+        tgg(:,1) = tss(:)   ! often do this:
+        tggsn(:,:)=280.     ! just a default
       endif   !  (nrungcm.ne.0)
 
       if(nrungcm==4)then !  wb fix for ncep input 
@@ -1046,10 +1006,34 @@
      &          max(snowd(iq),400.)
         enddo   ! iq loop
       endif    !  (newsnow==1) .. else ..
-!     check that snowd, as read in, is only over land or sice
+
+      if(namip>0)then
+        if(myid==0)print *,'calling amipsst at beginning of run'
+        call amipsst
+      endif   ! namip>0
+
+!     because of new zs etc, ensure that snowd is only over land 
+!     and sice over sea
       do iq=1,ifull
-       if(.not.land(iq).and..not.sice(iq))snowd(iq)=0.
-      enddo   ! iq loop
+       if(fracice(iq)<.02)fracice(iq)=0.
+       if(land(iq))then
+         sicedep(iq)=0.
+         fracice(iq)=0.
+       else
+         snowd(iq)=0.
+         if(fracice(iq)>0..and.sicedep(iq)==0.)then
+!          assign to 2. in NH and 1. in SH (according to spo)
+!          do this here and in nestin because of onthefly
+           if(rlatt(iq)>0.)then
+             sicedep(iq)=2.
+           else
+             sicedep(iq)=1.
+           endif ! (rlatt(iq)>0.)
+         elseif(fracice(iq)==0..and.sicedep(iq)>0.)then  ! e.g. from Mk3  
+           fracice(iq)=1.
+         endif  ! (fracice(iq)>0..and.sicedep(iq)==0.) .. elseif ..
+       endif    ! (land(iq))
+      enddo     ! iq loop
 
       if(newsoilm>0)then
         print *,'newsoilm = ',newsoilm
@@ -1061,7 +1045,6 @@
       if(nhstest<0)then  ! aquaplanet (APE) test 
         zs(:)=0.
         land(:)=.false.
-        sice(:)=.false.
         sicedep(:)=0.
         snowd(:)=0.
         tss(:)=273.16
@@ -1080,36 +1063,36 @@
          if(nhstest==-5.and.rlatt(iq)>-pi/3..and.rlatt(iq)<=pi/36.)
      .     tss(iq)=273.16 +27.*(1.-sin((rlatt(iq)-pi/36.)*90./65.)**2) ! Expt 5
          if(nhstest==-6.and.abs(rlatt(iq))<pi/12.)then      ! Expt6 1keq
-	   if(rlongg(iq)<pi/6..or.rlongg(iq)>11.*pi/6.)      ! corrected .503
-     .     tss(iq)=tss(iq)+1.*(cos(3.*rlongg(iq))*cos(6.*rlatt(iq)))**2  
+           if(rlongg(iq)<pi/6..or.rlongg(iq)>11.*pi/6.)     ! corrected .503
+     .     tss(iq)=tss(iq)+1.*(cos(3.*rlongg(iq))*cos(6.*rlatt(iq)))**2 
          endif  ! (nhstest==-6....)                      
          if(nhstest==-7.and.abs(rlatt(iq))<pi/12.)then      ! Expt7 3keq
-	   if(rlongg(iq)<pi/6..or.rlongg(iq)>11.*pi/6.)      ! corrected .503
+           if(rlongg(iq)<pi/6..or.rlongg(iq)>11.*pi/6.)     ! corrected .503
      .     tss(iq)=tss(iq)+3.*(cos(3.*rlongg(iq))*cos(6.*rlatt(iq)))**2  
          endif  ! (nhstest==-7....)
          if(nhstest==-8.and.abs(rlatt(iq))<pi/6.)           ! Expt 8  3kw1
      .     tss(iq)=tss(iq)+3.*cos(rlongg(iq))*cos(3.*rlatt(iq))**2    
         enddo   ! iq loop
-	 do k=1,ms
-	  tgg(:,k)=tss(:)
-	  wb(:,k)=0.
-	 enddo
-	 if(io_in>4)then    ! not reading initial input file
+        do k=1,ms
+         tgg(:,k)=tss(:)
+         wb(:,k)=0.
+        enddo
+        if(io_in>4)then    ! not reading initial input file
 !         kdate=19790321     - not from Feb '05
-	   do k=1,kl
+          do k=1,kl
 c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
            do iq=1,ifull
             qg(iq,k)=.01*(1.-abs(rlatt(iq))*2./pi)**3*sig(k)**3  ! Nov 2004
-	    enddo
+           enddo
           enddo
-	 endif  ! (io_in>4)
+        endif  ! (io_in>4)
         if(nhstest==-11.or.nhstest==-12)then  ! pgb test,. npgb=-1 or -2
-	   ix=il/2
-	   jx=1.19*il
+          ix=il/2
+          jx=1.19*il
           ix=id
-	   jx=jd
-	   npgb=nhstest+10
-	   do j=jx+npgb,jx-npgb
+          jx=jd
+          npgb=nhstest+10
+          do j=jx+npgb,jx-npgb
            do i=ix+npgb,ix-npgb
             iq=i+(j-1)*il
             zs(iq)=.1	   
@@ -1117,11 +1100,11 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
             isoilm(iq)=4   ! sandy-loam/loam
             ivegt(iq)=14
             sigmf(iq)=0.   ! bare soil
-	     print *,'i,j,land,zs ',i,j,land(iq),zs(iq)
-     	    enddo
-	   enddo
-	   ixjx=ix+(jx-1)*il
-	   print *,'ix,jx,long,lat ',
+            print *,'i,j,land,zs ',i,j,land(iq),zs(iq)
+           enddo
+          enddo
+          ixjx=ix+(jx-1)*il
+          print *,'ix,jx,long,lat ',
      &             ix,jx,rlongg(ixjx)*180./pi,rlatt(ixjx)*180./pi
         endif  ! (nhstest==-11.or.nhstest==-12)
       endif    ! (nhstest<0)
@@ -1152,11 +1135,6 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
         if (myid==0) print *,'for lgwd>0, aamax: ',aamax_g
       endif   ! (lgwd>0)
 
-      if(namip>0)then
-        if(myid==0)print *,'calling amipsst at beginning of run'
-        call amipsst
-      endif   ! namip>0
-
       snalb=.8
       do iq=1,ifull
        if(.not.land(iq))then
@@ -1164,18 +1142,19 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
          tgg(iq,1)=max(271.3,tss(iq)) 
          tgg(iq,3)=tss(iq)         ! a default 
        endif   ! (.not.land(iq))
-       if(sice(iq))then
+       if(sicedep(iq)>0.)then
 !        at beginning of month set sice temperatures
          tgg(iq,3)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m level 1
          tss(iq)=tgg(iq,3)*fracice(iq)+tgg(iq,1)*(1.-fracice(iq))
          alb(iq)=.65*fracice(iq)+.1*(1.-fracice(iq))
-       endif   ! (sice(iq)) 
+       endif   ! (sicedep(iq)>0.) 
        if(isoilm(iq)==9)then
-!        also at beginning of month ensure cold deep temps over permanent ice
+!        also at beg. of month ensure cold deep temps over permanent ice
          do k=2,ms
           tgg(iq,k)=min(tgg(iq,k),260.)
          enddo
        endif   ! (isoilm(iq)==9)
+       tpan(iq)=t(iq,1)  ! default for land_sflux and outcdf
       enddo    ! iq loop
 
 !     tgg(:,:)=max(190.,tgg(:,:))  ! temporary post-glacier-error fix
@@ -1199,9 +1178,9 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
          write(6,"('land#   ',3l7,1x,3l7,1x,3l7)") 
      &       diagvals(land)
 !     &       ((land(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('sice#   ',3l7,1x,3l7,1x,3l7)") 
-     &       diagvals(sice)
-!     &       ((sice(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('sicedep#   ',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &       diagvals(sicedep)
+!     &       ((sicedep(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
          print *,'following from rdnsib'
          write(6,"('zo#     ',3f7.2,1x,3f7.2,1x,3f7.2)") 
      &       diagvals(zolnd)
@@ -1236,8 +1215,8 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
       indexl=0
       if ( mydiag ) then
          print *,'idjd = ',idjd
-         print *,'before land loop; land,sice,sicedep,isoil,ivegt,tss ',
-     &           land(idjd),sice(idjd),sicedep(idjd),
+         print *,'before land loop; land,sicedep,isoil,ivegt,tss ',
+     &           land(idjd),sicedep(idjd),
      &           isoilm(idjd),ivegt(idjd),tss(idjd)
       end if
       do j=j1,jl
@@ -1253,16 +1232,16 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
       indexi=ipland
       ipsea=(il+1-i1)*(jl+1-j1)
       indexs=ipsea+1
-      if (mydiag) print *,'before sice loop; land,sice,sicedep,tss ',
-     &           land(idjd),sice(idjd),sicedep(idjd),tss(idjd)
+      if (mydiag) print *,'before sice loop; land,sicedep,tss ',
+     &           land(idjd),sicedep(idjd),tss(idjd)
       do iq=1,ifull
-        if(sice(iq))then
+        if(sicedep(iq)>0.)then
           indexi=indexi+1     ! sice point
           iperm(indexi)=iq    ! sice point
         elseif(.not.land(iq))then
           indexs=indexs-1     ! sea point
           iperm(indexs)=iq    ! sea point
-        endif  ! (sice(iq))
+        endif  ! (sicedep(iq)>0.)
       enddo   ! iq loop
       ipsice=indexi
       if (mydiag) print *,'ipland,ipsice,ipsea: ',ipland,ipsice,ipsea
@@ -1292,7 +1271,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
      &        ( sfc(isoil)*(sfc(isoil)-swilt(isoil))*wb(iq,ms)/.36  
      &      +.5*sfc(isoil)*swilt(isoil) )/(sfc(isoil)-.5*swilt(isoil)) 
            enddo   !  k=2,ms
-	  endif   ! (nfixwb==0)
+         endif   ! (nfixwb==0)
          if(nfixwb==1.or.nfixwb==2)then
 !          alternative simpler jlm fix-up	
 !          wb0/.36=(wb-swilt)/(sfc-swilt)
@@ -1302,30 +1281,30 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
             wb(iq,k)=swilt(isoil)+
      &              (sfc(isoil)-swilt(isoil))*wb(iq,ms)/.36
            enddo   !  k=2,ms
-	  endif   ! (nfixwb==1.or.nfixwb==2)
+         endif   ! (nfixwb==1.or.nfixwb==2)
          if(ip==1)print *,'kdate ',kdate
          if(nfixwb==2.and.kdate>3210100.and.kdate<3210200)then
-	    rlon_d=rlongg(iq)*180./pi
-	    rlat_d=rlatt(iq)*180./pi
+           rlon_d=rlongg(iq)*180./pi
+           rlat_d=rlatt(iq)*180./pi
            if(ip==1)then
-	      print *,'kdate in nfixwb=2 ',kdate
-	      print *,'iq,rlon_d,rlat_d ',rlon_d,rlat_d
-            endif
+             print *,'kdate in nfixwb=2 ',kdate
+             print *,'iq,rlon_d,rlat_d ',rlon_d,rlat_d
+           endif
 !          jlm fix-up for tropical oz in january 321
            if(rlon_d>130..and.rlon_d<150..and.
      &        rlat_d>-20..and.rlat_d<0.)then
              do k=1,ms                                                       
               wb(iq,k)=max(wb(iq,k),.5*(swilt(isoil)+sfc(isoil))) ! tropics
              enddo   !  k=1,ms
-	    endif
+           endif
 !          jlm fix-up for dry interior in january 321
            if(rlon_d>117..and.rlon_d<142..and.
      &        rlat_d>-32..and.rlat_d<-22.)then
              do k=1,ms                                                       
               wb(iq,k)=swilt(isoil)  ! dry interior
              enddo   !  k=1,ms
-	    endif
-	  endif   ! (nfixwb==2)
+           endif
+         endif   ! (nfixwb==2)
          if(nfixwb==10)then    ! was default for nrungcm=1 till oct 2001
 !          jlm suggestion, assume vegfrac ~.5, so try to satisfy
 !          wb0/.36=.5*(wb/ssat + (wb-swilt)/(ssat-swilt) )
@@ -1337,7 +1316,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
      &        ( ssat(isoil)*(ssat(isoil)-swilt(isoil))*wb(iq,ms)/.36  
      &      +.5*ssat(isoil)*swilt(isoil) )/(ssat(isoil)-.5*swilt(isoil)) 
            enddo   !  k=2,ms
-	  endif   ! (nfixwb.ne.10)
+         endif   ! (nfixwb.ne.10)
 
          do k=1,ms
           wb(iq,k)=max( swilt(isoil) , min(wb(iq,k),sfc(isoil)) )
@@ -1384,41 +1363,8 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
         enddo        !  ip=1,ipland
         if(mydiag) print*,'after nrungcm=2 fix-up wb(1-ms): ',wb(idjd,:)
       endif          !  (nrungcm==2)
-
-!     initialize snow variables for sib3 and sib4
-      if(mydiag) print *,'in indata nqg_set = ',nqg_set 
-      if(nqg_set<=11) then
-	do iq=1,ifull
-	 smass(iq,1)=0.
-	 smass(iq,2)=0.
-	 smass(iq,3)=0.
-	 if(snowd(iq)>100.)then
-	   ssdn(iq,1)=240.
-	 else
-	   ssdn(iq,1) = 140.
-	 endif		! (snowd(iq)>100.)
-	 do k=2,3
-	  ssdn(iq,k)=ssdn(iq,1)
-        enddo
-	 ssdnn(iq)  = ssdn(iq,1)
-	 isflag(iq) = 0
-	 snage(iq)  = 0.
-	 if(snowd(iq)>0.)tgg(iq,1)=min(tgg(iq,1),270.1)
-        enddo   ! iq loop
-        if (mydiag) print *,'in indata set snowd,ssdn: ',
-     &       snowd(idjd),ssdn(idjd,1)
-        if(nqg_set<11)then
-          do iq=1,ifull
-	   do k=1,ms
-!           following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
-            wbice(iq,k)=
-     &            min(.99,max(0.,.99*(tfrz-tgg(iq,k))/5.))*wb(iq,k) ! jlm
-	   enddo ! ms
-          enddo  ! iq loop
-        endif    ! (nqg_set<11)
-      endif      ! (nqg_set<=11)
-      
-      osnowd = snowd  ! 2d
+     
+      osnowd(:) = snowd(:)  
 !     general initial checks for wb and wbice
       do k=1,ms
        do iq=1,ifull
@@ -1427,14 +1373,6 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
         wbice(iq,k)=min(.99*wb(iq,k),wbice(iq,k)) 
        enddo  ! iq loop
       enddo   ! ms
-
-!!     can try fix up of oz albedo   27/4/01
-!      do iq=1,ifull
-!           if(alb(iq)>=.25.and.rlatt(iq)*180./pi>-35..and.
-!     &        rlatt(iq)*180./pi<-15..and.
-!     &        rlongg(iq)*180./pi>110..and.rlongg(iq)*180./pi<146.)
-!     &      alb(iq)=alb(iq)-.04  ! fix over central oz
-!      enddo
 
       if ( mydiag ) then
          print *,'nearer end of indata id+-1, jd+-1'
@@ -1489,9 +1427,9 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
       if(newrough>0)then
         call calczo(.05)
         print *,'after calczo zolnd ',zolnd(idjd)
-	 if(newrough>2)then
-	   zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
-	 endif
+        if(newrough>2)then
+          zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
+        endif
         if ( mydiag ) then
           print *,'after calczo with newrough = ',newrough
           write(6,"('zo#    ',3f7.2,1x,3f7.2,1x,3f7.2)") diagvals(zolnd)
@@ -1529,29 +1467,29 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
       call bounds(zs)
       if(nbd==3)then   ! separate (global) davu from (f-f) davt
         davu(:) = 1./nudu_hrs    !  e.g. 1/48
-	 print *,'all davu set to ',1./nudu_hrs 
+        print *,'all davu set to ',1./nudu_hrs 
       else 
         davu(:) = davt(:)
       endif
       do iq=1,ifull
        zolog(iq)=log(zmin/zolnd(iq))   ! for land use in sflux
-	neigh(iq)=iq  ! default value
-	zsmin=zs(iq)
-	if(zs(ie(iq))<zsmin)then
-	  zsmin=zs(ie(iq))
-	  neigh(iq)=ie(iq)
-	endif
-	if(zs(iw(iq))<zsmin)then
-	  zsmin=zs(iw(iq))
-	  neigh(iq)=iw(iq)
-	endif
-	if(zs(in(iq))<zsmin)then
-	  zsmin=zs(in(iq))
-	  neigh(iq)=in(iq)
-	endif
-	if(zs(is(iq))<zsmin)then
-	  neigh(iq)=is(iq)
-	endif
+       neigh(iq)=iq  ! default value
+       zsmin=zs(iq)
+       if(zs(ie(iq))<zsmin)then
+         zsmin=zs(ie(iq))
+         neigh(iq)=ie(iq)
+       endif
+       if(zs(iw(iq))<zsmin)then
+         zsmin=zs(iw(iq))
+         neigh(iq)=iw(iq)
+       endif
+       if(zs(in(iq))<zsmin)then
+         zsmin=zs(in(iq))
+         neigh(iq)=in(iq)
+       endif
+       if(zs(is(iq))<zsmin)then
+         neigh(iq)=is(iq)
+       endif
       enddo
       if ( mydiag ) then
          print *,'for idjd get neigh = ',neigh(idjd),
@@ -1570,7 +1508,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
      &              abs(zs(is(iq))-zs(iq)) )
          epst(iq)=max(epsf,min(epsmax*zsdiff/(600.*grav),epsmax))
         enddo
-	 epsf=0.
+        epsf=0.
       endif
       if(epsp>99.)then  ! e.g. 200. to give epsmax=.2 for orog=600 m
         epsmax=epsp/1000.
@@ -1604,8 +1542,8 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
         write(22,920)
 920     format(46x,'land            isoilm')
         write(22,921)
-921     format('   iq    i   j  rlong    rlat    thet    map'
-     &         '   sice zs(m) alb   ivegt  tss    t1    tgg2   tgg6'
+921     format('   iq     i    j  rlong    rlat    thet    map'
+     &         '   sicedep zs(m) alb   ivegt  tss    t1    tgg2   tgg6'
      &         '   wb1   wb6   ico2  radon')
        do j=1,jl
         do i=1,il
@@ -1616,18 +1554,19 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 c        den=sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )  ! allow for poles
 c        costh= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
 c        sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
-	  thet=atan2(-zonx*bx(iq)-zony*by(iq)-zonz*bz(iq), ! N.B. -pi to pi
+         thet=atan2(-zonx*bx(iq)-zony*by(iq)-zonz*bz(iq), ! N.B. -pi to pi
      &               zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))*180./pi
          if(thet<0.)thet=thet+360.
 c        uzon= costh*u(iq,1)-sinth*v(iq,1)
 c        vmer= sinth*u(iq,1)+costh*v(iq,1)	  
          write(22,922) iq,i,j,rlongg(iq)*180./pi,rlatt(iq)*180./pi,
-     &          thet,em(iq),land(iq),sice(iq),zs(iq)/grav,alb(iq),
+     &          thet,em(iq),land(iq),sicedep(iq),zs(iq)/grav,alb(iq),
      &              isoilm(iq),ivegt(iq),
      &              tss(iq),t(iq,1),tgg(iq,2),tgg(iq,ms),
      &              wb(iq,1),wb(iq,ms),
      &              ico2em(min(iq,ilt*jlt)),radonem(min(iq,ilt*jlt))
-922      format(i6,2i4,3f8.3,f8.4,2l2,f7.1,f5.2,2i3,4f7.1,2f6.2,i6,f5.2)
+922      format(i6,2i5,3f8.3,f8.4,l2,f4.1,f7.1,f5.2,2i3,
+     &          4f7.1,2f6.2,i6,f5.2)
         enddo
        enddo
       endif  ! (nproc==1)
@@ -1642,7 +1581,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
                 print *,'stopping because nsib = 1 or 3 ',
      &          'and veg type not defined for iq = ',iq
                 print *,'lat,long ',
-     .		           rlatt(iq)*180./pi,rlongg(iq)*180./pi
+     &          rlatt(iq)*180./pi,rlongg(iq)*180./pi
                 stop
             endif  ! (ivegt(iq)==0)
             if(isoilm(iq)==0)then
@@ -1654,7 +1593,30 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         enddo    !  iq loop
       endif      ! (nsib>=1)
 
-      if(nstn>0)then
+      if(nstn>0.and.nrotstn(1)>0)then
+        print *,'stationb setup of mystn'
+        do nn=1,nstn
+           ! These are global indices
+           ig=istn(nn)
+           jg=jstn(nn)
+           nface=(jg-1)/il_g
+!          Note that the second argument to fproc is the j index on the
+!          face, not the global j index,   
+           mystn(nn) = fproc(ig,jg - nface*il_g,nface) == myid
+           if ( mystn(nn) ) then
+             iqg = ig + (jg-1)*il_g
+           ! Local indices on this processor
+             call indv_mpi(iqg,ii,jj,n)
+             iq = ii + (jj-1)*ipan + (n-1)*ipan*jpan
+             istn(nn)=ii
+             jstn(nn)=jj+(n-1)*ipan
+             print *,'nn,ig,jg,nface,ii,jj,jstn,n,land,sicedep,mystn ',
+     &                nn,ig,jg,nface,ii,jj,jstn(nn),n,land(iq),
+     &                sicedep(iq),mystn(nn)
+            endif
+         enddo
+      endif
+      if(nstn>0.and.nrotstn(1)==0)then
         print *,'land stations'
         write(*,"(a)")
      &       ' lu istn jstn  iq   slon   slat land rlong  rlat'
@@ -1675,7 +1637,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
 !             print*, "Station", nn, iqg, ii, jj, n, iq
              if(.not.land(iq))then
 !              simple search for neighbouring land point (not over panel bndries)
-	       isav = ii
+               isav = ii
                jsav = jj
                dist=100.
                if ( isav < ipan ) then
@@ -1710,23 +1672,6 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
              istn(nn) = ii
              jstn(nn) = jj+(n-1)*ipan
              iq = istn(nn) + (jstn(nn)-1)*ipan
-!        following removed on 30/1/02	  
-!         if(schmidt> .29.and.schmidt< .31)then
-!!          n.b. following should only be for stretched grid
-!           if(nn==2)alb(iq)=.16   ! fix-up for sydney     was   .13
-!           if(nn==3)alb(iq)=.24   ! fix-up for adelaide   was   .18
-!           if(nn==6)alb(iq)=.18   ! fix-up for brisbane   was   .12
-!           if(nn==7)alb(iq)=.18   ! fix-up for perth      was   .13
-!           if(nn==8)alb(iq)=.12   ! fix-up for darwin     was   .19
-!           if(nn==10)alb(iq)=.16  ! fix-up for albury     was   .13
-!           if(nn==2)sigmf(iq)=.5    ! fix-up for sydney
-!           if(nn==3)sigmf(iq)=.5    ! fix-up for adelaide
-!           if(nn==6)sigmf(iq)=.5    ! fix-up for brisbane
-!!***  n.b. nec sx4 vopt/hopt f90 compiler does not cope with next line!
-!           if(nn==7)sigmf(iq)=.195  ! fix-up for perth
-!           if(nn==8)sigmf(iq)=.5    ! fix-up for darwin
-!           if(nn==8)zolnd(iq)=.3   ! fix-up for darwin     was   .79
-!         endif  ! (schmidt> .29.and.schmidt< .31)
              iveg=ivegt(iq)
              isoil = isoilm(iq)
              wet3=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil)) 
@@ -1741,19 +1686,6 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
              ! Put a barrier here to force stations to be printed in the right order
           call MPI_Barrier( MPI_COMM_WORLD, ierr )
         enddo  ! nn=1,nstn
-        if(mstn==2)then   ! then eva's stn2 values too
-          ! These aren't printed anywhere, so don't implement it here yet.
-          print*, "mstn = 2 option not implemented"
-          stop
-          do nn=1,nstn2
-           call latltoij(slon2(nn),slat2(nn),ri,rj,nface)
-           istn2(nn)=nint(ri)
-           jstn2(nn)=nint(rj) +nface*il
-          enddo  ! nn
-          print *,'sea station lu numbers: ',(iunp2(nn),nn=1,nstn)
-          print *,'istn2, slon2: ',(istn2(nn),slon2(nn),nn=1,nstn2)
-          print *,'jstn2, slat2: ',(jstn2(nn),slat2(nn),nn=1,nstn2)
-        endif   !  (mstn==2)
       endif     !  (nstn>0)
 
       do iq=1,ifull
@@ -1815,11 +1747,11 @@ c    &              .54, .0/
        ivegmin=100
        ivegmax=-100
        do iq=1,ifull
-	 if(land(iq))then
-	   ivegmin=min(ivegt(iq),ivegmin)
-	   ivegmax=max(ivegt(iq),ivegmax)
+        if(land(iq))then
+          ivegmin=min(ivegt(iq),ivegmin)
+          ivegmax=max(ivegt(iq),ivegmax)
 c         if(ivegt(iq)>40)print *,'iq, ivegt ',iq,ivegt(iq)
-	 endif
+        endif
        enddo
        print *,'ivegmin,ivegmax ',ivegmin,ivegmax
        if(ivegmin<1.or.ivegmax>44)stop
@@ -1891,12 +1823,11 @@ c     zobg = .05
       integer iso2emindex(ns), iso2lev(0:nsulfl)
       real    so2em(ns)
       character sname*34, title*100, file*(*)
-      data ludat/87/
 
        print*, "Error no MPI version of rdso2em yet"
        stop
        nso2src = 0
-       open (unit=ludat,file=so2emfile,status='old',form='formatted')
+       open (87,file=so2emfile,status='old',form='formatted')
        print *,'rdso2em: reading in so2'
        print *,'!!!!!!!!!!!!!! rdnsib: ds =',ds
 * ds      - the standard latitude grid box length
@@ -1908,15 +1839,15 @@ c     zobg = .05
 * 28.965 molecular weight of standard dry air
 * 1.0e+09 - conversion to parts per billion
        factor = factor * 64.065 / 28.965 / 1.0e+09
-       read( ludat,* )
-       read( ludat,'(a)' ) title
+       read(87,* )
+       read(87,'(a)' ) title
        write( *,'(a)' ) title
-       read( ludat,'(50x,f9.2)',end=30 ) so2background
+       read(87,'(50x,f9.2)',end=30 ) so2background
        write( *,* ) ' rdso2em: so2 backgroud source value is',
      &               so2background
        so2background = so2background/factor
 
-10     read( ludat,15,end=20 ) sname, rlat, rlon, eso2, height, rmult
+10     read(87,15,end=20 ) sname, rlat, rlon, eso2, height, rmult
        write(*,15)' '//sname, rlat, rlon, eso2, height, rmult
 15     format(a,f6.2,f9.2,f9.1,9x,f12.0,f14.2)
        nso2src = nso2src+1
@@ -1950,7 +1881,7 @@ c so2em  - emission values at iso2em grid point
 !        write(*,*) rmult,ix,jx,so2em(nso2src),factor,em(ix,jx)
        go to 10
 
-20     close(unit=ludat)
+20     close(87)
        write(*,*) '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
        write(*,*) 'rdso2em: read',nso2src,' sources from file ',file
        write(*,*)
@@ -2229,7 +2160,7 @@ c     vegetation height
        do iq=1,ifull
         if(land(iq))then
           iveg=ivegt(iq)
-	   zolnd(iq)=max(zobgin , .1*xhc(iveg))
+          zolnd(iq)=max(zobgin , .1*xhc(iveg))
           zomax=max(zomax,zolnd(iq))
           zomin=min(zomin,zolnd(iq))
         endif ! (land(iq))then

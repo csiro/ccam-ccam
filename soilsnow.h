@@ -1,6 +1,6 @@
 !     this one forces tggsn to directly precede tgg
       real tggsn, tgg, wb, wbice, smass, ssdn, ssdnn, snowd, osnowd,
-     &     snage, sno, gflux, sgflux, otgsoil
+     &     snage, sno, gflux, sgflux,snowflx, otgsoil
       integer isflag
 
       common /soilcom/
@@ -18,5 +18,6 @@
      .   , isflag(ifull)
      .   , gflux(ifull)   !
      .   , sgflux(ifull)  !
+     .   , snowflx(ifull) ! surface snow melt heat flux
      .   , otgsoil(ifull) ! soil or snow surface temper. at the previous dt
 !        N.B. otgsoil was missing from common block before 19/8/99

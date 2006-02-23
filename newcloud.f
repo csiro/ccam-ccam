@@ -51,6 +51,8 @@ c******************************************************************************
 
 c This routine is part of the prognostic cloud water scheme
 
+      use diag_m
+      use cc_mpi, only : mydiag
       implicit none
 C Global parameters
       include 'newmpar.h'
@@ -452,21 +454,22 @@ c            ccov(mg,k)=cfrac(mg,k)**(2./3)
           enddo
         enddo
       endif
-
-      
+     
       if(nproc==1.and.ktau.eq.10)then
         do k=1,kl
 	  do mg=il*il+1,2*il*il
 	   den1=qfg(mg,k)+qlg(mg,k)
 	   if(land(mg).and.den1>0.)then
-           write(27,'(4f9.4,2i6)')
+           write(17,'("newcloud",4f9.4,2i6)')
      .     ttg(mg,k),qfg(mg,k)/den1,1000.*qfg(mg,k),1000.*qlg(mg,k),mg,k
           endif
 	  enddo
 	 enddo     
       endif  ! (nproc==1.and.ktau.eq.10) 
-
       
+      if(nmaxpr==1.and.mydiag)then
+        write (6,"('qs_ice ',3p9f8.3/7x,9f8.3)") qsg(idjd,:)
+      end if
       if(debug)then
         if(lg.eq.lgdebug)then
           ns=insdebug
