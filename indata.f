@@ -90,7 +90,7 @@
      &     sumdsig, thet, timegb, tsoil, uzon, vmer, w,
      &     wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, distnew,
      &     xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent,
-     &     deli, delj, centi, distx, rhs
+     &     deli, delj, centi, distx, rhs, ril2
 
       real, dimension(44), parameter :: vegpmin = (/
      &              .98,.85,.85,.5,.2,.1 ,.85,.5,.2,.5,                ! 1-10
@@ -713,11 +713,40 @@
                  davt_g(indglobal(j,i,4))=1./abs(nud_hrs) !  e.g. 1/48
                enddo            ! i loop
              enddo              ! j loop
-           endif                !  (nbd==-3) 
+           endif                !  (nbd==-4) 
+           if(nbd==-5)then    ! another special form with some nudging on panel 1
+             do n=0,5
+               do j=il_g/2+1,il_g
+!                linearly between 0 (at j=.5) and 1/abs(nud_hrs) (at j=il+.5)
+                 rhs=(.5*il_g+j-.5)/(1.5*il_g*abs(nud_hrs))
+                 do i=1,il_g
+                   if(n==0)davt_g(indglobal(i,il_g+1-j,n))=rhs
+                   if(n==2)davt_g(indglobal(j,i,n))=rhs
+                   if(n==3)davt_g(indglobal(j,i,n))=rhs
+                   if(n==5)davt_g(indglobal(i,il_g+1-j,n))=rhs
+                 enddo          ! i loop
+               enddo            ! j loop
+             enddo              ! n loop
+	      ril2=il_g/2
+	      do j=1,jl
+	       do i=1,il
+		 rhs=max(abs(i-.5-ril2),abs(j-.5-ril2))/
+     &                 (1.5*il_g*abs(nud_hrs))
+               davt_g(indglobal(i,il_g+1-j,1))=rhs  ! panel 1
+		enddo
+	      enddo
+             do j=1,il_g        ! full nudging on furthest panel
+               do i=1,il_g
+                 davt_g(indglobal(j,i,4))=1./abs(nud_hrs) !  e.g. 1/48
+               enddo            ! i loop
+             enddo              ! j loop
+           endif                !  (nbd==-5) 
            call ccmpi_distribute(davt,davt_g)
          else
            call ccmpi_distribute(davt)
          end if ! myid==0
+         if(mydiag.and.diag)
+     &    call printa('davt',davt,0,0,ia,ib,ja,jb,0.,real(abs(nud_hrs)))
       endif                    ! (nbd.ne.0.and.nud_hrs.ne.0)
 
       if(io_in>=4)then   ! i.e. for special test runs without infile

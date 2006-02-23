@@ -47,7 +47,7 @@ c=======================================================================
       local = localhist .and. itype == 1 ! Only for outfile
 
       if ( myid == 0 .or. local ) then     ! File setup
-      if ( itype.eq.1 ) then
+      if ( itype==1 ) then
 c itype=1 outfile
         iarch1=iarch1+1
         iarch=iarch1
@@ -57,7 +57,7 @@ c itype=1 outfile
            cdffile=ofile
         end if
         idnc=idnc1
-      elseif ( itype.eq.0 ) then
+      elseif ( itype==0 ) then
 c itype=0 climcdf
         iarch=1
         if ( local ) then
@@ -67,7 +67,7 @@ c itype=0 climcdf
         end if
         idnc=idnc0
         mtimer=mtimer-1440  ! N.B. only done right at end of run, so OK
-      elseif ( itype.eq.-1 ) then
+      elseif ( itype==-1 ) then
 c itype=-1 restfile
         iarch=1
         if ( local ) then
@@ -78,7 +78,7 @@ c itype=-1 restfile
         idnc=idncm1
       else 
         stop "wrong itype in cdfout"
-      endif ! ( itype.eq.1 ) then
+      endif ! ( itype==1 ) then
 
       write(6,'("outcdf itype,idnc,iarch,cdffile=",3i5," ",a80)')
      &                  itype,idnc,iarch,cdffile
@@ -87,8 +87,8 @@ c#######################################################################
 c netcdf output
 c#######################################################################
 
-      if ( iarch.lt.1 ) stop "wrong iarch in cdfout"
-      if ( iarch.eq.1 ) then
+      if ( iarch<1 ) stop "wrong iarch in cdfout"
+      if ( iarch==1 ) then
         print *,'nccre of ',cdffile
         idnc = nccre(cdffile, ncclob, ier)
         print *,'idnc,ier=',idnc,ier
@@ -139,7 +139,7 @@ c define coords.
         icy=kdate/10000
         icm=max(1,min(12,(kdate-icy*10000)/100))
         icd=max(1,min(31,(kdate-icy*10000-icm*100)))
-        if(icy.lt.100)icy=icy+1900
+        if(icy<100)icy=icy+1900
         ich=ktime/100
         icmi=(ktime-ich*100)
         ics=0
@@ -267,16 +267,16 @@ c create the attributes of the header record of the file
       call ncsnc(idnc,ier)
       if(ier.ne.0)write(6,*)"ncsnc idnc,ier=",idnc,ier
 
-      if ( itype.eq.1 ) then
+      if ( itype==1 ) then
 c       itype=1 outfile
         idnc1=idnc
-      elseif ( itype.eq.0 ) then
+      elseif ( itype==0 ) then
 c       itype=0 climcdf
         idnc0=idnc
-      elseif ( itype.eq.-1 ) then
+      elseif ( itype==-1 ) then
 c       itype=-1 restfile
         idncm1=idnc
-      endif ! ( itype.eq.1 ) then
+      endif ! ( itype==1 ) then
       end if ! myid == 0
       return ! cdfout
       end
@@ -356,7 +356,7 @@ c     this routine creates attributes and writes output
 !     endif  ! (itype.ne.-1)
 
 c     if this is the first archive, set up some global attributes
-      if(iarch.eq.1) then
+      if(iarch==1) then
         print *,'dim=',dim
         idim2(1)=dim(1)
         idim2(2)=dim(2)
@@ -623,14 +623,14 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
         call attrib(idnc,idim2,3,'iwp_ave',lname,'kg/m2',0.,2.)
         lname = 'Avg liquid water path'
         call attrib(idnc,idim2,3,'lwp_ave',lname,'kg/m2',0.,2.)
-	 if(ntrac.gt.0)then ! ntrac because may have nllp>0
+	 if(ntrac>0)then ! ntrac because may have nllp>0
          do igas=1,ntrac
 	   write(numba,'(i2.2)') igas
 !         N.B. may need to set trmax manually if starting with zero concentration	 
           trmax=1.  ! N.B. trmax only set first time, with iarch=1
-	   if(igas.eq.iRADON)trmax=1000.  ! typical large value is 1000.
+	   if(igas==iRADON)trmax=1000.  ! typical large value is 1000.
           trmin=0.
-          if(nllp.gt.0.and.igas.eq.ngas+1)trmin=-90.   ! i.e. latitudes
+          if(nllp>0.and.igas==ngas+1)trmin=-90.   ! i.e. latitudes
           do k=1,kl
            do iq=1,ifull
             trmax=max(trmax,tr(iq,k,igas))
@@ -640,7 +640,7 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
           lname = 'Tracer'//numba
           call attrib(idnc,dim,4,'tr'//numba,lname,'ppm',trmin,trmax)
          enddo ! igas loop
-	 endif  ! (ntrac.gt.0)
+	 endif  ! (ntrac>0)
 
         print *,'3d variables'
 	 call attrib(idnc,dim,4,'temp','Air temperature','K',100.,350.)
@@ -656,7 +656,7 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
           call attrib(idnc,dim,4,'cfrac','Cloud fraction','none',0.,1.)
         endif
 
-        if(itype.eq.-1)then   ! extra stuff just needed for restart file
+        if(itype==-1)then   ! extra stuff just needed for restart file
          lname= 'sdot: change in grid spacing per time step +.5'
          call attrib(idnc,dim,4,'sdot',lname,'1/ts',-3.,3.) ! just restart file
          lname = 'Soil moisture lev 1'
@@ -705,7 +705,7 @@ c       call attrib(idnc,idim2,3,'u3',lname,'K',0.,60.)
          call attrib(idnc,idim2,3,'snage',lname,'none',0.,20.)   
          lname = 'Snow flag'
          call attrib(idnc,idim2,3,'sflag',lname,'none',0.,4.)
-        endif  ! (itype.eq.-1)
+        endif  ! (itype==-1)
 
         print *,'finished defining attributes'
 c       Leave define mode
@@ -763,7 +763,7 @@ c       Leave define mode
         call ncvpt1(idnc,idv,1,stl2,ier)
         idv = ncvid(idnc,'dt',ier)
         call ncvpt1(idnc,idv,1,dt,ier)
-      endif ! iarch.eq.1
+      endif ! iarch==1
 !------------------------------------------------------------------      
 
       print *,'outcdf processing kdate,ktime,ktau,mtimer: ',
@@ -792,7 +792,7 @@ c     set time to number of minutes since start
 
       end if ! myid == 0 .or. local
 
-      if(ktau.eq.0.or.itype.eq.-1)then  ! also for restart file
+      if(ktau==0.or.itype==-1)then  ! also for restart file
 !       write time-invariant fields      
         call histwrt3(em,'map',idnc,iarch,local)
         call histwrt3(f,'cor',idnc,iarch,local)
@@ -813,7 +813,7 @@ c     set time to number of minutes since start
          aa(iq)=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
         enddo
         call histwrt3(aa,'wetfrac',idnc,iarch,local)
-      endif ! (ktau.eq.0) 
+      endif ! (ktau==0) 
 
       call histwrt3(zs,'zht',idnc,iarch,local)   ! always from 13/9/02
       call histwrt3(psl,'psf',idnc,iarch,local)
@@ -845,13 +845,23 @@ c     set time to number of minutes since start
       call histwrt3(cc,'wbftot',idnc,iarch,local)
       call histwrt3(sicedep,'siced',idnc,iarch,local)
       call histwrt3(snowd,'snd',idnc,iarch,local)
+      
+      if(ktau>0.and.nwt.ne.nperday.and.itype.ne.-1)then  ! reinstated July '05
+!       scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
+!       but, don't scale up for restart file as just done in previous write
+!       ktau in next line in case ntau (& thus ktau) < nwt 
+        precip=precip*real(nperday)/min(nwt,max(1,ktau))     
+        precc =precc *real(nperday)/min(nwt,max(1,ktau))     
+        sno   =sno   *real(nperday)/min(nwt,max(1,ktau))     
+        runoff=runoff*real(nperday)/min(nwt,max(1,ktau))    
+      endif   ! (ktau>0.and.nwt.ne.nperday.and.itype.ne.-1)
       call histwrt3(precip,'rnd',idnc,iarch,local)
       call histwrt3(precc,'rnc',idnc,iarch,local)
       call histwrt3(sno,'sno',idnc,iarch,local)
       call histwrt3(runoff,'runoff',idnc,iarch,local)
       
-      if(ktau.gt.0)then
-       if(mod(ktau,nperday).eq.0.or.ktau.eq.ntau)then  ! only write once per day
+      if(ktau>0)then
+       if(mod(ktau,nperday)==0.or.ktau==ntau)then  ! only write once per day
          if(itype.ne.-1)rndmax(:)=rndmax(:)*86400./dt ! scale up to mm/day
          call histwrt3(rndmax,'maxrnd',idnc,iarch,local)
          call histwrt3(tmaxscr,'tmaxscr',idnc,iarch,local)
@@ -870,7 +880,7 @@ c     set time to number of minutes since start
          call histwrt3(rnd_3hr(1,6),'rnd18',idnc,iarch,local)
          call histwrt3(rnd_3hr(1,7),'rnd21',idnc,iarch,local)
          call histwrt3(rnd_3hr(1,8),'rnd24',idnc,iarch,local)
-         if(nextout.ge.2) then ! 6-hourly u10 & v10
+         if(nextout>=2) then ! 6-hourly u10 & v10
            call histwrt3(u10_3hr(1,2),'u10_06',idnc,iarch,local)
            call histwrt3(v10_3hr(1,2),'v10_06',idnc,iarch,local)
            call histwrt3(u10_3hr(1,4),'u10_12',idnc,iarch,local)
@@ -879,8 +889,8 @@ c     set time to number of minutes since start
            call histwrt3(v10_3hr(1,6),'v10_18',idnc,iarch,local)
            call histwrt3(u10_3hr(1,8),'u10_24',idnc,iarch,local)
            call histwrt3(v10_3hr(1,8),'v10_24',idnc,iarch,local)
-         endif  ! nextout.ge.2
-         if(nextout.ge.3) then  ! also 3-hourly u10 & v10
+         endif  ! nextout>=2
+         if(nextout>=3) then  ! also 3-hourly u10 & v10
            call histwrt3(u10_3hr(1,1),'u10_03',idnc,iarch,local)
            call histwrt3(v10_3hr(1,1),'v10_03',idnc,iarch,local)
            call histwrt3(u10_3hr(1,3),'u10_09',idnc,iarch,local)
@@ -889,17 +899,17 @@ c     set time to number of minutes since start
            call histwrt3(v10_3hr(1,5),'v10_15',idnc,iarch,local)
            call histwrt3(u10_3hr(1,7),'u10_21',idnc,iarch,local)
            call histwrt3(v10_3hr(1,7),'v10_21',idnc,iarch,local)
-         endif  ! nextout.ge.3
-         if(nextout.ge.4) then  ! shallow convection diags
+         endif  ! nextout>=3
+         if(nextout>=4) then  ! shallow convection diags
            call histwrt3(shalrk(1,1),'shark1',idnc,iarch,local)
            call histwrt3(shalrk(1,2),'shark2',idnc,iarch,local)
            call histwrt3(shalrk(1,3),'shark3',idnc,iarch,local)
            call histwrt3(shalrk(1,4),'shark4',idnc,iarch,local)
            call histwrt3(shalrk(1,5),'shark5',idnc,iarch,local)
            call histwrt3(shalrk(1,6),'shark6',idnc,iarch,local)
-         endif  ! nextout.ge.4
- 	endif   ! (mod(ktau,nperday).eq.0.or.ktau.eq.ntau)
-       if(mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)then 
+         endif  ! nextout>=4
+ 	endif   ! (mod(ktau,nperday)==0.or.ktau==ntau)
+       if(mod(ktau,nperavg)==0.or.ktau==ntau)then 
 !        only write these once per avg period
          call histwrt3(tscr_ave,'tscr_ave',idnc,iarch,local)
          call histwrt3(cbas_ave,'cbas_ave',idnc,iarch,local)
@@ -916,7 +926,7 @@ c     set time to number of minutes since start
          call histwrt3(clm_ave,'clm',idnc,iarch,local)
          call histwrt3(clh_ave,'clh',idnc,iarch,local)
          call histwrt3(cld_ave,'cld',idnc,iarch,local)
-       endif   ! (mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)
+       endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
        call histwrt3(tscrn,'tscrn',idnc,iarch,local)
        call histwrt3(qgscrn,'qgscrn',idnc,iarch,local)
        call histwrt3(u10,'u10',idnc,iarch,local)
@@ -930,7 +940,7 @@ c     set time to number of minutes since start
 c      "extra" outputs
        if(nextout>=1) then
          if ( myid == 0 ) print *,'nextout, idnc: ',nextout,idnc
-	  if(mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)then
+	  if(mod(ktau,nperavg)==0.or.ktau==ntau)then
            call histwrt3(rtu_ave,'rtu_ave',idnc,iarch,local)
            call histwrt3(rtc_ave,'rtc_ave',idnc,iarch,local)
            call histwrt3(rgdn_ave,'rgdn_ave',idnc,iarch,local)
@@ -941,12 +951,12 @@ c      "extra" outputs
            call histwrt3(soc_ave,'soc_ave',idnc,iarch,local)
            call histwrt3(sgdn_ave,'sgdn_ave',idnc,iarch,local)
            call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local)
-	  endif   ! (mod(ktau,nperavg).eq.0.or.ktau.eq.ntau)
+	  endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
          call histwrt3(dpsdt,'dpsdt',idnc,iarch,local)
          call histwrt3(pblh,'pblh',idnc,iarch,local)
          call histwrt3(ustar,'ustar',idnc,iarch,local)
        endif   ! nextout>=1
-      endif    ! (ktau.gt.0)
+      endif    ! (ktau>0)
 
       if ( myid == 0 ) print *,'netcdf save of 3d variables'
       call histwrt4(t(1:ifull,:),'temp',idnc,iarch,local)
@@ -964,14 +974,14 @@ c      "extra" outputs
         call histwrt4(qlg(1:ifullw,:),'qlg',idnc,iarch,local)
         call histwrt4(cfrac,'cfrac',idnc,iarch,local)
       endif
-      if(ntrac.gt.0)then 
+      if(ntrac>0)then 
        do igas=1,ntrac
 	 write(numba,'(i2.2)') igas
         call histwrt4(tr(1:ilt*jlt,:,igas),'tr'//numba,idnc,iarch,local)
        enddo ! igas loop
-      endif  ! (ntrac.gt.0)
+      endif  ! (ntrac>0)
 
-      if(itype.eq.-1)then   ! extra stuff just needed for restart file
+      if(itype==-1)then   ! extra stuff just needed for restart file
        call histwrt4(sdot(1,2),'sdot',idnc,iarch,local)
        call histwrt3(wb(1,1),'wb1',idnc,iarch,local)
        call histwrt3(wb(1,2),'wb2',idnc,iarch,local)
@@ -999,7 +1009,7 @@ c      "extra" outputs
         aa(iq)=isflag(iq)
        enddo
        call histwrt3(aa,'sflag',idnc,iarch,local)
-      endif  ! (itype.eq.-1)
+      endif  ! (itype==-1)
 
       return
       end
@@ -1129,7 +1139,7 @@ c find variable index
          call ccmpi_gather(var)
       end if
 
-      if ( myid==0 .and. mod(ktau,nmaxpr).eq.0 ) then
+      if ( myid==0 .and. mod(ktau,nmaxpr)==0 ) then
          varn = minval(globvar)
          varx = maxval(globvar)
          ! This should work ???? but sum trick is more portable???
@@ -1240,7 +1250,7 @@ c find variable index
          call ccmpi_gather(var)
       end if
 
-      if ( myid==0 .and. mod(ktau,nmaxpr).eq.0 ) then
+      if ( myid==0 .and. mod(ktau,nmaxpr)==0 ) then
          varn = minval(globvar)
          varx = maxval(globvar)
          max_result = maxloc(globvar)

@@ -50,13 +50,14 @@ c     cp specific heat at constant pressure joule/kgm/deg
      . ,wetfac(ifull),degdw(ifull),cie(ifull)
      . ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)
      . ,aft(ifull),fh(ifull),ri(ifull),theta(ifull)
-     . ,gamm(ifull),rg(ifull),vmod(ifull),taftfhg_temp(ifull) ! rg in radriv90
+     . ,gamm(ifull),rg(ifull),vmod(ifull),dgdtg(ifull) ! rg in radriv90
+      real taftfhg_temp(ifull)
 !     following common block makes available other arrays for diag. output 
       common/work3/egg(ifull),evapxf(ifull),ewww(ifull),fgf(ifull),
      . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull),   ! watch soilsnow.f after epot
-     . extin(ifull),af(ifull),dum3(5*ijk-18*ifull)
+     . ism(ifull),fwtop(ifull),af(ifull),   ! watch soilsnow.f after epot
+     . extin(ifull),dum3(5*ijk-17*ifull)
       dimension ipermp(ifull)    ! temporary permutation array
       equivalence (ipermp,dirad)
       real plens(ifull),vmag(ifull)
@@ -409,7 +410,8 @@ c        Now heat ; allow for smaller zo via aft and factch             ! sice
                                                                         ! sice
        conh=rho(iq)*aft(iq)*cp                                          ! sice
        conw=rho(iq)*aft(iq)*hl                                          ! sice
-       fgice=conh*fh(iq)*(tgg(iq,3)-theta(iq))                          ! sice
+!      fgice & egice renamed as fgf and fev from Aug 05 to aid diags	
+       fgf(iq)=conh*fh(iq)*(tgg(iq,3)-theta(iq))                        ! sice
        dfgdt(iq)=conh*fh(iq)                                            ! sice
        if(ntest.eq.1.and.iq.eq.idjd)then                                ! sice
          print *,'in sice loop'                                         ! sice
@@ -422,7 +424,7 @@ c        Now heat ; allow for smaller zo via aft and factch             ! sice
                                                                         ! sice
        if(nalpha.eq.1)then    ! beta scheme         sice here           ! sice
          epotice=conw*fh(iq)*(qsttg(iq)-qg(iq,1))                       ! sice
-         egice  =wetfac(iq)*epotice                                     ! sice
+         fev(iq)=wetfac(iq)*epotice                                     ! sice
          degdt(iq)=wetfac(iq)*conw*fh(iq)*drst                          ! sice
        else                   ! alpha scheme                            ! sice
 c        following trick reduces -ve evap (dew) to 1/10th value         ! sice
@@ -430,7 +432,7 @@ c        following trick reduces -ve evap (dew) to 1/10th value         ! sice
          qtgair=qsttg(iq)*wetfac(iq)-max(qtgnet,.1*qtgnet)              ! sice
          eg2=-conw*fh(iq)*qtgair                                        ! sice
          eg1=conw*fh(iq)*qsttg(iq)                                      ! sice
-         egice   =eg1*wetfac(iq) +eg2                                   ! sice
+         fev(iq) =eg1*wetfac(iq) +eg2                                   ! sice
          epotice    = conw*fh(iq)*(qsttg(iq)-qg(iq,1))                  ! sice
          deg=wetfac(iq)*conw*fh(iq)*drst                                ! sice
 c        following reduces degdt by factor of 10 for dew                ! sice
@@ -447,22 +449,22 @@ c      no snow on the ice assumed for now                               ! sice
        rgg(iq)=5.67e-8*tgg(iq,3)**4                                     ! sice
 !      gflux here is	flux from ice to water, +ve downwards              ! sice
        gflux(iq)=cie(iq)*(tgg(iq,3)-271.2)                              ! sice
-       ga(iq)=-slwa(iq)-rgg(iq)-egice-fgice-gflux(iq)                   ! sice
+       ga(iq)=-slwa(iq)-rgg(iq)-fev(iq)-fgf(iq)-gflux(iq)               ! sice
        dirad(iq)=4.*5.67e-8*tgg(iq,3)**3                                ! sice
        b1=dirad(iq)+degdt(iq)+dfgdt(iq)+cie(iq)                         ! sice
        gbot=(gamm(iq)/dt)+b1                                            ! sice
        deltat=ga(iq)/gbot                                               ! sice
        tgg(iq,3)=tgg(iq,3)+deltat                                       ! sice
        tgg(iq,3)=min(tgg(iq,3),271.2)   ! jlm fix Tue  05-30-2000
-       fgice   =fgice   +deltat*dfgdt(iq)                               ! sice
-       egice   =egice   +deltat*degdt(iq)                               ! sice
+       fgf(iq) =fgf(iq) +deltat*dfgdt(iq)                               ! sice
+       fev(iq) =fev(iq) +deltat*degdt(iq)                               ! sice
        es = establ(tgg(iq,3))                                           ! sice
        constz=ps(iq)-es                                                 ! sice
        qsttg(iq)=.622*es/constz                                         ! sice
                                                                         ! sice
 !      combine ice and leads contributions here                         ! sice
-       eg(iq) =fracice(iq)*egice  + (1.-fracice(iq))*eg(iq)             ! sice
-       fg(iq) = fracice(iq)*fgice + (1.-fracice(iq))*fg(iq)             ! sice
+       eg(iq) =fracice(iq)*fev(iq) + (1.-fracice(iq))*eg(iq)            ! sice
+       fg(iq) = fracice(iq)*fgf(iq)+ (1.-fracice(iq))*fg(iq)            ! sice
        ri(iq) =fracice(iq)*ri_ice + (1.-fracice(iq))*ri(iq)  ! for scrnout
        zo(iq) =fracice(iq)*zoice  + (1.-fracice(iq))*zo(iq)  ! for scrnout
        cduv(iq) =fracice(iq)*af(iq)*fm + (1.-fracice(iq))*cduv(iq)      ! sice                                                                                 ! sice
@@ -478,8 +480,8 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! sice
          print *,'tss,tgg2,tgg3 ',tss(iq),tgg(iq,2),tgg(iq,3)           ! sice
          print *,'theta,t1,deltat ',theta(iq),t(iq,1),deltat            ! sice
          print *,'b1,ga,gbot ',b1,ga(iq),gbot                           ! sice
-         print *,'fg,fgice,factch ',fg(iq),fgice,factch(iq)             ! sice
-         print *,'eg,egice,ustar ',eg(iq),egice,ustar(iq)               ! sice
+         print *,'fg,fgice,factch ',fg(iq),fgf(iq),factch(iq)           ! sice
+         print *,'eg,egice,ustar ',eg(iq),fev(iq),ustar(iq)             ! sice
        endif   ! (ntest.eq.1.and.iq.eq.idjd)                            ! sice
       enddo       ! ip=ipland+1,ipsice                                  ! sice
       if(ntest.eq.2)print *,'after sice loop'
@@ -580,6 +582,9 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now   ! land
          print *,'ri,vmod,cduv,fg ',ri(iq),vmod(iq),cduv(iq),fg(iq)     ! land
        endif  ! (ntest.eq.1.and.iq.eq.idjd)                             ! land
       enddo     ! ip=1,ipland                                           ! land
+c     iq=899
+c     print *,'in sflux; iq,af,zo,zolnd,snowd,zolog ',iq,af(iq),
+c    &               zo(iq),zolnd(iq),snowd(iq),zolog(iq)  
 
       if(ntaft.eq.0.or.ktau.eq.1)then
         do iq=1,ifull  ! will only use land values
@@ -748,8 +753,8 @@ c***  end of surface updating loop
       common/work3/egg(ifull),evapxf(ifull),ewww(ifull),fgf(ifull),
      . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull),
-     . extin(ifull),af(ifull),dum3(5*ijk-18*ifull)
+     . ism(ifull),fwtop(ifull),af(ifull),
+     . extin(ifull),dum3(5*ijk-17*ifull)
       common/work3c/airr(ifull),cc(ifull),condxg(ifull),delta_tx(ifull),
      . evapfb1(ifull),evapfb2(ifull),evapfb3(ifull),evapfb4(ifull),
      . evapfb5(ifull),evapfb1a(ifull),evapfb2a(ifull),evapfb3a(ifull),

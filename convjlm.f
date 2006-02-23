@@ -87,6 +87,8 @@ c     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
       equivalence (phi,thee)
       save kscbase,ksctop,prcpv
       real entr(ifull),qentr(ifull),sentr(ifull),factr(ifull)
+      real timeconv(ifull)
+      save timeconv
 !     real convshal(ifull)
 !     save convshal
 !     data convshal/ifull*0./
@@ -99,10 +101,10 @@ c     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
        dsk(k)=-dsig(k)    !   dsk = delta sigma (positive)
        alfm(k)=min(.5,alfcon/(max(1.e-10,sig(1)-sig(k))))  ! e.g. alfcon=.01
        alfss(k)=1.-alfm(k)
-       if(nalfs.eq.0)alfss(k)=1.  ! for no alf effect  - usual setting
+       if(nalfs==0)alfss(k)=1.  ! for no alf effect  - usual setting
       enddo     ! k loop
-      if(alflnd.lt.1.)then     
-        if(alflnd.gt.0.)then  ! common alfsea, alflnd method
+      if(alflnd<1.)then     
+        if(alflnd>0.)then  ! common alfsea, alflnd method
           do k=1,kl
            alfqq_s(k)=1.-alfsea*sig(k)**8   ! e.g. alfsea=.5; =0. for off
            alfqq_l(k)=1.-alflnd*sig(k)**8   ! e.g. alflnd=.4; =0. for off
@@ -112,7 +114,7 @@ c     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
            alfqq_s(k)=1.-alfm(k)
            alfqq_l(k)=1.-alfm(k)
           enddo     ! k loop
-        endif  ! (alflnd.gt.0.)  ..else
+        endif  ! (alflnd>0.)  ..else
         do k=1,kl
          alfqq1_s(k)=1.-alfqq_s(k)
          alfqq1_l(k)=1.-alfqq_l(k)
@@ -124,7 +126,8 @@ c     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
          alfqq1_s(k)=0.
          alfqq1_l(k)=0.
         enddo     ! k loop
-      endif  !   (alflnd.lt.1.)  .. else ..
+      endif  !   (alflnd<1.)  .. else ..
+      if(mbase>2.and.ktau==1)timeconv(:)=0.
   
 c     convective first, then L/S rainfall
       qliqw(:,:)=0.  
@@ -139,7 +142,8 @@ c     convective first, then L/S rainfall
       tt(1:ifull,:)=t(1:ifull,:)       
       qq(1:ifull,:)=qg(1:ifull,:)      
       if(convtime>10.)then                          !  ds-dependent     
-!       following uses convtime_eff(hrs)=convtime(~60)/dx(in km)  
+!       following uses convtime_eff(hrs)=convtime(=~60 km)/dx(in km)  
+!       N.B. can give very small factr for small dt &  large dx
         factr(:)=dt/max(dt,convtime*3.6e6*em(1:ifull)/ds) ! to re-scale convpsav
       elseif(convtime<0.)then         
 !       following behaves like 2*dt/(-convtime*3600.) for small dt     
@@ -191,7 +195,7 @@ c       calculate hs
        enddo  ! iq loop
       enddo   ! k loop
 
-      if(ktau.eq.1.and.mydiag)then
+      if(ktau==1.and.mydiag)then
        print *,'itn,iterconv,nuvconv ',
      .          itn,iterconv,nuvconv
        print *,'methdetr,detrain,detrainx,dsig2,dsig4 ',
@@ -205,7 +209,7 @@ c       calculate hs
        write (6,"('alfqq_s ',12f7.3/(8x,12f7.3))") alfqq_s
        write (6,"('alfss   ',12f7.3/(8x,12f7.3))") alfss
       endif
-      if((ntest>0.or.diag.or.nmaxpr.eq.1).and.mydiag) then
+      if((ntest>0.or.diag.or.nmaxpr==1).and.mydiag) then
         print *,'near beginning of convjlm loop; ktau,itn,id,jd: ',
      .                                           ktau,itn,id,jd
         write (6,"('rh   ',12f7.2/(5x,12f7.2))") 
@@ -331,20 +335,20 @@ c            endif   ! (dpsldt(iq,k)<dsig2)
       if(entrain>=0.)then
         do k=kuocb+2,kl   ! upwards to find cloud top
          do iq=1,ifull
-          if(kt_sav(iq).eq.k-1.and.k.lt.ktmax(iq))then ! ktmax allows for itn
+          if(kt_sav(iq)==k-1.and.k<ktmax(iq))then ! ktmax allows for itn
             hbas=sbase(iq)+hl*qbase(iq)
             entrr=-entrain*dsig(k-1)
             qentrr=qentr(iq)+entrr*qq(iq,k-1)
             sentrr=sentr(iq)+entrr*s(iq,k-1)
             entrradd=entr(iq)+entrr
             hbase=(hbas+sentrr+hl*qentrr)/(1.+entrradd)
-            if(hbase.gt.hs(iq,k))then
+            if(hbase>hs(iq,k))then
               kt_sav(iq)=k
               entr(iq)=entrradd
               qentr(iq)=qentrr
               sentr(iq)=sentrr
 	     endif
-          endif   ! (kt_sav(iq).eq.k-1.and.k.lt.ktmax(iq))
+          endif   ! (kt_sav(iq)==k-1.and.k<ktmax(iq))
          enddo    ! iq loop
         enddo     ! k loop
 !       update top-emerging qbase & sbase to include entrainment
@@ -357,7 +361,7 @@ c            endif   ! (dpsldt(iq,k)<dsig2)
         do k=kuocb+2,kl   ! upwards to find cloud top
          do iq=1,ifull
 c	   iq=idjd
-          if(kt_sav(iq).eq.k-1.and.k.lt.ktmax(iq))then ! ktmax allows for itn
+          if(kt_sav(iq)==k-1.and.k<ktmax(iq))then ! ktmax allows for itn
             hbas=sbase(iq)+hl*qbase(iq)
             entrr=abs(entrain)/(sigmh(kb_sav(iq)+1)-sigmh(k))
             qentrr=qentr(iq)-dsig(k-1)*qq(iq,k-1)
@@ -366,14 +370,14 @@ c	   iq=idjd
 c	     print *,'k,hbas,entrr,qentrr,sentrr ',
 c     .               k,hbas,entrr,qentrr,sentrr 	     
 c	     print *,'dsig(k-1),hbase,hs ',dsig(k-1),hbase,hs(iq,k)
-            if(hbase.gt.hs(iq,k))then
+            if(hbase>hs(iq,k))then
               kt_sav(iq)=k
               entr(iq)=entrr
               qentr(iq)=qentrr
               sentr(iq)=sentrr
 		fluxr(iq)=entrainp
 	     endif
-          endif   ! (kt_sav(iq).eq.k-1.and.k.lt.ktmax(iq))
+          endif   ! (kt_sav(iq)==k-1.and.k<ktmax(iq))
          enddo    ! iq loop
         enddo     ! k loop
 !       update top-emerging qbase & sbase to include entrainment
@@ -381,25 +385,25 @@ c	     print *,'dsig(k-1),hbase,hs ',dsig(k-1),hbase,hs(iq,k)
         sbase(:)=(sbase(:)+entr(:)*sentr(:))/fluxr(:)
       endif  ! (entrain<0.)
       
-c      if(itn.gt.1)then  ! added April 04
+c      if(itn>1)then  ! added April 04
 c        do iq=1,ifull
-c	  if(rnrtc(iq).gt.0..and.kb_sav(iq).eq.kbsav(iq).
-c     .                      and.kt_sav(iq).eq.ktsav(iq))then
+c	  if(rnrtc(iq)>0..and.kb_sav(iq)==kbsav(iq).
+c     .                      and.kt_sav(iq)==ktsav(iq))then
 c	    kt_sav(iq)=max(kbsav(iq)+1,ktsav(iq)-1)
-c	  endif   !  (rnrtc(iq).gt.0.....)
+c	  endif   !  (rnrtc(iq)>0.....)
 c	 enddo
-c      endif   ! (itn.gt.1)
+c      endif   ! (itn>1)
 
-c      if(convrh.gt.0.)then
+c      if(convrh>0.)then
 c        do k=kuocb+2,kl   ! upwards to find legal cloud top
 c         do iq=1,ifull
-c          if(kt_sav(iq).lt.kl.and.k.lt.kt_sav(iq))then 
+c          if(kt_sav(iq)<kl.and.k<kt_sav(iq))then 
 c!            use lowest such layer, e.g. with convrh=.4 
-c  	     if(qq(iq,k)/qs(iq,k).lt.convrh)kt_sav(iq)=k  
+c  	     if(qq(iq,k)/qs(iq,k)<convrh)kt_sav(iq)=k  
 c          endif
 c         enddo    ! iq loop
 c        enddo     ! k loop
-c      endif       ! (convrh.gt.0.)
+c      endif       ! (convrh>0.)
 
       if((ntest>0.or.diag).and.mydiag)then
        iq=idjd
@@ -444,7 +448,7 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
        totprec=qprec-fldownn*dprec 
        fldow(iq)=(.5+sign(.5,totprec))*fldownn ! suppr. downdraft for totprec<0
        rnrtcn(iq)=qprec-fldow(iq)*dprec        ! already has dsk factor
-       if(ntest.eq.1.and.iq.eq.idjd)then
+       if(ntest==1.and.iq==idjd)then
          print *,'kdown,tdown,qdown ',kdown(iq),tdown(iq),qdown(iq)
          print *,'qsk,qprec,dels0 ',qsk,qprec,hl*qprec 
          print *,'fldow,dprec,rnrtcn ',fldow(iq),dprec,rnrtcn(iq)
@@ -462,13 +466,13 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
        print *,"delqa ",(delq(idjd,k),k=1,kt_sav(idjd))
       endif
 
-      if(alfsea.gt.0)then 
+      if(alfsea>0)then 
         fraca=1.    ! effectively used from 23/5/03
 	fracb=0.    ! to avoid giving -ve qg for the layer
       else
         fraca=.5
 	fracb=.5
-      endif  ! (alfsea.gt.0)
+      endif  ! (alfsea>0)
 
 !     subsidence and (possible) "shallow" detrainment
       do k=kuocb+1,kl-1
@@ -499,7 +503,7 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
 !     modify calculated subsidence for downdraft effects
       do k=kuocb+1,kl-1
        do iq=1,ifull
-        if(k.le.kdown(iq).and.k.gt.kb_sav(iq))then
+        if(k<=kdown(iq).and.k>kb_sav(iq))then
          savgb=fraca*s(iq,k)+fracb*s(iq,k-1)
          qavgb=fraca*qq(iq,k)+fracb*qq(iq,k-1)
 !        savgb=s(iq,k)   ! 23/5/03
@@ -517,7 +521,7 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
       endif
 
 !!!!!!!!! "shallow" detrainment using detrainx, dsig2, dsig4 !!!!!v3!!!!!! 
-      if(detrainx.gt.0.)then   
+      if(detrainx>0.)then   
        do iq=1,ifull  
 !       detr=min(detrainx,max( 0.,
 !    .  (dsig4-sig(kb_sav(iq))+sig(kt_sav(iq)))*detrainx/(dsig4-dsig2)))
@@ -527,21 +531,21 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
        enddo   ! iq loop
      
 !      N.B. pre convpsav & dsk; methdetr only used if detrainx>0.
-       if(methdetr.eq.1)then                    ! moisten top layer only 
+       if(methdetr==1)then                    ! moisten top layer only 
          do iq=1,ifull  
           k=kt_sav(iq)
           deltaq=qxcess(iq)                    ! moistening
           delq(iq,k)=delq(iq,k)+deltaq
           dels(iq,k)=dels(iq,k)-deltaq*hl
          enddo  ! iq loop
-       elseif(methdetr.eq.-1)then               ! moisten bottom layer only 
+       elseif(methdetr==-1)then               ! moisten bottom layer only 
          do iq=1,ifull  
           k=kb_sav(iq)+1
           deltaq=qxcess(iq)                    ! moistening
           delq(iq,k)=delq(iq,k)+deltaq
           dels(iq,k)=dels(iq,k)-deltaq*hl
          enddo  ! iq loop
-       elseif(methdetr.eq.8)then        ! moisten all cloud layers, top most
+       elseif(methdetr==8)then        ! moisten all cloud layers, top most
          do iq=1,ifull  
           nlayers=kt_sav(iq)-kb_sav(iq)
           sum=.5*nlayers*(nlayers+1)
@@ -551,7 +555,7 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
           dels(iq,k)=dels(iq,k)-deltaq*hl
           enddo  
          enddo   ! iq loop
-       elseif(methdetr.eq.-8)then ! moisten all cloud layers, bottom most
+       elseif(methdetr==-8)then ! moisten all cloud layers, bottom most
         do iq=1,ifull  
          nlayers=kt_sav(iq)-kb_sav(iq)
          sum=.5*nlayers*(nlayers+1)
@@ -561,7 +565,7 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
           dels(iq,k)=dels(iq,k)-deltaq*hl
          enddo  
         enddo   ! iq loop
-       elseif(methdetr.eq.9)then                ! moisten all cloud layers
+       elseif(methdetr==9)then                ! moisten all cloud layers
          do iq=1,ifull  
           nlayers=kt_sav(iq)-kb_sav(iq)
           do k=kb_sav(iq)+1,kt_sav(iq)
@@ -570,8 +574,8 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
            dels(iq,k)=dels(iq,k)-deltaq*hl
           enddo  
          enddo   ! iq loop
-       endif     ! (methdetr.eq.1)  .. else ..
-      endif  ! (detrainx.gt.0.)
+       endif     ! (methdetr==1)  .. else ..
+      endif  ! (detrainx>0.)
 
       if((ntest>0.or.diag).and.mydiag)then
         print *,"before diag print of dels,delh "
@@ -599,13 +603,13 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
 !     calculate actual delq and dels
       do k=1,kl-1   
        do iq=1,ifull
-        if(k.gt.kb_sav(iq))then
+        if(k>kb_sav(iq))then
           delq(iq,k)=delq(iq,k)/dsk(k)
           dels(iq,k)=dels(iq,k)/dsk(k)
-        elseif(k.eq.kb_sav(iq))then  ! s and qg only from kb layer
+        elseif(k==kb_sav(iq))then  ! s and qg only from kb layer
           delq(iq,k)=delq(iq,k)/dsk(k)
           dels(iq,k)=dels(iq,k)/dsk(k)
-        endif    ! (k.gt.kb_sav(iq)) .. else ..
+        endif    ! (k>kb_sav(iq)) .. else ..
        enddo     ! iq loop
       enddo      ! k loop
 
@@ -617,32 +621,32 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
 
 !     calculate base mass flux 
       do iq=1,ifull
-!      if(kt_sav(iq).lt.kl)then 
-       if(kb_sav(iq).lt.kl)then   ! from Oct 03, same answers, but more effic.
-         if(nfluxdsk.eq.1)convpsav(iq)=dsk(kb_sav(iq))
-         if(nfluxdsk.eq.2)convpsav(iq)=.5*dsk(kb_sav(iq))
-         if(nfluxdsk.eq.-2)convpsav(iq)=dsk(kb_sav(iq))/(2*iterconv)
-         if(nfluxq.eq.1)then  ! does little cf flux_dsk - will be removed
+!      if(kt_sav(iq)<kl)then 
+       if(kb_sav(iq)<kl)then   ! from Oct 03, same answers, but more effic.
+         if(nfluxdsk==1)convpsav(iq)=dsk(kb_sav(iq))
+         if(nfluxdsk==2)convpsav(iq)=.5*dsk(kb_sav(iq))
+         if(nfluxdsk==-2)convpsav(iq)=dsk(kb_sav(iq))/(2*iterconv)
+         if(nfluxq==1)then  ! does little cf flux_dsk - will be removed
 !          fluxq limiter: new_qq(kb)=new_qq(kt)
 !          i.e. [qq+M*delq]_kb=[qq+M*delq]_kt
            fluxq(iq)=max(0.,(qq(iq,kb_sav(iq))-qq(iq,kt_sav(iq)))/ 
      .                      (delq(iq,kt_sav(iq)) - delq(iq,kb_sav(iq))))
            convpsav(iq)=min(convpsav(iq),fluxq(iq))
-         endif  ! (nfluxq.eq.1)
-       endif    ! (kb_sav(iq).lt.kl)
+         endif  ! (nfluxq==1)
+       endif    ! (kb_sav(iq)<kl)
       enddo     ! iq loop
-      if(rhcv.gt.0.)then  ! usually run with rhcv=0.
+      if(rhcv>0.)then  ! usually run with rhcv=0.
         do iq=1,ifull
-         if(kb_sav(iq).lt.kl)then  
+         if(kb_sav(iq)<kl)then  
 !          Base limiter: new_qq(kb)=rhcv*new_qs(kb), i.e.
 !          [qq+M*delq]_kb=rhcv*[qs+M*dqsdt*dels/cp]_kb 
            fluxb(iq)=max(0.,(rhcv*qs(iq,kb_sav(iq))-qq(iq,kb_sav(iq)))/ 
      .            ( delq(iq,kb_sav(iq))
      .             -rhcv*dqsdt(iq,kb_sav(iq))*dels(iq,kb_sav(iq))/cp ) ) 
            convpsav(iq)=min(convpsav(iq),fluxb(iq))
-         endif ! (kb_sav(iq).lt.kl)
+         endif ! (kb_sav(iq)<kl)
         enddo  ! iq loop
-      endif    ! (rhcv.gt.0.)
+      endif    ! (rhcv>0.)
       
       do k=kuocb+1,kl-1
        do iq=1,ifull
@@ -650,10 +654,10 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
 !       [h+alfsarr*M*dels+alfqarr*M*hl*delq]_base 
 !                                          = [hs+M*dels+M*hlcp*dels*dqsdt]_k
 !       pre 21/7/04 occasionally got -ve fluxt, for supersaturated layers
-        if(k.gt.kb_sav(iq).and.k.le.kt_sav(iq))then
+        if(k>kb_sav(iq).and.k<=kt_sav(iq))then
 c	   if(          (dels(iq,k)*(1.+hlcp*dqsdt(iq,k))  ! test for Steve
 c     .                -alfsarr(iq)*dels(iq,kb_sav(iq))
-c     .                -alfqarr(iq)*hl*delq(iq,kb_sav(iq)) ).eq.0.)then
+c     .                -alfqarr(iq)*hl*delq(iq,kb_sav(iq)) )==0.)then
 c	     den1=dels(iq,k)*(1.+hlcp*dqsdt(iq,k))
 c	     den2=alfsarr(iq)*dels(iq,kb_sav(iq))
 c	     den3=alfqarr(iq)*hl*delq(iq,kb_sav(iq))
@@ -666,32 +670,32 @@ c         endif
      .                -alfsarr(iq)*dels(iq,kb_sav(iq))
      .                -alfqarr(iq)*hl*delq(iq,kb_sav(iq)) ) 
           convpsav(iq)=min(convpsav(iq),max(0.,fluxt(iq,k)))
-        endif   ! (k.gt.kb_sav(iq).and.k.lt.kt_sav(iq))
+        endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
        enddo    ! iq loop
        if((ntest>0.or.diag).and.mydiag)then
         iq=idjd
-        if(k.gt.kb_sav(iq).and.k.le.kt_sav(iq))then
+        if(k>kb_sav(iq).and.k<=kt_sav(iq))then
 	   den1=dels(iq,k)*(1.+hlcp*dqsdt(iq,k))
 	   den2=alfsarr(iq)*dels(iq,kb_sav(iq))
 	   den3=alfqarr(iq)*hl*delq(iq,kb_sav(iq))
           fluxt(iq,k)=(sbase(iq)+hl*qbase(iq)-hs(iq,k))/
      .                (den1-den2-den3) 
           print *,'k,den1,den2,den3,fluxt ',k,den1,den2,den3,fluxt(iq,k)
-        endif   ! (k.gt.kb_sav(iq).and.k.lt.kt_sav(iq))
+        endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
        endif   ! ((ntest>0.or.diag).and.mydiag)
       enddo     ! k loop      
 
-      if(ntest.eq.2)then
+      if(ntest==2)then
         convmax=0.
         do iq=1,ifull
-         if(convpsav(iq).gt.convmax.and.kb_sav(iq).eq.2)then
+         if(convpsav(iq)>convmax.and.kb_sav(iq)==2)then
 	    print *,'ktau,iq,convpsav,fluxt3,kb_sav2,kt_sav ',
      .            ktau,iq,convpsav(iq),fluxt(iq,3),kb_sav(iq),kt_sav(iq)
            idjd=iq
 	    convmax=convpsav(iq)
          endif
         enddo	
-      endif   !  (ntest.eq.2)
+      endif   !  (ntest==2)
       if((ntest>0.or.diag).and.mydiag)then
         iq=idjd
         detr=max( detrain,detrain+(dsig4-sig(kb_sav(iq))+
@@ -700,7 +704,7 @@ c         endif
         print *,'detr,delta_sig,qxcess ',
      .           detr,sig(kb_sav(iq))-sig(kt_sav(iq)),qxcess(iq)
         flux_dsk=dsk(kb_sav(idjd))*convfact
-        if(nfluxdsk.eq.2)flux_dsk=.5*dsk(kb_sav(idjd))*convfact
+        if(nfluxdsk==2)flux_dsk=.5*dsk(kb_sav(idjd))*convfact
         write(6,"('flux_dsk,fluxq,fluxb,convpsav',5f8.5)")
      .             flux_dsk,fluxq(idjd),fluxb(idjd),convpsav(idjd)
         write(6,"('fluxt',9f8.5/(5x,9f8.5))")
@@ -716,10 +720,10 @@ c         endif
         convmax=0.
         nums=0
         do iq=1,ifull     
-         if(kt_sav(iq)-kb_sav(iq).eq.1)then
+         if(kt_sav(iq)-kb_sav(iq)==1)then
            nums=nums+1
-           if(convpsav(iq).gt.convmax)then
-c          if(nums.lt.20)then
+           if(convpsav(iq)>convmax)then
+c          if(nums<20)then
              convmax=convpsav(iq)
              write(6,"('bc  ',2i5,2i3,2x,2f6.3,f7.3,f6.3,' rh:',2f5.2)") 
      .       iq,nums,kb_sav(iq),kt_sav(iq),
@@ -733,10 +737,10 @@ c          if(nums.lt.20)then
         convmax=0.
         nums=0
         do iq=1,ifull     
-         if(kt_sav(iq)-kb_sav(iq).eq.2)then
+         if(kt_sav(iq)-kb_sav(iq)==2)then
            nums=nums+1
-           if(convpsav(iq).gt.convmax)then
-c          if(nums.lt.20)then
+           if(convpsav(iq)>convmax)then
+c          if(nums<20)then
              convmax=convpsav(iq)
              write(6,"('bcd ',2i5,2i3,2x,2f6.3,f7.3,f6.3,' rh:',2f5.2)") 
      .       iq,nums,kb_sav(iq),kt_sav(iq),
@@ -750,10 +754,10 @@ c          if(nums.lt.20)then
         convmax=0.
         nums=0
         do iq=1,ifull     
-         if(kt_sav(iq)-kb_sav(iq).eq.3)then
+         if(kt_sav(iq)-kb_sav(iq)==3)then
            nums=nums+1
-           if(convpsav(iq).gt.convmax)then
-c          if(nums.lt.20)then
+           if(convpsav(iq)>convmax)then
+c          if(nums<20)then
              convmax=convpsav(iq)
              write(6,"('bcde',2i5,2i3,2x,2f6.3,f7.3,f6.3,' rh:',2f5.2)") 
      .       iq,nums,kb_sav(iq),kt_sav(iq),
@@ -766,45 +770,62 @@ c          if(nums.lt.20)then
         enddo  ! iq loop
       endif    ! (ntest>0.or.diag)
       
-!     if(shaltime.gt.0.)then
+!     if(shaltime>0.)then
 !       do iq=1,ifull
-!        if(convshal(iq).lt.shaltime*3600.)convpsav(iq)=0.
+!        if(convshal(iq)<shaltime*3600.)convpsav(iq)=0.
 !       enddo
-!     endif     ! (shaltime.gt.0.)	   
+!     endif     ! (shaltime>0.)	   
 
-        if(sig_ct.lt.0.)then  ! use abs(sig_ct) as thickness of shallow clouds
+        if(sig_ct<0.)then  ! use abs(sig_ct) as thickness of shallow clouds
           do iq=1,ifull
-           if(sigmh(kb_sav(iq)+1)-sigmh(kt_sav(iq)+1).lt.-sig_ct)then  
+           if(sigmh(kb_sav(iq)+1)-sigmh(kt_sav(iq)+1)<-sig_ct)then  
              convpsav(iq)=0.         ! N.B. will get same result on later itns
-	     if(ktsav(iq).eq.kl)then
+	     if(ktsav(iq)==kl)then
                kbsav(iq)=kb_sav(iq) 
                ktsav(iq)=kt_sav(iq)  ! for possible use in vertmix
-	     endif  ! (ktsav(iq).eq.kl)
+	     endif  ! (ktsav(iq)==kl)
            endif
           enddo  ! iq loop
 	 else
           do iq=1,ifull
-           if(sig(kt_sav(iq)).gt.sig_ct)then  ! typically sig_ct ~ .8
+           if(sig(kt_sav(iq))>sig_ct)then  ! typically sig_ct ~ .8
              convpsav(iq)=0.         ! N.B. will get same result on later itns
-             if(ktsav(iq).eq.kl)then
+             if(ktsav(iq)==kl)then
                kbsav(iq)=kb_sav(iq) 
                ktsav(iq)=kt_sav(iq)  ! for possible use in vertmix
-	     endif  ! (ktsav(iq).eq.kl)
+	     endif  ! (ktsav(iq)==kl)
            endif
           enddo  ! iq loop
-        endif    !  (sig_ct.lt.0.).. else ..
+        endif    !  (sig_ct<0.).. else ..
+	 
+      if(mbase>2)then  ! suppresses conv. unless occurred for >= mbase secs
+        if(itn==1)then
+	   do iq=1,ifull
+	    if(convpsav(iq)>0.)then
+	      timeconv(iq)=timeconv(iq)+dt
+	    else
+	      timeconv(iq)=0.
+	    endif
+	   enddo
+        endif  ! (itn==1)
+	 do iq=1,ifull
+	   if(timeconv(iq)<mbase)then
+	    convpsav(iq)=0.
+	   endif
+	 enddo
+      endif  ! (mbase>2)
       
       do iq=1,ifull
-       if(ktsav(iq).eq.kl.and.convpsav(iq).gt.0.)then
+       if(ktsav(iq)==kl.and.convpsav(iq)>0.)then
          kbsav(iq)=kb_sav(iq) 
          ktsav(iq)=kt_sav(iq)  
-       endif  ! (ktsav(iq).eq.kl.and.convpsav(iq).gt.0.)
+       endif  ! (ktsav(iq)==kl.and.convpsav(iq)>0.)
       enddo   ! iq loop
 
-      if(itn.lt.iterconv)then 
+      if(itn<iterconv)then 
         convpsav(:)=convfact*convpsav(:) ! typically convfact=1.02  
         ktmax(:)=kt_sav(:)    ! added July 04
-      endif                              ! (itn.lt.iterconv)
+      endif                              ! (itn<iterconv)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
 !     following 2 lines moved up (correctly) on 30/3/04
       qxcess(:)=detrain*rnrtcn(:)             ! e.g. .2* gives 20% detrainment
@@ -821,23 +842,23 @@ c          if(nums.lt.20)then
       
 !!!!!!!!!!!!!!!!!!!!! "deep" detrainment using detrain !!!!!v3!!!!!!    
 !     N.B. convpsav has been updated here with convfact, but without factr term  
-      if(methprec.eq.1)then               ! moisten top layer only 
+      if(methprec==1)then               ! moisten top layer only 
        do iq=1,ifull  
         deltaq=convpsav(iq)*qxcess(iq)/dsk(kt_sav(iq))             
         qliqw(iq,kt_sav(iq))=qliqw(iq,kt_sav(iq))+deltaq
        enddo  ! iq loop
-      elseif(methprec.eq.8)then           ! moisten all cloud layers, top most
+      elseif(methprec==8)then           ! moisten all cloud layers, top most
        do k=kuocb+1,kl-1 
         do iq=1,ifull  
          nlayers=kt_sav(iq)-kb_sav(iq)
          sum=.5*nlayers*(nlayers+1)
-         if(k.gt.kb_sav(iq).and.k.le.kt_sav(iq))then
+         if(k>kb_sav(iq).and.k<=kt_sav(iq))then
            deltaq=convpsav(iq)*qxcess(iq)*(k-kb_sav(iq))/(sum*dsk(k))    
            qliqw(iq,k)=qliqw(iq,k)+deltaq
          endif
         enddo  ! iq loop
        enddo   ! k loop
-      elseif(methprec.eq.9)then           ! moisten all cloud layers
+      elseif(methprec==9)then           ! moisten all cloud layers
        do iq=1,ifull  
         nlayers=kt_sav(iq)-kb_sav(iq)
         do k=kb_sav(iq)+1,kt_sav(iq)
@@ -845,29 +866,29 @@ c          if(nums.lt.20)then
          qliqw(iq,k)=qliqw(iq,k)+deltaq
         enddo  
        enddo   ! iq loop
-      elseif(methprec.eq.3)then           ! moisten middle third
+      elseif(methprec==3)then           ! moisten middle third
        do k=kuocb+1,kl-1 
         do iq=1,ifull  
          k13=nint(kb_sav(iq)+.6 +(kt_sav(iq)-kb_sav(iq))/3.)  ! up by .1
          k23=nint(kb_sav(iq)+.4 +(kt_sav(iq)-kb_sav(iq))/1.5) ! down by .1
          nlayers=k23+1-k13
-         if(k.ge.k13.and.k.le.k23)then
+         if(k>=k13.and.k<=k23)then
            deltaq=convpsav(iq)*qxcess(iq)/(nlayers*dsk(k))         
            qliqw(iq,k)=qliqw(iq,k)+deltaq
          endif
         enddo  ! iq loop
        enddo   ! k loop
-      elseif(methprec.eq.-3)then          ! moisten mostly middle third
+      elseif(methprec==-3)then          ! moisten mostly middle third
        do k=kuocb+1,kl-1 
         do iq=1,ifull  
 	  sum=.25*(kt_sav(iq)-kb_sav(iq))**2
 	  rkmid=.5*(kt_sav(iq)+kb_sav(iq)+1)
-c        if(iq.eq.idjd)print *,'iq,kb_sav,kt_sav,sum,rkmid ',
+c        if(iq==idjd)print *,'iq,kb_sav,kt_sav,sum,rkmid ',
 c     .      	          iq,kb_sav(iq),kt_sav(iq),sum,rkmid
-         if(k.gt.kb_sav(iq).and.k.le.kt_sav(iq))then
+         if(k>kb_sav(iq).and.k<=kt_sav(iq))then
 	    frac=kt_sav(iq)-rkmid+.5-abs(rkmid-k)
-	    if(abs(rkmid-k).lt..1)frac=frac-.25    ! for central rkmid value
-c          if(iq.eq.idjd)print *,'k,frac ',k,frac
+	    if(abs(rkmid-k)<.1)frac=frac-.25    ! for central rkmid value
+c          if(iq==idjd)print *,'k,frac ',k,frac
            deltaq=convpsav(iq)*qxcess(iq)*frac/(sum*dsk(k))         
            qliqw(iq,k)=qliqw(iq,k)+deltaq
          endif
@@ -878,13 +899,13 @@ c          if(iq.eq.idjd)print *,'k,frac ',k,frac
         do iq=1,ifull  
          nlayers=max(1,nint((kt_sav(iq)-kb_sav(iq)-.1)/methprec))   ! round down
          khalf=kt_sav(iq)+1-nlayers
-         if(k.ge.khalf.and.k.le.kt_sav(iq))then
+         if(k>=khalf.and.k<=kt_sav(iq))then
            deltaq=convpsav(iq)*qxcess(iq)/(nlayers*dsk(k))         
            qliqw(iq,k)=qliqw(iq,k)+deltaq
          endif
         enddo  ! iq loop
        enddo   ! k loop
-      endif    ! (methprec.eq.1)  .. else ..
+      endif    ! (methprec==1)  .. else ..
 
       if((ntest>0.or.diag).and.mydiag)then
         iq=idjd
@@ -896,6 +917,7 @@ c          if(iq.eq.idjd)print *,'k,frac ',k,frac
         write (6,"('ttc ',12f7.2/(8x,12f7.2))") 
      .             (tt(idjd,k),k=1,kl)
         print *,'rnrtc,fldow,qxcess ',rnrtc(iq),fldow(iq),qxcess(iq)
+        print *,'rnrtcn,convpsav ',rnrtcn(iq),convpsav(iq)
         print *,'ktsav,qbase,qs_ktsav,qq_ktsav ',
      .          kt_sav(iq),qbase(iq),qs(iq,kt_sav(iq)),qq(iq,kt_sav(iq)) 
         iq=idjd
@@ -1073,7 +1095,7 @@ c          if(iq.eq.idjd)print *,'k,frac ',k,frac
       endif     ! (nuvconv>500.and.nuvconv<600)
 
 !     section for convective transport of trace gases (jlm 22/2/01)
-      if(ilt.gt.1)then
+      if(ilt>1)then
 !       if(iterconv.ne.1)stop 'need 1 for trace gases' ! should be OK now
         do ntr=1,ntrac
          do k=1,kl
@@ -1082,7 +1104,7 @@ c          if(iq.eq.idjd)print *,'k,frac ',k,frac
           enddo    ! iq loop
          enddo     ! k loop
          do iq=1,ifull
-          if(kt_sav(iq).lt.kl)then
+          if(kt_sav(iq)<kl)then
             kb=kb_sav(iq)
             kt=kt_sav(iq)
             veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq))  ! simple treatment
@@ -1098,14 +1120,14 @@ c          if(iq.eq.idjd)print *,'k,frac ',k,frac
           endif
          enddo   ! iq loop
         enddo    ! ntr loop    
-      endif      ! ilt.gt.1
+      endif      ! ilt>1
       
       if((ntest>0.or.diag).and.mydiag)then
         write (6,"('uuc ',12f6.1/(8x,12f6.1))") (u(idjd,k),k=1,kl)
         write (6,"('vvc ',12f6.1/(8x,12f6.1))") (v(idjd,k),k=1,kl)
       endif
 
-      if(nmaxpr.eq.1.and.mydiag)then
+      if(nmaxpr==1.and.mydiag)then
         print *,'ktau,itn,kb_sav,kt_sav,convpsav ',
      .           ktau,itn,kb_sav(idjd),kt_sav(idjd),convpsav(idjd)
       endif
@@ -1125,7 +1147,7 @@ c          if(iq.eq.idjd)print *,'k,frac ',k,frac
         do k=1,kl
           do iq=1,ifullw
 !          qlg(iq,k)=qlg(iq,k)+qliqw(iq,k)
-           if(tt(iq,k).lt.253.16)then   ! i.e. -20C
+           if(tt(iq,k)<253.16)then   ! i.e. -20C
              qfg(iq,k)=qfg(iq,k)+qliqw(iq,k)
              tt(iq,k)=tt(iq,k)+3.35e5*qliqw(iq,k)/cp   ! fusion heating
 	    else
@@ -1167,14 +1189,14 @@ c          if(iq.eq.idjd)print *,'k,frac ',k,frac
        do iq=1,ifull
         pk=ps(iq)*sig(k)
         qs(iq,k)=max(.622*es(iq,k)/(pk-es(iq,k)),1.5e-6)  
-        if(qq(iq,k).gt.rhsat*qs(iq,k))then
+        if(qq(iq,k)>rhsat*qs(iq,k))then
           kbsav_ls(iq)=k
           gam=max(hlcp*qs(iq,k)*pk*hlars/(tt(iq,k)**2*(pk-es(iq,k))),0.) 
           dqrx=(qq(iq,k)-rhsat*qs(iq,k))/(1.+rhsat*gam)
           tt(iq,k)=tt(iq,k)+hlcp*dqrx
           qq(iq,k)=qq(iq,k)-dqrx
           rnrt(iq)=rnrt(iq)+dqrx*dsk(k)
-        endif   ! (qq(iq,k).gt.rhsat*qs(iq,k))
+        endif   ! (qq(iq,k)>rhsat*qs(iq,k))
        enddo    ! iq loop
       enddo     ! k loop
 
@@ -1193,14 +1215,14 @@ c          if(iq.eq.idjd)print *,'k,frac ',k,frac
      .             (tt(idjd,k),k=1,kl)
       endif
 
-      if(nevapls.eq.5)then ! even newer UKMO Thu  03-05-1998
+      if(nevapls==5)then ! even newer UKMO Thu  03-05-1998
         rKa=2.4e-2
         Dva=2.21
         cfls=1. ! cld frac7 large scale
         cflscon=4560.*cfls**.3125
         do k=2*kl/3,1,-1
          do iq=1,ifull
-          if(k.lt.kbsav_ls(iq))then
+          if(k<kbsav_ls(iq))then
             rhodz=ps(iq)*dsk(k)/grav
             qpf=fluxr(iq)/rhodz     ! Mix ratio of rain which falls into layer
             pk=ps(iq)*sig(k)
@@ -1225,7 +1247,7 @@ c           es(iq,k)=qs(iq,k)*pk/.622
             evapls= cfls*dt*Cevx*qgdiff/blx      ! UKMO
             evapls=max(0. , min(evapls,qpf))
             qpf=qpf-evapls
-c           if(evapls.gt.0.)print *,'iq,k,evapls ',iq,k,evapls
+c           if(evapls>0.)print *,'iq,k,evapls ',iq,k,evapls
             fluxr(iq)=fluxr(iq)+rhodz*qpf
             revq=evapls
             revq=min(revq , rnrt(iq)/(conrev(iq)*dsk(k)))
@@ -1233,10 +1255,10 @@ c           if(evapls.gt.0.)print *,'iq,k,evapls ',iq,k,evapls
             rnrt(iq)=max(1.e-10 , rnrt(iq)-revq*dsk(k)*conrev(iq))
             tt(iq,k)=tt(iq,k)-revq*hlcp
             qq(iq,k)=qq(iq,k)+revq
-          endif   ! (k.lt.kbsav_ls(iq))
+          endif   ! (k<kbsav_ls(iq))
          enddo    ! iq loop
         enddo     ! k loop
-      endif       ! (nevapls.eq.5)
+      endif       ! (nevapls==5)
 !__________________________end of large-scale calculations_____________________
 
 
@@ -1247,7 +1269,7 @@ c           if(evapls.gt.0.)print *,'iq,k,evapls ',iq,k,evapls
       precip(:)=precip(:)+condx(:)      
       t(1:ifull,:)=tt(1:ifull,:)             
 
-      if(ntest>0.or.diag.or.(ktau.eq.1.and.nmaxpr.eq.1))then
+      if(ntest>0.or.diag.or.(ktau==1.and.nmaxpr==1))then
         if ( mydiag ) then
         print *,'at end of convjlm: rnrt,rnrtc ',rnrt(idjd),rnrtc(idjd)
         iq=idjd
@@ -1310,25 +1332,25 @@ c           if(evapls.gt.0.)print *,'iq,k,evapls ',iq,k,evapls
         call maxmin(rnrtc,'rc',ktau,1.,1)
       endif
       
-!     if(shaltime.gt.0.)then
+!     if(shaltime>0.)then
 !       do iq=1,ifull
-!        if(ktsav(iq).lt.kl)then
+!        if(ktsav(iq)<kl)then
 !          convshal(iq)=convshal(iq)+dt
 !        else
 !          convshal(iq)=0.
-!        endif  ! (ktsav(iq).lt.kl)
+!        endif  ! (ktsav(iq)<kl)
 !       enddo
-!     endif     ! (shaltime.gt.0.)	      
+!     endif     ! (shaltime>0.)	      
 
       if(ksc>70.and.ksc<80)then
-       if(ktau.eq.1)then
+       if(ktau==1)then
 !       set ksctop for shallow convection
         ksctop=1    ! ksctop will be first level below sigksct
-        do while(sig(ksctop+1).gt.sigksct)  !  e.g. sigksct=.75
+        do while(sig(ksctop+1)>sigksct)  !  e.g. sigksct=.75
          ksctop=ksctop+1
         enddo
         kscbase=1  ! kscbase will be first level above sigkcsb
-        do while(sig(kscbase).gt.sigkscb.and.sigkscb.gt.0.) ! e.g. sigkscb=.99
+        do while(sig(kscbase)>sigkscb.and.sigkscb>0.) ! e.g. sigkscb=.99
          kscbase=kscbase+1
         enddo
         if (mydiag) then
@@ -1341,8 +1363,8 @@ c           if(evapls.gt.0.)print *,'iq,k,evapls ',iq,k,evapls
         do k=1,kl
          prcpv(k)=sig(k)**(-roncp)
         enddo  ! k loop
-       endif   ! (ktau.eq.1)
-       if(ksc.eq.79)then    ! resembles ksc=99
+       endif   ! (ktau==1)
+       if(ksc==79)then    ! resembles ksc=99
         kt_sav(:)=ktsav(:)  ! as a working array
         do iq=1,ifull
          theeb(iq)=prcpv(kscbase)*t(iq,kscbase)*
@@ -1353,21 +1375,21 @@ c           if(evapls.gt.0.)print *,'iq,k,evapls ',iq,k,evapls
          do iq=1,ifull
           thee(iq,k)=prcpv(k)*t(iq,k)*(t(iq,k) + .5*hlcp*qs(iq,k))
      .                         /(t(iq,k) - .5*hlcp*qs(iq,k))
-          if(qg(iq,kscbase).gt.tied_rh*qs(iq,kscbase).
-     .      and.thee(iq,k).lt.theeb(iq))then         !  default tied_rh=.75
-            if(kt_sav(iq).eq.kl)then
+          if(qg(iq,kscbase)>tied_rh*qs(iq,kscbase).
+     .      and.thee(iq,k)<theeb(iq))then         !  default tied_rh=.75
+            if(kt_sav(iq)==kl)then
               kbsav(iq)=kscbase
               ktsav(iq)=k
 !             rk_shal(iq,k-1)=tied_con                
 !             rk_shal(iq,k)=tied_over                 
 	     endif
-          endif ! (qg(iq,kscbase).gt......)
+          endif ! (qg(iq,kscbase)>.....)
          enddo  ! iq loop
         enddo   ! end of k=kscbase+1,ksctop loop
-       endif       ! (ksc.eq.79)
+       endif       ! (ksc==79)
       endif  ! (ksc>70.and.ksc<80)
       
-      if(ntest==-1.and.nproc==1.and.ktau.eq.10)then
+      if(ntest==-1.and.nproc==1.and.ktau==10)then
         do k=1,kl
 	  do iq=il*il+1,2*il*il
 	   den1=qfg(iq,k)+qlg(iq,k)

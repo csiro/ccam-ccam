@@ -31,7 +31,8 @@ c     doing x-interpolation before y-interpolation
       call start_log(ints_begin)
       call bounds(s,nrows=2)
 
-      if(intsch.eq.1)then
+!======================== start of intsch=1 section ====================
+      if(intsch==1)then
 
          do k=1,kl              ! A single main k loop uses cache better
 
@@ -88,9 +89,9 @@ c           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
                sx(ipan+1,jpan+1,n,k) = s(ien(ind(ipan,jpan,n)),k)
             enddo               ! n loop
 
-            if(ntest.eq.1.and.mydiag.and.nfield==4.and.k==nlv)then !just moisture
+            if(ntest==1.and.mydiag.and.nfield==4.and.k==nlv)then !just moisture
 !             just set up for single processor
-              if(nproc.eq.1)then
+              if(nproc==1)then
                 n=1+jd/il
 		  jdel=jd+il-n*il
 	         print *,'qg,qlg,qfg for id,jd,n,jdel ',id,jd,n,jdel
@@ -100,12 +101,12 @@ c           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 		  print *,'ioff,joff,noff ',ioff,joff,noff
 		  do j=jdel+2,jdel-2,-1
                  write (6,"('qg#5 ',5f8.3)") 
-     .            (1000.*sx(i,j,n,k),i=id-2,id+2)
+     &            (1000.*sx(i,j,n,k),i=id-2,id+2)
                 enddo
               endif
 	     endif
 
-            if(nfield.lt.mh_bs)then
+            if(nfield<mh_bs)then
                do iq=1,ifull    ! non Berm-Stan option
 !                 Convert face index from 0:npanels to array indices
                   idel=int(xg(iq,k))
@@ -127,15 +128,15 @@ c           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
                      cycle      ! Will be calculated on another processor
                   end if
 #endif
-c          if(ntest.eq.1)then
-c            if(xxg.lt.0..or.xxg.gt.1..or.yyg.lt.0..or.yyg.gt.1.)
+c          if(ntest==1)then
+c            if(xxg<0..or.xxg>1..or.yyg<0..or.yyg>1.)
 c    &        print *,'intsb problem iq xxg,yyg ',iq,xxg,yyg
 c          endif
                   c1 = sx(idel-1,jdel,n,k) ! manually unrolled loop
                   c2 = sx(idel  ,jdel,n,k)
                   c3 = sx(idel+1,jdel,n,k)
                   c4 = sx(idel+2,jdel,n,k)
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
@@ -143,12 +144,12 @@ c          endif
                      r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)
      &                    -xxg*(1.+xxg)*c4/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                   c1 = sx(idel-1,jdel+1,n,k)
                   c2 = sx(idel  ,jdel+1,n,k)
                   c3 = sx(idel+1,jdel+1,n,k)
                   c4 = sx(idel+2,jdel+1,n,k)
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
@@ -156,7 +157,7 @@ c          endif
                      r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)
      &                    -xxg*(1.+xxg)*c4/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
 c           r = {(1-x)*{(2-x     )*[(1+x     )*c2-x     *c1/3]
 c                -x*(1+x)*c4/3}
 c                +x*(1+x)*(2-x)*c3}/2
@@ -165,7 +166,7 @@ c                +x*(1+x)*(2-x)*c3}/2
                      c3 = sx(idel+1,jdel+nn-2,n,k)
                      r(nn) = (1.-xxg)*c2 +xxg*c3
                   enddo         ! nn loop
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = r(4)-r(1)+3.*(r(2)-r(3))
                      a3 = r(1)-2.*r(2)+r(3)-a4
                      s(iq,k) = r(2)+.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
@@ -174,9 +175,9 @@ c                +x*(1+x)*(2-x)*c3}/2
      &                    ((1.+yyg)*r(2)-yyg*r(1)/3.)
      &                    -yyg*(1.+yyg)*r(4)/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                enddo            ! iq loop
-            else                ! (nfield.lt.mh_bs)
+            else                ! (nfield<mh_bs)
                do iq=1,ifull    ! Berm-Stan option here e.g. qg & gases
                   idel=int(xg(iq,k))
                   xxg=xg(iq,k)-idel
@@ -203,7 +204,7 @@ c                +x*(1+x)*(2-x)*c3}/2
                   c4 = sx(idel+2,jdel,n,k)
                   cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
                   cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
@@ -211,14 +212,14 @@ c                +x*(1+x)*(2-x)*c3}/2
                      r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)
      &                    -xxg*(1.+xxg)*c4/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                   c1 = sx(idel-1,jdel+1,n,k)
                   c2 = sx(idel  ,jdel+1,n,k)
                   c3 = sx(idel+1,jdel+1,n,k)
                   c4 = sx(idel+2,jdel+1,n,k)
                   cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
                   cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
@@ -226,7 +227,7 @@ c                +x*(1+x)*(2-x)*c3}/2
                      r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)
      &                    -xxg*(1.+xxg)*c4/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
 c           r = {(1-x)*{(2-x     )*[(1+x     )*c2-x     *c1/3]
 c                -x*(1+x)*c4/3}
 c                +x*(1+x)*(2-x)*c3}/2
@@ -235,7 +236,7 @@ c                +x*(1+x)*(2-x)*c3}/2
                      c3 = sx(idel+1,jdel+nn-2,n,k)
                      r(nn) = (1.-xxg)*c2 +xxg*c3
                   enddo         ! nn loop
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = r(4)-r(1)+3.*(r(2)-r(3))
                      a3 = r(1)-2.*r(2)+r(3)-a4
                      sss = r(2)+.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
@@ -244,16 +245,16 @@ c                +x*(1+x)*(2-x)*c3}/2
      &                    ((1.+yyg)*r(2)-yyg*r(1)/3.)
      &                    -yyg*(1.+yyg)*r(4)/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                   s(iq,k) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth
                enddo            ! iq loop
-            endif               ! (nfield.lt.mh_bs)  .. else ..
+            endif               ! (nfield<mh_bs)  .. else ..
             
          end do                 ! k
 
 ! Loop over points that need to be calculated for other processes
 
-         if(nfield.lt.mh_bs)then
+         if(nfield<mh_bs)then
             do iproc=0,nproc-1
                if ( iproc == myid ) then
                   cycle
@@ -283,7 +284,7 @@ c                +x*(1+x)*(2-x)*c3}/2
                   c2 = sx(idel  ,jdel,n,k)
                   c3 = sx(idel+1,jdel,n,k)
                   c4 = sx(idel+2,jdel,n,k)
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
@@ -291,12 +292,12 @@ c                +x*(1+x)*(2-x)*c3}/2
                      r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)
      &                    -xxg*(1.+xxg)*c4/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                   c1 = sx(idel-1,jdel+1,n,k)
                   c2 = sx(idel  ,jdel+1,n,k)
                   c3 = sx(idel+1,jdel+1,n,k)
                   c4 = sx(idel+2,jdel+1,n,k)
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
@@ -304,7 +305,7 @@ c                +x*(1+x)*(2-x)*c3}/2
                      r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)
      &                    -xxg*(1.+xxg)*c4/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
 c           r = {(1-x)*{(2-x     )*[(1+x     )*c2-x     *c1/3]
 c                -x*(1+x)*c4/3}
 c                +x*(1+x)*(2-x)*c3}/2
@@ -313,7 +314,7 @@ c                +x*(1+x)*(2-x)*c3}/2
                      c3 = sx(idel+1,jdel+nn-2,n,k)
                      r(nn) = (1.-xxg)*c2 +xxg*c3
                   enddo         ! nn loop
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = r(4)-r(1)+3.*(r(2)-r(3))
                      a3 = r(1)-2.*r(2)+r(3)-a4
                      sextra(iq,iproc) = r(2) +
@@ -323,10 +324,10 @@ c                +x*(1+x)*(2-x)*c3}/2
      &                    ((1.+yyg)*r(2)-yyg*r(1)/3.)
      &                    -yyg*(1.+yyg)*r(4)/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                enddo            ! iq loop
             end do              ! iproc loop
-         else                   ! (nfield.lt.mh_bs)
+         else                   ! (nfield<mh_bs)
             do iproc=0,nproc-1
                if ( iproc == myid ) then
                   cycle
@@ -358,7 +359,7 @@ c                +x*(1+x)*(2-x)*c3}/2
                   c4 = sx(idel+2,jdel,n,k)
                   cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
                   cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
@@ -366,14 +367,14 @@ c                +x*(1+x)*(2-x)*c3}/2
                      r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)
      &                    -xxg*(1.+xxg)*c4/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                   c1 = sx(idel-1,jdel+1,n,k)
                   c2 = sx(idel  ,jdel+1,n,k)
                   c3 = sx(idel+1,jdel+1,n,k)
                   c4 = sx(idel+2,jdel+1,n,k)
                   cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
                   cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
@@ -381,7 +382,7 @@ c                +x*(1+x)*(2-x)*c3}/2
                      r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.)
      &                    -xxg*(1.+xxg)*c4/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
 c           r = {(1-x)*{(2-x     )*[(1+x     )*c2-x     *c1/3]
 c                -x*(1+x)*c4/3}
 c                +x*(1+x)*(2-x)*c3}/2
@@ -390,7 +391,7 @@ c                +x*(1+x)*(2-x)*c3}/2
                      c3 = sx(idel+1,jdel+nn-2,n,k)
                      r(nn) = (1.-xxg)*c2 +xxg*c3
                   enddo         ! nn loop
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = r(4)-r(1)+3.*(r(2)-r(3))
                      a3 = r(1)-2.*r(2)+r(3)-a4
                      sss = r(2)+.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
@@ -399,13 +400,15 @@ c                +x*(1+x)*(2-x)*c3}/2
      &                    ((1.+yyg)*r(2)-yyg*r(1)/3.)
      &                    -yyg*(1.+yyg)*r(4)/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                   sextra(iq,iproc) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth
                enddo            ! iq loop
             end do              ! iproc loop
-         endif                  ! (nfield.lt.mh_bs)  .. else ..
+         endif                  ! (nfield<mh_bs)  .. else ..
             
-      else     ! if(intsch.eq.1)then
+!========================   end of intsch=1 section ====================
+      else     ! if(intsch==1)then
+!======================== start of intsch=2 section ====================
 c       this is intsc           NS interps done first
 c       first extend s arrays into sx - this one -1:il+2 & -1:il+2
          do k=1,kl              ! A single main k loop uses cache better
@@ -460,7 +463,7 @@ c          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
                sx(ipan+1,jpan+1,n,k) = s(ine(ind(ipan,jpan,n)),k)
             enddo               ! n loop
 
-            if(nfield.lt.mh_bs)then
+            if(nfield<mh_bs)then
                do iq=1,ifull    ! non Berm-Stan option
 !                 Convert face index from 0:npanels to array indices
                   idel=int(xg(iq,k))
@@ -486,7 +489,7 @@ c          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
                   c2 = sx(idel,jdel  ,n,k)
                   c3 = sx(idel,jdel+1,n,k)
                   c4 = sx(idel,jdel+2,n,k)
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
@@ -494,12 +497,12 @@ c          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
                      r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)
      &                    -yyg*(1.+yyg)*c4/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                   c1 = sx(idel+1,jdel-1,n,k)
                   c2 = sx(idel+1,jdel  ,n,k)
                   c3 = sx(idel+1,jdel+1,n,k)
                   c4 = sx(idel+1,jdel+2,n,k)
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
@@ -507,7 +510,7 @@ c          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
                      r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)
      &                    -yyg*(1.+yyg)*c4/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
 c          r = {(1-y)*{(2-y     )*[(1+y     )*c2-y     *c1/3]
 c               -y*(1+y)*c4/3}
 c               +y*(1+y)*(2-y)*c3}/2
@@ -516,7 +519,7 @@ c               +y*(1+y)*(2-y)*c3}/2
                      c3 = sx(idel+nn-2,jdel+1,n,k)
                      r(nn) = (1.-yyg)*c2 +yyg*c3
                   enddo         ! nn loop
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = r(4)-r(1)+3.*(r(2)-r(3))
                      a3 = r(1)-2.*r(2)+r(3)-a4
                      s(iq,k) = r(2)+.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
@@ -525,9 +528,9 @@ c               +y*(1+y)*(2-y)*c3}/2
      &                    ((1.+xxg)*r(2)-xxg*r(1)/3.)
      &                    -xxg*(1.+xxg)*r(4)/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                enddo            ! iq loop
-            else                ! (nfield.lt.mh_bs)
+            else                ! (nfield<mh_bs)
                do iq=1,ifull    ! Berm-Stan option here e.g. qg & gases
                   idel=int(xg(iq,k))
                   xxg=xg(iq,k)-idel
@@ -554,7 +557,7 @@ c               +y*(1+y)*(2-y)*c3}/2
                   c4 = sx(idel,jdel+2,n,k)
                   cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
                   cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
@@ -562,14 +565,14 @@ c               +y*(1+y)*(2-y)*c3}/2
                      r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)
      &                    -yyg*(1.+yyg)*c4/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                   c1 = sx(idel+1,jdel-1,n,k)
                   c2 = sx(idel+1,jdel  ,n,k)
                   c3 = sx(idel+1,jdel+1,n,k)
                   c4 = sx(idel+1,jdel+2,n,k)
                   cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
                   cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
@@ -577,7 +580,7 @@ c               +y*(1+y)*(2-y)*c3}/2
                      r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)
      &                    -yyg*(1.+yyg)*c4/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
 c           r = {(1-y)*{(2-y     )*[(1+y     )*c2-y     *c1/3]
 c                -y*(1+y)*c4/3}
 c                +y*(1+y)*(2-y)*c3}/2
@@ -586,7 +589,7 @@ c                +y*(1+y)*(2-y)*c3}/2
                      c3 = sx(idel+nn-2,jdel+1,n,k)
                      r(nn) = (1.-yyg)*c2 +yyg*c3
                   enddo         ! nn loop
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = r(4)-r(1)+3.*(r(2)-r(3))
                      a3 = r(1)-2.*r(2)+r(3)-a4
                      sss = r(2)+.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
@@ -595,14 +598,14 @@ c                +y*(1+y)*(2-y)*c3}/2
      &                    ((1.+xxg)*r(2)-xxg*r(1)/3.)
      &                    -xxg*(1.+xxg)*r(4)/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                   s(iq,k) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth
                enddo            ! iq loop
-            endif               ! (nfield.lt.mh_bs)  .. else ..
+            endif               ! (nfield<mh_bs)  .. else ..
          end do                 ! k
 
 !        For other processes
-         if(nfield.lt.mh_bs)then
+         if(nfield<mh_bs)then
             do iproc=0,nproc-1
                if ( iproc == myid ) then
                   cycle
@@ -631,7 +634,7 @@ c                +y*(1+y)*(2-y)*c3}/2
                   c2 = sx(idel,jdel  ,n,k)
                   c3 = sx(idel,jdel+1,n,k)
                   c4 = sx(idel,jdel+2,n,k)
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
@@ -639,12 +642,12 @@ c                +y*(1+y)*(2-y)*c3}/2
                      r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)
      &                    -yyg*(1.+yyg)*c4/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                   c1 = sx(idel+1,jdel-1,n,k)
                   c2 = sx(idel+1,jdel  ,n,k)
                   c3 = sx(idel+1,jdel+1,n,k)
                   c4 = sx(idel+1,jdel+2,n,k)
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
@@ -652,7 +655,7 @@ c                +y*(1+y)*(2-y)*c3}/2
                      r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)
      &                    -yyg*(1.+yyg)*c4/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
 c          r = {(1-y)*{(2-y     )*[(1+y     )*c2-y     *c1/3]
 c               -y*(1+y)*c4/3}
 c               +y*(1+y)*(2-y)*c3}/2
@@ -661,7 +664,7 @@ c               +y*(1+y)*(2-y)*c3}/2
                      c3 = sx(idel+nn-2,jdel+1,n,k)
                      r(nn) = (1.-yyg)*c2 +yyg*c3
                   enddo         ! nn loop
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = r(4)-r(1)+3.*(r(2)-r(3))
                      a3 = r(1)-2.*r(2)+r(3)-a4
                      sextra(iq,iproc) = r(2)+
@@ -671,10 +674,10 @@ c               +y*(1+y)*(2-y)*c3}/2
      &                    ((1.+xxg)*r(2)-xxg*r(1)/3.)
      &                    -xxg*(1.+xxg)*r(4)/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                enddo            ! iq loop
             end do              ! iproc
-         else                   ! (nfield.lt.mh_bs)
+         else                   ! (nfield<mh_bs)
             do iproc=0,nproc-1
                if ( iproc == myid ) then
                   cycle
@@ -705,7 +708,7 @@ c               +y*(1+y)*(2-y)*c3}/2
                   c4 = sx(idel,jdel+2,n,k)
                   cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
                   cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
@@ -713,14 +716,14 @@ c               +y*(1+y)*(2-y)*c3}/2
                      r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)
      &                    -yyg*(1.+yyg)*c4/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                   c1 = sx(idel+1,jdel-1,n,k)
                   c2 = sx(idel+1,jdel  ,n,k)
                   c3 = sx(idel+1,jdel+1,n,k)
                   c4 = sx(idel+1,jdel+2,n,k)
                   cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
                   cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = c4-c1+3.*(c2-c3)
                      a3 = c1-2.*c2+c3-a4
                      r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
@@ -728,7 +731,7 @@ c               +y*(1+y)*(2-y)*c3}/2
                      r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.)
      &                    -yyg*(1.+yyg)*c4/3.)
      &                    +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
 c           r = {(1-y)*{(2-y     )*[(1+y     )*c2-y     *c1/3]
 c                -y*(1+y)*c4/3}
 c                +y*(1+y)*(2-y)*c3}/2
@@ -737,7 +740,7 @@ c                +y*(1+y)*(2-y)*c3}/2
                      c3 = sx(idel+nn-2,jdel+1,n,k)
                      r(nn) = (1.-yyg)*c2 +yyg*c3
                   enddo         ! nn loop
-                  if(mhint.eq.2)then ! Bessel interp
+                  if(mhint==2)then ! Bessel interp
                      a4 = r(4)-r(1)+3.*(r(2)-r(3))
                      a3 = r(1)-2.*r(2)+r(3)-a4
                      sss = r(2)+.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
@@ -746,13 +749,14 @@ c                +y*(1+y)*(2-y)*c3}/2
      &                    ((1.+xxg)*r(2)-xxg*r(1)/3.)
      &                    -xxg*(1.+xxg)*r(4)/3.)
      &                    +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
-                  endif         !  (mhint.eq.2)
+                  endif         !  (mhint==2)
                   sextra(iq,iproc) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth
                enddo            ! iq loop
             end do              ! iproc
-         endif                  ! (nfield.lt.mh_bs)  .. else ..
+         endif                  ! (nfield<mh_bs)  .. else ..
 
-      endif                     ! (intsch.eq.1) .. else ..
+      endif                     ! (intsch==1) .. else ..
+!========================   end of intsch=1 section ====================
 
       call intssync(s)
       call end_log(ints_end)
@@ -841,9 +845,9 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
             idel = idel - ioff
             jdel = jdel - joff
             sextra(iq,iproc) =     yyg*(      xxg*sx(idel+1,jdel+1,n,k)
-     .                 +(1.-xxg)*sx(idel,jdel+1,n,k))
-     .      +(1.-yyg)*(      xxg*sx(idel+1,jdel,n,k)
-     .                 +(1.-xxg)*sx(idel,jdel,n,k))
+     &                 +(1.-xxg)*sx(idel,jdel+1,n,k))
+     &      +(1.-yyg)*(      xxg*sx(idel+1,jdel,n,k)
+     &                 +(1.-xxg)*sx(idel,jdel,n,k))
          end do
       end do
 

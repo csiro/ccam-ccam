@@ -19,7 +19,7 @@
       include 'parmvert.h'  
       include 'sigs.h'
       include 'tracers.h'
-      include 'vecsuv.h'   ! vecsuv info
+      include 'vecsuv.h'   ! ax,bx etc
       include 'vvel.h'     ! sdot
       include 'xarrs.h'
       include 'xyzinfo.h'  ! x,y,z,wts
@@ -32,15 +32,16 @@
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, cc, dd
       real aa(ifull,kl)
       real x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
-      integer nface
+      real pse(ifull+iextra),psn(ifull+iextra)
+      integer nface,idjdd
       real xg, yg
       common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
       real tnsav, unsav, vnsav, tnsavv, unsavv, vnsavv 
       common/nonlsav/tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl)
      &              ,tnsavv(ifull,kl),unsavv(ifull,kl),vnsavv(ifull,kl)
       real theta(ifull,kl), factr(kl)
-      integer intsch, iq, k, kk, ntr, ierr, its, nits, nvadh_pass
-      real denb, dtm, dtp, phi1, tempry, vdot1,
+      integer ii,intsch, iq, jj,k, kk, ntr, ierr, its, nits, nvadh_pass
+      real denb, phi1, tempry, vdot1,
      &     vdot2, vec1x, vec1y, vec1z, vec2x, vec2y, vec2z, vec3x,
      &     vec3y, vec3z, vecdot, sdmx, sdmx_g
       integer, save :: num_hight = 0, numunstab = 0
@@ -49,15 +50,15 @@
 
       intsch=mod(ktau,2)
 
-      if(m==6)then
+      if(m>=6)then
         do k=1,kl
-         do iq=1,ifull
+         do iq=1,ifull   ! here still unstaggered
 !         finish off RHS terms; this coriolis term was once in nonlin
-          ux(iq,k)=ux(iq,k)+.5*dt*(1.-epsf)*f(iq)*v(iq,k)
-          vx(iq,k)=vx(iq,k)-.5*dt*(1.-epsf)*f(iq)*u(iq,k)
+          ux(iq,k)=ux(iq,k)+.5*dt*(1.-epsf)*f(iq)*v(iq,k) ! end of Eq. 129
+          vx(iq,k)=vx(iq,k)-.5*dt*(1.-epsf)*f(iq)*u(iq,k) ! end of Eq. 130
          enddo     ! iq loop
         enddo      ! k loop
-      endif  ! (m==6)
+      endif  ! (m>=6)
 
       if ( mydiag ) then
 cy         if(tx(idjd,kl)>264)then  !cb
@@ -73,7 +74,7 @@ cy         if(tx(iq,kl)>264.)then  !cb
            if(t(iq,kl)+tx(iq,kl)>264.)then  ! cy
            print *,'upglobal ktau,myid,iq,large_tx  ',ktau,myid,iq,
      &           t(iq,kl)+tx(iq,kl)
-           write (6,"('sdot_iq',9f7.3/4x,9f7.3)") (sdot(iq,kk),kk=1,kl)
+           write (6,"('sdot_iq',9f7.3/4x,9f7.3)") sdot(iq,1:kl)
 	    num_hight=num_hight+1
          endif
 	 enddo
@@ -107,12 +108,12 @@ cy         if(tx(iq,kl)>264.)then  !cb
       end do     ! k loop
 
       if(epsp<0.)then  
-       if(nritch>300)then   ! jlm special bi-linear treatment 303
+       if(nritch>300)then   ! jlm special bi-linear treatment 
         do k=1,kl   
          uc(:,k)=psl(:)+dd(:,k)  ! uc just as temporary storage
         enddo    ! k loop
        endif     ! nritch>300
-       if(nritch>300.or.nt_adv>0)then   ! jlm special bi-linear treatment 303
+       if(nritch>300.or.nt_adv>0)then   ! jlm special bi-linear treatment 
          aa(:,:)=dd(1:ifull,:)    ! save zs/(r*t) for nt_adv schemes 
          call ints_bl(dd,intsch,nface,xg,yg)
        endif     ! (nritch>300.or.nt_adv>0)
@@ -121,7 +122,7 @@ cy         if(tx(iq,kl)>264.)then  !cb
        do k=1,kl   
         pslx(1:ifull,k)=uc(1:ifull,k)-pslx(1:ifull,k)*dt*.5*(1.-epst(:))
        end do    ! k loop
-      else       ! i.e. epsp>0.
+      else       ! i.e. epsp>=0.
        do k=1,kl   
 !       N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
         pslx(1:ifull,k)=psl(1:ifull)-pslx(1:ifull,k)*dt*.5*(1.-epst(:))!cx
@@ -129,16 +130,47 @@ cy         if(tx(iq,kl)>264.)then  !cb
        if(nritch>300)then   ! jlm special bi-linear treatment 303
          pslx(:,:)=pslx(:,:)+dd(:,:)
        endif     ! nritch>300
-       if(nritch>300.or.nt_adv>0)then   ! jlm special bi-linear treatment 303
+	if(nmaxpr==1.and.nproc==1)then
+	  print *,'pslx(,nlv) before advection'
+         print *,'pslx ',pslx(idjd,:)
+         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+         write (6,"(3p9f8.2)") 
+     &            ((pslx(ii+jj*il,nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
+	endif
+       if(nritch>300.or.nt_adv>0)then   ! jlm special bi-linear treatment 
          aa(:,:)=dd(1:ifull,:)     ! save zs/(r*t) for nt_adv schemes 
          call ints_bl(dd,intsch,nface,xg,yg)
        endif     ! (nritch>300.or.nt_adv>0)
-       if(mup.ne.0) call ints(pslx,intsch,nface,xg,yg,1)
+	if(nritch==-1)then
+         if(mup.ne.0)call ints_bl(pslx,intsch,nface,xg,yg)
+	else
+         if(mup.ne.0)call ints(pslx,intsch,nface,xg,yg,1)
+	endif
       endif      ! (epsp<0.) .. else ..
 
        if(nritch>0)then
          pslx(:,:)=pslx(:,:)-dd(:,:)
 	endif   ! (nritch>0)  
+	if(nmaxpr==1.and.nproc==1)then
+	  print *,'pslx(,nlv) after advection'
+         print *,'pslx ',pslx(idjd,:)
+         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+	  idjdd=max(5+2*il,min(idjd,ifull-4-2*il))  ! for following prints
+         write (6,"(3p9f8.2)") 
+     &            ((pslx(ii+jj*il,nlv),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
+         uc(1:ifull,1)=-pslx(1:ifull,1)*dsig(1) 
+	  do k=2,kl
+          uc(1:ifull,1)=uc(1:ifull,1)-pslx(1:ifull,k)*dsig(k)
+         enddo
+	  print *,'integ pslx after advection'
+         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+         write (6,"(3p9f8.2)") 
+     &            ((uc(ii+jj*il,1),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
+	  print *,'corresp integ ps after advection'
+         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+         write (6,"(-2p9f8.2)") 
+     &        ((1.e5*exp(uc(ii+jj*il,1)),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
+	endif
 
 !      if(nritch>=404.and.ktau==1)then  ! set in globpe now
 !	  nt_adv=nritch-400   ! for backward compatibility to nritch=407
@@ -200,7 +232,6 @@ cy             cc(1:ifull,k)=tx(1:ifull,k)+aa(:,k)*factr(k)   !cb
 
 !      now comes ux & vx section
        if(diag)then
-c       print *,'staggered ux and vx:'
           if ( mydiag ) then
              print *,
      &         'unstaggered now as uavx and vavx: globpea uses ux & vx'
@@ -234,7 +265,7 @@ c       print *,'staggered ux and vx:'
           call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
           call printa('xg  ',xg,ktau,nlv,ia,ib,ja,jb,0.,1.)
           call printa('yg  ',yg,ktau,nlv,ia,ib,ja,jb,0.,1.)
-          if ( mydiag ) print *,'nface ',(nface(idjd,kk),kk=1,kl)
+          if ( mydiag ) print *,'nface ',nface(idjd,:)
        endif
        if(mup.ne.0)then
           call ints(uc,intsch,nface,xg,yg,2)
@@ -248,8 +279,6 @@ c       print *,'staggered ux and vx:'
           call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
        endif
 
-c      print *,'end  upg. k x3d,y3d,z3d ',
-c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
        if(nrot==1)then
 !        rotate wind vector to arrival point
           do k=1,kl
@@ -285,6 +314,20 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
                 endif           ! (denb>1.e-4)
              enddo              ! iq loop
           end do ! k
+          if(diag)then
+            if ( mydiag )then
+	         iq=idjd
+	         k=nlv
+                vec1x = y3d(iq,k)*z(iq) - y(iq)*z3d(iq,k)
+                vec1y = z3d(iq,k)*x(iq) - z(iq)*x3d(iq,k)
+                vec1z = x3d(iq,k)*y(iq) - x(iq)*y3d(iq,k)
+                denb = vec1x**2 + vec1y**2 + vec1z**2
+	         print *,'uc,vc,wc after nrot; denb = ',denb
+	     endif
+            call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
+            call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
+            call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
+          endif
        endif       ! nrot==1
 
 !      convert back to conformal-cubic velocity components (unstaggered)
@@ -346,27 +389,21 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
           end do
        endif       ! (nonl==3)
 
-!      there are various possibilities for changing wind direction
-       dtm=dt*(1.-epsf)
-       dtp=dt*(1.+epsf)
-
-       if(m==6)then    ! i.e.second part of usual m=6 coriolis treatment
+       if(m>=6)then    ! i.e.second part of usual m=6 coriolis treatment
+          ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:)
+          vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:)
           do k=1,kl
-             do iq=1,ifull
-                ux(iq,k)=ux(iq,k)+.5*dt*un(iq,k)
-                vx(iq,k)=vx(iq,k)+.5*dt*vn(iq,k)
-             enddo     ! iq loop
 !            incorporate coriolis terms (done here as for m=6 instead of in adjust5)
              do iq=1,ifull
-                tempry   = ux(iq,k)+.5*dt*(1.+epsf)*f(iq)*vx(iq,k) ! option 3
-                vx(iq,k) = vx(iq,k)-.5*dt*(1.+epsf)*f(iq)*ux(iq,k) ! option 3
+                tempry   = ux(iq,k)+.5*dt*(1.+epsf)*f(iq)*vx(iq,k) ! Eq. 133
+                vx(iq,k) = vx(iq,k)-.5*dt*(1.+epsf)*f(iq)*ux(iq,k) ! Eq. 134
                 ux(iq,k) = tempry
              enddo              ! iq loop
           end do
        else
           print*, "Error, not implemented m=", m
           stop
-       end if
+       end if  ! (m>=6)
 
       if(nvadh==2.and.nvad<0)then                 ! final dt/2 's worth
         if(nvad==-4.or.nvad==-9)then
@@ -385,10 +422,10 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
         print *,'near end of upglobal staggered ux and vx:'
         call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
         call printa('vx  ',vx,ktau,nlv,ia,ib,ja,jb,0.,1.)
-        print *,'un ',(un(idjd,k),k=1,kl)
-        print *,'vn ',(vn(idjd,k),k=1,kl)
-        print *,'tn ',(tn(idjd,k),k=1,kl)
-        print *,'tx ',(tx(idjd,k),k=1,kl)
+        print *,'un_u ',un(idjd,:)
+        print *,'vn_u ',vn(idjd,:)
+        print *,'tn_u ',tn(idjd,:)
+        write (6,"('tx_u1 ',9f8.2/4x,9f8.2)") tx(idjd,:)
       endif
 
       tx(1:ifull,:) = tx(1:ifull,:)+.5*dt*tn(1:ifull,:) ! moved from adjust5 30/11/00
@@ -403,9 +440,8 @@ c    .                    k,x3d(idjd),y3d(idjd),z3d(idjd)
           if(theta(iq,k)<theta(iq,k-1))then  ! based on tx
             print *,"unstable layer in upglobal for ktau,iq,k's,del ",
      &                           ktau,iq,k-1,k,theta(iq,k-1)-theta(iq,k)
-	     write (6,"('theta',9f7.2/5x,9f7.2)") (theta(iq,kk),kk=1,kl)
-            write (6,"('sdot',9f7.3/4x,9f7.3)") (sdot(iq,kk),kk=1,kl)
-c           print *,'sdot', (sdot(iq,kk),kk=1,kl)
+	     write (6,"('theta',9f7.2/5x,9f7.2)") theta(iq,:)
+            write (6,"('sdot',9f7.3/4x,9f7.3)")  sdot(iq,1:kl)
             numunstab=numunstab+1
 c           if(numunstab==100)stop 'numunstab=30'
           endif
@@ -415,10 +451,10 @@ c           if(numunstab==100)stop 'numunstab=30'
 
       if( ( diag.or.nmaxpr==1) .and. mydiag ) then
         print *,'near end of upglobal for ktau= ',ktau
-        write (6,"('tx  ',9f8.2/4x,9f8.2)") tx(idjd,:)
-        write (6,"('qg ',9f8.3/4x,9f8.3)")(1000.*qg(idjd,kk),kk=1,kl)
-        write (6,"('ql ',9f8.3/4x,9f8.3)")(1000.*qlg(idjd,kk),kk=1,kl)
-        write (6,"('qf ',9f8.3/4x,9f8.3)")(1000.*qfg(idjd,kk),kk=1,kl)
+        write (6,"('tx_u2 ',9f8.2/4x,9f8.2)") tx(idjd,:)
+        write (6,"('qg_u ',9f8.3/4x,9f8.3)")  1000.*qg(idjd,:)
+        write (6,"('ql_u ',9f8.3/4x,9f8.3)")  1000.*qlg(idjd,:)
+        write (6,"('qf_u ',9f8.3/4x,9f8.3)")  1000.*qfg(idjd,:)
       endif     
 
       call end_log(upglobal_end)

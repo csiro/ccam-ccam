@@ -741,21 +741,21 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
         print *,'At centre of the faces:'
         do n=0,npanels
          iq=ind((il+1)/2,(il+1)/2,n)
-         print '('' n,iq,x,y,z,long,lat,f '',i3,i5,3f7.3,2f8.2,f9.5)',n,
+         print '('' n,iq,x,y,z,long,lat,f ''i3,i5,3f7.3,2f8.2,f9.5)',n,
      .     iq,x(iq),y(iq),z(iq),
      .     rlongg(iq)*180./pi,rlatt(iq)*180./pi,f(iq)
         enddo
         print *,'At mid-x along edges:'
         do n=0,npanels
          iq=ind((il+1)/2,1,n)
-         print '('' n,iq,x,y,z,long,lat,f '',i3,i5,3f7.3,2f8.2,f9.5)',n,
+         print '('' n,iq,x,y,z,long,lat,f ''i3,i5,3f7.3,2f8.2,f9.5)',n,
      .     iq,x(iq),y(iq),z(iq),
      .     rlongg(iq)*180./pi,rlatt(iq)*180./pi,f(iq)
         enddo
         print *,'At mid-y along edges:'
         do n=0,npanels
          iq=ind(1,(il+1)/2,n)
-         print '('' n,iq,x,y,z,long,lat,f '',i3,i5,3f7.3,2f8.2,f9.5)',n,
+         print '('' n,iq,x,y,z,long,lat,f ''i3,i5,3f7.3,2f8.2,f9.5)',n,
      .     iq,x(iq),y(iq),z(iq),
      .     rlongg(iq)*180./pi,rlatt(iq)*180./pi,f(iq)
         enddo
@@ -803,14 +803,9 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
        fu(iq)=(f(iq)+f(ie(iq)))*.5
        fv(iq)=(f(iq)+f(in(iq)))*.5
       enddo   ! iq loop
-      do iq=1,ifull   ! average map factor derivs needed for DARLAM nxmap=1
-!      following only used or needed by DARLAM
-       dmdx(iq)=(em(ie(iq))-em(iq))/ds  ! ok: [2,il-1;2,jl]  u point
-       dmdy(iq)=(em(in(iq))-em(iq))/ds  ! ok: [2,il;2,jl-1]  v point
-       dmdyu(iq)=(em(in(ie(iq)))-em(is(ie(iq)))+  ! only for DARLAM
-     .              em(in(iq))-em(is(iq)))/(4.*ds)
-       dmdxv(iq)=(em(ie(in(iq)))-em(iw(in(iq)))+  ! only for DARLAM
-     .              em(ie(iq))-em(iw(iq)))/(4.*ds)
+      do iq=1,ifull   ! average map factor derivs needed for nxmap=1
+       dmdx(iq)=.5*(em(ie(iq))-em(iw(iq)))/ds  
+       dmdy(iq)=.5*(em(in(iq))-em(is(iq)))/ds  
       enddo   ! iq loop
 
       return

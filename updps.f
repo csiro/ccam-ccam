@@ -1,6 +1,6 @@
       subroutine updps(iadj)    
       use cc_mpi
-c     use diag_m             ! for calls to maxmin
+      use diag_m             ! for calls to maxmin
       include 'newmpar.h'
       include 'arrays.h'
       include 'const_phys.h'
@@ -10,21 +10,26 @@ c     use diag_m             ! for calls to maxmin
       include 'savuvt.h'
       include 'parm.h'
       include 'parmdyn.h'
+      include 'parmhor.h'
       include 'sigs.h'
-      include 'vvel.h'    ! sdot
+      include 'vecsuv.h'   ! ax,bx etc
+      include 'vvel.h'     ! sdot
       include 'xarrs.h'
+      include 'xyzinfo.h'  ! x,y,z,wts
       real derpsl(ifull),cc(ifull+iextra,kl),dd(ifull+iextra,kl)
-      real c0(ifull,kl),d0(ifull,kl)
       common/work3d/d(ifull,kl) ! possibly shared adjust5 & updps
       real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)
       real sbar(ifull,2:kl)
       common/savuv1/savs1,savu1,savv1,sbar 
-      real omgf(ifull,kl)
+      real omgf(ifull,kl),e(ifull,kl)
       equivalence (omgf,dpsldt)
       real sdotin(ifull,kl),pslxin(ifull,kl),omgfin(ifull,kl)
+      real pse(ifull+iextra),psn(ifull+iextra),psz(ifull+iextra)
+      real, dimension(ifull+iextra,kl) :: uc, vc, wc
       save num
       data num/0/
-!     called for mup.ne.1      mup=3 for simple centred
+!     called for mup.ne.1, but always called for first time step
+!     usual is mup=1, using simple centred. (2 to force it every step)
       
       if(mup<=-4)then
         if(ktau<3)then
@@ -34,15 +39,11 @@ c     use diag_m             ! for calls to maxmin
           omgfin(:,1:kl)=omgf(:,1:kl)
           pslxin(:,1:kl)=pslx(1:ifull,1:kl)
 	 endif
-      endif
+      endif  ! (mup<=-4)
       
-      if(mup>=4)then
-c       call staguv(u,v,cc,dd)
-	 c0(:,:)=u(1:ifull,:)  ! can avoid this fiddle if staguv has +iextra
-	 d0(:,:)=v(1:ifull,:)
-        call staguv(c0,d0,c0,d0)
-	 cc(1:ifull,:)=c0(:,:)
-	 dd(1:ifull,:)=d0(:,:)
+      if(mup>=5)then
+        call staguv(u(1:ifull,:),v(1:ifull,:),
+     &             cc(1:ifull,:),dd(1:ifull,:)) 
 	 do k=1,kl
 	  cc(1:ifull,k)=cc(1:ifull,k)/emu(1:ifull)
 	  dd(1:ifull,k)=dd(1:ifull,k)/emv(1:ifull)
@@ -56,7 +57,7 @@ c       call staguv(u,v,cc,dd)
      .            *em(iq)**2/ds
          enddo   ! iq loop
         enddo    ! k  loop
-      else
+      else                               ! usual
         call bounds(psl)
         call boundsuv(u,v)
         do k=1,kl
@@ -64,13 +65,13 @@ c       call staguv(u,v,cc,dd)
          do iq=1,ifull
 !          N.B. this div is calculated on the non-staggered grid
 !          but in adjust5 it is on the staggered grid
-           d(iq,k)=
+           d(iq,k)=                      ! usual   
      .        (u(ieu(iq),k)/em(ie(iq))-u(iwu(iq),k)/em(iw(iq))     
      .        +v(inv(iq),k)/em(in(iq))-v(isv(iq),k)/em(is(iq)))
      .        *em(iq)**2/(2.*ds)  
           enddo   ! iq loop
          enddo    ! k  loop
-      endif       ! (mup>=4) .. else ..
+      endif       ! (mup>=5) .. else ..
 	
       if(mup==-1.or.mup<=-4.or.(mup==-3.and.iadj==0))then
         tx(:,1)=zs(:)/(rdry*300.)
@@ -124,7 +125,7 @@ c       call staguv(u,v,cc,dd)
           endif 
           enddo   ! iq loop
          enddo    ! k  loop
-      elseif((mup.ne.2.and.mup.ne.5).or.num==0)then
+      elseif(mup.ne.5.or.num==0)then  ! usual
         num=1
 !       put -D(ln(psl))/Dt +d(ln(psl))/dt into pslx (i.e. Nps)
         do k=1,kl
@@ -135,7 +136,24 @@ c       call staguv(u,v,cc,dd)
      .               +v(iq,k)*(psl(in(iq))-psl(is(iq))))/(2.*ds)
           enddo   ! iq loop
          enddo    ! k  loop
-       endif       ! (mup.ne.2.or.num==0)
+         if(diag)then
+	    call bounds(ps)
+	    print *,'after bounds in updps'
+	    if(mydiag)then
+ 	     iq=idjd
+	     print *,'in updps'
+	     print *,'dhatA ',(d(iq,k)-pslx(iq,k),k=1,kl)
+            do k=1,kl
+             pslx(iq,k)=-em(iq)*(
+     .                 u(iq,k)*(ps(ie(iq))-ps(iw(iq)))
+     .                +v(iq,k)*(ps(in(iq))-ps(is(iq))))/(2.*ds*ps(iq))
+            enddo    ! k  loop
+	     print *,'dhatAA ',(d(iq,k)-pslx(iq,k),k=1,kl)
+	     print *,'part1AA ',(d(iq,k),k=1,kl)
+	     print *,'part2AA ',(-pslx(iq,k),k=1,kl)
+	    endif
+	  endif
+       endif       ! (mup.ne.5.or.num==0)
 
 !      integrate vertically {0 to 1} to get d(ln(psl))/dt
        derpsl(:)=0.
@@ -159,7 +177,8 @@ c       call staguv(u,v,cc,dd)
        omgf(:,k)=rata(k)*sdot(:,k+1)+ratb(k)*sdot(:,k)
      .           -sig(k)*pslx(1:ifull,k)
       enddo      ! k  loop
-
+      
+!------------------------------------------------------------------      
 !     convert sdot (at level k-.5) into units of grid-steps/timestep
 !     half-level sigma-dot is used for vertical advection
       do k=2,kl
@@ -191,8 +210,8 @@ c       call staguv(u,v,cc,dd)
 	     endif
 	    enddo
 	  endif  ! (ind==0) .. else ..
-	 enddo  ! iq loop
-      endif
+	 enddo   ! iq loop
+      endif     ! (mup<=-4)
 
       return
       end

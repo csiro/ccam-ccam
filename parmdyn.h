@@ -16,10 +16,10 @@
 !     this gives order for nritch advection options - not used nowadays
 
       integer m,mex,mfix,mfix_qg,mspec,mup,nonl,nritch,nritch_t,nrot,      &
-     &        nstag,nstagu,ntbar,nuvfilt,nvsplit,nxmap,precon,nh,npex
+     &  nstag,nstagu,ntbar,nuvfilt,nvsplit,nxmap,precon,nh,npex,nomg
       real    epsp,epsu,epsf,restol
       common/paramdyn/epsp,epsu,epsf,m,mex,mfix,mfix_qg,                   &
-     &                mspec,mup,nonl,nritch,nritch_t,nrot,                 &
+     &                mspec,mup,nomg,nonl,nritch,nritch_t,nrot,                 &
      &                nstag,nstagu,ntbar,nuvfilt,                          &
      &                nvsplit,nxmap,restol,precon,                         &
      &                nh,npex      ! for future use

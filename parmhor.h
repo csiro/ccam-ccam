@@ -8,7 +8,7 @@
 !                               2 for B&S on (in ints)
 !                              -2 on for gases only
 !     m_bs is superseded on 23/7/03 by mh_bs
-      integer, parameter :: mh_bs=4  !  5 for B&S off     usually 4
+      integer, parameter :: mh_bs=3  !  5 for B&S off     usually 4
 !                               4 for B&S on for qg, gases (in ints)
 !                               3 for B&S on for T, qg, gases 
 !                               2 for B&S on for u, v, T, qg, gases 

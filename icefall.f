@@ -58,13 +58,15 @@ c******************************************************************************
      &                   fluxi,fluxm,clfr,cifr,qsubl,qaccr, !Outputs
      &                   pfstay,pqfsed,slopes)              !Outputs
 
-c      implicit none
+      use cc_mpi, only : mydiag
+      implicit none
 C Global parameters
       include 'newmpar.h'
       include 'const_phys.h' !Input physical constants
       include 'cparams.h'    !Input cloud scheme parameters
       include 'kuocom.h'     !ktsav,ldr,nevapls
       include 'morepbl.h'    !condx  
+      include 'parm.h'       !just for nmaxpr
       include 'params.h'     !Input model grid dimensions (modified PARAMS.f for CCAM)
 
 C Argument list
@@ -113,7 +115,7 @@ c     real qaggi(ln2,nl)
       integer k
       integer ma
       integer mg
-      integer njumps
+c     integer njumps
       integer ns
       integer nt
 
@@ -156,21 +158,20 @@ c Set up timestep for ice processes
 
       delt=tdt
 c      delt=360.
-      njumps=nint(tdt/delt)
-      delt=tdt/njumps !To make sure tdt it a multiple of delt
-
+c      njumps=nint(tdt/delt)
+c      delt=tdt/njumps !To make sure tdt it a multiple of delt
 
 c Convert from mixing ratio to density of ice, and work out ice cloud fraction
 
       do k=1,nl
         do mg=1,ln2
           fluxi(mg,k)=0.
-          rhoi(mg,k)=rhoa(mg,k)*qfg(mg,k)
-          if(qfg(mg,k).gt.0.)then
-            cifr(mg,k)=cfrac(mg,k)*qfg(mg,k)/(qlg(mg,k)+qfg(mg,k))
-          else
-            cifr(mg,k)=0.
-          endif
+!         N.B. qfg >= 0 from dynamics, but occasionally it seems to become -ve,
+!         apparently from newrain.f, or else lower down in this subroutine
+          qfg(mg,k)=max( 0.,qfg(mg,k) )  
+          rhoi(mg,k)=rhoa(mg,k)*qfg(mg,k) 
+          cifr(mg,k)=cfrac(mg,k)*qfg(mg,k)/
+     &                           max(qlg(mg,k)+qfg(mg,k),1.e-30)
           clfr(mg,k)=max(cfrac(mg,k)-cifr(mg,k),0.)
           qsubl(mg,k)=0.
           qaccr(mg,k)=0.
@@ -182,7 +183,7 @@ c          qacci(mg,k)=0.
       enddo
 
       if(debug)then
-        if(lg.eq.lgdebug)then
+        if(lg==lgdebug)then
           ns=insdebug
           mg=mgdebug+(ns-1)*lon
           write(25,'(a,3i3)')'IPASS=1, before icefall.'
@@ -196,13 +197,13 @@ c          qacci(mg,k)=0.
 
         do k=1,nl
           do mg=1,ln2
-            if(cfrac(mg,k).gt.0)then
-              if(qlg(mg,k).eq.0.and.qfg(mg,k).eq.0)then
+            if(cfrac(mg,k)>0)then
+              if(qlg(mg,k)==0.and.qfg(mg,k)==0)then
                 print*,
      &         'start icefall cloud with zero water: cfrac=',cfrac(mg,k)
               endif
             else
-              if(qlg(mg,k).gt.0.or.qfg(mg,k).gt.0)then
+              if(qlg(mg,k)>0.or.qfg(mg,k)>0)then
              print*,'start icefall cloud water with no cloud: qfg,qlg=',
      &               qfg(mg,k),qlg(mg,k)
               endif
@@ -218,38 +219,78 @@ c Set up ice fall speed field and other arrays
         slopes(mg,nl)=0.
       enddo
 
-      if(abs(ldr).eq.1)then  ! 1 for R21 runs, like prev lw=22
+      if(abs(ldr)==1)then  ! 1 for R21 runs, like prev lw=22
         do k=nl-1,1,-1
           do mg=1,ln2
             vi2(mg,k)=vi2(mg,k+1)
-            if(cifr(mg,k).gt.0.)then
+            if(cifr(mg,k)>0.)then
               vi2(mg,k)=3.23*(rhoi(mg,k)/cifr(mg,k))**0.17
             endif
           enddo
         enddo
-      endif   ! (abs(ldr).eq.1)
+      endif   ! (abs(ldr)==1)
 
-      if(abs(ldr).eq.2)then  
+      if(abs(ldr)==2)then  
         do k=nl-1,1,-1
           do mg=1,ln2
             vi2(mg,k)=vi2(mg,k+1)
-            if(cifr(mg,k).gt.0.)then
+            if(cifr(mg,k)>0.)then
               vi2(mg,k)=0.9*3.23*(rhoi(mg,k)/cifr(mg,k))**0.17
             endif
           enddo
         enddo
-      endif   ! (abs(ldr).eq.2)
+      endif   ! (abs(ldr)==2)
 
-      if(abs(ldr).eq.3)then  
+      if(abs(ldr)==3)then  
         do k=nl-1,1,-1
           do mg=1,ln2
             vi2(mg,k)=vi2(mg,k+1)
-            if(cifr(mg,k).gt.0.)then
+            if(cifr(mg,k)>0.)then
               vi2(mg,k)=max(0.1,2.05+0.35*log10(qfg(mg,k)/cifr(mg,k)))
             endif
           enddo
         enddo
-      endif   ! (abs(ldr).eq.3)
+      endif   ! (abs(ldr)==3)
+
+      if(abs(ldr)==4)then  
+        do k=nl-1,1,-1
+          do mg=1,ln2
+            vi2(mg,k)=vi2(mg,k+1)
+            if(cifr(mg,k)>0.)then
+              vi2(mg,k)=1.4*3.23*(rhoi(mg,k)/cifr(mg,k))**0.17
+            endif
+          enddo
+        enddo
+      endif   ! (abs(ldr)==4)
+
+c     following are alternative slightly-different versions of above
+c     used for I runs from 29/4/05 till 30/8/05
+c      if(abs(ldr)==1)then  ! 1 for R21 runs, like prev lw=22
+c        do k=nl-1,1,-1
+c          do mg=1,ln2
+c            vi2(mg,k)=max( vi2(mg,k+1),3.23*(rhoi(mg,k)/
+c     &                                max(cifr(mg,k),1.e-30))**0.17 )
+c          enddo
+c        enddo
+c      endif   ! (abs(ldr)==1)
+c
+c      if(abs(ldr)==2)then  
+c        do k=nl-1,1,-1
+c          do mg=1,ln2
+c            vi2(mg,k)=max( vi2(mg,k+1),.9*3.23*(rhoi(mg,k)/
+c     &                                max(cifr(mg,k),1.e-30))**0.17 )
+c          enddo
+c        enddo
+c      endif   ! (abs(ldr)==2)
+c
+c      if(abs(ldr)==3)then  
+c        do k=nl-1,1,-1
+c          do mg=1,ln2
+c            vi2(mg,k)=max( vi2(mg,k+1),2.05+
+c     &       0.35*log10(max(qfg(mg,k),1.e-30)/max(cifr(mg,k),1.e-30)) )
+c          enddo
+c        enddo
+c      endif   ! (abs(ldr)==3)
 
       do k=nl-1,1,-1
         do mg=1,ln2
@@ -265,10 +306,10 @@ c Set up the Rate constant for snow sublimation
           es=qsg(mg,k)*pk/epsil
           Aprpr=(hls/(rKa*Tk))*(hls/(rvap*Tk)-1)
           Bprpr=rvap*Tk/((Dva/pk)*es)
-         curly=0.65*slopes(mg,k)**2+0.493*slopes(mg,k)!Factor in curly brackets
+          curly=0.65*slopes(mg,k)**2+0.493*slopes(mg,k)!Factor in curly brackets
      &         *sqrt(slopes(mg,k)*vi2(mg,k+1)*rhoa(mg,k)/um)
-         if(nevapls.eq.-1)curly=0.
-         if(nevapls.eq.-2.and.condx(mg).gt.0..and.k.le.ktsav(mg))curly=0.
+          if(nevapls==-1)curly=0.
+          if(nevapls==-2.and.condx(mg)>0..and.k<=ktsav(mg))curly=0.
 
 c Define the rate constant for sublimation of snow, omitting factor rhoi
 
@@ -280,7 +321,7 @@ c Set up the parameters for the flux-divergence calculation
           alph=delt*vi2(mg,k)/dz(mg,k)
           fout(mg,k)=1-exp(-alph) !analytical
           fthru(mg,k)=1-fout(mg,k)/alph !analytical
-c          alpha1(mg,k)=1.e-3*exp(0.025*(ttg(mg,k)-tfrz))
+c         alpha1(mg,k)=1.e-3*exp(0.025*(ttg(mg,k)-tfrz))
         enddo
       enddo
 
@@ -288,7 +329,7 @@ c Save sedimentation rate for aerosol scheme
 
       do k=1,nl-1
         do mg=1,ln2
-c          pqfsed(mg,nlp-k)=fout(mg,k)*qfg(mg,k)/tdt
+c         pqfsed(mg,nlp-k)=fout(mg,k)*qfg(mg,k)/tdt
           pqfsed(mg,nlp-k)=fout(mg,k)
         enddo
       enddo
@@ -297,7 +338,7 @@ c          pqfsed(mg,nlp-k)=fout(mg,k)*qfg(mg,k)/tdt
       enddo
 
 
-      do nt=1,njumps !Need njumps=1 for new code
+c      do nt=1,njumps !Need njumps=1 for new code
 
 c Assume no cloud at top level
 
@@ -320,7 +361,7 @@ c Now work down through the levels...
 
 c Melt falling ice if > 0 deg C
 
-            if(ttg(mg,k).gt.tfrz.and.fluxice(mg).gt.0.)then
+            if(ttg(mg,k)>tfrz.and.fluxice(mg)>0.)then
               qif=fluxice(mg)/(dz(mg,k)*rhoa(mg,k))      !Mixing ratio of ice
               dttg=-hlfcp*qif
               ttg(mg,k)=ttg(mg,k)+dttg
@@ -334,7 +375,7 @@ c Melt falling ice if > 0 deg C
 
 c Compute the sublimation of ice falling from level k+1 into level k
 
-            if(fluxice(mg).gt.0.and.qtg(mg,k).lt.qsg(mg,k))then ! sublime snow
+            if(fluxice(mg)>0.and.qtg(mg,k)<qsg(mg,k))then ! sublime snow
 
               Csb=Csbsav(mg,k)*fluxice(mg)/delt !LDR
               bf=1+0.5*Csb*delt*(1+gam(mg,k))
@@ -361,7 +402,7 @@ c Accretion of cloud water by falling ice
 c This calculation uses the incoming fluxice without subtracting sublimation
 c (since subl occurs only outside cloud), so add sublflux back to fluxice.
             
-            if(fluxice(mg)+sublflux.gt.0.and.qlg(mg,k).gt.0.)then
+            if(fluxice(mg)+sublflux>0.and.qlg(mg,k)>0.)then
               ql=qlg(mg,k)
               cdt=Eac*slopes(mg,k)*(fluxice(mg)+sublflux)/(2*rhosno)
               dqf=min(ql,cifra(mg)*ql,ql*cdt/(1+0.5*cdt))
@@ -378,7 +419,7 @@ c (since subl occurs only outside cloud), so add sublflux back to fluxice.
             endif
 
 
-            if(fsclr.eq.0.)then
+            if(fsclr==0.)then
               cifra(mg)=max(0.01,cifr(mg,k)+caccr)
             else
               ci=cifr(mg,k)+caccr
@@ -388,7 +429,7 @@ c (since subl occurs only outside cloud), so add sublflux back to fluxice.
 
 c Compute fluxes into the box
             
-            if(fluxice(mg).gt.0.)then
+            if(fluxice(mg)>0.)then
               rhoiin=fluxice(mg)/dz(mg,k)
               cffluxin=min(1.,rhoiin/rica(mg))
             else
@@ -399,7 +440,7 @@ c Compute fluxes into the box
 
 c Compute the fluxes of ice and cloud amount leaving the box
             
-            if(cifr(mg,k).gt.0.)then
+            if(cifr(mg,k)>0.)then
 
 c Use the flux-divergent form as in Rotstayn (QJRMS, 1997)
               rhoiout=rhoi(mg,k)*fout(mg,k)
@@ -454,7 +495,7 @@ c Now fluxice is flux leaving layer k
           enddo
         enddo
 
-      enddo
+c      enddo  ! njumps loop
 
 c End of small timestep loop
 
@@ -463,13 +504,24 @@ c Re-create qfg field
       do k=1,nl
         do mg=1,ln2
           qfg(mg,k)=rhoi(mg,k)/rhoa(mg,k)
+	   if(qfg(mg,k)<0.)then
+	     print *,'k,mg,lg,qfg_rhoi ',k,mg,lg,qfg(mg,k)
+	     stop
+	   endif
         enddo
       enddo
 
 c Diagnostics for debugging
+      if(nmaxpr==1.and.mydiag)then
+	print *,'diags from icefall for idjd ',idjd
+	print *,'vi2',(vi2(idjd,k),k=1,nl)   ! NB ln2=ifull     
+	print *,'cfrac',(cfrac(idjd,k),k=1,nl)  
+	print *,'cifr',(cifr(idjd,k),k=1,nl)    
+	print *,'qfg',(qfg(idjd,k),k=1,nl)   
+      endif
 
       if(debug)then
-        if(lg.eq.lgdebug)then
+        if(lg==lgdebug)then
           ns=insdebug
           mg=mgdebug+(ns-1)*lon
           write(25,'(a,3i3)')'IPASS=1, after icefall.'
@@ -490,13 +542,13 @@ c          write(25,9)'qfdiv ',(qfdiv(mg,k),k=1,nl)
 C***          do k=1,nl
 C***            do mg=1+ma,lon+ma
 C***              mb=mg-ma
-C***              if(qfg(mg,k).gt.0.1)then
+C***              if(qfg(mg,k)>0.1)then
 C***                print*,'end icefall qfg = ',qfg(mg,k)
 C***                print*,'lg,ns,mg,k ',lg,ns,mb,k
 C***              endif
 C***              
-C***              if(cfrac(mg,k).gt.0)then
-C***                if(qlg(mg,k).le.0.and.qfg(mg,k).le.0)then
+C***              if(cfrac(mg,k)>0)then
+C***                if(qlg(mg,k)<=0.and.qfg(mg,k)<=0)then
 C***                  print*,'end icefall cloud with zero/neg water:cfrac=',
 C***     &                 cfrac(mg,k)
 C***                  print*,'cifr ,clfr ',cifr(mg,k),clfr(mg,k)
@@ -505,7 +557,7 @@ C***                  print*,'lg,ns,mg,k ',lg,ns,mb,k
 C***                  print*
 C***                endif
 C***              else
-C***                if(qlg(mg,k).gt.0.or.qfg(mg,k).gt.0)then
+C***                if(qlg(mg,k)>0.or.qfg(mg,k)>0)then
 C***                  print*,'end icefall, cloud water/no cloud: qfg,qlg=',
 C***     &                 qfg(mg,k),qlg(mg,k)
 C***                  print*,'cifr ,clfr ',cifr(mg,k),clfr(mg,k)

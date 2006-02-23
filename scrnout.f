@@ -44,7 +44,7 @@
       real rho,srcp,vfact,zscronzt,zscrr,ztv,z10
       real fh2(ifull),fh10(ifull),fh38(ifull)
       real fm2(ifull),fm10(ifull),fm38(ifull)
-      real aft2ice,aft10ice,aft38ice
+      real aft2ice,aft10ice,aft38ice,zt,zscrt,z10t
       real bprm,cms,chs,denha,denma,ri2x,root,vmag,zlog
       include 'establ.h'
 
@@ -97,11 +97,16 @@ c     calculate "surface" specific humidity
        zlog=log(zo(iq))
        afroot2(iq)=vkar/(log(zscrr)-zlog)
        af2(iq)=afroot2(iq)*afroot2(iq)
-c      constants for calculating 3m, 10m winds
+c      constants for calculating 2m, 10m winds
        afroot10(iq) = vkar/(log(z10)-zlog)
        af10(iq) = afroot10(iq)*afroot10(iq)
-       aft2(iq)=vkar*afroot2(iq)/(2. + log(zscrr)-zlog)    ! land only
-       aft10(iq)=vkar* afroot10(iq) /(2. + log(z10)-zlog)  ! land only 
+	zt=zo(iq)/7.4
+	zscrt=max(zscr,zt+1.)     ! Aug '05
+	z10t=max(z10,zt+2.)       ! Aug '05
+       aft2(iq)=vkar*afroot2(iq)/log(zscrt/zt)     ! land only
+       aft10(iq)=vkar*afroot10(iq)/log(z10t/zt)    ! land only
+c      aft2(iq)=vkar*afroot2(iq)/(2. + log(zscrr)-zlog)    ! land only
+c      aft10(iq)=vkar* afroot10(iq) /(2. + log(z10)-zlog)  ! land only 
 	tsurf(iq)=tss(iq)
       enddo   ! iq loop
 
@@ -133,16 +138,29 @@ c        stable case
 c	  rich2(iq)=ri(iq)*zscrr/zmin        ! usually a good first guess
 	  fact=af2(iq)/(af(iq)*fm38(iq))
   	  alf=ri(iq)*zscrr*fact*sqrt(fact)*    
-     .             aft(iq)*fh38(iq)/(zmin*aft2(iq))
+cc     .             aft(iq)*fh38(iq)/(zmin*aft2(iq))
+     .             aft(iq)*fh38(iq)*sqrt(fh38(iq))/(zmin*aft2(iq))
          rich2(iq)=( -1. + sqrt(1.+4.*bprm*alf) ) /(2.*bprm)
          fm2(iq)=1./(1.+bprm*rich2(iq))**2
 	  fh2(iq)=fm2(iq)
 	  fact=af10(iq)/(af(iq)*fm38(iq))
-  	  alf=ri(iq)*zscrr*fact*sqrt(fact)*    
-     .             aft(iq)*fh38(iq)/(zmin*aft10(iq))
+  	  alf=ri(iq)*z10*fact*sqrt(fact)*    
+     .             aft(iq)*fh38(iq)*sqrt(fh38(iq))/(zmin*aft10(iq))
          rich10(iq)=( -1. + sqrt(1.+4.*bprm*alf) ) /(2.*bprm)
          fm10(iq)=1./(1.+bprm*rich10(iq))**2
          fh10(iq)=fm10(iq)
+c        alternative formulae - not checked out	  
+c         tstarx(iq)=aft(iq)*vmod(iq)*fh38(iq)*deltat/ustar(iq)
+c  	  alf=grav*zscrr*tstarx(iq)*af2(iq)*sqrt(af2(iq))/  
+c     .             (theta(iq)*aft2(iq)*ustar(iq)**2)
+c         rich2(iq)=( -1. + sqrt(1.-4.*bprm*alf) ) /(2.*bprm)
+c         fm2(iq)=1./(1.+bprm*rich2(iq))**2
+c	  fh2(iq)=fm2(iq)
+c  	  alf=grav*z10*tstarx(iq)*af10(iq)*sqrt(af10(iq))/  
+c     .             (theta(iq)*aft10(iq)*ustar(iq)**2)
+c         rich10(iq)=( -1. + sqrt(1.-4.*bprm*alf) ) /(2.*bprm)
+c         fm10(iq)=1./(1.+bprm*rich10(iq))**2
+c	  fh10(iq)=fm10(iq)
        else
 c        unstable case
 c        Starting value of the Richardson number.
@@ -218,6 +236,7 @@ c      screen wind speeds
          endif
          if(tscrn(iq)<min(theta(iq),tsurf(iq)).or.
      .      tscrn(iq)>max(theta(iq),tsurf(iq)).or.iq==idjd )then
+c        if(tsurf(iq)<theta(iq))then
             numt=numt+1
             write (6,"('checking T iq,land,sice,tsurf,tscrn,theta,'
      .       'tstarx ',i5,2l2,3f7.2,f7.3)") iq,land(iq),sice(iq), 
@@ -233,6 +252,8 @@ c      screen wind speeds
      .               chs*2.*bprm*aft10(iq)*factch(iq)*sqrt(z10/zo(iq))     
             print *,'af2,af10,af38 ',af2(iq),af10(iq),af(iq)
             print *,'aft2,aft10,aft38 ',aft2(iq),aft10(iq),aft(iq)
+	     print *,'rat2,rat10,rat38 ',sqrt(af2(iq))/aft2(iq),
+     &               sqrt(af10(iq))/aft10(iq),sqrt(af(iq))/aft(iq)	    
             print *,'fh2,fh10,fh38 ',fh2(iq),fh10(iq),fh38(iq)
             print *,'fm2,fm10,fm38 ',fm2(iq),fm10(iq),fm38(iq)
 	     print *,'vmod,fact2,fact10,fact38 ',vmod(iq),

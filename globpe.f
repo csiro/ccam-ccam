@@ -108,7 +108,7 @@
       real qgsav, qfgsav, qlgsav, trsav
       common/work3a/cfrac(ifull,kl),dum3f(ifull,kl,2) ! globpe,radriv90
       common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
-     .             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
+     &             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
       real spmean(kl),div(kl),omgf(ifull,kl),pmsl(ifull)
       equivalence (omgf,dpsldt),(pmsl,dum3a)
       integer, dimension(13), parameter :: mdays =
@@ -141,7 +141,7 @@
       namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps,nperavg
      & ,ia,ib,ja,jb,iaero,khdif,khor,nhorjlm
      & ,kwt,m,mex,nbd,ndi,ndi2,nem,nhor,nlv
-     & ,nmaxpr,nmi,nmidiab,nonl,nrot,nps,nqg,nrad,nsd,ntsea
+     & ,nmaxpr,nmi,nmidiab,nomg,nonl,nrot,nps,nqg,nrad,nsd,ntsea
      & ,ntsur,ntvdr,nvad,nvadh,nvmix,nxmap,itr1,jtr1,itr2,jtr2,id,jd
      & ,restol,precon,kdate_s,ktime_s,leap,newtop,idcld,mup
      & ,lgwd,ngwd,kscreen,rhsat
@@ -235,11 +235,12 @@
 
       if ( myid == 0 ) then
       print *,'Dynamics options A:'
-      print *,'   m    mex   mfix  mfix_qg   mup    nh    nonl   npex' 
-      write (6,'(i5,8i7)')m,mex,mfix,mfix_qg,mup,nh,nonl,npex
+      print *,'   m    mex   mfix  mfix_qg   mup    nh    nomg   nonl',    
+     &          '   npex' 
+      write (6,'(i5,8i7)')m,mex,mfix,mfix_qg,mup,nh,nomg,nonl,npex
       print *,'Dynamics options B:'
-      print *,'nritch nritch_t  nrot  ntbar epsp   epsu   epsf '
-      write (6,'(i5,3i7,1x,4f7.3)')nritch,nritch_t,nrot,ntbar,
+      print *,'nritch nritch_t nrot  ntbar  nxmap  epsp   epsu   epsf '
+      write (6,'(i5,4i7,1x,4f7.3)')nritch,nritch_t,nrot,ntbar,nxmap,
      &          epsp,epsu,epsf
       print *,'Horizontal advection/interpolation options:'
       print *,' ndept  nt_adv  m_bs  mh_bs  mhint '
@@ -263,29 +264,29 @@
       write (6,'(i5,6i7)') nvmix,nlocal,nvsplit,ncvmix,lgwd,ngwd
       print *,'Cumulus convection options A:'
       print *,' nkuo  sigcb sig_ct  rhcv  rhmois rhsat',
-     .        ' convfact convtime shaltime'
+     &        ' convfact convtime shaltime'
       write (6,'(i5,6f7.2,9f8.2)')
-     .    nkuo,sigcb,sig_ct,rhcv,rhmois,rhsat,
-     .    convfact,convtime,shaltime
+     &    nkuo,sigcb,sig_ct,rhcv,rhmois,rhsat,
+     &    convfact,convtime,shaltime
       print *,'Cumulus convection options B:'
       print *,' alflnd alfsea fldown iterconv',
-     .        ' ncvcloud nevapcc nevapls nuvconv'
+     &        ' ncvcloud nevapcc nevapls nuvconv'
       write (6,'(3f7.2,i6,i10,3i8)')
-     .    alflnd,alfsea,fldown,iterconv,ncvcloud,nevapcc,nevapls,nuvconv
+     &    alflnd,alfsea,fldown,iterconv,ncvcloud,nevapcc,nevapls,nuvconv
       print *,'Cumulus convection options C:'
       print *,' mbase methprec detrain entrain methdetr detrainx',
-     .        '  dsig2 dsig4'
+     &        '  dsig2 dsig4'
       write (6,'(2i6,2f10.2,i8,4f8.2)') mbase,methprec,detrain,entrain,
-     .                                  methdetr,detrainx,dsig2,dsig4
+     &                                  methdetr,detrainx,dsig2,dsig4
       print *,'Shallow convection options:'
       print *,'  ksc  kscsea kscmom sigkscb sigksct ',
-     .        'tied_con tied_over tied_rh '
+     &        'tied_con tied_over tied_rh '
       write (6,'(i5,2i7,1x,3f8.3,2f10.3)') ksc,kscsea,kscmom,
-     .    sigkscb,sigksct,tied_con,tied_over,tied_rh
+     &    sigkscb,sigksct,tied_con,tied_over,tied_rh
       print *,'Other moist physics options:'
       print *,'  acon   bcon   qgmin      rcm    rcrit_l rcrit_s'
       write (6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,
-     .                                 rcrit_l,rcrit_s
+     &                                 rcrit_l,rcrit_s
       print *,'Radiation options:'
       print *,' nrad  ndiur mins_rad kountr'
       write (6,'(i5,5i7)') nrad,ndiur,mins_rad,kountr
@@ -331,7 +332,7 @@
       if(newtop>2)stop 'newtop>2 no longer allowed'
       if(mfix_qg>0.and.(nkuo==4.or.nvad==44))
      &        stop 'nkuo=4,nvad=44: mfix_qg>0 not allowed'
-      if(mfix>2)stop 'mfix >2 not allowed now'
+      if(mfix>3)stop 'mfix >3 not allowed now'
 
       ktau=0
       if(io_in<=4.and.myid==0)then
@@ -504,11 +505,9 @@ c     set up cc geometry
          hdiff(k)=2.*hdiff(k-1)
         enddo
       elseif(khor<0)then
-        do k=1,kl
-!!       increase hdiff between sigma=.2 (by 1) and sigma=0. (by 1-khor)
-!!       if(sig(k)<0.2)hdiff(k)=hdiff(k)*(1.-khor*(.2-sig(k))/.2)
-!        increase hdiff above sigma=.2 by factor -khor
-         if(sig(k)<0.2)hdiff(k)=-khor*hdiff(k)
+        do k=1,kl                    ! N.B. usually hdiff(k)=khdif*.1 
+!!       increase hdiff between sigma=.15  and sigma=0., 0 to khor
+         if(sig(k)<0.15)hdiff(k)=.1*max(1.,(1.-sig(k)/.15)*abs(khor))
         enddo
         if (myid==0) print *,'khor,hdiff: ',khor,hdiff
       endif
@@ -576,7 +575,7 @@ c     set up cc geometry
       if(nmi==0.and.nwt>0)then
 !       write out the first restart data set 
         call outfile(20,il,jl,kl,psa,psm,rundate,nmi,nsnowout,nwrite)
-        if(newtop<0)stop  ! just for outcdf to plot zs
+        if(newtop<0)stop  ! just for outcdf to plot zs  & write fort.22
       endif    ! (nmi==0.and.nwt.ne.0)
       dtin=dt
       do n3hr=1,8
@@ -644,6 +643,7 @@ c     set up cc geometry
         vn(1:ifull,:)=0.
       endif   ! (nvsplit<3.or.ktau==1) .. elseif ..
 
+c     if((mup.ne.1.and.mup.ne.3).or.(ktau==1.and.mspec==mspeca))then
       if(mup.ne.1.or.(ktau==1.and.mspec==mspeca))then
         call updps(0) ! usually called very first time or for clean restart option
       endif
@@ -675,25 +675,25 @@ c     set up cc geometry
 	 do k=2,kl
 	  do iq=1,ifull
 	   if((sign(1.,sdot(iq,k)).ne.sign(1.,savs(iq,k))).and.
-     .       (sign(1.,savs1(iq,k)).ne.sign(1.,savs(iq,k))))then
+     &       (sign(1.,savs1(iq,k)).ne.sign(1.,savs(iq,k))))then
             sbar(iq,k)=sdot(iq,k)+.5*(savs(iq,k)-savs1(iq,k))
           else
             sbar(iq,k)=sdot(iq,k)*15./8.-savs(iq,k)*10./8.
-     .                                  +savs1(iq,k)*3./8.
+     &                                  +savs1(iq,k)*3./8.
 	   endif  ! (sign(1.,sdot(iq,k))..
 	   if((sign(1.,u(iq,k)).ne.sign(1.,savu(iq,k))).and.
-     .       (sign(1.,savu1(iq,k)).ne.sign(1.,savu(iq,k))))then
+     &       (sign(1.,savu1(iq,k)).ne.sign(1.,savu(iq,k))))then
             ubar(iq,k)=u(iq,k)+.5*(savu(iq,k)-savu1(iq,k))
           else
             ubar(iq,k)=u(iq,k)*15./8.-savu(iq,k)*10./8.
-     .                               +savu1(iq,k)*3./8.
+     &                               +savu1(iq,k)*3./8.
 	   endif  ! (sign(1.,sdot(iq,k))..
 	   if((sign(1.,v(iq,k)).ne.sign(1.,savv(iq,k))).and.
-     .       (sign(1.,savv1(iq,k)).ne.sign(1.,savv(iq,k))))then
+     &       (sign(1.,savv1(iq,k)).ne.sign(1.,savv(iq,k))))then
             vbar(iq,k)=v(iq,k)+.5*(savv(iq,k)-savv1(iq,k))
           else
             vbar(iq,k)=v(iq,k)*15./8.-savv(iq,k)*10./8.
-     .                               +savv1(iq,k)*3./8.
+     &                               +savv1(iq,k)*3./8.
 	   endif  ! (sign(1.,sdot(iq,k))..
 	  enddo   ! iq loop
 	 enddo    ! k loop
@@ -701,24 +701,24 @@ c     set up cc geometry
 	 do k=2,kl
 	  do iq=1,ifull
 	   if((sign(1.,sdot(iq,k)).ne.sign(1.,savs(iq,k))).and.
-     .       (sign(1.,savs1(iq,k)).ne.sign(1.,savs(iq,k))))then
+     &       (sign(1.,savs1(iq,k)).ne.sign(1.,savs(iq,k))))then
             sbar(iq,k)=sdot(iq,k)+.5*(savs(iq,k)-savs1(iq,k))
           else
             sbar(iq,k)=sdot(iq,k)
 	   endif  ! (sign(1.,sdot(iq,k))..
 	   if((sign(1.,u(iq,k)).ne.sign(1.,savu(iq,k))).and.
-     .       (sign(1.,savu1(iq,k)).ne.sign(1.,savu(iq,k))))then
+     &       (sign(1.,savu1(iq,k)).ne.sign(1.,savu(iq,k))))then
             ubar(iq,k)=u(iq,k)+.5*(savu(iq,k)-savu1(iq,k))
           else
             ubar(iq,k)=u(iq,k)*15./8.-savu(iq,k)*10./8.
-     .                               +savu1(iq,k)*3./8.
+     &                               +savu1(iq,k)*3./8.
 	   endif  ! (sign(1.,sdot(iq,k))..
 	   if((sign(1.,v(iq,k)).ne.sign(1.,savv(iq,k))).and.
-     .       (sign(1.,savv1(iq,k)).ne.sign(1.,savv(iq,k))))then
+     &       (sign(1.,savv1(iq,k)).ne.sign(1.,savv(iq,k))))then
             vbar(iq,k)=v(iq,k)+.5*(savv(iq,k)-savv1(iq,k))
           else
             vbar(iq,k)=v(iq,k)*15./8.-savv(iq,k)*10./8.
-     .                               +savv1(iq,k)*3./8.
+     &                               +savv1(iq,k)*3./8.
 	   endif  ! (sign(1.,sdot(iq,k))..
 	  enddo   ! iq loop
 	 enddo    ! k loop
@@ -735,11 +735,11 @@ c     set up cc geometry
 	   do k=2,kl
 	    do iq=1,ifull
 	     if((sign(1.,sdot(iq,k)).ne.sign(1.,savs(iq,k))).and.
-     .         (sign(1.,savs1(iq,k)).ne.sign(1.,savs(iq,k))))then
+     &         (sign(1.,savs1(iq,k)).ne.sign(1.,savs(iq,k))))then
               sbar(iq,k)=sdot(iq,k)+.5*(savs(iq,k)-savs1(iq,k))
             else
               sbar(iq,k)=sdot(iq,k)*15./8.-savs(iq,k)*10./8.
-     .                                    +savs1(iq,k)*3./8.
+     &                                    +savs1(iq,k)*3./8.
 	     endif
 	    enddo
 	   enddo
@@ -748,39 +748,39 @@ c     set up cc geometry
       if(mod(ktau,nmaxpr)==0.and.mydiag)then
         nlx=max(2,nlv)  ! as savs not defined for k=1
         write (6,"(i4,' savs1,savs,sdot,sbar',4f8.4)") ktau,
-     .      savs1(idjd,nlx),savs(idjd,nlx),sdot(idjd,nlx),sbar(idjd,nlx)
+     &      savs1(idjd,nlx),savs(idjd,nlx),sdot(idjd,nlx),sbar(idjd,nlx)
         write (6,"(i4,' savu1,savu,u,ubar',4f8.2)") ktau,
-     .      savu1(idjd,nlv),savu(idjd,nlv),u(idjd,nlv),ubar(idjd,nlv)
+     &      savu1(idjd,nlv),savu(idjd,nlv),u(idjd,nlv),ubar(idjd,nlv)
         write (6,"(i4,' savv1,savv,v,vbar',4f8.2)") ktau,
-     .      savv1(idjd,nlv),savv(idjd,nlv),v(idjd,nlv),vbar(idjd,nlv)
+     &      savv1(idjd,nlv),savv(idjd,nlv),v(idjd,nlv),vbar(idjd,nlv)
       endif
       if(ktau>2.and.epsp<0.)then ! for MCx7
         if(mydiag.and.ktau==3)print *,'using epsp= ',epsp
         do iq=1,ifull
 c        if((sign(1.,sdot(iq,3)).ne.sign(1.,savs(iq,3))).and.     ! .410
-c    .      (sign(1.,savs1(iq,3)).ne.sign(1.,savs(iq,3))))then    ! .410
+c    &      (sign(1.,savs1(iq,3)).ne.sign(1.,savs(iq,3))))then    ! .410
          if((sign(1.,sdot(iq,2)).ne.sign(1.,savs(iq,2))).and.
-     .      (sign(1.,savs1(iq,2)).ne.sign(1.,savs(iq,2))))then
+     &      (sign(1.,savs1(iq,2)).ne.sign(1.,savs(iq,2))))then
            epst(iq)=abs(epsp)
          elseif((sign(1.,sdot(iq,kl-2)).ne.sign(1.,savs(iq,kl-2))).and.
-     .          (sign(1.,savs1(iq,kl-2)).ne.sign(1.,savs(iq,kl-2))))then
+     &          (sign(1.,savs1(iq,kl-2)).ne.sign(1.,savs(iq,kl-2))))then
            epst(iq)=abs(epsp)
          else
            epst(iq)=0.
          endif
         enddo
       endif ! (ktau>2.and.epsp<0.)
-      if(ktau>2.and.epsp>1.)then ! 
+      if(ktau>2.and.epsp>1..and.epsp<2.)then ! 
         if(mydiag.and.ktau==3)print *,'using epsp= ',epsp
         do iq=1,ifull
          if((sign(1.,dpsdt(iq)).ne.sign(1.,dpsdtb(iq))).and.
-     .      (sign(1.,dpsdtbb(iq)).ne.sign(1.,dpsdtb(iq))))then
+     &      (sign(1.,dpsdtbb(iq)).ne.sign(1.,dpsdtb(iq))))then
            epst(iq)=epsp-1.
          else
            epst(iq)=0.
          endif
         enddo
-      endif ! (ktau>2.and.epsp>1.)
+      endif ! (ktau>2.and.epsp>1..and.epsp<2.)
 
       if(ktau<10.and.mydiag)then
        print *,'savu,u,ubar ',ktau,savu(idjd,1),u(idjd,1),ubar(idjd,1)
@@ -988,37 +988,37 @@ c         enddo
              es=establ(t(iq,2))
              rh2=100.*qg(iq,2)*(ps(iq)*sig(2)-es)/(.622*es)
              wbav=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)
-     .        +zse(4)*wb(iq,4))/(zse(1)+zse(2)+zse(3)+zse(4))
+     &        +zse(4)*wb(iq,4))/(zse(1)+zse(2)+zse(3)+zse(4))
              ico2x=max(1,ico2)
              iradonx=max(1,iradon)
              iqt = min(iq,ilt*jlt) ! Avoid bounds problems if there are no tracers
              k2=min(2,klt)
              write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
-     .         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
-     .         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
-     .         wb(iq,1),wb(iq,2),
-     .         cloudlo(iq),cloudmi(iq)+1.,cloudhi(iq)+2.,
-     .         cloudtot(iq)+3.,
-     .         fg(iq),eg(iq),(1.-tsigmf(iq))*fgg(iq),
-     .         (1.-tsigmf(iq))*egg(iq),rnet(iq),sgsave(iq),
-     .         qg(iq,1)*1.e3,uzon,vmer,precc(iq),
-     .         qg(iq,2)*1.e3,rh1,rh2,tr(iqt,1,ico2x),tr(iqt,k2,ico2x),
-     .         tr(iqt,1,iradonx),tr(iqt,k2,iradonx) ,.01*ps(iq),wbav
+     &         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
+     &         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
+     &         wb(iq,1),wb(iq,2),
+     &         cloudlo(iq),cloudmi(iq)+1.,cloudhi(iq)+2.,
+     &         cloudtot(iq)+3.,
+     &         fg(iq),eg(iq),(1.-tsigmf(iq))*fgg(iq),
+     &         (1.-tsigmf(iq))*egg(iq),rnet(iq),sgsave(iq),
+     &         qg(iq,1)*1.e3,uzon,vmer,precc(iq),
+     &         qg(iq,2)*1.e3,rh1,rh2,tr(iqt,1,ico2x),tr(iqt,k2,ico2x),
+     &         tr(iqt,1,iradonx),tr(iqt,k2,iradonx) ,.01*ps(iq),wbav
 951          format(i4,8f7.2, 2f6.3, 4f5.2, 5f7.1,f6.1,
-     .              f5.1,2f6.1,f7.2, f5.1,2f6.1, 4(1x,f5.1) ,f7.1,f6.3)
+     &              f5.1,2f6.1,f7.2, f5.1,2f6.1, 4(1x,f5.1) ,f7.1,f6.3)
              if(ktau==ntau)then
                write (iunp(nn),952)
 952            format("#   tscrn  precip  tss   tgg1   tgg2   tgg3",
-     .       "    t1     tgf    wb1   wb2 cldl cldm cldh  cld",
-     .       "     fg     eg    fgg    egg    rnet   sg   qg1   uu",
-     .       "     vv   precc  qg2  rh1   rh2  co2_1 co2_2",
-     .       " rad_1 rad_2   ps   wbav")
+     &       "    t1     tgf    wb1   wb2 cldl cldm cldh  cld",
+     &       "     fg     eg    fgg    egg    rnet   sg   qg1   uu",
+     &       "     vv   precc  qg2  rh1   rh2  co2_1 co2_2",
+     &       " rad_1 rad_2   ps   wbav")
                isoil=isoilm(iq)
                write (iunp(nn),953) land(iq),isoil,ivegt(iq),zo(iq),
-     .                              zs(iq)/grav
+     &                              zs(iq)/grav
 953            format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
                write (iunp(nn),954) sigmf(iq),swilt(isoil),sfc(isoil),
-     .                              ssat(isoil),alb(iq)
+     &                              ssat(isoil),alb(iq)
 954            format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
                write (iunp(nn),955) i,j,ico2em(iqt),radonem(iqt)
 955            format("#i,j,ico2em,radonem: ",2i4,i6,f7.3)
@@ -1063,13 +1063,13 @@ c         enddo
             div_int=div_int-div(k)*dsig(k)
           enddo
           write (6,"('pwater,condc,condx,rndmax,pblh',9f8.2)")
-     .       pwater,condc(idjd),condx(idjd),rndmax(idjd),pblh(idjd)
+     &       pwater,condc(idjd),condx(idjd),rndmax(idjd),pblh(idjd)
           write (6,"('tmin,tmax,tscr,tss,tgf,u10',9f8.2)")
      &       tminscr(idjd),tmaxscr(idjd),tscrn(idjd),tss(idjd),
      &       tgf(idjd),u10(idjd)
           write (6,"('rgg,rdg,sgflux,div_int,ps,qgscrn',5f8.2,f8.3)")
-     .       rgg(idjd),rdg(idjd),sgflux(idjd),
-     .       div_int,.01*ps(idjd),1000.*qgscrn(idjd)
+     &       rgg(idjd),rdg(idjd),sgflux(idjd),
+     &       div_int,.01*ps(idjd),1000.*qgscrn(idjd)
           write (6,"('zo,cduv,wetfac,sno,evap,precc,precip',
      &       2f8.5,5f8.2)") zo(idjd),cduv(idjd)/vmod(idjd),wetfac(idjd),
      &       sno(idjd),evap(idjd),precc(idjd),precip(idjd)
@@ -1143,7 +1143,7 @@ c         enddo
         call maxmin(qg,'qg',ktau,1.e3,kl)
         call maxmin(qfg,'qf',ktau,1.e3,kl)
         call maxmin(qlg,'ql',ktau,1.e3,kl)
-        call maxmin(sdot,'sd',ktau,1.,kl)  ! grid length units if vadv30 called
+        call maxmin(sdot,'sd',ktau,1.,kl)  ! grid length units 
         if ( myid==0 ) then
            write(6,'("spmean ",9f8.3)') spmean
            write(6,'("spavge ",f8.3)') spavge
@@ -1354,7 +1354,7 @@ c         enddo
         end if
 985     format(' average pwatr,precc,prec,evap: ',4f7.3)
         if(mydiag) print *,'tmaxscr,tscrn,tscr_ave ',
-     .           tmaxscr(idjd),tscrn(idjd),tscr_ave(idjd)
+     &           tmaxscr(idjd),tscrn(idjd),tscr_ave(idjd)
 !       also zero most averaged fields every nperavg
         cbas_ave(:)=0.
         ctop_ave(:)=0.
@@ -1400,10 +1400,10 @@ c         enddo
            j=jstn(nn)
            iq=i+(j-1)*il
 	    print 956,ktau,iunp(nn),name_stn(nn),
-     .      rnd_3hr(iq,4),rnd_3hr(iq,8),                  ! 12 hr & 24 hr
-     .      tmaxscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,
-     .      tminscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,
-     .      tmaxscr(iq)-273.16,tminscr(iq)-273.16
+     &      rnd_3hr(iq,4),rnd_3hr(iq,8),                  ! 12 hr & 24 hr
+     &      tmaxscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,
+     &      tminscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,
+     &      tmaxscr(iq)-273.16,tminscr(iq)-273.16
 956        format(i5,i3,a5,6f7.1)
           enddo
         endif  ! (ntau<10*nperday)
@@ -1658,7 +1658,7 @@ c         enddo
      & ,nem/2/     ,newtop/1/  ,nextout/3/,nfly/2/                    
      & ,ngwd/-5/,nhor/0/  ,nlv/2/          ! prev. had nhor/155/            
      & ,nmaxpr/5/,nperavg/-99/,nqg/12/,nrungcm/-1/      
-     & ,ntsea/6/,ntvdr/1/,nvad/4/,nvadh/2/,nvmix/4/,nwt/-99/       
+     & ,ntsea/6/,ntvdr/1/,nvad/4/,nvadh/2/,nvmix/3/,nwt/-99/       
      &   ,vmodmin/2./
      &  ,idcld  /1/,lgwd/0/,nbd/0/,newrough/0/,nsib/3/            
      &  ,nbox/1/       
@@ -1678,13 +1678,13 @@ c         enddo
       
 !     some variables in parmdyn.h      
       data epsp/.1/,epsu/.1/,epsf/0./,m/6/,mex/4/,mfix/1/,mfix_qg/1/,
-     &     mup/1/,nh/0/,nonl/0/,npex/1/,nritch/407/,nritch_t/300/,
-     &     nrot/1/,nstag/3/,nstagu/3/,nuvfilt/0/,ntbar/0/,
-     &     nvsplit/3/,nxmap/0/,restol/1.e-6/, ! changed from 5.e-6 on 25/7/03
+     &     mup/1/,nh/0/,nomg/0/,nonl/0/,npex/1/,nritch/407/,
+     &     nritch_t/300/,nrot/1/,nstag/3/,nstagu/3/,nuvfilt/0/,ntbar/0/,
+     &     nvsplit/3/,nxmap/1/,restol/1.e-6/, ! changed from 5.e-6 on 25/7/03
      &     precon/0/
 
       data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/,
-     .     zstn/nstnmax*0./,name_stn/nstnmax*'   '/          
+     &     zstn/nstnmax*0./,name_stn/nstnmax*'   '/          
       data slat2/nstn2*-89./,slon2/nstn2*0./,iunp2/nstn2*6/             
 
 !     following for sib3
@@ -1695,7 +1695,7 @@ c         enddo
       data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
       data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
       data convfact/1.02/,convtime/.3/,shaltime/0./
-      data detrain/.4/,detrainx/0./,dsig2/.15/,dsig4/.4/,entrain/.3/
+      data detrain/.4/,detrainx/0./,dsig2/.15/,dsig4/.4/,entrain/0./
       data epsconv/0./,fldown/.6/,iterconv/2/
       data ksc/0/,kscsea/0/,kscmom/1/,ldr/2/ 
       data mbase/0/,methdetr/2/,methprec/8/
