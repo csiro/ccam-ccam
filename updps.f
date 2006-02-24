@@ -26,6 +26,7 @@
       real sdotin(ifull,kl),pslxin(ifull,kl),omgfin(ifull,kl)
       real pse(ifull+iextra),psn(ifull+iextra),psz(ifull+iextra)
       real, dimension(ifull+iextra,kl) :: uc, vc, wc
+      real pslx_k(kl)
       save num
       data num/0/
 !     called for mup.ne.1, but always called for first time step
@@ -61,7 +62,6 @@
       endif       ! (mup>=5) 
       
       if(mup<5)then       ! ************usual***********
-        call bounds(psl)
         call boundsuv(u,v)
         do k=1,kl
 *cdir nodep
@@ -147,13 +147,13 @@
 	     print *,'in updps'
 	     print *,'dhatA ',(d(iq,k)-pslx(iq,k),k=1,kl)
             do k=1,kl
-             pslx(iq,k)=-em(iq)*(
+             pslx_k(k)=-em(iq)*(
      .                 u(iq,k)*(ps(ie(iq))-ps(iw(iq)))
      .                +v(iq,k)*(ps(in(iq))-ps(is(iq))))/(2.*ds*ps(iq))
             enddo    ! k  loop
-	     print *,'dhatAA ',(d(iq,k)-pslx(iq,k),k=1,kl)
+	     print *,'dhatAA ',(d(iq,k)-pslx_k(k),k=1,kl)
 	     print *,'part1AA ',(d(iq,k),k=1,kl)
-	     print *,'part2AA ',(-pslx(iq,k),k=1,kl)
+	     print *,'part2AA ',(-pslx_k(k),k=1,kl)
 	    endif
 	  endif
        endif       ! (mup<4.or.num==0)

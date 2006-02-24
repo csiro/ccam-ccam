@@ -426,11 +426,6 @@ c     set up cc geometry
       if(myid==0) print *,'calling indata; will read from file ',ifile
 !     N.B. first call to amipsst now done within indata
       call indata(hourst,newsnow,jalbfix)
-      call bounds(t)         ! are these 5 needed?
-      call bounds(qg)
-      call bounds(zs)
-      call boundsuv(u,v)
-      call bounds(psl)
       
       call maxmin(u,' u',ktau,1.,kl)
       call maxmin(v,' v',ktau,1.,kl)
@@ -619,6 +614,7 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
 #ifdef simple_timer
       call start_log(maincalc_begin)
 #endif
+
       do 88 kktau=1,ntau   ! ****** start of main time loop
       ktau=kktau
       timer = timer + hrs_dt      ! timer now only used to give timeg
@@ -654,9 +650,11 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
         vn(1:ifull,:)=0.
       endif   ! (nvsplit<3.or.ktau==1) .. elseif ..
 
-c     if((mup.ne.1.and.mup.ne.3).or.(ktau==1.and.mspec==mspeca))then
+      call bounds(qg)
+      call bounds(psl)
       if(mup.ne.1.or.(ktau==1.and.mspec==mspeca))then
-        call updps(0) ! usually called very first time or for clean restart option
+!       updps called first step or to permit clean restart option      
+        call updps(0) 
       endif
 
 !     set up tau +.5 velocities in ubar, vbar

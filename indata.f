@@ -122,7 +122,7 @@
       if (myid==0) print*,'kl,lapsbot,isoth,nsig: ',
      &             kl,lapsbot,isoth,nsig
       if(kmax.ne.kl)then
-        print *,'file 28 wrongly has kmax = ',kmax
+        write(0,*) 'file 28 wrongly has kmax = ',kmax
         stop
       endif
       read(28,*)(sig(k),k=1,kl),(tbar(k),k=1,kl),(bam(k),k=1,kl)
@@ -243,20 +243,26 @@
                print *,'kdate_s,ktime_s >= ',kdate_s,ktime_s
                print *,'kdate,ktime ',kdate,ktime
             end if
-            if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)stop
-     &       'stopping in indata, not finding correct kdate/ktime'
-c            if(nspecial>100)then
-c!             allows nudging from mesonest with different kdate
-c              kdate=nspecial
-c              kdate_s=nspecial
-c              print *,'re-setting kate & kdate_s to nspecial'
-c            endif  ! (nspecial>100)
+            if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)then
+              write(0,*) 'stopping in indata, not finding correct ',
+     &                   ' kdate/ktime'
+              stop
+            endif
+c           if(nspecial>100)then
+c!            allows nudging from mesonest with different kdate
+c             kdate=nspecial
+c             kdate_s=nspecial
+c             print *,'re-setting kate & kdate_s to nspecial'
+c           endif  ! (nspecial>100)
             if(newtop>=0)then  ! no check if just plotting zs
               if(abs(rlong0  -rlong0x)>.01.or.
      &           abs(rlat0    -rlat0x)>.01.or.
-     &         abs(schmidt-schmidtx)>.01)stop "grid mismatch in indata"
+     &           abs(schmidt-schmidtx)>.01)then
+                 write(0,*) "grid mismatch in indata"
+                 stop 
+              endif
             endif  ! (newtop>=0)
-         endif                  ! (io_in==1.or.io_in==3)
+         endif     ! (io_in==1.or.io_in==3)
 
          if(io_in==-1)then
             call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,

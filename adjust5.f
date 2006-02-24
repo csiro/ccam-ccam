@@ -228,6 +228,10 @@ c      enddo    ! k  loop
       if(precon_in>kl)then  ! use SOR - needs checking
 !       Calculate the optimum acceleration using a point
 !       in the middle of the first face
+        if(nproc>1)then
+          write(0,*) 'using helmsor/SOR requires nproc=1'
+          stop
+        endif
         do k=1,kl
          if ( dt /= dtsave ) then
            call optmx(il,schmidt,dt,bam(k),accel(k))
@@ -500,12 +504,11 @@ c      enddo    ! k  loop
 !       following is cheaper and maintains full precision of psl
         psl(1:ifull)=psl(1:ifull)+  ! just using mass flux increment
      &              (ps(1:ifull)/bb(1:ifull)-1.)     
-        call bounds(psl)      ! may not be needed here 
       endif                   !  (mfix==1.or.mfix==2)
-      call bounds(ps)       
       
       if(mfix==3)then
 c       just code fully implicit for a start      
+        call bounds(ps)       
         do iq=1,ifull
          pse(iq)=.5*(ps(iq)+ps(ie(iq)))/emu(iq)
          psn(iq)=.5*(ps(iq)+ps(in(iq)))/emv(iq)
@@ -528,7 +531,6 @@ c       just code fully implicit for a start
       dpsdtbb(:)=dpsdtb(:)    
       dpsdtb(:)=dpsdt(:)    
       dpsdt(1:ifull)=(ps(1:ifull)-ps_sav(1:ifull))*24.*3600./(100.*dt)
-      call bounds(psl)
 
       if(mfix_qg.ne.0.and.mspec==1)then
 !       qgmin=1.e-6   !  in parm.h 
@@ -726,6 +728,7 @@ c       just code fully implicit for a start
         write (6,"('ql_a4',3p10f8.3)") qlg(idjd,:)
       endif
       if(diag)then
+         call bounds(psl)
          if ( mydiag ) then
             iq=idjd
             print  *,'adjust5 d ',d(iq,:)

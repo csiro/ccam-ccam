@@ -114,72 +114,12 @@
       endif       ! (ngas>=1)
 
       if(nuvfilt.ne.0)then  ! usual setting is nuvfilt=0
-        uin(1:ifull,:) = u(1:ifull,:)
-        vin(1:ifull,:) = v(1:ifull,:)
-        call boundsuv(uin,vin,nrows=2)
-        if(nuvfilt==1)then
-         do k=1,kl
-!cdir nodep
-         do iq=1,ifull  
-          if(((uin(iwu(iq),k)<uin(iq,k)).and.
-     &        (uin(iq,k)>uin(ieu(iq),k)).and.
-     &        (uin(ieu(iq),k)<uin(ieeu(iq),k))).or.
-     &       ((uin(iwu(iq),k)>uin(iq,k)).and.
-     &        (uin(iq,k)<uin(ieu(iq),k)).and.
-     &        (uin(ieu(iq),k)>uin(ieeu(iq),k))))then
-            u(iq,k)=.5*(uin(iq,k)+uin(ieu(iq),k))
-            u(ieu(iq),k)=.5*(uin(iq,k)+uin(ieu(iq),k))
-          endif
-          if(((vin(isv(iq),k)<vin(iq,k)).and.
-     &        (vin(iq,k)>vin(inv(iq),k)).and.
-     &        (vin(inv(iq),k)<vin(innv(iq),k))).or.
-     &       ((vin(isv(iq),k)>vin(iq,k)).and.
-     &        (vin(iq,k)<vin(inv(iq),k)).and.
-     &        (vin(inv(iq),k)>vin(innv(iq),k))))then
-            v(iq,k)=.5*(vin(iq,k)+vin(inv(iq),k))
-            v(inv(iq),k)=.5*(vin(iq,k)+vin(inv(iq),k))
-          endif
-         enddo  ! iq loop
-!        following loops only really relevant for MPI version         
-         do jj=1,il
-          iq=1+(jj-1)*il  ! just for i=1 in other dirn
-          if(((uin(ieu(iq),k)<uin(iq,k)).and.
-     &        (uin(iq,k)>uin(iwu(iq),k)).and.
-     &        (uin(iwu(iq),k)<uin(iwwu(iq),k))).or.
-     &       ((uin(ieu(iq),k)>uin(iq,k)).and.
-     &        (uin(iq,k)<uin(iwu(iq),k)).and.
-     &        (uin(ieu(iq),k)>uin(iwwu(iq),k))))then
-            u(iq,k)=.5*(uin(iq,k)+uin(iwu(iq),k))
-          endif
-         enddo
-         do iq=1,il  ! just doing j=1 in other dirn
-          if(((vin(inv(iq),k)<vin(iq,k)).and.
-     &        (vin(iq,k)>vin(isv(iq),k)).and.
-     &        (vin(isv(iq),k)<vin(issv(iq),k))).or.
-     &       ((vin(inv(iq),k)>vin(iq,k)).and.
-     &        (vin(iq,k)<vin(isv(iq),k)).and.
-     &        (vin(isv(iq),k)>vin(issv(iq),k))))then
-            v(iq,k)=.5*(vin(iq,k)+vin(isv(iq),k))
-          endif
-         enddo
-        enddo   ! k  loop
-        endif   ! (nuvfilt==1)then
-        if(nuvfilt>1)then
-         do k=nuvfilt,kl  ! e.g. 5
-!cdir nodep
-         do iq=1,ifull  
-          u(iq,k)=(-uin(iwwu(iq),k)+4.*uin(iwu(iq),k)+10.*uin(iq,k)
-     &          +4.*uin(ieu(iq),k)-uin(ieeu(iq),k))/16.
-          v(iq,k)=(-vin(issv(iq),k)+4.*vin(isv(iq),k)+10.*vin(iq,k)
-     &          +4.*vin(inv(iq),k)-vin(innv(iq),k))/16.
-         enddo  ! iq loop
-        enddo   ! k  loop
-        endif   ! (nuvfilt>1)then
+        write(0,*) 'nuvfilt option no longer available'
+        stop
       endif     ! (nuvfilt>0)
 
       ! Diagnostics and neigh calculation below require this.
       if(diag.or.nphip>0)call bounds(ps)
-      if(nud_p>0)call bounds(psl)    ! only needed with nudging of psl
 
       if(diag)then
          if ( mydiag ) then
@@ -201,14 +141,6 @@
      &          psl(in(idjd)),psl(ie(idjd)),psl(iw(idjd)),psl(is(idjd))
             write (6,"('ps  & news ',-2p5f9.3)") ps(idjd),
      &          ps(in(idjd)),ps(ie(idjd)),ps(iw(idjd)),ps(is(idjd))
-            write (6,"('u1 & ew ',5f8.2)") u(idjd,1),
-     &                  u(ieu(idjd),1),u(iwu(idjd),1)
-            write (6,"('v1 & ns ',5f8.2)") v(idjd,1),
-     &                  v(inv(idjd),1),v(isv(idjd),1)
-            write (6,"('u9 & ew ',5f8.2)") u(idjd,9),
-     &                  u(ieu(idjd),9),u(iwu(idjd),9)
-            write (6,"('v9 & ns ',5f8.2)") v(idjd,9),
-     &                  v(inv(idjd),9),v(isv(idjd),9)
          end if
          call printa('u   ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
          call printa('v   ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -280,6 +212,14 @@ cx      enddo      ! k  loop
             call printa('qg  ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e3)
          endif
          if ( mydiag ) then
+            write (6,"('u1 & ew ',5f8.2)") u(idjd,1),
+     &                  u(ieu(idjd),1),u(iwu(idjd),1)
+            write (6,"('v1 & ns ',5f8.2)") v(idjd,1),
+     &                  v(inv(idjd),1),v(isv(idjd),1)
+            write (6,"('u9 & ew ',5f8.2)") u(idjd,9),
+     &                  u(ieu(idjd),9),u(iwu(idjd),9)
+            write (6,"('v9 & ns ',5f8.2)") v(idjd,9),
+     &                  v(inv(idjd),9),v(isv(idjd),9)
             write (6,"('tn1*dt',9f8.3/6x,9f8.3)") tn(idjd,:)*dt
             write (6,"('un1*dt',9f8.3/6x,9f8.3)") un(idjd,:)*dt
             write (6,"('vn1*dt',9f8.3/6x,9f8.3)") vn(idjd,:)*dt
@@ -446,6 +386,10 @@ c    &      u(iq,k),v(iq,k),uzon,factor,t(iq,k)*uzon*factor
 
 !     phip calculation section
       if(nphip>1)then
+        if(nproc>1)then
+          write(0,*) 'at present, nphip>1 requires nproc=1'
+          stop
+        endif
        if(ktau==1.and.mydiag)print *,
      &  'phip calculation with nphip,ps,zs: ',nphip,ps(idjd),zs(idjd)
        delp=2.5e2  ! e.g. 2.5 hPa
