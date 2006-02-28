@@ -31,7 +31,7 @@
 !     parameter (nqbot=3)      ! 0: original qq(1), 1: qs1, 2: qbas for land/sea
 !                                3:for RH-enhanced base
       parameter (nalfs=0)      ! 1: was usual, 0: off
-      parameter (nfluxq=0)     ! 1 from 6/8/02  off from 16/10/03
+      parameter (nfluxq=2)     ! 1 from 8/02, 0 from 10/03, 2 from 3/06
       parameter (nfluxdsk=-2)  ! 1 till 6/8/02
 !     parameter (mbase=0)      ! >0 cfrac test as %
 !     parameter (methdetr=2)   ! various - applies only to shallow clouds
@@ -78,7 +78,9 @@
       equivalence (phi,thee)
       save kscbase,ksctop,prcpv
       real entr(ifull),qentr(ifull),sentr(ifull),factr(ifull)
-      real timeconv(ifull)
+      real rh_arr(ifull)
+      real fluxqs,fluxt_k(kl)
+      real timeconv(ifull)      
       save timeconv
 !     real convshal(ifull)
 !     save convshal
@@ -94,32 +96,23 @@
        alfss(k)=1.-alfm(k)
        if(nalfs==0)alfss(k)=1.  ! for no alf effect  - usual setting
       enddo     ! k loop
-      if(alflnd<1.)then     
-        if(alflnd>0.)then  ! common alfsea, alflnd method
-          do k=1,kl
-           alfqq_s(k)=1.-alfsea*sig(k)**8   ! e.g. alfsea=.5; =0. for off
-           alfqq_l(k)=1.-alflnd*sig(k)**8   ! e.g. alflnd=.4; =0. for off
-          enddo     ! k loop
-        else   ! this is alflnd < 0, i.e. oldest alfcon method
-          do k=1,kl
-           alfqq_s(k)=1.-alfm(k)
-           alfqq_l(k)=1.-alfm(k)
-          enddo     ! k loop
-        endif  ! (alflnd>0.)  ..else
-        do k=1,kl
-         alfqq1_s(k)=1.-alfqq_s(k)
-         alfqq1_l(k)=1.-alfqq_l(k)
-        enddo     ! k loop
-      else   ! usual with alflnd>1 (was called nqbot=3 method)
-        do k=1,kl
-         alfqq_s(k)=abs(alfsea)
-         alfqq_l(k)=alflnd
-         alfqq1_s(k)=0.
-         alfqq1_l(k)=0.
-        enddo     ! k loop
-      endif  !   (alflnd<1.)  .. else ..
+      do k=1,kl
+       alfqq_s(k)=abs(alfsea)
+       alfqq_l(k)=alflnd
+       alfqq1_s(k)=0.
+       alfqq1_l(k)=0.
+      enddo     ! k loop
       if(ktau==1)timeconv(:)=0.
   
+      if(rhcv<0.)then
+        do iq=1,ifull
+          if(land(iq))then
+            rh_arr(iq)=.8696  ! similar to alflnd=1.15
+          else
+            rh_arr(iq)=.9524  ! similar to alfsea=1.05
+          endif
+        enddo
+      endif  ! (rhcv<0.)
 c     convective first, then L/S rainfall
       qliqw(:,:)=0.  
       conrev(1:ifull)=1000.*ps(1:ifull)/(grav*dt) ! factor to convert precip to g/m2/s
@@ -243,16 +236,17 @@ c       calculate hs
       sbase(:)=0.
       qbase(:)=0.
       hs(:,:)=max(hs(:,:),s(:,:)+hl*qq(:,:))   ! added 21/7/04
+!     Following procedure chooses lowest valid cloud bottom (and base)
       do k=kl/2,kuocb+1,-1   ! downwards to find cloud base
-       kdown(:)=1
+       kdown(:)=1            ! set tentatively as valid cloud bottom
        if(rhcv>0.)then
          do iq=1,ifull
           if(qq(iq,k-1)<=rhcv*qs(iq,k-1))kdown(iq)=0
          enddo
        endif
-       if(ktau>1.and.rhcv<0.)then
+       if(rhcv<0.)then
          do iq=1,ifull
-          if(phi(iq,k-1)/9.806>pblh(iq))kdown(iq)=0
+          if(qq(iq,k-1)<=rh_arr(iq)*qs(iq,k-1))kdown(iq)=0
          enddo
        endif
        if(mbase>0)then
@@ -614,13 +608,8 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
 !     calculate actual delq and dels
       do k=1,kl-1    
        do iq=1,ifull
-        if(k>kb_sav(iq))then
           delq(iq,k)=delq(iq,k)/dsk(k)
           dels(iq,k)=dels(iq,k)/dsk(k)
-        elseif(k==kb_sav(iq))then  ! s and qg only from kb layer
-          delq(iq,k)=delq(iq,k)/dsk(k)
-          dels(iq,k)=dels(iq,k)/dsk(k)
-        endif    ! (k>kb_sav(iq)) .. else ..
        enddo     ! iq loop
       enddo      ! k loop
 
@@ -633,10 +622,11 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
       endif
 
 !     calculate base mass flux 
+      if(nfluxdsk==0)flux_dsk(:)=0. ! default
       do iq=1,ifull
-!      if(kt_sav(iq)<kl)then 
        if(kb_sav(iq)<kl)then   ! from Oct 03, same answers but more effic.
-!        prevents withdrawal of unrealistally large moisture	
+!        prevents withdrawal of unrealistally large moisture, which
+!        may occur from using sequence of thin layers	
          if(nfluxdsk==1)flux_dsk(iq)=dsk(kb_sav(iq))
          if(nfluxdsk==2)flux_dsk(iq)=.5*dsk(kb_sav(iq))
          if(nfluxdsk==-2)flux_dsk(iq)=dsk(kb_sav(iq))/(2*iterconv) !usual
@@ -648,6 +638,14 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
      .                      (delq(iq,kt_sav(iq)) - delq(iq,kb_sav(iq))))
            convpsav(iq)=min(convpsav(iq),fluxq(iq))
          endif  ! (nfluxq==1)
+         if(nfluxq==2)then  ! fluxqs option from 27/2/06
+!          fluxq limiter: new_qq(kb)=new_qs(kb+1)
+!          i.e. alfqarr*[qq+M*delq]_kb=[qs+M*dqsdt*dels/cp]_kb+1
+           k=kb_sav(iq)
+           fluxq(iq)=max(0.,(alfqarr(iq)*qq(iq,k)-qs(iq,k+1))/ 
+     .          (dqsdt(iq,k+1)*dels(iq,k+1)/cp -alfqarr(iq)*delq(iq,k)))
+           convpsav(iq)=min(convpsav(iq),fluxq(iq))
+         endif  ! (nfluxq==2)
        endif    ! (kb_sav(iq)<kl)
       enddo     ! iq loop
       if(rhcv>0.)then  ! usually run with rhcv=0.
@@ -658,6 +656,18 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
            fluxb(iq)=max(0.,(rhcv*qs(iq,kb_sav(iq))-qq(iq,kb_sav(iq)))/ 
      .            ( delq(iq,kb_sav(iq))
      .             -rhcv*dqsdt(iq,kb_sav(iq))*dels(iq,kb_sav(iq))/cp ) ) 
+           convpsav(iq)=min(convpsav(iq),fluxb(iq))
+         endif ! (kb_sav(iq)<kl)
+        enddo  ! iq loop
+      endif    ! (rhcv>0.)
+      if(rhcv<0.)then  
+        do iq=1,ifull
+         if(kb_sav(iq)<kl)then  
+!          Base limiter: new_qq(kb)=rh_arr*new_qs(kb), i.e.
+!          [qq+M*delq]_kb=rh_arr*[qs+M*dqsdt*dels/cp]_kb
+           fluxb(iq)=max(0.,(rh_arr(iq)*qs(iq,kb_sav(iq)) 
+     .          -qq(iq,kb_sav(iq)))/  ( delq(iq,kb_sav(iq))
+     .       -rh_arr(iq)*dqsdt(iq,kb_sav(iq))*dels(iq,kb_sav(iq))/cp ) ) 
            convpsav(iq)=min(convpsav(iq),fluxb(iq))
          endif ! (kb_sav(iq)<kl)
         enddo  ! iq loop
@@ -693,9 +703,9 @@ c         endif
           den1=dels(iq,k)*(1.+hlcp*dqsdt(iq,k))
           den2=alfsarr(iq)*dels(iq,kb_sav(iq))
           den3=alfqarr(iq)*hl*delq(iq,kb_sav(iq))
-          fluxt(iq,k)=(sbase(iq)+hl*qbase(iq)-hs(iq,k))/
+          fluxt_k(k)=(sbase(iq)+hl*qbase(iq)-hs(iq,k))/
      .                (den1-den2-den3) 
-          print *,'k,den1,den2,den3,fluxt ',k,den1,den2,den3,fluxt(iq,k)
+          print *,'k,den1,den2,den3,fluxt ',k,den1,den2,den3,fluxt_k(k)
         endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
        endif    ! ((ntest>0.or.diag).and.mydiag)
       enddo     ! k loop      
@@ -711,6 +721,7 @@ c         endif
          endif
         enddo	
       endif   !  (ntest==2)
+      
       if((ntest>0.or.diag).and.mydiag)then
         iq=idjd
         detr=max( detrain,detrain+(dsig4-sig(kb_sav(iq))+
@@ -718,6 +729,20 @@ c         endif
         detr=min(detr,detrainx)	
         print *,'detr,delta_sig,qxcess ',
      .           detr,sig(kb_sav(iq))-sig(kt_sav(iq)),qxcess(iq)
+        k=kb_sav(iq)
+        if(k<kl)then
+          fluxqs=(alfqarr(iq)*qq(iq,k)-qs(iq,k+1))/
+     &           (dqsdt(iq,k+1)*dels(iq,k+1)/cp -alfqarr(iq)*delq(iq,k))
+          print *,'alfqarr(iq)*qq(iq,k) ',alfqarr(iq)*qq(iq,k)
+          print *,'alfqarr(iq)*delq(iq,k) ',alfqarr(iq)*delq(iq,k)
+          print *,'qs(iq,k+1) ',qs(iq,k+1)
+          print *,'dqsdt(iq,k+1)*dels(iq,k+1)/cp ',
+     &             dqsdt(iq,k+1)*dels(iq,k+1)/cp
+c         print *,'dqsdt(iq,k+1) ',dqsdt(iq,k+1)
+c         print *,'dels(iq,k+1) ',dels(iq,k+1)
+c         print *,'delq(iq,k) ',delq(iq,k)
+          print *,'fluxqs ',fluxqs
+        endif
         write(6,"('flux_dsk,fluxq,fluxb,convpsav',5f9.5)")
      .             flux_dsk(iq),fluxq(idjd),fluxb(idjd),convpsav(idjd)
         write(6,"('fluxt',9f8.3/(5x,9f8.3))") fluxt(iq,1:kt_sav(iq))
@@ -777,6 +802,7 @@ c          if(nums<20)then
          endif
         enddo  ! iq loop
       endif    ! (ntest>0.or.diag)
+      
       if(nmaxpr==1.and.mydiag)then
         print *,'net potential delq (g/kg) & delt for this itn:'
         write(6,"('delQ',3p9f8.3/(4x,9f8.3))")
@@ -1150,6 +1176,7 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
       endif
 
       enddo     ! itn=1,iterconv
+!-------------------------------------------------------------------      
 
       rnrtc(:)=factr(:)*rnrtc(:)
       do k=1,kl
