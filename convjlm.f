@@ -7,10 +7,10 @@
       implicit none
       integer itn,iq,k,k13,k23,kb,kcl_top
      .       ,khalf,khalfd,khalfp,kt
-     .       ,nalfs,nfluxq,nfluxdsk,nlayers,nlayersd,nlayersp
+     .       ,nfluxq,nfluxdsk,nlayers,nlayersd,nlayersp
      .       ,ntest,ntr,nums
-      real Aev,Asb,alfcon,alfq,alfs,cfraclim
-     .    ,convmax,convtimx,deltaq,delq_av,delt_av
+      real Aev,Asb,cfraclim
+     .    ,convmax,deltaq,delq_av,delt_av
      .    ,den1,den2,den3,detr,dprec,dqrx,dskm
      .    ,entrainp,entrr,entrradd,facuv,fldownn,fluxup
      .    ,frac,fraca,fracb,gam,hbas,hbase,heatlev
@@ -25,12 +25,9 @@
 !     parameter (iterconv=1)   ! to kuocom.h
 !     parameter (fldown=.6)    ! to kuocom.h
 !     parameter (detrain=.05)  ! to kuocom.h
-      parameter (alfcon=.015)  ! e.g. .01 or .015   or 1.1 (over sea)
 !     parameter (alflnd=1.15)  ! e.g. 1.15  
 !     parameter (alfsea=1.05)  ! e.g. 1.05  
-!     parameter (nqbot=3)      ! 0: original qq(1), 1: qs1, 2: qbas for land/sea
 !                                3:for RH-enhanced base
-      parameter (nalfs=0)      ! 1: was usual, 0: off
       parameter (nfluxq=2)     ! 1 from 8/02, 0 from 10/03, 2 from 3/06
       parameter (nfluxdsk=-2)  ! 1 till 6/8/02
 !     parameter (mbase=0)      ! >0 cfrac test as %
@@ -59,7 +56,7 @@
       real cfrac
       common/cfrac/cfrac(ifull,kl)
       integer ktmax(ifull),kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
-      real alfqarr(ifull),alfsarr(ifull),conrev(ifull)
+      real alfqarr(ifull),conrev(ifull)
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
       real delv(ifull,kl),dqsdt(ifull,kl),es(ifull,kl) 
       real fldow(ifull),fluxq(ifull),fluxb(ifull)
@@ -68,19 +65,14 @@
       real qq(ifull,kl),qs(ifull,kl),qxcess(ifull)
       real revc(ifull,kl),rnrt(ifull),rnrtc(ifull),rnrtcn(ifull)
       real s(ifull,kl),sbase(ifull),tdown(ifull),tt(ifull,kl)
-      real alfss(kl),alfm(kl)
-      real alfqq_l(kl),alfqq_s(kl),alfqq1_l(kl),alfqq1_s(kl)
       real dsk(kl),qbass(kl),h0(kl),q0(kl),t0(kl)  
       equivalence (delu,revc,delq),(delv,dels)
 !     data rhcv/.75/                  now in kuocom
-      integer kdown(ifull),kscbase,ksctop
-      real prcpv(kl),theeb(ifull),thee(ifull,kl)
-      equivalence (phi,thee)
-      save kscbase,ksctop,prcpv
+      integer kdown(ifull)
       real entr(ifull),qentr(ifull),sentr(ifull),factr(ifull)
       real rh_arr(ifull)
       real fluxqs,fluxt_k(kl)
-      real timeconv(ifull)      
+      real cfraclim(ifull),convtim(ifull),timeconv(ifull)      
       save timeconv
 !     real convshal(ifull)
 !     save convshal
@@ -92,18 +84,20 @@
 
       do k=1,kl
        dsk(k)=-dsig(k)    !   dsk = delta sigma (positive)
-       alfm(k)=min(.5,alfcon/(max(1.e-10,sig(1)-sig(k))))  ! e.g. alfcon=.01
-       alfss(k)=1.-alfm(k)
-       if(nalfs==0)alfss(k)=1.  ! for no alf effect  - usual setting
-      enddo     ! k loop
-      do k=1,kl
-       alfqq_s(k)=abs(alfsea)
-       alfqq_l(k)=alflnd
-       alfqq1_s(k)=0.
-       alfqq1_l(k)=0.
       enddo     ! k loop
       if(ktau==1)timeconv(:)=0.
-  
+
+      do iq=1,ifull
+        if(land(iq))then
+          alfqarr(iq)=abs(alflnd)
+        else
+          alfqarr(iq)=abs(alfsea)
+        endif
+      enddo
+      if(alflnd<0)then
+!       use full value for dx>60km, else linearly vary upwards from 1
+        alfqarr(:)=1.+min(1.,ds/(60.e3*em(1:ifull)))*(alfqarr(:)-1.)
+      endif  ! (alflnd<0)
       if(rhcv<0.)then
         do iq=1,ifull
           if(land(iq))then
@@ -113,6 +107,18 @@
           endif
         enddo
       endif  ! (rhcv<0.)
+      cfraclim(:)=.01*mbase
+      if(mbase<0)then
+        do iq=1,ifull
+         dskm=.001*ds/em(iq)
+!        mbase=-80 gives .9, .8, .6, .2, .1 for 8, 16, 32, 64, 72 km
+!        mbase=-40 gives .9, .8, .6, .2, .1 for 4,  8, 16, 32, 36 km
+!        mbase=-16 gives .9, .8, .5, .2, .1 for 2,  4,  8, 16, 32, 36 km
+!        mbase=-22 gives  .78, .462, .275, .1 for 4, 8, 16, 62 km
+         cfraclim(iq)=min(1.,max(.1,-.1*mbase/sqrt(sqrt(dskm*dskm**2))))
+        enddo
+      endif  ! (mbase<0)
+
 c     convective first, then L/S rainfall
       qliqw(:,:)=0.  
       conrev(1:ifull)=1000.*ps(1:ifull)/(grav*dt) ! factor to convert precip to g/m2/s
@@ -120,29 +126,25 @@ c     convective first, then L/S rainfall
       rnrtc(:)=0.      ! initialize convective  rainfall array
       ktmax(:)=kl      ! preset 1 level above current topmost-permitted ktsav
       kbsav_ls(:)=0    ! for L/S
-      ktsav(:)=kl      ! preset value to show no deep or shallow convection
-      kbsav(:)=kl      ! preset value to show no deep or shallow convection
+      ktsav(:)=kl-1    ! preset value to show no deep or shallow convection
+      kbsav(:)=kl-1    ! preset value to show no deep or shallow convection
 
       tt(1:ifull,:)=t(1:ifull,:)       
       qq(1:ifull,:)=qg(1:ifull,:)      
-      if(convtime>10.)then                          !  ds-dependent     
-!       following uses convtime_eff(hrs)=convtime(=~60 km)/dx(in km)  
-!       N.B. can give very small factr for small dt &  large dx
-        factr(:)=dt/max(dt,convtime*3.6e6*em(1:ifull)/ds) ! to re-scale convpsav
+      if(convtime>10.)then       
+!       following increases convtime_eff for small grid lengths
+!       e.g. for convtime=15, gives 3600. for 15km, 900. for 60km
+        convtim(:)=convtime*3.6e6*em(1:ifull)/ds
       elseif(convtime<0.)then         
-!       convtimx decreases during convection, after it starts    
+!       convtim decreases during convection, after it starts    
         do iq=1,ifull 
-         convtimx=max(abs(convtime)-(timeconv(iq)-mdelay/3600.),0.)
-         factr(iq)=dt/max(dt,convtimx*3600.) 
+         convtim(:)=3600.*
+     &              max(abs(convtime)-(timeconv(iq)-mdelay/3600.),0.)
         enddo
       else                                          ! original option
-        factr(:)=dt/max(dt,convtime*3600.)          ! to re-scale convpsav
-!     testing linear from -15 to 0 to 15:  1 to 4 to 1
-c       do iq=1,ifull
-c	  convmax=convtime*max(1.,1.+(15.-abs(rlatt(iq)*180./3.14))/5.)
-c        factr(iq)=dt/max(dt,convmax*3600.)          ! to re-scale convpsav
-c	 enddo
+        convtim(:)=3600.*convtime
       endif  ! (convtime>10.) .. else ..
+      factr(:)=dt/max(dt,convtim(:))          ! to re-scale convpsav
 c     following modification was found to be not much use
 c     do iq=1,ifull
 c       k=kb_sav(iq)
@@ -152,8 +154,8 @@ c     enddo
 !_____________________beginning of convective calculations________________
       do itn=1,iterconv
 !     calculate geopotential height 
-      kb_sav(:)=kl     ! preset value for no convection
-      kt_sav(:)=kl     ! preset value for no convection
+      kb_sav(:)=kl-1   ! preset value for no convection
+      kt_sav(:)=kl-1   ! preset value for no convection
       rnrtcn(:)=0.     ! initialize convective rainfall array (pre convpsav)
       convpsav(:)=0.
       dels(:,:)=1.e-20
@@ -183,18 +185,14 @@ c       calculate hs
       enddo   ! k loop
 
       if(ktau==1.and.mydiag)then
-       print *,'itn,iterconv,nuvconv ',
-     .          itn,iterconv,nuvconv
-       print *,'methdetr,detrain,detrainx,dsig2,dsig4 ',
-     .          methdetr,detrain,detrainx,dsig2,dsig4
-       print *,'methprec,fldown ',
-     .          methprec,fldown
-       print *,'nfluxq,nfluxdsk,nalfs ',
-     .          nfluxq,nfluxdsk,nalfs
-       print *,'alfcon,alflnd,alfsea ',alfcon,alflnd,alfsea
-       write (6,"('alfqq_l ',12f7.3/(8x,12f7.3))") alfqq_l   ! max is 18f7.3
-       write (6,"('alfqq_s ',12f7.3/(8x,12f7.3))") alfqq_s
-       write (6,"('alfss   ',12f7.3/(8x,12f7.3))") alfss
+        print *,'itn,iterconv,nuvconv ',itn,iterconv,nuvconv
+        print *,'methdetr,detrain,detrainx,dsig2,dsig4 ',
+     .           methdetr,detrain,detrainx,dsig2,dsig4
+        print *,'methprec,fldown ',methprec,fldown
+        print *,'nfluxq,nfluxdsk ',nfluxq,nfluxdsk
+        print *,'alflnd,alfsea ',alflnd,alfsea
+        print *,'cfraclim,convtim,factr ',
+     &           cfraclim(idjd),convtim(idjd),factr(idjd)
       endif
       if((ntest>0.or.diag.or.nmaxpr==1).and.mydiag) then
         print *,'near beginning of convjlm loop; ktau,itn,id,jd: ',
@@ -212,11 +210,7 @@ c       calculate hs
          q0(k)=qq(idjd,k)
          t0(k)=tt(idjd,k)
          pwater0=pwater0-dsig(k)*qg(idjd,k)*ps(idjd)/grav
-         if(land(iq))then
-           qbass(k)=alfqq_l(k)*qq(iq,k)+alfqq1_l(k)*qq(iq,1) 
-         else
-           qbass(k)=alfqq_s(k)*qq(iq,k)+alfqq1_s(k)*qq(iq,1) 
-         endif
+         qbass(k)=alfqarr(k)*qq(iq,k)
          qbass(k)=min(qbass(k),max(qq(iq,k),qs(iq,k)))  ! added 3/6/03
         enddo
         write (6,"('qbas ',12f7.3/(5x,12f7.3))") 1000.*qbass(:)
@@ -249,42 +243,18 @@ c       calculate hs
           if(qq(iq,k-1)<=rh_arr(iq)*qs(iq,k-1))kdown(iq)=0
          enddo
        endif
-       if(mbase>0)then
+       if(mbase.ne.0)then
 !        cfrac has both stratif & conv from previous timestep	
          do iq=1,ifull
-          if(cfrac(iq,k)<.01*mbase)kdown(iq)=0
+          if(cfrac(iq,k)<cfraclim(iq))kdown(iq)=0
          enddo
-       endif  ! (mbase>0)
-       if(mbase<0)then
-!        cfrac has both stratif & conv from previous timestep	
-         do iq=1,ifull
-          dskm=.001*ds/em(iq)
-!         mbase=-80 gives .9, .8, .6, .2, .1 for 8, 16, 32, 64, 72 km
-!         mbase=-40 gives .9, .8, .6, .2, .1 for 4,  8, 16, 32, 36 km
-!         mbase=-16 gives .9, .8, .5, .2, .1 for 2,  4,  8, 16, 32, 36 km
-!          cfraclim=max(1.+dskm/mbase,.1)
-!        superseded by
-!         mbase=-22 gives  .78, .462, .275, .1 for 4, 8, 16, 62 km
-          cfraclim=min(1.,max(.1,-.1*mbase/sqrt(sqrt(dskm*dskm**2))))
-          if(cfrac(iq,k)<cfraclim)kdown(iq)=0
-!         next line added 13/1/06 because of cfrac problems in newrain
-c          if(cfrac(iq,k)<cfraclim.
-c     &                     and.qq(iq,k)<.95*qs(iq,k))kdown(iq)=0
-         enddo
-       endif  ! (mbase<0)
+       endif  ! (mbase.ne.0)
        do iq=1,ifull
 !       find tentative cloud base, and bottom of below-cloud layer
         if(kdown(iq)==1)then   ! kdown just 0 or 1 here
-          if(land(iq))then
-            qbas=alfqq_l(k-1)*qq(iq,k-1)+alfqq1_l(k-1)*qq(iq,1) 
-            alfq=alfqq_l(k-1)   
-          else
-            qbas=alfqq_s(k-1)*qq(iq,k-1)+alfqq1_s(k-1)*qq(iq,1) 
-            alfq=alfqq_s(k-1)   
-          endif  ! (land(iq)) .. else ..
+          qbas=alfqarr(iq)*qq(iq,k-1)
           qbas=min(qbas,max(qs(iq,k-1),qq(iq,k-1)))    ! added 3/6/03
-          alfs=alfss(k-1)  ! simple one
-          sbas=alfs*s(iq,k-1)+(1.-alfs)*s(iq,1) ! e.g. alfs=1.
+          sbas=s(iq,k-1)  ! just for alfs=1.
 !         now choose base layer to also have local max of qbase      
           if(sbas+hl*qbas>max(hs(iq,k),sbase(iq)+hl*qbase(iq)))then
             if(qbas>max(qs(iq,k),qq(iq,k)))then  ! newer qbas test 
@@ -294,25 +264,16 @@ c            if(dpsldt(iq,k)<dsig2)then   ! omega test july '04
               qbase(iq)=qbas
               sbase(iq)=sbas
               kt_sav(iq)=k
-              alfqarr(iq)=alfq    ! for use in flux calc
-              alfsarr(iq)=alfs    ! for use in flux calc
 c            endif   ! (dpsldt(iq,k)<dsig2)
-            endif ! (qbas>max(qs(iq,k),qq(iq,k)))
-          endif   ! (sbas+hl*qbas>hs(iq,k))
-        endif   ! (kdown(iq)==1)
-       enddo    ! iq loop
+            endif    ! (qbas>max(qs(iq,k),qq(iq,k)))
+          endif      ! (sbas+hl*qbas>hs(iq,k))
+        endif        ! (kdown(iq)==1)
+       enddo         ! iq loop
        if(ntest>0.and.mydiag) then
          iq=idjd
-         if(land(iq))then
-           qbas=alfqq_l(k-1)*qq(iq,k-1)+alfqq1_l(k-1)*qq(iq,1) 
-           alfq=alfqq_l(k-1)   
-         else
-           qbas=alfqq_s(k-1)*qq(iq,k-1)+alfqq1_s(k-1)*qq(iq,1) 
-           alfq=alfqq_s(k-1)   
-         endif  ! (land(iq)) .. else ..
+         qbas=alfqarr(iq)*qq(iq,k-1)
          qbas=min(qbas,max(qs(iq,k-1),qq(iq,k-1)))   
-         alfs=alfss(k-1)  ! simple one
-         sbas=alfs*s(iq,k-1)+(1.-alfs)*s(iq,1) 
+         sbas=s(iq,k-1)
          print *,'k,kdown,kb_sav,kt_sav ',
      &            k,kdown(iq),kb_sav(iq),kt_sav(iq)
          print *,'phi(,k-1)/g,pblh ',phi(iq,k-1)/9.806,pblh(iq)
@@ -450,13 +411,12 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
       if((ntest>0.or.diag).and.mydiag)then
         iq=idjd
         entrradd=1.+entr(iq)*(sigmh(kb_sav(iq)+1)-sigmh(kt_sav(iq)))
-        print *,"ktmax,ktsav,entr,entrradd ",
+        print *,'ktmax,ktsav,entr,entrradd ',
      .           ktmax(iq),ktsav(iq),entr(iq),entrradd
-        print *,"ktau,itn,kb_sav,kt_sav,kdown ",
+        print *,'ktau,itn,kb_sav,kt_sav,kdown ',
      .           ktau,itn,kb_sav(iq),kt_sav(iq),kdown(iq)
         print *,'tdown,qdown ',tdown(iq),qdown(iq)
-        print *,"sbase,qbase ",sbase(iq),qbase(iq)
-        print *,'alfqarr,alfsarr ',alfqarr(iq),alfsarr(iq)
+        print *,'sbase,qbase,alfqarr ',sbase(iq),qbase(iq),alfqarr(iq)
         write (6,"('delsa',9f8.0/(5x,9f8.0))")
      &              dels(idjd,1:kt_sav(idjd))
         write (6,"('delqa',3p9f8.3/(5x,9f8.3))")
@@ -624,7 +584,7 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
 !     calculate base mass flux 
       if(nfluxdsk==0)flux_dsk(:)=0. ! default
       do iq=1,ifull
-       if(kb_sav(iq)<kl)then   ! from Oct 03, same answers but more effic.
+       if(kb_sav(iq)<kl-1)then 
 !        prevents withdrawal of unrealistally large moisture, which
 !        may occur from using sequence of thin layers	
          if(nfluxdsk==1)flux_dsk(iq)=dsk(kb_sav(iq))
@@ -650,7 +610,7 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
       enddo     ! iq loop
       if(rhcv>0.)then  ! usually run with rhcv=0.
         do iq=1,ifull
-         if(kb_sav(iq)<kl)then  
+         if(kb_sav(iq)<kl-1)then  
 !          Base limiter: new_qq(kb)=rhcv*new_qs(kb), i.e.
 !          [qq+M*delq]_kb=rhcv*[qs+M*dqsdt*dels/cp]_kb 
            fluxb(iq)=max(0.,(rhcv*qs(iq,kb_sav(iq))-qq(iq,kb_sav(iq)))/ 
@@ -662,7 +622,7 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
       endif    ! (rhcv>0.)
       if(rhcv<0.)then  
         do iq=1,ifull
-         if(kb_sav(iq)<kl)then  
+         if(kb_sav(iq)<kl-1)then  
 !          Base limiter: new_qq(kb)=rh_arr*new_qs(kb), i.e.
 !          [qq+M*delq]_kb=rh_arr*[qs+M*dqsdt*dels/cp]_kb
            fluxb(iq)=max(0.,(rh_arr(iq)*qs(iq,kb_sav(iq)) 
@@ -680,19 +640,9 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
 !                                          = [hs+M*dels+M*hlcp*dels*dqsdt]_k
 !       pre 21/7/04 occasionally got -ve fluxt, for supersaturated layers
         if(k>kb_sav(iq).and.k<=kt_sav(iq))then
-c	   if(          (dels(iq,k)*(1.+hlcp*dqsdt(iq,k))  ! test for Steve
-c     .                -alfsarr(iq)*dels(iq,kb_sav(iq))
-c     .                -alfqarr(iq)*hl*delq(iq,kb_sav(iq)) )==0.)then
-c	     den1=dels(iq,k)*(1.+hlcp*dqsdt(iq,k))
-c	     den2=alfsarr(iq)*dels(iq,kb_sav(iq))
-c	     den3=alfqarr(iq)*hl*delq(iq,kb_sav(iq))
-c           print *,'k,iq,kb_sav(iq),kt_sav(iq),den1,den2,den3 ',
-c     .              k,iq,kb_sav(iq),kt_sav(iq),den1,den2,den3
-c	     stop
-c         endif 
           fluxt(iq,k)=(sbase(iq)+hl*qbase(iq)-hs(iq,k))/
      .                (dels(iq,k)*(1.+hlcp*dqsdt(iq,k))
-     .                -alfsarr(iq)*dels(iq,kb_sav(iq))
+     .                -dels(iq,kb_sav(iq))
      .                -alfqarr(iq)*hl*delq(iq,kb_sav(iq)) ) 
           convpsav(iq)=min(convpsav(iq),max(0.,fluxt(iq,k)))
         endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
@@ -701,7 +651,7 @@ c         endif
         iq=idjd
         if(k>kb_sav(iq).and.k<=kt_sav(iq))then
           den1=dels(iq,k)*(1.+hlcp*dqsdt(iq,k))
-          den2=alfsarr(iq)*dels(iq,kb_sav(iq))
+          den2=dels(iq,kb_sav(iq))
           den3=alfqarr(iq)*hl*delq(iq,kb_sav(iq))
           fluxt_k(k)=(sbase(iq)+hl*qbase(iq)-hs(iq,k))/
      .                (den1-den2-den3) 
@@ -821,20 +771,20 @@ c          if(nums<20)then
         do iq=1,ifull
          if(sigmh(kb_sav(iq)+1)-sigmh(kt_sav(iq)+1)<-sig_ct)then  
            convpsav(iq)=0.         ! N.B. will get same result on later itns
-           if(ktsav(iq)==kl)then
+           if(ktsav(iq)==kl-1)then
              kbsav(iq)=kb_sav(iq) 
              ktsav(iq)=kt_sav(iq)  ! for possible use in vertmix
-           endif  ! (ktsav(iq)==kl)
+           endif  ! (ktsav(iq)==kl-1)
          endif
         enddo  ! iq loop
       else
         do iq=1,ifull
          if(sig(kt_sav(iq))>sig_ct)then  ! typically sig_ct ~ .8
            convpsav(iq)=0.         ! N.B. will get same result on later itns
-           if(ktsav(iq)==kl)then
+           if(ktsav(iq)==kl-1)then
              kbsav(iq)=kb_sav(iq) 
              ktsav(iq)=kt_sav(iq)  ! for possible use in vertmix
-           endif  ! (ktsav(iq)==kl)
+           endif  ! (ktsav(iq)==kl-1)
          endif
         enddo  ! iq loop
       endif    !  (sig_ct<0.).. else ..
@@ -857,10 +807,10 @@ c          if(nums<20)then
       endif  ! (mdelay>0)
       
       do iq=1,ifull
-       if(ktsav(iq)==kl.and.convpsav(iq)>0.)then
+       if(ktsav(iq)==kl-1.and.convpsav(iq)>0.)then
          kbsav(iq)=kb_sav(iq) 
          ktsav(iq)=kt_sav(iq)  
-       endif  ! (ktsav(iq)==kl.and.convpsav(iq)>0.)
+       endif  ! (ktsav(iq)==kl-1.and.convpsav(iq)>0.)
       enddo   ! iq loop
 
       if(itn<iterconv)then 
@@ -1169,10 +1119,10 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
       endif
 
       if(nmaxpr==1.and.mydiag)then
-        write (6,"('ktau,itn,kb_sav,kt_sav,timeconv,factr,'
+        write (6,"('ktau,itn,kb_sav,kt_sav,timeconv,'
      &  'flux_dsk,convpsav ',i5,3i3,2f5.2,2f8.5)")
      &   ktau,itn,kb_sav(idjd),kt_sav(idjd),
-     &   timeconv(idjd),factr(idjd),flux_dsk(idjd),convpsav(idjd)
+     &   timeconv(idjd),flux_dsk(idjd),convpsav(idjd)
       endif
 
       enddo     ! itn=1,iterconv
@@ -1330,11 +1280,7 @@ c           if(evapls>0.)print *,'iq,k,evapls ',iq,k,evapls
          qs(iq,k)=max(.622*es(iq,k)/(pk-es(iq,k)),1.5e-6)  
          s(iq,k)=cp*tt(iq,k)+phi(iq,k)  ! dry static energy
          hs(iq,k)=s(iq,k)+hl*qs(iq,k)   ! saturated moist static energy
-         if(land(iq))then
-           qbass(k)=alfqq_l(k)*qq(iq,k)+alfqq1_l(k)*qq(iq,1) 
-         else
-           qbass(k)=alfqq_s(k)*qq(iq,k)+alfqq1_s(k)*qq(iq,1) 
-         endif
+         qbass(k)=alfqarr(iq)*qq(iq,k)
         enddo   ! k loop
         write (6,"('rh   ',12f7.2/(5x,12f7.2))") 
      .             (100.*qq(idjd,k)/qs(idjd,k),k=1,kl)
@@ -1377,63 +1323,6 @@ c           if(evapls>0.)print *,'iq,k,evapls ',iq,k,evapls
        endif   ! (mydiag) needed here for maxmin
        call maxmin(rnrtc,'rc',ktau,1.,1)
       endif
-      
-!     if(shaltime>0.)then
-!       do iq=1,ifull
-!        if(ktsav(iq)<kl)then
-!          convshal(iq)=convshal(iq)+dt
-!        else
-!          convshal(iq)=0.
-!        endif  ! (ktsav(iq)<kl)
-!       enddo
-!     endif     ! (shaltime>0.)	      
-
-      if(ksc>70.and.ksc<80)then
-       if(ktau==1)then
-!       set ksctop for shallow convection
-        ksctop=1    ! ksctop will be first level below sigksct
-        do while(sig(ksctop+1)>sigksct)  !  e.g. sigksct=.75
-         ksctop=ksctop+1
-        enddo
-        kscbase=1  ! kscbase will be first level above sigkcsb
-        do while(sig(kscbase)>sigkscb.and.sigkscb>0.) ! e.g. sigkscb=.99
-         kscbase=kscbase+1
-        enddo
-        if (mydiag) then
-        print *,'For shallow convection, set in convjlm:'
-        print *,'ksc,kscbase,ksctop,kscsea ',
-     .           ksc,kscbase,ksctop,kscsea
-        write (6,"(' sigkscb,sigksct,tied_con,tied_over,tied_rh:',
-     .       5f8.3)")sigkscb,sigksct,tied_con,tied_over,tied_rh
-        end if
-        do k=1,kl
-         prcpv(k)=sig(k)**(-roncp)
-        enddo  ! k loop
-       endif   ! (ktau==1)
-       if(ksc==79)then    ! resembles ksc=99
-        kt_sav(:)=ktsav(:)  ! as a working array
-        do iq=1,ifull
-         theeb(iq)=prcpv(kscbase)*t(iq,kscbase)*
-     .                  (t(iq,kscbase) + .5*hlcp*qs(iq,kscbase))
-     .                 /(t(iq,kscbase) - .5*hlcp*qs(iq,kscbase))
-        enddo    ! iq loop
-        do k=kscbase+1,ksctop  ! typically kscbase=3 & ksctop=6
-         do iq=1,ifull
-          thee(iq,k)=prcpv(k)*t(iq,k)*(t(iq,k) + .5*hlcp*qs(iq,k))
-     .                         /(t(iq,k) - .5*hlcp*qs(iq,k))
-          if(qg(iq,kscbase)>tied_rh*qs(iq,kscbase).
-     .      and.thee(iq,k)<theeb(iq))then         !  default tied_rh=.75
-            if(kt_sav(iq)==kl)then
-              kbsav(iq)=kscbase
-              ktsav(iq)=k
-!             rk_shal(iq,k-1)=tied_con                
-!             rk_shal(iq,k)=tied_over                 
-            endif
-          endif ! (qg(iq,kscbase)>.....)
-         enddo  ! iq loop
-        enddo   ! end of k=kscbase+1,ksctop loop
-       endif       ! (ksc==79)
-      endif  ! (ksc>70.and.ksc<80)
       
       if(ntest==-1.and.nproc==1.and.ktau==10)then
         do k=1,kl
