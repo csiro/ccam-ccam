@@ -669,7 +669,10 @@ c       just code fully implicit for a start
      &            gasmin(ng)*ps(1:ifull))         -trsav(1:ifull,k,ng) 
           enddo   ! k loop
          call ccglobal_posneg(wrk1,delpos,delneg)
-         ratio = -delneg/delpos
+! rml 17/02/06 suspect divide by zero error because tr=0 at start run
+! rml 17/02/06 copied line from qlg section as solution
+!         ratio = -delneg/delpos
+         ratio = -delneg/max(delpos,1.e-30)
          if(mfix_qg==1)alph_g = min(ratio,sqrt(ratio))  
          if(mfix_qg==2)alph_g = sqrt(ratio)
          do k=1,kl   ! this is cunning 2-sided scheme
