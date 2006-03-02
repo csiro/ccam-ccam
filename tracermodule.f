@@ -28,15 +28,20 @@ c
 
 c ***************************************************************************
       subroutine init_tracer
+      use cc_mpi, only : myid
       implicit none
       character(len=80) :: header
       integer nt
       include 'newmpar.h'
       include 'tracers.h'
+      character(len=80) :: tempname  ! Temp file name
 
-
-      open(unit=unit_trout,file=trout,form='formatted')
+      if ( myid == 0 ) then
+        open(unit=unit_trout,file=trout,form='formatted')
+      end if
 c     first read in a list of tracers, then determine what emission data is required
+!     Each processor read this, perhaps not necessary?
+
       open(unit=130,file=tracerlist,form='formatted')
       read(130,*) header
       read(130,*) numtracer
@@ -64,8 +69,10 @@ c     first read in a list of tracers, then determine what emission data is requ
         else
           tracinterp(nt)=0
         endif
-        write(unit_trout,999) 'Tracer ',nt,tracname(nt),tractype(nt),
-     &tracfile(nt),tracinterp(nt)
+         if ( myid == 0 ) then
+          write(unit_trout,999) 'Tracer ',nt,tracname(nt),tractype(nt),
+     &                           tracfile(nt),tracinterp(nt)
+        end if
  999    format(a7,i5,a13,a13,a50,i3)
 c
       enddo
@@ -80,6 +87,7 @@ c     initialise array for monthly average tracer
 c ***********************************************************************
       subroutine tracini
 c     initial value now read from tracerlist 
+      use cc_mpi, only : myid
       implicit none
       include 'newmpar.h'
       include 'tracers.h'
@@ -88,8 +96,10 @@ c     initial value now read from tracerlist
       do i=1,ngas
         tr(:,:,i)=tracival(i)
       enddo
-      write(unit_trout,*) 'tracini: ',tracival
-      write(unit_trout,*) 'tracini: ',tr(1,1,:)
+      if ( myid == 0 ) then
+        write(unit_trout,*) 'tracini: ',tracival
+        write(unit_trout,*) 'tracini: ',tr(1,1,:)
+      end if
 
       if( iradon.ne.0.) then
         tr(:,:,max(1,iradon))=0.
@@ -105,6 +115,7 @@ c     list file
       implicit none
       include 'newmpar.h'
       include 'tracers.h'
+      include 'parm.h'
       real ajunk(3)
       integer nt,jyear,jmonth,kdate
 c
@@ -135,6 +146,7 @@ c           daily, 3 hourly, hourly
 c *************************************************************************
       subroutine readrco2(igas,iyr,imon,nflux,fluxin,co2time)
 c     rml 23/09/03 largely rewritten to use netcdf files
+      use cc_mpi
       implicit none
       include 'newmpar.h' !il,jl,kl
       include 'parm.h' !nperday
@@ -149,12 +161,14 @@ c     rml 25/08/04 added fluxunit variable
 c     nflux =3 for month interp case - last month, this month, next month
 c     nflux=31*24+2 for daily, hourly, 3 hourly case
       real fluxin(il*jl,nflux),co2time(nflux),hr
-      integer ncidfl,timedim,ntime,yearid,monthid,fluxid,hourid
-      integer nregdim,nregion,dayid,regnum,lc,ierr
+      integer ncidfl,timedim,yearid,monthid,fluxid,hourid
+      integer nregdim,nregion,dayid,ierr
       integer, dimension(:), allocatable :: fluxyr,fluxmon
       real, dimension(:), allocatable :: fluxhr
       integer start(3),count(3)
+      real fluxin_g(ifull_g,nflux)
       include 'netcdf.inc'
+      include 'mpif.h'
 
       fluxtype=tractype(igas)
       fluxname=tracname(igas)
@@ -166,7 +180,9 @@ c       no surface fluxes to read
         fluxin = 0.
         tracunit(igas)=''
         return
-      else
+      end if
+
+      if ( myid == 0 ) then ! Read on this processor and then distribute
         write(unit_trout,*)'reading ',trim(fluxname), ' with type ', 
      &  trim(fluxtype),' for ',iyr,imon,' from ',filename
         ierr = nf_open(filename,0,ncidfl)
@@ -268,26 +284,33 @@ c               keep flux constant at ends of data
             enddo
           endif
 c
-          write(unit_trout,*) 'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
+          if ( myid == 0 ) then
+           write(unit_trout,*)'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
+          end if
           if (ncur.eq.0) stop 'current year/month not in flux file'
 c    
-          fluxin=0.
+          fluxin_g=0.
           start(1)=1
-          count(1)=il*jl; count(2)=1
+          count(1)=ifull_g; count(2)=1
 c         read preceeding month if needed
           if (nprev.ne.0) then
             start(2)=nprev
-            ierr=nf_get_vara_real(ncidfl,fluxid,start,count,fluxin(:,1))
+            if (igas==7)print*, "Reading prev", start(:2), count(2)
+            ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
+     &                            fluxin_g(:,1))
             if (ierr.ne.nf_noerr) stop 'error reading fluxin prev'
           endif
 c         read current month/year
           start(2)=ncur
-          ierr=nf_get_vara_real(ncidfl,fluxid,start,count,fluxin(:,2))
+          if (igas==7)print*, "Reading curr", start(:2), count(2)
+          ierr=nf_get_vara_real(ncidfl,fluxid,start,count,fluxin_g(:,2))
           if (ierr.ne.nf_noerr) stop 'error reading fluxin cur'
 c         read next month
           if (nnext.ne.0) then
             start(2)=nnext
-            ierr=nf_get_vara_real(ncidfl,fluxid,start,count,fluxin(:,3))
+          if (igas==7)print*, "Reading next", start(:2), count(2)
+            ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
+     &                            fluxin_g(:,3))
             if (ierr.ne.nf_noerr) stop 'error reading fluxin next'
           endif
         else
@@ -311,11 +334,11 @@ c         find last time in month
             endif
           enddo
 c         read fluxes
-          start(1)=1; count(1)=il*jl
+          start(1)=1; count(1)=ifull_g
           ntot=n2-n1+1
           start(2)=n1; count(2)=ntot
           ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
-     &                                fluxin(:,2:ntot+1))
+     &                                fluxin_g(:,2:ntot+1))
           if (ierr.ne.nf_noerr) stop 'error reading fluxin '
 c         read in last time of prev month and first time of next month
           if ((n1.eq.1).and.(fluxyr(n1).eq.0)) then
@@ -328,7 +351,7 @@ c           keep constant
             nprev=n1-1
           endif
           start(2)=nprev; count(2)=1
-          ierr=nf_get_vara_real(ncidfl,fluxid,start,count,fluxin(:,1))
+          ierr=nf_get_vara_real(ncidfl,fluxid,start,count,fluxin_g(:,1))
           if (ierr.ne.nf_noerr) stop 'error reading fluxin '
           if ((n2.eq.ntime).and.(fluxyr(n2).eq.0)) then
             nnext=1
@@ -339,7 +362,7 @@ c           keep constant
           endif
           start(2)=nnext; count(2)=1
           ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
-     &                                      fluxin(:,ntot+2))
+     &                                      fluxin_g(:,ntot+2))
           if (ierr.ne.nf_noerr) stop 'error reading fluxin '
 c
 c         need to make an array with the hour data in
@@ -357,30 +380,56 @@ c         read sunrise/sunset times for this month, region from file
           start(1)=regnum; start(2)=imon; start(3)=1
           count(1)=1; count(2)=1; count(3)=2
           ierr=nf_get_vara_real(ncidfl,dayid,start,count,
-     & tracdaytime(igas,:))
+     &                          tracdaytime(igas,:))
           if (ierr.ne.nf_noerr) stop 'error reading daylight '
-c         count number of timesteps that source emitting for
-          kount=0
-          do n=1,nperday
-            hr = 24.*float(n)/float(nperday)
-            if (tracdaytime(igas,1).lt.tracdaytime(igas,2) .and.
-     &          tracdaytime(igas,1).le.hr .and.
-     &          tracdaytime(igas,2).ge.hr) kount=kount+1 
-            if (tracdaytime(igas,1).gt.tracdaytime(igas,2) .and.
-     &          (tracdaytime(igas,1).le.hr .or.
-     &          tracdaytime(igas,2).ge.hr)) kount=kount+1 
-          enddo
-c         scale flux to allow for emission over fraction of day
-c         just set flux to zero if no daylight
-          if (kount.ne.0) then
-            fluxin = fluxin*float(nperday)/float(kount)
-          else
-            fluxin = 0.
-          endif
-        endif
+        end if
+
         ierr = nf_close(ncidfl)
-        return
+
+        ! Should be more careful here, probably don't need the full range of
+        ! the second dimension all the time.
+        call ccmpi_distribute(fluxin,fluxin_g)
+
+      else ! myid /= 0
+        call ccmpi_distribute(fluxin)
+      end if !myid == 0
+
+!     Simple broadcast for co2 time
+      call MPI_Bcast(co2time,nflux,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+!     Also need to share tracunit, tractype, and tracname. MPI_character. Total length
+!     of the array
+      call MPI_Bcast(tracunit,13*numtracer,MPI_CHARACTER,0,
+     &               MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(tractype,13*numtracer,MPI_CHARACTER,0,
+     &               MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(tracname,13*numtracer,MPI_CHARACTER,0,
+     &               MPI_COMM_WORLD,ierr)
+      
+      if (trim(fluxtype).eq.'daypulseon') then
+
+        call MPI_Bcast(tracdaytime(igas,:),2,MPI_REAL,0,MPI_COMM_WORLD,
+     &                 ierr)
+
+c       count number of timesteps that source emitting for
+        kount=0
+        do n=1,nperday
+          hr = 24.*float(n)/float(nperday)
+          if (tracdaytime(igas,1).lt.tracdaytime(igas,2) .and.
+     &        tracdaytime(igas,1).le.hr .and.
+     &        tracdaytime(igas,2).ge.hr) kount=kount+1 
+          if (tracdaytime(igas,1).gt.tracdaytime(igas,2) .and.
+     &        (tracdaytime(igas,1).le.hr .or.
+     &        tracdaytime(igas,2).ge.hr)) kount=kount+1 
+        enddo
+c       scale flux to allow for emission over fraction of day
+c       just set flux to zero if no daylight
+        if (kount.ne.0) then
+          fluxin = fluxin*float(nperday)/float(kount)
+        else
+          fluxin = 0.
+        endif
       endif
+
       end subroutine
 
 c *************************************************************************
@@ -391,6 +440,7 @@ c     co2em123(:,1,:) contains prev month, co2em123(:,2,:) current month/year
 c     co2em123(:,3,:) next month
 c eak 19/11/03 interpolation of rlai included  
 c        set up monthly first as have to do rlai anyway
+      use cc_mpi, only : myid
       implicit none
       include 'newmpar.h' !kl needed for parm.h
       include 'parm.h' !ktau,nperday
@@ -432,11 +482,15 @@ c       second half of month
              igh=igashr(igas)
              if (ktau.eq.1) nghr(igh)=1
              found=.false.
-             write(unit_trout,*) 'igas: ',igas,'igashr: ',igh
-             write(unit_trout,*) 'hrmodel: ',hrmodel
+             if ( myid==0 ) then
+               write(unit_trout,*) 'igas: ',igas,'igashr: ',igh
+               write(unit_trout,*) 'hrmodel: ',hrmodel
+             end if
              do while (.not.found)
-               write(unit_trout,*) nghr(igh),co2hr(nghr(igh),igh),
+               if ( myid==0 ) then
+                 write(unit_trout,*) nghr(igh),co2hr(nghr(igh),igh),
      &                    co2hr(nghr(igh)+1,igh)
+               end if
                if ((hrmodel.gt.co2hr(nghr(igh),igh)).and.
      &           (hrmodel.le.co2hr(nghr(igh)+1,igh))) then
                  found = .true.
@@ -459,6 +513,8 @@ c                this error check only useful for hourly resolution
 c ***************************************************************************
       subroutine tracer_mass(ktau,ntau)
 c     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
+      use cc_mpi
+      use sumdd_m
       implicit none
       include 'newmpar.h'
       include 'const_phys.h' ! rearth,fc_molm,fair_molm
@@ -466,24 +522,58 @@ c     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
       include 'sigs.h'     ! dsig
       include 'xyzinfo.h'  ! wts
       include 'tracers.h'  ! tr
-      integer i,k,ktau,ntau,igas
+      include 'mpif.h'
+      integer it,iq,k,ktau,ntau,igas,ierr
 
-      trmass=0
-      do i=1,ifull
-        do k=1,kl
-          trmass(:) = trmass(:) + tr(i,k,:)*ps(i)*dsig(k)*wts(i)
-        enddo
-      enddo
+      real ::trmass_l(ngas)
+#ifdef sumdd
+       complex :: local_sum(ngas), global_sum(ngas)
+!      Temporary array for the drpdr_local function
+       real, dimension(ifull) :: tmparr
+#endif
+
+       trmass_l = 0.
+#ifdef sumdd
+       local_sum = (0.,0.)
+#endif
+       do it=1,ngas
+          do k=1,kl
+             do iq=1,ifull
+#ifdef sumdd         
+                tmparr(iq)  = tr(iq,k,it)*dsig(k)*ps(iq)**wts(iq)
+#else
+                trmass_l(it) = trmass_l(it) +
+     &                          tr(iq,k,it)*dsig(k)*ps(iq)**wts(iq)
+#endif
+             end do
+          end do
+#ifdef sumdd
+          call drpdr_local(tmparr, local_sum(it))
+#endif
+       end do ! it
+
+#ifdef sumdd
+       call MPI_Allreduce ( local_sum, global_sum, ngas, 
+     &                     MPI_COMPLEX, MPI_SUMDR, MPI_COMM_WORLD, ierr)
+       trmass = real(global_sum)
+#else
+       call MPI_Allreduce ( trmass_l, trmass, ngas, MPI_REAL,
+     &                      MPI_SUM, MPI_COMM_WORLD, ierr )
+#endif
+
+
 c     scaling assumes CO2 with output in GtC?
-      if (ngas.gt.6) then
-        write(unit_trout,*) 'Trmass: ',ktau,
-     &  -1*trmass(1:6)*4.*3.14159*(rearth**2)*fC_MolM/
+      if ( myid == 0 ) then
+         if (ngas.gt.6) then
+            write(unit_trout,*) 'Trmass: ',ktau,
+     &        -1*trmass(1:6)*4.*3.14159*(rearth**2)*fC_MolM/
      &          (grav*1e18*fAIR_MolM)
-      else
-        write(unit_trout,*) 'Trmass: ',ktau,
-     &  -1*trmass(:)*4.*3.14159*(rearth**2)*fC_MolM/
+         else
+            write(unit_trout,*) 'Trmass: ',ktau,
+     &        -1*trmass(:)*4.*3.14159*(rearth**2)*fC_MolM/
      &         (grav*1e18*fAIR_MolM)
-      endif
+         endif
+      end if
 
 c     also update tracer average array here
       do igas=1,ngas

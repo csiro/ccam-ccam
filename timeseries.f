@@ -63,21 +63,28 @@ c
 c     rml 25/08/03 subroutine to read file containing list of sites for 
 c     timeseries output and to open netcdf file for output and 
 c     write dimensions etc.
+c     All processors read this list and select the points in their own
+c     region.
 c
+      use cc_mpi, only : myid, indv_mpi, fproc, ipan
       use tracermodule, only : sitefile
       implicit none
       integer kount,kountprof,n,kount500
       integer ierr,ntrac
       integer griddim,ijkdim,timedim,tracdim,gridid,dims(3)
       integer surfdim,gridsurfid
+      integer gridorderid, surforderid
       integer, allocatable, dimension(:,:) :: templist
+      integer, allocatable, dimension(:) :: gridorder, surforder
       integer i,i1,nn,k,ntop
-      character*13 outfile
+      character*20 outfile
       character*8 chtemp
       character*80 head
+      integer :: ig, jg, tmpval ! Better name for this
       include 'netcdf.inc'
       include 'dates.h'
       include 'newmpar.h'  ! kl
+      integer ip, nface, ii, jj, iqg, istn, jstn
 
 c     read file of site locations for timeseries output
       open(88,file=sitefile,form='formatted', status='unknown')
@@ -85,15 +92,44 @@ c     read file of site locations for timeseries output
 c     number of gridpoints and output frequency (number of timesteps)
       read(88,*) ngrdpts1,ntsfreq
       allocate(templist(ngrdpts1,3))
+      if ( nproc > 1 ) then
+        allocate(surforder(ngrdpts1) )
+      end if
       kountprof=0
       kount500=0
-      do k=1,ngrdpts1
-        read(88,*) i,i1,(templist(k,nn),nn=1,3)
-c       check if any profiles requested
-        if (templist(k,3).eq.99) kountprof=kountprof+1
-        if (templist(k,3).eq.98) kount500=kount500+1
+
+      ! Read list of point locations, selecting those that are in
+      ! this processor's region.
+      ! Perhaps need to have an additional netcdf variable for ip, so
+      ! that the original order can be reconstructed from the multiple files.
+      k = 0
+      do ip=1,ngrdpts1
+        read(88,*) i,i1,ig,jg,tmpval
+        ! Convert to local indices. Same code used in indata for stations.
+        ! Should be generalised to a routine?
+        nface=(jg-1)/il_g
+!       Note that the second argument to fproc is the j index on the
+!       face, not the global j index,   
+        if ( fproc(ig,jg - nface*il_g,nface) == myid ) then
+           ! Point is in my region
+           iqg = ig + (jg-1)*il_g
+           ! Local indices on this processor
+           call indv_mpi(iqg,ii,jj,n)
+           k = k + 1
+           istn = ii
+           jstn = jj+(n-1)*ipan
+           templist(k,:) = (/ istn, jstn, tmpval /)
+c          check if any profiles requested
+           if (templist(k,3).eq.99) kountprof=kountprof+1
+           if (templist(k,3).eq.98) kount500=kount500+1
+           ! Define order variable to allow merging the separate processor files
+           if ( nproc > 1 ) surforder(k) = ip
+        end if
       enddo
-c     read in additional variables to output besides tracer
+
+      ngrdpts1 = k ! Reset to the actual number I have
+
+c     Read in any additional variables to output besides tracer
       n2d=0
       n3d=0
       read(88,*,end=880) head
@@ -114,6 +150,9 @@ c     read in additional variables to output besides tracer
       ngrdpts = ngrdpts1 + kountprof*(kl-1) + kount500*8
       allocate(listijk(ngrdpts,3))
       allocate(writesurf(ngrdpts))
+      if ( nproc > 1 ) then
+        allocate(gridorder(ngrdpts) )
+      end if
       kount = 0
       do k=1,ngrdpts1
 c     rml 11/11/05 add '98' option for all levels to ~500 hPa
@@ -132,11 +171,13 @@ c     rml 11/11/05 add '98' option for all levels to ~500 hPa
             else
               writesurf(kount) = .false.
             endif
+            if ( nproc > 1 ) gridorder(kount) = surforder(k)
           enddo
         else
           kount = kount + 1
           listijk(kount,:) = templist(k,:)
           writesurf(kount) = .true.
+          if ( nproc > 1 ) gridorder(kount) = surforder(k)
         endif
       enddo
       if (kount.ne.ngrdpts) stop 'location file: kount.ne.ngrdpts'
@@ -145,7 +186,13 @@ c     deallocate(templist)
 c
 c     open netcdf file for writing output
       write(chtemp,'(i8)') kdate
-      outfile = 'ts.'//chtemp(1:4)//'.'//chtemp(5:6)//'.nc'
+      if ( nproc == 1 ) then
+        outfile = 'ts.'//chtemp(1:4)//'.'//chtemp(5:6)//'.nc'
+      else
+!       Include a 2 digid processor number in the file
+        write(outfile,'(a,a,a,a,a, i2.2,a)') 'ts.', chtemp(1:4), '.',
+     &     chtemp(5:6), '.p', myid, '.nc'
+      end if
       ierr = nf_create(outfile,0,tsid(1))
       if (ierr.ne.nf_noerr) stop 'create ts file failed'
 c     define dimensions
@@ -165,6 +212,17 @@ c     define variables
       dims(1)=surfdim; dims(2)=ijkdim
       ierr = nf_def_var(tsid(1),'gridsurf',nf_int,2,dims,gridsurfid)
       if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
+
+      if ( nproc > 1 ) then
+        dims(1)=griddim
+        ierr = nf_def_var(tsid(1),'gridorder',nf_int,1,dims,
+     &                    gridorderid)
+        if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
+        dims(1)=surfdim
+        ierr = nf_def_var(tsid(1),'surforder',nf_int,1,dims,surforderid)
+        if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
+      end if
+
       ierr = nf_def_var(tsid(1),'time',nf_double,1,timedim,tsid(2))
       if (ierr.ne.nf_noerr) stop 'timeseries: tstime var error'
       dims(1)=griddim; dims(2)=tracdim; dims(3)=timedim
@@ -197,8 +255,16 @@ c
 c     write grid point arrays
       ierr = nf_put_var_int(tsid(1),gridid,listijk)
       if (ierr.ne.nf_noerr) stop 'error writing grid'
-      ierr = nf_put_var_int(tsid(1),gridsurfid,templist)
+      ! Need explicit section of templist here, because array may have
+      ! been allocated larger
+      ierr = nf_put_var_int(tsid(1),gridsurfid,templist(:ngrdpts1,:))
       if (ierr.ne.nf_noerr) stop 'error writing gridsurf'
+      if ( nproc > 1 ) then
+        ierr = nf_put_var_int(tsid(1),gridorderid,gridorder(1:ngrdpts))
+        if (ierr.ne.nf_noerr) stop 'error writing gridorder'
+        ierr = nf_put_var_int(tsid(1),surforderid,surforder(1:ngrdpts1))
+        if (ierr.ne.nf_noerr) stop 'error writing surforder'
+      end if
       ierr = nf_sync(tsid(1))
       deallocate(templist)
 c
@@ -244,7 +310,7 @@ c
       real temparr2(il*jl,kl),temparr(il*jl)
 
       if (mod(ktau,ntsfreq).eq.0) then
-        tstime = float(jyear) + mins/(365.*24.*60.)
+        tstime = dble(jyear) + dble(mins)/dble(365.*24.*60.)
         ierr = nf_put_var1_double(tsid(1),tsid(2),indextime,tstime)
         if (ierr.ne.nf_noerr) stop ': error writing tstime'
         allocate(cts(ngrdpts,ntrac))
@@ -386,9 +452,14 @@ c
       real dt
       character*15 outfile2
       character*8 chtemp
+      include 'newmpar.h'
       include 'netcdf.inc'
       include 'dates.h'
 c
+      if ( nproc > 1 ) then
+         print*, "Error, parallel version of shiplist not yet working"
+         stop
+      end if
 c     open file with ship locations
       ok = nf_open(shipfile,0,inshipid(1))
       if (ok.ne.nf_noerr) stop 'readshiplist: open file failure'
