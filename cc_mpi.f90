@@ -401,12 +401,17 @@ contains
 
    subroutine ccmpi_distribute3(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
-      real, dimension(ifull,kl), intent(out) :: af
-      real, dimension(ifull_g,kl), intent(in), optional :: a1
+      ! This is also used for tracers, so second dimension is not necessarily
+      ! the number of levels
+      ! real, dimension(ifull,kl), intent(out) :: af
+      ! real, dimension(ifull_g,kl), intent(in), optional :: a1
+      real, dimension(:,:), intent(out) :: af
+      real, dimension(:,:), intent(in), optional :: a1
       integer :: i, j, n, iq, iqg, itag=0, iproc, ierr, count
       integer, dimension(MPI_STATUS_SIZE) :: status
-!     Note ipfull = ipan*jpan*npan
-      real, dimension(ipan*jpan*npan,kl) :: sbuf
+!     Note ipfull = ipan*jpan*npan. Isn't this just ifull?
+!     Check?
+      real, dimension(ipan*jpan*npan,size(af,2)) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
@@ -445,16 +450,16 @@ contains
                   end do
                end do
             end do
-            call MPI_SSend( sbuf, slen*kl, MPI_REAL, iproc, itag, &
+            call MPI_SSend( sbuf, size(sbuf), MPI_REAL, iproc, itag, &
                             MPI_COMM_WORLD, ierr )
          end do
       else ! myid /= 0
-         call MPI_Recv( af, ipan*jpan*npan*kl, MPI_REAL, 0, itag, &
+         call MPI_Recv( af, size(af), MPI_REAL, 0, itag, &
                         MPI_COMM_WORLD, status, ierr )
          ! Check that the length is the expected value.
          call MPI_Get_count(status, MPI_REAL, count, ierr)
-         if ( count /= ifull*kl ) then
-            print*, "Error, wrong length in ccmpi_distribute", myid, ifull*kl, count
+         if ( count /= size(af) ) then
+            print*, "Error, wrong length in ccmpi_distribute", myid, size(af), count
             call MPI_Abort(MPI_COMM_WORLD)
          end if
 
