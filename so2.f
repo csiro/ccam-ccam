@@ -158,8 +158,8 @@ c ----  from a list of point sources
       include 'newmpar.h'
       include 'const_phys.h'
       include 'arrays.h'
-      include 'map.h'
       include 'nsibd.h'
+      include 'soil.h'
       include 'tracers.h'
       common/work3/vmixarrs(ifull,kl,3),trsrc(ifull,kl),spare(ifull,kl)
       logical firstcall
@@ -198,11 +198,11 @@ c     data    firstcall/.true./,j/1/,k/1/
       include 'const_phys.h'
       include 'newmpar.h'
       include 'arrays.h'
-      include 'map.h'
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'		! ktau
 c      include 'rain.h'		! dsig
       include 'sigs.h'		! dsig
+      include 'soil.h'
       include 'tracers.h'
       common/work3/vmixarrs(ifull,kl,3),trsrc(ifull,kl),spare(ifull,kl)
 

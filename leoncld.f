@@ -11,17 +11,15 @@
       include 'cparams.h'    !Input cloud scheme parameters
 
       include 'arrays.h'
-c     include 'constant.h'
       include 'dava.h'    ! davt
       include 'kuocom.h'  ! acon,bcon,Rcm
       include 'latlong.h' ! rlatt,rlongg
-      include 'map.h'     ! land
       include 'morepbl.h'
       include 'nlin.h'
       include 'parm.h'
       include 'prec.h'
       include 'sigs.h'
-      include 'soil.h'
+      include 'soil.h'    ! land
       include 'tracers.h'  ! ngas, nllp, ntrac
       include 'vvel.h'
 

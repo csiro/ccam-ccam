@@ -22,9 +22,10 @@
       include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       include 'const_phys.h'
       include 'latlong.h'  ! rlatt,rlongg,
-      include 'map.h'  ! zs,land & used for giving info after all setxyz
+c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       include 'parm.h'
       include 'sigs.h'
+      include 'soil.h'
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
       include 'tracers.h'
       include 'vecsuv_g.h'
@@ -43,7 +44,7 @@
       real, dimension(ifull_g) :: u_g, v_g, t_g, qg_g, uc, vc, wc,
      &                            ucc, vcc, wcc, uct, vct, wct
       real, dimension(ifull_g) :: ax_s, ay_s, az_s, bx_s, by_s, bz_s
-      real, dimension(ifull) :: zs_t, tss_l, tss_s, pmsl
+      real, dimension(ifull) :: tss_l, tss_s, pmsl
       logical, dimension(ifull) :: land_t
       real, dimension(ifull_g,4) :: xg4, yg4
       integer, dimension(ifull_g,4) :: nface4
@@ -74,7 +75,7 @@
       rlat0_t=rlat0
       schmidt_t=schmidt
       ds_t=ds
-      zs_t(:)=zs(1:ifull)
+c     zs_t(:)=zs(1:ifull)
       land_t(:)=land(:)  
 
 c     start of processing loop 
@@ -466,7 +467,7 @@ c     incorporate other target land mask effects
       end if
 
 !     restore target zs and land arrays
-      zs(1:ifull) = zs_t(:)
+c     zs(1:ifull) = zs_t(:)
       land(:) = land_t(:)  
 
       rlong0=rlong0_t

@@ -26,6 +26,7 @@ c     include 'arrays.h'    ! t
       include 'parm.h'      ! ktau,dt
       include 'permsurf.h'
       include 'soilsnow.h'
+      include 'soil.h'      ! land
       include 'soilv.h'
       include 'nsibd.h'     ! soilm
       include 'morepbl.h'   ! need runoff
@@ -215,7 +216,7 @@ c            smass(iq,2)=max(0.,.45*(snowd(iq)-smass(iq,1)))  ! jlm fix
        endif
       enddo   ! land points
 
-      if((ntest>0.or.diag).and.mydiag)then 
+      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
         print *,'in soilsnowv before stempv,  ktau= ',ktau
         print *,'ga,dt,ssdn ',ga(idjd),dt,(ssdn(idjd,k),k=1,3)
         print *,'osnowd,snowd,isflag',
@@ -300,7 +301,7 @@ c       endif
 
       call surfbv
 
-      if((ntest>0.or.diag).and.mydiag)then 
+      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
         print *,'after surfbv,isflag ',isflag(idjd)
         print *,'tgg ',(tgg(idjd,k),k=1,ms)
         print *,'wb ',(wb(idjd,k),k=1,ms)
@@ -350,7 +351,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
       if(ktau==1.and.mydiag)then
         print *,'ncondxpr,nglacier ',ncondxpr,nglacier
       endif
-      if((ntest>0.or.diag).and.mydiag)then 
+      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
         print *,'entering surfbv  condxpr',condxpr(idjd)
         print *,'osnowd,snowd,isflag',
      .           osnowd(idjd),snowd(idjd),isflag(idjd)
@@ -503,7 +504,7 @@ c            prevent snow depth going negative
        fwtop(iq)=weting/dt-segg
       enddo               ! ip loop
 
-      if((ntest>0.or.diag).and.mydiag)then 
+      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
         print *,'in surfbv before smoisturev  condxpr',condxpr(idjd)
         print *,'osnowd,snowd,isflag',
      .           osnowd(idjd),snowd(idjd),isflag(idjd)
@@ -513,7 +514,7 @@ c            prevent snow depth going negative
 
       call smoisturev
 
-      if((ntest>0.or.diag).and.mydiag)then 
+      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
         print *,'in surfbv after smoisturev '
         print *,'osnowd,snowd,isflag,ssat,runoff',
      .    osnowd(idjd),snowd(idjd),isflag(idjd),
@@ -574,7 +575,7 @@ c----      change local tg to account for energy - clearly not best method
 	 enddo    ! iq loop
       endif     ! (nglacier==2)
 
-      if((ntest>0.or.diag).and.mydiag)then 
+      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
         iq=idjd
         print *,'end surfbv  rnof1,runoff ',rnof1(idjd),runoff(idjd)
         sgamm   = ssdn(iq,1)*2105. * sdepth(iq,1)
@@ -603,6 +604,7 @@ c***********************************************************************
       include 'parm.h'      ! ktau,dt
       include 'permsurf.h'
       include 'soilsnow.h'
+      include 'soil.h'      ! land
       include 'soilv.h'
       real at(ifull,kl),ct(ifull,kl)   ! assume kl >= ms+3
       equivalence (at,un),(ct,vn)
@@ -640,7 +642,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
         enddo
         print *,'in smoisturev; nmeth,ntest = ',nmeth,ntest  
       endif  ! (ktau==1)
-      if((ntest>0.or.diag).and.mydiag)then 
+      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
         isoil=isoilm(idjd)
         print *,'entering smoisturev i2bp3,swilt,sfc,ssat: ',
      .                i2bp3(isoil),swilt(isoil),sfc(isoil),ssat(isoil)
@@ -768,7 +770,7 @@ c             iqmn=iq
 c           endif
 c          enddo
 c        endif
-        if((ntest>0.or.diag).and.mydiag)then 
+        if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
 	   print *,'midway through nmeth<=0'
 	   print *,'fluxh ',(fluxh(iq,k),k=1,ms)
           write (6,"('wb   ',6f8.3)") (wb(idjd,k),k=1,ms)
@@ -989,7 +991,7 @@ c       rhs(1) = wblf(iq,1)      ! for A
         wbice(iq,k)=min(wbice(iq,k),.99*wb(iq,k))
        enddo
       enddo
-      if((ntest>0.or.diag).and.mydiag)then 
+      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
         print *,'at end of smoisturev,fwtop ',fwtop(idjd)
         print *,'tgg ',(tgg(idjd,k),k=1,ms)
         write (6,"('wb   ',6f8.3)") (wb(idjd,k),k=1,ms)
@@ -1019,6 +1021,7 @@ c***********************************************************************
       include 'nlin.h'
       include 'parm.h'      ! ktau,dt
       include 'permsurf.h'
+      include 'soil.h'      ! land
       include 'soilsnow.h'
       include 'soilv.h'
       include 'nsibd.h'
@@ -1243,7 +1246,7 @@ c      endif ! (myid==0.and.nmaxpr==1)
        sgflux(iq)=coefa(iq)*(tggsn(iq,1)-tggsn(iq,2))
        gflux(iq) =coefb(iq)*(  tgg(iq,1)-  tgg(iq,2))  ! +ve downwards
       enddo   ! ip=1,ipland           land points
-      if((ntest>0.or.diag).and.mydiag)then 
+      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
         print *,'at end of stempv '
 	 write (6,"('wb   ',6f8.3)") (wb(idjd,k),k=1,ms)
 	 write (6,"('wbice',6f8.3)") (wbice(idjd,k),k=1,ms)
@@ -1262,6 +1265,7 @@ c***********************************************************************
       include 'newmpar.h'   
       include 'const_phys.h'
       include 'parm.h'      ! ktau,dt
+      include 'soil.h'      ! land
       include 'soilsnow.h'
       include 'soilv.h'
       include 'nsibd.h'

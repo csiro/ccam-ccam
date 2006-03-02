@@ -1885,10 +1885,10 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
      &       "     fg     eg    fgg    egg    rnet   sg   qg1",
      &       "   uu     vv   precc qg2  rh1   rh2   co2_1 co2_2",
      &       " rad_1 rad_2  ps   wbav   epot qgscrn   rh_s  u10 uscrn")
-              isoil=isoilm(iq)
-               write (iunp(nn),953) land(iq),isoil,ivegt(iq),zo(iq),
+              write (iunp(nn),953) land(iq),isoilm(iq),ivegt(iq),zo(iq),
      &                              zs(iq)/grav
-953            format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
+953           format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
+              isoil=max(1,isoilm(iq))
                write (iunp(nn),954) sigmf(iq),swilt(isoil),sfc(isoil),
      &                              ssat(isoil),alb(iq)
 954            format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)

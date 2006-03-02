@@ -9,17 +9,16 @@
 !     start of a month, is updated to 2 at end of first day etc.)
 !     imo is the number of the month we are in (1<=imo<=12)
       include 'newmpar.h'
-      include 'arrays.h'   ! ts, t, u, v, psl, ps
+      include 'arrays.h'    ! ts, t, u, v, psl, ps, zs
       include 'dates.h'     !  kdate,ktime,timer,mtimer
       include 'filnames.h'  ! list of files
       include 'latlong.h'
-      include 'map.h'       ! zs land
       include 'nsibd.h'     ! sib, tsigmf, isoilm
       include 'parm.h'      ! id,jd
       include 'pbl.h'       ! tss
-      include 'permsurf.h' ! iperm etc
-      include 'soil.h'      ! sicedep,tice, fracice alb
-      include 'soilsnow.h' ! new soil arrays for scam - tgg too
+      include 'permsurf.h'  ! iperm etc
+      include 'soil.h'      ! ,tice, alb
+      include 'soilsnow.h'  ! fracice,sicedep
       include 'mpif.h'
       real, save, dimension(ifull_g) ::  ssta_g, sstb_g, aice_g, bice_g
       real, save, dimension(ifull) :: ssta, sstb, aice, bice

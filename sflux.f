@@ -28,7 +28,7 @@ c     cp specific heat at constant pressure joule/kgm/deg
       include 'extraout.h' ! ustar
       include 'gdrag.h'
       include 'liqwpar.h'  ! qfg,qlg
-      include 'map.h'      ! land
+c     include 'map.h'      ! land
       include 'morepbl.h'  ! condx,fg,eg
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
@@ -117,7 +117,7 @@ c     zobgin = .05   ! jlm: NB seems to be .01 in csiro9. Mar '05: in parm.h
        taftfh(:)=.05        ! just a diag default for sea points
        taftfhg(:)=7.e-4     ! just a diag default for sea points
        if(nrungcm==3)then   ! for runs for PIRCS
-        if (mydiag) print *,'entering sflux w2: ',wb(idjd,ms)
+        if (mydiag) print *,'entering sflux w_ms: ',wb(idjd,ms)
 c       due to uncertainty about NCEP value of field capacity, it may be
 c       more appropriate to define it as 75% of ssat (for PIRCS93)
         sfc(2)=.75*ssat(2)
@@ -130,12 +130,12 @@ c        code where eta provided (e.g. for PIRCS)
          wb(iq,1)=swilt(isoil)+wb(iq,1)*(sfc(isoil)-swilt(isoil))
          wb(iq,ms)=swilt(isoil)+wb(iq,ms)*(sfc(isoil)-swilt(isoil))
         enddo        !  ip=1,ipland
-        if (mydiag) print *,'then w2: ',wb(idjd,ms)
+        if (mydiag) print *,'then w_ms: ',wb(idjd,ms)
        endif     !  (ktau==1).
       endif      !  (nrungcm==3)
 
       if (diag.or.ntest==1) then
-        if (mydiag) then
+        if (mydiag.and.land(idjd)) then
           print *,'entering sflux ktau,nsib,ivegt,isoilm,land '
      .         ,ktau,nsib,ivegt(idjd),isoilm(idjd),land(idjd)
           print *,'idjd,id,jd,slwa,sgsave ',
@@ -314,7 +314,7 @@ c     section to update pan temperatures
        endif  ! (land(iq))
       enddo   ! iq loop
 
-      if(nmaxpr==1.and.mydiag)then
+      if(nmaxpr==1.and.mydiag.and.land(idjd))then
         iq=idjd
         write (6,"('after sea loop zo,fg,tpan,epan,ri,fh,vmod',
      &    9f9.4)") zo(idjd),fg(idjd),tpan(idjd),epan(idjd),
@@ -724,7 +724,7 @@ c***  end of surface updating loop
       include 'extraout.h'
       include 'latlong.h'  ! rlatt,rlongg
       include 'liqwpar.h'  ! qfg,qlg
-      include 'map.h'
+c     include 'map.h'
       include 'morepbl.h'
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
@@ -797,7 +797,7 @@ c        code where eta provided (e.g. for PIRCS)
 !eak         wbavst(iq)=0.
         enddo         ! ip=1,ipland
 
-        if ( mydiag ) then
+        if ( mydiag.and.land(idjd) ) then
            iveg=ivegt(idjd)
            isoil = isoilm(idjd)
            tsoil=0.5*(0.3333*tgg(idjd,2)+0.6667*tgg(idjd,3)
@@ -974,12 +974,6 @@ c      sensible heat flux
         do ip=1,ipland  ! all land points in this nsib=3 loop
          iq=iperm(ip)
          isoil = isoilm(iq)
-c         betaa=min(.2,.2*(wb(iq,1)/swilt(isoil))**2)
-c         betab=max(min(betaa,.2),(.2*(sfc(isoil)-wb(iq,1))+
-c     .          .8*(wb(iq,1)-swilt(isoil)))/(sfc(isoil)-swilt(isoil)))  
-c         betac=max(.8,(.8*(ssat(isoil)-wb(iq,1))+  
-c     .             (wb(iq,1)-sfc(isoil)))/(ssat(isoil)-sfc(isoil)))
-c         wetfac(iq)=min(max(betaa,betab),betac)
          wetfac(iq)=.2*(wb(iq,1)/swilt(isoil))**2
          if(wb(iq,1)>swilt(isoil))then
           wetfac(iq)=(.2*(sfc(isoil)-wb(iq,1))+
@@ -989,18 +983,6 @@ c         wetfac(iq)=min(max(betaa,betab),betac)
            wetfac(iq)=(.8*(ssat(isoil)-wb(iq,1))+  
      .                   (wb(iq,1)-sfc(isoil)))/(ssat(isoil)-sfc(isoil))
          endif
-c	  if(wb(iq,1)>swilt(isoil).and.betaa>betab)then
-c	    print *,'iq,wb,swilt,sfc,ssat ',
-c     .              iq,wb(iq,1),swilt(isoil),sfc(isoil),ssat(isoil)
-c	    print *,'betaa,betab,betac,wetfac ',
-c     .              betaa,betab,betac,wetfac(iq)
-c         endif
-c	  if(wetfac(iq)<0.)then
-c	    print *,'iq,wb,swilt,sfc,ssat ',
-c     .              iq,wb(iq,1),swilt(isoil),sfc(isoil),ssat(isoil)
-c	    print *,'betaa,betab,betac,wetfac ',
-c     .              betaa,betab,betac,wetfac(iq)
-c         endif
         enddo   ! ip=1,ipland
       endif     ! (nbarewet==7)
 
@@ -1045,7 +1027,7 @@ c        following reduces degdt by factor of 10 for dew
          degdt(iq)=.55*deg+sign(.45*deg,qtgnet)
         enddo   ! ip=1,ipland
       endif    ! (nalpha==1) .. else ..
-      if((ntest==1.or.diag).and.mydiag)then 
+      if((ntest==1.or.diag).and.mydiag.and.land(idjd))then 
           iq=idjd
           print *,'epot,egg,tgg1,snowd ',
      .             epot(iq),egg(iq),tgg(iq,1),snowd(iq)
@@ -1340,15 +1322,15 @@ c        tgfnew(iq)=otgf(iq)+
 c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
          enddo  ! ip loop
          if((ntest==2.or.diag).and.mydiag)then 
-           if(ktau==99999)then  ! to track rmc & ewww underflow
-             print *,'sflux icount = ',icount
-             do ip=1,ipland  
-              iq=iperm(ip)
-              print *,'iq,otgf,tgfnew,ewww ',
-     &                 iq,otgf(iq),tgfnew(iq),ewww(iq)
-             enddo
-           endif
-         if(land(idjd))then
+          if(ktau==99999)then  ! to track rmc & ewww underflow
+            print *,'sflux icount = ',icount
+            do ip=1,ipland  
+             iq=iperm(ip)
+             print *,'iq,otgf,tgfnew,ewww ',
+     &                iq,otgf(iq),tgfnew(iq),ewww(iq)
+            enddo
+          endif
+          if(land(idjd))then
            iq=idjd
            print *,'ktau,icount,iq,omc,cc ',
      &              ktau,icount,iq,omc(iq),cc(iq)
@@ -1369,7 +1351,7 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
      .              rdg(iq),fgf(iq),evapxf(iq),evapfb(iq)
            print *,'delta_tx ',delta_tx(iq)
            print *,'otgf,tgfnew,residf ',otgf(iq),tgfnew(iq),residf(iq)
-           endif ! (land(idjd))
+          endif  ! (land(idjd))
          endif   ! ((ntest==2.or.diag).and.mydiag)
        enddo     !  icount=1,5
       endif      ! (itnmeth>0) 
@@ -1401,7 +1383,7 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
        fes(iq)=(1.-tsigmf(iq))*egg(iq)*cls(iq)  ! also passed to soilsnow
        otgsoil(iq)=isflag(iq)*tggsn(iq,1) + (1-isflag(iq))*tgg(iq,1)
       enddo  !  ip=1,ipland
-      if((ntest==1.or.diag).and.mydiag)then 
+      if((ntest==1.or.diag).and.mydiag.and.land(idjd))then 
          iq=idjd
          isoil = isoilm(iq)
          iveg=ivegt(iq)
@@ -1494,7 +1476,7 @@ c                                               combined fluxes
 
       enddo   ! ip=1,ipland
 
-      if((ntest==1.or.diag).and.mydiag)then 
+      if((ntest==1.or.diag).and.mydiag.and.land(idjd))then 
         iq=idjd
         print *,'even further down sib3 after soilsnowv'
         print *,'tgg ',(tgg(iq,k),k=1,ms)

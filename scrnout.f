@@ -17,7 +17,7 @@
       include 'arrays.h'
       include 'const_phys.h'
       include 'liqwpar.h'  ! ifullw,qfg,qlg  just for diags
-      include 'map.h'
+c     include 'map.h'
       include 'morepbl.h'  ! condx,fg,eg
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'

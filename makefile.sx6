@@ -49,7 +49,7 @@ infile.o:infile.f
 
 # Dependencies
 adjust5.o : adjust5.f xyzinfo.h xarrs.h vvel.h vecsuva.h vecsuv.h vecs.h tracers.h sigs.h pbl.h parmvert.h parmdyn.h parm.h nlin.h morepbl.h map.h liqwpar.h kuocom.h indices.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o 
-amipsst.o : amipsst.f soilsnow.h soil.h pbl.h parm.h nsibd.h map.h filnames.h dates.h arrays.h newmpar.h cc_mpi.o 
+amipsst.o : amipsst.f soilsnow.h soil.h pbl.h parm.h nsibd.h filnames.h dates.h arrays.h newmpar.h cc_mpi.o 
 bett_cuc.o : bett_cuc.f betts1.h newmpar.h 
 bettinit.o : bettinit.f betts1.h newmpar.h 
 bettrain.o : bettrain.f betts1.h newmpar.h 
@@ -57,18 +57,18 @@ betts.o : betts.f sigs.h prec.h parm.h morepbl.h betts1.h newmpar.h
 bettspli.o : bettspli.f 
 cldblk.o : cldblk.f 
 cldcom.o : cldcom.f 
-clddia.o : clddia.f vvel.h soil.h sigs.h pbl.h parm.h morepbl.h map.h kuocom.h davb.h const_phys.h arrays.h newmpar.h cc_mpi.o 
+clddia.o : clddia.f vvel.h soil.h sigs.h pbl.h parm.h morepbl.h kuocom.h davb.h const_phys.h arrays.h newmpar.h cc_mpi.o 
 cldset.o : cldset.f const_phys.h 
 clo89.o : clo89.f cldcom.h radisw.h rdparm.h newmpar.h 
 cloud2.o : cloud2.f radisw.h hcon.h rdparm.h params.h kuocom.h cparams.h const_phys.h newmpar.h 
 cloud.o : cloud.f radisw.h rdparm.h parm.h extraout.h newmpar.h 
 Co2blk.o : co2blk.f 
 co2dta.o : co2dta.f 
-co2.o : co2.f vvel.h sigs.h pbl.h trcom2.h tracers.h soilsnow.h scamdim.h parm.h nsibd.h map.h extraout.h dates.h const_phys.h arrays.h aalat.h newmpar.h cc_mpi.o 
+co2.o : co2.f vvel.h sigs.h pbl.h trcom2.h tracers.h soilsnow.h scamdim.h parm.h nsibd.h extraout.h dates.h const_phys.h arrays.h aalat.h newmpar.h cc_mpi.o 
 co2_read.o : co2_read.f radisw.h co2dta.h rdparm.h newmpar.h cc_mpi.o 
 co2trn.o : co2trn.f 
 conjob.o : conjob.f establ.h tracers.h soil.h sigs.h prec.h parm.h nlin.h morepbl.h kuocom.h dava.h const_phys.h arrays.h newmpar.h 
-convjlm.o : convjlm.f establ.h vvel.h tracers.h soil.h sigs.h prec.h parm.h nlin.h morepbl.h map.h liqwpar.h latlong.h kuocom.h dava.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o 
+convjlm.o : convjlm.f establ.h vvel.h tracers.h soil.h sigs.h prec.h parm.h nlin.h morepbl.h liqwpar.h latlong.h kuocom.h dava.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o 
 davies.o : davies.f dates.h sigs.h parm.h davb.h dava.h arrays.h newmpar.h cc_mpi.o 
 depts.o : depts.f bigxy4.h xyzinfo.h vecsuv.h parm.h map.h indices.h const_phys.h newmpar.h cc_mpi.o 
 drive.o : drive.f 
@@ -96,7 +96,7 @@ int2.o : int2.f newmpar.h
 ints.o : ints.f indices.h parmhor.h parm.h newmpar.h cc_mpi.o 
 jimcc.o : jimcc.f bigxy4.h parm.h newmpar_gx.h 
 latltoij.o : latltoij.f parmdyn.h parm.h const_phys.h bigxy4.h newmpar.h utilities.o 
-leoncld.o : leoncld.f establ.h vvel.h tracers.h soil.h sigs.h prec.h parm.h nlin.h morepbl.h map.h latlong.h kuocom.h dava.h arrays.h cparams.h const_phys.h liqwpar.h newmpar.h cc_mpi.o diag_m.o 
+leoncld.o : leoncld.f establ.h vvel.h tracers.h soil.h sigs.h prec.h parm.h nlin.h morepbl.h latlong.h kuocom.h dava.h arrays.h cparams.h const_phys.h liqwpar.h newmpar.h cc_mpi.o diag_m.o 
 lwr88.o : lwr88.f tfcom.h rnddta.h kdacom.h co2dta.h radisw.h rdparm.h parm.h hcon.h newmpar.h 
 mslp.o : mslp.f sigs.h parm.h const_phys.h newmpar.h cc_mpi.o 
 mtimerget.o : mtimerget.f 
@@ -106,21 +106,21 @@ newrain.o : newrain.f params.h morepbl.h kuocom.h cparams.h const_phys.h newmpar
 nonlin.o : nonlin.f xyzinfo.h xarrs.h vvel.h vecsuv.h tracers.h sigs.h savuvt.h parmvert.h parmdyn.h parm.h nlin.h morepbl.h map.h latlong.h liqwpar.h kuocom.h indices.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o 
 o3_read.o : o3_read.f newmpar.h 
 o3set.o : o3set.f const_phys.h newmpar.h 
-onthefly.o : onthefly.f indices.h indices_g.h xyzinfo_g.h vvel.h vecsuv_g.h tracers.h stime.h sigs.h parm_nqg.h parm.h map.h latlong.h const_phys.h bigxy4.h newmpar.h utilities.o cc_mpi.o 
+onthefly.o : onthefly.f indices.h indices_g.h soil.h xyzinfo_g.h vvel.h vecsuv_g.h tracers.h stime.h sigs.h parm_nqg.h parm.h latlong.h const_phys.h bigxy4.h newmpar.h utilities.o cc_mpi.o 
 outcdf.o : outcdf.f vvel.h version.h trcom2.h soilv.h soilsnow.h soil.h sigs.h screen.h scamdim.h raddiag.h prec.h pbl.h nsibd.h morepbl.h mapproj.h map.h histave.h extraout.h arrays.h aalat.h tracers.h parmvert.h parmhor.h parmdyn.h parm.h liqwpar.h kuocom.h filnames.h dates.h darcdf.h newmpar.h cc_mpi.o 
 outfile.o : outfile.f vvel.h tracers.h soilsnow.h soilv.h soil.h sigs.h screen.h scamdim.h prec.h pbl.h parmvert.h parmdyn.h parm.h nsibd.h nlin.h morepbl.h map.h kuocom.h histave.h filnames.h extraout.h dava.h dates.h darcdf.h arrays.h aalat.h newmpar.h cc_mpi.o 
-pbldif.o : pbldif.f map.h sigs.h parm.h morepbl.h kuocom.h extraout.h const_phys.h arrays.h newmpar.h 
-radriv90.o : radriv90.f establ.h tfcom.h swocom.h srccom.h rdflux.h raddiag.h radisw.h lwout.h hcon.h cldcom.h rdparm.h soilv.h soilsnow.h soil.h sigs.h scamdim.h pbl.h parm.h nsibd.h map.h liqwpar.h latlong.h kuocom.h extraout.h dates.h cparams.h const_phys.h arrays.h aalat.h newmpar.h zenith.o swr99.o 
+pbldif.o : pbldif.f sigs.h soil.h parm.h morepbl.h kuocom.h extraout.h const_phys.h arrays.h newmpar.h 
+radriv90.o : radriv90.f establ.h tfcom.h swocom.h srccom.h rdflux.h raddiag.h radisw.h lwout.h hcon.h cldcom.h rdparm.h soilv.h soilsnow.h soil.h sigs.h scamdim.h pbl.h parm.h nsibd.h liqwpar.h latlong.h kuocom.h extraout.h dates.h cparams.h const_phys.h arrays.h aalat.h newmpar.h zenith.o swr99.o 
 rdparm.o : rdparm.f 
 read_ht.o : read_ht.f 
 resetd.o : resetd.f 
 retopo.o : retopo.f sigs.h parm.h const_phys.h newmpar.h cc_mpi.o 
 rnddta.o : rnddta.f 
 scamrdn.o : scamrdn.f soilv.h soilsnow.h soil.h sigs.h scamdim.h pbl.h parm.h nsibd.h filnames.h const_phys.h arrays.h newmpar.h 
-scrnout.o : scrnout.f establ.h soilsnow.h soil.h sigs.h scamdim.h prec.h pbl.h parm.h nsibd.h map.h liqwpar.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o morepbl.h
+scrnout.o : scrnout.f establ.h soilsnow.h soil.h sigs.h scamdim.h prec.h pbl.h parm.h nsibd.h liqwpar.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o morepbl.h
 setxyz.o : setxyz.f bigxy4.h indices_gx.h vecsuv_gx.h xyzinfo_gx.h parm.h map_gx.h latlong_gx.h const_phys.h newmpar_gx.h utilities.o 
-sflux.o : sflux.f latlong.h dates.h establ.h vvel.h trcom2.h tracers.h soilsnow.h soilv.h soil.h sigs.h screen.h scamdim.h savuvt.h prec.h permsurf.h pbl.h parm.h nsibd.h morepbl.h map.h liqwpar.h gdrag.h extraout.h const_phys.h arrays.h newmpar.h cc_mpi.o diag_m.o 
-so2.o : so2.f map.h nsibd.h arrays.h sigs.h parm.h tracers.h newmpar.h const_phys.h 
+sflux.o : sflux.f latlong.h dates.h establ.h vvel.h trcom2.h tracers.h soilsnow.h soilv.h soil.h sigs.h screen.h scamdim.h savuvt.h prec.h permsurf.h pbl.h parm.h nsibd.h morepbl.h liqwpar.h gdrag.h extraout.h const_phys.h arrays.h newmpar.h cc_mpi.o diag_m.o 
+so2.o : so2.f nsibd.h arrays.h sigs.h soil.h parm.h tracers.h newmpar.h const_phys.h 
 soilsnow.o : soilsnow.f nlin.h soil.h sigs.h arrays.h morepbl.h nsibd.h soilv.h soilsnow.h permsurf.h parm.h const_phys.h newmpar.h diag_m.o cc_mpi.o 
 solargh.o : solargh.f 
 spa88.o : spa88.f lwout.h cldcom.h tfcom.h kdacom.h srccom.h rdflux.h rnddta.h radisw.h rdparm.h hcon.h newmpar.h 

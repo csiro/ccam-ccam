@@ -48,10 +48,11 @@ C-----------------------------------------------------------------------
       include 'const_phys.h'
       include 'extraout.h'     !ustar
       include 'kuocom.h'
+      include 'map.h'          !f (coriolis)
       include 'morepbl.h'      !fg,eg
       include 'parm.h'         !dtin
       include 'sigs.h'         !sig,sigmh
-      include 'map.h'          !f (coriolis)
+      include 'soil.h'         !land
 C------------------------------Arguments--------------------------------
 C
 C Input arguments:u,v,fg,eg,theta,ustar,uav,vav

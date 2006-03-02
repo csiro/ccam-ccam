@@ -8,11 +8,11 @@ c                 as well as co2vmix  and other gases
       include 'const_phys.h'
       include 'dates.h'     ! timeg
       include 'extraout.h'
-      include 'map.h'       ! zs,land
+c     include 'map.h'       ! zs,land
       include 'nsibd.h'     ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'      ! nsib parameter passed
       include 'scamdim.h'
-c     include 'soil.h'
+      include 'soil.h'
       include 'soilsnow.h'  ! tgg,wb,snowd
       include 'tracers.h'
       include 'trcom2.h' ! nstn,slat,slon,istn,jstn, nstn2 etc.
@@ -155,11 +155,11 @@ c       be called before the o2 routines
       include 'aalat.h'
       include 'arrays.h'
       include 'extraout.h'
-      include 'map.h'
+c     include 'map.h'
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'scamdim.h'
       include 'sigs.h'     ! sigmh
-c     include 'soil.h'
+      include 'soil.h'
       include 'soilsnow.h'  ! tgg,wb,snowd
       include 'tracers.h'
       include 'trcom2.h'   ! itrace,nstn,slat,slon,istn,jstn

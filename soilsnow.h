@@ -1,10 +1,13 @@
 !     this one forces tggsn to directly precede tgg
+      real fracice,sicedep
       real tggsn, tgg, wb, wbice, smass, ssdn, ssdnn, snowd, osnowd,
      &     snage, sno, gflux, sgflux,snowflx, otgsoil
       integer isflag
 
       common /soilcom/
-     .     tggsn(ifull,3) ! snow temperatures
+     .     fracice(ifull) ! sea-ice fraction
+     .   , sicedep(ifull) ! sea-ice depth
+     .   , tggsn(ifull,3) ! snow temperatures
      .   , tgg(ifull,ms)  ! soil temperature (in K)
      .   , wb(ifull,ms)   ! soil moisture (volumetric)
      .   , wbice(ifull,ms)! soil ice

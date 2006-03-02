@@ -30,14 +30,13 @@
       include 'kuocom.h'     ! also with kbsav,ktsav
       include 'latlong.h'    ! rlatt,rlongg
       include 'liqwpar.h'    ! ifullw
-      include 'map.h'        ! land
       include 'nsibd.h'      ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
       include 'pbl.h'
       include 'scamdim.h'
       include 'sigs.h'
-      include 'soil.h'      ! rhgdum ... zmin  sicedep alb
-      include 'soilsnow.h'  ! tgg,wb,snowd
+      include 'soil.h'      ! land, rhgdum ... zmin  alb
+      include 'soilsnow.h'  ! sicedep tgg,wb,snowd
       include 'soilv.h'
 !     For the radiation code
       include 'rdparm.h'   ! imax
