@@ -70,6 +70,8 @@
       integer itype, ilen, ier, ierr, ik, jk, k, ndim, nvars, ngatts,
      &        nulid, nd, isiz, ix, iy, narch, idy, imo, iyr, ihr,
      &        mtimer_in, iq, idv
+!     rml 16/02/06 declare igas integer
+      integer igas
       real dss, timer
       entry infil(nested,kdate_r,ktime_r,timeg_r,ds_r,
      .                  psl,zs,tss,sicedep,fracice,t,u,v,qg)
@@ -499,6 +501,16 @@ c	   only being tested for nested=0; no need to test for mesonest
          call histrd1(ncid,iarchi,ier,'sflag',ik,jk,tmp)
          isflag(:)=nint(tmp(:))
         endif  ! (ier.ne.0) ... else ...   for smass1
+
+!       rml 16/02/06 read tracer from restart for up to 999 tracers
+        if (ngas>0) then
+          do igas=1,ngas
+            write(trnum,'(i3.3)') igas
+            call histrd4(ncid,iarchi,ier,'tr'//trnum,ik,jk,kk,
+     &                   tr(1:ifull,:,igas))
+          enddo
+        endif
+
         if(mydiag)then
           print *,'at end of newin kdate,ktime,ktau,tss: ',
      &                             kdate_r,ktime_r,ktau,tss(idjd)

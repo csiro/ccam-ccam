@@ -626,23 +626,20 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         call attrib(idnc,idim,3,'iwp_ave',lname,'kg/m2',0.,2.,0)
         lname = 'Avg liquid water path'
         call attrib(idnc,idim,3,'lwp_ave',lname,'kg/m2',0.,2.,0)
-        if(ngas>0)then 
+
+!       rml 16/02/06 set attributes for trNNN and travNNN
+        if (ngas>0) then 
          do igas=1,ngas
-          write(numba,'(i2.2)') igas
-!         N.B. may need to set trmax manually if starting with zero concentration	 
-          trmax=1.  ! N.B. trmax only set first time, with iarch=1
-          if(igas==iRADON)trmax=1000.  ! typical large value is 1000.
-          trmin=gasmin(igas)
-          do k=1,kl
-           do iq=1,ifull
-            trmax=max(trmax,tr(iq,k,igas))
-           enddo
-          enddo!k
-          trmax=1.5*trmax  ! for safety during the coming month
-          lname = 'Tracer'//numba
-          call attrib(idnc,dim,4,'tr'//numba,lname,'ppm',trmin,trmax,0)
+           write(trnum,'(i3.3)') igas
+           trmax=max(1.,10.*maxval(tr(:,:,igas))) !max to avoid trmax and trmin=0
+           trmin=gasmin(igas) !gasmin needed in adjust5, set in tracers.h
+           lname = 'Tracer (inst.) '//trnum
+           call attrib(idnc,dim,4,'tr'//trnum,lname,'ppm',trmin,trmax,0)
+           lname = 'Tracer (average) '//trnum
+           call attrib(idnc,dim,4,'trav'//trnum,lname,'ppm',trmin,trmax
+     &                 ,0)
          enddo ! igas loop
-       endif  ! (ngas>0)
+        endif  ! (ntrac.gt.0)
 
         print *,'3d variables'
         if(nextout>=4)then 
@@ -1000,10 +997,13 @@ c      "extra" outputs
         call histwrt4(qlg(1:ifullw,:),'qlg',idnc,iarch,local)
         call histwrt4(cfrac,'cfrac',idnc,iarch,local)
       endif
+
+!     rml 16/02/06 histwrt4 for trNNN and travNNN
       if(ngas>0)then 
        do igas=1,ngas
-        write(numba,'(i2.2)') igas
-        call histwrt4(tr(1:ilt*jlt,:,igas),'tr'//numba,idnc,iarch,local)
+        write(trnum,'(i3.3)') igas
+        call histwrt4(tr(1:ilt*jlt,:,igas),'tr'//trnum,idnc,iarch,local)
+        call histwrt4(traver(:,:,igas),'trav'//trnum,idnc,iarch,local)
        enddo ! igas loop
       endif  ! (ngasc>0)
 
