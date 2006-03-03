@@ -15,6 +15,11 @@
 !                      v+ve northwards (on the panel)
       use cc_mpi
       use diag_m
+!     rml 21/02/06 removed redundant tracer code (so2/o2 etc)
+!     rml 16/02/06 use tracermodule, timeseries
+      use tracermodule, only :init_tracer,trfiles,tracer_mass,unit_trout
+     &                        ,interp_tracerflux
+      use timeseries, only : write_ts
       implicit none
       include 'newmpar.h'
       include 'aalat.h'
@@ -162,7 +167,7 @@
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
      &    rsmfile,scamfile,scrnfile,snowfile,so4tfile,soilfile,sstfile,
      &    surfile,tmaxfile,tminfile,topofile,trcfil,vegfile,zofile,
-     &    so2emfile,so2depfile,smoistfile,soil2file,radonemfile,
+     &    smoistfile,soil2file,radonemfile,
      &    co2_00,radon_00,surf_00,co2_12,radon_12,surf_12
       namelist/kuonml/alflnd,alfsea
      &        ,cldh_lnd,cldm_lnd,cldl_lnd
@@ -228,6 +233,12 @@
       mins_rad=nint(kountr*dt/60.)  ! redefine to actual value
       read (99, datafile)
       read (99, kuonml)
+!     rml 16/02/06 read trfiles namelist and call init_tracer
+      if (ngas>0) then
+        read(99, trfiles)
+        call init_tracer
+      endif
+
       
       if(nritch>=404)nt_adv=nritch-400  ! for compatibility to nritch=407
       nud_hrs=abs(nud_hrs)    ! from Nov 05
@@ -623,6 +634,9 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       mtimer=mtimer_in+nint(ktau*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
       mins_gmt=mod(mtimer+60*ktime/100,24*60)
       if(nbd.ne.0)call nestin
+
+!     rml 17/02/06 interpolate tracer fluxes to current timestep
+      if (ngas>0) call interp_tracerflux(kdate,hrs_dt)
 
       do 79 mspec=mspeca,1,-1    ! start of introductory time loop
       dtds=dt/ds
@@ -1067,6 +1081,13 @@ c         enddo
 !     calls.
       call phys_loadbal
       call end_log(phys_end)
+
+!     rml 16/02/06 call tracer_mass, write_ts
+      if (ngas>0) then
+        call tracer_mass(ktau,ntau) !also updates average tracer array
+        call write_ts(ktau,ntau,dt)
+      endif
+
 
       if(ndi==-ktau)then
         nmaxpr=1             ! reset 6 lines on
@@ -1679,7 +1700,7 @@ c     initialize file names to something
       data albfile/' '/,icefile/' '/,maskfile/' '/
      &    ,snowfile/' '/,sstfile/' '/,topofile/' '/,zofile/' '/
      &    ,rsmfile/' '/,scamfile/' '/,soilfile/' '/,vegfile/' '/
-     &    ,co2emfile/' '/,so2depfile/' '/,so2emfile/' '/,so4tfile/' '/
+     &    ,co2emfile/' '/,so4tfile/' '/
      &    ,smoistfile/' '/,soil2file/' '/,restfile/' '/
      &    ,radonemfile/' '/,surfile/' '/    ! not in DARLAM
      &    ,co2_00/' '/,radon_00/' '/,surf_00/' '/,co2_12/' '/
@@ -1892,8 +1913,9 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
                write (iunp(nn),954) sigmf(iq),swilt(isoil),sfc(isoil),
      &                              ssat(isoil),alb(iq)
 954            format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
-               write (iunp(nn),955) i,j,ico2em(iqt),radonem(iqt)
-955            format("#i,j,ico2em,radonem: ",2i4,i6,f7.3)
+!              rml 16/02/06 removed ico2em
+               write (iunp(nn),955) i,j,radonem(iqt)
+955            format("#i,j,radonem: ",2i4,i6,f7.3)
              endif
            enddo
       return	    
