@@ -9,7 +9,7 @@
      .       ,khalf,khalfd,khalfp,kt
      .       ,nfluxq,nfluxdsk,nlayers,nlayersd,nlayersp
      .       ,ntest,ntr,nums
-      real Aev,Asb,cfraclim
+      real Aev,Asb
      .    ,convmax,deltaq,delq_av,delt_av
      .    ,den1,den2,den3,detr,dprec,dqrx,dskm
      .    ,entrainp,entrr,entrradd,facuv,fldownn,fluxup
