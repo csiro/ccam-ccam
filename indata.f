@@ -2,6 +2,11 @@
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
       use cc_mpi
       use diag_m
+!     rml 21/02/06 removed all so2 code
+!     rml 16/02/06 use tracermodule, timeseries
+      use tracermodule, only : tracini,readtracerflux,tracvalin,
+     &                         unit_trout
+      use timeseries, only : init_ts
       implicit none
 !     parameter (gwdfac=.02)  ! now .02 for lgwd=2  see below
       integer, parameter :: jlmsigmf=1  ! 1 for jlm fixes to dean's data
@@ -157,12 +162,13 @@
       enddo   ! iq loop
 
       if (myid==0) then
-         print *,'iradon,ico2,iso2,iso4,ich4,io2 ',
-     &            iradon,ico2,iso2,iso4,ich4,io2
+         print *,'iradon,ico2 ',
+     &            iradon,ico2
          print *,'nllp,ngas,ntrac,ilt,jlt,klt ',
      &            nllp,ngas,ntrac,ilt,jlt,klt
       end if
-      if(ngas>0)call tracini  ! set up trace gases
+!  rml 17/02/06 tracini now called after restart read
+!      if(ngas>0)call tracini  ! set up trace gases
 
 !     read in fresh zs, land-sea mask (land where +ve), variances
 !     Need to share iostat around here to do it properly?
@@ -797,6 +803,15 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
          isoilm(iq)=1  ! default for h_s etc
         enddo
       endif      ! (nsib>=1)
+
+!     rml 16/02/06 initialise tr, timeseries output and read tracer fluxes
+      if (ngas>0) then
+!       tracer initialisation (if start of run) after restart read
+        if (tracvalin.ne.-999) call tracini
+        call init_ts(ngas,dt)
+        call readtracerflux(kdate)
+      endif
+
 
 !     nrungcm<0 controls presets for snowd, wb, tgg and other soil variables
 !     they can be: preset/read_in_from_previous_run
@@ -1573,9 +1588,10 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
      &              isoilm(iq),ivegt(iq),
      &              tss(iq),t(iq,1),tgg(iq,2),tgg(iq,ms),
      &              wb(iq,1),wb(iq,ms),
-     &              ico2em(min(iq,ilt*jlt)),radonem(min(iq,ilt*jlt))
+! rml 16/02/06 removed ico2em
+     &              radonem(min(iq,ilt*jlt))
 922      format(i6,2i5,3f8.3,f8.4,l2,f4.1,f7.1,f5.2,2i3,
-     &          4f7.1,2f6.2,i6,f5.2)
+     &          4f7.1,2f6.2,f5.2)
         enddo
        enddo
       endif  ! (nproc==1)
@@ -1773,12 +1789,13 @@ c         if(ivegt(iq)>40)print *,'iq, ivegt ',iq,ivegt(iq)
          if(rdatacheck(land,wb(1,ms),'w2',idatafix,fsoildflt))
      &            mismatch  =.true.
        endif
-       if(ico2>0) then
-         print *,'about to read co2 industrial emission file'
-         call readint(co2emfile,ico2em,ifull)
+!   rml 17/02/06 comment out read co2emfile - now done in tracermodule
+!       if(ico2>0) then
+!         print *,'about to read co2 industrial emission file'
+!         call readint(co2emfile,ico2em,ifull)
 !        if( jdatacheck(land,ico2em,'ico2em',idatafix,ico2dflt))
 !    &     mismatch = .true.
-       end if
+!       end if
 
 !      if(mismatch.and.idatafix==0)      ! stop in indata for veg
 !    &                      stop ' rdnsib: landmask/field mismatch'
@@ -1809,148 +1826,9 @@ c     zobg = .05
         endif
       enddo
 
-!     set sensible default for nso2lev for vertmix, in case so2 not done
-      nso2lev=1
-      if( iso2>0) then
-        print *,'iii3'
-        call rdso2em( so2emfile, iso2em, jso2em, so2em, iso2emindex,
-     &      iso2lev, nso2lev, so2background, nso2slev, nso2sour )
-      end if
-
       return
       end
 
-      subroutine rdso2em( file, iso2em, jso2em, so2em, iso2emindex,
-     &       iso2lev, nso2lev, so2background, nsulfl, ns )
-      include 'newmpar.h'
-      include 'const_phys.h'
-      include 'dates.h'     ! constants such as ds and dt
-      include 'filnames.h'  ! list of files, read in once only in darlam
-      include 'map.h'       ! array em(iq)
-      include 'parm.h'
-      integer iso2em(2,ns), jso2em(ns)
-      integer iso2emindex(ns), iso2lev(0:nsulfl)
-      real    so2em(ns)
-      character sname*34, title*100, file*(*)
-
-       print*, "Error no MPI version of rdso2em yet"
-       stop
-       nso2src = 0
-       open (87,file=so2emfile,status='old',form='formatted')
-       print *,'rdso2em: reading in so2'
-       print *,'!!!!!!!!!!!!!! rdnsib: ds =',ds
-* ds      - the standard latitude grid box length
-* 365.24*24.*60.*60. - number of seconds in a year
-* 1.e6    - kiloton to kg conversion
-* em(iq) - fine grid scaling coeffincient
-       factor = ds*ds*365.24*24.*60.*60./1.0e+06
-* 64.065 molecular weight of so2
-* 28.965 molecular weight of standard dry air
-* 1.0e+09 - conversion to parts per billion
-       factor = factor * 64.065 / 28.965 / 1.0e+09
-       read(87,* )
-       read(87,'(a)' ) title
-       write( *,'(a)' ) title
-       read(87,'(50x,f9.2)',end=30 ) so2background
-       write( *,* ) ' rdso2em: so2 backgroud source value is',
-     &               so2background
-       so2background = so2background/factor
-
-10     read(87,15,end=20 ) sname, rlat, rlon, eso2, height, rmult
-       write(*,15)' '//sname, rlat, rlon, eso2, height, rmult
-15     format(a,f6.2,f9.2,f9.1,9x,f12.0,f14.2)
-       nso2src = nso2src+1
-
-! ri - the index along the parallels axis
-! rj - index along the latitudes axis
-! iso2em - first index along the parallels
-!        - second index along the latitudes
-!        - third index for model sigma levels
-c so2em  - emission values at iso2em grid point
-
-       stop 'call lconij(rlon,rlat,ri,rj,theta)'  ! **** not ready for globpe
-!      write(*,*)' rdso2em: rlat,rlon,ri,rj',rlat,rlon,ri,rj
-!      iso2em(1,nso2src) = ri+.5
-!      iso2em(2,nso2src) = rj+.5
-
-! this is a rough treatment: 500m 3rd level
-!                            250m 2nd level
-!                              0m 1st level
-       if( height>400.) then
-         jso2em(nso2src) = 3
-       else if( height>200.) then
-         jso2em(nso2src) = 2
-       else
-         jso2em(nso2src) = 1
-       end if
-
-       ix = iso2em(1,nso2src)
-       jx = iso2em(2,nso2src)
-!      so2em(nso2src) = rmult*eso2/factor/em(ix,jx)**2
-!        write(*,*) rmult,ix,jx,so2em(nso2src),factor,em(ix,jx)
-       go to 10
-
-20     close(87)
-       write(*,*) '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-       write(*,*) 'rdso2em: read',nso2src,' sources from file ',file
-       write(*,*)
-       write(*,*) '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-
-       write(*,*) 'rdso2em: nsulfl =', nsulfl
-       do i=1,nso2src
-         write(*,'(3i4,1pe12.4)') (iso2em(jj,i),jj=1,2),
-     &                            jso2em(i), so2em(i)
-       end do
-
-! sort the data by levels
-       call iindexx(nso2src,jso2em,iso2emindex )
-       write(*,*) 'rdso2em: after iindexx'
-
-! if the highest level is above nsulfl, then i'm overwriting something --- quit
-      ix0 = jso2em( iso2emindex(nso2src) )
-      if( ix0>nsulfl ) then
-        write(*,*) ' rdso2em: level value out of range: jso2em(iso2emind
-     .ex(nso2src)), iso2emindex(nso2src), nso2src =',
-     &    jso2em( iso2emindex(nso2src) ),iso2emindex(nso2src),nso2src
-          stop 'rdso2em: execution terminated due to error(s) (1)'
-      end if
-
-! index the level range in array iso2em
-      iso2lev(   0 ) = 0
-      iso2lev( ix0 ) = nso2src
-      nso2lev = ix0
-      write(*,*) 'ix0, iso2lev(ix0)',ix0, iso2lev(ix0)
-      do i=nso2src-1, 1, -1
-         ix = jso2em( iso2emindex(i) )
-         if( ix>nsulfl ) then
-           write(*,*) ' rdso2em: level value out of range: jso2em(iso2em
-     .index(i)), iso2emindex(i), i =',
-     &     jso2em( iso2emindex(i) ),iso2emindex(i),i
-           stop 'rdso2em: execution terminated due to error(s) (2)'
-         else if( ix.ne.ix0 ) then
-           iso2lev( ix ) = i
-           ix0 = ix
-           write(*,*) 'ix , iso2lev(ix )',
-     &                 ix, iso2lev(ix)
-         end if
-      end do
-
-       write(*,*) '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-       write(*,*) 'rdso2em: sources after sorting'
-       write(*,*)
-       write(*,*) '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-
-       do i=1,nso2src
-         ix = iso2emindex(i)
-         write(*,'(4i4,1pe12.4)') i,(iso2em(jj,ix),jj=1,2),
-     &                            jso2em(ix), so2em(ix)
-       end do
-
-!      stop 'rdso2em: about to exit routine'
-       return
-
-30     stop 'rdso2em: error in so2 emissions file (background)'
-       end
 
       function rdatacheck( mask,fld,lbl,idfix,val )
       use cc_mpi, only : myid
@@ -2036,75 +1914,8 @@ c so2em  - emission values at iso2em grid point
       return
       end
 
-      subroutine tracini
-! --- provide initial tracer values (may be overwritten by infile)
-      include 'const_phys.h'
-      include 'newmpar.h'
-      include 'parm.h'   ! rlat0, rlong0
-      include 'tracers.h'
-      data fco2/357.0/, fradon/0.0/, fso2/0.0/, fo2/2.1e5/
-      print *,'initialize tracer gases'
-      if( ico2.ne.0.) then
-        if(rlat0>=38.5 .and. rlat0<=39.5
-     &      .and.rlong0>=137.5 .and. rlong0<=138.5)fco2=0.
-        tr(:,:,max(1,ico2))=fco2
-      end if
-
-      if( iradon.ne.0.) then
-        tr(:,:,max(1,iradon))=fradon
-      end if
-
-      if( iso2.ne.0. ) then
-        tr(:,:,max(1,iso2))=fso2
-      end if
-
-      if( io2.ne.0. ) then
-        tr(:,:,max(1,io2))=fo2
-      end if
-      return
-      end
-
-      subroutine iindexx(n,arrin,indx)
-      integer arrin(n),indx(n)
-      integer q
-      do 11 j=1,n
-        indx(j)=j
-11    continue
-      l=n/2+1
-      ir=n
-10    continue
-        if(l>1)then
-          l=l-1
-          indxt=indx(l)
-          q=arrin(indxt)
-        else
-          indxt=indx(ir)
-          q=arrin(indxt)
-          indx(ir)=indx(1)
-          ir=ir-1
-          if(ir==1)then
-            indx(1)=indxt
-            return
-          endif
-        endif
-        i=l
-        j=l+l
-20      if(j<=ir)then
-          if(j<ir)then
-            if(arrin(indx(j))<arrin(indx(j+1)))j=j+1
-          endif
-          if(q<arrin(indx(j)))then
-            indx(i)=indx(j)
-            i=j
-            j=j+j
-          else
-            j=ir+1
-          endif
-        go to 20
-        endif
-        indx(i)=indxt
-      go to 10
-      end
+!   rml 17/02/06 deleted tracini (replaced with tracermodule version)
+!   rml 21/02/06 deleted iindexx as apparently only used by so2 code
 
       subroutine insoil
       use cc_mpi, only : myid
