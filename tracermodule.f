@@ -577,7 +577,7 @@ c     scaling assumes CO2 with output in GtC?
 
 c     also update tracer average array here
       do igas=1,ngas
-        traver(:,:,igas)=traver(:,:,igas)+tr(1:ifull,1:kl,igas)/ntau
+        traver(:,:,igas)=traver(:,:,igas)+tr(1:ilt*jlt,1:klt,igas)/ntau
       enddo
 
 

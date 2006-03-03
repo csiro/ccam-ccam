@@ -16,7 +16,7 @@ c     this routine does the vertical mixing of tracers
       include 'sigs.h'          ! dsig
       include 'tracers.h'       ! tr
       real trsrc(ifull,kl)
-      real updtr(ifull,kl,ngas),at(ifull,kl),ct(ifull,kl)
+      real updtr(ilt*jlt,klt,ngasmax),at(ifull,kl),ct(ifull,kl)
       real trfact,molfact,radfact,co2fact,gasfact
       logical decay
       integer igas
@@ -56,7 +56,7 @@ c rml 08/11/04 add decay flag
         call gasvmix(updtr(:,:,igas), gasfact, igas, decay,trsrc)
       enddo
       call trimt(ngas,at,ct,updtr,0)
-      tr(1:ifull,:,1:ngas)=updtr
+      tr(1:ilt*jlt,:,1:ngasmax)=updtr(1:ilt*jlt,:,1:ngasmax)
       return
       end subroutine
 
@@ -135,8 +135,8 @@ c *****************************************************************
       include 'arrays.h'  ! ps
       include 'tracers.h' ! tr
       include 'parm.h'    ! dt
-      real trsrc(ifull,kl)
-      real temptr(ifull,kl)
+      real trsrc(ilt*jlt,kl)
+      real temptr(ilt*jlt,kl)
 c rml 08/11/04 decay flag to all decay for radon
       logical decay
       real drate,fluxfact
@@ -150,9 +150,9 @@ c indicate that radon and need decay
         drate = 1.
       endif
 c
-      temptr(:,1) = tr(1:ifull,1,igas)*drate 
-     &              - fluxfact*trsrc(:,1)/ps(1:ifull)
-      temptr(:,2:kl) = tr(1:ifull,2:kl,igas)*drate 
+      temptr(:,1) = tr(1:ilt*jlt,1,igas)*drate 
+     &              - fluxfact*trsrc(:,1)/ps(1:ilt*jlt)
+      temptr(:,2:kl) = tr(1:ilt*jlt,2:kl,igas)*drate 
 
 
       return

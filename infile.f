@@ -62,7 +62,7 @@
 
       integer timest(2),timeco(2),timerco(2)
       character*80 dimnam
-      character*3 monn(12),cmon
+      character*3 monn(12),cmon,trnum
       data monn/'jan','feb','mar','apr','may','jun'
      &         ,'jul','aug','sep','oct','nov','dec'/
 

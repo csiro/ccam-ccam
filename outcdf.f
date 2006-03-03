@@ -323,7 +323,7 @@ c     this routine creates attributes and writes output
       integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter,
      &     idv, ier, iq, isoil, j, k, igas
       real trmax, trmin
-      character*3 mon(12)
+      character*3 mon(12),trnum
       real cfrac
       common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
       real zsoil(ms)

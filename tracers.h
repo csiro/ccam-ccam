@@ -2,8 +2,9 @@
 
       integer iradon,ico2,ngas,nllp,ntrac,ntracmax,
      .        npwr,ilt,jlt,klt,ngasmax
-      real tr,traver,alpha,beta,radonem
-      parameter(iradon=0,ico2=1,ngas=9)
+      real tr,traver,radonem
+!     parameter(iradon=0,ico2=1,ngas=9)  ! rlw setting
+      parameter(iradon=0,ico2=0,ngas=0)
       parameter(nllp=0)              ! set this or next lines
 !     parameter(nllp=3)
 
@@ -15,12 +16,13 @@
       parameter(ilt=il**npwr,jlt=jl**npwr,klt=kl**npwr) ! gives one of next two   
 
       common/tracer/tr(ilt*jlt+npwr*iextra,klt,ntracmax),
-     &              traver(ifull,kl,ntrac)
-!   suspect alpha and beta can go but need to confirm
+     &              traver(ilt*jlt,klt,ntrac)
+!      suspect alpha and beta can go but need to confirm
+!      real alpha,beta
 !      common/c_tracer/ alpha,beta  
+
       common/emission/radonem(ilt*jlt)
 
-      real gasmin(ngasmax)            ! used by mass fixer in adjust5
-!     data gasmin/ngasmax*-1000./         ! modify this line for specific gases        
-      data gasmin/-1000.,-1000.,-1000.,-1000.,-1000.,0.,0.,0.,-1000./
-      character*3 trnum
+      real gasmin(ngasmax)           ! used by mass fixer in adjust5
+      data gasmin/ngasmax*-1000./    ! modify this line for specific gases        
+!     data gasmin/-1000.,-1000.,-1000.,-1000.,-1000.,0.,0.,0.,-1000./ ! rlw
