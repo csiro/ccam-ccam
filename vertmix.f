@@ -2,6 +2,8 @@
 !     inputs & outputs: t,u,v,qg
       use cc_mpi, only : mydiag, myid
       use diag_m
+!     rml 16/02/06 use trvmix module
+      use trvmix, only : tracervmix
       include 'newmpar.h'
       parameter (ntest=0)
 c     parameter (ipwr=1)       ! really can use (ipwr=min(1,nlocal))
@@ -45,6 +47,7 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       real zh(ifull,kl),tmnht(ifull,kl)
       real gt(ifull,kl),guv(ifull,kl),ri(ifull,kl)
       real rkm(ifull,kl),rkh(ifull,kl),rk_shal(ifull,kl)
+      real condrag
       equivalence (rkh,wrk1),(rkm,wrk2),(rk_shal,uav)
       equivalence (tmnht,at,un),(zh,au,wrk3)
 !     equivalence (gamat,ct)
@@ -785,8 +788,8 @@ c       now do qlg
         qlg(1:ifull,:)=rhs(1:ifull,:)
       endif    ! (ldr.ne.0)
 
-c     now do trace gases
-      if(ngas>0)call tracervmix( at, ct, rhs )
+c     now do trace gases rml 16/02/06 changed call
+      if (ngas>0) call tracervmix(at,ct)
 
 !     from here on just u and v stuff
       au(:,1)=cduv(:)*condrag/tss(:)   ! globpea
@@ -837,135 +840,4 @@ c     now do v; with properly unstaggered au,cu
       return
       end
 
-      subroutine tracervmix( at, ct, updtr )
-c     this routine does the vertical mixing of tracers
-      use cc_mpi, only : mydiag
-      use diag_m
-      parameter (ntest=0)  ! 1 for diag prints
-      include 'newmpar.h'
-      include 'const_phys.h'
-      include 'dates.h'         ! dt
-      include 'nsibd.h'
-      include 'parm.h'
-      include 'sigs.h'          ! dsig
-      include 'soil.h'
-      include 'tracers.h'       ! jlm don't need to pass co2fact etc?
-      common/work3/vmixarrs(ifull,kl,3),trsrc(ifull,kl),spare(ifull,kl)
-      real updtr(ifull,kl),at(ifull,kl),ct(ifull,kl)
-      trfact = grav * dt / dsig(1)
-      co2fact=1000.*trfact*fair_molm/fc_molm
-      o2fact=1000.*trfact*fair_molm/fo2_molm
-
-c     rates of change of mixing ratio m from the surface are computed
-c     using the expression
-c       dm/dt = phi/(rho*dz)
-c     where phi is a mass flux of air with same number of molecules as in
-c     the tracer rho is the air density, dz is the height of the lowest box
-c       dp/dz = -g*rho
-c     so    rho*dz = - dp/g
-c       p = ps*sigma, so dp = ps*dsigma
-c     then  dm = - phi * g * dt / (ps * dsigma)
-c          = - conflux * phi / ps
-
-      if( iradon.ne.0 ) then
-	 k2=max(2*iradon,1)/max(iradon,1)  ! 1 for iradon=0	 
-        if(ntest==1.and.mydiag)
-     &        print *,'ktau,iradon,trfact ',ktau,iradon,trfact
-        call radonsflux
-        if(ntest==1.and.mydiag)
-     &       print *,'after radsflux tr1&2,trsrc ',
-     &  tr(idjd,1,max(1,iradon)),tr(idjd,k2,max(1,iradon)),trsrc(idjd,1)
-        call radonvmix (updtr, trfact )
-        if(ntest==1.and.mydiag)
-     &       print *,'after radonvmix tr1&2,updtr ',
-     &  tr(idjd,1,max(1,iradon)),tr(idjd,k2,max(1,iradon)),updtr(idjd,1)
-        call trimcopy(at,ct,updtr,iradon) ! same as trim but holds bdy vals
-        if(ntest==1.and.mydiag)
-     &       print *,'after trim tr1&2,updtr ',
-     &  tr(idjd,1,max(1,iradon)),tr(idjd,k2,max(1,iradon)),updtr(idjd,1)
-      end if
-
-      if( ico2.ne.0 ) then
-         k2=max(2*ico2,1)/max(ico2,1)  ! 1 for ico2=0
-        if(ntest==1.and.mydiag)
-     &        print *,'ktau,ico2,co2fact ',ktau,ico2,co2fact
-        call co2sflux
-        if(ntest==1.and.mydiag)
-     &       print *,'after co2sflux tr1&2,trsrc ',
-     &      tr(idjd,1,max(1,ico2)),tr(idjd,k2,max(1,ico2)),trsrc(idjd,1)
-        call co2vmix(updtr, co2fact )
-        if(ntest==1.and.mydiag)
-     &       print *,'after co2vmix tr1&2,updtr ',
-     &      tr(idjd,1,max(1,ico2)),tr(idjd,k2,max(1,ico2)),updtr(idjd,1)
-        call trimcopy(at,ct,updtr,ico2)
-        if(ntest==1.and.mydiag)
-     &       print *,'after trim tr1&2,updtr ',
-     &      tr(idjd,1,max(1,ico2)),tr(idjd,k2,max(1,ico2)),updtr(idjd,1)
-        if(ntest==1)then
-c         print *,'can mel sources ',ktau,trsrc(46,57,1),trsrc(39,52,1)
-c         print *,'can mel conc lev1 ',ktau,tr(46,57,1,2),tr(39,52,1,2)
-          call printa('co2 ',tr(:,:,k2),ktau,1,ia,ib,ja,jb,357.,1.)
-          call printa('rado',tr(:,:,1),ktau,1,ia,ib,ja,jb,0.,1.)
-        endif  ! (ntest==1)
-      endif
-
-      if( io2.ne.0 ) then
-        call o2vmix(updtr, o2fact )
-        call trimcopy(at,ct,updtr,io2)
-      end if
-
-      if(iso2>0) then
-        so2fact(1) = trfact
-        do i=2,nso2lev
-          so2fact(i) = grav * dt / dsig(i)
-        end do  !   i=1,nso2lev
-        if( iso2>0.and.nso2lev<1 )stop 'vertmix: nso2lev<1'
-      endif
-
-      if( iso2.ne.0 ) then
-       call so2sflux
-       call so2vmix(updtr )
-       call trimcopy(at,ct,updtr,iso2)
-       do k=1,klt
-        do iq=1,ilt*jlt
-         tr(iq,k,max(1,iso2))=max(-100.,min(tr(iq,k,max(1,iso2)),9000.))
-        enddo
-       enddo
-      endif
-
-      if( iso4.ne.0 ) then
-*       call so4sflux
-*       call so4vmix( updtr )
-*       call trimcopy(at,ct,updtr,iso4)
-      end if
-
-      if( ich4.ne.0 ) then
-*       call ch4sflux
-*       call ch4vmix( updtr )
-*       call trimcopy(at,ct,updtr,ich4)
-      end if
-
-      if( io2.ne.0 ) then
-*       call o2sflux
-*       call o2vmix(updtr )
-*       call trimcopy(at,ct,updtr,io2)
-      end if
-       return
-      end
-*............................................................
-c     not needed, except for setting darlam boundary values?
-      subroutine trimcopy(at,ct,updtr,itracer)
-      include 'const_phys.h'
-      include 'newmpar.h'
-      include 'parm.h'
-      include 'tracers.h'
-      real updtr(ifull,kl),at(ifull,kl),ct(ifull,kl)
-      call trim(at,ct,updtr,0)
-      do k=1,klt
-         do iq=1,ilt*jlt   !  alter all values for c-c
-          tr(iq,k,itracer)=updtr(iq,k)
-         enddo  ! iq loop
-      enddo     !  k loop
-      return
-      end
-
+!     rml delted tracervmix as modified version in trvmix.f
