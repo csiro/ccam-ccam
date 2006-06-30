@@ -2,7 +2,8 @@
      .                  psl,zs,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                  tgg,wb,wbice,alb,snowd,
-     .                  tggsn,smass,ssdn,ssdnn,snage,isflag)
+     .                  tggsn,smass,ssdn,ssdnn,snage,
+     .                  albvisnir,albsoilsn,isflag)
 !     note kk; vertint.f is attached below
 !     kdate_r and ktime_r are returned from this routine.
 !     They must equal or exceed kdate_s and ktime_s
@@ -15,14 +16,22 @@
 
       use cc_mpi
       use diag_m
+! rml from eak 16/03/06
+      use cbm_module  ! include newmpar.h
+      use define_dimensions
+
       implicit none
-      include 'newmpar.h'
+!      include 'newmpar.h'
+! rml from eak 16/03/06
+      include 'carbpools.h'
       include 'darcdf.h'
       include 'kuocom.h'    ! ldr
       include 'liqwpar.h'  ! ifullw
       include 'netcdf.inc'
       include 'parm.h'
       include 'stime.h'     ! kdate_s,ktime_s  sought values for data read
+! rml from eak 16/03/06
+      include 'vegpar.h'
       include 'tracers.h'
       include 'mpif.h'
 
@@ -33,7 +42,7 @@
      . snowd(ifull),alb(ifull),sicedep(ifull),fracice(ifull),
      . t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     . ssdnn(ifull),snage(ifull)
+     . ssdnn(ifull),snage(ifull),albvisnir(ifull,2),albsoilsn(ifull,2)
       integer isflag(ifull)
       integer ktau_r, ibb, jbb, i
       integer ini,inj,ink,m2,nsd2,mesi,nbd2
@@ -46,6 +55,7 @@
      & ,kwt2,iaa2,jaa2,nvad2,nqgi,lbd2,nrun2,nrunx2
      & ,khor2,ksc2,kountr2,ndiur2,nhort2,nhorps2,nsoil2,ivirt2
      & ,ntsuri,nrad2,kuocb2,nvmix2,ntsea2,ms2,nextras2,ilt2,ntrac2
+!      real tds,difknbdi,rhkuo,tdu,ttanl,trnml,tstl1,tstl2
       real tds,difknbdi,rhkuo,tdu,ttanl,trnml,tssadd,tstl1,tstl2
       common/rhead/tds,difknbdi,rhkuo,tdu,ttanl,trnml,tstl1,tstl2
       real rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
@@ -307,7 +317,7 @@ c     log scaled sfc.press
          elseif(zs(iq)<0.)then
            tss(iq)=tss(iq)+tssadd
          endif
-        enddo
+        enddo 
       endif
 
 c     turn on fatal netcdf errors
@@ -362,13 +372,20 @@ c         enddo
       endif    ! (ier.ne.0) .. else ..    for sicedep
       if(ncalled<4.and.mydiag)then
         print *,'sig in: ',(sigin(i),i=1,kk)
-        write (6,"('100*psl# in',9f8.2)") 100.*diagvals(psl)
-        write (6,"('zs# in     ',9f8.1)") diagvals(zs)
-        write (6,"('tss# in    ',9f8.1)") diagvals(tss)
+        write (6,"('100*psl# in',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &              100.*diagvals(psl)
+!     .           ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+        write (6,"('zs# in  ',3f7.1,1x,3f7.1,1x,3f7.1)") 
+     &     diagvals(zs)
+!     .           ((zs(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+        write (6,"('tss# in ',3f7.1,1x,3f7.1,1x,3f7.1)") 
+     &     diagvals(tss)
 !     .           ((tss(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
         print *,'ier,ierr for siced, fracice ',ier,ierr
-        write (6,"('siced# in  ',9f8.2)") diagvals(sicedep)
-        write (6,"('fracice# in',9f8.2)") diagvals(fracice)
+        write (6,"('siced# in ',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &     diagvals(sicedep)
+        write (6,"('fracice# in ',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &     diagvals(fracice)
 !       Printing the ifull value gives confusing results in the 
 !       parallel version
         print *,'t in ',(t(idjd,k),k=1,kk)!,t(ifull,kk)
@@ -391,6 +408,12 @@ c         enddo
           endif ! (ier.ne.0)
         endif   ! (ldr.ne.0)
         call histrd1(ncid,iarchi,ier,'alb',ik,jk,alb)
+        albvisnir(:,:)=0.
+        call histrd1(ncid,iarchi,ier,'albvisnir1',ik,jk,albvisnir(1,1))
+        call histrd1(ncid,iarchi,ier,'albvisnir2',ik,jk,albvisnir(1,2))
+        albsoilsn(:,:)=0.
+        call histrd1(ncid,iarchi,ier,'albsoilsn1',ik,jk,albsoilsn(1,1))
+        call histrd1(ncid,iarchi,ier,'albsoilsn2',ik,jk,albsoilsn(1,2))
         call histrd1(ncid,iarchi,ierr,'tgg2',ik,jk,tgg(1,2))
         if(ierr==0)then  ! at least tgg6, wb2, wb6 will be available
           call histrd1(ncid,iarchi,ier,'tgg6',ik,jk,tgg(1,6))
@@ -463,6 +486,7 @@ c	   only being tested for nested=0; no need to test for mesonest
         do iq=1,ifull
          if(snowd(iq)<.001)snowd(iq)=0. ! for netcdf rounding 7/6/06
         enddo
+
         call histrd1(ncid,iarchi,ier,'smass1',ik,jk,smass(1,1))
         if(ier.ne.0)then  ! for smass1
           if(myid==0)
@@ -494,6 +518,7 @@ c	   only being tested for nested=0; no need to test for mesonest
          call histrd1(ncid,iarchi,ier,'ssdn1',ik,jk,ssdn(1,1))
          call histrd1(ncid,iarchi,ier,'ssdn2',ik,jk,ssdn(1,2))
          call histrd1(ncid,iarchi,ier,'ssdn3',ik,jk,ssdn(1,3))
+         call histrd1(ncid,iarchi,ier,'ssdnn',ik,jk,ssdnn)
          call histrd1(ncid,iarchi,ier,'tggsn1',ik,jk,tggsn(1,1))
          call histrd1(ncid,iarchi,ier,'tggsn2',ik,jk,tggsn(1,2))
          call histrd1(ncid,iarchi,ier,'tggsn3',ik,jk,tggsn(1,3))
@@ -506,6 +531,9 @@ c	   only being tested for nested=0; no need to test for mesonest
          call histrd1(ncid,iarchi,ier,'snage',ik,jk,snage)
          call histrd1(ncid,iarchi,ier,'sflag',ik,jk,tmp)
          isflag(:)=nint(tmp(:))
+         do iq=1,ifull
+           if( ssdnn(iq).le.99.) ssdnn(iq)  = max(ssdn(iq,2),ssdn(iq,3))
+         enddo
         endif  ! (ier.ne.0) ... else ...   for smass1
 
 !       rml 16/02/06 read tracer from restart for up to 999 tracers
@@ -517,6 +545,20 @@ c	   only being tested for nested=0; no need to test for mesonest
           enddo
         endif
 
+! rml from eak 16/03/06
+        if (nsib.eq.4) then
+          call histrd1(ncid,iarchi,ier,'cplant1',ik,jk,cplant(:,1))
+          call histrd1(ncid,iarchi,ier,'cplant2',ik,jk,cplant(:,2))
+          call histrd1(ncid,iarchi,ier,'cplant3',ik,jk,cplant(:,3))
+          call histrd1(ncid,iarchi,ier,'csoil1',ik,jk,csoil(:,1))
+          call histrd1(ncid,iarchi,ier,'csoil2',ik,jk,csoil(:,2))
+          call histrd1(ncid,iarchi,ier,'sumpn',ik,jk,sumpn)
+          call histrd1(ncid,iarchi,ier,'sumrp',ik,jk,sumrp)
+          call histrd1(ncid,iarchi,ier,'sumrs',ik,jk,sumrs)
+          call histrd1(ncid,iarchi,ier,'sumrd',ik,jk,sumrd)
+          call histrd1(ncid,iarchi,ier,'cansto',ik,jk,cansto)
+        endif
+
         if(mydiag)then
           print *,'at end of newin kdate,ktime,ktau,tss: ',
      &                             kdate_r,ktime_r,ktau,tss(idjd)
@@ -525,14 +567,21 @@ c	   only being tested for nested=0; no need to test for mesonest
           print *,'wbice ',(wbice(idjd,k),k=1,ms)
         endif ! (mydiag)
         if(ncalled<4.and.mydiag)then
-          write (6,"('tgg(1)# in ',9f8.1)") diagvals(tgg(:,1))
-          write (6,"('tgg(2)# in ',9f8.1)") diagvals(tgg(:,2))
-          write (6,"('tgg(3)# in ',9f8.1)") diagvals(tgg(:,3))
-          write (6,"('tgg(ms)# in',9f8.1)") diagvals(tgg(:,ms))
-          write (6,"('wb(1)# in  ',9f8.3)") diagvals(wb(:,1))
-          write (6,"('wb(ms)# in ',9f8.3)") diagvals(wb(:,ms))
-          write (6,"('alb# in    ',9f8.3)") diagvals(alb)
-          write (6,"('snowd# in  ',9f8.2)") diagvals(snowd)
+          print *,'tgg(1)# ', diagvals(tgg(:,1))
+!     .           ((tgg(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
+          print *,'tgg(2)# ', diagvals(tgg(:,2))
+!     .           ((tgg(ii+(jj-1)*il,2),ii=id-1,id+1),jj=jd-1,jd+1)
+          print *,'tgg(3)# ', diagvals(tgg(:,3))
+          print *,'tgg(ms)# ', diagvals(tgg(:,ms))
+!     .           ((tgg(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
+          print *,'wb(1)# ', diagvals(wb(:,1))
+!     .           ((wb(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
+          print *,'wb(ms)# ', diagvals(wb(:,ms))
+!     .           ((wb(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
+          print *,'alb# in: ', diagvals(alb)
+!     . 	   ((alb(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+          print *,'snowd# in: ', diagvals(snowd)
+!     .           ((snowd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
         endif ! (ncalled<4.and.mydiag)
       endif   ! (nested==0)   !  only done at start of run 
 ! ########################################################################
@@ -547,7 +596,9 @@ c	   only being tested for nested=0; no need to test for mesonest
       kdate_s=kdate_r
       ktime_s=ktime_r+1 
 
+!      qg(1:ifull,:) = max(qg(1:ifull,:),1.e-6)
       qg(1:ifull,1:kk) = max(qg(1:ifull,1:kk),1.e-6)
+
 
       if(mydiag)then
          print *,'end infile; next read will be kdate_s,ktime_s >= ',

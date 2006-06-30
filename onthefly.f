@@ -2,7 +2,9 @@
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,
-     .                    tggsn,smass,ssdn,ssdnn,snage,isflag)
+     .                  tggsn,smass,ssdn,ssdnn,snage,
+     .                  albvisnir,albsoilsn,isflag)
+
 !     Target points use values interpolated to their 4 grid "corners";
 !     these corner values are then averaged to the grid centres
 !     N.B. this means will get different fields with io_in=-1 from io_in=1
@@ -25,6 +27,8 @@
 c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       include 'parm.h'
       include 'sigs.h'
+! CHECK - soil.h included for 'land' ? but also includes sicedep and fracice
+! remove from subroutine call??
       include 'soil.h'
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
       include 'tracers.h'
@@ -56,7 +60,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      & wb(ifull,ms),wbice(ifull,ms),snowd(ifull),sicedep(ifull),
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     & ssdnn(ifull),snage(ifull)
+     & ssdnn(ifull),snage(ifull),albvisnir(ifull,2),albsoilsn(ifull,2)
       ! Dummy variables here replace the aliasing use of aa, bb in infile call
       real, dimension(ifull) :: dum1, dum2, dum3, dum4, dum5
       integer isflag(ifull)
@@ -96,13 +100,17 @@ c     start of processing loop
       ! illegal aliasing of arguments removed now
       if(nested==0)then
         call infile(nested,kdate_r,ktime_r,timegb,ds,
-     &            psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     &            tgg,wb,wbice,dum5,snowd,  ! dum5 is alb
-     &            tggsn,smass,ssdn,ssdnn,snage,isflag) 
+     &          psl,zss,tss,sicedep,fracice,t,u,v,qg,
+     &          tgg,wb,wbice,dum5,snowd,  ! dum5 is alb
+     &          tggsn,smass,ssdn,ssdnn,snage,albvisnir,albsoilsn,isflag)
       else
         call infil(nested,kdate_r,ktime_r,timegb,ds,
      &            psl,zss,tss,sicedep,fracice,t,u,v,qg)
       endif   
+
+!      do k=1,kl            ! removed 9/10//03
+!       sig(k)=sigin(k)
+!      enddo
      
 !     Purpose of setxyz call is to get rlat4 rlong4 (and so xx4 yy4) 
 !     for the source grid. Only process 0 needs to do this here
@@ -204,10 +212,10 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
             print *,'xg4(1-4) ',(xg4(idjd,m),m=1,4)
             print *,'yg4(1-4) ',(yg4(idjd,m),m=1,4)
             if(nested==0)then
-              write(6,"('wb_s(1)#  ',9f7.3)") 
-     .            ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
-              write(6,"('wb_s(ms)# ',9f7.3)") 
-     .            ((wb(ii+(jj-1)*il,ms),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
+            write(6,"('wb_s(1)#  ',9f7.3)") 
+     .          ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
+            write(6,"('wb_s(ms)# ',9f7.3)") 
+     .          ((wb(ii+(jj-1)*il,ms),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
             endif  ! (nested==0)
          endif
 
@@ -219,6 +227,7 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
 
       ! All the following processing is done on processor 0
       ! Avoid memory blow out by only having single level global arrays
+!      do k=1,kl
       do k=1,kk
          if ( myid==0 ) then
             call ccmpi_gather(u(:,k), u_g)

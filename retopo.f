@@ -6,7 +6,6 @@ c     (but does not overwrite zs itself here)
 c     called by indata and nestin for newtop.ge.1
 !     nowadays just for ps and atmospheric fields Mon  08-23-1999
       use cc_mpi, only : mydiag
-      use diag_m
       implicit none
       include 'newmpar.h'
       include 'const_phys.h'
@@ -15,7 +14,7 @@ c     called by indata and nestin for newtop.ge.1
       real psl(ifull),zsold(ifull),zs(ifull)
       real qg(ifull,kl),t(ifull,kl)
       real told(kl),qgold(kl),ps(ifull),psold(ifull),pslold(ifull)
-      integer iq,k,kkk
+      integer ii,iq,jj,k,kkk
       real sig2
       do iq=1,ifull
        pslold(iq)=psl(iq)
@@ -30,8 +29,10 @@ c     now alter temperatures to compensate for new topography
         print *,'zsold,zs,psold,ps ',
      .           zsold(idjd),zs(idjd),psold(idjd),ps(idjd)
         if(nproc==1)then
-          write (6,"('100*pslold# in',9f8.2)") 100.*diagvals(pslold)
-        write (6,"('100*psl# in     ',9f8.2)") 100.*diagvals(psl)
+          write (6,"('psl0#  ',9f10.6)") 
+     .           ((pslold(ii+jj*il),ii=idjd-1,idjd+1),jj=1,-1,-1)
+          write (6,"('psl#   ',9f10.6)") 
+     .           ((psl(ii+jj*il),ii=idjd-1,idjd+1),jj=1,-1,-1)
 	 endif
       endif  ! (ktau.lt.100)
       do iq=1,ifull

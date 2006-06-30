@@ -132,13 +132,9 @@ cy         if(tx(iq,kl)>264.)then  !cb
      &                nvadh_pass) 
         enddo
 	 t(1:ifull,:)=t(1:ifull,:)-tx(1:ifull,:)   
-        if( (diag.or.nmaxpr==1) .and. mydiag )then
-          print *,'in upglobal after vadv1'
-          write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
-        endif
       endif  ! (nvad==-4.and.nvadh.ne.3)
 !------------------------------------------------------------------
-      if(abs(epsp)>1.)then  
+      if(epsp<0..or.epsp>1.)then  
 !       jlm special bi-linear treatment 
         do k=1,kl   
          uc(:,k)=psl(:)+dd(:,k)  ! uc just as temporary storage
@@ -202,7 +198,7 @@ cy         if(tx(iq,kl)>264.)then  !cb
            tx(1:ifull,k) = tx(1:ifull,k) - dd(1:ifull,k)*factr(k)
           enddo   ! k
         endif
-      endif    ! (abs(epsp)>1.) .. else ..
+      endif    ! (epsp<0..or.epsp>1.) .. else ..
 !------------------------------------------------------------------
 	if(nmaxpr==1.and.nproc==1)then
 	  print *,'pslx(,nlv) after advection'
@@ -350,24 +346,29 @@ cy         if(tx(iq,kl)>264.)then  !cb
           endif                 ! ldr.ne.0
           if(ngas>0.or.nextout>=4)then
 	     if(nmaxpr==1.and.mydiag)then
-              write (6,"('xg#',9f8.2)") diagvals(xg(:,nlv))
-              write (6,"('yg#',9f8.2)") diagvals(yg(:,nlv))
-              write (6,"('nface#',9i8)") diagvals(nface(:,nlv))
-!     &           ((nface(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=-1,1)
-              write (6,"('xlat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
-!     &           ((tr(ii+jj*il,nlv,ngas+1),ii=idjd-1,idjd+1),jj=-1,1)
-              write (6,"('xlon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
-!     &           ((tr(ii+jj*il,nlv,ngas+2),ii=idjd-1,idjd+1),jj=-1,1)
-              write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
-!     &           ((tr(ii+jj*il,nlv,ngas+3),ii=idjd-1,idjd+1),jj=-1,1)
+              write (6,"('xg#',9f8.2)")
+     &           ((xg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('yg#',9f8.2)")
+     &           ((yg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('nface#',9i8)")
+     &           ((nface(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('xlat#',9f8.2)")
+     &           ((tr(ii+jj*il,nlv,ngas+1),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('xlon#',9f8.2)")
+     &           ((tr(ii+jj*il,nlv,ngas+2),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('xpre#',9f8.2)")
+     &           ((tr(ii+jj*il,nlv,ngas+3),ii=idjd-1,idjd+1),jj=1,-1,-1)
 	     endif
             do ntr=1,ntrac
              call ints(tr(1,1,ntr),intsch,nface,xg,yg,5)
             enddo
 	     if(nmaxpr==1.and.mydiag)then
-              write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
-              write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
-              write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
+              write (6,"('ylat#',9f8.2)")
+     &           ((tr(ii+jj*il,nlv,ngas+1),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('ylon#',9f8.2)")
+     &           ((tr(ii+jj*il,nlv,ngas+2),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('ypre#',9f8.2)")
+     &           ((tr(ii+jj*il,nlv,ngas+3),ii=idjd-1,idjd+1),jj=1,-1,-1)
 	     endif
           endif  ! (ngas>0.or.nextout>=4)
        endif     ! mspec==1
@@ -428,22 +429,14 @@ cy         if(tx(iq,kl)>264.)then  !cb
      &                         MPI_COMM_WORLD, ierr )
             nits=1+sdmx_g   ! effectively takes nvadh=1  1/2/06
             nvadh_pass=nits ! use - for nvadu
+	     if(mydiag)
+     &        print *,'upglobal ktau,sdmx,nits,nvadh_pass ',
+     &                          ktau,sdmx_g,nits,nvadh_pass
           endif   ! (nvadh==3)
-	   if(mod(ktau,nmaxpr)==0.and.mydiag)
-     &       print *,'upglobal ktau,sdmx,nits,nvadh_pass ',
-     &                         ktau,sdmx_g,nits,nvadh_pass
-          if( (diag.or.nmaxpr==1) .and. mydiag )then
-            print *,'in upglobal before vadv2'
-            write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
-          endif
           do its=1,nits
             call vadvtvd(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
      &                   nvadh_pass) 
           enddo
-          if( (diag.or.nmaxpr==1) .and. mydiag )then
-            print *,'in upglobal after vadv2'
-            write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
-          endif
         endif   ! (nvad==-4)
       endif     ! (nvadh==2.or.nvadh==3)
 

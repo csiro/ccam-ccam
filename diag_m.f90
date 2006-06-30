@@ -252,7 +252,7 @@ contains
 !     Restrict range so that it still works if id=1 etc
       iq = 0
       res = 0. ! As a sort of missing value
-      do j=min(jd-1,jl_g),max(jd+1,1)
+      do j=min(jd+1,jl_g),max(jd-1,1),-1
          do i=max(id-1,1),min(id+1,il_g)
             iq = iq + 1
             n = (j-1)/il_g  ! Global n

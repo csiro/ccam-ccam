@@ -215,7 +215,7 @@ c      enddo
       enddo
 91    format(i3,15f8.1/3x,15f8.1/3x,15f8.1)
 
-      if(nh.ne.0.and.nh.ne.2)then  ! use gmat instead of bmat to derive aaa term
+      if(nh.ne.0)then  ! add in gmat terms
         do k=1,kl
          do l=k,kl
           aa(k,l)=dsig(l)
@@ -231,16 +231,6 @@ c      enddo
          print 91,k,(cc(k,l),l=1,kl)
         enddo
       endif  ! (nh.ne.0)
-
-      if(nh==2)then  ! use net gmat (June '06) - no eps yet
-        gmat(:,:)=bmat(:,:)*(1.+4.*cp*tbar/(g*dt)**2)
-        call matm(aaa,bmat,aa)
-        cc(:,:)=aaa(:,:)-r*tbar*ab(:,:)
-        print *,'cc with gmat'
-        do k=1,kl
-         print 91,k,(cc(k,l),l=1,kl)
-        enddo
-      endif  ! (nh==2)
       
       aaa(:,:)=cc(:,:)
       call eigenp(kl,kl,aaa,bam,evimag,emat,veci,indic)

@@ -1,3 +1,4 @@
+! eak version 16/03/06
       subroutine radrive (odcalc,iaero)
 ! Radiation driver routine for the conformal cubic model.
 ! This calls the GFDL radiation routines for each row of each face.
@@ -30,13 +31,13 @@
       include 'kuocom.h'     ! also with kbsav,ktsav
       include 'latlong.h'    ! rlatt,rlongg
       include 'liqwpar.h'    ! ifullw
-      include 'nsibd.h'      ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
+      include 'map.h'        ! land
+      include 'nsibd.h'      ! rsmin,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
       include 'pbl.h'
-      include 'scamdim.h'
       include 'sigs.h'
-      include 'soil.h'      ! land, rhgdum ... zmin  alb
-      include 'soilsnow.h'  ! sicedep tgg,wb,snowd
+      include 'soil.h'      ! rhgdum ... zmin  sicedep alb
+      include 'soilsnow.h'  ! tgg,wb,snowd
       include 'soilv.h'
 !     For the radiation code
       include 'rdparm.h'   ! imax
@@ -345,15 +346,14 @@ c                   where cs = 0.2, cn = 0.5, b = 2.0
              talb = .5 * ( alv + alir )        ! snow albedo
 c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
              cc=min(1.,snr/max(snr+zolnd(iq),0.02))
-             tsigmfx=(1.-cc)*tsigmf(iq)      ! mult by snow free veg. fraction
+             tsigmfx=(1.-cc)*tsigmf(iq)      ! mult by snow free veg. fraction 
+             alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
+             cuvrf(i,1)=min(.8,(1.-tsigmfx)*alss+tsigmfx*albsav(iq))
+c                                      for nsib=4 CBM calculates the total land surface albedo
+             if(nsib.ge.4) cuvrf(i,1)=0.5*
+     &                                (albvisnir(iq,1)+albvisnir(iq,2))
 
-            alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
-            if(nsib.ge.3)then 
-              cuvrf(i,1)=alss
-            else
-              cuvrf(i,1)=min(.8,(1.-tsigmfx)*alss+tsigmfx*albsav(iq))
-            endif
-c           old stuff before snage follows:
+c           old stuff before snage follows
 c           if(tss(iq) .ge. 273.09 ) then
 c             snalb = 0.6   ! changed from .5 to .6 on 31/8/00
 c           else
@@ -386,6 +386,9 @@ c    &			          (1.-cuvrf(i,1))**2/cosz
          endif!(iaero.ne.0)then
          cirrf(i,1)  = cuvrf(i,1)
       end do ! i=1,imax
+!      print *,'radra',albsav(7560),albvisnir(7560,1),albvisnir(7560,2)
+!      print *,'radra',albsav(7692),albvisnir(7692,1),albvisnir(7692,2)
+!      print *,'radra',albsav(6610),albvisnir(6610,1),albvisnir(6610,2)
 
       do k=1,kl
          kr = kl+1-k

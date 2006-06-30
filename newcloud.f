@@ -79,6 +79,7 @@ C Argument list
       real ccov(ln2,nl)
       real cfa(ln2,nl)
       real qca(ln2,nl)
+      real qcarray(ln2,nl)
       real qsl(ln2,nl)
       real qsw(ln2,nl)
 
@@ -124,7 +125,7 @@ C Local work arrays and variables
       real qfdep
       real qfnew
       real qi0
-      real qs, qsi
+      real qs
       real rhoic
       real root6
       real root6i
@@ -139,13 +140,13 @@ C Local data, functions etc
       data debug,lgdebug,insdebug /.false.,1,1/
       save ukconv,naerosol_i,debug,lgdebug,mgdebug,insdebug
 
-      real esdiff(-40:1)  !Table of es(liq) - es(ice) (MKS), -40 <= t <= 0 C
+      real esdiff(-40:0)  !Table of es(liq) - es(ice) (MKS), -40 <= t <= 0 C
       data esdiff / 
      & 6.22, 6.76, 7.32, 7.92, 8.56, 9.23, 9.94,10.68,11.46,12.27,
      & 13.11,13.99,14.89,15.82,16.76,17.73,18.70,19.68,20.65,21.61,
      & 22.55,23.45,24.30,25.08,25.78,26.38,26.86,27.18,27.33,27.27,
      & 26.96,26.38,25.47,24.20,22.51,20.34,17.64,14.34,10.37, 5.65,
-     & 0.08, 0. /
+     & 0.08 /
 !     include 'ESTABL.f'  !Contains arithmetic statement function qsat(p,T)
       real tablei
       common /esitable/ tablei(0:220) !Table of es values wrt ice
@@ -167,16 +168,24 @@ C Start code : ----------------------------------------------------------
       root6=sqrt(6.)
       root6i=1./root6
 
-      if(diag)then
-          print *,'entering newcloud IPASS=1'
-!	   qtg(idjd,kl)=2.e-6
-!	   qfg(idjd,kl)=10.e-6
-          write(6,91)'prf ',(prf(idjd,k),k=1,nl)
-          write(6,91)'ttg ',(ttg(idjd,k),k=1,nl)
-          write(6,9)'qtg ',(qtg(idjd,k),k=1,nl)
-          write(6,9)'qlg ',(qlg(idjd,k),k=1,nl)
-          write(6,9)'qfg ',(qfg(idjd,k),k=1,nl)
-          print *
+      if(debug)then
+        lgdebug=1
+	 mgdebug=idjd
+        print *,'entering newcloud debug,lgdebug,mgdebug ',
+     .                             debug,lgdebug,mgdebug
+        if(lg.eq.lgdebug)then
+	   qtg(idjd,kl)=2.e-6
+	   qfg(idjd,kl)=10.e-6
+          ns=insdebug
+          mg=mgdebug+(ns-1)*lon
+          write(25,'(a,3i3)')'IPASS=1, before newcloud'
+          write(25,91)'prf ',(prf(mg,k),k=1,nl)
+          write(25,91)'ttg ',(ttg(mg,k),k=1,nl)
+          write(25,9)'qtg ',(qtg(mg,k),k=1,nl)
+          write(25,9)'qlg ',(qlg(mg,k),k=1,nl)
+          write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
+          write(25,*)
+        endif
       endif
 
 c Define cdrop  - passed through as cdso4, defined in leoncld.f
@@ -234,34 +243,35 @@ c using the triangular PDF of Smith (1990)
 
       do k=1,nl
         do mg=1,ln2
-          fi=fice(mg,k)
+          fi=0.
+          if(ttg(mg,k).le.Tice)fi=1.
+c          fi=fice(mg,k)
           hlrvap=(hl+fi*hlf)/rvap
           qtot(mg,k)=qtg(mg,k)+qcg(mg,k)
           tliq(mg,k)=ttg(mg,k)-hlcp*qcg(mg,k)-hlfcp*qfg(mg,k)
 
 c Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
           pk=100.0*prf(mg,k)
-          qsi=qsati(pk,tliq(mg,k))           !Ice value
-          deles=esdiff(min(max(-40,(nint(tliq(mg,k)-tfrz))),1))
-          qsl(mg,k)=qsi+epsil*deles/pk       !qs over liquid
-          qsw(mg,k)=fi*qsi+(1.-fi)*qsl(mg,k) !Weighted qs at temperature Tliq
-          qs=qsw(mg,k)
+          qsg(mg,k)=qsati(pk,tliq(mg,k)) !Ice value
+          deles=esdiff(min(max(-40,(nint(tliq(mg,k)-tfrz))),0))
+          qsl(mg,k)=qsg(mg,k)+epsil*deles/pk !qs over liquid
+          qs=qsg(mg,k)
+          if(ttg(mg,k).lt.tfrz.and.ttg(mg,k).gt.Tice)qs=qsl(mg,k)
           dqsdt=qs*hlrvap/tliq(mg,k)**2
-c         qvc(mg,k)=qs !Vapour mixing ratio in cloud
 
-          al=1/(1+(hlcp+fi*hlfcp)*dqsdt)    !Smith's notation
+          al=1./(1.+(hlcp+fi*hlfcp)*dqsdt)    !Smith's notation
           qc=qtot(mg,k)-qs
 
-          delq=(1-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
+          delq=(1.-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
           cfrac(mg,k)=1.
           qcg(mg,k)=al*qc
           if(qc.lt.delq)then
-            cfrac(mg,k)=1-0.5*((qc-delq)/delq)**2
-            qcg(mg,k)=al*(qc-(qc-delq)**3/(6*delq**2))
+            cfrac(mg,k)=1.-0.5*((qc-delq)/delq)**2
+            qcg(mg,k)=al*(qc-(qc-delq)**3/(6.*delq**2))
           endif
           if(qc.le.0.)then
             cfrac(mg,k)=0.5*((qc+delq)/delq)**2
-            qcg(mg,k)=al*(qc+delq)**3/(6*delq**2)
+            qcg(mg,k)=al*(qc+delq)**3/(6.*delq**2)
           endif
           if(qc.le.-delq)then
             cfrac(mg,k)=0.
@@ -303,56 +313,51 @@ C***          endif
         enddo
       enddo
 
-      if(diag)then
-          write(6,9)'qc  ',  qtot(idjd,:)-qsg(idjd,:)
-          write(6,9)'delq ', (1.-rcrit(idjd,:))*qsg(idjd,:)
-          write(6,9)'al ',   1./(  1.+(hlcp+fi*hlfcp)*
-     &                         qsg(idjd,:)*hlrvap/tliq(idjd,:)**2  )
-          write(6,9)'qcg ',  qcg(idjd,:)
-      endif
-
-c Assume condensation or evaporation retains ice fraction fice.
+c Condense or evaporate ql first (i.e., before qf) in mixed-phase range.
 c Introduce a time-decay factor for cirrus (as suggested by results of Khvorostyanov & Sassen,
 c JAS, 55, 1822-1845, 1998). Their suggested range for the time constant is 0.5 to 2 hours.
 c The grid-box-mean values of qtg and ttg are adjusted later on (below).
+c Also need to recalculate cfrac; this is done in the same loop as the mixed-phase recalculation,
+c to save CPU time. At that point, qcg is also recalcalculated, to keep it consistent with cfrac.
 
       do k=1,nl
         do mg=1,ln2
           if(ttg(mg,k).ge.Tice)then
-
-            qfg(mg,k) = fice(mg,k)*qcg(mg,k)
-            qlg(mg,k) = qcg(mg,k) - qfg(mg,k)
+            qlg(mg,k) = max (0., qcg(mg,k)-qfg(mg,k))
+            qfg(mg,k) = qcg(mg,k) - qlg(mg,k)
 
           else                                   ! Cirrus T range
+            qlg(mg,k) = 0.
+c            qfg(mg,k) = qcg(mg,k)               ! Old (simple adjustment) scheme
+c            decayfac = exp ( (-1./5400) * tdt ) ! Try 1.5 hrs
             decayfac = exp ( (-1./7200) * tdt )  ! Try 2 hrs
-c            decayfac = 0.                         ! Instant adjustment (old scheme)
             qfg(mg,k) = qcold(mg,k)*decayfac + qcg(mg,k)*(1.-decayfac)
             qcg(mg,k) = qfg(mg,k)
           endif
         enddo
       enddo
 
-      if(diag)then
-          write(6,9)'qcg2 ',  qcg(idjd,:)
-      endif
+c Do the vapour deposition calculation in the liquid part of mixed-phase clouds
 
-c Do the vapour deposition calculation in mixed-phase clouds:
-c Calculate deposition on cloud ice, assuming es(T) is the weighted value of the 
-c liquid and ice values.
+c Calculate deposition on cloud ice
 
       do k=1,nl   ! was nl-1 until Sept '04
         do mg=1,ln2
           if(cfrac(mg,k).gt.0.)then
             Tk=tliq(mg,k)+hlcp*(qlg(mg,k)+qfg(mg,k))/cfrac(mg,k) !T in liq cloud
             fl=qlg(mg,k)/(qfg(mg,k)+qlg(mg,k))
-            if(Tk.lt.tfrz.and.qlg(mg,k).gt.0.)then
+c            if(Tk.lt.tfrz.and.Tk.ge.Tice.and.qlg(mg,k).gt.0.)then
+            if(ttg(mg,k).lt.tfrz.and.qlg(mg,k).gt.0.)then
               pk=100*prf(mg,k)
+c              es=100*exp(23.33086-6111.72784/Tk+0.15215*alog(Tk)) !ice value
+c              qs=0.622*es/pk !ice value
               qs=qsati(pk,Tk)
               es=qs*pk/0.622 !ice value
               Aprpr=hl/(rKa*Tk)*(hls/(rvap*Tk)-1)
               Bprpr=rvap*Tk/((Dva/pk)*es)
-              deles=(1.-fice(mg,k))
-     &              *esdiff(min(max(-40,(nint(Tk-tfrz))),1))
+c              esl=100*exp(53.67957-6743.769/Tk-4.8451*alog(Tk))
+c              deles=esl-es
+              deles=esdiff (nint(Tk-tfrz))
               Cice=1.e3*exp(12.96*deles/es - 0.639) !Meyers et al 1992
 
               cm0=1.e-12 !Initial crystal mass
@@ -385,14 +390,59 @@ c Also need this line for fully-mixed option...
         enddo
       enddo  
 
-      if(diag)then
-          write(6,9)'qsw ',  qsw(idjd,:)
-          write(6,9)'qcold', qcold(idjd,:)
-          write(6,9)'delq3 ',(1.-rcrit(idjd,:))*qsw(idjd,:)
-          write(6,9)'al3 ',  1/(1+(hlcp+fi*hlfcp)*
-     &                          qsw(idjd,:)*hlrvap/tliq(idjd,:)**2  )
-          write(6,9)'qcg3 ',  qcg(idjd,:)
-      endif
+c Recalculate qcg and cfrac for mixed-phase clouds that are fully glaciated
+c Use qs = qsw (either ice value or weighted ice/liquid value).
+c Can also use this calculation for cirrus (to allow for finite decay or condensation time)
+c Qcarray (Qc in Smith, 1990) is different for cirrus and mixed-phase clouds.
+
+      do k=1,nl
+        do mg=1,ln2
+          if(ttg(mg,k).ge.Tice)then
+            Qcarray(mg,k)=qtot(mg,k)-qsg(mg,k)
+          else
+            Qcarray(mg,k)=qtot(mg,k)-qsg(mg,k)+qcg(mg,k)-qcold(mg,k)
+          endif
+c          qsw(mg,k)=fice(mg,k)*qsg(mg,k)+(1-fice(mg,k))*qsl(mg,k)  !Weighted qsat
+          qsw(mg,k)=qsg(mg,k)  !Ice value
+        enddo
+      enddo
+
+      do k=1,nl
+        do mg=1,ln2
+c          if(ttg(mg,k).lt.tfrz)then
+          if(ttg(mg,k).lt.tfrz.and.fice(mg,k).gt.0.999999)then
+            qs=qsw(mg,k)
+c            fi=fice(mg,k)
+            fi=1.
+            hlrvap=(hl+fi*hlf)/rvap
+
+            dqsdt=qs*hlrvap/tliq(mg,k)**2
+
+            al=1/(1+(hlcp+fi*hlfcp)*dqsdt) !Smith's notation
+            qc=Qcarray(mg,k)
+
+            delq=(1-rcrit(mg,k))*qs   !UKMO style (equivalent to above)
+            cfrac(mg,k)=1.
+            qcg(mg,k)=al*qc
+            if(qc.lt.delq)then
+              cfrac(mg,k)=1-0.5*((qc-delq)/delq)**2
+              qcg(mg,k)=al*(qc-(qc-delq)**3/(6*delq**2))
+            endif
+            if(qc.le.0.)then
+              cfrac(mg,k)=0.5*((qc+delq)/delq)**2
+              qcg(mg,k)=al*(qc+delq)**3/(6*delq**2)
+            endif
+            if(qc.le.-delq)then
+              cfrac(mg,k)=0.
+              qcg(mg,k)=0.
+            endif
+
+            qfg(mg,k)=qcg(mg,k)
+            qlg(mg,k)=0.
+          endif
+
+        enddo
+      enddo
 
 c Calculate new values of vapour mixing ratio and temperature
 
@@ -400,8 +450,8 @@ c Calculate new values of vapour mixing ratio and temperature
         do mg=1,ln2
           qtg(mg,k)=qtot(mg,k)-qcg(mg,k)
           ttg(mg,k)=tliq(mg,k)+hlcp*qcg(mg,k)+hlfcp*qfg(mg,k)
-c         pk=100.0*prf(mg,k)                         ! moved to bottom
-c         qsg(mg,k)=qsati(pk,ttg(mg,k)) !Ice value   ! moved to bottom
+          pk=100.0*prf(mg,k)
+          qsg(mg,k)=qsati(pk,ttg(mg,k)) !Ice value
           ccov(mg,k)=cfrac(mg,k)      !Do this for now
         enddo
       enddo
@@ -428,7 +478,7 @@ c            ccov(mg,k)=cfrac(mg,k)**(2./3)
         enddo
       endif
      
-      if(nproc==1.and.ktau.eq.10.and.diag)then
+      if(nproc==1.and.ktau.eq.10)then
         do k=1,kl
 	  do mg=il*il+1,2*il*il
 	   den1=qfg(mg,k)+qlg(mg,k)
@@ -443,33 +493,37 @@ c            ccov(mg,k)=cfrac(mg,k)**(2./3)
       if(nmaxpr==1.and.mydiag)then
         write (6,"('qs_ice ',3p9f8.3/7x,9f8.3)") qsg(idjd,:)
       end if
-      if(diag)then
-          print *,'IPASS=1 at end of newcloud'
-          write(6,91)'ttg ', ttg(idjd,:)
-          write(6,91)'tliq ',tliq(idjd,:)
-          write(6,9)'qtg ',  qtg(idjd,:)
-          write(6,9)'qsg ',  qsg(idjd,:)
-          write(6,9)'cfrac ',cfrac(idjd,:)
-          write(6,9)'cdrop ',cdrop(idjd,:)
-          write(6,9)'cfa ',  cfa(idjd,:)
-          write(6,9)'qca ',  qca(idjd,:)
-          write(6,9)'qtot ', qtot(idjd,:)
-          write(6,9)'qcg ',  qcg(idjd,:)
-          write(6,9)'qlg ',  qlg(idjd,:)
-          write(6,9)'qfg ',  qfg(idjd,:)
-      endif
-c 91   format(a6,30f10.3)
-c 9    format(a6,30g10.3)
- 91   format(a6,9f10.3/(6x,9f10.3))
- 9    format(a6,9g10.3/(6x,9g10.3))
+      if(debug)then
+        if(lg.eq.lgdebug)then
+          ns=insdebug
+          mg=mgdebug+(ns-1)*lon
+          write(25,'(a,3i3)')'IPASS=1, after newcloud'
+          write(25,91)'ttg ',(ttg(mg,k),k=1,nl)
+          write(25,91)'tliq ',(tliq(mg,k),k=1,nl)
+          write(25,9)'qtg ',(qtg(mg,k),k=1,nl)
+          write(25,9)'qsg ',(qsg(mg,k),k=1,nl)
+          write(25,9)'cfrac ',(cfrac(mg,k),k=1,nl)
+          write(25,9)'cdrop ',(cdrop(mg,k),k=1,nl)
+          write(25,9)'cfa ',(cfa(mg,k),k=1,nl)
+          write(25,9)'qca ',(qca(mg,k),k=1,nl)
+          write(25,9)'qtot ',(qtot(mg,k),k=1,nl)
+          write(25,9)'qcg ',(qcg(mg,k),k=1,nl)
+          write(25,9)'qlg ',(qlg(mg,k),k=1,nl)
+          write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
+          write(25,*)
+        endif
 
-c     new qsg calc moved here so as to not upset above diags
-      do k=1,nl
-        do mg=1,ln2
-          pk=100.0*prf(mg,k)
-          qsg(mg,k)=qsati(pk,ttg(mg,k)) !Ice value
-        enddo
-      enddo
+C***        do k=1,nl
+C***          do mg=1,ln2
+C***            if(qlg(mg,k).gt.1.e-4)then
+C***              write(25,*)'mg,k,qlg(mg,k) ',mg,k,qlg(mg,k)
+C***            endif
+C***          enddo
+C***        enddo
+      endif
+ 1    format(3(a,g10.5))
+ 91   format(a,30f10.3)
+ 9    format(a,30g10.3)
 
       return
       end

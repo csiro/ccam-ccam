@@ -126,18 +126,9 @@
          do iq=1,ifull  ! N.B. alfu is alf/(1+epsu)
             cc(iq,k)=ux(iq,k)/emu(iq)*alfu(iq)  ! Eq. 136
             dd(iq,k)=vx(iq,k)/emv(iq)*alfv(iq)  ! Eq. 137
-         enddo
-      enddo
+         end do
+      end do
       call boundsuv(cc,dd)
-
-      if(nh>0)then
-        const_nh=-2.*rdry/((1.+epsnh)*dt*grav*grav) ! bet inc. an r term           tx(:,:)=tx(:,:)*(1.-4.*cp/(grav*dtin)**2) ! check dt or dtin
-        do k=1,kl
-         do iq=1,ifull
-          tx(iq,k)=tx(iq,k)-const_nh*tbar2d(iq)**2*omgfnl(iq,k)/sig(k)
-         enddo
-        enddo
-      endif     ! (nh>0)
 
       do k=1,kl
        do iq=1,ifull
@@ -158,7 +149,16 @@
       enddo     ! k loop
 
       if(nh>0)then
+        const_nh=-2.*rdry/((1.+epsnh)*dt*grav*grav) ! bet inc. an r term        
 !       add in departure values of p-related nh terms  & omgfnl terms    
+c        wrk1(:,1)=bet(1)*const_nh*tbar(1)*(h_nh(1:ifull,1)
+c     .                 -sig(1)*omgfnl(:,1)/(tbar(1)*(1.+epsnh)) )        
+c        do k=2,kl
+c         wrk1(:,k)=wrk1(:,k-1)+const_nh*tbar(k)*(
+c     .             bet(k)*h_nh(1:ifull,k)+betm(k)*h_nh(1:ifull,k-1) 
+c     .            -bet(k)*sig(k)*omgfnl(:,k)/(tbar(k)*(1.+epsnh))         
+c     .            -betm(k)*sig(k-1)*omgfnl(:,k-1)/(tbar(k)*(1.+epsnh)) )
+c        enddo   ! k loop
         wrk1(:,1)=bet(1)*const_nh*tbar(1)*(h_nh(1:ifull,1)
      .                 -tbar2d(:)*omgfnl(:,1)/(sig(1)*(1.+epst(:))) )        
         do k=2,kl
@@ -420,14 +420,14 @@ c      enddo    ! k  loop
         if ( (diag.or.nmaxpr==1) .and. mydiag ) then
          print *,'before vertical advection in adjust5 for ktau= ',ktau
          write (6,"('t_a2  ',10f8.2)") t(idjd,:)
-         write (6,"('us# ',9f8.2)") diagvals(cc(:,nlv)) 
-!   &           ((cc(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,1)
-         write (6,"('vs# ',9f8.2)") diagvals(dd(:,nlv))  
-!   &           ((dd(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
-         write (6,"('u#  ',9f8.2)") diagvals(u(:,nlv)) 
-!    &           ((u(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
-         write (6,"('v#  ',9f8.2)") diagvals(v(:,nlv)) 
-!    &           ((v(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+         write (6,"('us# ',9f8.2)") 
+     &           ((cc(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+         write (6,"('vs# ',9f8.2)") 
+     &           ((dd(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+         write (6,"('u#  ',9f8.2)") 
+     &           ((u(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+         write (6,"('v#  ',9f8.2)") 
+     &           ((v(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
          write (6,"('u_a2 ',10f8.2)") u(idjd,:)
          write (6,"('v_a2 ',10f8.2)") v(idjd,:)
          write (6,"('qg_a2 ',3p10f8.3)") qg(idjd,:)
@@ -722,7 +722,8 @@ c       just code fully implicit for a start
       if ( (diag.or.nmaxpr==1) .and. mydiag ) then
         print *,'at end of adjust5 for ktau= ',ktau
         print *,'ps_sav,ps ',ps_sav(idjd),ps(idjd)
-        write (6,"('dpsdt# ',9f8.2)") diagvals(dpsdt) 
+        write (6,"('dpsdt# ',9f8.2)") 
+     &            ((dpsdt(ii+jj*il),ii=idjd-1,idjd+1),jj=1,-1,-1)
         write (6,"('qg_a4 ',3p10f8.3)") qg(idjd,:)
         write (6,"('qgs',3p10f8.3)")
      &                         (qgsav(idjd,k)/ps_sav(idjd),k=1,kl)

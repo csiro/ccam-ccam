@@ -67,46 +67,29 @@ c     this routine put the correct tracer surface flux into trsrc
       implicit none
       include 'newmpar.h'
       include 'dates.h'  ! timeg
-!!!      include 'cbmdim.h' ! mp
+      include 'carbpools.h' ! online co2 fluxes
 c     can these common blocks be 'lost' with rewrite of cbm/soilsnow?
       integer igas
       real trsrc(ifull,kl)
-!!!      common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
-!!!      common/co2fluxes/pfnee(mp),pfpn(mp),pfrp(mp),pfrpw(mp),pfrpr(mp)
-!!!     &                 ,pfrs(mp) 
 
 c     initialise (to allow for ocean gridpoints for cbm fluxes)      
 !     and non surface layers
       trsrc = 0.
 
-c     rml 2/10/03 allow for online (cbm) tracers or flux from file
+!     rml 2/10/03 allow for online (cbm) tracers or flux from file
       if (trim(tractype(igas)).eq.'online') then
-!!!     temporarily do nothing
-        trsrc(:,1)=0.
-!!!c        write(6,*) 'adding surface flux for ',trim(tracname(igas))
-!!!        if (trim(tracname(igas)).eq.'cbmnep') then
-!!!          do ip=1,ipland
-!!!            iq=iperm(ip)
-!!!            trsrc(iq,1) = pfnee(ip)
-!!!          enddo
-!!!        elseif (trim(tracname(igas)).eq.'cbmpn') then
-!!!          do ip=1,ipland
-!!!            iq=iperm(ip)
-!!!            trsrc(iq,1) = pfpn(ip) 
-!!!          enddo
-!!!        elseif (trim(tracname(igas)).eq.'cbmrp') then
-!!!          do ip=1,ipland
-!!!            iq=iperm(ip)
-!!!            trsrc(iq,1) = pfrp(ip)
-!!!          enddo
-!!!        elseif (trim(tracname(igas)).eq.'cbmrs') then
-!!!          do ip=1,ipland
-!!!            iq=iperm(ip)
-!!!            trsrc(iq,1) = pfrs(ip)
-!!!          enddo
-!!!        else
-!!!          stop 'unknown online tracer name'
-!!!        endif
+!       write(6,*) 'adding surface flux for ',trim(tracname(igas))
+        if (trim(tracname(igas)).eq.'cbmnep') then
+          trsrc(:,1) = fnee
+        elseif (trim(tracname(igas)).eq.'cbmpn') then
+          trsrc(:,1) = fpn 
+        elseif (trim(tracname(igas)).eq.'cbmrp') then
+          trsrc(:,1) = frp
+        elseif (trim(tracname(igas)).eq.'cbmrs') then
+          trsrc(:,1) = frs
+        else
+          stop 'unknown online tracer name'
+        endif
       elseif (trim(tractype(igas)).eq.'daypulseon') then
 c       only add flux during day time
         if (tracdaytime(igas,1).lt.tracdaytime(igas,2) .and.
@@ -135,8 +118,8 @@ c *****************************************************************
       include 'arrays.h'  ! ps
       include 'tracers.h' ! tr
       include 'parm.h'    ! dt
-      real trsrc(ilt*jlt,klt)
-      real temptr(ilt*jlt,klt)
+      real trsrc(ilt*jlt,kl)
+      real temptr(ilt*jlt,kl)
 c rml 08/11/04 decay flag to all decay for radon
       logical decay
       real drate,fluxfact

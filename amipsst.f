@@ -36,6 +36,15 @@ c     integer ipermp(ifull),indexi,indexs,ip
       integer il_in,jl_in
       real rlon_in,rlat_in,schmidt_in
 
+!     rml 21/03/06 declarations for sst file as netcdf
+      logical, save :: netcdf_file=.false.
+      integer, save :: ncid,sstid,iceid,nkeep
+      integer  :: timedim,yearid,monthid,ierr2,n,ntime
+      integer  :: start(2),kount(2)
+      integer, dimension(:), allocatable, save :: sstyr,sstmon
+      include 'netcdf.inc'
+
+
       idjd_g = id + (jd-1)*il_g
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       if ( myid == 0 ) then
@@ -62,57 +71,114 @@ c     integer ipermp(ifull),indexi,indexs,ip
           imo_m=12
           iyr_m=iyr-1
         endif
-        open(unit=75,file=sstfile,status='old',form='formatted')
-2       read(75,'(i2,i5,2i4,2f6.1,f6.3,a22)')
-     &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-        write(6,'("reading sst ",i2,i5,2i4,2f6.1,f6.3,a22)')
-     &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-        if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
-     &     rlat0/=rlat_in.or.schmidt/=schmidt_in)then
-          write(0,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
-     &                il_g,il_in,jl_g,jl_in,rlong0,rlon_in
-          write(0,*) 'rlat0,rlat_in,schmidt,schmidt_in',
-     &                rlat0,rlat_in,schmidt,schmidt_in
-          write(0,*) 'wrong amipsst file'
-          stop
-        endif
-        read(75,*) ssta_g
-        ssta_g(:)=ssta_g(:)*.01 -50. +273.16
-        print *,'want imo_m,iyr_m; ssta ',imo_m,iyr_m,ssta_g(idjd_g)
-        if(iyr_m.ne.iyear.or.imo_m.ne.imonth)go to 2
 
-        read(75,'(i2,i5,a22)') imonth,iyear,header
-        print *,'reading sstb data:',imonth,iyear,header
-        print *,'should agree with imo,iyr ',imo,iyr
-        if(iyr.ne.iyear.or.imo.ne.imonth)stop
-        read(75,*) sstb_g
-        sstb_g(:)=sstb_g(:)*.01 -50. +273.16
-        print *,'sstb(idjd) ',sstb_g(idjd_g)
- 
-        open(unit=76,file=icefile,status='old',form='formatted') 
-        if(namip==2)then   ! sice also read at middle of month
-21        read(76,'(i2,i5,2i4,2f6.1,f6.3,a22)')
+!     rml 21/03/06 add option for reading from netcdf format file
+!     try to open as netcdf to determine which read to use
+        ierr2 = nf_open(sstfile,0,ncid)
+        if (ierr2.eq.0) netcdf_file=.true.
+        if (netcdf_file) then
+          ierr2=nf_inq_dimid(ncid,'time',timedim)
+          if (ierr2.ne.nf_noerr) stop 'time dimension error'
+          ierr2=nf_inq_dimlen(ncid,timedim,ntime)
+          ierr2=nf_inq_varid(ncid,'year',yearid)
+          allocate(sstyr(ntime),sstmon(ntime))
+          ierr2=nf_get_var_int(ncid,yearid,sstyr)
+          ierr2=nf_inq_varid(ncid,'month',monthid)
+          ierr2=nf_get_var_int(ncid,monthid,sstmon)
+          ierr2=nf_inq_varid(ncid,'sst',sstid)
+          if (ierr2.ne.nf_noerr) stop 'error finding sst variable'
+!
+!         find required records
+          do n=1,ntime
+            if (sstyr(n).eq.iyr_m.and.sstmon(n).eq.imo_m)
+     &        nkeep=n
+          enddo
+!         read preceeding month
+          start(1)=1; start(2)=nkeep
+          kount(1)=il*jl; kount(2)=1
+          write(6,*) 'sstcheck:',ncid,sstid,start,kount
+          ierr2=nf_get_vara_real(ncid,sstid,start,kount,ssta_g)
+          if (ierr2.ne.nf_noerr) stop 'error reading ssta_g'
+          ssta_g = ssta_g + 273.16
+c         read current month
+          if (sstyr(nkeep+1).ne.iyr.or.sstmon(nkeep+1).ne.imo) stop
+          start(2)=nkeep+1
+          write(6,*) 'sstcheck2:',ncid,sstid,start,kount
+          ierr2=nf_get_vara_real(ncid,sstid,start,kount,sstb_g)
+          if (ierr2.ne.nf_noerr) stop 'error reading sstb_g'
+          sstb_g = sstb_g + 273.16
+          print *,'ssta(idjd) ',ssta_g(idjd_g)
+          print *,'sstb(idjd) ',sstb_g(idjd_g)
+
+        else
+!         original code for reading sst
+          open(unit=75,file=sstfile,status='old',form='formatted')
+2         read(75,'(i2,i5,2i4,2f6.1,f6.3,a22)')
      &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-          write(6,'("reading ice ",i2,i5,2i4,2f6.1,f6.3,a22)')
+          write(6,'("reading sst ",i2,i5,2i4,2f6.1,f6.3,a22)')
      &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+!          if(il/=il_in.or.il/=il_in.or.rlong0/=rlon_in.or.
           if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
-     &       rlat0/=rlat_in.or.schmidt/=schmidt_in)then
-            write(0,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
-     &                  il_g,il_in,jl_g,jl_in,rlong0,rlon_in
-            write(0,*) 'rlat0,rlat_in,schmidt,schmidt_in',
-     &                  rlat0,rlat_in,schmidt,schmidt_in
-            write(0,*) 'wrong amipice file'
+     &     rlat0/=rlat_in.or.schmidt/=schmidt_in)then
+            write(0,*) 'wrong amipsst file'
             stop
           endif
-          read(76,*) aice_g
-          print *,'want imo_m,iyr_m; aice ',imo_m,iyr_m,aice_g(idjd_g)
-          if(iyr_m.ne.iyear.or.imo_m.ne.imonth)go to 21
-          read(76,'(i2,i5,a22)') imonth,iyear,header
-          print *,'reading b_sice data:',imonth,iyear,header
+          read(75,*) ssta_g
+          ssta_g(:)=ssta_g(:)*.01 -50. +273.16
+          print *,'want imo_m,iyr_m; ssta ',imo_m,iyr_m,ssta_g(idjd_g)
+          if(iyr_m.ne.iyear.or.imo_m.ne.imonth)go to 2
+
+          read(75,'(i2,i5,a22)') imonth,iyear,header
+          print *,'reading sstb data:',imonth,iyear,header
           print *,'should agree with imo,iyr ',imo,iyr
           if(iyr.ne.iyear.or.imo.ne.imonth)stop
-          read(76,*) bice_g
-          print *,'bice(idjd) ',bice_g(idjd_g)
+          read(75,*) sstb_g
+          sstb_g(:)=sstb_g(:)*.01 -50. +273.16
+          print *,'sstb(idjd) ',sstb_g(idjd_g)
+        endif
+ 
+        if (namip==2) then ! sea ice also read at middle of month
+          if (netcdf_file) then
+!           read ice - no need to check mon/yr because same index
+!           read preceeding month
+            ierr2=nf_inq_varid(ncid,'ice',iceid)
+            if (ierr2.ne.nf_noerr) stop 'error finding ice variable'
+            start(2)=nkeep
+            write(6,*) 'icecheck:',ncid,iceid,start,kount
+            ierr2=nf_get_vara_real(ncid,iceid,start,kount,aice_g)
+            if (ierr2.ne.nf_noerr) stop 'error reading aice'
+c           read current month
+            start(2)=nkeep+1
+            write(6,*) 'icecheck2:',ncid,iceid,start,kount
+            ierr2=nf_get_vara_real(ncid,iceid,start,kount,bice_g)
+            if (ierr2.ne.nf_noerr) stop 'error reading bice'
+
+            print *,'aice(idjd) ',aice_g(idjd_g)
+            print *,'bice(idjd) ',bice_g(idjd_g)
+
+          else
+!           original code for reading ice file
+            open(unit=76,file=icefile,status='old',form='formatted') 
+21          read(76,'(i2,i5,2i4,2f6.1,f6.3,a22)')
+     &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+            write(6,'("reading ice ",i2,i5,2i4,2f6.1,f6.3,a22)')
+     &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+!            if(il/=il_in.or.il/=il_in.or.rlong0/=rlon_in.or.
+            if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
+     &       rlat0/=rlat_in.or.schmidt/=schmidt_in)then
+              write(0,*) 'wrong amipice file'
+              stop
+            endif
+            read(76,*) aice_g
+            print *,'want imo_m,iyr_m; aice ',imo_m,iyr_m,aice_g(idjd_g)
+            if(iyr_m.ne.iyear.or.imo_m.ne.imonth)go to 21
+            read(76,'(i2,i5,a22)') imonth,iyear,header
+            print *,'reading b_sice data:',imonth,iyear,header
+            print *,'should agree with imo,iyr ',imo,iyr
+            if(iyr.ne.iyear.or.imo.ne.imonth)stop
+            read(76,*) bice_g
+            print *,'bice(idjd) ',bice_g(idjd_g)
+          endif 
         endif   ! (namip==2) 
       endif     ! (ktau==0)
 
@@ -128,20 +194,40 @@ c     integer ipermp(ifull),indexi,indexs,ip
          endif                  ! (imo_p==13)
  
 !       read in next months data
-3       read(75,'(i2,i5,a22)') imonth,iyear,header
-        print *,'reading sstb data:',imonth,iyear,header
-        print *,'comparing with imo_p,iyr_p ',imo_p,iyr_p
-        read(75,*) sstb_g
-        sstb_g(:)=sstb_g(:)*.01 -50. +273.16
-        if(iyr_p.ne.iyear.or.imo_p.ne.imonth)go to 3
+        if (netcdf_file) then
+          write(6,*) 'reading new sst/ice data'
+          if (sstyr(nkeep+2).ne.iyr_p.or.sstmon(nkeep+2).ne.imo_p) then
+            write(6,*) 'date check: ',iyr_p,imo_p,sstyr(nkeep+2),
+     &                  sstmon(nkeep+1)
+            stop 'failed to match sst year/month'
+          endif
+          start(1)=1; start(2)=nkeep+2
+          kount(1)=il*jl; kount(2)=1
+          ierr2=nf_get_vara_real(ncid,sstid,start,kount,sstb_g)
+          if (ierr2.ne.nf_noerr) stop 'error reading sstb'
+          sstb_g = sstb_g + 273.16
+          if (namip.eq.2) then
+            start(2)=nkeep+2
+            ierr2=nf_get_vara_real(ncid,iceid,start,kount,bice_g)
+            if (ierr2.ne.nf_noerr) stop 'error reading bice'
+          endif
 
-        if(namip==2)then   ! sice also read at middle of month
-31        read(76,'(i2,i5,a22)') imonth,iyear,header
-          print *,'reading b_sice data:',imonth,iyear,header
+        else
+3         read(75,'(i2,i5,a22)') imonth,iyear,header
+          print *,'reading sstb data:',imonth,iyear,header
           print *,'comparing with imo_p,iyr_p ',imo_p,iyr_p
-          read(76,*) bice_g
-          if(iyr_p.ne.iyear.or.imo_p.ne.imonth)go to 31
-        endif  ! (namip==2)
+          read(75,*) sstb_g
+          sstb_g(:)=sstb_g(:)*.01 -50. +273.16
+          if(iyr_p.ne.iyear.or.imo_p.ne.imonth)go to 3
+
+          if(namip==2)then   ! sice also read at middle of month
+31          read(76,'(i2,i5,a22)') imonth,iyear,header
+            print *,'reading b_sice data:',imonth,iyear,header
+            print *,'comparing with imo_p,iyr_p ',imo_p,iyr_p
+            read(76,*) bice_g
+            if(iyr_p.ne.iyear.or.imo_p.ne.imonth)go to 31
+          endif  ! (namip==2)
+        endif
       endif    ! (iday==mdays(imo)/2)
 
       if(iday<mdays(imo)/2)then  ! 1st half of month

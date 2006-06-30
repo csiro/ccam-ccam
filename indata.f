@@ -36,7 +36,6 @@
       include 'pbl.h'
       include 'permsurf.h'
       include 'prec.h'
-!     include 'scamdim.h'
       include 'sigs.h'
       include 'soil.h'      ! sicedep,fracice
       include 'soilsnow.h'  ! tgg,wb
@@ -58,6 +57,8 @@
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
       real sigin
       integer kk
+! rml from eak 16/03/06
+      integer jyear,jmonth
       common/sigin/sigin(kl),kk  ! for vertint, infile
 !     common/work3/p(ifull,kl),dum3(ifull,kl,4)
       real zss, psav, tsss, dum0, dumzs, aa, bb, dum2
@@ -92,6 +93,8 @@
      &     wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, distnew,
      &     xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent,
      &     deli, delj, centi, distx, rhs, ril2
+! rml from eak 16/03/06
+     &     ,sfact
 
       real, dimension(44), parameter :: vegpmin = (/
      &              .98,.85,.85,.5,.2,.1 ,.85,.5,.2,.5,                ! 1-10
@@ -227,9 +230,9 @@
       endif   ! (io_in<=4.and.nhstest>=0)
 
       if ( mydiag ) then
-         write(6,"('zs#_topof ',9f8.1)") diagvals(zs)
+         write(6,"('zs#_topof ',9f7.1)") diagvals(zs)
 !     &            ((zs(ii+jj*il),ii=idjd-1,idjd+1),jj=1,-1,-1)
-         write(6,"('he#_topof ',9f8.1)") diagvals(he)
+         write(6,"('he#_topof ',9f7.1)") diagvals(he)
 !     &            ((he(ii+jj*il),ii=idjd-1,idjd+1),jj=1,-1,-1)
       end if
 
@@ -239,10 +242,10 @@
          ktime_sav=ktime_s
          if(io_in==1)then
             call infile(0,kdate,ktime,timegb,ds,
-     &           psl,zss,tss,sicedep,fracice,
-     &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
-     &           tgg,wb,wbice,alb,snowd,
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag)
+     &          psl,zss,tss,sicedep,fracice,
+     &          t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
+     &          tgg,wb,wbice,alb,snowd,
+     &          tggsn,smass,ssdn,ssdnn,snage,albvisnir,albsoilsn,isflag)
             if ( mydiag ) then
                print *,'timegb,ds,zss',timegb,ds,zss(idjd)
                print *,'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
@@ -265,8 +268,6 @@ c           endif  ! (nspecial>100)
      &           abs(rlat0    -rlat0x)>.01.or.
      &           abs(schmidt-schmidtx)>.01)then
                  write(0,*) "grid mismatch in indata"
-                 print *,'rlong0,rlong0x,rlat0,rlat0x,schmidt,schmidtx '
-     &                   ,rlong0,rlong0x,rlat0,rlat0x,schmidt,schmidtx
                  stop 
               endif
             endif  ! (newtop>=0)
@@ -352,17 +353,17 @@ c           endif  ! (nspecial>100)
                print *,'newtop>=1 new_land_tss,zsold,zs: ',
      &                    tss(idjd),zss(idjd),zs(idjd)
 !              compensate psl, t(,,1), qg as read in from infile
-               write(6,"('zs#  in     ',9f8.1)") diagvals(zs)
+               write(6,"('zs#  in     ',9f7.1)") diagvals(zs)
 !     &              ((zs(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
-               write(6,"('zss# in     ',9f8.1)") diagvals(zss)
+               write(6,"('zss# in     ',9f7.1)") diagvals(zss)
 !     &              ((zss(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
-               write(6,"('100*psl#  in',9f8.2)") 100.*diagvals(psl)
+               write(6,"('100*psl#  in',9f7.2)") 100.*diagvals(psl)
 !     &          ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
                print *,'now call retopo from indata'
            end if ! ( mydiag )
            call retopo(psl,zss,zs,t(1:ifull,:),qg(1:ifull,:))
            if(nmaxpr==1.and.mydiag)then
-               write(6,"('100*psl# out',9f8.2)") 100.*diagvals(psl)
+               write(6,"('100*psl# out',9f7.2)") 100.*diagvals(psl)
 !     &          ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
            endif
            if(nproc==1)then
@@ -796,22 +797,28 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
       enddo   ! iq loop
 
 !     read data for biospheric scheme if required
+! rml from eak 16/03/06
+      jyear=kdate/10000
+      jmonth=(kdate-jyear*10000)/100
       if(nsib>=1)then
         call insoil   !  bundled in with sscam2
-        call rdnsib   !  for usual defn of isoil, iveg etc
+! rml from eak 16/03/06 - now pass in jyear,jmonth
+        call rdnsib(jyear,jmonth)   !  for usual defn of isoil, iveg etc
+!       call rdnsib   !  for usual defn of isoil, iveg etc
+        if( nsib .gt.3) call cbmrdn(jmonth)
       else
         do iq=1,ifull
          ivegt(iq)=1   ! default for h_s etc
          isoilm(iq)=1  ! default for h_s etc
         enddo
       endif      ! (nsib>=1)
-      
+
       do iq=1,ifull
-       if(land(iq))then  
+       if(land(iq))then
 !        following line from 16/3/06 avoids sand on Himalayas        
          if(zs(iq)>2000.*grav.and.isoilm(iq)<3)isoilm(iq)=3
        endif
-      enddo                 
+      enddo
 
 !     rml 16/02/06 initialise tr, timeseries output and read tracer fluxes
       if (ngas>0) then
@@ -915,7 +922,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
         call readglobvar(87, tgg, fmt="*")
         call readglobvar(87, aa, fmt="*")    ! only use land values of tss
         call readglobvar(87, snowd, fmt="*")
-c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
+        call readglobvar(87, sicedep, fmt="*")
         if ( myid == 0 ) close(87)
         if(ico2.ne.0)then
           ico2x=max(1,ico2)
@@ -1030,7 +1037,7 @@ c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
       if(newsnow==1)then  ! don't do this for restarts
 !       snowd is read & used in cm (i.e. as mm of water)
         call readreal(snowfile,snowd,ifull)
-        if (mydiag) write(6,"('snowd# in',9f8.2)") diagvals(snowd)
+        if (mydiag) write(6,"('snowd# in',9f7.2)") diagvals(snowd)
 !     &       ((snowd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
       elseif(nrungcm.ne.0)then     ! 21/12/01
         do iq=1,ifull
@@ -1193,38 +1200,51 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 !     tgg(:,:)=max(190.,tgg(:,:))  ! temporary post-glacier-error fix
       if ( mydiag ) then
          print *,'near end of indata id+-1, jd+-1'
-         write(6,"('tss#    ',9f8.2)") diagvals(tss)
-!    &       ((tss(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('tgg(1)# ',9f8.2)") diagvals(tgg(:,1))
-!    &       ((tgg(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('tgg(2)# ',9f8.2)") diagvals(tgg(:,2))
-!    &       ((tgg(ii+(jj-1)*il,2),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('tgg(3)# ',9f8.2)") diagvals(tgg(:,3))
-!    &       ((tgg(ii+(jj-1)*il,3),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('tgg(ms)#',9f8.2)") diagvals(tgg(:,ms))
-!    &       ((tgg(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('land#   ',9l8)")  diagvals(land)
-!    &       ((land(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('sicedep#   ',9f8.2)") diagvals(sicedep)
-!    &       ((sicedep(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('tss#    ',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &       diagvals(tss)
+!     &       ((tss(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('tgg(1)# ',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &       diagvals(tgg(:,1))
+!     &       ((tgg(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('tgg(2)# ',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &       diagvals(tgg(:,2))
+!     &       ((tgg(ii+(jj-1)*il,2),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('tgg(3)# ',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &       diagvals(tgg(:,3))
+!     &       ((tgg(ii+(jj-1)*il,3),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('tgg(ms)#',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &       diagvals(tgg(:,ms))
+!     &       ((tgg(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('land#   ',3l7,1x,3l7,1x,3l7)") 
+     &       diagvals(land)
+!     &       ((land(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('sicedep#   ',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &       diagvals(sicedep)
+!     &       ((sicedep(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
          print *,'following from rdnsib'
-         write(6,"('zo#     ',9f8.2)") diagvals(zolnd)
+         write(6,"('zo#     ',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &       diagvals(zolnd)
 !     &       ((zolnd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('wb(1)#  ',9f8.3)") diagvals(wb(:,1))
+         write(6,"('wb(1)#  ',3f7.3,1x,3f7.3,1x,3f7.3)") 
+     &       diagvals(wb(:,1))
 !     &       ((wb(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('wb(ms)# ',9f8.3)") diagvals(wb(:,ms))
+         write(6,"('wb(ms)# ',3f7.3,1x,3f7.3,1x,3f7.3)") 
+     &       diagvals(wb(:,ms))
 !     &       ((wb(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('swilt#  ',9f8.3)")swilt(diagvals(isoilm))
+         write(6,"('swilt#  ',3f7.3,1x,3f7.3,1x,3f7.3)")
+     &       swilt(diagvals(isoilm))
 !     &    ((swilt(isoilm(ii+(jj-1)*il)),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('wb3frac#',9f8.3)")
+         write(6,"('wb3frac#',3f7.3,1x,3f7.3,1x,3f7.3)")
      &       (diagvals(wb(:,3)) - swilt(diagvals(isoilm))) /
      &       (sfc(diagvals(isoilm)) - swilt(diagvals(isoilm)))
 !     &    (( (wb(ii+(jj-1)*il,3)-swilt(isoilm(ii+(jj-1)*il)))/
 !     &    (sfc(isoilm(ii+(jj-1)*il))-swilt(isoilm(ii+(jj-1)*il))),
 !     &            ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('snowd#  ',9f8.2)") diagvals(snowd)
+         write(6,"('snowd#  ',3f7.2,1x,3f7.2,1x,3f7.2)") 
+     &       diagvals(snowd)
 !     &       ((snowd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('fracice#',9f8.3)") diagvals(fracice)
+         write(6,"('fracice#',3f7.3,1x,3f7.3,1x,3f7.3)") 
+     &       diagvals(fracice)
 !     &       ((fracice(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
       end if
 
@@ -1350,7 +1370,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
            write(6,"('after nrungcm=1 fix-up wb(1-ms)',9f7.3)") 
      &                   (wb(idjd,k),k=1,ms)
            write(6,"('wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
-           write(6,"('wb3frac#',9f8.2)")
+           write(6,"('wb3frac#',9f7.2)")
      &       (diagvals(wb(:,3)) - swilt(diagvals(isoilm))) /
      &       (sfc(diagvals(isoilm)) - swilt(diagvals(isoilm)))
 !     &    (( (wb(ii+(jj-1)*il,3)-swilt(isoilm(ii+(jj-1)*il)))/
@@ -1396,12 +1416,12 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 
       if ( mydiag ) then
          print *,'nearer end of indata id+-1, jd+-1'
-         write(6,"('tgg(2)# ',9f8.2)")  diagvals(tgg(:,2))
+         write(6,"('tgg(2)# ',9f7.2)")  diagvals(tgg(:,2))
 !     &       ((tgg(ii+(jj-1)*il,2),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('tgg(ms)#',9f8.2)")  diagvals(tgg(:,ms))
+         write(6,"('tgg(ms)#',9f7.2)")  diagvals(tgg(:,ms))
 !     &        ((tgg(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
       end if
-
+      if(nsib.le.3) then
       do ip=1,ipland  ! all land points in this nsib=1+ loop
        iq=iperm(ip)
        isoil = isoilm(iq)
@@ -1426,6 +1446,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
        rlai=  max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil))
        rsmin(iq) = rsunc44(iveg)/rlai   
       enddo    !  ip=1,ipland
+      endif ! nsib le 3
       
       if(jalbfix==1)then  ! jlm fix-up for albedos, esp. over sandy bare soil
          if ( mydiag ) then
@@ -1452,7 +1473,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
         endif
         if ( mydiag ) then
           print *,'after calczo with newrough = ',newrough
-          write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
+          write(6,"('zo#    ',3f7.2,1x,3f7.2,1x,3f7.2)") diagvals(zolnd)
         end if
       endif
 
@@ -1519,8 +1540,8 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
       end if
 
       epst(1:ifull)=abs(epsp)
-      if(abs(epsp)>1.)then   ! e.g. 20. to give epsmax=.2 for del_orog=600 m
-        epsmax=abs(epsp)/100.
+      if(epsp>1.)then   ! e.g. 20. to give epsmax=.2 for del_orog=600 m
+        epsmax=epsp/100.
         do iq=1,ifull      ! sliding epsf to epsmax
          zsdiff=max(abs(zs(ie(iq))-zs(iq)),
      &              abs(zs(iw(iq))-zs(iq)),
@@ -1529,9 +1550,9 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
          epst(iq)=max(epsf,min(epsmax*zsdiff/(600.*grav),epsmax))
         enddo
         epsf=0.
-      endif  ! (abs(epsp)>1.)
-      if(abs(epsp)>99.)then  ! e.g. 200. to give epsmax=.2 for orog=600 m
-        epsmax=abs(epsp)/1000.
+      endif
+      if(epsp>99.)then  ! e.g. 200. to give epsmax=.2 for orog=600 m
+        epsmax=epsp/1000.
         do iq=1,ifull
          zsdiff=max(zs(iq)-zs(ie(iq)),
      &              zs(iq)-zs(iw(iq)),
@@ -1539,16 +1560,15 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
      &              zs(iq)-zs(is(iq)),0. )
          epst(iq)=min(epsmax*zsdiff/(600.*grav),epsmax) ! sliding 0. to epsmax
         enddo
-      endif  ! (abs(epsp)>99.)
+      endif
       if(epsp>1..and.epsp<2.)epst(:)=epsp-1.
-      write (6,"('epst0#  ',9f8.2)") diagvals(epst) 
-      
+
       print *,'at centre of the panels:'
       do n=1,npan
          iq = indp((ipan+1)/2,(jpan+1)/2,n)
          print '(" n,em,emu,emv,f,fu,fv "i3,3f6.3,3f10.6)',
      &        n-noff,em(iq),emu(iq),emv(iq),f(iq),fu(iq),fv(iq)
-      enddo ! n=1,npan
+      enddo
 
       along(:)=rlongg(:)*180./pi    
       alat(:)=rlatt(:)*180./pi
@@ -1658,9 +1678,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
              iq = ii + (jj-1)*ipan + (n-1)*ipan*jpan
 !             print*, "Station", nn, iqg, ii, jj, n, iq
              if(.not.land(iq))then
-!              simple search for neighbouring land point 
-!              N.B. does not search over panel/processor bndries
-!              N.B. if no land points, just returns closest point
+!              simple search for neighbouring land point (not over panel bndries)
                isav = ii
                jsav = jj
                dist=100.
@@ -1712,16 +1730,51 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         enddo  ! nn=1,nstn
       endif     !  (nstn>0)
 
-      do iq=1,ifull
+      if(nsib.le.3) then
+      do iq=1,ifull            
        albsav(iq)=alb(iq)
       enddo   ! iq loop
+      endif
+! rml from eak 16/03/06
+!     initialise soil+snow albedo for cbm.f90 and soil_snow.f90
+      if(nsib .eq.4 ) then
+      do iq=1,ifull
+!                       need to retrieve just soil albedo from grid albedo
+       albsav(iq)=alb(iq)             !
+       if( land(iq).and.(isoilm(iq) .ne. 9 .or. isoilm(iq).ne.1)) 
+     &     albsav(iq)=min(alb(iq),0.25)      ! snow free albedo
+       if( isoilm(iq) .eq. 1) albsav(iq)=min(alb(iq),0.41)
+       if( isoilm(iq) .eq. 9) albsav(iq)=min(alb(iq),0.61)
+
+       albsoil(iq)=albsav(iq)            ! soil albedo
+!       if(land(iq).and.(snowd(iq).gt.1.)) albsav(iq)=max(albsav(iq),
+!     & min(.8,albsav(iq)+(.8-min(.8,albsav(iq)))*sqrt(snowd(iq)*0.1)))
+       sfact=0.68
+       if(albsav(iq).le.0.14) then
+        sfact=0.5
+       elseif(albsav(iq).gt.0.14.and.albsav(iq).le.0.20) then
+        sfact=0.62
+       endif
+       if(albsoilsn(iq,2).le.0.01) then
+         albsoilsn(iq,2)=2.*albsav(iq)/(1.+ sfact)
+         albsoilsn(iq,1)=sfact*albsoilsn(iq,2)
+       endif
+       if(albvisnir(iq,2).le.0.01) then
+       albvisnir(iq,1)=albsoilsn(iq,1)
+       albvisnir(iq,2)=albsoilsn(iq,2)
+       endif
+      enddo   ! iq loop
+      endif ! nsib=4
       call end_log(indata_end)
       return
       end
 
-      subroutine rdnsib
+! rml from eak 16/03/06 - add jyear,jmonth
+      subroutine rdnsib(jyear, jmonth)
 !     subroutine to read in  data sets required for biospheric scheme.
       use cc_mpi
+! rml from eak 16/03/06
+      parameter (readlaif=1)  ! 0 for LAI by cbmrdn, 1 for LAI from modis 
       include 'newmpar.h'
       include 'arrays.h'
       include 'const_phys.h'
@@ -1730,11 +1783,12 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
       include 'pbl.h'
-!     include 'scamdim.h'
       include 'soil.h'
       include 'soilsnow.h' ! new soil arrays for scam - tgg too
       include 'soilv.h'
       include 'tracers.h'
+! rml from eak 16/03/06
+      include 'vegpar.h'
       include 'mpif.h'
       parameter( ivegdflt=1, isoildflt=7, ico2dflt = 999 )
       parameter( falbdflt=15., fsoildflt=0.15, frsdflt=990.)
@@ -1756,7 +1810,7 @@ c    &              .54, .0/
        call readreal(rsmfile,rsmin,ifull)  ! not used these days
        call readreal(zofile,zolnd,ifull)
        if(iradon.ne.0)call readreal(radonemfile,radonem,ifull)
-       call readint(vegfile,ivegt,ifull)
+       if(nsib.le.3) call readint(vegfile,ivegt,ifull)
        call readint(soilfile,isoilm,ifull)
 
        mismatch = .false.
@@ -1768,6 +1822,25 @@ c    &              .54, .0/
      &      mismatch = .true.
 !      if( idatacheck(land,ivegt,'ivegt',idatafix,ivegdflt))
 !    .      mismatch = .true.
+
+! rml from eak 16/03/06
+      if(readlaif.eq.1) then
+        print *,'reading LAI and sigmf from french data set'
+        call readreal(sigmfile,sigmf,ifull)
+c       rml 12/12/03 lai now from netcdf file, also no longer *10
+        call readlai(rlaifile,jyear,jmonth,rlai123,rlaimax)
+        do iq=1,ifull
+         sigmf(iq)=min(1.,max(0.,sigmf(iq)/100.))
+         rlai(iq)=rlai123(iq,2)
+         if(sigmf(iq).gt. 0.0 ) rlai(iq) = max(0.01,rlai(iq))
+         rlai(iq)=min(6.,max(0.0011,rlai(iq)))
+         if (isoilm(iq).eq.9) rlai(iq)=0.0011
+         vlai(iq)=rlai(iq)
+        enddo
+        print *,'indata rlai',rlai(13419),rlai(2468),rlaimax(13419),
+     &   rlaimax(2468)
+      endif ! readlaif
+      if(nsib.le.3) then
        ivegmin=100
        ivegmax=-100
        do iq=1,ifull
@@ -1779,6 +1852,7 @@ c         if(ivegt(iq)>40)print *,'iq, ivegt ',iq,ivegt(iq)
        enddo
        print *,'ivegmin,ivegmax ',ivegmin,ivegmax
        if(ivegmin<1.or.ivegmax>44)stop
+      endif !nsib.le.3
        if( idatacheck(land,isoilm,'isoilm',idatafix,isoildflt))
      &      mismatch = .true.
        if(newsoilm>0)then
@@ -1804,7 +1878,8 @@ c         if(ivegt(iq)>40)print *,'iq, ivegt ',iq,ivegt(iq)
      &                  MPI_COMM_WORLD, ierr )
       call MPI_Allreduce(ivegmax, ivegmax_g, 1, MPI_INTEGER, MPI_MAX, 
      &                  MPI_COMM_WORLD, ierr )
-      if(ivegmax_g<14)then
+! rml from eak 16/03/06 add test for nsib
+      if(nsib.le.3 .and. ivegmax_g<14)then
        if ( mydiag ) print *,
      &      '**** in this run veg types increased from 1-13 to 32-44'
        do iq=1,ifull            ! add offset to sib values so 1-13 becomes 32-44
@@ -1818,12 +1893,15 @@ c     zobg = .05
 !     zolnd(:)=min(zolnd(:) , 1.5)   ! suppressed 30/7/04
       zolnd(:)=max(zolnd(:) , zobgin)
 
-      do iq=1,ifull
-        if(land(iq))then
-          sigmf(iq)=min(.8,.95*vegpsig(ivegt(iq)))
-          tsigmf(iq)=sigmf(iq)
-        endif
-      enddo
+! rml from eak 16/03/06 add nsib test
+      if (nsib.le.3) then
+        do iq=1,ifull
+          if(land(iq))then
+            sigmf(iq)=min(.8,.95*vegpsig(ivegt(iq)))
+            tsigmf(iq)=sigmf(iq)
+          endif
+        enddo
+      endif
 
       return
       end
@@ -1919,10 +1997,10 @@ c     zobg = .05
       subroutine insoil
       use cc_mpi, only : myid
       include 'newmpar.h'
-!     include 'scamdim.h'
       include 'soilv.h'
 !     n.b. presets for soilv.h moved to blockdata
-      common/soilzs/zshh(ms+1),ww(ms)
+! rml from eak 16/03/06 commented out following line
+!     common/soilzs/zshh(ms+1),ww(ms)
 
         do isoil=1,mxst
          cnsd(isoil)  = sand(isoil)*0.3+clay(isoil)*0.25+
@@ -1945,10 +2023,11 @@ c     zobg = .05
 !      zse(6)=1.5                    ! was over-riding data statement (jlm)
        zshh(1) = .5*zse(1)           ! not used (jlm)
        zshh(ms+1) = .5*zse(ms)       !  ???  ! not used (jlm)
-       ww(1) = 1.
+! rml from eak 16/03/06 commented out lines with ww
+!      ww(1) = 1.
        do k=2,ms
           zshh(k)= .5*(zse(k-1)+zse(k))  ! z(k)-z(k-1) (jlm)
-          ww(k)   = zse(k)/(zse(k)+zse(k-1))
+!         ww(k)   = zse(k)/(zse(k)+zse(k-1))
        enddo
 
       return
@@ -1961,7 +2040,6 @@ c     zobg = .05
       include 'map.h'   
       include 'nsibd.h' ! ivegt
       include 'parm.h'
-!     include 'scamdim.h'
       include 'soil.h'      ! zolnd
       include 'soilsnow.h'  ! tgg,wb
       real xhc(0:44)
@@ -2076,7 +2154,6 @@ c  8   organi!              peat
 c  9   land ice
 c-----------------------------------------------------------------------
 !     include 'newmpar.h'   ! parameter statement darlam npatch
-!     include 'scamdim.h' 
 !     include 'scampar.h'
       real xhc(0:44),xpfc(0:44),xvlai(0:44),xslveg(0:44)
 !     common /canopy/
@@ -2201,4 +2278,66 @@ c find coexp: see notes "simplified wind model ..." eq 34a
       return ! ruff
       end
 !=======================================================================
-
+! rml from eak 16/03/06 - new subroutine
+      subroutine readlai(filename,iyr,imon,rlaiin,rlaimax)
+c     rml 12/12/03 lai as netcdf file
+      include 'newmpar.h'
+c     include 'parm.h'
+      character*50 filename
+c     3 for interp case - last month, this month, next month
+      real rlaiin(il*jl,3),rlaimax(il*jl)
+      real, dimension(:,:), allocatable :: temparr
+      integer ncidlai,timedim,ntime,yearid,monthid,laiid
+      integer, dimension(:), allocatable :: laiyr,laimon
+      include 'netcdf.inc'
+      
+c
+      print *,'reading lai for ',iyr,imon,' from ',filename
+      ierr = nf_open(filename,0,ncidlai)
+      if (ierr.ne.nf_noerr) stop 'lai file not found'
+      ierr=nf_inq_dimid(ncidlai,'time',timedim)
+      if (ierr.ne.nf_noerr) stop 'time dimension error'
+      ierr=nf_inq_dimlen(ncidlai,timedim,ntime)
+      if (ierr.ne.nf_noerr) stop 'time dimension length error'
+      ierr=nf_inq_varid(ncidlai,'year',yearid)
+      if (ierr.ne.nf_noerr) stop 'year variable not found'
+      allocate(laiyr(ntime),laimon(ntime))
+      ierr=nf_get_var_int(ncidlai,yearid,laiyr)
+      if (ierr.ne.nf_noerr) stop 'year variable not read'
+      ierr=nf_inq_varid(ncidlai,'month',monthid)
+      if (ierr.ne.nf_noerr) stop 'month variable not found'
+      ierr=nf_get_var_int(ncidlai,monthid,laimon)
+      if (ierr.ne.nf_noerr) stop 'month variable not read'
+      ierr=nf_inq_varid(ncidlai,'lai',laiid)
+      if (ierr.ne.nf_noerr) stop 'lai variable not found'
+c
+c     find required records
+      nprev=0
+      nnext=0
+      ncur=0
+c     current assume no year-to-year variability in lai
+      if (ntime.ne.12) stop 'lai file wrong ntime'
+      do n=1,ntime
+        if (laimon(n).eq.imon) then
+          ncur=n
+          nprev=n-1
+          if (nprev.eq.0) nprev=12
+          nnext=n+1
+          if (nnext.eq.13) nnext=1
+        endif
+      enddo
+c
+      if (ncur.eq.0) stop 'current year/month not in lai file'
+c    
+c     read all months to find max
+      allocate(temparr(il*jl,ntime))
+      ierr=nf_get_var_real(ncidlai,laiid,temparr)
+      if (ierr.ne.nf_noerr) stop 'error reading lai data'
+c
+      rlaimax = maxval(temparr,dim=2)
+      rlaiin(:,1) = temparr(:,nprev)
+      rlaiin(:,2) = temparr(:,ncur)
+      rlaiin(:,3) = temparr(:,nnext)
+      deallocate(temparr,laimon,laiyr)
+c
+      end

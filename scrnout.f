@@ -9,8 +9,8 @@
       integer nits,ntest
       real vkar,zscr
 !     has fixer at bottom to ensure tscrn and qgscrn bounded (& non-neg)
-      parameter (nits=2)   ! nits=2 for 2 iterations
-      parameter (ntest=0)  ! ntest= 0 for diags off; ntest>= 1 for diags 
+      parameter (nits=2)    ! nits=2 for 2 iterations
+      parameter (ntest=0)   ! ntest= 0 for diags off; ntest>= 1 for diags on
 !     parameter (chn10=.00136733)   ! sea only, same as in sflux via parm.h
       parameter (vkar=.4,zscr=1.8)
       include 'newmpar.h'
@@ -23,7 +23,6 @@ c     include 'map.h'
       include 'parm.h'
       include 'pbl.h'
       include 'prec.h'     ! just for diags
-      include 'scamdim.h'
       include 'sigs.h'
       include 'soil.h'
       include 'soilsnow.h'
@@ -206,15 +205,18 @@ c        Starting value of the Richardson number.
        tstarx(iq)=aft(iq)*vmod(iq)*fh38(iq)*deltat/ustar(iq)
        qstarx(iq)=aft(iq)*vmod(iq)*fh38(iq)*deltaq/ustar(iq)
        fact=sqrt(af2(iq)*fm2(iq))/(aft2(iq)*fh2(iq))
-       tscrn(iq)=tsurf(iq)-fact*tstarx(iq)
+!       tscrn(iq)=tsurf(iq)-fact*tstarx(iq)
+       if(nsib.le.3) tscrn(iq)=tsurf(iq)-fact*tstarx(iq) ! for nsib=4 use values from cbm.f90
 c      N.B. over unstable sea points, may sometimes get supersat qgscrn
 c      also over stable snow points, as tscrn & qgscrn derived independently in
 c      location with large vertical gradients
-       qgscrn(iq)=qsurf(iq)-fact*qstarx(iq)
+!       qgscrn(iq)=qsurf(iq)-fact*qstarx(iq)
+       if(nsib.le.3) qgscrn(iq)=qsurf(iq)-fact*qstarx(iq) ! for nsib=4 use values from cbm.f90
+
      
 c      screen wind speeds
        vfact=sqrt(u(iq,1)**2+v(iq,1)**2)/vmod(iq)
-       uscrn(iq) = vfact*ustar(iq)/(afroot2(iq)*sqrt(fm2(iq)))
+       uscrn(iq) = vfact*ustar(iq)/(afroot2(iq)*sqrt(fm2(iq))) 
        u10(iq) = vfact*ustar(iq)/(afroot10(iq)*sqrt(fm10(iq)))
 !      use tscrn for calc rhscrn  23/12/05	
        es=establ(tscrn(iq))
@@ -319,17 +321,5 @@ c       qgscrn(iq)=min(qgscrn(iq),max(qsurf(iq),qg(iq,1)))
 c      enddo
    
       tscrn(:)=tscrn(:)-.018  ! apply 1.8 m approx. adiab. corrn.
-      if(ntest==-1)then
-       do iq=1,ifull
-        if(.not.land(iq).and.sicedep(iq)==0.)then 
-c         write(23,'(f6.2,f9.6,2i6,f7.2)') u10(iq),zo(iq),ktau,iq,ri(iq)
-          write(23,'(f6.2,2f9.6,f6.2,2i6,3f7.4)') u10(iq),
-     &     cduv(iq)/vmod(iq),zo(iq),vmod(iq),ktau,iq,ri(iq),fh10(iq),
-     &     ustar(iq)
-c          to plot cd10, use plot 'fort.23' u
-c                   1:($2*(log(38/$3)**2/log(10/$3)**2))  
-        endif
-       enddo        
-      endif
       return
       end

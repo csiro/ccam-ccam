@@ -16,6 +16,11 @@
 !                  jl:   -         6*il     14*il
 !                quad:   1         4*il+1   6*il+1
 
+! eak addition 16/03/06
+      integer, parameter :: mxst=13       ! max_no_of_soil_types
+      integer, parameter :: mxvt=13       ! max_no_of_vegetation_types
+      integer, parameter :: ncp=3         ! no of vegetation carbon pools
+      integer, parameter :: ncs=3         ! no of soil carbon pools
 
       integer, parameter :: nprocmax = 96
 !     This array defines the split up of processors. Zero values are 

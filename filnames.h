@@ -9,6 +9,10 @@ c     this is a list of files, read in once at beginning of the run.
      .          ,ifile,ofile,nmifile,so4tfile
      .          ,eigenv,radfile,o3file,hfile,mesonest
      .          ,scrnfile,tmaxfile,tminfile,trcfil
+!    rml from eak 16/03/06
+     .          ,sigmfile,rlaifile
+     .          ,carbr1,carbr2
+
       character*80 albfile,icefile,maskfile
      .          ,snowfile,sstfile,topofile,zofile
      .          ,rsmfile,scamfile,soilfile,vegfile
@@ -19,3 +23,7 @@ c     this is a list of files, read in once at beginning of the run.
      .          ,ifile,ofile,nmifile,so4tfile
      .          ,eigenv,radfile,o3file,hfile,mesonest
      .          ,scrnfile,tmaxfile,tminfile,trcfil
+!    rml from eak 16/03/06
+     .          ,sigmfile,rlaifile
+     .          ,carbr1,carbr2
+

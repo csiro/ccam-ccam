@@ -299,11 +299,9 @@ c
       include 'pbl.h'        ! tss
       include 'morepbl.h'    ! rnet,eg,fg
       include 'soilsnow.h'   ! soil temp (tgg)
-!!!      include 'nsibd.h'      ! rlai
+      include 'vegpar.h'     ! rlai
       include 'sigs.h'       ! sigma levels for pressure
-!!!      common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
-!!!      common/co2fluxes/pfnee(mp),pfpn(mp),pfrp(mp),pfrpw(mp),pfrpr(mp)
-!!!     .       ,pfrs(mp) 
+      include 'carbpools.h'  ! cbm co2 fluxes
 
 
 
@@ -372,23 +370,11 @@ c
           case ('tgg4')    ; temparr=tgg(:,4)
           case ('tgg5')    ; temparr=tgg(:,5)
           case ('tgg6')    ; temparr=tgg(:,6)
-!!!          case ('rlai')    ; temparr=rlai
-!!!          case ('pfnee') 
-!!!            do ip=1,ipland
-!!!              temparr(iperm(ip))=pfnee(ip)
-!!!            enddo
-!!!          case ('pfpn')
-!!!            do ip=1,ipland
-!!!              temparr(iperm(ip))=pfpn(ip)
-!!!            enddo
-!!!          case ('pfrp')
-!!!            do ip=1,ipland
-!!!              temparr(iperm(ip))=pfrp(ip)
-!!!            enddo
-!!!          case ('pfrs')
-!!!            do ip=1,ipland
-!!!              temparr(iperm(ip))=pfrs(ip)
-!!!            enddo
+          case ('rlai')    ; temparr=rlai
+          case ('pfnee')   ; temparr=fnee
+          case ('pfpn')    ; temparr=fpn
+          case ('pfrp')    ; temparr=frp
+          case ('pfrs')    ; temparr=frs
           case ('pblh') ; temparr=pblh
           case ('flux')  
             allocate(cts(ngrdpts1,ntrac))

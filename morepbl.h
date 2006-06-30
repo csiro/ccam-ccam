@@ -1,4 +1,4 @@
-      real condx,fg,eg,epot,runoff,condc,rnet,pblh,epan,tpan
-      common/morepbl/condx(ifull),fg(ifull),eg(ifull),epot(ifull)
-     .              ,runoff(ifull),condc(ifull),rnet(ifull),pblh(ifull)
-     .              ,epan(ifull),tpan(ifull)
+! eak version 16/03/06
+      real, dimension(ifull)   :: condx,fg,eg,epot,dummm,condc,rnet
+      real, dimension(ifull)   :: pblh,epan,tpan
+      common/morepbl/condx,fg,eg,epot,dummm,condc,rnet,pblh,epan,tpan

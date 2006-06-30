@@ -11,7 +11,7 @@
 !                   1 & 2 tafthf constrained by prior values with 2 faster
 !                   3 uses measure of prior tgf in calc. fh
 !     parameter (newztsea=1)   ! 0 for original, 1 for correct zt over sea
-!     vmag introduced Mar '05 as vmod was being used in ri
+!     vmag introduced Mar '05 as vmod being used in ri
 !     From 11/8/98 runoff() is accumulated & zeroed with precip
 !     Now using tgg(,3) for the tice calculations
 c     with leads option via fracice (using tgg1 and tgg3)
@@ -36,32 +36,40 @@ c     include 'map.h'      ! land
       include 'permsurf.h'
       include 'prec.h'     ! evap
       include 'savuvt.h'
-      include 'scamdim.h'  ! dimension of patches
       include 'screen.h'   ! tscrn,qgscrn,uscrn,rhscrn,u10
       include 'sigs.h'
       include 'soil.h'     ! ... zmin zolod zolog sicedep fracice alb
       include 'soilv.h'    ! ... ssat
-      include 'soilsnow.h' ! new soil arrays for scam - tgg too
+      include 'soilsnow.h' ! soil arrays 
+      include 'soilsnin.h'
       include 'tracers.h'  ! ngas, nllp, ntrac
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
+      include 'vegpar.h'   !
       include 'vvel.h'
       common/tafts/taftfh(ifull),taftfhg(ifull)
       common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
      . ,wetfac(ifull),degdw(ifull),cie(ifull)
      . ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)
      . ,aft(ifull),fh(ifull),ri(ifull),theta(ifull)
-     . ,gamm(ifull),rg(ifull),vmod(ifull),dgdtg(ifull) ! rg in radriv90
+     . ,gamm(ifull),rg(ifull),vmod(ifull),dummwk2(ifull) ! rg in radriv90
       real taftfhg_temp(ifull)
 !     following common block makes available other arrays for diag. output 
       common/work3/egg(ifull),evapxf(ifull),ewww(ifull),fgf(ifull),
      . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
-     . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),af(ifull),   ! watch soilsnow.f after epot
-     . extin(ifull),dum3(5*ijk-17*ifull)
+     . otgf(ifull),rmcmax(ifull),tgfnew(ifull),extin(ifull),af(ifull),
+     . dum3(5*ijk-14*ifull)
       real plens(ifull),vmag(ifull),charnck(ifull)
       save plens
       data plens/ifull*0./
+      integer list(20,2)
+      save list
       include 'establ.h'
+
+       list(1,1)=8290
+       list(2,1)=9061
+       list(3,1)=9093
+       list(4,1)=9293
+       list(5,1)=9540
 
 c     stability dependent drag coefficients using Louis (1979,blm) f'
 c     n.b. cduv, cdtq are returned as drag coeffs mult by vmod
@@ -162,7 +170,7 @@ c     using av_vmod (1. for no time averaging)
        vav=av_vmod*v(iq,1)+(1.-av_vmod)*savv(iq,1)  
        vmod(iq)=sqrt(uav**2+vav**2)  ! i.e. vmod for tss_sh
       enddo
-      vmag(:)=max( vmod(:) , vmodmin) ! vmag used to calculate ri
+      vmag(:)=max( vmod(:) , vmodmin)
       if(ntsur.ne.7)vmod(:)=vmag(:)	! gives usual way
 
       if(ntest==2.and.mydiag)print *,'before sea loop'
@@ -235,8 +243,9 @@ c      this is in-line ocenzo using latest coefficient, i.e. .018    ! sea
          zo(iq)=charnck(iq)
          afroot=vkar/log(zmin/zo(iq))                                ! sea
          af(iq)=afroot**2                                            ! sea
-        else            ! usual charnock method over sea
-         zo(iq)=.001    ! .0005 better first guess                 
+        else       ! usual charnock method over sea
+!         zo(iq)=.01                  
+         zo(iq)=.001    ! .0005 better first guess            
          if(ri(iq)>0.)then             ! stable sea points           ! sea
            fm=vmod(iq) /(1.+bprm*ri(iq))**2 ! N.B. this is vmod*fm   ! sea
            con=consea*fm                                             ! sea
@@ -304,6 +313,7 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now
        taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                             ! sea
        tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                             ! sea
        ! note that iq==idjd  can only be true on the correct processor
+
        if(ntest==1.and.iq==idjd)then                                 ! sea
          print *,'in sea-type loop for iq,idjd: ',                   ! sea
      .                            iq,idjd,ip                         ! sea
@@ -338,14 +348,21 @@ c     section to update pan temperatures
         write (6,"('u10,ustar,charnck,zo,cd',
      &    3f9.4,2f9.6)") u10(idjd),ustar(idjd),charnck(idjd),zo(idjd),
      &    cduv(idjd)/vmod(idjd)
-        if(ri(iq)>0.)then     
-          fm=vmod(iq)/(1.+bprm*ri(iq))**2  
-        else       
-          root=sqrt(-ri(iq)*zmin/zo(iq)) 
-          denma=1.+cms*2.*bprm*af(iq)*root                            
-          fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma                  
-          denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root  
-        endif             
+!        if(ri(iq)<0.)then
+!          root=sqrt(-ri(iq)*zmin/zo(iq)) 
+!          denma=1.+cms*2.*bprm*af(iq)*root                            
+!          fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma                  
+!          denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root  
+!        endif             
+        if(ri(iq)>0.)then
+          fm=vmod(iq)/(1.+bprm*ri(iq))**2
+        else
+          root=sqrt(-ri(iq)*zmin/zo(iq))
+          denma=1.+cms*2.*bprm*af(iq)*root
+          fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma
+          denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root
+        endif
+
         write (6,"('after sea loop af,aft,factch,root,denha,denma,fm',
      &    9f9.4)") af(iq),aft(iq),factch(iq),root,denha,denma,fm
       endif                       
@@ -539,6 +556,7 @@ c      cdtq(iq) =aft(iq)*fh(iq)                                     ! land
 c      Surface stresses taux, tauy: diagnostic only - unstaggered now   
        taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                            ! land
        tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! land
+
        if(ntest==1.and.iq==idjd)then                                ! land
          print *,'in main land loop'                                ! land
          print *,'zmin,zobg,zobgin,snowd ',zmin,zobg,zobgin,snowd(iq) 
@@ -626,6 +644,7 @@ c ----------------------------------------------------------------------
         endif  ! if(ktau==1)
         if(nsib==3)call sib3(nalpha)
       endif     !  (nsib==1 or 3)
+      if(nsib==4)call sib4
 
 c ----------------------------------------------------------------------
 
@@ -751,34 +770,50 @@ c     include 'map.h'
       include 'parm.h'
       include 'pbl.h'
       include 'permsurf.h'
-      include 'scamdim.h'  ! dimension of patches
       include 'screen.h'   ! tscrn etc
       include 'sigs.h'
       include 'soil.h'     ! ... zmin zolnd zolog sice alb
       include 'soilv.h'    ! ssat, clay,..
+      include 'soilsnin.h'
       include 'soilsnow.h' ! new soil arrays for scam - tgg too
       include 'tracers.h'  ! ngas, nllp, ntrac
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
+      include 'vegpar.h'   !
+
       common/nsib/nbarewet,nsigmf
       common/tafts/taftfh(ifull),taftfhg(ifull)
       common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
      . ,wetfac(ifull),degdw(ifull),cie(ifull)
      . ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)
      . ,aft(ifull),fh(ifull),ri(ifull),theta(ifull)
-     . ,gamm(ifull),rg(ifull),vmod(ifull),dgdtg(ifull)
+     . ,gamm(ifull),rg(ifull),vmod(ifull),dummwk2(ifull)
       common/work3/egg(ifull),evapxf(ifull),ewww(ifull),fgf(ifull),
      . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
-     . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),af(ifull),
-     . extin(ifull),dum3(5*ijk-17*ifull)
+     . otgf(ifull),rmcmax(ifull),tgfnew(ifull),extin(ifull),af(ifull),
+     . dum3(5*ijk-14*ifull)
       common/work3c/airr(ifull),cc(ifull),condxg(ifull),delta_tx(ifull),
      . evapfb1(ifull),evapfb2(ifull),evapfb3(ifull),evapfb4(ifull),
-     . evapfb5(ifull),evapfb1a(ifull),evapfb2a(ifull),evapfb3a(ifull),
-     . evapfb4a(ifull),evapfb5a(ifull),otgf(ifull),rmcmax(ifull),
-     . tgfnew(ifull),evapfb(ijk-17*ifull)  ! to allow > 18 levels
-      common/work3d/dqsttg(ifull),tstom(ifull),rlai(ifull),
+     . evapfb5(ifull),evapfb6(ifull),evapfb1a(ifull),evapfb2a(ifull),
+     . evapfb3a(ifull),evapfb4a(ifull),evapfb5a(ifull),evapfb6a(ifull),
+     . evapfb(ijk-16*ifull)  ! to allow > 18 levels
+      common/work3d/dqsttg(ifull),tstom(ifull),dumxx(ifull),
      .   cls(ifull),omc(ifull),dum3d(ijk-5*ifull)  ! allows L9
       include 'establ.h'
+      real xx1(ifull),xx2(ifull),xx3(ifull),zz1(ifull),swnet(ifull),
+     .     lwnet(ifull)
+      integer list(20,2),imonth(12)
+      data imonth /31.,28.,31.,30.,31.,30.,31.,31.,30.,31.,30.,31./
+      dimension ndoy(12)   ! days from beginning of year (1st Jan is 0)
+      data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
+
+ 
+
+       ktauplus=0
+       jyear=kdate/10000
+       jmonth=(kdate-jyear*10000)/100
+       do k=1,jmonth-1
+        ktauplus = ktauplus + imonth(k)*nperday
+       enddo
 
 !     fle(isoil,w)=(w-swilt(isoil))/(sfc(isoil)-swilt(isoil))           !0 Eva's
 !     fle(isoil,w)= w/ssat(isoil)                                       !1 simplest bare
@@ -789,6 +824,12 @@ c     include 'map.h'
 !     fle(isoil,w)=(w-frac*swilt(isoil))/(sfc(isoil)-frac*swilt(isoil)) ! jlm special
 
 !***  N.B. nrungcm=2 fix-up for Mark 2 wb moved to indata 6/11/00
+       list(1,1)=8290
+       list(2,1)=9061
+       list(3,1)=9093
+       list(4,1)=9293
+       list(5,1)=9540
+
       if(ktau==1.and.nrungcm==3)then  ! for nsib runs for PIRCS
 !cdir nodep
         do ip=1,ipland  ! all land points in this nsib=1/3 loop
@@ -1123,11 +1164,12 @@ c         ff= 1.1*slwa(iq)/(rlai(iq)*sstar)
           rsi = rsmin(iq) * rlai(iq)
           f1= (1.+ff)/(ff+rsi/5000.)
           den=sfc(isoil)-swilt(isoil)                          ! sib3
-          wbav=(max(0.,froot(1)*(wb(iq,1)-swilt(isoil)))+
-     &         max(0.,froot(2)*(wb(iq,2)-swilt(isoil)))+
-     &         max(0.,froot(3)*(wb(iq,3)-swilt(isoil)))+
-     &         max(0.,froot(4)*(wb(iq,4)-swilt(isoil)))+
-     &         max(0.,froot(5)*(wb(iq,5)-swilt(isoil)))   )/den
+          wbav=(max(0.,froot(iveg,1)*(wb(iq,1)-swilt(isoil)))+
+     &         max(0.,froot(iveg,2)*(wb(iq,2)-swilt(isoil)))+
+     &         max(0.,froot(iveg,3)*(wb(iq,3)-swilt(isoil)))+
+     &         max(0.,froot(iveg,4)*(wb(iq,4)-swilt(isoil)))+
+     &         max(0.,froot(iveg,5)*(wb(iq,5)-swilt(isoil)))+
+     &         max(0.,froot(iveg,6)*(wb(iq,6)-swilt(isoil)))   )/den
           f2=max(1. , .5/ max( wbav,1.e-7)) ! N.B. this is equiv to next 2 (jlm)
 c         f2=1.0
 c         if(wbav<0.5) f2=max(1.0 , 0.5/ max( wbav,1.e-7))
@@ -1169,18 +1211,20 @@ c                                            water interception by the canopy
 
             Etr=rho(iq)/(airr(iq) +res(iq))*(qsatgf-qg(iq,1))
             betetrdt =(1.-beta)*Etr*dt*tsigmf(iq)
-            evapfb1(iq)=min(betetrdt*froot(1),max(0.,
+            evapfb1(iq)=min(betetrdt*froot(iveg,1),max(0.,
      &                  (wb(iq,1)-swilt(isoil))*zse(1)*1000.))
-            evapfb2(iq)=min(betetrdt*froot(2),max(0.,
+            evapfb2(iq)=min(betetrdt*froot(iveg,2),max(0.,
      &                  (wb(iq,2)-swilt(isoil))*zse(2)*1000.))
-            evapfb3(iq)=min(betetrdt*froot(3),max(0.,
+            evapfb3(iq)=min(betetrdt*froot(iveg,3),max(0.,
      &                  (wb(iq,3)-swilt(isoil))*zse(3)*1000.))
-            evapfb4(iq)=min(betetrdt*froot(4),max(0.,
+            evapfb4(iq)=min(betetrdt*froot(iveg,4),max(0.,
      &                  (wb(iq,4)-swilt(isoil))*zse(4)*1000.))
-            evapfb5(iq)=min(betetrdt*froot(5),max(0.,
+            evapfb5(iq)=min(betetrdt*froot(iveg,5),max(0.,
      &                  (wb(iq,5)-swilt(isoil))*zse(5)*1000.))
+            evapfb6(iq)=min(betetrdt*froot(iveg,6),max(0.,
+     &                  (wb(iq,6)-swilt(isoil))*zse(6)*1000.))
             evapfb(iq)=(evapfb1(iq)+evapfb2(iq)+evapfb3(iq)+evapfb4(iq)+
-     &                  evapfb5(iq))/tsigmf(iq)
+     &                  evapfb5(iq)+  evapfb6(iq))/tsigmf(iq)
             evapxf(iq) = (evapfb(iq)/dt + ewww(iq))*hl
 c           evapw =  ewww(iq)*hl  ! not used
 c                                              sensible heat flux
@@ -1239,11 +1283,13 @@ c       ff= 1.1*slwa(iq)/(rlai(iq)*sstar)
         rsi = rsmin(iq) * rlai(iq)
         f1= (1.+ff)/(ff+rsi/5000.)
         den=sfc(isoil)-swilt(isoil)                          ! sib3
-        wbav=(max(0.,froot(1)*(wb(iq,1)-swilt(isoil)))+
-     &        max(0.,froot(2)*(wb(iq,2)-swilt(isoil)))+
-     &        max(0.,froot(3)*(wb(iq,3)-swilt(isoil)))+
-     &        max(0.,froot(4)*(wb(iq,4)-swilt(isoil)))+
-     &        max(0.,froot(5)*(wb(iq,5)-swilt(isoil)))   )/den
+        wbav=(max(0.,froot(iveg,1)*(wb(iq,1)-swilt(isoil)))+
+     &        max(0.,froot(iveg,2)*(wb(iq,2)-swilt(isoil)))+
+     &        max(0.,froot(iveg,3)*(wb(iq,3)-swilt(isoil)))+
+     &        max(0.,froot(iveg,4)*(wb(iq,4)-swilt(isoil)))+
+     &        max(0.,froot(iveg,5)*(wb(iq,5)-swilt(isoil)))+
+     &        max(0.,froot(iveg,6)*(wb(iq,6)-swilt(isoil)))   )/den
+
         f2=max(1. , .5/ max( wbav,1.e-7)) ! N.B. this is equiv to next 2 (jlm)
 c       f2=1.0
 c       if(wbav<0.5) f2=max(1.0 , 0.5/ max( wbav,1.e-7))
@@ -1269,6 +1315,7 @@ c                     depth of the reservoir of water on the canopy
         evapfb3a(iq)=max(0.,wb(iq,3)-swilt(isoil)) *zse(3)*1000.
         evapfb4a(iq)=max(0.,wb(iq,4)-swilt(isoil)) *zse(4)*1000.
         evapfb5a(iq)=max(0.,wb(iq,5)-swilt(isoil)) *zse(5)*1000.
+        evapfb6a(iq)=max(0.,wb(iq,6)-swilt(isoil)) *zse(6)*1000.
        enddo   ! ip loop
 
        do icount=1,itnmeth     ! jlm new iteration
@@ -1279,11 +1326,7 @@ c                                            transpiration
          esatf = establ(tgfnew(iq))
          qsatgf=.622*esatf/(ps(iq)-esatf)
 c                                                  wet evaporation
-         ewwwa = rho(iq) *(qsatgf-qg(iq,1))/airr(iq) ! in W/m**2 /hl
-!        max available dewfall is 
-!        -(qsatgf-qg1)*dsig*1000*ps/grav in mm (mult by hl/dt for W/m**2)
-         ewwwa=max(ewwwa,
-     &             -abs((qsatgf-qg(iq,1))*dsig(1)*ps(iq))/(grav*dt))
+         ewwwa = rho(iq) *(qsatgf-qg(iq,1))/airr(iq)
 !        if(qsatgf>=qg(iq,1)) then  ! no dew
 !          ewww(iq)  = min(omc(iq)/dt , ewww(iq)*omc(iq)/rmcmax(iq) )
 !        endif         ! qsatgf>=qg(iq,1)
@@ -1309,13 +1352,15 @@ c                                         water interception by the canopy
 !        Etr=rho(iq)*(qsatgf-qg(iq,1))/(airr(iq) +res(iq))
          Etr=rho(iq)*max(0.,qsatgf-qg(iq,1))/(airr(iq) +res(iq))  ! jlm
          betetrdt =(1.-beta)*Etr*dt*tsigmf(iq)   ! fixed 23/5/01
-         evapfb1(iq)=min(betetrdt*froot(1),evapfb1a(iq))
-         evapfb2(iq)=min(betetrdt*froot(2),evapfb2a(iq))
-         evapfb3(iq)=min(betetrdt*froot(3),evapfb3a(iq))
-         evapfb4(iq)=min(betetrdt*froot(4),evapfb4a(iq))
-         evapfb5(iq)=min(betetrdt*froot(5),evapfb5a(iq))
+         evapfb1(iq)=min(betetrdt*froot(iveg,1),evapfb1a(iq))
+         evapfb2(iq)=min(betetrdt*froot(iveg,2),evapfb2a(iq))
+         evapfb3(iq)=min(betetrdt*froot(iveg,3),evapfb3a(iq))
+         evapfb4(iq)=min(betetrdt*froot(iveg,4),evapfb4a(iq))
+         evapfb5(iq)=min(betetrdt*froot(iveg,5),evapfb5a(iq))
+         evapfb6(iq)=min(betetrdt*froot(iveg,6),evapfb6a(iq))
          evapfb(iq)=(evapfb1(iq)+evapfb2(iq)+evapfb3(iq)+evapfb4(iq)+
-     &               evapfb5(iq))/tsigmf(iq)
+     &               evapfb5(iq)+evapfb6(iq))/tsigmf(iq)
+
          evapxf(iq) = (evapfb(iq)/dt + ewww(iq))*hl  ! converting to W/m**2
          prz = rho(iq)*cp*taftfh(iq)
          if(newfgf==0)fgf(iq) = prz*(tgfnew(iq)-theta(iq))  ! original/usual
@@ -1401,6 +1446,7 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
          wb(iq,3)=wb(iq,3)-evapfb3(iq)/(zse(3)*1000.)
          wb(iq,4)=wb(iq,4)-evapfb4(iq)/(zse(4)*1000.)
          wb(iq,5)=wb(iq,5)-evapfb5(iq)/(zse(5)*1000.)
+         wb(iq,6)=wb(iq,6)-evapfb6(iq)/(zse(6)*1000.)
          condxpr(iq)=(1.-tsigmf(iq))*condx(iq)+ tsigmf(iq)*condxg(iq)
          if(ntest==1.and.abs(residf(iq))>10.)
      .      print *,'iq,otgf(iq),tgf,delta_tx,residf '
@@ -1502,6 +1548,45 @@ c                                               combined fluxes
 !eak       endif  ! (ndiag_arr==1)
 
       enddo   ! ip=1,ipland
+      xx1=tggsn(:,1)
+      xx2=tggsn(:,2)
+      xx3=tggsn(:,3)
+      where (isflag == 0 )
+         xx1=tgg(:,1)
+         xx2=tgg(:,2)
+         xx3=tgg(:,3)
+      end where
+      zz1 = 0.
+      swnet=-slwa
+      lwnet=rgsave-(1.-tsigmf)*rgg-tsigmf*rdg
+!      do k=1,1
+      do k=1,5
+       ijd =list(k,1)
+       WRITE(98, '(i5,"xr",i7,67e14.5)') 
+     . ijd,ktauplus+ktau,yyy0,sgsave(ijd)/(1.-alb(ijd)),-rgsave(ijd), 
+     .    condx(ijd), !1-5
+     .    t(ijd), ps(ijd),vmod(ijd),qg(ijd),zz1(ijd),  ! 6-11
+     .    -slwa(ijd),lwnet(ijd), 
+     .    tsigmf(ijd)*evapxf(ijd),tsigmf(ijd)*fgf(ijd),!12-14
+     .    rnet(ijd), tss(ijd),tgf(ijd),  !15-17
+     .    taftfh(ijd),wb(ijd,1),wb(ijd,2), !18-20
+     .    wb(ijd,3),wb(ijd,4), wb(ijd,5),wb(ijd,6), !21-24
+     .    xx1(ijd),xx2(ijd),xx3(ijd),        !25-27
+     .    tgg(ijd,1),tgg(ijd,2), tgg(ijd,3),tgg(ijd,4), !28-31
+     .    tgg(ijd,5),tgg(ijd,6),    !32-33
+     .    -slwa(ijd)-rgg(ijd),egg(ijd),fgg(ijd),ga(ijd),  !34-37
+     .    zz1(ijd),zz1(ijd),zz1(ijd),zz1(ijd),zz1(ijd), !38-42
+     .    -slwa(ijd)-rdg(ijd),tsigmf(ijd)*evapxf(ijd),fev(ijd),
+     .     ewww(ijd)*hl,fgf(ijd),  !43-47
+     .    zz1(ijd),vlai(ijd),zz1(ijd), 
+     .    zz1(ijd),zz1(ijd), 
+     .    -slwa(ijd)-rgg(ijd)-fgg(ijd)-fes(ijd)*cls(ijd)-ga(ijd), 
+     .    runoff(ijd),rnof1(ijd),rnof2(ijd),zz1(ijd),snowd(ijd), 
+     .    zz1(ijd),alb(ijd),alb(ijd), 
+     .    taftfhg(ijd), ustar(ijd),cduv(ijd), pblh(ijd)
+       enddo
+
+
 
       if((ntest==1.or.diag).and.mydiag.and.land(idjd))then 
         iq=idjd
@@ -1518,3 +1603,378 @@ c                                               combined fluxes
 
       return
       end
+
+       
+
+      subroutine sib4     ! new version of sib1 with soilsnowv
+
+      use cc_mpi
+      use zenith_m
+      use pack_unpack_m 
+      USE define_types
+      USE air_module
+      USE canopy_module
+      USE carbon_module
+      USE cbm_module
+      USE soil_snow_module
+      INTEGER, PARAMETER          :: mp_max = 99 ! max. no. geographic points
+      TYPE (air_type)             :: air
+      TYPE (bgc_pool_type)        :: bgc
+      TYPE (canopy_type)          :: canopy
+      TYPE (met_type)          :: met
+      TYPE (balances_type)     :: bal
+      TYPE (radiation_type)       :: rad
+      TYPE (roughness_type)       :: rough
+      type (soil_parameter_type)      :: soil       ! soil parameters
+!      TYPE (soil_type)            :: soil
+      TYPE (soil_snow_type)       :: ssoil
+      TYPE (sum_flux_type)        :: sum_flux
+!      TYPE (veg_type)             :: veg
+      type (veg_parameter_type)       :: veg        ! vegetation parameters
+
+
+!      include 'newmpar.h'
+      include 'aalat.h'    ! slwa
+      include 'arrays.h'
+      include 'carbpools.h'
+!      include 'const_phys.h'
+      include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg
+      include 'extraout.h'
+      include 'filnames.h'
+      include 'latlong.h'  ! rlatt,rlongg
+      include 'map.h'      ! id,jd,idjd
+      include 'morepbl.h'
+      include 'nsibd.h'    ! rsmin,sigmf,tgf,ssdn,res,rmc,tsigmf
+      include 'parm.h'
+      include 'permsurf.h'
+      include 'pbl.h'
+      include 'prec.h'
+      include 'screen.h'   ! tscrn etc
+      include 'sigs.h'
+      include 'soil.h'     ! ... zmin zolnd zolog sice alb
+!      include 'soilroot.h'   ! ssat, clay,..
+      include 'soilsnow.h' ! 
+      include 'soilsnin.h'
+      include 'soilv.h'    ! ssat, clay,..
+      include 'vegpar.h' ! 
+!      include 'tracers.h'  ! ngas, nllp, ntrac
+      include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
+!      include 'establ.h'
+!                     met forcing for CBM
+      common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
+     . ,wetfac(ifull),degdw(ifull),cie(ifull)
+     . ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)
+     . ,aft(ifull),fh(ifull),ri(ifull),theta(ifull)
+     . ,gamm(ifull),rg(ifull),vmod(ifull),dummwk2(ifull)
+
+      real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull) ! for calculation of zenith angle
+
+      integer list(20,2),imonth(12),iwrk(ifull)
+      data imonth /31.,28.,31.,30.,31.,30.,31.,31.,30.,31.,30.,31./
+      dimension ndoy(12)   ! days from beginning of year (1st Jan is 0)
+      data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
+      real ssumcbmfl(14,20)
+      save list,ktauplus,iswt
+      data iswt/0/
+!     rml added values for 2000-2004 using scripps records from cdiac
+!     0.75*mauna loa + 0.25*south pole
+      real co2for(0:104)
+      data co2for/296.0049,296.3785,296.7731,297.1795,297.5887,297.9919
+     &           ,298.3842,298.7654,299.1349,299.4925,299.838 ,300.1709
+     &           ,300.491 ,300.801 ,301.106 ,301.4113,301.7205,302.0357
+     &           ,302.3587,302.6915,303.036,303.3941,303.7677,304.1587
+     &           ,304.569,304.9971,305.4388,305.8894,306.3444,306.7992
+     &           ,307.2494,307.6902,308.117,308.521,308.8895,309.2135
+     &           ,309.4877,309.7068,309.8658,309.9668,310.019,310.0358
+     &           ,310.035,310.0345,310.0522,310.0989,310.1794,310.2977
+     &           ,310.4581,310.6661,310.928,311.2503,311.6395,312.1015
+     &           ,312.6341,313.227,313.8694,314.5506,315.2599,315.9866
+     &           ,316.7167,317.4268,318.106,318.7638,319.4402,320.1901
+     &           ,321.0398,321.9713,322.9779,324.045,325.1356,326.2445
+     &           ,327.3954,328.5711,329.723,330.8865,332.1331,333.5012
+     &           ,334.9617,336.4614,337.9588,339.4225,340.8724,342.3488
+     &           ,343.8625,345.421,347.0481,348.7452,350.4397,352.0169
+     &           ,353.4269,354.6917,355.8849,357.1348,358.5514,360.1441
+     &           ,361.8578,363.6479,365.4682,367.2137
+     &           ,368.87,370.35,372.49,374.93,376.69/
+
+c
+c      set meteorological forcing
+c
+       list(1,1)=8290
+       list(2,1)=9061
+       list(3,1)=9093
+       list(4,1)=9293
+       list(5,1)=9540
+
+       jyear=kdate/10000
+       ipco2=jyear-1900
+       ipco2 = min(ipco2,100)
+       jmonth=(kdate-jyear*10000)/100
+       jday=kdate-jyear*10000-jmonth*100
+       jhour=ktime/100
+       jmin=ktime-jhour*100
+       mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of year
+       nperday=nint(24.*3600./dt)
+       ktauplus=0
+       do k=1,jmonth-1
+        ktauplus = ktauplus + imonth(k)*nperday
+       enddo
+       print *,'jyear,jmonth',jyear,jmonth,ktauplus,ipco2
+!       timer contains number of hours since the start of the run.
+!       mins = 60 * timer + mstart
+!       mtimer contains number of minutes since the start of the run.
+        mins = mtimer + mstart
+        bpyear = 0.
+        fjd = float(mod(mins,525600))/1440.  ! 525600 = 1440*365
+        call solargh(fjd,bpyear,r1,dlt,alp,slag)
+        dhr = 1.e-6
+        call zenith(fjd,r1,dlt,slag,rlatt,
+     &               rlongg,dhr,ifull,coszro2,taudar2)
+        jmonth=(kdate-jyear*10000)/100
+        jday=kdate-jyear*10000-jmonth*100
+        jhour=ktime/100
+        jmin=ktime-jhour*100
+        mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of year
+!       timer contains number of hours since the start of the run.
+!       mins = 60 * timer + mstart
+!       mtimer contains number of minutes since the start of the run.
+        mins = mtimer + mstart
+
+        do 60 ip=1,ipland  ! all land points in this nsib=2 loop
+         iq=iperm(ip)
+         rad%latitude(ip)=alat(iq)
+         met%doy(ip)= float(mod(mins,525600))/1440.  ! 525600 = 1440*365
+         met%hod(ip)=(met%doy(ip)-int(met%doy(ip)))*24.0 + along(iq)/15
+         if(met%hod(ip).gt.24.0) met%hod(ip)=met%hod(ip)-24.0
+         rough%za(ip) = -287.*t(iq,1)*log(sig(1))/9.80616   ! reference height
+         met%fsd(ip) = sgsave(iq)/(1.-alb(iq))! short wave down (positive) W/m^2
+         met%fld(ip) = -rgsave(iq)              ! long wave down     ---"---
+         met%tc(ip) = theta(iq)-273.16   ! temperature at reference height
+         met%tk(ip) = theta(iq)             ! temperature at reference height
+         met%qv(ip) = qg(iq,1)                   ! specific humidity in kg/kg
+         met%ua(ip) = max(1.,vmod(iq))              ! total wind speed at ref height
+         met%pmb(ip) = .01*ps(iq)        ! pressure in mb at ref height
+         if (ktau.eq.1) met%precip(ip) = 0.
+         met%precip(ip) = condx(iq)
+         met%precips(ip) = 0.0          ! in mm not mm/sec
+         if( met%tc(ip) .le. 0.0 ) met%precips(ip) = condx(iq)
+         met%ca(ip) = co2for(ipco2)*1.e-6           ! co2 concentration needed for CBM 
+         met%coszen(ip) =max(1.e-8,coszro2(iq))   ! use instantenous value
+ 60     continue
+
+        kstart = 1
+        call cbm_pack(air, bgc, canopy, met, bal, rad,
+     &          rough, soil, ssoil, sum_flux, veg)
+ 
+!      ijd = 2468
+!      print *,'sbmmet',ktau,met%fsd(ijd),met%fld(ijd),met%precip(ijd),
+!     &  met%tc(ijd),met%tk(ijd),met%ua(ijd),met%ca(ijd),met%coszen(ijd),
+!     &    met%coszen(ijd),met%precip(ijd),met%qv(ijd)
+!      kk=1
+!      do iq=1,ifull
+!       do kk=1,5
+!       if(iq.eq.list(kk,1)) then 
+!       iq=list(kk,1)
+!       ip=list(kk,2)
+!       print 1192,iq,ivegt(iq),ktau,
+!     &    ,met%fsd(ip),met%fld(ip),met%precip(ip),
+!     &    met%tk(ip),met%ua(ip),
+!     &    met%pmb(ip),vlai(iq),
+!!       kk=kk+1
+!1192   format('bef cbm',i6,i3,i6,f6.2,f6.2,f7.1,f6.1,2f8.4,f7.2,
+!     &    f7.2,f6.1,f9.6,f6.0,e10.3,f6.3,f6.3)
+!!       endif
+!      enddo
+
+       CALL cbm(ktau, kstart, ntau, ktauplus+ktau, dt, air, bgc, 
+     &     canopy, met, bal, rad, rough, soil, ssoil, sum_flux, veg)
+
+       call cbm_unpack(ktauplus+ktau, air, bgc, canopy, met, bal, rad,
+     &          rough, soil, ssoil, sum_flux, veg)
+
+!      evap = dt*eg/hl
+        
+      return
+      end
+
+
+      subroutine cbmrdn(imonth)
+c
+c     reads the parameters required by land surface scheme 
+c
+
+      USE define_types
+      include 'arrays.h'
+      include 'carbpools.h'
+      include 'dates.h'     ! dt,kdate,iyd
+      include 'nsibd.h'     ! ivegt,isoilm
+      include 'parm.h'      ! id,jd,idjd
+      include 'permsurf.h'
+      include 'map.h'      ! id,jd,idjd
+      include 'pbl.h'       ! tss
+      include 'sigs.h'
+      include 'soil.h'      ! land, zolnd passed to indata
+      include 'soilv.h'
+      include 'soilsnow.h'  ! initial soil temperatures and moistures
+      include 'vegpar.h'
+
+      integer jyear,jmonth
+      character*80 comments
+      character*2 chflag
+
+      open(unit=8,file="vegtype.dat",status='old')
+      read(8,*) comments
+      print *,'read CASA vegetation types'
+      do ii=1,ifull
+       read(8,*) iq,i,j,rl1,rl2,ivold,ivnew
+       ivegt(iq)=ivnew
+!       if(land(iq)) print *,iq,i,j,rl1,rl2,ivold,ivegt(iq)
+      enddo ! ii
+      close(8)
+
+      open(unit=8,file="veg_parm.txt",status='old')
+      read(8,*) comments
+      write(*,802) comments
+802   format(1x,a80)
+      call comskp(8)
+      read(8,*) nveg
+      print *,'nveg=',nveg
+      call comskp(8)
+      read(8,*) (canst1(jveg),jveg=1,nveg)
+      print *, 'canst1',(canst1(jveg),jveg=1,nveg)
+!      read(8,*) (cansto(jveg),jveg=1,nveg)
+!      print *, 'cansto',(cansto(jveg),jveg=1,nveg)
+      read(8,*) (dleaf(jveg),jveg=1,nveg)
+      print *, 'dleaf',(dleaf(jveg),jveg=1,nveg)
+      read(8,*) (vcmax(jveg),jveg=1,nveg)
+c      read(8,*) (ejmax(jveg),jveg=1,nveg)
+      print *, 'vcmax',(vcmax(jveg),jveg=1,nveg)
+      do jveg=1,nveg
+        ejmax(jveg)=2.*vcmax(jveg)
+      enddo
+      print *, 'ejmax',(ejmax(jveg),jveg=1,nveg)
+      read(8,*) (hc(jveg),jveg=1,nveg)
+      print *, 'hc',(hc(jveg),jveg=1,nveg)
+      read(8,*) (xfang(jveg),jveg=1,nveg)
+      print *, 'xfang',(xfang(jveg),jveg=1,nveg)
+      read(8,*) (rp20(jveg),jveg=1,nveg)
+      print *, 'rp20',(rp20(jveg),jveg=1,nveg)
+      read(8,*) (rpcoef(jveg),jveg=1,nveg)
+      print *, 'rpcoef',(rpcoef(jveg),jveg=1,nveg)
+      read(8,*) (rs20(jveg),jveg=1,nveg)
+      print *, 'rprs20',(rs20(jveg),jveg=1,nveg)
+      read(8,*) (shelrb(jveg),jveg=1,nveg)
+      print *, 'shelrb',(shelrb(jveg),jveg=1,nveg)
+      read(8,*) (frac4(jveg),jveg=1,nveg)
+      read(8,*) (tminvj(jveg),jveg=1,nveg)
+      print *, 'tminvj',(tminvj(jveg),jveg=1,nveg)
+      read(8,*) (tmaxvj(jveg),jveg=1,nveg)
+      print *, 'tmaxvj',(tmaxvj(jveg),jveg=1,nveg)
+      read(8,*) (vbeta(jveg),jveg=1,nveg)
+      print *, 'vbeta',(vbeta(jveg),jveg=1,nveg)
+      read(8,*) (tcplant(jveg,1),jveg=1,nveg)
+      read(8,*) (tcplant(jveg,2),jveg=1,nveg)
+      read(8,*) (tcplant(jveg,3),jveg=1,nveg)
+      print *,'cplant 1',(tcplant(jveg,1),jveg=1,nveg)
+      print *,'cplant 2',(tcplant(jveg,2),jveg=1,nveg)
+      print *,'cplant 3',(tcplant(jveg,3),jveg=1,nveg)
+      read(8,*) (tcsoil(jveg,1),jveg=1,nveg)
+      read(8,*) (tcsoil(jveg,2),jveg=1,nveg)
+      print *,'csoil 1',(tcsoil(jveg,1),jveg=1,nveg)
+      print *,'csoil 2',(tcsoil(jveg,2),jveg=1,nveg)
+
+      jyear=kdate/10000
+      jmonth=(kdate-jyear*10000)/100
+
+!      if( jmonth .eq. 1 .and. jyear .eq. 1994) then
+      if( jmonth .eq. 1 .and. jyear .eq. inyear_carb) then
+      do ip=1,ipland  ! all land points in this nsib=2 loop
+      iq=iperm(ip)
+       cplant(iq,1)=tcplant(ivegt(iq),1) 
+       cplant(iq,2)=tcplant(ivegt(iq),2) 
+       cplant(iq,3)=tcplant(ivegt(iq),3) 
+      
+       csoil(iq,1)=tcsoil(ivegt(iq),1) 
+       csoil(iq,2)=tcsoil(ivegt(iq),2) 
+       cansto(iq) = 0.
+      enddo !ip
+      endif ! jmonth
+       print *,'cbmrdn',cplant(13419,1),cplant(13419,2),
+     &       cplant(13419,3),csoil(13419,1),csoil(13419,2)
+!      call comskp(8)
+!      read(8,*) (froot(j),j=1,ms)
+      call comskp(8)
+      read(8,*) (ratecp(j),j=1,ncp)
+      print *, 'ratecp',(ratecp(j),j=1,ncp)
+      call comskp(8)
+      read(8,*) (ratecs(j),j=1,ncs)
+      close(8)
+      print *, 'ratecs',(ratecs(j),j=1,ncs)
+c
+      end
+
+      SUBROUTINE COMSKP(IUNIT)
+C MRR, 5-AUG-83
+C SKIPS COMMENT LINES IN CONTROL DATA FILE, STOPS IF EOF FOUND
+      CHARACTER*1 COM
+1     READ(IUNIT,100,END=2) COM
+100   FORMAT(A1)
+      IF(COM.EQ.'C'.or.com.eq.'c') GOTO 1
+      BACKSPACE IUNIT
+      RETURN
+2     STOP 'CONTROL FILE EOF'
+      END
+
+
+      subroutine rlaiday
+
+      include 'newmpar.h'
+      include 'nsibd.h'
+      include 'dates.h'     !  kdate,ktime,timer,mtimer
+      include 'parm.h'      ! id,jd
+      include 'permsurf.h'  ! iperm etc
+      include 'vegpar.h'  
+      include 'mpif.h'
+      integer, parameter, dimension(0:13) :: mdays =
+     &     (/ 31, 31,28,31,30,31,30,31,31,30,31,30,31, 31 /)
+      integer iyr, imo, iday, ijd
+      save iyr,imo,iday
+
+      ijd = 9061
+      print *,'rlaiday  called'
+      iyr=kdate/10000
+      imo=(kdate-10000*iyr)/100
+      iday=kdate-10000*iyr-100*imo  +mtimer/(60*24)
+      do while (iday>mdays(imo))
+       iday=iday-mdays(imo)
+       imo=imo+1
+       if(imo>12)then
+         imo=1               ! no leap years for the moment
+         iyr=iyr+1
+       endif
+       enddo
+!       print *,'iday,imo,iyr',iday,imo,iyr
+
+       if(iday<mdays(imo)/2)then  ! 1st half of month
+        rat1=(mdays(imo)-2.*iday)/(mdays(imo)+mdays(imo-1))
+        rat2=(2.*iday+mdays(imo-1))/(mdays(imo)+mdays(imo-1))
+        rlai=rat1*rlai123(:,1)+rat2*rlai123(:,2) 
+       else                             ! 2nd half of month
+        rat1=(mdays(imo+1)+2.*mdays(imo)-2.*iday)/
+     .                               (mdays(imo+1)+mdays(imo))
+        rat2=(2.*iday-mdays(imo))/(mdays(imo+1)+mdays(imo))
+        rlai=rat1*rlai123(:,2)+rat2*rlai123(:,3) 
+       endif
+       if(iday==mdays(imo)/2) rlai=rlai123(:,2)
+       do iq=1,ifull
+         rlai(iq)=min(7.,max(0.0011,rlai(iq)))
+         if (isoilm(iq).eq.9) rlai(iq)=0.0011
+         vlai(iq)=rlai(iq)
+       enddo
+
+       print *,'month_imo,iday',imo,iday,rlai(ijd),rlai123(ijd,1),
+     .       rlai123(ijd,2),rlai123(ijd,3)
+      return
+      end
+

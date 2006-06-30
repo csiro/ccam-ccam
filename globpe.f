@@ -24,6 +24,7 @@
       include 'newmpar.h'
       include 'aalat.h'
       include 'arrays.h'   ! ts, t, u, v, psl, ps, zs
+      include 'carbpools.h'   ! ts, t, u, v, psl, ps, zs
       include 'const_phys.h'
       include 'darcdf.h'   ! idnc,ncid,idifil  - stuff for netcdf
       include 'dates.h'    ! dtin,mtimer
@@ -47,11 +48,12 @@
       include 'prec.h'
       include 'raddiag.h'
       include 'savuvt.h'
-      include 'scamdim.h'  ! npmax
       include 'screen.h'   ! tscrn etc
       include 'sigs.h'
       include 'soil.h'     ! fracice
       include 'soilsnow.h'
+!     rml from eak 16/03/06
+      include 'soilsnin.h'
       include 'soilv.h'
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
       include 'tracers.h'  ! ngas, nllp, ntrac, tr
@@ -87,17 +89,16 @@
 
       real, dimension(ifull) :: dirad,dfgdt,degdt,wetfac,degdw,cie,
      &                          factch,qsttg,rho,zo,aft,fh,spare1,theta,
-     &                          gamm,rg,vmod,dgdtg
+     &                          gamm,rg,vmod,dummwk2
       common/work2/dirad,dfgdt,degdt,wetfac,degdw,cie,factch,qsttg,rho,
-     &     zo,aft,fh,spare1,theta,gamm,rg,vmod,dgdtg
+     &     zo,aft,fh,spare1,theta,gamm,rg,vmod,dummwk2
 
       real, dimension(ifull) :: egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,
-     &                          residf,ga,condxpr,fev,fes,fwtop,spare2
-      integer, dimension(ifull) :: ism
+     &                          residf,otgf,rmcmax,tgfnew,extin
       real, dimension(ifull,kl) :: dum3a,speed,spare
-      real, dimension(2*ijk-16*ifull) :: dum3
-      common/work3/egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,residf,ga,
-     &     condxpr,fev,fes,ism,fwtop,spare2,dum3,dum3a,speed,spare
+      real, dimension(2*ijk-13*ifull) :: dum3
+      common/work3/egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,residf,
+     &     otgf,rmcmax,tgfnew,extin,dum3,dum3a,speed,spare
 
       real wblf,wbfice,sdepth,dum3b
       common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
@@ -140,6 +141,7 @@
       integer :: nproc_in, ierr
 
       namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps,nperavg
+!     & ,ia,ib,ja,jb,iaero,khdif,khor,nhorjlm
      & ,ia,ib,ja,jb,itr1,jtr1,itr2,jtr2,id,jd,iaero,khdif,khor,nhorjlm
      & ,m,mex,nbd,ndi,ndi2,nem,nhor,nlv
      & ,nmaxpr,nmi,nomg,nonl,nrot,nrad,ntaft,ntsea
@@ -160,8 +162,10 @@
      & ,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,nfly,localhist   
-     & ,mstn,nqg   ! not used in 2006          
-      data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
+     & ,mstn,nqg,inyear_carb 
+!      data npc/40/,nmi/0/,io_nest/1/,iaero/0/ 
+      data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/
+
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -169,6 +173,8 @@
      &    surfile,tmaxfile,tminfile,topofile,trcfil,vegfile,zofile,
      &    smoistfile,soil2file,radonemfile,
      &    co2_00,radon_00,surf_00,co2_12,radon_12,surf_12
+! rml from eak 16/03/06
+     &    ,carbr1,carbr2,sigmfile,rlaifile
       namelist/kuonml/alflnd,alfsea
      &        ,cldh_lnd,cldm_lnd,cldl_lnd
      &        ,cldh_sea,cldm_sea,cldl_sea
@@ -288,6 +294,7 @@
      &        ' ncvcloud nevapcc nevapls nuvconv'
       write (6,'(3f7.2,i6,i10,4i8)') alflnd,alfsea,fldown,iterconv,
      &    ncvcloud,nevapcc,nevapls,nuvconv
+
       print *,'Cumulus convection options C:'
       print *,' mbase mdelay methprec detrain',
      &        ' entrain methdetr detrainx dsig2  dsig4'
@@ -437,6 +444,7 @@ c     set up cc geometry
       if(myid==0) print *,'calling indata; will read from file ',ifile
 !     N.B. first call to amipsst now done within indata
       call indata(hourst,newsnow,jalbfix)
+      call rlaiday
       
       call maxmin(u,' u',ktau,1.,kl)
       call maxmin(v,' v',ktau,1.,kl)
@@ -777,6 +785,22 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
         write (6,"(i4,' savv1,savv,v,vbar',4f8.2)") ktau,
      &      savv1(idjd,nlv),savv(idjd,nlv),v(idjd,nlv),vbar(idjd,nlv)
       endif
+      if(ktau>2.and.epsp<0.)then ! for MCx7
+        if(mydiag.and.ktau==3)print *,'using epsp= ',epsp
+        do iq=1,ifull
+c        if((sign(1.,sdot(iq,3)).ne.sign(1.,savs(iq,3))).and.     ! .410
+c    &      (sign(1.,savs1(iq,3)).ne.sign(1.,savs(iq,3))))then    ! .410
+         if((sign(1.,sdot(iq,2)).ne.sign(1.,savs(iq,2))).and.
+     &      (sign(1.,savs1(iq,2)).ne.sign(1.,savs(iq,2))))then
+           epst(iq)=abs(epsp)
+         elseif((sign(1.,sdot(iq,kl-2)).ne.sign(1.,savs(iq,kl-2))).and.
+     &          (sign(1.,savs1(iq,kl-2)).ne.sign(1.,savs(iq,kl-2))))then
+           epst(iq)=abs(epsp)
+         else
+           epst(iq)=0.
+         endif
+        enddo
+      endif ! (ktau>2.and.epsp<0.)
       if(ktau>2.and.epsp>1..and.epsp<2.)then ! 
         if(mydiag.and.ktau==3)print *,'using epsp= ',epsp
         do iq=1,ifull
@@ -1074,14 +1098,14 @@ c         enddo
 
 
       if(ndi==-ktau)then
-        nmaxpr=1         ! diagnostic prints; reset 6 lines on
+        nmaxpr=1             ! reset 6 lines on
         ndi2=ktau+9
 !       nwt=1
       endif
       if(ktau==-ndi+40)then
          if(mydiag)print *,'reset nmaxpr'
          nmaxpr=nmaxprsav
-!        nwt=nwtsav
+!         nwt=nwtsav
       endif
       if(mod(ktau,nmaxpr)==0.or.ktau==ntau)then
         call maxmin(u,' u',ktau,1.,kl)
@@ -1386,6 +1410,7 @@ c         enddo
      &                                              ktau,mtimer,namip
           call amipsst
         endif ! (namip>0)
+        call rlaiday
       endif   ! (mod(ktau,nperday)==0)
 
 #ifdef vampir
@@ -1605,8 +1630,9 @@ c     endif
       include 'parmdyn.h'  ! nstag,epsp,epsu
       include 'parmhor.h'  ! mhint, m_bs
       include 'parmvert.h'
-      include 'scamdim.h'   ! passes npmax=ifull
       include 'soil.h'   
+! rml from eak 16/03/06
+      include 'soilsnin.h'
       include 'soilv.h'
       include 'stime.h'
       include 'trcom2.h'  ! nstn,slat,slon,istn,jstn etc.
@@ -1633,15 +1659,19 @@ c     endif
       data m/6/,mex/4/,mfix/1/,mfix_qg/1/,mup/1/,nh/0/,nomg/0/,nonl/0/,
      &     npex/1/
       data nritch/407/,nritch_t/300/,nrot/1/,nxmap/0/,
-     &     epsp/-20./,epsu/0./,epsf/0./,epsnh/0./,
-     &     precon/0/,restol/2.e-7/
+!     &     epsp/1.1/,epsu/0./,epsf/0./,epsnh/0./,restol/2.e-7/,precon/0/
+     &     epsp/20./,epsu/0./,epsf/0./,epsnh/0./,restol/2.e-7/,precon/0/
       data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/,nrunx/0/
 !     Horiz advection options
       data ndept/1/,nt_adv/7/,mh_bs/4/
 !     Horiz wind staggering options
+!      data nstag/99/,nstagu/3/,nuvfilt/0/
       data nstag/5/,nstagu/5/,nuvfilt/0/
+
 !     Vertical advection options
+!      data nvad/4/,nvadh/2/,ntvdr/1/
       data nvad/-4/,nvadh/2/,ntvdr/1/
+
 !     Horizontal mixing options
       data khdif/2/,khor/-8/,nhor/-157/,nhorps/-1/,nhorjlm/1/
 !     Vertical mixing options
@@ -1651,7 +1681,9 @@ c     endif
      &     convfact/1.02/,convtime/.33/,shaltime/0./,      
      &     alflnd/1.15/,alfsea/1.05/,fldown/.6/,iterconv/3/,ncvcloud/0/,
      &     nevapcc/0/,nevapls/-4/,nuvconv/0/
+!     &     mbase/10/,mdelay/0/,methprec/8/,detrain/.3/,entrain/0./,
      &     mbase/2000/,mdelay/0/,methprec/8/,detrain/.3/,entrain/0./,
+
      &     methdetr/2/,detrainx/0./,dsig2/.15/,dsig4/.4/
 !     Shallow convection options
       data ksc/0/,kscsea/0/,kscmom/1/,sigkscb/-.2/,sigksct/.75/,
@@ -1666,9 +1698,13 @@ c     endif
       data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./  ! not used for ldr
       data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./  ! not used for ldr
 !     Soil, canopy, PBL options
+!      data nbarewet/0/,newrough/0/,nglacier/1/,
       data nbarewet/0/,newrough/2/,nglacier/1/,
+
      &     nrungcm/-1/,nsib/3/,nsigmf/1/,
+!     &     ntaft/2/,ntsea/6/,ntsur/6/,av_vmod/.7/,tss_sh/1./,
      &     ntaft/2/,ntsea/6/,ntsur/7/,av_vmod/.7/,tss_sh/1./,
+
      &     vmodmin/2./,zobgin/.02/,charnock/.018/,chn10/.00125/
       data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
@@ -1689,6 +1725,9 @@ c     initialize file names to something
      &    ,rsmfile/' '/,scamfile/' '/,soilfile/' '/,vegfile/' '/
      &    ,co2emfile/' '/,so4tfile/' '/
      &    ,smoistfile/' '/,soil2file/' '/,restfile/' '/
+!     &    ,radonemfile/' '/,surfile/' '/    ! not in DARLAM
+!     &    ,co2_00/' '/,radon_00/' '/,surf_00/' '/,co2_12/' '/
+!     &    ,radon_12/' '/,surf_12/' '/,ifile/' '/,ofile/' '/,nmifile/' '/
      &    ,radonemfile/' '/,surfile/' '/,surf_00/'s_00a '/
      &    ,surf_12/'s_12a '/,co2_00/' '/,co2_12/' '/,radon_00/' '/
      &    ,radon_12/' '/,ifile/' '/,ofile/' '/,nmifile/' '/
@@ -1730,15 +1769,15 @@ c    &      350., 4*300., 5*230., 995., 150., 9900./    ! eak: 8/12/98
      &             0., 0., 0., 0., 0., .1, .1, .1, .1, .1,           ! 11-20
      &             .1, .2, .4, .2, .1, .1, .1, 0., 0., 0., 0.,       ! 21-31
      &     1., 5.5, 3., 1., 3., 3., 3.5, 3., .5, 3.5, .1, 3.5, 0./   ! 32-44
-      data froot/.05, .10, .35, .40, .10/       ! 10/02/99 veg. root distr.
+c      data froot/.05, .10, .35, .40, .10/       ! 10/02/99 veg. root distr.
 c     data froot/.20, .45, .20, .10, .05/
 
       data silt/.08, .33, .17, .2, .06, .25, .15, .70, .33
      &          , .2, .33, .33, .17/                        ! with mxst=13
       data clay/.09, .3, .67, .2, .42, .48, .27, .17, .30
      &          , .2, .3, .3, .67/                          ! with mxst=13
-      data sand/.83, .37, .17, .6, .52, .27, .58, .13, .37
-     &          , .6, .37, .37, .17/                        ! with mxst=13
+      data sand/.83, .37, .16, .6, .52, .27, .58, .13, .37
+     &          , .6, .37, .37, .16/                        ! with mxst=13
       data swilt/0., .072, .216, .286, .135, .219, .283, .175, .395  !eak
 !     data swilt/0., .010, .1  , .138, .135, .219, .283, .175, .395  !mm5
      &             , .216, .1142, .1547, .2864, .2498/
@@ -1754,8 +1793,12 @@ c     data froot/.20, .45, .20, .10, .05/
      *             800.e-6, 1.e-6, 34.e-6, 7.e-6, 1.3e-6, 2.5e-6/  ! ksat
       data sucs/-.106, -.591, -.405, -.348, -.153, -.49, -.299,
      &          -.356, -.153, -.218, -.478, -.405, -.63/           ! phisat (m)
-      data rhos/7*2600., 1300.,  910., 4*2600./      ! soil density
+      data rhos/7*1600., 1300.,  910., 4*2600./      ! soil density
       data  css/7* 850., 1920., 2100., 4*850./       ! heat capacity
+! rml from eak 16/03/06
+      data c3/1.255,.334,.138,.521,.231,.199,.375,.623,.334,.199,.375, 
+     &         .623,.334/
+
 
       data zse/.022, .058, .154, .409, 1.085, 2.872/ ! layer thickness
 !     data zse/.05, .15, .33, 1.05, 1.25, 1.35/      ! layer thickness <10/2/99
@@ -1806,6 +1849,8 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       include 'sigs.h'
       include 'soil.h'
       include 'soilsnow.h'
+! rml from eak 16/03/06
+      include 'soilsnin.h'
       include 'soilv.h'
       include 'tracers.h'  ! ngas, nllp, ntrac, tr
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
@@ -1814,17 +1859,22 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       common/leap_yr/leap  ! 1 to allow leap years
       real, dimension(ifull) :: dirad,dfgdt,degdt,wetfac,degdw,cie,
      &                          factch,qsttg,rho,zo,aft,fh,spare1,theta,
-     &                          gamm,rg,vmod,dgdtg
+     &                          gamm,rg,vmod,dummwk2
       common/work2/dirad,dfgdt,degdt,wetfac,degdw,cie,factch,qsttg,rho,
-     &     zo,aft,fh,spare1,theta,gamm,rg,vmod,dgdtg
+     &     zo,aft,fh,spare1,theta,gamm,rg,vmod,dummwk2
+
+!      real, dimension(ifull) :: egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,
+!     &                          residf,fwtop
+!      integer, dimension(ifull) :: ism
+!      real, dimension(ifull,kl) :: dum3a,speed,spare
+!      real, dimension(2*ijk-16*ifull) :: dum3
 
       real, dimension(ifull) :: egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,
-     &                          residf,ga,condxpr,fev,fes,fwtop,spare2
-      integer, dimension(ifull) :: ism
+     &                          residf,otgf,rmcmax,tgfnew,extin
       real, dimension(ifull,kl) :: dum3a,speed,spare
-      real, dimension(2*ijk-16*ifull) :: dum3
-      common/work3/egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,residf,ga,
-     &     condxpr,fev,fes,ism,fwtop,spare2,dum3,dum3a,speed,spare
+      real, dimension(2*ijk-13*ifull) :: dum3
+      common/work3/egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,residf,
+     &     otgf,rmcmax,tgfnew,extin,dum3,dum3a,speed,spare
 
       real wblf,wbfice,sdepth,dum3b
       common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
@@ -1842,7 +1892,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
            polenz=sinlat
            do nn=1,nstn
 !            Check if this station is in this processors region
-             if ( .not. mystn(nn) ) cycle 
+             if ( .not. mystn(nn) ) cycle
              if(ktau==1)write (iunp(nn),950) kdate,ktime,leap
 950          format("#",i9,2i5)
              i=istn(nn)
@@ -1851,7 +1901,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
              zonx=            -polenz*y(iq)
              zony=polenz*x(iq)-polenx*z(iq)
              zonz=polenx*y(iq)
-             den=sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) ) 
+             den=sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )
              costh= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
              sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
              uzon= costh*u(iq,1)-sinth*v(iq,1)
@@ -1882,7 +1932,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
      &         epot(iq),qgscrn(iq)*1.e3,rh_s,u10(iq),uscrn(iq),
      &         condx(iq)
 !              N.B. qgscrn formula needs to be greatly improved
-951          format(i4,6f7.2, 
+951          format(i4,6f7.2,
      &              2f7.2, 2f6.3, 4f5.2,                ! t1 ... cld
      &              5f7.1,f6.1,f5.1,                    ! fg ... qg1
      &              2f6.1,f7.2, f5.1,2f6.1, 2(1x,f5.1), ! uu ... co2_2
@@ -1896,6 +1946,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
      &       " 23uu   24vv 25precc qg2  rh1 28rh2 29co2_1 co2_2",
      &       " rad_1 rad_2  ps 34wbav 35epot qgscrn 37rh_s 38u10 uscrn",
      &       " 40condx")
+
               write (iunp(nn),953) land(iq),isoilm(iq),ivegt(iq),zo(iq),
      &                              zs(iq)/grav
 953           format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
@@ -1905,6 +1956,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
 954            format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
 !              rml 16/02/06 removed ico2em
                write (iunp(nn),955) i,j,radonem(iqt)
+!955            format("#i,j,radonem: ",2i4,i6,f7.3)
 955            format("#i,j,radonem: ",2i4,f7.3)
              endif
            enddo

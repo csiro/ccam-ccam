@@ -161,7 +161,7 @@ c     before calling newcloud
       tenv(:,:)=t(1:ifull,:) !Assume T is the same in and out of convective cloud
 !     if(diag.and.mydiag)then
       if(nmaxpr==1.and.mydiag)then
-        print *,'before newcloud',ktau
+        print *,'before newcloud'
         write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
         write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
         write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
@@ -179,12 +179,12 @@ c     Calculate cloud fraction and cloud water mixing ratios
      &     cfrac,ccov,cfa,qca)   !Outputs
 !     if(diag.and.mydiag)then
       if(nmaxpr==1.and.mydiag)then
-        print *,'after newcloud',ktau
+        print *,'after newcloud'
         write (6,"('tnv ',9f8.2/4x,9f8.2)") tenv(idjd,:)
-        write (6,"('qg0 ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
+        write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
         write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
         write (6,"('ql  ',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
-        write (6,"('qnv ',3p9f8.3/4x,9f8.3)") qenv(idjd,:) ! really new qg
+        write (6,"('qnv ',3p9f8.3/4x,9f8.3)") qenv(idjd,:)
       endif
 
 c     Weight output variables according to non-convective fraction of grid-box            
@@ -203,7 +203,7 @@ c     Weight output variables according to non-convective fraction of grid-box
         enddo
       enddo
       if(nmaxpr==1.and.mydiag)then
-        print *,'before newrain',ktau
+        print *,'before newrain'
         write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
         write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
         write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
@@ -238,7 +238,7 @@ c     Calculate precipitation and related processes
      &    preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,  !Outputs
      &    fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
       if(nmaxpr==1.and.mydiag)then
-        print *,'after newrain',ktau
+        print *,'after newrain'
         write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
         write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
         write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)

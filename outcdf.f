@@ -267,13 +267,19 @@ c         itype=-1 restfile
 c=======================================================================
       subroutine openhist(iarch,itype,dim,local)
       use cc_mpi
+! rml from eak 16/03/06
+      use cbm_module   ! includes newmpar.h
+      use define_dimensions
+
       implicit none
 
 c     this routine creates attributes and writes output
 
-      include 'newmpar.h'
+!      include 'newmpar.h'
       include 'aalat.h'
       include 'arrays.h'
+! rml from eak 16/03/06
+      include 'carbpools.h'
       include 'darcdf.h'   ! idnc,ncid,idifil  - stuff for netcdf
       include 'dates.h'    ! ktime,kdate,timer,timeg,xg,yg,mtimer
       include 'extraout.h' ! u10_3hr,v10_3hr
@@ -292,7 +298,6 @@ c     this routine creates attributes and writes output
       include 'pbl.h'
       include 'prec.h'
       include 'raddiag.h'
-      include 'scamdim.h'
       include 'screen.h'
       include 'sigs.h'
       include 'soil.h'
@@ -300,6 +305,8 @@ c     this routine creates attributes and writes output
       include 'soilv.h'   ! sfc,zse
       include 'tracers.h'
       include 'trcom2.h'
+! rml from eak 16/03/06
+      include 'vegpar.h'
       include 'version.h'
       include 'vvel.h'    ! sdot, dpsldt
 
@@ -484,6 +491,14 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         call attrib(idnc,idim,3,'uscrn',lname,'K',0.,40.,0)
         lname = 'Surface albedo'
         call attrib(idnc,idim,3,'alb',lname,'none',0.,1.,0)
+        lname = 'Surface two-stream albedo 1'
+        call attrib(idnc,idim,3,'albvisnir1',lname,'none',0.,1.,0)
+        lname = 'Surface two-stream albedo 2'
+        call attrib(idnc,idim,3,'albvisnir2',lname,'none',0.,1.,0)
+        lname = 'Soil+snow two-stream albedo 1'
+        call attrib(idnc,idim,3,'albsoilsn1',lname,'none',0.,1.,0)
+        lname = 'Soil+snow two-stream albedo 2'
+        call attrib(idnc,idim,3,'albsoilsn2',lname,'none',0.,1.,0)
         lname = 'Sea ice depth'
         call attrib(idnc,idim,3,'siced',lname,'m',0.,50.,0)
         lname = 'Sea ice fraction'
@@ -508,7 +523,35 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         call attrib(idnc,idim,3,'wbfroot',lname,'frac',0.,4.,0)
         lname = 'Soil moisture as frac FC levels 1-6'
         call attrib(idnc,idim,3,'wbftot',lname,'frac',0.,4.,0)
-        if(nextout>=1) then
+
+! rml from eak 16/03/06
+        lname = 'Leaf Area Index LAI'
+        call attrib(idnc,idim,3,'rlai',lname,'none',0.,8.,0)
+        if (nsib.eq.4) then
+          lname = 'Daily sum of canopy photosynthesis'
+          call attrib(idnc,idim,3,'sumpn',lname,'gC/m2',-10000.,
+     &                10000.,0)
+          lname = 'Daily sum of canopy respiration'
+          call attrib(idnc,idim,3,'sumrp',lname,'gC/m2',0.,10000.,0)
+          lname = 'Daily sum of soil respiration'
+          call attrib(idnc,idim,3,'sumrs',lname,'gC/m2',0.,10000.,0)
+          lname = 'Sum of daytime leaf respiration'
+          call attrib(idnc,idim,3,'sumrd',lname,'gC/m2',0.,10000.,0)
+          lname = 'Carbon leaf pool'
+          call attrib(idnc,idim,3,'cplant1',lname,'none',0.,50000.,0)
+          lname = 'Carbon wood pool'
+          call attrib(idnc,idim,3,'cplant2',lname,'none',0.,50000.,0)
+          lname = 'Carbon root pool'
+          call attrib(idnc,idim,3,'cplant3',lname,'none',0.,50000.,0)
+          lname = 'Carbon soil fast pool'
+          call attrib(idnc,idim,3,'csoil1',lname,'none',0.,50000.,0)
+          lname = 'Carbon soil slow pool'
+          call attrib(idnc,idim,3,'csoil2',lname,'none',0.,50000.,0)
+          lname = 'cansto'
+          call attrib(idnc,idim,3,'cansto',lname,'none',0.,10.,0)
+        endif
+
+        if(nextout >= 1) then
           print *,'nextout=',nextout
           lname = 'LW at TOA'
           call attrib(idnc,idim,3,'rtu_ave',lname,'W/m2',0.,800.,0)
@@ -536,8 +579,8 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           call attrib(idnc,idim,3,'pblh',lname,'m',0.,6000.,0)
           lname = 'friction velocity'
           call attrib(idnc,idim,3,'ustar',lname,'m/s',0.,10.,0)
-        endif     ! (nextout>=1)
-        if(nextout>=2) then  ! 6-hourly u10 & v10
+        endif     ! nextout >= 1
+        if(nextout >= 2) then  ! 6-hourly u10 & v10
          mnam ='x-component 10m wind '
          nnam ='y-component 10m wind '
          call attrib(idnc,idim,3,'u10_06',mnam//'6hr','m/s',-99.,99.,1)
@@ -558,7 +601,7 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          call attrib(idnc,idim,3,'rh1_12',nnam//'12hr','m/s',-9.,200.,1)
          call attrib(idnc,idim,3,'rh1_18',nnam//'18hr','m/s',-9.,200.,1)
          call attrib(idnc,idim,3,'rh1_24',nnam//'24hr','m/s',-9.,200.,1)
-        endif     ! (nextout>=2)
+        endif     ! nextout >= 2
         if(nextout>=3) then  ! also 3-hourly u10 & v10
          mnam ='x-component 10m wind '
          nnam ='y-component 10m wind '
@@ -570,7 +613,7 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          call attrib(idnc,idim,3,'v10_15',nnam//'15hr','m/s',-99.,99.,1)
          call attrib(idnc,idim,3,'u10_21',mnam//'21hr','m/s',-99.,99.,1)
          call attrib(idnc,idim,3,'v10_21',nnam//'21hr','m/s',-99.,99.,1)
-        endif     ! (nextout>=3)
+        endif     ! nextout >= 3
 
         lname = 'Soil temperature lev 1'
         call attrib(idnc,idim,3,'tgg1',lname,'K',100.,400.,0)
@@ -642,14 +685,14 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         endif  ! (ntrac.gt.0)
 
         print *,'3d variables'
-        if(nextout>=4.and.nllp==3)then 
+        if(nextout>=4)then 
           lname = 'Delta latitude'
           call attrib(idnc,dim,4,'del_lat',lname,'deg',-60.,60.,1)
           lname = 'Delta longitude'
           call attrib(idnc,dim,4,'del_lon',lname,'deg',-180.,180.,1)
           lname = 'Delta pressure'
           call attrib(idnc,dim,4,'del_p',lname,'hPa',-900.,900.,1)
-        endif  ! (nextout>=4.and.nllp==3)
+        endif  ! (nextout>=4)
         call attrib(idnc,dim,4,'temp','Air temperature','K',100.,350.,0)
         lname= 'x-component wind'
         call attrib(idnc,dim,4,'u',lname,'m/s',-150.,150.,0)
@@ -698,6 +741,8 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          call attrib(idnc,idim,3,'ssdn2',lname,'K',0.,400.,0)
          lname = 'Snow density lev 3'
          call attrib(idnc,idim,3,'ssdn3',lname,'K',0.,400.,0)
+         lname = 'Mean snow density '
+         call attrib(idnc,idim,3,'ssdnn',lname,'kg/m3',0.,400.)
          lname = 'Snow age'
          call attrib(idnc,idim,3,'snage',lname,'none',0.,20.,0)   
          lname = 'Snow flag'
@@ -815,6 +860,10 @@ c      set time to number of minutes since start
       call histwrt3(aa,'pmsl',idnc,iarch,local)
       call histwrt3(tss,'tsu',idnc,iarch,local)
       call histwrt3(alb,'alb',idnc,iarch,local)
+      call histwrt3(albvisnir(1,1),'albvisnir1',idnc,iarch,local)
+      call histwrt3(albvisnir(1,2),'albvisnir2',idnc,iarch,local)
+      call histwrt3(albsoilsn(1,1),'albsoilsn1',idnc,iarch,local)
+      call histwrt3(albsoilsn(1,2),'albsoilsn2',idnc,iarch,local)
       call histwrt3(tgg(1,1),'tgg1',idnc,iarch,local)
       call histwrt3(tgg(1,2),'tgg2',idnc,iarch,local)
       call histwrt3(tgg(1,3),'tgg3',idnc,iarch,local)
@@ -899,7 +948,7 @@ c      set time to number of minutes since start
            call histwrt3( rh1_6hr(1,2), 'rh1_12',idnc,iarch,local)
            call histwrt3( rh1_6hr(1,3), 'rh1_18',idnc,iarch,local)
            call histwrt3( rh1_6hr(1,4), 'rh1_24',idnc,iarch,local)
-         endif  ! (nextout>=2)
+         endif  ! nextout>=2
          if(nextout>=3) then  ! also 3-hourly u10 & v10
            call histwrt3(u10_3hr(1,1),'u10_03',idnc,iarch,local)
            call histwrt3(v10_3hr(1,1),'v10_03',idnc,iarch,local)
@@ -910,7 +959,7 @@ c      set time to number of minutes since start
            call histwrt3(u10_3hr(1,7),'u10_21',idnc,iarch,local)
            call histwrt3(v10_3hr(1,7),'v10_21',idnc,iarch,local)
          endif  ! nextout>=3
-         if(nextout>=4.and.nllp==3) then  
+         if(nextout>=4) then  
 c         print *,'before corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
           do k=1,klt
            do iq=1,ilt*jlt        
@@ -929,7 +978,7 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
           call histwrt4(tr(1:ifull,:,ngas+1),'del_lat',idnc,iarch,local)
           call histwrt4(tr(1:ifull,:,ngas+2),'del_lon',idnc,iarch,local)
           call histwrt4(tr(1:ifull,:,ngas+3),'del_p',idnc,iarch,local)
-         endif  ! (nextout>=4.and.nllp==3)
+         endif  ! nextout>=4
        endif    ! (mod(ktau,nperday)==0.or.ktau==ntau)
        if(mod(ktau,nperavg)==0.or.ktau==ntau)then 
 !        only write these once per avg period
@@ -960,6 +1009,38 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
        call histwrt3(fg,'fg',idnc,iarch,local)
        call histwrt3(taux,'taux',idnc,iarch,local)
        call histwrt3(tauy,'tauy',idnc,iarch,local)
+
+! rml from eak 16/03/06
+! CHECK RML removed explicit iq loop and wrote as 'where'
+       aa = 0.
+       if(nsib.le.3) then
+         where (land) aa=rlai
+!         if(land(iq)) aa(iq)=rlai(iq)
+       else
+         where (land) aa=vlai
+!         if(land(iq)) aa(iq)=vlai(iq)
+       endif
+       call histwrt3(aa,'rlai',idnc,iarch,local)
+       if (nsib.eq.4) then
+         call histwrt3(sumpn,'sumpn',idnc,iarch,local)
+         call histwrt3(sumrp,'sumrp',idnc,iarch,local)
+         call histwrt3(sumrs,'sumrs',idnc,iarch,local)
+         call histwrt3(sumrd,'sumrd',idnc,iarch,local)
+! CHECK EVA - if not writing these then should we remove from
+! call attrib section?
+c       call histwrt3(dsumpn,'dsumpn',idnc,iarch)
+c       call histwrt3(dsumrp,'dsumrp',idnc,iarch)
+c       call histwrt3(dsumrs,'dsumrs',idnc,iarch)
+c       call histwrt3(dsumrd,'dsumrd',idnc,iarch)
+         call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local)
+         call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local)
+         call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local)
+         call histwrt3(csoil(:,1),'csoil1',idnc,iarch,local)
+         call histwrt3(csoil(:,2),'csoil2',idnc,iarch,local)
+         call histwrt3(cansto,'cansto',idnc,iarch,local)
+       endif
+
+
 c      "extra" outputs
        if(nextout>=1) then
          if(myid == 0 ) print *,'nextout, idnc: ',nextout,idnc
@@ -1024,6 +1105,7 @@ c      "extra" outputs
        call histwrt3(ssdn(1,1),'ssdn1',idnc,iarch,local)
        call histwrt3(ssdn(1,2),'ssdn2',idnc,iarch,local)
        call histwrt3(ssdn(1,3),'ssdn3',idnc,iarch,local)
+       call histwrt3(ssdnn,'ssdnn',idnc,iarch)
        call histwrt3(snage,'snage',idnc,iarch,local)
        do iq=1,ifull
         aa(iq)=isflag(iq)
