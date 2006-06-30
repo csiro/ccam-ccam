@@ -56,27 +56,28 @@
       integer iq, iqq, k, kk, kpp, kx, ng, ii, jj, its, nits, nvadh_pass
       real cnon, contv, coslat, costh, delneg, delp, delpos, den,
      &     drk, factor, omg_rot, polenx, polenz, pp, pressp, presst,
-     &     psav, psavk, psavklog, psavlog, ratio, rk, sdmax, 
+     &     psav, psavk, psavklog, psavlog, ratio, rk,  
      &     sigt, sigtlog, sigxx, sinlat, sinth, sumdiffb, termlin, tt,
      &     tvv, uzon, zonx, zony, zonz, zsint, sdmx, sdmx_g
-      real, dimension(ifull+iextra,kl) :: uin, vin
-      real, dimension(ifull,kl) :: omgfsav
-      save omgfsav
+      real, save, dimension(ifull,kl)  :: omgfsav
+      real, save, dimension(ifull)     :: epstsav
       integer :: ierr
       integer, save :: num = 0
       
       call start_log(nonlin_begin)
 
-      if(epsp<-1.)then
-!        e.g. -20. gives epst=.2 for sdmax=1.
+      if(epsp<-2.)then
+        if(num==0)epstsav(:)=epst(:)
         do iq=1,ifull
-         sdmax=0.
-         do k=2,kl-1
-          sdmax=max(sdmax,abs(sdot(iq,k)))
-         enddo
-         epst(iq)=sdmax*abs(.01*epsp)
+         if(u(iq,3*kl/4)**2+v(iq,3*kl/4)**2>
+     &                            (.9*ds/(em(iq)*dtin))**2)then
+!          setting epst for Courant number > .9        
+           epst(iq)=epstsav(iq)
+         else
+           epst(iq)=0.
+         endif
         enddo         
-      endif
+      endif  ! (epsp<-2.)
 
 !     *** following qgsav should be before first vadv call
       qgsav(1:ifull,:)=qg(1:ifull,:)      ! for qg  conservation in adjust5
@@ -148,8 +149,13 @@
       endif
 
       if( (diag.or.nmaxpr==1) .and. mydiag )then
-        print *,'in nonlin before possible vertical advection'
-        write (6,"('sdotn',9f8.4/5x,9f8.4)")    sdot(idjd,1:kl)
+        print *,'in nonlin before possible vertical advection',ktau
+        write (6,"('epst#  ',9f8.2)") diagvals(epst) 
+        write (6,"('sdot#  ',9f8.3)") diagvals(sdot(:,nlv)) 
+        write (6,"('sdotn  ',9f8.3/7x,9f8.3)") sdot(idjd,1:kl)
+        write (6,"('omgf#  ',9f8.3)") ((ps(ii+jj*il)*
+     &              omgf(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=-1,1)
+        write (6,"('omgfn  ',9f8.3/7x,9f8.3)") ps(idjd)*omgf(idjd,:)
         write (6,"('t   ',9f8.3/4x,9f8.3)")     t(idjd,:)
         write (6,"('u   ',9f8.3/4x,9f8.3)")     u(idjd,:)
         write (6,"('v   ',9f8.3/4x,9f8.3)")     v(idjd,:)
@@ -190,18 +196,13 @@ cx      enddo      ! k  loop
        write (6,"('qf ',9f8.3/4x,9f8.3)") 1000.*qfg(idjd,:)
        write (6,"('u   ',9f8.2/4x,9f8.2)") u(idjd,:)
        write (6,"('v   ',9f8.2/4x,9f8.2)") v(idjd,:)
-       write (6,"('t#  ',9f8.2)") 
-     &           ((t(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
-       write (6,"('qg# ',9f8.3)") 
-     &          ((1000.*qg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
-       write (6,"('ql# ',9f8.3)") 
-     &          ((1000.*qlg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
-       write (6,"('qf# ',9f8.3)") 
-     &          ((1000.*qfg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
-       write (6,"('u#  ',9f8.2)") 
-     &           ((u(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
-       write (6,"('v#  ',9f8.2)") 
-     &           ((v(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+       write (6,"('t#  ',9f8.2)") diagvals(t(:,nlv)) 
+!    &           ((t(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=-1,1)
+       write (6,"('qg# ',3p9f8.3)") diagvals(qg(:,nlv)) 
+       write (6,"('ql# ',3p9f8.3)") diagvals(qlg(:,nlv)) 
+       write (6,"('qf# ',3p9f8.3)") diagvals(qfg(:,nlv)) 
+       write (6,"('u#  ',9f8.2)") diagvals(u(:,nlv)) 
+       write (6,"('v#  ',9f8.2)") diagvals(v(:,nlv)) 
         print *,'pslx ',pslx(idjd,:)
       endif  ! (nvad>0.and.(diag.or.nmaxpr==1).and.mydiag)
       if(diag)then
@@ -250,7 +251,6 @@ cx      enddo      ! k  loop
         do iq=1,ifull
          tbar2d(iq)=t(iq,1)+contv*tv(iq,1)
         enddo   ! iq loop
-        num=1
       endif     ! (ntbar==-1.or....)
       if(ntbar==0)then
         do iq=1,ifull
@@ -352,9 +352,6 @@ cy         tx(iq,k)=tx(iq,k) +.5*dt*(1.-epst(iq))*termlin  ! cb
      &           contv,tbar2d(iq),tbar2d(iq)*omgf(iq,k)*roncp/sig(k)
         print *,'tvv,tn ',tvv,tn(iq,k)
         print *,'termx ',(t(iq,k)+contv*tvv)*omgf(iq,k)*roncp/sig(k)
-        write (6,"('omgf#  ',9f8.3)") ((ps(ii+(jj-1)*il)*
-     &              omgf(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
-        write (6,"('omgfn  ',9f8.3/7x,9f8.3)") ps(idjd)*omgf(idjd,:)
         write (6,"('omgfsav',9f8.3/7x,9f8.3)") ps(idjd)*omgfsav(idjd,:)
       endif
       omgfsav(:,:)=omgf(:,:)
@@ -659,8 +656,7 @@ c    &                         phip(in(iq),nphip)
         enddo
         if(diag.and.mydiag)then
           print *,'fm ',aa(idjd,:)
-          write (6,"('fm#  ',4p9f8.2)") 
-     &           ((aa(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+          write (6,"('fm#  ',4p9f8.2)") diagvals(aa(:,nlv)) 
         endif
       endif  ! (nxmap==2)
       if(diag)then
@@ -758,6 +754,7 @@ cy        tx(1:ifull,:) = tx(1:ifull,:) + cnon*dt*tn(1:ifull,:)  !cb
         vn(:,:)=0.
         tn(:,:)=0.
       endif
+      num=1
       call end_log(nonlin_end)
       return
       end

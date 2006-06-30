@@ -2,6 +2,7 @@
 c                              vadvbott & vadvyu at bottom
 !     can show adding tbar has no effect
       use cc_mpi, only : mydiag, myid
+      use diag_m
       include 'newmpar.h'
       parameter (npslx=1)  ! 0 off, 1 on for nvad=-4
       parameter (nqq=0)    ! 0 off, 3 possible
@@ -127,8 +128,8 @@ c    .                         kp,kx,fluxlo,fluxhi,fluxh(iq,k)
       if( (diag.or.nmaxpr==1) .and. mydiag )then
 !       These diagnostics don't work with single input/output argument
         write (6,"('tout',9f8.2/4x,9f8.2)") (tarr(idjd,k),k=1,kl)
-        write (6,"('t#  ',9f8.2)") 
-     .           ((tarr(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+        write (6,"('t#  ',9f8.2)") diagvals(tarr(:,nlv)) 
+!     .           ((tarr(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
       endif
 
 c     u
@@ -177,8 +178,8 @@ c     u
       endif      ! (ntvdr==2)
       if( diag .and. mydiag )then
         write (6,"('uout',9f8.2/4x,9f8.2)") (uarr(idjd,k),k=1,kl)
-        write (6,"('u#  ',9f8.2)") 
-     .           ((uarr(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+        write (6,"('u#  ',9f8.2)") diagvals(uarr(:,nlv)) 
+!     .           ((uarr(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=-1,1)
       endif
 
 c     v
@@ -227,8 +228,7 @@ c     v
       endif      ! (ntvdr==2)
       if( diag .and. mydiag )then
         write (6,"('vout',9f8.2/4x,9f8.2)") (varr(idjd,k),k=1,kl)
-        write (6,"('v#  ',9f8.2)") 
-     .           ((varr(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+        write (6,"('v#  ',9f8.2)") diagvals(varr(:,nlv)) 
       endif
 
 c     h_nh
@@ -388,8 +388,8 @@ c        enddo   ! iq loop
       endif      ! (ntvdr==2)
       if( diag .and. mydiag )then
         write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
-        write (6,"('qg# ',9f8.2)") 
-     .           ((1000.*qg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+        write (6,"('qg# ',3p9f8.2)") diagvals(qg(:,nlv)) 
+!    .           ((1000.*qg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
       endif
 
       if(ldr.ne.0)then
@@ -443,8 +443,7 @@ c        enddo   ! iq loop
        endif      ! (ntvdr==2)
        if( diag .and. mydiag )then
         write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
-        write (6,"('qlg#',9f8.2)") 
-     .           ((1000.*qlg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+        write (6,"('qlg#',3p9f8.2)") diagvals(qlg(:,nlv)) 
        endif
        do k=1,kl-1       ! qfg next
         do iq=1,ifull
@@ -495,8 +494,7 @@ c        enddo   ! iq loop
        endif      ! (ntvdr==2)
        if( diag .and. mydiag )then
         write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
-        write (6,"('qfg#',9f8.2)") 
-     .           ((1000.*qfg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
+        write (6,"('qfg#',3p9f8.2)") diagvals(qfg(:,nlv)) 
        endif
       endif      ! if(ldr.ne.0)
 
