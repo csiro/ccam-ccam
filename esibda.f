@@ -1,6 +1,6 @@
-c $Log$
-c Revision 1.1  2003/08/13 01:24:20  dix043
-c Initial revision
+c $Log: esibda.f,v $
+c Revision 1.1.1.1  2003/08/13 01:24:20  dix043
+c Imported sources
 c
 c Revision 1.1  1998/12/10 03:56:55  ldr
 c Initial revision

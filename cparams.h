@@ -1,4 +1,4 @@
-c $Log$
+c $Log: cparams.h,v $
 c Revision 1.8  2006/02/23 22:55:14  mcg130
 c CCAM-6-2
 c

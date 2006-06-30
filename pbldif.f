@@ -5,7 +5,7 @@
       implicit none
       integer ntest,nrkmin,npblmin,kmax
       parameter (ntest=0)
-      parameter (nrkmin=2)  ! 1 original (& from 0510); 2 new; 3 newer
+      parameter (nrkmin=1)  ! 1 original (& from 0510); 2 new; 3 newer
       parameter (npblmin=4) ! 1 original (best for Oz); 2 new ; 3,4 newer
       include 'newmpar.h'
       parameter (kmax=3*kl/4)  ! changed from kl/2 on 30/1/06

@@ -1,6 +1,7 @@
       subroutine hordifgt    !  globpea version    N.B. k loop in here
 !     usual scheme
       use cc_mpi
+      use diag_m
       implicit none
 !      integer, parameter :: nhorjlm=1 ! 1 for jlm 3D deformation rather than Smagorinsky
 c     called from globpe (now not tendencies),
@@ -27,10 +28,11 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
+      real, dimension(ifull+iextra) :: aa, bb
       integer, parameter :: nf=2
 !     Local variables
       integer iq, k, nhora, nhorx
-      real aa, bb, cc, delphi, emi, hdif, ucc, vcc, wcc
+      real cc, delphi, emi, hdif, ucc, vcc, wcc
       integer i, j, n, ind
       ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
 
@@ -49,7 +51,7 @@ c     being on sigma surfaces through reductions of kh over orography
 c     this is called for -nhor.ge.50; the value of nhor (in metres) gives the
 c     scaling value for deltaz
 c     in namelist khdif is fujio's a**2, e.g. 4.
-      if(nhorps.gt.0)stop 'nhorps > 0 not permitted in hordifgt'
+!     if(nhorps.gt.1)stop 'nhorps > 1 not permitted in hordifgt'
 
 c     set up topography reduction factors for each type of location
 c     expect power nf to be about 1 or 2 (see data statement)
@@ -66,6 +68,61 @@ c     expect power nf to be about 1 or 2 (see data statement)
        ty_fact(iq)=1./(1.+(abs(zs(in(iq))-zs(iq))/delphi)**nf)
       enddo   !  iq loop
 c     above code independent of k
+
+      if(nhorps>0)then
+!       evolving biharmonic code for psl    
+c       do psl diffusion based on orog-corrected ff
+        do iq=1,ifull
+         aa(iq)=zs(iq)+287.*t(iq,2)*psl(iq) ! N.B. level 2 T
+        enddo   !  iq loop
+        call bounds(aa)
+        do iq=1,ifull
+         bb(iq)= ((aa(ie(iq))-aa(iq))/emu(iq)             
+     &           +(aa(in(iq))-aa(iq))/emv(iq)
+     &           +(aa(iw(iq))-aa(iq))/emu(iwu(iq))
+     &           +(aa(is(iq))-aa(iq))/emv(isv(iq)))/em(iq)
+        enddo   !  iq loop
+        call bounds(bb)
+        do iq=1,ifull
+         aa(iq)= -.01*nhorps*dt*em(iq)**4/(ds*em(iq))*
+     &           ((bb(ie(iq))-bb(iq))/emu(iq)              
+     &           +(bb(in(iq))-bb(iq))/emv(iq)
+     &           +(bb(iw(iq))-bb(iq))/emu(iwu(iq))
+     &           +(bb(is(iq))-bb(iq))/emv(isv(iq)))/em(iq)
+         psl(iq)=psl(iq)+aa(iq)/(287.*t(iq,2)) 
+        enddo   !  iq loop
+        call maxmin(aa,'aa',ktau,1.,1)  
+        if(nhorps<99999)return  
+ !       evolving biharmonic code for T    
+c        do T diffusion based on potential temperature ff
+          do k=1,kl
+             do iq=1,ifull
+                ff(iq,k)=t(iq,k)/ptemp(iq) 
+             enddo   !  iq loop
+          enddo
+          call bounds(ff)
+          do k=1,kl
+           do iq=1,ifull
+            ee(iq,k)= ((ff(ie(iq),k)-ff(iq,k))/emu(iq)             
+     &                +(ff(in(iq),k)-ff(iq,k))/emv(iq)
+     &                +(ff(iw(iq),k)-ff(iq,k))/emu(iwu(iq))
+     &                +(ff(is(iq),k)-ff(iq,k))/emv(isv(iq)))/em(iq)
+           enddo   !  iq loop
+          enddo
+          call bounds(ee)
+          do k=1,kl
+           do iq=1,ifull
+            ff(iq,k)= -.01*nhorps*dt*em(iq)**4/(ds*em(iq))*ptemp(iq)*
+     &                ((ee(ie(iq),k)-ee(iq,k))/emu(iq)              
+     &                +(ee(in(iq),k)-ee(iq,k))/emv(iq)
+     &                +(ee(iw(iq),k)-ee(iq,k))/emu(iwu(iq))
+     &                +(ee(is(iq),k)-ee(iq,k))/emv(isv(iq)))/em(iq)
+            t(iq,k)=  t(iq,k)+ff(iq,k)
+         enddo   !  iq loop
+        enddo
+        call maxmin(ff,'ff',ktau,1.,kl)  
+        return  
+      endif  ! (nhorps==1)
 
       if(diag.and.mydiag)then
          print *,'hordifgt u ',(u(idjd,k),k=1,kl)

@@ -169,19 +169,28 @@ contains
       include 'latlong_g.h'
       integer :: ierr
 
+#ifdef uniform_decomp
+      call proc_setup_uniform(npanels,ifull)
+#else
       call proc_setup(npanels,ifull)
+#endif
 
 #ifdef DEBUG
       print*, "Grid", npan, ipan, jpan
       print*, "Offsets", myid, ioff, joff, noff
 #endif
 
+#ifdef uniform_decomp
+      ! Faces may not line up properly so need extra factor here
+      maxbuflen = (max(ipan,jpan)+4)*2*kl * 8 * 2
+#else
       if ( nproc < npanels+1 ) then
          ! This is the maximum size, each face has 4 edges
          maxbuflen = npan*4*(il_g+4)*2*kl
       else
          maxbuflen = (max(ipan,jpan)+4)*2*kl
       end if
+#endif
 
       ! Also do the initialisation for deptsync here
       allocate ( dslen(0:nproc-1), drlen(0:nproc-1) )
@@ -2550,12 +2559,110 @@ contains
 
    end subroutine proc_setup
 
+   subroutine proc_setup_uniform(npanels,ifull)
+      include 'parm.h'
+!     Routine to set up offsets etc for the uniform decomposition
+      integer, intent(in) :: npanels, ifull
+      integer :: i, j, n, ierr, iproc, nd, jdf, idjd_g
+
+      if ( npan /= npanels+1 ) then
+         print*, "Error: inconsistency in proc_setup_uniform"
+         print*, "Check that correct version of newmpar.h was used"
+         stop
+      end if
+      !  Processor allocation: each processor gets a part of each panel
+      !  Try to factor nproc into two values are close as possible.
+      !  nxproc is the smaller of the 2.
+      nxproc = nint(sqrt(real(nproc)))
+      do nxproc = nint(sqrt(real(nproc))), 1, -1
+         ! This will always exit eventually because it's trivially true 
+         ! for nxproc=1
+         if ( modulo(nproc,nxproc) == 0 ) exit
+      end do
+      nyproc = nproc / nxproc
+      if ( myid == 0 ) then
+         print*, "NXPROC, NYPROC", nxproc, nyproc, iextra
+      end if
+      if ( nxproc*nyproc /= nproc ) then
+         print*, "Error in splitting up faces"
+         call MPI_Abort(MPI_COMM_WORLD,ierr)
+      end if
+
+      ! Still need to check that the processor distribution is compatible
+      ! with the grid.
+      if ( modulo(il_g,nxproc) /= 0 ) then
+         print*, "Error, il not a multiple of nxproc", il_g, nxproc
+         call MPI_Abort(MPI_COMM_WORLD,ierr)
+      end if
+      if ( modulo(il_g,nyproc) /= 0 ) then
+         print*, "Error, il not a multiple of nyproc", il_g, nyproc
+         call MPI_Abort(MPI_COMM_WORLD,ierr)
+      end if
+      ipan = il_g/nxproc
+      jpan = il_g/nyproc
+
+      iproc = 0
+      qproc = -9999 ! Mask value so any points not set are obvious.
+      do j=1,il_g,jpan
+         do i=1,il_g,ipan
+            fproc(i:i+ipan-1,j:j+jpan-1,:) = iproc
+            iproc = iproc + 1
+         end do
+      end do
+
+      do n=0,npanels
+         do j=1,il_g
+            do i=1,il_g
+               qproc(indglobal(i,j,n)) = fproc(i,j,n)
+            end do
+         end do
+      end do
+
+      ! Set offsets for this processor
+      call proc_region(myid,ioff,joff,noff)
+
+!     Check that the values calculated here match those set as parameters
+      if ( ipan /= il ) then
+         print*, "Error, parameter mismatch, ipan /= il", ipan, il
+         call MPI_Abort(MPI_COMM_WORLD,ierr)
+      end if
+      if ( jpan*npan /= jl ) then
+         print*, "Error, parameter mismatch, jpan*npan /= jl", jpan, npan, jl
+         call MPI_Abort(MPI_COMM_WORLD,ierr)
+      end if
+
+!      ipfull = ipan*jpan*npan
+!      iextra = 4*npan*(ipan+jpan+8)
+!      print*, "ipfull, iextra", ipfull, iextra
+
+      ! Convert standard jd to a face index
+      nd = (jd-1)/il_g ! 0: to match fproc
+      jdf = jd - nd*il_g
+      mydiag = ( myid == fproc(id,jdf,nd) )
+      ! Convert global indices to ones on this processors region
+      idjd_g = id + (jd-1)*il_g
+      if ( mydiag ) then
+         call indv_mpi(idjd_g,i,j,n)
+         idjd = indp(i,j,n)
+      else
+         ! This should never be used so set a value that will give a bounds error
+         idjd = huge(1)
+      end if
+
+   end subroutine proc_setup_uniform
+
    subroutine proc_region(procid,ipoff,jpoff,npoff)
       ! Calculate the offsets for a given processor
       integer, intent(in) :: procid
       integer, intent(out) :: ipoff, jpoff, npoff
       integer :: myface, mtmp
 
+#ifdef uniform_decomp
+      ! Set offsets for this processor (same on all faces)
+      npoff = 1
+      jpoff = (procid/nxproc) * jpan
+      ipoff = modulo(procid,nxproc)*ipan
+#else
       if ( nproc <= npanels+1 ) then
          npoff = 1 - procid*npan
          ipoff = 0
@@ -2568,6 +2675,7 @@ contains
          jpoff = (mtmp/nxproc) * jpan
          ipoff = modulo(mtmp,nxproc)*ipan
       end if
+#endif
    end subroutine proc_region
 
    subroutine start_log ( event )

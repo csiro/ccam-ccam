@@ -31,7 +31,7 @@
       common/uvbar/ubar(ifull,kl),vbar(ifull,kl)
       ! Need work common for these
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, cc, dd
-      real aa(ifull,kl)
+      real aa(ifull+iextra)
       real x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
       integer nface,idjdd
       real xg, yg
@@ -112,18 +112,38 @@ cy         if(tx(iq,kl)>264.)then  !cb
 	 enddo
       endif           
 
+      aa(:)=zs(:)/(rdry*nritch_t)    ! save zs/(r*t) for nt_adv schemes 
       do k=1,kl   
-       dd(:,k)=zs(:)/(rdry*nritch_t)    ! now default, nritch_t=300
+       dd(:,k)=aa(:)
       end do     ! k loop
 
+!-------------------------moved up here May 06---------------------------
+      if(nvad==-4.and.nvadh.ne.3)then 
+!       N.B. this moved one is doing vadv on just extra pslx terms      
+        sdmx = maxval(abs(sdot))
+        call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX, 
+     &                     MPI_COMM_WORLD, ierr )
+	 nits=1+sdmx_g/nvadh
+	 nvadh_pass=nvadh*nits ! use - for nvadu
+!       add in and take off tx for eps reasons        
+	 t(1:ifull,:)=t(1:ifull,:)+tx(1:ifull,:)   
+        do its=1,nits
+         call vadvtvd(t(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
+     &                nvadh_pass) 
+        enddo
+	 t(1:ifull,:)=t(1:ifull,:)-tx(1:ifull,:)   
+        if( (diag.or.nmaxpr==1) .and. mydiag )then
+          print *,'in upglobal after vadv1'
+          write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
+        endif
+      endif  ! (nvad==-4.and.nvadh.ne.3)
 !------------------------------------------------------------------
-      if(epsp<0..or.epsp>1.)then  
+      if(abs(epsp)>1.)then  
 !       jlm special bi-linear treatment 
         do k=1,kl   
          uc(:,k)=psl(:)+dd(:,k)  ! uc just as temporary storage
         enddo    ! k loop
-        aa(:,:)=dd(1:ifull,:)    ! save zs/(r*t) for nt_adv schemes 
-        call ints_bl(dd,intsch,nface,xg,yg)
+        call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
         if(mup.ne.0)call ints(uc,intsch,nface,xg,yg,1)
         if(mup.ne.0)call ints(pslx,intsch,nface,xg,yg,1)
         do k=1,kl   
@@ -133,22 +153,8 @@ cy         if(tx(iq,kl)>264.)then  !cb
         pslx(:,:)=pslx(:,:)-dd(:,:)
         if(nt_adv>0)then   ! special T advection treatments follow
           do k=1,kl
-           cc(1:ifull,k)=t(1:ifull,k)+aa(:,k)*factr(k)   !cy  
+           cc(1:ifull,k)=t(1:ifull,k)+aa(1:ifull)*factr(k)   !cy  
           end do   ! k
-          if(nvad==-4.and.nvadh.ne.3)then ! also called below for nvadh=2
-            sdmx = maxval(abs(sdot))
-            call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX, 
-     &                         MPI_COMM_WORLD, ierr )
-	     nits=1+sdmx_g/nvadh
-	     nvadh_pass=nvadh*nits
-!           temporarily add in tx extra terms for vert adv, then take off
-            cc(1:ifull,:)=cc(1:ifull,:)+tx(1:ifull,:)
-            do its=1,nits
-             call vadvtvd(cc(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
-     &                    nvadh_pass) 
-            enddo
-            cc(1:ifull,:)=cc(1:ifull,:)-tx(1:ifull,:)
-          endif  ! (nvad==-4.and.nvadh.ne.3)
           call ints(cc,intsch,nface,xg,yg,3)
           call ints(tx,intsch,nface,xg,yg,3)
           do k=1,kl
@@ -175,13 +181,12 @@ cy         if(tx(iq,kl)>264.)then  !cb
           write (6,"(3p9f8.2)") 
      &            ((pslx(ii+jj*il,nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
 	 endif
-        aa(:,:)=dd(1:ifull,:)     ! save zs/(r*t) for nt_adv schemes 
-        call ints_bl(dd,intsch,nface,xg,yg)
+        call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
         if(mup.ne.0)call ints(pslx,intsch,nface,xg,yg,1)
         pslx(:,:)=pslx(:,:)-dd(:,:)
         if(nt_adv>0)then   ! special T advection treatments follow
           do k=1,kl
-           cc(1:ifull,k)=t(1:ifull,k)+aa(:,k)*factr(k)   !cy  
+           cc(1:ifull,k)=t(1:ifull,k)+aa(1:ifull)*factr(k)   !cy  
           end do   ! k
           do k=1,kl
  	    tx(1:ifull,k)=cc(1:ifull,k)+(1.-epst(:))*tx(1:ifull,k) 
@@ -191,26 +196,14 @@ cy         if(tx(iq,kl)>264.)then  !cb
 	    tx(1:ifull,k)=t(1:ifull,k)+(1.-epst(:))*tx(1:ifull,k)   
           end do
         endif  ! (nt_adv>0) .. else ..
-        if(nvad==-4.and.nvadh.ne.3)then ! also called below for nvadh=2
-          sdmx = maxval(abs(sdot))
-          call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX, 
-     &                       MPI_COMM_WORLD, ierr )
-	   nits=1+sdmx_g/nvadh
-	   nvadh_pass=nvadh*nits
-          do its=1,nits
-            call vadvtvd(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
-     &                   nvadh_pass) 
-	   enddo
-        endif  ! (nvad==-4.and.nvadh.ne.3)
         call ints(tx,intsch,nface,xg,yg,3)
         if(nt_adv>0)then   
           do k=1,kl
            tx(1:ifull,k) = tx(1:ifull,k) - dd(1:ifull,k)*factr(k)
           enddo   ! k
         endif
-      endif    ! (epsp<0..or.epsp>1.) .. else ..
+      endif    ! (abs(epsp)>1.) .. else ..
 !------------------------------------------------------------------
-
 	if(nmaxpr==1.and.nproc==1)then
 	  print *,'pslx(,nlv) after advection'
          print *,'pslx ',pslx(idjd,:)
@@ -357,29 +350,24 @@ cy         if(tx(iq,kl)>264.)then  !cb
           endif                 ! ldr.ne.0
           if(ngas>0.or.nextout>=4)then
 	     if(nmaxpr==1.and.mydiag)then
-              write (6,"('xg#',9f8.2)")
-     &           ((xg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
-              write (6,"('yg#',9f8.2)")
-     &           ((yg(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
-              write (6,"('nface#',9i8)")
-     &           ((nface(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=1,-1,-1)
-              write (6,"('xlat#',9f8.2)")
-     &           ((tr(ii+jj*il,nlv,ngas+1),ii=idjd-1,idjd+1),jj=1,-1,-1)
-              write (6,"('xlon#',9f8.2)")
-     &           ((tr(ii+jj*il,nlv,ngas+2),ii=idjd-1,idjd+1),jj=1,-1,-1)
-              write (6,"('xpre#',9f8.2)")
-     &           ((tr(ii+jj*il,nlv,ngas+3),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('xg#',9f8.2)") diagvals(xg(:,nlv))
+              write (6,"('yg#',9f8.2)") diagvals(yg(:,nlv))
+              write (6,"('nface#',9i8)") diagvals(nface(:,nlv))
+!     &           ((nface(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=-1,1)
+              write (6,"('xlat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
+!     &           ((tr(ii+jj*il,nlv,ngas+1),ii=idjd-1,idjd+1),jj=-1,1)
+              write (6,"('xlon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
+!     &           ((tr(ii+jj*il,nlv,ngas+2),ii=idjd-1,idjd+1),jj=-1,1)
+              write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
+!     &           ((tr(ii+jj*il,nlv,ngas+3),ii=idjd-1,idjd+1),jj=-1,1)
 	     endif
             do ntr=1,ntrac
              call ints(tr(1,1,ntr),intsch,nface,xg,yg,5)
             enddo
 	     if(nmaxpr==1.and.mydiag)then
-              write (6,"('ylat#',9f8.2)")
-     &           ((tr(ii+jj*il,nlv,ngas+1),ii=idjd-1,idjd+1),jj=1,-1,-1)
-              write (6,"('ylon#',9f8.2)")
-     &           ((tr(ii+jj*il,nlv,ngas+2),ii=idjd-1,idjd+1),jj=1,-1,-1)
-              write (6,"('ypre#',9f8.2)")
-     &           ((tr(ii+jj*il,nlv,ngas+3),ii=idjd-1,idjd+1),jj=1,-1,-1)
+              write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
+              write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
+              write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
 	     endif
           endif  ! (ngas>0.or.nextout>=4)
        endif     ! mspec==1
@@ -438,16 +426,24 @@ cy         if(tx(iq,kl)>264.)then  !cb
             sdmx = maxval(abs(sdot))
             call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX, 
      &                         MPI_COMM_WORLD, ierr )
-            nits=1+sdmx_g  ! effectively takes nvadh=1  1/2/06
-            nvadh_pass=nits
-	     if(mydiag)
-     &        print *,'upglobal ktau,sdmx,nits,nvadh_pass ',
-     &                          ktau,sdmx_g,nits,nvadh_pass
+            nits=1+sdmx_g   ! effectively takes nvadh=1  1/2/06
+            nvadh_pass=nits ! use - for nvadu
           endif   ! (nvadh==3)
+	   if(mod(ktau,nmaxpr)==0.and.mydiag)
+     &       print *,'upglobal ktau,sdmx,nits,nvadh_pass ',
+     &                         ktau,sdmx_g,nits,nvadh_pass
+          if( (diag.or.nmaxpr==1) .and. mydiag )then
+            print *,'in upglobal before vadv2'
+            write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
+          endif
           do its=1,nits
             call vadvtvd(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
      &                   nvadh_pass) 
           enddo
+          if( (diag.or.nmaxpr==1) .and. mydiag )then
+            print *,'in upglobal after vadv2'
+            write (6,"('qg  ',3p9f8.3/4x,9f8.3)")   qg(idjd,:)
+          endif
         endif   ! (nvad==-4)
       endif     ! (nvadh==2.or.nvadh==3)
 

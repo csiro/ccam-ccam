@@ -11,7 +11,7 @@
 !                   1 & 2 tafthf constrained by prior values with 2 faster
 !                   3 uses measure of prior tgf in calc. fh
 !     parameter (newztsea=1)   ! 0 for original, 1 for correct zt over sea
-!     vmag introduced Mar '05 as vmod being used in ri
+!     vmag introduced Mar '05 as vmod was being used in ri
 !     From 11/8/98 runoff() is accumulated & zeroed with precip
 !     Now using tgg(,3) for the tice calculations
 c     with leads option via fracice (using tgg1 and tgg3)
@@ -58,7 +58,7 @@ c     include 'map.h'      ! land
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
      . ism(ifull),fwtop(ifull),af(ifull),   ! watch soilsnow.f after epot
      . extin(ifull),dum3(5*ijk-17*ifull)
-      real plens(ifull),vmag(ifull)
+      real plens(ifull),vmag(ifull),charnck(ifull)
       save plens
       data plens/ifull*0./
       include 'establ.h'
@@ -162,12 +162,22 @@ c     using av_vmod (1. for no time averaging)
        vav=av_vmod*v(iq,1)+(1.-av_vmod)*savv(iq,1)  
        vmod(iq)=sqrt(uav**2+vav**2)  ! i.e. vmod for tss_sh
       enddo
-      vmag(:)=max( vmod(:) , vmodmin)
+      vmag(:)=max( vmod(:) , vmodmin) ! vmag used to calculate ri
       if(ntsur.ne.7)vmod(:)=vmag(:)	! gives usual way
 
       if(ntest==2.and.mydiag)print *,'before sea loop'
 !      from June '03 use basic sea temp from tgg1 (so leads is sensible)      
-!     all sea points in this loop; also open water of leads       
+!     all sea points in this loop; also open water of leads  
+      if(charnock>0.)then
+        charnck(:)=charnock
+      elseif(charnock<-1.)then            ! zo like Moon (2004)
+        if(ktau==1)u10(:)=vmod(:)/3.8
+        charnck(:)=max(.0000386*u10(:),.000085*u10(:)-.00058)
+      else
+        if(ktau==1)u10(:)=vmod(:)/3.8
+        charnck(:)=.008+3.e-4*(u10(:)-9.)**2/ ! like Makin (2002)
+     &            (1.+(.006+.00008*u10(:))*u10(:)**2)
+      endif     
       do iq=1,ifull
        if(.not.land(iq))then 
         wetfac(iq)=1.                                                ! sea
@@ -216,12 +226,17 @@ c      for heat and moisture  cdtq
        ri(iq)=min(xx/vmag(iq)**2 , ri_max)                           ! sea  
 !      if(ngas>0)stop 'call co2sflux'                                ! sea
 c      this is in-line ocenzo using latest coefficient, i.e. .018    ! sea
-       consea=vmod(iq)*charnock/grav  ! usually charnock=.018        ! sea
+       consea=vmod(iq)*charnck(iq)/grav  ! usually charnock=.018     ! sea
        if(land(iq))then
          zo(iq)=panzo
          af(iq)=afrootpan**2                                         ! sea
        else
-         zo(iq)=.01                                                  ! sea
+        if(charnock<-1.)then  ! Moon (2004) over sea
+         zo(iq)=charnck(iq)
+         afroot=vkar/log(zmin/zo(iq))                                ! sea
+         af(iq)=afroot**2                                            ! sea
+        else            ! usual charnock method over sea
+         zo(iq)=.001    ! .0005 better first guess                 
          if(ri(iq)>0.)then             ! stable sea points           ! sea
            fm=vmod(iq) /(1.+bprm*ri(iq))**2 ! N.B. this is vmod*fm   ! sea
            con=consea*fm                                             ! sea
@@ -245,9 +260,10 @@ c      this is in-line ocenzo using latest coefficient, i.e. .018    ! sea
             dfm=2.*bprm*ri(iq)*dden/den**2                           ! sea
             zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-consea*af(iq)*fm)/      ! sea
      .                       (1.-consea*(daf*fm+af(iq)*dfm)))        ! sea
-           enddo    ! it=1,3                                         ! sea
+           enddo  ! it=1,3                                           ! sea
          endif    ! (xx>0.) .. else..                                ! sea
-       endif  ! (land(iq)) .. else ..
+        endif     ! (charnock<-1.) .. else ..
+       endif      ! (land(iq)) .. else ..
        aft(iq)=chnsea                                                ! sea
       enddo  ! iq loop   
 
@@ -287,7 +303,7 @@ c      cduv is now drag coeff *vmod                                  ! sea
 c      Surface stresses taux, tauy: diagnostic only - unstaggered now 
        taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                             ! sea
        tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                             ! sea
-       ! note that iq==idjd  can only be true on the correct process
+       ! note that iq==idjd  can only be true on the correct processor
        if(ntest==1.and.iq==idjd)then                                 ! sea
          print *,'in sea-type loop for iq,idjd: ',                   ! sea
      .                            iq,idjd,ip                         ! sea
@@ -314,12 +330,17 @@ c     section to update pan temperatures
        endif  ! (land(iq))
       enddo   ! iq loop
 
-      if(nmaxpr==1.and.mydiag.and.land(idjd))then
+      if(nmaxpr==1.and.mydiag)then
         iq=idjd
-        write (6,"('after sea loop zo,fg,tpan,epan,ri,fh,vmod',
-     &    9f9.4)") zo(idjd),fg(idjd),tpan(idjd),epan(idjd),
+        write (6,"('after sea loop fg,tpan,epan,ri,fh,vmod',
+     &    9f9.4)") fg(idjd),tpan(idjd),epan(idjd),
      &             ri(idjd),fh(idjd),vmod(idjd)
-        if(ri(iq)<0.)then
+        write (6,"('u10,ustar,charnck,zo,cd',
+     &    3f9.4,2f9.6)") u10(idjd),ustar(idjd),charnck(idjd),zo(idjd),
+     &    cduv(idjd)/vmod(idjd)
+        if(ri(iq)>0.)then     
+          fm=vmod(iq)/(1.+bprm*ri(iq))**2  
+        else       
           root=sqrt(-ri(iq)*zmin/zo(iq)) 
           denma=1.+cms*2.*bprm*af(iq)*root                            
           fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma                  
@@ -803,18 +824,20 @@ c        code where eta provided (e.g. for PIRCS)
            tsoil=0.5*(0.3333*tgg(idjd,2)+0.6667*tgg(idjd,3)
      &             +0.95*tgg(idjd,4) +  0.05*tgg(idjd,5))
            ftsoil=max( 0. , 1.-.0016*(298.-tsoil)*max(0.,298.-tsoil) )
-           tsigmf(idjd)=max(0.,sigmf(idjd)-scveg44(iveg)*(1.-ftsoil))
-           print *,'nsib,iveg,isoil,nalpha,nsigmf,tsigmf,newfgf ',
-     .           nsib,iveg,isoil,nalpha,nsigmf,tsigmf(idjd),newfgf
+c          tsigmf(idjd)=max(0.,sigmf(idjd)-scveg44(iveg)*(1.-ftsoil))
+           print *,'nsib,iveg,isoil,nalpha,newfgf,nsigmf,tsigmf ',
+     &           nsib,iveg,isoil,nalpha,newfgf,nsigmf,
+     &           max(0.,sigmf(idjd)-scveg44(iveg)*(1.-ftsoil))
            print *,'tsoil,ftsoil,scveg44,sigmf ',
-     .           tsoil,ftsoil,scveg44(iveg),sigmf(idjd)
+     &           tsoil,ftsoil,scveg44(iveg),sigmf(idjd)
            print *,'swilt,sfc,wb1-6 ',
-     .           swilt(isoil),sfc(isoil),(wb(idjd,k),k=1,ms)
+     &           swilt(isoil),sfc(isoil),(wb(idjd,k),k=1,ms)
            rlai_d= max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil))
            srlai=rlai_d+rlais44(iveg)
-           rsmin(idjd)=rsunc44(iveg)/rlai_d ! now always done
-           print *,'rlai,srlai,rsmin ',rlai_d,srlai,rsmin(idjd)
-        end if
+c          rsmin(idjd)=rsunc44(iveg)/rlai_d ! now always done
+           print *,'rlai,srlai,rsmin ',rlai_d,srlai,
+     &              rsunc44(iveg)/rlai_d 
+        endif
       endif           ! (ktau==1)
 
 c      due to a bug in the SX5 compiler even for cvsafe, 
@@ -1256,7 +1279,11 @@ c                                            transpiration
          esatf = establ(tgfnew(iq))
          qsatgf=.622*esatf/(ps(iq)-esatf)
 c                                                  wet evaporation
-         ewwwa = rho(iq) *(qsatgf-qg(iq,1))/airr(iq)
+         ewwwa = rho(iq) *(qsatgf-qg(iq,1))/airr(iq) ! in W/m**2 /hl
+!        max available dewfall is 
+!        -(qsatgf-qg1)*dsig*1000*ps/grav in mm (mult by hl/dt for W/m**2)
+         ewwwa=max(ewwwa,
+     &             -abs((qsatgf-qg(iq,1))*dsig(1)*ps(iq))/(grav*dt))
 !        if(qsatgf>=qg(iq,1)) then  ! no dew
 !          ewww(iq)  = min(omc(iq)/dt , ewww(iq)*omc(iq)/rmcmax(iq) )
 !        endif         ! qsatgf>=qg(iq,1)

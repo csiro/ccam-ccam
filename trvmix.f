@@ -135,8 +135,8 @@ c *****************************************************************
       include 'arrays.h'  ! ps
       include 'tracers.h' ! tr
       include 'parm.h'    ! dt
-      real trsrc(ilt*jlt,kl)
-      real temptr(ilt*jlt,kl)
+      real trsrc(ilt*jlt,klt)
+      real temptr(ilt*jlt,klt)
 c rml 08/11/04 decay flag to all decay for radon
       logical decay
       real drate,fluxfact

@@ -103,10 +103,6 @@ c     start of processing loop
         call infil(nested,kdate_r,ktime_r,timegb,ds,
      &            psl,zss,tss,sicedep,fracice,t,u,v,qg)
       endif   
-
-!      do k=1,kl            ! removed 9/10//03
-!       sig(k)=sigin(k)
-!      enddo
      
 !     Purpose of setxyz call is to get rlat4 rlong4 (and so xx4 yy4) 
 !     for the source grid. Only process 0 needs to do this here
@@ -207,10 +203,12 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
             print *,'nface4(1-4) ',(nface4(idjd,m),m=1,4)
             print *,'xg4(1-4) ',(xg4(idjd,m),m=1,4)
             print *,'yg4(1-4) ',(yg4(idjd,m),m=1,4)
-            write(6,"('wb_s(1)#  ',9f7.3)") 
-     .          ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
-            write(6,"('wb_s(ms)# ',9f7.3)") 
-     .          ((wb(ii+(jj-1)*il,ms),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
+            if(nested==0)then
+              write(6,"('wb_s(1)#  ',9f7.3)") 
+     .            ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
+              write(6,"('wb_s(ms)# ',9f7.3)") 
+     .            ((wb(ii+(jj-1)*il,ms),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
+            endif  ! (nested==0)
          endif
 
       end if ! myid==0
@@ -221,7 +219,7 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
 
       ! All the following processing is done on processor 0
       ! Avoid memory blow out by only having single level global arrays
-      do k=1,kl
+      do k=1,kk
          if ( myid==0 ) then
             call ccmpi_gather(u(:,k), u_g)
             call ccmpi_gather(v(:,k), v_g)

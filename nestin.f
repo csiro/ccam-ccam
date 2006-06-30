@@ -161,8 +161,8 @@ c      end if
       end if
 
 !     ensure qb big enough, but not too big in top levels (from Sept '04)
-      qb(1:ifull,:)=max(qb(1:ifull,:),qgmin)
-      do k=kl-2,kl
+      qb(1:ifull,1:kk)=max(qb(1:ifull,1:kk),qgmin)
+      do k=kk-2,kk
        qb(1:ifull,k)=min(qb(1:ifull,k),10.*qgmin)
       enddo
 
@@ -171,10 +171,10 @@ c      end if
         if ( myid == 0 ) then
           print *,'following max/min values printed from nestin'
         end if
-        call maxmin(ub,'ub',ktau,1.,kl)
-        call maxmin(vb,'vb',ktau,1.,kl)
-        call maxmin(tb,'tb',ktau,1.,kl)
-        call maxmin(qb,'qb',ktau,1.e3,kl)
+        call maxmin(ub,'ub',ktau,1.,kk)
+        call maxmin(vb,'vb',ktau,1.,kk)
+        call maxmin(tb,'tb',ktau,1.,kk)
+        call maxmin(qb,'qb',ktau,1.e3,kk)
         if ( myid == 0 ) then
           print *,'following are really psl not ps'
         end if

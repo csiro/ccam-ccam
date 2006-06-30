@@ -508,7 +508,7 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         call attrib(idnc,idim,3,'wbfroot',lname,'frac',0.,4.,0)
         lname = 'Soil moisture as frac FC levels 1-6'
         call attrib(idnc,idim,3,'wbftot',lname,'frac',0.,4.,0)
-        if(nextout >= 1) then
+        if(nextout>=1) then
           print *,'nextout=',nextout
           lname = 'LW at TOA'
           call attrib(idnc,idim,3,'rtu_ave',lname,'W/m2',0.,800.,0)
@@ -536,8 +536,8 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           call attrib(idnc,idim,3,'pblh',lname,'m',0.,6000.,0)
           lname = 'friction velocity'
           call attrib(idnc,idim,3,'ustar',lname,'m/s',0.,10.,0)
-        endif     ! nextout >= 1
-        if(nextout >= 2) then  ! 6-hourly u10 & v10
+        endif     ! (nextout>=1)
+        if(nextout>=2) then  ! 6-hourly u10 & v10
          mnam ='x-component 10m wind '
          nnam ='y-component 10m wind '
          call attrib(idnc,idim,3,'u10_06',mnam//'6hr','m/s',-99.,99.,1)
@@ -558,7 +558,7 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          call attrib(idnc,idim,3,'rh1_12',nnam//'12hr','m/s',-9.,200.,1)
          call attrib(idnc,idim,3,'rh1_18',nnam//'18hr','m/s',-9.,200.,1)
          call attrib(idnc,idim,3,'rh1_24',nnam//'24hr','m/s',-9.,200.,1)
-        endif     ! nextout >= 2
+        endif     ! (nextout>=2)
         if(nextout>=3) then  ! also 3-hourly u10 & v10
          mnam ='x-component 10m wind '
          nnam ='y-component 10m wind '
@@ -570,7 +570,7 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          call attrib(idnc,idim,3,'v10_15',nnam//'15hr','m/s',-99.,99.,1)
          call attrib(idnc,idim,3,'u10_21',mnam//'21hr','m/s',-99.,99.,1)
          call attrib(idnc,idim,3,'v10_21',nnam//'21hr','m/s',-99.,99.,1)
-        endif     ! nextout >= 3
+        endif     ! (nextout>=3)
 
         lname = 'Soil temperature lev 1'
         call attrib(idnc,idim,3,'tgg1',lname,'K',100.,400.,0)
@@ -642,14 +642,14 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         endif  ! (ntrac.gt.0)
 
         print *,'3d variables'
-        if(nextout>=4)then 
+        if(nextout>=4.and.nllp==3)then 
           lname = 'Delta latitude'
           call attrib(idnc,dim,4,'del_lat',lname,'deg',-60.,60.,1)
           lname = 'Delta longitude'
           call attrib(idnc,dim,4,'del_lon',lname,'deg',-180.,180.,1)
           lname = 'Delta pressure'
           call attrib(idnc,dim,4,'del_p',lname,'hPa',-900.,900.,1)
-        endif  ! (nextout>=4)
+        endif  ! (nextout>=4.and.nllp==3)
         call attrib(idnc,dim,4,'temp','Air temperature','K',100.,350.,0)
         lname= 'x-component wind'
         call attrib(idnc,dim,4,'u',lname,'m/s',-150.,150.,0)
@@ -899,7 +899,7 @@ c      set time to number of minutes since start
            call histwrt3( rh1_6hr(1,2), 'rh1_12',idnc,iarch,local)
            call histwrt3( rh1_6hr(1,3), 'rh1_18',idnc,iarch,local)
            call histwrt3( rh1_6hr(1,4), 'rh1_24',idnc,iarch,local)
-         endif  ! nextout>=2
+         endif  ! (nextout>=2)
          if(nextout>=3) then  ! also 3-hourly u10 & v10
            call histwrt3(u10_3hr(1,1),'u10_03',idnc,iarch,local)
            call histwrt3(v10_3hr(1,1),'v10_03',idnc,iarch,local)
@@ -910,7 +910,7 @@ c      set time to number of minutes since start
            call histwrt3(u10_3hr(1,7),'u10_21',idnc,iarch,local)
            call histwrt3(v10_3hr(1,7),'v10_21',idnc,iarch,local)
          endif  ! nextout>=3
-         if(nextout>=4) then  
+         if(nextout>=4.and.nllp==3) then  
 c         print *,'before corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
           do k=1,klt
            do iq=1,ilt*jlt        
@@ -929,7 +929,7 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
           call histwrt4(tr(1:ifull,:,ngas+1),'del_lat',idnc,iarch,local)
           call histwrt4(tr(1:ifull,:,ngas+2),'del_lon',idnc,iarch,local)
           call histwrt4(tr(1:ifull,:,ngas+3),'del_p',idnc,iarch,local)
-         endif  ! nextout>=4
+         endif  ! (nextout>=4.and.nllp==3)
        endif    ! (mod(ktau,nperday)==0.or.ktau==ntau)
        if(mod(ktau,nperavg)==0.or.ktau==ntau)then 
 !        only write these once per avg period

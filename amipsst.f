@@ -67,8 +67,12 @@ c     integer ipermp(ifull),indexi,indexs,ip
      &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
         write(6,'("reading sst ",i2,i5,2i4,2f6.1,f6.3,a22)')
      &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-        if(il/=il_in.or.il/=il_in.or.rlong0/=rlon_in.or.
+        if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
      &     rlat0/=rlat_in.or.schmidt/=schmidt_in)then
+          write(0,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
+     &                il_g,il_in,jl_g,jl_in,rlong0,rlon_in
+          write(0,*) 'rlat0,rlat_in,schmidt,schmidt_in',
+     &                rlat0,rlat_in,schmidt,schmidt_in
           write(0,*) 'wrong amipsst file'
           stop
         endif
@@ -91,8 +95,12 @@ c     integer ipermp(ifull),indexi,indexs,ip
      &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
           write(6,'("reading ice ",i2,i5,2i4,2f6.1,f6.3,a22)')
      &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-          if(il/=il_in.or.il/=il_in.or.rlong0/=rlon_in.or.
+          if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
      &       rlat0/=rlat_in.or.schmidt/=schmidt_in)then
+            write(0,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
+     &                  il_g,il_in,jl_g,jl_in,rlong0,rlon_in
+            write(0,*) 'rlat0,rlat_in,schmidt,schmidt_in',
+     &                  rlat0,rlat_in,schmidt,schmidt_in
             write(0,*) 'wrong amipice file'
             stop
           endif

@@ -1,6 +1,6 @@
-c $Log$
-c Revision 1.1  2003/08/13 01:24:20  dix043
-c Initial revision
+c $Log: sst.f,v $
+c Revision 1.1.1.1  2003/08/13 01:24:20  dix043
+c Imported sources
 c
 c Revision 1.1  1996/10/17  05:14:31  mrd
 c Initial revision

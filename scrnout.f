@@ -9,8 +9,8 @@
       integer nits,ntest
       real vkar,zscr
 !     has fixer at bottom to ensure tscrn and qgscrn bounded (& non-neg)
-      parameter (nits=2)    ! nits=2 for 2 iterations
-      parameter (ntest=0)   ! ntest= 0 for diags off; ntest>= 1 for diags on
+      parameter (nits=2)   ! nits=2 for 2 iterations
+      parameter (ntest=0)  ! ntest= 0 for diags off; ntest>= 1 for diags 
 !     parameter (chn10=.00136733)   ! sea only, same as in sflux via parm.h
       parameter (vkar=.4,zscr=1.8)
       include 'newmpar.h'
@@ -319,5 +319,17 @@ c       qgscrn(iq)=min(qgscrn(iq),max(qsurf(iq),qg(iq,1)))
 c      enddo
    
       tscrn(:)=tscrn(:)-.018  ! apply 1.8 m approx. adiab. corrn.
+      if(ntest==-1)then
+       do iq=1,ifull
+        if(.not.land(iq).and.sicedep(iq)==0.)then 
+c         write(23,'(f6.2,f9.6,2i6,f7.2)') u10(iq),zo(iq),ktau,iq,ri(iq)
+          write(23,'(f6.2,2f9.6,f6.2,2i6,3f7.4)') u10(iq),
+     &     cduv(iq)/vmod(iq),zo(iq),vmod(iq),ktau,iq,ri(iq),fh10(iq),
+     &     ustar(iq)
+c          to plot cd10, use plot 'fort.23' u
+c                   1:($2*(log(38/$3)**2/log(10/$3)**2))  
+        endif
+       enddo        
+      endif
       return
       end

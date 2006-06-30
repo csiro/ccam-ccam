@@ -1,4 +1,4 @@
-c $Log$
+c $Log: establ.h,v $
 c Revision 1.2  2003/09/05 02:34:26  dix043
 c Make sure variable names won't clash with anything else.
 c

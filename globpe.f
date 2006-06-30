@@ -41,7 +41,7 @@
       include 'nsibd.h'    ! sib, tsigmf, isoilm
       include 'parm.h'
       include 'parmdyn.h'  
-      include 'parmhor.h'  ! mhint, m_bs, mh_bs, nt_adv, ndept
+      include 'parmhor.h'  ! mhint, mh_bs, nt_adv, ndept
       include 'parmvert.h'
       include 'pbl.h'      ! cduv, cdtq, tss, qg
       include 'prec.h'
@@ -140,10 +140,10 @@
       integer :: nproc_in, ierr
 
       namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps,nperavg
-     & ,ia,ib,ja,jb,iaero,khdif,khor,nhorjlm
+     & ,ia,ib,ja,jb,itr1,jtr1,itr2,jtr2,id,jd,iaero,khdif,khor,nhorjlm
      & ,m,mex,nbd,ndi,ndi2,nem,nhor,nlv
      & ,nmaxpr,nmi,nomg,nonl,nrot,nrad,ntaft,ntsea
-     & ,ntsur,ntvdr,nvad,nvadh,nvmix,nxmap,itr1,jtr1,itr2,jtr2,id,jd
+     & ,ntsur,ntvdr,nvad,nvadh,nvmix,nxmap
      & ,restol,precon,kdate_s,ktime_s,leap,newtop,idcld,mup
      & ,lgwd,ngwd,rhsat
      & ,nextout,hdifmax,jalbfix
@@ -151,7 +151,7 @@
      & ,nstag,nstagu,ntbar,nuvfilt,nwrite
      & ,irest,nrun,nstn,rel_lat,rel_long,nrungcm,nsib
      & ,istn,jstn,iunp,nrotstn,slat,slon,zstn,name_stn
-     & ,mexrest,ndept,nritch,nritch_t,nt_adv
+     & ,mexrest,mh_bs,ndept,nritch,nritch_t,nt_adv
      & ,mfix,mfix_qg,namip,amipo3,nh,npex,nhstest,nspecial,panfg,panzo
      & ,newsnow,nsnowout,newrough,newsoilm,nglacier,newztsea
      & ,epsp,epsu,epsf,epsnh
@@ -161,7 +161,7 @@
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,nfly,localhist   
      & ,mstn,nqg   ! not used in 2006          
-      data npc/40/,nmi/0/,io_nest/1/,iaero/0/ 
+      data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -257,8 +257,8 @@
       write (6,'(i5,4i7,1x,5f7.3)')nritch,nritch_t,nrot,ntbar,nxmap,
      &          epsp,epsu,epsf,epsnh
       print *,'Horizontal advection/interpolation options:'
-      print *,' ndept  nt_adv  m_bs  mh_bs  mhint '
-      write (6,'(i5,11i7)') ndept,nt_adv,m_bs,mh_bs,mhint
+      print *,' ndept  nt_adv  mh_bs  mhint '
+      write (6,'(i5,11i7)') ndept,nt_adv,mh_bs,mhint
       print *,'Horizontal wind staggering options:'
       print *,'mstagpt nstag nstagu nuvfilt'
       write (6,'(i5,11i7)') mstagpt,nstag,nstagu,nuvfilt
@@ -286,8 +286,8 @@
       print *,'Cumulus convection options B:'
       print *,' alflnd alfsea fldown iterconv',
      &        ' ncvcloud nevapcc nevapls nuvconv'
-      write (6,'(3f7.2,i6,i10,3i8)')
-     &    alflnd,alfsea,fldown,iterconv,ncvcloud,nevapcc,nevapls,nuvconv
+      write (6,'(3f7.2,i6,i10,4i8)') alflnd,alfsea,fldown,iterconv,
+     &    ncvcloud,nevapcc,nevapls,nuvconv
       print *,'Cumulus convection options C:'
       print *,' mbase mdelay methprec detrain',
      &        ' entrain methdetr detrainx dsig2  dsig4'
@@ -331,9 +331,9 @@
      &    nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
       endif
       print *,'Special and test options:'
-      print *,' namip amipo3 nhstest nspecial panfg panzo'
-      write (6,'(i5,L7,2i7,f10.1,f8.4)') 
-     &          namip,amipo3,nhstest,nspecial,panfg,panzo
+      print *,' namip amipo3 newtop nhstest nspecial panfg panzo'
+      write (6,'(i5,L7,3i7,f10.1,f8.4)') 
+     &          namip,amipo3,newtop,nhstest,nspecial,panfg,panzo
       print *,'I/O options:'
       print *,' nfly  io_in io_nest io_out io_rest  nwt  nperavg'
       write (6,'(i5,4i7,2i8)') 
@@ -777,22 +777,6 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
         write (6,"(i4,' savv1,savv,v,vbar',4f8.2)") ktau,
      &      savv1(idjd,nlv),savv(idjd,nlv),v(idjd,nlv),vbar(idjd,nlv)
       endif
-      if(ktau>2.and.epsp<0.)then ! for MCx7
-        if(mydiag.and.ktau==3)print *,'using epsp= ',epsp
-        do iq=1,ifull
-c        if((sign(1.,sdot(iq,3)).ne.sign(1.,savs(iq,3))).and.     ! .410
-c    &      (sign(1.,savs1(iq,3)).ne.sign(1.,savs(iq,3))))then    ! .410
-         if((sign(1.,sdot(iq,2)).ne.sign(1.,savs(iq,2))).and.
-     &      (sign(1.,savs1(iq,2)).ne.sign(1.,savs(iq,2))))then
-           epst(iq)=abs(epsp)
-         elseif((sign(1.,sdot(iq,kl-2)).ne.sign(1.,savs(iq,kl-2))).and.
-     &          (sign(1.,savs1(iq,kl-2)).ne.sign(1.,savs(iq,kl-2))))then
-           epst(iq)=abs(epsp)
-         else
-           epst(iq)=0.
-         endif
-        enddo
-      endif ! (ktau>2.and.epsp<0.)
       if(ktau>2.and.epsp>1..and.epsp<2.)then ! 
         if(mydiag.and.ktau==3)print *,'using epsp= ',epsp
         do iq=1,ifull
@@ -1090,14 +1074,14 @@ c         enddo
 
 
       if(ndi==-ktau)then
-        nmaxpr=1             ! reset 6 lines on
+        nmaxpr=1         ! diagnostic prints; reset 6 lines on
         ndi2=ktau+9
 !       nwt=1
       endif
       if(ktau==-ndi+40)then
          if(mydiag)print *,'reset nmaxpr'
          nmaxpr=nmaxprsav
-         nwt=nwtsav
+!        nwt=nwtsav
       endif
       if(mod(ktau,nmaxpr)==0.or.ktau==ntau)then
         call maxmin(u,' u',ktau,1.,kl)
@@ -1454,7 +1438,8 @@ c         enddo
       if ( myid == 0 ) then
          print *,'reading data via readint from ',filename
          open(87,file=filename,status='old')
-         read(87,'(i3,i4,2f6.1,f6.3,f8.0,a47)',iostat=ierr)
+!        read(87,'(i3,i4,2f6.1,f6.3,f8.0,a47)',iostat=ierr)
+         read(87,*,iostat=ierr)
      &          ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
          if ( ierr == 0 ) then
             print *,ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
@@ -1498,7 +1483,8 @@ c         enddo
       if ( myid == 0 ) then
          print *,'reading data via readreal from ',filename
          open(87,file=filename,status='old')
-         read(87,'(i3,i4,2f6.1,f6.3,f8.0,a47)',iostat=ierr)
+!        read(87,'(i3,i4,2f6.1,f6.3,f8.0,a47)',iostat=ierr)
+         read(87,*,iostat=ierr)
      &          ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
          if ( ierr == 0 ) then
             print *,ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
@@ -1647,14 +1633,15 @@ c     endif
       data m/6/,mex/4/,mfix/1/,mfix_qg/1/,mup/1/,nh/0/,nomg/0/,nonl/0/,
      &     npex/1/
       data nritch/407/,nritch_t/300/,nrot/1/,nxmap/0/,
-     &     epsp/1.1/,epsu/0./,epsf/0./,epsnh/0./,restol/2.e-7/,precon/0/
+     &     epsp/-20./,epsu/0./,epsf/0./,epsnh/0./,
+     &     precon/0/,restol/2.e-7/
       data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/,nrunx/0/
 !     Horiz advection options
-      data ndept/1/,nt_adv/7/
+      data ndept/1/,nt_adv/7/,mh_bs/4/
 !     Horiz wind staggering options
-      data nstag/99/,nstagu/3/,nuvfilt/0/
+      data nstag/5/,nstagu/5/,nuvfilt/0/
 !     Vertical advection options
-      data nvad/4/,nvadh/2/,ntvdr/1/
+      data nvad/-4/,nvadh/2/,ntvdr/1/
 !     Horizontal mixing options
       data khdif/2/,khor/-8/,nhor/-157/,nhorps/-1/,nhorjlm/1/
 !     Vertical mixing options
@@ -1664,7 +1651,7 @@ c     endif
      &     convfact/1.02/,convtime/.33/,shaltime/0./,      
      &     alflnd/1.15/,alfsea/1.05/,fldown/.6/,iterconv/3/,ncvcloud/0/,
      &     nevapcc/0/,nevapls/-4/,nuvconv/0/
-     &     mbase/10/,mdelay/0/,methprec/8/,detrain/.3/,entrain/0./,
+     &     mbase/2000/,mdelay/0/,methprec/8/,detrain/.3/,entrain/0./,
      &     methdetr/2/,detrainx/0./,dsig2/.15/,dsig4/.4/
 !     Shallow convection options
       data ksc/0/,kscsea/0/,kscmom/1/,sigkscb/-.2/,sigksct/.75/,
@@ -1679,9 +1666,9 @@ c     endif
       data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./  ! not used for ldr
       data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./  ! not used for ldr
 !     Soil, canopy, PBL options
-      data nbarewet/0/,newrough/0/,nglacier/1/,
+      data nbarewet/0/,newrough/2/,nglacier/1/,
      &     nrungcm/-1/,nsib/3/,nsigmf/1/,
-     &     ntaft/2/,ntsea/6/,ntsur/6/,av_vmod/.7/,tss_sh/1./,
+     &     ntaft/2/,ntsea/6/,ntsur/7/,av_vmod/.7/,tss_sh/1./,
      &     vmodmin/2./,zobgin/.02/,charnock/.018/,chn10/.00125/
       data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
@@ -1702,9 +1689,9 @@ c     initialize file names to something
      &    ,rsmfile/' '/,scamfile/' '/,soilfile/' '/,vegfile/' '/
      &    ,co2emfile/' '/,so4tfile/' '/
      &    ,smoistfile/' '/,soil2file/' '/,restfile/' '/
-     &    ,radonemfile/' '/,surfile/' '/    ! not in DARLAM
-     &    ,co2_00/' '/,radon_00/' '/,surf_00/' '/,co2_12/' '/
-     &    ,radon_12/' '/,surf_12/' '/,ifile/' '/,ofile/' '/,nmifile/' '/
+     &    ,radonemfile/' '/,surfile/' '/,surf_00/'s_00a '/
+     &    ,surf_12/'s_12a '/,co2_00/' '/,co2_12/' '/,radon_00/' '/
+     &    ,radon_12/' '/,ifile/' '/,ofile/' '/,nmifile/' '/
      &    ,eigenv/' '/,radfile/' '/,o3file/' '/,hfile/' '/,mesonest/' '/
      &          ,scrnfile/' '/,tmaxfile/' '/,tminfile/' '/,trcfil/' '/
       data climcdf/'clim.cdf'/
@@ -1892,20 +1879,23 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
      &         qg(iq,1)*1.e3,uzon,vmer,precc(iq),
      &         qg(iq,2)*1.e3,rh1,rh2,tr(iqt,1,ico2x),tr(iqt,k2,ico2x),
      &         tr(iqt,1,iradonx),tr(iqt,k2,iradonx) ,.01*ps(iq),wbav,
-     &         epot(iq),qgscrn(iq)*1.e3,rh_s,u10(iq),uscrn(iq)
+     &         epot(iq),qgscrn(iq)*1.e3,rh_s,u10(iq),uscrn(iq),
+     &         condx(iq)
 !              N.B. qgscrn formula needs to be greatly improved
 951          format(i4,6f7.2, 
      &              2f7.2, 2f6.3, 4f5.2,                ! t1 ... cld
      &              5f7.1,f6.1,f5.1,                    ! fg ... qg1
      &              2f6.1,f7.2, f5.1,2f6.1, 2(1x,f5.1), ! uu ... co2_2
-     &              2(1x,f5.1) ,f7.1,f6.3,f7.1,5f6.1)   ! rad_1 ... rh_s
+     &              2(1x,f5.1) ,f7.1,f6.3,f7.1,5f6.1,   ! rad_1 ... rh_s
+     &              f7.2)                               ! condx
              if(ktau==ntau)then
                write (iunp(nn),952)
-952            format("#    tscrn  precip  tss   tgg1   tgg2   tgg3",
-     &       "    t1     tgf    wb1   wb2 cldl cldm cldh  cld",
-     &       "     fg     eg    fgg    egg    rnet   sg   qg1",
-     &       "   uu     vv   precc qg2  rh1   rh2   co2_1 co2_2",
-     &       " rad_1 rad_2  ps   wbav   epot qgscrn   rh_s  u10 uscrn")
+952            format("#   2tscrn 3precip 4tss  5tgg1  6tgg2  7tgg3",
+     &       "   8t1    9tgf  10wb1 11wb2 cldl cldm cldh  cld",
+     &       "   16fg   17eg  18fgg  19egg  20rnet 21sg 22qg1",
+     &       " 23uu   24vv 25precc qg2  rh1 28rh2 29co2_1 co2_2",
+     &       " rad_1 rad_2  ps 34wbav 35epot qgscrn 37rh_s 38u10 uscrn",
+     &       " 40condx")
               write (iunp(nn),953) land(iq),isoilm(iq),ivegt(iq),zo(iq),
      &                              zs(iq)/grav
 953           format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
@@ -1915,7 +1905,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
 954            format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
 !              rml 16/02/06 removed ico2em
                write (iunp(nn),955) i,j,radonem(iqt)
-955            format("#i,j,radonem: ",2i4,i6,f7.3)
+955            format("#i,j,radonem: ",2i4,f7.3)
              endif
            enddo
       return	    
