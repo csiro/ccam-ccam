@@ -55,7 +55,6 @@
      & ,kwt2,iaa2,jaa2,nvad2,nqgi,lbd2,nrun2,nrunx2
      & ,khor2,ksc2,kountr2,ndiur2,nhort2,nhorps2,nsoil2,ivirt2
      & ,ntsuri,nrad2,kuocb2,nvmix2,ntsea2,ms2,nextras2,ilt2,ntrac2
-!      real tds,difknbdi,rhkuo,tdu,ttanl,trnml,tstl1,tstl2
       real tds,difknbdi,rhkuo,tdu,ttanl,trnml,tssadd,tstl1,tstl2
       common/rhead/tds,difknbdi,rhkuo,tdu,ttanl,trnml,tstl1,tstl2
       real rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
@@ -317,7 +316,7 @@ c     log scaled sfc.press
          elseif(zs(iq)<0.)then
            tss(iq)=tss(iq)+tssadd
          endif
-        enddo 
+        enddo
       endif
 
 c     turn on fatal netcdf errors
@@ -372,20 +371,13 @@ c         enddo
       endif    ! (ier.ne.0) .. else ..    for sicedep
       if(ncalled<4.and.mydiag)then
         print *,'sig in: ',(sigin(i),i=1,kk)
-        write (6,"('100*psl# in',3f7.2,1x,3f7.2,1x,3f7.2)") 
-     &              100.*diagvals(psl)
-!     .           ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-        write (6,"('zs# in  ',3f7.1,1x,3f7.1,1x,3f7.1)") 
-     &     diagvals(zs)
-!     .           ((zs(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-        write (6,"('tss# in ',3f7.1,1x,3f7.1,1x,3f7.1)") 
-     &     diagvals(tss)
+        write (6,"('100*psl# in',9f8.2)") 100.*diagvals(psl)
+        write (6,"('zs# in     ',9f8.1)") diagvals(zs)
+        write (6,"('tss# in    ',9f8.1)") diagvals(tss)
 !     .           ((tss(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
         print *,'ier,ierr for siced, fracice ',ier,ierr
-        write (6,"('siced# in ',3f7.2,1x,3f7.2,1x,3f7.2)") 
-     &     diagvals(sicedep)
-        write (6,"('fracice# in ',3f7.2,1x,3f7.2,1x,3f7.2)") 
-     &     diagvals(fracice)
+        write (6,"('siced# in  ',9f8.2)") diagvals(sicedep)
+        write (6,"('fracice# in',9f8.2)") diagvals(fracice)
 !       Printing the ifull value gives confusing results in the 
 !       parallel version
         print *,'t in ',(t(idjd,k),k=1,kk)!,t(ifull,kk)
@@ -567,21 +559,14 @@ c	   only being tested for nested=0; no need to test for mesonest
           print *,'wbice ',(wbice(idjd,k),k=1,ms)
         endif ! (mydiag)
         if(ncalled<4.and.mydiag)then
-          print *,'tgg(1)# ', diagvals(tgg(:,1))
-!     .           ((tgg(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
-          print *,'tgg(2)# ', diagvals(tgg(:,2))
-!     .           ((tgg(ii+(jj-1)*il,2),ii=id-1,id+1),jj=jd-1,jd+1)
-          print *,'tgg(3)# ', diagvals(tgg(:,3))
-          print *,'tgg(ms)# ', diagvals(tgg(:,ms))
-!     .           ((tgg(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
-          print *,'wb(1)# ', diagvals(wb(:,1))
-!     .           ((wb(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
-          print *,'wb(ms)# ', diagvals(wb(:,ms))
-!     .           ((wb(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
-          print *,'alb# in: ', diagvals(alb)
-!     . 	   ((alb(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-          print *,'snowd# in: ', diagvals(snowd)
-!     .           ((snowd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+          write (6,"('tgg(1)# in ',9f8.1)") diagvals(tgg(:,1))
+          write (6,"('tgg(2)# in ',9f8.1)") diagvals(tgg(:,2))
+          write (6,"('tgg(3)# in ',9f8.1)") diagvals(tgg(:,3))
+          write (6,"('tgg(ms)# in',9f8.1)") diagvals(tgg(:,ms))
+          write (6,"('wb(1)# in  ',9f8.3)") diagvals(wb(:,1))
+          write (6,"('wb(ms)# in ',9f8.3)") diagvals(wb(:,ms))
+          write (6,"('alb# in    ',9f8.3)") diagvals(alb)
+          write (6,"('snowd# in  ',9f8.2)") diagvals(snowd)
         endif ! (ncalled<4.and.mydiag)
       endif   ! (nested==0)   !  only done at start of run 
 ! ########################################################################
@@ -596,9 +581,7 @@ c	   only being tested for nested=0; no need to test for mesonest
       kdate_s=kdate_r
       ktime_s=ktime_r+1 
 
-!      qg(1:ifull,:) = max(qg(1:ifull,:),1.e-6)
       qg(1:ifull,1:kk) = max(qg(1:ifull,1:kk),1.e-6)
-
 
       if(mydiag)then
          print *,'end infile; next read will be kdate_s,ktime_s >= ',

@@ -230,9 +230,9 @@
       endif   ! (io_in<=4.and.nhstest>=0)
 
       if ( mydiag ) then
-         write(6,"('zs#_topof ',9f7.1)") diagvals(zs)
+         write(6,"('zs#_topof ',9f8.1)") diagvals(zs)
 !     &            ((zs(ii+jj*il),ii=idjd-1,idjd+1),jj=1,-1,-1)
-         write(6,"('he#_topof ',9f7.1)") diagvals(he)
+         write(6,"('he#_topof ',9f8.1)") diagvals(he)
 !     &            ((he(ii+jj*il),ii=idjd-1,idjd+1),jj=1,-1,-1)
       end if
 
@@ -268,6 +268,8 @@ c           endif  ! (nspecial>100)
      &           abs(rlat0    -rlat0x)>.01.or.
      &           abs(schmidt-schmidtx)>.01)then
                  write(0,*) "grid mismatch in indata"
+                 print *,'rlong0,rlong0x,rlat0,rlat0x,schmidt,schmidtx '
+     &                   ,rlong0,rlong0x,rlat0,rlat0x,schmidt,schmidtx
                  stop 
               endif
             endif  ! (newtop>=0)
@@ -353,17 +355,17 @@ c           endif  ! (nspecial>100)
                print *,'newtop>=1 new_land_tss,zsold,zs: ',
      &                    tss(idjd),zss(idjd),zs(idjd)
 !              compensate psl, t(,,1), qg as read in from infile
-               write(6,"('zs#  in     ',9f7.1)") diagvals(zs)
+               write(6,"('zs#  in     ',9f8.1)") diagvals(zs)
 !     &              ((zs(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
-               write(6,"('zss# in     ',9f7.1)") diagvals(zss)
+               write(6,"('zss# in     ',9f8.1)") diagvals(zss)
 !     &              ((zss(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
-               write(6,"('100*psl#  in',9f7.2)") 100.*diagvals(psl)
+               write(6,"('100*psl#  in',9f8.2)") 100.*diagvals(psl)
 !     &          ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
                print *,'now call retopo from indata'
            end if ! ( mydiag )
            call retopo(psl,zss,zs,t(1:ifull,:),qg(1:ifull,:))
            if(nmaxpr==1.and.mydiag)then
-               write(6,"('100*psl# out',9f7.2)") 100.*diagvals(psl)
+               write(6,"('100*psl# out',9f8.2)") 100.*diagvals(psl)
 !     &          ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
            endif
            if(nproc==1)then
@@ -922,7 +924,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
         call readglobvar(87, tgg, fmt="*")
         call readglobvar(87, aa, fmt="*")    ! only use land values of tss
         call readglobvar(87, snowd, fmt="*")
-        call readglobvar(87, sicedep, fmt="*")
+c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
         if ( myid == 0 ) close(87)
         if(ico2.ne.0)then
           ico2x=max(1,ico2)
@@ -1037,7 +1039,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
       if(newsnow==1)then  ! don't do this for restarts
 !       snowd is read & used in cm (i.e. as mm of water)
         call readreal(snowfile,snowd,ifull)
-        if (mydiag) write(6,"('snowd# in',9f7.2)") diagvals(snowd)
+        if (mydiag) write(6,"('snowd# in',9f8.2)") diagvals(snowd)
 !     &       ((snowd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
       elseif(nrungcm.ne.0)then     ! 21/12/01
         do iq=1,ifull
@@ -1200,51 +1202,38 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 !     tgg(:,:)=max(190.,tgg(:,:))  ! temporary post-glacier-error fix
       if ( mydiag ) then
          print *,'near end of indata id+-1, jd+-1'
-         write(6,"('tss#    ',3f7.2,1x,3f7.2,1x,3f7.2)") 
-     &       diagvals(tss)
-!     &       ((tss(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('tgg(1)# ',3f7.2,1x,3f7.2,1x,3f7.2)") 
-     &       diagvals(tgg(:,1))
-!     &       ((tgg(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('tgg(2)# ',3f7.2,1x,3f7.2,1x,3f7.2)") 
-     &       diagvals(tgg(:,2))
-!     &       ((tgg(ii+(jj-1)*il,2),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('tgg(3)# ',3f7.2,1x,3f7.2,1x,3f7.2)") 
-     &       diagvals(tgg(:,3))
-!     &       ((tgg(ii+(jj-1)*il,3),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('tgg(ms)#',3f7.2,1x,3f7.2,1x,3f7.2)") 
-     &       diagvals(tgg(:,ms))
-!     &       ((tgg(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('land#   ',3l7,1x,3l7,1x,3l7)") 
-     &       diagvals(land)
-!     &       ((land(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('sicedep#   ',3f7.2,1x,3f7.2,1x,3f7.2)") 
-     &       diagvals(sicedep)
-!     &       ((sicedep(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('tss#    ',9f8.2)") diagvals(tss)
+!    &       ((tss(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('tgg(1)# ',9f8.2)") diagvals(tgg(:,1))
+!    &       ((tgg(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('tgg(2)# ',9f8.2)") diagvals(tgg(:,2))
+!    &       ((tgg(ii+(jj-1)*il,2),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('tgg(3)# ',9f8.2)") diagvals(tgg(:,3))
+!    &       ((tgg(ii+(jj-1)*il,3),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('tgg(ms)#',9f8.2)") diagvals(tgg(:,ms))
+!    &       ((tgg(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('land#   ',9l8)")  diagvals(land)
+!    &       ((land(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('sicedep#   ',9f8.2)") diagvals(sicedep)
+!    &       ((sicedep(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
          print *,'following from rdnsib'
-         write(6,"('zo#     ',3f7.2,1x,3f7.2,1x,3f7.2)") 
-     &       diagvals(zolnd)
+         write(6,"('zo#     ',9f8.2)") diagvals(zolnd)
 !     &       ((zolnd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('wb(1)#  ',3f7.3,1x,3f7.3,1x,3f7.3)") 
-     &       diagvals(wb(:,1))
+         write(6,"('wb(1)#  ',9f8.3)") diagvals(wb(:,1))
 !     &       ((wb(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('wb(ms)# ',3f7.3,1x,3f7.3,1x,3f7.3)") 
-     &       diagvals(wb(:,ms))
+         write(6,"('wb(ms)# ',9f8.3)") diagvals(wb(:,ms))
 !     &       ((wb(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('swilt#  ',3f7.3,1x,3f7.3,1x,3f7.3)")
-     &       swilt(diagvals(isoilm))
+         write(6,"('swilt#  ',9f8.3)")swilt(diagvals(isoilm))
 !     &    ((swilt(isoilm(ii+(jj-1)*il)),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('wb3frac#',3f7.3,1x,3f7.3,1x,3f7.3)")
+         write(6,"('wb3frac#',9f8.3)")
      &       (diagvals(wb(:,3)) - swilt(diagvals(isoilm))) /
      &       (sfc(diagvals(isoilm)) - swilt(diagvals(isoilm)))
 !     &    (( (wb(ii+(jj-1)*il,3)-swilt(isoilm(ii+(jj-1)*il)))/
 !     &    (sfc(isoilm(ii+(jj-1)*il))-swilt(isoilm(ii+(jj-1)*il))),
 !     &            ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('snowd#  ',3f7.2,1x,3f7.2,1x,3f7.2)") 
-     &       diagvals(snowd)
+         write(6,"('snowd#  ',9f8.2)") diagvals(snowd)
 !     &       ((snowd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('fracice#',3f7.3,1x,3f7.3,1x,3f7.3)") 
-     &       diagvals(fracice)
+         write(6,"('fracice#',9f8.3)") diagvals(fracice)
 !     &       ((fracice(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
       end if
 
@@ -1370,7 +1359,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
            write(6,"('after nrungcm=1 fix-up wb(1-ms)',9f7.3)") 
      &                   (wb(idjd,k),k=1,ms)
            write(6,"('wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
-           write(6,"('wb3frac#',9f7.2)")
+           write(6,"('wb3frac#',9f8.2)")
      &       (diagvals(wb(:,3)) - swilt(diagvals(isoilm))) /
      &       (sfc(diagvals(isoilm)) - swilt(diagvals(isoilm)))
 !     &    (( (wb(ii+(jj-1)*il,3)-swilt(isoilm(ii+(jj-1)*il)))/
@@ -1416,9 +1405,9 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 
       if ( mydiag ) then
          print *,'nearer end of indata id+-1, jd+-1'
-         write(6,"('tgg(2)# ',9f7.2)")  diagvals(tgg(:,2))
+         write(6,"('tgg(2)# ',9f8.2)")  diagvals(tgg(:,2))
 !     &       ((tgg(ii+(jj-1)*il,2),ii=id-1,id+1),jj=jd-1,jd+1)
-         write(6,"('tgg(ms)#',9f7.2)")  diagvals(tgg(:,ms))
+         write(6,"('tgg(ms)#',9f8.2)")  diagvals(tgg(:,ms))
 !     &        ((tgg(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
       end if
       if(nsib.le.3) then
@@ -1473,7 +1462,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
         endif
         if ( mydiag ) then
           print *,'after calczo with newrough = ',newrough
-          write(6,"('zo#    ',3f7.2,1x,3f7.2,1x,3f7.2)") diagvals(zolnd)
+          write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
         end if
       endif
 
@@ -1540,8 +1529,8 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
       end if
 
       epst(1:ifull)=abs(epsp)
-      if(epsp>1.)then   ! e.g. 20. to give epsmax=.2 for del_orog=600 m
-        epsmax=epsp/100.
+      if(abs(epsp)>1.)then   ! e.g. 20. to give epsmax=.2 for del_orog=600 m
+        epsmax=abs(epsp)/100.
         do iq=1,ifull      ! sliding epsf to epsmax
          zsdiff=max(abs(zs(ie(iq))-zs(iq)),
      &              abs(zs(iw(iq))-zs(iq)),
@@ -1550,9 +1539,9 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
          epst(iq)=max(epsf,min(epsmax*zsdiff/(600.*grav),epsmax))
         enddo
         epsf=0.
-      endif
-      if(epsp>99.)then  ! e.g. 200. to give epsmax=.2 for orog=600 m
-        epsmax=epsp/1000.
+      endif  ! (abs(epsp)>1.)
+      if(abs(epsp)>99.)then  ! e.g. 200. to give epsmax=.2 for orog=600 m
+        epsmax=abs(epsp)/1000.
         do iq=1,ifull
          zsdiff=max(zs(iq)-zs(ie(iq)),
      &              zs(iq)-zs(iw(iq)),
@@ -1560,15 +1549,16 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
      &              zs(iq)-zs(is(iq)),0. )
          epst(iq)=min(epsmax*zsdiff/(600.*grav),epsmax) ! sliding 0. to epsmax
         enddo
-      endif
+      endif  ! (abs(epsp)>99.)
       if(epsp>1..and.epsp<2.)epst(:)=epsp-1.
-
+      write (6,"('epst0#  ',9f8.2)") diagvals(epst) 
+      
       print *,'at centre of the panels:'
       do n=1,npan
          iq = indp((ipan+1)/2,(jpan+1)/2,n)
          print '(" n,em,emu,emv,f,fu,fv "i3,3f6.3,3f10.6)',
      &        n-noff,em(iq),emu(iq),emv(iq),f(iq),fu(iq),fv(iq)
-      enddo
+      enddo ! n=1,npan
 
       along(:)=rlongg(:)*180./pi    
       alat(:)=rlatt(:)*180./pi
@@ -1678,7 +1668,9 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
              iq = ii + (jj-1)*ipan + (n-1)*ipan*jpan
 !             print*, "Station", nn, iqg, ii, jj, n, iq
              if(.not.land(iq))then
-!              simple search for neighbouring land point (not over panel bndries)
+!              simple search for neighbouring land point 
+!              N.B. does not search over panel/processor bndries
+!              N.B. if no land points, just returns closest point
                isav = ii
                jsav = jj
                dist=100.

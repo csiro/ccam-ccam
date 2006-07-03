@@ -141,7 +141,6 @@
       integer :: nproc_in, ierr
 
       namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps,nperavg
-!     & ,ia,ib,ja,jb,iaero,khdif,khor,nhorjlm
      & ,ia,ib,ja,jb,itr1,jtr1,itr2,jtr2,id,jd,iaero,khdif,khor,nhorjlm
      & ,m,mex,nbd,ndi,ndi2,nem,nhor,nlv
      & ,nmaxpr,nmi,nomg,nonl,nrot,nrad,ntaft,ntsea
@@ -162,10 +161,8 @@
      & ,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,nfly,localhist   
-     & ,mstn,nqg,inyear_carb 
-!      data npc/40/,nmi/0/,io_nest/1/,iaero/0/ 
-      data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/
-
+     & ,mstn,nqg   ! not used in 2006          
+      data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -1098,7 +1095,7 @@ c         enddo
 
 
       if(ndi==-ktau)then
-        nmaxpr=1             ! reset 6 lines on
+        nmaxpr=1         ! diagnostic prints; reset 6 lines on
         ndi2=ktau+9
 !       nwt=1
       endif
@@ -1659,17 +1656,15 @@ c     endif
       data m/6/,mex/4/,mfix/1/,mfix_qg/1/,mup/1/,nh/0/,nomg/0/,nonl/0/,
      &     npex/1/
       data nritch/407/,nritch_t/300/,nrot/1/,nxmap/0/,
-!     &     epsp/1.1/,epsu/0./,epsf/0./,epsnh/0./,restol/2.e-7/,precon/0/
-     &     epsp/20./,epsu/0./,epsf/0./,epsnh/0./,restol/2.e-7/,precon/0/
+     &     epsp/-20./,epsu/0./,epsf/0./,epsnh/0./,
+     &     precon/0/,restol/2.e-7/
       data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/,nrunx/0/
 !     Horiz advection options
       data ndept/1/,nt_adv/7/,mh_bs/4/
 !     Horiz wind staggering options
-!      data nstag/99/,nstagu/3/,nuvfilt/0/
       data nstag/5/,nstagu/5/,nuvfilt/0/
 
 !     Vertical advection options
-!      data nvad/4/,nvadh/2/,ntvdr/1/
       data nvad/-4/,nvadh/2/,ntvdr/1/
 
 !     Horizontal mixing options
@@ -1681,7 +1676,6 @@ c     endif
      &     convfact/1.02/,convtime/.33/,shaltime/0./,      
      &     alflnd/1.15/,alfsea/1.05/,fldown/.6/,iterconv/3/,ncvcloud/0/,
      &     nevapcc/0/,nevapls/-4/,nuvconv/0/
-!     &     mbase/10/,mdelay/0/,methprec/8/,detrain/.3/,entrain/0./,
      &     mbase/2000/,mdelay/0/,methprec/8/,detrain/.3/,entrain/0./,
 
      &     methdetr/2/,detrainx/0./,dsig2/.15/,dsig4/.4/
@@ -1698,11 +1692,9 @@ c     endif
       data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./  ! not used for ldr
       data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./  ! not used for ldr
 !     Soil, canopy, PBL options
-!      data nbarewet/0/,newrough/0/,nglacier/1/,
       data nbarewet/0/,newrough/2/,nglacier/1/,
 
      &     nrungcm/-1/,nsib/3/,nsigmf/1/,
-!     &     ntaft/2/,ntsea/6/,ntsur/6/,av_vmod/.7/,tss_sh/1./,
      &     ntaft/2/,ntsea/6/,ntsur/7/,av_vmod/.7/,tss_sh/1./,
 
      &     vmodmin/2./,zobgin/.02/,charnock/.018/,chn10/.00125/
@@ -1725,9 +1717,6 @@ c     initialize file names to something
      &    ,rsmfile/' '/,scamfile/' '/,soilfile/' '/,vegfile/' '/
      &    ,co2emfile/' '/,so4tfile/' '/
      &    ,smoistfile/' '/,soil2file/' '/,restfile/' '/
-!     &    ,radonemfile/' '/,surfile/' '/    ! not in DARLAM
-!     &    ,co2_00/' '/,radon_00/' '/,surf_00/' '/,co2_12/' '/
-!     &    ,radon_12/' '/,surf_12/' '/,ifile/' '/,ofile/' '/,nmifile/' '/
      &    ,radonemfile/' '/,surfile/' '/,surf_00/'s_00a '/
      &    ,surf_12/'s_12a '/,co2_00/' '/,co2_12/' '/,radon_00/' '/
      &    ,radon_12/' '/,ifile/' '/,ofile/' '/,nmifile/' '/
@@ -1956,7 +1945,6 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
 954            format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
 !              rml 16/02/06 removed ico2em
                write (iunp(nn),955) i,j,radonem(iqt)
-!955            format("#i,j,radonem: ",2i4,i6,f7.3)
 955            format("#i,j,radonem: ",2i4,f7.3)
              endif
            enddo
