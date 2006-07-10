@@ -161,7 +161,7 @@
      & ,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,nfly,localhist   
-     & ,mstn,nqg   ! not used in 2006          
+     & ,mstn,inyear_carb
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
