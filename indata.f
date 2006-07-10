@@ -1273,7 +1273,8 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
         endif  ! (sicedep(iq)>0.)
       enddo   ! iq loop
       ipsice=indexi
-      if (mydiag) print *,'ipland,ipsice,ipsea: ',ipland,ipsice,ipsea
+      ! if (mydiag) print *,'ipland,ipsice,ipsea: ',ipland,ipsice,ipsea
+      print *,'myid: ipland,ipsice,ipsea: ', myid,ipland,ipsice,ipsea
       if(ipsea.ne.ifull.and.npanels>0)
      &                                  stop 'whats going on in indata?'
 
@@ -1610,14 +1611,14 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           if(land(iq))then
             if(ivegt(iq)==0)then
 !	       if(rlatt(iq)*180./pi>-50.)then
-                print *,'stopping because nsib = 1 or 3 ',
+                print *,'stopping because nsib >= 1 ',
      &          'and veg type not defined for iq = ',iq
                 print *,'lat,long ',
      &          rlatt(iq)*180./pi,rlongg(iq)*180./pi
                 stop
             endif  ! (ivegt(iq)==0)
             if(isoilm(iq)==0)then
-              print *,'stopping because nsib = 1',
+              print *,'stopping because nsib >= 1',
      &        ' and soil type not defined for iq = ',iq
               stop
             endif  ! (isoilm(iq)==0)
@@ -1817,7 +1818,8 @@ c    &              .54, .0/
 
 ! rml from eak 16/03/06
       if(readlaif.eq.1) then
-        print *,'reading LAI and sigmf from french data set'
+        if (myid==0)
+     &        print *,'reading LAI and sigmf from french data set'
         call readreal(sigmfile,sigmf,ifull)
 c       rml 12/12/03 lai now from netcdf file, also no longer *10
         call readlai(rlaifile,jyear,jmonth,rlai123,rlaimax)
@@ -1829,8 +1831,11 @@ c       rml 12/12/03 lai now from netcdf file, also no longer *10
          if (isoilm(iq).eq.9) rlai(iq)=0.0011
          vlai(iq)=rlai(iq)
         enddo
-        print *,'indata rlai',rlai(13419),rlai(2468),rlaimax(13419),
-     &   rlaimax(2468)
+        if (nproc == 1) then
+           ! This diagnostic doesn't make sense otherwise
+           print *,'indata rlai',rlai(13419),rlai(2468),rlaimax(13419),
+     &          rlaimax(2468)
+        end if
       endif ! readlaif
       if(nsib.le.3) then
        ivegmin=100
@@ -2273,63 +2278,75 @@ c find coexp: see notes "simplified wind model ..." eq 34a
 ! rml from eak 16/03/06 - new subroutine
       subroutine readlai(filename,iyr,imon,rlaiin,rlaimax)
 c     rml 12/12/03 lai as netcdf file
+      use cc_mpi
       include 'newmpar.h'
 c     include 'parm.h'
       character*50 filename
 c     3 for interp case - last month, this month, next month
-      real rlaiin(il*jl,3),rlaimax(il*jl)
+      ! Note rlaimax only use in nproc=1 diagnostic
+      real rlaiin(il*jl,3),rlaimax(ifull_g)
       real, dimension(:,:), allocatable :: temparr
       integer ncidlai,timedim,ntime,yearid,monthid,laiid
       integer, dimension(:), allocatable :: laiyr,laimon
       include 'netcdf.inc'
       
 c
-      print *,'reading lai for ',iyr,imon,' from ',filename
-      ierr = nf_open(filename,0,ncidlai)
-      if (ierr.ne.nf_noerr) stop 'lai file not found'
-      ierr=nf_inq_dimid(ncidlai,'time',timedim)
-      if (ierr.ne.nf_noerr) stop 'time dimension error'
-      ierr=nf_inq_dimlen(ncidlai,timedim,ntime)
-      if (ierr.ne.nf_noerr) stop 'time dimension length error'
-      ierr=nf_inq_varid(ncidlai,'year',yearid)
-      if (ierr.ne.nf_noerr) stop 'year variable not found'
-      allocate(laiyr(ntime),laimon(ntime))
-      ierr=nf_get_var_int(ncidlai,yearid,laiyr)
-      if (ierr.ne.nf_noerr) stop 'year variable not read'
-      ierr=nf_inq_varid(ncidlai,'month',monthid)
-      if (ierr.ne.nf_noerr) stop 'month variable not found'
-      ierr=nf_get_var_int(ncidlai,monthid,laimon)
-      if (ierr.ne.nf_noerr) stop 'month variable not read'
-      ierr=nf_inq_varid(ncidlai,'lai',laiid)
-      if (ierr.ne.nf_noerr) stop 'lai variable not found'
+      if ( myid == 0 ) then
+         print *,'reading lai for ',iyr,imon,' from ',filename
+         ierr = nf_open(filename,0,ncidlai)
+         if (ierr.ne.nf_noerr) stop 'lai file not found'
+         ierr=nf_inq_dimid(ncidlai,'time',timedim)
+         if (ierr.ne.nf_noerr) stop 'time dimension error'
+         ierr=nf_inq_dimlen(ncidlai,timedim,ntime)
+         if (ierr.ne.nf_noerr) stop 'time dimension length error'
+         ierr=nf_inq_varid(ncidlai,'year',yearid)
+         if (ierr.ne.nf_noerr) stop 'year variable not found'
+         allocate(laiyr(ntime),laimon(ntime))
+         ierr=nf_get_var_int(ncidlai,yearid,laiyr)
+         if (ierr.ne.nf_noerr) stop 'year variable not read'
+         ierr=nf_inq_varid(ncidlai,'month',monthid)
+         if (ierr.ne.nf_noerr) stop 'month variable not found'
+         ierr=nf_get_var_int(ncidlai,monthid,laimon)
+         if (ierr.ne.nf_noerr) stop 'month variable not read'
+         ierr=nf_inq_varid(ncidlai,'lai',laiid)
+         if (ierr.ne.nf_noerr) stop 'lai variable not found'
 c
 c     find required records
-      nprev=0
-      nnext=0
-      ncur=0
+         nprev=0
+         nnext=0
+         ncur=0
 c     current assume no year-to-year variability in lai
-      if (ntime.ne.12) stop 'lai file wrong ntime'
-      do n=1,ntime
-        if (laimon(n).eq.imon) then
-          ncur=n
-          nprev=n-1
-          if (nprev.eq.0) nprev=12
-          nnext=n+1
-          if (nnext.eq.13) nnext=1
-        endif
-      enddo
+         if (ntime.ne.12) stop 'lai file wrong ntime'
+         do n=1,ntime
+            if (laimon(n).eq.imon) then
+               ncur=n
+               nprev=n-1
+               if (nprev.eq.0) nprev=12
+               nnext=n+1
+               if (nnext.eq.13) nnext=1
+            endif
+         enddo
 c
-      if (ncur.eq.0) stop 'current year/month not in lai file'
+         if (ncur.eq.0) stop 'current year/month not in lai file'
 c    
 c     read all months to find max
-      allocate(temparr(il*jl,ntime))
-      ierr=nf_get_var_real(ncidlai,laiid,temparr)
-      if (ierr.ne.nf_noerr) stop 'error reading lai data'
+         allocate(temparr(ifull_g,ntime))
+         ierr=nf_get_var_real(ncidlai,laiid,temparr)
+         if (ierr.ne.nf_noerr) stop 'error reading lai data'
 c
-      rlaimax = maxval(temparr,dim=2)
-      rlaiin(:,1) = temparr(:,nprev)
-      rlaiin(:,2) = temparr(:,ncur)
-      rlaiin(:,3) = temparr(:,nnext)
-      deallocate(temparr,laimon,laiyr)
+         ! Note rlaimax only use in nproc=1 diagnostic so don't distribute it
+         rlaimax = maxval(temparr,dim=2)
+         call ccmpi_distribute(rlaiin(:,1), temparr(:,nprev))
+         call ccmpi_distribute(rlaiin(:,2), temparr(:,ncur))
+         call ccmpi_distribute(rlaiin(:,3), temparr(:,nnext))
+!         rlaiin(:,1) = temparr(:,nprev)
+!         rlaiin(:,2) = temparr(:,ncur)
+!         rlaiin(:,3) = temparr(:,nnext)
+         deallocate(temparr,laimon,laiyr)
+      else
+         call ccmpi_distribute(rlaiin(:,1))
+         call ccmpi_distribute(rlaiin(:,2))
+         call ccmpi_distribute(rlaiin(:,3))
+      end if
 c
       end
