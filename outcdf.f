@@ -742,7 +742,7 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          lname = 'Snow density lev 3'
          call attrib(idnc,idim,3,'ssdn3',lname,'K',0.,400.,0)
          lname = 'Mean snow density '
-         call attrib(idnc,idim,3,'ssdnn',lname,'kg/m3',0.,400.)
+         call attrib(idnc,idim,3,'ssdnn',lname,'kg/m3',0.,400.,0)
          lname = 'Snow age'
          call attrib(idnc,idim,3,'snage',lname,'none',0.,20.,0)   
          lname = 'Snow flag'
@@ -1105,7 +1105,7 @@ c      "extra" outputs
        call histwrt3(ssdn(1,1),'ssdn1',idnc,iarch,local)
        call histwrt3(ssdn(1,2),'ssdn2',idnc,iarch,local)
        call histwrt3(ssdn(1,3),'ssdn3',idnc,iarch,local)
-       call histwrt3(ssdnn,'ssdnn',idnc,iarch)
+       call histwrt3(ssdnn,'ssdnn',idnc,iarch,local)
        call histwrt3(snage,'snage',idnc,iarch,local)
        do iq=1,ifull
         aa(iq)=isflag(iq)
