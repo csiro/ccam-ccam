@@ -163,7 +163,8 @@ C****************************************************************
       enddo         ! k  loop
       cgh(:,:)=0.   ! 3D
       cgq(:,:)=0.   ! 3D
-      if(ktau==1)print *,'in pbldif nrkmin,npblmin: ',nrkmin,npblmin 
+      if(ktau==1.and.myid==0)
+     &     print *,'in pbldif nrkmin,npblmin: ',nrkmin,npblmin 
 
 C Compute kinematic surface fluxes
          do iq=1,ifull
