@@ -318,7 +318,10 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now
          print *,'in sea-type loop for iq,idjd: ',                   ! sea
      .                            iq,idjd,ip                         ! sea
          print *,'zmin,zo,factch ',zmin,zo(iq),factch(iq)            ! sea         
-         print *,'ri,ustar,es ',ri(iq),ustar(iq),es                  ! sea
+         ! Note that es isn't defined in this loop, so gives spurious
+         ! differences
+         ! print *,'ri,ustar,es ',ri(iq),ustar(iq),es ! sea
+         print *,'ri,ustar ',ri(iq),ustar(iq)                        ! sea
          print *,'af,aft,tgg2 ',af(iq),aft(iq),tpan(iq)              ! sea
          print *,'tgg2,tss,theta ',tpan(iq),tss(iq),theta(iq)        ! sea
          print *,'chnsea,rho,t1 ',chnsea,rho(iq),t(iq,1)             ! sea
@@ -563,7 +566,9 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now
          print *,'afland,aftland,zologbg ',afland,aftland,zologbg   ! land
          print *,'af,vmag,vmod,es ',af(iq),vmag(iq),vmod(iq),es     ! land
          print *,'tss,theta,t1 ',tss(iq),theta(iq),t(iq,1)          ! land
-         print *,'aft,fm,fh,rho,conh ',aft(iq),fm,fh(iq),rho(iq),conh 
+         ! conh not defined in this loop
+         print *,'aft,fm,fh,rho ',aft(iq),fm,fh(iq),rho(iq)
+         ! print *,'aft,fm,fh,rho,conh ',aft(iq),fm,fh(iq),rho(iq),conh 
          print *,'ri,vmod,cduv,fg ',ri(iq),vmod(iq),cduv(iq),fg(iq) ! land
        endif  ! (ntest==1.and.iq==idjd)                             ! land
       enddo     ! ip=1,ipland                                       ! land
@@ -933,6 +938,7 @@ c
        xxx=.6*max(1.,rlai(iq))
        extin(iq)=1.-xxx/(1. +.5*xxx +xxx*xxx/12.) 
        if(ntest==1.and.iq==idjd) then
+         iveg=ivegt(iq)
          print *,'in sib3c ip,iq,idjd,iveg ',ip,iq,idjd,ivegt(iq)
          print*,'iveg,sigmf(iq),tsigmf ',ivegt(iq),sigmf(iq),tsigmf(iq)
          print*,'scveg44,snowd,zo,zolnd,tstom ',
@@ -1352,6 +1358,7 @@ c                                         water interception by the canopy
 !        Etr=rho(iq)*(qsatgf-qg(iq,1))/(airr(iq) +res(iq))
          Etr=rho(iq)*max(0.,qsatgf-qg(iq,1))/(airr(iq) +res(iq))  ! jlm
          betetrdt =(1.-beta)*Etr*dt*tsigmf(iq)   ! fixed 23/5/01
+         iveg=ivegt(iq)
          evapfb1(iq)=min(betetrdt*froot(iveg,1),evapfb1a(iq))
          evapfb2(iq)=min(betetrdt*froot(iveg,2),evapfb2a(iq))
          evapfb3(iq)=min(betetrdt*froot(iveg,3),evapfb3a(iq))
@@ -1559,13 +1566,14 @@ c                                               combined fluxes
       zz1 = 0.
       swnet=-slwa
       lwnet=rgsave-(1.-tsigmf)*rgg-tsigmf*rdg
+      if ( nproc == 1 ) then
 !      do k=1,1
       do k=1,5
        ijd =list(k,1)
        WRITE(98, '(i5,"xr",i7,67e14.5)') 
      . ijd,ktauplus+ktau,yyy0,sgsave(ijd)/(1.-alb(ijd)),-rgsave(ijd), 
      .    condx(ijd), !1-5
-     .    t(ijd), ps(ijd),vmod(ijd),qg(ijd),zz1(ijd),  ! 6-11
+     .    t(ijd,1), ps(ijd),vmod(ijd),qg(ijd,1),zz1(ijd),  ! 6-11
      .    -slwa(ijd),lwnet(ijd), 
      .    tsigmf(ijd)*evapxf(ijd),tsigmf(ijd)*fgf(ijd),!12-14
      .    rnet(ijd), tss(ijd),tgf(ijd),  !15-17
@@ -1585,7 +1593,7 @@ c                                               combined fluxes
      .    zz1(ijd),alb(ijd),alb(ijd), 
      .    taftfhg(ijd), ustar(ijd),cduv(ijd), pblh(ijd)
        enddo
-
+      end if
 
 
       if((ntest==1.or.diag).and.mydiag.and.land(idjd))then 
@@ -1766,6 +1774,7 @@ c
         kstart = 1
         call cbm_pack(air, bgc, canopy, met, bal, rad,
      &          rough, soil, ssoil, sum_flux, veg)
+        if ( myid == 0 ) print*, "CBM after cbm_pack",  veg%dleaf(3666)
  
 !      ijd = 2468
 !      print *,'sbmmet',ktau,met%fsd(ijd),met%fld(ijd),met%precip(ijd),
@@ -1787,6 +1796,7 @@ c
 !!       endif
 !      enddo
 
+       if ( myid == 0 ) print*, "CBM before cbm",  veg%dleaf(3666)
        CALL cbm(ktau, kstart, ntau, ktauplus+ktau, dt, air, bgc, 
      &     canopy, met, bal, rad, rough, soil, ssoil, sum_flux, veg)
 
@@ -1804,6 +1814,7 @@ c
 c     reads the parameters required by land surface scheme 
 c
 
+      use cc_mpi
       USE define_types
       include 'arrays.h'
       include 'carbpools.h'
@@ -1822,67 +1833,75 @@ c
       integer jyear,jmonth
       character*80 comments
       character*2 chflag
+      integer, dimension(ifull_g) :: ivegt_g
 
-      open(unit=8,file="vegtype.dat",status='old')
-      read(8,*) comments
-      print *,'read CASA vegetation types'
-      do ii=1,ifull
-       read(8,*) iq,i,j,rl1,rl2,ivold,ivnew
-       ivegt(iq)=ivnew
-!       if(land(iq)) print *,iq,i,j,rl1,rl2,ivold,ivegt(iq)
-      enddo ! ii
-      close(8)
+      if ( myid == 0) then
+         open(unit=8,file="vegtype.dat",status='old')
+         read(8,*) comments
+         print *,'read CASA vegetation types'
+         do ii=1,ifull_g
+            read(8,*) iq,i,j,rl1,rl2,ivold,ivnew
+            ivegt_g(iq)=ivnew
+!           if(land(iq)) print *,iq,i,j,rl1,rl2,ivold,ivegt(iq)
+         enddo                  ! ii
+         close(8)
+         call ccmpi_distribute(ivegt, ivegt_g)
+      else
+         call ccmpi_distribute(ivegt)
+      end if
 
+
+      ! This is a small file, so simpler to let every processor read if
       open(unit=8,file="veg_parm.txt",status='old')
       read(8,*) comments
-      write(*,802) comments
+      if ( myid == 0 ) write(*,802) comments
 802   format(1x,a80)
       call comskp(8)
       read(8,*) nveg
-      print *,'nveg=',nveg
+      if ( myid == 0 )  print *,'nveg=',nveg
       call comskp(8)
       read(8,*) (canst1(jveg),jveg=1,nveg)
-      print *, 'canst1',(canst1(jveg),jveg=1,nveg)
+      if ( myid == 0 )  print *, 'canst1',(canst1(jveg),jveg=1,nveg)
 !      read(8,*) (cansto(jveg),jveg=1,nveg)
 !      print *, 'cansto',(cansto(jveg),jveg=1,nveg)
       read(8,*) (dleaf(jveg),jveg=1,nveg)
-      print *, 'dleaf',(dleaf(jveg),jveg=1,nveg)
+      if ( myid == 0 ) print *, 'dleaf',(dleaf(jveg),jveg=1,nveg)
       read(8,*) (vcmax(jveg),jveg=1,nveg)
 c      read(8,*) (ejmax(jveg),jveg=1,nveg)
-      print *, 'vcmax',(vcmax(jveg),jveg=1,nveg)
+      if ( myid == 0 ) print *, 'vcmax',(vcmax(jveg),jveg=1,nveg)
       do jveg=1,nveg
         ejmax(jveg)=2.*vcmax(jveg)
       enddo
-      print *, 'ejmax',(ejmax(jveg),jveg=1,nveg)
+      if ( myid == 0 ) print *, 'ejmax',(ejmax(jveg),jveg=1,nveg)
       read(8,*) (hc(jveg),jveg=1,nveg)
-      print *, 'hc',(hc(jveg),jveg=1,nveg)
+      if ( myid == 0 ) print *, 'hc',(hc(jveg),jveg=1,nveg)
       read(8,*) (xfang(jveg),jveg=1,nveg)
-      print *, 'xfang',(xfang(jveg),jveg=1,nveg)
+      if ( myid == 0 ) print *, 'xfang',(xfang(jveg),jveg=1,nveg)
       read(8,*) (rp20(jveg),jveg=1,nveg)
-      print *, 'rp20',(rp20(jveg),jveg=1,nveg)
+      if ( myid == 0 ) print *, 'rp20',(rp20(jveg),jveg=1,nveg)
       read(8,*) (rpcoef(jveg),jveg=1,nveg)
-      print *, 'rpcoef',(rpcoef(jveg),jveg=1,nveg)
+      if ( myid == 0 ) print *, 'rpcoef',(rpcoef(jveg),jveg=1,nveg)
       read(8,*) (rs20(jveg),jveg=1,nveg)
-      print *, 'rprs20',(rs20(jveg),jveg=1,nveg)
+      if ( myid == 0 ) print *, 'rprs20',(rs20(jveg),jveg=1,nveg)
       read(8,*) (shelrb(jveg),jveg=1,nveg)
-      print *, 'shelrb',(shelrb(jveg),jveg=1,nveg)
+      if ( myid == 0 ) print *, 'shelrb',(shelrb(jveg),jveg=1,nveg)
       read(8,*) (frac4(jveg),jveg=1,nveg)
       read(8,*) (tminvj(jveg),jveg=1,nveg)
-      print *, 'tminvj',(tminvj(jveg),jveg=1,nveg)
+      if ( myid == 0 ) print *, 'tminvj',(tminvj(jveg),jveg=1,nveg)
       read(8,*) (tmaxvj(jveg),jveg=1,nveg)
-      print *, 'tmaxvj',(tmaxvj(jveg),jveg=1,nveg)
+      if ( myid == 0 ) print *, 'tmaxvj',(tmaxvj(jveg),jveg=1,nveg)
       read(8,*) (vbeta(jveg),jveg=1,nveg)
-      print *, 'vbeta',(vbeta(jveg),jveg=1,nveg)
+      if ( myid == 0 ) print *, 'vbeta',(vbeta(jveg),jveg=1,nveg)
       read(8,*) (tcplant(jveg,1),jveg=1,nveg)
       read(8,*) (tcplant(jveg,2),jveg=1,nveg)
       read(8,*) (tcplant(jveg,3),jveg=1,nveg)
-      print *,'cplant 1',(tcplant(jveg,1),jveg=1,nveg)
-      print *,'cplant 2',(tcplant(jveg,2),jveg=1,nveg)
-      print *,'cplant 3',(tcplant(jveg,3),jveg=1,nveg)
+      if ( myid == 0 ) print *,'cplant 1',(tcplant(jveg,1),jveg=1,nveg)
+      if ( myid == 0 ) print *,'cplant 2',(tcplant(jveg,2),jveg=1,nveg)
+      if ( myid == 0 ) print *,'cplant 3',(tcplant(jveg,3),jveg=1,nveg)
       read(8,*) (tcsoil(jveg,1),jveg=1,nveg)
       read(8,*) (tcsoil(jveg,2),jveg=1,nveg)
-      print *,'csoil 1',(tcsoil(jveg,1),jveg=1,nveg)
-      print *,'csoil 2',(tcsoil(jveg,2),jveg=1,nveg)
+      if ( myid == 0 ) print *,'csoil 1',(tcsoil(jveg,1),jveg=1,nveg)
+      if ( myid == 0 ) print *,'csoil 2',(tcsoil(jveg,2),jveg=1,nveg)
 
       jyear=kdate/10000
       jmonth=(kdate-jyear*10000)/100
@@ -1900,17 +1919,17 @@ c      read(8,*) (ejmax(jveg),jveg=1,nveg)
        cansto(iq) = 0.
       enddo !ip
       endif ! jmonth
-       print *,'cbmrdn',cplant(13419,1),cplant(13419,2),
+       if ( myid==0 ) print *,'cbmrdn',cplant(13419,1),cplant(13419,2),
      &       cplant(13419,3),csoil(13419,1),csoil(13419,2)
 !      call comskp(8)
 !      read(8,*) (froot(j),j=1,ms)
       call comskp(8)
       read(8,*) (ratecp(j),j=1,ncp)
-      print *, 'ratecp',(ratecp(j),j=1,ncp)
+      if ( myid == 0 ) print *, 'ratecp',(ratecp(j),j=1,ncp)
       call comskp(8)
       read(8,*) (ratecs(j),j=1,ncs)
       close(8)
-      print *, 'ratecs',(ratecs(j),j=1,ncs)
+      if ( myid == 0 ) print *, 'ratecs',(ratecs(j),j=1,ncs)
 c
       end
 
