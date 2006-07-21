@@ -319,8 +319,8 @@
     trnoff = unpack(bal%rnoff_tot, land, trnoff)
     do k = 1,6
         tgg(:,k)= unpack(ssoil%tgg(:,k), land, tgg(:,k))
-        wb(:,k)= unpack(ssoil%wb(:,k), land, wb(:,k))
-        wbice(:,k)= unpack(ssoil%wbice(:,k), land, wbice(:,k))
+        wb(:,k)= unpack(real(ssoil%wb(:,k),r_1), land, wb(:,k))
+        wbice(:,k)= unpack(real(ssoil%wbice(:,k),r_1), land, wbice(:,k))
     enddo
     do k = 1,3
         tggsn(:,k)= unpack(ssoil%tggsn(:,k), land, tggsn(:,k))
