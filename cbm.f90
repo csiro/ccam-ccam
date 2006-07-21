@@ -590,13 +590,15 @@ CONTAINS
     tlfy = tair2  ! initialise current leaf temp
     frac42 = SPREAD(veg%frac4, 2, mf) ! frac C4 plants
     ! weight min stomatal conductance by C3 an C4 plant fractions
-    gswmin = rad%scalex * (gsw03 * (1. - frac42) + gsw04 * frac42)
-    hcx = 0.0       ! init sens heat iteration memory variable
-    ecx = rad%rniso ! init lat heat iteration memory variable
-    rnx = rad%rniso ! init net rad iteration memory variable
-    rny = rad%rniso ! init current estimate net rad
-    hcy = 0.0       ! init current estimate lat heat
-    ecy = rny - hcy ! init current estimate lat heat
+    ! Uses undefined radiation variables
+    ! gswmin = rad%scalex * (gsw03 * (1. - frac42) + gsw04 * frac42)
+    ! Use undefined radiaton values - mrd
+!!$    hcx = 0.0       ! init sens heat iteration memory variable
+!!$    ecx = rad%rniso ! init lat heat iteration memory variable
+!!$    rnx = rad%rniso ! init net rad iteration memory variable
+!!$    rny = rad%rniso ! init current estimate net rad
+!!$    hcy = 0.0       ! init current estimate lat heat
+!!$    ecy = rny - hcy ! init current estimate lat heat
     rdy = 0.0       ! init daytime leaf respiration rate
     rdx = 0.0       ! init daytime leaf respiration rate
     an_y = 0.0      ! init current estimate net photos.
@@ -618,18 +620,20 @@ CONTAINS
     met%qvair = met%qv
     ortsoil = ssoil%rtsoil
     ssoil%tss =  (1-ssoil%isflag)*ssoil%tgg(:,1) + ssoil%isflag*ssoil%tggsn(:,1)
+    print*, "define canopy ssoil%tss", ssoil%tss(3179), ssoil%tgg(3179,1)
     tss4 = ssoil%tss**4
     DO iter = 1, niter
        CALL define_air (met, air)
        psycst = SPREAD(air%psyc, 2, mf)
        dsatdk2 = SPREAD(air%dsatdk, 2, mf)
        CALL radiation(bal, soil, ssoil, veg, air, met, rad)
-!    hcx = 0.0       ! init sens heat iteration memory variable
-!    ecx = rad%rniso ! init lat heat iteration memory variable
-!    rnx = rad%rniso ! init net rad iteration memory variable
-!    rny = rad%rniso ! init current estimate net rad
-!    hcy = 0.0       ! init current estimate lat heat
-!    ecy = rny - hcy ! init current estimate lat heat
+       ! Restore these - mrd
+       hcx = 0.0       ! init sens heat iteration memory variable
+       ecx = rad%rniso ! init lat heat iteration memory variable
+       rnx = rad%rniso ! init net rad iteration memory variable
+       rny = rad%rniso ! init current estimate net rad
+       hcy = 0.0       ! init current estimate lat heat
+       ecy = rny - hcy ! init current estimate lat heat
 
        gswmin = rad%scalex * (gsw03 * (1. - frac42) + gsw04 * frac42)
        ! AERODYNAMIC PROPERTIES: friction velocity us, thence turbulent
@@ -1291,6 +1295,14 @@ REAL(r_1), dimension(mp)              :: xx1,xx2,xx3
     canopy%fe = canopy%fev + canopy%fes
     canopy%rnet = canopy%fns + canopy%fnv
     rad%trad = ( (1.-rad%transd)*canopy%tv**4 + rad%transd * ssoil%tss**4 )**0.25
+    ! Several of these sums are never initialised properly anywhere else
+    ! These ones are never initialised at all - mrd
+    sum_flux%sumrpw = 0.
+    sum_flux%sumrpr = 0.
+    sum_flux%dsumpn = 0.
+    sum_flux%dsumrp = 0.
+    sum_flux%dsumrd = 0.
+
     sum_flux%sumpn = sum_flux%sumpn+canopy%fpn*dels
     sum_flux%sumrp = sum_flux%sumrp+canopy%frp*dels
     sum_flux%sumrpw = sum_flux%sumrpw+canopy%frpw*dels
