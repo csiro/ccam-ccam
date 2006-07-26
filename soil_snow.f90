@@ -21,6 +21,7 @@ MODULE soil_snow_module
   ! This module contains the following subroutines:
   PUBLIC soil_snow ! must be available outside this module
   PRIVATE trimb, smoisturev, surfbv, stempv ! internal subroutines
+  INTEGER(i_d), PARAMETER, PRIVATE	      :: idjd = 3179
 CONTAINS
 
   !----------------------------------------------------------------------
@@ -73,7 +74,6 @@ CONTAINS
     TYPE (soil_snow_type), INTENT(INOUT)	:: ssoil
     TYPE (soil_parameter_type), INTENT(INOUT)       :: soil
     INTEGER(i_d), PARAMETER		      :: ntest = 0 ! 2 for funny pre-set for idjd
-    INTEGER(i_d), PARAMETER		      :: idjd = 2468
     INTEGER(i_d), PARAMETER		      :: nmeth = - 1 ! Values as follows:
     !					 -1 for simple implicit D
     !					 1 for full implicit
@@ -94,7 +94,7 @@ CONTAINS
     INTEGER(i_d)			      :: k
     REAL(r_1), DIMENSION(mp)		      :: phi
     REAL(r_2), DIMENSION(mp)		      :: pwb
-    REAL(r_2), DIMENSION(mp), SAVE	      :: pwb_min
+    REAL(r_2), DIMENSION(:), allocatable, SAVE	      :: pwb_min
     REAL(r_1), DIMENSION(mp)		      :: rat
     REAL(r_1), DIMENSION(mp)		      :: speed_k
     REAL(r_2), DIMENSION(mp)		      :: ssatcurr_k
@@ -126,12 +126,13 @@ CONTAINS
     INTEGER :: u	       ! I/O unit
     !
     IF (ktau == 1) THEN
+       allocate(pwb_min(mp))
        pwb_min = (soil%swilt / soil%ssat ) **soil%ibp2
     END IF
     ! Block below for testing purposes only: - - - - - - - - - - - -
     IF (ntest > 0) THEN
          PRINT * , 'entering smoisturev fwtop,i2bp3,swilt,sfc,ssat: ', &
-         fwtop, soil%i2bp3 , soil%swilt , soil%sfc , soil%ssat
+         fwtop(idjd), soil%i2bp3(idjd) , soil%swilt(idjd) , soil%sfc(idjd) , soil%ssat(idjd)
        u = 97
        inquire (u, opened=is_open)
        if (.not. is_open) then
@@ -143,8 +144,8 @@ CONTAINS
           IF (ktau == 1) ssoil%wb(:,ms) = soil%swilt
           fwtop = 0.
        END IF
-       WRITE (6, " ('wb   ', 6f8.3) ")  (ssoil%wb(:,k) , k = 1, ms)
-       WRITE (6, " ('wbice', 6f8.3) ") (ssoil%wbice(:,k) , k = 1, ms)
+       WRITE (6, " ('wb   ', 6f8.3) ")  (ssoil%wb(idjd,k) , k = 1, ms)
+       WRITE (6, " ('wbice', 6f8.3) ") (ssoil%wbice(idjd,k) , k = 1, ms)
        totwba = 0.
        DO k = 1, ms
           totwba = totwba + soil%zse(k) * ssoil%wb(:,k)
@@ -184,9 +185,9 @@ CONTAINS
           ! Block below for testing purposes only:
           IF (ntest > 0) THEN
               PRINT * , 'in TVD for k= ', k
-              PRINT * , 'wbl,wh,hydss ', wbl_k, wh, hydss
+              PRINT * , 'wbl,wh,hydss ', wbl_k(idjd), wh(idjd), hydss(idjd)
               PRINT * , 'speeda,speedb,fluxhi,fluxlo,delt,rat,phi ', &
-                   speed_k, .5 * soil%zse(k) / dt, fluxhi, fluxlo, delt (:,k) , rat, phi
+                   speed_k(idjd), .5 * soil%zse(k) / dt, fluxhi(idjd), fluxlo(idjd), delt (idjd,k) , rat(idjd), phi(idjd)
           END IF
           !  scale speed to grid lengths per dt & limit speed for stability
           !  1. OK too for stability
@@ -234,19 +235,19 @@ CONTAINS
        ! Block below for testing purposes only:
        IF (ntest > 0) THEN
           PRINT * , 'midway through nmeth<=0'
-          PRINT * , 'fluxh ', (fluxh (:,k) , k = 1, ms)
-          WRITE (6, " ('wb   ', 6f8.3) ")  (ssoil%wb(:,k) , k = 1, ms)
-          WRITE (6, " ('wblf ', 6f8.3) ") (ssoil%wblf(:,k) , k = 1, ms)
+          PRINT * , 'fluxh ', (fluxh (idjd,k) , k = 1, ms)
+          WRITE (6, " ('wb   ', 6f8.3) ")  (ssoil%wb(idjd,k) , k = 1, ms)
+          WRITE (6, " ('wblf ', 6f8.3) ") (ssoil%wblf(idjd,k) , k = 1, ms)
           totwbb = 0.
           totwblb = 0.
           DO k = 1, ms
              totwbb = totwbb + soil%zse(k) * ssoil%wb(:,k) ! diagnostic
              totwblb = totwblb + soil%zse(k) * ssoil%wblf(:,k) ! diagnostic
           END DO
-          PRINT * , 'nmeth, b+2, 2b+3: ', nmeth, soil%ibp2 , soil%i2bp3
-          WRITE (6, " ('wb   ', 6f8.3) ")  (ssoil%wb(:,k) , k = 1, ms)
-          WRITE (6, " ('wbice', 6f8.3) ") (ssoil%wbice(:,k) , k = 1, ms)
-          WRITE (6, " ('wblf ', 6f8.3) ") (ssoil%wblf(:,k) , k = 1, ms)
+          PRINT * , 'nmeth, b+2, 2b+3: ', nmeth, soil%ibp2(idjd) , soil%i2bp3(idjd)
+          WRITE (6, " ('wb   ', 6f8.3) ")  (ssoil%wb(idjd,k) , k = 1, ms)
+          WRITE (6, " ('wbice', 6f8.3) ") (ssoil%wbice(idjd,k) , k = 1, ms)
+          WRITE (6, " ('wblf ', 6f8.3) ") (ssoil%wblf(idjd,k) , k = 1, ms)
           PRINT * , 'zse ', soil%zse
           PRINT * , 'zshh ', soil%zshh
           PRINT * , 'dtt ', (dtt (idjd, k) , k = 1, ms)
@@ -374,19 +375,19 @@ CONTAINS
              ! diagnostic
              totwblb = totwblb + soil%zse(k) * ssoil%wblf(:,k)
           END DO
-          PRINT * , 'nmeth, b+2, 2b+3: ', nmeth, soil%ibp2 , soil%i2bp3
-          WRITE (6, " ('wb   ', 6f8.3) ")  (ssoil%wb(:,k) , k = 1, ms)
-          WRITE (6, " ('wbice', 6f8.3) ") (ssoil%wbice(:,k) , k = 1, ms)
-          WRITE (6, " ('wblf ', 6f8.3) ") (ssoil%wblf(:,k) , k = 1, ms)
-          WRITE (6, " ('wbh  ', 7f8.3) ") wbh
-          WRITE (6, " ('ssatcurr', 6f8.3) ") ssatcurr
-          PRINT * , 'pwb_wbh,pwb_min* for ms ', pwb_wbh, soil%hsbh * pwb_min
-          PRINT * , 'wblfmx,wblfmn,iqmx,iqmn ', wblfmx, wblfmn, iqmx, iqmn
+          PRINT * , 'nmeth, b+2, 2b+3: ', nmeth, soil%ibp2(idjd) , soil%i2bp3(idjd)
+          WRITE (6, " ('wb   ', 6f8.3) ")  (ssoil%wb(idjd,k) , k = 1, ms)
+          WRITE (6, " ('wbice', 6f8.3) ") (ssoil%wbice(idjd,k) , k = 1, ms)
+          WRITE (6, " ('wblf ', 6f8.3) ") (ssoil%wblf(idjd,k) , k = 1, ms)
+          WRITE (6, " ('wbh  ', 7f8.3) ") wbh(idjd,:)
+          WRITE (6, " ('ssatcurr', 6f8.3) ") ssatcurr(idjd,:)
+          PRINT * , 'pwb_wbh,pwb_min* for ms ', pwb_wbh(idjd), soil%hsbh(idjd) * pwb_min(idjd)
+          PRINT * , 'wblfmx,wblfmn,iqmx,iqmn ', wblfmx(idjd), wblfmn(idjd), iqmx(idjd), iqmn(idjd)
           PRINT * , 'zse ', soil%zse
           PRINT * , 'zshh ', soil%zshh
-          PRINT * , 'at ', (at (:,k) , k = 1, ms)
-          PRINT * , 'bt ', (bt (:,k) , k = 1, ms)
-          PRINT * , 'ct ', (ct (:,k) , k = 1, ms)
+          PRINT * , 'at ', (at (idjd,k) , k = 1, ms)
+          PRINT * , 'bt ', (bt (idjd,k) , k = 1, ms)
+          PRINT * , 'ct ', (ct (idjd,k) , k = 1, ms)
        END IF
        IF (nmeth == 3) THEN
           !	     artificial fix applied here for safety (explicit nmeth only)
@@ -405,11 +406,11 @@ CONTAINS
     END DO
     ! Block below for testing purposes only:
     IF (ntest > 0) THEN
-       PRINT * , 'at end of smoisturev,fwtop ', fwtop
+       PRINT * , 'at end of smoisturev,fwtop ', fwtop(idjd)
        PRINT * , 'tgg ', (ssoil%tgg(idjd, k) , k = 1, ms)
-       WRITE (6, " ('wb   ', 6f8.3) ")  (ssoil%wb(:,k) , k = 1, ms)
-       WRITE (6, " ('wbice', 6f8.3) ") (ssoil%wbice(:,k) , k = 1, ms)
-       WRITE (6, " ('wblf ', 6f8.3) ") (ssoil%wblf(:,k) , k = 1, ms)
+       WRITE (6, " ('wb   ', 6f8.3) ")  (ssoil%wb(idjd,k) , k = 1, ms)
+       WRITE (6, " ('wbice', 6f8.3) ") (ssoil%wbice(idjd,k) , k = 1, ms)
+       WRITE (6, " ('wblf ', 6f8.3) ") (ssoil%wblf(idjd,k) , k = 1, ms)
        totwbc = 0.
        totwblc = 0.
        zsetot = 0.
@@ -418,9 +419,9 @@ CONTAINS
           totwblc = totwblc + soil%zse(k) * ssoil%wblf(:,k)
           zsetot = zsetot + soil%zse(k)
        END DO
-       PRINT * , 'totwba,totwbb,totwbc ', totwba, totwbb, totwbc
-       PRINT * , 'totwblb,totwblc ', totwblb, totwblc
-       PRINT * , 'with totwbc/zsetot: ', totwbc / zsetot
+       PRINT * , 'totwba,totwbb,totwbc ', totwba(idjd), totwbb(idjd), totwbc(idjd)
+       PRINT * , 'totwblb,totwblc ', totwblb(idjd), totwblc(idjd)
+       PRINT * , 'with totwbc/zsetot: ', totwbc(idjd) / zsetot(idjd)
     END IF
   END SUBROUTINE smoisturev
 
@@ -432,7 +433,6 @@ CONTAINS
     TYPE (soil_snow_type), INTENT(INOUT):: ssoil 
     TYPE (soil_parameter_type), INTENT(INOUT)	:: soil
     INTEGER(i_d), PARAMETER	:: ntest = 0 ! for snow diag prints
-    INTEGER(i_d), PARAMETER	:: idjd = 2468
     INTEGER(i_d), PARAMETER	:: nglacier = 2 ! 0 original, 1 off, 2 new Eva
     REAL(r_1), DIMENSION(mp)	:: alv ! Snow albedo for visible
     REAL(r_1), DIMENSION(mp)	:: alir ! Snow albedo for near infra-red
@@ -726,7 +726,6 @@ CONTAINS
     TYPE (soil_snow_type), INTENT(INOUT):: ssoil
     TYPE (soil_parameter_type), INTENT(INOUT)	:: soil
     INTEGER(i_d), PARAMETER	        :: ntest = 0
-    INTEGER(i_d), PARAMETER		:: idjd = 2468
     REAL(r_2), DIMENSION(mp, -2:kl-3)	:: at
     REAL(r_2), DIMENSION(mp, -2:kl-3)	:: bt
     REAL(r_2), DIMENSION(mp, -2:kl-3)	:: ct
@@ -798,16 +797,16 @@ CONTAINS
             * dt / ssoil%gammzz(:,1)
     END WHERE
     IF (ntest > 0) THEN
-       PRINT * , 'tgg1,ga,gammzz ', ssoil%tgg(:,1) , canopy%ga , ssoil%gammzz(:,1)
-       PRINT * , 'dgdtg,degdt,dfgdt ', canopy%dgdtg
-       PRINT * , 'ssat,css,rhos,cswat,rhowat,csice ', soil%ssat , &
-            soil%css , soil%rhosoil , cswat, rhowat, csice
-       PRINT * , 'wblf1,wbfice1,zse1,cgsnow ', ssoil%wblf(:,1) , &
-            ssoil%wbfice(:,1) , soil%zse(1) , cgsnow
-       PRINT * , 'at ', (at (:,k) , k = 1, ms)
-       PRINT * , 'bt ', (bt (:,k) , k = 1, ms)
-       PRINT * , 'ct ', (ct (:,k) , k = 1, ms)
-       PRINT * , 'rhs ', (ssoil%tgg(:,k) , k = 1, ms)
+       PRINT * , 'tgg1,ga,gammzz ', ssoil%tgg(idjd,1) , canopy%ga(idjd) , ssoil%gammzz(idjd,1)
+       PRINT * , 'dgdtg,degdt,dfgdt ', canopy%dgdtg(idjd)
+       PRINT * , 'ssat,css,rhos,cswat,rhowat,csice ', soil%ssat(idjd) , &
+            soil%css(idjd) , soil%rhosoil(idjd) , cswat, rhowat, csice
+       PRINT * , 'wblf1,wbfice1,zse1,cgsnow ', ssoil%wblf(idjd,1) , &
+            ssoil%wbfice(idjd,1) , soil%zse(1) , cgsnow
+       PRINT * , 'at ', (at (idjd,k) , k = 1, ms)
+       PRINT * , 'bt ', (bt (idjd,k) , k = 1, ms)
+       PRINT * , 'ct ', (ct (idjd,k) , k = 1, ms)
+       PRINT * , 'rhs ', (ssoil%tgg(idjd,k) , k = 1, ms)
     END IF
     coeff (:,1 - 3) = 0.
     ! 3-layer snow points done here
@@ -860,16 +859,16 @@ CONTAINS
     END WHERE
     IF (ssoil%isflag(idjd) /= 0 .and.  ntest > 0) THEN
        PRINT * , 'in stempv 3-layer snow code '
-       PRINT * , 'ccnsw ', (ccnsw (:,k) , k = 1, ms)
-       PRINT * , 'sdepth d ', (ssoil%sdepth(:,k) , k = 1, 3)
+       PRINT * , 'ccnsw ', (ccnsw (idjd,k) , k = 1, ms)
+       PRINT * , 'sdepth d ', (ssoil%sdepth(idjd,k) , k = 1, 3)
        PRINT * , 'sconds ', sconds
        PRINT * , 'coeff ', coeff
-       PRINT * , 'at ', (at (:,k) , k = - 2, ms)
-       PRINT * , 'bt ', (bt (:,k) , k = - 2, ms)
-       PRINT * , 'ct ', (ct (:,k) , k = - 2, ms)
-       PRINT * , 'rhs(tggsn,tgg) ', (ssoil%tggsn(:,k), k = 1,3), (ssoil%tgg(:,k), k = 1,ms)
-       PRINT * , 'tggsn,ga,sgamm ', ssoil%tggsn (:,1) , canopy%ga ,sgamm
-       PRINT * , 'dgdtg ', canopy%dgdtg
+       PRINT * , 'at ', (at (idjd,k) , k = - 2, ms)
+       PRINT * , 'bt ', (bt (idjd,k) , k = - 2, ms)
+       PRINT * , 'ct ', (ct (idjd,k) , k = - 2, ms)
+       PRINT * , 'rhs(tggsn,tgg) ', (ssoil%tggsn(idjd,k), k = 1,3), (ssoil%tgg(idjd,k), k = 1,ms)
+       PRINT * , 'tggsn,ga,sgamm ', ssoil%tggsn (idjd,1) , canopy%ga(idjd) ,sgamm(idjd)
+       PRINT * , 'dgdtg ', canopy%dgdtg(idjd)
     END IF
     !
     !     note in the following that tgg and tggsn are processed together
@@ -905,7 +904,6 @@ CONTAINS
   !	 ssoil
 
   SUBROUTINE soil_snow(dt, ktau, soil, ssoil, canopy, met)
-    INTEGER(i_d), PARAMETER	:: idjd = 2468
     REAL(r_1), INTENT(IN)	:: dt ! integration time step (s)
     INTEGER(i_d), INTENT(IN)	:: ktau ! integration step number
     TYPE (soil_parameter_type), INTENT(INOUT)	:: soil
@@ -952,6 +950,7 @@ CONTAINS
        ssoil%wblf(:,k) = max (0.01, (ssoil%wb(:,k) - ssoil%wbice(:,k) ) ) / soil%ssat
        ssoil%wbfice(:,k) = ssoil%wbice(:,k) / soil%ssat
     END DO
+    tr1 = 0. ! Requires this initialisation with Intel compiler
     WHERE (ssoil%snowd <= 0.)
        ssoil%isflag = 0
        ssoil%ssdn(:,1) = 140.
