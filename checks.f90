@@ -102,7 +102,7 @@ CONTAINS
     TYPE (canopy_type),INTENT(IN):: canopy ! canopy variable data
     TYPE(met_type),INTENT(IN) :: met  ! met data
     TYPE (air_type),INTENT(IN) 	:: air
-    REAL(r_1), DIMENSION(mp,ms,2),SAVE :: bwb ! volumetric soil moisture
+    REAL(r_1), DIMENSION(:,:,:),allocatable, SAVE :: bwb ! volumetric soil moisture
     REAL(r_1), DIMENSION(mp) :: delwb ! change in soilmoisture b/w tsteps
     REAL(r_1), DIMENSION(mp) :: into_soil ! moisture into soil
     REAL(r_1), DIMENSION(mp) :: canopy_wbal ! canopy water balance
@@ -110,6 +110,7 @@ CONTAINS
     INTEGER :: k ! do loop counter
     
     IF(ktau==1) THEN
+       allocate ( bwb(mp,ms,2) )
        bwb(:,:,1)=ssoil%wb ! initial vlaue of soil moisture
     ELSE
        ! Calculate change in soil moisture b/w timesteps:

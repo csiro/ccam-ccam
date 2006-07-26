@@ -376,10 +376,14 @@
 !    csoil(:,k)= unpack(bgc%csoil(:,k), land, csoil(:,k))
 !    ratecs(k)= bgc%ratecs(k)
 !    enddo
-     call eva_output( ktauyear, dels, air, bgc, &
-          canopy, met, bal, &
-          rad, rough, soil, ssoil, sum_flux, veg)
 
+    if ( nproc == 1 ) then
+       call eva_output( ktauyear, dels, air, bgc, &
+                        canopy, met, bal, &
+                        rad, rough, soil, ssoil, sum_flux, veg)
+    else
+       print*, "Skipping eva_output - not yet implemented in parallel version"
+    end if
 
 END Subroutine cbm_unpack
 

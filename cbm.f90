@@ -620,7 +620,6 @@ CONTAINS
     met%qvair = met%qv
     ortsoil = ssoil%rtsoil
     ssoil%tss =  (1-ssoil%isflag)*ssoil%tgg(:,1) + ssoil%isflag*ssoil%tggsn(:,1)
-    print*, "define canopy ssoil%tss", ssoil%tss(3179), ssoil%tgg(3179,1)
     tss4 = ssoil%tss**4
     DO iter = 1, niter
        CALL define_air (met, air)
@@ -707,7 +706,11 @@ CONTAINS
        k = 0
        DO WHILE (ANY(abs_deltlf > 0.1)  .AND.  k < maxiter)
           k = k + 1
+#ifdef sumdd
+          WHERE (rad%fvlai > 1e-3 .and. abs_deltlf > 0.1)
+#else
           WHERE (rad%fvlai > 1e-3)
+#endif
              ! Grashof number (Leuning et al, 1995) eq E4:
              gras = max(1.0e-6,1.595E8*ABS(tlfx-tair2)*(xdleaf2**3.))
              ! See Appendix E in (Leuning et al, 1995):
@@ -1307,7 +1310,6 @@ REAL(r_1), dimension(mp)              :: xx1,xx2,xx3
     sum_flux%sumrp = sum_flux%sumrp+canopy%frp*dels
     sum_flux%sumrpw = sum_flux%sumrpw+canopy%frpw*dels
     sum_flux%sumrpr = sum_flux%sumrpr+canopy%frpr*dels
-    sum_flux%sumrs = sum_flux%sumrs+canopy%frs*dels
     sum_flux%sumrd = sum_flux%sumrd+canopy%frday*dels
     sum_flux%dsumpn = sum_flux%dsumpn+canopy%fpn*dels
     sum_flux%dsumrp = sum_flux%dsumrp+canopy%frp*dels
@@ -1316,6 +1318,8 @@ REAL(r_1), dimension(mp)              :: xx1,xx2,xx3
     
     CALL soilcarb(soil, ssoil, veg, bgc, met, canopy)
     CALL carbon_pl(dels, soil, ssoil, veg, canopy, bgc)
+    ! canopy%frs set in soilcarb
+    sum_flux%sumrs = sum_flux%sumrs+canopy%frs*dels
     ! Set net ecosystem exchange after adjustments to frs:
     canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
   

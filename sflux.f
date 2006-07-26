@@ -1634,11 +1634,12 @@ c                                               combined fluxes
       TYPE (radiation_type)       :: rad
       TYPE (roughness_type)       :: rough
       type (soil_parameter_type)      :: soil       ! soil parameters
-!      TYPE (soil_type)            :: soil
       TYPE (soil_snow_type)       :: ssoil
       TYPE (sum_flux_type)        :: sum_flux
-!      TYPE (veg_type)             :: veg
       type (veg_parameter_type)       :: veg        ! vegetation parameters
+      ! Save these so only have to do the allocation once.
+      save air, bgc, canopy, met, bal, rad, rough, soil, ssoil,
+     &     sum_flux, veg
 
 
 !      include 'newmpar.h'
@@ -1682,6 +1683,7 @@ c                                               combined fluxes
       dimension ndoy(12)   ! days from beginning of year (1st Jan is 0)
       data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
       real ssumcbmfl(14,20)
+      logical, save :: cbm_allocated = .false.
       save list,ktauplus,iswt
       data iswt/0/
 !     rml added values for 2000-2004 using scripps records from cdiac
@@ -1706,6 +1708,24 @@ c                                               combined fluxes
      &           ,361.8578,363.6479,365.4682,367.2137
      &           ,368.87,370.35,372.49,374.93,376.69/
 
+
+       if ( .not. cbm_allocated ) then
+          ! These variables are all saved so only need to be allocated once
+          ! in the run.
+          cbm_allocated = .true.
+          mp = ipland
+          call alloc_cbm_var(air, mp)
+          call alloc_cbm_var(bgc, mp)
+          call alloc_cbm_var(canopy, mp)
+          call alloc_cbm_var(met, mp)
+          call alloc_cbm_var(bal, mp)
+          call alloc_cbm_var(rad, mp)
+          call alloc_cbm_var(rough, mp)
+          call alloc_cbm_var(soil, mp)
+          call alloc_cbm_var(ssoil, mp)
+          call alloc_cbm_var(sum_flux, mp)
+          call alloc_cbm_var(veg, mp)
+       end if
 c
 c      set meteorological forcing
 c
@@ -1774,7 +1794,6 @@ c
         kstart = 1
         call cbm_pack(air, bgc, canopy, met, bal, rad,
      &          rough, soil, ssoil, sum_flux, veg)
-        if ( myid == 0 ) print*, "CBM after cbm_pack",  veg%dleaf(3666)
  
 !      ijd = 2468
 !      print *,'sbmmet',ktau,met%fsd(ijd),met%fld(ijd),met%precip(ijd),
@@ -1796,7 +1815,6 @@ c
 !!       endif
 !      enddo
 
-       if ( myid == 0 ) print*, "CBM before cbm",  veg%dleaf(3666)
        CALL cbm(ktau, kstart, ntau, ktauplus+ktau, dt, air, bgc, 
      &     canopy, met, bal, rad, rough, soil, ssoil, sum_flux, veg)
 
