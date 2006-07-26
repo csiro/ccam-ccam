@@ -12,10 +12,12 @@
 MODULE carbon_module
   USE define_types
   IMPLICIT NONE
-  REAL(r_1), DIMENSION(mp)	:: clitt
-  REAL(r_1), DIMENSION(mp)	:: coef_cd ! total stress coeff. for vegetation (eq. 6)
-  REAL(r_1), DIMENSION(mp)	:: coef_cold  ! coeff. for the cold stress (eq. 7)
-  REAL(r_1), DIMENSION(mp)	:: coef_drght ! coeff. for the drought stress (eq. 8)
+  ! Do these really need to be module variables
+  ! clitt is used in eva_output, rest are just local in carbon_pl
+  REAL(r_1), DIMENSION(:), allocatable, save	:: clitt
+  REAL(r_1), DIMENSION(:), allocatable, save	:: coef_cd ! total stress coeff. for vegetation (eq. 6)
+  REAL(r_1), DIMENSION(:), allocatable, save	:: coef_cold  ! coeff. for the cold stress (eq. 7)
+  REAL(r_1), DIMENSION(:), allocatable, save	:: coef_drght ! coeff. for the drought stress (eq. 8)
 CONTAINS
 
   SUBROUTINE carbon_pl(dt, soil, ssoil, veg, canopy, bgc)
@@ -49,9 +51,14 @@ CONTAINS
 !                                                         leaf loss is rapid
     REAL(r_1), DIMENSION(mp)	:: wbav ! water stress index
 
+    if ( .not. allocated(clitt) ) then
+       allocate ( clitt(mp), coef_cd(mp), coef_cold(mp), coef_drght(mp) )
+    end if
 
     !
-    coef_cold = EXP(-(canopy%tv - tvclst(veg%iveg)))                  ! cold stress
+    ! coef_cold = EXP(-(canopy%tv - tvclst(veg%iveg)))   ! cold stress
+    ! Limit size of exponent to avoif overflow when tv is very cold
+    coef_cold = EXP(min(50., -(canopy%tv - tvclst(veg%iveg))))   ! cold stress
     wbav = SUM(soil%froot * ssoil%wb, 2)
     coef_drght = exp(10.*( min(1., max(1.,wbav**(2-soil%ibp2)-1.) / & ! drought stress
          (soil%swilt**(2-soil%ibp2) - 1.)) - 1.))
@@ -108,6 +115,10 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)		:: den ! sib3
     INTEGER(i_d)			:: k
     REAL(r_1), DIMENSION(mp)		:: rswc
+    REAL(r_1), DIMENSION(mp)		:: sss
+    REAL(r_1), DIMENSION(mp)		:: e0rswc
+    REAL(r_1), DIMENSION(mp)		:: ftsoil
+    REAL(r_1), DIMENSION(mp)		:: ftsrs
     REAL(r_1), PARAMETER, DIMENSION(13)	:: rswch = 0.16
     REAL(r_1), PARAMETER, DIMENSION(13)	:: soilcf = 1.0
     REAL(r_1), PARAMETER		:: t0 = -46.0
@@ -117,30 +128,35 @@ CONTAINS
          (/ 1.95, 1.5, 1.55, 0.91, 0.73, 2.8, 2.75, 0.0, 2.05, 0.6, 0.4, 2.8, 0.0 /)
 
     den = soil%sfc - soil%swilt     
-    rswc = soil%froot(:, 1) * max(0.0001, ssoil%wb(:,2) - soil%swilt) / den
+    rswc =  max(0.0001, soil%froot(:,1)*(ssoil%wb(:,2) - soil%swilt)) / den
+!    rswc = soil%froot(:, 1) * max(0.0001, ssoil%wb(:,2) - soil%swilt) / den
     tsoil = soil%froot(:,1) * ssoil%tgg(:,2) - 273.15
     tref = max(t0 + 1.,ssoil%tgg(:,ms) - 273.1)
 
     do k = 2,ms  ! start from 2nd index for less dependency on the surface condition
-       rswc = rswc + soil%froot(:,k) * &
-            max(0.0001, ssoil%wb(:,k) - soil%swilt) / den
+       rswc = rswc +  &
+            max(0.0001, soil%froot(:,k) * (ssoil%wb(:,k) - soil%swilt)) / den
        tsoil = tsoil + soil%froot(:,k) * ssoil%tgg(:,k)
     enddo
-
+    rswc = min(1.,rswc)
     tsoil = max(t0 + 2., tsoil)
-    !        frswc = rswc/(rswch(soil%isoilm)+rswc)
-    !        e0rswc = 52.4 + 285. * rswc
-    !        ftsoil=1./(tref - t0) - 1./(tsoil - t0)
-    !        ftsrs=exp(e0rswc * ftsoil)
+    e0rswc = 52.4 + 285. * rswc
+    ftsoil=1./(tref - t0) - 1./(tsoil - t0)
+    sss = min(15.,e0rswc * ftsoil)
+    ftsrs=exp(sss)
+    !    ftsrs=exp(e0rswc * ftsoil)
     !        soiltref=soilcf(soil%isoilm)*min(1.,1.4*max(.3,.0278*tsoil+.5))
     !        rpsoil=vegcf(veg%iveg)*soiltref* ftsrs * frswc
     !     &              * 12./44.*12./1.e6 * 
-
+!    print *,'rswc',rswc
+!    print *,'sss',sss
+!    print *,'ftsrs',ftsrs
     canopy%frs = vegcf(veg%iveg) * (144.0 / 44.0e6)  &
          * soilcf(soil%isoilm) * min(1.,1.4 * max(.3,.0278 * tsoil + .5)) &
-         * exp((52.4 + 285. * rswc) * (1. / (tref - t0) - 1. / (tsoil - t0))) &
+         * ftsrs &
          * rswc / (rswch(soil%isoilm) + rswc)
-
+!         * exp((52.4 + 285. * rswc) * (1. / (tref - t0) - 1. / (tsoil - t0))) &
+ 
   END SUBROUTINE soilcarb
 
 END MODULE carbon_module
