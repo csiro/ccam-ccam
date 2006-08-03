@@ -12,12 +12,14 @@
 MODULE carbon_module
   USE define_types
   IMPLICIT NONE
+  private
   ! Do these really need to be module variables
   ! clitt is used in eva_output, rest are just local in carbon_pl
-  REAL(r_1), DIMENSION(:), allocatable, save	:: clitt
-  REAL(r_1), DIMENSION(:), allocatable, save	:: coef_cd ! total stress coeff. for vegetation (eq. 6)
-  REAL(r_1), DIMENSION(:), allocatable, save	:: coef_cold  ! coeff. for the cold stress (eq. 7)
-  REAL(r_1), DIMENSION(:), allocatable, save	:: coef_drght ! coeff. for the drought stress (eq. 8)
+  REAL(r_1), DIMENSION(:), allocatable, public, save :: clitt
+  REAL(r_1), DIMENSION(:), allocatable, public, save :: coef_cd ! total stress coeff. for vegetation (eq. 6)
+  REAL(r_1), DIMENSION(:), allocatable, public, save :: coef_cold  ! coeff. for the cold stress (eq. 7)
+  REAL(r_1), DIMENSION(:), allocatable, public, save :: coef_drght ! coeff. for the drought stress (eq. 8)
+  PUBLIC carbon_pl, soilcarb
 CONTAINS
 
   SUBROUTINE carbon_pl(dt, soil, ssoil, veg, canopy, bgc)

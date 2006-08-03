@@ -20,6 +20,7 @@
       use tracermodule, only :init_tracer,trfiles,tracer_mass,unit_trout
      &                        ,interp_tracerflux
       use timeseries, only : write_ts
+      use define_dimensions, only : ncs, ncp
       implicit none
       include 'newmpar.h'
       include 'aalat.h'

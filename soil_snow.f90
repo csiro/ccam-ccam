@@ -11,6 +11,7 @@ MODULE soil_snow_module
   USE physical_constants
   USE define_types
   IMPLICIT NONE
+  PRIVATE
   REAL(r_1), PARAMETER :: cgsnow = 2090.
   REAL(r_1), PARAMETER :: csice = 2.100e3
   REAL(r_1), PARAMETER :: cswat = 4.218e3
@@ -726,9 +727,9 @@ CONTAINS
     TYPE (soil_snow_type), INTENT(INOUT):: ssoil
     TYPE (soil_parameter_type), INTENT(INOUT)	:: soil
     INTEGER(i_d), PARAMETER	        :: ntest = 0
-    REAL(r_2), DIMENSION(mp, -2:kl-3)	:: at
-    REAL(r_2), DIMENSION(mp, -2:kl-3)	:: bt
-    REAL(r_2), DIMENSION(mp, -2:kl-3)	:: ct
+    REAL(r_2), DIMENSION(mp, -2:ms)	:: at
+    REAL(r_2), DIMENSION(mp, -2:ms)	:: bt
+    REAL(r_2), DIMENSION(mp, -2:ms)	:: ct
     REAL(r_2), DIMENSION(mp,ms)		:: ccnsw
     REAL(r_1), DIMENSION(mp)		:: coefa
     REAL(r_1), DIMENSION(mp)		:: coefb

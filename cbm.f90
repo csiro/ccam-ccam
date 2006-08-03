@@ -19,6 +19,7 @@ MODULE air_module
   USE physical_constants
   USE define_types
   IMPLICIT NONE
+  PRIVATE
   PUBLIC define_air
 CONTAINS
   !-----------------------------------------------------------------------
@@ -46,6 +47,7 @@ MODULE roughness_module
   USE physical_constants
   USE define_types
   IMPLICIT NONE
+  PRIVATE
   PUBLIC ruff_resist
 CONTAINS
   !-------------------------------------------------------------------
@@ -162,6 +164,7 @@ MODULE radiation_module
   USE abort_module
   IMPLICIT NONE
   ! This module contains the following subroutines:
+  PRIVATE
   PUBLIC init_radiation, radiation, sinbet ! available outside this module
   PRIVATE spitter ! available only from within this module
 CONTAINS
@@ -399,7 +402,10 @@ MODULE canopy_module
   USE radiation_module
   USE roughness_module
   USE air_module
+  USE define_types
+  USE physical_constants
   IMPLICIT NONE
+  PRIVATE
   PUBLIC define_canopy
 CONTAINS
   
@@ -1198,6 +1204,7 @@ CONTAINS
       ! computes integrated stability function psim(z/l) (z/l=zeta)
       ! for momentum, using the businger-dyer form for unstable cases
       ! and the webb form for stable cases. see paulson (1970).
+      USE math_constants
       REAL(r_1), INTENT(IN)	:: zeta
       REAL(r_1)			:: r
       REAL(r_1)			:: x
@@ -1246,12 +1253,17 @@ END MODULE canopy_module
 MODULE cbm_module
   USE canopy_module
   IMPLICIT NONE
+  PRIVATE
   PUBLIC cbm 
 CONTAINS
   SUBROUTINE cbm(ktau, kstart, kend, ktauyear, dels, air, bgc, canopy, met, &
        bal, rad, rough, soil, ssoil, sum_flux, veg)
     USE carbon_module
     USE soil_snow_module
+    USE define_types
+    USE physical_constants
+    USE roughness_module
+    USE radiation_module
     INTEGER(i_d) :: k  
     INTEGER(i_d), INTENT(IN)		:: ktau ! integration step number
     INTEGER(i_d), INTENT(IN)	       	:: kstart ! starting value of ktau

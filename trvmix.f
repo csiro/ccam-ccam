@@ -63,6 +63,7 @@ c rml 08/11/04 add decay flag
 c ***************************************************************************
       subroutine trgassflux(igas,trsrc)
       use tracermodule, only :co2em,tractype,tracname,tracdaytime
+      use define_dimensions, only : ncs, ncp ! Used in carbpool.h
 c     this routine put the correct tracer surface flux into trsrc
       implicit none
       include 'newmpar.h'

@@ -269,13 +269,13 @@ c=======================================================================
       use cc_mpi
 ! rml from eak 16/03/06
       use cbm_module   ! includes newmpar.h
-      use define_dimensions
+      use define_dimensions, only : ncs, ncp
 
       implicit none
 
 c     this routine creates attributes and writes output
 
-!      include 'newmpar.h'
+      include 'newmpar.h'
       include 'aalat.h'
       include 'arrays.h'
 ! rml from eak 16/03/06

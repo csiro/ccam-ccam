@@ -17,11 +17,11 @@
       use cc_mpi
       use diag_m
 ! rml from eak 16/03/06
-      use cbm_module  ! include newmpar.h
-      use define_dimensions
+      use cbm_module
+      use define_dimensions, only : ncs, ncp ! For carbpools.h
 
       implicit none
-!      include 'newmpar.h'
+      include 'newmpar.h'
 ! rml from eak 16/03/06
       include 'carbpools.h'
       include 'darcdf.h'

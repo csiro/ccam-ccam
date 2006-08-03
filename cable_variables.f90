@@ -14,11 +14,9 @@ MODULE define_dimensions
   INTEGER 	        :: mp      ! # land points
   INTEGER, PARAMETER	:: mf = 2  ! # leaves (sunlit, shaded)
   INTEGER, PARAMETER	:: nrb = 3 ! # radiation bands
-      include 'newmpar.h'
-!  INTEGER, PARAMETER	:: ms = 6  ! # soil layers
-!  INTEGER, PARAMETER	:: kl = 18
-!  INTEGER, PARAMETER	:: ncp = 3 ! # vegetation carbon stores
-!  INTEGER, PARAMETER	:: ncs = 2 ! # soil carbon stores
+  INTEGER, PARAMETER	:: ms = 6  ! # soil layers
+  INTEGER, PARAMETER	:: ncp = 3 ! # vegetation carbon stores
+  INTEGER, PARAMETER	:: ncs = 2 ! # soil carbon stores
   ! i_d is default kind for representing integer values.
   INTEGER, PARAMETER :: i_d = KIND(9)
   ! r_1 is default kind for representing REAL values (typically 32 or 64 bits).
@@ -525,14 +523,14 @@ CONTAINS
 END MODULE define_types
 !=========================================================================
 MODULE math_constants
-  USE define_dimensions
+  USE define_dimensions, only : i_d, r_1
   REAL(r_1), PARAMETER	:: pi = 3.1415927
   REAL(r_1), PARAMETER	:: pi180 = pi / 180.0 ! radians / degree
   REAL(r_1), PARAMETER	:: two_pi = 2.0 * pi
 END MODULE math_constants
 !=========================================================================
 MODULE physical_constants
-  USE define_dimensions
+  USE define_dimensions, only : i_d, r_1
   REAL(r_1), PARAMETER :: capp   = 1004.64  ! air spec. heat (J/kg/K)
   REAL(r_1), PARAMETER :: dheat  = 21.5E-6  ! molecular diffusivity for heat
   REAL(r_1), PARAMETER :: grav   = 9.80     ! gravity acceleration (m/s2)
@@ -575,7 +573,7 @@ MODULE physical_constants
 END MODULE physical_constants
 !=========================================================================
 MODULE other_constants
-  USE define_dimensions
+  USE define_dimensions, only : i_d, r_1, nrb
   REAL(r_1), PARAMETER, DIMENSION(nrb) :: gauss_w=(/0.308,0.514,0.178/) ! Gaussian integ. weights
   REAL(r_1), PARAMETER, DIMENSION(nrb) :: refl = (/ 0.1, 0.425, 0.05 /) ! leaf reflectance
   REAL(r_1), PARAMETER, DIMENSION(nrb) :: taul = (/ 0.1, 0.425, 0.05/)  ! leaf transmittance
@@ -594,7 +592,7 @@ MODULE other_constants
 END MODULE other_constants
 !=========================================================================
 MODULE photosynthetic_constants
-  USE define_dimensions
+  USE define_dimensions, only : i_d, r_1
   INTEGER(i_d), PARAMETER :: maxiter=20 ! max # interations for leaf temperature
   REAL(r_1), PARAMETER :: a1c3 = 9.0
   REAL(r_1), PARAMETER :: a1c4 = 4.0

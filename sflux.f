@@ -1619,7 +1619,7 @@ c                                               combined fluxes
       use cc_mpi
       use zenith_m
       use pack_unpack_m 
-      USE define_types
+      USE define_types, cbm_ms => ms
       USE air_module
       USE canopy_module
       USE carbon_module
@@ -1642,7 +1642,7 @@ c                                               combined fluxes
      &     sum_flux, veg
 
 
-!      include 'newmpar.h'
+      include 'newmpar.h'
       include 'aalat.h'    ! slwa
       include 'arrays.h'
       include 'carbpools.h'
@@ -1833,7 +1833,8 @@ c     reads the parameters required by land surface scheme
 c
 
       use cc_mpi
-      USE define_types
+      use define_dimensions, only : ncs, ncp
+      include 'newmpar.h'
       include 'arrays.h'
       include 'carbpools.h'
       include 'dates.h'     ! dt,kdate,iyd

@@ -8,7 +8,7 @@ FC = sxmpif90
 #     applies just to sflux   Needs 180000 for C200 1 proc
 #     applies just to sflux,soilsnow   40000 now OK for C200 3 proc
 
-FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -pvctl noassume  -pvctl loopcnt=70000" -P stack 
+FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -pvctl noassume  -pvctl loopcnt=70000" -P stack -ftrace -Wf,"-L source mrgmsg fmtlist transform summary" 
 
 FCFLAGS = \
     -ew -Ep -Wf,\
@@ -16,7 +16,7 @@ FCFLAGS = \
     -Wf,"-init stack=nan heap=nan -pvctl compress fullmsg" \
     -pi auto \
     exp=sinbet,qsatf,ej3x,ej4x,xvcmxt4,xvcmxt3,xejmxt3,psim,psis,rplant,rsoil expin=cbm.f90 \
-    -V 
+    -V -ftrace
 
 LIBS = -lnetcdf 
 
@@ -34,7 +34,7 @@ cloud2.o co2_read.o e1e288.o e3v88.o extras.o fst88.o hconst.o lwr88.o \
 o3_read.o o3set.o resetd.o spa88.o swr99.o table.o zenith.o cc_mpi.o \
 diag_m.o sumdd_m.o ilu_m.o davies.o utilities.o o3read_amip.o \
 o3set_amip.o tracermodule.o timeseries.o trvmix.o globpe.o soilsnow.o \
-onthefly.o eva_output.o checks.o 
+onthefly.o checks.o 
 
 globpea: $(OBJS)
 	$(FC) -o globpea $(FFLAGS) $(LDFLAGS) $(OBJS) $(LIBS)
@@ -48,6 +48,11 @@ clean:
 	$(FC) -c $(FFLAGS) $<
 .f.o:
 	$(FC) -c $(FFLAGS) $<
+
+# This needs to inline indp etc.
+cc_mpi.o: cc_mpi.f90
+	$(FC) -c $(FFLAGS) -pi $<
+
 infile.o:infile.f
 	$(FC) -c -Cvopt  $(FFLAGS) $<
 cable_variables.o: cable_variables.f90
@@ -60,9 +65,6 @@ cbm.o: cbm.f90 soil_snow.o carbon.o
 	$(FC) -c $(FCFLAGS) cbm.f90
 checks.o: checks.f90 cbm.o
 	$(FC) -c $(FCFLAGS) checks.f90
-eva_output.o: eva_output.f90 checks.o
-	$(FC) -c $(FCFLAGS) eva_output.f90
-
 
 # Remove mod rule from Modula 2 so GNU make doesn't get confused
 %.o : %.mod

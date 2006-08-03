@@ -1,5 +1,7 @@
 MODULE checks_module
   USE canopy_module
+  USE define_types
+  implicit none
   TYPE ranges_type 
      REAL(r_1), DIMENSION(2) :: nav_lon = (/-360.0,360.0/)   
      REAL(r_1), DIMENSION(2) :: nav_lat = (/-90.0,90.0/)   
@@ -107,7 +109,7 @@ CONTAINS
     REAL(r_1), DIMENSION(mp) :: into_soil ! moisture into soil
     REAL(r_1), DIMENSION(mp) :: canopy_wbal ! canopy water balance
     TYPE (balances_type),INTENT(INOUT):: bal 
-    INTEGER :: k ! do loop counter
+    INTEGER :: j, k ! do loop counter
     
     IF(ktau==1) THEN
        allocate ( bwb(mp,ms,2) )
@@ -217,6 +219,7 @@ CONTAINS
   END SUBROUTINE mass_balance
   
   SUBROUTINE energy_balance(ktau,dels,met,rad,canopy,bal,ssoil)
+    USE physical_constants
     INTEGER(i_d), INTENT(IN)     :: ktau ! time step
     REAL(r_1),INTENT(IN)         :: dels ! time step size
     TYPE (canopy_type),INTENT(IN):: canopy ! canopy variable data

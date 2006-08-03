@@ -281,6 +281,7 @@ c     rml: subroutine to write timeseries data to netcdf file
 c  rml 10/11/05: added pressure, surface flux and pblh for TC
 c
       use tracermodule, only : co2em,unit_trout
+      use define_dimensions, only : ncs, ncp ! Used in carbpool.h
       implicit none
       real, dimension(:,:), allocatable :: cts
       real, dimension(:), allocatable :: vts

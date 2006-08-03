@@ -5,8 +5,7 @@
   subroutine cbm_pack(air, bgc, canopy, met, bal, rad,  &
                rough, soil, ssoil, sum_flux, veg)
 
-  use define_types
-  use define_dimensions 
+  use define_types, cbm_ms => ms
   use roughness_module
   use air_module
   use radiation_module
@@ -36,11 +35,8 @@
   dimension ndoy(12)   ! days from beginning of year (1st Jan is 0)
   data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
 
-
-!      implicit none
-       
 !      include 'cbmdim.h'
-!       include 'newmpar.h' 
+       include 'newmpar.h' 
        include 'aalat.h'
        include 'arrays.h'
        include 'dates.h'
@@ -246,8 +242,7 @@
 !    use soil_snow_module
 !    use cbm_data
 !!    implicit none
- use define_types
-  use define_dimensions
+  use define_types, cbm_ms => ms
   use roughness_module
   use air_module
   use radiation_module
@@ -278,6 +273,7 @@
   data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
 
 
+  include 'newmpar.h'
 !    include 'cbmdim.h'
        include 'aalat.h'
        include 'arrays.h'
@@ -390,11 +386,12 @@ END Subroutine cbm_unpack
 SUBROUTINE eva_output(ktauyear, dels, air, bgc, &
           canopy, met, bal, &
           rad, rough, soil, ssoil, sum_flux, veg)
-  USE define_types
+  USE define_types, cbm_ms => ms ! Rename to avoic conflict with newmpar.h value
   USE air_module
   USE canopy_module
   USE carbon_module
   USE soil_snow_module
+  USE physical_constants
   IMPLICIT NONE
 !  INTEGER(i_d), INTENT(IN)              :: ktau ! integration step number
 !  INTEGER(i_d), INTENT(IN)              :: kend
@@ -425,7 +422,7 @@ SUBROUTINE eva_output(ktauyear, dels, air, bgc, &
   INTEGER :: k ! do loop counter
   INTEGER(i_d),DIMENSION(10) :: listp ! 
 
-
+  include 'newmpar.h'
   include 'morepbl.h'
   include 'parm.h'
 
