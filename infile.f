@@ -3,7 +3,7 @@
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                  tgg,wb,wbice,alb,snowd,
      .                  tggsn,smass,ssdn,ssdnn,snage,
-     .                  albvisnir,albsoilsn,isflag)
+     .                  albvisnir,albsoilsn,rtsoil,isflag)
 !     note kk; vertint.f is attached below
 !     kdate_r and ktime_r are returned from this routine.
 !     They must equal or exceed kdate_s and ktime_s
@@ -42,7 +42,8 @@
      . snowd(ifull),alb(ifull),sicedep(ifull),fracice(ifull),
      . t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     . ssdnn(ifull),snage(ifull),albvisnir(ifull,2),albsoilsn(ifull,2)
+     . ssdnn(ifull),snage(ifull),albvisnir(ifull,2),albsoilsn(ifull,2),
+     . rtsoil(ifull)
       integer isflag(ifull)
       integer ktau_r, ibb, jbb, i
       integer ini,inj,ink,m2,nsd2,mesi,nbd2
@@ -549,6 +550,7 @@ c	   only being tested for nested=0; no need to test for mesonest
           call histrd1(ncid,iarchi,ier,'sumrs',ik,jk,sumrs)
           call histrd1(ncid,iarchi,ier,'sumrd',ik,jk,sumrd)
           call histrd1(ncid,iarchi,ier,'cansto',ik,jk,cansto)
+          call histrd1(ncid,iarchi,ier,'rtsoil',ik,jk,rtsoil)
         endif
 
         if(mydiag)then

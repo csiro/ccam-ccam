@@ -747,6 +747,9 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          call attrib(idnc,idim,3,'snage',lname,'none',0.,20.,0)   
          lname = 'Snow flag'
          call attrib(idnc,idim,3,'sflag',lname,'none',0.,4.,0)
+         lname = 'Soil turbulent resistance'
+         call attrib(idnc,idim,3,'rtsoil',lname,'none',0.,9.e4,0)
+
         endif  ! (itype==-1)
 
         print *,'finished defining attributes'
@@ -1107,6 +1110,7 @@ c      "extra" outputs
        call histwrt3(ssdn(1,3),'ssdn3',idnc,iarch,local)
        call histwrt3(ssdnn,'ssdnn',idnc,iarch,local)
        call histwrt3(snage,'snage',idnc,iarch,local)
+       call histwrt3(rtsoil,'rtsoil',idnc,iarch,local)
        do iq=1,ifull
         aa(iq)=isflag(iq)
        enddo

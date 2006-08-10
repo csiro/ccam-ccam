@@ -244,8 +244,8 @@
             call infile(0,kdate,ktime,timegb,ds,
      &          psl,zss,tss,sicedep,fracice,
      &          t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
-     &          tgg,wb,wbice,alb,snowd,
-     &          tggsn,smass,ssdn,ssdnn,snage,albvisnir,albsoilsn,isflag)
+     &          tgg,wb,wbice,alb,snowd,tggsn,smass,ssdn,ssdnn,snage,
+     &          albvisnir,albsoilsn,rtsoil,isflag)
             if ( mydiag ) then
                print *,'timegb,ds,zss',timegb,ds,zss(idjd)
                print *,'kdate_sav,ktime_sav ',kdate_sav,ktime_sav

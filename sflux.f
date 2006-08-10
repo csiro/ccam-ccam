@@ -1748,6 +1748,16 @@ c
        do k=1,jmonth-1
         ktauplus = ktauplus + imonth(k)*nperday
        enddo
+
+       ! Initialise sum flux variables
+       IF(ktau==1) THEN
+          sum_flux%sumrpw = 0.
+          sum_flux%sumrpr = 0.
+          sum_flux%dsumpn = 0.
+          sum_flux%dsumrp = 0.
+          sum_flux%dsumrd = 0.
+       END IF
+
        print *,'jyear,jmonth',jyear,jmonth,ktauplus,ipco2
 !       timer contains number of hours since the start of the run.
 !       mins = 60 * timer + mstart
