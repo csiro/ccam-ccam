@@ -1,11 +1,11 @@
 * text=auto !eol
+/cable_carbon.f90 -text
+/cable_cbm.f90 -text
+/cable_checks.f90 -text
+/cable_soilsnow.f90 -text
 /cable_variables.f90 -text
-/carbon.f90 -text
 /carbpools.h -text
-/cbm.f90 -text
 /cbm_pack.f90 -text
-/checks.f90 -text
-/soil_snow.f90 -text
 /soilbal.h -text
 /soilsnin.h -text
 /vegpar.h -text
