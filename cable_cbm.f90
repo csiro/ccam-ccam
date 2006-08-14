@@ -627,7 +627,6 @@ CONTAINS
     tlfy = tair2  ! initialise current leaf temp
     frac42 = SPREAD(veg%frac4, 2, mf) ! frac C4 plants
     ! weight min stomatal conductance by C3 an C4 plant fractions
-    gswmin = rad%scalex * (gsw03 * (1. - frac42) + gsw04 * frac42)
     rdy = 0.0       ! init daytime leaf respiration rate
     rdx = 0.0       ! init daytime leaf respiration rate
     an_y = 0.0      ! init current estimate net photos.
