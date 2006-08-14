@@ -19,7 +19,7 @@ MODULE checks_module
      REAL(r_1), DIMENSION(2) :: Wind = (/0.0,75.0/)      ! m/s
      REAL(r_1), DIMENSION(2) :: Wind_N = (/-75.0,75.0/)  ! m/s
      REAL(r_1), DIMENSION(2) :: Wind_E = (/-75.0,75.0/)  ! m/s
-     ! possible output/assimilatable variables
+     ! possible output variables
      REAL(r_1), DIMENSION(2) :: Qh = (/-1000.0,1000.0/)    ! W/m^2
      REAL(r_1), DIMENSION(2) :: Qle = (/-1000.0,1000.0/)   ! W/m^2
      REAL(r_1), DIMENSION(2) :: Qg = (/-1000.0,1000.0/)    ! W/m^2   
@@ -28,8 +28,8 @@ MODULE checks_module
      REAL(r_1), DIMENSION(2) :: Evap = (/-0.0003,0.00035/)      
      REAL(r_1), DIMENSION(2) :: Ewater = (/-0.0003,0.0003/)
      REAL(r_1), DIMENSION(2) :: ESoil = (/-0.0003,0.0003/)     
-     REAL(r_1), DIMENSION(2) :: Tveg = (/-0.0003,0.0003/)    
-     REAL(r_1), DIMENSION(2) :: Ecanop = (/-0.0003,0.0003/)   
+     REAL(r_1), DIMENSION(2) :: TVeg = (/-0.0003,0.0003/)    
+     REAL(r_1), DIMENSION(2) :: ECanop = (/-0.0003,0.0003/)   
      REAL(r_1), DIMENSION(2) :: PotEvap = (/-0.0006,0.0006/)     
      REAL(r_1), DIMENSION(2) :: ACond = (/0.0,1.0/)    
      REAL(r_1), DIMENSION(2) :: SoilWet = (/-0.4,1.2/) 
@@ -53,7 +53,10 @@ MODULE checks_module
      REAL(r_1), DIMENSION(2) :: NPP = (/-20.0,50.0/) ! umol/m2/s
      REAL(r_1), DIMENSION(2) :: GPP = (/-10.0,50.0/) ! umol/m2/s 
      REAL(r_1), DIMENSION(2) :: AutoResp = (/-50.0,20.0/) ! umol/m2/s
-     REAL(r_1), DIMENSION(2) :: HeteroResp = (/-50.0,20.0/) ! umol/m2/s   
+     REAL(r_1), DIMENSION(2) :: HeteroResp = (/-50.0,20.0/) ! umol/m2/s
+     REAL(r_1), DIMENSION(2) :: HSoil = (/-1000.0,1000.0/) 
+     REAL(r_1), DIMENSION(2) :: HVeg = (/-1000.0,1000.0/)
+     REAL(r_1), DIMENSION(2) :: SnowDepth = (/0.0,5.0/)
      ! parameters:
      REAL(r_1), DIMENSION(2) :: bch = (/2.0,15.0/)  
      REAL(r_1), DIMENSION(2) :: latitude = (/-90.0,90.0/)   
@@ -160,9 +163,9 @@ CONTAINS
                 WRITE(*,*) ''
                 WRITE(*,*) 'Non-precip:', canopy%delwc(j)+canopy%through(j)+ & 
                      (canopy%fevw(j)+MIN(canopy%fevc(j),0.0))*dels/air%rlam(j)
-                CALL abort('Water balance failure within canopy.')
+                STOP 'Water balance failure within canopy.'
              END IF
-!!$             IF(ABS(bal%wbal(j))>=5e-4) THEN
+!!$             IF(ABS(bal%wbal(j))>=1e-3) THEN
 !!$                WRITE(*,*) '****',(bal%wbal), 'Excess in water balance:'
 !!$                WRITE(*,*) 'Timestep:',ktau, 'land point #:',j
 !!$                print*, 'net water into soil:',into_soil(j),'soil moisture change:',delwb(j)
@@ -178,7 +181,7 @@ CONTAINS
 !!$                print*, 'osd:',ssoil%osnowd(j), 'snowd:',ssoil%snowd(j), &
 !!$                     'Diff:',ssoil%snowd(j)-ssoil%osnowd(j)
 !!$                print*, 'runoff:',ssoil%rnof1(j),'deepd:',ssoil%rnof2(j)
-!!$                CALL abort('water balance failure.')
+!!$               ! STOP 'water balance failure.'
 !!$             END IF
 !!$             ELSE
 !!$                IF(water_dump) THEN
@@ -207,13 +210,19 @@ CONTAINS
 !!$                END IF
             
           END DO
-          ! Add current water imbalance to total imbalance:
+          ! Add current water imbalance to total imbalance (method 1 for water balance):
           bal%wbal_tot = bal%wbal_tot + bal%wbal
           ! Add to accumulation variables:
           bal%precip_tot = bal%precip_tot + met%precip
           bal%rnoff_tot = bal%rnoff_tot + ssoil%rnof1 + ssoil%rnof2
           bal%evap_tot = bal%evap_tot + &
                (canopy%fev+canopy%fes/ssoil%cls) * dels/air%rlam
+          ! Cumulative water balance is (method 2 for water balance):
+          ! total precip - runoff - evap + change is soil moisture + change in snow
+          !bal%wbal_tot = bal%precip_tot - bal%rnoff_tot - bal%evap_tot + &
+          !     (bal%wbtot0 -ssoil%wbtot) + (bal%osnowd0 - ssoil%snowd)
+               
+
        END IF
     
   END SUBROUTINE mass_balance
