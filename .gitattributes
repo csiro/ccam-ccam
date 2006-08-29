@@ -1,1 +1,3 @@
 * text=auto !eol
+/makefile.ifort -text
+/makefile.mpidummy.ifort -text
