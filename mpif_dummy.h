@@ -6,6 +6,7 @@
 !     Their values are zero if they are not available.  Note that
 !     using these reduces the portability of code.
 !
+      integer, parameter :: MPI_CHARACTER =  1
       integer, parameter :: MPI_LOGICAL   = 25
       integer, parameter :: MPI_REAL      = 26
       integer, parameter :: MPI_DOUBLE_PRECISION = 27
