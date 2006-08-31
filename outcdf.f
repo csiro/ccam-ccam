@@ -1129,7 +1129,7 @@ c=======================================================================
       integer cdfid, idv, dim(3), daily
       character name*(*), lname*(*), units*(*)
       real xmin, xmax
-      integer, parameter :: vtype = ncfloat
+      integer, parameter :: vtype = ncshort
 
       idv = ncvdef(cdfid, name, vtype, ndim, dim, ier)
       if(ier.ne.0)then
