@@ -1229,33 +1229,34 @@ CONTAINS
            4.0*convx4*alpha4*parx*x))/(2.0*convx4))
     END FUNCTION ej4x
     !---------------------------------------------------------
-    ELEMENTAL FUNCTION xvcmxt4(x) result(z)
+    ! Explicit array dimensions as temporary work around for NEC inlining problem
+    FUNCTION xvcmxt4(x) result(z)
       REAL(r_1), PARAMETER	:: q10c4 = 2.0
-      REAL(r_1), INTENT(IN)	:: x
-      REAL(r_1)			:: z
+      REAL(r_1), DIMENSION(mp,mf), INTENT(IN)	:: x
+      REAL(r_1), DIMENSION(mp,mf)			:: z
       z = q10c4 ** (0.1 * x - 2.5) / &
            ((1.0 + exp(0.3 * (13.0 - x))) * (1.0 + exp(0.3 * (x - 36.0))))
     END FUNCTION xvcmxt4
     !---------------------------------------------------------
-    ELEMENTAL FUNCTION xvcmxt3(x) result(z)
+    FUNCTION xvcmxt3(x) result(z)
       !  leuning 2002 (p c & e) equation for temperature response
       !  used for vcmax for c3 plants
-      REAL(r_1), INTENT(IN)	:: x
-      REAL(r_1)			:: xvcnum
-      REAL(r_1)			:: xvcden
-      REAL(r_1)			:: z
+      REAL(r_1), DIMENSION(mp,mf), INTENT(IN)	:: x
+      REAL(r_1), DIMENSION(mp,mf)		:: xvcnum
+      REAL(r_1), DIMENSION(mp,mf)		:: xvcden
+      REAL(r_1), DIMENSION(mp,mf)		:: z
       xvcnum=xvccoef*exp((ehavc/(rgas*trefk))*(1.-trefk/x))
       xvcden=1.0+exp((entropvc*x-ehdvc)/(rgas*x))
       z = max(0.0,xvcnum/xvcden)
     END FUNCTION xvcmxt3
     !---------------------------------------------------------
-    ELEMENTAL FUNCTION xejmxt3(x) result(z)
+    FUNCTION xejmxt3(x) result(z)
       !  leuning 2002 (p c & e) equation for temperature response
       !  used for jmax for c3 plants
-      REAL(r_1), INTENT(IN)	:: x
-      REAL(r_1)			:: xjxnum
-      REAL(r_1)			:: xjxden
-      REAL(r_1)			:: z
+      REAL(r_1), DIMENSION(mp,mf), INTENT(IN)	:: x
+      REAL(r_1), DIMENSION(mp,mf)		:: xjxnum
+      REAL(r_1), DIMENSION(mp,mf)		:: xjxden
+      REAL(r_1), DIMENSION(mp,mf)		:: z
       xjxnum=xjxcoef*exp((ehajx/(rgas*trefk))*(1.-trefk/x))
       xjxden=1.0+exp((entropjx*x-ehdjx)/(rgas*x))
       z = max(0.0, xjxnum/xjxden)

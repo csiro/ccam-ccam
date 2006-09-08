@@ -8,7 +8,7 @@ FC = sxmpif90
 #     applies just to sflux   Needs 180000 for C200 1 proc
 #     applies just to sflux,soilsnow   40000 now OK for C200 3 proc
 
-FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -pvctl noassume  -pvctl loopcnt=70000" -P stack -ftrace -Wf,"-L source mrgmsg fmtlist transform summary" 
+FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -pvctl noassume  -pvctl loopcnt=70000" -P stack -Wf,"-L source mrgmsg fmtlist transform summary" 
 
 FCFLAGS = \
     -ew -Ep -Wf,\
@@ -16,7 +16,7 @@ FCFLAGS = \
     -Wf,"-init stack=nan heap=nan -pvctl compress fullmsg" \
     -pi auto \
     exp=sinbet,qsatf,ej3x,ej4x,xvcmxt4,xvcmxt3,xejmxt3,psim,psis,rplant,rsoil expin=cable_cbm.f90 \
-    -V -ftrace
+    -V 
 
 LIBS = -lnetcdf 
 
