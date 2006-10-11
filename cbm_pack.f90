@@ -204,6 +204,8 @@
        sum_flux%sumrp = pack(sumrp, land)
        sum_flux%sumrs = pack(sumrs, land)
        sum_flux%sumrd = pack(sumrd, land)
+       sum_flux%sumrpw = pack(sumrpw, land)
+       sum_flux%sumrpr = pack(sumrpr, land)
        sum_flux%dsumpn = pack(dsumpn, land)
        sum_flux%dsumrp = pack(dsumrp, land)
        sum_flux%dsumrs = pack(dsumrs, land)
@@ -364,14 +366,14 @@
 !    dsumrp= unpack(sum_flux%dsumrp, land, dsumrp)
 !    dsumrs= unpack(sum_flux%dsumrs, land, dsumrs)
 !    dsumrd= unpack(sum_flux%dsumrd, land, dsumrd)
-!    do k=1,3
-!    cplant(:,k)= unpack(bgc%cplant(:,k), land, cplant(:,k))
-!    ratecp(k)= bgc%ratecp(k)
-!    enddo
-!    do k=1,3
-!    csoil(:,k)= unpack(bgc%csoil(:,k), land, csoil(:,k))
-!    ratecs(k)= bgc%ratecs(k)
-!    enddo
+    do k=1,3
+    cplant(:,k)= unpack(bgc%cplant(:,k), land, cplant(:,k))
+    ratecp(k)= bgc%ratecp(k)
+    enddo
+    do k=1,2
+    csoil(:,k)= unpack(bgc%csoil(:,k), land, csoil(:,k))
+    ratecs(k)= bgc%ratecs(k)
+    enddo
 
     if ( nproc == 1 ) then
        call eva_output( ktauyear, dels, air, bgc, &
