@@ -58,9 +58,11 @@ CONTAINS
     !
     ! coef_cold = EXP(-(canopy%tv - tvclst(veg%iveg)))   ! cold stress
     ! Limit size of exponent to avoif overflow when tv is very cold
-    coef_cold = EXP(MIN(50., -(canopy%tv - tvclst(veg%iveg))))   ! cold stress
+!    coef_cold = EXP(MIN(50., -(canopy%tv - tvclst(veg%iveg))))   ! cold stress
+    coef_cold = EXP(MIN(1., -(canopy%tv - tvclst(veg%iveg))))   ! cold stress
     wbav = SUM(soil%froot * ssoil%wb, 2)
-    coef_drght = EXP(10.*( MIN(1., MAX(1.,wbav**(2-soil%ibp2)-1.) / & ! drought stress
+!    coef_drght = EXP(10.*( MIN(1., MAX(1.,wbav**(2-soil%ibp2)-1.) / & ! drought stress
+    coef_drght = EXP(5.*( MIN(1., MAX(1.,wbav**(2-soil%ibp2)-1.) / & ! drought stress
          (soil%swilt**(2-soil%ibp2) - 1.)) - 1.))
     coef_cd = ( coef_cold + coef_drght ) * 2.0e-7
     !
@@ -127,11 +129,13 @@ CONTAINS
     REAL(r_1), PARAMETER, DIMENSION(13)	:: vegcf = &
          (/ 1.95, 1.5, 1.55, 0.91, 0.73, 2.8, 2.75, 0.0, 2.05, 0.6, 0.4, 2.8, 0.0 /)
 
-    den = soil%sfc - soil%swilt     
+    den = max(0.07,soil%sfc - soil%swilt)
     rswc =  MAX(0.0001, soil%froot(:,1)*(ssoil%wb(:,2) - soil%swilt)) / den
 !    rswc = soil%froot(:, 1) * max(0.0001, ssoil%wb(:,2) - soil%swilt) / den
     tsoil = soil%froot(:,1) * ssoil%tgg(:,2) - 273.15
-    tref = MAX(t0 + 1.,ssoil%tgg(:,ms) - 273.1)
+!    tref = MAX(t0 + 1.,ssoil%tgg(:,ms) - 273.1)
+    tref = MAX(0.,ssoil%tgg(:,ms) - 273.1)
+
 
     DO k = 2,ms  ! start from 2nd index for less dependency on the surface condition
        rswc = rswc +  &
@@ -141,8 +145,8 @@ CONTAINS
     rswc = MIN(1.,rswc)
     tsoil = MAX(t0 + 2., tsoil)
     e0rswc = 52.4 + 285. * rswc
-    ftsoil=1./(tref - t0) - 1./(tsoil - t0)
-    sss = MIN(15.,e0rswc * ftsoil)
+    ftsoil=min(0.0015,1./(tref - t0) - 1./(tsoil - t0))
+    sss = MAX(-15.,MIN(1.,e0rswc * ftsoil))
     ftsrs=EXP(sss)
     !    ftsrs=exp(e0rswc * ftsoil)
     !        soiltref=soilcf(soil%isoilm)*min(1.,1.4*max(.3,.0278*tsoil+.5))
