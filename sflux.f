@@ -1779,7 +1779,7 @@ c
 !       mtimer contains number of minutes since the start of the run.
         mins = mtimer + mstart
 
-        do 60 ip=1,ipland  ! all land points in this nsib=2 loop
+        do 60 ip=1,ipland  
          iq=iperm(ip)
          rad%latitude(ip)=alat(iq)
          met%doy(ip)= float(mod(mins,525600))/1440.  ! 525600 = 1440*365
@@ -1935,10 +1935,9 @@ c      read(8,*) (ejmax(jveg),jveg=1,nveg)
       jyear=kdate/10000
       jmonth=(kdate-jyear*10000)/100
 
-!      if( jmonth .eq. 1 .and. jyear .eq. 1994) then
       if( jmonth .eq. 1 .and. jyear .eq. inyear_carb) then
-      do ip=1,ipland  ! all land points in this nsib=2 loop
-      iq=iperm(ip)
+      do iq=1,ifull
+      if(land(iq))then
        cplant(iq,1)=tcplant(ivegt(iq),1) 
        cplant(iq,2)=tcplant(ivegt(iq),2) 
        cplant(iq,3)=tcplant(ivegt(iq),3) 
@@ -1946,7 +1945,8 @@ c      read(8,*) (ejmax(jveg),jveg=1,nveg)
        csoil(iq,1)=tcsoil(ivegt(iq),1) 
        csoil(iq,2)=tcsoil(ivegt(iq),2) 
        cansto(iq) = 0.
-      enddo !ip
+      endif !land
+      enddo !iq
       endif ! jmonth
        if ( myid==0 ) print *,'cbmrdn',cplant(13419,1),cplant(13419,2),
      &       cplant(13419,3),csoil(13419,1),csoil(13419,2)
