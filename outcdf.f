@@ -267,7 +267,6 @@ c         itype=-1 restfile
 c=======================================================================
       subroutine openhist(iarch,itype,dim,local)
       use cc_mpi
-! rml from eak 16/03/06
       use cbm_module   ! includes newmpar.h
       use define_dimensions, only : ncs, ncp
 
@@ -278,7 +277,6 @@ c     this routine creates attributes and writes output
       include 'newmpar.h'
       include 'aalat.h'
       include 'arrays.h'
-! rml from eak 16/03/06
       include 'carbpools.h'
       include 'darcdf.h'   ! idnc,ncid,idifil  - stuff for netcdf
       include 'dates.h'    ! ktime,kdate,timer,timeg,xg,yg,mtimer
@@ -305,7 +303,6 @@ c     this routine creates attributes and writes output
       include 'soilv.h'   ! sfc,zse
       include 'tracers.h'
       include 'trcom2.h'
-! rml from eak 16/03/06
       include 'vegpar.h'
       include 'version.h'
       include 'vvel.h'    ! sdot, dpsldt
@@ -524,7 +521,6 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         lname = 'Soil moisture as frac FC levels 1-6'
         call attrib(idnc,idim,3,'wbftot',lname,'frac',0.,4.,0)
 
-! rml from eak 16/03/06
         lname = 'Leaf Area Index LAI'
         call attrib(idnc,idim,3,'rlai',lname,'none',0.,8.,0)
         if (nsib.eq.4) then
@@ -879,6 +875,15 @@ c      set time to number of minutes since start
       call histwrt3(wb(1,4),'wb4',idnc,iarch,local)
       call histwrt3(wb(1,5),'wb5',idnc,iarch,local)
       call histwrt3(wb(1,6),'wb6',idnc,iarch,local)
+      if (nsib.eq.4) then
+      call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local)
+      call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local)
+      call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local)
+      call histwrt3(csoil(:,1),'csoil1',idnc,iarch,local)
+      call histwrt3(csoil(:,2),'csoil2',idnc,iarch,local)
+      call histwrt3(cansto,'cansto',idnc,iarch,local)
+      endif
+
       do iq=1,ifull
 !      calculate wb/field_capacity;  up to 3.0 for sand (isoil=1)	   
        isoil=isoilm(iq)
@@ -1013,15 +1018,11 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
        call histwrt3(taux,'taux',idnc,iarch,local)
        call histwrt3(tauy,'tauy',idnc,iarch,local)
 
-! rml from eak 16/03/06
-! CHECK RML removed explicit iq loop and wrote as 'where'
        aa = 0.
        if(nsib.le.3) then
          where (land) aa=rlai
-!         if(land(iq)) aa(iq)=rlai(iq)
        else
          where (land) aa=vlai
-!         if(land(iq)) aa(iq)=vlai(iq)
        endif
        call histwrt3(aa,'rlai',idnc,iarch,local)
        if (nsib.eq.4) then
@@ -1029,18 +1030,12 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
          call histwrt3(sumrp,'sumrp',idnc,iarch,local)
          call histwrt3(sumrs,'sumrs',idnc,iarch,local)
          call histwrt3(sumrd,'sumrd',idnc,iarch,local)
-! CHECK EVA - if not writing these then should we remove from
-! call attrib section?
-c       call histwrt3(dsumpn,'dsumpn',idnc,iarch)
-c       call histwrt3(dsumrp,'dsumrp',idnc,iarch)
-c       call histwrt3(dsumrs,'dsumrs',idnc,iarch)
-c       call histwrt3(dsumrd,'dsumrd',idnc,iarch)
-         call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local)
-         call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local)
-         call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local)
-         call histwrt3(csoil(:,1),'csoil1',idnc,iarch,local)
-         call histwrt3(csoil(:,2),'csoil2',idnc,iarch,local)
-         call histwrt3(cansto,'cansto',idnc,iarch,local)
+C         call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local)
+C         call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local)
+C         call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local)
+C         call histwrt3(csoil(:,1),'csoil1',idnc,iarch,local)
+C         call histwrt3(csoil(:,2),'csoil2',idnc,iarch,local)
+C         call histwrt3(cansto,'cansto',idnc,iarch,local)
        endif
 
 
