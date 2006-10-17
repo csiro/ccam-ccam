@@ -127,6 +127,9 @@ CONTAINS
     INTEGER :: u	       ! I/O unit
     !
     IF (ktau == 1) THEN
+       ! For some sorts of nested models, this might have been allocated on
+       ! another nest
+       IF ( ALLOCATED(pwb_min) ) DEALLOCATE(pwb_min)
        ALLOCATE(pwb_min(mp))
        ! Set working variable:
        pwb_min = (soil%swilt / soil%ssat ) **soil%ibp2

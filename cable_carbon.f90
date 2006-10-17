@@ -13,12 +13,6 @@ MODULE carbon_module
   USE define_types
   IMPLICIT NONE
   PRIVATE
-  ! Do these really need to be module variables
-  ! clitt is used in eva_output, rest are just local in carbon_pl
-  REAL(r_1), DIMENSION(:), ALLOCATABLE, PUBLIC, SAVE :: clitt
-  REAL(r_1), DIMENSION(:), ALLOCATABLE, PUBLIC, SAVE :: coef_cd ! total stress coeff. for vegetation (eq. 6)
-  REAL(r_1), DIMENSION(:), ALLOCATABLE, PUBLIC, SAVE :: coef_cold  ! coeff. for the cold stress (eq. 7)
-  REAL(r_1), DIMENSION(:), ALLOCATABLE, PUBLIC, SAVE :: coef_drght ! coeff. for the drought stress (eq. 8)
   PUBLIC carbon_pl, soilcarb
 CONTAINS
 
@@ -36,6 +30,10 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)	:: fcl ! fraction of assimilated carbon that goes to the
     !					construction of leaves  (eq. 5)
     REAL(r_1), DIMENSION(mp)	:: fr
+    REAL(r_1), DIMENSION(mp)    :: clitt
+    REAL(r_1), DIMENSION(mp)    :: coef_cd ! total stress coeff. for vegetation (eq. 6)
+    REAL(r_1), DIMENSION(mp)    :: coef_cold  ! coeff. for the cold stress (eq. 7)
+    REAL(r_1), DIMENSION(mp)    :: coef_drght ! coeff. for the drought stress (eq. 8)
     REAL(r_1), PARAMETER, DIMENSION(13) :: rw = (/16., 8.7, 12.5, 16., 18., 7.5, 6.1, .84, &
                  10.4, 15.1, 9., 5.8, 0.001 /) ! approximate ratio of wood to nonwood carbon
     !	         				 inferred from observations 
@@ -50,10 +48,6 @@ CONTAINS
                                            278., 268. /) ! cold stress temp. below which 
 !                                                         leaf loss is rapid
     REAL(r_1), DIMENSION(mp)	:: wbav ! water stress index
-
-    IF ( .NOT. ALLOCATED(clitt) ) THEN
-       ALLOCATE ( clitt(mp), coef_cd(mp), coef_cold(mp), coef_drght(mp) )
-    END IF
 
     !
     ! coef_cold = EXP(-(canopy%tv - tvclst(veg%iveg)))   ! cold stress
