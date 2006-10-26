@@ -138,6 +138,7 @@
      &     pwatr, pwatr_l, qtot
       real, dimension(9) :: temparray, gtemparray ! For global sums
       integer :: nproc_in, ierr
+      real :: perturb_scale
 
       namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps,nperavg
      & ,ia,ib,ja,jb,itr1,jtr1,itr2,jtr2,id,jd,iaero,khdif,khor,nhorjlm
@@ -160,7 +161,8 @@
      & ,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,nfly,localhist   
-     & ,mstn,nqg   ! not used in 2006          
+     & ,mstn,nqg   ! not used in 2006  
+     & ,perturb_scale        
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -181,6 +183,9 @@
      &        ,sigcb,sigcll,sig_ct,sigkscb,sigksct
      &        ,tied_con,tied_over,tied_rh,comm
      &        ,acon,bcon,rcm,rcrit_l,rcrit_s   ! ldr stuff
+      integer, allocatable, dimension(:) :: seed
+      integer :: iseed, nseeds
+      real, dimension(ifull,kl) :: trand
       data itr1/23/,jtr1/13/,itr2/25/,jtr2/11/
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
       data mexrest/6/,mins_rad/60/
@@ -219,6 +224,7 @@
       if(myid==0)
      &     print *,'Globpe model compiled for il,jl,kl,nproc = ',
      &                                        il_g,jl_g ,kl,nproc 
+      perturb_scale = 0.
       read (99, cardin)
       nperday =nint(24.*3600./dt)
       do n3hr=1,8
@@ -437,7 +443,16 @@ c     set up cc geometry
       if(myid==0) print *,'calling indata; will read from file ',ifile
 !     N.B. first call to amipsst now done within indata
       call indata(hourst,newsnow,jalbfix)
-      
+
+!     Apply random perturbation to temperature
+      call random_seed(size=nseeds)
+      allocate(seed(nseeds))
+      iseed = 123
+      seed = iseed
+      call random_seed(put = seed)
+      call random_number(trand)
+      t(1:ifull,:) = t(1:ifull,:) + perturb_scale*trand
+
       call maxmin(u,' u',ktau,1.,kl)
       call maxmin(v,' v',ktau,1.,kl)
       ! Note that u and v are extended.
