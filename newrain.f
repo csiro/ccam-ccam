@@ -389,7 +389,9 @@ c Now do the collection term.
 c            if(qlg(mg,k).gt.1.e-10)then
               if(fluxrain(mg).gt.0.)then
                 Fr=fluxrain(mg)/clfra(mg)/delt
-                cfrain(mg,k)= min(1.,cfrain(mg,k)+clfr(mg,k)*clfra(mg))
+                cfrain(mg,k)= min(1.,cfrain(mg,k) +
+     &                min(1.,1e10*fluxrain(mg))*clfr(mg,k)*clfra(mg))
+c                cfrain(mg,k)= min(1.,cfrain(mg,k)+clfr(mg,k)*clfra(mg))
 c                cfrain(mg,k)= min(clfra(mg),clfr(mg,k)) !max overlap
               else
                 Fr=0.
@@ -398,7 +400,9 @@ c                cfrain(mg,k)= min(clfra(mg),clfr(mg,k)) !max overlap
 
               if(fluxc(mg,k+1).gt.0.)then
                 Frc=max(0.,fluxc(mg,k+1)/max(ccra(mg),0.01)/tdt) ! over tdt
-                cfrain(mg,k)= min(1.,cfrain(mg,k)+clfr(mg,k)*ccra(mg))
+!                cfrain(mg,k)= min(1.,cfrain(mg,k)+clfr(mg,k)*ccra(mg))
+                cfrain(mg,k)= min(1.,cfrain(mg,k) +
+     &               min(1.,1e10*fluxc(mg,k+1))*clfr(mg,k)*ccra(mg))
               else
                 Frc=0.
               endif
@@ -410,8 +414,11 @@ c Frb term now done above.
 
 c              fcol=min(1.,clfra(mg)/(1.e-20+clfr(mg,k)))
 c              cdt=delt*Ecol*0.24*(fcol*pow75(Fr)       !Max o'lap
-              cdt=delt*Ecol*0.24*(clfra(mg)*pow75(Fr) !Random o'lap
-     &                           +ccra(mg)*pow75(Frc))
+              cdt=delt*Ecol*0.24*(
+     &             min(1.,1.e10*clfra(mg))*clfra(mg)*pow75(Fr) !Random o'lap
+     &         +   min(1.,1.e10*ccra(mg))*ccra(mg)*pow75(Frc))
+!              cdt=delt*Ecol*0.24*(clfra(mg)*pow75(Fr) !Random o'lap
+!     &                           +ccra(mg)*pow75(Frc))
 c              prscav(mg,nlp-k)=cdt/Ecol !Inc conv part
               prscav(mg,nlp-k)=delt*0.24*clfra(mg)*pow75(Fr) !Strat only
 
@@ -431,13 +438,18 @@ c and convective (ccra).
 
             cfrain(mg,k)=min(1.,
      &             cfrain(mg,k)+cfmelt(mg,k)-cfrain(mg,k)*cfmelt(mg,k))
-            if(frclr(mg,k).lt.1.e-15)then
-              clfra(mg)=max(1.e-15,cfrain(mg,k))
-            else
-              clfra(mg)=max(1.e-15,
-     &                  clfra(mg)+cfrain(mg,k)-clfra(mg)*cfrain(mg,k))
-c              clfra(mg)=max(clfra(mg),cfrain(mg,k)) !max overlap
-            endif
+!            if ( mg == idjd ) then
+!               print*, "CFRAIN D", cfrain(mg,k)
+!            end if
+!            if(frclr(mg,k).lt.1.e-15)then
+!              clfra(mg)=max(1.e-15,cfrain(mg,k))
+!            else
+!              clfra(mg)=max(1.e-15,
+!     &                  clfra(mg)+cfrain(mg,k)-clfra(mg)*cfrain(mg,k))
+!c              clfra(mg)=max(clfra(mg),cfrain(mg,k)) !max overlap
+!            endif
+            clfra(mg)=max(1.e-15, cfrain(mg,k) +
+     &           min(1.,1e10*frclr(mg,k))*clfra(mg)*(1.-cfrain(mg,k)) )
             ccra(mg)=ccra(mg)+ccrain(mg,k)-ccra(mg)*ccrain(mg,k)
             fracr(mg,k)=clfra(mg)
             fluxr(mg,k)=fluxa(mg,k)+fluxrain(mg) !Flux leaving layer k
