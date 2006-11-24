@@ -20,9 +20,9 @@ cable_driver.o: cable_driver.f90 cable_output.o cable_parameters.o
 	$(FC) $(FFLAGS) -c cable_driver.f90
 
 cable_txt: cable_drivertxt.o 
-	$(FC) $(FFLAGS) -o cable_txt cable_drivertxt.o cable_cbm.o cable_checks.o cable_output_text.o cable_parameters.o cable_variables.o cable_soilsnow.o cable_carbon.o
+	$(FC) $(FFLAGS) -o cable_txt cable_drivertxt.o cable_cbm.o cable_checks.o cable_outputtxt.o cable_parameters.o cable_variables.o cable_soilsnow.o cable_carbon.o
 
-cable_drivertxt.o: cable_drivertxt.f90 cable_output_text.o cable_parameters.o 
+cable_drivertxt.o: cable_drivertxt.f90 cable_outputtxt.o cable_parameters.o 
 	$(FC) $(FFLAGS) -c cable_drivertxt.f90
 
 cable_variables.o: cable_variables.f90
@@ -49,8 +49,8 @@ cable_input.o: cable_input.f90 cable_checks.o
 cable_output.o: cable_output.f90 cable_input.o
 	$(FC) $(FFLAGS) -c cable_output.f90
 
-cable_output_text.o: cable_output_text.f90 cable_checks.o
-	$(FC) $(FFLAGS) -c cable_output_text.f90
+cable_outputtxt.o: cable_outputtxt.f90 cable_checks.o
+	$(FC) $(FFLAGS) -c cable_outputtxt.f90
 clean:
 	rm -f *.o $(PROG) cable_txt *.mod
 	ln -s $(NCDIR)src/f90/netcdf.mod ./
