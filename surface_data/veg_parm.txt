@@ -1,0 +1,45 @@
+c vegetation's parameters estimates as in Sellers et al. JOC, 1996, V9, 676-763
+c
+  13	 ! no of vegetation types
+c
+c iveg
+c 1     broad-leaf evergreeen trees 
+c 2     broad-leaf needle-leaf and broad-leaf deciduous trees
+c 3     broad-leaf and needle-leaf trees
+c 4     needle-leaf evergreen trees
+c 5     needle-leaf deciduous trees
+c 6     broad-leaf trees with ground cover/short-vegetation/C4 grassland (savanna)
+c 7     perennial grasslands
+c 8     broad-leaf shrubs with grassland 
+c 9     broad-leaf shrubs with bare soil 
+c10     tundra 
+c11     bare soil and desert 
+c12     agricultural/c3 grassland
+c13     ice
+C Time-invariant land surface properties (as required by the preprocessing program)
+c  1	2	3	4	5	6	7	8	9       10      11      12       13   comment
+  0.1	0.1	0.1	0.1	0.1	0.1	0.1	0.1	0.1    	0.1 	0.1	0.1	 0.1	canst1 ! max intercepted water by canopy (mm/LAI)
+  0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0    	0.0 	0.0	0.0      0.0    cansto ! canopy water storage (mm)
+  0.075 0.12	0.07	0.028	0.02	0.16	0.16	0.155	0.0165 	0.155 	0.005  0.155   0.005  dleaf  ! leaf length (m)
+85.0e-6 85.0e-6 80.0e-6 65.2e-6 70.e-6  10.1e-6 9.0e-6 35.0528e-6 39.0e-6 38.0528e-6 17.020e-6  120.0e-6 1.e-6  ! v-cmax  maximum RuBP carboxylation rate top leaf (mol/m2/s)
+ 35.0	20.0	20.0	17.0	17.0	1.0	0.5	0.6	0.5    	4.0  	0.05   1.0     0.01   hc !canopy height (m)
+  0.1	0.25	0.125	0.01	0.01	-0.3   -0.3	0.2	0.01   	0.2 	0.01   -0.3     .01    !xfang   leaf angle PARAMETER
+ 1.1342	 1.4733	2.3704	3.3039	3.2879	1.0538	0.8037 12.0319	 1.2994 7.4175	 2.8879  3.0  0.10 ! rp20 !relative plant respiration coefficient
+ 0.0832 0.0832	0.0832	0.0832	0.0832	0.0832	0.0832	0.0832	0.0832 	0.0832 	0.0832  0.0832  0.0832 rpcoef ! temperature coef nonleaf plant respiration (1/C)
+1.	1.	1.	1.	1.	1.	1.	1.	1.	1.0     1.0      1.      1.   xrs20  ~ realtive soil respiration at 20C (tuning parameter)
+  2.0	2.0	2.0	2.0	2.0	2.0	2.0	2.0	2.0    	2. 	2.	2.       2.   shelrb ! sheltering factor (dimensionless)
+  0.0	0.0	0.0	0.0	0.0	1.0	1.0	0.0	0.0   	0. 	0.   	0.       0.   frac4  ! fraction of c4 plant
+  5.0   5.0     5.0     2.0     5.0    10.0     10.     0.0     5.0    -5.0     5.0    10.0     -5.  ! tvjmin
+ 15.0  15.0     10.0    5.0     10.0   15.0     15.0    5.0    10.0     0.0    10.0    15.0      0.  ! tvjmax
+  1.0   1.0      1.0    1.0     1.0    4.0     4.0    4.0       4.0     1.0     4.0     4.       1.  ! vbeta 
+300.0	 30.0	200.0	200.0	5.0  250.0   250.0   15.0     50.0	15.0   50.0    150.     10.  ! cplant(:,1), leaf (gc/m2)
+16833.0 12000.0 10217.0 10217.0 5967.0	5247.0	5247.0  333.0	333.0  333.0  333.0     0.	10. ! cplant(:,2), wood (g C /m2)
+1443.0	1029.0	876.0	876.0	511.0	1124.0	1124.0  393.0	393.0  393.0  393.0   607.0     10. ! cplant(:,3), root (g C /m2)
+303.0	216.0	184.0	184.0	107.0	275.0	275.0	30.0	30.0	30.0   30.0   149.0	 1. ! csoil(:,1), soil microbial biomass (g C/m2)
+606.0	432.0	367.8	367.8	214.8	314.8	314.8   60.0	60.0	60.0   60.0   170.0	 1. ! csoil(:,2), soil fast C pool (g C/m2)
+c  plant carbon pool rate constant (1/year): ratecp
+  1    0.03   0.14
+c  soil carbon pool rate constant (1/year): ratecs
+  2  0.5  0.004
+c  froot
+  0.05	0.35  0.3  0.2	0.1  0

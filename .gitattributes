@@ -11,3 +11,6 @@
 /cable_parameters.f90 -text
 /cable_soilsnow.f90 -text
 /cable_variables.f90 -text
+surface_data/fort.22 -text
+surface_data/lai48.nc -text
+surface_data/veg_parm.txt -text
