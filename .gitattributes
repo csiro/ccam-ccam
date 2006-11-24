@@ -1,11 +1,13 @@
 * text=auto !eol
+/Makefile -text
 /cable_carbon.f90 -text
 /cable_cbm.f90 -text
 /cable_checks.f90 -text
+/cable_driver.f90 -text
+/cable_drivertxt.f90 -text
+/cable_input.f90 -text
+/cable_output.f90 -text
+/cable_outputtxt.f90 -text
+/cable_parameters.f90 -text
 /cable_soilsnow.f90 -text
 /cable_variables.f90 -text
-/carbpools.h -text
-/cbm_pack.f90 -text
-/soilbal.h -text
-/soilsnin.h -text
-/vegpar.h -text
