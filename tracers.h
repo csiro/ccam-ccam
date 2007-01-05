@@ -3,8 +3,8 @@
       integer iradon,ico2,ngas,nllp,ntrac,ntracmax,
      .        npwr,ilt,jlt,klt,ngasmax
       real tr,traver,radonem
-!     parameter(iradon=0,ico2=1,ngas=9)  ! rlw setting
-      parameter(iradon=0,ico2=0,ngas=0)
+      parameter(iradon=0,ico2=1,ngas=1)  ! rlw setting
+!     parameter(iradon=0,ico2=0,ngas=0)
       parameter(nllp=0)              ! set this or next lines
 !     parameter(nllp=3)
 

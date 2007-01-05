@@ -94,7 +94,9 @@ c     initial value now read from tracerlist
       integer i
 
       do i=1,ngas
-        tr(:,:,i)=tracival(i)
+c rml 15/11/06 facility to introduce new tracers to simulation
+c i.e. some read from restart, others initialised here
+        if (tracival(i).ne.-999) tr(:,:,i)=tracival(i)
       enddo
       if ( myid == 0 ) then
         write(unit_trout,*) 'tracini: ',tracival

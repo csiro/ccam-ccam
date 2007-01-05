@@ -876,6 +876,11 @@ c      set time to number of minutes since start
       call histwrt3(wb(1,5),'wb5',idnc,iarch,local)
       call histwrt3(wb(1,6),'wb6',idnc,iarch,local)
       if (nsib.eq.4) then
+! rml: moved from section that isn't written to restart file
+         call histwrt3(sumpn,'sumpn',idnc,iarch,local)
+         call histwrt3(sumrp,'sumrp',idnc,iarch,local)
+         call histwrt3(sumrs,'sumrs',idnc,iarch,local)
+         call histwrt3(sumrd,'sumrd',idnc,iarch,local)
       call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local)
       call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local)
       call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local)
@@ -1026,10 +1031,12 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
        endif
        call histwrt3(aa,'rlai',idnc,iarch,local)
        if (nsib.eq.4) then
-         call histwrt3(sumpn,'sumpn',idnc,iarch,local)
-         call histwrt3(sumrp,'sumrp',idnc,iarch,local)
-         call histwrt3(sumrs,'sumrs',idnc,iarch,local)
-         call histwrt3(sumrd,'sumrd',idnc,iarch,local)
+c rml: commented out and moved to section where written for restart
+c        call histwrt3(sumpn,'sumpn',idnc,iarch,local)
+c        call histwrt3(sumrp,'sumrp',idnc,iarch,local)
+c        call histwrt3(sumrs,'sumrs',idnc,iarch,local)
+c        call histwrt3(sumrd,'sumrd',idnc,iarch,local)
+
 C         call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local)
 C         call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local)
 C         call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local)

@@ -539,12 +539,23 @@ c	   only being tested for nested=0; no need to test for mesonest
         endif
 
 ! rml from eak 16/03/06
+! rml 03/01/07 if cplant1-3 and csoil1-2 not available check for carb_* fields
         if (nsib.eq.4) then
           call histrd1(ncid,iarchi,ier,'cplant1',ik,jk,cplant(:,1))
+          if (ier.ne.0) 
+     &      call histrd1(ncid,iarchi,ier,'carb_lf',ik,jk,cplant(:,1))
           call histrd1(ncid,iarchi,ier,'cplant2',ik,jk,cplant(:,2))
+          if (ier.ne.0) 
+     &      call histrd1(ncid,iarchi,ier,'carb_wd',ik,jk,cplant(:,2))
           call histrd1(ncid,iarchi,ier,'cplant3',ik,jk,cplant(:,3))
+          if (ier.ne.0) 
+     &      call histrd1(ncid,iarchi,ier,'carb_rts',ik,jk,cplant(:,3))
           call histrd1(ncid,iarchi,ier,'csoil1',ik,jk,csoil(:,1))
+          if (ier.ne.0) 
+     &      call histrd1(ncid,iarchi,ier,'carb_slf',ik,jk,csoil(:,1))
           call histrd1(ncid,iarchi,ier,'csoil2',ik,jk,csoil(:,2))
+          if (ier.ne.0) 
+     &      call histrd1(ncid,iarchi,ier,'carb_sls',ik,jk,csoil(:,2))
           call histrd1(ncid,iarchi,ier,'sumpn',ik,jk,sumpn)
           call histrd1(ncid,iarchi,ier,'sumrp',ik,jk,sumrp)
           call histrd1(ncid,iarchi,ier,'sumrs',ik,jk,sumrs)

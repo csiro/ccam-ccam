@@ -1751,6 +1751,11 @@ c
 
        ! Initialise sum flux variables
        IF(ktau==1) THEN
+! rml added intialisation of sumpn, sumrp, sumrs and sumrd
+          sumpn = 0.
+          sumrp = 0.
+          sumrs = 0.
+          sumrd = 0.
           sum_flux%sumrpw = 0.
           sum_flux%sumrpr = 0.
           sum_flux%dsumpn = 0.
