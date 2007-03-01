@@ -81,7 +81,7 @@ MODULE checks_module
      REAL(r_1), DIMENSION(2) :: hc = (/0.0,100.0/)         
      REAL(r_1), DIMENSION(2) :: lai = (/0.0,8.0/)
      REAL(r_1), DIMENSION(2) :: rp20 = (/0.1,10.0/)       
-     REAL(r_1), DIMENSION(2) :: rpcoef = (/0.8,1.5/)
+     REAL(r_1), DIMENSION(2) :: rpcoef = (/0.05,0.15/)
      REAL(r_1), DIMENSION(2) :: shelrb = (/1.0,3.0/)     
      REAL(r_1), DIMENSION(2) :: vcmax = (/5.0E-6,1.5E-4/)      
      REAL(r_1), DIMENSION(2) :: xfang = (/-1.0,1.0/)      
