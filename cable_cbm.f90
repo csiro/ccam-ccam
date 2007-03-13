@@ -718,9 +718,9 @@ CONTAINS
             (canopy%us / MIN(rough%usuh, 0.2) * &
             veg%dleaf / air%visc)**0.5 * prandt**(1.0/3.0) / veg%shelrb
        ! Forced convection boundary layer conductance (see Wang & Leuning 1998, AFM):
-       gbhu(:,1) = veg%vlaiw*gbvtop*(EXP(-0.5*rough%coexp) -EXP(-rad%extkb*veg%vlaiw)) / &
-            (rad%extkb*veg%vlaiw-0.5*rough%coexp)
-       gbhu(:,2) = (2.0/rough%coexp)*veg%vlaiw*gbvtop*(1.0-EXP(-0.5*rough%coexp))-gbhu(:,1)
+       gbhu(:,1) = gbvtop*(1.0-EXP(-0.5*rough%coexp*veg%vlaiw-rad%extkb*veg%vlaiw)) / &
+            (rad%extkb+0.5*rough%coexp)
+       gbhu(:,2) = (2.0/rough%coexp)*gbvtop*(1.0-EXP(-0.5*rough%coexp*veg%vlaiw))-gbhu(:,1)
        ! Aerodynamic conductance:
        gaw = air%cmolar / rough%rt1
        WHERE (veg%meth > 0 )
