@@ -1,5 +1,5 @@
 ! cable_cbm.f90
-! 
+!
 ! Source file containing main routine and canopy code for CABLE, 
 ! CSIRO land surface model
 !
@@ -286,6 +286,9 @@ CONTAINS
     ELSEWHERE	! i.e. bare soil
        rad%extkb = 0.5
        rad%transd = 1.0
+    END WHERE
+    WHERE ( abs(rad%extkb - rad%extkd)  < 0.001 )
+       rad%extkb = rad%extkd + 0.001
     END WHERE
     WHERE(fbeam < 1.0e-3)
        rad%extkb=1.0e5
@@ -718,9 +721,11 @@ CONTAINS
             (canopy%us / MIN(rough%usuh, 0.2) * &
             veg%dleaf / air%visc)**0.5 * prandt**(1.0/3.0) / veg%shelrb
        ! Forced convection boundary layer conductance (see Wang & Leuning 1998, AFM):
-       gbhu(:,1) = veg%vlaiw*gbvtop*(EXP(-0.5*rough%coexp) -EXP(-rad%extkb*veg%vlaiw)) / &
-            (rad%extkb*veg%vlaiw-0.5*rough%coexp)
-       gbhu(:,2) = (2.0/rough%coexp)*veg%vlaiw*gbvtop*(1.0-EXP(-0.5*rough%coexp))-gbhu(:,1)
+!                                gbhu corrected by F.Cruz & A.Pitman on 13/03/07
+       gbhu(:,1) = gbvtop*(1.0-EXP(-veg%vlaiw*(0.5*rough%coexp+rad%extkb))) / &
+                                               (rad%extkb+0.5*rough%coexp)
+       gbhu(:,2) = (2.0/rough%coexp)*gbvtop*  &
+                            (1.0-EXP(-0.5*rough%coexp*veg%vlaiw))-gbhu(:,1)
        ! Aerodynamic conductance:
        gaw = air%cmolar / rough%rt1
        WHERE (veg%meth > 0 )
