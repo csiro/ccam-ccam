@@ -1331,7 +1331,48 @@ CONTAINS
             CALL abort('PSurf out of specified ranges!')
     END IF
   END SUBROUTINE get_met_data
-
+!===========================================================================
+   SUBROUTINE rh_sh (relHum,tk,psurf,specHum)
+       ! Converts relative humidity to specific humidity
+       REAL, INTENT (IN)  :: psurf  ! surface pressure (hPa)
+       REAL, INTENT (IN)  :: relHum ! relative humidity (%)
+       REAL, INTENT (OUT) :: specHum ! specific humidity (kg/kg)
+       REAL, INTENT (IN)  :: tk     ! air temp (K) 
+       REAL :: es ! saturation vapour pressure
+       REAL :: ws ! specific humidity at saturation
+       es = svp (tk) ! saturation vapour pressure
+       ws = 0.622 * es / (psurf - es) ! specific humidity at saturation
+       specHum = (relHum/100.0) * ws ! specific humidity
+     END SUBROUTINE rh_sh
+!------------------------------------------------------------------------------------
+      FUNCTION svp(tk) RESULT (F_Result)
+        ! Calculate saturation vapour pressure
+        REAL :: eilog
+        REAL :: ewlog, ewlog2, ewlog3, ewlog4
+        REAL :: F_Result
+        REAL :: temp, tk
+        REAL :: toot, toto, tsot
+        temp = tk - 273.155
+        IF (temp < -20.) THEN
+           !     *** ice saturation
+           toot = 273.16 / tk
+           toto = 1. / toot
+           eilog =   -9.09718 * (toot-1)                                      &
+                -  3.56654 * (LOG (toot) / LOG (10.))                      &
+                +  .876793 * (1-toto)                                      &
+                +  (LOG (6.1071) / LOG (10.))
+           F_Result = 10.**eilog
+        ELSE
+           tsot = 373.16 / tk
+           ewlog = -7.90298 * (tsot-1) + 5.02808 * (LOG (tsot) / LOG (10.))
+           ewlog2 =   ewlog                                                   &
+                - 1.3816e-07 * (10**(11.344 * (1 - (1/tsot))) - 1)
+           ewlog3 =    ewlog2                                                 &
+                + .0081328 * (10**(-3.49149 * (tsot-1)) - 1)
+           ewlog4 = ewlog3 + (LOG (1013.246) / LOG (10.))
+           F_Result = 10.**ewlog4
+        END IF
+      END FUNCTION svp
 !============================================================================
   SUBROUTINE close_met_file(filename_met)
     CHARACTER(LEN=*), INTENT(IN) :: filename_met
