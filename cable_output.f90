@@ -36,109 +36,108 @@ MODULE output_module
   TYPE(out_parID_type) :: opid ! netcdf variable IDs for output variables
   TYPE dataset_type
      ! Possible forcing variables for CABLE:
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: SWdown   ! 6 downward short-wave radiation [W/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: LWdown   ! 7 downward long-wave radiation [W/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: Rainf    ! 8 rainfall [kg/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: Snowf    ! 9 snowfall [kg/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: PSurf    ! 10 surface pressure [Pa]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:,:) :: Tair   ! 11 surface air temperature [K]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:,:) :: Qair   ! 12 specific humidity [kg/kg]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:,:) :: CO2air ! 13 CO2 concentration [ppmv]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:,:) :: Wind   ! 14 windspeed [m/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:,:) :: Wind_N ! 15 surface wind speed, N component [m/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:,:) :: Wind_E ! 16 surface wind speed, E component [m/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: LAI      !
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: SWdown   ! 6 downward short-wave radiation [W/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: LWdown   ! 7 downward long-wave radiation [W/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: Rainf    ! 8 rainfall [kg/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: Snowf    ! 9 snowfall [kg/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: PSurf    ! 10 surface pressure [Pa]
+     REAL(r_1), POINTER, DIMENSION(:,:,:,:) :: Tair   ! 11 surface air temperature [K]
+     REAL(r_1), POINTER, DIMENSION(:,:,:,:) :: Qair   ! 12 specific humidity [kg/kg]
+     REAL(r_1), POINTER, DIMENSION(:,:,:,:) :: CO2air ! 13 CO2 concentration [ppmv]
+     REAL(r_1), POINTER, DIMENSION(:,:,:,:) :: Wind   ! 14 windspeed [m/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:,:) :: Wind_N ! 15 surface wind speed, N component [m/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:,:) :: Wind_E ! 16 surface wind speed, E component [m/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: LAI      !
      ! Possible output variables:
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: Qh       ! 17 sensible heat flux [W/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: Qle      ! 18 latent heat flux [W/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: Qg       ! 19 ground heat flux [W/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: SWnet    ! 20 net shortwave [W/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: LWnet    ! 21 net longwave [W/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: Evap     ! 22 total evapotranspiration [kg/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: Ewater ! 23 evap. from surface water storage [kg/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: ESoil    ! 24 bare soil evaporation [kg/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: TVeg     ! 25 vegetation transpiration [kg/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: ECanop   ! 26 interception evaporation [kg/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: PotEvap  ! 27 potential evapotranspiration [kg/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: ACond    ! 28 aerodynamic conductance [m/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: SoilWet  ! 29 total soil wetness [-] 
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: Albedo   ! 30 albedo [-] 
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: VegT     ! 31 vegetation temperature [K]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:,:) :: SoilTemp  ! 32 av.layer soil temperature [K]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:,:) :: SoilMoist ! 33 av.layer soil moisture [kg/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: Qs           ! 34 surface runoff [kg/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: Qsb          ! 35 subsurface runoff [kg/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: DelSoilMoist ! 36 change in soilmoisture (sum layers) [kg/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: DelSWE       ! 37 change in snow water equivalent [kg/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: DelIntercept ! 38 change in interception storage [kg/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: SnowT        ! 39 snow surface temp [K]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: BaresoilT    ! 40 surface bare soil temp [K]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: AvgSurfT     ! 41 Average surface temperature [K]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: RadT         ! 42 Radiative surface temperature [K]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: SWE          ! 43 snow water equivalent [kg/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: RootMoist    ! 44 root zone soil moisture [kg/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: CanopInt     ! 45 total canopy water storage [kg/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: NEE          ! 46 net ecosystem exchange [umol/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: NPP          ! 47 net primary production of C by veg [umol/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: GPP          ! 48 gross primary production C by veg [umol/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: AutoResp     ! 49 autotrophic respiration [umol/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: HeteroResp   ! 50 heterotrophic respiration [umol/m2/s]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: SnowDepth    ! actual depth of snow in [m]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: Qh       ! 17 sensible heat flux [W/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: Qle      ! 18 latent heat flux [W/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: Qg       ! 19 ground heat flux [W/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: SWnet    ! 20 net shortwave [W/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: LWnet    ! 21 net longwave [W/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: Evap     ! 22 total evapotranspiration [kg/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: Ewater ! 23 evap. from surface water storage [kg/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: ESoil    ! 24 bare soil evaporation [kg/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: TVeg     ! 25 vegetation transpiration [kg/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: ECanop   ! 26 interception evaporation [kg/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: PotEvap  ! 27 potential evapotranspiration [kg/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: ACond    ! 28 aerodynamic conductance [m/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: SoilWet  ! 29 total soil wetness [-] 
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: Albedo   ! 30 albedo [-] 
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: VegT     ! 31 vegetation temperature [K]
+     REAL(r_1), POINTER, DIMENSION(:,:,:,:) :: SoilTemp  ! 32 av.layer soil temperature [K]
+     REAL(r_1), POINTER, DIMENSION(:,:,:,:) :: SoilMoist ! 33 av.layer soil moisture [kg/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: Qs           ! 34 surface runoff [kg/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: Qsb          ! 35 subsurface runoff [kg/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: DelSoilMoist ! 36 change in soilmoisture (sum layers) [kg/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: DelSWE       ! 37 change in snow water equivalent [kg/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: DelIntercept ! 38 change in interception storage [kg/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: SnowT        ! 39 snow surface temp [K]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: BaresoilT    ! 40 surface bare soil temp [K]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: AvgSurfT     ! 41 Average surface temperature [K]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: RadT         ! 42 Radiative surface temperature [K]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: SWE          ! 43 snow water equivalent [kg/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: RootMoist    ! 44 root zone soil moisture [kg/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: CanopInt     ! 45 total canopy water storage [kg/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: NEE          ! 46 net ecosystem exchange [umol/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: NPP          ! 47 net primary production of C by veg [umol/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: GPP          ! 48 gross primary production C by veg [umol/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: AutoResp     ! 49 autotrophic respiration [umol/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: HeteroResp   ! 50 heterotrophic respiration [umol/m2/s]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: SnowDepth    ! actual depth of snow in [m]
      ! Non-Alma variables
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: HVeg         ! sensible heat from vegetation [W/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: HSoil        ! sensible heat from soil [W/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: Ebal         ! cumulative energy balance [W/m2]
-     REAL(r_1), ALLOCATABLE, DIMENSION(:,:,:) :: Wbal         ! cumulative water balance [W/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: HVeg         ! sensible heat from vegetation [W/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: HSoil        ! sensible heat from soil [W/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: Ebal         ! cumulative energy balance [W/m2]
+     REAL(r_1), POINTER, DIMENSION(:,:,:) :: Wbal         ! cumulative water balance [W/m2]
      ! Model parameters
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: bch       ! parameter b in Campbell equation 1985
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: latitude  ! site latitude
+     REAL(r_1),POINTER,DIMENSION(:,:) :: bch       ! parameter b in Campbell equation 1985
+     REAL(r_1),POINTER,DIMENSION(:,:) :: latitude  ! site latitude
      ! Frac of lowest layer soil moisture above field capacity which drains
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: c3        ! c3 drainage coeff (fraction)
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: clay      ! fraction of clay in soil
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: css       ! heat capacity of soil minerals [J/kg/C]
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: rhosoil   ! soil density [kg/m3]
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: hyds      ! hydraulic conductivity @ saturation [m/s], Ksat
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: rs20      ! soil respiration at 20 C [dimensionless], (0.1 - 10), prop to om
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: sand      ! fraction of sand in soil
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: sfc       ! vol H2O @ field capacity
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: silt      ! fraction of silt in soil
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: ssat      ! vol H2O @ saturation
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: sucs      ! suction at saturation [m]
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: swilt     ! vol H2O @ wilting
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:,:) :: froot   ! fraction of roots in each soil layer
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:,:) :: zse     ! thickness of each soil layer (1=top) (m)
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: canst1    ! max intercepted water by canopy [mm/LAI] (0.08 - 0.12) {avoid}
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: dleaf     ! chararacteristic length of leaf [m], (0.005 - 0.2) pine -> tropical
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: ejmax     ! max pot. electron transport rate top leaf[mol/m2/s](1e-5 - 3e-4) {use}
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: frac4     ! fraction of c4 plants [-]
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: hc        ! height of canopy [m]
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: rp20      ! plant respiration coefficient at 20 C [-] 0.1 - 10 (frp 0 - 15e-6 mol/m2/s)
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: rpcoef    ! temperature coef nonleaf plant respiration [1/C] (0.8 - 1.5)
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: shelrb    ! sheltering factor [-] {avoid - insensitive?}
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: vcmax     ! maximum RuBP carboxylation rate top leaf [mol/m2/s](5e-6 - 1.5e-4){use}
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: xfang     ! leaf angle PARAMETER (dimensionless) (v leaf -1.0 horiz 1.0 sphere 0 (-1 - 1))
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:,:) :: ratecp  ! plant carbon pool rate constant (1/year)
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:,:) :: ratecs  ! soil carbon pool rate constant (1/year)
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: albsoil   ! soil reflectance [-]
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:,:) :: taul    ! leaf transmissivity [-](V:0.07 - 0.15 NIR: 0.3 - 0.6 IR: 0.0 - 0.05)
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:,:) :: refl    ! leaf reflectance [-](V:0.07 - 0.15 NIR: 0.3 - 0.6 IR: 0.0 - 0.05)
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: tminvj    ! min temperature of the start of photosynthesis(leaf phenology)[-] (-10 - 10)
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: tmaxvj    ! max temperature of the start of photosynthesis(leaf phenology)[-] (-5 - 15)
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: vbeta     ! ???
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: iveg      ! vegetation type from global index
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: isoil     ! soil type from global index
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: meth      ! method for solving ??? in canopy scheme
-     REAL(r_1),ALLOCATABLE,DIMENSION(:,:) :: za        ! something to do with roughness ????
+     REAL(r_1),POINTER,DIMENSION(:,:) :: c3        ! c3 drainage coeff (fraction)
+     REAL(r_1),POINTER,DIMENSION(:,:) :: clay      ! fraction of clay in soil
+     REAL(r_1),POINTER,DIMENSION(:,:) :: css       ! heat capacity of soil minerals [J/kg/C]
+     REAL(r_1),POINTER,DIMENSION(:,:) :: rhosoil   ! soil density [kg/m3]
+     REAL(r_1),POINTER,DIMENSION(:,:) :: hyds      ! hydraulic conductivity @ saturation [m/s], Ksat
+     REAL(r_1),POINTER,DIMENSION(:,:) :: rs20      ! soil respiration at 20 C [dimensionless], (0.1 - 10), prop to om
+     REAL(r_1),POINTER,DIMENSION(:,:) :: sand      ! fraction of sand in soil
+     REAL(r_1),POINTER,DIMENSION(:,:) :: sfc       ! vol H2O @ field capacity
+     REAL(r_1),POINTER,DIMENSION(:,:) :: silt      ! fraction of silt in soil
+     REAL(r_1),POINTER,DIMENSION(:,:) :: ssat      ! vol H2O @ saturation
+     REAL(r_1),POINTER,DIMENSION(:,:) :: sucs      ! suction at saturation [m]
+     REAL(r_1),POINTER,DIMENSION(:,:) :: swilt     ! vol H2O @ wilting
+     REAL(r_1),POINTER,DIMENSION(:,:,:) :: froot   ! fraction of roots in each soil layer
+     REAL(r_1),POINTER,DIMENSION(:,:,:) :: zse     ! thickness of each soil layer (1=top) (m)
+     REAL(r_1),POINTER,DIMENSION(:,:) :: canst1    ! max intercepted water by canopy [mm/LAI] (0.08 - 0.12) {avoid}
+     REAL(r_1),POINTER,DIMENSION(:,:) :: dleaf     ! chararacteristic length of leaf [m], (0.005 - 0.2) pine -> tropical
+     REAL(r_1),POINTER,DIMENSION(:,:) :: ejmax     ! max pot. electron transport rate top leaf[mol/m2/s](1e-5 - 3e-4) {use}
+     REAL(r_1),POINTER,DIMENSION(:,:) :: frac4     ! fraction of c4 plants [-]
+     REAL(r_1),POINTER,DIMENSION(:,:) :: hc        ! height of canopy [m]
+     REAL(r_1),POINTER,DIMENSION(:,:) :: rp20      ! plant respiration coefficient at 20 C [-] 0.1 - 10 (frp 0 - 15e-6 mol/m2/s)
+     REAL(r_1),POINTER,DIMENSION(:,:) :: rpcoef    ! temperature coef nonleaf plant respiration [1/C] (0.8 - 1.5)
+     REAL(r_1),POINTER,DIMENSION(:,:) :: shelrb    ! sheltering factor [-] {avoid - insensitive?}
+     REAL(r_1),POINTER,DIMENSION(:,:) :: vcmax     ! maximum RuBP carboxylation rate top leaf [mol/m2/s](5e-6 - 1.5e-4){use}
+     REAL(r_1),POINTER,DIMENSION(:,:) :: xfang     ! leaf angle PARAMETER (dimensionless) (v leaf -1.0 horiz 1.0 sphere 0 (-1 - 1))
+     REAL(r_1),POINTER,DIMENSION(:,:,:) :: ratecp  ! plant carbon pool rate constant (1/year)
+     REAL(r_1),POINTER,DIMENSION(:,:,:) :: ratecs  ! soil carbon pool rate constant (1/year)
+     REAL(r_1),POINTER,DIMENSION(:,:) :: albsoil   ! soil reflectance [-]
+     REAL(r_1),POINTER,DIMENSION(:,:,:) :: taul    ! leaf transmissivity [-](V:0.07 - 0.15 NIR: 0.3 - 0.6 IR: 0.0 - 0.05)
+     REAL(r_1),POINTER,DIMENSION(:,:,:) :: refl    ! leaf reflectance [-](V:0.07 - 0.15 NIR: 0.3 - 0.6 IR: 0.0 - 0.05)
+     REAL(r_1),POINTER,DIMENSION(:,:) :: tminvj    ! min temperature of the start of photosynthesis(leaf phenology)[-] (-10 - 10)
+     REAL(r_1),POINTER,DIMENSION(:,:) :: tmaxvj    ! max temperature of the start of photosynthesis(leaf phenology)[-] (-5 - 15)
+     REAL(r_1),POINTER,DIMENSION(:,:) :: vbeta     ! ???
+     REAL(r_1),POINTER,DIMENSION(:,:) :: iveg      ! vegetation type from global index
+     REAL(r_1),POINTER,DIMENSION(:,:) :: isoil     ! soil type from global index
+     REAL(r_1),POINTER,DIMENSION(:,:) :: meth      ! method for solving ??? in canopy scheme
+     REAL(r_1),POINTER,DIMENSION(:,:) :: za        ! something to do with roughness ????
   END TYPE dataset_type
   TYPE (dataset_type) :: out ! CABLE output after units adjustment
 
 CONTAINS
 
-  SUBROUTINE open_output_file(filename_out,dels,latitude, &
-       longitude,soil,veg,bgc,rough)
+  SUBROUTINE open_output_file(filename_out,filename_met,dels,soil,veg,bgc,rough)
     CHARACTER(LEN=*), INTENT(IN) :: filename_out 
-    REAL(r_1), INTENT(IN) :: dels ! time step size
-    REAL(r_1), ALLOCATABLE, DIMENSION(:),INTENT(IN)   :: latitude, longitude
+    CHARACTER(LEN=*), INTENT(IN) :: filename_met 
+    REAL(r_1),INTENT(IN) :: dels ! time step size
     TYPE (soil_parameter_type),INTENT(IN) :: soil ! soil parameters
     TYPE (veg_parameter_type),INTENT(IN)  :: veg  ! vegetation parameters
     TYPE (bgc_pool_type),INTENT(IN)       :: bgc
@@ -146,6 +145,7 @@ CONTAINS
     CHARACTER(LEN=10) :: todaydate, nowtime ! used to timestamp netcdf file
     INTEGER :: xID,yID,zID,radID,soilID,soilcarbID,plantcarbID,tID ! dimension IDs
     INTEGER :: tvarID,latID,lonID ! time,lat,lon variable ID
+    INTEGER :: xvID,yvID          ! coordinate variable IDs for GrADS readability
     INTEGER :: i ! do loop counter
     ! Create output file:
     status = NF90_CREATE(filename_out,NF90_CLOBBER,ncid_out)
@@ -199,7 +199,7 @@ CONTAINS
     IF (status /= NF90_NOERR) CALL nc_abort &
          ('Error defining time variable attributes in output file. '// &
          '(SUBROUTINE open_output_file)')
-    ! Define latitude and longitude variable:
+    ! Define latitude and longitude variable (ALMA):
     status=NF90_DEF_VAR(ncid_out,'latitude',NF90_FLOAT,(/xID,yID/),latID)
     IF (status /= NF90_NOERR) CALL nc_abort &
          ('Error defining latitude variable in output file. '// &
@@ -215,6 +215,31 @@ CONTAINS
     status = NF90_PUT_ATT(ncid_out,lonID,'units','degrees_east')
     IF (status /= NF90_NOERR) CALL nc_abort &
          ('Error defining longitude variable attributes in output file. '// &
+         '(SUBROUTINE open_output_file)')
+    ! Write "cordinate variables" to enable reading by GrADS:
+    status=NF90_DEF_VAR(ncid_out,'x',NF90_FLOAT,(/xID/),xvID)
+    IF (status /= NF90_NOERR) CALL nc_abort &
+         ('Error defining "x" variable (for GrADS) in output file. '// &
+         '(SUBROUTINE open_output_file)')
+    status = NF90_PUT_ATT(ncid_out,xvID,'units','degrees_north')
+    IF (status /= NF90_NOERR) CALL nc_abort &
+         ('Error writing x coordinate variable (GrADS) units in output file. '// &
+         '(SUBROUTINE open_output_file)')
+    status = NF90_PUT_ATT(ncid_out,xvID,'comment','x coordinate variable for GrADS compatibility')
+    IF (status /= NF90_NOERR) CALL nc_abort &
+         ('Error writing x variables comment in output file. '// &
+         '(SUBROUTINE open_output_file)')
+    status=NF90_DEF_VAR(ncid_out,'y',NF90_FLOAT,(/yID/),yvID)
+    IF (status /= NF90_NOERR) CALL nc_abort &
+         ('Error defining "y" variable (for GrADS) in output file. '// &
+         '(SUBROUTINE open_output_file)')
+     status = NF90_PUT_ATT(ncid_out,yvID,'units','degrees_east')
+    IF (status /= NF90_NOERR) CALL nc_abort &
+         ('Error writing y coordinate variable (GrADS) units in output file. '// &
+         '(SUBROUTINE open_output_file)')
+    status = NF90_PUT_ATT(ncid_out,yvID,'comment','y coordinate variable for GrADS compatibility')
+    IF (status /= NF90_NOERR) CALL nc_abort &
+         ('Error writing y variables comment in output file. '// &
          '(SUBROUTINE open_output_file)')
     ! Define meteorological variables in output file if requested:
     IF(output%met) THEN 
@@ -457,7 +482,7 @@ CONTAINS
        IF (status /= NF90_NOERR) CALL nc_abort &
             ('Error defining Evap variable attributes in output file. '// &
             '(SUBROUTINE open_output_file)')
-        status = NF90_PUT_ATT(ncid_out,ovid%Evap,'long_name', &
+       status = NF90_PUT_ATT(ncid_out,ovid%Evap,'long_name', &
             'Total evapotranspiration')
        IF (status /= NF90_NOERR) CALL nc_abort &
             ('Error defining Evap variable attributes in output file. '// &
@@ -1236,25 +1261,25 @@ CONTAINS
             "Soil carbon rate constant")
        status = NF90_PUT_ATT(ncid_out,opid%ratecs,"units","1/year")
        ALLOCATE(out%ratecs(xdimsize,ydimsize,ncs))
-       ! meth (???):
+       ! meth:
        status=NF90_DEF_VAR(ncid_out,'meth',NF90_FLOAT,(/xID,yID/), &
             opid%meth)
        IF (status /= NF90_NOERR) CALL nc_abort &
             ('Error defining meth variable in output file. '// &
             '(SUBROUTINE open_output_file)')
        status = NF90_PUT_ATT(ncid_out,opid%meth,"long_name",&
-            "???")
+            "Canopy turbulence parameterisation")
        status = NF90_PUT_ATT(ncid_out,opid%meth,"units","-")
        ALLOCATE(out%meth(xdimsize,ydimsize))
-       ! za (???):
+       ! za:
        status=NF90_DEF_VAR(ncid_out,'za',NF90_FLOAT,(/xID,yID/), &
             opid%za)
        IF (status /= NF90_NOERR) CALL nc_abort &
             ('Error defining za variable in output file. '// &
             '(SUBROUTINE open_output_file)')
        status = NF90_PUT_ATT(ncid_out,opid%za,"long_name",&
-            "???")
-       status = NF90_PUT_ATT(ncid_out,opid%za,"units","-")
+            "Reference height (lowest atm. model layer)")
+       status = NF90_PUT_ATT(ncid_out,opid%za,"units","m")
        ALLOCATE(out%za(xdimsize,ydimsize))
     END IF
 
@@ -1266,7 +1291,15 @@ CONTAINS
          TRIM(todaydate)//' at '//TRIM(nowtime))
     IF(status/=NF90_NOERR) CALL nc_abort('Error writing global details to file ' &
          //TRIM(filename_out)// ' (SUBROUTINE open_output_file)')
-
+    status = NF90_PUT_ATT(ncid_out,NF90_GLOBAL,"Source", &
+         'CABLE LSM output file')
+     IF(status/=NF90_NOERR) CALL nc_abort('Error writing global details to file ' &
+         //TRIM(filename_out)// ' (SUBROUTINE open_output_file)')
+    status = NF90_PUT_ATT(ncid_out,NF90_GLOBAL,"CABLE_input_file", &
+         TRIM(filename_met))
+    IF(status/=NF90_NOERR) CALL nc_abort('Error writing global details to file ' &
+         //TRIM(filename_out)// ' (SUBROUTINE open_output_file)')
+    
     ! End netcdf define mode:
     status = NF90_ENDDEF(ncid_out)
     IF(status/=NF90_NOERR) CALL nc_abort('Error creating output file ' &
@@ -1282,6 +1315,15 @@ CONTAINS
          //TRIM(filename_out)// '(SUBROUTINE open_output_file)')
     status=NF90_PUT_VAR(ncid_out,lonID,lon_all)
     IF(status/=NF90_NOERR) CALL nc_abort('Error writing longitude variable to file ' &
+         //TRIM(filename_out)// '(SUBROUTINE open_output_file)')
+    ! Write GrADS coordinate variables
+    status=NF90_PUT_VAR(ncid_out,xvID,lon_all(:,1))
+    IF(status/=NF90_NOERR) CALL nc_abort &
+         ('Error writing GrADS x coordinate variable to file ' &
+         //TRIM(filename_out)// '(SUBROUTINE open_output_file)')
+    status=NF90_PUT_VAR(ncid_out,yvID,lat_all(1,:))
+    IF(status/=NF90_NOERR) CALL nc_abort &
+         ('Error writing GrADS y coordinate variable to file ' &
          //TRIM(filename_out)// '(SUBROUTINE open_output_file)')
     ! Write model parameters if requested:
     IF(output%params) THEN
@@ -2011,7 +2053,7 @@ CONTAINS
     END IF
   END SUBROUTINE write_output
   !====================================================================
-  SUBROUTINE close_output_file(filename_out,bal,latitude,longitude,gdpt,air, &
+  SUBROUTINE close_output_file(filename_out,bal,air, &
        bgc, canopy, met, rad, rough, soil, ssoil, sum_flux, veg)
     CHARACTER(LEN=*), INTENT(IN) :: filename_out
     TYPE (met_type), INTENT(INOUT) :: met
@@ -2025,8 +2067,7 @@ CONTAINS
     TYPE (radiation_type),INTENT(INOUT)  :: rad
     TYPE (sum_flux_type), INTENT(INOUT)  :: sum_flux
     TYPE(balances_type),INTENT(INOUT) :: bal
-    REAL(r_1), ALLOCATABLE,DIMENSION(:),INTENT(INOUT) :: latitude, longitude
-    INTEGER(i_d),ALLOCATABLE,DIMENSION(:),INTENT(INOUT) :: gdpt ! gridpoint number (default params)
+
     ! Close file
     status = NF90_CLOSE(ncid_out)
     IF(status/=NF90_NOERR) CALL nc_abort('Error closing output file ' &

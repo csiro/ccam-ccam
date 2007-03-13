@@ -14,6 +14,7 @@ MODULE input_module
   USE abort_module
   USE canopy_module
   USE physical_constants
+  USE parameter_module
   USE netcdf ! link must be made in cd to netcdf-x.x.x/src/f90/netcdf.mod
   IMPLICIT NONE
   INTEGER(i_d) :: ncid_met ! met data netcdf file ID
@@ -21,16 +22,18 @@ MODULE input_module
   INTEGER(i_d) :: ncid_lai ! lai data netcdf file ID
   INTEGER(i_d) :: status   ! netcdf error status
   INTEGER(i_d) :: logn     ! log file unit number
-  INTEGER(i_d),ALLOCATABLE,DIMENSION(:,:) :: mask ! land/sea mask from met file
-  REAL(r_1),ALLOCATABLE, DIMENSION(:,:) :: lat_all, lon_all ! lat and lon
-  INTEGER(i_d),ALLOCATABLE,DIMENSION(:) :: land_x,land_y ! indicies of land in mask
-  REAL(r_1),ALLOCATABLE,DIMENSION(:,:)  :: elevation ! site/grid cell elevation
+  CHARACTER(LEN=4) :: gridType ! Either 'land' or 'mask' - see ALMA compress by gathering
+  INTEGER(i_d),POINTER,DIMENSION(:) :: landGrid ! for ALMA compressed variables
+  INTEGER(i_d),POINTER,DIMENSION(:,:) :: mask ! land/sea mask from met file
+  REAL(r_1),POINTER, DIMENSION(:,:) :: lat_all, lon_all ! lat and lon
+  INTEGER(i_d),POINTER,DIMENSION(:) :: land_x,land_y ! indicies of land in mask
+  REAL(r_1),POINTER,DIMENSION(:,:)  :: elevation ! site/grid cell elevation
   INTEGER(i_d) :: xdimsize,ydimsize ! sizes of x and y dimensions
   INTEGER(i_d) :: ngridcells ! number of gridcells in simulation
   LOGICAL :: leaps    ! use leap year timing?
   CHARACTER(LEN=3) :: time_coord ! GMT or LOCal time variables
   CHARACTER(LEN=33) :: timeunits ! timing info read from nc file
-  REAL(r_2),ALLOCATABLE,DIMENSION(:) :: timevar ! time variable from file
+  REAL(r_2),POINTER,DIMENSION(:) :: timevar ! time variable from file
   REAL(r_1)    :: shod ! start time hour-of-day
   INTEGER(i_d) :: sdoy,smoy,syear ! start time day-of-year month and year
   TYPE met_varID_type 
@@ -63,12 +66,11 @@ MODULE input_module
 CONTAINS
 
 ! =================================== LAI ====================================
-  SUBROUTINE get_lai(ktau,doy,veg,kend,gdpt)
+  SUBROUTINE get_lai(ktau,doy,veg,kend) 
     INTEGER, INTENT(IN) :: ktau ! total run timestep
     ! gridpoint numbers for sites:
     REAL(r_1),DIMENSION(*),INTENT(IN) :: doy ! day of year
     TYPE(veg_parameter_type),INTENT(INOUT) :: veg ! LAI retrieved from file
-    INTEGER(i_d), ALLOCATABLE,DIMENSION(:),INTENT(IN) :: gdpt ! gridpoint number
     REAL(r_1),DIMENSION(1,1) :: templai2 ! LAI retrieved from file
     INTEGER(i_d), INTENT(IN) :: kend ! total number of timesteps in run
     INTEGER(i_d) :: month ! Current timestep's month
@@ -134,7 +136,7 @@ CONTAINS
     END IF
   END SUBROUTINE get_lai
 
-  SUBROUTINE open_met_file(filename_met,dels,kend,latitude,longitude)
+  SUBROUTINE open_met_file(filename_met,dels,kend)
     ! Opens netcdf file containing meteorological (LSM input) data
     ! and determines:
     ! 1. Spatial details - number of sites/grid cells, latitudes, longitudes
@@ -145,14 +147,15 @@ CONTAINS
     CHARACTER(LEN=*), INTENT(IN) :: filename_met ! name of file for met data
     REAL(r_1), INTENT(OUT) :: dels ! time step size
     INTEGER(i_d), INTENT(OUT) :: kend ! number of time steps in simulation
-    REAL(r_1), ALLOCATABLE,DIMENSION(:),INTENT(OUT) :: latitude, longitude
     INTEGER(i_d) :: timevarID ! time variable ID number
     INTEGER(i_d),DIMENSION(1) :: timedimID ! time dimension ID number
     INTEGER(i_d) :: xdimID,ydimID    ! x and y dimension ID numbers
     INTEGER(i_d) :: maskID    ! mask variable ID
+    INTEGER(i_d) :: landID    ! land variable ID
+    INTEGER(i_d) :: landdimID ! land dimension ID
     INTEGER(i_d) :: latitudeID, longitudeID ! lat and lon variable IDs
-    REAL(r_1),ALLOCATABLE, DIMENSION(:) :: lat_temp, lon_temp ! lat and lon
-    INTEGER,ALLOCATABLE,DIMENSION(:) ::land_xtmp,land_ytmp ! temp indicies
+    REAL(r_1),POINTER, DIMENSION(:) :: lat_temp, lon_temp ! lat and lon
+    INTEGER,POINTER,DIMENSION(:) ::land_xtmp,land_ytmp ! temp indicies
     REAL(r_1)    :: tshod        ! temporary variable
     INTEGER(i_d) :: tsdoy,tsyear ! temporary variables
     REAL(r_1)    :: ehod ! end time hour-of-day
@@ -166,7 +169,7 @@ CONTAINS
     INTEGER(i_d) :: mp_fromfile ! number of land points in file 
     LOGICAL :: all_met ! ALL required met in met file (no synthesis)?
     CHARACTER(LEN=10) :: todaydate, nowtime ! used to timestamp log file
-    INTEGER(i_d) :: x,y,i ! do loop counters
+    INTEGER(i_d) :: x,y,i,j ! do loop counters
     
     ! Write filename to log file:
     WRITE(logn,*) '============================================================'
@@ -186,20 +189,28 @@ CONTAINS
     
     !!=====================VV Determine spatial details VV=================
     ! Determine number of sites/gridcells.
-    ! Find size of 'x' dimension:
+    ! Find size of 'x' or 'lat' dimension:
     status = NF90_INQ_DIMID(ncid_met,'x', xdimID)
-    IF(status/=NF90_NOERR) CALL nc_abort &
-         ('Error finding x dimension in '&
-         //TRIM(filename_met)//' (SUBROUTINE open_met_file)')
+    IF(status/=NF90_NOERR) THEN ! if failed
+       ! Try 'lat' instead of x
+       status = NF90_INQ_DIMID(ncid_met,'lat', xdimID)
+       IF(status/=NF90_NOERR) CALL nc_abort &
+            ('Error finding x dimension in '&
+            //TRIM(filename_met)//' (SUBROUTINE open_met_file)')
+    END IF
     status = NF90_INQUIRE_DIMENSION(ncid_met,xdimID,len=xdimsize)
     IF(status/=NF90_NOERR) CALL nc_abort &
          ('Error determining size of x dimension in ' &
          //TRIM(filename_met)//' (SUBROUTINE open_met_file)')
     ! Find size of 'y' dimension:
-     status = NF90_INQ_DIMID(ncid_met,'y', ydimID)
-    IF(status/=NF90_NOERR) CALL nc_abort &
-         ('Error finding y dimension in ' &
-         //TRIM(filename_met)//' (SUBROUTINE open_met_file)')
+    status = NF90_INQ_DIMID(ncid_met,'y', ydimID)
+    IF(status/=NF90_NOERR) THEN ! if failed
+       ! Try 'lon' instead of y
+       status = NF90_INQ_DIMID(ncid_met,'lon', ydimID)
+       IF(status/=NF90_NOERR) CALL nc_abort &
+            ('Error finding y dimension in ' &
+            //TRIM(filename_met)//' (SUBROUTINE open_met_file)')
+    END IF
     status = NF90_INQUIRE_DIMENSION(ncid_met,ydimID,len=ydimsize)
     IF(status/=NF90_NOERR) CALL nc_abort &
          ('Error determining size of y dimension in ' &
@@ -241,20 +252,84 @@ CONTAINS
          ('Error reading longitude variable in met data file ' &
          //TRIM(filename_met)//' (SUBROUTINE open_met_file)')
 
-    ! Allocate "mask" variable:
-    ALLOCATE(mask(xdimsize,ydimsize))
-    ! If more than one gridcell, determine how many are land:
-    IF(ngridcells>1) THEN
-       ! Get ID for "mask" variable:
-       status = NF90_INQ_VARID(ncid_met, 'mask', maskID)
-       IF(status /= NF90_NOERR) CALL nc_abort &
-            ('Error finding "mask" variable in ' &
-         //TRIM(filename_met)//' (SUBROUTINE open_met_file)')
+
+    ! Check for "mask" variable or "land" variable to tell grid type
+    ! (and allow neither if only one gridpoint). "mask" is a 2D variable
+    ! with dims x,y and "land" is a 1D variable.
+    status = NF90_INQ_VARID(ncid_met, 'mask', maskID) ! check for "mask"
+    IF(status /= NF90_NOERR) THEN ! if error, i.e. no "mask" variable:
+       ! Check for "land" variable:
+       status = NF90_INQ_VARID(ncid_met, 'land', landID)
+       IF(status /= NF90_NOERR) THEN ! ie no "land" or "mask"
+          IF(ngridcells==1) THEN 
+             ! Allow no explicit grid system if only one gridpoint
+             ALLOCATE(mask(xdimsize,ydimsize)) ! Allocate "mask" variable
+             gridType='mask' ! Use mask system, one gridpoint.
+             mask = 1
+             ALLOCATE(latitude(1),longitude(1))
+             latitude = lat_all(1,1)
+             longitude = lon_all(1,1)
+             mp_fromfile=1
+             ALLOCATE(land_x(mp_fromfile),land_y(mp_fromfile))
+             land_x = 1
+             land_y = 1
+          ELSE
+             ! Call abort if more than one gridcell and no
+             ! recognised grid system:
+             CALL nc_abort &
+                  ('Error finding grid system ("mask" or "land") variable in ' &
+                  //TRIM(filename_met)//' (SUBROUTINE open_met_file)')
+          END IF
+       ELSE ! i.e. "land" variable exists
+          gridType='land'
+          ! Check size of "land" dimension:
+          status = NF90_INQ_DIMID(ncid_met,'land', landdimID)
+          IF(status/=NF90_NOERR) CALL nc_abort &
+               ('Error finding land dimension in ' &
+               //TRIM(filename_met)//' (SUBROUTINE open_met_file)')
+          status = NF90_INQUIRE_DIMENSION(ncid_met,landdimID,len=mp_fromfile)
+          IF(status/=NF90_NOERR) CALL nc_abort &
+               ('Error determining size of land dimension in ' &
+               //TRIM(filename_met)//' (SUBROUTINE open_met_file)')
+          ! Allocate landGrid variable:
+          ALLOCATE(landGrid(mp_fromfile))
+          ! Get values of "land" variable from file:
+          status= NF90_GET_VAR(ncid_met,landID,landGrid)
+          IF(status /= NF90_NOERR) CALL nc_abort &
+               ('Error reading "land" variable in ' &
+               //TRIM(filename_met)//' (SUBROUTINE open_met_file)')
+          ! Allocate latitude and longitude variables:
+          ALLOCATE(latitude(mp_fromfile),longitude(mp_fromfile))
+          ! Write to indicies of points in all-grid which are land
+          ALLOCATE(land_x(mp_fromfile),land_y(mp_fromfile))
+          ! Allocate "mask" variable:
+          ALLOCATE(mask(xdimsize,ydimsize))
+          ! Initialise all gridpoints as sea:
+          mask = 0
+          DO j=1, mp_fromfile ! over all land points
+             ! Find x and y coords of current land point
+             y = INT((landGrid(j)-1)/xdimsize)
+             x = landGrid(j) - y * xdimsize
+             y=y+1
+             ! Write lat and lon to land-only lat/lon vars:
+             latitude(j) = lat_all(x,y)
+             longitude(j) = lon_all(x,y)
+             ! Write to mask variable:
+             mask(x,y)=1
+             ! Save indicies:
+             land_x(j) = x
+             land_y(j) = y
+          END DO
+       END IF ! does "land" variable exist 
+    ELSE ! i.e. "mask" variable exists
+       ! Allocate "mask" variable:
+       ALLOCATE(mask(xdimsize,ydimsize))
+       gridType='mask' ! Use mask system
        ! Get mask values from file:
        status= NF90_GET_VAR(ncid_met,maskID,mask)
        IF(status /= NF90_NOERR) CALL nc_abort &
             ('Error reading "mask" variable in ' &
-         //TRIM(filename_met)//' (SUBROUTINE open_met_file)')
+            //TRIM(filename_met)//' (SUBROUTINE open_met_file)')
        ! Allocate space for extracting land lat/lon values:
        ALLOCATE(lat_temp(ngridcells),lon_temp(ngridcells))
        ! Allocate space for extracting index of mask which is land
@@ -274,10 +349,8 @@ CONTAINS
              END IF
           END DO
        END DO
-       ! Write number of land points
+       ! Record number of land points
        mp_fromfile = mp_ctr
-       WRITE(logn,15) mp_fromfile, ' of which are land grid cells'
-15     FORMAT(24X,I7,A29)
        ! Allocate latitude and longitude variables:
        ALLOCATE(latitude(mp_fromfile),longitude(mp_fromfile))
        ! Write to latitude and longitude variables:
@@ -289,17 +362,11 @@ CONTAINS
        land_y = land_ytmp(1:mp_fromfile)
        ! Clear lon_temp, lat_temp,land_xtmp,land_ytmp
        DEALLOCATE(lat_temp,lon_temp,land_xtmp,land_ytmp)
-    ELSE IF(ngridcells==1) THEN
-       ! only one gridcell/site
-       mask = 1
-       ALLOCATE(latitude(1),longitude(1))
-       latitude = lat_all(1,1)
-       longitude = lon_all(1,1)
-       mp_fromfile=1
-       ALLOCATE(land_x(mp_fromfile),land_y(mp_fromfile))
-       land_x = 1
-       land_y = 1
-    END IF
+    END IF ! "mask" variable or no "mask" variable
+
+    ! Write to number of land points to log file:
+    WRITE(logn,'(24X,I7,A29)') mp_fromfile, ' of which are land grid cells'
+ 
     ! Set longitudes to be [-180,180]:
     WHERE(longitude>180.0) 
        longitude = longitude - 360.0
@@ -312,7 +379,8 @@ CONTAINS
          CALL abort('Latitudes read from '//TRIM(filename_met)// &
          ' are not [-90,90]! Please set.')
 
-    ! Set global mp value:
+    ! Set global mp value (number of land points), used to allocate
+    ! all of CABLE's arrays:
     mp = mp_fromfile
 
 !!$    ! Check number of land points in file matches that specified:
@@ -350,7 +418,7 @@ CONTAINS
 12  FORMAT(1X,A29,I8,A3,F10.3,A5)
     ! Write time step size to log file:
     WRITE(logn,11) 'Time step size:  ', dels, 'seconds'
-11 FORMAT(1X,A17,F6.1,1X,A7)
+11 FORMAT(1X,A17,F8.1,1X,A7)
     ! Get units for 'time' variable:
     status = NF90_GET_ATT(ncid_met,timevarID,'units',timeunits)
     IF(status /= NF90_NOERR) CALL nc_abort &
@@ -832,17 +900,17 @@ CONTAINS
     !!=================^^ End met variables search^^=======================
   END SUBROUTINE open_met_file
   !========================================================================
-  SUBROUTINE get_met_data(ktau,filename_met,met,soil,rad,longitude,dels)
+  SUBROUTINE get_met_data(ktau,filename_met,met,soil,rad,dels) 
     ! Fetch meteorological forcing data for a single time step.
     INTEGER(i_d), INTENT(IN) :: ktau ! time step number
     CHARACTER(LEN=*),INTENT(IN) :: filename_met 
     TYPE(met_type),INTENT(OUT):: met ! meteorological data
     TYPE (soil_parameter_type),INTENT(IN)	:: soil	
     TYPE (radiation_type),INTENT(IN)	:: rad
-    REAL(r_1),ALLOCATABLE,DIMENSION(:),INTENT(IN) :: longitude
     REAL(r_1),INTENT(IN) :: dels ! time step size
     REAL(r_1),DIMENSION(1,1,1) :: data3 ! temp variable for netcdf reading
     REAL(r_1),DIMENSION(1,1,1,1) :: data4 !  " " "
+    REAL(r_1),DIMENSION(1,1)    :: data2 ! " " 
     INTEGER(i_d) :: i ! do loop counter
 
     DO i=1,mp ! over all land points/grid cells
@@ -1011,116 +1079,234 @@ CONTAINS
           END IF ! if leap year or not
        END IF ! if increment has pushed hod to a different day
           
-       ! Get SWdown data:- - - - - - - - - - - - - - - - - - - -
-       status= NF90_GET_VAR(ncid_met,id%SWdown,data3, &
-            start=(/land_x(i),land_y(i),ktau/),count=(/1,1,1/))
-       IF(status /= NF90_NOERR) CALL nc_abort &
-            ('Error reading SWdown in met data file ' &
-            //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
-       ! Assign value to met data variable (no units change required):
-       met%fsd(i) = data3(1,1,1)
-       ! Get Tair data:- - - - - - - - - - - - - - - - - - - - -
-       status= NF90_GET_VAR(ncid_met,id%Tair,data4, &
-           start=(/land_x(i),land_y(i),1,ktau/),count=(/1,1,1,1/))
-       IF(status /= NF90_NOERR) CALL nc_abort &
-            ('Error reading Tair in met data file ' &
-            //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
-       ! Assign value to met data variable with units change:
-       met%tk(i) = data4(1,1,1,1) + convert%Tair
-       met%tc(i) =  met%tk(i) - tfrz
-       ! Get PSurf data:- - - - - - - - - - - - - - - - - - - - -
-       IF(exists%PSurf) THEN ! IF PSurf is in met file:
-          status= NF90_GET_VAR(ncid_met,id%PSurf,data4, &
-               start=(/land_x(i),land_y(i),1,ktau/),count=(/1,1,1,1/))
+       IF(gridType=='mask') THEN
+          ! Get SWdown data:- - - - - - - - - - - - - - - - - - - -
+          status= NF90_GET_VAR(ncid_met,id%SWdown,data3, &
+               start=(/land_x(i),land_y(i),ktau/),count=(/1,1,1/))
           IF(status /= NF90_NOERR) CALL nc_abort &
-               ('Error reading PSurf in met data file ' &
-               //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
-          met%pmb(i) = data4(1,1,1,1) * convert%PSurf
-       ELSE ! PSurf must be fixed as a function of site elevation and T:
-          met%pmb(i)=101.325*(met%tk(i)/(met%tk(i) + 0.0065* &
-               elevation(land_x(i),land_y(i))))**(9.80665/287.04/0.0065)
-       END IF
-       ! Get Qair data:- - - - - - - - - - - - - - - - - - - - -
-       status= NF90_GET_VAR(ncid_met,id%Qair,data4, &
-            start=(/land_x(i),land_y(i),1,ktau/),count=(/1,1,1,1/))
-       IF(status /= NF90_NOERR) CALL nc_abort &
-            ('Error reading Qair in met data file ' &
-            //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
-       IF(convert%Qair==-999.0) THEN
-          CALL rh_sh(data4(1,1,1,1), met%tk(i), &
-                        met%pmb(i),met%qv(i))
-       ELSE
-          met%qv(i) = data4(1,1,1,1)
-       END IF
-       ! Get Wind data:- - - - - - - - - - - - - - - - - - - - - -
-       IF(exists%Wind) THEN ! Scalar Wind
-          status= NF90_GET_VAR(ncid_met,id%Wind,data4, &
-               start=(/land_x(i),land_y(i),1,ktau/),count=(/1,1,1,1/))
-          IF(status /= NF90_NOERR) CALL nc_abort &
-               ('Error reading Wind in met data file ' &
+               ('Error reading SWdown in met data file ' &
                //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
           ! Assign value to met data variable (no units change required):
-          met%ua(i) = data4(1,1,1,1)
-       ELSE ! Vector wind
-          ! Get Wind_N:
-          status= NF90_GET_VAR(ncid_met,id%Wind,data4, &
+          met%fsd(i) = data3(1,1,1)
+          ! Get Tair data:- - - - - - - - - - - - - - - - - - - - -
+          status= NF90_GET_VAR(ncid_met,id%Tair,data4, &
                start=(/land_x(i),land_y(i),1,ktau/),count=(/1,1,1,1/))
           IF(status /= NF90_NOERR) CALL nc_abort &
-               ('Error reading Wind_N in met data file ' &
+               ('Error reading Tair in met data file ' &
                //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
-          met%ua(i) = data4(1,1,1,1) ! only part of the wind variable
-          status= NF90_GET_VAR(ncid_met,id%Wind_E,data4, &
+          ! Assign value to met data variable with units change:
+          met%tk(i) = data4(1,1,1,1) + convert%Tair
+          met%tc(i) =  met%tk(i) - tfrz
+          ! Get PSurf data:- - - - - - - - - - - - - - - - - - - - -
+          IF(exists%PSurf) THEN ! IF PSurf is in met file:
+             status= NF90_GET_VAR(ncid_met,id%PSurf,data4, &
+                  start=(/land_x(i),land_y(i),1,ktau/),count=(/1,1,1,1/))
+             IF(status /= NF90_NOERR) CALL nc_abort &
+                  ('Error reading PSurf in met data file ' &
+                  //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+             met%pmb(i) = data4(1,1,1,1) * convert%PSurf
+          ELSE ! PSurf must be fixed as a function of site elevation and T:
+             met%pmb(i)=101.325*(met%tk(i)/(met%tk(i) + 0.0065* &
+                  elevation(land_x(i),land_y(i))))**(9.80665/287.04/0.0065)
+          END IF
+          ! Get Qair data:- - - - - - - - - - - - - - - - - - - - -
+          status= NF90_GET_VAR(ncid_met,id%Qair,data4, &
                start=(/land_x(i),land_y(i),1,ktau/),count=(/1,1,1,1/))
           IF(status /= NF90_NOERR) CALL nc_abort &
-               ('Error reading Wind_E in met data file ' &
+               ('Error reading Qair in met data file ' &
                //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
-          ! Write final scalar Wind value:
-          met%ua(i) = SQRT(met%ua(i)**2 + data4(1,1,1,1)**2)
-       END IF
-       ! Get Rainf and Snowf data:- - - - - - - - - - - - - - - - - - -
-       status= NF90_GET_VAR(ncid_met,id%Rainf,data3, &
-            start=(/land_x(i),land_y(i),ktau/),count=(/1,1,1/))
-       IF(status /= NF90_NOERR) CALL nc_abort &
-            ('Error reading Rainf in met data file ' &
-            //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
-       met%precip(i) = data3(1,1,1) ! store Rainf value
-       IF(exists%Snowf) THEN
-          status= NF90_GET_VAR(ncid_met,id%Snowf,data3, &
+          IF(convert%Qair==-999.0) THEN
+             CALL rh_sh(data4(1,1,1,1), met%tk(i), &
+                  met%pmb(i),met%qv(i))
+          ELSE
+             met%qv(i) = data4(1,1,1,1)
+          END IF
+          ! Get Wind data:- - - - - - - - - - - - - - - - - - - - - -
+          IF(exists%Wind) THEN ! Scalar Wind
+             status= NF90_GET_VAR(ncid_met,id%Wind,data4, &
+                  start=(/land_x(i),land_y(i),1,ktau/),count=(/1,1,1,1/))
+             IF(status /= NF90_NOERR) CALL nc_abort &
+                  ('Error reading Wind in met data file ' &
+                  //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+             ! Assign value to met data variable (no units change required):
+             met%ua(i) = data4(1,1,1,1)
+          ELSE ! Vector wind
+             ! Get Wind_N:
+             status= NF90_GET_VAR(ncid_met,id%Wind,data4, &
+                  start=(/land_x(i),land_y(i),1,ktau/),count=(/1,1,1,1/))
+             IF(status /= NF90_NOERR) CALL nc_abort &
+                  ('Error reading Wind_N in met data file ' &
+                  //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+             met%ua(i) = data4(1,1,1,1) ! only part of the wind variable
+             status= NF90_GET_VAR(ncid_met,id%Wind_E,data4, &
+                  start=(/land_x(i),land_y(i),1,ktau/),count=(/1,1,1,1/))
+             IF(status /= NF90_NOERR) CALL nc_abort &
+                  ('Error reading Wind_E in met data file ' &
+                  //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+             ! Write final scalar Wind value:
+             met%ua(i) = SQRT(met%ua(i)**2 + data4(1,1,1,1)**2)
+          END IF
+          ! Get Rainf and Snowf data:- - - - - - - - - - - - - - - - - - -
+          status= NF90_GET_VAR(ncid_met,id%Rainf,data3, &
                start=(/land_x(i),land_y(i),ktau/),count=(/1,1,1/))
           IF(status /= NF90_NOERR) CALL nc_abort &
-               ('Error reading Snowf in met data file ' &
+               ('Error reading Rainf in met data file ' &
                //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
-          data3(1,1,1) = data3(1,1,1) + met%precip(i)
-       END IF
-       ! Convert units:
-       met%precip(i) = data3(1,1,1) * convert%Rainf
-       ! Get LWdown data:- - - - - - - - - - - - - - - - - - - - - - - - 
-       IF(exists%LWdown) THEN ! If LWdown exists in met file
-          status= NF90_GET_VAR(ncid_met,id%LWdown,data3, &
-               start=(/land_x(i),land_y(i),ktau/),count=(/1,1,1/))
+          met%precip(i) = data3(1,1,1) ! store Rainf value
+          IF(exists%Snowf) THEN
+             status= NF90_GET_VAR(ncid_met,id%Snowf,data3, &
+                  start=(/land_x(i),land_y(i),ktau/),count=(/1,1,1/))
+             IF(status /= NF90_NOERR) CALL nc_abort &
+                  ('Error reading Snowf in met data file ' &
+                  //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+             data3(1,1,1) = data3(1,1,1) + met%precip(i)
+          END IF
+          ! Convert units:
+          met%precip(i) = data3(1,1,1) * convert%Rainf
+          ! Get LWdown data:- - - - - - - - - - - - - - - - - - - - - - - - 
+          IF(exists%LWdown) THEN ! If LWdown exists in met file
+             status= NF90_GET_VAR(ncid_met,id%LWdown,data3, &
+                  start=(/land_x(i),land_y(i),ktau/),count=(/1,1,1/))
+             IF(status /= NF90_NOERR) CALL nc_abort &
+                  ('Error reading LWdown in met data file ' &
+                  //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+             met%fld(i)=data3(1,1,1)
+          ELSE ! Synthesise LWdown based on temperature
+             ! Use Swinbank formula:
+             met%fld(i)=0.0000094*0.0000000567*(met%tk(i)**6.0)
+          END IF
+          ! Get CO2air data:- - - - - - - - - - - - - - - - - - - - - - - -
+          IF(exists%CO2air) THEN ! If CO2air exists in met file
+             status= NF90_GET_VAR(ncid_met,id%CO2air,data4, &
+                  start=(/land_x(i),land_y(i),1,ktau/),count=(/1,1,1,1/))
+             IF(status /= NF90_NOERR) CALL nc_abort &
+                  ('Error reading CO2air in met data file ' &
+                  //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+             met%ca(i) = data4(1,1,1,1)/1000000.0
+          ELSE 
+             ! Fix CO2 air concentration:
+             met%ca(i) = fixedCO2 /1000000.0
+          END IF
+          ! Set solid precip based on temp
+          met%precips = 0.0
+          IF( met%tc(i) <= 0.0 ) met%precips(i) = met%precip(i)
+
+       ELSE IF(gridType=='land') THEN
+          ! Collect data from alnd only grid in netcdf file:
+          ! Get SWdown data:- - - - - - - - - - - - - - - - - - - -
+          status= NF90_GET_VAR(ncid_met,id%SWdown,data2, &
+               start=(/i,ktau/),count=(/1,1/))
           IF(status /= NF90_NOERR) CALL nc_abort &
-               ('Error reading LWdown in met data file ' &
+               ('Error reading SWdown in met data file ' &
                //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
-          met%fld(i)=data3(1,1,1)
-       ELSE ! Synthesise LWdown based on temperature
-          ! Use Swinbank formula:
-          met%fld(i)=0.0000094*0.0000000567*(met%tk(i)**6.0)
-       END IF
-       ! Get CO2air data:- - - - - - - - - - - - - - - - - - - - - - - -
-       IF(exists%CO2air) THEN ! If CO2air exists in met file
-          status= NF90_GET_VAR(ncid_met,id%CO2air,data4, &
-               start=(/land_x(i),land_y(i),1,ktau/),count=(/1,1,1,1/))
+          ! Assign value to met data variable (no units change required):
+          met%fsd(i) = data2(1,1)
+          ! Get Tair data:- - - - - - - - - - - - - - - - - - - - -
+          status= NF90_GET_VAR(ncid_met,id%Tair,data2, &
+               start=(/i,ktau/),count=(/1,1/))
           IF(status /= NF90_NOERR) CALL nc_abort &
-               ('Error reading CO2air in met data file ' &
+               ('Error reading Tair in met data file ' &
                //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
-          met%ca(i) = data4(1,1,1,1)/1000000.0
-       ELSE 
-          ! Fix CO2 air concentration:
-          met%ca(i) = fixedCO2 /1000000.0
+          ! Assign value to met data variable with units change:
+          met%tk(i) = data2(1,1) + convert%Tair
+          met%tc(i) =  met%tk(i) - tfrz
+          ! Get PSurf data:- - - - - - - - - - - - - - - - - - - - -
+          IF(exists%PSurf) THEN ! IF PSurf is in met file:
+             status= NF90_GET_VAR(ncid_met,id%PSurf,data2, &
+                  start=(/i,ktau/),count=(/1,1/))
+             IF(status /= NF90_NOERR) CALL nc_abort &
+                  ('Error reading PSurf in met data file ' &
+                  //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+             met%pmb(i) = data2(1,1) * convert%PSurf
+          ELSE ! PSurf must be fixed as a function of site elevation and T:
+             met%pmb(i)=101.325*(met%tk(i)/(met%tk(i) + 0.0065* &
+                  elevation(land_x(i),land_y(i))))**(9.80665/287.04/0.0065)
+          END IF
+          ! Get Qair data:- - - - - - - - - - - - - - - - - - - - -
+          status= NF90_GET_VAR(ncid_met,id%Qair,data2, &
+               start=(/i,ktau/),count=(/1,1/))
+          IF(status /= NF90_NOERR) CALL nc_abort &
+               ('Error reading Qair in met data file ' &
+               //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+          IF(convert%Qair==-999.0) THEN
+             CALL rh_sh(data2(1,1), met%tk(i), &
+                  met%pmb(i),met%qv(i))
+          ELSE
+             met%qv(i) = data2(1,1)
+          END IF
+          ! Get Wind data:- - - - - - - - - - - - - - - - - - - - - -
+          IF(exists%Wind) THEN ! Scalar Wind
+             status= NF90_GET_VAR(ncid_met,id%Wind,data2, &
+                  start=(/i,ktau/),count=(/1,1/))
+             IF(status /= NF90_NOERR) CALL nc_abort &
+                  ('Error reading Wind in met data file ' &
+                  //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+             ! Assign value to met data variable (no units change required):
+             met%ua(i) = data2(1,1)
+          ELSE ! Vector wind
+             ! Get Wind_N:
+             status= NF90_GET_VAR(ncid_met,id%Wind,data2, &
+                  start=(/i,ktau/),count=(/1,1/))
+             IF(status /= NF90_NOERR) CALL nc_abort &
+                  ('Error reading Wind_N in met data file ' &
+                  //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+             met%ua(i) = data2(1,1) ! only part of the wind variable
+             status= NF90_GET_VAR(ncid_met,id%Wind_E,data2, &
+                  start=(/i,ktau/),count=(/1,1/))
+             IF(status /= NF90_NOERR) CALL nc_abort &
+                  ('Error reading Wind_E in met data file ' &
+                  //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+             ! Write final scalar Wind value:
+             met%ua(i) = SQRT(met%ua(i)**2 + data2(1,1)**2)
+          END IF
+          ! Get Rainf and Snowf data:- - - - - - - - - - - - - - - - - - -
+          status= NF90_GET_VAR(ncid_met,id%Rainf,data2, &
+               start=(/i,ktau/),count=(/1,1/))
+          IF(status /= NF90_NOERR) CALL nc_abort &
+               ('Error reading Rainf in met data file ' &
+               //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+          met%precip(i) = data2(1,1) ! store Rainf value
+          IF(exists%Snowf) THEN
+             status= NF90_GET_VAR(ncid_met,id%Snowf,data2, &
+                  start=(/i,ktau/),count=(/1,1/))
+             IF(status /= NF90_NOERR) CALL nc_abort &
+                  ('Error reading Snowf in met data file ' &
+                  //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+             data2(1,1) = data2(1,1) + met%precip(i)
+          END IF
+          ! Convert units:
+          met%precip(i) = data2(1,1) * convert%Rainf
+          ! Get LWdown data:- - - - - - - - - - - - - - - - - - - - - - - - 
+          IF(exists%LWdown) THEN ! If LWdown exists in met file
+             status= NF90_GET_VAR(ncid_met,id%LWdown,data2, &
+                  start=(/i,ktau/),count=(/1,1/))
+             IF(status /= NF90_NOERR) CALL nc_abort &
+                  ('Error reading LWdown in met data file ' &
+                  //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+             met%fld(i)=data2(1,1)
+          ELSE ! Synthesise LWdown based on temperature
+             ! Use Swinbank formula:
+             met%fld(i)=0.0000094*0.0000000567*(met%tk(i)**6.0)
+          END IF
+          ! Get CO2air data:- - - - - - - - - - - - - - - - - - - - - - - -
+          IF(exists%CO2air) THEN ! If CO2air exists in met file
+             status= NF90_GET_VAR(ncid_met,id%CO2air,data2, &
+                  start=(/i,ktau/),count=(/1,1/))
+             IF(status /= NF90_NOERR) CALL nc_abort &
+                  ('Error reading CO2air in met data file ' &
+                  //TRIM(filename_met)//' (SUBROUTINE get_met_data)')
+             met%ca(i) = data2(1,1)/1000000.0
+          ELSE 
+             ! Fix CO2 air concentration:
+             met%ca(i) = fixedCO2 /1000000.0
+          END IF
+          ! Set solid precip based on temp
+          met%precips = 0.0
+          IF( met%tc(i) <= 0.0 ) met%precips(i) = met%precip(i)
+
+       ELSE
+          CALL abort('Unrecognised grid type')
        END IF
-       ! Set solid precip based on temp
-       met%precips = 0.0
-       IF( met%tc(i) <= 0.0 ) met%precips(i) = met%precip(i)
     END DO
     ! Set cosine of zenith angle (provided by GCM when online):
     met%coszen = sinbet(met%doy, rad%latitude, met%hod)
@@ -1145,92 +1331,6 @@ CONTAINS
             CALL abort('PSurf out of specified ranges!')
     END IF
   END SUBROUTINE get_met_data
-
-  !--------------------------------------------------------------------
-  SUBROUTINE rh_sh (rh, tl, pl,        & ! I
-                               sh)          ! O
-!
-!    Purpose - To convert relative humidity to specific humidity
-!
-!
-! !Input Parameters:
-!   pl - pressure level (hPa)
-!   rh - relative humidity value [0-100]
-!   tl - temperature at pressure level (K)
-!
-! !Output Parameters:
-!   sh - specific humidity value (g/g)
-!
-!  Internal Routines Called:
-!    savtap
-!
-! !Revision History:
-!  Version 2.0   August 15, 1997
-!                Lisa Coleman, SAIC, l.h.coleman@larc.nasa.gov
-!                Shalini Gupta, SAIC, s.gupta@larc.nasa.gov
-!                Fred Rose, AS&M, f.g.rose@larc.nasa.gov
-!                Initial Version of Code
-!
-
-      REAL(r_1), INTENT (IN)  :: pl
-      REAL(r_1), INTENT (IN)  :: rh
-      REAL(r_1), INTENT (OUT) :: sh
-      REAL(r_1), INTENT (IN)  :: tl
-      REAL(r_1) :: es
-
-      REAL(r_1) :: ws
-
-      es = satvap (tl)
-      ws = 0.622 * es / (pl - es)
-      sh = (rh/100.0) * ws
-      END SUBROUTINE rh_sh
-!------------------------------------------------------------------------------------
-
-      FUNCTION satvap (tl) RESULT (F_Result)
-
-!    Purpose - To compute the saturation value used in converting between
-!              specific humidity and relative humidity
-!
-!
-! !Input Parameters:
-!   tl - temperature at pressure level being converted
-!
-! !Output Parameters:
-!   F_Result - saturation value
-!
-! !Revision History:
-!  Version 2.0   August 15, 1997
-!                Lisa Coleman, SAIC, l.h.coleman@larc.nasa.gov
-!                Shalini Gupta, SAIC, s.gupta@larc.nasa.gov
-!                Fred Rose, AS&M, f.g.rose@larc.nasa.gov
-!                Initial Version of Code
-
-      REAL :: eilog
-      REAL :: ewlog, ewlog2, ewlog3, ewlog4
-      REAL :: F_Result
-      REAL :: temp, tl
-      REAL :: toot, toto, tsot
-      temp = tl - 273.155
-      IF (temp < -20.) THEN
-!     *** ice saturation
-	  toot = 273.16 / tl
- 	  toto = 1. / toot
-  	  eilog =   -9.09718 * (toot-1)                                      &
-                  -  3.56654 * (LOG (toot) / LOG (10.))                      &
-                  +  .876793 * (1-toto)                                      &
-                  +  (LOG (6.1071) / LOG (10.))
-          F_Result = 10.**eilog
-      ELSE
-  	  tsot = 373.16 / tl
-  	  ewlog = -7.90298 * (tsot-1) + 5.02808 * (LOG (tsot) / LOG (10.))
-  	  ewlog2 =   ewlog                                                   &
-                   - 1.3816e-07 * (10**(11.344 * (1 - (1/tsot))) - 1)
-  	  ewlog3 =    ewlog2                                                 &
-                   + .0081328 * (10**(-3.49149 * (tsot-1)) - 1)
-  	  ewlog4 = ewlog3 + (LOG (1013.246) / LOG (10.))
-          F_Result = 10.**ewlog4
-      END IF
-      END FUNCTION satvap
 
 !============================================================================
   SUBROUTINE close_met_file(filename_met)

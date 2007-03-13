@@ -22,13 +22,15 @@ MODULE parameter_module
   USE define_types
   USE abort_module
   IMPLICIT NONE
+  REAL(r_1), POINTER,DIMENSION(:) :: latitude, longitude
+  INTEGER(i_d),POINTER,DIMENSION(:) :: gdpt ! gridpoint number (default params)
+
 CONTAINS
   !---------------------------------------------------------------------------
-  SUBROUTINE default_params(latitude,longitude,met,air,ssoil,veg,bgc, &
-       soil,canopy,rough,rad,sum_flux,bal,gdpt,logn)    
+  SUBROUTINE default_params(met,air,ssoil,veg,bgc, &
+       soil,canopy,rough,rad,sum_flux,bal,logn)     
     ! gets some initial conditions as well as parameters
     IMPLICIT NONE
-    REAL(r_1), ALLOCATABLE,DIMENSION(:), INTENT(IN) :: latitude, longitude
     TYPE (met_type), INTENT(INOUT) :: met
     TYPE (air_type), INTENT(INOUT) :: air
     TYPE (soil_snow_type), INTENT(OUT) :: ssoil
@@ -40,19 +42,23 @@ CONTAINS
     TYPE (radiation_type),INTENT(OUT)  :: rad
     TYPE (sum_flux_type), INTENT(OUT)  :: sum_flux
     TYPE (balances_type), INTENT(OUT)  :: bal
-    INTEGER(i_d), ALLOCATABLE,DIMENSION(:),INTENT(OUT) :: gdpt ! gridpoint number (default params)
     INTEGER(i_d),INTENT(IN) :: logn     ! log file unit number
+    INTEGER(i_d) :: numGdpt=13824 ! total number of default parameter grid gridpoints
     INTEGER(i_d) :: v_type ! vegetation type for current gridcell
     INTEGER(i_d) :: s_type ! soil type for current gridcell
-    REAL(r_1)    :: lat_temp,lon_temp,lon2 ! temporary lat lon values
+    REAL(r_1),POINTER :: lat_temp(:),lon_temp(:) ! temporary lat lon values
+    REAL(r_1)    :: lon2 ! temporary lat lon values
     REAL(r_1)    :: grid_lat, grid_lon ! gridcell centre for site
+    LOGICAL      :: gridFlag ! for reporting issues with default parameters
     INTEGER(i_d) :: ioerror ! input error integer
-    INTEGER(i_d), DIMENSION(8) :: oldgdpt ! in case gridcell is sea
+    INTEGER(i_d),POINTER, DIMENSION(:) :: oldgdpt ! in case gridcell is sea
+    INTEGER(i_d) :: max_it = 81 ! maximum # iterations to find gridqsuare default params
     INTEGER(i_d) :: nvegt ! Number of vegetation types
-    REAL(r_1), DIMENSION(2) :: tgg_temp,wb_temp ! temp soil temp + moist
+    REAL(r_1),POINTER :: tgg_temp(:,:),wb_temp(:,:) ! temp soil temp + moist
     REAL(r_1) :: distance ! used to find correct grid cell
-    CHARACTER(LEN=2) :: land,land_temp ! land/sea point read in (logical)
-    INTEGER(i_d) :: isoil, iveg ! temporary soil and veg type
+    CHARACTER(LEN=2),POINTER :: land_temp(:) ! land/sea point read in (logical)
+    CHARACTER(LEN=2) :: land ! land/sea point (logical)
+    INTEGER(i_d),POINTER :: isoil(:), iveg(:) ! temporary soil and veg type
     CHARACTER(LEN=70), DIMENSION(13) :: veg_desc
     CHARACTER(LEN=70), DIMENSION(13) :: soil_desc
     TYPE vegin_type ! dimension will be # of vegetation types
@@ -265,10 +271,15 @@ CONTAINS
     OPEN(41,FILE='surface_data/fort.22', &
          STATUS='old',ACTION='READ',IOSTAT=ioerror)
     IF(ioerror/=0) CALL abort('Cannot open veg/soil type file.')
-    DO e=1,mp
-       READ(41,*)
-       READ(41,*)
-       distance = 3.0 ! initialise, units are degrees
+    gridFlag=.FALSE. ! initialise
+    ! Allocations for parameter read in:
+    ALLOCATE(lon_temp(numGdpt),lat_temp(numGdpt),land_temp(numGdpt))
+    ALLOCATE(isoil(numGdpt),iveg(numGdpt),tgg_temp(numGdpt,2),wb_temp(numGdpt,2))
+    READ(41,*) ! skip header lines
+    READ(41,*)
+    DO e=1,mp ! over all land grid points
+       distance = 10.0 ! initialise, units are degrees
+       ALLOCATE(oldgdpt(max_it))
        oldgdpt = 0
        ! convert longitude:
        IF(longitude(e)<0.0) THEN
@@ -276,60 +287,77 @@ CONTAINS
        ELSE
           lon2 = longitude(e)
        END IF
-       DO d=1,8
-          DO b=1,13824
-             READ(41,41) lon_temp,lat_temp,land_temp,isoil,iveg, &
-                  tgg_temp(1),tgg_temp(2),wb_temp(1),wb_temp(2) 
+       
+       DO d=1,max_it ! max # additional grid searches if site is sea
+          DO b=1,numGdpt
+             IF(e==1.AND.d==1) THEN ! only read file once:
+                READ(41,41) lon_temp(b),lat_temp(b),land_temp(b),isoil(b),iveg(b), &
+                     tgg_temp(b,1),tgg_temp(b,2),wb_temp(b,1),wb_temp(b,2) 
+             END IF
              ! If current gridcell is closer, set stored to current
-             IF(SQRT((latitude(e)-lat_temp)**2 +(lon2-lon_temp)**2) &
+             IF(SQRT((latitude(e)-lat_temp(b))**2 +(lon2-lon_temp(b))**2) &
                   < distance.AND..NOT.ANY(oldgdpt==b)) THEN
                 ! Reset distance:
-                distance = SQRT((latitude(e)-lat_temp)**2 +(lon2-lon_temp)**2)
+                distance = SQRT((latitude(e)-lat_temp(b))**2 +(lon2-lon_temp(b))**2)
                 ! Note grid centre:
-                grid_lat = lat_temp
-                grid_lon = lon_temp
+                grid_lat = lat_temp(b)
+                grid_lon = lon_temp(b)
+                
                 ! Set gridpoint number:
                 gdpt(e) = b
                 ! Record soil type and veg type:
-                v_type  = iveg
-                s_type = isoil
-                land = land_temp ! land sea flag
+                v_type  = iveg(b)
+                s_type = isoil(b)
+                land = land_temp(b) ! land sea flag
                 ! Set initial soil temperature and moisture:
-                ssoil%tgg(e,1) = tgg_temp(1) ! soil temperature, 6 layers (K)
-                ssoil%tgg(e,2) = tgg_temp(1) - (tgg_temp(1)-tgg_temp(2))/5
-                ssoil%tgg(e,3) = ssoil%tgg(e,2) - (tgg_temp(1)-tgg_temp(2))/5
-                ssoil%tgg(e,4) = ssoil%tgg(e,3) - (tgg_temp(1)-tgg_temp(2))/5
-                ssoil%tgg(e,5) = ssoil%tgg(e,4) - (tgg_temp(1)-tgg_temp(2))/5
-                ssoil%tgg(e,6) = tgg_temp(2)
-                ssoil%wb(e,1) = wb_temp(1) ! volumetric soil moisture,6 layers
-                ssoil%wb(e,2) = wb_temp(1) - (wb_temp(1)-wb_temp(2))/5
-                ssoil%wb(e,3) = ssoil%wb(e,2) - (wb_temp(1)-wb_temp(2))/5
-                ssoil%wb(e,4) = ssoil%wb(e,3) - (wb_temp(1)-wb_temp(2))/5
-                ssoil%wb(e,5) = ssoil%wb(e,4) - (wb_temp(1)-wb_temp(2))/5
-                ssoil%wb(e,6) = wb_temp(2)
+                ssoil%tgg(e,1) = tgg_temp(b,1) ! soil temperature, 6 layers (K)
+                ssoil%tgg(e,2) = tgg_temp(b,1) - (tgg_temp(b,1)-tgg_temp(b,2))/5
+                ssoil%tgg(e,3) = ssoil%tgg(e,2) - (tgg_temp(b,1)-tgg_temp(b,2))/5
+                ssoil%tgg(e,4) = ssoil%tgg(e,3) - (tgg_temp(b,1)-tgg_temp(b,2))/5
+                ssoil%tgg(e,5) = ssoil%tgg(e,4) - (tgg_temp(b,1)-tgg_temp(b,2))/5
+                ssoil%tgg(e,6) = tgg_temp(b,2)
+                ssoil%wb(e,1) = wb_temp(b,1) ! volumetric soil moisture,6 layers
+                ssoil%wb(e,2) = wb_temp(b,1) - (wb_temp(b,1)-wb_temp(b,2))/5
+                ssoil%wb(e,3) = ssoil%wb(e,2) - (wb_temp(b,1)-wb_temp(b,2))/5
+                ssoil%wb(e,4) = ssoil%wb(e,3) - (wb_temp(b,1)-wb_temp(b,2))/5
+                ssoil%wb(e,5) = ssoil%wb(e,4) - (wb_temp(b,1)-wb_temp(b,2))/5
+                ssoil%wb(e,6) = wb_temp(b,2)
              END IF
-          END DO
+          END DO ! over all default par grid points 
+
           IF(land/=' T') THEN
-             WRITE(*,*) 'Problem with site location in grid - see log file.'
              IF(d==1) THEN
+                ! If this is the first problem gdpt, write nature of problem to screen:
+                IF(.NOT.gridFlag) WRITE(*,'(A39)') 'Problem with default parameter loading:'
+                ! Write to screen details about current problem grid point:
+                WRITE(*,'(A31,F6.2,A5,F6.2,A29,I7,A4,I7,A1)') '  Nearest default gridpoint to ', &
+                     latitude(e),' lat ',lon2, &
+                     ' lon is SEA - see log file. (', e, ' of ', mp, ')'
+                ! Write again to log file:
                 WRITE(logn,2) '     Site is close to gridcell centred:', &
                      grid_lat,'lat', grid_lon,'lon'
-                WRITE(logn,*) &
-                     '     this is SEA! ...looking for nearest land point...'
+                WRITE(logn,'(A63,I7,A4,I7,A1)') &
+                     '     this is SEA! ...looking for nearest land point... (land pt', e, ' of ', mp,')'
+                gridFlag = .TRUE. ! ie there have been issues finding default pars
              ELSE
                 WRITE(logn,*) 'trying ',grid_lat,'lat', grid_lon,'lon'
              END IF
              REWIND(41) ! rewind open file
-             READ(41,*)
-             READ(41,*)
+           !  READ(41,*)
+           !  READ(41,*)
              distance = distance + 3.0 ! reset distance
              oldgdpt(d) = gdpt(e)
           ELSE
+             ! ie we've found an appropriate default par gridpt for this lat/lon
              EXIT
           END IF
        END DO
        IF(land/=' T') THEN
-          CALL abort('This location is sea! - ABORTING')
+          WRITE(*,'(A16,I3,A59)') '    The nearest ',max_it, &
+               ' default parameter grid locations to this site are all SEA:' 
+          WRITE(*,'(A17,I6,A16,F6.2,A12,F6.2)') '    land point # ',e, &
+               '      latitude: ',latitude(e),' longitude: ',lon2
+          CALL abort('    *** This location is sea - ABORTING *** ')
        END IF
        IF(v_type<0.OR.v_type>13) CALL abort('Unknown veg type!')
        IF(s_type<0.OR.s_type>13) CALL abort('Unknown soil type!')
@@ -337,7 +365,7 @@ CONTAINS
        ! Report veg type, soil type and gridcell number to log file:
        WRITE(logn,*)
        WRITE(logn,*)
-       WRITE(logn,21) ' DETAILS FOR GRID POINT ', e
+       WRITE(logn,21) ' DETAILS FOR LAND POINT ', e
 21     FORMAT(A24,I8)
        WRITE(logn,4) '     Latitude ',latitude(e),'Longitude',longitude(e)
        WRITE(logn,3) '     Site is closest to gridcell #',gdpt(e), &
@@ -392,7 +420,6 @@ CONTAINS
           bal%wbtot0(e) = bal%wbtot0(e) + ssoil%wb(e,j) * soil%zse(j) * 1000.0
        END DO
        bal%osnowd0(e) = ssoil%osnowd(e)
-       REWIND(41)
        ! Write parameter set details to log file:
        WRITE(logn,*) '============================================================'
        WRITE(logn,*) '    Vegetation parameters: '
@@ -436,7 +463,7 @@ CONTAINS
        WRITE(logn,11) 'Soil density (kg/m^3): ',soil%rhosoil(e)
        WRITE(logn,11) 'Soil specific heat capacity (kJ/kg/K): ', soil%css(e)
        WRITE(logn,11) 'parameter b in Campbell equation: ', soil%bch(e)
-       WRITE(logn,11) 'hydraulic conductivity @ saturation (m/s): ',soil%hyds(e)
+       WRITE(logn,'(4X,A50,E10.4)') 'hydraulic conductivity @ saturation (m/s): ',soil%hyds(e)
        WRITE(logn,11) 'c3 drainage coeff (-): ',soil%c3(e)
        WRITE(logn,14) 'Soil carbon rate constant (1/year): ',bgc%ratecs
        WRITE(logn,11) 'Bare soil albedo (-): ', soil%albsoil(e)
@@ -478,6 +505,9 @@ CONTAINS
 2   FORMAT(A42,2(1X,F6.2,1X,A3))
 3   FORMAT(A34,I7,A9,2(1X,F8.3,1X,A3))
 4   FORMAT(2(A14,1X,F9.4,1X))
+
+    DEALLOCATE(lon_temp,lat_temp,land_temp,isoil,iveg,tgg_temp,wb_temp,oldgdpt) 
+
   END SUBROUTINE default_params
    
 END MODULE parameter_module

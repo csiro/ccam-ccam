@@ -20,8 +20,6 @@ PROGRAM offline_driver
   TYPE (sum_flux_type)	:: sum_flux ! cumulative flux variables
   TYPE (veg_parameter_type) :: veg  ! vegetation parameters	
   REAL(r_1)	        :: dels ! time step size in seconds
-  REAL(r_1), ALLOCATABLE,DIMENSION(:) :: latitude, longitude
-  INTEGER(i_d),ALLOCATABLE,DIMENSION(:) :: gdpt ! gridpoint number (default params)
   INTEGER(i_d) 	:: kstart ! start of simulation #
   INTEGER(i_d)  :: ktau	  ! index of time step = 1 ..  kend
   INTEGER(i_d)  :: ktauyear ! CCAM parameter; ignore
@@ -33,7 +31,8 @@ PROGRAM offline_driver
   !===================================================================!
   ! Filenames:
   filename_params = 'default'
-  filename_met    = './sample_met/Tumbarumba_met.nc'
+  ! filename_met    = '../huqiang/ncc_for_1949.nc'
+    filename_met    = './sample_met/Tumbarumba_met.nc'
   !  filename_met    = './sample_met/Tharandt_met.nc'
   !  filename_met    = './sample_met/Bondville_met.nc'
   !  filename_met    = './sample_met/multi_site.nc' 
@@ -41,12 +40,12 @@ PROGRAM offline_driver
   filename_log    = 'log_cable.txt'
   
   ! Which variables should be in the output file?
-  output%met = .TRUE.      ! input met data
+  output%met = .FALSE.      ! input met data
   output%flux = .TRUE.     ! convective, runoff, NEE
   output%soil = .TRUE.     ! soil states
-  output%radiation = .TRUE.! net rad, albedo
-  output%carbon = .TRUE.   ! NEE, GPP, NPP, stores 
-  output%veg = .TRUE.      ! vegetation states
+  output%radiation = .FALSE.! net rad, albedo
+  output%carbon = .FALSE.   ! NEE, GPP, NPP, stores 
+  output%veg = .FALSE.      ! vegetation states
   output%params = .TRUE.   ! input parameters used to produce run
   output%balances = .TRUE. ! energy and water balances
 
@@ -66,25 +65,24 @@ PROGRAM offline_driver
   ! Open met data and get site information from netcdf file.
   ! This retrieves time step size, number of timesteps, starting date,
   ! latitudes, longitudes, number of sites.
-  CALL open_met_file(filename_met,dels,kend,latitude,longitude)
+  CALL open_met_file(filename_met,dels,kend) !,latitude,longitude)
 
   ! Get land surface parameters and allocate main variables:
-  IF(filename_params=='default') CALL default_params &
-       (latitude,longitude,met,air,ssoil,veg,bgc,soil,canopy,rough, &
-       rad,sum_flux,bal,gdpt,logn)    
+  IF(filename_params=='default') CALL default_params( & 
+       met,air,ssoil,veg,bgc,soil,canopy,rough, &
+       rad,sum_flux,bal,logn) 
 
   ! Open output file:
-  CALL open_output_file(filename_out,dels,latitude,longitude, &
-       soil,veg,bgc,rough)
+  CALL open_output_file(filename_out,filename_met,dels,soil,veg,bgc,rough)
 
   kstart = 1
   DO ktau = kstart, kend ! time step loop
     
      ! Get met data, set time variables:
-     CALL get_met_data(ktau,filename_met,met,soil,rad,longitude,dels)
+     CALL get_met_data(ktau,filename_met,met,soil,rad,dels) 
     
      ! Get this time step's LAI:
-     CALL get_lai(ktau,met%doy,veg,kend,gdpt)
+     CALL get_lai(ktau,met%doy,veg,kend)
 
      ! CALL land surface scheme for this timestep, all grid points:
      CALL cbm(ktau, kstart, kend, ktauyear, dels, air, bgc, canopy, met, &
@@ -99,7 +97,7 @@ PROGRAM offline_driver
   ! Close met data input file:
   CALL close_met_file(filename_met)
   ! Close output file and deallocate main variables:
-  CALL close_output_file(filename_out,bal,latitude,longitude,gdpt,air, &
+  CALL close_output_file(filename_out, bal, air, &
        bgc, canopy, met, rad, rough, soil, ssoil, sum_flux, veg)
 
   ! Close log file
