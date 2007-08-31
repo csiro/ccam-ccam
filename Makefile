@@ -4,8 +4,8 @@
 PROG = ./cable
 
 FC = ifort #g95
-FFLAGS =  
-NCDIR = /usr/local/netcdf-3.6.1_ifort/
+FFLAGS = 
+NCDIR = /tools/netcdf/3.6.1/
 
 netcdf: $(PROG)
 	$(PROG)
@@ -53,5 +53,5 @@ cable_outputtxt.o: cable_outputtxt.f90 cable_checks.o
 	$(FC) $(FFLAGS) -c cable_outputtxt.f90
 clean:
 	rm -f *.o $(PROG) cable_txt *.mod
-	ln -s $(NCDIR)src/f90/netcdf.mod ./
+	ln -s $(NCDIR)include/netcdf.mod ./
 

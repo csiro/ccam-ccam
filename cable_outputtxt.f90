@@ -2,14 +2,14 @@
 !!$
 !!$ Sample text output module for CABLE land surface scheme offline text driver; 
 !!$
-!!$ Gab Abramowitz 2006 CSIRO Marine and Atmospheric
-!!$ Research/ Macquarie University; gabsun@gmail.com
+!!$ Gab Abramowitz 2007 University of New South Wales/
+!!$ CSIRO Marine and Atmospheric Research; gabsun@gmail.com
 !!$
 !!$ The subroutine in this file simply writes a collection of variables from a 
 !!$ single time step to a text file. The choice of variables and matching 
-!!$ gnuplot scripts are those used by Eva for analysis.
+!!$ gnuplot scripts are those used by Eva Kowalczyk for analysis.
 
-SUBROUTINE text_output(ktau, kstart, kend, ktauyear, dels, air, bgc, &
+SUBROUTINE text_output(ktau, kstart, kend, dels, air, bgc, &
      canopy, met, bal,rad, rough, soil, ssoil, sum_flux, veg, &
      filename_out)
   USE checks_module
@@ -19,7 +19,6 @@ SUBROUTINE text_output(ktau, kstart, kend, ktauyear, dels, air, bgc, &
   INTEGER(i_d), INTENT(IN)		:: ktau ! integration step number
   INTEGER(i_d), INTENT(IN)	       	:: kstart ! starting value of ktau
   INTEGER(i_d), INTENT(IN)	       	:: kend 
-  INTEGER(i_d), INTENT(IN)	       	:: ktauyear
   REAL(r_1), INTENT(IN)			:: dels ! integration time setp (s)
   CHARACTER(LEN=*),INTENT(IN) :: filename_out ! name of file for CABLE output
   TYPE (air_type), INTENT(INOUT)	:: air
@@ -53,7 +52,7 @@ SUBROUTINE text_output(ktau, kstart, kend, ktauyear, dels, air, bgc, &
   INQUIRE (u, opened=is_open)
   IF (.not. is_open) THEN
      OPEN (u, file=filename_out, status='replace')
-     WRITE(u, '(a6,60a14)') &
+     WRITE(u, '(a6,67a14)') &
           'ktau', 'hod', 'fsd', 'fld', 'precip', & !1-5
           'tk', 'pmb', 'ua', 'qv', 'ca', & !6-10
           'swnet', 'lwnet', 'fe', 'fh', & !11-14
@@ -68,7 +67,9 @@ SUBROUTINE text_output(ktau, kstart, kend, ktauyear, dels, air, bgc, &
           'fnv','fev','fevc','fevw','fhv', & !43-47
           'precis', 'vlai', 'ebal', 'ebalcan', 'ebalcan2', 'ebalsoil', & !48-53
           'runoff', 'rnof1', 'rnof2', 'delwc', 'snowd', & !54-58
-          'wbal', 'albedo(:,1)', 'albedo(:,2)' !59-61
+          'wbal', 'albedo(:,1)', 'albedo(:,2)', & !59-61
+          'wbal_tot','ebal_tot','wbtot0','osnowd0', & ! 62-65
+          'rnoff_tot','precip_tot','evap_tot' ! 66-68
   END IF
   xx1=ssoil%tggsn(:,1)                
   xx2=ssoil%tggsn(:,2)               
@@ -85,7 +86,7 @@ SUBROUTINE text_output(ktau, kstart, kend, ktauyear, dels, air, bgc, &
 
   swnet=SUM(rad%qcan(:,:,1),2)+SUM(rad%qcan(:,:,2),2)+rad%qssabs
   lwnet=met%fld-sboltz*emleaf*canopy%tv**4 *(1-rad%transd)-rad%flws*rad%transd
-  WRITE(u, '(i7,60e14.5)') &
+  WRITE(u, '(i7,67e14.5)') &
        ktau,met%hod(ijd),met%fsd(ijd),met%fld(ijd),met%precip(ijd), & ! 1-5
        met%tk(ijd), met%pmb(ijd),met%ua(ijd),met%qv(ijd),met%ca(ijd), & ! 6-10
        swnet(ijd),lwnet(ijd), canopy%fe(ijd),canopy%fh(ijd),&	    !11-14
@@ -103,6 +104,7 @@ SUBROUTINE text_output(ktau, kstart, kend, ktauyear, dels, air, bgc, &
        bal%drybal(ijd)+bal%wetbal(ijd), & !52
        canopy%fns(ijd)-canopy%fhs(ijd)-canopy%fes(ijd)*ssoil%cls(ijd)-canopy%ga(ijd), & !53
        ssoil%runoff(ijd),ssoil%rnof1(ijd),ssoil%rnof2(ijd),canopy%delwc(ijd),ssoil%snowd(ijd), &
-       bal%wbal(ijd),rad%albedo(ijd,1),rad%albedo(ijd,2) !59-61
-
+       bal%wbal(ijd),rad%albedo(ijd,1),rad%albedo(ijd,2), & !59-61
+       bal%wbal_tot(ijd),bal%ebal_tot(ijd),bal%wbtot0(ijd),bal%osnowd0(ijd), & ! 62-65
+       bal%rnoff_tot(ijd), bal%precip_tot(ijd),bal%evap_tot(ijd) ! 66-68
 END SUBROUTINE text_output
