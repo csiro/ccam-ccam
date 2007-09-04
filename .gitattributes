@@ -1,3 +1,4 @@
 * text=auto !eol
 /makefile.ifort -text
 /makefile.mpidummy.ifort -text
+/newmpar_uniform.h -text
