@@ -8,4 +8,5 @@
 /cbm_pack.f90 -text
 /soilbal.h -text
 /soilsnin.h -text
+/tracers.txt -text
 /vegpar.h -text

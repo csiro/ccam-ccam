@@ -3,7 +3,7 @@
       integer iradon,ico2,ngas,nllp,ntrac,ntracmax,
      .        npwr,ilt,jlt,klt,ngasmax
       real tr,traver,radonem
-      parameter(iradon=0,ico2=1,ngas=1)  ! rlw setting
+      parameter(iradon=0,ico2=1,ngas=34)  ! rlw setting
 !     parameter(iradon=0,ico2=0,ngas=0)
       parameter(nllp=0)              ! set this or next lines
 !     parameter(nllp=3)
@@ -23,6 +23,8 @@
 
       common/emission/radonem(ilt*jlt)
 
-      real gasmin(ngasmax)           ! used by mass fixer in adjust5
-      data gasmin/ngasmax*-1000./    ! modify this line for specific gases        
+!     rml 19/09/07 gasmin replaced with tracmin in tracermodule and 
+!      read from tracer.dat file, easier to pick appropriate values for each tracer
+!     real gasmin(ngasmax)           ! used by mass fixer in adjust5
+!     data gasmin/ngasmax*-1000./    ! modify this line for specific gases        
 !     data gasmin/-1000.,-1000.,-1000.,-1000.,-1000.,0.,0.,0.,-1000./ ! rlw

@@ -9,6 +9,10 @@ c
       character(len=13), dimension(:), save, allocatable :: tracunit
       character(len=50), dimension(:), save, allocatable :: tracfile
       real, dimension(:), save, allocatable :: tracival,trmass
+c     rml 18/09/07 added tracmin, tracmax (tracmin to replace gasmin in
+c     tracers.h, used in adjust5.f and outcdf.f, tracmax to be used
+c     in outcdf.f (current setting of trmax unreliable)
+      real, dimension(:), save, allocatable :: tracmin,tracmax
       integer, dimension(:), save, allocatable :: tracinterp,igashr
       real, dimension(:,:), save, allocatable :: tracdaytime
       integer, save :: numtracer, nhr
@@ -51,10 +55,14 @@ c     first read in a list of tracers, then determine what emission data is requ
       allocate(tracinterp(numtracer),tracunit(numtracer))
       allocate(tracfile(numtracer),igashr(numtracer))
       allocate(tracival(numtracer),trmass(numtracer))
+!     rml 18/09/07 added tracmin, tracmax
+      allocate(tracmin(numtracer),tracmax(numtracer))
       allocate(tracdaytime(numtracer,2))
       nhr = 0
       do nt=1,numtracer
-        read(130,*) tracname(nt),tracival(nt),tractype(nt),tracfile(nt)
+!       rml 18/09/07 added tracmin,tracmax
+        read(130,*) tracname(nt),tracival(nt),tracmin(nt),tracmax(nt),
+     &              tractype(nt),tracfile(nt)
         if (tractype(nt).eq.'monrep'.or.tractype(nt).eq.'month') then
           tracinterp(nt)=1
         elseif (tractype(nt).eq.'hourly'.or.
@@ -73,7 +81,7 @@ c     first read in a list of tracers, then determine what emission data is requ
           write(unit_trout,999) 'Tracer ',nt,tracname(nt),tractype(nt),
      &                           tracfile(nt),tracinterp(nt)
         end if
- 999    format(a7,i5,a13,a13,a50,i3)
+ 999    format(a7,i5,x,a13,a13,a50,i3)
 c
       enddo
       allocate(nghr(nhr))
@@ -579,7 +587,28 @@ c     scaling assumes CO2 with output in GtC?
 
 c     also update tracer average array here
       do igas=1,ngas
+
         traver(:,:,igas)=traver(:,:,igas)+tr(1:ilt*jlt,1:klt,igas)/ntau
+
+!       rml 18/09/07 check that tr and traver stay within defined range
+!       stop job if they don't
+        if (minval(traver(:,:,igas)).lt.tracmin(igas).or.
+     &      minval(tr(1:ilt*jlt,1:klt,igas)).lt.tracmin(igas)) then
+          write(unit_trout,*) 'WARNING: below minimum, tracer ',igas, 
+     &    tracmin(igas),minval(traver(:,:,igas)),
+     &    minval(tr(1:ilt*jlt,1:klt,igas))
+          write(6,*) 'Error: tracer out of range.  See tracer.stdout'
+          stop
+        endif
+        if (maxval(traver(:,:,igas)).gt.tracmax(igas).or.
+     &      maxval(tr(1:ilt*jlt,1:klt,igas)).gt.tracmax(igas)) then
+          write(unit_trout,*) 'WARNING: above maximum, tracer ',igas, 
+     &    tracmax(igas),maxval(traver(:,:,igas)),
+     &    maxval(tr(1:ilt*jlt,1:klt,igas))
+          write(6,*) 'Error: tracer out of range.  See tracer.stdout'
+          stop
+        endif
+
       enddo
 
 

@@ -1,0 +1,101 @@
+Running tracers in CCAM
+
+CCAM allows up to 999 tracers to be simulated.  The number to be used is
+defined at compile time by setting 'ngas' in 'tracers.h'.
+The characteristics of each tracer are defined in a tracer input file which
+has the following format
+
+header
+number of tracers (must equal ngas in tracers.h)
+tracer_name tracer_initial tracer_min tracer_max tracer_type tracer_sourcefile
+
+The final line is repeated for each tracer.
+
+tracer_name (character string of length 13):
+This name has two purposes.  For 'online' tracers (see tracer_type below), it
+indicates which CABLE CO2 flux is to be used for that tracer.  For tracers
+with prescribed sources, it can be used to identify the tracer source from a 
+file which contains fluxes for multiple tracers.
+If the tracer_name is 'radon', radon decay will be switched on in the model.
+A list of tracer names is written in the timeseries output file and the 
+tracer name is also written into the netcdf long name for each tracer field
+in the global output and restart files.
+Currently recognised 'online' tracers are:
+'cbmnep': net CO2 flux (pn+rp+rs)
+'cbmpn': photosynthesis flux (pn)
+'cbmrp': plant respiration (rp)
+'cbmrs': soil respiration (rs)
+'gppNN' where NN is vegetation type number: pn-rd
+'plrespNN' where NN is vegetation type number: rp+rd
+'slrespNN' where NN is vegetation type number: rs
+Additional recognised tracers can be added in subroutine trgassflux in
+module trvmix.
+
+tracer_initial (real):
+This sets the initial tracer mixing ratio if it is not being read from the
+restart file (indicated by -999).  The -999 used in the input tracer file 
+allows some tracers to be initialised from the restart file while others are 
+initialised with a constant value.  This is useful if new tracers are added
+part way through a simulation.  If all tracers are to be read from the restart
+file, this can also be activated by setting 'tracvalin=-999' in the 'trfiles' 
+namelist, as part of the job script.  This takes precedence over any 
+values in the tracer input file so is generally used for a simulation that
+is longer than one month.
+
+tracer_min (real) and tracer_max (real):
+These set the minimum and maximum appropriate mixing ratios for that tracer.  
+The units will depend on the units used in the source file.  
+The minimum tracer value is used in the mass fixer (adjust5.f).  
+Previously this was set as gasmin in
+tracers.h but including it in the tracer input file allows a more explicit 
+connection to be made with a named tracer.  
+The minimum and maximum tracer values are also
+used in the global and restart output code.  All output fields are scaled and
+output as 'short' integers to save space and preserve precision.  This 
+requires a minimum and maximum acceptable value to be chosen.  Since this
+can vary substantially depending on the tracer being modelled, it seemed
+safest to set this as part of the input file.  The model is currently set
+to stop if any tracer goes out of range.  It should be possible to readjust
+the tracer minimum and maximum values at the start of the month's run if
+this occurs.
+
+tracer_type (character string length 13):
+This defines whether the tracer flux is calculated online (as part of CABLE)
+or is read from a file and if so, at what time frequency.  Valid options are
+'online': use CABLE fluxes selected using the tracer_name
+'hourly': hourly fluxes, interpolate to timestep
+'3hourly': three hourly fluxes, interpolate to timestep
+'daily': daily fluxes, interpolate to timestep
+'month': monthly fluxes assumed to represent mid-month, interpolate to timestep
+'monrep': monthly fluxes repeated each year, interpolate to timestep
+'constant': constant flux, no interpolation
+'annual': annual fluxes, constant through that year
+The following options can be used to create basis functions so that a given
+tracer might be defined as 'pulseon' for the first month, then 'pulseoff' for
+the remaining months of the simulation
+'pulseon': constant flux
+'pulseoff': zero flux (despite values in source file)
+'daypulseon': constant flux through daylight hours (defined in source file),
+emission is scaled to give the same total flux as if the source was on for all
+hours
+'daypulseoff': zero flux (despite values in source file)
+
+tracer_sourcefile (character string length 50):
+This gives the location of the file containing surface fluxes for that
+tracer.  The source files are netcdf format.  Dimensions are 
+gridpts and time.  Time variables are 'tstime' (real) (not used), year (integer),
+month (integer) and hour (real).  For annually repeating fluxes the year is
+set to 0.  The variable name
+for the tracer flux is the same as tracer_name or, if that is not found,
+it will default to 'flux'.  The tracer flux needs to have a 'units'
+attribute defined.  Current recognized units are 
+'gC/m2/s'
+'mol/m2/s'
+'Bq/m2/s' (for radon).
+When the units are set to Bq/m2/s, radon decay will be switched on in the model 
+and the atmospheric tracer concentration units will be in Bq/m3.  In the other
+cases the output units will be ppm (since the tracer code is mostly used for
+CO2).  If other output units are required (e.g. ppt for SF6) then it is probably
+best to rescale the fluxes in the source file.  It may be useful to note this
+rescaling in the 'long_name' attribute for the flux since the units will no 
+longer be an accurate description of the file contents.
