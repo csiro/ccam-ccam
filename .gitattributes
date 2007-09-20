@@ -6,6 +6,9 @@
 /cable_variables.f90 -text
 /carbpools.h -text
 /cbm_pack.f90 -text
+/makefile.ifort -text
+/makefile.mpidummy.ifort -text
+/newmpar_uniform.h -text
 /soilbal.h -text
 /soilsnin.h -text
 /tracers.txt -text

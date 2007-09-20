@@ -1457,7 +1457,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 
       if(newrough>0)then
         call calczo(.05)
-        print *,'after calczo zolnd ',zolnd(idjd)
+        if ( mydiag ) print *,'after calczo zolnd ',zolnd(idjd)
         if(newrough>2)then
           zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
         endif
