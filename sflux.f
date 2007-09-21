@@ -1830,7 +1830,9 @@ c
 !!       endif
 !      enddo
 
-       CALL cbm(ktau, kstart, ntau, ktauplus+ktau, dt, air, bgc, 
+!      rml 21/09/07 remove ktauplus+ktau due to change in cable_offline
+!      CALL cbm(ktau, kstart, ntau, ktauplus+ktau, dt, air, bgc, 
+       CALL cbm(ktau, kstart, ntau, dt, air, bgc, 
      &     canopy, met, bal, rad, rough, soil, ssoil, sum_flux, veg)
 
        call cbm_unpack(ktauplus+ktau, air, bgc, canopy, met, bal, rad,

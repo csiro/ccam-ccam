@@ -62,15 +62,17 @@ MODULE roughness_module
   PUBLIC ruff_resist
 CONTAINS
   !-------------------------------------------------------------------
-  SUBROUTINE ruff_resist(veg, rough, ssoil)
+  SUBROUTINE ruff_resist(veg, rough, ssoil, canopy)
     ! m.r. raupach, 24-oct-92
     ! see: Raupach, 1992, BLM 60 375-395
     !      MRR notes "Simplified wind model for canopy", 23-oct-92
     !      MRR draft paper "Simplified expressions...", dec-92
     ! modified to include resistance calculations by Ray leuning 19 Jun 1998  
-    TYPE (veg_parameter_type), INTENT(INOUT)	   :: veg
-    TYPE (soil_snow_type), INTENT(IN)	   :: ssoil
+    TYPE (veg_parameter_type), INTENT(INOUT) :: veg
+    TYPE (soil_snow_type), INTENT(IN) :: ssoil
     TYPE (roughness_type), INTENT(INOUT) :: rough
+    TYPE (canopy_type), INTENT(INOUT)   :: canopy
+    
     REAL(r_1), DIMENSION(mp)	   :: xx ! =ccd*LAI; working variable
     REAL(r_1), DIMENSION(mp)	   :: dh ! d/h where d is zero-plane displacement
     ! Set canopy height above snow level:
@@ -78,12 +80,12 @@ CONTAINS
     ! Reference height for met data:
     rough%zref = max(rough%hruff+2.,rough%za)	 ! needs more elaborate formula
     ! LAI decreases due to snow and vegetation fraction:
-    veg%vlaiw = veg%vlai * rough%hruff/MAX(0.01,veg%hc)
+    canopy%vlaiw = veg%vlai * rough%hruff/MAX(0.01,veg%hc)
     ! Roughness length of bare soil (m):
-    rough%z0soil = min(0.001,max(0.0011*exp(-veg%vlaiw),1.e-6))
+    rough%z0soil = min(0.001,max(0.0011*exp(-canopy%vlaiw),1.e-6))
     rough%z0soilsn = max(min(-7.5e-6*(0.01*min(ssoil%snowd,20.))+ &
          rough%z0soil,rough%z0soil),0.2e-7)
-    WHERE (veg%vlaiw.LT.0.01 .OR. rough%hruff.LT. rough%z0soilsn) ! i.e. BARE SOIL SURFACE
+    WHERE (canopy%vlaiw.LT.0.01 .OR. rough%hruff.LT. rough%z0soilsn) ! i.e. BARE SOIL SURFACE
        rough%z0m = rough%z0soilsn
        rough%hruff = 0.0
        rough%rt0us = 0.0  
@@ -94,9 +96,9 @@ CONTAINS
        ! Friction velocity/windspeed at canopy height
        ! eq. 7 Raupach 1994, BLM, vol 71, p211-216
        ! (usuhm set in physical_constants module):
-       rough%usuh = MIN(SQRT(cs+cr*(veg%vlaiw*0.5)), usuhm)
+       rough%usuh = MIN(SQRT(cs+cr*(canopy%vlaiw*0.5)), usuhm)
        ! xx is ccd (see physical_constants) by LAI
-       xx = SQRT(ccd*MAX((veg%vlaiw*0.5),0.0005))
+       xx = SQRT(ccd*MAX((canopy%vlaiw*0.5),0.0005))
        ! Displacement height/canopy height:
        ! eq.8 Raupach 1994, BLM, vol 71, p211-216
        dh = 1.0 - (1.0 - EXP(-xx))/xx
@@ -107,9 +109,9 @@ CONTAINS
        ! Friction velocity/windspeed at canopy height
        ! eq. 7 Raupach 1994, BLM, vol 71, p211-216
        ! (usuhm set in physical_constants module):
-       rough%usuh = MIN(SQRT(cs+cr*(veg%vlaiw*0.5)), usuhm)
+       rough%usuh = MIN(SQRT(cs+cr*(canopy%vlaiw*0.5)), usuhm)
        ! xx is ccd (see physical_constants) by LAI:
-       xx = SQRT(ccd*MAX((veg%vlaiw*0.5),0.0005))
+       xx = SQRT(ccd*MAX((canopy%vlaiw*0.5),0.0005))
        ! eq.8 Raupach 1994, BLM, vol 71, p211-216:
        dh = 1.0 - (1.0 - EXP(-xx))/xx
        ! Calculate zero-plane displacement:
@@ -126,13 +128,13 @@ CONTAINS
        !	nb: rough%term5 added 03-oct-96 to account for sparse canopies. Constant
        !	length scale ctl*hruf replaced by ctl*(3/2)*disp, taking effect
        !	when disp<(2/3)*hruf, or total LAI < 1.11. Otherwise, rough%term5=1.
-       rough%term2  = EXP(2*csw*veg%vlaiw*(1-rough%disp/rough%hruff))
-       rough%term3  = a33**2*ctl*2*csw*veg%vlaiw
+       rough%term2  = EXP(2*csw*canopy%vlaiw*(1-rough%disp/rough%hruff))
+       rough%term3  = a33**2*ctl*2*csw*canopy%vlaiw
        rough%term5  = MAX((2./3.)*rough%hruff/rough%disp, 1.0)
        rough%term6 =  exp(3.*rough%coexp*(rough%disp/rough%hruff -1.))
        ! eq. 3.54, SCAM manual (CSIRO tech report 132)
        rough%rt0us  = rough%term5*(zdlin*LOG(zdlin*rough%disp/rough%z0soilsn) &
-            + (1-zdlin))*(EXP(2*csw*veg%vlaiw) - rough%term2)/rough%term3  ! &
+            + (1-zdlin))*(EXP(2*csw*canopy%vlaiw) - rough%term2)/rough%term3  ! &
 !              / rough%term6
        !	rt1 = turbulent resistance from canopy (z1 = disp) to
        !	reference level zref (from disp as origin). Normalisation:
@@ -189,9 +191,10 @@ MODULE radiation_module
   PRIVATE spitter ! available only from within this module
 CONTAINS
   !--------------------------------------------------------------------------
-  SUBROUTINE init_radiation(rad,veg)
+  SUBROUTINE init_radiation(rad,veg,canopy)
     TYPE (veg_parameter_type), INTENT(IN) :: veg
     TYPE (radiation_type), INTENT(INOUT) :: rad
+    TYPE (canopy_type), INTENT(INOUT)   :: canopy
     REAL(r_1), DIMENSION(nrb)   :: c1    ! sqrt(1. - taul - refl)
     REAL(r_1), DIMENSION(3)     :: cos3  ! cos(15 45 75 degrees)
     REAL(r_1), DIMENSION(nrb)   :: rhoch ! canopy reflect'n black horiz leaves(6.19)
@@ -200,13 +203,13 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)    :: xphi1 ! leaf angle parmameter 1
     REAL(r_1), DIMENSION(mp)    :: xphi2 ! leaf angle parmameter 2
     cos3 = COS(pi180 * (/ 15.0, 45.0, 75.0 /))
-    WHERE (veg%vlaiw > 1e-2)
+    WHERE (canopy%vlaiw > 1e-2)
        ! See Sellers 1985, eq.13 (leaf angle parameters):
        xphi1 = 0.5 - veg%xfang * (0.633 + 0.33 * veg%xfang)
        xphi2 = 0.877 * (1.0 - 2.0 * xphi1)
     END WHERE
     ! 2 dimensional LAI
-    xvlai2 = SPREAD(veg%vlaiw, 2, 3)
+    xvlai2 = SPREAD(canopy%vlaiw, 2, 3)
     WHERE (xvlai2 > 1e-2) ! vegetated
        ! Extinction coefficient for beam radiation and black leaves;
        ! eq. B6, Wang and Leuning, 1998
@@ -214,9 +217,9 @@ CONTAINS
     ELSEWHERE ! i.e. bare soil
        xk = 0.0		 
     END WHERE
-    WHERE (veg%vlaiw > 1e-2) ! vegetated
+    WHERE (canopy%vlaiw > 1e-2) ! vegetated
        ! Extinction coefficient for diffuse radiation for black leaves:
-       rad%extkd = -LOG(SUM(SPREAD(gauss_w, 1, mp) * EXP(-xk * xvlai2), 2)) / veg%vlaiw
+       rad%extkd = -LOG(SUM(SPREAD(gauss_w, 1, mp) * EXP(-xk * xvlai2), 2)) / canopy%vlaiw
     ELSEWHERE ! i.e. bare soil
        rad%extkd = 0.7
     END WHERE
@@ -229,7 +232,7 @@ CONTAINS
     rad%rhocdf = SPREAD(2.0 * gauss_w * rhoch, 1, mp) * xk / (xk + SPREAD(rad%extkd, 2, 3))
   END SUBROUTINE init_radiation
   !-------------------------------------------------------------------------------
-  SUBROUTINE radiation(bal, soil, ssoil, veg, air, met, rad)
+  SUBROUTINE radiation(bal, soil, ssoil, veg, air, met, rad, canopy)
     TYPE (soil_parameter_type),INTENT(IN)	        :: soil
     TYPE (soil_snow_type),INTENT(INOUT)	:: ssoil
     TYPE (veg_parameter_type),INTENT(IN)	        :: veg
@@ -237,6 +240,7 @@ CONTAINS
     TYPE (met_type),INTENT(INOUT)	:: met
     TYPE (radiation_type),INTENT(INOUT)	:: rad
     TYPE (balances_type),INTENT(INOUT)  :: bal
+    TYPE (canopy_type),INTENT(INOUT)    :: canopy
     REAL(r_1), DIMENSION(nrb) :: c1	! sqrt(1. - taul - refl)
     REAL(r_1), DIMENSION(mp)  :: cexpkbm ! canopy beam transmittance
     REAL(r_1), DIMENSION(mp)  :: cexpkdm ! canopy diffuse transmittance
@@ -258,7 +262,6 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)     :: transb	! fraction SW beam tranmitted through canopy
     REAL(r_1), DIMENSION(mp)     :: xphi1	! leaf angle parmameter 1
     REAL(r_1), DIMENSION(mp)     :: xphi2	! leaf angle parmameter 2
-    INTEGER(i_d) :: k
    
     ! coszen is set during met data read in.
     
@@ -269,20 +272,20 @@ CONTAINS
        fbeam = 0.0
     END WHERE
     ! Define vegetation mask:
-    mask = veg%vlaiw > 1e-2 .AND. met%fsd > 1.0e-2
+    mask = canopy%vlaiw > 1e-2 .AND. met%fsd > 1.0e-2
     ! Relative leaf nitrogen concentration within canopy:
-    cf2n = EXP(-rad%extkn * veg%vlaiw)
+    cf2n = EXP(-rad%extkn * canopy%vlaiw)
     ! See Sellers 1985, eq.13 (leaf angle parameters):
     xphi1 = 0.5 - veg%xfang * (0.633 + 0.33 * veg%xfang)
     xphi2 = 0.877 - (0.877 * 2.0) * xphi1
-    WHERE (veg%vlaiw > 1e-2)    ! In gridcells where vegetation exists....
+    WHERE (canopy%vlaiw > 1e-2)    ! In gridcells where vegetation exists....
        ! SW beam extinction coefficient ("black" leaves, extinction neglects
        ! leaf SW transmittance and reflectance):
        rad%extkb = xphi1 / met%coszen + xphi2
        ! Diffuse SW transmission fraction ("black" leaves, extinction neglects
        ! leaf SW transmittance and reflectance);
        ! from Monsi & Saeki 1953, quoted in eq. 18 of Sellers 1985:
-       rad%transd = EXP(-rad%extkd * veg%vlaiw)
+       rad%transd = EXP(-rad%extkd * canopy%vlaiw)
     ELSEWHERE	! i.e. bare soil
        rad%extkb = 0.5
        rad%transd = 1.0
@@ -294,7 +297,7 @@ CONTAINS
        rad%extkb=1.0e5
     END WHERE
     ! Define fraction of SW beam tranmitted through canopy:
-    transb = EXP(-rad%extkb * veg%vlaiw)
+    transb = EXP(-rad%extkb * canopy%vlaiw)
     ! Define longwave from vegetation:
     flpwb = sboltz * (met%tvrad) ** 4
     flwv = emleaf * flpwb
@@ -306,7 +309,7 @@ CONTAINS
     emair = met%fld / flpwb
     rad%gradis = 0.0 ! initialise radiative conductance
     rad%qcan = 0.0   ! initialise radiation absorbed by canopy
-    WHERE (veg%vlaiw > 1.e-2)
+    WHERE (canopy%vlaiw > 1.e-2)
        ! Define radiative conductance (Leuning et al, 1995), eq. D7:
        rad%gradis(:,1) = (4.0 * emleaf / (capp * air%rho)) * flpwb / &
             (met%tvrad) * rad%extkd * &
@@ -334,7 +337,7 @@ CONTAINS
     DO b = 1, 2	! 1 = visible, 2 = nir radiaition
        extkdm(:,b) = rad%extkd * c1(b)
        ! Define canopy diffuse transmittance (fraction):
-       cexpkdm = EXP(-extkdm(:,b) * veg%vlaiw)
+       cexpkdm = EXP(-extkdm(:,b) * canopy%vlaiw)
        ! Calculate effective diffuse reflectance (fraction):
        reffdf(:,b) = rad%rhocdf(:,b) + &
             (ssoil%albsoilsn(:,b) - rad%rhocdf(:,b)) * cexpkdm**2
@@ -343,7 +346,7 @@ CONTAINS
           ! Canopy reflection (6.21) beam:
           rhocbm(:,b) = 2.*rad%extkb/(rad%extkb+rad%extkd)*rhoch(b)
           ! Canopy beam transmittance (fraction):
-          cexpkbm = EXP(-extkbm(:,b)*veg%vlaiw)
+          cexpkbm = EXP(-extkbm(:,b)*canopy%vlaiw)
           ! Calculate effective beam reflectance (fraction):
           reffbm(:,b) = rhocbm(:,b) + (ssoil%albsoilsn(:,b) - rhocbm(:,b))*cexpkbm*cexpkbm
           cf1 = (1.0 - transb * cexpkdm) / (rad%extkb + extkdm(:,b))
@@ -372,20 +375,20 @@ CONTAINS
        ! Calculate shortwave radiation absorbed by soil:
        ! (av. of transmitted NIR and PAR through canopy)*SWdown
        rad%qssabs = 0.5 * met%fsd * ( &
-            fbeam*(1.-reffbm(:,1))*EXP(-extkbm(:,1)*veg%vlaiw) &
-            +(1.-fbeam)*(1.-reffdf(:,1))*EXP(-extkdm(:,1)*veg%vlaiw) + &
+            fbeam*(1.-reffbm(:,1))*EXP(-extkbm(:,1)*canopy%vlaiw) &
+            +(1.-fbeam)*(1.-reffdf(:,1))*EXP(-extkdm(:,1)*canopy%vlaiw) + &
             fbeam*(1.-reffbm(:,2))*cexpkbm +(1.-fbeam)*(1.-reffdf(:,2))*cexpkdm)
        ! Scaling from single leaf to canopy, see Wang & Leuning 1998 appendix C:
        rad%scalex(:,1) = (1.0 - transb * cf2n) / (rad%extkb + rad%extkn)
        ! Leaf area index of big leaf, sunlit, shaded, respectively:
        rad%fvlai(:,1) = (1.0 - transb) / rad%extkb
-       rad%fvlai(:,2) = veg%vlaiw - rad%fvlai(:,1)
+       rad%fvlai(:,2) = canopy%vlaiw - rad%fvlai(:,1)
     ELSEWHERE ! i.e. either vegetation or sunlight are NOT present
        ! Shortwave absorbed by soil/snow surface:
        rad%qssabs = (1.0 - (0.5 * (ssoil%albsoilsn(:,1) + ssoil%albsoilsn(:,2)))) * met%fsd
        rad%scalex(:,1) = 0.0
        rad%fvlai(:,1) = 0.0
-       rad%fvlai(:,2) = veg%vlaiw
+       rad%fvlai(:,2) = canopy%vlaiw
     END WHERE
     rad%scalex(:,2) = (1.0 - cf2n) / rad%extkn - rad%scalex(:,1)
     ! Total energy absorbed by canopy:
@@ -458,11 +461,11 @@ CONTAINS
     TYPE (canopy_type), INTENT(INOUT)   :: canopy
     INTEGER(i_d), INTENT(IN)            :: ktau ! integration step number
     REAL(r_1), DIMENSION(mp,mf)	        :: abs_deltlf ! ABS(deltlf)
-    REAL(r_1), DIMENSION(mp,mf,3)	:: ancj ! soln to quad eqn
+    REAL(r_2), DIMENSION(mp,mf,3)	:: ancj ! soln to quad eqn
     REAL(r_1), DIMENSION(mp,mf)		:: anx ! net photos. prev iteration
     REAL(r_1), DIMENSION(mp,mf)		:: an_y ! net photosynthesis soln
-    REAL(r_1), DIMENSION(mp)		:: avgtrs !root weighted mean soil temperature
-    REAL(r_1), DIMENSION(mp)		:: avgwrs !root weighted mean soil moisture
+  !  REAL(r_1), DIMENSION(mp)		:: avgtrs !root weighted mean soil temperature
+  !  REAL(r_1), DIMENSION(mp)		:: avgwrs !root weighted mean soil moisture
     REAL(r_1), DIMENSION(mp,mf)		:: ca2	 ! 2D CO2 concentration
     REAL(r_1), DIMENSION(mp)		:: cansat ! max canopy intercept. (mm)
     REAL(r_2), DIMENSION(mp,mf,3)	:: ci ! intercellular CO2 conc.
@@ -568,7 +571,6 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)		:: dmae ! A_{E} in eq. 3.41 in SCAM, CSIRO tech report 132
     REAL(r_1), DIMENSION(mp)		:: dmbe ! B_{E} in eq. 3.41 in SCAM, CSIRO tech report 132
     REAL(r_1), DIMENSION(mp)		:: dmce ! C_{E} in eq. 3.41 in SCAM, CSIRO tech report 132
-    REAL(r_1), DIMENSION(mp,mf)		:: tss2 ! 2D soil/snow temperature
     REAL(r_1), DIMENSION(mp)		:: tss4 ! soil/snow temperature**4
     !	REAL(r_1), DIMENSION(mp)		:: sss ! variable for Penman-Monteith evap for soil
     !	REAL(r_1), DIMENSION(mp)		:: cc1 ! variable for Penman-Monteith evap for soil
@@ -587,12 +589,12 @@ CONTAINS
     met%da = (qsatf(met%tc,met%pmb) - met%qv ) * rmair/rmh2o * met%pmb * 100.
     ! Soil water limitation on stomatal conductance:
     rwater = MAX(1.0e-4, &
-         SUM(soil%froot * MIN(1.0,ssoil%wb - SPREAD(soil%swilt, 2, ms)),2) &
-         /(soil%sfc-soil%swilt))
+         SUM(veg%froot * MIN(1.0,REAL(ssoil%wb,r_1) - &
+         SPREAD(soil%swilt, 2, ms)),2) / (soil%sfc-soil%swilt))
     ! construct function to limit stom cond for soil water availability
     fwsoil = MAX(1.0e-4,MIN(1.0, veg%vbeta * rwater))
     ! BATS-type canopy saturation proportional to LAI:
-    cansat = veg%canst1 * veg%vlaiw
+    cansat = veg%canst1 * canopy%vlaiw
     ! Leaf phenology influence on vcmax and jmax
     phenps = max (1.0e-4, MIN(1.,1. - ( (veg%tmaxvj - ssoil%tgg(:,4)+tfrz)/ &
          (veg%tmaxvj - veg%tminvj) )**2 ) )
@@ -611,9 +613,9 @@ CONTAINS
     ! Add canopy interception to canopy storage term:
     canopy%cansto = canopy%cansto + canopy%wcint
     wetfac = MAX(0.0, MIN(1.0, &
-         (ssoil%wb(:,1) - soil%swilt) / (soil%sfc - soil%swilt)))
+         (REAL(ssoil%wb(:,1),r_1) - soil%swilt) / (soil%sfc - soil%swilt)))
     ! Temporay fixer for accounting of reduction of soil evaporation due to freezing
-    wetfac = wetfac * ((1.0-ssoil%wbice(:,1)/ssoil%wb(:,1)))**2
+    wetfac = wetfac * REAL(((1.0-ssoil%wbice(:,1)/ssoil%wb(:,1)))**2,r_1)
     zetar(:,1) = zeta0 ! stability correction terms
     zetar(:,2) = zetpos + 1 
     xdleaf2 = SPREAD(veg%dleaf, 2, mf) ! characteristic leaf length
@@ -623,7 +625,6 @@ CONTAINS
     da2 = SPREAD(met%da, 2, mf)   ! water vapour pressure deficit
     dsx = da2                     ! init. leaf surface vpd
     tair2 = SPREAD(met%tc, 2, mf) ! air temp in C
-    tss2 = SPREAD(ssoil%tss, 2, mf) ! 2D soil/snow 1st layer temperature
     ejmax2 = SPREAD(veg%ejmax*phenps, 2,mf) !max. pot. electr transp. rate top leaf(mol/m2s)
     vcmax2 = SPREAD(veg%vcmax*phenps, 2,mf) !max. RuBP carboxylsation rate top leaf(mol/m2s)
     tlfx = tair2  ! initialise leaf temp iteration memory variable
@@ -657,7 +658,7 @@ CONTAINS
        CALL define_air (met, air)
        psycst = SPREAD(air%psyc, 2, mf)
        dsatdk2 = SPREAD(air%dsatdk, 2, mf)
-       CALL radiation(bal, soil, ssoil, veg, air, met, rad)
+       CALL radiation(bal, soil, ssoil, veg, air, met, rad, canopy)
        hcx = 0.0       ! init sens heat iteration memory variable
        ecx = rad%rniso ! init lat heat iteration memory variable
        rnx = rad%rniso ! init net rad iteration memory variable
@@ -686,17 +687,17 @@ CONTAINS
 
        ! rt0 = turbulent resistance from soil to canopy:
 !!$       ! correction  by Ian Harman to rough%rt0us = f( zetar )
-!!$       WHERE (veg%vlaiw.LT.0.01 .OR. rough%hruff.LT. rough%z0soilsn)
+!!$       WHERE (canopy%vlaiw.LT.0.01 .OR. rough%hruff.LT. rough%z0soilsn)
 !!$       rough%rt0us  = 0.0
 !!$       rt0old  = 0.0
 !!$       ELSEWHERE
 !!$!       rough%term6 =  exp(3.*rough%coexp*(rough%disp/rough%hruff -1.))
 !!$       rt0old  = rough%term5*(zdlin*LOG(zdlin*rough%disp/rough%z0soilsn) &
-!!$            + (1-zdlin))*(EXP(2*csw*veg%vlaiw) - rough%term2)/rough%term3
+!!$            + (1-zdlin))*(EXP(2*csw*canopy%vlaiw) - rough%term2)/rough%term3
 !!$       rough%rt0us  = rough%term5*(zdlin*LOG(zdlin*rough%disp/rough%z0soilsn) &
 !!$!            - psis( zetar(:,iter) * rough%disp/rough%zref/rough%term6)  &
 !!$!           + psis( zetar(:,iter) * rough%z0soilsn/rough%zref/rough%term6) &
-!!$            + (1-zdlin))*(EXP(2*csw*veg%vlaiw) - rough%term2)/rough%term3 &
+!!$            + (1-zdlin))*(EXP(2*csw*canopy%vlaiw) - rough%term2)/rough%term3 &
 !!$              / rough%term6
 !!$       ENDWHERE
 !!$       rt0old = rt0old / canopy%us
@@ -705,11 +706,10 @@ CONTAINS
        ! Aerodynamic resistance (sum 3 height integrals)/us
        ! See CSIRO SCAM, Raupach et al 1997, eq. 3.50:
        rough%rt1 = max(5.,(rough%rt1usa + rough%rt1usb + rt1usc) / canopy%us)
-
        WHERE (ssoil%snowd > 0.1)
           wetfac = 1.
        END WHERE
-       ssoil%rtsoil = rt0 + rough%rt1*(0.5+sign(0.5,0.02-veg%vlaiw)) 
+       ssoil%rtsoil = rt0 + rough%rt1*(0.5+sign(0.5,0.02-canopy%vlaiw)) 
        ssoil%rtsoil = max(25.,ssoil%rtsoil)   
        WHERE ( ssoil%rtsoil .GT. 2.* ortsoil .OR. ssoil%rtsoil .LT. 0.5*ortsoil )
           ssoil%rtsoil = MAX(25.,0.5*(ssoil%rtsoil + ortsoil))
@@ -722,10 +722,10 @@ CONTAINS
             veg%dleaf / air%visc)**0.5 * prandt**(1.0/3.0) / veg%shelrb
        ! Forced convection boundary layer conductance (see Wang & Leuning 1998, AFM):
 !                                gbhu corrected by F.Cruz & A.Pitman on 13/03/07
-       gbhu(:,1) = gbvtop*(1.0-EXP(-veg%vlaiw*(0.5*rough%coexp+rad%extkb))) / &
+       gbhu(:,1) = gbvtop*(1.0-EXP(-canopy%vlaiw*(0.5*rough%coexp+rad%extkb))) / &
                                                (rad%extkb+0.5*rough%coexp)
        gbhu(:,2) = (2.0/rough%coexp)*gbvtop*  &
-                            (1.0-EXP(-0.5*rough%coexp*veg%vlaiw))-gbhu(:,1)
+                            (1.0-EXP(-0.5*rough%coexp*canopy%vlaiw))-gbhu(:,1)
        ! Aerodynamic conductance:
        gaw = air%cmolar / rough%rt1
        WHERE (veg%meth > 0 )
@@ -831,7 +831,7 @@ CONTAINS
              delcx(:,:,3) = coef1(:,:,3)**2 -4.0*coef0(:,:,3)*coef2(:,:,3)
              ancj(:,:,3)  = (-coef1(:,:,3)+SQRT(MAX(0.0_r_2,delcx(:,:,3)))) &
                   /(2.0*coef2(:,:,3))
-             anx = MIN(ancj(:,:,1),ancj(:,:,2),ancj(:,:,3))
+             anx = REAL(MIN(ancj(:,:,1),ancj(:,:,2),ancj(:,:,3)),r_1)
              csx = ca2 - anx * (1.0/gaw2+rgbwc/(gbhu + gbhf))
              gswx = gswmin+MAX(0.0,rgswc*xleuning *anx)
              ! Recalculate conductance for water:
@@ -845,9 +845,7 @@ CONTAINS
              ! Update canopy sensible heat flux:
              hcx = (rad%rniso-ecx)*gh/ghr
              ! Update leaf temperature:
-             tlfx=tair2+hcx/(capp*rmair*gh)
-             !             tlfx=max(tlfx,min(tss2,tair2)-3.)
-             !             tlfx=min(tlfx,max(tss2,tair2)+3.)
+             tlfx=tair2+REAL(hcx,r_1)/(capp*rmair*gh)
              ! Update net radiation for canopy:
              rnx = rad%rniso-capp*rmair*(tlfx -tair2)*rad%gradis
              ! Update leaf surface vapour pressure deficit:
@@ -895,23 +893,25 @@ CONTAINS
        END WHERE
        ghrwet=SUM(rad%gradis,2)+ghwet
        ! Calculate fraction of canopy which is wet:
-       veg%fwet   = max(0.0,min(1.0,0.8*canopy%cansto/cansat))
+       canopy%fwet   = MAX(0.0,MIN(1.0,0.8*canopy%cansto/MAX(cansat,0.01)))
        ! Calculate lat heat from wet canopy, may be neg. if dew onto wet canopy
        ! to avoid excessive evaporation:
        ccfevw = MIN(canopy%cansto*air%rlam/dels, 2./(1440./(dels/60.))*air%rlam)
-       canopy%fevw = MIN(veg%fwet*((air%dsatdk*SUM(rad%rniso,2)+ &
+       canopy%fevw = MIN(canopy%fwet*((air%dsatdk*SUM(rad%rniso,2)+ &
             capp*rmair*met%da*ghrwet) &
             /(air%dsatdk+air%psyc*ghrwet/gwwet)), ccfevw)
        ! Calculate sens heat from wet canopy:
-       canopy%fhvw = (veg%fwet*SUM(rad%rniso,2)-canopy%fevw)*ghwet/ghrwet
+       canopy%fhvw = (canopy%fwet*SUM(rad%rniso,2)-canopy%fevw)*ghwet/ghrwet
        ! Calculate (dry) canopy transpiration, may be negative if dew
-       canopy%fevc = (1.0 - veg%fwet) * sum(ecy,2)
+       canopy%fevc = (1.0 - canopy%fwet) * sum(ecy,2)
        evapfbl = 0.
        DO k = 1,ms
           WHERE (canopy%fevc > 0.)
-             evapfb =canopy%fevc  * dels/air%rlam ! convert to mm/dt
-             evapfbl(:,k) =min(evapfb*soil%froot(:,k),max(0.,min(ssoil%wb(:,k)-soil%swilt, & 
-                  ssoil%wb(:,k)-1.05*ssoil%wbice(:,k)))*soil%zse(k)*1000.)
+             evapfb = REAL(canopy%fevc,r_1) * dels/air%rlam ! convert to mm/dt
+             evapfbl(:,k) = MIN(evapfb*veg%froot(:,k), &
+                  MAX(0.,MIN(REAL(ssoil%wb(:,k),r_1)-soil%swilt, & 
+                  REAL(ssoil%wb(:,k)-1.05*ssoil%wbice(:,k),r_1))) &
+                  * soil%zse(k)*1000.0)
           END WHERE
        END DO
        canopy%fevc = 0.
@@ -919,25 +919,25 @@ CONTAINS
           canopy%fevc=canopy%fevc+ evapfbl(:,k)*air%rlam/dels
        END DO
        ! Calculate latent heat from vegetation:
-       canopy%fev = canopy%fevc + canopy%fevw
+       canopy%fev = REAL(canopy%fevc,r_1) + canopy%fevw
        ! Calculate sensible heat from vegetation:
-       canopy%fhv = (1.0 - veg%fwet) * sum(hcy,2)  + canopy%fhvw
+       canopy%fhv = (1.0 - canopy%fwet) * REAL(sum(hcy,2),r_1)  + canopy%fhvw
        ! Calculate net rad absorbed by canopy:
-       canopy%fnv = (1.0-veg%fwet)*SUM(rny,2)+canopy%fevw+canopy%fhvw
+       canopy%fnv = (1.0-canopy%fwet)*REAL(SUM(rny,2),r_1)+canopy%fevw+canopy%fhvw
        ! canopy radiative temperature is calculated based on long-wave radiation balance
        ! Q_lw=Q_lw_iso - (1.0-fwet)*SUM(capp*rmair*(tlfy-tair)*gri - canopy%fhvw*gr/ghw
        ! Q_lw=(1-transd)*(L_soil+L_sky-2.0*L_can)
        ! therefore
        ! Q_lw_iso-Q_lw=2(1-transd)*emleaf*(Tv^4-Tc^4)
-       !	    rad%lwabv = (1.0-veg%fwet)*(capp*rmair*(tlfy(:,1) - met%tc)*rad%gradis(:,1) &
+       !	    rad%lwabv = (1.0-canopy%fwet)*(capp*rmair*(tlfy(:,1) - met%tc)*rad%gradis(:,1) &
        !		 +capp*rmair*(tlfy(:,2) - met%tc)*rad%gradis(:,2)) &
        !		 + canopy%fhvw*SUM(rad%gradis,2)/ghwet
-       rad%lwabv = (1.0-veg%fwet)*(capp*rmair*(tlfy(:,1) - &
+       rad%lwabv = (1.0-canopy%fwet)*(capp*rmair*(tlfy(:,1) - &
             (met%tk-tfrz))*rad%gradis(:,1) &
             +capp*rmair*(tlfy(:,2) - (met%tk-tfrz))*rad%gradis(:,2)) &
             + canopy%fhvw*SUM(rad%gradis,2)/ghwet
        ! add if condition here to avoid dividing by zero ie when rad%transd=1.0 Ypw:24-02-2003
-       WHERE (veg%vlaiw > 0.01 .and. rough%hruff > rough%z0soilsn)
+       WHERE (canopy%vlaiw > 0.01 .and. rough%hruff > rough%z0soilsn)
           canopy%tv = (rad%lwabv / (2.0*(1.0-rad%transd)*sboltz*emleaf)+met%tk**4)**0.25
        ELSEWHERE ! sparse canopy
           canopy%tv = met%tk
@@ -964,11 +964,13 @@ CONTAINS
        ssoil%potev =air%rho * air%rlam * dq /ssoil%rtsoil
        ! Soil latent heat:
        canopy%fes= wetfac * ssoil%potev
-       WHERE (ssoil%snowd < 0.1 .and. canopy%fes .gt. 0. )
-          canopy%fes= min(canopy%fes,max(0.,(ssoil%wb(:,1)-soil%swilt))* soil%zse(1) &
-               * 1000. * air%rlam / dels)
-          canopy%fes = min(canopy%fes,(ssoil%wb(:,1)-ssoil%wbice(:,1)) * soil%zse(1) &
-               * 1000. * air%rlam / dels)
+       WHERE (ssoil%snowd < 0.1 .AND. canopy%fes > 0.0)
+          ! Reduce for wilting point limitation:
+          canopy%fes= MIN( canopy%fes, MAX(0.0, &
+               (REAL(ssoil%wb(:,1),r_1)-soil%swilt)) *soil%zse(1)*1000.0*air%rlam/dels)
+          ! Reduce for soil ice limitation:
+          canopy%fes = MIN(canopy%fes,REAL(ssoil%wb(:,1)-ssoil%wbice(:,1),r_1) &
+               * soil%zse(1) * 1000. * air%rlam / dels)
        END WHERE
        ssoil%cls=1.
        WHERE (ssoil%snowd >= 0.1)
@@ -987,7 +989,7 @@ CONTAINS
        met%tvair = met%tk
        met%qvair = met%qv
 
-      WHERE (veg%meth > 0 .and. veg%vlaiw > 0.01 .and. rough%hruff > rough%z0soilsn) 
+      WHERE (veg%meth > 0 .and. canopy%vlaiw > 0.01 .and. rough%hruff > rough%z0soilsn) 
           !      use the dispersion matrix (DM) to find the air temperature and specific humidity 
           !      (Raupach, Finkele and Zhang 1997, pp 17)
           ! leaf boundary layer resistance for water
@@ -1033,35 +1035,33 @@ CONTAINS
           ecy = (dsatdk2*rad%rniso +capp*rmair*dva2*ghr) /(dsatdk2+psycst)
           hcy = (rad%rniso-ecy)*gh/ghr
           !             tlfx=tvair+hcx/(capp*rmair*gh)
-          tlfy=tvair2+hcy/(capp*rmair*gh)
-!          tlfy=max(tlfy,min(tss2,tair2)-3.)
-!          tlfy=min(tlfy,max(tss2,tair2)+3.)
+          tlfy=tvair2+REAL(hcy,r_1)/(capp*rmair*gh)
        END WHERE
        WHERE (veg%meth > 0 )
-          canopy%fevc = (1.0 - veg%fwet) * sum(ecy,2)
+          canopy%fevc = (1.0 - canopy%fwet) * sum(ecy,2)
           WHERE (canopy%fevc > 0.)
-             evapfb =canopy%fevc  * dels/air%rlam             ! convert to mm/dt
+             evapfb = REAL(canopy%fevc,r_1)*dels/air%rlam ! convert to mm/dt
              ! Calcualte contribution by different soil layers to canopy transpiration:
-             evapfbl(:,1) =min(evapfb*soil%froot(:,1),max(0.,min(ssoil%wb(:,1)-soil%swilt, &
-                  ssoil%wb(:,1)-1.05*ssoil%wbice(:,1)))*soil%zse(1)*1000.)
-             evapfbl(:,2) =min(evapfb*soil%froot(:,2),max(0.,min(ssoil%wb(:,2)-soil%swilt, &
-                  ssoil%wb(:,2)-1.05*ssoil%wbice(:,2)))*soil%zse(2)*1000.)
-             evapfbl(:,3) =min(evapfb*soil%froot(:,3),max(0.,min(ssoil%wb(:,3)-soil%swilt, &
-                  ssoil%wb(:,3)-1.05*ssoil%wbice(:,3)))*soil%zse(3)*1000.)
-             evapfbl(:,4) =min(evapfb*soil%froot(:,4),max(0.,min(ssoil%wb(:,4)-soil%swilt, &
-                  ssoil%wb(:,4)-1.05*ssoil%wbice(:,4)))*soil%zse(4)*1000.)
-             evapfbl(:,5) =min(evapfb*soil%froot(:,5),max(0.,min(ssoil%wb(:,5)-soil%swilt, &
-                  ssoil%wb(:,5)-1.05*ssoil%wbice(:,5)))*soil%zse(5)*1000.)
-             evapfbl(:,6) =min(evapfb*soil%froot(:,6),max(0.,min(ssoil%wb(:,6)-soil%swilt, &
-                  ssoil%wb(:,6)-1.05*ssoil%wbice(:,6)))*soil%zse(6)*1000.)
+             evapfbl(:,1) =min(evapfb*veg%froot(:,1),max(0.,REAL(min(ssoil%wb(:,1)-soil%swilt, &
+                  ssoil%wb(:,1)-1.05*ssoil%wbice(:,1)),r_1))*soil%zse(1)*1000.)
+             evapfbl(:,2) =min(evapfb*veg%froot(:,2),max(0.,REAL(min(ssoil%wb(:,2)-soil%swilt, &
+                  ssoil%wb(:,2)-1.05*ssoil%wbice(:,2)),r_1))*soil%zse(2)*1000.)
+             evapfbl(:,3) =min(evapfb*veg%froot(:,3),max(0.,REAL(min(ssoil%wb(:,3)-soil%swilt, &
+                  ssoil%wb(:,3)-1.05*ssoil%wbice(:,3)),r_1))*soil%zse(3)*1000.)
+             evapfbl(:,4) =min(evapfb*veg%froot(:,4),max(0.,REAL(min(ssoil%wb(:,4)-soil%swilt, &
+                  ssoil%wb(:,4)-1.05*ssoil%wbice(:,4)),r_1))*soil%zse(4)*1000.)
+             evapfbl(:,5) =min(evapfb*veg%froot(:,5),max(0.,REAL(min(ssoil%wb(:,5)-soil%swilt, &
+                  ssoil%wb(:,5)-1.05*ssoil%wbice(:,5)),r_1))*soil%zse(5)*1000.)
+             evapfbl(:,6) =min(evapfb*veg%froot(:,6),max(0.,REAL(min(ssoil%wb(:,6)-soil%swilt, &
+                  ssoil%wb(:,6)-1.05*ssoil%wbice(:,6)),r_1))*soil%zse(6)*1000.)
           END WHERE
           canopy%fevc=(evapfbl(:,1)+evapfbl(:,2)+evapfbl(:,3)+evapfbl(:,4)+evapfbl(:,5)+evapfbl(:,6))*air%rlam/dels
           ! Set total vegetation latent heat:
-          canopy%fev  = canopy%fevc + canopy%fevw
+          canopy%fev  = REAL(canopy%fevc,r_1) + canopy%fevw
           ! Set total vegetation sensible heat:
-          canopy%fhv  = (1.0 - veg%fwet) * sum(hcy,2)  + canopy%fhvw
+          canopy%fhv  = (1.0 - canopy%fwet) * REAL(sum(hcy,2),r_1)  + canopy%fhvw
           ! Longwave absorbed by vegetation:
-          rad%lwabv = (1.0-veg%fwet)*(capp*rmair*(tlfy(:,1) - (met%tvair-tfrz))*rad%gradis(:,1) &
+          rad%lwabv = (1.0-canopy%fwet)*(capp*rmair*(tlfy(:,1) - (met%tvair-tfrz))*rad%gradis(:,1) &
                +capp*rmair*(tlfy(:,2) - (met%tvair-tfrz))*rad%gradis(:,2)) &
                + canopy%fhvw*SUM(rad%gradis,2)/ghwet
           ! Set canopy temperature:
@@ -1084,10 +1084,12 @@ CONTAINS
           ! Soil evaporation:
           canopy%fes= wetfac * ssoil%potev
           WHERE (ssoil%snowd < 0.1 .and. canopy%fes .gt. 0. )
-             canopy%fes= min(canopy%fes,max(0.,(ssoil%wb(:,1)-soil%swilt))* soil%zse(1) &
-                  * 1000. * air%rlam / dels)
-             canopy%fes = min(canopy%fes,(ssoil%wb(:,1)-ssoil%wbice(:,1)) * soil%zse(1) &
-                  * 1000. * air%rlam / dels)
+             ! Reduce for wilting point limitation:
+             canopy%fes= min(canopy%fes,max(0.,(REAL(ssoil%wb(:,1),r_1)-soil%swilt)) &
+                  * soil%zse(1) * 1000. * air%rlam / dels)
+             ! Reduce for soil ice limitation:
+             canopy%fes = min(canopy%fes,REAL(ssoil%wb(:,1)-ssoil%wbice(:,1),r_1) &
+                  * soil%zse(1) * 1000. * air%rlam / dels)
           END WHERE
           ssoil%cls=1.
           WHERE (ssoil%snowd >= 0.1)
@@ -1132,15 +1134,15 @@ CONTAINS
     rsts = qsatf(canopy%tscrn, met%pmb)
     qtgnet = rsts * wetfac - met%qv
     canopy%cduv = canopy%us * canopy%us / max(met%ua,umin)
-    WHERE (qtgnet .gt. 0. )
+    WHERE (qtgnet > 0.0)
        qsurf = rsts * wetfac
     ELSEWHERE
        qsurf = 0.1*rsts*wetfac + 0.9*met%qv
     END WHERE
     canopy%qscrn = qsurf + qstar * denom
-    canopy%uscrn = max(0., max(met%ua,umin) - canopy%us * denom )	 ! at present incorrect
-    avgwrs = sum(soil%froot * ssoil%wb,2)
-    avgtrs = max(0.0,sum(soil%froot * ssoil%tgg,2)-tfrz)
+    canopy%uscrn = max(0.0, max(met%ua,umin) - canopy%us * denom )	 ! at present incorrect
+  !  avgwrs = REAL(SUM(veg%froot * ssoil%wb,2),r_1)
+  !  avgtrs = max(0.0,sum(veg%froot * ssoil%tgg,2)-tfrz)
     poolcoef1=(sum(spread(bgc%ratecp,1,mp)*bgc%cplant,2) - &
          bgc%ratecp(1)*bgc%cplant(:,1))
     poolcoef1w=(sum(spread(bgc%ratecp,1,mp)*bgc%cplant,2) -  &
@@ -1167,7 +1169,7 @@ CONTAINS
     canopy%frday = 12.0 * sum(rdy, 2)
     canopy%fpn = -12.0 * sum(an_y, 2)
     ! Calculate dewfall: from negative lh wet canopy + neg. lh dry canopy:
-    canopy%dewmm = - (min(0.0,canopy%fevw) + min(0.0,canopy%fevc)) * &
+    canopy%dewmm = - (min(0.0,canopy%fevw) + min(0.0,REAL(canopy%fevc,r_1))) * &
          dels * 1.0e3 / (rhow*air%rlam)
     ! Add dewfall to canopy water storage:
     canopy%cansto = canopy%cansto + canopy%dewmm
@@ -1195,13 +1197,13 @@ CONTAINS
     !    bal%drybal=ecy(:,1)+ecy(:,2)+hcy(:,1)+hcy(:,2)-rad%rniso(:,1)-rad%rniso(:,2) &
 !         +capp*rmair*(tlfy(:,1)-(met%tvair-tfrz))*rad%gradis(:,1) &
 !         +capp*rmair*(tlfy(:,2)-(met%tvair-tfrz))*rad%gradis(:,2)
-    bal%drybal=ecy(:,1)+hcy(:,1)-rad%rniso(:,1) &
+    bal%drybal=REAL(ecy(:,1)+hcy(:,1),r_1)-rad%rniso(:,1) &
          +capp*rmair*(tlfy(:,1)-(met%tvair-tfrz))*rad%gradis(:,1)
 
-    bal%drybal=ecy(:,2)+hcy(:,2)-rad%rniso(:,2) &
+    bal%drybal=REAL(ecy(:,2)+hcy(:,2),r_1)-rad%rniso(:,2) &
          +capp*rmair*(tlfy(:,2)-(met%tvair-tfrz))*rad%gradis(:,2)
     !ypw: energy balance of the wet canopy
-    bal%wetbal=canopy%fevw+canopy%fhvw-(rad%rniso(:,1)+rad%rniso(:,2))*veg%fwet &
+    bal%wetbal=canopy%fevw+canopy%fhvw-(rad%rniso(:,1)+rad%rniso(:,2))*canopy%fwet &
          +canopy%fhvw*(rad%gradis(:,1)+rad%gradis(:,2))/ghwet
 
   CONTAINS
@@ -1324,7 +1326,7 @@ MODULE cbm_module
   PRIVATE
   PUBLIC cbm 
 CONTAINS
-  SUBROUTINE cbm(ktau, kstart, kend, ktauyear, dels, air, bgc, canopy, met, &
+  SUBROUTINE cbm(ktau, kstart, kend, dels, air, bgc, canopy, met, &
        bal, rad, rough, soil, ssoil, sum_flux, veg)
     USE carbon_module
     USE soil_snow_module
@@ -1332,11 +1334,9 @@ CONTAINS
     USE physical_constants
     USE roughness_module
     USE radiation_module
-    INTEGER(i_d) :: k  
     INTEGER(i_d), INTENT(IN)		:: ktau ! integration step number
     INTEGER(i_d), INTENT(IN)	       	:: kstart ! starting value of ktau
     INTEGER(i_d), INTENT(IN)	       	:: kend ! total # timesteps in run
-    INTEGER(i_d), INTENT(IN)	       	:: ktauyear
     REAL(r_1), INTENT(IN)		:: dels ! time setp size (s)
     TYPE (air_type), INTENT(INOUT)	:: air
     TYPE (bgc_pool_type), INTENT(INOUT)	:: bgc	
@@ -1352,15 +1352,15 @@ CONTAINS
 
      veg%meth = 1
 
-    CALL ruff_resist(veg, rough, ssoil)
-    CALL init_radiation(rad,veg)   ! need to be called at every dt
+    CALL ruff_resist(veg, rough, ssoil, canopy)
+    CALL init_radiation(rad, veg, canopy)
     ! Calculate canopy variables:
     CALL define_canopy(ktau,bal,rad,rough,air,met,dels,ssoil,soil,veg,bgc,canopy)
     ! Calculate soil and snow variables:
-    CALL soil_snow(dels, ktau, soil, ssoil, canopy, met)
+    CALL soil_snow(dels, ktau, soil, ssoil, veg, canopy, met)
 
     !	need to adjust fe after soilsnow
-    canopy%fev	= canopy%fevc + canopy%fevw
+    canopy%fev	= REAL(canopy%fevc,r_1) + canopy%fevw
     ! Calculate total latent heat flux:
     canopy%fe = canopy%fev + canopy%fes
     ! Calculate net radiation absorbed by soil + veg

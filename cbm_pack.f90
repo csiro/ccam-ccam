@@ -69,14 +69,17 @@
 
        do ip=1,ipland  ! all land points
        iq=iperm(ip)
-          soil%froot(ip,1)= froot(ivegt(iq),1)
-          soil%froot(ip,2)= froot(ivegt(iq),2)
-          soil%froot(ip,3)= froot(ivegt(iq),3)
-          soil%froot(ip,4)= froot(ivegt(iq),4)
-          soil%froot(ip,5)= froot(ivegt(iq),5)
-          soil%froot(ip,6)= froot(ivegt(iq),6)
+!         rml 21/09/07 changed soil%froot to veg%froot to match changes 
+!         in cable_offline
+          veg%froot(ip,1)= froot(ivegt(iq),1)
+          veg%froot(ip,2)= froot(ivegt(iq),2)
+          veg%froot(ip,3)= froot(ivegt(iq),3)
+          veg%froot(ip,4)= froot(ivegt(iq),4)
+          veg%froot(ip,5)= froot(ivegt(iq),5)
+          veg%froot(ip,6)= froot(ivegt(iq),6)
           soil%bch(ip) = bch(isoilm(iq))
-          soil%c3(ip)= c3(isoilm(iq))
+!         rml 21/09/07 c3 no longer needed in updated soilsnow
+!         soil%c3(ip)= c3(isoilm(iq))
           soil%cnsd(ip) = cnsd(isoilm(iq))
           soil%css(ip) = css(isoilm(iq))
           soil%rhosoil(ip) = rhos(isoilm(iq))

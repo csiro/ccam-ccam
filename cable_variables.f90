@@ -1,7 +1,6 @@
 !!$ cable_variables.f90
 !!$
-!!$ This file declares all non-local variables for CABLE, 
-!!$ CSIRO land surface model
+!!$ This file declares all non-local variables for CABLE
 !!$
 !!$ Science development by Ying-Ping Wang, Eva Kowalczyk, Mike Raupach, 
 !!$ Ray Leuning et al at CSIRO Marine and Atmospheric Research.
@@ -47,11 +46,9 @@ MODULE define_types
   TYPE soil_parameter_type 
      REAL(r_1), DIMENSION(:), POINTER :: albsoil ! soil reflectance
      REAL(r_1), DIMENSION(:), POINTER :: bch  ! parameter b in Campbell equation
-     REAL(r_1), DIMENSION(:), POINTER :: c3   ! c3 drainage coeff (fraction)
      REAL(r_1), DIMENSION(:), POINTER :: clay ! fraction of soil which is clay
      REAL(r_1), DIMENSION(:), POINTER :: cnsd ! thermal conductivity of dry soil [W/m/K]
      REAL(r_1), DIMENSION(:), POINTER :: css  ! soil specific heat capacity [kJ/kg/K]
-     REAL(r_1), DIMENSION(:,:), POINTER :: froot  ! fraction of root in each soil layer
      REAL(r_1), DIMENSION(:), POINTER :: hsbh  ! difsat * etasat (=hyds*abs(sucs)*bch)
      REAL(r_1), DIMENSION(:), POINTER :: hyds  ! hydraulic conductivity @ saturation [m/s], Ksat
      INTEGER(i_d), DIMENSION(:), POINTER :: i2bp3  ! parameter one in K vis suction (=nint(bch)+2)
@@ -94,38 +91,39 @@ MODULE define_types
      REAL(r_1), DIMENSION(:,:), POINTER  :: tggsn ! snow temperature in K
      REAL(r_1), DIMENSION(:), POINTER :: tss     ! surface temperature (weighted soil, snow)
      REAL(r_2), DIMENSION(:,:), POINTER :: wb    ! volumetric soil moisture (solid+liq)
-     REAL(r_1), DIMENSION(:,:), POINTER :: wbfice !
-     REAL(r_2), DIMENSION(:,:), POINTER :: wbice  ! soil ice
-     REAL(r_2), DIMENSION(:,:), POINTER :: wblf !
+     REAL(r_1), DIMENSION(:,:), POINTER :: wbfice ! fraction of ssat that is ice
+     REAL(r_2), DIMENSION(:,:), POINTER :: wbice  ! volumentric soil ice
+     REAL(r_2), DIMENSION(:,:), POINTER :: wblf  ! fraction of ssat that is liquid
      REAL(r_1), DIMENSION(:), POINTER :: wbtot   ! total soil water (mm)
   END TYPE soil_snow_type
   ! Vegetation parameters:
   TYPE veg_parameter_type
-     INTEGER(i_d),DIMENSION(:), POINTER :: iveg ! vegetation type
-     INTEGER(i_d),DIMENSION(:), POINTER :: meth ! method for calculation of canopy fluxes and temp.
-     REAL(r_1), DIMENSION(:), POINTER :: vlai   ! leaf area index
-     REAL(r_1), DIMENSION(:), POINTER :: vlaimax ! ???
-     REAL(r_1), DIMENSION(:), POINTER :: vlaiw  ! lai adjusted for snow depth for calculation of resistances
-     REAL(r_1), DIMENSION(:), POINTER :: fwet   ! fraction of canopy wet
      REAL(r_1), DIMENSION(:), POINTER :: canst1 ! max intercepted water by canopy (mm/LAI)
+     REAL(r_1), DIMENSION(:), POINTER :: dleaf  ! chararacteristc legnth of leaf (m)
      REAL(r_1), DIMENSION(:), POINTER :: ejmax  ! max pot. electron transport rate top leaf(mol/m2/s)
      REAL(r_1), DIMENSION(:), POINTER :: frac4  ! fraction of c4 plants
-     REAL(r_1), DIMENSION(:), POINTER :: tminvj ! min temperature of the start of photosynthesis
-     REAL(r_1), DIMENSION(:), POINTER :: tmaxvj ! max temperature of the start of photosynthesis
-     REAL(r_1), DIMENSION(:), POINTER :: vbeta  ! 
-     REAL(r_1), DIMENSION(:), POINTER :: hc	! roughness height of canopy (veg - snow)
-     REAL(r_1), DIMENSION(:), POINTER :: shelrb ! sheltering factor (dimensionless)
-     REAL(r_1), DIMENSION(:), POINTER :: vcmax  ! maximum RuBP carboxylation rate top leaf (mol/m2/s)
-     REAL(r_1), DIMENSION(:), POINTER :: xfang  ! leaf angle PARAMETER
-     REAL(r_1), DIMENSION(:), POINTER :: dleaf  ! chararacteristc legnth of leaf (m)
+     REAL(r_1), DIMENSION(:,:), POINTER :: froot  ! fraction of root in each soil layer
+     REAL(r_1), DIMENSION(:), POINTER :: hc	! roughness height of canopy
+     INTEGER(i_d),DIMENSION(:), POINTER :: iveg ! vegetation type
+     INTEGER(i_d),DIMENSION(:), POINTER :: meth ! method for calculation of canopy fluxes and temp.
      REAL(r_1), DIMENSION(:), POINTER :: rp20   ! plant respiration coefficient at 20 C
      REAL(r_1), DIMENSION(:), POINTER :: rpcoef ! temperature coef nonleaf plant respiration (1/C)
+     REAL(r_1), DIMENSION(:), POINTER :: shelrb ! sheltering factor (dimensionless) 
+     REAL(r_1), DIMENSION(:), POINTER :: tminvj ! min temperature of the start of photosynthesis
+     REAL(r_1), DIMENSION(:), POINTER :: tmaxvj ! max temperature of the start of photosynthesis
+     REAL(r_1), DIMENSION(:), POINTER :: vbeta  ! stomatal sensitivity to soil water
+     REAL(r_1), DIMENSION(:), POINTER :: vcmax  ! maximum RuBP carboxylation rate top leaf (mol/m2/s)
+     REAL(r_1), DIMENSION(:), POINTER :: vlai   ! leaf area index
+     REAL(r_1), DIMENSION(:), POINTER :: vlaimax ! ???
+     REAL(r_1), DIMENSION(:), POINTER :: xfang  ! leaf angle PARAMETER
   END TYPE veg_parameter_type
   ! Canopy/vegetation variables:
   TYPE canopy_type
      REAL(r_1), DIMENSION(:), POINTER :: cansto ! canopy water storage (mm)
+     REAL(r_1), DIMENSION(:), POINTER :: cduv  ! drag coefficient for momentum
      REAL(r_1), DIMENSION(:), POINTER :: delwc ! change in canopy water store (mm/dels)
      REAL(r_1), DIMENSION(:), POINTER :: dewmm ! dewfall (mm)
+     REAL(r_2), DIMENSION(:), POINTER :: dgdtg ! derivative of gflux wrt soil temp
      REAL(r_1), DIMENSION(:), POINTER :: fe    ! total latent heat (W/m2)
      REAL(r_1), DIMENSION(:), POINTER :: fh    ! total sensible heat (W/m2)
      REAL(r_1), DIMENSION(:), POINTER :: fpn   ! plant photosynthesis (g C s-1)
@@ -144,21 +142,21 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: fns   ! net rad avail to soil (W/m2)
      REAL(r_1), DIMENSION(:), POINTER :: fes   ! latent heatfl from soil (W/m2)
      REAL(r_1), DIMENSION(:), POINTER :: fhs   ! sensible heat flux from soil
-     REAL(r_1), DIMENSION(:), POINTER :: tv    ! vegetation temp (K)
+     REAL(r_1), DIMENSION(:), POINTER :: fwet   ! fraction of canopy wet
      REAL(r_1), DIMENSION(:), POINTER :: ga    ! ground heat flux (W/m2) ???
      REAL(r_1), DIMENSION(:), POINTER :: ghflux  ! ground heat flux (W/m2) ???
-     REAL(r_1), DIMENSION(:), POINTER :: sghflux ! ground heat flux (W/m2) ???
-     REAL(r_2), DIMENSION(:), POINTER :: dgdtg ! derivative of gflux wrt soil temp
-     REAL(r_1), DIMENSION(:), POINTER :: through ! canopy throughfall (mm)
      REAL(r_1), DIMENSION(:), POINTER :: precis! throughfall to soil, after snow (mm)
-     REAL(r_1), DIMENSION(:), POINTER :: rnet  ! net radiation absorbed by surface (W/m2)
-     REAL(r_1), DIMENSION(:), POINTER :: spill ! can.storage excess after dewfall (mm)
-     REAL(r_1), DIMENSION(:), POINTER :: wcint ! canopy rainfall interception (mm)
-     REAL(r_1), DIMENSION(:), POINTER :: us    ! friction velocity
-     REAL(r_1), DIMENSION(:), POINTER :: tscrn ! air temperature at screen height (oC)
      REAL(r_1), DIMENSION(:), POINTER :: qscrn ! specific humudity at screen height (g/g)
+     REAL(r_1), DIMENSION(:), POINTER :: rnet  ! net radiation absorbed by surface (W/m2)
+     REAL(r_1), DIMENSION(:), POINTER :: sghflux ! ground heat flux (W/m2) ???
+     REAL(r_1), DIMENSION(:), POINTER :: spill ! can.storage excess after dewfall (mm)
+     REAL(r_1), DIMENSION(:), POINTER :: through ! canopy throughfall (mm)
+     REAL(r_1), DIMENSION(:), POINTER :: tscrn ! air temperature at screen height (oC)
+     REAL(r_1), DIMENSION(:), POINTER :: tv    ! vegetation temp (K)
+     REAL(r_1), DIMENSION(:), POINTER :: us    ! friction velocity
      REAL(r_1), DIMENSION(:), POINTER :: uscrn ! wind speed at screen height (m/s)
-     REAL(r_1), DIMENSION(:), POINTER :: cduv  ! drag coefficient for momentum
+     REAL(r_1), DIMENSION(:), POINTER :: vlaiw  ! lai adjusted for snow depth for calculation of resistances
+     REAL(r_1), DIMENSION(:), POINTER :: wcint ! canopy rainfall interception (mm)
   END TYPE canopy_type
   ! Radiation variables:
   TYPE radiation_type
@@ -314,11 +312,9 @@ CONTAINS
     INTEGER, INTENT(in) :: mp
     ALLOCATE ( var % albsoil(mp) )
     ALLOCATE ( var % bch(mp) )
-    ALLOCATE ( var % c3(mp) )
     ALLOCATE ( var % clay(mp) )
     ALLOCATE ( var % cnsd(mp) )
     ALLOCATE ( var % css(mp) )
-    ALLOCATE ( var % froot(mp,ms) )
     ALLOCATE ( var % hsbh(mp) )
     ALLOCATE ( var % hyds(mp) )
     ALLOCATE ( var % i2bp3(mp) )
@@ -374,8 +370,7 @@ CONTAINS
     ALLOCATE ( var % meth(mp) )
     ALLOCATE ( var % vlai(mp) )
     ALLOCATE ( var % vlaimax(mp) )
-    ALLOCATE ( var % vlaiw(mp) )
-    ALLOCATE ( var % fwet(mp) )
+    ALLOCATE ( var % froot(mp,ms) )
     ALLOCATE ( var % canst1(mp) )
     ALLOCATE ( var % ejmax(mp) )
     ALLOCATE ( var % frac4(mp) )
@@ -415,6 +410,8 @@ CONTAINS
     ALLOCATE ( var % fns(mp) )
     ALLOCATE ( var % fes(mp) )
     ALLOCATE ( var % fhs(mp) )
+    ALLOCATE ( var % vlaiw(mp) )
+    ALLOCATE ( var % fwet(mp) )
     ALLOCATE ( var % tv(mp) )
     ALLOCATE ( var % ga(mp) )
     ALLOCATE ( var % ghflux(mp) )
@@ -562,11 +559,9 @@ CONTAINS
     INTEGER, INTENT(in) :: mp
     DEALLOCATE ( var % albsoil )
     DEALLOCATE ( var % bch )
-    DEALLOCATE ( var % c3 )
     DEALLOCATE ( var % clay )
     DEALLOCATE ( var % cnsd )
     DEALLOCATE ( var % css )
-    DEALLOCATE ( var % froot )
     DEALLOCATE ( var % hsbh )
     DEALLOCATE ( var % hyds )
     DEALLOCATE ( var % i2bp3 )
@@ -622,8 +617,7 @@ CONTAINS
     DEALLOCATE ( var % meth )
     DEALLOCATE ( var % vlai )
     DEALLOCATE ( var % vlaimax )
-    DEALLOCATE ( var % vlaiw )
-    DEALLOCATE ( var % fwet )
+    DEALLOCATE ( var % froot )
     DEALLOCATE ( var % canst1 )
     DEALLOCATE ( var % ejmax )
     DEALLOCATE ( var % frac4 )
@@ -663,6 +657,8 @@ CONTAINS
     DEALLOCATE ( var % fns )
     DEALLOCATE ( var % fes )
     DEALLOCATE ( var % fhs )
+    DEALLOCATE ( var % vlaiw )
+    DEALLOCATE ( var % fwet )
     DEALLOCATE ( var % tv )
     DEALLOCATE ( var % ga )
     DEALLOCATE ( var % ghflux )

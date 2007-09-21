@@ -1,7 +1,32 @@
+!!$ cable_checks.f90
+!!$
+!!$ Energy and mass conservation routines; acceptable ranges for i/o  
+!!$ variables in offline netcdf driver.
+!!$
+!!$ Eva Kowalczyk, Gab Abramowitz 2006 CSIRO Marine and Atmospheric
+!!$ Research/ University of New South Wales; gabsun@gmail.com
+!!$
+!!$ ranges_type below sets the acceptable ranges for all variables
+!!$ coming in or going out of the offline netcdf driver. The mass_balance
+!!$ and energy_balance subroutines calculate cumulative and per-timestep 
+!!$ balances, as well as allow user to scrutinise balances in
+!!$ particular sections of the code - largely for diagnostics/fault finding.
+!!$ rh_sh - converts relative to sensible humidity if met file units require it
+
 MODULE checks_module
   USE canopy_module
   USE define_types
-  implicit none
+  USE physical_constants
+  IMPLICIT NONE
+  TYPE units_type
+     CHARACTER(LEN=1) :: Rainf ! 's' (mm/s) or 'h' (mm/h)
+     CHARACTER(LEN=1) :: PSurf  ! 'h'(hPa or mbar) or 'P'(Pa)
+     CHARACTER(LEN=1) :: Tair  ! 'C' or 'K'
+     CHARACTER(LEN=1) :: Qair  ! '%' or 'g' (spec hum)
+     CHARACTER(LEN=1) :: CO2air ! 'p' (ppmv)
+     CHARACTER(LEN=1) :: Wind ! 'm'(m/s)
+  END TYPE units_type
+  TYPE(units_type) :: units
   TYPE ranges_type 
      REAL(r_1), DIMENSION(2) :: nav_lon = (/-360.0,360.0/)   
      REAL(r_1), DIMENSION(2) :: nav_lat = (/-90.0,90.0/)   
@@ -25,6 +50,7 @@ MODULE checks_module
      REAL(r_1), DIMENSION(2) :: Qg = (/-1000.0,1000.0/)    ! W/m^2   
      REAL(r_1), DIMENSION(2) :: SWnet = (/0.0,1250.0/)     ! W/m^2
      REAL(r_1), DIMENSION(2) :: LWnet = (/-500.0,510.0/)   ! W/m^2 
+     REAL(r_1), DIMENSION(2) :: Rnet = (/-500.0,1250.0/)   ! W/m^2 
      REAL(r_1), DIMENSION(2) :: Evap = (/-0.0003,0.00035/)      
      REAL(r_1), DIMENSION(2) :: Ewater = (/-0.0003,0.0003/)
      REAL(r_1), DIMENSION(2) :: ESoil = (/-0.0003,0.0003/)     
@@ -49,7 +75,7 @@ MODULE checks_module
      REAL(r_1), DIMENSION(2) :: SWE = (/0.0,2000.0/)           
      REAL(r_1), DIMENSION(2) :: RootMoist = (/0.0,2000.0/)     
      REAL(r_1), DIMENSION(2) :: CanopInt = (/0.0,100.0/)  
-     REAL(r_1), DIMENSION(2) :: NEE = (/-50.0,20.0/) ! umol/m2/s
+     REAL(r_1), DIMENSION(2) :: NEE = (/-70.0,50.0/) ! umol/m2/s
      REAL(r_1), DIMENSION(2) :: NPP = (/-20.0,50.0/) ! umol/m2/s
      REAL(r_1), DIMENSION(2) :: GPP = (/-10.0,50.0/) ! umol/m2/s 
      REAL(r_1), DIMENSION(2) :: AutoResp = (/-50.0,20.0/) ! umol/m2/s
@@ -59,8 +85,7 @@ MODULE checks_module
      REAL(r_1), DIMENSION(2) :: SnowDepth = (/0.0,5.0/)
      ! parameters:
      REAL(r_1), DIMENSION(2) :: bch = (/2.0,15.0/)  
-     REAL(r_1), DIMENSION(2) :: latitude = (/-90.0,90.0/)   
-     REAL(r_1), DIMENSION(2) :: c3 = (/0.0,1.0/)         
+     REAL(r_1), DIMENSION(2) :: latitude = (/-90.0,90.0/)          
      REAL(r_1), DIMENSION(2) :: clay = (/0.0,1.0/)  
      REAL(r_1), DIMENSION(2) :: css = (/700.0,2000.0/)         
      REAL(r_1), DIMENSION(2) :: rhosoil = (/300.0,3000.0/)    
@@ -81,7 +106,11 @@ MODULE checks_module
      REAL(r_1), DIMENSION(2) :: hc = (/0.0,100.0/)         
      REAL(r_1), DIMENSION(2) :: lai = (/0.0,8.0/)
      REAL(r_1), DIMENSION(2) :: rp20 = (/0.1,10.0/)       
-     REAL(r_1), DIMENSION(2) :: rpcoef = (/0.05,0.15/)
+!<<<<<<< .working
+!     REAL(r_1), DIMENSION(2) :: rpcoef = (/0.05,0.15/)
+!=======
+     REAL(r_1), DIMENSION(2) :: rpcoef = (/0.05,1.5/)
+!>>>>>>> .merge-right.r387
      REAL(r_1), DIMENSION(2) :: shelrb = (/1.0,3.0/)     
      REAL(r_1), DIMENSION(2) :: vcmax = (/5.0E-6,1.5E-4/)      
      REAL(r_1), DIMENSION(2) :: xfang = (/-1.0,1.0/)      
@@ -107,15 +136,14 @@ CONTAINS
     TYPE (canopy_type),INTENT(IN):: canopy ! canopy variable data
     TYPE(met_type),INTENT(IN) :: met  ! met data
     TYPE (air_type),INTENT(IN) 	:: air
-    REAL(r_1), DIMENSION(:,:,:),allocatable, SAVE :: bwb ! volumetric soil moisture
-    REAL(r_1), DIMENSION(mp) :: delwb ! change in soilmoisture b/w tsteps
-    REAL(r_1), DIMENSION(mp) :: into_soil ! moisture into soil
+    REAL(r_2), DIMENSION(:,:,:),POINTER, SAVE :: bwb ! volumetric soil moisture
+    REAL(r_2), DIMENSION(mp) :: delwb ! change in soilmoisture b/w tsteps
     REAL(r_1), DIMENSION(mp) :: canopy_wbal ! canopy water balance
     TYPE (balances_type),INTENT(INOUT):: bal 
     INTEGER :: j, k ! do loop counter
     
     IF(ktau==1) THEN
-       allocate ( bwb(mp,ms,2) )
+       ALLOCATE( bwb(mp,ms,2) )
        bwb(:,:,1)=ssoil%wb ! initial vlaue of soil moisture
     ELSE
        ! Calculate change in soil moisture b/w timesteps:
@@ -135,19 +163,13 @@ CONTAINS
        !  - (change in snow depth) - (surface runoff) - (deep drainage)
        !  - (evaporated water from vegetation and soil(excluding fevw, since
        !      it's included in change in canopy storage calculation))
-       bal%wbal = met%precip - canopy%delwc - ssoil%snowd+ssoil%osnowd & 
+       bal%wbal = REAL(met%precip - canopy%delwc - ssoil%snowd+ssoil%osnowd & 
             -ssoil%rnof1-ssoil%rnof2-(canopy%fevw+canopy%fevc + &
-            canopy%fes/ssoil%cls)*dels/air%rlam - delwb
+            canopy%fes/ssoil%cls)*dels/air%rlam - delwb,r_1)
 
        ! Canopy water balance: precip-change.can.storage-throughfall-evap+dew
-       canopy_wbal=met%precip-canopy%delwc-canopy%through - &
-            (canopy%fevw+MIN(canopy%fevc,0.0))*dels/air%rlam
-
-       ! Water into soil: (canopy throughfall) - (change in snow water) -
-       ! (runoff and deep drainage) - (dry canopy transpiration) - (soil latent)
-       into_soil = canopy%through - ssoil%snowd+ssoil%osnowd & 
-            -ssoil%rnof1-ssoil%rnof2-(MAX(canopy%fevc,0.0) + canopy%fes)* & 
-            dels/air%rlam
+       canopy_wbal=REAL(met%precip-canopy%delwc-canopy%through - &
+            (canopy%fevw+MIN(canopy%fevc,0.0))*dels/air%rlam,r_1)
        
        IF(ktau>10) THEN
           DO j=1,mp	
@@ -165,50 +187,6 @@ CONTAINS
                      (canopy%fevw(j)+MIN(canopy%fevc(j),0.0))*dels/air%rlam(j)
                 STOP 'Water balance failure within canopy.'
              END IF
-!!$             IF(ABS(bal%wbal(j))>=1e-3) THEN
-!!$                WRITE(*,*) '****',(bal%wbal), 'Excess in water balance:'
-!!$                WRITE(*,*) 'Timestep:',ktau, 'land point #:',j
-!!$                print*, 'net water into soil:',into_soil(j),'soil moisture change:',delwb(j)
-!!$                print*, 'canopy water balance:',canopy_wbal(j)
-!!$                print*,'fev:',canopy%fev(j)*dels/air%rlam(j),'fevc:',canopy%fevc(j) &
-!!$                     *dels/air%rlam(j),'fevw:',canopy%fevw(j)*dels/air%rlam(j)
-!!$                print*, 'fes:',canopy%fes(j)*dels/air%rlam(j),'dew:',canopy%dewmm(j)
-!!$                print*, 'airT:',met%tc(j),'fe:',(canopy%fev(j)+canopy%fes(j))* &
-!!$                     dels/air%rlam(j)
-!!$                print*, 'fes:',canopy%fes(j)*dels/air%rlam(j)
-!!$                print*, 'precip', met%precip(j),'canopy throughfall',canopy%through(j), &
-!!$                     'delwc',canopy%delwc(j)
-!!$                print*, 'osd:',ssoil%osnowd(j), 'snowd:',ssoil%snowd(j), &
-!!$                     'Diff:',ssoil%snowd(j)-ssoil%osnowd(j)
-!!$                print*, 'runoff:',ssoil%rnof1(j),'deepd:',ssoil%rnof2(j)
-!!$               ! STOP 'water balance failure.'
-!!$             END IF
-!!$             ELSE
-!!$                IF(water_dump) THEN
-!!$                   ! Dump excess water into bottom layer soil:
-!!$                   ssoil%wb(j,6)=ssoil%wb(j,6)+(delwat(j)-wbal(j))/(soil%zse(6)*1000)
-!!$    
-!!$                   ! Recalculate this timestep's bwb:
-!!$                   IF(MOD(REAL(ktau),2.0)==1.0) THEN         ! if odd timestep
-!!$                      bwb(:,:,1)=ssoil%wb
-!!$                      do k=1,mp           ! wbal = current smoist - prev tstep smoist
-!!$                         wbal(k)=SUM((bwb(k,:,1)-(bwb(k,:,2)))*soil%zse)*1000
-!!$                      end do
-!!$                   ELSE IF(MOD(REAL(ktau),2.0)==0.0) THEN    ! if even timestep
-!!$                      bwb(:,:,2)=ssoil%wb
-!!$                      do k=1,mp           ! wbal = current smoist - prev tstep smoist
-!!$                         wbal(k)=SUM((bwb(k,:,2)-(bwb(k,:,1)))*soil%zse)*1000
-!!$                      end do
-!!$                   END IF
-!!$                   ! Check dump okay:
-!!$                   IF(ABS((delwat(j)-wbal(j)))>5e-5) CALL abort('Error in water dump (checks.f90)')
-!!$                   ! Update soilsnow soil moisture variable:
-!!$                   wb(:,6)=UNPACK(ssoil%wb(:,6),land,wb(:,6))
-!!$                   
-!!$                !   IF(ktau>38600) print*, ktau, 'post', delwat(j)-wbal(j),'wb',wb
-!!$
-!!$                END IF
-            
           END DO
           ! Add current water imbalance to total imbalance (method 1 for water balance):
           bal%wbal_tot = bal%wbal_tot + bal%wbal
@@ -217,16 +195,11 @@ CONTAINS
           bal%rnoff_tot = bal%rnoff_tot + ssoil%rnof1 + ssoil%rnof2
           bal%evap_tot = bal%evap_tot + &
                (canopy%fev+canopy%fes/ssoil%cls) * dels/air%rlam
-          ! Cumulative water balance is (method 2 for water balance):
-          ! total precip - runoff - evap + change is soil moisture + change in snow
-          !bal%wbal_tot = bal%precip_tot - bal%rnoff_tot - bal%evap_tot + &
-          !     (bal%wbtot0 -ssoil%wbtot) + (bal%osnowd0 - ssoil%snowd)
-               
-
+          
        END IF
     
   END SUBROUTINE mass_balance
-  
+ !==================================================================================
   SUBROUTINE energy_balance(ktau,dels,met,rad,canopy,bal,ssoil)
     USE physical_constants
     INTEGER(i_d), INTENT(IN)     :: ktau ! time step
@@ -236,76 +209,155 @@ CONTAINS
     TYPE(radiation_type),INTENT(IN)   :: rad  ! met data
     TYPE (balances_type),INTENT(INOUT):: bal 
     TYPE (soil_snow_type),INTENT(IN)  :: ssoil ! soil data
-    REAL(r_1), DIMENSION(mp)     :: ebalcan,ebalcan2 ! energy balances
-    REAL(r_1), DIMENSION(mp)     :: SWbal ! SW rad balance
     INTEGER :: j ! do loop counter
 
     ! SW absorbed + LW absorbed - (LH+SH+ghflux) should = 0
     bal%ebal = SUM(rad%qcan(:,:,1),2)+SUM(rad%qcan(:,:,2),2)+rad%qssabs &
          +met%fld-sboltz*emleaf*canopy%tv**4*(1-rad%transd)- &
-        ! rad%flws*rad%transd - canopy%fe -canopy%fh -canopy%ghflux   
-      !   rad%flws*rad%transd - canopy%fe -canopy%fh -canopy%ga
          rad%flws*rad%transd -canopy%fev-canopy%fes/ssoil%cls &
          -canopy%fh -canopy%ga
+    ! Add to cumulative balance:
+    bal%ebal_tot = bal%ebal_tot + bal%ebal
 
-    ebalcan2=bal%drybal+bal%wetbal
-
-    ! distribution of fnv amongst fluxes
-    ebalcan=canopy%fnv-canopy%fhv-canopy%fev
-
-    ! will not hold when fes updated for snow evap
-   ! ebalsoil=canopy%fns-canopy%fhs-canopy%fes-canopy%ghflux
-
-    ! SW absorbed by canopy + abs by soil - (SWin-SW reflected) should =0
-    SWbal=SUM(rad%qcan(:,:,1),2)+SUM(rad%qcan(:,:,2),2)+rad%qssabs &
-         - met%fsd*(1-(rad%albedo(:,1)+rad%albedo(:,2))/2)
-
-    ! Stop if imbalances.
-    IF(ktau>10) THEN
-          DO j=1,mp	
-!!$            IF(ABS(ebalcan(j))>1e-4) CALL abort('canopy energy partitioning failure.')
-!!$             !  IF(ABS(ebalsoil(j))>1e-4) CALL abort('soil energy balance failure.')
-!!$             IF(ABS(SWbal(j))>1e-4) THEN
-!!$                print*, 'ktau:',ktau, 'mp:',j
-!!$                print*, 'fsd:',met%fsd(1),'albedo:',rad%albedo(1,:)
-!!$                print*, 'qcanSW:',rad%qcan(1,:,1),rad%qcan(1,:,2)
-!!$                print*, 'qssabs', rad%qssabs
-!!$                CALL abort('SW balance failure')
-!!$             END IF
-!!$             IF(ABS(ebalcan2(j))>1e-4) THEN
-!!$                print*, 'ktau:',ktau, 'mp:',j
-!!$                CALL abort('canopy energy balance failure')
-!!$             END IF
-!!$             IF(ABS(bal%ebal(j))>1e-3)  THEN
-!!$                WRITE(*,*) '**** Energy balance problem:'
-!!$                WRITE(*,*) 'Timestep:',ktau, 'land point #:',j
-!!$                WRITE(*,*) 'enegry balance:', bal%ebal(j)
-!!$                WRITE(*,*) 'SW absorbed:',SUM(rad%qcan(j,:,1))+ &
-!!$                     SUM(rad%qcan(j,:,2))+rad%qssabs(j)
-!!$                WRITE(*,*) 'LW absorbed:',met%fld(1) - sboltz*emleaf* &
-!!$                     canopy%tv**4*(1-rad%transd) - rad%flws*rad%transd
-!!$                WRITE(*,*) 'sum of energy fluxes:', canopy%fe+canopy%fh+canopy%ga
-!!$               
-!!$                CALL abort('General energy imbalance ')
-!!$             END IF
-
-!!$             ELSE
-!!$                IF(energy_dump) THEN
-!!$                   ! Add energy to soil sensible heat:
-!!$                   canopy%fh(j) = canopy%fh(j) + bal%ebal(j)
-!!$                   canopy%fhs(j) = canopy%fhs(j) + bal%ebal(j)
-!!$                   ! Recalculate energy balance:
-!!$                   bal%ebal = met%fsd*(1-(rad%albedo(:,1)+rad%albedo(:,2))/2) &
-!!$                        +met%fld(1)-sboltz*emleaf*canopy%tv**4*(1-rad%transd) &
-!!$                        -rad%flws*rad%transd &
-!!$                        -canopy%fe -canopy%fh -canopy%ghflux   
-!!$                   ! Check okay
-!!$                   IF(ABS(bal%ebal(j))>5e-4) CALL abort('Ebal dump failed!')
-!!$                END IF
-            
-          END DO
-          bal%ebal_tot = bal%ebal_tot + bal%ebal
+  END SUBROUTINE energy_balance
+!===============================================================================
+     SUBROUTINE units_in(met,rad,dels)
+       ! Changes units for CABLE text driver, if required, and 
+       ! initialises several met variables.
+       TYPE (met_type), INTENT(INOUT) :: met
+       TYPE (radiation_type),INTENT(IN) :: rad
+       REAL(r_1),INTENT(IN) :: dels
+       REAL(r_1) :: temp_hum ! temporary humidity variable
+       INTEGER :: i ! do loop counter
+       
+       ! Adjust rainfall units:
+       IF(units%Rainf=='s') THEN
+          met%precip = met%precip*dels
+       ELSE IF(units%Rainf=='h') THEN
+          met%precip = met%precip*dels/3600.0
+       ELSE IF(units%Rainf=='t') THEN
+          ! no change required
+       ELSE
+          WRITE(*,*) 'unknown rainfall units'
        END IF
-     END SUBROUTINE energy_balance
+       ! Adjust surface pressure units:
+       IF(units%PSurf=='P') THEN
+          met%pmb = met%pmb*0.01
+       ELSE IF(units%PSurf=='h') THEN
+          ! no change required
+       ELSE
+          WRITE(*,*) 'unknown pressure units'
+       END IF
+       ! Adjust air temperature units:
+       IF(units%Tair=='K') THEN
+          met%tc = met%tc - tfrz
+       ELSE IF(units%Tair=='C') THEN
+          ! no change required
+       ELSE
+          WRITE(*,*) 'unknown temperature units'
+       END IF
+       ! Create Kelvin temperature:
+       met%tk = met%tc + tfrz
+       ! Adjust humidity units:
+       IF(units%Qair=='%') THEN
+          DO i=1,mp
+             temp_hum = met%qv(i)
+             CALL rh_sh(temp_hum, met%tk(i), &
+                  met%pmb(i),met%qv(i))
+          END DO
+       ELSE IF(units%Qair=='g') THEN
+          ! no change required
+       ELSE
+          WRITE(*,*) 'unknown humidity units'
+       END IF
+       ! Adjust CO2 concentration units:
+       IF(units%CO2air=='p') THEN
+          met%ca = met%ca/1000000.0
+       ELSE IF(units%CO2air=='m') THEN
+          ! no change required
+       ELSE
+          WRITE(*,*) 'unknown temperature units'
+       END IF
+       
+       ! Initialise other met variables:
+       WHERE(met%tc<0.0) 
+          met%precips = met%precip
+       ELSEWHERE
+          met%precips=0.0
+       END WHERE
+       met%tvair = met%tk 
+       met%tvrad = met%tk 
+       met%coszen = sinbet(met%doy, rad%latitude, met%hod)
+       
+       ! Check ranges are okay:
+       ! Multiply acceptable Rainf ranges by time step size:
+       ranges%Rainf = ranges%Rainf*dels ! range therefore depends on dels
+       IF(ANY(met%fsd<ranges%SWdown(1)).OR.ANY(met%fsd>ranges%SWdown(2))) THEN
+          WRITE(*,*)'SWdown out of specified ranges! Check units.'
+          STOP
+       ELSE IF(ANY(met%fld<ranges%LWdown(1)).OR.ANY(met%fld>ranges%LWdown(2)))THEN
+          WRITE(*,*) 'LWdown out of specified ranges! Check units.'
+          STOP
+       ELSE IF(ANY(met%qv<ranges%Qair(1)).OR.ANY(met%qv>ranges%Qair(2))) THEN
+          WRITE(*,*) 'Qair out of specified ranges! Check units.'
+          STOP
+       ELSE IF(ANY(met%precip<ranges%Rainf(1)).OR.ANY(met%precip>ranges%Rainf(2))) THEN
+          WRITE(*,*) 'Rainf out of specified ranges! Check units'
+          STOP
+       ELSE IF(ANY(met%ua<ranges%Wind(1)).OR.ANY(met%ua>ranges%Wind(2))) THEN
+          WRITE(*,*) 'Wind out of specified ranges! Check units'
+          STOP
+       ELSE IF(ANY(met%tk<ranges%Tair(1)).OR.ANY(met%tk>ranges%Tair(2))) THEN        
+          WRITE(*,*)  'Tair out of specified ranges! Check units.'
+          STOP
+       ELSE IF(ANY(met%pmb<ranges%PSurf(1)).OR.ANY(met%pmb>ranges%PSurf(2))) THEN
+          WRITE(*,*) 'PSurf out of specified ranges! Check units'
+          STOP
+       END IF
 
+     END SUBROUTINE units_in
+
+!===========================================================================
+     SUBROUTINE rh_sh (relHum,tk,psurf,specHum)
+       ! Converts relative humidity to specific humidity
+       REAL, INTENT (IN)  :: psurf  ! surface pressure (hPa)
+       REAL, INTENT (IN)  :: relHum ! relative humidity (%)
+       REAL, INTENT (OUT) :: specHum ! specific humidity (kg/kg)
+       REAL, INTENT (IN)  :: tk     ! air temp (K) 
+       REAL :: es ! saturation vapour pressure
+       REAL :: ws ! specific humidity at saturation
+       es = svp (tk) ! saturation vapour pressure
+       ws = 0.622 * es / (psurf - es) ! specific humidity at saturation
+       specHum = (relHum/100.0) * ws ! specific humidity
+     END SUBROUTINE rh_sh
+!------------------------------------------------------------------------------------
+     FUNCTION svp(tk) RESULT (F_Result)
+       ! Calculate saturation vapour pressure
+       REAL :: eilog
+       REAL :: ewlog, ewlog2, ewlog3, ewlog4
+       REAL :: F_Result
+       REAL :: temp, tk
+       REAL :: toot, toto, tsot
+       temp = tk - 273.155
+       IF (temp < -20.) THEN
+          ! ice saturation
+          toot = 273.16 / tk
+          toto = 1. / toot
+          eilog =   -9.09718 * (toot-1)                                      &
+               -  3.56654 * (LOG (toot) / LOG (10.))                      &
+               +  .876793 * (1-toto)                                      &
+               +  (LOG (6.1071) / LOG (10.))
+          F_Result = 10.**eilog
+       ELSE
+          tsot = 373.16 / tk
+          ewlog = -7.90298 * (tsot-1) + 5.02808 * (LOG (tsot) / LOG (10.))
+          ewlog2 =   ewlog                                                   &
+               - 1.3816e-07 * (10**(11.344 * (1 - (1/tsot))) - 1)
+          ewlog3 =    ewlog2                                                 &
+               + .0081328 * (10**(-3.49149 * (tsot-1)) - 1)
+          ewlog4 = ewlog3 + (LOG (1013.246) / LOG (10.))
+          F_Result = 10.**ewlog4
+       END IF
+     END FUNCTION svp
+!============================================================================
 END MODULE checks_module
