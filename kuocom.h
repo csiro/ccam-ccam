@@ -1,5 +1,5 @@
       integer kbsav,ktsav,iterconv,ksc,kscmom,kscsea,kuocb,ldr,mbase,
-     .        mdelay,methdetr,methprec,nclddia,ncvcloud,ncvmix,
+     .        mdelay,methdetr,methprec,nbase,nclddia,ncvcloud,ncvmix,
      .        nevapcc,nevapls,nkuo,nrhcrit,nstab_cld,nuvconv 
       real alflnd,alfsea ,cldh_lnd,cldm_lnd,cldl_lnd,cldh_sea,cldm_sea,
      .     cldl_sea,convfact,convpsav,convtime,
@@ -35,6 +35,7 @@
      .  ,mdelay       ! convective delay time in secs                [0] 
      .  ,methdetr     ! meth_shallow_detrainment for convjlm, 2 off  [2]
      .  ,methprec     ! meth_precip (deep_detrainment) for convjlm   [8]
+     .  ,nbase        ! type of base: 1 simple; 2 linear to sfce     [1] 
      .  ,nclddia      ! conversion of RH to cloudiness, 0, 3, or     [5]
      .  ,ncvcloud     ! convective cloud enhancement in radrive      [0]
      .  ,ncvmix       ! cumulus mixing in vertmix                    [0]

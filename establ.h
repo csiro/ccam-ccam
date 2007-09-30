@@ -42,12 +42,14 @@ c TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
       establ(t_) =
      &       (1.-(tdiff(t_)-aint(tdiff(t_))))*table(int(tdiff(t_)))
      &     + (tdiff(t_)-aint(tdiff(t_)))*table(int(tdiff(t_))+1)
-      qsat(pp_,t_) = epsil*establ(t_)/(pp_-establ(t_)) !Usual formula
-c      qsat(pp_,t) = epsil*establ(t_)/pp_ !Consistent with V4-5 to V4-7
+      qsat(pp_,t_) = epsil*establ(t_)/max(pp_-establ(t_),.1) !jlm strato
+c     qsat(pp_,t_) = epsil*establ(t_)/(pp_-establ(t_)) !Usual formula
+c     qsat(pp_,t) = epsil*establ(t_)/pp_ !Consistent with V4-5 to V4-7
 
 c These give the ice values needed for the qcloud scheme
       estabi(t_) =
      &      (1.-(tdiff(t_)-aint(tdiff(t_))))*tablei(int(tdiff(t_)))
      &    + (tdiff(t_)-aint(tdiff(t_)))*tablei(int(tdiff(t_))+1)
-      qsati(pp_,t_) = epsil*estabi(t_)/(pp_-estabi(t_)) !Usual formula
-c      qsati(pp_,t_) = epsil*estabi(t_)/pp_ !Consistent with V4-5 to V4-7
+      qsati(pp_,t_) = epsil*estabi(t_)/max(pp_-estabi(t_),.1) !jlm strato
+c     qsati(pp_,t_) = epsil*estabi(t_)/(pp_-estabi(t_)) !Usual formula
+c     qsati(pp_,t_) = epsil*estabi(t_)/pp_ !Consistent with V4-5 to V4-7

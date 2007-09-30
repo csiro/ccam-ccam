@@ -1,4 +1,6 @@
 * text=auto !eol
 /makefile.ifort -text
 /makefile.mpidummy.ifort -text
+/mpif.h -text
 /newmpar_uniform.h -text
+/parmsurf.h -text

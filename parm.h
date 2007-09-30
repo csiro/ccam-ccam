@@ -1,12 +1,12 @@
       integer meso,nem,ngwd,nrungcm,newtop,nhor,nhorps,                  &
      &        khor,khdif,kountr,ndiur,nrad,nvmix,nlocal,nhorjlm,         &
      &        nhstest,namip,nspecial,newrough,newsoilm,nsib,nsoil,       &
-     &        ntaft,ntsea,ntsur,ntsur2,lgwd,newztsea,nglacier,           &
+     &        ntaft,ntsea,ntsur,ntsur2,lgwd,newztsea,nglacier,mbd,       &
      &        nbd,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,   &
      &        nudu_hrs,ktau,ndi,ndi2,ntau,nperavg,nperday,nmaxpr,nlv,    &
      &        ia,ib,ja,jb,id,jd,idjd,                                    &
      &        io_clim,io_in,io_out,io_rest,io_spec,                      &
-     &        nwt,nqg,nrun,nrunx,nextout,nclim,nfly                  
+     &        nwt,nqg,nrun,nrunx,nextout,nclim,nfly,nsemble                  
       real qgmin,hdiff,hdifmax,rlong0,rlat0,schmidt,schm13,              &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
      &     ds,dt,dtin,timea,panfg,panzo
@@ -20,7 +20,7 @@
 
       common/parmvmix/nvmix,nlocal
 
-      common/parmtest/nhstest,namip,nspecial
+      common/parmtest/nhstest,namip,nsemble,nspecial
 
       common/parmgeom/rlong0,rlat0,schmidt,schm13
 
@@ -30,7 +30,7 @@
      &                panfg,panzo     
 
       common/parmnudg/nbd,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,   &
-     &                nud_hrs,nudu_hrs   
+     &                nud_hrs,nudu_hrs,mbd
 
       common/parmtime/ktau,ntau,nperavg,nperday,ds,dt,dtin,timea,nmaxpr, &
      &                diag,nlv,ia,ib,ja,jb,id,jd,idjd,ndi,ndi2
