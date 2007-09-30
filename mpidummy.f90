@@ -108,3 +108,8 @@ subroutine MPI_Get_count
    stop
 end subroutine MPI_Get_count
 
+subroutine mpi_dup_fn_
+   print*, "Error, dummy mpi_dup_fn_ called"
+   stop
+end subroutine mpi_dup_fn_
+
