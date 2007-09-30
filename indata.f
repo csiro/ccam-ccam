@@ -1,5 +1,6 @@
       subroutine indata(hourst,newsnow,jalbfix)! nb  newmask not yet passed thru
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
+      use ateb ! MJT CHANGE
       use cc_mpi
       use diag_m
 !     rml 21/02/06 removed all so2 code
@@ -20,6 +21,7 @@
       include 'newmpar.h'
       include 'aalat.h'     ! alat,along
       include 'arrays.h'
+      include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       include 'const_phys.h'
       include 'dates.h'     ! mtimer
       include 'dava.h'      ! davt
@@ -57,12 +59,10 @@
       real rlong0x,rlat0x,schmidtx
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
       real sigin
-      integer kk
-      common/sigin/sigin(kl),kk  ! for vertint, infile
-!     common/work3/p(ifull,kl),dum3(ifull,kl,4)
-      real zss, psav, tsss, dum0, dumzs, aa, bb, dum2
-      common/work2/zss(ifull),psav(ifull),tsss(ifull),dum0(ifull),
-     &  dumzs(ifull,3),aa(ifull),bb(ifull),dum2(ifull,9)
+      integer ik,jk,kk
+      common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
+      real, dimension(ifull) :: zss, aa
+      real, dimension(ifull,2) :: dumzs
       real tbarr(kl),qgin(kl),zbub(kl)
       character co2in*80,radonin*80,surfin*80,header*80
 
@@ -87,11 +87,11 @@
      &     epsmax, fracs, fracwet, ftsoil, gwdfac, hefact,
      &     helim, hemax, hemax_g, polenx, poleny, polenz, pslavge,
      &     rad, radu, radv, ri, rj, rlai, rlat_d, rlon_d,
-     &     rmax, rmin, rmax_g, rmin_g, sinlat, sinlong, sinth, snalb,
-     &     sumdsig, thet, timegb, tsoil, uzon, vmer, w,
-     &     wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, distnew,
+     &     rmax, rmin, rmax_g, rmin_g, rlatd, rlongd, 
+     &     sinlat, sinlong, sinth, snalb,sumdsig, thet, timegb, tsoil, 
+     &     uzon, vmer, wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, 
      &     xbub, ybub, xc, yc, zc, xt, yt, zt, tbubb, emcent,
-     &     deli, delj, centi, distx, rhs, ril2
+     &     deli, delj, centi, distnew, distx, rhs, ril2
 
       real, dimension(44), parameter :: vegpmin = (/
      &              .98,.85,.85,.5,.2,.1 ,.85,.5,.2,.5,                ! 1-10
@@ -116,8 +116,16 @@
      &              .5, .5, .5, .5, .5, .5, .5, .5, .5, .5,     ! 11-20 winter
      &              .5, .5, .5, .5, .5, .5, .5, .5, .5, .5, .5, ! 21-31 winter
      & .5,.5, .6, .6, .6, .25, .3 , .25, .2, .25, .05, .6, .5 /)! 32-44 winter
+      real vegpsig(44)
+      data vegpsig/ .98,.85,.85,.5,.2,.05,.85,.5,.2,.5,                ! 1-10
+     &              .2,.05,.5,.2,.05,.2,.05,.85,.5,.2,                 ! 11-20
+     &              .05,.85,.85,.55,.65,.2,.05,.5, .0, .0, .5,         ! 21-31
+     &              .98,.75,.75,.75,.5,.86,.65,.79,.3, .42,.02,.54,0./ ! 32-44
+!    &              .05,.85,.85,.55,.65,.2,.05,.5, .0, .0, 0.,         ! 21-31
       real, dimension(ifull_g) :: glob2d
       real, dimension(ifull_g) :: davt_g
+      real, dimension(ifull,1:3) :: roofgg,wallegg,wallwgg,roadgg ! MJT CHANGE
+      real, dimension(ifull) :: roofwb,roadwb ! MJT CHANGE
 
       call start_log(indata_begin)
       bam(1)=114413.
@@ -139,16 +147,14 @@
       ! to read this.
       ! read(28,*)(sigmh(k),k=1,kl+1) !runs into dsig, but ok
       read(28,*)(sigmh(k),k=1,kl) 
-!     if(epsp.ne.0.)then              ! done in adjust5 from 16/5/00
-!       print *,'bam altered because epsp =',epsp
-!       do k=1,kl
-!        bam(k)=(1.+epsp)*bam(k)
-!       enddo
-!     endif
       if (myid==0) then
         print *,'tbar: ',tbar
         print *,'bam: ',bam
-        if(nh.ne.0)call eig(sig,sigmh,tbar(1),lapsbot,isoth,dt,epsnh,nh)
+        if(nh.ne.0)then
+c         print *,'this one uses supplied eigs'
+          if(nh==2.and.lapsbot.ne.3)stop 'nh=2 needs lapsbot=3'
+          call eig(sig,sigmh,tbar(1),lapsbot,isoth,dt,0.,nh)
+        endif  ! (nh.ne.0)
       end if
 
 !     read in namelist for uin,vin,tbarr etc. for special runs
@@ -202,6 +208,27 @@
            endif    ! (rlatt(iq)*180./pi  ....)
           enddo
          endif       ! (nspecial==2)
+         if(nspecial==31)then
+           do iq=1,ifull
+            if(rlongg(iq)*180./pi>60.and.rlongg(iq)*180./pi<240..and.
+     &         rlatt(iq)*180./pi>20.and.rlatt(iq)*180./pi<60.)
+     &      zs(iq)=.8*zs(iq)
+           enddo
+         endif
+         if(nspecial==32)then
+           do iq=1,ifull
+            if(rlongg(iq)*180./pi>60.and.rlongg(iq)*180./pi<240..and.
+     &         rlatt(iq)*180./pi>20.and.rlatt(iq)*180./pi<60.)
+     &      zs(iq)=.5*zs(iq)
+           enddo
+         endif
+         if(nspecial==33)then
+           do iq=1,ifull
+            if(rlongg(iq)*180./pi>60.and.rlongg(iq)*180./pi<240..and.
+     &         rlatt(iq)*180./pi>20.and.rlatt(iq)*180./pi<60.)
+     &      zs(iq)=.2*zs(iq)
+           enddo
+         endif
 
          do iq=1,ifull
             if(dumzs(iq,2)>=0.5)then
@@ -242,7 +269,8 @@
      &           psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
      &           tgg,wb,wbice,alb,snowd,
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag)
+     &           tggsn,smass,ssdn,ssdnn,snage,isflag,
+     &           roofgg,wallegg,wallwgg,roadgg,roofwb,roadwb)  ! MJT CHANGE add urban types
             if ( mydiag ) then
                print *,'timegb,ds,zss',timegb,ds,zss(idjd)
                print *,'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
@@ -276,10 +304,10 @@ c           endif  ! (nspecial>100)
             call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
      &           tgg,wb,wbice,snowd,
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag)
+     &           tggsn,smass,ssdn,ssdnn,snage,isflag,
+     &           roofgg,wallegg,wallwgg,roadgg,roofwb,roadwb) ! MJT CHANGE add urban types
          endif   ! (io_in==-1.or.io_in==-3)
  
-         tss(:)=abs(tss(:)) ! not done in infile because -ve needed for onthefly
          if(nproc==1)then
            pslavge=0.
            do iq=1,ifull
@@ -298,6 +326,7 @@ c           endif  ! (nspecial>100)
                endif
             enddo
          endif                  ! (newtop==2)
+         tss(:)=abs(tss(:)) ! not done in infile because -ve needed for onthefly
 
          if ( myid == 0 ) then
             print *,'rlatt(1),rlatt(ifull) ',rlatt(1),rlatt(ifull)
@@ -530,8 +559,8 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
          endif
       endif
 
-!     for the held-suarez test
-      if ( io_in == 10 ) then
+!     for the held-suarez hs test (also aquaplanet initial)
+      if (io_in==10) then
          vin=0.
          do k=1,kl
             do iq=1,ifull
@@ -572,7 +601,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
                zs(iq) = 0.
             enddo               ! iq loop
          enddo ! k loop
-      endif   ! held-suarez test case (also aquaplanet initial)
+      endif   ! (io_in==10) held-suarez test (also aquaplanet initial)
 
       if(io_in==11)then
 !       advection test, once around globe per 10 days
@@ -805,13 +834,60 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
          isoilm(iq)=1  ! default for h_s etc
         enddo
       endif      ! (nsib>=1)
-      
-      do iq=1,ifull
-       if(land(iq))then  
+
+      if (nsib.ne.5) then ! MJT CHANGE
+       do iq=1,ifull
+        if(land(iq))then  
 !        following line from 16/3/06 avoids sand on Himalayas        
          if(zs(iq)>2000.*grav.and.isoilm(iq)<3)isoilm(iq)=3
-       endif
-      enddo                 
+        endif
+       enddo
+      end if
+
+      !-----------------------------------------------------------------
+      ! MJT CHANGE - needs to occur before wbice is modified in any way
+      if (any(wb.lt.0.)) then
+        if (mydiag) print *,"Unpacking wetfac to wb"
+        wb(:,:)=abs(wb(:,:))
+        do iq=1,ifull
+          isoil=isoilm(iq)
+          wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
+        end do
+        if (any(wbice.lt.0.)) then
+          ! the next lines are taken from onthefly
+          do k=1,ms
+!           following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
+            wbice(:,k)=
+     &           min(.99,max(0.,.99*(273.1-tgg(:,k))/5.))*wb(:,k) ! jlm
+          enddo ! ms
+        end if
+      end if
+      !-----------------------------------------------------------------
+
+!     put in Antarctica ice-shelf fixes 5/3/07
+      do iq=1,ifull
+       if(zs(iq)<=0.)then
+         rlongd=rlongg(iq)*180./pi
+         rlatd=rlatt(iq)*180./pi
+         if((rlongd>165..and.rlongd<195.            
+     &          .and.rlatd<-77.2-(rlongd-165.)/30.).or.     ! Ross shelf
+     &      (rlongd>300..and.rlongd<330.
+     &          .and.rlatd<-75.2-(rlongd-300.)*2.8/30.).or. ! Ronne shelf
+     &      (rlongd>68..and.rlongd<75.
+     &          .and.rlatd<-64.-(rlongd-60.)*5.8/15.))then  ! Amery shelf
+           zs(iq)=1.
+           land(iq)=.true.
+           sicedep=0.
+           isoilm(iq)=9
+           ivegt(iq)=42
+           tgg(iq,:)=270.
+           tss(iq)=270.
+           snowd(iq)=100.
+           wb(iq,:)=sfc(9)
+           if(mydiag)print *,'setting sea to ice sheet for iq = ',iq
+         endif
+       endif  ! (zs(iq)<=0.)
+      enddo
 
 !     rml 16/02/06 initialise tr, timeseries output and read tracer fluxes
       if (ngas>0) then
@@ -821,7 +897,6 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
         call readtracerflux(kdate)
       endif
 
-
 !     nrungcm<0 controls presets for snowd, wb, tgg and other soil variables
 !     they can be: preset/read_in_from_previous_run
 !                  written_out/not_written_out    after 24 h as follows:
@@ -830,8 +905,9 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
 !                    -3  read_in          |     written  (usual for NWP)
 !                    -4  read_in          | not written
 !                    -5  read_in (not wb) |     written  (should be good)
-      if(nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)then  ! presetting wb
-!       when no soil moisture available initially
+!                    >5 like -1 but sets most wb percentages
+      if(nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5.or.nrungcm>5)then
+!        presetting wb when no soil moisture available initially
         iyr=kdate/10000
         imo=(kdate-10000*iyr)/100
         do iq=1,ifull
@@ -840,7 +916,12 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
            isoil=isoilm(iq)
 !          fracsum(imo) is .5 for nh summer value, -.5 for nh winter value
            fracs=sign(1.,rlatt(iq))*fracsum(imo)  ! +ve for local summer
-           fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
+           if(nrungcm>5)then
+             fracwet=.01*nrungcm   ! e.g. 50 gives .5
+           else
+             fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
+!            N.B. for all Dean's points, fracwet=fracwets=fracwetw=.5           
+           endif
            wb(iq,ms)= (1.-fracwet)*swilt(isoilm(iq))+ 
      &                  fracwet*sfc(isoilm(iq)) 
 !          wb(iq,ms)= .5*swilt(isoilm(iq))+ .5*sfc(isoilm(iq)) ! till july 01
@@ -863,8 +944,9 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
      &        rlatt(iq)*180./pi<-22..and.
      &        rlongg(iq)*180./pi>117..and.rlongg(iq)*180./pi<146.)
      &        wb(iq,ms)=swilt(isoilm(iq)) ! dry interior of Australia
-         endif    !  (land(iq))
+         endif    ! (land(iq))
         enddo     ! iq loop
+ 
         do k=1,ms-1
          wb(:,k)=wb(:,ms)
         enddo    !  k loop
@@ -915,7 +997,18 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
         call readglobvar(87, tgg, fmt="*")
         call readglobvar(87, aa, fmt="*")    ! only use land values of tss
         call readglobvar(87, snowd, fmt="*")
-c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
+c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06        
+        !---------------------------------------------------------------
+        ! MJT CHANGE
+        if (nsib.eq.5) then
+          call readglobvar(87, roofgg, fmt="*")
+          call readglobvar(87, wallegg, fmt="*")
+          call readglobvar(87, wallwgg, fmt="*")
+          call readglobvar(87, roadgg, fmt="*")
+          call readglobvar(87, roofwb, fmt="*")
+          call readglobvar(87, roadwb, fmt="*")
+        end if
+        !---------------------------------------------------------------
         if ( myid == 0 ) close(87)
         if(ico2.ne.0)then
           ico2x=max(1,ico2)
@@ -1003,22 +1096,6 @@ c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
          end if
       endif      !  (nrungcm==5)
 
-      if(nrungcm==11)then   ! this is old nrungcm=-1 option
-        do iq=1,ifull
-         if(land(iq))then
-           wb(iq,ms)=.5*(swilt(isoilm(iq))+sfc(isoilm(iq)))  
-           if(abs(rlatt(iq)*180./pi)<18.)wb(iq,ms)=sfc(isoilm(iq)) ! tropics
-           if(rlatt(iq)*180./pi>-32..and.
-     &        rlatt(iq)*180./pi<-22..and.
-     &        rlongg(iq)*180./pi>117..and.rlongg(iq)*180./pi<146.)
-     &        wb(iq,ms)=swilt(isoilm(iq)) ! dry interior of australia
-         endif    !  (land(iq))
-         do k=1,ms-1
-          wb(iq,k)=wb(iq,ms)
-         enddo    !  k loop
-        enddo     ! iq loop
-      endif       !  ((nrungcm==11)
-
       do iq=1,ifull
        if(.not.land(iq))then
          do k=1,ms
@@ -1040,10 +1117,10 @@ c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
         enddo   ! iq loop
       endif    !  (newsnow==1) .. else ..
 
-      if(namip>0)then
+      if(namip.ne.0)then
         if(myid==0)print *,'calling amipsst at beginning of run'
         call amipsst
-      endif   ! namip>0
+      endif   ! namip.ne.0
 
 !     because of new zs etc, ensure that snowd is only over land 
 !     and sice over sea
@@ -1067,13 +1144,6 @@ c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
          endif  ! (fracice(iq)>0..and.sicedep(iq)==0.) .. elseif ..
        endif    ! (land(iq))
       enddo     ! iq loop
-
-      if(newsoilm>0)then
-        print *,'newsoilm = ',newsoilm
-        stop 'code not ready for read of w & w2'
-        ! Note that this double read can't work with the MPI version.
-        call readreal('smoist.dat',w,2*ifull) ! special read of w & w2
-      endif
 
       if(nhstest<0)then  ! aquaplanet (APE) test 
         zs(:)=0.
@@ -1402,59 +1472,66 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 !     &        ((tgg(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
       end if
 
-      do ip=1,ipland  ! all land points in this nsib=1+ loop
-       iq=iperm(ip)
-       isoil = isoilm(iq)
-       iveg  = ivegt(iq)
-       if(jlmsigmf==1)then  ! fix-up for dean's veg-fraction
-         sigmf(iq)=((sfc(isoil)-wb(iq,3))*vegpmin(iveg)
-     &               +(wb(iq,3)-swilt(isoil))*vegpmax(iveg))/
-     &                      (sfc(isoil)-swilt(isoil)) 
-         sigmf(iq)=max(vegpmin(iveg),min(sigmf(iq),.8)) ! in case wb odd
-!        sigmf(iq)=max(.01,min(sigmf(iq),.8))           ! in case wb odd
-       endif   ! (jlmsigmf==1)
-!      following done here just for rsmin diags for nstn and outcdf	
-       tstom=298.
-       if(iveg==6+31)tstom=302.
-       if(iveg>=10.and.iveg<=21.and.
-     &    abs(rlatt(iq)*180./pi)<25.)tstom=302.
-       tsoil=min(tstom, .5*(.3333*tgg(iq,2)+.6667*tgg(iq,3)
-     &            +.95*tgg(iq,4) + .05*tgg(iq,5)))
-       ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
-!      which is same as:  ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
-!                         if( tsoil >= tstom ) ftsoil=1.
-       rlai=  max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil))
-       rsmin(iq) = rsunc44(iveg)/rlai   
-      enddo    !  ip=1,ipland
+      if(nsib==5)then
+        tsigmf(:)=sigmf(:)
+      else      ! usual, nsib<5
+        do iq=1,ifull
+         if(land(iq))then
+           isoil = isoilm(iq)
+           iveg  = ivegt(iq)
+           sigmf(iq)=min(.8,.95*vegpsig(ivegt(iq)))  ! moved from rdnsib
+           tsigmf(iq)=sigmf(iq)                      ! moved from rdnsib
+           if(jlmsigmf==1)then  ! fix-up for dean's veg-fraction
+             sigmf(iq)=((sfc(isoil)-wb(iq,3))*vegpmin(iveg)
+     &                 +(wb(iq,3)-swilt(isoil))*vegpmax(iveg))/
+     &                         (sfc(isoil)-swilt(isoil)) 
+             sigmf(iq)=max(vegpmin(iveg),min(sigmf(iq),.8)) ! for odd wb
+!            sigmf(iq)=max(.01,min(sigmf(iq),.8))           !  for odd wb
+           endif   ! (jlmsigmf==1)
+!          following just for rsmin diags for nstn and outcdf	
+           tstom=298.
+           if(iveg==6+31)tstom=302.
+           if(iveg>=10.and.iveg<=21.and.
+     &        abs(rlatt(iq)*180./pi)<25.)tstom=302.
+           tsoil=min(tstom, .5*(.3333*tgg(iq,2)+.6667*tgg(iq,3)
+     &               +.95*tgg(iq,4) + .05*tgg(iq,5)))
+           ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
+!          which is same as:  ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
+!                             if( tsoil >= tstom ) ftsoil=1.
+           rlai=  max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil))
+           rsmin(iq) = rsunc44(iveg)/rlai  
+         endif   ! (land(iq)) 
+        enddo    !  iq loop
       
-      if(jalbfix==1)then  ! jlm fix-up for albedos, esp. over sandy bare soil
-         if ( mydiag ) then
-            isoil=isoilm(idjd)
-            print *,'before jalbfix isoil,sand,alb,rsmin ',
-     &                          isoil,sand(isoil),alb(idjd),rsmin(idjd)
-         end if
-         do ip=1,ipland  
+        if(jalbfix==1)then ! jlm fix for albedos, esp. for bare sandy soil
+           if(mydiag)then
+              isoil=isoilm(idjd)
+              print *,'before jalbfix isoil,sand,alb,rsmin ',
+     &                        isoil,sand(isoil),alb(idjd),rsmin(idjd)
+           endif
+           do ip=1,ipland  
             iq=iperm(ip)
             isoil = isoilm(iq)
             alb(iq)=max(alb(iq),sigmf(iq)*alb(iq)
      &        +(1.-sigmf(iq))*(sand(isoil)*.35+(1.-sand(isoil))*.06))
-         enddo                  !  ip=1,ipland
-         if ( mydiag ) then
-            print *,'after jalbfix sigmf,alb ',sigmf(idjd),alb(idjd)
-         end if
-      endif  ! (jalbfix==1)
+           enddo                  !  ip=1,ipland
+           if(mydiag)then
+              print *,'after jalbfix sigmf,alb ',sigmf(idjd),alb(idjd)
+           endif
+         endif  ! (jalbfix==1)
 
-      if(newrough>0)then
-        call calczo(.05)
-        if ( mydiag ) print *,'after calczo zolnd ',zolnd(idjd)
-        if(newrough>2)then
-          zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
+        if(newrough>0)then
+          call calczo(.05)
+          print *,'after calczo zolnd ',zolnd(idjd)
+c         if(newrough>2)then
+c           zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
+c         endif
+          if ( mydiag ) then
+            print *,'after calczo with newrough = ',newrough
+            write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
+          end if
         endif
-        if ( mydiag ) then
-          print *,'after calczo with newrough = ',newrough
-          write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
-        end if
-      endif
+      endif     ! (nsib==5) .. else ..
 
       if(ngwd.ne.0)then
         hemax=0.
@@ -1518,8 +1595,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
      &       zs(ie(idjd)),zs(iw(idjd)),zs(in(idjd)),zs(is(idjd))
       end if
 
-      epst(1:ifull)=abs(epsp)
-      if(abs(epsp)>1.)then   ! e.g. 20. to give epsmax=.2 for del_orog=600 m
+      if(abs(epsp)>1.)then   ! e.g. 20. gives epsmax=.2 for del_orog=600 m
         epsmax=abs(epsp)/100.
         do iq=1,ifull      ! sliding epsf to epsmax
          zsdiff=max(abs(zs(ie(iq))-zs(iq)),
@@ -1529,6 +1605,8 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
          epst(iq)=max(epsf,min(epsmax*zsdiff/(600.*grav),epsmax))
         enddo
         epsf=0.
+      else
+        epst(1:ifull)=abs(epsp)
       endif  ! (abs(epsp)>1.)
       if(abs(epsp)>99.)then  ! e.g. 200. to give epsmax=.2 for orog=600 m
         epsmax=abs(epsp)/1000.
@@ -1546,7 +1624,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
       print *,'at centre of the panels:'
       do n=1,npan
          iq = indp((ipan+1)/2,(jpan+1)/2,n)
-         print '(" n,em,emu,emv,f,fu,fv "i3,3f6.3,3f10.6)',
+         print '(" n,em,emu,emv,f,fu,fv "i3,3f9.3,3f10.6)',
      &        n-noff,em(iq),emu(iq),emv(iq),f(iq),fu(iq),fv(iq)
       enddo ! n=1,npan
 
@@ -1644,7 +1722,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
      &       ' lu istn jstn  iq   slon   slat land rlong  rlat'
      &    // ' isoil iveg zs(m) alb  wb3  wet3 sigmf zo   rsm   he'
         do nn=1,nstn
-           call latltoij(slon(nn),slat(nn),ri,rj,nface)
+           call latltoij(slon(nn),slat(nn),ri,rj,nface,xx4,yy4,il_g)
            ! These are global indices
            ig=nint(ri)
            jg=nint(rj) + nface*il_g
@@ -1715,6 +1793,24 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       do iq=1,ifull
        albsav(iq)=alb(iq)
       enddo   ! iq loop
+      
+      !-----------------------------------------------------------------
+      if (nsib.eq.5) then ! MJT CHANGE
+        where (.not.land)
+          sigmu(:)=0.
+        end where
+        call tebinit(ifull,sigmu(:),rlongg(:),rlatt(:),0)
+        if (any(roofgg.lt.0.)) then
+          if (mydiag) print *,"Using urban default temperatures"
+          call tebdefault(ifull,tgg(:,1),tgg(:,ms),0)
+        else
+          if (mydiag) print *,"Loading urban temperatures"
+          call tebload(ifull,roofgg,wallegg,wallwgg,roadgg
+     &                 ,roofwb,roadwb,0)
+        end if
+      end if
+      !-----------------------------------------------------------------
+     
       call end_log(indata_end)
       return
       end
@@ -1741,23 +1837,25 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       parameter( fzodflt=1.)
       data idatafix/0/
       logical rdatacheck,idatacheck,mismatch
-!     real vegpsig(13)
-!     data vegpsig/ .98, .75, .75, .75, .5, .86, .65, .79, .3, .42, .0,
-c    &              .54, .0/
-      real vegpsig(44)
       integer ivegmin, ivegmax, ivegmin_g, ivegmax_g
-      data vegpsig/ .98,.85,.85,.5,.2,.05,.85,.5,.2,.5,                ! 1-10
-     &              .2,.05,.5,.2,.05,.2,.05,.85,.5,.2,                 ! 11-20
-     &              .05,.85,.85,.55,.65,.2,.05,.5, .0, .0, .5,         ! 21-31
-     &              .98,.75,.75,.75,.5,.86,.65,.79,.3, .42,.02,.54,0./ ! 32-44
-!    &              .05,.85,.85,.55,.65,.2,.05,.5, .0, .0, 0.,         ! 21-31
 
        call readreal(albfile,alb,ifull)
        call readreal(rsmfile,rsmin,ifull)  ! not used these days
        call readreal(zofile,zolnd,ifull)
        if(iradon.ne.0)call readreal(radonemfile,radonem,ifull)
-       call readint(vegfile,ivegt,ifull)
-       call readint(soilfile,isoilm,ifull)
+       call readint(soilfile,isoilm,ifull)      
+       if(nsib==5) then
+         ivegt(:)=1 
+         call readreal('lai',elai,ifull)
+         call readreal('vegfrac',sigmf,ifull)
+         call readreal('urban',sigmu,ifull)         
+         elai(:)=0.01*elai(:)
+         sigmf(:)=0.01*sigmf(:)
+         sigmu(:)=0.01*sigmu(:) ! MJT CHANGE 
+       else    ! usual, nsib<5
+         call readint(vegfile,ivegt,ifull)
+         sigmu(:)=0.
+       endif  ! (nsib==5) .. else ..
 
        mismatch = .false.
        if( rdatacheck(land,alb,'alb',idatafix,falbdflt))
@@ -1781,13 +1879,6 @@ c         if(ivegt(iq)>40)print *,'iq, ivegt ',iq,ivegt(iq)
        if(ivegmin<1.or.ivegmax>44)stop
        if( idatacheck(land,isoilm,'isoilm',idatafix,isoildflt))
      &      mismatch = .true.
-       if(newsoilm>0)then
-         print *,'newsoilm = ',newsoilm
-         if(rdatacheck(land,wb(1,1),'w',idatafix,fsoildflt))
-     &            mismatch  =.true.
-         if(rdatacheck(land,wb(1,ms),'w2',idatafix,fsoildflt))
-     &            mismatch  =.true.
-       endif
 !   rml 17/02/06 comment out read co2emfile - now done in tracermodule
 !       if(ico2>0) then
 !         print *,'about to read co2 industrial emission file'
@@ -1817,13 +1908,6 @@ c     zobg = .05
       zolnd(:)=.01*zolnd(:)
 !     zolnd(:)=min(zolnd(:) , 1.5)   ! suppressed 30/7/04
       zolnd(:)=max(zolnd(:) , zobgin)
-
-      do iq=1,ifull
-        if(land(iq))then
-          sigmf(iq)=min(.8,.95*vegpsig(ivegt(iq)))
-          tsigmf(iq)=sigmf(iq)
-        endif
-      enddo
 
       return
       end
@@ -1975,14 +2059,23 @@ c     vegetation height
 
       zomax=-1.e29
       zomin= 1.e29
-      if(newrough>=2)then
+      if(newrough==2)then
        do iq=1,ifull
         if(land(iq))then
           iveg=ivegt(iq)
           zolnd(iq)=max(zobgin , .1*xhc(iveg))
           zomax=max(zomax,zolnd(iq))
           zomin=min(zomin,zolnd(iq))
-        endif ! (land(iq))then
+        endif  ! (land(iq))then
+       enddo   ! iq loop
+      elseif(newrough==3)then
+       do iq=1,ifull
+        if(land(iq))then
+          iveg=ivegt(iq)
+          zolnd(iq)=max(zobgin , .13*xhc(iveg))  ! French factor
+          zomax=max(zomax,zolnd(iq))
+          zomin=min(zomin,zolnd(iq))
+        endif  ! (land(iq))then
        enddo   ! iq loop
       else
        do iq=1,ifull
@@ -1993,7 +2086,7 @@ c     vegetation height
           call cruf1 (iveg,tsoil,sdep,zolnd(iq),zobgin)
           zomax=max(zomax,zolnd(iq))
           zomin=min(zomin,zolnd(iq))
-        endif ! (land(iq))then
+        endif  ! (land(iq))then
        enddo   ! iq loop
       endif
 
@@ -2184,18 +2277,22 @@ c preset parameters:
      &           ccw   = 2.0,          ! ccw=(zw-d)/(h-d)
      &           usuhm = 0.3,          ! (max of us/uh)
      &           vonk  = 0.4)          ! von karman constant
-      psih=alog(ccw)-1.0+1.0/ccw
+      psih=alog(ccw)-1.0+1.0/ccw  ! i.e. .19315
       rl = rlai*0.5
 c find uh/us
-      usuhl  = sqrt(cs+cr*rl)
+      usuhl  = sqrt(cs+cr*rl)            ! sqrt(.003 + .15*rlai)
       usuh   = min(usuhl,usuhm)
 c find d/h and d 
-      xx     = sqrt(ccd*max(rl,0.0005))
-      dh     = 1.0 - (1.0 - exp(-xx))/xx
-      d      = dh*h
+      xx     = sqrt(ccd*max(rl,0.0005))  ! sqrt(7.5*rlai)
+      dh     = 1.0 - (1.0 - exp(-xx))/xx ! .5*xx -.166*xx*xx + .
+!     dh close to 1 for large rlai (~.833 for rlai=6)    
+!        equals .03 for rlai=0 
+      d      = dh*h                      ! not used
 c find z0h and z0:
       z0h    = (1.0 - dh) * exp(psih - vonk/usuh)
       z0     = z0h*h
+!     for rlai=   0,   .2,   .4,   .5,   .6,    1,    2,    4,    6
+!     get z0h= .008, .077, .117, .128, .133, .109, .084, .058, .048      
 c find coexp: see notes "simplified wind model ..." eq 34a
       coexp  = usuh / (vonk*ccw*(1.0 - dh))
       return ! ruff

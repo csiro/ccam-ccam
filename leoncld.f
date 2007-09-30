@@ -111,7 +111,7 @@ c     Set up convective cloud column
 !     acon=0.2    !Cloud fraction for non-precipitating convection  kuocom.h
 !     bcon=0.07   !Rate at which conv cloud frac increases with R   kuocom.h
       do iq=1,ifull
-        if(ktsav(iq).lt.kl)then
+        if(ktsav(iq)<kl-1)then
           ktop(iq)=ktsav(iq)
           kbase(iq)=kbsav(iq)+1
           rainx=condc(iq)*86400./dt !mm/day

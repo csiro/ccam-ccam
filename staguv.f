@@ -216,9 +216,11 @@ c     staggered u & v as input; unstaggered as output
           num=ktau
         endif
       endif  !  (num<ktau)
-c     print *,'uns ktau,nstag,nstagu,mod,mod2 ',
-c    .         ktau,nstag,nstagu,mod(ktau,abs(nstagin)),mod(ktau,2)
-c     print *,'nstagin,ktau_stag ',nstagin,ktau_stag
+      if(diag.and.mydiag)then
+        print *,'uns ktau,nstag,nstagu,mod,mod2 ',
+     &           ktau,nstag,nstagu,mod(ktau,abs(nstagin)),mod(ktau,2)
+        print *,'nstagin,ktau_stag ',nstagin,ktau_stag
+      endif
       do k=1,kl
          do iq=1,ifull
             uin(iq,k) = u(iq,k)

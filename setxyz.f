@@ -1,4 +1,7 @@
-      subroutine setxyz(myid)
+      subroutine setxyz(ik,xx4,yy4,myid)
+!     this routine modified sept '06 to accept smaller il via abs(ik)
+!     essentially to temporarily provide xx4, yy4, ax...bz for onthefly  
+!     note that ax6 etc not needed for onthefly     
       use utilities
       parameter (ntang=2)   ! ntang=0 for tang. vectors from rancic et al.
                             !         not for stretched as vecpanel not ready
@@ -16,21 +19,17 @@ c     suffix 6 denotes hex (6)
       include 'xyzinfo_gx.h'  ! x,y,z,wts
       include 'vecsuv_gx.h'   ! vecsuv info
       include 'indices_gx.h' ! in,is,iw,ie,inn,iss,iww,iee
-      include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
-c     common/work3/inw(ifull),isw(ifull),ies(ifull),iws(ifull)  ! just for bdys
-c    .             ,dum3(4*ijk-4*ifull)
-c     common/work2/em4(iquad,iquad)     ! to agree with call jimcc
-c    .    ,ax4(iquad,iquad),ay4(iquad,iquad),az4(iquad,iquad)
-c    .    ,axx(ifull),ayy(ifull),azz(ifull)
-c    .    ,bxx(ifull),byy(ifull),bzz(ifull)
-c    .    ,dum2(12*il*jl -4*(iquad)*(iquad) )
+c     include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
+      real xx4(1+4*abs(ik),1+4*abs(ik)),yy4(1+4*abs(ik),1+4*abs(ik))
 !     next one shared with cctocc4 & onthefly
       integer :: myid  ! This is passed as an argument just to control the 
                        ! diagnostic prints
+      integer :: ik  ! passed as argument. Actual i dimension.
+!                  if negative, suppress calc of rlat4, rlong4                             
 !     These can no longer be shared because they use true global ifull.
       real rlong4(ifull,4),rlat4(ifull,4)
       common /workglob/ rlong4, rlat4 ! Shared with onthefly.f
-      real em4(iquad,iquad)
+      real em4(1+4*abs(ik),1+4*abs(ik))
      .    ,ax4(iquad,iquad),ay4(iquad,iquad),az4(iquad,iquad)
      .    ,axx(ifull),ayy(ifull),azz(ifull)
      .    ,bxx(ifull),byy(ifull),bzz(ifull)
@@ -46,16 +45,19 @@ c    .    ,dum2(12*il*jl -4*(iquad)*(iquad) )
       data npan6n/1,103,3,105,5,101/,npan6e/102,2,104,4,100,0/
       data npan6w/5,105,1,101,3,103/,npan6s/104,0,100,2,102,4/
 c     character*80 chars
-      data ndiag/0/
-      ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,npanels
+      save num
+      data ndiag/0/,num/0/
+      ind(i,j,n)=i+(j-1)*ikk+n*ikk*ikk  ! *** for n=0,npanels
+      num=num+1
 c     When using the ifull notation: in, ie, iw and is give the
 c     indices for the n, e, w, s neighbours respectively
 c     a, b denote unit vectors in the direction of x, y (e & n) respectively
-      schm13=1.            ! only used for conf-octagon
+      schm13=1.            ! 1. unless using conf-octagon
       idjd_g = id+il*(jd-1)  ! Global value
+      ikk=abs(ik)
       do iq=1,ifull
-       in(iq)=iq+il
-       is(iq)=iq-il
+       in(iq)=iq+ikk
+       is(iq)=iq-ikk
        ie(iq)=iq+1
        iw(iq)=iq-1
       enddo   ! iq loop
@@ -70,50 +72,50 @@ c     a, b denote unit vectors in the direction of x, y (e & n) respectively
       endif    ! (npanels.eq.5)
 
       do n=0,npanels
-c     print *,'ina il/2,n ',in(ind(il/2,il,n)),n
+c     print *,'ina ikk/2,n ',in(ind(ikk/2,ikk,n)),n
       if(npann(n).lt.100)then
-        do ii=1,il
-         in(ind(ii,il,n))=ind(ii,1,npann(n))
+        do ii=1,ikk
+         in(ind(ii,ikk,n))=ind(ii,1,npann(n))
         enddo    ! ii loop
       else
-        do ii=1,il
-         in(ind(ii,il,n))=ind(1,il+1-ii,npann(n)-100)
+        do ii=1,ikk
+         in(ind(ii,ikk,n))=ind(1,ikk+1-ii,npann(n)-100)
         enddo    ! ii loop
       endif      ! (npann(n).lt.100)
-c     print *,'inb il/2,n ',in(ind(il/2,il,n)),n
-c     print *,'iea il/2,n ',ie(ind(il,il/2,n)),n
+c     print *,'inb ikk/2,n ',in(ind(ikk/2,ikk,n)),n
+c     print *,'iea ikk/2,n ',ie(ind(ikk,ikk/2,n)),n
       if(npane(n).lt.100)then
-        do ii=1,il
-         ie(ind(il,ii,n))=ind(1,ii,npane(n))
+        do ii=1,ikk
+         ie(ind(ikk,ii,n))=ind(1,ii,npane(n))
         enddo    ! ii loop
       else
-        do ii=1,il
-         ie(ind(il,ii,n))=ind(il+1-ii,1,npane(n)-100)
+        do ii=1,ikk
+         ie(ind(ikk,ii,n))=ind(ikk+1-ii,1,npane(n)-100)
         enddo    ! ii loop
       endif      ! (npane(n).lt.100)
-c     print *,'ieb il/2,n ',ie(ind(il,il/2,n)),n
-c     print *,'iwa il/2,n ',iw(ind(1,il/2,n)),n
+c     print *,'ieb ikk/2,n ',ie(ind(ikk,ikk/2,n)),n
+c     print *,'iwa ikk/2,n ',iw(ind(1,ikk/2,n)),n
       if(npanw(n).lt.100)then
-        do ii=1,il
-         iw(ind(1,ii,n))=ind(il,ii,npanw(n))
+        do ii=1,ikk
+         iw(ind(1,ii,n))=ind(ikk,ii,npanw(n))
         enddo    ! ii loop
       else
-        do ii=1,il
-         iw(ind(1,ii,n))=ind(il+1-ii,il,npanw(n)-100)
+        do ii=1,ikk
+         iw(ind(1,ii,n))=ind(ikk+1-ii,ikk,npanw(n)-100)
         enddo    ! ii loop
       endif      ! (npanw(n).lt.100)
-c     print *,'iwb il/2,n ',iw(ind(1,il/2,n)),n
-c     print *,'isa il/2,n ',is(ind(il/2,1,n)),n
+c     print *,'iwb ikk/2,n ',iw(ind(1,ikk/2,n)),n
+c     print *,'isa ikk/2,n ',is(ind(ikk/2,1,n)),n
       if(npans(n).lt.100)then
-        do ii=1,il
-         is(ind(ii,1,n))=ind(ii,il,npans(n))
+        do ii=1,ikk
+         is(ind(ii,1,n))=ind(ii,ikk,npans(n))
         enddo    ! ii loop
       else
-        do ii=1,il
-         is(ind(ii,1,n))=ind(il,il+1-ii,npans(n)-100)
+        do ii=1,ikk
+         is(ind(ii,1,n))=ind(ikk,ikk+1-ii,npans(n)-100)
         enddo    ! ii loop
       endif      ! (npans(n).lt.100)
-c     print *,'isb il/2,n ',is(ind(il/2,1,n)),n
+c     print *,'isb ikk/2,n ',is(ind(ikk/2,1,n)),n
       enddo      ! n loop
 
       do iq=1,ifull
@@ -146,39 +148,39 @@ c     print *,'isb il/2,n ',is(ind(il/2,1,n)),n
 
       do n=0,npanels
 c      following treats unusual panel boundaries
-c      print *,'ina il/2,n ',in(ind(il/2,il,n)),n
+c      print *,'ina ikk/2,n ',in(ind(ikk/2,ikk,n)),n
        if(npann(n).ge.100)then
-        do i=1,il
-         iq=ind(i,il,n)
+        do i=1,ikk
+         iq=ind(i,ikk,n)
          inn(iq)=ie(in(iq))
          ien(iq)=is(in(iq))
          iwn(iq)=in(in(iq))
          inv2(iq)=in(iq) - ifull   ! converts 2D v array into u array
          inv(iq)=in(iq) - ijk      ! converts 3D v array into u array
          innv2(iq)=inn(iq) - ifull ! converts 2D v array into u array
-         iq=ind(i,il-1,n)
+         iq=ind(i,ikk-1,n)
          innv2(iq)=inn(iq) - ifull ! converts 2D v array into u array
         enddo  ! i loop
       endif      ! (npann(n).ge.100)
-c     print *,'inb il/2,n ',in(ind(il/2,il,n)),n
-c     print *,'iea il/2,n ',ie(ind(il,il/2,n)),n
+c     print *,'inb ikk/2,n ',in(ind(ikk/2,ikk,n)),n
+c     print *,'iea ikk/2,n ',ie(ind(ikk,ikk/2,n)),n
       if(npane(n).ge.100)then
-        do j=1,il
-         iq=ind(il,j,n)
+        do j=1,ikk
+         iq=ind(ikk,j,n)
          iee(iq)=in(ie(iq))
          ine(iq)=iw(ie(iq))
          ise(iq)=ie(ie(iq))
          ieu2(iq)=ie(iq) + ifull   ! converts 2D u array into v array
          ieu(iq)=ie(iq) + ijk      ! converts 3D u array into v array
          ieeu2(iq)=iee(iq) + ifull ! converts 2D u array into v array
-         iq=ind(il-1,j,n)
+         iq=ind(ikk-1,j,n)
          ieeu2(iq)=iee(iq) + ifull ! converts 2D u array into v array
         enddo   ! j loop
       endif      ! (npane(n).ge.100)
-c     print *,'ieb il/2,n ',ie(ind(il,il/2,n)),n
-c     print *,'iwa il/2,n ',iw(ind(1,il/2,n)),n
+c     print *,'ieb ikk/2,n ',ie(ind(ikk,ikk/2,n)),n
+c     print *,'iwa ikk/2,n ',iw(ind(1,ikk/2,n)),n
       if(npanw(n).ge.100)then
-        do j=1,il
+        do j=1,ikk
          iq=ind(1,j,n)
          iww(iq)=is(iw(iq))
          inw(iq)=iw(iw(iq)) ! in temporary arrays
@@ -190,10 +192,10 @@ c     print *,'iwa il/2,n ',iw(ind(1,il/2,n)),n
          iwwu2(iq)=iww(iq) + ifull ! converts 2D u array into v array
         enddo   ! j loop
       endif      ! (npanw(n).ge.100)
-c     print *,'iwb il/2,n ',iw(ind(1,il/2,n)),n
-c     print *,'isa il/2,n ',is(ind(il/2,1,n)),n
+c     print *,'iwb ikk/2,n ',iw(ind(1,ikk/2,n)),n
+c     print *,'isa ikk/2,n ',is(ind(ikk/2,1,n)),n
       if(npans(n).ge.100)then
-        do i=1,il
+        do i=1,ikk
          iq=ind(i,1,n)
          iss(iq)=iw(is(iq))
          ies(iq)=is(is(iq)) ! in temporary arrays
@@ -205,7 +207,7 @@ c     print *,'isa il/2,n ',is(ind(il/2,1,n)),n
          issv2(iq)=iss(iq) - ifull ! converts 2D v array into u array
         enddo   ! i loop
       endif      ! (npans(n).ge.100)
-c     print *,'isb il/2,n ',is(ind(il/2,1,n)),n
+c     print *,'isb ikk/2,n ',is(ind(ikk/2,1,n)),n
       enddo      ! n loop
 
 c     print *,'lsw a  ',lsw
@@ -230,48 +232,48 @@ c     print *,'lees a  ',lees
 c     print *,'less a  ',less
       do n=0,npanels
        lsw(n)=isw( ind( 1, 1,n) )
-       lnw(n)=inw( ind( 1,il,n) )
+       lnw(n)=inw( ind( 1,ikk,n) )
        lws(n)=iws( ind( 1, 1,n) )
-       les(n)=ies( ind(il, 1,n) )
-       leen(n)=iee(in( ind(il,il,n) ))
-       lenn(n)=ien(in( ind(il,il,n) ))
-       lwnn(n)=iwn(in( ind( 1,il,n) ))
-       lsee(n)=ise(ie( ind(il, 1,n) ))
-       lnee(n)=ine(ie( ind(il,il,n) ))
-       lnne(n)=inn(ie( ind(il,il,n) ))
+       les(n)=ies( ind(ikk, 1,n) )
+       leen(n)=iee(in( ind(ikk,ikk,n) ))
+       lenn(n)=ien(in( ind(ikk,ikk,n) ))
+       lwnn(n)=iwn(in( ind( 1,ikk,n) ))
+       lsee(n)=ise(ie( ind(ikk, 1,n) ))
+       lnee(n)=ine(ie( ind(ikk,ikk,n) ))
+       lnne(n)=inn(ie( ind(ikk,ikk,n) ))
        lsww(n)=isw(iw( ind( 1, 1,n) ))
        lssw(n)=iss(iw( ind( 1, 1,n) ))
-       lnww(n)=inw(iw( ind( 1,il,n) ))
+       lnww(n)=inw(iw( ind( 1,ikk,n) ))
        lwws(n)=iww(is( ind( 1, 1,n) ))
        lwss(n)=iws(is( ind( 1, 1,n) ))
-       less(n)=ies(is( ind(il, 1,n) ))
-       lwwn(n)=iww(in( ind( 1,il,n) ))
-       lsse(n)=iss(ie( ind(il, 1,n) ))
-       lnnw(n)=inn(iw( ind( 1,il,n) ))
-       lees(n)=iee(is( ind(il, 1,n) ))
+       less(n)=ies(is( ind(ikk, 1,n) ))
+       lwwn(n)=iww(in( ind( 1,ikk,n) ))
+       lsse(n)=iss(ie( ind(ikk, 1,n) ))
+       lnnw(n)=inn(iw( ind( 1,ikk,n) ))
+       lees(n)=iee(is( ind(ikk, 1,n) ))
        if(npann(n).ge.100)then
-         leen(n)=iss(in( ind(il,il,n) ))
-         lenn(n)=ise(in( ind(il,il,n) ))
-         lwnn(n)=ine(in( ind( 1,il,n) ))
-         lwwn(n)=inn(in( ind( 1,il,n) ))
+         leen(n)=iss(in( ind(ikk,ikk,n) ))
+         lenn(n)=ise(in( ind(ikk,ikk,n) ))
+         lwnn(n)=ine(in( ind( 1,ikk,n) ))
+         lwwn(n)=inn(in( ind( 1,ikk,n) ))
        endif      ! (npann(n).ge.100)
        if(npane(n).ge.100)then
-         lsee(n)=ien(ie( ind(il, 1,n) ))
-         lnee(n)=iwn(ie( ind(il,il,n) ))
-         lnne(n)=iww(ie( ind(il,il,n) ))
-         lsse(n)=iee(ie( ind(il, 1,n) ))
+         lsee(n)=ien(ie( ind(ikk, 1,n) ))
+         lnee(n)=iwn(ie( ind(ikk,ikk,n) ))
+         lnne(n)=iww(ie( ind(ikk,ikk,n) ))
+         lsse(n)=iee(ie( ind(ikk, 1,n) ))
        endif      ! (npane(n).ge.100)
        if(npanw(n).ge.100)then
          lsww(n)=ies(iw( ind( 1, 1,n) ))
          lssw(n)=iee(iw( ind( 1, 1,n) ))
-         lnww(n)=iws(iw( ind( 1,il,n) ))
-         lnnw(n)=iww(iw( ind( 1,il,n) ))
+         lnww(n)=iws(iw( ind( 1,ikk,n) ))
+         lnnw(n)=iww(iw( ind( 1,ikk,n) ))
        endif      ! (npanw(n).ge.100)
        if(npans(n).ge.100)then
          lwws(n)=inn(is( ind( 1, 1,n) ))
          lwss(n)=inw(is( ind( 1, 1,n) ))
-         less(n)=isw(is( ind(il, 1,n) ))
-         lees(n)=iss(is( ind(il, 1,n) ))
+         less(n)=isw(is( ind(ikk, 1,n) ))
+         lees(n)=iss(is( ind(ikk, 1,n) ))
        endif      ! (npans(n).ge.100)
       enddo       ! n loop
 c     print *,'lsw b  ',lsw
@@ -297,8 +299,8 @@ c     print *,'less b  ',less
 
       if(ndiag.eq.3)then
         do n=0,npanels
-         do j=1,il
-          do i=1,il
+         do j=1,ikk
+          do i=1,ikk
            iq=ind(i,j,n)
            call indv(iq,i0,j0,n0)
            call indv(in(iq),in0,jn0,nn0)
@@ -320,17 +322,17 @@ c     print *,'less b  ',less
 
 !----------------------------------------------------------------------------
 c     calculate grid information using quadruple resolution grid
-      if(npanels.eq.5)then
-        call jimcc(em4,ax4,ay4,az4,myid)
-	if(ktau.eq.0.and.myid==0)then
+        call jimcc(em4,ax4,ay4,az4,xx4,yy4,ikk,myid)
+c       call jimcc(em4,ax4,ay4,az4,myid)
+	if(ktau==0.and.myid==0)then
           print *,'ntang = ',ntang
           print *,'xx4 first & last ',xx4(1,1),xx4(iquad,iquad)
           print *,'xx4 (5,5),(7,7),(9,9) ',xx4(5,5),xx4(7,7),xx4(9,9)
           print *,'yy4 first & last ',yy4(1,1),yy4(iquad,iquad)
           print *,'yy4 (5,5),(7,7),(9,9) ',yy4(5,5),yy4(7,7),yy4(9,9)
-          print *,'xx4, yy4 central',xx4(2*il+1,2*il+1),
-     &                               yy4(2*il+1,2*il+1)
-	endif  ! (ktau.eq.0)
+          print *,'xx4, yy4 central',xx4(2*ikk+1,2*ikk+1),
+     &                               yy4(2*ikk+1,2*ikk+1)
+	endif  ! (ktau==0)
 
 !     rotpole(1,) is x-axis of rotated coords in terms of orig Cartesian
 !     rotpole(2,) is y-axis of rotated coords in terms of orig Cartesian
@@ -341,8 +343,8 @@ c     if(nset.eq.1)then
 !       following for x4,y4,z4
         alf=(1.-schmidt**2)/(1.+schmidt**2)
         do m=1,4
-        do j=1,il
-         do i=1,il
+        do j=1,ikk
+         do i=1,ikk
           if(m.eq.1)then
             xx=xx4(4*i-1-1,4*j-1-1)
             yy=yy4(4*i-1-1,4*j-1-1)
@@ -361,27 +363,8 @@ c     if(nset.eq.1)then
           endif
 c         set up x0, y0, z0 coords on cube -1 to 1
 c         to save space have equivalenced x,x0  etc
-          x06(i,j,0)= 1.
-          y06(i,j,0)=xx
-          z06(i,j,0)=yy
-          x06(i,j,3)=-1.
-          z06(i,j,3)=-xx
-          y06(i,j,3)=-yy
-
-          x06(i,j,1)=-yy
-          y06(i,j,1)=xx
-          z06(i,j,1)= 1.
-          y06(i,j,4)=-yy
-          x06(i,j,4)=xx
-          z06(i,j,4)=-1.
-
-          x06(i,j,2)=-yy
-          y06(i,j,2)= 1.
-          z06(i,j,2)=-xx
-          z06(i,j,5)=yy
-          y06(i,j,5)=-1.
-          x06(i,j,5)=xx
-c         if(i.eq.(il+1)/2.and.j.eq.(il+1)/2)print *,'n,xx,yy: ',n,xx,yy
+          call xxtox(i,j,ikk,xx,yy,  x,y,z)
+c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'n,xx,yy: ',n,xx,yy
          enddo  ! i loop
         enddo   ! j loop
         do iq=1,ifull
@@ -412,16 +395,18 @@ c      also provide latitudes and longitudes (-pi to pi)
          zz=rotpole(3,1)*x4_iq_m+rotpole(3,2)*y4_iq_m+
      .      rotpole(3,3)*z4_iq_m
        endif
-       rlat4(iq,m)=asin(zz)
-       if(yy.ne.0..or.xx.ne.0.)then
-         rlong4(iq,m)=atan2(yy,xx)                       ! N.B. -pi to pi
-         if(rlong4(iq,m).lt.0.)rlong4(iq,m)=rlong4(iq,m)+2.*pi ! 0 to 2*pi  09-25-1997
-       else
-         rlong4(iq,m)=0.    ! a default value for NP/SP
-       endif
-!      convert long4 and lat4 (used by cctocc4) to degrees	
-       rlat4(iq,m)=rlat4(iq,m)*180./pi
-       rlong4(iq,m)=rlong4(iq,m)*180./pi
+       if(ik>0)then
+        rlat4(iq,m)=asin(zz)
+        if(yy.ne.0..or.xx.ne.0.)then
+          rlong4(iq,m)=atan2(yy,xx)                       ! N.B. -pi to pi
+          if(rlong4(iq,m).lt.0.)rlong4(iq,m)=rlong4(iq,m)+2.*pi ! 0 to 2*pi  09-25-1997
+        else
+          rlong4(iq,m)=0.    ! a default value for NP/SP
+        endif
+!       convert long4 and lat4 (used by cctocc4) to degrees	
+        rlat4(iq,m)=rlat4(iq,m)*180./pi
+        rlong4(iq,m)=rlong4(iq,m)*180./pi
+       endif   ! (ik>0)
 c      if(iq.eq.idjd)print *,'iq,x4,y4,z4,xx,yy,zz,long4,lat4 ',
 c    .  iq,x4_iq_m,y4_iq_m,z4_iq_m,xx,yy,zz,rlong4(iq,m),rlat4(iq,m)
        enddo   ! iq loop
@@ -430,25 +415,24 @@ c    .  iq,x4_iq_m,y4_iq_m,z4_iq_m,xx,yy,zz,rlong4(iq,m),rlat4(iq,m)
 c     return
 c     endif    ! (nset.eq.1)
 
-
-        dsfact=4*il/(2.*pi)     ! con-cube
+        dsfact=4*ikk/(2.*pi)     ! con-cube
         ds=rearth/dsfact
 
 c       extend em4 to uppermost i and j rows
-        do j=1,4*il
+        do j=1,4*ikk
          em4(iquad,j)=em4(1,j)
         enddo
-        do i=1,4*il
+        do i=1,4*ikk
          em4(i,iquad)=em4(i,1)
         enddo
 
-        do j=1,il
-         do i=1,il
+        do j=1,ikk
+         do i=1,ikk
           do n=0,5
 c          average Purser em is pi/2
-c          em(i,il*n+j)=pi/(2.*em4(4*i-1,4*j-1))
-c          emu(i,il*n+j)=pi/(2.*em4(4*i+1,4*j-1))
-c          emv(i,il*n+j)=pi/(2.*em4(4*i-1,4*j+1))
+c          em(i,ikk*n+j)=pi/(2.*em4(4*i-1,4*j-1))
+c          emu(i,ikk*n+j)=pi/(2.*em4(4*i+1,4*j-1))
+c          emv(i,ikk*n+j)=pi/(2.*em4(4*i-1,4*j+1))
            em(ind(i,j,n))=pi/(2.*em4(4*i-1,4*j-1))
            emu(ind(i,j,n))=pi/(2.*em4(4*i+1,4*j-1))
            emv(ind(i,j,n))=pi/(2.*em4(4*i-1,4*j+1))
@@ -461,27 +445,8 @@ c          emv(i,il*n+j)=pi/(2.*em4(4*i-1,4*j+1))
 
 c         set up x0, y0, z0 coords on cube -1 to 1
 c         to save space have equivalenced x,x0  etc
-          x06(i,j,0)= 1.
-          y06(i,j,0)=xx
-          z06(i,j,0)=yy
-          x06(i,j,3)=-1.
-          z06(i,j,3)=-xx
-          y06(i,j,3)=-yy
-
-          x06(i,j,1)=-yy
-          y06(i,j,1)=xx
-          z06(i,j,1)= 1.
-          y06(i,j,4)=-yy
-          x06(i,j,4)=xx
-          z06(i,j,4)=-1.
-
-          x06(i,j,2)=-yy
-          y06(i,j,2)= 1.
-          z06(i,j,2)=-xx
-          z06(i,j,5)=yy
-          y06(i,j,5)=-1.
-          x06(i,j,5)=xx
-c         if(i.eq.(il+1)/2.and.j.eq.(il+1)/2)print *,'xx,yy: ',xx,yy
+          call xxtox(i,j,ikk,xx,yy,  x,y,z)
+c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
          enddo  ! i loop
         enddo   ! j loop
 	 if(ktau.eq.0.and.myid==0)then
@@ -492,7 +457,6 @@ c         if(i.eq.(il+1)/2.and.j.eq.(il+1)/2)print *,'xx,yy: ',xx,yy
         do iq=1,ifull
          call norm(x(iq),y(iq),z(iq),den) ! x, y, z are coords on sphere  -1 to 1
         enddo   ! iq loop
-      endif     ! (npanels.eq.5)
 
       if(npanels.eq.13)then
          print*, "npanels = 13 not implemented in MPI version"
@@ -526,41 +490,41 @@ c         if(i.eq.(il+1)/2.and.j.eq.(il+1)/2)print *,'xx,yy: ',xx,yy
       if(ndiag.eq.2)call printp('z   ', z)
       if(ktau.eq.0.and.myid==0)then
         print *,'On each panel (ntang=0)_em for ',
-     .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(il,il)'
+     .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
         do n=0,npanels
          iq11=ind(1,1,n)
          iq12=ind(1,2,n)
          iq13=ind(1,3,n)
          iq22=ind(2,2,n)
          iq32=ind(3,2,n)
-         iqcc=ind((il+1)/2,(il+1)/2,n)
-         iqnn=ind(il,il,n)
+         iqcc=ind((ikk+1)/2,(ikk+1)/2,n)
+         iqnn=ind(ikk,ikk,n)
          print '(i3,7f8.3)',n,em(iq11),em(iq12),em(iq13),
      .                        em(iq22),em(iq32),em(iqcc),em(iqnn)
         enddo
         print *,'On each panel (ntang=0)_emu for ',
-     .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(il,il)'
+     .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
         do n=0,npanels
          iq11=ind(1,1,n)
          iq12=ind(1,2,n)
          iq13=ind(1,3,n)
          iq22=ind(2,2,n)
          iq32=ind(3,2,n)
-         iqcc=ind((il+1)/2,(il+1)/2,n)
-         iqnn=ind(il,il,n)
+         iqcc=ind((ikk+1)/2,(ikk+1)/2,n)
+         iqnn=ind(ikk,ikk,n)
          print '(i3,7f8.3)',n,emu(iq11),emu(iq12),emu(iq13),
      .                        emu(iq22),emu(iq32),emu(iqcc),emu(iqnn)
         enddo
         print *,'On each panel (ntang=0)_emv for ',
-     .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(il,il)'
+     .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
         do n=0,npanels
          iq11=ind(1,1,n)
          iq12=ind(1,2,n)
          iq13=ind(1,3,n)
          iq22=ind(2,2,n)
          iq32=ind(3,2,n)
-         iqcc=ind((il+1)/2,(il+1)/2,n)
-         iqnn=ind(il,il,n)
+         iqcc=ind((ikk+1)/2,(ikk+1)/2,n)
+         iqnn=ind(ikk,ikk,n)
          print '(i3,7f8.3)',n,emv(iq11),emv(iq12),emv(iq13),
      .                        emv(iq22),emv(iq32),emv(iqcc),emv(iqnn)
         enddo
@@ -623,7 +587,7 @@ c        make sure they are perpendicular & normalize
           do iq=1,ifull   ! based on inverse values of emu & emv
            em(iq)=4./(emu(iwu2(iq))+emu(iq)+
      .                  emv(isv2(iq))+emv(iq))
-c          experimental option follows - only tiniest difference for il=20
+c          experimental option follows - only tiniest difference for ikk=20
 c          em(iq)=2./sqrt((emu(iwu2(iq))+emu(iq))*
 c    .                  (emv(isv2(iq))+emv(iq)))
           enddo   ! iq loop
@@ -635,15 +599,15 @@ c    .                  (emv(isv2(iq))+emv(iq)))
       endif     ! (ntang.eq.0)
       
       if(ktau.eq.0.and.myid==0)then
-        do iq=il-2,il
+        do iq=ikk-2,ikk
          print *,'iq,em,emu,emv',iq,em(iq),emu(iq),emv(iq)
         enddo   ! iq loop
-        if(id.le.il.and.jd.le.jl)then
-          iq=id+il*(jd-1)
+        if(id.le.ikk.and.jd.le.jl)then
+          iq=id+ikk*(jd-1)
           print *,'values at idjd'
           print *,'iq,ax,ay,az',iq,ax(iq),ay(iq),az(iq)
           print *,'iq,bx,by,bz',iq,bx(iq),by(iq),bz(iq)
-          iq=in(id+il*(jd-1))
+          iq=in(id+ikk*(jd-1))
           print *,'values at in(idjd)'
           print *,'iq,ax,ay,az',iq,ax(in(iq)),ay(in(iq)),az(in(iq))
           print *,'iq,bx,by,bz',iq,bx(in(iq)),by(in(iq)),bz(in(iq))
@@ -677,8 +641,8 @@ c     now use 1/(em**2) to cope with schmidt, rotated and ocatagon coordinates
 
 c     previously calculates approx areas around each grid point using modulus of
 c     cross-products; used for error diagnostics
-c     do j=1,il
-c      do i=1,il
+c     do j=1,ikk
+c      do i=1,ikk
 c       iq=ind(i,j,0)
 c       wts(iq)=.5*(crossmod(iq,4*i-3,4*j+1,4*i+1,4*j+1)  ! nw,ne  with xx4,yy4
 c    .             +crossmod(iq,4*i+1,4*j+1,4*i+1,4*j-3)  ! ne,se  with xx4,yy4
@@ -686,7 +650,7 @@ c    .             +crossmod(iq,4*i+1,4*j-3,4*i-3,4*j-3)  ! se,sw  with xx4,yy4
 c    .             +crossmod(iq,4*i-3,4*j-3,4*i-3,4*j+1)) ! sw,nw  with xx4,yy4
 c       sumwts=sumwts+wts(iq)
 c       do n=1,5
-c        wts(iq+n*il*il)=wts(iq)
+c        wts(iq+n*ikk*ikk)=wts(iq)
 c       enddo  ! n loop
 c      enddo   ! i loop
 c     enddo    ! j loop
@@ -732,61 +696,61 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
       if(ktau.eq.0.and.myid==0)then
         print *,'At centre of the faces:'
         do n=0,npanels
-         iq=ind((il+1)/2,(il+1)/2,n)
+         iq=ind((ikk+1)/2,(ikk+1)/2,n)
          print '('' n,iq,x,y,z,long,lat,f ''i2,i7,3f7.3,2f8.2,f9.5)',n,
      .     iq,x(iq),y(iq),z(iq),
      .     rlongg(iq)*180./pi,rlatt(iq)*180./pi,f(iq)
         enddo
         print *,'At mid-x along edges:'
         do n=0,npanels
-         iq=ind((il+1)/2,1,n)
+         iq=ind((ikk+1)/2,1,n)
          print '('' n,iq,x,y,z,long,lat,f ''i2,i7,3f7.3,2f8.2,f9.5)',n,
      .     iq,x(iq),y(iq),z(iq),
      .     rlongg(iq)*180./pi,rlatt(iq)*180./pi,f(iq)
         enddo
         print *,'At mid-y along edges:'
         do n=0,npanels
-         iq=ind(1,(il+1)/2,n)
+         iq=ind(1,(ikk+1)/2,n)
          print '('' n,iq,x,y,z,long,lat,f ''i2,i7,3f7.3,2f8.2,f9.5)',n,
      .     iq,x(iq),y(iq),z(iq),
      .     rlongg(iq)*180./pi,rlatt(iq)*180./pi,f(iq)
         enddo
         print *,'On each panel final_em for ',
-     .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(il,il)'
+     .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
         do n=0,npanels
          iq11=ind(1,1,n)
          iq12=ind(1,2,n)
          iq13=ind(1,3,n)
          iq22=ind(2,2,n)
          iq32=ind(3,2,n)
-         iqcc=ind((il+1)/2,(il+1)/2,n)
-         iqnn=ind(il,il,n)
+         iqcc=ind((ikk+1)/2,(ikk+1)/2,n)
+         iqnn=ind(ikk,ikk,n)
          print '(i3,7f8.3)',n,em(iq11),em(iq12),em(iq13),
      .                        em(iq22),em(iq32),em(iqcc),em(iqnn)
         enddo
         print *,'On each panel final_emu for ',
-     .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(il,il)'
+     .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
         do n=0,npanels
          iq11=ind(1,1,n)
          iq12=ind(1,2,n)
          iq13=ind(1,3,n)
          iq22=ind(2,2,n)
          iq32=ind(3,2,n)
-         iqcc=ind((il+1)/2,(il+1)/2,n)
-         iqnn=ind(il,il,n)
+         iqcc=ind((ikk+1)/2,(ikk+1)/2,n)
+         iqnn=ind(ikk,ikk,n)
          print '(i3,7f8.3)',n,emu(iq11),emu(iq12),emu(iq13),
      .                        emu(iq22),emu(iq32),emu(iqcc),emu(iqnn)
         enddo
         print *,'On each panel final_emv for ',
-     .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(il,il)'
+     .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
         do n=0,npanels
          iq11=ind(1,1,n)
          iq12=ind(1,2,n)
          iq13=ind(1,3,n)
          iq22=ind(2,2,n)
          iq32=ind(3,2,n)
-         iqcc=ind((il+1)/2,(il+1)/2,n)
-         iqnn=ind(il,il,n)
+         iqcc=ind((ikk+1)/2,(ikk+1)/2,n)
+         iqnn=ind(ikk,ikk,n)
          print '(i3,7f8.3)',n,emv(iq11),emv(iq12),emv(iq13),
      .                        emv(iq22),emv(iq32),emv(iqcc),emv(iqnn)
         enddo
@@ -803,8 +767,8 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
         ratmin=100.
 	 ratmax=0.
         do n=0,npanels
-         do i=1,il
-	   iq=ind(i,il/2,n)
+         do i=1,ikk
+	   iq=ind(i,ikk/2,n)
 	   rat=em(iq)/em(ie(iq))
 	    if(rat<ratmin)then
 	      ratmin=rat
@@ -815,17 +779,19 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
 	      imax=i
 	    endif
 	  enddo
-	  print *,'em ratio for j=il/2 on npanel ',n
-         write (6,"(12f6.3)")
-     &         (em(ind(i,il/2,n))/em(ie(ind(i,il/2,n))),i=1,il)
+          if(num==1)then
+	    print *,'em ratio for j=ikk/2 on npanel ',n
+            write (6,"(12f6.3)")
+     &            (em(ind(i,ikk/2,n))/em(ie(ind(i,ikk/2,n))),i=1,ikk)
+          endif
 	 enddo
-	 print *,'for j=il/2 & myid=0, ratmin,ratmax = ',ratmin,ratmax
+	 print *,'for j=ikk/2 & myid=0, ratmin,ratmax = ',ratmin,ratmax
 	 print *,'with imin,imax ',imin,jmin,imax,jmax
         ratmin=100.
 	 ratmax=0.
         do n=0,npanels
-	  do j=1,il
-          do i=1,il
+	  do j=1,ikk
+          do i=1,ikk
 	    iq=ind(i,j,n)
 	    rat=em(iq)/em(ie(iq))
 	    if(rat<ratmin)then
@@ -854,6 +820,31 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
 	 print *,'points in SGMIP region ',numpts
       endif
 
+      return
+      end
+      subroutine xxtox(i,j,ikk,xx,yy,  x06,y06,z06)
+!     put as subr. sept 06 to avoid equivalence of x, x06 etc      
+      real x06(ikk,ikk,0:5),y06(ikk,ikk,0:5),z06(ikk,ikk,0:5)
+          x06(i,j,0)= 1.
+          y06(i,j,0)=xx
+          z06(i,j,0)=yy
+          x06(i,j,3)=-1.
+          z06(i,j,3)=-xx
+          y06(i,j,3)=-yy
+
+          x06(i,j,1)=-yy
+          y06(i,j,1)=xx
+          z06(i,j,1)= 1.
+          y06(i,j,4)=-yy
+          x06(i,j,4)=xx
+          z06(i,j,4)=-1.
+
+          x06(i,j,2)=-yy
+          y06(i,j,2)= 1.
+          z06(i,j,2)=-xx
+          z06(i,j,5)=yy
+          y06(i,j,5)=-1.
+          x06(i,j,5)=xx
       return
       end
       subroutine indv(iq,i,j,n)

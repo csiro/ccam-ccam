@@ -3,7 +3,8 @@
       include 'newmpar.h'
       real sigin(kl),sigmhin(kl)
       common/simpl/sig(kl),sigmh(kl+1)
-      common/new/emat(kl,kl),bam(kl),einv(kl,kl)
+      include 'vecs.h'
+c     common/new/emat(kl,kl),bam(kl),einv(kl,kl)
       data neig/1/,nsig/5/,nflip/0/
 
 c     lapsbot=1 gives zero lowest t lapse for phi calc
@@ -84,7 +85,8 @@ c     sets up eigenvectors
       real bet(kl),betm(kl),get(kl),getm(kl),gmat(kl,kl)
       real bmat(kl,kl),evimag(kl),veci(kl,kl),sum1(kl)
       dimension indic(kl)
-      common/new/emat(kl,kl),bam(kl),einv(kl,kl)
+      include 'vecs.h'
+c     common/new/emat(kl,kl),bam(kl),einv(kl,kl)
       real aa(kl,kl),ab(kl,kl),ac(kl,kl)
       real aaa(kl,kl),cc(kl,kl)
       data aa/klkl*0./,bmat/klkl*0./
@@ -147,7 +149,7 @@ c      enddo
       factr=factg*r*r*tbar*tbar/(g*g)
       
       bmat(:,:)=0.  ! N.B. bmat includes effect of r/sig weighting
-      gmat(:,:)=0.  ! N.B. gmat includes effect of 1/sig**2 weighting
+      gmat(:,:)=0.  ! N.B. gmat may include effect of 1/sig**2 weighting
       do k=2,kl
        do l=1,k-1
         bmat(k,l)=bet(l)+betm(l+1)
@@ -215,26 +217,28 @@ c      enddo
       enddo
 91    format(i3,15f8.1/3x,15f8.1/3x,15f8.1)
 
-      if(nh.ne.0.and.nh.ne.2)then  ! use gmat instead of bmat to derive aaa term
-        do k=1,kl
-         do l=k,kl
-          aa(k,l)=dsig(l)
-         enddo
-        enddo
-        do k=1,kl
-         aa(k,k)=sigmh(k+1)-sig(k)
-        enddo
-        call matm(aaa,gmat,aa)
-        cc(:,:)=cc(:,:)-aaa(:,:)*2./(dt*(1.+eps))
-        print *,'cc with gmat terms'
-        do k=1,kl
-         print 91,k,(cc(k,l),l=1,kl)
-        enddo
-      endif  ! (nh.ne.0)
+      if(nh>-2)then  ! use gmat instead of bmat to derive aaa      
+C     if(nh>-2.and.nh.ne.2)then  ! use gmat instead of bmat to derive aaa term
+!       use nh=-2 to see old eigs, -1 to do hydr. run with NH eigs      
+c        do k=1,kl
+c         do l=k,kl
+c          aa(k,l)=dsig(l)
+c         enddo
+c        enddo
+c        do k=1,kl
+c         aa(k,k)=sigmh(k+1)-sig(k)
+c        enddo
+c        call matm(aaa,gmat,aa)
+c        cc(:,:)=cc(:,:)-aaa(:,:)*2./(dt*(1.+eps))
+c        print *,'cc with gmat terms'
+c        do k=1,kl
+c         print 91,k,(cc(k,l),l=1,kl)
+c        enddo
+c      endif  ! (nh.ne.0)
 
-      if(nh==2)then  ! use net gmat (June '06) - no eps yet
+c      if(nh==2)then  ! use net gmat (June '06) - no eps yet
         gmat(:,:)=bmat(:,:)*(1.+4.*cp*tbar/(g*dt)**2)
-        call matm(aaa,bmat,aa)
+        call matm(aaa,gmat,aa)
         cc(:,:)=aaa(:,:)-r*tbar*ab(:,:)
         print *,'cc with gmat'
         do k=1,kl

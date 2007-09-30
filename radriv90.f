@@ -15,6 +15,7 @@
       use zenith_m
       use cc_mpi
       use diag_m
+      use ateb ! MJT CHANGE
       include 'newmpar.h'
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
 !        for diag prints set ntest=1
@@ -224,7 +225,9 @@ c     calculations
       dhr = kountr*dt/3600.0
       call zenith(fjd,r1,dlt,slag,rlatt(1+(j-1)*il),
      &            rlongg(1+(j-1)*il),dhr,imax,coszro,taudar)
-
+      if (nsib.eq.5) call tebccangle(istart,imax,coszro(1:imax)
+     &   ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt,0) ! MJT CHANGE
+      
 c     Set up basic variables, reversing the order of the vertical levels
       do i=1,imax
          iq=i+(j-1)*il
@@ -246,6 +249,11 @@ c        Conversion of o3 from units of cm stp to gm/gm
             end do
          end do
       end if
+
+      !----------------------------------------------
+      ! MJT CHANGE - prep urban albedo
+      call tebalb(ifull,ualb,0)
+      !----------------------------------------------
 
 !     Set up surface albedo. The input value is > 1 over ocean points where
 !     the zenith angle dependent formula should be used.
@@ -374,6 +382,7 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
      .                (1.-fracice(iq))*.05/(coszro(i)+0.15)
         endif       ! if( land(iq)) .. else..
 
+         cuvrf(i,1)=sigmu(iq)*ualb(iq)+(1.-sigmu(iq))*cuvrf(i,1) ! MJT CHANGE - urban albedo
          alb(iq) = cuvrf(i,1)   ! save current albedo in alb array for outfile
          if(iaero.ne.0)then
            cosz = max ( coszro(i), 1.e-4)
@@ -636,9 +645,9 @@ c slwa is negative net radiational htg at ground
 ! Note that this does not include the upward LW radiation from the surface.
 ! That is included in sflux.f
       do i=1,imax
-         iq=i+(j-1)*il
-         slwa(iq) = -sg(i)+rgsave(iq)
-         sgsave(iq) = sg(i)   ! this is the repeat after solarfit 26/7/02
+       iq=i+(j-1)*il
+       slwa(iq) = -sg(i)+rgsave(iq)
+       sgsave(iq) = sg(i)   ! this is the repeat after solarfit 26/7/02
       end do
 
 ! Calculate rtt, the net radiational cooling of atmosphere (K/s) from htk (in

@@ -8,17 +8,18 @@
       integer itn,iq,k,k13,k23,kb,kcl_top
      .       ,khalf,khalfd,khalfp,kt
      .       ,ncubase,nfluxq,nfluxdsk,nlayers,nlayersd,nlayersp
-     .       ,ntest,ntr,nums
+     .       ,ntest,ntr,nums,nuv
       real Aev,Asb
-     .    ,convmax,deltaq,delq_av,delt_av
-     .    ,den1,den2,den3,detr,dprec,dqrx,dskm
-     .    ,entrainp,entrr,entrradd,facuv,fldownn,fluxup
+     .    ,convmax,delqq,delss,deltaq,delq_av,delt_av
+     .    ,den1,den2,den3,detr,dprec,dqrx,dskm,entrainp,entrr,entrradd
+     .    ,facuv,fldownn,fluxa,fluxb,fluxd,fluxup
      .    ,frac,fraca,fracb,gam,hbas,hbase,heatlev
      .    ,pwater,pwater0,qavg,qavgb,qbas,qentrr,qprec,qsk,rkmid
      .    ,savg,savgb,sbas,sentrr,sum,tm,totprec,veldt
      
      .    ,rKa,Dva,cfls,cflscon,rhodz,qpf,pk,Apr,Bpr,Fr,rhoa,dz,Vr
      .    ,dtev,qr,qgdiff,Cev2,qr2,Cevx,alphal,blx,evapls,revq
+     .    ,deluu,delvv
 
       include 'newmpar.h'
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
@@ -37,6 +38,7 @@
 !     parameter (methdetr=2)   ! various - applies only to shallow clouds
 !     parameter (methprec=8)   ! 1 (top only); 2 (top half); 4 top quarter (= kbconv)
 !     parameter (nuvconv=0)    ! usually 0, >0 to turn on momentum mixing
+      parameter (nuv=0)        ! usually 0, >0 to turn on new momentum mixing
       parameter (kcl_top=kl-2) ! max level for cloud top (convjlm,radrive,vertmix)
 !     parameter (dsig2=.1, dsig4=.7)  ! used with detrainx
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
@@ -62,14 +64,15 @@
       real alfqarr(ifull),conrev(ifull)
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
       real delv(ifull,kl),dqsdt(ifull,kl),es(ifull,kl) 
-      real fldow(ifull),fluxq(ifull),fluxb(ifull)
+      real fldow(ifull),fluxq(ifull),fluxbb(ifull)
       real fluxr(ifull),flux_dsk(ifull),fluxt(ifull,kl),hs(ifull,kl)  
       real phi(ifull,kl),qbase(ifull),qdown(ifull),qliqw(ifull,kl)
       real qq(ifull,kl),qs(ifull,kl),qxcess(ifull)
       real revc(ifull,kl),rnrt(ifull),rnrtc(ifull),rnrtcn(ifull)
       real s(ifull,kl),sbase(ifull),tdown(ifull),tt(ifull,kl)
       real dsk(kl),qbass(kl),h0(kl),q0(kl),t0(kl)  
-      equivalence (delu,revc,delq),(delv,dels)
+c     equivalence (delu,revc,delq),(delv,dels)
+      equivalence (revc,delq)
 !     data rhcv/.75/                  now in kuocom
       integer kdown(ifull)
       real entr(ifull),qentr(ifull),sentr(ifull),factr(ifull)
@@ -165,9 +168,15 @@ c     enddo
       kt_sav(:)=kl-1   ! preset value for no convection
       rnrtcn(:)=0.     ! initialize convective rainfall array (pre convpsav)
       convpsav(:)=0.
+      phi(:,1)=bet(1)*tt(:,1)
       dels(:,:)=1.e-20
       delq(:,:)=0.
-      phi(:,1)=bet(1)*tt(:,1)
+      if(nuvconv.ne.0.or.nuv>0)then 
+        delu(:,:)=0.
+        delv(:,:)=0.
+        facuv=.1*nuvconv ! full effect for nuvconv=10
+c       if(nuv>0)nuvconv=0
+      endif
 
       do k=2,kl
        do iq=1,ifull
@@ -192,7 +201,7 @@ c       calculate hs
       enddo   ! k loop
 
       if(ktau==1.and.mydiag)then
-        print *,'itn,iterconv,nuvconv ',itn,iterconv,nuvconv
+        print *,'itn,iterconv,nuv,nuvconv ',itn,iterconv,nuv,nuvconv
         print *,'methdetr,detrain,detrainx,dsig2,dsig4 ',
      .           methdetr,detrain,detrainx,dsig2,dsig4
         print *,'methprec,fldown ',methprec,fldown
@@ -304,11 +313,6 @@ c       calculate hs
        endif    ! (ntest>0.and.mydiag) 
       enddo     ! k loop
 
-!     subtract contrib to cloud base layer (unit flux this one)
-      do iq=1,ifull
-       delq(iq,kb_sav(iq))=-qbase(iq)
-       dels(iq,kb_sav(iq))=-sbase(iq)
-      enddo
       entrainp=1.+abs(entrain)
       entr(:)=0.
       qentr(:)=0.
@@ -400,6 +404,10 @@ c      endif       ! (convrh>0.)
        entrradd=1.+entr(iq)*(sigmh(kb_sav(iq)+1)-sigmh(kt_sav(iq)))
        qprec=entrradd*max(0.,qbase(iq)-qsk)             
        dels(iq,kt_sav(iq))=entrradd*sbase(iq) ! s flux
+       if(nuv>0)then
+         delu(iq,kt_sav(iq))=u(iq,kb_sav(iq))
+         delv(iq,kt_sav(iq))=v(iq,kb_sav(iq))
+       endif  ! (nuv>0)
        delq(iq,kt_sav(iq))=entrradd*qsk  
        dels(iq,kt_sav(iq))=dels(iq,kt_sav(iq))+hl*qprec    ! precip. heating
        kdown(iq)=min(kl,kb_sav(iq)+nint(.6+.75*(kt_sav(iq)-kb_sav(iq))))
@@ -412,7 +420,7 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
        qdown(iq)= qs(iq,kb_sav(iq))+
      .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) 
        dprec=qdown(iq)-qsk                      ! to be mult by fldownn
-!	typically fldown=.6 or -.2        
+!      typically fldown=.6 or -.2        
        fldownn=max(-fldown,fldown*(sig(kb_sav(iq))-sig(kt_sav(iq))))
        totprec=qprec-fldownn*dprec 
        fldow(iq)=(.5+sign(.5,totprec))*fldownn ! suppr. downdraft for totprec<0
@@ -425,9 +433,15 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
        dels(iq,kdown(iq))=dels(iq,kdown(iq))-fldow(iq)*s(iq,kdown(iq))
        delq(iq,kdown(iq))=delq(iq,kdown(iq))-fldow(iq)*qsk
 !      calculate emergent downdraft properties
-       delq(iq,kb_sav(iq))=delq(iq,kb_sav(iq))+fldow(iq)*qdown(iq)
-       dels(iq,kb_sav(iq))=dels(iq,kb_sav(iq))+fldow(iq)*
+       delq(iq,kb_sav(iq))=fldow(iq)*qdown(iq)
+       dels(iq,kb_sav(iq))=fldow(iq)*
      .        (s(iq,kb_sav(iq))+cp*(tdown(iq)-t(iq,kb_sav(iq))))
+       if(nuv>0)then
+         delu(iq,kdown(iq))=delu(iq,kdown(iq))-fldow(iq)*u(iq,kdown(iq))
+         delv(iq,kdown(iq))=delv(iq,kdown(iq))-fldow(iq)*v(iq,kdown(iq))
+         delu(iq,kb_sav(iq))=fldow(iq)*u(iq,kdown(iq))
+         delv(iq,kb_sav(iq))=fldow(iq)*v(iq,kdown(iq))
+       endif  ! (nuv>0)
       enddo  ! iq loop
       if((ntest>0.or.diag).and.mydiag)then
         iq=idjd
@@ -443,7 +457,127 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
         write (6,"('delqa',3p9f8.3/(5x,9f8.3))")
      &              delq(idjd,1:kt_sav(idjd))
       endif
+      
+      if(nbase==2)then
+!       use full sub-cloud layer with linearly decreasing fluxes
+!       N.B. this one has downdraft fully into kbsav layer
+        do k=1,kl/3-1
+         do iq=1,ifull
+          if(kb_sav(iq)<=kl/3.and.k<kb_sav(iq))then
+            fluxa=(1.-sigmh(k+1))/(1.-sigmh(kb_sav(iq)+1))
+            delss=fluxa*(s(iq,k+1)-s(iq,k))
+            delqq=fluxa*(qg(iq,k+1)-qg(iq,k))
+            dels(iq,k)=dels(iq,k)+delss
+            delq(iq,k)=delq(iq,k)+delqq
+            dels(iq,k+1)=dels(iq,k+1)-delss
+            delq(iq,k+1)=delq(iq,k+1)-delqq
+          endif
+         enddo
+        enddo
+      endif   ! (nbase==2)
+      
+      if(nbase==3)then
+!       use full sub-cloud layer with quadratically decreasing fluxes
+!       N.B. this one has downdraft fully into kbsav layer
+        do k=1,kl/3-1
+         do iq=1,ifull
+          if(kb_sav(iq)<=kl/3.and.k<kb_sav(iq))then
+            fluxa=((1.-sigmh(k+1))/(1.-sigmh(kb_sav(iq)+1)))**2
+            delss=fluxa*(s(iq,k+1)-s(iq,k))
+            delqq=fluxa*(qg(iq,k+1)-qg(iq,k))
+            dels(iq,k)=dels(iq,k)+delss
+            delq(iq,k)=delq(iq,k)+delqq
+            dels(iq,k+1)=dels(iq,k+1)-delss
+            delq(iq,k+1)=delq(iq,k+1)-delqq
+          endif
+         enddo
+        enddo
+      endif   ! (nbase==3)
+      
+      if(nbase==-2)then
+!       use full sub-cloud layer with linearly decreasing fluxes
+!       N.B. this one does likewise with downdrafts
+        do k=kl/2,1,-1
+         do iq=1,ifull
+          if(kb_sav(iq)<=kl/2)then
+           if(k==kb_sav(iq))then
+!           first reduce effect of downdraft on kb_sav layer 
+!           using net downdraft flux into the layer
+            fluxd=1.-(1.-sigmh(k))/(1.-sigmh(kb_sav(iq)+1))     
+            dels(iq,k)=fluxd*dels(iq,k)
+            delq(iq,k)=fluxd*delq(iq,k)
+            if(nuv>0)then
+              delu(iq,k)=fluxd*delu(iq,k)
+              delv(iq,k)=fluxd*delv(iq,k)
+            endif  ! (nuv>0)
+           endif  ! (k==kb_sav(iq))
+           if(k<kb_sav(iq))then
+            fluxa=(1.-sigmh(k+1))/(1.-sigmh(kb_sav(iq)+1))
+            fluxb=(1.-sigmh(k  ))/(1.-sigmh(kb_sav(iq)+1))
+            fluxd=fldow(iq)*(fluxa-fluxb)          
+            delss=fluxa*((1.-fldow(iq))*s(iq,k+1)-s(iq,k))
+            delqq=fluxa*((1.-fldow(iq))*qg(iq,k+1)-qg(iq,k))
+            dels(iq,k)=dels(iq,k)+delss
+     &       +fluxd*(s(iq,k)+cp*(tdown(iq)-t(iq,k)))            
+            delq(iq,k)=delq(iq,k)+delqq   +fluxd*qdown(iq)
+            dels(iq,k+1)=dels(iq,k+1)-delss
+            delq(iq,k+1)=delq(iq,k+1)-delqq
+            if(nuv>0)then
+              deluu=fluxa*((1.-fldow(iq))*u(iq,k+1)-u(iq,k))
+              delvv=fluxa*((1.-fldow(iq))*v(iq,k+1)-v(iq,k))
+              delu(iq,k)=delu(iq,k)+deluu   +fluxd*u(iq,kdown(iq))
+              delv(iq,k)=delv(iq,k)+delvv   +fluxd*v(iq,kdown(iq))
+              delu(iq,k+1)=delu(iq,k+1)-deluu
+              delv(iq,k+1)=delv(iq,k+1)-delvv
+           endif  ! (nuv>0)
+          endif   ! (k<kb_sav(iq))
+          endif   ! (kb_sav(iq)<=kl/2)
+         enddo
+        enddo
+      endif   ! (nbase==-2)
+      
+      if(nbase==-3)then
+!       use full sub-cloud layer with quadratically decreasing fluxes
+!       N.B. this one does likewise with downdrafts
+        do k=kl/2,1,-1
+         do iq=1,ifull
+          if(kb_sav(iq)<=kl/2)then
+           if(k==kb_sav(iq))then
+!           first reduce effect of downdraft on kb_sav layer 
+!           using net downdraft flux into the layer
+            fluxd=1.-((1.-sigmh(k))/(1.-sigmh(kb_sav(iq)+1)))**2     
+            dels(iq,k)=fluxd*dels(iq,k)
+            delq(iq,k)=fluxd*delq(iq,k)
+           endif  ! (k==kb_sav(iq))
+           if(k<kb_sav(iq))then
+            fluxa=((1.-sigmh(k+1))/(1.-sigmh(kb_sav(iq)+1)))**2
+            fluxb=((1.-sigmh(k  ))/(1.-sigmh(kb_sav(iq)+1)))**2
+            fluxd=fldow(iq)*(fluxa-fluxb)          
+            delss=fluxa*((1.-fldow(iq))*s(iq,k+1)-s(iq,k))
+            delqq=fluxa*((1.-fldow(iq))*qg(iq,k+1)-qg(iq,k))
+            dels(iq,k)=dels(iq,k)+delss
+     &       +fluxd*(s(iq,k)+cp*(tdown(iq)-t(iq,k)))            
+            delq(iq,k)=delq(iq,k)+delqq   +fluxd*qdown(iq)
+            dels(iq,k+1)=dels(iq,k+1)-delss
+            delq(iq,k+1)=delq(iq,k+1)-delqq
+           endif  ! (k<kb_sav(iq))
+          endif   ! (kb_sav(iq)<=kl/2)
+         enddo
+        enddo
+      endif   ! (nbase==-3)
 
+!     subtract contrib to cloud base layer (unit flux this one)
+      do iq=1,ifull
+       delq(iq,kb_sav(iq))=delq(iq,kb_sav(iq))-qbase(iq)
+       dels(iq,kb_sav(iq))=dels(iq,kb_sav(iq))-sbase(iq)
+      enddo
+      if(nuv>0)then
+        do iq=1,ifull
+         delu(iq,kb_sav(iq))=delu(iq,kb_sav(iq))-u(iq,kb_sav(iq))
+         delv(iq,kb_sav(iq))=delv(iq,kb_sav(iq))-v(iq,kb_sav(iq))
+        enddo
+      endif  ! (nuv>0)
+ 
       if(alfsea>0)then 
         fraca=1.    ! effectively used from 23/5/03
         fracb=0.    ! to avoid giving -ve qg for the layer
@@ -452,7 +586,7 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
         fracb=.5
       endif  ! (alfsea>0)
 
-!     subsidence and (possible) "shallow" detrainment
+!     subsidence and (possible) entrainment
       do k=kuocb+1,kl-1
        do iq=1,ifull
         if(k>kb_sav(iq).and.k<=kt_sav(iq))then
@@ -466,6 +600,12 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
           dels(iq,k-1)=dels(iq,k-1)+savg         ! subsidence into lower layer
           delq(iq,k)=delq(iq,k)-qavg             ! subsidence 
           delq(iq,k-1)=delq(iq,k-1)+qavg         ! subsidence into lower layer
+          if(nuv>0)then
+            delu(iq,k)=delu(iq,k)-u(iq,k)        ! subsidence 
+            delu(iq,k-1)=delu(iq,k-1)+u(iq,k)    ! subsidence into lower layer
+            delv(iq,k)=delv(iq,k)-v(iq,k)        ! subsidence 
+            delv(iq,k-1)=delv(iq,k-1)+v(iq,k)    ! subsidence into lower layer
+          endif  ! (nuv>0)
           if(k<kt_sav(iq))then
             dels(iq,k)=dels(iq,k)+dsig(k)*entr(iq)*s(iq,k)  ! entr into updraft
             delq(iq,k)=delq(iq,k)+dsig(k)*entr(iq)*qq(iq,k) ! entr into updraft
@@ -492,6 +632,10 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
          dels(iq,k-1)=dels(iq,k-1)-fldow(iq)*savgb ! anti-subsidence into l-l
          delq(iq,k)=delq(iq,k)+fldow(iq)*qavgb     ! anti-subsidence 
          delq(iq,k-1)=delq(iq,k-1)-fldow(iq)*qavgb ! anti-subsidence into l-l
+         if(nuv>0)then
+           delu(iq,k)=delu(iq,k)+fldow(iq)*u(iq,k)     ! anti-subsidence 
+           delu(iq,k-1)=delu(iq,k-1)-fldow(iq)*u(iq,k) ! anti-subsidence into l-l
+         endif  ! (nuv>0)
         endif
        enddo   ! iq loop
       enddo    ! k loop
@@ -637,10 +781,10 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
          if(kb_sav(iq)<kl-1)then  
 !          Base limiter: new_qq(kb)=rhcv*new_qs(kb), i.e.
 !          [qq+M*delq]_kb=rhcv*[qs+M*dqsdt*dels/cp]_kb 
-           fluxb(iq)=max(0.,(rhcv*qs(iq,kb_sav(iq))-qq(iq,kb_sav(iq)))/ 
+           fluxbb(iq)=max(0.,(rhcv*qs(iq,kb_sav(iq))-qq(iq,kb_sav(iq)))/
      .            ( delq(iq,kb_sav(iq))
      .             -rhcv*dqsdt(iq,kb_sav(iq))*dels(iq,kb_sav(iq))/cp ) ) 
-           convpsav(iq)=min(convpsav(iq),fluxb(iq))
+           convpsav(iq)=min(convpsav(iq),fluxbb(iq))
          endif ! (kb_sav(iq)<kl-1)
         enddo  ! iq loop
       endif    ! (rhcv>0.)
@@ -649,10 +793,10 @@ c    .           (tdown(iq)-t(iq,kb_sav(iq)))*dqsdt(iq,kb_sav(iq)) )
          if(kb_sav(iq)<kl-1)then  
 !          Base limiter: new_qq(kb)=rh_arr*new_qs(kb), i.e.
 !          [qq+M*delq]_kb=rh_arr*[qs+M*dqsdt*dels/cp]_kb
-           fluxb(iq)=max(0.,(rh_arr(iq)*qs(iq,kb_sav(iq)) 
+           fluxbb(iq)=max(0.,(rh_arr(iq)*qs(iq,kb_sav(iq)) 
      .          -qq(iq,kb_sav(iq)))/  ( delq(iq,kb_sav(iq))
      .       -rh_arr(iq)*dqsdt(iq,kb_sav(iq))*dels(iq,kb_sav(iq))/cp ) ) 
-           convpsav(iq)=min(convpsav(iq),fluxb(iq))
+           convpsav(iq)=min(convpsav(iq),fluxbb(iq))
          endif ! (kb_sav(iq)<kl-1)
         enddo  ! iq loop
       endif    ! (rhcv>0.)
@@ -717,8 +861,8 @@ c         print *,'dels(iq,k+1) ',dels(iq,k+1)
 c         print *,'delq(iq,k) ',delq(iq,k)
           print *,'fluxqs ',fluxqs
         endif
-        write(6,"('flux_dsk,fluxq,fluxb,convpsav',5f9.5)")
-     .             flux_dsk(iq),fluxq(idjd),fluxb(idjd),convpsav(idjd)
+        write(6,"('flux_dsk,fluxq,fluxbb,convpsav',5f9.5)")
+     .             flux_dsk(iq),fluxq(idjd),fluxbb(idjd),convpsav(idjd)
         write(6,"('fluxt',9f8.3/(5x,9f8.3))") fluxt(iq,1:kt_sav(iq))
         write(6,"('delQ*dsk6p',6p9f8.3/(10x,9f8.3))")
      .    (convpsav(idjd)*delq(idjd,k)*dsk(k),k=1,kl)
@@ -734,7 +878,7 @@ c          if(nums<20)then
              convmax=convpsav(iq)
              write(6,"('bc  ',2i5,2i3,2x,3f7.3,f6.3,' rh:',2f5.2)") 
      .       iq,nums,kb_sav(iq),kt_sav(iq),
-     .       dsk(kb_sav(iq)),fluxb(iq),
+     .       dsk(kb_sav(iq)),fluxbb(iq),
      .       fluxt(iq,kt_sav(iq)),convpsav(iq),
      .       qq(iq,kb_sav(iq))/qs(iq,kb_sav(iq)),
      .       qq(iq,kt_sav(iq))/qs(iq,kt_sav(iq))
@@ -751,7 +895,7 @@ c          if(nums<20)then
              convmax=convpsav(iq)
              write(6,"('bcd ',2i5,2i3,2x,3f7.3,f6.3,' rh:',2f5.2)") 
      .       iq,nums,kb_sav(iq),kt_sav(iq),
-     .       dsk(kb_sav(iq)),fluxb(iq),
+     .       dsk(kb_sav(iq)),fluxbb(iq),
      .       fluxt(iq,kt_sav(iq)),convpsav(iq),
      .       qq(iq,kb_sav(iq))/qs(iq,kb_sav(iq)),
      .       qq(iq,kt_sav(iq))/qs(iq,kt_sav(iq))
@@ -768,7 +912,7 @@ c          if(nums<20)then
              convmax=convpsav(iq)
              write(6,"('bcde',2i5,2i3,2x,3f7.3,f6.3,' rh:',2f5.2)") 
      .       iq,nums,kb_sav(iq),kt_sav(iq),
-     .       dsk(kb_sav(iq)),fluxb(iq),
+     .       dsk(kb_sav(iq)),fluxbb(iq),
      .       fluxt(iq,kt_sav(iq)),convpsav(iq),
      .       qq(iq,kb_sav(iq))/qs(iq,kb_sav(iq)),
      .       qq(iq,kt_sav(iq))/qs(iq,kt_sav(iq))
@@ -814,6 +958,15 @@ c          if(nums<20)then
       endif    !  (sig_ct<0.).. else ..
  
       if(itn==1)then
+        cape(:)=0.
+        do k=2,kl-1
+         do iq=1,ifull
+          if(k>kb_sav(iq).and.k<=kt_sav(iq))then
+            cape(iq)=cape(iq)-(sbase(iq)+hl*qbase(iq)-hs(iq,k))*
+     &              rdry*dsig(k)/(cp*sig(k))            
+          endif
+         enddo
+        enddo
         do iq=1,ifull
          if(convpsav(iq)>0.)then
            timeconv(iq)=timeconv(iq)+dt/3600.
@@ -949,11 +1102,9 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
         if(delt_av.ne.0.)print *,'ktau,itn,kbsav,ktsav,delt_av,heatlev',
      .        ktau,itn,kb_sav(idjd),kt_sav(idjd),delt_av,heatlev/delt_av
       endif   ! (ntest>0.or.diag)
-
+      
+      if(nuv>0.or.nuvconv==0)go to 7
       if(nuvconv>0.and.nuvconv<100)then !  momentum calculations, original style
-        facuv=.1*nuvconv ! full effect for nuvconv=10
-        delu(:,:)=0.
-        delv(:,:)=0.
         do k=kl-2,1,-1
          do iq=1,ifull
           if(k==kt_sav(iq))then                 ! delu and delv for top layer
@@ -965,19 +1116,10 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
           endif  ! (k==kb_sav(iq))  .. else ..      
          enddo   ! iq loop
         enddo    ! k loop
-!       update u & v using actual delu and delv (i.e. divided by dsk)
-        do k=1,kl-2   
-         do iq=1,ifull
-          u(iq,k)=u(iq,k)+facuv*factr(iq)*convpsav(iq)*delu(iq,k)/dsk(k)
-          v(iq,k)=v(iq,k)+facuv*factr(iq)*convpsav(iq)*delv(iq,k)/dsk(k)
-         enddo  ! iq loop
-        enddo   ! k loop
       endif     ! (nuvconv>0.and.nuvconv<100)
 
       if(nuvconv>100.and.nuvconv<200)then   !  momentum, with downdrafts
         facuv=.1*(nuvconv-100) ! full effect for nuvconv=110
-        delu(:,:)=0.
-        delv(:,:)=0.
         do k=kl,1,-2
          do iq=1,ifull
           if(k==kt_sav(iq))then                 ! delu and delv for top layer
@@ -997,20 +1139,11 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
           endif  ! (k==kb_sav(iq))  .. else ..    
          enddo   ! iq loop
         enddo    ! k loop
-!       update u & v using actual delu and delv (i.e. divided by dsk)
-        do k=1,kl-2   
-         do iq=1,ifull
-          u(iq,k)=u(iq,k)+facuv*factr(iq)*convpsav(iq)*delu(iq,k)/dsk(k)
-          v(iq,k)=v(iq,k)+facuv*factr(iq)*convpsav(iq)*delv(iq,k)/dsk(k)
-         enddo  ! iq loop
-        enddo   ! k loop
       endif     ! (nuvconv>100.and.nuvconv<200)
 
       if(nuvconv>200.and.nuvconv<300)then !  momentum, general mixing
 !       this one assumes horiz. pressure gradients will be generated on parcel      
         facuv=.1*(nuvconv-200) ! full effect for nuvconv=210
-        delu(:,:)=0.
-        delv(:,:)=0.
         do k=1,kl-2
          do iq=1,ifull
           if(k==kt_sav(iq))then                 ! delu and delv for top layer
@@ -1025,20 +1158,11 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
           endif  ! (k==kb_sav(iq))  .. else ..      
          enddo   ! iq loop
         enddo    ! k loop
-!       update u & v using actual delu and delv (i.e. divided by dsk)
-        do k=1,kl-2   
-         do iq=1,ifull
-          u(iq,k)=u(iq,k)+facuv*factr(iq)*convpsav(iq)*delu(iq,k)/dsk(k)
-          v(iq,k)=v(iq,k)+facuv*factr(iq)*convpsav(iq)*delv(iq,k)/dsk(k)
-         enddo  ! iq loop
-        enddo   ! k loop
       endif     ! (nuvconv>200.and.nuvconv<300)
 
       if(nuvconv>300.and.nuvconv<400)then !  mixture of 10 & 210
 !       this one assumes horiz. pressure gradients will be generated on parcel      
         facuv=.1*(nuvconv-300) ! full effect for nuvconv=310
-        delu(:,:)=0.
-        delv(:,:)=0.
         do k=kl,1,-2
          do iq=1,ifull
           if(k==kt_sav(iq))then                 ! delu and delv for top layer
@@ -1055,24 +1179,10 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
           endif  ! (k==kb_sav(iq))  .. else ..      
          enddo   ! iq loop
         enddo    ! k loop
-!       update u & v using actual delu and delv (i.e. divided by dsk)
-        do k=1,kl-2  
-         do iq=1,ifull
-          u(iq,k)=u(iq,k)+facuv*factr(iq)*convpsav(iq)*delu(iq,k)/dsk(k)
-          v(iq,k)=v(iq,k)+facuv*factr(iq)*convpsav(iq)*delv(iq,k)/dsk(k)
-         enddo  ! iq loop
-        enddo   ! k loop
       endif     ! (nuvconv>200.and.nuvconv<300)
-
-!     if(nuvconv>400.and.nuvconv<500)then ! pseudo implicit
-!       this one assumes horiz. pressure gradients will be generated on parcel      
-!       updated u & v using actual delu and delv (i.e. divided by dsk)
-!     endif     ! (nuvconv>400.and.nuvconv<500)
 
       if(nuvconv>500.and.nuvconv<600)then   !  with extended downdrafts
         facuv=.1*(nuvconv-500) ! full effect for nuvconv=510
-        delu(:,:)=0.
-        delv(:,:)=0.
         do k=1,kl-2
          do iq=1,ifull
          if(kt_sav(iq)<kl-1)then
@@ -1100,14 +1210,17 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
           endif   ! (kt_sav(iq)<kl-1)
          enddo   ! iq loop
         enddo    ! k loop
-!       update u & v using actual delu and delv (i.e. divided by dsk)
-        do k=1,kl-2
+      endif     ! (nuvconv>500.and.nuvconv<600)
+
+!     update u & v using actual delu and delv (i.e. divided by dsk)
+7     if(nuvconv.ne.0.or.nuv.ne.0)then
+       do k=1,kl-2   
          do iq=1,ifull
           u(iq,k)=u(iq,k)+facuv*factr(iq)*convpsav(iq)*delu(iq,k)/dsk(k)
           v(iq,k)=v(iq,k)+facuv*factr(iq)*convpsav(iq)*delv(iq,k)/dsk(k)
          enddo  ! iq loop
         enddo   ! k loop
-      endif     ! (nuvconv>500.and.nuvconv<600)
+      endif     ! (nuvconv.ne.0)
 
 !     section for convective transport of trace gases (jlm 22/2/01)
       if(ngas>0)then
@@ -1143,10 +1256,11 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
       endif
 
       if(nmaxpr==1.and.mydiag)then
+c       print *,'cape ',cape(idjd)
         write (6,"('ktau,itn,kb_sav,kt_sav,timeconv,'
-     &  'flux_dsk,convpsav ',i5,3i3,f5.2,2f8.5)")
+     &  'flux_dsk,convpsav,cape ',i5,3i3,f5.2,2f8.5,f8.1)")
      &   ktau,itn,kb_sav(idjd),kt_sav(idjd),
-     &   timeconv(idjd),flux_dsk(idjd),convpsav(idjd)
+     &   timeconv(idjd),flux_dsk(idjd),convpsav(idjd),cape(idjd)
       endif
 
       enddo     ! itn=1,iterconv
@@ -1330,8 +1444,8 @@ c           if(evapls>0.)print *,'iq,k,evapls ',iq,k,evapls
         write (6,"('delt ',12f7.3/(5x,12f7.3))") 
      .             (tt(idjd,k)-t0(k),k=1,kl)
         flux_dsk=.5*dsk(kb_sav(idjd))  ! may depend on nfluxdsk
-        write(6,"('flux_dsk,fluxq,fluxb,convpsav',5f8.5)")
-     .             flux_dsk(idjd),fluxq(idjd),fluxb(idjd),convpsav(idjd)
+        write(6,"('flux_dsk,fluxq,fluxbb,convpsav',5f8.5)")
+     .           flux_dsk(idjd),fluxq(idjd),fluxbb(idjd),convpsav(idjd)
         write(6,"('fluxt',9f8.5/(5x,9f8.5))")
      .            (fluxt(iq,k),k=1,kt_sav(iq))
         pwater=0.   ! in mm     

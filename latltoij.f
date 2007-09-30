@@ -1,4 +1,4 @@
-      subroutine latltoij(rlongin,rlatin,xout,yout,nf)
+      subroutine latltoij(rlongin,rlatin,xout,yout,nf,xx4,yy4,ik)
 c     given a pair of latitudes and longitudes (in degrees),
 c     returns i and j values on the conformal-cubic grid as
 c     xout ranging between .5 and   il +.5, and
@@ -12,7 +12,8 @@ c     modify for Cray; used by plotg.f and topgencc.f
 c     contains a version of xytoij
       parameter (ntest=0)
       include 'newmpar.h'
-      include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
+c     include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
+      real xx4(1+4*ik,1+4*ik),yy4(1+4*ik,1+4*ik)
       include 'const_phys.h'
       include 'parm.h'
       include 'parmdyn.h'
@@ -65,15 +66,15 @@ c       print *,'xx4(iquad,1) ',xx4(iquad,1)
 !     endif
       num=num+1
 c     numtst=num
-      if(num.eq.numtst)print *,'a rlongin,rlatin ',rlongin,rlatin
+      if(num<numtst)print *,'a rlongin,rlatin ',rlongin,rlatin
       xa=cos(rlongin*pi/180.)*cos(rlatin*pi/180.)
       ya=sin(rlongin*pi/180.)*cos(rlatin*pi/180.)
       za=sin(rlatin*pi/180.)
-      if(num.eq.numtst)print *,'b xa,ya,za ',xa,ya,za
+      if(num<numtst)print *,'b xa,ya,za ',xa,ya,za
       x=rotpolei(1,1)*xa+rotpolei(1,2)*ya+rotpolei(1,3)*za
       y=rotpolei(2,1)*xa+rotpolei(2,2)*ya+rotpolei(2,3)*za
       z=rotpolei(3,1)*xa+rotpolei(3,2)*ya+rotpolei(3,3)*za
-      if(num.eq.numtst)print *,'c x,y,z ',x,y,z
+      if(num<numtst)print *,'c x,y,z ',x,y,z
 
       if(npanels.eq.5)then
 
@@ -147,8 +148,10 @@ c       use 4* resolution grid il --> 4*il
         xgrid=min(max(-.99999,xgrid),.99999)
         ygrid=min(max(-.99999,ygrid),.99999)
 c       first guess for ri, rj and nearest ig,jg
-        ri=1.+(1.+xgrid)*2*il_g
-        rj=1.+(1.+ygrid)*2*il_g
+!       ri=1.+(1.+xgrid)*2*il_g
+!       rj=1.+(1.+ygrid)*2*il_g
+        ri=1.+(1.+xgrid)*2*ik
+        rj=1.+(1.+ygrid)*2*ik
         do loop=1,nmaploop
          ig=nint(ri)
          jg=nint(rj)
@@ -184,7 +187,7 @@ c       first convert to equivalent of schmidt=.5 grid
 c       now remember departure quadrants
         xsign=sign(1.,xstr)
         ysign=sign(1.,ystr)
-        if(num.eq.numtst)print *,'d xstr,ystr,xsign,ysign,zsign ',
+        if(num<numtst)print *,'d xstr,ystr,xsign,ysign,zsign ',
      .                              xstr,ystr,xsign,ysign,zsign
 
 c       use 4* resolution grid
@@ -194,7 +197,7 @@ c       N.B. for toij13, have xx4 and yy4 between 0 and .5 (after schmidtx )
 c       first guess for ri, rj (1 to 6*il+1) and nearest i,j
         ri=1.+xgr*(iquad-1)/xx4(iquad,1)    ! divide by schm13 "equator" radius
         rj=1.+ygr*(iquad-1)/xx4(iquad,1)
-        if(num.eq.numtst)print *,'e xgr,ygr,ri,rj',xgr,ygr,ri,rj
+        if(num<numtst)print *,'e xgr,ygr,ri,rj',xgr,ygr,ri,rj
         do loop=1,nmaploop
 !        ri=max(1. , min(real(iquad)-.0001,ri) )  !  not needed
 !        rj=max(1. , min(real(iquad)-.0001,rj) )  !  not needed
@@ -210,31 +213,35 @@ c        predict new value for ri, rj
          den=dxx*dyy-dyx*dxy
          ri=i+is*((xgr-xx4(i,j))*dyy-(ygr-yy4(i,j))*dyx)/den
          rj=j+js*((ygr-yy4(i,j))*dxx-(xgr-xx4(i,j))*dxy)/den
-         if(num.eq.numtst)print *,'e1,i,j,is,js,ri,rj ',
+         if(num<numtst)print *,'e1,i,j,is,js,ri,rj ',
      .                                i,j,is,js,ri,rj
         enddo  ! loop loop
 !       write ri,rj on a BIG grid (-1.5*il to 1.5*il, -1.5*il to 4.5*il)
 !       where the Y variable is wrapping around the globe
 !       and the "north pole" is now at (0.,0.)
         ri=.25*(ri-1.)*xsign
-        rj=.25*( (rj-1.)*ysign*zsign + (1.-zsign)*real(6*il_g) )
-        if(num.eq.numtst)print *,'e2 bigy  ri,rj ',ri,rj
+!       rj=.25*( (rj-1.)*ysign*zsign + (1.-zsign)*real(6*il_g) )
+        rj=.25*( (rj-1.)*ysign*zsign + (1.-zsign)*real(6*ik) )
+        if(num<numtst)print *,'e2 bigy  ri,rj ',ri,rj
 !       allocate to a box (-1:1, -1:4)
         ibox=max(-1,min(nint(ri/il_g),1))   ! allows for -1.5 or 1.5
-        jbox=max(-1,min(nint(rj/il_g),4))   ! allows for -1.5 or 4.5
+!       jbox=max(-1,min(nint(rj/il_g),4))   ! allows for -1.5 or 4.5
+        jbox=max(-1,min(nint(rj/ik  ),4))   ! allows for -1.5 or 4.5
 c       convert  xg, yg ( .5 to il+.5)
-        if(num.eq.numtst)print *,'f ri,rj,ibox,jbox',ri,rj,ibox,jbox
-        if(num.eq.numtst)print *,'f1 nf,xadd,yadd,acon,bcon ',
+        if(num<numtst)print *,'f ri,rj,ibox,jbox',ri,rj,ibox,jbox
+        if(num<numtst)print *,'f1 nf,xadd,yadd,acon,bcon ',
      .   npanetab(ibox,jbox),
      .   xadd(ibox,jbox),yadd(ibox,jbox),acon(ibox,jbox),bcon(ibox,jbox)
         nf=npanetab(ibox,jbox)
-        xout=.5 +xadd(ibox,jbox)*real(il_g)
+!       xout=.5 +xadd(ibox,jbox)*real(il_g)
+        xout=.5 +xadd(ibox,jbox)*real(ik)
      .          +acon(ibox,jbox)*ri -bcon(ibox,jbox)*rj
-        yout=.5 +yadd(ibox,jbox)*real(il_g)
+!       yout=.5 +yadd(ibox,jbox)*real(il_g)
+        yout=.5 +yadd(ibox,jbox)*real(ik)
      .          +bcon(ibox,jbox)*ri +acon(ibox,jbox)*rj
-        if(num.eq.numtst)print *,'f1 xadd,yadd,acon,bcon ',
+        if(num<numtst)print *,'f1 xadd,yadd,acon,bcon ',
      .   xadd(ibox,jbox),yadd(ibox,jbox),acon(ibox,jbox),bcon(ibox,jbox)
-        if(num.eq.numtst)print *,'g nf,xout,yout ',nf,xout,yout
+        if(num<numtst)print *,'g nf,xout,yout ',nf,xout,yout
 
       endif  !  (npanels.eq.5) elseif(npanels.eq.13)
 
@@ -243,7 +250,8 @@ c       convert  xg, yg ( .5 to il+.5)
           print *,'lat,long,x,y,z,den ',rlatin,rlongin,x,y,z,denxyz
           print *,'xx,yy,zz ',xx,yy,zz
           print *,'nf,xout,yout,ri,rj ',nf,xout,yout,ri,rj
-          print *,'youtb ',yout+nf*il_g
+!         print *,'youtb ',yout+nf*il_g
+          print *,'youtb ',yout+nf*ik
         endif
       endif
       return

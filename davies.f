@@ -22,6 +22,7 @@ c     from Nov 05, separate davu & davt, just abs(nud_hrs) used)
           do iq=1,ifull
            psl(iq)=psl(iq)+(psls(iq)-psl(iq))
      &                        *davt(iq)*dt/3600.
+           ps(iq)=1.e5*exp(psl(iq))  ! Jan 07
           enddo  ! iq loop
         endif  ! (nud_p.ne.0)
         if(nud_t.ne.0)then

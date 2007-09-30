@@ -20,7 +20,8 @@
       real d(ifull,kl)   ! NOT shared adjust5 or nonlin
       real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)
       real sbar(ifull,2:kl)
-      common/savuv1/savs1,savu1,savv1,sbar 
+      common/sbar/sbar 
+      common/savuv1/savs1,savu1,savv1 
       real omgf(ifull,kl),e(ifull,kl)
       equivalence (omgf,dpsldt)
       real sdotin(ifull,kl),pslxin(ifull,kl),omgfin(ifull,kl)
@@ -231,6 +232,8 @@
           print *,'v_iq,inv,isv ',v(iq,k),v(inv(iq),k),v(isv(iq),k)
         endif
         call printa('div5',d,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
+        call printa('u',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('v',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
       endif
       return
       end

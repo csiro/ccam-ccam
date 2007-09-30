@@ -57,17 +57,14 @@
      &     dd(ifull+iextra,kl),pslxint(ifull)
       real pe(ifull+iextra,kl),e(ifull,kl)
       real helm(ifull+iextra,kl),rhsl(ifull+iextra,kl),delps(ifull)
-      real pextras(ifull,kl),omgf(ifull,kl)
+      real omgf(ifull,kl)
       real bb(ifull),pse(ifull+iextra),psn(ifull+iextra)
       real fluxe(ifull+iextra),fluxn(ifull+iextra)
-!     This is a genuine rather than space saving equivalence
-      equivalence (pextras,dpsldt)
 !     Save this so we can check whether initialisation needs to be redone
       real, save :: dtsave = 0.0
-      real, save, dimension(kl) :: accel
       real :: hdt, hdtds, sdmx, sdmx_g, sum, qgminm, ratio, sumdiffb,
      &        alph_g
-      integer :: ii, jj, its, k, l, nits, nvadh_pass, iq, ng, ierr
+      integer :: its, k, l, nits, nvadh_pass, iq, ng, ierr
       integer, save :: precon_in
       real :: sumin, sumout, sumsav
       real :: delpos_l, delneg_l, const_nh
@@ -76,14 +73,15 @@
       hdt=dt/2.
       hdtds=hdt/ds
 
-      if ( dt /= dtsave ) then 
+      if(dt /= dtsave) then 
          call adjust_init
          precon_in=precon
-         precon=0
+         if(precon>0)precon=0  ! 22/4/07
       end if
 
-      if(diag)then
-         if ( mydiag ) then
+      if (diag)then
+         if (mydiag ) then
+           print *,'entering adjust5'
            write (6,"('tx_a1',10f8.2)") tx(idjd,:)
            if(m<8)then
              write (6,"('ux_stag',10f8.2)") ux(idjd,:)
@@ -93,9 +91,9 @@
              write (6,"('vx_stag',-5p10f8.2)") vx(idjd,:)
            endif
            write (6,"('qg_a1',3p10f7.3)") qg(idjd,:)
-           print  *,'pslx ',pslx(idjd,:)
+           write (6,"('pslx_3p',3p9f8.4)") pslx(idjd,:)
          end if
-         call printa('pslx',pslx,ktau,nlv,ia,ib,ja,jb,0.,100.)
+         call printa('pslx',pslx,ktau,nlv,ia,ib,ja,jb,0.,1000.)
          call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,200.,1.)
          call maxmin(alf,'a ',ktau,1.,1)
          call maxmin(alfe,'ae',ktau,1.,1)
@@ -130,15 +128,6 @@
       enddo
       call boundsuv(cc,dd)
 
-      if(nh>0)then
-        const_nh=-2.*rdry/((1.+epsnh)*dt*grav*grav) ! bet inc. an r term           tx(:,:)=tx(:,:)*(1.-4.*cp/(grav*dtin)**2) ! check dt or dtin
-        do k=1,kl
-         do iq=1,ifull
-          tx(iq,k)=tx(iq,k)-const_nh*tbar2d(iq)**2*omgfnl(iq,k)/sig(k)
-         enddo
-        enddo
-      endif     ! (nh>0)
-
       do k=1,kl
        do iq=1,ifull
 !       N.B. the omgfnl term on LHS of Eq. 121 not yet added in
@@ -147,41 +136,37 @@
        enddo    ! iq loop
       enddo     ! k loop
 
-!     calculate heights from the tx array
+!     calculate hydrostatic heights from the tx array
       do iq=1,ifull
-       p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
+c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
+       p(iq,1)=zs(iq)+bet(1)*(tx(iq,1)-280)
+     &         +rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       enddo     ! iq loop
       do k=2,kl
        do iq=1,ifull
-        p(iq,k)=p(iq,k-1)+bet(k)*tx(iq,k)+betm(k)*tx(iq,k-1)
+        p(iq,k)=p(iq,k-1)+bet(k)*(tx(iq,k)-280)+betm(k)*(tx(iq,k-1)-280)
        enddo    ! iq loop
       enddo     ! k loop
 
       if(nh>0)then
 !       add in departure values of p-related nh terms  & omgfnl terms    
-        wrk1(:,1)=bet(1)*const_nh*tbar(1)*(h_nh(1:ifull,1)
-     .                 -tbar2d(:)*omgfnl(:,1)/(sig(1)*(1.+epst(:))) )        
+        const_nh=2.*rdry/(dt*grav*grav)  
+        do k=1,kl
+         wrk2(:,k)=const_nh*tbar2d(:)*
+     &     ((1.+epst(:))*tbar(1)*omgfnl(:,k)/sig(k) -h_nh(1:ifull,k))
+        enddo
+        wrk1(:,1)=bet(1)*wrk2(:,1)
         do k=2,kl
-         wrk1(:,k)=wrk1(:,k-1)+const_nh*tbar(k)*(
-     .        bet(k)*h_nh(1:ifull,k)+betm(k)*h_nh(1:ifull,k-1) 
-     .       -bet(k)*tbar2d(:)*omgfnl(:,k)/(sig(k)*(1.+epst(:)))         
-     .       -betm(k)*tbar2d(:)*omgfnl(:,k-1)/(sig(k-1)*(1.+epst(:))) )
+         wrk1(:,k)=wrk1(:,k-1)+bet(k)*wrk2(:,k)+betm(k)*wrk2(:,k-1)
         enddo   ! k loop
-        if(diag.and.mydiag)then   
+        if (diag.and.mydiag)then   
           print *,'adjust5 omgfnl ',(omgfnl(idjd,k),k=1,kl)
           print *,'adjust5 h_nh ',(h_nh(idjd,k),k=1,kl)
           print *,'adjust5 pa ',(p(idjd,k),k=1,kl)
           print *,'adjust5 wrk1 ',(wrk1(idjd,k),k=1,kl)
-          print *,'adjust5 pextras ',(pextras(idjd,k),k=1,kl)
         endif
         p(1:ifull,:)=p(1:ifull,:)+wrk1(:,:)  ! nh
       endif     ! (nh>0)
-
-c     do k=1,kl
-c       do iq=1,ifull
-c        p(iq,k)=p(iq,k)+pextras(iq,k)   ! npgf=0 code (see nonlin)
-c       enddo   ! iq loop
-c      enddo    ! k  loop
 
 !     form divergence of rhs (xu & xv) terms
       do k=1,kl
@@ -212,59 +197,41 @@ c      enddo    ! k  loop
             rhsl(iq,k) = rhsl(iq,k)/hdtds -helm(iq,k)*pe(iq,k) ! Eq. 161 mult
          enddo                  ! iq loop
 
-!         Diagnostics would require extra bounds calls
-!         if(diag.and.k<=2)then !  only for last k of loop (i.e. 1)
-!            iq=idjd
-!            print  *,'adjust5(k) p & n e w s ',k,p(iq,k),
-!     &        p(in(iq),k),p(ie(iq),k),p(iw(iq),k),p(is(iq),k)
-!            print  *,'adjust5(k) pe & n e w s ',k,pe(iq,k),
-!     &        pe(in(iq),k),pe(ie(iq),k),pe(iw(iq),k),pe(is(iq),k)
-!            print  *,'adjust5(k) rhsl & n e w s ',k,rhsl(iq,k),
-!     &       rhsl(in(iq),k),rhsl(ie(iq),k),rhsl(iw(iq),k),rhsl(is(iq),k)
-!         endif                  ! (diag.and.k<=2)
+c         if (diag.and.mydiag)then   
+c           print*,'pe & direct n s ',
+c     &             k,pe(idjd,k),pe(idjd+il,k),pe(idjd-il,k)
+c           print*,'helm & direct n s ',
+c     &             k,helm(idjd,k),helm(idjd+il,k),helm(idjd-il,k)
+c           print*,'rhsl & direct n s ',
+c     &             k,rhsl(idjd,k),rhsl(idjd+il,k),rhsl(idjd-il,k)
+c        endif
       enddo    ! k loop
 
       call bounds(pe)
-      if(precon_in>kl)then  ! use SOR - needs checking
-!       Calculate the optimum acceleration using a point
-!       in the middle of the first face
-        if(nproc>1)then
-          write(0,*) 'using helmsor/SOR requires nproc=1'
-          stop
-        endif
-        do k=1,kl
-         if ( dt /= dtsave ) then
-           call optmx(il,schmidt,dt,bam(k),accel(k))
-           print *,'k,accel ',k,accel(k)
-         end if
-         if(precon_in==98)accel(k)=-1.
-         call helmsor(accel(k),zz,zzn,zze,zzw,zzs,helm(1,k),
-     &                pe(1,k),rhsl(1,k))
-        enddo
-        if(precon_in==98)then  ! using 1 itn of SOR as preconditioner
-          call bounds(pe)
-          call helmsol(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
-        endif
+      if(precon<0)then
+        call helmsor(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
       else
         call helmsol(zz,zzn,zze,zzw,zzs,helm,pe,rhsl)
       endif  ! (precon>kl)
 
-      if(diag)then   !  only for last k of loop (i.e. 1)
-         ! Some diagnostics that would require extra bounds calls have been removed
-         if ( mydiag ) then
+      if (diag)then   !  only for last k of loop (i.e. 1)
+         ! Some diagnostics requiring extra bounds calls have been removed
+         if (mydiag ) then
             write (6,"('tx_a2',10f8.2)") tx(idjd,:)
             print *,'omgfnl_a2 ',omgfnl(idjd,:)
             print *,'adjust5 cc ',cc(idjd,:)
             print *,'adjust5 dd ',dd(idjd,:)
             print *,'adjust5 d_in ',d(idjd,:)
-            print *,'adjust5 p ',p(idjd,:)
+            print *,'adjust5 p_in ',p(idjd,:)
             print *,'adjust5 pe ',pe(idjd,:)
             print *,'adjust5 pe_e ',pe(ie(idjd),:)
             print *,'adjust5 pe_w ',pe(iw(idjd),:)
             print *,'adjust5 rhsl ',rhsl(idjd,:)
+c           print*,'rhsl & direct n s ',
+c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
             print *,'adjust5 helm ',helm(idjd,:)
          end if
-         call printa('psnt',pslxint,ktau,0,ia,ib,ja,jb,0.,100.)
+         call printa('psnt',pslxint,ktau,0,ia,ib,ja,jb,0.,1000.)
          call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,200.,1.)
          call printa('rhsl',rhsl,ktau,1,ia,ib,ja,jb,0.,0.)
          call printa('pe  ',pe,ktau,1,ia,ib,ja,jb,0.,0.)
@@ -284,7 +251,7 @@ c      enddo    ! k  loop
       call bounds(p,corner=.true.)
 
 !      now u & v
-      if(diag.and.mydiag)then
+      if (diag.and.mydiag)then
          print*,'iq,k,fu,alfu,alfu*ux(iq,k) ',
      &           idjd,nlv,fu(idjd),alfu(idjd),alfu(idjd)*ux(idjd,nlv)
          print*,'alfF & n e w s (in(iq)),alfF(ine(iq)),alfF(is(iq))',
@@ -296,6 +263,8 @@ c      enddo    ! k  loop
          print*,'p & n e w s ne se ',p(idjd,nlv),p(in(idjd),nlv),
      &           p(ie(idjd),nlv),p(iw(idjd),nlv),p(is(idjd),nlv),
      &           p(ine(idjd),nlv),p(ise(idjd),nlv)
+         print*,'p & direct n s ',
+     &           p(idjd,nlv),p(idjd+il,nlv),p(idjd-il,nlv)
       endif
 
       do k=1,kl
@@ -313,8 +282,8 @@ c      enddo    ! k  loop
      &       -.5*alfn(iq)*(p(iq,k)+p(in(iq),k))
      &       -.25*(alfF(ien(iq))*p(ien(iq),k) +alfF(ie(iq))*p(ie(iq),k)
      &       -alfF(iwn(iq))*p(iwn(iq),k) -alfF(iw(iq))*p(iw(iq),k)) )
-         enddo    
-      end do
+         enddo  ! iq loop   
+      enddo     !  k loop 
 
       call boundsuv(cc,dd)
 !     calculate linear part only of sigma-dot and omega/ps
@@ -326,6 +295,13 @@ c      enddo    ! k  loop
      &          *em(iq)**2/ds
          enddo                  ! iq loop
       enddo     ! k  loop
+      if(nmaxpr==1)then
+        call maxmin(d,'dv',ktau,0.,kl)
+        iq=idjd
+        if(nproc==1)print *,'cc,cc-,dd,dd-',
+     &     cc(iq,k)/emu(iq),cc(iwu(iq),k)/emu(iwu(iq)),
+     &     dd(iq,k)/emv(iq),dd(isv(iq),k)/emv(isv(iq))      
+      endif   ! (nmaxpr==1)
       if(m==7)then
         do k=1,kl
          cc(1:ifull,k)=cc(1:ifull,k)/pse(1:ifull)
@@ -333,15 +309,21 @@ c      enddo    ! k  loop
         enddo
       endif  ! (m==7)
 
+!     npex=4 add un, vn on staggered grid in belated split manner
+      if(npex==4)then  
+        cc(1:ifull,:)=cc(1:ifull,:)+.5*dt*un(1:ifull,:)
+        dd(1:ifull,:)=dd(1:ifull,:)+.5*dt*vn(1:ifull,:)
+      endif
+
 !     straightforward rev. cubic interp of u and v (i.e. nuv=10)
 !     This is necessary because staguv expects arrays dimensioned 
 !     (ifull,kl). 
-      call unstaguv(cc(1:ifull,:),dd(1:ifull,:),
+      call unstaguv(cc(1:ifull,:),dd(1:ifull,:),        
      &              u(1:ifull,:),v(1:ifull,:)) ! usual
 
 !     vert. integ. div into e
       do iq=1,ifull
-       wrk2(iq,kl)=-dsig(kl)*d(iq,kl)  ! nh
+       wrk2(iq,kl)=-dsig(kl)*d(iq,kl)  
       enddo     ! iq loop
       do k=kl-1,1,-1
        do iq=1,ifull
@@ -366,9 +348,14 @@ c      enddo    ! k  loop
         do k=1,kl
          phi(:,k)=p(1:ifull,k)-rdry*tbar2d(:)*psl(1:ifull)
         enddo
+        if(nmaxpr==1.and.mydiag)then
+          print *,'phi_adj ',(phi(idjd,k),k=1,kl)
+        endif
       endif  ! (nh.ne.0)
 
-      if(m==6)then
+      if (mod(ktau,nmaxpr)==0)vx(1:ifull,:)=sdot(1:ifull,1:kl) ! for accln
+
+      if(m<=6)then
         do k=1,kl
          do iq=1,ifull
 !         save [D + dsigdot/dsig] in pslx for next use in nonlin
@@ -381,7 +368,7 @@ c      enddo    ! k  loop
           sdot(iq,k)=sdot(iq,k+1)-dsig(k)*(pslx(iq,k)-d(iq,k))
          enddo  !  iq loop
         enddo   !  k loop
-      endif     ! (m==6)
+      endif     ! (m<=6)
       
       do k=2,kl
        do iq=1,ifull
@@ -391,15 +378,27 @@ c      enddo    ! k  loop
        enddo   ! iq loop
       enddo    ! k  loop
 
-      if( (diag.or.nmaxpr==1) .and. mydiag ) then
+      if (mod(ktau,nmaxpr)==0)then
+        vx(1:ifull,:)=sdot(1:ifull,1:kl)-vx(1:ifull,1:kl)
+!       convert to approx m/s/s
+        do k=2,kl
+         vx(1:ifull,k)=vx(1:ifull,k)*rdry*(sig(k-1)-sig(k))*
+     &      .5*(t(1:ifull,k)+t(1:ifull,k-1))/(sigmh(k)*grav*dtin*dt)        
+c        vx(1:ifull,k)=vx(1:ifull,k)*(phi(1:ifull,k)-phi(1:ifull,k-1))/
+c    &                               (grav*dt*dt)        
+        enddo
+        call maxmin(vx,'ac',ktau,100.,kl)  ! max min of accln * 100
+      endif
+
+      if ((diag.or.nmaxpr==1) .and. mydiag ) then
          print *,'m ',m
-         if(m==6)write (6,"('diva5p ',5p10f8.2)") d(idjd,:)
+         if(m<=6)write (6,"('diva5p ',5p10f8.2)") d(idjd,:)
          write (6,"('omgf_l*dt',10f8.4)") omgf(idjd,:)*dt
          write (6,"('omgfnl*dt',10f8.4)") omgfnl(idjd,:)*dt
          write (6,"('u_a2 ',10f8.2)") u(idjd,:)
          write (6,"('v_a2 ',10f8.2)") v(idjd,:)
          print *,'ps,psl ',ps(idjd),psl(idjd)
-         print *,'pslx ',pslx(idjd,:)
+         write (6,"('pslx_3p',3p9f8.4)") pslx(idjd,:)
          write (6,"('sdot_a2',10f8.3)") sdot(idjd,1:kl)
       endif
 
@@ -412,12 +411,12 @@ c      enddo    ! k  loop
      &           +hdt*(1.+epst(iq))*tbar2d(iq)*omgf(iq,k)*roncp/sig(k)
        enddo    ! iq loop
       enddo     ! k  loop
-      if((diag.or.nmaxpr==1).and.mydiag)then
+      if ((diag.or.nmaxpr==1).and.mydiag)then
         write(6,"('omgf_a2',10f8.3)") ps(idjd)*dpsldt(idjd,1:kl)
       endif
 
       if(nvadh==2.and.nvad>0)then                 ! final dt/2 's worth
-        if ( (diag.or.nmaxpr==1) .and. mydiag ) then
+        if ((diag.or.nmaxpr==1) .and. mydiag ) then
          print *,'before vertical advection in adjust5 for ktau= ',ktau
          write (6,"('t_a2  ',10f8.2)") t(idjd,:)
          write (6,"('us# ',9f8.2)") diagvals(cc(:,nlv)) 
@@ -432,14 +431,14 @@ c      enddo    ! k  loop
          write (6,"('v_a2 ',10f8.2)") v(idjd,:)
          write (6,"('qg_a2 ',3p10f8.3)") qg(idjd,:)
         endif
-        if ( nvad==4 .or. nvad==9 ) then
+        if(nvad==4 .or. nvad==9 ) then
          if(mup==-3)call updps(1)
           sdmx = maxval(abs(sdot))
           call MPI_AllReduce(sdmx, sdmx_g, 1, MPI_REAL, MPI_MAX,
      &                       MPI_COMM_WORLD, ierr )
           nits=1+sdmx_g/nvadh
           nvadh_pass=nvadh*nits
-          if(mydiag.and.mod(ktau,nmaxpr)==0)
+          if (mydiag.and.mod(ktau,nmaxpr)==0)
      &      print *,'in adjust5 sdmx,nits,nvadh_pass ',
      &                          sdmx_g,nits,nvadh_pass
           do its=1,nits
@@ -452,7 +451,7 @@ c      enddo    ! k  loop
         if(nvad>=7) call vadv30(t(1:ifull,:),
      &                            u(1:ifull,:),
      &                            v(1:ifull,:)) ! for vadvbess
-        if( ( diag.or.nmaxpr==1) .and. mydiag ) then
+        if (( diag.or.nmaxpr==1) .and. mydiag ) then
           print *,'after vertical advection in adjust5'
           write (6,"('qg_a3',3p10f8.3)") qg(idjd,:)
           write (6,"('t_a3',10f8.2)") t(idjd,:)
@@ -463,7 +462,7 @@ c      enddo    ! k  loop
       endif     !  (nvadh==2.and.nvad>0)
 
       ps(1:ifull)=1.e5*exp(psl(1:ifull))     
-      if (mfix==1.or.mfix==2) then   ! perform conservation fix on ps
+      if(mfix==1.or.mfix==2) then   ! perform conservation fix on ps
 !         fix is on ps (not psl) from 24/1/06      
 !         delpos is the sum of all positive changes over globe
 !         delneg is the sum of all negative changes over globe
@@ -477,8 +476,8 @@ c      enddo    ! k  loop
             call ccglobal_sum(ps,sumin)
          endif  ! (ntest==1)
          if(mfix==1)then
-            alph_p = sqrt( -delneg/delpos)
-            alph_pm=1./alph_p
+            alph_p = sqrt( -delneg/max(1.e-20,delpos))
+            alph_pm=1./max(1.e-20,alph_p)
          endif                  ! (mfix==1)
          if(mfix==2)then
             if(delpos>-delneg)then
@@ -494,10 +493,10 @@ c      enddo    ! k  loop
      &           alph_p*max(0.,delps(iq)) + alph_pm*min(0.,delps(iq))
          enddo
         if(ntest==1)then
-           if(myid==0) print *,'ps_delpos,delneg,alph_p,alph_pm ',
+           if (myid==0) print *,'ps_delpos,delneg,alph_p,alph_pm ',
      &                 delpos,delneg,alph_p,alph_pm
            call ccglobal_sum(ps,sumout)
-           if(myid==0)
+           if (myid==0)
      &        print *,'ps_sumsav,sumin,sumout ',sumsav,sumin,sumout
         endif  ! (ntest==1)
 !       psl(1:ifull)=log(1.e-5*ps(1:ifull))
@@ -527,10 +526,11 @@ c       just code fully implicit for a start
         enddo
       endif  ! (mfix==3)
       
-!     following diagnostic is in hPa/day  
+!     following dpsdt diagnostic is in hPa/day  
       dpsdtbb(:)=dpsdtb(:)    
       dpsdtb(:)=dpsdt(:)    
       dpsdt(1:ifull)=(ps(1:ifull)-ps_sav(1:ifull))*24.*3600./(100.*dt)
+      if(nmaxpr==1)call maxmin(dpsdt,'dp',ktau,.01,1)
 
       if(mfix_qg.ne.0.and.mspec==1)then
 !       qgmin=1.e-6   !  in parm.h 
@@ -565,7 +565,7 @@ c       just code fully implicit for a start
             delposk=delposk+max(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
             delnegk=delnegk+min(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
            enddo   ! iq loop
-           if(mod(ktau,nmaxpr)==0.or.nmaxpr==1) ! for nproc=1
+           if (mod(ktau,nmaxpr)==0.or.nmaxpr==1) ! for nproc=1
      &                   print *,'delposk delnegk ',k,delposk,delnegk
           enddo    ! k loop
         else
@@ -580,8 +580,8 @@ c       just code fully implicit for a start
      &       alph_q*max(0.,wrk1(iq,k))+min(0.,wrk1(iq,k))/max(1.,alph_q)
          enddo   ! iq loop
         enddo    ! k  loop
-        if(ntest==1.or.nmaxpr==1)then  ! has mydiag on prints
-         if(mydiag) print *,'qg_delpos,delneg,ratio,alph_q,wrk1 ',
+        if (ntest==1.or.nmaxpr==1)then  ! has mydiag on prints
+         if (mydiag) print *,'qg_delpos,delneg,ratio,alph_q,wrk1 ',
      &                       delpos,delneg,ratio,alph_q,wrk1(idjd,nlv)
           call ccglobal_sum(qg,sumout)
          if(mydiag)print *,'qg_sumsav,sumin,sumout ',sumsav,sumin,sumout
@@ -596,7 +596,7 @@ c       just code fully implicit for a start
          endif
         enddo    ! k  loop
         delpos=delpos/1.e5
-         delneg=delneg/1.e5  ! for diag print in globpe
+        delneg=delneg/1.e5  ! for diag print in globpe
       endif        !  (mfix_qg.ne.0.and.mspec==1)
 
       if(mfix_qg.ne.0.and.mspec==1.and.ldr.ne.0)then
@@ -719,42 +719,42 @@ c       just code fully implicit for a start
         endif     ! (mfix_rad>0)
       endif       !  mfix_qg.ne.0
 
-      if ( (diag.or.nmaxpr==1) .and. mydiag ) then
+      if ((diag.or.nmaxpr==1) .and. mydiag ) then
         print *,'at end of adjust5 for ktau= ',ktau
         print *,'ps_sav,ps ',ps_sav(idjd),ps(idjd)
-        write (6,"('dpsdt# ',9f8.2)") diagvals(dpsdt) 
+        write (6,"('dpsdt# mb/d ',9f8.1)") diagvals(dpsdt) 
         write (6,"('qg_a4 ',3p10f8.3)") qg(idjd,:)
         write (6,"('qgs',3p10f8.3)")
      &                         (qgsav(idjd,k)/ps_sav(idjd),k=1,kl)
         write (6,"('qf_a4',3p10f8.3)") qfg(idjd,:)
         write (6,"('ql_a4',3p10f8.3)") qlg(idjd,:)
       endif
-      if(diag)then
+      if (diag)then
          call bounds(psl)
-         if ( mydiag ) then
+         if (mydiag ) then
             iq=idjd
             print  *,'adjust5 d ',d(iq,:)
 !            Would require bounds call
 !            print  *,'adjust5 d: e ',d(ie(iq),:)
 !            print  *,'adjust5 d: w ',d(iw(iq),:)
-            print  *,'adjust5 idjd,e ',idjd, wrk2(idjd,:)
-            print  *,'adjust5 psl & n e w s',psl(iq),
-     &          psl(in(iq)),psl(ie(iq)),psl(iw(iq)),psl(is(iq))
+            print  *,'adjust5 wrk2 ',idjd, wrk2(idjd,:)
+            write (6,"('adjust5 psl_3p & n e w s',3p9f8.4)") psl(idjd)
+     &          ,psl(in(iq)),psl(ie(iq)),psl(iw(iq)),psl(is(iq))
          end if
-         call printa('psl ',psl,ktau,0,ia,ib,ja,jb,0.,100.)
-         if ( mydiag ) print *,'adjust5 t ',t(idjd,:)
+         call printa('psl ',psl,ktau,0,ia,ib,ja,jb,0.,1000.)
+         if (mydiag ) print *,'adjust5 t ',t(idjd,:)
          call printa('t   ',t,ktau,nlv,ia,ib,ja,jb,200.,1.)
-         if ( mydiag ) print *,'adjust5 u ',u(idjd,:)
+         if (mydiag ) print *,'adjust5 u ',u(idjd,:)
          call printa('u   ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
-         if ( mydiag ) print *,'adjust5 v ',v(idjd,:)
+         if (mydiag ) print *,'adjust5 v ',v(idjd,:)
          call printa('v   ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
-         if ( mydiag ) print *,'ps diagnostic from end of adjust:'
+         if (mydiag ) print *,'ps diagnostic from end of adjust:'
          do iq=1,ifull
             bb(iq)=ps(iq)-ps_sav(iq)
          enddo
          call printa('dps ',bb,ktau,0,ia,ib,ja,jb,0.,.01)
          call printa('ps  ',ps,ktau,0,ia,ib,ja,jb,1.e5,.01)
-         if(sig(nlv)<.3)then
+         if (sig(nlv)<.3)then
             call printa('qg  ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e6)
          else
             call printa('qg  ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e3)
@@ -783,7 +783,7 @@ c       just code fully implicit for a start
       integer :: iq, n
 
       hdt = 0.5*dt
-      if(m<6)then
+      if(m<5)then
         do iq=1,ifull
          alf(iq)=1.+epsu
          alff(iq)=0.
@@ -797,22 +797,22 @@ c       just code fully implicit for a start
          alfu(iq)=1./(1.+(hdt*(1.+epsf)*fu(iq))**2) ! i.e. alf/(1+epsu)
          alfv(iq)=1./(1.+(hdt*(1.+epsf)*fv(iq))**2) ! i.e. alf/(1+epsu)
         enddo     ! iq loop
-      endif  ! (m<6)... else ...
+      endif  ! (m<5)... else ...
       ! These really only need to be recomputed when time step changes.
       call bounds(alf)
       call bounds(alff,corner=.true.)
 !cdir nodep
       do iq=1,ifull
        pfact(iq)=4.*( ds/(dt*em(iq)) )**2    
-       alfe(iq)=alf(ie(iq))-alf(iq)    ! Eq. 141 times ds
+       alfe(iq)=alf(ie(iq))-alf(iq)    ! alf3 Eq. 141 times ds
      &     +.25*(alff(ine(iq))+alfF(in(iq))-alfF(ise(iq))-alfF(is(iq)))
-       alfn(iq)=alf(in(iq))-alf(iq)    ! Eq. 142 times ds
+       alfn(iq)=alf(in(iq))-alf(iq)    ! alf4 Eq. 142 times ds
      &     -.25*(alfF(ien(iq))+alfF(ie(iq))-alfF(iwn(iq))-alfF(iw(iq)))
       enddo     ! iq loop
       call boundsuv(alfe,alfn)
 
 !cdir nodep
-      do iq=1,ifull
+      do iq=1,ifull    ! see Eq 158/159
 !      need care with vector quantities on w (odd) & s (even) panel boundaries
        zz(iq)=.5*(alfe(iwu(iq))-alfe(iq)+alfn(isv(iq))-alfn(iq))
      &                     -4.*alf(iq)                 ! i,j   coeff
@@ -822,28 +822,31 @@ c       just code fully implicit for a start
        zzs(iq)=alf(is(iq))+.5*alfn(isv(iq))            ! i,j-1 coeff
       enddo     ! iq loop
 !     N.B. there are some special z values at the 8 vertices
-      if(npanels==5)then
-         do n=1,npan            ! 0,5
-            if ( edge_s .and. edge_w ) then
+         do n=1,npan            ! 1,6
+            if(edge_s .and. edge_w ) then
                iq=indp(1,1,n)
+c              print *,'adjust5 iq,zzs,zzw,alfF_s,alfF_w ',
+c    &                iq,zzs(iq),zzw(iq),alfF(is(iq)),alfF(iw(iq))        
                zzs(iq)=zzs(iq)+.25*alfF(is(iq)) ! i,j-1 coeff
                zzw(iq)=zzw(iq)-.25*alfF(iw(iq)) ! i-1,j coeff
             end if
-            if ( edge_n .and. edge_e ) then
+            if(edge_n .and. edge_e ) then
                iq=indp(ipan,jpan,n)
                zzn(iq)=zzn(iq)+.25*alfF(in(iq)) ! i,j+1 coeff
                zze(iq)=zze(iq)-.25*alfF(ie(iq)) ! i+1,j coeff
+c              print *,'in,ine,ie,ien ',in(iq),ine(iq),ie(iq),ien(iq)
             end if
-            if ( edge_s .and. edge_e ) then
+            if(edge_s .and. edge_e ) then
                iq=indp(ipan,1,n)
                zzs(iq)=zzs(iq)-.25*alfF(is(iq)) ! i,j-1 coeff
                zze(iq)=zze(iq)+.25*alfF(ie(iq)) ! i+1,j coeff
+c              print *,'iq,is,ise ',iq,is(iq),ise(iq)
             end if
-            if ( edge_n .and. edge_w ) then
+            if(edge_n .and. edge_w ) then
                iq=indp(1,jpan,n)
                zzn(iq)=zzn(iq)-.25*alfF(in(iq)) ! i,j+1 coeff
                zzw(iq)=zzw(iq)+.25*alfF(iw(iq)) ! i-1,j coeff
+c              print *,'iq,iw,iwn ',iq,iw(iq),iwn(iq)
             end if
         enddo   ! n loop
-      endif     ! (npanels==5)
       end subroutine adjust_init

@@ -2,7 +2,8 @@
      .                  psl,zs,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                  tgg,wb,wbice,alb,snowd,
-     .                  tggsn,smass,ssdn,ssdnn,snage,isflag)
+     .                  tggsn,smass,ssdn,ssdnn,snage,isflag,
+     .                  roofgg,wallegg,wallwgg,roadgg,roofwb,roadwb) ! MJT CHANGE add urban types
 !     note kk; vertint.f is attached below
 !     kdate_r and ktime_r are returned from this routine.
 !     They must equal or exceed kdate_s and ktime_s
@@ -17,9 +18,11 @@
       use diag_m
       implicit none
       include 'newmpar.h'
+      include 'const_phys.h'
       include 'darcdf.h'
       include 'kuocom.h'    ! ldr
-      include 'liqwpar.h'  ! ifullw
+      include 'latlong.h'    
+      include 'liqwpar.h'   ! qfg,qlg
       include 'netcdf.inc'
       include 'parm.h'
       include 'stime.h'     ! kdate_s,ktime_s  sought values for data read
@@ -33,7 +36,9 @@
      . snowd(ifull),alb(ifull),sicedep(ifull),fracice(ifull),
      . t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     . ssdnn(ifull),snage(ifull)
+     . ssdnn(ifull),snage(ifull),
+     . roofgg(ifull,3),wallegg(ifull,3),wallwgg(ifull,3), ! MJT CHANGE add urban types
+     . roadgg(ifull,3),roofwb(ifull),roadwb(ifull) ! MJT CHANGE add urban types
       integer isflag(ifull)
       integer ktau_r, ibb, jbb, i
       integer ini,inj,ink,m2,nsd2,mesi,nbd2
@@ -48,11 +53,11 @@
      & ,ntsuri,nrad2,kuocb2,nvmix2,ntsea2,ms2,nextras2,ilt2,ntrac2
       real tds,difknbdi,rhkuo,tdu,ttanl,trnml,tssadd,tstl1,tstl2
       common/rhead/tds,difknbdi,rhkuo,tdu,ttanl,trnml,tstl1,tstl2
-      real rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
-      common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
+      real rlong0x,rlat0x,schmidtx ! infile, infile, nestin, indata
+      common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, infile, nestin, indata
       real sigin
-      integer kk
-      common/sigin/sigin(kl),kk  ! for vertint, infile
+      integer ik,jk,kk
+      common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
       real tmp(ifull)
 
       integer, parameter :: nihead=54,nrhead=14
@@ -67,7 +72,7 @@
      &         ,'jul','aug','sep','oct','nov','dec'/
 
       integer, save :: ncidold=-1, ncalled=0, iarchi
-      integer itype, ilen, ier, ierr, ik, jk, k, ndim, nvars, ngatts,
+      integer itype, ilen, ier, ierr, k, ndim, nvars, ngatts,
      &        nulid, nd, isiz, ix, iy, narch, idy, imo, iyr, ihr,
      &        mtimer_in, iq, idv
 !     rml 16/02/06 declare igas integer
@@ -80,18 +85,13 @@
       
 c     save model map projs.
       dss=ds_r
-      if(dss>0..and.npanels==0)then   ! for possible DARLAM option
-        write(0,*)
-     &   "Error, npanels=0 DARLAM option not implemented in MPI version"
-        stop
-      endif ! (dss>0..and.npanels==0)then
 
       if(myid==0)then
 !        N.B. ncid,ncidold and iarchi only get used for myid=0      
-         ncid=idifil
+!        ncid=idifil
          if(ncid.ne.ncidold)iarchi=1
          ncidold=ncid
-         print *,'newin ncid,ncidold,iarchi ',ncid,ncidold,iarchi
+         print *,'infile ncid,ncidold,iarchi ',ncid,ncidold,iarchi
          call ncainq(ncid,ncglobal,'int_header',itype,ilen,ier)
          call ncagt(ncid,ncglobal,'int_header',nahead,ier)
          call ncainq(ncid,ncglobal,'real_header',itype,ilen,ier)
@@ -106,14 +106,14 @@ c     save model map projs.
       rlong0x =ahead(5)
       rlat0x  =ahead(6)
       schmidtx=ahead(7)
-      if(myid==0)print *,'newin  rlong0x,rlat0x,schmidtx ',
+      if(myid==0)print *,'infile  rlong0x,rlat0x,schmidtx ',
      &                           rlong0x,rlat0x,schmidtx
       if(schmidtx<=0..or.schmidtx>1.)then
 !      read it where Jack put it
        rlong0x =ahead(6)
        rlat0x  =ahead(7)
        schmidtx=ahead(8)
-       if(myid==0)print *,'newin  rlong0x,rlat0x,schmidtx ',
+       if(myid==0)print *,'infile  rlong0x,rlat0x,schmidtx ',
      &                            rlong0x,rlat0x,schmidtx
       endif  ! (schmidtx<=0..or.schmidtx>1.)
       if(ktau<=1)then
@@ -135,10 +135,9 @@ c     save model map projs.
       ik=nahead(1)
       jk=nahead(2)
       kk=nahead(3)
-
 c     turn OFF fatal netcdf errors
       if(myid==0)then
-        if(ktau<=1)print *,'in newin; ktau,ik,jk,kk=', ktau,ik,jk,kk
+        if(ktau<=1)print *,'in infile; ktau,ik,jk,kk=', ktau,ik,jk,kk
          call ncpopt(0)
          call ncagt(ncid,ncglobal,'sigma',sigin,ier)
          if(ier.ne.0)then
@@ -224,6 +223,7 @@ c       turn ON fatal netcdf errors
            idv = ncvid(ncid,'timeg',ier)
            call ncvgt1(ncid,idv,iarchi,timeg_r,ier)
         endif  ! (ier==0) .. else ..
+
         if(kdate_r==0)then
            print *,
      &      'kdate_r = 0; create kdate from time_origin, nested=',nested
@@ -255,7 +255,7 @@ c       turn ON fatal netcdf errors
         print *,'kdate,ktime: ',kdate_r,ktime_r,
      .          'kdate_s,ktime_s >= ',kdate_s,ktime_s
 
-        print *,'in newin; ktau_r,timer: ',ktau_r,timer
+        print *,'in infile; ktau_r,timer: ',ktau_r,timer
         print *,'values read in for timer, mtimer: ',timer,mtimer
         if(mtimer.ne.0)then     ! preferred
 !         assume mtimer is read in correctly and set timer from that
@@ -266,17 +266,27 @@ c       turn ON fatal netcdf errors
         print *,'giving timer, mtimer: ',timer,mtimer
         mtimer_in=mtimer
         call datefix(kdate_r,ktime_r,mtimer) ! for Y2K, or mtimer>0
-        if(2400*kdate_r+ktime_r<2400*kdate_s+ktime_s)go to 19
+!       if(2400*kdate_r+ktime_r<2400*(kdate_s+nsemble)+ktime_s)go to 19
+        print *,'kdate_r..',kdate_r,ktime_r,2400*kdate_r+ktime_r
+        print *,'..',kdate_s,ktime_s,2400*kdate_s+1200*nsemble+ktime_s
+        if(2400*kdate_r+ktime_r<
+     &     2400*kdate_s+1200*nsemble+ktime_s)go to 19  ! 12-h nsemble
 !---------------------------------------------------------------------
         
-        print *,'found suitable date/time in newin'
+        print *,'found suitable date/time in infile'
+        if(nsemble.ne.0)then
+          kdate_r=kdate_s
+          ktime_r=ktime_s
+          print *,'for nsemble = ',nsemble,
+     &      ' resetting kdate_r,ktime_r to ',kdate_r,ktime_r
+        endif
         print *,'in ',ik,jk,kk,m2,nsd2,nbd2
      & ,nps2,mex2,mup2,mtimer,nmi2,ndt2,npsav2,nhor2,nkuo2,khdif2
      & ,kwt2,iaa2,jaa2,nvad2,lbd2,nrun2,nrunx2
      & ,khor2,ksc2,kountr2,ndiur2,nhort2,nhorps2,nsoil2,ivirt2
      & ,ntsur2,nrad2,kuocb2,nvmix2,ntsea2,ms2,nextras2,ilt2,ntrac2
 
-        print *,'newin ds_r,mtimer: ',ds_r,mtimer
+        print *,'infile ds_r,mtimer: ',ds_r,mtimer
         if(mtimer_in>0.and.nrungcm==2)then
            write(0,*)
      &          '*** re-setting NRUNGCM nrungcm from 2 to 0 because ',
@@ -307,6 +317,27 @@ c     log scaled sfc.press
          elseif(zs(iq)<0.)then
            tss(iq)=tss(iq)+tssadd
          endif
+        enddo
+      endif
+      if(nspecial==21)then
+        do iq=1,ifull
+         if(rlongg(iq)*180./pi>100.and.rlongg(iq)*180./pi<260..and.
+     &      rlatt(iq)*180./pi>-20.and.rlatt(iq)*180./pi<20.)
+     &   tss(iq)=.999*abs(tss(iq))
+        enddo
+      endif
+      if(nspecial==22)then
+        do iq=1,ifull
+         if(rlongg(iq)*180./pi>100.and.rlongg(iq)*180./pi<260..and.
+     &      rlatt(iq)*180./pi>-20.and.rlatt(iq)*180./pi<20.)
+     &   tss(iq)=.995*abs(tss(iq))
+        enddo
+      endif
+      if(nspecial==23)then
+        do iq=1,ifull
+         if(rlongg(iq)*180./pi>100.and.rlongg(iq)*180./pi<260..and.
+     &      rlatt(iq)*180./pi>-20.and.rlatt(iq)*180./pi<20.)
+     &   tss(iq)=.990*abs(tss(iq))
         enddo
       endif
 
@@ -345,7 +376,7 @@ c     turn OFF fatal netcdf errors; from here on
       if(ier.ne.0)then     ! sicedep not read in
         if(ierr.ne.0)then  ! neither sicedep nor fracice read in
           fracice(:)=0.
-	   if(myid==0) print *,'pre-setting siced in newin from tss'
+	   if(myid==0) print *,'pre-setting siced in infile from tss'
           where(abs(tss) <= 271.2)
             fracice=1.
           endwhere
@@ -377,15 +408,17 @@ c         enddo
         print *,'qg in ',(qg(idjd,k),k=1,kk)!,qg(ifull,kk)
       endif  ! (ncalled<4.and.mydiag)
 
-      if(myid == 0)print *,'in newin nested = ',nested
+      if(myid == 0)print *,'in infile nested = ',nested
 !########################################################################
       if(nested==0)then   !  following only at start of run 
 !       read fields which may be there on restart, but maybe not initially
         if(ldr.ne.0)then   ! following in kg/kg
-          call histrd4(ncid,iarchi,ier,'qfg',ik,jk,kk,qfg(1:ifullw,:))
-          call histrd4(ncid,iarchi,ier,'qlg',ik,jk,kk,qlg(1:ifullw,:))
-          if(ier.ne.0)then
-!           set default qfg, qlg to zero if not available on input 	
+          call histrd4(ncid,iarchi,ier,'qfg',ik,jk,kk,qfg(1:ifull,:))
+          call histrd4(ncid,iarchi,ier,'qlg',ik,jk,kk,qlg(1:ifull,:))
+          if(ier.ne.0.or.ik<il_g)then
+!           set default qfg, qlg to zero if not available on input 
+!           for onthefly usage of qfg, qlg need extra stuff there for ik<il_g	
+            print *,'qfg,qlg being set to default in infile'
             qfg(:,:)=0. 
             qlg(:,:)=0. 
           endif ! (ier.ne.0)
@@ -438,14 +471,47 @@ c         enddo
             tgg(iq,k)=tgg(iq,ms) ! init temp. from GCM runs with 3 layers
            enddo  ! iq
           enddo   ! k
-c	   only being tested for nested=0; no need to test for mesonest
-           if(tgg(1,1)<200..or.tgg(1,2)<200..or.tgg(1,6)<200.)then
-             write(0,*) 'impossibly cold initial tgg1, tgg2 or tgg6' 
-             stop
-           endif     
+          if(nproc==1)then
+c 	    only being tested for nested=0; no need to test for mesonest
+            if(tgg(1,1)<200..or.tgg(1,2)<200..or.tgg(1,6)<200.)then
+              write(0,*) 'impossibly cold initial tgg1, tgg2 or tgg6' 
+              write(0,*)  tgg(1,1),tgg(1,1),tgg(1,1)
+              stop
+            endif     
+          endif     
         endif    ! (ierr==0) .. else ..
+        !----------------------------------------------------------------
+        ! MJT CHANGE
+        call histrd1(ncid,iarchi,ierr,'wetfrac1',ik,jk,wb(:,1))
+        if (ierr==0) then
+          call histrd1(ncid,iarchi,ierr,'wetfrac2',ik,jk,wb(:,2))
+          call histrd1(ncid,iarchi,ierr,'wetfrac3',ik,jk,wb(:,3))
+          call histrd1(ncid,iarchi,ierr,'wetfrac4',ik,jk,wb(:,4))
+          call histrd1(ncid,iarchi,ierr,'wetfrac5',ik,jk,wb(:,5))
+          call histrd1(ncid,iarchi,ierr,'wetfrac6',ik,jk,wb(:,6))
+          wb(:,:)=-abs(wb(:,:)) ! flag to indicate wetfrac, not volumetric soil moisture (unpacked in indata)
+        end if
+
+        roofgg=-1.
+        call histrd1(ncid,iarchi,ierr,'rooftgg1',ik,jk,roofgg(:,1))
+        if (ierr==0) then
+          call histrd1(ncid,iarchi,ierr,'rooftgg2',ik,jk,roofgg(:,2))
+          call histrd1(ncid,iarchi,ierr,'rooftgg3',ik,jk,roofgg(:,3))
+          call histrd1(ncid,iarchi,ierr,'waletgg1',ik,jk,wallegg(:,1))
+          call histrd1(ncid,iarchi,ierr,'waletgg2',ik,jk,wallegg(:,2))
+          call histrd1(ncid,iarchi,ierr,'waletgg3',ik,jk,wallegg(:,3))
+          call histrd1(ncid,iarchi,ierr,'walwtgg1',ik,jk,wallwgg(:,1))
+          call histrd1(ncid,iarchi,ierr,'walwtgg2',ik,jk,wallwgg(:,2))
+          call histrd1(ncid,iarchi,ierr,'walwtgg3',ik,jk,wallwgg(:,3))
+          call histrd1(ncid,iarchi,ierr,'roadtgg1',ik,jk,roadgg(:,1))
+          call histrd1(ncid,iarchi,ierr,'roadtgg2',ik,jk,roadgg(:,2))
+          call histrd1(ncid,iarchi,ierr,'roadtgg3',ik,jk,roadgg(:,3))
+          call histrd1(ncid,iarchi,ierr,'roofwb',ik,jk,roofwb(:))
+          call histrd1(ncid,iarchi,ierr,'roadwb',ik,jk,roadwb(:))
+        end if
+        !----------------------------------------------------------------
         if(myid == 0)print *,'about to read snowd'
-        call histrd1(ncid,iarchi,ier,'snd',ik,jk,snowd)
+        call histrd1(ncid,iarchi,ier,'snd',ik,jk,snowd) ! MJT CHANGE
         if(ier.ne.0)then  ! preset snowd here if not avail.
 !         when no snowd available initially, e.g. COMPARE III (jlm formula)
           snowd(:)=0.      ! added Feb '05
@@ -455,7 +521,7 @@ c	   only being tested for nested=0; no need to test for mesonest
      &                   snowd(iq)=min(55.,5.*(271.-abs(tss(iq))))
           enddo
           if(ncalled<4.and.mydiag)then
-           print *,'setting snowd in newin, ier= '  ,ier
+           print *,'setting snowd in infile, ier= '  ,ier
            print *,'snowd# preset to: ', diagvals(snowd)
 !     .            ((snowd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
           endif ! (ncalled<4.and.mydiag)
@@ -466,7 +532,7 @@ c	   only being tested for nested=0; no need to test for mesonest
         call histrd1(ncid,iarchi,ier,'smass1',ik,jk,smass(1,1))
         if(ier.ne.0)then  ! for smass1
           if(myid==0)
-     &          print *,'setting smass,wbice etc in newin, ier= '  ,ier
+     &          print *,'setting smass,wbice etc in infile, ier= '  ,ier
           smass(:,:)=0.
           tggsn(:,:)=280.     ! just a default
           isflag(:) = 0
@@ -517,8 +583,14 @@ c	   only being tested for nested=0; no need to test for mesonest
           enddo
         endif
 
+        !--------------------------------------------
+        ! MJT CHANGE delete esm
+        !call histrd1(ncid,iarchi,ier,'wetfrac',ik,jk,esm)
+        !if (ier.ne.0) esm(:)=-99.
+        !--------------------------------------------
+
         if(mydiag)then
-          print *,'at end of newin kdate,ktime,ktau,tss: ',
+          print *,'at end of infile kdate,ktime,ktau,tss: ',
      &                             kdate_r,ktime_r,ktau,tss(idjd)
           print *,'tgg ',(tgg(idjd,k),k=1,ms)
           print *,'wb ',(wb(idjd,k),k=1,ms)
@@ -539,7 +611,7 @@ c	   only being tested for nested=0; no need to test for mesonest
 
       iarchi=iarchi+1
       if(mydiag)then
-         write(6,'("end newin kdate,ktime,ktau_r,mtimer,timer,ds_r="
+         write(6,'("end infile kdate,ktime,ktau_r,mtimer,timer,ds_r="
      &      ,4i10,2f10.1)')kdate_r,ktime_r,ktau_r,mtimer,timer,ds_r
       endif ! (mydiag)
 
@@ -548,6 +620,7 @@ c	   only being tested for nested=0; no need to test for mesonest
       ktime_s=ktime_r+1 
 
       qg(1:ifull,1:kk) = max(qg(1:ifull,1:kk),1.e-6)
+!     qg(1:ik*jk,1:kk) = max(qg(1:ik*jk,1:kk),1.e-6)
 
       if(mydiag)then
          print *,'end infile; next read will be kdate_s,ktime_s >= ',
@@ -564,8 +637,9 @@ c*************************************************************************
       include 'parm.h'
       include 'netcdf.inc'
       include 'mpif.h'
-      integer ncid, iarchi, ier, ik, jk
+      integer ncid, iarchi, ier, ik, jk, nctype, ierb ! MJT CHANGE
       integer*2 ivar(ik*jk)
+      real rvar(ik*jk) ! MJT CHANGE
       logical odiag
       parameter(odiag=.false. )
       character name*(*)
@@ -577,6 +651,7 @@ c*************************************************************************
       if(myid==0)then
          start = (/ 1, 1, iarchi /)
          count = (/ ik, jk, 1 /)
+         if(ik<il_g)globvar(:)=2. ! default for onthefly
 
 c     get variable idv
          idv = ncvid(ncid,name,ier)
@@ -588,22 +663,38 @@ c     get variable idv
             if(odiag)write(6,*)'start=',start
             if(odiag)write(6,*)'count=',count
 c     read in all data
-            call ncvgt(ncid,idv,start,count,ivar,ier)
-            if(odiag)write(6,*)'ivar(1)(ik*jk)=',ivar(1),ivar(ik*jk)
+            !------------------------------------------------------------
+            ! MJT CHANGE
+            ierr=nf_inq_vartype(ncid,idv,nctype)
+            select case(nctype)
+              case(nf_float)
+                call ncvgt(ncid,idv,start,count,rvar,ier)
+                if(odiag)write(6,*)'rvar(1)(ik*jk)=',rvar(1),rvar(ik*jk)
+              case(nf_short)
+                call ncvgt(ncid,idv,start,count,ivar,ier)
+                if(odiag)write(6,*)'ivar(1)(ik*jk)=',ivar(1),ivar(ik*jk)
+                rvar(:)=real(ivar(:))
+              case DEFAULT
+                if (myid == 0) print *,"ERROR: Unknown NetCDF format"
+                stop
+            end select
+            !------------------------------------------------------------
 
 c     obtain scaling factors and offsets from attributes
-            call ncagt(ncid,idv,'add_offset',addoff,ier)
+            call ncagt(ncid,idv,'add_offset',addoff,ierb)
+            if (ierb.ne.0) addoff=0.        ! MJT CHANGE
             if(odiag)write(6,*)'addoff,ier=',addoff,ier
-            call ncagt(ncid,idv,'scale_factor',sf,ier)
+            call ncagt(ncid,idv,'scale_factor',sf,ierb)
+            if (ierb.ne.0) sf=1.            ! MJT CHANGE
             if(odiag)write(6,*)'sf,ier=',sf,ier
 
 c     unpack data
-            globvar = ivar*sf+addoff
+            globvar(1:ik*jk) = rvar(1:ik*jk)*sf+addoff ! MJT CHANGE
             if(mod(ktau,nmaxpr)==0.or.odiag)then
-               vmax = maxval(globvar)
-               vmin = minval(globvar)
+               vmax = maxval(rvar*sf+addoff) ! MJT CHANGE
+               vmin = minval(rvar*sf+addoff) ! MJT CHANGE
                write(6,'("done histrd1 ",a6,i4,i3,3e14.6)')
-     &           name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*il_g)
+     &           name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik)
             endif
          endif ! ier
       endif ! myid == 0
@@ -628,17 +719,20 @@ c***************************************************************************
       include 'netcdf.inc'
       include 'parm.h'
       include 'mpif.h'
-      integer ncid, iarchi, ier, ik, jk, kk
+      integer ncid, iarchi, ier, ik, jk, kk, nctype, ierb ! MJT CHANGE
       integer*2 ivar(ik*jk,kk)
+      real rvar(ik*jk,kk) ! MJT CHANGE
       character name*(*)
       integer start(4),count(4)
       real var(ifull,kl)
       real globvar(ifull_g,kl), vmax, vmin, addoff, sf
-      integer ierr, idv
+      integer ierr, idv, k
 
       if(myid == 0)then
          start = (/ 1, 1, 1, iarchi /)
-         count = (/ il_g, jl_g, kk, 1 /)
+!        count = (/ il_g, jl_g, kk, 1 /)
+         count = (/   ik,   jk, kk, 1 /)
+         if(ik<il_g)globvar(:,:)=1.234 ! default for onthefly
 c        get variable idv
          idv = ncvid(ncid,name,ier)
          if(ier.ne.0)then
@@ -646,17 +740,37 @@ c        get variable idv
      &                                         ncid,name,idv,ier
          else
 c          read in all data
-           call ncvgt(ncid,idv,start,count,ivar,ier)
+           !------------------------------------------------------------
+           ! MJT CHANGE
+           ierr=nf_inq_vartype(ncid,idv,nctype)
+           select case(nctype)
+             case(nf_float)
+               call ncvgt(ncid,idv,start,count,rvar,ier)
+             case(nf_short)
+               call ncvgt(ncid,idv,start,count,ivar,ier)
+               rvar(:,:)=real(ivar(:,:))
+             case DEFAULT
+               if (myid == 0) print *,"ERROR: Unknown NetCDF format"
+               stop
+           end select
+           !------------------------------------------------------------
 c          obtain scaling factors and offsets from attributes
-           call ncagt(ncid,idv,'add_offset',addoff,ier)
-           call ncagt(ncid,idv,'scale_factor',sf,ier)
+           call ncagt(ncid,idv,'add_offset',addoff,ierb)
+           if (ierb.ne.0) addoff=0.        ! MJT CHANGE
+           call ncagt(ncid,idv,'scale_factor',sf,ierb)
+           if (ierb.ne.0) sf=1.            ! MJT CHANGE
 c          unpack data
-           globvar = ivar*sf + addoff
+!          globvar = ivar*sf + addoff
+           do k=1,kk  ! following allows for ik < il_g
+            globvar(1:ik*jk,k) = rvar(1:ik*jk,k)*sf + addoff ! MJT CHANGE
+           enddo
            if(mod(ktau,nmaxpr)==0)then
-             vmax = maxval(globvar)
-             vmin = minval(globvar)
+!            vmax = maxval(globvar)
+!            vmin = minval(globvar)
+             vmax = maxval(rvar*sf + addoff)  ! allows for ik < il_g ! MJT CHANGE
+             vmin = minval(rvar*sf + addoff)                         ! MJT CHANGE
              write(6,'("done histrd4 ",a6,i4,i3,3f12.4)') 
-     &           name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*il_g,nlv)
+     &           name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
            endif
          endif ! ier
       endif ! myid == 0

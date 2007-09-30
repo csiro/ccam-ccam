@@ -2,6 +2,8 @@
       use cc_mpi
       implicit none
 !     this one primarily does namip=2      
+!     namip=-1 zaps only SSTs, and only at the beginning of the run from 
+!           indata, for sea points, provided in range -20 to 32C   
 !     A routine for the con-cubic model which will interpolate
 !     linearly in time between two sst data sets.
 !     iday is a variable which is equal to the number of
@@ -58,14 +60,16 @@ c     integer ipermp(ifull),indexi,indexs,ip
         update = .true.
         iyr_m=iyr
         imo_m=imo-1
+        if(namip<0)imo_m=imo  ! just current month in this case
         if(imo_m==0)then
           imo_m=12
           iyr_m=iyr-1
         endif
         open(unit=75,file=sstfile,status='old',form='formatted')
-2       read(75,'(i2,i5,2i4,2f6.1,f6.3,a22)')
+2       print *,'about to read amipsst file'
+        read(75,*)
      &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-        write(6,'("reading sst ",i2,i5,2i4,2f6.1,f6.3,a22)')
+        write(6,'("reading sst ",i2,i5,2i4,2f6.1,f6.4,a22)')
      &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
         if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
      &     rlat0/=rlat_in.or.schmidt/=schmidt_in)then
@@ -80,6 +84,7 @@ c     integer ipermp(ifull),indexi,indexs,ip
         ssta_g(:)=ssta_g(:)*.01 -50. +273.16
         print *,'want imo_m,iyr_m; ssta ',imo_m,iyr_m,ssta_g(idjd_g)
         if(iyr_m.ne.iyear.or.imo_m.ne.imonth)go to 2
+        if(namip<0)go to 5
 
         read(75,'(i2,i5,a22)') imonth,iyear,header
         print *,'reading sstb data:',imonth,iyear,header
@@ -162,6 +167,20 @@ c     integer ipermp(ifull),indexi,indexs,ip
 
       end if ! myid==0
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
+5       if(namip<0)then
+          if ( myid == 0 ) then
+            call ccmpi_distribute(ssta, ssta_g)
+          else
+            call ccmpi_distribute(ssta)
+          end if
+!         update SSTs with new values, where appropriate
+          do iq=1,ifull
+            if(zs(iq)<=0..and.ssta(iq)>253.1.and.ssta(iq)<305.2)then
+              tss(iq)=ssta(iq)  ! tgg updated later in indata
+            endif
+          enddo          
+          return
+        endif  ! (namip<0)
 
 !     Each day interpolate non-land sst's
 6     continue

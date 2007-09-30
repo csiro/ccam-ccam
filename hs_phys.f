@@ -1,6 +1,7 @@
+! from July 2006, use split scheme
 !  version for globpex with tendencies
 !  This is a simplified physics routine implementing the temperature
-!  relaxation and wind drag of the Suarez and Held dynamical core experiments. 
+!  relaxation and wind drag for Held-Suarez dynamical core experiments. 
 !  The drag coefficient depends on height and the temperature relaxation
 !  time depends on latitude and height.
 
@@ -48,9 +49,9 @@
      &                deltheta*log(sig(k))*cos(rlatt(iq))**2)
      &                *sig(k)**kappa )
 !          following for tendencies based on implicit a
-           tn(iq,k) =tn(iq,k)-kt*(t(iq,k)-teq)/(1.+dt*kt)  ! implicit form a
-c          t(iq,k) = (t(iq,k)*(1.-.5*dt*kt)+dt*kt*teq)/
-c    .                                  (1.+.5*dt*kt)  ! implicit form b
+!          tn(iq,k) =tn(iq,k)-kt*(t(iq,k)-teq)/(1.+dt*kt)  ! implicit form a
+           t(iq,k) = (t(iq,k)*(1.-.5*dt*kt)+dt*kt*teq)/
+     .                                  (1.+.5*dt*kt)  ! implicit form b
        end do
       end do
 
@@ -59,10 +60,10 @@ c    .                                  (1.+.5*dt*kt)  ! implicit form b
        kv = kf * max(0., (sig(k)-sig_b)/(1.-sig_b))
        do iq=1,ifull
 !          following for tendencies based on implicit a
-           un(iq,k) = un(iq,k) -kv*u(iq,k)/(1.+ dt * kv)
-           vn(iq,k) = vn(iq,k) -kv*v(iq,k)/(1.+ dt * kv)
-c          u(iq,k) = u(iq,k)*(1.-.5*dt*kv)/(1.+.5*dt*kv) ! im form b
-c          v(iq,k) = v(iq,k)*(1.-.5*dt*kv)/(1.+.5*dt*kv) ! im form b
+c          un(iq,k) = un(iq,k) -kv*u(iq,k)/(1.+ dt * kv)
+c          vn(iq,k) = vn(iq,k) -kv*v(iq,k)/(1.+ dt * kv)
+           u(iq,k) = u(iq,k)*(1.-.5*dt*kv)/(1.+.5*dt*kv) ! im form b
+           v(iq,k) = v(iq,k)*(1.-.5*dt*kv)/(1.+.5*dt*kv) ! im form b
        end do
       end do
 

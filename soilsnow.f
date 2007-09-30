@@ -251,8 +251,8 @@ c       call maxmin(wbfice,'ic',ktau,1.,6)
           wbice(iq,k)=min(wbice(iq,k)+sicefreeze/
      &                (zse(k)*1000.),.99*wb(iq,k))
 c         wbice(iq,k)=max(wbice(iq,k),0.)  ! superfluous
-!         gammzz(iq,k)=calgammv(iq,isoil,k,wb(iq,k)-wbice(iq,k),wbice(iq,k))
-          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
+!         gammzz(iq,k)=calgammv(iq,isoil,k,wb(iq,k)-wbice(iq,k),wbice(iq,k)) 
+          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) ! MJT CHANGE - back to original
      &     +(wb(iq,k)-wbice(iq,k))*cswat*rhowat + wbice(iq,k)*csice*
      &      rhowat*.9 , css(isoil)*rhos(isoil)  ) * zse(k)
           if(k==1.and.isflag(iq)==0)gammzz(iq,k)=gammzz(iq,k) +
@@ -266,7 +266,7 @@ c    &                                    cgsnow*snowd(iq)/ssdnn(iq)
           wbice(iq,k)=max(0.,wbice(iq,k)-sicemelt/(zse(k)*1000.))
 c         if(wbice(iq,k)<.001) wbice(iq,k)=0.
 !         gammzz(iq,k)=calgammv(iq,isoil,k,wb(iq,k)-wbice(iq,k),wbice(iq,k))
-          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
+          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) ! MJT CHANGE - back to original
      &     +(wb(iq,k)-wbice(iq,k))*cswat*rhowat + wbice(iq,k)*csice*
      &      rhowat*.9 , css(isoil)*rhos(isoil)  ) * zse(k)
           if(k==1.and.isflag(iq)==0)gammzz(iq,k)=gammzz(iq,k) +
@@ -1080,6 +1080,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
           ccnsw(iq,k)= min(cnsd(isoil)*exp(ew*log(60.)+ei*log(250.))
      .                  , 2.2)*ccf
         endif  ! (isoil==9) ... else ...
+        !ccnsw(iq,k)=(1.-tsigmu(iq))*ccnsw(iq,k)+tsigmu(iq)*4.6 ! MJT CHANGE - delete
        enddo
       enddo
 
@@ -1103,7 +1104,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
          enddo
 
          k=1
-         gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
+         gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) ! MJT CHANGE - back to original
      *    +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
      *    rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
          gammzz(iq,k)=gammzz(iq,k) +  cgsnow*snowd(iq) 
@@ -1113,7 +1114,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
          bt(iq,k)= 1.-at(iq,k)-ct(iq,k)
 
          do k=2,ms
-          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
+          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) ! MJT CHANGE - back to original
      *     +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
      *     rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
           dtg=dt/gammzz(iq,k)
@@ -1185,7 +1186,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
          coefb(iq)=coeff(4-3)     ! jlm B
 
          do k=1,ms
-          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
+          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) ! MJT CHANGE - back to original
      *     +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
      *      rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
           dtg=dt/gammzz(iq,k)

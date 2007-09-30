@@ -2,7 +2,8 @@
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,
-     .                    tggsn,smass,ssdn,ssdnn,snage,isflag)
+     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
+     .                    roofgg,wallegg,wallwgg,roadgg,roofwb,roadwb) ! MJT CHANGE add urban types
 !     Target points use values interpolated to their 4 grid "corners";
 !     these corner values are then averaged to the grid centres
 !     N.B. this means will get different fields with io_in=-1 from io_in=1
@@ -34,21 +35,21 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       include 'mpif.h'
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
       real sigin
-      integer kk
-      common/sigin/sigin(kl),kk  ! for vertint, infile
+      integer ik,jk,kk
+      common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
       ! rlong4 needs to be shared with setxyz. These are global arrays.
       real, dimension(ifull_g,4) :: rlong4, rlat4
       common/workglob/rlong4,rlat4   ! shared with setxyz
-      real, dimension(iquad,iquad) :: xx4_sav, yy4_sav
       ! Used in the global interpolation
       real, dimension(ifull_g) :: u_g, v_g, t_g, qg_g, uc, vc, wc,
      &                            ucc, vcc, wcc, uct, vct, wct
-      real, dimension(ifull_g) :: ax_s, ay_s, az_s, bx_s, by_s, bz_s
+      real, dimension(ifull_g) :: ax_t, ay_t, az_t, bx_t, by_t, bz_t
       real, dimension(ifull) :: tss_l, tss_s, pmsl
       logical, dimension(ifull) :: land_t
       real, dimension(ifull_g,4) :: xg4, yg4
       integer, dimension(ifull_g,4) :: nface4
       real rotpoles(3,3),rotpole(3,3)
+      
 
 !     These are local arrays, not the versions in arrays.h
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
@@ -56,20 +57,23 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      & wb(ifull,ms),wbice(ifull,ms),snowd(ifull),sicedep(ifull),
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     & ssdnn(ifull),snage(ifull)
+     & ssdnn(ifull),snage(ifull),
+     & roofgg(ifull,3),wallegg(ifull,3),wallwgg(ifull,3), ! MJT CHANGE add urban types
+     & roadgg(ifull,3),roofwb(ifull),roadwb(ifull) ! MJT CHANGE add urban types
       ! Dummy variables here replace the aliasing use of aa, bb in infile call
-      real, dimension(ifull) :: dum1, dum2, dum3, dum4, dum5
+      real, dimension(ifull) :: dum5
       integer isflag(ifull)
       ! Will get odd results unless this is on process 0 ???
 !!    integer, parameter :: id1=3, jd1=60
       real :: rlong0_t, rlat0_t, schmidt_t,  rlong0x, rlat0x, schmidtx,
-     &         ds_t, timegb, xx_s, yy_s, spval
+     &         ds_t, timegb, spval
       integer :: nemi, id_t, jd_t, idjd1, kdate_r, ktime_r,
-     &           nem2, nested, i, j, k, m, iq, id2, jd2, idjd2, ii, jj,
-     &           np, numneg, norder, ierr, idjd_t
+     &           nested, i, j, k, m, iq, id2, jd2, idjd2, ii, jj,
+     &           np, numneg, norder, idjd_t
       entry onthefl(nested,kdate_r,ktime_r,
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg)
 
+      if ( myid==0 ) print *,'entering onthefly for nested = ',nested
 !     save cc target file geometry
       rlong0_t=rlong0
       rlat0_t=rlat0
@@ -77,11 +81,18 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       ds_t=ds
 c     zs_t(:)=zs(1:ifull)
       land_t(:)=land(:)  
+!        save "target" ax, bx etc  - used in transforming target u & v
+         ax_t(:) = ax_g(:)
+         ay_t(:) = ay_g(:)
+         az_t(:) = az_g(:)
+         bx_t(:) = bx_g(:)
+         by_t(:) = by_g(:)
+         bz_t(:) = bz_g(:)
 
 c     start of processing loop 
       nemi=2   !  assume source land-mask based on tss sign first
       if(ktau<3.and.myid==0)print *,'search for kdate_s,ktime_s >= ',
-     &                                           kdate_s,ktime_s
+     &                                          kdate_s,ktime_s
       id_t=id
       jd_t=jd
       idjd_t=idjd ! Only id+il_g*(jd-1) if it's on process 0.
@@ -98,11 +109,13 @@ c     start of processing loop
         call infile(nested,kdate_r,ktime_r,timegb,ds,
      &            psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &            tgg,wb,wbice,dum5,snowd,  ! dum5 is alb
-     &            tggsn,smass,ssdn,ssdnn,snage,isflag) 
+     &            tggsn,smass,ssdn,ssdnn,snage,isflag,
+     &            roofgg,wallegg,wallwgg,roadgg,roofwb,roadwb) ! MJT CHANGE add urban types
       else
         call infil(nested,kdate_r,ktime_r,timegb,ds,
      &            psl,zss,tss,sicedep,fracice,t,u,v,qg)
       endif   
+!     N.B. above infile call returns values for ik,jk,kk of source data
      
 !     Purpose of setxyz call is to get rlat4 rlong4 (and so xx4 yy4) 
 !     for the source grid. Only process 0 needs to do this here
@@ -110,7 +123,9 @@ c     start of processing loop
          rlong0=rlong0x
          rlat0=rlat0x
          schmidt=schmidtx
-         call setxyz(myid)            ! for source data geometry        ******************
+!        N.B. -ve ik in call setxyz preservess target rlat4, rlong4         
+c        call setxyz(myid,-ik)      ! for source data geometry        ******************
+         call setxyz(-ik,xx4,yy4,myid)  ! for source data geometry    ****     
 !     rotpole(1,) is x-axis of rotated coords in terms of orig Cartesian
 !     rotpole(2,) is y-axis of rotated coords in terms of orig Cartesian
 !     rotpole(3,) is z-axis of rotated coords in terms of orig Cartesian
@@ -126,58 +141,23 @@ c     start of processing loop
                print 9,(i,j,j=1,3),(rotpoles(i,j),j=1,3)
             enddo
          endif                  ! (ktau<3)
-!        save "source" ax, bx etc  - used in transforming source u & v
-         ax_s(:) = ax_g(:)
-         ay_s(:) = ay_g(:)
-         az_s(:) = az_g(:)
-         bx_s(:) = bx_g(:)
-         by_s(:) = by_g(:)
-         bz_s(:) = bz_g(:)
-c      rlat_t(iq)=rlatt(iq)*180./pi
-c      rlong_t(iq)=rlongg(iq)*180./pi
-         xx4_sav(:,:)=xx4(:,:)
-         yy4_sav(:,:)=yy4(:,:)
 
-!        restore cc target file geometry
-         rlong0=rlong0_t
-         rlat0=rlat0_t
-         schmidt=schmidt_t
-         ds_t=ds
-         id=id_t
-         jd=jd_t
-         idjd=idjd_t
-         call setxyz(myid)  ! for target        *********************************
-         print *,'after target setxyz'
+      id=id_t
+      jd=jd_t
+      idjd=idjd_t
 !     rotpole(1,) is x-axis of rotated coords in terms of orig Cartesian
 !     rotpole(2,) is y-axis of rotated coords in terms of orig Cartesian
 !     rotpole(3,) is z-axis of rotated coords in terms of orig Cartesian
-         rotpole = calc_rotpole(rlong0,rlat0)
+         rotpole = calc_rotpole(rlong0_t,rlat0_t)
          if(nmaxpr==1)then   ! already in myid==0 loop
             print *,'rotpole:'
             do i=1,3
                print 9,(i,j,j=1,3),(rotpole(i,j),j=1,3)
  9             format(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)
             enddo
-            print *,'xx4,xx4_sav,yy4,yy4_sav ',
-     .           xx4(id,jd),xx4_sav(id,jd),yy4(id,jd),yy4_sav(id,jd)
+            print *,'xx4,yy4 ',xx4(id,jd),yy4(id,jd)
          endif                  ! (nmaxpr==1)
-!     Put source values into xx4, yy4; target values into xx4_sav,yy4_sav
-!     This is necessary because latltoij uses xx4,yy4 from common.
-         do j=1,iquad
-            do i=1,iquad
-               xx_s=xx4_sav(i,j)
-               xx4_sav(i,j)=xx4(i,j)
-               xx4(i,j)=xx_s
-               yy_s=yy4_sav(i,j)
-               yy4_sav(i,j)=yy4(i,j)
-               yy4(i,j)=yy_s
-            enddo
-         enddo
 
-!     restore cc source file geometry for latltoij
-         rlong0=rlong0x
-         rlat0=rlat0x
-         schmidt=schmidtx
          if(nmaxpr==1)then  ! already in myid==0 loop
             print *,'before latltoij for id,jd: ',id,jd
             if ( nproc==1 ) then
@@ -189,8 +169,9 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
          endif                  ! (nmaxpr==1)
          do m=1,4
             do iq=1,ifull_g
-               call latltoij(rlong4(iq,m),rlat4(iq,m),
-     &                       xg4(iq,m),yg4(iq,m),nface4(iq,m))
+               call latltoij(rlong4(iq,m),rlat4(iq,m),         !input
+     &                       xg4(iq,m),yg4(iq,m),nface4(iq,m), !output (source)
+     &                       xx4,yy4,ik)
             enddo
          enddo
          if(nproc==1.and.nmaxpr==1)then
@@ -214,7 +195,7 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
       end if ! myid==0
 
       if(nfly==2)then         ! needs pmsl in this case (preferred)
-         call mslp(pmsl,psl,zss,t)  
+         call mslp(pmsl,psl,zss,t(1:ifull,:))  
       endif
 
       ! All the following processing is done on processor 0
@@ -225,11 +206,11 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
             call ccmpi_gather(v(:,k), v_g)
             call ccmpi_gather(t(:,k), t_g)
             call ccmpi_gather(qg(:,k), qg_g)
-            do iq=1,ifull_g
+            do iq=1,ik*jk
 !              first set up winds in Cartesian "source" coords
-               uc(iq)=ax_s(iq)*u_g(iq) + bx_s(iq)*v_g(iq)
-               vc(iq)=ay_s(iq)*u_g(iq) + by_s(iq)*v_g(iq)
-               wc(iq)=az_s(iq)*u_g(iq) + bz_s(iq)*v_g(iq)
+               uc(iq)=ax_g(iq)*u_g(iq) + bx_g(iq)*v_g(iq)
+               vc(iq)=ay_g(iq)*u_g(iq) + by_g(iq)*v_g(iq)
+               wc(iq)=az_g(iq)*u_g(iq) + bz_g(iq)*v_g(iq)
 !              now convert to winds in "absolute" Cartesian components
                ucc(iq)=uc(iq)*rotpoles(1,1)+vc(iq)*rotpoles(1,2)
      &                                +wc(iq)*rotpoles(1,3)
@@ -247,16 +228,16 @@ c      rlong_t(iq)=rlongg(iq)*180./pi
 !      interpolate all required arrays to new C-C positions
 !      don't need to do map factors and Coriolis on target grid
             np=0                ! controls prints in ints4
-            call ints4(t_g, nface4,xg4,yg4,nord)
-            call ints4(qg_g,nface4,xg4,yg4,nord)
-            call ints4(ucc, nface4,xg4,yg4,nord)
-            call ints4(vcc, nface4,xg4,yg4,nord)
-            call ints4(wcc, nface4,xg4,yg4,nord)
+            call ints4(t_g, nface4,xg4,yg4,nord,ik)  ! ints4 on source grid
+            call ints4(qg_g,nface4,xg4,yg4,nord,ik)
+            call ints4(ucc, nface4,xg4,yg4,nord,ik)
+            call ints4(vcc, nface4,xg4,yg4,nord,ik)
+            call ints4(wcc, nface4,xg4,yg4,nord,ik)
 
 c      ********************** N.B. tracers not ready yet
 c      if(iltin>1)then
 c        do ntr=1,ntracin
-c         call ints4(tr(1,k,ntr),nface4,xg4,yg4,nord)
+c         call ints4(tr(1,k,ntr),nface4,xg4,yg4,nord,ik)
 c        enddo
 c      endif
  
@@ -269,18 +250,18 @@ c      endif
                wct(iq)=ucc(iq)*rotpole(1,3)+vcc(iq)*rotpole(2,3)
      &                           +wcc(iq)*rotpole(3,3)
 !       then finally to "target" local x-y components
-               u_g(iq) = ax_g(iq)*uct(iq) + ay_g(iq)*vct(iq) +
-     &                   az_g(iq)*wct(iq)
-               v_g(iq) = bx_g(iq)*uct(iq) + by_g(iq)*vct(iq) +
-     &                   bz_g(iq)*wct(iq)
+               u_g(iq) = ax_t(iq)*uct(iq) + ay_t(iq)*vct(iq) +
+     &                   az_t(iq)*wct(iq)
+               v_g(iq) = bx_t(iq)*uct(iq) + by_t(iq)*vct(iq) +
+     &                   bz_t(iq)*wct(iq)
             enddo               ! iq loop
             if(ktau<3.and.k==1.and.nproc==1)then
                ! This only works if idjd is on processor 0
                print *,'interp. ucc,vcc,wcc: ',ucc(idjd),vcc(idjd),
      &                  wcc(idjd)
                print *,'uct,vct,wct: ',uct(idjd),vct(idjd),wct(idjd)
-               print *,'ax,ay,az ',ax_g(idjd),ay_g(idjd),az_g(idjd)
-               print *,'bx,by,bz ',bx_g(idjd),by_g(idjd),bz_g(idjd)
+               print *,'ax,ay,az ',ax_t(idjd),ay_t(idjd),az_t(idjd)
+               print *,'bx,by,bz ',bx_t(idjd),by_t(idjd),bz_t(idjd)
                print *,'final u , v: ',u_g(idjd),v_g(idjd)
             endif
             call ccmpi_distribute(u(:,k), u_g)
@@ -362,15 +343,15 @@ c     .          ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
       endif
 
       ! The routine doints4 does the gather, calls ints4 and redistributes
-      call doints4(psl ,     nface4,xg4,yg4,norder)
-      call doints4(zss ,nface4,xg4,yg4,norder)  
+      call doints4(psl ,     nface4,xg4,yg4,norder,ik)
+      call doints4(zss ,nface4,xg4,yg4,norder,ik)  
       if(nfly==2)then
-        call doints4(pmsl,   nface4,xg4,yg4,nord)
+        call doints4(pmsl,   nface4,xg4,yg4,nord,ik)
 !       invert pmsl to get psl
         call to_psl(pmsl,psl,zss,t)  
       endif  ! (nfly==2)
-      call doints4(tss_l ,   nface4,xg4,yg4,nord)
-      call doints4(tss_s ,   nface4,xg4,yg4,nord)
+      call doints4(tss_l ,   nface4,xg4,yg4,nord,ik)
+      call doints4(tss_s ,   nface4,xg4,yg4,nord,ik)
       if(nproc==1.and.nmaxpr==1)then
          print *,'after ints4 idjd,zss(idjd) ',idjd,zss(idjd)
          print *,'after ints4 psl,pmsl ',psl(idjd),pmsl(idjd)
@@ -378,8 +359,8 @@ c        print *,'after ints4 wb_t'
 c        write(6,"('wb_t(1)#  ',9f7.3)") 
 c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
       endif  ! (nproc==1.and.nmaxpr==1)
-      call doints4(sicedep,nface4,xg4,yg4,nord)
-      call doints4(fracice,nface4,xg4,yg4,nord)
+      call doints4(sicedep,nface4,xg4,yg4,nord,ik)
+      call doints4(fracice,nface4,xg4,yg4,nord,ik)
       if ( nproc==1 ) print *,'after ints4 sicedep ',sicedep(idjd)
       if(nested==0)then
         do iq=1,ifull
@@ -396,11 +377,24 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
          call fill_cc(tgg(1,k),spval)
          call fill_cc(wb(1,k),spval)
         enddo
-        call doints4(snowd,  nface4,xg4,yg4,nord)
+        call doints4(snowd,  nface4,xg4,yg4,nord,ik)
         do k=1,ms
-         call doints4(tgg(1,k),nface4,xg4,yg4,nord)
-         call doints4(wb(1,k) ,nface4,xg4,yg4,nord)
+         call doints4(tgg(1,k),nface4,xg4,yg4,nord,ik)
+         call doints4(wb(1,k) ,nface4,xg4,yg4,nord,ik)
         enddo
+        !--------------------------------------------------
+        ! MJT CHANGE
+        if (nsib.eq.5) then
+          do k=1,3
+            call doints4(roofgg(:,k),nface4,xg4,yg4,nord,ik)
+            call doints4(wallegg(:,k),nface4,xg4,yg4,nord,ik)
+            call doints4(wallwgg(:,k),nface4,xg4,yg4,nord,ik)
+            call doints4(roadgg(:,k),nface4,xg4,yg4,nord,ik)
+          end do
+          call doints4(roofwb(:),nface4,xg4,yg4,nord,ik)
+          call doints4(roadwb(:),nface4,xg4,yg4,nord,ik)
+        end if
+        !--------------------------------------------------
 c       incorporate target land mask effects for initial fields
         do iq=1,ifull
          if(land_t(iq))then
@@ -455,14 +449,9 @@ c     incorporate other target land mask effects
 
 !     end of processing loop
 
-!     restore target values into xx4, yy4
       rlong0x=rlong0_t  ! for indata cross-check
       rlat0x=rlat0_t
       schmidtx=schmidt_t
-      if ( myid==0 ) then  ! Others weren't changed
-         xx4(:,:) = xx4_sav(:,:)
-         yy4(:,:) = yy4_sav(:,:)
-      end if
 
 !     restore target zs and land arrays
 c     zs(1:ifull) = zs_t(:)
@@ -475,22 +464,27 @@ c     zs(1:ifull) = zs_t(:)
       id=id_t
       jd=jd_t
       idjd=idjd_t
+      if ( myid==0 ) then  
+!       call setxyz(myid,il_g)  ! for target  ** produces rlong4,rlat4 **
+        call setxyz(il_g,xx4,yy4,myid) ! for target ** produces rlong4,rlat4 **
+        print *,'after target setxyz'
+      end if
 
       end subroutine onthefly
 
-      subroutine doints4(s,nface4 ,xg4 ,yg4,nord)  ! does calls to intsb
+      subroutine doints4(s,nface4 ,xg4 ,yg4,nord,ik)  ! does calls to intsb
       use cc_mpi
       implicit none
       include 'newmpar.h'
       real, dimension(ifull), intent(inout) :: s
       integer, intent(in), dimension(ifull_g,4) :: nface4
       real, intent(in), dimension(ifull_g,4) :: xg4, yg4
-      integer, intent(in) :: nord
+      integer, intent(in) :: ik, nord
       real, dimension(ifull_g) :: s_g
 
       if ( myid ==0 ) then
          call ccmpi_gather(s,s_g)
-         call ints4(s_g,nface4 ,xg4 ,yg4,nord) 
+         call ints4(s_g,nface4 ,xg4 ,yg4,nord,ik) 
          call ccmpi_distribute(s,s_g)
       else
          call ccmpi_gather(s)
@@ -498,7 +492,7 @@ c     zs(1:ifull) = zs_t(:)
       endif
       end subroutine doints4
 
-      subroutine ints4(s,nface4 ,xg4 ,yg4,nord)  ! does calls to intsb
+      subroutine ints4(s,nface4 ,xg4 ,yg4,nord,ik)  ! does calls to intsb
       implicit none
       include 'newmpar.h'
       include 'parm.h'
@@ -506,18 +500,18 @@ c     zs(1:ifull) = zs_t(:)
       real, dimension(ifull_g), intent(inout) :: s
       integer, intent(in), dimension(ifull_g,4) :: nface4
       real, intent(in), dimension(ifull_g,4) :: xg4, yg4
-      integer, intent(in) :: nord
+      integer, intent(in) :: ik, nord
       real wrk(ifull_g,4)
       integer :: iq, m
       integer :: idx = 25, jdx = 218, idjdx=10441
 
       if(nord==1)then
          do m=1,4
-            call ints_blb(s,wrk(1,m),nface4(1,m),xg4(1,m),yg4(1,m))
+            call ints_blb(s,wrk(1,m),nface4(1,m),xg4(1,m),yg4(1,m),ik)
          enddo
       else
          do m=1,4
-            call intsb(s,wrk(1,m),nface4(1,m),xg4(1,m),yg4(1,m))
+            call intsb(s,wrk(1,m),nface4(1,m),xg4(1,m),yg4(1,m),ik)
          enddo
       endif   ! (nord==1)  .. else ..
       if(ntest>0)then
@@ -534,8 +528,8 @@ c     zs(1:ifull) = zs_t(:)
 
       end subroutine ints4
 
-      subroutine intsb(s,sout,nface,xg,yg)   ! N.B. sout here
-!     same as subr ints, ut with sout passed back and no B-S      
+      subroutine intsb(s,sout,nface,xg,yg,ik)   ! N.B. sout here
+!     same as subr ints, but with sout passed back and no B-S      
 !     s is input; sout is output array
 c     later may wish to save idel etc between array calls
 c     this one does linear interp in x on outer y sides
@@ -543,32 +537,33 @@ c     doing x-interpolation before y-interpolation
 !     This is a global routine 
       include 'newmpar.h'
       include 'parm.h'
-      real, dimension(ifull_g), intent(in) :: s
+      real, dimension(ik*ik), intent(in) :: s
       real, dimension(ifull_g), intent(inout) :: sout
       integer, intent(in), dimension(ifull_g) :: nface
       real, intent(in), dimension(ifull_g) :: xg, yg
-      real sx(-1:il_g+2,-1:il_g+2,0:npanels)
+      real sx(-1:ik+2,-1:ik+2,0:npanels)
       real r(4)
+
       include 'indices_g.h' ! in,is,iw,ie,inn,iss,iww,iee
       integer :: ind, i, j, n, iq
-      ind(i,j,n)=i+(j-1)*il_g+n*il_g*il_g  ! *** for n=0,npanels
+      ind(i,j,n)=i+(j-1)*ik+n*ik*ik  ! *** for n=0,npanels
 c     this is intsb           EW interps done first
 c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
       do n=0,npanels
-       do j=1,il_g
-        do i=1,il_g
+       do j=1,ik
+        do i=1,ik
          sx(i,j,n)=s(ind(i,j,n))
         enddo  ! i loop
         sx(0,j,n)=s(iw_g(ind(1,j,n)))
         sx(-1,j,n)=s(iww_g(ind(1,j,n)))
-        sx(il_g+1,j,n)=s(ie_g(ind(il_g,j,n)))
-        sx(il_g+2,j,n)=s(iee_g(ind(il_g,j,n)))
+        sx(ik+1,j,n)=s(ie_g(ind(ik,j,n)))
+        sx(ik+2,j,n)=s(iee_g(ind(ik,j,n)))
        enddo   ! j loop
-       do i=1,il_g
+       do i=1,ik
         sx(i,0,n)=s(is_g(ind(i,1,n)))
         sx(i,-1,n)=s(iss_g(ind(i,1,n)))
-        sx(i,il_g+1,n)=s(in_g(ind(i,il_g,n)))
-        sx(i,il_g+2,n)=s(inn_g(ind(i,il_g,n)))
+        sx(i,ik+1,n)=s(in_g(ind(i,ik,n)))
+        sx(i,ik+2,n)=s(inn_g(ind(i,ik,n)))
        enddo  ! i loop
 c      for ew interpolation, sometimes need (different from ns):
 c          (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
@@ -576,18 +571,18 @@ c         (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
        sx(-1,0,n)=s(lwws_g(n))
        sx(0,0,n)=s(lws_g(n))
        sx(0,-1,n)=s(lwss_g(n))
-       sx(il_g+1,0,n)=s(les_g(n))
-       sx(il_g+2,0,n)=s(lees_g(n))
-       sx(il_g+1,-1,n)=s(less_g(n))
-       sx(-1,il_g+1,n)=s(lwwn_g(n))
-       sx(0,il_g+2,n)=s(lwnn_g(n))
-       sx(il_g+2,il_g+1,n)=s(leen_g(n))
-       sx(il_g+1,il_g+2,n)=s(lenn_g(n))
-       sx(0,il_g+1,n)   =s(iwn_g(ind(1,il_g,n)))
-       sx(il_g+1,il_g+1,n)=s(ien_g(ind(il_g,il_g,n)))
+       sx(ik+1,0,n)=s(les_g(n))
+       sx(ik+2,0,n)=s(lees_g(n))
+       sx(ik+1,-1,n)=s(less_g(n))
+       sx(-1,ik+1,n)=s(lwwn_g(n))
+       sx(0,ik+2,n)=s(lwnn_g(n))
+       sx(ik+2,ik+1,n)=s(leen_g(n))
+       sx(ik+1,ik+2,n)=s(lenn_g(n))
+       sx(0,ik+1,n)   =s(iwn_g(ind(1,ik,n)))
+       sx(ik+1,ik+1,n)=s(ien_g(ind(ik,ik,n)))
       enddo    ! n loop
 
-      do iq=1,ifull_g
+      do iq=1,ifull_g   ! runs through list of target points
 c       if(iq==idjd)print *,'iq,nface,xg,yg ',
 c    .                         iq,nface(iq),xg(iq),yg(iq)
         n=nface(iq)
@@ -641,44 +636,44 @@ c    .                         sx(idel,jdel+1,n),sx(idel+1,jdel+1,n)
 
       end subroutine intsb
 
-      subroutine ints_blb(s,sout,nface,xg,yg) 
+      subroutine ints_blb(s,sout,nface,xg,yg,ik) 
 c     this one does bi-linear interpolation only
       implicit none
       include 'newmpar.h'
       include 'parm.h'
-      real, dimension(ifull_g), intent(in) :: s
+      real, dimension(ik*ik), intent(in) :: s
       real, dimension(ifull_g), intent(inout) :: sout
       integer, intent(in), dimension(ifull_g) :: nface
       real, intent(in), dimension(ifull_g) :: xg, yg
-      real sx(-1:il_g+2,-1:il_g+2,0:npanels)
+      real sx(-1:ik+2,-1:ik+2,0:npanels)
       include 'indices_g.h' ! in,is,iw,ie,inn,iss,iww,iee
-      integer :: ind, i, j, n, iq, idel, jdel
+      integer :: ind, i, j, n, iq, idel, jdel, ik
       real :: xxg, yyg
-      ind(i,j,n)=i+(j-1)*il_g+n*il_g*il_g  ! *** for n=0,npanels
+      ind(i,j,n)=i+(j-1)*ik+n*ik*ik  ! *** for n=0,npanels
 c     first extend s arrays into sx - this one -1:il+2 & -1:il+2
 c                    but for bi-linear only need 0:il+1 &  0:il+1
       do n=0,npanels
-       do j=1,il_g
-        do i=1,il_g
+       do j=1,ik
+        do i=1,ik
          sx(i,j,n)=s(ind(i,j,n))
         enddo  ! i loop
        enddo   ! j loop
-       do j=1,il_g
+       do j=1,ik
         sx(0,j,n)=s(iw_g(ind(1,j,n)))
-        sx(il_g+1,j,n)=s(ie_g(ind(il_g,j,n)))
+        sx(ik+1,j,n)=s(ie_g(ind(ik,j,n)))
        enddo   ! j loop
-       do i=1,il_g
+       do i=1,ik
         sx(i,0,n)=s(is_g(ind(i,1,n)))
-        sx(i,il_g+1,n)=s(in_g(ind(i,il_g,n)))
+        sx(i,ik+1,n)=s(in_g(ind(i,ik,n)))
        enddo  ! i loop
 
        sx(0,0,n)=s(lws_g(n))
-       sx(il_g+1,0,n)=s(les_g(n))
-       sx(0,il_g+1,n)   =s(iwn_g(ind(1,il_g,n)))
-       sx(il_g+1,il_g+1,n)=s(ien_g(ind(il_g,il_g,n)))
+       sx(ik+1,0,n)=s(les_g(n))
+       sx(0,ik+1,n)   =s(iwn_g(ind(1,ik,n)))
+       sx(ik+1,ik+1,n)=s(ien_g(ind(ik,ik,n)))
       enddo    ! n loop
 
-      do iq=1,ifull_g
+      do iq=1,ifull_g  ! runs through list of target points
        n=nface(iq)
        idel=int(xg(iq))
        xxg=xg(iq)-idel
@@ -703,13 +698,15 @@ c     routine fills in interior of an array which has undefined points
       real a_io(ifull)         ! input and output array
       real value            ! array value denoting undefined
       real b(ifull), a(ifull+iextra)
-      integer :: num, nrem, iq, neighb, nrem_g, ierr
+      integer :: num, nrem, iq, neighb, nrem_g, nrem_gmin, ierr
       real :: av, avx
       
       a(1:ifull) = a_io(:)
       num=0
-      nrem_g = 1 ! Just for first iteration
-      do while ( nrem_g > 0 )
+      nrem_g = 1    ! Just for first iteration
+      nrem_gmin = 1 ! Just for first iteration
+!     nrem_gmin used to avoid infinite loops, e.g. for no sice
+      do while ( nrem_g > 0 .and. nrem_gmin<ifull )
          ! This has to loop until all are finished otherwise the bounds call
          ! doesn't work.
          call bounds(a)
@@ -720,18 +717,22 @@ c     routine fills in interior of an array which has undefined points
             if(a(iq)==value)then
                neighb=0
                av=0.
+c              if(a(in(iq)).ne.value.and.a(in(iq)).ne.2.)then
                if(a(in(iq)).ne.value)then
                   neighb=neighb+1
                   av=av+a(in(iq))
                endif
+c              if(a(ie(iq)).ne.value.and.a(ie(iq)).ne.2.)then
                if(a(ie(iq)).ne.value)then
                   neighb=neighb+1
                   av=av+a(ie(iq))
                endif
+c              if(a(iw(iq)).ne.value.and.a(iw(iq)).ne.2.)then
                if(a(iw(iq)).ne.value)then
                   neighb=neighb+1
                   av=av+a(iw(iq))
                endif
+c              if(a(is(iq)).ne.value.and.a(is(iq)).ne.2.)then
                if(a(is(iq)).ne.value)then
                   neighb=neighb+1
                   av=av+a(is(iq))
@@ -747,15 +748,19 @@ c     routine fills in interior of an array which has undefined points
          do iq=1,ifull
             a(iq)=b(iq)
          enddo
-         call MPI_AllReduce(nrem, nrem_g, 1, MPI_INTEGER, MPI_SUM, 
+c         call MPI_AllReduce(nrem, nrem_g, 1, MPI_INTEGER, MPI_SUM, 
+c    &                      MPI_COMM_WORLD, ierr )
+         call MPI_AllReduce(nrem, nrem_g, 1, MPI_INTEGER, MPI_MAX, 
+     &                      MPI_COMM_WORLD, ierr )
+         call MPI_AllReduce(nrem, nrem_gmin, 1, MPI_INTEGER, MPI_MIN, 
      &                      MPI_COMM_WORLD, ierr )
          if(nrem_g>0.and.myid==0)then
-            if(num<=2) then
-               print *,'after 1/2 time thru fill loop num,nrem,avx = ',
-     &                                           num,nrem_g,avx
-            end if
+c           if(num<=2) then
+c              print *,'after 1/2 time thru fill loop num,nrem,avx = ',
+c    &                                           num,nrem_g,avx
+c           end if
          endif                  ! (nrem>0)
       end do
-      a_io(:) = a(1:ifull)
+      a_io(1:ifull) = a(1:ifull)
       return
       end

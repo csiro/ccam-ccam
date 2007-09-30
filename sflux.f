@@ -1,9 +1,10 @@
       subroutine sflux(nalpha)              ! for globpe code
       use diag_m
       use cc_mpi
+      use ateb ! MJT CHANGE
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
       parameter (ntss_sh=0) ! 0 for original, 3 for **3, 4 for **4
-      parameter (nplens=0)  ! 0 to turn off plens, 10 (e.g.) is on
+!     parameter (nplens=0)  ! 0 to turn off plens, 10 (e.g.) is on
 !     parameter (lake=0)    ! 0 usual, 1 for specified lake points
 !                             - replaced by nspecial in parm.h
       parameter (ntest=0)   ! ntest= 0 for diags off; ntest= 1 for diags on
@@ -32,6 +33,7 @@ c     include 'map.h'      ! land
       include 'morepbl.h'  ! condx,fg,eg
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
+      include 'parmsurf.h' ! nplens
       include 'pbl.h'
       include 'permsurf.h'
       include 'prec.h'     ! evap
@@ -469,7 +471,7 @@ c     if(mydiag.and.diag)then
          print *,'fg,fgice,factch ',fg(iq),fgf(iq),factch(iq) 
          print *,'cie ',cie(iq)      
          print *,'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)          
-      endif   ! (diag)                                        
+      endif   ! (mydiag.and.nmaxpr==1)                                    
 c----------------------------------------------------------------------
 !cdir nodep
       do ip=1,ipland  ! all land points in this shared loop         ! land
@@ -615,7 +617,6 @@ c            Now heat ; allow for smaller zo via aft and factch     ! land
       endif
 c ----------------------------------------------------------------------
 
-      if(nsib==1.or.nsib==3)then
         if(ktau==1)then  !To initialize new nsib=1/3 run (or restart) only
           print *,'ipland,ipsice,ipsea in sflux: ',
      .             ipland,ipsice,ipsea
@@ -624,14 +625,35 @@ c ----------------------------------------------------------------------
            rmc(iq) = 0.
           enddo    
         endif  ! if(ktau==1)
-        if(nsib==3)call sib3(nalpha)
-      endif     !  (nsib==1 or 3)
+        call sib3(nalpha)  ! for nsib=3, 5
+
+      !----------------------------------------------------------
+      ! MJT Change - Urban
+      if (nsib.eq.5) then
+        call tebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin
+     &               ,sgsave(:)/(1.-alb(:)),-rgsave(:)
+     &               ,condx(:)/dt,rho(:),t(:,1),qg(:,1),ps(:)
+     &               ,sig(1)*ps(:),vmod(:),sigmu(:),0)
+        ! assume sib3 only wants zo for vegetative part
+        ! here we blend zo with the urban part for the
+        ! calculation of ustar (occuring later in sflux.f)
+        call tebzom(ifull,zo(:),zmin,sigmu(:),0)
+        do ip=1,ipland ! assumes all urban points are land points
+          iq=iperm(ip)
+          if (sigmu(iq).gt.0.) then
+            es = establ(tss(iq))
+            qsttg(iq)= .622*es/(ps(iq)-es)
+            aft(iq)=vkar**2/(log(zmin/zo(iq))*(2.+log(zmin/zo(iq))))
+            af(iq)=(vkar/log(zmin/zo(iq)))**2
+            rnet(iq)=sgsave(iq)-(rgsave(iq)+stefbo*tss(iq)**4)
+          end if            
+        end do
+      end if
+      !----------------------------------------------------------
+
 
 c ----------------------------------------------------------------------
-
-c     end of calls to sib1,2,3
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
-
       if(diag.or.ntest>0)then
         if (mydiag) print *,'before call scrnout'
         call maxmin(t,' t',ktau,1.,kl)
@@ -639,6 +661,7 @@ c     end of calls to sib1,2,3
 
       if(ntsur.ne.5)then    ! ntsur=6 is default from Mar '05  
 c       preferred option to recalc cduv, ustar (gives better uscrn, u10)
+
         do iq=1,ifull
          afroot=vkar/log(zmin/zo(iq))! land formula is bit different above                             
          af(iq)=afroot**2                                             
@@ -656,8 +679,8 @@ c        cduv is now drag coeff *vmod
          cduv(iq) =af(iq)*fm                       ! Cd * vmod                                
          ustar(iq) = sqrt(vmod(iq)*cduv(iq))                            
 c        Surface stresses taux, tauy: diagnostic only - unstaggered now   
-         taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                              
-         tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                              
+         taux(iq)=rho(iq)*cduv(iq)*u(iq,1)
+         tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)
         enddo     
        endif  ! (ntsur==6)
        
@@ -726,6 +749,7 @@ c***  end of surface updating loop
       return
       end
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine sib3(nalpha)     ! new version of sib1 with soilsnowv
       use cc_mpi
       parameter (ntest=0) ! ntest= 0 for diags off; ntest= 1 for diags on
@@ -778,6 +802,7 @@ c     include 'map.h'
      . tgfnew(ifull),evapfb(ijk-17*ifull)  ! to allow > 18 levels
       common/work3d/dqsttg(ifull),tstom(ifull),rlai(ifull),
      .   cls(ifull),omc(ifull),dum3d(ijk-5*ifull)  ! allows L9
+      real, dimension(ifull) :: ftsoil, srlai
       include 'establ.h'
 
 !     fle(isoil,w)=(w-swilt(isoil))/(sfc(isoil)-swilt(isoil))           !0 Eva's
@@ -788,90 +813,78 @@ c     include 'map.h'
 !     fle(isoil,w)= w/sfc(isoil)                                        ! jlm for PIRCS
 !     fle(isoil,w)=(w-frac*swilt(isoil))/(sfc(isoil)-frac*swilt(isoil)) ! jlm special
 
-!***  N.B. nrungcm=2 fix-up for Mark 2 wb moved to indata 6/11/00
-      if(ktau==1.and.nrungcm==3)then  ! for nsib runs for PIRCS
-!cdir nodep
-        do ip=1,ipland  ! all land points in this nsib=1/3 loop
-         iq=iperm(ip)
-c        code where eta provided (e.g. for PIRCS)
-         do layer=2,ms
-          wb(iq,layer)=wb(iq,1)   ! w, w2 and wb all same initially for PIRCS
-         enddo       !  layer=1,ms
-        enddo        !  ip=1,ipland
-      endif          !  (ktau==1.and.nrungcm==3)
+      do iq=1,ifull
+       if(land(iq))then
+         iveg=ivegt(iq)
+c        evaluate seasonal impact and the snow depth
+c        impact on the fractional vegetation cover
+         tstom(iq)=298.
+         if(iveg==6+31)tstom(iq)=302.
+         if(iveg>=10.and.iveg<=21.and.
+     &      abs(rlatt(iq)*180./pi)<25.)tstom(iq)=302.
+           tsoil=min(tstom(iq), .5*(.3333*tgg(iq,2)+.6667*tgg(iq,3)
+     &                          +.95*tgg(iq,4) + .05*tgg(iq,5)))
+           ftsoil(iq)=max(0.,1.-.0016*(tstom(iq)-tsoil)**2)
+c          which is same as:  ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
+c                             if( tsoil >= tstom ) ftsoil=1.
+         endif ! (land)
+      enddo
+
+      if(nsib==3)then
+        do iq=1,ifull
+         if(land(iq))then
+           iveg=ivegt(iq)
+           rlai(iq)=max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil(iq)))
+           srlai(iq)=rlai(iq)+rlais44(iveg)    ! nsib=3  leaf area index
+           rsmin(iq) = rsunc44(iveg)/rlai(iq)  ! nsib=3  
+           tsigmf(iq)=max(.001, sigmf(iq)-scveg44(iveg)*(1.-ftsoil(iq)))
+         endif ! (land)
+        enddo
+      else     ! i.e. nsib=5
+        !--------------------------------------------
+        ! MJT CHANGE - remove urban albedo
+        do ip=1,ipland
+          iq=iperm(ip)
+          slwa(iq)=-sgsave(iq)*(1.-(alb(iq)-sigmu(iq)*ualb(iq))
+     &             /(1.-sigmu(iq)))/(1.-alb(iq))+rgsave(iq)
+          rlai(iq)=max(.1,elai(iq))
+          srlai(iq)=rlai(iq)
+          tsigmf(iq)=max(.001,sigmf(iq))
+        end do
+        !--------------------------------------------
+      endif  !(nsib==3) .. else ..
 
       if(ktau==1)then
-!cdir nodep
-        do ip=1,ipland  ! all land points in this nsib=3 loop
-         iq=iperm(ip)
-         tscrn(iq)=theta(iq)  ! first guess, needed for newfgf=1
-!eak         real egst(ifull),fgst(ifull),precipst(ifull),evapst(ifull)
-!eak         real runoffst(ifull),rnetst(ifull),tssst(ifull)
-!eak         real wbavst(ifull),wb1m(ifull)
-!eak         egst(iq)=0.
-!eak         fgst(iq)=0.
-!eak         precipst(iq)=0.
-!eak         evapst(iq)=0.
-!eak         runoffst(iq)=0.
-!eak         rnetst(iq)=0.
-!eak         tssst(iq)=0.
-!eak         wbavst(iq)=0.
-        enddo         ! ip=1,ipland
-
+        do iq=1,ifull
+         if(land(iq))then
+           tscrn(iq)=theta(iq)  ! first guess, needed for newfgf=1
+           if(nrungcm==3)then
+             do layer=2,ms
+              wb(iq,layer)=wb(iq,1)   ! w, w2 and wb all same initially 
+             enddo
+           endif  ! (nrungcm==3)
+         endif  ! (land)
+        enddo
         if ( mydiag.and.land(idjd) ) then
            iveg=ivegt(idjd)
            isoil = isoilm(idjd)
            tsoil=0.5*(0.3333*tgg(idjd,2)+0.6667*tgg(idjd,3)
      &             +0.95*tgg(idjd,4) +  0.05*tgg(idjd,5))
-           ftsoil=max( 0. , 1.-.0016*(298.-tsoil)*max(0.,298.-tsoil) )
-c          tsigmf(idjd)=max(0.,sigmf(idjd)-scveg44(iveg)*(1.-ftsoil))
            print *,'nsib,iveg,isoil,nalpha,newfgf,nsigmf,tsigmf ',
-     &           nsib,iveg,isoil,nalpha,newfgf,nsigmf,
-     &           max(0.,sigmf(idjd)-scveg44(iveg)*(1.-ftsoil))
-           print *,'tsoil,ftsoil,scveg44,sigmf ',
-     &           tsoil,ftsoil,scveg44(iveg),sigmf(idjd)
+     &           nsib,iveg,isoil,nalpha,newfgf,nsigmf,tsigmf(idjd)
+           print *,'ftsoil,scveg44,sigmf ',
+     &              ftsoil(idjd),scveg44(iveg),sigmf(idjd)
            print *,'swilt,sfc,wb1-6 ',
-     &           swilt(isoil),sfc(isoil),(wb(idjd,k),k=1,ms)
-           rlai_d= max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil))
-           srlai=rlai_d+rlais44(iveg)
-c          rsmin(idjd)=rsunc44(iveg)/rlai_d ! now always done
-           print *,'rlai,srlai,rsmin ',rlai_d,srlai,
-     &              rsunc44(iveg)/rlai_d 
+     &              swilt(isoil),sfc(isoil),(wb(idjd,k),k=1,ms)
+           print *,'srlai,rsmin ',srlai(idjd),rsmin(idjd)
         endif
       endif           ! (ktau==1)
 
-c      due to a bug in the SX5 compiler even for cvsafe, 
-c      following loop needed to be split off from the one after it
-!cdir nodep
-      do ip=1,ipland  ! all land points in this nsib=3 loop
-       iq=iperm(ip)
-       iveg=ivegt(iq)
-c      evaluate seasonal impact and the snow depth
-c      impact on the fractional vegetation cover
-       tstom(iq)=298.
-       if(iveg==6+31)tstom(iq)=302.
-       if(iveg>=10.and.iveg<=21.and.
-     .    abs(rlatt(iq)*180./pi)<25.)tstom(iq)=302.
-       if(ntest==1.and.iq==idjd) then
-         print *,'in sib3a ip,iq,idjd,iveg ',ip,iq,idjd,iveg
+      if(ntest==1) then
+         iq=idjd
+         print *,'in sib3a iq,iveg ',iq,iveg
          print*,'snowd,zo,zolnd,tstom ',
      .           snowd(iq),zo(iq),zolnd(iq),tstom(iq)
-       endif ! ntest
-      enddo         ! ip=1,ipland
-c     print *,'after 1st loop'
-
-!cdir nodep
-      do ip=1,ipland  ! all land points in this nsib=3 loop
-       iq=iperm(ip)
-       iveg=ivegt(iq)
-       tsoil=min(tstom(iq), .5*(.3333*tgg(iq,2)+.6667*tgg(iq,3)
-     &            +.95*tgg(iq,4) + .05*tgg(iq,5)))
-       ftsoil=max(0.,1.-.0016*(tstom(iq)-tsoil)**2)
-c         which is same as:  ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
-c                            if( tsoil >= tstom ) ftsoil=1.
-       rlai(iq)=  max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil))
-       tsigmf(iq)=max(.001,  sigmf(iq)-scveg44(iveg)*(1.-ftsoil)) ! 13/5/03
-       if(ntest==1.and.iq==idjd) then
          print *,'in sib3b ip,iq,idjd,iveg ',ip,iq,idjd,iveg
          print*,'iveg,sigmf(iq),tsigmfa ',iveg,sigmf(iq),tsigmf(iq)
          print*,'rlaim44,tsoil,ftsoil ',
@@ -880,14 +893,12 @@ c                            if( tsoil >= tstom ) ftsoil=1.
      .          scveg44(iveg),snowd(iq),zo(iq),zolnd(iq),tstom(iq)
          print*,'w2,rlai ',wb(iq,ms),rlai(iq)
        endif ! ntest
-       enddo         ! ip=1,ipland
-c      print *,'after 2nd loop'
-c 
+ 
 !cdir nodep
        do ip=1,ipland  
         iq=iperm(ip)
-       tsigmf(iq)=(1.-snowd(iq)/
-     .            (snowd(iq)+5.*100.*zo(iq)))*tsigmf(iq)
+        tsigmf(iq)=(1.-snowd(iq)/
+     .             (snowd(iq)+5.*100.*zo(iq)))*tsigmf(iq)
 !      extin(iq)=exp(-0.6*max(1.,rlai(iq)))  ! good approx uses next 2 (jlm)
        xxx=.6*max(1.,rlai(iq))
        extin(iq)=1.-xxx/(1. +.5*xxx +xxx*xxx/12.) 
@@ -910,7 +921,7 @@ c      bare ground calculation
        qsttg(iq)=.622*esattg/(ps(iq)-esattg)
        tgss2=tgss*tgss
        dqsttg(iq)=qsttg(iq)*ps(iq)*hlars/((ps(iq)-esattg)*tgss2)
-       rgg(iq) =  stefbo*tgss2**2   ! i.e. stefbo*tgss**4
+       rgg(iq) = stefbo*tgss2**2   ! i.e. stefbo*tgss**4
        dirad(iq)=4.*rgg(iq)/tgss
 c      sensible heat flux
        dfgdt(iq)=taftfhg(iq)*rho(iq)*cp
@@ -1083,8 +1094,8 @@ c         evaporation from the bare ground
       enddo   ! ip=1,ipland
  
 c     print *,'before nsigmf'
-
-      if(nsigmf==0)then  ! original
+     
+      if(nsigmf==0)then  ! original 
 !cdir nodep
         do ip=1,ipland  ! all land points in this nsib=3 loop
          iq=iperm(ip)
@@ -1104,17 +1115,15 @@ c     print *,'before nsigmf'
      .                                  (1.-tsigmf(iq))
         enddo   ! ip=1,ipland
       endif     ! (nsigmf==1)
-
+      
 ! ----------------------------------------------
-      if(itnmeth==0) then  ! old, not vectorized
+
+      if(itnmeth==0) then  ! old, not vectorized 
 !cdir nodep
        do ip=1,ipland  ! all land points in this nsib=3 loop
         iq=iperm(ip)
         isoil = isoilm(iq)
         iveg=ivegt(iq)
-c                                             leaf area index
-          srlai=rlai(iq)+rlais44(iveg)
-          rsmin(iq) = rsunc44(iveg)/rlai(iq)   ! now always done
 c                                    components of the stomatal resistance
           sstar = 30.
           if( zo(iq) < .5 ) sstar = 150.
@@ -1136,12 +1145,12 @@ c         if(wbav<0.5) f2=max(1.0 , 0.5/ max( wbav,1.e-7))
 !         rmstep=dt/60.
           cc(iq) =min(condx(iq) , 4./(1440. *60./dt))  ! jlm speedup for 4 mm/day
 c                       depth of the reservoir of water on the canopy
-          rmcmax(iq) = max(0.5,srlai) * .1
+          rmcmax(iq) = max(0.5,srlai(iq)) * .1
           omc(iq) = rmc(iq)  ! value from previous timestep as starting guess
           f3=max(1.-.00025*(establ(t(iq,1))-qg(iq,1)*ps(iq)/.622), .05)
           res(iq)=max(30.,rsmin(iq)*f1*f2/(f3*f4))
           if(ntest==1.and.iq==idjd)then
-           print *,'rlai,srlai,wbav,den ',rlai(iq),srlai,wbav,den
+           print *,'rlai,srlai,wbav,den ',rlai(iq),srlai(iq),wbav,den
            print *,'f1,f2,f3,f4 ',f1,f2,f3,f4
            print *,'ff,f124,rsi,res ',ff,f1*f2/f4,rsi,res(iq)
           endif
@@ -1227,9 +1236,6 @@ c          tgf(iq)=0.5*(otgf(iq)+tgf(iq))
         iq=iperm(ip)
         isoil = isoilm(iq)
         iveg=ivegt(iq)
-c                                          leaf area index
-        srlai=rlai(iq)+rlais44(iveg)
-        rsmin(iq) = rsunc44(iveg)/rlai(iq)   ! now always done
 c                                  components of the stomatal resistance
 !       sstar = 30.
 !       if( zo(iq) < .5 ) sstar = 150.
@@ -1251,12 +1257,12 @@ c       if(wbav<0.5) f2=max(1.0 , 0.5/ max( wbav,1.e-7))
         airr(iq) = 1./taftfh(iq)
         cc(iq) =min(condx(iq) , 4./(1440. *60./dt))  ! jlm speedup for 4 mm/day
 c                     depth of the reservoir of water on the canopy
-        rmcmax(iq) = max(0.5,srlai) * .1
+        rmcmax(iq) = max(0.5,srlai(iq)) * .1
         omc(iq) = rmc(iq)  ! value from previous timestep as starting guess
         f3=max(1.-.00025*(establ(t(iq,1))-qg(iq,1)*ps(iq)/.622),.05)
         res(iq)=max(30.,rsmin(iq)*f1*f2/(f3*f4))
         if(ntest==1.and.iq==idjd)then
-          print *,'rlai,srlai,wbav,den ',rlai(iq),srlai,wbav,den
+          print *,'rlai,srlai,wbav,den ',rlai(iq),srlai(iq),wbav,den
           print *,'f1,f2,f3,f4 ',f1,f2,f3,f4
           print *,'ff,f124,rsi,res ',ff,f1*f2/f4,rsi,res(iq)
           print *,'qg,qfg,qlg ',qg(iq,1),qfg(iq,1),qlg(iq,1)
@@ -1324,7 +1330,7 @@ c                                         water interception by the canopy
      .                             (tgfnew(iq)-tscrn(iq))
 !	  limit extreme fgf to avoid undue tgf oscillations  June '04
          fgf(iq)=max(-1000.,min(fgf(iq),1000.))
-         rdg(iq) =  stefbo*tgfnew(iq)**4
+         rdg(iq) = stefbo*tgfnew(iq)**4
          residf(iq) = -slwa(iq) - rdg(iq) - fgf(iq) - evapxf(iq)
          dirad1 = 4.*rdg(iq)/300.
 !        next 2 expressions can be approximated without effects
@@ -1381,8 +1387,8 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
           endif  ! (land(idjd))
          endif   ! ((ntest==2.or.diag).and.mydiag)
        enddo     !  icount=1,5
-      endif      ! (itnmeth>0) 
-
+      endif      ! (itnmeth>0)
+     
 !cdir nodep
       do ip=1,ipland  ! all land points in this nsib=3 loop
        iq=iperm(ip)
@@ -1401,7 +1407,8 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
          wb(iq,3)=wb(iq,3)-evapfb3(iq)/(zse(3)*1000.)
          wb(iq,4)=wb(iq,4)-evapfb4(iq)/(zse(4)*1000.)
          wb(iq,5)=wb(iq,5)-evapfb5(iq)/(zse(5)*1000.)
-         condxpr(iq)=(1.-tsigmf(iq))*condx(iq)+ tsigmf(iq)*condxg(iq)
+         condxpr(iq)=(1.-tsigmf(iq))*condx(iq)
+     &     + tsigmf(iq)*condxg(iq)
          if(ntest==1.and.abs(residf(iq))>10.)
      .      print *,'iq,otgf(iq),tgf,delta_tx,residf '
      .              ,iq,otgf(iq),tgf(iq),delta_tx(iq),residf(iq)
@@ -1436,16 +1443,6 @@ c     print *,'after soilsnow'
 !cdir nodep
       do ip=1,ipland  ! all land points in this nsib=3 loop
        iq=iperm(ip)
-c       iveg=ivegt(iq)
-c       isoil = isoilm(iq)
-c       if( tsigmf(iq)> .01)then
-c         evapf=fev(iq)*dt/(hl*tsigmf(iq))
-c         evapxf(iq) = (evapf/dt + ewww(iq))*hl
-c       endif  !  ( tsigmf(iq)> .01)
-c       if(eg(iq)<0.)then
-c         print *,'iq,eg,snowd,tgg ',iq,eg(iq),snowd(iq),tgg(iq,1)
-c       endif
-
        if(isflag(iq)==0) then
         deltat=tgg(iq,1)-otgsoil(iq)
         fgg(iq)=fgg(iq)+deltat*dfgdt(iq)
@@ -1470,8 +1467,6 @@ c                                               combined fluxes
          fg(iq)=tsigmf(iq)*fgf(iq)+(1.-tsigmf(iq))*fgg(iq)
        endif
        rnet(iq)=-slwa(iq)-(1.-tsigmf(iq))*rgg(iq)-tsigmf(iq)*rdg(iq)
-!      rnet(iq)=-slwa(iq)-(1.-tsigmf(iq))*rgg(iq)
-!    .   -tsigmf(iq)*(extin(iq)*rgg(iq) + (1.-extin(iq))*rdg(iq)) ! 9/3/99
 
         tgss=isflag(iq)*tggsn(iq,1) + (1-isflag(iq))*tgg(iq,1)  ! jlm
         if(tsigmf(iq)<= .01) then
@@ -1482,24 +1477,6 @@ c                                               combined fluxes
         endif       ! tsigmf<= .01
         es = establ(tss(iq))     !  from 27/12/05
         qsttg(iq)= .622*es/(ps(iq)-es)  ! recal for scrnout, esp. snow    
-
-!eak!      following are just diagnostic arrays used by eak
-!eak       if(ndiag_arr==1)then
-!eak       snost=ntau+1-1
-!eak       precipst(iq)=precipst(iq)+condx(iq)/snost
-!eak       evapst(iq)=evapst(iq)+evap(iq)/snost
-!eak       runoffst(iq)=runoffst(iq)+runoff(iq)/snost
-!eak       rnetst(iq)=rnetst(iq)+rnet(iq)/snost
-!eak       egst(iq)=egst(iq)+eg(iq)/snost
-!eak       fgst(iq)=fgst(iq)+fg(iq)/snost
-!eak       tssst(iq)=tssst(iq)+tss(iq)/snost
-!eak       wb1m(iq)=0.
-!eak       do k=1,4
-!eak        wbavst(iq)=wbavst(iq)+max(0.,(wb(iq,k)-swilt(isoil)))/snost
-!eak        wb1m(iq)=wb1m(iq)+max(0.,(wb(iq,k)-swilt(isoil))*
-!eak     &             zse(k)*1000.)
-!eak       enddo  ! k=1,4
-!eak       endif  ! (ndiag_arr==1)
 
       enddo   ! ip=1,ipland
 
