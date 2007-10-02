@@ -1870,74 +1870,151 @@ c
       character*80 comments
       character*2 chflag
       integer, dimension(ifull_g) :: ivegt_g
+!     rml 28/09/07 igbp veg types and frac-c4 defined all gridpoints
+!     c4frac defined in vegpar.h, c4frac_g defined here for mpi stuff
+      logical igbp
+      real, dimension(ifull_g) :: c4frac_g
+!     rml 01/10/07 add alternative parameter file format
+      logical newformat
+      real notused
+      character*10 vegtype
+      character*25 vegname
 
       if ( myid == 0) then
          open(unit=8,file="vegtype.dat",status='old')
+!     rml 28/09/07 add alternative read for igbp file
          read(8,*) comments
          print *,'read CASA vegetation types'
+         if (comments(1:4).eq.'IGBP') then
+           igbp=.true.
+         else
+           igbp=.false.
+           c4frac = 0.
+         endif
          do ii=1,ifull_g
-            read(8,*) iq,i,j,rl1,rl2,ivold,ivnew
+            if (igbp) then
+              read(8,*) iq,i,j,rl1,rl2,ivnew,c4
+              c4frac_g(iq) =c4
+            else
+              read(8,*) iq,i,j,rl1,rl2,ivold,ivnew
+            endif
             ivegt_g(iq)=ivnew
 !           if(land(iq)) print *,iq,i,j,rl1,rl2,ivold,ivegt(iq)
          enddo                  ! ii
          close(8)
          call ccmpi_distribute(ivegt, ivegt_g)
+         if (igbp) call ccmpi_distribute(c4frac, c4frac_g)
       else
          call ccmpi_distribute(ivegt)
+         if (igbp) call ccmpi_distribute(c4frac)
       end if
 
 
       ! This is a small file, so simpler to let every processor read if
-      open(unit=8,file="veg_parm.txt",status='old')
-      read(8,*) comments
-      if ( myid == 0 ) write(*,802) comments
-802   format(1x,a80)
-      call comskp(8)
-      read(8,*) nveg
-      if ( myid == 0 )  print *,'nveg=',nveg
-      call comskp(8)
-      read(8,*) (canst1(jveg),jveg=1,nveg)
-      if ( myid == 0 )  print *, 'canst1',(canst1(jveg),jveg=1,nveg)
+!     rml 01/10/07 First check if old or new format
+      newformat = .false.
+      inquire(file="veg_parm_new.txt",exist=newformat)
+      if (newformat) then
+!       read vegetation parameters from new format file
+        open(unit=8,file='veg_parm_new.txt',status='old')
+        read(8,*) comments
+        if ( myid == 0 ) write(*,802) comments
+        read(8,*) nveg
+        if ( myid == 0 )  print *,'nveg=',nveg
+        if (maxval(ivegt).gt.nveg) stop 'veg_parm_new.txt has less 
+     & vegetation types than vegtype.dat'
+        if (nveg.gt.mxvt) stop 'increase mxvt in newmpar.h'
+        do n=1,nveg
+          read(8,*) jveg,vegtype,vegname
+          read(8,*) hc(jveg),xfang(jveg),notused,dleaf(jveg)
+          read(8,*)  ! rholeaf not used
+          read(8,*)  ! tauleaf not used
+          read(8,*)  ! rhosoil not used
+          read(8,*) notused,notused,canst1(jveg),shelrb(jveg)
+          read(8,*) vcmax(jveg),rp20(jveg),rpcoef(jveg),rs20(jveg)
+          read(8,*) tminvj(jveg),tmaxvj(jveg),vbeta(jveg)
+          read(8,*) tcplant(jveg,1:3),tcsoil(jveg,1:2)
+!  rates not currently set to vary with veg type
+          read(8,*) ratecp(1:3),ratecs(1:2) 
+        enddo
+        ejmax = 2.*vcmax
+        if ( myid == 0 ) then
+          print *, 'canst1',canst1(1:nveg)
+          print *, 'dleaf',dleaf(1:nveg)
+          print *, 'vcmax',vcmax(1:nveg)
+          print *, 'ejmax',ejmax(1:nveg)
+          print *, 'hc',hc(1:nveg)
+          print *, 'xfang',xfang(1:nveg)
+          print *, 'rp20',rp20(1:nveg)
+          print *, 'rpcoef',rpcoef(1:nveg)
+          print *, 'rprs20',rs20(1:nveg)
+          print *, 'shelrb',shelrb(1:nveg)
+          print *, 'tminvj',shelrb(1:nveg)
+          print *, 'tmaxvj',shelrb(1:nveg)
+          print *,'cplant 1',tcplant(1:nveg,1)
+          print *,'cplant 2',tcplant(1:nveg,2)
+          print *,'cplant 3',tcplant(1:nveg,3)
+          print *,'csoil 1',tcsoil(1:nveg,1)
+          print *,'csoil 2',tcsoil(1:nveg,2)
+          print *,'ratecp',(ratecp(1:3))
+          print *,'ratecs',(ratecs(1:2))
+        endif
+      else
+!       read vegetation parameters from old format file
+        open(unit=8,file="veg_parm.txt",status='old')
+        read(8,*) comments
+        if ( myid == 0 ) write(*,802) comments
+802     format(1x,a80)
+        call comskp(8)
+        read(8,*) nveg
+!       rml 28/09/07 compare nveg and max veg type number
+        if (maxval(ivegt).gt.nveg) stop 'veg_parm.txt has less vegetation
+     & types than vegtype.dat'
+        if ( myid == 0 )  print *,'nveg=',nveg
+        call comskp(8)
+        read(8,*) (canst1(jveg),jveg=1,nveg)
+        if ( myid == 0 )  print *, 'canst1',(canst1(jveg),jveg=1,nveg)
 !      read(8,*) (cansto(jveg),jveg=1,nveg)
 !      print *, 'cansto',(cansto(jveg),jveg=1,nveg)
-      read(8,*) (dleaf(jveg),jveg=1,nveg)
-      if ( myid == 0 ) print *, 'dleaf',(dleaf(jveg),jveg=1,nveg)
-      read(8,*) (vcmax(jveg),jveg=1,nveg)
+        read(8,*) (dleaf(jveg),jveg=1,nveg)
+        if ( myid == 0 ) print *, 'dleaf',(dleaf(jveg),jveg=1,nveg)
+        read(8,*) (vcmax(jveg),jveg=1,nveg)
 c      read(8,*) (ejmax(jveg),jveg=1,nveg)
-      if ( myid == 0 ) print *, 'vcmax',(vcmax(jveg),jveg=1,nveg)
-      do jveg=1,nveg
-        ejmax(jveg)=2.*vcmax(jveg)
-      enddo
-      if ( myid == 0 ) print *, 'ejmax',(ejmax(jveg),jveg=1,nveg)
-      read(8,*) (hc(jveg),jveg=1,nveg)
-      if ( myid == 0 ) print *, 'hc',(hc(jveg),jveg=1,nveg)
-      read(8,*) (xfang(jveg),jveg=1,nveg)
-      if ( myid == 0 ) print *, 'xfang',(xfang(jveg),jveg=1,nveg)
-      read(8,*) (rp20(jveg),jveg=1,nveg)
-      if ( myid == 0 ) print *, 'rp20',(rp20(jveg),jveg=1,nveg)
-      read(8,*) (rpcoef(jveg),jveg=1,nveg)
-      if ( myid == 0 ) print *, 'rpcoef',(rpcoef(jveg),jveg=1,nveg)
-      read(8,*) (rs20(jveg),jveg=1,nveg)
-      if ( myid == 0 ) print *, 'rprs20',(rs20(jveg),jveg=1,nveg)
-      read(8,*) (shelrb(jveg),jveg=1,nveg)
-      if ( myid == 0 ) print *, 'shelrb',(shelrb(jveg),jveg=1,nveg)
-      read(8,*) (frac4(jveg),jveg=1,nveg)
-      read(8,*) (tminvj(jveg),jveg=1,nveg)
-      if ( myid == 0 ) print *, 'tminvj',(tminvj(jveg),jveg=1,nveg)
-      read(8,*) (tmaxvj(jveg),jveg=1,nveg)
-      if ( myid == 0 ) print *, 'tmaxvj',(tmaxvj(jveg),jveg=1,nveg)
-      read(8,*) (vbeta(jveg),jveg=1,nveg)
-      if ( myid == 0 ) print *, 'vbeta',(vbeta(jveg),jveg=1,nveg)
-      read(8,*) (tcplant(jveg,1),jveg=1,nveg)
-      read(8,*) (tcplant(jveg,2),jveg=1,nveg)
-      read(8,*) (tcplant(jveg,3),jveg=1,nveg)
-      if ( myid == 0 ) print *,'cplant 1',(tcplant(jveg,1),jveg=1,nveg)
-      if ( myid == 0 ) print *,'cplant 2',(tcplant(jveg,2),jveg=1,nveg)
-      if ( myid == 0 ) print *,'cplant 3',(tcplant(jveg,3),jveg=1,nveg)
-      read(8,*) (tcsoil(jveg,1),jveg=1,nveg)
-      read(8,*) (tcsoil(jveg,2),jveg=1,nveg)
-      if ( myid == 0 ) print *,'csoil 1',(tcsoil(jveg,1),jveg=1,nveg)
-      if ( myid == 0 ) print *,'csoil 2',(tcsoil(jveg,2),jveg=1,nveg)
+        if ( myid == 0 ) print *, 'vcmax',(vcmax(jveg),jveg=1,nveg)
+        do jveg=1,nveg
+          ejmax(jveg)=2.*vcmax(jveg)
+        enddo
+        if ( myid == 0 ) print *, 'ejmax',(ejmax(jveg),jveg=1,nveg)
+        read(8,*) (hc(jveg),jveg=1,nveg)
+        if ( myid == 0 ) print *, 'hc',(hc(jveg),jveg=1,nveg)
+        read(8,*) (xfang(jveg),jveg=1,nveg)
+        if ( myid == 0 ) print *, 'xfang',(xfang(jveg),jveg=1,nveg)
+        read(8,*) (rp20(jveg),jveg=1,nveg)
+        if ( myid == 0 ) print *, 'rp20',(rp20(jveg),jveg=1,nveg)
+        read(8,*) (rpcoef(jveg),jveg=1,nveg)
+        if ( myid == 0 ) print *, 'rpcoef',(rpcoef(jveg),jveg=1,nveg)
+        read(8,*) (rs20(jveg),jveg=1,nveg)
+        if ( myid == 0 ) print *, 'rprs20',(rs20(jveg),jveg=1,nveg)
+        read(8,*) (shelrb(jveg),jveg=1,nveg)
+        if ( myid == 0 ) print *, 'shelrb',(shelrb(jveg),jveg=1,nveg)
+        read(8,*) (frac4(jveg),jveg=1,nveg)
+        read(8,*) (tminvj(jveg),jveg=1,nveg)
+        if ( myid == 0 ) print *, 'tminvj',(tminvj(jveg),jveg=1,nveg)
+        read(8,*) (tmaxvj(jveg),jveg=1,nveg)
+        if ( myid == 0 ) print *, 'tmaxvj',(tmaxvj(jveg),jveg=1,nveg)
+        read(8,*) (vbeta(jveg),jveg=1,nveg)
+        if ( myid == 0 ) print *, 'vbeta',(vbeta(jveg),jveg=1,nveg)
+        read(8,*) (tcplant(jveg,1),jveg=1,nveg)
+        read(8,*) (tcplant(jveg,2),jveg=1,nveg)
+        read(8,*) (tcplant(jveg,3),jveg=1,nveg)
+        if ( myid == 0) print *,'cplant 1',(tcplant(jveg,1),jveg=1,nveg)
+        if ( myid == 0) print *,'cplant 2',(tcplant(jveg,2),jveg=1,nveg)
+        if ( myid == 0) print *,'cplant 3',(tcplant(jveg,3),jveg=1,nveg)
+        read(8,*) (tcsoil(jveg,1),jveg=1,nveg)
+        read(8,*) (tcsoil(jveg,2),jveg=1,nveg)
+        if ( myid == 0 ) print *,'csoil 1',(tcsoil(jveg,1),jveg=1,nveg)
+        if ( myid == 0 ) print *,'csoil 2',(tcsoil(jveg,2),jveg=1,nveg)
+      endif
 
       jyear=kdate/10000
       jmonth=(kdate-jyear*10000)/100
@@ -1959,13 +2036,17 @@ c      read(8,*) (ejmax(jveg),jveg=1,nveg)
      &       cplant(13419,3),csoil(13419,1),csoil(13419,2)
 !      call comskp(8)
 !      read(8,*) (froot(j),j=1,ms)
-      call comskp(8)
-      read(8,*) (ratecp(j),j=1,ncp)
-      if ( myid == 0 ) print *, 'ratecp',(ratecp(j),j=1,ncp)
-      call comskp(8)
-      read(8,*) (ratecs(j),j=1,ncs)
-      close(8)
-      if ( myid == 0 ) print *, 'ratecs',(ratecs(j),j=1,ncs)
+!     rml 01/10/07 old format reads rate constants here, new format 
+!     includes with veg types
+      if (.not.newformat) then
+        call comskp(8)
+        read(8,*) (ratecp(j),j=1,ncp)
+        if ( myid == 0 ) print *, 'ratecp',(ratecp(j),j=1,ncp)
+        call comskp(8)
+        read(8,*) (ratecs(j),j=1,ncs)
+        close(8)
+        if ( myid == 0 ) print *, 'ratecs',(ratecs(j),j=1,ncs)
+      endif
 c
       end
 

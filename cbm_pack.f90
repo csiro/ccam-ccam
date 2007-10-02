@@ -198,6 +198,12 @@
        canopy%cansto = pack(cansto, land)
        veg%vlai = pack(vlai, land)
        veg%vlaimax = pack(rlaimax, land)
+
+!      rml 28/09/07 c4 fraction defined for each grid point, for
+!      compatibility just overwrite values from parameter file if
+!      find data in c4frac array
+       if (sum(c4frac).gt.0) veg%frac4 = pack(c4frac,land)
+ 
 !       print *,' pack_cbm vlai',veg%vlai(3688),vlai(13419),veg%vlai(2468), &
 !        veg%vlaimax(2468)
 !    print *,'cbm veg',ivegt(13419),veg%vlai(3688),veg%vcmax(ivegt(13419)), &

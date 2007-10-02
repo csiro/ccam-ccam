@@ -18,7 +18,7 @@
 
 ! eak addition 16/03/06
       integer, parameter :: mxst=13       ! max_no_of_soil_types
-      integer, parameter :: mxvt=13       ! max_no_of_vegetation_types
+      integer, parameter :: mxvt=16       ! max_no_of_vegetation_types
 
       integer, parameter :: nprocmax = 96
 !     This array defines the split up of processors. Zero values are 

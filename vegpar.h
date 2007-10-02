@@ -8,9 +8,11 @@
       real, dimension(ifull)   ::dsumpn,dsumrp,dsumrs,dsumrd
       real, dimension(ifull)   ::rlai,rlaimax
       real, dimension(ifull,3)   ::rlai123
+! rml 28/09/07 add c4 fraction for all gridpoints
+      real, dimension(ifull) :: c4frac
       common/vegpar/canst1,dleaf,ejmax,frac4,hc,rp20,rpcoef,shelrb
       common/vegpar/xfang,vcmax,tminvj,tmaxvj,vbeta
-      common/vegpar/cansto,vlai,vlaimax
+      common/vegpar/cansto,vlai,vlaimax,c4frac
       common/vegpar/sumpn,sumrp,sumrpw,sumrpr,sumrs,sumrd
       common/vegpar/dsumpn,dsumrp,dsumrs,dsumrd
       common/vegpar/rlai,rlaimax,rlai123
