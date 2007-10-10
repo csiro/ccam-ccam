@@ -46,7 +46,6 @@
       integer, save :: num_hight = 0, numunstab = 0
 
       call start_log(upglobal_begin)
-
       intsch=mod(ktau,2)
 
       if(m>=5)then
@@ -94,7 +93,7 @@
          do iq=1,ifull
           unsav(iq,k)=ax(iq)*uc(iq,k)+ay(iq)*vc(iq,k) +az(iq)*wc(iq,k)
           vnsav(iq,k)=bx(iq)*uc(iq,k)+by(iq)*vc(iq,k) +bz(iq)*wc(iq,k)
-          tnsav(iq,k)=tn(iq,k) ! for use next timestep
+          tnsav(iq,k)=tn(iq,k) ! for Ad-Bash use next timestep
          enddo                 ! iq loop
         enddo
       endif   ! (npex==-1)
@@ -180,8 +179,8 @@
       end do    ! k loop
       pslx(:,:)=pslx(:,:)+dd(:,:)
       if(nmaxpr==1.and.nproc==1)then
-	 print *,'pslx_3p before advection'
-        write (6,"('pslx',3p9f8.4)") pslx(idjd,:)
+	print *,'pslx_3p before advection'
+        write (6,"('pslx_b',3p9f8.4)") pslx(idjd,:)
         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
         write (6,"(3p9f8.4)") 
      &        ((pslx(ii+jj*il,nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
@@ -199,8 +198,16 @@
       end do
 !------------------------------------------------------------------
 	if(nmaxpr==1.and.nproc==1)then
-         print *,'pslx_3p after advection'
-         write (6,"('pslx',3p9f8.4)") pslx(idjd,:)
+         print *,'pslx_3p & dd after advection'
+         write (6,"('pslx_a',3p9f8.4)") pslx(idjd,:)
+         write (6,"('aa#',3p9f8.4)") 
+     &             ((aa(ii+jj*il),ii=idjd-1,idjd+1),jj=-1,1)
+         write (6,"('dd1#',3p9f8.4)") 
+     &             ((dd(ii+jj*il,1),ii=idjd-1,idjd+1),jj=-1,1)
+         write (6,"('dd_a',3p9f8.4)") dd(idjd,:)
+         write (6,"('nface',18i4)") nface(idjd,:)
+         write (6,"('xg',9f8.4)") xg(idjd,:)
+         write (6,"('yg',9f8.4)") yg(idjd,:)
          write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
 	  idjdd=max(5+2*il,min(idjd,ifull-4-2*il))  ! for following prints
          write (6,"(3p9f8.4)") 
@@ -209,11 +216,11 @@
 	  do k=2,kl
           uc(1:ifull,1)=uc(1:ifull,1)-pslx(1:ifull,k)*dsig(k)
          enddo
-	  print *,'integ pslx after advection'
+	 print *,'integ pslx after advection'
          write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
          write (6,"(3p9f8.4)") 
      &            ((uc(ii+jj*il,1),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
-	  print *,'corresp integ ps after advection'
+         print *,'corresp integ ps after advection'
          write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
          write (6,"(-2p9f8.2)") 
      &        ((1.e5*exp(uc(ii+jj*il,1)),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
@@ -329,10 +336,7 @@
      &                  bz(iq)*wc(iq,k)
           enddo ! iq loop
        end do   ! k loop
-       if(nvsplit==3.or.nvsplit==4)then
-         ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*unn(1:ifull,:) ! phys contrib
-         vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vnn(1:ifull,:) ! phys contrib
-       endif
+c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07       
        if(npex==1)then
          ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:) ! dyn contrib
          vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:) ! dyn contrib
@@ -420,9 +424,14 @@
           endif
         endif   ! (nvad==-4)
       endif     ! (nvadh==2.or.nvadh==3)
-      if(npex==0)then   ! adding even later (after 2nd vadv) than for npex=1
+
+      if(npex==0.or.npex==5)then ! adding later (after 2nd vadv) than for npex=1
         ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:) ! dyn contrib
         vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:) ! dyn contrib
+      endif
+      if(nvsplit==3.or.nvsplit==4)then
+        ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*unn(1:ifull,:) ! phys contrib
+        vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vnn(1:ifull,:) ! phys contrib
       endif
       
       if(m==5)then
@@ -437,21 +446,10 @@
         enddo
       endif  ! (m==5)
 
-c     print *,'uxu1 ',ux(idjd,:)
-c     print *,'vxu1 ',vx(idjd,:)
+      if(npex>=0)tx(1:ifull,:)=tx(1:ifull,:)+.5*dt*tn(1:ifull,:) 
+
 !     now interpolate ux,vx to the staggered grid
       call staguv(ux,vx,ux,vx)
-
-c     print *,'uxs1 ',ux(idjd,:)
-c     print *,'vxs1 ',vx(idjd,:)
-c     call unstaguv(ux,vx,ux,vx)
-c     print *,'uxu2 ',ux(idjd,:)
-c     print *,'vxu2 ',vx(idjd,:)
-c     call staguv(ux,vx,ux,vx)
-c     print *,'uxs2 ',ux(idjd,:)
-c     print *,'vxs2 ',vx(idjd,:)
-
-      if(npex>=0)tx(1:ifull,:)=tx(1:ifull,:)+.5*dt*tn(1:ifull,:) 
 
 !     npex=3 add un, vn on staggered grid (should do it on unstaggered grid!!)
       if(npex==3)then  

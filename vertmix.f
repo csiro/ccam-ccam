@@ -21,6 +21,7 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       include 'kuocom.h'   ! also with kbsav,ktsav,convpsav,kscsea,sigksct
       include 'liqwpar.h'  ! ifullw, qfg, qlg
       include 'map.h'      ! em, f, fu, fv, etc  not needed here?
+      include 'mpif.h'
       include 'nlin.h'
       include 'morepbl.h'
       include 'parm.h'
@@ -66,13 +67,20 @@ c     set coefficients for Louis scheme
        delh(k)=-rong *dsig(k)/sig(k)  ! sign of delh defined so always +ve
        sigkap(k)=sig(k)**(-roncp)
       enddo      ! k loop
-      if( (diag.or.ntest>=1).and.mydiag)then
-        print *,'sig ',sig
-        print *,'dsig ',dsig
-        print *,'delh ',delh
-        print *,'in vertmix'
-        write (6,"('uin ',9f8.3/4x,9f8.3)") u(idjd,:) 
-        write (6,"('vin ',9f8.3/4x,9f8.3)") v(idjd,:) 
+      if(diag.or.ntest>=1)then
+        call maxmin(u,'%u',ktau,1.,kl)
+        call maxmin(v,'%v',ktau,1.,kl)
+        call maxmin(t,'%t',ktau,1.,kl)
+        call maxmin(qg,'qg',ktau,1.e3,kl)     
+        call MPI_Barrier( MPI_COMM_WORLD, ierr ) ! stop others going past
+      if(mydiag)then
+          print *,'sig ',sig
+          print *,'dsig ',dsig
+          print *,'delh ',delh
+          print *,'in vertmix'
+          write (6,"('uin ',9f8.3/4x,9f8.3)") u(idjd,:) 
+          write (6,"('vin ',9f8.3/4x,9f8.3)") v(idjd,:) 
+        endif
       endif
       rlogs1=log(sig(1))
       rlogs2=log(sig(2))
@@ -121,7 +129,7 @@ c because we use theta derivative rather than (dry static energy)/cp.
            do iq=1,ifull
             es=establ(t(iq,k))
             pk=ps(iq)*sig(k)
-            qs(iq,k)=.622*es/(pk-es)  ! still need qs()
+            qs(iq,k)=.622*es/max(1.,pk-es)  ! still need qs(); max for k=kl
             betat=1./t(iq,k)
 c           qc=qlg(iq,k)+qfg(iq,k)
 c           betaq=delta/(1.+delta*qg(iq,k)-qc)
@@ -132,7 +140,7 @@ c           betaq=delta/(1.+delta*qg(iq,k)-qc)
          endif  ! (sig(k)>.8)
          if(diag.and.mydiag)then
             iq=idjd
-            dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*(pk-es))
+            dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(pk-es,1.))
             betat=1./t(iq,k)
             qc=qlg(iq,k)+qfg(iq,k)
             fice=qfg(iq,k)/max(qc,1.e-12)
@@ -154,7 +162,7 @@ c           betaq=delta/(1.+delta*qg(iq,k)-qc)
         do k=1,kl
          do iq=1,ifull
           es=establ(t(iq,k))
-          qs(iq,k)=.622*es/(ps(iq)*sig(k)-es)
+          qs(iq,k)=.622*es/max(1.,ps(iq)*sig(k)-es)  ! max for k=kl
          enddo   ! iq loop
         enddo    !  k loop
       endif      ! (nvmix>0.and.nvmix<4)
@@ -367,6 +375,7 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
 !       n.b. *** pbldif partially updates qg and theta (t done during trim)	 
 !       and updates rkh and rkm arrays
         if(nmaxpr==1.and.mydiag)then
+          write (6,"('pblh ',f8.2)") pblh(idjd)
           write (6,"('rkh1 ',9f9.3/5x,9f9.3)") rkh(idjd,1:kl-2)
           write (6,"('rkm1 ',9f9.3/5x,9f9.3)") rkm(idjd,1:kl-2)
         endif

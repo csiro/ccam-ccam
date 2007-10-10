@@ -120,7 +120,7 @@
      &          psl(in(idjd)),psl(ie(idjd)),psl(iw(idjd)),psl(is(idjd))
             write (6,"('ps  & news ',-2p5f9.3)") ps(idjd),
      &          ps(in(idjd)),ps(ie(idjd)),ps(iw(idjd)),ps(is(idjd))
-         end if
+         endif
          call printa('u   ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
          call printa('v   ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
          call printa('t   ',t,ktau,nlv,ia,ib,ja,jb,200.,1.)
@@ -158,7 +158,7 @@
 
       if(nvad>=7)then
          call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:))  ! for vadvbess
-      end if
+      endif
 
 cx      do k=1,kl  ! following done in upglobal from 04/09
 cx!       N.B. [D + dsigdot/dsig] saved in adjust5 (or updps) as pslx
@@ -199,10 +199,7 @@ cx      enddo      ! k  loop
      &                  u(ieu(idjd),9),u(iwu(idjd),9)
             write (6,"('v9 & ns ',5f8.2)") v(idjd,9),
      &                  v(inv(idjd),9),v(isv(idjd),9)
-            write (6,"('tn1*dt',9f8.3/6x,9f8.3)") tn(idjd,:)*dt
-            write (6,"('un1*dt',9f8.3/6x,9f8.3)") un(idjd,:)*dt
-            write (6,"('vn1*dt',9f8.3/6x,9f8.3)") vn(idjd,:)*dt
-         end if
+         endif
       endif
 
       if(nhstest==1) then ! Held and Suarez test case
@@ -217,7 +214,6 @@ cx      enddo      ! k  loop
          enddo
          if ( mydiag )
      &      print *,'k,aa,emu,emv',nlv,aa(idjd,1),emu(idjd),emv(idjd)
-
          call printa('sgdf',aa(:,1),ktau,nlv,ia,ib,ja,jb,0.,10.)
       endif   ! (diag)
 
@@ -298,7 +294,7 @@ cx      enddo      ! k  loop
             print *,'phi ',(phi(idjd,k),k=1,kl)
           endif
           call maxmin(h_nh,'h_',ktau,1.,kl)
-        end if
+        endif
       endif      ! (nh.ne.0)
 
       do k=1,kl
@@ -344,32 +340,54 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*omgf(iq,k)*roncp/sig(k)
 
       do k=1,kl
 !cdir nodep
-       do iq=1,ifull  ! calculate staggered dyn residual contributions first
-        un(iq,k)=emu(iq)*(phiv(ie(iq),k)-phiv(iq,k)
-     &       -.5*rdry*(tv(ie(iq),k)+tv(iq,k))*(psl(ie(iq))-psl(iq)))/ds
-        vn(iq,k)=emv(iq)*(phiv(in(iq),k)-phiv(iq,k)
-     &       -.5*rdry*(tv(in(iq),k)+tv(iq,k))*(psl(in(iq))-psl(iq)))/ds
-       enddo                  ! iq loop
-!cdir nodep
        do iq=1,ifull          ! calculate staggered ux,vx first
-        aa(iq,k)=.5*dt*(un(iq,k)
-     &           -emu(iq)*(p(ie(iq),k)-p(iq,k))*(1.-epsu)/ds)
-        bb(iq,k)=.5*dt*(vn(iq,k)
-     &           -emv(iq)*(p(in(iq),k)-p(iq,k))*(1.-epsu)/ds)
-       enddo                  ! iq loop
-      end do    ! k
+        aa(iq,k)=-.5*dt*emu(iq)*(p(ie(iq),k)-p(iq,k))*(1.-epsu)/ds
+        bb(iq,k)=-.5*dt*emv(iq)*(p(in(iq),k)-p(iq,k))*(1.-epsu)/ds
+       enddo   ! iq loop
+      enddo    ! k loop
+      if(npex==5)then   ! rather noisy with nstag=-1 (incl. old 5)
+!       npex=5 same as npex=0, but does direct unstaggered calc      
+        do k=1,kl
+!cdir nodep
+         do iq=1,ifull  ! calculate staggered dyn residual contributions first
+          un(iq,k)=.5*em(iq)*(phiv(ie(iq),k)-phiv(iw(iq),k)
+     &             -rdry*tv(iq,k)*(psl(ie(iq))-psl(iw(iq))))/ds
+          vn(iq,k)=.5*em(iq)*(phiv(in(iq),k)-phiv(is(iq),k)
+     &             -rdry*tv(iq,k)*(psl(in(iq))-psl(is(iq))))/ds
+         enddo   ! iq loop
+        enddo    ! k loop
+      else       ! i.e. npex.ne.5
+        do k=1,kl
+!cdir nodep
+         do iq=1,ifull  ! calculate staggered dyn residual contributions first
+          un(iq,k)=emu(iq)*(phiv(ie(iq),k)-phiv(iq,k)
+     &        -.5*rdry*(tv(ie(iq),k)+tv(iq,k))*(psl(ie(iq))-psl(iq)))/ds
+          vn(iq,k)=emv(iq)*(phiv(in(iq),k)-phiv(iq,k)
+     &        -.5*rdry*(tv(in(iq),k)+tv(iq,k))*(psl(in(iq))-psl(iq)))/ds
+         enddo   ! iq loop
+        enddo    ! k loop
+        aa(1:ifull,:)=aa(1:ifull,:)+.5*dt*un(1:ifull,:) ! still staggered
+        bb(1:ifull,:)=bb(1:ifull,:)+.5*dt*vn(1:ifull,:) ! still staggered
+        if(diag)then
+          if(mydiag)then
+            print *,'tv ',tv(idjd,:)
+            write (6,"('tn1*dt',9f8.3/6x,9f8.3)") tn(idjd,:)*dt
+            write (6,"('un1*dt',9f8.3/6x,9f8.3)") un(idjd,:)*dt
+            write (6,"('vn1*dt',9f8.3/6x,9f8.3)") vn(idjd,:)*dt
+          endif
+        endif                     ! (diag)
+      endif  ! (npex==5 ... else ...)
       call unstaguv(aa,bb,ux,vx) ! convert to unstaggered positions
-      if (diag)then
-        if (mydiag) print *,'tv ',tv(idjd,:)
+      if(diag)then
         call printa('aa  ',aa,ktau,nlv,ia,ib,ja,jb,0.,1.)
         call printa('bb  ',bb,ktau,nlv,ia,ib,ja,jb,0.,1.)
-c       print *,'just to check unstaggering'
-c       call staguv(ux,vx,aa,bb)        
-c       call printa('aa  ',aa,ktau,nlv,ia,ib,ja,jb,0.,1.)
-c       call printa('bb  ',bb,ktau,nlv,ia,ib,ja,jb,0.,1.)
       endif                     ! (diag)
       ux(1:ifull,:)=u(1:ifull,:)+ux(1:ifull,:)
       vx(1:ifull,:)=v(1:ifull,:)+vx(1:ifull,:)
+      if(npex==5)then
+        ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:) ! unstaggered
+        vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:) ! unstaggered
+      endif
       if(npex<3)call unstaguv(un,vn,un,vn) 
       
       if(nxmap==2)then  ! not ready with npex=3
@@ -393,7 +411,7 @@ c       call printa('bb  ',bb,ktau,nlv,ia,ib,ja,jb,0.,1.)
 !     N.B. don't add npex==0,1,2 (or 3) dyn contribs here, as already added
 
       if (diag)then
-         if ( mydiag ) then
+         if(mydiag) then
            print *,'at end of nonlin; nvad,idjd = ', nvad,idjd
            print *,'p1 . & e ',p(idjd,nlv),p(ie(idjd),nlv)
            print *,'p1 . & n ',p(idjd,nlv),p(in(idjd),nlv)
@@ -403,7 +421,7 @@ c       call printa('bb  ',bb,ktau,nlv,ia,ib,ja,jb,0.,1.)
            write (6,"('vn2*dt',9f8.3/6x,9f8.3)")   vn(idjd,:)*dt
            write (6,"('ux  ',9f8.2/4x,9f8.2)")     ux(idjd,:)
            write (6,"('vx  ',9f8.2/4x,9f8.2)")     vx(idjd,:)
-         end if
+         endif
          call printa('psl ',psl,ktau,0,ia,ib,ja,jb,0.,100.)
          call printa('pslx',pslx,ktau,nlv,ia,ib,ja,jb,0.,100.)
          call printa('tn  ',tn,ktau,nlv,ia,ib,ja,jb,0.,100.*dt)

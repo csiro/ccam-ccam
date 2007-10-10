@@ -205,9 +205,29 @@ c Note that qcg is the total cloud water (liquid+frozen)
       enddo
 
 c Precompute the array of critical relative humidities 
-
-      do k=1,nl
-        do mg=1,ln2
+      if(nclddia==-3)then
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
+            rcrit(mg,k)=max( rcrit_l , (1.-16.*(1.-sig(k))**3) ) 
+          else
+            rcrit(mg,k)=max( rcrit_s , (1.-16.*(1.-sig(k))**3) ) 
+          endif 
+         enddo
+        enddo
+      elseif(nclddia<0)then
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
+            rcrit(mg,k)=max( rcrit_l , (1.-4.*(1.-sig(k))**2) ) 
+          else
+            rcrit(mg,k)=max( rcrit_s , (1.-4.*(1.-sig(k))**2) ) 
+          endif 
+         enddo
+        enddo
+      else
+        do k=1,nl
+         do mg=1,ln2
           if(land(mg))then
 c           rcrit(mg,k)=max(0.75,sig(k)**2)
 !           rcrit(mg,k)=max(0.75,sig(k))
@@ -222,8 +242,9 @@ c           rcrit(mg,k)=max(0.9,sig(k))
 C***          if(k.eq.1)rcrit(mg,k)=0.999
 C***          if(k.eq.2)rcrit(mg,k)=0.99
 C***          if(k.eq.3)rcrit(mg,k)=0.95
+         enddo
         enddo
-      enddo
+      endif  ! (nclddia<0)  .. else ..
 
 
 c Calculate cloudy fraction of grid box (cfrac) and gridbox-mean cloud water

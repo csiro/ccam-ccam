@@ -41,6 +41,8 @@ c******************************************************************************
      &                  cdrop,land,sigh,prf,dprf,cosz,     !Inputs
      &                  cll,clm,clh)                       !Outputs
 
+      use diag_m
+      use cc_mpi, only : mydiag
       implicit none
 C Global parameters
       include 'newmpar.h'
@@ -98,14 +100,12 @@ C Local work arrays and variables
       real fice(imax,l),tau_sfac(imax,l)
       real rk(imax,nl),cdrop(imax,nl)
 
-      integer i
       integer k
       integer mg
       integer nc
       integer ns
 
       real ab
-      real beta
       real cfl
       real cldht
       real deltai
@@ -166,6 +166,10 @@ c.... "mid" cloud up to half level closest to p/Ps=0.400 (~400mbs)
         if(f2.lt.abs(f1))nmid=k
 c..   The FULL level is 1 below the half level indicator
         nmid=nmid-1
+        if(mydiag)then
+         print *,'in cloud2, nlow,nmid,sigh_vals: ',
+     &                       nlow,nmid,sigh(nlow),sigh(nmid)
+        endif
         start=.false.
       endif
 
@@ -213,32 +217,39 @@ c     the albedo by radfs.
 c***NOW SET CLOUD AND CLOUD INDEX FIELDS DEPENDING ON THE NO. OF CLOUDS
       nc=1
 c---FIRST, THE ground layer (nc=1)
-         emcld(:,nc)=one
-         camt(:,nc)=one
-         ktop(:,nc)=lp1
-         kbtm(:,nc)=lp1
-         ktopsw(:,nc)=lp1
-         kbtmsw(:,nc)=lp1
+      emcld(:,nc)=one
+      camt(:,nc)=one
+      ktop(:,nc)=lp1
+      kbtm(:,nc)=lp1
+      ktopsw(:,nc)=lp1
+      kbtmsw(:,nc)=lp1
 
-      If (cldoff) Then
-            cll(:)=0.
-            clm(:)=0.
-            clh(:)=0.
-            nclds(:)=0
-      Else
-          nclds(:)=0
-          cll(:)=0.
-          clm(:)=0.
-          clh(:)=0.
-c         cldliq(:)=0.
-          qlptot(:)=0.
-          taultot(:)=0.      
+      cll(:)=0.
+      clm(:)=0.
+      clh(:)=0.
+      nclds(:)=0
+      If (.not.cldoff) Then
+c        cldliq(:)=0.
+         qlptot(:)=0.
+         taultot(:)=0.      
         
 c Diagnose low, middle and high clouds; nlow,nmid are set up in initax.f
         
         do k=1,nlow
             cll(:)=cll(:)+cfrac(:,k)-cll(:)*cfrac(:,k)
         enddo
+c        Note that cll, clm, clh are just diagnostic, so no effect from foll.          
+c        if(nclddia<0)then
+c          clm(:)=cfrac(:,1)
+c          do k=2,nlow  !  find max value of low clouds
+c           clm(:)=max(clm(:),cfrac(:,k))
+c          enddo
+c!         either use max_value for cll
+c          if(nclddia==-1)cll(:)=clm(:)
+c!         or take average of max_value, and random_overlap value          
+c          if(nclddia==-2)cll(:)=.5*(cll(:)+clm(:))
+c          clm(:)=0.
+c        endif  ! (nclddia<0)
         do k=nlow+1,nmid
             clm(:)=clm(:)+cfrac(:,k)-clm(:)*cfrac(:,k)
         enddo
@@ -507,7 +518,7 @@ c             if(prf(mg,k).gt.800.) Em = 1.
  1      format(3(a,f10.3))
  9      format(a,30g10.3)
  91     format(a,30f10.3)
-      End If   !cldoff
+      End If   !.not.cldoff
       
 
       return

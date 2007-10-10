@@ -180,7 +180,7 @@ c TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
 c These give the ice values needed for the qcloud scheme
       estabi(t) = (1.-(tdiff(t)-aint(tdiff(t))))*tablei(int(tdiff(t)))
      &           + (tdiff(t)-aint(tdiff(t)))*tablei(int(tdiff(t))+1)
-      qsati(pp,t) = epsil*estabi(t)/(pp-estabi(t)) !Usual formula
+      qsati(pp,t) = epsil*estabi(t)/max(.1,pp-estabi(t)) !Usual formula
 
       real pow75,x
       pow75(x)=sqrt(x*sqrt(x))
