@@ -34,20 +34,58 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)    :: coef_cd ! total stress coeff. for vegetation (eq. 6)
     REAL(r_1), DIMENSION(mp)    :: coef_cold  ! coeff. for the cold stress (eq. 7)
     REAL(r_1), DIMENSION(mp)    :: coef_drght ! coeff. for the drought stress (eq. 8)
-    REAL(r_1), PARAMETER, DIMENSION(13) :: rw = (/16., 8.7, 12.5, 16., 18., 7.5, 6.1, .84, &
-                 10.4, 15.1, 9., 5.8, 0.001 /) ! approximate ratio of wood to nonwood carbon
-    !	         				 inferred from observations 
-    REAL(r_1), PARAMETER, DIMENSION(13) :: tfcl = (/0.248, 0.345, 0.31, 0.42, 0.38, 0.35, &
-         0.997,	0.95, 2.4, 0.73, 2.4, 0.55, 0.9500/)         ! leaf allocation factor
-    REAL(r_1), PARAMETER, DIMENSION(13) :: trnl = 3.17e-8    ! leaf turnover rate 1 year
-    REAL(r_1), PARAMETER, DIMENSION(13) :: trnr = 4.53e-9    ! root turnover rate 7 years
-    REAL(r_1), PARAMETER, DIMENSION(13) :: trnsf = 1.057e-10 ! soil transfer rate coef. 30 years
-    REAL(r_1), PARAMETER, DIMENSION(13) :: trnw = 6.342e-10  ! wood turnover 50  years
-    REAL(r_1), PARAMETER, DIMENSION(13) :: tvclst = (/ 283., 278., 278., 235., 268., &
-                                           278.0, 278.0, 278.0, 278.0, 235., 278., &
-                                           278., 268. /) ! cold stress temp. below which 
-!                                                         leaf loss is rapid
+! ##############################################################################
+! Removing the hard-wired declarations (BP Oct 2007)
+!    REAL(r_1), PARAMETER, DIMENSION(13) :: rw = (/16., 8.7, 12.5, 16., 18., 7.5, 6.1, .84, &
+!                 10.4, 15.1, 9., 5.8, 0.001 /) ! approximate ratio of wood to nonwood carbon
+!    !	         				 inferred from observations 
+!    REAL(r_1), PARAMETER, DIMENSION(13) :: tfcl = (/0.248, 0.345, 0.31, 0.42, 0.38, 0.35, &
+!         0.997,	0.95, 2.4, 0.73, 2.4, 0.55, 0.9500/)         ! leaf allocation factor
+!    REAL(r_1), PARAMETER, DIMENSION(13) :: trnl = 3.17e-8    ! leaf turnover rate 1 year
+!    REAL(r_1), PARAMETER, DIMENSION(13) :: trnr = 4.53e-9    ! root turnover rate 7 years
+!    REAL(r_1), PARAMETER, DIMENSION(13) :: trnsf = 1.057e-10 ! soil transfer rate coef. 30 years
+!    REAL(r_1), PARAMETER, DIMENSION(13) :: trnw = 6.342e-10  ! wood turnover 50  years
+!    REAL(r_1), PARAMETER, DIMENSION(13) :: tvclst = (/ 283., 278., 278., 235., 268., &
+!                                           278.0, 278.0, 278.0, 278.0, 235., 278., &
+!                                           278., 268. /) ! cold stress temp. below which 
+!!                                                         leaf loss is rapid
+    REAL(r_1), DIMENSION(:), ALLOCATABLE :: rw, tfcl, tvclst
+    REAL(r_1), DIMENSION(:), ALLOCATABLE :: trnl, trnr, trnsf, trnw
+    INTEGER(i_d)                        :: dumDIM
+
     REAL(r_1), DIMENSION(mp)	:: wbav ! water stress index
+
+    dumDIM = MAXVAL(veg%iveg)
+    SELECT CASE (dumDIM)
+      CASE (13)     ! CASA vegetation types
+        ALLOCATE( rw(13), tfcl(13), tvclst(13) )
+        ALLOCATE( trnl(13), trnr(13), trnsf(13), trnw(13) )
+        rw   = (/ 16., 8.7, 12.5, 16., 18., 7.5, &
+                & 6.1, .84, 10.4, 15.1, 9., 5.8, 0.001 /)
+        tfcl = (/ 0.248, 0.345, 0.31, 0.42, 0.38, 0.35, &
+                & 0.997, 0.95, 2.4, 0.73, 2.4, 0.55, 0.9500 /)
+        tvclst = (/ 283., 278., 278., 235., 268., 278.0, &
+                  & 278.0, 278.0, 278.0, 235., 278., 278., 268. /)
+      CASE (16)     ! IGBP vegetation types
+        ALLOCATE( rw(16), tfcl(16), tvclst(16) )
+        ALLOCATE( trnl(16), trnr(16), trnsf(16), trnw(16) )
+        rw   = (/ 16., 16., 18., 8.7, 12.5, 15.1, 10.4, 7.5, &
+                & 6.1, 6.1, 0.001, 5.8, 0.001, 5.8, 0.001, 9. /)
+        tfcl = (/ 0.42, 0.248, 0.38, 0.345, 0.31, 0.73, 2.4, 0.35, &
+                & 0.997, 0.997, 0.9500, 0.55, 0.9500, 0.55, 0.9500, 2.4 /)
+        tvclst = (/ 235., 283., 268., 278., 278., 235., 278.0, 278.0, &
+                  & 278.0, 278.0, 278.0, 278., 278., 278., 268., 278. /)
+      CASE DEFAULT
+        PRINT *, 'Error! Dimension not compatible with CASA or IGBP types!'
+        PRINT *, 'Dimension =', dumDIM
+        PRINT *, 'At the rw section.'
+        STOP
+    END SELECT
+    trnl = 3.17e-8
+    trnr = 4.53e-9
+    trnsf = 1.057e-10
+    trnw = 6.342e-10
+! ##############################################################################
 
     !
     ! coef_cold = EXP(-(canopy%tv - tvclst(veg%iveg)))   ! cold stress
@@ -115,13 +153,43 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)		:: e0rswc
     REAL(r_1), DIMENSION(mp)		:: ftsoil
     REAL(r_1), DIMENSION(mp)		:: ftsrs
-    REAL(r_1), PARAMETER, DIMENSION(13)	:: rswch = 0.16
-    REAL(r_1), PARAMETER, DIMENSION(13)	:: soilcf = 1.0
-    REAL(r_1), PARAMETER		:: t0 = -46.0
-    REAL(r_1), DIMENSION(mp)		:: tref
-    REAL(r_1), DIMENSION(mp)		:: tsoil
-    REAL(r_1), PARAMETER, DIMENSION(13)	:: vegcf = &
-         (/ 1.95, 1.5, 1.55, 0.91, 0.73, 2.8, 2.75, 0.0, 2.05, 0.6, 0.4, 2.8, 0.0 /)
+! ##############################################################################
+! Removing the hard-wired declarations (BP Oct 2007)
+!    REAL(r_1), PARAMETER, DIMENSION(13)	:: rswch = 0.16
+!    REAL(r_1), PARAMETER, DIMENSION(13)	:: soilcf = 1.0
+!    REAL(r_1), PARAMETER		:: t0 = -46.0
+!    REAL(r_1), DIMENSION(mp)		:: tref
+!    REAL(r_1), DIMENSION(mp)		:: tsoil
+!    REAL(r_1), PARAMETER, DIMENSION(13)	:: vegcf = &
+!         (/ 1.95, 1.5, 1.55, 0.91, 0.73, 2.8, 2.75, 0.0, 2.05, 0.6, 0.4, 2.8, 0.0 /)
+    REAL(r_1), PARAMETER                :: t0 = -46.0
+    REAL(r_1), DIMENSION(mp)            :: tref
+    REAL(r_1), DIMENSION(mp)            :: tsoil
+    REAL(r_1), DIMENSION(:), ALLOCATABLE :: rswch, soilcf, vegcf
+
+    INTEGER(i_d)                        :: dumDIM
+
+    dumDIM = MAXVAL(veg%iveg)
+    SELECT CASE (dumDIM)
+      CASE (13)     ! CASA vegetation types
+        ALLOCATE( rswch(13), soilcf(13), vegcf(13) )
+        vegcf = (/ 1.95, 1.5, 1.55, 0.91, 0.73, 2.8, &
+                 & 2.75, 0.0, 2.05, 0.6, 0.4, 2.8, 0.0 /)
+      CASE (16)     ! IGBP vegetation types
+        ALLOCATE( rswch(16), soilcf(16), vegcf(16) )
+!        vegcf = (/ 0.91, 1.95, 0.73, 1.5, 1.55, 0.6, 2.05, 2.8, &
+!                 & 2.75, 2.75, 0.0, 2.8, 0.0, 2.8, 0.0, 0.4 /)
+        vegcf = (/ 11.82, 13.06, 6.71, 11.34, 8.59, 0.6, 2.46, 10., &
+                 & 15.93, 3.77, 0.0, 11.76, 0.0, 2.8, 0.001, 0.723 /)
+      CASE DEFAULT
+        PRINT *, 'Error! Dimension not compatible with CASA or IGBP types!'
+        PRINT *, 'Dimension = ', dumDIM
+        PRINT *, 'At the vegcf section.'
+        STOP
+    END SELECT
+    rswch = 0.16
+    soilcf = 1.0
+! ##############################################################################
 
     den = max(0.07,soil%sfc - soil%swilt)
     rswc =  MAX(0.0001, veg%froot(:,1)*(REAL(ssoil%wb(:,2),r_1) - soil%swilt)) / den
