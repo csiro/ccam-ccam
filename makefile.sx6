@@ -166,7 +166,7 @@ sumdd_m.o : sumdd_m.f90
 utilities.o : utilities.f90 const_phys.h 
 zenith.o : zenith.f90 
 tracermodule.o: tracermodule.f newmpar.h tracers.h parm.h const_phys.h arrays.h sigs.h xyzinfo.h
-timeseries.o: timeseries.f dates.h newmpar.h tracers.h extraout.h arrays.h soil.h prec.h vvel.h pbl.h morepbl.h soilsnow.h nsibd.h sigs.h tracermodule.o
+timeseries.o: timeseries.f dates.h newmpar.h tracers.h extraout.h arrays.h soil.h prec.h vvel.h pbl.h morepbl.h soilsnow.h nsibd.h sigs.h vegpar.h tracermodule.o
 trvmix.o: trvmix.f newmpar.h const_phys.h parm.h sigs.h tracers.h arrays.h tracermodule.o
 helmsor.o:  newmpar.h indices.h parm.h parmdyn.h cc_mpi.o
 cbm_pack.o : cbm_pack.f90 newmpar.h aalat.h arrays.h carbpools.h dates.h morepbl.h nsibd.h parm.h pbl.h permsurf.h screen.h soilbal.h soil.h soilsnow.h soilv.h vegpar.h cable_variables.o cable_cbm.o cable_soilsnow.o
