@@ -727,7 +727,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         !-------------------------------------------------------        
         !--------------------------------------------------------
         ! MJT CHANGE
-        if (nsib.eq.5) then
+        if (nurban.eq.1) then
           lname = 'roof temperature lev 1'
           call attrib(idnc,idim,3,'rooftgg1',lname,'K',100.,400.,0)
           lname = 'roof temperature lev 2'
@@ -850,7 +850,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         !--------------------------------------------
         ! MJT CHANGE
         aa=zolnd
-        if (any(sigmu.gt.0.)) then
+        if (nurban.eq.1) then
           call tebzom(ifull,aa(:),zmin,sigmu(:),0)
         end if
         call histwrt3(aa,'zolnd',idnc,iarch,local)
@@ -1104,7 +1104,7 @@ c      "extra" outputs
        call histwrt3(aa,'sflag',idnc,iarch,local)
       endif  ! (itype==-1)
       !---------------------------------------------------------
-      ! MJT CHANGE
+      ! MJT CHANGE - Possibly remove wb1-6 above
       do iq=1,ifull
        isoil=isoilm(iq)
        aa(iq)=(wb(iq,1)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
@@ -1123,7 +1123,7 @@ c      "extra" outputs
       !---------------------------------------------------------
       !---------------------------------------------------------
       ! MJT CHANGE
-      if (nsib.eq.5) then
+      if (nurban.eq.1) then
         call tebsave(ifull,roofgg,wallegg,wallwgg,roadgg
      &               ,roofwb,roadwb,0)
         call histwrt3(roofgg(:,1),'rooftgg1',idnc,iarch,local)

@@ -97,6 +97,8 @@ c     Stuff from cldset
 
 !     Ozone returned by o3set
       real duo3n(imax,kl)
+      
+      real ualb(ifull) ! MJT CHANGE - Urban
 
       logical clforflag, solarfit
       parameter (clforflag = .true., solarfit=.true.)

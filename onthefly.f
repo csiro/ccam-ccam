@@ -384,7 +384,7 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
         enddo
         !--------------------------------------------------
         ! MJT CHANGE
-        if (nsib.eq.5) then
+        if (nurban.eq.1) then
           do k=1,3
             call doints4(roofgg(:,k),nface4,xg4,yg4,nord,ik)
             call doints4(wallegg(:,k),nface4,xg4,yg4,nord,ik)

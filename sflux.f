@@ -629,7 +629,7 @@ c ----------------------------------------------------------------------
 
       !----------------------------------------------------------
       ! MJT Change - Urban
-      if (nsib.eq.5) then
+      if (nurban.eq.1) then
         call tebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin
      &               ,sgsave(:)/(1.-alb(:)),-rgsave(:) ! approximation to incomming longwave
      &               ,condx(:)/dt,rho(:),t(:,1),qg(:,1),ps(:)
@@ -845,8 +845,6 @@ c                             if( tsoil >= tstom ) ftsoil=1.
         ! MJT CHANGE - remove urban albedo
         do ip=1,ipland
           iq=iperm(ip)
-!          slwa(iq)=-sgsave(iq)*(1.-(alb(iq)-sigmu(iq)*ualb(iq))
-!     &             /(1.-sigmu(iq)))/(1.-alb(iq))+rgsave(iq)
           rlai(iq)=max(.1,elai(iq))
           srlai(iq)=rlai(iq)
           tsigmf(iq)=max(.001,sigmf(iq))

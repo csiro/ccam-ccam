@@ -1795,12 +1795,12 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       enddo   ! iq loop
       
       !-----------------------------------------------------------------
-      if (nsib.eq.5) then ! MJT CHANGE
-        where (.not.land)
+      if (nurban.eq.1) then ! MJT CHANGE
+        where (.not.land(:))
           sigmu(:)=0.
         end where
         call tebinit(ifull,sigmu(:),rlongg(:),rlatt(:),0)
-        if (any(roofgg.lt.0.)) then
+        if (any(roofgg(:,:).lt.0.)) then
           if (mydiag) print *,"Using urban default temperatures"
           call tebdefault(ifull,tgg(:,1),tgg(:,ms),0)
         else
@@ -1808,6 +1808,9 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           call tebload(ifull,roofgg,wallegg,wallwgg,roadgg
      &                 ,roofwb,roadwb,0)
         end if
+      else
+        sigmu(:)=0.
+	call tebdisable(0)
       end if
       !-----------------------------------------------------------------
      

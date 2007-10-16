@@ -110,7 +110,7 @@ c     reincorporate land mask into surface temperature
             !call writeglobvar(77, sicedep, fmt='(12f7.1)') ! MJT CHANGE - to match indata.f
             !--------------------------------------------
             ! MJT CHANGE
-            if (nsib.eq.5) then
+            if (nurban.eq.1) then
               call tebsave(ifull,roofgg,wallegg,wallwgg,roadgg
      &                     ,roofwb,roadwb,0)
               call writeglobvar(77, roofgg, fmt='(12f7.2)')
