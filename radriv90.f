@@ -15,7 +15,7 @@
       use zenith_m
       use cc_mpi
       use diag_m
-      use ateb ! MJT CHANGE
+      use ateb ! MJT CHANGE - urban
       include 'newmpar.h'
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
 !        for diag prints set ntest=1
@@ -253,7 +253,7 @@ c        Conversion of o3 from units of cm stp to gm/gm
       end if
 
       !----------------------------------------------
-      ! MJT CHANGE - prep urban albedo
+      ! MJT CHANGE - urban
       call tebalb(ifull,ualb,0)
       !----------------------------------------------
 
@@ -384,7 +384,7 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
      .                (1.-fracice(iq))*.05/(coszro(i)+0.15)
         endif       ! if( land(iq)) .. else..
 
-         cuvrf(i,1)=sigmu(iq)*ualb(iq)+(1.-sigmu(iq))*cuvrf(i,1) ! MJT CHANGE - urban albedo
+         cuvrf(i,1)=sigmu(iq)*ualb(iq)+(1.-sigmu(iq))*cuvrf(i,1) ! MJT CHANGE - urban
          alb(iq) = cuvrf(i,1)   ! save current albedo in alb array for outfile
          if(iaero.ne.0)then
            cosz = max ( coszro(i), 1.e-4)

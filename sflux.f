@@ -1,7 +1,7 @@
       subroutine sflux(nalpha)              ! for globpe code
       use diag_m
       use cc_mpi
-      use ateb ! MJT CHANGE
+      use ateb ! MJT CHANGE - Urban
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
       parameter (ntss_sh=0) ! 0 for original, 3 for **3, 4 for **4
 !     parameter (nplens=0)  ! 0 to turn off plens, 10 (e.g.) is on
@@ -842,7 +842,7 @@ c                             if( tsoil >= tstom ) ftsoil=1.
         enddo
       else     ! i.e. nsib=5
         !--------------------------------------------
-        ! MJT CHANGE - remove urban albedo
+        ! MJT CHANGE - Ecosystems
         do ip=1,ipland
           iq=iperm(ip)
           rlai(iq)=max(.1,elai(iq))

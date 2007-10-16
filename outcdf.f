@@ -320,9 +320,9 @@ c     this routine creates attributes and writes output
       real cfrac
       common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
       real zsoil(ms)
-      real, dimension(ifull,1:3) :: roofgg,wallegg,wallwgg,roadgg ! MJT CHANGE
-      real, dimension(ifull) :: roofwb,roadwb ! MJT CHANGE
-      real, dimension(ifull) :: dd,ee,ff ! MJT CHANGE - for wetfrac1, wetfrac2, ...
+      real, dimension(ifull,1:3) :: roofgg,wallegg,wallwgg,roadgg ! MJT CHANGE - urban
+      real, dimension(ifull) :: roofwb,roadwb ! MJT CHANGE - urban
+      real, dimension(ifull) :: dd,ee,ff ! MJT CHANGE - ecosystems
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
 
@@ -710,8 +710,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         endif  ! (itype==-1)
 
         !-------------------------------------------------------
-        ! MJT CHANGE - needed at all time steps since we do not know at
-        ! what time the downscaling will start
+        ! MJT CHANGE - add wetfrac1-6 and possibly delete wb1-6 above
         lname = 'Wetness fraction layer 1'
         call attrib(idnc,idim,3,'wetfrac1',lname,'none',-2.,2.,0)
         lname = 'Wetness fraction layer 2'
@@ -726,7 +725,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         call attrib(idnc,idim,3,'wetfrac6',lname,'none',-2.,2.,0)
         !-------------------------------------------------------        
         !--------------------------------------------------------
-        ! MJT CHANGE
+        ! MJT CHANGE - urban
         if (nurban.eq.1) then
           lname = 'roof temperature lev 1'
           call attrib(idnc,idim,3,'rooftgg1',lname,'K',100.,400.,0)
@@ -848,7 +847,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         call histwrt3(rsmin,'rsmin',idnc,iarch,local)
         call histwrt3(sigmf,'sigmf',idnc,iarch,local)
         !--------------------------------------------
-        ! MJT CHANGE
+        ! MJT CHANGE - urban
         aa=zolnd
         if (nurban.eq.1) then
           call tebzom(ifull,aa(:),zmin,sigmu(:),0)
@@ -1104,7 +1103,7 @@ c      "extra" outputs
        call histwrt3(aa,'sflag',idnc,iarch,local)
       endif  ! (itype==-1)
       !---------------------------------------------------------
-      ! MJT CHANGE - Possibly remove wb1-6 above
+      ! MJT CHANGE - Add wetfrac1-6 and possibly remove wb1-6 above
       do iq=1,ifull
        isoil=isoilm(iq)
        aa(iq)=(wb(iq,1)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
@@ -1122,7 +1121,7 @@ c      "extra" outputs
       call histwrt3(ff,'wetfrac6',idnc,iarch,local)
       !---------------------------------------------------------
       !---------------------------------------------------------
-      ! MJT CHANGE
+      ! MJT CHANGE - urban
       if (nurban.eq.1) then
         call tebsave(ifull,roofgg,wallegg,wallwgg,roadgg
      &               ,roofwb,roadwb,0)

@@ -1,6 +1,6 @@
       subroutine indata(hourst,newsnow,jalbfix)! nb  newmask not yet passed thru
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
-      use ateb ! MJT CHANGE
+      use ateb ! MJT CHANGE - urban
       use cc_mpi
       use diag_m
 !     rml 21/02/06 removed all so2 code
@@ -845,7 +845,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
       end if
 
       !-----------------------------------------------------------------
-      ! MJT CHANGE - needs to occur before wbice is modified in any way
+      ! MJT CHANGE - upack wetfrac.  Must occur before wbice is modified.
       if (any(wb.lt.0.)) then
         if (mydiag) print *,"Unpacking wetfac to wb"
         wb(:,:)=abs(wb(:,:))
@@ -999,8 +999,8 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
         call readglobvar(87, snowd, fmt="*")
 c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06        
         !---------------------------------------------------------------
-        ! MJT CHANGE
-        if (nsib.eq.5) then
+        ! MJT CHANGE - urban
+        if (nurban.eq.1) then
           call readglobvar(87, roofgg, fmt="*")
           call readglobvar(87, wallegg, fmt="*")
           call readglobvar(87, wallwgg, fmt="*")
@@ -1795,7 +1795,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       enddo   ! iq loop
       
       !-----------------------------------------------------------------
-      if (nurban.eq.1) then ! MJT CHANGE
+      if (nurban.eq.1) then ! MJT CHANGE - urban
         where (.not.land(:))
           sigmu(:)=0.
         end where
@@ -1854,10 +1854,10 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
          call readreal('urban',sigmu,ifull)         
          elai(:)=0.01*elai(:)
          sigmf(:)=0.01*sigmf(:)
-         sigmu(:)=0.01*sigmu(:) ! MJT CHANGE 
+         sigmu(:)=0.01*sigmu(:) ! MJT CHANGE - urban 
        else    ! usual, nsib<5
          call readint(vegfile,ivegt,ifull)
-         sigmu(:)=0.
+         sigmu(:)=0. ! MJT CHANGE - urban
        endif  ! (nsib==5) .. else ..
 
        mismatch = .false.

@@ -167,7 +167,7 @@
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,nfly,localhist   
      & ,mstn,nqg   ! not used in 2006          
-     & ,nurban ! MJT CHANGE
+     & ,nurban ! MJT CHANGE - urban
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -1676,7 +1676,7 @@ c     data nstag/99/,nstagu/99/
      &     nrungcm/-1/,nsib/3/,nsigmf/1/,
      &     ntaft/2/,ntsea/6/,ntsur/6/,av_vmod/.7/,tss_sh/1./,
      &     vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
-      data nurban/0/ ! MJT CHANGE
+      data nurban/0/ ! MJT CHANGE - urban
       data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
 !     Special and test options

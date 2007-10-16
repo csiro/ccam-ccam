@@ -58,8 +58,8 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      & ssdnn(ifull),snage(ifull),
-     & roofgg(ifull,3),wallegg(ifull,3),wallwgg(ifull,3), ! MJT CHANGE add urban types
-     & roadgg(ifull,3),roofwb(ifull),roadwb(ifull) ! MJT CHANGE add urban types
+     & roofgg(ifull,3),wallegg(ifull,3),wallwgg(ifull,3), ! MJT CHANGE - urban
+     & roadgg(ifull,3),roofwb(ifull),roadwb(ifull) ! MJT CHANGE - urban
       ! Dummy variables here replace the aliasing use of aa, bb in infile call
       real, dimension(ifull) :: dum5
       integer isflag(ifull)
@@ -383,7 +383,7 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
          call doints4(wb(1,k) ,nface4,xg4,yg4,nord,ik)
         enddo
         !--------------------------------------------------
-        ! MJT CHANGE
+        ! MJT CHANGE - urban
         if (nurban.eq.1) then
           do k=1,3
             call doints4(roofgg(:,k),nface4,xg4,yg4,nord,ik)
