@@ -1,6 +1,6 @@
       subroutine indata(hourst,newsnow,jalbfix)! nb  newmask not yet passed thru
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
-      use ateb ! MJT CHANGE - urban
+      use ateb ! MJT CHANGE
       use cc_mpi
       use diag_m
 !     rml 21/02/06 removed all so2 code
@@ -845,7 +845,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
       end if
 
       !-----------------------------------------------------------------
-      ! MJT CHANGE - upack wetfrac.  Must occur before wbice is modified.
+      ! MJT CHANGE - needs to occur before wbice is modified in any way
       if (any(wb.lt.0.)) then
         if (mydiag) print *,"Unpacking wetfac to wb"
         wb(:,:)=abs(wb(:,:))
@@ -998,17 +998,6 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
         call readglobvar(87, aa, fmt="*")    ! only use land values of tss
         call readglobvar(87, snowd, fmt="*")
 c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06        
-        !---------------------------------------------------------------
-        ! MJT CHANGE - urban
-        if (nurban.eq.1) then
-          call readglobvar(87, roofgg, fmt="*")
-          call readglobvar(87, wallegg, fmt="*")
-          call readglobvar(87, wallwgg, fmt="*")
-          call readglobvar(87, roadgg, fmt="*")
-          call readglobvar(87, roofwb, fmt="*")
-          call readglobvar(87, roadwb, fmt="*")
-        end if
-        !---------------------------------------------------------------
         if ( myid == 0 ) close(87)
         if(ico2.ne.0)then
           ico2x=max(1,ico2)
@@ -1795,7 +1784,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       enddo   ! iq loop
       
       !-----------------------------------------------------------------
-      if (nurban.eq.1) then ! MJT CHANGE - urban
+      if (nurban.eq.1) then ! MJT CHANGE
         where (.not.land(:))
           sigmu(:)=0.
         end where
@@ -1854,10 +1843,10 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
          call readreal('urban',sigmu,ifull)         
          elai(:)=0.01*elai(:)
          sigmf(:)=0.01*sigmf(:)
-         sigmu(:)=0.01*sigmu(:) ! MJT CHANGE - urban 
+         sigmu(:)=0.01*sigmu(:) ! MJT CHANGE 
        else    ! usual, nsib<5
          call readint(vegfile,ivegt,ifull)
-         sigmu(:)=0. ! MJT CHANGE - urban
+         sigmu(:)=0.
        endif  ! (nsib==5) .. else ..
 
        mismatch = .false.

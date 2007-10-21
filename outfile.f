@@ -1,6 +1,5 @@
       subroutine outfile(iout,rundate,nmi,nwrite)
       use cc_mpi
-      use ateb ! MJT CHANGE - urban
       include 'newmpar.h'
       parameter (mev1=il+1-il/2*2,mev2=3-mev1)  ! from helmsol
 c     mev1 = 1 for il even (2 for il odd)
@@ -107,20 +106,7 @@ c     reincorporate land mask into surface temperature
             call writeglobvar(77, tgg, fmt='(12f7.2)')
             call writeglobvar(77, tss, fmt='(12f7.2)')
             call writeglobvar(77, snowd, fmt='(12f7.1)')
-            !call writeglobvar(77, sicedep, fmt='(12f7.1)') ! MJT CHANGE - to match indata.f
-            !--------------------------------------------
-            ! MJT CHANGE - urban
-            if (nurban.eq.1) then
-              call tebsave(ifull,roofgg,wallegg,wallwgg,roadgg
-     &                     ,roofwb,roadwb,0)
-              call writeglobvar(77, roofgg, fmt='(12f7.2)')
-              call writeglobvar(77, wallegg, fmt='(12f7.2)')
-              call writeglobvar(77, wallwgg, fmt='(12f7.2)')
-              call writeglobvar(77, roadgg, fmt='(12f7.2)')
-              call writeglobvar(77, roofwb, fmt='(14f6.3)')
-              call writeglobvar(77, roadwb, fmt='(14f6.3)')
-            end if
-            !--------------------------------------------
+            call writeglobvar(77, sicedep, fmt='(12f7.1)')
             if ( myid == 0 ) close (77)
             if(ico2.gt.0)then
                ico2x=max(1,ico2)
