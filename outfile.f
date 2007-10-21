@@ -38,9 +38,6 @@ c     mev2 = 2 for il even (1 for il odd)
       character co2out*80,radonout*80,surfout*80
       integer nface6(4,3)   ! Faces to use in each phase    (c-cub)
       integer ioff6(4,3)    ! Starting offset for each face (c-cub)
-      integer iout,nmi ! MJT CHANGE - so that ifort works
-      real, dimension(ifull,3) :: roofgg,wallegg,wallwgg,roadgg ! MJT CHANGE
-      real, dimension(ifull) :: roofwb,roadwb ! MJT CHANGE
       data nface6 / 0, 1, 3, 4,   0, 2, 3, 5,   1, 2, 4, 5 /
       data ioff6 / 1,mev1,mev2,2,  2,1,mev1,mev2,  mev2,2,1,mev1 / ! jlm general
       data nspare/0/
