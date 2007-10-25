@@ -1840,14 +1840,19 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
          ivegt(:)=1 
          call readreal('lai',elai,ifull)
          call readreal('vegfrac',sigmf,ifull)
-         call readreal('urban',sigmu,ifull)         
          elai(:)=0.01*elai(:)
          sigmf(:)=0.01*sigmf(:)
-         sigmu(:)=0.01*sigmu(:) ! MJT CHANGE 
        else    ! usual, nsib<5
          call readint(vegfile,ivegt,ifull)
-         sigmu(:)=0.
-       endif  ! (nsib==5) .. else ..
+       endif  ! (nsib==5) .. else .
+       ! MJT CHANGE -------------------------------
+       if (nurban==1) then
+         call readreal('urban',sigmu,ifull)       
+         sigmu(:)=0.01*sigmu(:)
+       else
+         sigmu(:)=0.       
+       end if.
+       ! MJT CHANGE -------------------------------
 
        mismatch = .false.
        if( rdatacheck(land,alb,'alb',idatafix,falbdflt))
