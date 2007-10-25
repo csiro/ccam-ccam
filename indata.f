@@ -1851,7 +1851,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
          sigmu(:)=0.01*sigmu(:)
        else
          sigmu(:)=0.       
-       end if.
+       end if
        ! MJT CHANGE -------------------------------
 
        mismatch = .false.
