@@ -1,0 +1,68 @@
+CABLE (CBM) is called from ccam in the sib4 routine which is included 
+in cable_ccam.f90.  To call this subroutine set nsib=4 in the main namelist.
+
+CABLE requires two input files. 
+The first lists each grid point and it's vegetation type.  
+There are two formats for this file: the original format
+contained two vegetation types, of which the second (CASA) was used.  The
+more recent format contains the IGBP vegetation type and the fraction of 
+C4 plants for each gridpoint.  This fraction is determined by vegetation type
+and latitude.  In order for the model to recognise this new format, the first
+four characters of the header line are required to be 'IGBP'.  A copy of the
+IGBP vegetation type file, vegtype_igbp.dat is included in the svn archive.
+The filename for this file is set in the 'cableinput' namelist as 'vegtypefile'.
+The c4 (non-zero) fractions for IGBP veg types were set as follows:
+IGBP type 7, open shrub: c4=0.95 30S-30N
+IGBP type 8, woody savanna: c4=0.5 30S-0, c4=0.8 0-20N, c4=0.5 20-30N
+IGBP type 9, savanna: c4=0.75
+IGBP type 10, grass: c4=0.5 30S-20S, c4=0.95 20S-20N, c4=0.5 20N-35N
+IGBP type 12, crops: c4=0.3 0-40N
+The fractions were chosen to approximately match the 1x1 c4 fraction map
+from Chris Still (Still et al., GBC, 2003).
+
+The second input file gives parameters for each vegetation type.  This filename
+is also given in the 'cableinput' namelist as 'vegparmfile'.  It has two
+possible formats, set by the cableinput namelist variable 'vegparmnew'.  True
+gives the new format, false gives the old format, the default is true.
+The old format had a number of header lines and then a row for each parameter type.
+Each vegetation type was represented by a column.  This format was not easy to
+read as the number of vegetation types (and hence row length) increased.
+NB: The current version of the code has not been tested with the old format file
+and CASA veg types.  It should still work.
+
+The new format contains a single header line, followed by the number of 
+vegetation types.  For each type (numerical order not required) 
+a block of values is then given
+! veg number, type and name
+! canopy hgt(m),leaf angle,lf width(m),lf length(m)
+! rholeaf-vis,nir,therm, rhowood-vis,nir,therm
+! tauleaf-vis,nir,therm, tauwood-vis,nir,therm
+! rhosoil-vis,nir,therm
+! LAImax(m2/m2),WoodAI(m2/m2),canst1,shelrb,vegcf,extkn
+! vcmax(mol/m2/s), rp20, rpcoeff(/oC), rs20
+! tvjmin(oC), tvjmax(oC), vbeta, betaroot
+! pool: leaf, wood, root, soilfast, soilslow (gC/m2)
+! rate: leaf, wood, root, soilfast, soilslow (/year)
+Not all parameters are currently used by the model.
+Vegetation type is required to be one of 'forest', 'deciduous', 'shrub', 
+'grass', 'crop', 'noveg', 'notused'.  Currently only 'deciduous' is 
+used (to determine if a phenology modification is performed).  'deciduous'
+types require tvjmin and tvjmax to be set, other types do not use these parameters.
+An example new format parameter file, veg_parm_igbp.txt, is included in
+the svn archive.  Note that it may not contain current preferred values 
+(partcularly for vcmax, rp20 and vegcf).
+
+The cableinput namelist also allows 'CO2forcingtype' and 'initcarbpools' to be
+set.  CO2forcing type determines what atmospheric CO2 CABLE responds to.
+CO2forcingtype=1 sets a constant CO2 of 360 ppm.
+CO2forcingtype=2 sets the CO2 dependent on the year.  This will only work for
+1900-2005.  The atmospheric CO2 values are those used for the C4MIP phase 1 
+experiment, extended from 2000 to 2005.
+CO3forcingtype=3 allows CABLE to see modelled atmospheric CO2.  This is 
+currently set to a 'dummy' tracer expression and would most likely need to be 
+modified to be a sum of modelled tracers (e.g. biosphere, ocean and fossil).
+The default is CO2forcingtype=1.
+The initcarbpools variable determines how carbon pools are initialised.
+initcarbpools=1 sets the carbon pools to the sizes given in the veg parameter file.
+Any other value (default=999) will read the carbon pools from the restart file.
+A future option will be to read carbon pools from CASA-CNP determined values.

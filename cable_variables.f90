@@ -109,13 +109,19 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: rp20   ! plant respiration coefficient at 20 C
      REAL(r_1), DIMENSION(:), POINTER :: rpcoef ! temperature coef nonleaf plant respiration (1/C)
      REAL(r_1), DIMENSION(:), POINTER :: shelrb ! sheltering factor (dimensionless) 
+     REAL(r_1), DIMENSION(:), POINTER :: wai   ! wood area index (stem+branches+twigs)
+     REAL(r_1), DIMENSION(:), POINTER :: vegcf  ! biome-specific soil respiration rate
      REAL(r_1), DIMENSION(:), POINTER :: tminvj ! min temperature of the start of photosynthesis
      REAL(r_1), DIMENSION(:), POINTER :: tmaxvj ! max temperature of the start of photosynthesis
      REAL(r_1), DIMENSION(:), POINTER :: vbeta  ! stomatal sensitivity to soil water
      REAL(r_1), DIMENSION(:), POINTER :: vcmax  ! maximum RuBP carboxylation rate top leaf (mol/m2/s)
      REAL(r_1), DIMENSION(:), POINTER :: vlai   ! leaf area index
-     REAL(r_1), DIMENSION(:), POINTER :: vlaimax ! ???
+!    REAL(r_1), DIMENSION(:), POINTER :: vlaimax ! ???
      REAL(r_1), DIMENSION(:), POINTER :: xfang  ! leaf angle PARAMETER
+     REAL(r_1), DIMENSION(:), POINTER :: extkn  ! extinction coef for vertical
+                                                ! nitrogen profile in canopy(-)
+!    rml 22/10/07
+     LOGICAL,   DIMENSION(:), POINTER :: deciduous ! flag used for phenology fix
   END TYPE veg_parameter_type
   ! Canopy/vegetation variables:
   TYPE canopy_type
@@ -164,7 +170,7 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER     :: extkb  ! beam radiation extinction coeff
      REAL(r_1), DIMENSION(:), POINTER     :: extkd2 ! diffuse 2D radiation extinction coeff
      REAL(r_1), DIMENSION(:), POINTER ::  extkd ! diffuse radiation extinction coeff (-)
-     REAL(r_1), DIMENSION(:), POINTER ::  extkn ! extinction coef for vertical nitrogen profile in canopy(-)
+!    REAL(r_1), DIMENSION(:), POINTER ::  extkn ! moved to veg%
      REAL(r_1), DIMENSION(:), POINTER :: flws   ! soil long-wave radiation
      REAL(r_1), DIMENSION(:,:), POINTER  :: fvlai  ! leaf area index of big leaf
      REAL(r_1), DIMENSION(:,:), POINTER  :: gradis ! radiative conductance
@@ -369,11 +375,13 @@ CONTAINS
     ALLOCATE ( var % iveg(mp) )
     ALLOCATE ( var % meth(mp) )
     ALLOCATE ( var % vlai(mp) )
-    ALLOCATE ( var % vlaimax(mp) )
+!   ALLOCATE ( var % vlaimax(mp) )
     ALLOCATE ( var % froot(mp,ms) )
     ALLOCATE ( var % canst1(mp) )
     ALLOCATE ( var % ejmax(mp) )
     ALLOCATE ( var % frac4(mp) )
+    ALLOCATE ( var % wai(mp) )  ! new addition in Oct 2007 (YP)
+    ALLOCATE ( var % vegcf(mp) )  ! new addition in Oct 2007 (YP)
     ALLOCATE ( var % tminvj(mp) )
     ALLOCATE ( var % tmaxvj(mp) )
     ALLOCATE ( var % vbeta(mp) )
@@ -384,6 +392,8 @@ CONTAINS
     ALLOCATE ( var % dleaf(mp) )
     ALLOCATE ( var % rp20(mp) )
     ALLOCATE ( var % rpcoef(mp) )
+    ALLOCATE ( var % extkn(mp) )  ! new addition in Oct 2007 (YP)
+    ALLOCATE ( var % deciduous(mp) )   ! rml addition 22/10/07
   END SUBROUTINE alloc_veg_parameter_type
    
   SUBROUTINE alloc_canopy_type(var, mp)
@@ -436,7 +446,7 @@ CONTAINS
     ALLOCATE ( var % extkb(mp) )
     ALLOCATE ( var % extkd2(mp) )
     ALLOCATE ( var % extkd(mp) )
-    ALLOCATE ( var % extkn(mp) )
+!   ALLOCATE ( var % extkn(mp) ) !moved to veg%
     ALLOCATE ( var % flws(mp) )
     ALLOCATE ( var % fvlai(mp,mf) )
     ALLOCATE ( var % gradis(mp,mf) )
@@ -616,11 +626,13 @@ CONTAINS
     DEALLOCATE ( var % iveg )
     DEALLOCATE ( var % meth )
     DEALLOCATE ( var % vlai )
-    DEALLOCATE ( var % vlaimax )
+!   DEALLOCATE ( var % vlaimax )
     DEALLOCATE ( var % froot )
     DEALLOCATE ( var % canst1 )
     DEALLOCATE ( var % ejmax )
     DEALLOCATE ( var % frac4 )
+    DEALLOCATE ( var % wai )  ! new addition in Oct 2007 (YP)
+    DEALLOCATE ( var % vegcf )  ! new addition in Oct 2007 (YP)
     DEALLOCATE ( var % tminvj )
     DEALLOCATE ( var % tmaxvj )
     DEALLOCATE ( var % vbeta )
@@ -631,6 +643,8 @@ CONTAINS
     DEALLOCATE ( var % dleaf )
     DEALLOCATE ( var % rp20 )
     DEALLOCATE ( var % rpcoef )
+    DEALLOCATE ( var % extkn )  ! new addition in Oct 2007 (YP)
+    DEALLOCATE ( var % deciduous )  ! rml addition 22/10/07
   END SUBROUTINE dealloc_veg_parameter_type
    
   SUBROUTINE dealloc_canopy_type(var, mp)
@@ -683,7 +697,7 @@ CONTAINS
     DEALLOCATE ( var % extkb )
     DEALLOCATE ( var % extkd2 )
     DEALLOCATE ( var % extkd )
-    DEALLOCATE ( var % extkn )
+!   DEALLOCATE ( var % extkn ) !moved to veg%
     DEALLOCATE ( var % flws )
     DEALLOCATE ( var % fvlai )
     DEALLOCATE ( var % gradis )
@@ -838,8 +852,9 @@ END MODULE physical_constants
 MODULE other_constants
   USE define_dimensions, ONLY : i_d, r_1, nrb
   REAL(r_1), PARAMETER, DIMENSION(nrb) :: gauss_w=(/0.308,0.514,0.178/) ! Gaussian integ. weights
-  REAL(r_1), PARAMETER, DIMENSION(nrb) :: refl = (/ 0.1, 0.425, 0.05 /) ! leaf reflectance
-  REAL(r_1), PARAMETER, DIMENSION(nrb) :: taul = (/ 0.1, 0.425, 0.05/)  ! leaf transmittance
+  ! values in refl and taul are slightly modified since Oct 2007 (YP)
+  REAL(r_1), PARAMETER, DIMENSION(nrb) :: refl = (/ 0.07, 0.425, 0.02 /) ! leaf reflectance
+  REAL(r_1), PARAMETER, DIMENSION(nrb) :: taul = (/ 0.07, 0.425, 0.02/)  ! leaf transmittance
   INTEGER(i_d), PARAMETER :: istemp = 4 ! soil temp:	 1,2,3,4 = FR,kf,mrr,mrrkf
   INTEGER(i_d), PARAMETER :: ismois = 2 ! soil moist:  1,2,3	 = MP84,NP89,Richards
   INTEGER(i_d), PARAMETER :: isinf  = 2 ! soil infilt: 1,2	 = MP84, FC96

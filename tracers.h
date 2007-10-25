@@ -1,9 +1,10 @@
 !     rml 21/02/06 deleted variables that were no longer used
 
-      integer iradon,ico2,ngas,nllp,ntrac,ntracmax,
-     .        npwr,ilt,jlt,klt,ngasmax
+      integer iradon,ico2,ngas,nllp,ntrac,ntracmax,                        &
+     &        npwr,ilt,jlt,klt,ngasmax
       real tr,traver,radonem
-      parameter(iradon=0,ico2=1,ngas=31)  ! rlw setting
+      parameter(iradon=0,ico2=1,ngas=13)  ! rlw setting
+!     parameter(iradon=0,ico2=1,ngas=31)  ! rlw setting
 !     parameter(iradon=0,ico2=0,ngas=0)
       parameter(nllp=0)              ! set this or next lines
 !     parameter(nllp=3)
@@ -15,7 +16,7 @@
       parameter(npwr=min(ntrac,1))        ! i.e. 0 or 1 for no_gas/gas
       parameter(ilt=il**npwr,jlt=jl**npwr,klt=kl**npwr) ! gives one of next two   
 
-      common/tracer/tr(ilt*jlt+npwr*iextra,klt,ntracmax),
+      common/tracer/tr(ilt*jlt+npwr*iextra,klt,ntracmax),                  &
      &              traver(ilt*jlt,klt,ntrac)
 !      suspect alpha and beta can go but need to confirm
 !      real alpha,beta

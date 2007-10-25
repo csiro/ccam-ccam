@@ -7,6 +7,7 @@
       use tracermodule, only : tracini,readtracerflux,tracvalin,
      &                         unit_trout
       use timeseries, only : init_ts
+      use cable_ccam, only : cbmrdn
       implicit none
 !     parameter (gwdfac=.02)  ! now .02 for lgwd=2  see below
       integer, parameter :: jlmsigmf=1  ! 1 for jlm fixes to dean's data

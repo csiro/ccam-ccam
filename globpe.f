@@ -20,6 +20,8 @@
       use tracermodule, only :init_tracer,trfiles,tracer_mass,unit_trout
      &                        ,interp_tracerflux
       use timeseries, only : write_ts
+!     rml 05/10/07 use cable_ccam
+      use cable_ccam, only : cableinput,CABLE,rlaiday
       use define_dimensions, only : ncs, ncp
       implicit none
       include 'newmpar.h'
@@ -171,8 +173,8 @@
      &    surfile,tmaxfile,tminfile,topofile,trcfil,vegfile,zofile,
      &    smoistfile,soil2file,radonemfile,
      &    co2_00,radon_00,surf_00,co2_12,radon_12,surf_12
-! rml from eak 16/03/06
-     &    ,carbr1,carbr2,sigmfile,rlaifile
+! rml from eak 16/03/06, 05/10/07 removed carbr1/carbr2, not used
+     &    ,sigmfile,rlaifile
       namelist/kuonml/alflnd,alfsea
      &        ,cldh_lnd,cldm_lnd,cldl_lnd
      &        ,cldh_sea,cldm_sea,cldl_sea
@@ -237,6 +239,8 @@
       mins_rad=nint(kountr*dt/60.)  ! redefine to actual value
       read (99, datafile)
       read (99, kuonml)
+!     rml 05/10/07 cable namelist for veg filename etc
+      if (nsib == CABLE) read(99, cableinput)
 !     rml 16/02/06 read trfiles namelist and call init_tracer
       if (ngas>0) then
         read(99, trfiles)

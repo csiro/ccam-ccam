@@ -224,7 +224,8 @@ CONTAINS
        rad%extkd = 0.7
     END WHERE
     ! Extinction coefficient for leaf nitrogen profile in canopy:
-    rad%extkn = rad%extkd * SQRT(1.0 - taul(1) - refl(1))
+    ! now read from veg parameter file rather than calculated here
+!   rad%extkn = rad%extkd * SQRT(1.0 - taul(1) - refl(1))
     c1 = SQRT(1. - taul - refl)
     ! Canopy reflection black horiz leaves (eq. 6.19 in Goudriaan and van Laar, 1994):
     rhoch = (1.0 - c1) / (1.0 + c1)
@@ -274,7 +275,9 @@ CONTAINS
     ! Define vegetation mask:
     mask = canopy%vlaiw > 1e-2 .AND. met%fsd > 1.0e-2
     ! Relative leaf nitrogen concentration within canopy:
-    cf2n = EXP(-rad%extkn * canopy%vlaiw)
+    ! rad%extkn renamed veg%extkn
+!   cf2n = EXP(-rad%extkn * canopy%vlaiw)
+    cf2n = EXP(-veg%extkn * canopy%vlaiw)
     ! See Sellers 1985, eq.13 (leaf angle parameters):
     xphi1 = 0.5 - veg%xfang * (0.633 + 0.33 * veg%xfang)
     xphi2 = 0.877 - (0.877 * 2.0) * xphi1
@@ -379,7 +382,8 @@ CONTAINS
             +(1.-fbeam)*(1.-reffdf(:,1))*EXP(-extkdm(:,1)*canopy%vlaiw) + &
             fbeam*(1.-reffbm(:,2))*cexpkbm +(1.-fbeam)*(1.-reffdf(:,2))*cexpkdm)
        ! Scaling from single leaf to canopy, see Wang & Leuning 1998 appendix C:
-       rad%scalex(:,1) = (1.0 - transb * cf2n) / (rad%extkb + rad%extkn)
+!      rad%scalex(:,1) = (1.0 - transb * cf2n) / (rad%extkb + rad%extkn)
+       rad%scalex(:,1) = (1.0 - transb * cf2n) / (rad%extkb + veg%extkn)
        ! Leaf area index of big leaf, sunlit, shaded, respectively:
        rad%fvlai(:,1) = (1.0 - transb) / rad%extkb
        rad%fvlai(:,2) = canopy%vlaiw - rad%fvlai(:,1)
@@ -390,7 +394,8 @@ CONTAINS
        rad%fvlai(:,1) = 0.0
        rad%fvlai(:,2) = canopy%vlaiw
     END WHERE
-    rad%scalex(:,2) = (1.0 - cf2n) / rad%extkn - rad%scalex(:,1)
+!   rad%scalex(:,2) = (1.0 - cf2n) / rad%extkn - rad%scalex(:,1)
+    rad%scalex(:,2) = (1.0 - cf2n) / veg%extkn - rad%scalex(:,1)
     ! Total energy absorbed by canopy:
     rad%rniso = sum(rad%qcan, 3)
   END SUBROUTINE radiation
@@ -596,10 +601,15 @@ CONTAINS
     ! BATS-type canopy saturation proportional to LAI:
     cansat = veg%canst1 * canopy%vlaiw
     ! Leaf phenology influence on vcmax and jmax
-    phenps = max (1.0e-4, MIN(1.,1. - ( (veg%tmaxvj - ssoil%tgg(:,4)+tfrz)/ &
+! rml 22/10/07 only apply to deciduous types
+    WHERE (veg%deciduous)
+      phenps = max (1.0e-4, MIN(1.,1. - ( (veg%tmaxvj - ssoil%tgg(:,4)+tfrz)/ &
          (veg%tmaxvj - veg%tminvj) )**2 ) )
-    WHERE ( ssoil%tgg(:,4) < (veg%tminvj + tfrz) ) phenps = 0.0
-    WHERE ( ssoil%tgg(:,4) > (veg%tmaxvj + tfrz) ) phenps = 1.0
+      WHERE ( ssoil%tgg(:,4) < (veg%tminvj + tfrz) ) phenps = 0.0
+      WHERE ( ssoil%tgg(:,4) > (veg%tmaxvj + tfrz) ) phenps = 1.0
+    ELSEWHERE
+      phenps = 1.0
+    END WHERE
     ! Set previous time step canopy water storage:
     oldcansto=canopy%cansto
     ! Rainfall variable is limited so canopy interception is limited,
