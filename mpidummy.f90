@@ -20,8 +20,8 @@ subroutine MPI_Comm_rank(comm, myid, ierr)
    ierr = 0
 end subroutine MPI_Comm_rank
 
-subroutine MPI_abort(comm, ierr)
-   integer :: comm, ierr
+subroutine MPI_abort(comm, errorcode. ierr)
+   integer :: comm, errorcode, ierr
    stop
 end subroutine MPI_abort
 

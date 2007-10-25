@@ -270,7 +270,7 @@ c                +x*(1+x)*(2-x)*c3}/2
                   if ( fproc(ip,jp,n-noff) /= myid ) then
                      print*, "Error in ints", myid, n, iq, iproc,
      &                     dpoints(:,iq,iproc)
-                     call MPI_Abort(MPI_COMM_WORLD,ierr)
+                     call MPI_Abort(MPI_COMM_WORLD,1,ierr)
                   end if
 #endif
                   idel = int(dpoints(2,iq,iproc))
@@ -343,7 +343,7 @@ c                +x*(1+x)*(2-x)*c3}/2
                   if ( fproc(ip,jp,n-noff) /= myid ) then
                      print*, "Error in ints", myid, n, iq, iproc,
      &                     dpoints(:,iq,iproc)
-                     call MPI_Abort(MPI_COMM_WORLD,ierr)
+                     call MPI_Abort(MPI_COMM_WORLD,1,ierr)
                   end if
 #endif
                   idel = int(dpoints(2,iq,iproc))
@@ -620,7 +620,7 @@ c                +y*(1+y)*(2-y)*c3}/2
                   if ( fproc(ip,jp,n-noff) /= myid ) then
                      print*, "Error in ints_bl", myid, n, iq, iproc,
      &                 dpoints(:,iq,iproc)
-                     call MPI_Abort(MPI_COMM_WORLD,ierr)
+                     call MPI_Abort(MPI_COMM_WORLD,1,ierr)
                   end if
 #endif
                   idel = int(dpoints(2,iq,iproc))
@@ -692,7 +692,7 @@ c               +y*(1+y)*(2-y)*c3}/2
                   if ( fproc(ip,jp,n-noff) /= myid ) then
                      print*, "Error in ints_bl", myid, n, iq, iproc,
      &                 dpoints(:,iq,iproc)
-                     call MPI_Abort(MPI_COMM_WORLD,ierr)
+                     call MPI_Abort(MPI_COMM_WORLD,1,ierr)
                   end if
 #endif
                   idel = int(dpoints(2,iq,iproc))
@@ -834,7 +834,7 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
             if ( fproc(ip,jp,n-noff) /= myid ) then
                print*, "Error in ints_bl", myid, n, iq, iproc,
      &              dpoints(:,iq,iproc)
-               call MPI_Abort(MPI_COMM_WORLD,ierr)
+               call MPI_Abort(MPI_COMM_WORLD,1,ierr)
             end if
 #endif
             idel = int(dpoints(2,iq,iproc))

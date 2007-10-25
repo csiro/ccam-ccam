@@ -197,7 +197,7 @@
       if ( nproc_in /= nproc ) then
          print*, "Error, model is compiled for ", nproc, " processors."
          print*, "Trying to run with", nproc_in
-         call MPI_Abort(MPI_COMM_WORLD)
+         call MPI_Abort(MPI_COMM_WORLD,1,ierr)
       end if
       call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr) ! Find my id
 
