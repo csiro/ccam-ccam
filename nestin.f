@@ -1215,13 +1215,11 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   iq1=(j-ns)*nmax+n
                   psum(iq1,p)=qsum(iq,p)
                   pp(iq1,p)=qp(iq,p)
-                  do k=kbotdav,kl
-                    pu(iq1,k,p)=qu(iq,k,p)
-                    pv(iq1,k,p)=qv(iq,k,p)
-                    pw(iq1,k,p)=qw(iq,k,p)
-                    pt(iq1,k,p)=qt(iq,k,p)
-                    pq(iq1,k,p)=qq(iq,k,p)
-                  end do
+                  pu(iq1,:,p)=qu(iq,:,p)
+                  pv(iq1,:,p)=qv(iq,:,p)
+                  pw(iq1,:,p)=qw(iq,:,p)
+                  pt(iq1,:,p)=qt(iq,:,p)
+                  pq(iq1,:,p)=qq(iq,:,p)
                 end do
               end do
               call MPI_SSend(psum(1:n1,p),n1,MPI_REAL,iproc,itag,
@@ -1270,13 +1268,11 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 iq1=(j-ns)*nmax+n
                 qsum(iq,p)=psum(iq1,p)
                 qp(iq,p)=pp(iq1,p)
-                do k=kbotdav,kl
-                  qu(iq,k,p)=pu(iq1,k,p)
-                  qv(iq,k,p)=pv(iq1,k,p)
-                  qw(iq,k,p)=pw(iq1,k,p)
-                  qt(iq,k,p)=pt(iq1,k,p)
-                  qq(iq,k,p)=pq(iq1,k,p)
-                end do
+                qu(iq,:,p)=pu(iq1,:,p)
+                qv(iq,:,p)=pv(iq1,:,p)
+                qw(iq,:,p)=pw(iq1,:,p)
+                qt(iq,:,p)=pt(iq1,:,p)
+                qq(iq,:,p)=pq(iq1,:,p)
               end do
             end do
           end do        
@@ -1374,13 +1370,11 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   iq1=(j-ns)*nmax+n
                   qsum(iq,p)=psum(iq1,p)
                   qp(iq,p)=pp(iq1,p)
-                  do k=kbotdav,kl
-                    qu(iq,k,p)=pu(iq1,k,p)
-                    qv(iq,k,p)=pv(iq1,k,p)
-                    qw(iq,k,p)=pw(iq1,k,p)
-                    qt(iq,k,p)=pt(iq1,k,p)
-                    qq(iq,k,p)=pq(iq1,k,p)
-                  end do
+                  qu(iq,:,p)=pu(iq1,:,p)
+                  qv(iq,:,p)=pv(iq1,:,p)
+                  qw(iq,:,p)=pw(iq1,:,p)
+                  qt(iq,:,p)=pt(iq1,:,p)
+                  qq(iq,:,p)=pq(iq1,:,p)
                 end do
               end do
             end do
@@ -1395,13 +1389,11 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 iq1=(j-ns)*nmax+n
                 psum(iq1,p)=qsum(iq,p)
                 pp(iq1,p)=qp(iq,p)
-                do k=kbotdav,kl
-                  pu(iq1,k,p)=qu(iq,k,p)
-                  pv(iq1,k,p)=qv(iq,k,p)
-                  pw(iq1,k,p)=qw(iq,k,p)
-                  pt(iq1,k,p)=qt(iq,k,p)
-                  pq(iq1,k,p)=qq(iq,k,p)
-                end do
+                pu(iq1,:,p)=qu(iq,:,p)
+                pv(iq1,:,p)=qv(iq,:,p)
+                pw(iq1,:,p)=qw(iq,:,p)
+                pt(iq1,:,p)=qt(iq,:,p)
+                pq(iq1,:,p)=qq(iq,:,p)
               end do
             end do
             call MPI_SSend(psum(1:n1,p),n1,MPI_REAL,0,itag,
@@ -1461,24 +1453,21 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g), intent(inout) :: psls
       real, dimension(ifull_g,kbotdav:kl), intent(inout) :: uu,vv,ww
       real, dimension(ifull_g,kbotdav:kl), intent(inout) :: tt,qgg
-      real, dimension(ifull_g) :: psum,qsum,pp
+      real, dimension(ifull_g) :: psum,pp
       real, dimension(ifull_g,kbotdav:kl) :: pu,pv,pw,pt,pq
       real :: r,wgtb,wgt,rmaxsq,csq,emmin
-      integer :: iq,iq1,j,ipass,til,n1,n
+      integer :: iq,iq1,j,ipass,n1,n
       integer :: ne,ns,iproc,k,itag = 0,ierr,npt
       integer, dimension(MPI_STATUS_SIZE) :: status
  
       emmin=c*ds/rearth
       rmaxsq=1./c**2
       csq=-4.5*c**2
-      til=il_g*il_g
 
       npt=il_g/nproc
       ns=myid*npt+1
       ne=(myid+1)*npt
       if ((myid+1).eq.nproc) ne=il_g
-
-      qsum=1.
                  
       do ipass=3,5
 
@@ -1492,19 +1481,14 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               do n=1,4*il_g
                 call getiq(iq,j,n,ipass,il_g)
                 iq1=(j-ns)*4*il_g+n
-		psum(iq1)=qsum(iq)
                 pp(iq1)=psls(iq)
-                do k=kbotdav,kl
-                  pu(iq1,k)=uu(iq,k)
-                  pv(iq1,k)=vv(iq,k)
-                  pw(iq1,k)=ww(iq,k)
-                  pt(iq1,k)=tt(iq,k)
-                  pq(iq1,k)=qgg(iq,k)
-                end do
+                pu(iq1,:)=uu(iq,:)
+                pv(iq1,:)=vv(iq,:)
+                pw(iq1,:)=ww(iq,:)
+                pt(iq1,:)=tt(iq,:)
+                pq(iq1,:)=qgg(iq,:)
               end do
             end do
-            call MPI_SSend(psum(1:n1),n1,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,ierr) 
             call MPI_SSend(pp(1:n1),n1,MPI_REAL,iproc,itag,
      &             MPI_COMM_WORLD,ierr)    
             do k=kbotdav,kl
@@ -1524,8 +1508,6 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           ne=npt
         else
           n1=(ne-ns+1)*4*il_g
-          call MPI_Recv(psum(1:n1),n1,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,status,ierr)
           call MPI_Recv(pp(1:n1),n1,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,status,ierr)
           do k=kbotdav,kl
@@ -1544,15 +1526,12 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             do n=1,4*il_g
               call getiq(iq,j,n,ipass,il_g)
               iq1=(j-ns)*4*il_g+n
-	      qsum(iq)=psum(iq1)
               psls(iq)=pp(iq1)
-              do k=kbotdav,kl
-                uu(iq,k)=pu(iq1,k)
-                vv(iq,k)=pv(iq1,k)
-                ww(iq,k)=pw(iq1,k)
-                tt(iq,k)=pt(iq1,k)
-                qgg(iq,k)=pq(iq1,k)
-              end do
+              uu(iq,:)=pu(iq1,:)
+              vv(iq,:)=pv(iq1,:)
+              ww(iq,:)=pw(iq1,:)
+              tt(iq,:)=pt(iq1,:)
+              qgg(iq,:)=pq(iq1,:)
             end do
           end do
         end if
@@ -1581,7 +1560,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   else
                     wgtb=exp(r*csq)	! lambda_min = 3 sigmas => -4.5
                     wgt=wgtb/em_g(iq) ! wrong units but the weights are rescaled so that sum(wgt)=1
-                    psum(iq1)=psum(iq1)+wgt*qsum(iq)
+                    psum(iq1)=psum(iq1)+wgt
                     pp(iq1)=pp(iq1)+wgt*psls(iq)
                     pu(iq1,:)=pu(iq1,:)+wgt*uu(iq,:)
                     pv(iq1,:)=pv(iq1,:)+wgt*vv(iq,:)
@@ -1590,7 +1569,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                     pq(iq1,:)=pq(iq1,:)+wgt*qgg(iq,:)
                   end if
                   wgt=wgtb/em_g(iq1) ! correct units are ((ds/rearth)/em_g)**2
-                  psum(iq)=psum(iq)+wgt*qsum(iq1)
+                  psum(iq)=psum(iq)+wgt
                   pp(iq)=pp(iq)+wgt*psls(iq1)
                   pu(iq,:)=pu(iq,:)+wgt*uu(iq1,:)
                   pv(iq,:)=pv(iq,:)+wgt*vv(iq1,:)
@@ -1599,13 +1578,12 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                   pq(iq,:)=pq(iq,:)+wgt*qgg(iq1,:)
                 end if
               end do
-	      qsum(iq)=psum(iq)
-              psls(iq)=pp(iq)
-              uu(iq,:)=pu(iq,:)
-              vv(iq,:)=pv(iq,:)
-              ww(iq,:)=pw(iq,:)
-              tt(iq,:)=pt(iq,:)
-              qgg(iq,:)=pq(iq,:)
+              psls(iq)=pp(iq)/psum(iq)
+              uu(iq,:)=pu(iq,:)/psum(iq)
+              vv(iq,:)=pv(iq,:)/psum(iq)
+              ww(iq,:)=pw(iq,:)/psum(iq)
+              tt(iq,:)=pt(iq,:)/psum(iq)
+              qgg(iq,:)=pq(iq,:)/psum(iq)
             end if
           end do
         end do
@@ -1617,8 +1595,6 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             ne=(iproc+1)*npt
             if ((iproc+1).eq.nproc) ne=il_g
             n1=(ne-ns+1)*4*il_g
-            call MPI_Recv(psum(1:n1),n1,MPI_REAL,iproc
-     &             ,itag,MPI_COMM_WORLD,status,ierr)
             call MPI_Recv(pp(1:n1),n1,MPI_REAL,iproc
      &             ,itag,MPI_COMM_WORLD,status,ierr)
             do k=kbotdav,kl
@@ -1637,15 +1613,12 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               do n=1,4*il_g
                 call getiq(iq,j,n,ipass,il_g)
                 iq1=(j-ns)*4*il_g+n
-                qsum(iq)=psum(iq1)		
                 psls(iq)=pp(iq1)
-                do k=kbotdav,kl
-                  uu(iq,k)=pu(iq1,k)
-                  vv(iq,k)=pv(iq1,k)
-                  ww(iq,k)=pw(iq1,k)
-                  tt(iq,k)=pt(iq1,k)
-                  qgg(iq,k)=pq(iq1,k)
-                end do
+                uu(iq,:)=pu(iq1,:)
+                vv(iq,:)=pv(iq1,:)
+                ww(iq,:)=pw(iq1,:)
+                tt(iq,:)=pt(iq1,:)
+                qgg(iq,:)=pq(iq1,:)
               end do
             end do
           end do
@@ -1655,19 +1628,14 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             do n=1,4*il_g
               call getiq(iq,j,n,ipass,il_g)
               iq1=(j-ns)*4*il_g+n
-	      psum(iq1)=qsum(iq)
               pp(iq1)=psls(iq)
-              do k=kbotdav,kl
-                pu(iq1,k)=uu(iq,k)
-                pv(iq1,k)=vv(iq,k)
-                pw(iq1,k)=ww(iq,k)
-                pt(iq1,k)=tt(iq,k)
-                pq(iq1,k)=qgg(iq,k)
-              end do
+              pu(iq1,:)=uu(iq,:)
+              pv(iq1,:)=vv(iq,:)
+              pw(iq1,:)=ww(iq,:)
+              pt(iq1,:)=tt(iq,:)
+              pq(iq1,:)=qgg(iq,:)
             end do
           end do
-          call MPI_SSend(psum(1:n1),n1,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,ierr)
           call MPI_SSend(pp(1:n1),n1,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,ierr)
           do k=kbotdav,kl
@@ -1684,15 +1652,6 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           end do
         end if
         
-      end do
-      
-      psls(:)=psls(:)/qsum(:)
-      do k=kbotdav,kl
-        uu(:,k)=uu(:,k)/qsum(:)
-        vv(:,k)=vv(:,k)/qsum(:)
-        ww(:,k)=ww(:,k)/qsum(:)
-        tt(:,k)=tt(:,k)/qsum(:)
-        qgg(:,k)=qgg(:,k)/qsum(:)	
       end do
       
       return
