@@ -1059,9 +1059,9 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       do iq=ns,ne
         if (em_g(iq).gt.emmin) then
           r(:)=x_g(iq)*x_g(:)+y_g(iq)*y_g(:)+z_g(iq)*z_g(:)
-          r(:)=acos(min(r(:),1.))**2
+          r(:)=acos(max(min(r(:),1.),-1.))**2
           msk(:)=r(:).le.rmaxsq
-          where (msk(:))
+	  where (msk(:))
             r(:)=exp(r(:)*csq)/(em_g(:)**2) ! redefine r(:) as wgt(:)
           end where
           psum=sum(r(:),msk(:))
@@ -1269,7 +1269,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               do n1=n,maps(ipass)
                 call getiqx(iq1,j,n1,ipass,il_g)
                 r=x_g(iq)*x_g(iq1)+y_g(iq)*y_g(iq1)+z_g(iq)*z_g(iq1)
-                r=acos(min(r,1.))**2
+                r=acos(max(min(r,1.),-1.))**2
                 if (r.le.rmaxsq) then
                   if (iq.eq.iq1) then
                     wgtb=1.
@@ -1508,7 +1508,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               do n1=n,4*il_g
                 call getiq(iq1,j,n1,ipass,il_g)
                 r=x_g(iq)*x_g(iq1)+y_g(iq)*y_g(iq1)+z_g(iq)*z_g(iq1)
-                r=acos(min(r,1.))**2
+                r=acos(max(min(r,1.),-1.))**2
                 if (r.le.rmaxsq) then
                   if (iq.eq.iq1) then
                     wgtb=1.
