@@ -259,7 +259,7 @@ c       create the attributes of the header record of the file
       end
 c=======================================================================
       subroutine openhist(iarch,itype,dim,local,idnc)
-      use ateb
+      use ateb ! MJT - urban
       use cc_mpi
       implicit none
 
@@ -320,8 +320,7 @@ c     this routine creates attributes and writes output
       real cfrac
       common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
       real zsoil(ms)
-      real, dimension(ifull,1:3) :: roofgg,wallegg,wallwgg,roadgg ! MJT CHANGE - urban
-      real, dimension(ifull) :: roofwb,roadwb ! MJT CHANGE - urban
+      real, dimension(ifull,1:14) :: urban ! MJT CHANGE - urban
       real, dimension(ifull) :: dd,ee,ff ! MJT CHANGE - ecosystems
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
@@ -422,8 +421,8 @@ c       For time invariant surface fields
         call attrib(idnc,idim,2,'soilt',lname,'none',0.,40.,0)
         lname = 'Vegetation type'
         call attrib(idnc,idim,2,'vegt',lname,'none',0.,44.,0)
-        lname = 'Initial wetness fraction layer 3'
-        call attrib(idnc,idim,2,'wetfrac',lname,'none',-2.,2.,0)
+       ! lname = 'Initial wetness fraction layer 3'               ! MJT CHANGE - ecosystems
+       ! call attrib(idnc,idim,2,'wetfrac',lname,'none',-2.,2.,0) ! MJT CHANGE - ecosystems
 
 c       For time varying surface fields
         lname = 'Surface temperature'
@@ -499,13 +498,13 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         call attrib(idnc,idim,3,'taux',lname,'N/m2',-50.,50.,0)
         lname = 'y-component wind stress'
         call attrib(idnc,idim,3,'tauy',lname,'N/m2',-50.,50.,0)
-        lname = 'Soil moisture as frac FC levels 1-2'
-        call attrib(idnc,idim,3,'wbfshal',lname,'frac',0.,4.,0)
-        lname = 'Soil moisture as frac FC levels 3-4'
-        call attrib(idnc,idim,3,'wbfroot',lname,'frac',0.,4.,0)
-        lname = 'Soil moisture as frac FC levels 1-6'
-        call attrib(idnc,idim,3,'wbftot',lname,'frac',0.,4.,0)
-        if(nextout>=1) then
+       ! lname = 'Soil moisture as frac FC levels 1-2'           ! MJT CHANGE - ecosystems
+       ! call attrib(idnc,idim,3,'wbfshal',lname,'frac',0.,4.,0) ! MJT CHANGE - ecosystems
+       ! lname = 'Soil moisture as frac FC levels 3-4'           ! MJT CHANGE - ecosystems
+       ! call attrib(idnc,idim,3,'wbfroot',lname,'frac',0.,4.,0) ! MJT CHANGE - ecosystems
+       ! lname = 'Soil moisture as frac FC levels 1-6'           ! MJT CHANGE - ecosystems
+       ! call attrib(idnc,idim,3,'wbftot',lname,'frac',0.,4.,0)  ! MJT CHANGE - ecosystems
+        if(abs(nextout)>=1) then ! MJT CHANGE - nwp
           print *,'nextout=',nextout
           lname = 'LW at TOA'
           call attrib(idnc,idim,3,'rtu_ave',lname,'W/m2',0.,800.,0)
@@ -534,7 +533,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
           lname = 'friction velocity'
           call attrib(idnc,idim,3,'ustar',lname,'m/s',0.,10.,0)
         endif     ! (nextout>=1)
-        if(nextout>=2) then  ! 6-hourly u10, v10, tscr, rh1
+        if(abs(nextout)>=2) then  ! 6-hourly u10, v10, tscr, rh1 ! MJT CHANGE - nwp
          mnam ='x-component 10m wind '
          nnam ='y-component 10m wind '
          call attrib(idnc,idim,3,'u10_06',mnam//'6hr','m/s',-99.,99.,1)
@@ -556,7 +555,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          call attrib(idnc,idim,3,'rh1_18', nnam//'18hr','%',-9.,200.,1)
          call attrib(idnc,idim,3,'rh1_24', nnam//'24hr','%',-9.,200.,1)
         endif     ! (nextout>=2)
-        if(nextout>=3) then  ! also 3-hourly u10, v10, tscr, rh1
+        if(abs(nextout)>=3) then  ! also 3-hourly u10, v10, tscr, rh1 ! MJT CHANGE - nwp
          call attrib(idnc,idim,3,'tscr_03',mnam//'3hr', 'K',100.,400.,1)
          call attrib(idnc,idim,3,'tscr_09',mnam//'9hr', 'K',100.,400.,1)
          call attrib(idnc,idim,3,'tscr_15',mnam//'15hr','K',100.,400.,1)
@@ -589,18 +588,18 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         call attrib(idnc,idim,3,'tgg5',lname,'K',100.,400.,0)
         lname = 'Soil temperature lev 6'
         call attrib(idnc,idim,3,'tgg6',lname,'K',100.,400.,0)
-        lname = 'Soil moisture lev 1'
-        call attrib(idnc,idim,3,'wb1',lname,'m3/m3',0.,1.,0)
-        lname = 'Soil moisture lev 2'
-        call attrib(idnc,idim,3,'wb2',lname,'m3/m3',0.,1.,0)
-        lname = 'Soil moisture lev 3'
-        call attrib(idnc,idim,3,'wb3',lname,'m3/m3',0.,1.,0)
-        lname = 'Soil moisture lev 4'
-        call attrib(idnc,idim,3,'wb4',lname,'m3/m3',0.,1.,0)
-        lname = 'Soil moisture lev 5'
-        call attrib(idnc,idim,3,'wb5',lname,'m3/m3',0.,1.,0)
-        lname = 'Soil moisture lev 6'
-        call attrib(idnc,idim,3,'wb6',lname,'m3/m3',0.,1.,0)
+      !  lname = 'Soil moisture lev 1'                        ! MJT CHANGE - ecosystems
+      !  call attrib(idnc,idim,3,'wb1',lname,'m3/m3',0.,1.,0) ! MJT CHANGE - ecosystems
+      !  lname = 'Soil moisture lev 2'                        ! MJT CHANGE - ecosystems
+      !  call attrib(idnc,idim,3,'wb2',lname,'m3/m3',0.,1.,0) ! MJT CHANGE - ecosystems
+      !  lname = 'Soil moisture lev 3'                        ! MJT CHANGE - ecosystems
+      !  call attrib(idnc,idim,3,'wb3',lname,'m3/m3',0.,1.,0) ! MJT CHANGE - ecosystems
+      !  lname = 'Soil moisture lev 4'                        ! MJT CHANGE - ecosystems
+      !  call attrib(idnc,idim,3,'wb4',lname,'m3/m3',0.,1.,0) ! MJT CHANGE - ecosystems
+      !  lname = 'Soil moisture lev 5'                        ! MJT CHANGE - ecosystems
+      !  call attrib(idnc,idim,3,'wb5',lname,'m3/m3',0.,1.,0) ! MJT CHANGE - ecosystems
+      !  lname = 'Soil moisture lev 6'                        ! MJT CHANGE - ecosystems
+      !  call attrib(idnc,idim,3,'wb6',lname,'m3/m3',0.,1.,0) ! MJT CHANGE - ecosystems
         lname = 'Net radiation'
         call attrib(idnc,idim,3,'rnet',lname,'W/m2',-3000.,3000.,0)
         lname = 'Avg cloud base'
@@ -647,7 +646,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         endif  ! (ntrac.gt.0)
 
         print *,'3d variables'
-        if(nextout>=4.and.nllp==3)then 
+        if(abs(nextout)>=4.and.nllp==3)then  ! MJT CHANGE - nwp
           lname = 'Delta latitude'
           call attrib(idnc,dim,4,'del_lat',lname,'deg',-60.,60.,1)
           lname = 'Delta longitude'
@@ -670,7 +669,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          call attrib(idnc,dim,4,'cfrac','Cloud fraction','none',0.,1.,0)
         endif
 
-        if(itype==-1)then   ! extra stuff just written for restart file
+        if(itype==-1.or.nextout<0)then   ! extra stuff just written for restart file ! MJT CHANGE - nwp
          lname= 'sdot: change in grid spacing per time step +.5'
          call attrib(idnc,dim,4,'sdot',lname,'1/ts',-3.,3.,0) 
          lname = 'Soil ice lev 1'
@@ -707,26 +706,9 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          call attrib(idnc,idim,3,'snage',lname,'none',0.,20.,0)   
          lname = 'Snow flag'
          call attrib(idnc,idim,3,'sflag',lname,'none',0.,4.,0)
-        endif  ! (itype==-1)
-
-        !-------------------------------------------------------
-        ! MJT CHANGE - add wetfrac1-6 and possibly delete wb1-6 above
-        lname = 'Wetness fraction layer 1'
-        call attrib(idnc,idim,3,'wetfrac1',lname,'none',-2.,2.,0)
-        lname = 'Wetness fraction layer 2'
-        call attrib(idnc,idim,3,'wetfrac2',lname,'none',-2.,2.,0)
-        lname = 'Wetness fraction layer 3'
-        call attrib(idnc,idim,3,'wetfrac3',lname,'none',-2.,2.,0)
-        lname = 'Wetness fraction layer 4'
-        call attrib(idnc,idim,3,'wetfrac4',lname,'none',-2.,2.,0)
-        lname = 'Wetness fraction layer 5'
-        call attrib(idnc,idim,3,'wetfrac5',lname,'none',-2.,2.,0)
-        lname = 'Wetness fraction layer 6'
-        call attrib(idnc,idim,3,'wetfrac6',lname,'none',-2.,2.,0)
-        !-------------------------------------------------------        
-        !--------------------------------------------------------
-        ! MJT CHANGE - urban
-        if (nurban.eq.1) then
+         !--------------------------------------------------------
+         ! MJT CHANGE - urban
+         if (nurban.eq.1) then
           lname = 'roof temperature lev 1'
           call attrib(idnc,idim,3,'rooftgg1',lname,'K',100.,400.,0)
           lname = 'roof temperature lev 2'
@@ -752,11 +734,29 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
           lname = 'road temperature lev 3'
           call attrib(idnc,idim,3,'roadtgg3',lname,'K',100.,400.,0)
           lname = 'roof moisture'
-          call attrib(idnc,idim,3,'roofwb',lname,'mm',-0.1,1.1,0)
+          call attrib(idnc,idim,3,'roofwb',lname,'mm',0.,1.,0)
           lname = 'road moisture'
-          call attrib(idnc,idim,3,'roadwb',lname,'mm',-0.1,1.1,0)
-        end if
-        !--------------------------------------------------------
+          call attrib(idnc,idim,3,'roadwb',lname,'mm',0.,1.,0)
+         end if
+         !--------------------------------------------------------         
+        endif  ! (itype==-1)
+
+        !-------------------------------------------------------
+        ! MJT CHANGE - ecosystems
+        ! turn off wb1-6 above and replace with wetfrac1-6
+        lname = 'Wetness fraction layer 1'
+        call attrib(idnc,idim,3,'wetfrac1',lname,'none',-2.,2.,0)
+        lname = 'Wetness fraction layer 2'
+        call attrib(idnc,idim,3,'wetfrac2',lname,'none',-2.,2.,0)
+        lname = 'Wetness fraction layer 3'
+        call attrib(idnc,idim,3,'wetfrac3',lname,'none',-2.,2.,0)
+        lname = 'Wetness fraction layer 4'
+        call attrib(idnc,idim,3,'wetfrac4',lname,'none',-2.,2.,0)
+        lname = 'Wetness fraction layer 5'
+        call attrib(idnc,idim,3,'wetfrac5',lname,'none',-2.,2.,0)
+        lname = 'Wetness fraction layer 6'
+        call attrib(idnc,idim,3,'wetfrac6',lname,'none',-2.,2.,0)
+        !-------------------------------------------------------        
 
         print *,'finished defining attributes'
 c       Leave define mode
@@ -847,11 +847,9 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         call histwrt3(rsmin,'rsmin',idnc,iarch,local)
         call histwrt3(sigmf,'sigmf',idnc,iarch,local)
         !--------------------------------------------
-        ! MJT CHANGE - urban
+        ! MJT CHANGE - Urban
         aa=zolnd
-        if (nurban.eq.1) then
-          call tebzom(ifull,aa(:),zmin,sigmu(:),0)
-        end if
+        if (nurban.eq.1) call tebzom(ifull,aa(:),zmin,sigmu(:),0)
         call histwrt3(aa,'zolnd',idnc,iarch,local)
         !--------------------------------------------
         do iq=1,ifull
@@ -863,11 +861,11 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
          aa(iq)=ivegt(iq)
         enddo
         call histwrt3(aa,'vegt',idnc,iarch,local)
-        do iq=1,ifull
-         isoil=isoilm(iq)
-         aa(iq)=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
-        enddo
-        call histwrt3(aa,'wetfrac',idnc,iarch,local)
+      !  do iq=1,ifull                                             ! MJT CHANGE - ecosystems
+      !   isoil=isoilm(iq)                                         ! MJT CHANGE - ecosystems
+      !   aa(iq)=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil)) ! MJT CHANGE - ecosystems
+      !  enddo                                                     ! MJT CHANGE - ecosystems
+      !  call histwrt3(aa,'wetfrac',idnc,iarch,local)              ! MJT CHANGE - ecosystems
       endif ! (ktau==0.or.itype==-1) 
 
       call histwrt3(zs,'zht',idnc,iarch,local)   ! always from 13/9/02
@@ -884,26 +882,26 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       call histwrt3(tgg(1,4),'tgg4',idnc,iarch,local)
       call histwrt3(tgg(1,5),'tgg5',idnc,iarch,local)
       call histwrt3(tgg(1,6),'tgg6',idnc,iarch,local)
-      call histwrt3(wb(1,1),'wb1',idnc,iarch,local)
-      call histwrt3(wb(1,2),'wb2',idnc,iarch,local)
-      call histwrt3(wb(1,3),'wb3',idnc,iarch,local)
-      call histwrt3(wb(1,4),'wb4',idnc,iarch,local)
-      call histwrt3(wb(1,5),'wb5',idnc,iarch,local)
-      call histwrt3(wb(1,6),'wb6',idnc,iarch,local)
-      do iq=1,ifull
-!      calculate wb/field_capacity;  up to 3.0 for sand (isoil=1)	   
-       isoil=isoilm(iq)
-       aa(iq)=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2))/
-     .	       ((zse(1)+zse(2))*sfc(isoil))
-       bb(iq)=(zse(3)*wb(iq,3)+zse(4)*wb(iq,4))/
-     .	       ((zse(3)+zse(4))*sfc(isoil))
-       cc(iq)=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)+
-     .         zse(4)*wb(iq,4)+zse(5)*wb(iq,5)+zse(6)*wb(iq,6))/
-     .	       ((zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6))*sfc(isoil))
-      enddo
-      call histwrt3(aa,'wbfshal',idnc,iarch,local)
-      call histwrt3(bb,'wbfroot',idnc,iarch,local)
-      call histwrt3(cc,'wbftot',idnc,iarch,local)
+    !  call histwrt3(wb(1,1),'wb1',idnc,iarch,local)                    ! MJT CHANGE - ecosystems
+    !  call histwrt3(wb(1,2),'wb2',idnc,iarch,local)                    ! MJT CHANGE - ecosystems
+    !  call histwrt3(wb(1,3),'wb3',idnc,iarch,local)                    ! MJT CHANGE - ecosystems
+    !  call histwrt3(wb(1,4),'wb4',idnc,iarch,local)                    ! MJT CHANGE - ecosystems
+    !  call histwrt3(wb(1,5),'wb5',idnc,iarch,local)                    ! MJT CHANGE - ecosystems
+    !  call histwrt3(wb(1,6),'wb6',idnc,iarch,local)                    ! MJT CHANGE - ecosystems
+    !  do iq=1,ifull                                                    ! MJT CHANGE - ecosystems
+!   !   calculate wb/field_capacity;  up to 3.0 for sand (isoil=1)      ! MJT CHANGE - ecosystems	   
+    !   isoil=isoilm(iq)                                                ! MJT CHANGE - ecosystems
+    !   aa(iq)=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2))/                       ! MJT CHANGE - ecosystems
+    ! .	       ((zse(1)+zse(2))*sfc(isoil))                             ! MJT CHANGE - ecosystems
+    !   bb(iq)=(zse(3)*wb(iq,3)+zse(4)*wb(iq,4))/                       ! MJT CHANGE - ecosystems
+    ! .	       ((zse(3)+zse(4))*sfc(isoil))                             ! MJT CHANGE - ecosystems
+    !   cc(iq)=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)+        ! MJT CHANGE - ecosystems
+    ! .         zse(4)*wb(iq,4)+zse(5)*wb(iq,5)+zse(6)*wb(iq,6))/       ! MJT CHANGE - ecosystems
+    ! .	       ((zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6))*sfc(isoil)) ! MJT CHANGE - ecosystems
+    !  enddo                                                            ! MJT CHANGE - ecosystems
+    !  call histwrt3(aa,'wbfshal',idnc,iarch,local)                     ! MJT CHANGE - ecosystems
+    !  call histwrt3(bb,'wbfroot',idnc,iarch,local)                     ! MJT CHANGE - ecosystems
+    !  call histwrt3(cc,'wbftot',idnc,iarch,local)                      ! MJT CHANGE - ecosystems
       call histwrt3(sicedep,'siced',idnc,iarch,local)
       call histwrt3(fracice,'fracice',idnc,iarch,local)
 c     call histwrt3(snowd,'snd',idnc,iarch,local)
@@ -946,7 +944,7 @@ c     call histwrt3(snowd,'snd',idnc,iarch,local)
          call histwrt3(rnd_3hr(1,6),'rnd18',idnc,iarch,local)
          call histwrt3(rnd_3hr(1,7),'rnd21',idnc,iarch,local)
          call histwrt3(rnd_3hr(1,8),'rnd24',idnc,iarch,local)
-         if(nextout>=2) then ! 6-hourly u10 & v10
+         if(abs(nextout)>=2) then ! 6-hourly u10 & v10 ! MJT CHANGE - nwp
            call histwrt3( u10_3hr(1,2), 'u10_06',idnc,iarch,local)
            call histwrt3( v10_3hr(1,2), 'v10_06',idnc,iarch,local)
            call histwrt3(tscr_3hr(1,2),'tscr_06',idnc,iarch,local)
@@ -964,7 +962,7 @@ c     call histwrt3(snowd,'snd',idnc,iarch,local)
            call histwrt3(tscr_3hr(1,8),'tscr_24',idnc,iarch,local)
            call histwrt3( rh1_3hr(1,8), 'rh1_24',idnc,iarch,local)
          endif  ! (nextout>=2)
-         if(nextout>=3) then  ! also 3-hourly u10 & v10
+         if(abs(nextout)>=3) then  ! also 3-hourly u10 & v10 ! MJT CHANGE - nwp
            call histwrt3( u10_3hr(1,1), 'u10_03',idnc,iarch,local)
            call histwrt3( v10_3hr(1,1), 'v10_03',idnc,iarch,local)
            call histwrt3(tscr_3hr(1,1),'tscr_03',idnc,iarch,local)
@@ -982,7 +980,7 @@ c     call histwrt3(snowd,'snd',idnc,iarch,local)
            call histwrt3(tscr_3hr(1,7),'tscr_21',idnc,iarch,local)
            call histwrt3( rh1_3hr(1,7), 'rh1_21',idnc,iarch,local)
          endif  ! nextout>=3
-         if(nextout>=4.and.nllp==3) then  
+         if(abs(nextout)>=4.and.nllp==3) then  ! MJT CHANGE - nwp
 c         print *,'before corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
           do k=1,klt
            do iq=1,ilt*jlt        
@@ -1033,7 +1031,7 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
        call histwrt3(taux,'taux',idnc,iarch,local)
        call histwrt3(tauy,'tauy',idnc,iarch,local)
 c      "extra" outputs
-       if(nextout>=1) then
+       if(abs(nextout)>=1) then ! MJT CHANGE - nwp
          if(myid == 0 ) print *,'nextout, idnc: ',nextout,idnc
          if(mod(ktau,nperavg)==0.or.ktau==ntau)then
            call histwrt3(rtu_ave,'rtu_ave',idnc,iarch,local)
@@ -1079,7 +1077,7 @@ c      "extra" outputs
        enddo ! igas loop
       endif  ! (ngasc>0)
 
-      if(itype==-1)then   ! extra stuff just needed for restart file
+      if(itype==-1.or.nextout<0)then   ! extra stuff just needed for restart file ! MJT CHANGE - nwp
        call histwrt4(sdot(1,2),'sdot',idnc,iarch,local)
        call histwrt3(wbice(1,1),'wbice1',idnc,iarch,local)
        call histwrt3(wbice(1,2),'wbice2',idnc,iarch,local)
@@ -1101,9 +1099,30 @@ c      "extra" outputs
         aa(iq)=isflag(iq)
        enddo
        call histwrt3(aa,'sflag',idnc,iarch,local)
+       !---------------------------------------------------------
+       ! MJT CHANGE - urban
+       if (nurban.eq.1) then
+        call tebsave(ifull,urban,0)
+        call histwrt3(urban(:,1),'rooftgg1',idnc,iarch,local)
+        call histwrt3(urban(:,2),'rooftgg2',idnc,iarch,local)
+        call histwrt3(urban(:,3),'rooftgg3',idnc,iarch,local)
+        call histwrt3(urban(:,4),'waletgg1',idnc,iarch,local)
+        call histwrt3(urban(:,5),'waletgg2',idnc,iarch,local)
+        call histwrt3(urban(:,6),'waletgg3',idnc,iarch,local)
+        call histwrt3(urban(:,7),'walwtgg1',idnc,iarch,local)
+        call histwrt3(urban(:,8),'walwtgg2',idnc,iarch,local)
+        call histwrt3(urban(:,9),'walwtgg3',idnc,iarch,local)
+        call histwrt3(urban(:,10),'roadtgg1',idnc,iarch,local)
+        call histwrt3(urban(:,11),'roadtgg2',idnc,iarch,local)
+        call histwrt3(urban(:,12),'roadtgg3',idnc,iarch,local)
+        call histwrt3(urban(:,13),'roofwb',idnc,iarch,local)
+        call histwrt3(urban(:,14),'roadwb',idnc,iarch,local)
+       end if
+       !---------------------------------------------------------
       endif  ! (itype==-1)
       !---------------------------------------------------------
-      ! MJT CHANGE - Add wetfrac1-6 and possibly remove wb1-6 above
+      ! MJT CHANGE - ecosystems
+      ! turn off wb1-6 above and replace with wetfrac1-6
       do iq=1,ifull
        isoil=isoilm(iq)
        aa(iq)=(wb(iq,1)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
@@ -1119,27 +1138,6 @@ c      "extra" outputs
       call histwrt3(dd,'wetfrac4',idnc,iarch,local)
       call histwrt3(ee,'wetfrac5',idnc,iarch,local)
       call histwrt3(ff,'wetfrac6',idnc,iarch,local)
-      !---------------------------------------------------------
-      !---------------------------------------------------------
-      ! MJT CHANGE - urban
-      if (nurban.eq.1) then
-        call tebsave(ifull,roofgg,wallegg,wallwgg,roadgg
-     &               ,roofwb,roadwb,0)
-        call histwrt3(roofgg(:,1),'rooftgg1',idnc,iarch,local)
-        call histwrt3(roofgg(:,2),'rooftgg2',idnc,iarch,local)
-        call histwrt3(roofgg(:,3),'rooftgg3',idnc,iarch,local)
-        call histwrt3(wallegg(:,1),'waletgg1',idnc,iarch,local)
-        call histwrt3(wallegg(:,2),'waletgg2',idnc,iarch,local)
-        call histwrt3(wallegg(:,3),'waletgg3',idnc,iarch,local)
-        call histwrt3(wallwgg(:,1),'walwtgg1',idnc,iarch,local)
-        call histwrt3(wallwgg(:,2),'walwtgg2',idnc,iarch,local)
-        call histwrt3(wallwgg(:,3),'walwtgg3',idnc,iarch,local)
-        call histwrt3(roadgg(:,1),'roadtgg1',idnc,iarch,local)
-        call histwrt3(roadgg(:,2),'roadtgg2',idnc,iarch,local)
-        call histwrt3(roadgg(:,3),'roadtgg3',idnc,iarch,local)
-        call histwrt3(roofwb(:),'roofwb',idnc,iarch,local)
-        call histwrt3(roadwb(:),'roadwb',idnc,iarch,local)
-      end if
       !---------------------------------------------------------
 
       return

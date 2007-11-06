@@ -124,8 +124,7 @@
 !    &              .05,.85,.85,.55,.65,.2,.05,.5, .0, .0, 0.,         ! 21-31
       real, dimension(ifull_g) :: glob2d
       real, dimension(ifull_g) :: davt_g
-      real, dimension(ifull,1:3) :: roofgg,wallegg,wallwgg,roadgg ! MJT CHANGE
-      real, dimension(ifull) :: roofwb,roadwb ! MJT CHANGE
+      real, dimension(ifull,1:14) :: urban ! MJT CHANGE - urban
 
       call start_log(indata_begin)
       bam(1)=114413.
@@ -270,7 +269,7 @@ c         print *,'this one uses supplied eigs'
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
      &           tgg,wb,wbice,alb,snowd,
      &           tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &           roofgg,wallegg,wallwgg,roadgg,roofwb,roadwb)  ! MJT CHANGE add urban types
+     &           urban,isoilm)  ! MJT CHANGE add urban and soil type
             if ( mydiag ) then
                print *,'timegb,ds,zss',timegb,ds,zss(idjd)
                print *,'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
@@ -305,7 +304,7 @@ c           endif  ! (nspecial>100)
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
      &           tgg,wb,wbice,snowd,
      &           tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &           roofgg,wallegg,wallwgg,roadgg,roofwb,roadwb) ! MJT CHANGE add urban types
+     &           urban) ! MJT CHANGE add urban types
          endif   ! (io_in==-1.or.io_in==-3)
  
          if(nproc==1)then
@@ -1789,17 +1788,16 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           sigmu(:)=0.
         end where
         call tebinit(ifull,sigmu(:),rlongg(:),rlatt(:),0)
-        if (any(roofgg(:,:).lt.0.)) then
+        if (any(urban(:,1).lt.0.)) then
           if (mydiag) print *,"Using urban default temperatures"
           call tebdefault(ifull,tgg(:,1),tgg(:,ms),0)
         else
           if (mydiag) print *,"Loading urban temperatures"
-          call tebload(ifull,roofgg,wallegg,wallwgg,roadgg
-     &                 ,roofwb,roadwb,0)
+          call tebload(ifull,urban,0)
         end if
       else
         sigmu(:)=0.
-	call tebdisable(0)
+        call tebdisable(0) ! disable urban
       end if
       !-----------------------------------------------------------------
      
@@ -1844,15 +1842,16 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
          sigmf(:)=0.01*sigmf(:)
        else    ! usual, nsib<5
          call readint(vegfile,ivegt,ifull)
-       endif  ! (nsib==5) .. else .
-       ! MJT CHANGE -------------------------------
+       endif  ! (nsib==5) .. else ..
+       !------------------------------------------------
+       ! MJT CHANGE - urban
        if (nurban==1) then
-         call readreal('urban',sigmu,ifull)       
+         call readreal('urban',sigmu,ifull)
          sigmu(:)=0.01*sigmu(:)
        else
-         sigmu(:)=0.       
+         sigmu(:)=0.
        end if
-       ! MJT CHANGE -------------------------------
+       ! -----------------------------------------------
 
        mismatch = .false.
        if( rdatacheck(land,alb,'alb',idatafix,falbdflt))

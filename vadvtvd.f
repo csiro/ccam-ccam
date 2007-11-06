@@ -498,7 +498,7 @@ c        enddo   ! iq loop
        endif
       endif      ! if(ldr.ne.0)
 
-      if(ngas>0.or.nextout>=4)then
+      if(ngas>0.or.abs(nextout)>=4)then ! MJT CHANGE - nwp
       do ntr=1,ntrac
       do k=1,kl-1
        do iq=1,ifull

@@ -3,7 +3,7 @@
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                  tgg,wb,wbice,alb,snowd,
      .                  tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                  roofgg,wallegg,wallwgg,roadgg,roofwb,roadwb) ! MJT CHANGE add urban types
+     .                  urban,isoilm) ! MJT CHANGE add urban and soil for land/sea mask
 !     note kk; vertint.f is attached below
 !     kdate_r and ktime_r are returned from this routine.
 !     They must equal or exceed kdate_s and ktime_s
@@ -37,8 +37,8 @@
      . t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      . ssdnn(ifull),snage(ifull),
-     . roofgg(ifull,3),wallegg(ifull,3),wallwgg(ifull,3), ! MJT CHANGE add urban types
-     . roadgg(ifull,3),roofwb(ifull),roadwb(ifull) ! MJT CHANGE add urban types
+     . urban(ifull,1:14) ! MJT CHANGE add urban types
+      integer isoilm(ifull) ! MJT CHANGE add soil type
       integer isflag(ifull)
       integer ktau_r, ibb, jbb, i
       integer ini,inj,ink,m2,nsd2,mesi,nbd2
@@ -492,26 +492,30 @@ c 	    only being tested for nested=0; no need to test for mesonest
           wb(:,:)=-abs(wb(:,:)) ! flag to indicate wetfrac, not volumetric soil moisture (unpacked in indata)
         end if
 
-        roofgg=-1.
-        call histrd1(ncid,iarchi,ierr,'rooftgg1',ik,jk,roofgg(:,1))
+        urban=-1.
+        call histrd1(ncid,iarchi,ierr,'rooftgg1',ik,jk,urban(:,1))
         if (ierr==0) then
-          call histrd1(ncid,iarchi,ierr,'rooftgg2',ik,jk,roofgg(:,2))
-          call histrd1(ncid,iarchi,ierr,'rooftgg3',ik,jk,roofgg(:,3))
-          call histrd1(ncid,iarchi,ierr,'waletgg1',ik,jk,wallegg(:,1))
-          call histrd1(ncid,iarchi,ierr,'waletgg2',ik,jk,wallegg(:,2))
-          call histrd1(ncid,iarchi,ierr,'waletgg3',ik,jk,wallegg(:,3))
-          call histrd1(ncid,iarchi,ierr,'walwtgg1',ik,jk,wallwgg(:,1))
-          call histrd1(ncid,iarchi,ierr,'walwtgg2',ik,jk,wallwgg(:,2))
-          call histrd1(ncid,iarchi,ierr,'walwtgg3',ik,jk,wallwgg(:,3))
-          call histrd1(ncid,iarchi,ierr,'roadtgg1',ik,jk,roadgg(:,1))
-          call histrd1(ncid,iarchi,ierr,'roadtgg2',ik,jk,roadgg(:,2))
-          call histrd1(ncid,iarchi,ierr,'roadtgg3',ik,jk,roadgg(:,3))
-          call histrd1(ncid,iarchi,ierr,'roofwb',ik,jk,roofwb(:))
-          call histrd1(ncid,iarchi,ierr,'roadwb',ik,jk,roadwb(:))
+          call histrd1(ncid,iarchi,ierr,'rooftgg2',ik,jk,urban(:,2))
+          call histrd1(ncid,iarchi,ierr,'rooftgg3',ik,jk,urban(:,3))
+          call histrd1(ncid,iarchi,ierr,'waletgg1',ik,jk,urban(:,4))
+          call histrd1(ncid,iarchi,ierr,'waletgg2',ik,jk,urban(:,5))
+          call histrd1(ncid,iarchi,ierr,'waletgg3',ik,jk,urban(:,6))
+          call histrd1(ncid,iarchi,ierr,'walwtgg1',ik,jk,urban(:,7))
+          call histrd1(ncid,iarchi,ierr,'walwtgg2',ik,jk,urban(:,8))
+          call histrd1(ncid,iarchi,ierr,'walwtgg3',ik,jk,urban(:,9))
+          call histrd1(ncid,iarchi,ierr,'roadtgg1',ik,jk,urban(:,10))
+          call histrd1(ncid,iarchi,ierr,'roadtgg2',ik,jk,urban(:,11))
+          call histrd1(ncid,iarchi,ierr,'roadtgg3',ik,jk,urban(:,12))
+          call histrd1(ncid,iarchi,ierr,'roofwb',ik,jk,urban(:,13))
+          call histrd1(ncid,iarchi,ierr,'roadwb',ik,jk,urban(:,14))
         end if
+        
+        isoilm=-1
+        call histrd1(ncid,iarchi,ierr,'soilt',ik,jk,tmp(:))
+        isoilm(:)=nint(tmp(:))
         !----------------------------------------------------------------
         if(myid == 0)print *,'about to read snowd'
-        call histrd1(ncid,iarchi,ier,'snd',ik,jk,snowd) ! MJT CHANGE
+        call histrd1(ncid,iarchi,ier,'snd',ik,jk,snowd)
         if(ier.ne.0)then  ! preset snowd here if not avail.
 !         when no snowd available initially, e.g. COMPARE III (jlm formula)
           snowd(:)=0.      ! added Feb '05

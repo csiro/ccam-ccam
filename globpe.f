@@ -358,7 +358,7 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
       endif
 
       write (6, cardin)
-      if(nllp==0.and.nextout>=4)stop 'need nllp=3 for nextout>=4'
+      if(nllp==0.and.abs(nextout)>=4)stop 'need nllp=3 for nextout>=4' ! MJT CHANGE - nwp
       write (6, skyin)
       write (6, datafile)
       write(6, kuonml)
@@ -476,7 +476,7 @@ c     if(ndi2>0)diag=.true.
       call MPI_Reduce ( pwatr_l, pwatr, 1, MPI_REAL, MPI_SUM, 0,
      &                  MPI_COMM_WORLD, ierr )
       if ( myid == 0 ) write (6,"('pwatr0 ',12f7.3)") pwatr
-      if(nextout>=4)call setllp
+      if(abs(nextout)>=4)call setllp ! MJT CHANGE - nwp
       if(ntrac>0)then
         do ng=1,ntrac
          write (text,'("g",i1)')ng
@@ -1061,7 +1061,7 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
           write (6,"('omgf ',9f8.3/5x,9f8.3)")   ! in Pa/s
      &              ps(idjd)*omgf(idjd,:)
           write (6,"('sdot ',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
-          if(nextout>=4)write (6,"('xlat,long,pres ',3f8.2)")
+          if(abs(nextout)>=4)write (6,"('xlat,long,pres ',3f8.2)") ! MJT CHANGE - nwp
      &     tr(idjd,nlv,ngas+1),tr(idjd,nlv,ngas+2),tr(idjd,nlv,ngas+3)
           endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
         endif   ! (ntsur>1)
@@ -1228,7 +1228,7 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
       end if
       if(mod(ktau-1,nperday)+1==nper3hr(n3hr))then
         rnd_3hr(:,n3hr)=rnd_3hr(:,8)
-        if(nextout>=2)then
+        if(abs(nextout)>=2)then ! MJT CHANGE - nwp
           spare1(:)=max(.001,sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2))
           u10_3hr(:,n3hr)=u10(:)*u(1:ifull,1)/spare1(:)
           v10_3hr(:,n3hr)=u10(:)*v(1:ifull,1)/spare1(:)
@@ -1385,7 +1385,7 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
        u10max(:)=0.
         v10max(:)=0.
         rnd_3hr(:,8)=0.       ! i.e. rnd24(:)=0.
-        if(nextout>=4)call setllp ! from Nov 11, reset once per day
+        if(abs(nextout)>=4)call setllp ! from Nov 11, reset once per day ! MJT CHANGE - nwp
         if(namip>0)then
           if (myid==0)
      &    print *,'amipsst called at end of day for ktau,mtimer,namip ',

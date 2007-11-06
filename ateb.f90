@@ -23,14 +23,14 @@
 ! - Currently snow is neglected for urban cover.
 !
 ! - aTEB uses two walls instead of the TEB single wall.  Also, only up to 2nd order reflections are used for
-!   longwave and short wave radation in aTEB.  In TEB, infinite reflections are used for shortwave, but not long wave.
-!   The second wall allows the canyon to be orentated wrt the path of the sun (i.e., for planned urban model experiments),
-!   as well as supporting the TEB approach where all orentiations are assumed.
+!   longwave and short wave radation.  In TEB, infinite reflections are used for shortwave, but only 2nd order
+!   for long wave. The second wall allows the canyon to be orientated to the path of the sun (i.e., for later
+!   experiments), as well as supporting the TEB approach where all orentiations are assumed.
 !
 ! - aTEB allows model levels below the building height (i.e., inside the canyon).  This can probably be improved
 !   over time.
 !
-! - traffic and industry sensible fluxes as well as building confort temperatures should be time varying.
+! - may introduce time dependent traffic and industry fluxes as well as building temperatures (see Thatcher 2007).
 !
 
 
@@ -40,7 +40,7 @@ implicit none
 
 private
 public tebinit,tebcalc,tebend,tebzom,tebload,tebsave,tebdefault,tebtype,tebalb,tebfndef, &
-       tebnewangle,tebccangle
+       tebnewangle,tebccangle,tebdisable
 
 integer ufull,maxtype
 integer, dimension(:), allocatable :: ugrid,qgrid
@@ -89,10 +89,10 @@ integer, dimension(ifull) :: utype
 real, dimension(ifull), intent(in) :: sigmau,rlon,rlat
 real, dimension(:), allocatable :: dis
 
+if (diag.ne.0) write(6,*) "Initialising aTEB"
+
 ufull=count(sigmau.gt.0.)
 if (ufull.eq.0) return
-
-if (diag.ne.0) write(6,*) "Initialising aTEB"
 
 allocate(ugrid(ufull),qgrid(ifull))
 allocate(rooftemp(ufull,3),walletemp(ufull,3),wallwtemp(ufull,3),roadtemp(ufull,3))
@@ -142,22 +142,17 @@ do iq=1,ifull
   end if
 end do
 
-if (ufull.gt.0.) then
-  allocate(dis(ufull))
-  do iq=1,ifull
-    do iqu=1,ufull ! since ufull << ifull
-      iq1=ugrid(iqu)
-      dis(iqu)=abs(rlon(iq)-rlon(iq1))
-      if (dis(iqu).gt.pi) dis(iqu)=2.*pi-dis(iqu)
-      dis(iqu)=dis(iqu)**2+(rlat(iq)-rlat(iq1))**2
-    end do
-    iqmark=minloc(dis)
-    qgrid(iq)=iqmark(1)
-  end do
-  deallocate(dis)
-else
-  qgrid=1
-end if
+allocate(dis(ufull))
+do iq=1,ifull
+  dis(:)=abs(rlon(iq)-rlon(ugrid(:)))
+  where (dis(:).gt.pi)
+    dis(:)=2.*pi-dis(:)
+  end where
+  dis(:)=dis(:)**2+(rlat(iq)-rlat(ugrid(:)))**2
+  iqmark=minloc(dis)
+  qgrid(iq)=iqmark(1)
+end do
+deallocate(dis)
 
 ! Initialise state variables
 rooftemp=bldtemp
@@ -217,8 +212,8 @@ implicit none
 
 integer, intent(in) :: diag
 
-if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Deallocating aTEB arrays"
+if (ufull.eq.0) return
 
 deallocate(ugrid,qgrid)
 deallocate(rooftemp,walletemp,wallwtemp,roadtemp)
@@ -240,33 +235,28 @@ subroutine tebdefault(ifull,ta,tb,diag)
 implicit none
 
 integer, intent(in) :: ifull,diag
-integer iqu,iq
 real, dimension(1:ifull), intent(in) :: ta,tb
 real, dimension(1:ifull) :: tc
 
-if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Setting aTEB state array defaults"
 
-tc=tb
-where (tc.lt.250.)
-  tc=ta
+tc(:)=tb(:)
+where (tc(:).lt.250.)
+  tc(:)=ta(:)
 end where
 
-do iqu=1,ufull
-  iq=ugrid(iqu)
-  rooftemp(iqu,1)=ta(iq)
-  walletemp(iqu,1)=ta(iq)
-  wallwtemp(iqu,1)=ta(iq)
-  roadtemp(iqu,1)=ta(iq)
-  rooftemp(iqu,2)=0.3*ta(iq)+0.7*bldtemp
-  walletemp(iqu,2)=0.3*ta(iq)+0.7*bldtemp
-  wallwtemp(iqu,2)=0.3*ta(iq)+0.7*bldtemp
-  roadtemp(iqu,2)=0.3*ta(iq)+0.7*tc(iq)
-  rooftemp(iqu,3)=bldtemp
-  walletemp(iqu,3)=bldtemp
-  wallwtemp(iqu,3)=bldtemp
-  roadtemp(iqu,3)=tc(iq)
-end do
+rooftemp(:,1)=ta(ugrid(:))
+walletemp(:,1)=ta(ugrid(:))
+wallwtemp(:,1)=ta(ugrid(:))
+roadtemp(:,1)=ta(ugrid(:))
+rooftemp(:,2)=0.3*ta(ugrid(:))+0.7*bldtemp
+walletemp(:,2)=0.3*ta(ugrid(:))+0.7*bldtemp
+wallwtemp(:,2)=0.3*ta(ugrid(:))+0.7*bldtemp
+roadtemp(:,2)=0.3*ta(ugrid(:))+0.7*tc(ugrid(:))
+rooftemp(:,3)=bldtemp
+walletemp(:,3)=bldtemp
+wallwtemp(:,3)=bldtemp
+roadtemp(:,3)=tc(ugrid(:))
 
 return
 end subroutine tebdefault
@@ -274,31 +264,21 @@ end subroutine tebdefault
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! this subroutine loads aTEB state arrays (not compulsory)
 
-subroutine tebload(ifull,rooftempi,walletempi,wallwtempi,roadtempi,roofwateri,roadwateri,diag)
+subroutine tebload(ifull,urban,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
-integer iqu,iq
-real, dimension(ifull,3), intent(in) :: rooftempi,walletempi,wallwtempi,roadtempi
-real, dimension(ifull), intent(in) :: roofwateri,roadwateri
+real, dimension(ifull,14), intent(in) :: urban
 
-if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Load aTEB state arrays"
 
-do iqu=1,ufull
-  iq=ugrid(iqu)
-  rooftemp(iqu,:)=rooftempi(iq,:)
-  walletemp(iqu,:)=walletempi(iq,:)
-  wallwtemp(iqu,:)=wallwtempi(iq,:)
-  roadtemp(iqu,:)=roadtempi(iq,:)
-  roofwater(iqu)=roofwateri(iq)
-  roadwater(iqu)=roadwateri(iq)
-end do
-
-if (any(rooftemp(:,:).lt.250.)) then
-  write(6,*) "ERROR: Missing input data for tebload"
-end if
+rooftemp(:,:)=urban(ugrid(:),1:3)
+walletemp(:,:)=urban(ugrid(:),4:6)
+wallwtemp(:,:)=urban(ugrid(:),7:9)
+roadtemp(:,:)=urban(ugrid(:),10:12)
+roofwater(:)=urban(ugrid(:),13)
+roadwater(:)=urban(ugrid(:),14)
 
 return
 end subroutine tebload
@@ -312,16 +292,13 @@ implicit none
 
 integer, intent(in) :: ifull,diag
 integer, dimension(ifull), intent(in) :: itype
-integer iqu,iq,utype
+integer iqu
 
-if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Load aTEB type arrays"
 
 do iqu=1,ufull
-  iq=ugrid(iqu)
-  utype=itype(iq)
   
-  select case(utype)
+  select case(itype(ugrid(iqu)))
     case DEFAULT
       ! default urban (ecosystems 007,152,153,154 with differences in sigmau only)
       fnhwratio(iqu)=0.21
@@ -411,20 +388,14 @@ subroutine tebfndef(ifull,hwratioi,sigmabldi,industryfgi,trafficfgi,bldheighti,z
 implicit none
 
 integer, intent(in) :: ifull,diag
-integer iqu,iq
 real, dimension(ifull), intent(in) :: hwratioi,sigmabldi,industryfgi,trafficfgi,bldheighti,zoi
 
-if (ufull.eq.0) return
-
-do iqu=1,ufull
-  iq=ugrid(iqu)
-  fnhwratio(iqu)=hwratioi(iq)
-  fnsigmabld(iqu)=sigmabldi(iq)
-  fnindustryfg(iqu)=industryfgi(iq)
-  fntrafficfg(iqu)=trafficfgi(iq)
-  fnbldheight(iqu)=bldheighti(iq)
-  fnzo(iqu)=zoi(iq)
-end do
+fnhwratio(:)=hwratioi(ugrid(:))
+fnsigmabld(:)=sigmabldi(ugrid(:))
+fnindustryfg(:)=industryfgi(ugrid(:))
+fntrafficfg(:)=trafficfgi(ugrid(:))
+fnbldheight(:)=bldheighti(ugrid(:))
+fnzo(:)=zoi(ugrid(:))
 
 return
 end subroutine tebfndef
@@ -432,27 +403,26 @@ end subroutine tebfndef
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! this subroutine saves aTEB state arrays (not compulsory)
 
-subroutine tebsave(ifull,rooftempo,walletempo,wallwtempo,roadtempo,roofwatero,roadwatero,diag)
+subroutine tebsave(ifull,urban,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
 integer iqu,iq
-real, dimension(ifull,3), intent(out) :: rooftempo,walletempo,wallwtempo,roadtempo
-real, dimension(ifull), intent(out) :: roofwatero,roadwatero
+real, dimension(ifull,14), intent(out) :: urban
 
-if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Save aTEB state arrays"
-
-do iq=1,ifull
-  iqu=qgrid(iq)
-  rooftempo(iq,:)=rooftemp(iqu,:)
-  walletempo(iq,:)=walletemp(iqu,:)
-  wallwtempo(iq,:)=wallwtemp(iqu,:)
-  roadtempo(iq,:)=roadtemp(iqu,:)
-  roofwatero(iq)=roofwater(iqu)
-  roadwatero(iq)=roadwater(iqu)
-end do
+if (ufull.le.0) then
+  urban(:,1:12)=bldtemp
+  urban(:,13:14)=0.
+else
+  urban(:,1:3)=rooftemp(qgrid(:),:)
+  urban(:,4:6)=walletemp(qgrid(:),:)
+  urban(:,7:9)=wallwtemp(qgrid(:),:)
+  urban(:,10:12)=roadtemp(qgrid(:),:)
+  urban(:,13)=roofwater(qgrid(:))
+  urban(:,14)=roadwater(qgrid(:))
+end if
 
 return
 end subroutine tebsave
@@ -466,20 +436,14 @@ subroutine tebzom(ifull,zo,zmin,sigmau,diag)
 implicit none
 
 integer, intent(in) :: ifull,diag
-integer iqu,iq
 real, intent(in) :: zmin
 real, dimension(ifull), intent(inout) :: zo
 real, dimension(ifull), intent(in) :: sigmau
-real zotemp
 
-if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Blend urban roughness length"
 
-do iqu=1,ufull
-  iq=ugrid(iqu)
-  zotemp=(1.-sigmau(iq))/log(zmin/zo(iq))**2+sigmau(iq)/log(zmin/fnzo(iqu))**2
-  zo(iq)=zmin*exp(-1./sqrt(zotemp))
-end do
+zo(ugrid(:))=zmin*exp(-1./sqrt((1.-sigmau(ugrid(:)))/log(zmin/zo(ugrid(:)))**2 &
+  +sigmau(ugrid(:))/log(zmin/fnzo(:))**2))
 
 return
 end subroutine tebzom
@@ -496,7 +460,6 @@ integer iq,iqu
 real, dimension(ifull), intent(out) :: alb
 real wallesg,wallwsg,roadsg,wallpsi,roadpsi
 
-if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Calculate urban albedo"
 
 alb=0.
@@ -524,7 +487,6 @@ integer iqu,iq,ip
 real, dimension(ifull), intent(in) :: cosin
 real, dimension(ifull), intent(in) :: azimuthin
 
-if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Update solar zenith angle and azimuth angle"
 
 do iqu=1,ufull
@@ -550,13 +512,8 @@ real, intent(in) :: fjd,slag,dhr,dlt
 real, dimension(ifull), intent(in) :: cosin,rlon,rlat
 real, dimension(ifull) :: hloc,azimuth,x,y
 
-if (ufull.eq.0) return
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! from zenith.f
 hloc(:) = 2.*pi*fjd+slag+pi+rlon(:)+dhr*pi/24.
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 ! estimate azimuth angle
 x(:)=sin(-hloc(:))*cos(dlt)
@@ -619,7 +576,6 @@ real tempc,mixrc,sigr,tempr,mixrr,dzmin
 data firstcall/0/
 save firstcall
 
-if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Evaluating aTEB"
 
 do iqu=1,ufull
@@ -805,11 +761,12 @@ do iqu=1,ufull
       roadadjw(iqu)=roadorgw
   
     end if
-     
-    roofdumtemp(:)=min(max(roofdumtemp(:),250.),350.)
-    walledumtemp(:)=min(max(walledumtemp(:),250.),350.)
-    wallwdumtemp(:)=min(max(wallwdumtemp(:),250.),350.)
-    roaddumtemp(:)=min(max(roaddumtemp(:),250.),350.)
+    
+    ! limit temperatures to sensible values 
+    roofdumtemp(:)=min(max(roofdumtemp(:),225.),375.)
+    walledumtemp(:)=min(max(walledumtemp(:),225.),375.)
+    wallwdumtemp(:)=min(max(wallwdumtemp(:),225.),375.)
+    roaddumtemp(:)=min(max(roaddumtemp(:),225.),375.)
     roofdumwat=min(max(roofdumwat,0.),maxroofwater)
     roaddumwat=min(max(roaddumwat,0.),maxroadwater)
   end do
@@ -864,7 +821,7 @@ real, intent(in) :: zo,zmin,stemp,theta,umag
 real, intent(out) :: invres,cd
 real zolog,af,aft,xx,ri,fm,fh,factch,root,denma,denha,vmag
 real rimax
-real, parameter :: bprm = 5.
+real, parameter :: bprm=5.
 real, parameter :: chs=2.6
 real, parameter :: cms=5.
 real, parameter :: fmroot=0.57735
@@ -967,6 +924,20 @@ evct=topfg-(roadfg+hwratio*(wallefg+wallwfg)+efftrafficfg)
 
 return
 end subroutine solvecanyon
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+subroutine tebdisable(diag)
+
+implicit none
+
+integer, intent(in) :: diag
+
+if (diag.ne.0) write(6,*) "Disable aTEB"
+ufull=0
+
+return
+end subroutine tebdisable
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end module ateb

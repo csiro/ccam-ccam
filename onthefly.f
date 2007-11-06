@@ -3,7 +3,7 @@
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                    roofgg,wallegg,wallwgg,roadgg,roofwb,roadwb) ! MJT CHANGE add urban types
+     .                    urban) ! MJT CHANGE add urban types
 !     Target points use values interpolated to their 4 grid "corners";
 !     these corner values are then averaged to the grid centres
 !     N.B. this means will get different fields with io_in=-1 from io_in=1
@@ -58,8 +58,8 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      & ssdnn(ifull),snage(ifull),
-     & roofgg(ifull,3),wallegg(ifull,3),wallwgg(ifull,3), ! MJT CHANGE - urban
-     & roadgg(ifull,3),roofwb(ifull),roadwb(ifull) ! MJT CHANGE - urban
+     & urban(ifull,14) ! MJT CHANGE add urban types
+      integer isoilm_h(ifull) ! MJT add soil type
       ! Dummy variables here replace the aliasing use of aa, bb in infile call
       real, dimension(ifull) :: dum5
       integer isflag(ifull)
@@ -90,7 +90,7 @@ c     zs_t(:)=zs(1:ifull)
          bz_t(:) = bz_g(:)
 
 c     start of processing loop 
-      nemi=2   !  assume source land-mask based on tss sign first
+      nemi=3 ! MJT CHANGE - use soil type for land-mask
       if(ktau<3.and.myid==0)print *,'search for kdate_s,ktime_s >= ',
      &                                          kdate_s,ktime_s
       id_t=id
@@ -110,7 +110,7 @@ c     start of processing loop
      &            psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &            tgg,wb,wbice,dum5,snowd,  ! dum5 is alb
      &            tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &            roofgg,wallegg,wallwgg,roadgg,roofwb,roadwb) ! MJT CHANGE add urban types
+     &            urban,isoilm_h) ! MJT CHANGE add urban types
       else
         call infil(nested,kdate_r,ktime_r,timegb,ds,
      &            psl,zss,tss,sicedep,fracice,t,u,v,qg)
@@ -283,6 +283,13 @@ c      endif
 !     below we interpolate quantities which may be affected by land-sea mask
 
 !     set up land-sea mask from either tss or zss
+      !-------------------------------------------
+      ! MJT CHANGE
+      if(nemi==3)then 
+        land(:)=isoilm_h(:).ne.0
+        if (any(isoilm_h(:).lt.0)) nemi=2
+      end if
+      !-------------------------------------------
       if(nemi==2)then
          numneg=0
          do iq=1,ifull
@@ -383,16 +390,11 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
          call doints4(wb(1,k) ,nface4,xg4,yg4,nord,ik)
         enddo
         !--------------------------------------------------
-        ! MJT CHANGE - urban
+        ! MJT CHANGE
         if (nurban.eq.1) then
-          do k=1,3
-            call doints4(roofgg(:,k),nface4,xg4,yg4,nord,ik)
-            call doints4(wallegg(:,k),nface4,xg4,yg4,nord,ik)
-            call doints4(wallwgg(:,k),nface4,xg4,yg4,nord,ik)
-            call doints4(roadgg(:,k),nface4,xg4,yg4,nord,ik)
+          do k=1,14
+            call doints4(urban(:,k),nface4,xg4,yg4,nord,ik)
           end do
-          call doints4(roofwb(:),nface4,xg4,yg4,nord,ik)
-          call doints4(roadwb(:),nface4,xg4,yg4,nord,ik)
         end if
         !--------------------------------------------------
 c       incorporate target land mask effects for initial fields
