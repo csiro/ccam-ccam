@@ -59,7 +59,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      & ssdnn(ifull),snage(ifull),
      & urban(ifull,14) ! MJT CHANGE add urban types
-      integer isoilm_h(ifull) ! MJT add soil type
+      integer, save :: isoilm_h(ifull) ! MJT add soil type
       ! Dummy variables here replace the aliasing use of aa, bb in infile call
       real, dimension(ifull) :: dum5
       integer isflag(ifull)
