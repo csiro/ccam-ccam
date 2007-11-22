@@ -251,15 +251,10 @@ c       call maxmin(wbfice,'ic',ktau,1.,6)
           wbice(iq,k)=min(wbice(iq,k)+sicefreeze/
      &                (zse(k)*1000.),.99*wb(iq,k))
 c         wbice(iq,k)=max(wbice(iq,k),0.)  ! superfluous
-!         gammzz(iq,k)=calgammv(iq,isoil,k,wb(iq,k)-wbice(iq,k),wbice(iq,k))
-c         gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
-c    &     +(wb(iq,k)-wbice(iq,k))*cswat*rhowat + wbice(iq,k)*csice*
-c    &      rhowat*.9 , css(isoil)*rhos(isoil)  ) * zse(k)
-	  rhocs=(1.-sigmu(iq))*css(isoil)*rhos(isoil)
-     *          +sigmu(iq)*2300.*879.
-          gammzz(iq,k)=max( (1.-ssat(isoil))*rhocs ! MJT (22/8/06) - Urban
+!         gammzz(iq,k)=calgammv(iq,isoil,k,wb(iq,k)-wbice(iq,k),wbice(iq,k)) 
+          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) ! MJT CHANGE - back to original
      &     +(wb(iq,k)-wbice(iq,k))*cswat*rhowat + wbice(iq,k)*csice*
-     &      rhowat*.9 , rhocs  ) * zse(k)
+     &      rhowat*.9 , css(isoil)*rhos(isoil)  ) * zse(k)
           if(k==1.and.isflag(iq)==0)gammzz(iq,k)=gammzz(iq,k) +
      &                                    cgsnow*snowd(iq)  ! changed back 21/5/01
 c    &                                    cgsnow*snowd(iq)/ssdnn(iq)
@@ -271,14 +266,9 @@ c    &                                    cgsnow*snowd(iq)/ssdnn(iq)
           wbice(iq,k)=max(0.,wbice(iq,k)-sicemelt/(zse(k)*1000.))
 c         if(wbice(iq,k)<.001) wbice(iq,k)=0.
 !         gammzz(iq,k)=calgammv(iq,isoil,k,wb(iq,k)-wbice(iq,k),wbice(iq,k))
-c         gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
-c    &     +(wb(iq,k)-wbice(iq,k))*cswat*rhowat + wbice(iq,k)*csice*
-c    &      rhowat*.9 , css(isoil)*rhos(isoil)  ) * zse(k)
-	  rhocs=(1.-sigmu(iq))*css(isoil)*rhos(isoil)
-     *          +sigmu(iq)*2300.*879.
-          gammzz(iq,k)=max( (1.-ssat(isoil))*rhocs ! MJT (22/8/06) - Urban
+          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) ! MJT CHANGE - back to original
      &     +(wb(iq,k)-wbice(iq,k))*cswat*rhowat + wbice(iq,k)*csice*
-     &      rhowat*.9 , rhocs  ) * zse(k)
+     &      rhowat*.9 , css(isoil)*rhos(isoil)  ) * zse(k)
           if(k==1.and.isflag(iq)==0)gammzz(iq,k)=gammzz(iq,k) +
      &                                    cgsnow*snowd(iq)  ! changed back 21/5/01
 c    &                                    cgsnow*snowd(iq)/ssdnn(iq)
@@ -1090,8 +1080,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
           ccnsw(iq,k)= min(cnsd(isoil)*exp(ew*log(60.)+ei*log(250.))
      .                  , 2.2)*ccf
         endif  ! (isoil==9) ... else ...
-        ! MJT CHANGE (22/8/06) - Urban
-        ccnsw(iq,k)=(1.-sigmu(iq))*ccnsw(iq,k)+sigmu(iq)*4.6 ! or 1.51?
+        !ccnsw(iq,k)=(1.-tsigmu(iq))*ccnsw(iq,k)+tsigmu(iq)*4.6 ! MJT CHANGE - delete
        enddo
       enddo
 
@@ -1115,14 +1104,9 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
          enddo
 
          k=1
-c        gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
-c    *    +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
-c    *    rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
-	  rhocs=(1.-sigmu(iq))*css(isoil)*rhos(isoil)
-     *               +sigmu(iq)*2300.*879.
-         gammzz(iq,k)=max( (1.-ssat(isoil))*rhocs  ! MJT urban
+         gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) ! MJT CHANGE - back to original
      *    +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
-     *    rhowat*.9) , rhocs  ) * zse(k)
+     *    rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
          gammzz(iq,k)=gammzz(iq,k) +  cgsnow*snowd(iq) 
          dtg=dt/gammzz(iq,k)
          at(iq,k)= -dtg*coeff(k)
@@ -1130,14 +1114,9 @@ c    *    rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
          bt(iq,k)= 1.-at(iq,k)-ct(iq,k)
 
          do k=2,ms
-c         gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
-c    *     +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
-c    *     rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
-	  rhocs=(1.-sigmu(iq))*css(isoil)*rhos(isoil)
-     *               +sigmu(iq)*2300.*879.
-          gammzz(iq,k)=max( (1.-ssat(isoil))*rhocs  ! MJT urban
+          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) ! MJT CHANGE - back to original
      *     +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
-     *     rhowat*.9) , rhocs  ) * zse(k)
+     *     rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
           dtg=dt/gammzz(iq,k)
           at(iq,k)= -dtg*coeff(k)
           ct(iq,k)= -dtg*coeff(k+1)     ! c3(ms)=0 & not really used
@@ -1207,14 +1186,9 @@ c    *     rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
          coefb(iq)=coeff(4-3)     ! jlm B
 
          do k=1,ms
-c         gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
-c    *     +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
-c    *      rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
-	  rhocs=(1.-sigmu(iq))*css(isoil)*rhos(isoil)
-     *               +sigmu(iq)*2300.*879.
-          gammzz(iq,k)=max( (1.-ssat(isoil))*rhocs
+          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) ! MJT CHANGE - back to original
      *     +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
-     *      rhowat*.9) , rhocs  ) * zse(k)
+     *      rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
           dtg=dt/gammzz(iq,k)
           at(iq,k)= -dtg*coeff(k)
           ct(iq,k) = -dtg*coeff(k+1)      ! c3(ms)=0 & not really used
