@@ -75,7 +75,7 @@ c These outputs are not used in this model at present
       real prscav(ifullw,kl)
 
       integer kbase(ifullw),ktop(ifullw) !Bottom and top of convective cloud 
-      include 'establ.h'
+      include 'establ.h' ! provides qsat formula
 
       do k=1,kl   
          do iq=1,ifull

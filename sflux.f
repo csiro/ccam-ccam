@@ -1,7 +1,7 @@
       subroutine sflux(nalpha)              ! for globpe code
+      use ateb ! MJT urban
       use diag_m
       use cc_mpi
-      use ateb ! MJT CHANGE - Urban
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
       parameter (ntss_sh=0) ! 0 for original, 3 for **3, 4 for **4
 !     parameter (nplens=0)  ! 0 to turn off plens, 10 (e.g.) is on
@@ -628,10 +628,10 @@ c ----------------------------------------------------------------------
         call sib3(nalpha)  ! for nsib=3, 5
 
       !----------------------------------------------------------
-      ! MJT Change - Urban
-      if (nurban.eq.1) then
+      ! MJT urban
+      if (nurban.ne.0) then
         call tebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin
-     &               ,sgsave(:)/(1.-alb(:)),-rgsave(:) ! approximation to incomming longwave
+     &               ,sgsave(:)/(1.-alb(:)),-rgsave(:)
      &               ,condx(:)/dt,rho(:),t(:,1),qg(:,1),ps(:)
      &               ,sig(1)*ps(:),vmod(:),sigmu(:),0)
         ! assume sib3 only wants zo for vegetative part
@@ -651,7 +651,6 @@ c ----------------------------------------------------------------------
       end if
       !----------------------------------------------------------
 
-
 c ----------------------------------------------------------------------
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
       if(diag.or.ntest>0)then
@@ -661,7 +660,6 @@ c ----------------------------------------------------------------------
 
       if(ntsur.ne.5)then    ! ntsur=6 is default from Mar '05  
 c       preferred option to recalc cduv, ustar (gives better uscrn, u10)
-
         do iq=1,ifull
          afroot=vkar/log(zmin/zo(iq))! land formula is bit different above                             
          af(iq)=afroot**2                                             
@@ -679,8 +677,8 @@ c        cduv is now drag coeff *vmod
          cduv(iq) =af(iq)*fm                       ! Cd * vmod                                
          ustar(iq) = sqrt(vmod(iq)*cduv(iq))                            
 c        Surface stresses taux, tauy: diagnostic only - unstaggered now   
-         taux(iq)=rho(iq)*cduv(iq)*u(iq,1)
-         tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)
+         taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                              
+         tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                              
         enddo     
        endif  ! (ntsur==6)
        
@@ -812,7 +810,7 @@ c     include 'map.h'
 !     fle(isoil,w)=10.*((w-ssoil(isoil))/ssat(isoil)+.1))               ! an old one
 !     fle(isoil,w)= w/sfc(isoil)                                        ! jlm for PIRCS
 !     fle(isoil,w)=(w-frac*swilt(isoil))/(sfc(isoil)-frac*swilt(isoil)) ! jlm special
-
+     
       do iq=1,ifull
        if(land(iq))then
          iveg=ivegt(iq)
@@ -841,15 +839,11 @@ c                             if( tsoil >= tstom ) ftsoil=1.
          endif ! (land)
         enddo
       else     ! i.e. nsib=5
-        !--------------------------------------------
-        ! MJT CHANGE - Ecosystems
-        do ip=1,ipland
-          iq=iperm(ip)
-          rlai(iq)=max(.1,elai(iq))
-          srlai(iq)=rlai(iq)
-          tsigmf(iq)=max(.001,sigmf(iq))
-        end do
-        !--------------------------------------------
+        where (land)
+         rlai=max(.1,elai) ! MJT - Ecosystems
+         srlai=rlai                  ! nsib=5 leaf area index
+         tsigmf=max(.001,sigmf)
+        end where
       endif  !(nsib==3) .. else ..
 
       if(ktau==1)then
@@ -919,7 +913,8 @@ c      bare ground calculation
        qsttg(iq)=.622*esattg/(ps(iq)-esattg)
        tgss2=tgss*tgss
        dqsttg(iq)=qsttg(iq)*ps(iq)*hlars/((ps(iq)-esattg)*tgss2)
-       rgg(iq) = stefbo*tgss2**2   ! i.e. stefbo*tgss**4
+       rgg(iq) =  stefbo*tgss2**2   ! i.e. stefbo*tgss**4
+!      rgg(iq) = (1.-.05*sigmu(iq))*stefbo*tgss2**2   ! MJT delete urban
        dirad(iq)=4.*rgg(iq)/tgss
 c      sensible heat flux
        dfgdt(iq)=taftfhg(iq)*rho(iq)*cp
@@ -1028,6 +1023,8 @@ c      sensible heat flux
         enddo   ! ip=1,ipland
       endif     ! (nbarewet==8)
 
+!     wetfac(:)=wetfac(:)*(1.-sigmu(:)) ! MJT delete urban
+
       if(nalpha==1)then    ! beta scheme
 !cdir nodep
         do ip=1,ipland  ! all land points in this nsib=3 loop
@@ -1090,33 +1087,31 @@ c         evaporation from the bare ground
          cls(iq)=1.
        endif  ! (snowd(iq)>1.)
       enddo   ! ip=1,ipland
- 
-c     print *,'before nsigmf'
-     
-      if(nsigmf==0)then  ! original 
+
+      if(nsigmf==0)then  ! original
 !cdir nodep
         do ip=1,ipland  ! all land points in this nsib=3 loop
          iq=iperm(ip)
-         ga(iq)=-slwa(iq)-rgg(iq)-fgg(iq)-cls(iq)*egg(iq)
+         ga(iq)=-slwa(iq)-rgg(iq)-fgg(iq)-cls(iq)*egg(iq)       
          dgdtg(iq)=-dirad(iq)-dfgdt(iq)-cls(iq)*degdt(iq)
         enddo   ! ip=1,ipland
       endif     ! (nsigmf==0)
 
       if(nsigmf==1)then  ! jlm preferred
+!       spreads bare-soil flux across whole grid square      
 !cdir nodep
         do ip=1,ipland  ! all land points in this nsib=3 loop
         iq=iperm(ip)
         ga(iq)=(-slwa(iq)-rgg(iq)-fgg(iq)-cls(iq)*egg(iq))*
-     .                                  (1.-tsigmf(iq))
+     &                                     (1.-tsigmf(iq))
 !       dgtdg is used in soilsnow
         dgdtg(iq)=-(dirad(iq)+dfgdt(iq)+cls(iq)*degdt(iq))*
      .                                  (1.-tsigmf(iq))
         enddo   ! ip=1,ipland
       endif     ! (nsigmf==1)
-      
-! ----------------------------------------------
 
-      if(itnmeth==0) then  ! old, not vectorized 
+! ----------------------------------------------
+      if(itnmeth==0) then  ! old, not vectorized
 !cdir nodep
        do ip=1,ipland  ! all land points in this nsib=3 loop
         iq=iperm(ip)
@@ -1328,7 +1323,7 @@ c                                         water interception by the canopy
      .                             (tgfnew(iq)-tscrn(iq))
 !	  limit extreme fgf to avoid undue tgf oscillations  June '04
          fgf(iq)=max(-1000.,min(fgf(iq),1000.))
-         rdg(iq) = stefbo*tgfnew(iq)**4
+         rdg(iq) =  stefbo*tgfnew(iq)**4
          residf(iq) = -slwa(iq) - rdg(iq) - fgf(iq) - evapxf(iq)
          dirad1 = 4.*rdg(iq)/300.
 !        next 2 expressions can be approximated without effects
@@ -1385,14 +1380,15 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
           endif  ! (land(idjd))
          endif   ! ((ntest==2.or.diag).and.mydiag)
        enddo     !  icount=1,5
-      endif      ! (itnmeth>0)
-     
+      endif      ! (itnmeth>0) 
+
 !cdir nodep
       do ip=1,ipland  ! all land points in this nsib=3 loop
        iq=iperm(ip)
        if(rmc(iq)<1.e-10)rmc(iq)=0.  ! to avoid underflow 24/1/06
        if(tsigmf(iq) <= .0101) then
-         condxpr(iq)=condx(iq)
+c        condxpr(iq)=condx(iq)*(1.-sigmu(iq)) ! MJT CHANGE 6/1/07 - Urban
+         condxpr(iq)=condx(iq) ! MJT CHANGE 16/1/07 - Reverse previous change
          evapfb(iq) = 0.
          evapxf(iq) = egg(iq)
          fgf(iq)  = fgg(iq)
@@ -1405,8 +1401,10 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
          wb(iq,3)=wb(iq,3)-evapfb3(iq)/(zse(3)*1000.)
          wb(iq,4)=wb(iq,4)-evapfb4(iq)/(zse(4)*1000.)
          wb(iq,5)=wb(iq,5)-evapfb5(iq)/(zse(5)*1000.)
+c        condxpr(iq)=(1.-tsigmf(iq))*(1.-sigmu(iq))*condx(iq)
+c    &     + tsigmf(iq)*condxg(iq) ! MJT CHANGE 6/1/07 - Urban
          condxpr(iq)=(1.-tsigmf(iq))*condx(iq)
-     &     + tsigmf(iq)*condxg(iq)
+     &     + tsigmf(iq)*condxg(iq) ! MJT CHANGE 16/1/07 - Reverse previous change
          if(ntest==1.and.abs(residf(iq))>10.)
      .      print *,'iq,otgf(iq),tgf,delta_tx,residf '
      .              ,iq,otgf(iq),tgf(iq),delta_tx(iq),residf(iq)

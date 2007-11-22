@@ -167,7 +167,7 @@
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,nfly,localhist   
      & ,mstn,nqg   ! not used in 2006          
-     & ,nurban ! MJT CHANGE - urban
+     & ,nurban ! MJT urban
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -358,7 +358,7 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
       endif
 
       write (6, cardin)
-      if(nllp==0.and.abs(nextout)>=4)stop 'need nllp=3 for nextout>=4' ! MJT CHANGE - nwp
+      if(nllp==0.and.nextout>=4)stop 'need nllp=3 for nextout>=4'
       write (6, skyin)
       write (6, datafile)
       write(6, kuonml)
@@ -476,7 +476,7 @@ c     if(ndi2>0)diag=.true.
       call MPI_Reduce ( pwatr_l, pwatr, 1, MPI_REAL, MPI_SUM, 0,
      &                  MPI_COMM_WORLD, ierr )
       if ( myid == 0 ) write (6,"('pwatr0 ',12f7.3)") pwatr
-      if(abs(nextout)>=4)call setllp ! MJT CHANGE - nwp
+      if(nextout>=4)call setllp
       if(ntrac>0)then
         do ng=1,ntrac
          write (text,'("g",i1)')ng
@@ -1061,7 +1061,7 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
           write (6,"('omgf ',9f8.3/5x,9f8.3)")   ! in Pa/s
      &              ps(idjd)*omgf(idjd,:)
           write (6,"('sdot ',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
-          if(abs(nextout)>=4)write (6,"('xlat,long,pres ',3f8.2)") ! MJT CHANGE - nwp
+          if(nextout>=4)write (6,"('xlat,long,pres ',3f8.2)")
      &     tr(idjd,nlv,ngas+1),tr(idjd,nlv,ngas+2),tr(idjd,nlv,ngas+3)
           endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
         endif   ! (ntsur>1)
@@ -1228,7 +1228,7 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
       end if
       if(mod(ktau-1,nperday)+1==nper3hr(n3hr))then
         rnd_3hr(:,n3hr)=rnd_3hr(:,8)
-        if(abs(nextout)>=2)then ! MJT CHANGE - nwp
+        if(nextout>=2)then
           spare1(:)=max(.001,sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2))
           u10_3hr(:,n3hr)=u10(:)*u(1:ifull,1)/spare1(:)
           v10_3hr(:,n3hr)=u10(:)*v(1:ifull,1)/spare1(:)
@@ -1385,7 +1385,7 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
        u10max(:)=0.
         v10max(:)=0.
         rnd_3hr(:,8)=0.       ! i.e. rnd24(:)=0.
-        if(abs(nextout)>=4)call setllp ! from Nov 11, reset once per day ! MJT CHANGE - nwp
+        if(nextout>=4)call setllp ! from Nov 11, reset once per day
         if(namip>0)then
           if (myid==0)
      &    print *,'amipsst called at end of day for ktau,mtimer,namip ',
@@ -1676,7 +1676,7 @@ c     data nstag/99/,nstagu/99/
      &     nrungcm/-1/,nsib/3/,nsigmf/1/,
      &     ntaft/2/,ntsea/6/,ntsur/6/,av_vmod/.7/,tss_sh/1./,
      &     vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
-      data nurban/0/ ! MJT CHANGE - urban
+      data nurban/0/ ! MJT urban
       data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
 !     Special and test options

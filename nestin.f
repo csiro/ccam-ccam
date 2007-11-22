@@ -50,12 +50,12 @@
         qb(1:ifull,:)=qg(1:ifull,:)
         ub(1:ifull,:)=u(1:ifull,:)
         vb(1:ifull,:)=v(1:ifull,:)
-        mtimeb=-2	
+        mtimeb=-2
         return
       endif       ! (mtimeb==-1)
 
       if(mtimer<=mtimeb)go to 6  ! allows for dt<1 minute
-      if(mtimeb==-2)mtimeb=mtimer      
+      if(mtimeb==-2)mtimeb=mtimer  
 !     transfer mtimeb fields to mtimea and update sice variables
       mtimea=mtimeb
       psla(:)=pslb(:)
@@ -298,6 +298,18 @@
       real, dimension(ifull) ::  zsb
       data num/0/,mtimea/0/,mtimeb/-1/
       save num,mtimea,mtimeb
+c      if(num==0)then
+c        if (mydiag) then ! MJT CHANGE FOR MPI
+c!         this just retrieves time increment (in mins) on mesofile
+c          idv = ncvid(ncid,'mtimer',ier)
+c          call ncvgt1(ncid,idv,2,mins_mbd,ier) ! other name to not zap mtimer
+c          print *,'nestinb: ier,ncid,idv,mins_mbd '
+c     &	    ,ier,ncid,idv,mins_mbd
+c	endif	
+c        call MPI_Bcast(mins_mbd,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier) ! END MJT CHANGE
+c        num=1
+c        return
+c      endif   ! (num==0)
       if(num==0)then
 !       this just retrieves time increment (in mins) on mesofile
         if(myid==0)then
@@ -382,7 +394,6 @@
       end if
       call maxmin(pslb,'pB',ktau,100.,1)
 
-
 !     if(kk<kl)then
       if(abs(sig(2)-sigin(2))>.0001)then   ! 11/03
 !       this section allows for different number of vertical levels
@@ -455,6 +466,10 @@
 !      end if ! (num==1)
 
       call getspecdata(pslb,ub,vb,tb,qb)
+      if ( myid == 0 ) then
+        print *,'following after getspecdata are really psl not ps'
+      end if
+      call maxmin(pslb,'pB',ktau,100.,1)
 
 !      print *,'following bunch near end of nestinb, nbd = ',nbd
 !      write (6,"('100*psl.wesn ',2p5f8.3)") psl(idjd),
@@ -736,7 +751,7 @@
         if(n>il_g.and.n<=2*il_g)iq=il_g*(2*il_g+j-2)+n      ! panel 2
         if(n>2*il_g)iq=il_g*(2*il_g+n-1)+il_g+1-j           ! panel 4,5
         
-        if (em_g(iq).gt.emmin) then
+        if (em_g(iq).gt.emmin) then ! MJT
         
         do n1=n,4*il_g
 !        following test shows on sx6 don't use "do n1=m+1,4*il_g"
@@ -915,7 +930,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
          if(n>il_g.and.n<=3*il_g)iq=il_g*(il_g+n-1)+il_g+1-j  ! panel 2,3
          if(n>3*il_g)iq=il_g*(5*il_g+j-4)+n               ! panel 5
         
-         if (em_g(iq).gt.emmin) then
+         if (em_g(iq).gt.emmin) then ! MJT
         
          do n1=n,4*il_g
           if(n1<=il_g)iq1=il_g*(j-1)+n1                     ! panel 0

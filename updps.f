@@ -30,9 +30,13 @@
       real pslx_k(kl)
       save num
       data num/0/
-!     called for mup.ne.1, but always called for first time step
-!     usual is mup=1, using simple centred. 
-!              mup=2 to force it every step; 4 to use prior pslx
+!     Always called for first time step
+!     Called every step for mup.ne.1
+!     Usual is mup=1, using simple centred (only first step)
+!              mup=2, using simple centred (every time step)
+!              mup=4 to use prior pslx (no longer here)
+!              mup=5 (somewhat similar to 1) & 6 calc via staguv
+!              mup<0 various others
       
       if(mup<=-4)then
         if(ktau<3)then
@@ -47,10 +51,10 @@
       if(mup>=5)then
         call staguv(u(1:ifull,:),v(1:ifull,:),
      &             cc(1:ifull,:),dd(1:ifull,:)) 
-	 do k=1,kl
-	  cc(1:ifull,k)=cc(1:ifull,k)/emu(1:ifull)
-	  dd(1:ifull,k)=dd(1:ifull,k)/emv(1:ifull)
-	 enddo
+	do k=1,kl
+	 cc(1:ifull,k)=cc(1:ifull,k)/emu(1:ifull)
+	 dd(1:ifull,k)=dd(1:ifull,k)/emv(1:ifull)
+	enddo
         call boundsuv(cc,dd)
         do k=1,kl
 !cdir nodep

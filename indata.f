@@ -1,6 +1,6 @@
       subroutine indata(hourst,newsnow,jalbfix)! nb  newmask not yet passed thru
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
-      use ateb ! MJT CHANGE
+      use ateb ! MJT urban
       use cc_mpi
       use diag_m
 !     rml 21/02/06 removed all so2 code
@@ -61,7 +61,7 @@
       real sigin
       integer ik,jk,kk
       common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
-      real, dimension(ifull) :: zss, aa
+      real, dimension(ifull) :: zss, aa, esm
       real, dimension(ifull,2) :: dumzs
       real tbarr(kl),qgin(kl),zbub(kl)
       character co2in*80,radonin*80,surfin*80,header*80
@@ -124,7 +124,7 @@
 !    &              .05,.85,.85,.55,.65,.2,.05,.5, .0, .0, 0.,         ! 21-31
       real, dimension(ifull_g) :: glob2d
       real, dimension(ifull_g) :: davt_g
-      real, dimension(ifull,1:14) :: urban ! MJT CHANGE - urban
+      real, dimension(ifull,1:14) :: urban ! MJT urban      
 
       call start_log(indata_begin)
       bam(1)=114413.
@@ -260,6 +260,7 @@ c         print *,'this one uses supplied eigs'
       end if
 
       hourst = 0. ! Some io_in options don't set it.
+      ! esm(:)=-99. ! MJT lsmask - delete esm
       if(io_in<4)then
          kdate_sav=kdate_s
          ktime_sav=ktime_s
@@ -268,8 +269,7 @@ c         print *,'this one uses supplied eigs'
      &           psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
      &           tgg,wb,wbice,alb,snowd,
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &           urban,isoilm)  ! MJT CHANGE add urban and soil type
+     &           tggsn,smass,ssdn,ssdnn,snage,isflag,isoilm,urban)  ! MJT lsmask - delete esm, add isoilm ! MJT urban
             if ( mydiag ) then
                print *,'timegb,ds,zss',timegb,ds,zss(idjd)
                print *,'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
@@ -297,14 +297,13 @@ c           endif  ! (nspecial>100)
                  stop 
               endif
             endif  ! (newtop>=0)
-         endif     ! (io_in==1.or.io_in==3)
+         endif     ! (io_in==1)
 
          if(io_in==-1)then
             call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
      &           tgg,wb,wbice,snowd,
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &           urban) ! MJT CHANGE add urban types
+     &           tggsn,smass,ssdn,ssdnn,snage,isflag,urban) ! MJT urban
          endif   ! (io_in==-1.or.io_in==-3)
  
          if(nproc==1)then
@@ -353,6 +352,8 @@ c           endif  ! (nspecial>100)
             call vertint(qg(1:ifull,:),2)
             call vertint(u(1:ifull,:), 3)
             call vertint(v(1:ifull,:), 4)
+            call vertint(qfg(1:ifull,:),5)
+            call vertint(qlg(1:ifull,:),5)
          endif  ! (abs(sig(2)-sigin(2))>.0001)
 
          if ( mydiag ) then
@@ -834,18 +835,43 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
         enddo
       endif      ! (nsib>=1)
 
-      if (nsib.ne.5) then ! MJT CHANGE
+!     zap vegetation over SEQ for Andy
+      if(nspecial==41)then
+        do iq=1,ifull
+         rlongd=rlongg(iq)*180./pi
+         rlatd=rlatt(iq)*180./pi
+         if(rlatd>-32. .and. rlatd<-23.5)then
+           if(rlongd>145. .and. rlongd<=152.)ivegt(iq)=4 
+           if(rlongd>152. .and. rlongd< 154.)ivegt(iq)=2 
+         endif
+        enddo
+      endif  ! (nspecial==41)
+      
+      if (nsib==3) then 
        do iq=1,ifull
+!       check for littoral veg over Oz      
+        rlongd=rlongg(iq)*180./pi
+        rlatd=rlatt(iq)*180./pi
+        if(rlongd>110.and.rlongd<155.and.rlatd>-45.and.rlatd<-10)then
+         if(ivegt(iq)==28)then
+           print *,'littoral vegt ',iq,rlongd,rlatd
+           if(rlongd>150.and.rlongd<152.and.rlatd>-28.and.rlatd<-26)then
+             ivegt(iq)=24   ! fix-up of Graetz data for Andy from July '07
+           endif
+         endif
+        endif
+       enddo
+       do iq=1,ifull          ! MJT CHANGE - ecosystems
         if(land(iq))then  
 !        following line from 16/3/06 avoids sand on Himalayas        
          if(zs(iq)>2000.*grav.and.isoilm(iq)<3)isoilm(iq)=3
         endif
-       enddo
-      end if
+       enddo                 
+      endif ! (nsib==3)
 
       !-----------------------------------------------------------------
-      ! MJT CHANGE - needs to occur before wbice is modified in any way
-      if (any(wb.lt.0.)) then
+      ! MJT CHANGE - ecosystems
+      if (any(wb(:,:).lt.0.)) then
         if (mydiag) print *,"Unpacking wetfac to wb"
         wb(:,:)=abs(wb(:,:))
         do iq=1,ifull
@@ -887,6 +913,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
          endif
        endif  ! (zs(iq)<=0.)
       enddo
+
 
 !     rml 16/02/06 initialise tr, timeseries output and read tracer fluxes
       if (ngas>0) then
@@ -945,6 +972,22 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
      &        wb(iq,ms)=swilt(isoilm(iq)) ! dry interior of Australia
          endif    ! (land(iq))
         enddo     ! iq loop
+        
+        if(nsib==5)then   ! MJT 30/9/06
+          if(esm(1)>=0.)then
+!           otherwise will use wb from 7 lines up with iveg=1           
+            if(mydiag)print *,'Soil moisture climatology loaded'
+            esm(:)=.01*esm(:)
+            do iq=1,ifull
+             if(land(iq))then
+               isoil=isoilm(iq)
+               fracwet=esm(iq)
+               wb(iq,ms)= (1.-fracwet)*swilt(isoilm(iq))+ 
+     &                        fracwet*sfc(isoilm(iq)) 
+             endif  ! (land(iq))
+            enddo   ! iq loop
+          endif     ! (esm(1)>=0.)
+        endif       ! (nsib==5)
  
         do k=1,ms-1
          wb(:,k)=wb(:,ms)
@@ -996,7 +1039,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
         call readglobvar(87, tgg, fmt="*")
         call readglobvar(87, aa, fmt="*")    ! only use land values of tss
         call readglobvar(87, snowd, fmt="*")
-c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06        
+c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
         if ( myid == 0 ) close(87)
         if(ico2.ne.0)then
           ico2x=max(1,ico2)
@@ -1460,8 +1503,12 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 !     &        ((tgg(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
       end if
 
-      if(nsib==5)then
-        tsigmf(:)=sigmf(:)
+      
+      if(nsib==5)then  ! MJT CHANGE (9/8/06) : Ecosystems
+        where (land)
+!         sigmf(:)=min(.8,.95*sigmf(:))  ! MJT CHANGE (6/1/07) : Ecosystems
+          tsigmf(:)=sigmf(:)
+        end where
       else      ! usual, nsib<5
         do iq=1,ifull
          if(land(iq))then
@@ -1507,19 +1554,19 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
               print *,'after jalbfix sigmf,alb ',sigmf(idjd),alb(idjd)
            endif
          endif  ! (jalbfix==1)
-
-        if(newrough>0)then
-          call calczo(.05)
-          print *,'after calczo zolnd ',zolnd(idjd)
-c         if(newrough>2)then
-c           zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
-c         endif
-          if ( mydiag ) then
-            print *,'after calczo with newrough = ',newrough
-            write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
-          end if
-        endif
       endif     ! (nsib==5) .. else ..
+
+      if(newrough>0.and.nsib<5)then
+        call calczo(.05)
+        if(mydiag)print *,'after calczo zolnd ',zolnd(idjd)
+c       if(newrough>2)then
+c         zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
+c       endif
+        if ( mydiag ) then
+          print *,'after calczo with newrough = ',newrough
+          write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
+        end if
+      endif
 
       if(ngwd.ne.0)then
         hemax=0.
@@ -1778,12 +1825,8 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         enddo  ! nn=1,nstn
       endif     !  (nstn>0)
 
-      do iq=1,ifull
-       albsav(iq)=alb(iq)
-      enddo   ! iq loop
-      
       !-----------------------------------------------------------------
-      if (nurban.eq.1) then ! MJT CHANGE
+      if (nurban.ne.0) then ! MJT urban
         where (.not.land(:))
           sigmu(:)=0.
         end where
@@ -1800,7 +1843,11 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         call tebdisable(0) ! disable urban
       end if
       !-----------------------------------------------------------------
-     
+
+
+      do iq=1,ifull
+       albsav(iq)=alb(iq)
+      enddo   ! iq loop
       call end_log(indata_end)
       return
       end
@@ -1834,25 +1881,35 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        call readreal(zofile,zolnd,ifull)
        if(iradon.ne.0)call readreal(radonemfile,radonem,ifull)
        call readint(soilfile,isoilm,ifull)      
-       if(nsib==5) then
+       if(nsib==5) then  ! MJT CHANGE (9/8/06): Ecosystems dataset
+         if (mydiag) then
+           print *,'nsib=5 override lai & vegfrac data files.'
+           print *,'WARN: Pretend ivegt=1 for soil moisture'
+           print *,'      and error checking.'
+         end if
          ivegt(:)=1 
          call readreal('lai',elai,ifull)
          call readreal('vegfrac',sigmf,ifull)
          elai(:)=0.01*elai(:)
          sigmf(:)=0.01*sigmf(:)
+c        call readreal('urban',sigmu,ifull) ! MJT urban
+c         where (sigmf.lt.1.)
+!          convert to cover over bare soil
+c           sigmu=0.01*sigmu/(1.-sigmf)
+c         end where
        else    ! usual, nsib<5
          call readint(vegfile,ivegt,ifull)
        endif  ! (nsib==5) .. else ..
        !------------------------------------------------
-       ! MJT CHANGE - urban
-       if (nurban==1) then
+       ! MJT urban
+       if (nurban.ne.0) then
          call readreal('urban',sigmu,ifull)
          sigmu(:)=0.01*sigmu(:)
        else
          sigmu(:)=0.
        end if
        ! -----------------------------------------------
-
+       
        mismatch = .false.
        if( rdatacheck(land,alb,'alb',idatafix,falbdflt))
      &      mismatch = .true.
@@ -1872,7 +1929,10 @@ c         if(ivegt(iq)>40)print *,'iq, ivegt ',iq,ivegt(iq)
         endif
        enddo
        print *,'ivegmin,ivegmax ',ivegmin,ivegmax
-       if(ivegmin<1.or.ivegmax>44)stop
+       if(ivegmin<1.or.ivegmax>44)then
+         write(0,*) 'stopping in indata, as ivegt out of range'
+         stop
+       endif       
        if( idatacheck(land,isoilm,'isoilm',idatafix,isoildflt))
      &      mismatch = .true.
 !   rml 17/02/06 comment out read co2emfile - now done in tracermodule

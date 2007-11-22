@@ -3,7 +3,7 @@
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                  tgg,wb,wbice,alb,snowd,
      .                  tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                  urban,isoilm) ! MJT CHANGE add urban and soil for land/sea mask
+     .                  isoilm,urban) ! MJT lsmask - delete esm, add isoilh ! MJT urban
 !     note kk; vertint.f is attached below
 !     kdate_r and ktime_r are returned from this routine.
 !     They must equal or exceed kdate_s and ktime_s
@@ -36,9 +36,9 @@
      . snowd(ifull),alb(ifull),sicedep(ifull),fracice(ifull),
      . t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     . ssdnn(ifull),snage(ifull),
-     . urban(ifull,1:14) ! MJT CHANGE add urban types
-      integer isoilm(ifull) ! MJT CHANGE add soil type
+     . ssdnn(ifull),snage(ifull), ! MJT lsmask - delete esm
+     . urban(ifull,1:14) ! MJT urban
+      integer isoilm(ifull) ! MJT lsmask - add isoilm
       integer isflag(ifull)
       integer ktau_r, ibb, jbb, i
       integer ini,inj,ink,m2,nsd2,mesi,nbd2
@@ -422,6 +422,9 @@ c         enddo
             qfg(:,:)=0. 
             qlg(:,:)=0. 
           endif ! (ier.ne.0)
+          if(nspecial==24)qfg(:,kl-2)=4.e-3         ! just for testing icefall
+          if(nspecial==25)qfg((il-1)*il/2,kl)=4.e-3 ! tests at (il/2,il/2)
+          if(nspecial==26)qfg(idjd,kl)=4.e-3 ! tests at (idjd)
         endif   ! (ldr.ne.0)
         call histrd1(ncid,iarchi,ier,'alb',ik,jk,alb)
         call histrd1(ncid,iarchi,ierr,'tgg2',ik,jk,tgg(1,2))
@@ -480,8 +483,8 @@ c 	    only being tested for nested=0; no need to test for mesonest
             endif     
           endif     
         endif    ! (ierr==0) .. else ..
-        !----------------------------------------------------------------
-        ! MJT CHANGE
+      !----------------------------------------------------------------
+      ! MJT CHANGE - ECOSYSTEMS
         call histrd1(ncid,iarchi,ierr,'wetfrac1',ik,jk,wb(:,1))
         if (ierr==0) then
           call histrd1(ncid,iarchi,ierr,'wetfrac2',ik,jk,wb(:,2))
@@ -492,6 +495,7 @@ c 	    only being tested for nested=0; no need to test for mesonest
           wb(:,:)=-abs(wb(:,:)) ! flag to indicate wetfrac, not volumetric soil moisture (unpacked in indata)
         end if
 
+        ! MJT urban
         urban=-1.
         call histrd1(ncid,iarchi,ierr,'rooftgg1',ik,jk,urban(:,1))
         if (ierr==0) then
@@ -509,11 +513,15 @@ c 	    only being tested for nested=0; no need to test for mesonest
           call histrd1(ncid,iarchi,ierr,'roofwb',ik,jk,urban(:,13))
           call histrd1(ncid,iarchi,ierr,'roadwb',ik,jk,urban(:,14))
         end if
-        
+
+      !----------------------------------------------------------------
+      ! MJT lsmask
         isoilm=-1
         call histrd1(ncid,iarchi,ierr,'soilt',ik,jk,tmp(:))
         isoilm(:)=nint(tmp(:))
-        !----------------------------------------------------------------
+      !----------------------------------------------------------------
+
+
         if(myid == 0)print *,'about to read snowd'
         call histrd1(ncid,iarchi,ier,'snd',ik,jk,snowd)
         if(ier.ne.0)then  ! preset snowd here if not avail.
@@ -587,8 +595,8 @@ c 	    only being tested for nested=0; no need to test for mesonest
           enddo
         endif
 
-        !--------------------------------------------
-        ! MJT CHANGE delete esm
+       !--------------------------------------------
+        ! MJT CHANGE delete
         !call histrd1(ncid,iarchi,ier,'wetfrac',ik,jk,esm)
         !if (ier.ne.0) esm(:)=-99.
         !--------------------------------------------
@@ -641,7 +649,7 @@ c*************************************************************************
       include 'parm.h'
       include 'netcdf.inc'
       include 'mpif.h'
-      integer ncid, iarchi, ier, ik, jk, nctype, ierb ! MJT CHANGE
+      integer ncid, iarchi, ier, ik, jk, nctype, ierb ! MJT CHANGE - bug fix
       integer*2 ivar(ik*jk)
       real rvar(ik*jk) ! MJT CHANGE
       logical odiag
@@ -670,6 +678,8 @@ c     read in all data
             !------------------------------------------------------------
             ! MJT CHANGE
             ierr=nf_inq_vartype(ncid,idv,nctype)
+	    addoff=0.
+	    sf=1.
             select case(nctype)
               case(nf_float)
                 call ncvgt(ncid,idv,start,count,rvar,ier)
@@ -686,10 +696,10 @@ c     read in all data
 
 c     obtain scaling factors and offsets from attributes
             call ncagt(ncid,idv,'add_offset',addoff,ierb)
-            if (ierb.ne.0) addoff=0.        ! MJT CHANGE
+            if (ierb.ne.0) addoff=0.        ! MJT CHANGE - bug fix
             if(odiag)write(6,*)'addoff,ier=',addoff,ier
             call ncagt(ncid,idv,'scale_factor',sf,ierb)
-            if (ierb.ne.0) sf=1.            ! MJT CHANGE
+            if (ierb.ne.0) sf=1.            ! MJT CHANGE - bug fix
             if(odiag)write(6,*)'sf,ier=',sf,ier
 
 c     unpack data
@@ -712,9 +722,8 @@ c     unpack data
             call ccmpi_distribute(var)
          endif
       endif
-
-      return ! histrd1
-      end
+      return    ! histrd1
+      end   
 c***************************************************************************
       subroutine histrd4(ncid,iarchi,ier,name,ik,jk,kk,var)
       use cc_mpi
@@ -723,7 +732,7 @@ c***************************************************************************
       include 'netcdf.inc'
       include 'parm.h'
       include 'mpif.h'
-      integer ncid, iarchi, ier, ik, jk, kk, nctype, ierb ! MJT CHANGE
+      integer ncid, iarchi, ier, ik, jk, kk, nctype, ierb ! MJT CHANGE - bug fix
       integer*2 ivar(ik*jk,kk)
       real rvar(ik*jk,kk) ! MJT CHANGE
       character name*(*)
@@ -746,7 +755,7 @@ c        get variable idv
 c          read in all data
            !------------------------------------------------------------
            ! MJT CHANGE
-           ierr=nf_inq_vartype(ncid,idv,nctype)
+           ier=nf_inq_vartype(ncid,idv,nctype)
            select case(nctype)
              case(nf_float)
                call ncvgt(ncid,idv,start,count,rvar,ier)
@@ -760,9 +769,9 @@ c          read in all data
            !------------------------------------------------------------
 c          obtain scaling factors and offsets from attributes
            call ncagt(ncid,idv,'add_offset',addoff,ierb)
-           if (ierb.ne.0) addoff=0.        ! MJT CHANGE
+           if (ierb.ne.0) addoff=0.        ! MJT CHANGE - bug fix
            call ncagt(ncid,idv,'scale_factor',sf,ierb)
-           if (ierb.ne.0) sf=1.            ! MJT CHANGE
+           if (ierb.ne.0) sf=1.            ! MJT CHANGE - bug fix
 c          unpack data
 !          globvar = ivar*sf + addoff
            do k=1,kk  ! following allows for ik < il_g
@@ -788,9 +797,8 @@ c          unpack data
             call ccmpi_distribute(var)
          endif
       endif
-
       return ! histrd4
-      end
+      end   
 
       subroutine vertint(t,n)
 !     transforms 3d array from dimension kk in vertical to kl   jlm
@@ -799,7 +807,7 @@ c          unpack data
       include 'newmpar.h'
       include 'sigs.h'
       include 'parm.h'
-      common/sigin/sigin(kl),kk                    ! for vertint, infile
+      common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
       dimension t(ifull,kl),ka(kl),kb(kl),wta(kl),wtb(kl)  ! for mpi
       real told(ifull,kl)
       save num,ka,kb,wta,wtb,klapse
@@ -860,8 +868,11 @@ c     print *,'in vertint t',t(idjd,:)
         enddo    ! k loop
       endif
 
-      if(n==2)then  ! for moisture do a -ve fix
+      if(n==2)then  ! for qg do a -ve fix
         t(:,:)=max(t(:,:),1.e-6)
+      endif
+      if(n==5)then  ! for qfg, qlg do a -ve fix
+        t(:,:)=max(t(:,:),0.)
       endif
       return
       end

@@ -39,8 +39,8 @@
         nx_max=abs(precon)/1000
         meth=abs(precon)/100-10*nx_max
         axel=-.01*real(precon)-10*nx_max-meth
-        if(mydiag)print *,'in helmsor nx_max,meth,axel: ',
-     &                                nx_max,meth,axel
+        if(myid==0)print *,'in helmsor nx_max,meth,axel: ',
+     &                                 nx_max,meth,axel
         mask(:)=1
         do j=1,jl
          do i=1,il,2
@@ -64,7 +64,7 @@ c       print *,'j ',j,(mask(iq),iq=1+(j-1)*il,6+(j-1)*il)
       if(ktau==1)then
        do k=1,kl
         call optmx(il,schmidt,dt,bam(k),accel(k))
-        print *,'k,accel ',k,accel(k)
+        if(myid==0)print *,'k,accel ',k,accel(k)
        enddo
       endif
  
@@ -130,10 +130,10 @@ c           cc=(3*sb(iq,k)-2*sa(iq,k)-5*s(iq,k)+4*snew(iq,k))/14.
 
          do iq=1,ifull
           if(mask(iq)==nx)then
-c          rotate s files
-           sb(iq,k)=sa(iq,k)
-           sa(iq,k)=s(iq,k)
-           s(iq,k)=snew(iq,k)
+c           rotate s files
+            sb(iq,k)=sa(iq,k)
+            sa(iq,k)=s(iq,k)
+            s(iq,k)=snew(iq,k)
           endif
          enddo
         enddo  ! nx loop
@@ -197,10 +197,7 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
 
          do iq=1,ifull
           if(mask(iq)==nx)then
-c          rotate s files
-           sb(iq,k)=sa(iq,k)
-           sa(iq,k)=s(iq,k)
-           s(iq,k)=snew(iq,k)
+            s(iq,k)=snew(iq,k)
           endif
          enddo
         enddo  ! nx loop

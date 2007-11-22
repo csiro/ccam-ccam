@@ -9,7 +9,7 @@
      .       ,khalf,khalfd,khalfp,kt
      .       ,ncubase,nfluxq,nfluxdsk,nlayers,nlayersd,nlayersp
      .       ,ntest,ntr,nums,nuv
-     .       ,ka,kc
+     .       ,ka,kb,kc
       real Aev,Asb
      .    ,convmax,delqq,delss,deltaq,delq_av,delt_av
      .    ,den1,den2,den3,detr,dprec,dqrx,entrainp,entrr,entrradd

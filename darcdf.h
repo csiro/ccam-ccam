@@ -1,3 +1,3 @@
-      integer idnc,ncid,idifil
-      common/darcdf/idnc,ncid,idifil   ! stuff for netcdf
+      integer idnc,ncid
+      common/darcdf/idnc,ncid   ! stuff for reading netcdf
 

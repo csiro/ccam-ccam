@@ -354,7 +354,7 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
              call ints(qlg,intsch,nface,xg,yg,4)
              call ints(qfg,intsch,nface,xg,yg,4)
           endif                 ! ldr.ne.0
-          if(ngas>0.or.abs(nextout)>=4)then ! MJT CHANGE - nwp
+          if(ngas>0.or.nextout>=4)then
 	     if(nmaxpr==1.and.mydiag)then
               write (6,"('xg#',9f8.2)") diagvals(xg(:,nlv))
               write (6,"('yg#',9f8.2)") diagvals(yg(:,nlv))

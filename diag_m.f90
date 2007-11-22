@@ -99,10 +99,11 @@ contains
       integer :: i, j, k, ierr
       ! gumax(1,:) is true maximum, gumax(2,:) used for the location
       real, dimension(2,kl) :: gumax, gumin
+      real gmax, gmin
 
       do k=1,kup
-         umax(1,k) = maxval(u(1:ifull,k))*fact
-         umin(1,k) = minval(u(1:ifull,k))*fact
+         umax(1,k) = maxval(u(1:ifull,k))
+         umin(1,k) = minval(u(1:ifull,k))
          ! Simpler to use real to hold the integer location. 
          ! No rounding problem for practical numbers of points
          ! Convert this to a global index
@@ -116,7 +117,7 @@ contains
      &                  MPI_COMM_WORLD, ierr )
 
       if ( myid == 0 ) then
-
+      
          do k=1,kup
             iqg = gumax(2,k)
             ! Convert to global i, j indices
@@ -128,23 +129,44 @@ contains
             i = iqg - (j-1)*il_g
             ijumin(:,k) = (/ i, j /)
          end do
+         
+        if(fact==0.)then
+          gmax=-1.e20
+          gmin=1.e20
+          do k=1,kup
+           gmax=max(gmax,gumax(1,k))
+           gmin=min(gmin,gumin(1,k))
+          enddo
+          print *,char,'Gmax,Gmin ',gmax,gmin
+          if(gmax==0.)gmax=1.
+          if(gmin==0.)gmin=1.
+          print 981,ktau,char,gumax(1,1:10)/abs(gmax),     &
+     &                   char,gumax(1,11:kup)/abs(gmax)
+          print 977,ktau,ijumax
+          print 982,ktau,char,gumin(1,:)/abs(gmin)
+          print 977,ktau,ijumin
+          return
+        endif  ! (fact==0.)
+        
+        gumax(1,:)=gumax(1,:)*fact
+        gumin(1,:)=gumin(1,:)*fact
 
-      if(kup.eq.1)then
+       if(kup.eq.1)then
         print 970,ktau,char,gumax(1,1),char,gumin(1,1)
 970     format(i7,1x,a2,'max ',f8.3,3x,a2,'min ',f8.3)
         print 9705,ktau,ijumax(:,1),ijumin(:,1)
 9705    format(i7,'  posij',i4,i4,10x,i3,i4)
         return
-      endif   !  (kup.eq.1)
+       endif   !  (kup.eq.1)
 
-      if(gumax(1,1).ge.1000.)then   ! for radon
+       if(gumax(1,1).ge.1000.)then   ! for radon
         print 961,ktau,char,gumax(1,:)
 961     format(i7,1x,a2,'max ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
         print 977,ktau,ijumax
         print 962,ktau,char,gumin(1,:)
 962     format(i7,1x,a2,'min ',10f7.1/(14x,10f7.1)/(14x,10f7.1))
         print 977,ktau,ijumin
-      elseif(kup.le.10)then  ! format for tggsn
+       elseif(kup.le.10)then  ! format for tggsn
         print 971,ktau,char,(gumax(1,k),k=1,kup)
         print 977,ktau,ijumax
         print 972,ktau,char,(gumin(1,k),k=1,kup)
@@ -158,16 +180,15 @@ contains
 972     format(i7,1x,a2,'min ',10f7.2/(14x,10f7.2)/(14x,10f7.2))
         print 977,ktau,ijumin
 977     format(i7,'  posij',10(i3,i4)/(14x,10(i3,i4))/(14x,10(i3,i4)))
-      else  ! for qg & sd
+       else  ! for qg & sd
         print 981,ktau,char,gumax(1,1:10),char,gumax(1,11:kup)
-!!!981  format(i7,1x,a2,'max ',10f7.3/(14x,10f7.3)/(14x,10f7.3))
 981     format(i7,1x,a2,'max ',10f7.3/(a10,'maX ',10f7.3)/(14x,10f7.3))
         print 977,ktau,ijumax
         print 982,ktau,char,gumin(1,:)
 982     format(i7,1x,a2,'min ',10f7.3/(14x,10f7.3)/(14x,10f7.3))
         print 977,ktau,ijumin
-      endif
-      end if ! myid == 0
+       endif
+      endif ! myid == 0
       return
    end subroutine maxmin2
 

@@ -2,8 +2,7 @@
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,
-     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                    urban) ! MJT CHANGE add urban types
+     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,urban) ! MJT urban
 !     Target points use values interpolated to their 4 grid "corners";
 !     these corner values are then averaged to the grid centres
 !     N.B. this means will get different fields with io_in=-1 from io_in=1
@@ -49,7 +48,6 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       real, dimension(ifull_g,4) :: xg4, yg4
       integer, dimension(ifull_g,4) :: nface4
       real rotpoles(3,3),rotpole(3,3)
-      
 
 !     These are local arrays, not the versions in arrays.h
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
@@ -57,9 +55,9 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      & wb(ifull,ms),wbice(ifull,ms),snowd(ifull),sicedep(ifull),
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     & ssdnn(ifull),snage(ifull),
-     & urban(ifull,14) ! MJT CHANGE add urban types
-      integer, save :: isoilm_h(ifull) ! MJT add soil type
+     & ssdnn(ifull),snage(ifull),  ! MJT lsmask - delete esm
+     & urban(ifull,14) ! MJT urban
+      integer, save :: isoilm_h(ifull) ! MJT lsmask
       ! Dummy variables here replace the aliasing use of aa, bb in infile call
       real, dimension(ifull) :: dum5
       integer isflag(ifull)
@@ -90,7 +88,7 @@ c     zs_t(:)=zs(1:ifull)
          bz_t(:) = bz_g(:)
 
 c     start of processing loop 
-      nemi=3 ! MJT CHANGE - use soil type for land-mask
+      nemi=3   !  MJT CHANGE - lsmask
       if(ktau<3.and.myid==0)print *,'search for kdate_s,ktime_s >= ',
      &                                          kdate_s,ktime_s
       id_t=id
@@ -109,8 +107,7 @@ c     start of processing loop
         call infile(nested,kdate_r,ktime_r,timegb,ds,
      &            psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &            tgg,wb,wbice,dum5,snowd,  ! dum5 is alb
-     &            tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &            urban,isoilm_h) ! MJT CHANGE add urban types
+     &            tggsn,smass,ssdn,ssdnn,snage,isflag,isoilm_h,urban) ! MJT lsmask - delete esm ! MJT urban
       else
         call infil(nested,kdate_r,ktime_r,timegb,ds,
      &            psl,zss,tss,sicedep,fracice,t,u,v,qg)
@@ -284,9 +281,9 @@ c      endif
 
 !     set up land-sea mask from either tss or zss
       !-------------------------------------------
-      ! MJT CHANGE
+      ! MJT lsmask
       if(nemi==3)then 
-        land(:)=isoilm_h(:).ne.0
+        land(:)=isoilm_h(:).gt.0
         if (any(isoilm_h(:).lt.0)) nemi=2
       end if
       !-------------------------------------------
@@ -391,12 +388,12 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
         enddo
         !--------------------------------------------------
         ! MJT CHANGE
-        if (nurban.eq.1) then
+        if (nurban.ne.0) then
           do k=1,14
             call doints4(urban(:,k),nface4,xg4,yg4,nord,ik)
           end do
         end if
-        !--------------------------------------------------
+        !--------------------------------------------------	
 c       incorporate target land mask effects for initial fields
         do iq=1,ifull
          if(land_t(iq))then
