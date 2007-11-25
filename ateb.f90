@@ -33,7 +33,6 @@
 ! - may introduce time dependent traffic and industry fluxes as well as building temperatures (see Thatcher 2007).
 !
 
-
 module ateb
 
 implicit none
@@ -46,8 +45,8 @@ integer ufull,maxtype
 integer, dimension(:), allocatable :: ugrid,qgrid
 real, dimension(:,:), allocatable :: rooftemp,walletemp,wallwtemp,roadtemp
 real, dimension(:,:), allocatable :: roofadjt,walleadjt,wallwadjt,roadadjt
-real, dimension(:), allocatable :: roofadjw,roadadjw
 real, dimension(:), allocatable :: roofwater,roadwater
+real, dimension(:), allocatable :: roofadjw,roadadjw
 real, dimension(:), allocatable :: fnsigmabld,fnhwratio,fnindustryfg,fntrafficfg
 real, dimension(:), allocatable :: fnzo,fnbldheight
 real, dimension(:), allocatable :: vangle,hangle
@@ -406,6 +405,7 @@ real, dimension(ifull), intent(in) :: sigmau
 
 if (diag.ne.0) write(6,*) "Blend urban roughness length"
 
+! Possibly should modify the orography sd as well...
 zo(ugrid(:))=zmin*exp(-1./sqrt((1.-sigmau(ugrid(:)))/log(zmin/zo(ugrid(:)))**2 &
   +sigmau(ugrid(:))/log(zmin/fnzo(:))**2))
 
@@ -541,7 +541,7 @@ subroutine tebeval(ofg,oeg,ots,owf,ddt,zmin,sg,rg,rnd,rho,temp,mixr,ps,pa,umag,d
 implicit none
 
 integer, intent(in) :: diag
-integer iqu,j,k,firstcall
+integer iqu,j,k
 real, intent(in) :: ddt,zmin
 real, dimension(ufull), intent(in) :: sg,rg,rnd,rho,temp,mixr,ps,pa,umag
 real, dimension(ufull), intent(out) :: ofg,oeg,ots,owf
@@ -560,11 +560,12 @@ real roofdelta,roaddelta
 real oldcanyontemp,newcanyontemp
 real cd,roofqsat,roadqsat
 real canyontemp,canyonmix,canyonu
-real ctmax,ctmin,evctmax,evct,oldevct,evctdum
+real ctmax,ctmin,evctx,evct
 real efftrafffg
-real qsats,qsata
+real qsata
 real tempc,mixrc,sigr,tempr,mixrr,dzmin
-data firstcall/0/
+logical firstcall
+data firstcall/.true./
 save firstcall
 
 if (diag.ne.0) write(6,*) "Evaluating aTEB"
@@ -579,15 +580,15 @@ do iqu=1,ufull
 
   ! canyon floor
   tempc=temp(iqu)*(ps(iqu)/pa(iqu))**(rd/aircp)
-  call getqsat(qsats,tempc,ps(iqu))
+  call getqsat(roadqsat,tempc,ps(iqu))
   call getqsat(qsata,temp(iqu),pa(iqu))
-  mixrc=mixr(iqu)*qsats/qsata
+  mixrc=mixr(iqu)*roofqsat/qsata
 
   ! canyon roof (MJT suggestion)
   sigr=exp(-grav*fnbldheight(iqu)/(rd*temp(iqu))) 
   tempr=temp(iqu)*(ps(iqu)*sigr/pa(iqu))**(rd/aircp)
-  call getqsat(qsats,tempr,ps(iqu)*sigr)
-  mixrr=mixr(iqu)*qsats/qsata
+  call getqsat(roofqsat,tempr,ps(iqu)*sigr)
+  mixrr=mixr(iqu)*roadqsat/qsata
 
   ! estimate canyonu
   if (zmin.gt.fnbldheight(iqu)) then ! above canyon
@@ -601,20 +602,18 @@ do iqu=1,ufull
   efftrafffg=fntrafficfg(iqu)/(1.-fnsigmabld(iqu))
 
   ! prep predictor-corrector arrays
-  roofdumtemp(:)=min(max(rooftemp(iqu,:),225.),375.)
-  walledumtemp(:)=min(max(walletemp(iqu,:),225.),375.)
-  wallwdumtemp(:)=min(max(wallwtemp(iqu,:),225.),375.)
-  roaddumtemp(:)=min(max(roadtemp(iqu,:),225.),375.)
-  roofdumwat=min(max(roofwater(iqu),0.),maxroofwater)
-  roaddumwat=min(max(roadwater(iqu),0.),maxroadwater)
+  roofdumtemp(:)=rooftemp(iqu,:)
+  walledumtemp(:)=walletemp(iqu,:)
+  wallwdumtemp(:)=wallwtemp(iqu,:)
+  roaddumtemp(:)=roadtemp(iqu,:)
+  roofdumwat=roofwater(iqu)
+  roaddumwat=roadwater(iqu)
 
   do j=1,2 ! corrector-predictor loop
+    roofdumwat=min(max(roofdumwat,0.),maxroofwater)
+    roaddumwat=min(max(roaddumwat,0.),maxroadwater)
     
-    ! estimate water converage
-    roofdelta=(roofdumwat/maxroofwater)**(2./3.)
-    roaddelta=(roaddumwat/maxroadwater)**(2./3.)
-  
-    ! calculate long wave radiation (note additional wall compared to TEB scheme)
+    ! calculate long wave radiation
     roofrg=roofemiss*(rg(iqu)-sbconst*roofdumtemp(1)**4)
     wallerg=wallemiss*(rg(iqu)*(wallpsi+(1.-roademiss)*wallpsi*roadpsi+(1.-wallemiss)*wallpsi*(1.-2.*wallpsi)) &
                       +sbconst*walledumtemp(1)**4*(-1.+wallemiss*(1.-wallemiss)*(1.-2.*wallpsi)**2) &
@@ -629,11 +628,7 @@ do iqu=1,ufull
                       +sbconst*0.5*(walledumtemp(1)**4+wallwdumtemp(1)**4) &
                       *(wallemiss*(1.-roadpsi)+wallemiss*(1.-wallemiss)*(1.-roadpsi)*(1.-2.*wallpsi)))
 
-    ! calculate mixing ratios
-    call getqsat(roofqsat,roofdumtemp(1),ps(iqu)*sigr)
-    call getqsat(roadqsat,roaddumtemp(1),ps(iqu))
-
-    ! calculate aerodynamic resistances 
+    ! calculate sensible heat fluxes 
     ! (should really use two model atmospheric levels here.  One in the canyon and one above roofs.
     ! However, for this to work the sensible heat flux must also be fed back into both atmospheric
     ! levels.  Since the host model only allows the sensible heat flux to be fed into the lowest model level,
@@ -641,11 +636,9 @@ do iqu=1,ufull
     dzmin=max(abs(zmin-fnbldheight(iqu)),zoroof+1.)
     call getinvres(roofinvres,cd,zoroof,dzmin,roofdumtemp(1),tempr,umag(iqu)) 
     rooffg=aircp*rho(iqu)*(roofdumtemp(1)-tempr)*roofinvres
-
-    ! diagnose canyon air temperature
     ctmax=max(tempc,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1))+1. ! max canyon temp
     ctmin=min(tempc,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1))    ! min canyon temp
-    call solvecanyon(evctmax,wallefg,wallwfg,roadfg,topfg,rwinvres,topinvres,fnzo(iqu) &
+    call solvecanyon(evctx,wallefg,wallwfg,roadfg,topfg,rwinvres,topinvres,fnzo(iqu) &
       ,zmin,ctmax,tempc,umag(iqu),canyonu,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1) &
       ,rho(iqu),efftrafffg,fnhwratio(iqu))
     canyontemp=0.5*(ctmax+ctmin)
@@ -653,39 +646,47 @@ do iqu=1,ufull
       call solvecanyon(evct,wallefg,wallwfg,roadfg,topfg,rwinvres,topinvres,fnzo(iqu) &
         ,zmin,canyontemp,tempc,umag(iqu),canyonu,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1) &
         ,rho(iqu),efftrafffg,fnhwratio(iqu))
-      if ((evct*evctmax).lt.0.) then
+      if ((evct*evctx).lt.0.) then
         ctmin=canyontemp
       else
         ctmax=canyontemp
-        evctmax=evct
+        evctx=evct
       end if
       oldcanyontemp=canyontemp
       canyontemp=0.5*(ctmax+ctmin)
     end do
-
     do k=1,5 ! sectant
-      oldevct=evct
+      evctx=evct
       call solvecanyon(evct,wallefg,wallwfg,roadfg,topfg,rwinvres,topinvres,fnzo(iqu) &
         ,zmin,canyontemp,tempc,umag(iqu),canyonu,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1) &
         ,rho(iqu),efftrafffg,fnhwratio(iqu))
-      evctdum=evct-oldevct
-      if (evctdum.eq.0.) exit    
-      newcanyontemp=canyontemp-evct*(canyontemp-oldcanyontemp)/evctdum
+      evctx=evct-evctx
+      if (evctx.eq.0.) exit    
+      newcanyontemp=canyontemp-evct*(canyontemp-oldcanyontemp)/evctx
       oldcanyontemp=canyontemp
       canyontemp=newcanyontemp
     end do
     canyontemp=min(max(canyontemp,ctmin),ctmax)    
-      
-    if (roofqsat.lt.mixrr) roofdelta=1. 
-    if (roadqsat.lt.mixrc) roaddelta=1. ! equivilent to roadqsat.lt.canyonmix
+
+    ! calculate latent heat fluxes
+    call getqsat(roofqsat,roofdumtemp(1),ps(iqu)*sigr)
+    call getqsat(roadqsat,roaddumtemp(1),ps(iqu))
+    roofdelta=(roofdumwat/maxroofwater)**(2./3.)
+    roaddelta=(roaddumwat/maxroadwater)**(2./3.)
     canyonmix=(roaddelta*roadqsat*rwinvres+mixrc*topinvres)/(roaddelta*rwinvres+topinvres)
- 
-    ! calculate latent heat flux
-    roofeg=lv*min(rho(iqu)*roofdelta*(roofqsat-mixrr)*roofinvres,roofdumwat+rnd(iqu))
-    roadeg=lv*min(rho(iqu)*roaddelta*(roadqsat-canyonmix)*rwinvres,roaddumwat+rnd(iqu))
+    if (roofqsat.lt.mixrr) then
+      roofeg=lv*rho(iqu)*(roofqsat-mixrr)*roofinvres
+    else
+      roofeg=lv*min(rho(iqu)*roofdelta*(roofqsat-mixrr)*roofinvres,roofdumwat+rnd(iqu))    
+    end if
+    if (roadqsat.lt.mixrc) then ! equivilent to roadqsat.lt.canyonmix    
+      roadeg=lv*rho(iqu)*(roadqsat-canyonmix)*rwinvres
+    else
+      roadeg=lv*min(rho(iqu)*roaddelta*(roadqsat-canyonmix)*rwinvres,roaddumwat+rnd(iqu))
+    end if
     topeg=roadeg
   
-    ! calculate condution heat flux (e.g., through walls)
+    ! calculate heat conduction (e.g., through walls)
     do k=1,2
       roofga(k)=2.*(roofdumtemp(k)-roofdumtemp(k+1))/(roofdepth(k)/rooflambda(k)+roofdepth(k+1)/rooflambda(k+1))
       wallega(k)=2.*(walledumtemp(k)-walledumtemp(k+1))/(walldepth(k)/walllambda(k)+walldepth(k+1)/walllambda(k+1))
@@ -697,7 +698,7 @@ do iqu=1,ufull
     wallwga(3)=2.*walllambda(3)*(wallwdumtemp(3)-bldtemp)/(walldepth(3))
     roadga(3)=0.
   
-    ! update urban temperatures
+    ! calculate change in urban temperatures
     roofdumt(1)=(roofsg+roofrg-rooffg-roofeg-roofga(1))/(roofcp(1)*roofdepth(1))
     walledumt(1)=(wallesg+wallerg-wallefg-wallega(1))/(wallcp(1)*walldepth(1))
     wallwdumt(1)=(wallwsg+wallwrg-wallwfg-wallwga(1))/(wallcp(1)*walldepth(1))
@@ -711,15 +712,16 @@ do iqu=1,ufull
     roofdumw=(rnd(iqu)-roofeg/lv)
     roaddumw=(rnd(iqu)-roadeg/lv)
 
-    ! predictor-corrector scheme
+    ! predictor-corrector scheme to update urban temperatures
     if (j.eq.1) then ! predictor
-      if (firstcall.eq.0) then
+      if (firstcall) then
         roofadjt(iqu,:)=roofdumt(:)
         walleadjt(iqu,:)=walledumt(:)
         wallwadjt(iqu,:)=wallwdumt(:)
         roadadjt(iqu,:)=roaddumt(:)
         roofadjw(iqu)=roofdumw
         roadadjw(iqu)=roaddumw
+        firstcall=.false.
       end if
       roofdumtemp(:)=rooftemp(iqu,:)+ddt*(1.5*roofdumt(:)-0.5*roofadjt(iqu,:))
       walledumtemp(:)=walletemp(iqu,:)+ddt*(1.5*walledumt(:)-0.5*walleadjt(iqu,:))
@@ -734,7 +736,7 @@ do iqu=1,ufull
       rooforgw=roofdumw
       roadorgw=roadorgw
     else ! corrector
-       roofdumtemp(:)=rooftemp(iqu,:)+(ddt/12.)*(5.*roofdumt(:)+8.*rooforgt(:)-roofadjt(iqu,:))
+      roofdumtemp(:)=rooftemp(iqu,:)+(ddt/12.)*(5.*roofdumt(:)+8.*rooforgt(:)-roofadjt(iqu,:))
       walledumtemp(:)=walletemp(iqu,:)+(ddt/12.)*(5.*walledumt(:)+8.*walleorgt(:)-walleadjt(iqu,:))
       wallwdumtemp(:)=wallwtemp(iqu,:)+(ddt/12.)*(5.*wallwdumt(:)+8.*wallworgt(:)-wallwadjt(iqu,:))
       roaddumtemp(:)=roadtemp(iqu,:)+(ddt/12.)*(5.*roaddumt(:)+8.*roadorgt(:)-roadadjt(iqu,:))
@@ -746,23 +748,17 @@ do iqu=1,ufull
       roaddumwat=roadwater(iqu)+(ddt/12.)*(5.*roaddumw+8.*roadorgw-roadadjw(iqu))
       roofadjw(iqu)=rooforgw
       roadadjw(iqu)=roadorgw
-   end if
-    
-    ! limit temperatures to sensible values 
-    roofdumtemp(:)=min(max(roofdumtemp(:),225.),375.)
-    walledumtemp(:)=min(max(walledumtemp(:),225.),375.)
-    wallwdumtemp(:)=min(max(wallwdumtemp(:),225.),375.)
-    roaddumtemp(:)=min(max(roaddumtemp(:),225.),375.)
-    roofdumwat=min(max(roofdumwat,0.),maxroofwater)
-    roaddumwat=min(max(roaddumwat,0.),maxroadwater)
+    end if
+
   end do
-    
-  rooftemp(iqu,:)=roofdumtemp(:)
-  walletemp(iqu,:)=walledumtemp(:)
-  wallwtemp(iqu,:)=wallwdumtemp(:)
-  roadtemp(iqu,:)=roaddumtemp(:)
-  roofwater(iqu)=roofdumwat
-  roadwater(iqu)=roaddumwat
+
+  ! limit temperatures to sensible values     
+  rooftemp(iqu,:)=min(max(roofdumtemp(:),225.),375.)
+  walletemp(iqu,:)=min(max(walledumtemp(:),225.),375.)
+  wallwtemp(iqu,:)=min(max(wallwdumtemp(:),225.),375.)
+  roadtemp(iqu,:)=min(max(roaddumtemp(:),225.),375.)
+  roofwater(iqu)=min(max(roofdumwat,0.),maxroofwater)
+  roadwater(iqu)=min(max(roaddumwat,0.),maxroadwater)
 
   ! calculate outputs
   ofg(iqu)=fnsigmabld(iqu)*rooffg+(1.-fnsigmabld(iqu))*topfg+fnindustryfg(iqu)
@@ -770,11 +766,8 @@ do iqu=1,ufull
   ots(iqu)=fnsigmabld(iqu)*rooftemp(iqu,1)+(1.-fnsigmabld(iqu))*canyontemp !MJT - since this is what the atmosphere can 'see'
   owf(iqu)=fnsigmabld(iqu)*roofdelta+(1.-fnsigmabld(iqu))*roaddelta
 
-
 end do
   
-firstcall=1
-
 return
 end subroutine tebeval
 
@@ -840,25 +833,19 @@ implicit none
 
 real, intent(in) :: zo,zmin,stemp,theta,umag
 real, intent(out) :: invres,cd
-real zolog,af,aft,xx,ri,fm,fh,factch,root,denma,denha,vmag
-real rimax
+real zolog,af,aft,ri,fm,fh,root,denma,denha
 real, parameter :: bprm=5.
 real, parameter :: chs=2.6
 real, parameter :: cms=5.
 real, parameter :: fmroot=0.57735
 real, parameter :: vkar=0.4
-
-rimax=(1./fmroot-1.)/bprm
-factch=sqrt(7.4)
+real, parameter :: rimax=(1./fmroot-1.)/bprm
+real, parameter :: factch=2.72029410 ! sqrt(7.4)
 
 zolog=log(zmin/zo)
-vmag=max(umag,0.2)
-
 af=(vkar/zolog)**2
 aft=vkar**2/(zolog*(2.+zolog))
-
-xx=grav*zmin*(1.-stemp/theta)
-ri=min(xx/vmag**2,rimax)
+ri=min(grav*zmin*(1.-stemp/theta)/max(umag,0.2)**2,rimax)
 
 if (ri>0.) then
   fm=1./(1.+bprm*ri)**2
@@ -905,7 +892,6 @@ else
   xb=pi-tz-xa
   ya=2.-cos(min(thetazero,max(abs(hangle),0.)))-cos(min(thetazero,max(hangle-pi+thetazero,0.)))
   yb=tc-ya
-  
   ! note that these terms now include the azimuth angle
   walles=((1./hwratio)*xa+ta*ya)/pi
   wallws=((1./hwratio)*xb+ta*yb)/pi
