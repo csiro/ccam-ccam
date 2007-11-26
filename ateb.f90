@@ -38,11 +38,11 @@ module ateb
 implicit none
 
 private
-public tebinit,tebcalc,tebend,tebzom,tebload,tebsave,tebdefault,tebtype,tebalb,tebfndef, &
+public tebinit,tebcalc,tebend,tebzom,tebload,tebsave,tebtype,tebalb,tebfndef, &
        tebnewangle,tebccangle,tebdisable
 
 integer ufull,maxtype
-integer, dimension(:), allocatable :: ugrid,qgrid
+integer, dimension(:), allocatable :: ugrid
 real, dimension(:,:), allocatable :: rooftemp,walletemp,wallwtemp,roadtemp
 real, dimension(:,:), allocatable :: roofadjt,walleadjt,wallwadjt,roadadjt
 real, dimension(:), allocatable :: roofwater,roadwater
@@ -77,22 +77,21 @@ contains
 ! This is a compulsory subroutine that must be called during
 ! model initalisation
 
-subroutine tebinit(ifull,sigmau,rlon,rlat,diag)
+subroutine tebinit(ifull,sigmau,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
-integer iqu,iq,iqmark(1)
+integer iqu,iq
 integer, dimension(ifull) :: utype
-real, dimension(ifull), intent(in) :: sigmau,rlon,rlat
-real, dimension(:), allocatable :: dis
+real, dimension(ifull), intent(in) :: sigmau
 
 if (diag.ne.0) write(6,*) "Initialising aTEB"
 
 ufull=count(sigmau.gt.0.)
 if (ufull.eq.0) return
 
-allocate(ugrid(ufull),qgrid(ifull))
+allocate(ugrid(ufull))
 allocate(rooftemp(ufull,3),walletemp(ufull,3),wallwtemp(ufull,3),roadtemp(ufull,3))
 allocate(roofadjt(ufull,3),walleadjt(ufull,3),wallwadjt(ufull,3),roadadjt(ufull,3))
 allocate(roofadjw(ufull),roadadjw(ufull))
@@ -139,18 +138,6 @@ do iq=1,ifull
   end if
 end do
 
-allocate(dis(ufull))
-do iq=1,ifull
-  dis(:)=abs(rlon(iq)-rlon(ugrid(:)))
-  where (dis(:).gt.pi)
-    dis(:)=2.*pi-dis(:)
-  end where
-  dis(:)=dis(:)**2+(rlat(iq)-rlat(ugrid(:)))**2
-  iqmark=minloc(dis)
-  qgrid(iq)=iqmark(1)
-end do
-deallocate(dis)
-
 ! Initialise state variables
 rooftemp=bldtemp
 walletemp=bldtemp
@@ -179,7 +166,7 @@ integer, intent(in) :: diag
 if (diag.ne.0) write(6,*) "Deallocating aTEB arrays"
 if (ufull.eq.0) return
 
-deallocate(ugrid,qgrid)
+deallocate(ugrid)
 deallocate(rooftemp,walletemp,wallwtemp,roadtemp)
 deallocate(roofadjt,walleadjt,wallwadjt,roadadjt)
 deallocate(roofadjw,roadadjw)
@@ -191,39 +178,6 @@ deallocate(vangle,hangle)
 return
 end subroutine tebend
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! this subroutine sets defaults for aTEB state arrays
-
-subroutine tebdefault(ifull,ta,tb,diag)
-
-implicit none
-
-integer, intent(in) :: ifull,diag
-real, dimension(1:ifull), intent(in) :: ta,tb
-real, dimension(1:ifull) :: tc
-
-if (diag.ne.0) write(6,*) "Setting aTEB state array defaults"
-
-tc(:)=tb(:)
-where (tc(:).lt.250.)
-  tc(:)=ta(:)
-end where
-
-rooftemp(:,1)=ta(ugrid(:))
-walletemp(:,1)=ta(ugrid(:))
-wallwtemp(:,1)=ta(ugrid(:))
-roadtemp(:,1)=ta(ugrid(:))
-rooftemp(:,2)=0.3*ta(ugrid(:))+0.7*bldtemp
-walletemp(:,2)=0.3*ta(ugrid(:))+0.7*bldtemp
-wallwtemp(:,2)=0.3*ta(ugrid(:))+0.7*bldtemp
-roadtemp(:,2)=0.3*ta(ugrid(:))+0.7*tc(ugrid(:))
-rooftemp(:,3)=bldtemp
-walletemp(:,3)=bldtemp
-wallwtemp(:,3)=bldtemp
-roadtemp(:,3)=tc(ugrid(:))
-
-return
-end subroutine tebdefault
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! this subroutine loads aTEB state arrays (not compulsory)
@@ -375,17 +329,15 @@ integer, intent(in) :: ifull,diag
 real, dimension(ifull,14), intent(out) :: urban
 
 if (diag.ne.0) write(6,*) "Save aTEB state arrays"
-if (ufull.le.0) then
-  urban(:,1:12)=bldtemp
-  urban(:,13:14)=0.
-else
-  urban(:,1:3)=rooftemp(qgrid(:),:)
-  urban(:,4:6)=walletemp(qgrid(:),:)
-  urban(:,7:9)=wallwtemp(qgrid(:),:)
-  urban(:,10:12)=roadtemp(qgrid(:),:)
-  urban(:,13)=roofwater(qgrid(:))
-  urban(:,14)=roadwater(qgrid(:))
-end if
+
+urban(:,1:12)=bldtemp
+urban(:,13:14)=0.
+urban(ugrid(:),1:3)=rooftemp(:,:)
+urban(ugrid(:),4:6)=walletemp(:,:)
+urban(ugrid(:),7:9)=wallwtemp(:,:)
+urban(ugrid(:),10:12)=roadtemp(:,:)
+urban(ugrid(:),13)=roofwater(:)
+urban(ugrid(:),14)=roadwater(:)
 
 return
 end subroutine tebsave
@@ -582,13 +534,13 @@ do iqu=1,ufull
   tempc=temp(iqu)*(ps(iqu)/pa(iqu))**(rd/aircp)
   call getqsat(roadqsat,tempc,ps(iqu))
   call getqsat(qsata,temp(iqu),pa(iqu))
-  mixrc=mixr(iqu)*roofqsat/qsata
+  mixrc=mixr(iqu)*roadqsat/qsata
 
   ! canyon roof (MJT suggestion)
   sigr=exp(-grav*fnbldheight(iqu)/(rd*temp(iqu))) 
   tempr=temp(iqu)*(ps(iqu)*sigr/pa(iqu))**(rd/aircp)
   call getqsat(roofqsat,tempr,ps(iqu)*sigr)
-  mixrr=mixr(iqu)*roadqsat/qsata
+  mixrr=mixr(iqu)*roofqsat/qsata
 
   ! estimate canyonu
   if (zmin.gt.fnbldheight(iqu)) then ! above canyon
@@ -610,6 +562,10 @@ do iqu=1,ufull
   roaddumwat=roadwater(iqu)
 
   do j=1,2 ! corrector-predictor loop
+    roofdumtemp(:)=min(max(roofdumtemp(:),225.),375.)
+    walledumtemp(:)=min(max(walledumtemp(:),225.),375.)
+    wallwdumtemp(:)=min(max(wallwdumtemp(:),225.),375.)
+    roaddumtemp(:)=min(max(roaddumtemp(:),225.),375.)
     roofdumwat=min(max(roofdumwat,0.),maxroofwater)
     roaddumwat=min(max(roaddumwat,0.),maxroadwater)
     
