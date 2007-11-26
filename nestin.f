@@ -1354,7 +1354,6 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               end do
             end do
           else
-            n1=(ne-ns+1)*il_g
             do j=ns,ne
               do n=1,il_g
                 call getiqx(iq,j,n,ipass,ppass,il_g)
@@ -1368,6 +1367,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
                 pq(iq1,:)=qq(iq,:)
               end do
             end do
+            n1=(ne-ns+1)*il_g	    
             call MPI_SSend(psum(1:n1),n1,MPI_REAL,0,itag,
      &             MPI_COMM_WORLD,ierr)
             call MPI_SSend(pp(1:n1),n1,MPI_REAL,0,itag,
@@ -1388,16 +1388,18 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
         end do
 
-        nns=ppass*il_g*il_g+1
-        nne=(ppass+1)*il_g*il_g
-        zp(nns:nne)=qp(nns:nne)/qsum(nns:nne)
-        do k=kbotdav,kl
-          zu(nns:nne,k)=qu(nns:nne,k)/qsum(nns:nne)
-          zv(nns:nne,k)=qv(nns:nne,k)/qsum(nns:nne)
-          zw(nns:nne,k)=qw(nns:nne,k)/qsum(nns:nne)
-          zt(nns:nne,k)=qt(nns:nne,k)/qsum(nns:nne)
-          zq(nns:nne,k)=qq(nns:nne,k)/qsum(nns:nne)
-        end do        
+        if (myid==0) then
+          nns=ppass*il_g*il_g+1
+          nne=(ppass+1)*il_g*il_g
+          zp(nns:nne)=qp(nns:nne)/qsum(nns:nne)
+          do k=kbotdav,kl
+            zu(nns:nne,k)=qu(nns:nne,k)/qsum(nns:nne)
+            zv(nns:nne,k)=qv(nns:nne,k)/qsum(nns:nne)
+            zw(nns:nne,k)=qw(nns:nne,k)/qsum(nns:nne)
+            zt(nns:nne,k)=qt(nns:nne,k)/qsum(nns:nne)
+            zq(nns:nne,k)=qq(nns:nne,k)/qsum(nns:nne)
+          end do        
+	end if
 
       end do
       
@@ -1632,8 +1634,12 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       integer, intent(out) :: iq
       integer, intent(in) :: j,n,ipass,ppass,il_g
+      integer r
       
-      select case(ppass*100+ipass*10+n/il_g)
+      r=n/il_g
+      if (mod(n,il_g).eq.0) r=r-1
+      
+      select case(ppass*100+ipass*10+r)
         case(0,310,530)
           iq=il_g*(5*il_g+n)+1-j      ! panel 5   - x pass
         case(10,230,300)
@@ -1704,8 +1710,12 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       integer, intent(out) :: iq
       integer, intent(in) :: j,n,ipass,il_g
+      integer r
       
-      select case(ipass*10+n/il_g) ! Use indexing from jlm fastspec
+      r=n/il_g
+      if (mod(n,il_g).eq.0) r=r-1
+      
+      select case(ipass*10+r) ! Use indexing from jlm fastspec
         case(0)                         ! x pass
           iq=il_g*(il_g+j-1)+n          ! panel 1
         case(1)
