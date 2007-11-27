@@ -1830,14 +1830,17 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         where (.not.land(:))
           sigmu(:)=0.
         end where
-        call tebinit(ifull,sigmu(:),rlongg(:),rlatt(:),0)
+        call tebinit(ifull,sigmu(:),0)
         if (any(urban(:,1).lt.0.)) then
           if (mydiag) print *,"Using urban default temperatures"
-          call tebdefault(ifull,tgg(:,1),tgg(:,ms),0)
+	  do k=1,12
+	    urban(:,k)=tss(:)
+	  end do
+	  urban(:,13:14)=0.
         else
           if (mydiag) print *,"Loading urban temperatures"
-          call tebload(ifull,urban,0)
         end if
+        call tebload(ifull,urban,0)	
       else
         sigmu(:)=0.
         call tebdisable(0) ! disable urban

@@ -1104,6 +1104,10 @@ c      "extra" outputs
        !---------------------------------------------------------
        ! MJT urban
        if ((nurban.eq.-1).or.((nurban.eq.1).and.(itype==-1))) then
+        do k=1,12
+	  urban(:,k)=tss(:)
+	end do
+	urban(:,13:14)=0.
         call tebsave(ifull,urban,0)
         call histwrt3(urban(:,1),'rooftgg1',idnc,iarch,local)
         call histwrt3(urban(:,2),'rooftgg2',idnc,iarch,local)

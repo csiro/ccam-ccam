@@ -326,12 +326,10 @@ subroutine tebsave(ifull,urban,diag)
 implicit none
 
 integer, intent(in) :: ifull,diag
-real, dimension(ifull,14), intent(out) :: urban
+real, dimension(ifull,14), intent(inout) :: urban
 
 if (diag.ne.0) write(6,*) "Save aTEB state arrays"
 
-urban(:,1:12)=bldtemp
-urban(:,13:14)=0.
 urban(ugrid(:),1:3)=rooftemp(:,:)
 urban(ugrid(:),4:6)=walletemp(:,:)
 urban(ugrid(:),7:9)=wallwtemp(:,:)
