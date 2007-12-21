@@ -420,11 +420,6 @@ c       incorporate target land mask effects for initial fields
          ssdnn(iq)  = ssdn(iq,1)
          if(snowd(iq)>0.)tgg(iq,1)=min(tgg(iq,1),270.1)
         enddo   ! iq loop
-        do k=1,ms
-!         following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
-          wbice(:,k)=
-     &         min(.99,max(0.,.99*(273.1-tgg(:,k))/5.))*wb(:,k) ! jlm
-         enddo ! ms
       endif    ! (nested==0)
 
 c     incorporate other target land mask effects

@@ -561,11 +561,7 @@ c 	    only being tested for nested=0; no need to test for mesonest
            ssdnn(iq)  = ssdn(iq,1)
            if(snowd(iq)>0.)tgg(iq,1)=min(tgg(iq,1),270.1)
           enddo   ! iq loop
-          do k=1,ms
-!           following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
-            wbice(:,k)=
-     &           min(.99,max(0.,.99*(273.1-tgg(:,k))/5.))*wb(:,k) ! jlm
-          enddo ! ms
+            wbice(:,:)=0.
         else     ! assume all these variables available in restart file
          call histrd1(ncid,iarchi,ier,'smass2',ik,jk,smass(1,2))
          call histrd1(ncid,iarchi,ier,'smass3',ik,jk,smass(1,3))

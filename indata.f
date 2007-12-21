@@ -61,8 +61,7 @@
       real sigin
       integer ik,jk,kk
       common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
-      real, dimension(ifull) :: zss, aa, esm
-      real, dimension(ifull,2) :: dumzs
+      real, dimension(ifull) :: zss, aa, zsmask
       real tbarr(kl),qgin(kl),zbub(kl)
       character co2in*80,radonin*80,surfin*80,header*80
 
@@ -124,7 +123,7 @@
 !    &              .05,.85,.85,.55,.65,.2,.05,.5, .0, .0, 0.,         ! 21-31
       real, dimension(ifull_g) :: glob2d
       real, dimension(ifull_g) :: davt_g
-      real, dimension(ifull,1:14) :: urban ! MJT urban      
+      real, dimension(ifull,1:14) :: urban ! MJT urban        
 
       call start_log(indata_begin)
       bam(1)=114413.
@@ -187,14 +186,21 @@ c         print *,'this one uses supplied eigs'
             call ccmpi_distribute(zs)
          end if
          if (myid==0) then
-            print *,'before read land-sea array'
-            ! read(66,*,end=58)(dumzs(iq,2),iq=1,ifull) ! formatted mask
+            print *,'before read land-sea fraction'
             read(66,*,end=58) glob2d
-            print *,'after read land-sea array'
-            call ccmpi_distribute(dumzs(:,2),glob2d)
+            print *,'after read land-sea fraction'
+            call ccmpi_distribute(zsmask(:),glob2d)
          else
-            call ccmpi_distribute(dumzs(:,2))
+            call ccmpi_distribute(zsmask(:))
          end if
+         if (myid==0) then
+            ! read(66,*,end=58)(he(iq),iq=1,ifull) ! formatted in meters
+            read(66,*,end=58) glob2d
+            call ccmpi_distribute(he,glob2d)
+         else
+            call ccmpi_distribute(he)
+         end if
+         if ( mydiag ) print *,'he read in from topofile',he(idjd)
          if(nspecial==2)then  ! to flood Madagascar, or similar 
           do iq=1,ifull
            if(rlatt(iq)*180./pi>-28.and.rlatt(iq)*180./pi<-11.and.
@@ -202,7 +208,7 @@ c         print *,'this one uses supplied eigs'
              if(zs(iq)>0.)then   
                print *,'zeroing iq,zs ',iq,zs(iq)
                zs(iq)=-.6   ! usual sea points come in as -1.  
-               dumzs(iq,2)=0.
+               zsmask(iq)=0.
              endif  ! (zs(iq)>0.)
            endif    ! (rlatt(iq)*180./pi  ....)
           enddo
@@ -230,23 +236,17 @@ c         print *,'this one uses supplied eigs'
          endif
 
          do iq=1,ifull
-            if(dumzs(iq,2)>=0.5)then
+            if(zsmask(iq)>=0.5)then
                land(iq)=.true. 
+               zs(iq)=max(zs(iq),1.1) ! to ensure consistent with zs=0 sea test
             else
                land(iq)=.false.
+               zs(iq)=0.             ! to ensure consistent with zs=0 sea test
             endif  
          enddo                  ! iq loop
 !        following is land fix for cape grim radon runs    **************
          if(rlat0>-26.9.and.rlat0<-26.7)stop
 !	  had  land(37,47)=.false.
-         if (myid==0) then
-            ! read(66,*,end=58)(he(iq),iq=1,ifull) ! formatted in meters
-            read(66,*,end=58) glob2d
-            call ccmpi_distribute(he,glob2d)
-         else
-            call ccmpi_distribute(he)
-         end if
-         if ( mydiag ) print *,'he read in from topofile',he(idjd)
          go to 59
  58      print *,'end-of-file reached on topofile'
  59      close(66)
@@ -257,10 +257,10 @@ c         print *,'this one uses supplied eigs'
 !     &            ((zs(ii+jj*il),ii=idjd-1,idjd+1),jj=1,-1,-1)
          write(6,"('he#_topof ',9f8.1)") diagvals(he)
 !     &            ((he(ii+jj*il),ii=idjd-1,idjd+1),jj=1,-1,-1)
+         write(6,"('zs#_mask ',9f8.2)") diagvals(zsmask)
       end if
 
       hourst = 0. ! Some io_in options don't set it.
-      ! esm(:)=-99. ! MJT lsmask - delete esm
       if(io_in<4)then
          kdate_sav=kdate_s
          ktime_sav=ktime_s
@@ -269,12 +269,13 @@ c         print *,'this one uses supplied eigs'
      &           psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
      &           tgg,wb,wbice,alb,snowd,
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag,isoilm,urban)  ! MJT lsmask - delete esm, add isoilm ! MJT urban
+     &           tggsn,smass,ssdn,ssdnn,snage,isflag,isoilm,urban)  !MJT lsmask ! MJT urban
             if ( mydiag ) then
                print *,'timegb,ds,zss',timegb,ds,zss(idjd)
                print *,'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
                print *,'kdate_s,ktime_s >= ',kdate_s,ktime_s
                print *,'kdate,ktime ',kdate,ktime
+               write(6,"('wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
             end if
             if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)then
               write(0,*) 'stopping in indata, not finding correct ',
@@ -368,7 +369,6 @@ c           endif  ! (nspecial>100)
          endif  !  (nhstest<0)
   
          if(newtop>=1)then    
-!          best not to do retopo during restart, as netcdf can slightly alter zs
            do iq=1,ifull
               if(land(iq))then
                   tss(iq)=tss(iq)+(zss(iq)-zs(iq))*stdlapse/grav
@@ -869,26 +869,6 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
        enddo                 
       endif ! (nsib==3)
 
-      !-----------------------------------------------------------------
-      ! MJT CHANGE - ecosystems
-      if (any(wb(:,:).lt.0.)) then
-        if (mydiag) print *,"Unpacking wetfac to wb"
-        wb(:,:)=abs(wb(:,:))
-        do iq=1,ifull
-          isoil=isoilm(iq)
-          wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
-        end do
-        if (any(wbice.lt.0.)) then
-          ! the next lines are taken from onthefly
-          do k=1,ms
-!           following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
-            wbice(:,k)=
-     &           min(.99,max(0.,.99*(273.1-tgg(:,k))/5.))*wb(:,k) ! jlm
-          enddo ! ms
-        end if
-      end if
-      !-----------------------------------------------------------------
-
 !     put in Antarctica ice-shelf fixes 5/3/07
       do iq=1,ifull
        if(zs(iq)<=0.)then
@@ -905,14 +885,35 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
            sicedep=0.
            isoilm(iq)=9
            ivegt(iq)=42
-           tgg(iq,:)=270.
-           tss(iq)=270.
-           snowd(iq)=100.
-           wb(iq,:)=sfc(9)
+!          tgg(iq,:)=270.  ! set below with isoilm=9 code  Dec 07
+!          tss(iq)=270.    ! set below with isoilm=9 code  Dec 07
+!          wb(iq,:)=max(wb(iq,:),sfc(9)) ! set below with isoilm=9 code
+           snowd(iq)=max(snowd(iq),100.)  ! max from Dec 07
            if(mydiag)print *,'setting sea to ice sheet for iq = ',iq
          endif
        endif  ! (zs(iq)<=0.)
       enddo
+
+      !-----------------------------------------------------------------
+      ! MJT CHANGE - ecosystems (moved below ice-shelf fix Dec 07)
+      if (any(wb(:,:).lt.0.)) then
+        if (mydiag) print *,"Unpacking wetfrac to wb",wb(idjd,1)
+        wb(:,:)=abs(wb(:,:))
+        do iq=1,ifull
+          isoil=isoilm(iq)
+          wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
+        end do
+        if (mydiag) print *,"giving wb",wb(idjd,:)
+c        if (any(wbice.lt.0.)) then
+c          ! the next lines are taken from onthefly
+c          do k=1,ms
+c!           following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
+c           wbice(:,k)=
+c    &           min(.99,max(0.,.99*(273.1-tgg(:,k))/5.))*wb(:,k) ! jlm
+c          enddo ! ms
+c        end if
+      end if
+      !-----------------------------------------------------------------
 
 
 !     rml 16/02/06 initialise tr, timeseries output and read tracer fluxes
@@ -973,33 +974,17 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
          endif    ! (land(iq))
         enddo     ! iq loop
         
-        if(nsib==5)then   ! MJT 30/9/06
-          if(esm(1)>=0.)then
-!           otherwise will use wb from 7 lines up with iveg=1           
-            if(mydiag)print *,'Soil moisture climatology loaded'
-            esm(:)=.01*esm(:)
-            do iq=1,ifull
-             if(land(iq))then
-               isoil=isoilm(iq)
-               fracwet=esm(iq)
-               wb(iq,ms)= (1.-fracwet)*swilt(isoilm(iq))+ 
-     &                        fracwet*sfc(isoilm(iq)) 
-             endif  ! (land(iq))
-            enddo   ! iq loop
-          endif     ! (esm(1)>=0.)
-        endif       ! (nsib==5)
- 
         do k=1,ms-1
          wb(:,k)=wb(:,ms)
         enddo    !  k loop
-        do k=1,ms
-         do iq=1,ifull
-!         safest to redefine wbice preset here
-!         following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
-          wbice(iq,k)=
-     .            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
-         enddo
-        enddo     !  k=1,ms
+c        do k=1,ms  
+c         do iq=1,ifull
+c!         safest to redefine wbice preset here (for nrungcm<0)
+c!         following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
+c          wbice(iq,k)=
+c     .            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
+c         enddo
+c        enddo     !  k=1,ms
         if ( mydiag ) then
            iveg=ivegt(idjd)
            isoil=isoilm(idjd)
@@ -1285,7 +1270,9 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
        if(isoilm(iq)==9)then
 !        also at beg. of month ensure cold deep temps over permanent ice
          do k=2,ms
-          tgg(iq,k)=min(tgg(iq,k),260.)
+          tgg(iq,k)=min(tgg(iq,k),273.1) ! was 260
+          wb(iq,k)=max(wb(iq,k),sfc(9))  ! restart value may exceed sfc
+          if(wbice(iq,k)<=0.)wbice(iq,k)=.8*wb(iq,k)  ! Dec 07       
          enddo
        endif   ! (isoilm(iq)==9)
        tpan(iq)=t(iq,1)  ! default for land_sflux and outcdf
@@ -1313,6 +1300,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 !     &       ((zolnd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd-1,jd+1)
          write(6,"('wb(1)#  ',9f8.3)") diagvals(wb(:,1))
 !     &       ((wb(ii+(jj-1)*il,1),ii=id-1,id+1),jj=jd-1,jd+1)
+         print*,'wb(1-ms): ',wb(idjd,:)
          write(6,"('wb(ms)# ',9f8.3)") diagvals(wb(:,ms))
 !     &       ((wb(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
          write(6,"('swilt#  ',9f8.3)")swilt(diagvals(isoilm))
@@ -1441,10 +1429,10 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 
          do k=1,ms
           wb(iq,k)=max( swilt(isoil) , min(wb(iq,k),sfc(isoil)) )
-!         safest to redefine wbice preset here
-!         following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
-          wbice(iq,k)=
-     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
+c!         safest to redefine wbice preset here (for nrungcm=1)
+c!         following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
+c          if(wbice(iq,k)=
+c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
          enddo     !  k=1,ms
         enddo        !  ip=1,ipland
         if (mydiag) then
@@ -1492,6 +1480,8 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
         isoil=isoilm(iq)
         wb(iq,k)=min(ssat(isoil),wb(iq,k))
         wbice(iq,k)=min(.99*wb(iq,k),wbice(iq,k)) 
+        if(isoil.ne.9.and.wbice(iq,k)<=0.)wbice(iq,k)=
+     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
        enddo  ! iq loop
       enddo   ! ms
 
@@ -1501,6 +1491,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 !     &       ((tgg(ii+(jj-1)*il,2),ii=id-1,id+1),jj=jd-1,jd+1)
          write(6,"('tgg(ms)#',9f8.2)")  diagvals(tgg(:,ms))
 !     &        ((tgg(ii+(jj-1)*il,ms),ii=id-1,id+1),jj=jd-1,jd+1)
+         write(6,"('wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
       end if
 
       
@@ -1847,7 +1838,6 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       end if
       !-----------------------------------------------------------------
 
-
       do iq=1,ifull
        albsav(iq)=alb(iq)
       enddo   ! iq loop
@@ -1893,13 +1883,8 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
          ivegt(:)=1 
          call readreal('lai',elai,ifull)
          call readreal('vegfrac',sigmf,ifull)
-         elai(:)=0.01*elai(:)
+         elai(:)=0.01*elai(:) ! MJT
          sigmf(:)=0.01*sigmf(:)
-c        call readreal('urban',sigmu,ifull) ! MJT urban
-c         where (sigmf.lt.1.)
-!          convert to cover over bare soil
-c           sigmu=0.01*sigmu/(1.-sigmf)
-c         end where
        else    ! usual, nsib<5
          call readint(vegfile,ivegt,ifull)
        endif  ! (nsib==5) .. else ..
@@ -1911,8 +1896,9 @@ c         end where
        else
          sigmu(:)=0.
        end if
-       ! -----------------------------------------------
+       ! -----------------------------------------------       
        
+
        mismatch = .false.
        if( rdatacheck(land,alb,'alb',idatafix,falbdflt))
      &      mismatch = .true.

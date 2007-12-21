@@ -1259,7 +1259,7 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
         sot_ave(:)  =  sot_ave(:)/max(koundiag,1)
         soc_ave(:)  =  soc_ave(:)/max(koundiag,1)
         sgdn_ave(:) =  sgdn_ave(:)/max(koundiag,1)
-        sgn_ave(:)  =  sgn_ave(:)/min(ntau,nperday)  ! because of solar fit
+        sgn_ave(:)  =  sgn_ave(:)/min(ntau,nperavg)  ! because of solar fit ! MJT fix
         rtu_ave(:)  =  rtu_ave(:)/max(koundiag,1)
         rtc_ave(:)  =  rtc_ave(:)/max(koundiag,1)
         rgdn_ave(:) =  rgdn_ave(:)/max(koundiag,1)
@@ -1660,7 +1660,7 @@ c     data nstag/99/,nstagu/99/
      &     mbase/101/,mdelay/-1/,methprec/8/,nbase/-4/,detrain/.15/,
      &     entrain/0./,methdetr/2/,detrainx/0./,dsig2/.15/,dsig4/.4/
 !     Shallow convection options
-      data ksc/99/,kscsea/0/,kscmom/1/,sigkscb/.95/,sigksct/.8/,
+      data ksc/0/,kscsea/0/,kscmom/1/,sigkscb/.95/,sigksct/.8/,
      &     tied_con/2./,tied_over/0./,tied_rh/.75/
 !     Other moist physics options
       data acon/.2/,bcon/.07/,qgmin/1.e-6/,rcm/.92e-5/,

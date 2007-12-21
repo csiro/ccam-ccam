@@ -1,5 +1,5 @@
       subroutine sflux(nalpha)              ! for globpe code
-      use ateb ! MJT urban
+      use ateb ! MJT urban      
       use diag_m
       use cc_mpi
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
@@ -31,7 +31,7 @@ c     cp specific heat at constant pressure joule/kgm/deg
       include 'liqwpar.h'  ! qfg,qlg
 c     include 'map.h'      ! land
       include 'morepbl.h'  ! condx,fg,eg
-      include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
+      include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tgf
       include 'parm.h'
       include 'parmsurf.h' ! nplens
       include 'pbl.h'
@@ -277,7 +277,7 @@ c       factch=sqrt(zo*exp(vkar*vkar/(chnsea*log(zmin/zo)))/zmin)    ! sea
         factch(:)=sqrt(zo(:)*ztv) ! for use in unstable fh
       endif  ! (newztsea==0)
 
-      do iq=1,ifull                                           
+      do iq=1,ifull ! done for all points; overwritten later for land                                           
 c      Having settled on zo & af now do actual fh and fm calcs       ! sea
        if(ri(iq)>0.)then                                             ! sea
          fm=vmod(iq)/(1.+bprm*ri(iq))**2  ! no zo contrib for stable ! sea
@@ -307,12 +307,11 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now
        tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                             ! sea
        ! note that iq==idjd  can only be true on the correct processor
        if(ntest==1.and.iq==idjd)then                                 ! sea
-         print *,'in sea-type loop for iq,idjd: ',                   ! sea
-     .                            iq,idjd,ip                         ! sea
+         print *,'in sea-type loop for iq,idjd: ',iq,idjd            ! sea
          print *,'zmin,zo,factch ',zmin,zo(iq),factch(iq)            ! sea         
          print *,'ri,ustar,es ',ri(iq),ustar(iq),es                  ! sea
-         print *,'af,aft,tgg2 ',af(iq),aft(iq),tpan(iq)              ! sea
-         print *,'tgg2,tss,theta ',tpan(iq),tss(iq),theta(iq)        ! sea
+         print *,'af,aft ',af(iq),aft(iq)                            ! sea
+         print *,'tpan,tss,theta ',tpan(iq),tss(iq),theta(iq)        ! sea
          print *,'chnsea,rho,t1 ',chnsea,rho(iq),t(iq,1)             ! sea
          print *,'fm,fh,conh ',fm,fh(iq),conh                        ! sea
          print *,'vmod,cduv,fg ',vmod(iq),cduv(iq),fg(iq)            ! sea
@@ -616,17 +615,8 @@ c            Now heat ; allow for smaller zo via aft and factch     ! land
         print *,'before sib3 zo,zolnd,af ',zo(idjd),zolnd(idjd),af(idjd)
       endif
 c ----------------------------------------------------------------------
-
-        if(ktau==1)then  !To initialize new nsib=1/3 run (or restart) only
-          print *,'ipland,ipsice,ipsea in sflux: ',
-     .             ipland,ipsice,ipsea
-          do iq=1,ifull  ! give default over sea too
-           tgf(iq) = t(iq,1)  ! was tss(iq)
-           rmc(iq) = 0.
-          enddo    
-        endif  ! if(ktau==1)
         call sib3(nalpha)  ! for nsib=3, 5
-
+	
       !----------------------------------------------------------
       ! MJT urban
       if (nurban.ne.0) then
@@ -650,7 +640,8 @@ c ----------------------------------------------------------------------
         end do
       end if
       !----------------------------------------------------------
-
+	
+	
 c ----------------------------------------------------------------------
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
       if(diag.or.ntest>0)then
@@ -846,9 +837,25 @@ c                             if( tsoil >= tstom ) ftsoil=1.
         end where
       endif  !(nsib==3) .. else ..
 
+        if(ktau==1)then  !To initialize new nsib=1/3 run (or restart) only
+          print *,'ipland,ipsice,ipsea in sflux: ',
+     .             ipland,ipsice,ipsea
+          do iq=1,ifull  ! give default over sea too
+           tgf(iq) = t(iq,1)  ! was tss(iq)
+           rmc(iq) = 0.
+          enddo    
+        endif  ! if(ktau==1)
+
       if(ktau==1)then
+        if(mydiag)print *,'ipland,ipsice,ipsea in sflux: ',
+     .                     ipland,ipsice,ipsea
+        do iq=1,ifull     ! gives default over sea too
+         tgf(iq)=t(iq,1)  ! was tss(iq)
+         rmc(iq)=0.
+        enddo    
         do iq=1,ifull
-         if(land(iq))then
+         if(land(iq))then  ! following gives agreement on restarts
+           tgf(iq)=(tss(iq)-(1.-tsigmf(iq))*tgg(iq,1))/tsigmf(iq) ! from Dec 07
            tscrn(iq)=theta(iq)  ! first guess, needed for newfgf=1
            if(nrungcm==3)then
              do layer=2,ms
@@ -874,13 +881,16 @@ c                             if( tsoil >= tstom ) ftsoil=1.
 
       if(ntest==1) then
          iq=idjd
+         iveg=ivegt(iq)
          print *,'in sib3a iq,iveg ',iq,iveg
          print*,'snowd,zo,zolnd,tstom ',
      .           snowd(iq),zo(iq),zolnd(iq),tstom(iq)
-         print *,'in sib3b ip,iq,idjd,iveg ',ip,iq,idjd,iveg
+         print *,'in sib3b iq,idjd,iveg ',iq,idjd,iveg
          print*,'iveg,sigmf(iq),tsigmfa ',iveg,sigmf(iq),tsigmf(iq)
+         tsoil=0.5*(0.3333*tgg(idjd,2)+0.6667*tgg(idjd,3)
+     &             +0.95*tgg(idjd,4) +  0.05*tgg(idjd,5))
          print*,'rlaim44,tsoil,ftsoil ',
-     .           rlaim44(iveg),tsoil,ftsoil
+     .           rlaim44(iveg),tsoil,ftsoil(iq)
          print*,'scveg44,snowd,zo,zolnd,tstom ',
      .          scveg44(iveg),snowd(iq),zo(iq),zolnd(iq),tstom(iq)
          print*,'w2,rlai ',wb(iq,ms),rlai(iq)
@@ -1347,7 +1357,7 @@ c!       following to limit change to 8 degrees as fh may be poor  May '04
 c        tgfnew(iq)=otgf(iq)+
 c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
          enddo  ! ip loop
-         if((ntest==2.or.diag).and.mydiag)then 
+         if((ntest==1.or.diag).and.mydiag)then 
           if(ktau==99999)then  ! to track rmc & ewww underflow
             print *,'sflux icount = ',icount
             do ip=1,ipland  
