@@ -98,8 +98,6 @@ c     Stuff from cldset
 !     Ozone returned by o3set
       real duo3n(imax,kl)
 
-      real ualb(ifull) ! MJT urban
-
       logical clforflag, solarfit
       parameter (clforflag = .true., solarfit=.true.)
       logical cldoff
@@ -218,6 +216,8 @@ c        call zenith(fjd,r1,dlt,slag,rlatt(1+(j-1)*il),
 c    &               rlongg(1+(j-1)*il),dhr,imax,coszro2,taudar2)
          call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),
      &               rlongg(istart:iend),dhr,imax,coszro2,taudar2)
+         call tebccangle(istart,imax,coszro2(1:imax) ! MJT urban
+     &    ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt,0)
       end if    !  ( solarfit )
 
       if ( odcalc ) then     ! Do the calculation
@@ -228,8 +228,9 @@ c     calculations
       call zenith(fjd,r1,dlt,slag,rlatt(1+(j-1)*il),
      &            rlongg(1+(j-1)*il),dhr,imax,coszro,taudar)
 
-      if (nurban.ne.0) call tebccangle(istart,imax,coszro(1:imax)
-     &   ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt,0) ! MJT urban
+      if (.not.solarfit) ! MJT urban
+     &   call tebccangle(istart,imax,coszro(1:imax)
+     &   ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt,0) 
 
 c     Set up basic variables, reversing the order of the vertical levels
       do i=1,imax
@@ -252,11 +253,6 @@ c        Conversion of o3 from units of cm stp to gm/gm
             end do
          end do
       end if
-
-      !----------------------------------------------
-      ! MJT urban
-      call tebalb(ifull,ualb,0)
-      !----------------------------------------------
 
 !     Set up surface albedo. The input value is > 1 over ocean points where
 !     the zenith angle dependent formula should be used.
@@ -359,7 +355,7 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
              tsigmfx=(1.-cc)*tsigmf(iq)      ! mult by snow free veg. fraction
 
             alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
-            if(nsib.ge.3)then 
+            if(nsib.ge.3)then
               cuvrf(i,1)=alss
             else
               cuvrf(i,1)=min(.8,(1.-tsigmfx)*alss+tsigmfx*albsav(iq))
@@ -379,13 +375,13 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
      .                 albsav(iq),dnsnow,talb,cuvrf(i,1)
             endif
            endif          !  snowd(iq).gt.0.
+           call tebalb1(cuvrf(i,1),iq,sigmu(iq),0) ! MJT urban 
          else             !  over the ocean or sea ice
 !          following for CCAM from 11/6/03
            cuvrf(i,1)=.65*fracice(iq)+
      .                (1.-fracice(iq))*.05/(coszro(i)+0.15)
         endif       ! if( land(iq)) .. else..
 
-         cuvrf(i,1)=sigmu(iq)*ualb(iq)+(1.-sigmu(iq))*cuvrf(i,1) ! MJT urban
          alb(iq) = cuvrf(i,1)   ! save current albedo in alb array for outfile
          if(iaero.ne.0)then
            cosz = max ( coszro(i), 1.e-4)

@@ -2,35 +2,38 @@
 ! This code was originally based on the TEB scheme of Masson, Boundary-Layer Meteorology, 94, p357 (2000)
 
 ! Usual pratice is:
-!   call tebinit     ! to initalise state arrays, etc
-!   call tebdefault  ! to set state arrays to default values
+!   call tebinit     ! to initalise state arrays, etc (use tebdisable to disable calls to ateb subroutines)
 !   call tebload     ! to load previous state arrays (from tebsave)
 !   call tebtype     ! to define urban type (or use tebfndef instead)
 !   ...
-!   call tebnewangle ! update solar zenith angle (use tebccangle for CCAM)
-!   call tebalb      ! to return urban contrabution to albedo
-!   ...
-!   call tebcalc     ! to return fluxes, etc
-!   call tebzom      ! includes urban contrabution to roughness length
+!   call tebnewangle ! update solar zenith and azimuthal angle (use tebccangle for CCAM,
+!                      use tebnewangle1 for a single grid point)                     
+!   call tebalb      ! modifies input albedo to include urban (use tebalb1 for a single grid point)
+!   call tebcalc     ! modifies input fluxes, surface temperatures, etc to include urban
+!   call tebzom      ! modifies input roughness length to include urban
 !   ...
 !   call tebsave     ! to save current state arrays (for use by tebload)
 !   call tebend      ! to deallocate memory before quiting
 
+! only tebinit and tebcalc are manditory.  All other subroutine calls are optional.
 
 ! NOTES: 
 !  Below are differences with TEB (Masson 2000) scheme and aTEB:
 !
 ! - Currently snow is neglected for urban cover.
 !
+! - aTEB assumes that the surface is at street level (not roof level as in the TEB scheme).
+!
 ! - aTEB uses two walls instead of the TEB single wall.  Also, only up to 2nd order reflections are used for
 !   longwave and short wave radation.  In TEB, infinite reflections are used for shortwave, but only 2nd order
-!   for long wave. The second wall allows the canyon to be orientated to the path of the sun (i.e., for later
-!   experiments), as well as supporting the TEB approach where all orentiations are assumed.
+!   for long wave.
 !
-! - aTEB allows model levels below the building height (i.e., inside the canyon).  This can probably be improved
-!   over time.
+! - aTEB allows the lowest atmospheric model level to be below the building height (i.e., inside the canyon).
+!   However, the physics can be improved by allowing aTEB to interact with multiple atmospheric levels
+!   (e.g., one atmospheric level above the canyon and one or more levels inside the canyon).
 !
-! - may introduce time dependent traffic and industry fluxes as well as building temperatures (see Thatcher 2007).
+! - aTEB estimates the aerodynamic resistances between the atmosphere and the canyon at half the canyon
+!   height.  TEB esimates the aerodynamic resistances between the top and bottom of the canyon.
 !
 
 module ateb
@@ -38,11 +41,11 @@ module ateb
 implicit none
 
 private
-public tebinit,tebcalc,tebend,tebzom,tebload,tebsave,tebtype,tebalb,tebfndef, &
-       tebnewangle,tebccangle,tebdisable
+public tebinit,tebcalc,tebend,tebzom,tebload,tebsave,tebtype,tebalb,tebalb1,tebfndef, &
+       tebnewangle,tebnewangle1,tebccangle,tebdisable
 
 integer ufull,maxtype
-integer, dimension(:), allocatable :: ugrid
+integer, dimension(:), allocatable :: ugrid,mgrid
 real, dimension(:,:), allocatable :: rooftemp,walletemp,wallwtemp,roadtemp
 real, dimension(:,:), allocatable :: roofadjt,walleadjt,wallwadjt,roadadjt
 real, dimension(:), allocatable :: roofwater,roadwater
@@ -50,9 +53,48 @@ real, dimension(:), allocatable :: roofadjw,roadadjw
 real, dimension(:), allocatable :: fnsigmabld,fnhwratio,fnindustryfg,fntrafficfg
 real, dimension(:), allocatable :: fnzo,fnbldheight
 real, dimension(:), allocatable :: vangle,hangle
-real, dimension(3) :: roofdepth,walldepth,roaddepth
-real, dimension(3) :: roofcp,wallcp,roadcp
-real, dimension(3) :: rooflambda,walllambda,roadlambda
+real, dimension(3), parameter :: roofdepth =(/ 0.05,0.4,0.1 /)
+real, dimension(3), parameter :: walldepth =(/ 0.02,0.125,0.05 /)
+real, dimension(3), parameter :: roaddepth =(/ 0.05,0.1,1. /)
+real, dimension(3), parameter :: roofcp =(/ 2.11E6,0.28E6,0.29E6 /)
+real, dimension(3), parameter :: wallcp =(/ 1.55E6,1.55E6,0.29E6 /)
+real, dimension(3), parameter :: roadcp =(/ 1.94E6,1.28E6,1.28E6 /)
+real, dimension(3), parameter :: rooflambda =(/ 1.51,0.08,0.05 /)
+real, dimension(3), parameter :: walllambda =(/ 0.9338,0.9338,0.05 /)
+real, dimension(3), parameter :: roadlambda =(/ 0.7454,0.2513,0.2513 /)
+real, dimension(0:220), parameter :: table = (/ &
+1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9, &
+6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9, &
+36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9, &
+0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648, &
+0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774, &
+0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081, &
+0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866, &
+0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280, &
+0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951, &
+0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143, &
+.001403, .001719, .002101, .002561, .003117, .003784, &
+.004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658, &
+.01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577, &
+.08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032, &
+.3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080, &
+1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476, &
+3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098, &
+10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88, &
+27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85, &
+77.09, 85.02, 93.70, 103.20, 114.66, 127.20, 140.81, 155.67, &
+171.69, 189.03, 207.76, 227.96 , 249.67, 272.98, 298.00, 324.78, &
+353.41, 383.98, 416.48, 451.05, 487.69, 526.51, 567.52, 610.78, &
+656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2, &
+1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3, &
+1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1, &
+3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1, &
+5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7, &
+7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0, &
+11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0, &
+15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0, &
+21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0, &
+29845.0, 31169.0 /)
 real, parameter :: aircp=1004.64   ! Specific heat of dry air
 real, parameter :: bldtemp=291.16  ! Comfort temperature = 18deg C
 real, parameter :: grav=9.80616    ! gravity
@@ -91,7 +133,7 @@ if (diag.ne.0) write(6,*) "Initialising aTEB"
 ufull=count(sigmau.gt.0.)
 if (ufull.eq.0) return
 
-allocate(ugrid(ufull))
+allocate(ugrid(ufull),mgrid(ifull))
 allocate(rooftemp(ufull,3),walletemp(ufull,3),wallwtemp(ufull,3),roadtemp(ufull,3))
 allocate(roofadjt(ufull,3),walleadjt(ufull,3),wallwadjt(ufull,3),roadadjt(ufull,3))
 allocate(roofadjw(ufull),roadadjw(ufull))
@@ -100,41 +142,13 @@ allocate(fnhwratio(ufull),fnsigmabld(ufull),fnindustryfg(ufull))
 allocate(fntrafficfg(ufull),fnbldheight(ufull),fnzo(ufull))
 allocate(vangle(ufull),hangle(ufull))
 
-! Other paramaters
-
-roofcp(1)=2.11E6
-roofcp(2)=0.28E6
-roofcp(3)=0.29E6 ! insulation
-wallcp(1)=1.55E6
-wallcp(2)=1.55E6
-wallcp(3)=0.29E6 ! insulation
-roadcp(1)=1.94E6
-roadcp(2)=1.28E6
-roadcp(3)=1.28E6
-roofdepth(1)=0.05
-roofdepth(2)=0.4
-roofdepth(3)=0.1
-walldepth(1)=0.02
-walldepth(2)=0.125
-walldepth(3)=0.05
-roaddepth(1)=0.05
-roaddepth(2)=0.1
-roaddepth(3)=1.
-rooflambda(1)=1.51
-rooflambda(2)=0.08
-rooflambda(3)=0.05
-walllambda(1)=0.9338
-walllambda(2)=0.9338
-walllambda(3)=0.05
-roadlambda(1)=0.7454
-roadlambda(2)=0.2513
-roadlambda(3)=0.2513
-
+mgrid=0
 iqu=0
 do iq=1,ifull
   if (sigmau(iq).gt.0.) then
     iqu=iqu+1
     ugrid(iqu)=iq
+    mgrid(iq)=iqu
   end if
 end do
 
@@ -163,10 +177,10 @@ implicit none
 
 integer, intent(in) :: diag
 
-if (diag.ne.0) write(6,*) "Deallocating aTEB arrays"
 if (ufull.eq.0) return
+if (diag.ne.0) write(6,*) "Deallocating aTEB arrays"
 
-deallocate(ugrid)
+deallocate(ugrid,mgrid)
 deallocate(rooftemp,walletemp,wallwtemp,roadtemp)
 deallocate(roofadjt,walleadjt,wallwadjt,roadadjt)
 deallocate(roofadjw,roadadjw)
@@ -178,7 +192,6 @@ deallocate(vangle,hangle)
 return
 end subroutine tebend
 
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! this subroutine loads aTEB state arrays (not compulsory)
 
@@ -189,6 +202,7 @@ implicit none
 integer, intent(in) :: ifull,diag
 real, dimension(ifull,14), intent(in) :: urban
 
+if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Load aTEB state arrays"
 
 rooftemp(:,:)=urban(ugrid(:),1:3)
@@ -212,6 +226,7 @@ integer, intent(in) :: ifull,diag
 integer, dimension(ifull), intent(in) :: itype
 integer iqu
 
+if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Load aTEB type arrays"
 
 do iqu=1,ufull
@@ -308,6 +323,8 @@ implicit none
 integer, intent(in) :: ifull,diag
 real, dimension(ifull), intent(in) :: hwratioi,sigmabldi,industryfgi,trafficfgi,bldheighti,zoi
 
+if (ufull.eq.0) return
+
 fnhwratio(:)=hwratioi(ugrid(:))
 fnsigmabld(:)=sigmabldi(ugrid(:))
 fnindustryfg(:)=industryfgi(ugrid(:))
@@ -328,6 +345,7 @@ implicit none
 integer, intent(in) :: ifull,diag
 real, dimension(ifull,14), intent(inout) :: urban
 
+if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Save aTEB state arrays"
 
 urban(ugrid(:),1:3)=rooftemp(:,:)
@@ -350,67 +368,120 @@ implicit none
 
 integer, intent(in) :: ifull,diag
 real, intent(in) :: zmin
+real dzmin
 real, dimension(ifull), intent(inout) :: zo
 real, dimension(ifull), intent(in) :: sigmau
 
+if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Blend urban roughness length"
 
-! Possibly should modify the orography sd as well...
 zo(ugrid(:))=zmin*exp(-1./sqrt((1.-sigmau(ugrid(:)))/log(zmin/zo(ugrid(:)))**2 &
-  +sigmau(ugrid(:))/log(zmin/fnzo(:))**2))
+  +sigmau(ugrid(:))/log(max(zmin-2.*fnbldheight(:)/3.,fnzo(:)+1.)/fnzo(:))**2))
 
 return
 end subroutine tebzom
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine calculates the urban contrabution to albedo.
+! (all grid points)
 
-subroutine tebalb(ifull,alb,diag)
+subroutine tebalb(ifull,alb,sigmau,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
 integer iq,iqu
-real, dimension(ifull), intent(out) :: alb
-real wallesg,wallwsg,roadsg,wallpsi,roadpsi
+real, dimension(ifull), intent(inout) :: alb
+real, dimension(ifull), intent(in) :: sigmau
+real albu,wallesg,wallwsg,roadsg,wallpsi,roadpsi
 
+if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Calculate urban albedo"
-
-alb=0.
 
 do iqu=1,ufull
   iq=ugrid(iqu)
   call getswcoeff(wallesg,wallwsg,roadsg,wallpsi,roadpsi,fnhwratio(iqu),vangle(iqu),hangle(iqu))
-  alb(iq)=1.-(fnsigmabld(iqu)*(1.-roofalpha)+(1.-fnsigmabld(iqu))* &
-          (fnhwratio(iqu)*(wallesg+wallwsg)*(1.-wallalpha)+roadsg*(1.-roadalpha)))
+  albu=fnhwratio(iqu)*(wallesg+wallwsg)*(1.-wallalpha)+roadsg*(1.-roadalpha)
+  albu=1.-(fnsigmabld(iqu)*(1.-roofalpha)+(1.-fnsigmabld(iqu))*albu)
+  alb(iq)=(1.-sigmau(iqu))*alb(iq)+sigmau(iqu)*albu
 end do
 
 return
 end subroutine tebalb
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! This subroutine stores the zenith angle and the solar azimuth angle
-!
+! This subroutine calculates the urban contrabution to albedo.
+! (one grid point only)
 
-subroutine tebnewangle(is,ifull,cosin,azimuthin,diag)
+subroutine tebalb1(alb,iq,sigmau,diag)
 
 implicit none
 
-integer, intent(in) :: is,ifull,diag
-integer, dimension(ufull) :: tgrid
-real, dimension(ifull), intent(in) :: cosin
-real, dimension(ifull), intent(in) :: azimuthin
+integer, intent(in) :: iq,diag
+integer iqu
+real, intent(inout) :: alb
+real, intent(in) :: sigmau
+real albu,wallesg,wallwsg,roadsg,wallpsi,roadpsi
 
+if (ufull.eq.0) return
+
+iqu=mgrid(iq)
+if (iqu.ge.1) then
+  call getswcoeff(wallesg,wallwsg,roadsg,wallpsi,roadpsi,fnhwratio(iqu),vangle(iqu),hangle(iqu))
+  albu=fnhwratio(iqu)*(wallesg+wallwsg)*(1.-wallalpha)+roadsg*(1.-roadalpha)
+  albu=1.-(fnsigmabld(iqu)*(1.-roofalpha)+(1.-fnsigmabld(iqu))*albu)
+  alb=(1.-sigmau)*alb+sigmau*albu
+end if
+
+return
+end subroutine tebalb1
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine stores the zenith angle and the solar azimuth angle
+! (all grid points)
+!
+
+subroutine tebnewangle(ifull,cosin,azimuthin,diag)
+
+implicit none
+
+integer, intent(in) :: ifull,diag
+real, dimension(ifull), intent(in) :: cosin     ! cosine of zenith angle
+real, dimension(ifull), intent(in) :: azimuthin ! azimuthal angle
+
+if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Update solar zenith angle and azimuth angle"
 
-tgrid(:)=ugrid(:)-is+1
-where ((tgrid(:).ge.1).and.(tgrid(:).le.ifull))
-  hangle(:)=0.5*pi-azimuthin(tgrid(:))
-  vangle(:)=acos(cosin(tgrid(:)))  
-end where
+hangle(:)=0.5*pi-azimuthin(ugrid(:))
+vangle(:)=acos(cosin(ugrid(:)))  
 
 return
 end subroutine tebnewangle
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine stores the zenith angle and the solar azimuth angle
+! (single grid point)
+!
+
+subroutine tebnewangle1(iq,cosin,azimuthin,diag)
+
+implicit none
+
+integer, intent(in) :: iq,diag
+integer iqu
+real, intent(in) :: cosin     ! cosine of zenith angle
+real, intent(in) :: azimuthin ! azimuthal angle
+
+if (ufull.eq.0) return
+
+iqu=mgrid(iq)
+if (iqu.ge.1) then
+  hangle(iqu)=0.5*pi-azimuthin
+  vangle(iqu)=acos(cosin)  
+end if
+
+return
+end subroutine tebnewangle1
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -419,19 +490,29 @@ subroutine tebccangle(is,ifull,cosin,rlon,rlat,fjd,slag,dhr,dlt,diag)
 implicit none
 
 integer, intent(in) :: is,ifull,diag
+integer i,iq,iqu
 real, intent(in) :: fjd,slag,dhr,dlt
 real, dimension(ifull), intent(in) :: cosin,rlon,rlat
-real, dimension(ifull) :: hloc,azimuth,x,y
+real hloc,x,y,azimuth
 
-! from zenith.f
-hloc(:) = 2.*pi*fjd+slag+pi+rlon(:)+dhr*pi/24.
+if (ufull.eq.0) return
 
-! estimate azimuth angle
-x(:)=sin(-hloc(:))*cos(dlt)
-y(:)=-cos(-hloc(:))*cos(dlt)*sin(rlat(:))+cos(rlat(:))*sin(dlt)
-azimuth(:)=atan2(x(:),y(:))
+do i=1,ifull
+  iq=i+is-1
+  iqu=mgrid(iq)
+  if (iqu.ge.1) then
+    ! from zenith.f
+    hloc = 2.*pi*fjd+slag+pi+rlon(i)+dhr*pi/24.
 
-call tebnewangle(is,ifull,cosin,azimuth,diag)
+    ! estimate azimuth angle
+    x=sin(-hloc)*cos(dlt)
+    y=-cos(-hloc)*cos(dlt)*sin(rlat(i))+cos(rlat(i))*sin(dlt)
+    azimuth=atan2(x,y)
+
+    hangle(iqu)=0.5*pi-azimuth
+    vangle(iqu)=acos(cosin(i))
+  end if
+end do
 
 return
 end subroutine tebccangle
@@ -454,7 +535,7 @@ end subroutine tebccangle
 ! ofg = Input/Output sensible heat flux
 ! oeg = Input/Output latient heat flux
 ! ots = Input/Output surface temperature
-! owf = Input/Output wetness fraction
+! owf = Input/Output wetness fraction (surface water)
 
 subroutine tebcalc(ifull,ofg,oeg,ots,owf,ddt,zmin,sg,rg,rnd,rho,temp,mixr,ps,pa,umag,sigmau,diag)
 
@@ -466,6 +547,8 @@ real, dimension(ifull), intent(in) :: sg,rg,rnd,rho,temp,mixr,ps,pa,umag,sigmau
 real, dimension(ifull), intent(inout) :: ofg,oeg,ots,owf
 real, dimension(ufull) :: usg,urg,urnd,urho,utemp,umixr,ups,upa,uumag
 real, dimension(ufull) :: uofg,uoeg,uots,uowf
+
+if (ufull.eq.0) return
 
 usg(:)=sg(ugrid(:))
 urg(:)=rg(ugrid(:))
@@ -498,22 +581,16 @@ real, dimension(ufull), intent(out) :: ofg,oeg,ots,owf
 real, dimension(3) :: roofga,wallega,wallwga,roadga
 real, dimension(3) :: roofdumtemp,walledumtemp,wallwdumtemp,roaddumtemp,roofdumt,walledumt,wallwdumt,roaddumt
 real, dimension(3) :: rooforgt,walleorgt,wallworgt,roadorgt
-real rooforgw,roadorgw
-real roofdumwat,roaddumwat,roofdumw,roaddumw
+real rooforgw,roadorgw,roofdumwat,roaddumwat,roofdumw,roaddumw
 real roofsg,roofrg,rooffg,roofeg
 real wallesg,wallwsg,wallerg,wallwrg,wallefg,wallwfg
-real wallpsi,roadpsi
-real roadsg,roadrg,roadfg,roadeg
-real topfg,topeg
+real roadsg,roadrg,roadfg,roadeg,topfg,topeg
+real wallpsi,roadpsi,roofdelta,roaddelta
 real roofinvres,rwinvres,topinvres
-real roofdelta,roaddelta
-real oldcanyontemp,newcanyontemp
-real cd,roofqsat,roadqsat
-real canyontemp,canyonmix,canyonu
+real oldcanyontemp,newcanyontemp,canyontemp,canyonmix,canyonu
+real cd,roofqsat,roadqsat,qsata
 real ctmax,ctmin,evctx,evct
-real efftrafffg
-real qsata
-real tempc,mixrc,sigr,tempr,mixrr,dzmin
+real sigc,tempc,mixrc,sigr,tempr,mixrr,dzmin,efftrafffg
 logical firstcall
 data firstcall/.true./
 save firstcall
@@ -528,19 +605,20 @@ do iqu=1,ufull
   wallwsg=(1.-wallalpha)*wallwsg*sg(iqu)
   roadsg=(1.-roadalpha)*roadsg*sg(iqu)
 
-  ! canyon floor
-  tempc=temp(iqu)*(ps(iqu)/pa(iqu))**(rd/aircp)
-  call getqsat(roadqsat,tempc,ps(iqu))
+  ! canyon (displacement height at 2/3 building height)
+  sigc=exp(-2.*grav*fnbldheight(iqu)/(3.*rd*temp(iqu)))
+  tempc=temp(iqu)*(ps(iqu)*sigc/pa(iqu))**(rd/aircp)
+  call getqsat(roadqsat,tempc,ps(iqu)*sigc)
   call getqsat(qsata,temp(iqu),pa(iqu))
   mixrc=mixr(iqu)*roadqsat/qsata
 
-  ! canyon roof (MJT suggestion)
+  ! roof (displacement height at building height)
   sigr=exp(-grav*fnbldheight(iqu)/(rd*temp(iqu))) 
   tempr=temp(iqu)*(ps(iqu)*sigr/pa(iqu))**(rd/aircp)
   call getqsat(roofqsat,tempr,ps(iqu)*sigr)
   mixrr=mixr(iqu)*roofqsat/qsata
 
-  ! estimate canyonu
+  ! estimate canyonu (rotating through 2pi)
   if (zmin.gt.fnbldheight(iqu)) then ! above canyon
     canyonu=(2./pi)*umag(iqu)*exp(-0.25*fnhwratio(iqu)) &
             *log(fnbldheight(iqu)/(3.*fnzo(iqu)))/log((zmin-fnbldheight(iqu)*2./3.)/fnzo(iqu))
@@ -587,18 +665,23 @@ do iqu=1,ufull
     ! However, for this to work the sensible heat flux must also be fed back into both atmospheric
     ! levels.  Since the host model only allows the sensible heat flux to be fed into the lowest model level,
     ! then we also estimate the interaction with the roof using the lowest model level)
+    
+    ! roof
     dzmin=max(abs(zmin-fnbldheight(iqu)),zoroof+1.)
     call getinvres(roofinvres,cd,zoroof,dzmin,roofdumtemp(1),tempr,umag(iqu)) 
     rooffg=aircp*rho(iqu)*(roofdumtemp(1)-tempr)*roofinvres
+    
+    ! canyon
+    dzmin=max(abs(zmin-2.*fnbldheight(iqu)/3.),fnzo(iqu)+1.)
     ctmax=max(tempc,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1))+1. ! max canyon temp
     ctmin=min(tempc,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1))    ! min canyon temp
     call solvecanyon(evctx,wallefg,wallwfg,roadfg,topfg,rwinvres,topinvres,fnzo(iqu) &
-      ,zmin,ctmax,tempc,umag(iqu),canyonu,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1) &
+      ,dzmin,ctmax,tempc,umag(iqu),canyonu,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1) &
       ,rho(iqu),efftrafffg,fnhwratio(iqu))
     canyontemp=0.5*(ctmax+ctmin)
     do k=1,2 ! bisect
       call solvecanyon(evct,wallefg,wallwfg,roadfg,topfg,rwinvres,topinvres,fnzo(iqu) &
-        ,zmin,canyontemp,tempc,umag(iqu),canyonu,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1) &
+        ,dzmin,canyontemp,tempc,umag(iqu),canyonu,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1) &
         ,rho(iqu),efftrafffg,fnhwratio(iqu))
       if ((evct*evctx).lt.0.) then
         ctmin=canyontemp
@@ -612,7 +695,7 @@ do iqu=1,ufull
     do k=1,5 ! sectant
       evctx=evct
       call solvecanyon(evct,wallefg,wallwfg,roadfg,topfg,rwinvres,topinvres,fnzo(iqu) &
-        ,zmin,canyontemp,tempc,umag(iqu),canyonu,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1) &
+        ,dzmin,canyontemp,tempc,umag(iqu),canyonu,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1) &
         ,rho(iqu),efftrafffg,fnhwratio(iqu))
       evctx=evct-evctx
       if (evctx.eq.0.) exit    
@@ -733,41 +816,7 @@ implicit none
 
 real, intent(in) :: temp,ps
 real, intent(out) :: qsat
-real, dimension(0:220) :: table
 real esatf,tdiff
-
-table(0:4)=    (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9 /)                                !-146C
-table(5:9)=    (/ 6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9 /)                             !-141C
-table(10:14)=  (/ 36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9 /)                          !-136C
-table(15:19)=  (/ 0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648 /)  !-131C
-table(20:24)=  (/ 0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774 /)  !-126C
-table(25:29)=  (/ 0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081 /)   !-121C
-table(30:34)=  (/ 0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866 /)       !-116C
-table(35:39)=  (/ 0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280 /)         !-111C
-table(40:44)=  (/ 0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951 /)            !-106C
-table(45:49)=  (/ 0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143 /)             !-101C
-table(50:55)=  (/ .001403, .001719, .002101, .002561, .003117, .003784 /)             !-95C
-table(56:63)=  (/ .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658 /) !-87C
-table(64:72)=  (/ .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577 /) !-78C
-table(73:81)=  (/ .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032 /)   !-69C
-table(82:90)=  (/ .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080 /)    !-60C
-table(91:99)=  (/ 1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476 /)    !-51C
-table(100:107)=(/ 3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098 /)            !-43C
-table(108:116)=(/ 10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88 /)    !-34C
-table(117:126)=(/ 27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85 /) !-24C 
-table(127:134)=(/ 77.09, 85.02, 93.70, 103.20, 114.66, 127.20, 140.81, 155.67 /)      !-16C
-table(135:142)=(/ 171.69, 189.03, 207.76, 227.96 , 249.67, 272.98, 298.00, 324.78 /)  !-8C
-table(143:150)=(/ 353.41, 383.98, 416.48, 451.05, 487.69, 526.51, 567.52, 610.78 /)   !0C
-table(151:158)=(/ 656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2 /)   !8C
-table(159:166)=(/ 1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3 /)   !16C
-table(167:174)=(/ 1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1 /)   !24C
-table(175:182)=(/ 3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1 /)   !32C
-table(183:190)=(/ 5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7 /)   !40C
-table(191:197)=(/ 7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0 /)         !47C
-table(198:204)=(/ 11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0 /)    !54C
-table(205:211)=(/ 15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0 /)    !61C
-table(212:218)=(/ 21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0 /)    !68C
-table(219:220)=(/ 29845.0, 31169.0 /)  
 
 tdiff=min(max( temp-123.16, 0.), 219.)
 esatf=(1.-(tdiff-aint(tdiff)))*table(int(tdiff))+ (tdiff-aint(tdiff))*table(int(tdiff)+1)
@@ -858,7 +907,7 @@ wallesg=walles+roadalpha*wallpsi*roads+wallalpha*(1.-2.*wallpsi)*wallws+(wallalp
 wallwsg=wallws+roadalpha*wallpsi*roads+wallalpha*(1.-2.*wallpsi)*walles+(wallalpha*(1.-2.*wallpsi))**2*wallws &
         +roadalpha*wallalpha*wallpsi*(1.-roadpsi)*walles+roadalpha*wallalpha*wallpsi*(1.-2.*wallpsi)*roads
 roadsg=roads+wallalpha*(1.-roadpsi)*0.5*(walles+wallws)+wallalpha*roadalpha*wallpsi*(1.-roadpsi)*roads &
-       +wallalpha**2*(1.-roadpsi)*(1.-2.*wallpsi)*0.5*(walles+wallws)
+        +wallalpha**2*(1.-roadpsi)*(1.-2.*wallpsi)*0.5*(walles+wallws)
 
 return
 end subroutine getswcoeff

@@ -3,7 +3,7 @@
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                  tgg,wb,wbice,alb,snowd,
      .                  tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                  isoilm,urban) ! MJT lsmask - delete esm, add isoilh ! MJT urban
+     .                  isoilh,urban) ! MJT lsmask - add isoilh ! MJT urban
 !     note kk; vertint.f is attached below
 !     kdate_r and ktime_r are returned from this routine.
 !     They must equal or exceed kdate_s and ktime_s
@@ -36,9 +36,9 @@
      . snowd(ifull),alb(ifull),sicedep(ifull),fracice(ifull),
      . t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     . ssdnn(ifull),snage(ifull), ! MJT lsmask - delete esm
+     . ssdnn(ifull),snage(ifull),
      . urban(ifull,1:14) ! MJT urban
-      integer isoilm(ifull) ! MJT lsmask - add isoilm
+      integer isoilh(ifull) ! MJT lsmask - add isoilh
       integer isflag(ifull)
       integer ktau_r, ibb, jbb, i
       integer ini,inj,ink,m2,nsd2,mesi,nbd2
@@ -516,9 +516,9 @@ c 	    only being tested for nested=0; no need to test for mesonest
 
       !----------------------------------------------------------------
       ! MJT lsmask
-        isoilm=-1
+        isoilh=-1
         call histrd1(ncid,iarchi,ierr,'soilt',ik,jk,tmp(:))
-        isoilm(:)=nint(tmp(:))
+        isoilh(:)=nint(tmp(:))
       !----------------------------------------------------------------
 
 

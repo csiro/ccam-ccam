@@ -837,14 +837,14 @@ c                             if( tsoil >= tstom ) ftsoil=1.
         end where
       endif  !(nsib==3) .. else ..
 
-        if(ktau==1)then  !To initialize new nsib=1/3 run (or restart) only
-          print *,'ipland,ipsice,ipsea in sflux: ',
-     .             ipland,ipsice,ipsea
-          do iq=1,ifull  ! give default over sea too
-           tgf(iq) = t(iq,1)  ! was tss(iq)
-           rmc(iq) = 0.
-          enddo    
-        endif  ! if(ktau==1)
+    !    if(ktau==1)then  !To initialize new nsib=1/3 run (or restart) only
+    !      print *,'ipland,ipsice,ipsea in sflux: ',
+    ! .             ipland,ipsice,ipsea
+    !      do iq=1,ifull  ! give default over sea too
+    !       tgf(iq) = t(iq,1)  ! was tss(iq)
+    !       rmc(iq) = 0.
+    !      enddo    
+    !    endif  ! if(ktau==1)
 
       if(ktau==1)then
         if(mydiag)print *,'ipland,ipsice,ipsea in sflux: ',
@@ -855,7 +855,8 @@ c                             if( tsoil >= tstom ) ftsoil=1.
         enddo    
         do iq=1,ifull
          if(land(iq))then  ! following gives agreement on restarts
-           tgf(iq)=(tss(iq)-(1.-tsigmf(iq))*tgg(iq,1))/tsigmf(iq) ! from Dec 07
+           ! MJT removed - problems with snow and urban...
+           !tgf(iq)=(tss(iq)-(1.-tsigmf(iq))*tgg(iq,1))/tsigmf(iq) ! from Dec 07
            tscrn(iq)=theta(iq)  ! first guess, needed for newfgf=1
            if(nrungcm==3)then
              do layer=2,ms
