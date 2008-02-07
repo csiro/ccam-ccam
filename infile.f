@@ -62,6 +62,8 @@
 
       integer, parameter :: nihead=54,nrhead=14
       integer nahead(nihead)
+      integer ::  kdatea,kdateb,ktimea,ktimeb
+      integer,save ::mtimer_use      
       real ahead(nrhead)
       equivalence (nahead,ini),(ahead,tds)
 
@@ -177,6 +179,24 @@ c        Get dimensions
 
 c***********************************************************************
       if(myid==0)then
+        if(ktau<=1)then
+!         Following effectively checks whether nc file uses  
+!         start time followed by sequence of mtimer (e.g. from prior CCAM output)
+!         or has indiviual date/times (e.g. from NCEP or Mk3)      
+!         It does not handle a file with single date/time and mtimer > 0
+          idv = ncvid(ncid,'kdate',ier)
+          call ncvgt1(ncid,idv,1,kdatea,ier) 
+          call ncvgt1(ncid,idv,2,kdateb,ier) 
+          idv = ncvid(ncid,'ktime',ier)
+          call ncvgt1(ncid,idv,1,ktimea,ier) 
+          call ncvgt1(ncid,idv,2,ktimeb,ier) 
+          mtimer_use=1
+          if(kdatea.ne.kdateb.or.ktimea.ne.ktimeb)mtimer_use=0
+          print *,'ktau,kdatea,kdateb,ktimea,ktimeb,mtimer_use ',
+     &             ktau,kdatea,kdateb,ktimea,ktimeb,mtimer_use
+        endif
+        print *,'searching for the first date >= kdate_s,ktime_s ',
+     &           kdate_s,ktime_s
         iarchi=iarchi-1
 19      iarchi=iarchi+1
         timest(2) = iarchi
@@ -246,29 +266,37 @@ c       turn ON fatal netcdf errors
         endif  ! (kdate_r==0)
         print *,'kdate,ktime,ktau,timer_in: ',kdate_r,ktime_r,ktau,timer
 !       fix up timer in 140-year run for roundoff (jlm Mon  01-11-1999)
-        if(timer>1048583.)then ! applies year 440 mid-month 9
-           timer=timer+.125
-        elseif(timer>1048247.)then ! applies year 440 month 9
-           timer=timer+.0625
-        endif  ! (timer>1048583.)
-        print *,'dtin,ktau_r: ',dtin,ktau_r
-        print *,'kdate,ktime: ',kdate_r,ktime_r,
-     .          'kdate_s,ktime_s >= ',kdate_s,ktime_s
-
-        print *,'in infile; ktau_r,timer: ',ktau_r,timer
-        print *,'values read in for timer, mtimer: ',timer,mtimer
+!        if(timer>1048583.)then ! applies year 440 mid-month 9
+!           timer=timer+.125
+!        elseif(timer>1048247.)then ! applies year 440 month 9
+!           timer=timer+.0625
+!        endif  ! (timer>1048583.)
+!        print *,'dtin,ktau_r: ',dtin,ktau_r
+!        print *,'kdate,ktime: ',kdate_r,ktime_r,
+!     .          'kdate_s,ktime_s >= ',kdate_s,ktime_s
+!
+!        print *,'in infile; ktau_r,timer: ',ktau_r,timer
+!        print *,'values read in for timer, mtimer: ',timer,mtimer
+        print *,'ktau,iarchi,kdate,ktime,timer_in,mtimer: ',
+     &           ktau,iarchi,kdate_r,ktime_r,timer,mtimer
         if(mtimer.ne.0)then     ! preferred
 !         assume mtimer is read in correctly and set timer from that
           timer=mtimer/60.
         else                    ! mtimer = 0
           mtimer=nint(60.*timer)
         endif  ! (mtimer.ne.0)
-        print *,'giving timer, mtimer: ',timer,mtimer
+!        print *,'giving timer, mtimer: ',timer,mtimer
         mtimer_in=mtimer
-        call datefix(kdate_r,ktime_r,mtimer) ! for Y2K, or mtimer>0
-!       if(2400*kdate_r+ktime_r<2400*(kdate_s+nsemble)+ktime_s)go to 19
-        print *,'kdate_r..',kdate_r,ktime_r,2400*kdate_r+ktime_r
-        print *,'..',kdate_s,ktime_s,2400*kdate_s+1200*nsemble+ktime_s
+	
+	
+!        call datefix(kdate_r,ktime_r,mtimer) ! for Y2K, or mtimer>0
+!!       if(2400*kdate_r+ktime_r<2400*(kdate_s+nsemble)+ktime_s)go to 19
+!        print *,'kdate_r..',kdate_r,ktime_r,2400*kdate_r+ktime_r
+!        print *,'..',kdate_s,ktime_s,2400*kdate_s+1200*nsemble+ktime_s
+        if(mtimer_use==1.and.mtimer>0)then
+          print *,'using timer, mtimer: ',timer,mtimer
+          call datefix(kdate_r,ktime_r,mtimer) ! for Y2K, or mtimer>0
+        endif
         if(2400*kdate_r+ktime_r<
      &     2400*kdate_s+1200*nsemble+ktime_s)go to 19  ! 12-h nsemble
 !---------------------------------------------------------------------
@@ -884,11 +912,10 @@ c     print *,'in vertint t',t(idjd,:)
         kdate_r=kdate_r+19000000
         print *,'For Y2K kdate_r altered to: ',kdate_r
       endif
-
-      if(mtimer_r==0)then
-         print*,'mtimer_r==0: so return in datefix'
-         return
-      endif
+!      if(mtimer_r==0)then
+!         print*,'mtimer_r==0: so return in datefix'
+!         return
+!      endif
       iyr=kdate_r/10000
       imo=(kdate_r-10000*iyr)/100
       iday=kdate_r-10000*iyr-100*imo
