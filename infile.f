@@ -192,6 +192,7 @@ c***********************************************************************
           call ncvgt1(ncid,idv,2,ktimeb,ier) 
           mtimer_use=1
           if(kdatea.ne.kdateb.or.ktimea.ne.ktimeb)mtimer_use=0
+          if(kdateb<kdatea)mtimer_use=1  ! e.g. for restart file	  
           print *,'ktau,kdatea,kdateb,ktimea,ktimeb,mtimer_use ',
      &             ktau,kdatea,kdateb,ktimea,ktimeb,mtimer_use
         endif
