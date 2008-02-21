@@ -132,7 +132,7 @@
      &     mexrest, mins_dt, mins_gmt, mspeca, mtimer_in,
      &     nalpha, newsnow, ng, nlx, nmaxprsav,
      &     nmi, npa, npb, npc, n3hr,      ! can remove npa,npb,npc
-     &     nsnowout, nstagin, nstaguin, nwrite, nwtsav, mins_mbd,
+     &     nsnowout, nstagin, nstaguin, nwrite, nwtsav, ! MJT CHANGE - delete mins_mbd
      &     mins_rad, mtimer_sav, nsecs_diff, nn, i, j
      &     ,mstn  ! not used in 2006
       integer, dimension(8) :: nper3hr
@@ -624,7 +624,7 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       call gettin(0)             ! preserve initial mass & T fields; nmi too
 
       if(nbd.ne.0)call nestin
-      if(mbd.ne.0)call nestinb(mins_mbd)  ! to get mins_mbd
+      if(mbd.ne.0)call nestinb  ! to get mins_mbd ! MJT CHANGE - delete mins_mbd
       nmaxprsav=nmaxpr
       nwtsav=nwt
       hrs_dt = dtin/3600.      ! time step in hours
@@ -856,13 +856,7 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
       call adjust5
       if(mspec==1.and.nbd.ne.0)call davies  ! nesting now after mass fixers
       if(mbd.ne.0)then
-       nsecs_diff=mod(nint(ktau*dt),60*mins_mbd)
-       if(nsecs_diff<nint(dt)/2.or.  ! calc in secs, as dt may be < 1 m
-     &    abs(nsecs_diff-60*mins_mbd)<=nint(dt)/2)then
-          if (mydiag) print *,'bingo call nestinb: ktau '
-     &                       ,ktau,mtimer,nsecs_diff 
-          call nestinb(mins_mbd)
-        endif
+          call nestinb ! MJT CHANGE - delete mins_mbd
       endif
 
       if(mspec==2)then     ! for very first step restore mass & T fields

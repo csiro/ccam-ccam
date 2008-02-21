@@ -252,7 +252,7 @@
       return
       end
 
-      subroutine nestinb(mins_mbd)  ! called for mbd>0 - spectral filter method
+      subroutine nestinb  ! called for mbd>0 - spectral filter method ! MJT CHANGE - delete mins_mbd
 !     this is x-y-z version      
       use cc_mpi, only : myid, mydiag
       use diag_m
@@ -289,212 +289,211 @@
       real sigin
       integer ik,jk,kk
       common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
-      integer num,mtimea,mtimeb,kdate_r,ktime_r
+      integer num,mtimeb,kdate_r,ktime_r ! MJT CHANGE - delete mtimea
       integer ::  iabsdate,iq,k,kdhour,kdmin
       real :: ds_r,rlong0x,rlat0x
       real :: schmidtx,timeg_b,timerm
       real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
       real :: fraciceb,sicedepb
       real, dimension(ifull) ::  zsb
-      data num/0/,mtimea/0/,mtimeb/-1/
-      save num,mtimea,mtimeb
-c      if(num==0)then
-c        if (mydiag) then ! MJT CHANGE FOR MPI
-c!         this just retrieves time increment (in mins) on mesofile
-c          idv = ncvid(ncid,'mtimer',ier)
-c          call ncvgt1(ncid,idv,2,mins_mbd,ier) ! other name to not zap mtimer
-c          print *,'nestinb: ier,ncid,idv,mins_mbd '
-c     &	    ,ier,ncid,idv,mins_mbd
-c	endif	
-c        call MPI_Bcast(mins_mbd,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier) ! END MJT CHANGE
-c        num=1
-c        return
-c      endif   ! (num==0)
-      if(num==0)then
-!       this just retrieves time increment (in mins) on mesofile
-        if(myid==0)then
-         idv = ncvid(ncid,'mtimer',ier)
-         if (ier.ne.0) idv = ncvid(ncid,'time',ier)
-         call ncvgt1(ncid,idv,1,mtimea,ier) 
-         call ncvgt1(ncid,idv,2,mtimeb,ier) 
-         mins_mbd=mtimeb-mtimea
-         print *,'nestinb: mtimea,mtimeb,myid ',mtimea,mtimeb,myid
-         print *,'nestinb: ier,ncid,idv,mins_mbd ',ier,ncid,idv,mins_mbd
-        endif
-        print *,'nestinb: mtimea,mtimeb,myid ',mtimea,mtimeb,myid
-        call MPI_Bcast(mins_mbd,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier) 
-        if(mins_mbd<=0)stop
-        num=1
-        return
-      endif   ! (num==0)
+      data num/0/,mtimeb/-1/ ! MJT CHANGE - delete mtimea
+      save num,mtimeb ! MJT CHANGE - delete mtimea
+      
+      ! MJT CHANGE-------------------------------------------------------------------
+!      if(num==0)then
+!!       this just retrieves time increment (in mins) on mesofile
+!        if(myid==0)then
+!         idv = ncvid(ncid,'mtimer',ier)
+!         if (ier.ne.0) idv = ncvid(ncid,'time',ier)
+!         call ncvgt1(ncid,idv,1,mtimea,ier) 
+!         call ncvgt1(ncid,idv,2,mtimeb,ier) 
+!         mins_mbd=mtimeb-mtimea
+!         print *,'nestinb: mtimea,mtimeb,myid ',mtimea,mtimeb,myid
+!         print *,'nestinb: ier,ncid,idv,mins_mbd ',ier,ncid,idv,mins_mbd
+!        endif
+!        print *,'nestinb: mtimea,mtimeb,myid ',mtimea,mtimeb,myid
+!        call MPI_Bcast(mins_mbd,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier) 
+!        if(mins_mbd<=0)stop
+!        num=1
+!        return
+!      endif   ! (num==0)
+      
+      if ((mtimer<mtimeb).and.(num.ne.0)) return
+ 
+      !------------------------------------------------------------------------------
 !     mtimer, mtimeb are in minutes
       if(ktau<100.and.myid==0)then
-        print *,'in nestinb ktau,mtimer,mtimea,mtimeb,io_in ',
-     &                      ktau,mtimer,mtimea,mtimeb,io_in
+        print *,'in nestinb ktau,mtimer,mtimeb,io_in ',
+     &                      ktau,mtimer,mtimeb,io_in ! MJT CHANGE - delete mtimea
         print *,'with kdate_s,ktime_s >= ',kdate_s,ktime_s
       end if
-      if(ntest==1)go to 6
 
-!     read tb etc  - for globpea, straight into tb etc
-      if(io_in==1)then
-        call infil(1,kdate_r,ktime_r,timeg_b,ds_r, 
-     .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
-      endif   ! (io_in==1)
+      if ((mtimer>mtimeb).or.(num.eq.0)) then ! MJT CHAMGE - Please help to stamp out GOTO
 
-      if(io_in==-1)then
-         call onthefl(1,kdate_r,ktime_r,
-     &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb) 
-      endif   ! (io_in==1)
-      tssb(:) = abs(tssb(:))  ! moved here Mar '03
-      if (mydiag) then
-        write (6,"('zsb# nestinb  ',9f7.1)") diagvals(zsb)
-        write (6,"('tssb# nestinb ',9f7.1)") diagvals(tssb) 
-      end if
+!      read tb etc  - for globpea, straight into tb etc
+       if(io_in==1)then
+         call infil(1,kdate_r,ktime_r,timeg_b,ds_r, 
+     .               pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
+       endif   ! (io_in==1)
+
+       if(io_in==-1)then
+          call onthefl(1,kdate_r,ktime_r,
+     &                  pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb) 
+       endif   ! (io_in==1)
+       tssb(:) = abs(tssb(:))  ! moved here Mar '03
+       if (mydiag) then
+         write (6,"('zsb# nestinb  ',9f7.1)") diagvals(zsb)
+         write (6,"('tssb# nestinb ',9f7.1)") diagvals(tssb) 
+       end if
    
-      if(abs(rlong0  -rlong0x)>.01.or.
-     &   abs(rlat0    -rlat0x)>.01.or.
-     &   abs(schmidt-schmidtx)>.01)stop "grid mismatch in infile"
+       if(abs(rlong0  -rlong0x)>.01.or.
+     &    abs(rlat0    -rlat0x)>.01.or.
+     &    abs(schmidt-schmidtx)>.01)stop "grid mismatch in infile"
 
-      kdhour=ktime_r/100-ktime/100   ! integer hour diff from Oct '05
-      kdmin=(ktime_r-100*(ktime_r/100))-(ktime-100*(ktime/100))
-      if ( myid == 0 ) then
-        print *,'nestinb file has: kdate_r,ktime_r,kdhour,kdmin ',
-     &                             kdate_r,ktime_r,kdhour,kdmin
-      end if
-      mtimeb=60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate))
-     .               +60*kdhour+kdmin
-      if ( myid == 0 ) then
-        print *,'kdate_r,iabsdate ',kdate_r,iabsdate(kdate_r,kdate)
-        print *,'giving mtimeb = ',mtimeb
-!       print additional information
-        print *,' kdate ',kdate,' ktime ',ktime
-        print *,'timeg,mtimer,mtimea,mtimeb: ',
-     &           timeg,mtimer,mtimea,mtimeb
-        print *,'ds,ds_r ',ds,ds_r
-      end if
+       kdhour=ktime_r/100-ktime/100   ! integer hour diff from Oct '05
+       kdmin=(ktime_r-100*(ktime_r/100))-(ktime-100*(ktime/100))
+       if ( myid == 0 ) then
+         print *,'nestinb file has: kdate_r,ktime_r,kdhour,kdmin ',
+     &                              kdate_r,ktime_r,kdhour,kdmin
+       end if
+       mtimeb=60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate))
+     .                +60*kdhour+kdmin
+       if ( myid == 0 ) then
+         print *,'kdate_r,iabsdate ',kdate_r,iabsdate(kdate_r,kdate)
+         print *,'giving mtimeb = ',mtimeb
+!        print additional information
+         print *,' kdate ',kdate,' ktime ',ktime
+         print *,'timeg,mtimer,mtimeb: ',
+     &            timeg,mtimer,mtimeb ! MJT CHANGE - delete mtimea
+         print *,'ds,ds_r ',ds,ds_r
+       end if
 
-!     ensure qb big enough, but not too big in top levels (from Sept '04)
-      qb(1:ifull,1:kk)=max(qb(1:ifull,1:kk),qgmin)
-      do k=kk-2,kk
-       qb(1:ifull,k)=min(qb(1:ifull,k),10.*qgmin)
-      enddo
+!      ensure qb big enough, but not too big in top levels (from Sept '04)
+       qb(1:ifull,1:kk)=max(qb(1:ifull,1:kk),qgmin)
+       do k=kk-2,kk
+        qb(1:ifull,k)=min(qb(1:ifull,k),10.*qgmin)
+       enddo
 
-      if(mod(ktau,nmaxpr)==0.or.ktau==2.or.diag)then
-!       following is useful if troublesome data is read in
-        if ( myid == 0 ) then
-          print *,'following max/min values printed from nestin'
-        end if
-        call maxmin(ub,'ub',ktau,1.,kk)
-        call maxmin(vb,'vb',ktau,1.,kk)
-        call maxmin(tb,'tb',ktau,1.,kk)
-        call maxmin(qb,'qb',ktau,1.e3,kk)
-      endif
-      if ( myid == 0 ) then
-        print *,'following in nestinb after read pslb are psl not ps'
-      end if
-      call maxmin(pslb,'pB',ktau,100.,1)
+       if(mod(ktau,nmaxpr)==0.or.ktau==2.or.diag)then
+!        following is useful if troublesome data is read in
+         if ( myid == 0 ) then
+           print *,'following max/min values printed from nestin'
+         end if
+         call maxmin(ub,'ub',ktau,1.,kk)
+         call maxmin(vb,'vb',ktau,1.,kk)
+         call maxmin(tb,'tb',ktau,1.,kk)
+         call maxmin(qb,'qb',ktau,1.e3,kk)
+       endif
+       if ( myid == 0 ) then
+         print *,'following in nestinb after read pslb are psl not ps'
+       end if
+       call maxmin(pslb,'pB',ktau,100.,1)
 
-!     if(kk<kl)then
-      if(abs(sig(2)-sigin(2))>.0001)then   ! 11/03
-!       this section allows for different number of vertical levels
-!       presently assume sigin (up to kk) levels are set up as per nsig=6
-!       option in eigenv, though original csiro9 levels are sufficiently
-!       close for these interpolation purposes.
-        if(ktau==1.and.mydiag)then
-          print*,'calling vertint with kk,sigin ',kk,sigin(1:kk)
-        endif
-        if(diag.and.mydiag)then
-          print *,'kk,sigin ',kk,(sigin(k),k=1,kk)
-          print *,'tb before vertint ',(tb(idjd,k),k=1,kk)
-        endif
-        call vertint(tb,1)  ! transforms tb from kk to kl
-        if(diag.and.mydiag)then
-          print *,'tb after vertint ',(tb(idjd,k),k=1,kk)
-          print *,'qb before vertint ',(qb(idjd,k),k=1,kk)
-        endif
-        call vertint(qb,2)
-        if(diag.and.mydiag)print *,'qb after vertint ',qb(idjd,1:kk)
-        call vertint(ub,3)
-        call vertint(vb,4)
-      endif  ! (abs(sig(2)-sigin(2))>.0001)
+!      if(kk<kl)then
+       if(abs(sig(2)-sigin(2))>.0001)then   ! 11/03
+!        this section allows for different number of vertical levels
+!        presently assume sigin (up to kk) levels are set up as per nsig=6
+!        option in eigenv, though original csiro9 levels are sufficiently
+!        close for these interpolation purposes.
+         if(ktau==1.and.mydiag)then
+           print*,'calling vertint with kk,sigin ',kk,sigin(1:kk)
+         endif
+         if(diag.and.mydiag)then
+           print *,'kk,sigin ',kk,(sigin(k),k=1,kk)
+           print *,'tb before vertint ',(tb(idjd,k),k=1,kk)
+         endif
+         call vertint(tb,1)  ! transforms tb from kk to kl
+         if(diag.and.mydiag)then
+           print *,'tb after vertint ',(tb(idjd,k),k=1,kk)
+           print *,'qb before vertint ',(qb(idjd,k),k=1,kk)
+         endif
+         call vertint(qb,2)
+         if(diag.and.mydiag)print *,'qb after vertint ',qb(idjd,1:kk)
+         call vertint(ub,3)
+         call vertint(vb,4)
+       endif  ! (abs(sig(2)-sigin(2))>.0001)
 
-!     N.B. tssb (sea) only altered for newtop=2 (done here now)
-      if(newtop==2)then
-!       reduce sea tss to mslp      e.g. for QCCA in NCEP GCM
-        do iq=1,ifull
-         if(tssb(iq)<0.)tssb(iq)=
-     .                       tssb(iq)-zsb(iq)*stdlapse/grav  ! N.B. -
-        enddo
-      endif  ! (newtop==2)
+!      N.B. tssb (sea) only altered for newtop=2 (done here now)
+       if(newtop==2)then
+!        reduce sea tss to mslp      e.g. for QCCA in NCEP GCM
+         do iq=1,ifull
+          if(tssb(iq)<0.)tssb(iq)=
+     .                        tssb(iq)-zsb(iq)*stdlapse/grav  ! N.B. -
+         enddo
+       endif  ! (newtop==2)
 
-      if(newtop>=1)then
-!       in these cases redefine pslb, tb and (effectively) zsb using zs
-!       this keeps fine-mesh land mask & zs
-!       presently simplest to do whole pslb, tb (& qb) arrays
-        if(mydiag)then
-          print *,'zs (idjd) :',zs(idjd)
-          print *,'zsb (idjd) :',zsb(idjd)
-          write (6,"('100*psl.wesn ',2p5f8.3)") psl(idjd),
+       if(newtop>=1)then
+!        in these cases redefine pslb, tb and (effectively) zsb using zs
+!        this keeps fine-mesh land mask & zs
+!        presently simplest to do whole pslb, tb (& qb) arrays
+         if(mydiag)then
+           print *,'zs (idjd) :',zs(idjd)
+           print *,'zsb (idjd) :',zsb(idjd)
+           write (6,"('100*psl.wesn ',2p5f8.3)") psl(idjd),
      &           psl(iw(idjd)),psl(ie(idjd)),psl(is(idjd)),psl(in(idjd))
-          write (6,"('ps.wesn ',-2p5f9.3)") ps(idjd),
+           write (6,"('ps.wesn ',-2p5f9.3)") ps(idjd),
      &           ps(iw(idjd)),ps(ie(idjd)),ps(is(idjd)),ps(in(idjd))
-          print *,'pslb in(idjd) :',pslb(idjd)
-          print *,'call retopo from nestin; psl# prints refer to pslb'
-        endif
-        call retopo(pslb,zsb,zs,tb,qb)
-        if(mydiag)then
-          write (6,"('100*pslb.wesn ',2p5f8.3)") pslb(idjd),
+           print *,'pslb in(idjd) :',pslb(idjd)
+           print *,'call retopo from nestin; psl# prints refer to pslb'
+         endif
+         call retopo(pslb,zsb,zs,tb,qb)
+         if(mydiag)then
+           write (6,"('100*pslb.wesn ',2p5f8.3)") pslb(idjd),
      &       pslb(iw(idjd)),pslb(ie(idjd)),pslb(is(idjd)),pslb(in(idjd))
-        endif
-      endif   !  newtop>=1
+         endif
+       endif   !  newtop>=1
 
-6     timerm=ktau*dt/60.   ! real value in minutes (in case dt < 60 seconds)
+       num=1 ! MJT CHANGE
+      else ! MJT CHANGE - Please help to stamp out GOTO
 
-!      if(num==1)then
-!        num=2
-!        call printa('zs  ',zs        ,ktau,0  ,ia,ib,ja,jb,0.,.01)
-!        call printa('zsb ',zsb       ,ktau,0  ,ia,ib,ja,jb,0.,.01)
-!        call printa('psl ',psl       ,ktau,0  ,ia,ib,ja,jb,0.,1.e2)
-!        call printa('pslb',pslb      ,ktau,0  ,ia,ib,ja,jb,0.,1.e2)
-!        call printa('t   ',t,ktau,nlv,ia,ib,ja,jb,200.,1.)
-!        call printa('tb  ',tb,ktau,nlv,ia,ib,ja,jb,200.,1.)
-!        call printa('u   ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
-!        call printa('ub  ',ub,ktau,nlv,ia,ib,ja,jb,0.,1.)
-!        call printa('v   ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
-!        call printa('vb  ',vb,ktau,nlv,ia,ib,ja,jb,0.,1.)
-!        call printa('davt',davt,0,0,ia,ib,ja,jb,0.,10.)
-!      end if ! (num==1)
+!       if(num==1)then
+!         num=2
+!         call printa('zs  ',zs        ,ktau,0  ,ia,ib,ja,jb,0.,.01)
+!         call printa('zsb ',zsb       ,ktau,0  ,ia,ib,ja,jb,0.,.01)
+!         call printa('psl ',psl       ,ktau,0  ,ia,ib,ja,jb,0.,1.e2)
+!         call printa('pslb',pslb      ,ktau,0  ,ia,ib,ja,jb,0.,1.e2)
+!         call printa('t   ',t,ktau,nlv,ia,ib,ja,jb,200.,1.)
+!         call printa('tb  ',tb,ktau,nlv,ia,ib,ja,jb,200.,1.)
+!         call printa('u   ',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
+!         call printa('ub  ',ub,ktau,nlv,ia,ib,ja,jb,0.,1.)
+!         call printa('v   ',v,ktau,nlv,ia,ib,ja,jb,0.,1.)
+!         call printa('vb  ',vb,ktau,nlv,ia,ib,ja,jb,0.,1.)
+!         call printa('davt',davt,0,0,ia,ib,ja,jb,0.,10.)
+!       end if ! (num==1)
 
-      call getspecdata(pslb,ub,vb,tb,qb)
-      if ( myid == 0 ) then
+       call getspecdata(pslb,ub,vb,tb,qb)
+       if ( myid == 0 ) then
         print *,'following after getspecdata are really psl not ps'
-      end if
-      call maxmin(pslb,'pB',ktau,100.,1)
+       end if
+       call maxmin(pslb,'pB',ktau,100.,1)
 
-!      print *,'following bunch near end of nestinb, nbd = ',nbd
-!      write (6,"('100*psl.wesn ',2p5f8.3)") psl(idjd),
-!     &           psl(iw(idjd)),psl(ie(idjd)),psl(is(idjd)),psl(in(idjd))
-!      write (6,"('ps.wesn ',-2p5f9.3)") ps(idjd),
-!     &           ps(iw(idjd)),ps(ie(idjd)),ps(is(idjd)),ps(in(idjd))
-!      call maxmin(u,' u',ktau,1.,kl)
-!      call maxmin(v,' v',ktau,1.,kl)
-!      call maxmin(t,' t',ktau,1.,kl)
-!      call maxmin(qg,'qg',ktau,1.e3,kl)
-!      call maxmin(qfg,'qf',ktau,1.e3,kl)
-!      call maxmin(qlg,'ql',ktau,1.e3,kl)
-!      call maxmin(tggsn,'tggsn',ktau,1.,3)
-!      call maxmin(tgg,'tg',ktau,1.,ms)
-!      call maxmin(tss,'ts',ktau,1.,1)
-!      call maxmin(ps,'ps',ktau,.01,1)
+!       print *,'following bunch near end of nestinb, nbd = ',nbd
+!       write (6,"('100*psl.wesn ',2p5f8.3)") psl(idjd),
+!     &            psl(iw(idjd)),psl(ie(idjd)),psl(is(idjd)),psl(in(idjd))
+!       write (6,"('ps.wesn ',-2p5f9.3)") ps(idjd),
+!     &            ps(iw(idjd)),ps(ie(idjd)),ps(is(idjd)),ps(in(idjd))
+!       call maxmin(u,' u',ktau,1.,kl)
+!       call maxmin(v,' v',ktau,1.,kl)
+!       call maxmin(t,' t',ktau,1.,kl)
+!       call maxmin(qg,'qg',ktau,1.e3,kl)
+!       call maxmin(qfg,'qf',ktau,1.e3,kl)
+!       call maxmin(qlg,'ql',ktau,1.e3,kl)
+!       call maxmin(tggsn,'tggsn',ktau,1.,3)
+!       call maxmin(tgg,'tg',ktau,1.,ms)
+!       call maxmin(tss,'ts',ktau,1.,1)
+!       call maxmin(ps,'ps',ktau,.01,1)
 
-!     calculate time interpolated tss 
-      if(namip.ne.0.or.ntest.ne.0)return  ! namip SSTs/sea-ice take precedence
-      do iq=1,ifull
-       if(.not.land(iq))then
-         tss(iq)=tssb(iq)
-         tgg(iq,1)=tss(iq)
-       endif  ! (.not.land(iq))
-      enddo   ! iq loop 
+!      calculate time interpolated tss 
+       if(namip.ne.0.or.ntest.ne.0)return  ! namip SSTs/sea-ice take precedence
+       do iq=1,ifull
+        if(.not.land(iq))then
+          tss(iq)=tssb(iq)
+          tgg(iq,1)=tss(iq)
+        endif  ! (.not.land(iq))
+       enddo   ! iq loop 
+      
+      end if ! MJT CHANGE - Please help to stamp out GOTO
+      
       return
       end
 
@@ -557,12 +556,8 @@ c      endif   ! (num==0)
           call fastspecmpi(myid,.1*real(mbd)/(pi*schmidt)
      &                  ,pslc,uc,vc,wc,tc,qc)
         case(2)
-          if (myid == 0) print *,"Non-redundant 1D downscale (MPI)"
+          if (myid == 0) print *,"Separable 1D downscale (MPI)"
           call fourspecmpi(myid,.1*real(mbd)/(pi*schmidt)
-     &                  ,pslc,uc,vc,wc,tc,qc)
-        case(5)
-          if (myid == 0) print *,"Symmetric 1D spectral downscale (MPI)"
-          call ninespecmpi(myid,.1*real(mbd)/(pi*schmidt)
      &                  ,pslc,uc,vc,wc,tc,qc)
       end select
       !-----------------------------------------------------------------------
@@ -1419,269 +1414,6 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       !---------------------------------------------------------------------------------
 
       !---------------------------------------------------------------------------------
-      ! Nine pass spectral downscaling
-      subroutine ninespecmpi(myid,c,psls,uu,vv,ww,tt,qgg)
-      
-      implicit none
-      
-      include 'newmpar.h'   ! ifull_g,kl
-      include 'const_phys.h' ! rearth,pi,tpi
-      include 'map_g.h'     ! em_g
-      include 'parm.h'      ! ds,kbotdav
-      include 'xyzinfo_g.h' ! x_g,y_g,z_g
-      include 'mpif.h'
-      
-      integer, intent(in) :: myid
-      real, intent(in) :: c
-      real, dimension(ifull_g), intent(inout) :: psls
-      real, dimension(ifull_g,kbotdav:kl), intent(inout) :: uu,vv,ww
-      real, dimension(ifull_g,kbotdav:kl), intent(inout) :: tt,qgg
-      real, dimension(ifull_g) :: psum
-      real, dimension(ifull_g,1:3) :: pp,qp
-      real, dimension(ifull_g,kbotdav:kl,1:3) :: pu,pv,pw,pt,pq
-      real, dimension(ifull_g,kbotdav:kl,1:3) :: qu,qv,qw,qt,qq
-      real :: r,wgtb,wgt,dlon,rmaxsq,csq,emmin
-      integer :: iq,iq1,j,ipass,s,e,n1,n,nmax,p
-      integer :: ne,ns,nne,nns,iproc,k,itag=0,ierr
-      integer, dimension(MPI_STATUS_SIZE) :: status
-      integer, dimension(0:8,1:4) :: maps
- 
-      maps(:,1)=(/    1,   1,   3,   3,   2,   2,     2,     1,     1 /)
-      maps(:,2)=(/    0,   0,   0,   0,   0,   0,     3,     2,     3 /)
-      maps(:,3)=(/    1,   1,   1,   1,   1,   1,     2,     2,     2 /)
-      maps(:,4)=(/ il_g,il_g,il_g,il_g,il_g,il_g,4*il_g,4*il_g,4*il_g /)
- 
-      emmin=c*ds/rearth
-      rmaxsq=1./c**2
-      csq=-4.5*c**2
-      call procdiv(ns,ne,il_g,nproc,myid)
-
-      do j=1,3
-        qp(:,j)=psls(:)
-        qu(:,:,j)=uu(:,:)
-        qv(:,:,j)=vv(:,:)
-        qw(:,:,j)=ww(:,:)
-        qt(:,:,j)=tt(:,:)
-        qq(:,:,j)=qgg(:,:)
-      end do
-
-      do ipass=0,8
-        e=maps(ipass,3)
-        nmax=maps(ipass,4)
-
-        if (myid == 0) then
-          print *,"9 pass ",ipass
-          do iproc=1,nproc-1
-            call procdiv(nns,nne,il_g,nproc,iproc)
-            n1=(nne-nns+1)*nmax
-            do s=1,e
-              p=maps(ipass,s)
-              do j=nns,nne
-                do n=1,nmax
-                  call getiqy(iq,j,n,ipass,il_g)
-                  iq1=(j-nns)*nmax+n
-                  pp(iq1,p)=qp(iq,p)
-                  pu(iq1,:,p)=qu(iq,:,p)
-                  pv(iq1,:,p)=qv(iq,:,p)
-                  pw(iq1,:,p)=qw(iq,:,p)
-                  pt(iq1,:,p)=qt(iq,:,p)
-                  pq(iq1,:,p)=qq(iq,:,p)
-                end do
-              end do
-              call MPI_SSend(pp(1:n1,p),n1,MPI_REAL,iproc,itag,
-     &               MPI_COMM_WORLD,ierr)    
-              do k=kbotdav,kl
-                call MPI_SSend(pu(1:n1,k,p),n1,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)
-                call MPI_SSend(pv(1:n1,k,p),n1,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)
-                call MPI_SSend(pw(1:n1,k,p),n1,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)    
-                call MPI_SSend(pt(1:n1,k,p),n1,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)
-                call MPI_SSend(pq(1:n1,k,p),n1,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)    
-              end do
-            end do
-          end do
-        else
-          n1=(ne-ns+1)*nmax
-          do s=1,e
-            p=maps(ipass,s)
-            call MPI_Recv(pp(1:n1,p),n1,MPI_REAL,0,itag,
-     &             MPI_COMM_WORLD,status,ierr)
-            do k=kbotdav,kl
-              call MPI_Recv(pu(1:n1,k,p),n1,MPI_REAL,0,itag,
-     &               MPI_COMM_WORLD,status,ierr)
-              call MPI_Recv(pv(1:n1,k,p),n1,MPI_REAL,0,itag,
-     &               MPI_COMM_WORLD,status,ierr)
-              call MPI_Recv(pw(1:n1,k,p),n1,MPI_REAL,0,itag,
-     &               MPI_COMM_WORLD,status,ierr)
-              call MPI_Recv(pt(1:n1,k,p),n1,MPI_REAL,0,itag,
-     &               MPI_COMM_WORLD,status,ierr)
-              call MPI_Recv(pq(1:n1,k,p),n1,MPI_REAL,0,itag,
-     &               MPI_COMM_WORLD,status,ierr)
-            end do
-            do j=ns,ne
-              do n=1,nmax
-                call getiqy(iq,j,n,ipass,il_g)
-                iq1=(j-ns)*nmax+n
-                qp(iq,p)=pp(iq1,p)
-                qu(iq,:,p)=pu(iq1,:,p)
-                qv(iq,:,p)=pv(iq1,:,p)
-                qw(iq,:,p)=pw(iq1,:,p)
-                qt(iq,:,p)=pt(iq1,:,p)
-                qq(iq,:,p)=pq(iq1,:,p)
-              end do
-            end do
-          end do        
-        end if
-
-        pp=0.
-        pu=0.
-        pv=0.
-        pw=0.
-        pt=0.
-        pq=0.
-        psum=0.
-     
-        do j=ns,ne
-          do n=1,nmax
-            call getiqy(iq,j,n,ipass,il_g)
-            if (em_g(iq).gt.emmin) then
-              do n1=n,nmax
-                call getiqy(iq1,j,n1,ipass,il_g)
-                r=x_g(iq)*x_g(iq1)+y_g(iq)*y_g(iq1)+z_g(iq)*z_g(iq1)
-                r=acos(max(min(r,1.),-1.))**2
-                if (r.le.rmaxsq) then
-                  wgtb=exp(r*csq)	! lambda_min = 3 sigmas => -4.5
-                  if (n1.ne.n) then
-                    wgt=wgtb/em_g(iq) ! wrong units but the weights are rescaled so that sum(wgt)=1
-                    psum(iq1)=psum(iq1)+wgt
-                    do s=1,e
-                      p=maps(ipass,s)
-                      pp(iq1,p)=pp(iq1,p)+wgt*qp(iq,p)
-                      pu(iq1,:,p)=pu(iq1,:,p)+wgt*qu(iq,:,p)
-                      pv(iq1,:,p)=pv(iq1,:,p)+wgt*qv(iq,:,p)
-                      pw(iq1,:,p)=pw(iq1,:,p)+wgt*qw(iq,:,p)
-                      pt(iq1,:,p)=pt(iq1,:,p)+wgt*qt(iq,:,p)
-                      pq(iq1,:,p)=pq(iq1,:,p)+wgt*qq(iq,:,p)
-                    end do
-                  end if
-                  wgt=wgtb/em_g(iq1) ! correct units are ((ds/rearth)/em_g)**2
-                  psum(iq)=psum(iq)+wgt
-                  do s=1,e
-                    p=maps(ipass,s)
-                    pp(iq,p)=pp(iq,p)+wgt*qp(iq1,p)
-                    pu(iq,:,p)=pu(iq,:,p)+wgt*qu(iq1,:,p)
-                    pv(iq,:,p)=pv(iq,:,p)+wgt*qv(iq1,:,p)
-                    pw(iq,:,p)=pw(iq,:,p)+wgt*qw(iq1,:,p)
-                    pt(iq,:,p)=pt(iq,:,p)+wgt*qt(iq1,:,p)
-                    pq(iq,:,p)=pq(iq,:,p)+wgt*qq(iq1,:,p)
-                  end do
-                end if
-              end do
-              do s=1,e
-                p=maps(ipass,s)
-                qp(iq,p)=pp(iq,p)/psum(iq)
-                qu(iq,:,p)=pu(iq,:,p)/psum(iq)
-                qv(iq,:,p)=pv(iq,:,p)/psum(iq)
-                qw(iq,:,p)=pw(iq,:,p)/psum(iq)
-                qt(iq,:,p)=pt(iq,:,p)/psum(iq)
-                qq(iq,:,p)=pq(iq,:,p)/psum(iq)  
-              end do
-            end if
-          end do
-        end do
-
-        itag=itag+1
-        if (myid == 0) then
-          do iproc=1,nproc-1
-            call procdiv(nns,nne,il_g,nproc,iproc)
-            n1=(nne-nns+1)*nmax
-            do s=1,e
-              p=maps(ipass,s)
-              call MPI_Recv(pp(1:n1,p),n1,MPI_REAL,iproc
-     &               ,itag,MPI_COMM_WORLD,status,ierr)
-              do k=kbotdav,kl
-                call MPI_Recv(pu(1:n1,k,p),n1,MPI_REAL,iproc
-     &                 ,itag,MPI_COMM_WORLD,status,ierr)
-                call MPI_Recv(pv(1:n1,k,p),n1,MPI_REAL,iproc
-     &                 ,itag,MPI_COMM_WORLD,status,ierr)
-                call MPI_Recv(pw(1:n1,k,p),n1,MPI_REAL,iproc
-     &                 ,itag,MPI_COMM_WORLD,status,ierr)
-                call MPI_Recv(pt(1:n1,k,p),n1,MPI_REAL,iproc
-     &                 ,itag,MPI_COMM_WORLD,status,ierr)
-                call MPI_Recv(pq(1:n1,k,p),n1,MPI_REAL,iproc
-     &                 ,itag,MPI_COMM_WORLD,status,ierr)
-              end do
-              do j=nns,nne
-                do n=1,nmax
-                  call getiqy(iq,j,n,ipass,il_g)
-                  iq1=(j-nns)*nmax+n
-                  qp(iq,p)=pp(iq1,p)
-                  qu(iq,:,p)=pu(iq1,:,p)
-                  qv(iq,:,p)=pv(iq1,:,p)
-                  qw(iq,:,p)=pw(iq1,:,p)
-                  qt(iq,:,p)=pt(iq1,:,p)
-                  qq(iq,:,p)=pq(iq1,:,p)
-                end do
-              end do
-            end do
-          end do
-        else
-          n1=(ne-ns+1)*nmax
-          do s=1,e
-            p=maps(ipass,s)
-            do j=ns,ne
-              do n=1,nmax
-                call getiqy(iq,j,n,ipass,il_g)
-                iq1=(j-ns)*nmax+n
-                pp(iq1,p)=qp(iq,p)
-                pu(iq1,:,p)=qu(iq,:,p)
-                pv(iq1,:,p)=qv(iq,:,p)
-                pw(iq1,:,p)=qw(iq,:,p)
-                pt(iq1,:,p)=qt(iq,:,p)
-                pq(iq1,:,p)=qq(iq,:,p)
-              end do
-            end do
-            call MPI_SSend(pp(1:n1,p),n1,MPI_REAL,0,itag,
-     &             MPI_COMM_WORLD,ierr)
-            do k=kbotdav,kl
-              call MPI_SSend(pu(1:n1,k,p),n1,MPI_REAL,0,itag,
-     &               MPI_COMM_WORLD,ierr)
-              call MPI_SSend(pv(1:n1,k,p),n1,MPI_REAL,0,itag,
-     &               MPI_COMM_WORLD,ierr)
-              call MPI_SSend(pw(1:n1,k,p),n1,MPI_REAL,0,itag,
-     &               MPI_COMM_WORLD,ierr)
-              call MPI_SSend(pt(1:n1,k,p),n1,MPI_REAL,0,itag,
-     &               MPI_COMM_WORLD,ierr)
-              call MPI_SSend(pq(1:n1,k,p),n1,MPI_REAL,0,itag,
-     &               MPI_COMM_WORLD,ierr)
-            end do
-          end do
-        end if
-        
-      end do
-      
-      ! update panels
-      do ipass=0,5
-        s=ipass*il_g*il_g+1
-        e=(ipass+1)*il_g*il_g
-        p=mod(ipass,3)+1
-        psls(s:e)=qp(s:e,p)
-        uu(s:e,:)=qu(s:e,:,p)
-        vv(s:e,:)=qv(s:e,:,p)
-        ww(s:e,:)=qw(s:e,:,p)
-        tt(s:e,:)=qt(s:e,:,p)
-        qgg(s:e,:)=qq(s:e,:,p)
-      end do
-      
-      return
-      end subroutine ninespecmpi
-      !---------------------------------------------------------------------------------
-
-      !---------------------------------------------------------------------------------
       ! MPI version of JLM method
       subroutine fastspecmpi(myid,c,psls,uu,vv,ww,tt,qgg)
       
@@ -1996,50 +1728,6 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       end select
 
       end subroutine getiqx
-      !---------------------------------------------------------------------------------
-
-      !---------------------------------------------------------------------------------
-      subroutine getiqy(iq,j,n,ipass,il_g)
-      
-      implicit none
-      
-      integer, intent(out) :: iq
-      integer, intent(in) :: j,n,ipass,il_g
-      
-      select case(ipass*10+(n-1)/il_g)
-        case(0)                         ! broken x pass
-          iq=il_g*(2*il_g+j-1)+n        ! panel 2
-        case(10)
-          iq=il_g*(5*il_g+n)+1-j        ! panel 5
-        case(20)                        ! broken y pass
-          iq=il_g*(n-1)+j               ! panel 0
-        case(30)
-          iq=il_g*(4*il_g-j)+n          ! panel 3
-        case(40)                        ! broken z pass
-          iq=il_g*(j-1)+n               ! panel 0
-        case(50)
-          iq=il_g*(3*il_g+n)+1-j        ! panel 3
-        case(60)                        ! x pass
-          iq=il_g*(il_g+j-1)+n          ! panel 1
-        case(61)
-          iq=il_g*(2*il_g+j-2)+n        ! panel 2
-        case(62,63)
-          iq=il_g*(2*il_g+n)+1-j        ! panel 4,5
-        case(70,71)                     ! y pass
-          iq=il_g*(n-1)+j               ! panel 0,1
-        case(72)
-          iq=il_g*(4*il_g-j-2)+n        ! panel 3
-        case(73)
-          iq=il_g*(5*il_g-j-3)+n        ! panel 4
-        case(80)                        ! z pass
-          iq=il_g*(j-1)+n               ! panel 0
-        case(81,82)
-          iq=il_g*(il_g+n)+1-j          ! panel 2,3
-        case(83)
-          iq=il_g*(5*il_g+j-4)+n        ! panel 5
-      end select      
-      
-      end subroutine getiqy
       !---------------------------------------------------------------------------------
 
       !---------------------------------------------------------------------------------
