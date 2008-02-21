@@ -1,34 +1,48 @@
-      module cable_ccam
-!     rml 02/10/07 removed sib4 and other cbm/cable related subroutines from
-!     sflux
-!     rml 23/10/07 added cbm_pack and cbm_unpack to this module
-      include 'newmpar.h'
-      integer, parameter :: CABLE = 4
-!     will need to have vertical dimension for interaction with radiation?
-      real, dimension(ifull) :: atmco2
+module cable_ccam
+  ! rml 02/10/07 removed sib4 and other cbm/cable related subroutines from sflux
+  ! rml 23/10/07 added cbm_pack and cbm_unpack to this module
+  !
+  ! This file contains the following subroutines:
+  !   sib4,
+  !   setco2for,
+  !   cbmrdn,
+  !   comskp,
+  !   rlaiday,
+  !   cbm_pack,
+  !   cbm_unpack, and
+  !   eva_output
+  !
+  include 'newmpar.h'
+  integer, parameter :: CABLE = 4
+  ! will need to have vertical dimension for interaction with radiation?
+  real, dimension(ifull) :: atmco2
 
-      character(len=80), save :: vegtypefile=''
-      character(len=80), save :: vegparmfile=''
-      logical, save :: vegparmnew=.true. ! old or new format for veg parm file
-      integer, save :: CO2forcingtype=1  ! 1 constant, 2 prescribed 1900-2004, 3 interactive
-      integer, save :: initcarbpools=999  ! 1 initialise from veg_parm file values
-      namelist/cableinput/vegtypefile,vegparmfile,vegparmnew, &
-     &CO2forcingtype,initcarbpools
+  character(len=80), save :: vegtypefile=''
+  character(len=80), save :: vegparmfile=''
+  logical, save :: vegparmnew=.true. ! old or new format for veg parm file
+  integer, save :: CO2forcingtype=1  ! 1 constant, 2 prescribed 1900-2004,
+                                     ! 3 interactive
+  integer, save :: initcarbpools=999  ! 1 initialise from veg_parm file values
+  namelist/cableinput/vegtypefile,vegparmfile,vegparmnew, &
+                    & CO2forcingtype,initcarbpools
 
-!     arrays for vegetation names and types
-      character(len=25), dimension(:), allocatable, save :: vegname
-      character(len=10), dimension(:), allocatable, save :: vegtype
-      logical, dimension(:), allocatable, save :: forest
-      logical, dimension(:), allocatable, save :: deciduous
-      logical, dimension(:), allocatable, save :: shrub
-      logical, dimension(:), allocatable, save :: grass
-      logical, dimension(:), allocatable, save :: crop
-      logical, dimension(:), allocatable, save :: noveg  ! ice, possibly also barren
+  ! arrays for vegetation names and types
+  character(len=25), dimension(:), allocatable, save :: vegname
+  character(len=10), dimension(:), allocatable, save :: vegtype
+  logical, dimension(:), allocatable, save :: forest
+  logical, dimension(:), allocatable, save :: deciduous
+  logical, dimension(:), allocatable, save :: shrub
+  logical, dimension(:), allocatable, save :: grass
+  logical, dimension(:), allocatable, save :: crop
+  logical, dimension(:), allocatable, save :: noveg  ! ice, possibly also barren
        
 
-      contains
-! *************************************************************************
-      subroutine sib4     ! new version of sib1 with soilsnowv
+  contains
+  ! ****************************************************************************
+
+  subroutine sib4(nvegt)     ! new version of sib1 with soilsnowv
+! BP added nvegt to be passed down to cbm (BP jan 2008)
+!  subroutine sib4     ! new version of sib1 with soilsnowv
 
       use cc_mpi
       use zenith_m
@@ -85,7 +99,8 @@
      & ,aft(ifull),fh(ifull),ri(ifull),theta(ifull)        &
      & ,gamm(ifull),rg(ifull),vmod(ifull),dummwk2(ifull)
 
-      real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull) ! for calculation of zenith angle
+      ! for calculation of zenith angle
+      real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull)
 
       integer imonth(12),iwrk(ifull)
       data imonth /31,28,31,30,31,30,31,31,30,31,30,31/
@@ -95,6 +110,7 @@
       logical, save :: cbm_allocated = .false.
       save ktauplus,iswt
       data iswt/0/
+      integer nvegt
 
        if ( .not. cbm_allocated ) then
           ! These variables are all saved so only need to be allocated once
@@ -122,7 +138,8 @@
        jday=kdate-jyear*10000-jmonth*100
        jhour=ktime/100
        jmin=ktime-jhour*100
-       mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of year
+       ! mins from start of year
+       mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin
        nperday=nint(24.*3600./dt)
        ktauplus=0
        do k=1,jmonth-1
@@ -130,8 +147,8 @@
        enddo
 
        ! Initialise sum flux variables
-       IF(ktau==1) THEN
-! rml added intialisation of sumpn, sumrp, sumrs and sumrd
+       IF (ktau==1) THEN
+          ! rml added intialisation of sumpn, sumrp, sumrs and sumrd
           sumpn = 0.
           sumrp = 0.
           sumrs = 0.
@@ -144,7 +161,7 @@
        END IF
 
        print *,'jyear,jmonth',jyear,jmonth,ktauplus
-!      mtimer contains number of minutes since the start of the run.
+       ! mtimer contains number of minutes since the start of the run.
        mins = mtimer + mstart
        bpyear = 0.
        fjd = float(mod(mins,525600))/1440.  ! 525600 = 1440*365
@@ -156,15 +173,15 @@
 
        call setco2for(jyear)
 
-!  rml: these not moved to cbm_pack because mins, theta, vmod, 
-!      atmco2, coszro2 not accessible there
+       !  rml: these not moved to cbm_pack because mins, theta, vmod, 
+       !      atmco2, coszro2 not accessible there
        met%doy = float(mod(mins,24*60*365))/(24.*60.)
        met%tk = pack(theta,land)
        met%tc = met%tk - 273.16
        met%ua = pack(vmod,land)
        where (met%ua < 1.) met%ua = 1.
        met%ca = 1.e-6 * pack(atmco2,land)
-       met%coszen = pack(coszro2,land)   ! use instantenous value
+       met%coszen = pack(coszro2,land)   ! use instantaneous value
        where (met%coszen < 1.e-8) met%coszen=1.e-8
 
        kstart = 1
@@ -173,8 +190,8 @@
  
 
 !      rml 21/09/07 remove ktauplus+ktau due to change in cable_offline
-       CALL cbm(ktau, kstart, ntau, dt, air, bgc,  &
-     &     canopy, met, bal, rad, rough, soil, ssoil, sum_flux, veg)
+       CALL cbm(ktau, kstart, ntau, dt, air, bgc, canopy, met, &
+     &      bal, rad, rough, soil, ssoil, sum_flux, veg, nvegt, mxst)
 
        call cbm_unpack(ktauplus+ktau, air, bgc, canopy, met, bal, rad, &
      &          rough, soil, ssoil, sum_flux, veg)
@@ -234,8 +251,11 @@
       end subroutine setco2for
 
 
-! **************************************************************************************
-      subroutine cbmrdn(imonth)
+!*******************************************************************************
+      subroutine cbmrdn(nveg)
+!      subroutine cbmrdn(imonth)
+!     BP removed the redundant parameter imonth and added nveg to be passed
+!     upward to globpe.f (BP jan 2008)
 !
 !     reads the parameters required by land surface scheme 
 !     called from indata
@@ -257,6 +277,7 @@
       include 'soilsnow.h'  ! initial soil temperatures and moistures
       include 'vegpar.h'
 
+      integer nveg
       integer jyear,jmonth
       character*80 comments
       character*2 chflag
@@ -276,11 +297,13 @@
          open(unit=8,file=vegtypefile,status='old')
 !     rml 28/09/07 add alternative read for igbp file
          read(8,*) comments
-         print *,'read CASA vegetation types'
+         print *,'read vegetation types'
          if (comments(1:4).eq.'IGBP') then
            igbp=.true.
+           print *, comments(1:4)
          else
            igbp=.false.
+           print *, 'CASA'
            c4frac = 0.
          endif
          do ii=1,ifull_g
@@ -417,27 +440,33 @@
         read(8,*) (tcsoil(jveg,2),jveg=1,nveg)
         if ( myid == 0 ) print *,'csoil 1',(tcsoil(jveg,1),jveg=1,nveg)
         if ( myid == 0 ) print *,'csoil 2',(tcsoil(jveg,2),jveg=1,nveg)
+        call comskp(8)
+        read(8,*) (ratecp(j),j=1,ncp)
+        if ( myid == 0 ) print *, 'ratecp',(ratecp(j),j=1,ncp)
+        call comskp(8)
+        read(8,*) (ratecs(j),j=1,ncs)
+        if ( myid == 0 ) print *, 'ratecs',(ratecs(j),j=1,ncs)
         close(8)
 !       set vegcf here as new format file reads in
 !       also dummy values for wai (not currently used)
         allocate(vegtype(nveg))
+        vegtype(:) = 'others'   ! BP added initialization (1Feb2008)
         SELECT CASE (nveg)
           CASE (13)     ! CASA vegetation types
-            vegcf = (/ 1.95, 1.5, 1.55, 0.91, 0.73, 2.8,  &
-     &            2.75, 0.0, 2.05, 0.6, 0.4, 2.8, 0.0, 0.0, 0.0, 0.0 /)
+            vegcf = (/ 1.95, 1.5, 1.55, 0.91, 0.73, 2.8, 2.75, 0.0,  &
+                     & 2.05, 0.6, 0.4, 2.8, 0.0, 0.0, 0.0, 0.0, 0.0 /)
             vegtype(2)='deciduous'
             vegtype(5)='deciduous'
-          CASE (16)     ! IGBP vegetation types
-            vegcf = (/ 11.82, 13.06, 6.71, 11.34, 8.59, 0.6, 2.46, 10.,  &
-     &                 15.93, 3.77, 0.0, 11.76, 0.0, 2.8, 10., 10. /)
+          CASE (16,17)  ! IGBP vegetation types without/with water bodies
+            vegcf = (/ 11.82, 13.06, 6.71, 11.34, 8.59, 0.6, 2.46, 10.0,  &
+                     & 15.93, 3.77, 0.0, 11.76, 0.0, 2.8, 10.0, 10.0, 0.0 /)
             vegtype(3)='deciduous'
             vegtype(4)='deciduous'
-        CASE DEFAULT
-          PRINT *,'Error! Dimension not compatible with CASA or IGBP typ&
-     &es!'
-          PRINT *,'Dimension = ', nveg
-          PRINT *,'At the vegcf section.'
-          STOP
+          CASE DEFAULT
+            PRINT *,'Error! Dimension not compatible with CASA or IGBP types!'
+            PRINT *,'Dimension = ', nveg
+            PRINT *,'At the vegcf section.'
+            STOP
         END SELECT
         wai = 0.
         extkn = 0.4
@@ -468,15 +497,15 @@
 !      read(8,*) (froot(j),j=1,ms)
 !     rml 01/10/07 old format reads rate constants here, new format 
 !     includes with veg types
-      if (.not.vegparmnew) then
-        call comskp(8)
-        read(8,*) (ratecp(j),j=1,ncp)
-        if ( myid == 0 ) print *, 'ratecp',(ratecp(j),j=1,ncp)
-        call comskp(8)
-        read(8,*) (ratecs(j),j=1,ncs)
-        close(8)
-        if ( myid == 0 ) print *, 'ratecs',(ratecs(j),j=1,ncs)
-      endif
+!      if (.not.vegparmnew) then   ! BP moved this block up 56 lines (1Feb2008)
+!        call comskp(8)
+!        read(8,*) (ratecp(j),j=1,ncp)
+!        if ( myid == 0 ) print *, 'ratecp',(ratecp(j),j=1,ncp)
+!        call comskp(8)
+!        read(8,*) (ratecs(j),j=1,ncs)
+!        close(8)
+!        if ( myid == 0 ) print *, 'ratecs',(ratecs(j),j=1,ncs)
+!      endif
  
       end subroutine cbmrdn
 
@@ -548,9 +577,9 @@
       return
       end subroutine rlaiday
 
-! *************************************************************************
-      subroutine cbm_pack(air, bgc, canopy, met, bal, rad,  &
-               rough, soil, ssoil, sum_flux, veg)
+  ! ****************************************************************************
+  subroutine cbm_pack(air, bgc, canopy, met, bal, rad,  &
+                    & rough, soil, ssoil, sum_flux, veg)
 
       use define_types, cbm_ms => ms
       use roughness_module
@@ -649,19 +678,20 @@
         if (sum(rootbeta).eq.0) then
 !        assume rootbeta not in parameter file and need to prescribe froot here
          IF (MAXVAL(ivegt) == 13) THEN   ! CASA vegetation types  
-          froot(:,1) = (/.02,.04,.04,.04,.04,.05,.05,.05,.05,.05,.05,.05,.05,.01,.01,.01/)
-          froot(:,2) = (/.06,.11,.11,.11,.11,.15,.15,.10,.10,.10,.10,.15,.15,.01,.01,.01/)
-          froot(:,3) = (/.14,.20,.20,.20,.20,.35,.35,.35,.35,.35,.35,.34,.35,.01,.01,.01/)
-          froot(:,4) = (/.28,.26,.26,.26,.26,.39,.39,.35,.35,.35,.35,.38,.40,.01,.01,.01/)
-          froot(:,5) = (/.35,.24,.24,.24,.24,.05,.05,.10,.10,.10,.10,.06,.04,.01,.01,.01/)
-          froot(:,6) = (/.15,.15,.15,.15,.15,.01,.01,.05,.05,.05,.05,.02,.01,.01,.01,.01/)
-         ELSEIF (MAXVAL(ivegt) == 16) THEN   ! IGBP vegetation types
-          froot(:,1) = (/.04,.02,.04,.04,.04,.05,.05,.05,.05,.05,.05,.05,.05,.05,.05,.05/)
-          froot(:,2) = (/.11,.06,.11,.11,.11,.10,.10,.15,.15,.15,.10,.15,.10,.15,.15,.10/)
-          froot(:,3) = (/.20,.14,.20,.20,.20,.35,.35,.35,.35,.35,.35,.34,.35,.34,.35,.35/)
-          froot(:,4) = (/.26,.28,.26,.26,.26,.35,.35,.39,.39,.39,.35,.38,.35,.38,.40,.35/)
-          froot(:,5) = (/.24,.35,.24,.24,.24,.10,.10,.05,.05,.05,.10,.06,.10,.06,.04,.10/)
-          froot(:,6) = (/.15,.15,.15,.15,.15,.05,.05,.01,.01,.01,.05,.02,.05,.02,.01,.05/)
+          froot(:,1) = (/.02,.04,.04,.04,.04,.05,.05,.05,.05,.05,.05,.05,.05,.01,.01,.01,.01/)
+          froot(:,2) = (/.06,.11,.11,.11,.11,.15,.15,.10,.10,.10,.10,.15,.15,.01,.01,.01,.01/)
+          froot(:,3) = (/.14,.20,.20,.20,.20,.35,.35,.35,.35,.35,.35,.34,.35,.01,.01,.01,.01/)
+          froot(:,4) = (/.28,.26,.26,.26,.26,.39,.39,.35,.35,.35,.35,.38,.40,.01,.01,.01,.01/)
+          froot(:,5) = (/.35,.24,.24,.24,.24,.05,.05,.10,.10,.10,.10,.06,.04,.01,.01,.01,.01/)
+          froot(:,6) = (/.15,.15,.15,.15,.15,.01,.01,.05,.05,.05,.05,.02,.01,.01,.01,.01,.01/)
+         ELSEIF (MAXVAL(ivegt) == 16 .OR. MAXVAL(ivegt) == 17) THEN
+          ! IGBP vegetation types without/with water bodies
+          froot(:,1) = (/.04,.02,.04,.04,.04,.05,.05,.05,.05,.05,.05,.05,.05,.05,.05,.05,.01/)
+          froot(:,2) = (/.11,.06,.11,.11,.11,.10,.10,.15,.15,.15,.10,.15,.10,.15,.15,.10,.01/)
+          froot(:,3) = (/.20,.14,.20,.20,.20,.35,.35,.35,.35,.35,.35,.34,.35,.34,.35,.35,.01/)
+          froot(:,4) = (/.26,.28,.26,.26,.26,.35,.35,.39,.39,.39,.35,.38,.35,.38,.40,.35,.01/)
+          froot(:,5) = (/.24,.35,.24,.24,.24,.10,.10,.05,.05,.05,.10,.06,.10,.06,.04,.10,.01/)
+          froot(:,6) = (/.15,.15,.15,.15,.15,.05,.05,.01,.01,.01,.05,.02,.05,.02,.01,.05,.01/)
          ELSE
           PRINT *, 'Error! Dimension not compatible with CASA or IGBP types!'
           PRINT *, 'Dimension = ', MAXVAL(veg%iveg)
@@ -693,8 +723,9 @@
       met%qv = pack(qg(1:ifull,1),land)        ! specific humidity in kg/kg
       met%pmb = .01*pack(ps(1:ifull),land)     ! pressure in mb at ref height
       met%precip = pack(condx,land)
-      met%precips = 0.0                        ! in mm not mm/sec
-      where ( met%tc < 0.0 ) met%precips = met%precip
+      ! name changed to precip_s (EK nov2007)
+      met%precip_s = 0.0                        ! in mm not mm/sec
+      where ( met%tc < 0.0 ) met%precip_s = met%precip
       do ip=1,ipland
         iq = iperm(ip)
           met%hod(ip)=(met%doy(ip)-int(met%doy(ip)))*24.0 + along(iq)/15.
@@ -903,10 +934,10 @@
          print*, "Skipping eva_output - not yet implemented in parallel version"
       end if
 
-END Subroutine cbm_unpack
+  END Subroutine cbm_unpack
 
 ! ******************************************************************************
-SUBROUTINE eva_output(ktauyear, dels, air, bgc, &
+  SUBROUTINE eva_output(ktauyear, dels, air, bgc, &
           canopy, met, bal, &
           rad, rough, soil, ssoil, sum_flux, veg)
   USE define_types, cbm_ms => ms ! Rename to avoic conflict with newmpar.h value
@@ -1096,7 +1127,7 @@ SUBROUTINE eva_output(ktauyear, dels, air, bgc, &
 
 
 
-END SUBROUTINE eva_output
-! ********************************************************************************
-      end module
+  END SUBROUTINE eva_output
+!*******************************************************************************
+end module cable_ccam
 
