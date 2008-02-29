@@ -66,3 +66,29 @@ The initcarbpools variable determines how carbon pools are initialised.
 initcarbpools=1 sets the carbon pools to the sizes given in the veg parameter file.
 Any other value (default=999) will read the carbon pools from the restart file.
 A future option will be to read carbon pools from CASA-CNP determined values.
+
+
+Updates in Jan 2008:
+
+BP got rid of the hard-wired declarations in cable_carbon.f90, but that required
+passing the parameter nvegt, read within subroutine cbmrdn, upwards through
+indata to globpe and then down to sflux, sib4, cbm and finally to carbon_pl.
+All the call statements were updated. Another parameter nsoilt was passed into
+cbm from sib4 using the value of mxst from newmpar.h; the maximum number of 
+soil type is 13 at the moment (actually we only use 9 soil types), but that 
+is ok to be used in subroutine soilcarb as calculated values are then retained
+in each grid point, not by soil type.
+
+The maximum number of veg type is increased to 17 to include water bodies.
+This required changes in cable_carbon.f90, cable_ccam.f90 and newmpar.h
+
+The snow scheme had been made more modular. With major rewritting of 
+cable_soilsnow.f90, it is also cleaned up to fit our new coding standard.
+The variable met%precips had been renamed as met%precip_s for files
+cable_cbm.f90, cable_ccam.f90, cable_checks.f90, cable_soilsnow.f90 and
+cable_variables.f90
+
+As requested by YP, the rhos values assigned within globpe.f was changed to
+reflect the relationship rho = (1  - ssat) * 2650
+
+

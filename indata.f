@@ -1,4 +1,6 @@
-      subroutine indata(hourst,newsnow,jalbfix)! nb  newmask not yet passed thru
+      subroutine indata(hourst,newsnow,jalbfix,nvegt)
+!     BP added nvegt to be passed upward to globpe.f (BP jan 2008)
+!      subroutine indata(hourst,newsnow,jalbfix)! nb  newmask not yet passed thru
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
       use cc_mpi
       use diag_m
@@ -122,6 +124,7 @@
      & .5,.5, .6, .6, .6, .25, .3 , .25, .2, .25, .05, .6, .5 /)! 32-44 winter
       real, dimension(ifull_g) :: glob2d
       real, dimension(ifull_g) :: davt_g
+      integer nvegt
 
       call start_log(indata_begin)
       bam(1)=114413.
@@ -808,7 +811,10 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
 ! rml from eak 16/03/06 - now pass in jyear,jmonth
         call rdnsib(jyear,jmonth)   !  for usual defn of isoil, iveg etc
 !       call rdnsib   !  for usual defn of isoil, iveg etc
-        if( nsib .gt.3) call cbmrdn(jmonth)
+        if( nsib .gt.3) call cbmrdn(nvegt)
+!       BP removed the redundant parameter imonth and added nvegt to be passed
+!       upward to globpe.f (BP jan 2008)
+!        if( nsib .gt.3) call cbmrdn(jmonth)
       else
         do iq=1,ifull
          ivegt(iq)=1   ! default for h_s etc

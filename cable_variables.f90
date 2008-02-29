@@ -1,12 +1,23 @@
-!!$ cable_variables.f90
-!!$
-!!$ This file declares all non-local variables for CABLE
-!!$
-!!$ Science development by Ying-Ping Wang, Eva Kowalczyk, Mike Raupach, 
-!!$ Ray Leuning et al at CSIRO Marine and Atmospheric Research.
-!!$
-!!$ Fortran-95 coding by Harvey Davies, Gab Abramowitz and Martin Dix
-!!$ bugs to gabsun@gmail.com.
+! cable_variables.f90
+!
+! This file declares all non-local variables for CABLE
+!
+! The modules included are:
+!   define_dimensions,
+!   define_types,
+!   math_constants,
+!   physical_constants,
+!   other_constants, and
+!   photosynthetic_constants
+! The subroutines included are:
+!   alloc_*_type, and
+!   dealloc_*_type
+!
+! Science development by Ying-Ping Wang, Eva Kowalczyk, Mike Raupach, 
+! Ray Leuning et al at CSIRO Marine and Atmospheric Research.
+!
+! Fortran-95 coding by Harvey Davies, Gab Abramowitz and Martin Dix
+! bugs to gabsun@gmail.com.
 
 !=========================================================================
 MODULE define_dimensions
@@ -46,6 +57,7 @@ MODULE define_types
   TYPE soil_parameter_type 
      REAL(r_1), DIMENSION(:), POINTER :: albsoil ! soil reflectance
      REAL(r_1), DIMENSION(:), POINTER :: bch  ! parameter b in Campbell equation
+     REAL(r_1), DIMENSION(:), POINTER :: c3   ! c3 drainage coeff (fraction) (EK nov 2007)
      REAL(r_1), DIMENSION(:), POINTER :: clay ! fraction of soil which is clay
      REAL(r_1), DIMENSION(:), POINTER :: cnsd ! thermal conductivity of dry soil [W/m/K]
      REAL(r_1), DIMENSION(:), POINTER :: css  ! soil specific heat capacity [kJ/kg/K]
@@ -73,18 +85,21 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: dfh_dtg ! d(canopy%fhs)/d(ssoil%tgg)
      REAL(r_1), DIMENSION(:), POINTER :: dfe_ddq ! d(canopy%fes)/d(dq)
      REAL(r_1), DIMENSION(:), POINTER :: ddq_dtg ! d(dq)/d(ssoil%tgg)
+     REAL(r_1), DIMENSION(:), POINTER :: fwtop   ! water flux to the soil (EK nov 2007)
      REAL(r_2), DIMENSION(:,:), POINTER :: gammzz ! heat capacity for each soil layer
      INTEGER(i_d), DIMENSION(:), POINTER :: isflag ! 0 => no snow 1 => snow
-     REAL(r_1), DIMENSION(:), POINTER :: osnowd  ! snow depth from previous time step
      REAL(r_1), DIMENSION(:), POINTER :: potev   ! potential evapotranspiration
      REAL(r_1), DIMENSION(:), POINTER :: runoff  ! total runoff (mm/dels)
      REAL(r_1), DIMENSION(:), POINTER :: rnof1   ! surface runoff (mm/dels)
      REAL(r_1), DIMENSION(:), POINTER :: rnof2   ! deep drainage (mm/dels)
      REAL(r_1), DIMENSION(:), POINTER :: rtsoil  ! turbulent resistance for soil
+     REAL(r_1), DIMENSION(:,:), POINTER :: sconds ! EK nov 2007
      REAL(r_1), DIMENSION(:,:), POINTER :: sdepth ! snow depth
-     REAL(r_1), DIMENSION(:,:), POINTER  :: smass  ! snow mass
+     REAL(r_1), DIMENSION(:,:), POINTER  :: smass ! snow mass
      REAL(r_1), DIMENSION(:), POINTER :: snage   ! snow age
      REAL(r_1), DIMENSION(:), POINTER :: snowd   ! snow depth (liquid water)
+     REAL(r_1), DIMENSION(:), POINTER :: smelt   ! snow melt (EK nov 2007)
+     REAL(r_1), DIMENSION(:), POINTER :: osnowd  ! snow depth from previous time step
      REAL(r_1), DIMENSION(:,:), POINTER  :: ssdn ! snow densities
      REAL(r_1), DIMENSION(:), POINTER :: ssdnn   ! average snow density
      REAL(r_1), DIMENSION(:,:), POINTER :: tgg   ! soil temperature in K
@@ -114,6 +129,8 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: tminvj ! min temperature of the start of photosynthesis
      REAL(r_1), DIMENSION(:), POINTER :: tmaxvj ! max temperature of the start of photosynthesis
      REAL(r_1), DIMENSION(:), POINTER :: vbeta  ! stomatal sensitivity to soil water
+!     REAL(r_1), DIMENSION(:), POINTER :: rootbeta  ! parameter for estimating
+!                                    ! vertical root mass distribution (froot)
      REAL(r_1), DIMENSION(:), POINTER :: vcmax  ! maximum RuBP carboxylation rate top leaf (mol/m2/s)
      REAL(r_1), DIMENSION(:), POINTER :: vlai   ! leaf area index
 !    REAL(r_1), DIMENSION(:), POINTER :: vlaimax ! ???
@@ -154,6 +171,7 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: precis! throughfall to soil, after snow (mm)
      REAL(r_1), DIMENSION(:), POINTER :: qscrn ! specific humudity at screen height (g/g)
      REAL(r_1), DIMENSION(:), POINTER :: rnet  ! net radiation absorbed by surface (W/m2)
+     REAL(r_1), DIMENSION(:), POINTER :: segg  ! latent heatfl from soil mm (EK nov 2007)
      REAL(r_1), DIMENSION(:), POINTER :: sghflux ! ground heat flux (W/m2) ???
      REAL(r_1), DIMENSION(:), POINTER :: spill ! can.storage excess after dewfall (mm)
      REAL(r_1), DIMENSION(:), POINTER :: through ! canopy throughfall (mm)
@@ -228,7 +246,7 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: fsd  ! downward short-wave radiation (W/m2)
      REAL(r_1), DIMENSION(:), POINTER :: fld  ! downward long-wave radiation (W/m2)
      REAL(r_1), DIMENSION(:), POINTER :: precip  ! rainfall (liquid+solid)(mm/dels)
-     REAL(r_1), DIMENSION(:), POINTER :: precips ! solid preipitation only (mm/dels)
+     REAL(r_1), DIMENSION(:), POINTER :: precip_s ! solid preipitation only (mm/dels) (EK nov 2007)
      REAL(r_1), DIMENSION(:), POINTER :: tc	 ! surface air temperature (oC)
      REAL(r_1), DIMENSION(:), POINTER :: tk	 ! surface air temperature (oK)
      REAL(r_1), DIMENSION(:), POINTER :: tvair   ! within canopy air temperature (oK)
@@ -318,6 +336,7 @@ CONTAINS
     INTEGER, INTENT(in) :: mp
     ALLOCATE ( var % albsoil(mp) )
     ALLOCATE ( var % bch(mp) )
+    ALLOCATE ( var % c3(mp) )
     ALLOCATE ( var % clay(mp) )
     ALLOCATE ( var % cnsd(mp) )
     ALLOCATE ( var % css(mp) )
@@ -345,6 +364,7 @@ CONTAINS
     ALLOCATE ( var % dfh_dtg(mp) )
     ALLOCATE ( var % dfe_ddq(mp) )
     ALLOCATE ( var % ddq_dtg(mp) )
+    ALLOCATE ( var % fwtop(mp) )
     ALLOCATE ( var % gammzz(mp,ms) )
     ALLOCATE ( var % isflag(mp) )
     ALLOCATE ( var % osnowd(mp) )
@@ -353,10 +373,12 @@ CONTAINS
     ALLOCATE ( var % rnof1(mp) )
     ALLOCATE ( var % rnof2(mp) )
     ALLOCATE ( var % rtsoil(mp) )
+    ALLOCATE ( var % sconds(mp,3) )
     ALLOCATE ( var % sdepth(mp,3) )
     ALLOCATE ( var % smass(mp,3) )
     ALLOCATE ( var % snage(mp) )
     ALLOCATE ( var % snowd(mp) )
+    ALLOCATE ( var % smelt(mp) )
     ALLOCATE ( var % ssdn(mp,3) )
     ALLOCATE ( var % ssdnn(mp) )
     ALLOCATE ( var % tgg(mp,ms) )
@@ -385,6 +407,7 @@ CONTAINS
     ALLOCATE ( var % tminvj(mp) )
     ALLOCATE ( var % tmaxvj(mp) )
     ALLOCATE ( var % vbeta(mp) )
+!    ALLOCATE ( var % rootbeta(mp) )  ! new addition in Oct 2007 (YP)
     ALLOCATE ( var % hc(mp) )
     ALLOCATE ( var % shelrb(mp) )
     ALLOCATE ( var % vcmax(mp) )
@@ -425,6 +448,7 @@ CONTAINS
     ALLOCATE ( var % tv(mp) )
     ALLOCATE ( var % ga(mp) )
     ALLOCATE ( var % ghflux(mp) )
+    ALLOCATE ( var % segg(mp) )
     ALLOCATE ( var % sghflux(mp) )
     ALLOCATE ( var % dgdtg(mp) )
     ALLOCATE ( var % through(mp) )
@@ -509,7 +533,7 @@ CONTAINS
     ALLOCATE ( var % fsd(mp) )
     ALLOCATE ( var % fld(mp) )
     ALLOCATE ( var % precip(mp) )
-    ALLOCATE ( var % precips(mp) )
+    ALLOCATE ( var % precip_s(mp) )
     ALLOCATE ( var % tc(mp) )
     ALLOCATE ( var % tk(mp) )
     ALLOCATE ( var % tvair(mp) )
@@ -569,6 +593,7 @@ CONTAINS
     INTEGER, INTENT(in) :: mp
     DEALLOCATE ( var % albsoil )
     DEALLOCATE ( var % bch )
+    DEALLOCATE ( var % c3 )
     DEALLOCATE ( var % clay )
     DEALLOCATE ( var % cnsd )
     DEALLOCATE ( var % css )
@@ -596,6 +621,7 @@ CONTAINS
     DEALLOCATE ( var % dfh_dtg )
     DEALLOCATE ( var % dfe_ddq )
     DEALLOCATE ( var % ddq_dtg )
+    DEALLOCATE ( var % fwtop )
     DEALLOCATE ( var % gammzz )
     DEALLOCATE ( var % isflag )
     DEALLOCATE ( var % osnowd )
@@ -604,10 +630,12 @@ CONTAINS
     DEALLOCATE ( var % rnof1 )
     DEALLOCATE ( var % rnof2 )
     DEALLOCATE ( var % rtsoil )
+    DEALLOCATE ( var % sconds )
     DEALLOCATE ( var % sdepth )
     DEALLOCATE ( var % smass )
     DEALLOCATE ( var % snage )
     DEALLOCATE ( var % snowd )
+    DEALLOCATE ( var % smelt )
     DEALLOCATE ( var % ssdn )
     DEALLOCATE ( var % ssdnn )
     DEALLOCATE ( var % tgg )
@@ -636,6 +664,7 @@ CONTAINS
     DEALLOCATE ( var % tminvj )
     DEALLOCATE ( var % tmaxvj )
     DEALLOCATE ( var % vbeta )
+!    DEALLOCATE ( var % rootbeta )  ! new addition in Oct 2007 (YP)
     DEALLOCATE ( var % hc )
     DEALLOCATE ( var % shelrb )
     DEALLOCATE ( var % vcmax )
@@ -676,6 +705,7 @@ CONTAINS
     DEALLOCATE ( var % tv )
     DEALLOCATE ( var % ga )
     DEALLOCATE ( var % ghflux )
+    DEALLOCATE ( var % segg )
     DEALLOCATE ( var % sghflux )
     DEALLOCATE ( var % dgdtg )
     DEALLOCATE ( var % through )
@@ -760,7 +790,7 @@ CONTAINS
     DEALLOCATE ( var % fsd )
     DEALLOCATE ( var % fld )
     DEALLOCATE ( var % precip )
-    DEALLOCATE ( var % precips )
+    DEALLOCATE ( var % precip_s )
     DEALLOCATE ( var % tc )
     DEALLOCATE ( var % tk )
     DEALLOCATE ( var % tvair )
@@ -853,8 +883,12 @@ MODULE other_constants
   USE define_dimensions, ONLY : i_d, r_1, nrb
   REAL(r_1), PARAMETER, DIMENSION(nrb) :: gauss_w=(/0.308,0.514,0.178/) ! Gaussian integ. weights
   ! values in refl and taul are slightly modified since Oct 2007 (YP)
-  REAL(r_1), PARAMETER, DIMENSION(nrb) :: refl = (/ 0.07, 0.425, 0.02 /) ! leaf reflectance
-  REAL(r_1), PARAMETER, DIMENSION(nrb) :: taul = (/ 0.07, 0.425, 0.02/)  ! leaf transmittance
+  ! leaf reflectance
+  REAL(r_1), PARAMETER, DIMENSION(nrb) :: refl = (/ 0.07, 0.425, 0.02 /)
+!  REAL(r_1), PARAMETER, DIMENSION(nrb) :: refl = (/ 0.1, 0.425, 0.05 /)
+  ! leaf transmittance
+  REAL(r_1), PARAMETER, DIMENSION(nrb) :: taul = (/ 0.07, 0.425, 0.02/)
+!  REAL(r_1), PARAMETER, DIMENSION(nrb) :: taul = (/ 0.1, 0.425, 0.05/)
   INTEGER(i_d), PARAMETER :: istemp = 4 ! soil temp:	 1,2,3,4 = FR,kf,mrr,mrrkf
   INTEGER(i_d), PARAMETER :: ismois = 2 ! soil moist:  1,2,3	 = MP84,NP89,Richards
   INTEGER(i_d), PARAMETER :: isinf  = 2 ! soil infilt: 1,2	 = MP84, FC96

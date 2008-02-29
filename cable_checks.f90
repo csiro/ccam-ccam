@@ -1,17 +1,24 @@
-!!$ cable_checks.f90
-!!$
-!!$ Energy and mass conservation routines; acceptable ranges for i/o  
-!!$ variables in offline netcdf driver.
-!!$
-!!$ Eva Kowalczyk, Gab Abramowitz 2006 CSIRO Marine and Atmospheric
-!!$ Research/ University of New South Wales; gabsun@gmail.com
-!!$
-!!$ ranges_type below sets the acceptable ranges for all variables
-!!$ coming in or going out of the offline netcdf driver. The mass_balance
-!!$ and energy_balance subroutines calculate cumulative and per-timestep 
-!!$ balances, as well as allow user to scrutinise balances in
-!!$ particular sections of the code - largely for diagnostics/fault finding.
-!!$ rh_sh - converts relative to sensible humidity if met file units require it
+! cable_checks.f90
+!
+! Energy and mass conservation routines; acceptable ranges for i/o  
+! variables in offline netcdf driver.
+!
+! Eva Kowalczyk, Gab Abramowitz 2006 CSIRO Marine and Atmospheric
+! Research/ University of New South Wales; gabsun@gmail.com
+!
+! This file contains the checks_module only, which consists of subroutines:
+!   mass_balance,
+!   energy_balance,
+!   units_in, and
+!   rh_sh
+! and a function svp used exclusively in this module.
+!
+! ranges_type in the module sets the acceptable ranges for all variables
+! coming in or going out of the offline netcdf driver. The mass_balance
+! and energy_balance subroutines calculate cumulative and per-timestep 
+! balances, as well as allow user to scrutinise balances in
+! particular sections of the code - largely for diagnostics/fault finding.
+! rh_sh - converts relative to sensible humidity if met file units require it
 
 MODULE checks_module
   USE canopy_module
@@ -48,7 +55,8 @@ MODULE checks_module
      REAL(r_1), DIMENSION(2) :: Qh = (/-1000.0,1000.0/)    ! W/m^2
      REAL(r_1), DIMENSION(2) :: Qle = (/-1000.0,1000.0/)   ! W/m^2
      REAL(r_1), DIMENSION(2) :: Qg = (/-1000.0,1000.0/)    ! W/m^2   
-     REAL(r_1), DIMENSION(2) :: SWnet = (/0.0,1250.0/)     ! W/m^2
+     REAL(r_1), DIMENSION(2) :: SWnet = (/0.0,1350.0/)     ! W/m^2 (YP oct07)
+!     REAL(r_1), DIMENSION(2) :: SWnet = (/0.0,1250.0/)     ! W/m^2
      REAL(r_1), DIMENSION(2) :: LWnet = (/-500.0,510.0/)   ! W/m^2 
      REAL(r_1), DIMENSION(2) :: Rnet = (/-500.0,1250.0/)   ! W/m^2 
      REAL(r_1), DIMENSION(2) :: Evap = (/-0.0003,0.00035/)      
@@ -76,16 +84,20 @@ MODULE checks_module
      REAL(r_1), DIMENSION(2) :: RootMoist = (/0.0,2000.0/)     
      REAL(r_1), DIMENSION(2) :: CanopInt = (/0.0,100.0/)  
      REAL(r_1), DIMENSION(2) :: NEE = (/-70.0,50.0/) ! umol/m2/s
-     REAL(r_1), DIMENSION(2) :: NPP = (/-20.0,50.0/) ! umol/m2/s
-     REAL(r_1), DIMENSION(2) :: GPP = (/-10.0,50.0/) ! umol/m2/s 
+     REAL(r_1), DIMENSION(2) :: NPP = (/-20.0,75.0/) ! umol/m2/s (YP oct07)
+!     REAL(r_1), DIMENSION(2) :: NPP = (/-20.0,50.0/) ! umol/m2/s
+     REAL(r_1), DIMENSION(2) :: GPP = (/-20.0,100.0/) ! umol/m2/s (YP oct07)
+!     REAL(r_1), DIMENSION(2) :: GPP = (/-10.0,50.0/) ! umol/m2/s 
      REAL(r_1), DIMENSION(2) :: AutoResp = (/-50.0,20.0/) ! umol/m2/s
      REAL(r_1), DIMENSION(2) :: HeteroResp = (/-50.0,20.0/) ! umol/m2/s
      REAL(r_1), DIMENSION(2) :: HSoil = (/-1000.0,1000.0/) 
      REAL(r_1), DIMENSION(2) :: HVeg = (/-1000.0,1000.0/)
-     REAL(r_1), DIMENSION(2) :: SnowDepth = (/0.0,5.0/)
+     REAL(r_1), DIMENSION(2) :: SnowDepth = (/0.0,50.0/) ! EK nov07
+!     REAL(r_1), DIMENSION(2) :: SnowDepth = (/0.0,5.0/)
      ! parameters:
      REAL(r_1), DIMENSION(2) :: bch = (/2.0,15.0/)  
-     REAL(r_1), DIMENSION(2) :: latitude = (/-90.0,90.0/)          
+     REAL(r_1), DIMENSION(2) :: latitude = (/-90.0,90.0/)
+     REAL(r_1), DIMENSION(2) :: c3 = (/0.0,1.0/)  ! EK nov07   
      REAL(r_1), DIMENSION(2) :: clay = (/0.0,1.0/)  
      REAL(r_1), DIMENSION(2) :: css = (/700.0,2000.0/)         
      REAL(r_1), DIMENSION(2) :: rhosoil = (/300.0,3000.0/)    
@@ -113,16 +125,21 @@ MODULE checks_module
 !>>>>>>> .merge-right.r387
      REAL(r_1), DIMENSION(2) :: shelrb = (/1.0,3.0/)     
      REAL(r_1), DIMENSION(2) :: vcmax = (/5.0E-6,1.5E-4/)      
-     REAL(r_1), DIMENSION(2) :: xfang = (/-1.0,1.0/)      
+     REAL(r_1), DIMENSION(2) :: xfang = (/-1.0,0.5/) ! YP oct07
+!     REAL(r_1), DIMENSION(2) :: xfang = (/-1.0,1.0/)      
      REAL(r_1), DIMENSION(2) :: ratecp = (/0.5,3.0/)    
      REAL(r_1), DIMENSION(2) :: ratecs = (/0.5,3.0/)   
      REAL(r_1), DIMENSION(2) :: refsbare = (/0.0,0.5/) 
      REAL(r_1), DIMENSION(2) :: taul = (/0.0,0.3/)     
      REAL(r_1), DIMENSION(2) :: refl = (/0.0,0.5/)    
      REAL(r_1), DIMENSION(2) :: tauw = (/0.0,0.1/)     
-     REAL(r_1), DIMENSION(2) :: refw = (/0.0,0.5/)    
+     REAL(r_1), DIMENSION(2) :: refw = (/0.0,0.5/)
+     REAL(r_1), DIMENSION(2) :: extkn = (/0.0,10.0/)    ! YP oct07
+     REAL(r_1), DIMENSION(2) :: wai = (/0.0,5.0/)       ! YP oct07
+     REAL(r_1), DIMENSION(2) :: vegcf = (/0.001,100.0/) ! YP oct07
      REAL(r_1), DIMENSION(2) :: tminvj = (/-10.0,10.0/)   
-     REAL(r_1), DIMENSION(2) :: tmaxvj = (/-5.0,15.0/)  
+     REAL(r_1), DIMENSION(2) :: tmaxvj = (/-5.0,15.0/)
+     REAL(r_1), DIMENSION(2) :: rootbeta = (/0.7,1.0/)  ! YP oct07
      REAL(r_1), DIMENSION(2) :: veg_class = (/1.0,20.0/)  
      REAL(r_1), DIMENSION(2) :: soil_class = (/1.0,20.0/)  
   END TYPE ranges_type
@@ -138,6 +155,7 @@ CONTAINS
     TYPE (air_type),INTENT(IN) 	:: air
     REAL(r_2), DIMENSION(:,:,:),POINTER, SAVE :: bwb ! volumetric soil moisture
     REAL(r_2), DIMENSION(mp) :: delwb ! change in soilmoisture b/w tsteps
+    REAL(r_1), DIMENSION(mp) :: into_soil ! moisture into soil (EK nov07)
     REAL(r_1), DIMENSION(mp) :: canopy_wbal ! canopy water balance
     TYPE (balances_type),INTENT(INOUT):: bal 
     INTEGER :: j, k ! do loop counter
@@ -221,143 +239,139 @@ CONTAINS
 
   END SUBROUTINE energy_balance
 !===============================================================================
-     SUBROUTINE units_in(met,rad,dels)
-       ! Changes units for CABLE text driver, if required, and 
-       ! initialises several met variables.
-       TYPE (met_type), INTENT(INOUT) :: met
-       TYPE (radiation_type),INTENT(IN) :: rad
-       REAL(r_1),INTENT(IN) :: dels
-       REAL(r_1) :: temp_hum ! temporary humidity variable
-       INTEGER :: i ! do loop counter
+  SUBROUTINE units_in(met,rad,dels)
+    ! Changes units for CABLE text driver, if required, and 
+    ! initialises several met variables.
+    TYPE (met_type), INTENT(INOUT) :: met
+    TYPE (radiation_type),INTENT(IN) :: rad
+    REAL(r_1),INTENT(IN) :: dels
+    REAL(r_1) :: temp_hum ! temporary humidity variable
+    INTEGER :: i ! do loop counter
        
-       ! Adjust rainfall units:
-       IF(units%Rainf=='s') THEN
-          met%precip = met%precip*dels
-       ELSE IF(units%Rainf=='h') THEN
-          met%precip = met%precip*dels/3600.0
-       ELSE IF(units%Rainf=='t') THEN
-          ! no change required
-       ELSE
-          WRITE(*,*) 'unknown rainfall units'
-       END IF
-       ! Adjust surface pressure units:
-       IF(units%PSurf=='P') THEN
-          met%pmb = met%pmb*0.01
-       ELSE IF(units%PSurf=='h') THEN
-          ! no change required
-       ELSE
-          WRITE(*,*) 'unknown pressure units'
-       END IF
-       ! Adjust air temperature units:
-       IF(units%Tair=='K') THEN
-          met%tc = met%tc - tfrz
-       ELSE IF(units%Tair=='C') THEN
-          ! no change required
-       ELSE
-          WRITE(*,*) 'unknown temperature units'
-       END IF
-       ! Create Kelvin temperature:
-       met%tk = met%tc + tfrz
-       ! Adjust humidity units:
-       IF(units%Qair=='%') THEN
-          DO i=1,mp
-             temp_hum = met%qv(i)
-             CALL rh_sh(temp_hum, met%tk(i), &
-                  met%pmb(i),met%qv(i))
-          END DO
-       ELSE IF(units%Qair=='g') THEN
-          ! no change required
-       ELSE
-          WRITE(*,*) 'unknown humidity units'
-       END IF
-       ! Adjust CO2 concentration units:
-       IF(units%CO2air=='p') THEN
-          met%ca = met%ca/1000000.0
-       ELSE IF(units%CO2air=='m') THEN
-          ! no change required
-       ELSE
-          WRITE(*,*) 'unknown temperature units'
-       END IF
+    ! Adjust rainfall units:
+    IF(units%Rainf=='s') THEN
+      met%precip = met%precip*dels
+    ELSE IF(units%Rainf=='h') THEN
+      met%precip = met%precip*dels/3600.0
+    ELSE IF(units%Rainf=='t') THEN
+      ! no change required
+    ELSE
+      WRITE(*,*) 'unknown rainfall units'
+    END IF
+    ! Adjust surface pressure units:
+    IF(units%PSurf=='P') THEN
+      met%pmb = met%pmb*0.01
+    ELSE IF(units%PSurf=='h') THEN
+      ! no change required
+    ELSE
+      WRITE(*,*) 'unknown pressure units'
+    END IF
+    ! Adjust air temperature units:
+    IF(units%Tair=='K') THEN
+      met%tc = met%tc - tfrz
+    ELSE IF(units%Tair=='C') THEN
+      ! no change required
+    ELSE
+      WRITE(*,*) 'unknown temperature units'
+    END IF
+    ! Create Kelvin temperature:
+    met%tk = met%tc + tfrz
+    ! Adjust humidity units:
+    IF(units%Qair=='%') THEN
+      DO i=1,mp
+        temp_hum = met%qv(i)
+        CALL rh_sh(temp_hum, met%tk(i), met%pmb(i), met%qv(i))
+      END DO
+    ELSE IF(units%Qair=='g') THEN
+      ! no change required
+    ELSE
+      WRITE(*,*) 'unknown humidity units'
+    END IF
+    ! Adjust CO2 concentration units:
+    IF(units%CO2air=='p') THEN
+      met%ca = met%ca/1000000.0
+    ELSE IF(units%CO2air=='m') THEN
+      ! no change required
+    ELSE
+      WRITE(*,*) 'unknown temperature units'
+    END IF
        
-       ! Initialise other met variables:
-       WHERE(met%tc<0.0) 
-          met%precips = met%precip
-       ELSEWHERE
-          met%precips=0.0
-       END WHERE
-       met%tvair = met%tk 
-       met%tvrad = met%tk 
-       met%coszen = sinbet(met%doy, rad%latitude, met%hod)
+    ! Initialise other met variables:
+    WHERE(met%tc<0.0) 
+      met%precip_s = met%precip
+    ELSEWHERE
+      met%precip_s=0.0
+    END WHERE
+    met%tvair = met%tk 
+    met%tvrad = met%tk 
+    met%coszen = sinbet(met%doy, rad%latitude, met%hod)
        
-       ! Check ranges are okay:
-       ! Multiply acceptable Rainf ranges by time step size:
-       ranges%Rainf = ranges%Rainf*dels ! range therefore depends on dels
-       IF(ANY(met%fsd<ranges%SWdown(1)).OR.ANY(met%fsd>ranges%SWdown(2))) THEN
-          WRITE(*,*)'SWdown out of specified ranges! Check units.'
-          STOP
-       ELSE IF(ANY(met%fld<ranges%LWdown(1)).OR.ANY(met%fld>ranges%LWdown(2)))THEN
-          WRITE(*,*) 'LWdown out of specified ranges! Check units.'
-          STOP
-       ELSE IF(ANY(met%qv<ranges%Qair(1)).OR.ANY(met%qv>ranges%Qair(2))) THEN
-          WRITE(*,*) 'Qair out of specified ranges! Check units.'
-          STOP
-       ELSE IF(ANY(met%precip<ranges%Rainf(1)).OR.ANY(met%precip>ranges%Rainf(2))) THEN
-          WRITE(*,*) 'Rainf out of specified ranges! Check units'
-          STOP
-       ELSE IF(ANY(met%ua<ranges%Wind(1)).OR.ANY(met%ua>ranges%Wind(2))) THEN
-          WRITE(*,*) 'Wind out of specified ranges! Check units'
-          STOP
-       ELSE IF(ANY(met%tk<ranges%Tair(1)).OR.ANY(met%tk>ranges%Tair(2))) THEN        
-          WRITE(*,*)  'Tair out of specified ranges! Check units.'
-          STOP
-       ELSE IF(ANY(met%pmb<ranges%PSurf(1)).OR.ANY(met%pmb>ranges%PSurf(2))) THEN
-          WRITE(*,*) 'PSurf out of specified ranges! Check units'
-          STOP
-       END IF
+    ! Check ranges are okay:
+    ! Multiply acceptable Rainf ranges by time step size:
+    ranges%Rainf = ranges%Rainf*dels ! range therefore depends on dels
+    IF(ANY(met%fsd<ranges%SWdown(1)).OR.ANY(met%fsd>ranges%SWdown(2))) THEN
+      WRITE(*,*)'SWdown out of specified ranges! Check units.'
+      STOP
+    ELSE IF(ANY(met%fld<ranges%LWdown(1)).OR.ANY(met%fld>ranges%LWdown(2)))THEN
+      WRITE(*,*) 'LWdown out of specified ranges! Check units.'
+      STOP
+    ELSE IF(ANY(met%qv<ranges%Qair(1)).OR.ANY(met%qv>ranges%Qair(2))) THEN
+      WRITE(*,*) 'Qair out of specified ranges! Check units.'
+      STOP
+    ELSE IF(ANY(met%precip<ranges%Rainf(1)).OR. &
+          & ANY(met%precip>ranges%Rainf(2))) THEN
+      WRITE(*,*) 'Rainf out of specified ranges! Check units'
+      STOP
+    ELSE IF(ANY(met%ua<ranges%Wind(1)).OR.ANY(met%ua>ranges%Wind(2))) THEN
+      WRITE(*,*) 'Wind out of specified ranges! Check units'
+      STOP
+    ELSE IF(ANY(met%tk<ranges%Tair(1)).OR.ANY(met%tk>ranges%Tair(2))) THEN
+      WRITE(*,*)  'Tair out of specified ranges! Check units.'
+      STOP
+    ELSE IF(ANY(met%pmb<ranges%PSurf(1)).OR.ANY(met%pmb>ranges%PSurf(2))) THEN
+      WRITE(*,*) 'PSurf out of specified ranges! Check units'
+      STOP
+    END IF
 
-     END SUBROUTINE units_in
+  END SUBROUTINE units_in
 
-!===========================================================================
-     SUBROUTINE rh_sh (relHum,tk,psurf,specHum)
-       ! Converts relative humidity to specific humidity
-       REAL, INTENT (IN)  :: psurf  ! surface pressure (hPa)
-       REAL, INTENT (IN)  :: relHum ! relative humidity (%)
-       REAL, INTENT (OUT) :: specHum ! specific humidity (kg/kg)
-       REAL, INTENT (IN)  :: tk     ! air temp (K) 
-       REAL :: es ! saturation vapour pressure
-       REAL :: ws ! specific humidity at saturation
-       es = svp (tk) ! saturation vapour pressure
-       ws = 0.622 * es / (psurf - es) ! specific humidity at saturation
-       specHum = (relHum/100.0) * ws ! specific humidity
-     END SUBROUTINE rh_sh
-!------------------------------------------------------------------------------------
-     FUNCTION svp(tk) RESULT (F_Result)
-       ! Calculate saturation vapour pressure
-       REAL :: eilog
-       REAL :: ewlog, ewlog2, ewlog3, ewlog4
-       REAL :: F_Result
-       REAL :: temp, tk
-       REAL :: toot, toto, tsot
-       temp = tk - 273.155
-       IF (temp < -20.) THEN
-          ! ice saturation
-          toot = 273.16 / tk
-          toto = 1. / toot
-          eilog =   -9.09718 * (toot-1)                                      &
-               -  3.56654 * (LOG (toot) / LOG (10.))                      &
-               +  .876793 * (1-toto)                                      &
-               +  (LOG (6.1071) / LOG (10.))
-          F_Result = 10.**eilog
-       ELSE
-          tsot = 373.16 / tk
-          ewlog = -7.90298 * (tsot-1) + 5.02808 * (LOG (tsot) / LOG (10.))
-          ewlog2 =   ewlog                                                   &
-               - 1.3816e-07 * (10**(11.344 * (1 - (1/tsot))) - 1)
-          ewlog3 =    ewlog2                                                 &
-               + .0081328 * (10**(-3.49149 * (tsot-1)) - 1)
-          ewlog4 = ewlog3 + (LOG (1013.246) / LOG (10.))
-          F_Result = 10.**ewlog4
-       END IF
-     END FUNCTION svp
-!============================================================================
+  !===========================================================================
+  SUBROUTINE rh_sh (relHum,tk,psurf,specHum)
+    ! Converts relative humidity to specific humidity
+    REAL, INTENT (IN)  :: psurf  ! surface pressure (hPa)
+    REAL, INTENT (IN)  :: relHum ! relative humidity (%)
+    REAL, INTENT (OUT) :: specHum ! specific humidity (kg/kg)
+    REAL, INTENT (IN)  :: tk     ! air temp (K) 
+    REAL :: es ! saturation vapour pressure
+    REAL :: ws ! specific humidity at saturation
+    es = svp (tk) ! saturation vapour pressure
+    ws = 0.622 * es / (psurf - es) ! specific humidity at saturation
+    specHum = (relHum/100.0) * ws ! specific humidity
+  END SUBROUTINE rh_sh
+  !-----------------------------------------------------------------------------
+  FUNCTION svp(tk) RESULT (F_Result)
+    ! Calculate saturation vapour pressure
+    REAL :: eilog
+    REAL :: ewlog, ewlog2, ewlog3, ewlog4
+    REAL :: F_Result
+    REAL :: temp, tk
+    REAL :: toot, toto, tsot
+    temp = tk - 273.155
+    IF (temp < -20.0) THEN
+      ! ice saturation
+      toot = 273.16 / tk
+      toto = 1. / toot
+      eilog = -9.09718 * (toot-1) - 3.56654 * (LOG (toot) / LOG (10.0)) &
+            & + 0.876793 * (1-toto) + (LOG (6.1071) / LOG (10.0))
+      F_Result = 10.0**eilog
+    ELSE
+      tsot = 373.16 / tk
+      ewlog = -7.90298 * (tsot-1) + 5.02808 * (LOG (tsot) / LOG (10.0))
+      ewlog2 = ewlog - 1.3816e-07 * (10**(11.344 * (1 - (1/tsot))) - 1)
+      ewlog3 = ewlog2 + 0.0081328 * (10**(-3.49149 * (tsot-1)) - 1)
+      ewlog4 = ewlog3 + (LOG (1013.246) / LOG (10.0))
+      F_Result = 10.0**ewlog4
+    END IF
+  END FUNCTION svp
+  !============================================================================
 END MODULE checks_module

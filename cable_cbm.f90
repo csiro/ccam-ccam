@@ -1,3 +1,5 @@
+MODULE air_module
+!
 ! cable_cbm.f90
 !
 ! Source file containing main routine and canopy code for CABLE, 
@@ -10,14 +12,38 @@
 ! bugs to gabsun@gmail.com.
 !
 ! This file contains modules:
-! cbm_module, air_module, roughness_module, radiation_module, 
-! and canopy_module.
+!   cbm_module,
+!   air_module,
+!   roughness_module,
+!   radiation_module, and 
+!   canopy_module
+! The subroutines included are:
+!   define_air,
+!   ruff_resist,
+!   init_radiation,
+!   radiation,
+!   define_canopy, and
+!   cbm
+! The functions included are:
+!   sinbet,
+!   spitter,
+!   qsatf,
+!   ej3x,
+!   ej4x,
+!   xvcmxt4,
+!   xvcmxt3,
+!   xejmxt3,
+!   psim,
+!   psis,
+!   rplant, and
+!   rsoil
 !
 ! Most user-defined types (e.g. met%tk) are defined in define_types module
 ! in cable_variables.f90
 
 !=========================================================================
-MODULE air_module
+
+!MODULE air_module
   USE physical_constants
   USE define_types
   IMPLICIT NONE
@@ -614,11 +640,17 @@ CONTAINS
     oldcansto=canopy%cansto
     ! Rainfall variable is limited so canopy interception is limited,
     ! used to stabilise latent fluxes.
-    cc =min(met%precip, 4./(1440./(dels/60.)))! to avoid canopy temp. oscillations
+    ! to avoid excessive direct canopy evaporation (EK nov2007, snow scheme)
+    cc =min(met%precip-met%precip_s, 4./(1440./(dels/60.)))
+!    ! to avoid canopy temp. oscillations
+!    cc =min(met%precip, 4./(1440./(dels/60.)))
     ! Calculate canopy intercepted rainfall, equal to zero if temp < 0C:
     canopy%wcint = MERGE(MIN(MAX(cansat - canopy%cansto,0.0), cc), 0.0, &
-         cc > 0.0  .AND. met%tk > tfrz)
+      & cc > 0.0  )  ! EK nov2007, snow scheme
+!         cc > 0.0  .AND. met%tk > tfrz)
     ! Define canopy throughfall (100% of precip if temp < 0C, see above):
+    canopy%through = met%precip_s + MIN( met%precip - met%precip_s , &
+      & MAX(0.0, met%precip - met%precip_s - canopy%wcint) )  ! EK nov2007
     canopy%through = MIN(met%precip,MAX(0.0, met%precip - canopy%wcint))
     ! Add canopy interception to canopy storage term:
     canopy%cansto = canopy%cansto + canopy%wcint
@@ -1337,28 +1369,31 @@ MODULE cbm_module
   PUBLIC cbm 
 CONTAINS
   SUBROUTINE cbm(ktau, kstart, kend, dels, air, bgc, canopy, met, &
-       bal, rad, rough, soil, ssoil, sum_flux, veg)
+       bal, rad, rough, soil, ssoil, sum_flux, veg, nvegt, nsoilt)
+    ! BP added nvegt and nsoilt to the list (dec 2007)
     USE carbon_module
     USE soil_snow_module
     USE define_types
     USE physical_constants
     USE roughness_module
     USE radiation_module
-    INTEGER(i_d), INTENT(IN)		:: ktau ! integration step number
-    INTEGER(i_d), INTENT(IN)	       	:: kstart ! starting value of ktau
-    INTEGER(i_d), INTENT(IN)	       	:: kend ! total # timesteps in run
-    REAL(r_1), INTENT(IN)		:: dels ! time setp size (s)
-    TYPE (air_type), INTENT(INOUT)	:: air
-    TYPE (bgc_pool_type), INTENT(INOUT)	:: bgc	
-    TYPE (canopy_type), INTENT(INOUT)	:: canopy
-    TYPE (met_type), INTENT(INOUT) 	:: met
-    TYPE (balances_type), INTENT(INOUT) 	:: bal
-    TYPE (radiation_type), INTENT(INOUT) 	:: rad
-    TYPE (roughness_type), INTENT(INOUT) 	:: rough
-    TYPE (soil_parameter_type), INTENT(INOUT)	:: soil	
-    TYPE (soil_snow_type), INTENT(INOUT)	:: ssoil
-    TYPE (sum_flux_type), INTENT(INOUT)	:: sum_flux
-    TYPE (veg_parameter_type), INTENT(INOUT)	:: veg	
+    INTEGER(i_d), INTENT(IN)            :: ktau ! integration step number
+    INTEGER(i_d), INTENT(IN)            :: kstart ! starting value of ktau
+    INTEGER(i_d), INTENT(IN)            :: kend ! total # timesteps in run
+    REAL(r_1), INTENT(IN)               :: dels ! time setp size (s)
+    TYPE (air_type), INTENT(INOUT)      :: air
+    TYPE (bgc_pool_type), INTENT(INOUT) :: bgc
+    TYPE (canopy_type), INTENT(INOUT)   :: canopy
+    TYPE (met_type), INTENT(INOUT)      :: met
+    TYPE (balances_type), INTENT(INOUT) :: bal
+    TYPE (radiation_type), INTENT(INOUT)      :: rad
+    TYPE (roughness_type), INTENT(INOUT)      :: rough
+    TYPE (soil_parameter_type), INTENT(INOUT) :: soil
+    TYPE (soil_snow_type), INTENT(INOUT)      :: ssoil
+    TYPE (sum_flux_type), INTENT(INOUT)       :: sum_flux
+    TYPE (veg_parameter_type), INTENT(INOUT)  :: veg
+    INTEGER(i_d), INTENT(IN)            :: nvegt  ! Number of vegetation types
+    INTEGER(i_d), INTENT(IN)            :: nsoilt ! Number of soil types
 
      veg%meth = 1
 
@@ -1367,7 +1402,8 @@ CONTAINS
     ! Calculate canopy variables:
     CALL define_canopy(ktau,bal,rad,rough,air,met,dels,ssoil,soil,veg,bgc,canopy)
     ! Calculate soil and snow variables:
-    CALL soil_snow(dels, ktau, soil, ssoil, veg, canopy, met)
+    CALL soil_snow(dels, ktau, soil, ssoil, veg, canopy, met, bal) ! EK nov2007
+!    CALL soil_snow(dels, ktau, soil, ssoil, veg, canopy, met)
 
     !	need to adjust fe after soilsnow
     canopy%fev	= REAL(canopy%fevc,r_1) + canopy%fevw
@@ -1390,15 +1426,14 @@ CONTAINS
     sum_flux%dsumrd = sum_flux%dsumrd+canopy%frday*dels
     rad%flws = sboltz*emsoil* ssoil%tss **4
     
-    CALL soilcarb(soil, ssoil, veg, bgc, met, canopy)
-    CALL carbon_pl(dels, soil, ssoil, veg, canopy, bgc)
+    CALL soilcarb(soil, ssoil, veg, bgc, met, canopy, nsoilt)
+    CALL carbon_pl(dels, soil, ssoil, veg, canopy, bgc, nvegt)
     ! canopy%frs set in soilcarb
     sum_flux%sumrs = sum_flux%sumrs+canopy%frs*dels
     ! Set net ecosystem exchange after adjustments to frs:
     canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
   
-END SUBROUTINE cbm
+  END SUBROUTINE cbm
 
 END MODULE cbm_module
 
-!===================================================================================

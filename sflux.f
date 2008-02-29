@@ -1,4 +1,6 @@
-      subroutine sflux(nalpha)              ! for globpe code
+      subroutine sflux(nalpha,nvegt)  ! for globpe code
+!     BP added nvegt to be passed down to sib4 (BP jan 2008)
+!      subroutine sflux(nalpha)              ! for globpe code
       use diag_m
       use cc_mpi
       use cable_ccam, only : CABLE,sib4
@@ -651,7 +653,9 @@ c ----------------------------------------------------------------------
         if(nsib==3)call sib3(nalpha)
       endif     !  (nsib==1 or 3)
 !     rml 05/10/07 changed nsib==4 to nsib==CABLE, defined in cable_ccam
-      if (nsib==CABLE) call sib4
+!     BP added nvegt to be passed down to cbm (BP jan 2008)
+      if (nsib==CABLE) call sib4(nvegt)
+!      if (nsib==CABLE) call sib4
 
 c ----------------------------------------------------------------------
 

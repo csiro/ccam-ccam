@@ -142,6 +142,7 @@
      &     pwatr, pwatr_l, qtot
       real, dimension(9) :: temparray, gtemparray ! For global sums
       integer :: nproc_in, ierr
+      integer :: nvegt, nsoilt
 
       namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps,nperavg
      & ,ia,ib,ja,jb,itr1,jtr1,itr2,jtr2,id,jd,iaero,khdif,khor,nhorjlm
@@ -445,7 +446,9 @@ c     set up cc geometry
 !     indata for initial conditions
       if(myid==0) print *,'calling indata; will read from file ',ifile
 !     N.B. first call to amipsst now done within indata
-      call indata(hourst,newsnow,jalbfix)
+      call indata(hourst,newsnow,jalbfix,nvegt)
+!     BP added nvegt to the list for use in sflux and then sib4 (BP jan 2008)
+!      call indata(hourst,newsnow,jalbfix)
       call rlaiday
       
       call maxmin(u,' u',ktau,1.,kl)
@@ -990,15 +993,17 @@ c         enddo
         endif     ! (ntsur<=1.or.nhstest==2) 
         if(nhstest==2)call hs_phys
         if(ntsur>1)then  ! should be better after convjlm
-          call sflux(nalpha)
+          call sflux(nalpha,nvegt)
+!         BP added nvegt to be passed down to sib4 (BP jan 2008)
+!          call sflux(nalpha)
           epan_ave = epan_ave+epan  ! 2D 
           ga_ave = ga_ave+ga        ! 2D   
           if(nstn>0.and.nrotstn(1)==0)call stationa ! write every time step
           if(mod(ktau,nmaxpr)==0.and.mydiag)then
           print *
           write (6,
-     .	   "('ktau =',i5,' gmt(h,m):',f6.2,i5,' runtime(h,m):',f7.2,i6)")
-     .	      ktau,timeg,mins_gmt,timer,mtimer
+     .    "('ktau =',i5,' gmt(h,m):',f6.2,i5,' runtime(h,m):',f7.2,i6)")
+     .       ktau,timeg,mins_gmt,timer,mtimer
 !         some surface (or point) diagnostics
           isoil = isoilm(idjd)
           print *,'land,isoil,ivegt,isflag ',
@@ -1787,7 +1792,11 @@ c     data froot/.20, .45, .20, .10, .05/
      *             800.e-6, 1.e-6, 34.e-6, 7.e-6, 1.3e-6, 2.5e-6/  ! ksat
       data sucs/-.106, -.591, -.405, -.348, -.153, -.49, -.299,
      &          -.356, -.153, -.218, -.478, -.405, -.63/           ! phisat (m)
-      data rhos/7*1600., 1300.,  910., 4*2600./      ! soil density
+      data rhos/1600., 1595., 1381., 1373., 1476., 1521., 1373., 1537., 1455.,
+     &          4*2600. /
+      ! soil density changed to the line above by YP using the relationship
+      ! rho = (1  - ssat) * 2650  ----- (3Nov2007)
+!      data rhos/7*1600., 1300.,  910., 4*2600./      ! soil density
       data  css/7* 850., 1920., 2100., 4*850./       ! heat capacity
 ! rml from eak 16/03/06
       data c3/1.255,.334,.138,.521,.231,.199,.375,.623,.334,.199,.375, 
