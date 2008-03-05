@@ -625,6 +625,10 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
 
       if(nbd.ne.0)call nestin
       if(mbd.ne.0)call nestinb  ! to get mins_mbd ! MJT CHANGE - delete mins_mbd
+      if((mbd.ne.0).and.(newtop.eq.0)) then
+        print *,"ERROR: newtop must be 1 when mbd.ne.0"
+	stop
+      end if
       nmaxprsav=nmaxpr
       nwtsav=nwt
       hrs_dt = dtin/3600.      ! time step in hours

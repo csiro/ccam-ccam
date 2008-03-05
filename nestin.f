@@ -263,7 +263,7 @@
       include 'arrays.h'
       include 'const_phys.h'
       include 'darcdf.h' ! for ncid
-      integer ier,idv,mins_mbd
+      integer ier,idv
       include 'netcdf.inc'
       include 'mpif.h'
       include 'dates.h'    ! mtimer
@@ -296,8 +296,8 @@
       real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
       real :: fraciceb,sicedepb
       real, dimension(ifull) ::  zsb
-      data num/0/,mtimeb/-1/ ! MJT CHANGE - delete mtimea
-      save num,mtimeb ! MJT CHANGE - delete mtimea
+      data mtimeb/-1/ ! MJT CHANGE - delete mtimea
+      save mtimeb ! MJT CHANGE - delete mtimea
       
       ! MJT CHANGE-------------------------------------------------------------------
 !      if(num==0)then
@@ -318,7 +318,7 @@
 !        return
 !      endif   ! (num==0)
       
-      if ((mtimer<mtimeb).and.(num.ne.0)) return
+      if ((mtimer<mtimeb).and.(ktau.gt.0)) return
  
       !------------------------------------------------------------------------------
 !     mtimer, mtimeb are in minutes
@@ -328,7 +328,7 @@
         print *,'with kdate_s,ktime_s >= ',kdate_s,ktime_s
       end if
 
-      if ((mtimer>mtimeb).or.(num.eq.0)) then ! MJT CHAMGE - Please help to stamp out GOTO
+      if ((mtimer>mtimeb).or.(ktau.le.0)) then ! MJT CHAMGE - Please help to stamp out GOTO
 
 !      read tb etc  - for globpea, straight into tb etc
        if(io_in==1)then
@@ -443,8 +443,8 @@
          endif
        endif   !  newtop>=1
 
-       num=1 ! MJT CHANGE
-      else ! MJT CHANGE - Please help to stamp out GOTO
+       return ! MJT CHANGE
+      end if ! MJT CHANGE - Please help to stamp out GOTO
 
 !       if(num==1)then
 !         num=2
@@ -491,8 +491,6 @@
           tgg(iq,1)=tss(iq)
         endif  ! (.not.land(iq))
        enddo   ! iq loop 
-      
-      end if ! MJT CHANGE - Please help to stamp out GOTO
       
       return
       end
@@ -550,10 +548,6 @@
         case(3)
           if (myid == 0) print *,"2D spectral downscale (MPI)"
           call slowspecmpi(myid,.1*real(mbd)/(pi*schmidt)
-     &                  ,pslc,uc,vc,wc,tc,qc)
-        case(4)
-          if (myid == 0) print *,"Fast 1D spectral downscale (MPI)"
-          call fastspecmpi(myid,.1*real(mbd)/(pi*schmidt)
      &                  ,pslc,uc,vc,wc,tc,qc)
         case(2)
           if (myid == 0) print *,"Separable 1D downscale (MPI)"
@@ -1411,251 +1405,6 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       return
       end subroutine fourspecmpi
-      !---------------------------------------------------------------------------------
-
-      !---------------------------------------------------------------------------------
-      ! MPI version of JLM method
-      subroutine fastspecmpi(myid,c,psls,uu,vv,ww,tt,qgg)
-      
-      implicit none
-      
-      include 'newmpar.h'    ! ifull_g,kl
-      include 'const_phys.h' ! rearth,pi,tpi
-      include 'map_g.h'      ! em_g
-      include 'parm.h'       ! ds,kbotdav
-      include 'xyzinfo_g.h'  ! x_g,y_g,z_g
-      include 'mpif.h'
-      
-      integer, intent(in) :: myid
-      real, intent(in) :: c
-      real, dimension(ifull_g), intent(inout) :: psls
-      real, dimension(ifull_g,kbotdav:kl), intent(inout) :: uu,vv,ww
-      real, dimension(ifull_g,kbotdav:kl), intent(inout) :: tt,qgg
-      real, dimension(ifull_g) :: psum,pp
-      real, dimension(ifull_g,kbotdav:kl) :: pu,pv,pw,pt,pq
-      real :: r,wgtb,wgt,rmaxsq,csq,emmin
-      integer :: iq,iq1,j,ipass,n1,n
-      integer :: ne,ns,nne,nns,iproc,k,itag = 0,ierr
-      integer, dimension(MPI_STATUS_SIZE) :: status
- 
-      emmin=c*ds/rearth
-      rmaxsq=1./c**2
-      csq=-4.5*c**2
-
-      call procdiv(ns,ne,il_g,nproc,myid)
-
-      do ipass=0,2
-
-        if (myid == 0) then
-          print *,"3 pass ",ipass
-          do iproc=1,nproc-1
-            call procdiv(nns,nne,il_g,nproc,iproc)
-            n1=(nne-nns+1)*4*il_g
-            do j=nns,nne
-              do n=1,4*il_g
-                call getiq(iq,j,n,ipass,il_g)
-                iq1=(j-nns)*4*il_g+n
-                pp(iq1)=psls(iq)
-                pu(iq1,:)=uu(iq,:)
-                pv(iq1,:)=vv(iq,:)
-                pw(iq1,:)=ww(iq,:)
-                pt(iq1,:)=tt(iq,:)
-                pq(iq1,:)=qgg(iq,:)
-              end do
-            end do
-            call MPI_SSend(pp(1:n1),n1,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,ierr)
-            do k=kbotdav,kl
-              call MPI_SSend(pu(1:n1,k),n1,MPI_REAL,iproc,itag,
-     &               MPI_COMM_WORLD,ierr)
-              call MPI_SSend(pv(1:n1,k),n1,MPI_REAL,iproc,itag,
-     &               MPI_COMM_WORLD,ierr)
-              call MPI_SSend(pw(1:n1,k),n1,MPI_REAL,iproc,itag,
-     &               MPI_COMM_WORLD,ierr)    
-              call MPI_SSend(pt(1:n1,k),n1,MPI_REAL,iproc,itag,
-     &               MPI_COMM_WORLD,ierr)
-              call MPI_SSend(pq(1:n1,k),n1,MPI_REAL,iproc,itag,
-     &               MPI_COMM_WORLD,ierr)    
-            end do
-          end do
-        else
-          n1=(ne-ns+1)*4*il_g
-          call MPI_Recv(pp(1:n1),n1,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,status,ierr)
-          do k=kbotdav,kl
-            call MPI_Recv(pu(1:n1,k),n1,MPI_REAL,0,itag,
-     &             MPI_COMM_WORLD,status,ierr)
-            call MPI_Recv(pv(1:n1,k),n1,MPI_REAL,0,itag,
-     &             MPI_COMM_WORLD,status,ierr)
-            call MPI_Recv(pw(1:n1,k),n1,MPI_REAL,0,itag,
-     &             MPI_COMM_WORLD,status,ierr)
-            call MPI_Recv(pt(1:n1,k),n1,MPI_REAL,0,itag,
-     &             MPI_COMM_WORLD,status,ierr)
-            call MPI_Recv(pq(1:n1,k),n1,MPI_REAL,0,itag,
-     &             MPI_COMM_WORLD,status,ierr)
-          end do
-          do j=ns,ne
-            do n=1,4*il_g
-              call getiq(iq,j,n,ipass,il_g)
-              iq1=(j-ns)*4*il_g+n
-              psls(iq)=pp(iq1)
-              uu(iq,:)=pu(iq1,:)
-              vv(iq,:)=pv(iq1,:)
-              ww(iq,:)=pw(iq1,:)
-              tt(iq,:)=pt(iq1,:)
-              qgg(iq,:)=pq(iq1,:)
-            end do
-          end do
-        end if
-
-        pp=0.
-        pu=0.
-        pv=0.
-        pw=0.
-        pt=0.
-        pq=0.
-        psum=0.
-          
-        do j=ns,ne
-          do n=1,4*il_g
-            call getiq(iq,j,n,ipass,il_g)
-            if (em_g(iq).gt.emmin) then
-              do n1=n,4*il_g
-                call getiq(iq1,j,n1,ipass,il_g)
-                r=x_g(iq)*x_g(iq1)+y_g(iq)*y_g(iq1)+z_g(iq)*z_g(iq1)
-                r=acos(max(min(r,1.),-1.))**2
-                if (r.le.rmaxsq) then
-                  if (iq.eq.iq1) then
-                    wgtb=1.
-                  else
-                    wgtb=exp(r*csq)	! lambda_min = 3 sigmas => -4.5
-                    wgt=wgtb/em_g(iq) ! wrong units but the weights are rescaled so that sum(wgt)=1
-                    psum(iq1)=psum(iq1)+wgt
-                    pp(iq1)=pp(iq1)+wgt*psls(iq)
-                    pu(iq1,:)=pu(iq1,:)+wgt*uu(iq,:)
-                    pv(iq1,:)=pv(iq1,:)+wgt*vv(iq,:)
-                    pw(iq1,:)=pw(iq1,:)+wgt*ww(iq,:)
-                    pt(iq1,:)=pt(iq1,:)+wgt*tt(iq,:)
-                    pq(iq1,:)=pq(iq1,:)+wgt*qgg(iq,:)
-                  end if
-                  wgt=wgtb/em_g(iq1) ! correct units are (ds/rearth)/em_g
-                  psum(iq)=psum(iq)+wgt
-                  pp(iq)=pp(iq)+wgt*psls(iq1)
-                  pu(iq,:)=pu(iq,:)+wgt*uu(iq1,:)
-                  pv(iq,:)=pv(iq,:)+wgt*vv(iq1,:)
-                  pw(iq,:)=pw(iq,:)+wgt*ww(iq1,:)
-                  pt(iq,:)=pt(iq,:)+wgt*tt(iq1,:)
-                  pq(iq,:)=pq(iq,:)+wgt*qgg(iq1,:)
-                end if
-              end do
-              psls(iq)=pp(iq)/psum(iq)
-              uu(iq,:)=pu(iq,:)/psum(iq)
-              vv(iq,:)=pv(iq,:)/psum(iq)
-              ww(iq,:)=pw(iq,:)/psum(iq)
-              tt(iq,:)=pt(iq,:)/psum(iq)
-              qgg(iq,:)=pq(iq,:)/psum(iq)
-            end if
-          end do
-        end do
-
-        itag=itag+1
-        if (myid == 0) then
-          do iproc=1,nproc-1
-            call procdiv(nns,nne,il_g,nproc,iproc)
-            n1=(nne-nns+1)*4*il_g
-            call MPI_Recv(pp(1:n1),n1,MPI_REAL,iproc
-     &             ,itag,MPI_COMM_WORLD,status,ierr)
-            do k=kbotdav,kl
-              call MPI_Recv(pu(1:n1,k),n1,MPI_REAL,iproc
-     &               ,itag,MPI_COMM_WORLD,status,ierr)
-              call MPI_Recv(pv(1:n1,k),n1,MPI_REAL,iproc
-     &               ,itag,MPI_COMM_WORLD,status,ierr)
-              call MPI_Recv(pw(1:n1,k),n1,MPI_REAL,iproc
-     &               ,itag,MPI_COMM_WORLD,status,ierr)
-              call MPI_Recv(pt(1:n1,k),n1,MPI_REAL,iproc
-     &               ,itag,MPI_COMM_WORLD,status,ierr)
-              call MPI_Recv(pq(1:n1,k),n1,MPI_REAL,iproc
-     &               ,itag,MPI_COMM_WORLD,status,ierr)
-            end do
-            do j=nns,nne
-              do n=1,4*il_g
-                call getiq(iq,j,n,ipass,il_g)
-                iq1=(j-nns)*4*il_g+n
-                psls(iq)=pp(iq1)
-                uu(iq,:)=pu(iq1,:)
-                vv(iq,:)=pv(iq1,:)
-                ww(iq,:)=pw(iq1,:)
-                tt(iq,:)=pt(iq1,:)
-                qgg(iq,:)=pq(iq1,:)
-              end do
-            end do
-          end do
-        else
-          n1=(ne-ns+1)*4*il_g
-          do j=ns,ne
-            do n=1,4*il_g
-              call getiq(iq,j,n,ipass,il_g)
-              iq1=(j-ns)*4*il_g+n
-              pp(iq1)=psls(iq)
-              pu(iq1,:)=uu(iq,:)
-              pv(iq1,:)=vv(iq,:)
-              pw(iq1,:)=ww(iq,:)
-              pt(iq1,:)=tt(iq,:)
-              pq(iq1,:)=qgg(iq,:)
-            end do
-          end do
-          call MPI_SSend(pp(1:n1),n1,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,ierr)
-          do k=kbotdav,kl
-            call MPI_SSend(pu(1:n1,k),n1,MPI_REAL,0,itag,
-     &             MPI_COMM_WORLD,ierr)
-            call MPI_SSend(pv(1:n1,k),n1,MPI_REAL,0,itag,
-     &             MPI_COMM_WORLD,ierr)
-            call MPI_SSend(pw(1:n1,k),n1,MPI_REAL,0,itag,
-     &             MPI_COMM_WORLD,ierr)
-            call MPI_SSend(pt(1:n1,k),n1,MPI_REAL,0,itag,
-     &             MPI_COMM_WORLD,ierr)
-            call MPI_SSend(pq(1:n1,k),n1,MPI_REAL,0,itag,
-     &             MPI_COMM_WORLD,ierr)
-          end do
-        end if
-        
-      end do
-      
-      return
-      end subroutine fastspecmpi
-      !---------------------------------------------------------------------------------
-
-      !---------------------------------------------------------------------------------
-      subroutine getiq(iq,j,n,ipass,il_g)
-      
-      implicit none
-      
-      integer, intent(out) :: iq
-      integer, intent(in) :: j,n,ipass,il_g
-      
-      select case(ipass*10+(n-1)/il_g) ! Use indexing from jlm fastspec
-        case(0)                         ! x pass
-          iq=il_g*(il_g+j-1)+n          ! panel 1
-        case(1)
-          iq=il_g*(2*il_g+j-2)+n        ! panel 2
-        case(2,3)
-          iq=il_g*(2*il_g+n)+1-j        ! panel 4,5
-        case(10,11)                     ! y pass
-          iq=il_g*(n-1)+j               ! panel 0,1
-        case(12)
-          iq=il_g*(4*il_g-j-2)+n        ! panel 3
-        case(13)
-          iq=il_g*(5*il_g-j-3)+n        ! panel 4
-        case(20)                        ! z pass
-          iq=il_g*(j-1)+n               ! panel 0
-        case(21,22)
-          iq=il_g*(il_g+n)+1-j          ! panel 2,3
-        case(23)
-          iq=il_g*(5*il_g+j-4)+n        ! panel 5
-      end select      
-      
-      end subroutine getiq
       !---------------------------------------------------------------------------------
 
       !---------------------------------------------------------------------------------

@@ -6,10 +6,10 @@
 !   call tebload     ! to load previous state arrays (from tebsave)
 !   call tebtype     ! to define urban type (or use tebfndef instead)
 !   ...
-!   call tebnewangle ! update solar zenith and azimuthal angle (use tebccangle for CCAM,
-!                      use tebnewangle1 for a single grid point)                     
+!   call tebnewangle ! define new solar zenith and azimuthal angle (use tebccangle for CCAM,
+!                      use tebnewangle1 for a single grid point)
 !   call tebalb      ! modifies input albedo to include urban (use tebalb1 for a single grid point)
-!   call tebcalc     ! modifies input fluxes, surface temperatures, etc to include urban
+!   call tebcalc     ! modifies input fluxes, surface temperature, etc to include urban
 !   call tebzom      ! modifies input roughness length to include urban
 !   ...
 !   call tebsave     ! to save current state arrays (for use by tebload)
@@ -32,8 +32,8 @@
 !   However, the physics can be improved by allowing aTEB to interact with multiple atmospheric levels
 !   (e.g., one atmospheric level above the canyon and one or more levels inside the canyon).
 !
-! - aTEB estimates the aerodynamic resistances between the atmosphere and the canyon at half the canyon
-!   height.  TEB esimates the aerodynamic resistances between the top and bottom of the canyon.
+! - aTEB employs a different wind speed profile inside the canyon compared to TEB.  The aTEB wind profile
+!   decays more quickly than TEB and depends on building height and roughness length instead of the h/w ratio.
 !
 
 module ateb
@@ -44,6 +44,7 @@ private
 public tebinit,tebcalc,tebend,tebzom,tebload,tebsave,tebtype,tebalb,tebalb1,tebfndef, &
        tebnewangle,tebnewangle1,tebccangle,tebdisable
 
+! state arrays
 integer ufull,maxtype
 integer, dimension(:), allocatable :: ugrid,mgrid
 real, dimension(:,:), allocatable :: rooftemp,walletemp,wallwtemp,roadtemp
@@ -53,13 +54,14 @@ real, dimension(:), allocatable :: roofadjw,roadadjw
 real, dimension(:), allocatable :: fnsigmabld,fnhwratio,fnindustryfg,fntrafficfg
 real, dimension(:), allocatable :: fnzo,fnbldheight
 real, dimension(:), allocatable :: vangle,hangle
-real, dimension(3), parameter :: roofdepth =(/ 0.05,0.4,0.1 /)
+! parameters
+real, dimension(3), parameter :: roofdepth =(/ 0.05,0.4,0.1 /)          ! depth
 real, dimension(3), parameter :: walldepth =(/ 0.02,0.125,0.05 /)
 real, dimension(3), parameter :: roaddepth =(/ 0.05,0.1,1. /)
-real, dimension(3), parameter :: roofcp =(/ 2.11E6,0.28E6,0.29E6 /)
+real, dimension(3), parameter :: roofcp =(/ 2.11E6,0.28E6,0.29E6 /)     ! heat capacity
 real, dimension(3), parameter :: wallcp =(/ 1.55E6,1.55E6,0.29E6 /)
 real, dimension(3), parameter :: roadcp =(/ 1.94E6,1.28E6,1.28E6 /)
-real, dimension(3), parameter :: rooflambda =(/ 1.51,0.08,0.05 /)
+real, dimension(3), parameter :: rooflambda =(/ 1.51,0.08,0.05 /)       ! conductance
 real, dimension(3), parameter :: walllambda =(/ 0.9338,0.9338,0.05 /)
 real, dimension(3), parameter :: roadlambda =(/ 0.7454,0.2513,0.2513 /)
 real, dimension(0:220), parameter :: table = (/ &
@@ -103,14 +105,17 @@ real, parameter :: pi=3.1415927    ! pi
 real, parameter :: rd=287.04       ! Gas constant for dry air
 real, parameter :: sbconst=5.67e-8 ! Stefan-Boltzmann constant    
 real, parameter :: zoroof=0.15     ! Roughness length for rooftops (see Masson 2000)
-real, parameter :: roofemiss=0.90
+real, parameter :: roofemiss=0.90  ! emissitivity
 real, parameter :: wallemiss=0.85
 real, parameter :: roademiss=0.94
-real, parameter :: roofalpha=0.15
+real, parameter :: roofalpha=0.15  ! Albedo
 real, parameter :: wallalpha=0.25
 real, parameter :: roadalpha=0.08
 real, parameter :: maxroofwater=1.
 real, parameter :: maxroadwater=1.
+integer, parameter :: expprofilemode = 1 ! selects Masson (0) or MJT (1) vertical wind profile inside canyon
+real, parameter :: heatzoinc = 4.3 ! Eva's veg (=2.) or MJT suggestion for urban (=4.3) which determines the
+                                   ! ratio between momentum and heat roughness lengths
 
 contains
 
@@ -368,15 +373,30 @@ implicit none
 
 integer, intent(in) :: ifull,diag
 real, intent(in) :: zmin
-real dzmin
 real, dimension(ifull), intent(inout) :: zo
 real, dimension(ifull), intent(in) :: sigmau
+real, dimension(ufull) :: work
 
 if (ufull.eq.0) return
 if (diag.ne.0) write(6,*) "Blend urban roughness length"
 
+select case(expprofilemode)
+  case(0) ! Masson (2000) - not designed for inside canyon
+    where(zmin.lt.fnbldheight(:))
+      work(:)=1./(log(fnbldheight(:)/(3.*fnzo(:)))*exp(-0.5*fnhwratio(:)*(1.-zmin/fnbldheight(:))))
+    else where
+      work(:)=1./log((zmin-2.*fnbldheight(:)/3.)/fnzo(:))**2
+    end where
+  case(1) ! MJT suggestion
+    where(zmin.lt.fnbldheight(:))
+      work(:)=1./(log(fnbldheight(:)/(3.*fnzo(:)))*exp(-3.*(1.-zmin/fnbldheight(:))/log(fnbldheight(:)/(3.*fnzo(:)))))
+    else where
+      work(:)=1./log((zmin-2.*fnbldheight(:)/3.)/fnzo(:))**2
+    end where
+end select
+
 zo(ugrid(:))=zmin*exp(-1./sqrt((1.-sigmau(ugrid(:)))/log(zmin/zo(ugrid(:)))**2 &
-  +sigmau(ugrid(:))/log(max(zmin-2.*fnbldheight(:)/3.,fnzo(:)+1.)/fnzo(:))**2))
+  +sigmau(ugrid(:))*work(:)))
 
 return
 end subroutine tebzom
@@ -619,12 +639,22 @@ do iqu=1,ufull
   mixrr=mixr(iqu)*roofqsat/qsata
 
   ! estimate canyonu (rotating through 2pi)
-  if (zmin.gt.fnbldheight(iqu)) then ! above canyon
-    canyonu=(2./pi)*umag(iqu)*exp(-0.25*fnhwratio(iqu)) &
+  select case(expprofilemode)
+    case(0) ! Masson(2000) - not designed for inside canyon
+      if (zmin.gt.fnbldheight(iqu)) then ! above canyon
+        canyonu=(2./pi)*umag(iqu)*exp(-0.25*fnhwratio(iqu)) &
             *log(fnbldheight(iqu)/(3.*fnzo(iqu)))/log((zmin-fnbldheight(iqu)*2./3.)/fnzo(iqu))
-  else ! inside canyon (MJT suggestion)
-    canyonu=(2./pi)*umag(iqu)*exp(-0.5*fnhwratio(iqu)*(zmin/fnbldheight(iqu)-0.5))
-  end if
+      else ! inside canyon
+        canyonu=(2./pi)*umag(iqu)*exp(-0.5*fnhwratio(iqu)*(zmin/fnbldheight(iqu)-0.5))
+      end if
+    case(1) ! MJT suggestion
+      if (zmin.gt.fnbldheight(iqu)) then ! above canyon
+        canyonu=(2./pi)*umag(iqu)*exp(-0.3*3./log(fnbldheight(iqu)/(3.*fnzo(iqu)))) &
+            *log(fnbldheight(iqu)/(3.*fnzo(iqu)))/log((zmin-fnbldheight(iqu)*2./3.)/fnzo(iqu))
+      else ! inside canyon
+        canyonu=(2./pi)*umag(iqu)*exp(-3.*(zmin/fnbldheight(iqu)-0.7)/log(fnbldheight(iqu)/(3.*fnzo(iqu))))
+      end if
+  end select      
 
   ! scale traffic sensible heat flux for canyon          
   efftrafffg=fntrafficfg(iqu)/(1.-fnsigmabld(iqu))
@@ -827,8 +857,8 @@ end subroutine getqsat
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Based on Eva's sflux.f (i.e., vegetation)
-! It is likely that these relations are modified for urban land-use
-! (e.g., zot/zo is possibly an order of magnitude greater for urban than vegetation)
+! Modified for increased ratio between momentum and heat roughness
+! lengths over urban areas.
 
 subroutine getinvres(invres,cd,zo,zmin,stemp,theta,umag)
 
@@ -837,17 +867,16 @@ implicit none
 real, intent(in) :: zo,zmin,stemp,theta,umag
 real, intent(out) :: invres,cd
 real zolog,af,aft,ri,fm,fh,root,denma,denha
-real, parameter :: bprm=5.
-real, parameter :: chs=2.6
-real, parameter :: cms=5.
+real, parameter :: bprm=5. ! 4.7 in rams
+real, parameter :: chs=2.6 ! 5.3 in rams
+real, parameter :: cms=5.  ! 7.4 in rams
 real, parameter :: fmroot=0.57735
 real, parameter :: vkar=0.4
 real, parameter :: rimax=(1./fmroot-1.)/bprm
-real, parameter :: factch=2.72029410 ! sqrt(7.4)
 
 zolog=log(zmin/zo)
 af=(vkar/zolog)**2
-aft=vkar**2/(zolog*(2.+zolog))
+aft=vkar**2/(zolog*(heatzoinc+zolog))
 ri=min(grav*zmin*(1.-stemp/theta)/max(umag,0.2)**2,rimax)
 
 if (ri>0.) then
@@ -857,7 +886,7 @@ else
   root=sqrt(-ri*zmin/zo)
   denma=1.+cms*2.*bprm*af*root
   fm=1.-2.*bprm *ri/denma
-  denha=1.+chs*2.*bprm*factch*aft*root
+  denha=1.+chs*2.*bprm*aft*sqrt(exp(heatzoinc))*root
   fh=1.-2.*bprm *ri/denha
 endif
 
@@ -924,7 +953,7 @@ real, intent(out) :: evct,wallefg,wallwfg,roadfg,topfg,rwinvres,topinvres
 real cd,cw
 
 call getinvres(topinvres,cd,zo,zmin,ctemp,theta,umag) 
-cw=sqrt(cd)*umag ! diagnose canyonw
+cw=sqrt(cd)*umag ! diagnose canyonw (from Masson 2000)
 rwinvres=(11.8+4.2*sqrt(cu**2+cw**2))/(aircp*rho) ! From Rowley, et al (1930)
 wallefg=aircp*rho*(walletemp-ctemp)*rwinvres
 wallwfg=aircp*rho*(wallwtemp-ctemp)*rwinvres
