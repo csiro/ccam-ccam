@@ -60,7 +60,7 @@ c     include 'map.h'      ! land
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
      . ism(ifull),fwtop(ifull),af(ifull),   ! watch soilsnow.f after epot
      . extin(ifull),dum3(5*ijk-17*ifull)
-      real plens(ifull),vmag(ifull),charnck(ifull)
+      real plens(ifull),vmag(ifull),charnck(ifull),zoh(ifull) ! MJT Urban
       save plens
       data plens/ifull*0./
       include 'establ.h'
@@ -627,15 +627,22 @@ c ----------------------------------------------------------------------
         ! assume sib3 only wants zo for vegetative part
         ! here we blend zo with the urban part for the
         ! calculation of ustar (occuring later in sflux.f)
-        call tebzom(ifull,zo(:),zmin,sigmu(:),0)
+        do ip=1,ipland ! assumes all urban points are land points
+          iq=iperm(ip)
+          zoh(iq)=zmin*exp(-1./sqrt(aft(iq)/(vkar**2)))
+        end do
+        call tebzo(ifull,zo(:),zoh(:),zmin,sigmu(:),0) ! zero displacement height version
         do ip=1,ipland ! assumes all urban points are land points
           iq=iperm(ip)
           if (sigmu(iq).gt.0.) then
             es = establ(tss(iq))
             qsttg(iq)= .622*es/(ps(iq)-es)
-            aft(iq)=vkar**2/(log(zmin/zo(iq))*(2.+log(zmin/zo(iq))))
-            af(iq)=(vkar/log(zmin/zo(iq)))**2
+            aft(iq)=(vkar/log(zmin/zoh(iq)))**2
             rnet(iq)=sgsave(iq)-(rgsave(iq)+stefbo*tss(iq)**4)
+            ! the following are done by ntsur.ne.5
+            !af(iq)=(vkar/log(zmin/zo(iq)))**2
+            !xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       
+            !ri(iq)=min(xx/vmag(iq)**2 , ri_max)            
           end if            
         end do
       end if

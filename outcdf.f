@@ -746,17 +746,17 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         !-------------------------------------------------------
         ! MJT CHANGE - add wetfrac1-6 and possibly delete wb1-6 above
         lname = 'Wetness fraction layer 1'
-        call attrib(idnc,idim,3,'wetfrac1',lname,'none',-2.,2.,0)
+        call attrib(idnc,idim,3,'wetfrac1',lname,'none',-5.,5.,0)
         lname = 'Wetness fraction layer 2'
-        call attrib(idnc,idim,3,'wetfrac2',lname,'none',-2.,2.,0)
+        call attrib(idnc,idim,3,'wetfrac2',lname,'none',-5.,5.,0)
         lname = 'Wetness fraction layer 3'
-        call attrib(idnc,idim,3,'wetfrac3',lname,'none',-2.,2.,0)
+        call attrib(idnc,idim,3,'wetfrac3',lname,'none',-5.,5.,0)
         lname = 'Wetness fraction layer 4'
-        call attrib(idnc,idim,3,'wetfrac4',lname,'none',-2.,2.,0)
+        call attrib(idnc,idim,3,'wetfrac4',lname,'none',-5.,5.,0)
         lname = 'Wetness fraction layer 5'
-        call attrib(idnc,idim,3,'wetfrac5',lname,'none',-2.,2.,0)
+        call attrib(idnc,idim,3,'wetfrac5',lname,'none',-5.,5.,0)
         lname = 'Wetness fraction layer 6'
-        call attrib(idnc,idim,3,'wetfrac6',lname,'none',-2.,2.,0)
+        call attrib(idnc,idim,3,'wetfrac6',lname,'none',-5.,5.,0)
         !-------------------------------------------------------        
  
         print *,'finished defining attributes'
@@ -850,10 +850,13 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         !--------------------------------------------
         ! MJT urban
         aa=zolnd
-        if (nurban.ne.0) call tebzom(ifull,aa(:),zmin,sigmu(:),0)
+        bb=zolnd ! dummy
+        if (nurban.ne.0) then
+          call tebzo(ifull,aa(:),bb(:),zmin,sigmu(:),0)
+        end if
         call histwrt3(aa,'zolnd',idnc,iarch,local)
-        !--------------------------------------------	
-        call histwrt3(zolnd,'zolnd',idnc,iarch,local)
+        !call histwrt3(zolnd,'zolnd',idnc,iarch,local)
+        !--------------------------------------------        
         do iq=1,ifull
          aa(iq)=isoilm(iq)
         enddo
@@ -1105,9 +1108,9 @@ c      "extra" outputs
        ! MJT urban
        if ((nurban.eq.-1).or.((nurban.eq.1).and.(itype==-1))) then
         do k=1,12
-	  urban(:,k)=tss(:)
-	end do
-	urban(:,13:14)=0.
+          urban(:,k)=tss(:)
+        end do
+        urban(:,13:14)=0.
         call tebsave(ifull,urban,0)
         call histwrt3(urban(:,1),'rooftgg1',idnc,iarch,local)
         call histwrt3(urban(:,2),'rooftgg2',idnc,iarch,local)
