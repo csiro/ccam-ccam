@@ -629,7 +629,7 @@ c ----------------------------------------------------------------------
         ! calculation of ustar (occuring later in sflux.f)
         do ip=1,ipland ! assumes all urban points are land points
           iq=iperm(ip)
-          zoh(iq)=zmin*exp(-1./sqrt(aft(iq)/(vkar**2)))
+          zoh(iq)=zo(iq)/7.4
         end do
         call tebzo(ifull,zo(:),zoh(:),zmin,sigmu(:),0) ! zero displacement height version
         do ip=1,ipland ! assumes all urban points are land points
@@ -637,7 +637,7 @@ c ----------------------------------------------------------------------
           if (sigmu(iq).gt.0.) then
             es = establ(tss(iq))
             qsttg(iq)= .622*es/(ps(iq)-es)
-            aft(iq)=(vkar/log(zmin/zoh(iq)))**2
+            aft(iq)=vkar**2/(log(zmin/zo(iq))*log(zmin/zoh(iq)))
             rnet(iq)=sgsave(iq)-(rgsave(iq)+stefbo*tss(iq)**4)
             ! the following are done by ntsur.ne.5
             !af(iq)=(vkar/log(zmin/zo(iq)))**2
