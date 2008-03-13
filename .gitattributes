@@ -1,6 +1,5 @@
 * text=auto !eol
 /ateb.f90 -text
-/makefile.ifort -text
-/makefile.mpidummy.ifort -text
+/makefile -text
 /mpif.h -text
 /parmsurf.h -text

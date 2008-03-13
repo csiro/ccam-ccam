@@ -1,12 +1,24 @@
-# Makefile for CCAM with ifort on cherax
+FC = sxmpif90
 
-FC = ifort
-INC = -I /usr/local/include -I $(NETCDF_ROOT)/include 
+# -ew is 64 bit precision (-dw for 32 bit)
+# nodiv: division may not be changed to mult.
+# noassume: array decl. not used to give assumed length of do loop
+# loopcnt=  specifies max value of iteration count for a do loop (default 5000)
+#     applies just to sflux   Needs 70000 for C200
+#     applies just to sflux   Needs 180000 for C200 1 proc
+#     applies just to sflux,soilsnow   40000 now OK for C200 3 proc
 
-# Need -fpp for a couple of routines
-FFLAGS = -O -fpe0 -fpp -auto -g
+FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -pvctl noassume  -pvctl loopcnt=70000" -P stack
+#use following line for 4, 16 processors
+FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -pvctl noassume  -pvctl loopcnt=40000" -P stack -Duniform_decomp
+#next one to ensure identical results for any number of processors
+#            affecting tracermodule.o  cc_mpi.o    helmsol.o    sumdd_m.o  
+FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -pvctl noassume  -pvctl loopcnt=40000" -P stack -Dsumdd
+#following line is usual choice for SX6, SX8
+FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -pvctl noassume  -pvctl loopcnt=40000" -P stack
 
-LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
+#LIBS = -lnetcdf 
+LIBS = /park/tools/SX/local/lib/libnetcdf.a  
 
 LDFLAGS = 
 
@@ -21,7 +33,7 @@ newrain.o latltoij.o cldblk.o clddia.o cldset.o clo89.o cloud.o \
 cloud2.o co2_read.o e1e288.o e3v88.o extras.o fst88.o hconst.o lwr88.o \
 o3_read.o o3set.o resetd.o spa88.o swr99.o table.o zenith.o cc_mpi.o \
 diag_m.o sumdd_m.o ilu_m.o davies.o utilities.o onthefly.o o3read_amip.o \
-o3set_amip.o tracermodule.o timeseries.o trvmix.o mpidummy.o
+o3set_amip.o tracermodule.o timeseries.o trvmix.o ateb.o
 
 globpea: $(OBJS)
 	$(FC) -o globpea $(FFLAGS) $(LDFLAGS) $(OBJS) $(LIBS)
@@ -32,16 +44,19 @@ clean:
 .SUFFIXES:.f90
 
 .f90.o:
-	$(FC) -c $(FFLAGS) $(INC) $<
+	$(FC) -c $(FFLAGS) $<
 .f.o:
-	$(FC) -c $(FFLAGS) $(INC) $<
+	$(FC) -c $(FFLAGS) $<
+infile.o:infile.f
+	$(FC) -c -Cvopt  $(FFLAGS) $<
 
 # Remove mod rule from Modula 2 so GNU make doesn't get confused
 %.o : %.mod
 
 # Dependencies
-adjust5.o : adjust5.f xyzinfo.h xarrs.h vvel.h vecsuva.h vecsuv.h vecs.h tracers.h sigs.h pbl.h parmvert.h parmdyn.h parm.h nlin.h morepbl.h map.h liqwpar.h kuocom.h indices.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o 
+adjust5.o : adjust5.f xyzinfo.h xarrs.h vvel.h vecsuv.h vecs.h tracers.h sigs.h pbl.h parmvert.h parmdyn.h parm.h nlin.h morepbl.h map.h liqwpar.h kuocom.h indices.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o 
 amipsst.o : amipsst.f soilsnow.h soil.h pbl.h parm.h nsibd.h map.h filnames.h dates.h arrays.h newmpar.h cc_mpi.o 
+ateb.o : ateb.f90
 bett_cuc.o : bett_cuc.f betts1.h newmpar.h 
 bettinit.o : bettinit.f betts1.h newmpar.h 
 bettrain.o : bettrain.f betts1.h newmpar.h 
@@ -74,14 +89,14 @@ findll.o : findll.f newmpar.h
 findnear.o : findnear.f 
 fst88.o : fst88.f cldcom.h tfcom.h srccom.h kdacom.h lwout.h rdflux.h tabcom.h rnddta.h radisw.h rdparm.h hcon.h newmpar.h 
 gettin.o : gettin.f savuvt.h arrays.h newmpar.h 
-globpe.o : globpe.f mapproj.h establ.h xyzinfo.h xarrs.h vvel.h vecsuva.h vecsuv.h trcom2.h tracers.h stime.h soilv.h soilsnow.h soil.h sigs.h screen.h scamdim.h savuvt.h raddiag.h prec.h pbl.h parmvert.h parm_nqg.h parmhor.h parmdyn.h parm.h nsibd.h nlin.h morepbl.h map.h liqwpar.h latlong.h kuocom.h indices.h histave.h filnames.h extraout.h dates.h darcdf.h const_phys.h arrays.h aalat.h newmpar.h diag_m.o cc_mpi.o tracermodule.o timeseries.o
+globpe.o : globpe.f mapproj.h establ.h xyzinfo.h xarrs.h vvel.h vecsuv.h trcom2.h tracers.h stime.h soilv.h soilsnow.h soil.h sigs.h screen.h scamdim.h savuvt.h raddiag.h prec.h pbl.h parmvert.h parm_nqg.h parmhor.h parmdyn.h parm.h nsibd.h nlin.h morepbl.h map.h liqwpar.h latlong.h kuocom.h indices.h histave.h filnames.h extraout.h dates.h darcdf.h const_phys.h arrays.h aalat.h newmpar.h diag_m.o cc_mpi.o tracermodule.o timeseries.o
 gwdrag.o : gwdrag.f soil.h sigs.h pbl.h parm.h morepbl.h nlin.h gdrag.h const_phys.h arrays.h newmpar.h 
 hconst.o : hconst.f hcon.h 
 hordifg.o : hordifg.f vecsuv.h sigs.h parm.h nlin.h map.h indices.h const_phys.h arrays.h newmpar.h cc_mpi.o 
 hs_phys.o : hs_phys.f sigs.h parm.h nlin.h latlong.h arrays.h newmpar.h 
 iabsdate.o : iabsdate.f 
 icefall.o : icefall.f params.h parm.h morepbl.h kuocom.h cparams.h const_phys.h newmpar.h cc_mpi.o
-indata.o : indata.f vecsuv.h xyzinfo.h vecs.h trcom2.h tracers.h stime.h soilv.h soilsnow.h soil.h sigs.h prec.h permsurf.h pbl.h parm_nqg.h parmdyn.h parm.h nsibd.h morepbl.h map.h liqwpar.h latlong.h indices.h gdrag.h filnames.h dava.h dates.h const_phys.h arrays.h aalat.h newmpar.h diag_m.o cc_mpi.o tracermodule.o timeseries.o
+indata.o : indata.f vecsuv.h xyzinfo.h vecs.h trcom2.h tracers.h stime.h soilv.h soilsnow.h soil.h sigs.h prec.h permsurf.h pbl.h parm_nqg.h parmdyn.h parm.h nsibd.h morepbl.h map.h liqwpar.h latlong.h indices.h gdrag.h filnames.h dava.h dates.h const_phys.h arrays.h aalat.h newmpar.h diag_m.o cc_mpi.o tracermodule.o timeseries.o ateb.o
 infile.o : infile.f sigs.h tracers.h stime.h parm_nqg.h parm.h liqwpar.h kuocom.h darcdf.h newmpar.h diag_m.o cc_mpi.o 
 int2.o : int2.f newmpar.h 
 ints.o : ints.f indices.h parmhor.h parm.h newmpar.h cc_mpi.o 
@@ -98,10 +113,10 @@ nonlin.o : nonlin.f xyzinfo.h xarrs.h vvel.h vecsuv.h tracers.h sigs.h savuvt.h 
 o3_read.o : o3_read.f newmpar.h 
 o3set.o : o3set.f const_phys.h newmpar.h 
 onthefly.o : onthefly.f indices.h indices_g.h xyzinfo_g.h vvel.h vecsuv_g.h tracers.h stime.h sigs.h parm_nqg.h parm.h map.h latlong.h const_phys.h bigxy4.h newmpar.h utilities.o cc_mpi.o 
-outcdf.o : outcdf.f vvel.h version.h trcom2.h soilv.h soilsnow.h soil.h sigs.h screen.h scamdim.h raddiag.h prec.h pbl.h nsibd.h morepbl.h mapproj.h map.h histave.h extraout.h arrays.h aalat.h tracers.h parmvert.h parmhor.h parmdyn.h parm.h liqwpar.h kuocom.h filnames.h dates.h darcdf.h newmpar.h cc_mpi.o 
+outcdf.o : outcdf.f vvel.h version.h trcom2.h soilv.h soilsnow.h soil.h sigs.h screen.h scamdim.h raddiag.h prec.h pbl.h nsibd.h morepbl.h mapproj.h map.h histave.h extraout.h arrays.h aalat.h tracers.h parmvert.h parmhor.h parmdyn.h parm.h liqwpar.h kuocom.h filnames.h dates.h darcdf.h newmpar.h cc_mpi.o ateb.o
 outfile.o : outfile.f vvel.h tracers.h soilsnow.h soilv.h soil.h sigs.h screen.h scamdim.h prec.h pbl.h parmvert.h parmdyn.h parm.h nsibd.h nlin.h morepbl.h map.h kuocom.h histave.h filnames.h extraout.h dava.h dates.h darcdf.h arrays.h aalat.h newmpar.h cc_mpi.o 
 pbldif.o : pbldif.f map.h sigs.h parm.h morepbl.h kuocom.h extraout.h const_phys.h arrays.h newmpar.h 
-radriv90.o : radriv90.f establ.h tfcom.h swocom.h srccom.h rdflux.h raddiag.h radisw.h lwout.h hcon.h cldcom.h rdparm.h soilv.h soilsnow.h soil.h sigs.h scamdim.h pbl.h parm.h nsibd.h map.h liqwpar.h latlong.h kuocom.h extraout.h dates.h cparams.h const_phys.h arrays.h aalat.h newmpar.h zenith.o swr99.o 
+radriv90.o : radriv90.f establ.h tfcom.h swocom.h srccom.h rdflux.h raddiag.h radisw.h lwout.h hcon.h cldcom.h rdparm.h soilv.h soilsnow.h soil.h sigs.h scamdim.h pbl.h parm.h nsibd.h map.h liqwpar.h latlong.h kuocom.h extraout.h dates.h cparams.h const_phys.h arrays.h aalat.h newmpar.h zenith.o swr99.o ateb.o
 rdparm.o : rdparm.f 
 read_ht.o : read_ht.f 
 resetd.o : resetd.f 
@@ -110,14 +125,14 @@ rnddta.o : rnddta.f
 scamrdn.o : scamrdn.f soilv.h soilsnow.h soil.h sigs.h scamdim.h pbl.h parm.h nsibd.h filnames.h const_phys.h arrays.h newmpar.h 
 scrnout.o : scrnout.f establ.h soilsnow.h soil.h sigs.h scamdim.h prec.h pbl.h parm.h nsibd.h map.h liqwpar.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o morepbl.h
 setxyz.o : setxyz.f bigxy4.h indices_gx.h vecsuv_gx.h xyzinfo_gx.h parm.h map_gx.h latlong_gx.h const_phys.h newmpar_gx.h utilities.o 
-sflux.o : sflux.f latlong.h dates.h establ.h vvel.h trcom2.h tracers.h soilsnow.h soilv.h soil.h sigs.h screen.h scamdim.h savuvt.h prec.h permsurf.h pbl.h parm.h nsibd.h morepbl.h map.h liqwpar.h gdrag.h extraout.h const_phys.h arrays.h newmpar.h cc_mpi.o diag_m.o 
+sflux.o : sflux.f latlong.h dates.h establ.h vvel.h trcom2.h tracers.h soilsnow.h soilv.h soil.h sigs.h screen.h scamdim.h savuvt.h prec.h permsurf.h pbl.h parm.h nsibd.h morepbl.h map.h liqwpar.h gdrag.h extraout.h const_phys.h arrays.h newmpar.h cc_mpi.o diag_m.o ateb.o
 soilsnow.o : soilsnow.f nlin.h soil.h sigs.h arrays.h morepbl.h nsibd.h soilv.h soilsnow.h permsurf.h parm.h const_phys.h newmpar.h diag_m.o cc_mpi.o 
 solargh.o : solargh.f 
 spa88.o : spa88.f lwout.h cldcom.h tfcom.h kdacom.h srccom.h rdflux.h rnddta.h radisw.h rdparm.h hcon.h newmpar.h 
 srccom.o : srccom.f 
 sscam2.o : sscam2.f soilv.h soilsnow.h scamdim.h parm.h newmpar.h 
 sst.o : sst.f newmpar.h 
-staguv.o : staguv.f vecsuva.h vecsuv.h parmdyn.h parm.h map.h indices.h newmpar.h cc_mpi.o 
+staguv.o : staguv.f vecsuv.h parmdyn.h parm.h map.h indices.h newmpar.h cc_mpi.o 
 swr99.o : swr99.f rdparm.h hcon.h newmpar.h 
 table.o : table.f tabcom.h radisw.h hcon.h rnddta.h rdparm.h newmpar.h 
 trim.o : trim.f newmpar.h 
