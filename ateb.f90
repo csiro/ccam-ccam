@@ -339,7 +339,7 @@ real, dimension(ufull) :: workb,workc
 workb(:)=sqrt((1.-sigmau(ugrid(:)))/log(zmin/zom(ugrid(:)))**2+sigmau(ugrid(:))/log(zmin/fnzo(:))**2)
 workc(:)=(1.-sigmau(ugrid(:)))/(log(zmin/zom(ugrid(:)))*log(zmin/zoh(ugrid(:)))) &
         +sigmau(ugrid(:))/(log(zmin/fnzo(:))*(heatzoinc+log(zmin/fnzo(:))))
-workc(:)=workb(:)*workc(:)
+workc(:)=workc(:)/workb(:)
 zom(ugrid(:))=zmin*exp(-1./workb(:))
 zoh(ugrid(:))=zmin*exp(-1./workc(:))
 
@@ -378,7 +378,7 @@ workb(:)=sqrt((1.-sigmau(ugrid(:)))/log((zmin-d(ugrid(:)))/zom(ugrid(:)))**2 &
         +sigmau(ugrid(:))/worka(:)**2)
 workc(:)=(1.-sigmau(ugrid(:)))/(log((zmin-d(ugrid(:)))/zom(ugrid(:)))*log((zmin-d(ugrid(:)))/zoh(ugrid(:)))) &
         +sigmau(ugrid(:))/(worka(:)*(heatzoinc+worka(:)))
-workc(:)=workb(:)*workc(:)
+workc(:)=workc(:)/workb(:)
 zom(ugrid(:))=(zmin-workd(:))*exp(-1./workb(:))
 zoh(ugrid(:))=(zmin-workd(:))*exp(-1./workc(:))
 d(ugrid(:))=workd(:)

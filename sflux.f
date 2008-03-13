@@ -627,10 +627,7 @@ c ----------------------------------------------------------------------
         ! assume sib3 only wants zo for vegetative part
         ! here we blend zo with the urban part for the
         ! calculation of ustar (occuring later in sflux.f)
-        do ip=1,ipland ! assumes all urban points are land points
-          iq=iperm(ip)
-          zoh(iq)=zo(iq)/7.4
-        end do
+        zoh(iperm(:))=zo(iperm(:))/7.4
         call tebzo(ifull,zo(:),zoh(:),zmin,sigmu(:),0) ! zero displacement height version
         do ip=1,ipland ! assumes all urban points are land points
           iq=iperm(ip)

@@ -850,7 +850,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         !--------------------------------------------
         ! MJT urban
         aa=zolnd
-        bb=zolnd ! dummy
+        bb=zolnd/7.4 ! dummy
         if (nurban.ne.0) then
           call tebzo(ifull,aa(:),bb(:),zmin,sigmu(:),0)
         end if
