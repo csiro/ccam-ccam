@@ -60,7 +60,8 @@ c     include 'map.h'      ! land
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
      . ism(ifull),fwtop(ifull),af(ifull),   ! watch soilsnow.f after epot
      . extin(ifull),dum3(5*ijk-17*ifull)
-      real plens(ifull),vmag(ifull),charnck(ifull),zoh(ifull) ! MJT Urban
+      real plens(ifull),vmag(ifull),charnck(ifull)
+      real zoh(ifull) ! MJT Urban - add zoh
       save plens
       data plens/ifull*0./
       include 'establ.h'
@@ -620,15 +621,16 @@ c ----------------------------------------------------------------------
       !----------------------------------------------------------
       ! MJT urban
       if (nurban.ne.0) then
-        call tebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin
+         ! Note that condxpr and sno are determined by veg canopy
+         call tebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin
      &               ,sgsave(:)/(1.-alb(:)),-rgsave(:)
-     &               ,condx(:)/dt,rho(:),t(:,1),qg(:,1),ps(:)
-     &               ,sig(1)*ps(:),vmod(:),sigmu(:),0)
+     &               ,condxpr(:)/dt,sno(:)/dt,rho(:),t(:,1),qg(:,1)
+     &               ,ps(:),sig(1)*ps(:),vmod(:),sigmu(:),0)
         ! assume sib3 only wants zo for vegetative part
         ! here we blend zo with the urban part for the
         ! calculation of ustar (occuring later in sflux.f)
         zoh(iperm(:))=zo(iperm(:))/7.4
-        call tebzo(ifull,zo(:),zoh(:),zmin,sigmu(:),0) ! zero displacement height version
+        call tebzo(ifull,zo(:),zoh(:),zmin,sigmu(:),0)
         do ip=1,ipland ! assumes all urban points are land points
           iq=iperm(ip)
           if (sigmu(iq).gt.0.) then

@@ -322,7 +322,7 @@ c     this routine creates attributes and writes output
       common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
       real zsoil(ms)
       real, dimension(ifull) :: dd,ee,ff ! MJT CHANGE - ecosystems
-      real, dimension(ifull,1:14) :: urban ! MJT urban      
+      real, dimension(ifull,1:12) :: urban ! MJT urban      
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
 
@@ -736,10 +736,6 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          call attrib(idnc,idim,3,'roadtgg2',lname,'K',100.,400.,0)
          lname = 'road temperature lev 3'
          call attrib(idnc,idim,3,'roadtgg3',lname,'K',100.,400.,0)
-         lname = 'roof moisture'
-         call attrib(idnc,idim,3,'roofwb',lname,'mm',0.,1.,0)
-         lname = 'road moisture'
-         call attrib(idnc,idim,3,'roadwb',lname,'mm',0.,1.,0)
         end if
         !--------------------------------------------------------  
 
@@ -1110,8 +1106,7 @@ c      "extra" outputs
         do k=1,12
           urban(:,k)=tss(:)
         end do
-        urban(:,13:14)=0.
-        call tebsave(ifull,urban,0)
+        call tebsavem(ifull,urban,0)
         call histwrt3(urban(:,1),'rooftgg1',idnc,iarch,local)
         call histwrt3(urban(:,2),'rooftgg2',idnc,iarch,local)
         call histwrt3(urban(:,3),'rooftgg3',idnc,iarch,local)
@@ -1124,8 +1119,6 @@ c      "extra" outputs
         call histwrt3(urban(:,10),'roadtgg1',idnc,iarch,local)
         call histwrt3(urban(:,11),'roadtgg2',idnc,iarch,local)
         call histwrt3(urban(:,12),'roadtgg3',idnc,iarch,local)
-        call histwrt3(urban(:,13),'roofwb',idnc,iarch,local)
-        call histwrt3(urban(:,14),'roadwb',idnc,iarch,local)
        end if
        !---------------------------------------------------------
       

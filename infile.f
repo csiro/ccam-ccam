@@ -37,7 +37,7 @@
      . t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      . ssdnn(ifull),snage(ifull),
-     . urban(ifull,1:14) ! MJT urban
+     . urban(ifull,1:12) ! MJT urban
       integer isoilh(ifull) ! MJT lsmask - add isoilh
       integer isflag(ifull)
       integer ktau_r, ibb, jbb, i
@@ -192,7 +192,7 @@ c***********************************************************************
           call ncvgt1(ncid,idv,2,ktimeb,ier) 
           mtimer_use=1
           if(kdatea.ne.kdateb.or.ktimea.ne.ktimeb)mtimer_use=0
-          if(kdateb<kdatea)mtimer_use=1  ! e.g. for restart file	  
+          if(kdateb<kdatea)mtimer_use=1 ! e.g., for restart file
           print *,'ktau,kdatea,kdateb,ktimea,ktimeb,mtimer_use ',
      &             ktau,kdatea,kdateb,ktimea,ktimeb,mtimer_use
         endif
@@ -539,8 +539,6 @@ c 	    only being tested for nested=0; no need to test for mesonest
           call histrd1(ncid,iarchi,ierr,'roadtgg1',ik,jk,urban(:,10))
           call histrd1(ncid,iarchi,ierr,'roadtgg2',ik,jk,urban(:,11))
           call histrd1(ncid,iarchi,ierr,'roadtgg3',ik,jk,urban(:,12))
-          call histrd1(ncid,iarchi,ierr,'roofwb',ik,jk,urban(:,13))
-          call histrd1(ncid,iarchi,ierr,'roadwb',ik,jk,urban(:,14))
         end if
 
       !----------------------------------------------------------------

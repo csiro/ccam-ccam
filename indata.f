@@ -123,7 +123,7 @@
 !    &              .05,.85,.85,.55,.65,.2,.05,.5, .0, .0, 0.,         ! 21-31
       real, dimension(ifull_g) :: glob2d
       real, dimension(ifull_g) :: davt_g
-      real, dimension(ifull,1:14) :: urban ! MJT urban        
+      real, dimension(ifull,1:12) :: urban ! MJT urban        
 
       call start_log(indata_begin)
       bam(1)=114413.
@@ -1824,14 +1824,13 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         call tebinit(ifull,sigmu(:),0)
         if (any(urban(:,1).lt.0.)) then
           if (mydiag) print *,"Using urban default temperatures"
-	  do k=1,12
-	    urban(:,k)=tss(:)
-	  end do
-	  urban(:,13:14)=0.
+          do k=1,12
+            urban(:,k)=tss(:)
+          end do
         else
           if (mydiag) print *,"Loading urban temperatures"
         end if
-        call tebload(ifull,urban,0)	
+        call tebloadm(ifull,urban,0)	
       else
         sigmu(:)=0.
         call tebdisable(0) ! disable urban

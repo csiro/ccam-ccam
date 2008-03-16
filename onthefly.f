@@ -55,8 +55,8 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      & wb(ifull,ms),wbice(ifull,ms),snowd(ifull),sicedep(ifull),
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     & ssdnn(ifull),snage(ifull),  ! MJT lsmask - delete esm
-     & urban(ifull,14) ! MJT urban
+     & ssdnn(ifull),snage(ifull),
+     & urban(ifull,12) ! MJT urban
       integer, save :: isoilm_h(ifull) ! MJT lsmask
       ! Dummy variables here replace the aliasing use of aa, bb in infile call
       real, dimension(ifull) :: dum5
@@ -107,7 +107,7 @@ c     start of processing loop
         call infile(nested,kdate_r,ktime_r,timegb,ds,
      &            psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &            tgg,wb,wbice,dum5,snowd,  ! dum5 is alb
-     &            tggsn,smass,ssdn,ssdnn,snage,isflag,isoilm_h,urban) ! MJT lsmask - delete esm ! MJT urban
+     &            tggsn,smass,ssdn,ssdnn,snage,isflag,isoilm_h,urban) ! MJT lsmask ! MJT urban
       else
         call infil(nested,kdate_r,ktime_r,timegb,ds,
      &            psl,zss,tss,sicedep,fracice,t,u,v,qg)
@@ -389,7 +389,7 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
         !--------------------------------------------------
         ! MJT CHANGE
         if (nurban.ne.0) then
-          do k=1,14
+          do k=1,12
             call doints4(urban(:,k),nface4,xg4,yg4,nord,ik)
           end do
         end if
