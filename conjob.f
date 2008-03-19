@@ -1,5 +1,6 @@
       subroutine conjob      ! globpea & rcsb (non-chen); nkuo=46 only
-      include 'newmpar.h'
+      use cc_mpi, only : mydiag
+      include 'newmpar.h' 
       parameter (itermax=1)  ! originally 2 - not available in vect. version
       parameter (ntest=0)    ! 1 or 2 to turn on; for 3 uncomment !!! lines
       parameter (nrenorm=1)  ! usually 1
@@ -84,7 +85,7 @@ c     loop over all points : L/S rainfall, then conv
        enddo  ! iq loop
       enddo   ! k=1,kl
 
-      if(ntest.ne.0.or.diag)then
+      if(diag.and.mydiag)then
         print *,'near beginning of conjob; idjd = ',idjd
         print *,'itermax,nrenorm,no2layer ',itermax,nrenorm,no2layer
         write (6,"('rh  ',12f7.2/(8x,12f7.2))") 
@@ -121,7 +122,7 @@ c      Here rnrt is the rainfall rate in gm/m**2/sec
        fluxr(iq)=rnrt(iq)*1.e-3*dt ! kg/m2
       enddo  ! iq loop
 
-      if(ntest.ne.0.or.diag)then
+      if(diag.and.mydiag)then
         print *,'before evap of large scale rain: kbsav_ls,rnrt ',
      .                                   kbsav_ls(idjd),rnrt(idjd)
         write (6,"('qg ',12f7.3/(8x,12f7.3))") 
@@ -275,7 +276,7 @@ c           if(evapls.gt.0.)print *,'iq,k,evapls ',iq,k,evapls
        enddo  ! iq loop
       enddo   ! k=1,kl
 
-      if(ntest.ne.0.or.diag)then
+      if(diag.and.mydiag)then
         print *,'before convection: rnrt,rnrtc ',
      .                                rnrt(idjd),rnrtc(idjd)
         write (6,"('rh   ',12f7.2/(8x,12f7.2))") 
@@ -359,7 +360,7 @@ c       if(.not.land(iq).and.kbsav(iq).gt.0)
 c     .           kbsav(iq)=max(kbsav(iq),kuocb+1)
 c      enddo
 
-      if(ntest.ne.0.or.diag)then
+      if(diag.and.mydiag)then
         phi=bet(1)*tt(idjd,1)
         do k=2,kuocb
          phi=phi+bet(k)*tt(idjd,k)+betm(k)*tt(idjd,k-1)
@@ -402,7 +403,7 @@ c         run up the levels stopping when no instability
         endif   ! (k.gt.kbsav(iq).and.k.le.ktsav(iq))
        enddo    ! iq loop
       enddo     ! k loop
-      if(ntest.ne.0.or.diag)then
+      if(diag.and.mydiag)then
         print *,"after stab test: kbsav,ktsav,sumss ",
      .                            kbsav(idjd),ktsav(idjd),sumss(idjd)
         write (6,"('uh b ',12f7.2/(8x,12f7.2))") (uh(idjd,k),k=1,kl)
@@ -415,8 +416,8 @@ c         run up the levels stopping when no instability
         if(k.ge.kbsav(iq).and.k.le.ktsav(iq))then
           sumqt(iq)=sumqt(iq)+qq(iq,k)*dsk(k)
           sumqs(iq)=sumqs(iq)+qsg(iq,k)*dsk(k)
-          if(ntest.ne.0.and.iq.eq.idjd)print *,'k,sumqs,sumqt ',
-     .                                 k,sumqs(idjd),sumqt(idjd)
+          if(ntest.ne.0.and.iq.eq.idjd.and.mydiag)          
+     .       print *,'k,sumqs,sumqt ',k,sumqs(idjd),sumqt(idjd)
         endif   ! (k.ge.kbsav(iq).and.k.le.ktsav(iq))
        enddo    ! iq loop
       enddo     ! k loop
@@ -443,7 +444,7 @@ c      general moistening of driest levels : cutoff at rhmois
 !       endif  ! (k.ge.kbsav(iq))then   ! can omit this "if"
        enddo   ! iq loop
       enddo    ! k loop
-      if(ntest.ne.0.or.diag)then
+      if(diag.and.mydiag)then
 !       N.B. heatpc diag only meaningful if kbsav(iq)>0
 !       dq & dq_eff are +ve for drying of environment
         print *,'rhmx,alphac,heatpc ',
@@ -558,7 +559,7 @@ c          now substitute into the triangular cam
           endif   !  (k.gt.kbsav(iq).and.k.le.ktsav(iq))
          enddo   ! iq loop
         enddo    ! k loop
-        if(diag.or.ntest.ne.0)print *,
+        if(diag.and.mydiag)print *,
      .            'renorm smin,heatpc,sumd,alxx: ',
      .                    smin(idjd),heatpc(idjd),sumd(idjd),
      .             heatpc(idjd)/(heatpc(idjd)-smin(idjd)*sumd(idjd))
@@ -566,7 +567,7 @@ c          now substitute into the triangular cam
          do iq=1,ifull
           if(smin(iq).lt.0..and.kbsav(iq).gt.0.and.k.gt.kbsav(iq))then
             alxx=heatpc(iq)/(heatpc(iq)-smin(iq)*sumd(iq))
-            if(ntest.ne.0.and.iq.eq.idjd)print *,
+            if(ntest.ne.0.and.iq.eq.idjd.and.mydiag)print *,
      .            'renorm k,dsh_in,dsh_out: ',
      .                    k,dsh(iq,k),alxx*(dsh(idjd,k)-smin(idjd))
            dsh(iq,k)=alxx*(dsh(iq,k)-smin(iq))
@@ -605,7 +606,7 @@ c         rnrtc(iq)=1000.*rnrtc(iq)                           !  gm/m**2/sec
        enddo    ! iq loop
       enddo     ! k loop
 
-      if(ntest.ne.0.or.diag)then
+      if(diag.and.mydiag)then
         print *,"after Hal's convection: ktau,kbsav,ktsav,convpsav ",
      .                       ktau,kbsav(idjd),ktsav(idjd),convpsav(idjd)
         print *,'rhmx,sumss ',rhmx(idjd),sumss(idjd)
@@ -730,7 +731,7 @@ c       reaching the next level (or the surface).
       if(rhcv.lt.0.)go to 4
 !__________________________end of convective calculations_____________________
 
-8     if(ntest.ne.0.or.diag)then
+8     if(diag.and.mydiag)then
         print *,'near end of conjob: rnrt,rnrtc ',
      .                                  rnrt(idjd),rnrtc(idjd)
         write (6,"('qg ',12f7.3/(8x,12f7.3))") 
@@ -780,7 +781,7 @@ c    .             rnrt(idjd),rnrtc(idjd),condx(idjd)
         enddo
         t(1:ifull,:)=tt(:,:)           ! usually split from June '03
 
-      if(ntest.eq.1)then
+      if(ntest.eq.1.and.mydiag)then
         print *,'D rnrt,rnrtc,condx ',
      .             rnrt(idjd),rnrtc(idjd),condx(idjd)
         print *,'precc,precip ',
