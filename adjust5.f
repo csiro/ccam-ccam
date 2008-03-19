@@ -25,7 +25,6 @@
       include 'tracers.h'
       include 'vecs.h'
       include 'vecsuv.h'   ! vecsuv info
-      include 'vecsuva.h'  ! vecsuva info
       include 'vvel.h'     ! sdot
       include 'xarrs.h'
       include 'xyzinfo.h'
@@ -297,10 +296,9 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
       enddo     ! k  loop
       if(nmaxpr==1)then
         call maxmin(d,'dv',ktau,0.,kl)
-        iq=idjd
         if(nproc==1)print *,'cc,cc-,dd,dd-',
-     &     cc(iq,k)/emu(iq),cc(iwu(iq),k)/emu(iwu(iq)),
-     &     dd(iq,k)/emv(iq),dd(isv(iq),k)/emv(isv(iq))      
+     &     cc(idjd,nlv)/emu(idjd),cc(iwu(idjd),nlv)/emu(iwu(idjd)),
+     &     dd(idjd,nlv)/emv(idjd),dd(isv(idjd),nlv)/emv(isv(idjd))      
       endif   ! (nmaxpr==1)
       if(m==7)then
         do k=1,kl

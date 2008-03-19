@@ -10,10 +10,10 @@ c     modify for Cray; used by plotg.f and topgencc.f
       use utilities
       parameter (ncray=1)    ! 0 for most computers, 1 for Cray
 c     contains a version of xytoij
-      parameter (ntest=0)
+      parameter (ntest=1)
       include 'newmpar.h'
-c     include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
-      real xx4(1+4*ik,1+4*ik),yy4(1+4*ik,1+4*ik)
+      real*8 xx4(1+4*ik,1+4*ik),yy4(1+4*ik,1+4*ik)
+      real*8 dxx,dyy,dxy,dyx,denxyz
       include 'const_phys.h'
       include 'parm.h'
       include 'parmdyn.h'
@@ -26,6 +26,8 @@ c     include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
 !     following used by npanels=13
       dimension npanetab(-1:1,-1:4),acon(-1:1,-1:4),bcon(-1:1,-1:4)
       dimension     xadd(-1:1,-1:4),yadd(-1:1,-1:4)
+      real*8 alf,one,x,y,z  ! 6/11/07
+      data one/1./    ! just to force real*8 calculation
       data npanetab/9,12,13, 7,2,1, 6,4,3, 6,5,3, 8,10,0, 9,11,13/
       data acon/0,1,1, -1,0,0, -1,0,0, 0,0,-1, 1,1,0, 1,1,0/
       data bcon/1,0,0, 0,-1,-1, 0,-1,-1, -1,-1,0, 0,0,1, 0,0,1/
@@ -46,22 +48,10 @@ c        yadd:  1.5   0.5   1.5    -0.5  -2.5  -3.5
 c               1.5   0.5   0.5     0.5  -2.5  -3.5
 c               1.5   1.5   1.5     2.5  -0.5  -0.5
 
-      save num,rotpolei,alf,schmidtp,alfp,schmidtm,alfm
-      data nmaploop/3/,numtst/-1/,num/0/
-c     print *,'entering latltoij;num,rlongin,rlatin,schmidt,schm13 '
-c    .                          ,num,rlongin,rlatin,schmidt,schm13
+      save num,rotpolei,alf
+      data nmaploop/3/,numtst/100/,num/0/
 !     if(num.eq.0)then     ! not with onthefly
-        alf=(1.-schmidt**2)/(1.+schmidt**2)
-!       schm13=.1  ! originally used .5 ! now comes from setxyz through parm.h
-!       alf13=(1.-schm13**2)/(1.+schm13**2)
-!       schm13rad=schm13*(1.+alf13)
-        schmidtp=schm13/schmidt        ! for z3d above the "equator"
-        alfp=(1.-schmidtp**2)/(1.+schmidtp**2)
-        schmidtm=1./(schm13*schmidt)   ! for z3d below the "equator"
-        alfm=(1.-schmidtm**2)/(1.+schmidtm**2)
-c       print *,'latltoij; rlong0,rlat0,schmidt,schm13,alf:',
-c    .                     rlong0,rlat0,schmidt,schm13,alf
-c       print *,'xx4(iquad,1) ',xx4(iquad,1)
+        alf=(one-schmidt**2)/(one+schmidt**2)
         rotpolei = transpose(calc_rotpole(rlong0,rlat0))
 !     endif
       num=num+1
@@ -75,8 +65,6 @@ c     numtst=num
       y=rotpolei(2,1)*xa+rotpolei(2,2)*ya+rotpolei(2,3)*za
       z=rotpolei(3,1)*xa+rotpolei(3,2)*ya+rotpolei(3,3)*za
       if(num<numtst)print *,'c x,y,z ',x,y,z
-
-      if(npanels.eq.5)then
 
 !       if necessary, transform physical (x, y, z) to equivalent coordinates
 !       on regular gnomonic panels
@@ -169,81 +157,6 @@ c        predict new value for ri, rj
         xout=.25*(ri+3.) -.5  ! -.5 for stag; back to normal ri, rj defn
         yout=.25*(rj+3.) -.5  ! -.5 for stag
 c       expect xout, yout (at this point) to range between .5 and il+.5
-
-      elseif(npanels.eq.13)then
-
-c       first convert to equivalent of schmidt=.5 grid
-        if(z.gt.alf)then
-          zsign=1.
-          xstr=x*schmidtp*(1.+alfp)/(1.+alfp*z)
-          ystr=y*schmidtp*(1.+alfp)/(1.+alfp*z)
-        else
-          zsign=-1.
-          xstr=x*schmidtm*(1.+alfm)/(1.+alfm*z)
-          ystr=y*schmidtm*(1.+alfm)/(1.+alfm*z)
-        endif     !  (z.gt.alf)
-!       could avoid above "if", by first doing 1/schmidt, then schmidt13
-!       using abs(z). Extra operations may then increase errors slightly?
-c       now remember departure quadrants
-        xsign=sign(1.,xstr)
-        ysign=sign(1.,ystr)
-        if(num<numtst)print *,'d xstr,ystr,xsign,ysign,zsign ',
-     .                              xstr,ystr,xsign,ysign,zsign
-
-c       use 4* resolution grid
-c       N.B. for toij13, have xx4 and yy4 between 0 and .5 (after schmidtx )
-        xgr=abs(xstr)
-        ygr=abs(ystr)
-c       first guess for ri, rj (1 to 6*il+1) and nearest i,j
-        ri=1.+xgr*(iquad-1)/xx4(iquad,1)    ! divide by schm13 "equator" radius
-        rj=1.+ygr*(iquad-1)/xx4(iquad,1)
-        if(num<numtst)print *,'e xgr,ygr,ri,rj',xgr,ygr,ri,rj
-        do loop=1,nmaploop
-!        ri=max(1. , min(real(iquad)-.0001,ri) )  !  not needed
-!        rj=max(1. , min(real(iquad)-.0001,rj) )  !  not needed
-         i=nint(ri)
-         j=nint(rj)
-         is=sign(1.,ri-i)
-         js=sign(1.,rj-j)
-c        predict new value for ri, rj
-         dxx=xx4(i+is,j)-xx4(i,j)
-         dyx=xx4(i,j+js)-xx4(i,j)
-         dxy=yy4(i+is,j)-yy4(i,j)
-         dyy=yy4(i,j+js)-yy4(i,j)
-         den=dxx*dyy-dyx*dxy
-         ri=i+is*((xgr-xx4(i,j))*dyy-(ygr-yy4(i,j))*dyx)/den
-         rj=j+js*((ygr-yy4(i,j))*dxx-(xgr-xx4(i,j))*dxy)/den
-         if(num<numtst)print *,'e1,i,j,is,js,ri,rj ',
-     .                                i,j,is,js,ri,rj
-        enddo  ! loop loop
-!       write ri,rj on a BIG grid (-1.5*il to 1.5*il, -1.5*il to 4.5*il)
-!       where the Y variable is wrapping around the globe
-!       and the "north pole" is now at (0.,0.)
-        ri=.25*(ri-1.)*xsign
-!       rj=.25*( (rj-1.)*ysign*zsign + (1.-zsign)*real(6*il_g) )
-        rj=.25*( (rj-1.)*ysign*zsign + (1.-zsign)*real(6*ik) )
-        if(num<numtst)print *,'e2 bigy  ri,rj ',ri,rj
-!       allocate to a box (-1:1, -1:4)
-        ibox=max(-1,min(nint(ri/il_g),1))   ! allows for -1.5 or 1.5
-!       jbox=max(-1,min(nint(rj/il_g),4))   ! allows for -1.5 or 4.5
-        jbox=max(-1,min(nint(rj/ik  ),4))   ! allows for -1.5 or 4.5
-c       convert  xg, yg ( .5 to il+.5)
-        if(num<numtst)print *,'f ri,rj,ibox,jbox',ri,rj,ibox,jbox
-        if(num<numtst)print *,'f1 nf,xadd,yadd,acon,bcon ',
-     .   npanetab(ibox,jbox),
-     .   xadd(ibox,jbox),yadd(ibox,jbox),acon(ibox,jbox),bcon(ibox,jbox)
-        nf=npanetab(ibox,jbox)
-!       xout=.5 +xadd(ibox,jbox)*real(il_g)
-        xout=.5 +xadd(ibox,jbox)*real(ik)
-     .          +acon(ibox,jbox)*ri -bcon(ibox,jbox)*rj
-!       yout=.5 +yadd(ibox,jbox)*real(il_g)
-        yout=.5 +yadd(ibox,jbox)*real(ik)
-     .          +bcon(ibox,jbox)*ri +acon(ibox,jbox)*rj
-        if(num<numtst)print *,'f1 xadd,yadd,acon,bcon ',
-     .   xadd(ibox,jbox),yadd(ibox,jbox),acon(ibox,jbox),bcon(ibox,jbox)
-        if(num<numtst)print *,'g nf,xout,yout ',nf,xout,yout
-
-      endif  !  (npanels.eq.5) elseif(npanels.eq.13)
 
       if(ntest.eq.1.and.rlongin.gt.43.1.and.rlongin.lt.49.9)then
         if(rlatin.gt.-24.2.and.rlatin.lt.-23.8)then

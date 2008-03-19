@@ -65,9 +65,9 @@ c-        ------l, saturation spec. humidity & cond./evap.---------------
      2         *exp(htm(iq,l)*a2*(tl(iq)-a3)/(tl(iq)-a4))
           precl(iq)=(ql(iq)-qc(iq))*hbm2(iq)*deta(l)
      2            /(elv(iq)*qc(iq)*arcp/((tl(iq)-a4)*(tl(iq)-a4))+1.)
-          if ( ntest.eq.1 .and. iq.eq.kpnt ) then
-             print*,l,elv(iq),ql(iq),qc(iq),precl(iq)
-          endif
+c         if ( ntest.eq.1 .and. iq.eq.kpnt ) then
+c            print*,l,elv(iq),ql(iq),qc(iq),precl(iq)
+c         endif
 
 c--------------is there enough water to evaporate ?---------------------
 c

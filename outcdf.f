@@ -260,7 +260,7 @@ c       create the attributes of the header record of the file
       end
 c=======================================================================
       subroutine openhist(iarch,itype,dim,local,idnc)
-      use ateb ! MJT urban
+      use ateb ! MJT urban      
       use cc_mpi
       implicit none
 
@@ -322,7 +322,7 @@ c     this routine creates attributes and writes output
       common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
       real zsoil(ms)
       real, dimension(ifull) :: dd,ee,ff ! MJT CHANGE - ecosystems
-      real, dimension(ifull,1:12) :: urban ! MJT urban      
+      real, dimension(ifull,1:12) :: urban ! MJT urban       
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
 
@@ -422,8 +422,8 @@ c       For time invariant surface fields
         call attrib(idnc,idim,2,'soilt',lname,'none',0.,40.,0)
         lname = 'Vegetation type'
         call attrib(idnc,idim,2,'vegt',lname,'none',0.,44.,0)
-       ! lname = 'Initial wetness fraction layer 3'
-       ! call attrib(idnc,idim,2,'wetfrac',lname,'none',-2.,2.,0)
+        lname = 'Initial wetness fraction layer 3'
+        call attrib(idnc,idim,2,'wetfrac',lname,'none',-2.,5.,0)
 
 c       For time varying surface fields
         lname = 'Surface temperature'
@@ -499,7 +499,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         call attrib(idnc,idim,3,'taux',lname,'N/m2',-50.,50.,0)
         lname = 'y-component wind stress'
         call attrib(idnc,idim,3,'tauy',lname,'N/m2',-50.,50.,0)
-       ! lname = 'Soil moisture as frac FC levels 1-2'
+       ! lname = 'Soil moisture as frac FC levels 1-2' ! MJT remove
        ! call attrib(idnc,idim,3,'wbfshal',lname,'frac',0.,4.,0)
        ! lname = 'Soil moisture as frac FC levels 3-4'
        ! call attrib(idnc,idim,3,'wbfroot',lname,'frac',0.,4.,0)
@@ -589,7 +589,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         call attrib(idnc,idim,3,'tgg5',lname,'K',100.,400.,0)
         lname = 'Soil temperature lev 6'
         call attrib(idnc,idim,3,'tgg6',lname,'K',100.,400.,0)
-       ! lname = 'Soil moisture lev 1'
+       ! lname = 'Soil moisture lev 1' ! MJT remove
        ! call attrib(idnc,idim,3,'wb1',lname,'m3/m3',0.,1.,0)
        ! lname = 'Soil moisture lev 2'
        ! call attrib(idnc,idim,3,'wb2',lname,'m3/m3',0.,1.,0)
@@ -741,18 +741,18 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
 
         !-------------------------------------------------------
         ! MJT CHANGE - add wetfrac1-6 and possibly delete wb1-6 above
-        lname = 'Wetness fraction layer 1'
-        call attrib(idnc,idim,3,'wetfrac1',lname,'none',-5.,5.,0)
+        lname = 'Wetness fraction layer 1' ! 5. for frozen sand
+        call attrib(idnc,idim,3,'wetfrac1',lname,'none',-2.,5.,0)
         lname = 'Wetness fraction layer 2'
-        call attrib(idnc,idim,3,'wetfrac2',lname,'none',-5.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac2',lname,'none',-2.,5.,0)
         lname = 'Wetness fraction layer 3'
-        call attrib(idnc,idim,3,'wetfrac3',lname,'none',-5.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac3',lname,'none',-2.,5.,0)
         lname = 'Wetness fraction layer 4'
-        call attrib(idnc,idim,3,'wetfrac4',lname,'none',-5.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac4',lname,'none',-2.,5.,0)
         lname = 'Wetness fraction layer 5'
-        call attrib(idnc,idim,3,'wetfrac5',lname,'none',-5.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac5',lname,'none',-2.,5.,0)
         lname = 'Wetness fraction layer 6'
-        call attrib(idnc,idim,3,'wetfrac6',lname,'none',-5.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac6',lname,'none',-2.,5.,0)
         !-------------------------------------------------------        
  
         print *,'finished defining attributes'
@@ -852,7 +852,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         end if
         call histwrt3(aa,'zolnd',idnc,iarch,local)
         !call histwrt3(zolnd,'zolnd',idnc,iarch,local)
-        !--------------------------------------------        
+        !--------------------------------------------  
         do iq=1,ifull
          aa(iq)=isoilm(iq)
         enddo
@@ -862,11 +862,11 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
          aa(iq)=ivegt(iq)
         enddo
         call histwrt3(aa,'vegt',idnc,iarch,local)
-       ! do iq=1,ifull
-       !  isoil=isoilm(iq)
-       !  aa(iq)=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
-       ! enddo
-       ! call histwrt3(aa,'wetfrac',idnc,iarch,local)
+        do iq=1,ifull
+         isoil=isoilm(iq)
+         aa(iq)=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
+        enddo
+        call histwrt3(aa,'wetfrac',idnc,iarch,local)
       endif ! (ktau==0.or.itype==-1) 
 
       call histwrt3(zs,'zht',idnc,iarch,local)   ! always from 13/9/02
@@ -883,7 +883,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       call histwrt3(tgg(1,4),'tgg4',idnc,iarch,local)
       call histwrt3(tgg(1,5),'tgg5',idnc,iarch,local)
       call histwrt3(tgg(1,6),'tgg6',idnc,iarch,local)
-    !  call histwrt3(wb(1,1),'wb1',idnc,iarch,local)
+    !  call histwrt3(wb(1,1),'wb1',idnc,iarch,local) ! MJT remove
     !  call histwrt3(wb(1,2),'wb2',idnc,iarch,local)
     !  call histwrt3(wb(1,3),'wb3',idnc,iarch,local)
     !  call histwrt3(wb(1,4),'wb4',idnc,iarch,local)
@@ -1099,28 +1099,28 @@ c      "extra" outputs
        aa(:)=isflag(:)
        call histwrt3(aa,'sflag',idnc,iarch,local)
       endif  ! (itype==-1)
-      
-       !---------------------------------------------------------
-       ! MJT urban
-       if ((nurban.eq.-1).or.((nurban.eq.1).and.(itype==-1))) then
-        do k=1,12
-          urban(:,k)=tss(:)
-        end do
-        call tebsavem(ifull,urban,0)
-        call histwrt3(urban(:,1),'rooftgg1',idnc,iarch,local)
-        call histwrt3(urban(:,2),'rooftgg2',idnc,iarch,local)
-        call histwrt3(urban(:,3),'rooftgg3',idnc,iarch,local)
-        call histwrt3(urban(:,4),'waletgg1',idnc,iarch,local)
-        call histwrt3(urban(:,5),'waletgg2',idnc,iarch,local)
-        call histwrt3(urban(:,6),'waletgg3',idnc,iarch,local)
-        call histwrt3(urban(:,7),'walwtgg1',idnc,iarch,local)
-        call histwrt3(urban(:,8),'walwtgg2',idnc,iarch,local)
-        call histwrt3(urban(:,9),'walwtgg3',idnc,iarch,local)
-        call histwrt3(urban(:,10),'roadtgg1',idnc,iarch,local)
-        call histwrt3(urban(:,11),'roadtgg2',idnc,iarch,local)
-        call histwrt3(urban(:,12),'roadtgg3',idnc,iarch,local)
-       end if
-       !---------------------------------------------------------
+
+      !---------------------------------------------------------
+      ! MJT urban
+      if ((nurban.eq.-1).or.((nurban.eq.1).and.(itype==-1))) then
+       do k=1,12
+         urban(:,k)=tss(:)
+       end do
+       call tebsavem(ifull,urban,0)
+       call histwrt3(urban(:,1),'rooftgg1',idnc,iarch,local)
+       call histwrt3(urban(:,2),'rooftgg2',idnc,iarch,local)
+       call histwrt3(urban(:,3),'rooftgg3',idnc,iarch,local)
+       call histwrt3(urban(:,4),'waletgg1',idnc,iarch,local)
+       call histwrt3(urban(:,5),'waletgg2',idnc,iarch,local)
+       call histwrt3(urban(:,6),'waletgg3',idnc,iarch,local)
+       call histwrt3(urban(:,7),'walwtgg1',idnc,iarch,local)
+       call histwrt3(urban(:,8),'walwtgg2',idnc,iarch,local)
+       call histwrt3(urban(:,9),'walwtgg3',idnc,iarch,local)
+       call histwrt3(urban(:,10),'roadtgg1',idnc,iarch,local)
+       call histwrt3(urban(:,11),'roadtgg2',idnc,iarch,local)
+       call histwrt3(urban(:,12),'roadtgg3',idnc,iarch,local)
+      end if
+      !---------------------------------------------------------      
       
       !---------------------------------------------------------
       ! MJT CHANGE - Add wetfrac1-6 and possibly remove wb1-6 above
@@ -1501,8 +1501,8 @@ c find variable index
          ! Convert this 1D index to 2D
          imx = 1 + modulo(iq-1,il_g)
          jmx = 1 + (iq-1)/il_g
-         write(6,'("histwrt4 ",a7,i4,2f12.4,3i4)')
-     &         sname,iarch,varn,varx,imx,jmx,kmx
+         write(6,'("histwrt4 ",a7,i4,2f12.4,3i4,f12.4)')
+     &     sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
       endif
       endif ! local
 

@@ -9,7 +9,7 @@
 c     parameter (ipwr=1)       ! really can use (ipwr=min(1,nlocal))
 c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       parameter (kcl_top=kl-2) ! maximum level for cloud top (conjob & vertmix)
-!     parameter (kscmom=0)     ! 0 usual, 1 turns on shal_conv momentum
+!     parameter (kscmom=0)     ! 0 off, 1 turns on shal_conv momentum (usual)
       parameter (ndvmod=0)     ! 0 default, 1+ for dvmod tests
 !     typically tied_con=6., tied_over=2., tied_rh=.75
 !     nlocal in parm.h         ! 0 local scheme, 1 or 2 non-local scheme
@@ -88,7 +88,7 @@ c     set coefficients for Louis scheme
       rlog12=1./(rlogs1-rlogs2)
       tmnht(1:ifull,1)=(t(1:ifull,2)*rlogs1-t(1:ifull,1)*rlogs2+
      &           (t(1:ifull,1)-t(1:ifull,2))*rlogh1)*rlog12
-!     n.b. an approximate zh is quite adequate for this routine
+!     n.b. an approximate zh (in m) is quite adequate for this routine
       zh(1:ifull,1)=t(1:ifull,1)*delh(1)
       do k=2,kl-1
        do iq=1,ifull
@@ -99,6 +99,8 @@ c     set coefficients for Louis scheme
       do k=1,kl
         rhs(:,k)=t(1:ifull,k)*sigkap(k)  ! rhs is theta here
       enddo      !  k loop
+      if(nmaxpr==1.and.mydiag)
+     &  write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
 
 c Pre-calculate the buoyancy parameters if using qcloud scheme.
 c Follow Smith's (1990) notation; gam() is HBG's notation for (L/cp)dqsdt.
@@ -158,7 +160,7 @@ c           betaq=delta/(1.+delta*qg(iq,k)-qc)
      &               betat,betatt(iq,k),betaqt(iq,k)
          endif   ! (ntest==2)
         enddo    !  k loop
-      else       ! other nvmix values still need qs()
+      else       ! other nvmix values (0 or 4+) still need qs()
         do k=1,kl
          do iq=1,ifull
           es=establ(t(iq,k))
@@ -168,17 +170,15 @@ c           betaq=delta/(1.+delta*qg(iq,k)-qc)
       endif      ! (nvmix>0.and.nvmix<4)
 
       do k=1,kl-1
-       delthet(:,k)=rhs(:,k+1)-rhs(:,k)  ! rhs is theta here
+       delthet(:,k)=rhs(:,k+1)-rhs(:,k)  ! rhs is theta or thetal here
       enddo      !  k loop
 
       if(ktau==1.and.ksc.ne.0)then
 !       set ksctop for shallow convection
         ksctop=1    ! ksctop will be first level below sigkcst
-c       if(abs(ksc)>92)then  !  abs from 16/3/04
-          do while(sig(ksctop+1)>sigksct)  !  e.g. sigksct=.75
-           ksctop=ksctop+1
-          enddo
-c	 endif  !(abs(ksc)>92)
+        do while(sig(ksctop+1)>sigksct)  !  e.g. sigksct=.75
+         ksctop=ksctop+1
+        enddo
         kscbase=1  ! kscbase will be first level above sigkcsb
         do while(sig(kscbase)>sigkscb.and.sigkscb>0.) ! e.g. sigkscb=.99
          kscbase=kscbase+1
@@ -204,6 +204,45 @@ c     ****** section for Geleyn shallow convection; others moved lower****
          enddo  ! iq loop
         enddo   !  k loop
       endif     ! (ksc==-99)
+      if(ksc==-98)then    ! modified Geleyn Jan '08
+        do k=kscbase,ksctop    ! new usage of ksc thu  02-17-2000
+         do iq=1,ifull
+          if(qg(iq,k)>tied_rh*qs(iq,k).or.
+     &       qg(iq,k+1)>tied_rh*qs(iq,k+1))then
+             delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,
+     &                     qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
+          endif
+         enddo  ! iq loop
+        enddo   !  k loop
+      endif     ! (ksc==-98)
+      if(ksc==-97)then    ! modified Geleyn Jan '08
+        do k=kscbase,ksctop    ! new usage of ksc thu  02-17-2000
+         do iq=1,ifull
+          if(qg(iq,k)>tied_rh*qs(iq,k))then
+            delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,
+     &                    qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
+          endif
+         enddo  ! iq loop
+        enddo   !  k loop
+      endif     ! (ksc==-97)
+      if(ksc==-96)then   ! combination of Geleyn and jlm 83 (Feb 08)
+        do k=1,ksctop    
+         do iq=1,ifull
+          if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)==0.)then  
+            delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,
+     &                 qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
+          endif 
+         enddo  ! iq loop
+        enddo   !  k loop
+      endif     ! (ksc==-96)
+      if(ksc==-95)then
+        do k=kscbase,ksctop    ! 
+         do iq=1,ifull
+          delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,
+     &                 qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
+         enddo  ! iq loop
+        enddo   !  k loop
+      endif     ! (ksc==-95)
 c     ********* end of Geleyn shallow convection section ****************
 
 !     following now defined in vertmix (don't need to pass from sflux)
@@ -224,6 +263,7 @@ c     ********* end of Geleyn shallow convection section ****************
 
 c      x is bulk ri *(dvmod **2); used to calc ri(k), rkh(k) etc
        if(nvmix>0.and.nvmix<4)then  ! new one allowing for cloudy air
+!        usually nvmix=3       
          if(sig(k)>.8)then ! change made 17/1/06
            dqtot(:)=qg(1:ifull,k+1)+qlg(1:ifull,k+1)+qfg(1:ifull,k+1)
      &            -(qg(1:ifull,k)  +qlg(1:ifull,k)  +qfg(1:ifull,k))
@@ -236,7 +276,7 @@ c      x is bulk ri *(dvmod **2); used to calc ri(k), rkh(k) etc
      &         (min(betatt(iq,k),betatt(iq,k+1)))*delthet(iq,k) +
      &         (max(betaqt(iq,k),betaqt(iq,k+1)))*dqtot(iq) )
            enddo ! iq loop	
-         else 
+         else    ! i.e. nvmix=1 or 3
            if(nvmix==1)w1=dsig(k+1)/(dsig(k)+dsig(k+1)) 
            if(nvmix==3)w1=1.    !weight for lower level  usual           
            w2=1.-w1             !weight for upper level
@@ -248,21 +288,21 @@ c      x is bulk ri *(dvmod **2); used to calc ri(k), rkh(k) etc
          endif  !  (nvmix==2) .. else ..
          if(ntest==4.and.k<=9.and.ktau==ntau)then
            diffmax=0.
-         do iq=1,ifull
-          rhsk=t(iq,k)*sigkap(k)
-          rhskp=t(iq,k+1)*sigkap(k+1)
-          delthet_old=rhs(iq,k+1)-rhs(iq,k)
-          xold=grav*dz(iq)*(delthet_old/(tmnht(iq,k)*sighkap(k))
-     &          +.61*(qg(iq,k+1)-qg(iq,k)))
-          diff=abs(xold-x(iq))
-          if(diff>diffmax)then
-            diffmax=diff
-            iqmax=iq
-          endif
-          write(47,'(3g13.4,i7,i4)') xold,x(iq),diff,iq,k
-         enddo
-         print *,'k,iqmax,diffmax ',k,iqmax,diffmax
-         endif   
+           do iq=1,ifull
+            rhsk=t(iq,k)*sigkap(k)
+            rhskp=t(iq,k+1)*sigkap(k+1)
+            delthet_old=rhs(iq,k+1)-rhs(iq,k)
+            xold=grav*dz(iq)*(delthet_old/(tmnht(iq,k)*sighkap(k))
+     &           +.61*(qg(iq,k+1)-qg(iq,k)))
+            diff=abs(xold-x(iq))
+            if(diff>diffmax)then
+              diffmax=diff
+              iqmax=iq
+            endif
+            write(47,'(3g13.4,i7,i4)') xold,x(iq),diff,iq,k
+           enddo
+           print *,'k,iqmax,diffmax ',k,iqmax,diffmax
+         endif   ! (ntest==4.and.k<=9.and.ktau==ntau)
          rhs(:,k)=t(1:ifull,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
        elseif(nvmix==5)then        ! non-cloudy x with qfg, qlg
           x(:)=grav*dz(:)*(delthet(:,k)/(tmnht(:,k)*sighkap(k))
@@ -353,7 +393,6 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
         print *,'before possible call to pbldif in vertmix'
         write (6,"('uav ',9f8.3/4x,9f8.3)") uav(idjd,:) 
         write (6,"('vav ',9f8.3/4x,9f8.3)") vav(idjd,:)
-        write (6,"('thet',9f8.3/4x,9f8.3)") rhs(idjd,:)
         write (6,"('t   ',9f8.3/4x,9f8.3)") t(idjd,:)
         write (6,"('qg ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
         write (6,"('qs ',3p9f8.3/4x,9f8.3)") qs(idjd,:)
@@ -371,7 +410,7 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
       endif
 
       if(nlocal.ne.0)then
-        call pbldif(rhs,rkh,rkm,uav,vav)
+        call pbldif(rhs,rkh,rkm,uav,vav)  ! rhs is theta or thetal
 !       n.b. *** pbldif partially updates qg and theta (t done during trim)	 
 !       and updates rkh and rkm arrays
         if(nmaxpr==1.and.mydiag)then
@@ -379,12 +418,10 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
           write (6,"('rkh1 ',9f9.3/5x,9f9.3)") rkh(idjd,1:kl-2)
           write (6,"('rkm1 ',9f9.3/5x,9f9.3)") rkm(idjd,1:kl-2)
         endif
-        if( (diag.or.ntest>=1) .and. mydiag )then
-          print *,'after pbldif in vertmix'
-          write (6,"('thet',9f8.3/4x,9f8.3)") rhs(idjd,:)
-          write (6,"('qg ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
-     &              
-        endif
+        if(nmaxpr==1.and.mydiag)
+     &    write (6,"('thet_pbl',9f8.3/8x,9f8.3)") rhs(idjd,:)
+        if( (diag.or.ntest>=1) .and. mydiag )
+     &    write (6,"('qg ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
         if(diag)then
           call printa('rkh ',rkh,ktau,nlv,ia,ib,ja,jb,0.,1.)
           call printa('cond',condx,ktau,1,ia,ib,ja,jb,0.,1.)
@@ -416,6 +453,17 @@ c     ***** ***** section for jlm shallow convection v4 *****************
          enddo  ! iq loop
         enddo   !  k loop
       endif     ! (ksc==82)
+      if(ksc==83)then
+        do k=1,ksctop-1    
+         do iq=1,ifull
+          if(sig(k)>sig_ct.and.k<ktsav(iq).
+     &                and.k>=kbsav(iq).and.condc(iq)==0.)then  
+            rk_shal(iq,k)=tied_con
+            rk_shal(iq,k+1)=tied_over
+          endif ! (sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and....)
+         enddo  ! iq loop
+        enddo   !  k loop
+      endif     ! (ksc==83)
       if(ksc==91)then
         do k=1,ksctop-1   ! or ksctop?  
          do iq=1,ifull
@@ -648,7 +696,7 @@ c     add in effects of shallow convection
         enddo   !  k loop
       endif     ! (kscmom==1)
       
-      if(ksc.ne.0.and.(ntest.ne.0.or.diag))then
+      if(ksc.ne.0.and.(ntest.ne.0.or.diag).and.nproc==1.)then
         do iq=1,ifull
          if(rk_shal(iq,1)>rk_shal(iq,2))then
            print *,'iq,rk_shal1,rk_shal2',iq,rk_shal(iq,1),rk_shal(iq,2)
@@ -759,7 +807,11 @@ c     first do theta (then convert back to t)
         print *,'rhs ',(rhs(idjd,k),k=1,kl)
       endif      ! (ntest==2)
 
+      if(nmaxpr==1.and.mydiag)
+     &  write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
       call trim(at,ct,rhs,0)   ! for t
+      if(nmaxpr==1.and.mydiag)
+     &  write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
       do k=1,kl
         do iq=1,ifull
          t(iq,k)=rhs(iq,k)/sigkap(k)
@@ -769,7 +821,6 @@ c     first do theta (then convert back to t)
          if (mydiag) then
             print *,'vertmix eg,fg,cdtq,land '
      &                  ,eg(idjd),fg(idjd),cdtq(idjd),land(idjd)
-            print *,'vertmix theta after trim ',(rhs(idjd,k),k=1,kl)
          end if
         call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
       endif

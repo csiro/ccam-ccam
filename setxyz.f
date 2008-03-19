@@ -20,7 +20,7 @@ c     suffix 6 denotes hex (6)
       include 'vecsuv_gx.h'   ! vecsuv info
       include 'indices_gx.h' ! in,is,iw,ie,inn,iss,iww,iee
 c     include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
-      real xx4(1+4*abs(ik),1+4*abs(ik)),yy4(1+4*abs(ik),1+4*abs(ik))
+      real*8 xx4(1+4*abs(ik),1+4*abs(ik)),yy4(1+4*abs(ik),1+4*abs(ik))
 !     next one shared with cctocc4 & onthefly
       integer :: myid  ! This is passed as an argument just to control the 
                        ! diagnostic prints
@@ -35,6 +35,8 @@ c     include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
      .    ,bxx(ifull),byy(ifull),bzz(ifull)
       integer inw(ifull),ies(ifull),iws(ifull)  ! just for bdys
       real rotpole(3,3)
+      real*8 alf,den1,one,xx,yy  ! 6/11/07  
+      data one/1./    ! just to force real*8 calculation
 !     dimension npann(0:13),npane(0:13),npanw(0:13),npans(0:13)  ! in indices.h
       dimension npan6n(0:5),npan6e(0:5),npan6w(0:5),npan6s(0:5)
 !                  0  1   2   3   4   5   6   7   8   9  10  11  12  13
@@ -341,7 +343,7 @@ c       call jimcc(em4,ax4,ay4,az4,myid)
 
 c     if(nset.eq.1)then
 !       following for x4,y4,z4
-        alf=(1.-schmidt**2)/(1.+schmidt**2)
+        alf=(one-schmidt**2)/(one+schmidt**2)
         do m=1,4
         do j=1,ikk
          do i=1,ikk
@@ -368,11 +370,10 @@ c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'n,xx,yy: ',n,xx,yy
          enddo  ! i loop
         enddo   ! j loop
         do iq=1,ifull
-         call norm(x(iq),y(iq),z(iq),den) ! x, y, z are coords on sphere  -1 to 1
-         zin=z(iq)
-         x4_iq_m=x(iq)*schmidt*(1.+alf)/(1.+alf*zin)
-         y4_iq_m=y(iq)*schmidt*(1.+alf)/(1.+alf*zin)
-         z4_iq_m=(alf+zin)/(1.+alf*zin)
+         call norm8(x(iq),y(iq),z(iq),den1) ! x, y, z are coords on sphere  -1 to 1
+         x4_iq_m=x(iq)*schmidt*(1.+alf)/(1.+alf*z(iq))
+         y4_iq_m=y(iq)*schmidt*(1.+alf)/(1.+alf*z(iq))
+         z4_iq_m=(alf+z(iq))/(1.+alf*z(iq))
 c       enddo
 c       enddo   ! m=1,4 loop
 	 
@@ -455,7 +456,7 @@ c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
           print *,'az6 (1,1,0) & (2,2,0) ',az6(1,1,0),az6(2,2,0)
 	 endif ! (ktau.eq.0)
         do iq=1,ifull
-         call norm(x(iq),y(iq),z(iq),den) ! x, y, z are coords on sphere  -1 to 1
+         call norm8(x(iq),y(iq),z(iq),den1) ! x, y, z are coords on sphere  -1 to 1
         enddo   ! iq loop
 
       if(npanels.eq.13)then
@@ -465,7 +466,7 @@ c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
 
       if(ktau.eq.0.and.myid==0)print *,'basic grid length ds =',ds
       if(schmidt.ne.1.)then
-        alf=(1.-schmidt**2)/(1.+schmidt**2)
+        alf=(one-schmidt**2)/(one+schmidt**2)
         if(myid==0)
      &       print *,'doing schmidt with schmidt,alf: ',schmidt,alf
         do iq=1,ifull
@@ -556,7 +557,7 @@ c           print *,'iq,x,y,z s ',iq,x(is(iq)),y(is(iq)),z(is(iq))
 c         endif
         enddo   ! iq loop
 c       form axx and bxx tangential to the sphere
-        call cross3(axx,ayy,azz, bx,by,bz, x,y,z)
+        call cross3b(axx,ayy,azz, bx,by,bz, x,y,z)
         call cross3(bxx,byy,bzz, x,y,z, ax,ay,az)
         do iq=1,ifull
          call norm(axx(iq),ayy(iq),azz(iq),den)
@@ -605,21 +606,25 @@ c    .                  (emv(isv2(iq))+emv(iq)))
         if(id.le.ikk.and.jd.le.jl)then
           iq=id+ikk*(jd-1)
           print *,'values at idjd'
+          print *,'iq,x,y,z',iq,x(iq),y(iq),z(iq)
           print *,'iq,ax,ay,az',iq,ax(iq),ay(iq),az(iq)
           print *,'iq,bx,by,bz',iq,bx(iq),by(iq),bz(iq)
-          iq=in(id+ikk*(jd-1))
           print *,'values at in(idjd)'
-          print *,'iq,ax,ay,az',iq,ax(in(iq)),ay(in(iq)),az(in(iq))
-          print *,'iq,bx,by,bz',iq,bx(in(iq)),by(in(iq)),bz(in(iq))
+          print *,'iq,x,y,z',in(iq),x(in(iq)),y(in(iq)),z(in(iq))
+          print *,'iq,ax,ay,az',in(iq),ax(in(iq)),ay(in(iq)),az(in(iq))
+          print *,'iq,bx,by,bz',in(iq),bx(in(iq)),by(in(iq)),bz(in(iq))
           print *,'values at ie(idjd)'
-          print *,'iq,ax,ay,az',iq,ax(ie(iq)),ay(ie(iq)),az(ie(iq))
-          print *,'iq,bx,by,bz',iq,bx(ie(iq)),by(ie(iq)),bz(ie(iq))
+          print *,'iq,x,y,z',ie(iq),x(ie(iq)),y(ie(iq)),z(ie(iq))
+          print *,'iq,ax,ay,az',ie(iq),ax(ie(iq)),ay(ie(iq)),az(ie(iq))
+          print *,'iq,bx,by,bz',ie(iq),bx(ie(iq)),by(ie(iq)),bz(ie(iq))
           print *,'values at iw(idjd)'
-          print *,'iq,ax,ay,az',iq,ax(iw(iq)),ay(iw(iq)),az(iw(iq))
-          print *,'iq,bx,by,bz',iq,bx(iw(iq)),by(iw(iq)),bz(iw(iq))
+          print *,'iq,x,y,z',iw(iq),x(iw(iq)),y(iw(iq)),z(iw(iq))
+          print *,'iq,ax,ay,az',iw(iq),ax(iw(iq)),ay(iw(iq)),az(iw(iq))
+          print *,'iq,bx,by,bz',iw(iq),bx(iw(iq)),by(iw(iq)),bz(iw(iq))
           print *,'values at is(idjd)'
-          print *,'iq,ax,ay,az',iq,ax(is(iq)),ay(is(iq)),az(is(iq))
-          print *,'iq,bx,by,bz',iq,bx(is(iq)),by(is(iq)),bz(is(iq))
+          print *,'iq,x,y,z',is(iq),x(is(iq)),y(is(iq)),z(is(iq))
+          print *,'iq,ax,ay,az',is(iq),ax(is(iq)),ay(is(iq)),az(is(iq))
+          print *,'iq,bx,by,bz',is(iq),bx(is(iq)),by(is(iq)),bz(is(iq))
         endif
       endif  ! (ktau.eq.0)
 
@@ -824,7 +829,8 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
       end
       subroutine xxtox(i,j,ikk,xx,yy,  x06,y06,z06)
 !     put as subr. sept 06 to avoid equivalence of x, x06 etc      
-      real x06(ikk,ikk,0:5),y06(ikk,ikk,0:5),z06(ikk,ikk,0:5)
+      real*8 x06(ikk,ikk,0:5),y06(ikk,ikk,0:5),z06(ikk,ikk,0:5)
+      real*8 xx,yy
           x06(i,j,0)= 1.
           y06(i,j,0)=xx
           z06(i,j,0)=yy
@@ -856,6 +862,14 @@ c     calculates simple i,j,n indices from supplied iq
       return
       end
       subroutine norm(a,b,c,den)
+      den=sqrt(a**2+b**2+c**2)
+      a=a/den
+      b=b/den
+      c=c/den
+      return
+      end
+      subroutine norm8(a,b,c,den)
+      real*8 a,b,c,den
       den=sqrt(a**2+b**2+c**2)
       a=a/den
       b=b/den
@@ -957,8 +971,23 @@ c     calculate vector components of c = a x b
 c     where each RHS component represents 3 vector components
 c     this one need not have contiguous memory in common
       include 'newmpar_gx.h'
-      dimension a1(ifull),a2(ifull),a3(ifull)
+      real*8    a1(ifull),a2(ifull),a3(ifull)
       dimension b1(ifull),b2(ifull),b3(ifull)
+      dimension c1(ifull),c2(ifull),c3(ifull)
+      do i=1,ifull
+       c1(i)=a2(i)*b3(i)-b2(i)*a3(i)
+       c2(i)=a3(i)*b1(i)-b3(i)*a1(i)
+       c3(i)=a1(i)*b2(i)-b1(i)*a2(i)
+      enddo
+      return
+      end
+      subroutine cross3b(c1,c2,c3,a1,a2,a3,b1,b2,b3)
+c     calculate vector components of c = a x b
+c     where each RHS component represents 3 vector components
+c     this one need not have contiguous memory in common
+      include 'newmpar_gx.h'
+      dimension a1(ifull),a2(ifull),a3(ifull)
+      real*8    b1(ifull),b2(ifull),b3(ifull)
       dimension c1(ifull),c2(ifull),c3(ifull)
       do i=1,ifull
        c1(i)=a2(i)*b3(i)-b2(i)*a3(i)
@@ -971,6 +1000,7 @@ c     this one need not have contiguous memory in common
       include 'newmpar_gx.h'
       include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       include 'xyzinfo_gx.h'  ! x,y,z,wts
+      real*8 x4a,x4b,y4a,y4b,z4a,z4b,den
       y4a=xx4(i4a,j4a)
       z4a=yy4(i4a,j4a)
       x4a=1.
@@ -982,8 +1012,8 @@ c      print *,'iq,x,y,z ',iq,x(iq),y(iq),z(iq)
 c      print *,'i4a,j4a,y4a,y4a ',i4a,j4a,y4a,y4a
 c      print *,'i4b,j4b,z4b,z4b ',i4b,j4b,z4b,z4b
 c     endif
-      call norm(x4a,y4a,z4a,den) ! converts xx4, yy4 to coords on sphere
-      call norm(x4b,y4b,z4b,den) ! converts xx4, yy4 to coords on sphere
+      call norm8(x4a,y4a,z4a,den) ! converts xx4, yy4 to coords on sphere
+      call norm8(x4b,y4b,z4b,den) ! converts xx4, yy4 to coords on sphere
 c     if(iq.eq.1.or.iq.eq.il*il)then
 c      print *,'after norm'
 c      print *,'x4a,y4a,z4a ',x4a,y4a,z4a

@@ -259,7 +259,7 @@ cx      enddo      ! k  loop
         do k=1,kl
          h_nh(1:ifull,k)=(1.+epst(:))*tbar(1)*omgf(:,k)/sig(k) 
         enddo
-        print *,'h_nh.a ',(h_nh(idjd,k),k=1,kl)
+        if(mydiag)print *,'h_nh.a ',(h_nh(idjd,k),k=1,kl)
         if(nh==3)then  ! not for k=1 or k=kl
           do k=2,kl-1
            h_nh(1:ifull,k)=h_nh(1:ifull,k)
@@ -349,7 +349,7 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*omgf(iq,k)*roncp/sig(k)
 !       npex=5 same as npex=0, but does direct unstaggered calc      
         do k=1,kl
 !cdir nodep
-         do iq=1,ifull  ! calculate staggered dyn residual contributions first
+         do iq=1,ifull  ! calculate unstaggered dyn residual contributions
           un(iq,k)=.5*em(iq)*(phiv(ie(iq),k)-phiv(iw(iq),k)
      &             -rdry*tv(iq,k)*(psl(ie(iq))-psl(iw(iq))))/ds
           vn(iq,k)=.5*em(iq)*(phiv(in(iq),k)-phiv(is(iq),k)

@@ -123,7 +123,7 @@
 !    &              .05,.85,.85,.55,.65,.2,.05,.5, .0, .0, 0.,         ! 21-31
       real, dimension(ifull_g) :: glob2d
       real, dimension(ifull_g) :: davt_g
-      real, dimension(ifull,1:12) :: urban ! MJT urban        
+      real, dimension(ifull,1:12) :: urban ! MJT urban 
 
       call start_log(indata_begin)
       bam(1)=114413.
@@ -269,7 +269,7 @@ c         print *,'this one uses supplied eigs'
      &           psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
      &           tgg,wb,wbice,alb,snowd,
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag,isoilm,urban)  !MJT lsmask ! MJT urban
+     &           tggsn,smass,ssdn,ssdnn,snage,isflag,isoilm,urban)  !MJT lsmask ! MJT urban  
             if ( mydiag ) then
                print *,'timegb,ds,zss',timegb,ds,zss(idjd)
                print *,'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
@@ -1585,6 +1585,9 @@ c       endif
      &                  MPI_COMM_WORLD, ierr )
         if (myid==0) print *,'final hemax = ',hemax_g
       endif     ! (ngwd.ne.0)
+      if(nspecial==34)then      ! test for Andy & Faye
+        tgg(:,6)=tgg(:,6)+.1
+       endif
       
 !***  no fiddling with initial tss, snow, sice, w, w2, gases beyond this point
       call bounds(zs)
@@ -1884,8 +1887,17 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
          call readreal('vegfrac',sigmf,ifull)
          elai(:)=0.01*elai(:) ! MJT
          sigmf(:)=0.01*sigmf(:)
+         !-----------------------------------------------------------
+         ! MJT urban - delete the following
+c        call readreal('urban',sigmu,ifull) ! MJT CHANGE (21/8/06) - urban
+!         where (sigmf.lt.1.)
+!          convert to cover over bare soil
+!           sigmu=0.01*sigmu/(1.-sigmf) ! MJT CHANGE 6/1/07 
+!         end where
+          !----------------------------------------------------------
        else    ! usual, nsib<5
          call readint(vegfile,ivegt,ifull)
+         sigmu(:)=0.                       ! MJT CHANGE (21/8/06) - urban
        endif  ! (nsib==5) .. else ..
        !------------------------------------------------
        ! MJT urban
@@ -1896,7 +1908,6 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
          sigmu(:)=0.
        end if
        ! -----------------------------------------------       
-       
 
        mismatch = .false.
        if( rdatacheck(land,alb,'alb',idatafix,falbdflt))

@@ -32,7 +32,7 @@
       real, save, dimension(ifull,kl):: tnsav,unsav,vnsav ! for npex=-1
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
       real aa(ifull+iextra)
-      real x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
+      real*8 x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
       integer nface,idjdd
       real xg, yg
       common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal

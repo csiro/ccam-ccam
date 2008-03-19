@@ -61,7 +61,6 @@
       include 'tracers.h'  ! ngas, nllp, ntrac, tr
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
       include 'vecsuv.h'
-      include 'vecsuva.h'
       include 'version.h'
       include 'vvel.h'     ! sdot
       include 'xarrs.h'
@@ -132,18 +131,19 @@
      &     mexrest, mins_dt, mins_gmt, mspeca, mtimer_in,
      &     nalpha, newsnow, ng, nlx, nmaxprsav,
      &     nmi, npa, npb, npc, n3hr,      ! can remove npa,npb,npc
-     &     nsnowout, nstagin, nstaguin, nwrite, nwtsav, ! MJT CHANGE - delete mins_mbd
-     &     mins_rad, mtimer_sav, nsecs_diff, nn, i, j
+     &     nsnowout, nstagin, nstaguin, nwrite, nwtsav,
+     &     mins_rad, mtimer_sav, nn, i, j
      &     ,mstn  ! not used in 2006
       integer, dimension(8) :: nper3hr
       real clhav, cllav, clmav, cltav, con, 
      &     div_int, dsx, dtds, es, gke, hourst, hrs_dt,
      &     evapavge, precavge, preccavge, psavge,
      &     pslavge, pwater, rel_lat, rel_long, rlwup, spavge,
-     &     pwatr, pwatr_l, qtot, aa,bb,cc,bb2,cc2,rat
+     &     pwatr, pwatr_l, qtot, aa,bb,cc,bb_2,cc_2,rat
       real, dimension(9) :: temparray, gtemparray ! For global sums
-      integer :: nproc_in, ierr, nperhr, nscrn=0
+      integer :: nproc_in, ierr, nperhr, nscrn=0,nversion=0, ierr2 ! MJT mpi
 
+      namelist/defaults/nversion
       namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps,nperavg
      & ,ia,ib,ja,jb,itr1,jtr1,itr2,jtr2,id,jd,iaero,khdif,khor,nhorjlm
      & ,m,mex,mbd,nbd,ndi,ndi2,nem,nhor,nlv,nscrn
@@ -166,8 +166,7 @@
      & ,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,nfly,localhist   
-     & ,mstn,nqg   ! not used in 2006          
-     & ,nurban ! MJT urban
+     & ,mstn,nqg,nurban ! MJT urban   ! not used in 2006          
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -196,7 +195,7 @@
 
       ! Check that declarations in include files match
       call check_dims()
-
+      
 #ifndef scyld
       call MPI_Init(ierr)       ! Start
 #endif
@@ -204,7 +203,7 @@
       if ( nproc_in /= nproc ) then
          print*, "Error, model is compiled for ", nproc, " processors."
          print*, "Trying to run with", nproc_in
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
       call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr) ! Find my id
 
@@ -227,6 +226,9 @@
       if (myid==0)
      &  write(6,'(a10," compiled for il,jl,kl,nproc =",4i7)')
      &                       version,il_g,jl_g ,kl,nproc 
+      read (99, defaults)
+      if(myid==0)print *,'Using defaults for nversion = ',nversion
+      if(nversion.ne.0)call change_defaults(nversion)
       read (99, cardin)
       nperday =nint(24.*3600./dt)
       nperhr  =nint(3600./dt)
@@ -239,6 +241,7 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
       if(nperavg==-99)nperavg=nwt      ! set default nperavg to nwt
       if(nwrite==0)nwrite=nperday  ! only used for outfile IEEE
       read (99, skyin)
+      if(nperday==80.and.mins_rad==60)mins_rad=72
       kountr=nint(mins_rad*60./dt)  ! set default radiation to ~mins_rad m
       mins_rad=nint(kountr*dt/60.)  ! redefine to actual value
       read (99, datafile)
@@ -249,14 +252,17 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
         call init_tracer
       endif
      
-      if(nudu_hrs==0)nudu_hrs=nud_hrs
-      if(kbotu==0)kbotu=kbotdav
+      if(ldr==0)mbase=0
       dsig4=max(dsig2+.01,dsig4)
+      if(kbotu==0)kbotu=kbotdav
       if(mbd.ne.0.and.nbd.ne.0)then
         print *,'setting nbd=0 because mbd.ne.0'
         nbd=0
+        kbotu=kbotdav      
       endif
       if(nbd.ne.0)nud_hrs=abs(nud_hrs)  ! just for people with old -ves in namelist
+      if(mbd.ne.0.or.nbd.ne.0)newtop=1
+      if(nudu_hrs==0)nudu_hrs=nud_hrs
 
       if ( myid == 0 ) then   ! **** do namelist fixes above this ***
       print *,'Dynamics options A:'
@@ -377,7 +383,7 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
 !       read(66,'(i3,i4,2f6.1,f5.2,f9.0,a47)')
 c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
         read(66,*)
-     &            ilx,jlx,rlong0,rlat0,schmidt,dsx,header
+     &           ilx,jlx,rlong0,rlat0,schmidt,dsx,header
         print *,'ilx,jlx,rlong0,rlat0,schmidt,dsx ',
      &           ilx,jlx,rlong0,rlat0,schmidt,dsx,header
         if(ilx.ne.il_g.or.jlx.ne.jl_g)stop 'wrong topo file supplied'
@@ -391,13 +397,6 @@ c     set up cc geometry
 !     All processors call setxyz
       call setxyz(il_g,xx4,yy4,myid)
       call ccmpi_setup()
-      call setaxu    ! globpea code
-      call bounds(axu)
-      call bounds(bxv)
-      call bounds(ayu)
-      call bounds(byv)
-      call bounds(azu)
-      call bounds(bzv)
       con=180./pi
       if ( mydiag ) then
          print *,'id,jd,rlongg,rlatt in degrees: ',
@@ -607,7 +606,7 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       if(nmi==0.and.nwt>0)then
 !       write out the first ofile data set 
         print *,'calling outfile myid= ',myid
-        call outfile(20,rundate,nmi,nwrite)
+        call outfile(20,rundate,nmi,nwrite)  ! which calls outcdf
         if(newtop<0)stop  ! just for outcdf to plot zs  & write fort.22
       endif    ! (nmi==0.and.nwt.ne.0)
       dtin=dt
@@ -624,24 +623,20 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       call gettin(0)             ! preserve initial mass & T fields; nmi too
 
       if(nbd.ne.0)call nestin
-      if(mbd.ne.0)call nestinb  ! to get mins_mbd ! MJT CHANGE - delete mins_mbd
-      if((mbd.ne.0).and.(newtop.eq.0)) then
-        print *,"ERROR: newtop must be 1 when mbd.ne.0"
-	stop
-      end if
+      if(mbd.ne.0)call nestinb
       nmaxprsav=nmaxpr
       nwtsav=nwt
       hrs_dt = dtin/3600.      ! time step in hours
       mins_dt = nint(dtin/60.)  ! time step in minutes
       mtimer_in=mtimer
-      nstagin=nstag
-      nstaguin=nstagu
+      nstagin=nstag    ! -ve nstagin gives swapping & its frequency
+      nstaguin=nstagu  ! only the sign of nstaguin matters (chooses scheme)
       if(nstagin==5.or.nstagin<0)then
         nstag=4
         nstagu=4
         if(nstagin==5)then  ! for backward compatability
-          nstagin=-1
-          nstaguin=5
+          nstagin=-1 
+          nstaguin=5  
         endif
       endif
  
@@ -662,7 +657,7 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       mtimer=mtimer_in+nint(ktau*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
       mins_gmt=mod(mtimer+60*ktime/100,24*60)
       if(nbd.ne.0)call nestin
-      if(nstaguin>0.and.ktau>1)then
+      if(nstaguin>0.and.ktau>1)then   ! swapping here for nstaguin>0
         if(nstagin<0.and.mod(ktau,abs(nstagin))==0)then
           nstag=7-nstag  ! swap between 3 & 4
           nstagu=nstag
@@ -730,26 +725,26 @@ c       sbar(:,:)=sdot(:,2:kl)+.5*(savs(:,:)-savs1(:,:))
         do k=1,kl
          do iq=1,ifull
           bb=1.5*u(iq,k)-2.*savu(iq,k)+.5*savu1(iq,k)    ! simple b
-          bb2=(40.*u(iq,k)-35.*savu(iq,k)                ! cwqls b
+          bb_2=(40.*u(iq,k)-35.*savu(iq,k)               ! cwqls b
      &          -16.*savu1(iq,k)+11.*savu2(iq,k))/34.
           cc=.5*u(iq,k)-savu(iq,k)+.5*savu1(iq,k)        ! simple c
-          cc2=(10.*u(iq,k)-13.*savu(iq,k)                ! cwqls c
+          cc_2=(10.*u(iq,k)-13.*savu(iq,k)               ! cwqls c
      &          -4.*savu1(iq,k)+7.*savu2(iq,k))/34.
-          aa=cc2-cc
-          rat=max(0.,min(1.,cc2/(aa+sign(1.e-9,aa))))
-          cc=rat*cc+(1.-rat)*cc2 
-          bb=rat*bb+(1.-rat)*bb2 
+          aa=cc_2-cc
+          rat=max(0.,min(1.,cc_2/(aa+sign(1.e-9,aa))))
+          cc=rat*cc+(1.-rat)*cc_2 
+          bb=rat*bb+(1.-rat)*bb_2 
           ubar(iq,k)=u(iq,k)+.5*bb+.25*cc
           bb=1.5*v(iq,k)-2.*savv(iq,k)+.5*savv1(iq,k)    ! simple b
-          bb2=(40.*v(iq,k)-35.*savv(iq,k)                ! cwqls b
+          bb_2=(40.*v(iq,k)-35.*savv(iq,k)               ! cwqls b
      &          -16.*savv1(iq,k)+11.*savv2(iq,k))/34.
           cc=.5*v(iq,k)-savv(iq,k)+.5*savv1(iq,k)        ! simple c
-          cc2=(10.*v(iq,k)-13.*savv(iq,k)                ! cwqls c
+          cc_2=(10.*v(iq,k)-13.*savv(iq,k)               ! cwqls c
      &          -4.*savv1(iq,k)+7.*savv2(iq,k))/34.
-          aa=cc2-cc
-          rat=max(0.,min(1.,cc2/(aa+sign(1.e-9,aa))))
-          cc=rat*cc+(1.-rat)*cc2 
-          bb=rat*bb+(1.-rat)*bb2 
+          aa=cc_2-cc
+          rat=max(0.,min(1.,cc_2/(aa+sign(1.e-9,aa))))
+          cc=rat*cc+(1.-rat)*cc_2 
+          bb=rat*bb+(1.-rat)*bb_2 
           vbar(iq,k)=v(iq,k)+.5*bb+.25*cc
          enddo  ! iq loop
         enddo   ! k loop 
@@ -851,7 +846,7 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
 !!      ubar(1:ifull,:) = savu1(1:ifull,:)  ! 3D really saving savu1 in ubar here 
 !!      vbar(1:ifull,:) = savv1(1:ifull,:)  ! 3D really saving savv1 in vbar here 
 
-      if(nstaguin<0.and.ktau>1)then
+      if(nstaguin<0.and.ktau>1)then  ! swapping here (lower down) for nstaguin<0
         if(nstagin<0.and.mod(ktau,abs(nstagin))==0)then
           nstag=7-nstag  ! swap between 3 & 4
           nstagu=nstag
@@ -859,9 +854,7 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
       endif
       call adjust5
       if(mspec==1.and.nbd.ne.0)call davies  ! nesting now after mass fixers
-      if(mbd.ne.0)then
-          call nestinb ! MJT CHANGE - delete mins_mbd
-      endif
+      if(mbd.ne.0)call nestinb
 
       if(mspec==2)then     ! for very first step restore mass & T fields
         call gettin(1)
@@ -964,18 +957,18 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
         endif     ! (ntsur<=1.or.nhstest==2) 
         if(nhstest==2)call hs_phys
         if(ntsur>1)then  ! should be better after convjlm
-          if(diag)then
-            call maxmin(u,'#u',ktau,1.,kl)
-            call maxmin(v,'#v',ktau,1.,kl)
-            call maxmin(t,'#t',ktau,1.,kl)
-            call maxmin(qg,'qg',ktau,1.e3,kl)     
-            call MPI_Barrier( MPI_COMM_WORLD, ierr ) ! stop others going past
-          endif
-          call sflux(nalpha)
-          epan_ave = epan_ave+epan  ! 2D 
-          ga_ave = ga_ave+ga        ! 2D   
-          if(nstn>0.and.nrotstn(1)==0)call stationa ! write every time step
-          if(mod(ktau,nmaxpr)==0.and.mydiag)then
+         if(diag)then
+           call maxmin(u,'#u',ktau,1.,kl)
+           call maxmin(v,'#v',ktau,1.,kl)
+           call maxmin(t,'#t',ktau,1.,kl)
+           call maxmin(qg,'qg',ktau,1.e3,kl)     
+           call MPI_Barrier( MPI_COMM_WORLD, ierr ) ! stop others going past
+         endif
+         call sflux(nalpha)
+         epan_ave = epan_ave+epan  ! 2D 
+         ga_ave = ga_ave+ga        ! 2D   
+         if(nstn>0.and.nrotstn(1)==0)call stationa ! write every time step
+         if(mod(ktau,nmaxpr)==0.and.mydiag)then
           print *
           write (6,
      .	   "('ktau =',i5,' gmt(h,m):',f6.2,i5,' runtime(h,m):',f7.2,i6)")
@@ -1041,9 +1034,9 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
      &                u10max(iq),v10max(iq),rhminscr(iq),rhmaxscr(iq)
           write (6,"('kbsav,ktsav,convpsav ',2i3,f8.4,9f8.2)")
      &                kbsav(idjd),ktsav(idjd),convpsav(idjd)
-          write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
-          write (6,"('u   ',9f8.2/4x,9f8.2)") u(idjd,:)
-          write (6,"('v   ',9f8.2/4x,9f8.2)") v(idjd,:)
+          write (6,"('t   ',9f8.3/4x,9f8.3)") t(idjd,:)
+          write (6,"('u   ',9f8.3/4x,9f8.3)") u(idjd,:)
+          write (6,"('v   ',9f8.3/4x,9f8.3)") v(idjd,:)
           write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
           write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
           write (6,"('ql  ',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
@@ -1053,18 +1046,24 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
            spmean(k)=100.*qg(idjd,k)*(ps(idjd)*sig(k)-es)/(.622*es)
            spmean(k)=100.*qg(idjd,k)*(ps(idjd)*sig(k)-es)/(.622*es)
           enddo
-          nlx=min(nlv,kl-8)
-          write (6,"('rh(nlx+) ',9f8.2)") (spmean(k),k=nlx,nlx+8)
-          write (6,"('div(nlx+)',9f8.2)") (div(k),k=nlx,nlx+8)
+c         nlx=min(nlv,kl-8)
+c         write (6,"('rh(nlx+) ',9f8.2)") (spmean(k),k=nlx,nlx+8)
+c         write (6,"('div(nlx+)',9f8.2)") (div(k),k=nlx,nlx+8)
+          write (6,"('rh  ',9f8.3/4x,9f8.3)") spmean(:)
+          write (6,"('div ',9f8.3/4x,9f8.3)") div(:)
           write (6,"('omgf ',9f8.3/5x,9f8.3)")   ! in Pa/s
      &              ps(idjd)*omgf(idjd,:)
           write (6,"('sdot ',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
           if(nextout>=4)write (6,"('xlat,long,pres ',3f8.2)")
      &     tr(idjd,nlv,ngas+1),tr(idjd,nlv,ngas+2),tr(idjd,nlv,ngas+3)
-          endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
+         endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
         endif   ! (ntsur>1)
         if(ntsur>=1)then ! calls vertmix but not sflux for ntsur=1
+          if(nmaxpr==1.and.mydiag)
+     &      write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
           call vertmix 
+          if(nmaxpr==1.and.mydiag)
+     &      write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
         endif  ! (ntsur>=1)
 
 !     This is the end of the physics. The next routine makes the load imbalance
@@ -1078,7 +1077,6 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
         call tracer_mass(ktau,ntau) !also updates average tracer array
         call write_ts(ktau,ntau,dt)
       endif
-
 
       if(ndi==-ktau)then
         nmaxpr=1         ! diagnostic prints; reset 6 lines on
@@ -1251,13 +1249,13 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
         rlwp_ave(:)  =  rlwp_ave(:)/min(ntau,nperavg)
         tscr_ave(:)  =  tscr_ave(:)/min(ntau,nperavg)
         qscrn_ave(:) = qscrn_ave(:)/min(ntau,nperavg)
+        sgn_ave(:)  =  sgn_ave(:)/min(ntau,nperavg)  ! Dec07 because of solar fit
         if(myid==0)
      &       print *,'ktau,koundiag,nperavg =',ktau,koundiag,nperavg
         sint_ave(:) = sint_ave(:)/max(koundiag,1)
         sot_ave(:)  =  sot_ave(:)/max(koundiag,1)
         soc_ave(:)  =  soc_ave(:)/max(koundiag,1)
         sgdn_ave(:) =  sgdn_ave(:)/max(koundiag,1)
-        sgn_ave(:)  =  sgn_ave(:)/min(ntau,nperavg)  ! because of solar fit ! MJT fix
         rtu_ave(:)  =  rtu_ave(:)/max(koundiag,1)
         rtc_ave(:)  =  rtc_ave(:)/max(koundiag,1)
         rgdn_ave(:) =  rgdn_ave(:)/max(koundiag,1)
@@ -1277,7 +1275,7 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
       endif
       if(ktau==ntau.or.mod(ktau,nwt)==0)then
         call log_off()
-        call outfile(20,rundate,nmi,nwrite)
+        call outfile(20,rundate,nmi,nwrite)  ! which calls outcdf
  
         if(ktau==ntau.and.irest==1) then
 #ifdef simple_timer
@@ -1466,7 +1464,6 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
       else
          call ccmpi_distribute(itss)
       end if
-      if (mydiag) print*, itss(idjd)
       end subroutine readint
 
       subroutine readreal(filename,tss,ifullx)
@@ -1507,11 +1504,10 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
            stop
          end if
          call ccmpi_distribute(tss, glob2d)
-         print*, glob2d(id+(jd-1)*il_g)
+         print*, trim(header), glob2d(id+(jd-1)*il_g)
       else
          call ccmpi_distribute(tss)
       end if
-      if (mydiag) print*, tss(idjd)
       end subroutine readreal
 
       subroutine setllp
@@ -1552,52 +1548,6 @@ c     endif
       return
       end subroutine setllp
 
-      subroutine setaxu    ! globpea code
-      use cc_mpi
-      implicit none
-      include 'newmpar.h'
-      include 'indices.h'
-      include 'vecsuv.h'   ! vecsuv info
-      include 'vecsuva.h'  ! vecsuva info
-      real wcua(ifull),wcva(ifull),
-     &     wcud(ifull+iextra),wcvd(ifull+iextra)
-      integer iq
-      do iq=1,ifull   !  convert ax,bx to staggered positions
-       wcua(iq)=.5*(ax(ieu(iq))+ax(iq))
-       wcud(iq)=    ax(ieu(iq))-ax(iq)
-       wcva(iq)=.5*(bx(inv(iq))+bx(iq))
-       wcvd(iq)=    bx(inv(iq))-bx(iq)
-      enddo   ! iq loop
-      call boundsuv(wcud,wcvd)
-      do iq=1,ifull   !  store ax,bx at staggered positions
-       axu(iq)=wcua(iq)-(wcud(ieu(iq))-wcud(iwu(iq)))/16.
-       bxv(iq)=wcva(iq)-(wcvd(inv(iq))-wcvd(isv(iq)))/16.
-      enddo   ! iq loop
-      do iq=1,ifull   !  convert ay,by to staggered positions
-       wcua(iq)=.5*(ay(ieu(iq))+ay(iq))
-       wcud(iq)=    ay(ieu(iq))-ay(iq)
-       wcva(iq)=.5*(by(inv(iq))+by(iq))
-       wcvd(iq)=    by(inv(iq))-by(iq)
-      enddo   ! iq loop
-      call boundsuv(wcud,wcvd)
-      do iq=1,ifull   !  store ay,by at staggered positions
-       ayu(iq)=wcua(iq)-(wcud(ieu(iq))-wcud(iwu(iq)))/16.
-       byv(iq)=wcva(iq)-(wcvd(inv(iq))-wcvd(isv(iq)))/16.
-      enddo   ! iq loop
-      do iq=1,ifull   !  convert az,bz to staggered positions
-       wcua(iq)=.5*(az(ieu(iq))+az(iq))
-       wcud(iq)=    az(ieu(iq))-az(iq)
-       wcva(iq)=.5*(bz(inv(iq))+bz(iq))
-       wcvd(iq)=    bz(inv(iq))-bz(iq)
-      enddo   ! iq loop
-      call boundsuv(wcud,wcvd)
-      do iq=1,ifull   !  store az,bz at staggered positions
-       azu(iq)=wcua(iq)-(wcud(ieu(iq))-wcud(iwu(iq)))/16.
-       bzv(iq)=wcva(iq)-(wcvd(inv(iq))-wcvd(isv(iq)))/16.
-      enddo   ! iq loop
-      return
-      end subroutine setaxu
-
       blockdata main_blockdata
       include 'newmpar.h'
       include 'dates.h' ! ktime,kdate,timer,timeg,mtimer
@@ -1637,7 +1587,7 @@ c     endif
 !     Dynamics options A & B      
       data m/5/,mex/30/,mfix/1/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/,npex/0/
       data nritch_t/300/,nrot/1/,nxmap/0/,
-     &     epsp/-15./,epsu/0./,epsf/0./,precon/-2900/,restol/5.e-7/
+     &     epsp/-15./,epsu/0./,epsf/0./,precon/-2900/,restol/2.e-7/
       data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/,nrunx/0/
 !     Horiz advection options
       data ndept/1/,nt_adv/7/,mh_bs/4/
@@ -1653,12 +1603,12 @@ c     data nstag/99/,nstagu/99/
 !     Cumulus convection options
       data nkuo/23/,sigcb/1./,sig_ct/.8/,rhcv/0./,rhmois/.1/,rhsat/1./,
      &     convfact/1.02/,convtime/.33/,shaltime/0./,      
-     &     alflnd/1.15/,alfsea/1.05/,fldown/.6/,iterconv/3/,ncvcloud/0/,
+     &     alflnd/1.1/,alfsea/1.1/,fldown/.6/,iterconv/3/,ncvcloud/0/,
      &     nevapcc/0/,nevapls/-4/,nuvconv/0/
      &     mbase/101/,mdelay/-1/,methprec/8/,nbase/-4/,detrain/.15/,
-     &     entrain/0./,methdetr/2/,detrainx/0./,dsig2/.15/,dsig4/.4/
+     &     entrain/.05/,methdetr/2/,detrainx/0./,dsig2/.15/,dsig4/.4/
 !     Shallow convection options
-      data ksc/0/,kscsea/0/,kscmom/1/,sigkscb/.95/,sigksct/.8/,
+      data ksc/-95/,kscsea/0/,kscmom/1/,sigkscb/.95/,sigksct/.8/,
      &     tied_con/2./,tied_over/0./,tied_rh/.75/
 !     Other moist physics options
       data acon/.2/,bcon/.07/,qgmin/1.e-6/,rcm/.92e-5/,
@@ -1674,9 +1624,9 @@ c     data nstag/99/,nstagu/99/
      &     nrungcm/-1/,nsib/3/,nsigmf/1/,
      &     ntaft/2/,ntsea/6/,ntsur/6/,av_vmod/.7/,tss_sh/1./,
      &     vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
-      data nurban/0/ ! MJT urban
       data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
+      data nurban/0/ ! MJT urban
 !     Special and test options
       data namip/0/,amipo3/.false./,nhstest/0/,nsemble/0/,nspecial/0/,
      &     panfg/4./,panzo/.001/,nplens/0/
@@ -2213,3 +2163,157 @@ c     &	         rh_s(:)
       enddo   ! nn=1,nstn
       return    
       end               
+      subroutine change_defaults(nversion)
+      implicit none
+      include 'newmpar.h'
+      include 'kuocom.h'
+      include 'parm.h'
+      include 'parmdyn.h'  
+      include 'parmhor.h'  ! mhint, mh_bs, nt_adv, ndept
+      include 'parmsurf.h' ! nplens
+      include 'parmvert.h'
+      integer nversion,nbarewet,nsigmf
+      common/nsib/nbarewet,nsigmf
+      if(nversion<803)then
+        restol=5.e-7   ! new is 2.e-7
+        alflnd=1.15    ! new is 1.1
+        alfsea=1.05    ! new is 1.1
+        entrain=0.     ! new is .05
+        ksc=0          ! new is -95
+      endif
+      if(nversion==709)ksc=99
+      if(nversion<709)then
+        precon=0       ! new is -2900
+        restol=2.e-7   ! new is 5.e-7
+        mbase=2000     ! new is 101
+        mdelay=0       ! new is -1
+        nbase=-2       ! new is -4
+        sigkscb=-.2    ! new is .95
+        sigksct=.75    ! new is .8
+        tied_con=6.    ! new is 2.
+        tied_over=2.   ! new is 0.
+        tied_rh=.99    ! new is .75
+      endif
+      if(nversion<705)then
+        nstag=5        ! new is -10
+        nstagu=5       ! new is -1.
+        detrain=.3     ! new is .15
+      endif
+      if(nversion<704)then
+        m=6            ! new is 5
+        mex=4          ! new is 30.
+        npex=1         ! new is 0
+        ntsur=2        ! new is 6
+      endif
+      if(nversion<703)then
+        ntbar=4        ! new is 6
+        ntsur=7        ! new is 2
+        vmodmin=2.     ! new is .2
+        nbase=1        ! new is -2
+      endif
+      if(nversion<702)then
+        npex=3         ! new is 1
+      endif
+      if(nversion<701)then
+        nbase=0        ! new is 1  new variable
+      endif
+      if(nversion<608)then
+        npex=1         ! new is 3 
+        epsp=-20.      ! new is -15.
+      endif
+      if(nversion<606)then
+        epsp=1.1       ! new is -20.
+        newrough=0     ! new is 2
+        nstag=-10      ! new is 5
+        nstagu=3       ! new is 5
+        ntsur=6        ! new is 7
+        nvad=4         ! new is -4
+        mbase=10       ! new is 2000
+      endif
+      if(nversion<604)then
+        mh_bs=3        ! new is 4
+      endif
+      if(nversion<602)then
+        ntbar=9        ! new is 4
+      endif
+       if(nversion<601)then
+        epsp=1.2       ! new is 1.1
+        newrough=2     ! new is 0
+        restol=1.e-6   ! new is 2.e-7
+      endif
+      if(nversion<511)then
+        nstag=3        ! new is -10
+        nvsplit=3      ! new is 2
+!       mins_rad=120   ! new is 72   not in common block, so can't assign here
+        detrain=.1     ! new is .3
+        mbase=1        ! new is 10
+        nuvconv=5      ! new is 0
+        sigcb=.97      ! new is 1.
+      endif
+      if(nversion<510)then
+        epsp=.1        ! new is 1.2
+        epsu=.1        ! new is 0.
+        khdif=5        ! new is 2
+        khor=0         ! new is -8
+        nbarewet=7     ! new is 0
+        newrough=0     ! new is 2
+        nhor=0         ! new is -157
+        nhorps=1       ! new is -1
+        nlocal=5       ! new is 6
+        ntsur=7        ! new is 6
+        nxmap=1        ! new is 0
+!       jalbfix=0      ! new is 1  not in common block, so can't assign here
+        tss_sh=0.      ! new is 1.
+        zobgin=.05     ! new is .02
+        detrain=.4     ! new is .1
+        convtime=.3    ! new is .33
+        iterconv=2     ! new is 3
+        mbase=0        ! new is 1
+        sigcb=1.       ! new is .97
+        sigkscb=.98    ! new is -2.
+        tied_rh=.75    ! new is .99
+        ldr=2          ! new is 1
+        rcm=1.e-5      ! new is .92e-5
+      endif
+      if(nversion<509)then
+        ntsur=6        ! new is 7
+      endif
+      if(nversion<508)then
+        mh_bs=1        ! new is 3
+!       mhint=2        ! new is 0   can only be re-set in parameter statement
+        nvmix=4        ! new is 3
+        entrain=.3     ! new is 0.
+      endif
+       if(nversion<507)then
+        nxmap=0        ! new is 1
+      endif
+       if(nversion<506)then
+        mh_bs=4        ! new is 1
+!       mhint=0        ! new is 2   can only be re-set in parameter statement
+      endif
+      if(nversion<503)then
+        ntsur=5        ! new is 6
+      endif
+      if(nversion<411)then
+        nstag=-3       ! new is 3
+        nstagu=-3      ! new is 3
+        nvadh=1        ! new is 2
+        nhor=155       ! new is 0
+        nlocal=1       ! new is 5
+        nvsplit=2      ! new is 3
+        ngwd=0         ! new is -5
+        nevapls=5      ! new is -4
+        nuvconv=0      ! new is 5
+        detrain=.05    ! new is .4
+        entrain=0.     ! new is .3
+        detrainx=1.    ! new is 0.
+        dsig2=.1       ! new is .15
+        dsig4=.55      ! new is .4
+        kscmom=0       ! new is 1
+        ldr=1          ! new is 2
+        nbarewet=2     ! new is 7
+        av_vmod=1.     ! new is .7
+        chn10=.00137   ! new is .00125
+      endif
+      return
+      end

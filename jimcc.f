@@ -8,9 +8,10 @@ c      parameter(n=4*il ,np=n+1,non2=n/2)    !jlm for quad res. grid
       parameter(ipanel=2,ngrmax=1,ndiagj=0)
 c      include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       integer :: myid,num
-      real em4(4*il+1,4*il+1),xx4(4*il+1,4*il+1),yy4(4*il+1,4*il+1)
-     .    ,ax4(4*il+1,4*il+1),ay4(4*il+1,4*il+1),az4(4*il+1,4*il+1)
+      real em4(4*il+1,4*il+1),
+     .     ax4(4*il+1,4*il+1),ay4(4*il+1,4*il+1),az4(4*il+1,4*il+1)
       real xa(4*il+1,4*il+1),xb(4*il+1,4*il+1),xc(4*il+1,4*il+1)
+      real*8 xx4(4*il+1,4*il+1),yy4(4*il+1,4*il+1)
 c     equivalence (xb,xx4),(xc,yy4)  ! just to save on storage  jlm
       save num
       data num/0/
@@ -80,8 +81,8 @@ c      these are values on the sphere
 c      now convert these to just x,y values on the cube
        do j=1,np
         do i=1,np
-         xx4(i,j)=xb(i,j)/xa(i,j)
-         yy4(i,j)=xc(i,j)/xa(i,j)
+         xx4(i,j)=real(xb(i,j),8)/real(xa(i,j),8)
+         yy4(i,j)=real(xc(i,j),8)/real(xa(i,j),8)
         enddo
        enddo
 
@@ -129,7 +130,7 @@ c    .         +(xc(i+1,j)-xc(i,j))**2)
 c        print *,'edge,cent,rat ',edge,cent,edge/cent
 c      endif  ! ngr.eq.1
       enddo  ! ngr loop
-
+      return
       END
 
 C------------------------------------------------------------------------------C

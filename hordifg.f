@@ -25,10 +25,10 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       include 'parm.h'
       include 'sigs.h'
       include 'vecsuv.h'   ! vecsuv info
+      include 'vvel.h'
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
-      real, dimension(ifull+iextra) :: aa, bb
       integer, parameter :: nf=2
 !     Local variables
       integer iq, k, nhora, nhorx
@@ -69,61 +69,6 @@ c     expect power nf to be about 1 or 2 (see data statement)
       enddo   !  iq loop
 c     above code independent of k
 
-      if(nhorps>0)then
-!       evolving biharmonic code for psl    
-c       do psl diffusion based on orog-corrected ff
-        do iq=1,ifull
-         aa(iq)=zs(iq)+287.*t(iq,2)*psl(iq) ! N.B. level 2 T
-        enddo   !  iq loop
-        call bounds(aa)
-        do iq=1,ifull
-         bb(iq)= ((aa(ie(iq))-aa(iq))/emu(iq)             
-     &           +(aa(in(iq))-aa(iq))/emv(iq)
-     &           +(aa(iw(iq))-aa(iq))/emu(iwu(iq))
-     &           +(aa(is(iq))-aa(iq))/emv(isv(iq)))/em(iq)
-        enddo   !  iq loop
-        call bounds(bb)
-        do iq=1,ifull
-         aa(iq)= -.01*nhorps*dt*em(iq)**4/(ds*em(iq))*
-     &           ((bb(ie(iq))-bb(iq))/emu(iq)              
-     &           +(bb(in(iq))-bb(iq))/emv(iq)
-     &           +(bb(iw(iq))-bb(iq))/emu(iwu(iq))
-     &           +(bb(is(iq))-bb(iq))/emv(isv(iq)))/em(iq)
-         psl(iq)=psl(iq)+aa(iq)/(287.*t(iq,2)) 
-        enddo   !  iq loop
-        call maxmin(aa,'aa',ktau,1.,1)  
-        if(nhorps<99999)return  
- !       evolving biharmonic code for T    
-c        do T diffusion based on potential temperature ff
-          do k=1,kl
-             do iq=1,ifull
-                ff(iq,k)=t(iq,k)/ptemp(iq) 
-             enddo   !  iq loop
-          enddo
-          call bounds(ff)
-          do k=1,kl
-           do iq=1,ifull
-            ee(iq,k)= ((ff(ie(iq),k)-ff(iq,k))/emu(iq)             
-     &                +(ff(in(iq),k)-ff(iq,k))/emv(iq)
-     &                +(ff(iw(iq),k)-ff(iq,k))/emu(iwu(iq))
-     &                +(ff(is(iq),k)-ff(iq,k))/emv(isv(iq)))/em(iq)
-           enddo   !  iq loop
-          enddo
-          call bounds(ee)
-          do k=1,kl
-           do iq=1,ifull
-            ff(iq,k)= -.01*nhorps*dt*em(iq)**4/(ds*em(iq))*ptemp(iq)*
-     &                ((ee(ie(iq),k)-ee(iq,k))/emu(iq)              
-     &                +(ee(in(iq),k)-ee(iq,k))/emv(iq)
-     &                +(ee(iw(iq),k)-ee(iq,k))/emu(iwu(iq))
-     &                +(ee(is(iq),k)-ee(iq,k))/emv(isv(iq)))/em(iq)
-            t(iq,k)=  t(iq,k)+ff(iq,k)
-         enddo   !  iq loop
-        enddo
-        call maxmin(ff,'ff',ktau,1.,kl)  
-        return  
-      endif  ! (nhorps==1)
-
       if(diag.and.mydiag)then
          print *,'hordifgt u ',(u(idjd,k),k=1,kl)
          print *,'hordifgt v ',(v(idjd,k),k=1,kl)
@@ -143,7 +88,7 @@ c        do T diffusion based on potential temperature ff
       call bounds(vc)
       call bounds(wc)
 
-      if(nhorjlm.eq.1)then
+      if(nhorjlm==1)then
 c      jlm scheme using 3D uc, vc, wc
          do k=1,kl
             do iq=1,ifull
@@ -157,10 +102,28 @@ c      jlm scheme using 3D uc, vc, wc
 !              N.B. using double grid length
                t_kh(iq,k)= .5*sqrt(cc)*hdif/em(iq) ! this one without em in D terms
             enddo               !  iq loop
-         end do
+         enddo
+      elseif(nhorjlm==2)then
+c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
+         do k=1,kl
+            do iq=1,ifull
+               cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 +
+     &              (uc(in(iq),k)-uc(is(iq),k))**2 +
+     &              (vc(ie(iq),k)-vc(iw(iq),k))**2 +
+     &              (vc(in(iq),k)-vc(is(iq),k))**2 +
+     &              (wc(ie(iq),k)-wc(iw(iq),k))**2 +
+     &              (wc(in(iq),k)-wc(is(iq),k))**2 +
+     & .01*(dpsldt(ie(iq),k)*ps(ie(iq))-dpsldt(iw(iq),k)*ps(iw(iq)))**2+
+     & .01*(dpsldt(in(iq),k)*ps(in(iq))-dpsldt(is(iq),k)*ps(is(iq)))**2 
+!         approx 1 Pa/s = .1 m/s     
+               hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1 
+!              N.B. using double grid length
+               t_kh(iq,k)= .5*sqrt(cc)*hdif/em(iq) ! this one without em in D terms
+            enddo               !  iq loop
+         enddo
 
       else
-         print*, "NHORJLM /= 1 not implemented in MPI version"
+         print*, "NHORJLM /= 1,2 not implemented in MPI version"
          stop
 
 !        Need to understand the special panel boundary stuff

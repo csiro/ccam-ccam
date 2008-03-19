@@ -398,7 +398,7 @@ c but reverts to Louis stable treatment for nlocal=-1
                 if(nrkmin==2)rkmin=vk*ustar(iq)*zmzp*zzh
                 if(nrkmin==3)rkmin=max(rkh(iq,k),vk*ustar(iq)*zmzp*zzh)
                 if(nrkmin==1.or.nlocal==6)rkmin=rkh(iq,k)
-                if(ntest==1)then
+                if(ntest==1.and.mydiag)then
                   if(iq==idjd)then
                     print *,'in pbldif k,ustar,zmzp,zh,zl,zzh ',
      .                                 k,ustar(iq),zmzp,zh,zl,zzh
@@ -448,7 +448,7 @@ C     update theta and qtg due to counter gradient
      $        sigotbk*rkh(iq,k)*cgq(iq,k)
       end do
 
-      if (ntest>0) then
+      if (ntest>0.and.mydiag) then
          print *,'pbldif'
          print *,'rkh= ',(rkh(idjd,k),k=1,kl)
          print *,'theta= ',(theta(idjd,k),k=1,kl)

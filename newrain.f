@@ -187,7 +187,7 @@ c These give the ice values needed for the qcloud scheme
 
 C Start code : ----------------------------------------------------------
 
-        if(ntest>0)then
+        if(ntest>0.and.mydiag)then
           mg=idjd
           write(25,'(a,3i3)')'IPASS=1, Before newrain ktau= ',ktau
           write(25,91)'rhoa',(rhoa(mg,k),k=1,nl)
@@ -530,7 +530,7 @@ c      enddo
 
 c Diagnostics for debugging
 
-        if(ntest>0)then
+        if(ntest>0.and.mydiag)then
           mg=idjd
           write(25,'(a,3i3)')'IPASS=1, after newrain  ktau= ',ktau
           write(25,91)'ttg ',(ttg(mg,k),k=1,nl)

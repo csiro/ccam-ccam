@@ -55,8 +55,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      & wb(ifull,ms),wbice(ifull,ms),snowd(ifull),sicedep(ifull),
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     & ssdnn(ifull),snage(ifull),
-     & urban(ifull,12) ! MJT urban
+     & ssdnn(ifull),snage(ifull),urban(ifull,12) ! MJT urban
       integer, save :: isoilm_h(ifull) ! MJT lsmask
       ! Dummy variables here replace the aliasing use of aa, bb in infile call
       real, dimension(ifull) :: dum5
@@ -88,7 +87,7 @@ c     zs_t(:)=zs(1:ifull)
          bz_t(:) = bz_g(:)
 
 c     start of processing loop 
-      nemi=3   !  MJT CHANGE - lsmask
+      nemi=3   !  MJT lsmask
       if(ktau<3.and.myid==0)print *,'search for kdate_s,ktime_s >= ',
      &                                          kdate_s,ktime_s
       id_t=id
@@ -147,7 +146,7 @@ c        call setxyz(myid,-ik)      ! for source data geometry        **********
 !     rotpole(3,) is z-axis of rotated coords in terms of orig Cartesian
          rotpole = calc_rotpole(rlong0_t,rlat0_t)
          if(nmaxpr==1)then   ! already in myid==0 loop
-            print *,'rotpole:'
+            print *,'in onthefly rotpole:'
             do i=1,3
                print 9,(i,j,j=1,3),(rotpole(i,j),j=1,3)
  9             format(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)
@@ -393,7 +392,7 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
             call doints4(urban(:,k),nface4,xg4,yg4,nord,ik)
           end do
         end if
-        !--------------------------------------------------	
+        !--------------------------------------------------	        
 c       incorporate target land mask effects for initial fields
         do iq=1,ifull
          if(land_t(iq))then
@@ -420,6 +419,11 @@ c       incorporate target land mask effects for initial fields
          ssdnn(iq)  = ssdn(iq,1)
          if(snowd(iq)>0.)tgg(iq,1)=min(tgg(iq,1),270.1)
         enddo   ! iq loop
+c        do k=1,ms     ! wbice presets done near end of indata from Dec 07
+c!         following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
+c          wbice(:,k)=
+c     &         min(.99,max(0.,.99*(273.1-tgg(:,k))/5.))*wb(:,k) ! jlm
+c         enddo ! ms
       endif    ! (nested==0)
 
 c     incorporate other target land mask effects
@@ -487,6 +491,7 @@ c     zs(1:ifull) = zs_t(:)
       end subroutine doints4
 
       subroutine ints4(s,nface4 ,xg4 ,yg4,nord,ik)  ! does calls to intsb
+      use cc_mpi, only : mydiag
       implicit none
       include 'newmpar.h'
       include 'parm.h'
@@ -508,7 +513,7 @@ c     zs(1:ifull) = zs_t(:)
             call intsb(s,wrk(1,m),nface4(1,m),xg4(1,m),yg4(1,m),ik)
          enddo
       endif   ! (nord==1)  .. else ..
-      if(ntest>0)then
+      if(ntest>0.and.mydiag)then
          print *,'in ints4 for id,jd,nord: ',id,jd,nord
          print *,'nface4(1-4) ',(nface4(idjd,m),m=1,4)
          print *,'xg4(1-4) ',(xg4(idjd,m),m=1,4)

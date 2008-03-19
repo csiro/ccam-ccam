@@ -1116,7 +1116,7 @@ return
 end subroutine getqsat
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Based on Eva's sflux.f (i.e., vegetation)
+! Based on Eva's sflux.f version (i.e., vegetation)
 ! Modified for increased ratio between momentum and heat roughness
 ! lengths over urban areas.
 

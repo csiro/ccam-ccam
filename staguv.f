@@ -18,7 +18,6 @@ c     use diag_m             ! for calls to maxmin
       include 'parm.h'
       include 'parmdyn.h'
       include 'vecsuv.h'   ! vecsuv info
-      include 'vecsuva.h'  ! vecsuva info
       real, dimension(ifull,kl), intent(in)  :: u, v
       real, dimension(ifull,kl), intent(out) :: uout, vout
       real, dimension(ifull+iextra,kl) :: ua, va, ud, vd,
@@ -190,7 +189,6 @@ c     staggered u & v as input; unstaggered as output
       include 'parm.h'
       include 'parmdyn.h'
       include 'vecsuv.h'   ! vecsuv info
-      include 'vecsuva.h'  ! vecsuva info
       real, dimension(ifull,kl), intent(in)  :: u, v
       real, dimension(ifull,kl), intent(out) :: uout, vout
       real, dimension(ifull+iextra,kl) :: ua, va, ud, vd,

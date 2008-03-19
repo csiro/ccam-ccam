@@ -15,7 +15,7 @@
       use zenith_m
       use cc_mpi
       use diag_m
-      use ateb ! MJT urban
+      use ateb ! MJT urban      
       include 'newmpar.h'
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
 !        for diag prints set ntest=1
@@ -217,7 +217,7 @@ c    &               rlongg(1+(j-1)*il),dhr,imax,coszro2,taudar2)
          call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),
      &               rlongg(istart:iend),dhr,imax,coszro2,taudar2)
          call tebccangle(istart,imax,coszro2(1:imax) ! MJT urban
-     &    ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt,0)
+     &    ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt,0)     
       end if    !  ( solarfit )
 
       if ( odcalc ) then     ! Do the calculation
@@ -329,7 +329,7 @@ c	     Snow albedo is dependent on zenith angle and  snow age.
             aliro = 0.65        !alb. for near-infr. on a new snow
             fage = 1.-1./(1.+snage(iq))	 !age factor
 
-            if(ntest.eq.1.and.iq.eq.idjd)then
+            if(ntest.eq.1.and.iq.eq.idjd.and.mydiag)then
               print *,'ar1,ar2,snowd,ssdnn ',
      .                 ar1,ar2,snowd(iq),ssdnn(iq)
               print *,'exp_ar1,exp_ar2,ar3 ',
@@ -355,7 +355,7 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
              tsigmfx=(1.-cc)*tsigmf(iq)      ! mult by snow free veg. fraction
 
             alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
-            if(nsib.ge.3)then
+            if(nsib.ge.3)then 
               cuvrf(i,1)=alss
             else
               cuvrf(i,1)=min(.8,(1.-tsigmfx)*alss+tsigmfx*albsav(iq))
@@ -686,7 +686,7 @@ c       endif
       rtx(istart:iend)=rt(:)
 
  100  continue  ! Row loop (j)  j=1,jl,imax/il
-      if(ntest.gt.0)then
+      if(ntest>0.and.mydiag)then
         print *,'rgsave,rtsave,sintsave ',
      .           rgsave(idjd),rtsave(idjd),sintsave(idjd)
         print *,'sgsave,rtclsave,sgclsave ',

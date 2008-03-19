@@ -1,5 +1,5 @@
       subroutine sflux(nalpha)              ! for globpe code
-      use ateb ! MJT urban      
+      use ateb ! MJT urban         
       use diag_m
       use cc_mpi
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
@@ -60,8 +60,8 @@ c     include 'map.h'      ! land
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
      . ism(ifull),fwtop(ifull),af(ifull),   ! watch soilsnow.f after epot
      . extin(ifull),dum3(5*ijk-17*ifull)
+      real zoh(ifull) ! MJT Urban - add zoh     
       real plens(ifull),vmag(ifull),charnck(ifull)
-      real zoh(ifull) ! MJT Urban - add zoh
       save plens
       data plens/ifull*0./
       include 'establ.h'
@@ -307,7 +307,7 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now
        taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                             ! sea
        tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                             ! sea
        ! note that iq==idjd  can only be true on the correct processor
-       if(ntest==1.and.iq==idjd)then                                 ! sea
+       if(ntest==1.and.iq==idjd.and.mydiag)then                      ! sea
          print *,'in sea-type loop for iq,idjd: ',iq,idjd            ! sea
          print *,'zmin,zo,factch ',zmin,zo(iq),factch(iq)            ! sea         
          print *,'ri,ustar,es ',ri(iq),ustar(iq),es                  ! sea
@@ -393,7 +393,7 @@ c        Now heat ; allow for smaller zo via aft and factch         ! sice
 !      fgice & egice renamed as fgf and fev from Aug 05 to aid diags	
        fgf(iq)=conh*fh(iq)*(tgg(iq,3)-theta(iq))                    ! sice
        dfgdt(iq)=conh*fh(iq)                                        ! sice
-       if(ntest==1.and.iq==idjd)then                                ! sice
+       if(ntest==1.and.iq==idjd.and.mydiag)then                     ! sice
          print *,'in sice loop'                                     ! sice
          print *,'zmin,zo,wetfac ',zmin,zoice,wetfac(iq)            ! sice
          print *,'ri_ice,es ',ri_ice,es                             ! sice
@@ -541,7 +541,7 @@ c      cdtq(iq) =aft(iq)*fh(iq)                                     ! land
 c      Surface stresses taux, tauy: diagnostic only - unstaggered now   
        taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                            ! land
        tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! land
-       if(ntest==1.and.iq==idjd)then                                ! land
+       if(ntest==1.and.iq==idjd.and.mydiag)then                     ! land
          print *,'in main land loop'                                ! land
          print *,'zmin,zobg,zobgin,snowd ',zmin,zobg,zobgin,snowd(iq) 
          print *,'afland,aftland,zologbg ',afland,aftland,zologbg   ! land
@@ -612,12 +612,12 @@ c            Now heat ; allow for smaller zo via aft and factch     ! land
          endif
         enddo
       endif  ! (ntaft==0.or.ktau==1)  .. else ..
-      if(ntest>0)then
+      if(ntest>0.and.mydiag)then
         print *,'before sib3 zo,zolnd,af ',zo(idjd),zolnd(idjd),af(idjd)
       endif
 c ----------------------------------------------------------------------
         call sib3(nalpha)  ! for nsib=3, 5
-	
+        
       !----------------------------------------------------------
       ! MJT urban
       if (nurban.ne.0) then
@@ -646,8 +646,7 @@ c ----------------------------------------------------------------------
         end do
       end if
       !----------------------------------------------------------
-	
-	
+              
 c ----------------------------------------------------------------------
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
       if(diag.or.ntest>0)then
@@ -843,14 +842,14 @@ c                             if( tsoil >= tstom ) ftsoil=1.
         end where
       endif  !(nsib==3) .. else ..
 
-    !    if(ktau==1)then  !To initialize new nsib=1/3 run (or restart) only
-    !      print *,'ipland,ipsice,ipsea in sflux: ',
-    ! .             ipland,ipsice,ipsea
-    !      do iq=1,ifull  ! give default over sea too
-    !       tgf(iq) = t(iq,1)  ! was tss(iq)
-    !       rmc(iq) = 0.
-    !      enddo    
-    !    endif  ! if(ktau==1)
+        if(ktau==1)then  !To initialize new nsib=1/3 run (or restart) only
+          print *,'ipland,ipsice,ipsea in sflux: ',
+     .             ipland,ipsice,ipsea
+          do iq=1,ifull  ! give default over sea too
+           tgf(iq) = t(iq,1)  ! was tss(iq)
+           rmc(iq) = 0.
+          enddo    
+        endif  ! if(ktau==1)
 
       if(ktau==1)then
         if(mydiag)print *,'ipland,ipsice,ipsea in sflux: ',
@@ -861,7 +860,7 @@ c                             if( tsoil >= tstom ) ftsoil=1.
         enddo    
         do iq=1,ifull
          if(land(iq))then  ! following gives agreement on restarts
-           ! MJT removed - problems with snow and urban...
+           ! MJT urban - remove due to problems with urban (and snow?)...         
            !tgf(iq)=(tss(iq)-(1.-tsigmf(iq))*tgg(iq,1))/tsigmf(iq) ! from Dec 07
            tscrn(iq)=theta(iq)  ! first guess, needed for newfgf=1
            if(nrungcm==3)then
@@ -886,7 +885,7 @@ c                             if( tsoil >= tstom ) ftsoil=1.
         endif
       endif           ! (ktau==1)
 
-      if(ntest==1) then
+      if(ntest==1.and.mydiag) then
          iq=idjd
          iveg=ivegt(iq)
          print *,'in sib3a iq,iveg ',iq,iveg
@@ -911,7 +910,7 @@ c                             if( tsoil >= tstom ) ftsoil=1.
 !      extin(iq)=exp(-0.6*max(1.,rlai(iq)))  ! good approx uses next 2 (jlm)
        xxx=.6*max(1.,rlai(iq))
        extin(iq)=1.-xxx/(1. +.5*xxx +xxx*xxx/12.) 
-       if(ntest==1.and.iq==idjd) then
+       if(ntest==1.and.iq==idjd.and.mydiag) then
          print *,'in sib3c ip,iq,idjd,iveg ',ip,iq,idjd,ivegt(iq)
          print*,'iveg,sigmf(iq),tsigmf ',ivegt(iq),sigmf(iq),tsigmf(iq)
          print*,'scveg44,snowd,zo,zolnd,tstom ',
@@ -931,7 +930,6 @@ c      bare ground calculation
        tgss2=tgss*tgss
        dqsttg(iq)=qsttg(iq)*ps(iq)*hlars/((ps(iq)-esattg)*tgss2)
        rgg(iq) =  stefbo*tgss2**2   ! i.e. stefbo*tgss**4
-!      rgg(iq) = (1.-.05*sigmu(iq))*stefbo*tgss2**2   ! MJT delete urban
        dirad(iq)=4.*rgg(iq)/tgss
 c      sensible heat flux
        dfgdt(iq)=taftfhg(iq)*rho(iq)*cp
@@ -1039,8 +1037,6 @@ c      sensible heat flux
          wetfac(iq)=max( 0.,min(1.,fle) )
         enddo   ! ip=1,ipland
       endif     ! (nbarewet==8)
-
-!     wetfac(:)=wetfac(:)*(1.-sigmu(:)) ! MJT delete urban
 
       if(nalpha==1)then    ! beta scheme
 !cdir nodep
@@ -1159,7 +1155,7 @@ c                       depth of the reservoir of water on the canopy
           omc(iq) = rmc(iq)  ! value from previous timestep as starting guess
           f3=max(1.-.00025*(establ(t(iq,1))-qg(iq,1)*ps(iq)/.622), .05)
           res(iq)=max(30.,rsmin(iq)*f1*f2/(f3*f4))
-          if(ntest==1.and.iq==idjd)then
+          if(ntest==1.and.iq==idjd.and.mydiag)then
            print *,'rlai,srlai,wbav,den ',rlai(iq),srlai(iq),wbav,den
            print *,'f1,f2,f3,f4 ',f1,f2,f3,f4
            print *,'ff,f124,rsi,res ',ff,f1*f2/f4,rsi,res(iq)
@@ -1222,7 +1218,7 @@ c                                                     Calculate dE/dTg
             residp = -(dirad1 + devf + prz)
             sstgf = tgf(iq)
             tgf(iq)=tgf(iq)-residf(iq)/residp
-            if(ntest==1.and.iq==idjd)then
+            if(ntest==1.and.iq==idjd.and.mydiag)then
               print *,'icount,omc,rmc,otgf ',
      .                 icount,omc(iq),rmc(iq),otgf(iq)
               print *,'tfg,residf,evapxf,fgf ',
@@ -1271,7 +1267,7 @@ c                     depth of the reservoir of water on the canopy
         omc(iq) = rmc(iq)  ! value from previous timestep as starting guess
         f3=max(1.-.00025*(establ(t(iq,1))-qg(iq,1)*ps(iq)/.622),.05)
         res(iq)=max(30.,rsmin(iq)*f1*f2/(f3*f4))
-        if(ntest==1.and.iq==idjd)then
+        if(ntest==1.and.iq==idjd.and.mydiag)then
           print *,'rlai,srlai,wbav,den ',rlai(iq),srlai(iq),wbav,den
           print *,'f1,f2,f3,f4 ',f1,f2,f3,f4
           print *,'ff,f124,rsi,res ',ff,f1*f2/f4,rsi,res(iq)
@@ -1404,8 +1400,7 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
        iq=iperm(ip)
        if(rmc(iq)<1.e-10)rmc(iq)=0.  ! to avoid underflow 24/1/06
        if(tsigmf(iq) <= .0101) then
-c        condxpr(iq)=condx(iq)*(1.-sigmu(iq)) ! MJT CHANGE 6/1/07 - Urban
-         condxpr(iq)=condx(iq) ! MJT CHANGE 16/1/07 - Reverse previous change
+         condxpr(iq)=condx(iq)
          evapfb(iq) = 0.
          evapxf(iq) = egg(iq)
          fgf(iq)  = fgg(iq)
@@ -1418,10 +1413,7 @@ c        condxpr(iq)=condx(iq)*(1.-sigmu(iq)) ! MJT CHANGE 6/1/07 - Urban
          wb(iq,3)=wb(iq,3)-evapfb3(iq)/(zse(3)*1000.)
          wb(iq,4)=wb(iq,4)-evapfb4(iq)/(zse(4)*1000.)
          wb(iq,5)=wb(iq,5)-evapfb5(iq)/(zse(5)*1000.)
-c        condxpr(iq)=(1.-tsigmf(iq))*(1.-sigmu(iq))*condx(iq)
-c    &     + tsigmf(iq)*condxg(iq) ! MJT CHANGE 6/1/07 - Urban
-         condxpr(iq)=(1.-tsigmf(iq))*condx(iq)
-     &     + tsigmf(iq)*condxg(iq) ! MJT CHANGE 16/1/07 - Reverse previous change
+         condxpr(iq)=(1.-tsigmf(iq))*condx(iq)+tsigmf(iq)*condxg(iq)
          if(ntest==1.and.abs(residf(iq))>10.)
      .      print *,'iq,otgf(iq),tgf,delta_tx,residf '
      .              ,iq,otgf(iq),tgf(iq),delta_tx(iq),residf(iq)

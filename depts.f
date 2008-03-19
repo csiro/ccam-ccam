@@ -19,7 +19,7 @@ c     modify toij5 for Cray
 !     Work common for these?
 !     temp needs iextra becaue it's used in ints
       real uc(ifull,kl),vc(ifull,kl),wc(ifull,kl), temp(ifull+iextra,kl)
-      real x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)   ! upglobal depts 
+      real*8 x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)   ! upglobal depts 
       integer iq, k, intsch
 
       call start_log(depts_begin)
@@ -43,9 +43,11 @@ c     convert to grid point numbering
 !     Share off processor departure points.
       call deptsync(nface,xg,yg)
 
-      if(ntest.eq.1.and.mydiag)then
+      if(diag.and.mydiag)then
         print *,'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
         print *,'uc,vc,wc ',uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
+        print *,'x,y,z ',x(idjd),y(idjd),z(idjd)
+        
         print *,'1st guess for k = ',nlv
         print *,'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
         print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
@@ -76,7 +78,7 @@ c     convert to grid point numbering
       end do
 !     Share off processor departure points.
       call deptsync(nface,xg,yg)
-      if(ntest.eq.1.and.mydiag)then
+      if(diag.and.mydiag)then
         print *,'2nd guess for k = ',nlv
         print *,'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
         print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
@@ -104,7 +106,7 @@ c     convert to grid point numbering
       do k=1,kl
          call toij5 (k,x3d(1,k),y3d(1,k),z3d(1,k)) ! maybe remove k dependency
       end do
-      if(ntest.eq.1.and.mydiag)then
+      if(diag.and.mydiag)then
         print *,'3rd guess for k = ',nlv
         print *,'x3d,y3d,z3d ',x3d(idjd,nlv),y3d(idjd,nlv),z3d(idjd,nlv)
         print *,'xg,yg,nface ',xg(idjd,nlv),yg(idjd,nlv),nface(idjd,nlv)
@@ -138,7 +140,7 @@ c     modify toij5 for Cray
       ! Is there an appropriate work common for this?
       real, dimension(ifull,kl) :: gx, gy, gz
       real, dimension(ifull+iextra,kl) :: derx, dery, derz
-      real x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
+      real*8 x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
       integer, parameter :: nit=3, ndiag=0
       integer :: iq, itn, k
       real :: uc, vc, wc
@@ -262,8 +264,10 @@ c     modify toij5 for Cray
       include 'parm.h'
       include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
-      real x3d(ifull),y3d(ifull),z3d(ifull)
+      real*8 x3d(ifull),y3d(ifull),z3d(ifull)
       common/work2b/xstr(ifull),ystr(ifull),zstr(ifull)
+      real*8 alf,alfonsch,den,one  ! 6/11/07 esp for 200m
+      data one/1./             ! to force real*8
       include 'xyzinfo.h'  ! x,y,z,wts
       dimension xgx(0:5),xgy(0:5),xgz(0:5),ygx(0:5),ygy(0:5),ygz(0:5)
       data xgx/0., 0., 0., 0., 1., 1./, ygx/0.,-1.,-1., 0., 0., 0./,
@@ -273,9 +277,12 @@ c     modify toij5 for Cray
       save num
 
       call start_log(toij_begin)
-      if(num.eq.0.and.ncray.eq.0)then  ! check if divide by itself is working
-         call checkdiv(xstr,ystr,zstr)
-         num=1
+      if(num==0)then
+        if(mydiag)print *,'checking for ncray = ',ncray
+        If(ncray==0)then  ! check if divide by itself is working
+          call checkdiv(xstr,ystr,zstr)
+        endif
+        num=1
       endif
 
 !     if necessary, transform (x3d, y3d, z3d) to equivalent
@@ -287,12 +294,14 @@ c     modify toij5 for Cray
          zstr(iq)=z3d(iq)
         enddo   ! iq loop
       else      ! (schmidt.ne.1.)
-        alf=(1.-schmidt**2)/(1.+schmidt**2)
-        alfonsch=(1.-alf)/schmidt
+        alf=(one-schmidt**2)/(one+schmidt**2)
+!       alfonsch=(1.-alf)/schmidt
+        alfonsch=2.*schmidt/(one+schmidt**2)  ! same but bit more accurate
         do iq=1,ifull
-         xstr(iq)=x3d(iq)*alfonsch/(1.-alf*z3d(iq))
-         ystr(iq)=y3d(iq)*alfonsch/(1.-alf*z3d(iq))
-         zstr(iq)=   (z3d(iq)-alf)/(1.-alf*z3d(iq))
+         den=one-alf*z3d(iq) ! to force real*8
+         xstr(iq)=x3d(iq)*(alfonsch/den)
+         ystr(iq)=y3d(iq)*(alfonsch/den)
+         zstr(iq)=   (z3d(iq)-alf)/den
         enddo   ! iq loop
       endif     ! (schmidt.ne.1.)
 
@@ -352,20 +361,21 @@ c         max() allows for 2 of x,y,z being 1.  This is the cunning code:
           yg(iq,k)=ygx(nf)*xd+ygy(nf)*yd+ygz(nf)*zd
         endif    ! (ncray.eq.1)
        enddo   ! iq loop   
-	if(ntest.eq.1)then
+	if(ntest==1.and.k==nlv)then
 	 iq=idjd
-        denxyz=max( abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq)) )
-        xd=xstr(iq)/denxyz
-        yd=ystr(iq)/denxyz
-        zd=zstr(iq)/denxyz
-	 print *,'xstr,ystr,zstr,denxyz ',
-     .           xstr(iq),ystr(iq),zstr(iq),denxyz
-        write(6,'("xstr,ystr,zstr = ",3z20)') xstr(iq),ystr(iq),zstr(iq)
-        write(6,'("denxyz = ",z20)') denxyz
-        write(6,'("xd,yd,zd = ",3z20)') xd,yd,zd
+	 print *,'x3d,y3d,z3d ',x3d(iq),y3d(iq),z3d(iq)
+         den=one-alf*z3d(iq) ! to force real*8
+         print *,'den ',den
+         denxyz=max( abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq)) )
+         xd=xstr(iq)/denxyz
+         yd=ystr(iq)/denxyz
+         zd=zstr(iq)/denxyz
+	 print *,'k,xstr,ystr,zstr,denxyz ',
+     .            k,xstr(iq),ystr(iq),zstr(iq),denxyz
 	 print *,'abs(xstr,ystr,zstr) ',
-     .           abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq))
-	 print *,'xd,yd,zd,nf ',xd,yd,zd,nf
+     .            abs(xstr(iq)),abs(ystr(iq)),abs(zstr(iq))
+	 print *,'xd,yd,zd,nface ',xd,yd,zd,nface(iq,k)
+         print *,'alf,alfonsch ',alf,alfonsch
        endif
        if(ndiag.eq.2)then
          call printp('xcub',xd)  ! need to reinstate as arrays for this diag
@@ -379,11 +389,15 @@ c       call printn('nfac',nface)
 
 c     use 4* resolution grid il --> 4*il
       do iq=1,ifull
+c      if(iq<10.and.k==nlv)print *,'iq,xg,yg ',iq,xg(iq,k),yg(iq,k)
        xg(iq,k)=min(max(-.99999,xg(iq,k)),.99999)
        yg(iq,k)=min(max(-.99999,yg(iq,k)),.99999)
 c      first guess for ri, rj and nearest i,j
        ri=1.+(1.+xg(iq,k))*2*il_g
        rj=1.+(1.+yg(iq,k))*2*il_g
+       if(ntest==1.and.iq==idjd.and.k==nlv)then
+         print *,'A: xg,yg,ri,rj ',xg(iq,k),yg(iq,k),ri,rj
+       endif
        do loop=1,nmaploop
         i=nint(ri)
         j=nint(rj)
@@ -393,10 +407,21 @@ c       predict new value for ri, rj
         dxx=xx4(i+is,j)-xx4(i,j)
         dyx=xx4(i,j+js)-xx4(i,j)
         dxy=yy4(i+is,j)-yy4(i,j)
-        dyy=yy4(i,j+js)-yy4(i,j)
+        dyy=yy4(i,j+js)-yy4(i,j)       
         den=dxx*dyy-dyx*dxy
+c       if(iq<10.and.k==nlv)then
+c        print *,'i,j,is,js,ri,rj ',i,j,is,js,ri,rj
+c        print *,'xx4,yy4 ',xx4(i,j),yy4(i,j)
+c        print *,'xx4a,xx4b ',xx4(i+is,j),xx4(i,j+js)
+c        print *,'yy4a,yy4b ',yy4(i+is,j),yy4(i,j+js)
+c        print *,'loop,dxx,dyy,dyx,dxy,den ',loop,dxx,dyy,dyx,dxy,den
+c       endif
         ri=i+is*((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/den
         rj=j+js*((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/den
+        if(ntest==1.and.iq==idjd.and.k==nlv)then
+          print *,'B: xg,yg,ri,rj ',xg(iq,k),yg(iq,k),ri,rj
+          print *,'i,j,xx4,yy4 ',i,j,xx4(i,j),yy4(i,j)
+        endif
        enddo  ! loop loop
 c      expect xg, yg to range between .5 and il+.5
        xg(iq,k)=.25*(ri+3.) -.5  ! -.5 for stag; back to normal ri, rj defn

@@ -3,9 +3,9 @@
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                  tgg,wb,wbice,alb,snowd,
      .                  tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                  isoilh,urban) ! MJT lsmask - add isoilh ! MJT urban
+     .                  isoilh,urban) ! MJT lsmask ! MJT urban 
 !     note kk; vertint.f is attached below
-!     kdate_r and ktime_r are returned from this routine.
+!     kdate_r and ktime_r are returned from this routwine.
 !     They must equal or exceed kdate_s and ktime_s
 !     Note that kdate_s and ktime_s are updated progressively in this 
 !     routine to allow for nesting
@@ -36,9 +36,8 @@
      . snowd(ifull),alb(ifull),sicedep(ifull),fracice(ifull),
      . t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     . ssdnn(ifull),snage(ifull),
-     . urban(ifull,1:12) ! MJT urban
-      integer isoilh(ifull) ! MJT lsmask - add isoilh
+     . ssdnn(ifull),snage(ifull),urban(ifull,1:12) ! MJT urban
+      integer isoilh(ifull) ! MJT lsmask     
       integer isflag(ifull)
       integer ktau_r, ibb, jbb, i
       integer ini,inj,ink,m2,nsd2,mesi,nbd2
@@ -63,7 +62,7 @@
       integer, parameter :: nihead=54,nrhead=14
       integer nahead(nihead)
       integer ::  kdatea,kdateb,ktimea,ktimeb
-      integer,save ::mtimer_use      
+      integer,save ::mtimer_use 
       real ahead(nrhead)
       equivalence (nahead,ini),(ahead,tds)
 
@@ -192,9 +191,9 @@ c***********************************************************************
           call ncvgt1(ncid,idv,2,ktimeb,ier) 
           mtimer_use=1
           if(kdatea.ne.kdateb.or.ktimea.ne.ktimeb)mtimer_use=0
-          if(kdateb<kdatea)mtimer_use=1 ! e.g., for restart file
-          print *,'ktau,kdatea,kdateb,ktimea,ktimeb,mtimer_use ',
-     &             ktau,kdatea,kdateb,ktimea,ktimeb,mtimer_use
+          if(ier.ne.0)mtimer_use=1 ! for single time, e.g. restart file
+          print *,'ktau,ier,kdatea,kdateb,ktimea,ktimeb,mtimer_use ',
+     &             ktau,ier,kdatea,kdateb,ktimea,ktimeb,mtimer_use
         endif
         print *,'searching for the first date >= kdate_s,ktime_s ',
      &           kdate_s,ktime_s
@@ -204,7 +203,7 @@ c***********************************************************************
 c       turn OFF fatal netcdf errors
         call ncpopt(0)
         idv = ncvid(ncid,'timestamp',ier)
-        print *,'timestamp idv,ier,iarchi=',idv,ier,iarchi
+c       print *,'timestamp idv,ier,iarchi=',idv,ier,iarchi
 c       turn ON fatal netcdf errors
         call ncpopt(NCVERBOS+NCFATAL)
         if(ier==0)then
@@ -265,19 +264,6 @@ c       turn ON fatal netcdf errors
            kdate_r=idy+100*(imo+100*iyr)
            ktime_r=ihr*100
         endif  ! (kdate_r==0)
-        print *,'kdate,ktime,ktau,timer_in: ',kdate_r,ktime_r,ktau,timer
-!       fix up timer in 140-year run for roundoff (jlm Mon  01-11-1999)
-!        if(timer>1048583.)then ! applies year 440 mid-month 9
-!           timer=timer+.125
-!        elseif(timer>1048247.)then ! applies year 440 month 9
-!           timer=timer+.0625
-!        endif  ! (timer>1048583.)
-!        print *,'dtin,ktau_r: ',dtin,ktau_r
-!        print *,'kdate,ktime: ',kdate_r,ktime_r,
-!     .          'kdate_s,ktime_s >= ',kdate_s,ktime_s
-!
-!        print *,'in infile; ktau_r,timer: ',ktau_r,timer
-!        print *,'values read in for timer, mtimer: ',timer,mtimer
         print *,'ktau,iarchi,kdate,ktime,timer_in,mtimer: ',
      &           ktau,iarchi,kdate_r,ktime_r,timer,mtimer
         if(mtimer.ne.0)then     ! preferred
@@ -286,14 +272,8 @@ c       turn ON fatal netcdf errors
         else                    ! mtimer = 0
           mtimer=nint(60.*timer)
         endif  ! (mtimer.ne.0)
-!        print *,'giving timer, mtimer: ',timer,mtimer
-        mtimer_in=mtimer
-	
-	
-!        call datefix(kdate_r,ktime_r,mtimer) ! for Y2K, or mtimer>0
-!!       if(2400*kdate_r+ktime_r<2400*(kdate_s+nsemble)+ktime_s)go to 19
-!        print *,'kdate_r..',kdate_r,ktime_r,2400*kdate_r+ktime_r
-!        print *,'..',kdate_s,ktime_s,2400*kdate_s+1200*nsemble+ktime_s
+        mtimer_in=mtimer       
+                 
         if(mtimer_use==1.and.mtimer>0)then
           print *,'using timer, mtimer: ',timer,mtimer
           call datefix(kdate_r,ktime_r,mtimer) ! for Y2K, or mtimer>0
@@ -523,7 +503,9 @@ c 	    only being tested for nested=0; no need to test for mesonest
           call histrd1(ncid,iarchi,ierr,'wetfrac6',ik,jk,wb(:,6))
           wb(:,:)=-abs(wb(:,:)) ! flag to indicate wetfrac, not volumetric soil moisture (unpacked in indata)
         end if
+      !----------------------------------------------------------------
 
+        !------------------------------------------------------------
         ! MJT urban
         urban=-1.
         call histrd1(ncid,iarchi,ierr,'rooftgg1',ik,jk,urban(:,1))
@@ -540,14 +522,14 @@ c 	    only being tested for nested=0; no need to test for mesonest
           call histrd1(ncid,iarchi,ierr,'roadtgg2',ik,jk,urban(:,11))
           call histrd1(ncid,iarchi,ierr,'roadtgg3',ik,jk,urban(:,12))
         end if
-
-      !----------------------------------------------------------------
-      ! MJT lsmask
+        !------------------------------------------------------------        
+        
+        !------------------------------------------------------------
+        ! MJT lsmask
         isoilh=-1
         call histrd1(ncid,iarchi,ierr,'soilt',ik,jk,tmp(:))
         isoilh(:)=nint(tmp(:))
-      !----------------------------------------------------------------
-
+        !------------------------------------------------------------
 
         if(myid == 0)print *,'about to read snowd'
         call histrd1(ncid,iarchi,ier,'snd',ik,jk,snowd)
@@ -588,7 +570,8 @@ c 	    only being tested for nested=0; no need to test for mesonest
            ssdnn(iq)  = ssdn(iq,1)
            if(snowd(iq)>0.)tgg(iq,1)=min(tgg(iq,1),270.1)
           enddo   ! iq loop
-            wbice(:,:)=0.
+!         note permanent wbice may be re-set in indata
+          wbice(:,:)=0.
         else     ! assume all these variables available in restart file
          call histrd1(ncid,iarchi,ier,'smass2',ik,jk,smass(1,2))
          call histrd1(ncid,iarchi,ier,'smass3',ik,jk,smass(1,3))
@@ -617,12 +600,6 @@ c 	    only being tested for nested=0; no need to test for mesonest
      &                   tr(1:ifull,:,igas))
           enddo
         endif
-
-       !--------------------------------------------
-        ! MJT CHANGE delete
-        !call histrd1(ncid,iarchi,ier,'wetfrac',ik,jk,esm)
-        !if (ier.ne.0) esm(:)=-99.
-        !--------------------------------------------
 
         if(mydiag)then
           print *,'at end of infile kdate,ktime,ktau,tss: ',
@@ -730,7 +707,7 @@ c     unpack data
             if(mod(ktau,nmaxpr)==0.or.odiag)then
                vmax = maxval(rvar*sf+addoff) ! MJT CHANGE
                vmin = minval(rvar*sf+addoff) ! MJT CHANGE
-               write(6,'("done histrd1 ",a6,i4,i3,3e14.6)')
+               write(6,'("done histrd1 ",a8,i4,i3,3e14.6)')
      &           name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik)
             endif
          endif ! ier
@@ -911,10 +888,6 @@ c     print *,'in vertint t',t(idjd,:)
         kdate_r=kdate_r+19000000
         print *,'For Y2K kdate_r altered to: ',kdate_r
       endif
-!      if(mtimer_r==0)then
-!         print*,'mtimer_r==0: so return in datefix'
-!         return
-!      endif
       iyr=kdate_r/10000
       imo=(kdate_r-10000*iyr)/100
       iday=kdate_r-10000*iyr-100*imo

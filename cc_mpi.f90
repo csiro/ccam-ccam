@@ -22,17 +22,23 @@ module cc_mpi
    integer, save, private :: nreq
 
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
+             ccmpi_distributer8,  &
              indp, indg, deptsync, intssync, start_log, end_log, check_dims, &
              log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg, &
              ccglobal_sum, iq2iqg, indv_mpi, indglobal, readglobvar, writeglobvar
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
+              ccmpi_distribute2r8,   &
               ccmpi_gather2, ccmpi_gather3, checksize, get_dims, get_dims_gx,&
               ccglobal_posneg2, ccglobal_posneg3, ccglobal_sum2, ccglobal_sum3
    interface ccmpi_gather
       module procedure ccmpi_gather2, ccmpi_gather3
    end interface
    interface ccmpi_distribute
-      module procedure ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3
+      module procedure ccmpi_distribute2, ccmpi_distribute2i,  &    
+                       ccmpi_distribute3
+   end interface
+   interface ccmpi_distributer8
+      module procedure ccmpi_distribute2r8
    end interface
    interface bounds
       module procedure bounds2, bounds3
@@ -226,9 +232,9 @@ contains
          call ccmpi_distribute(fv,fv_g)
          call ccmpi_distribute(dmdx,dmdx_g)
          call ccmpi_distribute(dmdy,dmdy_g)
-         call ccmpi_distribute(x,x_g)
-         call ccmpi_distribute(y,y_g)
-         call ccmpi_distribute(z,z_g)
+         call ccmpi_distributer8(x,x_g)
+         call ccmpi_distributer8(y,y_g)
+         call ccmpi_distributer8(z,z_g)
          call ccmpi_distribute(rlatt,rlatt_g)
          call ccmpi_distribute(rlongg,rlongg_g)
       else
@@ -253,9 +259,9 @@ contains
          call ccmpi_distribute(fv)
          call ccmpi_distribute(dmdx)
          call ccmpi_distribute(dmdy)
-         call ccmpi_distribute(x)
-         call ccmpi_distribute(y)
-         call ccmpi_distribute(z)
+         call ccmpi_distributer8(x)
+         call ccmpi_distributer8(y)
+         call ccmpi_distributer8(z)
          call ccmpi_distribute(rlatt)
          call ccmpi_distribute(rlongg)
       end if
@@ -283,19 +289,18 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processors
       real, dimension(ifull), intent(out) :: af
       real, dimension(ifull_g), intent(in), optional :: a1
-      integer :: i, j, n, iq, iqg, itag=0, iproc, ierr, count
+      integer :: i, j, n, iq, iqg, itag=0, iproc, ierr,ierr2, count
       integer, dimension(MPI_STATUS_SIZE) :: status
 !     Note ipfull = ipan*jpan*npan
       real, dimension(ipan*jpan*npan) :: sbuf
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen
 
-
       call start_log(distribute_begin)
 !cdir iexpand(indp, indg)
       if ( myid == 0 .and. .not. present(a1) ) then
          print*, "Error: ccmpi_distribute argument required on proc 0"
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
       ! Copy internal region
       if ( myid == 0 ) then
@@ -336,19 +341,81 @@ contains
          call MPI_Get_count(status, MPI_REAL, count, ierr)
          if ( count /= ifull ) then
             print*, "Error, wrong length in ccmpi_distribute", myid, ifull, count
-            call MPI_Abort(MPI_COMM_WORLD)
+            call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
          end if
 
       end if
       call end_log(distribute_end)
-
    end subroutine ccmpi_distribute2
+
+   subroutine ccmpi_distribute2r8(af,a1)
+      ! Convert standard 1D arrays to face form and distribute to processors
+      real*8, dimension(ifull), intent(out) :: af
+      real*8, dimension(ifull_g), intent(in), optional :: a1
+      integer :: i, j, n, iq, iqg, itag=0, iproc, ierr,ierr2, count
+      integer, dimension(MPI_STATUS_SIZE) :: status
+!     Note ipfull = ipan*jpan*npan
+      real*8, dimension(ipan*jpan*npan) :: sbuf
+      integer :: npoff, ipoff, jpoff ! Offsets for target
+      integer :: slen
+
+      call start_log(distribute_begin)
+!cdir iexpand(indp, indg)
+      if ( myid == 0 .and. .not. present(a1) ) then
+         print*, "Error: ccmpi_distribute argument required on proc 0"
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
+      end if
+      ! Copy internal region
+      if ( myid == 0 ) then
+         ! First copy own region
+         do n=1,npan
+            do j=1,jpan
+!cdir nodep
+               do i=1,ipan
+                  iqg = indg(i,j,n)  ! True global index
+                  iq = indp(i,j,n)
+                  af(iq) = a1(iqg)
+               end do
+            end do
+         end do
+         ! Send appropriate regions to all other processes. In this version
+         ! processor regions are no longer necessarily a continuous iq range.
+         do iproc=1,nproc-1
+            ! Panel range on the target processor
+            call proc_region(iproc,ipoff,jpoff,npoff)
+!            print*, "TARGET", ipoff, jpoff, npoff
+            slen = 0
+            do n=1,npan
+               do j=1,jpan
+                  do i=1,ipan
+                     iq = i+ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                     slen = slen+1
+                     sbuf(slen) = a1(iq)
+                  end do
+               end do
+            end do
+            call MPI_SSend( sbuf, slen, MPI_DOUBLE_PRECISION, iproc, itag, &
+                            MPI_COMM_WORLD, ierr )
+         end do
+      else ! myid /= 0
+         call MPI_Recv( af, ipan*jpan*npan, MPI_DOUBLE_PRECISION, 0, itag, &
+                        MPI_COMM_WORLD, status, ierr )
+         ! Check that the length is the expected value.
+         call MPI_Get_count(status, MPI_DOUBLE_PRECISION, count, ierr)
+         if ( count /= ifull ) then
+            print*, "Error, wrong length in ccmpi_distribute", myid, ifull, count
+            call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
+         end if
+
+      end if
+      call end_log(distribute_end)
+   end subroutine ccmpi_distribute2r8
 
    subroutine ccmpi_distribute2i(af,a1)
       ! Convert standard 1D arrays to face form and distribute to processors
       integer, dimension(ifull), intent(out) :: af
       integer, dimension(ifull_g), intent(in), optional :: a1
-      integer :: i, j, n, iq, iqg, itag=0, iproc, ierr, count
+      integer :: i, j, n, iq, iqg, itag=0, iproc, ierr,ierr2, count
       integer, dimension(MPI_STATUS_SIZE) :: status
 !     Note ipfull = ipan*jpan*npan
       integer, dimension(ipan*jpan*npan) :: sbuf
@@ -359,7 +426,7 @@ contains
 !cdir iexpand(indp, indg)
       if ( myid == 0 .and. .not. present(a1) ) then
          print*, "Error: ccmpi_distribute argument required on proc 0"
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
       ! Copy internal region
       if ( myid == 0 ) then
@@ -400,12 +467,11 @@ contains
          call MPI_Get_count(status, MPI_INTEGER, count, ierr)
          if ( count /= ifull ) then
             print*, "Error, wrong length in ccmpi_distribute", myid, ifull, count
-            call MPI_Abort(MPI_COMM_WORLD)
+            call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
          end if
 
       end if
       call end_log(distribute_end)
-
    end subroutine ccmpi_distribute2i
 
    subroutine ccmpi_distribute3(af,a1)
@@ -416,7 +482,7 @@ contains
       ! real, dimension(ifull_g,kl), intent(in), optional :: a1
       real, dimension(:,:), intent(out) :: af
       real, dimension(:,:), intent(in), optional :: a1
-      integer :: i, j, n, iq, iqg, itag=0, iproc, ierr, count
+      integer :: i, j, n, iq, iqg, itag=0, iproc, ierr,ierr2, count
       integer, dimension(MPI_STATUS_SIZE) :: status
 !     Note ipfull = ipan*jpan*npan. Isn't this just ifull?
 !     Check?
@@ -428,7 +494,7 @@ contains
 !cdir iexpand(indp, indg)
       if ( myid == 0 .and. .not. present(a1) ) then
          print*, "Error: ccmpi_distribute argument required on proc 0"
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
       ! Copy internal region
       if ( myid == 0 ) then
@@ -469,12 +535,11 @@ contains
          call MPI_Get_count(status, MPI_REAL, count, ierr)
          if ( count /= size(af) ) then
             print*, "Error, wrong length in ccmpi_distribute", myid, size(af), count
-            call MPI_Abort(MPI_COMM_WORLD)
+            call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
          end if
 
       end if
       call end_log(distribute_end)
-
    end subroutine ccmpi_distribute3
 
    subroutine ccmpi_gather2(a,ag)
@@ -482,7 +547,7 @@ contains
 
       real, dimension(ifull), intent(in) :: a
       real, dimension(ifull_g), intent(out), optional :: ag
-      integer :: ierr, itag = 0, iproc
+      integer :: ierr,ierr2, itag = 0, iproc
       integer, dimension(MPI_STATUS_SIZE) :: status
       real, dimension(ifull) :: abuf
       integer :: ipoff, jpoff, npoff
@@ -493,7 +558,7 @@ contains
 !cdir iexpand(indp, indg, ind)
       if ( myid == 0 .and. .not. present(ag) ) then
          print*, "Error: ccmpi_gather argument required on proc 0"
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
 
       itag = itag + 1
@@ -542,7 +607,7 @@ contains
 
       real, dimension(ifull,kl), intent(in) :: a
       real, dimension(ifull_g,kl), intent(out), optional :: ag
-      integer :: ierr, itag = 0, iproc
+      integer :: ierr,ierr2, itag = 0, iproc
       integer, dimension(MPI_STATUS_SIZE) :: status
       real, dimension(ifull,kl) :: abuf
       integer :: ipoff, jpoff, npoff
@@ -552,7 +617,7 @@ contains
 !cdir iexpand(indp, indg, ind)
       if ( myid == 0 .and. .not. present(ag) ) then
          print*, "Error: ccmpi_gather argument required on proc 0"
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
 
       itag = itag + 1
@@ -597,7 +662,7 @@ contains
       include 'indices.h'
       include 'indices_g.h'
       integer :: n, nr, i, j, iq, iqx, count
-      integer :: ierr, itag = 0, iproc, rproc, sproc
+      integer :: ierr,ierr2, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer :: iqg
       integer :: iext, iql, iloc, jloc, nloc
@@ -1209,7 +1274,7 @@ contains
 
       if ( iext > iextra ) then
          print*, "IEXT too large", iext, iextra
-         call MPI_Abort(MPI_COMM_WORLD)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
 
 
@@ -1674,10 +1739,11 @@ contains
 
    subroutine check_set(ind,str,i,j,n,iq)
       integer, intent(in) :: ind,i,j,n,iq
+      integer :: ierr,ierr2
       character(len=*) :: str
       if ( ind == huge(1) ) then
          print*, str, " not set", myid, i, j, n, iq
-         call MPI_Abort(MPI_COMM_WORLD)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
    end subroutine check_set
 
@@ -2144,7 +2210,7 @@ contains
       real, dimension(ifull,kl), intent(in) :: xg, yg
       integer :: iproc
       real, dimension(4,maxsize,0:nproc) :: buf
-      integer :: nreq, itag = 99, ierr, rproc, sproc
+      integer :: nreq, itag = 99, ierr,ierr2, rproc, sproc
       integer, dimension(2*nproc) :: ireq
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       integer :: count, ip, jp
@@ -2172,7 +2238,7 @@ contains
 #ifdef debug
                if ( iproc == myid ) then
                   print*, "Inconsistency in deptsync"
-                  call MPI_Abort(MPI_COMM_WORLD,ierr)
+                  call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
                end if
 #endif
                ! Add this point to the list of requests I need to send to iproc
@@ -2204,11 +2270,12 @@ contains
                     MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          else
             if ( dslen(sproc) > 0 ) then
-               print*, "Error, dslen > 0 for non neighhour",      &
+               print*, "Error, dslen > 0 for non neighbour",      &
                     myid, sproc, dslen(sproc)
-               stop
+               call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
             end if
          end if
+         
          if ( neighbour(rproc) ) then
             nreq = nreq + 1
             ! Use the maximum size in the recv call.
@@ -2292,6 +2359,7 @@ contains
       integer , intent(out) :: i
       integer , intent(out) :: j
       integer , intent(out) :: n
+      integer :: ierr,ierr2
 
       ! Calculate local i, j, n from global iq
 
@@ -2301,7 +2369,7 @@ contains
       i = iq - (j - 1)*il_g - n*il_g*il_g
       if ( fproc(i,j,n) /= myid ) then
          write(*,"(a,5i5)") "Consistency failure in indv_mpi", myid, iq, i, j, n
-         call MPI_Abort(MPI_COMM_WORLD)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
       ! Reduced to values on my processor
       n = n + noff
@@ -2354,17 +2422,17 @@ contains
    subroutine checksize(len, mesg)
       integer, intent(in) :: len
       character(len=*), intent(in) :: mesg
-      integer :: ierr
+      integer :: ierr,ierr2
       if ( len > maxsize ) then
          print*, "Error, maxsize exceeded in ", mesg
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
    end subroutine checksize
 
    subroutine check_bnds_alloc(rproc, iext)
       integer, intent(in) :: rproc
       integer, intent(in) :: iext
-      integer :: len, ierr
+      integer :: len, ierr,ierr2
 
 !     Allocate the components of the bnds array. It's too much work to
 !     get the exact sizes, so allocate a fixed size for each case where
@@ -2387,12 +2455,12 @@ contains
          if ( kl*bnds(rproc)%rlen >=  bnds(rproc)%len ) then
             print*, "Error, maximum length error in check_bnds_alloc"
             print*, myid, rproc, bnds(rproc)%rlen,  bnds(rproc)%len, kl
-            call MPI_Abort(MPI_COMM_WORLD,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
          end if
          if ( iext >= iextra ) then
             print*, "Error, iext maximum length error in check_bnds_alloc"
             print*, myid, iext, iextra
-            call MPI_Abort(MPI_COMM_WORLD,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
          end if
       end if
    end subroutine check_bnds_alloc
@@ -2450,14 +2518,14 @@ contains
       include 'parm.h'
 !     Routine to set up offsets etc.
       integer, intent(in) :: npanels, ifull
-      integer :: i, j, n, ierr, iproc, nd, jdf, idjd_g
+      integer :: i, j, n, ierr,ierr2, iproc, nd, jdf, idjd_g
 
       !  Processor allocation
       !  if  nproc <= npanels+1, then each gets a number of full panels
       if ( nproc <= npanels+1 ) then
          if ( modulo(npanels+1,nproc) /= 0 ) then
             print*, "Error, number of processors must divide number of panels"
-            call MPI_Abort(MPI_COMM_WORLD,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
          end if
 !         npan = (npanels+1)/nproc
          ipan = il_g
@@ -2472,7 +2540,7 @@ contains
       else  ! nproc >= npanels+1
          if ( modulo (nproc, npanels+1) /= 0 ) then
             print*, "Error, number of processors must be a multiple of number of panels"
-            call MPI_Abort(MPI_COMM_WORLD,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
          end if
 !         npan = 1
          n = nproc / (npanels+1)
@@ -2490,18 +2558,18 @@ contains
          end if
          if ( nxproc*nyproc /= n ) then
             print*, "Error in splitting up faces"
-            call MPI_Abort(MPI_COMM_WORLD,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
          end if
 
          ! Still need to check that the processor distribution is compatible
          ! with the grid.
          if ( modulo(il_g,nxproc) /= 0 ) then
             print*, "Error, il not a multiple of nxproc", il_g, nxproc
-            call MPI_Abort(MPI_COMM_WORLD,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
          end if
          if ( modulo(il_g,nyproc) /= 0 ) then
             print*, "Error, il not a multiple of nyproc", il_g, nyproc
-            call MPI_Abort(MPI_COMM_WORLD,ierr)
+            call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
          end if
          ipan = il_g/nxproc
          jpan = il_g/nyproc
@@ -2532,11 +2600,11 @@ contains
 !     Check that the values calculated here match those set as parameters
       if ( ipan /= il ) then
          print*, "Error, parameter mismatch, ipan /= il", ipan, il
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
       if ( jpan*npan /= jl ) then
          print*, "Error, parameter mismatch, jpan*npan /= jl", jpan, npan, jl
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
 
 !      ipfull = ipan*jpan*npan
@@ -2563,7 +2631,7 @@ contains
       include 'parm.h'
 !     Routine to set up offsets etc for the uniform decomposition
       integer, intent(in) :: npanels, ifull
-      integer :: i, j, n, ierr, iproc, nd, jdf, idjd_g
+      integer :: i, j, n, ierr,ierr2, iproc, nd, jdf, idjd_g
 
       if ( npan /= npanels+1 ) then
          print*, "Error: inconsistency in proc_setup_uniform"
@@ -2585,18 +2653,18 @@ contains
       end if
       if ( nxproc*nyproc /= nproc ) then
          print*, "Error in splitting up faces"
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
 
       ! Still need to check that the processor distribution is compatible
       ! with the grid.
       if ( modulo(il_g,nxproc) /= 0 ) then
          print*, "Error, il not a multiple of nxproc", il_g, nxproc
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
       if ( modulo(il_g,nyproc) /= 0 ) then
          print*, "Error, il not a multiple of nyproc", il_g, nyproc
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
       ipan = il_g/nxproc
       jpan = il_g/nyproc
@@ -2624,11 +2692,11 @@ contains
 !     Check that the values calculated here match those set as parameters
       if ( ipan /= il ) then
          print*, "Error, parameter mismatch, ipan /= il", ipan, il
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
       if ( jpan*npan /= jl ) then
          print*, "Error, parameter mismatch, jpan*npan /= jl", jpan, npan, jl
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
 
 !      ipfull = ipan*jpan*npan
@@ -2937,10 +3005,10 @@ contains
 !    Check that the dimensions defined in the newmpar and newmpar_gx file
 !    match. A single routine can't include both of these because declarations
 !    would conflict so return them from separate functions
-      integer :: ierr
+      integer :: ierr,ierr2
       if ( .not. all(get_dims()==get_dims_gx()) ) then
          print*, "Error, mismatch in newmpar.h and newmpar_gx.h"
-         call MPI_Abort(MPI_COMM_WORLD,ierr)
+         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
 
    end subroutine check_dims
@@ -3196,6 +3264,7 @@ contains
                end if
             else
                read(un) varg
+
             end if
             ! Use explicit ranges here because some arguments might be extended.
             call ccmpi_distribute(var(1:ifull),varg)

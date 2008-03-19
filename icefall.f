@@ -172,7 +172,7 @@ c          qacci(mg,k)=0.
         print *,'diags from icefall for idjd ',idjd
         write (6,"('clfra ',9f8.3/6x,9f8.3)") clfr(idjd,:)
       endif
-      if(ntest>0)then
+      if(ntest>0.and.mydiag)then
           mg=idjd
           write(25,'(a,3i3)')'IPASS=1, before icefall.'
           write(25,91)'cfrac ',(cfrac(mg,k),k=1,nl)
@@ -182,7 +182,7 @@ c          qacci(mg,k)=0.
           write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
           write(25,*)
       endif  ! (ntest>0)
-      if(ntest==2)then
+      if(ntest==2.and.mydiag)then
         do k=1,nl
           do mg=1,ln2
             if(cfrac(mg,k)>0)then
@@ -512,7 +512,7 @@ c Diagnostics for debugging
         write (6,"('qfg   ',3p9f8.3/6x,9f8.3)") qfg(idjd,:)
       endif
 
-      if(ntest>0)then
+      if(ntest>0.and.mydiag)then
           mg=idjd
           write(25,'(a,3i3)')'IPASS=1, after icefall.'
           write(25,91)'cfrac ',(cfrac(mg,k),k=1,nl)

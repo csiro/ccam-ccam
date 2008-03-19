@@ -1,7 +1,7 @@
       subroutine scrnout(zo,ustar,factch,wetfac,qsttg,              ! arrays
      .     qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,            ! arrays
      .     bprm,cms,chs,chnsea,nalpha)
-      use cc_mpi, only : mydiag
+      use cc_mpi, only : mydiag,myid
       use diag_m
       implicit none
 !     from Feb '05 scales uscrn, u10 to remove vmod>2 effect
@@ -239,7 +239,7 @@ c      screen wind speeds
         print *,'uscrn,u10,rhscrn ',uscrn(iq),u10(iq),rhscrn(iq)
       endif
 
-      if(ntest>=1)then
+      if(ntest>=1.and.myid==0)then
         numt=0
         numq=0
         numu=0
@@ -319,7 +319,7 @@ c       qgscrn(iq)=min(qgscrn(iq),max(qsurf(iq),qg(iq,1)))
 c      enddo
    
       tscrn(:)=tscrn(:)-.018  ! apply 1.8 m approx. adiab. corrn.
-      if(ntest==-1)then
+      if(ntest==-1.and.myid==0)then
        do iq=1,ifull
         if(.not.land(iq).and.sicedep(iq)==0.)then 
 c         write(23,'(f6.2,f9.6,2i6,f7.2)') u10(iq),zo(iq),ktau,iq,ri(iq)
