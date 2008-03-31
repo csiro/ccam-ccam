@@ -100,7 +100,8 @@ c     calculate "surface" specific humidity
 c      constants for calculating 2m, 10m winds
        afroot10(iq) = vkar/(log(z10)-zlog)
        af10(iq) = afroot10(iq)*afroot10(iq)
-       zt=zo(iq)/7.4
+      ! zt=zo(iq)/7.4
+       zt=zmin/exp(vkar**2/(aft(iq)*log(zmin/zo(iq)))) ! MJT urban
        zscrt=max(zscr,zt+1.)     ! Aug '05
        z10t=max(z10,zt+2.)       ! Aug '05
        aft2(iq)=vkar*afroot2(iq)/log(zscrt/zt)     ! land only
