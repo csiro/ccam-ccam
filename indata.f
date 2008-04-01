@@ -1826,7 +1826,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         end where
         call tebinit(ifull,sigmu(:),0)
         do k=1,12
-          where(urban(:,k).ge.999.) ! must be the same as spval in onthefly.f
+          where(urban(:,k).gt.400.) ! must be the same as spval in onthefly.f
             urban(:,k)=tss(:)
           end where
         end do

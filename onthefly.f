@@ -389,7 +389,7 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
         ! MJT CHANGE
         if (nurban.ne.0) then
           do k=1,12
-            where (.not.land(:))
+            where ((.not.land(:)).or.(urban(:,k).gt.400.))
               urban(:,k)=spval
             end where
             call fill_cc(urban(:,k),spval)
