@@ -1825,14 +1825,11 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           sigmu(:)=0.
         end where
         call tebinit(ifull,sigmu(:),0)
-        if (any(urban(:,1).lt.0.)) then
-          if (mydiag) print *,"Using urban default temperatures"
-          do k=1,12
+        do k=1,12
+          where(urban(:,k).ge.999.) ! must be the same as spval in onthefly.f
             urban(:,k)=tss(:)
-          end do
-        else
-          if (mydiag) print *,"Loading urban temperatures"
-        end if
+          end where
+        end do
         call tebloadm(ifull,urban,0)	
       else
         sigmu(:)=0.

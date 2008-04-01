@@ -217,7 +217,7 @@ c    &               rlongg(1+(j-1)*il),dhr,imax,coszro2,taudar2)
          call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),
      &               rlongg(istart:iend),dhr,imax,coszro2,taudar2)
          call tebccangle(istart,imax,coszro2(1:imax) ! MJT urban
-     &    ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt,0)     
+     &    ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt)     
       end if    !  ( solarfit )
 
       if ( odcalc ) then     ! Do the calculation
@@ -230,7 +230,7 @@ c     calculations
 
       if (.not.solarfit) ! MJT urban
      &   call tebccangle(istart,imax,coszro(1:imax)
-     &   ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt,0) 
+     &   ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt) 
 
 c     Set up basic variables, reversing the order of the vertical levels
       do i=1,imax

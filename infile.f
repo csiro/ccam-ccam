@@ -507,7 +507,7 @@ c 	    only being tested for nested=0; no need to test for mesonest
 
         !------------------------------------------------------------
         ! MJT urban
-        urban=-1.
+        urban(:,:)=999. ! this must equal spval in onthefly.f
         call histrd1(ncid,iarchi,ierr,'rooftgg1',ik,jk,urban(:,1))
         if (ierr==0) then
           call histrd1(ncid,iarchi,ierr,'rooftgg2',ik,jk,urban(:,2))
