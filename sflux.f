@@ -625,7 +625,10 @@ c ----------------------------------------------------------------------
          call tebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin
      &               ,sgsave(:)/(1.-alb(:)),-rgsave(:)
      &               ,condxpr(:)/dt,sno(:)/dt,rho(:),t(:,1),qg(:,1)
-     &               ,ps(:),sig(1)*ps(:),vmod(:),sigmu(:),0)
+     &               ,ps(:),sig(1)*ps(:)
+     &               ,av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(1:ifull,1)
+     &               ,av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(1:ifull,1)
+     &               ,sigmu(:),0)
         ! assume sib3 only wants zo for vegetative part
         ! here we blend zo with the urban part for the
         ! calculation of ustar (occuring later in sflux.f)

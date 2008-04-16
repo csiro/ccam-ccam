@@ -10,7 +10,7 @@
 !   call tebnewangle ! define new solar zenith and azimuthal angle (use tebccangle for CCAM or
 !                      use tebnewangle1 for a single grid point)
 !   call tebalb      ! blends input and urban albedo (use tebalb1 for a single grid point)
-!   call tebcalc     ! modifies input fluxes, surface temperature, etc to include urban
+!   call tebcalc     ! calculates urban temperaturs, fluxes, etc and blends with input
 !   call tebzo       ! blends input and urban roughness lengths for momentum and heat
 !   ...
 !   call tebsavem    ! to save current state arrays (for use by tebloadm)
@@ -24,14 +24,16 @@
 ! - aTEB assumes that the zero model height is at canyon displacement height (not roof level as in the TEB scheme).
 !
 ! - aTEB uses two walls instead of the TEB single wall.  Also, only up to 2nd order reflections are used for
-!   longwave and short wave radation.  In TEB, infinite reflections are used for shortwave, but only 2nd order
-!   for long wave.
+!   longwave and short wave radation (i.e., to speed up the code).  In TEB, infinite reflections are used for
+!   shortwave, but only 2nd order for long wave.  See Harman, et. al (2004) for a complete treatment of the
+!   reflections.
 !
-! - aTEB employs a much larger ratio between heat and momentum roughness lengths compared to canopies for vegetation.
-!   (e.g., zot=zom/74.).  This is typical for urban schemes.
+! - aTEB employs zot=zom*(7.4*exp(-2.5*(ustar*zom/nu)**0.25)) (Brutsaet, 1982)
 !
-! - aTEB plans to improve traffic and industry heat fluxes as well as improve aerodynamical resistances within the
-!   canyon.
+! - aTEB calculates resistances for the recirculation and ventilation regions of the canyon (see Harman, et. al (2004).
+!   This approach takes advantage of the second wall temperature (i.e., the fluxes depend on the wind direction).
+!
+! - aTEB plans to improve traffic and industry heat fluxes.
 !
 
 module ateb
@@ -52,7 +54,7 @@ real, dimension(:), allocatable :: roofadjw,roadadjw
 real, dimension(:), allocatable :: rfsn,rdsn,rfsnden,rdsnden,rfsnalpha,rdsnalpha
 real, dimension(:), allocatable :: rfsnadjw,rdsnadjw,rfsnadjd,rdsnadjd,rfsnadja,rdsnadja
 real, dimension(:), allocatable :: fnsigmabld,fnhwratio,fnindustryfg,fntrafficfg
-real, dimension(:), allocatable :: fnzo,fnbldheight
+real, dimension(:), allocatable :: fnzo,fnbldheight,lzo,lzot
 real, dimension(:), allocatable :: vangle,hangle
 ! parameters
 real, dimension(3), parameter :: roofdepth =(/ 0.05,0.4,0.1 /)          ! depth
@@ -72,14 +74,16 @@ real, parameter :: aircp=1004.64     ! Heat capapcity of dry air
 real, parameter :: icecp=2100.       ! Heat capacity of ice
 real, parameter :: bldtemp=291.16    ! Comfort temperature = 18deg C
 real, parameter :: grav=9.80616      ! gravity
+real, parameter :: vkar=0.4          ! von Karman constant
 real, parameter :: lv=2.501e6        ! Latent heat of vaporisation
 real, parameter :: lf=3.337e5        ! Latent heat of fusion
-real, parameter :: ls=2.834e6        ! Latent heat of sublimation
+real, parameter :: ls=lv+lf          ! Latent heat of sublimation (2.834e6)
 real, parameter :: pi=3.1415927      ! pi
 real, parameter :: rd=287.04         ! Gas constant for dry air
 real, parameter :: sbconst=5.67e-8   ! Stefan-Boltzmann constant
 real, parameter :: zoroof=0.15       ! Roughness length for rooftops (see Masson 2000)
 real, parameter :: zosnow=0.001      ! Roughness length for snow
+real, parameter :: zocanyon=5.e-5    ! Roughness length for canyon surfaces (see Harman et al 2004)
 real, parameter :: roofemiss=0.90    ! emissitivity
 real, parameter :: wallemiss=0.85 
 real, parameter :: roademiss=0.94
@@ -93,13 +97,12 @@ real, parameter :: maxroofwater=1.   ! max water on roof (mm)
 real, parameter :: maxroadwater=1.   ! max water on road (mm)
 real, parameter :: maxrfsn=1.        ! max snow on roof (mm)
 real, parameter :: maxrdsn=1.        ! max snow on road (mm)
-real, parameter :: heatzoinc = 4.3   ! Eva's veg (=2.) or MJT suggestion for urban (=4.3) which determines the
-                                     ! ratio between momentum and heat roughness lengths (zot=zo/exp(heatzoinc))
+integer, parameter :: resmeth=1      ! Canyon resistances (0=Masson, 1=Harman)
 
 contains
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! This subroutine prepainvres the arrays used by the TEB scheme
+! This subroutine prepare the arrays used by the aTEB scheme
 ! This is a compulsory subroutine that must be called during
 ! model initalisation
 
@@ -125,7 +128,7 @@ allocate(roofwater(ufull),roadwater(ufull))
 allocate(rfsn(ufull),rdsn(ufull),rfsnden(ufull),rdsnden(ufull),rfsnalpha(ufull),rdsnalpha(ufull))
 allocate(rfsnadjw(ufull),rdsnadjw(ufull),rfsnadjd(ufull),rdsnadjd(ufull),rfsnadja(ufull),rdsnadja(ufull))
 allocate(fnhwratio(ufull),fnsigmabld(ufull),fnindustryfg(ufull))
-allocate(fntrafficfg(ufull),fnbldheight(ufull),fnzo(ufull))
+allocate(fntrafficfg(ufull),fnbldheight(ufull),fnzo(ufull),lzo(ufull),lzot(ufull))
 allocate(vangle(ufull),hangle(ufull))
 
 ! define grid arrays
@@ -157,6 +160,8 @@ rdsnalpha=minsnowalpha
 
 utype=1
 call tebtype(ifull,utype,0)
+lzo(:)=log(40./fnzo(:)) ! updated in tebcalc
+lzot(:)=2.+lzo(:)        ! updated in tebcalc
 
 return
 end subroutine tebinit
@@ -181,7 +186,7 @@ deallocate(roofwater,roadwater)
 deallocate(rfsn,rdsn,rfsnden,rdsnden,rfsnalpha,rdsnalpha)
 deallocate(rfsnadjw,rdsnadjw,rfsnadjd,rdsnadjd,rfsnadja,rdsnadja)
 deallocate(fnhwratio,fnsigmabld,fnindustryfg)
-deallocate(fntrafficfg,fnbldheight,fnzo)
+deallocate(fntrafficfg,fnbldheight,fnzo,lzo,lzot)
 deallocate(vangle,hangle)
 
 return
@@ -418,16 +423,17 @@ integer, intent(in) :: ifull,diag
 real, intent(in) :: zmin
 real, dimension(ifull), intent(inout) :: zom,zoh
 real, dimension(ifull), intent(in) :: sigmau
-real, dimension(ufull) :: workb,workc,workp
+real, dimension(ufull) :: workb,workc
+real, parameter :: zr=1.e-10 ! limits minimum roughness length for heat
 
-workp(:)=rdsn(:)/(rdsn(:)+maxrdsn+0.408*grav*fnzo(:))
-workb(:)=(1.-workp(:))*fnzo(:)+workp(:)*zosnow
-workb(:)=sqrt((1.-sigmau(ugrid(:)))/log(zmin/zom(ugrid(:)))**2+sigmau(ugrid(:))/log(zmin/workb(:))**2)
+workb(:)=sqrt((1.-sigmau(ugrid(:)))/log(zmin/zom(ugrid(:)))**2+sigmau(ugrid(:))/lzo(:)**2)
 workc(:)=(1.-sigmau(ugrid(:)))/(log(zmin/zom(ugrid(:)))*log(zmin/zoh(ugrid(:)))) &
-        +sigmau(ugrid(:))/(log(zmin/fnzo(:))*(heatzoinc+log(zmin/fnzo(:))))
+        +sigmau(ugrid(:))/(lzo(:)*lzot(:))
 workc(:)=workc(:)/workb(:)
 zom(ugrid(:))=zmin*exp(-1./workb(:))
-zoh(ugrid(:))=zmin*exp(-1./workc(:))
+zoh(ugrid(:))=max(zmin*exp(-1./workc(:)),zom(ugrid(:))*zr)
+
+if (any(zoh(ugrid(:)).lt.2.*zr*zom(ugrid(:)))) write(6,*) "WARN: minimum zoh reached"
 
 return
 end subroutine tebzo
@@ -476,6 +482,9 @@ if (iqu.ge.1) call tebalbcalc(alb,iqu,sigmau)
 
 return
 end subroutine tebalb1
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Albedo calculations
 
 subroutine tebalbcalc(alb,iqu,sigmau)
 
@@ -611,15 +620,15 @@ end subroutine tebccangle
 ! ots = Input/Output surface temperature (K)
 ! owf = Input/Output wetness fraction/surface water (%)
 
-subroutine tebcalc(ifull,ofg,oeg,ots,owf,ddt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps,pa,umag,sigmau,diag)
+subroutine tebcalc(ifull,ofg,oeg,ots,owf,ddt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps,pa,uu,vv,sigmau,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
 real, intent(in) :: ddt,zmin
-real, dimension(ifull), intent(in) :: sg,rg,rnd,snd,rho,temp,mixr,ps,pa,umag,sigmau
+real, dimension(ifull), intent(in) :: sg,rg,rnd,snd,rho,temp,mixr,ps,pa,uu,vv,sigmau
 real, dimension(ifull), intent(inout) :: ofg,oeg,ots,owf
-real, dimension(ufull) :: usg,urg,urnd,usnd,urho,utemp,umixr,ups,upa,uumag
+real, dimension(ufull) :: usg,urg,urnd,usnd,urho,utemp,umixr,ups,upa,uumag,uudir
 real, dimension(ufull) :: uofg,uoeg,uots,uowf
 
 if (ufull.eq.0) return
@@ -633,9 +642,10 @@ utemp(:)=temp(ugrid(:))
 umixr(:)=mixr(ugrid(:))
 ups(:)=ps(ugrid(:))
 upa(:)=pa(ugrid(:))
-uumag(:)=umag(ugrid(:))
+uumag(:)=sqrt(uu(ugrid(:))**2+vv(ugrid(:))**2)
+uudir(:)=atan2(vv(ugrid(:)),uu(ugrid(:)))
 
-call tebeval(uofg,uoeg,uots,uowf,ddt,zmin,usg,urg,urnd,usnd,urho,utemp,umixr,ups,upa,uumag,diag)
+call tebeval(uofg,uoeg,uots,uowf,ddt,zmin,usg,urg,urnd,usnd,urho,utemp,umixr,ups,upa,uumag,uudir,diag)
 
 ofg(ugrid(:))=(1.-sigmau(ugrid(:)))*ofg(ugrid(:))+sigmau(ugrid(:))*uofg(:)
 oeg(ugrid(:))=(1.-sigmau(ugrid(:)))*oeg(ugrid(:))+sigmau(ugrid(:))*uoeg(:)
@@ -644,27 +654,30 @@ owf(ugrid(:))=(1.-sigmau(ugrid(:)))*owf(ugrid(:))+sigmau(ugrid(:))*uowf(:)
 
 end subroutine tebcalc
 
-subroutine tebeval(ofg,oeg,ots,owf,ddt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps,pa,umag,diag)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! urban flux calculations
+
+subroutine tebeval(ofg,oeg,ots,owf,ddt,zmin,sg,rg,rnd,snd,rho,temp,mixr,ps,pa,umag,udir,diag)
 
 implicit none
 
 integer, intent(in) :: diag
 integer iqu,j,k
 real, intent(in) :: ddt,zmin
-real, dimension(ufull), intent(in) :: sg,rg,rnd,snd,rho,temp,mixr,ps,pa,umag
+real, dimension(ufull), intent(in) :: sg,rg,rnd,snd,rho,temp,mixr,ps,pa,umag,udir
 real, dimension(ufull), intent(out) :: ofg,oeg,ots,owf
 real, dimension(3) :: roofga,wallega,wallwga,roadga
 real, dimension(3) :: roofdumtemp,walledumtemp,wallwdumtemp,roaddumtemp,roofdumt,walledumt,wallwdumt,roaddumt
 real, dimension(3) :: rooforgt,walleorgt,wallworgt,roadorgt
+real, dimension(4) :: acond
 real rooforgw,roadorgw,roofdumwat,roaddumwat,roofdumw,roaddumw
 real roofsg,roofrg,rooffg,roofeg
 real wallesg,wallwsg,wallerg,wallwrg,wallefg,wallwfg
 real roadsg,roadrg,roadfg,roadeg,topfg,topeg
 real wallpsi,roadpsi,roofdelta,roaddelta
 real roofinvres
-real oldtemp,newtemp,canyontemp,canyonu,topu
-real cd,roofqsat,roadqsat,qsata
-real ctmax,ctmin,evctx,evct
+real oldtemp,newtemp,canyontemp,topu,cu,ctmax,ctmin,evctx,evct
+real cd,roofqsat,roadqsat,qsata,zomdum,lzotdum
 real sigc,tempc,mixrc,sigr,tempr,mixrr,rfdzmin,cndzmin,efftrafffg
 real rfsnsg,rdsnsg,rfsnrg,rdsnrg,rfsnfg,rdsnfg,rfsneg,rdsneg
 real rfsntemp,rdsntemp,rfsndum,rdsndum
@@ -675,11 +688,16 @@ real rfsndepth,rdsndepth,rfsnlambda,rdsnlambda,rfsncp,rdsncp
 real rfsndelta,rdsndelta
 real rfsnga,rdsnga,rfsnmelt,rdsnmelt
 real netemiss,nettemp,netldratio
+real lr,wdt,ln,rn,ir,wdw,we,ww,wr,zolog,a,xe,xw,cuven,n
+real lzosnow,lzoroof
 logical firstcall
 data firstcall/.true./
 save firstcall
 
 if (diag.ne.0) write(6,*) "Evaluating aTEB"
+
+lzosnow=log(zmin/zosnow)
+lzoroof=log(zmin/zoroof)
 
 do iqu=1,ufull
   ! canyon (displacement height at zero model height)
@@ -696,14 +714,6 @@ do iqu=1,ufull
 
   ! road (displacement height at -2/3 building height)
   sigc=exp(2.*grav*fnbldheight(iqu)/(3.*rd*temp(iqu))) ! >1 for road
-
-  ! diagnose canyon wind speed (rotating through 2pi)
-  if (zmin.ge.fnbldheight(iqu)/3.) then
-    topu=umag(iqu)*log(fnbldheight(iqu)/(3.*fnzo(iqu)))/log(zmin/fnzo(iqu))
-  else
-    topu=umag(iqu)/exp(-0.5*fnhwratio(iqu)*(1./3.-zmin/fnbldheight(iqu)))
-  end if
-  canyonu=(2./pi)*topu*exp(-0.25*fnhwratio(iqu)) ! Masson (2000) diagnosed wind speed
 
   ! scale traffic sensible heat flux for canyon          
   efftrafffg=fntrafficfg(iqu)/(1.-fnsigmabld(iqu))
@@ -732,10 +742,10 @@ do iqu=1,ufull
 
   do j=1,2 ! corrector-predictor loop -------------------------------
     ! limit state variables
-    roofdumtemp(:)=min(max(roofdumtemp(:),225.),375.)
-    walledumtemp(:)=min(max(walledumtemp(:),225.),375.)
-    wallwdumtemp(:)=min(max(wallwdumtemp(:),225.),375.)
-    roaddumtemp(:)=min(max(roaddumtemp(:),225.),375.)
+    roofdumtemp(:)=min(max(roofdumtemp(:),200.),400.)
+    walledumtemp(:)=min(max(walledumtemp(:),200.),400.)
+    wallwdumtemp(:)=min(max(wallwdumtemp(:),200.),400.)
+    roaddumtemp(:)=min(max(roaddumtemp(:),200.),400.)
     roofdumwat=min(max(roofdumwat,0.),maxroofwater)
     roaddumwat=min(max(roaddumwat,0.),maxroadwater)
     rfsndum=min(max(rfsndum,0.),maxrfsn)
@@ -757,6 +767,69 @@ do iqu=1,ufull
     rfsncp=icecp*rfsndumden
     rdsncp=icecp*rdsndumden
 
+    ! Adjust canyon roughness to include snow
+    n=rdsndum/(rdsndum+maxrdsn+0.408*grav*fnzo(iqu)) ! (Douville, et al 1995)
+    zomdum=(1.-n)*fnzo(iqu)+n*zosnow
+    lzo(iqu)=log(zmin/zomdum)
+
+    ! diagnose wind speed at canyon top (rotating through 2pi)
+    if (zmin.ge.fnbldheight(iqu)/3.) then
+      topu=(2./pi)*umag(iqu)*log(fnbldheight(iqu)/(3.*zomdum))/lzo(iqu)
+    else
+      topu=(2./pi)*umag(iqu)/exp(-0.5*fnhwratio(iqu)*(1./3.-zmin/fnbldheight(iqu)))
+    end if
+    
+    ! calculate canyon wind speeds and aerodynamical resistances (really calculate conductance=1/resistance)
+    select case(resmeth)
+      case(0) ! Masson (2000)
+        cu=topu*exp(-0.25*fnhwratio(iqu))
+        acond(:)=-1. ! conductances are updated in solvecanyon
+      case(1) ! Harman et al (2004)
+        lr=3.*fnbldheight(iqu)
+        wdt=fnbldheight(iqu)/fnhwratio(iqu)
+        ln=max(0.,wdt-0.5*lr)
+        rn=max(0.,fnbldheight(iqu)*(1.-ln/(0.5*lr)))
+        ln=min(0.5*lr,ln)
+        cu=topu*exp(-0.9*sqrt(ln**2+(fnbldheight(iqu)-rn)**2)/fnbldheight(iqu))
+        a=0.15*max(1.,1.5*fnhwratio(iqu))
+        if (rn.ge.fnbldheight(iqu)) then ! recirculation only
+         xe=exp(-a)
+         we=cu*(1.-xe)/a
+         xw=exp(-a*wdt/fnbldheight(iqu))
+         wr=cu*fnbldheight(iqu)*xe*(1.-xw)/(wdt*a)
+         ww=cu*xe*xw*(1.-exp(-a))/a
+        else if (rn.gt.0.) then ! recirculation starts on east wall
+         n=max(zocanyon,rn)
+         cuven=topu*(1.-1./log(fnbldheight(iqu)/zocanyon)+n/((fnbldheight(iqu)-n)*(log(zocanyon/n)/log(n/fnbldheight(iqu))+1.)))
+         cuven=max(cuven*(1.-rn/fnbldheight(iqu)),cu*(1.-exp(-a*(1.-rn/fnbldheight(iqu))))/a)
+         xe=exp(-a*rn/fnbldheight(iqu))
+         we=(cuven+cu*(1.-xe)/a)
+         xw=exp(-a*wdt/fnbldheight(iqu))
+         wr=cu*fnbldheight(iqu)*xe*(1.-xw)/(wdt*a)
+         ww=cu*xe*xw*(1.-exp(-a))/a
+        else ! recirculation starts on road
+         zolog=log(0.1*fnbldheight(iqu)/zocanyon)
+         cuven=topu*zolog/(2.3+zolog)
+         xe=exp(-a*(wdt-lr)/fnbldheight(iqu))
+         cuven=max(cuven*(wdt-lr),cu*(1.-xe)*fnbldheight(iqu)/a)
+         xw=exp(-a*lr/fnbldheight(iqu))
+         wr=(cuven+cu*(1.-xw)*fnbldheight(iqu)/a)/wdt
+         cuven=topu*(1.-1./log(fnbldheight(iqu)/zocanyon)+zocanyon/(fnbldheight(iqu)-zocanyon))
+         xe=cu*xe*(1.-exp(-a))/a
+         we=max(cuven,xe)
+         ww=cu*xw*(1.-exp(-a))/a        
+        end if
+        zolog=log(0.1*fnbldheight(iqu)/zocanyon)
+        ir=vkar**2/(zolog*(2.3+zolog))
+        wdw=abs(udir(iqu))/pi
+        acond(1)=ir*wr                   ! road conductance
+        acond(2)=ir*(wdw*ww+(1.-wdw)*we) ! east wall conductance
+        acond(3)=ir*(wdw*we+(1.-wdw)*ww) ! west wall conductance
+        zolog=log(0.1*fnbldheight(iqu)/zosnow)
+        ir=vkar**2/(zolog*(2.3+zolog))
+        acond(4)=ir*wr                   ! road snow conductance
+    end select
+
     ! calculate shortwave radiation
     call getswcoeff(wallesg,wallwsg,roadsg,wallpsi,roadpsi,fnhwratio(iqu),vangle(iqu),hangle(iqu) &
                    ,rdsndelta,rdsndumalpha)
@@ -767,7 +840,7 @@ do iqu=1,ufull
     rfsnsg=(1.-rfsndumalpha)*sg(iqu)
     rdsnsg=(1.-rdsndumalpha)*roadsg*sg(iqu)
     
-    ! calculate long wave radiation
+    ! calculate long wave radiation (up to 2nd order reflections)
     netemiss=rdsndelta*snowemiss+(1.-rdsndelta)*roademiss
     nettemp=rdsndelta*snowemiss*rdsntemp**4+(1.-rdsndelta)*roademiss*roaddumtemp(1)**4
     roofrg=roofemiss*(rg(iqu)-sbconst*roofdumtemp(1)**4)
@@ -791,43 +864,7 @@ do iqu=1,ufull
 
     ! calculate distances between roof and canyon displacement heights
     rfdzmin=max(abs(zmin-fnbldheight(iqu)/3.),zoroof+1.) ! MJT suggestion
-    cndzmin=max(abs(zmin),fnzo(iqu)+1.) ! MJT suggestion    
-
-    ! solve for roof snow temperature -------------------------------
-    netldratio=0.5*(rfsndepth/rfsnlambda+roofdepth(1)/rooflambda(1))
-    ctmax=max(tempr,roofdumtemp(1))+5. ! max roof snow temp
-    ctmin=min(tempr,roofdumtemp(1))-5. ! min roof snow temp
-    rfsntemp=0.5*(ctmax+ctmin)    
-    if (rfsndum.gt.0.) then
-      call solverfsn(evctx,rfsnmelt,rfsnfg,rfsneg,rfsnga,ctmax,rfsndum,rfsnsg,rfsnrg,rfsndelta,rfsncp,netldratio &
-                     ,ddt,rfdzmin,tempr,umag(iqu),rho(iqu),ps(iqu)*sigr,mixrr,snd(iqu),roofdumtemp(1))
-      call solverfsn(evct,rfsnmelt,rfsnfg,rfsneg,rfsnga,rfsntemp,rfsndum,rfsnsg,rfsnrg,rfsndelta,rfsncp,netldratio &
-                     ,ddt,rfdzmin,tempr,umag(iqu),rho(iqu),ps(iqu)*sigr,mixrr,snd(iqu),roofdumtemp(1))
-      if ((evct*evctx).lt.0.) then
-        ctmin=rfsntemp
-      else
-        ctmax=rfsntemp
-      end if
-      oldtemp=rfsntemp
-      rfsntemp=0.5*(ctmax+ctmin)
-      do k=1,5 ! sectant
-        evctx=evct
-        call solverfsn(evct,rfsnmelt,rfsnfg,rfsneg,rfsnga,rfsntemp,rfsndum,rfsnsg,rfsnrg,rfsndelta,rfsncp,netldratio &
-                       ,ddt,rfdzmin,tempr,umag(iqu),rho(iqu),ps(iqu)*sigr,mixrr,snd(iqu),roofdumtemp(1))
-        evctx=evct-evctx
-        if (evctx.eq.0.) exit    
-        newtemp=rfsntemp-evct*(rfsntemp-oldtemp)/evctx
-        oldtemp=rfsntemp
-        rfsntemp=newtemp
-      end do
-      rfsntemp=min(max(rfsntemp,ctmin),ctmax)
-    else
-      rfsnfg=0.
-      rfsneg=0.
-      rfsnga=0.
-      rfsnmelt=0.
-    end if
-    !---------------------------------------------------------------- 
+    cndzmin=max(abs(zmin),zomdum+1.) ! MJT suggestion    
 
     ! solve for road snow temperature -------------------------------
     ! includes solution to canyon temperature
@@ -835,15 +872,15 @@ do iqu=1,ufull
     ctmax=max(tempc,roaddumtemp(1))+5. ! max roof snow temp
     ctmin=min(tempc,roaddumtemp(1))-5. ! min roof snow temp
     rdsntemp=0.5*(ctmax+ctmin)    
-    if (rdsndum.gt.0.) then
+    if (rdsndum.gt.0.) then ! road snow
       call solverdsn(evctx,canyontemp,wallefg,wallwfg,roadfg,rdsnfg,topfg,roadeg,rdsneg,rdsnga,rdsnmelt,ctmax &
                     ,rdsndelta,rdsndum,rdsncp,rdsnsg,rdsnrg,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1),cndzmin &
-                    ,tempc,mixrc,umag(iqu),canyonu,rho(iqu),efftrafffg,ps(iqu),sigc,roaddelta,roaddumwat,rnd(iqu) &
-                    ,snd(iqu),netldratio,ddt,iqu)
+                    ,tempc,mixrc,umag(iqu),cu,rho(iqu),efftrafffg,ps(iqu),sigc,roaddelta,roaddumwat,rnd(iqu) &
+                    ,snd(iqu),netldratio,ddt,iqu,acond)
       call solverdsn(evct,canyontemp,wallefg,wallwfg,roadfg,rdsnfg,topfg,roadeg,rdsneg,rdsnga,rdsnmelt,rdsntemp &
                     ,rdsndelta,rdsndum,rdsncp,rdsnsg,rdsnrg,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1),cndzmin &
-                    ,tempc,mixrc,umag(iqu),canyonu,rho(iqu),efftrafffg,ps(iqu),sigc,roaddelta,roaddumwat,rnd(iqu) &
-                    ,snd(iqu),netldratio,ddt,iqu)
+                    ,tempc,mixrc,umag(iqu),cu,rho(iqu),efftrafffg,ps(iqu),sigc,roaddelta,roaddumwat,rnd(iqu) &
+                    ,snd(iqu),netldratio,ddt,iqu,acond)
       if ((evct*evctx).lt.0.) then
         ctmin=rdsntemp
       else
@@ -855,8 +892,8 @@ do iqu=1,ufull
         evctx=evct
         call solverdsn(evct,canyontemp,wallefg,wallwfg,roadfg,rdsnfg,topfg,roadeg,rdsneg,rdsnga,rdsnmelt,rdsntemp &
                       ,rdsndelta,rdsndum,rdsncp,rdsnsg,rdsnrg,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1),cndzmin &
-                      ,tempc,mixrc,umag(iqu),canyonu,rho(iqu),efftrafffg,ps(iqu),sigc,roaddelta,roaddumwat,rnd(iqu) &
-                      ,snd(iqu),netldratio,ddt,iqu)
+                      ,tempc,mixrc,umag(iqu),cu,rho(iqu),efftrafffg,ps(iqu),sigc,roaddelta,roaddumwat,rnd(iqu) &
+                      ,snd(iqu),netldratio,ddt,iqu,acond)
         evctx=evct-evctx
         if (evctx.eq.0.) exit    
         newtemp=rdsntemp-evct*(rdsntemp-oldtemp)/evctx
@@ -864,11 +901,11 @@ do iqu=1,ufull
         rdsntemp=newtemp
       end do
       rdsntemp=min(max(rdsntemp,ctmin),ctmax)
-    else
+    else ! no road snow
       call solverdsn(evct,canyontemp,wallefg,wallwfg,roadfg,rdsnfg,topfg,roadeg,rdsneg,rdsnga,rdsnmelt,rdsntemp &
                     ,rdsndelta,rdsndum,rdsncp,rdsnsg,rdsnrg,walledumtemp(1),wallwdumtemp(1),roaddumtemp(1),cndzmin &
-                    ,tempc,mixrc,umag(iqu),canyonu,rho(iqu),efftrafffg,ps(iqu),sigc,roaddelta,roaddumwat,rnd(iqu) &
-                    ,snd(iqu),netldratio,ddt,iqu)
+                    ,tempc,mixrc,umag(iqu),cu,rho(iqu),efftrafffg,ps(iqu),sigc,roaddelta,roaddumwat,rnd(iqu) &
+                    ,snd(iqu),netldratio,ddt,iqu,acond)
       rdsnfg=0.
       rdsneg=0.
       rdsnga=0.
@@ -876,8 +913,44 @@ do iqu=1,ufull
     end if
     ! ---------------------------------------------------------------    
 
-    ! calculate roof sensible and latent heat fluxes
-    call getinvres(roofinvres,cd,zoroof,rfdzmin,roofdumtemp(1),tempr,umag(iqu))
+    ! solve for roof snow temperature -------------------------------
+    netldratio=0.5*(rfsndepth/rfsnlambda+roofdepth(1)/rooflambda(1))
+    ctmax=max(tempr,roofdumtemp(1))+5. ! max roof snow temp
+    ctmin=min(tempr,roofdumtemp(1))-5. ! min roof snow temp
+    rfsntemp=0.5*(ctmax+ctmin)    
+    if (rfsndum.gt.0.) then ! roof snow
+      call solverfsn(evctx,rfsnmelt,rfsnfg,rfsneg,rfsnga,ctmax,rfsndum,rfsnsg,rfsnrg,rfsndelta,rfsncp,netldratio &
+                     ,ddt,rfdzmin,tempr,umag(iqu),rho(iqu),ps(iqu)*sigr,mixrr,snd(iqu),roofdumtemp(1),lzosnow)
+      call solverfsn(evct,rfsnmelt,rfsnfg,rfsneg,rfsnga,rfsntemp,rfsndum,rfsnsg,rfsnrg,rfsndelta,rfsncp,netldratio &
+                     ,ddt,rfdzmin,tempr,umag(iqu),rho(iqu),ps(iqu)*sigr,mixrr,snd(iqu),roofdumtemp(1),lzosnow)
+      if ((evct*evctx).lt.0.) then
+        ctmin=rfsntemp
+      else
+        ctmax=rfsntemp
+      end if
+      oldtemp=rfsntemp
+      rfsntemp=0.5*(ctmax+ctmin)
+      do k=1,5 ! sectant
+        evctx=evct
+        call solverfsn(evct,rfsnmelt,rfsnfg,rfsneg,rfsnga,rfsntemp,rfsndum,rfsnsg,rfsnrg,rfsndelta,rfsncp,netldratio &
+                       ,ddt,rfdzmin,tempr,umag(iqu),rho(iqu),ps(iqu)*sigr,mixrr,snd(iqu),roofdumtemp(1),lzosnow)
+        evctx=evct-evctx
+        if (evctx.eq.0.) exit    
+        newtemp=rfsntemp-evct*(rfsntemp-oldtemp)/evctx
+        oldtemp=rfsntemp
+        rfsntemp=newtemp
+      end do
+      rfsntemp=min(max(rfsntemp,ctmin),ctmax)
+    else ! no roof snow
+      rfsnfg=0.
+      rfsneg=0.
+      rfsnga=0.
+      rfsnmelt=0.
+    end if
+    !---------------------------------------------------------------- 
+
+    ! calculate roof sensible and latent heat fluxes (without snow)
+    call getinvres(roofinvres,cd,lzotdum,lzoroof,rfdzmin,roofdumtemp(1),tempr,umag(iqu))
     rooffg=aircp*rho(iqu)*(roofdumtemp(1)-tempr)*roofinvres 
     call getqsat(roofqsat,roofdumtemp(1),ps(iqu)*sigr)
     if (roofqsat.lt.mixrr) then
@@ -1003,10 +1076,10 @@ do iqu=1,ufull
   end do
 
   ! limit temperatures to sensible values
-  rooftemp(iqu,:)=min(max(roofdumtemp(:),225.),375.)
-  walletemp(iqu,:)=min(max(walledumtemp(:),225.),375.)
-  wallwtemp(iqu,:)=min(max(wallwdumtemp(:),225.),375.)
-  roadtemp(iqu,:)=min(max(roaddumtemp(:),225.),375.)
+  rooftemp(iqu,:)=min(max(roofdumtemp(:),200.),400.)
+  walletemp(iqu,:)=min(max(walledumtemp(:),200.),400.)
+  wallwtemp(iqu,:)=min(max(wallwdumtemp(:),200.),400.)
+  roadtemp(iqu,:)=min(max(roaddumtemp(:),200.),400.)
   roofwater(iqu)=min(max(roofdumwat,0.),maxroofwater)
   roadwater(iqu)=min(max(roaddumwat,0.),maxroadwater)
   rfsn(iqu)=min(max(rfsndum,0.),maxrfsn)
@@ -1032,6 +1105,7 @@ return
 end subroutine tebeval
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Estimate saturation mixing ratio
 
 subroutine getqsat(qsat,temp,ps)
 
@@ -1082,41 +1156,54 @@ return
 end subroutine getqsat
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Based on Eva's sflux.f version (i.e., vegetation)
+! Originally based on CCAM sflux.f version (i.e., vegetation)
 ! Modified for increased ratio between momentum and heat roughness
-! lengths over urban areas.
+! lengths over urban areas using Brutsaet (1982) parameterisation.
 
-subroutine getinvres(invres,cd,zo,zmin,stemp,theta,umag)
+subroutine getinvres(invres,cd,olzot,ilzo,zmin,stemp,theta,umag)
 
 implicit none
 
-real, intent(in) :: zo,zmin,stemp,theta,umag
-real, intent(out) :: invres,cd
-real zolog,af,aft,ri,fm,fh,root,denma,denha
+real, intent(in) :: ilzo,zmin,stemp,theta,umag
+real, intent(out) :: invres,cd,olzot
+real af,aft,ri,fm,fh,root,denma,denha,re,lna,zodum
 real, parameter :: bprm=5. ! 4.7 in rams
 real, parameter :: chs=2.6 ! 5.3 in rams
 real, parameter :: cms=5.  ! 7.4 in rams
-real, parameter :: vkar=0.4
 real, parameter :: fmroot=0.57735
 real, parameter :: rimax=(1./fmroot-1.)/bprm
+!real, parameter :: eta0 = 1.827E-5
+!real, parameter :: t0 = 291.15
+!real, parameter :: c = 120.
+real, parameter :: nu = 1.461E-5
 
-zolog=log(zmin/zo)
-af=(vkar/zolog)**2
-aft=vkar**2/(zolog*(heatzoinc+zolog))
+af=(vkar/ilzo)**2
 ri=min(grav*zmin*(1.-stemp/theta)/max(umag,0.2)**2,rimax)
 
 if (ri>0.) then
   fm=1./(1.+bprm*ri)**2
-  fh=fm
 else
-  root=sqrt(-ri*zmin/zo)
+  root=sqrt(-ri*exp(ilzo))
   denma=1.+cms*2.*bprm*af*root
   fm=1.-2.*bprm *ri/denma
-  denha=1.+chs*2.*bprm*aft*sqrt(exp(heatzoinc))*root
-  fh=1.-2.*bprm *ri/denha
 endif
 
 cd=af*fm
+!eta=eta0*((t0+c)/(theta+c))*(theta/t0)**(2./3.)
+!nu=eta/rho
+zodum=zmin*exp(-ilzo)
+re=sqrt(cd)*umag*zodum/nu
+lna=2.46*re**0.25-log(7.4) !(Brutsaet, 1982)
+olzot=lna+ilzo
+aft=vkar**2/(ilzo*olzot)
+
+if (ri>0.) then
+  fh=fm
+else
+  denha=1.+chs*2.*bprm*aft*exp(0.5*lna)*root
+  fh=1.-2.*bprm *ri/denha
+endif
+
 invres=aft*fh*umag
 
 return
@@ -1147,9 +1234,10 @@ else
   thetazero=asin(1./max(hwratio*ta,1.))
   tc=2.*(1.-cos(thetazero))
   tz=2.*thetazero
-  xa=max(hangle-thetazero,0.)-max(hangle-pi+thetazero,0.)+pi-min(hangle+pi+thetazero,pi)
+  xa=max(hangle-thetazero,0.)-max(hangle-pi+thetazero,0.)-min(hangle+thetazero,0.)
   xb=pi-tz-xa
-  ya=2.-cos(min(thetazero,max(abs(hangle),0.)))-cos(min(thetazero,max(hangle-pi+thetazero,0.)))
+  ya=cos(min(thetazero,max(hangle-pi,0.)))-cos(min(thetazero,abs(hangle))) &
+     +cos(pi-thetazero)-cos(min(pi,max(hangle,pi-thetazero)))
   yb=tc-ya
   ! note that these terms now include the azimuth angle
   walles=(xa/hwratio+ta*ya)/pi
@@ -1172,45 +1260,49 @@ end subroutine getswcoeff
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! solve for canyon temperature
 
-subroutine solvecanyon(evct,wallefg,wallwfg,roadfg,rdsnfg,topfg,rwinvres,topinvres,zo,zmin,ctemp &
-  ,theta,umag,cu,walletemp,wallwtemp,roadtemp,rdsntemp,rho,efftrafficfg,hwratio,rdsndelta)
+subroutine solvecanyon(evct,wallefg,wallwfg,roadfg,rdsnfg,topfg,topinvres,olzot,ilzo,zmin,ctemp &
+  ,theta,umag,cu,walletemp,wallwtemp,roadtemp,rdsntemp,rho,efftrafficfg,hwratio,rdsndelta,acond)
 
 implicit none
 
-real, intent(in) :: zo,zmin,ctemp,theta,umag,cu,walletemp,wallwtemp,roadtemp,rdsntemp,rho,efftrafficfg
+real, dimension(4), intent(inout) :: acond
+real, intent(in) :: ilzo,zmin,ctemp,theta,umag,cu,walletemp,wallwtemp,roadtemp,rdsntemp,rho,efftrafficfg
 real, intent(in) :: hwratio,rdsndelta
-real, intent(out) :: evct,wallefg,wallwfg,roadfg,rdsnfg,topfg,rwinvres,topinvres
+real, intent(out) :: evct,wallefg,wallwfg,roadfg,rdsnfg,topfg,topinvres,olzot
 real cd,cw,rwi
 
-call getinvres(topinvres,cd,zo,zmin,ctemp,theta,umag)
-cw=sqrt(cd)*umag ! diagnose canyonw (from Masson 2000)
-rwi=11.8+4.2*sqrt(cu**2+cw**2) ! From Rowley, et al (1930)
-rwinvres=rwi/(aircp*rho)
-wallefg=(walletemp-ctemp)*rwi
-wallwfg=(wallwtemp-ctemp)*rwi
-roadfg=(roadtemp-ctemp)*rwi
-rdsnfg=(rdsntemp-ctemp)*rwi
+call getinvres(topinvres,cd,olzot,ilzo,zmin,ctemp,theta,umag)
+if (resmeth.eq.0) then
+  cw=sqrt(cd)*umag ! diagnose canyonw (from Masson 2000)
+  acond(1)=(11.8+4.2*sqrt(cu**2+cw**2))/(aircp*rho) ! From Rowley, et al (1930)
+  acond(2)=acond(1)
+  acond(3)=acond(1)
+  acond(4)=acond(1)
+end if
+wallefg=aircp*rho*(walletemp-ctemp)*acond(2)
+wallwfg=aircp*rho*(wallwtemp-ctemp)*acond(3)
+roadfg=aircp*rho*(roadtemp-ctemp)*acond(1)
+rdsnfg=aircp*rho*(rdsntemp-ctemp)*acond(4)
 topfg=aircp*rho*(ctemp-theta)*topinvres
 evct=topfg-(rdsndelta*rdsnfg+(1.-rdsndelta)*roadfg+hwratio*(wallefg+wallwfg)+efftrafficfg)
 
 return
 end subroutine solvecanyon
 
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! solve for roof snow temperature
 
 subroutine solverfsn(evct,rfsnmelt,rfsnfg,rfsneg,rfsnga,rfsntemp,rfsn,rfsnsg,rfsnrg,rfsndelta,rfsncp,ldratio &
-                     ,ddt,rfdzmin,tempr,umag,rho,psr,mixrr,snd,rooftemp)
+                     ,ddt,rfdzmin,tempr,umag,rho,psr,mixrr,snd,rooftemp,lzosnow)
 
 implicit none
 
 real, intent(out) :: evct,rfsnmelt,rfsnfg,rfsneg,rfsnga
 real, intent(in) :: rfsntemp,rfsn,rfdzmin,tempr,umag,rfsndelta,rho,rfsncp,ddt,psr,mixrr,snd,ldratio,rooftemp
-real, intent(in) :: rfsnsg,rfsnrg
-real rfsninvres,cd,rfsnqsat
+real, intent(in) :: rfsnsg,rfsnrg,lzosnow
+real rfsninvres,cd,rfsnqsat,lzotdum
 
-call getinvres(rfsninvres,cd,zosnow,rfdzmin,rfsntemp,tempr,umag)
+call getinvres(rfsninvres,cd,lzotdum,lzosnow,rfdzmin,rfsntemp,tempr,umag)
 call getqsat(rfsnqsat,rfsntemp,psr)
 rfsnmelt=rfsndelta*max(0.,rfsntemp-273.16)/(rfsncp*lf*ddt) 
 rfsnfg=aircp*rho*(rfsntemp-tempr)*rfsninvres
@@ -1226,27 +1318,28 @@ end subroutine solverfsn
 
 subroutine solverdsn(evct,canyontemp,wallefg,wallwfg,roadfg,rdsnfg,topfg,roadeg,rdsneg,rdsnga,rdsnmelt,rdsntemp &
                     ,rdsndelta,rdsn,rdsncp,rdsnsg,rdsnrg,walletemp,wallwtemp,roadtemp,cndzmin,tempc,mixrc,umag &
-                    ,canyonu,rho,efftrafffg,ps,sigc,roaddelta,roadwat,rnd,snd,ldratio,ddt,iqu)
+                    ,cu,rho,efftrafffg,ps,sigc,roaddelta,roadwat,rnd,snd,ldratio,ddt,iqu,acond)
 
 implicit none
 
 integer, intent(in) :: iqu
+real, dimension(4), intent(inout) :: acond
 real, intent(out) :: evct,canyontemp,wallefg,wallwfg,roadfg,rdsnfg,topfg,roadeg,rdsneg,rdsnga,rdsnmelt
-real, intent(in) :: tempc,mixrc,walletemp,wallwtemp,roadtemp,cndzmin,umag,canyonu,rho,efftrafffg
+real, intent(in) :: tempc,mixrc,walletemp,wallwtemp,roadtemp,cndzmin,umag,cu,rho,efftrafffg
 real, intent(in) :: rdsntemp,rdsndelta,rdsn,rdsncp,rdsnsg,rdsnrg,ldratio,ps,roaddelta,roadwat,rnd,snd,ddt,sigc
-real ctmax,ctmin,cevctx,cevct,oldtemp,newtemp,rwinvres,topinvres,roadqsat,rdsnqsat,canyonmix,tc,qc,qa,tcm
+real ctmax,ctmin,cevctx,cevct,oldtemp,newtemp,topinvres,roadqsat,rdsnqsat,canyonmix,tc,qc,qa,tcm
 integer k
 
 ! solve for canyon temperature ----------------------------------
 ctmax=max(tempc,walletemp,wallwtemp,roadtemp,rdsntemp)+5. ! max canyon temp
 ctmin=min(tempc,walletemp,wallwtemp,roadtemp,rdsntemp)-5. ! min canyon temp
-call solvecanyon(cevctx,wallefg,wallwfg,roadfg,rdsnfg,topfg,rwinvres,topinvres,fnzo(iqu) &
-  ,cndzmin,ctmax,tempc,umag,canyonu,walletemp,wallwtemp,roadtemp &
-  ,rdsntemp,rho,efftrafffg,fnhwratio(iqu),rdsndelta)
+call solvecanyon(cevctx,wallefg,wallwfg,roadfg,rdsnfg,topfg,topinvres,lzot(iqu),lzo(iqu) &
+  ,cndzmin,ctmax,tempc,umag,cu,walletemp,wallwtemp,roadtemp &
+  ,rdsntemp,rho,efftrafffg,fnhwratio(iqu),rdsndelta,acond)
 canyontemp=0.5*(ctmax+ctmin)
-call solvecanyon(cevct,wallefg,wallwfg,roadfg,rdsnfg,topfg,rwinvres,topinvres,fnzo(iqu) &
-  ,cndzmin,canyontemp,tempc,umag,canyonu,walletemp,wallwtemp,roadtemp &
-  ,rdsntemp,rho,efftrafffg,fnhwratio(iqu),rdsndelta)
+call solvecanyon(cevct,wallefg,wallwfg,roadfg,rdsnfg,topfg,topinvres,lzot(iqu),lzo(iqu) &
+  ,cndzmin,canyontemp,tempc,umag,cu,walletemp,wallwtemp,roadtemp &
+  ,rdsntemp,rho,efftrafffg,fnhwratio(iqu),rdsndelta,acond)
 if ((cevct*cevctx).lt.0.) then
   ctmin=canyontemp
 else
@@ -1256,9 +1349,9 @@ oldtemp=canyontemp
 canyontemp=0.5*(ctmax+ctmin)
 do k=1,5 ! sectant
   cevctx=cevct
-  call solvecanyon(cevct,wallefg,wallwfg,roadfg,rdsnfg,topfg,rwinvres,topinvres,fnzo(iqu) &
-    ,cndzmin,canyontemp,tempc,umag,canyonu,walletemp,wallwtemp,roadtemp &
-    ,rdsntemp,rho,efftrafffg,fnhwratio(iqu),rdsndelta)
+  call solvecanyon(cevct,wallefg,wallwfg,roadfg,rdsnfg,topfg,topinvres,lzot(iqu),lzo(iqu) &
+    ,cndzmin,canyontemp,tempc,umag,cu,walletemp,wallwtemp,roadtemp &
+    ,rdsntemp,rho,efftrafffg,fnhwratio(iqu),rdsndelta,acond)
   cevctx=cevct-cevctx
   if (cevctx.eq.0.) exit    
   newtemp=canyontemp-cevct*(canyontemp-oldtemp)/cevctx
@@ -1274,15 +1367,15 @@ call getqsat(qc,tc,ps*sigc)
 call getqsat(qa,canyontemp,ps)
 call getqsat(roadqsat,roadtemp,ps*sigc)
 call getqsat(rdsnqsat,rdsntemp,ps*sigc)
-canyonmix=((rdsndelta*rdsnqsat*ls/lv+(1.-rdsndelta)*roaddelta*roadqsat)*rwinvres+mixrc*topinvres) &
-          /((rdsndelta*ls/lv+(1.-rdsndelta)*roaddelta)*(qc/qa)*rwinvres+topinvres)
+canyonmix=((rdsndelta*rdsnqsat*ls/lv*acond(4)+(1.-rdsndelta)*roaddelta*roadqsat*acond(1))+mixrc*topinvres) &
+          /((rdsndelta*ls/lv*acond(4)+(1.-rdsndelta)*roaddelta*acond(1))*qc/qa+topinvres)
 tcm=canyonmix*qc/qa
 if (roadqsat.lt.tcm) then
-  roadeg=lv*rho*(roadqsat-tcm)*rwinvres
+  roadeg=lv*rho*(roadqsat-tcm)*acond(1)
 else
-  roadeg=lv*min(rho*roaddelta*(roadqsat-tcm)*rwinvres,roadwat+rnd+rdsnmelt) ! MJT suggestion for max eg
+  roadeg=lv*min(rho*roaddelta*(roadqsat-tcm)*acond(1),roadwat+rnd+rdsnmelt) ! MJT suggestion for max eg
 end if
-rdsneg=ls*min(rho*rdsndelta*max(0.,rdsnqsat-tcm)*rwinvres,rdsn+snd-rdsnmelt) ! MJT suggestion for max eg
+rdsneg=ls*min(rho*rdsndelta*max(0.,rdsnqsat-tcm)*acond(4),rdsn+snd-rdsnmelt) ! MJT suggestion for max eg
 rdsnga=(rdsntemp-roadtemp)/ldratio
 evct=rdsnsg+rdsnrg-rdsnfg-rdsneg-rdsnga
 
