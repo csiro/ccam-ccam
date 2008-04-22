@@ -526,7 +526,7 @@ c 	    only being tested for nested=0; no need to test for mesonest
         
         !------------------------------------------------------------
         ! MJT lsmask
-        isoilh=-1
+        tmp(:)=-1.
         call histrd1(ncid,iarchi,ierr,'soilt',ik,jk,tmp(:))
         isoilh(:)=nint(tmp(:))
         !------------------------------------------------------------
