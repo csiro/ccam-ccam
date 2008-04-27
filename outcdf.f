@@ -262,6 +262,7 @@ c=======================================================================
       subroutine openhist(iarch,itype,dim,local,idnc)
       use ateb ! MJT urban      
       use cc_mpi
+      use define_dimensions, only : ncs, ncp ! MJT cable      
       implicit none
 
 c     this routine creates attributes and writes output
@@ -269,6 +270,7 @@ c     this routine creates attributes and writes output
       include 'newmpar.h'
       include 'aalat.h'
       include 'arrays.h'
+      include 'carbpools.h' ! MJT cable
       include 'dates.h'    ! ktime,kdate,timer,timeg,xg,yg,mtimer
       include 'extraout.h' ! u10_3hr,v10_3hr
       include 'filnames.h' ! list of files, read in once only
@@ -294,6 +296,7 @@ c     this routine creates attributes and writes output
       include 'soilv.h'   ! sfc,zse
       include 'tracers.h'
       include 'trcom2.h'
+      include 'vegpar.h' ! MJT cable
       include 'version.h'
       include 'vvel.h'    ! sdot, dpsldt
 
@@ -480,6 +483,10 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         call attrib(idnc,idim,3,'uscrn',lname,'K',0.,40.,0)
         lname = 'Surface albedo'
         call attrib(idnc,idim,3,'alb',lname,'none',0.,1.,0)
+        lname = 'Soil+snow two-stream albedo 1' ! MJT cable
+        call attrib(idnc,idim,3,'albsoilsn1',lname,'none',0.,1.,0)
+        lname = 'Soil+snow two-stream albedo 2'
+        call attrib(idnc,idim,3,'albsoilsn2',lname,'none',0.,1.,0)
         lname = 'Sea ice depth'
         call attrib(idnc,idim,3,'siced',lname,'m',0.,50.,0)
         lname = 'Sea ice fraction'
@@ -505,6 +512,31 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
        ! call attrib(idnc,idim,3,'wbfroot',lname,'frac',0.,4.,0)
        ! lname = 'Soil moisture as frac FC levels 1-6'
        ! call attrib(idnc,idim,3,'wbftot',lname,'frac',0.,4.,0)
+
+        if ((nsib.eq.4).or.(nsib.eq.6)) then  ! MJT cable
+          lname = 'Daily sum of canopy photosynthesis'
+          call attrib(idnc,idim,3,'sumpn',lname,'gC/m2',-10000.,
+     &                10000.,0)
+          lname = 'Daily sum of canopy respiration'
+          call attrib(idnc,idim,3,'sumrp',lname,'gC/m2',0.,10000.,0)
+          lname = 'Daily sum of soil respiration'
+          call attrib(idnc,idim,3,'sumrs',lname,'gC/m2',0.,10000.,0)
+          lname = 'Sum of daytime leaf respiration'
+          call attrib(idnc,idim,3,'sumrd',lname,'gC/m2',0.,10000.,0)
+          lname = 'Carbon leaf pool'
+          call attrib(idnc,idim,3,'cplant1',lname,'none',0.,50000.,0)
+          lname = 'Carbon wood pool'
+          call attrib(idnc,idim,3,'cplant2',lname,'none',0.,50000.,0)
+          lname = 'Carbon root pool'
+          call attrib(idnc,idim,3,'cplant3',lname,'none',0.,50000.,0)
+          lname = 'Carbon soil fast pool'
+          call attrib(idnc,idim,3,'csoil1',lname,'none',0.,50000.,0)
+          lname = 'Carbon soil slow pool'
+          call attrib(idnc,idim,3,'csoil2',lname,'none',0.,50000.,0)
+          lname = 'cansto'
+          call attrib(idnc,idim,3,'cansto',lname,'none',0.,10.,0)
+        endif
+       
         if(nextout>=1) then
           print *,'nextout=',nextout
           lname = 'LW at TOA'
@@ -707,6 +739,8 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          call attrib(idnc,idim,3,'snage',lname,'none',0.,20.,0)   
          lname = 'Snow flag'
          call attrib(idnc,idim,3,'sflag',lname,'none',0.,4.,0)
+         lname = 'Soil turbulent resistance' ! MJT cable
+         call attrib(idnc,idim,3,'rtsoil',lname,'none',0.,9.e4,0)         
         endif  ! (itype==-1)
 
         !--------------------------------------------------------
@@ -876,7 +910,10 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       enddo
       call histwrt3(aa,'pmsl',idnc,iarch,local)
       call histwrt3(tss,'tsu',idnc,iarch,local)
-      call histwrt3(alb,'alb',idnc,iarch,local)
+      aa(:)=0.5*sum(albvisnir(:,:),2) ! MJT CHANGE albedo
+      call histwrt3(aa,'alb',idnc,iarch,local)
+      call histwrt3(albsoilsn(1,1),'albsoilsn1',idnc,iarch,local) ! MJT CHANGE cable
+      call histwrt3(albsoilsn(1,2),'albsoilsn2',idnc,iarch,local) ! MJT CHANGE cable
       call histwrt3(tgg(1,1),'tgg1',idnc,iarch,local)
       call histwrt3(tgg(1,2),'tgg2',idnc,iarch,local)
       call histwrt3(tgg(1,3),'tgg3',idnc,iarch,local)
@@ -889,6 +926,19 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
     !  call histwrt3(wb(1,4),'wb4',idnc,iarch,local)
     !  call histwrt3(wb(1,5),'wb5',idnc,iarch,local)
     !  call histwrt3(wb(1,6),'wb6',idnc,iarch,local)
+      if ((nsib.eq.4).or.(nsib.eq.6)) then ! MJT cable
+! rml: moved from section that isn't written to restart file
+         call histwrt3(sumpn,'sumpn',idnc,iarch,local)
+         call histwrt3(sumrp,'sumrp',idnc,iarch,local)
+         call histwrt3(sumrs,'sumrs',idnc,iarch,local)
+         call histwrt3(sumrd,'sumrd',idnc,iarch,local)
+      call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local)
+      call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local)
+      call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local)
+      call histwrt3(csoil(:,1),'csoil1',idnc,iarch,local)
+      call histwrt3(csoil(:,2),'csoil2',idnc,iarch,local)
+      call histwrt3(cansto,'cansto',idnc,iarch,local)
+      endif    
     !  do iq=1,ifull
 !   !   calculate wb/field_capacity;  up to 3.0 for sand (isoil=1)	   
     !   isoil=isoilm(iq)
@@ -1031,6 +1081,7 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
        call histwrt3(fg,'fg',idnc,iarch,local)
        call histwrt3(taux,'taux',idnc,iarch,local)
        call histwrt3(tauy,'tauy',idnc,iarch,local)
+
 c      "extra" outputs
        if(nextout>=1) then
          if(myid == 0 ) print *,'nextout, idnc: ',nextout,idnc
@@ -1096,6 +1147,7 @@ c      "extra" outputs
        call histwrt3(ssdn(1,2),'ssdn2',idnc,iarch,local)
        call histwrt3(ssdn(1,3),'ssdn3',idnc,iarch,local)
        call histwrt3(snage,'snage',idnc,iarch,local)
+       call histwrt3(rtsoil,'rtsoil',idnc,iarch,local) ! MJT cable       
        aa(:)=isflag(:)
        call histwrt3(aa,'sflag',idnc,iarch,local)
       endif  ! (itype==-1)

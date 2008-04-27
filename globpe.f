@@ -195,7 +195,7 @@
 
       ! Check that declarations in include files match
       call check_dims()
-      
+
 #ifndef scyld
       call MPI_Init(ierr)       ! Start
 #endif
@@ -978,7 +978,8 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
           print *,'land,isoil,ivegt,isflag ',
      &           land(idjd),isoil,ivegt(idjd),isflag(idjd)
           write (6,"('snage,snowd,osnowd,alb,tsigmf   ',f8.4,4f8.2)")
-     &       snage(idjd),snowd(idjd),osnowd(idjd),alb(idjd),tsigmf(idjd)
+     &       snage(idjd),snowd(idjd),osnowd(idjd),albvisnir(idjd,1),
+     &       tsigmf(idjd)
           write (6,"('sicedep,fracice,runoff ',3f8.2)")
      &             sicedep(idjd),fracice(idjd),runoff(idjd)
           write (6,"('t1,otgsoil,theta,fev,fgf   ',9f8.2)") 
@@ -1709,7 +1710,11 @@ c     data froot/.20, .45, .20, .10, .05/
      *             800.e-6, 1.e-6, 34.e-6, 7.e-6, 1.3e-6, 2.5e-6/  ! ksat
       data sucs/-.106, -.591, -.405, -.348, -.153, -.49, -.299,
      &          -.356, -.153, -.218, -.478, -.405, -.63/           ! phisat (m)
-      data rhos/7*2600., 1300.,  910., 4*2600./      ! soil density
+      data rhos/1600., 1595., 1381., 1373., 1476., 1521., 1373., 1537.,
+     &          1455., 4*2600. / ! MJT cable
+      ! soil density changed to the line above by YP using the relationship
+      ! rho = (1  - ssat) * 2650  ----- (3Nov2007)
+!      data rhos/7*1600., 1300.,  910., 4*2600./      ! soil density 
       data  css/7* 850., 1920., 2100., 4*850./       ! heat capacity
 
       data zse/.022, .058, .154, .409, 1.085, 2.872/ ! layer thickness
@@ -1856,7 +1861,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
 953           format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
               isoil=max(1,isoilm(iq))
                write (iunp(nn),954) sigmf(iq),swilt(isoil),sfc(isoil),
-     &                              ssat(isoil),alb(iq)
+     &                              ssat(isoil),albvisnir(iq,1)
 954            format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
 !              rml 16/02/06 removed ico2em
                write (iunp(nn),955) i,j,radonem(iqt)

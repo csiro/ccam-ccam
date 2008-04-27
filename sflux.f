@@ -1,5 +1,6 @@
       subroutine sflux(nalpha)              ! for globpe code
-      use ateb ! MJT urban         
+      use ateb ! MJT urban
+      use cable_ccam, only : CABLE,sib4 ! MJT cable         
       use diag_m
       use cc_mpi
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
@@ -616,19 +617,38 @@ c            Now heat ; allow for smaller zo via aft and factch     ! land
         print *,'before sib3 zo,zolnd,af ',zo(idjd),zolnd(idjd),af(idjd)
       endif
 c ----------------------------------------------------------------------
-        call sib3(nalpha)  ! for nsib=3, 5
-        
+        if ((nsib==3).or.(nsib==5)) then ! MJT cable
+           call sib3(nalpha)  ! for nsib=3, 5
+        else if (nsib==CABLE) then ! MJT cable
+          print *,"CABLE option not avaliable"
+          stop
+        else if (nsib==6) then ! MJT cable
+          call sib4(13)
+           ! original Eva's, same as NCAR - calculate wetfac for scrnout
+          do ip=1,ipland  ! all land points in this nsib=3 loop
+            iq=iperm(ip)
+            isoil = isoilm(iq)
+            fle=(wb(iq,1)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
+            wetfac(iq)=max( 0.,min(1.,fle) )
+          enddo   ! ip=1,ipland
+        end if
+
       !----------------------------------------------------------
       ! MJT urban
       if (nurban.ne.0) then
          ! Note that condxpr and sno are determined by veg canopy
          call tebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin
-     &               ,sgsave(:)/(1.-alb(:)),-rgsave(:)
-     &               ,condxpr(:)/dt,sno(:)/dt,rho(:),t(:,1),qg(:,1)
+     &               ,sgsave(:)/(1.-albvisnir(:,1)),-rgsave(:)
+     &               ,condx/dt,rho(:),t(:,1),qg(:,1)
      &               ,ps(:),sig(1)*ps(:)
      &               ,av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(1:ifull,1)
      &               ,av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(1:ifull,1)
      &               ,sigmu(:),0)
+        ! cable clobbers albedo so we update it here
+        if ((nsib.eq.4).or.(nsib.eq.6)) then
+          call tebalb(ifull,albvisnir(:,1),sigmu(:),0)
+          call tebalb(ifull,albvisnir(:,2),sigmu(:),0)
+        end if
         ! assume sib3 only wants zo for vegetative part
         ! here we blend zo with the urban part for the
         ! calculation of ustar (occuring later in sflux.f)
@@ -649,7 +669,7 @@ c ----------------------------------------------------------------------
         end do
       end if
       !----------------------------------------------------------
-              
+
 c ----------------------------------------------------------------------
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
       if(diag.or.ntest>0)then
@@ -680,7 +700,7 @@ c        Surface stresses taux, tauy: diagnostic only - unstaggered now
          tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                              
         enddo     
        endif  ! (ntsur==6)
-       
+      
        if(nproc==1.and.diag)then
           taftfhmin=1.e20
           taftfhmax=-100.
@@ -780,6 +800,7 @@ c     include 'map.h'
       include 'soilsnow.h' ! new soil arrays for scam - tgg too
       include 'tracers.h'  ! ngas, nllp, ntrac
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
+      include 'vegpar.h' ! MJT cable
       common/nsib/nbarewet,nsigmf
       common/tafts/taftfh(ifull),taftfhg(ifull)
       common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
@@ -797,7 +818,7 @@ c     include 'map.h'
      . evapfb5(ifull),evapfb1a(ifull),evapfb2a(ifull),evapfb3a(ifull),
      . evapfb4a(ifull),evapfb5a(ifull),otgf(ifull),rmcmax(ifull),
      . tgfnew(ifull),evapfb(ijk-17*ifull)  ! to allow > 18 levels
-      common/work3d/dqsttg(ifull),tstom(ifull),rlai(ifull),
+      common/work3d/dqsttg(ifull),tstom(ifull),dumxx(ifull),
      .   cls(ifull),omc(ifull),dum3d(ijk-5*ifull)  ! allows L9
       real, dimension(ifull) :: ftsoil, srlai
       include 'establ.h'
@@ -839,7 +860,7 @@ c                             if( tsoil >= tstom ) ftsoil=1.
         enddo
       else     ! i.e. nsib=5
         where (land)
-         rlai=max(.1,elai) ! MJT - Ecosystems
+         rlai=max(.1,vlai)
          srlai=rlai                  ! nsib=5 leaf area index
          tsigmf=max(.001,sigmf)
         end where
@@ -918,7 +939,7 @@ c                             if( tsoil >= tstom ) ftsoil=1.
          print*,'iveg,sigmf(iq),tsigmf ',ivegt(iq),sigmf(iq),tsigmf(iq)
          print*,'scveg44,snowd,zo,zolnd,tstom ',
      .          scveg44(iveg),snowd(iq),zo(iq),zolnd(iq),tstom(iq)
-         print *,'alb,sgsave ',alb(iq),sgsave(iq)
+         print *,'alb,sgsave ',albvisnir(iq,1),sgsave(iq)
          print*,'w2,rlai,extin ',wb(iq,ms),rlai(iq),extin(iq)
        endif ! ntest
 c      bare ground calculation

@@ -252,7 +252,7 @@ c       call maxmin(wbfice,'ic',ktau,1.,6)
      &                (zse(k)*1000.),.99*wb(iq,k))
 c         wbice(iq,k)=max(wbice(iq,k),0.)  ! superfluous
 !         gammzz(iq,k)=calgammv(iq,isoil,k,wb(iq,k)-wbice(iq,k),wbice(iq,k))
-          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)! MJT CHANGE - back to original
+          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
      &     +(wb(iq,k)-wbice(iq,k))*cswat*rhowat + wbice(iq,k)*csice*
      &      rhowat*.9 , css(isoil)*rhos(isoil)  ) * zse(k)
           if(k==1.and.isflag(iq)==0)gammzz(iq,k)=gammzz(iq,k) +
@@ -270,7 +270,7 @@ c    &                                    cgsnow*snowd(iq)/ssdnn(iq)
           wbice(iq,k)=max(0.,wbice(iq,k)-sicemelt/(zse(k)*1000.))
 c         if(wbice(iq,k)<.001) wbice(iq,k)=0.
 !         gammzz(iq,k)=calgammv(iq,isoil,k,wb(iq,k)-wbice(iq,k),wbice(iq,k))
-          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) ! MJT CHANGE - back to original
+          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) 
      &     +(wb(iq,k)-wbice(iq,k))*cswat*rhowat + wbice(iq,k)*csice*
      &      rhowat*.9 , css(isoil)*rhos(isoil)  ) * zse(k)
           if(k==1.and.isflag(iq)==0)gammzz(iq,k)=gammzz(iq,k) +
@@ -348,7 +348,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
      .              dum3b(ijk*2-2*ifull*ms-3*ifull)
       common/work3c/gammzz(ifull,ms),dum3c(ijk-ifull*ms)
       common/soilzs/zshh(ms+1),ww(ms)
-      dimension rnof1(ifull)
+      !dimension rnof1(ifull) ! MJT cable
 
       dimension smelt1(3)
       dimension c3(9)
@@ -540,9 +540,9 @@ c            prevent snow depth going negative
 !      for deep runoff use wb-sfc, but this value not to exceed .99*wb-wbice
        dwb=max(min(wb(iq,ms)-sfc(isoil),.99*wb(iq,ms)-wbice(iq,ms))
      .                                 *c3(isoil)/86400. , 0.)     ! 1/9/00
-       rnof2=zse(ms)*1000.*dwb*dt
+       rnof2(iq)=zse(ms)*1000.*dwb*dt                              ! MJT cable
        wb(iq,ms)=wb(iq,ms)-dwb*dt
-       runoff(iq)=runoff(iq)+rnof1(iq)+rnof2  ! accumulated mm
+       runoff(iq)=runoff(iq)+rnof1(iq)+rnof2(iq)  ! accumulated mm ! MJT cable
       enddo               ! ip loop
 
 c---  glacier formation
@@ -1086,7 +1086,6 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
           ccnsw(iq,k)= min(cnsd(isoil)*exp(ew*log(60.)+ei*log(250.))
      .                  , 2.2)*ccf
         endif  ! (isoil==9) ... else ...
-        !ccnsw(iq,k)=(1.-tsigmu(iq))*ccnsw(iq,k)+tsigmu(iq)*4.6 ! MJT CHANGE - delete
        enddo
       enddo
 
@@ -1110,7 +1109,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
          enddo
 
          k=1
-         gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) ! MJT CHANGE - back to original
+         gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
      *    +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
      *    rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
          gammzz(iq,k)=gammzz(iq,k) +  cgsnow*snowd(iq) 
@@ -1120,7 +1119,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
          bt(iq,k)= 1.-at(iq,k)-ct(iq,k)
 
          do k=2,ms
-          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) ! MJT CHANGE - back to original
+          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
      *     +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
      *     rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
           dtg=dt/gammzz(iq,k)
@@ -1190,7 +1189,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
          coefb(iq)=coeff(4-3)     ! jlm B
 
          do k=1,ms
-          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) ! MJT CHANGE - back to original
+          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
      *     +ssat(isoil)*(wblf(iq,k)*cswat*rhowat + wbfice(iq,k)*csice*
      *      rhowat*.9) , css(isoil)*rhos(isoil)  ) * zse(k)
           dtg=dt/gammzz(iq,k)

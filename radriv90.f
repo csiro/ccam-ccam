@@ -259,8 +259,14 @@ c        Conversion of o3 from units of cm stp to gm/gm
       do i=1,imax
           iq=i+(j-1)*il
           if( land(iq) )then
+           if ((nsib.eq.4).or.(nsib.eq.6)) then ! MJT CHANGE sib
+             cuvrf(i,1) = albvisnir(iq,1) ! from cable (inc snow)
+             cirrf(i,1) = albvisnir(iq,2) ! from cable (inc snow)
+           else
+                     
            if(nalbwb.eq.0)then
-             cuvrf(i,1) = albsav(iq) ! use surface albedo from indata
+             cuvrf(i,1) = albsav(iq)    ! use surface albedo from indata
+             cirrf(i,1) = albnirsav(iq) ! MJT CHANGE albedo
            else    ! soil albedo adjusted according to wetness of top layer
 !            can do quadratic fit [ 0 to wbav to ssat]
 !            wbs=sfc(isoilm(iq))         ! or consider using wbs=ssat()
@@ -284,6 +290,7 @@ c        Conversion of o3 from units of cm stp to gm/gm
 
              albs=max(min(albs,.38),.11)
              cuvrf(i,1) = tsigmf(iq)*albsav(iq) + (1.-tsigmf(iq))*albs
+             cirrf(i,1)=cuvrf(i,1) ! MJT CHANGE albedo
              if(ntest.gt.0.and.i.eq.idrad.and.j.eq.jdrad)then
                print *,'iq,land,sicedep,wbw,wbs,snowd ',
      .                  iq,land(iq),sicedep(iq),wbw,wbs,snowd(iq)
@@ -349,16 +356,20 @@ c                   where cs = 0.2, cn = 0.5, b = 2.0
              alv = .4 * fzenm * (1.-alvd) + alvd
              alird = aliro*(1.-.5*fage)
              alir = .4 * fzenm * (1.0-alird) + alird
-             talb = .5 * ( alv + alir )        ! snow albedo
+             !talb = .5 * ( alv + alir )        ! snow albedo
 c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
              cc=min(1.,snr/max(snr+zolnd(iq),0.02))
              tsigmfx=(1.-cc)*tsigmf(iq)      ! mult by snow free veg. fraction
 
-            alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
+            !alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
             if(nsib.ge.3)then 
-              cuvrf(i,1)=alss
+              !cuvrf(i,1)=alss
+              cuvrf(i,1)=(1.-snrat)*cuvrf(i,1) + snrat*alv ! MJT CHANGE albedo
+              cirrf(i,1)=(1.-snrat)*cirrf(i,1) + snrat*alir ! MJT CHANGE albedo
             else
-              cuvrf(i,1)=min(.8,(1.-tsigmfx)*alss+tsigmfx*albsav(iq))
+              !cuvrf(i,1)=min(.8,(1.-tsigmfx)*alss+tsigmfx*albsav(iq))
+              cuvrf(i,1)=min(.8,(1.-tsigmfx)*alv+tsigmfx*cuvrf(i,1)) ! MJT CHANGE albedo
+              cirrf(i,1)=min(.8,(1.-tsigmfx)*alir+tsigmfx*cirrf(i,1)) ! MJT CHANGE albedo
             endif
 c           old stuff before snage follows:
 c           if(tss(iq) .ge. 273.09 ) then
@@ -375,25 +386,52 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
      .                 albsav(iq),dnsnow,talb,cuvrf(i,1)
             endif
            endif          !  snowd(iq).gt.0.
-           call tebalb1(cuvrf(i,1),iq,sigmu(iq),0) ! MJT urban 
+           
+           end if ! (nsib.eq.4).or.(nsib.eq.6) ! MJT CHANGE sib
          else             !  over the ocean or sea ice
 !          following for CCAM from 11/6/03
-           cuvrf(i,1)=.65*fracice(iq)+
-     .                (1.-fracice(iq))*.05/(coszro(i)+0.15)
+    !       cuvrf(i,1)=.65*fracice(iq)+
+    ! .                (1.-fracice(iq))*.05/(coszro(i)+0.15)
+           cuvrf(i,1)=.85*fracice(iq)+
+     .                (1.-fracice(iq))*.05/(coszro(i)+0.15) ! MJT CHANGE albedo (follow CICE)
+           cirrf(i,1)=.45*fracice(iq)+
+     .                (1.-fracice(iq))*.05/(coszro(i)+0.15) ! MJT CHANGE albedo (follow CICE)
         endif       ! if( land(iq)) .. else..
-
-         alb(iq) = cuvrf(i,1)   ! save current albedo in alb array for outfile
-         if(iaero.ne.0)then
+        
+      !-----------------------------------------------------------------------------------------------------------
+      ! MJT urban
+!         alb(iq) = cuvrf(i,1)   ! save current albedo in alb array for outfile
+!         albnir(iq) = cirrf(i,1) ! MJT CHANGE albedo
+!         if(iaero.ne.0)then
+!           cosz = max ( coszro(i), 1.e-4)
+!    !       delta =  coszro(i)*beta_ave*alpha*so4t(iq)*
+!    ! &	                    ((1.-cuvrf(i,1))/cosz)**2
+!           delta =  coszro(i)*beta_ave*alpha*so4t(iq)* ! MJT CHANGE albedo - still broadband
+!    &	            ((1.-cuvrf(i,1))/cosz)*((1.-cirrf(i,1))/cosz)
+!!          above formula equiv. to next lines, but avoids dark-area problems
+!c          delta =   beta_ave*alpha*so4t(iq)*
+!c    &			          (1.-cuvrf(i,1))**2/cosz
+!           cuvrf(i,1)=min(1., delta+cuvrf(i,1)) ! surface albedo
+!           cirrf(i,1)=min(1., delta+cirrf(i,1)) ! MJT CHANGE albedo - still broadband
+!         endif !(iaero.ne.0)then
+!         !cirrf(i,1)  = cuvrf(i,1)  ! MJT CHANGE albedo
+!      end do ! i=1,imax
+      end do ! i=1,imax 
+      call tebalb1(istart,imax,cuvrf(1:imax,1),sigmu(istart:iend),0)
+      call tebalb1(istart,imax,cirrf(1:imax,1),sigmu(istart:iend),0)
+      albvisnir(istart:iend,1)=cuvrf(1:imax,1)
+      albvisnir(istart:iend,2)=cirrf(1:imax,1)
+      if (iaero.ne.0) then
+        do i=1,imax
+          iq=i+(j-1)*il
            cosz = max ( coszro(i), 1.e-4)
-           delta =  coszro(i)*beta_ave*alpha*so4t(iq)*
-     &	                    ((1.-cuvrf(i,1))/cosz)**2
-!          above formula equiv. to next lines, but avoids dark-area problems
-c          delta =   beta_ave*alpha*so4t(iq)*
-c    &			          (1.-cuvrf(i,1))**2/cosz
+           delta =  coszro(i)*beta_ave*alpha*so4t(iq)* ! MJT CHANGE albedo - still broadband
+     &	            ((1.-cuvrf(i,1))/cosz)*((1.-cirrf(i,1))/cosz)
            cuvrf(i,1)=min(1., delta+cuvrf(i,1)) ! surface albedo
-         endif!(iaero.ne.0)then
-         cirrf(i,1)  = cuvrf(i,1)
-      end do ! i=1,imax
+           cirrf(i,1)=min(1., delta+cirrf(i,1)) ! MJT CHANGE albedo - still broadband
+        end do ! i=1,imax
+      endif !(iaero.ne.0)then
+      !-----------------------------------------------------------------------------------------------------------      
 
       do k=1,kl
          kr = kl+1-k
@@ -515,7 +553,7 @@ c       write(24,*)coszro2
           sout(i) = ufsw(i,1)*h1m3   ! solar out top
           sg(i)   = sg(i)*h1m3       ! solar absorbed at the surface
           iq=i+(j-1)*il              ! fixed Mar '05
-          sgdn(i) = sg(i) / ( 1. - alb(iq) )
+          sgdn(i) = sg(i) / ( 1. - albvisnir(iq,1) )
       end do
       if(ntest.gt.0.and.j.eq.jdrad)then
         print *,'idrad,j,sint,sout,soutclr,sg,cuvrf1 ',
@@ -691,7 +729,7 @@ c       endif
      .           rgsave(idjd),rtsave(idjd),sintsave(idjd)
         print *,'sgsave,rtclsave,sgclsave ',
      .           sgsave(idjd),rtclsave(idjd),sgclsave(idjd)
-        print *,'alb ',alb(idjd)
+        print *,'alb ',albvisnir(idjd,1)
       endif
       if(nmaxpr==1.and.mydiag)then
         write (6,"('cfracr',9f8.3/6x,9f8.3)") cfrac(idjd,:)

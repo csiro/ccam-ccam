@@ -1,6 +1,7 @@
       subroutine indata(hourst,newsnow,jalbfix)! nb  newmask not yet passed thru
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
       use ateb ! MJT urban
+      use cable_ccam, only : cbmrdn2 ! MJT cable
       use cc_mpi
       use diag_m
 !     rml 21/02/06 removed all so2 code
@@ -49,6 +50,7 @@
       include 'vecs.h'
       include 'xyzinfo.h'   ! x,y,z,wts
       include 'vecsuv.h'    ! vecsuv info
+      include 'vegpar.h' ! MJT cable
       include 'mpif.h'
       real, intent(out) :: hourst
       integer, intent(in) :: newsnow, jalbfix
@@ -85,7 +87,7 @@
      &     coslat, coslong, costh, den, diffb, diffg, dist,
      &     epsmax, fracs, fracwet, ftsoil, gwdfac, hefact,
      &     helim, hemax, hemax_g, polenx, poleny, polenz, pslavge,
-     &     rad, radu, radv, ri, rj, rlai, rlat_d, rlon_d,
+     &     rad, radu, radv, ri, rj, rlat_d, rlon_d, ! MJT cable - delete rlai
      &     rmax, rmin, rmax_g, rmin_g, rlatd, rlongd, 
      &     sinlat, sinlong, sinth, snalb,sumdsig, thet, timegb, tsoil, 
      &     uzon, vmer, wet3, zonx, zony, zonz, zsdiff, zsmin, tstom, 
@@ -268,8 +270,11 @@ c         print *,'this one uses supplied eigs'
             call infile(0,kdate,ktime,timegb,ds,
      &           psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
-     &           tgg,wb,wbice,alb,snowd,
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag,isoilm,urban)  !MJT lsmask ! MJT urban  
+     &           tgg,wb,wbice,albvisnir(:,1),snowd,
+     &           tggsn,smass,ssdn,ssdnn,snage,isflag,
+     &           albsoilsn(:,1:2),rtsoil, ! MJT cable
+     &           isoilm,urban)  !MJT lsmask ! MJT urban
+            albvisnir(:,2)=albvisnir(:,1) ! MJT CHANGE albedo  
             if ( mydiag ) then
                print *,'timegb,ds,zss',timegb,ds,zss(idjd)
                print *,'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
@@ -304,7 +309,9 @@ c           endif  ! (nspecial>100)
             call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
      &           tgg,wb,wbice,snowd,
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag,urban) ! MJT urban
+     &           tggsn,smass,ssdn,ssdnn,snage,isflag,
+     &           albsoilsn(:,1:2),rtsoil, ! MJT cable
+     &           urban) ! MJT urban
          endif   ! (io_in==-1.or.io_in==-3)
  
          if(nproc==1)then
@@ -828,6 +835,8 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
       if(nsib>=1)then
         call insoil   !  bundled in with sscam2
         call rdnsib   !  for usual defn of isoil, iveg etc
+        !if (nsib.eq.4) call cbmrdn(nveg)
+        if (nsib.eq.6) call cbmrdn2 ! MJT cable ! replace with cbmrdn when avaliable
       else
         do iq=1,ifull
          ivegt(iq)=1   ! default for h_s etc
@@ -861,14 +870,14 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
          endif
         endif
        enddo
-       do iq=1,ifull          ! MJT CHANGE - ecosystems
+       do iq=1,ifull
         if(land(iq))then  
 !        following line from 16/3/06 avoids sand on Himalayas        
          if(zs(iq)>2000.*grav.and.isoilm(iq)<3)isoilm(iq)=3
         endif
        enddo                 
-      endif ! (nsib==3)
-
+      !endif ! (nsib==3) ! MJT cable
+      
 !     put in Antarctica ice-shelf fixes 5/3/07
       do iq=1,ifull
        if(zs(iq)<=0.)then
@@ -893,9 +902,9 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
          endif
        endif  ! (zs(iq)<=0.)
       enddo
+      endif ! (nsib==3) ! MJT cable
 
-      !-----------------------------------------------------------------
-      ! MJT CHANGE - ecosystems (moved below ice-shelf fix Dec 07)
+
       if (any(wb(:,:).lt.0.)) then
         if (mydiag) print *,"Unpacking wetfrac to wb",wb(idjd,1)
         wb(:,:)=abs(wb(:,:))
@@ -913,7 +922,6 @@ c    &           min(.99,max(0.,.99*(273.1-tgg(:,k))/5.))*wb(:,k) ! jlm
 c          enddo ! ms
 c        end if
       end if
-      !-----------------------------------------------------------------
 
 
 !     rml 16/02/06 initialise tr, timeseries output and read tracer fluxes
@@ -1265,7 +1273,8 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 !        at beginning of month set sice temperatures
          tgg(iq,3)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m level 1
          tss(iq)=tgg(iq,3)*fracice(iq)+tgg(iq,1)*(1.-fracice(iq))
-         alb(iq)=.65*fracice(iq)+.1*(1.-fracice(iq))
+         albvisnir(iq,1)=.8*fracice(iq)+.1*(1.-fracice(iq)) ! MJT CHANGE albedo
+         albvisnir(iq,2)=.5*fracice(iq)+.1*(1.-fracice(iq)) ! MJT CHANGE albedo
        endif   ! (sicedep(iq)>0.) 
        if(isoilm(iq)==9)then
 !        also at beg. of month ensure cold deep temps over permanent ice
@@ -1363,7 +1372,8 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
             write(6,"('before nrungcm=1 fix-up wb(1-ms)',9f7.3)") 
      &                   (wb(idjd,k),k=1,ms)
             print *,'nfixwb,isoil,swilt,sfc,ssat,alb ',
-     &        nfixwb,isoil,swilt(isoil),sfc(isoil),ssat(isoil),alb(idjd)
+     &        nfixwb,isoil,swilt(isoil),sfc(isoil),ssat(isoil),
+     &        albvisnir(idjd,1)
          end if
         do ip=1,ipland  ! all land points in this nsib=1+ loop
          iq=iperm(ip)
@@ -1453,12 +1463,12 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
             isoil = isoilm(idjd)
             print *,'before nrungcm=2 fix-up wb(1-ms): ',wb(idjd,:)
             print *,'isoil,swilt,ssat,alb ',
-     &           isoil,swilt(isoil),ssat(isoil),alb(idjd)
+     &           isoil,swilt(isoil),ssat(isoil),albvisnir(idjd,1)
          end if
         do ip=1,ipland  ! all land points in this nsib=1+ loop
          iq=iperm(ip)
          isoil = isoilm(iq)
-         if( alb(iq) >= 0.25 ) then
+         if( albvisnir(iq,1) >= 0.25 ) then
            diffg=max(0. , wb(iq,1)-0.068)*ssat(isoil)/0.395   ! for sib3
            diffb=max(0. , wb(iq,ms)-0.068)*ssat(isoil)/0.395   ! for sib3
          else
@@ -1495,9 +1505,10 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       end if
 
       
-      if(nsib==5)then  ! MJT CHANGE (9/8/06) : Ecosystems
+      if(nsib==5)then ! MJT CHANGE sib
         where (land)
-!         sigmf(:)=min(.8,.95*sigmf(:))  ! MJT CHANGE (6/1/07) : Ecosystems
+          ! here we lump woody (k=0.5) and grassland (k=0.6) types together
+          sigmf(:)=max(0.01,min(0.98,1.-exp(-0.6*vlai(:)))) ! Sellers 1996 (see also Masson 2003) ! MJT CHANGE sib
           tsigmf(:)=sigmf(:)
         end where
       else      ! usual, nsib<5
@@ -1524,8 +1535,8 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
            ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
 !          which is same as:  ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
 !                             if( tsoil >= tstom ) ftsoil=1.
-           rlai=  max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil))
-           rsmin(iq) = rsunc44(iveg)/rlai  
+           rlai(iq)=  max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil)) ! MJT cable
+           rsmin(iq) = rsunc44(iveg)/rlai(iq)                         ! MJT cable
          endif   ! (land(iq)) 
         enddo    !  iq loop
       
@@ -1533,31 +1544,35 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
            if(mydiag)then
               isoil=isoilm(idjd)
               print *,'before jalbfix isoil,sand,alb,rsmin ',
-     &                        isoil,sand(isoil),alb(idjd),rsmin(idjd)
+     &                        isoil,sand(isoil),albvisnir(idjd,1),
+     &                        rsmin(idjd)
            endif
            do ip=1,ipland  
             iq=iperm(ip)
             isoil = isoilm(iq)
-            alb(iq)=max(alb(iq),sigmf(iq)*alb(iq)
+            albvisnir(iq,1)=max(albvisnir(iq,1),
+     &        sigmf(iq)*albvisnir(iq,1)
      &        +(1.-sigmf(iq))*(sand(isoil)*.35+(1.-sand(isoil))*.06))
+            albvisnir(iq,2)=albvisnir(iq,1) ! MJT CHANGE albedo
            enddo                  !  ip=1,ipland
            if(mydiag)then
-              print *,'after jalbfix sigmf,alb ',sigmf(idjd),alb(idjd)
+              print *,'after jalbfix sigmf,alb ',sigmf(idjd)
+     &               ,albvisnir(idjd,1)
            endif
          endif  ! (jalbfix==1)
-      endif     ! (nsib==5) .. else ..
 
-      if(newrough>0.and.nsib<5)then
-        call calczo(.05)
-        if(mydiag)print *,'after calczo zolnd ',zolnd(idjd)
-c       if(newrough>2)then
-c         zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
-c       endif
-        if ( mydiag ) then
-          print *,'after calczo with newrough = ',newrough
-          write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
-        end if
-      endif
+        if(newrough>0)then
+          call calczo(.05)
+          if(mydiag)print *,'after calczo zolnd ',zolnd(idjd)
+c         if(newrough>2)then
+c           zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
+c         endif
+          if ( mydiag ) then
+            print *,'after calczo with newrough = ',newrough
+            write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
+          end if
+        endif
+      endif     ! (nsib==5) .. else ..
 
       if(ngwd.ne.0)then
         hemax=0.
@@ -1688,7 +1703,8 @@ c        sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
 c        uzon= costh*u(iq,1)-sinth*v(iq,1)
 c        vmer= sinth*u(iq,1)+costh*v(iq,1)	  
          write(22,922) iq,i,j,rlongg(iq)*180./pi,rlatt(iq)*180./pi,
-     &          thet,em(iq),land(iq),sicedep(iq),zs(iq)/grav,alb(iq),
+     &          thet,em(iq),land(iq),sicedep(iq),zs(iq)/grav,
+     &              albvisnir(iq,1),
      &              isoilm(iq),ivegt(iq),
      &              tss(iq),t(iq,1),tgg(iq,2),tgg(iq,ms),
      &              wb(iq,1),wb(iq,ms),
@@ -1808,7 +1824,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
              wet3=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil)) 
              print 98,iunp(nn),istn(nn),jstn(nn),iq,slon(nn),slat(nn),
      &          land(iq),rlongg(iq)*180/pi,rlatt(iq)*180/pi,
-     &          isoilm(iq),ivegt(iq),zs(iq)/grav,alb(iq),
+     &          isoilm(iq),ivegt(iq),zs(iq)/grav,albvisnir(iq,1),
      &          wb(iq,3),wet3,sigmf(iq),zolnd(iq),rsmin(iq),he(iq),
      &          myid
            end if               ! mystn
@@ -1838,7 +1854,8 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       !-----------------------------------------------------------------
 
       do iq=1,ifull
-       albsav(iq)=alb(iq)
+       albsav(iq)=albvisnir(iq,1)
+       albnirsav(iq)=albvisnir(iq,2) ! MJT CHANGE albedo
       enddo   ! iq loop
       call end_log(indata_end)
       return
@@ -1860,6 +1877,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       include 'soilsnow.h' ! new soil arrays for scam - tgg too
       include 'soilv.h'
       include 'tracers.h'
+      include 'vegpar.h' ! MJT cable
       include 'mpif.h'
       parameter( ivegdflt=1, isoildflt=7, ico2dflt = 999 )
       parameter( falbdflt=15., fsoildflt=0.15, frsdflt=990.)
@@ -1868,33 +1886,36 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       logical rdatacheck,idatacheck,mismatch
       integer ivegmin, ivegmax, ivegmin_g, ivegmax_g
 
-       call readreal(albfile,alb,ifull)
-       call readreal(rsmfile,rsmin,ifull)  ! not used these days
+       call readreal(albfile,albvisnir(:,1),ifull)
+       if ((nsib.ne.4).and.(nsib.ne.6)) then ! MJT CHANGE sib
+         call readreal(rsmfile,rsmin,ifull)  ! not used these days
+       end if                                ! MJT CHANGE sib
        call readreal(zofile,zolnd,ifull)
        if(iradon.ne.0)call readreal(radonemfile,radonem,ifull)
+       call readint(vegfile,ivegt,ifull)  ! MJT CHANGE sib
        call readint(soilfile,isoilm,ifull)      
-       if(nsib==5) then  ! MJT CHANGE (9/8/06): Ecosystems dataset
+       if((nsib==5).or.(nsib==6)) then ! MJT CHANGE sib
          if (mydiag) then
-           print *,'nsib=5 override lai & vegfrac data files.'
-           print *,'WARN: Pretend ivegt=1 for soil moisture'
-           print *,'      and error checking.'
+           print *,'nsib=5,6 override LAI & NIR albedo data.' ! MJT CHANGE sib
          end if
-         ivegt(:)=1 
-         call readreal('lai',elai,ifull)
-         call readreal('vegfrac',sigmf,ifull)
-         elai(:)=0.01*elai(:) ! MJT
-         sigmf(:)=0.01*sigmf(:)
+         !ivegt(:)=1 ! MJT CHANGE sib
+         call readreal('lai',vlai,ifull)
+         !call readreal('vegfrac',sigmf,ifull) ! MJT CHANGE sib
+         call readreal('albnir',albvisnir(:,2),ifull)
+         vlai(:)=0.01*vlai(:)    ! MJT cable
+         !sigmf(:)=0.01*sigmf(:) ! MJT CHANGE sib
          !-----------------------------------------------------------
          ! MJT urban - delete the following
-c        call readreal('urban',sigmu,ifull) ! MJT CHANGE (21/8/06) - urban
+c        call readreal('urban',sigmu,ifull)
 !         where (sigmf.lt.1.)
 !          convert to cover over bare soil
-!           sigmu=0.01*sigmu/(1.-sigmf) ! MJT CHANGE 6/1/07 
+!           sigmu=0.01*sigmu/(1.-sigmf)
 !         end where
           !----------------------------------------------------------
        else    ! usual, nsib<5
-         call readint(vegfile,ivegt,ifull)
-         sigmu(:)=0.                       ! MJT CHANGE (21/8/06) - urban
+         !call readint(vegfile,ivegt,ifull)  ! MJT CHANGE sib
+         sigmu(:)=0.                         ! MJT CHANGE urban
+         albvisnir(:,2)=albvisnir(:,1)       ! MJT CHANGE albedo
        endif  ! (nsib==5) .. else ..
        !------------------------------------------------
        ! MJT urban
@@ -1907,10 +1928,12 @@ c        call readreal('urban',sigmu,ifull) ! MJT CHANGE (21/8/06) - urban
        ! -----------------------------------------------       
 
        mismatch = .false.
-       if( rdatacheck(land,alb,'alb',idatafix,falbdflt))
+       if( rdatacheck(land,albvisnir(:,1),'alb',idatafix,falbdflt))
      &      mismatch = .true.
-       if( rdatacheck(land,rsmin,'rsmin',idatafix,frsdflt))
-     &      mismatch = .true.
+       if ((nsib.ne.4).and.(nsib.ne.6)) then ! MJT cable
+         if( rdatacheck(land,rsmin,'rsmin',idatafix,frsdflt))
+     &        mismatch = .true.
+       end if
        if( rdatacheck(land,zolnd,'zolnd',idatafix,fzodflt))
      &      mismatch = .true.
 !      if( idatacheck(land,ivegt,'ivegt',idatafix,ivegdflt))
@@ -1947,7 +1970,7 @@ c         if(ivegt(iq)>40)print *,'iq, ivegt ',iq,ivegt(iq)
      &                  MPI_COMM_WORLD, ierr )
       call MPI_Allreduce(ivegmax, ivegmax_g, 1, MPI_INTEGER, MPI_MAX, 
      &                  MPI_COMM_WORLD, ierr )
-      if(ivegmax_g<14)then
+      if((ivegmax_g<14).and.(nsib.ne.4).and.(nsib.ne.6)) then ! MJT CHANGE cable
        if ( mydiag ) print *,
      &      '**** in this run veg types increased from 1-13 to 32-44'
        do iq=1,ifull            ! add offset to sib values so 1-13 becomes 32-44
@@ -1956,7 +1979,7 @@ c         if(ivegt(iq)>40)print *,'iq, ivegt ',iq,ivegt(iq)
       endif
  
 c     zobg = .05
-      alb(:)=.01*alb(:)
+      albvisnir(:,:)=.01*albvisnir(:,:)
       zolnd(:)=.01*zolnd(:)
 !     zolnd(:)=min(zolnd(:) , 1.5)   ! suppressed 30/7/04
       zolnd(:)=max(zolnd(:) , zobgin)

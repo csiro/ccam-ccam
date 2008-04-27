@@ -365,7 +365,7 @@ c
           case ('rnet')    ; temparr=rnet
           case ('eg')      ; temparr=eg
           case ('fg')      ; temparr=fg
-          case ('alb')     ; temparr=alb
+          case ('alb')     ; temparr=0.5*sum(albvisnir,2) ! MJT cable
           case ('sgsave')  ; temparr=sgsave
           case ('rgsave')  ; temparr=rgsave
           case ('precip')  ; temparr=precip

@@ -3,6 +3,7 @@
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                  tgg,wb,wbice,alb,snowd,
      .                  tggsn,smass,ssdn,ssdnn,snage,isflag,
+     .                  albsoilsn,rtsoil, ! MJT cable
      .                  isoilh,urban) ! MJT lsmask ! MJT urban 
 !     note kk; vertint.f is attached below
 !     kdate_r and ktime_r are returned from this routwine.
@@ -15,9 +16,11 @@
 !     This is called from nestin and onthefly 
 
       use cc_mpi
+      use define_dimensions, only : ncs, ncp ! MJT cable
       use diag_m
       implicit none
       include 'newmpar.h'
+      include 'carbpools.h' ! MJT cable
       include 'const_phys.h'
       include 'darcdf.h'
       include 'kuocom.h'    ! ldr
@@ -26,6 +29,7 @@
       include 'netcdf.inc'
       include 'parm.h'
       include 'stime.h'     ! kdate_s,ktime_s  sought values for data read
+      include 'vegpar.h' ! MJT cable
       include 'tracers.h'
       include 'mpif.h'
 
@@ -36,7 +40,8 @@
      . snowd(ifull),alb(ifull),sicedep(ifull),fracice(ifull),
      . t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     . ssdnn(ifull),snage(ifull),urban(ifull,1:12) ! MJT urban
+     . ssdnn(ifull),snage(ifull),albsoilsn(ifull,2),rtsoil(ifull), ! MJT cable
+     . urban(ifull,1:12) ! MJT urban
       integer isoilh(ifull) ! MJT lsmask     
       integer isflag(ifull)
       integer ktau_r, ibb, jbb, i
@@ -436,6 +441,9 @@ c         enddo
           if(nspecial==26)qfg(idjd,kl)=4.e-3 ! tests at (idjd)
         endif   ! (ldr.ne.0)
         call histrd1(ncid,iarchi,ier,'alb',ik,jk,alb)
+        albsoilsn(:,:)=0. ! MJT cable
+        call histrd1(ncid,iarchi,ier,'albsoilsn1',ik,jk,albsoilsn(1,1))
+        call histrd1(ncid,iarchi,ier,'albsoilsn2',ik,jk,albsoilsn(1,2))
         call histrd1(ncid,iarchi,ierr,'tgg2',ik,jk,tgg(1,2))
         if(ierr==0)then  ! at least tgg6, wb2, wb6 will be available
           call histrd1(ncid,iarchi,ier,'tgg6',ik,jk,tgg(1,6))
@@ -601,6 +609,32 @@ c 	    only being tested for nested=0; no need to test for mesonest
           enddo
         endif
 
+! rml from eak 16/03/06
+! rml 03/01/07 if cplant1-3 and csoil1-2 not available check for carb_* fields
+          cplant=0. ! MJT cable
+          call histrd1(ncid,iarchi,ier,'cplant1',ik,jk,cplant(:,1))
+          if (ier.ne.0) 
+     &      call histrd1(ncid,iarchi,ier,'carb_lf',ik,jk,cplant(:,1))
+          call histrd1(ncid,iarchi,ier,'cplant2',ik,jk,cplant(:,2))
+          if (ier.ne.0) 
+     &      call histrd1(ncid,iarchi,ier,'carb_wd',ik,jk,cplant(:,2))
+          call histrd1(ncid,iarchi,ier,'cplant3',ik,jk,cplant(:,3))
+          if (ier.ne.0) 
+     &      call histrd1(ncid,iarchi,ier,'carb_rts',ik,jk,cplant(:,3))
+          call histrd1(ncid,iarchi,ier,'csoil1',ik,jk,csoil(:,1))
+          if (ier.ne.0) 
+     &      call histrd1(ncid,iarchi,ier,'carb_slf',ik,jk,csoil(:,1))
+          call histrd1(ncid,iarchi,ier,'csoil2',ik,jk,csoil(:,2))
+          if (ier.ne.0) 
+     &      call histrd1(ncid,iarchi,ier,'carb_sls',ik,jk,csoil(:,2))
+          !call histrd1(ncid,iarchi,ier,'sumpn',ik,jk,sumpn)
+          !call histrd1(ncid,iarchi,ier,'sumrp',ik,jk,sumrp)
+          !call histrd1(ncid,iarchi,ier,'sumrs',ik,jk,sumrs)
+          !call histrd1(ncid,iarchi,ier,'sumrd',ik,jk,sumrd)
+          call histrd1(ncid,iarchi,ier,'cansto',ik,jk,cansto)
+          rtsoil=0. ! MJT cable
+          call histrd1(ncid,iarchi,ier,'rtsoil',ik,jk,rtsoil)
+
         if(mydiag)then
           print *,'at end of infile kdate,ktime,ktau,tss: ',
      &                             kdate_r,ktime_r,ktau,tss(idjd)
@@ -678,8 +712,8 @@ c     read in all data
             !------------------------------------------------------------
             ! MJT CHANGE
             ierr=nf_inq_vartype(ncid,idv,nctype)
-	    addoff=0.
-	    sf=1.
+	      addoff=0.
+	      sf=1.
             select case(nctype)
               case(nf_float)
                 call ncvgt(ncid,idv,start,count,rvar,ier)

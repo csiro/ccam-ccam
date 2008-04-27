@@ -1,5 +1,15 @@
 * text=auto !eol
 /ateb.f90 -text
+/cable_carbon.f90 -text
+/cable_cbm.f90 -text
+/cable_ccam2.f90 -text
+/cable_checks.f90 -text
+/cable_soilsnow.f90 -text
+/cable_variables.f90 -text
+/carbpools.h -text
 /makefile -text
 /mpif.h -text
 /parmsurf.h -text
+/soilbal.h -text
+/soilsnin.h -text
+/vegpar.h -text
