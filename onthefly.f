@@ -2,7 +2,9 @@
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,
-     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,urban) ! MJT urban
+     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
+     .                    rtsoil, ! MJT cable
+     .                    urban) ! MJT urban
 !     Target points use values interpolated to their 4 grid "corners";
 !     these corner values are then averaged to the grid centres
 !     N.B. this means will get different fields with io_in=-1 from io_in=1
@@ -10,6 +12,7 @@
 !     nested=0  for calls from indata; 1  for calls from nestin     
 
       use cc_mpi
+      use define_dimensions, only : ncs, ncp ! MJT cable      
       use utilities
       implicit none
       integer, parameter :: ntest=0
@@ -20,6 +23,7 @@
 !           2) kl is assumed to be the same for both grids
       include 'newmpar.h'
       include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
+      include 'carbpools.h' ! MJT cable
       include 'const_phys.h'
       include 'latlong.h'  ! rlatt,rlongg,
 c     include 'map.h'  ! zs,land & used for giving info after all setxyz
@@ -28,6 +32,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       include 'soil.h'
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
       include 'tracers.h'
+      include 'vegpar.h' ! MJT cable
       include 'vecsuv_g.h'
       include 'vvel.h'
       include 'xyzinfo_g.h'  ! x,y,z,wts
@@ -55,7 +60,8 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      & wb(ifull,ms),wbice(ifull,ms),snowd(ifull),sicedep(ifull),
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     & ssdnn(ifull),snage(ifull),urban(ifull,12) ! MJT urban
+     & ssdnn(ifull),snage(ifull),rtsoil(ifull), ! MJT cable
+     & urban(ifull,12) ! MJT urban
       integer, save :: isoilm_h(ifull) ! MJT lsmask
       ! Dummy variables here replace the aliasing use of aa, bb in infile call
       real, dimension(ifull) :: dum5
@@ -106,7 +112,8 @@ c     start of processing loop
         call infile(nested,kdate_r,ktime_r,timegb,ds,
      &            psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &            tgg,wb,wbice,dum5,snowd,  ! dum5 is alb
-     &            tggsn,smass,ssdn,ssdnn,snage,isflag,isoilm_h,urban) ! MJT lsmask ! MJT urban
+     &            tggsn,smass,ssdn,ssdnn,snage,isflag,rtsoil, ! MJT cable
+     &            isoilm_h,urban) ! MJT lsmask ! MJT urban
       else
         call infil(nested,kdate_r,ktime_r,timegb,ds,
      &            psl,zss,tss,sicedep,fracice,t,u,v,qg)
@@ -386,17 +393,30 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
          call doints4(wb(1,k) ,nface4,xg4,yg4,nord,ik)
         enddo
         !--------------------------------------------------
-        ! MJT CHANGE
+        ! MJT urban
         if (nurban.ne.0) then
           do k=1,12
-            where ((.not.land(:)).or.(urban(:,k).gt.400.))
+            where ((.not.land(:)).or.(urban(:,k).ge.399.))
               urban(:,k)=spval
             end where
             call fill_cc(urban(:,k),spval)
             call doints4(urban(:,k),nface4,xg4,yg4,nord,ik)
           end do
         end if
-        !--------------------------------------------------	        
+        !--------------------------------------------------
+        !--------------------------------------------------
+        ! MJT cable
+        if ((nsib.eq.4).or.(nsib.eq.6)) then
+          call doints4(rtsoil(:),nface4,xg4,yg4,nord,ik)
+          do k=1,ncp
+            call doints4(cplant(:,k),nface4,xg4,yg4,nord,ik)
+          end do
+          do k=1,ncs
+            call doints4(csoil(:,k),nface4,xg4,yg4,nord,ik)
+          end do
+          call doints4(cansto(:),nface4,xg4,yg4,nord,ik)
+        end if
+        !--------------------------------------------------	           	        
 c       incorporate target land mask effects for initial fields
         do iq=1,ifull
          if(land_t(iq))then

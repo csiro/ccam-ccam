@@ -2,7 +2,7 @@
 !     the shallow convection options here just for iterconv=1
 !     has +ve fldownn depending on delta sigma; -ve uses older abs(fldown)   
 !     N.B. nevapcc option has been removed   
-      use cc_mpi, only : mydiag
+      use cc_mpi, only : mydiag, myid
       use diag_m
       implicit none
       integer itn,iq,k,k13,k23,kcl_top
@@ -217,7 +217,7 @@ c      qplume(:,k)=min(qplume(:,k),max(qs(:,k),qq(:,k)))
         print *,'nfluxq,nfluxdsk ',nfluxq,nfluxdsk
         print *,'alflnd,alfsea ',alflnd,alfsea
         print *,'cfraclim,convtim,factr ',
-     &           cfraclim(iq),convtim(iq),factr(iq)
+     &           cfraclim(idjd),convtim(idjd),factr(idjd)
       endif
       if((ntest>0.or.diag.or.nmaxpr==1).and.mydiag) then
         iq=idjd
@@ -891,11 +891,14 @@ C       following just shows flux into kt layer, and fldown at base and top
 !                                          = [hs+M*dels+M*hlcp*dels*dqsdt]_k
 !       pre 21/7/04 occasionally got -ve fluxt, for supersaturated layers
         if(k>kb_sav(iq).and.k<=kt_sav(iq))then
+c         if(dels(iq,k)*(1.+hlcp*dqsdt(iq,k))-dels(iq,kb_sav(iq))           
+c    .       -alfqarr(iq)*hl*delq(iq,kb_sav(iq))<0.)
+c    .       print *,'-ve denom for iq,k = ',iq,k
           fluxt(iq,k)=(splume(iq,k-1)+hl*qplume(iq,k-1)-hs(iq,k))/
-     .                (dels(iq,k)*(1.+hlcp*dqsdt(iq,k))
-     .                -dels(iq,kb_sav(iq))
-     .                -alfqarr(iq)*hl*delq(iq,kb_sav(iq)) ) 
-          convpsav(iq)=min(convpsav(iq),max(0.,fluxt(iq,k)))
+     .       max(1.e-9,dels(iq,k)*(1.+hlcp*dqsdt(iq,k))       ! 0804 for max
+     .                -dels(iq,kb_sav(iq))                    ! to avoid zero
+     .                -alfqarr(iq)*hl*delq(iq,kb_sav(iq)) )   ! with real*4
+          convpsav(iq)=min(convpsav(iq),fluxt(iq,k))
           if(dels(iq,kb_sav(iq))+alfqarr(iq)*hl*delq(iq,kb_sav(iq))>0.)
      &             convpsav(iq)=0.  ! added 27/7/07       
         endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))

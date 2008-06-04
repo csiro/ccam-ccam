@@ -620,10 +620,10 @@ c ----------------------------------------------------------------------
         if ((nsib==3).or.(nsib==5)) then ! MJT cable
            call sib3(nalpha)  ! for nsib=3, 5
         else if (nsib==CABLE) then ! MJT cable
-          print *,"CABLE option not avaliable"
+          print *,"nsib==CABLE option not avaliable"
           stop
         else if (nsib==6) then ! MJT cable
-          call sib4(13)
+          call sib4(17)
            ! original Eva's, same as NCAR - calculate wetfac for scrnout
           do ip=1,ipland  ! all land points in this nsib=3 loop
             iq=iperm(ip)
@@ -636,31 +636,30 @@ c ----------------------------------------------------------------------
       !----------------------------------------------------------
       ! MJT urban
       if (nurban.ne.0) then
-         ! Note that condxpr and sno are determined by veg canopy
          call tebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin
      &               ,sgsave(:)/(1.-albvisnir(:,1)),-rgsave(:)
-     &               ,condx/dt,rho(:),t(:,1),qg(:,1)
+     &               ,condx(:)/dt,rho(:),t(:,1),qg(:,1)
      &               ,ps(:),sig(1)*ps(:)
      &               ,av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(1:ifull,1)
      &               ,av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(1:ifull,1)
-     &               ,sigmu(:),0)
-        ! cable clobbers albedo so we update it here
-        if ((nsib.eq.4).or.(nsib.eq.6)) then
-          call tebalb(ifull,albvisnir(:,1),sigmu(:),0)
-          call tebalb(ifull,albvisnir(:,2),sigmu(:),0)
+     &               ,0)
+        ! cable clobbers albedo so we update it again here (see also radriv90.f)
+        if ((nsib.eq.CABLE).or.(nsib.eq.6)) then
+          call tebalb(ifull,albvisnir(:,1),0)
+          call tebalb(ifull,albvisnir(:,2),0)
         end if
-        ! assume sib3 only wants zo for vegetative part
         ! here we blend zo with the urban part for the
         ! calculation of ustar (occuring later in sflux.f)
         zoh(iperm(:))=zo(iperm(:))/7.4
-        call tebzo(ifull,zo(:),zoh(:),zmin,sigmu(:),0)
+        call tebzo(ifull,zo(:),zoh(:),0)
+        call tebcd(ifull,cduv(:),0)
         do ip=1,ipland ! assumes all urban points are land points
           iq=iperm(ip)
           if (sigmu(iq).gt.0.) then
             es = establ(tss(iq))
             qsttg(iq)= .622*es/(ps(iq)-es)
             aft(iq)=vkar**2/(log(zmin/zo(iq))*log(zmin/zoh(iq)))
-            rnet(iq)=sgsave(iq)-(rgsave(iq)+stefbo*tss(iq)**4)
+            rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4
             ! the following are done by ntsur.ne.5
             !af(iq)=(vkar/log(zmin/zo(iq)))**2
             !xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       
@@ -692,8 +691,10 @@ c       preferred option to recalc cduv, ustar (gives better uscrn, u10)
            fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma     ! Fm * vmod                        
 c          n.b. fm denotes ustar**2/(vmod(iq)*af)                         
          endif                                                    
-c        cduv is now drag coeff *vmod                                     
-         cduv(iq) =af(iq)*fm                       ! Cd * vmod                                
+c        cduv is now drag coeff *vmod
+         if ((.not.land(iq)).or.((nsib.ne.CABLE).and.(nsib.ne.6))) then ! MJT CHANGE - cable
+           cduv(iq) =af(iq)*fm                       ! Cd * vmod
+         end if
          ustar(iq) = sqrt(vmod(iq)*cduv(iq))                            
 c        Surface stresses taux, tauy: diagnostic only - unstaggered now   
          taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                              

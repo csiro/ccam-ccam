@@ -483,10 +483,6 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         call attrib(idnc,idim,3,'uscrn',lname,'K',0.,40.,0)
         lname = 'Surface albedo'
         call attrib(idnc,idim,3,'alb',lname,'none',0.,1.,0)
-        lname = 'Soil+snow two-stream albedo 1' ! MJT cable
-        call attrib(idnc,idim,3,'albsoilsn1',lname,'none',0.,1.,0)
-        lname = 'Soil+snow two-stream albedo 2'
-        call attrib(idnc,idim,3,'albsoilsn2',lname,'none',0.,1.,0)
         lname = 'Sea ice depth'
         call attrib(idnc,idim,3,'siced',lname,'m',0.,50.,0)
         lname = 'Sea ice fraction'
@@ -882,7 +878,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         aa=zolnd
         bb=zolnd/7.4 ! dummy
         if (nurban.ne.0) then
-          call tebzo(ifull,aa(:),bb(:),zmin,sigmu(:),0)
+          call tebzo(ifull,aa(:),bb(:),0)
         end if
         call histwrt3(aa,'zolnd',idnc,iarch,local)
         !call histwrt3(zolnd,'zolnd',idnc,iarch,local)
@@ -912,8 +908,6 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       call histwrt3(tss,'tsu',idnc,iarch,local)
       aa(:)=0.5*sum(albvisnir(:,:),2) ! MJT CHANGE albedo
       call histwrt3(aa,'alb',idnc,iarch,local)
-      call histwrt3(albsoilsn(1,1),'albsoilsn1',idnc,iarch,local) ! MJT CHANGE cable
-      call histwrt3(albsoilsn(1,2),'albsoilsn2',idnc,iarch,local) ! MJT CHANGE cable
       call histwrt3(tgg(1,1),'tgg1',idnc,iarch,local)
       call histwrt3(tgg(1,2),'tgg2',idnc,iarch,local)
       call histwrt3(tgg(1,3),'tgg3',idnc,iarch,local)
@@ -928,10 +922,10 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
     !  call histwrt3(wb(1,6),'wb6',idnc,iarch,local)
       if ((nsib.eq.4).or.(nsib.eq.6)) then ! MJT cable
 ! rml: moved from section that isn't written to restart file
-         call histwrt3(sumpn,'sumpn',idnc,iarch,local)
-         call histwrt3(sumrp,'sumrp',idnc,iarch,local)
-         call histwrt3(sumrs,'sumrs',idnc,iarch,local)
-         call histwrt3(sumrd,'sumrd',idnc,iarch,local)
+         !call histwrt3(sumpn,'sumpn',idnc,iarch,local)
+         !call histwrt3(sumrp,'sumrp',idnc,iarch,local)
+         !call histwrt3(sumrs,'sumrs',idnc,iarch,local)
+         !call histwrt3(sumrd,'sumrd',idnc,iarch,local)
       call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local)
       call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local)
       call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local)

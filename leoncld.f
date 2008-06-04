@@ -76,6 +76,8 @@ c These outputs are not used in this model at present
 
       integer kbase(ifullw),ktop(ifullw) !Bottom and top of convective cloud 
       include 'establ.h' ! provides qsat formula
+      
+      integer, parameter :: nmr = 0 ! MJT CHANGE - mr
 
       do k=1,kl   
          do iq=1,ifull
@@ -134,6 +136,36 @@ c     Set up convective cloud column
 
 c     Calculate convective cloud fraction and adjust moisture variables 
 c     before calling newcloud
+      !------------------------------------------------------------------------
+      ! MJT CHANGE - mr
+      ! the nmr=1 method attempts to remove the dependance on vertical resolution
+      ! by assuming a single coherent convective cloud in the vertical column.
+      if (nmr.eq.1) then 
+        do k=1,kl
+          do iq=1,ifull
+            if(k.le.ktop(iq).and.k.ge.kbase(iq))then
+              clcon(iq,k)=cldcon(iq) ! single convective cloud
+              ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
+              qccon(iq,k)=clcon(iq,k)*ccw
+              qcl(iq,k)=qsg(iq,k)
+              qcl(iq,k)=max(qsg(iq,k),qg(iq,k))  ! jlm
+              qenv(iq,k)=max(1.e-8,
+     &                   qg(iq,k)-clcon(iq,k)*qcl(iq,k))
+     &                   /(1-clcon(iq,k))
+              qcl(iq,k)=(qg(iq,k)-(1-clcon(iq,k))*qenv(iq,k))
+     &                  /clcon(iq,k)
+              qlg(iq,k)=qlg(iq,k)/(1-clcon(iq,k))
+              qfg(iq,k)=qfg(iq,k)/(1-clcon(iq,k))
+            else
+              clcon(iq,k)=0.
+              qccon(iq,k)=0.
+              qcl(iq,k)=0.
+              qenv(iq,k)=qg(iq,k)
+            endif
+          enddo
+        enddo
+      else
+      
       do k=1,kl
         do iq=1,ifull
           if(k.le.ktop(iq).and.k.ge.kbase(iq))then
@@ -158,6 +190,9 @@ c     before calling newcloud
           endif
         enddo
       enddo
+      
+      end if
+      !------------------------------------------------------------------------
       tenv(:,:)=t(1:ifull,:) !Assume T is the same in and out of convective cloud
 !     if(diag.and.mydiag)then
       if(nmaxpr==1.and.mydiag)then

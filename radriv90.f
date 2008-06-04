@@ -262,11 +262,11 @@ c        Conversion of o3 from units of cm stp to gm/gm
            if ((nsib.eq.4).or.(nsib.eq.6)) then ! MJT CHANGE sib
              cuvrf(i,1) = albvisnir(iq,1) ! from cable (inc snow)
              cirrf(i,1) = albvisnir(iq,2) ! from cable (inc snow)
-           else
+           else ! (nsib.le.3).or.(nsib.eq.5)
                      
            if(nalbwb.eq.0)then
              cuvrf(i,1) = albsav(iq)    ! use surface albedo from indata
-             cirrf(i,1) = albnirsav(iq) ! MJT CHANGE albedo
+             cirrf(i,1) = albsav(iq)    ! MJT CHANGE albedo
            else    ! soil albedo adjusted according to wetness of top layer
 !            can do quadratic fit [ 0 to wbav to ssat]
 !            wbs=sfc(isoilm(iq))         ! or consider using wbs=ssat()
@@ -417,8 +417,8 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
 !         !cirrf(i,1)  = cuvrf(i,1)  ! MJT CHANGE albedo
 !      end do ! i=1,imax
       end do ! i=1,imax 
-      call tebalb1(istart,imax,cuvrf(1:imax,1),sigmu(istart:iend),0)
-      call tebalb1(istart,imax,cirrf(1:imax,1),sigmu(istart:iend),0)
+      call tebalb1(istart,imax,cuvrf(1:imax,1),0)
+      call tebalb1(istart,imax,cirrf(1:imax,1),0)
       albvisnir(istart:iend,1)=cuvrf(1:imax,1)
       albvisnir(istart:iend,2)=cirrf(1:imax,1)
       if (iaero.ne.0) then

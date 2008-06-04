@@ -454,8 +454,8 @@
       real, dimension(ifull) :: delta
       real, dimension(ifull_g) :: x_g,xx_g,pslc
       real, dimension(ifull_g,kbotdav:kl) :: uc,vc,wc,tc,qc
-      !integer, parameter :: mbd2 = 0 ! MJT CHANGE
       integer k
+      
       if (myid == 0) then     
         print *,"Gather data for spectral downscale"
         call ccmpi_gather(pslb(:)-psl(1:ifull), pslc(:))
@@ -485,9 +485,10 @@
             call fastspec((.1*real(mbd)/(pi*schmidt))**2
      &         ,pslc,uc,vc,wc,tc,qc) ! e.g. mbd=40
           end if
-        elseif(nud_uv==3)then 
+        elseif(nud_uv==9)then 
          if (myid == 0) print *,"Two dimensional spectral downscale"
-         call slowspecmpi(.1*real(mbd)/(pi*schmidt),pslc,uc,vc,wc,tc,qc)
+         call slowspecmpi(myid,.1*real(mbd)/(pi*schmidt)
+     &                  ,pslc,uc,vc,wc,tc,qc) ! MJT CHANGE spec
         else          !  usual choice e.g. for nud_uv=1 or 2
           if (myid == 0) print *,"Separable 1D downscale (MPI)"
           call fourspecmpi(myid,.1*real(mbd)/(pi*schmidt)
@@ -501,7 +502,7 @@
           call ccmpi_distribute(delta(:), pslc(:))
           psl(1:ifull)=psl(1:ifull)+delta(:)
         end if
-        if (nud_uv.gt.0) then
+        if (nud_uv.ne.0) then
           do k=kbotdav,kl        
             x_g(:)=ax_g(:)*uc(:,k)+ay_g(:)*vc(:,k)+az_g(:)*wc(:,k)
             call ccmpi_distribute(delta(:), x_g(:))
@@ -528,7 +529,7 @@
           call ccmpi_distribute(delta(:))
           psl(1:ifull)=psl(1:ifull)+delta(:)
         end if
-        if (nud_uv.gt.0) then
+        if (nud_uv.ne.0) then
           do k=kbotdav,kl
             call ccmpi_distribute(delta(:))
             u(1:ifull,k)=u(1:ifull,k)+delta(:)
@@ -741,7 +742,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
        enddo    ! n loop
       enddo     ! j loop      
-      if(nud_uv==1)then
+      if(nud_uv==-1)then
         do iq=1,ifull_g
          psls2(iq)=psls(iq)/sumwt(iq)
          do k=kbotdav,kl
@@ -765,7 +766,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
            enddo
          endif  ! (sumwt(iq).ne.1.e-20)
         enddo
-      endif  ! (nud_uv==1) .. else ..
+      endif  ! (nud_uv==-1) .. else ..
       
       qgg(1:ifull_g,kbotdav:kl)=0.
       tt(1:ifull_g,kbotdav:kl)=0.
@@ -815,7 +816,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
        enddo    ! n loop
       enddo     ! i loop
-      if(nud_uv==1)then
+      if(nud_uv==-1)then
         do iq=1,ifull_g
          psls2(iq)=psls2(iq)+psls(iq)/sumwt(iq)
          do k=kbotdav,kl
@@ -839,7 +840,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
            enddo
          endif  ! (sumwt(iq).ne.1.e-20)
         enddo
-      endif  ! (nud_uv==1) .. else ..
+      endif  ! (nud_uv==-1) .. else ..
 
       if(mbd.ge.0) then
        qgg(1:ifull_g,kbotdav:kl)=0.
@@ -893,7 +894,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
          end if
         enddo    ! n loop
        enddo     ! j loop      
-      if(nud_uv==1)then
+      if(nud_uv==-1)then
         print *,'in nestinb nud_uv ',nud_uv
         do iq=1,ifull_g
          psls2(iq)=psls2(iq)+psls(iq)/sumwt(iq)
@@ -925,7 +926,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
            enddo
          endif  ! (sumwt(iq).ne.1.e-20)
         enddo
-      endif  ! (nud_uv==1) .. else ..
+      endif  ! (nud_uv==-1) .. else ..
       end if ! (mbd.ge.0)
 
       return

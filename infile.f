@@ -3,7 +3,7 @@
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                  tgg,wb,wbice,alb,snowd,
      .                  tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                  albsoilsn,rtsoil, ! MJT cable
+     .                  rtsoil, ! MJT cable
      .                  isoilh,urban) ! MJT lsmask ! MJT urban 
 !     note kk; vertint.f is attached below
 !     kdate_r and ktime_r are returned from this routwine.
@@ -40,7 +40,7 @@
      . snowd(ifull),alb(ifull),sicedep(ifull),fracice(ifull),
      . t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     . ssdnn(ifull),snage(ifull),albsoilsn(ifull,2),rtsoil(ifull), ! MJT cable
+     . ssdnn(ifull),snage(ifull),rtsoil(ifull), ! MJT cable
      . urban(ifull,1:12) ! MJT urban
       integer isoilh(ifull) ! MJT lsmask     
       integer isflag(ifull)
@@ -441,9 +441,6 @@ c         enddo
           if(nspecial==26)qfg(idjd,kl)=4.e-3 ! tests at (idjd)
         endif   ! (ldr.ne.0)
         call histrd1(ncid,iarchi,ier,'alb',ik,jk,alb)
-        albsoilsn(:,:)=0. ! MJT cable
-        call histrd1(ncid,iarchi,ier,'albsoilsn1',ik,jk,albsoilsn(1,1))
-        call histrd1(ncid,iarchi,ier,'albsoilsn2',ik,jk,albsoilsn(1,2))
         call histrd1(ncid,iarchi,ierr,'tgg2',ik,jk,tgg(1,2))
         if(ierr==0)then  ! at least tgg6, wb2, wb6 will be available
           call histrd1(ncid,iarchi,ier,'tgg6',ik,jk,tgg(1,6))
@@ -501,7 +498,6 @@ c 	    only being tested for nested=0; no need to test for mesonest
           endif     
         endif    ! (ierr==0) .. else ..
       !----------------------------------------------------------------
-      ! MJT CHANGE - ECOSYSTEMS
         call histrd1(ncid,iarchi,ierr,'wetfrac1',ik,jk,wb(:,1))
         if (ierr==0) then
           call histrd1(ncid,iarchi,ierr,'wetfrac2',ik,jk,wb(:,2))
@@ -631,6 +627,7 @@ c 	    only being tested for nested=0; no need to test for mesonest
           !call histrd1(ncid,iarchi,ier,'sumrp',ik,jk,sumrp)
           !call histrd1(ncid,iarchi,ier,'sumrs',ik,jk,sumrs)
           !call histrd1(ncid,iarchi,ier,'sumrd',ik,jk,sumrd)
+          cansto=0.
           call histrd1(ncid,iarchi,ier,'cansto',ik,jk,cansto)
           rtsoil=0. ! MJT cable
           call histrd1(ncid,iarchi,ier,'rtsoil',ik,jk,rtsoil)

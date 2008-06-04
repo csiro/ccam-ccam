@@ -104,6 +104,13 @@ C Local work arrays and variables
       integer mg
       integer nc
       integer ns
+      integer kb     ! MJT CHANGE - mr
+      integer ki     ! MJT CHANGE - mr
+      integer kj     ! MJT CHANGE - mr
+      integer kk     ! MJT CHANGE - mr
+      integer kt     ! MJT CHANGE - mr
+      integer kar(1) ! MJT CHANGE - mr
+      integer, parameter :: nmr = 1 ! MJT CHANGE - mr
 
       real ab
       real cfl
@@ -130,6 +137,9 @@ C Local work arrays and variables
       real tranw
       real wice
       real wliq
+      real cbdry                      ! MJT CHANGE - mr
+      real nfrac                      ! MJT CHANGE - mr
+      real, parameter :: cldedg = 0.5 ! MJT CHANGE - mr
 
 C Local data, functions etc
       logical start
@@ -468,6 +478,96 @@ c Mk3 with direct aerosol effect :
         enddo
 
 c Weight cloud properties by liquid/ice fraction
+        !--------------------------------------------------------------------------------
+        ! MJT CHANGE - mr
+        ! should really use binary cloud configurations (camt=1) by repeating radiation
+        ! calculation for all 2**N combinations of vertical cloud blocks and then combining
+        ! the results as a sum that is weighted by the area of each combination.
+        ! Instead, the nmr=1 method simply groups cloud fractions into cloud blocks
+        ! (i.e., to remove the dependance on vertical resolution) and estimates the cloud block
+        ! bulk properties (i.e., a single configuration of vertical cloud blocks but with
+        ! fractional area (0.<camt<=1.)).
+        if (nmr.eq.1) then ! combine clouds in adjacent layers into a single cloud
+                           ! (i.e., approximating maximum/random overlap)
+          do mg=1,imax
+            k=1
+            do while (k.le.nl-1)
+              if (cfrac(mg,k).gt.0.) then
+
+                kk=k
+                do while ((cfrac(mg,kk+1).gt.0.).and.(kk.lt.nl-1))
+                  kk=kk+1
+                end do
+                
+                cbdry=cldedg*sum(cfrac(mg,k:kk))/real(kk-k+1)
+                kb=k
+                do while (cfrac(mg,kb).lt.cbdry)
+                  kb=kb+1
+                end do
+                kt=kb
+                do while (cfrac(mg,kt+1).ge.cbdry)
+                  kt=kt+1
+                end do
+                
+                ki=kk
+                do kj=kk,kt+1,-1
+                  if (cfrac(mg,kj).gt.cbdry) ki=kj
+                end do
+
+                if (ki.lt.kk) then
+                  kar=minloc(cfrac(mg,kt:ki))
+                  kk=kar(1)+kt-1
+                  cbdry=cldedg*sum(cfrac(mg,k:kk))/real(kk-k+1)
+                  kb=k
+                  do while (cfrac(mg,kb).lt.cbdry)
+                    kb=kb+1
+                  end do
+                  kt=kb
+                  do while (cfrac(mg,kt+1).ge.cbdry)
+                    kt=kt+1
+                  end do
+                end if
+                
+                nfrac=0.
+                Re1=0.
+                Re2=0.
+                Em=0.
+                Ab=0.
+                do ki=k,kk
+                  nfrac=nfrac+cfrac(mg,ki)
+                  Re1=Re1+(fice(mg,ki)*Rei1(mg,ki)
+     &                   +(1.-fice(mg,ki))*Rew1(mg,ki))
+     &                   *cfrac(mg,ki)
+                  Re2=Re2+(fice(mg,ki)*Rei2(mg,ki)
+     &                   +(1.-fice(mg,ki))*Rew2(mg,ki))
+     &                   *cfrac(mg,ki)
+                  Em=Em+(fice(mg,ki)*Emi(mg,ki)
+     &                 +(1.-fice(mg,ki))*Emw(mg,ki))
+     &                 *cfrac(mg,ki)
+                  Ab=Ab+(fice(mg,ki)*Abi(mg,ki)
+     &                 +(1-fice(mg,ki))*Abw(mg,ki))
+     &                 *cfrac(mg,ki)
+                end do
+
+                nclds(mg)=nclds(mg)+1
+                nc=nclds(mg)+1
+
+                camt(mg,nc)=nfrac/real(kk-k+1)
+                emcld(mg,nc)=Em/nfrac
+                cuvrf(mg,nc)=Re1/nfrac
+                cirrf(mg,nc)=Re2/nfrac
+                cirab(mg,nc)=2.*Ab/nfrac
+                kbtm(mg,nc)=nlp-kb
+                kbtmsw(mg,nc)=nlp-kb+1
+                ktop(mg,nc)=nlp-kt
+                ktopsw(mg,nc)=nlp-kt
+                
+                k=kk+1
+              end if
+              k=k+1
+            end do
+          end do
+        else ! usual random overlap
         
         do k=1,nl-1
           do mg=1,imax
@@ -497,6 +597,8 @@ c             if(prf(mg,k).gt.800.) Em = 1.
             endif
           enddo
         enddo
+        end if ! (nmr.eq.1)
+        !--------------------------------------------------------------------------------
 
         if(debug)then
           if(lg.eq.lgdebug)then

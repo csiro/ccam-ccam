@@ -22,7 +22,7 @@ module cable_ccam
   logical, save :: vegparmnew=.false. ! old or new format for veg parm file
   integer, save :: CO2forcingtype=1   ! 1 constant, 2 prescribed 1900-2004,
                                       ! 3 interactive
-  integer, save :: initcarbpools=999  ! 1 initialise from veg_parm file values
+!  integer, save :: initcarbpools=999  ! 1 initialise from veg_parm file values
 !  namelist/cableinput/vegtypefile,vegparmfile,vegparmnew, &
 !                    & CO2forcingtype,initcarbpools
   ! arrays for vegetation names and types
@@ -293,7 +293,7 @@ module cable_ccam
       else where
         c4frac=0.
       end where
-      frac4=0.
+
       hc=(/ 35.,20.,20.,17.,17.,1.,0.5,0.6,0.5,4.,0.05,1.,0.01,0.01,0.01,0.01,0.01 /)
       xfang=(/ 0.1,0.25,0.125,0.01,0.01,-0.3,-0.3,0.2,0.01,0.2,0.01,-0.3,0.01,0.01,0.01,0.01,0.01 /)
       dleaf=(/ 0.075,0.12,0.07,0.028,0.02,0.16,0.16,0.155,0.0165,0.155,0.005,0.155,0.005,0.005,0.005,0.005,0.005 /)
@@ -310,7 +310,7 @@ module cable_ccam
       ejmax=2.*vcmax
       rp20=(/ 1.1342,1.4733,2.3704,3.3039,3.2879,1.0538,0.8037,12.032,1.2994,7.4175,2.8879,3.,0.1,0.1,0.1,0.1,0.1 /)
       rpcoef=0.0832
-      rs20=(/ 1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,0.,1.,0. /) ! ?????? wrong size
+      rs20=(/ 1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,0.,1.,0.,0.,0.,0.,0. /) ! ?????? wrong size
       tminvj=(/ 5.,5.,5.,2.,5.,10.,10.,0.,5.,-5.,5.,10.,-5.,-5.,-5.,-5.,-5. /)
       tmaxvj=(/ 15.,15.,10.,5.,10.,15.,15.,5.,10.,0.,10.,15.,0.,0.,0.,0.,0. /)
       vbeta=(/ 1.,1.,1.,1.,1.,4.,4.,4.,4.,1.,4.,4.,1.,1.,1.,1.,1. /)
@@ -334,7 +334,6 @@ module cable_ccam
           cplant(:,3)=tcplant(ivegt(:),3)
           csoil(:,1)=tcsoil(ivegt(:),1)
           csoil(:,2)=tcsoil(ivegt(:),2)
-          cansto(:)=0.
         end where
       else
         if (myid == 0) print *,"Loading carbpools from ifile"
@@ -343,28 +342,138 @@ module cable_ccam
       albsoil(:)=0.5*sum(albvisnir(:,:),2)
       where ((isoilm(:).eq.9).and.land)
         albsoil(:)=min(albsoil(:),0.61)
-      else where ((isoilm(:).eq.1).and.land)
-        albsoil(:)=min(albsoil(:),0.41)
+      !else where ((isoilm(:).eq.1).and.land) 
+      !  albsoil(:)=min(albsoil(:),0.41)
+      !else where (land)
+        !albsoil(:)=min(albsoil(:),0.25) ! MJT - wrong for central Australia
       else where (land)
-        albsoil(:)=min(albsoil(:),0.25)
-      end where  
-      if (all(albsoilsn.eq.0.)) then
-        if (myid == 0) print *,"Using default albsoilsn"
-        where (albsoil(:).le.0.14)
-          albsoilsn(:,2)=2.*albsoil(:)/1.5
-          albsoilsn(:,1)=0.5*albsoilsn(:,2)
-        else where (albsoil(:).le.0.21)
-          albsoilsn(:,2)=2.*albsoil(:)/1.62
-          albsoilsn(:,1)=0.62*albsoilsn(:,2)
-        else where
-          albsoilsn(:,2)=2.*albsoil(:)/1.68
-          albsoilsn(:,1)=0.68*albsoilsn(:,2)
-        end where
-      else
-        if (myid == 0) print *,"Loading albsoilsn from ifile"
-      end if
+        albsoil(:)=min(albsoil(:),0.41) ! MJT suggestion
+      end where
+
+      where (albsoil(:).le.0.14)
+        albsoilsn(:,2)=2.*albsoil(:)/1.5
+        albsoilsn(:,1)=0.5*albsoilsn(:,2)
+      else where (albsoil(:).le.0.21)
+        albsoilsn(:,2)=2.*albsoil(:)/1.62
+        albsoilsn(:,1)=0.62*albsoilsn(:,2)
+      else where
+        albsoilsn(:,2)=2.*albsoil(:)/1.68
+        albsoilsn(:,1)=0.68*albsoilsn(:,2)
+      end where
  
       end subroutine cbmrdn2
+
+      subroutine cbmrdn3 ! sib hardwired dummy version.  Use cbmrdn from cable_ccam.f90 when avaliable.
+!
+!     reads the parameters required by land surface scheme 
+!     called from indata
+
+      use cc_mpi, only : myid
+      use define_dimensions, only : ncs, ncp
+
+      implicit none
+
+      include 'newmpar.h'
+      include 'carbpools.h'
+      include 'nsibd.h'
+      include 'latlong.h'
+      include 'soil.h'
+      include 'soilsnow.h'
+      include 'soilv.h'
+      include 'vegpar.h'
+      
+      if (myid == 0) print *,"Setting CABLE defaults (igbp)"
+      
+      vegparmnew=.true.
+
+      allocate(vegtype(mxvt))
+
+      where ((ivegt.eq.7).and.(rlatt.ge.-30.).and.(rlatt.le.30.))
+        c4frac=0.95
+      else where ((ivegt.eq.8).and.(rlatt.ge.-30.).and.(rlatt.le.0.))
+        c4frac=0.5
+      else where ((ivegt.eq.8).and.(rlatt.ge.0.).and.(rlatt.le.20.))
+        c4frac=0.8
+      else where ((ivegt.eq.8).and.(rlatt.ge.20.).and.(rlatt.le.30.))
+        c4frac=0.5
+      else where (ivegt.eq.9)
+        c4frac=0.75
+      else where ((ivegt.eq.10).and.(rlatt.ge.-30.).and.(rlatt.le.-20.))
+        c4frac=0.5
+      else where ((ivegt.eq.10).and.(rlatt.ge.-20.).and.(rlatt.le.20.))
+        c4frac=0.95
+      else where ((ivegt.eq.10).and.(rlatt.ge.20.).and.(rlatt.le.35.))
+        c4frac=0.5
+      else where ((ivegt.eq.12).and.(rlatt.ge.0.).and.(rlatt.le.40.))
+        c4frac=0.3
+      else where
+        c4frac=0.
+      end where
+
+      hc=(/ 17.,35.,15.5,20.,19.3,0.6,0.6,7.,8.,0.6,0.5,0.6,6.,0.6,0.01,0.2,0.01 /)
+      xfang=(/ 0.01,0.1,0.01,0.25,0.13,0.,0.,-0.14,-0.01,-0.3,0.,0.,-0.17,0.,0.01,0.01,0.01 /)
+      dleaf=(/ 0.055,0.1,0.04,0.15,0.1,0.1,0.1,0.232,0.129,0.3,0.3,0.3,0.242,0.3,0.005,0.03,0.005 /)
+      wai=(/ 1.,1.6,0.6,1.2,1.,0.5,0.5,0.5,0.5,0.,0.,0.,0.,0.,0.,0.,0. /)
+      canst1=0.1
+      shelrb=2.
+      vegcf=(/ 0.91,1.95,0.73,1.5,1.5,2.8,2.8,2.8,2.8,2.75,2.,2.8,0.,2.8,0.6,0.6,0. /)
+      vegtype(:)='others'
+      vegtype(3)='deciduous'
+      vegtype(4)='deciduous'
+      extkn=0.4
+      vcmax=(/ 65.2E-6,65.E-6,70.E-6,85.0E-6,80.E-6,20.E-6,20.E-6,10.E-6,20.E-6,10.E-6,50.E-6,80.E-6,1.E-6,80.E-6, &
+               1.E-6,17.E-6,1.E-6 /)
+      ejmax=2.*vcmax
+      rp20=(/ 3.3039,1.1342,3.2879,1.4733,2.3704,5.,5.,1.05,2.,0.8037,1.,3.,1.,3.,0.1,0.1,0.1 /)
+      rpcoef=0.0832
+      rs20=(/ 1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,0.,0.,0. /) ! ?????? wrong size
+      tminvj=(/ -15.,-15.,5.,5.,5.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15. /)
+      tmaxvj=(/ -10.,-10.,10.,15.,10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10. /)
+      vbeta=(/ 2.,2.,2.,2.,2.,4.,4.,4.,4.,4.,2.,2.,2.,2.,4.,4.,4. /)
+      rootbeta=0.
+      tcplant(:,1)=(/ 200.  ,300.  ,200.  ,300.  ,200.  ,150. ,150. ,250. ,250. ,250. ,250.,150.,0.1,150.,0.,1.,0. /)
+      tcplant(:,2)=(/ 10217.,16833.,5967. ,12000.,10217.,5000.,5000.,5247.,5247.,0.   ,0.  ,0.  ,0. ,0.  ,0.,0.,0. /)
+      tcplant(:,3)=(/ 876.  ,1443. ,511.  ,1029. ,876.  ,500. ,500. ,1124.,1124.,500. ,500.,607.,0.1,607.,0.,1.,0. /)
+      tcsoil(:,1)=(/ 184.   ,303.  ,107.  ,216.  ,184.  ,100. ,100. ,275. ,275. ,275. ,275.,149.,0.1,149.,0.,1.,0. /)
+      tcsoil(:,2)=(/ 367.   ,606.  ,214.  ,432.  ,367.  ,250. ,250. ,314. ,314. ,314. ,314.,300.,0.1,300.,0.,1.,0. /)
+      ratecp(1)=1.
+      ratecp(2)=0.03
+      ratecp(3)=0.14
+      ratecs(1)=2.
+      ratecs(2)=5.
+
+      if (all(cplant.eq.0.)) then
+        if (myid == 0) print *,"Using default carbpools"
+        where (land)
+          cplant(:,1)=tcplant(ivegt(:),1)
+          cplant(:,2)=tcplant(ivegt(:),2)
+          cplant(:,3)=tcplant(ivegt(:),3)
+          csoil(:,1)=tcsoil(ivegt(:),1)
+          csoil(:,2)=tcsoil(ivegt(:),2)
+        end where
+      else
+        if (myid == 0) print *,"Loading carbpools from ifile"
+      end if
+
+      albsoil(:)=0.5*sum(albvisnir(:,:),2)
+      where ((isoilm(:).eq.9).and.land)
+        albsoil(:)=min(albsoil(:),0.61)
+      else where (land)
+        albsoil(:)=min(albsoil(:),0.41) ! MJT suggestion
+      end where
+
+      where (albsoil(:).le.0.14)
+        albsoilsn(:,2)=2.*albsoil(:)/1.5
+        albsoilsn(:,1)=0.5*albsoilsn(:,2)
+      else where (albsoil(:).le.0.21)
+        albsoilsn(:,2)=2.*albsoil(:)/1.62
+        albsoilsn(:,1)=0.62*albsoilsn(:,2)
+      else where
+        albsoilsn(:,2)=2.*albsoil(:)/1.68
+        albsoilsn(:,1)=0.68*albsoilsn(:,2)
+      end where
+ 
+      end subroutine cbmrdn3
 
   ! ****************************************************************************
   subroutine cbm_pack(air, bgc, canopy, met, bal, rad,  &
@@ -636,6 +745,12 @@ module cable_ccam
       include 'vegpar.h'
       include 'soil.h'
 
+      common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)  & ! MJT CHANGE - cable
+     & ,wetfac(ifull),degdw(ifull),cie(ifull)              &
+     & ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)    &
+     & ,aft(ifull),fh(ifull),ri(ifull),theta(ifull)        &
+     & ,gamm(ifull),rg(ifull),vmod(ifull),dummwk2(ifull)
+
       do k=1,2
         albsoilsn(:,k) = unpack(ssoil%albsoilsn(:,k), land, albsoilsn(:,k))
         albvisnir(:,k) = unpack(rad%albedo(:,k), land, albvisnir(:,k))
@@ -674,7 +789,7 @@ module cable_ccam
       tscrn = unpack(canopy%tscrn,  land, tscrn)    ! clobbered by scrnout?
       qgscrn = unpack(canopy%qscrn,  land, qgscrn)  ! clobbered by scrnout?
       uscrn = unpack(canopy%uscrn,  land, uscrn)    ! clobbered by scrnout?
-      cduv= unpack(canopy%cduv, land, cduv)         ! clobbered by sflux?
+      cduv= unpack(canopy%cduv, land, cduv)
       cansto= unpack(canopy%cansto, land, cansto)
       vlai= unpack(veg%vlai, land, vlai)
       gflux = unpack(canopy%ghflux, land, gflux)
@@ -709,6 +824,9 @@ module cable_ccam
 ! need? rates don't change?
         ratecs(k)= bgc%ratecs(k)
       enddo
+      
+      ! MJT CHANGE - cable
+      zo=unpack(rough%z0m,land,zo)
 
   END Subroutine cbm_unpack
 
