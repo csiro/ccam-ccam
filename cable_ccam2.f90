@@ -155,7 +155,7 @@ module cable_ccam
           sum_flux%dsumrd = 0.
        END IF
 
-       print *,'jyear,jmonth',jyear,jmonth,ktauplus
+       !print *,'jyear,jmonth',jyear,jmonth,ktauplus
        ! mtimer contains number of minutes since the start of the run.
        mins = mtimer + mstart
        bpyear = 0.
@@ -534,7 +534,7 @@ module cable_ccam
 !       rml 28/09/07 c4 fraction defined for each grid point, for
 !       compatibility just overwrite values from parameter file if
 !       find data in c4frac array
-        if (sum(c4frac).gt.0) veg%frac4 = pack(c4frac,land)
+        if (sum(c4frac).gt.0.) veg%frac4 = pack(c4frac,land)
         veg%tminvj = tminvj(veg%iveg)
         veg%tmaxvj = tmaxvj(veg%iveg)
         veg%vbeta  =  vbeta(veg%iveg)
@@ -573,7 +573,7 @@ module cable_ccam
         soil%i2bp3   = i2bp3(soil%isoilm)
         soil%rs20    =  rs20(veg%iveg)
 
-        if (sum(rootbeta).eq.0) then
+        if (sum(rootbeta).eq.0.) then
 !        assume rootbeta not in parameter file and need to prescribe froot here
          IF (.not.vegparmnew) THEN   ! CASA vegetation types  
           froot2(:,1) = (/.02,.04,.04,.04,.04,.05,.05,.05,.05,.05,.05,.05,.05,.01,.01,.01,.01/)
@@ -631,8 +631,8 @@ module cable_ccam
 !     met%fsd = sgsave(iperm)/(1.-alb(iperm))  ! short wave down (positive) W/m^2
 
 !     rough%za = -287.*t(iperm,1)*log(sig(1))/grav   ! reference height
-      write(6,*) along(iperm(1)),met%hod(1),met%fsd(1),rough%za(1)
-      write(6,*) along(iperm(mp)),met%hod(mp),met%fsd(mp),rough%za(mp)
+      !write(6,*) along(iperm(1)),met%hod(1),met%fsd(1),rough%za(1)
+      !write(6,*) along(iperm(mp)),met%hod(mp),met%fsd(mp),rough%za(mp)
 
       ssoil%albsoilsn(:,1) = pack(albsoilsn(:,1), land)
       ssoil%albsoilsn(:,2) = pack(albsoilsn(:,2), land)

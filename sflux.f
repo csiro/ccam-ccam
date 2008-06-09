@@ -643,7 +643,7 @@ c ----------------------------------------------------------------------
      &               ,av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(1:ifull,1)
      &               ,av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(1:ifull,1)
      &               ,0)
-        ! cable clobbers albedo so we update it again here (see also radriv90.f)
+        ! cable clobbers albedo so we update it here (see also radriv90.f)
         if ((nsib.eq.CABLE).or.(nsib.eq.6)) then
           call tebalb(ifull,albvisnir(:,1),0)
           call tebalb(ifull,albvisnir(:,2),0)
@@ -679,22 +679,27 @@ c ----------------------------------------------------------------------
       if(ntsur.ne.5)then    ! ntsur=6 is default from Mar '05  
 c       preferred option to recalc cduv, ustar (gives better uscrn, u10)
         do iq=1,ifull
-         afroot=vkar/log(zmin/zo(iq))! land formula is bit different above                             
+         afroot=vkar/log(zmin/zo(iq))! land formula is bit different above
          af(iq)=afroot**2                                             
          xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       
          ri(iq)=min(xx/vmag(iq)**2 , ri_max)                            
-         if(ri(iq)>0.)then                                            
-           fm=vmod(iq)/(1.+bprm*ri(iq))**2         ! Fm * vmod
-         else                                                           
-           root=sqrt(-ri(iq)*zmin/zo(iq))  
-           denma=1.+cms*2.*bprm*af(iq)*root                        
-           fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma     ! Fm * vmod                        
-c          n.b. fm denotes ustar**2/(vmod(iq)*af)                         
-         endif                                                    
-c        cduv is now drag coeff *vmod
-         if ((.not.land(iq)).or.((nsib.ne.CABLE).and.(nsib.ne.6))) then ! MJT CHANGE - cable
+         !-----------------------------------------------------------------
+         ! MJT CHANGE - cable
+         if ((.not.land(iq)).or.((nsib.ne.CABLE).and.(nsib.ne.6))) then 
+           if(ri(iq)>0.)then 
+             fm=vmod(iq)/(1.+bprm*ri(iq))**2         ! Fm * vmod
+           else
+             root=sqrt(-ri(iq)*zmin/zo(iq))  
+             denma=1.+cms*2.*bprm*af(iq)*root
+             fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma     ! Fm * vmod 
+c            n.b. fm denotes ustar**2/(vmod(iq)*af)                         
+           endif 
+c          cduv is now drag coeff *vmod
            cduv(iq) =af(iq)*fm                       ! Cd * vmod
+         else
+           cduv(iq)=cduv(iq)*vmod(iq)
          end if
+         !-----------------------------------------------------------------
          ustar(iq) = sqrt(vmod(iq)*cduv(iq))                            
 c        Surface stresses taux, tauy: diagnostic only - unstaggered now   
          taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                              

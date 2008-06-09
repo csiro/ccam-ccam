@@ -15,7 +15,8 @@
       use zenith_m
       use cc_mpi
       use diag_m
-      use ateb ! MJT urban      
+      use ateb ! MJT urban 
+      use cable_ccam, only : CABLE ! MJT cable      
       include 'newmpar.h'
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
 !        for diag prints set ntest=1
@@ -259,7 +260,7 @@ c        Conversion of o3 from units of cm stp to gm/gm
       do i=1,imax
           iq=i+(j-1)*il
           if( land(iq) )then
-           if ((nsib.eq.4).or.(nsib.eq.6)) then ! MJT CHANGE sib
+           if ((nsib.eq.CABLE).or.(nsib.eq.6)) then ! MJT CHANGE sib
              cuvrf(i,1) = albvisnir(iq,1) ! from cable (inc snow)
              cirrf(i,1) = albvisnir(iq,2) ! from cable (inc snow)
            else ! (nsib.le.3).or.(nsib.eq.5)
@@ -387,7 +388,7 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
             endif
            endif          !  snowd(iq).gt.0.
            
-           end if ! (nsib.eq.4).or.(nsib.eq.6) ! MJT CHANGE sib
+           end if ! (nsib.eq.CABLE).or.(nsib.eq.6) ! MJT CHANGE sib
          else             !  over the ocean or sea ice
 !          following for CCAM from 11/6/03
     !       cuvrf(i,1)=.65*fracice(iq)+
@@ -400,27 +401,14 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
         
       !-----------------------------------------------------------------------------------------------------------
       ! MJT urban
-!         alb(iq) = cuvrf(i,1)   ! save current albedo in alb array for outfile
-!         albnir(iq) = cirrf(i,1) ! MJT CHANGE albedo
-!         if(iaero.ne.0)then
-!           cosz = max ( coszro(i), 1.e-4)
-!    !       delta =  coszro(i)*beta_ave*alpha*so4t(iq)*
-!    ! &	                    ((1.-cuvrf(i,1))/cosz)**2
-!           delta =  coszro(i)*beta_ave*alpha*so4t(iq)* ! MJT CHANGE albedo - still broadband
-!    &	            ((1.-cuvrf(i,1))/cosz)*((1.-cirrf(i,1))/cosz)
-!!          above formula equiv. to next lines, but avoids dark-area problems
-!c          delta =   beta_ave*alpha*so4t(iq)*
-!c    &			          (1.-cuvrf(i,1))**2/cosz
-!           cuvrf(i,1)=min(1., delta+cuvrf(i,1)) ! surface albedo
-!           cirrf(i,1)=min(1., delta+cirrf(i,1)) ! MJT CHANGE albedo - still broadband
-!         endif !(iaero.ne.0)then
-!         !cirrf(i,1)  = cuvrf(i,1)  ! MJT CHANGE albedo
-!      end do ! i=1,imax
-      end do ! i=1,imax 
-      call tebalb1(istart,imax,cuvrf(1:imax,1),0)
-      call tebalb1(istart,imax,cirrf(1:imax,1),0)
-      albvisnir(istart:iend,1)=cuvrf(1:imax,1)
-      albvisnir(istart:iend,2)=cirrf(1:imax,1)
+      end do ! i=1,imax
+      ! update albedo if not using CABLE (otherwise updated in sflux)
+      if ((nsib.ne.CABLE).and.(nsib.ne.6)) then ! MJT CHANGE - cable
+        call tebalb1(istart,imax,cuvrf(1:imax,1),0)
+        call tebalb1(istart,imax,cirrf(1:imax,1),0)
+        albvisnir(istart:iend,1)=cuvrf(1:imax,1)
+        albvisnir(istart:iend,2)=cirrf(1:imax,1)
+      end if
       if (iaero.ne.0) then
         do i=1,imax
           iq=i+(j-1)*il

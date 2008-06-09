@@ -292,7 +292,9 @@ CONTAINS
    
     ! coszen is set during met data read in.
     
-    reffbm = 0.0 ! initialise effective conopy beam reflectance
+    !reffbm = 0.0 ! initialise effective conopy beam reflectance
+    reffbm = ssoil%albsoilsn
+    reffdf = ssoil%albsoilsn
     ! Define beam fraction, fbeam:
     fbeam = spitter(met%doy, met%coszen, met%fsd)
     WHERE (met%coszen <1.0e-2)
@@ -1175,7 +1177,8 @@ CONTAINS
     canopy%tscrn = met%tc - tstar * denom
     rsts = qsatf(canopy%tscrn, met%pmb)
     qtgnet = rsts * wetfac - met%qv
-    canopy%cduv = canopy%us * canopy%us / max(met%ua,umin)
+    !canopy%cduv = canopy%us * canopy%us / max(met%ua,umin)
+    canopy%cduv = canopy%us * canopy%us / max(met%ua,umin)**2 ! MJT CHANGE - cable
     WHERE (qtgnet > 0.0)
        qsurf = rsts * wetfac
     ELSEWHERE

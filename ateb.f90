@@ -5,13 +5,18 @@
 ! Usual practice is:
 !   call tebinit     ! to initalise state arrays, etc (use tebdisable to disable calls to ateb subroutines)
 !   call tebloadm    ! to load previous state arrays (from tebsavem)
-!   call tebtype     ! to define urban type (use tebfndef to define urban properties at each grid point)
+!   call tebtype     ! to define urban type (or use tebfndef to define urban properties at each grid point)
 !   ...
-!   call tebnewangle ! store solar zenith and azimuthal angle (use tebccangle for CCAM or
-!                      use tebnewangle1 for a single grid point)
-!   call tebalb      ! blends input and urban albedo (use tebalb1 for a single grid point)
-!   call tebcalc     ! calculates urban temperatures, fluxes, etc and blends with input
-!   call tebzo       ! blends input and urban roughness lengths for momentum and heat
+!   do t=1,tmax
+!     ...
+!     call tebnewangle ! store current solar zenith and azimuthal angle (use tebccangle for CCAM or
+!                        use tebnewangle1 for a single grid point)
+!     call tebcalc     ! calculates urban temperatures, fluxes, etc and blends with input
+!     call tebalb      ! blends input and urban albedo (use tebalb1 for a single grid point)
+!     call tebzo       ! blends input and urban roughness lengths for momentum and heat
+!     call tebcd       ! blends input and urban drag coefficents
+!     ...
+!   end do
 !   ...
 !   call tebsavem    ! to save current state arrays (for use by tebloadm)
 !   call tebend      ! to deallocate memory before quiting
@@ -112,7 +117,7 @@ real, parameter :: grav=9.80616      ! gravity (m s^-2)
 real, parameter :: vkar=0.4          ! von Karman constant
 real, parameter :: lv=2.501e6        ! Latent heat of vaporisation
 real, parameter :: lf=3.337e5        ! Latent heat of fusion
-real, parameter :: ls=lv+lf          ! Latent heat of sublimation (2.834e6)
+real, parameter :: ls=lv+lf          ! Latent heat of sublimation
 real, parameter :: pi=3.1415927      ! pi
 real, parameter :: rd=287.04         ! Gas constant for dry air
 real, parameter :: sbconst=5.67e-8   ! Stefan-Boltzmann constant
@@ -154,7 +159,7 @@ integer, dimension(ifull) :: utype
 
 if (diag.ge.1) write(6,*) "Initialising aTEB"
 
-ufull=count(sigmau.gt.0.)
+ufull=count(sigu.gt.0.)
 if (ufull.eq.0) return
 
 allocate(ugrid(ufull),mgrid(ifull),fn(ufull),pg(ufull))
@@ -196,9 +201,9 @@ call tebtype(ifull,utype,diag)
 fn(:)%vangle=0.
 fn(:)%hangle=0.
 
-pg(:)%cndzmin=max(abs(zmin-fn(:)%bldheight*(2./3.-refheight)),fn(:)%zo+1.) ! updated in tebcalc
-pg(:)%lzom=log(pg(:)%cndzmin/fn(:)%zo)                                     ! updated in tebcalc
-pg(:)%lzoh=2.+pg(:)%lzom                                                   ! updated in tebcalc
+pg(:)%cndzmin=max(zmin-fn(:)%bldheight*(2./3.-refheight),fn(:)%zo+1.) ! updated in tebcalc
+pg(:)%lzom=log(pg(:)%cndzmin/fn(:)%zo)                                ! updated in tebcalc
+pg(:)%lzoh=2.+pg(:)%lzom                                              ! updated in tebcalc
 
 return
 end subroutine tebinit
@@ -325,6 +330,7 @@ implicit none
 integer, intent(in) :: ifull,diag
 real, dimension(ifull,6), intent(in) :: ifn
 
+if (ufull.eq.0) return
 if (diag.ge.1) write(6,*) "Load aTEB building properties"
 
 fn(:)%hwratio=ifn(ugrid(:),1)
@@ -407,6 +413,7 @@ real, dimension(ifull), intent(inout) :: zom,zoh
 real, dimension(ufull) :: workb,workc
 real, parameter :: zr=1.e-15 ! limits minimum roughness length for heat
 
+if (ufull.eq.0) return
 if (diag.ge.1) write(6,*) "Blend urban roughness lengths"
 
 ! evaluate at canyon displacement height (really the atmospheric model should provide a displacement height)
@@ -434,6 +441,8 @@ implicit none
 
 integer, intent(in) :: ifull,diag
 real, dimension(ifull), intent(inout) :: cduv
+
+if (ufull.eq.0) return
 
 cduv(ugrid(:))=(1.-sigmau(:))*cduv(ugrid(:))+sigmau(:)*pg(:)%cduv
 
@@ -665,7 +674,7 @@ atm(:)%udir=atan2(vv(ugrid(:)),uu(ugrid(:)))
 where (atm(:)%temp.le.273.16)
   atm(:)%snd=rnd(ugrid(:))
   atm(:)%rnd=0.
-else where
+elsewhere
   atm(:)%rnd=rnd(ugrid(:))
   atm(:)%snd=0.
 end where
@@ -760,9 +769,9 @@ do iqu=1,ufull
 
     ! Adjust canyon roughness to include snow
     n=roaddum%snow/(roaddum%snow+maxrdsn+0.408*grav*fn(iqu)%zo) ! snow cover for urban roughness calc (Douville, et al 1995)
-    zom=(1.-n)*fn(iqu)%zo+n*zosnow                              ! blended urban and snow roughness lenght
-    dg%rfdzmin=max(abs(zmin-fn(iqu)%bldheight*(1.-refheight)),zoroof+1.)      ! roof displacement height 
-    pg(iqu)%cndzmin=max(abs(zmin-fn(iqu)%bldheight*(2./3.-refheight)),zom+1.) ! canyon displacement height  
+    zom=(1.-n)*fn(iqu)%zo+n*zosnow                              ! blended urban and snow roughness length
+    dg%rfdzmin=max(abs(zmin-fn(iqu)%bldheight*(1.-refheight)),zoroof+1.) ! roof displacement height (can be below)
+    pg(iqu)%cndzmin=max(zmin-fn(iqu)%bldheight*(2./3.-refheight),zom+1.) ! canyon displacement height (cannot be below)
     pg(iqu)%lzom=log(pg(iqu)%cndzmin/zom) ! log of urban roughness length
 
     ! calculate shortwave radiation (up to 2nd order reflections)
@@ -919,7 +928,8 @@ do iqu=1,ufull
     if (roofqsat.lt.dg%mixrr) then
       eg%roof=lv*atm(iqu)%rho*(roofqsat-dg%mixrr)*roofinvres
     else
-      eg%roof=lv*min(atm(iqu)%rho*dg%roofdelta*(roofqsat-dg%mixrr)*roofinvres,roofdum%water+atm(iqu)%rnd+rfsnmelt) ! MJT suggestion for max eg   
+      ! MJT suggestion for max eg   
+      eg%roof=lv*min(atm(iqu)%rho*dg%roofdelta*(roofqsat-dg%mixrr)*roofinvres,roofdum%water+atm(iqu)%rnd+rfsnmelt)
     end if
 
     ! calculate heat conduction (e.g., through walls)
@@ -1115,12 +1125,12 @@ end subroutine getqsat
 ! Modified for increased ratio between momentum and heat roughness
 ! lengths over urban areas using Brutsaet (1982) parameterisation.
 
-subroutine getinvres(invres,cd,olzot,ilzo,zmin,stemp,theta,umag)
+subroutine getinvres(invres,cd,olzoh,ilzom,zmin,stemp,theta,umag)
 
 implicit none
 
-real, intent(in) :: ilzo,zmin,stemp,theta,umag
-real, intent(out) :: invres,cd,olzot
+real, intent(in) :: ilzom,zmin,stemp,theta,umag
+real, intent(out) :: invres,cd,olzoh
 real af,aft,ri,fm,fh,root,denma,denha,re,lna,zodum
 real, parameter :: bprm=5. ! 4.7 in rams
 real, parameter :: chs=2.6 ! 5.3 in rams
@@ -1128,35 +1138,36 @@ real, parameter :: cms=5.  ! 7.4 in rams
 real, parameter :: fmroot=0.57735
 real, parameter :: rimax=(1./fmroot-1.)/bprm
 real, parameter :: nu = 1.461E-5
+real, parameter :: umin = 0.1
 !real, parameter :: eta0 = 1.827E-5
 !real, parameter :: t0 = 291.15
 !real, parameter :: c = 120.
 !eta=eta0*((t0+c)/(theta+c))*(theta/t0)**(2./3.)
 !nu=eta/rho
 
-af=(vkar/ilzo)**2
-ri=min(grav*zmin*(1.-stemp/theta)/max(umag,0.2)**2,rimax)
+af=(vkar/ilzom)**2
+ri=min(grav*zmin*(1.-stemp/theta)/max(umag,umin)**2,rimax)
 
 if (ri>0.) then
   fm=1./(1.+bprm*ri)**2
 else
-  root=sqrt(-ri*exp(ilzo))
+  root=sqrt(-ri*exp(ilzom))
   denma=1.+cms*2.*bprm*af*root
   fm=1.-2.*bprm *ri/denma
 endif
 
 cd=af*fm
-zodum=zmin*exp(-ilzo)
+zodum=zmin*exp(-ilzom)
 re=sqrt(cd)*umag*zodum/nu
 lna=2.46*re**0.25-log(7.4) !(Brutsaet, 1982)
-olzot=lna+ilzo
-aft=vkar**2/(ilzo*olzot)
+olzoh=lna+ilzom
+aft=vkar**2/(ilzom*olzoh)
 
 if (ri>0.) then
   fh=fm
 else
   denha=1.+chs*2.*bprm*aft*exp(0.5*lna)*root
-  fh=1.-2.*bprm *ri/denha
+  fh=1.-2.*bprm*ri/denha
 endif
 
 invres=aft*fh*umag
@@ -1343,15 +1354,15 @@ integer, intent(in) :: iqu
 real, dimension(4), intent(inout) :: acond
 real, intent(out) :: evct,fgtop,topinvres
 real, intent(in) :: ctemp,walletemp,wallwtemp,roadtemp,rdsntemp
-real cw,rwi
+real cw
 type(trad), intent(inout) :: fg
 type(tdiag), intent(in) :: dg
 type(tatm), intent(in) :: atm
 
 call getinvres(topinvres,pg(iqu)%cduv,pg(iqu)%lzoh,pg(iqu)%lzom,pg(iqu)%cndzmin,ctemp,dg%tempc,atm%umag)
 if (resmeth.eq.0) then
-  cw=sqrt(pg(iqu)%cduv)*atm%umag ! diagnose canyonw (from Masson 2000)
-  acond(:)=(11.8+4.2*sqrt(acond(:)**2+cw**2))/(aircp*atm%rho) ! From Rowley, et al (1930)
+  cw=pg(iqu)%cduv*atm%umag**2 ! diagnose canyonw (from Masson 2000)
+  acond(:)=(11.8+4.2*sqrt(acond(:)**2+cw))/(aircp*atm%rho) ! From Rowley, et al (1930)
 end if
 fg%walle=aircp*atm%rho*(walletemp-ctemp)*acond(2)
 fg%wallw=aircp*atm%rho*(wallwtemp-ctemp)*acond(3)
