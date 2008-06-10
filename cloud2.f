@@ -110,7 +110,7 @@ C Local work arrays and variables
       integer kk     ! MJT CHANGE - mr
       integer kt     ! MJT CHANGE - mr
       integer kar(1) ! MJT CHANGE - mr
-      integer, parameter :: nmr = 1 ! MJT CHANGE - mr
+      integer, parameter :: nmr = 0 ! MJT CHANGE - mr
 
       real ab
       real cfl
