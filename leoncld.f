@@ -138,7 +138,7 @@ c     Calculate convective cloud fraction and adjust moisture variables
 c     before calling newcloud
       !------------------------------------------------------------------------
       ! MJT CHANGE - mr
-      ! the nmr=1 method attempts to remove the dependance on vertical resolution
+      ! the nmr=1 method attempts to remove the dependence on vertical resolution
       ! by assuming a single coherent convective cloud in the vertical column.
       if (nmr.eq.1) then 
         do k=1,kl

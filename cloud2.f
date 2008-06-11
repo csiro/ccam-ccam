@@ -484,7 +484,7 @@ c Weight cloud properties by liquid/ice fraction
         ! calculation for all 2**N combinations of vertical cloud blocks and then combining
         ! the results as a sum that is weighted by the area of each combination.
         ! Instead, the nmr=1 method simply groups cloud fractions into cloud blocks
-        ! (i.e., to remove the dependance on vertical resolution) and estimates the cloud block
+        ! (i.e., to remove the dependence on vertical resolution) and estimates the cloud block
         ! bulk properties (i.e., a single configuration of vertical cloud blocks but with
         ! fractional area (0.<camt<=1.)).
         if (nmr.eq.1) then ! combine clouds in adjacent layers into a single cloud
