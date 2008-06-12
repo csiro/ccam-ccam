@@ -453,9 +453,11 @@
       
       real, dimension(ifull), intent(in) :: pslb
       real, dimension(ifull,kl), intent(in) :: ub,vb,tb,qb
-      real, dimension(ifull) :: delta,costh,sinth
-      real, dimension(ifull_g) :: x_g,xx_g,pslc
-      real, dimension(ifull_g,kbotdav:kl) :: uc,vc,wc,tc,qc
+      real, dimension(ifull) :: costh,sinth
+      real, dimension(ifull,kl) :: delta
+      real, dimension(ifull_g) :: pslc
+      real, dimension(ifull_g,kl) :: uc,vc,wc,tc,qc
+      real, dimension(ifull_g,kl) :: x_g,xx_g
       real den,polenx,poleny,polenz,zonx,zony,zonz
       integer iq,k
 
@@ -478,51 +480,42 @@
         if(nud_p>0)call ccmpi_gather(pslb(:)-psl(1:ifull), pslc(:))
         if(nud_uv==3)then
           do k=kbotdav,kl
-            delta(:)=costh(:)*(ub(1:ifull,k)-u(1:ifull,k))  ! uzon
-     &              -sinth(:)*(vb(1:ifull,k)-v(1:ifull,k))
-            call ccmpi_gather(delta(:), wc(:,k))
+            delta(:,k)=costh(:)*(ub(1:ifull,k)-u(1:ifull,k))  ! uzon
+     &                -sinth(:)*(vb(1:ifull,k)-v(1:ifull,k))
           end do
+          call ccmpi_gather(delta(:,:), wc(:,:))
         elseif(nud_uv.ne.0)then
+          call ccmpi_gather(ub(1:ifull,:)-u(1:ifull,:), x_g(:,:))
+          call ccmpi_gather(vb(1:ifull,:)-v(1:ifull,:), xx_g(:,:))
           do k=kbotdav,kl
-            call ccmpi_gather(ub(1:ifull,k)-u(1:ifull,k), x_g(:))
-            call ccmpi_gather(vb(1:ifull,k)-v(1:ifull,k), xx_g(:))
-            uc(:,k)=ax_g(:)*x_g(:)+bx_g(:)*xx_g(:)
-            vc(:,k)=ay_g(:)*x_g(:)+by_g(:)*xx_g(:)
-            wc(:,k)=az_g(:)*x_g(:)+bz_g(:)*xx_g(:)
+            uc(:,k)=ax_g(:)*x_g(:,k)+bx_g(:)*xx_g(:,k)
+            vc(:,k)=ay_g(:)*x_g(:,k)+by_g(:)*xx_g(:,k)
+            wc(:,k)=az_g(:)*x_g(:,k)+bz_g(:)*xx_g(:,k)
           end do
         endif
         if(nud_t>0)then
-          do k=kbotdav,kl
-            call ccmpi_gather(tb(1:ifull,k)-t(1:ifull,k), tc(:,k))
-          end do
+          call ccmpi_gather(tb(1:ifull,:)-t(1:ifull,:), tc(:,:))
         end if
         if(nud_q>0)then
-          do k=kbotdav,kl
-            call ccmpi_gather(qb(1:ifull,k)-qg(1:ifull,k), qc(:,k))
-          end do
+          call ccmpi_gather(qb(1:ifull,:)-qg(1:ifull,:), qc(:,:))
         end if
       else
         if(nud_p>0)call ccmpi_gather(pslb(:)-psl(1:ifull))
         if(nud_uv==3)then
           do k=kbotdav,kl
-            delta(:)=costh(:)*(ub(1:ifull,k)-u(1:ifull,k))  ! uzon
-     &              -sinth(:)*(vb(1:ifull,k)-v(1:ifull,k))
-          end do	
-        elseif(nud_uv.ne.0)then
-          do k=kbotdav,kl
-            call ccmpi_gather(ub(1:ifull,k)-u(1:ifull,k))
-            call ccmpi_gather(vb(1:ifull,k)-v(1:ifull,k))
+            delta(:,k)=costh(:)*(ub(1:ifull,k)-u(1:ifull,k))  ! uzon
+     &                -sinth(:)*(vb(1:ifull,k)-v(1:ifull,k))
           end do
+          call ccmpi_gather(delta(:,:))	
+        elseif(nud_uv.ne.0)then
+          call ccmpi_gather(ub(1:ifull,:)-u(1:ifull,:))
+          call ccmpi_gather(vb(1:ifull,:)-v(1:ifull,:))
         endif
         if(nud_t>0)then
-          do k=kbotdav,kl
-            call ccmpi_gather(tb(1:ifull,k)-t(1:ifull,k))
-          end do
+          call ccmpi_gather(tb(1:ifull,:)-t(1:ifull,:))
         endif
         if(nud_q>0)then
-          do k=kbotdav,kl
-            call ccmpi_gather(qb(1:ifull,k)-qg(1:ifull,k))
-          end do
+          call ccmpi_gather(qb(1:ifull,:)-qg(1:ifull,:))
         endif
       end if
  
@@ -531,83 +524,86 @@
         if (myid == 0) then
           print *,"Fast spectral downscale"
           call fastspec((.1*real(mbd)/(pi*schmidt))**2
-     &       ,pslc,uc,vc,wc,tc,qc) ! e.g. mbd=40
+     &       ,pslc(:),uc(:,kbotdav:kl),vc(:,kbotdav:kl)
+     &       ,wc(:,kbotdav:kl),tc(:,kbotdav:kl),qc(:,kbotdav:kl)) ! e.g. mbd=40
         end if
       elseif(nud_uv==9)then 
         if (myid == 0) print *,"Two dimensional spectral downscale"
         call slowspecmpi(myid,.1*real(mbd)/(pi*schmidt)
-     &                ,pslc,uc,vc,wc,tc,qc) ! MJT CHANGE spec
+     &                ,pslc(:),uc(:,kbotdav:kl),vc(:,kbotdav:kl)
+     &                ,wc(:,kbotdav:kl),tc(:,kbotdav:kl)
+     &                ,qc(:,kbotdav:kl))
       else          !  usual choice e.g. for nud_uv=1 or 2
         if (myid == 0) print *,"Separable 1D downscale (MPI)"
         call fourspecmpi(myid,.1*real(mbd)/(pi*schmidt)
-     &                ,pslc,uc,vc,wc,tc,qc)
+     &                ,pslc(:),uc(:,kbotdav:kl),vc(:,kbotdav:kl)
+     &                ,wc(:,kbotdav:kl),tc(:,kbotdav:kl)
+     &                ,qc(:,kbotdav:kl))
       endif  ! (nud_uv<0) .. else ..
         !-----------------------------------------------------------------------
 
       if (myid == 0) then
         print *,"Distribute data from spectral downscale"
         if (nud_p.gt.0) then
-          call ccmpi_distribute(delta(:), pslc(:))
-          psl(1:ifull)=psl(1:ifull)+delta(:)
+          call ccmpi_distribute(delta(:,1), pslc(:))
+          psl(1:ifull)=psl(1:ifull)+delta(:,1)
         end if
         if(nud_uv==3)then
-          do k=kbotdav,kl        
-            call ccmpi_distribute(delta(:), wc(:,k))
-            u(1:ifull,k)=u(1:ifull,k)+costh(:)*delta(:)
-            v(1:ifull,k)=v(1:ifull,k)-sinth(:)*delta(:)
-	  end do
+          call ccmpi_distribute(delta(:,:), wc(:,:))
+          do k=kbotdav,kl 
+            u(1:ifull,k)=u(1:ifull,k)+costh(:)*delta(:,k)
+            v(1:ifull,k)=v(1:ifull,k)-sinth(:)*delta(:,k)
+          end do
         elseif(nud_uv.ne.0) then
           do k=kbotdav,kl        
-            x_g(:)=ax_g(:)*uc(:,k)+ay_g(:)*vc(:,k)+az_g(:)*wc(:,k)
-            call ccmpi_distribute(delta(:), x_g(:))
-            u(1:ifull,k)=u(1:ifull,k)+delta(:)
-            xx_g(:)=bx_g(:)*uc(:,k)+by_g(:)*vc(:,k)+bz_g(:)*wc(:,k)
-            call ccmpi_distribute(delta(:), xx_g(:))
-            v(1:ifull,k)=v(1:ifull,k)+delta(:)
+            x_g(:,k)=ax_g(:)*uc(:,k)+ay_g(:)*vc(:,k)+az_g(:)*wc(:,k)
+            xx_g(:,k)=bx_g(:)*uc(:,k)+by_g(:)*vc(:,k)+bz_g(:)*wc(:,k)
           end do
+          call ccmpi_distribute(delta(:,:), x_g(:,:))
+          u(1:ifull,kbotdav:kl)=u(1:ifull,kbotdav:kl)
+     &                         +delta(:,kbotdav:kl)
+          call ccmpi_distribute(delta(:,:), xx_g(:,:))
+          v(1:ifull,kbotdav:kl)=v(1:ifull,kbotdav:kl)
+     &                         +delta(:,kbotdav:kl)
         end if
         if (nud_t.gt.0) then
-          do k=kbotdav,kl
-            call ccmpi_distribute(delta(:), tc(:,k))
-            t(1:ifull,k)=t(1:ifull,k)+delta(:)
-          end do
+          call ccmpi_distribute(delta(:,:), tc(:,:))
+          t(1:ifull,kbotdav:kl)=t(1:ifull,kbotdav:kl)
+     &                         +delta(:,kbotdav:kl)
         end if
         if (nud_q.gt.0) then
-          do k=kbotdav,kl
-            call ccmpi_distribute(delta(:), qc(:,k))
-            qg(1:ifull,k)=max(qg(1:ifull,k)+delta(:),qgmin)
-          end do
+          call ccmpi_distribute(delta(:,:), qc(:,:))
+          qg(1:ifull,kbotdav:kl)=max(qg(1:ifull,kbotdav:kl)
+     &                          +delta(:,kbotdav:kl),qgmin)
         end if
       else
         if (nud_p.gt.0) then
-          call ccmpi_distribute(delta(:))
-          psl(1:ifull)=psl(1:ifull)+delta(:)
+          call ccmpi_distribute(delta(:,1))
+          psl(1:ifull)=psl(1:ifull)+delta(:,1)
         end if
         if(nud_uv==3)then
+          call ccmpi_distribute(delta(:,:))
           do k=kbotdav,kl
-            call ccmpi_distribute(delta(:))
-            u(1:ifull,k)=u(1:ifull,k)+costh(:)*delta(:)
-            v(1:ifull,k)=v(1:ifull,k)-sinth(:)*delta(:)
+            u(1:ifull,k)=u(1:ifull,k)+costh(:)*delta(:,k)
+            v(1:ifull,k)=v(1:ifull,k)-sinth(:)*delta(:,k)
           end do
         elseif (nud_uv.ne.0) then
-          do k=kbotdav,kl
-            call ccmpi_distribute(delta(:))
-            u(1:ifull,k)=u(1:ifull,k)+delta(:)
-            call ccmpi_distribute(delta(:))
-            v(1:ifull,k)=v(1:ifull,k)+delta(:)
-          end do
+          call ccmpi_distribute(delta(:,:))
+          u(1:ifull,kbotdav:kl)=u(1:ifull,kbotdav:kl)
+     &                         +delta(:,kbotdav:kl)
+          call ccmpi_distribute(delta(:,:))
+          v(1:ifull,kbotdav:kl)=v(1:ifull,kbotdav:kl)
+     &                         +delta(:,kbotdav:kl)
         end if
         if (nud_t.gt.0) then
-          do k=kbotdav,kl
-            call ccmpi_distribute(delta(:))
-            t(1:ifull,k)=t(1:ifull,k)+delta(:)
-          end do
+          call ccmpi_distribute(delta(:,:))
+          t(1:ifull,kbotdav:kl)=t(1:ifull,kbotdav:kl)
+     &                         +delta(:,kbotdav:kl)
         end if
         if (nud_q.gt.0) then
-          do k=kbotdav,kl
-            call ccmpi_distribute(delta(:))
-            qg(1:ifull,k)=max(qg(1:ifull,k)+delta(:),qgmin)
-          end do
+          call ccmpi_distribute(delta(:,:))
+          qg(1:ifull,kbotdav:kl)=max(qg(1:ifull,kbotdav:kl)
+     &                          +delta(:,kbotdav:kl),qgmin)
         end if
       end if
       
@@ -1306,8 +1302,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           me=maps(ipass)
 
           if (myid == 0) then
-            !if(nmaxpr==1)print *,"6/4 pass ",ppass,ipass
-            print *,"6/4 pass ",ppass,ipass
+            if(nmaxpr==1)print *,"6/4 pass ",ppass,ipass
             do iproc=1,nproc-1
               call procdiv(nns,nne,il_g,nproc,iproc)
               do j=nns,nne
