@@ -1208,21 +1208,21 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             dd(ix+1:ix+ne-ns+1)=uu(ns:ne,k)
             ix=ix+ne-ns+1
           end do
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
+          call MPI_SSend(dd(1:ix),ix,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,ierr)
           ix=0
           do k=kbotdav,kl
             dd(ix+1:ix+ne-ns+1)=vv(ns:ne,k)
             ix=ix+ne-ns+1
           end do
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
+          call MPI_SSend(dd(1:ix),ix,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,ierr)
           ix=0
           do k=kbotdav,kl
             dd(ix+1:ix+ne-ns+1)=ww(ns:ne,k)
             ix=ix+ne-ns+1
           end do
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
+          call MPI_SSend(dd(1:ix),ix,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,ierr)
         end if
         if(nud_t>0)then
@@ -1231,7 +1231,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             dd(ix+1:ix+ne-ns+1)=tt(ns:ne,k)
             ix=ix+ne-ns+1
           end do
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
+          call MPI_SSend(dd(1:ix),ix,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,ierr)
         end if
         if(nud_q>0)then
@@ -1240,7 +1240,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             dd(ix+1:ix+ne-ns+1)=qgg(ns:ne,k)
             ix=ix+ne-ns+1
           end do
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
+          call MPI_SSend(dd(1:ix),ix,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,ierr)
         end if
       end if
