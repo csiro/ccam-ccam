@@ -1025,59 +1025,57 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       if (myid == 0) then
         print *,"Send global arrays to all processors"
-        do iproc=1,nproc-1
-          if(nud_p>0)then
-            call MPI_SSend(psls(:),ifull_g,MPI_REAL,iproc,
-     &             itag,MPI_COMM_WORLD,ierr)
-          end if
-          iy=ifull_g*(kl-kbotdav+1)
-          if(nud_uv>0)then
-            dd(1:iy)=reshape(uu(:,:),(/iy/))
-            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,ierr)    
-            dd(1:iy)=reshape(vv(:,:),(/iy/))
-            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,ierr)    
-            dd(1:iy)=reshape(ww(:,:),(/iy/))
-            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,ierr)    
-          end if
-          if(nud_t>0)then
-            dd(1:iy)=reshape(tt(:,:),(/iy/))
-            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,ierr)    
-          end if
-          if(nud_q>0)then
-            dd(1:iy)=reshape(qgg(:,:),(/iy/))
-            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,ierr)    
-          end if
-        end do
-      else
         if(nud_p>0)then
-         call MPI_Recv(psls(:),ifull_g,MPI_REAL,0,itag,
-     &                     MPI_COMM_WORLD,status,ierr)
+          call MPI_Bcast(psls(:),ifull_g,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)
         end if
         iy=ifull_g*(kl-kbotdav+1)
         if(nud_uv>0)then
-          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,status,ierr)
+          dd(1:iy)=reshape(uu(:,:),(/iy/))
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)    
+          dd(1:iy)=reshape(vv(:,:),(/iy/))
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)    
+          dd(1:iy)=reshape(ww(:,:),(/iy/))
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)    
+        end if
+        if(nud_t>0)then
+          dd(1:iy)=reshape(tt(:,:),(/iy/))
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)    
+        end if
+        if(nud_q>0)then
+          dd(1:iy)=reshape(qgg(:,:),(/iy/))
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)    
+        end if
+      else
+        if(nud_p>0)then
+         call MPI_Bcast(psls(:),ifull_g,MPI_REAL,0,
+     &          MPI_COMM_WORLD,ierr)
+        end if
+        iy=ifull_g*(kl-kbotdav+1)
+        if(nud_uv>0)then
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)
           uu(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
-          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,status,ierr)
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)
           vv(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
-          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,status,ierr)
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)
           ww(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
         end if
         if(nud_t>0)then
-          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,status,ierr)
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)
           tt(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
         end if
         if(nud_q>0)then
-          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,status,ierr)
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)
           qgg(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
         end if
       end if
@@ -1783,59 +1781,57 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       if (myid == 0) then
         print *,"Send global arrays to all processors"
-        do iproc=1,nproc-1
-          if(nud_p>0)then
-            call MPI_SSend(psls(:),ifull_g,MPI_REAL,iproc,
-     &             itag,MPI_COMM_WORLD,ierr)
-          end if
-          iy=ifull_g*(kl-kbotdav+1)
-          if(nud_uv>0)then
-            dd(1:iy)=reshape(uu(:,:),(/iy/))
-            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,ierr)    
-            dd(1:iy)=reshape(vv(:,:),(/iy/))
-            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,ierr)    
-            dd(1:iy)=reshape(ww(:,:),(/iy/))
-            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,ierr)    
-          end if
-          if(nud_t>0)then
-            dd(1:iy)=reshape(tt(:,:),(/iy/))
-            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,ierr)    
-          end if
-          if(nud_q>0)then
-            dd(1:iy)=reshape(qgg(:,:),(/iy/))
-            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,ierr)    
-          end if
-        end do
-      else
         if(nud_p>0)then
-         call MPI_Recv(psls(:),ifull_g,MPI_REAL,0,itag,
-     &                     MPI_COMM_WORLD,status,ierr)
+          call MPI_Bcast(psls(:),ifull_g,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)
         end if
         iy=ifull_g*(kl-kbotdav+1)
         if(nud_uv>0)then
-          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,status,ierr)
+          dd(1:iy)=reshape(uu(:,:),(/iy/))
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)    
+          dd(1:iy)=reshape(vv(:,:),(/iy/))
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)    
+          dd(1:iy)=reshape(ww(:,:),(/iy/))
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)    
+        end if
+        if(nud_t>0)then
+          dd(1:iy)=reshape(tt(:,:),(/iy/))
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)    
+        end if
+        if(nud_q>0)then
+          dd(1:iy)=reshape(qgg(:,:),(/iy/))
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)    
+        end if
+      else
+        if(nud_p>0)then
+         call MPI_Bcast(psls(:),ifull_g,MPI_REAL,0,
+     &                     MPI_COMM_WORLD,ierr)
+        end if
+        iy=ifull_g*(kl-kbotdav+1)
+        if(nud_uv>0)then
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)
           uu(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
-          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,status,ierr)
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)
           vv(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
-          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,status,ierr)
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)
           ww(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
         end if
         if(nud_t>0)then
-          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,status,ierr)
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)
           tt(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
         end if
         if(nud_q>0)then
-          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,status,ierr)
+          call MPI_Bcast(dd(1:iy),iy,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)
           qgg(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
         end if
       end if
