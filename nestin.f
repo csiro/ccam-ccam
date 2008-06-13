@@ -533,6 +533,12 @@
      &                ,pslc(:),uc(:,kbotdav:kl),vc(:,kbotdav:kl)
      &                ,wc(:,kbotdav:kl),tc(:,kbotdav:kl)
      &                ,qc(:,kbotdav:kl))
+      elseif(mod(6,nproc)==0)then
+        if (myid == 0) print *,"Separable 1D downscale (MPI optimised)"
+        call specfastmpi(myid,.1*real(mbd)/(pi*schmidt)
+     &                ,pslc(:),uc(:,kbotdav:kl),vc(:,kbotdav:kl)
+     &                ,wc(:,kbotdav:kl),tc(:,kbotdav:kl)
+     &                ,qc(:,kbotdav:kl))
       else          !  usual choice e.g. for nud_uv=1 or 2
         if (myid == 0) print *,"Separable 1D downscale (MPI)"
         call fourspecmpi(myid,.1*real(mbd)/(pi*schmidt)
@@ -1010,59 +1016,41 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g) :: pp,r
       real, dimension(ifull_g,kbotdav:kl) :: pu,pv,pw,pt,pq
       real, dimension(ifull_g*(kl-kbotdav+1)) :: dd
-      real :: rmaxsq,csq,emmin,psum
-      integer :: iq,ns,ne,k,itag=0,ierr,iproc,ix,iy
+      real :: csq,emmin,psum
+      integer :: iq,ns,ne,k,itag=0,ierr,iproc,iy
       integer, dimension(MPI_STATUS_SIZE) :: status
 
       emmin=c*ds/rearth
-      rmaxsq=1./c**2
       csq=-4.5*c**2
 
       if (myid == 0) then
         print *,"Send global arrays to all processors"
         do iproc=1,nproc-1
-          if(nud_p>0)call MPI_SSend(psls(:),ifull_g,MPI_REAL,iproc,
-     &                      itag,MPI_COMM_WORLD,ierr)
+          if(nud_p>0)then
+            call MPI_SSend(psls(:),ifull_g,MPI_REAL,iproc,
+     &             itag,MPI_COMM_WORLD,ierr)
+          end if
+          iy=ifull_g*(kl-kbotdav+1)
           if(nud_uv>0)then
-            ix=0
-            do k=kbotdav,kl
-              dd(ix+1:ix+ifull_g)=uu(:,k)
-              ix=ix+ifull_g
-            end do
-            call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
+            dd(1:iy)=reshape(uu(:,:),(/iy/))
+            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
      &             MPI_COMM_WORLD,ierr)    
-            ix=0
-            do k=kbotdav,kl
-              dd(ix+1:ix+ifull_g)=vv(:,k)
-              ix=ix+ifull_g
-            end do
-            call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
+            dd(1:iy)=reshape(vv(:,:),(/iy/))
+            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
      &             MPI_COMM_WORLD,ierr)    
-            ix=0
-            do k=kbotdav,kl
-              dd(ix+1:ix+ifull_g)=ww(:,k)
-              ix=ix+ifull_g
-            end do
-            call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
+            dd(1:iy)=reshape(ww(:,:),(/iy/))
+            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
      &             MPI_COMM_WORLD,ierr)    
           end if
           if(nud_t>0)then
-            ix=0
-            do k=kbotdav,kl
-              dd(ix+1:ix+ifull_g)=tt(:,k)
-              ix=ix+ifull_g
-            end do
-            call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,ierr) 
+            dd(1:iy)=reshape(tt(:,:),(/iy/))
+            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,ierr)    
           end if
           if(nud_q>0)then
-            ix=0
-            do k=kbotdav,kl
-              dd(ix+1:ix+ifull_g)=qgg(:,k)
-              ix=ix+ifull_g
-            end do
-            call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,ierr) 
+            dd(1:iy)=reshape(qgg(:,:),(/iy/))
+            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,ierr)    
           end if
         end do
       else
@@ -1074,43 +1062,23 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         if(nud_uv>0)then
           call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,status,ierr)
-          ix=0
-          do k=kbotdav,kl
-            uu(:,k)=dd(ix+1:ix+ifull_g)
-            ix=ix+ifull_g
-          end do
+          uu(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
           call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,status,ierr)
-          ix=0
-          do k=kbotdav,kl
-            vv(:,k)=dd(ix+1:ix+ifull_g)
-            ix=ix+ifull_g
-          end do
+          vv(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
           call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,status,ierr)
-          ix=0
-          do k=kbotdav,kl
-            ww(:,k)=dd(ix+1:ix+ifull_g)
-            ix=ix+ifull_g
-          end do
+          ww(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
         end if
         if(nud_t>0)then
           call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,status,ierr)
-          ix=0
-          do k=kbotdav,kl
-            tt(:,k)=dd(ix+1:ix+ifull_g)
-            ix=ix+ifull_g
-          end do
+          tt(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
         end if
         if(nud_q>0)then
           call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,status,ierr)
-          ix=0
-          do k=kbotdav,kl
-            qgg(:,k)=dd(ix+1:ix+ifull_g)
-            ix=ix+ifull_g
-          end do
+          qgg(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
         end if
       end if
     
@@ -1160,87 +1128,48 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           if(nud_uv>0)then
             call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
      &             MPI_COMM_WORLD,status,ierr)
-            ix=0
-            do k=kbotdav,kl
-              uu(ns:ne,k)=dd(ix+1:ix+ne-ns+1)
-              ix=ix+ne-ns+1
-            end do
+            uu(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,kl-kbotdav+1/))
             call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
      &             MPI_COMM_WORLD,status,ierr)
-            ix=0
-            do k=kbotdav,kl
-              vv(ns:ne,k)=dd(ix+1:ix+ne-ns+1)
-              ix=ix+ne-ns+1
-            end do
+            vv(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,kl-kbotdav+1/))
             call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
      &             MPI_COMM_WORLD,status,ierr)
-            ix=0
-            do k=kbotdav,kl
-              ww(ns:ne,k)=dd(ix+1:ix+ne-ns+1)
-              ix=ix+ne-ns+1
-            end do
+            ww(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,kl-kbotdav+1/))
           end if
           if(nud_t>0)then
             call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
      &             MPI_COMM_WORLD,status,ierr)
-            ix=0
-            do k=kbotdav,kl
-              tt(ns:ne,k)=dd(ix+1:ix+ne-ns+1)
-              ix=ix+ne-ns+1
-            end do
+            tt(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,kl-kbotdav+1/))
           end if
           if(nud_q>0)then
             call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
      &             MPI_COMM_WORLD,status,ierr)
-            ix=0
-            do k=kbotdav,kl
-              qgg(ns:ne,k)=dd(ix+1:ix+ne-ns+1)
-              ix=ix+ne-ns+1
-            end do
+            qgg(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,kl-kbotdav+1/))
           end if
         end do
       else
         if(nud_p>0) call MPI_SSend(psls(ns:ne),ne-ns+1,MPI_REAL,0,
      &                     itag,MPI_COMM_WORLD,ierr)
+        iy=(ne-ns+1)*(kl-kbotdav+1)
         if(nud_uv>0)then
-          ix=0
-          do k=kbotdav,kl
-            dd(ix+1:ix+ne-ns+1)=uu(ns:ne,k)
-            ix=ix+ne-ns+1
-          end do
-          call MPI_SSend(dd(1:ix),ix,MPI_REAL,0,itag,
+          dd(1:iy)=reshape(uu(ns:ne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,ierr)
-          ix=0
-          do k=kbotdav,kl
-            dd(ix+1:ix+ne-ns+1)=vv(ns:ne,k)
-            ix=ix+ne-ns+1
-          end do
-          call MPI_SSend(dd(1:ix),ix,MPI_REAL,0,itag,
+          dd(1:iy)=reshape(vv(ns:ne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,ierr)
-          ix=0
-          do k=kbotdav,kl
-            dd(ix+1:ix+ne-ns+1)=ww(ns:ne,k)
-            ix=ix+ne-ns+1
-          end do
-          call MPI_SSend(dd(1:ix),ix,MPI_REAL,0,itag,
+          dd(1:iy)=reshape(ww(ns:ne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,ierr)
         end if
         if(nud_t>0)then
-          ix=0
-          do k=kbotdav,kl
-            dd(ix+1:ix+ne-ns+1)=tt(ns:ne,k)
-            ix=ix+ne-ns+1
-          end do
-          call MPI_SSend(dd(1:ix),ix,MPI_REAL,0,itag,
+          dd(1:iy)=reshape(tt(ns:ne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,ierr)
         end if
         if(nud_q>0)then
-          ix=0
-          do k=kbotdav,kl
-            dd(ix+1:ix+ne-ns+1)=qgg(ns:ne,k)
-            ix=ix+ne-ns+1
-          end do
-          call MPI_SSend(dd(1:ix),ix,MPI_REAL,0,itag,
+          dd(1:iy)=reshape(qgg(ns:ne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
      &           MPI_COMM_WORLD,ierr)
         end if
       end if
@@ -1274,8 +1203,8 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(4*il_g,kbotdav:kl) :: au,av,aw,at,aq
       real, dimension(4*il_g) :: pp,ap,psum,asum,ra,ema,xa,ya,za
       real, dimension(ifull_g*(kl-kbotdav+1)) :: dd
-      real :: rmaxsq,csq,emmin
-      integer :: iq,j,ipass,ppass,kpass,n,ix,iy,kn,kx
+      real :: csq,emmin
+      integer :: j,ipass,ppass,kpass,n,ix,iy,kn,kx
       integer :: me,ne,ns,nne,nns,iproc,k,itag=0,ierr
       integer, dimension(MPI_STATUS_SIZE) :: status
       integer, dimension(0:3) :: maps
@@ -1284,9 +1213,10 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       maps(:)=(/ il_g, il_g, 4*il_g, 3*il_g /) 
  
       emmin=c*ds/rearth
-      rmaxsq=1./c**2
       csq=-4.5*c**2
+
       call procdiv(ns,ne,il_g,nproc,myid)
+      if (ns.gt.ne) return
 
       do ppass=0,5
 
@@ -1312,126 +1242,116 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               if(nmaxpr==1)print *,"6/4 pass - send",ppass,ipass
               do iproc=1,nproc-1
                 call procdiv(nns,nne,il_g,nproc,iproc)
-                do kpass=kn,kx
-                  do j=nns,nne
-                    do n=1,maps(kpass)
-                      call getiqx(iq,j,n,kpass,ppass,il_g)
-                      igrd(n,j,kpass)=iq
-                    end do
+                if (nns.le.nne) then
+                  do kpass=kn,kx
+                    call getiqa(igrd(1:maps(kpass),nns:nne,kpass),nns,
+     &                     nne,maps(kpass),kpass,ppass,il_g)
                   end do
-                end do
-                ix=0
-                do kpass=kn,kx
-                  do j=nns,nne
-                    do n=1,maps(kpass)
-                      ix=ix+1
-                      dd(ix)=qsum(igrd(n,j,kpass))
-                    end do
-                  end do
-                end do
-                call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)    
-                if(nud_p>0)then
                   ix=0
                   do kpass=kn,kx
                     do j=nns,nne
                       do n=1,maps(kpass)
                         ix=ix+1
-                        dd(ix)=qp(igrd(n,j,kpass))
+                        dd(ix)=qsum(igrd(n,j,kpass))
                       end do
                     end do
                   end do
                   call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)
-                end if
-                if(nud_uv>0)then
-                  ix=0
-                  do k=kbotdav,kl    
+     &                   MPI_COMM_WORLD,ierr)    
+                  if(nud_p>0)then
+                    ix=0
                     do kpass=kn,kx
                       do j=nns,nne
                         do n=1,maps(kpass)
                           ix=ix+1
-                          dd(ix)=qu(igrd(n,j,kpass),k)
+                          dd(ix)=qp(igrd(n,j,kpass))
                         end do
                       end do
                     end do
-                  end do
-                  call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
-     &                   MPI_COMM_WORLD,ierr)
-                  ix=0
-                  do k=kbotdav,kl    
-                    do kpass=kn,kx
-                      do j=nns,nne
-                        do n=1,maps(kpass)
-                          ix=ix+1
-                          dd(ix)=qv(igrd(n,j,kpass),k)
+                    call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
+     &                     MPI_COMM_WORLD,ierr)
+                  end if
+                  if(nud_uv>0)then
+                    ix=0
+                    do k=kbotdav,kl    
+                      do kpass=kn,kx
+                        do j=nns,nne
+                          do n=1,maps(kpass)
+                            ix=ix+1
+                            dd(ix)=qu(igrd(n,j,kpass),k)
+                          end do
                         end do
                       end do
                     end do
-                  end do
-                  call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)
-                  ix=0
-                  do k=kbotdav,kl    
-                    do kpass=kn,kx
-                      do j=nns,nne
-                        do n=1,maps(kpass)
-                          ix=ix+1
-                          dd(ix)=qw(igrd(n,j,kpass),k)
+                    call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
+     &                     MPI_COMM_WORLD,ierr)
+                    ix=0
+                    do k=kbotdav,kl    
+                      do kpass=kn,kx
+                        do j=nns,nne
+                          do n=1,maps(kpass)
+                            ix=ix+1
+                            dd(ix)=qv(igrd(n,j,kpass),k)
+                          end do
                         end do
                       end do
                     end do
-                  end do
-                  call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)
-                end if
-                if(nud_t>0)then
-                  ix=0
-                  do k=kbotdav,kl    
-                    do kpass=kn,kx
-                      do j=nns,nne
-                        do n=1,maps(kpass)
-                          ix=ix+1
-                          dd(ix)=qt(igrd(n,j,kpass),k)
+                    call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
+     &                     MPI_COMM_WORLD,ierr)
+                    ix=0
+                    do k=kbotdav,kl    
+                      do kpass=kn,kx
+                        do j=nns,nne
+                          do n=1,maps(kpass)
+                            ix=ix+1
+                            dd(ix)=qw(igrd(n,j,kpass),k)
+                          end do
                         end do
                       end do
                     end do
-                  end do
-                  call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)
-                end if
-                if(nud_q>0)then
-                  ix=0
-                  do k=kbotdav,kl    
-                    do kpass=kn,kx
-                      do j=nns,nne
-                        do n=1,maps(kpass)
-                          ix=ix+1
-                          dd(ix)=qq(igrd(n,j,kpass),k)
+                    call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
+     &                     MPI_COMM_WORLD,ierr)
+                  end if
+                  if(nud_t>0)then
+                    ix=0
+                    do k=kbotdav,kl    
+                      do kpass=kn,kx
+                        do j=nns,nne
+                          do n=1,maps(kpass)
+                            ix=ix+1
+                            dd(ix)=qt(igrd(n,j,kpass),k)
+                          end do
                         end do
                       end do
                     end do
-                  end do
-                  call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
-     &                 MPI_COMM_WORLD,ierr)
+                    call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
+     &                     MPI_COMM_WORLD,ierr)
+                  end if
+                  if(nud_q>0)then
+                    ix=0
+                    do k=kbotdav,kl    
+                      do kpass=kn,kx
+                        do j=nns,nne
+                          do n=1,maps(kpass)
+                            ix=ix+1
+                            dd(ix)=qq(igrd(n,j,kpass),k)
+                          end do
+                        end do
+                      end do
+                    end do
+                    call MPI_SSend(dd(1:ix),ix,MPI_REAL,iproc,itag,
+     &                     MPI_COMM_WORLD,ierr)
+                  end if
                 end if
               end do
               do kpass=kn,kx
-                do j=ns,ne
-                  do n=1,maps(kpass)
-                    call getiqx(iq,j,n,kpass,ppass,il_g)
-                    igrd(n,j,kpass)=iq
-                  end do
-                end do
+                call getiqa(igrd(1:maps(kpass),ns:ne,kpass),ns,ne,
+     &                 maps(kpass),kpass,ppass,il_g)
               end do
             else
               do kpass=kn,kx
-                do j=ns,ne
-                  do n=1,maps(kpass)
-                    call getiqx(iq,j,n,kpass,ppass,il_g)
-                    igrd(n,j,kpass)=iq
-                  end do
-                end do
+                call getiqa(igrd(1:maps(kpass),ns:ne,kpass),ns,ne,
+     &                 maps(kpass),kpass,ppass,il_g)
               end do
               iy=sum(maps(kn:kx))*(ne-ns+1)
               call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
@@ -1589,110 +1509,108 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               if(nmaxpr==1)print *,"6/4 pass - recv",ppass,ipass
               do iproc=1,nproc-1
                 call procdiv(nns,nne,il_g,nproc,iproc)
-                do kpass=kn,kx
-                  do j=nns,nne
-                    do n=1,il_g
-                      call getiqx(iq,j,n,kpass,ppass,il_g)
-                      igrd(n,j,kpass)=iq
-                    end do
+                if (nns.le.nne) then
+                  do kpass=kn,kx
+                    call getiqa(igrd(1:maps(kpass),nns:nne,kpass),nns,
+     &                     nne,maps(kpass),kpass,ppass,il_g)
                   end do
-                end do
-                iy=il_g*(nne-nns+1)*(kx-kn+1)
-                call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
-     &                 ,itag,MPI_COMM_WORLD,status,ierr)
-                ix=0
-                do kpass=kn,kx
-                  do j=nns,nne
-                    do n=1,il_g
-                      ix=ix+1
-                      qsum(igrd(n,j,kpass))=dd(ix)
-                    end do
-                  end do
-                end do
-                if(nud_p>0)then
-                  call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,
-     &                   itag,MPI_COMM_WORLD,status,ierr)
+                  iy=il_g*(nne-nns+1)*(kx-kn+1)
+                  call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
+     &                   ,itag,MPI_COMM_WORLD,status,ierr)
                   ix=0
                   do kpass=kn,kx
                     do j=nns,nne
                       do n=1,il_g
                         ix=ix+1
-                        qp(igrd(n,j,kpass))=dd(ix)
+                        qsum(igrd(n,j,kpass))=dd(ix)
                       end do
                     end do
                   end do
-                end if
-                iy=il_g*(nne-nns+1)*(kl-kbotdav+1)*(kx-kn+1)
-                if(nud_uv>0)then
-                  call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
-     &                   ,itag,MPI_COMM_WORLD,status,ierr)
-                  ix=0
-                  do k=kbotdav,kl
+                  if(nud_p>0)then
+                    call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,
+     &                     itag,MPI_COMM_WORLD,status,ierr)
+                    ix=0
                     do kpass=kn,kx
                       do j=nns,nne
                         do n=1,il_g
                           ix=ix+1
-                          qu(igrd(n,j,kpass),k)=dd(ix)
+                          qp(igrd(n,j,kpass))=dd(ix)
                         end do
                       end do
                     end do
-                  end do
-                  call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
-     &                   ,itag,MPI_COMM_WORLD,status,ierr)
-                  ix=0
-                  do k=kbotdav,kl
-                    do kpass=kn,kx
-                      do j=nns,nne
-                        do n=1,il_g
-                          ix=ix+1
-                          qv(igrd(n,j,kpass),k)=dd(ix)
+                  end if
+                  iy=il_g*(nne-nns+1)*(kl-kbotdav+1)*(kx-kn+1)
+                  if(nud_uv>0)then
+                    call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
+     &                     ,itag,MPI_COMM_WORLD,status,ierr)
+                    ix=0
+                    do k=kbotdav,kl
+                      do kpass=kn,kx
+                        do j=nns,nne
+                          do n=1,il_g
+                            ix=ix+1
+                            qu(igrd(n,j,kpass),k)=dd(ix)
+                          end do
                         end do
                       end do
                     end do
-                  end do
-                  call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
-     &                   ,itag,MPI_COMM_WORLD,status,ierr)
-                  ix=0
-                  do k=kbotdav,kl
-                    do kpass=kn,kx
-                      do j=nns,nne
-                        do n=1,il_g
-                          ix=ix+1
-                          qw(igrd(n,j,kpass),k)=dd(ix)
+                    call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
+     &                     ,itag,MPI_COMM_WORLD,status,ierr)
+                    ix=0
+                    do k=kbotdav,kl
+                      do kpass=kn,kx
+                        do j=nns,nne
+                          do n=1,il_g
+                            ix=ix+1
+                            qv(igrd(n,j,kpass),k)=dd(ix)
+                          end do
                         end do
                       end do
                     end do
-                  end do
-                end if
-                if(nud_t>0)then
-                  call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
-     &                   ,itag,MPI_COMM_WORLD,status,ierr)
-                  ix=0
-                  do k=kbotdav,kl
-                    do kpass=kn,kx
-                      do j=nns,nne
-                        do n=1,il_g
-                          ix=ix+1
-                          qt(igrd(n,j,kpass),k)=dd(ix)
+                    call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
+     &                     ,itag,MPI_COMM_WORLD,status,ierr)
+                    ix=0
+                    do k=kbotdav,kl
+                      do kpass=kn,kx
+                        do j=nns,nne
+                          do n=1,il_g
+                            ix=ix+1
+                            qw(igrd(n,j,kpass),k)=dd(ix)
+                          end do
                         end do
                       end do
                     end do
-                  end do
-                end if
-                if(nud_q>0)then
-                  call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
-     &                   ,itag,MPI_COMM_WORLD,status,ierr)
-                  ix=0
-                  do k=kbotdav,kl
-                    do kpass=kn,kx
-                      do j=nns,nne
-                        do n=1,il_g
-                          ix=ix+1
-                          qq(igrd(n,j,kpass),k)=dd(ix)
+                  end if
+                  if(nud_t>0)then
+                    call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
+     &                     ,itag,MPI_COMM_WORLD,status,ierr)
+                    ix=0
+                    do k=kbotdav,kl
+                      do kpass=kn,kx
+                        do j=nns,nne
+                          do n=1,il_g
+                            ix=ix+1
+                            qt(igrd(n,j,kpass),k)=dd(ix)
+                          end do
                         end do
                       end do
                     end do
-                  end do
+                  end if
+                  if(nud_q>0)then
+                    call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
+     &                     ,itag,MPI_COMM_WORLD,status,ierr)
+                    ix=0
+                    do k=kbotdav,kl
+                      do kpass=kn,kx
+                        do j=nns,nne
+                          do n=1,il_g
+                            ix=ix+1
+                            qq(igrd(n,j,kpass),k)=dd(ix)
+                          end do
+                        end do
+                      end do
+                    end do
+                  end if
                 end if
               end do
             else
@@ -1823,75 +1741,395 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
 
       !---------------------------------------------------------------------------------
-      subroutine getiqx(iq,j,n,ipass,ppass,il_g)
+      ! Four pass spectral downscaling (symmetric)
+      ! MPI optimised for magic processor numbers 1,2,3,6
+      subroutine specfastmpi(myid,c,psls,uu,vv,ww,tt,qgg)
       
       implicit none
       
-      integer, intent(out) :: iq
-      integer, intent(in) :: j,n,ipass,ppass,il_g
+      include 'newmpar.h'   ! ifull_g,kl
+      include 'const_phys.h' ! rearth,pi,tpi
+      include 'map_g.h'     ! em_g
+      include 'parm.h'      ! ds,kbotdav
+      include 'xyzinfo_g.h' ! x_g,y_g,z_g
+      include 'mpif.h'
       
-      select case(ppass*100+ipass*10+(n-1)/il_g)
-        case(0,310,530)
-          iq=il_g*(5*il_g+n)+1-j      ! panel 5   - x pass
-        case(10,230,300)
-          iq=il_g*(2*il_g+j-1)+n      ! panel 2   - x pass
-        case(20,21)
-          iq=il_g*(n-1)+j             ! panel 0,1 - y pass
-        case(22,432)
-          iq=il_g*(4*il_g-j-2)+n      ! panel 3   - y pass
-        case(23)
-          iq=il_g*(5*il_g-j-3)+n      ! panel 4   - y pass
-        case(30,100,410)
-          iq=il_g*(j-1)+n             ! panel 0   - z pass
-        case(31)
-          iq=il_g*(il_g+n)+1-j        ! panel 2   - z pass
-        case(32,222)
-          iq=il_g*(5*il_g+j-3)+n      ! panel 5   - z pass
-        case(110,231,330,400)
-          iq=il_g*(3*il_g+n)+1-j      ! panel 3   - z pass
-        case(120)
-          iq=il_g*(il_g+j-1)+n        ! panel 1   - x pass
-        case(121)
-          iq=il_g*(2*il_g+j-2)+n      ! panel 2   - x pass
-        case(122,123,220,221)
-          iq=il_g*(2*il_g+n)+1-j      ! panel 4,5 - x pass ! panel 2,3 - z pass
-        case(130,200,510)
-          iq=il_g*(il_g+n-1)+j        ! panel 1   - y pass
-        case(131)
-          iq=il_g*(4*il_g-j-1)+n      ! panel 3   - y pass
-        case(132,322,323)
-          iq=il_g*(-2*il_g+n-1)+j     ! panel 0,1 - y pass
-        case(210,430,500)
-          iq=il_g*(5*il_g-j)+n        ! panel 4   - y pass
-        case(223)
-          iq=il_g*(j-4)+n             ! panel 0   - z pass
-        case(232,422)
-          iq=il_g*(il_g+j-3)+n        ! panel 1   - x pass
-        case(320)
-          iq=il_g*(4*il_g-j)+n        ! panel 3   - y pass
-        case(321)
-          iq=il_g*(5*il_g-j-1)+n      ! panel 4   - y pass
-        case(331)
-          iq=il_g*(5*il_g+j-2)+n      ! panel 5   - z pass
-        case(332,522,523)
-          iq=il_g*n+1-j               ! panel 2,3 - z pass 
-        case(420,421)
-          iq=il_g*(4*il_g+n)+1-j      ! panel 4,5 - x pass
-        case(423)
-          iq=il_g*(2*il_g+j-4)+n      ! panel 2   - x pass
-        case(431)
-          iq=il_g*(-il_g+n-1)+j       ! panel 0   - y pass
-        case(520)
-          iq=il_g*(5*il_g+j-1)+n      ! panel 5   - z pass
-        case(521)
-          iq=il_g*(j-2)+n             ! panel 0   - z pass
-        case(531)
-          iq=il_g*(il_g+j-2)+n        ! panel 1   - x pass
-        case(532)
-          iq=il_g*(2*il_g+n)+1-j      ! panel 4   - x pass
-      end select
+      integer, intent(in) :: myid
+      real, intent(in) :: c
+      real, dimension(ifull_g), intent(inout) :: psls
+      real, dimension(ifull_g,kbotdav:kl), intent(inout) :: uu,vv,ww
+      real, dimension(ifull_g,kbotdav:kl), intent(inout) :: tt,qgg
+      real, dimension(ifull_g) :: qp,zp,qsum
+      real, dimension(ifull_g,kbotdav:kl) :: qu,qv,qw,qt,qq
+      real, dimension(ifull_g,kbotdav:kl) :: zu,zv,zw,zt,zq
+      real, dimension(4*il_g,kbotdav:kl) :: pu,pv,pw,pt,pq
+      real, dimension(4*il_g,kbotdav:kl) :: au,av,aw,at,aq
+      real, dimension(4*il_g) :: pp,ap,psum,asum,ra,ema,xa,ya,za
+      real, dimension(ifull_g*(kl-kbotdav+1)) :: dd
+      real :: rmaxsq,csq,emmin
+      integer :: j,ipass,ppass,n,iy,ppn,ppx
+      integer :: me,nne,nns,iproc,k,itag=0,ierr
+      integer, dimension(MPI_STATUS_SIZE) :: status
+      integer, dimension(0:3) :: maps
+      integer, dimension(4*il_g,il_g) :: igrd
+      
+      maps(:)=(/ il_g, il_g, 4*il_g, 3*il_g /) 
+ 
+      emmin=c*ds/rearth
+      rmaxsq=1./c**2
+      csq=-4.5*c**2
+      
+      call procdivfastmpi(ppn,ppx,nproc,myid)
 
-      end subroutine getiqx
+      if (myid == 0) then
+        print *,"Send global arrays to all processors"
+        do iproc=1,nproc-1
+          if(nud_p>0)then
+            call MPI_SSend(psls(:),ifull_g,MPI_REAL,iproc,
+     &             itag,MPI_COMM_WORLD,ierr)
+          end if
+          iy=ifull_g*(kl-kbotdav+1)
+          if(nud_uv>0)then
+            dd(1:iy)=reshape(uu(:,:),(/iy/))
+            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,ierr)    
+            dd(1:iy)=reshape(vv(:,:),(/iy/))
+            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,ierr)    
+            dd(1:iy)=reshape(ww(:,:),(/iy/))
+            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,ierr)    
+          end if
+          if(nud_t>0)then
+            dd(1:iy)=reshape(tt(:,:),(/iy/))
+            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,ierr)    
+          end if
+          if(nud_q>0)then
+            dd(1:iy)=reshape(qgg(:,:),(/iy/))
+            call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,ierr)    
+          end if
+        end do
+      else
+        if(nud_p>0)then
+         call MPI_Recv(psls(:),ifull_g,MPI_REAL,0,itag,
+     &                     MPI_COMM_WORLD,status,ierr)
+        end if
+        iy=ifull_g*(kl-kbotdav+1)
+        if(nud_uv>0)then
+          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
+     &           MPI_COMM_WORLD,status,ierr)
+          uu(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
+          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
+     &           MPI_COMM_WORLD,status,ierr)
+          vv(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
+          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
+     &           MPI_COMM_WORLD,status,ierr)
+          ww(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
+        end if
+        if(nud_t>0)then
+          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
+     &           MPI_COMM_WORLD,status,ierr)
+          tt(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
+        end if
+        if(nud_q>0)then
+          call MPI_Recv(dd(1:iy),iy,MPI_REAL,0,itag,
+     &           MPI_COMM_WORLD,status,ierr)
+          qgg(:,:)=reshape(dd(1:iy),(/ifull_g,kl-kbotdav+1/))
+        end if
+      end if
+      
+      if (myid==0) print *,"Process filter"
+
+      do ppass=ppn,ppx
+
+        qp(:)=psls(:)
+        qu(:,:)=uu(:,:)
+        qv(:,:)=vv(:,:)
+        qw(:,:)=ww(:,:)
+        qt(:,:)=tt(:,:)
+        qq(:,:)=qgg(:,:)
+        qsum(:)=1.   
+
+        do ipass=0,3
+          me=maps(ipass)
+          call getiqa(igrd(1:me,1:il_g),1,il_g,me,ipass,ppass,il_g)
+          do j=1,il_g
+            ema(1:me)=em_g(igrd(1:me,j))
+            asum(1:me)=qsum(igrd(1:me,j))
+            ap(1:me)=qp(igrd(1:me,j))
+            au(1:me,:)=qu(igrd(1:me,j),:)
+            av(1:me,:)=qv(igrd(1:me,j),:)
+            aw(1:me,:)=qw(igrd(1:me,j),:)
+            at(1:me,:)=qt(igrd(1:me,j),:)
+            aq(1:me,:)=qq(igrd(1:me,j),:)
+            xa(1:me)=x_g(igrd(1:me,j))
+            ya(1:me)=y_g(igrd(1:me,j))
+            za(1:me)=z_g(igrd(1:me,j))
+            do n=1,il_g
+              if (ema(n).gt.emmin) then
+                ra(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
+                ra(1:me)=acos(max(min(ra(1:me),1.),-1.))**2
+                ra(1:me)=exp(ra(1:me)*csq)/(ema(1:me)**2) ! redefine ra(:) as wgt(:)
+                psum(n)=sum(ra(1:me)*asum(1:me))
+                pp(n)=sum(ra(1:me)*ap(1:me))
+                do k=kbotdav,kl
+                  pu(n,k)=sum(ra(1:me)*au(1:me,k))
+                  pv(n,k)=sum(ra(1:me)*av(1:me,k))
+                  pw(n,k)=sum(ra(1:me)*aw(1:me,k))
+                  pt(n,k)=sum(ra(1:me)*at(1:me,k))
+                  pq(n,k)=sum(ra(1:me)*aq(1:me,k))
+                end do
+              else
+                psum(n)=asum(n)
+                pp(n)=ap(n)
+                pu(n,:)=au(n,:)
+                pv(n,:)=av(n,:)
+                pw(n,:)=aw(n,:)
+                pt(n,:)=at(n,:)
+                pq(n,:)=aq(n,:)
+              end if
+            end do
+            qsum(igrd(1:il_g,j))=psum(1:il_g)
+            qp(igrd(1:il_g,j))=pp(1:il_g)
+            qu(igrd(1:il_g,j),:)=pu(1:il_g,:)
+            qv(igrd(1:il_g,j),:)=pv(1:il_g,:)
+            qw(igrd(1:il_g,j),:)=pw(1:il_g,:)
+            qt(igrd(1:il_g,j),:)=pt(1:il_g,:)
+            qq(igrd(1:il_g,j),:)=pq(1:il_g,:)
+          end do
+        end do
+        
+        nns=ppass*il_g*il_g+1
+        nne=(ppass+1)*il_g*il_g
+        zp(nns:nne)=qp(nns:nne)/qsum(nns:nne)
+        do k=kbotdav,kl
+          zu(nns:nne,k)=qu(nns:nne,k)/qsum(nns:nne)
+          zv(nns:nne,k)=qv(nns:nne,k)/qsum(nns:nne)
+          zw(nns:nne,k)=qw(nns:nne,k)/qsum(nns:nne)
+          zt(nns:nne,k)=qt(nns:nne,k)/qsum(nns:nne)
+          zq(nns:nne,k)=qq(nns:nne,k)/qsum(nns:nne)
+        end do       
+        
+      end do
+
+      itag=itag+1
+      if (myid == 0) then
+        print *,"Receive array sections from all processors"
+        do iproc=1,nproc-1
+          call procdivfastmpi(ppn,ppx,nproc,iproc)
+          nns=ppn*il_g*il_g+1
+          nne=(ppx+1)*il_g*il_g
+          if(nud_p>0)then
+            call MPI_Recv(zp(nns:nne),nne-nns+1,MPI_REAL,
+     &             iproc,itag,MPI_COMM_WORLD,status,ierr)
+          end if
+          iy=(nne-nns+1)*(kl-kbotdav+1)
+          if(nud_uv>0)then
+            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,status,ierr)
+            zu(nns:nne,:)=reshape(dd(1:iy),(/nne-nns+1,kl-kbotdav+1/))
+            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,status,ierr)
+            zv(nns:nne,:)=reshape(dd(1:iy),(/nne-nns+1,kl-kbotdav+1/))
+            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,status,ierr)
+            zw(nns:nne,:)=reshape(dd(1:iy),(/nne-nns+1,kl-kbotdav+1/))
+          end if
+          if(nud_t>0)then
+            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,status,ierr)
+            zt(nns:nne,:)=reshape(dd(1:iy),(/nne-nns+1,kl-kbotdav+1/))
+          end if
+          if(nud_q>0)then
+            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,status,ierr)
+            zq(nns:nne,:)=reshape(dd(1:iy),(/nne-nns+1,kl-kbotdav+1/))
+          end if
+        end do
+      else
+        nns=ppn*il_g*il_g+1
+        nne=(ppx+1)*il_g*il_g
+        if(nud_p>0)then
+          call MPI_SSend(zp(nns:nne),nne-nns+1,MPI_REAL,0,
+     &           itag,MPI_COMM_WORLD,ierr)
+        end if
+        iy=(nne-nns+1)*(kl-kbotdav+1)
+        if(nud_uv>0)then
+          dd(1:iy)=reshape(zu(nns:nne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
+     &           MPI_COMM_WORLD,ierr)
+          dd(1:iy)=reshape(zv(nns:nne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
+     &           MPI_COMM_WORLD,ierr)
+          dd(1:iy)=reshape(zw(nns:nne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
+     &           MPI_COMM_WORLD,ierr)
+        end if
+        if(nud_t>0)then
+          dd(1:iy)=reshape(zt(nns:nne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
+     &           MPI_COMM_WORLD,ierr)
+        end if
+        if(nud_q>0)then
+          dd(1:iy)=reshape(zq(nns:nne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
+     &           MPI_COMM_WORLD,ierr)
+        end if
+      end if      
+      
+      psls(:)=zp(:)
+      uu(:,:)=zu(:,:)
+      vv(:,:)=zv(:,:)
+      ww(:,:)=zw(:,:)
+      tt(:,:)=zt(:,:)
+      qgg(:,:)=zq(:,:)
+      
+      return
+      end subroutine specfastmpi
+      !---------------------------------------------------------------------------------
+
+
+      !---------------------------------------------------------------------------------
+      subroutine getiqa(iq,js,je,ne,ipass,ppass,il_g)
+      
+      implicit none
+      
+      integer, intent(in) :: js,je,ne,ipass,ppass,il_g
+      integer, dimension(ne,js:je), intent(out) :: iq
+      integer sn,n,j,a,b,c
+      
+      do sn=1,ne,il_g
+
+        select case(ppass*100+ipass*10+(sn-1)/il_g)
+          case(0,310,530)                        ! panel 5   - x pass
+            a=il_g
+            b=-1
+            c=5*il_g*il_g+1
+          case(10,230,300)                       ! panel 2   - x pass
+            a=1
+            b=il_g
+            c=il_g*(2*il_g-1)
+          case(20,21)                            ! panel 0,1 - y pass
+            a=il_g
+            b=1
+            c=-il_g
+          case(22,432)                           ! panel 3   - y pass
+            a=1
+            b=-il_g
+            c=il_g*(4*il_g-2)
+          case(23)                               ! panel 4   - y pass
+            a=1
+            b=-il_g
+            c=il_g*(5*il_g-3)
+          case(30,100,410)                       ! panel 0   - z pass
+            a=1
+            b=il_g
+            c=-il_g
+          case(31)                               ! panel 2   - z pass
+            a=il_g
+            b=-1
+            c=il_g*il_g+1
+          case(32,222)                           ! panel 5   - z pass
+            a=1
+            b=il_g
+            c=il_g*(5*il_g-3)
+          case(110,231,330,400)                  ! panel 3   - z pass
+            a=il_g
+            b=-1
+            c=3*il_g*il_g+1
+          case(120)                              ! panel 1   - x pass
+            a=1
+            b=il_g
+            c=il_g*(il_g-1)
+          case(121)                              ! panel 2   - x pass
+            a=1
+            b=il_g
+            c=2*il_g*(il_g-1)
+          case(122,123,220,221)                  ! panel 4,5 - x pass ! panel 2,3 - z pass
+            a=il_g
+            b=-1
+            c=2*il_g*il_g+1
+          case(130,200,510)                      ! panel 1   - y pass
+            a=il_g
+            b=1
+            c=il_g*(il_g-1)
+          case(131)                              ! panel 3   - y pass
+            a=1
+            b=-il_g
+            c=il_g*(4*il_g-1)
+          case(132,322,323)                      ! panel 0,1 - y pass
+            a=il_g
+            b=1
+            c=-il_g*(2*il_g+1)
+          case(210,430,500)                      ! panel 4   - y pass
+            a=1
+            b=-il_g
+            c=5*il_g*il_g
+          case(223)                              ! panel 0   - z pass
+            a=1
+            b=il_g
+            c=-4*il_g
+          case(232,422)                          ! panel 1   - x pass
+            a=1
+            b=il_g
+            c=il_g*(il_g-3)
+          case(320)                              ! panel 3   - y pass
+            a=1
+            b=-il_g
+            c=4*il_g*il_g
+          case(321)                              ! panel 4   - y pass
+            a=1
+            b=-il_g
+            c=il_g*(5*il_g-1)
+          case(331)                              ! panel 5   - z pass
+            a=1
+            b=il_g
+            c=il_g*(5*il_g-2)
+          case(332,522,523)                      ! panel 2,3 - z pass 
+            a=il_g
+            b=-1
+            c=1
+          case(420,421)                          ! panel 4,5 - x pass
+            a=il_g
+            b=-1
+            c=4*il_g*il_g+1
+          case(423)                              ! panel 2   - x pass
+            a=1
+            b=il_g
+            c=il_g*(2*il_g-4)
+          case(431)                              ! panel 0   - y pass
+            a=il_g
+            b=1
+            c=-il_g*(il_g+1)
+          case(520)                              ! panel 5   - z pass
+            a=1
+            b=il_g
+            c=il_g*(5*il_g-1)
+          case(521)                              ! panel 0   - z pass
+            a=1
+            b=il_g
+            c=-2*il_g
+          case(531)                              ! panel 1   - x pass
+            a=1
+            b=il_g
+            c=il_g*(il_g-2)
+          case(532)                              ! panel 4   - x pass
+            a=il_g
+            b=-1
+            c=2*il_g*il_g+1
+        end select
+  
+        do n=sn,sn+il_g-1
+          do j=js,je
+            iq(n,j)=a*n+b*j+c
+          end do
+        end do
+  
+      end do
+
+      end subroutine getiqa
       !---------------------------------------------------------------------------------
 
       !---------------------------------------------------------------------------------
@@ -1914,3 +2152,20 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       end if
       
       end subroutine procdiv
+      !---------------------------------------------------------------------------------
+      
+      !---------------------------------------------------------------------------------
+      subroutine procdivfastmpi(ppn,ppx,nproc,myid)
+      
+      implicit none
+      
+      integer, intent(in) :: nproc,myid
+      integer, intent(out) :: ppn,ppx
+      integer npt
+      
+      npt=6/nproc
+      ppn=myid*npt
+      ppx=(myid+1)*npt-1
+      
+      end subroutine procdivfastmpi
+      !---------------------------------------------------------------------------------      
