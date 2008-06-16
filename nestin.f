@@ -1231,7 +1231,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       mproc=max(nproc/6,1)                      ! number of processors per panel
       pn=myid*npta/mproc                        ! start panel
       px=(myid+mproc)*npta/mproc-1              ! end panel
-      hproc=pn*mproc                            ! host processor for panel
+      hproc=pn*mproc/npta                       ! host processor for panel
       call procdiv(ns,ne,il_g,mproc,myid-hproc) ! number of rows per processor
 
       call spechost(myid,mproc,hproc,npta,pn,px,ns,ne,cin,psls,uu,vv,
@@ -1586,7 +1586,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             if (myid==hproc) then
               do iproc=hproc+1,mproc+hproc-1
                 call procdiv(nns,nne,il_g,mproc,iproc-hproc)
-                if (nns.le.nne) exit
+                if (nns.gt.nne) exit
                 iy=me*(nne-nns+1)
                 a=me
                 d=-me*nns
@@ -1804,7 +1804,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             if (myid==hproc) then
               do iproc=hproc+1,mproc+hproc-1
                 call procdiv(nns,nne,il_g,mproc,iproc-hproc)
-                if (nns.le.nne) exit
+                if (nns.gt.nne) exit
                 iy=il_g*(nne-nns+1)*(kx(ipass)-kn(ipass)+1)
                 a=il_g
                 c=il_g*(nne-nns+1)
