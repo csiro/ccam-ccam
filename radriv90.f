@@ -267,7 +267,7 @@ c        Conversion of o3 from units of cm stp to gm/gm
                      
            if(nalbwb.eq.0)then
              cuvrf(i,1) = albsav(iq)    ! use surface albedo from indata
-             cirrf(i,1) = albsav(iq)    ! MJT CHANGE albedo
+             cirrf(i,1) = albnirsav(iq)    ! MJT CHANGE albedo
            else    ! soil albedo adjusted according to wetness of top layer
 !            can do quadratic fit [ 0 to wbav to ssat]
 !            wbs=sfc(isoilm(iq))         ! or consider using wbs=ssat()

@@ -1854,7 +1854,8 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       !-----------------------------------------------------------------
 
       do iq=1,ifull
-       albsav(iq)=0.5*sum(albvisnir(iq,:))
+       albsav(iq)=albvisnir(iq,1)
+       albnirsav(iq)=albvisnir(iq,2)
       enddo   ! iq loop
       call end_log(indata_end)
       return
@@ -1888,7 +1889,11 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        !------------------------------------------------------------------------
        ! MJT CHANGE sib ! MJT CHANGE cable
        call readreal(albfile,albvisnir(:,1),ifull)
-       albvisnir(:,2)=albvisnir(:,1)
+       if (nsib.eq.5) then
+         call readreal('albnir',albvisnir(:,2),ifull)
+       else       
+         albvisnir(:,2)=albvisnir(:,1)
+       end if
        if ((nsib.ne.4).and.(nsib.ne.6)) then 
          call readreal(rsmfile,rsmin,ifull)  ! not used these days
        end if
