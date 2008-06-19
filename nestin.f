@@ -1271,7 +1271,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g*(kl-kbotdav+1)) :: dd
       real :: csq,emmin
 
-      emmin=cin*ds/rearth                       ! min area
+      emmin=cin*ds/rearth                       ! min length
       csq=-4.5*cin**2                           ! filter length scale
       qms(:)=qaps(:)*til
 
@@ -1553,8 +1553,9 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g,kbotdav:kl), intent(inout) :: st,sq
       real, dimension(4*il_g,kbotdav:kl) :: pu,pv,pw,pt,pq
       real, dimension(4*il_g,kbotdav:kl) :: au,av,aw,at,aq
-      real, dimension(4*il_g) :: pp,ap,psum,asum,ra,ema,xa,ya,za
+      real, dimension(4*il_g) :: pp,ap,psum,asum,ra,ema
       real, dimension(ifull_g*(kl-kbotdav+1)) :: dd
+      real*8, dimension(4*il_g) :: xa,ya,za      
       
       if (pold.lt.0) pold=ppass
       
@@ -1756,7 +1757,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
               if (ema(n).gt.emmin) then
                 ra(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
                 ra(1:me)=acos(max(min(ra(1:me),1.),-1.))**2
-                ra(1:me)=exp(ra(1:me)*csq)/(ema(1:me)**2) ! redefine ra(:) as wgt(:)
+                ra(1:me)=exp(ra(1:me)*csq)/max(ema(1:me),0.000001) ! redefine ra(:) as wgt(:)
                 psum(n)=sum(ra(1:me)*asum(1:me))
                 pp(n)=sum(ra(1:me)*ap(1:me))
                 do k=kbotdav,kl
@@ -2131,6 +2132,10 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             a=il_g
             b=-1
             c=2*il_g*il_g+1
+	  case DEFAULT
+	    print *,"Invalid index ",ppass,ipass,sn,
+     &               ppass*100+ipass*10+(sn-1)/il_g
+	    stop
         end select
   
         do n=sn,sn+il_g-1
