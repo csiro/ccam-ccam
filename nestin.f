@@ -283,44 +283,35 @@
       real sigin
       integer ik,jk,kk
       common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
-      integer mtimeb,kdate_r,ktime_r
+      integer mtimea,mtimeb,kdate_r,ktime_r
       integer ::  iabsdate,iq,k,kdhour,kdmin
       real :: ds_r,rlong0x,rlat0x
       real :: schmidtx,timeg_b
       real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
-      real :: fraciceb,sicedepb
+      real :: fraciceb,sicedepb,cona
       real, dimension(ifull) ::  zsb
-      data mtimeb/-1/
-      save mtimeb
+      data mtimea/-1/,mtimeb/-1/
+      save mtimea,mtimeb
       
-      if(mtimer<mtimeb)return
- 
-!     mtimer, mtimeb are in minutes
-      if(ktau<100.and.myid==0)then
-        print *,'in nestinb ktau,mtimer,mtimeb,io_in ',
-     &                      ktau,mtimer,mtimeb,io_in
-        print *,'with kdate_s,ktime_s >= ',kdate_s,ktime_s
-      end if
-
-      if(mtimer==mtimeb)then 
-        call getspecdata(pslb,ub,vb,tb,qb)
-        if ( myid == 0 ) then
-          print *,'following after getspecdata are really psl not ps'
-        end if
-        call maxmin(pslb,'pB',ktau,100.,1)
-!       calculate time interpolated tss 
-        if(namip.ne.0.or.ntest.ne.0)return  ! namip SSTs/sea-ice take precedence
-        do iq=1,ifull
-         if(.not.land(iq))then
-           tss(iq)=tssb(iq)
-           tgg(iq,1)=tss(iq)
-         endif  ! (.not.land(iq))
-        enddo   ! iq loop 
-        return
-      endif   ! (mtimer==mtimeb)
+      if (mtimer==mtimeb) then
+    
+       call getspecdata(pslb,ub,vb,tb,qb)
+       if ( myid == 0 ) then
+         print *,'following after getspecdata are really psl not ps'
+       end if
+       call maxmin(pslb,'pB',ktau,100.,1)
+   
+      else if (mtimer>mtimeb) then
 
 !     following (till end of subr) reads in next bunch of data in readiness
 !     read tb etc  - for globpea, straight into tb etc
+       if (mtimeb.eq.-1) then
+         mtimea=mtimer-real(ktau)*dt/60.
+         tssa(:)=tss(1:ifull)
+       else
+         mtimea=mtimeb
+         tssa(:)=tssb(:)
+       end if
        if(io_in==1)then
          call infil(1,kdate_r,ktime_r,timeg_b,ds_r, 
      .               pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
@@ -433,6 +424,16 @@
          endif
        endif   !  newtop>=1
      
+      end if ! (mtimer==mtimeb)
+     
+      ! calculate time interpolated tss 
+      cona=(real(mtimeb)-real(ktau)*dt/60.)/real(mtimeb-mtimea)
+      if(namip.ne.0.or.ntest.ne.0)return  ! namip SSTs/sea-ice take precedence
+      where (.not.land(:))
+        tss(:)=cona*tssa(:)+(1.-cona)*tssb(:)
+        tgg(:,1)=tss(:)
+      end where
+
       return
       end
 
@@ -450,6 +451,7 @@
       include 'xyzinfo.h'
       include 'vecsuv.h'
       include 'vecsuv_g.h'   ! ax_g,bx_g,ay_g,by_g,az_g,bz_g
+      include 'savuvt.h'     ! savu,savv
       
       real, dimension(ifull), intent(in) :: pslb
       real, dimension(ifull,kl), intent(in) :: ub,vb,tb,qb
@@ -460,6 +462,8 @@
       real, dimension(ifull_g,kl) :: x_g,xx_g
       real den,polenx,poleny,polenz,zonx,zony,zonz
       integer iq,k
+      real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)
+      common/savuv1/savs1,savu1,savv1
 
       if(nud_uv==3)then
         polenx=-cos(rlat0*pi/180.)
@@ -518,7 +522,7 @@
           call ccmpi_gather(qb(1:ifull,:)-qg(1:ifull,:))
         endif
       end if
- 
+
       !-----------------------------------------------------------------------
       if(nud_uv<0)then 
         if (myid == 0) then
@@ -546,7 +550,7 @@
      &                ,wc(:,kbotdav:kl),tc(:,kbotdav:kl)
      &                ,qc(:,kbotdav:kl))
       endif  ! (nud_uv<0) .. else ..
-        !-----------------------------------------------------------------------
+      !-----------------------------------------------------------------------
 
       if (myid == 0) then
         print *,"Distribute data from spectral downscale"
@@ -568,9 +572,17 @@
           call ccmpi_distribute(delta(:,:), x_g(:,:))
           u(1:ifull,kbotdav:kl)=u(1:ifull,kbotdav:kl)
      &                         +delta(:,kbotdav:kl)
+          savu(1:ifull,kbotdav:kl)=savu(1:ifull,kbotdav:kl)
+     &                            +delta(:,kbotdav:kl)
+          savu1(1:ifull,kbotdav:kl)=savu1(1:ifull,kbotdav:kl)
+     &                            +delta(:,kbotdav:kl)
           call ccmpi_distribute(delta(:,:), xx_g(:,:))
           v(1:ifull,kbotdav:kl)=v(1:ifull,kbotdav:kl)
      &                         +delta(:,kbotdav:kl)
+          savv(1:ifull,kbotdav:kl)=savv(1:ifull,kbotdav:kl)
+     &                            +delta(:,kbotdav:kl)
+          savv1(1:ifull,kbotdav:kl)=savv1(1:ifull,kbotdav:kl)
+     &                            +delta(:,kbotdav:kl)
         end if
         if (nud_t.gt.0) then
           call ccmpi_distribute(delta(:,:), tc(:,:))
@@ -597,9 +609,17 @@
           call ccmpi_distribute(delta(:,:))
           u(1:ifull,kbotdav:kl)=u(1:ifull,kbotdav:kl)
      &                         +delta(:,kbotdav:kl)
+          savu(1:ifull,kbotdav:kl)=savu(1:ifull,kbotdav:kl)
+     &                            +delta(:,kbotdav:kl)
+          savu1(1:ifull,kbotdav:kl)=savu1(1:ifull,kbotdav:kl)
+     &                            +delta(:,kbotdav:kl)
           call ccmpi_distribute(delta(:,:))
           v(1:ifull,kbotdav:kl)=v(1:ifull,kbotdav:kl)
      &                         +delta(:,kbotdav:kl)
+          savu(1:ifull,kbotdav:kl)=savu(1:ifull,kbotdav:kl)
+     &                            +delta(:,kbotdav:kl)
+          savv1(1:ifull,kbotdav:kl)=savv1(1:ifull,kbotdav:kl)
+     &                            +delta(:,kbotdav:kl)
         end if
         if (nud_t.gt.0) then
           call ccmpi_distribute(delta(:,:))
@@ -613,7 +633,9 @@
         end if
       end if
       
-      ps(1:ifull)=1.e5*exp(psl(1:ifull)) ! Do not think this is needed, but kept it anyway - MJT
+      if (nud_p>0) then
+        ps(1:ifull)=1.e5*exp(psl(1:ifull)) ! Do not think this is needed, but kept it anyway - MJT
+      end if
             
       return
       end subroutine getspecdata
@@ -1018,10 +1040,9 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g) :: pp,r
       real, dimension(ifull_g,kbotdav:kl) :: pu,pv,pw,pt,pq
       real, dimension(ifull_g*(kl-kbotdav+1)) :: dd
-      real :: csq,emmin,psum
+      real :: cq,psum
 
-      emmin=cin*ds/rearth
-      csq=-4.5*cin**2
+      cq=sqrt(4.5)*cin
 
       if (myid == 0) then
         if(nmaxpr==1) print *,"Send arrays to all processors"
@@ -1084,35 +1105,46 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       if ((myid == 0).and.(nmaxpr==1)) print *,"Start 2D filter"
       
       do iq=ns,ne
-        if (em_g(iq).gt.emmin) then
-          r(:)=x_g(iq)*x_g(:)+y_g(iq)*y_g(:)+z_g(iq)*z_g(:)
-          r(:)=acos(max(min(r(:),1.),-1.))**2
-          r(:)=exp(r(:)*csq)/(em_g(:)**2) ! redefine r(:) as wgt(:)
-          psum=sum(r(:))
+        r(:)=x_g(iq)*x_g(:)+y_g(iq)*y_g(:)+z_g(iq)*z_g(:)
+        r(:)=acos(max(min(r(:),1.),-1.))
+        r(:)=exp(-(cq*r(:))**2)/(em_g(:)**2)
+        psum=sum(r(:))
+        if (nud_p>0) then
           pp(iq)=sum(r(:)*psls(:))/psum
+        end if
+        if (nud_uv>0) then
           do k=kbotdav,kl
             pu(iq,k)=sum(r(:)*uu(:,k))/psum
             pv(iq,k)=sum(r(:)*vv(:,k))/psum
             pw(iq,k)=sum(r(:)*ww(:,k))/psum
+          end do        
+        end if
+        if (nud_t>0) then
+          do k=kbotdav,kl
             pt(iq,k)=sum(r(:)*tt(:,k))/psum
+          end do
+        end if
+        if (nud_q>0) then
+          do k=kbotdav,kl
             pq(iq,k)=sum(r(:)*qgg(:,k))/psum
           end do
-        else
-          pp(iq)=psls(iq)
-          pu(iq,:)=uu(iq,:)
-          pv(iq,:)=vv(iq,:)
-          pw(iq,:)=ww(iq,:)
-          pt(iq,:)=tt(iq,:)
-          pq(iq,:)=qgg(iq,:)
         end if
       end do
  
-      psls(ns:ne)=pp(ns:ne)
-      uu(ns:ne,:)=pu(ns:ne,:)
-      vv(ns:ne,:)=pv(ns:ne,:)
-      ww(ns:ne,:)=pw(ns:ne,:)
-      tt(ns:ne,:)=pt(ns:ne,:)
-      qgg(ns:ne,:)=pq(ns:ne,:)
+      if (nud_p>0) then
+        psls(ns:ne)=pp(ns:ne)
+      end if
+      if (nud_uv>0) then
+        uu(ns:ne,:)=pu(ns:ne,:)
+        vv(ns:ne,:)=pv(ns:ne,:)
+        ww(ns:ne,:)=pw(ns:ne,:)
+      end if
+      if (nud_t>0) then
+        tt(ns:ne,:)=pt(ns:ne,:)
+      end if
+      if (nud_q>0) then
+        qgg(ns:ne,:)=pq(ns:ne,:)
+      end if
           
       if ((myid == 0).and.(nmaxpr==1)) print *,"End 2D filter"
 
@@ -1257,9 +1289,9 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       integer :: k,ppass,qpass,iy,ppn,ppx,nne,nns,iproc,itag=0,ierr
       integer :: n,a,b,c
       integer, dimension(MPI_STATUS_SIZE) :: status
-      integer, dimension(0:5) :: qms
       integer, parameter :: til=il_g*il_g
       integer, parameter, dimension(0:5) :: qaps=(/0,3,1,4,2,5/)
+      integer, parameter, dimension(0:5) :: qms=qaps*til
       real, intent(in) :: cin
       real, dimension(ifull_g), intent(inout) :: psls
       real, dimension(ifull_g,kbotdav:kl), intent(inout) :: uu,vv,ww
@@ -1269,11 +1301,9 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g,kbotdav:kl) :: su,sv,sw,st,sq
       real, dimension(ifull_g,kbotdav:kl) :: zu,zv,zw,zt,zq
       real, dimension(ifull_g*(kl-kbotdav+1)) :: dd
-      real :: csq,emmin
+      real :: cq
 
-      emmin=cin*ds/rearth                       ! min length
-      csq=-4.5*cin**2                           ! filter length scale
-      qms(:)=qaps(:)*til
+      cq=sqrt(4.5)*cin ! filter length scale
 
       if (myid == 0) then
         if (nmaxpr==1) print *,"Send arrays to all processors"
@@ -1338,28 +1368,48 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       do qpass=pn,px
         ppass=qaps(qpass)
 
-        qp(:)=psls(:)
-        qu(:,:)=uu(:,:)
-        qv(:,:)=vv(:,:)
-        qw(:,:)=ww(:,:)
-        qt(:,:)=tt(:,:)
-        qq(:,:)=qgg(:,:)
         qsum(:)=1.
+        if (nud_p>0) then
+          qp(:)=psls(:)
+        end if
+        if (nud_uv>0) then
+          qu(:,:)=uu(:,:)
+          qv(:,:)=vv(:,:)
+          qw(:,:)=ww(:,:)
+        end if
+        if (nud_t>0) then
+          qt(:,:)=tt(:,:)
+        end if
+        if (nud_q>0) then
+          qq(:,:)=qgg(:,:)
+        end if
 
         ! computations for the local processor group
-        call speclocal(myid,mproc,hproc,ns,ne,csq,emmin,ppass,qsum,qp,
+        call speclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,qp,
      &         qu,qv,qw,qt,qq,ssum,sp,su,sv,sw,st,sq)
         
         nns=qms(qpass)+1
         nne=qms(qpass)+til
-        zp(nns:nne)=qp(nns:nne)/qsum(nns:nne)
-        do k=kbotdav,kl
-          zu(nns:nne,k)=qu(nns:nne,k)/qsum(nns:nne)
-          zv(nns:nne,k)=qv(nns:nne,k)/qsum(nns:nne)
-          zw(nns:nne,k)=qw(nns:nne,k)/qsum(nns:nne)
-          zt(nns:nne,k)=qt(nns:nne,k)/qsum(nns:nne)
-          zq(nns:nne,k)=qq(nns:nne,k)/qsum(nns:nne)
-        end do       
+        if (nud_p>0) then
+          zp(nns:nne)=qp(nns:nne)/qsum(nns:nne)
+        end if
+        if (nud_uv>0) then
+          do k=kbotdav,kl
+            zu(nns:nne,k)=qu(nns:nne,k)/qsum(nns:nne)
+            zv(nns:nne,k)=qv(nns:nne,k)/qsum(nns:nne)
+            zw(nns:nne,k)=qw(nns:nne,k)/qsum(nns:nne)
+          end do
+        end if
+        if (nud_t>0) then
+          do k=kbotdav,kl
+            zt(nns:nne,k)=qt(nns:nne,k)/qsum(nns:nne)
+          end do
+        end if
+        if (nud_q>0) then
+          do k=kbotdav,kl
+            zq(nns:nne,k)=qq(nns:nne,k)/qsum(nns:nne)
+          end do
+        end if
         
       end do
 
@@ -1507,12 +1557,20 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
       end if      
       
-      psls(:)=zp(:)
-      uu(:,:)=zu(:,:)
-      vv(:,:)=zv(:,:)
-      ww(:,:)=zw(:,:)
-      tt(:,:)=zt(:,:)
-      qgg(:,:)=zq(:,:)
+      if (nud_p>0) then
+        psls(:)=zp(:)
+      end if
+      if (nud_uv>0) then
+        uu(:,:)=zu(:,:)
+        vv(:,:)=zv(:,:)
+        ww(:,:)=zw(:,:)
+      end if
+      if (nud_t>0) then
+        tt(:,:)=zt(:,:)
+      end if
+      if (nud_q>0) then
+        qgg(:,:)=zq(:,:)
+      end if
       
       return
       end subroutine spechost
@@ -1521,11 +1579,12 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       !---------------------------------------------------------------------------------
       ! This code runs between the local processors
       ! Code was moved to this subroutine to help the compiler vectorise the code
-      subroutine speclocal(myid,mproc,hproc,ns,ne,csq,emmin,ppass,qsum,
+      subroutine speclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
      &             qp,qu,qv,qw,qt,qq,ssum,sp,su,sv,sw,st,sq)
       implicit none
       
       include 'newmpar.h'    ! ifull_g,kl
+      include 'const_phys.h' ! pi
       include 'map_g.h'      ! em_g
       include 'parm.h'       ! kbotdav
       include 'xyzinfo_g.h'  ! x_g,y_g,z_g
@@ -1544,7 +1603,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       integer, parameter, dimension(0:5) :: pair=(/3,4,5,0,1,2/)
       integer, parameter, dimension(2:3) :: kn=(/0,3/)
       integer, parameter, dimension(2:3) :: kx=(/2,3/)
-      real, intent(in) :: csq,emmin
+      real, intent(in) :: cq
       real, dimension(ifull_g), intent(inout) :: qp,qsum
       real, dimension(ifull_g), intent(inout) :: sp,ssum
       real, dimension(ifull_g,kbotdav:kl), intent(inout) :: qu,qv,qw
@@ -1553,9 +1612,8 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g,kbotdav:kl), intent(inout) :: st,sq
       real, dimension(4*il_g,kbotdav:kl) :: pu,pv,pw,pt,pq
       real, dimension(4*il_g,kbotdav:kl) :: au,av,aw,at,aq
-      real, dimension(4*il_g) :: pp,ap,psum,asum,ra,ema
+      real, dimension(4*il_g) :: pp,ap,psum,asum,ra,ma,xa,ya,za
       real, dimension(ifull_g*(kl-kbotdav+1)) :: dd
-      real*8, dimension(4*il_g) :: xa,ya,za      
       
       if (pold.lt.0) pold=ppass
       
@@ -1565,12 +1623,20 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
         ips=2
         qsum(:)=ssum(:)
-        qp(:)=sp(:)
-        qu(:,:)=su(:,:)
-        qv(:,:)=sv(:,:)
-        qw(:,:)=sw(:,:)
-        qt(:,:)=st(:,:)
-        qq(:,:)=sq(:,:)
+        if (nud_p>0) then
+          qp(:)=sp(:)
+        end if
+        if (nud_uv>0) then
+          qu(:,:)=su(:,:)
+          qv(:,:)=sv(:,:)
+          qw(:,:)=sw(:,:)
+        end if
+        if (nud_t>0) then
+          qt(:,:)=st(:,:)
+        end if
+        if (nud_q>0) then
+          qq(:,:)=sq(:,:)
+        end if
       else
         ips=0
       end if
@@ -1742,61 +1808,92 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           if ((myid==0).and.(nmaxpr==1)) print *,"Start convolution"
 
           do j=ns,ne
-            ema(1:me)=em_g(igrd(1:me,j,ipass))
+            ma(1:me)=1./em_g(igrd(1:me,j,ipass))
             asum(1:me)=qsum(igrd(1:me,j,ipass))
-            ap(1:me)=qp(igrd(1:me,j,ipass))
-            au(1:me,:)=qu(igrd(1:me,j,ipass),:)
-            av(1:me,:)=qv(igrd(1:me,j,ipass),:)
-            aw(1:me,:)=qw(igrd(1:me,j,ipass),:)
-            at(1:me,:)=qt(igrd(1:me,j,ipass),:)
-            aq(1:me,:)=qq(igrd(1:me,j,ipass),:)
             xa(1:me)=x_g(igrd(1:me,j,ipass))
             ya(1:me)=y_g(igrd(1:me,j,ipass))
             za(1:me)=z_g(igrd(1:me,j,ipass))
+            if (nud_p>0) then
+              ap(1:me)=qp(igrd(1:me,j,ipass))
+            end if
+            if (nud_uv>0) then
+              au(1:me,:)=qu(igrd(1:me,j,ipass),:)
+              av(1:me,:)=qv(igrd(1:me,j,ipass),:)
+              aw(1:me,:)=qw(igrd(1:me,j,ipass),:)
+            end if
+            if (nud_t>0) then
+              at(1:me,:)=qt(igrd(1:me,j,ipass),:)
+            end if
+            if (nud_q>0) then
+              aq(1:me,:)=qq(igrd(1:me,j,ipass),:)
+            end if
             do n=1,il_g
-              if (ema(n).gt.emmin) then
-                ra(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
-                ra(1:me)=acos(max(min(ra(1:me),1.),-1.))**2
-                ra(1:me)=exp(ra(1:me)*csq)/max(ema(1:me),0.000001) ! redefine ra(:) as wgt(:)
-                psum(n)=sum(ra(1:me)*asum(1:me))
+              ra(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
+              ra(1:me)=acos(max(min(ra(1:me),1.),-1.))
+              ra(1:me)=exp(-(cq*ra(1:me))**2)*ma(1:me)
+              ! can also use the lines below which integrate the gaussian
+              ! analytically over the length element (but slower)
+              !ra(1)=2.*erf(cq*0.5*(ds/rearth)*ma(1))
+              !ra(2:me)=erf(cq*(ra(2:me)+0.5*(ds/rearth)*ma(2:me)))  ! redefine ra(:) as wgt(:)
+     &        !        -erf(cq*(ra(2:me)-0.5*(ds/rearth)*ma(2:me))) ! (correct units are 1/cq)
+              psum(n)=sum(ra(1:me)*asum(1:me))
+              if (nud_p>0) then
                 pp(n)=sum(ra(1:me)*ap(1:me))
+              end if
+              if (nud_uv>0) then
                 do k=kbotdav,kl
                   pu(n,k)=sum(ra(1:me)*au(1:me,k))
                   pv(n,k)=sum(ra(1:me)*av(1:me,k))
                   pw(n,k)=sum(ra(1:me)*aw(1:me,k))
+                end do
+              end if
+              if (nud_t>0) then
+                do k=kbotdav,kl
                   pt(n,k)=sum(ra(1:me)*at(1:me,k))
+                end do
+              end if
+              if (nud_q>0) then
+                do k=kbotdav,kl
                   pq(n,k)=sum(ra(1:me)*aq(1:me,k))
                 end do
-              else
-                psum(n)=asum(n)
-                pp(n)=ap(n)
-                pu(n,:)=au(n,:)
-                pv(n,:)=av(n,:)
-                pw(n,:)=aw(n,:)
-                pt(n,:)=at(n,:)
-                pq(n,:)=aq(n,:)
               end if
             end do
             qsum(igrd(1:il_g,j,ipass))=psum(1:il_g)
-            qp(igrd(1:il_g,j,ipass))=pp(1:il_g)
-            qu(igrd(1:il_g,j,ipass),:)=pu(1:il_g,:)
-            qv(igrd(1:il_g,j,ipass),:)=pv(1:il_g,:)
-            qw(igrd(1:il_g,j,ipass),:)=pw(1:il_g,:)
-            qt(igrd(1:il_g,j,ipass),:)=pt(1:il_g,:)
-            qq(igrd(1:il_g,j,ipass),:)=pq(1:il_g,:)
+            if (nud_p>0) then
+              qp(igrd(1:il_g,j,ipass))=pp(1:il_g)
+            end if
+            if (nud_uv>0) then
+              qu(igrd(1:il_g,j,ipass),:)=pu(1:il_g,:)
+              qv(igrd(1:il_g,j,ipass),:)=pv(1:il_g,:)
+              qw(igrd(1:il_g,j,ipass),:)=pw(1:il_g,:)
+            end if
+            if (nud_t>0) then
+              qt(igrd(1:il_g,j,ipass),:)=pt(1:il_g,:)
+            end if
+            if (nud_q>0) then
+              qq(igrd(1:il_g,j,ipass),:)=pq(1:il_g,:)
+            end if
           end do
 
           if ((myid==0).and.(nmaxpr==1)) print *,"End convolution"
 
           if (ipass.eq.1) then
+            pold=ppass          
             ssum(:)=qsum(:)
-            sp(:)=qp(:)
-            su(:,:)=qu(:,:)
-            sv(:,:)=qv(:,:)
-            sw(:,:)=qw(:,:)
-            st(:,:)=qt(:,:)
-            sq(:,:)=qq(:,:)
-            pold=ppass
+            if (nud_p>0) then
+              sp(:)=qp(:)
+            end if
+            if (nud_uv>0) then
+              su(:,:)=qu(:,:)
+              sv(:,:)=qv(:,:)
+              sw(:,:)=qw(:,:)
+            end if
+            if (nud_t>0) then
+              st(:,:)=qt(:,:)
+            end if
+            if (nud_q>0) then
+              sq(:,:)=qq(:,:)
+            end if
           elseif ((ipass.eq.2).or.(ipass.eq.3)) then
             itag=itag+1
             if ((myid==0).and.(nmaxpr==1)) then
@@ -2132,10 +2229,10 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             a=il_g
             b=-1
             c=2*il_g*il_g+1
-	  case DEFAULT
-	    print *,"Invalid index ",ppass,ipass,sn,
-     &               ppass*100+ipass*10+(sn-1)/il_g
-	    stop
+          case DEFAULT
+            print *,"Invalid index ",ppass,ipass,sn,
+     &              ppass*100+ipass*10+(sn-1)/il_g
+            exit
         end select
   
         do n=sn,sn+il_g-1

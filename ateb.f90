@@ -901,6 +901,7 @@ do j=1,2 ! predictor-corrector loop -------------------------------
              p_dg(1:cns),p_sg(1:cns),p_atm(1:cns),p_netldratio(1:cns),ddt,p_acond(1:cns),p_wallpsi(1:cns), &
              p_roadpsi(1:cns),p_fn(1:cns),p_pg(1:cns))
       evctx(1:cns)=evct(1:cns)-evctx(1:cns)
+      if (all(evctx(1:cns).eq.0.)) exit
       where (evctx(1:cns).ne.0.)
         newtemp(1:cns)=p_sntemp(1:cns)-evct(1:cns)*(p_sntemp(1:cns)-oldtemp(1:cns))/evctx(1:cns)
         oldtemp(1:cns)=p_sntemp(1:cns)
@@ -996,6 +997,7 @@ do j=1,2 ! predictor-corrector loop -------------------------------
       call solverfsn(cns,evct(1:cns),p_rg(1:cns),p_fg(1:cns),p_eg(1:cns),p_gasn(1:cns),p_snmelt(1:cns), &
              p_sntemp(1:cns),p_rodum(1:cns),p_dg(1:cns),p_sg(1:cns),p_atm(1:cns),p_netldratio(1:cns),ddt)
       evctx(1:cns)=evct(1:cns)-evctx(1:cns)
+      if (all(evctx(1:cns).eq.0.)) exit
       where (evctx(1:cns).ne.0.)
         newtemp(1:cns)=p_sntemp(1:cns)-evct(1:cns)*(p_sntemp(1:cns)-oldtemp(1:cns))/evctx(1:cns)
         oldtemp(1:cns)=p_sntemp(1:cns)
@@ -1412,6 +1414,7 @@ do k=1,5 ! sectant
   call solvecanyon(cn,cevct,fg,fgtop,topinvres,canyontemp,dg,atm,walle%temp(1),wallw%temp(1),road%temp(1) &
                   ,rdsntemp,acond,ifn,ipg)
   cevctx=cevct-cevctx
+  if (all(cevctx.eq.0.)) exit
   where (cevctx.ne.0.)
     newtemp=canyontemp-cevct*(canyontemp-oldtemp)/cevctx
     oldtemp=canyontemp
