@@ -62,7 +62,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      & ssdnn(ifull),snage(ifull),rtsoil(ifull), ! MJT cable
      & urban(ifull,12) ! MJT urban
-      integer, save :: isoilm_h(ifull) ! MJT lsmask
+      integer isoilm_h(ifull) ! MJT lsmask
       ! Dummy variables here replace the aliasing use of aa, bb in infile call
       real, dimension(ifull) :: dum5
       integer isflag(ifull)
@@ -116,7 +116,8 @@ c     start of processing loop
      &            isoilm_h,urban) ! MJT lsmask ! MJT urban
       else
         call infil(nested,kdate_r,ktime_r,timegb,ds,
-     &            psl,zss,tss,sicedep,fracice,t,u,v,qg)
+     &            psl,zss,tss,sicedep,fracice,t,u,v,qg,
+     &            isoilm_h) ! MJT lsmask
       endif   
 !     N.B. above infile call returns values for ik,jk,kk of source data
      
@@ -308,7 +309,11 @@ c      endif
       if ( myid==0 )print *,'using nemi = ',nemi
       if(nemi==1)then
          land(:) = zss(:) > 0.
-      endif                     !  (nemi==1)
+        if (all(land)) then      ! MJT CHANGE lsmask
+          land(:) = zss(:) > 1.
+        end if
+      endif
+                           !  (nemi==1)
 
       spval=999.
       do iq=1,ifull

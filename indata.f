@@ -1562,7 +1562,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
          endif  ! (jalbfix==1)
 
         if(newrough>0)then
-          call calczo(.05)
+          call calczo
           if(mydiag)print *,'after calczo zolnd ',zolnd(idjd)
 c         if(newrough>2)then
 c           zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
@@ -1891,7 +1891,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        call readreal(albfile,albvisnir(:,1),ifull)
        if (nsib.eq.5) then
          call readreal('albnir',albvisnir(:,2),ifull)
-       else       
+       else
          albvisnir(:,2)=albvisnir(:,1)
        end if
        if ((nsib.ne.4).and.(nsib.ne.6)) then 

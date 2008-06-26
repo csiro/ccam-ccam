@@ -28,6 +28,7 @@
       integer ik,jk,kk
       common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
       real zsb(ifull)
+      integer, dimension(ifull) :: isoilm_h ! MJT lsmask
       integer num,mtimea,mtimeb
       data num/0/,mtimea/0/,mtimeb/-1/
       save num,mtimea,mtimeb
@@ -102,7 +103,8 @@
 !     read tb etc  - for globpea, straight into tb etc
       if(io_in==1)then
         call infil(1,kdate_r,ktime_r,timeg_b,ds_r, 
-     .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
+     .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,
+     .              isoilm_h) ! MJT lsmask
       endif   ! (io_in==1)
 
       if(io_in==-1)then
@@ -252,7 +254,7 @@
       return
       end
 
-      subroutine nestinb  ! called for mbd>0 - spectral filter method
+      subroutine nestinb  ! called for mbd>0 - spectral filter method ! MJT CHANGE - delete mins_mbd
 !     this is x-y-z version      
       use cc_mpi, only : myid, mydiag
       use diag_m
@@ -283,38 +285,34 @@
       real sigin
       integer ik,jk,kk
       common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
-      integer mtimea,mtimeb,kdate_r,ktime_r
+      integer mtimeb,kdate_r,ktime_r
       integer ::  iabsdate,iq,k,kdhour,kdmin
+      integer, dimension(ifull) :: isoilm_h ! MJT lsmask
       real :: ds_r,rlong0x,rlat0x
       real :: schmidtx,timeg_b
       real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
-      real :: fraciceb,sicedepb,cona
+      real :: fraciceb,sicedepb
       real, dimension(ifull) ::  zsb
-      data mtimea/-1/,mtimeb/-1/
-      save mtimea,mtimeb
+      data mtimeb/-1/ 
+      save mtimeb 
       
-      if (mtimer==mtimeb) then
-    
-       call getspecdata(pslb,ub,vb,tb,qb)
-       if ( myid == 0 ) then
-         print *,'following after getspecdata are really psl not ps'
-       end if
-       call maxmin(pslb,'pB',ktau,100.,1)
-   
-      else if (mtimer>mtimeb) then
+      if ((mtimer<mtimeb).and.(ktau.gt.0)) return
+ 
+      !------------------------------------------------------------------------------
+!     mtimer, mtimeb are in minutes
+      if(ktau<100.and.myid==0)then
+        print *,'in nestinb ktau,mtimer,mtimeb,io_in ',
+     &                      ktau,mtimer,mtimeb,io_in ! MJT CHANGE - delete mtimea
+        print *,'with kdate_s,ktime_s >= ',kdate_s,ktime_s
+      end if
 
-!     following (till end of subr) reads in next bunch of data in readiness
-!     read tb etc  - for globpea, straight into tb etc
-       if (mtimeb.eq.-1) then
-         mtimea=mtimer-real(ktau)*dt/60.
-         tssa(:)=tss(1:ifull)
-       else
-         mtimea=mtimeb
-         tssa(:)=tssb(:)
-       end if
+      if ((mtimer>mtimeb).or.(ktau.le.0)) then
+
+!      read tb etc  - for globpea, straight into tb etc
        if(io_in==1)then
          call infil(1,kdate_r,ktime_r,timeg_b,ds_r, 
-     .               pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
+     .               pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,
+     .               isoilm_h) ! MJT lsmask
        endif   ! (io_in==1)
 
        if(io_in==-1)then
@@ -423,19 +421,63 @@
      &       pslb(iw(idjd)),pslb(ie(idjd)),pslb(is(idjd)),pslb(in(idjd))
          endif
        endif   !  newtop>=1
-     
-      end if ! (mtimer==mtimeb)
-     
-      ! calculate time interpolated tss 
-      cona=(real(mtimeb)-real(ktau)*dt/60.)/real(mtimeb-mtimea)
-      if(namip.ne.0.or.ntest.ne.0)return  ! namip SSTs/sea-ice take precedence
-      where (.not.land(:))
-        tss(:)=cona*tssa(:)+(1.-cona)*tssb(:)
-        tgg(:,1)=tss(:)
-      end where
 
+       return
+      end if 
+
+       call getspecdata(pslb,ub,vb,tb,qb)
+       if ( myid == 0 ) then
+        print *,'following after getspecdata are really psl not ps'
+       end if
+       call maxmin(pslb,'pB',ktau,100.,1)
+
+!     following sice updating code moved from sflux Jan '06      
+!     check whether present ice points should change to/from sice points
+      do iq=1,ifull
+       if(fraciceb(iq)>0.)then
+!        N.B. if already a sice point, keep present tice (in tgg3)
+         if(fracice(iq)==0.)then
+           tgg(iq,3)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
+         endif  ! (fracice(iq)==0.)
+!        set averaged tss (tgg1 setting already done)
+         tss(iq)=tgg(iq,3)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq))
+       endif  ! (fraciceb(iq)==0.)
+      enddo	! iq loop
+      sicedep(:)=sicedepb(:)  ! from Jan 06
+      fracice(:)=fraciceb(:)
+!     because of new zs etc, ensure that sice is only over sea
+      do iq=1,ifull
+       if(fracice(iq)<.02)fracice(iq)=0.
+       if(land(iq))then
+         sicedep(iq)=0.
+         fracice(iq)=0.
+       else
+         if(fracice(iq)>0..and.sicedep(iq)==0.)then
+!          assign to 2. in NH and 1. in SH (according to spo)
+!          do this in indata, amipdata and nestin because of onthefly
+           if(rlatt(iq)>0.)then
+             sicedep(iq)=2.
+           else
+             sicedep(iq)=1.
+           endif ! (rlatt(iq)>0.)
+         elseif(fracice(iq)==0..and.sicedep(iq)>0.)then  ! e.g. from Mk3  
+           fracice(iq)=1.
+         endif  ! (fracice(iq)>0..and.sicedep(iq)==0.) .. elseif ..
+       endif    ! (land(iq))
+      enddo     ! iq loop
+
+!      calculate time interpolated tss 
+       if(namip.ne.0.or.ntest.ne.0)return  ! namip SSTs/sea-ice take precedence
+       do iq=1,ifull
+        if(.not.land(iq))then
+          tss(iq)=tssb(iq)
+          tgg(iq,1)=tss(iq)
+        endif  ! (.not.land(iq))
+       enddo   ! iq loop 
+      
       return
       end
+
 
       ! This subroutine gathers data for the MPI version of spectral downscaling
       subroutine getspecdata(pslb,ub,vb,tb,qb)

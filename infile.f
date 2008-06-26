@@ -85,7 +85,8 @@
       integer igas
       real dss, timer
       entry infil(nested,kdate_r,ktime_r,timeg_r,ds_r,
-     .                  psl,zs,tss,sicedep,fracice,t,u,v,qg)
+     .                  psl,zs,tss,sicedep,fracice,t,u,v,qg,
+     .                  isoilh)
 
       ncalled=ncalled+1
       
@@ -422,6 +423,13 @@ c         enddo
         print *,'qg in ',(qg(idjd,k),k=1,kk)!,qg(ifull,kk)
       endif  ! (ncalled<4.and.mydiag)
 
+      !------------------------------------------------------------
+      ! MJT lsmask
+      tmp(:)=-1.
+      call histrd1(ncid,iarchi,ierr,'soilt',ik,jk,tmp(:))
+      isoilh(:)=nint(tmp(:))
+      !------------------------------------------------------------
+
       if(myid == 0)print *,'in infile nested = ',nested
 !########################################################################
       if(nested==0)then   !  following only at start of run 
@@ -529,10 +537,10 @@ c 	    only being tested for nested=0; no need to test for mesonest
         !------------------------------------------------------------        
         
         !------------------------------------------------------------
-        ! MJT lsmask
-        tmp(:)=-1.
-        call histrd1(ncid,iarchi,ierr,'soilt',ik,jk,tmp(:))
-        isoilh(:)=nint(tmp(:))
+        ! MJT lsmask ! moved above nested==0
+        !tmp(:)=-1.
+        !call histrd1(ncid,iarchi,ierr,'soilt',ik,jk,tmp(:))
+        !isoilh(:)=nint(tmp(:))
         !------------------------------------------------------------
 
         if(myid == 0)print *,'about to read snowd'
