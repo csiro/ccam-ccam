@@ -240,14 +240,14 @@ c         print *,'this one uses supplied eigs'
          do iq=1,ifull
             if(zsmask(iq)>=0.5)then
                land(iq)=.true. 
-               zs(iq)=max(zs(iq),1.1) ! to ensure consistent with zs=0 sea test
+               !zs(iq)=max(zs(iq),1.1) ! to ensure consistent with zs=0 sea test
             else
                land(iq)=.false.
-               zs(iq)=0.             ! to ensure consistent with zs=0 sea test
+               !zs(iq)=0.             ! to ensure consistent with zs=0 sea test
             endif  
          enddo                  ! iq loop
 !        following is land fix for cape grim radon runs    **************
-         if(rlat0>-26.9.and.rlat0<-26.7)stop
+         !if(rlat0>-26.9.and.rlat0<-26.7)stop
 !	  had  land(37,47)=.false.
          go to 59
  58      print *,'end-of-file reached on topofile'
