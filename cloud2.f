@@ -488,7 +488,6 @@ c Weight cloud properties by liquid/ice fraction
         ! bulk properties (i.e., a single configuration of vertical cloud blocks but with
         ! fractional area (0.<camt<=1.)).
         if (nmr.eq.1) then ! combine clouds in adjacent layers into a single cloud
-                           ! (i.e., approximating maximum/random overlap)
           do mg=1,imax
             k=1
             do while (k.le.nl-1)
@@ -505,16 +504,16 @@ c Weight cloud properties by liquid/ice fraction
                   kb=kb+1
                 end do
                 kt=kb
-                do while (cfrac(mg,kt+1).ge.cbdry)
+                do while ((cfrac(mg,kt+1).ge.cbdry).and.(kt.lt.kk))
                   kt=kt+1
                 end do
                 
-                ki=kk
+                ki=kt
                 do kj=kk,kt+1,-1
                   if (cfrac(mg,kj).gt.cbdry) ki=kj
                 end do
 
-                if (ki.lt.kk) then
+                if (ki.gt.kt) then
                   kar=minloc(cfrac(mg,kt:ki))
                   kk=kar(1)+kt-1
                   cbdry=cldedg*sum(cfrac(mg,k:kk))/real(kk-k+1)
@@ -523,31 +522,24 @@ c Weight cloud properties by liquid/ice fraction
                     kb=kb+1
                   end do
                   kt=kb
-                  do while (cfrac(mg,kt+1).ge.cbdry)
+                  do while ((cfrac(mg,kt+1).ge.cbdry).and.(kt.lt.kk))
                     kt=kt+1
                   end do
                 end if
                 
-                nfrac=0.
-                Re1=0.
-                Re2=0.
-                Em=0.
-                Ab=0.
-                do ki=k,kk
-                  nfrac=nfrac+cfrac(mg,ki)
-                  Re1=Re1+(fice(mg,ki)*Rei1(mg,ki)
-     &                   +(1.-fice(mg,ki))*Rew1(mg,ki))
-     &                   *cfrac(mg,ki)
-                  Re2=Re2+(fice(mg,ki)*Rei2(mg,ki)
-     &                   +(1.-fice(mg,ki))*Rew2(mg,ki))
-     &                   *cfrac(mg,ki)
-                  Em=Em+(fice(mg,ki)*Emi(mg,ki)
-     &                 +(1.-fice(mg,ki))*Emw(mg,ki))
-     &                 *cfrac(mg,ki)
-                  Ab=Ab+(fice(mg,ki)*Abi(mg,ki)
-     &                 +(1-fice(mg,ki))*Abw(mg,ki))
-     &                 *cfrac(mg,ki)
-                end do
+                nfrac=sum(cfrac(mg,k:kk))
+                Re1=sum((fice(mg,k:kk)*Rei1(mg,k:kk)
+     &                 +(1.-fice(mg,k:kk))*Rew1(mg,k:kk))
+     &                 *cfrac(mg,k:kk))
+                Re2=sum((fice(mg,k:kk)*Rei2(mg,k:kk)
+     &                 +(1.-fice(mg,k:kk))*Rew2(mg,k:kk))
+     &                 *cfrac(mg,k:kk))
+                Em=sum((fice(mg,k:kk)*Emi(mg,k:kk)
+     &               +(1.-fice(mg,k:kk))*Emw(mg,k:kk))
+     &               *cfrac(mg,k:kk))
+                Ab=sum((fice(mg,k:kk)*Abi(mg,k:kk)
+     &               +(1-fice(mg,k:kk))*Abw(mg,k:kk))
+     &               *cfrac(mg,k:kk))
 
                 nclds(mg)=nclds(mg)+1
                 nc=nclds(mg)+1
