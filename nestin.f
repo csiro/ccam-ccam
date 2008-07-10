@@ -288,6 +288,7 @@
       integer mtimeb,kdate_r,ktime_r
       integer ::  iabsdate,iq,k,kdhour,kdmin
       integer, dimension(ifull) :: isoilm_h ! MJT lsmask
+      integer, save :: ncount ! MJT daily ave
       real :: ds_r,rlong0x,rlat0x
       real :: schmidtx,timeg_b
       real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
@@ -295,6 +296,16 @@
       real, dimension(ifull) ::  zsb
       data mtimeb/-1/ 
       save mtimeb 
+  
+      if (nud_uv.eq.8) then ! MJT daily ave
+        ! update average
+        psla(:)=psla(:)+psl(1:ifull)
+        ua(:,:)=ua(:,:)+u(1:ifull,:)
+        va(:,:)=va(:,:)+v(1:ifull,:)
+        ta(:,:)=ta(:,:)+t(1:ifull,:)
+        qa(:,:)=qa(:,:)+qg(1:ifull,:)
+        ncount=ncount+1
+      end if 
       
       if ((mtimer<mtimeb).and.(ktau.gt.0)) return
  
@@ -307,6 +318,16 @@
       end if
 
       if ((mtimer>mtimeb).or.(ktau.le.0)) then
+      
+        if (nud_uv.eq.8) then ! MJT daily ave
+          ! reset average
+          psla(:)=psl(1:ifull)
+          ua(:,:)=u(1:ifull,:)
+          va(:,:)=v(1:ifull,:)
+          ta(:,:)=t(1:ifull,:)
+          qa(:,:)=qg(1:ifull,:)
+          ncount=1
+        end if
 
 !      read tb etc  - for globpea, straight into tb etc
        if(io_in==1)then
@@ -425,7 +446,24 @@
        return
       end if 
 
-       call getspecdata(pslb,ub,vb,tb,qb)
+       if (nud_uv.eq.8) then
+         ! preturb daily average
+         if (myid == 0) print *,"Using averaged data for filter"
+         psla(:)=pslb(:)-psla(:)/real(ncount)
+         ua(:,:)=ub(:,:)-ua(:,:)/real(ncount)
+         va(:,:)=vb(:,:)-va(:,:)/real(ncount)
+         ta(:,:)=tb(:,:)-ta(:,:)/real(ncount)
+         qa(:,:)=qb(:,:)-qa(:,:)/real(ncount)
+       else
+         ! preturb instantaneous
+         psla(:)=pslb(:)-psl(1:ifull)
+         ua(:,:)=ub(:,:)-u(1:ifull,:)
+         va(:,:)=vb(:,:)-v(1:ifull,:)
+         ta(:,:)=tb(:,:)-t(1:ifull,:)
+         qa(:,:)=qb(:,:)-qg(1:ifull,:)
+       end if
+
+       call getspecdata(psla,ua,va,ta,qa)
        if ( myid == 0 ) then
         print *,'following after getspecdata are really psl not ps'
        end if
@@ -494,7 +532,8 @@
       include 'vecsuv.h'
       include 'vecsuv_g.h'   ! ax_g,bx_g,ay_g,by_g,az_g,bz_g
       include 'savuvt.h'     ! savu,savv
-      
+
+      integer iq,k      
       real, dimension(ifull), intent(in) :: pslb
       real, dimension(ifull,kl), intent(in) :: ub,vb,tb,qb
       real, dimension(ifull) :: costh,sinth
@@ -502,9 +541,8 @@
       real, dimension(ifull_g) :: pslc
       real, dimension(ifull_g,kl) :: uc,vc,wc,tc,qc
       real, dimension(ifull_g,kl) :: x_g,xx_g
-      real den,polenx,poleny,polenz,zonx,zony,zonz
-      integer iq,k
       real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)
+      real den,polenx,poleny,polenz,zonx,zony,zonz
       common/savuv1/savs1,savu1,savv1
 
       if(nud_uv==3)then
@@ -523,16 +561,16 @@
 
       if (myid == 0) then     
         print *,"Gather data for spectral downscale"
-        if(nud_p>0)call ccmpi_gather(pslb(:)-psl(1:ifull), pslc(:))
+        if(nud_p>0)call ccmpi_gather(pslb(:), pslc(:))
         if(nud_uv==3)then
           do k=kbotdav,kl
-            delta(:,k)=costh(:)*(ub(1:ifull,k)-u(1:ifull,k))  ! uzon
-     &                -sinth(:)*(vb(1:ifull,k)-v(1:ifull,k))
+            delta(:,k)=costh(:)*ub(:,k)  ! uzon
+     &                -sinth(:)*vb(:,k)
           end do
           call ccmpi_gather(delta(:,:), wc(:,:))
         elseif(nud_uv.ne.0)then
-          call ccmpi_gather(ub(1:ifull,:)-u(1:ifull,:), x_g(:,:))
-          call ccmpi_gather(vb(1:ifull,:)-v(1:ifull,:), xx_g(:,:))
+          call ccmpi_gather(ub(:,:), x_g(:,:))
+          call ccmpi_gather(vb(:,:), xx_g(:,:))
           do k=kbotdav,kl
             uc(:,k)=ax_g(:)*x_g(:,k)+bx_g(:)*xx_g(:,k)
             vc(:,k)=ay_g(:)*x_g(:,k)+by_g(:)*xx_g(:,k)
@@ -540,28 +578,28 @@
           end do
         endif
         if(nud_t>0)then
-          call ccmpi_gather(tb(1:ifull,:)-t(1:ifull,:), tc(:,:))
+          call ccmpi_gather(tb(:,:), tc(:,:))
         end if
         if(nud_q>0)then
-          call ccmpi_gather(qb(1:ifull,:)-qg(1:ifull,:), qc(:,:))
+          call ccmpi_gather(qb(:,:), qc(:,:))
         end if
       else
-        if(nud_p>0)call ccmpi_gather(pslb(:)-psl(1:ifull))
+        if(nud_p>0)call ccmpi_gather(pslb(:))
         if(nud_uv==3)then
           do k=kbotdav,kl
-            delta(:,k)=costh(:)*(ub(1:ifull,k)-u(1:ifull,k))  ! uzon
-     &                -sinth(:)*(vb(1:ifull,k)-v(1:ifull,k))
+            delta(:,k)=costh(:)*ub(:,k)  ! uzon
+     &                -sinth(:)*vb(:,k)
           end do
           call ccmpi_gather(delta(:,:))	
         elseif(nud_uv.ne.0)then
-          call ccmpi_gather(ub(1:ifull,:)-u(1:ifull,:))
-          call ccmpi_gather(vb(1:ifull,:)-v(1:ifull,:))
+          call ccmpi_gather(ub(:,:))
+          call ccmpi_gather(vb(:,:))
         endif
         if(nud_t>0)then
-          call ccmpi_gather(tb(1:ifull,:)-t(1:ifull,:))
+          call ccmpi_gather(tb(:,:))
         endif
         if(nud_q>0)then
-          call ccmpi_gather(qb(1:ifull,:)-qg(1:ifull,:))
+          call ccmpi_gather(qb(:,:))
         endif
       end if
 
