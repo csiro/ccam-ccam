@@ -383,8 +383,8 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
             if(ntest.gt.0.and.i.eq.idrad.and.j.eq.jdrad)then
               print *,'i,j,land,sicedep,snowd,snrat ',
      .                 i,j,land(iq),sicedep(iq),snowd(iq),snrat
-              print *,'albsav,dnsnow,talb,cuvrf1 ',
-     .                 albsav(iq),dnsnow,talb,cuvrf(i,1)
+              print *,'albsav,dnsnow,cuvrf1 ',
+     .                 albsav(iq),dnsnow,cuvrf(i,1) ! MJT delete talb
             endif
            endif          !  snowd(iq).gt.0.
            
@@ -400,23 +400,23 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
         endif       ! if( land(iq)) .. else..
         
       !-----------------------------------------------------------------------------------------------------------
-      ! MJT urban
+      ! MJT albedo
       end do ! i=1,imax
       ! update albedo if not using CABLE (otherwise updated in sflux)
-      if ((nsib.ne.CABLE).and.(nsib.ne.6)) then ! MJT CHANGE - cable
-        call tebalb1(istart,imax,cuvrf(1:imax,1),0)
-        call tebalb1(istart,imax,cirrf(1:imax,1),0)
-        albvisnir(istart:iend,1)=cuvrf(1:imax,1)
-        albvisnir(istart:iend,2)=cirrf(1:imax,1)
-      end if
+      if ((nsib.ne.CABLE).and.(nsib.ne.6)) then     ! MJT CHANGE - urban
+        call tebalb1(istart,imax,cuvrf(1:imax,1),0) ! MJT CHANGE - urban
+        call tebalb1(istart,imax,cirrf(1:imax,1),0) ! MJT CHANGE - urban
+      end if                                        ! MJT CHANGE - urban
+      albvisnir(istart:iend,1)=cuvrf(1:imax,1)
+      albvisnir(istart:iend,2)=cirrf(1:imax,1)
       if (iaero.ne.0) then
         do i=1,imax
           iq=i+(j-1)*il
            cosz = max ( coszro(i), 1.e-4)
-           delta =  coszro(i)*beta_ave*alpha*so4t(iq)* ! MJT CHANGE albedo - still broadband
+           delta =  coszro(i)*beta_ave*alpha*so4t(iq)* ! still broadband
      &	            ((1.-cuvrf(i,1))/cosz)*((1.-cirrf(i,1))/cosz)
            cuvrf(i,1)=min(1., delta+cuvrf(i,1)) ! surface albedo
-           cirrf(i,1)=min(1., delta+cirrf(i,1)) ! MJT CHANGE albedo - still broadband
+           cirrf(i,1)=min(1., delta+cirrf(i,1)) ! still broadband
         end do ! i=1,imax
       endif !(iaero.ne.0)then
       !-----------------------------------------------------------------------------------------------------------      
