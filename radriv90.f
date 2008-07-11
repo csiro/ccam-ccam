@@ -402,11 +402,8 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
       !-----------------------------------------------------------------------------------------------------------
       ! MJT albedo
       end do ! i=1,imax
-      ! update albedo if not using CABLE (otherwise updated in sflux)
-      if ((nsib.ne.CABLE).and.(nsib.ne.6)) then     ! MJT CHANGE - urban
-        call tebalb1(istart,imax,cuvrf(1:imax,1),0) ! MJT CHANGE - urban
-        call tebalb1(istart,imax,cirrf(1:imax,1),0) ! MJT CHANGE - urban
-      end if                                        ! MJT CHANGE - urban
+      call tebalb1(istart,imax,cuvrf(1:imax,1),0) ! MJT CHANGE - urban
+      call tebalb1(istart,imax,cirrf(1:imax,1),0) ! MJT CHANGE - urban
       albvisnir(istart:iend,1)=cuvrf(1:imax,1)
       albvisnir(istart:iend,2)=cirrf(1:imax,1)
       if (iaero.ne.0) then

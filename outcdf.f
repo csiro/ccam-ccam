@@ -877,9 +877,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         ! MJT urban
         aa=zolnd
         bb=zolnd/7.4 ! dummy
-        if (nurban.ne.0) then
-          call tebzo(ifull,aa(:),bb(:),0)
-        end if
+        call tebzo(ifull,aa(:),bb(:),0)
         call histwrt3(aa,'zolnd',idnc,iarch,local)
         !call histwrt3(zolnd,'zolnd',idnc,iarch,local)
         !--------------------------------------------  
@@ -907,6 +905,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       call histwrt3(aa,'pmsl',idnc,iarch,local)
       call histwrt3(tss,'tsu',idnc,iarch,local)
       aa(:)=0.5*sum(albvisnir(:,:),2) ! MJT CHANGE albedo
+      call tebalb(ifull,aa,0) ! MJT urban
       call histwrt3(aa,'alb',idnc,iarch,local)
       call histwrt3(tgg(1,1),'tgg1',idnc,iarch,local)
       call histwrt3(tgg(1,2),'tgg2',idnc,iarch,local)

@@ -643,11 +643,6 @@ c ----------------------------------------------------------------------
      &               ,av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(1:ifull,1)
      &               ,av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(1:ifull,1)
      &               ,0)
-        ! cable clobbers albedo so we update it here (see also radriv90.f)
-        if ((nsib.eq.CABLE).or.(nsib.eq.6)) then
-          call tebalb(ifull,albvisnir(:,1),0)
-          call tebalb(ifull,albvisnir(:,2),0)
-        end if
         ! here we blend zo with the urban part for the
         ! calculation of ustar (occuring later in sflux.f)
         zoh(iperm(:))=zo(iperm(:))/7.4
