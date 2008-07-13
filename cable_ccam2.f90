@@ -245,9 +245,7 @@ module cable_ccam
       return
       end subroutine setco2for
 
-
-!*******************************************************************************
-      subroutine cbmrdn2 ! sib hardwired dummy version.  Use cbmrdn from cable_ccam.f90 when avaliable.
+      subroutine cbmrdn3 ! igbp hardwired dummy version.  Use cbmrdn from cable_ccam.f90 when avaliable.
 !
 !     reads the parameters required by land surface scheme 
 !     called from indata
@@ -266,121 +264,10 @@ module cable_ccam
       include 'soilv.h'
       include 'vegpar.h'
       
-      if (myid == 0) print *,"Setting CABLE defaults (sib)"
-      
-      vegparmnew=.false.
-
-      allocate(vegtype(mxvt))
-
-      where ((ivegt.eq.9).and.(rlatt.ge.-30.).and.(rlatt.le.30.))
-        c4frac=0.95
-      else where ((ivegt.eq.8).and.(rlatt.ge.-30.).and.(rlatt.le.0.))
-        c4frac=0.5
-      else where ((ivegt.eq.8).and.(rlatt.ge.0.).and.(rlatt.le.20.))
-        c4frac=0.8
-      else where ((ivegt.eq.8).and.(rlatt.ge.20.).and.(rlatt.le.30.))
-        c4frac=0.5
-      else where (ivegt.eq.6)
-        c4frac=0.75
-      else where ((ivegt.eq.7).and.(rlatt.ge.-30.).and.(rlatt.le.-20.))
-        c4frac=0.5
-      else where ((ivegt.eq.7).and.(rlatt.ge.-20.).and.(rlatt.le.20.))
-        c4frac=0.95
-      else where ((ivegt.eq.7).and.(rlatt.ge.20.).and.(rlatt.le.35.))
-        c4frac=0.5
-      else where ((ivegt.eq.12).and.(rlatt.ge.0.).and.(rlatt.le.40.))
-        c4frac=0.3
-      else where
-        c4frac=0.
-      end where
-
-      hc=(/ 35.,20.,20.,17.,17.,1.,0.5,0.6,0.5,4.,0.05,1.,0.01,0.01,0.01,0.01,0.01 /)
-      xfang=(/ 0.1,0.25,0.125,0.01,0.01,-0.3,-0.3,0.2,0.01,0.2,0.01,-0.3,0.01,0.01,0.01,0.01,0.01 /)
-      dleaf=(/ 0.075,0.12,0.07,0.028,0.02,0.16,0.16,0.155,0.0165,0.155,0.005,0.155,0.005,0.005,0.005,0.005,0.005 /)
-      wai=(/ 1.6,1.2,1.,1.,0.6,0.5,0.,0.5,0.5,0.5,0.,0.,0.,0.,0.,0.,0. /)
-      canst1=0.1
-      shelrb=2.
-      vegcf=(/ 1.95,1.5,1.55,0.91,0.73,2.8,2.75,0.,2.05,0.6,0.4,2.8,0.,0.,0.,0.,0. /)
-      vegtype(:)='others'
-      vegtype(2)='deciduous'
-      vegtype(5)='deciduous'
-      extkn=0.4
-      vcmax=(/ 85.E-6,85.E-6,80.E-6,65.2E-6,70.E-6,10.1E-6,9.E-6,35.053E-6,39.E-6,38.053E-6,17.02E-6,120.E-6,1.E-6,1.E-6, &
-               1.E-6,1.E-6,1.E-6 /)
-      ejmax=2.*vcmax
-      rp20=(/ 1.1342,1.4733,2.3704,3.3039,3.2879,1.0538,0.8037,12.032,1.2994,7.4175,2.8879,3.,0.1,0.1,0.1,0.1,0.1 /)
-      rpcoef=0.0832
-      rs20=(/ 1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,0.,1.,0.,0.,0.,0.,0. /) ! ?????? wrong size
-      tminvj=(/ 5.,5.,5.,2.,5.,10.,10.,0.,5.,-5.,5.,10.,-5.,-5.,-5.,-5.,-5. /)
-      tmaxvj=(/ 15.,15.,10.,5.,10.,15.,15.,5.,10.,0.,10.,15.,0.,0.,0.,0.,0. /)
-      vbeta=(/ 1.,1.,1.,1.,1.,4.,4.,4.,4.,1.,4.,4.,1.,1.,1.,1.,1. /)
-      rootbeta=0.
-      tcplant(:,1)=(/ 300.,300.,200.,200.,200.,250.,250.,250.,150.,150.,1.,150.,1.,1.,1.,1.,1. /)
-      tcplant(:,2)=(/ 16833.,12000.,10217.,10217.,5967.,5247.,0.,5247.,5000.,5000.,0.,0.,0.,0.,0.,0.,0. /)
-      tcplant(:,3)=(/ 1443.,1029.,876.,876.,511.,1124.,500.,1124.,500.,500.,1.,607.,1.,1.,1.,1.,1. /)
-      tcsoil(:,1)=(/ 303.,216.,184.,184.,107.,275.,275.,275.,100.,100.,1.,149.,1.,1.,1.,1.,1. /)
-      tcsoil(:,2)=(/ 606.,432.,367.,367.,214.,314.,314.,314.,250.,250.,1.,300.,1.,1.,1.,1.,1. /)
-      ratecp(1)=1.
-      ratecp(2)=0.03
-      ratecp(3)=0.14
-      ratecs(1)=2.
-      ratecs(2)=5.
-
-      if (all(cplant.eq.0.)) then
-        if (myid == 0) print *,"Using default carbpools"
-        where (land)
-          cplant(:,1)=tcplant(ivegt(:),1)
-          cplant(:,2)=tcplant(ivegt(:),2)
-          cplant(:,3)=tcplant(ivegt(:),3)
-          csoil(:,1)=tcsoil(ivegt(:),1)
-          csoil(:,2)=tcsoil(ivegt(:),2)
-        end where
-      else
-        if (myid == 0) print *,"Loading carbpools from ifile"
-      end if
-
-      albsoil(:)=0.5*sum(albvisnir(:,:),2)
-      where ((isoilm(:).eq.9).and.land)
-        albsoil(:)=min(albsoil(:),0.61)
-      !else where ((isoilm(:).eq.1).and.land) 
-      !  albsoil(:)=min(albsoil(:),0.41)
-      !else where (land)
-        !albsoil(:)=min(albsoil(:),0.25) ! MJT - wrong for central Australia
-      else where (land)
-        albsoil(:)=min(albsoil(:),0.41) ! MJT suggestion
-      end where
-
-      where (albsoil(:).le.0.14)
-        albsoilsn(:,2)=2.*albsoil(:)/1.5
-        albsoilsn(:,1)=0.5*albsoilsn(:,2)
-      else where (albsoil(:).le.0.21)
-        albsoilsn(:,2)=2.*albsoil(:)/1.62
-        albsoilsn(:,1)=0.62*albsoilsn(:,2)
-      else where
-        albsoilsn(:,2)=2.*albsoil(:)/1.68
-        albsoilsn(:,1)=0.68*albsoilsn(:,2)
-      end where
- 
-      end subroutine cbmrdn2
-
-      subroutine cbmrdn3 ! sib hardwired dummy version.  Use cbmrdn from cable_ccam.f90 when avaliable.
-!
-!     reads the parameters required by land surface scheme 
-!     called from indata
-
-      use cc_mpi, only : myid
-      use define_dimensions, only : ncs, ncp
-
-      implicit none
-
-      include 'newmpar.h'
-      include 'carbpools.h'
-      include 'nsibd.h'
-      include 'latlong.h'
-      include 'soil.h'
-      include 'soilsnow.h'
-      include 'soilv.h'
-      include 'vegpar.h'
+      real, parameter, dimension(mxvt) :: &
+        albadj=(/ 0.21,0.14,0.17,0.11,0.17,0.11,0.11,0.17,0.13,0.15,0.22,0.14,0.15,0.12,0.6,0.02,0.08 /)
+      real, parameter, dimension(mxvt) :: &
+        ausadj=(/ 0.19,0.22,0.17,0.11,0.17,0.11,0.11,0.17,0.14,0.12,0.22,0.14,0.15,0.12,0.6,0.01,0.08 /)
       
       if (myid == 0) print *,"Setting CABLE defaults (igbp)"
       
@@ -455,22 +342,41 @@ module cable_ccam
         if (myid == 0) print *,"Loading carbpools from ifile"
       end if
 
-      albsoil(:)=0.5*sum(albvisnir(:,:),2)
-      where ((isoilm(:).eq.9).and.land)
-        albsoil(:)=min(albsoil(:),0.61)
-      else where (land)
-        albsoil(:)=min(albsoil(:),0.41) ! MJT suggestion
+      albsoil(:)=0.08
+      albsoilsn(:,:)=0.08
+      where (land)
+        !sfact=0.5 for alb <= 0.14 (see cable_soilsnow.f90)
+        albsoil(:)=0.5*((1.5/1.0)*albvisnir(:,1)+(1.5/2.0)*albvisnir(:,2))
+        !albsoil(:)=0.75*albvisnir(:,1)+0.375*albvisnir(:,2)
       end where
-
-      where (albsoil(:).le.0.14)
-        albsoilsn(:,2)=2.*albsoil(:)/1.5
-        albsoilsn(:,1)=0.5*albsoilsn(:,2)
-      else where (albsoil(:).le.0.21)
-        albsoilsn(:,2)=2.*albsoil(:)/1.62
-        albsoilsn(:,1)=0.62*albsoilsn(:,2)
-      else where
-        albsoilsn(:,2)=2.*albsoil(:)/1.68
-        albsoilsn(:,1)=0.68*albsoilsn(:,2)
+      where ((albsoil(:).gt.0.14).and.land)
+        !sfact=0.62 for 0.14 < alb <= 0.20 (see cable_soilsnow.f90)
+        albsoil(:)=0.5*((1.62/1.24)*albvisnir(:,1)+(1.62/2.0)*albvisnir(:,2))
+        !albsoil(:)=0.653*albvisnir(:,1)+0.405*albvisnir(:,2)
+      end where
+      where ((albsoil(:).gt.0.2).and.land)
+        !sfact=0.68 for 0.2 < alb (see cable_soilsnow.f90)
+        albsoil(:)=0.5*((1.68/1.36)*albvisnir(:,1)+(1.68/2.0)*albvisnir(:,2))
+        !albsoil(:)=0.618*albvisnir(:,1)+0.42*albvisnir(:,2)
+      end where
+      ! Estimate soil albedo
+      where ((rlatt.ge.-0.7854).and.(rlatt.le.-0.1850).and. &
+             (rlongg.ge.1.9199).and.(rlongg.le.2.7053).and.land)
+        sigmf(:)=max(0.01,min(0.98,1.-exp(-0.6*vlai(:))))      
+        albsoil(:)=(albsoil(:)-ausadj(ivegt(:))*sigmf(:))/(1.-sigmf(:))
+      elsewhere (land)
+        sigmf(:)=max(0.01,min(0.98,1.-exp(-0.6*vlai(:))))      
+        albsoil(:)=(albsoil(:)-albadj(ivegt(:))*sigmf(:))/(1.-sigmf(:))
+      end where
+      where ((albsoil(:).le.0.14).and.land)
+        albsoilsn(:,1)=(1.00/1.50)*albsoil(:)
+        albsoilsn(:,2)=(2.00/1.50)*albsoil(:)
+      elsewhere ((albsoil(:).gt.0.14).and.(albsoil(:).le.0.2).and.land)
+        albsoilsn(:,1)=(1.24/1.62)*albsoil(:)
+        albsoilsn(:,2)=(2.00/1.62)*albsoil(:)
+      elsewhere
+        albsoilsn(:,1)=(1.36/1.68)*albsoil(:)
+        albsoilsn(:,2)=(2.00/1.68)*albsoil(:)
       end where
  
       end subroutine cbmrdn3

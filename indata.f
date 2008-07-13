@@ -1,7 +1,7 @@
       subroutine indata(hourst,newsnow,jalbfix)! nb  newmask not yet passed thru
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
       use ateb ! MJT urban
-      use cable_ccam, only : cbmrdn3 ! MJT cable
+      use cable_ccam, only : CABLE,cbmrdn3 ! MJT cable
       use cc_mpi
       use diag_m
 !     rml 21/02/06 removed all so2 code
@@ -240,14 +240,14 @@ c         print *,'this one uses supplied eigs'
          do iq=1,ifull
             if(zsmask(iq)>=0.5)then
                land(iq)=.true. 
-               !zs(iq)=max(zs(iq),1.1) ! to ensure consistent with zs=0 sea test
+        !       zs(iq)=max(zs(iq),1.1) ! to ensure consistent with zs=0 sea test ! MJT lsmask
             else
                land(iq)=.false.
-               !zs(iq)=0.             ! to ensure consistent with zs=0 sea test
+        !       zs(iq)=0.             ! to ensure consistent with zs=0 sea test ! MJT lsmask
             endif  
          enddo                  ! iq loop
 !        following is land fix for cape grim radon runs    **************
-         !if(rlat0>-26.9.and.rlat0<-26.7)stop
+        ! if(rlat0>-26.9.and.rlat0<-26.7)stop ! MJT lsmask
 !	  had  land(37,47)=.false.
          go to 59
  58      print *,'end-of-file reached on topofile'
@@ -835,7 +835,17 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
       if(nsib>=1)then
         call insoil   !  bundled in with sscam2
         call rdnsib   !  for usual defn of isoil, iveg etc
-        !if (nsib.eq.4) call cbmrdn(nveg) ! MJT cable
+        ! nsib options
+        ! nsib=3 (original land surface scheme with original 1deg+Dean's datasets)
+        ! nsib=4=CABLE (CABLE land surface scheme for Eva - Uniform C48 only)
+        ! nsib=5 (original land surface scheme with MODIS datasets)
+        ! nsib=6 (CABLE land surface scheme with MODIS datasets)
+        if (nsib.eq.CABLE) then
+          print *,"nsib=CABLE option is not supported in
+     &             this version of CCAM"
+          stop
+          !call cbmrdn(nveg) ! MJT cable
+        end if
         if (nsib.eq.6) call cbmrdn3 ! MJT cable
       else
         do iq=1,ifull
@@ -1864,6 +1874,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       subroutine rdnsib
 !     subroutine to read in  data sets required for biospheric scheme.
       use cc_mpi
+      use cable_ccam, only : CABLE
       include 'newmpar.h'
       include 'arrays.h'
       include 'const_phys.h'
@@ -1889,19 +1900,19 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        !------------------------------------------------------------------------
        ! MJT CHANGE sib ! MJT CHANGE cable
        call readreal(albfile,albvisnir(:,1),ifull)
-       if (nsib.eq.5) then
+       if ((nsib.eq.5).or.(nsib.eq.6)) then
          call readreal('albnir',albvisnir(:,2),ifull)
        else
          albvisnir(:,2)=albvisnir(:,1)
        end if
-       if ((nsib.ne.4).and.(nsib.ne.6)) then 
+       if ((nsib.ne.CABLE).and.(nsib.ne.6)) then 
          call readreal(rsmfile,rsmin,ifull)  ! not used these days
        end if
        call readreal(zofile,zolnd,ifull)
        if(iradon.ne.0)call readreal(radonemfile,radonem,ifull)
        call readint(vegfile,ivegt,ifull)
        call readint(soilfile,isoilm,ifull)      
-       if((nsib==5).or.(nsib==6)) then
+       if((nsib.eq.5).or.(nsib.eq.6)) then
          call readreal('lai',vlai,ifull)
          vlai(:)=0.01*vlai(:)
        end if
@@ -1918,7 +1929,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        mismatch = .false.
        if( rdatacheck(land,albvisnir(:,1),'alb',idatafix,falbdflt))
      &      mismatch = .true.
-       if ((nsib.ne.4).and.(nsib.ne.6)) then ! MJT cable
+       if ((nsib.ne.CABLE).and.(nsib.ne.6)) then ! MJT cable
          if( rdatacheck(land,rsmin,'rsmin',idatafix,frsdflt))
      &        mismatch = .true.
        end if
@@ -1958,7 +1969,7 @@ c         if(ivegt(iq)>40)print *,'iq, ivegt ',iq,ivegt(iq)
      &                  MPI_COMM_WORLD, ierr )
       call MPI_Allreduce(ivegmax, ivegmax_g, 1, MPI_INTEGER, MPI_MAX, 
      &                  MPI_COMM_WORLD, ierr )
-      if((ivegmax_g<14).and.(nsib.ne.4).and.(nsib.ne.6)) then ! MJT CHANGE cable
+      if((ivegmax_g<14).and.(nsib.ne.CABLE).and.(nsib.ne.6)) then ! MJT CHANGE cable
        if ( mydiag ) print *,
      &      '**** in this run veg types increased from 1-13 to 32-44'
        do iq=1,ifull            ! add offset to sib values so 1-13 becomes 32-44
