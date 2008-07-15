@@ -264,11 +264,6 @@ module cable_ccam
       include 'soilv.h'
       include 'vegpar.h'
       
-      real, parameter, dimension(mxvt) :: &
-        albadj=(/ 0.21,0.14,0.17,0.11,0.17,0.11,0.11,0.17,0.13,0.15,0.22,0.14,0.15,0.12,0.6,0.02,0.08 /)
-      real, parameter, dimension(mxvt) :: &
-        ausadj=(/ 0.19,0.22,0.17,0.11,0.17,0.11,0.11,0.17,0.14,0.12,0.22,0.14,0.15,0.12,0.6,0.01,0.08 /)
-      
       if (myid == 0) print *,"Setting CABLE defaults (igbp)"
       
       vegparmnew=.true.
@@ -347,34 +342,18 @@ module cable_ccam
       where (land)
         !sfact=0.5 for alb <= 0.14 (see cable_soilsnow.f90)
         albsoil(:)=0.5*((1.5/1.0)*albvisnir(:,1)+(1.5/2.0)*albvisnir(:,2))
-        !albsoil(:)=0.75*albvisnir(:,1)+0.375*albvisnir(:,2)
+        albsoilsn(:,1)=(1.00/1.50)*albsoil(:)
+        albsoilsn(:,2)=(2.00/1.50)*albsoil(:)
       end where
       where ((albsoil(:).gt.0.14).and.land)
         !sfact=0.62 for 0.14 < alb <= 0.20 (see cable_soilsnow.f90)
         albsoil(:)=0.5*((1.62/1.24)*albvisnir(:,1)+(1.62/2.0)*albvisnir(:,2))
-        !albsoil(:)=0.653*albvisnir(:,1)+0.405*albvisnir(:,2)
+        albsoilsn(:,1)=(1.24/1.62)*albsoil(:)
+        albsoilsn(:,2)=(2.00/1.62)*albsoil(:)
       end where
       where ((albsoil(:).gt.0.2).and.land)
         !sfact=0.68 for 0.2 < alb (see cable_soilsnow.f90)
         albsoil(:)=0.5*((1.68/1.36)*albvisnir(:,1)+(1.68/2.0)*albvisnir(:,2))
-        !albsoil(:)=0.618*albvisnir(:,1)+0.42*albvisnir(:,2)
-      end where
-      ! Estimate soil albedo
-      where ((rlatt.ge.-0.7854).and.(rlatt.le.-0.1850).and. &
-             (rlongg.ge.1.9199).and.(rlongg.le.2.7053).and.land)
-        sigmf(:)=max(0.01,min(0.98,1.-exp(-0.6*vlai(:))))      
-        albsoil(:)=(albsoil(:)-ausadj(ivegt(:))*sigmf(:))/(1.-sigmf(:))
-      elsewhere (land)
-        sigmf(:)=max(0.01,min(0.98,1.-exp(-0.6*vlai(:))))      
-        albsoil(:)=(albsoil(:)-albadj(ivegt(:))*sigmf(:))/(1.-sigmf(:))
-      end where
-      where ((albsoil(:).le.0.14).and.land)
-        albsoilsn(:,1)=(1.00/1.50)*albsoil(:)
-        albsoilsn(:,2)=(2.00/1.50)*albsoil(:)
-      elsewhere ((albsoil(:).gt.0.14).and.(albsoil(:).le.0.2).and.land)
-        albsoilsn(:,1)=(1.24/1.62)*albsoil(:)
-        albsoilsn(:,2)=(2.00/1.62)*albsoil(:)
-      elsewhere
         albsoilsn(:,1)=(1.36/1.68)*albsoil(:)
         albsoilsn(:,2)=(2.00/1.68)*albsoil(:)
       end where
