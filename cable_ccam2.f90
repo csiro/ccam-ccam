@@ -357,6 +357,9 @@ module cable_ccam
         albsoilsn(:,1)=(1.36/1.68)*albsoil(:)
         albsoilsn(:,2)=(2.00/1.68)*albsoil(:)
       end where
+      ! MJT suggestion to get an approx inital albedo (before cable is called)
+      albvisnir(:,1)=albsoilsn(:,1)*exp(-0.6*vlai(:))+0.1*(1.-exp(-0.6*vlai(:)))
+      albvisnir(:,2)=albsoilsn(:,2)*exp(-0.6*vlai(:))+0.3*(1.-exp(-0.6*vlai(:)))
  
       end subroutine cbmrdn3
 

@@ -263,6 +263,7 @@ c         print *,'this one uses supplied eigs'
       end if
 
       hourst = 0. ! Some io_in options don't set it.
+      albsav=-1. ! missing value flag ! MJT cable
       if(io_in<4)then
          kdate_sav=kdate_s
          ktime_sav=ktime_s
@@ -270,11 +271,11 @@ c         print *,'this one uses supplied eigs'
             call infile(0,kdate,ktime,timegb,ds,
      &           psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
-     &           tgg,wb,wbice,albvisnir(:,1),snowd,
+     &           tgg,wb,wbice,albsav,snowd,
      &           tggsn,smass,ssdn,ssdnn,snage,isflag,
      &           rtsoil, ! MJT cable
      &           isoilm,urban)  !MJT lsmask ! MJT urban
-            albvisnir(:,2)=albvisnir(:,1) ! MJT CHANGE albedo  
+            albnirsav=albsav ! MJT CHANGE albedo  
             if ( mydiag ) then
                print *,'timegb,ds,zss',timegb,ds,zss(idjd)
                print *,'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
@@ -1860,6 +1861,21 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       else
         sigmu(:)=0.
         call tebdisable(0) ! disable urban
+      end if
+      !-----------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      ! MJT CHANGE albedo
+      if ((nsib.eq.CABLE).or.(nsib.eq.6)) then
+        if (all(albsav.ne.-1.)) then
+          if (myid==0) print *,
+     &      "CABLE in use.  Initialising albedo with infile data"
+          albvisnir(:,1)=albsav(:)
+          albvisnir(:,2)=albnirsav(:)
+        else
+          if (myid==0) print *,
+     &  "CABLE in use.  Initialising albedo with modified soil albedo"
+        end if
       end if
       !-----------------------------------------------------------------
 
