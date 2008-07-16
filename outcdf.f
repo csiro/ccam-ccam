@@ -425,8 +425,8 @@ c       For time invariant surface fields
         call attrib(idnc,idim,2,'soilt',lname,'none',0.,40.,0)
         lname = 'Vegetation type'
         call attrib(idnc,idim,2,'vegt',lname,'none',0.,44.,0)
-        lname = 'Initial wetness fraction layer 3'
-        call attrib(idnc,idim,2,'wetfrac',lname,'none',-2.,5.,0)
+        !lname = 'Initial wetness fraction layer 3' ! MJT delete
+        !all attrib(idnc,idim,2,'wetfrac',lname,'none',-2.,5.,0)
 
 c       For time varying surface fields
         lname = 'Surface temperature'
@@ -890,11 +890,11 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
          aa(iq)=ivegt(iq)
         enddo
         call histwrt3(aa,'vegt',idnc,iarch,local)
-        do iq=1,ifull
-         isoil=isoilm(iq)
-         aa(iq)=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
-        enddo
-        call histwrt3(aa,'wetfrac',idnc,iarch,local)
+        !do iq=1,ifull ! MJT delete
+        ! isoil=isoilm(iq)
+        ! aa(iq)=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
+        !enddo
+        !call histwrt3(aa,'wetfrac',idnc,iarch,local)
       endif ! (ktau==0.or.itype==-1) 
 
       call histwrt3(zs,'zht',idnc,iarch,local)   ! always from 13/9/02
