@@ -40,7 +40,7 @@
 !
 ! - Usually the zero model height in aTEB is set to the canyon displacement height, not the building height as in TEB.
 !
-! - aTEB uses two walls instead of the TEB single wall.  Also, only up to 2nd order reflections are used for
+! - aTEB uses two walls instead of the TEB single wall.  Also, only up to 2nd order reflections are used in aTEB for
 !   longwave and short wave radation.  In TEB, infinite reflections are used for shortwave, but only 2nd order for
 !   long wave.  See Harman, et. al (2004) for a complete treatment of the reflections.
 !
@@ -57,15 +57,16 @@ module ateb
 implicit none
 
 private
-public tebinit,tebcalc,tebend,tebzo,tebload,tebsave,tebtype,tebfndef,tebalb,tebalb1, &
-       tebnewangle,tebnewangle1,tebccangle,tebdisable,tebloadm,tebsavem,tebcd
+public tebinit,tebcalc,tebcalcv,tebend,tebzo,tebload,tebsave,tebtype,tebfndef,tebalb, &
+       tebalb1,tebnewangle,tebnewangle1,tebccangle,tebdisable,tebloadm,tebsavem,tebcd, &
+       tebcdv
 
 ! type definitions
 type tatm
   real :: sg,rg,rho,temp,mixr,ps,pa,umag,udir,rnd,snd
 end type tatm
 type tout
-  real :: fg,eg,ts,wf
+  real :: fg,eg,ts,wf,fgroof,fgroad,fgwall,egroof,egroad,tsroad,wfroad
 end type tout
 type trad
   real :: roof,road,walle,wallw,rfsn,rdsn
@@ -459,6 +460,36 @@ return
 end subroutine tebcd
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine blends the urban drag coeff at multiple levels
+! (i.e., including below roof height)
+!
+
+subroutine tebcdv(ifull,kl,zmin,cduv,diag)
+
+implicit none
+
+integer, intent(in) :: ifull,kl,diag
+integer k
+real, dimension(kl), intent(in) :: zmin
+real, dimension(ifull,kl), intent(inout) :: cduv
+real, dimension(ufull) :: alzom,zom
+
+if (ufull.eq.0) return
+
+zom=pg%cndzmin*exp(-pg%lzom)
+do k=1,kl
+  where (zmin(k).ge.fn%bldheight*(1.-refheight))
+    alzom=log((zmin(k)-fn%bldheight*(2./3.-refheight))/zom)
+  elsewhere
+    alzom=log(fn%bldheight/(3.*zom))*exp(0.5*fn%hwratio*(1.-zmin(k)/(fn%bldheight*(1.-refheight))))
+  end where
+  cduv(ugrid,k)=(1.-sigmau)*cduv(ugrid,k)+sigmau*pg%cduv*pg%lzom/alzom
+end do
+
+return
+end subroutine tebcdv
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine calculates the urban contrabution to albedo.
 ! (all grid points)
 
@@ -646,12 +677,13 @@ end subroutine tebccangle
 ! ots = Input/Output radiative/skin temperature (K)
 ! owf = Input/Output wetness fraction/surface water (%)
 
-subroutine tebcalc(ifull,ofg,oeg,ots,owf,ddt,zmin,sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv,diag)
+subroutine tebcalc(ifull,ofg,oeg,ots,owf,ddt,izmin,sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
-real, intent(in) :: ddt,zmin
+real, intent(in) :: ddt,izmin
+real, dimension(ufull) :: zmin
 real, dimension(ifull), intent(in) :: sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv
 real, dimension(ifull), intent(inout) :: ofg,oeg,ots,owf
 type (tatm), dimension(ufull) :: atm
@@ -659,6 +691,7 @@ type (tout), dimension(ufull) :: uo
 
 if (ufull.eq.0) return
 
+zmin=izmin
 atm%sg=sg(ugrid)
 atm%rg=rg(ugrid)
 atm%rho=rho(ugrid)
@@ -686,6 +719,94 @@ owf(ugrid)=(1.-sigmau)*owf(ugrid)+sigmau*uo%wf
 end subroutine tebcalc
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Version of tebcalc for multiple vertical levels
+
+subroutine tebcalcv(ifull,kl,ofg,oeg,ots,owf,ddt,izmin,sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv,diag)
+
+implicit none
+
+integer, intent(in) :: ifull,kl,diag
+integer, dimension(ufull) :: kmin
+integer iqu,kbot,pos(1)
+real, intent(in) :: ddt
+real, dimension(kl), intent(in) :: izmin
+real, dimension(ufull) :: zmin
+real, dimension(ifull,kl), intent(in) :: rho,temp,mixr,pa,uu,vv
+real, dimension(ifull), intent(in) :: sg,rg,rnd,ps
+real, dimension(ifull), intent(inout) :: ots,owf
+real, dimension(ifull,kl), intent(inout) :: ofg,oeg
+real, dimension(kl) :: ufg,ueg
+real ncount
+logical, dimension(kl) :: sermask
+type (tatm), dimension(ufull) :: atm
+type (tout), dimension(ufull) :: uo
+
+if (ufull.eq.0) return
+
+pos=minloc(izmin)
+kbot=pos(1)
+do iqu=1,ufull
+  sermask=izmin.ge.fn%bldheight*(1.-refheight)
+  if (any(sermask)) then
+    pos=minloc(izmin,sermask)
+    kmin(iqu)=pos(1)
+  else
+    write(6,*) "WARN: Cannot find atmospheric level above urban canopy"
+    pos=maxloc(izmin)
+    kmin(iqu)=pos(1)
+  end if
+end do
+
+zmin=izmin(kmin)
+atm%sg=sg(ugrid)
+atm%rg=rg(ugrid)
+atm%ps=ps(ugrid)
+where (atm%temp.le.273.16)
+  atm%snd=rnd(ugrid)
+  atm%rnd=0.
+elsewhere
+  atm%rnd=rnd(ugrid)
+  atm%snd=0.
+end where
+do iqu=1,ufull
+  atm(iqu)%rho=rho(ugrid(iqu),kmin(iqu))
+  atm(iqu)%temp=temp(ugrid(iqu),kmin(iqu))
+  atm(iqu)%mixr=mixr(ugrid(iqu),kmin(iqu))
+  atm(iqu)%pa=pa(ugrid(iqu),kmin(iqu))
+  atm(iqu)%umag=sqrt(uu(ugrid(iqu),kmin(iqu))**2+vv(ugrid(iqu),kmin(iqu))**2)
+  atm(iqu)%udir=atan2(vv(ugrid(iqu),kmin(iqu)),uu(ugrid(iqu),kmin(iqu)))
+end do
+
+call tebeval(uo,ddt,atm,zmin,diag)
+
+do iqu=1,ufull
+  if (kmin(iqu).ne.kbot) then
+    ufg=0.
+    ueg=0.
+    ufg(kmin(iqu))=ufg(kmin(iqu))+uo(iqu)%fgroof
+    ueg(kmin(iqu))=ueg(kmin(iqu))+uo(iqu)%egroof
+    sermask=izmin.lt.fn(iqu)%bldheight*(1.-refheight)
+    ncount=real(count(sermask))
+    where(sermask)
+      ufg(:)=ufg(:)+uo(iqu)%fgwall/ncount
+    end where
+    ufg(kbot)=ufg(kbot)+uo(iqu)%fgroad
+    ueg(kbot)=ueg(kbot)+uo(iqu)%egroad
+    ofg(ugrid(iqu),:)=(1.-sigmau(iqu))*ofg(ugrid(iqu),:)+sigmau(iqu)*ufg
+    oeg(ugrid(iqu),:)=(1.-sigmau(iqu))*oeg(ugrid(iqu),:)+sigmau(iqu)*ueg
+    ots(ugrid(iqu))=(1.-sigmau(iqu))*ots(ugrid(iqu))+sigmau(iqu)*uo(iqu)%tsroad
+    owf(ugrid(iqu))=(1.-sigmau(iqu))*owf(ugrid(iqu))+sigmau(iqu)*uo(iqu)%wfroad    
+  else
+    ofg(ugrid(iqu),:)=(1.-sigmau(iqu))*ofg(ugrid(iqu),:)+sigmau(iqu)*uo(iqu)%fg
+    oeg(ugrid(iqu),:)=(1.-sigmau(iqu))*oeg(ugrid(iqu),:)+sigmau(iqu)*uo(iqu)%eg
+    ots(ugrid(iqu))=(1.-sigmau(iqu))*ots(ugrid(iqu))+sigmau(iqu)*uo(iqu)%ts
+    owf(ugrid(iqu))=(1.-sigmau(iqu))*owf(ugrid(iqu))+sigmau(iqu)*uo(iqu)%wf
+  end if
+end do
+
+end subroutine tebcalcv
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! urban flux calculations
 
 subroutine tebeval(uo,ddt,atm,zmin,diag)
@@ -695,7 +816,8 @@ implicit none
 integer, intent(in) :: diag
 integer iqu,j,k,ii,cns,cnr
 integer, dimension(ufull) :: igs,igr
-real, intent(in) :: ddt,zmin
+real, intent(in) :: ddt
+real, dimension(ufull), intent(in) :: zmin
 real, dimension(ufull,3) :: garoof,gawalle,gawallw,garoad
 real, dimension(ufull) :: rdsntemp,rfsntemp,rdsnmelt,rfsnmelt
 real, dimension(ufull) :: wallpsi,roadpsi,fgtop,egtop,garfsn,gardsn
@@ -774,9 +896,15 @@ do j=1,2 ! predictor-corrector loop -------------------------------
   ! Adjust canyon roughness to include snow
   n=roaddum%snow/(roaddum%snow+maxrdsn+0.408*grav*fn%zo)          ! snow cover for urban roughness calc (Douville, et al 1995)
   zom=(1.-n)*fn%zo+n*zosnow                                       ! blended urban and snow roughness length
-  dg%rfdzmin=max(abs(zmin-fn%bldheight*(1.-refheight)),zoroof+1.) ! roof displacement height (can be below)
-  pg%cndzmin=max(zmin-fn%bldheight*(2./3.-refheight),zom+1.)      ! canyon displacement height (cannot be below)
-  pg%lzom=log(pg%cndzmin/zom)                                     ! log of urban roughness length
+  dg%rfdzmin=max(abs(zmin-fn%bldheight*(1.-refheight)),zoroof+1.) ! distance to roof displacement height
+  where (zmin.ge.fn%bldheight*(1.-refheight))
+    pg%lzom=log((zmin-fn%bldheight*(2./3.-refheight))/zom)        ! log of urban roughness length
+    topu=(2./pi)*atm%umag*log(fn%bldheight/(3.*zom))/pg%lzom      ! wind speed at canyon top
+  elsewhere
+    pg%lzom=log(fn%bldheight/(3.*zom))*exp(0.5*fn%hwratio*(1.-zmin/(fn%bldheight*(1.-refheight))))
+    topu=(2./pi)*atm%umag*exp(0.5*fn%hwratio*(1.-zmin/(fn%bldheight*(1.-refheight))))
+  end where
+  pg%cndzmin=zom*exp(pg%lzom)                                     ! distance to canyon displacement height
 
   ! calculate shortwave radiation (up to 2nd order reflections)
   call getswcoeff(ufull,sg,wallpsi,roadpsi,fn,roaddum%alpha,dg%rdsndelta)
@@ -788,11 +916,6 @@ do j=1,2 ! predictor-corrector loop -------------------------------
   sg%rdsn=(1.-roaddum%alpha)*sg%rdsn*atm%sg
 
   ! calculate canyon wind speed and aerodynamical conductance
-  where (zmin.ge.fn%bldheight*(1.-refheight))
-    topu=(2./pi)*atm%umag*log((fn%bldheight/3.)/zom)/pg%lzom                   ! wind speed at canyon top
-  elsewhere
-    topu=(2./pi)*atm%umag*exp(0.5*fn%hwratio*(1.-refheight-zmin/fn%bldheight)) ! wind speed at canyon top
-  end where
   select case(resmeth)
     case(0) ! Masson (2000)
       cu=topu*exp(-0.25*fn%hwratio)
@@ -1168,15 +1291,24 @@ road%den=min(max(roaddum%den,minsnowden),maxsnowden)
 roof%alpha=min(max(roofdum%alpha,minsnowalpha),maxsnowalpha)
 road%alpha=min(max(roaddum%alpha,minsnowalpha),maxsnowalpha)
 
-! calculate outputs
+! combine snow and snow free tiles
 fg%roof=dg%rfsndelta*fg%rfsn+(1.-dg%rfsndelta)*fg%roof ! redefine as net fg
 eg%roof=dg%rfsndelta*eg%rfsn+(1.-dg%rfsndelta)*eg%roof ! redefine as net eg
 egtop=dg%rdsndelta*eg%rdsn+(1.-dg%rdsndelta)*eg%road
 newtemp=dg%rfsndelta*rfsntemp+(1.-dg%rfsndelta)*roof%temp(1)
+
+! calculate outputs
 uo%fg=fn%sigmabld*fg%roof+(1.-fn%sigmabld)*fgtop+fn%industryfg
 uo%eg=fn%sigmabld*eg%roof+(1.-fn%sigmabld)*egtop
 uo%ts=fn%sigmabld*newtemp+(1.-fn%sigmabld)*canyontemp !MJT - since this is what the atmosphere can 'see'
 uo%wf=fn%sigmabld*dg%roofdelta*(1.-dg%rfsndelta)+(1.-fn%sigmabld)*dg%roaddelta*(1.-dg%rdsndelta)
+uo%fgroof=fn%sigmabld*fg%roof+fn%industryfg
+uo%egroof=fn%sigmabld*eg%roof
+uo%fgwall=fn%hwratio*(fg%walle+fg%wallw)
+uo%fgroad=(1.-fn%sigmabld)*fg%road+fn%trafficfg
+uo%egroad=(1.-fn%sigmabld)*eg%road
+uo%tsroad=road%temp(1)
+uo%wfroad=dg%roaddelta*(1.-dg%rdsndelta)
   
 return
 end subroutine tebeval
@@ -1280,7 +1412,7 @@ aft=vkar**2/(ilzom*olzoh)
 where (ri>0.)
   fh=fm
 elsewhere
-  denha=1.+chs*2.*bprm*aft*exp(0.5*lna)*root
+  denha=1.+chs*2.*bprm*aft*exp(-0.5*lna)*root
   fh=1.-2.*bprm*ri/denha
 end where
 
