@@ -1405,14 +1405,14 @@ end where
 cd=af*fm
 zodum=zmin*exp(-ilzom)
 re=sqrt(cd)*umag*zodum/nu
-lna=2.46*re**0.25-log(7.4) !(Brutsaet, 1982)
+lna=2.46*re**0.25-2. !(Brutsaet, 1982)
 olzoh=lna+ilzom
 aft=vkar**2/(ilzom*olzoh)
 
 where (ri>0.)
   fh=fm
 elsewhere
-  denha=1.+chs*2.*bprm*aft*exp(-0.5*lna)*root
+  denha=1.+chs*2.*bprm*aft*exp(0.5*lna)*root
   fh=1.-2.*bprm*ri/denha
 end where
 
