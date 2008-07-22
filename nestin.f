@@ -288,7 +288,7 @@
       integer mtimeb,kdate_r,ktime_r
       integer ::  iabsdate,iq,k,kdhour,kdmin
       integer, dimension(ifull) :: isoilm_h ! MJT lsmask
-      integer, save :: ncount ! MJT daily ave
+      integer, save :: ncount = -1 ! MJT daily ave
       real :: ds_r,rlong0x,rlat0x
       real :: schmidtx,timeg_b
       real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
@@ -297,7 +297,7 @@
       data mtimeb/-1/ 
       save mtimeb 
   
-      if (nud_uv.eq.8) then ! MJT daily ave
+      if ((nud_uv.eq.8).and.(ncount.gt.0)) then ! MJT daily ave
         ! update average
         psla(:)=psla(:)+psl(1:ifull)
         ua(:,:)=ua(:,:)+u(1:ifull,:)
@@ -454,6 +454,7 @@
          va(:,:)=vb(:,:)-va(:,:)/real(ncount)
          ta(:,:)=tb(:,:)-ta(:,:)/real(ncount)
          qa(:,:)=qb(:,:)-qa(:,:)/real(ncount)
+	 ncount=-1
        else
          ! preturb instantaneous
          psla(:)=pslb(:)-psl(1:ifull)
