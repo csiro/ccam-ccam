@@ -294,6 +294,7 @@
       real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
       real :: fraciceb,sicedepb
       real, dimension(ifull) ::  zsb
+      real, parameter :: alpr = 0.5 ! MJT daily ave
       data mtimeb/-1/ 
       save mtimeb 
   
@@ -449,11 +450,11 @@
        if (nud_uv.eq.8) then
          ! preturb daily average
          if (myid == 0) print *,"Using averaged data for filter"
-         psla(:)=pslb(:)-psla(:)/real(ncount)
-         ua(:,:)=ub(:,:)-ua(:,:)/real(ncount)
-         va(:,:)=vb(:,:)-va(:,:)/real(ncount)
-         ta(:,:)=tb(:,:)-ta(:,:)/real(ncount)
-         qa(:,:)=qb(:,:)-qa(:,:)/real(ncount)
+         psla(:)=alpr*(pslb(:)-psla(:)/real(ncount))
+         ua(:,:)=alpr*(ub(:,:)-ua(:,:)/real(ncount))
+         va(:,:)=alpr*(vb(:,:)-va(:,:)/real(ncount))
+         ta(:,:)=alpr*(tb(:,:)-ta(:,:)/real(ncount))
+         qa(:,:)=alpr*(qb(:,:)-qa(:,:)/real(ncount))
 	 ncount=-1
        else
          ! preturb instantaneous
