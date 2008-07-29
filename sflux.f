@@ -623,6 +623,10 @@ c ----------------------------------------------------------------------
           print *,"nsib==CABLE option not avaliable"
           stop
         else if (nsib==6) then ! MJT cable
+	  if (all(rtsoil.eq.0.)) then
+	    if (myid==0) print *,"Using default rtsoil for CABLE"
+	    rtsoil=taftfhg
+	  end if
           call sib4(17)
            ! original Eva's, same as NCAR - calculate wetfac for scrnout
           do ip=1,ipland  ! all land points in this nsib=3 loop
