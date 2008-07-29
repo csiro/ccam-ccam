@@ -625,7 +625,7 @@ c ----------------------------------------------------------------------
         else if (nsib==6) then ! MJT cable
 	  if (all(rtsoil.eq.0.)) then
 	    if (myid==0) print *,"Using default rtsoil for CABLE"
-	    rtsoil=taftfhg
+	    rtsoil=max(25.,1./max(taftfhg,0.0001))
 	  end if
           call sib4(17)
            ! original Eva's, same as NCAR - calculate wetfac for scrnout
