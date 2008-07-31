@@ -1293,12 +1293,12 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
         if(nud_t>0)then
           dd(1:iy)=reshape(tt(ns:ne,:),(/iy/))
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,,itag,
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,itag,
      &           MPI_COMM_WORLD,ierr)
         end if
         if(nud_q>0)then
           dd(1:iy)=reshape(qgg(ns:ne,:),(/iy/))
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,,itag,
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,itag,
      &           MPI_COMM_WORLD,ierr)
         end if
       end if
