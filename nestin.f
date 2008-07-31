@@ -294,7 +294,7 @@
       real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
       real :: fraciceb,sicedepb
       real, dimension(ifull) ::  zsb
-      real, parameter :: alpr = 0.5 ! MJT daily ave
+      real, parameter :: alpr = 0.5
       data mtimeb/-1/ 
       save mtimeb 
   
@@ -455,7 +455,7 @@
          va(:,:)=alpr*(vb(:,:)-va(:,:)/real(ncount))
          ta(:,:)=alpr*(tb(:,:)-ta(:,:)/real(ncount))
          qa(:,:)=alpr*(qb(:,:)-qa(:,:)/real(ncount))
-	 ncount=-1
+         ncount=-1
        else
          ! preturb instantaneous
          psla(:)=pslb(:)-psl(1:ifull)
@@ -604,6 +604,12 @@
           call ccmpi_gather(qb(:,:))
         endif
       end if
+
+      ! nud_uv=0 (no preturbing of winds)
+      ! nud_uv=1 (1D scale-selective filter)
+      ! nud_uv=3 (JLM preturb zonal winds with 1D filter)
+      ! nud_uv=8 (preturb difference in (daily) average with 1D filter)
+      ! nud_uv=9 (2D scale-selective filter)
 
       !-----------------------------------------------------------------------
       if(nud_uv<0)then 
@@ -1114,6 +1120,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       integer, intent(in) :: myid
       integer :: iq,ns,ne,k,itag=0,ierr,iproc,iy
+      integer :: mp,np,hproc
       integer, dimension(MPI_STATUS_SIZE) :: status
       real, intent(in) :: cin
       real, dimension(ifull_g), intent(inout) :: psls
@@ -1123,6 +1130,13 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g,kbotdav:kl) :: pu,pv,pw,pt,pq
       real, dimension(ifull_g*(kl-kbotdav+1)) :: dd
       real :: cq,psum
+
+      mp=int(sqrt(real(nproc)))     ! number of host processors
+      do while(mod(nproc,mp).ne.0)
+        mp=mp-1
+      end do
+      np=nproc/mp                   ! number of local processors
+      hproc=int(myid/np)*np         ! host processor
 
       cq=sqrt(4.5)*cin
 
@@ -1231,9 +1245,11 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       if ((myid == 0).and.(nmaxpr==1)) print *,"End 2D filter"
 
       itag=itag+1
-      if (myid == 0) then
-        if (nmaxpr==1) print *,"Receive arrays from all processors"
-        do iproc=1,nproc-1
+      if (myid == hproc) then
+        if ((myid == 0).and.(nmaxpr==1)) then
+          print *,"Receive arrays from local processors"
+        end if
+        do iproc=hproc+1,hproc+np-1
           call procdiv(ns,ne,ifull_g,nproc,iproc)
           if(nud_p>0)call MPI_Recv(psls(ns:ne),ne-ns+1,MPI_REAL,iproc
      &                      ,itag,MPI_COMM_WORLD,status,ierr)
@@ -1261,6 +1277,64 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           end if
         end do
       else
+        if(nud_p>0) call MPI_SSend(psls(ns:ne),ne-ns+1,MPI_REAL,
+     &                     hproc,itag,MPI_COMM_WORLD,ierr)
+        iy=(ne-ns+1)*(kl-kbotdav+1)
+        if(nud_uv>0)then
+          dd(1:iy)=reshape(uu(ns:ne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,itag,
+     &           MPI_COMM_WORLD,ierr)
+          dd(1:iy)=reshape(vv(ns:ne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,itag,
+     &           MPI_COMM_WORLD,ierr)
+          dd(1:iy)=reshape(ww(ns:ne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,itag,
+     &           MPI_COMM_WORLD,ierr)
+        end if
+        if(nud_t>0)then
+          dd(1:iy)=reshape(tt(ns:ne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,,itag,
+     &           MPI_COMM_WORLD,ierr)
+        end if
+        if(nud_q>0)then
+          dd(1:iy)=reshape(qgg(ns:ne,:),(/iy/))
+          call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,,itag,
+     &           MPI_COMM_WORLD,ierr)
+        end if
+      end if
+
+      itag=itag+1
+      if (myid == 0) then
+        if (nmaxpr==1) print *,"Receive arrays from host processors"
+        do iproc=np,nproc-1,np
+          call procdiv(ns,ne,ifull_g,mp,iproc/np)
+          if(nud_p>0)call MPI_Recv(psls(ns:ne),ne-ns+1,MPI_REAL,iproc
+     &                      ,itag,MPI_COMM_WORLD,status,ierr)
+          iy=(ne-ns+1)*(kl-kbotdav+1)
+          if(nud_uv>0)then
+            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,status,ierr)
+            uu(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,kl-kbotdav+1/))
+            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,status,ierr)
+            vv(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,kl-kbotdav+1/))
+            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,status,ierr)
+            ww(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,kl-kbotdav+1/))
+          end if
+          if(nud_t>0)then
+            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,status,ierr)
+            tt(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,kl-kbotdav+1/))
+          end if
+          if(nud_q>0)then
+            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
+     &             MPI_COMM_WORLD,status,ierr)
+            qgg(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,kl-kbotdav+1/))
+          end if
+        end do
+      else if (myid == hproc) then
+        call procdiv(ns,ne,ifull_g,mp,myid/np)
         if(nud_p>0) call MPI_SSend(psls(ns:ne),ne-ns+1,MPI_REAL,0,
      &                     itag,MPI_COMM_WORLD,ierr)
         iy=(ne-ns+1)*(kl-kbotdav+1)
