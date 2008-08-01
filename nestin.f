@@ -295,7 +295,6 @@
       real :: fraciceb,sicedepb
       real, dimension(ifull) ::  zsb
       real, parameter :: alpr = 0.5
-      logical, save :: firstcall=.true.
       data mtimeb/-1/ 
       save mtimeb 
   
@@ -320,7 +319,6 @@
       end if
 
       if ((mtimer>mtimeb).or.(ktau.le.0)) then
-        firstcall=.true.
       
         if (nud_uv.eq.8) then ! MJT daily ave
           ! reset average
@@ -449,8 +447,7 @@
        return
       end if 
 
-       if (.not.firstcall) return
-       firstcall=.false.
+       if (.not.(mod(nint(ktau*dt),60).eq.0)) return
 
        if (nud_uv.eq.8) then
          ! preturb daily average
