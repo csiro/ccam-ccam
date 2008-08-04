@@ -17,23 +17,10 @@ module cable_ccam
   integer, parameter :: CABLE = 4
   ! will need to have vertical dimension for interaction with radiation?
   real, dimension(ifull) :: atmco2
-!  character(len=80), save :: vegtypefile=''
-!  character(len=80), save :: vegparmfile=''
   logical, save :: vegparmnew=.false. ! old or new format for veg parm file
   integer, save :: CO2forcingtype=1   ! 1 constant, 2 prescribed 1900-2004,
                                       ! 3 interactive
-!  integer, save :: initcarbpools=999  ! 1 initialise from veg_parm file values
-!  namelist/cableinput/vegtypefile,vegparmfile,vegparmnew, &
-!                    & CO2forcingtype,initcarbpools
-  ! arrays for vegetation names and types
-!  character(len=25), dimension(:), allocatable, save :: vegname
   character(len=10), dimension(:), allocatable, save :: vegtype
-!  logical, dimension(:), allocatable, save :: forest
-!  logical, dimension(:), allocatable, save :: deciduous
-!  logical, dimension(:), allocatable, save :: shrub
-!  logical, dimension(:), allocatable, save :: grass
-!  logical, dimension(:), allocatable, save :: crop
-!  logical, dimension(:), allocatable, save :: noveg  ! ice, possibly also barren
 
   contains
   ! ****************************************************************************
@@ -339,27 +326,26 @@ module cable_ccam
 
       albsoil(:)=0.08
       albsoilsn(:,:)=0.08
-      where (land)
+      albsoil(:)=0.5*sum(albvisnir,2)
+      where ((albsoil.le.0.14).and.land)
         !sfact=0.5 for alb <= 0.14 (see cable_soilsnow.f90)
-        albsoil(:)=0.5*((1.5/1.0)*albvisnir(:,1)+(1.5/2.0)*albvisnir(:,2))
+        !albsoil(:)=0.5*((1.5/1.0)*albvisnir(:,1)+(1.5/2.0)*albvisnir(:,2))
         albsoilsn(:,1)=(1.00/1.50)*albsoil(:)
         albsoilsn(:,2)=(2.00/1.50)*albsoil(:)
-      end where
-      where ((albsoil(:).gt.0.14).and.land)
+      elsewhere ((albsoil(:).le.0.2).and.land)
         !sfact=0.62 for 0.14 < alb <= 0.20 (see cable_soilsnow.f90)
-        albsoil(:)=0.5*((1.62/1.24)*albvisnir(:,1)+(1.62/2.0)*albvisnir(:,2))
+        !albsoil(:)=0.5*((1.62/1.24)*albvisnir(:,1)+(1.62/2.0)*albvisnir(:,2))
         albsoilsn(:,1)=(1.24/1.62)*albsoil(:)
         albsoilsn(:,2)=(2.00/1.62)*albsoil(:)
-      end where
-      where ((albsoil(:).gt.0.2).and.land)
+      elsewhere (land)
         !sfact=0.68 for 0.2 < alb (see cable_soilsnow.f90)
-        albsoil(:)=0.5*((1.68/1.36)*albvisnir(:,1)+(1.68/2.0)*albvisnir(:,2))
+        !albsoil(:)=0.5*((1.68/1.36)*albvisnir(:,1)+(1.68/2.0)*albvisnir(:,2))
         albsoilsn(:,1)=(1.36/1.68)*albsoil(:)
         albsoilsn(:,2)=(2.00/1.68)*albsoil(:)
       end where
       ! MJT suggestion to get an approx inital albedo (before cable is called)
-      albvisnir(:,1)=albsoilsn(:,1)*exp(-0.6*vlai(:))+0.1*(1.-exp(-0.6*vlai(:)))
-      albvisnir(:,2)=albsoilsn(:,2)*exp(-0.6*vlai(:))+0.3*(1.-exp(-0.6*vlai(:)))
+      albvisnir(:,1)=albsoilsn(:,1)*exp(-0.4*vlai(:))+0.1*(1.-exp(-0.4*vlai(:)))
+      albvisnir(:,2)=albsoilsn(:,2)*exp(-0.4*vlai(:))+0.3*(1.-exp(-0.4*vlai(:)))
  
       end subroutine cbmrdn3
 
@@ -674,7 +660,7 @@ module cable_ccam
       eg = unpack(canopy%fe,  land, eg)
       epot = unpack(ssoil%potev,  land, epot)
       tss = unpack(rad%trad,  land, tss)
-      tscrn = unpack(canopy%tscrn,  land, tscrn)    ! clobbered by scrnout?
+      tscrn = unpack(canopy%tscrn+273.16,  land, tscrn)    ! clobbered by scrnout?
       qgscrn = unpack(canopy%qscrn,  land, qgscrn)  ! clobbered by scrnout?
       uscrn = unpack(canopy%uscrn,  land, uscrn)    ! clobbered by scrnout?
       cduv= unpack(canopy%cduv, land, cduv)

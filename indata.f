@@ -2,6 +2,7 @@
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
       use ateb ! MJT urban
       use cable_ccam, only : CABLE,cbmrdn3 ! MJT cable
+      use physical_constants, only : umin ! MJT cable      
       use cc_mpi
       use diag_m
 !     rml 21/02/06 removed all so2 code
@@ -845,9 +846,13 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
           print *,"nsib=CABLE option is not supported in
      &             this version of CCAM"
           stop
+	  vmodmin=umin
           !call cbmrdn(nveg) ! MJT cable
         end if
-        if (nsib.eq.6) call cbmrdn3 ! MJT cable
+        if (nsib.eq.6) then
+	  vmodmin=umin
+	  call cbmrdn3 ! MJT cable
+	end if
       else
         do iq=1,ifull
          ivegt(iq)=1   ! default for h_s etc

@@ -660,6 +660,7 @@ c ----------------------------------------------------------------------
             qsttg(iq)= .622*es/(ps(iq)-es)
             aft(iq)=vkar**2/(log(zmin/zo(iq))*log(zmin/zoh(iq)))
             rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4
+	    factch(iq)=sqrt(zo(iq)/zoh(iq))
             ! the following are done by ntsur.ne.5
             !af(iq)=(vkar/log(zmin/zo(iq)))**2
             !xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       
@@ -700,7 +701,7 @@ c          cduv is now drag coeff *vmod
            cduv(iq)=cduv(iq)*vmod(iq)
          end if
          !-----------------------------------------------------------------
-         ustar(iq) = sqrt(vmod(iq)*cduv(iq))                            
+         ustar(iq) = sqrt(vmod(iq)*cduv(iq)) ! MJT CABLE                           
 c        Surface stresses taux, tauy: diagnostic only - unstaggered now   
          taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                              
          tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                              
