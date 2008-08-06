@@ -699,6 +699,8 @@ c          cduv is now drag coeff *vmod
            cduv(iq) =af(iq)*fm                       ! Cd * vmod
          else
            cduv(iq)=cduv(iq)*vmod(iq)
+           es = establ(tss(iq))
+           qsttg(iq)= .622*es/(ps(iq)-es)	   
          end if
          !-----------------------------------------------------------------
          ustar(iq) = sqrt(vmod(iq)*cduv(iq)) ! MJT CABLE                           
