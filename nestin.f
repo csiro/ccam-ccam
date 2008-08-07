@@ -294,8 +294,8 @@
       real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
       real :: fraciceb,sicedepb
       real, dimension(ifull) ::  zsb
-      real, parameter :: alpr = 0.5
-      logical, save :: firstcall=.false.
+      real, parameter :: alpr = 0.5 ! MJT daily ave
+      logical, save :: firstcall = .false.
       data mtimeb/-1/ 
       save mtimeb 
   
@@ -447,10 +447,10 @@
        endif   !  newtop>=1
 
        return
-      end if 
-
-       if (.not.(mod(nint(ktau*dt),60).eq.0)) return
-       firstcall=.true.
+      end if
+      
+      if (.not.(mod(nint(ktau*dt),60).eq.0)) return
+      firstcall=.true.
 
        if (nud_uv.eq.8) then
          ! preturb daily average
@@ -610,6 +610,7 @@
         endif
       end if
 
+      ! nud_uv<0 (JLM 3-pass filter)
       ! nud_uv=0 (no preturbing of winds)
       ! nud_uv=1 (1D scale-selective filter)
       ! nud_uv=3 (JLM preturb zonal winds with 1D filter)
@@ -1362,6 +1363,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       call spechost(myid,mproc,hproc,npta,pn,px,ns,ne,cin,psls,uu,vv,
      &       ww,tt,qgg)
 
+      return
       end subroutine specfastmpi
       !---------------------------------------------------------------------------------
 
@@ -1375,6 +1377,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       include 'newmpar.h'    ! ifull_g,kl
       include 'const_phys.h' ! rearth,pi,tpi
+      include 'map_g.h'      ! em_g
       include 'parm.h'       ! ds,kbotdav
       include 'mpif.h'       ! MPI
       
@@ -1461,20 +1464,26 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       do qpass=pn,px
         ppass=qaps(qpass)
 
-        qsum(:)=1.
+        qsum(:)=1./(em_g(:)**2)
         if (nud_p>0) then
-          qp(:)=psls(:)
+          qp(:)=psls(:)/(em_g(:)**2)
         end if
         if (nud_uv>0) then
-          qu(:,:)=uu(:,:)
-          qv(:,:)=vv(:,:)
-          qw(:,:)=ww(:,:)
+          do k=kbotdav,kl
+            qu(:,k)=uu(:,k)/(em_g(:)**2)
+            qv(:,k)=vv(:,k)/(em_g(:)**2)
+            qw(:,k)=ww(:,k)/(em_g(:)**2)
+          end do
         end if
         if (nud_t>0) then
-          qt(:,:)=tt(:,:)
+          do k=kbotdav,kl
+            qt(:,k)=tt(:,k)/(em_g(:)**2)
+          end do
         end if
         if (nud_q>0) then
-          qq(:,:)=qgg(:,:)
+          do k=kbotdav,kl
+            qq(:,k)=qgg(:,k)/(em_g(:)**2)
+          end do
         end if
 
         ! computations for the local processor group
@@ -1678,7 +1687,6 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       include 'newmpar.h'    ! ifull_g,kl
       include 'const_phys.h' ! pi
-      include 'map_g.h'      ! em_g
       include 'parm.h'       ! kbotdav
       include 'xyzinfo_g.h'  ! x_g,y_g,z_g
       include 'mpif.h'       ! MPI
@@ -1705,7 +1713,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g,kbotdav:kl), intent(inout) :: st,sq
       real, dimension(4*il_g,kbotdav:kl) :: pu,pv,pw,pt,pq
       real, dimension(4*il_g,kbotdav:kl) :: au,av,aw,at,aq
-      real, dimension(4*il_g) :: pp,ap,psum,asum,ra,ma,xa,ya,za
+      real, dimension(4*il_g) :: pp,ap,psum,asum,ra,xa,ya,za
       real, dimension(ifull_g*(kl-kbotdav+1)) :: dd
       
       if (pold.lt.0) pold=ppass
@@ -1901,7 +1909,6 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           if ((myid==0).and.(nmaxpr==1)) print *,"Start convolution"
 
           do j=ns,ne
-            ma(1:me)=1./em_g(igrd(1:me,j,ipass))
             asum(1:me)=qsum(igrd(1:me,j,ipass))
             xa(1:me)=x_g(igrd(1:me,j,ipass))
             ya(1:me)=y_g(igrd(1:me,j,ipass))
@@ -1923,12 +1930,12 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             do n=1,il_g
               ra(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
               ra(1:me)=acos(max(min(ra(1:me),1.),-1.))
-              ra(1:me)=exp(-(cq*ra(1:me))**2)*ma(1:me)
+              ra(1:me)=exp(-(cq*ra(1:me))**2)
               ! can also use the lines below which integrate the gaussian
               ! analytically over the length element (but slower)
-              !ra(1)=2.*erf(cq*0.5*(ds/rearth)*ma(1))
-              !ra(2:me)=erf(cq*(ra(2:me)+0.5*(ds/rearth)*ma(2:me)))  ! redefine ra(:) as wgt(:)
-     &        !        -erf(cq*(ra(2:me)-0.5*(ds/rearth)*ma(2:me))) ! (correct units are 1/cq)
+              !ra(1)=2.*erf(cq*0.5*(ds/rearth)
+              !ra(2:me)=erf(cq*(ra(2:me)+0.5*(ds/rearth)))  ! redefine ra(:) as wgt(:)
+     &        !        -erf(cq*(ra(2:me)-0.5*(ds/rearth))) ! (correct units are 1/cq)
               psum(n)=sum(ra(1:me)*asum(1:me))
               if (nud_p>0) then
                 pp(n)=sum(ra(1:me)*ap(1:me))
