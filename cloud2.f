@@ -554,7 +554,7 @@ c Weight cloud properties by liquid/ice fraction
                 ktop(mg,nc)=nlp-kt
                 ktopsw(mg,nc)=nlp-kt
                 
-                k=kk+1
+                k=kk
               end if
               k=k+1
             end do
