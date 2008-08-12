@@ -41,6 +41,7 @@
         axel=-.01*real(precon)-10*nx_max-meth
         if(myid==0)print *,'in helmsor nx_max,meth,axel: ',
      &                                 nx_max,meth,axel
+        print *,'kind precon, axel ',kind(precon),kind(axel)
         mask(:)=1
         do j=1,jl
          do i=1,il,2
@@ -62,8 +63,11 @@ c       print *,'j ',j,(mask(iq),iq=1+(j-1)*il,6+(j-1)*il)
        first=.false.
       endif  ! (first)
       if(ktau==1)then
+       if(myid==0)print *,'il,il_g,jl_g,dt ',il,il_g,jl_g,dt
        do k=1,kl
-        call optmx(il,schmidt,dt,bam(k),accel(k))
+        call optmx(il_g,schmidt,dt,bam(k),accel(k))
+	if(il_g>il)accel(k)=1.+.55*(accel(k)-1.)  ! for uniform-dec 22/4/08
+c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
         if(myid==0)print *,'k,accel ',k,accel(k)
        enddo
       endif
@@ -72,7 +76,7 @@ c       print *,'j ',j,(mask(iq),iq=1+(j-1)*il,6+(j-1)*il)
       klim=kl
       iter = 1
       do while ( iter<itmax .and. klim>1)
-       call bounds(s, klim=klim,nrows=2)
+       call bounds(s, klim=klim)
        do k=1,klim        
         do nx=1,nx_max
          do iq=1,ifull
@@ -182,7 +186,7 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
       klim=kl
       iter = 1
       do while ( iter<itmax .and. klim>1)
-       call bounds(s, klim=klim,nrows=2)
+       call bounds(s, klim=klim)
        do k=1,klim        
         do nx=1,nx_max
          do iq=1,ifull
@@ -225,13 +229,15 @@ c       enddo
      &                    MPI_COMM_WORLD, ierr )
         call MPI_Reduce( smin, smin_g, klim, MPI_REAL, MPI_MIN, 0,
      &                    MPI_COMM_WORLD, ierr )
+        if(ntest>0.and.myid==0)then
+          print *,'ktau,myid,smin_g ',ktau,myid,smin_g(:)
+          print *,'ktau,myid,smax_g ',ktau,myid,smax_g(:)
+        endif  ! (myid==0)
       endif
       call MPI_Reduce( dsolmax, dsolmax_g, klim, MPI_REAL, MPI_MAX, 0,
      &                    MPI_COMM_WORLD, ierr )
-      if(myid==0.and.ntest>0)then
-        print *,'smin_g ',smin_g(:)
-        print *,'smax_g ',smax_g(:)
-        print *,'dsolmax_g ',dsolmax_g(:)
+      if(ntest>0.and.myid==0)then
+        print *,'ktau,myid,iter,dsolmax_g ',ktau,myid,iter,dsolmax_g(:)
       endif  ! (myid==0)
       do k=klim,1,-1
        if(dsolmax_g(k)<restol*(smax_g(k)-smin_g(k)))then
@@ -243,11 +249,13 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
       iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
 
-      if(myid==0.and.(diag.or.ktau<6))then
-        do k=1,kl
-         print*,'helmjlm ktau,k,Iterations ',ktau,k,iters(k)
-        enddo
+      if(myid==0)then
+        if(nmaxpr==1)print*,'helmjlm ktau,k,Iterations ',ktau,1,iters(1)
+        if(diag.or.ktau<6)then
+         do k=2,kl
+          print*,'helmjlm ktau,k,Iterations ',ktau,k,iters(k)
+         enddo
+        endif
       endif
       return
-
       end
