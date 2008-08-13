@@ -934,12 +934,12 @@ c     print *,'in vertint t',t(idjd,:)
       imins=ktime_r-100*ihr
       print *,'entering datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
      .                          iyr,imo,iday,ihr,imins,mtimer_r
-      do while (mtimer_r>minsyr)
-       iyr=iyr+1
-       mtimer_r=mtimer_r-minsyr
-      enddo
-      if(diag)print *,'a datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
-     .                   iyr,imo,iday,ihr,imins,mtimer_r
+    !  do while (mtimer_r>minsyr) ! MJT bug fix
+    !   iyr=iyr+1
+    !   mtimer_r=mtimer_r-minsyr
+    !  enddo
+    !  if(diag)print *,'a datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
+    ! .                   iyr,imo,iday,ihr,imins,mtimer_r
 
       mdays(2)=28
       if(mod(iyr,4)==0.and.leap==1)mdays(2)=29
@@ -949,7 +949,10 @@ c     print *,'in vertint t',t(idjd,:)
        if(imo>12)then
          imo=1
          iyr=iyr+1
+	 mdays(2)=28 ! MJT bug fix
          if(mod(iyr,4)==0.and.leap==1)mdays(2)=29
+	 if(mod(iyr,100)==0)mdays(2)=28
+	 if(mod(iyr,400)==0.and.leap==1)mdays(2)=29
        endif
       enddo
       if(diag)print *,'b datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
