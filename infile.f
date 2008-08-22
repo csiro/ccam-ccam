@@ -284,8 +284,8 @@ c       turn ON fatal netcdf errors
           print *,'using timer, mtimer: ',timer,mtimer
           call datefix(kdate_r,ktime_r,mtimer) ! for Y2K, or mtimer>0
         endif
-        if(2400*kdate_r+ktime_r<
-     &     2400*kdate_s+1200*nsemble+ktime_s)go to 19  ! 12-h nsemble
+        if(2400*(kdate_r-kdate_s)-1200*nsemble+(ktime_r-ktime_s)<
+     &     0)go to 19  ! 12-h nsemble
 !---------------------------------------------------------------------
         
         print *,'found suitable date/time in infile'
