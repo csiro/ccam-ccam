@@ -273,6 +273,7 @@
       include 'liqwpar.h'  ! ifullw,qfg,qlg
       include 'parm.h'     ! qgmin
       include 'pbl.h'      ! tss
+      include 'savuvt.h'     ! savu,savv ! MJT daily ave
       include 'sigs.h'
       include 'soil.h'     ! sicedep fracice
       include 'soilsnow.h' ! tgg
@@ -289,40 +290,34 @@
       integer ::  iabsdate,iq,k,kdhour,kdmin
       integer, dimension(ifull) :: isoilm_h ! MJT lsmask
       integer, save :: ncount = -1 ! MJT daily ave
+      integer, save :: pretcount = -1 ! MJT daily ave
       real :: ds_r,rlong0x,rlat0x
       real :: schmidtx,timeg_b
       real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
+      real, save :: pslc(ifull),qc(ifull,kl),tc(ifull,kl) ! MJT daily ave
+      real, save :: uc(ifull,kl),vc(ifull,kl) ! MJT daily ave
       real :: fraciceb,sicedepb
       real, dimension(ifull) ::  zsb
       real, parameter :: alpr = 0.5 ! MJT daily ave
-      logical, save :: firstcall = .false.
+      real maxpret ! MJT daily ave
+      real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl) ! MJT daily ave
+      common/savuv1/savs1,savu1,savv1 ! MJT daily ave
+      logical, save :: firstcall = .true. ! MJT
       data mtimeb/-1/ 
       save mtimeb 
   
-      if ((nud_uv.eq.8).and.(ncount.gt.0)) then ! MJT daily ave
-        ! update average
-        psla(:)=psla(:)+psl(1:ifull)
-        ua(:,:)=ua(:,:)+u(1:ifull,:)
-        va(:,:)=va(:,:)+v(1:ifull,:)
-        ta(:,:)=ta(:,:)+t(1:ifull,:)
-        qa(:,:)=qa(:,:)+qg(1:ifull,:)
-        ncount=ncount+1
-      end if 
-      
-      if ((mtimer<mtimeb).and.(ktau.gt.0)) return
- 
-      !------------------------------------------------------------------------------
 !     mtimer, mtimeb are in minutes
       if(ktau<100.and.myid==0)then
         print *,'in nestinb ktau,mtimer,mtimeb,io_in ',
      &                      ktau,mtimer,mtimeb,io_in ! MJT CHANGE - delete mtimea
         print *,'with kdate_s,ktime_s >= ',kdate_s,ktime_s
       end if
-
-      if ((mtimer>mtimeb).or.(ktau.le.0).or.firstcall) then
-        firstcall=.false.
-      
-        if (nud_uv.eq.8) then ! MJT daily ave
+  
+      maxpret=real(nint(3600.*real(nud_hrs)/dt)) ! MJT daily ave
+  
+      !------------------------------------------------------------------------------
+      if (nud_uv.eq.8) then ! MJT daily ave
+        if (ncount.le.0) then
           ! reset average
           psla(:)=psl(1:ifull)
           ua(:,:)=u(1:ifull,:)
@@ -330,8 +325,23 @@
           ta(:,:)=t(1:ifull,:)
           qa(:,:)=qg(1:ifull,:)
           ncount=1
+        else
+          ! update average
+          psla(:)=psla(:)+psl(1:ifull)
+          ua(:,:)=ua(:,:)+u(1:ifull,:)
+          va(:,:)=va(:,:)+v(1:ifull,:)
+          ta(:,:)=ta(:,:)+t(1:ifull,:)
+          qa(:,:)=qa(:,:)+qg(1:ifull,:)
+          ncount=ncount+1
         end if
-
+      end if 
+      
+      !if ((mtimer<mtimeb).and.(ktau.gt.0)) return ! MJT daily ave
+ 
+      !------------------------------------------------------------------------------
+      if ((mtimer>mtimeb).or.firstcall) then
+        firstcall=.false.
+      
 !      read tb etc  - for globpea, straight into tb etc
        if(io_in==1)then
          call infil(1,kdate_r,ktime_r,timeg_b,ds_r, 
@@ -446,86 +456,115 @@
          endif
        endif   !  newtop>=1
 
-       return
-      end if
-      
-      if (.not.(mod(nint(ktau*dt),60).eq.0)) return
-      firstcall=.true.
+      end if ! ((mtimer>mtimeb).or.firstcall)
 
-       if (nud_uv.eq.8) then
-         ! preturb daily average
-         if (myid == 0) print *,"Using averaged data for filter"
-         psla(:)=alpr*(pslb(:)-psla(:)/real(ncount))
-         ua(:,:)=alpr*(ub(:,:)-ua(:,:)/real(ncount))
-         va(:,:)=alpr*(vb(:,:)-va(:,:)/real(ncount))
-         ta(:,:)=alpr*(tb(:,:)-ta(:,:)/real(ncount))
-         qa(:,:)=alpr*(qb(:,:)-qa(:,:)/real(ncount))
-         ncount=-1
-       else
-         ! preturb instantaneous
-         psla(:)=pslb(:)-psl(1:ifull)
-         ua(:,:)=ub(:,:)-u(1:ifull,:)
-         va(:,:)=vb(:,:)-v(1:ifull,:)
-         ta(:,:)=tb(:,:)-t(1:ifull,:)
-         qa(:,:)=qb(:,:)-qg(1:ifull,:)
-       end if
+      !------------------------------------------------------------------------------
+      if ((mtimer==mtimeb).and.(mod(nint(ktau*dt),60).eq.0)) then
+        firstcall=.true.
 
-       call getspecdata(psla,ua,va,ta,qa)
-       if ( myid == 0 ) then
-        print *,'following after getspecdata are really psl not ps'
-       end if
-       call maxmin(pslb,'pB',ktau,100.,1)
+        if (nud_uv.eq.8) then
+          ! preturb daily average
+          if (myid == 0) print *,"Using averaged data for filter"
+          pslc(:)=alpr*(pslb(:)-psla(:)/real(ncount))
+          uc(:,:)=alpr*(ub(:,:)-ua(:,:)/real(ncount))
+          vc(:,:)=alpr*(vb(:,:)-va(:,:)/real(ncount))
+          tc(:,:)=alpr*(tb(:,:)-ta(:,:)/real(ncount))
+          qc(:,:)=alpr*(qb(:,:)-qa(:,:)/real(ncount))
+          ncount=-1
+          pretcount=nint(maxpret)
+        else
+          ! preturb instantaneous
+          pslc(:)=pslb(:)-psl(1:ifull)
+          uc(:,:)=ub(:,:)-u(1:ifull,:)
+          vc(:,:)=vb(:,:)-v(1:ifull,:)
+          tc(:,:)=tb(:,:)-t(1:ifull,:)
+          qc(:,:)=qb(:,:)-qg(1:ifull,:)
+          pretcount=1
+        end if
+
+        call getspecdata(pslc,uc,vc,tc,qc)
+        !if ( myid == 0 ) then
+        ! print *,'following after getspecdata are really psl not ps'
+        !end if
+        !call maxmin(pslb,'pB',ktau,100.,1)
 
 !     following sice updating code moved from sflux Jan '06      
 !     check whether present ice points should change to/from sice points
-      do iq=1,ifull
-       if(fraciceb(iq)>0.)then
-!        N.B. if already a sice point, keep present tice (in tgg3)
-         if(fracice(iq)==0.)then
-           tgg(iq,3)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
-         endif  ! (fracice(iq)==0.)
-!        set averaged tss (tgg1 setting already done)
-         tss(iq)=tgg(iq,3)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq))
-       endif  ! (fraciceb(iq)==0.)
-      enddo	! iq loop
-      sicedep(:)=sicedepb(:)  ! from Jan 06
-      fracice(:)=fraciceb(:)
-!     because of new zs etc, ensure that sice is only over sea
-      do iq=1,ifull
-       if(fracice(iq)<.02)fracice(iq)=0.
-       if(land(iq))then
-         sicedep(iq)=0.
-         fracice(iq)=0.
-       else
-         if(fracice(iq)>0..and.sicedep(iq)==0.)then
-!          assign to 2. in NH and 1. in SH (according to spo)
-!          do this in indata, amipdata and nestin because of onthefly
-           if(rlatt(iq)>0.)then
-             sicedep(iq)=2.
-           else
-             sicedep(iq)=1.
-           endif ! (rlatt(iq)>0.)
-         elseif(fracice(iq)==0..and.sicedep(iq)>0.)then  ! e.g. from Mk3  
-           fracice(iq)=1.
-         endif  ! (fracice(iq)>0..and.sicedep(iq)==0.) .. elseif ..
-       endif    ! (land(iq))
-      enddo     ! iq loop
+        do iq=1,ifull
+         if(fraciceb(iq)>0.)then
+!          N.B. if already a sice point, keep present tice (in tgg3)
+           if(fracice(iq)==0.)then
+             tgg(iq,3)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
+           endif  ! (fracice(iq)==0.)
+!          set averaged tss (tgg1 setting already done)
+           tss(iq)=tgg(iq,3)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq))
+         endif  ! (fraciceb(iq)==0.)
+        enddo	! iq loop
+        sicedep(:)=sicedepb(:)  ! from Jan 06
+        fracice(:)=fraciceb(:)
+!       because of new zs etc, ensure that sice is only over sea
+        do iq=1,ifull
+         if(fracice(iq)<.02)fracice(iq)=0.
+         if(land(iq))then
+           sicedep(iq)=0.
+           fracice(iq)=0.
+         else
+           if(fracice(iq)>0..and.sicedep(iq)==0.)then
+!            assign to 2. in NH and 1. in SH (according to spo)
+!            do this in indata, amipdata and nestin because of onthefly
+             if(rlatt(iq)>0.)then
+               sicedep(iq)=2.
+             else
+               sicedep(iq)=1.
+             endif ! (rlatt(iq)>0.)
+           elseif(fracice(iq)==0..and.sicedep(iq)>0.)then  ! e.g. from Mk3  
+             fracice(iq)=1.
+           endif  ! (fracice(iq)>0..and.sicedep(iq)==0.) .. elseif ..
+         endif    ! (land(iq))
+        enddo     ! iq loop
 
-!      calculate time interpolated tss 
-       if(namip.ne.0.or.ntest.ne.0)return  ! namip SSTs/sea-ice take precedence
-       do iq=1,ifull
-        if(.not.land(iq))then
-          tss(iq)=tssb(iq)
-          tgg(iq,1)=tss(iq)
-        endif  ! (.not.land(iq))
-       enddo   ! iq loop 
+!       calculate time interpolated tss 
+        if (namip.eq.0.and.ntest.eq.0) then  ! namip SSTs/sea-ice take precedence
+         do iq=1,ifull
+          if(.not.land(iq))then
+            tss(iq)=tssb(iq)
+            tgg(iq,1)=tss(iq)
+          endif  ! (.not.land(iq))
+         enddo   ! iq loop 
+        end if ! (namip.eq.0.and.ntest.eq.0)
+      end if ! (mod(nint(ktau*dt),60).eq.0)
+
+
+      !------------------------------------------------------------------------------
+      if (pretcount.gt.0) then
+        ! preturb atmosphere
+        psl(1:ifull)=psl(1:ifull)+pslc(:)/maxpret
+        u(1:ifull,kbotdav:kl)=u(1:ifull,kbotdav:kl)
+     &     +uc(:,kbotdav:kl)/maxpret
+        savu(1:ifull,kbotdav:kl)=savu(1:ifull,kbotdav:kl)
+     &     +uc(:,kbotdav:kl)/maxpret
+        savu1(1:ifull,kbotdav:kl)=savu1(1:ifull,kbotdav:kl)
+     &     +uc(:,kbotdav:kl)/maxpret
+        v(1:ifull,kbotdav:kl)=v(1:ifull,kbotdav:kl)
+     &     +vc(:,kbotdav:kl)/maxpret
+        savv(1:ifull,kbotdav:kl)=savv(1:ifull,kbotdav:kl)
+     &     +vc(:,kbotdav:kl)/maxpret
+        savv1(1:ifull,kbotdav:kl)=savv1(1:ifull,kbotdav:kl)
+     &     +vc(:,kbotdav:kl)/maxpret
+        t(1:ifull,kbotdav:kl)=t(1:ifull,kbotdav:kl)
+     &     +tc(:,kbotdav:kl)/maxpret
+        qg(1:ifull,kbotdav:kl)=max(qg(1:ifull,kbotdav:kl)
+     &     +qc(:,kbotdav:kl)/maxpret,qgmin)
+        ps(1:ifull)=1.e5*exp(psl(1:ifull))
+        pretcount=pretcount-1
+      end if ! (pretcount.gt.0)
       
       return
       end
 
 
       ! This subroutine gathers data for the MPI version of spectral downscaling
-      subroutine getspecdata(pslb,ub,vb,tb,qb)
+      subroutine getspecdata(pslc,uc,vc,tc,qc)
 
       use cc_mpi
       
@@ -538,19 +577,16 @@
       include 'xyzinfo.h'
       include 'vecsuv.h'
       include 'vecsuv_g.h'   ! ax_g,bx_g,ay_g,by_g,az_g,bz_g
-      include 'savuvt.h'     ! savu,savv
 
       integer iq,k      
-      real, dimension(ifull), intent(in) :: pslb
-      real, dimension(ifull,kl), intent(in) :: ub,vb,tb,qb
+      real, dimension(ifull), intent(inout) :: pslc
+      real, dimension(ifull,kl), intent(inout) :: uc,vc,tc,qc
       real, dimension(ifull) :: costh,sinth
-      real, dimension(ifull,kl) :: delta
-      real, dimension(ifull_g) :: pslc
-      real, dimension(ifull_g,kl) :: uc,vc,wc,tc,qc
+      real, dimension(ifull_g) :: psld
+      real, dimension(ifull_g,kl) :: ud,vd,wd,td,qd
       real, dimension(ifull_g,kl) :: x_g,xx_g
-      real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)
       real den,polenx,poleny,polenz,zonx,zony,zonz
-      common/savuv1/savs1,savu1,savv1
+
 
       if(nud_uv==3)then
         polenx=-cos(rlat0*pi/180.)
@@ -568,45 +604,45 @@
 
       if (myid == 0) then     
         print *,"Gather data for spectral downscale"
-        if(nud_p>0)call ccmpi_gather(pslb(:), pslc(:))
+        if(nud_p>0)call ccmpi_gather(pslc(:), psld(:))
         if(nud_uv==3)then
-          do k=kbotdav,kl
-            delta(:,k)=costh(:)*ub(:,k)  ! uzon
-     &                -sinth(:)*vb(:,k)
+          do k=1,kl
+            x_g(1:ifull,k)=costh(:)*uc(:,k)  ! uzon
+     &                    -sinth(:)*vc(:,k)
           end do
-          call ccmpi_gather(delta(:,:), wc(:,:))
+          call ccmpi_gather(x_g(1:ifull,:), wd(:,:))
         elseif(nud_uv.ne.0)then
-          call ccmpi_gather(ub(:,:), x_g(:,:))
-          call ccmpi_gather(vb(:,:), xx_g(:,:))
-          do k=kbotdav,kl
-            uc(:,k)=ax_g(:)*x_g(:,k)+bx_g(:)*xx_g(:,k)
-            vc(:,k)=ay_g(:)*x_g(:,k)+by_g(:)*xx_g(:,k)
-            wc(:,k)=az_g(:)*x_g(:,k)+bz_g(:)*xx_g(:,k)
+          call ccmpi_gather(uc(:,:), x_g(:,:))
+          call ccmpi_gather(vc(:,:), xx_g(:,:))
+          do k=1,kl
+            ud(:,k)=ax_g(:)*x_g(:,k)+bx_g(:)*xx_g(:,k)
+            vd(:,k)=ay_g(:)*x_g(:,k)+by_g(:)*xx_g(:,k)
+            wd(:,k)=az_g(:)*x_g(:,k)+bz_g(:)*xx_g(:,k)
           end do
         endif
         if(nud_t>0)then
-          call ccmpi_gather(tb(:,:), tc(:,:))
+          call ccmpi_gather(tc(:,:), td(:,:))
         end if
         if(nud_q>0)then
-          call ccmpi_gather(qb(:,:), qc(:,:))
+          call ccmpi_gather(qc(:,:), qd(:,:))
         end if
       else
-        if(nud_p>0)call ccmpi_gather(pslb(:))
+        if(nud_p>0)call ccmpi_gather(pslc(:))
         if(nud_uv==3)then
-          do k=kbotdav,kl
-            delta(:,k)=costh(:)*ub(:,k)  ! uzon
-     &                -sinth(:)*vb(:,k)
+          do k=1,kl
+            x_g(1:ifull,k)=costh(:)*uc(:,k)  ! uzon
+     &                    -sinth(:)*vc(:,k)
           end do
-          call ccmpi_gather(delta(:,:))	
+          call ccmpi_gather(x_g(1:ifull,:))	
         elseif(nud_uv.ne.0)then
-          call ccmpi_gather(ub(:,:))
-          call ccmpi_gather(vb(:,:))
+          call ccmpi_gather(uc(:,:))
+          call ccmpi_gather(vc(:,:))
         endif
         if(nud_t>0)then
-          call ccmpi_gather(tb(:,:))
+          call ccmpi_gather(tc(:,:))
         endif
         if(nud_q>0)then
-          call ccmpi_gather(qb(:,:))
+          call ccmpi_gather(qc(:,:))
         endif
       end if
 
@@ -622,115 +658,107 @@
         if (myid == 0) then
           print *,"Fast spectral downscale"
           call fastspec((.1*real(mbd)/(pi*schmidt))**2
-     &       ,pslc(:),uc(:,kbotdav:kl),vc(:,kbotdav:kl)
-     &       ,wc(:,kbotdav:kl),tc(:,kbotdav:kl),qc(:,kbotdav:kl)) ! e.g. mbd=40
+     &       ,psld(:),ud(:,kbotdav:kl),vd(:,kbotdav:kl)
+     &       ,wd(:,kbotdav:kl),td(:,kbotdav:kl),qd(:,kbotdav:kl)) ! e.g. mbd=40
         end if
       elseif(nud_uv==9)then 
         if (myid == 0) print *,"Two dimensional spectral downscale"
         call slowspecmpi(myid,.1*real(mbd)/(pi*schmidt)
-     &                ,pslc(:),uc(:,kbotdav:kl),vc(:,kbotdav:kl)
-     &                ,wc(:,kbotdav:kl),tc(:,kbotdav:kl)
-     &                ,qc(:,kbotdav:kl))
+     &                ,psld(:),ud(:,kbotdav:kl),vd(:,kbotdav:kl)
+     &                ,wd(:,kbotdav:kl),td(:,kbotdav:kl)
+     &                ,qd(:,kbotdav:kl))
       elseif((mod(6,nproc)==0).or.(mod(nproc,6)==0))then
         if (myid == 0) print *,"Separable 1D downscale (MPI optimised)"
         call specfastmpi(myid,.1*real(mbd)/(pi*schmidt)
-     &                ,pslc(:),uc(:,kbotdav:kl),vc(:,kbotdav:kl)
-     &                ,wc(:,kbotdav:kl),tc(:,kbotdav:kl)
-     &                ,qc(:,kbotdav:kl))
+     &                ,psld(:),ud(:,kbotdav:kl),vd(:,kbotdav:kl)
+     &                ,wd(:,kbotdav:kl),td(:,kbotdav:kl)
+     &                ,qd(:,kbotdav:kl))
       else          !  usual choice e.g. for nud_uv=1 or 2
         if (myid == 0) print *,"Separable 1D downscale (MPI)"
         call fourspecmpi(myid,.1*real(mbd)/(pi*schmidt)
-     &                ,pslc(:),uc(:,kbotdav:kl),vc(:,kbotdav:kl)
-     &                ,wc(:,kbotdav:kl),tc(:,kbotdav:kl)
-     &                ,qc(:,kbotdav:kl))
+     &                ,psld(:),ud(:,kbotdav:kl),vd(:,kbotdav:kl)
+     &                ,wd(:,kbotdav:kl),td(:,kbotdav:kl)
+     &                ,qd(:,kbotdav:kl))
       endif  ! (nud_uv<0) .. else ..
       !-----------------------------------------------------------------------
 
       if (myid == 0) then
         print *,"Distribute data from spectral downscale"
         if (nud_p.gt.0) then
-          call ccmpi_distribute(delta(:,1), pslc(:))
-          psl(1:ifull)=psl(1:ifull)+delta(:,1)
+          call ccmpi_distribute(pslc(:), psld(:))
+        else
+          pslc(:)=0.
         end if
         if(nud_uv==3)then
-          call ccmpi_distribute(delta(:,:), wc(:,:))
+          call ccmpi_distribute(x_g(1:ifull,:), wd(:,:))
           do k=kbotdav,kl 
-            u(1:ifull,k)=u(1:ifull,k)+costh(:)*delta(:,k)
-            v(1:ifull,k)=v(1:ifull,k)-sinth(:)*delta(:,k)
+            uc(1:ifull,k)=costh(:)*x_g(1:ifull,k)
+            vc(1:ifull,k)=-sinth(:)*x_g(1:ifull,k)
           end do
+          uc(:,1:kbotdav-1)=0.
+          vc(:,1:kbotdav-1)=0.
         elseif(nud_uv.ne.0) then
-          do k=kbotdav,kl        
-            x_g(:,k)=ax_g(:)*uc(:,k)+ay_g(:)*vc(:,k)+az_g(:)*wc(:,k)
-            xx_g(:,k)=bx_g(:)*uc(:,k)+by_g(:)*vc(:,k)+bz_g(:)*wc(:,k)
+          do k=1,kl        
+            x_g(:,k)=ax_g(:)*ud(:,k)+ay_g(:)*vd(:,k)+az_g(:)*wd(:,k)
+            xx_g(:,k)=bx_g(:)*ud(:,k)+by_g(:)*vd(:,k)+bz_g(:)*wd(:,k)
           end do
-          call ccmpi_distribute(delta(:,:), x_g(:,:))
-          u(1:ifull,kbotdav:kl)=u(1:ifull,kbotdav:kl)
-     &                         +delta(:,kbotdav:kl)
-          savu(1:ifull,kbotdav:kl)=savu(1:ifull,kbotdav:kl)
-     &                            +delta(:,kbotdav:kl)
-          savu1(1:ifull,kbotdav:kl)=savu1(1:ifull,kbotdav:kl)
-     &                            +delta(:,kbotdav:kl)
-          call ccmpi_distribute(delta(:,:), xx_g(:,:))
-          v(1:ifull,kbotdav:kl)=v(1:ifull,kbotdav:kl)
-     &                         +delta(:,kbotdav:kl)
-          savv(1:ifull,kbotdav:kl)=savv(1:ifull,kbotdav:kl)
-     &                            +delta(:,kbotdav:kl)
-          savv1(1:ifull,kbotdav:kl)=savv1(1:ifull,kbotdav:kl)
-     &                            +delta(:,kbotdav:kl)
+          call ccmpi_distribute(uc(:,:), x_g(:,:))
+          call ccmpi_distribute(vc(:,:), xx_g(:,:))
+          uc(:,1:kbotdav-1)=0.
+          vc(:,1:kbotdav-1)=0.
+        else
+          uc(:,:)=0.
+          vc(:,:)=0.
         end if
         if (nud_t.gt.0) then
-          call ccmpi_distribute(delta(:,:), tc(:,:))
-          t(1:ifull,kbotdav:kl)=t(1:ifull,kbotdav:kl)
-     &                         +delta(:,kbotdav:kl)
+          call ccmpi_distribute(tc(:,:), td(:,:))
+          tc(:,1:kbotdav-1)=0.
+        else
+          tc(:,:)=0.
         end if
         if (nud_q.gt.0) then
-          call ccmpi_distribute(delta(:,:), qc(:,:))
-          qg(1:ifull,kbotdav:kl)=max(qg(1:ifull,kbotdav:kl)
-     &                          +delta(:,kbotdav:kl),qgmin)
+          call ccmpi_distribute(qc(:,:), qd(:,:))
+          qc(:,1:kbotdav-1)=0.
+        else
+          qc(:,:)=0.
         end if
       else
         if (nud_p.gt.0) then
-          call ccmpi_distribute(delta(:,1))
-          psl(1:ifull)=psl(1:ifull)+delta(:,1)
+          call ccmpi_distribute(pslc(:))
+        else
+          pslc(:)=0.
         end if
         if(nud_uv==3)then
-          call ccmpi_distribute(delta(:,:))
+          call ccmpi_distribute(x_g(1:ifull,:))
           do k=kbotdav,kl
-            u(1:ifull,k)=u(1:ifull,k)+costh(:)*delta(:,k)
-            v(1:ifull,k)=v(1:ifull,k)-sinth(:)*delta(:,k)
+            uc(1:ifull,k)=costh(:)*x_g(1:ifull,k)
+            vc(1:ifull,k)=-sinth(:)*x_g(1:ifull,k)
           end do
+          uc(:,1:kbotdav-1)=0.
+          vc(:,1:kbotdav-1)=0.
         elseif (nud_uv.ne.0) then
-          call ccmpi_distribute(delta(:,:))
-          u(1:ifull,kbotdav:kl)=u(1:ifull,kbotdav:kl)
-     &                         +delta(:,kbotdav:kl)
-          savu(1:ifull,kbotdav:kl)=savu(1:ifull,kbotdav:kl)
-     &                            +delta(:,kbotdav:kl)
-          savu1(1:ifull,kbotdav:kl)=savu1(1:ifull,kbotdav:kl)
-     &                            +delta(:,kbotdav:kl)
-          call ccmpi_distribute(delta(:,:))
-          v(1:ifull,kbotdav:kl)=v(1:ifull,kbotdav:kl)
-     &                         +delta(:,kbotdav:kl)
-          savu(1:ifull,kbotdav:kl)=savu(1:ifull,kbotdav:kl)
-     &                            +delta(:,kbotdav:kl)
-          savv1(1:ifull,kbotdav:kl)=savv1(1:ifull,kbotdav:kl)
-     &                            +delta(:,kbotdav:kl)
+          call ccmpi_distribute(uc(:,:))
+          call ccmpi_distribute(vc(:,:))
+          uc(:,1:kbotdav-1)=0.
+          vc(:,1:kbotdav-1)=0.
+        else
+          uc(:,:)=0.
+          vc(:,:)=0.
         end if
         if (nud_t.gt.0) then
-          call ccmpi_distribute(delta(:,:))
-          t(1:ifull,kbotdav:kl)=t(1:ifull,kbotdav:kl)
-     &                         +delta(:,kbotdav:kl)
+          call ccmpi_distribute(tc(:,:))
+          tc(:,1:kbotdav-1)=0.
+        else
+          tc(:,:)=0.
         end if
         if (nud_q.gt.0) then
-          call ccmpi_distribute(delta(:,:))
-          qg(1:ifull,kbotdav:kl)=max(qg(1:ifull,kbotdav:kl)
-     &                          +delta(:,kbotdav:kl),qgmin)
+          call ccmpi_distribute(qc(:,:))
+          qc(:,1:kbotdav-1)=0.
+        else
+          qc(:,:)=0.
         end if
       end if
       
-      if (nud_p>0) then
-        ps(1:ifull)=1.e5*exp(psl(1:ifull)) ! Do not think this is needed, but kept it anyway - MJT
-      end if
-            
       return
       end subroutine getspecdata
 
