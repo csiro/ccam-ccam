@@ -18,6 +18,7 @@
       use cc_mpi
       use define_dimensions, only : ncs, ncp ! MJT cable
       use diag_m
+      use nestinmod ! MJT daily ave
       implicit none
       include 'newmpar.h'
       include 'carbpools.h' ! MJT cable
@@ -63,6 +64,9 @@
       integer ik,jk,kk
       common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
       real tmp(ifull)
+      real bbb(ifull,kl),ccc(ifull,kl),ddd(ifull,kl) ! MJT daily ave
+      real eee(ifull,kl) ! MJT daily ave
+      integer pretcount ! MJT daily ave
 
       integer, parameter :: nihead=54,nrhead=14
       integer nahead(nihead)
@@ -535,6 +539,35 @@ c 	    only being tested for nested=0; no need to test for mesonest
           call histrd1(ncid,iarchi,ierr,'roadtgg3',ik,jk,urban(:,12))
         end if
         !------------------------------------------------------------        
+
+        !------------------------------------------------------------
+        ! MJT daily ave
+        if ((mbd.gt.0).and.(nud_uv.eq.8)) then
+          tmp=0.
+          bbb=0.
+          ccc=0.
+          ddd=0.
+          eee=0.
+          pretcount=0
+	  if (myid == 0) then
+            idv = ncvid(ncid,'countt',ierr)
+            if(ierr==0) then
+              print *,"Load tendancy data for nestinb"
+              call ncvgt1(ncid,idv,iarchi,pretcount,ierr)
+	    end if
+	  end if
+          call MPI_Bcast(pretcount,1,MPI_INTEGER,0,
+     &                   MPI_COMM_WORLD,ierr)
+          if (pretcount.gt.0) then
+            call histrd1(ncid,iarchi,ierr,'psft',ik,jk,tmp)
+            call histrd4(ncid,iarchi,ierr,'ut',ik,jk,kk,bbb)
+            call histrd4(ncid,iarchi,ierr,'vt',ik,jk,kk,ccc)
+            call histrd4(ncid,iarchi,ierr,'tempt',ik,jk,kk,ddd)
+            call histrd4(ncid,iarchi,ierr,'mixrt',ik,jk,kk,eee)
+            call nestload(tmp,bbb,ccc,ddd,eee,pretcount)
+          end if
+        end if
+        !------------------------------------------------------------ 
         
         !------------------------------------------------------------
         ! MJT lsmask ! moved above nested==0
@@ -934,12 +967,12 @@ c     print *,'in vertint t',t(idjd,:)
       imins=ktime_r-100*ihr
       print *,'entering datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
      .                          iyr,imo,iday,ihr,imins,mtimer_r
-    !  do while (mtimer_r>minsyr) ! MJT bug fix
-    !   iyr=iyr+1
-    !   mtimer_r=mtimer_r-minsyr
-    !  enddo
-    !  if(diag)print *,'a datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
-    ! .                   iyr,imo,iday,ihr,imins,mtimer_r
+   !   do while (mtimer_r>minsyr) ! MJT bug fix
+   !    iyr=iyr+1
+   !    mtimer_r=mtimer_r-minsyr
+   !   enddo
+   !   if(diag)print *,'a datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
+   !  .                   iyr,imo,iday,ihr,imins,mtimer_r
 
       mdays(2)=28
       if(mod(iyr,4)==0.and.leap==1)mdays(2)=29
@@ -949,10 +982,10 @@ c     print *,'in vertint t',t(idjd,:)
        if(imo>12)then
          imo=1
          iyr=iyr+1
-	 mdays(2)=28 ! MJT bug fix
+         mdays(2)=28 ! MJT bug fix
          if(mod(iyr,4)==0.and.leap==1)mdays(2)=29
-	 if(mod(iyr,100)==0)mdays(2)=28
-	 if(mod(iyr,400)==0.and.leap==1)mdays(2)=29
+         if(mod(iyr,100)==0)mdays(2)=28
+         if(mod(iyr,400)==0.and.leap==1)mdays(2)=29
        endif
       enddo
       if(diag)print *,'b datefix iyr,imo,iday,ihr,imins,mtimer_r: ',

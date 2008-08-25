@@ -263,6 +263,7 @@ c=======================================================================
       use ateb ! MJT urban      
       use cc_mpi
       use define_dimensions, only : ncs, ncp ! MJT cable      
+      use nestinmod ! MJT daily ave
       implicit none
 
 c     this routine creates attributes and writes output
@@ -325,7 +326,9 @@ c     this routine creates attributes and writes output
       common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
       real zsoil(ms)
       real, dimension(ifull) :: dd,ee,ff ! MJT CHANGE - ecosystems
-      real, dimension(ifull,1:12) :: urban ! MJT urban       
+      real, dimension(ifull,1:12) :: urban ! MJT urban
+      real, dimension(ifull,kl) :: bbb,ccc,ddd,eee ! MJT daily ave
+      integer pretcount ! MJT daily ave
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
 
@@ -425,8 +428,8 @@ c       For time invariant surface fields
         call attrib(idnc,idim,2,'soilt',lname,'none',0.,40.,0)
         lname = 'Vegetation type'
         call attrib(idnc,idim,2,'vegt',lname,'none',0.,44.,0)
-        !lname = 'Initial wetness fraction layer 3' ! MJT delete
-        !all attrib(idnc,idim,2,'wetfrac',lname,'none',-2.,5.,0)
+        !lname = 'Initial wetness fraction layer 3' MJT delete
+        !call attrib(idnc,idim,2,'wetfrac',lname,'none',-2.,5.,0)
 
 c       For time varying surface fields
         lname = 'Surface temperature'
@@ -532,7 +535,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
           lname = 'cansto'
           call attrib(idnc,idim,3,'cansto',lname,'none',0.,10.,0)
         endif
-       
+        
         if(nextout>=1) then
           print *,'nextout=',nextout
           lname = 'LW at TOA'
@@ -785,6 +788,25 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         call attrib(idnc,idim,3,'wetfrac6',lname,'none',-2.,5.,0)
         !-------------------------------------------------------        
  
+        !-------------------------------------------------------
+        if ((mbd.gt.0).and.(nud_uv.eq.8).and.(itype.eq.-1)) then ! MJT daily ave
+          lname = 'tendancy counter'
+          idmtimer = ncvdef(idnc,'countt',nclong,1,dim(4),ier)
+          call ncaptc(idnc,idmtimer,'long_name',ncchar
+     &               ,len_trim(lname),lname,ier)        
+          lname = 'psf tendancy'
+          call attrib(idnc,idim,3,'psft',lname,'none',-0.2,0.2,0)
+          lname= 'u tendancy'
+          call attrib(idnc,dim,4,'ut',lname,'m/s',-10.,10.,0)
+          lname= 'v tendancy'
+          call attrib(idnc,dim,4,'vt',lname,'m/s',-10.,10.,0)
+          lname= 'temp tendancy'
+          call attrib(idnc,dim,4,'tempt',lname,'K',-10.,10.,0)
+          lname= 'mixr tendancy'
+          call attrib(idnc,dim,4,'mixrt',lname,'kg/kg',-0.05,0.05,0)
+        end if
+        !-------------------------------------------------------        
+ 
         print *,'finished defining attributes'
 c       Leave define mode
         call ncendf(idnc,ier)
@@ -905,7 +927,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       call histwrt3(aa,'pmsl',idnc,iarch,local)
       call histwrt3(tss,'tsu',idnc,iarch,local)
       aa(:)=0.5*sum(albvisnir(:,:),2) ! MJT CHANGE albedo
-      call tebalb(ifull,aa,0) ! MJT urban
+      call tebalb(ifull,aa(:),0) ! MJT urban
       call histwrt3(aa,'alb',idnc,iarch,local)
       call histwrt3(tgg(1,1),'tgg1',idnc,iarch,local)
       call histwrt3(tgg(1,2),'tgg2',idnc,iarch,local)
@@ -1182,6 +1204,23 @@ c      "extra" outputs
       call histwrt3(dd,'wetfrac4',idnc,iarch,local)
       call histwrt3(ee,'wetfrac5',idnc,iarch,local)
       call histwrt3(ff,'wetfrac6',idnc,iarch,local)
+      !---------------------------------------------------------
+
+      !---------------------------------------------------------
+      ! MJT daily ave
+      if ((mbd.gt.0).and.(nud_uv.eq.8).and.(itype==-1)) then
+       if (myid==0) print *,"Store tendancy data for nestinb"
+       call nestsave(dd,bbb,ccc,ddd,eee,pretcount)
+       if ((myid==0).or.local) then
+         idv = ncvid(idnc,'countt',ier)
+         call ncvpt1(idnc,idv,iarch,pretcount,ier)
+       end if
+       call histwrt3(dd,'psft',idnc,iarch,local)
+       call histwrt4(bbb,'ut',idnc,iarch,local)
+       call histwrt4(ccc,'vt',idnc,iarch,local)
+       call histwrt4(ddd,'tempt',idnc,iarch,local)
+       call histwrt4(eee,'mixrt',idnc,iarch,local)
+      end if
       !---------------------------------------------------------
 
       return
