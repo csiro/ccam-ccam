@@ -66,7 +66,6 @@
       real tmp(ifull)
       real bbb(ifull,kl),ccc(ifull,kl),ddd(ifull,kl) ! MJT daily ave
       real eee(ifull,kl) ! MJT daily ave
-      integer pretcount ! MJT daily ave
 
       integer, parameter :: nihead=54,nrhead=14
       integer nahead(nihead)
@@ -548,24 +547,13 @@ c 	    only being tested for nested=0; no need to test for mesonest
           ccc=0.
           ddd=0.
           eee=0.
-          pretcount=0
-	  if (myid == 0) then
-            idv = ncvid(ncid,'countt',ierr)
-            if(ierr==0) then
-              print *,"Load tendancy data for nestinb"
-              call ncvgt1(ncid,idv,iarchi,pretcount,ierr)
-	    end if
-	  end if
-          call MPI_Bcast(pretcount,1,MPI_INTEGER,0,
-     &                   MPI_COMM_WORLD,ierr)
-          if (pretcount.gt.0) then
-            call histrd1(ncid,iarchi,ierr,'psft',ik,jk,tmp)
-            call histrd4(ncid,iarchi,ierr,'ut',ik,jk,kk,bbb)
-            call histrd4(ncid,iarchi,ierr,'vt',ik,jk,kk,ccc)
-            call histrd4(ncid,iarchi,ierr,'tempt',ik,jk,kk,ddd)
-            call histrd4(ncid,iarchi,ierr,'mixrt',ik,jk,kk,eee)
-            call nestload(tmp,bbb,ccc,ddd,eee,pretcount)
-          end if
+          if (myid == 0) print *,"Load tendancy data for nestinb"	  
+          call histrd1(ncid,iarchi,ierr,'psft',ik,jk,tmp)
+          call histrd4(ncid,iarchi,ierr,'ut',ik,jk,kk,bbb)
+          call histrd4(ncid,iarchi,ierr,'vt',ik,jk,kk,ccc)
+          call histrd4(ncid,iarchi,ierr,'tempt',ik,jk,kk,ddd)
+          call histrd4(ncid,iarchi,ierr,'mixrt',ik,jk,kk,eee)
+          call nestload(tmp,bbb,ccc,ddd,eee)
         end if
         !------------------------------------------------------------ 
         

@@ -328,7 +328,6 @@ c     this routine creates attributes and writes output
       real, dimension(ifull) :: dd,ee,ff ! MJT CHANGE - ecosystems
       real, dimension(ifull,1:12) :: urban ! MJT urban
       real, dimension(ifull,kl) :: bbb,ccc,ddd,eee ! MJT daily ave
-      integer pretcount ! MJT daily ave
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
 
@@ -790,10 +789,6 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
  
         !-------------------------------------------------------
         if ((mbd.gt.0).and.(nud_uv.eq.8).and.(itype.eq.-1)) then ! MJT daily ave
-          lname = 'tendancy counter'
-          idmtimer = ncvdef(idnc,'countt',nclong,1,dim(4),ier)
-          call ncaptc(idnc,idmtimer,'long_name',ncchar
-     &               ,len_trim(lname),lname,ier)        
           lname = 'psf tendancy'
           call attrib(idnc,idim,3,'psft',lname,'none',-0.2,0.2,0)
           lname= 'u tendancy'
@@ -1210,11 +1205,7 @@ c      "extra" outputs
       ! MJT daily ave
       if ((mbd.gt.0).and.(nud_uv.eq.8).and.(itype==-1)) then
        if (myid==0) print *,"Store tendancy data for nestinb"
-       call nestsave(dd,bbb,ccc,ddd,eee,pretcount)
-       if ((myid==0).or.local) then
-         idv = ncvid(idnc,'countt',ier)
-         call ncvpt1(idnc,idv,iarch,pretcount,ier)
-       end if
+       call nestsave(dd,bbb,ccc,ddd,eee)
        call histwrt3(dd,'psft',idnc,iarch,local)
        call histwrt4(bbb,'ut',idnc,iarch,local)
        call histwrt4(ccc,'vt',idnc,iarch,local)
