@@ -677,12 +677,12 @@ end subroutine tebccangle
 ! ots = Input/Output radiative/skin temperature (K)
 ! owf = Input/Output wetness fraction/surface water (%)
 
-subroutine tebcalc(ifull,ofg,oeg,ots,owf,ddt,izmin,sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv,diag)
+subroutine tebcalc(ifull,ofg,oeg,ots,owf,ddt,izmin,sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv,umin,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
-real, intent(in) :: ddt,izmin
+real, intent(in) :: ddt,izmin,umin
 real, dimension(ufull) :: zmin
 real, dimension(ifull), intent(in) :: sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv
 real, dimension(ifull), intent(inout) :: ofg,oeg,ots,owf
@@ -699,7 +699,7 @@ atm%temp=temp(ugrid)
 atm%mixr=mixr(ugrid)
 atm%ps=ps(ugrid)
 atm%pa=pa(ugrid)
-atm%umag=sqrt(uu(ugrid)**2+vv(ugrid)**2)
+atm%umag=max(sqrt(uu(ugrid)**2+vv(ugrid)**2),umin)
 atm%udir=atan2(vv(ugrid),uu(ugrid))
 where (atm%temp.le.273.16)
   atm%snd=rnd(ugrid)
@@ -721,14 +721,14 @@ end subroutine tebcalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Version of tebcalc for multiple vertical levels
 
-subroutine tebcalcv(ifull,kl,ofg,oeg,ots,owf,ddt,izmin,sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv,diag)
+subroutine tebcalcv(ifull,kl,ofg,oeg,ots,owf,ddt,izmin,sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv,umin,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,kl,diag
 integer, dimension(ufull) :: kmin
 integer iqu,kbot,pos(1)
-real, intent(in) :: ddt
+real, intent(in) :: ddt,umin
 real, dimension(kl), intent(in) :: izmin
 real, dimension(ufull) :: zmin
 real, dimension(ifull,kl), intent(in) :: rho,temp,mixr,pa,uu,vv
@@ -773,7 +773,7 @@ do iqu=1,ufull
   atm(iqu)%temp=temp(ugrid(iqu),kmin(iqu))
   atm(iqu)%mixr=mixr(ugrid(iqu),kmin(iqu))
   atm(iqu)%pa=pa(ugrid(iqu),kmin(iqu))
-  atm(iqu)%umag=sqrt(uu(ugrid(iqu),kmin(iqu))**2+vv(ugrid(iqu),kmin(iqu))**2)
+  atm(iqu)%umag=max(sqrt(uu(ugrid(iqu),kmin(iqu))**2+vv(ugrid(iqu),kmin(iqu))**2),umin)
   atm(iqu)%udir=atan2(vv(ugrid(iqu),kmin(iqu)),uu(ugrid(iqu),kmin(iqu)))
 end do
 
@@ -1384,7 +1384,6 @@ real, parameter :: cms=5.  ! 7.4 in rams
 real, parameter :: fmroot=0.57735
 real, parameter :: rimax=(1./fmroot-1.)/bprm
 real, parameter :: nu = 1.461E-5
-real, parameter :: umin = 0.1
 !real, parameter :: eta0 = 1.827E-5
 !real, parameter :: t0 = 291.15
 !real, parameter :: c = 120.
@@ -1392,7 +1391,8 @@ real, parameter :: umin = 0.1
 !nu=eta/rho
 
 af=(vkar/ilzom)**2
-ri=min(grav*zmin*(1.-stemp/theta)/max(umag,umin)**2,rimax)
+! umag is now constrained to be above umin in tebcalc
+ri=min(grav*zmin*(1.-stemp/theta)/umag**2,rimax)
 
 where (ri>0.)
   fm=1./(1.+bprm*ri)**2

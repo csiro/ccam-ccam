@@ -161,7 +161,7 @@ module cable_ccam
        met%tk = pack(theta,land)
        met%tc = met%tk - 273.16
        met%ua = pack(vmod,land)
-       where (met%ua < 1.) met%ua = 1.
+       !where (met%ua < 1.) met%ua = 1.
        met%ca = 1.e-6 * pack(atmco2,land)
        met%coszen = pack(coszro2,land)   ! use instantaneous value
        where (met%coszen < 1.e-8) met%coszen=1.e-8
@@ -344,8 +344,13 @@ module cable_ccam
         albsoilsn(:,2)=(2.00/1.68)*albsoil(:)
       end where
       ! MJT suggestion to get an approx inital albedo (before cable is called)
-      albvisnir(:,1)=albsoilsn(:,1)*exp(-0.4*vlai(:))+0.1*(1.-exp(-0.4*vlai(:)))
-      albvisnir(:,2)=albsoilsn(:,2)*exp(-0.4*vlai(:))+0.3*(1.-exp(-0.4*vlai(:)))
+      where (land)
+        albvisnir(:,1)=albsoilsn(:,1)*exp(-extkn(ivegt(:))*vlai(:))+0.1*(1.-exp(-extkn(ivegt(:))*vlai(:)))
+        albvisnir(:,2)=albsoilsn(:,2)*exp(-extkn(ivegt(:))*vlai(:))+0.3*(1.-exp(-extkn(ivegt(:))*vlai(:)))
+      elsewhere
+        albvisnir(:,1)=albsoilsn(:,1)
+        albvisnir(:,2)=albsoilsn(:,2)
+      end where
  
       end subroutine cbmrdn3
 

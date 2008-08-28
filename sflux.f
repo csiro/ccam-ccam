@@ -647,7 +647,7 @@ c ----------------------------------------------------------------------
      &               ,ps(:),sig(1)*ps(:)
      &               ,av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(1:ifull,1)
      &               ,av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(1:ifull,1)
-     &               ,0)
+     &               ,vmodmin,0)
         ! here we blend zo with the urban part for the
         ! calculation of ustar (occuring later in sflux.f)
         zoh(iperm(:))=zo(iperm(:))/7.4

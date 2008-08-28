@@ -876,7 +876,7 @@ MODULE physical_constants
   REAL(r_1), PARAMETER :: zetneg = -10. ! negative limit on za/L when niter>=3
   REAL(r_1), PARAMETER :: zetpos = 0.5  ! positive limit on za/L when niter>=3
   REAL(r_1), PARAMETER :: zdlin  = 1.0  ! height frac of d below which TL linear
-  REAL(r_1), PARAMETER :: umin   = 1.
+  REAL(r_1), PARAMETER :: umin   = 0.1
 END MODULE physical_constants
 !=========================================================================
 MODULE other_constants
