@@ -309,8 +309,7 @@ c      endif
       if ( myid==0 )print *,'using nemi = ',nemi
       if(nemi==1)then
          land(:) = zss(:) > 0.
-      endif
-                           !  (nemi==1)
+      endif                     !  (nemi==1)
 
       spval=999.
       do iq=1,ifull

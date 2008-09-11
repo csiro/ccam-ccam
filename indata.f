@@ -846,13 +846,13 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
           print *,"nsib=CABLE option is not supported in
      &             this version of CCAM"
           stop
-	  vmodmin=umin
+          vmodmin=umin
           !call cbmrdn(nveg) ! MJT cable
         end if
-        if (nsib.eq.6) then
-	  vmodmin=umin
-	  call cbmrdn3 ! MJT cable
-	end if
+        if (nsib.eq.6) then  ! MJT cable
+          vmodmin=umin
+          call cbmrdn3
+        end if
       else
         do iq=1,ifull
          ivegt(iq)=1   ! default for h_s etc
@@ -1524,7 +1524,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       if(nsib==5)then ! MJT CHANGE sib
         where (land)
           ! here we lump woody (k=0.5) and grassland (k=0.6) types together
-          sigmf(:)=max(0.01,min(0.98,1.-exp(-0.6*vlai(:)))) ! Sellers 1996 (see also Masson 2003) ! MJT CHANGE sib
+          sigmf(:)=max(0.01,min(0.98,1.-exp(-0.4*vlai(:)))) ! Sellers 1996 (see also Masson 2003) ! MJT CHANGE sib
           tsigmf(:)=sigmf(:)
         end where
       else if (nsib.lt.4) then ! usual, nsib<4 ! MJT CHANGE cable
@@ -1857,11 +1857,20 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           sigmu(:)=0.
         end where
         call tebinit(ifull,sigmu(:),zmin,0)
-        do k=1,12
-          where(urban(:,k).gt.400.) ! must be the same as spval in onthefly.f
-            urban(:,k)=tss(:)
-          end where
-        end do
+        where(urban(:,1).ge.399.) ! must be the same as spval in onthefly.f
+          urban(:,1)=tss(:)
+          urban(:,2)=291.16
+          urban(:,3)=291.16
+          urban(:,4)=tss(:)
+          urban(:,5)=0.5*(tss(:)+291.16)
+          urban(:,6)=291.16
+          urban(:,7)=tss(:)
+          urban(:,8)=0.5*(tss(:)+291.16)
+          urban(:,9)=291.16
+          urban(:,10)=tss(:)
+          urban(:,11)=0.5*(tss(:)+tgg(:,ms))
+          urban(:,12)=tgg(:,ms)
+        end where
         call tebloadm(ifull,urban,0)	
       else
         sigmu(:)=0.
