@@ -29,7 +29,7 @@
       real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
       real, dimension(kl) ::  smin, smin_g
       real aa, bb, cc, axel, accel(kl)
-      integer iq, iter, k, nx, j, jx, i, klim, ierr, meth, nx_max
+      integer iq, iter, k, nx, j, jx, i,klim,klimnew, ierr, meth, nx_max
       logical first
       save  first, meth, nx_max, axel, accel
       data first /.true./
@@ -71,6 +71,7 @@ c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
         if(myid==0)print *,'k,accel ',k,accel(k)
        enddo
       endif
+c$      print *,'myid,ktau,precon ',myid,ktau,precon
  
       if(precon<-2899)go to 5  ! e.g. -2900 or -3900
       klim=kl
@@ -165,12 +166,14 @@ c           rotate s files
         print *,'smax_g ',smax_g(:)
         print *,'dsolmax_g ',dsolmax_g(:)
       endif  ! (myid==0)
+      klimnew=klim
       do k=klim,1,-1
        if(dsolmax_g(k)<restol*(smax_g(k)-smin_g(k)))then
 c        print *,'k,klim,iter,restol ',k,klim,iter,restol
-         klim=k
+         klimnew=k
        endif
       enddo
+      klim=klimnew
       call MPI_Bcast(klim,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr) 
       iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
@@ -217,35 +220,30 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
        endif
 c      write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
        dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
-c       smin_g(k)=1.e20
-c       smax_g(k)=-1.e20
-c       do iq=1,ifull
-c        smin_g(k)=min(smin_g(k),abs(dsol(iq,k)))
-c        smax_g(k)=min(smax_g(k),abs(dsol(iq,k)))
-c       enddo
-      enddo
+      enddo  ! k loop
       if(iter==1)then
-        call MPI_Reduce( smax, smax_g, klim, MPI_REAL, MPI_MAX, 0,
-     &                    MPI_COMM_WORLD, ierr )
-        call MPI_Reduce( smin, smin_g, klim, MPI_REAL, MPI_MIN, 0,
-     &                    MPI_COMM_WORLD, ierr )
+        call MPI_AllReduce( smax, smax_g, klim, MPI_REAL, MPI_MAX,
+     &                      MPI_COMM_WORLD, ierr )
+        call MPI_AllReduce( smin, smin_g, klim, MPI_REAL, MPI_MIN,
+     &                      MPI_COMM_WORLD, ierr )
         if(ntest>0.and.myid==0)then
           print *,'ktau,myid,smin_g ',ktau,myid,smin_g(:)
           print *,'ktau,myid,smax_g ',ktau,myid,smax_g(:)
         endif  ! (myid==0)
-      endif
-      call MPI_Reduce( dsolmax, dsolmax_g, klim, MPI_REAL, MPI_MAX, 0,
-     &                    MPI_COMM_WORLD, ierr )
-      if(ntest>0.and.myid==0)then
-        print *,'ktau,myid,iter,dsolmax_g ',ktau,myid,iter,dsolmax_g(:)
+      endif    ! (iter==1)
+      if(ntest>0)then
+        print *,'ktau,myid,iter,dsolmax ',ktau,myid,iter,dsolmax(:)
       endif  ! (myid==0)
+      klimnew=klim
       do k=klim,1,-1
-       if(dsolmax_g(k)<restol*(smax_g(k)-smin_g(k)))then
-c        print *,'k,klim,iter,restol ',k,klim,iter,restol
-         klim=k
+       if(dsolmax(k)<restol*(smax_g(k)-smin_g(k)))then
+         klimnew=k
        endif
       enddo
-      call MPI_Bcast(klim,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr) 
+      if(ntest>0)print *,'ktau,myid,klim,klimnew ',
+     &                    ktau,myid,klim,klimnew
+      call MPI_AllReduce( klimnew, klim, 1, MPI_INTEGER, MPI_MAX,
+     &                    MPI_COMM_WORLD, ierr )
       iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
 
