@@ -52,6 +52,10 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: wbal_tot ! cumulative water balance (mm/dels)
      REAL(r_1), DIMENSION(:), POINTER :: wbtot0 ! total soil water (mm), first time step
      REAL(r_1), DIMENSION(:), POINTER :: wetbal ! energy balance for wet canopy
+     ! The following qasrf variables can be switched on for diagnostic purposes
+!     REAL(r_1), DIMENSION(:), POINTER :: qasrf_tot ! heat advected to the snow by precip.
+!     REAL(r_1), DIMENSION(:), POINTER :: qfsrf_tot ! energy of snowpack phase changes
+!     REAL(r_1), DIMENSION(:), POINTER :: qssrf_tot ! energy of snowpack phase changes
   END TYPE balances_type
   ! Soil parameters:
   TYPE soil_parameter_type 
@@ -85,10 +89,15 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: dfh_dtg ! d(canopy%fhs)/d(ssoil%tgg)
      REAL(r_1), DIMENSION(:), POINTER :: dfe_ddq ! d(canopy%fes)/d(dq)
      REAL(r_1), DIMENSION(:), POINTER :: ddq_dtg ! d(dq)/d(ssoil%tgg)
+     REAL(r_1), DIMENSION(:), POINTER :: evapsn  ! snow evaporation
      REAL(r_1), DIMENSION(:), POINTER :: fwtop   ! water flux to the soil (EK nov 2007)
      REAL(r_2), DIMENSION(:,:), POINTER :: gammzz ! heat capacity for each soil layer
      INTEGER(i_d), DIMENSION(:), POINTER :: isflag ! 0 => no snow 1 => snow
      REAL(r_1), DIMENSION(:), POINTER :: potev   ! potential evapotranspiration
+     ! The following q?srf variables can be switched on for diagnostic purposes
+!     REAL(r_1), DIMENSION(:), POINTER :: qasrf ! heat advected to the snow by precip.
+!     REAL(r_1), DIMENSION(:), POINTER :: qfsrf ! energy of snowpack phase changes
+!     REAL(r_1), DIMENSION(:), POINTER :: qssrf ! sublimation
      REAL(r_1), DIMENSION(:), POINTER :: runoff  ! total runoff (mm/dels)
      REAL(r_1), DIMENSION(:), POINTER :: rnof1   ! surface runoff (mm/dels)
      REAL(r_1), DIMENSION(:), POINTER :: rnof2   ! deep drainage (mm/dels)
@@ -129,6 +138,7 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: tminvj ! min temperature of the start of photosynthesis
      REAL(r_1), DIMENSION(:), POINTER :: tmaxvj ! max temperature of the start of photosynthesis
      REAL(r_1), DIMENSION(:), POINTER :: vbeta  ! stomatal sensitivity to soil water
+     REAL(r_1), DIMENSION(:), POINTER :: xalbnir ! modifier for albedo in near ir band (YP Apr08)
 !     REAL(r_1), DIMENSION(:), POINTER :: rootbeta  ! parameter for estimating
 !                                    ! vertical root mass distribution (froot)
      REAL(r_1), DIMENSION(:), POINTER :: vcmax  ! maximum RuBP carboxylation rate top leaf (mol/m2/s)
@@ -159,6 +169,7 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: fnv   ! net rad. avail. to canopy (W/m2)
      REAL(r_1), DIMENSION(:), POINTER :: fev   ! latent hf from canopy (W/m2)
      REAL(r_2), DIMENSION(:), POINTER :: fevc  ! dry canopy transpiration (W/m2)
+     REAL(r_2), DIMENSION(:), POINTER :: potev_c ! canopy potential evapotranspitation (YP & Mao, jun08)
      REAL(r_1), DIMENSION(:), POINTER :: fevw  ! lat heat fl wet canopy (W/m2)
      REAL(r_1), DIMENSION(:), POINTER :: fhv   ! sens heatfl from canopy (W/m2)
      REAL(r_1), DIMENSION(:), POINTER :: fhvw  ! sens heatfl from wet canopy (W/m2)
@@ -329,6 +340,9 @@ CONTAINS
     ALLOCATE ( var % wbal_tot(mp) )
     ALLOCATE ( var % wbtot0(mp) )
     ALLOCATE ( var % wetbal(mp) )
+!    ALLOCATE ( var % qasrf_tot(mp) )
+!    ALLOCATE ( var % qfsrf_tot(mp) )
+!    ALLOCATE ( var % qssrf_tot(mp) )
   END SUBROUTINE alloc_balances_type
 
   SUBROUTINE alloc_soil_parameter_type(var, mp)
@@ -364,11 +378,15 @@ CONTAINS
     ALLOCATE ( var % dfh_dtg(mp) )
     ALLOCATE ( var % dfe_ddq(mp) )
     ALLOCATE ( var % ddq_dtg(mp) )
+    ALLOCATE ( var % evapsn(mp) )
     ALLOCATE ( var % fwtop(mp) )
     ALLOCATE ( var % gammzz(mp,ms) )
     ALLOCATE ( var % isflag(mp) )
     ALLOCATE ( var % osnowd(mp) )
     ALLOCATE ( var % potev(mp) )
+!    ALLOCATE ( var % qasrf(mp) )
+!    ALLOCATE ( var % qfsrf(mp) )
+!    ALLOCATE ( var % qssrf(mp) )
     ALLOCATE ( var % runoff(mp) )
     ALLOCATE ( var % rnof1(mp) )
     ALLOCATE ( var % rnof2(mp) )
@@ -407,6 +425,7 @@ CONTAINS
     ALLOCATE ( var % tminvj(mp) )
     ALLOCATE ( var % tmaxvj(mp) )
     ALLOCATE ( var % vbeta(mp) )
+    ALLOCATE ( var % xalbnir(mp) ) ! new addition in Apr 2008 (YP)
 !    ALLOCATE ( var % rootbeta(mp) )  ! new addition in Oct 2007 (YP)
     ALLOCATE ( var % hc(mp) )
     ALLOCATE ( var % shelrb(mp) )
@@ -586,6 +605,10 @@ CONTAINS
     DEALLOCATE ( var % wbal_tot )
     DEALLOCATE ( var % wbtot0 )
     DEALLOCATE ( var % wetbal )
+!    DEALLOCATE ( var % qasrf_tot )
+!    DEALLOCATE ( var % qfsrf_tot )
+!    DEALLOCATE ( var % qssrf_tot )
+
   END SUBROUTINE dealloc_balances_type
 
   SUBROUTINE dealloc_soil_parameter_type(var, mp)
@@ -621,11 +644,15 @@ CONTAINS
     DEALLOCATE ( var % dfh_dtg )
     DEALLOCATE ( var % dfe_ddq )
     DEALLOCATE ( var % ddq_dtg )
+    DEALLOCATE ( var % evapsn )
     DEALLOCATE ( var % fwtop )
     DEALLOCATE ( var % gammzz )
     DEALLOCATE ( var % isflag )
     DEALLOCATE ( var % osnowd )
     DEALLOCATE ( var % potev )
+!    DEALLOCATE ( var % qasrf )
+!    DEALLOCATE ( var % qfsrf )
+!    DEALLOCATE ( var % qssrf )
     DEALLOCATE ( var % runoff )
     DEALLOCATE ( var % rnof1 )
     DEALLOCATE ( var % rnof2 )
@@ -664,6 +691,7 @@ CONTAINS
     DEALLOCATE ( var % tminvj )
     DEALLOCATE ( var % tmaxvj )
     DEALLOCATE ( var % vbeta )
+    DEALLOCATE ( var % xalbnir ) ! new addition in Apr 2008 (YP)
 !    DEALLOCATE ( var % rootbeta )  ! new addition in Oct 2007 (YP)
     DEALLOCATE ( var % hc )
     DEALLOCATE ( var % shelrb )

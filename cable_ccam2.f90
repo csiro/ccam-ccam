@@ -282,6 +282,7 @@ module cable_ccam
       hc=(/ 17.,35.,15.5,20.,19.3,0.6,0.6,7.,8.,0.6,0.5,0.6,6.,0.6,0.01,0.2,0.01 /)
       xfang=(/ 0.01,0.1,0.01,0.25,0.13,0.,0.,-0.14,-0.01,-0.3,0.,0.,-0.17,0.,0.01,0.01,0.01 /)
       dleaf=(/ 0.055,0.1,0.04,0.15,0.1,0.1,0.1,0.232,0.129,0.3,0.3,0.3,0.242,0.3,0.005,0.03,0.005 /)
+      xalbnir=(/ 0.79,0.96,0.81,1.,1.08,1.14,1.2,1.02,1.23,1.16,0.89,0.98,1.1,1.13,1.,1.15,1. /)
       wai=(/ 1.,1.6,0.6,1.2,1.,0.5,0.5,0.5,0.5,0.,0.,0.,0.,0.,0.,0.,0. /)
       canst1=0.1
       shelrb=2.
@@ -426,6 +427,7 @@ module cable_ccam
         veg%wai    =    wai(veg%iveg)
         veg%vegcf  =  vegcf(veg%iveg)
         veg%extkn  =  extkn(veg%iveg)
+        veg%xalbnir= xalbnir(veg%iveg)
         veg%deciduous =(vegtype(veg%iveg).eq.'deciduous') ! MJT suggestion
 
 !       soil parameters
