@@ -1186,11 +1186,14 @@ CONTAINS
                + canopy%fhvw*SUM(rad%gradis,2)/ghwet
           ! Set canopy temperature:
           WHERE (rad%transd <= 0.98)
-             canopy%tv = (rad%lwabv / (2.0*(1.0-rad%transd)*sboltz*emleaf)+met%tvair**4)**0.25
+             canopy%tv = max(rad%lwabv / (2.0*(1.0-rad%transd)*sboltz*emleaf)+met%tvair**4,0.)**0.25
           ELSEWHERE
              ! sparse canopy 
              canopy%tv = met%tvair
           END WHERE
+	  where (canopy%tv < 100.)
+	    canopy%tv = met%tvair
+	  endwhere
           ! Ground heat flux:
           canopy%ghflux = (1-ssoil%isflag)*canopy%ghflux + ssoil%isflag*canopy%sghflux
           dq = qstss - met%qvair
@@ -1232,7 +1235,7 @@ CONTAINS
           ! Set total sensible heat:
           canopy%fh = canopy%fhv + canopy%fhs
        END WHERE ! veg%meth > 0
-       WRITE(66,*) ktau, dummy1, canopy%fnv
+       !WRITE(66,*) ktau, dummy1, canopy%fnv
 
        ! monin-obukhov stability parameter zetar=zref/l
        !	recompute zetar for the next iteration, except on last iteration

@@ -307,6 +307,7 @@
       real :: fraciceb,sicedepb
       real, dimension(ifull) ::  zsb
       real, parameter :: alpr = 0.2 ! MJT daily ave
+      real, parameter :: lambda = 0.5 ! MJT daily ave      
       logical, save :: firstcall = .true. ! MJT
       data mtimeb/-1/ 
       save mtimeb
@@ -448,11 +449,11 @@
           ! preturb daily average
           if (ncount.gt.0) then
             if (myid == 0) print *,"Using averaged data for filter"
-            pslc=pslc*0.5+alpr*(pslb-psla/real(ncount))
-            uc=uc*0.5+alpr*(ub-ua/real(ncount))
-            vc=vc*0.5+alpr*(vb-va/real(ncount))
-            tc=tc*0.5+alpr*(tb-ta/real(ncount))
-            qc=qc*0.5+alpr*(qb-qa/real(ncount))
+            pslc=pslc*lambda+alpr*(pslb-psla/real(ncount))
+            uc=uc*lambda+alpr*(ub-ua/real(ncount))
+            vc=vc*lambda+alpr*(vb-va/real(ncount))
+            tc=tc*lambda+alpr*(tb-ta/real(ncount))
+            qc=qc*lambda+alpr*(qb-qa/real(ncount))
 	    psla=pslc
 	    ua=uc
 	    va=vc
