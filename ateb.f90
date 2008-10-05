@@ -1369,9 +1369,11 @@ end where
 ! note that these terms are truncated to 2nd order reflections, compared to TEB which uses infinite reflections.
 roadnetalpha=(1.-rdsndelta)*ifn%roadalpha+rdsndelta*rdsnalpha
 sg%walle=walles+roadnetalpha*wallpsi*roads+ifn%wallalpha*(1.-2.*wallpsi)*wallws+(ifn%wallalpha*(1.-2.*wallpsi))**2*walles &
-        +roadnetalpha*ifn%wallalpha*wallpsi*(1.-roadpsi)*0.5*(walles+wallws)+roadnetalpha*ifn%wallalpha*wallpsi*(1.-2.*wallpsi)*roads
+        +roadnetalpha*ifn%wallalpha*wallpsi*(1.-roadpsi)*0.5*(walles+wallws) &
+	+roadnetalpha*ifn%wallalpha*wallpsi*(1.-2.*wallpsi)*roads
 sg%wallw=wallws+roadnetalpha*wallpsi*roads+ifn%wallalpha*(1.-2.*wallpsi)*walles+(ifn%wallalpha*(1.-2.*wallpsi))**2*wallws &
-        +roadnetalpha*ifn%wallalpha*wallpsi*(1.-roadpsi)*0.5*(walles+wallws)+roadnetalpha*ifn%wallalpha*wallpsi*(1.-2.*wallpsi)*roads
+        +roadnetalpha*ifn%wallalpha*wallpsi*(1.-roadpsi)*0.5*(walles+wallws) &
+	+roadnetalpha*ifn%wallalpha*wallpsi*(1.-2.*wallpsi)*roads
 sg%road=roads+ifn%wallalpha*(1.-roadpsi)*0.5*(walles+wallws)+ifn%wallalpha*roadnetalpha*wallpsi*(1.-roadpsi)*roads &
         +ifn%wallalpha**2*(1.-roadpsi)*(1.-2.*wallpsi)*0.5*(walles+wallws)
 sg%roof=1.
