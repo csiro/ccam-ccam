@@ -309,19 +309,19 @@ real, dimension(maxtype), parameter :: chwratio=(/ 1., 0.2, 0.4, 0.6, 1.6, 0.6, 
 ! Area fraction occupied by buildings
 real, dimension(maxtype), parameter :: csigmabld=(/ 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5 /)
 ! Industral sensible heat flux (W m^-2)
-real, dimension(maxtype), parameter :: cindustryfg=(/ 10., 4., 5., 7., 12., 9., 17., 25. /)
+real, dimension(maxtype), parameter :: cindustryfg=(/ 20., 8., 12., 16., 28., 20., 40., 60. /)
 ! Daily averaged traffic sensible heat flux (W m^-2)
-real, dimension(maxtype), parameter :: ctrafficfg=(/ 3., 1., 2., 2., 3., 2., 5., 7. /)
+real, dimension(maxtype), parameter :: ctrafficfg=(/ 5., 2., 3., 4., 7., 5., 10., 15. /)
 ! Building height (m)
 real, dimension(maxtype), parameter :: cbldheight=(/ 10., 4., 6., 8., 20., 5., 10., 15. /)
 ! Effective roughness length (m)
 real, dimension(maxtype), parameter :: czo=(/ 1., 0.4, 0.6, 0.8, 2., 0.5, 1., 1.5 /)
 ! Roof albedo
-real, dimension(maxtype), parameter :: croofalpha=(/ 0.20, 0.23, 0.20, 0.17, 0.13, 0.20, 0.20, 0.20 /)
+real, dimension(maxtype), parameter :: croofalpha=(/ 0.15, 0.23, 0.20, 0.17, 0.13, 0.20, 0.20, 0.20 /)
 ! Wall albedo
-real, dimension(maxtype), parameter :: cwallalpha=(/ 0.33, 0.37, 0.33, 0.29, 0.22, 0.33, 0.33, 0.33 /)
+real, dimension(maxtype), parameter :: cwallalpha=(/ 0.26, 0.37, 0.33, 0.29, 0.22, 0.33, 0.33, 0.33 /)
 ! Road albedo
-real, dimension(maxtype), parameter :: croadalpha=(/ 0.10, 0.11, 0.10, 0.09, 0.07, 0.10, 0.10, 0.10 /)
+real, dimension(maxtype), parameter :: croadalpha=(/ 0.08, 0.11, 0.10, 0.09, 0.07, 0.10, 0.10, 0.10 /)
 
 if (ufull.eq.0) return
 if (diag.ge.1) write(6,*) "Load aTEB building properties"
@@ -1370,10 +1370,10 @@ end where
 roadnetalpha=(1.-rdsndelta)*ifn%roadalpha+rdsndelta*rdsnalpha
 sg%walle=walles+roadnetalpha*wallpsi*roads+ifn%wallalpha*(1.-2.*wallpsi)*wallws+(ifn%wallalpha*(1.-2.*wallpsi))**2*walles &
         +roadnetalpha*ifn%wallalpha*wallpsi*(1.-roadpsi)*0.5*(walles+wallws) &
-	+roadnetalpha*ifn%wallalpha*wallpsi*(1.-2.*wallpsi)*roads
+        +roadnetalpha*ifn%wallalpha*wallpsi*(1.-2.*wallpsi)*roads
 sg%wallw=wallws+roadnetalpha*wallpsi*roads+ifn%wallalpha*(1.-2.*wallpsi)*walles+(ifn%wallalpha*(1.-2.*wallpsi))**2*wallws &
         +roadnetalpha*ifn%wallalpha*wallpsi*(1.-roadpsi)*0.5*(walles+wallws) &
-	+roadnetalpha*ifn%wallalpha*wallpsi*(1.-2.*wallpsi)*roads
+        +roadnetalpha*ifn%wallalpha*wallpsi*(1.-2.*wallpsi)*roads
 sg%road=roads+ifn%wallalpha*(1.-roadpsi)*0.5*(walles+wallws)+ifn%wallalpha*roadnetalpha*wallpsi*(1.-roadpsi)*roads &
         +ifn%wallalpha**2*(1.-roadpsi)*(1.-2.*wallpsi)*0.5*(walles+wallws)
 sg%roof=1.
