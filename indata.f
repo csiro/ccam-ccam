@@ -1859,7 +1859,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         call tebinit(ifull,sigmu(:),zmin,0)
         where(urban(:,1).ge.399.) ! must be the same as spval in onthefly.f
           urban(:,1)=tss(:)
-          urban(:,2)=291.16
+          urban(:,2)=0.5*(tss(:)+291.16)
           urban(:,3)=291.16
           urban(:,4)=tss(:)
           urban(:,5)=0.5*(tss(:)+291.16)
