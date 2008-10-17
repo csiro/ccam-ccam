@@ -36,24 +36,21 @@
 ! NOTES: 
 !  Below are some differences between the TEB (Masson 2000) scheme and aTEB:
 !
-! - aTEB uses two walls instead of the TEB single wall.  Also, only up to 2nd order reflections are used in aTEB for
-!   longwave and short wave radation.  In TEB, infinite reflections are used for shortwave, but only 1st order for
-!   long wave.  See Harman, et. al (2004) for a complete treatment of the reflections.
+! - aTEB uses two walls instead of the TEB single wall.  Also, only up to nrefl order reflections are used in aTEB for
+!   longwave and short wave radation (nrefl=3 by default).  In TEB, infinite reflections are used for shortwave, but
+!   only 1st order for long wave.  See Harman, et. al (2004) for a complete treatment of the reflections.
 !
-! - aTEB includes zot=zom*7.4*exp(-1.29*(ustar*zom/nu)**0.25) (Kanda et al, 2007) for buff bodies (i.e., roofs and bulk urban).
-!   The usual zot=zom/7.4 is still used when transfering heat between the canyon air temperature and the first atmospheric model
-!   level (e.g., see Kanda et al 2007).
+! - aTEB uses an iterative scheme to solve for the sensible heat flux budget in the canyon.
+!
+! - aTEB returns ln(zom/zot)=1.29*(ustar*zom/nu)**0.25-2. (Kanda et al, 2007) for the urban cover.  In the model, we use
+!   ln(zom/zot)=6 for canyon and roof surfaces (Kanda et al 2005), but ln(zom/zot)=2. between the canyon and the atmosphere.
 !
 ! - aTEB calculates aerodynamic resistances for the recirculation and ventilation regions of the canyon (see Harman, et. al 2004).
 !   This approach takes advantage of the second wall temperature (i.e., the fluxes depend on the wind direction).
 !
-! - In aTEB the urban properties are based on TAPM classes rather than ecoclim classes for TEB.
-!
-! - The aTEB traffic sensible heat flux varies over the diurnal cycle using data from Coutts et al (2007).
-!
 ! Minor differences include the use of CSIRO9 stability coefficents (McGregor et al 1993), instead of Mascart et al (1995).
-! Also there are changes to the displacement height (not at roof height), use of an iterative solver for the sensible heat
-! flux, etc.
+! Also there are changes to the displacement height (not at roof height),  urban properties are based on TAPM classes,
+! the time dependence of the traffic sensible heat flux follows Coutts et al (2007), etc
 !
 
 module ateb
@@ -103,15 +100,15 @@ type(twall), dimension(:), allocatable, save :: walle,wallw,walleadj,wallwadj
 type(tdata), dimension(:), allocatable, save :: fn
 type(tprog), dimension(:), allocatable, save :: pg
 ! Building parameters
-!real, dimension(3), parameter :: roofdepth =(/ 0.05,0.4,0.1 /)          ! depth (m)
+!real, dimension(3), parameter :: roofdepth =(/ 0.05,0.4,0.1 /)          ! depth (m) (Ecoclim)
 real, dimension(3), parameter :: roofdepth =(/ 0.05,0.05,0.4 /)          ! depth (m)
 real, dimension(3), parameter :: walldepth =(/ 0.02,0.125,0.05 /)
 real, dimension(3), parameter :: roaddepth =(/ 0.05,0.1,1. /)
-!real, dimension(3), parameter :: roofcp =(/ 2.11E6,0.28E6,0.29E6 /)     ! heat capacity (J m^-3 K^-1)
+!real, dimension(3), parameter :: roofcp =(/ 2.11E6,0.28E6,0.29E6 /)     ! heat capacity (J m^-3 K^-1) (Ecoclim)
 real, dimension(3), parameter :: roofcp =(/ 2.11E6,2.11E6,0.29E6 /)     ! heat capacity (J m^-3 K^-1)
 real, dimension(3), parameter :: wallcp =(/ 1.55E6,1.55E6,0.29E6 /)
 real, dimension(3), parameter :: roadcp =(/ 1.94E6,1.28E6,1.28E6 /)
-!real, dimension(3), parameter :: rooflambda =(/ 1.51,0.08,0.05 /)       ! conductance (W m^-1 K^-1)
+!real, dimension(3), parameter :: rooflambda =(/ 1.51,0.08,0.05 /)       ! conductance (W m^-1 K^-1) (Ecoclim)
 real, dimension(3), parameter :: rooflambda =(/ 1.51,1.51,0.05 /)       ! conductance (W m^-1 K^-1)
 real, dimension(3), parameter :: walllambda =(/ 0.9338,0.9338,0.05 /)
 real, dimension(3), parameter :: roadlambda =(/ 0.7454,0.2513,0.2513 /)
@@ -119,16 +116,17 @@ real, parameter :: roofemiss=0.90    ! emissitivity
 real, parameter :: wallemiss=0.85 
 real, parameter :: roademiss=0.94
 real, parameter :: bldtemp=291.16    ! Comfort temperature (K) = 18deg C
-real, parameter :: zoroof=0.15       ! Roughness length for rooftops (m) (see Masson 2000)
-real, parameter :: zocanyon=5.e-5    ! Roughness length for canyon surfaces (m) (see Harman et al 2004)
+real, parameter :: zoroof=3.E-4      ! Roughness length for rooftops (m)
+real, parameter :: zocanyon=3.E-4    ! Roughness lengths for canyon surfaces (m)
 real, parameter :: maxroofwater=1.   ! max water on roof (kg m^-2)
 real, parameter :: maxroadwater=1.   ! max water on road (kg m^-2)
 real, parameter :: maxrfsn=1.        ! max snow on roof (kg m^-2)
 real, parameter :: maxrdsn=1.        ! max snow on road (kg m^-2)
 real, parameter :: refheight=0.4     ! displacement height as fraction of building height (Kanda et al 2007)
-integer, parameter :: resmeth=1      ! Canyon bulk transfer (0=Masson, 1=Harman)
-integer, parameter :: zohmeth=1      ! Roughness length for heat (0=Porous, 1=Buff)
+integer, parameter :: resmeth=1      ! Canyon sensible heat transfer (0=Masson, 1=Harman, 2=Kusaka)
+integer, parameter :: zohmeth=1      ! Urban roughness length for heat (0=Veg, 1=Kanda 2007, 2=Kanda 2005)
 integer, parameter :: acmeth=1       ! AC heat pump into canyon (0=Off, 1=On)
+integer, parameter :: nrefl=3        ! Number of canyon reflections (default=3)
 ! Other parameters (e.g., snow, water, physics, etc)
 real, parameter :: waterden=1000.    ! water density (kg m^-3)
 real, parameter :: icelambda=2.22    ! conductance of ice (W m^-1 K^-1)
@@ -177,7 +175,9 @@ allocate(roofadj(ufull),roadadj(ufull),walleadj(ufull),wallwadj(ufull))
 allocate(sigmau(ufull))
 
 ! define grid arrays
+ugrid=0
 mgrid=0
+sigmau=0.
 iqu=0
 do iq=1,ifull
   if (sigu(iq).gt.0.) then
@@ -194,6 +194,10 @@ do ii=1,3
   road%temp(ii)=bldtemp
   walle%temp(ii)=bldtemp
   wallw%temp(ii)=bldtemp
+  roofadj%temp(ii)=0.
+  roadadj%temp(ii)=0.
+  walleadj%temp(ii)=0.
+  wallwadj%temp(ii)=0.
 end do
 roof%water=0.
 road%water=0.
@@ -203,16 +207,35 @@ roof%den=minsnowden
 road%den=minsnowden
 roof%alpha=maxsnowalpha
 road%alpha=maxsnowalpha
+roofadj%water=0.
+roadadj%water=0.
+roofadj%snow=0.
+roadadj%snow=0.
+roofadj%den=0.
+roadadj%den=0.
+roofadj%alpha=0.
+roadadj%alpha=0.
+
+fn%hwratio=0.
+fn%sigmabld=0.
+fn%industryfg=0.
+fn%trafficfg=0.
+fn%bldheight=0.
+fn%zo=0.
+fn%roofalpha=0.
+fn%wallalpha=0.
+fn%roadalpha=0.
+fn%vangle=0.
+fn%hangle=0.
+fn%ctime=0.
 
 utype=1 ! default urban
 call tebtype(ifull,utype,diag)
 
-fn%vangle=0.
-fn%hangle=0.
-
 pg%cndzmin=max(zmin,fn%zo+1.)           ! updated in tebcalc
 pg%lzom=log(pg%cndzmin/fn%zo)           ! updated in tebcalc
 pg%lzoh=6.+pg%lzom ! (Kanda et al 2005) ! updated in tebcalc
+pg%cduv=(vkar/pg%lzom)**2               ! updated in tebcalc
 
 return
 end subroutine tebinit
@@ -306,7 +329,7 @@ integer, parameter :: maxtype = 8
 ! Urban fraction (defined in host model)
 ! real, dimension(maxtype), parameter :: sigu=(/ 0.6, 0.5, 0.6, 0.7, 0.9, 0.5, 0.6, 0.7 /)
 ! Building height to width ratio
-real, dimension(maxtype), parameter :: chwratio=(/ 1.5, 0.4, 0.5, 0.6, 3., 0.6, 0.8, 1. /)
+real, dimension(maxtype), parameter :: chwratio=(/ 1., 0.4, 0.5, 0.6, 3., 0.6, 0.8, 1. /)
 ! Area fraction occupied by buildings
 real, dimension(maxtype), parameter :: csigmabld=(/ 0.5, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7 /)
 ! Industral sensible heat flux (W m^-2)
@@ -507,19 +530,18 @@ subroutine tebalb1(is,ifull,alb,diag)
 implicit none
 
 integer, intent(in) :: is,ifull,diag
-integer, dimension(:), allocatable :: lgrid
+integer, dimension(ifull) :: lgrid
 integer i,ucount,ib,ie
 real, dimension(ifull), intent(inout) :: alb
-real, dimension(:), allocatable :: ualb
+real, dimension(ifull) :: ualb
 
 if (ufull.eq.0) return
 
 ucount=count(mgrid(is:is+ifull-1).ge.1)
 if (ucount.eq.0) return
 
-allocate(lgrid(ucount),ualb(ucount))
-
 ucount=0
+lgrid=0
 do i=1,ifull
   if (mgrid(is+i-1).ge.1) then
     ucount=ucount+1
@@ -530,10 +552,9 @@ end do
 ib=mgrid(is+lgrid(1)-1)
 ie=ib+ucount-1
 
-call tebalbcalc(ib,ucount,ualb,diag)
-alb(lgrid)=(1.-sigmau(ib:ie))*alb(lgrid)+sigmau(ib:ie)*ualb
-
-deallocate(lgrid,ualb)
+call tebalbcalc(ib,ucount,ualb(1:ucount),diag)
+alb(lgrid(1:ucount))=(1.-sigmau(ib:ie))*alb(lgrid(1:ucount)) &
+                     +sigmau(ib:ie)*ualb(1:ucount)
 
 return
 end subroutine tebalb1
@@ -723,10 +744,10 @@ integer iqu,j,k,ii,cns,cnr
 integer, dimension(ufull) :: igs,igr
 real, intent(in) :: ddt,zmin
 real, dimension(ufull,3) :: garoof,gawalle,gawallw,garoad
+real, dimension(ufull) :: garfsn,gardsn
 real, dimension(ufull) :: rdsntemp,rfsntemp,rdsnmelt,rfsnmelt
-real, dimension(ufull) :: wallpsi,roadpsi,fgtop,egtop,garfsn,gardsn
+real, dimension(ufull) :: wallpsi,roadpsi,fgtop,egtop,qsatr
 real, dimension(ufull) :: oldval,newval,topu,cu,ctmax,ctmin,evctx,evct
-real, dimension(ufull) :: qsatr
 real, dimension(ufull) :: ln,rn,we,ww,wr,zolog,a,xe,xw,cuven,n,zom
 real, dimension(ufull) :: p_sntemp,p_netldratio,p_wallpsi,p_roadpsi
 real, dimension(ufull) :: p_fgtop,p_gasn,p_snmelt
@@ -747,6 +768,33 @@ type(tprog), dimension(ufull) :: p_pg
 
 if (diag.ge.1) write(6,*) "Evaluating aTEB"
 
+! null values
+igs=0
+igr=0
+acond%roof=0.
+acond%road=0.
+acond%walle=0.
+acond%wallw=0.
+acond%rfsn=0.
+acond%rdsn=0.
+p_rg=acond
+p_fg=acond
+p_eg=acond
+dg%roofdelta=0.
+dg%roaddelta=0.
+dg%rfsndelta=0.
+dg%rfsndelta=0.
+dg%tempc=0.
+dg%mixrc=0.
+dg%tempr=0.
+dg%mixrr=0.
+dg%sigd=0.
+dg%sigr=0.
+dg%rfdzmin=0.
+dg%accool=0.
+dg%canyonrgout=0.
+dg%roofrgout=0.
+
 ! canyon (displacement height at refheight*building height)
 dg%sigd=atm%ps
 dg%tempc=atm%temp*(dg%sigd/atm%pa)**(rd/aircp)
@@ -760,12 +808,6 @@ dg%tempr=atm%temp*(dg%sigr/atm%pa)**(rd/aircp)
 call getqsat(ufull,qsatr,dg%tempr,dg%sigr)
 dg%mixrr=atm%mixr*qsatr/a ! a=qsata
 
-! prep predictor-corrector arrays
-roofdum=roof
-walledum=walle
-wallwdum=wallw
-roaddum=road
-
 ! new snowfall
 where (atm%snd.gt.0.)
   roof%den=(roof%snow*roof%den+atm%snd*ddt*minsnowden)/(roof%snow+ddt*atm%snd)
@@ -773,6 +815,12 @@ where (atm%snd.gt.0.)
   roof%alpha=maxsnowalpha
   road%alpha=maxsnowalpha
 end where
+
+! prep predictor-corrector arrays
+roofdum=roof
+walledum=walle
+wallwdum=wallw
+roaddum=road
 
 do j=1,2 ! predictor-corrector loop -------------------------------
   ! limit state variables
@@ -880,7 +928,7 @@ do j=1,2 ! predictor-corrector loop -------------------------------
         ww=cu*xw*(1.-exp(-a))/a
       end where
       zolog=log(0.1*fn%bldheight/zocanyon)
-      a=vkar**2/(zolog*(2.3+zolog))
+      a=vkar**2/(zolog*(6.+zolog)) ! Kanda et al (2005)
       n=abs(atm%udir)/pi
       acond%road=a*wr                ! road bulk transfer
       acond%walle=a*(n*ww+(1.-n)*we) ! east wall bulk transfer
@@ -888,6 +936,16 @@ do j=1,2 ! predictor-corrector loop -------------------------------
       zolog=log(0.1*fn%bldheight/zosnow)
       a=vkar**2/(zolog*(2.3+zolog))
       acond%rdsn=a*wr                ! road snow bulk transfer
+    case(2) ! Kusaka et al (2001)
+      cu=topu*exp(-0.25*fn%hwratio)
+      where (cu.le.5.)
+        acond%road=6.15+4.18*cu
+      elsewhere
+        acond%road=7.51*cu**0.78
+      end where
+      acond%walle=acond%road
+      acond%wallw=acond%road
+      acond%rdsn=acond%road  
   end select
 
   ! solve for road snow temperature -------------------------------
@@ -983,15 +1041,12 @@ do j=1,2 ! predictor-corrector loop -------------------------------
            p_wallwdum(1:cnr),p_dg(1:cnr),p_sg(1:cnr),p_atm(1:cnr),p_netldratio(1:cnr),ddt, &
            p_acond(1:cnr),p_wallpsi(1:cnr),p_roadpsi(1:cnr),p_fn(1:cnr),p_pg(1:cnr))
     rg(igr(1:cnr))=p_rg(1:cnr) ! unpack
-    rg(igr(1:cnr))%rdsn=0.
     fg(igr(1:cnr))=p_fg(1:cnr)
-    fg(igr(1:cnr))%rdsn=0.
     fgtop(igr(1:cnr))=p_fgtop(1:cnr)
     eg(igr(1:cnr))=p_eg(1:cnr)
-    eg(igr(1:cnr))%rdsn=0.
-    gardsn(igr(1:cnr))=0.
+    gardsn(igs(1:cns))=0.
     rdsnmelt(igr(1:cnr))=0.
-    rdsntemp(igr(1:cnr))=p_sntemp(1:cnr)
+    rdsntemp(igr(1:cnr))=roaddum(igr(1:cnr))%temp(1)
     acond(igr(1:cnr))=p_acond(1:cnr)
     dg(igr(1:cnr))%canyonrgout=p_dg(1:cnr)%canyonrgout
   end if
@@ -1001,6 +1056,13 @@ do j=1,2 ! predictor-corrector loop -------------------------------
   ! includes solution to longwave radiation
   cns=0
   cnr=0
+  rg(igr(1:cnr))%rfsn=0.
+  fg(igr(1:cnr))%rfsn=0.
+  eg(igr(1:cnr))%rfsn=0.
+  garfsn(igr(1:cnr))=0.
+  rfsnmelt(igr(1:cnr))=0.
+  rfsntemp(igr(1:cnr))=roaddum(igr(1:cnr))%temp(1)
+  acond(igs(1:cns))%rfsn=0.
   do iqu=1,ufull ! prepare index arrays
     if (roofdum(iqu)%snow.gt.0.) then
       cns=cns+1
@@ -1047,31 +1109,23 @@ do j=1,2 ! predictor-corrector loop -------------------------------
       end where
     end do    
     p_sntemp(1:cns)=min(max(p_sntemp(1:cns),ctmin(1:cns)),ctmax(1:cns))
-    rg(igs(1:cns))=p_rg(1:cns) ! unpack
-    fg(igs(1:cns))=p_fg(1:cns)
-    eg(igs(1:cns))=p_eg(1:cns)
+    rg(igs(1:cns))%rfsn=p_rg(1:cns)%rfsn ! unpack
+    fg(igs(1:cns))%rfsn=p_fg(1:cns)%rfsn
+    eg(igs(1:cns))%rfsn=p_eg(1:cns)%rfsn
     garfsn(igs(1:cns))=p_gasn(1:cns)
     rfsnmelt(igs(1:cns))=p_snmelt(1:cns)
     rfsntemp(igs(1:cns))=p_sntemp(1:cns)
-    acond(igs(1:cns))=p_acond(1:cns)
+    acond(igs(1:cns))%rfsn=p_acond(1:cns)%rfsn
   end if
-  if (cnr.gt.0) then ! no roof snow
-    rg(igr(1:cnr))%rfsn=0.
-    fg(igr(1:cnr))%rfsn=0.
-    eg(igr(1:cnr))%rfsn=0.
-    garfsn(igr(1:cnr))=0.
-    rfsnmelt(igr(1:cnr))=0.
-    rfsntemp(igr(1:cnr))=roaddum(igr(1:cnr))%temp(1)
-    acond(igs(1:cns))%roof=0.
-  end if  
   !---------------------------------------------------------------- 
 
   ! calculate roof sensible and latent heat fluxes (without snow)
   rg%roof=roofemiss*(atm%rg-sbconst*roofdum%temp(1)**4)
-  dg%roofrgout=sbconst*(dg%rfsndelta*snowemiss*rfsntemp**4+(1.-dg%rfsndelta)*roofemiss*roof%temp(1)**4)
+  dg%roofrgout=sbconst*(dg%rfsndelta*snowemiss*rfsntemp**4+(1.-dg%rfsndelta)*roofemiss*roof%temp(1)**4) &
+               +(1.-dg%rfsndelta*snowemiss-(1.-dg%rfsndelta)*roofemiss)*atm%rg
   a=log(dg%rfdzmin/zoroof)
   ! n and xe are dummy variables for cd and lzohroof
-  call getinvres(ufull,acond%roof,n,xe,a,dg%rfdzmin,roofdum%temp(1),dg%tempr,atm%umag,2)
+  call getinvres(ufull,acond%roof,n,xe,a,dg%rfdzmin,roofdum%temp(1),dg%tempr,atm%umag,3)
   fg%roof=aircp*atm%rho*(roofdum%temp(1)-dg%tempr)*acond%roof
   call getqsat(ufull,qsatr,roofdum%temp(1),dg%sigr)
   where (qsatr.lt.dg%mixrr)
@@ -1207,7 +1261,7 @@ eg%roof=dg%rfsndelta*eg%rfsn+(1.-dg%rfsndelta)*eg%roof ! redefine as net roof eg
 egtop=dg%rdsndelta*eg%rdsn+(1.-dg%rdsndelta)*eg%road
 
 ! calculate outputs
-uo%fg=a+fn%industryfg
+uo%fg=fn%sigmabld*fg%roof+(1.-fn%sigmabld)*fgtop+fn%industryfg
 uo%eg=fn%sigmabld*eg%roof+(1.-fn%sigmabld)*egtop
 uo%wf=fn%sigmabld*dg%roofdelta*(1.-dg%rfsndelta)+(1.-fn%sigmabld)*dg%roaddelta*(1.-dg%rdsndelta)
 uo%ts=((fn%sigmabld*dg%roofrgout+(1.-fn%sigmabld)*dg%canyonrgout)/sbconst)**0.25
@@ -1310,12 +1364,16 @@ end where
 
 cd=af*fm
 select case(mode)
-  case(1) ! standard
+  case(1) ! standard veg
     lna=2.
-  case(2) ! for buff bodies
+  case(2) ! Kanda et al 2007
     re=max(sqrt(cd)*umag*zmin*exp(-ilzom)/nu,10.)
     !lna=2.46*re**0.25-2. !(Brutsaet, 1982)
     lna=1.29*re**0.25-2. !(Kanda et al, 2007)
+  case(3) ! Kanda et al 2005
+    lna=6.
+  case(4) ! User defined
+    lna=olzoh-ilzom
 end select
 olzoh=lna+ilzom    
 aft=vkar**2/(ilzom*olzoh)
@@ -1340,9 +1398,11 @@ subroutine getswcoeff(ifull,sg,wallpsi,roadpsi,ifn,rdsnalpha,rdsndelta)
 implicit none
 
 integer, intent(in) :: ifull
+integer k
 real, dimension(ifull), intent(in) :: rdsnalpha,rdsndelta
 real, dimension(ifull), intent(out) :: wallpsi,roadpsi
 real, dimension(ifull) :: thetazero,walles,wallws,roads,ta,tc,xa,ya,roadnetalpha
+real, dimension(ifull) :: nwalles,nwallws,nroads
 type(tdata), dimension(ifull), intent(in) :: ifn
 type(trad), dimension(ifull), intent(out) :: sg
 
@@ -1367,18 +1427,24 @@ elsewhere
   roads=(2.*thetazero-ifn%hwratio*ta*tc)/pi
 end where
 
-! note that these terms are truncated to 2nd order reflections, compared to TEB which uses infinite reflections.
+! note that these terms are truncated to nrefl order reflections, compared to TEB which uses infinite reflections.
 roadnetalpha=(1.-rdsndelta)*ifn%roadalpha+rdsndelta*rdsnalpha
-sg%walle=walles+roadnetalpha*wallpsi*roads+ifn%wallalpha*(1.-2.*wallpsi)*wallws+(ifn%wallalpha*(1.-2.*wallpsi))**2*walles &
-        +roadnetalpha*ifn%wallalpha*wallpsi*(1.-roadpsi)*0.5*(walles+wallws) &
-        +roadnetalpha*ifn%wallalpha*wallpsi*(1.-2.*wallpsi)*roads
-sg%wallw=wallws+roadnetalpha*wallpsi*roads+ifn%wallalpha*(1.-2.*wallpsi)*walles+(ifn%wallalpha*(1.-2.*wallpsi))**2*wallws &
-        +roadnetalpha*ifn%wallalpha*wallpsi*(1.-roadpsi)*0.5*(walles+wallws) &
-        +roadnetalpha*ifn%wallalpha*wallpsi*(1.-2.*wallpsi)*roads
-sg%road=roads+ifn%wallalpha*(1.-roadpsi)*0.5*(walles+wallws)+ifn%wallalpha*roadnetalpha*wallpsi*(1.-roadpsi)*roads &
-        +ifn%wallalpha**2*(1.-roadpsi)*(1.-2.*wallpsi)*0.5*(walles+wallws)
+sg%walle=walles
+sg%wallw=wallws
+sg%road=roads
+do k=1,nrefl
+  nwalles=roadnetalpha*wallpsi*roads+ifn%wallalpha*(1.-2.*wallpsi)*wallws
+  nwallws=roadnetalpha*wallpsi*roads+ifn%wallalpha*(1.-2.*wallpsi)*walles
+  nroads=ifn%wallalpha*(1.-roadpsi)*0.5*(walles+wallws)
+  walles=nwalles
+  wallws=nwallws
+  roads=nroads
+  sg%walle=sg%walle+walles
+  sg%wallw=sg%wallw+wallws
+  sg%road=sg%road+roads
+end do
 sg%roof=1.
-sg%rfsn=sg%roof
+sg%rfsn=1.
 sg%rdsn=sg%road
 
 return
@@ -1403,7 +1469,7 @@ type(tdiag), dimension(cn), intent(in) :: dg
 type(tsurf), dimension(cn), intent(in) :: iroof
 
 lzosnow=log(dg%rfdzmin/zosnow)
-call getinvres(cn,acond%rfsn,cd,lzotdum,lzosnow,dg%rfdzmin,rfsntemp,dg%tempr,atm%umag,2)
+call getinvres(cn,acond%rfsn,cd,lzotdum,lzosnow,dg%rfdzmin,rfsntemp,dg%tempr,atm%umag,1)
 call getqsat(cn,rfsnqsat,rfsntemp,dg%sigr)
 rfsnmelt=dg%rfsndelta*max(0.,rfsntemp-273.16)/(icecp*iroof%den*lf*ddt) 
 rg%rfsn=snowemiss*(atm%rg-sbconst*rfsntemp**4)
@@ -1429,7 +1495,9 @@ real, intent(in) :: ddt
 real, dimension(cn), intent(out) :: evct,fgtop,gardsn,rdsnmelt
 real, dimension(cn), intent(in) :: rdsntemp,ldratio,wallpsi,roadpsi
 real, dimension(cn) :: ctmax,ctmin,cevctx,cevct,oldval,newval,roadqsat,rdsnqsat,canyonmix,netrad,netemiss
-real, dimension(cn) :: cwa,cwe,cww,cwr,cra,crr,crw,canyontemp,topinvres
+real, dimension(cn) :: cwa,cwe,cww,cwr,cra,crr,crw,ncwa,ncwe,ncww,ncwr,ncra,ncrr,ncrw
+real, dimension(cn) :: rcwa,rcwe,rcww,rcwr,rcra,rcrr,rcrw
+real, dimension(cn) :: canyontemp,topinvres
 type(trad), dimension(cn), intent(inout) :: rg,fg,eg,acond
 type(trad), dimension(cn), intent(in) :: sg
 type(tatm), dimension(cn), intent(in) :: atm
@@ -1469,38 +1537,65 @@ end do
 canyontemp=min(max(canyontemp,ctmin),ctmax)
 ! ---------------------------------------------------------------    
 
-! note additional 2nd order reflections
+! note additional nrefl order reflections
 netrad=dg%rdsndelta*snowemiss*rdsntemp**4+(1.-dg%rdsndelta)*roademiss*iroad%temp(1)**4
 netemiss=dg%rdsndelta*snowemiss+(1.-dg%rdsndelta)*roademiss
-cwa=wallpsi*(1.+(1.-netemiss)*roadpsi+(1.-wallemiss)*(1.-2.*wallpsi) &
-    +((1.-wallemiss)*(1.-2.*wallpsi))**2+(1.-wallemiss)*(1.-netemiss)*(1.-2.*wallpsi)*roadpsi &
-    +(1.-netemiss)*(1.-wallemiss)*(1.-roadpsi)*wallpsi) ! reflections from both walls
-cwe=((1.-wallemiss)*(1.-2.*wallpsi)**2+0.5*(1.-netemiss)*(1.-roadpsi)*wallpsi &
-    +(1.-wallemiss)*(1.-netemiss)*(1.-2.*wallpsi)*(1.-roadpsi)*wallpsi) ! two reflection pathways
-cww=((1.-2.*wallpsi)+0.5*(1.-netemiss)*wallpsi*(1.-roadpsi)+(1.-wallemiss)**2*(1.-2.*wallpsi)**3 &
-    +0.5*(1.-netemiss)*(1.-wallemiss)*(1.-roadpsi)*wallpsi*(1.-2.*wallpsi))
-cwr=wallpsi*(1.+(1.-wallemiss)*(1.-2.*wallpsi)+(1.-wallemiss)**2*(1.-2.*wallpsi)**2 &
-    +0.5*(1.-wallemiss)*(1.-netemiss)*(1.-roadpsi)*wallpsi)
-cra=(roadpsi+(1.-wallemiss)*(1.-roadpsi)*wallpsi & ! two reflection pathways
-    +(1.-wallemiss)**2*wallpsi*(1.-2.*wallpsi)*(1.-roadpsi) & ! two reflection pathways
-    +(1.-netemiss)*(1.-wallemiss)*roadpsi*wallpsi*(1.-roadpsi)) ! two reflection pathways
-crr=(1.-wallemiss)*(1.-roadpsi)*(wallpsi+(1.-wallemiss)**2*wallpsi*(1.-2.*wallpsi))
-crw=(1.-roadpsi)*(1.+(1.-wallemiss)*(1.-2.*wallpsi) &
-    +((1.-wallemiss)*(1.-2.*wallpsi))**2+(1.-wallemiss)*(1.-netemiss)*wallpsi**2)
+cwa=wallpsi
+cra=roadpsi
+cwe=0.
+cww=1.-2.*wallpsi
+crw=0.5*(1.-roadpsi)
+crr=0.
+cwr=wallpsi
+rcwa=cwa
+rcra=cra
+rcwe=cwe
+rcww=cww
+rcrw=crw
+rcrr=crr
+rcwr=cwr
+do k=1,nrefl
+  ncwa=(1.-netemiss)*wallpsi*rcra+(1.-wallemiss)*(1.-2.*wallpsi)*rcwa
+  ncra=(1.-wallemiss)*(1.-roadpsi)*rcwa
+  ncwe=(1.-netemiss)*wallpsi*rcrw+(1.-wallemiss)*(1.-2.*wallpsi)*rcww
+  ncww=(1.-netemiss)*wallpsi*rcrw+(1.-wallemiss)*(1.-2.*wallpsi)*rcwe
+  ncrw=(1.-wallemiss)*(1.-roadpsi)*0.5*(rcww+rcwe)  
+  ncwr=(1.-netemiss)*wallpsi*rcrr+(1.-wallemiss)*(1.-2.*wallpsi)*rcwr
+  ncrr=(1.-wallemiss)*(1.-roadpsi)*rcwr
+  rcwa=ncwa
+  rcra=ncra
+  rcwe=ncwe
+  rcww=ncww
+  rcrw=ncrw
+  rcrr=ncrr
+  rcwr=ncwr
+  cwa=cwa+rcwa
+  cra=cra+rcra
+  cwe=cwe+rcwe
+  cww=cww+rcww
+  crw=crw+rcrw
+  cwr=cwr+rcwr
+  crr=crr+rcrr
+end do
     
 rg%walle=wallemiss*(atm%rg*cwa+sbconst*iwalle%temp(1)**4*(-1.+wallemiss*cwe) & 
                   +sbconst*iwallw%temp(1)**4*wallemiss*cww+sbconst*netrad*cwr)
 rg%wallw=wallemiss*(atm%rg*cwa+sbconst*iwallw%temp(1)**4*(-1.+wallemiss*cwe) &
                   +sbconst*iwalle%temp(1)**4*wallemiss*cww+sbconst*netrad*cwr)
 rg%road=roademiss*(atm%rg*cra+sbconst*(-iroad%temp(1)**4+netrad*crr) &
-                  +sbconst*0.5*wallemiss*(iwalle%temp(1)**4+iwallw%temp(1)**4)*crw)
-rg%rdsn=snowemiss*(atm%rg*cra+sbconst*(-rdsntemp**4+netrad*crr) &
-                  +sbconst*0.5*wallemiss*(iwalle%temp(1)**4+iwallw%temp(1)**4)*crw)
-! should multiply the 1st and 2nd reflections by wallpsi & roadpsi, but not third reflection (assume error is small)
-dg%canyonrgout=atm%rg*(2.*ifn%hwratio*(wallpsi-wallemiss*cwa)+(roadpsi-netemiss*cra)) &
-               +sbconst*wallemiss*iwalle%temp(1)**4*(ifn%hwratio*wallpsi*(1.+(1.-wallemiss)*(cwe+cww))+roadpsi*(1.-netemiss)*crw) &
-               +sbconst*wallemiss*iwallw%temp(1)**4*(ifn%hwratio*wallpsi*(1.+(1.-wallemiss)*(cwe+cww))+roadpsi*(1.-netemiss)*crw) &
-               +sbconst*netrad*(roadpsi*(1.+(1.-netemiss)*crr)+2.*ifn%hwratio*wallpsi*(1.-wallemiss)*cwr)
+                  +sbconst*wallemiss*(iwalle%temp(1)**4+iwallw%temp(1)**4)*crw)
+where (dg%rdsndelta.gt.0.)
+  rg%rdsn=snowemiss*(atm%rg*cra+sbconst*(-rdsntemp**4+netrad*crr) &
+                    +sbconst*wallemiss*(iwalle%temp(1)**4+iwallw%temp(1)**4)*crw)
+elsewhere
+  rg%rdsn=0.
+end where
+dg%canyonrgout=atm%rg*(2.*ifn%hwratio*wallpsi*(1.-wallemiss)*cwa+roadpsi*(1.-netemiss)*cwr) &
+               +sbconst*wallemiss*iwalle%temp(1)**4*(ifn%hwratio*wallpsi*(1.+(1.-wallemiss)*(cwe+cww)) &
+               +roadpsi*(1.-netemiss)*crw) &
+               +sbconst*wallemiss*iwallw%temp(1)**4*(ifn%hwratio*wallpsi*(1.+(1.-wallemiss)*(cwe+cww)) &
+               +roadpsi*(1.-netemiss)*crw) &
+               +sbconst*netrad*(2.*ifn%hwratio*wallpsi*(1.-wallemiss)*cwr+roadpsi*(1.+(1.-netemiss)*crr))
 
 rdsnmelt=dg%rdsndelta*max(0.,rdsntemp-273.16)/(icecp*iroad%den*lf*ddt)
 call getqsat(cn,roadqsat,iroad%temp(1),dg%sigd) ! evaluate using pressure at displacement height
@@ -1513,10 +1608,16 @@ where (roadqsat.lt.canyonmix)
 elsewhere
   eg%road=lv*min(atm%rho*dg%roaddelta*(roadqsat-canyonmix)*acond%road,iroad%water+atm%rnd+rdsnmelt) ! MJT suggestion for max eg
 end where
-eg%rdsn=ls*min(atm%rho*dg%rdsndelta*max(0.,rdsnqsat-canyonmix)*acond%rdsn,iroad%snow+atm%snd-rdsnmelt) ! MJT suggestion for max eg
+where (dg%rdsndelta.gt.0.)
+  eg%rdsn=ls*min(atm%rho*dg%rdsndelta*max(0.,rdsnqsat-canyonmix)*acond%rdsn,iroad%snow+atm%snd-rdsnmelt) ! MJT suggestion for max eg
+  gardsn=(rdsntemp-iroad%temp(1))/ldratio
+elsewhere
+  eg%rdsn=0.
+  gardsn=0.
+end where
 eg%walle=0.
 eg%wallw=0.
-gardsn=(rdsntemp-iroad%temp(1))/ldratio
+
 evct=sg%rdsn+rg%rdsn-fg%rdsn-eg%rdsn-gardsn
 
 return
@@ -1550,7 +1651,11 @@ end if
 fg%walle=aircp*atm%rho*(walletemp-ctemp)*acond%walle
 fg%wallw=aircp*atm%rho*(wallwtemp-ctemp)*acond%wallw
 fg%road=aircp*atm%rho*(roadtemp-ctemp)*acond%road
-fg%rdsn=aircp*atm%rho*(rdsntemp-ctemp)*acond%rdsn
+where (dg%rdsndelta.gt.0.)
+  fg%rdsn=aircp*atm%rho*(rdsntemp-ctemp)*acond%rdsn
+elsewhere
+  fg%rdsn=0.
+end where
 fgtop=aircp*atm%rho*(ctemp-dg%tempc)*topinvres
 call gettraffic(cn,trafficout,ifn%trafficfg,ifn%ctime)
 evct=fgtop-(dg%rdsndelta*fg%rdsn+(1.-dg%rdsndelta)*fg%road+ifn%hwratio*(fg%walle+fg%wallw) &
@@ -1577,7 +1682,7 @@ real, dimension(25), parameter :: trafficcycle = (/ 0.1, 0.1, 0.1, 0.1, 0.5, 1.0
 ip=int(24.*ctime)
 rp=ctime-real(ip)
 where (ip.lt.1) ip=ip+24
-trafficout=trafficfg*(trafficcycle(ip)*(1.-rp)+rp*trafficcycle(ip+1))
+trafficout=trafficfg*((1.-rp)*trafficcycle(ip)+rp*trafficcycle(ip+1))
 
 return
 end subroutine gettraffic

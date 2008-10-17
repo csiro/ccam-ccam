@@ -1,23 +1,11 @@
 module cable_ccam
-  ! rml 02/10/07 removed sib4 and other cbm/cable related subroutines from sflux
-  ! rml 23/10/07 added cbm_pack and cbm_unpack to this module
-  !
-  ! This file contains the following subroutines:
-  !   sib4,
-  !   setco2for,
-  !   cbmrdn,
-  !   comskp,
-  !   rlaiday,
-  !   cbm_pack,
-  !   cbm_unpack, and
-  !   eva_output
-  !
+
+  ! CABLE interface originally developed by the CABLE group
+  ! Subsequently modified by MJT
 
   include 'newmpar.h'
   integer, parameter :: CABLE = 4
-  ! will need to have vertical dimension for interaction with radiation?
   real, dimension(ifull) :: atmco2
-  logical, save :: vegparmnew=.false. ! old or new format for veg parm file
   integer, save :: CO2forcingtype=1   ! 1 constant, 2 prescribed 1900-2004,
                                       ! 3 interactive
   character(len=10), dimension(:), allocatable, save :: vegtype
@@ -25,8 +13,7 @@ module cable_ccam
   contains
   ! ****************************************************************************
 
-  subroutine sib4(nvegt)     ! new version of sib1 with soilsnowv
-! BP added nvegt to be passed down to cbm (BP jan 2008)
+  subroutine sib4(nvegt)
 
       use cc_mpi
       use zenith_m
@@ -36,6 +23,10 @@ module cable_ccam
       USE carbon_module
       USE cbm_module
       USE soil_snow_module
+      use physical_constants, only : umin
+  
+      implicit none
+
       TYPE (air_type)             :: air
       TYPE (bgc_pool_type)        :: bgc
       TYPE (canopy_type)          :: canopy
@@ -76,6 +67,9 @@ module cable_ccam
       include 'vegpar.h' ! 
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
 !                     met forcing for CBM
+      real dirad,dfgdt,degdt,wetfac,degdw,cie
+      real factch,qsttg,rho,zo,aft,fh,ri,theta
+      real gamm,rg,vmod,dummwk2
       common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)  &
      & ,wetfac(ifull),degdw(ifull),cie(ifull)              &
      & ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)    &
@@ -84,16 +78,18 @@ module cable_ccam
 
       ! for calculation of zenith angle
       real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull)
+      real bpyear,alp
+
+      integer jyear,jmonth,jday,jhour,jmin
+      integer mstart,ktauplus,k,mins,kstart
 
       integer imonth(12),iwrk(ifull)
       data imonth /31,28,31,30,31,30,31,31,30,31,30,31/
-      dimension ndoy(12)   ! days from beginning of year (1st Jan is 0)
+      integer ndoy(12)   ! days from beginning of year (1st Jan is 0)
       data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
-      real ssumcbmfl(14,20)
       logical, save :: cbm_allocated = .false.
-      save ktauplus,iswt
-      data iswt/0/
-      integer nvegt
+      save ktauplus
+      integer, intent(in) :: nvegt
 
        if ( .not. cbm_allocated ) then
           ! These variables are all saved so only need to be allocated once
@@ -142,7 +138,6 @@ module cable_ccam
           sum_flux%dsumrd = 0.
        END IF
 
-       !print *,'jyear,jmonth',jyear,jmonth,ktauplus
        ! mtimer contains number of minutes since the start of the run.
        mins = mtimer + mstart
        bpyear = 0.
@@ -161,10 +156,9 @@ module cable_ccam
        met%tk = pack(theta,land)
        met%tc = met%tk - 273.16
        met%ua = pack(vmod,land)
-       where (met%ua < 1.) met%ua = 1.
+       met%ua = max(met%ua,umin)
        met%ca = 1.e-6 * pack(atmco2,land)
-       met%coszen = pack(coszro2,land)   ! use instantaneous value
-       where (met%coszen < 1.e-8) met%coszen=1.e-8
+       met%coszen = max(1.e-8,pack(coszro2,land)) ! use instantaneous value
 
        kstart = 1
        call cbm_pack(air, bgc, canopy, met, bal, rad, &
@@ -189,10 +183,15 @@ module cable_ccam
 !     prescribed: atmospheric co2 follows prescribed trend from 1900-2004
 !                 based on ice core and Mauna Loa/South Pole data
 !     interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
+
+      implicit none
+
+      integer, intent(in) :: jyear
       integer, parameter :: constantCO2 = 1
       integer, parameter :: prescribedCO2 = 2
       integer, parameter :: interactiveCO2 = 3
       include 'tracers.h'
+      integer ipco2
 
 !     rml added values for 2000-2004 using scripps records from cdiac
 !     0.75*mauna loa + 0.25*south pole
@@ -232,7 +231,7 @@ module cable_ccam
       return
       end subroutine setco2for
 
-      subroutine cbmrdn3 ! igbp hardwired dummy version.  Use cbmrdn from cable_ccam.f90 when avaliable.
+      subroutine cbmrdn3 ! igbp hardwired dummy version.
 !
 !     reads the parameters required by land surface scheme 
 !     called from indata
@@ -253,8 +252,6 @@ module cable_ccam
       
       if (myid == 0) print *,"Setting CABLE defaults (igbp)"
       
-      vegparmnew=.true.
-
       allocate(vegtype(mxvt))
 
       where ((ivegt.eq.7).and.(rlatt.ge.-30.).and.(rlatt.le.30.))
@@ -283,14 +280,14 @@ module cable_ccam
       xfang=(/ 0.01,0.1,0.01,0.25,0.13,0.,0.,-0.14,-0.01,-0.3,0.,0.,-0.17,0.,0.01,0.01,0.01 /)
       dleaf=(/ 0.055,0.1,0.04,0.15,0.1,0.1,0.1,0.232,0.129,0.3,0.3,0.3,0.242,0.3,0.005,0.03,0.005 /)
       xalbnir=(/ 0.79,0.96,0.81,1.,1.08,1.14,1.2,1.02,1.23,1.16,0.89,0.98,1.1,1.13,1.,1.15,1. /)
-      wai=(/ 1.,1.6,0.6,1.2,1.,0.5,0.5,0.5,0.5,0.,0.,0.,0.,0.,0.,0.,0. /)
+      wai=(/ 1.,1.,1.,1.,1.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0. /)
       canst1=0.1
       shelrb=2.
       vegcf=(/ 0.91,1.95,0.73,1.5,1.5,2.8,2.8,2.8,2.8,2.75,2.,2.8,0.,2.8,0.6,0.6,0. /)
       vegtype(:)='others'
       vegtype(3)='deciduous'
       vegtype(4)='deciduous'
-      extkn=0.4
+      extkn=0.7
       vcmax=(/ 65.2E-6,65.E-6,70.E-6,85.0E-6,80.E-6,20.E-6,20.E-6,10.E-6,20.E-6,10.E-6,50.E-6,80.E-6,1.E-6,80.E-6, &
                1.E-6,17.E-6,1.E-6 /)
       ejmax=2.*vcmax
@@ -300,7 +297,7 @@ module cable_ccam
       tminvj=(/ -15.,-15.,5.,5.,5.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15. /)
       tmaxvj=(/ -10.,-10.,10.,15.,10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10. /)
       vbeta=(/ 2.,2.,2.,2.,2.,4.,4.,4.,4.,4.,2.,2.,2.,2.,4.,4.,4. /)
-      rootbeta=0.
+      rootbeta=(/ 0.943,0.962,0.966,0.961,0.966,0.914,0.964,0.972,0.943,0.943,0.961,0.961,0.961,0.961,0.961,0.975,0.975 /)
       tcplant(:,1)=(/ 200.  ,300.  ,200.  ,300.  ,200.  ,150. ,150. ,250. ,250. ,250. ,250.,150.,0.1,150.,0.,1.,0. /)
       tcplant(:,2)=(/ 10217.,16833.,5967. ,12000.,10217.,5000.,5000.,5247.,5247.,0.   ,0.  ,0.  ,0. ,0.  ,0.,0.,0. /)
       tcplant(:,3)=(/ 876.  ,1443. ,511.  ,1029. ,876.  ,500. ,500. ,1124.,1124.,500. ,500.,607.,0.1,607.,0.,1.,0. /)
@@ -330,17 +327,14 @@ module cable_ccam
       albsoil(:)=0.5*sum(albvisnir,2)
       where ((albsoil.le.0.14).and.land)
         !sfact=0.5 for alb <= 0.14 (see cable_soilsnow.f90)
-        !albsoil(:)=0.5*((1.5/1.0)*albvisnir(:,1)+(1.5/2.0)*albvisnir(:,2))
         albsoilsn(:,1)=(1.00/1.50)*albsoil(:)
         albsoilsn(:,2)=(2.00/1.50)*albsoil(:)
       elsewhere ((albsoil(:).le.0.2).and.land)
         !sfact=0.62 for 0.14 < alb <= 0.20 (see cable_soilsnow.f90)
-        !albsoil(:)=0.5*((1.62/1.24)*albvisnir(:,1)+(1.62/2.0)*albvisnir(:,2))
         albsoilsn(:,1)=(1.24/1.62)*albsoil(:)
         albsoilsn(:,2)=(2.00/1.62)*albsoil(:)
       elsewhere (land)
         !sfact=0.68 for 0.2 < alb (see cable_soilsnow.f90)
-        !albsoil(:)=0.5*((1.68/1.36)*albvisnir(:,1)+(1.68/2.0)*albvisnir(:,2))
         albsoilsn(:,1)=(1.36/1.68)*albsoil(:)
         albsoilsn(:,2)=(2.00/1.68)*albsoil(:)
       end where
@@ -401,7 +395,7 @@ module cable_ccam
       include 'soil.h'
 
       REAL(r_1) :: totdepth,totroot(mxvt)   ! local variable for froot calc
-      real, dimension(mxvt,5) :: froot2
+      real, dimension(mxvt,ms) :: froot2
 
 !     these constant throughout simulation so only need to be set once
       if (ktau == 1) then
@@ -410,11 +404,11 @@ module cable_ccam
         veg%canst1 = canst1(veg%iveg)
         veg%ejmax  =  ejmax(veg%iveg)
         veg%hc     =     hc(veg%iveg)
-        veg%frac4  =  frac4(veg%iveg)
-!       rml 28/09/07 c4 fraction defined for each grid point, for
-!       compatibility just overwrite values from parameter file if
-!       find data in c4frac array
-        if (sum(c4frac).gt.0.) veg%frac4 = pack(c4frac,land)
+        if (sum(c4frac).gt.0.) then
+          veg%frac4 = pack(c4frac,land)
+        else
+          veg%frac4  =  frac4(veg%iveg)
+        end if
         veg%tminvj = tminvj(veg%iveg)
         veg%tmaxvj = tmaxvj(veg%iveg)
         veg%vbeta  =  vbeta(veg%iveg)
@@ -431,8 +425,6 @@ module cable_ccam
         veg%deciduous =(vegtype(veg%iveg).eq.'deciduous') ! MJT suggestion
 
 !       soil parameters
-        !soil%zse  = zse
-        !soil%zshh = zshh
         soil%zse = (/.022, .058, .154, .409, 1.085, 2.872/) ! soil layer thickness
         soil%zshh(1) = 0.5 * soil%zse(1)
         soil%zshh(ms+1) = 0.5 * soil%zse(ms)
@@ -454,25 +446,6 @@ module cable_ccam
         soil%i2bp3   = i2bp3(soil%isoilm)
         soil%rs20    =  rs20(veg%iveg)
 
-        if (sum(rootbeta).eq.0.) then
-!        assume rootbeta not in parameter file and need to prescribe froot here
-         IF (.not.vegparmnew) THEN   ! CASA vegetation types  
-          froot2(:,1) = (/.02,.04,.04,.04,.04,.05,.05,.05,.05,.05,.05,.05,.05,.01,.01,.01,.01/)
-          froot2(:,2) = (/.06,.11,.11,.11,.11,.15,.15,.10,.10,.10,.10,.15,.15,.01,.01,.01,.01/)
-          froot2(:,3) = (/.14,.20,.20,.20,.20,.35,.35,.35,.35,.35,.35,.34,.35,.01,.01,.01,.01/)
-          froot2(:,4) = (/.28,.26,.26,.26,.26,.39,.39,.35,.35,.35,.35,.38,.40,.01,.01,.01,.01/)
-          froot2(:,5) = (/.35,.24,.24,.24,.24,.05,.05,.10,.10,.10,.10,.06,.04,.01,.01,.01,.01/)
-          froot2(:,6) = (/.15,.15,.15,.15,.15,.01,.01,.05,.05,.05,.05,.02,.01,.01,.01,.01,.01/)
-         ELSE
-          ! IGBP vegetation types without/with water bodies
-          froot2(:,1) = (/.04,.02,.04,.04,.04,.05,.05,.05,.05,.05,.05,.05,.05,.05,.05,.05,.01/)
-          froot2(:,2) = (/.11,.06,.11,.11,.11,.10,.10,.15,.15,.15,.10,.15,.10,.15,.15,.10,.01/)
-          froot2(:,3) = (/.20,.14,.20,.20,.20,.35,.35,.35,.35,.35,.35,.34,.35,.34,.35,.35,.01/)
-          froot2(:,4) = (/.26,.28,.26,.26,.26,.35,.35,.39,.39,.39,.35,.38,.35,.38,.40,.35,.01/)
-          froot2(:,5) = (/.24,.35,.24,.24,.24,.10,.10,.05,.05,.05,.10,.06,.10,.06,.04,.10,.01/)
-          froot2(:,6) = (/.15,.15,.15,.15,.15,.05,.05,.01,.01,.01,.05,.02,.05,.02,.01,.05,.01/)
-         END IF
-        else
 !        preferred option
 !        froot is now calculated from soil depth and the new parameter rootbeta 
 !        according to Jackson et al. 1996, Oceologica, 108:389-411
@@ -485,7 +458,6 @@ module cable_ccam
          do k = ms, 2, -1
            froot2(:,k) = froot2(:,k) - froot2(:,k-1)
          enddo
-        endif
         veg%froot = froot2(veg%iveg,:)
 
         rad%latitude = pack(alat,land)
@@ -502,18 +474,11 @@ module cable_ccam
       where ( met%tc < 0.0 ) met%precip_s = met%precip
       do ip=1,ipland
         iq = iperm(ip)
-          met%hod(ip)=(met%doy(ip)-int(met%doy(ip)))*24.0 + along(iq)/15.
-          if (met%hod(ip).gt.24.0) met%hod(ip)=met%hod(ip)-24.0
-          rough%za(ip) = -287.*t(iq,1)*log(sig(1))/grav   ! reference height
-          met%fsd(ip) = sgsave(iq)/(1.-albvisnir(iq,1))! short wave down (positive) W/m^2
+        met%hod(ip)=(met%doy(ip)-int(met%doy(ip)))*24.0 + along(iq)/15.
+        if (met%hod(ip).gt.24.0) met%hod(ip)=met%hod(ip)-24.0
+        rough%za(ip) = -287.*t(iq,1)*log(sig(1))/grav   ! reference height
+        met%fsd(ip) = sgsave(iq)/(1.-albvisnir(iq,1))! short wave down (positive) W/m^2
       enddo
-!     met%hod = (met%doy - int(met%doy))*24.0 + along(iperm)/15.
-!     where (met%hod > 24.0) met%hod = met%hod - 24.0
-!     met%fsd = sgsave(iperm)/(1.-alb(iperm))  ! short wave down (positive) W/m^2
-
-!     rough%za = -287.*t(iperm,1)*log(sig(1))/grav   ! reference height
-      !write(6,*) along(iperm(1)),met%hod(1),met%fsd(1),rough%za(1)
-      !write(6,*) along(iperm(mp)),met%hod(mp),met%fsd(mp),rough%za(mp)
 
       ssoil%albsoilsn(:,1) = pack(albsoilsn(:,1), land)
       ssoil%albsoilsn(:,2) = pack(albsoilsn(:,2), land)
@@ -593,7 +558,7 @@ module cable_ccam
       use canopy_module
       use soil_snow_module
 
-!  implicit none
+      implicit none
 
       INTEGER(i_d), INTENT(IN)    :: ktauyear
       type (air_type)             :: air
@@ -626,6 +591,9 @@ module cable_ccam
       include 'vegpar.h'
       include 'soil.h'
 
+      real dirad,dfgdt,degdt,wetfac,degdw,cie
+      real factch,qsttg,rho,zo,aft,fh,ri,theta
+      real gamm,rg,vmod,dummwk2
       common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)  & ! MJT CHANGE - cable
      & ,wetfac(ifull),degdw(ifull),cie(ifull)              &
      & ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)    &
@@ -667,10 +635,10 @@ module cable_ccam
       eg = unpack(canopy%fe,  land, eg)
       epot = unpack(ssoil%potev,  land, epot)
       tss = unpack(rad%trad,  land, tss)
-      tscrn = unpack(canopy%tscrn+273.16,  land, tscrn)    ! clobbered by scrnout?
-      qgscrn = unpack(canopy%qscrn,  land, qgscrn)  ! clobbered by scrnout?
-      uscrn = unpack(canopy%uscrn,  land, uscrn)    ! clobbered by scrnout?
-      cduv= unpack(canopy%cduv, land, cduv)
+      !tscrn = unpack(canopy%tscrn+273.16,  land, tscrn)    ! clobbered by scrnout?
+      !qgscrn = unpack(canopy%qscrn,  land, qgscrn)  ! clobbered by scrnout?
+      !uscrn = unpack(canopy%uscrn,  land, uscrn)    ! clobbered by scrnout?
+      !cduv= unpack(canopy%cduv, land, cduv)         ! clobbered by scrnout? (to get scrnout to work)
       cansto= unpack(canopy%cansto, land, cansto)
       vlai= unpack(veg%vlai, land, vlai)
       gflux = unpack(canopy%ghflux, land, gflux)
