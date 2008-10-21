@@ -1,6 +1,6 @@
       subroutine leoncld(cfrac)
       use diag_m
-      use cc_mpi, only : mydiag
+      use cc_mpi, only : mydiag, myid
       implicit none
       include 'newmpar.h'
       include 'liqwpar.h' ! ifullw
@@ -76,8 +76,6 @@ c These outputs are not used in this model at present
 
       integer kbase(ifullw),ktop(ifullw) !Bottom and top of convective cloud 
       include 'establ.h' ! provides qsat formula
-      
-      integer, parameter :: nmr = 0 ! MJT CHANGE - mr
 
       do k=1,kl   
          do iq=1,ifull
@@ -138,9 +136,7 @@ c     Calculate convective cloud fraction and adjust moisture variables
 c     before calling newcloud
       !------------------------------------------------------------------------
       ! MJT CHANGE - mr
-      ! the nmr=1 method attempts to remove the dependence on vertical resolution
-      ! by assuming a single coherent convective cloud in the vertical column.
-      if (nmr.eq.1) then 
+      if (nmr.ge.1) then 
         do k=1,kl
           do iq=1,ifull
             if(k.le.ktop(iq).and.k.ge.kbase(iq))then

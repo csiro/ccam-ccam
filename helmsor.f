@@ -11,6 +11,7 @@
       include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
       include 'parm.h'
       include 'parmdyn.h'
+      include 'parmgeom.h'  ! rlong0,rlat0,schmidt  - briefly
       include 'vecs.h'
       include 'mpif.h'
 !     integer, parameter :: meth=3      ! 3b, 5c1 good

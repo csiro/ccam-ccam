@@ -467,7 +467,14 @@ c        recompute with ds1'' which is less than the ds2' .
          if(mc.eq.2)then
 c          special case for mc=2 (no iterations)
 c          mc=2 : convection from 1 level to next only - special coding
+           dsh(iq,kbase)=0.   ! re-applied Apr 08
            dsh(iq,kbase+1)=heatpc(iq)/dsk(ktop)
+           if(ntest>=3.and.iq==idjd)then
+             print *,'conjob iq,kbase,ktop,mc,heatpc,dsk: ',
+     &                       iq,kbase,ktop,mc,heatpc(iq),dsk(ktop)
+             print *,'conjob dsh_out (kbase value not used??)'
+             print 93,(dsh(iq,k),k=kbase,ktop)
+           endif
          else
 c          mc>=3 : convection for 3 or more levels
 c          the scheme requires cam(kbase to ktop-1, kbase to ktop)
@@ -498,13 +505,14 @@ c          energy conservation terms
             cam(ktop-1,k-1)=dsk(k)
            enddo   ! k loop
            rhs(ktop-1)=heatpc(iq)
-           if(ntest.ge.3.and.ntest.eq.mc)then
+           if(ntest>=3.and.iq==idjd)then
 c            do k=kbase+2,ktop-1   ! N.B. mc=ktop+1-kbase
 c             do kic=kbase,k-2     ! not needed in newest code - diag here
 c              cam(kic,k)=0.       ! not needed in newest code - diag here
 c             enddo  ! kic loop    ! not needed in newest code - diag here
 c            enddo  ! k loop
-             print *,'conjob cam_in for iq,kbase,ktop: ',iq,kbase,ktop
+             print *,'conjob cam_in for iq,kbase,ktop,mc: ',
+     &                                  iq,kbase,ktop,mc
              print 93,(rhs(kic),kic=kbase,ktop-1)
              do k=ktop-1,kbase,-1
              print 93,(cam(kic,k),kic=kbase,ktop-1)
@@ -524,6 +532,8 @@ c          solve this matrix set of equations; rhs is in cam(...,ktop)
 
 c          now substitute into the triangular cam
            dsh(iq,kbase+1)=rhs(kbase)/cam(kbase,kbase)
+!          dsh(iq,kbase)=3.*dsh(iq,kbase+1)  ! Apr 08 to resemble conjob.fa
+           dsh(iq,kbase)=0.   ! Apr 08 not used in renorm
            do kic=kbase+1,ktop-1
             sum=rhs(kic)
             do k=kbase,kic-1
@@ -531,15 +541,14 @@ c          now substitute into the triangular cam
             enddo  ! k loop
             dsh(iq,kic+1)=sum/cam(kic,kic)
            enddo   ! kic loop
-           if(ntest.ge.3.and.ntest.eq.mc)then
+           if(ntest>=3.and.iq==idjd)then
              print *,'conjob cam_out for iq: ',iq
              print 93,(rhs(kic),kic=kbase,ktop-1)
              do k=ktop-1,kbase,-1
              print 93,(cam(kic,k),kic=kbase,ktop-1)
              enddo
-             print *,'conjob dsh_out (kbase value not used)'
+             print *,'conjob dsh_out (kbase value not used??)'
              print 93,(dsh(iq,k),k=kbase,ktop)
-!!!          ntest=ntest+1     !!!
            endif
          endif   ! (mc.eq.2)  ... else ...
        endif  ! (kbase.gt.0)
@@ -559,10 +568,12 @@ c          now substitute into the triangular cam
           endif   !  (k.gt.kbsav(iq).and.k.le.ktsav(iq))
          enddo   ! iq loop
         enddo    ! k loop
-        if(diag.and.mydiag)print *,
-     .            'renorm smin,heatpc,sumd,alxx: ',
+        if(diag.and.mydiag)then
+          print *,'renorm smin,heatpc,sumd,alxx: ',
      .                    smin(idjd),heatpc(idjd),sumd(idjd),
      .             heatpc(idjd)/(heatpc(idjd)-smin(idjd)*sumd(idjd))
+          print *,'dsh ',dsh(idjd,:)
+        endif
         do k=kuocb+1,kcl_top
          do iq=1,ifull
           if(smin(iq).lt.0..and.kbsav(iq).gt.0.and.k.gt.kbsav(iq))then
@@ -570,7 +581,7 @@ c          now substitute into the triangular cam
             if(ntest.ne.0.and.iq.eq.idjd.and.mydiag)print *,
      .            'renorm k,dsh_in,dsh_out: ',
      .                    k,dsh(iq,k),alxx*(dsh(idjd,k)-smin(idjd))
-           dsh(iq,k)=alxx*(dsh(iq,k)-smin(iq))
+            dsh(iq,k)=alxx*(dsh(iq,k)-smin(iq))
           endif  ! (smin(iq).lt.0..and.kbsav(iq).gt.0.and.k.gt.kbsav(iq))
          enddo   ! iq loop
         enddo    ! k loop

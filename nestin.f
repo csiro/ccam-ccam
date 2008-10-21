@@ -13,12 +13,15 @@
       subroutine nestin               
       use cc_mpi, only : myid, mydiag
       use diag_m
-!      include 'newmpar.h'
+      use define_dimensions, only : ncs, ncp ! MJT cable
+      !include 'newmpar.h'
 !     ik,jk,kk are array dimensions read in infile - not for globpea
 !     int2d code - not used for globpea
       include 'aalat.h'
       include 'arrays.h'
       include 'const_phys.h'
+      include 'darcdf.h'
+      include 'netcdf.inc'
       include 'dates.h'    ! mtimer
       include 'dava.h'
       include 'davb.h'     ! psls,qgg,tt,uu,vv
@@ -26,6 +29,7 @@
       include 'latlong.h'
       include 'map.h'
       include 'parm.h'     ! qgmin
+      include 'parmgeom.h' ! rlong0,rlat0,schmidt
       include 'pbl.h'      ! tss
       include 'sigs.h'
       include 'soil.h'     ! sicedep fracice
@@ -38,9 +42,17 @@
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
       real sigin
       integer ik,jk,kk
-      common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
-      real zsb(ifull)
+      common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug
+      real, dimension(ifull) :: zsb,duma,dumb,dumc,dumd,dume
+      real, dimension(ifull) :: dumf,dumg,dumh,dumi,dumj,dumk
+      real, dimension(ifull) :: duml
+      integer, dimension(ifull) :: dumm
+      real, dimension(ifull) :: rtsoil_h,cansto_h ! MJT cable
+      real, dimension(ifull,ncp) :: cplant_h ! MJT cable
+      real, dimension(ifull,ncs) :: csoil_h ! MJT cable
+      real, dimension(ifull,12) :: urban ! MJT urban
       integer, dimension(ifull) :: isoilm_h ! MJT lsmask
+      character*12 dimnam
       integer num,mtimea,mtimeb
       data num/0/,mtimea/0/,mtimeb/-1/
       save num,mtimea,mtimeb
@@ -113,15 +125,26 @@
       enddo     ! iq loop
 
 !     read tb etc  - for globpea, straight into tb etc
+      
+      if(myid==0)then
+         call ncdinq(ncid,1,dimnam,ik,ier)
+         print *,'in nestin ncid,dimnam,ik,ier ',ncid,dimnam,ik,ier
+       endif
       if(io_in==1)then
-        call infil(1,kdate_r,ktime_r,timeg_b,ds_r, 
-     .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,
-     .              isoilm_h) ! MJT lsmask
+        call infile(1,kdate_r,ktime_r,timeg_b,ds_r, 
+     .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
+     &            duma,dumb,dumc,dumd,dume,dumf,dumg, 
+     &            dumh,dumi,dumj,dumk,duml,dumm,ifull,kl,
+     &            rtsoil_h,isoilm_h,urban,cplant_h,csoil_h,
+     &            cansto_h) ! MJT cable ! MJT lsmask ! MJT urban
       endif   ! (io_in==1)
-
       if(io_in==-1)then
-         call onthefl(1,kdate_r,ktime_r,
-     &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb) 
+c        call onthefl(1,kdate_r,ktime_r,
+c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb) 
+         call onthefly(1,kdate_r,ktime_r,
+     &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
+     &        duma,dumb,dumc,dumd,dume,dumf,dumg,dumh,dumi,dumj, ! just dummies
+     &        dumk,dumm,rtsoil_h,urban) ! MJT cable, MJT lsmask
       endif   ! (io_in==1)
       tssb(:) = abs(tssb(:))  ! moved here Mar '03
       if (mydiag) then
@@ -266,13 +289,14 @@
       return
       end subroutine nestin
 
-      subroutine nestinb  ! called for mbd>0 - spectral filter method ! MJT CHANGE - delete mins_mbd
+      subroutine nestinb  ! called for mbd>0 - spectral filter method
 !     this is x-y-z version      
       use cc_mpi, only : myid, mydiag
       use diag_m
+      use define_dimensions, only : ncs, ncp ! MJT cable
       implicit none
       integer, parameter :: ntest=0 
-!      include 'newmpar.h'
+      !include 'newmpar.h'
       include 'aalat.h'
       include 'arrays.h'
       include 'const_phys.h'
@@ -282,8 +306,8 @@
       include 'dates.h'    ! mtimer
       include 'indices.h'
       include 'latlong.h'
-      include 'liqwpar.h'  ! ifullw,qfg,qlg
       include 'parm.h'     ! qgmin
+      include 'parmgeom.h' ! rlong0,rlat0,schmidt  
       include 'pbl.h'      ! tss
       include 'sigs.h'
       include 'soil.h'     ! sicedep fracice
@@ -296,45 +320,56 @@
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
       real sigin
       integer ik,jk,kk
-      common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
+      common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug
       integer mtimeb,kdate_r,ktime_r
       integer ::  iabsdate,iq,k,kdhour,kdmin
+      real, dimension(ifull) :: rtsoil_h,cansto_h ! MJT cable
+      real, dimension(ifull,ncp) :: cplant_h ! MJT cable
+      real, dimension(ifull,ncs) :: csoil_h ! MJT cable
+      real, dimension(ifull,12) :: urban ! MJT urban
       integer, dimension(ifull) :: isoilm_h ! MJT lsmask
       integer, save :: ncount = -1 ! MJT daily ave
       real :: ds_r,rlong0x,rlat0x
       real :: schmidtx,timeg_b
       real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
       real :: fraciceb,sicedepb
-      real, dimension(ifull) ::  zsb
+      real, dimension(ifull) :: zsb,duma,dumb,dumc,dumd,dume
+      real, dimension(ifull) :: dumf,dumg,dumh,dumi,dumj,dumk
+      real, dimension(ifull) :: duml
+      integer, dimension(ifull) :: dumm
       real, parameter :: alpr = 0.2 ! MJT daily ave
       real, parameter :: lambda = 0.5 ! MJT daily ave      
-      logical, save :: firstcall = .true. ! MJT
-      data mtimeb/-1/ 
+      logical, save :: firstcall = .true. ! MJT daily ave
+      data mtimeb/-1/
       save mtimeb
-  
+
 !     mtimer, mtimeb are in minutes
       if(ktau<100.and.myid==0)then
         print *,'in nestinb ktau,mtimer,mtimeb,io_in ',
-     &                      ktau,mtimer,mtimeb,io_in ! MJT CHANGE - delete mtimea
+     &                      ktau,mtimer,mtimeb,io_in
         print *,'with kdate_s,ktime_s >= ',kdate_s,ktime_s
       end if
-  
-      !if ((mtimer<mtimeb).and.(ktau.gt.0)) return ! MJT daily ave
- 
+
       !------------------------------------------------------------------------------
       if ((mtimer>mtimeb).or.firstcall) then
         firstcall=.false.
-      
-!      read tb etc  - for globpea, straight into tb etc
+
+!     following (till end of subr) reads in next bunch of data in readiness
+!     read tb etc  - for globpea, straight into tb etc
        if(io_in==1)then
-         call infil(1,kdate_r,ktime_r,timeg_b,ds_r, 
-     .               pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,
-     .               isoilm_h) ! MJT lsmask
+        call infile(1,kdate_r,ktime_r,timeg_b,ds_r, 
+     .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
+     &            duma,dumb,dumc,dumd,dume,dumf,dumg, 
+     &            dumh,dumi,dumj,dumk,duml,dumm,ifull,kl,
+     &            rtsoil_h,isoilm_h,urban,cplant_h,csoil_h,
+     &            cansto_h) ! MJT cable ! MJT lsmask ! MJT urban
        endif   ! (io_in==1)
 
        if(io_in==-1)then
-          call onthefl(1,kdate_r,ktime_r,
-     &                  pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb) 
+         call onthefly(1,kdate_r,ktime_r,
+     &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
+     &        duma,dumb,dumc,dumd,dume,dumf,dumg,dumh,dumi,dumj, ! just dummies
+     &        dumk,dumm,rtsoil_h,urban) ! MJT cable ! MJT lsmask ! MJT urban
        endif   ! (io_in==1)
        tssb(:) = abs(tssb(:))  ! moved here Mar '03
        if (mydiag) then
@@ -373,7 +408,7 @@
        if(mod(ktau,nmaxpr)==0.or.ktau==2.or.diag)then
 !        following is useful if troublesome data is read in
          if ( myid == 0 ) then
-           print *,'following max/min values printed from nestin'
+           print *,'following max/min values printed from nestinb'
          end if
          call maxmin(ub,'ub',ktau,1.,kk)
          call maxmin(vb,'vb',ktau,1.,kk)
@@ -476,22 +511,27 @@
           qa(:,:)=qb(:,:)-qg(1:ifull,:)
         end if
 
+        if(nmaxpr==1)then
+          print *,'before call getspecdata ktau,myid ',ktau,myid
+          call maxmin(qb,'qb',ktau,1.e3,kl)
+          if(mydiag)print *,'qb ',qb(idjd,:)
+        endif
         call getspecdata(psla,ua,va,ta,qa)
-        !if ( myid == 0 ) then
-        ! print *,'following after getspecdata are really psl not ps'
-        !end if
-        !call maxmin(pslb,'pB',ktau,100.,1)
+        if ( myid == 0 ) then
+          print *,'following after getspecdata are really psl not ps'
+        end if
+        call maxmin(pslb,'pB',ktau,100.,1)
 
-!     following sice updating code moved from sflux Jan '06      
-!     check whether present ice points should change to/from sice points
+!       following sice updating code copied from nestin June '08      
+!       check whether present ice points should change to/from sice points
         do iq=1,ifull
          if(fraciceb(iq)>0.)then
-!          N.B. if already a sice point, keep present tice (in tgg3)
-           if(fracice(iq)==0.)then
-             tgg(iq,3)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
-           endif  ! (fracice(iq)==0.)
-!          set averaged tss (tgg1 setting already done)
-           tss(iq)=tgg(iq,3)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq))
+!         N.B. if already a sice point, keep present tice (in tgg3)
+          if(fracice(iq)==0.)then
+            tgg(iq,3)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
+          endif  ! (fracice(iq)==0.)
+!         set averaged tss (tgg1 setting already done)
+          tss(iq)=tgg(iq,3)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq))
          endif  ! (fraciceb(iq)==0.)
         enddo	! iq loop
         sicedep(:)=sicedepb(:)  ! from Jan 06
@@ -518,12 +558,12 @@
         enddo     ! iq loop
 
 !       calculate time interpolated tss 
-        if (namip.eq.0.and.ntest.eq.0) then  ! namip SSTs/sea-ice take precedence
-         do iq=1,ifull
-          if(.not.land(iq))then
-            tss(iq)=tssb(iq)
-            tgg(iq,1)=tss(iq)
-          endif  ! (.not.land(iq))
+        if(namip.ne.0.or.ntest.ne.0) then  ! namip SSTs/sea-ice take precedence
+          do iq=1,ifull
+           if(.not.land(iq))then
+             tss(iq)=tssb(iq)
+             tgg(iq,1)=tss(iq)
+           endif  ! (.not.land(iq))
          enddo   ! iq loop 
         end if ! (namip.eq.0.and.ntest.eq.0)
       end if ! (mod(nint(ktau*dt),60).eq.0)
@@ -548,10 +588,10 @@
           ncount=ncount+1
         end if
       end if 
-
+     
       return
       end subroutine nestinb
-      
+
       subroutine nestsave(pslot,uot,vot,tot,qot)
       
       implicit none
@@ -584,7 +624,6 @@
       return
       end subroutine nestload
 
-
       ! This subroutine gathers data for the MPI version of spectral downscaling
       subroutine getspecdata(pslb,ub,vb,tb,qb)
 
@@ -596,6 +635,7 @@
       include 'arrays.h'     ! u,v,t,qg,psl
       include 'const_phys.h'
       include 'parm.h'       ! mbd,schmidt,nud_uv,nud_p,nud_t,nud_q,kbotdav
+      include 'parmgeom.h'  ! rlong0,rlat0,schmidt  - briefly
       include 'xyzinfo.h'
       include 'savuvt.h'     ! savu,savv
       include 'vecsuv.h'
@@ -803,6 +843,7 @@
       include 'map_g.h'      ! em_g
       include 'indices_g.h'  ! in_g,ie_g,is_g,iw_g
       include 'parm.h'       ! ds,kbotdav
+      include 'parmgeom.h'   ! rlong0,rlat0,schmidt  
       include 'xyzinfo_g.h'    ! x_g,y_g,z_g
 
       integer, parameter :: ntest=0 

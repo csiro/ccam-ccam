@@ -1,4 +1,5 @@
-      subroutine latltoij(rlongin,rlatin,xout,yout,nf,xx4,yy4,ik)
+      subroutine latltoij(rlongin,rlatin,rlong0,rlat0,schmidt,
+     &                    xout,yout,nf,xx4,yy4,ik)
 c     given a pair of latitudes and longitudes (in degrees),
 c     returns i and j values on the conformal-cubic grid as
 c     xout ranging between .5 and   il +.5, and
@@ -8,54 +9,32 @@ c     global grid.
 
 c     modify for Cray; used by plotg.f and topgencc.f
       use utilities
-      parameter (ncray=1)    ! 0 for most computers, 1 for Cray
-c     contains a version of xytoij
-      parameter (ntest=1)
+      implicit none
+      integer, parameter :: ncray=1    ! 0 for many computers, 1 for Cray
+      integer, parameter :: ntest=0, numtst=-1
       include 'newmpar.h'
-      real*8 xx4(1+4*ik,1+4*ik),yy4(1+4*ik,1+4*ik)
-      real*8 dxx,dyy,dxy,dyx,denxyz
       include 'const_phys.h'
       include 'parm.h'
       include 'parmdyn.h'
-      real rotpolei(3,3)
-      dimension xgx(0:5),xgy(0:5),xgz(0:5),ygx(0:5),ygy(0:5),ygz(0:5)
+      real, save :: rotpolei(3,3)
+      real xgx(0:5),xgy(0:5),xgz(0:5),ygx(0:5),ygy(0:5),ygz(0:5)
       data xgx/0., 0., 0., 0., 1., 1./, ygx/0.,-1.,-1., 0., 0., 0./,
      .     xgy/1., 1., 0., 0., 0., 0./, ygy/0., 0., 0.,-1.,-1., 0./,
      .     xgz/0., 0.,-1.,-1., 0., 0./, ygz/1., 0., 0., 0., 0., 1./
 
-!     following used by npanels=13
-      dimension npanetab(-1:1,-1:4),acon(-1:1,-1:4),bcon(-1:1,-1:4)
-      dimension     xadd(-1:1,-1:4),yadd(-1:1,-1:4)
-      real*8 alf,one,x,y,z  ! 6/11/07
-      data one/1./    ! just to force real*8 calculation
-      data npanetab/9,12,13, 7,2,1, 6,4,3, 6,5,3, 8,10,0, 9,11,13/
-      data acon/0,1,1, -1,0,0, -1,0,0, 0,0,-1, 1,1,0, 1,1,0/
-      data bcon/1,0,0, 0,-1,-1, 0,-1,-1, -1,-1,0, 0,0,1, 0,0,1/
-      data xadd/ -.5,  .5, -.5,   -.5,  .5,  .5,    -.5,-.5,-.5,
-     .          -1.5,-1.5, 1.5,    1.5, .5, 3.5,    1.5, .5, 4.5/
-      data yadd/ 1.5, 1.5, 1.5,     .5, .5, 1.5,    1.5, .5, 1.5,
-     .           -.5,  .5, 2.5,   -2.5,-2.5,-.5,   -3.5,-3.5,-.5/
-c        acon:   0    -1    -1       0     1     1     9  7  6   6  8  9
-c                1     0     0       0     1     1    12  2  4   5 10 11
-c                1     0     0      -1     0     0    13  1  3   3  0 13
-c        bcon:   1     0     0      -1     0     0
-c                0    -1    -1      -1     0     0
-c                0    -1    -1       0     1     1
-c        xadd: -0.5  -0.5  -0.5    -1.5   1.5   1.5      correct ones
-c               0.5   0.5  -0.5    -1.5   0.5   0.5
-c              -0.5   0.5  -0.5     1.5   3.5   4.5
-c        yadd:  1.5   0.5   1.5    -0.5  -2.5  -3.5
-c               1.5   0.5   0.5     0.5  -2.5  -3.5
-c               1.5   1.5   1.5     2.5  -0.5  -0.5
+      real*8 xx4(1+4*ik,1+4*ik),yy4(1+4*ik,1+4*ik)
+      real*8 dxx,dyy,dxy,dyx,denxyz,x,y,z 
+      real*8, save :: alf, one=1.
+      real den,ri,rj,xout,yout,xa,ya,za,xgrid,ygrid,xx,yy,zz,x1,z1
+      real rlatin,rlongin,rlong0,rlat0,schmidt 
+      integer ig,jg,ik,is,js,loop,nf
+      integer, save :: nmaploop=3, num=0
 
-      save num,rotpolei,alf
-      data nmaploop/3/,numtst/100/,num/0/
-!     if(num.eq.0)then     ! not with onthefly
+!     if(num==0)then     ! not with onthefly
         alf=(one-schmidt**2)/(one+schmidt**2)
         rotpolei = transpose(calc_rotpole(rlong0,rlat0))
 !     endif
       num=num+1
-c     numtst=num
       if(num<numtst)print *,'a rlongin,rlatin ',rlongin,rlatin
       xa=cos(rlongin*pi/180.)*cos(rlatin*pi/180.)
       ya=sin(rlongin*pi/180.)*cos(rlatin*pi/180.)
@@ -70,7 +49,6 @@ c     numtst=num
 !       on regular gnomonic panels
         if(schmidt.ne.1.)then
           x1=x
-
           z1=z
           x=x*(1.-alf)/(schmidt*(1.-alf*z))
           y=y*(1.-alf)/(schmidt*(1.-alf*z))

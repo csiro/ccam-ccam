@@ -42,7 +42,7 @@ c******************************************************************************
      &                  cll,clm,clh)                       !Outputs
 
       use diag_m
-      use cc_mpi, only : mydiag
+      use cc_mpi, only : mydiag,myid
       implicit none
 C Global parameters
       include 'newmpar.h'
@@ -50,8 +50,10 @@ C Global parameters
       include 'cparams.h'    !Input cloud scheme parameters
       include 'kuocom.h'     ! ldr
       include 'params.h'     !Input model grid dimensions (modified params.h for CCAM)
+      include 'parm.h'       !for printing diags
       include 'rdparm.h'     !Input radiation scheme parameters
       include 'hcon.h'       !Input radiation physical constants
+      include 'sigs.h'       ! MJT change - mr
 
 C Argument list
       logical cldoff
@@ -73,18 +75,12 @@ C Argument list
 c      real Refflm(imax)
 c      real cldliq(imax)
 
-
 C Local shared common blocks (see TASK COMMON/TASKLOCAL above)
       include 'radisw.h'     !Output various things (see above) and input coszro
 
 C Global data blocks
-      logical debug
-      integer lgdebug,mgdebug,insdebug
       integer naerosol_i(2)
-      data debug,lgdebug,mgdebug,insdebug /.false.,1,10106,1/
       data naerosol_i / 2*0 /
-
-
 
       integer jclb,nlow,nmid,ktied,kbgel,klcmc,klowrn,kmidrn
       real aftsea
@@ -103,103 +99,68 @@ C Local work arrays and variables
       integer k
       integer mg
       integer nc
-      integer ns
-      integer kb     ! MJT CHANGE - mr
-      integer ki     ! MJT CHANGE - mr
-      integer kj     ! MJT CHANGE - mr
-      integer kk     ! MJT CHANGE - mr
-      integer kt     ! MJT CHANGE - mr
-      integer kar(1) ! MJT CHANGE - mr
-      integer, parameter :: nmr = 0 ! MJT CHANGE - mr
 
-      real ab
-      real cfl
-      real cldht
-      real deltai
-      real diffk
-      real dz
-      real em
-      real eps
-      real f1,f2,fcon,onem
-      real qlpath
-      real refac
-      real refac1
-      real refac2
-      real re1
-      real re2
-      real rhoa
-      real sigmai
-      real tciwc
-      real tclwc
-      real temp_correction
-      real tmid
-      real trani
-      real tranw
-      real wice
-      real wliq
-      real cbdry                      ! MJT CHANGE - mr
-      real nfrac                      ! MJT CHANGE - mr
-      real, parameter :: cldedg = 0.5 ! MJT CHANGE - mr
+      integer kb,km,kk,kt,pos(1) ! MJT CHANGE - mr
 
-C Local data, functions etc
-      logical start
-      data start /.true./
-      save start
+      real ab, cfl, cldht, deltai, diffk, dz, em, eps, f1, f2, fcon
+      real onem, qlpath, refac, refac1, refac2, re1, re2, rhoa
+      real siglow, sigmid
+      real sigmai, tciwc, tclwc, temp_correction, tmid
+      real trani, tranw, wice, wliq
 
+      real cbdry,nfrac,csig,csum,ctemp ! MJT CHANGE - mr
+      real, parameter :: cldedg = 0.1  ! MJT CHANGE - mr
+
+      integer, save :: istart
+      data istart/0/
 C Start code : ----------------------------------------------------------
 
 c**** Set up levels for low/mid/high cloud counting (for cloud2.f)
 
-      if(start)then
+      if(istart==0)then
 
-c.... "low" cloud up to half level closest to p/Ps=0.800 (~800mbs)
-        k=1
-        f2=0.800-sigh(k)
- 22     k=k+1
-        f1=f2
-        f2=0.800-sigh(k)
-        if((f1.le.0.0).and.(f2.gt.0.0))go to 30
-        go to 22
- 30     nlow=k-1
-        if(f2.lt.abs(f1))nlow=k
 c..   The FULL level is 1 below the half level indicator
-        nlow=nlow-1
-
-c.... "mid" cloud up to half level closest to p/Ps=0.400 (~400mbs)
-        f2=0.400-sigh(k)
- 32     k=k+1
-        f1=f2
-        f2=0.400-sigh(k)
-        if((f1.le.0.0).and.(f2.gt.0.0))go to 40
-        go to 32
- 40     nmid=k-1
-        if(f2.lt.abs(f1))nmid=k
-c..   The FULL level is 1 below the half level indicator
-        nmid=nmid-1
+c     N.B. for ISCCP, low is at 680 mb and mid at 440 mb
+c.... "low" cloud up to half level closest to p/Ps=.68 (~800mbs)
+c.... "mid" cloud up to half level closest to p/Ps=.44 (~400mbs)
+c       siglow=.8
+c       sigmid=.4
+        siglow=.68
+        sigmid=.44
+ 	f1=1.
+        f2=1.
+        do k=1,nl-1
+         if(abs(sigh(k+1)-siglow)<f1)then
+           f1=abs(sigh(k+1)-siglow)
+           nlow=k
+         endif
+         if(abs(sigh(k+1)-sigmid)<f2)then
+           f2=abs(sigh(k+1)-sigmid)
+           nmid=k
+         endif
+        enddo
         if(mydiag)then
          print *,'in cloud2, nlow,nmid,sigh_vals: ',
-     &                       nlow,nmid,sigh(nlow),sigh(nmid)
+     &                       nlow,nmid,sigh(nlow+1),sigh(nmid+1)
         endif
-        start=.false.
+        istart=1
       endif
 
-        if(debug)then
-          if(lg.eq.lgdebug)then
-            ns=insdebug
-            mg=mgdebug+(ns-1)*lon
-            write(25,'(a,i1)')'Start cloud2'
-            write(25,91)'ttg ',(ttg(mg,k),k=1,nl)
-            write(25,9)'qlg ',(qlg(mg,k),k=1,nl)
-            write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
-            write(25,91)'cfrac ',(cfrac(mg,k),k=1,nl)
-            write(25,9)'qccon ',(qccon(mg,k),k=1,nl)
-            write(25,9)'cdrop ',(cdrop(mg,k),k=1,nl)
-            write(25,91)'prf ',(prf(mg,k),k=1,nl)
-            write(25,91)'dprf ',(dprf(mg,k),k=1,nl)
-            write(25,91)'cosz ',cosz(mg)
-            write(25,*)
-          endif
-        endif
+      if(ndi<0.and.nmaxpr==1.and.mydiag)then
+        print *,'Start cloud2 imax,idjd,myid ',imax,idjd,myid,cldoff
+        if(idjd<=imax)then
+          write(6,"('ttg ',18f7.2)")(ttg(idjd,k),k=1,kl)
+          write(6,"('qlg   ',9g10.3)")(qlg(idjd,k),k=1,kl)
+          write(6,"('qfg   ',9g10.3)")(qfg(idjd,k),k=1,kl)
+          write(6,"('cfrac ',9g10.3)")(cfrac(idjd,k),k=1,kl)
+          write(6,"('prf ',18f7.1)")(prf(idjd,k),k=1,kl)
+          write(6,"('dprf ',18f7.1)")(dprf(idjd,k),k=1,kl)
+          write(6,"('qccon ',9g10.3)")(qccon(idjd,k),k=1,kl)
+          write(6,"('cdrop ',9g10.3)")(cdrop(idjd,k),k=1,kl)
+          write(6,"('qo3   ',9g10.3)")(qo3(idjd,k),k=1,kl)  ! used by lwr88
+          write(6,"('cosz ',9g10.3)")cosz(idjd)
+       endif
+      endif
 
 c***INITIALIZE THE CLOUD AND CLOUD INDEX FIELDS
 c     Except for the ground layer (nc=1) the assumption is that
@@ -478,55 +439,57 @@ c Mk3 with direct aerosol effect :
         enddo
 
 c Weight cloud properties by liquid/ice fraction
+        
         !--------------------------------------------------------------------------------
         ! MJT CHANGE - mr
-        ! should really use binary cloud configurations (camt=1) by repeating radiation
-        ! calculation for all 2**N combinations of vertical cloud blocks and then combining
-        ! the results as a sum that is weighted by the area of each combination.
-        ! Instead, the nmr=1 method simply groups cloud fractions into cloud blocks
-        ! (i.e., to remove the dependence on vertical resolution) and estimates the cloud block
-        ! bulk properties (i.e., a single configuration of vertical cloud blocks but with
-        ! fractional area (0.<camt<=1.)).
-        if (nmr.eq.1) then ! combine clouds in adjacent layers into a single cloud
+        ! Attempt to remove vertical dependence using a modified version the approach used by stubenrauch et al 1997
+        if (nmr.eq.1) then
           do mg=1,imax
+            cbdry=cldedg*maxval(cfrac(mg,1:nl-1)) ! ignore clouds smaller than 10% of the max cloud fraction
             k=1
             do while (k.le.nl-1)
-              if (cfrac(mg,k).gt.0.) then
+              if (cfrac(mg,k).gt.cbdry) then
 
+                ! find cloud levels from k to kk
                 kk=k
-                do while ((cfrac(mg,kk+1).gt.0.).and.(kk.lt.nl-1))
+                do while ((cfrac(mg,kk+1).gt.cbdry).and.(kk.lt.nl-1))
                   kk=kk+1
                 end do
+                ! find maximum cloud fraction and level
+                pos=maxloc(cfrac(mg,k:kk))
+                km=pos(1)+k-1
                 
-                cbdry=cldedg*sum(cfrac(mg,k:kk))/real(kk-k+1)
-                kb=k
-                do while (cfrac(mg,kb).lt.cbdry)
-                  kb=kb+1
+                ! find cloud bottom
+                csig=sig(k)*cfrac(mg,k)
+                csum=cfrac(mg,k)
+                do kb=k+1,km
+                  ctemp=max(0.,cfrac(mg,kb-1)-cfrac(mg,kb))
+                  csig=csig+sig(kb)*ctemp
+                  csum=csum+ctemp
                 end do
-                kt=kb
-                do while ((cfrac(mg,kt+1).ge.cbdry).and.(kt.lt.kk))
-                  kt=kt+1
-                end do
-                
-                ki=kt
-                do kj=kk,kt+1,-1
-                  if (cfrac(mg,kj).gt.cbdry) ki=kj
-                end do
-
-                if (ki.gt.kt) then
-                  kar=minloc(cfrac(mg,kt:ki))
-                  kk=kar(1)+kt-1
-                  cbdry=cldedg*sum(cfrac(mg,k:kk))/real(kk-k+1)
+                if (km-k.gt.0) then
+                  pos=minloc((csig/csum-sig(k:km))**2)
+                  kb=pos(1)+k-1
+                else
                   kb=k
-                  do while (cfrac(mg,kb).lt.cbdry)
-                    kb=kb+1
-                  end do
-                  kt=kb
-                  do while ((cfrac(mg,kt+1).ge.cbdry).and.(kt.lt.kk))
-                    kt=kt+1
-                  end do
                 end if
                 
+                ! find cloud top
+                csig=sig(kk)*cfrac(mg,kk)
+                csum=cfrac(mg,kk)
+                do kt=kk-1,km,-1
+                  ctemp=max(0.,cfrac(mg,kt+1)-cfrac(mg,kt))
+                  csig=csig+sig(kt)*ctemp
+                  csum=csum+ctemp
+                end do
+                if (kk-km.gt.0) then
+                  pos=minloc((csig/csum-sig(km:kk))**2)
+                  kt=pos(1)+km-1
+                else
+                  kt=kk
+                end if
+                
+                ! determine average cloud properties
                 nfrac=sum(cfrac(mg,k:kk))
                 Re1=sum((fice(mg,k:kk)*Rei1(mg,k:kk)
      &                 +(1.-fice(mg,k:kk))*Rew1(mg,k:kk))
@@ -544,7 +507,7 @@ c Weight cloud properties by liquid/ice fraction
                 nclds(mg)=nclds(mg)+1
                 nc=nclds(mg)+1
 
-                camt(mg,nc)=nfrac/real(kk-k+1)
+                camt(mg,nc)=cfrac(mg,km)
                 emcld(mg,nc)=Em/nfrac
                 cuvrf(mg,nc)=Re1/nfrac
                 cirrf(mg,nc)=Re2/nfrac
@@ -592,28 +555,31 @@ c             if(prf(mg,k).gt.800.) Em = 1.
         end if ! (nmr.eq.1)
         !--------------------------------------------------------------------------------
 
-        if(debug)then
-          if(lg.eq.lgdebug)then
-            ns=insdebug
-            mg=mgdebug+(ns-1)*lon
-            write(25,'(a,i1)')'After cloud2'
-            write(25,9)'cdrop ',(cdrop(mg,k),k=1,nl)
-            write(25,91)'Rew ',((Rew1(mg,k)+Rew2(mg,k))/2,k=1,nl)
-            write(25,91)'Rei ',((Rei1(mg,k)+Rei2(mg,k))/2,k=1,nl)
-            write(25,91)'Abw ',(Abw(mg,k),k=1,nl)
-            write(25,91)'Abi ',(Abi(mg,k),k=1,nl)
-            write(25,91)'Emw ',(Emw(mg,k),k=1,nl)
-            write(25,91)'Emi ',(Emi(mg,k),k=1,nl)
-            write(25,9)'Reffl ',(Reffl(mg,k),k=1,nl)
-            write(25,9)'Reffi ',(Reffi(mg,k),k=1,nl)
-            write(25,*)
-          endif
+
+        if(ndi<0.and.nmaxpr==1.and.idjd<=imax.and.mydiag)then
+         print *,'After cloud2 myid',myid
+         write(6,"('nclds ',i3)") nclds(idjd)
+         write(6,"('ktop  ',18i3)")(ktop(idjd,k),k=1,kl)
+         write(6,"('kbtm  ',18i3)")(kbtm(idjd,k),k=1,kl)
+         write(6,"('ktopsw',18i3)")(ktopsw(idjd,k),k=1,kl)
+         write(6,"('kbtmsw',18i3)")(kbtmsw(idjd,k),k=1,kl)
+         write(6,"('Rew ',18f7.4)")
+     &           ((Rew1(idjd,k)+Rew2(idjd,k))/2,k=1,kl)
+         write(6,"('Rei ',18f7.4)")
+     &           ((Rei1(idjd,k)+Rei2(idjd,k))/2,k=1,kl)
+         write(6,"('Abw ',18f7.4)")(Abw(idjd,k),k=1,kl)
+         write(6,"('Abi ',18f7.4)")(Abi(idjd,k),k=1,kl)
+         write(6,"('Emw ',18f7.4)")(Emw(idjd,k),k=1,kl)
+         write(6,"('Emi ',18f7.4)")(Emi(idjd,k),k=1,kl)
+         write(6,"('camt ',18f7.4)")(camt(idjd,k),k=1,kl)
+         write(6,"('emcld ',18f7.4)")(emcld(idjd,k),k=1,kl)
+         write(6,"('cuvrf ',18f7.4)")(cuvrf(idjd,k),k=1,kl)
+         write(6,"('cirrf ',18f7.4)")(cirrf(idjd,k),k=1,kl)
+         write(6,"('cirab ',18f7.4)")(cirab(idjd,k),k=1,kl)
+         write(6,"('Reffl ',9g10.3)")(Reffl(idjd,k),k=1,kl)
+         write(6,"('Reffi ',9g10.3)")(Reffi(idjd,k),k=1,kl)
         endif
- 1      format(3(a,f10.3))
- 9      format(a,30g10.3)
- 91     format(a,30f10.3)
-      End If   !.not.cldoff
-      
+      endIf   !.not.cldoff      
 
       return
       end

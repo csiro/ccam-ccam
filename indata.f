@@ -1,9 +1,10 @@
       subroutine indata(hourst,newsnow,jalbfix)! nb  newmask not yet passed thru
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
       use ateb ! MJT urban
-      use cable_ccam, only : CABLE,cbmrdn3 ! MJT cable
+      use cable_ccam, only : CABLE,loadcbmparm ! MJT cable
       use physical_constants, only : umin ! MJT cable      
       use cc_mpi
+      use define_dimensions, only : ncs, ncp ! MJT cable
       use diag_m
 !     rml 21/02/06 removed all so2 code
 !     rml 16/02/06 use tracermodule, timeseries
@@ -24,6 +25,7 @@
       include 'aalat.h'     ! alat,along
       include 'arrays.h'
       include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
+      include 'carbpools.h' ! MJT cable
       include 'const_phys.h'
       include 'dates.h'     ! mtimer
       include 'dava.h'      ! davt
@@ -37,6 +39,7 @@
       include 'nsibd.h'     ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
       include 'parmdyn.h'   ! epsp
+      include 'parmgeom.h'  ! rlong0,rlat0,schmidt
       include 'pbl.h'
       include 'permsurf.h'
       include 'prec.h'
@@ -49,9 +52,9 @@
       include 'tracers.h'
       include 'trcom2.h'    ! trcfil,nstn,slat,slon,istn,jstn
       include 'vecs.h'
+      include 'vegpar.h' ! MJT cable
       include 'xyzinfo.h'   ! x,y,z,wts
       include 'vecsuv.h'    ! vecsuv info
-      include 'vegpar.h' ! MJT cable
       include 'mpif.h'
       real, intent(out) :: hourst
       integer, intent(in) :: newsnow, jalbfix
@@ -63,7 +66,7 @@
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
       real sigin
       integer ik,jk,kk
-      common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
+      common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug
       real, dimension(ifull) :: zss, aa, zsmask
       real tbarr(kl),qgin(kl),zbub(kl)
       character co2in*80,radonin*80,surfin*80,header*80
@@ -241,15 +244,12 @@ c         print *,'this one uses supplied eigs'
          do iq=1,ifull
             if(zsmask(iq)>=0.5)then
                land(iq)=.true. 
-        !       zs(iq)=max(zs(iq),1.1) ! to ensure consistent with zs=0 sea test ! MJT lsmask
+cJun08         zs(iq)=max(zs(iq),1.1) ! to ensure consistent with zs=0 sea test
             else
                land(iq)=.false.
-        !       zs(iq)=0.             ! to ensure consistent with zs=0 sea test ! MJT lsmask
+cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
             endif  
          enddo                  ! iq loop
-!        following is land fix for cape grim radon runs    **************
-        ! if(rlat0>-26.9.and.rlat0<-26.7)stop ! MJT lsmask
-!	  had  land(37,47)=.false.
          go to 59
  58      print *,'end-of-file reached on topofile'
  59      close(66)
@@ -265,30 +265,18 @@ c         print *,'this one uses supplied eigs'
 
       hourst = 0. ! Some io_in options don't set it.
       albsav=-1. ! missing value flag ! MJT cable
-      if(io_in<4)then
+      if(io_in<4)then  ! ********************************************************
          kdate_sav=kdate_s
          ktime_sav=ktime_s
          if(io_in==1)then
             call infile(0,kdate,ktime,timegb,ds,
      &           psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
-     &           tgg,wb,wbice,albsav,snowd,
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &           rtsoil, ! MJT cable
-     &           isoilm,urban)  !MJT lsmask ! MJT urban
-            albnirsav=albsav ! MJT CHANGE albedo  
-            if ( mydiag ) then
-               print *,'timegb,ds,zss',timegb,ds,zss(idjd)
-               print *,'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
-               print *,'kdate_s,ktime_s >= ',kdate_s,ktime_s
-               print *,'kdate,ktime ',kdate,ktime
-               write(6,"('wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
-            end if
-            if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)then
-              write(0,*) 'stopping in indata, not finding correct ',
-     &                   ' kdate/ktime'
-              stop
-            endif
+     &           tgg,wb,wbice,albsav,snowd,qfg(1:ifull,:), ! MJT albedo
+     &           qlg(1:ifull,:), ! 0808 
+     &           tggsn,smass,ssdn,ssdnn,snage,isflag,ifull,kl,         ! 0808
+     &           rtsoil,isoilm,urban,cplant,csoil,cansto) ! MJT cable !MJT lsmask ! MJT urban
+            albnirsav=albsav ! MJT CHANGE albedo
 c           if(nspecial>100)then
 c!            allows nudging from mesonest with different kdate
 c             kdate=nspecial
@@ -310,11 +298,22 @@ c           endif  ! (nspecial>100)
          if(io_in==-1)then
             call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
-     &           tgg,wb,wbice,snowd,
+     &           tgg,wb,wbice,snowd,qfg(1:ifull,:),qlg(1:ifull,:), !0808
      &           tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &           rtsoil, ! MJT cable
-     &           urban) ! MJT urban
-         endif   ! (io_in==-1.or.io_in==-3)
+     &           rtsoil,urban) ! MJT cable ! MJT urban     
+         endif   ! (io_in==-1)
+         if( mydiag )then
+           print *,'timegb,ds,zss',timegb,ds,zss(idjd)
+           print *,'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
+           print *,'kdate_s,ktime_s >= ',kdate_s,ktime_s
+           print *,'kdate,ktime ',kdate,ktime
+           write(6,"('wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
+         endif
+         if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)then
+           write(0,*) 'stopping in indata, not finding correct ',
+     &                'kdate/ktime'
+           stop
+         endif
  
          if(nproc==1)then
            pslavge=0.
@@ -422,7 +421,7 @@ c          qlg(1:ifull,k)=min(qlg(1:ifull,k),10.*qgmin)
 c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
          enddo
 
-      endif   ! (io_in<4)
+      endif   ! (io_in<4) ********************************************************
 
       do k=1,kl-1
        dsig(k)=sigmh(k+1)-sigmh(k)
@@ -851,7 +850,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
         end if
         if (nsib.eq.6) then  ! MJT cable
           vmodmin=umin
-          call cbmrdn3
+          call loadcbmparm(vegfile,soilfile)
         end if
       else
         do iq=1,ifull
@@ -893,7 +892,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
         endif
        enddo                 
       !endif ! (nsib==3) ! MJT cable
-      
+
 !     put in Antarctica ice-shelf fixes 5/3/07
       do iq=1,ifull
        if(zs(iq)<=0.)then
@@ -920,7 +919,6 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
       enddo
       endif ! (nsib==3) ! MJT cable
 
-
       if (any(wb(:,:).lt.0.)) then
         if (mydiag) print *,"Unpacking wetfrac to wb",wb(idjd,1)
         wb(:,:)=abs(wb(:,:))
@@ -938,7 +936,6 @@ c    &           min(.99,max(0.,.99*(273.1-tgg(:,k))/5.))*wb(:,k) ! jlm
 c          enddo ! ms
 c        end if
       end if
-
 
 !     rml 16/02/06 initialise tr, timeseries output and read tracer fluxes
       if (ngas>0) then
@@ -1389,7 +1386,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
      &                   (wb(idjd,k),k=1,ms)
             print *,'nfixwb,isoil,swilt,sfc,ssat,alb ',
      &        nfixwb,isoil,swilt(isoil),sfc(isoil),ssat(isoil),
-     &        albvisnir(idjd,1)
+     &        albvisnir(idjd,1) ! MJT albedo
          end if
         do ip=1,ipland  ! all land points in this nsib=1+ loop
          iq=iperm(ip)
@@ -1479,12 +1476,12 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
             isoil = isoilm(idjd)
             print *,'before nrungcm=2 fix-up wb(1-ms): ',wb(idjd,:)
             print *,'isoil,swilt,ssat,alb ',
-     &           isoil,swilt(isoil),ssat(isoil),albvisnir(idjd,1)
+     &           isoil,swilt(isoil),ssat(isoil),albvisnir(idjd,1) ! MJT albedo
          end if
         do ip=1,ipland  ! all land points in this nsib=1+ loop
          iq=iperm(ip)
          isoil = isoilm(iq)
-         if( albvisnir(iq,1) >= 0.25 ) then
+         if( albvisnir(iq,1) >= 0.25 ) then ! MJT albedo
            diffg=max(0. , wb(iq,1)-0.068)*ssat(isoil)/0.395   ! for sib3
            diffb=max(0. , wb(iq,ms)-0.068)*ssat(isoil)/0.395   ! for sib3
          else
@@ -1521,7 +1518,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       end if
 
       
-      if(nsib==5)then ! MJT CHANGE sib
+      if(nsib==5)then
         where (land)
           ! here we lump woody (k=0.5) and grassland (k=0.6) types together
           sigmf(:)=max(0.01,min(0.98,1.-exp(-0.4*vlai(:)))) ! Sellers 1996 (see also Masson 2003) ! MJT CHANGE sib
@@ -1551,8 +1548,8 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
            ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
 !          which is same as:  ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
 !                             if( tsoil >= tstom ) ftsoil=1.
-           rlai(iq)=  max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil))
-           rsmin(iq) = rsunc44(iveg)/rlai(iq)
+           rlai(iq)=  max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil)) ! MJT cable
+           rsmin(iq) = rsunc44(iveg)/rlai(iq)                         ! MJT cable
          endif   ! (land(iq)) 
         enddo    !  iq loop
       
@@ -1560,35 +1557,36 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
            if(mydiag)then
               isoil=isoilm(idjd)
               print *,'before jalbfix isoil,sand,alb,rsmin ',
-     &                        isoil,sand(isoil),albvisnir(idjd,1),
+     &                        isoil,sand(isoil),albvisnir(idjd,1), ! MJT albedo
      &                        rsmin(idjd)
            endif
            do ip=1,ipland  
             iq=iperm(ip)
             isoil = isoilm(iq)
-            albvisnir(iq,1)=max(albvisnir(iq,1),
+            albvisnir(iq,1)=max(albvisnir(iq,1), ! MJT CHANGE albedo
      &        sigmf(iq)*albvisnir(iq,1)
      &        +(1.-sigmf(iq))*(sand(isoil)*.35+(1.-sand(isoil))*.06))
             albvisnir(iq,2)=albvisnir(iq,1) ! MJT CHANGE albedo
            enddo                  !  ip=1,ipland
            if(mydiag)then
               print *,'after jalbfix sigmf,alb ',sigmf(idjd)
-     &               ,albvisnir(idjd,1)
+     &               ,albvisnir(idjd,1) ! MJT albedo
            endif
          endif  ! (jalbfix==1)
+      !endif     ! (nsib==5) .. else .. ! MJT sib
 
-        if(newrough>0)then
-          call calczo
-          if(mydiag)print *,'after calczo zolnd ',zolnd(idjd)
-c         if(newrough>2)then
-c           zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
-c         endif
-          if ( mydiag ) then
-            print *,'after calczo with newrough = ',newrough
-            write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
-          end if
-        endif
-      endif     ! (nsib==5) .. else ..
+      if(newrough>0)then ! MJT sib
+        call calczo ! MJT bug
+        if(mydiag)print *,'after calczo zolnd ',zolnd(idjd)
+c       if(newrough>2)then
+c         zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
+c       endif
+        if ( mydiag ) then
+          print *,'after calczo with newrough = ',newrough
+          write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
+        end if
+      endif
+      endif     ! (nsib==5) .. else .. ! MJT sib
 
       if(ngwd.ne.0)then
         hemax=0.
@@ -1616,9 +1614,19 @@ c         endif
      &                  MPI_COMM_WORLD, ierr )
         if (myid==0) print *,'final hemax = ',hemax_g
       endif     ! (ngwd.ne.0)
-      if(nspecial==34)then      ! test for Andy & Faye
+      if(nspecial==34)then      ! test for Andy Pitman & Faye
         tgg(:,6)=tgg(:,6)+.1
        endif
+      if(nspecial==35)then      ! test for Andy Cottrill
+        do iq=1,ifull
+         rlongd=rlongg(iq)*180./pi
+         rlatd=rlatt(iq)*180./pi
+         if(rlatd>-32..and.rlatd<-23.5)then
+           if(rlongd>145..and.rlongd<=150.)ivegt(iq)=4
+           if(rlongd>150..and.rlongd<154.)ivegt(iq)=2
+         endif
+        enddo
+      endif  ! (nspecial==35)
       
 !***  no fiddling with initial tss, snow, sice, w, w2, gases beyond this point
       call bounds(zs)
@@ -1720,7 +1728,7 @@ c        uzon= costh*u(iq,1)-sinth*v(iq,1)
 c        vmer= sinth*u(iq,1)+costh*v(iq,1)	  
          write(22,922) iq,i,j,rlongg(iq)*180./pi,rlatt(iq)*180./pi,
      &          thet,em(iq),land(iq),sicedep(iq),zs(iq)/grav,
-     &              albvisnir(iq,1),
+     &              albvisnir(iq,1), ! MJT albedo
      &              isoilm(iq),ivegt(iq),
      &              tss(iq),t(iq,1),tgg(iq,2),tgg(iq,ms),
      &              wb(iq,1),wb(iq,ms),
@@ -1783,7 +1791,8 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
      &       ' lu istn jstn  iq   slon   slat land rlong  rlat'
      &    // ' isoil iveg zs(m) alb  wb3  wet3 sigmf zo   rsm   he'
         do nn=1,nstn
-           call latltoij(slon(nn),slat(nn),ri,rj,nface,xx4,yy4,il_g)
+           call latltoij(slon(nn),slat(nn),rlong0,rlat0,schmidt,
+     &                   ri,rj,nface,xx4,yy4,il_g)
            ! These are global indices
            ig=nint(ri)
            jg=nint(rj) + nface*il_g
@@ -1840,7 +1849,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
              wet3=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil)) 
              print 98,iunp(nn),istn(nn),jstn(nn),iq,slon(nn),slat(nn),
      &          land(iq),rlongg(iq)*180/pi,rlatt(iq)*180/pi,
-     &          isoilm(iq),ivegt(iq),zs(iq)/grav,albvisnir(iq,1),
+     &          isoilm(iq),ivegt(iq),zs(iq)/grav,albvisnir(iq,1), ! MJT albedo
      &          wb(iq,3),wet3,sigmf(iq),zolnd(iq),rsmin(iq),he(iq),
      &          myid
            end if               ! mystn
@@ -1894,8 +1903,8 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       !-----------------------------------------------------------------
 
       do iq=1,ifull
-       albsav(iq)=albvisnir(iq,1)
-       albnirsav(iq)=albvisnir(iq,2)
+       albsav(iq)=albvisnir(iq,1)    ! MJT albedo
+       albnirsav(iq)=albvisnir(iq,2) ! MJT albedo
       enddo   ! iq loop
       call end_log(indata_end)
       return
@@ -1904,7 +1913,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       subroutine rdnsib
 !     subroutine to read in  data sets required for biospheric scheme.
       use cc_mpi
-      use cable_ccam, only : CABLE
+      use cable_ccam, only : CABLE ! MJT cable      
       include 'newmpar.h'
       include 'arrays.h'
       include 'const_phys.h'
@@ -1938,10 +1947,22 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        if ((nsib.ne.CABLE).and.(nsib.ne.6)) then 
          call readreal(rsmfile,rsmin,ifull)  ! not used these days
        end if
-       call readreal(zofile,zolnd,ifull)
+       if (nsib.ne.6) then
+         call readreal(zofile,zolnd,ifull)
+       else
+         zolnd=zobgin ! updated later
+       end if
        if(iradon.ne.0)call readreal(radonemfile,radonem,ifull)
-       call readint(vegfile,ivegt,ifull)
-       call readint(soilfile,isoilm,ifull)      
+       if ((nsib.ne.5).and.(nsib.ne.6)) then
+         call readint(vegfile,ivegt,ifull)
+       else
+         ivegt=1 ! updated later
+       end if
+       if (nsib.ne.6) then
+         call readint(soilfile,isoilm,ifull)
+       else
+         isoilm=1 ! updated later
+       end if
        if((nsib.eq.5).or.(nsib.eq.6)) then
          call readreal('lai',vlai,ifull)
          vlai(:)=0.01*vlai(:)
@@ -1954,11 +1975,11 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        else
          sigmu(:)=0.
        end if
-       ! -----------------------------------------------       
-
+       ! ----------------------------------------------- 
+       
        mismatch = .false.
        if( rdatacheck(land,albvisnir(:,1),'alb',idatafix,falbdflt))
-     &      mismatch = .true.
+     &      mismatch = .true. ! MJT albedo
        if ((nsib.ne.CABLE).and.(nsib.ne.6)) then ! MJT cable
          if( rdatacheck(land,rsmin,'rsmin',idatafix,frsdflt))
      &        mismatch = .true.
@@ -1980,9 +2001,11 @@ c         if(ivegt(iq)>40)print *,'iq, ivegt ',iq,ivegt(iq)
        if(ivegmin<1.or.ivegmax>44)then
          write(0,*) 'stopping in indata, as ivegt out of range'
          stop
-       endif       
-       if( idatacheck(land,isoilm,'isoilm',idatafix,isoildflt))
+       endif
+       if (nsib.ne.6) then ! MJT CABLE
+         if( idatacheck(land,isoilm,'isoilm',idatafix,isoildflt))
      &      mismatch = .true.
+       end if
 !   rml 17/02/06 comment out read co2emfile - now done in tracermodule
 !       if(ico2>0) then
 !         print *,'about to read co2 industrial emission file'
@@ -2008,7 +2031,7 @@ c         if(ivegt(iq)>40)print *,'iq, ivegt ',iq,ivegt(iq)
       endif
  
 c     zobg = .05
-      albvisnir(:,:)=.01*albvisnir(:,:)
+      albvisnir(:,:)=.01*albvisnir(:,:) ! MJT albedo
       zolnd(:)=.01*zolnd(:)
 !     zolnd(:)=min(zolnd(:) , 1.5)   ! suppressed 30/7/04
       zolnd(:)=max(zolnd(:) , zobgin)

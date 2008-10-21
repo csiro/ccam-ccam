@@ -138,7 +138,8 @@ c     convective first, then L/S rainfall
       qq(1:ifull,:)=qg(1:ifull,:)      
       if(convtime>10.)then       
 !       following increases convtime_eff for small grid lengths
-!       e.g. for convtime=15, gives 3600. for 15km, 900. for 60km
+!       e.g. for convtime=15, gives 3600. for 15km,  900. for 60km
+!                         30, gives 7200. for 15km, 1800. for 60km
         convtim(:)=convtime*3.6e6*em(1:ifull)/ds
       elseif(convtime<0.)then         
 !       convtim decreases during convection, after it starts    
@@ -577,7 +578,7 @@ C       following just shows flux into kt layer, and fldown at base and top
           if(kb_sav(iq)<=klon3.and.k<kb_sav(iq))then
             fluxa=(1.-sigmh(k+1))/(1.-sigmh(kb_sav(iq)+1))
             delss=fluxa*(s(iq,k+1)-s(iq,k))
-            delqq=fluxa*(qg(iq,k+1)-qg(iq,k))
+            delqq=fluxa*(qq(iq,k+1)-qq(iq,k))
             dels(iq,k)=dels(iq,k)+delss
             delq(iq,k)=delq(iq,k)+delqq
             dels(iq,k+1)=dels(iq,k+1)-delss
@@ -595,7 +596,7 @@ C       following just shows flux into kt layer, and fldown at base and top
           if(kb_sav(iq)<=klon3.and.k<kb_sav(iq))then
             fluxa=((1.-sigmh(k+1))/(1.-sigmh(kb_sav(iq)+1)))**2
             delss=fluxa*(s(iq,k+1)-s(iq,k))
-            delqq=fluxa*(qg(iq,k+1)-qg(iq,k))
+            delqq=fluxa*(qq(iq,k+1)-qq(iq,k))
             dels(iq,k)=dels(iq,k)+delss
             delq(iq,k)=delq(iq,k)+delqq
             dels(iq,k+1)=dels(iq,k+1)-delss
@@ -627,7 +628,7 @@ C       following just shows flux into kt layer, and fldown at base and top
             fluxb=(1.-sigmh(k  ))/(1.-sigmh(kb_sav(iq)+1))
             fluxd=fldow(iq)*(fluxa-fluxb)          
             delss=fluxa*((1.-fldow(iq))*s(iq,k+1)-s(iq,k))
-            delqq=fluxa*((1.-fldow(iq))*qg(iq,k+1)-qg(iq,k))
+            delqq=fluxa*((1.-fldow(iq))*qq(iq,k+1)-qq(iq,k))
             dels(iq,k)=dels(iq,k)+delss
      &       +fluxd*(s(iq,k)+cp*(tdown(iq)-t(iq,k)))            
             delq(iq,k)=delq(iq,k)+delqq   +fluxd*qdown(iq)
@@ -853,8 +854,15 @@ C       following just shows flux into kt layer, and fldown at base and top
 !          fluxq limiter: new_qq(kb)=new_qs(kb+1)
 !          i.e. alfqarr*[qq+M*delq]_kb=[qs+M*dqsdt*dels/cp]_kb+1
            k=kb_sav(iq)
+c          if(ktau==5)print *,'tst',iq,kb_sav(iq),kt_sav(iq),
+c    &     dqsdt(iq,k+1),dels(iq,k+1),alfqarr(iq),delq(iq,k),
+c    &     alfqarr(iq)*qq(iq,k)-qs(iq,k+1),
+c    &     dqsdt(iq,k+1)*dels(iq,k+1)/cp -alfqarr(iq)*delq(iq,k)
+c          if(dqsdt(iq,k+1)*dels(iq,k+1)/cp 
+c    &        +alfqarr(iq)*abs(delq(iq,k))<0.)print *,'$$$$ iq,k ',iq,k
            fluxq(iq)=max(0.,(alfqarr(iq)*qq(iq,k)-qs(iq,k+1))/ 
-     .          (dqsdt(iq,k+1)*dels(iq,k+1)/cp -alfqarr(iq)*delq(iq,k)))
+     .     (dqsdt(iq,k+1)*dels(iq,k+1)/cp +alfqarr(iq)*abs(delq(iq,k))))
+           if(delq(iq,k)>0.)fluxq(iq)=0.    ! delq should be -ve 15/5/08
            convpsav(iq)=min(convpsav(iq),fluxq(iq))
          endif  ! (nfluxq==2)
        endif    ! (kb_sav(iq)<kl-1)
@@ -910,7 +918,7 @@ c    .       print *,'-ve denom for iq,k = ',iq,k
           den2=dels(iq,kb_sav(iq))
           den3=alfqarr(iq)*hl*delq(iq,kb_sav(iq))
           fluxt_k(k)=(splume(iq,k-1)+hl*qplume(iq,k-1)-hs(iq,k))/
-     .                (den1-den2-den3) 
+     .                max(1.e-9,den1-den2-den3) 
           print *,'k,den1,den2,den3,fluxt ',k,den1,den2,den3,fluxt_k(k)
         endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
        endif    ! ((ntest>0.or.diag).and.mydiag)
@@ -1018,14 +1026,13 @@ c          if(nums<20)then
 !       enddo
 !     endif     ! (shaltime>0.)	   
 
-      if(sig_ct<0.)then  ! use abs(sig_ct) as thickness of shallow clouds
+!     following line moved up further (for -ve sig_ct) on 27/6/08
+      qxcess(:)=detrain*rnrtcn(:)             ! e.g. .2* gives 20% detrainment
+
+      if(sig_ct<0.)then  ! detrain for shallow clouds
         do iq=1,ifull
-         if(sigmh(kb_sav(iq)+1)-sigmh(kt_sav(iq)+1)<-sig_ct)then  
-           convpsav(iq)=0.       ! N.B. will get same result on later itns
-           if(ktsav(iq)==kl-1)then
-             kbsav(iq)=kb_sav(iq) 
-             ktsav(iq)=kt_sav(iq)  ! for possible use in vertmix
-           endif  ! (ktsav(iq)==kl-1)
+         if(sig(kt_sav(iq))>-sig_ct)then  ! typically here sig_ct ~ -.8
+           qxcess(iq)=rnrtcn(iq)     ! full detrainment
          endif
         enddo  ! iq loop
       else
@@ -1079,8 +1086,6 @@ c          if(nums<20)then
         if(ncubase==0)ktmax(:)=kt_sav(:) ! ktmax added July 04  
       endif                              ! (itn<iterconv)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
-!     following 2 lines moved up (correctly) on 30/3/04
-      qxcess(:)=detrain*rnrtcn(:)             ! e.g. .2* gives 20% detrainment
       rnrtcn(:)=rnrtcn(:)-qxcess(:)
 
 !     update qq, tt and precip

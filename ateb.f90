@@ -116,8 +116,8 @@ real, parameter :: roofemiss=0.90    ! emissitivity
 real, parameter :: wallemiss=0.85 
 real, parameter :: roademiss=0.94
 real, parameter :: bldtemp=291.16    ! Comfort temperature (K) = 18deg C
-real, parameter :: zoroof=3.E-4      ! Roughness length for rooftops (m)
 real, parameter :: zocanyon=3.E-4    ! Roughness lengths for canyon surfaces (m)
+real, parameter :: zoroof=zocanyon   ! Roughness length for rooftops (m)
 real, parameter :: maxroofwater=1.   ! max water on roof (kg m^-2)
 real, parameter :: maxroadwater=1.   ! max water on road (kg m^-2)
 real, parameter :: maxrfsn=1.        ! max snow on roof (kg m^-2)
@@ -327,11 +327,11 @@ integer, intent(in) :: ifull,diag
 integer, dimension(ifull), intent(in) :: itype
 integer, parameter :: maxtype = 8
 ! Urban fraction (defined in host model)
-! real, dimension(maxtype), parameter :: sigu=(/ 0.6, 0.5, 0.6, 0.7, 0.9, 0.5, 0.6, 0.7 /)
+! real, dimension(maxtype), parameter :: sigu=(/ 0.6, 0.5, 0.6, 0.7, 0.95, 0.5, 0.6, 0.7 /)
 ! Building height to width ratio
-real, dimension(maxtype), parameter :: chwratio=(/ 1., 0.4, 0.5, 0.6, 3., 0.6, 0.8, 1. /)
+real, dimension(maxtype), parameter :: chwratio=(/ 1., 0.4, 0.5, 0.6, 2., 0.5, 1., 1.5 /)
 ! Area fraction occupied by buildings
-real, dimension(maxtype), parameter :: csigmabld=(/ 0.5, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7 /)
+real, dimension(maxtype), parameter :: csigmabld=(/ 0.6, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7 /)
 ! Industral sensible heat flux (W m^-2)
 real, dimension(maxtype), parameter :: cindustryfg=(/ 20., 8., 12., 16., 28., 20., 40., 60. /)
 ! Daily averaged traffic sensible heat flux (W m^-2)
@@ -339,7 +339,7 @@ real, dimension(maxtype), parameter :: ctrafficfg=(/ 5., 2., 3., 4., 7., 5., 10.
 ! Building height (m)
 real, dimension(maxtype), parameter :: cbldheight=(/ 10., 4., 6., 8., 20., 5., 10., 15. /)
 ! Effective roughness length (m)
-real, dimension(maxtype), parameter :: czo=(/ 1., 0.4, 0.6, 0.8, 2., 0.5, 1., 1.5 /)
+real, dimension(maxtype), parameter :: czo=0.1*cbldheight
 ! Roof albedo
 real, dimension(maxtype), parameter :: croofalpha=(/ 0.20, 0.23, 0.20, 0.17, 0.13, 0.20, 0.20, 0.20 /)
 ! Wall albedo
@@ -726,7 +726,7 @@ call tebeval(uo,ddt,atm,zmin,diag)
 
 ofg(ugrid)=(1.-sigmau)*ofg(ugrid)+sigmau*uo%fg
 oeg(ugrid)=(1.-sigmau)*oeg(ugrid)+sigmau*uo%eg
-ots(ugrid)=((1.-sigmau)*ots(ugrid)**4+sigmau*uo%ts**4)**0.25
+ots(ugrid)=(1.-sigmau)*ots(ugrid)+sigmau*uo%ts
 owf(ugrid)=(1.-sigmau)*owf(ugrid)+sigmau*uo%wf
 
 return

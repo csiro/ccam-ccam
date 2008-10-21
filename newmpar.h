@@ -16,7 +16,7 @@
 !                  jl:   -         6*il     14*il
 !                quad:   1         4*il+1   6*il+1
 
-! eak addition 16/03/06  
+! eak addition 16/03/06  ! MJT cable
       integer, parameter :: mxst=13       ! max_no_of_soil_types
       integer, parameter :: mxvt=17       ! max_no_of_vegetation_types
 

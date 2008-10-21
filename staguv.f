@@ -38,6 +38,21 @@ c     use diag_m             ! for calls to maxmin
             vin(iq,k) = v(iq,k)
          end do
       end do
+      
+      if(nstag==0)then
+        call boundsuv(uin,vin,nrows=2)
+        do k=1,kl
+         do iq=1,ifull
+          uout(iq,k)=(9.*(uin(ieu(iq),k)+uin(iq,k))
+     &                   -uin(iwu(iq),k)-uin(ieeu(iq),k))/16.
+          vout(iq,k)=(9.*(vin(inv(iq),k)+vin(iq,k))
+     &                   -vin(isv(iq),k)-vin(innv(iq),k))/16.
+c          uout(iq,k)=.5*(uin(ieu(iq),k)+uin(iq,k))
+c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
+         enddo   ! iq loop
+        enddo
+        return
+      endif  ! (nstag==0)
 
       if ( nstag==3 ) then
          call boundsuv(uin,vin,nrows=2)
@@ -208,6 +223,21 @@ c     staggered u & v as input; unstaggered as output
             vin(iq,k) = v(iq,k)
          end do
       end do
+      
+      if(nstagu==0)then
+        call boundsuv(uin,vin,nrows=2)
+        do k=1,kl
+         do iq=1,ifull
+          uout(iq,k)=(9.*(uin(iwu(iq),k)+uin(iq,k))
+     &                   -uin(iwwu(iq),k)-uin(ieu(iq),k))/16.
+          vout(iq,k)=(9.*(vin(isv(iq),k)+vin(iq,k))
+     &                   -vin(issv(iq),k)-vin(inv(iq),k))/16.
+c          uout(iq,k)=.5*(uin(iwu(iq),k)+uin(iq,k))
+c          vout(iq,k)=.5*(vin(isv(iq),k)+vin(iq,k))
+         enddo   ! iq loop
+        enddo
+        return
+      endif  ! (nstagu==0)
 
       if ( nstagu==3 ) then
          call boundsuv(uin,vin,nrows=2)

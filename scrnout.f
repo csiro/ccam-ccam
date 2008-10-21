@@ -6,13 +6,11 @@
       implicit none
 !     from Feb '05 scales uscrn, u10 to remove vmod>2 effect
 !     allows for zo>zscr from 30/7/04
-      integer nits,ntest
-      real vkar,zscr
 !     has fixer at bottom to ensure tscrn and qgscrn bounded (& non-neg)
-      parameter (nits=2)   ! nits=2 for 2 iterations
-      parameter (ntest=0)  ! ntest= 0 for diags off; ntest>= 1 for diags 
+      integer, parameter :: nits=2  ! nits=2 for 2 iterations
+      integer, parameter :: ntest=0 ! ntest= 0 for diags off; ntest>= 1 for diags 
 !     parameter (chn10=.00136733)   ! sea only, same as in sflux via parm.h
-      parameter (vkar=.4,zscr=1.8)
+      real, parameter :: vkar=.4, zscr=1.8
       include 'newmpar.h'
       include 'arrays.h'
       include 'const_phys.h'
@@ -100,8 +98,7 @@ c     calculate "surface" specific humidity
 c      constants for calculating 2m, 10m winds
        afroot10(iq) = vkar/(log(z10)-zlog)
        af10(iq) = afroot10(iq)*afroot10(iq)
-      ! zt=zo(iq)/7.4
-       zt=zmin/exp(vkar**2/(aft(iq)*log(zmin/zo(iq)))) ! MJT urban
+       zt=zo(iq)/factch(iq)**2 ! MJT urban
        zscrt=max(zscr,zt+1.)     ! Aug '05
        z10t=max(z10,zt+2.)       ! Aug '05
        aft2(iq)=vkar*afroot2(iq)/log(zscrt/zt)     ! land only
@@ -217,6 +214,15 @@ c      screen wind speeds
        vfact=sqrt(u(iq,1)**2+v(iq,1)**2)/vmod(iq)
        uscrn(iq) = vfact*ustar(iq)/(afroot2(iq)*sqrt(fm2(iq)))
        u10(iq) = vfact*ustar(iq)/(afroot10(iq)*sqrt(fm10(iq)))
+       if(ntest==-1)then
+         vmag=sqrt(u(iq,1)**2+v(iq,1)**2)
+         if(u10(iq)>vmag)then
+           print *,'strange iq,vmod,vmag,u10/vmod,u10/vmag ',
+     &              iq,vmod(iq),vmag,u10(iq)/vmod(iq),u10(iq)/vmag
+           print *,'ri,rich10,ustar,fm10 ',
+     &              ri(iq),rich10(iq),ustar(iq),fm10(iq)
+         endif
+       endif
 !      use tscrn for calc rhscrn  23/12/05	
        es=establ(tscrn(iq))
 !      rhscrn(iq)=100.*qgscrn(iq)*(ps(iq)-es)/(.622*es)
@@ -286,14 +292,15 @@ c        if(tsurf(iq)<theta(iq))then
      .               sqrt(af(iq)*fm38(iq))/(aft(iq)*fh38(iq))
             if(sicedep(iq)>0.)print *,'tpan,tgg3,fracice ',
      .                           tpan(iq),tgg(iq,3),fracice(iq)       
-           endif
-           if(qgscrn(iq)<min(qg(iq,1),qsurf(iq)).or.
+          endif
+          if(qgscrn(iq)<min(qg(iq,1),qsurf(iq)).or.
      .      qgscrn(iq)>max(qg(iq,1),qsurf(iq))    )then
-           numq=numq+1
-           print *,'strange qg iq,land,sicedep,qsurf,qgscrn,qstarx ',
-     .      iq,land(iq),sicedep(iq),qsurf(iq),qgscrn(iq),qstarx(iq)
-           print *,'qg1,t1,ri ',qg(iq,1),t(iq,1),ri(iq),numq
-         endif
+            numq=numq+1
+            print *,'strange qg iq,land,sicedep,qstarx,t,ri ',
+     .       iq,land(iq),sicedep(iq),qstarx(iq),t(iq,1),ri(iq),numq
+            print *,'qsurf,qgscrn,qg1 ',qsurf(iq),qgscrn(iq),qg(iq,1)
+            print *,'tsurf,tscrn,theta ',tsurf(iq),tscrn(iq),theta(iq)
+          endif
         enddo
         print *,'numq,numt,numu',numq,numt,numu
         if(ntest==2)then

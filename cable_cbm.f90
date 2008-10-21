@@ -1021,7 +1021,7 @@ CONTAINS
             + canopy%fhvw*SUM(rad%gradis,2)/ghwet
        ! add if condition here to avoid dividing by zero ie when rad%transd=1.0 Ypw:24-02-2003
        WHERE (canopy%vlaiw > 0.01 .and. rough%hruff > rough%z0soilsn)
-          canopy%tv = (rad%lwabv / (2.0*(1.0-rad%transd)*sboltz*emleaf)+met%tvair**4)**0.25
+          canopy%tv = max(rad%lwabv / (2.0*(1.0-rad%transd)*sboltz*emleaf)+met%tvair**4,0.)**0.25
 !         YP & Mao (jun08) replaced met%tk with tvair
 !          canopy%tv = (rad%lwabv / (2.0*(1.0-rad%transd)*sboltz*emleaf)+met%tk**4)**0.25
        ELSEWHERE ! sparse canopy
@@ -1029,6 +1029,10 @@ CONTAINS
 !         YP & Mao (jun08) replaced met%tk with tvair
 !          canopy%tv = met%tk
        END WHERE
+       where (canopy%tv < 100.)
+         canopy%tv = met%tvair
+         rad%lwabv=0.
+       end where
        ! Calculate ground heat flux:
        canopy%ghflux = (1-ssoil%isflag)*canopy%ghflux + ssoil%isflag*canopy%sghflux
        ! Saturation specific humidity at soil/snow surface temperature:
@@ -1191,9 +1195,10 @@ CONTAINS
              ! sparse canopy 
              canopy%tv = met%tvair
           END WHERE
-	  where (canopy%tv < 100.)
-	    canopy%tv = met%tvair
-	  endwhere
+          where (canopy%tv < 100.)
+            canopy%tv = met%tvair
+            rad%lwabv=0.
+          end where
           ! Ground heat flux:
           canopy%ghflux = (1-ssoil%isflag)*canopy%ghflux + ssoil%isflag*canopy%sghflux
           dq = qstss - met%qvair
@@ -1509,7 +1514,7 @@ CONTAINS
 
     ! Calculate radiative/skin temperature:
     rad%trad = ( (1.-rad%transd)*canopy%tv**4 + rad%transd * ssoil%tss**4 )**0.25
-    
+        
     ! can this be in define_canopy?
     sum_flux%sumpn = sum_flux%sumpn+canopy%fpn*dels
     sum_flux%sumrp = sum_flux%sumrp+canopy%frp*dels

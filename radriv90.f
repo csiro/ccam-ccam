@@ -218,7 +218,7 @@ c    &               rlongg(1+(j-1)*il),dhr,imax,coszro2,taudar2)
          call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),
      &               rlongg(istart:iend),dhr,imax,coszro2,taudar2)
          call tebccangle(istart,imax,coszro2(1:imax) ! MJT urban
-     &    ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt)     
+     &    ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt) 
       end if    !  ( solarfit )
 
       if ( odcalc ) then     ! Do the calculation
@@ -245,12 +245,14 @@ c     Set up ozone for this time and row
       if (amipo3) then
          call o3set_amip ( rlatt(1+(j-1)*il:(j-1)*il+imax), imax, mins,
      &                     sigh, ps(1+(j-1)*il:(j-1)*il+imax), qo3 )
+         qo3(:,:)=max(1.e-10,qo3(:,:))    ! July 2008
       else
          call o3set(rlatt(1+(j-1)*il),imax,mins,duo3n,sig)
 c        Conversion of o3 from units of cm stp to gm/gm
          do k=1,kl
             do i=1,imax
-               qo3(i,k) = duo3n(i,k)*1.01325e+02/press(i,lp1)
+c             qo3(i,k) = duo3n(i,k)*1.01325e+02/press(i,lp1)
+              qo3(i,k) = max(1.e-10,duo3n(i,k)*1.01325e+02/press(i,lp1))
             end do
          end do
       end if
@@ -264,7 +266,7 @@ c        Conversion of o3 from units of cm stp to gm/gm
              cuvrf(i,1) = albvisnir(iq,1) ! from cable (inc snow)
              cirrf(i,1) = albvisnir(iq,2) ! from cable (inc snow)
            else ! (nsib.le.3).or.(nsib.eq.5)
-                     
+	   
            if(nalbwb.eq.0)then
              cuvrf(i,1) = albsav(iq)    ! use surface albedo from indata
              cirrf(i,1) = albnirsav(iq)    ! MJT CHANGE albedo
@@ -357,7 +359,7 @@ c                   where cs = 0.2, cn = 0.5, b = 2.0
              alv = .4 * fzenm * (1.-alvd) + alvd
              alird = aliro*(1.-.5*fage)
              alir = .4 * fzenm * (1.0-alird) + alird
-             !talb = .5 * ( alv + alir )        ! snow albedo
+             talb = .5 * ( alv + alir )        ! snow albedo
 c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
              cc=min(1.,snr/max(snr+zolnd(iq),0.02))
              tsigmfx=(1.-cc)*tsigmf(iq)      ! mult by snow free veg. fraction
@@ -383,11 +385,11 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
             if(ntest.gt.0.and.i.eq.idrad.and.j.eq.jdrad)then
               print *,'i,j,land,sicedep,snowd,snrat ',
      .                 i,j,land(iq),sicedep(iq),snowd(iq),snrat
-              print *,'albsav,dnsnow,cuvrf1 ',
-     .                 albsav(iq),dnsnow,cuvrf(i,1) ! MJT delete talb
+              print *,'albsav,dnsnow,talb,cuvrf1 ',
+     .                 albsav(iq),dnsnow,talb,cuvrf(i,1)
             endif
            endif          !  snowd(iq).gt.0.
-           
+	   
            end if ! (nsib.eq.CABLE).or.(nsib.eq.6) ! MJT CHANGE sib
          else             !  over the ocean or sea ice
 !          following for CCAM from 11/6/03
@@ -398,7 +400,7 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
            cirrf(i,1)=.45*fracice(iq)+
      .                (1.-fracice(iq))*.05/(coszro(i)+0.15) ! MJT CHANGE albedo (follow CICE)
         endif       ! if( land(iq)) .. else..
-        
+
       !-----------------------------------------------------------------------------------------------------------
       ! MJT albedo
       end do ! i=1,imax
@@ -492,16 +494,19 @@ c  Clear sky calculation
 c       set up cloud for this time and latitude
         if(ldr.ne.0)then  !Call LDR cloud scheme
 c         write(24,*)coszro2
-c         call cloud2(cldoff,1,t2,ql2,qf2,cf2,qccon,
           call cloud2(cldoff,1,t2,ql2,qf2,cf2,qc2,
      &                cd2,land2,sigh,p2,dp2,coszro,      !Inputs
      &                cll,clm,clh)                       !Outputs
         else
           call cloud(cldoff,sig,j) ! jlm
         endif  ! (ldr.ne.0)
+        if(ndi<0.and.nmaxpr==1)
+     &     print *,'before swr99 ktau,j,myid ',ktau,j,myid
         call swr99(fsw,hsw,sg,ufsw,dfsw,press,press2,coszro,
      &             taudar,rh2o,rrco2,ssolar,qo3,nclds,
      &             ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt)
+        if(ndi<0.and.nmaxpr==1)
+     &     print *,'after  swr99 ktau,j,myid ',ktau,j,myid
         do i=1,imax
           soutclr(i) = ufsw(i,1)*h1m3 ! solar out top
           sgclr(i)   = -fsw(i,lp1)*h1m3  ! solar absorbed at the surface
@@ -538,7 +543,7 @@ c       write(24,*)coszro2
           sout(i) = ufsw(i,1)*h1m3   ! solar out top
           sg(i)   = sg(i)*h1m3       ! solar absorbed at the surface
           iq=i+(j-1)*il              ! fixed Mar '05
-          sgdn(i) = sg(i) / ( 1. - albvisnir(iq,1) )
+          sgdn(i) = sg(i) / ( 1. - albvisnir(iq,1) ) ! MJT albedo
       end do
       if(ntest.gt.0.and.j.eq.jdrad)then
         print *,'idrad,j,sint,sout,soutclr,sg,cuvrf1 ',
@@ -551,7 +556,8 @@ c       print *,'sg ',(sg(i),i=1,imax)
 c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
       endif
       call clo89
-      if(ntest.gt.0)print *,'calling lwr88 for j = ',j
+      if(ndi<0.and.nmaxpr==1)
+     &     print *,'before lwr88 ktau,j,myid ',ktau,j,myid
       call lwr88
 
       do i=1,imax
@@ -671,6 +677,12 @@ c slwa is negative net radiational htg at ground
          slwa(iq) = -sg(i)+rgsave(iq)
          sgsave(iq) = sg(i)   ! this is the repeat after solarfit 26/7/02
       end do
+      if(odcalc.and.ndi<0.and.nmaxpr==1.and.idjd<=imax.and.mydiag)then
+        print *,'bit after  lwr88 ktau,j,myid ',ktau,j,myid  
+        print *,'sum_rg ',sum(rg(:))     
+        print *,'slwa,sg,rgsave,rg,tss,grnflx ',slwa(idjd),sg(idjd),
+     &           rgsave(idjd),rg(idjd),tss(idjd),grnflx(idjd)
+      endif
 
 ! Calculate rtt, the net radiational cooling of atmosphere (K/s) from htk (in
 ! W/m^2 for the layer). Note that dsig is negative which does the conversion
@@ -714,7 +726,7 @@ c       endif
      .           rgsave(idjd),rtsave(idjd),sintsave(idjd)
         print *,'sgsave,rtclsave,sgclsave ',
      .           sgsave(idjd),rtclsave(idjd),sgclsave(idjd)
-        print *,'alb ',albvisnir(idjd,1)
+        print *,'alb ',alb(idjd)
       endif
       if(nmaxpr==1.and.mydiag)then
         write (6,"('cfracr',9f8.3/6x,9f8.3)") cfrac(idjd,:)

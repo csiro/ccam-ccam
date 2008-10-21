@@ -262,6 +262,7 @@ c     modify toij5 for Cray
       parameter (ntest=0)
       include 'newmpar.h'
       include 'parm.h'
+      include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
       include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
       real*8 x3d(ifull),y3d(ifull),z3d(ifull)

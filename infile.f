@@ -1,12 +1,11 @@
       subroutine infile(nested,kdate_r,ktime_r,timeg_r,ds_r,
      .                  psl,zs,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
-     .                  tgg,wb,wbice,alb,snowd,
-     .                  tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                  rtsoil, ! MJT cable
-     .                  isoilh,urban) ! MJT lsmask ! MJT urban 
+     .                  tgg,wb,wbice,alb,snowd,qfg,qlg,   ! 0808
+     .                  tggsn,smass,ssdn,ssdnn,snage,isflag,ifull,kl,
+     .                  rtsoil,isoilh,urban,cplant,csoil,cansto) ! MJT cable ! MJT lsmask ! MJT urban  
 !     note kk; vertint.f is attached below
-!     kdate_r and ktime_r are returned from this routwine.
+!     kdate_r and ktime_r are returned from this routine.
 !     They must equal or exceed kdate_s and ktime_s
 !     Note that kdate_s and ktime_s are updated progressively in this 
 !     routine to allow for nesting
@@ -20,30 +19,31 @@
       use diag_m
       use nestinmod ! MJT daily ave
       implicit none
-      include 'newmpar.h'
-      include 'carbpools.h' ! MJT cable
+c     include 'newmpar.h'
       include 'const_phys.h'
-      include 'darcdf.h'
-      include 'kuocom.h'    ! ldr
-      include 'latlong.h'    
-      include 'liqwpar.h'   ! qfg,qlg
+      include 'darcdf.h'    ! idnc, ncid
+c     include 'kuocom.h'    ! ldr
+c     include 'latlong.h'    
+!     include 'liqwpar.h'   ! qfg,qlg
       include 'netcdf.inc'
       include 'parm.h'
       include 'stime.h'     ! kdate_s,ktime_s  sought values for data read
-      include 'vegpar.h' ! MJT cable
-      include 'tracers.h'
+c     include 'tracers.h'  **** to be fixed after 0808
       include 'mpif.h'
 
-      integer kdate_r, ktime_r, nested
+      integer kdate_r, ktime_r, nested,ifull,kl
       real timeg_r, ds_r
+      integer, parameter :: ms=6   ! hard-wired in infile
       real psl(ifull),zs(ifull),
      . tss(ifull),wb(ifull,ms),wbice(ifull,ms),
      . snowd(ifull),alb(ifull),sicedep(ifull),fracice(ifull),
      . t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     . ssdnn(ifull),snage(ifull),rtsoil(ifull), ! MJT cable
-     . urban(ifull,1:12) ! MJT urban
-      integer isoilh(ifull) ! MJT lsmask     
+     . ssdnn(ifull),snage(ifull)
+     & ,qfg(ifull,kl),qlg(ifull,kl),rtsoil(ifull), ! MJT cable
+     & cplant(ifull,ncp),csoil(ifull,ncs),cansto(ifull), ! MJT cable
+     & urban(ifull,1:12) ! MJT urban
+      integer isoilh(ifull) ! MJT lsmask  
       integer isflag(ifull)
       integer ktau_r, ibb, jbb, i
       integer ini,inj,ink,m2,nsd2,mesi,nbd2
@@ -62,13 +62,14 @@
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, infile, nestin, indata
       real sigin
       integer ik,jk,kk
-      common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
+      common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug
       real tmp(ifull)
       real bbb(ifull,kl),ccc(ifull,kl),ddd(ifull,kl) ! MJT daily ave
       real eee(ifull,kl) ! MJT daily ave
 
       integer, parameter :: nihead=54,nrhead=14
-      integer nahead(nihead)
+      integer nahead(nihead),ier,ilen,itype
+      integer, save :: ncidold=-1, ncalled=0, iarchi
       integer ::  kdatea,kdateb,ktimea,ktimeb
       integer,save ::mtimer_use 
       real ahead(nrhead)
@@ -80,16 +81,14 @@
       data monn/'jan','feb','mar','apr','may','jun'
      &         ,'jul','aug','sep','oct','nov','dec'/
 
-      integer, save :: ncidold=-1, ncalled=0, iarchi
-      integer itype, ilen, ier, ierr, k, ndim, nvars, ngatts,
+      integer ierr, k, ndim, nvars, ngatts,
      &        nulid, nd, isiz, ix, iy, narch, idy, imo, iyr, ihr,
      &        mtimer_in, iq, idv
 !     rml 16/02/06 declare igas integer
       integer igas
       real dss, timer
-      entry infil(nested,kdate_r,ktime_r,timeg_r,ds_r,
-     .                  psl,zs,tss,sicedep,fracice,t,u,v,qg,
-     .                  isoilh)
+c     entry infil(nested,kdate_r,ktime_r,timeg_r,ds_r,
+c    .                  psl,zs,tss,sicedep,fracice,t,u,v,qg,isoilh)
 
       ncalled=ncalled+1
       
@@ -98,7 +97,6 @@ c     save model map projs.
 
       if(myid==0)then
 !        N.B. ncid,ncidold and iarchi only get used for myid=0      
-!        ncid=idifil
          if(ncid.ne.ncidold)iarchi=1
          ncidold=ncid
          print *,'infile ncid,ncidold,iarchi ',ncid,ncidold,iarchi
@@ -287,8 +285,10 @@ c       turn ON fatal netcdf errors
           print *,'using timer, mtimer: ',timer,mtimer
           call datefix(kdate_r,ktime_r,mtimer) ! for Y2K, or mtimer>0
         endif
+   !     if(2400.*kdate_r+ktime_r<                    ! 2400. for 32-bit machines
+   !  &     2400.*kdate_s+1200*nsemble+ktime_s)go to 19  ! 12-h nsemble
         if(2400*(kdate_r-kdate_s)-1200*nsemble+(ktime_r-ktime_s)<
-     &     0)go to 19  ! 12-h nsemble
+     &     0)go to 19  ! 12-h nsemble ! MJT bug
 !---------------------------------------------------------------------
         
         print *,'found suitable date/time in infile'
@@ -323,9 +323,9 @@ c       turn ON fatal netcdf errors
 
 c     begin reading data
 c     log scaled sfc.press
-      call histrd1(ncid,iarchi,ier,'psf',ik,jk,psl)
-      call histrd1(ncid,iarchi,ier,'zht',ik,jk,zs)
-      call histrd1(ncid,iarchi,ier,'tsu',ik,jk,tss)
+      call histrd1(ncid,iarchi,ier,'psf',ik,jk,psl,ifull)
+      call histrd1(ncid,iarchi,ier,'zht',ik,jk,zs,ifull)
+      call histrd1(ncid,iarchi,ier,'tsu',ik,jk,tss,ifull)
 !***  tss(:)=abs(tss(:)) ! not here because -ves needed for onthefly
       if(nspecial<-50)then
         tssadd=.1*(nspecial+100) ! e.g. -110 makes 1 degree cooler
@@ -337,47 +337,47 @@ c     log scaled sfc.press
          endif
         enddo
       endif
-      if(nspecial==21)then
-        do iq=1,ifull
-         if(rlongg(iq)*180./pi>100.and.rlongg(iq)*180./pi<260..and.
-     &      rlatt(iq)*180./pi>-20.and.rlatt(iq)*180./pi<20.)
-     &   tss(iq)=.999*abs(tss(iq))
-        enddo
-      endif
-      if(nspecial==22)then
-        do iq=1,ifull
-         if(rlongg(iq)*180./pi>100.and.rlongg(iq)*180./pi<260..and.
-     &      rlatt(iq)*180./pi>-20.and.rlatt(iq)*180./pi<20.)
-     &   tss(iq)=.995*abs(tss(iq))
-        enddo
-      endif
-      if(nspecial==23)then
-        do iq=1,ifull
-         if(rlongg(iq)*180./pi>100.and.rlongg(iq)*180./pi<260..and.
-     &      rlatt(iq)*180./pi>-20.and.rlatt(iq)*180./pi<20.)
-     &   tss(iq)=.990*abs(tss(iq))
-        enddo
-      endif
+c      if(nspecial==21)then
+c        do iq=1,ifull
+c         if(rlongg(iq)*180./pi>100.and.rlongg(iq)*180./pi<260..and.
+c     &      rlatt(iq)*180./pi>-20.and.rlatt(iq)*180./pi<20.)
+c     &   tss(iq)=.999*abs(tss(iq))
+c        enddo
+c      endif
+c      if(nspecial==22)then
+c        do iq=1,ifull
+c         if(rlongg(iq)*180./pi>100.and.rlongg(iq)*180./pi<260..and.
+c     &      rlatt(iq)*180./pi>-20.and.rlatt(iq)*180./pi<20.)
+c     &   tss(iq)=.995*abs(tss(iq))
+c        enddo
+c      endif
+c      if(nspecial==23)then
+c        do iq=1,ifull
+c         if(rlongg(iq)*180./pi>100.and.rlongg(iq)*180./pi<260..and.
+c     &      rlatt(iq)*180./pi>-20.and.rlatt(iq)*180./pi<20.)
+c     &   tss(iq)=.990*abs(tss(iq))
+c        enddo
+c      endif
 
 c     turn on fatal netcdf errors
       if(myid == 0)call ncpopt(NCVERBOS+NCFATAL)
 c     temperature
-      call histrd4(ncid,iarchi,ier,'temp',ik,jk,kk,t)
+      call histrd4(ncid,iarchi,ier,'temp',ik,jk,kk,t,ifull)
 c     u wind component
-      call histrd4(ncid,iarchi,ier,'u',ik,jk,kk,u)
+      call histrd4(ncid,iarchi,ier,'u',ik,jk,kk,u,ifull)
 c     v wind component
-      call histrd4(ncid,iarchi,ier,'v',ik,jk,kk,v)
+      call histrd4(ncid,iarchi,ier,'v',ik,jk,kk,v,ifull)
 c     mixing ratio
 c     turn OFF fatal netcdf errors; from here on
       if(myid == 0)call ncpopt(0)
-      call histrd4(ncid,iarchi,ier,'q',ik,jk,kk,qg)       !  kg/kg
+      call histrd4(ncid,iarchi,ier,'q',ik,jk,kk,qg,ifull)       !  kg/kg
       if(ier.ne.0)then
-        call histrd4(ncid,iarchi,ier,'mixr',ik,jk,kk,qg)  !   g/kg
+        call histrd4(ncid,iarchi,ier,'mixr',ik,jk,kk,qg,ifull)  !   g/kg
       endif  ! (ier.ne.0)
       sicedep(:)=0.
       fracice(:)=0.
-      call histrd1(ncid,iarchi,ier,'siced',ik,jk,sicedep)  
-      call histrd1(ncid,iarchi,ierr,'fracice',ik,jk,fracice)  
+      call histrd1(ncid,iarchi,ier,'siced',ik,jk,sicedep,ifull)  
+      call histrd1(ncid,iarchi,ierr,'fracice',ik,jk,fracice,ifull)  
       if(ier==0)then  ! i.e. sicedep read in 
         do iq=1,ifull
          if(sicedep(iq)<.05)then ! for sflux
@@ -393,20 +393,23 @@ c     turn OFF fatal netcdf errors; from here on
       endif    ! (ier==0)
       if(ier.ne.0)then     ! sicedep not read in
         if(ierr.ne.0)then  ! neither sicedep nor fracice read in
+          sicedep(:)=0.  ! Oct 08
           fracice(:)=0.
-	   if(myid==0) print *,'pre-setting siced in infile from tss'
+	  if(myid==0) print *,'pre-setting siced in infile from tss'
           where(abs(tss) <= 271.2)
+            sicedep(:)=1.  ! Oct 08
             fracice=1.
           endwhere
-c       else  ! i.e. only fracice read in;  done in indata, nestin
-c         do iq=1,ifull 
-c          if(fracice(iq)>.01)then
-c            sicedep(iq)=2.
-c          else
-c            sicedep(iq)=0.
-c            fracice(iq)=0.
-c          endif
-c         enddo
+        else  ! i.e. only fracice read in;  done in indata, nestin
+c***      but needed here for onthefly (different dims) 28/8/08        
+          do iq=1,ifull 
+           if(fracice(iq)>.01)then
+             sicedep(iq)=2.
+           else
+             sicedep(iq)=0.
+             fracice(iq)=0.
+           endif
+          enddo
         endif  ! (ierr.ne.0)
       endif    ! (ier.ne.0) .. else ..    for sicedep
       if(ncalled<4.and.mydiag)then
@@ -429,7 +432,7 @@ c         enddo
       !------------------------------------------------------------
       ! MJT lsmask
       tmp(:)=-1.
-      call histrd1(ncid,iarchi,ierr,'soilt',ik,jk,tmp(:))
+      call histrd1(ncid,iarchi,ierr,'soilt',ik,jk,tmp(:),ifull)
       isoilh(:)=nint(tmp(:))
       !------------------------------------------------------------
 
@@ -437,35 +440,36 @@ c         enddo
 !########################################################################
       if(nested==0)then   !  following only at start of run 
 !       read fields which may be there on restart, but maybe not initially
-        if(ldr.ne.0)then   ! following in kg/kg
-          call histrd4(ncid,iarchi,ier,'qfg',ik,jk,kk,qfg(1:ifull,:))
-          call histrd4(ncid,iarchi,ier,'qlg',ik,jk,kk,qlg(1:ifull,:))
-          if(ier.ne.0.or.ik<il_g)then
+c       if(ldr.ne.0)then   ! following in kg/kg
+          call histrd4(ncid,iarchi,ier,'qfg',ik,jk,kk,qfg(1:ifull,:),
+     &                 ifull)
+          call histrd4(ncid,iarchi,ier,'qlg',ik,jk,kk,qlg(1:ifull,:),
+     &                 ifull)
+          if(ier.ne.0)then
 !           set default qfg, qlg to zero if not available on input 
-!           for onthefly usage of qfg, qlg need extra stuff there for ik<il_g	
             print *,'qfg,qlg being set to default in infile'
             qfg(:,:)=0. 
             qlg(:,:)=0. 
           endif ! (ier.ne.0)
-          if(nspecial==24)qfg(:,kl-2)=4.e-3         ! just for testing icefall
-          if(nspecial==25)qfg((il-1)*il/2,kl)=4.e-3 ! tests at (il/2,il/2)
-          if(nspecial==26)qfg(idjd,kl)=4.e-3 ! tests at (idjd)
-        endif   ! (ldr.ne.0)
-        call histrd1(ncid,iarchi,ier,'alb',ik,jk,alb)
-        call histrd1(ncid,iarchi,ierr,'tgg2',ik,jk,tgg(1,2))
+c0808          if(nspecial==24)qfg(:,kl-2)=4.e-3         ! just for testing icefall
+c0808          if(nspecial==25)qfg((il-1)*il/2,kl)=4.e-3 ! tests at (il/2,il/2)
+c0808          if(nspecial==26)qfg(idjd,kl)=4.e-3 ! tests at (idjd)
+c       endif   ! (ldr.ne.0)
+        call histrd1(ncid,iarchi,ier,'alb',ik,jk,alb,ifull)
+        call histrd1(ncid,iarchi,ierr,'tgg2',ik,jk,tgg(1,2),ifull)
         if(ierr==0)then  ! at least tgg6, wb2, wb6 will be available
-          call histrd1(ncid,iarchi,ier,'tgg6',ik,jk,tgg(1,6))
-          call histrd1(ncid,iarchi,ier,'wb2',ik,jk,wb(1,2))
-          call histrd1(ncid,iarchi,ier,'wb6',ik,jk,wb(1,6))
-          call histrd1(ncid,iarchi,ier,'tgg1',ik,jk,tgg(1,1)) ! trial read
+          call histrd1(ncid,iarchi,ier,'tgg6',ik,jk,tgg(1,6),ifull)
+          call histrd1(ncid,iarchi,ier,'wb2',ik,jk,wb(1,2),ifull)
+          call histrd1(ncid,iarchi,ier,'wb6',ik,jk,wb(1,6),ifull)
+          call histrd1(ncid,iarchi,ier,'tgg1',ik,jk,tgg(1,1),ifull) ! trial read
           if(ier==0)then
-            call histrd1(ncid,iarchi,ier,'tgg3',ik,jk,tgg(1,3))
-            call histrd1(ncid,iarchi,ier,'tgg4',ik,jk,tgg(1,4))
-            call histrd1(ncid,iarchi,ier,'tgg5',ik,jk,tgg(1,5))
-            call histrd1(ncid,iarchi,ier,'wb1',ik,jk,wb(1,1))
-            call histrd1(ncid,iarchi,ier,'wb3',ik,jk,wb(1,3))
-            call histrd1(ncid,iarchi,ier,'wb4',ik,jk,wb(1,4))
-            call histrd1(ncid,iarchi,ier,'wb5',ik,jk,wb(1,5))
+            call histrd1(ncid,iarchi,ier,'tgg3',ik,jk,tgg(1,3),ifull)
+            call histrd1(ncid,iarchi,ier,'tgg4',ik,jk,tgg(1,4),ifull)
+            call histrd1(ncid,iarchi,ier,'tgg5',ik,jk,tgg(1,5),ifull)
+            call histrd1(ncid,iarchi,ier,'wb1',ik,jk,wb(1,1),ifull)
+            call histrd1(ncid,iarchi,ier,'wb3',ik,jk,wb(1,3),ifull)
+            call histrd1(ncid,iarchi,ier,'wb4',ik,jk,wb(1,4),ifull)
+            call histrd1(ncid,iarchi,ier,'wb5',ik,jk,wb(1,5),ifull)
           else  ! set other levels having read tgg2, tgg6, wb2, wb6
             tgg(:,1)=abs(tss(:)) ! initial temp. at 2nd layer(6.5.97 KF)
             tgg(:,3)=tgg(:,2) ! initial temp.. from GCM runs with 3 layers
@@ -482,10 +486,10 @@ c         enddo
             enddo   ! k
           endif     ! (ier==0) .. else ..
         else        ! i.e. ierr.ne.0
-          call histrd1(ncid,iarchi,ier,'tb2',ik,jk,tgg(1,ms))
-          call histrd1(ncid,iarchi,ier,'tb3',ik,jk,tgg(1,2))
-          call histrd1(ncid,iarchi,ier,'wfg',ik,jk,wb(1,2))
-          call histrd1(ncid,iarchi,ier,'wfb',ik,jk,wb(1,ms))
+          call histrd1(ncid,iarchi,ier,'tb2',ik,jk,tgg(1,ms),ifull)
+          call histrd1(ncid,iarchi,ier,'tb3',ik,jk,tgg(1,2),ifull)
+          call histrd1(ncid,iarchi,ier,'wfg',ik,jk,wb(1,2),ifull)
+          call histrd1(ncid,iarchi,ier,'wfb',ik,jk,wb(1,ms),ifull)
           tgg(:,1)=abs(tss(:)) ! initial temp at 2nd layer(6.5.97 KF)
           tgg(:,3)=tgg(:,2) ! initial temp. from GCM runs with 3 layers
           wb(:,1) =wb(:,2)  ! layer initialisation of moisture
@@ -499,7 +503,7 @@ c         enddo
             tgg(iq,k)=tgg(iq,ms) ! init temp. from GCM runs with 3 layers
            enddo  ! iq
           enddo   ! k
-          if(nproc==1)then
+          if(myid==0)then  ! was nproc==1     0808
 c 	    only being tested for nested=0; no need to test for mesonest
             if(tgg(1,1)<200..or.tgg(1,2)<200..or.tgg(1,6)<200.)then
               write(0,*) 'impossibly cold initial tgg1, tgg2 or tgg6' 
@@ -509,33 +513,44 @@ c 	    only being tested for nested=0; no need to test for mesonest
           endif     
         endif    ! (ierr==0) .. else ..
       !----------------------------------------------------------------
-        call histrd1(ncid,iarchi,ierr,'wetfrac1',ik,jk,wb(:,1))
+        call histrd1(ncid,iarchi,ierr,'wetfrac1',ik,jk,wb(:,1),ifull)
         if (ierr==0) then
-          call histrd1(ncid,iarchi,ierr,'wetfrac2',ik,jk,wb(:,2))
-          call histrd1(ncid,iarchi,ierr,'wetfrac3',ik,jk,wb(:,3))
-          call histrd1(ncid,iarchi,ierr,'wetfrac4',ik,jk,wb(:,4))
-          call histrd1(ncid,iarchi,ierr,'wetfrac5',ik,jk,wb(:,5))
-          call histrd1(ncid,iarchi,ierr,'wetfrac6',ik,jk,wb(:,6))
+          call histrd1(ncid,iarchi,ierr,'wetfrac2',ik,jk,wb(:,2),ifull)
+          call histrd1(ncid,iarchi,ierr,'wetfrac3',ik,jk,wb(:,3),ifull)
+          call histrd1(ncid,iarchi,ierr,'wetfrac4',ik,jk,wb(:,4),ifull)
+          call histrd1(ncid,iarchi,ierr,'wetfrac5',ik,jk,wb(:,5),ifull)
+          call histrd1(ncid,iarchi,ierr,'wetfrac6',ik,jk,wb(:,6),ifull)
           wb(:,:)=-abs(wb(:,:)) ! flag to indicate wetfrac, not volumetric soil moisture (unpacked in indata)
         end if
-      !----------------------------------------------------------------
 
         !------------------------------------------------------------
         ! MJT urban
         urban(:,:)=999. ! this must equal spval in onthefly.f
-        call histrd1(ncid,iarchi,ierr,'rooftgg1',ik,jk,urban(:,1))
+        call histrd1(ncid,iarchi,ierr,'rooftgg1',ik,jk,urban(:,1)
+     &                ,ifull)
         if (ierr==0) then
-          call histrd1(ncid,iarchi,ierr,'rooftgg2',ik,jk,urban(:,2))
-          call histrd1(ncid,iarchi,ierr,'rooftgg3',ik,jk,urban(:,3))
-          call histrd1(ncid,iarchi,ierr,'waletgg1',ik,jk,urban(:,4))
-          call histrd1(ncid,iarchi,ierr,'waletgg2',ik,jk,urban(:,5))
-          call histrd1(ncid,iarchi,ierr,'waletgg3',ik,jk,urban(:,6))
-          call histrd1(ncid,iarchi,ierr,'walwtgg1',ik,jk,urban(:,7))
-          call histrd1(ncid,iarchi,ierr,'walwtgg2',ik,jk,urban(:,8))
-          call histrd1(ncid,iarchi,ierr,'walwtgg3',ik,jk,urban(:,9))
-          call histrd1(ncid,iarchi,ierr,'roadtgg1',ik,jk,urban(:,10))
-          call histrd1(ncid,iarchi,ierr,'roadtgg2',ik,jk,urban(:,11))
-          call histrd1(ncid,iarchi,ierr,'roadtgg3',ik,jk,urban(:,12))
+          call histrd1(ncid,iarchi,ierr,'rooftgg2',ik,jk,urban(:,2)
+     &                ,ifull)
+          call histrd1(ncid,iarchi,ierr,'rooftgg3',ik,jk,urban(:,3)
+     &                ,ifull)
+          call histrd1(ncid,iarchi,ierr,'waletgg1',ik,jk,urban(:,4)
+     &                ,ifull)
+          call histrd1(ncid,iarchi,ierr,'waletgg2',ik,jk,urban(:,5)
+     &                ,ifull)
+          call histrd1(ncid,iarchi,ierr,'waletgg3',ik,jk,urban(:,6)
+     &                ,ifull)
+          call histrd1(ncid,iarchi,ierr,'walwtgg1',ik,jk,urban(:,7)
+     &                ,ifull)
+          call histrd1(ncid,iarchi,ierr,'walwtgg2',ik,jk,urban(:,8)
+     &                ,ifull)
+          call histrd1(ncid,iarchi,ierr,'walwtgg3',ik,jk,urban(:,9)
+     &                ,ifull)
+          call histrd1(ncid,iarchi,ierr,'roadtgg1',ik,jk,urban(:,10)
+     &                ,ifull)
+          call histrd1(ncid,iarchi,ierr,'roadtgg2',ik,jk,urban(:,11)
+     &                ,ifull)
+          call histrd1(ncid,iarchi,ierr,'roadtgg3',ik,jk,urban(:,12)
+     &                ,ifull)
         end if
         !------------------------------------------------------------        
 
@@ -548,24 +563,18 @@ c 	    only being tested for nested=0; no need to test for mesonest
           ddd=0.
           eee=0.
           if (myid == 0) print *,"Load tendancy data for nestinb"	  
-          call histrd1(ncid,iarchi,ierr,'psft',ik,jk,tmp)
-          call histrd4(ncid,iarchi,ierr,'ut',ik,jk,kk,bbb)
-          call histrd4(ncid,iarchi,ierr,'vt',ik,jk,kk,ccc)
-          call histrd4(ncid,iarchi,ierr,'tempt',ik,jk,kk,ddd)
-          call histrd4(ncid,iarchi,ierr,'mixrt',ik,jk,kk,eee)
+          call histrd1(ncid,iarchi,ierr,'psft',ik,jk,tmp,ifull)
+          call histrd4(ncid,iarchi,ierr,'ut',ik,jk,kk,bbb,ifull)
+          call histrd4(ncid,iarchi,ierr,'vt',ik,jk,kk,ccc,ifull)
+          call histrd4(ncid,iarchi,ierr,'tempt',ik,jk,kk,ddd,ifull)
+          call histrd4(ncid,iarchi,ierr,'mixrt',ik,jk,kk,eee,ifull)
           call nestload(tmp,bbb,ccc,ddd,eee)
         end if
         !------------------------------------------------------------ 
-        
-        !------------------------------------------------------------
-        ! MJT lsmask ! moved above nested==0
-        !tmp(:)=-1.
-        !call histrd1(ncid,iarchi,ierr,'soilt',ik,jk,tmp(:))
-        !isoilh(:)=nint(tmp(:))
-        !------------------------------------------------------------
+
 
         if(myid == 0)print *,'about to read snowd'
-        call histrd1(ncid,iarchi,ier,'snd',ik,jk,snowd)
+        call histrd1(ncid,iarchi,ier,'snd',ik,jk,snowd,ifull)
         if(ier.ne.0)then  ! preset snowd here if not avail.
 !         when no snowd available initially, e.g. COMPARE III (jlm formula)
           snowd(:)=0.      ! added Feb '05
@@ -583,7 +592,7 @@ c 	    only being tested for nested=0; no need to test for mesonest
         do iq=1,ifull
          if(snowd(iq)<.001)snowd(iq)=0. ! for netcdf rounding 7/6/06
         enddo
-        call histrd1(ncid,iarchi,ier,'smass1',ik,jk,smass(1,1))
+        call histrd1(ncid,iarchi,ier,'smass1',ik,jk,smass(1,1),ifull)
         if(ier.ne.0)then  ! for smass1
           if(myid==0)
      &          print *,'setting smass,wbice etc in infile, ier= '  ,ier
@@ -606,60 +615,71 @@ c 	    only being tested for nested=0; no need to test for mesonest
 !         note permanent wbice may be re-set in indata
           wbice(:,:)=0.
         else     ! assume all these variables available in restart file
-         call histrd1(ncid,iarchi,ier,'smass2',ik,jk,smass(1,2))
-         call histrd1(ncid,iarchi,ier,'smass3',ik,jk,smass(1,3))
-         call histrd1(ncid,iarchi,ier,'ssdn1',ik,jk,ssdn(1,1))
-         call histrd1(ncid,iarchi,ier,'ssdn2',ik,jk,ssdn(1,2))
-         call histrd1(ncid,iarchi,ier,'ssdn3',ik,jk,ssdn(1,3))
-         call histrd1(ncid,iarchi,ier,'tggsn1',ik,jk,tggsn(1,1))
-         call histrd1(ncid,iarchi,ier,'tggsn2',ik,jk,tggsn(1,2))
-         call histrd1(ncid,iarchi,ier,'tggsn3',ik,jk,tggsn(1,3))
-         call histrd1(ncid,iarchi,ier,'wbice1',ik,jk,wbice(1,1))
-         call histrd1(ncid,iarchi,ier,'wbice2',ik,jk,wbice(1,2))
-         call histrd1(ncid,iarchi,ier,'wbice3',ik,jk,wbice(1,3))
-         call histrd1(ncid,iarchi,ier,'wbice4',ik,jk,wbice(1,4))
-         call histrd1(ncid,iarchi,ier,'wbice5',ik,jk,wbice(1,5))
-         call histrd1(ncid,iarchi,ier,'wbice6',ik,jk,wbice(1,6))
-         call histrd1(ncid,iarchi,ier,'snage',ik,jk,snage)
-         call histrd1(ncid,iarchi,ier,'sflag',ik,jk,tmp)
+         call histrd1(ncid,iarchi,ier,'smass2',ik,jk,smass(1,2),ifull)
+         call histrd1(ncid,iarchi,ier,'smass3',ik,jk,smass(1,3),ifull)
+         call histrd1(ncid,iarchi,ier,'ssdn1',ik,jk,ssdn(1,1),ifull)
+         call histrd1(ncid,iarchi,ier,'ssdn2',ik,jk,ssdn(1,2),ifull)
+         call histrd1(ncid,iarchi,ier,'ssdn3',ik,jk,ssdn(1,3),ifull)
+         call histrd1(ncid,iarchi,ier,'tggsn1',ik,jk,tggsn(1,1),ifull)
+         call histrd1(ncid,iarchi,ier,'tggsn2',ik,jk,tggsn(1,2),ifull)
+         call histrd1(ncid,iarchi,ier,'tggsn3',ik,jk,tggsn(1,3),ifull)
+         call histrd1(ncid,iarchi,ier,'wbice1',ik,jk,wbice(1,1),ifull)
+         call histrd1(ncid,iarchi,ier,'wbice2',ik,jk,wbice(1,2),ifull)
+         call histrd1(ncid,iarchi,ier,'wbice3',ik,jk,wbice(1,3),ifull)
+         call histrd1(ncid,iarchi,ier,'wbice4',ik,jk,wbice(1,4),ifull)
+         call histrd1(ncid,iarchi,ier,'wbice5',ik,jk,wbice(1,5),ifull)
+         call histrd1(ncid,iarchi,ier,'wbice6',ik,jk,wbice(1,6),ifull)
+         call histrd1(ncid,iarchi,ier,'snage',ik,jk,snage,ifull)
+         call histrd1(ncid,iarchi,ier,'sflag',ik,jk,tmp,ifull)
          isflag(:)=nint(tmp(:))
         endif  ! (ier.ne.0) ... else ...   for smass1
 
 !       rml 16/02/06 read tracer from restart for up to 999 tracers
-        if (ngas>0) then
-          do igas=1,ngas
-            write(trnum,'(i3.3)') igas
-            call histrd4(ncid,iarchi,ier,'tr'//trnum,ik,jk,kk,
-     &                   tr(1:ifull,:,igas))
-          enddo
-        endif
+c        if (ngas>0) then          
+c          do igas=1,ngas
+c            write(trnum,'(i3.3)') igas
+c            call histrd4(ncid,iarchi,ier,'tr'//trnum,ik,jk,kk,
+c     &                   tr(1:ifull,:,igas),ifull)
+c          enddo
+c        endif
 
 ! rml from eak 16/03/06
 ! rml 03/01/07 if cplant1-3 and csoil1-2 not available check for carb_* fields
           cplant=0. ! MJT cable
-          call histrd1(ncid,iarchi,ier,'cplant1',ik,jk,cplant(:,1))
+          call histrd1(ncid,iarchi,ier,'cplant1',ik,jk,cplant(:,1) 
+     &                ,ifull)
           if (ier.ne.0) 
-     &      call histrd1(ncid,iarchi,ier,'carb_lf',ik,jk,cplant(:,1))
-          call histrd1(ncid,iarchi,ier,'cplant2',ik,jk,cplant(:,2))
+     &      call histrd1(ncid,iarchi,ier,'carb_lf',ik,jk,cplant(:,1)
+     &                ,ifull)
+          call histrd1(ncid,iarchi,ier,'cplant2',ik,jk,cplant(:,2)
+     &                ,ifull)
           if (ier.ne.0) 
-     &      call histrd1(ncid,iarchi,ier,'carb_wd',ik,jk,cplant(:,2))
-          call histrd1(ncid,iarchi,ier,'cplant3',ik,jk,cplant(:,3))
+     &      call histrd1(ncid,iarchi,ier,'carb_wd',ik,jk,cplant(:,2)
+     &                ,ifull)
+          call histrd1(ncid,iarchi,ier,'cplant3',ik,jk,cplant(:,3)
+     &                ,ifull)
           if (ier.ne.0) 
-     &      call histrd1(ncid,iarchi,ier,'carb_rts',ik,jk,cplant(:,3))
-          call histrd1(ncid,iarchi,ier,'csoil1',ik,jk,csoil(:,1))
+     &      call histrd1(ncid,iarchi,ier,'carb_rts',ik,jk,cplant(:,3)
+     &                ,ifull)
+          call histrd1(ncid,iarchi,ier,'csoil1',ik,jk,csoil(:,1)
+     &                ,ifull)
           if (ier.ne.0) 
-     &      call histrd1(ncid,iarchi,ier,'carb_slf',ik,jk,csoil(:,1))
-          call histrd1(ncid,iarchi,ier,'csoil2',ik,jk,csoil(:,2))
+     &      call histrd1(ncid,iarchi,ier,'carb_slf',ik,jk,csoil(:,1)
+     &                ,ifull)
+          call histrd1(ncid,iarchi,ier,'csoil2',ik,jk,csoil(:,2)
+     &                ,ifull)
           if (ier.ne.0) 
-     &      call histrd1(ncid,iarchi,ier,'carb_sls',ik,jk,csoil(:,2))
+     &      call histrd1(ncid,iarchi,ier,'carb_sls',ik,jk,csoil(:,2)
+     &                ,ifull)
           !call histrd1(ncid,iarchi,ier,'sumpn',ik,jk,sumpn)
           !call histrd1(ncid,iarchi,ier,'sumrp',ik,jk,sumrp)
           !call histrd1(ncid,iarchi,ier,'sumrs',ik,jk,sumrs)
           !call histrd1(ncid,iarchi,ier,'sumrd',ik,jk,sumrd)
           cansto=0.
-          call histrd1(ncid,iarchi,ier,'cansto',ik,jk,cansto)
+          call histrd1(ncid,iarchi,ier,'cansto',ik,jk,cansto,ifull)
           rtsoil=0. ! MJT cable
-          call histrd1(ncid,iarchi,ier,'rtsoil',ik,jk,rtsoil)
+          call histrd1(ncid,iarchi,ier,'rtsoil',ik,jk,rtsoil,ifull)
+
 
         if(mydiag)then
           print *,'at end of infile kdate,ktime,ktau,tss: ',
@@ -668,16 +688,16 @@ c 	    only being tested for nested=0; no need to test for mesonest
           print *,'wb ',(wb(idjd,k),k=1,ms)
           print *,'wbice ',(wbice(idjd,k),k=1,ms)
         endif ! (mydiag)
-        if(ncalled<4.and.mydiag)then
-          write (6,"('tgg(1)# in ',9f8.1)") diagvals(tgg(:,1))
-          write (6,"('tgg(2)# in ',9f8.1)") diagvals(tgg(:,2))
-          write (6,"('tgg(3)# in ',9f8.1)") diagvals(tgg(:,3))
-          write (6,"('tgg(ms)# in',9f8.1)") diagvals(tgg(:,ms))
-          write (6,"('wb(1)# in  ',9f8.3)") diagvals(wb(:,1))
-          write (6,"('wb(ms)# in ',9f8.3)") diagvals(wb(:,ms))
-          write (6,"('alb# in    ',9f8.3)") diagvals(alb)
-          write (6,"('snowd# in  ',9f8.2)") diagvals(snowd)
-        endif ! (ncalled<4.and.mydiag)
+c        if(ncalled<4.and.mydiag)then
+c          write (6,"('tgg(1)# in ',9f8.1)") diagvals(tgg(:,1))
+c          write (6,"('tgg(2)# in ',9f8.1)") diagvals(tgg(:,2))
+c          write (6,"('tgg(3)# in ',9f8.1)") diagvals(tgg(:,3))
+c          write (6,"('tgg(ms)# in',9f8.1)") diagvals(tgg(:,ms))
+c          write (6,"('wb(1)# in  ',9f8.3)") diagvals(wb(:,1))
+c          write (6,"('wb(ms)# in ',9f8.3)") diagvals(wb(:,ms))
+c          write (6,"('alb# in    ',9f8.3)") diagvals(alb)
+c          write (6,"('snowd# in  ',9f8.2)") diagvals(snowd)
+c        endif ! (ncalled<4.and.mydiag)
       endif   ! (nested==0)   !  only done at start of run 
 ! ########################################################################
 
@@ -698,14 +718,16 @@ c 	    only being tested for nested=0; no need to test for mesonest
          print *,'end infile; next read will be kdate_s,ktime_s >= ',
      &                                          kdate_s,ktime_s
       endif  ! (mydiag)
+c     write (30+myid,*) 'G myid ',myid
+c     close (30+myid)
 
       end subroutine infile
 
 c*************************************************************************
-      subroutine histrd1(ncid,iarchi,ier,name,ik,jk,var)
+      subroutine histrd1(ncid,iarchi,ier,name,ik,jk,var,ifull)  ! 0808
       use cc_mpi
       implicit none
-      include 'newmpar.h'
+c     include 'newmpar.h'
       include 'parm.h'
       include 'netcdf.inc'
       include 'mpif.h'
@@ -715,15 +737,15 @@ c*************************************************************************
       logical odiag
       parameter(odiag=.false. )
       character name*(*)
-      integer start(3),count(3)
+      integer start(3),count(3),ifull
       real var(ifull)
-      real globvar(ifull_g), vmax, vmin, addoff, sf
+      real globvar(ik*jk), vmax, vmin, addoff, sf  ! 0808
       integer ierr, idv
 
       if(myid==0)then
          start = (/ 1, 1, iarchi /)
          count = (/ ik, jk, 1 /)
-         if(ik<il_g)globvar(:)=2. ! default for onthefly
+c        if(ik<il_g)globvar(:)=2. ! default for onthefly
 
 c     get variable idv
          idv = ncvid(ncid,name,ier)
@@ -738,8 +760,8 @@ c     read in all data
             !------------------------------------------------------------
             ! MJT CHANGE
             ierr=nf_inq_vartype(ncid,idv,nctype)
-	      addoff=0.
-	      sf=1.
+	    addoff=0.
+	    sf=1.
             select case(nctype)
               case(nf_float)
                 call ncvgt(ncid,idv,start,count,rvar,ier)
@@ -775,6 +797,10 @@ c     unpack data
       ! Have to return correct value of ier on all processes because it's 
       ! used for initialisation in calling routine
       call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      if(ifull==ik*jk)then  !  808
+        var(:)=globvar(:)
+        return  
+      endif
       if(ier==0)then
          if(myid == 0)then
             call ccmpi_distribute(var,globvar)
@@ -785,10 +811,10 @@ c     unpack data
       return    ! histrd1
       end   
 c***************************************************************************
-      subroutine histrd4(ncid,iarchi,ier,name,ik,jk,kk,var)
+      subroutine histrd4(ncid,iarchi,ier,name,ik,jk,kk,var,ifull)
       use cc_mpi
       implicit none
-      include 'newmpar.h'
+c     include 'newmpar.h'
       include 'netcdf.inc'
       include 'parm.h'
       include 'mpif.h'
@@ -796,16 +822,15 @@ c***************************************************************************
       integer*2 ivar(ik*jk,kk)
       real rvar(ik*jk,kk) ! MJT CHANGE
       character name*(*)
-      integer start(4),count(4)
-      real var(ifull,kl)
-      real globvar(ifull_g,kl), vmax, vmin, addoff, sf
+      integer start(4),count(4), ifull
+      real var(ifull,kk)
+      real globvar(ik*jk,kk), vmax, vmin, addoff, sf
       integer ierr, idv, k
 
       if(myid == 0)then
          start = (/ 1, 1, 1, iarchi /)
-!        count = (/ il_g, jl_g, kk, 1 /)
          count = (/   ik,   jk, kk, 1 /)
-         if(ik<il_g)globvar(:,:)=1.234 ! default for onthefly
+c        if(ik<il_g)globvar(:,:)=1.234 ! default for onthefly
 c        get variable idv
          idv = ncvid(ncid,name,ier)
          if(ier.ne.0)then
@@ -850,6 +875,10 @@ c          unpack data
       ! Have to return correct value of ier on all processes because it's 
       ! used for initialisation in calling routine
       call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      if(ifull==ik*jk)then  !  808
+        var(:,1:kk)=globvar(:,1:kk)
+        return  
+      endif
       if(ier==0)then
          if(myid == 0)then
             call ccmpi_distribute(var,globvar)
@@ -861,13 +890,14 @@ c          unpack data
       end   
 
       subroutine vertint(t,n)
+!     N.B. this ia called just from indata or nestin      
 !     transforms 3d array from dimension kk in vertical to kl   jlm
 !     assuming here kk<kl
 !     jlm vector special, just with linear new=1 option
       include 'newmpar.h'
       include 'sigs.h'
       include 'parm.h'
-      common/sigin/ik,jk,kk,sigin(kl)  ! for vertint, infile
+      common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile
       dimension t(ifull,kl),ka(kl),kb(kl),wta(kl),wtb(kl)  ! for mpi
       real told(ifull,kl)
       save num,ka,kb,wta,wtb,klapse

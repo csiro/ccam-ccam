@@ -41,7 +41,7 @@
       common/tbar2d/tbar2d(ifull)
       ! Work common here ????
       real p(ifull+iextra,kl),omgfnl(ifull,kl)
-      real wrk1, wrk2  ! wrk2 not used here
+      real wrk1, wrk2  
       common/work3b/wrk1(ifull,kl),wrk2(ifull,kl)   ! just work arrays here
       real d(ifull,kl)   ! NOT shared updps
       real qgsav, qfgsav, qlgsav, trsav
@@ -316,8 +316,19 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
 !     straightforward rev. cubic interp of u and v (i.e. nuv=10)
 !     This is necessary because staguv expects arrays dimensioned 
 !     (ifull,kl). 
-      call unstaguv(cc(1:ifull,:),dd(1:ifull,:),        
+      if(nstag==0)then
+        call staguv(u(1:ifull,:),v(1:ifull,:),        
+     &              wrk1(1:ifull,:),wrk2(1:ifull,:)) 
+        wrk1(1:ifull,:)=cc(1:ifull,:)-wrk1(1:ifull,:)
+        wrk2(1:ifull,:)=dd(1:ifull,:)-wrk2(1:ifull,:)
+        call unstaguv(wrk1(1:ifull,:),wrk2(1:ifull,:),        
+     &                wrk1(1:ifull,:),wrk2(1:ifull,:)) 
+        u(1:ifull,:)=u(1:ifull,:)+wrk1(1:ifull,:)
+        v(1:ifull,:)=v(1:ifull,:)+wrk2(1:ifull,:)
+      else
+        call unstaguv(cc(1:ifull,:),dd(1:ifull,:),        
      &              u(1:ifull,:),v(1:ifull,:)) ! usual
+      endif
 
 !     vert. integ. div into e
       do iq=1,ifull

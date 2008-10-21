@@ -2,6 +2,7 @@
 !     inputs & outputs: t,u,v,qg
       use cc_mpi, only : mydiag, myid
       use diag_m
+      
 !     rml 16/02/06 use trvmix module
       use trvmix, only : tracervmix
       include 'newmpar.h'
@@ -231,18 +232,64 @@ c     ****** section for Geleyn shallow convection; others moved lower****
           if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)==0.)then  
             delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,
      &                 qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
+            print *,'-96 iq,k,kbsav,ktsav ',iq,k,kbsav(iq),ktsav(iq),
+     &      hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)),delthet(iq,k)
           endif 
          enddo  ! iq loop
         enddo   !  k loop
       endif     ! (ksc==-96)
-      if(ksc==-95)then
-        do k=kscbase,ksctop    ! 
+      if(ksc==-95)then ! same as -99 but has tied_rh (e.g. .75) factor
+c       kshal(:)=0
+        do k=kscbase,ksctop     
          do iq=1,ifull
           delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,
-     &                 qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
+     &                 (qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
+c         if(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)>0.)kshal(iq)=k+1
+c         if(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)>0.)
+c    &      print*,'ktau,iq,k,diff ',
+c    &        ktau,iq,k,hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k))
          enddo  ! iq loop
         enddo   !  k loop
       endif     ! (ksc==-95)
+      if(ksc==-94)then   ! combination of Geleyn and jlm 83 (Feb 08)
+        do k=1,ksctop    
+         do iq=1,ifull
+          if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)==0.)then  
+            delthet(iq,k)=0.
+            print *,'-94 iq,k,kbsav,ktsav ',iq,k,kbsav(iq),ktsav(iq),
+     &      hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)),delthet(iq,k)
+          endif 
+         enddo  ! iq loop
+        enddo   !  k loop
+      endif     ! (ksc==-94)
+      if(ksc==-93)then ! single-layer (pblh) version of -95
+        do iq=1,ifull
+         do k=kscbase,kl/2
+          if(zh(iq,k)<pblh(iq).and.zh(iq,k+1)>pblh(iq))then
+c           aa=hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k))
+c           if(aa>0.)
+c    &        print *,'iq,k,zh,pblh,rh ',iq,k,zh(iq,k),pblh(iq),
+c~`    &                qg(iq,k)/qs(iq,k),delthet(iq,k),aa 
+            delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,
+     &                   (qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
+           endif
+         enddo  ! k loop 
+        enddo   ! iq loop
+      endif     ! (ksc==-93)
+      if(ksc==-92)then ! capped-by-pblh version of -95
+        do iq=1,ifull
+         do k=kscbase,kl/2
+          if(zh(iq,k)<pblh(iq))then
+c           aa=hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k))
+c           if(aa>0.)
+c    &        print *,'iq,k,zh,pblh,rh ',iq,k,zh(iq,k),pblh(iq),
+c~`    &                qg(iq,k)/qs(iq,k),delthet(iq,k),aa 
+            delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,
+     &                   (qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
+           endif
+         enddo  ! k loop 
+        enddo   ! iq loop
+      endif     ! (ksc==-92)
 c     ********* end of Geleyn shallow convection section ****************
 
 !     following now defined in vertmix (don't need to pass from sflux)
@@ -465,10 +512,9 @@ c     ***** ***** section for jlm shallow convection v4 *****************
         enddo   !  k loop
       endif     ! (ksc==83)
       if(ksc==91)then
-        do k=1,ksctop-1   ! or ksctop?  
+        do k=1,ksctop ! May 08
          do iq=1,ifull
-c**       if(ktsav(iq)<0.and.k<abs(ktsav(iq)))then
-          if(ktsav(iq)<kl.and.k<ktsav(iq))then  ! April 04
+          if(ktsav(iq)<kl-1.and.k<ktsav(iq))then  ! April 04
             rk_shal(iq,k)=tied_con
             rk_shal(iq,k+1)=tied_over
           endif ! (ktsav(iq)<0.and.k<abs(ktsav(iq)))
@@ -476,20 +522,12 @@ c**       if(ktsav(iq)<0.and.k<abs(ktsav(iq)))then
         enddo   !  k loop
       endif     ! (ksc==91)
       if(ksc==92)then
-        if(nlocal.ne.0.and.sigkscb<-1.)then
-          do iq=1,ifull
-           if(zh(iq,kbsav(iq))>pblh(iq))then 
-             kbsav(iq)=kl
-           endif
-          enddo
-        endif  ! (nlocal.ne.0.and.sigkscb<-1.)
-        do k=1,ksctop-1    
+        do k=1,ksctop ! May 08
          do iq=1,ifull
-c**       if(ktsav(iq)<0.and.k<abs(ktsav(iq)).and.k>=kbsav(iq))then
-          if(ktsav(iq)<kl.and.k<ktsav(iq).and.k>=kbsav(iq))then  ! April 04
+          if(k>=kbsav(iq).and.k<ktsav(iq).and.condc(iq)==0.)then  ! May 08
             rk_shal(iq,k)=tied_con
             rk_shal(iq,k+1)=tied_over
-          endif ! (ktsav(iq)<0.and.k<abs(ktsav(iq)).and....)
+          endif ! (ktsav(iq)<0.and.k<abs(ktsav(iq)))
          enddo  ! iq loop
         enddo   !  k loop
       endif     ! (ksc==92)
@@ -536,7 +574,7 @@ c     ************ section for Tiedtke shallow convection *******************
       endif       ! (ksc==99)
 c     *********** end of Tiedtke shallow convection section **************
 
-c     *********** Tiedtke_ldr-style shallow convection 93-96 ************
+c     *********** Tiedtke_ldr-style shallow convection 93 ************
       if(ksc>=93.and.ksc<=96)then   
 c       Calculate LCL for near surface air
 c       Assume qstar=qtg(iq,1) but allow some sub-grid variability
@@ -566,7 +604,7 @@ c       and call that layer the cloud base.
         enddo
         if(nlocal.ne.0)then  ! like old ksc=95, but ensures LCL within PBL
           do iq=1,ifull
-           if(zh(iq,kbase(iq))>pblh(iq))then ! had missing iq
+           if(zh(iq,kbase(iq))>pblh(iq))then 
               kbase(iq)=kl
            endif
           enddo  ! iq loop

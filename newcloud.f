@@ -225,27 +225,77 @@ c Precompute the array of critical relative humidities
           endif 
          enddo
         enddo
-      else
+       elseif(nclddia==1)then
         do k=1,nl
          do mg=1,ln2
           if(land(mg))then
-c           rcrit(mg,k)=max(0.75,sig(k)**2)
-!           rcrit(mg,k)=max(0.75,sig(k))
-!           rcrit(mg,k)=max(0.75,min(.99,sig(k)))    ! same as T63
+            rcrit(mg,k)=max(rcrit_l,sig(k)**3)          ! .75 for R21 Mk2
+          else
+            rcrit(mg,k)=max(rcrit_s,sig(k)**3)          ! .85 for R21 Mk2
+          endif
+         enddo
+        enddo
+      elseif(nclddia==2)then
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
+            rcrit(mg,k)=rcrit_l
+          else
+            rcrit(mg,k)=rcrit_s
+          endif
+         enddo
+        enddo
+       elseif(nclddia==3)then
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
+            rcrit(mg,k)=max(rcrit_l,sig(k)**2)          ! .75 for R21 Mk2
+          else
+            rcrit(mg,k)=max(rcrit_s,sig(k)**2)          ! .85 for R21 Mk2
+          endif
+         enddo
+        enddo
+      elseif(nclddia==4)then
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
+            rcrit(mg,k)=max(rcrit_l,sig(k))          ! .75 for test Mk2/3
+          else
+            rcrit(mg,k)=max(rcrit_s,sig(k))          ! .9  for test Mk2/3
+          endif
+         enddo
+        enddo
+      elseif(nclddia==5)then  ! default till May 08
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
             rcrit(mg,k)=max(rcrit_l,min(.99,sig(k))) ! .75 for same as T63
           else
-!           rcrit(mg,k)=max(0.85,sig(k)**2)
-c           rcrit(mg,k)=max(0.9,sig(k))
-!           rcrit(mg,k)=max(0.85,min(.99,sig(k)))    ! same as T63
             rcrit(mg,k)=max(rcrit_s,min(.99,sig(k))) ! .85 for same as T63
           endif
-C***          if(k.eq.1)rcrit(mg,k)=0.999
-C***          if(k.eq.2)rcrit(mg,k)=0.99
-C***          if(k.eq.3)rcrit(mg,k)=0.95
+         enddo
+        enddo
+       elseif(nclddia==6)then
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
+            rcrit(mg,k)=max(rcrit_l*(1.-.15*sig(k)),sig(k)**4)         
+          else
+            rcrit(mg,k)=max(rcrit_s*(1.-.15*sig(k)),sig(k)**4)          
+          endif
+         enddo
+        enddo
+       elseif(nclddia==7)then
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
+            rcrit(mg,k)=max(rcrit_l*(1.-.2*sig(k)),sig(k)**4)         
+          else
+            rcrit(mg,k)=max(rcrit_s*(1.-.2*sig(k)),sig(k)**4)          
+          endif
          enddo
         enddo
       endif  ! (nclddia<0)  .. else ..
-
 
 c Calculate cloudy fraction of grid box (cfrac) and gridbox-mean cloud water
 c using the triangular PDF of Smith (1990)

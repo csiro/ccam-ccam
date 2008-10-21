@@ -1,9 +1,13 @@
-      subroutine setxyz(ik,xx4,yy4,myid)
+      subroutine setxyz(ik,rlong0,rlat0,schmidtin,            ! input
+     &      x,y,z,wts, ax,ay,az,bx,by,bz,xx4,yy4,myid)        ! output
+c     subroutine setxyz(ik,rlat0,rlong0,schmidt,xx4,yy4,myid)
 !     this routine modified sept '06 to accept smaller il via abs(ik)
 !     essentially to temporarily provide xx4, yy4, ax...bz for onthefly  
 !     note that ax6 etc not needed for onthefly     
       use utilities
-      parameter (ntang=2)   ! ntang=0 for tang. vectors from rancic et al.
+      implicit none
+c     integer, parameter :: ntang=2  ! always done
+                            ! ntang=0 for tang. vectors from Rancic et al.
                             !         not for stretched as vecpanel not ready
                             ! ntang=1 for tang. vectors by finite diffs
                             ! ntang=2 for map factors by finite diffs too
@@ -16,29 +20,41 @@ c     suffix 6 denotes hex (6)
       include 'latlong_gx.h'  ! rlatt,rlongg
       include 'map_gx.h'
       include 'parm.h'
-      include 'xyzinfo_gx.h'  ! x,y,z,wts
-      include 'vecsuv_gx.h'   ! vecsuv info
+c     include 'xyzinfo_gx.h'  ! x,y,z,wts
+      real*8 x(ik*ik*6),y(ik*ik*6),z(ik*ik*6)
+c     include 'vecsuv_gx.h'   ! vecsuv info
+      real ax(ik*ik*6),ay(ik*ik*6),az(ik*ik*6),wts(ik*ik*6)
+      real bx(ik*ik*6),by(ik*ik*6),bz(ik*ik*6)
+c      real ax6(abs(ik),abs(ik),0:5),ay6(abs(ik),abs(ik),0:5)
+c      real bx6(abs(ik),abs(ik),0:5),by6(abs(ik),abs(ik),0:5)
+c      real az6(abs(ik),abs(ik),0:5),bz6(abs(ik),abs(ik),0:5)
+c      equivalence (ax6,ax),(ay6,ay),(az6,az),(bx6,bx),(by6,by),(bz6,bz)
       include 'indices_gx.h' ! in,is,iw,ie,inn,iss,iww,iee
-c     include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
-      real*8 xx4(1+4*abs(ik),1+4*abs(ik)),yy4(1+4*abs(ik),1+4*abs(ik))
+c     real*8 xx4(1+4*abs(ik),1+4*abs(ik)),yy4(1+4*abs(ik),1+4*abs(ik))
+      real*8 xx4(1+4*ik,1+4*ik),yy4(1+4*ik,1+4*ik)
 !     next one shared with cctocc4 & onthefly
       integer :: myid  ! This is passed as an argument just to control the 
                        ! diagnostic prints
       integer :: ik  ! passed as argument. Actual i dimension.
-!                  if negative, suppress calc of rlat4, rlong4                             
+!                  if negative, suppress calc of rlat4, rlong4, indices,em                             
 !     These can no longer be shared because they use true global ifull.
-      real rlong4(ifull,4),rlat4(ifull,4)
+      real rlong4(ifull,4),rlat4(ifull,4)  ! really ifull_g
       common /workglob/ rlong4, rlat4 ! Shared with onthefly.f
-      real em4(1+4*abs(ik),1+4*abs(ik))
-     .    ,ax4(iquad,iquad),ay4(iquad,iquad),az4(iquad,iquad)
-     .    ,axx(ifull),ayy(ifull),azz(ifull)
-     .    ,bxx(ifull),byy(ifull),bzz(ifull)
+c      real em4(1+4*abs(ik),1+4*abs(ik))
+c     .    ,ax4(1+4*abs(ik),1+4*abs(ik)),ay4(1+4*abs(ik),1+4*abs(ik))
+c     &    ,az4(1+4*abs(ik),1+4*abs(ik))
+       real em4(1+4*ik,1+4*ik)
+     .    ,ax4(1+4*ik,1+4*ik),ay4(1+4*ik,1+4*ik)
+     &    ,az4(1+4*ik,1+4*ik)
+     .    ,axx(ik*ik*6),ayy(ik*ik*6),azz(ik*ik*6)
+     .    ,bxx(ik*ik*6),byy(ik*ik*6),bzz(ik*ik*6)
       integer inw(ifull),ies(ifull),iws(ifull)  ! just for bdys
+      real rlong0,rlat0,schmidt,schmidtin
       real rotpole(3,3)
-      real*8 alf,den1,one,xx,yy  ! 6/11/07  
+      real*8 alf,den1,one,xx,yy,zz,x4_iq_m,y4_iq_m,z4_iq_m
       data one/1./    ! just to force real*8 calculation
 !     dimension npann(0:13),npane(0:13),npanw(0:13),npans(0:13)  ! in indices.h
-      dimension npan6n(0:5),npan6e(0:5),npan6w(0:5),npan6s(0:5)
+      integer npan6n(0:5),npan6e(0:5),npan6w(0:5),npan6s(0:5)
 !                  0  1   2   3   4   5   6   7   8   9  10  11  12  13
 !     data npann/  1, 2,107,  4,106,  6,  7,109,  9,112, 11, 12,102,101/
 !     data npane/103, 3,  4,105,  5,110,108,  8, 10, 11,100,113, 13,  0/
@@ -47,6 +63,15 @@ c     include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       data npan6n/1,103,3,105,5,101/,npan6e/102,2,104,4,100,0/
       data npan6w/5,105,1,101,3,103/,npan6s/104,0,100,2,102,4/
 c     character*80 chars
+      integer num,ndiag,ind,i,j,n,ikk,idjd_g,iq,ii,i0,j0,n0,in0,jn0,nn0
+      integer is0,js0,ns0,ie0,je0,ne0,iw0,jw0,nw0,inn0,jnn0
+      integer iss0,jss0,nss0,nnn0,iee0,jee0,nee0,iww0,jww0,nww0,m
+      integer iq11,iq12,iq13,iq22,iq32,iqcc,iqnn
+      integer imin,imax,jmin,jmax,numpts
+      integer ::  iqm,iqp, n_n, n_e, n_w, n_s
+      real dsfact,xin,yin,zin
+      real den, dot,eps,dx2,dy2,sumwts,rlat,rlong,ratmin,ratmax,rat
+      real rlatdeg,rlondeg
       save num
       data ndiag/0/,num/0/
       ind(i,j,n)=i+(j-1)*ikk+n*ikk*ikk  ! *** for n=0,npanels
@@ -54,9 +79,11 @@ c     character*80 chars
 c     When using the ifull notation: in, ie, iw and is give the
 c     indices for the n, e, w, s neighbours respectively
 c     a, b denote unit vectors in the direction of x, y (e & n) respectively
-      schm13=1.            ! 1. unless using conf-octagon
       idjd_g = id+il*(jd-1)  ! Global value
+      schmidt=abs(schmidtin)
       ikk=abs(ik)
+          
+      if(schmidtin<0.)go to 2
       do iq=1,ifull
        in(iq)=iq+ikk
        is(iq)=iq-ikk
@@ -64,14 +91,12 @@ c     a, b denote unit vectors in the direction of x, y (e & n) respectively
        iw(iq)=iq-1
       enddo   ! iq loop
 
-      if(npanels.eq.5)then
-        do n=0,npanels
+      do n=0,npanels
          npann(n)=npan6n(n)
          npane(n)=npan6e(n)
          npanw(n)=npan6w(n)
          npans(n)=npan6s(n)
-        enddo
-      endif    ! (npanels.eq.5)
+      enddo
 
       do n=0,npanels
 c     print *,'ina ikk/2,n ',in(ind(ikk/2,ikk,n)),n
@@ -212,26 +237,6 @@ c     print *,'isa ikk/2,n ',is(ind(ikk/2,1,n)),n
 c     print *,'isb ikk/2,n ',is(ind(ikk/2,1,n)),n
       enddo      ! n loop
 
-c     print *,'lsw a  ',lsw
-c     print *,'lnw a  ',lnw
-c     print *,'lws a  ',lws
-c     print *,'les a  ',les
-c     print *,'leen a  ',leen
-c     print *,'lenn a  ',lenn
-c     print *,'lwwn a  ',lwwn
-c     print *,'lwnn a  ',lwnn
-c     print *,'lsee a  ',lsee
-c     print *,'lsse a  ',lsse
-c     print *,'lnee a  ',lnee
-c     print *,'lnne a  ',lnne
-c     print *,'lsww a  ',lsww
-c     print *,'lssw a  ',lssw
-c     print *,'lnww a  ',lnww
-c     print *,'lnnw a  ',lnnw
-c     print *,'lwws a  ',lwws
-c     print *,'lwss a  ',lwss
-c     print *,'lees a  ',lees
-c     print *,'less a  ',less
       do n=0,npanels
        lsw(n)=isw( ind( 1, 1,n) )
        lnw(n)=inw( ind( 1,ikk,n) )
@@ -278,26 +283,6 @@ c     print *,'less a  ',less
          lees(n)=iss(is( ind(ikk, 1,n) ))
        endif      ! (npans(n).ge.100)
       enddo       ! n loop
-c     print *,'lsw b  ',lsw
-c     print *,'lnw b  ',lnw
-c     print *,'lws b  ',lws
-c     print *,'les b  ',les
-c     print *,'leen b  ',leen
-c     print *,'lenn b  ',lenn
-c     print *,'lwwn b  ',lwwn
-c     print *,'lwnn b  ',lwnn
-c     print *,'lsee b  ',lsee
-c     print *,'lsse b  ',lsse
-c     print *,'lnee b  ',lnee
-c     print *,'lnne b  ',lnne
-c     print *,'lsww b  ',lsww
-c     print *,'lssw b  ',lssw
-c     print *,'lnww b  ',lnww
-c     print *,'lnnw b  ',lnnw
-c     print *,'lwws b  ',lwws
-c     print *,'lwss b  ',lwss
-c     print *,'lees b  ',lees
-c     print *,'less b  ',less
 
       if(ndiag.eq.3)then
         do n=0,npanels
@@ -324,28 +309,27 @@ c     print *,'less b  ',less
 
 !----------------------------------------------------------------------------
 c     calculate grid information using quadruple resolution grid
-        call jimcc(em4,ax4,ay4,az4,xx4,yy4,ikk,myid)
-c       call jimcc(em4,ax4,ay4,az4,myid)
-	if(ktau==0.and.myid==0)then
-          print *,'ntang = ',ntang
-          print *,'xx4 first & last ',xx4(1,1),xx4(iquad,iquad)
-          print *,'xx4 (5,5),(7,7),(9,9) ',xx4(5,5),xx4(7,7),xx4(9,9)
-          print *,'yy4 first & last ',yy4(1,1),yy4(iquad,iquad)
-          print *,'yy4 (5,5),(7,7),(9,9) ',yy4(5,5),yy4(7,7),yy4(9,9)
-          print *,'xx4, yy4 central',xx4(2*ikk+1,2*ikk+1),
+2     call jimcc(em4,ax4,ay4,az4,xx4,yy4,ikk,myid)
+c     call jimcc(em4,ax4,ay4,az4,myid)
+      if(ktau<=1.and.myid==0)then
+        print *,'xx4 first & last ',xx4(1,1),xx4(iquad,iquad)
+        print *,'xx4 (5,5),(7,7),(9,9) ',xx4(5,5),xx4(7,7),xx4(9,9)
+        print *,'yy4 first & last ',yy4(1,1),yy4(iquad,iquad)
+        print *,'yy4 (5,5),(7,7),(9,9) ',yy4(5,5),yy4(7,7),yy4(9,9)
+        print *,'xx4, yy4 central',xx4(2*ikk+1,2*ikk+1),
      &                               yy4(2*ikk+1,2*ikk+1)
-	endif  ! (ktau==0)
+      endif  ! (ktau<=1)
 
 !     rotpole(1,) is x-axis of rotated coords in terms of orig Cartesian
 !     rotpole(2,) is y-axis of rotated coords in terms of orig Cartesian
 !     rotpole(3,) is z-axis of rotated coords in terms of orig Cartesian
-        rotpole = calc_rotpole(rlong0,rlat0)
+      rotpole = calc_rotpole(rlong0,rlat0)
 
-c     if(nset.eq.1)then
-!       following for x4,y4,z4
-        alf=(one-schmidt**2)/(one+schmidt**2)
-        do m=1,4
-        do j=1,ikk
+      if(schmidtin<0.)go to 3
+!     following just for rlong4, rlat4 (& x4,y4,z4)
+      alf=(one-schmidt**2)/(one+schmidt**2)
+      do m=1,4
+       do j=1,ikk
          do i=1,ikk
           if(m.eq.1)then
             xx=xx4(4*i-1-1,4*j-1-1)
@@ -364,22 +348,17 @@ c     if(nset.eq.1)then
             yy=yy4(4*i-1+1,4*j-1+1)
           endif
 c         set up x0, y0, z0 coords on cube -1 to 1
-c         to save space have equivalenced x,x0  etc
-          call xxtox(i,j,ikk,xx,yy,  x,y,z)
+c         avoids earlier equivalencing of x,x0  etc
+          call xxtox(i,j,ikk,xx,yy,  x,y,z)  ! creates tempry x,y,z, arrays
 c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'n,xx,yy: ',n,xx,yy
          enddo  ! i loop
         enddo   ! j loop
-        do iq=1,ifull
+        do iq=1,6*ik*ik
          call norm8(x(iq),y(iq),z(iq),den1) ! x, y, z are coords on sphere  -1 to 1
          x4_iq_m=x(iq)*schmidt*(1.+alf)/(1.+alf*z(iq))
          y4_iq_m=y(iq)*schmidt*(1.+alf)/(1.+alf*z(iq))
-         z4_iq_m=(alf+z(iq))/(1.+alf*z(iq))
-c       enddo
-c       enddo   ! m=1,4 loop
-	 
-!     here is calculation of rlong4, rlat4
-c     do m=1,4
-c     do iq=1,ifull
+         z4_iq_m=(alf+z(iq))/(1.+alf*z(iq)) 
+!      here is calculation of rlong4, rlat4
 c      also provide latitudes and longitudes (-pi to pi)
        if(rlong0.eq.0..and.rlat0.eq.90.)then
          xx=x4_iq_m
@@ -396,7 +375,6 @@ c      also provide latitudes and longitudes (-pi to pi)
          zz=rotpole(3,1)*x4_iq_m+rotpole(3,2)*y4_iq_m+
      .      rotpole(3,3)*z4_iq_m
        endif
-       if(ik>0)then
         rlat4(iq,m)=asin(zz)
         if(yy.ne.0..or.xx.ne.0.)then
           rlong4(iq,m)=atan2(yy,xx)                       ! N.B. -pi to pi
@@ -407,18 +385,11 @@ c      also provide latitudes and longitudes (-pi to pi)
 !       convert long4 and lat4 (used by cctocc4) to degrees	
         rlat4(iq,m)=rlat4(iq,m)*180./pi
         rlong4(iq,m)=rlong4(iq,m)*180./pi
-       endif   ! (ik>0)
-c      if(iq.eq.idjd)print *,'iq,x4,y4,z4,xx,yy,zz,long4,lat4 ',
-c    .  iq,x4_iq_m,y4_iq_m,z4_iq_m,xx,yy,zz,rlong4(iq,m),rlat4(iq,m)
        enddo   ! iq loop
-      enddo   ! m loop
-
-c     return
-c     endif    ! (nset.eq.1)
+      enddo    ! m loop
 
         dsfact=4*ikk/(2.*pi)     ! con-cube
         ds=rearth/dsfact
-
 c       extend em4 to uppermost i and j rows
         do j=1,4*ikk
          em4(iquad,j)=em4(1,j)
@@ -426,70 +397,69 @@ c       extend em4 to uppermost i and j rows
         do i=1,4*ikk
          em4(i,iquad)=em4(i,1)
         enddo
-
         do j=1,ikk
          do i=1,ikk
           do n=0,5
 c          average Purser em is pi/2
-c          em(i,ikk*n+j)=pi/(2.*em4(4*i-1,4*j-1))
-c          emu(i,ikk*n+j)=pi/(2.*em4(4*i+1,4*j-1))
-c          emv(i,ikk*n+j)=pi/(2.*em4(4*i-1,4*j+1))
            em(ind(i,j,n))=pi/(2.*em4(4*i-1,4*j-1))
            emu(ind(i,j,n))=pi/(2.*em4(4*i+1,4*j-1))
            emv(ind(i,j,n))=pi/(2.*em4(4*i-1,4*j+1))
           enddo ! n loop
+          ax(ind(i,j,0))=ax4(4*i-1,4*j-1)
+          ay(ind(i,j,0))=ay4(4*i-1,4*j-1)
+          az(ind(i,j,0))=az4(4*i-1,4*j-1)
+         enddo  ! i loop
+        enddo   ! j loop
+	 if(ktau<=1.and.myid==0)then
+          print *,'ax6 (1,1,0) & (2,2,0) ',ax(ind(1,1,0)),ax(ind(2,2,0))
+          print *,'ay6 (1,1,0) & (2,2,0) ',ay(ind(1,1,0)),ay(ind(2,2,0))
+          print *,'az6 (1,1,0) & (2,2,0) ',az(ind(1,1,0)),az(ind(2,2,0))
+	 endif ! (ktau<=1)
+         
+3       do j=1,ikk
+         do i=1,ikk
           xx=xx4(4*i-1,4*j-1)
           yy=yy4(4*i-1,4*j-1)
-          ax6(i,j,0)=ax4(4*i-1,4*j-1)
-          ay6(i,j,0)=ay4(4*i-1,4*j-1)
-          az6(i,j,0)=az4(4*i-1,4*j-1)
 
 c         set up x0, y0, z0 coords on cube -1 to 1
-c         to save space have equivalenced x,x0  etc
+c         avoids earlier equivalencing of x,x0  etc
           call xxtox(i,j,ikk,xx,yy,  x,y,z)
 c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
          enddo  ! i loop
         enddo   ! j loop
-	 if(ktau.eq.0.and.myid==0)then
-          print *,'ax6 (1,1,0) & (2,2,0) ',ax6(1,1,0),ax6(2,2,0)
-          print *,'ay6 (1,1,0) & (2,2,0) ',ay6(1,1,0),ay6(2,2,0)
-          print *,'az6 (1,1,0) & (2,2,0) ',az6(1,1,0),az6(2,2,0)
-	 endif ! (ktau.eq.0)
-        do iq=1,ifull
+        do iq=1,ik*ik*6
          call norm8(x(iq),y(iq),z(iq),den1) ! x, y, z are coords on sphere  -1 to 1
         enddo   ! iq loop
+        if(ktau.eq.0.and.myid==0)print *,'basic grid length ds =',ds
 
-      if(npanels.eq.13)then
-         print*, "npanels = 13 not implemented in MPI version"
-         stop
-      endif       ! (npanels.eq.13)
-
-      if(ktau.eq.0.and.myid==0)print *,'basic grid length ds =',ds
       if(schmidt.ne.1.)then
         alf=(one-schmidt**2)/(one+schmidt**2)
         if(myid==0)
      &       print *,'doing schmidt with schmidt,alf: ',schmidt,alf
-        do iq=1,ifull
+        do iq=1,ik*ik*6
          xin=x(iq)
          yin=y(iq)
          zin=z(iq)
          x(iq)=xin*schmidt*(1.+alf)/(1.+alf*zin)
          y(iq)=yin*schmidt*(1.+alf)/(1.+alf*zin)
          z(iq)=(alf+zin)/(1.+alf*zin)
-         em(iq)=em(iq)*schmidt*(1.+alf*zin)/(1.-alf)
+         if(schmidtin>0.)em(iq)=em(iq)*schmidt*(1.+alf*zin)/(1.-alf)
         enddo   ! iq loop
 
-        do iq=1,ifull
-!        with schmidt, for ntang=1 or 2 must average em to get emu & emv
-         emu(iq)=.5*(em(iq)+em(ie(iq)))
-         emv(iq)=.5*(em(iq)+em(in(iq)))
-        enddo   ! iq loop
-      endif    !  (schmidt.ne.1.)
+        if(schmidtin>0.)then
+         do iq=1,ifull
+!         with schmidt, for ntang=1 or 2 must average em to get emu & emv
+          emu(iq)=.5*(em(iq)+em(ie(iq)))
+          emv(iq)=.5*(em(iq)+em(in(iq)))
+         enddo   ! iq loop
+        endif    ! (schmidtin>0.)
+      endif      ! (schmidt.ne.1.)
 
+      print *,'ktau,myid,ikk,schmidtin ',ktau,myid,ikk,schmidtin
       if(ndiag.eq.2)call printp('x   ', x)
       if(ndiag.eq.2)call printp('y   ', y)
       if(ndiag.eq.2)call printp('z   ', z)
-      if(ktau.eq.0.and.myid==0)then
+      if(ktau.eq.0.and.myid==0.and.schmidtin>0.)then
         print *,'On each panel (ntang=0)_em for ',
      .          '(1,1),(1,2),(1,3),(2,2),(3,2),(ic,ic),(ikk,ikk)'
         do n=0,npanels
@@ -529,14 +499,62 @@ c         if(i.eq.(ikk+1)/2.and.j.eq.(ikk+1)/2)print *,'xx,yy: ',xx,yy
          print '(i3,7f8.3)',n,emv(iq11),emv(iq12),emv(iq13),
      .                        emv(iq22),emv(iq32),emv(iqcc),emv(iqnn)
         enddo
-      endif  ! (ktau.eq.0)
+      endif  ! (ktau.eq.0.and.myid==0.and.schmidtin>0.)
 
 c     set up vectors in direction of u and v
-      if(ntang.eq.0)then
-        call vecpanel(ax6,ay6,az6) ! define x-vectors on panels 1:5 from panel 0
-        call cross3(bx,by,bz, x,y,z, ax,ay,az)  ! define y-vectors
-        if(schmidt.ne.1.)stop 'vecpanel not ready for schmidt.ne.1'
-      else
+      if(schmidtin<0.)then
+c       same as below but avoids recalc in, ie, iw, is)  
+        do n=0,5,2
+         n_w=mod(n+5,6)
+         n_e=mod(n+2,6)
+         n_n=mod(n+1,6)
+         n_s=mod(n+4,6)
+         do j=1,ikk
+          do i=1,ikk
+           iq=ind(i,j,n)
+           iqp=iq+1
+           iqm=iq-1
+           if(i==1)iqm=ind(ikk,j,n_w)
+           if(i==ikk)iqp=ind(ikk+1-j,1,n_e)
+           ax(iq)=x(iqp)-x(iqm)
+           az(iq)=z(iqp)-z(iqm)
+           ay(iq)=y(iqp)-y(iqm)
+           iqp=iq+ikk
+           iqm=iq-ikk
+           if(j==1)iqm=ind(ikk,ikk+1-i,n_s)
+           if(j==ikk)iqp=ind(i,1,n_n)
+           bx(iq)=x(iqp)-x(iqm)
+           by(iq)=y(iqp)-y(iqm)
+           bz(iq)=z(iqp)-z(iqm)
+          enddo
+         enddo
+        enddo
+        do n=1,5,2
+         n_w=mod(n+4,6)
+         n_e=mod(n+1,6)
+         n_n=mod(n+2,6)
+         n_s=mod(n+5,6)
+         do j=1,ikk
+          do i=1,ikk
+           iq=ind(i,j,n)
+           iqp=iq+1
+           iqm=iq-1
+           if(i==1)iqm=ind(ikk+1-j,ikk,n_w)
+           if(i==ikk)iqp=ind(1,j,n_e)
+           ax(iq)=x(iqp)-x(iqm)
+           ay(iq)=y(iqp)-y(iqm)
+           az(iq)=z(iqp)-z(iqm)
+           iqp=iq+ikk
+           iqm=iq-ikk
+           if(j==1)iqm=ind(i,ikk,n_s)
+           if(j==ikk)iqp=ind(1,ikk+1-i,n_n)
+           bx(iq)=x(iqp)-x(iqm)
+           by(iq)=y(iqp)-y(iqm)
+           bz(iq)=z(iqp)-z(iqm)
+          enddo
+         enddo
+        enddo
+      else  !  usual with (schmidtin>0. (but equiv. to above)
         do iq=1,ifull
 c        first guess tang vectors by finite differences
          ax(iq)=x(ie(iq))-x(iw(iq))
@@ -545,21 +563,16 @@ c        first guess tang vectors by finite differences
          bx(iq)=x(in(iq))-x(is(iq))
          by(iq)=y(in(iq))-y(is(iq))
          bz(iq)=z(in(iq))-z(is(iq))
-c         if(iq.eq.idjd.or.iq.eq.in(idjd))then
-c           print *,'first guess values for ax,bx'
-c           print *,'iq,ax,ay,az',iq,ax(iq),ay(iq),az(iq)
-c           print *,'iq,bx,by,bz',iq,bx(iq),by(iq),bz(iq)
-c           print *,'iq,x,y,z   ',iq,x(iq),y(iq),z(iq)
-c           print *,'iq,x,y,z n ',iq,x(in(iq)),y(in(iq)),z(in(iq))
-c           print *,'iq,x,y,z e ',iq,x(ie(iq)),y(ie(iq)),z(ie(iq))
-c           print *,'iq,x,y,z w ',iq,x(iw(iq)),y(iw(iq)),z(iw(iq))
-c           print *,'iq,x,y,z s ',iq,x(is(iq)),y(is(iq)),z(is(iq))
-c         endif
         enddo   ! iq loop
+      endif   ! (schmidtin<0.  ... else)
+c     do iq=1,ikk*ikk*6
+c      print *,'iq,ax,ay,az: ',iq,ax(iq),ay(iq),az(iq)
+c      print *,'iq,bx,by,bz: ',iq,bx(iq),by(iq),bz(iq)
+c     enddo
 c       form axx and bxx tangential to the sphere
-        call cross3b(axx,ayy,azz, bx,by,bz, x,y,z)
-        call cross3(bxx,byy,bzz, x,y,z, ax,ay,az)
-        do iq=1,ifull
+        call cross3b(axx,ayy,azz, bx,by,bz, x,y,z, ik*ik*6)
+        call cross3(bxx,byy,bzz, x,y,z, ax,ay,az, ik*ik*6)
+        do iq=1,ikk*ikk*6
          call norm(axx(iq),ayy(iq),azz(iq),den)
          call norm(bxx(iq),byy(iq),bzz(iq),den)
 c        make sure they are perpendicular & normalize
@@ -574,7 +587,8 @@ c        make sure they are perpendicular & normalize
          call norm(ax(iq),ay(iq),az(iq),den)
          call norm(bx(iq),by(iq),bz(iq),den)
         enddo   ! iq loop
-        if(ntang.eq.2)then
+        if(schmidtin<0.)return  ! finish of stuff needed for onthefly
+        
           do iq=1,ifull
 !          calculate inverse of emu & emv first
            dx2=(x(ie(iq))-x(iq))**2+(y(ie(iq))-y(iq))**2
@@ -596,8 +610,6 @@ c    .                  (emv(isv2(iq))+emv(iq)))
            emu(iq)=1./emu(iq)
            emv(iq)=1./emv(iq)
           enddo   ! iq loop
-        endif   ! (ntang.eq.2)
-      endif     ! (ntang.eq.0)
       
       if(ktau.eq.0.and.myid==0)then
         do iq=ikk-2,ikk
@@ -828,15 +840,24 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
       return
       end
       subroutine xxtox(i,j,ikk,xx,yy,  x06,y06,z06)
-!     put as subr. sept 06 to avoid equivalence of x, x06 etc      
+!     put as subr. sept 06 to avoid equivalence of x, x06 etc    
+      implicit none
+      integer i,j,ikk  
       real*8 x06(ikk,ikk,0:5),y06(ikk,ikk,0:5),z06(ikk,ikk,0:5)
       real*8 xx,yy
+c          print *,'x'
           x06(i,j,0)= 1.
+c          print *,'x'
           y06(i,j,0)=xx
+c          print *,'x'
           z06(i,j,0)=yy
+c          print *,'x'
           x06(i,j,3)=-1.
+c          print *,'x'
           z06(i,j,3)=-xx
+c          print *,'x'
           y06(i,j,3)=-yy
+c          print *,'x'
 
           x06(i,j,1)=-yy
           y06(i,j,1)=xx
@@ -966,11 +987,11 @@ c      print *,'j,iw6(1,j,0),s1(0,j,1) ',j,iw6(1,j,0),s1(0,j,1)
       return
       end
 
-      subroutine cross3(c1,c2,c3,a1,a2,a3,b1,b2,b3)
+      subroutine cross3(c1,c2,c3,a1,a2,a3,b1,b2,b3, ifull)
 c     calculate vector components of c = a x b
 c     where each RHS component represents 3 vector components
 c     this one need not have contiguous memory in common
-      include 'newmpar_gx.h'
+c     include 'newmpar_gx.h'
       real*8    a1(ifull),a2(ifull),a3(ifull)
       dimension b1(ifull),b2(ifull),b3(ifull)
       dimension c1(ifull),c2(ifull),c3(ifull)
@@ -981,11 +1002,12 @@ c     this one need not have contiguous memory in common
       enddo
       return
       end
-      subroutine cross3b(c1,c2,c3,a1,a2,a3,b1,b2,b3)
+
+      subroutine cross3b(c1,c2,c3,a1,a2,a3,b1,b2,b3, ifull)
 c     calculate vector components of c = a x b
 c     where each RHS component represents 3 vector components
 c     this one need not have contiguous memory in common
-      include 'newmpar_gx.h'
+c     include 'newmpar_gx.h'
       dimension a1(ifull),a2(ifull),a3(ifull)
       real*8    b1(ifull),b2(ifull),b3(ifull)
       dimension c1(ifull),c2(ifull),c3(ifull)
@@ -994,46 +1016,6 @@ c     this one need not have contiguous memory in common
        c2(i)=a3(i)*b1(i)-b3(i)*a1(i)
        c3(i)=a1(i)*b2(i)-b1(i)*a2(i)
       enddo
-      return
-      end
-      function crossmod(iq,i4a,j4a,i4b,j4b)  ! version for gnewst
-      include 'newmpar_gx.h'
-      include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
-      include 'xyzinfo_gx.h'  ! x,y,z,wts
-      real*8 x4a,x4b,y4a,y4b,z4a,z4b,den
-      y4a=xx4(i4a,j4a)
-      z4a=yy4(i4a,j4a)
-      x4a=1.
-      y4b=xx4(i4b,j4b)
-      z4b=yy4(i4b,j4b)
-      x4b=1.
-c     if(iq.eq.1.or.iq.eq.il*il)then
-c      print *,'iq,x,y,z ',iq,x(iq),y(iq),z(iq)
-c      print *,'i4a,j4a,y4a,y4a ',i4a,j4a,y4a,y4a
-c      print *,'i4b,j4b,z4b,z4b ',i4b,j4b,z4b,z4b
-c     endif
-      call norm8(x4a,y4a,z4a,den) ! converts xx4, yy4 to coords on sphere
-      call norm8(x4b,y4b,z4b,den) ! converts xx4, yy4 to coords on sphere
-c     if(iq.eq.1.or.iq.eq.il*il)then
-c      print *,'after norm'
-c      print *,'x4a,y4a,z4a ',x4a,y4a,z4a
-c      print *,'x4b,y4b,z4b ',x4b,y4b,z4b
-c     endif
-      vecax=x4a-x(iq)
-      vecay=y4a-y(iq)
-      vecaz=z4a-z(iq)
-      vecbx=x4b-x(iq)
-      vecby=y4b-y(iq)
-      vecbz=z4b-z(iq)
-      crossx=vecay*vecbz-vecby*vecaz
-      crossy=vecaz*vecbx-vecbz*vecax
-      crossz=vecax*vecby-vecbx*vecay
-      crossmod=sqrt(crossx**2+crossy**2+crossz**2)
-c     if(iq.eq.6.or.iq.eq.31)then
-c       print *,'iq,iqa,iqb,crossmod ',iq,iqa,iqb,crossmod
-c       print *,'veca ',vecax,vecay,vecaz
-c       print *,'vecb ',vecbx,vecby,vecbz
-c     endif
       return
       end
 

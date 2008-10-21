@@ -6,7 +6,6 @@ c     include 'newmpar_gx.h'
 c     include 'parm.h'    ! ktau
 c      parameter(n=4*il ,np=n+1,non2=n/2)    !jlm for quad res. grid
       parameter(ipanel=2,ngrmax=1,ndiagj=0)
-c      include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       integer :: myid,num
       real em4(4*il+1,4*il+1),
      .     ax4(4*il+1,4*il+1),ay4(4*il+1,4*il+1),az4(4*il+1,4*il+1)

@@ -26,6 +26,11 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       include 'sigs.h'
       include 'vecsuv.h'   ! vecsuv info
       include 'vvel.h'
+ 
+      integer nhor,nhorps,khor,khdif,nhorjlm
+      real hdiff,hdifmax
+      common/parmhdff/nhor,nhorps,hdiff(kl),khor,khdif,hdifmax,nhorjlm
+      
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact

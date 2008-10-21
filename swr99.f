@@ -471,7 +471,7 @@ c
 !   remaining clouds (if any) in the visible band
 !---the maximum no of clouds in the row (kclds) is used. this creates
 !   extra work (may be removed in a subsequent update).
-       do k=2,kclds+1
+         do k=2,kclds+1
 	    cr(:,k) = cuvrf(:,k)*camt(:,k)
 	    ct(:,k) = one-cr(:,k)
 	 end do

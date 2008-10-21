@@ -9,6 +9,7 @@
 /carbpools.h -text
 /makefile -text
 /mpif.h -text
+/parmgeom.h -text
 /parmsurf.h -text
 /soilbal.h -text
 /soilsnin.h -text

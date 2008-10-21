@@ -1,6 +1,6 @@
       subroutine sflux(nalpha)              ! for globpe code
       use ateb ! MJT urban
-      use cable_ccam, only : CABLE,sib4 ! MJT cable         
+      use cable_ccam, only : CABLE,sib4 ! MJT cable
       use diag_m
       use cc_mpi
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
@@ -61,7 +61,6 @@ c     include 'map.h'      ! land
      . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
      . ism(ifull),fwtop(ifull),af(ifull),   ! watch soilsnow.f after epot
      . extin(ifull),dum3(5*ijk-17*ifull)
-      real zoh(ifull) ! MJT Urban - add zoh     
       real plens(ifull),vmag(ifull),charnck(ifull)
       save plens
       data plens/ifull*0./
@@ -617,27 +616,29 @@ c            Now heat ; allow for smaller zo via aft and factch     ! land
         print *,'before sib3 zo,zolnd,af ',zo(idjd),zolnd(idjd),af(idjd)
       endif
 c ----------------------------------------------------------------------
-        if ((nsib==3).or.(nsib==5)) then ! MJT cable
-           call sib3(nalpha)  ! for nsib=3, 5
-        else if (nsib==CABLE) then ! MJT cable
-          print *,"nsib==CABLE option not avaliable"
-          stop
-        else if (nsib==6) then ! MJT cable
-	  if (all(rtsoil.eq.0.)) then
-	    if (myid==0) print *,"Using default rtsoil for CABLE"
-	    rtsoil=max(25.,1./max(taftfhg,0.0001))
-	  end if
-          call sib4(17)
-           ! original Eva's, same as NCAR - calculate wetfac for scrnout
-          do ip=1,ipland  ! all land points in this nsib=3 loop
-            iq=iperm(ip)
-            isoil = isoilm(iq)
-            fle=(wb(iq,1)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
-            wetfac(iq)=max( 0.,min(1.,fle) )
-          enddo   ! ip=1,ipland
-	  tgf=273.16
+      !----------------------------------------------------------
+      if ((nsib==3).or.(nsib==5)) then ! MJT cable
+         call sib3(nalpha)  ! for nsib=3, 5
+      else if (nsib==CABLE) then ! MJT cable
+        print *,"nsib==CABLE option not avaliable"
+        stop
+      else if (nsib==6) then ! MJT cable
+        if (all(rtsoil.eq.0.)) then
+          if (myid==0) print *,"Using default rtsoil for CABLE"
+          rtsoil=max(25.,1./max(taftfhg,0.0001))
         end if
-
+        call sib4
+         ! original Eva's, same as NCAR - calculate wetfac for scrnout
+        do ip=1,ipland  ! all land points in this nsib=3 loop
+          iq=iperm(ip)
+          isoil = isoilm(iq)
+          fle=(wb(iq,1)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
+          wetfac(iq)=max( 0.,min(1.,fle) )
+          es = establ(tss(iq))
+          qsttg(iq)= .622*es/(ps(iq)-es)            
+        enddo   ! ip=1,ipland
+        tgf=273.16
+      end if
       !----------------------------------------------------------
       ! MJT urban
       if (nurban.ne.0) then
@@ -650,17 +651,17 @@ c ----------------------------------------------------------------------
      &               ,vmodmin,0)
         ! here we blend zo with the urban part for the
         ! calculation of ustar (occuring later in sflux.f)
-        zoh(iperm(:))=zo(iperm(:))/7.4
-        call tebzo(ifull,zo(:),zoh(:),0)
-        call tebcd(ifull,cduv(:),0)
+        factch(iperm(:))=zo(iperm(:))/factch(iperm(:))**2
+        call tebzo(ifull,zo(:),factch(:),0)
+        factch(iperm(:))=sqrt(zo(iperm(:))/factch(iperm(:)))
         do ip=1,ipland ! assumes all urban points are land points
           iq=iperm(ip)
           if (sigmu(iq).gt.0.) then
             es = establ(tss(iq))
             qsttg(iq)= .622*es/(ps(iq)-es)
-            aft(iq)=vkar**2/(log(zmin/zo(iq))*log(zmin/zoh(iq)))
+            zologx=log(zmin/zo(iq))
+            aft(iq)=vkar**2/(zologx*(log(factch(iq)**2)+zologx))
             rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4
-	    factch(iq)=sqrt(zo(iq)/zoh(iq))
             ! the following are done by ntsur.ne.5
             !af(iq)=(vkar/log(zmin/zo(iq)))**2
             !xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       
@@ -669,7 +670,6 @@ c ----------------------------------------------------------------------
         end do
       end if
       !----------------------------------------------------------
-
 c ----------------------------------------------------------------------
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
       if(diag.or.ntest>0)then
@@ -680,36 +680,27 @@ c ----------------------------------------------------------------------
       if(ntsur.ne.5)then    ! ntsur=6 is default from Mar '05  
 c       preferred option to recalc cduv, ustar (gives better uscrn, u10)
         do iq=1,ifull
-         afroot=vkar/log(zmin/zo(iq))! land formula is bit different above
+         afroot=vkar/log(zmin/zo(iq))! land formula is bit different above                             
          af(iq)=afroot**2                                             
          xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       
          ri(iq)=min(xx/vmag(iq)**2 , ri_max)                            
-         !-----------------------------------------------------------------
-         ! MJT CHANGE - cable
-         if ((.not.land(iq)).or.((nsib.ne.CABLE).and.(nsib.ne.6))) then 
-           if(ri(iq)>0.)then 
-             fm=vmod(iq)/(1.+bprm*ri(iq))**2         ! Fm * vmod
-           else
-             root=sqrt(-ri(iq)*zmin/zo(iq))  
-             denma=1.+cms*2.*bprm*af(iq)*root
-             fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma     ! Fm * vmod 
-c            n.b. fm denotes ustar**2/(vmod(iq)*af)                         
-           endif 
-c          cduv is now drag coeff *vmod
-           cduv(iq) =af(iq)*fm                       ! Cd * vmod
-         else
-           cduv(iq)=cduv(iq)*vmod(iq)
-           es = establ(tss(iq))
-           qsttg(iq)= .622*es/(ps(iq)-es)	   
-         end if
-         !-----------------------------------------------------------------
-         ustar(iq) = sqrt(vmod(iq)*cduv(iq)) ! MJT CABLE                           
+         if(ri(iq)>0.)then                                            
+           fm=vmod(iq)/(1.+bprm*ri(iq))**2         ! Fm * vmod
+         else                                                           
+           root=sqrt(-ri(iq)*zmin/zo(iq))  
+           denma=1.+cms*2.*bprm*af(iq)*root                        
+           fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma     ! Fm * vmod                        
+c          n.b. fm denotes ustar**2/(vmod(iq)*af)                         
+         endif                                                    
+c        cduv is now drag coeff *vmod                                     
+         cduv(iq) =af(iq)*fm                       ! Cd * vmod                                
+         ustar(iq) = sqrt(vmod(iq)*cduv(iq))                            
 c        Surface stresses taux, tauy: diagnostic only - unstaggered now   
          taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                              
          tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                              
         enddo     
        endif  ! (ntsur==6)
-      
+       
        if(nproc==1.and.diag)then
           taftfhmin=1.e20
           taftfhmax=-100.
@@ -809,7 +800,7 @@ c     include 'map.h'
       include 'soilsnow.h' ! new soil arrays for scam - tgg too
       include 'tracers.h'  ! ngas, nllp, ntrac
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
-      include 'vegpar.h' ! MJT cable
+      include 'vegpar.h' ! MJT cable      
       common/nsib/nbarewet,nsigmf
       common/tafts/taftfh(ifull),taftfhg(ifull)
       common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
@@ -827,7 +818,7 @@ c     include 'map.h'
      . evapfb5(ifull),evapfb1a(ifull),evapfb2a(ifull),evapfb3a(ifull),
      . evapfb4a(ifull),evapfb5a(ifull),otgf(ifull),rmcmax(ifull),
      . tgfnew(ifull),evapfb(ijk-17*ifull)  ! to allow > 18 levels
-      common/work3d/dqsttg(ifull),tstom(ifull),dumxx(ifull),
+      common/work3d/dqsttg(ifull),tstom(ifull),dumxx(ifull), ! MJT cable
      .   cls(ifull),omc(ifull),dum3d(ijk-5*ifull)  ! allows L9
       real, dimension(ifull) :: ftsoil, srlai
       include 'establ.h'
@@ -869,7 +860,7 @@ c                             if( tsoil >= tstom ) ftsoil=1.
         enddo
       else     ! i.e. nsib=5
         where (land)
-         rlai=max(.1,vlai)
+         rlai=max(.1,vlai) ! MJT cable
          srlai=rlai                  ! nsib=5 leaf area index
          tsigmf=max(.001,sigmf)
         end where
@@ -948,7 +939,7 @@ c                             if( tsoil >= tstom ) ftsoil=1.
          print*,'iveg,sigmf(iq),tsigmf ',ivegt(iq),sigmf(iq),tsigmf(iq)
          print*,'scveg44,snowd,zo,zolnd,tstom ',
      .          scveg44(iveg),snowd(iq),zo(iq),zolnd(iq),tstom(iq)
-         print *,'alb,sgsave ',albvisnir(iq,1),sgsave(iq)
+         print *,'alb,sgsave ',albvisnir(iq,1),sgsave(iq) ! MJT albedo
          print*,'w2,rlai,extin ',wb(iq,ms),rlai(iq),extin(iq)
        endif ! ntest
 c      bare ground calculation
@@ -1070,6 +1061,8 @@ c      sensible heat flux
          wetfac(iq)=max( 0.,min(1.,fle) )
         enddo   ! ip=1,ipland
       endif     ! (nbarewet==8)
+
+!     wetfac(:)=wetfac(:)*(1.-sigmu(:)) ! MJT delete urban
 
       if(nalpha==1)then    ! beta scheme
 !cdir nodep

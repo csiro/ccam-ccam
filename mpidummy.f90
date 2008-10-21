@@ -20,10 +20,10 @@ subroutine MPI_Comm_rank(comm, myid, ierr)
    ierr = 0
 end subroutine MPI_Comm_rank
 
-subroutine MPI_Abort(comm,ierr2,ierr)
-   integer :: comm, ierr,ierr2
+subroutine MPI_abort(comm, ierr)
+   integer :: comm, ierr
    stop
-end subroutine MPI_Abort
+end subroutine MPI_abort
 
 subroutine MPI_Finalize(ierr)
    integer, intent(out) :: ierr
@@ -78,12 +78,12 @@ subroutine MPI_Waitall(nreq,ireq,status,ierr)
    stop
 end subroutine MPI_Waitall
 
-subroutine MPI_Recv( a, b, c, iproc, itag, d, status, ierr )
+subroutine MPI_Recv
    print*, "Error, dummy MPI_Recv called"
    stop
 end subroutine MPI_Recv
 
-subroutine MPI_Irecv( a, b, c, iproc, itag, d, status, ierr )
+subroutine MPI_Irecv
    print*, "Error, dummy MPI_Irecv called"
    stop
 end subroutine MPI_Irecv
@@ -93,18 +93,23 @@ subroutine MPI_Send
    stop
 end subroutine MPI_Send
 
-subroutine MPI_Isend( a, b, c, iproc, itag, d, status, ierr )
+subroutine MPI_Isend
    print*, "Error, dummy MPI_Isend called"
    stop
 end subroutine MPI_Isend
 
-subroutine MPI_Ssend( sbuf, a, b, iproc, itag, c, ierr )
+subroutine MPI_Ssend
    print*, "Error, dummy MPI_Ssend called"
    stop
 end subroutine MPI_Ssend
 
-subroutine MPI_Get_count(status, a, count, ierr)
+subroutine MPI_Get_count
    print*, "Error, dummy MPI_Get_count called"
    stop
 end subroutine MPI_Get_count
+
+subroutine mpi_dup_fn_
+   print*, "Error, dummy mpi_dup_fn_ called"
+   stop
+end subroutine mpi_dup_fn_
 
