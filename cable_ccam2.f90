@@ -92,9 +92,6 @@ module cable_ccam
       integer ndoy(12)   ! days from beginning of year (1st Jan is 0)
       data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
       !save ktauplus
-      
-      print *,"2nd mp ",count(land)
-      
 !
 !      set meteorological forcing
 !
@@ -445,7 +442,6 @@ module cable_ccam
   enddo
   
   mp=count(land)
-  print *,"1st mp ",mp
   
   allocate(sv(mp))
   allocate(atmco2(ifull))
@@ -504,9 +500,7 @@ module cable_ccam
   soil%rs20=0.
   veg%froot=0.
   zolnd=0.
-  !do n=1,5
-  n=1
-  svs(:,1)=1.
+  do n=1,5
     veg%iveg   = pack(int(ivs(:,n),i_d), land)
     sv         = pack(svs(:,n), land)
     if (any(veg%iveg.lt.1)) then
@@ -538,7 +532,7 @@ module cable_ccam
     where (land)
       zolnd=zolnd+svs(:,n)*0.1*hc(ivs(:,n))
     end where
-  !end do
+  end do
   ivegt=ivs(:,1)
   veg%iveg   = pack(int(ivegt,i_d), land)
   veg%deciduous =(vegtype(veg%iveg).eq.'deciduous') ! MJT suggestion
@@ -619,9 +613,7 @@ module cable_ccam
   soil%i2bp3=0.
   swilts=0. ! swilt
   sfcs=0.   ! sfc
-!  do n=1,5
-  n=1
-  svs(:,1)=1.
+  do n=1,5
     soil%isoilm  = pack(int(ivs(:,n),i_d), land)
     sv           = pack(svs(:,n), land)
     if (any(soil%isoilm.lt.1)) then
@@ -642,7 +634,7 @@ module cable_ccam
     soil%i2bp3   = soil%i2bp3  +sv*i2bp3(soil%isoilm)
     swilts       = swilts      +svs(:,n)*swilt(ivs(:,n))
     sfcs         = sfcs        +svs(:,n)*sfc(ivs(:,n))
-!  end do
+  end do
   isoilm=ivs(:,1)
   soil%isoilm  =  pack(int(ivs(:,1),i_d), land)
 
