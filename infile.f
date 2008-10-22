@@ -797,11 +797,11 @@ c     unpack data
       ! Have to return correct value of ier on all processes because it's 
       ! used for initialisation in calling routine
       call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      if(ifull==ik*jk)then  !  808
-        var(:)=globvar(:)
-        return  
-      endif
       if(ier==0)then
+        if(ifull==ik*jk)then  !  808
+          var(:)=globvar(:) ! MJT bug
+          return  
+        endif
          if(myid == 0)then
             call ccmpi_distribute(var,globvar)
          else
@@ -875,11 +875,11 @@ c          unpack data
       ! Have to return correct value of ier on all processes because it's 
       ! used for initialisation in calling routine
       call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      if(ifull==ik*jk)then  !  808
-        var(:,1:kk)=globvar(:,1:kk)
-        return  
-      endif
       if(ier==0)then
+          if(ifull==ik*jk)then  !  808
+            var(:,1:kk)=globvar(:,1:kk) ! MJT bug
+            return  
+          endif
          if(myid == 0)then
             call ccmpi_distribute(var,globvar)
          else

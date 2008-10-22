@@ -93,6 +93,8 @@ module cable_ccam
       data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
       !save ktauplus
       
+      print *,"2nd mp ",count(land)
+      
 !
 !      set meteorological forcing
 !
@@ -212,14 +214,9 @@ module cable_ccam
         bgc%ratecs(k) = ratecs(k)
       enddo
 
-      print *,"tgg in ",sum(ssoil%tgg(:,k))
-
 !      rml 21/09/07 remove ktauplus+ktau due to change in cable_offline
        CALL cbm(ktau, kstart, ntau, dt, air, bgc, canopy, met, &
      &      bal, rad, rough, soil, ssoil, sum_flux, veg, mxvt, mxst)
-
-      print *,"tgg out ",sum(ssoil%tgg(:,k))
-      print *,sum(rad%trad)
 
       do k=1,2
         albsoilsn(:,k) = unpack(ssoil%albsoilsn(:,k), land, albsoilsn(:,k))
@@ -287,12 +284,12 @@ module cable_ccam
       do k=1,3
         cplant(:,k)= unpack(bgc%cplant(:,k), land, cplant(:,k))
 ! need? rates don't change?
-        !ratecp(k)= bgc%ratecp(k)
+        ratecp(k)= bgc%ratecp(k)
       enddo
       do k=1,2
         csoil(:,k)= unpack(bgc%csoil(:,k), land, csoil(:,k))
 ! need? rates don't change?
-        !ratecs(k)= bgc%ratecs(k)
+        ratecs(k)= bgc%ratecs(k)
       enddo
       
       ! MJT CHANGE - cable
@@ -448,6 +445,7 @@ module cable_ccam
   enddo
   
   mp=count(land)
+  print *,"1st mp ",mp
   
   allocate(sv(mp))
   allocate(atmco2(ifull))
@@ -504,8 +502,11 @@ module cable_ccam
   veg%extkn=0.
   veg%xalbnir=0.
   soil%rs20=0.
+  veg%froot=0.
   zolnd=0.
-  do n=1,5
+  !do n=1,5
+  n=1
+  svs(:,1)=1.
     veg%iveg   = pack(int(ivs(:,n),i_d), land)
     sv         = pack(svs(:,n), land)
     if (any(veg%iveg.lt.1)) then
@@ -531,15 +532,15 @@ module cable_ccam
     veg%extkn  = veg%extkn  +sv*extkn(veg%iveg)
     veg%xalbnir= veg%xalbnir+sv*xalbnir(veg%iveg)
     soil%rs20  = soil%rs20  +sv*rs20(veg%iveg)
-    where (land)
-      zolnd=zolnd+svs(:,n)*0.1*hc(ivs(:,n))
-    end where
     do k=1,ms
       veg%froot(:,k)=veg%froot(:,k)+sv*froot2(veg%iveg,k)
     end do
-  end do
+    where (land)
+      zolnd=zolnd+svs(:,n)*0.1*hc(ivs(:,n))
+    end where
+  !end do
   ivegt=ivs(:,1)
-  veg%iveg   = pack(int(ivs(:,1),i_d), land)
+  veg%iveg   = pack(int(ivegt,i_d), land)
   veg%deciduous =(vegtype(veg%iveg).eq.'deciduous') ! MJT suggestion
   zolnd=max(zolnd,zobgin)
   
@@ -618,7 +619,9 @@ module cable_ccam
   soil%i2bp3=0.
   swilts=0. ! swilt
   sfcs=0.   ! sfc
-  do n=1,5
+!  do n=1,5
+  n=1
+  svs(:,1)=1.
     soil%isoilm  = pack(int(ivs(:,n),i_d), land)
     sv           = pack(svs(:,n), land)
     if (any(soil%isoilm.lt.1)) then
@@ -639,7 +642,7 @@ module cable_ccam
     soil%i2bp3   = soil%i2bp3  +sv*i2bp3(soil%isoilm)
     swilts       = swilts      +svs(:,n)*swilt(ivs(:,n))
     sfcs         = sfcs        +svs(:,n)*sfc(ivs(:,n))
-  end do
+!  end do
   isoilm=ivs(:,1)
   soil%isoilm  =  pack(int(ivs(:,1),i_d), land)
 

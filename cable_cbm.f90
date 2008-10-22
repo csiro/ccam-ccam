@@ -230,6 +230,7 @@ CONTAINS
     REAL(r_1), DIMENSION(mp,3)  :: xk    ! extinction coefficient for beam radiation and black leaves
     REAL(r_1), DIMENSION(mp)    :: xphi1 ! leaf angle parmameter 1
     REAL(r_1), DIMENSION(mp)    :: xphi2 ! leaf angle parmameter 2
+    integer(i_d) :: i,j
     cos3 = COS(pi180 * (/ 15.0, 45.0, 75.0 /))
     WHERE (canopy%vlaiw > 1e-2)
        ! See Sellers 1985, eq.13 (leaf angle parameters):
@@ -1514,7 +1515,7 @@ CONTAINS
 
     ! Calculate radiative/skin temperature:
     rad%trad = ( (1.-rad%transd)*canopy%tv**4 + rad%transd * ssoil%tss**4 )**0.25
-        
+            
     ! can this be in define_canopy?
     sum_flux%sumpn = sum_flux%sumpn+canopy%fpn*dels
     sum_flux%sumrp = sum_flux%sumrp+canopy%frp*dels

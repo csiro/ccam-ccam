@@ -326,9 +326,10 @@ MODULE define_types
   END INTERFACE
 CONTAINS
   
-  SUBROUTINE alloc_balances_type(var, mp)
+  SUBROUTINE alloc_balances_type(var, imp)
     TYPE(balances_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mp
+    INTEGER, INTENT(in) :: imp
+    mp=imp
     ALLOCATE ( var % drybal(mp) )
     ALLOCATE ( var % ebal(mp) )
     ALLOCATE ( var % ebal_tot(mp) )
@@ -345,9 +346,10 @@ CONTAINS
 !    ALLOCATE ( var % qssrf_tot(mp) )
   END SUBROUTINE alloc_balances_type
 
-  SUBROUTINE alloc_soil_parameter_type(var, mp)
+  SUBROUTINE alloc_soil_parameter_type(var, imp)
     TYPE(soil_parameter_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mp
+    INTEGER, INTENT(in) :: imp
+    mp=imp
     ALLOCATE ( var % albsoil(mp) )
     ALLOCATE ( var % bch(mp) )
     ALLOCATE ( var % c3(mp) )
@@ -369,9 +371,10 @@ CONTAINS
     ALLOCATE ( var % swilt(mp) )
   END SUBROUTINE alloc_soil_parameter_type
  
-  SUBROUTINE alloc_soil_snow_type(var, mp)
+  SUBROUTINE alloc_soil_snow_type(var, imp)
     TYPE(soil_snow_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mp
+    INTEGER, INTENT(in) :: imp
+    mp=imp
     ALLOCATE ( var % albsoilsn(mp,nrb) )
     ALLOCATE ( var % cls(mp) )
     ALLOCATE ( var % dfn_dtg(mp) )
@@ -409,9 +412,10 @@ CONTAINS
     ALLOCATE ( var % wbtot(mp) )
   END SUBROUTINE alloc_soil_snow_type
    
-  SUBROUTINE alloc_veg_parameter_type(var, mp)
+  SUBROUTINE alloc_veg_parameter_type(var, imp)
     TYPE(veg_parameter_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mp
+    INTEGER, INTENT(in) :: imp
+    mp=imp
     ALLOCATE ( var % iveg(mp) )
     ALLOCATE ( var % meth(mp) )
     ALLOCATE ( var % vlai(mp) )
@@ -438,9 +442,10 @@ CONTAINS
     ALLOCATE ( var % deciduous(mp) )   ! rml addition 22/10/07
   END SUBROUTINE alloc_veg_parameter_type
    
-  SUBROUTINE alloc_canopy_type(var, mp)
+  SUBROUTINE alloc_canopy_type(var, imp)
     TYPE(canopy_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mp
+    INTEGER, INTENT(in) :: imp
+    mp=imp
     ALLOCATE ( var % cansto(mp) )
     ALLOCATE ( var % delwc(mp) )
     ALLOCATE ( var % dewmm(mp) )
@@ -482,9 +487,10 @@ CONTAINS
     ALLOCATE ( var % cduv(mp) )
   END SUBROUTINE alloc_canopy_type
    
-  SUBROUTINE alloc_radiation_type(var, mp)
+  SUBROUTINE alloc_radiation_type(var, imp)
     TYPE(radiation_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mp
+    INTEGER, INTENT(in) :: imp
+    mp=imp
     ALLOCATE ( var % albedo(mp,nrb) )
     ALLOCATE ( var % extkb(mp) )
     ALLOCATE ( var % extkd2(mp) )
@@ -504,9 +510,10 @@ CONTAINS
     ALLOCATE ( var % trad(mp) )
   END SUBROUTINE alloc_radiation_type
    
-  SUBROUTINE alloc_roughness_type(var, mp)
+  SUBROUTINE alloc_roughness_type(var, imp)
     TYPE(roughness_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mp
+    INTEGER, INTENT(in) :: imp
+    mp=imp
     ALLOCATE ( var % coexp(mp) )
     ALLOCATE ( var % disp(mp) )
     ALLOCATE ( var % hruff(mp) )
@@ -527,9 +534,10 @@ CONTAINS
     ALLOCATE ( var % z0soil(mp) )
   END SUBROUTINE alloc_roughness_type
    
-  SUBROUTINE alloc_air_type(var, mp)
+  SUBROUTINE alloc_air_type(var, imp)
     TYPE(air_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mp
+    INTEGER, INTENT(in) :: imp
+    mp=imp
     ALLOCATE ( var % rho(mp) )
     ALLOCATE ( var % volm(mp) )
     ALLOCATE ( var % rlam(mp) )
@@ -541,9 +549,10 @@ CONTAINS
     ALLOCATE ( var % cmolar(mp) )
   END SUBROUTINE alloc_air_type
    
-  SUBROUTINE alloc_met_type(var, mp)
+  SUBROUTINE alloc_met_type(var, imp)
     TYPE(met_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mp
+    INTEGER, INTENT(in) :: imp
+    mp=imp
     ALLOCATE ( var % ca(mp) )
     ALLOCATE ( var % year(mp) )
     ALLOCATE ( var % moy(mp) )
@@ -566,9 +575,10 @@ CONTAINS
     ALLOCATE ( var % coszen(mp) )
   END SUBROUTINE alloc_met_type
    
-  SUBROUTINE alloc_sum_flux_type(var, mp)
+  SUBROUTINE alloc_sum_flux_type(var, imp)
     TYPE(sum_flux_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mp
+    INTEGER, INTENT(in) :: imp
+    mp=imp
     ALLOCATE ( var % sumpn(mp) )
     ALLOCATE ( var % sumrp(mp) )
     ALLOCATE ( var % sumrpw(mp) )
@@ -583,17 +593,19 @@ CONTAINS
     ALLOCATE ( var % sumxrs(mp) )
   END SUBROUTINE alloc_sum_flux_type
 
-  SUBROUTINE alloc_bgc_pool_type(var, mp)
+  SUBROUTINE alloc_bgc_pool_type(var, imp)
     TYPE(bgc_pool_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mp
+    INTEGER, INTENT(in) :: imp
+    mp=imp
     ALLOCATE ( var % cplant(mp,ncp) )
     ALLOCATE ( var % csoil(mp,ncs) )
   END SUBROUTINE alloc_bgc_pool_type
 
   ! Begin deallocation routines:
-   SUBROUTINE dealloc_balances_type(var, mp)
+   SUBROUTINE dealloc_balances_type(var, imp)
     TYPE(balances_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mp
+    INTEGER, INTENT(in) :: imp
+    mp=imp
     DEALLOCATE ( var % drybal )
     DEALLOCATE ( var % ebal )
     DEALLOCATE ( var % ebal_tot )

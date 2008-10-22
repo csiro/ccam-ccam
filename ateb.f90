@@ -331,7 +331,7 @@ integer, parameter :: maxtype = 8
 ! Building height to width ratio
 real, dimension(maxtype), parameter :: chwratio=(/ 1., 0.4, 0.5, 0.6, 2., 0.5, 1., 1.5 /)
 ! Area fraction occupied by buildings
-real, dimension(maxtype), parameter :: csigmabld=(/ 0.6, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7 /)
+real, dimension(maxtype), parameter :: csigmabld=(/ 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7 /)
 ! Industral sensible heat flux (W m^-2)
 real, dimension(maxtype), parameter :: cindustryfg=(/ 20., 8., 12., 16., 28., 20., 40., 60. /)
 ! Daily averaged traffic sensible heat flux (W m^-2)
