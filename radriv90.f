@@ -726,7 +726,7 @@ c       endif
      .           rgsave(idjd),rtsave(idjd),sintsave(idjd)
         print *,'sgsave,rtclsave,sgclsave ',
      .           sgsave(idjd),rtclsave(idjd),sgclsave(idjd)
-        print *,'alb ',alb(idjd)
+        print *,'alb ',albvisnir(idjd,1)
       endif
       if(nmaxpr==1.and.mydiag)then
         write (6,"('cfracr',9f8.3/6x,9f8.3)") cfrac(idjd,:)
