@@ -331,7 +331,6 @@ c     this routine creates attributes and writes output
       common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
       real zsoil(ms)
       real, dimension(ifull,1:12) :: urban ! MJT urban
-      real, dimension(ifull,kl) :: bbb,ccc,ddd,eee ! MJT daily ave
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
 
