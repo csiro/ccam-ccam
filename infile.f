@@ -17,7 +17,6 @@
       use cc_mpi
       use define_dimensions, only : ncs, ncp ! MJT cable
       use diag_m
-      use nestinmod ! MJT daily ave
       implicit none
 c     include 'newmpar.h'
       include 'const_phys.h'
@@ -553,25 +552,6 @@ c 	    only being tested for nested=0; no need to test for mesonest
      &                ,ifull)
         end if
         !------------------------------------------------------------        
-
-        !------------------------------------------------------------
-        ! MJT daily ave
-        if ((mbd.gt.0).and.(nud_uv.eq.8)) then
-          tmp=0.
-          bbb=0.
-          ccc=0.
-          ddd=0.
-          eee=0.
-          if (myid == 0) print *,"Load tendancy data for nestinb"	  
-          call histrd1(ncid,iarchi,ierr,'psft',ik,jk,tmp,ifull)
-          call histrd4(ncid,iarchi,ierr,'ut',ik,jk,kk,bbb,ifull)
-          call histrd4(ncid,iarchi,ierr,'vt',ik,jk,kk,ccc,ifull)
-          call histrd4(ncid,iarchi,ierr,'tempt',ik,jk,kk,ddd,ifull)
-          call histrd4(ncid,iarchi,ierr,'mixrt',ik,jk,kk,eee,ifull)
-          call nestload(tmp,bbb,ccc,ddd,eee)
-        end if
-        !------------------------------------------------------------ 
-
 
         if(myid == 0)print *,'about to read snowd'
         call histrd1(ncid,iarchi,ier,'snd',ik,jk,snowd,ifull)

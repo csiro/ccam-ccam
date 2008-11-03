@@ -269,7 +269,6 @@ c=======================================================================
       use cable_ccam ! MJT cable
       use cc_mpi
       use define_dimensions, only : ncs, ncp ! MJT cable      
-      use nestinmod ! MJT daily ave
       implicit none
 
 c     this routine creates attributes and writes output
@@ -800,21 +799,6 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         call attrib(idnc,idim,3,'wetfrac6',lname,'none',-2.,5.,0)
         !-------------------------------------------------------        
  
-        !-------------------------------------------------------
-        if ((mbd.gt.0).and.(nud_uv.eq.8).and.(itype.eq.-1)) then ! MJT daily ave
-          lname = 'psf tendancy'
-          call attrib(idnc,idim,3,'psft',lname,'none',-0.2,0.2,0)
-          lname= 'u tendancy'
-          call attrib(idnc,dim,4,'ut',lname,'m/s',-10.,10.,0)
-          lname= 'v tendancy'
-          call attrib(idnc,dim,4,'vt',lname,'m/s',-10.,10.,0)
-          lname= 'temp tendancy'
-          call attrib(idnc,dim,4,'tempt',lname,'K',-10.,10.,0)
-          lname= 'mixr tendancy'
-          call attrib(idnc,dim,4,'mixrt',lname,'kg/kg',-0.05,0.05,0)
-        end if
-        !-------------------------------------------------------        
- 
         print *,'finished defining attributes'
 c       Leave define mode
         call ncendf(idnc,ier)
@@ -1233,19 +1217,6 @@ c      "extra" outputs
      &        (sfc(isoilm(:))-swilt(isoilm(:)))
         call histwrt3(aa,'wetfrac6',idnc,iarch,local)       
        end if
-      !---------------------------------------------------------
-
-      !---------------------------------------------------------
-      ! MJT daily ave
-      if ((mbd.gt.0).and.(nud_uv.eq.8).and.(itype==-1)) then
-       if (myid==0) print *,"Store tendancy data for nestinb"
-       call nestsave(aa,bbb,ccc,ddd,eee)
-       call histwrt3(aa,'psft',idnc,iarch,local)
-       call histwrt4(bbb,'ut',idnc,iarch,local)
-       call histwrt4(ccc,'vt',idnc,iarch,local)
-       call histwrt4(ddd,'tempt',idnc,iarch,local)
-       call histwrt4(eee,'mixrt',idnc,iarch,local)
-      end if
       !---------------------------------------------------------
 
       return

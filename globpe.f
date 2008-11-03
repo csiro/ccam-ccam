@@ -15,7 +15,6 @@
 !                      v+ve northwards (on the panel)
       use cc_mpi
       use diag_m
-      use nestinmod ! MJT daily ave
 !     rml 21/02/06 removed redundant tracer code (so2/o2 etc)
 !     rml 16/02/06 use tracermodule, timeseries
       use tracermodule, only :init_tracer,trfiles,tracer_mass,unit_trout

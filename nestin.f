@@ -1,20 +1,8 @@
-      module nestinmod
-      
-      private
-      public nestin,nestinb,nestsave,nestload
-
-      include 'newmpar.h'
-
-      real, save :: pslc(ifull)=0.,qc(ifull,kl)=0.,tc(ifull,kl)=0. ! MJT daily ave
-      real, save :: uc(ifull,kl)=0.,vc(ifull,kl)=0. ! MJT daily ave
-      
-      contains
-
       subroutine nestin               
       use cc_mpi, only : myid, mydiag
       use diag_m
       use define_dimensions, only : ncs, ncp ! MJT cable
-      !include 'newmpar.h'
+      include 'newmpar.h'
 !     ik,jk,kk are array dimensions read in infile - not for globpea
 !     int2d code - not used for globpea
       include 'aalat.h'
@@ -296,7 +284,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       use define_dimensions, only : ncs, ncp ! MJT cable
       implicit none
       integer, parameter :: ntest=0 
-      !include 'newmpar.h'
+      include 'newmpar.h'
       include 'aalat.h'
       include 'arrays.h'
       include 'const_phys.h'
@@ -323,22 +311,19 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug
       integer mtimeb,kdate_r,ktime_r
       integer ::  iabsdate,iq,k,kdhour,kdmin
-      real, dimension(ifull) :: rtsoil_h,cansto_h ! MJT cable
       real, dimension(ifull,ncp) :: cplant_h ! MJT cable
       real, dimension(ifull,ncs) :: csoil_h ! MJT cable
       real, dimension(ifull,12) :: urban ! MJT urban
-      integer, dimension(ifull) :: isoilm_h ! MJT lsmask
       integer, save :: ncount = -1 ! MJT daily ave
       real :: ds_r,rlong0x,rlat0x
       real :: schmidtx,timeg_b
       real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
       real :: fraciceb,sicedepb
-      real, dimension(ifull) :: zsb,duma,dumb,dumc,dumd,dume
-      real, dimension(ifull) :: dumf,dumg,dumh,dumi,dumj,dumk
-      real, dimension(ifull) :: duml
+      real, dimension(ifull) :: zsb,duma
       integer, dimension(ifull) :: dumm
-      real, parameter :: alpr = 0.2 ! MJT daily ave
-      real, parameter :: lambda = 0.5 ! MJT daily ave      
+      real, dimension(ifull) :: pslc
+      real, dimension(ifull,kl) :: uc,vc,tc,qc
+      real, parameter :: eta = 0.5 ! MJT daily ave
       logical, save :: firstcall = .true. ! MJT daily ave
       data mtimeb/-1/
       save mtimeb
@@ -359,17 +344,17 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
        if(io_in==1)then
         call infile(1,kdate_r,ktime_r,timeg_b,ds_r, 
      .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
-     &            duma,dumb,dumc,dumd,dume,dumf,dumg, 
-     &            dumh,dumi,dumj,dumk,duml,dumm,ifull,kl,
-     &            rtsoil_h,isoilm_h,urban,cplant_h,csoil_h,
-     &            cansto_h) ! MJT cable ! MJT lsmask ! MJT urban
+     &            duma,duma,duma,duma,duma,duma,duma, 
+     &            duma,duma,duma,duma,duma,dumm,ifull,kl,
+     &            duma,dumm,urban,cplant_h,csoil_h,
+     &            duma) ! MJT cable ! MJT lsmask ! MJT urban
        endif   ! (io_in==1)
 
        if(io_in==-1)then
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
-     &        duma,dumb,dumc,dumd,dume,dumf,dumg,dumh,dumi,dumj, ! just dummies
-     &        dumk,dumm,rtsoil_h,urban) ! MJT cable ! MJT lsmask ! MJT urban
+     &        duma,duma,duma,duma,duma,duma,duma,duma,duma,duma, ! just dummies
+     &        duma,dumm,duma,urban) ! MJT cable ! MJT urban
        endif   ! (io_in==1)
        tssb(:) = abs(tssb(:))  ! moved here Mar '03
        if (mydiag) then
@@ -482,45 +467,37 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
 
         if (nud_uv.eq.8) then
           ! preturb daily average
-          if (ncount.gt.0) then
-            if (myid == 0) print *,"Using averaged data for filter"
-            pslc=pslc*lambda+alpr*(pslb-psla/real(ncount))
-            uc=uc*lambda+alpr*(ub-ua/real(ncount))
-            vc=vc*lambda+alpr*(vb-va/real(ncount))
-            tc=tc*lambda+alpr*(tb-ta/real(ncount))
-            qc=qc*lambda+alpr*(qb-qa/real(ncount))
-	    psla=pslc
-	    ua=uc
-	    va=vc
-	    ta=tc
-	    qa=qc
-          else
-            psla(:)=0.
-            ua(:,:)=0.
-            va(:,:)=0.
-            ta(:,:)=0.
-            qa(:,:)=0.
-          end if
-          ncount=-1
+          if (myid == 0) print *,"Using averaged data for filter"
+          pslc=eta*(pslb-psla/real(ncount))
+          uc=eta*(ub-ua/real(ncount))
+          vc=eta*(vb-va/real(ncount))
+          tc=eta*(tb-ta/real(ncount))
+          qc=eta*(qb-qa/real(ncount))
+          psla(:)=0.
+          ua(:,:)=0.
+          va(:,:)=0.
+          ta(:,:)=0.
+          qa(:,:)=0.
+          ncount=0
         else
           ! preturb instantaneous
-          psla(:)=pslb(:)-psl(1:ifull)
-          ua(:,:)=ub(:,:)-u(1:ifull,:)
-          va(:,:)=vb(:,:)-v(1:ifull,:)
-          ta(:,:)=tb(:,:)-t(1:ifull,:)
-          qa(:,:)=qb(:,:)-qg(1:ifull,:)
+          pslc(:)=pslb(:)-psl(1:ifull)
+          uc(:,:)=ub(:,:)-u(1:ifull,:)
+          vc(:,:)=vb(:,:)-v(1:ifull,:)
+          tc(:,:)=tb(:,:)-t(1:ifull,:)
+          qc(:,:)=qb(:,:)-qg(1:ifull,:)
         end if
 
-        if(nmaxpr==1)then
-          print *,'before call getspecdata ktau,myid ',ktau,myid
-          call maxmin(qb,'qb',ktau,1.e3,kl)
-          if(mydiag)print *,'qb ',qb(idjd,:)
-        endif
-        call getspecdata(psla,ua,va,ta,qa)
-        if ( myid == 0 ) then
-          print *,'following after getspecdata are really psl not ps'
-        end if
-        call maxmin(pslb,'pB',ktau,100.,1)
+        !if(nmaxpr==1)then
+        !  print *,'before call getspecdata ktau,myid ',ktau,myid
+        !  call maxmin(qb,'qb',ktau,1.e3,kl)
+        !  if(mydiag)print *,'qb ',qb(idjd,:)
+        !endif
+        call getspecdata(pslc,uc,vc,tc,qc)
+        !if ( myid == 0 ) then
+        !  print *,'following after getspecdata are really psl not ps'
+        !end if
+        !call maxmin(pslb,'pB',ktau,100.,1)
 
 !       following sice updating code copied from nestin June '08      
 !       check whether present ice points should change to/from sice points
@@ -570,59 +547,18 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
 
       !------------------------------------------------------------------------------
       if (nud_uv.eq.8) then ! MJT daily ave
-        if (ncount.le.0) then
-          ! reset average
-          psla(:)=psl(1:ifull)
-          ua(:,:)=u(1:ifull,:)
-          va(:,:)=v(1:ifull,:)
-          ta(:,:)=t(1:ifull,:)
-          qa(:,:)=qg(1:ifull,:)
-          ncount=1
-        else
           ! update average
-          psla(:)=psla(:)+psl(1:ifull)
-          ua(:,:)=ua(:,:)+u(1:ifull,:)
-          va(:,:)=va(:,:)+v(1:ifull,:)
-          ta(:,:)=ta(:,:)+t(1:ifull,:)
-          qa(:,:)=qa(:,:)+qg(1:ifull,:)
-          ncount=ncount+1
-        end if
+        psla(:)=psla(:)+psl(1:ifull)
+        ua(:,:)=ua(:,:)+u(1:ifull,:)
+        va(:,:)=va(:,:)+v(1:ifull,:)
+        ta(:,:)=ta(:,:)+t(1:ifull,:)
+        qa(:,:)=qa(:,:)+qg(1:ifull,:)
+        ncount=ncount+1
       end if 
      
       return
       end subroutine nestinb
 
-      subroutine nestsave(pslot,uot,vot,tot,qot)
-      
-      implicit none
-      
-      real, dimension(ifull), intent(out) :: pslot
-      real, dimension(ifull,kl), intent(out) :: uot,vot,tot,qot
-      
-      pslot=pslc
-      uot=uc
-      vot=vc
-      tot=tc
-      qot=qc
-      
-      return
-      end subroutine nestsave
-      
-      subroutine nestload(pslin,uin,vin,tin,qin)
-      
-      implicit none
-      
-      real, dimension(ifull), intent(in) :: pslin
-      real, dimension(ifull,kl), intent(in) :: uin,vin,tin,qin
-      
-      pslc=pslin
-      uc=uin
-      vc=vin
-      tc=tin
-      qc=qin
-
-      return
-      end subroutine nestload
 
       ! This subroutine gathers data for the MPI version of spectral downscaling
       subroutine getspecdata(pslb,ub,vb,tb,qb)
@@ -631,7 +567,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       
       implicit none
 
-!      include 'newmpar.h'    ! ifull_g,kl
+      include 'newmpar.h'    ! ifull_g,kl
       include 'arrays.h'     ! u,v,t,qg,psl
       include 'const_phys.h'
       include 'parm.h'       ! mbd,schmidt,nud_uv,nud_p,nud_t,nud_q,kbotdav
@@ -838,7 +774,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       
       implicit none
       
-!      include 'newmpar.h'    ! ifull_g,kl
+      include 'newmpar.h'    ! ifull_g,kl
       include 'const_phys.h' ! rearth,pi,tpi
       include 'map_g.h'      ! em_g
       include 'indices_g.h'  ! in_g,ie_g,is_g,iw_g
@@ -1216,7 +1152,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       implicit none
       
-!      include 'newmpar.h'   ! ifull_g,kl
+      include 'newmpar.h'   ! ifull_g,kl
       include 'const_phys.h' ! rearth,pi,tpi
       include 'map_g.h'     ! em_g
       include 'parm.h'      ! ds,kbotdav
@@ -1409,7 +1345,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       implicit none
       
-!      include 'newmpar.h'    ! ifull_g,kl
+      include 'newmpar.h'    ! ifull_g,kl
       include 'parm.h'       ! kbotdav
       
       integer, intent(in) :: myid
@@ -1442,7 +1378,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       implicit none
       
-!      include 'newmpar.h'    ! ifull_g,kl
+      include 'newmpar.h'    ! ifull_g,kl
       include 'parm.h'       ! kbotdav
       
       integer, intent(in) :: myid
@@ -1474,7 +1410,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       implicit none
       
-!      include 'newmpar.h'    ! ifull_g,kl
+      include 'newmpar.h'    ! ifull_g,kl
       include 'const_phys.h' ! rearth,pi,tpi
       include 'map_g.h'      ! em_g
       include 'parm.h'       ! ds,kbotdav
@@ -1784,7 +1720,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
      &             qp,qu,qv,qw,qt,qq,ssum,sp,su,sv,sw,st,sq)
       implicit none
       
-!      include 'newmpar.h'    ! ifull_g,kl
+      include 'newmpar.h'    ! ifull_g,kl
       include 'const_phys.h' ! pi
       include 'parm.h'       ! kbotdav
       include 'xyzinfo_g.h'  ! x_g,y_g,z_g
@@ -2468,5 +2404,4 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       return
       end subroutine procdiv
       !---------------------------------------------------------------------------------
-      
-      end module nestinmod
+
