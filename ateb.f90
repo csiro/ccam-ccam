@@ -13,7 +13,8 @@
 !                        use tebnewangle1 for a single grid point)
 !     call tebcalc     ! calculates urban temperatures, fluxes, etc and blends with input
 !     call tebalb      ! blends input and urban albedo (use tebalb1 for a single grid point)
-!     call tebzo       ! blends input and urban roughness lengths for momentum and heat
+!     call tebzo       ! blends input and urban roughness lengths for momentum and heat (use tebcd for
+!                        blending the drag coefficent)
 !     ...
 !   end do
 !   ...
@@ -24,14 +25,14 @@
 
 ! URBAN TYPES:
  
-! 1 = Urban (TAPM 31)
-! 2 = Urban (low) (TAPM 32)
-! 3 = Urban (medium) (TAPM 33)
-! 4 = Urban (high) (TAPM 34)
-! 5 = Urban (cbd) (TAPM 35)
-! 6 = Industrial (low) (TAPM 36)
+! 1 = Urban               (TAPM 31)
+! 2 = Urban (low)         (TAPM 32)
+! 3 = Urban (medium)      (TAPM 33)
+! 4 = Urban (high)        (TAPM 34)
+! 5 = Urban (cbd)         (TAPM 35)
+! 6 = Industrial (low)    (TAPM 36)
 ! 7 = Industrial (medium) (TAPM 37)
-! 8 = Industrial (high) (TAPM 38)
+! 8 = Industrial (high)   (TAPM 38)
 
 ! NOTES: 
 !  Below are some differences between the TEB (Masson 2000) scheme and aTEB:
@@ -42,7 +43,8 @@
 !
 ! - aTEB uses an iterative scheme to solve for the sensible heat flux budget in the canyon.
 !
-! - aTEB returns ln(zom/zot)=1.29*(ustar*zom/nu)**0.25-2. (Kanda et al, 2007) for the urban cover.
+! - aTEB returns ln(zom/zot)=1.29*(ustar*zom/nu)**0.25-2. (Kanda et al, 2007) for the urban cover.  This improves the calculation
+!   of screen temperature, humidity, etc.
 !
 ! - aTEB calculates aerodynamic resistances for the recirculation and ventilation regions of the canyon (see Harman, et. al 2004).
 !   This approach takes advantage of the second wall temperature (i.e., the fluxes depend on the wind direction).
@@ -102,13 +104,13 @@ type(tsurf), dimension(:), allocatable, save :: roof,road,roofadj,roadadj
 type(twall), dimension(:), allocatable, save :: walle,wallw,walleadj,wallwadj
 type(tdata), dimension(:), allocatable, save :: fn
 type(tprog), dimension(:), allocatable, save :: pg
-real, parameter :: refheight=0.4     ! Displacement height as a fraction of building height (Kanda et al 2007)
+! model parameters
 integer, parameter :: resmeth=1      ! Canyon sensible heat transfer (0=Masson, 1=Harman, 2=Kusaka)
-integer, parameter :: zohmeth=1      ! Urban roughness length for heat (0=Veg, 1=Kanda 2007)
+integer, parameter :: zohmeth=1      ! Urban roughness length for heat (0=Veg, 1=Kanda)
 integer, parameter :: acmeth=1       ! AC heat pump into canyon (0=Off, 1=On)
 integer, parameter :: nrefl=3        ! Number of canyon reflections (default=3)
 integer, parameter :: nfgits=6       ! Number of iterations for calculating sensible heat flux (default=6)
-! Other parameters (e.g., snow, water, physics, etc)
+real, parameter :: refheight=0.4     ! Displacement height as a fraction of building height (Kanda et al 2007)
 real, parameter :: waterden=1000.    ! water density (kg m^-3)
 real, parameter :: icelambda=2.22    ! conductance of ice (W m^-1 K^-1)
 real, parameter :: aircp=1004.64     ! Heat capapcity of dry air (J kg^-1 K^-1)
@@ -140,10 +142,10 @@ subroutine tebinit(ifull,sigu,zmin,diag)
 implicit none
 
 integer, intent(in) :: ifull,diag
+integer, dimension(ifull) :: utype
 integer iqu,iq,ii
 real, intent(in) :: zmin
 real, dimension(ifull), intent(in) :: sigu
-integer, dimension(ifull) :: utype
 
 if (diag.ge.1) write(6,*) "Initialising aTEB"
 
@@ -330,7 +332,7 @@ integer ii
 integer, dimension(ifull), intent(in) :: itype
 integer, parameter :: maxtype = 8
 ! Urban fraction (defined in host model)
- real, dimension(maxtype), parameter :: csigu=(/  0.6,  0.5,  0.6,  0.7, 0.95,  0.5,  0.6,  0.7 /)
+!real, dimension(maxtype), parameter :: csigu=(/  0.6,  0.5,  0.6,  0.7, 0.95,  0.5,  0.6,  0.7 /)
 ! Building height (m)
 real, dimension(maxtype), parameter :: cbldheight=(/  10.,  4.,  6.,  8., 20.,  5., 10., 15. /)
 ! Effective roughness length (m)
@@ -373,47 +375,47 @@ real, dimension(maxtype), parameter ::      cmaxrdsn=(/ 1., 1., 1., 1., 1., 1., 
 real, dimension(maxtype,3), parameter :: croofdepth=reshape((/ 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, &
                                                                0.40, 0.40, 0.40, 0.40, 0.40, 0.40, 0.40, 0.40, &
                                                                0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10 /), &
-							       (/maxtype,3/))
+                                                               (/maxtype,3/))
 ! Wall depths (m)
 real, dimension(maxtype,3), parameter :: cwalldepth=reshape((/ 0.020, 0.020, 0.020, 0.020, 0.020, 0.020, 0.020, 0.020, &
                                                                0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, &
                                                                0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050 /), &
-							       (/maxtype,3/))
+                                                               (/maxtype,3/))
 ! Road depths (m)
 real, dimension(maxtype,3), parameter :: croaddepth=reshape((/ 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, &
                                                                0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, &
                                                                1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00 /), &
-							       (/maxtype,3/))
+                                                               (/maxtype,3/))
 ! Roof heat capacity (J m^-3 K^-1)
 real, dimension(maxtype,3), parameter :: croofcp=reshape((/ 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, &
                                                             0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, &
                                                             0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6 /), &
-							    (/maxtype,3/))
+                                                            (/maxtype,3/))
 ! Wall heat capacity (J m^-3 K^-1)
 real, dimension(maxtype,3), parameter :: cwallcp=reshape((/ 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, &
                                                             1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, 1.55E6, &
                                                             0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6 /), &
-							    (/maxtype,3/))
+                                                            (/maxtype,3/))
 ! Road heat capacity (J m^-3 K^-1)
 real, dimension(maxtype,3), parameter :: croadcp=reshape((/ 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, 1.94E6, &
                                                             1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, &
                                                             1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6 /), &
-							    (/maxtype,3/))
+                                                            (/maxtype,3/))
 ! Roof conductance (W m^-1 K^-1)
 real, dimension(maxtype,3), parameter :: crooflambda=reshape((/ 1.51, 1.51, 1.51, 1.51, 1.51, 1.51, 1.51, 1.51, &
                                                                 0.08, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08, &
                                                                 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05 /), &
-								(/maxtype,3/))
+                                                                (/maxtype,3/))
 ! Wall conductance (W m^-1 K^-1)
 real, dimension(maxtype,3), parameter :: cwalllambda=reshape((/ 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, &
                                                                 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, &
                                                                 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500 /), &
-								(/maxtype,3/))
+                                                                (/maxtype,3/))
 ! Road conductance (W m^-1 K^-1)
 real, dimension(maxtype,3), parameter :: croadlambda=reshape((/ 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, 0.7454, &
                                                                 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, &
                                                                 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513, 0.2513 /), &
-								(/maxtype,3/))
+                                                                (/maxtype,3/))
 
 if (ufull.eq.0) return
 if (diag.ge.1) write(6,*) "Load aTEB building properties"
@@ -795,20 +797,24 @@ end subroutine tebccangle
 ! rnd = incomming rainfall/snowfall rate (kg/(m^2 s))
 ! rho = atmospheric density at first model level (kg/m^3)
 ! temp = atmospheric temperature at first model level (K)
+! mixr = atmospheric mioxing ratio at first model level (kg/kg)
 ! ps = surface pressure (Pa)
 ! pa = pressure at first model level (Pa)
-! umag = horizontal wind speed at first model level (m/s)
+! uu = U component of wind speed at first model level (m/s)
+! vv = V component of wind speed at first model level (m/s)
+! umin = minimum wind speed (m/s)
 ! ofg = Input/Output sensible heat flux (W/m^2)
 ! oeg = Input/Output latient heat flux (W/m^2)
 ! ots = Input/Output radiative/skin temperature (K)
 ! owf = Input/Output wetness fraction/surface water (%)
+! diag = diagnostic message mode (0=off, 1=basic messages, 2=more detailed messages, etc)
 
-subroutine tebcalc(ifull,ofg,oeg,ots,owf,ddt,zmin,sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv,umin,diag)
+subroutine tebcalc(ifull,ofg,oeg,ots,owf,dt,zmin,sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv,umin,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
-real, intent(in) :: ddt,zmin,umin
+real, intent(in) :: dt,zmin,umin
 real, dimension(ifull), intent(in) :: sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv
 real, dimension(ifull), intent(inout) :: ofg,oeg,ots,owf
 type (tatm), dimension(ufull) :: atm
@@ -833,7 +839,7 @@ elsewhere
   atm%snd=0.
 end where
 
-call tebeval(uo,ddt,atm,zmin,diag)
+call tebeval(uo,dt,atm,zmin,diag)
 
 ofg(ugrid)=(1.-sigmau)*ofg(ugrid)+sigmau*uo%fg
 oeg(ugrid)=(1.-sigmau)*oeg(ugrid)+sigmau*uo%eg
@@ -982,12 +988,12 @@ do j=1,2 ! predictor-corrector loop -------------------------------
   gawallw(:,3)=2.*fn%walllambda(3)*(wallwdum%temp(3)-fn%bldtemp)/(fn%walldepth(3))
   garoad(:,3)=0.
   if (acmeth.eq.1) then
-    dg%accool=max(0.,garoof(:,3)+gawalle(:,3)+gawallw(:,3)) ! should be divided by efficency factor
+    dg%accool=max(0.,garoof(:,3)+gawalle(:,3)+gawallw(:,3))
   else
     dg%accool=0.
   end if
 
-  ! calculate shortwave radiation (up to 2nd order reflections)
+  ! calculate shortwave radiation
   call getswcoeff(ufull,sg,wallpsi,roadpsi,fn,roaddum%alpha,dg%rdsndelta)
   sg%roof=(1.-fn%roofalpha)*sg%roof*atm%sg
   sg%walle=(1.-fn%wallalpha)*sg%walle*atm%sg
@@ -1060,7 +1066,7 @@ do j=1,2 ! predictor-corrector loop -------------------------------
   end select
 
   ! solve for road snow temperature -------------------------------
-  ! includes solution to canyon temperature and longwave radiation
+  ! includes solution to sensible heat flux and longwave radiation
   cns=0
   cnr=0
   do iqu=1,ufull ! prepare index arrays
@@ -1170,7 +1176,6 @@ do j=1,2 ! predictor-corrector loop -------------------------------
   ! ---------------------------------------------------------------    
 
   ! solve for roof snow temperature -------------------------------
-  ! includes solution to longwave radiation
   cns=0
   cnr=0
   rg%rfsn=0.
@@ -1381,10 +1386,11 @@ eg%roof=dg%rfsndelta*eg%rfsn+(1.-dg%rfsndelta)*eg%roof ! redefine as net roof eg
 egtop=dg%rdsndelta*eg%rdsn+(1.-dg%rdsndelta)*eg%road
 
 ! calculate outputs
+! estimate surface temp from outgoing longwave radiation
+uo%ts=((fn%sigmabld*dg%roofrgout+(1.-fn%sigmabld)*dg%canyonrgout)/sbconst)**0.25
 uo%fg=fn%sigmabld*fg%roof+(1.-fn%sigmabld)*fgtop+fn%industryfg
 uo%eg=fn%sigmabld*eg%roof+(1.-fn%sigmabld)*egtop
 uo%wf=fn%sigmabld*dg%roofdelta*(1.-dg%rfsndelta)+(1.-fn%sigmabld)*dg%roaddelta*(1.-dg%rdsndelta)
-uo%ts=((fn%sigmabld*dg%roofrgout+(1.-fn%sigmabld)*dg%canyonrgout)/sbconst)**0.25
 
 ! calculate roughness length
 call getinvres(ufull,a,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,dg%tempc,atm%umag,zohmeth+1)
@@ -1597,7 +1603,7 @@ return
 end subroutine solverfsn
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! solve for road snow temperature (includes canyon temperature)
+! solve for road snow temperature (includes sensible heat flux)
 
 subroutine solverdsn(cn,evct,rg,fg,fgtop,eg,gardsn,rdsnmelt,rdsntemp,iroad,iwalle,iwallw,dg,sg,atm &
                     ,ldratio,ddt,acond,wallpsi,roadpsi,ifn,ipg)
@@ -1780,6 +1786,7 @@ return
 end subroutine solvecanyon
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Define traffic flux weights during the diurnal cycle
 
 subroutine gettraffic(cn,trafficout,trafficfg,ctime)
 
@@ -1803,6 +1810,7 @@ return
 end subroutine gettraffic
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Disables aTEB so subroutine calls have no effect
 
 subroutine tebdisable(diag)
 

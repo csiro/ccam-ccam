@@ -3,7 +3,7 @@ module cable_ccam
   ! CABLE interface originally developed by the CABLE group
   ! Subsequently modified by MJT
 
-  USE define_types, cbm_ms => ms
+  use define_types, cbm_ms => ms
 
   private
   public CABLE,sib4,loadcbmparm,getwetfrac
@@ -365,6 +365,7 @@ module cable_ccam
   include 'latlong.h'  
   include 'nsibd.h'
   include 'parm.h'
+  include 'parmgeom.h'  ! rlong0,rlat0,schmidt
   include 'soil.h'
   include 'soilsnow.h'
   include 'soilv.h'
@@ -381,6 +382,9 @@ module cable_ccam
   real(r_1), dimension(ifull,5) :: svs
   character(len=*), intent(in) :: fveg,fsoil
   character(len=10), dimension(mxvt) :: vegtype
+  integer ilx,jlx
+  real rlong0x,rlat0x,schmidtx,dsx
+  character*47 header
 
   if (myid == 0) print *,"Setting CABLE defaults (igbp)"
 
@@ -461,6 +465,8 @@ module cable_ccam
   if (myid==0) then
     print *,"Reading land-use data for CABLE"
     open(87,file=fveg,status='old')
+    read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+    if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
     do iq=1,ifull_g
       read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),ivsg(iq,2),svsg(iq,2),ivsg(iq,3),svsg(iq,3), &
                  ivsg(iq,4),svsg(iq,4),ivsg(iq,5),svsg(iq,5)
@@ -561,6 +567,8 @@ module cable_ccam
   if (myid==0) then
     print *,"Reading soil data for CABLE"
     open(87,file=fsoil,status='old')
+    read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+    if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
     do iq=1,ifull_g
       read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),ivsg(iq,2),svsg(iq,2),ivsg(iq,3),svsg(iq,3), &
                  ivsg(iq,4),svsg(iq,4),ivsg(iq,5),svsg(iq,5)
