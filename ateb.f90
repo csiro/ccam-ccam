@@ -41,7 +41,7 @@
 !   longwave and short wave radation (nrefl=3 by default).  In TEB, infinite reflections are used for shortwave, but
 !   only 1st order for long wave.  See Harman, et. al (2004) for a complete treatment of the reflections.
 !
-! - aTEB uses an iterative scheme to solve for the sensible heat flux budget in the canyon.
+! - aTEB uses an iterative scheme to balance the sensible heat flux budget in the canyon.
 !
 ! - aTEB returns ln(zom/zot)=1.29*(ustar*zom/nu)**0.25-2. (Kanda et al, 2007) for the urban cover.  This improves the calculation
 !   of screen temperature, humidity, etc.
@@ -50,7 +50,7 @@
 !   This approach takes advantage of the second wall temperature (i.e., the fluxes depend on the wind direction).
 !
 ! Minor differences include the use of CSIRO9 stability coefficents (McGregor et al 1993), instead of Mascart et al (1995).
-! Also there are changes to the displacement height (not at roof height),  urban properties are based on TAPM classes,
+! Also there are changes to the displacement height (not at roof height), urban properties are based on TAPM classes,
 ! the time dependence of the traffic sensible heat flux follows Coutts et al (2007), etc
 !
 
@@ -88,9 +88,9 @@ type tdata
   real, dimension(3) :: roofdepth,walldepth,roaddepth
   real, dimension(3) :: roofcp,wallcp,roadcp
   real, dimension(3) :: rooflambda,walllambda,roadlambda
-  real :: hwratio,sigmabld,industryfg,trafficfg,bldheight,zo,vangle,hangle
+  real :: hwratio,sigmabld,industryfg,trafficfg,bldheight,vangle,hangle
   real :: roofalpha,wallalpha,roadalpha,ctime,roofemiss,wallemiss,roademiss
-  real :: bldtemp,zocanyon,zoroof,maxroofwater,maxroadwater,maxrfsn,maxrdsn
+  real :: bldtemp,zocanyon,maxroofwater,maxroadwater,maxrfsn,maxrdsn
 end type tdata
 type tprog
   real :: lzom,lzoh,cndzmin,cduv
@@ -106,7 +106,7 @@ type(tdata), dimension(:), allocatable, save :: fn
 type(tprog), dimension(:), allocatable, save :: pg
 ! model parameters
 integer, parameter :: resmeth=1      ! Canyon sensible heat transfer (0=Masson, 1=Harman, 2=Kusaka)
-integer, parameter :: zohmeth=1      ! Urban roughness length for heat (0=Veg, 1=Kanda)
+integer, parameter :: zohmeth=1      ! Urban roughness length for heat (0=10%, 1=Kanda)
 integer, parameter :: acmeth=1       ! AC heat pump into canyon (0=Off, 1=On)
 integer, parameter :: nrefl=3        ! Number of canyon reflections (default=3)
 integer, parameter :: nfgits=6       ! Number of iterations for calculating sensible heat flux (default=6)
@@ -215,7 +215,6 @@ fn%sigmabld=0.5
 fn%industryfg=0.
 fn%trafficfg=0.
 fn%bldheight=10.
-fn%zo=1.
 fn%roofalpha=0.2
 fn%wallalpha=0.2
 fn%roadalpha=0.2
@@ -223,8 +222,7 @@ fn%roofemiss=0.97
 fn%wallemiss=0.97
 fn%roademiss=0.97
 fn%bldtemp=291.
-fn%zocanyon=5.E-5
-fn%zoroof=5.E-5
+fn%zocanyon=0.1
 fn%maxroofwater=1.
 fn%maxroadwater=1.
 fn%maxrfsn=1.
@@ -236,10 +234,10 @@ fn%ctime=0.
 utype=1 ! default urban
 call tebtype(ifull,utype,diag)
 
-pg%cndzmin=max(zmin,fn%zo+1.)           ! updated in tebcalc
-pg%lzom=log(pg%cndzmin/fn%zo)           ! updated in tebcalc
-pg%lzoh=6.+pg%lzom ! (Kanda et al 2005) ! updated in tebcalc
-pg%cduv=(vkar/pg%lzom)**2               ! updated in tebcalc
+pg%cndzmin=max(zmin,0.1*fn%bldheight+1.)   ! updated in tebcalc
+pg%lzom=log(pg%cndzmin/(0.1*fn%bldheight)) ! updated in tebcalc
+pg%lzoh=6.+pg%lzom ! (Kanda et al 2005)    ! updated in tebcalc
+pg%cduv=(vkar/pg%lzom)**2                  ! updated in tebcalc
 
 return
 end subroutine tebinit
@@ -334,17 +332,27 @@ integer, parameter :: maxtype = 8
 ! Urban fraction (defined in host model)
 !real, dimension(maxtype), parameter :: csigu=(/  0.6,  0.5,  0.6,  0.7, 0.95,  0.5,  0.6,  0.7 /)
 ! Building height (m)
-real, dimension(maxtype), parameter :: cbldheight=(/  10.,  4.,  6.,  8., 20.,  5., 10., 15. /)
-! Effective roughness length (m)
-real, dimension(maxtype), parameter ::        czo=0.1*cbldheight
+real, dimension(maxtype), parameter :: cbldheight=(/ 10.,  4.,  6.,  8., 20.,  5., 10., 15. /)
 ! Building height to width ratio
-real, dimension(maxtype), parameter ::   chwratio=(/ 1., 0.4, 0.6, 0.8,  2., 0.5,  1., 1.5 /)
+real, dimension(maxtype), parameter ::   chwratio=(/  1., 0.4, 0.6, 0.8,  2., 0.5,  1., 1.5 /)
 ! Area fraction occupied by buildings
 real, dimension(maxtype), parameter ::  csigmabld=(/ 0.5, 0.7, 0.7, 0.7, 0.4, 0.7, 0.5, 0.4 /)
 ! Industral sensible heat flux (W m^-2)
 real, dimension(maxtype), parameter :: cindustryfg=(/ 20.,  8., 12., 16., 28., 20., 40., 60. /)
 ! Daily averaged traffic sensible heat flux (W m^-2)
-real, dimension(maxtype), parameter ::  ctrafficfg=(/ 5.,  2.,  3.,  4.,  7.,  5., 10., 15. /)
+real, dimension(maxtype), parameter ::  ctrafficfg=(/  5.,  2.,  3.,  4.,  7.,  5., 10., 15. /)
+! Comfort temperature (K)
+real, dimension(maxtype), parameter :: cbldtemp=(/ 291.16, 291.16, 291.16, 291.16, 291.16, 291.16, 291.16, 291.16 /)
+! Roughness length for canyon surfaces, including roofs (m)
+real, dimension(maxtype), parameter :: czocanyon=(/ 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10 /)
+! Max water on roof (kg m^-2)
+real, dimension(maxtype), parameter :: cmaxroofwater=(/ 1., 1., 1., 1., 1., 1., 1., 1. /)
+! Max water on road (kg m^-2)
+real, dimension(maxtype), parameter :: cmaxroadwater=(/ 1., 1., 1., 1., 1., 1., 1., 1. /)
+! Max snow on roof (kg m^-2)
+real, dimension(maxtype), parameter ::      cmaxrfsn=(/ 1., 1., 1., 1., 1., 1., 1., 1. /)
+! Max snow on road (kg m^-2)
+real, dimension(maxtype), parameter ::      cmaxrdsn=(/ 1., 1., 1., 1., 1., 1., 1., 1. /)
 ! Roof albedo
 real, dimension(maxtype), parameter :: croofalpha=(/ 0.20, 0.23, 0.20, 0.17, 0.13, 0.20, 0.20, 0.20 /)
 ! Wall albedo
@@ -357,20 +365,6 @@ real, dimension(maxtype), parameter :: croofemiss=(/ 0.90, 0.90, 0.90, 0.90, 0.9
 real, dimension(maxtype), parameter :: cwallemiss=(/ 0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85 /) 
 ! Road emissitivity
 real, dimension(maxtype), parameter :: croademiss=(/ 0.94, 0.94, 0.94, 0.94, 0.94, 0.94, 0.94, 0.94 /)
-! Comfort temperature (K)
-real, dimension(maxtype), parameter :: cbldtemp=(/ 291.16, 291.16, 291.16, 291.16, 291.16, 291.16, 291.16, 291.16 /)
-! Roughness length for canyon surfaces (m)
-real, dimension(maxtype), parameter :: czocanyon=(/ 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05 /)
-! Roughness length for rooftops (m)
-real, dimension(maxtype), parameter ::   czoroof=(/ 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10 /)
-! Max water on roof (kg m^-2)
-real, dimension(maxtype), parameter :: cmaxroofwater=(/ 1., 1., 1., 1., 1., 1., 1., 1. /)
-! Max water on road (kg m^-2)
-real, dimension(maxtype), parameter :: cmaxroadwater=(/ 1., 1., 1., 1., 1., 1., 1., 1. /)
-! Max snow on roof (kg m^-2)
-real, dimension(maxtype), parameter ::      cmaxrfsn=(/ 1., 1., 1., 1., 1., 1., 1., 1. /)
-! Max snow on road (kg m^-2)
-real, dimension(maxtype), parameter ::      cmaxrdsn=(/ 1., 1., 1., 1., 1., 1., 1., 1. /)
 ! Roof depths (m)
 real, dimension(maxtype,3), parameter :: croofdepth=reshape((/ 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, &
                                                                0.40, 0.40, 0.40, 0.40, 0.40, 0.40, 0.40, 0.40, &
@@ -430,7 +424,6 @@ fn%sigmabld=csigmabld(itype(ugrid))
 fn%industryfg=cindustryfg(itype(ugrid))
 fn%trafficfg=ctrafficfg(itype(ugrid))
 fn%bldheight=cbldheight(itype(ugrid))
-fn%zo=czo(itype(ugrid))
 fn%roofalpha=croofalpha(itype(ugrid))
 fn%wallalpha=cwallalpha(itype(ugrid))
 fn%roadalpha=croadalpha(itype(ugrid))
@@ -439,7 +432,6 @@ fn%wallemiss=cwallemiss(itype(ugrid))
 fn%roademiss=croademiss(itype(ugrid))
 fn%bldtemp=cbldtemp(itype(ugrid))
 fn%zocanyon=czocanyon(itype(ugrid))
-fn%zoroof=czoroof(itype(ugrid))
 fn%maxroofwater=cmaxroofwater(itype(ugrid))
 fn%maxroadwater=cmaxroadwater(itype(ugrid))
 fn%maxrfsn=cmaxrfsn(itype(ugrid))
@@ -469,7 +461,7 @@ implicit none
 
 integer, intent(in) :: ifull,diag
 integer ii
-real, dimension(ifull,46), intent(in) :: ifn
+real, dimension(ifull,44), intent(in) :: ifn
 
 if (ufull.eq.0) return
 if (diag.ge.1) write(6,*) "Load aTEB building properties"
@@ -479,30 +471,28 @@ fn%sigmabld=ifn(ugrid,2)
 fn%industryfg=ifn(ugrid,3)
 fn%trafficfg=ifn(ugrid,4)
 fn%bldheight=ifn(ugrid,5)
-fn%zo=ifn(ugrid,6)
-fn%roofalpha=ifn(ugrid,7)
-fn%wallalpha=ifn(ugrid,8)
-fn%roadalpha=ifn(ugrid,9)
-fn%roofemiss=ifn(ugrid,10)
-fn%wallemiss=ifn(ugrid,11)
-fn%roademiss=ifn(ugrid,12)
-fn%bldtemp=ifn(ugrid,13)
-fn%zocanyon=ifn(ugrid,14)
-fn%zoroof=ifn(ugrid,15)
-fn%maxroofwater=ifn(ugrid,16)
-fn%maxroadwater=ifn(ugrid,17)
-fn%maxrfsn=ifn(ugrid,18)
-fn%maxrdsn=ifn(ugrid,19)
+fn%roofalpha=ifn(ugrid,6)
+fn%wallalpha=ifn(ugrid,7)
+fn%roadalpha=ifn(ugrid,8)
+fn%roofemiss=ifn(ugrid,9)
+fn%wallemiss=ifn(ugrid,10)
+fn%roademiss=ifn(ugrid,11)
+fn%bldtemp=ifn(ugrid,12)
+fn%zocanyon=ifn(ugrid,13)
+fn%maxroofwater=ifn(ugrid,14)
+fn%maxroadwater=ifn(ugrid,15)
+fn%maxrfsn=ifn(ugrid,16)
+fn%maxrdsn=ifn(ugrid,17)
 do ii=1,3
-  fn%roofdepth(ii)=ifn(ugrid,19+ii)
-  fn%walldepth(ii)=ifn(ugrid,22+ii)
-  fn%roaddepth(ii)=ifn(ugrid,25+ii)
-  fn%roofcp(ii)=ifn(ugrid,28+ii)
-  fn%wallcp(ii)=ifn(ugrid,31+ii)
-  fn%roadcp(ii)=ifn(ugrid,34+ii)
-  fn%rooflambda(ii)=ifn(ugrid,37+ii)
-  fn%walllambda(ii)=ifn(ugrid,40+ii)
-  fn%roadlambda(ii)=ifn(ugrid,43+ii)
+  fn%roofdepth(ii)=ifn(ugrid,17+ii)
+  fn%walldepth(ii)=ifn(ugrid,20+ii)
+  fn%roaddepth(ii)=ifn(ugrid,23+ii)
+  fn%roofcp(ii)=ifn(ugrid,26+ii)
+  fn%wallcp(ii)=ifn(ugrid,29+ii)
+  fn%roadcp(ii)=ifn(ugrid,32+ii)
+  fn%rooflambda(ii)=ifn(ugrid,35+ii)
+  fn%walllambda(ii)=ifn(ugrid,38+ii)
+  fn%roadlambda(ii)=ifn(ugrid,41+ii)
 end do
 
 return
@@ -962,10 +952,12 @@ do j=1,2 ! predictor-corrector loop -------------------------------
   dg%rfsndelta=roofdum%snow/(roofdum%snow+fn%maxrfsn)
   dg%rdsndelta=roaddum%snow/(roaddum%snow+fn%maxrdsn)
 
+  ! Estimate urban roughness length
+  zom=0.1*fn%bldheight
   ! Adjust canyon roughness to include snow
-  n=roaddum%snow/(roaddum%snow+fn%maxrdsn+0.408*grav*fn%zo)               ! snow cover for urban roughness calc (Douville, et al 1995)
-  zom=(1.-n)*fn%zo+n*zosnow                                               ! blend urban and snow roughness length
-  dg%rfdzmin=max(abs(zmin-fn%bldheight*(1.-refheight)),fn%zoroof+1.)      ! distance to roof displacement height
+  n=roaddum%snow/(roaddum%snow+fn%maxrdsn+0.408*grav*zom)              ! snow cover for urban roughness calc (Douville, et al 1995)
+  zom=(1.-n)*zom+n*zosnow                                              ! blend urban and snow roughness length
+  dg%rfdzmin=max(abs(zmin-fn%bldheight*(1.-refheight)),fn%zocanyon+1.) ! distance to roof displacement height
   where (zmin.ge.fn%bldheight*(1.-refheight))
     pg%lzom=log(zmin/zom)
     topu=(2./pi)*atm%umag*log(fn%bldheight*(1.-refheight)/zom)/pg%lzom ! wind speed at canyon top
@@ -983,9 +975,9 @@ do j=1,2 ! predictor-corrector loop -------------------------------
     gawallw(:,k)=2.*(wallwdum%temp(k)-wallwdum%temp(k+1))/(fn%walldepth(k)/fn%walllambda(k)+fn%walldepth(k+1)/fn%walllambda(k+1))
     garoad(:,k)=2.*(roaddum%temp(k)-roaddum%temp(k+1))/(fn%roaddepth(k)/fn%roadlambda(k)+fn%roaddepth(k+1)/fn%roadlambda(k+1))
   end do
-  garoof(:,3)=2.*fn%rooflambda(3)*(roofdum%temp(3)-fn%bldtemp)/(fn%roofdepth(3))
-  gawalle(:,3)=2.*fn%walllambda(3)*(walledum%temp(3)-fn%bldtemp)/(fn%walldepth(3))
-  gawallw(:,3)=2.*fn%walllambda(3)*(wallwdum%temp(3)-fn%bldtemp)/(fn%walldepth(3))
+  garoof(:,3)=2.*fn%rooflambda(3)*(roofdum%temp(3)-fn%bldtemp)/fn%roofdepth(3)
+  gawalle(:,3)=2.*fn%walllambda(3)*(walledum%temp(3)-fn%bldtemp)/fn%walldepth(3)
+  gawallw(:,3)=2.*fn%walllambda(3)*(wallwdum%temp(3)-fn%bldtemp)/fn%walldepth(3)
   garoad(:,3)=0.
   if (acmeth.eq.1) then
     dg%accool=max(0.,garoof(:,3)+gawalle(:,3)+gawallw(:,3))
@@ -1045,13 +1037,13 @@ do j=1,2 ! predictor-corrector loop -------------------------------
         ww=cu*xw*(1.-exp(-a))/a
       end where
       zolog=log(0.1*fn%bldheight/fn%zocanyon)
-      a=vkar**2/(zolog*(2.3+zolog)) ! Kanda et al (2005)
+      a=vkar**2/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
       n=abs(atm%udir)/pi
       acond%road=a*wr                ! road bulk transfer
       acond%walle=a*(n*ww+(1.-n)*we) ! east wall bulk transfer
       acond%wallw=a*(n*we+(1.-n)*ww) ! west wall bulk transfer
       zolog=log(0.1*fn%bldheight/zosnow)
-      a=vkar**2/(zolog*(2.3+zolog))
+      a=vkar**2/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
       acond%rdsn=a*wr                ! road snow bulk transfer
     case(2) ! Kusaka et al (2001)
       cu=topu*exp(-0.25*fn%hwratio)
@@ -1248,9 +1240,9 @@ do j=1,2 ! predictor-corrector loop -------------------------------
   rg%roof=fn%roofemiss*(atm%rg-sbconst*roofdum%temp(1)**4)
   dg%roofrgout=sbconst*(dg%rfsndelta*snowemiss*rfsntemp**4+(1.-dg%rfsndelta)*fn%roofemiss*roof%temp(1)**4) &
                +(1.-dg%rfsndelta*snowemiss-(1.-dg%rfsndelta)*fn%roofemiss)*atm%rg
-  a=log(dg%rfdzmin/fn%zoroof)
+  a=log(dg%rfdzmin/fn%zocanyon)
   ! n and xe are dummy variables for cd and lzohroof
-  call getinvres(ufull,acond%roof,n,xe,a,dg%rfdzmin,roofdum%temp(1),dg%tempr,atm%umag,1)
+  call getinvres(ufull,acond%roof,n,xe,a,dg%rfdzmin,roofdum%temp(1),dg%tempr,atm%umag,1) ! Assume zot=0.1*zom (i.e., Kanda et al 2007, small experiment)
   fg%roof=aircp*atm%rho*(roofdum%temp(1)-dg%tempr)*acond%roof
   call getqsat(ufull,qsatr,roofdum%temp(1),dg%sigr)
   where (qsatr.lt.dg%mixrr)
@@ -1392,7 +1384,7 @@ uo%fg=fn%sigmabld*fg%roof+(1.-fn%sigmabld)*fgtop+fn%industryfg
 uo%eg=fn%sigmabld*eg%roof+(1.-fn%sigmabld)*egtop
 uo%wf=fn%sigmabld*dg%roofdelta*(1.-dg%rfsndelta)+(1.-fn%sigmabld)*dg%roaddelta*(1.-dg%rdsndelta)
 
-! calculate roughness length
+! calculate roughness length for MOST
 call getinvres(ufull,a,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,dg%tempc,atm%umag,zohmeth+1)
   
 return
@@ -1489,12 +1481,14 @@ end where
 
 cd=af*fm
 select case(mode)
-  case(1) ! standard veg
+  case(1) ! zot=zom/10.
     lna=2.3
   case(2) ! Kanda et al 2007
     re=max(sqrt(cd)*umag*zmin*exp(-ilzom)/nu,10.)
     !lna=2.46*re**0.25-2. !(Brutsaet, 1982)
     lna=1.29*re**0.25-2. !(Kanda et al, 2007)
+  case(3) ! zot=zom (neglect molecular diffusion)
+    lna=0.
 end select
 olzoh=lna+ilzom    
 aft=vkar**2/(ilzom*olzoh)
@@ -1761,7 +1755,8 @@ type(tatm), dimension(cn), intent(in) :: atm
 type(tdata), dimension(cn), intent(in) :: ifn
 type(tprog), dimension(cn), intent(in) :: ipg
 
-call getinvres(cn,topinvres,cduv,lzoh,ipg%lzom,ipg%cndzmin,ctemp,dg%tempc,atm%umag,1)
+! Here we neglect the molecular diffusion and assume zot=zom.  This is similar to Kanada et al 2007, when the screen temp Te is used.
+call getinvres(cn,topinvres,cduv,lzoh,ipg%lzom,ipg%cndzmin,ctemp,dg%tempc,atm%umag,3)
 if (resmeth.eq.0) then
   !cw=pg%cduv*atm%umag ! diagnose canyonw (from Masson 2000)
   acond%road=(11.8+4.2*sqrt(acond%road**2+ipg%cduv*atm%umag**2))/(aircp*atm%rho) ! From Rowley, et al (1930)
@@ -1799,7 +1794,8 @@ real, dimension(cn), intent(in) :: trafficfg,ctime
 real, dimension(cn) :: rp
 ! traffic diurnal cycle weights approximated from Coutts et al (2007)
 real, dimension(25), parameter :: trafficcycle = (/ 0.1, 0.1, 0.1, 0.1, 0.5, 1.0, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, &
-                                                    1.5, 1.5, 1.5, 1.5, 1.5, 1.4, 1.2, 1., 0.8, 0.6, 0.4, 0.2, 0.1 /) 
+                                                    1.5, 1.5, 1.5, 1.5, 1.5, 1.4, 1.2,  1., 0.8, 0.6, 0.4, 0.2, &
+                                                    0.1 /) 
 
 ip=int(24.*ctime)
 rp=24.*ctime-real(ip)

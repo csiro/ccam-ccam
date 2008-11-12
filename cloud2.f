@@ -108,8 +108,7 @@ C Local work arrays and variables
       real sigmai, tciwc, tclwc, temp_correction, tmid
       real trani, tranw, wice, wliq
 
-      real cbdry,nfrac,csig,csum,ctemp ! MJT CHANGE - mr
-      real, parameter :: cldedg = 0.05 ! MJT CHANGE - mr
+      real nfrac,csig,csum,ctemp ! MJT CHANGE - mr
 
       integer, save :: istart
       data istart/0/
@@ -445,14 +444,13 @@ c Weight cloud properties by liquid/ice fraction
         ! Attempt to remove vertical dependence using a modified version the approach used by stubenrauch et al 1997
         if (nmr.eq.1) then
           do mg=1,imax
-            cbdry=cldedg*maxval(cfrac(mg,1:nl-1)) ! ignore clouds smaller than 5% of the max cloud fraction
             k=1
             do while (k.le.nl-1)
-              if (cfrac(mg,k).gt.cbdry) then
+              if (cfrac(mg,k).gt.0.) then
 
                 ! find cloud levels from k to kk
                 kk=k
-                do while ((cfrac(mg,kk+1).gt.cbdry).and.(kk.lt.nl-1))
+                do while ((cfrac(mg,kk+1).gt.0.).and.(kk.lt.nl-1))
                   kk=kk+1
                 end do
                 ! find maximum cloud fraction level
@@ -464,15 +462,18 @@ c Weight cloud properties by liquid/ice fraction
                 csum=cfrac(mg,k)
                 Re1=(fice(mg,k)*Rei1(mg,k)
      &               +(1.-fice(mg,k))*Rew1(mg,k))
-     &               *ctemp
+     &               *cfrac(mg,k)
                 Re2=(fice(mg,k)*Rei2(mg,k)
      &               +(1.-fice(mg,k))*Rew2(mg,k))
-     &               *ctemp
+     &               *cfrac(mg,k)
                 Em=(fice(mg,k)*Emi(mg,k)
      &               +(1.-fice(mg,k))*Emw(mg,k))
-     &               *ctemp
+     &               *cfrac(mg,k)
+                Ab=(fice(mg,k)*Abi(mg,k)
+     &               +(1.-fice(mg,k))*Abw(mg,k))
+     &               *cfrac(mg,k)
                 do kb=k+1,km
-                  ctemp=max(0.,cfrac(mg,kb-1)-cfrac(mg,kb))
+                  ctemp=max(0.,cfrac(mg,kb)-cfrac(mg,kb-1))
                   csig=csig+sig(kb)*ctemp
                   csum=csum+ctemp
                   Re1=Re1+(fice(mg,kb)*Rei1(mg,kb)
@@ -483,6 +484,9 @@ c Weight cloud properties by liquid/ice fraction
      &                 *ctemp
                   Em=Em+(fice(mg,kb)*Emi(mg,kb)
      &                 +(1.-fice(mg,kb))*Emw(mg,kb))
+     &                 *ctemp
+                  Ab=Ab+(fice(mg,kb)*Abi(mg,kb)
+     &                 +(1.-fice(mg,kb))*Abw(mg,kb))
      &                 *ctemp
                 end do
                 nfrac=csum
@@ -498,15 +502,18 @@ c Weight cloud properties by liquid/ice fraction
                 csum=cfrac(mg,kk)
                 Re1=Re1+(fice(mg,kk)*Rei1(mg,kk)
      &               +(1.-fice(mg,kk))*Rew1(mg,kk))
-     &               *ctemp
+     &               *cfrac(mg,kk)
                 Re2=Re2+(fice(mg,kk)*Rei2(mg,kk)
      &               +(1.-fice(mg,kk))*Rew2(mg,kk))
-     &               *ctemp
+     &               *cfrac(mg,kk)
                 Em=Em+(fice(mg,kk)*Emi(mg,kk)
      &               +(1.-fice(mg,kk))*Emw(mg,kk))
-     &               *ctemp
+     &               *cfrac(mg,kk)
+                Ab=Ab+(fice(mg,kk)*Abi(mg,kk)
+     &               +(1.-fice(mg,kk))*Abw(mg,kk))
+     &               *cfrac(mg,kk)
                 do kt=kk-1,km,-1
-                  ctemp=max(0.,cfrac(mg,kt+1)-cfrac(mg,kt))
+                  ctemp=max(0.,cfrac(mg,kt)-cfrac(mg,kt+1))
                   csig=csig+sig(kt)*ctemp
                   csum=csum+ctemp
                   Re1=Re1+(fice(mg,kt)*Rei1(mg,kt)
@@ -518,6 +525,9 @@ c Weight cloud properties by liquid/ice fraction
                   Em=Em+(fice(mg,kt)*Emi(mg,kt)
      &                 +(1.-fice(mg,kt))*Emw(mg,kt))
      &                 *ctemp
+                  Ab=Ab+(fice(mg,kt)*Abi(mg,kt)
+     &                 +(1.-fice(mg,kt))*Abw(mg,kt))
+     &                 *ctemp
                 end do
                 nfrac=nfrac+csum
                 if (kk-km.gt.0) then
@@ -527,10 +537,6 @@ c Weight cloud properties by liquid/ice fraction
                   kt=kk
                 end if
                 
-                Ab=sum((fice(mg,k:kk)*Abi(mg,k:kk)
-     &               +(1-fice(mg,k:kk))*Abw(mg,k:kk))
-     &               *cfrac(mg,k:kk))/sum(cfrac(mg,k:kk))
-                
                 ! determine average cloud properties
                 nclds(mg)=nclds(mg)+1
                 nc=nclds(mg)+1
@@ -539,13 +545,13 @@ c Weight cloud properties by liquid/ice fraction
                 emcld(mg,nc)=Em/nfrac
                 cuvrf(mg,nc)=Re1/nfrac
                 cirrf(mg,nc)=Re2/nfrac
-                cirab(mg,nc)=min(2.*Ab,1.-cirrf(mg,nc))
+                cirab(mg,nc)=2.*Ab/nfrac
                 kbtm(mg,nc)=nlp-kb
                 kbtmsw(mg,nc)=nlp-kb+1
                 ktop(mg,nc)=nlp-kt
                 ktopsw(mg,nc)=nlp-kt
                 
-                k=kk+1
+                k=kk
               end if
               k=k+1
             end do
