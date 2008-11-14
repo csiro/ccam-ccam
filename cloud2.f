@@ -109,6 +109,7 @@ C Local work arrays and variables
       real trani, tranw, wice, wliq
 
       real nfrac,csig,csum,ctemp ! MJT CHANGE - mr
+      real Re11,Re21,Em1,Ab1     ! MJT CHANGE - mr
 
       integer, save :: istart
       data istart/0/
@@ -449,9 +450,38 @@ c Weight cloud properties by liquid/ice fraction
               if (cfrac(mg,k).gt.0.) then
 
                 ! find cloud levels from k to kk
+                ! break rapid changes in cloud properties into seperate clouds
                 kk=k
-                do while ((cfrac(mg,kk+1).gt.0.).and.(kk.lt.nl-1))
-                  kk=kk+1
+                Re11=(fice(mg,k)*Rei1(mg,k)
+     &              +(1.-fice(mg,k))*Rew1(mg,k))
+                Re21=(fice(mg,k)*Rei2(mg,k)
+     &              +(1.-fice(mg,k))*Rew2(mg,k))
+                Em1=(fice(mg,k)*Emi(mg,k)
+     &              +(1.-fice(mg,k))*Emw(mg,k))
+                Ab1=(fice(mg,k)*Abi(mg,k)
+     &              +(1.-fice(mg,k))*Abw(mg,k))
+                Re1=(fice(mg,kk+1)*Rei1(mg,kk+1)
+     &              +(1.-fice(mg,kk+1))*Rew1(mg,kk+1))
+                Re2=(fice(mg,kk+1)*Rei2(mg,kk+1)
+     &              +(1.-fice(mg,kk+1))*Rew2(mg,kk+1))
+                Em=(fice(mg,kk+1)*Emi(mg,kk+1)
+     &              +(1.-fice(mg,kk+1))*Emw(mg,kk+1))
+                Ab=(fice(mg,kk+1)*Abi(mg,kk+1)
+     &             +(1.-fice(mg,kk+1))*Abw(mg,kk+1))                
+                do while ((cfrac(mg,kk+1).gt.0.).and.(kk.lt.nl-1)
+     &            .and.(0.2*Re1.lt.Re11).and.(Re1.gt.0.2*Re11)
+     &            .and.(0.2*Re2.lt.Re21).and.(Re2.gt.0.2*Re21)
+     &            .and.(0.2*Em.lt.Em1).and.(Em.gt.0.2*Em1)
+     &            .and.(0.2*Ab.lt.Ab1).and.(Ab.gt.0.2*Ab1))
+                  kk=kk+1 
+                  Re1=(fice(mg,kk+1)*Rei1(mg,kk+1)
+     &                +(1.-fice(mg,kk+1))*Rew1(mg,kk+1))
+                  Re2=(fice(mg,kk+1)*Rei2(mg,kk+1)
+     &                +(1.-fice(mg,kk+1))*Rew2(mg,kk+1))
+                  Em=(fice(mg,kk+1)*Emi(mg,kk+1)
+     &                +(1.-fice(mg,kk+1))*Emw(mg,kk+1))
+                  Ab=(fice(mg,kk+1)*Abi(mg,kk+1)
+     &               +(1.-fice(mg,kk+1))*Abw(mg,kk+1))   
                 end do
                 ! find maximum cloud fraction level
                 pos=maxloc(cfrac(mg,k:kk))
