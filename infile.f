@@ -63,8 +63,6 @@ c     include 'tracers.h'  **** to be fixed after 0808
       integer ik,jk,kk
       common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug
       real tmp(ifull)
-      real bbb(ifull,kl),ccc(ifull,kl),ddd(ifull,kl) ! MJT daily ave
-      real eee(ifull,kl) ! MJT daily ave
 
       integer, parameter :: nihead=54,nrhead=14
       integer nahead(nihead),ier,ilen,itype
@@ -974,6 +972,8 @@ c     print *,'in vertint t',t(idjd,:)
 
       mdays(2)=28
       if(mod(iyr,4)==0.and.leap==1)mdays(2)=29
+      if(mod(iyr,100)==0)mdays(2)=28
+      if(mod(iyr,400)==0.and.leap==1)mdays(2)=29
       do while (mtimer_r>minsday*mdays(imo))
        mtimer_r=mtimer_r-minsday*mdays(imo)
        imo=imo+1
