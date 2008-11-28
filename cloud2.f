@@ -100,7 +100,7 @@ C Local work arrays and variables
       integer mg
       integer nc
 
-      integer kb,km,kk,kt,pos(1) ! MJT CHANGE - mr
+      integer kb,km,kk,kt,kp,pos(1) ! MJT CHANGE - mr
 
       real ab, cfl, cldht, deltai, diffk, dz, em, eps, f1, f2, fcon
       real onem, qlpath, refac, refac1, refac2, re1, re2, rhoa
@@ -109,7 +109,7 @@ C Local work arrays and variables
       real trani, tranw, wice, wliq
 
       real nfrac,csig,csum,ctemp ! MJT CHANGE - mr
-      real Re11,Re21,Em1,Ab1     ! MJT CHANGE - mr
+      logical, dimension(l) :: ctest ! MJT CHANGE - mr
 
       integer, save :: istart
       data istart/0/
@@ -450,38 +450,10 @@ c Weight cloud properties by liquid/ice fraction
               if (cfrac(mg,k).gt.0.) then
 
                 ! find cloud levels from k to kk
-                ! break rapid changes in cloud properties into seperate clouds
+                ! break large changes in cloud properties into seperate clouds
                 kk=k
-                Re11=(fice(mg,k)*Rei1(mg,k)
-     &              +(1.-fice(mg,k))*Rew1(mg,k))
-                Re21=(fice(mg,k)*Rei2(mg,k)
-     &              +(1.-fice(mg,k))*Rew2(mg,k))
-                Em1=(fice(mg,k)*Emi(mg,k)
-     &              +(1.-fice(mg,k))*Emw(mg,k))
-                Ab1=(fice(mg,k)*Abi(mg,k)
-     &              +(1.-fice(mg,k))*Abw(mg,k))
-                Re1=(fice(mg,kk+1)*Rei1(mg,kk+1)
-     &              +(1.-fice(mg,kk+1))*Rew1(mg,kk+1))
-                Re2=(fice(mg,kk+1)*Rei2(mg,kk+1)
-     &              +(1.-fice(mg,kk+1))*Rew2(mg,kk+1))
-                Em=(fice(mg,kk+1)*Emi(mg,kk+1)
-     &              +(1.-fice(mg,kk+1))*Emw(mg,kk+1))
-                Ab=(fice(mg,kk+1)*Abi(mg,kk+1)
-     &             +(1.-fice(mg,kk+1))*Abw(mg,kk+1))                
-                do while ((cfrac(mg,kk+1).gt.0.).and.(kk.lt.nl-1)
-     &            .and.(0.2*Re1.lt.Re11).and.(Re1.gt.0.2*Re11)
-     &            .and.(0.2*Re2.lt.Re21).and.(Re2.gt.0.2*Re21)
-     &            .and.(0.2*Em.lt.Em1).and.(Em.gt.0.2*Em1)
-     &            .and.(0.2*Ab.lt.Ab1).and.(Ab.gt.0.2*Ab1))
-                  kk=kk+1 
-                  Re1=(fice(mg,kk+1)*Rei1(mg,kk+1)
-     &                +(1.-fice(mg,kk+1))*Rew1(mg,kk+1))
-                  Re2=(fice(mg,kk+1)*Rei2(mg,kk+1)
-     &                +(1.-fice(mg,kk+1))*Rew2(mg,kk+1))
-                  Em=(fice(mg,kk+1)*Emi(mg,kk+1)
-     &                +(1.-fice(mg,kk+1))*Emw(mg,kk+1))
-                  Ab=(fice(mg,kk+1)*Abi(mg,kk+1)
-     &               +(1.-fice(mg,kk+1))*Abw(mg,kk+1))   
+                do while (cfrac(mg,kk+1).gt.0..and.kk.lt.nl-1)
+                  kk=kk+1
                 end do
                 ! find maximum cloud fraction level
                 pos=maxloc(cfrac(mg,k:kk))
@@ -490,92 +462,61 @@ c Weight cloud properties by liquid/ice fraction
                 ! find cloud bottom
                 csig=sig(k)*cfrac(mg,k)
                 csum=cfrac(mg,k)
-                Re1=(fice(mg,k)*Rei1(mg,k)
-     &               +(1.-fice(mg,k))*Rew1(mg,k))
-     &               *cfrac(mg,k)
-                Re2=(fice(mg,k)*Rei2(mg,k)
-     &               +(1.-fice(mg,k))*Rew2(mg,k))
-     &               *cfrac(mg,k)
-                Em=(fice(mg,k)*Emi(mg,k)
-     &               +(1.-fice(mg,k))*Emw(mg,k))
-     &               *cfrac(mg,k)
-                Ab=(fice(mg,k)*Abi(mg,k)
-     &               +(1.-fice(mg,k))*Abw(mg,k))
-     &               *cfrac(mg,k)
                 do kb=k+1,km
                   ctemp=max(0.,cfrac(mg,kb)-cfrac(mg,kb-1))
                   csig=csig+sig(kb)*ctemp
                   csum=csum+ctemp
-                  Re1=Re1+(fice(mg,kb)*Rei1(mg,kb)
-     &                 +(1.-fice(mg,kb))*Rew1(mg,kb))
-     &                 *ctemp
-                  Re2=Re2+(fice(mg,kb)*Rei2(mg,kb)
-     &                 +(1.-fice(mg,kb))*Rew2(mg,kb))
-     &                 *ctemp
-                  Em=Em+(fice(mg,kb)*Emi(mg,kb)
-     &                 +(1.-fice(mg,kb))*Emw(mg,kb))
-     &                 *ctemp
-                  Ab=Ab+(fice(mg,kb)*Abi(mg,kb)
-     &                 +(1.-fice(mg,kb))*Abw(mg,kb))
-     &                 *ctemp
                 end do
-                nfrac=csum
-                if (km-k.gt.0) then
-                  pos=minloc((csig/csum-sig(k:km))**2)
-                  kb=pos(1)+k-1
-                else
-                  kb=k
-                end if
+                pos=minloc((csig/csum-sig(k:km))**2)
+                kb=pos(1)+k-1
                 
                 ! find cloud top
                 csig=sig(kk)*cfrac(mg,kk)
                 csum=cfrac(mg,kk)
-                Re1=Re1+(fice(mg,kk)*Rei1(mg,kk)
-     &               +(1.-fice(mg,kk))*Rew1(mg,kk))
-     &               *cfrac(mg,kk)
-                Re2=Re2+(fice(mg,kk)*Rei2(mg,kk)
-     &               +(1.-fice(mg,kk))*Rew2(mg,kk))
-     &               *cfrac(mg,kk)
-                Em=Em+(fice(mg,kk)*Emi(mg,kk)
-     &               +(1.-fice(mg,kk))*Emw(mg,kk))
-     &               *cfrac(mg,kk)
-                Ab=Ab+(fice(mg,kk)*Abi(mg,kk)
-     &               +(1.-fice(mg,kk))*Abw(mg,kk))
-     &               *cfrac(mg,kk)
                 do kt=kk-1,km,-1
                   ctemp=max(0.,cfrac(mg,kt)-cfrac(mg,kt+1))
                   csig=csig+sig(kt)*ctemp
                   csum=csum+ctemp
-                  Re1=Re1+(fice(mg,kt)*Rei1(mg,kt)
-     &                 +(1.-fice(mg,kt))*Rew1(mg,kt))
-     &                 *ctemp
-                  Re2=Re2+(fice(mg,kt)*Rei2(mg,kt)
-     &                 +(1.-fice(mg,kt))*Rew2(mg,kt))
-     &                 *ctemp
-                  Em=Em+(fice(mg,kt)*Emi(mg,kt)
-     &                 +(1.-fice(mg,kt))*Emw(mg,kt))
-     &                 *ctemp
-                  Ab=Ab+(fice(mg,kt)*Abi(mg,kt)
-     &                 +(1.-fice(mg,kt))*Abw(mg,kt))
-     &                 *ctemp
                 end do
-                nfrac=nfrac+csum
-                if (kk-km.gt.0) then
-                  pos=minloc((csig/csum-sig(km:kk))**2)
-                  kt=pos(1)+km-1
-                else
-                  kt=kk
-                end if
+                pos=minloc((csig/csum-sig(km:kk))**2)
+                kt=pos(1)+km-1
+
+                ! Calculate bulk cloud properties
+                ctest=.false.
+                ctest(k:kk)=.true.
+                nfrac=0.
+                csum=0.
+                Re1=0.
+                Re2=0.
+                Em=0.
+                Ab=0.
+                do while (any(ctest(k:kk)))
+                  pos=minloc(cfrac(mg,k:kk),ctest(k:kk))
+                  kp=pos(1)-1+k
+                  ctemp=cfrac(mg,kp)-csum
+                  nfrac=nfrac+ctemp ! should add up to cfrac(mg,km)
+                  ! to avoid problems with 0. (but slower)
+                  Re1=Re1+product(1.-fice(mg,k:kk)*Rei1(mg,k:kk)
+     &              -(1.-fice(mg,k:kk))*Rew1(mg,k:kk),ctest(k:kk))*ctemp
+                  Re2=Re2+product(1.-fice(mg,k:kk)*Rei2(mg,k:kk)
+     &              -(1.-fice(mg,k:kk))*Rew2(mg,k:kk),ctest(k:kk))*ctemp
+                  Em=Em+product(1.-fice(mg,k:kk)*Emi(mg,k:kk)
+     &              -(1.-fice(mg,k:kk))*Emw(mg,k:kk),ctest(k:kk))*ctemp
+                  Ab=Ab+product(1.-fice(mg,k:kk)*Abi(mg,k:kk)
+     &              -(1.-fice(mg,k:kk))*Abw(mg,k:kk),ctest(k:kk))*ctemp
+                  ctest(kp)=.false.
+                  csum=cfrac(mg,kp)
+                end do
                 
-                ! determine average cloud properties
+                ! Store cloud data
                 nclds(mg)=nclds(mg)+1
                 nc=nclds(mg)+1
 
                 camt(mg,nc)=cfrac(mg,km)
-                emcld(mg,nc)=Em/nfrac
-                cuvrf(mg,nc)=Re1/nfrac
-                cirrf(mg,nc)=Re2/nfrac
-                cirab(mg,nc)=2.*Ab/nfrac
+                emcld(mg,nc)=(1.-Em/nfrac)
+                cuvrf(mg,nc)=(1.-Re1/nfrac)
+                cirrf(mg,nc)=(1.-Re2/nfrac)
+                cirab(mg,nc)=(1.-Ab/nfrac)
                 kbtm(mg,nc)=nlp-kb
                 kbtmsw(mg,nc)=nlp-kb+1
                 ktop(mg,nc)=nlp-kt
@@ -586,7 +527,8 @@ c Weight cloud properties by liquid/ice fraction
               k=k+1
             end do
           end do
-        else ! usual random overlap
+
+        else ! usual random overlap (nmr=0) and M/R without bulk cloud properties (nmr=2), see swr99.f and clo89.f
         
         do k=1,nl-1
           do mg=1,imax

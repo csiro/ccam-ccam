@@ -19,16 +19,64 @@ c
       include 'rdparm.h'
       include 'radisw.h'
       include 'cldcom.h'
+      include 'parm.h' ! MJT CHANGE - mr
 c 
-      real tempc(lp1,lp1,imax),cldfip(lp1,lp1)
+      real tempc(lp1,lp1),cldfip(lp1,lp1) ! MJT CHANGE - mr
+      real cldfip1(lp1,lp1)       ! MJT CHANGE - mr
+      integer pos(1),nc1,nc2,nc3  ! MJT CHANGE - mr
+      logical ctest(lp1)          ! MJT CHANGE - mr
 c 
-      do 11 ip=1,imax
-      if (nclds(ip).eq.0) then
-        do 29 i=1,lp1*lp1
-        tempc(i,1,ip)=1.
-29      continue
-      endif
-      if (nclds(ip).ge.1) then
+      if (nmr.eq.2) then ! MJT CHANGE - mr
+
+        do ip=1,imax
+          tempc(:,:)=1.
+          nc=1
+          do while (nc.le.nclds(ip))
+            nc1=nc ! nc = bottom of cloud block
+            ! search for top of cloud block
+            do while(kbtm(ip,nc1+2).eq.ktop(ip,nc1+1)-1
+     &               .and.nc1.lt.lp1.and.kbtm(ip,nc1+2).gt.1)
+              nc1=nc1+1 ! nc1= top of cloud block
+            end do
+            ctemp=0.
+            ctest=.false.
+            ctest(nc:nc1)=.true. ! cloud layers in current path through cloud block
+            cldfip1=0.
+            ! loop over possible paths through cloud (maximum overlap levels within cloud block)
+            do while (any(ctest(nc:nc1)))
+              pos=minloc(camt(ip,nc+1:nc1+1),ctest(nc:nc1))
+              nc2=pos(1)-1+nc ! level of smallest cloud fraction from remaning levels
+              ctemp=camt(ip,nc2+1)-ctemp ! overlap fraction for current path
+              cldfip(:,:)=1.
+              ! calculate transmission through cloud levels for the current path
+              do nc3=nc,nc1
+                if (ctest(nc3)) then ! only select clouds in current path
+                  xcld=1.-emcld(ip,nc3+1) ! xcld=transmission
+                  k1=ktop(ip,nc3+1)+1
+                  k2=kbtm(ip,nc3+1)
+                  cldfip(1:k2,k1:lp1)=cldfip(1:k2,k1:lp1)*xcld
+                  cldfip(k1:lp1,1:k2)=cldfip(k1:lp1,1:k2)*xcld
+                end if
+              end do
+              cldfip1=cldfip1+ctemp*cldfip !  weighted sum of transmission over possible paths throught the cloud
+              ctest(nc2)=.false.
+              ctemp=camt(ip,nc2+1)
+            end do
+            cldfip1=cldfip1+1.-ctemp ! add clear sky transmission
+            nc=nc1+1
+            tempc(:,:)=tempc(:,:)*cldfip1(:,:) ! random overlap cloud blocks
+          end do
+          cldfac(ip,:,:)=tempc(:,:)
+        end do
+
+      else ! usual
+       do 11 ip=1,imax
+         if (nclds(ip).eq.0) then
+           do 29 i=1,lp1*lp1
+           tempc(i,1)=1.
+29         continue
+         endif
+         if (nclds(ip).ge.1) then
           xcld=1.-camt(ip,2)*emcld(ip,2)
            k1=ktop(ip,2)+1
            k2=kbtm(ip,2)
@@ -43,35 +91,34 @@ c
           do 43 kp=k1,lp1
               cldfip(kp,k)=xcld
 43        continue
-            do 61 i=1,lp1*lp1
-          tempc(i,1,ip)=cldfip(i,1)
+          do 61 i=1,lp1*lp1
+          tempc(i,1)=cldfip(i,1)
 61        continue
-      endif
-      if (nclds(ip).ge.2) then
-        do 21 nc=2,nclds(ip)
-          xcld=1.-camt(ip,nc+1)*emcld(ip,nc+1)
+         endif
+         if (nclds(ip).ge.2) then
+          do 21 nc=2,nclds(ip)
+           xcld=1.-camt(ip,nc+1)*emcld(ip,nc+1)
            k1=ktop(ip,nc+1)+1
            k2=kbtm(ip,nc+1)
-          do 32 i=1,lp1*lp1
+           do 32 i=1,lp1*lp1
               cldfip(i,1)=1.
-32        continue
-          do 42 k=k1,lp1
-          do 42 kp=1,k2
-               cldfip(kp,k)=xcld
-42        continue
-          do 44 k=1,k2
-          do 44 kp=k1,lp1
+32         continue
+           do 42 k=k1,lp1
+           do 42 kp=1,k2
               cldfip(kp,k)=xcld
-44        continue
-            do 62 i=1,lp1*lp1
-          tempc(i,1,ip)=tempc(i,1,ip)*cldfip(i,1)
-62        continue
+42         continue
+           do 44 k=1,k2
+           do 44 kp=k1,lp1
+             cldfip(kp,k)=xcld
+44         continue
+           do 62 i=1,lp1*lp1
+            tempc(i,1)=tempc(i,1)*cldfip(i,1)
+62         continue
 21        continue
-      endif
-11    continue
-      do 70 ip=1,imax
-      do 70 i=1,lp1*lp1
-         cldfac(ip,i,1)=tempc(i,1,ip)
-70      continue
+         endif
+       do 11 i=1,lp1*lp1
+         cldfac(ip,i,1)=tempc(i,1)
+11     continue
+      end if ! nmr.ne.2
       return
       end 

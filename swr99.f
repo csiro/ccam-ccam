@@ -184,6 +184,7 @@ c
       include 'newmpar.h'
       include 'hcon.h'
       include 'rdparm.h'
+      include 'parm.h' ! MJT CHANGE - mr
 
       integer, intent(in) :: ipts
       real, intent(in), dimension(ipts,lp1)  :: press, press2
@@ -215,6 +216,11 @@ c
      &  tclu(ipts,lp1),tcld(ipts,lp1),
      &  tdcl1(ipts,lp1),tdcl2(ipts,lp1),
      &  ufnclu(ipts,lp1),dfnclu(ipts,lp1)
+      double precision alfa1(lp1),alfau1(lp1) ! MJT CHANGE - mr
+      double precision lrd,ltdc               ! MJT CHANGE - mr
+      real ctemp                              ! MJT CHANGE - mr
+      logical ctest(lp1)                      ! MJT CHANGE - mr
+      integer pos(1),k1,k2                    ! MJT CHANGE - mr
 
       real, dimension(ipts,l)    :: du, duco2, duo3
       real, dimension(ipts,llp2) :: uco2, ao3
@@ -302,7 +308,7 @@ c
 
 !     obtain the optical path from the top of the atmosphere to the
 !     flux pressure. angular factors are now included. ud=downward
-!     path for h2o,wigth ur the upward path for h2o. corresponding
+!     path for h2o,with ur the upward path for h2o. corresponding
 !     quantities for co2,o3 are udco2/urco2 and udo3/uro3.
 
       ud(:,1)   = zero
@@ -385,6 +391,19 @@ c
       refl = rray + (one-rray)*(one-rrayav)*cuvrf(:,1)/
      &              (one-cuvrf(:,1)*rrayav)
 
+!   MJT CHANGE - mr (move this outside nx loop)
+!---obtain the pressure at the top,bottom and the thickness of
+!   "thick" clouds (those at least 2 layers thick). this is used
+!   later is obtaining fluxes inside the thick clouds, for all
+!   frequency bands.
+      do kk=1,kclds
+	 do i=1,ipts
+	    if ( (kbtmsw(i,kk+1)-1) > ktopsw(i,kk+1) ) then
+	       pptop(i,kk) = pp(i,ktopsw(i,kk+1))
+	       dpcld(i,kk) = one/(pptop(i,kk)-pp(i,kbtmsw(i,kk+1)))
+	    endif
+	 end do
+      end do
 !
       dfsw = 0.0
       ufsw = 0.0
@@ -445,44 +464,23 @@ c
 !
 !***compute normal case: at least 1 pt has a cloud.
 !
-      if ( kclds /= 0 ) then
+
 !
 !---the following calculation is done for nl=1 case only
 !
+!   MJT CHANGE - mr (moved outside nx loop)
 !---obtain the pressure at the top,bottom and the thickness of
 !   "thick" clouds (those at least 2 layers thick). this is used
 !   later is obtaining fluxes inside the thick clouds, for all
 !   frequency bands.
-      do kk=1,kclds
-	 do i=1,ipts
-	    if ( (kbtmsw(i,kk+1)-1) > ktopsw(i,kk+1) ) then
-	       pptop(i,kk) = pp(i,ktopsw(i,kk+1))
-	       dpcld(i,kk) = one/(pptop(i,kk)-pp(i,kbtmsw(i,kk+1)))
-	    endif
-	 end do
-      end do
-!
-      if ( nx == 1 ) then
-!---the first cloud is the ground; its properties are given
-!   by refl (the transmission (0) is irrelevant for now!).
-	 cr(:,1) = refl
-
-!***obtain cloud reflection and transmission coefficients for
-!   remaining clouds (if any) in the visible band
-!---the maximum no of clouds in the row (kclds) is used. this creates
-!   extra work (may be removed in a subsequent update).
-         do k=2,kclds+1
-	    cr(:,k) = cuvrf(:,k)*camt(:,k)
-	    ct(:,k) = one-cr(:,k)
-	 end do
-
-      else  !  IR, no Rayleigh scattering
-         do k=1,kclds+1
-	    cr(:,k) = cirrf(:,k)*camt(:,k)
-	    ct(:,k) = one-camt(:,k)*(cirrf(:,k)+cirab(:,k))
-	 end do
-      end if
-!
+!      do kk=1,kclds
+!	 do i=1,ipts
+!	    if ( (kbtmsw(i,kk+1)-1) > ktopsw(i,kk+1) ) then
+!	       pptop(i,kk) = pp(i,ktopsw(i,kk+1))
+!	       dpcld(i,kk) = one/(pptop(i,kk)-pp(i,kbtmsw(i,kk+1)))
+!	    endif
+!	 end do
+!      end do
 !
 !***for execution of the cloud loop, it is necessary to separate out
 !   transmission fctns at the top and bottom of the clouds, for
@@ -514,6 +512,164 @@ c
          tdcl1i(:,k) = one/tdcl1(:,k)
          tucl1i(:,k) = one/tucl1(:,k)
       end do
+
+
+      if ( kclds /= 0 .and. nmr.eq.2 ) then ! MJT CHANGE - mr
+      ! modified M/R overlap
+
+      if ( nx == 1 ) then
+!---the first cloud is the ground; its properties are given
+!   by refl (the transmission (0) is irrelevant for now!).
+	 cr(:,1) = refl
+
+!***obtain cloud reflection and transmission coefficients for
+!   remaining clouds (if any) in the visible band
+!---the maximum no of clouds in the row (kclds) is used. this creates
+!   extra work (may be removed in a subsequent update).
+       cr(:,2:kclds+1)=cuvrf(:,2:kclds+1)
+       ct(:,2:kclds+1)=one-cr(:,2:kclds+1)
+  
+      else  !  IR, no Rayleigh scattering
+
+	 cr(:,1:kclds+1)=cirrf(:,1:kclds+1)
+	 ct(:,1:kclds+1)=one-(cirrf(:,1:kclds+1)+cirab(:,1:kclds+1))
+
+      end if
+
+      ! calculate transmission through clouds
+      alfa(:,1) = cr(:,1)
+      alfau(:,1) = zero
+      do k=2,kclds+1
+        alfa(:,k) = cr(:,1)*(tdcl1(:,1)*tdcl1i(:,k))**2 ! clear sky
+        alfau(:,k) = tdcl1(:,k-1)*tdcl1i(:,k)
+      end do
+      do i=1,ipts
+        k=2 
+        do while (k.le.nclds(i)+1)
+          kk=k ! k=bottom of cloud block
+          do while (kbtmsw(i,kk+1).eq.ktopsw(i,kk).and.kk.lt.lp1
+     &              .and.kbtmsw(i,kk+1).gt.1) ! find top of cloud block
+            kk=kk+1 ! kk=top of cloud block
+          end do
+          ctest=.false.
+          ctest(k:kk)=.true. ! cloud layers in current path through cloud block
+          ctemp=zero
+          alfa(i,k:kk)=zero  ! initalise weighted sum at zero
+          alfau(i,k:kk)=zero
+          alfa1(k-1)=alfa(i,k-1)
+          ! loop over possible paths through cloud block (maximum overlap levels within cloud block)
+          do while (any(ctest(k:kk)))
+            pos=minloc(camt(i,k:kk),ctest(k:kk))
+            k1=pos(1)-1+k ! level of smallest cloud fraction from remaning levels
+            ctemp=camt(i,k1)-ctemp ! overlap fraction for current path
+            lrd=alfa1(k-1)    ! last non-trivial reflection
+            ltdc=tdcl1(i,k-1) ! tdcl1 at last non-trivial reflection
+            do k2=k,kk
+              if (ctest(k2)) then !cloud
+                ! transmissivity from top of cloud layer k2 to top of cloud layer k2-1
+                tclu(i,k2-1)=ltdc*tdcl1i(i,k2)*ct(i,k2)
+                ! transmissivity from bottom of cloud layer k2 to top of cloud layer k2-1
+                tcld(i,k2-1)=ltdc/tdcl2(i,k2)
+                ! recursion relation for reflection of the current cloud layer
+                ! and all clouds below
+	          alfa1(k2)=(tdcl1(i,k2-1)*tdcl1i(i,k2)*ct(i,k2))**2
+     &            *alfa1(k2-1)+tclu(i,k2-1)*tclu(i,k2-1)*lrd
+     &            *(1./(1.-tcld(i,k2-1)*tcld(i,k2-1)*lrd*cr(i,k2))
+     &            -1.)+cr(i,k2)
+                ! ratio of downwards flux between level k2 and k2-1 (for calculating dfncld)
+                alfau1(k2)=tdcl1(i,k2-1)*tdcl1i(i,k2)*ct(i,k2)
+     &            /(1.-tcld(i,k2-1)*tcld(i,k2-1)*lrd*cr(i,k2))
+                lrd=alfa1(k2) 
+                ltdc=tdcl1(i,k2)
+              else !clear sky
+                alfa1(k2)=(tdcl1(i,k2-1)*tdcl1i(i,k2)*ct(i,k2))**2
+     &            *alfa1(k2-1)
+                alfau1(k2)=tdcl1(i,k2-1)*tdcl1i(i,k2)
+              end if
+            end do
+            alfa(i,k:kk)=alfa(i,k:kk)+ctemp*alfa1(k:kk) ! sum of reflections over all paths
+            alfau(i,k:kk)=alfau(i,k:kk)+ctemp*alfau1(k:kk)
+            ctemp=camt(i,k1)
+            ctest(k1)=.false.
+          end do
+          alfa(i,k:kk)=alfa(i,k:kk)
+     &      +(1.-ctemp)*alfa(i,k-1)*(tdcl1(i,k-1)*tdcl1i(i,k:kk))**2
+          alfau(i,k:kk)=alfau(i,k:kk)
+     &      +(1.-ctemp)*tdcl1(i,k-1)*tdcl1i(i,k:kk)
+          k=kk+1
+        end do
+        alfa(i,k:kclds+1)=alfa(i,k-1)
+     &    *(tdcl1(i,k-1)*tdcl1i(i,k:kclds+1))**2 ! clear sky
+        ! alfau is already calculated for the clear sky
+      end do
+
+!     calculate ufn at cloud tops and dfn at cloud bottoms
+!---note that ufnclu(i,kclds+1) gives the upward flux at the top
+!   of the highest real cloud (if nclds(i)=kclds). it gives the flux
+!   at the top of the atmosphere if nclds(i) < kclds. in the first
+!   case, tdcl1 equals the transmission fctn to the top of the
+!   highest cloud, as we want. in the second case, tdcl1=1, so ufnclu
+!   equals alfa. this is also correct.
+      ufnclu(:,kclds+1) = alfa(:,kclds+1)*tdcl1(:,kclds+1)
+      dfnclu(:,kclds+1) = tdcl1(:,kclds+1)
+
+!---this calculation is the reverse of the recursion relation used
+!  above
+      do kk=kclds,1,-1
+	 dfnclu(:,kk) = dfnclu(:,kk+1)*alfau(:,kk+1)
+       ufnclu(:,kk) = dfnclu(:,kk)*alfa(:,kk)
+      end do
+
+!     now obtain dfn and ufn for levels between the clouds
+	ufntrn(:,1:kclds+1) = ufnclu(:,1:kclds+1)*tucl1i(:,1:kclds+1)
+	dfntrn(:,1:kclds+1) = dfnclu(:,1:kclds+1)*tdcl1i(:,1:kclds+1)
+!---case of kk=1 (from the ground to the bottom of the lowest cloud)
+      do i=1,ipts
+        ufn(i,kbtmsw(i,2):lp1)=ufntrn(i,1)*ttu(i,kbtmsw(i,2):lp1)
+        dfn(i,kbtmsw(i,2):lp1)=dfntrn(i,1)*ttd(i,kbtmsw(i,2):lp1)
+        do kk=2,nclds(i)+1
+          ufn(i,kbtmsw(i,kk+1):ktopsw(i,kk))=
+     &      ufntrn(i,kk)*ttu(i,kbtmsw(i,kk+1):ktopsw(i,kk))
+          dfn(i,kbtmsw(i,kk+1):ktopsw(i,kk))=
+     &      dfntrn(i,kk)*ttd(i,kbtmsw(i,kk+1):ktopsw(i,kk))
+          if ( kbtmsw(i,kk) - ktopsw(i,kk) > 1 ) then
+            tempf = (ufnclu(i,kk)-ufn(i,kbtmsw(i,kk)))*
+     $                     dpcld(i,kk-1)
+            tempg = (dfnclu(i,kk)-dfn(i,kbtmsw(i,kk)))*
+     $                     dpcld(i,kk-1)
+            ufn(i,ktopsw(i,kk)+1:kbtmsw(i,kk)-1) = ufnclu(i,kk) +
+     $        tempf*(pp(i,ktopsw(i,kk)+1:kbtmsw(i,kk)-1)-pptop(i,kk-1))
+            dfn(i,ktopsw(i,kk)+1:kbtmsw(i,kk)-1) = dfnclu(i,kk) +
+     $        tempg*(pp(i,ktopsw(i,kk)+1:kbtmsw(i,kk)-1)-pptop(i,kk-1))
+          end if
+        end do
+      end do
+
+      else if (kclds /= 0) then ! usual
+
+      if ( nx == 1 ) then
+!---the first cloud is the ground; its properties are given
+!   by refl (the transmission (0) is irrelevant for now!).
+	 cr(:,1) = refl
+
+!***obtain cloud reflection and transmission coefficients for
+!   remaining clouds (if any) in the visible band
+!---the maximum no of clouds in the row (kclds) is used. this creates
+!   extra work (may be removed in a subsequent update).
+       do k=2,kclds+1
+        cr(:,k) = cuvrf(:,k)*camt(:,k)
+        ct(:,k) = one-cr(:,k)
+       end do
+
+      else  !  IR, no Rayleigh scattering
+
+       do k=1,kclds+1
+	  cr(:,k) = cirrf(:,k)*camt(:,k)
+	  ct(:,k) = one-camt(:,k)*(cirrf(:,k)+cirab(:,k))
+	 end do
+
+      end if
+
 !---compute the transmissivity from the top of cloud (k+1) to the
 !   top of cloud (k). the cloud transmission (ct) is included. this
 !   quantity is called tclu (index k). also, obtain the transmissivity
@@ -610,7 +766,6 @@ c
 
       end do BAND ! end of frequency loop (over nx)
 !
-
       grdflx = dfsw(:,lp1) - ufsw(:,lp1)
 !
 !---obtain the net flux and the shortwave heating rate
