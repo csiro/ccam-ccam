@@ -572,19 +572,18 @@ c
                 tcld(i,k2-1)=ltdc/tdcl2(i,k2)
                 ! recursion relation for reflection of the current cloud layer
                 ! and all clouds below
-	          alfa1(k2)=(tdcl1(i,k2-1)*tdcl1i(i,k2)*ct(i,k2))**2
-     &            *alfa1(k2-1)+tclu(i,k2-1)*tclu(i,k2-1)*lrd
-     &            *(1./(1.-tcld(i,k2-1)*tcld(i,k2-1)*lrd*cr(i,k2))
-     &            -1.)+cr(i,k2)
+	          alfa1(k2)=tclu(i,k2-1)*tclu(i,k2-1)*lrd
+     &            /(1.-tcld(i,k2-1)*tcld(i,k2-1)*lrd*cr(i,k2))
+     &            +cr(i,k2)
                 ! ratio of downwards flux between level k2 and k2-1 (for calculating dfncld)
                 alfau1(k2)=tdcl1(i,k2-1)*tdcl1i(i,k2)*ct(i,k2)
      &            /(1.-tcld(i,k2-1)*tcld(i,k2-1)*lrd*cr(i,k2))
                 lrd=alfa1(k2) 
                 ltdc=tdcl1(i,k2)
               else !clear sky
-                alfa1(k2)=(tdcl1(i,k2-1)*tdcl1i(i,k2)*ct(i,k2))**2
-     &            *alfa1(k2-1)
-                alfau1(k2)=tdcl1(i,k2-1)*tdcl1i(i,k2)
+	        tclu(i,k2-1)=tdcl1(i,k2-1)*tdcl1i(i,k2)
+                alfa1(k2)=tclu(i,k2-1)*tclu(i,k2-1)*alfa1(k2-1)
+                alfau1(k2)=tclu(i,k2-1)
               end if
             end do
             alfa(i,k:kk)=alfa(i,k:kk)+ctemp*alfa1(k:kk) ! sum of reflections over all paths
