@@ -323,7 +323,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       integer, dimension(ifull) :: dumm
       real, dimension(ifull) :: pslc
       real, dimension(ifull,kl) :: uc,vc,tc,qc
-      real, parameter :: eta = 0.5 ! MJT daily ave
+      real, parameter :: eta = 0.3 ! MJT daily ave
       logical, save :: firstcall = .true. ! MJT daily ave
       data mtimeb/-1/
       save mtimeb
@@ -2369,9 +2369,9 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
      &              ppass*100+ipass*10+(sn-1)/il_g
             exit
         end select
-  
-        do n=sn,sn+il_g-1
-          do j=1,il_g
+
+        do j=1,il_g  
+          do n=sn,sn+il_g-1
             iq(n,j)=a*n+b*j+c
           end do
         end do
