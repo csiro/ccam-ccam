@@ -1110,6 +1110,10 @@ CONTAINS
           met%qvair = met%qv + (dmah*dmce-dmae*dmch)/(dmah*dmbe-dmae*dmbh+1.0e-12)
           met%qvair = max(0.0,met%qvair)
        END WHERE
+       where (abs(met%tvair-met%tk).gt.20.)
+         met%tvair=met%tk
+         met%qvair=met%qv
+       end where
        ! Saturated specific humidity in canopy:
        qstvair = qsatf((met%tvair-tfrz),met%pmb)
        ! Saturated vapour pressure deficit in canopy:

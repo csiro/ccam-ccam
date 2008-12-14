@@ -9,8 +9,10 @@ module cable_ccam
   public CABLE,sib4,loadcbmparm,getwetfrac
 
   integer, parameter :: CABLE = 4
+  integer, dimension(:), allocatable, save :: cmap
+  integer, dimension(:,:), allocatable, save :: dmap
   real, dimension(:), allocatable, save :: atmco2
-  real, dimension(:), allocatable, save :: swilts,sfcs
+  real(r_1), dimension(:,:), allocatable, save :: sv,vl
   integer, save :: CO2forcingtype=1   ! 1 constant, 2 prescribed 1900-2004,
                                       ! 3 interactive
   TYPE (air_type)             :: air
@@ -33,29 +35,20 @@ module cable_ccam
 
   subroutine sib4
 
-      !use cc_mpi
       use zenith_m
-      !USE air_module
-      !USE canopy_module
-      !USE carbon_module
       USE cbm_module
-      !USE soil_snow_module
       use physical_constants, only : umin
   
       implicit none
 
       include 'newmpar.h'
-      !include 'aalat.h'    ! slwa
       include 'arrays.h'
       include 'carbpools.h'
       include 'const_phys.h' ! grav
       include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg
       include 'extraout.h'
-      !include 'filnames.h'
       include 'latlong.h'  ! rlatt,rlongg
-      !include 'map.h'      ! id,jd,idjd
       include 'morepbl.h'
-      !include 'nsibd.h'    ! rsmin,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
       include 'permsurf.h'
       include 'pbl.h'
@@ -65,10 +58,7 @@ module cable_ccam
       include 'soil.h'     ! ... zmin zolnd zolog sice alb
       include 'soilbal.h'
       include 'soilsnow.h' ! 
-      !include 'soilsnin.h'
-      !include 'soilv.h'    ! ssat, clay,..
       include 'vegpar.h' ! 
-      !include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
 !                     met forcing for CBM
       real dirad,dfgdt,degdt,wetfac,degdw,cie
       real factch,qsttg,rho,zo,aft,fh,ri,theta
@@ -82,16 +72,16 @@ module cable_ccam
       ! for calculation of zenith angle
       real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull)
       real bpyear,alp
+      real risflag(ifull)
 
       integer jyear,jmonth,jday,jhour,jmin
       integer mstart,ktauplus,k,mins,kstart
-      integer ip,iq,j
+      integer nb
 
       integer imonth(12)
       data imonth /31,28,31,30,31,30,31,31,30,31,30,31/
       integer ndoy(12)   ! days from beginning of year (1st Jan is 0)
       data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
-      !save ktauplus
 !
 !      set meteorological forcing
 !
@@ -102,7 +92,6 @@ module cable_ccam
        jmin=ktime-jhour*100
        ! mins from start of year
        mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin
-       !nperday=nint(24.*3600./dt)
        ktauplus=0
        do k=1,jmonth-1
         ktauplus = ktauplus + imonth(k)*nperday
@@ -114,183 +103,385 @@ module cable_ccam
        fjd = float(mod(mins,525600))/1440.  ! 525600 = 1440*365
        call solargh(fjd,bpyear,r1,dlt,alp,slag)
        dhr = 1.e-6
-       call zenith(fjd,r1,dlt,slag,rlatt, &
-     &               rlongg,dhr,ifull,coszro2,taudar2)
+       call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
 
        call setco2for(jyear)
 
-       !  rml: these not moved to cbm_pack because mins, theta, vmod, 
-       !      atmco2, coszro2 not accessible there
-       met%doy = float(mod(mins,24*60*365))/(24.*60.)
-       met%tk = pack(theta,land)
-       met%tc = met%tk - 273.16
-       met%ua = pack(vmod,land)
-       met%ua = max(met%ua,umin)
-       met%ca = 1.e-6 * pack(atmco2,land)
-       met%coszen = max(1.e-8,pack(coszro2,land)) ! use instantaneous value
-
        kstart = 1
-       
-      met%fld = -1. * pack(rgsave,land)        ! long wave down  
-      met%qv = pack(qg(1:ifull,1),land)        ! specific humidity in kg/kg
-      met%pmb = .01*pack(ps(1:ifull),land)     ! pressure in mb at ref height
-      met%precip = pack(condx,land)
-      ! name changed to precip_s (EK nov2007)
-      met%precip_s = 0.0                        ! in mm not mm/sec
-      where ( met%tc < 0.0 ) met%precip_s = met%precip
-      do ip=1,ipland
-        iq = iperm(ip)
-        met%hod(ip)=(met%doy(ip)-int(met%doy(ip)))*24.0 + rlongg(iq)*180./(15.*pi)
-        if (met%hod(ip).gt.24.0) met%hod(ip)=met%hod(ip)-24.0
-        rough%za(ip) = -287.*t(iq,1)*log(sig(1))/grav   ! reference height
-        met%fsd(ip) = sgsave(iq)/(1.-albvisnir(iq,1))! short wave down (positive) W/m^2
-      enddo
 
-      ssoil%albsoilsn(:,1) = pack(albsoilsn(:,1), land)
-      ssoil%albsoilsn(:,2) = pack(albsoilsn(:,2), land)
-      ssoil%albsoilsn(:,3)   = 0.05
-      do k = 1,ms
-        ssoil%tgg(:,k) = pack(tgg(:,k), land)
-        ssoil%wb(:,k) = pack(real(wb(:,k),r_2), land)
-        ssoil%wbice(:,k) = pack(real(wbice(:,k),r_2), land)
-      enddo
+       met%doy=float(mod(mins,24*60*365))/(24.*60.)
+       
+       met%tk=theta(cmap)
+       met%ua=vmod(cmap)
+       met%ca=1.e-6*atmco2(cmap)
+       met%coszen=max(1.e-8,coszro2(cmap)) ! use instantaneous value
+         
+       met%fld=-rgsave(cmap)        ! long wave down  
+       met%qv=qg(cmap,1)        ! specific humidity in kg/kg
+       met%pmb=.01*ps(cmap)     ! pressure in mb at ref height
+       met%precip=condx(cmap)
+       met%hod=(met%doy-int(met%doy))*24.0 + rlongg(cmap)*180./(15.*pi)
+       where (met%hod.gt.24.0) met%hod=met%hod-24.0
+       rough%za=-287.*t(cmap,1)*log(sig(1))/grav   ! reference height
+       met%fsd=sgsave(cmap)/(1.-albvisnir(cmap,1))! short wave down (positive) W/m^2
+
+       ssoil%albsoilsn(:,1)=albsoilsn(cmap,1)
+       ssoil%albsoilsn(:,2)=albsoilsn(cmap,2)
+       ssoil%albsoilsn(:,3)=0.05
+       do k = 1,ms
+         ssoil%tgg(:,k) = tgg(cmap,k)
+         ssoil%wb(:,k) = real(wb(cmap,k),r_2)
+         ssoil%wbice(:,k) = real(wbice(cmap,k),r_2)
+       enddo
+!  are any of these balance variables used?
+       bal%evap_tot=tevap(cmap)
+       bal%precip_tot=tprecip(cmap)
+       bal%ebal_tot=totenbal(cmap)
+       bal%rnoff_tot=trnoff(cmap)
+
+       ssoil%isflag= int(isflag(cmap),i_d)
+       do k = 1,3
+         ssoil%tggsn(:,k) = tggsn(cmap,k)
+         ssoil%smass(:,k) = smass(cmap,k)
+         ssoil%ssdn(:,k) = ssdn(cmap,k)
+       enddo
+
+       ssoil%ssdnn=ssdnn(cmap)
+       ssoil%snowd=snowd(cmap)
+       ssoil%osnowd=osnowd(cmap)
+       bal%osnowd0=osnowd0(cmap)
+       ssoil%snage=snage(cmap)
+       ssoil%rtsoil=rtsoil(cmap)
+
+       canopy%ghflux=gflux(cmap)
+       canopy%sghflux=sgflux(cmap)
+       canopy%cansto=cansto(cmap)
+       
+       do nb=1,5
+         where(dmap(:,nb).gt.0)
+           veg%vlai(dmap(:,nb))=max(vl(:,nb),0.1)
+         end where
+       end do
+
+       sum_flux%sumpn=sumpn(cmap)
+       sum_flux%sumrp=sumrp(cmap)
+       sum_flux%sumrs=sumrs(cmap)
+       sum_flux%sumrd=sumrd(cmap)
+       sum_flux%sumrpw=sumrpw(cmap)
+       sum_flux%sumrpr=sumrpr(cmap)
+       sum_flux%dsumpn=dsumpn(cmap)
+       sum_flux%dsumrp=dsumrp(cmap)
+       sum_flux%dsumrs=dsumrs(cmap)
+       sum_flux%dsumrd=dsumrd(cmap)
+       do k=1,ncp
+         bgc%cplant(:,k) = cplant(cmap,k)
+       enddo
+       do k=1,ncs
+         bgc%csoil(:,k) = csoil(cmap,k)
+       enddo
+      
+       met%tc=met%tk - 273.16
+       met%ua=max(met%ua,umin)
+       met%precip_s=0. ! in mm not mm/sec
+       where ( met%tc < 0.0 ) met%precip_s = met%precip
+       bgc%ratecp(:) = ratecp(:)
+       bgc%ratecs(:) = ratecs(:)
+       
+
+       !!  rml: these not moved to cbm_pack because mins, theta, vmod, 
+       !!      atmco2, coszro2 not accessible there
+       !met%doy = float(mod(mins,24*60*365))/(24.*60.)
+       !met%tk = pack(theta,land)
+       !met%tc = met%tk - 273.16
+       !met%ua = pack(vmod,land)
+       !met%ua = max(met%ua,umin)
+       !met%ca = 1.e-6 * pack(atmco2,land)
+       !met%coszen = max(1.e-8,pack(coszro2,land)) ! use instantaneous value
+
+       
+      !met%fld = -1. * pack(rgsave,land)        ! long wave down  
+      !met%qv = pack(qg(1:ifull,1),land)        ! specific humidity in kg/kg
+      !met%pmb = .01*pack(ps(1:ifull),land)     ! pressure in mb at ref height
+      !met%precip = pack(condx,land)
+      !! name changed to precip_s (EK nov2007)
+      !met%precip_s = 0.0                        ! in mm not mm/sec
+      !where ( met%tc < 0.0 ) met%precip_s = met%precip
+      !do ip=1,ipland
+      !  iq = iperm(ip)
+      !  met%hod(ip)=(met%doy(ip)-int(met%doy(ip)))*24.0 + rlongg(iq)*180./(15.*pi)
+      !  if (met%hod(ip).gt.24.0) met%hod(ip)=met%hod(ip)-24.0
+      !  rough%za(ip) = -287.*t(iq,1)*log(sig(1))/grav   ! reference height
+      !  met%fsd(ip) = sgsave(iq)/(1.-albvisnir(iq,1))! short wave down (positive) W/m^2
+      !enddo
+
+      !ssoil%albsoilsn(:,1) = pack(albsoilsn(:,1), land)
+      !ssoil%albsoilsn(:,2) = pack(albsoilsn(:,2), land)
+      !ssoil%albsoilsn(:,3)   = 0.05
+      !do k = 1,ms
+      !  ssoil%tgg(:,k) = pack(tgg(:,k), land)
+      !  ssoil%wb(:,k) = pack(real(wb(:,k),r_2), land)
+      !  ssoil%wbice(:,k) = pack(real(wbice(:,k),r_2), land)
+      !enddo
 ! rml check ssoil%wbtot calculation may be redone in cable_soilsnow anyway
 ! is bal%wbtot0 ever used?
-      if (ktau == 1) then
-        ssoil%wbtot = 0.
-        DO j=1,ms
-          ssoil%wbtot  = ssoil%wbtot + ssoil%wb(:,j) * soil%zse(j) * 1000.0
-        END DO
-        bal%wbtot0 = ssoil%wbtot
-      endif
+!      !if (ktau == 1) then
+!      !  ssoil%wbtot = 0.
+!      !  DO j=1,ms
+!      !    ssoil%wbtot  = ssoil%wbtot + ssoil%wb(:,j) * soil%zse(j) * 1000.0
+!      !  END DO
+!      !  bal%wbtot0 = ssoil%wbtot
+!      !  wbtot=0.                             ! MJT suggestion
+!      !  wbtot=unpack(ssoil%wbtot,land,wbtot) ! MJT suggestion
+!      !endif
 
 !     bal%wbtot0 = pack(wbtot0, land) !think this is redundant
 !  are any of these balance variables used?
-      bal%evap_tot = pack(tevap, land)
-      bal%precip_tot = pack(tprecip, land)
-      bal%ebal_tot = pack(totenbal, land)
-      bal%rnoff_tot = pack(trnoff, land)
+      !bal%evap_tot = pack(tevap, land)
+      !bal%precip_tot = pack(tprecip, land)
+      !bal%ebal_tot = pack(totenbal, land)
+      !bal%rnoff_tot = pack(trnoff, land)
 
-      ssoil%wbtot = pack(wbtot, land)
-      ssoil%isflag = pack(int(isflag,i_d), land)
-      do k = 1,3
-        ssoil%tggsn(:,k) = pack(tggsn(:,k), land)
-        ssoil%smass(:,k) = pack(smass(:,k), land)
-        ssoil%ssdn(:,k) = pack(ssdn(:,k), land)
-      enddo
+ !    ! ssoil%wbtot = pack(wbtot, land)       ! MJT suggestion
+      !ssoil%isflag = pack(int(isflag,i_d), land)
+      !do k = 1,3
+      !  ssoil%tggsn(:,k) = pack(tggsn(:,k), land)
+      !  ssoil%smass(:,k) = pack(smass(:,k), land)
+      !  ssoil%ssdn(:,k) = pack(ssdn(:,k), land)
+      !enddo
 
-      ssoil%ssdnn = pack(ssdnn, land)
-      ssoil%snowd = pack(snowd, land)
-      ssoil%osnowd = pack(osnowd, land)
-      bal%osnowd0 = pack(osnowd0, land)
-      ssoil%snage = pack(snage, land)
-      !ssoil%isflag = pack(isflag, land)
-      ssoil%rtsoil = pack(rtsoil, land)
+      !ssoil%ssdnn = pack(ssdnn, land)
+      !ssoil%snowd = pack(snowd, land)
+      !ssoil%osnowd = pack(osnowd, land)
+      !bal%osnowd0 = pack(osnowd0, land)
+      !ssoil%snage = pack(snage, land)
+      !ssoil%rtsoil = pack(rtsoil, land)
 
-      canopy%ghflux = pack(gflux, land)
-      canopy%sghflux = pack(sgflux, land)
-      canopy%cansto = pack(cansto, land)
-      veg%vlai = max(pack(vlai, land),0.1)
+      !canopy%ghflux = pack(gflux, land)
+      !canopy%sghflux = pack(sgflux, land)
+      !canopy%cansto = pack(cansto, land)
+      !veg%vlai = max(pack(vlai, land),0.1)
 
-      sum_flux%sumpn = pack(sumpn, land)
-      sum_flux%sumrp = pack(sumrp, land)
-      sum_flux%sumrs = pack(sumrs, land)
-      sum_flux%sumrd = pack(sumrd, land)
-      sum_flux%sumrpw = pack(sumrpw, land)
-      sum_flux%sumrpr = pack(sumrpr, land)
-      sum_flux%dsumpn = pack(dsumpn, land)
-      sum_flux%dsumrp = pack(dsumrp, land)
-      sum_flux%dsumrs = pack(dsumrs, land)
-      sum_flux%dsumrd = pack(dsumrd, land)
-      do k=1,ncp
-        bgc%cplant(:,k) = pack(cplant(:,k), land)
-        bgc%ratecp(k) = ratecp(k)
-      enddo
-      do k=1,ncs
-        bgc%csoil(:,k) = pack(csoil(:,k), land)
-        bgc%ratecs(k) = ratecs(k)
-      enddo
-
+      !sum_flux%sumpn = pack(sumpn, land)
+      !sum_flux%sumrp = pack(sumrp, land)
+      !sum_flux%sumrs = pack(sumrs, land)
+      !sum_flux%sumrd = pack(sumrd, land)
+      !sum_flux%sumrpw = pack(sumrpw, land)
+      !sum_flux%sumrpr = pack(sumrpr, land)
+      !sum_flux%dsumpn = pack(dsumpn, land)
+      !sum_flux%dsumrp = pack(dsumrp, land)
+      !sum_flux%dsumrs = pack(dsumrs, land)
+      !sum_flux%dsumrd = pack(dsumrd, land)
+      !do k=1,ncp
+      !  bgc%cplant(:,k) = pack(cplant(:,k), land)
+      !  bgc%ratecp(k) = ratecp(k)
+      !enddo
+      !do k=1,ncs
+      !  bgc%csoil(:,k) = pack(csoil(:,k), land)
+      !  bgc%ratecs(k) = ratecs(k)
+      !enddo
+      
 !      rml 21/09/07 remove ktauplus+ktau due to change in cable_offline
        CALL cbm(ktau, kstart, ntau, dt, air, bgc, canopy, met, &
      &      bal, rad, rough, soil, ssoil, sum_flux, veg, mxvt, mxst)
 
-      do k=1,2
-        albsoilsn(:,k) = unpack(ssoil%albsoilsn(:,k), land, albsoilsn(:,k))
-        albvisnir(:,k) = unpack(rad%albedo(:,k), land, albvisnir(:,k))
-      enddo
-      runoff= unpack(ssoil%runoff, land, runoff)
-      rnof1= unpack(ssoil%rnof1, land, rnof1)
-      rnof2= unpack(ssoil%rnof2, land, rnof2)
-      wbtot= unpack(ssoil%wbtot, land, wbtot)
-      tevap = unpack(bal%evap_tot, land, tevap)
-      tprecip = unpack(bal%precip_tot, land, tprecip)
-      totenbal = unpack(bal%ebal_tot, land, totenbal)
-      trnoff = unpack(bal%rnoff_tot, land, trnoff)
-      do k = 1,ms
-        tgg(:,k)= unpack(ssoil%tgg(:,k), land, tgg(:,k))
-        wb(:,k)= unpack(real(ssoil%wb(:,k),r_1), land, wb(:,k))
-        wbice(:,k)= unpack(real(ssoil%wbice(:,k),r_1), land, wbice(:,k))
-      enddo
-      do k = 1,3
-        tggsn(:,k)= unpack(ssoil%tggsn(:,k), land, tggsn(:,k))
-        smass(:,k)= unpack(ssoil%smass(:,k), land, smass(:,k))
-        ssdn(:,k)= unpack(ssoil%ssdn(:,k), land, ssdn(:,k))
-      enddo
+      albsoilsn(iperm(1:ipland),:)=0.
+      albvisnir(iperm(1:ipland),:)=0.
+      runoff(iperm(1:ipland))=0.
+      rnof1(iperm(1:ipland))=0.
+      rnof2(iperm(1:ipland))=0.
+      wbtot(iperm(1:ipland))=0.
+      tevap(iperm(1:ipland))=0.
+      tprecip(iperm(1:ipland))=0.
+      totenbal(iperm(1:ipland))=0.
+      trnoff(iperm(1:ipland))=0.
+      tgg(iperm(1:ipland),:)=0.
+      wb(iperm(1:ipland),:)=0.
+      wbice(iperm(1:ipland),:)=0.
+      tggsn(iperm(1:ipland),:)=0.
+      smass(iperm(1:ipland),:)=0.
+      ssdn(iperm(1:ipland),:)=0.
+      ssdnn(iperm(1:ipland))=0.
+      snowd(iperm(1:ipland))=0.
+      osnowd(iperm(1:ipland))=0.
+      osnowd0(iperm(1:ipland))=0.
+      snage(iperm(1:ipland))=0.
+      risflag(iperm(1:ipland))=0.
+      rtsoil(iperm(1:ipland))=0.
+      rnet(iperm(1:ipland))=0.
+      fg(iperm(1:ipland))=0.
+      eg(iperm(1:ipland))=0.
+      epot(iperm(1:ipland))=0.
+      tss(iperm(1:ipland))=0.
+      cansto(iperm(1:ipland))=0.
+      gflux(iperm(1:ipland))=0.
+      sgflux(iperm(1:ipland))=0.
+      fnee(iperm(1:ipland))=0.
+      fpn(iperm(1:ipland))=0.
+      frd(iperm(1:ipland))=0.
+      frp(iperm(1:ipland))=0.
+      frpw(iperm(1:ipland))=0.
+      frpr(iperm(1:ipland))=0.
+      frs(iperm(1:ipland))=0.
+      sumpn(iperm(1:ipland))=0.
+      sumrp(iperm(1:ipland))=0.
+      sumrpw(iperm(1:ipland))=0.
+      sumrpr(iperm(1:ipland))=0.
+      sumrs(iperm(1:ipland))=0.
+      sumrd(iperm(1:ipland))=0.
+      cplant(iperm(1:ipland),:)=0.
+      csoil(iperm(1:ipland),:)=0.
+      zo(iperm(1:ipland))=0.
+      do nb=1,5
+        do k=1,2
+          where(dmap(:,nb).gt.0)
+            albsoilsn(iperm(1:ipland),k)=albsoilsn(iperm(1:ipland),k)+sv(:,nb)*ssoil%albsoilsn(dmap(:,nb),k)
+            albvisnir(iperm(1:ipland),k)=albvisnir(iperm(1:ipland),k)+sv(:,nb)*rad%albedo(dmap(:,nb),k)
+          end where
+        end do
+        do k=1,ms
+          where(dmap(:,nb).gt.0)
+            tgg(iperm(1:ipland),k)=tgg(iperm(1:ipland),k)+sv(:,nb)*ssoil%tgg(dmap(:,nb),k)
+            wb(iperm(1:ipland),k)=wb(iperm(1:ipland),k)+sv(:,nb)*ssoil%wb(dmap(:,nb),k)
+            wbice(iperm(1:ipland),k)=wbice(iperm(1:ipland),k)+sv(:,nb)*ssoil%wbice(dmap(:,nb),k)
+          end where
+        end do
+        do k=1,3
+          where(dmap(:,nb).gt.0)
+            tggsn(iperm(1:ipland),k)=tggsn(iperm(1:ipland),k)+sv(:,nb)*ssoil%tggsn(dmap(:,nb),k)
+            smass(iperm(1:ipland),k)=smass(iperm(1:ipland),k)+sv(:,nb)*ssoil%smass(dmap(:,nb),k)
+            ssdn(iperm(1:ipland),k)=ssdn(iperm(1:ipland),k)+sv(:,nb)*ssoil%ssdn(dmap(:,nb),k)
+          end where
+        end do
+        do k=1,ncp
+          where(dmap(:,nb).gt.0)
+            cplant(iperm(1:ipland),k)=cplant(iperm(1:ipland),k)+sv(:,nb)*bgc%cplant(dmap(:,nb),k)
+          end where
+        enddo
+        do k=1,ncs
+          where(dmap(:,nb).gt.0)
+            csoil(iperm(1:ipland),k)=csoil(iperm(1:ipland),k)+sv(:,nb)*bgc%csoil(dmap(:,nb),k)
+          end where
+        enddo
+        where(dmap(:,nb).gt.0)
+          runoff(iperm(1:ipland))=runoff(iperm(1:ipland))+sv(:,nb)*ssoil%runoff(dmap(:,nb))
+          rnof1(iperm(1:ipland))=rnof1(iperm(1:ipland))+sv(:,nb)*ssoil%rnof1(dmap(:,nb))
+          rnof2(iperm(1:ipland))=rnof2(iperm(1:ipland))+sv(:,nb)*ssoil%rnof2(dmap(:,nb))
+          wbtot(iperm(1:ipland))=wbtot(iperm(1:ipland))+sv(:,nb)*ssoil%wbtot(dmap(:,nb))
+          tevap(iperm(1:ipland))=tevap(iperm(1:ipland))+sv(:,nb)*bal%evap_tot(dmap(:,nb))
+          tprecip(iperm(1:ipland))=tprecip(iperm(1:ipland))+sv(:,nb)*bal%precip_tot(dmap(:,nb))
+          totenbal(iperm(1:ipland))=totenbal(iperm(1:ipland))+sv(:,nb)*bal%ebal_tot(dmap(:,nb))
+          trnoff(iperm(1:ipland))=trnoff(iperm(1:ipland))+sv(:,nb)*bal%rnoff_tot(dmap(:,nb))
+          ssdnn(iperm(1:ipland))=ssdnn(iperm(1:ipland))+sv(:,nb)*ssoil%ssdnn(dmap(:,nb))
+          snowd(iperm(1:ipland))=snowd(iperm(1:ipland))+sv(:,nb)*ssoil%snowd(dmap(:,nb))
+          osnowd(iperm(1:ipland))=osnowd(iperm(1:ipland))+sv(:,nb)*ssoil%osnowd(dmap(:,nb))
+          osnowd0(iperm(1:ipland))=osnowd0(iperm(1:ipland))+sv(:,nb)*bal%osnowd0(dmap(:,nb))
+          snage(iperm(1:ipland))=snage(iperm(1:ipland))+sv(:,nb)*ssoil%snage(dmap(:,nb))
+          risflag(iperm(1:ipland))=risflag(iperm(1:ipland))+sv(:,nb)*real(ssoil%isflag(dmap(:,nb)))
+          rtsoil(iperm(1:ipland))=rtsoil(iperm(1:ipland))+sv(:,nb)*ssoil%rtsoil(dmap(:,nb))
+          rnet(iperm(1:ipland))=rnet(iperm(1:ipland))+sv(:,nb)*canopy%rnet(dmap(:,nb))
+          fg(iperm(1:ipland))=fg(iperm(1:ipland))+sv(:,nb)*canopy%fh(dmap(:,nb))
+          eg(iperm(1:ipland))=eg(iperm(1:ipland))+sv(:,nb)*canopy%fe(dmap(:,nb))
+          epot(iperm(1:ipland))=epot(iperm(1:ipland))+sv(:,nb)*ssoil%potev(dmap(:,nb))
+          tss(iperm(1:ipland))=tss(iperm(1:ipland))+sv(:,nb)*rad%trad(dmap(:,nb))
+          cansto(iperm(1:ipland))=cansto(iperm(1:ipland))+sv(:,nb)*canopy%cansto(dmap(:,nb))
+          gflux(iperm(1:ipland))=gflux(iperm(1:ipland))+sv(:,nb)*canopy%ghflux(dmap(:,nb))
+          sgflux(iperm(1:ipland))=sgflux(iperm(1:ipland))+sv(:,nb)*canopy%sghflux(dmap(:,nb))
+          fnee(iperm(1:ipland))=fnee(iperm(1:ipland))+sv(:,nb)*canopy%fnee(dmap(:,nb))
+          fpn(iperm(1:ipland))=fpn(iperm(1:ipland))+sv(:,nb)*canopy%fpn(dmap(:,nb))
+          frd(iperm(1:ipland))=frd(iperm(1:ipland))+sv(:,nb)*canopy%frday(dmap(:,nb))
+          frp(iperm(1:ipland))=frp(iperm(1:ipland))+sv(:,nb)*canopy%frp(dmap(:,nb))
+          frpw(iperm(1:ipland))=frpw(iperm(1:ipland))+sv(:,nb)*canopy%frpw(dmap(:,nb))
+          frs(iperm(1:ipland))=frs(iperm(1:ipland))+sv(:,nb)*canopy%frs(dmap(:,nb))
+          sumpn(iperm(1:ipland))=sumpn(iperm(1:ipland))+sv(:,nb)*sum_flux%sumpn(dmap(:,nb))
+          sumrp(iperm(1:ipland))=sumrp(iperm(1:ipland))+sv(:,nb)*sum_flux%sumrp(dmap(:,nb))
+          sumrpw(iperm(1:ipland))=sumrpw(iperm(1:ipland))+sv(:,nb)*sum_flux%sumrpw(dmap(:,nb))
+          sumrpr(iperm(1:ipland))=sumrpr(iperm(1:ipland))+sv(:,nb)*sum_flux%sumrpr(dmap(:,nb))
+          sumrs(iperm(1:ipland))=sumrs(iperm(1:ipland))+sv(:,nb)*sum_flux%sumrs(dmap(:,nb))
+          sumrd(iperm(1:ipland))=sumrd(iperm(1:ipland))+sv(:,nb)*sum_flux%sumrd(dmap(:,nb))
+          zo(iperm(1:ipland))=zo(iperm(1:ipland))+1./log(zmin/rough%z0m(dmap(:,nb)))**2
+        end where
+      end do
+      where (land)
+        isflag=nint(risflag)
+        zo=max(zmin*exp(-sqrt(1./zo)),zobgin)
+      end where
+        
+      !do k=1,2
+      !  albsoilsn(:,k) = unpack(ssoil%albsoilsn(:,k), land, albsoilsn(:,k))
+      !  albvisnir(:,k) = unpack(rad%albedo(:,k), land, albvisnir(:,k))
+      !enddo
+      !runoff= unpack(ssoil%runoff, land, runoff)
+      !rnof1= unpack(ssoil%rnof1, land, rnof1)
+      !rnof2= unpack(ssoil%rnof2, land, rnof2)
+      !wbtot= unpack(ssoil%wbtot, land, wbtot)
+      !tevap = unpack(bal%evap_tot, land, tevap)
+      !tprecip = unpack(bal%precip_tot, land, tprecip)
+      !totenbal = unpack(bal%ebal_tot, land, totenbal)
+      !trnoff = unpack(bal%rnoff_tot, land, trnoff)
+      !do k = 1,ms
+      !  tgg(:,k)= unpack(ssoil%tgg(:,k), land, tgg(:,k))
+      !  wb(:,k)= unpack(real(ssoil%wb(:,k),r_1), land, wb(:,k))
+      !  wbice(:,k)= unpack(real(ssoil%wbice(:,k),r_1), land, wbice(:,k))
+      !enddo
+      !do k = 1,3
+      !  tggsn(:,k)= unpack(ssoil%tggsn(:,k), land, tggsn(:,k))
+      !  smass(:,k)= unpack(ssoil%smass(:,k), land, smass(:,k))
+      !  ssdn(:,k)= unpack(ssoil%ssdn(:,k), land, ssdn(:,k))
+      !enddo
 
-      ssdnn= unpack(ssoil%ssdnn, land, ssdnn)
-      snowd= unpack(ssoil%snowd, land, snowd)
-      osnowd= unpack(ssoil%osnowd, land, osnowd)
-      osnowd0= unpack(bal%osnowd0, land, osnowd0)
-      snage= unpack(ssoil%snage, land, snage)
-      isflag= unpack(int(ssoil%isflag), land, isflag)
-      rtsoil= unpack(ssoil%rtsoil, land, rtsoil)
-      rnet = unpack(canopy%rnet,  land, rnet)
-      fg = unpack(canopy%fh,  land, fg)
-      eg = unpack(canopy%fe,  land, eg)
-      epot = unpack(ssoil%potev,  land, epot)
-      tss = unpack(rad%trad,  land, tss)
-      !tscrn = unpack(canopy%tscrn+273.16,  land, tscrn)    ! clobbered by scrnout?
-      !qgscrn = unpack(canopy%qscrn,  land, qgscrn)  ! clobbered by scrnout?
-      !uscrn = unpack(canopy%uscrn,  land, uscrn)    ! clobbered by scrnout?
-      !cduv= unpack(canopy%cduv, land, cduv)         ! clobbered by scrnout? (to get scrnout to work)
-      cansto= unpack(canopy%cansto, land, cansto)
-      vlai= unpack(veg%vlai, land, vlai)
-      gflux = unpack(canopy%ghflux, land, gflux)
-      sgflux = unpack(canopy%sghflux, land, sgflux)
-      !rtsoil = unpack(ssoil%rtsoil, land, rtsoil)
-      fnee= unpack(canopy%fnee, land, fnee)
-      fpn= unpack(canopy%fpn, land, fpn)
-      frd= unpack(canopy%frday, land, frd)
-      frp= unpack(canopy%frp, land, frp)
-      frpw= unpack(canopy%frpw, land, frpw)
-      frpr= unpack(canopy%frpr, land, frpr)
-      frs= unpack(canopy%frs, land, frs)
-      sumpn= unpack(sum_flux%sumpn, land, sumpn)
-      sumrp= unpack(sum_flux%sumrp, land, sumrp)
-      sumrpw= unpack(sum_flux%sumrpw, land, sumrpw)
-      sumrpr= unpack(sum_flux%sumrpr, land, sumrpr)
-      sumrs= unpack(sum_flux%sumrs, land, sumrs)
-      sumrd= unpack(sum_flux%sumrd, land, sumrd)
+      !ssdnn= unpack(ssoil%ssdnn, land, ssdnn)
+      !snowd= unpack(ssoil%snowd, land, snowd)
+      !osnowd= unpack(ssoil%osnowd, land, osnowd)
+      !osnowd0= unpack(bal%osnowd0, land, osnowd0)
+      !snage= unpack(ssoil%snage, land, snage)
+      !isflag= unpack(int(ssoil%isflag), land, isflag)
+      !rtsoil= unpack(ssoil%rtsoil, land, rtsoil)
+      !rnet = unpack(canopy%rnet,  land, rnet)
+      !fg = unpack(canopy%fh,  land, fg)
+      !eg = unpack(canopy%fe,  land, eg)
+      !epot = unpack(ssoil%potev,  land, epot)
+      !tss = unpack(rad%trad,  land, tss)
+      !!tscrn = unpack(canopy%tscrn+273.16,  land, tscrn)    ! clobbered by scrnout?
+      !!qgscrn = unpack(canopy%qscrn,  land, qgscrn)  ! clobbered by scrnout?
+      !!uscrn = unpack(canopy%uscrn,  land, uscrn)    ! clobbered by scrnout?
+      !!cduv= unpack(canopy%cduv, land, cduv)         ! clobbered by scrnout? (to get scrnout to work)
+      !cansto= unpack(canopy%cansto, land, cansto)
+      !vlai= unpack(veg%vlai, land, vlai)
+      !gflux = unpack(canopy%ghflux, land, gflux)
+      !sgflux = unpack(canopy%sghflux, land, sgflux)
+      !!rtsoil = unpack(ssoil%rtsoil, land, rtsoil)
+      !fnee= unpack(canopy%fnee, land, fnee)
+      !fpn= unpack(canopy%fpn, land, fpn)
+      !frd= unpack(canopy%frday, land, frd)
+      !frp= unpack(canopy%frp, land, frp)
+      !frpw= unpack(canopy%frpw, land, frpw)
+      !frpr= unpack(canopy%frpr, land, frpr)
+      !frs= unpack(canopy%frs, land, frs)
+      !sumpn= unpack(sum_flux%sumpn, land, sumpn)
+      !sumrp= unpack(sum_flux%sumrp, land, sumrp)
+      !sumrpw= unpack(sum_flux%sumrpw, land, sumrpw)
+      !sumrpr= unpack(sum_flux%sumrpr, land, sumrpr)
+      !sumrs= unpack(sum_flux%sumrs, land, sumrs)
+      !sumrd= unpack(sum_flux%sumrd, land, sumrd)
 ! rml - if not bothering to unpack these here (or write them out), perhaps 
 ! should delete everywhere
 !    dsumpn= unpack(sum_flux%dsumpn, land, dsumpn)
 !    dsumrp= unpack(sum_flux%dsumrp, land, dsumrp)
 !    dsumrs= unpack(sum_flux%dsumrs, land, dsumrs)
 !    dsumrd= unpack(sum_flux%dsumrd, land, dsumrd)
-      do k=1,3
-        cplant(:,k)= unpack(bgc%cplant(:,k), land, cplant(:,k))
+      !do k=1,ncp
+      !  cplant(:,k)= unpack(bgc%cplant(:,k), land, cplant(:,k))
 ! need? rates don't change?
-        ratecp(k)= bgc%ratecp(k)
-      enddo
-      do k=1,2
-        csoil(:,k)= unpack(bgc%csoil(:,k), land, csoil(:,k))
+      !  ratecp(k)= bgc%ratecp(k)
+      !enddo
+      !do k=1,ncs
+      !  csoil(:,k)= unpack(bgc%csoil(:,k), land, csoil(:,k))
 ! need? rates don't change?
-        ratecs(k)= bgc%ratecs(k)
-      enddo
+      !  ratecs(k)= bgc%ratecs(k)
+      !enddo
       
       ! MJT CHANGE - cable
-      zo=unpack(rough%z0m,land,zo)
+      !zo=unpack(rough%z0m,land,zo)
 
       return
       end subroutine sib4
@@ -353,9 +544,10 @@ module cable_ccam
       end subroutine setco2for
 
 
-  subroutine loadcbmparm(fveg,fsoil)
+  subroutine loadcbmparm(fveg)
 
   use cc_mpi
+  use define_dimensions, only : mp
   
   implicit none
   
@@ -366,6 +558,7 @@ module cable_ccam
   include 'nsibd.h'
   include 'parm.h'
   include 'parmgeom.h'  ! rlong0,rlat0,schmidt
+  include 'sigs.h'
   include 'soil.h'
   include 'soilsnow.h'
   include 'soilv.h'
@@ -373,35 +566,49 @@ module cable_ccam
 
   integer(i_d), dimension(ifull_g,5) :: ivsg
   integer(i_d), dimension(ifull,5) :: ivs
-  integer(i_d) iq,n,nb,mp,k,iad
+  integer(i_d) iq,n,nb,k,iad,ipos,ip
   real(r_1) :: totdepth,ra,rb
-  !real(r_1), dimension(mxvt) :: totroot
   real(r_1), dimension(mxvt,ms) :: froot2
-  real(r_1), dimension(:), allocatable :: sv
-  real(r_1), dimension(ifull_g,5) :: svsg
-  real(r_1), dimension(ifull,5) :: svs
-  character(len=*), intent(in) :: fveg,fsoil
+  real(r_1), dimension(ifull_g,5) :: svsg,vling
+  real(r_1), dimension(ifull,5) :: svs,vlin
+  character(len=*), intent(in) :: fveg
   character(len=10), dimension(mxvt) :: vegtype
   integer ilx,jlx
   real rlong0x,rlat0x,schmidtx,dsx
   character*47 header
 
   if (myid == 0) print *,"Setting CABLE defaults (igbp)"
+  
+  zmin=-rdry*280.*log(sig(1))/grav ! not yet defined in indata.f
 
-  hc=(/ 17.,35.,15.5,20.,19.3,0.6,0.6,7.,8.,0.6,0.5,0.6,6.,0.6,0.01,0.2,0.01 /)
-  xfang=(/ 0.01,0.1,0.01,0.25,0.13,0.,0.,-0.14,-0.01,-0.3,0.,0.,-0.17,0.,0.01,0.01,0.01 /)
-  dleaf=(/ 0.055,0.1,0.04,0.15,0.1,0.1,0.1,0.232,0.129,0.3,0.3,0.3,0.242,0.3,0.005,0.03,0.005 /)
+  hc=(/ 17.,35.,15.5,20.,19.25,0.6,0.6,7.0426,14.3379,0.567,0.5,0.55,6.017,0.55,0.2,0.2,0.2 /)
+  xfang=(/ 0.01,0.1,0.01,0.25,0.125,-0.3,0.01,-0.3,-0.3,-0.3,0.,-0.3,0.,-0.3,0.,0.1,0. /)
+  dleaf=(/ 0.055,0.1,0.04,0.15,0.1,0.1,0.1,0.233,0.129,0.3,0.3,0.3,0.242,0.3,0.03,0.03,0.03 /)
   xalbnir=(/ 0.79,0.96,0.81,1.,1.08,1.14,1.2,1.02,1.23,1.16,0.89,0.98,1.1,1.13,1.,1.15,1. /)
   wai=(/ 1.,1.,1.,1.,1.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0. /)
   canst1=0.1
   shelrb=2.
-  vegcf=(/ 0.91,1.95,0.73,1.5,1.5,2.8,2.8,2.8,2.8,2.75,2.,2.8,0.,2.8,0.6,0.6,0. /)
-  vegtype(:)='others'
+  vegcf=(/ 0.91,1.95,0.73,1.5,1.55,0.6,2.05,2.8,2.75,2.75,0.,2.8,0.,2.8,0.,0.4,0. /)
+  vegtype(1)='forest'
+  vegtype(2)='forest'
   vegtype(3)='deciduous'
   vegtype(4)='deciduous'
+  vegtype(5)='forest'
+  vegtype(6)='not used'
+  vegtype(7)='shrub'
+  vegtype(8)='shrub'
+  vegtype(9)='shrub'
+  vegtype(10)='grass'
+  vegtype(11)='not used'
+  vegtype(12)='crop'
+  vegtype(13)='not used'
+  vegtype(14)='not used'
+  vegtype(15)='no veg'
+  vegtype(16)='grass'
+  vegtype(17)='not used'
   extkn=0.7
   vcmax=(/ 65.2E-6,65.E-6,70.E-6,85.0E-6,80.E-6,20.E-6,20.E-6,10.E-6,20.E-6,10.E-6,50.E-6,80.E-6,1.E-6,80.E-6, &
-           1.E-6,17.E-6,1.E-6 /)
+           17.E-6,17.E-6,17.E-6 /)
   ejmax=2.*vcmax
   rp20=(/ 3.3039,1.1342,3.2879,1.4733,2.3704,5.,5.,1.05,2.,0.8037,1.,3.,1.,3.,0.1,0.1,0.1 /)
   rpcoef=0.0832
@@ -435,7 +642,6 @@ module cable_ccam
 ! preferred option
 ! froot is now calculated from soil depth and the new parameter rootbeta 
 ! according to Jackson et al. 1996, Oceologica, 108:389-411
-  !totroot(:) = 1.0-rootbeta(:)**(sum(soil%zse)*100.0)
   totdepth = 0.0
   do k=1,ms
     totdepth = totdepth + soil%zse(k)*100.0
@@ -445,11 +651,46 @@ module cable_ccam
     froot2(:,k) = froot2(:,k) - froot2(:,k-1)
   enddo
   
-  mp=count(land)
+  if (myid==0) then
+    print *,"Reading land-use data for CABLE"
+    open(87,file=fveg,status='old')
+    read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+    if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
+    do iq=1,ifull_g
+      read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
+                 ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
+    end do
+    close(87)
+    do n=1,5
+      call ccmpi_distribute(ivs(:,n),ivsg(:,n))
+      call ccmpi_distribute(svs(:,n),svsg(:,n))
+      call ccmpi_distribute(vlin(:,n),vling(:,n))
+    end do
+  else
+    do n=1,5
+      call ccmpi_distribute(ivs(:,n))
+      call ccmpi_distribute(svs(:,n))
+      call ccmpi_distribute(vlin(:,n))
+    end do
+  end if
+  do n=1,5
+    svs(:,n)=svs(:,n)/sum(svs,2)
+  end do
+
+  !mp=count(land)
+   mp=0
+   do iq=1,ifull
+     if (land(iq)) then
+       mp=mp+count(svs(iq,:).gt.0.)
+     end if
+   end do
+   nb=count(land)
   
-  allocate(sv(mp))
+  !allocate(sv(mp))
+  allocate(sv(nb,5))
+  allocate(vl(nb,5))
+  allocate(cmap(mp),dmap(nb,5))
   allocate(atmco2(ifull))
-  allocate(swilts(ifull),sfcs(ifull))
   call alloc_cbm_var(air, mp)
   call alloc_cbm_var(bgc, mp)
   call alloc_cbm_var(canopy, mp)
@@ -462,198 +703,104 @@ module cable_ccam
   call alloc_cbm_var(sum_flux, mp)
   call alloc_cbm_var(veg, mp)
   
-  if (myid==0) then
-    print *,"Reading land-use data for CABLE"
-    open(87,file=fveg,status='old')
-    read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-    if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
-    do iq=1,ifull_g
-      read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),ivsg(iq,2),svsg(iq,2),ivsg(iq,3),svsg(iq,3), &
-                 ivsg(iq,4),svsg(iq,4),ivsg(iq,5),svsg(iq,5)
-    end do
-    close(87)
-    do n=1,5
-      call ccmpi_distribute(ivs(:,n),ivsg(:,n))
-      call ccmpi_distribute(svs(:,n),svsg(:,n))
-    end do
-  else
-    do n=1,5
-      call ccmpi_distribute(ivs(:,n))
-      call ccmpi_distribute(svs(:,n))
-    end do
-  end if
+  dmap=0
+  ipos=0
   do n=1,5
-    svs(:,n)=svs(:,n)/sum(svs,2)
+    ip=0
+    call getc4(ifull,ivs(:,n),rlatt(:)*180./pi,c4frac(:))
+    do iq=1,ifull
+      if (land(iq)) then
+        ip=ip+1
+        if (svs(iq,n).gt.0.) then
+          ipos=ipos+1
+          if (ivs(iq,n).lt.1) then
+            print *,"ERROR: Land-type/lsmask mismatch at iq=",iq
+            stop
+          end if
+          cmap(ipos)=iq
+          dmap(ip,n)=ipos
+          sv(ip,n)=svs(iq,n)
+          vl(ip,n)=vlin(iq,n)
+          veg%iveg(ipos)=ivs(iq,n)
+          soil%isoilm(ipos)=isoilm(iq)
+          veg%frac4(ipos)=c4frac(iq)
+        end if
+      end if
+    end do
   end do
   
-  veg%canst1=0.
-  veg%ejmax=0.
-  veg%hc=0.
-  veg%frac4=0.
-  veg%tminvj=0.
-  veg%tmaxvj=0.
-  veg%vbeta=0.
-  veg%rp20=0.
-  veg%rpcoef=0.
-  veg%shelrb=0.
-  veg%vcmax=0.
-  veg%xfang=0.
-  veg%dleaf=0.
-  veg%wai=0.
-  veg%vegcf=0.
-  veg%extkn=0.
-  veg%xalbnir=0.
-  soil%rs20=0.
-  veg%froot=0.
+  do iq=1,ifull
+    vlai(iq)=dot_product(vlin(iq,:),svs(iq,:))
+  end do
+  
+  ! aggregate zom
   zolnd=0.
+  !veg%frac4=0.
   do n=1,5
-    veg%iveg   = pack(int(ivs(:,n),i_d), land)
-    sv         = pack(svs(:,n), land)
-    if (any(veg%iveg.lt.1)) then
-      print *,"ERROR: Land-type/lsmask mismatch"
-      stop
-    end if
-    veg%canst1 = veg%canst1 +sv*canst1(veg%iveg)
-    veg%ejmax  = veg%ejmax  +sv*ejmax(veg%iveg)
-    veg%hc     = veg%hc     +sv*hc(veg%iveg)
-    call getc4(ifull,ivs(:,n),rlatt*180./pi,c4frac)
-    veg%frac4  = veg%frac4  +sv*pack(c4frac,land)
-    veg%tminvj = veg%tminvj +sv*tminvj(veg%iveg)
-    veg%tmaxvj = veg%tmaxvj +sv*tmaxvj(veg%iveg)
-    veg%vbeta  = veg%vbeta  +sv*vbeta(veg%iveg)
-    veg%rp20   = veg%rp20   +sv*rp20(veg%iveg)
-    veg%rpcoef = veg%rpcoef +sv*rpcoef(veg%iveg)
-    veg%shelrb = veg%shelrb +sv*shelrb(veg%iveg)
-    veg%vcmax  = veg%vcmax  +sv*vcmax(veg%iveg)
-    veg%xfang  = veg%xfang  +sv*xfang(veg%iveg)
-    veg%dleaf  = veg%dleaf  +sv*dleaf(veg%iveg)
-    veg%wai    = veg%wai    +sv*wai(veg%iveg)
-    veg%vegcf  = veg%vegcf  +sv*vegcf(veg%iveg)
-    veg%extkn  = veg%extkn  +sv*extkn(veg%iveg)
-    veg%xalbnir= veg%xalbnir+sv*xalbnir(veg%iveg)
-    soil%rs20  = soil%rs20  +sv*rs20(veg%iveg)
-    do k=1,ms
-      veg%froot(:,k)=veg%froot(:,k)+sv*froot2(veg%iveg,k)
-    end do
+  !  call getc4(ifull,ivs(:,n),rlatt*180./pi,c4frac)
+  !  veg%frac4 = veg%frac4 + pack(svs(:,n)*c4frac,land)
     where (land)
-      zolnd=zolnd+svs(:,n)*0.1*hc(ivs(:,n))
+      zolnd=zolnd+svs(:,n)/log(zmin/(0.1*hc(ivs(:,n))))**2
     end where
   end do
+  zolnd=max(zmin*exp(-sqrt(1./zolnd)),zobgin)
+  !veg%hc=pack(10.*zolnd,land)
+  
+  ! use dominant veg type
   ivegt=ivs(:,1)
-  veg%iveg   = pack(int(ivegt,i_d), land)
-  veg%deciduous =(vegtype(veg%iveg).eq.'deciduous') ! MJT suggestion
-  zolnd=max(zolnd,zobgin)
+  !veg%iveg   = pack(int(ivegt,i_d), land)  
+  veg%canst1 = canst1(veg%iveg)
+  veg%ejmax  = ejmax(veg%iveg)
+  veg%tminvj = tminvj(veg%iveg)
+  veg%tmaxvj = tmaxvj(veg%iveg)
+  veg%vbeta  = vbeta(veg%iveg)
+  veg%rp20   = rp20(veg%iveg)
+  veg%rpcoef = rpcoef(veg%iveg)
+  veg%shelrb = shelrb(veg%iveg)
+  veg%vcmax  = vcmax(veg%iveg)
+  veg%xfang  = xfang(veg%iveg)
+  veg%dleaf  = dleaf(veg%iveg)
+  veg%wai    = wai(veg%iveg)
+  veg%vegcf  = vegcf(veg%iveg)
+  veg%extkn  = extkn(veg%iveg)
+  veg%xalbnir= xalbnir(veg%iveg)
+  soil%rs20  = rs20(veg%iveg)
+  do k=1,ms
+    veg%froot(:,k)=froot2(veg%iveg,k)
+  end do
+  veg%deciduous =(vegtype(veg%iveg).eq.'deciduous')
   
   if (all(cplant.eq.0.)) then
     if (myid == 0) print *,"Using default carbpools"
-    cplant=0.
-    csoil=0.
-    do n=1,5
-      do k=1,ncp
-        where (land)
-          cplant(:,ncp)=cplant(:,ncp)+svs(:,n)*tcplant(ivs(:,n),ncp)
-        end where
-      end do
-      do k=1,ncs
-        where (land)        
-          csoil(:,ncs)=csoil(:,ncs)+svs(:,n)*tcsoil(ivs(:,n),ncs)
-        end where
-      end do
+    do k=1,ncp
+      where (land)
+        cplant(:,ncp)=tcplant(ivegt,ncp)
+      end where
+    end do
+    do k=1,ncs
+      where (land)        
+        csoil(:,ncs)=tcsoil(ivegt,ncs)
+      end where
     end do
   else
     if (myid == 0) print *,"Loading carbpools from ifile"
   end if
 
-  if (myid==0) then
-    print *,"Reading soil data for CABLE"
-    open(87,file=fsoil,status='old')
-    read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-    if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
-    do iq=1,ifull_g
-      read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),ivsg(iq,2),svsg(iq,2),ivsg(iq,3),svsg(iq,3), &
-                 ivsg(iq,4),svsg(iq,4),ivsg(iq,5),svsg(iq,5)
-    end do
-    close(87)
-    do n=1,5
-      call ccmpi_distribute(ivs(:,n),ivsg(:,n))
-      call ccmpi_distribute(svs(:,n),svsg(:,n))
-    end do
-  else
-    do n=1,5
-      call ccmpi_distribute(ivs(:,n))
-      call ccmpi_distribute(svs(:,n))
-    end do
-  end if
-  do n=1,5
-    svs(:,n)=svs(:,n)/sum(svs,2)
-  end do
-  
-  ! do not blend ice
-  do iq=1,ifull
-    if (ivs(iq,1).eq.9) then
-      svs(iq,1)=1.
-      svs(iq,2:5)=0.
-    else
-      do n=2,5
-        if (ivs(iq,n).eq.9) then
-          do nb=n+1,5
-            ivs(iq,nb-1)=ivs(iq,nb)
-            svs(iq,nb-1)=svs(iq,nb)
-          end do
-          svs(iq,5)=0.
-          svs(iq,1:4)=svs(iq,1:4)/sum(svs(iq,1:4))
-        end if
-      end do
-    end if
-  end do
- 
-  soil%bch=0.
-  soil%css=0.
-  soil%rhosoil=0.
-  soil%cnsd=0.
-  soil%hyds=0.
-  soil%sucs=0.
-  soil%hsbh=0.
-  soil%sfc=0.
-  soil%ssat=0.
-  soil%swilt=0.
-  soil%ibp2=0.
-  soil%i2bp3=0.
-  swilts=0. ! swilt
-  sfcs=0.   ! sfc
-  do n=1,5
-    soil%isoilm  = pack(int(ivs(:,n),i_d), land)
-    sv           = pack(svs(:,n), land)
-    if (any(soil%isoilm.lt.1)) then
-      print *,"ERROR: Soil-type/lsmask mismatch"
-      stop
-    end if
-    soil%bch     = soil%bch    +sv*bch(soil%isoilm)
-    soil%css     = soil%css    +sv*css(soil%isoilm)
-    soil%rhosoil = soil%rhosoil+sv*rhos(soil%isoilm)
-    soil%cnsd    = soil%cnsd   +sv*cnsd(soil%isoilm)
-    soil%hyds    = soil%hyds   +sv*hyds(soil%isoilm)
-    soil%sucs    = soil%sucs   +sv*sucs(soil%isoilm)
-    soil%hsbh    = soil%hsbh   +sv*hsbh(soil%isoilm)
-    soil%sfc     = soil%sfc    +sv*sfc(soil%isoilm)
-    soil%ssat    = soil%ssat   +sv*ssat(soil%isoilm)
-    soil%swilt   = soil%swilt  +sv*swilt(soil%isoilm)
-    soil%ibp2    = soil%ibp2   +sv*ibp2(soil%isoilm)
-    soil%i2bp3   = soil%i2bp3  +sv*i2bp3(soil%isoilm)
-    swilts       = swilts      +svs(:,n)*swilt(ivs(:,n))
-    sfcs         = sfcs        +svs(:,n)*sfc(ivs(:,n))
-  end do
-  isoilm=ivs(:,1)
-  soil%isoilm  =  pack(int(ivs(:,1),i_d), land)
+  !soil%isoilm  = pack(isoilm,land)
+  soil%bch     = bch(soil%isoilm)
+  soil%css     = css(soil%isoilm)
+  soil%rhosoil = rhos(soil%isoilm)
+  soil%cnsd    = cnsd(soil%isoilm)
+  soil%hyds    = hyds(soil%isoilm)
+  soil%sucs    = sucs(soil%isoilm)
+  soil%hsbh    = hsbh(soil%isoilm)
+  soil%sfc     = sfc(soil%isoilm)
+  soil%ssat    = ssat(soil%isoilm)
+  soil%swilt   = swilt(soil%isoilm)
+  soil%ibp2    = ibp2(soil%isoilm)
+  soil%i2bp3   = i2bp3(soil%isoilm)
 
-  if (any(wb(:,:).lt.0.)) then
-    if (mydiag) print *,"Unpacking wetfrac to wb for CABLE"
-    wb(:,:)=abs(wb(:,:))
-    do iq=1,ifull
-      wb(iq,:)=(1.-wb(iq,:))*swilts(iq)+wb(iq,:)*sfcs(iq)
-    end do 
-  end if
-
+  ! store bare soil albedo and define snow free albedo
   albsoilsn(:,:)=0.08
   where (land)
     albsoil(:)=0.5*sum(albvisnir,2)
@@ -681,10 +828,13 @@ module cable_ccam
     albvisnir(:,1)=albsoilsn(:,1)
     albvisnir(:,2)=albsoilsn(:,2)
   end where
-  soil%albsoil =  pack(albsoil, land) 
-
-  rad%latitude = pack(rlatt*180./pi,land)
-
+  
+  soil%albsoil=albsoil(cmap)
+  rad%latitude=rlatt(cmap)*180./pi
+  
+  gflux=0. ! MJT suggestion
+  sgflux=0. ! MJT suggestion
+  
  ! Initialise sum flux variables
   sumpn = 0.
   sumrp = 0.
@@ -696,8 +846,6 @@ module cable_ccam
   sum_flux%dsumrp = 0.
   sum_flux%dsumrd = 0.
   
-  deallocate(sv)
-   
   return
   end subroutine loadcbmparm
 
@@ -712,42 +860,28 @@ module cable_ccam
 
   where ((ivegt.eq.7).and.(rlatt.ge.-30.).and.(rlatt.le.30.))
     c4frac=0.95
-  else where ((ivegt.eq.8).and.(rlatt.ge.-30.).and.(rlatt.le.0.))
+  elsewhere ((ivegt.eq.8).and.(rlatt.ge.-30.).and.(rlatt.le.0.))
     c4frac=0.5
-  else where ((ivegt.eq.8).and.(rlatt.ge.0.).and.(rlatt.le.20.))
+  elsewhere ((ivegt.eq.8).and.(rlatt.ge.0.).and.(rlatt.le.20.))
     c4frac=0.8
-  else where ((ivegt.eq.8).and.(rlatt.ge.20.).and.(rlatt.le.30.))
+  elsewhere ((ivegt.eq.8).and.(rlatt.ge.20.).and.(rlatt.le.30.))
     c4frac=0.5
-  else where (ivegt.eq.9)
+  elsewhere (ivegt.eq.9)
     c4frac=0.75
-  else where ((ivegt.eq.10).and.(rlatt.ge.-30.).and.(rlatt.le.-20.))
+  elsewhere ((ivegt.eq.10).and.(rlatt.ge.-30.).and.(rlatt.le.-20.))
     c4frac=0.5
-  else where ((ivegt.eq.10).and.(rlatt.ge.-20.).and.(rlatt.le.20.))
+  elsewhere ((ivegt.eq.10).and.(rlatt.ge.-20.).and.(rlatt.le.20.))
     c4frac=0.95
-  else where ((ivegt.eq.10).and.(rlatt.ge.20.).and.(rlatt.le.35.))
+  elsewhere ((ivegt.eq.10).and.(rlatt.ge.20.).and.(rlatt.le.35.))
     c4frac=0.5
-  else where ((ivegt.eq.12).and.(rlatt.ge.0.).and.(rlatt.le.40.))
+  elsewhere ((ivegt.eq.12).and.(rlatt.ge.0.).and.(rlatt.le.40.))
     c4frac=0.3
-  else where
+  elsewhere
     c4frac=0.
   end where
   
   return
   end subroutine getc4
-
-  subroutine getwetfrac(wetfrac,wb)
-  
-  implicit none
-  
-  include 'newmpar.h'
-  
-  real, dimension(ifull), intent(in) :: wb
-  real, dimension(ifull), intent(out) :: wetfrac
-  
-  wetfrac=(wb-swilts)/(sfcs-swilts)
-  
-  return
-  end subroutine getwetfrac
 
 end module cable_ccam
 

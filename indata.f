@@ -850,7 +850,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
         end if
         if (nsib.eq.6) then  ! MJT cable
           vmodmin=umin
-          call loadcbmparm(vegfile,soilfile)
+          call loadcbmparm(vegfile)
         end if
       else
         do iq=1,ifull
@@ -1867,17 +1867,17 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         end where
         call tebinit(ifull,sigmu(:),zmin,0)
         where(urban(:,1).ge.399.) ! must be the same as spval in onthefly.f
-          urban(:,1)=tss(:)
-          urban(:,2)=0.5*(tss(:)+291.16)
-          urban(:,3)=291.16
-          urban(:,4)=tss(:)
-          urban(:,5)=0.5*(tss(:)+291.16)
-          urban(:,6)=291.16
-          urban(:,7)=tss(:)
-          urban(:,8)=0.5*(tss(:)+291.16)
-          urban(:,9)=291.16
-          urban(:,10)=tss(:)
-          urban(:,11)=0.5*(tss(:)+tgg(:,ms))
+          urban(:,1)=tgg(:,1)
+          urban(:,2)=291.16
+          urban(:,3)=0.5*(tss(:)+291.16)
+          urban(:,4)=tgg(:,1)
+          urban(:,5)=291.16
+          urban(:,6)=0.5*(tss(:)+291.16)
+          urban(:,7)=tgg(:,1)
+          urban(:,8)=291.16
+          urban(:,9)=0.5*(tss(:)+291.16)
+          urban(:,10)=tgg(:,1)
+          urban(:,11)=0.5*(tgg(:,1)+tgg(:,ms))
           urban(:,12)=tgg(:,ms)
         end where
         call tebloadm(ifull,urban,0)	
@@ -1958,12 +1958,8 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        else
          ivegt=1 ! updated later
        end if
-       if (nsib.ne.6) then
-         call readint(soilfile,isoilm,ifull)
-       else
-         isoilm=1 ! updated later
-       end if
-       if((nsib.eq.5).or.(nsib.eq.6)) then
+       call readint(soilfile,isoilm,ifull)
+       if(nsib.eq.5) then
          call readreal('lai',vlai,ifull)
          vlai(:)=0.01*vlai(:)
        end if
@@ -2002,10 +1998,8 @@ c         if(ivegt(iq)>40)print *,'iq, ivegt ',iq,ivegt(iq)
          write(0,*) 'stopping in indata, as ivegt out of range'
          stop
        endif
-       if (nsib.ne.6) then ! MJT CABLE
-         if( idatacheck(land,isoilm,'isoilm',idatafix,isoildflt))
+       if( idatacheck(land,isoilm,'isoilm',idatafix,isoildflt))
      &      mismatch = .true.
-       end if
 !   rml 17/02/06 comment out read co2emfile - now done in tracermodule
 !       if(ico2>0) then
 !         print *,'about to read co2 industrial emission file'

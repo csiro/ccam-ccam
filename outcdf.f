@@ -266,7 +266,6 @@ c       create the attributes of the header record of the file
 c=======================================================================
       subroutine openhist(iarch,itype,dim,local,idnc)
       use ateb ! MJT urban      
-      use cable_ccam ! MJT cable
       use cc_mpi
       use define_dimensions, only : ncs, ncp ! MJT cable      
       implicit none
@@ -524,15 +523,6 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         !lname = 'Soil moisture as frac FC levels 1-6'
         !call attrib(idnc,idim,3,'wbftot',lname,'frac',0.,4.,0)
         if ((nsib.eq.4).or.(nsib.eq.6)) then  ! MJT cable
-          lname = 'Daily sum of canopy photosynthesis'
-          call attrib(idnc,idim,3,'sumpn',lname,'gC/m2',-10000.,
-     &                10000.,0)
-          lname = 'Daily sum of canopy respiration'
-          call attrib(idnc,idim,3,'sumrp',lname,'gC/m2',0.,10000.,0)
-          lname = 'Daily sum of soil respiration'
-          call attrib(idnc,idim,3,'sumrs',lname,'gC/m2',0.,10000.,0)
-          lname = 'Sum of daytime leaf respiration'
-          call attrib(idnc,idim,3,'sumrd',lname,'gC/m2',0.,10000.,0)
           lname = 'Carbon leaf pool'
           call attrib(idnc,idim,3,'cplant1',lname,'none',0.,50000.,0)
           lname = 'Carbon wood pool'
@@ -1183,20 +1173,6 @@ c      "extra" outputs
       
       !---------------------------------------------------------
       ! MJT CHANGE - Add wetfrac1-6 and possibly remove wb1-6 above
-      if (nsib.eq.6.) then
-        call getwetfrac(aa,wb(:,1))
-        call histwrt3(aa,'wetfrac1',idnc,iarch,local)
-        call getwetfrac(aa,wb(:,2))
-        call histwrt3(aa,'wetfrac2',idnc,iarch,local)
-        call getwetfrac(aa,wb(:,3))
-        call histwrt3(aa,'wetfrac3',idnc,iarch,local)
-        call getwetfrac(aa,wb(:,4))
-        call histwrt3(aa,'wetfrac4',idnc,iarch,local)
-        call getwetfrac(aa,wb(:,5))
-        call histwrt3(aa,'wetfrac5',idnc,iarch,local)
-        call getwetfrac(aa,wb(:,6))
-        call histwrt3(aa,'wetfrac6',idnc,iarch,local)
-      else
         aa(:)=(wb(:,1)-swilt(isoilm(:)))/
      &        (sfc(isoilm(:))-swilt(isoilm(:)))
         call histwrt3(aa,'wetfrac1',idnc,iarch,local)
@@ -1215,7 +1191,6 @@ c      "extra" outputs
         aa(:)=(wb(:,6)-swilt(isoilm(:)))/
      &        (sfc(isoilm(:))-swilt(isoilm(:)))
         call histwrt3(aa,'wetfrac6',idnc,iarch,local)       
-       end if
       !---------------------------------------------------------
 
       return
