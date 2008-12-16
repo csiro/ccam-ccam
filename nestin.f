@@ -31,9 +31,7 @@
       real sigin
       integer ik,jk,kk
       common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug
-      real, dimension(ifull) :: zsb,duma,dumb,dumc,dumd,dume
-      real, dimension(ifull) :: dumf,dumg,dumh,dumi,dumj,dumk
-      real, dimension(ifull) :: duml
+      real, dimension(ifull) :: zsb,duma
       integer, dimension(ifull) :: dumm
       real, dimension(ifull) :: rtsoil_h,cansto_h ! MJT cable
       real, dimension(ifull,ncp) :: cplant_h ! MJT cable
@@ -77,40 +75,44 @@
       qa(1:ifull,:)=qb(1:ifull,:)
       ua(1:ifull,:)=ub(1:ifull,:)
       va(1:ifull,:)=vb(1:ifull,:)
-!     following sice updating code moved from sflux Jan '06      
-!     check whether present ice points should change to/from sice points
-      do iq=1,ifull
-       if(fraciceb(iq)>0.)then
-!        N.B. if already a sice point, keep present tice (in tgg3)
-         if(fracice(iq)==0.)then
-           tgg(iq,3)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
-         endif  ! (fracice(iq)==0.)
-!        set averaged tss (tgg1 setting already done)
-         tss(iq)=tgg(iq,3)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq))
-       endif  ! (fraciceb(iq)==0.)
-      enddo	! iq loop
-      sicedep(:)=sicedepb(:)  ! from Jan 06
-      fracice(:)=fraciceb(:)
-!     because of new zs etc, ensure that sice is only over sea
-      do iq=1,ifull
-       if(fracice(iq)<.02)fracice(iq)=0.
-       if(land(iq))then
-         sicedep(iq)=0.
-         fracice(iq)=0.
-       else
-         if(fracice(iq)>0..and.sicedep(iq)==0.)then
-!          assign to 2. in NH and 1. in SH (according to spo)
-!          do this in indata, amipdata and nestin because of onthefly
-           if(rlatt(iq)>0.)then
-             sicedep(iq)=2.
-           else
-             sicedep(iq)=1.
-           endif ! (rlatt(iq)>0.)
-         elseif(fracice(iq)==0..and.sicedep(iq)>0.)then  ! e.g. from Mk3  
-           fracice(iq)=1.
-         endif  ! (fracice(iq)>0..and.sicedep(iq)==0.) .. elseif ..
-       endif    ! (land(iq))
-      enddo     ! iq loop
+      
+      if(namip.eq.0)then     ! namip SSTs/sea-ice take precedence      
+!      following sice updating code moved from sflux Jan '06      
+!      check whether present ice points should change to/from sice points
+       do iq=1,ifull
+        if(fraciceb(iq)>0.)then
+!         N.B. if already a sice point, keep present tice (in tgg3)
+          if(fracice(iq)==0.)then
+            tgg(iq,3)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
+          endif  ! (fracice(iq)==0.)
+!         set averaged tss (tgg1 setting already done)
+          tss(iq)=tgg(iq,3)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq))
+        endif  ! (fraciceb(iq)==0.)
+       enddo	! iq loop
+       sicedep(:)=sicedepb(:)  ! from Jan 06
+       fracice(:)=fraciceb(:)
+!      because of new zs etc, ensure that sice is only over sea
+       do iq=1,ifull
+        if(fracice(iq)<.02)fracice(iq)=0.
+        if(land(iq))then
+          sicedep(iq)=0.
+          fracice(iq)=0.
+        else
+          if(fracice(iq)>0..and.sicedep(iq)==0.)then
+!           assign to 2. in NH and 1. in SH (according to spo)
+!           do this in indata, amipdata and nestin because of onthefly
+            if(rlatt(iq)>0.)then
+              sicedep(iq)=2.
+            else
+              sicedep(iq)=1.
+            endif ! (rlatt(iq)>0.)
+          elseif(fracice(iq)==0..and.sicedep(iq)>0.)then  ! e.g. from Mk3  
+            fracice(iq)=1.
+          endif  ! (fracice(iq)>0..and.sicedep(iq)==0.) .. elseif ..
+        endif    ! (land(iq))
+       enddo     ! iq loop
+       
+      endif ! (namip.eq.0)
 
 !     read tb etc  - for globpea, straight into tb etc
       
@@ -121,8 +123,8 @@
       if(io_in==1)then
         call infile(1,kdate_r,ktime_r,timeg_b,ds_r, 
      .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
-     &            duma,dumb,dumc,dumd,dume,dumf,dumg, 
-     &            dumh,dumi,dumj,dumk,duml,dumm,ifull,kl,
+     &            duma,duma,duma,duma,duma,duma,duma, 
+     &            duma,duma,duma,duma,duma,dumm,ifull,kl,
      &            rtsoil_h,isoilm_h,urban,cplant_h,csoil_h,
      &            cansto_h) ! MJT cable ! MJT lsmask ! MJT urban
       endif   ! (io_in==1)
@@ -131,8 +133,8 @@ c        call onthefl(1,kdate_r,ktime_r,
 c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb) 
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
-     &        duma,dumb,dumc,dumd,dume,dumf,dumg,dumh,dumi,dumj, ! just dummies
-     &        dumk,dumm,rtsoil_h,urban) ! MJT cable, MJT lsmask
+     &        duma,duma,duma,duma,duma,duma,duma,duma,duma,duma, ! just dummies
+     &        duma,dumm,rtsoil_h,urban) ! MJT cable, MJT lsmask
       endif   ! (io_in==1)
       tssb(:) = abs(tssb(:))  ! moved here Mar '03
       if (mydiag) then
@@ -267,13 +269,15 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       vv (:,:)=cona*va(:,:)+conb*vb(:,:)
 
 !     calculate time interpolated tss 
-      if(namip.ne.0)return     ! namip SSTs/sea-ice take precedence
-      do iq=1,ifull
-       if(.not.land(iq))then
-         tss(iq)=cona*tssa(iq)+conb*tssb(iq)
-         tgg(iq,1)=tss(iq)
-       endif  ! (.not.land(iq))
-      enddo   ! iq loop 
+      if(namip.eq.0)then     ! namip SSTs/sea-ice take precedence
+       do iq=1,ifull
+        if(.not.land(iq))then
+          tss(iq)=cona*tssa(iq)+conb*tssb(iq)
+          tgg(iq,1)=tss(iq)
+        endif  ! (.not.land(iq))
+       enddo   ! iq loop 
+      endif
+      
       return
       end subroutine nestin
 
@@ -499,49 +503,49 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
         !end if
         !call maxmin(pslb,'pB',ktau,100.,1)
 
-!       following sice updating code copied from nestin June '08      
-!       check whether present ice points should change to/from sice points
-        do iq=1,ifull
-         if(fraciceb(iq)>0.)then
-!         N.B. if already a sice point, keep present tice (in tgg3)
-          if(fracice(iq)==0.)then
-            tgg(iq,3)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
-          endif  ! (fracice(iq)==0.)
-!         set averaged tss (tgg1 setting already done)
-          tss(iq)=tgg(iq,3)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq))
-         endif  ! (fraciceb(iq)==0.)
-        enddo	! iq loop
-        sicedep(:)=sicedepb(:)  ! from Jan 06
-        fracice(:)=fraciceb(:)
-!       because of new zs etc, ensure that sice is only over sea
-        do iq=1,ifull
-         if(fracice(iq)<.02)fracice(iq)=0.
-         if(land(iq))then
-           sicedep(iq)=0.
-           fracice(iq)=0.
-         else
-           if(fracice(iq)>0..and.sicedep(iq)==0.)then
-!            assign to 2. in NH and 1. in SH (according to spo)
-!            do this in indata, amipdata and nestin because of onthefly
-             if(rlatt(iq)>0.)then
-               sicedep(iq)=2.
-             else
-               sicedep(iq)=1.
-             endif ! (rlatt(iq)>0.)
-           elseif(fracice(iq)==0..and.sicedep(iq)>0.)then  ! e.g. from Mk3  
-             fracice(iq)=1.
-           endif  ! (fracice(iq)>0..and.sicedep(iq)==0.) .. elseif ..
-         endif    ! (land(iq))
-        enddo     ! iq loop
+        if(namip.eq.0.and.ntest.eq.0) then  ! namip SSTs/sea-ice take precedence
+!         following sice updating code copied from nestin June '08      
+!         check whether present ice points should change to/from sice points
+          do iq=1,ifull
+           if(fraciceb(iq)>0.)then
+!           N.B. if already a sice point, keep present tice (in tgg3)
+            if(fracice(iq)==0.)then
+              tgg(iq,3)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
+            endif  ! (fracice(iq)==0.)
+!           set averaged tss (tgg1 setting already done)
+            tss(iq)=tgg(iq,3)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq))
+           endif  ! (fraciceb(iq)==0.)
+          enddo	! iq loop
+          sicedep(:)=sicedepb(:)  ! from Jan 06
+          fracice(:)=fraciceb(:)
+!         because of new zs etc, ensure that sice is only over sea
+          do iq=1,ifull
+           if(fracice(iq)<.02)fracice(iq)=0.
+           if(land(iq))then
+             sicedep(iq)=0.
+             fracice(iq)=0.
+           else
+             if(fracice(iq)>0..and.sicedep(iq)==0.)then
+!              assign to 2. in NH and 1. in SH (according to spo)
+!              do this in indata, amipdata and nestin because of onthefly
+               if(rlatt(iq)>0.)then
+                 sicedep(iq)=2.
+               else
+                 sicedep(iq)=1.
+               endif ! (rlatt(iq)>0.)
+             elseif(fracice(iq)==0..and.sicedep(iq)>0.)then  ! e.g. from Mk3  
+               fracice(iq)=1.
+             endif  ! (fracice(iq)>0..and.sicedep(iq)==0.) .. elseif ..
+           endif    ! (land(iq))
+          enddo     ! iq loop
 
-!       calculate time interpolated tss 
-        if(namip.ne.0.or.ntest.ne.0) then  ! namip SSTs/sea-ice take precedence
+!         calculate time interpolated tss 
           do iq=1,ifull
            if(.not.land(iq))then
              tss(iq)=tssb(iq)
              tgg(iq,1)=tss(iq)
            endif  ! (.not.land(iq))
-         enddo   ! iq loop 
+          enddo   ! iq loop 
         end if ! (namip.eq.0.and.ntest.eq.0)
       end if ! (mod(nint(ktau*dt),60).eq.0)
 
@@ -1499,25 +1503,25 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       do qpass=pn,px
         ppass=qaps(qpass)
 
-        qsum(:)=1./(em_g(:)**2)
+        qsum(:)=1./(em_g(:)*em_g(:))
         if (nud_p>0) then
-          qp(:)=psls(:)/(em_g(:)**2)
+          qp(:)=psls(:)/(em_g(:)*em_g(:))
         end if
         if (nud_uv>0) then
           do k=kbotdav,kl
-            qu(:,k)=uu(:,k)/(em_g(:)**2)
-            qv(:,k)=vv(:,k)/(em_g(:)**2)
-            qw(:,k)=ww(:,k)/(em_g(:)**2)
+            qu(:,k)=uu(:,k)/(em_g(:)*em_g(:))
+            qv(:,k)=vv(:,k)/(em_g(:)*em_g(:))
+            qw(:,k)=ww(:,k)/(em_g(:)*em_g(:))
           end do
         end if
         if (nud_t>0) then
           do k=kbotdav,kl
-            qt(:,k)=tt(:,k)/(em_g(:)**2)
+            qt(:,k)=tt(:,k)/(em_g(:)*em_g(:))
           end do
         end if
         if (nud_q>0) then
           do k=kbotdav,kl
-            qq(:,k)=qgg(:,k)/(em_g(:)**2)
+            qq(:,k)=qgg(:,k)/(em_g(:)*em_g(:))
           end do
         end if
 
