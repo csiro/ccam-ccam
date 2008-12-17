@@ -474,6 +474,7 @@ c     if(mydiag.and.diag)then
       endif   ! (mydiag.and.nmaxpr==1)                                    
 c----------------------------------------------------------------------
 !cdir nodep
+      if ((nsib.ne.6).and.any(rtsoil.ne.0.)) then
       do ip=1,ipland  ! all land points in this shared loop         ! land
 c      fh itself was only used outside this loop in sib0 (jlm)      ! land
        iq=iperm(ip)                                                 ! land
@@ -615,6 +616,9 @@ c            Now heat ; allow for smaller zo via aft and factch     ! land
       if(ntest>0.and.mydiag)then
         print *,'before sib3 zo,zolnd,af ',zo(idjd),zolnd(idjd),af(idjd)
       endif
+      else
+        factch(iperm(:))=sqrt(7.4)
+      end if ! (nsib.ne.6).and.any(rtsoil.ne.0.)
 c ----------------------------------------------------------------------
       !----------------------------------------------------------
       select case(nsib) ! MJT cable
@@ -643,7 +647,7 @@ c ----------------------------------------------------------------------
       !----------------------------------------------------------
       ! MJT urban
       if (nurban.ne.0) then
-         call tebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin
+         call atebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin
      &               ,sgsave(:)/(1.-albvisnir(:,1)),-rgsave(:)
      &               ,condx(:)/dt,rho(:),t(:,1),qg(:,1)
      &               ,ps(:),sig(1)*ps(:)
@@ -653,7 +657,7 @@ c ----------------------------------------------------------------------
         ! here we blend zo with the urban part for the
         ! calculation of ustar (occuring later in sflux.f)
         factch(iperm(:))=zo(iperm(:))/factch(iperm(:))**2
-        call tebzo(ifull,zo(:),factch(:),0)
+        call atebzo(ifull,zo(:),factch(:),0)
         factch(iperm(:))=sqrt(zo(iperm(:))/factch(iperm(:)))
         do ip=1,ipland ! assumes all urban points are land points
           iq=iperm(ip)

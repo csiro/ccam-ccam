@@ -1865,7 +1865,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         where (.not.land(:))
           sigmu(:)=0.
         end where
-        call tebinit(ifull,sigmu(:),zmin,0)
+        call atebinit(ifull,sigmu(:),zmin,0)
         where(urban(:,1).ge.399.) ! must be the same as spval in onthefly.f
           urban(:,1)=tgg(:,1)
           urban(:,2)=291.16
@@ -1880,10 +1880,10 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           urban(:,11)=0.5*(tgg(:,1)+tgg(:,ms))
           urban(:,12)=tgg(:,ms)
         end where
-        call tebloadm(ifull,urban,0)	
+        call atebloadm(ifull,urban,0)	
       else
         sigmu(:)=0.
-        call tebdisable(0) ! disable urban
+        call atebdisable(0) ! disable urban
       end if
       !-----------------------------------------------------------------
 

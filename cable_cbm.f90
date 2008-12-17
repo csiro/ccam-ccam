@@ -606,8 +606,8 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)		:: poolcoef1 ! leaf carbon turnover rate * leaf pool size
     REAL(r_1), DIMENSION(mp)		:: poolcoef1w ! wood carbon turnover rate * wood pool size
     REAL(r_1), DIMENSION(mp)		:: poolcoef1r ! root carbon turnover rate * root pool size
-    REAL(r_1), DIMENSION(mp)		:: rbw ! leaf boundary layer resistance for water
-    REAL(r_1), DIMENSION(mp)		:: rsw ! stomatal resistance for water
+    REAL(r_1), DIMENSION(mp)		:: irbw ! leaf boundary layer resistance for water (inverse MJT)
+    REAL(r_1), DIMENSION(mp)		:: irsw ! stomatal resistance for water (inverse MJT)
     REAL(r_1), DIMENSION(mp)		:: dmah ! A_{H} in eq. 3.41 in SCAM, CSIRO tech report 132
     REAL(r_1), DIMENSION(mp)		:: dmbh ! B_{H} in eq. 3.41 in SCAM, CSIRO tech report 132
     REAL(r_1), DIMENSION(mp)		:: dmch ! C_{H} in eq. 3.41 in SCAM, CSIRO tech report 132
@@ -1030,7 +1030,7 @@ CONTAINS
 !         YP & Mao (jun08) replaced met%tk with tvair
 !          canopy%tv = met%tk
        END WHERE
-       where (canopy%tv < 100.)
+       where (abs(canopy%tv-met%tvair).gt.10.)
          canopy%tv = met%tvair
          rad%lwabv=0.
        end where
@@ -1086,23 +1086,23 @@ CONTAINS
           !      use the dispersion matrix (DM) to find the air temperature and specific humidity 
           !      (Raupach, Finkele and Zhang 1997, pp 17)
           ! leaf boundary layer resistance for water
-          rbw = air%cmolar/sum(gbhu+gbhf,2)
+          irbw = sum(gbhu+gbhf,2)/air%cmolar ! (MJT suggestion)
           ! leaf stomatal resistance for water
-          rsw = air%cmolar/sum(gswx,2)
+          irsw = sum(gswx,2)/air%cmolar ! (MJT suggestion)
           ! A_{H} in eq. 3.41, SCAM manual, CSIRO tech doc 132
-          dmah = (rt0+rough%rt1)*((1.+air%epsi)/rsw +1.0/rbw) &
-               + air%epsi * (rt0*rough%rt1)/(rbw*rsw)
+          dmah = (rt0+rough%rt1)*((1.+air%epsi)*irsw +irbw) &
+               + air%epsi * (rt0*rough%rt1)*(irbw*irsw)
           ! B_{H} in eq. 3.41, SCAM manual, CSIRO tech doc 132
-          dmbh = (-air%rlam/capp)*(rt0*rough%rt1)/(rbw*rsw)
+          dmbh = (-air%rlam/capp)*(rt0*rough%rt1)*(irbw*irsw)
           ! C_{H} in eq. 3.41, SCAM manual, CSIRO tech doc 132
-          dmch = ((1.+air%epsi)/rsw +1.0/rbw)*rt0*rough%rt1* &
+          dmch = ((1.+air%epsi)*irsw +irbw)*rt0*rough%rt1* &
                (canopy%fhv + canopy%fhs)/(air%rho*capp)
           ! A_{E} in eq. 3.41, SCAM manual, CSIRO tech doc 132
-          dmae = (-air%epsi*capp/air%rlam)*(rt0*rough%rt1)/(rbw*rsw)
+          dmae = (-air%epsi*capp/air%rlam)*(rt0*rough%rt1)*(irbw*irsw)
           ! B_{E} in eq. 3.41, SCAM manual, CSIRO tech doc 132
-          dmbe = (rt0+wetfac*rough%rt1)*((1.+air%epsi)/rsw +1.0/rbw)+(rt0*rough%rt1)/(rbw*rsw)
+          dmbe = (rt0+wetfac*rough%rt1)*((1.+air%epsi)*irsw +irbw)+(rt0*rough%rt1)*(irbw*irsw)
           ! C_{E} in eq. 3.41, SCAM manual, CSIRO tech doc 132
-          dmce = ((1.+air%epsi)/rsw +1.0/rbw)*rt0*rough%rt1*(canopy%fev + canopy%fes)/ &
+          dmce = ((1.+air%epsi)*irsw +irbw)*rt0*rough%rt1*(canopy%fev + canopy%fes)/ &
                (air%rho*air%rlam)
           ! Within canopy air temperature:
           met%tvair = met%tk + (dmbe*dmch-dmbh*dmce)/(dmah*dmbe-dmae*dmbh+1.0e-12)
@@ -1110,7 +1110,7 @@ CONTAINS
           met%qvair = met%qv + (dmah*dmce-dmae*dmch)/(dmah*dmbe-dmae*dmbh+1.0e-12)
           met%qvair = max(0.0,met%qvair)
        END WHERE
-       where (abs(met%tvair-met%tk).gt.20.)
+       where (abs(met%tvair-met%tk).gt.10.)
          met%tvair=met%tk
          met%qvair=met%qv
        end where
@@ -1200,7 +1200,7 @@ CONTAINS
              ! sparse canopy 
              canopy%tv = met%tvair
           END WHERE
-          where (canopy%tv < 100.)
+          where (abs(canopy%tv-met%tvair).gt.10.)
             canopy%tv = met%tvair
             rad%lwabv=0.
           end where

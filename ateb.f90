@@ -34,33 +34,13 @@
 ! 7 = Industrial (medium) (TAPM 37)
 ! 8 = Industrial (high)   (TAPM 38)
 
-! NOTES: 
-!  Below are some differences between the TEB (Masson 2000) scheme and aTEB:
-!
-! - aTEB uses two walls instead of the TEB single wall.  Also, only up to nrefl order reflections are used in aTEB for
-!   longwave and short wave radation (nrefl=3 by default).  In TEB, infinite reflections are used for shortwave, but
-!   only 1st order for long wave.  See Harman, et. al (2004) for a complete treatment of the reflections.
-!
-! - aTEB uses an iterative scheme to balance the sensible heat flux budget in the canyon.
-!
-! - aTEB returns ln(zom/zot)=1.29*(ustar*zom/nu)**0.25-2. (Kanda et al, 2007) for the urban cover.  This improves the calculation
-!   of screen temperature, humidity, etc.
-!
-! - aTEB calculates aerodynamic resistances for the recirculation and ventilation regions of the canyon (see Harman, et. al 2004).
-!   This approach takes advantage of the second wall temperature (i.e., the fluxes depend on the wind direction).
-!
-! Minor differences include the use of CSIRO9 stability coefficents (McGregor et al 1993), instead of Mascart et al (1995).
-! Also there are changes to the displacement height (not at roof height), urban properties are based on TAPM classes,
-! the time dependence of the traffic sensible heat flux follows Coutts et al (2007), etc
-!
-
 module ateb
 
 implicit none
 
 private
-public tebinit,tebcalc,tebend,tebzo,tebload,tebsave,tebtype,tebfndef,tebalb,tebalb1, &
-       tebnewangle,tebnewangle1,tebccangle,tebdisable,tebloadm,tebsavem,tebcd
+public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb,atebalb1, &
+       atebnewangle,atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd
 
 ! type definitions
 type tatm
@@ -106,7 +86,7 @@ type(tdata), dimension(:), allocatable, save :: fn
 type(tprog), dimension(:), allocatable, save :: pg
 ! model parameters
 integer, parameter :: resmeth=1      ! Canyon sensible heat transfer (0=Masson, 1=Harman, 2=Kusaka)
-integer, parameter :: zohmeth=1      ! Urban roughness length for heat (0=10%, 1=Kanda)
+integer, parameter :: zohmeth=1      ! Urban roughness length for heat (0=0.1*zom, 1=Kanda)
 integer, parameter :: acmeth=1       ! AC heat pump into canyon (0=Off, 1=On)
 integer, parameter :: nrefl=3        ! Number of canyon reflections (default=3)
 integer, parameter :: nfgits=6       ! Maximum number of iterations for calculating sensible heat flux (default=6)
@@ -130,7 +110,7 @@ real, parameter :: maxsnowden=300.   ! max snow density (kg m^-3)
 real, parameter :: minsnowden=100.   ! min snow density (kg m^-3)
 ! generic urban parameters
 real, parameter :: refheight=0.4     ! Displacement height as a fraction of building height (Kanda et al 2007)
-real, parameter :: zomratio=0.1      ! Roughness length to building height ratio (10%)
+real, parameter :: zomratio=0.1      ! Roughness length to building height ratio (default=10%)
 real, parameter :: zocanyon=0.1      ! Roughness length of canyon surfaces (m)
 real, parameter :: maxrfwater=1.     ! Maximum roof water (kg m^-2)
 real, parameter :: maxrdwater=1.     ! Maximum road water (kg m^-2)
@@ -144,7 +124,7 @@ contains
 ! This is a compulsory subroutine that must be called during
 ! model initalisation
 
-subroutine tebinit(ifull,sigu,zmin,diag)
+subroutine atebinit(ifull,sigu,zmin,diag)
 
 implicit none
 
@@ -234,20 +214,20 @@ fn%hangle=0.
 fn%ctime=0.
 
 utype=1 ! default urban
-call tebtype(ifull,utype,diag)
+call atebtype(ifull,utype,diag)
 
-pg%cndzmin=max(zmin,0.1*fn%bldheight+1.)   ! updated in tebcalc
-pg%lzom=log(pg%cndzmin/(0.1*fn%bldheight)) ! updated in tebcalc
-pg%lzoh=6.+pg%lzom ! (Kanda et al 2005)    ! updated in tebcalc
-pg%cduv=(vkar/pg%lzom)**2                  ! updated in tebcalc
+pg%cndzmin=max(zmin,0.1*fn%bldheight+1.)   ! updated in atebcalc
+pg%lzom=log(pg%cndzmin/(0.1*fn%bldheight)) ! updated in atebcalc
+pg%lzoh=6.+pg%lzom ! (Kanda et al 2005)    ! updated in atebcalc
+pg%cduv=(vkar/pg%lzom)**2                  ! updated in atebcalc
 
 return
-end subroutine tebinit
+end subroutine atebinit
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine deallocates arrays used by the TEB scheme
 
-subroutine tebend(diag)
+subroutine atebend(diag)
 
 implicit none
 
@@ -262,12 +242,12 @@ deallocate(roofadj,roadadj,walleadj,wallwadj)
 deallocate(sigmau)
 
 return
-end subroutine tebend
+end subroutine atebend
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! this subroutine loads aTEB state arrays (not compulsory)
 
-subroutine tebload(ifull,urban,diag)
+subroutine atebload(ifull,urban,diag)
 
 implicit none
 
@@ -294,12 +274,12 @@ roof%alpha=urban(ugrid,19)
 road%alpha=urban(ugrid,20)
 
 return
-end subroutine tebload
+end subroutine atebload
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! temperature only version of tebsave
 
-subroutine tebloadm(ifull,urban,diag)
+subroutine atebloadm(ifull,urban,diag)
 
 implicit none
 
@@ -318,12 +298,12 @@ do ii=1,3
 end do
 
 return
-end subroutine tebloadm
+end subroutine atebloadm
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! this subroutine loads aTEB type arrays (not compulsory)
 
-subroutine tebtype(ifull,itype,diag)
+subroutine atebtype(ifull,itype,diag)
 
 implicit none
 
@@ -436,13 +416,13 @@ do ii=1,3
 end do
 
 return
-end subroutine tebtype
+end subroutine atebtype
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! this subroutine specifies the urban properties for each grid point
 !
 
-subroutine tebfndef(ifull,ifn,diag)
+subroutine atebfndef(ifull,ifn,diag)
 
 implicit none
 
@@ -478,12 +458,12 @@ do ii=1,3
 end do
 
 return
-end subroutine tebfndef
+end subroutine atebfndef
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! this subroutine saves aTEB state arrays (not compulsory)
 
-subroutine tebsave(ifull,urban,diag)
+subroutine atebsave(ifull,urban,diag)
 
 implicit none
 
@@ -510,12 +490,12 @@ urban(ugrid,19)=roof%alpha
 urban(ugrid,20)=road%alpha
 
 return
-end subroutine tebsave
+end subroutine atebsave
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! temperature only version of tebsave
 
-subroutine tebsavem(ifull,urban,diag)
+subroutine atebsavem(ifull,urban,diag)
 
 implicit none
 
@@ -534,14 +514,14 @@ do ii=1,3
 end do
 
 return
-end subroutine tebsavem
+end subroutine atebsavem
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine blends urban momentum and heat roughness lengths
 ! (This version neglects the displacement height (e.g., for CCAM))
 !
 
-subroutine tebzo(ifull,zom,zoh,diag)
+subroutine atebzo(ifull,zom,zoh,diag)
 
 implicit none
 
@@ -565,13 +545,13 @@ zoh(ugrid)=workc
 if (any(zoh(ugrid).le.zr)) write(6,*) "WARN: minimum zoh reached"
 
 return
-end subroutine tebzo
+end subroutine atebzo
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine blends the urban drag coeff
 !
 
-subroutine tebcd(ifull,cduv,diag)
+subroutine atebcd(ifull,cduv,diag)
 
 implicit none
 
@@ -583,13 +563,13 @@ if (ufull.eq.0) return
 cduv(ugrid)=(1.-sigmau)*cduv(ugrid)+sigmau*pg%cduv
 
 return
-end subroutine tebcd
+end subroutine atebcd
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine calculates the urban contrabution to albedo.
 ! (all grid points)
 
-subroutine tebalb(ifull,alb,diag)
+subroutine atebalb(ifull,alb,diag)
 
 implicit none
 
@@ -600,17 +580,17 @@ real, dimension(ufull) :: ualb
 if (ufull.eq.0) return
 if (diag.ge.1) write(6,*) "Calculate urban albedo"
 
-call tebalbcalc(1,ufull,ualb,diag)
+call atebalbcalc(1,ufull,ualb,diag)
 alb(ugrid)=(1.-sigmau)*alb(ugrid)+sigmau*ualb
 
 return
-end subroutine tebalb
+end subroutine atebalb
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine calculates the urban contrabution to albedo.
 ! (selected grid points only)
 
-subroutine tebalb1(is,ifull,alb,diag)
+subroutine atebalb1(is,ifull,alb,diag)
 
 implicit none
 
@@ -637,17 +617,17 @@ end do
 ib=mgrid(is+lgrid(1)-1)
 ie=ib+ucount-1
 
-call tebalbcalc(ib,ucount,ualb(1:ucount),diag)
+call atebalbcalc(ib,ucount,ualb(1:ucount),diag)
 alb(lgrid(1:ucount))=(1.-sigmau(ib:ie))*alb(lgrid(1:ucount)) &
                      +sigmau(ib:ie)*ualb(1:ucount)
 
 return
-end subroutine tebalb1
+end subroutine atebalb1
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Albedo calculations
 
-subroutine tebalbcalc(is,ifull,alb,diag)
+subroutine atebalbcalc(is,ifull,alb,diag)
 
 implicit none
 
@@ -669,7 +649,7 @@ albr=(1.-snowdelta)*fn(is:ie)%roofalpha+snowdelta*roof(is:ie)%alpha
 alb=fn(is:ie)%sigmabld*albr+(1.-fn(is:ie)%sigmabld)*albu
 
 return
-end subroutine tebalbcalc
+end subroutine atebalbcalc
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine stores the zenith angle and the solar azimuth angle
@@ -680,7 +660,7 @@ end subroutine tebalbcalc
 ! azimuthin = array of azimuthal angles
 ! diag = dialogue flag (0=off)
 
-subroutine tebnewangle(ifull,cosin,azimuthin,ctimein,diag)
+subroutine atebnewangle(ifull,cosin,azimuthin,ctimein,diag)
 
 implicit none
 
@@ -697,7 +677,7 @@ fn%vangle=acos(cosin(ugrid))
 fn%ctime=ctimein(ugrid)  
 
 return
-end subroutine tebnewangle
+end subroutine atebnewangle
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine stores the zenith angle and the solar azimuth angle
@@ -707,7 +687,7 @@ end subroutine tebnewangle
 ! cosin = cosine of zenith angle
 ! azmiuthin = azimuthal angle (rad)
 
-subroutine tebnewangle1(is,ifull,cosin,azimuthin,ctimein)
+subroutine atebnewangle1(is,ifull,cosin,azimuthin,ctimein)
 
 implicit none
 
@@ -725,13 +705,13 @@ where (mgrid(is:ifull+is-1).ge.1)
 end where
 
 return
-end subroutine tebnewangle1
+end subroutine atebnewangle1
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This version of tebnewangle is for CCAM
 !
 
-subroutine tebccangle(is,ifull,cosin,rlon,rlat,fjd,slag,dhr,dlt)
+subroutine atebccangle(is,ifull,cosin,rlon,rlat,fjd,slag,dhr,dlt)
 
 implicit none
 
@@ -755,7 +735,7 @@ where (mgrid(is:ifull+is-1).ge.1)
 end where
 
 return
-end subroutine tebccangle
+end subroutine atebccangle
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -781,7 +761,7 @@ end subroutine tebccangle
 ! owf = Input/Output wetness fraction/surface water (%)
 ! diag = diagnostic message mode (0=off, 1=basic messages, 2=more detailed messages, etc)
 
-subroutine tebcalc(ifull,ofg,oeg,ots,owf,dt,zmin,sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv,umin,diag)
+subroutine atebcalc(ifull,ofg,oeg,ots,owf,dt,zmin,sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv,umin,diag)
 
 implicit none
 
@@ -811,7 +791,7 @@ elsewhere
   atm%snd=0.
 end where
 
-call tebeval(uo,dt,atm,zmin,diag)
+call atebeval(uo,dt,atm,zmin,diag)
 
 ofg(ugrid)=(1.-sigmau)*ofg(ugrid)+sigmau*uo%fg
 oeg(ugrid)=(1.-sigmau)*oeg(ugrid)+sigmau*uo%eg
@@ -819,12 +799,31 @@ ots(ugrid)=(1.-sigmau)*ots(ugrid)+sigmau*uo%ts
 owf(ugrid)=(1.-sigmau)*owf(ugrid)+sigmau*uo%wf
 
 return
-end subroutine tebcalc
+end subroutine atebcalc
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! urban flux calculations
 
-subroutine tebeval(uo,ddt,atm,zmin,diag)
+! Basic loop is:
+!  Predictor/corrector loop
+!    Heat flux through walls/roofs/roads
+!    Short wave flux (nrefl reflections)
+!    Estimate buld roughness length for momentum
+!    Canyon aerodynamic resistances
+!    Balance canyon sensible heat flux
+!      Balance canyon snow temperature
+!        Long wave flux (nrefl reflections)
+!        Latent heat flux
+!      End canyon snow temprature loop
+!    End sensible heat flux loop
+!    Roof sensible and latent heat fluxes
+!    Update water on canyon surfaces
+!    Update snow albedo and density
+!    Update urban temperatures
+!  End predictor/corrector loop
+!  Estimate bulk roughness length for heat
+
+subroutine atebeval(uo,ddt,atm,zmin,diag)
 
 implicit none
 
@@ -1370,7 +1369,7 @@ uo%wf=fn%sigmabld*dg%roofdelta*(1.-dg%rfsndelta)+(1.-fn%sigmabld)*dg%roaddelta*(
 call getinvres(ufull,a,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,dg%tempc,atm%umag,zohmeth+1)
   
 return
-end subroutine tebeval
+end subroutine atebeval
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio (from CCAM)
@@ -1793,7 +1792,7 @@ end subroutine gettraffic
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Disables aTEB so subroutine calls have no effect
 
-subroutine tebdisable(diag)
+subroutine atebdisable(diag)
 
 implicit none
 
@@ -1803,7 +1802,7 @@ if (diag.ge.1) write(6,*) "Disable aTEB"
 ufull=0
 
 return
-end subroutine tebdisable
+end subroutine atebdisable
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end module ateb

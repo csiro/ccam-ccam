@@ -217,7 +217,7 @@ c        call zenith(fjd,r1,dlt,slag,rlatt(1+(j-1)*il),
 c    &               rlongg(1+(j-1)*il),dhr,imax,coszro2,taudar2)
          call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),
      &               rlongg(istart:iend),dhr,imax,coszro2,taudar2)
-         call tebccangle(istart,imax,coszro2(1:imax) ! MJT urban
+         call atebccangle(istart,imax,coszro2(1:imax) ! MJT urban
      &    ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt) 
       end if    !  ( solarfit )
 
@@ -230,7 +230,7 @@ c     calculations
      &            rlongg(1+(j-1)*il),dhr,imax,coszro,taudar)
 
       if (.not.solarfit) ! MJT urban
-     &   call tebccangle(istart,imax,coszro(1:imax)
+     &   call atebccangle(istart,imax,coszro(1:imax)
      &   ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt) 
 
 c     Set up basic variables, reversing the order of the vertical levels
@@ -404,8 +404,8 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
       !-----------------------------------------------------------------------------------------------------------
       ! MJT albedo
       end do ! i=1,imax
-      call tebalb1(istart,imax,cuvrf(1:imax,1),0) ! MJT CHANGE - urban
-      call tebalb1(istart,imax,cirrf(1:imax,1),0) ! MJT CHANGE - urban
+      call atebalb1(istart,imax,cuvrf(1:imax,1),0) ! MJT CHANGE - urban
+      call atebalb1(istart,imax,cirrf(1:imax,1),0) ! MJT CHANGE - urban
       albvisnir(istart:iend,1)=cuvrf(1:imax,1)
       albvisnir(istart:iend,2)=cirrf(1:imax,1)
       if (iaero.ne.0) then
