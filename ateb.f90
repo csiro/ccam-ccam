@@ -1215,8 +1215,8 @@ do while ((j.le.npgits).and.(maxchange.gt.temptol)) ! predictor-corrector loop -
       call solverfsn(cns,evct(1:cns),p_rg(1:cns),p_fg(1:cns),p_eg(1:cns),p_gasn(1:cns),p_snmelt(1:cns),p_sntemp(1:cns), &
                      p_rodum(1:cns),p_dg(1:cns),p_sg(1:cns),p_atm(1:cns),p_netldratio(1:cns),p_acond(1:cns),ddt)
       evctx(1:cns)=evct(1:cns)-evctx(1:cns)
-      if (all(evctx(1:cns).eq.0.)) exit
-      where (evctx(1:cns).ne.0.)
+      if (all(abs(evctx(1:cns)).le.tol)) exit
+      where (abs(evctx(1:cns)).gt.tol)
         newval(1:cns)=p_sntemp(1:cns)-evct(1:cns)*(p_sntemp(1:cns)-oldval(1:cns))/evctx(1:cns)
         oldval(1:cns)=p_sntemp(1:cns)
         p_sntemp(1:cns)=newval(1:cns)
