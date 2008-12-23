@@ -93,6 +93,7 @@ integer, parameter :: acmeth=1       ! AC heat pump into canyon (0=Off, 1=On)
 integer, parameter :: nrefl=3        ! Number of canyon reflections (default=3)
 integer, parameter :: nfgits=6       ! Maximum number of iterations for calculating sensible heat flux (default=6)
 integer, parameter :: npgits=10      ! Maximum number of iterations for calculating prognostic variables (default=10 for dt=1200s)
+integer, parameter :: stabfn=1       ! Stability function scheme (0=Louis, 1=Dyer and Hicks)
 real, parameter :: tol=0.001         ! Minimum change for sectant method
 real, parameter :: maxtol=0.1        ! Maximum change in temperature to terminate predictor-corrector loop (K)
 real, parameter :: waterden=1000.    ! water density (kg m^-3)
@@ -1611,35 +1612,46 @@ qsat=.622*esatf/(ps-esatf)
 return
 end subroutine getqsat
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Originally based on CCAM sflux.f version (i.e., vegetation)
-! Modified for increased ratio between momentum and heat roughness
-! lengths over urban areas using Brutsaet (1982) parameterisation.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+! Louis parameterisation based on CCAM sflux.f version (i.e., from CSIRO9),
+! but modified for increased ration between momentum and heat roughness lengths
+! Also, included Dyer and Hicks scheme based on TAPM Surf.f
 
 subroutine getinvres(cn,invres,cd,olzoh,ilzom,zmin,stemp,theta,umag,mode)
 
 implicit none
 
 integer, intent(in) :: cn,mode
+integer ic
+integer, parameter :: nc=5
 real, dimension(cn), intent(in) :: ilzom,zmin,stemp,theta,umag
 real, dimension(cn), intent(out) :: invres,cd,olzoh
 real, dimension(cn) :: af,aft,ri,fm,fh,root,denma,denha,re,lna
+real, dimension(cn) :: z_on_l,z0_on_l,zt_on_l,pm0,pm1,ph0,ph1
+real, dimension(cn) :: integralm,integralh,pvstar
 real, parameter :: bprm=5. ! 4.7 in rams
 real, parameter :: chs=2.6 ! 5.3 in rams
 real, parameter :: cms=5.  ! 7.4 in rams
 real, parameter :: fmroot=0.57735
 real, parameter :: rimax=(1./fmroot-1.)/bprm
 real, parameter :: nu = 1.461E-5
+real, parameter :: a_1 = 1.
+real, parameter :: b_1 = 2./3.
+real, parameter :: c_1 = 5.
+real, parameter :: d_1 = 0.35
+real, parameter :: aa1 = 3.8
+real, parameter :: bb1 = 0.5
+real, parameter :: cc1 = 0.3
 !real, parameter :: eta0 = 1.827E-5
 !real, parameter :: t0 = 291.15
 !real, parameter :: c = 120.
 !eta=eta0*((t0+c)/(theta+c))*(theta/t0)**(2./3.)
 !nu=eta/rho
 
+! use Louis as first guess for Dyer and Hicks scheme (if used)
 af=(vkar/ilzom)**2
 ! umag is now constrained to be above umin in tebcalc
 ri=min(grav*zmin*(1.-stemp/theta)/umag**2,rimax)
-
 where (ri>0.)
   fm=1./(1.+bprm*ri)**2
 elsewhere
@@ -1647,9 +1659,9 @@ elsewhere
   denma=1.+cms*2.*bprm*af*root
   fm=1.-2.*bprm *ri/denma
 end where
-
 cd=af*fm
-select case(mode)
+
+select case(mode) ! roughness length for heat
   case(1) ! zot=zom/10.
     lna=2.3
   case(2) ! Kanda et al 2007
@@ -1659,17 +1671,51 @@ select case(mode)
   case(3) ! zot=zom (neglect molecular diffusion)
     lna=0.
 end select
-olzoh=lna+ilzom    
-aft=vkar*vkar/(ilzom*olzoh)
+olzoh=lna+ilzom
 
+aft=vkar*vkar/(ilzom*olzoh)
 where (ri>0.)
   fh=fm
 elsewhere
   denha=1.+chs*2.*bprm*aft*exp(0.5*lna)*root
   fh=1.-2.*bprm*ri/denha
 end where
-
 invres=aft*fh*umag
+ 
+ if (stabfn.eq.1) then ! from TAPM
+  pvstar=aft*fh*(theta-stemp)/sqrt(cd)
+  do ic=1,nc
+    z_on_l=vkar*zmin*grav*pvstar/(theta*cd*umag**2)
+    z_on_l=min(z_on_l,10.)
+    z0_on_l  = z_on_l*exp(-ilzom)
+    zt_on_l  = z0_on_l/exp(lna)
+    where (z_on_l.lt.0.)
+      pm0     = (1.-16.*z0_on_l)**(-0.25)
+      ph0     = (1.-16.*zt_on_l)**(-0.5)
+      pm1     = (1.-16.*z_on_l)**(-0.25)
+      ph1     = (1.-16.*z_on_l)**(-0.5)
+      integralm = ilzom-2.*log((1.+1./pm1)/(1.+1./pm0))-log((1.+1./pm1**2)/(1.+1./pm0**2)) &
+                 +2.*(atan(1./pm1)-atan(1./pm0))
+      integralh = olzoh-2.*log((1.+1./ph1)/(1.+1./ph0))
+    elsewhere
+      !--------------Beljaars and Holtslag (1991) momentum & heat            
+      pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
+      pm1 = -(a_1*z_on_l+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)+b_1*c_1/d_1)
+      ph0 = -((1.+(2./3.)*a_1*zt_on_l)**1.5+b_1*(zt_on_l-(c_1/d_1))*exp(-d_1*zt_on_l)+b_1*c_1/d_1-1.)
+      ph1 = -((1.+(2./3.)*a_1*z_on_l)**1.5+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)+b_1*c_1/d_1-1.)
+      integralm = ilzom-(pm1-pm0)    
+      integralh = olzoh-(ph1-ph0)         
+    endwhere
+    where (z_on_l.le.0.4)
+      cd = (max(0.01,min(vkar*umag/integralm,2.))/umag)**2
+    elsewhere
+      cd = (max(0.01,min(vkar*umag/(aa1*( ( z_on_l**bb1)*(1.0+cc1* z_on_l**(1.-bb1)) &
+          -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1)) )),2.))/umag)**2
+    endwhere
+    pvstar= vkar*(theta-stemp)/integralh
+  end do
+  invres=(vkar/integralh)*sqrt(cd)*umag
+end if
 
 return
 end subroutine getinvres
@@ -1689,7 +1735,6 @@ real, dimension(ifull) :: thetazero,walles,wallws,roads,ta,tc,xa,ya,roadnetalpha
 real, dimension(ifull) :: nwalles,nwallws,nroads
 type(tdata), dimension(ifull), intent(in) :: ifn
 type(trad), dimension(ifull), intent(out) :: sg
-
 wallpsi=0.5*(ifn%hwratio+1.-sqrt(ifn%hwratio*ifn%hwratio+1.))/ifn%hwratio
 roadpsi=sqrt(ifn%hwratio*ifn%hwratio+1.)-ifn%hwratio
 
