@@ -474,7 +474,7 @@ c     if(mydiag.and.diag)then
       endif   ! (mydiag.and.nmaxpr==1)                                    
 c----------------------------------------------------------------------
 !cdir nodep
-      if ((nsib.ne.6).and.any(rtsoil.ne.0.)) then
+      if ((nsib.ne.6).or.all(rtsoil.eq.0.)) then
       do ip=1,ipland  ! all land points in this shared loop         ! land
 c      fh itself was only used outside this loop in sib0 (jlm)      ! land
        iq=iperm(ip)                                                 ! land

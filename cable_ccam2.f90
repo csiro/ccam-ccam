@@ -102,14 +102,14 @@ module cable_ccam
        bpyear = 0.
        fjd = float(mod(mins,525600))/1440.  ! 525600 = 1440*365
        call solargh(fjd,bpyear,r1,dlt,alp,slag)
-       dhr = 1.e-6
+       dhr = dt/3600.
        call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
 
        call setco2for(jyear)
 
        kstart = 1
 
-       met%doy=float(mod(mins,24*60*365))/(24.*60.)
+       met%doy=fjd
        
        met%tk=theta(cmap)
        met%ua=vmod(cmap)
@@ -186,100 +186,7 @@ module cable_ccam
        where ( met%tc < 0.0 ) met%precip_s = met%precip
        bgc%ratecp(:) = ratecp(:)
        bgc%ratecs(:) = ratecs(:)
-       
-
-       !!  rml: these not moved to cbm_pack because mins, theta, vmod, 
-       !!      atmco2, coszro2 not accessible there
-       !met%doy = float(mod(mins,24*60*365))/(24.*60.)
-       !met%tk = pack(theta,land)
-       !met%tc = met%tk - 273.16
-       !met%ua = pack(vmod,land)
-       !met%ua = max(met%ua,umin)
-       !met%ca = 1.e-6 * pack(atmco2,land)
-       !met%coszen = max(1.e-8,pack(coszro2,land)) ! use instantaneous value
-
-       
-      !met%fld = -1. * pack(rgsave,land)        ! long wave down  
-      !met%qv = pack(qg(1:ifull,1),land)        ! specific humidity in kg/kg
-      !met%pmb = .01*pack(ps(1:ifull),land)     ! pressure in mb at ref height
-      !met%precip = pack(condx,land)
-      !! name changed to precip_s (EK nov2007)
-      !met%precip_s = 0.0                        ! in mm not mm/sec
-      !where ( met%tc < 0.0 ) met%precip_s = met%precip
-      !do ip=1,ipland
-      !  iq = iperm(ip)
-      !  met%hod(ip)=(met%doy(ip)-int(met%doy(ip)))*24.0 + rlongg(iq)*180./(15.*pi)
-      !  if (met%hod(ip).gt.24.0) met%hod(ip)=met%hod(ip)-24.0
-      !  rough%za(ip) = -287.*t(iq,1)*log(sig(1))/grav   ! reference height
-      !  met%fsd(ip) = sgsave(iq)/(1.-albvisnir(iq,1))! short wave down (positive) W/m^2
-      !enddo
-
-      !ssoil%albsoilsn(:,1) = pack(albsoilsn(:,1), land)
-      !ssoil%albsoilsn(:,2) = pack(albsoilsn(:,2), land)
-      !ssoil%albsoilsn(:,3)   = 0.05
-      !do k = 1,ms
-      !  ssoil%tgg(:,k) = pack(tgg(:,k), land)
-      !  ssoil%wb(:,k) = pack(real(wb(:,k),r_2), land)
-      !  ssoil%wbice(:,k) = pack(real(wbice(:,k),r_2), land)
-      !enddo
-! rml check ssoil%wbtot calculation may be redone in cable_soilsnow anyway
-! is bal%wbtot0 ever used?
-!      !if (ktau == 1) then
-!      !  ssoil%wbtot = 0.
-!      !  DO j=1,ms
-!      !    ssoil%wbtot  = ssoil%wbtot + ssoil%wb(:,j) * soil%zse(j) * 1000.0
-!      !  END DO
-!      !  bal%wbtot0 = ssoil%wbtot
-!      !  wbtot=0.                             ! MJT suggestion
-!      !  wbtot=unpack(ssoil%wbtot,land,wbtot) ! MJT suggestion
-!      !endif
-
-!     bal%wbtot0 = pack(wbtot0, land) !think this is redundant
-!  are any of these balance variables used?
-      !bal%evap_tot = pack(tevap, land)
-      !bal%precip_tot = pack(tprecip, land)
-      !bal%ebal_tot = pack(totenbal, land)
-      !bal%rnoff_tot = pack(trnoff, land)
-
- !    ! ssoil%wbtot = pack(wbtot, land)       ! MJT suggestion
-      !ssoil%isflag = pack(int(isflag,i_d), land)
-      !do k = 1,3
-      !  ssoil%tggsn(:,k) = pack(tggsn(:,k), land)
-      !  ssoil%smass(:,k) = pack(smass(:,k), land)
-      !  ssoil%ssdn(:,k) = pack(ssdn(:,k), land)
-      !enddo
-
-      !ssoil%ssdnn = pack(ssdnn, land)
-      !ssoil%snowd = pack(snowd, land)
-      !ssoil%osnowd = pack(osnowd, land)
-      !bal%osnowd0 = pack(osnowd0, land)
-      !ssoil%snage = pack(snage, land)
-      !ssoil%rtsoil = pack(rtsoil, land)
-
-      !canopy%ghflux = pack(gflux, land)
-      !canopy%sghflux = pack(sgflux, land)
-      !canopy%cansto = pack(cansto, land)
-      !veg%vlai = max(pack(vlai, land),0.1)
-
-      !sum_flux%sumpn = pack(sumpn, land)
-      !sum_flux%sumrp = pack(sumrp, land)
-      !sum_flux%sumrs = pack(sumrs, land)
-      !sum_flux%sumrd = pack(sumrd, land)
-      !sum_flux%sumrpw = pack(sumrpw, land)
-      !sum_flux%sumrpr = pack(sumrpr, land)
-      !sum_flux%dsumpn = pack(dsumpn, land)
-      !sum_flux%dsumrp = pack(dsumrp, land)
-      !sum_flux%dsumrs = pack(dsumrs, land)
-      !sum_flux%dsumrd = pack(dsumrd, land)
-      !do k=1,ncp
-      !  bgc%cplant(:,k) = pack(cplant(:,k), land)
-      !  bgc%ratecp(k) = ratecp(k)
-      !enddo
-      !do k=1,ncs
-      !  bgc%csoil(:,k) = pack(csoil(:,k), land)
-      !  bgc%ratecs(k) = ratecs(k)
-      !enddo
-      
+     
 !      rml 21/09/07 remove ktauplus+ktau due to change in cable_offline
        CALL cbm(ktau, kstart, ntau, dt, air, bgc, canopy, met, &
      &      bal, rad, rough, soil, ssoil, sum_flux, veg, mxvt, mxst)
@@ -406,82 +313,6 @@ module cable_ccam
         zo=max(zmin*exp(-sqrt(1./zo)),zobgin)
       end where
         
-      !do k=1,2
-      !  albsoilsn(:,k) = unpack(ssoil%albsoilsn(:,k), land, albsoilsn(:,k))
-      !  albvisnir(:,k) = unpack(rad%albedo(:,k), land, albvisnir(:,k))
-      !enddo
-      !runoff= unpack(ssoil%runoff, land, runoff)
-      !rnof1= unpack(ssoil%rnof1, land, rnof1)
-      !rnof2= unpack(ssoil%rnof2, land, rnof2)
-      !wbtot= unpack(ssoil%wbtot, land, wbtot)
-      !tevap = unpack(bal%evap_tot, land, tevap)
-      !tprecip = unpack(bal%precip_tot, land, tprecip)
-      !totenbal = unpack(bal%ebal_tot, land, totenbal)
-      !trnoff = unpack(bal%rnoff_tot, land, trnoff)
-      !do k = 1,ms
-      !  tgg(:,k)= unpack(ssoil%tgg(:,k), land, tgg(:,k))
-      !  wb(:,k)= unpack(real(ssoil%wb(:,k),r_1), land, wb(:,k))
-      !  wbice(:,k)= unpack(real(ssoil%wbice(:,k),r_1), land, wbice(:,k))
-      !enddo
-      !do k = 1,3
-      !  tggsn(:,k)= unpack(ssoil%tggsn(:,k), land, tggsn(:,k))
-      !  smass(:,k)= unpack(ssoil%smass(:,k), land, smass(:,k))
-      !  ssdn(:,k)= unpack(ssoil%ssdn(:,k), land, ssdn(:,k))
-      !enddo
-
-      !ssdnn= unpack(ssoil%ssdnn, land, ssdnn)
-      !snowd= unpack(ssoil%snowd, land, snowd)
-      !osnowd= unpack(ssoil%osnowd, land, osnowd)
-      !osnowd0= unpack(bal%osnowd0, land, osnowd0)
-      !snage= unpack(ssoil%snage, land, snage)
-      !isflag= unpack(int(ssoil%isflag), land, isflag)
-      !rtsoil= unpack(ssoil%rtsoil, land, rtsoil)
-      !rnet = unpack(canopy%rnet,  land, rnet)
-      !fg = unpack(canopy%fh,  land, fg)
-      !eg = unpack(canopy%fe,  land, eg)
-      !epot = unpack(ssoil%potev,  land, epot)
-      !tss = unpack(rad%trad,  land, tss)
-      !!tscrn = unpack(canopy%tscrn+273.16,  land, tscrn)    ! clobbered by scrnout?
-      !!qgscrn = unpack(canopy%qscrn,  land, qgscrn)  ! clobbered by scrnout?
-      !!uscrn = unpack(canopy%uscrn,  land, uscrn)    ! clobbered by scrnout?
-      !!cduv= unpack(canopy%cduv, land, cduv)         ! clobbered by scrnout? (to get scrnout to work)
-      !cansto= unpack(canopy%cansto, land, cansto)
-      !vlai= unpack(veg%vlai, land, vlai)
-      !gflux = unpack(canopy%ghflux, land, gflux)
-      !sgflux = unpack(canopy%sghflux, land, sgflux)
-      !!rtsoil = unpack(ssoil%rtsoil, land, rtsoil)
-      !fnee= unpack(canopy%fnee, land, fnee)
-      !fpn= unpack(canopy%fpn, land, fpn)
-      !frd= unpack(canopy%frday, land, frd)
-      !frp= unpack(canopy%frp, land, frp)
-      !frpw= unpack(canopy%frpw, land, frpw)
-      !frpr= unpack(canopy%frpr, land, frpr)
-      !frs= unpack(canopy%frs, land, frs)
-      !sumpn= unpack(sum_flux%sumpn, land, sumpn)
-      !sumrp= unpack(sum_flux%sumrp, land, sumrp)
-      !sumrpw= unpack(sum_flux%sumrpw, land, sumrpw)
-      !sumrpr= unpack(sum_flux%sumrpr, land, sumrpr)
-      !sumrs= unpack(sum_flux%sumrs, land, sumrs)
-      !sumrd= unpack(sum_flux%sumrd, land, sumrd)
-! rml - if not bothering to unpack these here (or write them out), perhaps 
-! should delete everywhere
-!    dsumpn= unpack(sum_flux%dsumpn, land, dsumpn)
-!    dsumrp= unpack(sum_flux%dsumrp, land, dsumrp)
-!    dsumrs= unpack(sum_flux%dsumrs, land, dsumrs)
-!    dsumrd= unpack(sum_flux%dsumrd, land, dsumrd)
-      !do k=1,ncp
-      !  cplant(:,k)= unpack(bgc%cplant(:,k), land, cplant(:,k))
-! need? rates don't change?
-      !  ratecp(k)= bgc%ratecp(k)
-      !enddo
-      !do k=1,ncs
-      !  csoil(:,k)= unpack(bgc%csoil(:,k), land, csoil(:,k))
-! need? rates don't change?
-      !  ratecs(k)= bgc%ratecs(k)
-      !enddo
-      
-      ! MJT CHANGE - cable
-      !zo=unpack(rough%z0m,land,zo)
 
       return
       end subroutine sib4

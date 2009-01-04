@@ -396,7 +396,7 @@ real, dimension(maxtype,3), parameter :: croadlambda=reshape((/ 0.7454, 0.7454, 
 if (ufull.eq.0) return
 if (diag.ge.1) write(6,*) "Load aTEB building properties"
 
-if (any(itype.lt.1).or.any(itype.gt.maxtype)) then
+if (any(itype(ugrid).lt.1).or.any(itype(ugrid).gt.maxtype)) then
   write(6,*) "ERROR: Urban type is out of range"
   stop
 end if
@@ -531,7 +531,7 @@ end subroutine atebsavem
 ! (This version neglects the displacement height (e.g., for CCAM))
 !
 
-subroutine atebzo(ifull,zom,zoh,diag)
+subroutine atebzo(ifull,zom,zoh,diag,raw)
 
 implicit none
 
@@ -539,20 +539,30 @@ integer, intent(in) :: ifull,diag
 real, dimension(ifull), intent(inout) :: zom,zoh
 real, dimension(ufull) :: workb,workc
 real, parameter :: zr=1.e-15 ! limits minimum roughness length for heat
+logical, intent(in), optional :: raw
+logical mode
 
 if (ufull.eq.0) return
 if (diag.ge.1) write(6,*) "Blend urban roughness lengths"
 
-! evaluate at canyon displacement height (really the atmospheric model should provide a displacement height)
-workb=sqrt((1.-sigmau)/log(pg%cndzmin/zom(ugrid))**2+sigmau/pg%lzom**2)
-workc=(1.-sigmau)/(log(pg%cndzmin/zom(ugrid))*log(pg%cndzmin/zoh(ugrid)))+sigmau/(pg%lzom*pg%lzoh)
-workc=workc/workb
-workb=pg%cndzmin*exp(-1./workb)
-workc=max(pg%cndzmin*exp(-1./workc),zr)
-zom(ugrid)=workb
-zoh(ugrid)=workc
+mode=.false.
+if (present(raw)) mode=raw
 
-if (any(zoh(ugrid).le.zr)) write(6,*) "WARN: minimum zoh reached"
+if (mode) then
+  zom(ugrid)=pg%cndzmin*exp(-pg%lzom)
+  zoh(ugrid)=pg%cndzmin*exp(-pg%lzoh)
+else 
+  ! evaluate at canyon displacement height (really the atmospheric model should provide a displacement height)
+  workb=sqrt((1.-sigmau)/log(pg%cndzmin/zom(ugrid))**2+sigmau/pg%lzom**2)
+  workc=(1.-sigmau)/(log(pg%cndzmin/zom(ugrid))*log(pg%cndzmin/zoh(ugrid)))+sigmau/(pg%lzom*pg%lzoh)
+  workc=workc/workb
+  workb=pg%cndzmin*exp(-1./workb)
+  workc=max(pg%cndzmin*exp(-1./workc),zr)
+  zom(ugrid)=workb
+  zoh(ugrid)=workc
+
+  if (any(zoh(ugrid).le.zr)) write(6,*) "WARN: minimum zoh reached"
+end if
 
 return
 end subroutine atebzo
@@ -579,19 +589,28 @@ end subroutine atebcd
 ! This subroutine calculates the urban contrabution to albedo.
 ! (all grid points)
 
-subroutine atebalb(ifull,alb,diag)
+subroutine atebalb(ifull,alb,diag,raw)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
 real, dimension(ifull), intent(inout) :: alb
 real, dimension(ufull) :: ualb
+logical, intent(in), optional :: raw
+logical mode
 
 if (ufull.eq.0) return
 if (diag.ge.1) write(6,*) "Calculate urban albedo"
 
+mode=.false.
+if (present(raw)) mode=raw
+
 call atebalbcalc(1,ufull,ualb,diag)
-alb(ugrid)=(1.-sigmau)*alb(ugrid)+sigmau*ualb
+if (mode) then
+  alb(ugrid)=ualb
+else
+  alb(ugrid)=(1.-sigmau)*alb(ugrid)+sigmau*ualb
+end if
 
 return
 end subroutine atebalb
@@ -718,26 +737,36 @@ return
 end subroutine atebnewangle1
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! This version of tebnewangle is for CCAM
+! This version of tebnewangle is for CCAM and TAPM
 !
 
-subroutine atebccangle(is,ifull,cosin,rlon,rlat,fjd,slag,dhr,dlt)
+subroutine atebccangle(is,ifull,cosin,rlon,rlat,fjd,slag,dt,sdlt)
 
 implicit none
 
 integer, intent(in) :: is,ifull
-real, intent(in) :: fjd,slag,dhr,dlt
+real, intent(in) :: fjd,slag,dt,sdlt
+real cdlt
 real, dimension(ifull), intent(in) :: cosin,rlon,rlat
 real, dimension(ifull) :: hloc,x,y
 
+! cosin = cosine of zenith angle
+! rlon = longitude
+! rlat = latitude
+! fjd = day of year
+! slag = sun lag angle
+! sdlt = sin declination of sun
+
 if (ufull.eq.0) return
+
+cdlt=sqrt(min(max(1.-sdlt*sdlt,0.),1.))
 
 where (mgrid(is:ifull+is-1).ge.1)
   ! from CCAM zenith.f
-  hloc=2.*pi*fjd+slag+pi+rlon+dhr*pi/24.
+  hloc=2.*pi*fjd+slag+pi+rlon+dt*pi/86400.
   ! estimate azimuth angle
-  x=sin(-hloc)*cos(dlt)
-  y=-cos(-hloc)*cos(dlt)*sin(rlat)+cos(rlat)*sin(dlt)
+  x=sin(-hloc)*cdlt
+  y=-cos(-hloc)*cdlt*sin(rlat)+cos(rlat)*sdlt
   !azimuth=atan2(x,y)
   fn(mgrid(is:ifull+is-1))%hangle=0.5*pi-atan2(x,y)
   fn(mgrid(is:ifull+is-1))%vangle=acos(cosin)
@@ -771,7 +800,7 @@ end subroutine atebccangle
 ! owf = Input/Output wetness fraction/surface water (%)
 ! diag = diagnostic message mode (0=off, 1=basic messages, 2=more detailed messages, etc)
 
-subroutine atebcalc(ifull,ofg,oeg,ots,owf,dt,zmin,sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv,umin,diag)
+subroutine atebcalc(ifull,ofg,oeg,ots,owf,dt,zmin,sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv,umin,diag,raw)
 
 implicit none
 
@@ -781,8 +810,13 @@ real, dimension(ifull), intent(in) :: sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv
 real, dimension(ifull), intent(inout) :: ofg,oeg,ots,owf
 type (tatm), dimension(ufull) :: atm
 type (tout), dimension(ufull) :: uo
+logical, intent(in), optional :: raw
+logical mode
 
 if (ufull.eq.0) return
+
+mode=.false.
+if (present(raw)) mode=raw
 
 atm%sg=sg(ugrid)
 atm%rg=rg(ugrid)
@@ -803,10 +837,17 @@ end where
 
 call atebeval(uo,dt,atm,zmin,diag)
 
-ofg(ugrid)=(1.-sigmau)*ofg(ugrid)+sigmau*uo%fg
-oeg(ugrid)=(1.-sigmau)*oeg(ugrid)+sigmau*uo%eg
-ots(ugrid)=(1.-sigmau)*ots(ugrid)+sigmau*uo%ts
-owf(ugrid)=(1.-sigmau)*owf(ugrid)+sigmau*uo%wf
+if (mode) then
+  ofg(ugrid)=uo%fg
+  oeg(ugrid)=uo%eg
+  ots(ugrid)=uo%ts
+  owf(ugrid)=uo%wf
+else
+  ofg(ugrid)=(1.-sigmau)*ofg(ugrid)+sigmau*uo%fg
+  oeg(ugrid)=(1.-sigmau)*oeg(ugrid)+sigmau*uo%eg
+  ots(ugrid)=(1.-sigmau)*ots(ugrid)+sigmau*uo%ts
+  owf(ugrid)=(1.-sigmau)*owf(ugrid)+sigmau*uo%wf
+end if
 
 return
 end subroutine atebcalc
@@ -928,7 +969,7 @@ wallwdum=wallw
 roaddum=road
 
 j=1
-maxchange=tol+1.
+maxchange=temptol+1.
 do while ((j.le.npgits).and.(maxchange.gt.temptol)) ! predictor-corrector loop -------------------------------
   ! limit state variables
   do ii=1,3
@@ -1503,7 +1544,7 @@ do while ((j.le.npgits).and.(maxchange.gt.temptol)) ! predictor-corrector loop -
       roadold%alpha=roaddum%alpha
     end where
   end if
-
+  
   nroofold=nroof
   nwalleold=nwalle
   nwallwold=nwallw
@@ -1682,7 +1723,7 @@ elsewhere
 end where
 invres=aft*fh*umag
  
- if (stabfn.eq.1) then ! from TAPM
+if (stabfn.eq.1) then ! from TAPM
   pvstar=aft*fh*(theta-stemp)/sqrt(cd)
   do ic=1,nc
     z_on_l=vkar*zmin*grav*pvstar/(theta*cd*umag**2)
@@ -1756,7 +1797,7 @@ elsewhere
   roads=(2.*thetazero-ifn%hwratio*ta*tc)/pi
 end where
 
-! note that these terms are truncated to nrefl order reflections, compared to TEB which uses infinite reflections.
+! Calculate short wave reflections to nrefl order
 roadnetalpha=(1.-rdsndelta)*ifn%roadalpha+rdsndelta*rdsnalpha
 sg%walle=walles
 sg%wallw=wallws
@@ -1870,7 +1911,7 @@ end do
 canyontemp=min(max(canyontemp,ctmin),ctmax)
 ! ---------------------------------------------------------------    
 
-! note additional nrefl order reflections
+! Calculate long wave reflections to nrefl order
 netrad=dg%rdsndelta*snowemiss*rdsntemp**4+(1.-dg%rdsndelta)*ifn%roademiss*iroad%temp(1)**4
 netemiss=dg%rdsndelta*snowemiss+(1.-dg%rdsndelta)*ifn%roademiss
 cwa=wallpsi
@@ -1991,8 +2032,7 @@ elsewhere
   fg%rdsn=0.
 end where
 fgtop=aircp*atm%rho*(ctemp-dg%tempc)*topinvres
-evct=fgtop-(dg%rdsndelta*fg%rdsn+(1.-dg%rdsndelta)*fg%road+ifn%hwratio*(fg%walle+fg%wallw) &
-           +trafficout+dg%accool)
+evct=fgtop-(dg%rdsndelta*fg%rdsn+(1.-dg%rdsndelta)*fg%road+ifn%hwratio*(fg%walle+fg%wallw)+trafficout+dg%accool)
 
 return
 end subroutine solvecanyon
