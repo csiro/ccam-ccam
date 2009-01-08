@@ -648,7 +648,7 @@ c ----------------------------------------------------------------------
       ! MJT urban
       if (nurban.ne.0) then
          call atebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin
-     &               ,sgsave(:)/(1.-albvisnir(:,1)),-rgsave(:)
+     &               ,sgsave(:)/(1.-0.5*sum(albvisnir,2)),-rgsave(:)
      &               ,condx(:)/dt,rho(:),t(:,1),qg(:,1)
      &               ,ps(:),sig(1)*ps(:)
      &               ,av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(1:ifull,1)

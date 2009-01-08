@@ -123,7 +123,7 @@ module cable_ccam
        met%hod=(met%doy-int(met%doy))*24.0 + rlongg(cmap)*180./(15.*pi)
        where (met%hod.gt.24.0) met%hod=met%hod-24.0
        rough%za=-287.*t(cmap,1)*log(sig(1))/grav   ! reference height
-       met%fsd=sgsave(cmap)/(1.-albvisnir(cmap,1))! short wave down (positive) W/m^2
+       met%fsd=sgsave(cmap)/(1.-0.5*sum(albvisnir(cmap,:),2))! short wave down (positive) W/m^2
 
        ssoil%albsoilsn(:,1)=albsoilsn(cmap,1)
        ssoil%albsoilsn(:,2)=albsoilsn(cmap,2)
