@@ -192,7 +192,8 @@ module cable_ccam
      &      bal, rad, rough, soil, ssoil, sum_flux, veg, mxvt, mxst)
 
       albsoilsn(iperm(1:ipland),:)=0.
-      albvisnir(iperm(1:ipland),:)=0.
+      albsav(iperm(1:ipland))=0.
+      albnirsav(iperm(1:ipland))=0.
       runoff(iperm(1:ipland))=0.
       rnof1(iperm(1:ipland))=0.
       rnof2(iperm(1:ipland))=0.
@@ -239,12 +240,6 @@ module cable_ccam
       csoil(iperm(1:ipland),:)=0.
       zo(iperm(1:ipland))=0.
       do nb=1,5
-        do k=1,2
-          where(dmap(:,nb).gt.0)
-            albsoilsn(iperm(1:ipland),k)=albsoilsn(iperm(1:ipland),k)+sv(:,nb)*ssoil%albsoilsn(dmap(:,nb),k)
-            albvisnir(iperm(1:ipland),k)=albvisnir(iperm(1:ipland),k)+sv(:,nb)*rad%albedo(dmap(:,nb),k)
-          end where
-        end do
         do k=1,ms
           where(dmap(:,nb).gt.0)
             tgg(iperm(1:ipland),k)=tgg(iperm(1:ipland),k)+sv(:,nb)*ssoil%tgg(dmap(:,nb),k)
@@ -270,6 +265,10 @@ module cable_ccam
           end where
         enddo
         where(dmap(:,nb).gt.0)
+          albsoilsn(iperm(1:ipland),1)=albsoilsn(iperm(1:ipland),1)+sv(:,nb)*ssoil%albsoilsn(dmap(:,nb),1)
+          albsoilsn(iperm(1:ipland),2)=albsoilsn(iperm(1:ipland),2)+sv(:,nb)*ssoil%albsoilsn(dmap(:,nb),2)
+          albsav(iperm(1:ipland))=albsav(iperm(1:ipland))+sv(:,nb)*rad%albedo(dmap(:,nb),1)
+          albnirsav(iperm(1:ipland))=albnirsav(iperm(1:ipland))+sv(:,nb)*rad%albedo(dmap(:,nb),2)
           runoff(iperm(1:ipland))=runoff(iperm(1:ipland))+sv(:,nb)*ssoil%runoff(dmap(:,nb))
           rnof1(iperm(1:ipland))=rnof1(iperm(1:ipland))+sv(:,nb)*ssoil%rnof1(dmap(:,nb))
           rnof2(iperm(1:ipland))=rnof2(iperm(1:ipland))+sv(:,nb)*ssoil%rnof2(dmap(:,nb))
@@ -508,7 +507,6 @@ module cable_ccam
     svs(:,n)=svs(:,n)/sum(svs,2)
   end do
 
-  !mp=count(land)
    mp=0
    do iq=1,ifull
      if (land(iq)) then
@@ -517,7 +515,6 @@ module cable_ccam
    end do
    nb=count(land)
   
-  !allocate(sv(mp))
   allocate(sv(nb,5))
   allocate(vl(nb,5))
   allocate(cmap(mp),dmap(nb,5))
@@ -560,26 +557,27 @@ module cable_ccam
     end do
   end do
   
+  if (ipos.ne.mp) then
+    print *,"ERROR: Internal memory allocation error for CABLE set-up"
+    stop
+  end if
+  
   do iq=1,ifull
     vlai(iq)=dot_product(vlin(iq,:),svs(iq,:))
   end do
   
   ! aggregate zom
   zolnd=0.
-  !veg%frac4=0.
   do n=1,5
-  !  call getc4(ifull,ivs(:,n),rlatt*180./pi,c4frac)
-  !  veg%frac4 = veg%frac4 + pack(svs(:,n)*c4frac,land)
     where (land)
       zolnd=zolnd+svs(:,n)/log(zmin/(0.1*hc(ivs(:,n))))**2
     end where
   end do
   zolnd=max(zmin*exp(-sqrt(1./zolnd)),zobgin)
-  !veg%hc=pack(10.*zolnd,land)
   
   ! use dominant veg type
   ivegt=ivs(:,1)
-  !veg%iveg   = pack(int(ivegt,i_d), land)  
+  veg%hc     = hc(veg%iveg)
   veg%canst1 = canst1(veg%iveg)
   veg%ejmax  = ejmax(veg%iveg)
   veg%tminvj = tminvj(veg%iveg)
@@ -617,7 +615,6 @@ module cable_ccam
     if (myid == 0) print *,"Loading carbpools from ifile"
   end if
 
-  !soil%isoilm  = pack(isoilm,land)
   soil%bch     = bch(soil%isoilm)
   soil%css     = css(soil%isoilm)
   soil%rhosoil = rhos(soil%isoilm)

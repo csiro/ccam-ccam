@@ -218,7 +218,8 @@ c    &               rlongg(1+(j-1)*il),dhr,imax,coszro2,taudar2)
          call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),
      &               rlongg(istart:iend),dhr,imax,coszro2,taudar2)
          call atebccangle(istart,imax,coszro2(1:imax) ! MJT urban
-     &    ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt) 
+     &    ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt
+     &    ,sin(dlt)) 
       end if    !  ( solarfit )
 
       if ( odcalc ) then     ! Do the calculation
@@ -229,9 +230,9 @@ c     calculations
       call zenith(fjd,r1,dlt,slag,rlatt(1+(j-1)*il),
      &            rlongg(1+(j-1)*il),dhr,imax,coszro,taudar)
 
-      if (.not.solarfit) ! MJT urban
-     &   call atebccangle(istart,imax,coszro(1:imax)
-     &   ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dhr,dlt) 
+      call atebccangle(istart,imax,coszro(1:imax) ! MJT urban
+     &   ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt*kountr
+     &   ,cos(dlt)) 
 
 c     Set up basic variables, reversing the order of the vertical levels
       do i=1,imax
@@ -263,8 +264,8 @@ c             qo3(i,k) = duo3n(i,k)*1.01325e+02/press(i,lp1)
           iq=i+(j-1)*il
           if( land(iq) )then
            if ((nsib.eq.CABLE).or.(nsib.eq.6)) then ! MJT CHANGE sib
-             cuvrf(i,1) = albvisnir(iq,1) ! from cable (inc snow)
-             cirrf(i,1) = albvisnir(iq,2) ! from cable (inc snow)
+             cuvrf(i,1) = albsav(iq) ! from cable (inc snow)
+             cirrf(i,1) = albnirsav(iq) ! from cable (inc snow)
            else ! (nsib.le.3).or.(nsib.eq.5)
 	   
            if(nalbwb.eq.0)then
@@ -406,18 +407,18 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
       end do ! i=1,imax
       call atebalb1(istart,imax,cuvrf(1:imax,1),0) ! MJT CHANGE - urban
       call atebalb1(istart,imax,cirrf(1:imax,1),0) ! MJT CHANGE - urban
-      albvisnir(istart:iend,1)=cuvrf(1:imax,1)
-      albvisnir(istart:iend,2)=cirrf(1:imax,1)
       if (iaero.ne.0) then
         do i=1,imax
           iq=i+(j-1)*il
            cosz = max ( coszro(i), 1.e-4)
            delta =  coszro(i)*beta_ave*alpha*so4t(iq)* ! still broadband
      &	            ((1.-cuvrf(i,1))/cosz)*((1.-cirrf(i,1))/cosz)
-           cuvrf(i,1)=min(1., delta+cuvrf(i,1)) ! surface albedo
-           cirrf(i,1)=min(1., delta+cirrf(i,1)) ! still broadband
+           cuvrf(i,1)=min(0.9999, delta+cuvrf(i,1)) ! surface albedo
+           cirrf(i,1)=min(0.9999, delta+cirrf(i,1)) ! still broadband
         end do ! i=1,imax
       endif !(iaero.ne.0)then
+      albvisnir(istart:iend,1)=cuvrf(1:imax,1)
+      albvisnir(istart:iend,2)=cirrf(1:imax,1)
       !-----------------------------------------------------------------------------------------------------------      
 
       do k=1,kl
@@ -543,7 +544,7 @@ c       write(24,*)coszro2
           sout(i) = ufsw(i,1)*h1m3   ! solar out top
           sg(i)   = sg(i)*h1m3       ! solar absorbed at the surface
           iq=i+(j-1)*il              ! fixed Mar '05
-          sgdn(i) = sg(i) / ( 1. - albvisnir(iq,1) ) ! MJT albedo
+          sgdn(i) = sg(i) / ( 1. - 0.5*sum(albvisnir(iq,:)) ) ! MJT albedo
       end do
       if(ntest.gt.0.and.j.eq.jdrad)then
         print *,'idrad,j,sint,sout,soutclr,sg,cuvrf1 ',

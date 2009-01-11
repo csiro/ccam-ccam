@@ -1030,7 +1030,7 @@ CONTAINS
 !         YP & Mao (jun08) replaced met%tk with tvair
 !          canopy%tv = met%tk
        END WHERE
-       where (abs(canopy%tv-met%tvair).gt.10.)
+       where (abs(canopy%tv-met%tvair).ge.10.)
          canopy%tv = met%tvair
          rad%lwabv=0.
        end where
@@ -1110,7 +1110,7 @@ CONTAINS
           met%qvair = met%qv + (dmah*dmce-dmae*dmch)/(dmah*dmbe-dmae*dmbh+1.0e-12)
           met%qvair = max(0.0,met%qvair)
        END WHERE
-       where (abs(met%tvair-met%tk).gt.10.)
+       where (abs(met%tvair-met%tk).ge.10.)
          met%tvair=met%tk
          met%qvair=met%qv
        end where
@@ -1200,7 +1200,7 @@ CONTAINS
              ! sparse canopy 
              canopy%tv = met%tvair
           END WHERE
-          where (abs(canopy%tv-met%tvair).gt.10.)
+          where (abs(canopy%tv-met%tvair).ge.10.)
             canopy%tv = met%tvair
             rad%lwabv=0.
           end where

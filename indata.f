@@ -849,8 +849,10 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
           !call cbmrdn(nveg) ! MJT cable
         end if
         if (nsib.eq.6) then  ! MJT cable
+          ! albvisnir at this point holds soild albedo for cable initialisation
           vmodmin=umin
           call loadcbmparm(vegfile)
+          ! albvisnir now is the net albedo
         end if
       else
         do iq=1,ifull
@@ -1893,8 +1895,19 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         if (all(albsav.ne.-1.)) then
           if (myid==0) print *,
      &      "CABLE in use.  Initialising albedo with infile data"
-          albvisnir(:,1)=albsav(:)
-          albvisnir(:,2)=albnirsav(:)
+          where ((albsav.le.0.14).and.land)
+            !sfact=0.5 for alb <= 0.14 (see cable_soilsnow.f90)
+            albvisnir(:,1)=(1.00/1.50)*albsav(:)
+            albvisnir(:,2)=(2.00/1.50)*albsav(:)
+          elsewhere ((albsav.le.0.2).and.land)
+            !sfact=0.62 for 0.14 < alb <= 0.20 (see cable_soilsnow.f90)
+            albvisnir(:,1)=(1.24/1.62)*albsav(:)
+            albvisnir(:,2)=(2.00/1.62)*albsav(:)
+          elsewhere (land)
+            !sfact=0.68 for 0.2 < alb (see cable_soilsnow.f90)
+            albvisnir(:,1)=(1.36/1.68)*albsav(:)
+            albvisnir(:,2)=(2.00/1.68)*albsav(:)
+          end where
         else
           if (myid==0) print *,
      &  "CABLE in use.  Initialising albedo with modified soil albedo"
@@ -1938,6 +1951,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
 
        !------------------------------------------------------------------------
        ! MJT CHANGE sib ! MJT CHANGE cable
+       ! if cable, then the albedo is soil albedo only (converted when cable is initialised)
        call readreal(albfile,albvisnir(:,1),ifull)
        if ((nsib.eq.5).or.(nsib.eq.6)) then
          call readreal('albnir',albvisnir(:,2),ifull)
