@@ -412,7 +412,7 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
           iq=i+(j-1)*il
            cosz = max ( coszro(i), 1.e-4)
            delta =  coszro(i)*beta_ave*alpha*so4t(iq)* ! still broadband
-     &	            ((1.-cuvrf(i,1))/cosz)*((1.-cirrf(i,1))/cosz)
+     &	            ((1.-0.5*(cuvrf(i,1)+cirrf(i,1)))/cosz)**2
            cuvrf(i,1)=min(0.9999, delta+cuvrf(i,1)) ! surface albedo
            cirrf(i,1)=min(0.9999, delta+cirrf(i,1)) ! still broadband
         end do ! i=1,imax

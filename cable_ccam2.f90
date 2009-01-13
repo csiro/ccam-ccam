@@ -49,6 +49,7 @@ module cable_ccam
       include 'extraout.h'
       include 'latlong.h'  ! rlatt,rlongg
       include 'morepbl.h'
+      include 'nsibd.h'
       include 'parm.h'
       include 'permsurf.h'
       include 'pbl.h'
@@ -220,6 +221,7 @@ module cable_ccam
       eg(iperm(1:ipland))=0.
       epot(iperm(1:ipland))=0.
       tss(iperm(1:ipland))=0.
+      tgf(iperm(1:ipland))=0.
       cansto(iperm(1:ipland))=0.
       gflux(iperm(1:ipland))=0.
       sgflux(iperm(1:ipland))=0.
@@ -283,12 +285,13 @@ module cable_ccam
           osnowd0(iperm(1:ipland))=osnowd0(iperm(1:ipland))+sv(:,nb)*bal%osnowd0(dmap(:,nb))
           snage(iperm(1:ipland))=snage(iperm(1:ipland))+sv(:,nb)*ssoil%snage(dmap(:,nb))
           risflag(iperm(1:ipland))=risflag(iperm(1:ipland))+sv(:,nb)*real(ssoil%isflag(dmap(:,nb)))
-          rtsoil(iperm(1:ipland))=rtsoil(iperm(1:ipland))+sv(:,nb)*ssoil%rtsoil(dmap(:,nb))
+          rtsoil(iperm(1:ipland))=rtsoil(iperm(1:ipland))+sv(:,nb)/ssoil%rtsoil(dmap(:,nb))
           rnet(iperm(1:ipland))=rnet(iperm(1:ipland))+sv(:,nb)*canopy%rnet(dmap(:,nb))
           fg(iperm(1:ipland))=fg(iperm(1:ipland))+sv(:,nb)*canopy%fh(dmap(:,nb))
           eg(iperm(1:ipland))=eg(iperm(1:ipland))+sv(:,nb)*canopy%fe(dmap(:,nb))
           epot(iperm(1:ipland))=epot(iperm(1:ipland))+sv(:,nb)*ssoil%potev(dmap(:,nb))
           tss(iperm(1:ipland))=tss(iperm(1:ipland))+sv(:,nb)*rad%trad(dmap(:,nb))
+          tgf(iperm(1:ipland))=tgf(iperm(1:ipland))+sv(:,nb)*met%tvair(dmap(:,nb))
           cansto(iperm(1:ipland))=cansto(iperm(1:ipland))+sv(:,nb)*canopy%cansto(dmap(:,nb))
           gflux(iperm(1:ipland))=gflux(iperm(1:ipland))+sv(:,nb)*canopy%ghflux(dmap(:,nb))
           sgflux(iperm(1:ipland))=sgflux(iperm(1:ipland))+sv(:,nb)*canopy%sghflux(dmap(:,nb))
@@ -310,6 +313,7 @@ module cable_ccam
       where (land)
         isflag=nint(risflag)
         zo=max(zmin*exp(-sqrt(1./zo)),zobgin)
+        rtsoil=1./rtsoil
       end where
         
 
@@ -463,24 +467,6 @@ module cable_ccam
     stop
   end if
 
-! soil parameters
-  soil%zse = (/.022, .058, .154, .409, 1.085, 2.872/) ! soil layer thickness
-  soil%zshh(1) = 0.5 * soil%zse(1)
-  soil%zshh(ms+1) = 0.5 * soil%zse(ms)
-  soil%zshh(2:ms) = 0.5 * (soil%zse(1:ms-1) + soil%zse(2:ms))
-
-! preferred option
-! froot is now calculated from soil depth and the new parameter rootbeta 
-! according to Jackson et al. 1996, Oceologica, 108:389-411
-  totdepth = 0.0
-  do k=1,ms
-    totdepth = totdepth + soil%zse(k)*100.0
-    froot2(:,k) = min(1.0,1.0-rootbeta(:)**totdepth)
-  enddo
-  do k = ms, 2, -1
-    froot2(:,k) = froot2(:,k) - froot2(:,k-1)
-  enddo
-  
   if (myid==0) then
     print *,"Reading land-use data for CABLE"
     open(87,file=fveg,status='old')
@@ -530,6 +516,24 @@ module cable_ccam
   call alloc_cbm_var(ssoil, mp)
   call alloc_cbm_var(sum_flux, mp)
   call alloc_cbm_var(veg, mp)
+  
+  ! soil parameters
+  soil%zse = (/.022, .058, .154, .409, 1.085, 2.872/) ! soil layer thickness
+  soil%zshh(1) = 0.5 * soil%zse(1)
+  soil%zshh(ms+1) = 0.5 * soil%zse(ms)
+  soil%zshh(2:ms) = 0.5 * (soil%zse(1:ms-1) + soil%zse(2:ms))
+  
+! preferred option
+! froot is now calculated from soil depth and the new parameter rootbeta 
+! according to Jackson et al. 1996, Oceologica, 108:389-411
+  totdepth = 0.0
+  do k=1,ms
+    totdepth = totdepth + soil%zse(k)*100.0
+    froot2(:,k) = min(1.0,1.0-rootbeta(:)**totdepth)
+  enddo
+  do k = ms, 2, -1
+    froot2(:,k) = froot2(:,k) - froot2(:,k-1)
+  enddo
   
   dmap=0
   ipos=0
@@ -628,6 +632,8 @@ module cable_ccam
   soil%ibp2    = ibp2(soil%isoilm)
   soil%i2bp3   = i2bp3(soil%isoilm)
 
+  sigmf=(1.-exp(-extkn(ivegt(:))*vlai(:)))
+
   ! store bare soil albedo and define snow free albedo
   albsoilsn(:,:)=0.08
   where (land)
@@ -650,8 +656,8 @@ module cable_ccam
   end where
  ! MJT suggestion to get an approx inital albedo (before cable is called)
   where (land)
-    albvisnir(:,1)=albsoilsn(:,1)*exp(-extkn(ivegt(:))*vlai(:))+0.1*(1.-exp(-extkn(ivegt(:))*vlai(:)))
-    albvisnir(:,2)=albsoilsn(:,2)*exp(-extkn(ivegt(:))*vlai(:))+0.3*(1.-exp(-extkn(ivegt(:))*vlai(:)))
+    albvisnir(:,1)=albsoilsn(:,1)*(1.-sigmf)+0.1*sigmf
+    albvisnir(:,2)=albsoilsn(:,2)*(1.-sigmf)+0.3*sigmf
   elsewhere
     albvisnir(:,1)=albsoilsn(:,1)
     albvisnir(:,2)=albsoilsn(:,2)

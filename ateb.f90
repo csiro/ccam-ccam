@@ -1557,31 +1557,31 @@ uo%wf=fn%sigmabld*dg%roofdelta*(1.-dg%rfsndelta)+(1.-fn%sigmabld)*dg%roaddelta*(
 ! (re)calculate heat roughness length for MOST
 call getinvres(ufull,a,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,dg%tempc,atm%umag,zohmeth+1)
 
-!if (caleffzo) then
-!  if ((uo(iqut)%ts-dg(iqut)%tempc)*uo(iqut)%fg.le.0.) then
-!    write(6,*) "NO SOLUTION iqut ",iqut
-!  else
-!    oldval(1)=2.3+pg(iqut)%lzom
-!    call getinvres(1,a(1),xe(1),oldval(1),pg(iqut)%lzom,pg(iqut)%cndzmin,uo(iqut)%ts,dg(iqut)%tempc,atm(iqut)%umag,4)
-!    evct(1)=aircp*atm(iqut)%rho*(uo(iqut)%ts-dg(iqut)%tempc)*a(1)-uo(iqut)%fg
-!    write(6,*) "iqut,its,adj,bal ",iqut,0,oldval(1)-pg(iqut)%lzom,evct(1)
-!    n(1)=6.+pg(iqut)%lzom
-!    do k=1,20 ! sectant
-!      evctx(1)=evct(1)
-!      call getinvres(1,a(1),xe(1),n(1),pg(iqut)%lzom,pg(iqut)%cndzmin,uo(iqut)%ts,dg(iqut)%tempc,atm(iqut)%umag,4)  
-!      evct(1)=aircp*atm(iqut)%rho*(uo(iqut)%ts-dg(iqut)%tempc)*a(1)-uo(iqut)%fg
-!      write(6,*) "iqut,its,adj,bal ",iqut,k,n(1)-pg(iqut)%lzom,evct(1)  
-!      evctx(1)=evct(1)-evctx(1)
-!      if (abs(evctx(1)).le.tol) exit
-!      newval(1)=n(1)-evct(1)*(n(1)-oldval(1))/evctx(1)
-!      newval(1)=min(max(newval(1),0.1),50.+pg(iqut)%lzom)
-!      oldval(1)=n(1)
-!      n(1)=newval(1)
-!    end do
-!    xw(1)=max(sqrt(pg(iqut)%cduv)*atm(iqut)%umag*zmin*exp(-pg(iqut)%lzom)/1.461E-5,10.)
-!    write(62,*) xw(1),n(1)-pg(iqut)%lzom
-!  end if
-!end if
+if (caleffzo) then
+  if ((uo(iqut)%ts-dg(iqut)%tempc)*uo(iqut)%fg.le.0.) then
+    write(6,*) "NO SOLUTION iqut ",iqut
+  else
+    oldval(1)=2.3+pg(iqut)%lzom
+    call getinvres(1,a(1),xe(1),oldval(1),pg(iqut)%lzom,pg(iqut)%cndzmin,uo(iqut)%ts,dg(iqut)%tempc,atm(iqut)%umag,4)
+    evct(1)=aircp*atm(iqut)%rho*(uo(iqut)%ts-dg(iqut)%tempc)*a(1)-uo(iqut)%fg
+    write(6,*) "iqut,its,adj,bal ",iqut,0,oldval(1)-pg(iqut)%lzom,evct(1)
+    n(1)=6.+pg(iqut)%lzom
+    do k=1,20 ! sectant
+      evctx(1)=evct(1)
+      call getinvres(1,a(1),xe(1),n(1),pg(iqut)%lzom,pg(iqut)%cndzmin,uo(iqut)%ts,dg(iqut)%tempc,atm(iqut)%umag,4)  
+      evct(1)=aircp*atm(iqut)%rho*(uo(iqut)%ts-dg(iqut)%tempc)*a(1)-uo(iqut)%fg
+      write(6,*) "iqut,its,adj,bal ",iqut,k,n(1)-pg(iqut)%lzom,evct(1)  
+      evctx(1)=evct(1)-evctx(1)
+      if (abs(evctx(1)).le.tol) exit
+      newval(1)=n(1)-evct(1)*(n(1)-oldval(1))/evctx(1)
+      newval(1)=min(max(newval(1),0.1),50.+pg(iqut)%lzom)
+      oldval(1)=n(1)
+      n(1)=newval(1)
+    end do
+    xw(1)=max(sqrt(pg(iqut)%cduv)*atm(iqut)%umag*zmin*exp(-pg(iqut)%lzom)/1.461E-5,10.)
+    write(62,*) xw(1),n(1)-pg(iqut)%lzom
+  end if
+end if
   
 return
 end subroutine atebeval

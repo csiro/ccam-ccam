@@ -770,9 +770,11 @@ CONTAINS
           wetfac = 1.
        END WHERE
        ssoil%rtsoil = rt0 + rough%rt1*(0.5+sign(0.5,0.02-canopy%vlaiw)) 
-       ssoil%rtsoil = max(25.,ssoil%rtsoil)   
+       !ssoil%rtsoil = max(25.,ssoil%rtsoil)   
+       ssoil%rtsoil = max(5.,ssoil%rtsoil)   ! MJT suggestion
        WHERE ( ssoil%rtsoil .GT. 2.* ortsoil .OR. ssoil%rtsoil .LT. 0.5*ortsoil )
-          ssoil%rtsoil = MAX(25.,0.5*(ssoil%rtsoil + ortsoil))
+          !ssoil%rtsoil = MAX(25.,0.5*(ssoil%rtsoil + ortsoil))
+          ssoil%rtsoil = MAX(5.,0.5*(ssoil%rtsoil + ortsoil)) ! MJT suggestion
        END WHERE
        ! Vegetation boundary-layer conductance (mol/m2/s)
        ! prandt = kinematic viscosity/molecular diffusivity
@@ -1075,9 +1077,11 @@ CONTAINS
        ! Calculate ground heat flux:
        canopy%ga = canopy%fns-canopy%fhs-canopy%fes*ssoil%cls
        ! Calculate total latent heat:
-       canopy%fe = canopy%fev + canopy%fes
+       !canopy%fe = canopy%fev + canopy%fes
+       canopy%fe = canopy%fev * (1.-rad%transd) + canopy%fes * rad%transd  ! MJT suggestion
        ! Calculate total sensible heat:
-       canopy%fh = canopy%fhv + canopy%fhs
+       !canopy%fh = canopy%fhv + canopy%fhs
+       canopy%fh = canopy%fhv * (1.-rad%transd) + canopy%fhs * rad%transd  ! MJT suggestion
        ! Initialise in-canopy temperature and humidity:
        met%tvair = met%tk
        met%qvair = met%qv
@@ -1238,12 +1242,15 @@ CONTAINS
              canopy%fes= min(wetfac * ssoil%potev,ssoil%snowd/dels*air%rlam*ssoil%cls)
           END WHERE
           ! Soil sensible heat:
-          canopy%fhs = air%rho*capp*(ssoil%tss - met%tvair) /ssoil%rtsoil
+          !canopy%fhs = air%rho*capp*(ssoil%tss - met%tvair) /ssoil%rtsoil
+          canopy%fhs = air%rho*capp*(ssoil%tss - met%tk) /ssoil%rtsoil ! MJT suggestion
           canopy%ga = canopy%fns-canopy%fhs-canopy%fes*ssoil%cls
           ! Set total latent heat:
-          canopy%fe = canopy%fev + canopy%fes
+          !canopy%fe = canopy%fev + canopy%fes
+          canopy%fe = canopy%fev * (1.-rad%transd) + canopy%fes * rad%transd ! MJT suggestion
           ! Set total sensible heat:
-          canopy%fh = canopy%fhv + canopy%fhs
+          !canopy%fh = canopy%fhv + canopy%fhs
+          canopy%fh = canopy%fhv * (1.-rad%transd) + canopy%fhs * rad%transd ! MJT suggestion
        END WHERE ! veg%meth > 0
        !WRITE(66,*) ktau, dummy1, canopy%fnv
 
@@ -1513,9 +1520,11 @@ CONTAINS
     !	need to adjust fe after soilsnow
     canopy%fev	= REAL(canopy%fevc,r_1) + canopy%fevw
     ! Calculate total latent heat flux:
-    canopy%fe = canopy%fev + canopy%fes
+    !canopy%fe = canopy%fev + canopy%fes
+    canopy%fe = canopy%fev * (1.-rad%transd) + canopy%fes * rad%transd   ! MJT suggestion
     ! Calculate net radiation absorbed by soil + veg
-    canopy%rnet = canopy%fns + canopy%fnv
+    !canopy%rnet = canopy%fns + canopy%fnv
+    canopy%rnet = canopy%fns * rad%transd + canopy%fnv * (1.-rad%transd) ! MJT suggestion
 
     ! Calculate radiative/skin temperature:
     rad%trad = ( (1.-rad%transd)*canopy%tv**4 + rad%transd * ssoil%tss**4 )**0.25
