@@ -890,48 +890,48 @@ c     real b(ik*ik*6), a(ik*ik*6+iextra)
       integer npann(0:5),npane(0:5),npanw(0:5),npans(0:5)
       data npann/1,103,3,105,5,101/,npane/102,2,104,4,100,0/
       data npanw/5,105,1,101,3,103/,npans/104,0,100,2,102,4/
-      ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,npanels
+      ind(i,j,n)=i+(j-1)*ik+n*ik*ik  ! *** for n=0,npanels
        do iq=1,ik*ik*6
-       in(iq)=iq+il
-       is(iq)=iq-il
+       in(iq)=iq+ik
+       is(iq)=iq-ik
        ie(iq)=iq+1
        iw(iq)=iq-1
       enddo   ! iq loop
       do n=0,npanels
       if(npann(n).lt.100)then
-        do ii=1,il
-         in(ind(ii,il,n))=ind(ii,1,npann(n))
+        do ii=1,ik
+         in(ind(ii,ik,n))=ind(ii,1,npann(n))
         enddo    ! ii loop
       else
-        do ii=1,il
-         in(ind(ii,il,n))=ind(1,il+1-ii,npann(n)-100)
+        do ii=1,ik
+         in(ind(ii,ik,n))=ind(1,ik+1-ii,npann(n)-100)
         enddo    ! ii loop
       endif      ! (npann(n).lt.100)
       if(npane(n).lt.100)then
-        do ii=1,il
-         ie(ind(il,ii,n))=ind(1,ii,npane(n))
+        do ii=1,ik
+         ie(ind(ik,ii,n))=ind(1,ii,npane(n))
         enddo    ! ii loop
       else
-        do ii=1,il
-         ie(ind(il,ii,n))=ind(il+1-ii,1,npane(n)-100)
+        do ii=1,ik
+         ie(ind(ik,ii,n))=ind(ik+1-ii,1,npane(n)-100)
         enddo    ! ii loop
       endif      ! (npane(n).lt.100)
       if(npanw(n).lt.100)then
-        do ii=1,il
-         iw(ind(1,ii,n))=ind(il,ii,npanw(n))
+        do ii=1,ik
+         iw(ind(1,ii,n))=ind(ik,ii,npanw(n))
         enddo    ! ii loop
       else
-        do ii=1,il
-         iw(ind(1,ii,n))=ind(il+1-ii,il,npanw(n)-100)
+        do ii=1,ik
+         iw(ind(1,ii,n))=ind(ik+1-ii,il,npanw(n)-100)
         enddo    ! ii loop
       endif      ! (npanw(n).lt.100)
       if(npans(n).lt.100)then
-        do ii=1,il
-         is(ind(ii,1,n))=ind(ii,il,npans(n))
+        do ii=1,ik
+         is(ind(ii,1,n))=ind(ii,ik,npans(n))
         enddo    ! ii loop
       else
-        do ii=1,il
-         is(ind(ii,1,n))=ind(il,il+1-ii,npans(n)-100)
+        do ii=1,ik
+         is(ind(ii,1,n))=ind(ik,ik+1-ii,npans(n)-100)
         enddo    ! ii loop
       endif      ! (npans(n).lt.100)
       enddo      ! n loop
