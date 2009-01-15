@@ -105,8 +105,8 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)	   :: dh ! d/h where d is zero-plane displacement
     ! Set canopy height above snow level:
     rough%hruff= MAX(0.01,veg%hc-1.2*ssoil%snowd/max(ssoil%ssdnn,100.)) 
-    ! Reference height for met data:
-    rough%zref = max(rough%hruff+2.,rough%za)	 ! needs more elaborate formula
+    !! Reference height for met data:
+    !rough%zref = max(rough%hruff+2.,rough%za)	 ! needs more elaborate formula
     ! LAI decreases due to snow and vegetation fraction:
     canopy%vlaiw = veg%vlai * rough%hruff/MAX(0.01,veg%hc)
     ! Roughness length of bare soil (m):
@@ -118,6 +118,7 @@ CONTAINS
        rough%hruff = 0.0
        rough%rt0us = 0.0  
        rough%disp = 0.0
+       rough%zref = max(3.5,rough%za-rough%disp+rough%hruff)
        rough%zruffs = 0.0
        rough%rt1usa = 0.0 
        rough%rt1usb = 0.0
@@ -144,6 +145,7 @@ CONTAINS
        dh = 1.0 - (1.0 - EXP(-xx))/xx
        ! Calculate zero-plane displacement:
        rough%disp = dh*rough%hruff
+       rough%zref = max(3.5,rough%za-rough%disp+rough%hruff)
        ! Calcualte roughness length:
        rough%z0m = ((1.0 - dh)*EXP(LOG(ccw)-1. + 1./ccw - vonk/rough%usuh))*rough%hruff
        !	find coexp: see notes "simplified wind model ..." eq 34a
@@ -623,8 +625,15 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)		:: xx ! delta-type function for sparse canopy limit, p20 SCAM manual
     REAL(r_1), DIMENSION(mp,mf)		:: temp ! vcmax big leaf C3
     REAL(r_1), DIMENSION(mp,mf)         :: deltecy ! YP & Mao (jun08)
-
     REAL(r_1), DIMENSION(mp)  :: dummy1, dummy2
+!%% changes by Ashok Luhar (low wind speed)
+    REAL(r_1), PARAMETER		:: alpha1=4.0
+    REAL(r_1), PARAMETER		:: beta1=0.5
+    REAL(r_1), PARAMETER		:: gamma1=0.3
+    REAL(r_1), DIMENSION(mp)	        :: zeta1
+    REAL(r_1), DIMENSION(mp)	        :: zeta2
+    REAL(r_1), DIMENSION(mp)	        :: usA
+!%%
     !
     !	xjxcoef=1.0+exp((Entropjx*TrefK-EHdjx)/(Rconst*TrefK))
     ! 1-oct-2002 ypw: to keep the unit consistent for resistance or conductance
@@ -735,6 +744,18 @@ CONTAINS
             LOG(rough%zref / rough%z0m) - &
             psim(zetar(:,iter)) + &
             psim(zetar(:,iter) * rough%z0m / rough%zref) ))
+!%%change by Ashok Luhar - low wind formulation
+            usA = 0.0
+        where (zetar(:,iter) > 0.7)
+            zeta1=zetar(:,iter) * rough%z0m / rough%zref
+!            usA = MAX(1.e-6, &
+            canopy%us = MAX(1.e-6, &
+            vonk * MAX(met%ua,umin) / ( &
+            alpha1* ((zetar(:,iter)**beta1*  &
+               (1.0+gamma1*zetar(:,iter)**(1.0-beta1)))  &       
+             - (zeta1**beta1*(1.0+gamma1*zeta1**(1.0-beta1))))))
+        endwhere         
+!%%
        ! Turbulent aerodynamic resistance from roughness sublayer depth to reference height,
        ! x=1 if zref+disp>zruffs, 0 otherwise: thus rt1usc = 0 if zref+disp<zruffs
        ! See CSIRO SCAM, Raupach et al 1997, eq. 3.53:
@@ -770,11 +791,9 @@ CONTAINS
           wetfac = 1.
        END WHERE
        ssoil%rtsoil = rt0 + rough%rt1*(0.5+sign(0.5,0.02-canopy%vlaiw)) 
-       !ssoil%rtsoil = max(25.,ssoil%rtsoil)   
-       ssoil%rtsoil = max(5.,ssoil%rtsoil)   ! MJT suggestion
+       ssoil%rtsoil = max(25.,ssoil%rtsoil)   
        WHERE ( ssoil%rtsoil .GT. 2.* ortsoil .OR. ssoil%rtsoil .LT. 0.5*ortsoil )
-          !ssoil%rtsoil = MAX(25.,0.5*(ssoil%rtsoil + ortsoil))
-          ssoil%rtsoil = MAX(5.,0.5*(ssoil%rtsoil + ortsoil)) ! MJT suggestion
+          ssoil%rtsoil = MAX(25.,0.5*(ssoil%rtsoil + ortsoil))
        END WHERE
        ! Vegetation boundary-layer conductance (mol/m2/s)
        ! prandt = kinematic viscosity/molecular diffusivity
@@ -1032,10 +1051,10 @@ CONTAINS
 !         YP & Mao (jun08) replaced met%tk with tvair
 !          canopy%tv = met%tk
        END WHERE
-       where (abs(canopy%tv-met%tvair).ge.10.)
-         canopy%tv = met%tvair
-         rad%lwabv=0.
-       end where
+       !where (abs(canopy%tv-met%tvair).ge.20.)
+       !  canopy%tv = met%tvair
+       !  rad%lwabv=0.
+       !end where
        ! Calculate ground heat flux:
        canopy%ghflux = (1-ssoil%isflag)*canopy%ghflux + ssoil%isflag*canopy%sghflux
        ! Saturation specific humidity at soil/snow surface temperature:
@@ -1053,8 +1072,10 @@ CONTAINS
        sss=air%dsatdk
        cc1=sss/(sss+air%psyc )
        cc2=air%psyc /(sss+air%psyc )
+      ! ssoil%potev = cc1 * (canopy%fns - canopy%ghflux) + cc2 * air%rho  &
+      !   & * air%rlam * (qsatf((met%tk-tfrz),met%pmb) - met%qv) / ssoil%rtsoil 
        ssoil%potev = cc1 * (canopy%fns - canopy%ghflux) + cc2 * air%rho  &
-         & * air%rlam * (qsatf((met%tk-tfrz),met%pmb) - met%qv) / ssoil%rtsoil 
+         & * air%rlam * (qsatf((met%tvair-tfrz),met%pmb) - met%qvair) / ssoil%rtsoil ! MJT suggestion
        ! method alternative to P-M formula above
 !       ssoil%potev =air%rho * air%rlam * dq /ssoil%rtsoil
        ! Soil latent heat:
@@ -1073,15 +1094,14 @@ CONTAINS
           canopy%fes= min(wetfac * ssoil%potev,ssoil%snowd/dels*air%rlam*ssoil%cls)
        END WHERE
        ! Calculate soil sensible heat:
-       canopy%fhs = air%rho*capp*(ssoil%tss - met%tk) /ssoil%rtsoil
+       !canopy%fhs = air%rho*capp*(ssoil%tss - met%tk) /ssoil%rtsoil
+       canopy%fhs = air%rho*capp*(ssoil%tss - met%tvair) /ssoil%rtsoil ! MJT suggestion
        ! Calculate ground heat flux:
        canopy%ga = canopy%fns-canopy%fhs-canopy%fes*ssoil%cls
        ! Calculate total latent heat:
-       !canopy%fe = canopy%fev + canopy%fes
-       canopy%fe = canopy%fev * (1.-rad%transd) + canopy%fes * rad%transd  ! MJT suggestion
+       canopy%fe = canopy%fev + canopy%fes
        ! Calculate total sensible heat:
-       !canopy%fh = canopy%fhv + canopy%fhs
-       canopy%fh = canopy%fhv * (1.-rad%transd) + canopy%fhs * rad%transd  ! MJT suggestion
+       canopy%fh = canopy%fhv + canopy%fhs
        ! Initialise in-canopy temperature and humidity:
        met%tvair = met%tk
        met%qvair = met%qv
@@ -1100,21 +1120,21 @@ CONTAINS
           dmbh = (-air%rlam/capp)*(rt0*rough%rt1)*(irbw*irsw)
           ! C_{H} in eq. 3.41, SCAM manual, CSIRO tech doc 132
           dmch = ((1.+air%epsi)*irsw +irbw)*rt0*rough%rt1* &
-               (canopy%fhv + canopy%fhs)/(air%rho*capp)
+               (canopy%fh)/(air%rho*capp) ! MJT suggestion
           ! A_{E} in eq. 3.41, SCAM manual, CSIRO tech doc 132
           dmae = (-air%epsi*capp/air%rlam)*(rt0*rough%rt1)*(irbw*irsw)
           ! B_{E} in eq. 3.41, SCAM manual, CSIRO tech doc 132
           dmbe = (rt0+wetfac*rough%rt1)*((1.+air%epsi)*irsw +irbw)+(rt0*rough%rt1)*(irbw*irsw)
           ! C_{E} in eq. 3.41, SCAM manual, CSIRO tech doc 132
-          dmce = ((1.+air%epsi)*irsw +irbw)*rt0*rough%rt1*(canopy%fev + canopy%fes)/ &
-               (air%rho*air%rlam)
+          dmce = ((1.+air%epsi)*irsw +irbw)*rt0*rough%rt1*(canopy%fe)/ &
+               (air%rho*air%rlam) ! MJT suggestion
           ! Within canopy air temperature:
           met%tvair = met%tk + (dmbe*dmch-dmbh*dmce)/(dmah*dmbe-dmae*dmbh+1.0e-12)
           ! Within canopy specific humidity:
           met%qvair = met%qv + (dmah*dmce-dmae*dmch)/(dmah*dmbe-dmae*dmbh+1.0e-12)
           met%qvair = max(0.0,met%qvair)
        END WHERE
-       where (abs(met%tvair-met%tk).ge.10.)
+       where (abs(met%tvair-met%tk).ge.20.)
          met%tvair=met%tk
          met%qvair=met%qv
        end where
@@ -1204,10 +1224,10 @@ CONTAINS
              ! sparse canopy 
              canopy%tv = met%tvair
           END WHERE
-          where (abs(canopy%tv-met%tvair).ge.10.)
-            canopy%tv = met%tvair
-            rad%lwabv=0.
-          end where
+          !where (abs(canopy%tv-met%tvair).ge.20.)
+          !  canopy%tv = met%tvair
+          !  rad%lwabv=0.
+          !end where
           ! Ground heat flux:
           canopy%ghflux = (1-ssoil%isflag)*canopy%ghflux + ssoil%isflag*canopy%sghflux
           dq = qstss - met%qvair
@@ -1222,8 +1242,10 @@ CONTAINS
           sss=air%dsatdk
           cc1=sss/(sss+air%psyc )
           cc2=air%psyc /(sss+air%psyc )
+          !ssoil%potev = cc1 * (canopy%fns - canopy%ghflux)  &
+          !        + cc2 * air%rho * air%rlam*(qsatf((met%tk-tfrz),met%pmb) - met%qv)/ssoil%rtsoil
           ssoil%potev = cc1 * (canopy%fns - canopy%ghflux)  &
-                  + cc2 * air%rho * air%rlam*(qsatf((met%tk-tfrz),met%pmb) - met%qv)/ssoil%rtsoil
+                  + cc2 * air%rho * air%rlam*(qsatf((met%tvair-tfrz),met%pmb) - met%qvair)/ssoil%rtsoil
           ! method alternative to P-M formula above
 !          ssoil%potev =air%rho * air%rlam * dq /ssoil%rtsoil
           ! Soil evaporation:
@@ -1242,15 +1264,12 @@ CONTAINS
              canopy%fes= min(wetfac * ssoil%potev,ssoil%snowd/dels*air%rlam*ssoil%cls)
           END WHERE
           ! Soil sensible heat:
-          !canopy%fhs = air%rho*capp*(ssoil%tss - met%tvair) /ssoil%rtsoil
-          canopy%fhs = air%rho*capp*(ssoil%tss - met%tk) /ssoil%rtsoil ! MJT suggestion
+          canopy%fhs = air%rho*capp*(ssoil%tss - met%tvair) /ssoil%rtsoil
           canopy%ga = canopy%fns-canopy%fhs-canopy%fes*ssoil%cls
           ! Set total latent heat:
-          !canopy%fe = canopy%fev + canopy%fes
-          canopy%fe = canopy%fev * (1.-rad%transd) + canopy%fes * rad%transd ! MJT suggestion
+          canopy%fe = canopy%fev + canopy%fes
           ! Set total sensible heat:
-          !canopy%fh = canopy%fhv + canopy%fhs
-          canopy%fh = canopy%fhv * (1.-rad%transd) + canopy%fhs * rad%transd ! MJT suggestion
+          canopy%fh = canopy%fhv + canopy%fhs
        END WHERE ! veg%meth > 0
        !WRITE(66,*) ktau, dummy1, canopy%fnv
 
@@ -1276,8 +1295,19 @@ CONTAINS
     tstar = - canopy%fh / ( air%rho*capp*canopy%us)
     qstar = - canopy%fe / ( air%rho*air%rlam *canopy%us)
     zscrn = max(rough%z0m,1.8-rough%disp)
-    denom = ( log(rough%zref/zscrn)- psim(zetar(:,iterplus)) + &
-         psim(zetar(:,iterplus) * zscrn / rough%zref) ) /vonk
+    !denom = ( log(rough%zref/zscrn)- psim(zetar(:,iterplus)) + &
+    !     psim(zetar(:,iterplus) * zscrn / rough%zref) ) /vonk
+    denom = ( log(rough%zref/zscrn)- psis(zetar(:,iterplus)) + &
+         psis(zetar(:,iterplus) * zscrn / rough%zref) ) /vonk
+
+!%% change by Ashok Luhar
+    where (zetar(:,iterplus) > 0.7)
+            zeta2=zetar(:,iterplus) * zscrn / rough%zref
+            denom =alpha1* ((zetar(:,iterplus)**beta1* &
+               (1.0+gamma1*zetar(:,iterplus)**(1.0-beta1)))  &       
+             - (zeta2*beta1*(1.0+gamma1*zeta2**(1.0-beta1)))) /vonk 
+     endwhere
+!%%    
     ! Calculate screen temperature:
     canopy%tscrn = met%tc - tstar * denom
     rsts = qsatf(canopy%tscrn, met%pmb)
@@ -1289,8 +1319,9 @@ CONTAINS
     ELSEWHERE
        qsurf = 0.1*rsts*wetfac + 0.9*met%qv
     END WHERE
-    canopy%qscrn = qsurf + qstar * denom
-    canopy%uscrn = max(0.0, max(met%ua,umin) - canopy%us * denom )	 ! at present incorrect
+    !canopy%qscrn = qsurf + qstar * denom
+    canopy%qscrn = qsurf - qstar * denom
+    !canopy%uscrn = max(0.0, max(met%ua,umin) - canopy%us * denom )	 ! at present incorrect
   !  avgwrs = REAL(SUM(veg%froot * ssoil%wb,2),r_1)
   !  avgtrs = max(0.0,sum(veg%froot * ssoil%tgg,2)-tfrz)
     poolcoef1=(sum(spread(bgc%ratecp,1,mp)*bgc%cplant,2) - &
@@ -1434,9 +1465,19 @@ CONTAINS
       REAL(r_1)			:: x
       REAL(r_1), PARAMETER	:: gu = 16.0
       REAL(r_1), PARAMETER	:: gs = 5.0
-      x = (1.0 + gu*abs(zeta))**0.25
-      r = merge(log((1.0+x*x)*(1.0+x)**2/8.0) - 2.0*atan(x) &
-           + pi*0.5, -gs*zeta, zeta < 0.0)
+
+      REAL(r_1)                 :: z 
+      REAL(r_1)                 :: stable 
+      REAL(r_1)                 :: unstable 
+!      x = (1.0 + gu*abs(zeta))**0.25
+!      r = merge(log((1.0+x*x)*(1.0+x)**2/8.0) - 2.0*atan(x) &
+!           + pi*0.5, -gs*zeta, zeta < 0.0)
+             z      = 0.5 + sign(0.5,zeta)    ! z=1 in stable, 0 in unstable
+      stable = -gs*zeta
+      x      = (1.0 + gu*abs(zeta))**0.25
+      unstable = alog((1.0+x*x)*(1.0+x)**2/8) - 2.0*atan(x) + pi*0.5
+      r   = z*stable + (1.0-z)*unstable
+       
     END FUNCTION psim
     !---------------------------------------------------------
     ELEMENTAL FUNCTION psis(zeta) result(r)
@@ -1448,8 +1489,21 @@ CONTAINS
       REAL(r_1)			:: r
       REAL(r_1), PARAMETER	:: gu = 16.0
       REAL(r_1), PARAMETER	:: gs = 5.0
-      r = merge(2.0 * log((1.0 + sqrt(1.0 + gu * abs(zeta))) * 0.5), &
-           - gs * zeta, zeta < 0.0)
+
+      REAL(r_1)                 :: z
+      REAL(r_1)                 :: y
+      REAL(r_1)                 :: stable
+      REAL(r_1)                 :: unstable
+
+!      r = merge(2.0 * log((1.0 + sqrt(1.0 + gu * abs(zeta))) * 0.5), &
+!           - gs * zeta, zeta < 0.0)
+
+      z      = 0.5 + sign(0.5,zeta)    ! z=1 in stable, 0 in unstable 
+      stable = -gs*zeta
+      y      = (1.0 + gu*abs(zeta))**0.5
+      unstable = 2.0 * alog((1+y)*0.5)
+      r   = z*stable + (1.0-z)*unstable
+
     END FUNCTION psis
     !---------------------------------------------------------
     ELEMENTAL FUNCTION rplant(rpconst, rpcoef, tair) result(z)
@@ -1520,11 +1574,9 @@ CONTAINS
     !	need to adjust fe after soilsnow
     canopy%fev	= REAL(canopy%fevc,r_1) + canopy%fevw
     ! Calculate total latent heat flux:
-    !canopy%fe = canopy%fev + canopy%fes
-    canopy%fe = canopy%fev * (1.-rad%transd) + canopy%fes * rad%transd   ! MJT suggestion
+    canopy%fe = canopy%fev + canopy%fes
     ! Calculate net radiation absorbed by soil + veg
-    !canopy%rnet = canopy%fns + canopy%fnv
-    canopy%rnet = canopy%fns * rad%transd + canopy%fnv * (1.-rad%transd) ! MJT suggestion
+    canopy%rnet = canopy%fns + canopy%fnv
 
     ! Calculate radiative/skin temperature:
     rad%trad = ( (1.-rad%transd)*canopy%tv**4 + rad%transd * ssoil%tss**4 )**0.25

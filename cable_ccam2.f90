@@ -291,7 +291,7 @@ module cable_ccam
           eg(iperm(1:ipland))=eg(iperm(1:ipland))+sv(:,nb)*canopy%fe(dmap(:,nb))
           epot(iperm(1:ipland))=epot(iperm(1:ipland))+sv(:,nb)*ssoil%potev(dmap(:,nb))
           tss(iperm(1:ipland))=tss(iperm(1:ipland))+sv(:,nb)*rad%trad(dmap(:,nb))
-          tgf(iperm(1:ipland))=tgf(iperm(1:ipland))+sv(:,nb)*met%tvair(dmap(:,nb))
+          tgf(iperm(1:ipland))=tgf(iperm(1:ipland))+sv(:,nb)*canopy%tv(dmap(:,nb))
           cansto(iperm(1:ipland))=cansto(iperm(1:ipland))+sv(:,nb)*canopy%cansto(dmap(:,nb))
           gflux(iperm(1:ipland))=gflux(iperm(1:ipland))+sv(:,nb)*canopy%ghflux(dmap(:,nb))
           sgflux(iperm(1:ipland))=sgflux(iperm(1:ipland))+sv(:,nb)*canopy%sghflux(dmap(:,nb))
@@ -307,7 +307,7 @@ module cable_ccam
           sumrpr(iperm(1:ipland))=sumrpr(iperm(1:ipland))+sv(:,nb)*sum_flux%sumrpr(dmap(:,nb))
           sumrs(iperm(1:ipland))=sumrs(iperm(1:ipland))+sv(:,nb)*sum_flux%sumrs(dmap(:,nb))
           sumrd(iperm(1:ipland))=sumrd(iperm(1:ipland))+sv(:,nb)*sum_flux%sumrd(dmap(:,nb))
-          zo(iperm(1:ipland))=zo(iperm(1:ipland))+1./log(zmin/rough%z0m(dmap(:,nb)))**2
+          zo(iperm(1:ipland))=zo(iperm(1:ipland))+sv(:,nb)/log(zmin/rough%z0m(dmap(:,nb)))**2
         end where
       end do
       where (land)
