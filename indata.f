@@ -1882,7 +1882,13 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           urban(:,11)=0.5*(tgg(:,1)+tgg(:,ms))
           urban(:,12)=tgg(:,ms)
         end where
-        call atebloadm(ifull,urban,0)	
+        where (land)
+          aa=(wb(:,ms)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
+          aa=aa*0.26+(1.-aa)*0.18
+        elsewhere
+          aa=0.
+        end where
+        call atebloadm(ifull,urban,aa,0)	
       else
         sigmu(:)=0.
         call atebdisable(0) ! disable urban
