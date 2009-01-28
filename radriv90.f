@@ -407,18 +407,18 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
       end do ! i=1,imax
       call atebalb1(istart,imax,cuvrf(1:imax,1),0) ! MJT CHANGE - urban
       call atebalb1(istart,imax,cirrf(1:imax,1),0) ! MJT CHANGE - urban
+      albvisnir(istart:iend,1)=cuvrf(1:imax,1)
+      albvisnir(istart:iend,2)=cirrf(1:imax,1)
       if (iaero.ne.0) then
         do i=1,imax
           iq=i+(j-1)*il
            cosz = max ( coszro(i), 1.e-4)
            delta =  coszro(i)*beta_ave*alpha*so4t(iq)* ! still broadband
      &	            ((1.-0.5*(cuvrf(i,1)+cirrf(i,1)))/cosz)**2
-           cuvrf(i,1)=min(0.9999, delta+cuvrf(i,1)) ! surface albedo
-           cirrf(i,1)=min(0.9999, delta+cirrf(i,1)) ! still broadband
+           cuvrf(i,1)=min(1., delta+cuvrf(i,1)) ! surface albedo
+           cirrf(i,1)=min(1., delta+cirrf(i,1)) ! still broadband
         end do ! i=1,imax
       endif !(iaero.ne.0)then
-      albvisnir(istart:iend,1)=cuvrf(1:imax,1)
-      albvisnir(istart:iend,2)=cirrf(1:imax,1)
       !-----------------------------------------------------------------------------------------------------------      
 
       do k=1,kl

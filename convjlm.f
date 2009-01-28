@@ -23,6 +23,7 @@
 
       include 'newmpar.h'
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
+!                               -2,-3 for other detrain test      
 !     parameter (iterconv=1)   ! to kuocom.h
 !     parameter (fldown=.6)    ! to kuocom.h
 !     parameter (detrain=.05)  ! to kuocom.h
@@ -39,8 +40,8 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
 !     parameter (mbase=0)      ! .ne.0 cfrac test as %
 !     parameter (methdetr=2)   ! various; similar to methprec
 !     parameter (methprec=8)   ! 1 (top only); 2 (top half); 4 top quarter (= kbconv)
-!     parameter (nuvconv=0)    ! usually 0, >0 to turn on momentum mixing
-      parameter (nuv=0)        ! usually 0, >0 to turn on new momentum mixing
+!     parameter (nuvconv=0)    ! usually 0, >0 or <0 to turn on momentum mixing
+!     parameter (nuv=0)        ! usually 0, >0 to turn on new momentum mixing
       parameter (kcl_top=kl-2) ! max level for cloud top (convjlm,radrive,vertmix)
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
 !     could reinstate nbase=0 & kbsav_b from .f0406
@@ -84,6 +85,7 @@ c     equivalence (delu,revc,delq),(delv,dels)
       real cfraclim(ifull),convtim(ifull),timeconv(ifull)      
       save timeconv
       integer, save:: klon2,klon3
+      data nuv/0/
 !     real convshal(ifull)
 !     save convshal
 !     data convshal/ifull*0./
@@ -167,11 +169,11 @@ c     enddo
       phi(:,1)=bet(1)*tt(:,1)
       dels(:,:)=1.e-20
       delq(:,:)=0.
-      if(nuvconv.ne.0.or.nuv>0)then 
+      if(nuvconv.ne.0)then 
+        if(nuvconv<0)nuv=abs(nuvconv)  ! Oct 08
         delu(:,:)=0.
         delv(:,:)=0.
-        facuv=.1*nuvconv ! full effect for nuvconv=10
-c       if(nuv>0)nuvconv=0
+        facuv=.1*abs(nuvconv) ! full effect for nuvconv=10
       endif
 
       do k=2,kl
@@ -212,9 +214,9 @@ c      qplume(:,k)=min(qplume(:,k),max(qs(:,k),qq(:,k)))
 
       if(ktau==1.and.mydiag)then
         print *,'itn,iterconv,nuv,nuvconv ',itn,iterconv,nuv,nuvconv
-        print *,'methdetr,detrain,detrainx ',
-     .           methdetr,detrain,detrainx
-        print *,'methprec,fldown,ncubase ',methprec,fldown,ncubase
+        print *,'ntest,methdetr,methprec,detrain,detrainx ',
+     .           ntest,methdetr,methprec,detrain,detrainx
+        print *,'fldown,ncubase ',fldown,ncubase
         print *,'nfluxq,nfluxdsk ',nfluxq,nfluxdsk
         print *,'alflnd,alfsea ',alflnd,alfsea
         print *,'cfraclim,convtim,factr ',
@@ -1013,7 +1015,7 @@ c          if(nums<20)then
       
       if(nmaxpr==1.and.mydiag)then
         iq=idjd
-        print *,'net potential delq (g/kg) & delt for this itn:'
+        print *,'Total_a delq (g/kg) & delt for this itn:'
         write(6,"('delQ',3p9f8.3/(4x,9f8.3))")
      .   (convpsav(iq)*delq(iq,k),k=1,kl)
         write(6,"('delT',9f8.3/(4x,9f8.3))")
@@ -1026,8 +1028,20 @@ c          if(nums<20)then
 !       enddo
 !     endif     ! (shaltime>0.)	   
 
-!     following line moved up further (for -ve sig_ct) on 27/6/08
-      qxcess(:)=detrain*rnrtcn(:)             ! e.g. .2* gives 20% detrainment
+      if(ntest==-2)then
+        do iq=1,ifull     
+          detrain=min(1.,max(0.,1.5*sig(kt_sav(iq))-.2))
+          qxcess(iq)=detrain*rnrtcn(iq) 
+        enddo
+       elseif(ntest==-3)then
+        do iq=1,ifull     
+          detrain=min(1.,1.5*sig(kt_sav(iq))**2)
+          qxcess(iq)=detrain*rnrtcn(iq) 
+        enddo
+      else  ! following is usual
+!       following line moved up further (for -ve sig_ct) on 27/6/08
+        qxcess(:)=detrain*rnrtcn(:)             ! e.g. .2* gives 20% detrainment
+      endif
 
       if(sig_ct<0.)then  ! detrain for shallow clouds
         do iq=1,ifull
@@ -1154,6 +1168,7 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
         do iq=1,ifull  
          nlayers=max(1,nint((kt_sav(iq)-kb_sav(iq)-.1)/methprec))   ! round down
          khalf=kt_sav(iq)+1-nlayers
+         if(detrainx<0..and.sig(kt_sav(iq))>.4)khalf=99 !suppr. cirr for low top
          if(k>=khalf.and.k<=kt_sav(iq))then
            deltaq=convpsav(iq)*qxcess(iq)/(nlayers*dsk(k))         
            qliqw(iq,k)=qliqw(iq,k)+deltaq
@@ -1300,7 +1315,7 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
       endif     ! (nuvconv>500.and.nuvconv<600)
 
 !     update u & v using actual delu and delv (i.e. divided by dsk)
-7     if(nuvconv.ne.0.or.nuv.ne.0)then
+7     if(nuvconv.ne.0.or.nuv>0)then
         if(ntest>0.and.mydiag)then
           print *,'u,v before convection'
           write (6,"('u  ',12f7.2/(3x,12f7.2))") u(idjd,:)
@@ -1386,9 +1401,10 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
            endif
           enddo
          enddo
-      else
+      else      ! for ldr=0
         qq(1:ifull,:)=qq(1:ifull,:)+qliqw(1:ifull,:)         
-        tt(1:ifull,:)=tt(1:ifull,:)-hl*qliqw(1:ifull,:)/cp   
+        tt(1:ifull,:)=tt(1:ifull,:)-hl*qliqw(1:ifull,:)/cp   ! evaporate it
+        qliqw(1:ifull,:)=0.   ! just for final diags
       endif  ! (ldr.ne.0)
 !______________________end of convective calculations_____________________
      
@@ -1412,7 +1428,7 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
       endif
       if(ldr.ne.0)go to 8
 
-!_____________________beginning of large-scale calculations_______________
+!_______________beginning of large-scale calculations (for ldr=0)____________
 !     check for grid-scale rainfall 
 5     do k=1,kl   
        do iq=1,ifull
@@ -1494,10 +1510,18 @@ c           if(evapls>0.)print *,'iq,k,evapls ',iq,k,evapls
          enddo    ! iq loop
         enddo     ! k loop
       endif       ! (nevapls==5)
-!______________________end of large-scale calculations____________________
+!__________________end of large-scale calculations (for ldr=0)____________________
 
 
-8     qg(1:ifull,:)=qq(1:ifull,:)                   
+8     if(nmaxpr==1.and.mydiag)then
+        iq=idjd
+        print *,'Total delq (g/kg) & delt for this step:'
+        write(6,"('delQ_t',3p9f8.3)")
+     .   (qq(iq,k)+qliqw(iq,k)-qg(iq,k),k=1,kl)
+        write(6,"('delT_t',9f8.3)")
+     .   (tt(iq,k)-t(iq,k),k=1,kl)
+      endif
+      qg(1:ifull,:)=qq(1:ifull,:)                   
       condc(:)=.001*dt*rnrtc(:)      ! convective precip for this timestep
       precc(:)=precc(:)+condc(:)        
       condx(:)=condc(:)+.001*dt*rnrt(:) ! total precip for this timestep

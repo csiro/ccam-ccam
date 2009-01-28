@@ -6,10 +6,13 @@
 ! The main changes include an alternative formulation for in-canyon aerodynamical resistances based on Harman, et al (2004)
 ! and Kanada et al (2007), combined with a second canyon wall for completeness.  The stability functions are also modified
 ! to account for low wind speeds by Ashok Luhar.  The scheme includes nrefl order reflections in the canyon for both longwave
-! and shortwave radiation (usually infinite reflections are used for shortwave and 1st order reflections in longwave).   Time
-! dependent traffic heat fluxes are based on Coutts, et al (2007).  The canyon sensible heat flux balance is solved iteratively
-! to allow for non-linear parameterisations and the urban prognostic variables are solved by an implicit predictor-corrector
-! scheme to insure stability at large time steps without unduly slowing down the model for small time steps.
+! and shortwave radiation (usually infinite reflections are used for shortwave and 1st order reflections in longwave). A
+! big-leaf vegetation tile is included in the canyon using the Kowalczyk et al (1994) scheme but with a simplified soil moisture
+! budget and no modelling of the soil temperature since sigmaf=1.  Snow is also included in the canyon and on roofs using a
+! one-layer scheme based on Douville, et al (1995).   Time dependent traffic heat fluxes are based on Coutts, et al (2007).
+! The canyon sensible heat flux balance is solved iteratively to allow for non-linear parameterisations and the urban prognostic
+! variables are solved by an implicit predictor-corrector scheme to insure stability at large time steps without unduly slowing
+! down the model for small time steps.
 
 ! Usual practice is:
 !   call atebinit     ! to initalise state arrays, etc (use tebdisable to disable calls to ateb subroutines)
@@ -99,10 +102,11 @@ type(tdata), dimension(:), allocatable, save :: fn
 type(tprog), dimension(:), allocatable, save :: pg
 ! model parameters
 integer, parameter :: resmeth=1           ! Canyon sensible heat transfer (0=Masson, 1=Harman, 2=Kusaka)
-integer, parameter :: zohmeth=1           ! Urban roughness length for heat (0=0.1*zom, 1=Kanda)
+integer, parameter :: zohmeth=2           ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003zom)
 integer, parameter :: acmeth=1            ! AC heat pump into canyon (0=Off, 1=On)
+integer, parameter :: presolmeth=0        ! Method for predictor estimate of temperatures (0=Adams-Bashford, 1=Thomas)
 integer, parameter :: nrefl=3             ! Number of canyon reflections (default=3)
-integer, parameter :: nfgits=6            ! Maximum number of iterations for calculating sensible heat flux (default=6)
+integer, parameter :: nfgits=10           ! Maximum number of iterations for calculating sensible heat flux (default=6)
 integer, parameter :: npgits=10           ! Maximum number of iterations for calculating prognostic variables (default=10 for dt=1200s)
 integer, parameter :: stabfn=0            ! Stability function scheme (0=Louis, 1=Dyer and Hicks)
 integer, parameter :: iqt = 3432          ! Diagnostic point (in terms of host grid)
@@ -188,7 +192,7 @@ do iq=1,ifull
 end do
 
 if (iqut.eq.0) then
-  write(6,*) "WARN: Cannot located aTEB diagnostic point.  iqut=1"
+  !write(6,*) "WARN: Cannot located aTEB diagnostic point.  iqut=1"
   iqut=1
 end if
 
@@ -278,7 +282,7 @@ integer, intent(in) :: diag
 if (ufull.eq.0) return
 if (diag.ge.1) write(6,*) "Deallocating aTEB arrays"
 
-deallocate(ugrid,mgrid,fn)
+deallocate(ugrid,mgrid,fn,pg)
 deallocate(roof,road,walle,wallw)
 deallocate(roofadj,roadadj,walleadj,wallwadj)
 deallocate(sigmau,veg,vegadj)
@@ -357,14 +361,15 @@ integer, intent(in) :: ifull,diag
 integer ii
 integer, dimension(ifull), intent(in) :: itype
 integer, parameter :: maxtype = 8
-! Urban fraction (defined in host model)
-real, dimension(maxtype), parameter :: csigu=(/  0.6,  0.5,  0.6,  0.7, 0.95,  0.5,  0.6,  0.7 /)
+! Urban fraction
+!real, dimension(maxtype), parameter ::   csigveg=(/ 0., 0., 0., 0., 0., 0., 0., 0. /)
+real, dimension(maxtype), parameter ::   csigveg=(/ 0.38, 0.45, 0.38, 0.34, 0.05, 0.50, 0.40, 0.30 /)
+! Area fraction occupied by buildings
+real, dimension(maxtype), parameter :: csigmabld=(/ 0.44, 0.40, 0.44, 0.46, 0.65, 0.35, 0.40, 0.50 /)
 ! Building height (m)
 real, dimension(maxtype), parameter :: cbldheight=(/ 6.,  4.,  6.,  8., 20.,  5., 10., 15. /)
 ! Building height to width ratio
 real, dimension(maxtype), parameter ::   chwratio=(/  0.6, 0.4, 0.6, 0.8,  2., 0.5,  1., 1.5 /)
-! Area fraction occupied by buildings
-real, dimension(maxtype), parameter ::  csigmabld=(/ 0.7, 0.7, 0.7, 0.7, 0.4, 0.7, 0.5, 0.4 /)
 ! Industral sensible heat flux (W m^-2)
 real, dimension(maxtype), parameter :: cindustryfg=(/ 12.,  8., 12., 16., 28., 20., 40., 60. /)
 ! Daily averaged traffic sensible heat flux (W m^-2)
@@ -443,7 +448,8 @@ end if
 
 fn%hwratio=chwratio(itype(ugrid))
 fn%sigmabld=csigmabld(itype(ugrid))
-fn%sigmaveg=(1.-csigu(itype(ugrid)))/(1.-csigu(itype(ugrid))*csigmabld(itype(ugrid)))
+!fn%sigmaveg=0. ! turn off vegetation tile
+fn%sigmaveg=csigveg(itype(ugrid))/(1.-csigmabld(itype(ugrid)))
 fn%industryfg=cindustryfg(itype(ugrid))
 fn%trafficfg=ctrafficfg(itype(ugrid))
 fn%bldheight=cbldheight(itype(ugrid))
@@ -488,7 +494,7 @@ if (diag.ge.1) write(6,*) "Load aTEB building properties"
 
 fn%hwratio=ifn(ugrid,1)
 fn%sigmabld=ifn(ugrid,2)
-fn%sigmaveg=(1.-ifn(ugrid,3))/(1.-ifn(ugrid,3)*ifn(ugrid,2))
+fn%sigmaveg=ifn(ugrid,3)/(1.-ifn(ugrid,2))
 fn%industryfg=ifn(ugrid,4)
 fn%trafficfg=ifn(ugrid,5)
 fn%bldheight=ifn(ugrid,6)
@@ -939,12 +945,15 @@ integer iqu,j,k,ii,cns,cnr
 integer, dimension(ufull) :: igs,igr
 real, intent(in) :: ddt,zmin
 real maxchange
+real, dimension(ufull,2:3) :: ggaroof,ggawall,ggaroad
+real, dimension(ufull,1:3) :: ggbroof,ggbwall,ggbroad
+real, dimension(ufull,1:2) :: ggcroof,ggcwall,ggcroad
 real, dimension(ufull,3) :: garoof,gawalle,gawallw,garoad
 real, dimension(ufull) :: garfsn,gardsn
 real, dimension(ufull) :: rdsntemp,rfsntemp,rdsnmelt,rfsnmelt
 real, dimension(ufull) :: wallpsi,roadpsi,fgtop,egtop,qsatr
 real, dimension(ufull) :: oldval,newval,topu,cu,ctmax,ctmin,evctx,evct
-real, dimension(ufull) :: ln,rn,we,ww,wr,zolog,a,xe,xw,cuven,n,zom,zonet
+real, dimension(ufull) :: ln,rn,we,ww,wr,zolog,a,xe,xw,cuven,n,zom,zonet,dis
 real, dimension(ufull) :: p_fgtop,p_wallpsi,p_roadpsi
 real, dimension(ufull) :: p_sntemp,p_gasn,p_snmelt
 real, dimension(ufull) :: soilrnd,totdepth
@@ -1138,9 +1147,10 @@ do while ((j.le.npgits).and.(maxchange.gt.temptol)) ! predictor-corrector loop -
       ln=min(1.5*fn%bldheight,ln)
       cu=topu*exp(-0.9*sqrt(ln**2+(fn%bldheight-rn)**2)/fn%bldheight)
       a=0.15*max(1.,1.5*fn%hwratio)
-      zolog=log(0.1*fn%bldheight/zonet)
+      dis=max(max(max(0.1*fn%bldheight,zocanyon+0.1),zoveg+0.1),zosnow+0.1)
+      zolog=log(dis/zonet)
       where (rn.gt.0.) ! recirculation starts on east wall
-        n=min(max(0.1*fn%bldheight,rn),fn%bldheight)
+        n=min(max(dis,rn),fn%bldheight)
         ! MJT suggestion (cuven is multipled by (fn%bldheight-rn) to avoid divide by zero)
         cuven=topu*((fn%bldheight-n*log(n/zonet)/(2.3+zolog))-(fn%bldheight-n)/(2.3+zolog))
         ! cuven is back to the correct units of m/s
@@ -1163,16 +1173,16 @@ do while ((j.le.npgits).and.(maxchange.gt.temptol)) ! predictor-corrector loop -
         we=max(cuven,xe)
         ww=cu*xw*(1.-exp(-a))/a
       end where
-      zolog=log(0.1*fn%bldheight/zocanyon)
+      zolog=log(dis/zocanyon)
       a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
       n=abs(atm%udir)/pi
       acond%road=a*wr                  ! road bulk transfer
       acond%walle=a*(n*ww+(1.-n)*we)   ! east wall bulk transfer
       acond%wallw=a*(n*we+(1.-n)*ww)   ! west wall bulk transfer
-      zolog=log(0.1*fn%bldheight/zoveg)
+      zolog=log(dis/zoveg)
       a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
       acond%veg=a*wr
-      zolog=log(0.1*fn%bldheight/zosnow)
+      zolog=log(dis/zosnow)
       a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
       acond%rdsn=a*wr                  ! road snow bulk transfer
     case(2) ! Kusaka et al (2001)
@@ -1412,13 +1422,85 @@ do while ((j.le.npgits).and.(maxchange.gt.temptol)) ! predictor-corrector loop -
       vegadj=cveg
       firstcall=.false.
     end if
+
+    select case(presolmeth)
+      case(0) ! Adams-Bashforth two-step O(h^3) for predictor
+        do ii=1,3
+          roofdum%temp(ii)=roof%temp(ii)+ddt*(1.5*croof%temp(ii)-0.5*roofadj%temp(ii))
+          walledum%temp(ii)=walle%temp(ii)+ddt*(1.5*cwalle%temp(ii)-0.5*walleadj%temp(ii))
+          wallwdum%temp(ii)=wallw%temp(ii)+ddt*(1.5*cwallw%temp(ii)-0.5*wallwadj%temp(ii))
+          roaddum%temp(ii)=road%temp(ii)+ddt*(1.5*croad%temp(ii)-0.5*roadadj%temp(ii))
+        end do      
+      case(1)
+        ! tridiagonal solver coefficents (predictor only)
+        do k=2,3
+          ggaroof(:,k)=-2./(fn%roofdepth(k-1)/fn%rooflambda(k-1)+fn%roofdepth(k)/fn%rooflambda(k))
+          ggawall(:,k)=-2./(fn%walldepth(k-1)/fn%walllambda(k-1)+fn%walldepth(k)/fn%walllambda(k))
+          ggaroad(:,k)=-2./(fn%roaddepth(k-1)/fn%roadlambda(k-1)+fn%roaddepth(k)/fn%roadlambda(k))
+        end do
+        ggbroof(:,1)=2./(fn%roofdepth(1)/fn%rooflambda(1)+fn%roofdepth(2)/fn%rooflambda(2))+fn%roofcp(1)*fn%roofdepth(1)/ddt
+        ggbwall(:,1)=2./(fn%walldepth(1)/fn%walllambda(1)+fn%walldepth(2)/fn%walllambda(2))+fn%wallcp(1)*fn%walldepth(1)/ddt
+        ggbroad(:,1)=2./(fn%roaddepth(1)/fn%roadlambda(1)+fn%roaddepth(2)/fn%roadlambda(2))+fn%roadcp(1)*fn%roaddepth(1)/ddt
+        ggbroof(:,2)=2./(fn%roofdepth(1)/fn%rooflambda(1)+fn%roofdepth(2)/fn%rooflambda(2)) &
+                     +2./(fn%roofdepth(2)/fn%rooflambda(2)+fn%roofdepth(3)/fn%rooflambda(3)) &
+                     +fn%roofcp(2)*fn%roofdepth(2)/ddt
+        ggbwall(:,2)=2./(fn%walldepth(1)/fn%walllambda(1)+fn%walldepth(2)/fn%walllambda(2)) &
+                     +2./(fn%walldepth(2)/fn%walllambda(2)+fn%walldepth(3)/fn%walllambda(3)) &
+                     +fn%wallcp(2)*fn%walldepth(2)/ddt
+        ggbroad(:,2)=2./(fn%roaddepth(1)/fn%roadlambda(1)+fn%roaddepth(2)/fn%roadlambda(2)) &
+                     +2./(fn%roaddepth(2)/fn%roadlambda(2)+fn%roaddepth(3)/fn%roadlambda(3)) &
+                     +fn%roadcp(2)*fn%roaddepth(2)/ddt
+        ggbroof(:,3)=2./(fn%roofdepth(2)/fn%rooflambda(2)+fn%roofdepth(3)/fn%rooflambda(3)) &
+                     +2.*fn%rooflambda(3)/fn%roofdepth(3)+fn%roofcp(3)*fn%roofdepth(3)/ddt
+        ggbwall(:,3)=2./(fn%walldepth(2)/fn%walllambda(2)+fn%walldepth(3)/fn%walllambda(3)) &
+                     +2.*fn%walllambda(3)/fn%walldepth(3)+fn%wallcp(2)*fn%walldepth(3)/ddt
+        ggbroad(:,3)=2./(fn%roaddepth(2)/fn%roadlambda(2)+fn%roaddepth(3)/fn%roadlambda(3))+fn%roadcp(3)*fn%roaddepth(3)/ddt
+        do k=1,2
+          ggcroof(:,k)=-2./(fn%roofdepth(k)/fn%rooflambda(k)+fn%roofdepth(k+1)/fn%rooflambda(k+1))
+          ggcwall(:,k)=-2./(fn%walldepth(k)/fn%walllambda(k)+fn%walldepth(k+1)/fn%walllambda(k+1))
+          ggcroad(:,k)=-2./(fn%roaddepth(k)/fn%roadlambda(k)+fn%roaddepth(k+1)/fn%roadlambda(k+1))
+        end do
+        garoof(:,1)=(1.-dg%rfsndelta)*(sg%roof+rg%roof-fg%roof-eg%roof) &
+                      +dg%rfsndelta*garfsn+roofdum%temp(1)*fn%roofcp(1)*fn%roofdepth(1)/ddt
+        gawalle(:,1)=sg%walle+rg%walle-fg%walle-eg%walle+walledum%temp(1)*fn%wallcp(1)*fn%walldepth(1)/ddt
+        gawallw(:,1)=sg%wallw+rg%wallw-fg%wallw-eg%wallw+wallwdum%temp(1)*fn%wallcp(1)*fn%walldepth(1)/ddt
+        garoad(:,1)=(1.-dg%rdsndelta)*(sg%road+rg%road-fg%road-eg%road) &
+                      +dg%rdsndelta*gardsn+roaddum%temp(1)*fn%roadcp(1)*fn%roaddepth(1)/ddt
+        garoof(:,2)=roofdum%temp(2)*fn%roofcp(2)*fn%roofdepth(2)/ddt
+        gawalle(:,2)=walledum%temp(2)*fn%wallcp(2)*fn%walldepth(2)/ddt
+        gawallw(:,2)=wallwdum%temp(2)*fn%wallcp(2)*fn%walldepth(2)/ddt
+        garoad(:,2)=roaddum%temp(2)*fn%roadcp(2)*fn%roaddepth(2)/ddt
+        garoof(:,3)=2.*fn%rooflambda(3)*fn%bldtemp/fn%roofdepth(3)+roofdum%temp(3)*fn%roofcp(3)*fn%roofdepth(3)/ddt
+        gawalle(:,3)=2.*fn%walllambda(3)*fn%bldtemp/fn%walldepth(3)+walledum%temp(3)*fn%wallcp(3)*fn%walldepth(3)/ddt
+        gawallw(:,3)=2.*fn%walllambda(3)*fn%bldtemp/fn%walldepth(3)+wallwdum%temp(3)*fn%wallcp(3)*fn%walldepth(3)/ddt
+        garoad(:,3)=roaddum%temp(3)*fn%roadcp(3)*fn%roaddepth(3)/ddt
     
-    do ii=1,3 ! Adams-Bashforth two-step O(h^3) for predictor
-      roofdum%temp(ii)=roof%temp(ii)+ddt*(1.5*croof%temp(ii)-0.5*roofadj%temp(ii))
-      walledum%temp(ii)=walle%temp(ii)+ddt*(1.5*cwalle%temp(ii)-0.5*walleadj%temp(ii))
-      wallwdum%temp(ii)=wallw%temp(ii)+ddt*(1.5*cwallw%temp(ii)-0.5*wallwadj%temp(ii))
-      roaddum%temp(ii)=road%temp(ii)+ddt*(1.5*croad%temp(ii)-0.5*roadadj%temp(ii))
-    end do
+        ! tridiagonal solver (Thomas algorithm)
+        do ii=2,3
+          n=ggaroof(:,ii)/ggbroof(:,ii-1)
+          ggbroof(:,ii)=ggbroof(:,ii)-n*ggcroof(:,ii-1)
+          garoof(:,ii)=garoof(:,ii)-n*garoof(:,ii-1)
+          n=ggawall(:,ii)/ggbwall(:,ii-1)
+          ggbwall(:,ii)=ggbwall(:,ii)-n*ggcwall(:,ii-1)
+          gawalle(:,ii)=gawalle(:,ii)-n*gawalle(:,ii-1)
+          gawallw(:,ii)=gawallw(:,ii)-n*gawallw(:,ii-1)
+          n=ggaroad(:,ii)/ggbroad(:,ii-1)
+          ggbroad(:,ii)=ggbroad(:,ii)-n*ggcroad(:,ii-1)
+          garoad(:,ii)=garoad(:,ii)-n*garoad(:,ii-1)
+        end do
+        roofdum%temp(3)=garoof(:,3)/ggbroof(:,3)
+        walledum%temp(3)=gawalle(:,3)/ggbwall(:,3)
+        wallwdum%temp(3)=gawallw(:,3)/ggbwall(:,3)
+        roaddum%temp(3)=garoad(:,3)/ggbroad(:,3)
+        do ii=2,1,-1
+          roofdum%temp(ii)=(garoof(:,ii)-ggcroof(:,ii)*roofdum%temp(ii+1))/ggbroof(:,ii)
+          walledum%temp(ii)=(gawalle(:,ii)-ggcwall(:,ii)*walledum%temp(ii+1))/ggbwall(:,ii)
+          wallwdum%temp(ii)=(gawallw(:,ii)-ggcwall(:,ii)*wallwdum%temp(ii+1))/ggbwall(:,ii)
+          roaddum%temp(ii)=(garoad(:,ii)-ggcroad(:,ii)*roaddum%temp(ii+1))/ggbroad(:,ii)
+        end do
+    end select    
+   
+    ! Adams-Bashforth two-step O(h^3) for predictor
     vegdum%moist=veg%moist+ddt*(1.5*cveg%moist-0.5*vegadj%moist)
     roofdum%water=roof%water+ddt*(1.5*croof%water-0.5*roofadj%water)
     roaddum%water=road%water+ddt*(1.5*croad%water-0.5*roadadj%water)
@@ -1430,7 +1512,7 @@ do while ((j.le.npgits).and.(maxchange.gt.temptol)) ! predictor-corrector loop -
     roofdum%alpha=roof%alpha+ddt*(1.5*croof%alpha-0.5*roofadj%alpha)
     roaddum%alpha=road%alpha+ddt*(1.5*croad%alpha-0.5*roadadj%alpha)
 
-    ! prep corrector arrays
+    ! prep corrector arrays (i.e., including residual terms)
     roofold=roof
     walleold=walle
     wallwold=wallw
@@ -1645,13 +1727,19 @@ uo%wf=fn%sigmabld*(1.-dg%rfsndelta)*dg%roofdelta+(1.-fn%sigmabld)*(1.-dg%rdsndel
       ((1.-fn%sigmaveg)*dg%roaddelta+fn%sigmaveg*dg%vegdelta)
 
 ! (re)calculate heat roughness length for MOST
-call getinvres(ufull,a,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,dg%tempc,atm%umag,zohmeth+1)
+select case(zohmeth)
+  case(2)
+    pg%lzoh=6.+pg%lzom ! Kanda (2005)
+    call getinvres(ufull,a,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,dg%tempc,atm%umag,4)
+  case DEFAULT
+    call getinvres(ufull,a,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,dg%tempc,atm%umag,zohmeth+1)
+end select
 
 !if (caleffzo) then ! verification
 !  if ((uo(iqut)%ts-dg(iqut)%tempc)*uo(iqut)%fg.le.0.) then
 !    write(6,*) "NO SOLUTION iqut ",iqut
 !  else
-!   oldval(1)=2.3+pg(iqut)%lzom
+!    oldval(1)=2.3+pg(iqut)%lzom
 !    call getinvres(1,a(1),xe(1),oldval(1),pg(iqut)%lzom,pg(iqut)%cndzmin,uo(iqut)%ts,dg(iqut)%tempc,atm(iqut)%umag,4)
 !    evct(1)=aircp*atm(iqut)%rho*(uo(iqut)%ts-dg(iqut)%tempc)*a(1)-uo(iqut)%fg
 !    write(6,*) "iqut,its,adj,bal ",iqut,0,oldval(1)-pg(iqut)%lzom,evct(1)
@@ -1939,7 +2027,7 @@ if (any(ifn%sigmaveg.gt.0.)) then
   ctmax=max(dg%tempc,iroad%temp(1),iwalle%temp(1),iwallw%temp(1),rdsntemp)+5. ! max veg temp
   ctmin=min(dg%tempc,iroad%temp(1),iwalle%temp(1),iwallw%temp(1),rdsntemp)-5. ! min veg temp
   ipg%vegtemp=0.75*ctmax+0.25*ctmin
-  call solveveg(cn,evct,rg,fg,fgtop,eg,gardsn,rdsnmelt,rdsntemp,iroad,iwalle, &
+  call solveveg(cn,evctveg,rg,fg,fgtop,eg,gardsn,rdsnmelt,rdsntemp,iroad,iwalle, &
            iwallw,iveg,dg,sg,atm,ddt,acond,wallpsi,roadpsi,ifn,ipg)
   ipg%vegtemp=0.25*ctmax+0.75*ctmin
   do k=1,nfgits ! sectant
@@ -2031,6 +2119,10 @@ do k=1,nfgits ! sectant
 end do
 ! ---------------------------------------------------------------     
 
+fgtop=(dg%rdsndelta*fg%rdsn+(1.-dg%rdsndelta)*((1.-ifn%sigmaveg)*fg%road &
+      +ifn%sigmaveg*fg%veg)+ifn%hwratio*(fg%walle+fg%wallw)+trafficout+dg%accool)
+canyontemp=fgtop/(aircp*atm%rho*topinvres)+dg%tempc
+
 ! Calculate long wave reflections to nrefl order
 netrad=dg%rdsndelta*snowemiss*rdsntemp**4+(1.-dg%rdsndelta)*((1.-ifn%sigmaveg)*ifn%roademiss*iroad%temp(1)**4 &
        +ifn%sigmaveg*ifn%vegemiss*ipg%vegtemp**4)
@@ -2097,8 +2189,7 @@ dg%canyonrgout=atm%rg*(2.*ifn%hwratio*wallpsi*(1.-ifn%wallemiss)*cwa+roadpsi*(1.
 ! transpiration terms (from CCAM sflux.f - CSIRO9)
 ff=1.1*sg%veg/(vegrlai*150.)
 f1=(1.+ff)/(ff+vegrsmin*vegrlai/5000.)
-ff=max(iveg%moist-swilt,0.)/(sfc-swilt)
-f2=max(0.5/ff,1.)
+f2=max(0.5*(sfc-swilt)/max(iveg%moist-swilt,0.01*(sfc-swilt)),1.)
 f4=max(1.-.0016*(298.-atm%temp)**2,0.05)
 call getqsat(cn,qsat,atm%temp,atm%ps)
 f3=max(1.-.00025*(qsat-atm%mixr*atm%ps/0.622),0.05)
@@ -2136,12 +2227,12 @@ totdepth=0.
 do ii=1,3
   totdepth=totdepth+ifn%roaddepth(ii)
 end do
-dg%tran=min((1.-dumvegdelta)*atm%rho*(vegqsat-canyonmix)/(1./acond%veg+res), &
-                  max((iveg%moist-swilt)*totdepth*waterden/dg%c1,0.))
+dg%tran=min(max((1.-dumvegdelta)*atm%rho*(vegqsat-canyonmix)/(1./acond%veg+res),0.), &
+            max((iveg%moist-swilt)*totdepth*waterden/dg%c1,0.))
 
 ! calculate canyon latent heat fluxes
 eg%road=lv*min(atm%rho*dumroaddelta*(roadqsat-canyonmix)*acond%road,iroad%water/ddt+atm%rnd+(1.-fn%sigmaveg)*rdsnmelt)
-eg%veg=dumvegdelta*lv*min(atm%rho*(vegqsat-canyonmix)*acond%veg,iveg%water/ddt+atm%rnd)+dg%tran
+eg%veg=lv*(dumvegdelta*min(atm%rho*(vegqsat-canyonmix)*acond%veg,iveg%water/ddt+atm%rnd)+dg%tran)
 where (dg%rdsndelta.gt.0.)
   eg%rdsn=ls*min(atm%rho*dg%rdsndelta*max(0.,rdsnqsat-canyonmix)*acond%rdsn,iroad%snow/ddt+atm%snd-rdsnmelt)
   gardsn=(rdsntemp-iroad%temp(1))/ldratio ! use road temperature to represent canyon bottom surface temperature
@@ -2194,8 +2285,8 @@ elsewhere
   fg%rdsn=0.
 end where
 fgtop=aircp*atm%rho*(ctemp-dg%tempc)*topinvres
-evct=fgtop-(dg%rdsndelta*fg%rdsn+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*fg%road &
-           +fn%sigmaveg*fg%veg)+ifn%hwratio*(fg%walle+fg%wallw)+trafficout+dg%accool)
+evct=fgtop-(dg%rdsndelta*fg%rdsn+(1.-dg%rdsndelta)*((1.-ifn%sigmaveg)*fg%road &
+           +ifn%sigmaveg*fg%veg)+ifn%hwratio*(fg%walle+fg%wallw)+trafficout+dg%accool)
 
 return
 end subroutine solvecanyon

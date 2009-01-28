@@ -514,7 +514,9 @@ c
       end do
 
 
-      if ( kclds /= 0 .and. nmr.eq.2 ) then ! MJT CHANGE - mr
+      if ( kclds /= 0 ) then
+      
+      if ( nmr.eq.2 ) then ! MJT CHANGE - mr
       ! modified M/R overlap
 
       if ( nx == 1 ) then
@@ -526,11 +528,14 @@ c
 !   remaining clouds (if any) in the visible band
 !---the maximum no of clouds in the row (kclds) is used. this creates
 !   extra work (may be removed in a subsequent update).
+
+!   note 100% cloud cover
        cr(:,2:kclds+1)=cuvrf(:,2:kclds+1)
        ct(:,2:kclds+1)=one-cr(:,2:kclds+1)
   
       else  !  IR, no Rayleigh scattering
 
+!   note 100% cloud cover
 	 cr(:,1:kclds+1)=cirrf(:,1:kclds+1)
 	 ct(:,1:kclds+1)=one-(cirrf(:,1:kclds+1)+cirab(:,1:kclds+1))
 
@@ -581,7 +586,7 @@ c
                 lrd=alfa1(k2) 
                 ltdc=tdcl1(i,k2)
               else !clear sky
-	        tclu(i,k2-1)=tdcl1(i,k2-1)*tdcl1i(i,k2)
+                tclu(i,k2-1)=tdcl1(i,k2-1)*tdcl1i(i,k2)
                 alfa1(k2)=tclu(i,k2-1)*tclu(i,k2-1)*alfa1(k2-1)
                 alfau1(k2)=tclu(i,k2-1)
               end if
@@ -618,33 +623,8 @@ c
 	 dfnclu(:,kk) = dfnclu(:,kk+1)*alfau(:,kk+1)
        ufnclu(:,kk) = dfnclu(:,kk)*alfa(:,kk)
       end do
-
-!     now obtain dfn and ufn for levels between the clouds
-	ufntrn(:,1:kclds+1) = ufnclu(:,1:kclds+1)*tucl1i(:,1:kclds+1)
-	dfntrn(:,1:kclds+1) = dfnclu(:,1:kclds+1)*tdcl1i(:,1:kclds+1)
-!---case of kk=1 (from the ground to the bottom of the lowest cloud)
-      do i=1,ipts
-        ufn(i,kbtmsw(i,2):lp1)=ufntrn(i,1)*ttu(i,kbtmsw(i,2):lp1)
-        dfn(i,kbtmsw(i,2):lp1)=dfntrn(i,1)*ttd(i,kbtmsw(i,2):lp1)
-        do kk=2,nclds(i)+1
-          ufn(i,kbtmsw(i,kk+1):ktopsw(i,kk))=
-     &      ufntrn(i,kk)*ttu(i,kbtmsw(i,kk+1):ktopsw(i,kk))
-          dfn(i,kbtmsw(i,kk+1):ktopsw(i,kk))=
-     &      dfntrn(i,kk)*ttd(i,kbtmsw(i,kk+1):ktopsw(i,kk))
-          if ( kbtmsw(i,kk) - ktopsw(i,kk) > 1 ) then
-            tempf = (ufnclu(i,kk)-ufn(i,kbtmsw(i,kk)))*
-     $                     dpcld(i,kk-1)
-            tempg = (dfnclu(i,kk)-dfn(i,kbtmsw(i,kk)))*
-     $                     dpcld(i,kk-1)
-            ufn(i,ktopsw(i,kk)+1:kbtmsw(i,kk)-1) = ufnclu(i,kk) +
-     $        tempf*(pp(i,ktopsw(i,kk)+1:kbtmsw(i,kk)-1)-pptop(i,kk-1))
-            dfn(i,ktopsw(i,kk)+1:kbtmsw(i,kk)-1) = dfnclu(i,kk) +
-     $        tempg*(pp(i,ktopsw(i,kk)+1:kbtmsw(i,kk)-1)-pptop(i,kk-1))
-          end if
-        end do
-      end do
-
-      else if (kclds /= 0) then ! usual
+      
+      else ! usual
 
       if ( nx == 1 ) then
 !---the first cloud is the ground; its properties are given
@@ -710,6 +690,9 @@ c
      &                  (alfa(:,kk+1)*tclu(:,kk))
          dfnclu(:,kk) = ufnclu(:,kk)/alfa(:,kk)
       end do
+      
+      end if
+      
 !     now obtain dfn and ufn for levels between the clouds
       do k=1,kclds+1
 	 ufntrn(:,k) = ufnclu(:,k)*tucl1i(:,k)

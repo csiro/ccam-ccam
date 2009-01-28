@@ -2371,7 +2371,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           case DEFAULT
             print *,"Invalid index ",ppass,ipass,sn,
      &              ppass*100+ipass*10+(sn-1)/il_g
-            exit
+            stop
         end select
 
         do j=1,il_g  
