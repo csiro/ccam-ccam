@@ -1236,6 +1236,7 @@ do while ((j.le.npgits).and.(maxchange.gt.temptol)) ! predictor-corrector loop -
            p_gasn(1:cns),p_snmelt(1:cns),p_sntemp(1:cns),p_rodum(1:cns),p_walledum(1:cns), &
            p_wallwdum(1:cns),p_vegdum(1:cns),p_dg(1:cns),p_sg(1:cns),p_atm(1:cns),ddt, &
            p_acond(1:cns),p_wallpsi(1:cns),p_roadpsi(1:cns),p_fn(1:cns),p_pg(1:cns))
+    oldval(1:cns)=p_sntemp(1:cns)
     p_sntemp(1:cns)=0.25*ctmax(1:cns)+0.75*ctmin(1:cns)
     do k=1,nfgits ! sectant
       evctx(1:cns)=evct(1:cns)
@@ -1331,6 +1332,7 @@ do while ((j.le.npgits).and.(maxchange.gt.temptol)) ! predictor-corrector loop -
     p_sntemp(1:cns)=0.75*ctmax(1:cns)+0.25*ctmin(1:cns)
     call solverfsn(cns,evct(1:cns),p_rg(1:cns),p_fg(1:cns),p_eg(1:cns),p_gasn(1:cns),p_snmelt(1:cns),p_sntemp(1:cns), &
                    p_rodum(1:cns),p_dg(1:cns),p_sg(1:cns),p_atm(1:cns),p_acond(1:cns),p_fn(1:cns),ddt)
+    oldval(1:cns)=p_sntemp(1:cns)
     p_sntemp(1:cns)=0.25*ctmax(1:cns)+0.75*ctmin(1:cns)
     do k=1,nfgits ! sectant
       evctx(1:cns)=evct(1:cns)
@@ -2029,6 +2031,7 @@ if (any(ifn%sigmaveg.gt.0.)) then
   ipg%vegtemp=0.75*ctmax+0.25*ctmin
   call solveveg(cn,evctveg,rg,fg,fgtop,eg,gardsn,rdsnmelt,rdsntemp,iroad,iwalle, &
            iwallw,iveg,dg,sg,atm,ddt,acond,wallpsi,roadpsi,ifn,ipg)
+  oldval=ipg%vegtemp
   ipg%vegtemp=0.25*ctmax+0.75*ctmin
   do k=1,nfgits ! sectant
     evctx=evctveg
@@ -2103,6 +2106,7 @@ ctmin=min(dg%tempc,iwalle%temp(1),iwallw%temp(1),iroad%temp(1),rdsntemp,ipg%vegt
 canyontemp=0.75*ctmax+0.25*ctmin
 call solvecanyon(cn,cevct,fg,fgtop,topinvres,canyontemp,dg,atm,iwalle%temp(1),iwallw%temp(1),iroad%temp(1) &
                 ,ipg%vegtemp,rdsntemp,acond,ifn,ipg,trafficout)
+oldval=canyontemp
 canyontemp=0.25*ctmax+0.75*ctmin
 do k=1,nfgits ! sectant
   cevctx=cevct
