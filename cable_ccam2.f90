@@ -1,7 +1,7 @@
 module cable_ccam
 
   ! CABLE interface originally developed by the CABLE group
-  ! Subsequently modified by MJT
+  ! Subsequently modified by MJT for mosaic
 
   use define_types, cbm_ms => ms
 
@@ -10,11 +10,11 @@ module cable_ccam
 
   integer, parameter :: CABLE = 4
   integer, dimension(:), allocatable, save :: cmap
-  integer, dimension(:,:), allocatable, save :: dmap
+  integer, dimension(5,2), save :: pind  
   real, dimension(:), allocatable, save :: atmco2
-  real(r_1), dimension(:,:), allocatable, save :: sv,vl
-  integer, save :: CO2forcingtype=1   ! 1 constant, 2 prescribed 1900-2004,
-                                      ! 3 interactive
+  real, dimension(:), allocatable, save :: sv,vl
+  integer, parameter :: CO2forcingtype=1   ! 1 constant, 2 prescribed 1900-2004,
+                                           ! 3 interactive
   TYPE (air_type)             :: air
   TYPE (bgc_pool_type)        :: bgc
   TYPE (canopy_type)          :: canopy
@@ -158,11 +158,7 @@ module cable_ccam
        canopy%sghflux=sgflux(cmap)
        canopy%cansto=cansto(cmap)
        
-       do nb=1,5
-         where(dmap(:,nb).gt.0)
-           veg%vlai(dmap(:,nb))=max(vl(:,nb),0.1)
-         end where
-       end do
+       veg%vlai(:)=max(vl(:),0.1) ! for updating LAI
 
        sum_flux%sumpn=sumpn(cmap)
        sum_flux%sumrp=sumrp(cmap)
@@ -243,72 +239,111 @@ module cable_ccam
       zo(iperm(1:ipland))=0.
       do nb=1,5
         do k=1,ms
-          where(dmap(:,nb).gt.0)
-            tgg(iperm(1:ipland),k)=tgg(iperm(1:ipland),k)+sv(:,nb)*ssoil%tgg(dmap(:,nb),k)
-            wb(iperm(1:ipland),k)=wb(iperm(1:ipland),k)+sv(:,nb)*ssoil%wb(dmap(:,nb),k)
-            wbice(iperm(1:ipland),k)=wbice(iperm(1:ipland),k)+sv(:,nb)*ssoil%wbice(dmap(:,nb),k)
-          end where
+          tgg(cmap(pind(nb,1):pind(nb,2)),k)=tgg(cmap(pind(nb,1):pind(nb,2)),k) &
+                                            +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),k)
+          wb(cmap(pind(nb,1):pind(nb,2)),k)=wb(cmap(pind(nb,1):pind(nb,2)),k) &
+                                            +sv(pind(nb,1):pind(nb,2))*ssoil%wb(pind(nb,1):pind(nb,2),k)
+          wbice(cmap(pind(nb,1):pind(nb,2)),k)=wbice(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               +sv(pind(nb,1):pind(nb,2))*ssoil%wbice(pind(nb,1):pind(nb,2),k)
         end do
         do k=1,3
-          where(dmap(:,nb).gt.0)
-            tggsn(iperm(1:ipland),k)=tggsn(iperm(1:ipland),k)+sv(:,nb)*ssoil%tggsn(dmap(:,nb),k)
-            smass(iperm(1:ipland),k)=smass(iperm(1:ipland),k)+sv(:,nb)*ssoil%smass(dmap(:,nb),k)
-            ssdn(iperm(1:ipland),k)=ssdn(iperm(1:ipland),k)+sv(:,nb)*ssoil%ssdn(dmap(:,nb),k)
-          end where
+          tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               +sv(pind(nb,1):pind(nb,2))*ssoil%tggsn(pind(nb,1):pind(nb,2),k)
+          smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               +sv(pind(nb,1):pind(nb,2))*ssoil%smass(pind(nb,1):pind(nb,2),k)
+          ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
+                                              +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),k)
         end do
         do k=1,ncp
-          where(dmap(:,nb).gt.0)
-            cplant(iperm(1:ipland),k)=cplant(iperm(1:ipland),k)+sv(:,nb)*bgc%cplant(dmap(:,nb),k)
-          end where
+          cplant(cmap(pind(nb,1):pind(nb,2)),k)=cplant(cmap(pind(nb,1):pind(nb,2)),k) &
+                                                +sv(pind(nb,1):pind(nb,2))*bgc%cplant(pind(nb,1):pind(nb,2),k)
         enddo
         do k=1,ncs
-          where(dmap(:,nb).gt.0)
-            csoil(iperm(1:ipland),k)=csoil(iperm(1:ipland),k)+sv(:,nb)*bgc%csoil(dmap(:,nb),k)
-          end where
+          csoil(cmap(pind(nb,1):pind(nb,2)),k)=csoil(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               +sv(pind(nb,1):pind(nb,2))*bgc%csoil(pind(nb,1):pind(nb,2),k)
         enddo
-        where(dmap(:,nb).gt.0)
-          albsoilsn(iperm(1:ipland),1)=albsoilsn(iperm(1:ipland),1)+sv(:,nb)*ssoil%albsoilsn(dmap(:,nb),1)
-          albsoilsn(iperm(1:ipland),2)=albsoilsn(iperm(1:ipland),2)+sv(:,nb)*ssoil%albsoilsn(dmap(:,nb),2)
-          albsav(iperm(1:ipland))=albsav(iperm(1:ipland))+sv(:,nb)*rad%albedo(dmap(:,nb),1)
-          albnirsav(iperm(1:ipland))=albnirsav(iperm(1:ipland))+sv(:,nb)*rad%albedo(dmap(:,nb),2)
-          runoff(iperm(1:ipland))=runoff(iperm(1:ipland))+sv(:,nb)*ssoil%runoff(dmap(:,nb))
-          rnof1(iperm(1:ipland))=rnof1(iperm(1:ipland))+sv(:,nb)*ssoil%rnof1(dmap(:,nb))
-          rnof2(iperm(1:ipland))=rnof2(iperm(1:ipland))+sv(:,nb)*ssoil%rnof2(dmap(:,nb))
-          wbtot(iperm(1:ipland))=wbtot(iperm(1:ipland))+sv(:,nb)*ssoil%wbtot(dmap(:,nb))
-          tevap(iperm(1:ipland))=tevap(iperm(1:ipland))+sv(:,nb)*bal%evap_tot(dmap(:,nb))
-          tprecip(iperm(1:ipland))=tprecip(iperm(1:ipland))+sv(:,nb)*bal%precip_tot(dmap(:,nb))
-          totenbal(iperm(1:ipland))=totenbal(iperm(1:ipland))+sv(:,nb)*bal%ebal_tot(dmap(:,nb))
-          trnoff(iperm(1:ipland))=trnoff(iperm(1:ipland))+sv(:,nb)*bal%rnoff_tot(dmap(:,nb))
-          ssdnn(iperm(1:ipland))=ssdnn(iperm(1:ipland))+sv(:,nb)*ssoil%ssdnn(dmap(:,nb))
-          snowd(iperm(1:ipland))=snowd(iperm(1:ipland))+sv(:,nb)*ssoil%snowd(dmap(:,nb))
-          osnowd(iperm(1:ipland))=osnowd(iperm(1:ipland))+sv(:,nb)*ssoil%osnowd(dmap(:,nb))
-          osnowd0(iperm(1:ipland))=osnowd0(iperm(1:ipland))+sv(:,nb)*bal%osnowd0(dmap(:,nb))
-          snage(iperm(1:ipland))=snage(iperm(1:ipland))+sv(:,nb)*ssoil%snage(dmap(:,nb))
-          risflag(iperm(1:ipland))=risflag(iperm(1:ipland))+sv(:,nb)*real(ssoil%isflag(dmap(:,nb)))
-          rtsoil(iperm(1:ipland))=rtsoil(iperm(1:ipland))+sv(:,nb)/ssoil%rtsoil(dmap(:,nb))
-          rnet(iperm(1:ipland))=rnet(iperm(1:ipland))+sv(:,nb)*canopy%rnet(dmap(:,nb))
-          fg(iperm(1:ipland))=fg(iperm(1:ipland))+sv(:,nb)*canopy%fh(dmap(:,nb))
-          eg(iperm(1:ipland))=eg(iperm(1:ipland))+sv(:,nb)*canopy%fe(dmap(:,nb))
-          epot(iperm(1:ipland))=epot(iperm(1:ipland))+sv(:,nb)*ssoil%potev(dmap(:,nb))
-          tss(iperm(1:ipland))=tss(iperm(1:ipland))+sv(:,nb)*rad%trad(dmap(:,nb))
-          tgf(iperm(1:ipland))=tgf(iperm(1:ipland))+sv(:,nb)*canopy%tv(dmap(:,nb))
-          cansto(iperm(1:ipland))=cansto(iperm(1:ipland))+sv(:,nb)*canopy%cansto(dmap(:,nb))
-          gflux(iperm(1:ipland))=gflux(iperm(1:ipland))+sv(:,nb)*canopy%ghflux(dmap(:,nb))
-          sgflux(iperm(1:ipland))=sgflux(iperm(1:ipland))+sv(:,nb)*canopy%sghflux(dmap(:,nb))
-          fnee(iperm(1:ipland))=fnee(iperm(1:ipland))+sv(:,nb)*canopy%fnee(dmap(:,nb))
-          fpn(iperm(1:ipland))=fpn(iperm(1:ipland))+sv(:,nb)*canopy%fpn(dmap(:,nb))
-          frd(iperm(1:ipland))=frd(iperm(1:ipland))+sv(:,nb)*canopy%frday(dmap(:,nb))
-          frp(iperm(1:ipland))=frp(iperm(1:ipland))+sv(:,nb)*canopy%frp(dmap(:,nb))
-          frpw(iperm(1:ipland))=frpw(iperm(1:ipland))+sv(:,nb)*canopy%frpw(dmap(:,nb))
-          frs(iperm(1:ipland))=frs(iperm(1:ipland))+sv(:,nb)*canopy%frs(dmap(:,nb))
-          sumpn(iperm(1:ipland))=sumpn(iperm(1:ipland))+sv(:,nb)*sum_flux%sumpn(dmap(:,nb))
-          sumrp(iperm(1:ipland))=sumrp(iperm(1:ipland))+sv(:,nb)*sum_flux%sumrp(dmap(:,nb))
-          sumrpw(iperm(1:ipland))=sumrpw(iperm(1:ipland))+sv(:,nb)*sum_flux%sumrpw(dmap(:,nb))
-          sumrpr(iperm(1:ipland))=sumrpr(iperm(1:ipland))+sv(:,nb)*sum_flux%sumrpr(dmap(:,nb))
-          sumrs(iperm(1:ipland))=sumrs(iperm(1:ipland))+sv(:,nb)*sum_flux%sumrs(dmap(:,nb))
-          sumrd(iperm(1:ipland))=sumrd(iperm(1:ipland))+sv(:,nb)*sum_flux%sumrd(dmap(:,nb))
-          zo(iperm(1:ipland))=zo(iperm(1:ipland))+sv(:,nb)/log(zmin/rough%z0m(dmap(:,nb)))**2
-        end where
+        albsoilsn(cmap(pind(nb,1):pind(nb,2)),1)=albsoilsn(cmap(pind(nb,1):pind(nb,2)),1) &
+                                                +sv(pind(nb,1):pind(nb,2))*ssoil%albsoilsn(pind(nb,1):pind(nb,2),1)
+        albsoilsn(cmap(pind(nb,1):pind(nb,2)),2)=albsoilsn(cmap(pind(nb,1):pind(nb,2)),2) &
+                                                 +sv(pind(nb,1):pind(nb,2))*ssoil%albsoilsn(pind(nb,1):pind(nb,2),2)
+        albsav(cmap(pind(nb,1):pind(nb,2)))=albsav(cmap(pind(nb,1):pind(nb,2))) &
+                                            +sv(pind(nb,1):pind(nb,2))*rad%albedo(pind(nb,1):pind(nb,2),1)
+        albnirsav(cmap(pind(nb,1):pind(nb,2)))=albnirsav(cmap(pind(nb,1):pind(nb,2))) &
+                                               +sv(pind(nb,1):pind(nb,2))*rad%albedo(pind(nb,1):pind(nb,2),2)
+        runoff(cmap(pind(nb,1):pind(nb,2)))=runoff(cmap(pind(nb,1):pind(nb,2))) &
+                                            +sv(pind(nb,1):pind(nb,2))*ssoil%runoff(pind(nb,1):pind(nb,2))
+        rnof1(cmap(pind(nb,1):pind(nb,2)))=rnof1(cmap(pind(nb,1):pind(nb,2))) &
+                                           +sv(pind(nb,1):pind(nb,2))*ssoil%rnof1(pind(nb,1):pind(nb,2))
+        rnof2(cmap(pind(nb,1):pind(nb,2)))=rnof2(cmap(pind(nb,1):pind(nb,2))) &
+                                           +sv(pind(nb,1):pind(nb,2))*ssoil%rnof2(pind(nb,1):pind(nb,2))
+        wbtot(cmap(pind(nb,1):pind(nb,2)))=wbtot(cmap(pind(nb,1):pind(nb,2))) &
+                                           +sv(pind(nb,1):pind(nb,2))*ssoil%wbtot(pind(nb,1):pind(nb,2))
+        tevap(cmap(pind(nb,1):pind(nb,2)))=tevap(cmap(pind(nb,1):pind(nb,2))) &
+                                           +sv(pind(nb,1):pind(nb,2))*bal%evap_tot(pind(nb,1):pind(nb,2))
+        tprecip(cmap(pind(nb,1):pind(nb,2)))=tprecip(cmap(pind(nb,1):pind(nb,2))) &
+                                             +sv(pind(nb,1):pind(nb,2))*bal%precip_tot(pind(nb,1):pind(nb,2))
+        totenbal(cmap(pind(nb,1):pind(nb,2)))=totenbal(cmap(pind(nb,1):pind(nb,2))) &
+                                              +sv(pind(nb,1):pind(nb,2))*bal%ebal_tot(pind(nb,1):pind(nb,2))
+        trnoff(cmap(pind(nb,1):pind(nb,2)))=trnoff(cmap(pind(nb,1):pind(nb,2))) &
+                                            +sv(pind(nb,1):pind(nb,2))*bal%rnoff_tot(pind(nb,1):pind(nb,2))
+        ssdnn(cmap(pind(nb,1):pind(nb,2)))=ssdnn(cmap(pind(nb,1):pind(nb,2))) &
+                                           +sv(pind(nb,1):pind(nb,2))*ssoil%ssdnn(pind(nb,1):pind(nb,2))
+        snowd(cmap(pind(nb,1):pind(nb,2)))=snowd(cmap(pind(nb,1):pind(nb,2))) &
+                                           +sv(pind(nb,1):pind(nb,2))*ssoil%snowd(pind(nb,1):pind(nb,2))
+        osnowd(cmap(pind(nb,1):pind(nb,2)))=osnowd(cmap(pind(nb,1):pind(nb,2))) &
+                                            +sv(pind(nb,1):pind(nb,2))*ssoil%osnowd(pind(nb,1):pind(nb,2))
+        osnowd0(cmap(pind(nb,1):pind(nb,2)))=osnowd0(cmap(pind(nb,1):pind(nb,2))) &
+                                             +sv(pind(nb,1):pind(nb,2))*bal%osnowd0(pind(nb,1):pind(nb,2))
+        snage(cmap(pind(nb,1):pind(nb,2)))=snage(cmap(pind(nb,1):pind(nb,2))) &
+                                           +sv(pind(nb,1):pind(nb,2))*ssoil%snage(pind(nb,1):pind(nb,2))
+        risflag(cmap(pind(nb,1):pind(nb,2)))=risflag(cmap(pind(nb,1):pind(nb,2))) &
+                                             +sv(pind(nb,1):pind(nb,2))*real(ssoil%isflag(pind(nb,1):pind(nb,2)))
+        rtsoil(cmap(pind(nb,1):pind(nb,2)))=rtsoil(cmap(pind(nb,1):pind(nb,2))) &
+                                            +sv(pind(nb,1):pind(nb,2))/ssoil%rtsoil(pind(nb,1):pind(nb,2))
+        rnet(cmap(pind(nb,1):pind(nb,2)))=rnet(cmap(pind(nb,1):pind(nb,2))) &
+                                          +sv(pind(nb,1):pind(nb,2))*canopy%rnet(pind(nb,1):pind(nb,2))
+        fg(cmap(pind(nb,1):pind(nb,2)))=fg(cmap(pind(nb,1):pind(nb,2))) &
+                                        +sv(pind(nb,1):pind(nb,2))*canopy%fh(pind(nb,1):pind(nb,2))
+        eg(cmap(pind(nb,1):pind(nb,2)))=eg(cmap(pind(nb,1):pind(nb,2))) &
+                                        +sv(pind(nb,1):pind(nb,2))*canopy%fe(pind(nb,1):pind(nb,2))
+        epot(cmap(pind(nb,1):pind(nb,2)))=epot(cmap(pind(nb,1):pind(nb,2))) &
+                                          +sv(pind(nb,1):pind(nb,2))*ssoil%potev(pind(nb,1):pind(nb,2))
+        tss(cmap(pind(nb,1):pind(nb,2)))=tss(cmap(pind(nb,1):pind(nb,2))) &
+                                         +sv(pind(nb,1):pind(nb,2))*rad%trad(pind(nb,1):pind(nb,2))
+        tgf(cmap(pind(nb,1):pind(nb,2)))=tgf(cmap(pind(nb,1):pind(nb,2))) &
+                                         +sv(pind(nb,1):pind(nb,2))*canopy%tv(pind(nb,1):pind(nb,2))
+        cansto(cmap(pind(nb,1):pind(nb,2)))=cansto(cmap(pind(nb,1):pind(nb,2))) &
+                                            +sv(pind(nb,1):pind(nb,2))*canopy%cansto(pind(nb,1):pind(nb,2))
+        gflux(cmap(pind(nb,1):pind(nb,2)))=gflux(cmap(pind(nb,1):pind(nb,2))) &
+                                           +sv(pind(nb,1):pind(nb,2))*canopy%ghflux(pind(nb,1):pind(nb,2))
+        sgflux(cmap(pind(nb,1):pind(nb,2)))=sgflux(cmap(pind(nb,1):pind(nb,2))) &
+                                            +sv(pind(nb,1):pind(nb,2))*canopy%sghflux(pind(nb,1):pind(nb,2))
+        fnee(cmap(pind(nb,1):pind(nb,2)))=fnee(cmap(pind(nb,1):pind(nb,2))) &
+                                          +sv(pind(nb,1):pind(nb,2))*canopy%fnee(pind(nb,1):pind(nb,2))
+        fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2))) &
+                                         +sv(pind(nb,1):pind(nb,2))*canopy%fpn(pind(nb,1):pind(nb,2))
+        frd(cmap(pind(nb,1):pind(nb,2)))=frd(cmap(pind(nb,1):pind(nb,2))) &
+                                         +sv(pind(nb,1):pind(nb,2))*canopy%frday(pind(nb,1):pind(nb,2))
+        frp(cmap(pind(nb,1):pind(nb,2)))=frp(cmap(pind(nb,1):pind(nb,2))) &
+                                         +sv(pind(nb,1):pind(nb,2))*canopy%frp(pind(nb,1):pind(nb,2))
+        frpw(cmap(pind(nb,1):pind(nb,2)))=frpw(cmap(pind(nb,1):pind(nb,2))) &
+                                          +sv(pind(nb,1):pind(nb,2))*canopy%frpw(pind(nb,1):pind(nb,2))
+        frs(cmap(pind(nb,1):pind(nb,2)))=frs(cmap(pind(nb,1):pind(nb,2))) &
+                                         +sv(pind(nb,1):pind(nb,2))*canopy%frs(pind(nb,1):pind(nb,2))
+        sumpn(cmap(pind(nb,1):pind(nb,2)))=sumpn(cmap(pind(nb,1):pind(nb,2))) &
+                                           +sv(pind(nb,1):pind(nb,2))*sum_flux%sumpn(pind(nb,1):pind(nb,2))
+        sumrp(cmap(pind(nb,1):pind(nb,2)))=sumrp(cmap(pind(nb,1):pind(nb,2))) &
+                                           +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrp(pind(nb,1):pind(nb,2))
+        sumrpw(cmap(pind(nb,1):pind(nb,2)))=sumrpw(cmap(pind(nb,1):pind(nb,2))) &
+                                            +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrpw(pind(nb,1):pind(nb,2))
+        sumrpr(cmap(pind(nb,1):pind(nb,2)))=sumrpr(cmap(pind(nb,1):pind(nb,2))) &
+                                            +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrpr(pind(nb,1):pind(nb,2))
+        sumrs(cmap(pind(nb,1):pind(nb,2)))=sumrs(cmap(pind(nb,1):pind(nb,2))) &
+                                           +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrs(pind(nb,1):pind(nb,2))
+        sumrd(cmap(pind(nb,1):pind(nb,2)))=sumrd(cmap(pind(nb,1):pind(nb,2))) &
+                                           +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrd(pind(nb,1):pind(nb,2))
+        zo(cmap(pind(nb,1):pind(nb,2)))=zo(cmap(pind(nb,1):pind(nb,2))) &
+                                        +sv(pind(nb,1):pind(nb,2))/log(zmin/rough%z0m(pind(nb,1):pind(nb,2)))**2
       end do
       where (land)
         isflag=nint(risflag)
@@ -460,7 +495,7 @@ module cable_ccam
   ratecp(2)=0.03
   ratecp(3)=0.14
   ratecs(1)=2.
-  ratecs(2)=5.
+  ratecs(2)=0.5
 
   if (cbm_ms.ne.ms) then
     print *,"ERROR: CABLE and CCAM soil levels do not match"
@@ -501,9 +536,9 @@ module cable_ccam
    end do
    nb=count(land)
   
-  allocate(sv(nb,5))
-  allocate(vl(nb,5))
-  allocate(cmap(mp),dmap(nb,5))
+  allocate(sv(mp))
+  allocate(vl(mp))
+  allocate(cmap(mp))
   allocate(atmco2(ifull))
   call alloc_cbm_var(air, mp)
   call alloc_cbm_var(bgc, mp)
@@ -535,30 +570,27 @@ module cable_ccam
     froot2(:,k) = froot2(:,k) - froot2(:,k-1)
   enddo
   
-  dmap=0
   ipos=0
   do n=1,5
     ip=0
     call getc4(ifull,ivs(:,n),rlatt(:)*180./pi,c4frac(:))
+    pind(n,1)=ipos+1
     do iq=1,ifull
-      if (land(iq)) then
-        ip=ip+1
-        if (svs(iq,n).gt.0.) then
-          ipos=ipos+1
-          if (ivs(iq,n).lt.1) then
-            print *,"ERROR: Land-type/lsmask mismatch at iq=",iq
-            stop
-          end if
-          cmap(ipos)=iq
-          dmap(ip,n)=ipos
-          sv(ip,n)=svs(iq,n)
-          vl(ip,n)=vlin(iq,n)
-          veg%iveg(ipos)=ivs(iq,n)
-          soil%isoilm(ipos)=isoilm(iq)
-          veg%frac4(ipos)=c4frac(iq)
+      if (land(iq).and.(svs(iq,n).gt.0.)) then
+        ipos=ipos+1
+        if (ivs(iq,n).lt.1) then
+          print *,"ERROR: Land-type/lsmask mismatch at iq=",iq
+          stop
         end if
+        cmap(ipos)=iq
+        sv(ipos)=svs(iq,n)
+        vl(ipos)=vlin(iq,n)
+        veg%iveg(ipos)=ivs(iq,n)
+        soil%isoilm(ipos)=isoilm(iq)
+        veg%frac4(ipos)=c4frac(iq)
       end if
     end do
+    pind(n,2)=ipos
   end do
   
   if (ipos.ne.mp) then
@@ -577,7 +609,11 @@ module cable_ccam
       zolnd=zolnd+svs(:,n)/log(zmin/(0.1*hc(ivs(:,n))))**2
     end where
   end do
-  zolnd=max(zmin*exp(-sqrt(1./zolnd)),zobgin)
+  where (land)
+    zolnd=max(zmin*exp(-sqrt(1./zolnd)),zobgin)
+  elsewhere
+    zolnd=zobgin
+  end where
   
   ! use dominant veg type
   ivegt=ivs(:,1)

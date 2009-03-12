@@ -435,9 +435,11 @@ c     set up cc geometry
 !     replaces block data bdata in new Fels-Schwarzkopf radiation code.
 !     All processes read these
       if(nrad==4)then
-        if (myid==0) print *,'Radiative data read from file ',radfile
-        open(16,file=o3file,form='formatted',status='old')
-        open(15,file=radfile,form='formatted',status='old')
+        if (myid==0) then                                     ! MJT read
+          print *,'Radiative data read from file ',radfile    ! MJT read
+          open(16,file=o3file,form='formatted',status='old')  ! MJT read
+          open(15,file=radfile,form='formatted',status='old') ! MJT read
+        end if                                                ! MJT read
       endif
       if(iaero.ne.0)then
          if (myid==0) print *,'so4total data read from file ',so4tfile
