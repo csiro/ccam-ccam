@@ -327,7 +327,10 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       integer, dimension(ifull) :: dumm
       real, dimension(ifull) :: pslc
       real, dimension(ifull,kl) :: uc,vc,tc,qc
-      real, parameter :: eta = 0.3 ! MJT daily ave
+      real, dimension(ifull), save :: psld ! MJT daily ave
+      real, dimension(ifull,kl), save :: ud,vd,td,qd ! MJT daily ave
+      real, parameter :: eta = 0.20 ! MJT daily ave
+      real, parameter :: lambda = 0.10 ! MJT daily ave
       logical, save :: firstcall = .true. ! MJT daily ave
       data mtimeb/-1/
       save mtimeb
@@ -472,11 +475,40 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
         if (nud_uv.eq.8) then
           ! preturb daily average
           if (myid == 0) print *,"Using averaged data for filter"
-          pslc=eta*(pslb-psla/real(ncount))
-          uc=eta*(ub-ua/real(ncount))
-          vc=eta*(vb-va/real(ncount))
-          tc=eta*(tb-ta/real(ncount))
-          qc=eta*(qb-qa/real(ncount))
+	  
+	  psla=pslb-psla/real(ncount)
+	  ua=ub-ua/real(ncount)
+	  va=vb-va/real(ncount)
+	  ta=tb-ta/real(ncount)
+	  qa=qb-qa/real(ncount)
+	  
+	  where (psla*psld.lt.0.) ! anti-windup
+	    psld=0.
+	  end where
+	  where (ua*ud.lt.0.)
+	    ud=0.
+	  end where
+	  where (va*vd.lt.0.)
+	    vd=0.
+	  end where
+	  where (ta*td.lt.0.)
+	    td=0.
+	  end where
+	  where (qa*qd.lt.0.)
+	    qd=0.
+	  end where
+	  
+	  psld=psld+psla
+	  ud=ud+ua
+	  vd=vd+va
+	  td=td+ta
+	  qd=qd+qa
+          pslc=eta*psla+lambda*psld
+          uc=eta*ua+lambda*ud
+          vc=eta*va+lambda*vd
+          tc=eta*ta+lambda*td
+          qc=eta*qa+lambda*qd
+
           psla(:)=0.
           ua(:,:)=0.
           va(:,:)=0.
@@ -551,6 +583,19 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
 
       !------------------------------------------------------------------------------
       if (nud_uv.eq.8) then ! MJT daily ave
+        if (ncount.eq.-1) then
+	  psld=0.
+	  ud=0.
+	  vd=0.
+	  td=0.
+	  qd=0.
+	  psla=0.
+	  ua=0.
+	  va=0.
+	  ta=0.
+	  qa=0.
+	  ncount=0
+	end if
           ! update average
         psla(:)=psla(:)+psl(1:ifull)
         ua(:,:)=ua(:,:)+u(1:ifull,:)

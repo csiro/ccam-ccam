@@ -64,7 +64,7 @@ end type trad
 type tdiag
   real :: roofdelta,roaddelta,vegdelta,rfsndelta,rdsndelta
   real :: tempc,mixrc,tempr,mixrr,sigd,sigr,rfdzmin
-  real :: accool,canyonrgout,roofrgout,tran,c1
+  real :: accool,canyonrgout,roofrgout,evap,tran,c1
   real :: totdepth,netemiss,netrad
   real :: cwa,cwe,cww,cwr,cra,crr,crw
 end type tdiag
@@ -106,6 +106,7 @@ integer, parameter :: acmeth=1            ! AC heat pump into canyon (0=Off, 1=O
 integer, parameter :: nrefl=3             ! Number of canyon reflections (default=3)
 integer, parameter :: nfgits=20           ! Maximum number of iterations for calculating sensible heat flux (default=6)
 integer, parameter :: stabfn=1            ! Stability function scheme (0=Louis, 1=Dyer and Hicks)
+integer, parameter :: vegmode=2           ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out-canyon/in-canyon = X%/Y%)
 integer, parameter :: iqt = 3432          ! Diagnostic point (in terms of host grid)
 real, parameter :: tol=0.001              ! Minimum change for sectant method
 real, parameter :: alpha = 0.7            ! to avoid oscillations in temperatures
@@ -342,8 +343,8 @@ integer, intent(in) :: ifull,diag
 integer ii
 integer, dimension(ifull), intent(in) :: itype
 integer, parameter :: maxtype = 8
+real, dimension(ufull) :: tsigveg,tsigmabld
 ! Urban fraction
-!real, dimension(maxtype), parameter ::   csigveg=(/ 0., 0., 0., 0., 0., 0., 0., 0. /)
 real, dimension(maxtype), parameter ::   csigveg=(/ 0.30, 0.45, 0.38, 0.34, 0.05, 0.50, 0.40, 0.30 /)
 ! Area fraction occupied by buildings
 real, dimension(maxtype), parameter :: csigmabld=(/ 0.40, 0.40, 0.44, 0.46, 0.65, 0.35, 0.40, 0.50 /)
@@ -427,10 +428,23 @@ if (any(itype(ugrid).lt.1).or.any(itype(ugrid).gt.maxtype)) then
   stop
 end if
 
+select case(vegmode)
+  case(0)
+    tsigveg=0.5*csigveg(itype(ugrid))
+    tsigmabld=csigmabld(itype(ugrid))*(1.-0.5*csigveg(itype(ugrid)))/(1.-csigveg(itype(ugrid)))
+  case(1)
+    tsigveg=0.
+    tsigmabld=csigmabld(itype(ugrid))/(1.-csigveg(itype(ugrid)))
+  case(2)
+    tsigveg=csigveg(itype(ugrid))
+    tsigmabld=csigmabld(itype(ugrid))
+  case DEFAULT
+    write(6,*) "ERROR: Unsupported vegmode ",vegmode
+    stop
+end select
+fn%sigmaveg=tsigveg/(1.-tsigmabld)
+fn%sigmabld=tsigmabld
 fn%hwratio=chwratio(itype(ugrid))
-fn%sigmabld=csigmabld(itype(ugrid))
-!fn%sigmaveg=0. ! turn off vegetation tile
-fn%sigmaveg=csigveg(itype(ugrid))/(1.-csigmabld(itype(ugrid)))
 fn%industryfg=cindustryfg(itype(ugrid))
 fn%trafficfg=ctrafficfg(itype(ugrid))
 fn%bldheight=cbldheight(itype(ugrid))
@@ -927,6 +941,7 @@ dg%rfdzmin=0.
 dg%accool=0.
 dg%canyonrgout=0.
 dg%roofrgout=0.
+dg%evap=0.
 dg%tran=0.
 dg%c1=0.
 
@@ -1382,7 +1397,7 @@ n=atm%rnd-min(max(atm%rnd-eg%veg/lv,0.),(maxvgwater-veg%water)/ddt) ! rainfall r
 veg%moist=veg%moist+ddt*dg%c1*(max(n*waterden+rdsnmelt*road%den,0.)-dg%tran)/(waterden*dg%totdepth)
 roof%water=roof%water+ddt*(atm%rnd-eg%roof/lv+rfsnmelt)
 road%water=road%water+ddt*(atm%rnd-eg%road/lv+rdsnmelt)
-veg%water=veg%water+ddt*(atm%rnd-eg%veg/lv)
+veg%water=veg%water+ddt*(atm%rnd-dg%evap)
 
 ! calculate snow
 roof%snow=roof%snow+ddt*(atm%snd-eg%rfsn/ls-rfsnmelt)
@@ -1923,13 +1938,14 @@ canyonmix=(dg%rdsndelta*rdsnqsat*ls/lv*acond%rdsn+(1.-dg%rdsndelta)*((1.-fn%sigm
            /(dg%rdsndelta*ls/lv*acond%rdsn+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dumroaddelta*acond%road &
            +ifn%sigmaveg*(dumvegdelta*acond%veg+(1.-dumvegdelta)/(1./acond%veg+res)))+topinvres)
 
-! calculate transpiration
+! calculate transpiration and evaporation
 dg%tran=min(max((1.-dumvegdelta)*atm%rho*(vegqsat-canyonmix)/(1./acond%veg+res),0.), &
             max((iveg%moist-swilt)*dg%totdepth*waterden/(dg%c1*ddt),0.))
+dg%evap=min(dumvegdelta*atm%rho*(vegqsat-canyonmix)*acond%veg,iveg%water/ddt+atm%rnd)
 
 ! calculate canyon latent heat fluxes
 eg%road=lv*min(atm%rho*dumroaddelta*(roadqsat-canyonmix)*acond%road,iroad%water/ddt+atm%rnd+(1.-fn%sigmaveg)*rdsnmelt)
-eg%veg=lv*(dumvegdelta*min(atm%rho*(vegqsat-canyonmix)*acond%veg,iveg%water/ddt+atm%rnd)+dg%tran)
+eg%veg=lv*(dg%evap+dg%tran)
 where (dg%rdsndelta.gt.0.)
   eg%rdsn=ls*min(atm%rho*dg%rdsndelta*max(0.,rdsnqsat-canyonmix)*acond%rdsn,iroad%snow/ddt+atm%snd-rdsnmelt)
   gardsn=(rdsntemp-iroad%temp(1))/ldratio ! use road temperature to represent canyon bottom surface temperature
