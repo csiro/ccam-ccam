@@ -1324,6 +1324,15 @@ CONTAINS
 !        ssoil%smass(:,2) = ssoil%sdepth(:,2) * ssoil%ssdn(:,2)
 !        ssoil%smass(:,3) = ssoil%sdepth(:,3) * ssoil%ssdn(:,3)
       END WHERE
+      ssoil%sdepth(:,1)=max(ssoil%sdepth(:,1),0.02) ! MJT suggestion
+      ssoil%sdepth(:,2)=max(ssoil%sdepth(:,2),0.02) ! MJT suggestion
+      ssoil%sdepth(:,3)=max(ssoil%sdepth(:,3),0.02) ! MJT suggestion
+      ssoil%smass(:,1)=max(ssoil%smass(:,1),0.01)   ! MJT suggestion
+      ssoil%smass(:,2)=max(ssoil%smass(:,2),0.01)   ! MJT suggestion
+      ssoil%smass(:,3)=max(ssoil%smass(:,3),0.01)   ! MJT suggestion
+      ssoil%ssdn(:,1)=max(ssoil%ssdn(:,1),140.)     ! MJT suggestion
+      ssoil%ssdn(:,2)=max(ssoil%ssdn(:,2),140.)     ! MJT suggestion
+      ssoil%ssdn(:,3)=max(ssoil%ssdn(:,3),140.)     ! MJT suggestion      
       ssoil%isflag = 1
     END WHERE
 

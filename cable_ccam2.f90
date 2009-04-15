@@ -73,7 +73,6 @@ module cable_ccam
       ! for calculation of zenith angle
       real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull)
       real bpyear,alp
-      real risflag(ifull)
 
       integer jyear,jmonth,jday,jhour,jmin
       integer mstart,ktauplus,k,mins,kstart
@@ -149,7 +148,7 @@ module cable_ccam
 
        ssoil%ssdnn=ssdnn(cmap)
        ssoil%snowd=snowd(cmap)
-       ssoil%osnowd=osnowd(cmap)
+       ssoil%osnowd=osnowd(cmap) ! not needed
        bal%osnowd0=osnowd0(cmap)
        ssoil%snage=snage(cmap)
        ssoil%rtsoil=rtsoil(cmap)
@@ -183,7 +182,7 @@ module cable_ccam
        where ( met%tc < 0.0 ) met%precip_s = met%precip
        bgc%ratecp(:) = ratecp(:)
        bgc%ratecs(:) = ratecs(:)
-     
+       
 !      rml 21/09/07 remove ktauplus+ktau due to change in cable_offline
        CALL cbm(ktau, kstart, ntau, dt, air, bgc, canopy, met, &
      &      bal, rad, rough, soil, ssoil, sum_flux, veg, mxvt, mxst)
@@ -210,7 +209,6 @@ module cable_ccam
       osnowd(iperm(1:ipland))=0.
       osnowd0(iperm(1:ipland))=0.
       snage(iperm(1:ipland))=0.
-      risflag(iperm(1:ipland))=0.
       rtsoil(iperm(1:ipland))=0.
       rnet(iperm(1:ipland))=0.
       fg(iperm(1:ipland))=0.
@@ -291,15 +289,13 @@ module cable_ccam
         snowd(cmap(pind(nb,1):pind(nb,2)))=snowd(cmap(pind(nb,1):pind(nb,2))) &
                                            +sv(pind(nb,1):pind(nb,2))*ssoil%snowd(pind(nb,1):pind(nb,2))
         osnowd(cmap(pind(nb,1):pind(nb,2)))=osnowd(cmap(pind(nb,1):pind(nb,2))) &
-                                            +sv(pind(nb,1):pind(nb,2))*ssoil%osnowd(pind(nb,1):pind(nb,2))
+                                            +sv(pind(nb,1):pind(nb,2))*ssoil%osnowd(pind(nb,1):pind(nb,2)) ! not needed
         osnowd0(cmap(pind(nb,1):pind(nb,2)))=osnowd0(cmap(pind(nb,1):pind(nb,2))) &
                                              +sv(pind(nb,1):pind(nb,2))*bal%osnowd0(pind(nb,1):pind(nb,2))
         snage(cmap(pind(nb,1):pind(nb,2)))=snage(cmap(pind(nb,1):pind(nb,2))) &
                                            +sv(pind(nb,1):pind(nb,2))*ssoil%snage(pind(nb,1):pind(nb,2))
-        risflag(cmap(pind(nb,1):pind(nb,2)))=risflag(cmap(pind(nb,1):pind(nb,2))) &
-                                             +sv(pind(nb,1):pind(nb,2))*real(ssoil%isflag(pind(nb,1):pind(nb,2)))
         rtsoil(cmap(pind(nb,1):pind(nb,2)))=rtsoil(cmap(pind(nb,1):pind(nb,2))) &
-                                            +sv(pind(nb,1):pind(nb,2))/ssoil%rtsoil(pind(nb,1):pind(nb,2))
+                                           +sv(pind(nb,1):pind(nb,2))/ssoil%rtsoil(pind(nb,1):pind(nb,2))
         rnet(cmap(pind(nb,1):pind(nb,2)))=rnet(cmap(pind(nb,1):pind(nb,2))) &
                                           +sv(pind(nb,1):pind(nb,2))*canopy%rnet(pind(nb,1):pind(nb,2))
         fg(cmap(pind(nb,1):pind(nb,2)))=fg(cmap(pind(nb,1):pind(nb,2))) &
@@ -346,11 +342,14 @@ module cable_ccam
                                         +sv(pind(nb,1):pind(nb,2))/log(zmin/rough%z0m(pind(nb,1):pind(nb,2)))**2
       end do
       where (land)
-        isflag=nint(risflag)
         zo=max(zmin*exp(-sqrt(1./zo)),zobgin)
         rtsoil=1./rtsoil
       end where
-        
+      where (land.and.snowd.ge.snmin*ssdnn)
+        isflag=1
+      elsewhere
+        isflag=0
+      endwhere
 
       return
       end subroutine sib4
@@ -453,7 +452,8 @@ module cable_ccam
   hc=(/ 17.,35.,15.5,20.,19.25,0.6,0.6,7.0426,14.3379,0.567,0.5,0.55,6.017,0.55,0.2,0.2,0.2 /)
   xfang=(/ 0.01,0.1,0.01,0.25,0.125,-0.3,0.01,-0.3,-0.3,-0.3,0.,-0.3,0.,-0.3,0.,0.1,0. /)
   dleaf=(/ 0.055,0.1,0.04,0.15,0.1,0.1,0.1,0.233,0.129,0.3,0.3,0.3,0.242,0.3,0.03,0.03,0.03 /)
-  xalbnir=(/ 0.79,0.96,0.81,1.,1.08,1.14,1.2,1.02,1.23,1.16,0.89,0.98,1.1,1.13,1.,1.15,1. /)
+  !xalbnir=(/ 0.79,0.96,0.81,1.,1.08,1.14,1.2,1.02,1.23,1.16,0.89,0.98,1.1,1.13,1.,1.15,1. /)
+  xalbnir=1. ! MJT suggestion
   wai=(/ 1.,1.,1.,1.,1.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0. /)
   canst1=0.1
   shelrb=2.
@@ -528,13 +528,13 @@ module cable_ccam
     svs(:,n)=svs(:,n)/sum(svs,2)
   end do
 
-   mp=0
-   do iq=1,ifull
-     if (land(iq)) then
-       mp=mp+count(svs(iq,:).gt.0.)
-     end if
-   end do
-   nb=count(land)
+  mp=0
+  do iq=1,ifull
+    if (land(iq)) then
+      mp=mp+count(svs(iq,:).gt.0.)
+    end if
+  end do
+  nb=count(land)
   
   allocate(sv(mp))
   allocate(vl(mp))
