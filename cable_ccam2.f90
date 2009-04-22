@@ -6,7 +6,7 @@ module cable_ccam
   use define_types, cbm_ms => ms
 
   private
-  public CABLE,sib4,loadcbmparm,getwetfrac
+  public CABLE,sib4,loadcbmparm,savetile
 
   integer, parameter :: CABLE = 4
   integer, dimension(:), allocatable, save :: cmap
@@ -132,69 +132,6 @@ module cable_ccam
        met%precip_s=0. ! in mm not mm/sec
        where ( met%tc < 0.0 ) met%precip_s = met%precip
 
-
-       !if (ktau.eq.1) then
-         ssoil%albsoilsn(:,1)=albsoilsn(cmap,1)
-         ssoil%albsoilsn(:,2)=albsoilsn(cmap,2)
-         ssoil%albsoilsn(:,3)=0.05
-         do k = 1,ms
-           ssoil%tgg(:,k) = tgg(cmap,k)
-           ssoil%wb(:,k) = real(wb(cmap,k),r_2)
-           ssoil%wbice(:,k) = real(wbice(cmap,k),r_2)
-         enddo
-!  are any of these balance variables used?
-         bal%evap_tot=tevap(cmap)
-         bal%precip_tot=tprecip(cmap)
-         bal%ebal_tot=totenbal(cmap)
-         bal%rnoff_tot=trnoff(cmap)
-
-         ssoil%isflag= int(isflag(cmap),i_d)
-         do k = 1,3
-           ssoil%tggsn(:,k) = tggsn(cmap,k)
-           ssoil%smass(:,k) = smass(cmap,k)
-           ssoil%ssdn(:,k) = ssdn(cmap,k)
-         enddo
-         ssoil%sdepth(:,1)=ssoil%smass(:,1)/ssoil%ssdn(:,1)
-         do k=2,3
-           where (ssoil%isflag.gt.0)
-             ssoil%sdepth(:,k)=ssoil%smass(:,k)/ssoil%ssdn(:,k)
-           elsewhere
-             ssoil%sdepth(:,k)=0.
-           end where
-         end do
-
-         ssoil%ssdnn=ssdnn(cmap)
-         ssoil%snowd=snowd(cmap)
-         ssoil%osnowd=osnowd(cmap)
-         bal%osnowd0=osnowd0(cmap)
-         ssoil%snage=snage(cmap)
-         ssoil%rtsoil=rtsoil(cmap)
-
-         canopy%ghflux=gflux(cmap)
-         canopy%sghflux=sgflux(cmap)
-         canopy%cansto=cansto(cmap)
-
-         sum_flux%sumpn=sumpn(cmap)
-         sum_flux%sumrp=sumrp(cmap)
-         sum_flux%sumrs=sumrs(cmap)
-         sum_flux%sumrd=sumrd(cmap)
-         sum_flux%sumrpw=sumrpw(cmap)
-         sum_flux%sumrpr=sumrpr(cmap)
-         sum_flux%dsumpn=dsumpn(cmap)
-         sum_flux%dsumrp=dsumrp(cmap)
-         sum_flux%dsumrs=dsumrs(cmap)
-         sum_flux%dsumrd=dsumrd(cmap)
-         do k=1,ncp
-           bgc%cplant(:,k) = cplant(cmap,k)
-         enddo
-         do k=1,ncs
-           bgc%csoil(:,k) = csoil(cmap,k)
-         enddo
-      
-         bgc%ratecp(:) = ratecp(:)
-         bgc%ratecs(:) = ratecs(:)
-       !end if
-     
 !      rml 21/09/07 remove ktauplus+ktau due to change in cable_offline
        CALL cbm(ktau, kstart, ntau, dt, air, bgc, canopy, met, &
      &      bal, rad, rough, soil, ssoil, sum_flux, veg, mxvt, mxst)
@@ -343,47 +280,68 @@ module cable_ccam
         rtsoil=1./rtsoil
       end where
       
-      where (land.and.tmps.gt.0.5)
+      where (land.and.tmps.ge.0.5)
         isflag=1
       elsewhere
         isflag=0
       endwhere
-      !tmps=0.
       do nb=1,5 ! update snow
         do k=1,3
-          !where (ssoil%isflag(pind(nb,1):pind(nb,2)).eq.isflag(cmap(pind(nb,1):pind(nb,2))))
+          where (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.1) ! pack 1-layer into 3-layer
+            tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),1)
+            smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               +sv(pind(nb,1):pind(nb,2))*0.05*ssoil%ssdn(pind(nb,1):pind(nb,2),1)
+            ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
+                                              +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),1)
+          elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.2)
+            tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),1)
+            smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               +sv(pind(nb,1):pind(nb,2))*(ssoil%snowd(pind(nb,1):pind(nb,2)) &
+					       -0.05*ssoil%ssdn(pind(nb,1):pind(nb,2),1))*0.4
+            ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
+                                              +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),1)          
+          elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.3)
+            tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),1)
+            smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               +sv(pind(nb,1):pind(nb,2))*(ssoil%snowd(pind(nb,1):pind(nb,2)) &
+					       -0.05*ssoil%ssdn(pind(nb,1):pind(nb,2),1))*0.6
+            ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
+                                              +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),1)
+          elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).gt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.1) ! pack 3-layer into 1-layer
+            tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               +sv(pind(nb,1):pind(nb,2))*273.16
+            smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               +sv(pind(nb,1):pind(nb,2))*ssoil%snowd(pind(nb,1):pind(nb,2))
+            ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
+                                              +sv(pind(nb,1):pind(nb,2))*ssoil%ssdnn(pind(nb,1):pind(nb,2))
+          elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).gt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.ge.2)
+            tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               +sv(pind(nb,1):pind(nb,2))*273.16
+            ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
+                                              +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),k)          
+          elsewhere
             tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*ssoil%tggsn(pind(nb,1):pind(nb,2),k)
             smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*ssoil%smass(pind(nb,1):pind(nb,2),k)
             ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
                                               +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),k)
-          !end where
+          end where
         end do
-        !where (ssoil%isflag(pind(nb,1):pind(nb,2)).eq.isflag(cmap(pind(nb,1):pind(nb,2))))
-          ssdnn(cmap(pind(nb,1):pind(nb,2)))=ssdnn(cmap(pind(nb,1):pind(nb,2))) &
-                                           +sv(pind(nb,1):pind(nb,2))*ssoil%ssdnn(pind(nb,1):pind(nb,2))
-          snage(cmap(pind(nb,1):pind(nb,2)))=snage(cmap(pind(nb,1):pind(nb,2))) &
-                                           +sv(pind(nb,1):pind(nb,2))*ssoil%snage(pind(nb,1):pind(nb,2))
-          snowd(cmap(pind(nb,1):pind(nb,2)))=snowd(cmap(pind(nb,1):pind(nb,2))) &
-                                           +sv(pind(nb,1):pind(nb,2))*ssoil%snowd(pind(nb,1):pind(nb,2))
-          osnowd(cmap(pind(nb,1):pind(nb,2)))=osnowd(cmap(pind(nb,1):pind(nb,2))) &
-                                            +sv(pind(nb,1):pind(nb,2))*ssoil%osnowd(pind(nb,1):pind(nb,2))
-          osnowd0(cmap(pind(nb,1):pind(nb,2)))=osnowd0(cmap(pind(nb,1):pind(nb,2))) &
-                                             +sv(pind(nb,1):pind(nb,2))*bal%osnowd0(pind(nb,1):pind(nb,2))
-        !  tmps(cmap(pind(nb,1):pind(nb,2)))=tmps(cmap(pind(nb,1):pind(nb,2)))+sv(pind(nb,1):pind(nb,2))
-        !end where
+        ssdnn(cmap(pind(nb,1):pind(nb,2)))=ssdnn(cmap(pind(nb,1):pind(nb,2))) &
+                                         +sv(pind(nb,1):pind(nb,2))*ssoil%ssdnn(pind(nb,1):pind(nb,2))
+        snage(cmap(pind(nb,1):pind(nb,2)))=snage(cmap(pind(nb,1):pind(nb,2))) &
+                                         +sv(pind(nb,1):pind(nb,2))*ssoil%snage(pind(nb,1):pind(nb,2))
+        snowd(cmap(pind(nb,1):pind(nb,2)))=snowd(cmap(pind(nb,1):pind(nb,2))) &
+                                         +sv(pind(nb,1):pind(nb,2))*ssoil%snowd(pind(nb,1):pind(nb,2))
+        osnowd(cmap(pind(nb,1):pind(nb,2)))=osnowd(cmap(pind(nb,1):pind(nb,2))) &
+                                          +sv(pind(nb,1):pind(nb,2))*ssoil%osnowd(pind(nb,1):pind(nb,2))
+        osnowd0(cmap(pind(nb,1):pind(nb,2)))=osnowd0(cmap(pind(nb,1):pind(nb,2))) &
+                                           +sv(pind(nb,1):pind(nb,2))*bal%osnowd0(pind(nb,1):pind(nb,2))
       end do
-      !do k=1,3
-      !  tggsn(iperm(1:ipland),k)=tggsn(iperm(1:ipland),k)/tmps(iperm(1:ipland))
-      !  smass(iperm(1:ipland),k)=smass(iperm(1:ipland),k)/tmps(iperm(1:ipland))
-      !  ssdn(iperm(1:ipland),k)=ssdn(iperm(1:ipland),k)/tmps(iperm(1:ipland))
-      !end do
-      !ssdnn(iperm(1:ipland))=ssdnn(iperm(1:ipland))/tmps(iperm(1:ipland))
-      !snage(iperm(1:ipland))=snage(iperm(1:ipland))/tmps(iperm(1:ipland))
-      !snowd(iperm(1:ipland))=snowd(iperm(1:ipland))/tmps(iperm(1:ipland))
-      !osnowd(iperm(1:ipland))=osnowd(iperm(1:ipland))/tmps(iperm(1:ipland))
-      !osnowd0(iperm(1:ipland))=osnowd0(iperm(1:ipland))/tmps(iperm(1:ipland))
 
       return
       end subroutine sib4
@@ -445,7 +403,7 @@ module cable_ccam
       return
       end subroutine setco2for
 
-
+! *************************************************************************************
   subroutine loadcbmparm(fveg)
 
   use cc_mpi
@@ -702,6 +660,9 @@ module cable_ccam
   soil%ibp2    = ibp2(soil%isoilm)
   soil%i2bp3   = i2bp3(soil%isoilm)
   
+  bgc%ratecp(:) = ratecp(:)
+  bgc%ratecs(:) = ratecs(:)
+  
   sigmf=(1.-exp(-extkn(ivegt(:))*vlai(:)))
 
   ! store bare soil albedo and define snow free albedo
@@ -732,27 +693,71 @@ module cable_ccam
     albvisnir(:,1)=albsoilsn(:,1)
     albvisnir(:,2)=albsoilsn(:,2)
   end where
-  
+
   soil%albsoil=albsoil(cmap)
+  ssoil%albsoilsn(:,1)=albsoilsn(cmap,1) ! overwritten by CABLE
+  ssoil%albsoilsn(:,2)=albsoilsn(cmap,2) ! overwritten by CABLE
+  ssoil%albsoilsn(:,3)=0.05
+    
   rad%latitude=rlatt(cmap)*180./pi
   
   gflux=0. ! MJT suggestion
   sgflux=0. ! MJT suggestion
+  canopy%ghflux=0.
+  canopy%sghflux=0.  
   
  ! Initialise sum flux variables
   sumpn = 0.
   sumrp = 0.
   sumrs = 0.
   sumrd = 0.
-  sum_flux%sumrpw = 0.
-  sum_flux%sumrpr = 0.
-  sum_flux%dsumpn = 0.
-  sum_flux%dsumrp = 0.
-  sum_flux%dsumrd = 0.
+  sum_flux%sumpn=0.
+  sum_flux%sumrp=0.
+  sum_flux%sumrs=0.
+  sum_flux%sumrd=0.
+  sum_flux%sumrpw=0.
+  sum_flux%sumrpr=0.
+  sum_flux%dsumpn=0.
+  sum_flux%dsumrp=0.
+  sum_flux%dsumrs=0.
+  sum_flux%dsumrd=0.
+  
+  bal%evap_tot=0.
+  bal%precip_tot=0.
+  bal%ebal_tot=0.
+  bal%rnoff_tot=0.
+
+  call loadtile ! load tgg,wb,snowd,snage,rtsoil,cansto,cplant and csoil
+
+  do k=1,ms
+    ssoil%wbice(:,k)=wbice(cmap,k)                        ! overwritten by CABLE
+  end do
+  ssoil%osnowd=0.                                         ! overwritten by CABLE
+  bal%osnowd0=0.                                          ! overwritten by CABLE
+  ssoil%isflag=isflag(cmap)                               ! overwritten by CABLE
+  do k = 1,3
+    ssoil%tggsn(:,k) = tggsn(cmap,k)                      ! overwritten by CABLE
+    ssoil%smass(:,k) = smass(cmap,k)                      ! overwritten by CABLE
+    ssoil%ssdn(:,k) = ssdn(cmap,k)                        ! overwritten by CABLE
+  enddo  
+  ssoil%ssdnn=120.                                        ! overwritten by CABLE
+  where (ssoil%isflag.gt.0)
+    ssoil%sdepth(:,1)=ssoil%smass(:,1)/ssoil%ssdn(:,1)    ! overwritten by CABLE
+  elsewhere
+    ssoil%sdepth(:,1)=ssoil%snowd/ssoil%ssdn(:,1)         ! overwritten by CABLE
+  end where
+  do k=2,3
+    where (ssoil%isflag.gt.0)
+      ssoil%sdepth(:,k)=ssoil%smass(:,k)/ssoil%ssdn(:,k)  ! overwritten by CABLE
+    elsewhere
+      ssoil%sdepth(:,k)=0.                                ! overwritten by CABLE
+    end where
+  end do  
   
   return
   end subroutine loadcbmparm
 
+! *************************************************************************************
   subroutine getc4(ifull,ivegt,rlatt,c4frac)
   
   implicit none
@@ -786,6 +791,204 @@ module cable_ccam
   
   return
   end subroutine getc4
+
+! *************************************************************************************  
+  subroutine loadtile
+
+  use cc_mpi, only : myid
+  
+  implicit none
+
+  include 'newmpar.h'
+  include 'darcdf.h'
+  include 'parm.h'
+  include 'netcdf.inc'
+  include 'mpif.h'
+  include 'carbpools.h'
+  include 'soilsnow.h'
+  include 'vegpar.h'    
+  
+  integer k,n,iarchi,ierr,ierr2,idv
+  real, dimension(ifull) :: dat
+  character*9 vname
+  real sigin  
+  integer ik,jk,kk
+  common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug  
+
+  iarchi=1 ! assume restart file
+
+  if (io_in.eq.1) then
+    if (myid.eq.0) idv = ncvid(ncid,"tgg1_1",ierr)
+    call MPI_Bcast(ierr,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr2)    
+  else
+    ierr=1
+  end if
+  
+  if (ierr.ne.0) then
+    if (myid==0) write(6,*) "Use averaged data to initialise CABLE"
+    do k = 1,ms
+      ssoil%tgg(:,k) = tgg(cmap,k)
+      ssoil%wb(:,k) = real(wb(cmap,k),r_2)
+    enddo
+    ssoil%snowd=snowd(cmap)
+    ssoil%snage=snage(cmap)
+    ssoil%rtsoil=rtsoil(cmap)
+    canopy%cansto=cansto(cmap)
+    do k=1,ncp
+      bgc%cplant(:,k) = cplant(cmap,k)
+    enddo
+    do k=1,ncs
+      bgc%csoil(:,k) = csoil(cmap,k)
+    enddo  
+  else
+    if (myid==0) write(6,*) "Use tiled data to initialise CABLE"
+    do n=1,5
+      do k=1,ms
+        write(vname,'("tgg",I1.1,"_",I1.1)') k,n
+        call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+        ssoil%tgg(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+        write(vname,'("wb",I1.1,"_",I1.1)') k,n
+        call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+        ssoil%wb(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))        
+      end do
+      write(vname,'("snd_",I1.1)') n
+      call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+      ssoil%snowd(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+      write(vname,'("snage_",I1.1)') n
+      call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+      ssoil%snage(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+      write(vname,'("rtsoil_",I1.1)') n
+      call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+      ssoil%rtsoil(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+      write(vname,'("cansto_",I1.1)') n
+      call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+      canopy%cansto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+      do k=1,ncp
+        write(vname,'("cplant",I1.1,"_",I1.1)') k,n
+        call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+        bgc%cplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2))) 
+      enddo
+      do k=1,ncs
+        write(vname,'("csoil",I1.1,"_",I1.1)') k,n
+        call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+        bgc%csoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
+      enddo
+    end do
+  end if
+  
+  return
+  end subroutine loadtile
+
+ ! *************************************************************************************
+  subroutine savetile(idnc,local,idim)
+
+  use cc_mpi, only : myid
+  
+  implicit none
+
+  include 'newmpar.h'
+  include 'carbpools.h'
+  include 'soilsnow.h'
+  include 'vegpar.h'
+  
+  integer k,n,iarch,ierr
+  integer, intent(in) :: idnc
+  integer, dimension(3), intent(in) :: idim  
+  real, dimension(ifull) :: dat
+  character*9 vname
+  character*40 lname
+  logical, intent(in) :: local
+  real sigin  
+  integer ik,jk,kk
+  common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug    
+  
+  iarch=1 ! assume restart file
+  
+  if (myid.eq.0) then
+    print *,"Storing CABLE tile data"
+    call ncredf(idnc,ierr)
+    do n=1,5
+      do k=1,ms
+        write(lname,'("Soil temperature lev ",I1.1," tile ",I1.1)') k,n
+        write(vname,'("tgg",I1.1,"_",I1.1)') k,n
+        call attrib(idnc,idim,3,vname,lname,'K',100.,400.,0)
+        write(lname,'("Soil moisture lev ",I1.1," tile ",I1.1)') k,n
+        write(vname,'("wb",I1.1,"_",I1.1)') k,n 
+        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,1.,0)
+      end do
+      write(lname,'("Snow depth tile ",I1.1)') n
+      write(vname,'("snd_",I1.1)') n
+      call attrl (idnc,idim,3,vname,lname,'mm',0.,5000.,0)  ! long
+      write(lname,'("Snow age tile ",I1.1)') n
+      write(vname,'("snage_",I1.1)') n
+      call attrib(idnc,idim,3,vname,lname,'none',0.,20.,0)
+      write(lname,'("Soil turbulent resistance tile ",I1.1)') n
+      write(vname,'("rtsoil_",I1.1)') n
+      call attrib(idnc,idim,3,vname,lname,'none',0.,9.e4,0)
+      write(lname,'("cansto tile ",I1.1)') n
+      write(vname,'("cansto_",I1.1)') n
+      call attrib(idnc,idim,3,vname,lname,'none',0.,10.,0)
+      write(lname,'("Carbon leaf pool tile ",I1.1)') n
+      write(vname,'("cplant1_",I1.1)') n    
+      call attrib(idnc,idim,3,vname,lname,'none',0.,50000.,0)
+      write(lname,'("Carbon wood pool tile ",I1.1)') n
+      write(vname,'("cplant2_",I1.1)') n
+      call attrib(idnc,idim,3,vname,lname,'none',0.,50000.,0)
+      write(lname,'("Carbon root pool tile ",I1.1)') n
+      write(vname,'("cplant3_",I1.1)') n
+      call attrib(idnc,idim,3,vname,lname,'none',0.,50000.,0)
+      write(lname,'("Carbon soil fast pool tile ",I1.1)') n
+      write(vname,'("csoil1_",I1.1)') n
+      call attrib(idnc,idim,3,vname,lname,'none',0.,50000.,0)
+      write(lname,'("Carbon soil slow pool tile ",I1.1)') n
+      write(vname,'("csoil2_",I1.1)') n
+      call attrib(idnc,idim,3,vname,lname,'none',0.,50000.,0)
+    end do      
+    call ncendf(idnc,ierr)
+  end if
+  do n=1,5
+    do k=1,ms
+      dat=tgg(:,k)
+      dat(cmap(pind(1,n):pind(2,n)))=ssoil%tgg(pind(n,1):pind(n,2),k)
+      write(vname,'("tgg",I1.1,"_",I1.1)') k,n
+      call histwrt3(dat,vname,idnc,iarch,local)
+      dat=wb(:,k)
+      dat(cmap(pind(1,n):pind(2,n)))=ssoil%wb(pind(n,1):pind(n,2),k)
+      write(vname,'("wb",I1.1,"_",I1.1)') k,n
+      call histwrt3(dat,vname,idnc,iarch,local)      
+    end do
+    dat=snowd
+    dat(cmap(pind(1,n):pind(2,n)))=ssoil%snowd(pind(n,1):pind(n,2))
+    write(vname,'("snd_",I1.1)') n
+    call histwrt3l(snowd,vname,idnc,iarch,local)  ! long write    
+    dat=snage
+    dat(cmap(pind(1,n):pind(2,n)))=ssoil%snage(pind(n,1):pind(n,2))
+    write(vname,'("snage_",I1.1)') n
+    call histwrt3(dat,vname,idnc,iarch,local)
+    dat=rtsoil
+    dat(cmap(pind(1,n):pind(2,n)))=ssoil%rtsoil(pind(n,1):pind(n,2))
+    write(vname,'("rtsoil_",I1.1)') n
+    call histwrt3(dat,vname,idnc,iarch,local)   
+    dat=cansto
+    dat(cmap(pind(1,n):pind(2,n)))=canopy%cansto(pind(n,1):pind(n,2))
+    write(vname,'("cansto_",I1.1)') n
+    call histwrt3(dat,vname,idnc,iarch,local)
+    do k=1,ncp
+      dat=cplant(:,k)
+      dat(cmap(pind(1,n):pind(2,n)))=bgc%cplant(pind(n,1):pind(n,2),k)
+      write(vname,'("cplant",I1.1,"_",I1.1)') k,n
+      call histwrt3(dat,vname,idnc,iarch,local)    
+    end do
+    do k=1,ncs
+      dat=csoil(:,k)
+      dat(cmap(pind(1,n):pind(2,n)))=bgc%csoil(pind(n,1):pind(n,2),k)
+      write(vname,'("csoil",I1.1,"_",I1.1)') k,n
+      call histwrt3(dat,vname,idnc,iarch,local)
+    end do
+  end do
+  
+  return
+  end subroutine savetile 
 
 end module cable_ccam
 

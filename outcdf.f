@@ -265,8 +265,9 @@ c       create the attributes of the header record of the file
       end
 c=======================================================================
       subroutine openhist(iarch,itype,dim,local,idnc)
-      use ateb ! MJT urban      
+      use ateb ! MJT urban
       use cc_mpi
+      use cable_ccam, only : savetile ! MJT cable
       use define_dimensions, only : ncs, ncp ! MJT cable      
       implicit none
 
@@ -1150,6 +1151,7 @@ c      "extra" outputs
        call histwrt3(rtsoil,'rtsoil',idnc,iarch,local) ! MJT cable       
        aa(:)=isflag(:)
        call histwrt3(aa,'sflag',idnc,iarch,local)
+       if (nsib.eq.4.or.nsib.eq.6) call savetile(idnc,local,idim) ! MJT cable
       endif  ! (itype==-1)
       !---------------------------------------------------------
       ! MJT urban

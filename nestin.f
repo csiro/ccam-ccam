@@ -33,11 +33,9 @@
       common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug
       real, dimension(ifull) :: zsb,duma
       integer, dimension(ifull) :: dumm
-      real, dimension(ifull) :: rtsoil_h,cansto_h ! MJT cable
       real, dimension(ifull,ncp) :: cplant_h ! MJT cable
       real, dimension(ifull,ncs) :: csoil_h ! MJT cable
       real, dimension(ifull,12) :: urban ! MJT urban
-      integer, dimension(ifull) :: isoilm_h ! MJT lsmask
       character*12 dimnam
       integer num,mtimea,mtimeb
       data num/0/,mtimea/0/,mtimeb/-1/
@@ -125,8 +123,8 @@
      .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
      &            duma,duma,duma,duma,duma,duma,duma, 
      &            duma,duma,duma,duma,duma,dumm,ifull,kl,
-     &            rtsoil_h,isoilm_h,urban,cplant_h,csoil_h,
-     &            cansto_h) ! MJT cable ! MJT lsmask ! MJT urban
+     &            duma,dumm,urban,cplant_h,csoil_h,
+     &            duma) ! MJT cable ! MJT lsmask ! MJT urban
       endif   ! (io_in==1)
       if(io_in==-1)then
 c        call onthefl(1,kdate_r,ktime_r,
@@ -134,7 +132,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &        duma,duma,duma,duma,duma,duma,duma,duma,duma,duma, ! just dummies
-     &        duma,dumm,rtsoil_h,urban) ! MJT cable, MJT lsmask
+     &        duma,dumm,duma,urban) ! MJT cable, MJT lsmask
       endif   ! (io_in==1)
       tssb(:) = abs(tssb(:))  ! moved here Mar '03
       if (mydiag) then
@@ -329,8 +327,8 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       real, dimension(ifull,kl) :: uc,vc,tc,qc
       real, dimension(ifull), save :: psld ! MJT daily ave
       real, dimension(ifull,kl), save :: ud,vd,td,qd ! MJT daily ave
-      real, parameter :: eta = 0.20 ! MJT daily ave
-      real, parameter :: lambda = 0.10 ! MJT daily ave
+      real, parameter :: eta = 0.0 ! MJT daily ave
+      real, parameter :: lambda = 0.30 ! MJT daily ave
       logical, save :: firstcall = .true. ! MJT daily ave
       data mtimeb/-1/
       save mtimeb
