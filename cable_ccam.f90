@@ -348,7 +348,7 @@ module cable_ccam
           read(8,*) hc(jveg),xfang(jveg),notused,dleaf(jveg)
           read(8,*)  ! rholeaf not used
           read(8,*)  ! tauleaf not used
-          read(8,*)  ! rhosoil not used
+          read(8,*) notused,notused,notused,xalbnir(jveg) ! rhosoil not used
           read(8,*) notused,wai(jveg),canst1(jveg),shelrb(jveg), &
      &              vegcf(jveg),extkn(jveg)
           read(8,*) vcmax(jveg),rp20(jveg),rpcoef(jveg),rs20(jveg)
@@ -363,6 +363,7 @@ module cable_ccam
           print *, 'vegtype',vegtype(1:nveg)
           print *, 'canst1',canst1(1:nveg)
           print *, 'dleaf',dleaf(1:nveg)
+          print *, 'xalbnir',xalbnir(1:nveg)
           print *, 'vcmax',vcmax(1:nveg)
           print *, 'ejmax',ejmax(1:nveg)
           print *, 'hc',hc(1:nveg)
@@ -447,19 +448,25 @@ module cable_ccam
         read(8,*) (ratecs(j),j=1,ncs)
         if ( myid == 0 ) print *, 'ratecs',(ratecs(j),j=1,ncs)
         close(8)
-!       set vegcf here as new format file reads in
-!       also dummy values for wai (not currently used)
+!       set vegcf and xalbnir here as they are not in old format file;
+!       later on, also true values for wai (not currently used)
         allocate(vegtype(nveg))
         vegtype(:) = 'others'   ! BP added initialization (1Feb2008)
         SELECT CASE (nveg)
           CASE (13)     ! CASA vegetation types
             vegcf = (/ 1.95, 1.5, 1.55, 0.91, 0.73, 2.8, 2.75, 0.0,  &
                      & 2.05, 0.6, 0.4, 2.8, 0.0, 0.0, 0.0, 0.0, 0.0 /)
+            xalbnir = (/ 0.96, 1.0, 1.08, 0.79, 0.81, 1.02, 1.23, 1.0, &
+                       & 1.20, 1.14, 1.15, 0.98, 1.00, 1.00, 1.00, 1.00, 1.00 /)
             vegtype(2)='deciduous'
             vegtype(5)='deciduous'
           CASE (16,17)  ! IGBP vegetation types without/with water bodies
-            vegcf = (/ 11.82, 13.06, 6.71, 11.34, 8.59, 0.6, 2.46, 10.0,  &
-                     & 15.93, 3.77, 0.0, 11.76, 0.0, 2.8, 10.0, 10.0, 0.0 /)
+!            vegcf = (/ 11.82, 13.06, 6.71, 11.34, 8.59, 0.6, 2.46, 10.0,  &
+!                     & 15.93, 3.77, 0.0, 11.76, 0.0, 2.8, 10.0, 10.0, 0.0 /)
+            vegcf = (/ 0.91, 1.95, 0.73, 1.50, 1.55, 0.6, 2.05, 2.80,  &
+                     & 2.75, 2.75, 0.0, 2.80, 0.0, 2.80, 0.0, 0.4, 0.4 /)
+            xalbnir = (/ 0.79, 0.96, 0.81, 1.0, 1.08, 1.14, 1.20, 1.02, &
+                       & 1.23, 1.16, 0.89, 0.98, 1.10, 1.13, 1.00, 1.15, 1.00 /)
             vegtype(3)='deciduous'
             vegtype(4)='deciduous'
           CASE DEFAULT
@@ -645,6 +652,7 @@ module cable_ccam
         veg%vcmax  =  vcmax(veg%iveg)
         veg%xfang  =  xfang(veg%iveg)
         veg%dleaf  =  dleaf(veg%iveg)
+        veg%xalbnir = xalbnir(veg%iveg)
         veg%wai    =    wai(veg%iveg)
         veg%vegcf  =  vegcf(veg%iveg)
         veg%extkn  =  extkn(veg%iveg)

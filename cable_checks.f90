@@ -61,7 +61,8 @@ MODULE checks_module
      REAL(r_1), DIMENSION(2) :: Rnet = (/-500.0,1250.0/)   ! W/m^2 
      REAL(r_1), DIMENSION(2) :: Evap = (/-0.0003,0.00035/)      
      REAL(r_1), DIMENSION(2) :: Ewater = (/-0.0003,0.0003/)
-     REAL(r_1), DIMENSION(2) :: ESoil = (/-0.0003,0.0003/)     
+     REAL(r_1), DIMENSION(2) :: ESoil = (/-0.1,0.1/)       ! (EAK aug08)
+!     REAL(r_1), DIMENSION(2) :: ESoil = (/-0.0003,0.0003/)     
      REAL(r_1), DIMENSION(2) :: TVeg = (/-0.0003,0.0003/)    
      REAL(r_1), DIMENSION(2) :: ECanop = (/-0.0003,0.0003/)   
      REAL(r_1), DIMENSION(2) :: PotEvap = (/-0.0006,0.0006/)     
@@ -89,6 +90,7 @@ MODULE checks_module
      REAL(r_1), DIMENSION(2) :: GPP = (/-20.0,100.0/) ! umol/m2/s (YP oct07)
 !     REAL(r_1), DIMENSION(2) :: GPP = (/-10.0,50.0/) ! umol/m2/s 
      REAL(r_1), DIMENSION(2) :: AutoResp = (/-50.0,20.0/) ! umol/m2/s
+     REAL(r_1), DIMENSION(2) :: LeafResp = (/-50.0,20.0/) ! umol/m2/s
      REAL(r_1), DIMENSION(2) :: HeteroResp = (/-50.0,20.0/) ! umol/m2/s
      REAL(r_1), DIMENSION(2) :: HSoil = (/-1000.0,1000.0/) 
      REAL(r_1), DIMENSION(2) :: HVeg = (/-1000.0,1000.0/)
@@ -118,6 +120,7 @@ MODULE checks_module
      REAL(r_1), DIMENSION(2) :: hc = (/0.0,100.0/)         
      REAL(r_1), DIMENSION(2) :: lai = (/0.0,8.0/)
      REAL(r_1), DIMENSION(2) :: rp20 = (/0.1,10.0/)       
+     REAL(r_1), DIMENSION(2) :: xalbnir = (/0.0,1.5/)
 !<<<<<<< .working
 !     REAL(r_1), DIMENSION(2) :: rpcoef = (/0.05,0.15/)
 !=======
@@ -232,7 +235,7 @@ CONTAINS
     ! SW absorbed + LW absorbed - (LH+SH+ghflux) should = 0
     bal%ebal = SUM(rad%qcan(:,:,1),2)+SUM(rad%qcan(:,:,2),2)+rad%qssabs &
          +met%fld-sboltz*emleaf*canopy%tv**4*(1-rad%transd)- &
-         rad%flws*rad%transd -canopy%fev-canopy%fes/ssoil%cls &
+         rad%flws*rad%transd -canopy%fev-canopy%fes & ! /ssoil%cls &
          -canopy%fh -canopy%ga
     ! Add to cumulative balance:
     bal%ebal_tot = bal%ebal_tot + bal%ebal

@@ -75,8 +75,10 @@ CONTAINS
     ! psychrometric constant
     air%psyc = met%pmb * 100.0 * capp * rmair / air%rlam / rmh2o
     ! d(es)/dT (mb/K)
-    air%dsatdk = (610.078 * 17.27 * 237.3) / ((met%tvair-tfrz)+237.2)** 2 * &
-         EXP(17.27 * (met%tvair-tfrz) / ((met%tvair-tfrz) + 237.3))
+    air%dsatdk = 100.0 * (tetena*tetenb*tetenc) / ((met%tvair-tfrz)+tetenc)**2 &
+               * EXP(tetenb * (met%tvair-tfrz) / ((met%tvair-tfrz) + tetenc))
+!    air%dsatdk = (610.078 * 17.27 * 237.3) / ((met%tvair-tfrz)+237.2)** 2 * &
+!         EXP(17.27 * (met%tvair-tfrz) / ((met%tvair-tfrz) + 237.3))
   END SUBROUTINE define_air
 END MODULE air_module
 !=========================================================================
@@ -291,8 +293,13 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)     :: xphi2	! leaf angle parmameter 2
    
     ! coszen is set during met data read in.
-    
-    reffbm = 0.0 ! initialise effective conopy beam reflectance
+
+!   Bug found and fixed by EK and YP (may08)    
+!    reffbm = 0.0 ! initialise effective canopy beam reflectance
+    ! initialise effective canopy beam reflectance
+    reffbm = ssoil%albsoilsn
+    reffdf = ssoil%albsoilsn
+
     ! Define beam fraction, fbeam:
     fbeam = spitter(met%doy, met%coszen, met%fsd)
     WHERE (met%coszen <1.0e-2)
@@ -353,7 +360,9 @@ CONTAINS
             ( rad%extkb + rad%extkd) 
        ! Longwave radiation absorbed by shaded canopy fraction:
        rad%qcan(:,2,3) = (1.0 - rad%transd) * &
-            (rad%flws + flpwb * (emair - 2.0 * emleaf)) - rad%qcan(:,1,3) 
+            (rad%flws + met%fld - 2.0 * flwv) - rad%qcan(:,1,3)
+!           fixing energy balance problem (YP & Mao, jun08)
+!            (rad%flws + flpwb * (emair - 2.0 * emleaf)) - rad%qcan(:,1,3) 
     END WHERE
     ! Convert radiative conductance from m/s to mol/m2/s:
     rad%gradis=SPREAD(air%cmolar, 2, mf)*rad%gradis
@@ -398,6 +407,8 @@ CONTAINS
        ! Define albedo:
        rad%albedo(:,b) = (1.0-fbeam)*reffdf(:,b)+fbeam*reffbm(:,b)
     END DO
+    ! Modify near IR albedo (YP Apr08)
+    rad%albedo(:,2) = rad%albedo(:,2) * veg%xalbnir(:)
     ! Define IR albedo - CURRENTLY NOT USED elsewhere
     rad%albedo(:,3) = 0.05
     WHERE (mask) ! i.e. vegetation and sunlight are present
@@ -603,13 +614,16 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)		:: dmbe ! B_{E} in eq. 3.41 in SCAM, CSIRO tech report 132
     REAL(r_1), DIMENSION(mp)		:: dmce ! C_{E} in eq. 3.41 in SCAM, CSIRO tech report 132
     REAL(r_1), DIMENSION(mp)		:: tss4 ! soil/snow temperature**4
-    !	REAL(r_1), DIMENSION(mp)		:: sss ! variable for Penman-Monteith evap for soil
-    !	REAL(r_1), DIMENSION(mp)		:: cc1 ! variable for Penman-Monteith evap for soil
-    !	REAL(r_1), DIMENSION(mp)		:: cc2 ! variable for Penman-Monteith evap for soil
+    REAL(r_1), DIMENSION(mp)		:: sss ! variable for Penman-Monteith evap for soil
+    REAL(r_1), DIMENSION(mp)		:: cc1 ! variable for Penman-Monteith evap for soil
+    REAL(r_1), DIMENSION(mp)		:: cc2 ! variable for Penman-Monteith evap for soil
     REAL(r_1), DIMENSION(mp)		:: qstvair ! sat spec hunidity at leaf temperature
     REAL(r_1), DIMENSION(mp)		:: qstss ! sat spec hunidity at soil/snow temperature
     REAL(r_1), DIMENSION(mp)		:: xx ! delta-type function for sparse canopy limit, p20 SCAM manual
     REAL(r_1), DIMENSION(mp,mf)		:: temp ! vcmax big leaf C3
+    REAL(r_1), DIMENSION(mp,mf)         :: deltecy ! YP & Mao (jun08)
+
+    REAL(r_1), DIMENSION(mp)  :: dummy1, dummy2
     !
     !	xjxcoef=1.0+exp((Entropjx*TrefK-EHdjx)/(Rconst*TrefK))
     ! 1-oct-2002 ypw: to keep the unit consistent for resistance or conductance
@@ -641,7 +655,9 @@ CONTAINS
     ! Rainfall variable is limited so canopy interception is limited,
     ! used to stabilise latent fluxes.
     ! to avoid excessive direct canopy evaporation (EK nov2007, snow scheme)
-    cc =min(met%precip-met%precip_s, 4./(1440./(dels/60.)))
+!    cc =min(met%precip-met%precip_s, 4./(1440./(dels/60.)))
+    ! modified further by timestep requirement (EAK aug08)
+    cc =MIN(met%precip-met%precip_s, 4. * MIN(dels,1800.) / 60. /1440. )
 !    ! to avoid canopy temp. oscillations
 !    cc =min(met%precip, 4./(1440./(dels/60.)))
     ! Calculate canopy intercepted rainfall, equal to zero if temp < 0C:
@@ -651,7 +667,8 @@ CONTAINS
     ! Define canopy throughfall (100% of precip if temp < 0C, see above):
     canopy%through = met%precip_s + MIN( met%precip - met%precip_s , &
       & MAX(0.0, met%precip - met%precip_s - canopy%wcint) )  ! EK nov2007
-    canopy%through = MIN(met%precip,MAX(0.0, met%precip - canopy%wcint))
+    ! Delete line below in case it affects snow sites (precip_s) (EK Jul08)
+!    canopy%through = MIN(met%precip,MAX(0.0, met%precip - canopy%wcint))
     ! Add canopy interception to canopy storage term:
     canopy%cansto = canopy%cansto + canopy%wcint
     wetfac = MAX(0.0, MIN(1.0, &
@@ -942,26 +959,47 @@ CONTAINS
        canopy%fevw = MIN(canopy%fwet*((air%dsatdk*SUM(rad%rniso,2)+ &
             capp*rmair*met%da*ghrwet) &
             /(air%dsatdk+air%psyc*ghrwet/gwwet)), ccfevw)
+
+       ! canopy potential evapotranspiratn for output purposes (YP & Mao jun08)
+!       canopy%potev_c = MAX(0.0,(air%dsatdk*SUM(rad%rniso,2)+ &
+!            capp*rmair*met%da*ghrwet) / (air%dsatdk+air%psyc*ghrwet/gwwet))
+
        ! Calculate sens heat from wet canopy:
        canopy%fhvw = (canopy%fwet*SUM(rad%rniso,2)-canopy%fevw)*ghwet/ghrwet
        ! Calculate (dry) canopy transpiration, may be negative if dew
        canopy%fevc = (1.0 - canopy%fwet) * sum(ecy,2)
        evapfbl = 0.
        DO k = 1,ms
-          WHERE (canopy%fevc > 0.)
+          WHERE (sum(ecy,2) > 0.)  ! +ve ecy == +ve fevc (YP & Mao jun08)
              evapfb = REAL(canopy%fevc,r_1) * dels/air%rlam ! convert to mm/dt
              evapfbl(:,k) = MIN(evapfb*veg%froot(:,k), &
                   MAX(0.,MIN(REAL(ssoil%wb(:,k),r_1)-soil%swilt, & 
                   REAL(ssoil%wb(:,k)-1.05*ssoil%wbice(:,k),r_1))) &
                   * soil%zse(k)*1000.0)
+             canopy%fevc=0.0  ! (YP & Mao jun08)
           END WHERE
        END DO
-       canopy%fevc = 0.
-       DO k = 1,ms
-          canopy%fevc=canopy%fevc+ evapfbl(:,k)*air%rlam/dels
-       END DO
+       canopy%fevc=canopy%fevc+ SUM(evapfbl,2)*air%rlam/dels
+       ! replaced 4 lines below with 1 line above to keep negative fevc values
+       ! (YP & Mao jun08)
+!       canopy%fevc = 0.
+!       DO k = 1,ms
+!          canopy%fevc=canopy%fevc+ evapfbl(:,k)*air%rlam/dels
+!       END DO
        ! Calculate latent heat from vegetation:
        canopy%fev = REAL(canopy%fevc,r_1) + canopy%fevw
+       ! recalculate for checking energy balance (YP & Mao, jun08)
+       deltecy(:,1) = (canopy%fevc/(max((1.0-canopy%fwet),1.0e-10))) &
+                    *rad%fvlai(:,1)/(rad%fvlai(:,1)+rad%fvlai(:,2)+1.0e-10)
+       deltecy(:,2) = (canopy%fevc/(max((1.0-canopy%fwet),1.0e-10))) &
+                    *rad%fvlai(:,2)/(rad%fvlai(:,1)+rad%fvlai(:,2)+1.0e-10)
+       ecy(:,:)     = deltecy(:,:)
+       hcy(:,:)     = (rad%rniso(:,:) - ecy(:,:))*gh(:,:)/ghr(:,:)
+       tvair2 = SPREAD(met%tvair-tfrz, 2, mf) ! within-canopy air temp in C
+       tlfy(:,:)    = tvair2(:,:)+REAL(hcy(:,:),r_1)/(capp*rmair*gh(:,:))
+       rny(:,:)     = rad%rniso(:,:) - capp*rmair * (tlfy(:,:) &
+                    - tvair2(:,:)) * rad%gradis(:,:)
+       ! end recalculation (YP & Mao, jun08)
        ! Calculate sensible heat from vegetation:
        canopy%fhv = (1.0 - canopy%fwet) * REAL(sum(hcy,2),r_1)  + canopy%fhvw
        ! Calculate net rad absorbed by canopy:
@@ -975,14 +1013,21 @@ CONTAINS
        !		 +capp*rmair*(tlfy(:,2) - met%tc)*rad%gradis(:,2)) &
        !		 + canopy%fhvw*SUM(rad%gradis,2)/ghwet
        rad%lwabv = (1.0-canopy%fwet)*(capp*rmair*(tlfy(:,1) - &
-            (met%tk-tfrz))*rad%gradis(:,1) &
-            +capp*rmair*(tlfy(:,2) - (met%tk-tfrz))*rad%gradis(:,2)) &
+            tvair2(:,1))*rad%gradis(:,1) &
+            +capp*rmair*(tlfy(:,2) - tvair2(:,2))*rad%gradis(:,2)) &
+!           YP & Mao (jun08) replaced met%tk with tvair2
+!            (met%tk-tfrz))*rad%gradis(:,1) &
+!            +capp*rmair*(tlfy(:,2) - (met%tk-tfrz))*rad%gradis(:,2)) &
             + canopy%fhvw*SUM(rad%gradis,2)/ghwet
        ! add if condition here to avoid dividing by zero ie when rad%transd=1.0 Ypw:24-02-2003
        WHERE (canopy%vlaiw > 0.01 .and. rough%hruff > rough%z0soilsn)
-          canopy%tv = (rad%lwabv / (2.0*(1.0-rad%transd)*sboltz*emleaf)+met%tk**4)**0.25
+          canopy%tv = (rad%lwabv / (2.0*(1.0-rad%transd)*sboltz*emleaf)+met%tvair**4)**0.25
+!         YP & Mao (jun08) replaced met%tk with tvair
+!          canopy%tv = (rad%lwabv / (2.0*(1.0-rad%transd)*sboltz*emleaf)+met%tk**4)**0.25
        ELSEWHERE ! sparse canopy
-          canopy%tv = met%tk
+          canopy%tv = met%tvair
+!         YP & Mao (jun08) replaced met%tk with tvair
+!          canopy%tv = met%tk
        END WHERE
        ! Calculate ground heat flux:
        canopy%ghflux = (1-ssoil%isflag)*canopy%ghflux + ssoil%isflag*canopy%sghflux
@@ -998,12 +1043,13 @@ CONTAINS
        canopy%fns = rad%qssabs + rad%transd*met%fld + (1.0-rad%transd)*emleaf* &
             sboltz*canopy%tv**4 - emsoil*sboltz* tss4
        ! Penman-Monteith formula
-       !	    sss=air%dsatdk
-       !	    cc1=sss/(sss+air%psyc )
-       !	    cc2=air%psyc /(sss+air%psyc )
-       !           ssoil%potev = cc1 * (canopy%fns - canopy%ghflux) +  &
-       !              cc2 * air%rho * air%rlam*(qsatf((met%tk-tfrz),met%pmb) - met%qv)/ssoil%rtsoil 
-       ssoil%potev =air%rho * air%rlam * dq /ssoil%rtsoil
+       sss=air%dsatdk
+       cc1=sss/(sss+air%psyc )
+       cc2=air%psyc /(sss+air%psyc )
+       ssoil%potev = cc1 * (canopy%fns - canopy%ghflux) + cc2 * air%rho  &
+         & * air%rlam * (qsatf((met%tk-tfrz),met%pmb) - met%qv) / ssoil%rtsoil 
+       ! method alternative to P-M formula above
+!       ssoil%potev =air%rho * air%rlam * dq /ssoil%rtsoil
        ! Soil latent heat:
        canopy%fes= wetfac * ssoil%potev
        WHERE (ssoil%snowd < 0.1 .AND. canopy%fes > 0.0)
@@ -1069,19 +1115,25 @@ CONTAINS
        tvair2 = SPREAD(met%tvair-tfrz, 2, mf)
        ! Set radiative temperature as within canopy air temp:
        met%tvrad = met%tvair
+
        ! recalculate using canopy within temperature
        !     where (veg%meth .eq. 0 )
-
+       ! recalculate air%dsatdk (EAK aug08)
+       call define_air (met, air)
+       dsatdk2 = SPREAD(air%dsatdk, 2, mf)
        WHERE (rad%fvlai > 1e-2) ! where LAI of sunlit or shaded leaf is significant:
           ! Recalculate fluxes and leaf temperature using within canopy air vpd:
           ecy = (dsatdk2*rad%rniso +capp*rmair*dva2*ghr) /(dsatdk2+psycst)
           hcy = (rad%rniso-ecy)*gh/ghr
           !             tlfx=tvair+hcx/(capp*rmair*gh)
           tlfy=tvair2+REAL(hcy,r_1)/(capp*rmair*gh)
+          ! YP & Mao (jun08) added rny calculation here
+          rny = rad%rniso - capp*rmair * (tlfy - tvair2) * rad%gradis
        END WHERE
+       dummy1 = canopy%fnv
        WHERE (veg%meth > 0 )
           canopy%fevc = (1.0 - canopy%fwet) * sum(ecy,2)
-          WHERE (canopy%fevc > 0.)
+          WHERE (SUM(ecy,2) > 0.0)  ! +ve ecy == +ve fevc (YP & Mao jun08)
              evapfb = REAL(canopy%fevc,r_1)*dels/air%rlam ! convert to mm/dt
              ! Calcualte contribution by different soil layers to canopy transpiration:
              evapfbl(:,1) =min(evapfb*veg%froot(:,1),max(0.,REAL(min(ssoil%wb(:,1)-soil%swilt, &
@@ -1096,15 +1148,41 @@ CONTAINS
                   ssoil%wb(:,5)-1.05*ssoil%wbice(:,5)),r_1))*soil%zse(5)*1000.)
              evapfbl(:,6) =min(evapfb*veg%froot(:,6),max(0.,REAL(min(ssoil%wb(:,6)-soil%swilt, &
                   ssoil%wb(:,6)-1.05*ssoil%wbice(:,6)),r_1))*soil%zse(6)*1000.)
+             ! fevc recalculated within WHERE construct (YP & Mao jun08)
+             ! so that negative fevc values can be retained
+             canopy%fevc=( evapfbl(:,1)+evapfbl(:,2)+evapfbl(:,3)+evapfbl(:,4) &
+                        & +evapfbl(:,5)+evapfbl(:,6) ) * air%rlam/dels
           END WHERE
-          canopy%fevc=(evapfbl(:,1)+evapfbl(:,2)+evapfbl(:,3)+evapfbl(:,4)+evapfbl(:,5)+evapfbl(:,6))*air%rlam/dels
+!          canopy%fevc=(evapfbl(:,1)+evapfbl(:,2)+evapfbl(:,3)+evapfbl(:,4)+evapfbl(:,5)+evapfbl(:,6))*air%rlam/dels
           ! Set total vegetation latent heat:
           canopy%fev  = REAL(canopy%fevc,r_1) + canopy%fevw
+          ! recalculate for checking energy balance (YP & Mao, jun08)
+          deltecy(:,1) = (canopy%fevc/(max((1.0-canopy%fwet),1.0e-10))) &
+                       * rad%fvlai(:,1)/(rad%fvlai(:,1)+rad%fvlai(:,2)+1.0e-10)
+          deltecy(:,2) = (canopy%fevc/(max((1.0-canopy%fwet),1.0e-10))) &
+                       * rad%fvlai(:,2)/(rad%fvlai(:,1)+rad%fvlai(:,2)+1.0e-10)
+          ecy(:,1)     = deltecy(:,1)
+          ecy(:,2)     = deltecy(:,2)
+          hcy(:,1)     = (rad%rniso(:,1) - ecy(:,1))*gh(:,1)/ghr(:,1)
+          hcy(:,2)     = (rad%rniso(:,2) - ecy(:,2))*gh(:,2)/ghr(:,2)
+          tlfy(:,1)    = tvair2(:,1)+REAL(hcy(:,1),r_1)/(capp*rmair*gh(:,1))
+          tlfy(:,2)    = tvair2(:,2)+REAL(hcy(:,2),r_1)/(capp*rmair*gh(:,2))
+          rny(:,1)     = rad%rniso(:,1) - capp*rmair * (tlfy(:,1) &
+                       - tvair2(:,1)) * rad%gradis(:,1)
+          rny(:,2)     = rad%rniso(:,2) - capp*rmair * (tlfy(:,2) &
+                       - tvair2(:,2)) * rad%gradis(:,2)
+          ! end recalculation (YP & Mao, jun08)
           ! Set total vegetation sensible heat:
-          canopy%fhv  = (1.0 - canopy%fwet) * REAL(sum(hcy,2),r_1)  + canopy%fhvw
+          canopy%fhv  = (1.0 - canopy%fwet) * REAL(sum(hcy,2),r_1) + canopy%fhvw
+          ! YP & Mao (jun08) added fnv calculation here
+          canopy%fnv = canopy%fev + canopy%fhv ! comment out (EAK aug08)
+!          canopy%fnv = (1.0-canopy%fwet)*REAL(SUM(rny,2),r_1)+canopy%fevw+canopy%fhvw
           ! Longwave absorbed by vegetation:
-          rad%lwabv = (1.0-canopy%fwet)*(capp*rmair*(tlfy(:,1) - (met%tvair-tfrz))*rad%gradis(:,1) &
-               +capp*rmair*(tlfy(:,2) - (met%tvair-tfrz))*rad%gradis(:,2)) &
+          ! YP & Mao (jun08) replaced tvair with tvair2
+          rad%lwabv = (1.0-canopy%fwet)*(capp*rmair*(tlfy(:,1) - tvair2(:,1))*rad%gradis(:,1) &
+               +capp*rmair*(tlfy(:,2) - tvair2(:,2))*rad%gradis(:,2)) &
+!          rad%lwabv = (1.0-canopy%fwet)*(capp*rmair*(tlfy(:,1) - (met%tvair-tfrz))*rad%gradis(:,1) &
+!               +capp*rmair*(tlfy(:,2) - (met%tvair-tfrz))*rad%gradis(:,2)) &
                + canopy%fhvw*SUM(rad%gradis,2)/ghwet
           ! Set canopy temperature:
           WHERE (rad%transd <= 0.98)
@@ -1122,7 +1200,15 @@ CONTAINS
           ! Net radiation absorbed by soil: 
           canopy%fns = rad%qssabs + rad%transd*met%fld + (1.0-rad%transd)*emleaf* &
                sboltz*canopy%tv**4 - emsoil*sboltz* tss4
-          ssoil%potev =air%rho * air%rlam * dq /ssoil%rtsoil
+!         YP & Mao (jun08) reinstating Penman-Monteith formula
+          ! Penman-Monteith formula
+          sss=air%dsatdk
+          cc1=sss/(sss+air%psyc )
+          cc2=air%psyc /(sss+air%psyc )
+          ssoil%potev = cc1 * (canopy%fns - canopy%ghflux)  &
+                  + cc2 * air%rho * air%rlam*(qsatf((met%tk-tfrz),met%pmb) - met%qv)/ssoil%rtsoil
+          ! method alternative to P-M formula above
+!          ssoil%potev =air%rho * air%rlam * dq /ssoil%rtsoil
           ! Soil evaporation:
           canopy%fes= wetfac * ssoil%potev
           WHERE (ssoil%snowd < 0.1 .and. canopy%fes .gt. 0. )
@@ -1146,6 +1232,7 @@ CONTAINS
           ! Set total sensible heat:
           canopy%fh = canopy%fhv + canopy%fhs
        END WHERE ! veg%meth > 0
+       WRITE(66,*) ktau, dummy1, canopy%fnv
 
        ! monin-obukhov stability parameter zetar=zref/l
        !	recompute zetar for the next iteration, except on last iteration
@@ -1175,7 +1262,8 @@ CONTAINS
     canopy%tscrn = met%tc - tstar * denom
     rsts = qsatf(canopy%tscrn, met%pmb)
     qtgnet = rsts * wetfac - met%qv
-    canopy%cduv = canopy%us * canopy%us / max(met%ua,umin)
+    canopy%cduv = canopy%us * canopy%us / (MAX(met%ua,umin))**2 ! EK jun08
+!    canopy%cduv = canopy%us * canopy%us / max(met%ua,umin)
     WHERE (qtgnet > 0.0)
        qsurf = rsts * wetfac
     ELSEWHERE
@@ -1191,6 +1279,10 @@ CONTAINS
          bgc%ratecp(1)*bgc%cplant(:,1) - bgc%ratecp(3)*bgc%cplant(:,3))
     poolcoef1r=(sum(spread(bgc%ratecp,1,mp)*bgc%cplant,2) -  &
          bgc%ratecp(1)*bgc%cplant(:,1) - bgc%ratecp(2)*bgc%cplant(:,2))
+    ! YP & Mao (jun08) capped the tc values
+!    WHERE (met%tc>=70.)
+!       met%tc=69.
+!    END WHERE
     ! Carbon uptake from photosynthesis: 
     canopy%frp = veg%rp20*((3.22-0.046*met%tc)**(0.1*(met%tc-20.))) &
          * poolcoef1 /(365.0*24.0*3600.0)		 ! 24/05

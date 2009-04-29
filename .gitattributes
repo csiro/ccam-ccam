@@ -7,12 +7,12 @@
 /cable_soilsnow.f90 -text
 /cable_variables.f90 -text
 /carbpools.h -text
+/def_veg_params_igbp.txt -text
 /makefile.ifort -text
 /makefile.mpidummy.ifort -text
 /newmpar_uniform.h -text
 /soilbal.h -text
 /soilsnin.h -text
 /tracers.txt -text
-/veg_parm_igbp.txt -text
 /vegpar.h -text
 /vegtype_igbp.dat -text

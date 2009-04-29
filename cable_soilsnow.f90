@@ -581,6 +581,7 @@ CONTAINS
       snowflx = (ssoil%tgg(:,1) - tfrz) * ssoil%gammzz(:,1)
       ! prevent snow depth going negative
       snowmlt = MIN(snowflx / hlf, ssoil%snowd )
+!      ssoil%qfsrf = ssoil%qfsrf + snowmlt*hlf/dt
       ssoil%snowd = ssoil%snowd - snowmlt
       ssoil%tgg(:,1) = ssoil%tgg(:,1) - snowmlt * hlf / ssoil%gammzz(:,1)
     END WHERE
@@ -615,6 +616,7 @@ CONTAINS
     END DO
     WHERE (ssoil%snowd > 0.0 .and. ssoil%isflag > 0)
       snowmlt = smelt1(:,1) + smelt1(:,2) + smelt1(:,3)
+!      ssoil%qfsrf = ssoil%qfsrf + snowmlt*hlf/dt
       ssoil%snowd = ssoil%snowd - snowmlt
     END WHERE
 !    print *,'snowmelt routine',ssoil%snowd,snowmlt,smelt1(1,:)
@@ -632,7 +634,7 @@ CONTAINS
     TYPE(soil_parameter_type), INTENT(INOUT) :: soil ! soil parameters
     INTEGER(i_d), PARAMETER  :: ntest = 0 ! for snow diag prints
     INTEGER(i_d), PARAMETER  :: nglacier = 2 ! 0 original, 1 off, 2 new Eva
-    REAL(r_1), DIMENSION(mp) :: evapsn
+!    REAL(r_1), DIMENSION(mp) :: evapsn   ! now put in soil_snow_type EAK aug08
     INTEGER(i_d)             :: k
     REAL(r_1), DIMENSION(mp) :: osm
     REAL(r_1), DIMENSION(mp) :: sgamm
@@ -672,6 +674,7 @@ CONTAINS
                         & + rhowat * canopy%precis / MAX(0.01, ssoil%snowd)))
 !        ssoil%tgg(:,1) = ssoil%tgg(:,1) + canopy%precis * hlf  &
 !                         / (ssoil%gammzz(:,1) + cswat * canopy%precis)
+!        ssoil%qasrf = ssoil%qasrf + canopy%precis * hlf/ dt
         canopy%precis = 0.0
         ssoil%ssdnn = ssoil%ssdn(:,1)
       END WHERE
@@ -679,6 +682,7 @@ CONTAINS
 !    PRINT * , 'surfb2',ssoil%snowd,ssoil%osnowd
     WHERE (canopy%precis > 0.0 .and.  ssoil%isflag > 0)
       ! add solid precip
+!      ssoil%qasrf = ssoil%qasrf + canopy%precis * hlf/dt
       ssoil%snowd = MAX(ssoil%snowd + met%precip_s, 0.0)
       canopy%precis = canopy%precis - met%precip_s  ! remaining luiquid precip
       ! update top snow layer with fresh snow
@@ -739,24 +743,28 @@ CONTAINS
                  & REAL((ssoil%wb(:,1)-ssoil%wbice(:,1)),r_1) * soil%zse(1) &
                  & * 1000.0 * hl / dt)
     END WHERE
-    ! Calculate soil evaporation total in mm (from W/m2):
+    ! Calculate snow evaporation total in mm (from W/m2):
     canopy%segg = canopy%fes / hl
+    WHERE (ssoil%snowd > 0.1) canopy%segg = canopy%fes / (hl + hlf) ! EAK aug08
     ! Initialise snow evaporation:
-    evapsn = 0
-    ! Snow evaporation and melting
+    ssoil%evapsn = 0
+!    ssoil%qssrf = 0.0
+    ! Snow evaporation and dew on snow
     WHERE (ssoil%snowd > 0.1)
-      xxx = dt * canopy%fes / ( hl + hlf ) 
+      ssoil%evapsn = dt * canopy%fes / ( hl + hlf )
+      xxx = ssoil%evapsn
       WHERE (ssoil%isflag == 0 .and. canopy%fes.gt.0.0) &
-            & evapsn = MIN(ssoil%snowd, xxx ) 
+            & ssoil%evapsn = MIN(ssoil%snowd, xxx ) 
       WHERE ( ssoil%isflag  > 0 .and. canopy%fes.gt.0.0) &
-            & evapsn = MIN(0.9*ssoil%smass(:,1), xxx )
-      ssoil%snowd = ssoil%snowd - evapsn
+            & ssoil%evapsn = MIN(0.9*ssoil%smass(:,1), xxx )
+      ssoil%snowd = ssoil%snowd - ssoil%evapsn
+!      ssoil%qssrf= ssoil%qssrf + ssoil%evapsn*hlf/dt
       WHERE ( ssoil%isflag > 0 )
-        ssoil%smass(:,1) = ssoil%smass(:,1)  - evapsn
+        ssoil%smass(:,1) = ssoil%smass(:,1)  - ssoil%evapsn
         ssoil%sdepth(:,1) = MAX(0.02,ssoil%smass(:,1) / ssoil%ssdn(:,1))
       END WHERE
       canopy%segg = 0.0
-      canopy%fes = evapsn * (hl + hlf) / dt ! return for hyd. balance
+      canopy%fes = ssoil%evapsn * (hl + hlf) / dt ! return for hyd. balance
     END WHERE
 
   END SUBROUTINE snow_accum 
@@ -1123,8 +1131,8 @@ CONTAINS
     ssoil%tggsn = REAL(tmp_mat(:,:3),r_1)
     ssoil%tgg   = REAL(tmp_mat(:,4:),r_1)
 
-!    canopy%sghflux = coefa * (ssoil%tggsn(:,1) - ssoil%tggsn(:,2) )
-    canopy%sghflux = coefb * (ssoil%tggsn(:,3) - ssoil%tgg(:,1) )
+    canopy%sghflux = coefa * (ssoil%tggsn(:,1) - ssoil%tggsn(:,2) )
+!    canopy%sghflux = coefb * (ssoil%tggsn(:,3) - ssoil%tgg(:,1) )
     canopy%ghflux = coefb * (ssoil%tgg(:,1) - ssoil%tgg(:,2) ) ! +ve downwards
   END SUBROUTINE stempv
 
@@ -1510,7 +1518,8 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)      :: xx
     INTEGER(i_d) k
 
-    diff(:,0) = 0.0
+    diff(:,:) = 0.0  ! (Bug fixed, BP may08)
+!    diff(:,0) = 0.0
     evapfbl(:,:) = 0.0
     DO k = 1,ms
       ! Removing transpiration from soil:
@@ -1605,6 +1614,10 @@ CONTAINS
     ssoil%rnof2 = 0.0
     ssoil%smelt = 0.0 ! initialise snowmelt
     ssoil%osnowd = ssoil%snowd
+!    ssoil%qasrf =  0.0
+!    ssoil%qfsrf =  0.0
+!    ssoil%qssrf =  0.0
+
 
     IF (ktau <= 1) THEN
       canopy%ga = 0.0
