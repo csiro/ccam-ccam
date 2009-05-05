@@ -131,11 +131,14 @@ module cable_ccam
        met%ua=max(met%ua,umin)
        met%precip_s=0. ! in mm not mm/sec
        where ( met%tc < 0.0 ) met%precip_s = met%precip
+       
+       if (ktau.eq.1.and.all(ssoil%rtsoil.eq.0.)) ssoil%rtsoil=rtsoil(cmap)
 
 !      rml 21/09/07 remove ktauplus+ktau due to change in cable_offline
        CALL cbm(ktau, kstart, ntau, dt, air, bgc, canopy, met, &
      &      bal, rad, rough, soil, ssoil, sum_flux, veg, mxvt, mxst)
 
+      ! average diagnostic fields
       albsoilsn(iperm(1:ipland),:)=0.
       albsav(iperm(1:ipland))=0.
       albnirsav(iperm(1:ipland))=0.
@@ -155,8 +158,8 @@ module cable_ccam
       ssdn(iperm(1:ipland),:)=0.
       ssdnn(iperm(1:ipland))=0.
       snowd(iperm(1:ipland))=0.
-      osnowd(iperm(1:ipland))=0.
-      osnowd0(iperm(1:ipland))=0.
+      !osnowd(iperm(1:ipland))=0.
+      !osnowd0(iperm(1:ipland))=0.
       snage(iperm(1:ipland))=0.
       rtsoil(iperm(1:ipland))=0.
       rnet(iperm(1:ipland))=0.
@@ -337,10 +340,10 @@ module cable_ccam
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%snage(pind(nb,1):pind(nb,2))
         snowd(cmap(pind(nb,1):pind(nb,2)))=snowd(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%snowd(pind(nb,1):pind(nb,2))
-        osnowd(cmap(pind(nb,1):pind(nb,2)))=osnowd(cmap(pind(nb,1):pind(nb,2))) &
-                                          +sv(pind(nb,1):pind(nb,2))*ssoil%osnowd(pind(nb,1):pind(nb,2))
-        osnowd0(cmap(pind(nb,1):pind(nb,2)))=osnowd0(cmap(pind(nb,1):pind(nb,2))) &
-                                           +sv(pind(nb,1):pind(nb,2))*bal%osnowd0(pind(nb,1):pind(nb,2))
+        !osnowd(cmap(pind(nb,1):pind(nb,2)))=osnowd(cmap(pind(nb,1):pind(nb,2))) &
+        !                                  +sv(pind(nb,1):pind(nb,2))*ssoil%osnowd(pind(nb,1):pind(nb,2))
+        !osnowd0(cmap(pind(nb,1):pind(nb,2)))=osnowd0(cmap(pind(nb,1):pind(nb,2))) &
+        !                                   +sv(pind(nb,1):pind(nb,2))*bal%osnowd0(pind(nb,1):pind(nb,2))
       end do
 
       return
@@ -444,8 +447,7 @@ module cable_ccam
   hc=(/ 17.,35.,15.5,20.,19.25,0.6,0.6,7.0426,14.3379,0.567,0.5,0.55,6.017,0.55,0.2,0.2,0.2 /)
   xfang=(/ 0.01,0.1,0.01,0.25,0.125,-0.3,0.01,-0.3,-0.3,-0.3,0.,-0.3,0.,-0.3,0.,0.1,0. /)
   dleaf=(/ 0.055,0.1,0.04,0.15,0.1,0.1,0.1,0.233,0.129,0.3,0.3,0.3,0.242,0.3,0.03,0.03,0.03 /)
-  !xalbnir=(/ 0.79,0.96,0.81,1.,1.08,1.14,1.2,1.02,1.23,1.16,0.89,0.98,1.1,1.13,1.,1.15,1. /)
-  xalbnir=1. ! MJT suggestion
+  xalbnir=(/ 0.79,0.96,0.81,1.,1.08,1.14,1.2,1.02,1.23,1.16,0.89,0.98,1.1,1.13,1.,1.15,1. /)
   wai=(/ 1.,1.,1.,1.,1.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0. /)
   canst1=0.1
   shelrb=2.
@@ -698,6 +700,8 @@ module cable_ccam
   ssoil%albsoilsn(:,1)=albsoilsn(cmap,1) ! overwritten by CABLE
   ssoil%albsoilsn(:,2)=albsoilsn(cmap,2) ! overwritten by CABLE
   ssoil%albsoilsn(:,3)=0.05
+  
+  ssoil%rtsoil=0. ! either load from tile or define in sib4
     
   rad%latitude=rlatt(cmap)*180./pi
   
@@ -727,19 +731,10 @@ module cable_ccam
   bal%ebal_tot=0.
   bal%rnoff_tot=0.
 
-  call loadtile ! load tgg,wb,snowd,snage,rtsoil,cansto,cplant and csoil
+  call loadtile ! load tgg,wb,wbice,snowd,snage,tggsn,smass,ssdn,isflag,rtsoil,cansto,cplant and csoil
 
-  do k=1,ms
-    ssoil%wbice(:,k)=wbice(cmap,k)                        ! overwritten by CABLE
-  end do
   ssoil%osnowd=0.                                         ! overwritten by CABLE
   bal%osnowd0=0.                                          ! overwritten by CABLE
-  ssoil%isflag=isflag(cmap)                               ! overwritten by CABLE
-  do k = 1,3
-    ssoil%tggsn(:,k) = tggsn(cmap,k)                      ! overwritten by CABLE
-    ssoil%smass(:,k) = smass(cmap,k)                      ! overwritten by CABLE
-    ssoil%ssdn(:,k) = ssdn(cmap,k)                        ! overwritten by CABLE
-  enddo  
   ssoil%ssdnn=120.                                        ! overwritten by CABLE
   where (ssoil%isflag.gt.0)
     ssoil%sdepth(:,1)=ssoil%smass(:,1)/ssoil%ssdn(:,1)    ! overwritten by CABLE
@@ -828,12 +823,19 @@ module cable_ccam
     if (myid==0) write(6,*) "Use averaged data to initialise CABLE"
     do k = 1,ms
       ssoil%tgg(:,k) = tgg(cmap,k)
-      ssoil%wb(:,k) = real(wb(cmap,k),r_2)
+      ssoil%wb(:,k) = wb(cmap,k)
+      ssoil%wbice(:,k) = wbice(cmap,k)
     enddo
+    do k = 1,3
+      ssoil%tggsn(:,k) = tggsn(cmap,k)
+      ssoil%smass(:,k) = smass(cmap,k)
+      ssoil%ssdn(:,k) = ssdn(cmap,k)
+    enddo      
+    ssoil%isflag=isflag(cmap)
     ssoil%snowd=snowd(cmap)
     ssoil%snage=snage(cmap)
-    ssoil%rtsoil=rtsoil(cmap)
-    canopy%cansto=cansto(cmap)
+    ssoil%rtsoil=0.
+    canopy%cansto=0.
     do k=1,ncp
       bgc%cplant(:,k) = cplant(cmap,k)
     enddo
@@ -849,8 +851,25 @@ module cable_ccam
         ssoil%tgg(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
         write(vname,'("wb",I1.1,"_",I1.1)') k,n
         call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
-        ssoil%wb(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))        
+        ssoil%wb(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+        write(vname,'("wbice",I1.1,"_",I1.1)') k,n
+        call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+        ssoil%wbice(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
       end do
+      do k=1,3
+        write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
+        call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+        ssoil%tggsn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+        write(vname,'("smass",I1.1,"_",I1.1)') k,n
+        call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+        ssoil%smass(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+        write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
+        call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+        ssoil%ssdn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+      end do
+      write(vname,'("sflag_",I1.1)') n
+      call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+      ssoil%isflag(pind(n,1):pind(n,2))=int(dat(cmap(pind(n,1):pind(n,2))))
       write(vname,'("snd_",I1.1)') n
       call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
       ssoil%snowd(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
@@ -915,7 +934,24 @@ module cable_ccam
         write(lname,'("Soil moisture lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("wb",I1.1,"_",I1.1)') k,n 
         call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,1.,0)
+        write(lname,'("Soil ice lev ",I1.1," tile ",I1.1)') k,n
+        write(vname,'("wbice",I1.1,"_",I1.1)') k,n 
+        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,1.,0)
       end do
+      do k=1,3
+        write(lname,'("Snow temperature lev ",I1.1," tile ",I1.1)') k,n
+        write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
+        call attrib(idnc,idim,3,vname,lname,'K',100.,400.,0)
+        write(lname,'("Snow mass lev ",I1.1," tile ",I1.1)') k,n
+        write(vname,'("smass",I1.1,"_",I1.1)') k,n 
+        call attrib(idnc,idim,3,vname,lname,'K',0.,400.,0)
+        write(lname,'("Snow density lev ",I1.1," tile ",I1.1)') k,n
+        write(vname,'("ssdn",I1.1,"_",I1.1)') k,n 
+        call attrib(idnc,idim,3,vname,lname,'K',0.,400.,0)
+      end do
+      write(lname,'("Snow flag tile ",I1.1)') n
+      write(vname,'("sflag_",I1.1)') n
+      call attrib(idnc,idim,3,vname,lname,'mm',0.,4.,0)
       write(lname,'("Snow depth tile ",I1.1)') n
       write(vname,'("snd_",I1.1)') n
       call attrl (idnc,idim,3,vname,lname,'mm',0.,5000.,0)  ! long
@@ -955,12 +991,34 @@ module cable_ccam
       dat=wb(:,k)
       dat(cmap(pind(1,n):pind(2,n)))=ssoil%wb(pind(n,1):pind(n,2),k)
       write(vname,'("wb",I1.1,"_",I1.1)') k,n
-      call histwrt3(dat,vname,idnc,iarch,local)      
+      call histwrt3(dat,vname,idnc,iarch,local)
+      dat=wbice(:,k)
+      dat(cmap(pind(1,n):pind(2,n)))=ssoil%wbice(pind(n,1):pind(n,2),k)
+      write(vname,'("wbice",I1.1,"_",I1.1)') k,n
+      call histwrt3(dat,vname,idnc,iarch,local)
     end do
+    do k=1,3
+      dat=tggsn(:,k)
+      dat(cmap(pind(1,n):pind(2,n)))=ssoil%tggsn(pind(n,1):pind(n,2),k)
+      write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
+      call histwrt3(dat,vname,idnc,iarch,local)
+      dat=smass(:,k)
+      dat(cmap(pind(1,n):pind(2,n)))=ssoil%smass(pind(n,1):pind(n,2),k)
+      write(vname,'("smass",I1.1,"_",I1.1)') k,n
+      call histwrt3(dat,vname,idnc,iarch,local)
+      dat=ssdn(:,k)
+      dat(cmap(pind(1,n):pind(2,n)))=ssoil%ssdn(pind(n,1):pind(n,2),k)
+      write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
+      call histwrt3(dat,vname,idnc,iarch,local)
+    end do
+    dat=real(isflag)
+    dat(cmap(pind(1,n):pind(2,n)))=real(ssoil%isflag(pind(n,1):pind(n,2)))
+    write(vname,'("sflag_",I1.1)') n
+    call histwrt3(dat,vname,idnc,iarch,local)
     dat=snowd
     dat(cmap(pind(1,n):pind(2,n)))=ssoil%snowd(pind(n,1):pind(n,2))
     write(vname,'("snd_",I1.1)') n
-    call histwrt3l(snowd,vname,idnc,iarch,local)  ! long write    
+    call histwrt3l(dat,vname,idnc,iarch,local)  ! long write    
     dat=snage
     dat(cmap(pind(1,n):pind(2,n)))=ssoil%snage(pind(n,1):pind(n,2))
     write(vname,'("snage_",I1.1)') n

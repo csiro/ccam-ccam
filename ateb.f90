@@ -64,7 +64,7 @@ end type trad
 type tdiag
   real :: roofdelta,roaddelta,vegdelta,rfsndelta,rdsndelta
   real :: tempc,mixrc,tempr,mixrr,sigd,sigr,rfdzmin
-  real :: accool,canyonrgout,roofrgout,evap,tran,c1
+  real :: accool,canyonrgout,roofrgout,tran,evap,c1
   real :: totdepth,netemiss,netrad
   real :: cwa,cwe,cww,cwr,cra,crr,crw
 end type tdiag
@@ -131,7 +131,7 @@ real, parameter :: minsnowalpha=0.5       ! min snow albedo
 real, parameter :: maxsnowden=300.        ! max snow density (kg m^-3)
 real, parameter :: minsnowden=100.        ! min snow density (kg m^-3)
 ! generic urban parameters
-real, parameter :: refheight=0.4          ! Displacement height as a fraction of building height (Kanda et al 2007)
+real, parameter :: refheight=0.6          ! Displacement height as a fraction of building height (Kanda et al 2007)
 real, parameter :: zomratio=0.1           ! Roughness length to building height ratio (default=10%)
 real, parameter :: zocanyon=0.1           ! Roughness length of canyon surfaces (m)
 real, parameter :: zoveg=0.3              ! Roughness length of in-canyon vegetation (m)
@@ -851,27 +851,25 @@ end subroutine atebcalc
 ! urban flux calculations
 
 ! Basic loop is:
-!  Predictor/corrector loop
-!    Heat flux through walls/roofs/roads
-!    Short wave flux (nrefl reflections)
-!    Long wave flux (nrefl reflections precomputed)
-!    Estimate building roughness length for momentum
-!    Canyon aerodynamic resistances
-!    Solve canyon snow temperature
-!      Canyon snow fluxes
-!      Solve vegetation and canyon temperature
-!        Canyon sensible and latent heat fluxes
-!      End vegetation and canyon temperature loop
-!    End canyon snow temprature loop
-!    Solve roof snow temperature
-!      Roof snow temperature
-!    End roof snow temperature loop
-!    Roof sensible and latent heat fluxes
-!    Roof long wave flux
-!    Update water on canyon surfaces
-!    Update snow albedo and density
-!    Update urban temperatures
-!  End predictor/corrector loop
+!  Heat flux through walls/roofs/roads
+!  Short wave flux (nrefl reflections)
+!  Long wave flux (nrefl reflections precomputed)
+!  Estimate building roughness length for momentum
+!  Canyon aerodynamic resistances
+!  Solve canyon snow temperature
+!    Canyon snow fluxes
+!    Solve vegetation and canyon temperature
+!      Canyon sensible and latent heat fluxes
+!    End vegetation and canyon temperature loop
+!  End canyon snow temprature loop
+!  Solve roof snow temperature
+!    Roof snow temperature
+!  End roof snow temperature loop
+!  Roof sensible and latent heat fluxes
+!  Roof long wave flux
+!  Update water on canyon surfaces
+!  Update snow albedo and density
+!  Update urban temperatures
 !  Estimate bulk roughness length for heat
 !  Estimate bulk long wave flux and surface temperature
 !  Estimate bulk sensible and latent heat fluxes
@@ -941,8 +939,8 @@ dg%rfdzmin=0.
 dg%accool=0.
 dg%canyonrgout=0.
 dg%roofrgout=0.
-dg%evap=0.
 dg%tran=0.
+dg%evap=0.
 dg%c1=0.
 
 ! total soil depth
@@ -1005,7 +1003,7 @@ elsewhere
   dg%c1=(1.78*n+0.253)/(2.96*n-0.581)
 end where
 
-! calculate in canyon roughness length
+! calculate incanyon roughness length
 zolog=1./sqrt(dg%rdsndelta/log(0.1*fn%bldheight/zosnow)**2 &
      +(1.-dg%rdsndelta)*(fn%sigmaveg/log(0.1*fn%bldheight/zoveg)**2 &
      +(1.-fn%sigmaveg)/log(0.1*fn%bldheight/zocanyon)**2))
@@ -1015,8 +1013,8 @@ zonet=0.1*fn%bldheight*exp(-1./zolog)
 zom=zomratio*fn%bldheight
 ! Adjust urban roughness due to snow
 n=road%snow/(road%snow+maxrdsn+0.408*grav*zom)                 ! snow cover for urban roughness calc (Douville, et al 1995)
-zom=(1.-n)*zom+n*zosnow                                              ! blend urban and snow roughness length
-dg%rfdzmin=max(abs(zmin-fn%bldheight*(1.-refheight)),zonet+1.)       ! distance to roof displacement height
+zom=(1.-n)*zom+n*zosnow                                        ! blend urban and snow roughness length
+dg%rfdzmin=max(abs(zmin-fn%bldheight*(1.-refheight)),zonet+1.) ! distance to roof displacement height
 where (zmin.ge.fn%bldheight*(1.-refheight))
   pg%lzom=log(zmin/zom)
   topu=(2./pi)*atm%umag*log(fn%bldheight*(1.-refheight)/zom)/pg%lzom ! wind speed at canyon top
@@ -1024,7 +1022,7 @@ elsewhere ! lowest atmospheric model level is within the canopy.  Need to intera
   pg%lzom=log(fn%bldheight*(1.-refheight)/zom)*exp(0.5*fn%hwratio*(1.-zmin/(fn%bldheight*(1.-refheight))))
   topu=(2./pi)*atm%umag*exp(0.5*fn%hwratio*(1.-zmin/(fn%bldheight*(1.-refheight))))
 end where
-pg%cndzmin=zom*exp(pg%lzom)                                          ! distance to canyon displacement height
+pg%cndzmin=zom*exp(pg%lzom)                                     ! distance to canyon displacement height
 
 if (acmeth.eq.1) then ! heat pump into canyon?
   dg%accool=max(0.,2.*fn%rooflambda(3)*(roof%temp(3)-fn%bldtemp)/fn%roofdepth(3) &
@@ -1323,6 +1321,27 @@ elsewhere
   ! MJT suggestion for max eg   
   eg%roof=lv*min(atm%rho*dg%roofdelta*(qsatr-dg%mixrr)*acond%roof,roof%water/ddt+atm%rnd+rfsnmelt)
 end where
+
+! join two walls into a single wall
+if (resmeth.eq.0.or.resmeth.eq.2) then
+  do k=1,3
+    n=0.5*(walle%temp(k)+wallw%temp(k))
+    walle%temp(k)=n
+    wallw%temp(k)=n
+  end do
+  n=0.5*(sg%walle+sg%wallw)
+  sg%walle=n
+  sg%wallw=n
+  n=0.5*(rg%walle+rg%wallw)
+  rg%walle=n
+  rg%wallw=n
+  n=0.5*(fg%walle+fg%wallw)
+  fg%walle=n
+  fg%wallw=n
+  n=0.5*(eg%walle+eg%wallw)
+  eg%walle=n
+  eg%wallw=n
+end if
 
 ! tridiagonal solver coefficents
 do k=2,3

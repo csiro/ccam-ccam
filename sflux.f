@@ -1,6 +1,7 @@
       subroutine sflux(nalpha)              ! for globpe code
       use ateb ! MJT urban
       use cable_ccam, only : CABLE,sib4 ! MJT cable
+      use mlo ! MJT mlo
       use diag_m
       use cc_mpi
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
@@ -30,7 +31,7 @@ c     cp specific heat at constant pressure joule/kgm/deg
       include 'extraout.h' ! ustar
       include 'gdrag.h'
       include 'liqwpar.h'  ! qfg,qlg
-c     include 'map.h'      ! land
+      include 'map.h'      ! MJT mlo
       include 'morepbl.h'  ! condx,fg,eg
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tgf
       include 'parm.h'
@@ -180,7 +181,11 @@ c     using av_vmod (1. for no time averaging)
         if(ktau==1)u10(:)=vmod(:)/3.8
         charnck(:)=.008+3.e-4*(u10(:)-9.)**2/ ! like Makin (2002)
      &            (1.+(.006+.00008*u10(:))*u10(:)**2)
-      endif     
+      endif
+      !--------------------------------------------------------------
+      ! MJT mlo
+      if (nmlo.eq.0) then
+      
       do iq=1,ifull
        if(.not.land(iq))then 
         wetfac(iq)=1.                                                ! sea
@@ -215,6 +220,14 @@ c     &               ip,iq,tgg(iq,1),tss_sh,sgsave(iq),vmod(iq),dtsol
        if(ntsea==4.and.condx(iq)>.1)tpan(iq)=.5*(t(iq,1)+tgg(iq,1)) 
        endif  ! (.not.land(iq)) 
       enddo   ! iq loop
+      
+      else ! nmlo.ne.0
+        where(.not.land)
+          tpan=tgg(:,1) ! MLO updates solar heating
+          wetfac=1.
+        endwhere
+      end if
+      !--------------------------------------------------------------
 
 !     here calculate fluxes for sea point, and nominal pan points	 
       afrootpan=vkar/log(zmin/panzo)                       
@@ -278,7 +291,7 @@ c       factch=sqrt(zo*exp(vkar*vkar/(chnsea*log(zmin/zo)))/zmin)    ! sea
         factch(:)=sqrt(zo(:)*ztv) ! for use in unstable fh
       endif  ! (newztsea==0)
 
-      do iq=1,ifull ! done for all points; overwritten later for land                                           
+      do iq=1,ifull ! done for all points; overwritten later for land
 c      Having settled on zo & af now do actual fh and fm calcs       ! sea
        if(ri(iq)>0.)then                                             ! sea
          fm=vmod(iq)/(1.+bprm*ri(iq))**2  ! no zo contrib for stable ! sea
@@ -309,7 +322,7 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now
        ! note that iq==idjd  can only be true on the correct processor
        if(ntest==1.and.iq==idjd.and.mydiag)then                      ! sea
          print *,'in sea-type loop for iq,idjd: ',iq,idjd            ! sea
-         print *,'zmin,zo,factch ',zmin,zo(iq),factch(iq)            ! sea         
+         print *,'zmin,zo,factch ',zmin,zo(iq),factch(iq)            ! sea
          print *,'ri,ustar,es ',ri(iq),ustar(iq),es                  ! sea
          print *,'af,aft ',af(iq),aft(iq)                            ! sea
          print *,'tpan,tss,theta ',tpan(iq),tss(iq),theta(iq)        ! sea
@@ -331,6 +344,23 @@ c     section to update pan temperatures
          tpan(iq)=tpan(iq)+ga(iq)*dt/(4186.*.254*1000.)             
        endif  ! (land(iq))
       enddo   ! iq loop
+      
+    !----------------------------------------------------------------
+    ! MJT mlo
+    ! can run once per hour, but need to average fluxes  
+      if (nmlo.gt.0) then
+        ! note taux and tauy do not include sea-ice at this point
+        call mloeval(ifull,tgg(:,1),dt,fg,eg
+     &               ,sgsave(:),-rgsave(:)-stefbo*tgg(:,1)**4
+     &               ,condx(:)/dt,taux,tauy,f,0)
+        where(.not.land)
+          tpan=tgg(:,1)
+        endwhere
+        do k=2,ms
+          call mloexport(ifull,tgg(:,k),k,0)
+        end do
+      end if
+    !----------------------------------------------------------------
 
       if(nmaxpr==1.and.mydiag)then
         iq=idjd
@@ -358,11 +388,11 @@ c     section to update pan temperatures
 !      non-leads for sea ice points                                 ! sice
 !      N.B. tgg( ,3) holds tice                                     ! sice
 c       iq=iperm(ip)                                                ! sice
-       es = establ(tgg(iq,3))                                       ! sice
+       es = establ(tggsn(iq,1)) ! MJT seaice                        ! sice
        constz=ps(iq)-es                                             ! sice
        qsttg(iq)= .622*es/constz                                    ! sice
-       drst=qsttg(iq)*ps(iq)*hlars/(tgg(iq,3)*tgg(iq,3)*constz)     ! sice
-       xx=grav*zmin*(1.-tgg(iq,3)*srcp/t(iq,1))                     ! sice
+       drst=qsttg(iq)*ps(iq)*hlars/(tggsn(iq,1)*tggsn(iq,1)*constz) ! sice ! MJT seaice
+       xx=grav*zmin*(1.-tggsn(iq,1)*srcp/t(iq,1)) ! MJT seaice      ! sice
        ri_ice=min(xx/vmag(iq)**2 , ri_max)                          ! sice
        factch(iq)=sqrt(7.4)  ! same as land from 27/4/99            ! sice
 !      factch(iq)=1.   ! factch is sqrt(zo/zt) for use in unstable fh  
@@ -371,7 +401,7 @@ c       iq=iperm(ip)                                                ! sice
        af(iq)=(vkar/zologice)**2                                    ! sice
        aft(iq)=vkar**2/(zologice*(2.+zologice) )  ! from 27/4/99    ! sice
 !      aft(iq)=af                                 ! up till 27/4/99 ! sice
-       wetfac(iq)=1+.008*(tgg(iq,3)-273.16) ! 008*tgg(iq,3)-1.18528 ! sice
+       wetfac(iq)=1+.008*(tggsn(iq,1)-273.16) ! 008*tggsn(iq,1)-1.18528 ! sice ! MJT seaice
                                                                     ! sice
 c      now do fh and fm calcs for sice                              ! sice
        if(ri_ice>0.)then                                            ! sice
@@ -391,7 +421,7 @@ c        Now heat ; allow for smaller zo via aft and factch         ! sice
        conh=rho(iq)*aft(iq)*cp                                      ! sice
        conw=rho(iq)*aft(iq)*hl                                      ! sice
 !      fgice & egice renamed as fgf and fev from Aug 05 to aid diags	
-       fgf(iq)=conh*fh(iq)*(tgg(iq,3)-theta(iq))                    ! sice
+       fgf(iq)=conh*fh(iq)*(tggsn(iq,1)-theta(iq)) ! MJT seaice     ! sice
        dfgdt(iq)=conh*fh(iq)                                        ! sice
        if(ntest==1.and.iq==idjd.and.mydiag)then                     ! sice
          print *,'in sice loop'                                     ! sice
@@ -426,19 +456,19 @@ c      over sea ice, set a minimum depth for this experiment of .1  ! sice
 c      no snow on the ice assumed for now                           ! sice
        gamm(iq) = 3.471e+05                                         ! sice
        cie(iq) = 2.04/sicedep(iq)                                   ! sice
-       rgg(iq)=5.67e-8*tgg(iq,3)**4                                 ! sice
-!      gflux here is	flux from ice to water, +ve downwards          ! sice
-       gflux(iq)=cie(iq)*(tgg(iq,3)-271.2)                          ! sice
+       rgg(iq)=5.67e-8*tggsn(iq,1)**4 ! MJT seaice                  ! sice
+!      gflux here is	flux from ice to water, +ve downwards       ! sice
+       gflux(iq)=cie(iq)*(tggsn(iq,1)-271.2) ! MJT seaice           ! sice
        ga(iq)=-slwa(iq)-rgg(iq)-fev(iq)-fgf(iq)-gflux(iq)           ! sice
-       dirad(iq)=4.*5.67e-8*tgg(iq,3)**3                            ! sice
+       dirad(iq)=4.*5.67e-8*tggsn(iq,1)**3 ! MJT seaice             ! sice
        b1=dirad(iq)+degdt(iq)+dfgdt(iq)+cie(iq)                     ! sice
        gbot=(gamm(iq)/dt)+b1                                        ! sice
        deltat=ga(iq)/gbot                                           ! sice
-       tgg(iq,3)=tgg(iq,3)+deltat                                   ! sice
-       tgg(iq,3)=min(tgg(iq,3),271.2)   ! jlm fix Tue  05-30-2000
+       tggsn(iq,1)=tggsn(iq,1)+deltat ! MJT seaice                  ! sice
+       tggsn(iq,1)=min(tggsn(iq,1),271.2)   ! jlm fix Tue  05-30-2000 ! MJT seaice
        fgf(iq) =fgf(iq) +deltat*dfgdt(iq)                           ! sice
        fev(iq) =fev(iq) +deltat*degdt(iq)                           ! sice
-       es = establ(tgg(iq,3))                                       ! sice
+       es = establ(tggsn(iq,1)) ! MJT seaice                        ! sice
        constz=ps(iq)-es                                             ! sice
        qsttg(iq)=.622*es/constz                                     ! sice
                                                                     ! sice
@@ -451,7 +481,7 @@ c      no snow on the ice assumed for now                           ! sice
        ustar(iq) = sqrt(vmod(iq)*cduv(iq))                          ! sice
 c      N.B. potential evaporation is now eg+eg2                     ! sice
        epot(iq) =fracice(iq)*epotice + (1.-fracice(iq))*epot(iq)    ! sice
-       tss(iq) = fracice(iq)*tgg(iq,3)+(1.-fracice(iq))*tpan(iq)    ! 2004
+       tss(iq) = fracice(iq)*tggsn(iq,1)+(1.-fracice(iq))*tpan(iq)  ! 2004 ! MJT seaice
 c      Surface stresses taux, tauy: diagnostic only - unstag now    ! sice
        taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                            ! sice
        tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! sice
@@ -465,7 +495,8 @@ c     if(mydiag.and.diag)then
          gbot=(gamm(iq)/dt)+b1                           
          deltat=ga(iq)/gbot                                               
          print *,'ri,vmag,vmod,cduv ',ri(iq),vmag(iq),vmod(iq),cduv(iq) 
-         print *,'fh,tss,tpan,tgg3 ',fh(iq),tss(iq),tpan(iq),tgg(iq,3) 
+         print *,'fh,tss,tpan,tggsn1 ',fh(iq),tss(iq),tpan(iq)
+     &                                ,tggsn(iq,1) ! MJT seaice
          print *,'theta,t1,deltat ',theta(iq),t(iq,1),deltat           
          print *,'b1,ga,gbot,af,aft ',b1,ga(iq),gbot,af(iq),aft(iq) 
          print *,'fg,fgice,factch ',fg(iq),fgf(iq),factch(iq) 
@@ -474,7 +505,7 @@ c     if(mydiag.and.diag)then
       endif   ! (mydiag.and.nmaxpr==1)                                    
 c----------------------------------------------------------------------
 !cdir nodep
-      if ((nsib.ne.6).or.all(rtsoil.eq.0.)) then
+      if (nsib.ne.6.or.all(rtsoil.eq.0.)) then
       do ip=1,ipland  ! all land points in this shared loop         ! land
 c      fh itself was only used outside this loop in sib0 (jlm)      ! land
        iq=iperm(ip)                                                 ! land
@@ -684,7 +715,7 @@ c ----------------------------------------------------------------------
       if(ntsur.ne.5)then    ! ntsur=6 is default from Mar '05  
 c       preferred option to recalc cduv, ustar (gives better uscrn, u10)
         do iq=1,ifull
-         afroot=vkar/log(zmin/zo(iq))! land formula is bit different above                             
+         afroot=vkar/log(zmin/zo(iq))! land formula is bit different above
          af(iq)=afroot**2                                             
          xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       
          ri(iq)=min(xx/vmag(iq)**2 , ri_max)                            
@@ -693,11 +724,11 @@ c       preferred option to recalc cduv, ustar (gives better uscrn, u10)
          else                                                           
            root=sqrt(-ri(iq)*zmin/zo(iq))  
            denma=1.+cms*2.*bprm*af(iq)*root                        
-           fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma     ! Fm * vmod                        
+           fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma     ! Fm * vmod
 c          n.b. fm denotes ustar**2/(vmod(iq)*af)                         
          endif                                                    
 c        cduv is now drag coeff *vmod                                     
-         cduv(iq) =af(iq)*fm                       ! Cd * vmod                                
+         cduv(iq) =af(iq)*fm                       ! Cd * vmod
          ustar(iq) = sqrt(vmod(iq)*cduv(iq))                            
 c        Surface stresses taux, tauy: diagnostic only - unstaggered now   
          taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                              
@@ -1530,3 +1561,61 @@ c                                               combined fluxes
 
       return
       end
+      
+      !subroutine mloroute(runoff) ! MJT river
+      !
+      !use cc_mpi
+      !
+      !implicit none
+      !
+      !include 'newmpar.h'
+      !include 'const_phys.h'
+      !include 'xyzinfo.h'
+      !include 'indices.h'
+      !include 'permsurf.h'
+      !
+      !integer iq,ip
+      !integer, dimension(8) :: xp
+      !real, dimension(ifull), intent(in) :: runoff
+      !real, dimension(ifull+iextra), save :: watbdy
+      !real, dimension(8) :: zp,dp
+      !real dis,vel
+      !logical, dimension(8) :: lp
+      !
+      !watbdy(1:ifull)=watbdy(1:ifull)+runoff
+      !call bounds(watbdy)
+      !do ip=1,ipland
+      !  iq=iperm(ip)
+      !  xp(1)=in(iq)
+      !  xp(2)=ine(iq)
+      !  xp(3)=ie(iq)
+      !  xp(4)=ise(iq)
+      !  xp(5)=is(iq)
+      !  xp(6)=isw(iq)
+      !  xp(7)=iw(iq)
+      !  xp(8)=iwn(iq)
+      !  zp=zs(xp)
+      !  if (all(zs(iq).lt.zp)) then
+      !    watbdy(iq)=0. ! sink
+      !  else
+      !    lp=land(xp)
+      !    dp=acos(max(min(x(xp)*x(iq)+y(xp)*y(iq)+z(xp)*z(iq),
+    ! &            -1.),1.))
+      !    if any(.not.lp) then
+      !      pos=minloc(dp,.not.lp) ! ocean
+      !    else
+      !      pos=minloc(zp) ! downhill
+      !    end if
+      !    niq=xp(pos(1))
+      !    dis=dp(pos(1))*rearth
+      !    vel=0.35*sqrt((zs(iq)-zs(iqn))/(dis*0.00005)) ! from Mk3.5 scheme
+      !    flow=watbdy(iq)*dt*vel/dis
+      !    watbdy(niq)=watbdy(niq)+flow
+      !    watbdy(iq)=watbdy(iq)-flow*em(iq)/(iqn) ! correct for map factor
+      !  end if          
+      !end do
+      !call bounds(watbdy)
+      !call mloinflow(ifull,watbdy,dt,0)
+      !
+      !return
+      !end

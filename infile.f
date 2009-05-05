@@ -3,7 +3,7 @@
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                  tgg,wb,wbice,alb,snowd,qfg,qlg,   ! 0808
      .                  tggsn,smass,ssdn,ssdnn,snage,isflag,ifull,kl,
-     .                  rtsoil,isoilh,urban,cplant,csoil,cansto) ! MJT cable ! MJT lsmask ! MJT urban  
+     .                  isoilh,urban,cplant,csoil,datoc) ! MJT lsmask ! MJT urban ! MJT mlo
 !     note kk; vertint.f is attached below
 !     kdate_r and ktime_r are returned from this routine.
 !     They must equal or exceed kdate_s and ktime_s
@@ -16,6 +16,7 @@
 
       use cc_mpi
       use define_dimensions, only : ncs, ncp ! MJT cable
+      use mlo, only : wlev ! MJT mlo
       use diag_m
       implicit none
 c     include 'newmpar.h'
@@ -39,9 +40,9 @@ c     include 'tracers.h'  **** to be fixed after 0808
      . t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      . ssdnn(ifull),snage(ifull)
-     & ,qfg(ifull,kl),qlg(ifull,kl),rtsoil(ifull), ! MJT cable
-     & cplant(ifull,ncp),csoil(ifull,ncs),cansto(ifull), ! MJT cable
-     & urban(ifull,1:12) ! MJT urban
+     & ,qfg(ifull,kl),qlg(ifull,kl),
+     & cplant(ifull,ncp),csoil(ifull,ncs), ! MJT cable
+     & urban(ifull,1:12),datoc(ifull,wlev,4) ! MJT urban ! MJT mlo
       integer isoilh(ifull) ! MJT lsmask  
       integer isflag(ifull)
       integer ktau_r, ibb, jbb, i
@@ -74,6 +75,7 @@ c     include 'tracers.h'  **** to be fixed after 0808
 
       integer timest(2),timeco(2),timerco(2)
       character*80 dimnam
+      character*8 vname ! MJT mlo
       character*3 monn(12),cmon,trnum
       data monn/'jan','feb','mar','apr','may','jun'
      &         ,'jul','aug','sep','oct','nov','dec'/
@@ -549,7 +551,35 @@ c 	    only being tested for nested=0; no need to test for mesonest
           call histrd1(ncid,iarchi,ierr,'roadtgg3',ik,jk,urban(:,12)
      &                ,ifull)
         end if
-        !------------------------------------------------------------        
+        !------------------------------------------------------------
+        
+        !------------------------------------------------------------
+        ! MJT mlo
+        datoc=999.
+        call histrd1(ncid,iarchi,ierr,'sal01',ik,jk,datoc(:,1,2)
+     &                ,ifull)
+        if (ierr==0) then
+          do k=2,wlev
+            write(vname,'("sal",I2.2)') k
+            call histrd1(ncid,iarchi,ierr,vname,ik,jk,datoc(:,k,2)
+     &                ,ifull)
+          end do
+          datoc(:,1:ms,1)=tgg(:,1:ms)
+          do k=ms+1,wlev
+            write(vname,'("tgg",I2.2)') k
+            call histrd1(ncid,iarchi,ierr,vname,ik,jk,datoc(:,k,1)
+     &                ,ifull)
+          end do
+          do k=1,wlev
+            write(vname,'("uoc",I2.2)') k
+            call histrd1(ncid,iarchi,ierr,vname,ik,jk,datoc(:,k,3)
+     &                ,ifull)
+            write(vname,'("voc",I2.2)') k
+            call histrd1(ncid,iarchi,ierr,vname,ik,jk,datoc(:,k,4)
+     &                ,ifull)
+          end do
+        end if
+        !------------------------------------------------------------
 
         if(myid == 0)print *,'about to read snowd'
         call histrd1(ncid,iarchi,ier,'snd',ik,jk,snowd,ifull)
@@ -649,15 +679,6 @@ c        endif
           if (ier.ne.0) 
      &      call histrd1(ncid,iarchi,ier,'carb_sls',ik,jk,csoil(:,2)
      &                ,ifull)
-          !call histrd1(ncid,iarchi,ier,'sumpn',ik,jk,sumpn)
-          !call histrd1(ncid,iarchi,ier,'sumrp',ik,jk,sumrp)
-          !call histrd1(ncid,iarchi,ier,'sumrs',ik,jk,sumrs)
-          !call histrd1(ncid,iarchi,ier,'sumrd',ik,jk,sumrd)
-          cansto=0.
-          call histrd1(ncid,iarchi,ier,'cansto',ik,jk,cansto,ifull)
-          rtsoil=0. ! MJT cable
-          call histrd1(ncid,iarchi,ier,'rtsoil',ik,jk,rtsoil,ifull)
-
 
         if(mydiag)then
           print *,'at end of infile kdate,ktime,ktau,tss: ',
@@ -738,8 +759,8 @@ c     read in all data
             !------------------------------------------------------------
             ! MJT CHANGE
             ierr=nf_inq_vartype(ncid,idv,nctype)
-	    addoff=0.
-	    sf=1.
+	      addoff=0.
+	      sf=1.
             select case(nctype)
               case(nf_float)
                 call ncvgt(ncid,idv,start,count,rvar,ier)
@@ -970,20 +991,24 @@ c     print *,'in vertint t',t(idjd,:)
    !   if(diag)print *,'a datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
    !  .                   iyr,imo,iday,ihr,imins,mtimer_r
 
-      mdays(2)=28
-      if(mod(iyr,4)==0.and.leap==1)mdays(2)=29
-      if(mod(iyr,100)==0)mdays(2)=28
-      if(mod(iyr,400)==0.and.leap==1)mdays(2)=29
+      mdays(2)=28 ! MJT bug fix
+      if (leap==1) then
+        if(mod(iyr,4)==0)mdays(2)=29
+        if(mod(iyr,100)==0)mdays(2)=28
+        if(mod(iyr,400)==0)mdays(2)=29
+      end if
       do while (mtimer_r>minsday*mdays(imo))
        mtimer_r=mtimer_r-minsday*mdays(imo)
        imo=imo+1
        if(imo>12)then
          imo=1
          iyr=iyr+1
-         mdays(2)=28 ! MJT bug fix
-         if(mod(iyr,4)==0.and.leap==1)mdays(2)=29
-         if(mod(iyr,100)==0)mdays(2)=28
-         if(mod(iyr,400)==0.and.leap==1)mdays(2)=29
+         if (leap==1) then
+           mdays(2)=28 ! MJT bug fix         
+           if(mod(iyr,4)==0)mdays(2)=29
+           if(mod(iyr,100)==0)mdays(2)=28
+           if(mod(iyr,400)==0)mdays(2)=29
+         end if
        endif
       enddo
       if(diag)print *,'b datefix iyr,imo,iday,ihr,imins,mtimer_r: ',

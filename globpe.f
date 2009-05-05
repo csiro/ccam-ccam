@@ -172,7 +172,7 @@
      & ,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
-     & ,m_fly,mstn,nqg,nurban,nmr ! MJT urban ! MJT nmr
+     & ,m_fly,mstn,nqg,nurban,nmr,nmlo ! MJT urban ! MJT nmr ! MJT mlo
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -1673,7 +1673,7 @@ c     data nstag/99/,nstagu/99/
      &     vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
       data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
-      data nurban/0/,nmr/0/ ! MJT urban ! MJT nmr
+      data nurban/0/,nmr/0/,nmlo/0/ ! MJT urban ! MJT nmr ! MJT mlo
 !     Special and test options
       data namip/0/,amipo3/.false./,nhstest/0/,nsemble/0/,nspecial/0/,
      &     panfg/4./,panzo/.001/,nplens/0/

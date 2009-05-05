@@ -3,8 +3,9 @@
       use ateb ! MJT urban
       use cable_ccam, only : CABLE,loadcbmparm ! MJT cable
       use physical_constants, only : umin ! MJT cable      
-      use cc_mpi
       use define_dimensions, only : ncs, ncp ! MJT cable
+      use mlo, only : mloinit,mloload,wlev ! MJT mlo
+      use cc_mpi
       use diag_m
 !     rml 21/02/06 removed all so2 code
 !     rml 16/02/06 use tracermodule, timeseries
@@ -129,7 +130,8 @@
 !    &              .05,.85,.85,.55,.65,.2,.05,.5, .0, .0, 0.,         ! 21-31
       real, dimension(ifull_g) :: glob2d
       real, dimension(ifull_g) :: davt_g
-      real, dimension(ifull,1:12) :: urban ! MJT urban 
+      real, dimension(ifull,12) :: urban ! MJT urban
+      real, dimension(ifull,wlev,4) :: datoc ! MJT mlo
 
       call start_log(indata_begin)
       bam(1)=114413.
@@ -275,7 +277,7 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
      &           tgg,wb,wbice,albsav,snowd,qfg(1:ifull,:), ! MJT albedo
      &           qlg(1:ifull,:), ! 0808 
      &           tggsn,smass,ssdn,ssdnn,snage,isflag,ifull,kl,         ! 0808
-     &           rtsoil,isoilm,urban,cplant,csoil,cansto) ! MJT cable !MJT lsmask ! MJT urban
+     &           isoilm,urban,cplant,csoil,datoc) ! MJT cable !MJT lsmask ! MJT urban ! MJT mlo
             albnirsav=albsav ! MJT CHANGE albedo
 c           if(nspecial>100)then
 c!            allows nudging from mesonest with different kdate
@@ -299,8 +301,7 @@ c           endif  ! (nspecial>100)
             call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
      &           tgg,wb,wbice,snowd,qfg(1:ifull,:),qlg(1:ifull,:), !0808
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &           rtsoil,urban) ! MJT cable ! MJT urban     
+     &           tggsn,smass,ssdn,ssdnn,snage,isflag,urban,datoc) ! MJT urban ! MJT mlo
          endif   ! (io_in==-1)
          if( mydiag )then
            print *,'timegb,ds,zss',timegb,ds,zss(idjd)
@@ -825,7 +826,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
 
 !     for the moment assume precip read in at end of 24 h period
       do iq=1,ifull
-       zolnd(iq)=zoland       ! just a default - uaully read in
+       zolnd(iq)=zoland       ! just a default - usually read in
 !      initialize following to allow for leads with sice
        eg(iq)=0.
        fg(iq)=0.
@@ -849,7 +850,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
           !call cbmrdn(nveg) ! MJT cable
         end if
         if (nsib.eq.6) then  ! MJT cable
-          ! albvisnir at this point holds soild albedo for cable initialisation
+          ! albvisnir at this point holds soil albedo for cable initialisation
           vmodmin=umin
           call loadcbmparm(vegfile)
           ! albvisnir now is the net albedo
@@ -1282,12 +1283,12 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
        if(.not.land(iq))then
 !        from June '03 tgg1	holds actual sea temp, tss holds net temp 
          tgg(iq,1)=max(271.3,tss(iq)) 
-         tgg(iq,3)=tss(iq)         ! a default 
+         tggsn(iq,1)=tss(iq)         ! a default ! MJT seaice
        endif   ! (.not.land(iq))
        if(sicedep(iq)>0.)then
 !        at beginning of month set sice temperatures
-         tgg(iq,3)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m level 1
-         tss(iq)=tgg(iq,3)*fracice(iq)+tgg(iq,1)*(1.-fracice(iq))
+         tggsn(iq,1)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m level 1 ! MJT seaice
+         tss(iq)=tggsn(iq,1)*fracice(iq)+tgg(iq,1)*(1.-fracice(iq))        ! MJT seaice
          albvisnir(iq,1)=.8*fracice(iq)+.1*(1.-fracice(iq)) ! MJT CHANGE albedo
          albvisnir(iq,2)=.5*fracice(iq)+.1*(1.-fracice(iq)) ! MJT CHANGE albedo
        endif   ! (sicedep(iq)>0.) 
@@ -1550,8 +1551,8 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
            ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
 !          which is same as:  ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
 !                             if( tsoil >= tstom ) ftsoil=1.
-           rlai(iq)=  max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil)) ! MJT cable
-           rsmin(iq) = rsunc44(iveg)/rlai(iq)                         ! MJT cable
+           rlai(iq)=  max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil))
+           rsmin(iq) = rsunc44(iveg)/rlai(iq)
          endif   ! (land(iq)) 
         enddo    !  iq loop
       
@@ -1863,6 +1864,32 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       endif     !  (nstn>0)
 
       !-----------------------------------------------------------------
+      ! nmlo=0 no mixed layer ocean
+      ! nmlo=1 free mixed layer ocean
+      ! nmlo=2 nudged mixed layer ocean
+      if (nmlo.ne.0) then
+        where (land)
+          aa=0.
+        elsewhere
+          aa=1.
+        end where
+        call mloinit(ifull,aa,0)
+        do k=1,wlev
+          where (datoc(:,wlev,1).ge.399.) ! must be the same as spval in onthefly.f
+            datoc(:,k,1)=tss(:)
+            datoc(:,k,2)=35.
+            datoc(:,k,3)=0.
+            datoc(:,k,4)=0.
+          end where
+        end do
+        call mloload(ifull,datoc,0)
+      end if
+      !-----------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      ! nurban=0 no urban
+      ! nurban=1 urban (save in restart file)
+      ! nurban=-1 urban (save in history and restart file)
       if (nurban.ne.0) then ! MJT urban
         where (.not.land(:))
           sigmu(:)=0.
@@ -1870,14 +1897,14 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         call atebinit(ifull,sigmu(:),zmin,0)
         where(urban(:,1).ge.399.) ! must be the same as spval in onthefly.f
           urban(:,1)=tgg(:,1)
-          urban(:,2)=291.16
-          urban(:,3)=0.5*(tss(:)+291.16)
+          urban(:,2)=0.5*(tgg(:,1)+291.16)
+          urban(:,3)=291.16
           urban(:,4)=tgg(:,1)
-          urban(:,5)=291.16
-          urban(:,6)=0.5*(tss(:)+291.16)
+          urban(:,5)=0.5*(tgg(:,1)+291.16)
+          urban(:,6)=291.16
           urban(:,7)=tgg(:,1)
-          urban(:,8)=291.16
-          urban(:,9)=0.5*(tss(:)+291.16)
+          urban(:,8)=0.5*(tgg(:,1)+291.16)
+          urban(:,9)=291.16
           urban(:,10)=tgg(:,1)
           urban(:,11)=0.5*(tgg(:,1)+tgg(:,ms))
           urban(:,12)=tgg(:,ms)

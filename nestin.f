@@ -2,6 +2,7 @@
       use cc_mpi, only : myid, mydiag
       use diag_m
       use define_dimensions, only : ncs, ncp ! MJT cable
+      use mlo, only : wlev ! MJT mlo
       include 'newmpar.h'
 !     ik,jk,kk are array dimensions read in infile - not for globpea
 !     int2d code - not used for globpea
@@ -36,6 +37,7 @@
       real, dimension(ifull,ncp) :: cplant_h ! MJT cable
       real, dimension(ifull,ncs) :: csoil_h ! MJT cable
       real, dimension(ifull,12) :: urban ! MJT urban
+      real, dimension(ifull,wlev,4) :: datoc ! MJT mlo
       character*12 dimnam
       integer num,mtimea,mtimeb
       data num/0/,mtimea/0/,mtimeb/-1/
@@ -123,8 +125,7 @@
      .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
      &            duma,duma,duma,duma,duma,duma,duma, 
      &            duma,duma,duma,duma,duma,dumm,ifull,kl,
-     &            duma,dumm,urban,cplant_h,csoil_h,
-     &            duma) ! MJT cable ! MJT lsmask ! MJT urban
+     &            dumm,urban,cplant_h,csoil_h,datoc) ! MJT cable ! MJT lsmask ! MJT urban ! MJT mlo
       endif   ! (io_in==1)
       if(io_in==-1)then
 c        call onthefl(1,kdate_r,ktime_r,
@@ -132,7 +133,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &        duma,duma,duma,duma,duma,duma,duma,duma,duma,duma, ! just dummies
-     &        duma,dumm,duma,urban) ! MJT cable, MJT lsmask
+     &        dumm,duma,urban,datoc) ! MJT cable, MJT lsmask ! MJT mlo
       endif   ! (io_in==1)
       tssb(:) = abs(tssb(:))  ! moved here Mar '03
       if (mydiag) then
@@ -268,12 +269,17 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
 
 !     calculate time interpolated tss 
       if(namip.eq.0)then     ! namip SSTs/sea-ice take precedence
-       do iq=1,ifull
-        if(.not.land(iq))then
+       if (nmlo.eq.0) then ! MJT mlo
+        do iq=1,ifull
+         if(.not.land(iq))then
           tss(iq)=cona*tssa(iq)+conb*tssb(iq)
           tgg(iq,1)=tss(iq)
-        endif  ! (.not.land(iq))
-       enddo   ! iq loop 
+         endif  ! (.not.land(iq))
+        enddo   ! iq loop 
+       else if (nmlo.eq.2) then
+         ! nudge mlo (assume 5 deg resolution)
+         call mlofilter(tssb,5.*pi/180.)
+       end if
       endif
       
       return
@@ -284,6 +290,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       use cc_mpi, only : myid, mydiag
       use diag_m
       use define_dimensions, only : ncs, ncp ! MJT cable
+      use mlo, only : wlev ! MJT mlo
       implicit none
       integer, parameter :: ntest=0 
       include 'newmpar.h'
@@ -316,6 +323,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       real, dimension(ifull,ncp) :: cplant_h ! MJT cable
       real, dimension(ifull,ncs) :: csoil_h ! MJT cable
       real, dimension(ifull,12) :: urban ! MJT urban
+      real, dimension(ifull,wlev,4) :: datoc ! MJT mlo
       integer, save :: ncount = -1 ! MJT daily ave
       real :: ds_r,rlong0x,rlat0x
       real :: schmidtx,timeg_b
@@ -323,12 +331,17 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       real :: fraciceb,sicedepb
       real, dimension(ifull) :: zsb,duma
       integer, dimension(ifull) :: dumm
+      real, dimension(ifull,ms) :: dumg
+      real, dimension(ifull,kl) :: dumv
+      real, dimension(ifull,3) :: dums
       real, dimension(ifull) :: pslc
       real, dimension(ifull,kl) :: uc,vc,tc,qc
       real, dimension(ifull), save :: psld ! MJT daily ave
       real, dimension(ifull,kl), save :: ud,vd,td,qd ! MJT daily ave
-      real, parameter :: eta = 0.0 ! MJT daily ave
+      real, parameter :: eta = 0.00 ! MJT daily ave
       real, parameter :: lambda = 0.30 ! MJT daily ave
+      real, parameter :: eta_p = 0.00 ! MJT daily ave
+      real, parameter :: lambda_p = 0.10 ! MJT daily ave
       logical, save :: firstcall = .true. ! MJT daily ave
       data mtimeb/-1/
       save mtimeb
@@ -349,17 +362,16 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
        if(io_in==1)then
         call infile(1,kdate_r,ktime_r,timeg_b,ds_r, 
      .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
-     &            duma,duma,duma,duma,duma,duma,duma, 
-     &            duma,duma,duma,duma,duma,dumm,ifull,kl,
-     &            duma,dumm,urban,cplant_h,csoil_h,
-     &            duma) ! MJT cable ! MJT lsmask ! MJT urban
+     &            dumg,dumg,dumg,duma,duma,dumv,dumv, 
+     &            dums,dums,dums,duma,duma,dumm,ifull,kl,
+     &            dumm,urban,cplant_h,csoil_h,datoc) ! MJT cable ! MJT lsmask ! MJT urban ! MJT mlo
        endif   ! (io_in==1)
 
        if(io_in==-1)then
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
-     &        duma,duma,duma,duma,duma,duma,duma,duma,duma,duma, ! just dummies
-     &        duma,dumm,duma,urban) ! MJT cable ! MJT urban
+     &        dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,duma, ! just dummies
+     &        duma,dumm,urban,datoc) ! MJT urban ! MJT mlo
        endif   ! (io_in==1)
        tssb(:) = abs(tssb(:))  ! moved here Mar '03
        if (mydiag) then
@@ -474,33 +486,33 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
           ! preturb daily average
           if (myid == 0) print *,"Using averaged data for filter"
 	  
-	  psla=pslb-psla/real(ncount)
-	  ua=ub-ua/real(ncount)
-	  va=vb-va/real(ncount)
-	  ta=tb-ta/real(ncount)
-	  qa=qb-qa/real(ncount)
+          psla=pslb-psla/real(ncount)
+          ua=ub-ua/real(ncount)
+          va=vb-va/real(ncount)
+          ta=tb-ta/real(ncount)
+          qa=qb-qa/real(ncount)
 	  
-	  where (psla*psld.lt.0.) ! anti-windup
-	    psld=0.
-	  end where
-	  where (ua*ud.lt.0.)
-	    ud=0.
-	  end where
-	  where (va*vd.lt.0.)
-	    vd=0.
-	  end where
-	  where (ta*td.lt.0.)
-	    td=0.
-	  end where
-	  where (qa*qd.lt.0.)
-	    qd=0.
-	  end where
-	  
-	  psld=psld+psla
-	  ud=ud+ua
-	  vd=vd+va
-	  td=td+ta
-	  qd=qd+qa
+          where (psla*psld.lt.0.) ! anti-windup
+            psld=0.
+          end where
+          where (ua*ud.lt.0.)
+            ud=0.
+          end where
+          where (va*vd.lt.0.)
+            vd=0.
+          end where
+          where (ta*td.lt.0.)
+            td=0.
+          end where
+          where (qa*qd.lt.0.)
+            qd=0.
+          end where
+  
+          psld=psld+psla
+          ud=ud+ua
+          vd=vd+va
+          td=td+ta
+          qd=qd+qa
           pslc=eta*psla+lambda*psld
           uc=eta*ua+lambda*ud
           vc=eta*va+lambda*vd
@@ -569,13 +581,16 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
            endif    ! (land(iq))
           enddo     ! iq loop
 
-!         calculate time interpolated tss 
-          do iq=1,ifull
-           if(.not.land(iq))then
-             tss(iq)=tssb(iq)
-             tgg(iq,1)=tss(iq)
-           endif  ! (.not.land(iq))
-          enddo   ! iq loop 
+          if (nmlo.eq.0) then ! MJT mlo
+!           calculate time interpolated tss 
+            where (.not.land)
+              tss=tssb
+              tgg(:,1)=tss
+            end where  ! (.not.land(iq))
+          else if (nmlo.eq.2) then
+            ! nudge mlo (assume 5 deg resolution)
+            call mlofilter(tssb,5.*pi/180.)
+          end if
         end if ! (namip.eq.0.and.ntest.eq.0)
       end if ! (mod(nint(ktau*dt),60).eq.0)
 
@@ -2452,3 +2467,79 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       end subroutine procdiv
       !---------------------------------------------------------------------------------
 
+      ! Filter for MLO 
+      subroutine mlofilter(new,hostscale) ! MJT mlo
+
+      use mlo, only : mloimport,mloexport
+      use cc_mpi
+
+      implicit none
+
+      include 'newmpar.h'    ! ifull_g,kl
+      include 'xyzinfo_g.h'  ! x_g,y_g,z_g
+      include 'map_g.h'      ! em_g
+      include 'mpif.h'       ! MPI
+      include 'soil.h'       ! land
+
+      integer :: iqw,itag=0,status,ierr
+      integer :: ilev,iproc,ns,ne
+      real, dimension(ifull), intent(in) :: new
+      real, dimension(ifull) :: diff,old
+      real, dimension(ifull_g) :: diff_g,r,dd
+      real, intent(in) :: hostscale
+      real :: cq
+      real, parameter :: alpha = 1./1. ! 1/(e-folding time)
+      logical, dimension(ifull_g) :: mask
+
+      cq=1./(1.2*hostscale)
+      ilev=2
+      
+      call mloexport(ifull,old,ilev,0)
+
+      diff=999999.
+      where (.not.land)
+        diff(:)=new-old
+      end where
+
+      if (myid.eq.0) then
+        call ccmpi_gather(diff, diff_g)
+      else
+        call ccmpi_gather(diff)
+      end if
+      call MPI_Bcast(diff_g,ifull_g,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+
+      call procdiv(ns,ne,ifull_g,nproc,myid)
+      mask=diff_g.lt.900000.
+      dd=999999.
+      do iqw=ns,ne
+        if (mask(iqw)) then
+          r(:)=x_g(iqw)*x_g(:)+y_g(iqw)*y_g(:)+z_g(iqw)*z_g(:)
+          r(:)=acos(max(min(r(:),1.),-1.))
+          r(:)=exp(-(cq*r(:))**2)/(em_g(:)*em_g(:))
+          dd(iqw)=sum(r(:)*diff_g(:),mask)/sum(r(:),mask)
+        end if
+      end do
+      diff_g=dd
+
+      itag=itag+1
+      if (myid == 0) then
+        do iproc=1,nproc-1
+          call procdiv(ns,ne,ifull_g,nproc,iproc)
+          call MPI_Recv(diff_g(ns:ne),ne-ns+1,MPI_REAL,iproc,itag,
+     &                  MPI_COMM_WORLD,status,ierr)
+        end do
+        call ccmpi_distribute(diff, diff_g)
+      else
+        call MPI_SSend(diff_g(ns:ne),ne-ns+1,MPI_REAL,0,itag,
+     &                 MPI_COMM_WORLD,ierr)
+        call ccmpi_distribute(diff)
+      end if
+
+      where (.not.land.and.diff.lt.900000.)
+        old=old+alpha*diff(:)
+      end where  
+      
+      call mloimport(ifull,old,ilev,0) ! nudge into level 2
+
+      return
+      end subroutine mlofilter

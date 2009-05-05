@@ -6,7 +6,8 @@
      &        nudu_hrs,ktau,ndi,ndi2,ntau,nperavg,nperday,nmaxpr,nlv,    &
      &        ia,ib,ja,jb,id,jd,idjd,                                    &
      &        io_clim,io_in,io_out,io_rest,io_spec,                      &
-     &        nwt,nqg,nrun,nrunx,nextout,nclim,m_fly,nsemble,nurban,nmr ! MJT urban ! MJT mr                  
+     &        nwt,nqg,nrun,nrunx,nextout,nclim,m_fly,nsemble,            &
+     &        nurban,nmr,nmlo ! MJT urban ! MJT mr ! MJT mlo
       real qgmin,                                                        &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
      &     ds,dt,dtin,timea,panfg,panzo
@@ -23,7 +24,7 @@
       common/parmsfce/newrough,newsoilm,nsib,nsoil,ntsea,ntsur,ntsur2,   &
      &                lgwd,newztsea,aleadfr,av_vmod,vmodmin,snmin,       &
      &                tss_sh,nglacier,charnock,chn10,zobgin,ntaft,       &
-     &                panfg,panzo,nurban,nmr ! MJT urban ! MJT nmr     
+     &                panfg,panzo,nurban,nmr,nmlo ! MJT urban ! MJT nmr ! MJT mlo
 
       common/parmnudg/nbd,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,   &
      &                nud_hrs,nudu_hrs,mbd

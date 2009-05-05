@@ -3,7 +3,7 @@
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,   ! 0808
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                    rtsoil,urban) ! MJT cable ! MJT urban
+     .                    urban,datoc) ! MJT urban ! MJT mlo
 !     Target points use values interpolated to their 4 grid "corners";
 !     these corner values are then averaged to the grid centres
 !     N.B. this means will get different fields with io_in=-1 from io_in=1
@@ -12,6 +12,7 @@
 !     ****  qfg and qlg not yet interpolated in ontheflyx
       use cc_mpi
       use utilities
+      use mlo, only : wlev ! MJT mlo
       implicit none
       integer, parameter :: ntest=0
       integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
@@ -48,7 +49,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      & ssdnn(ifull),snage(ifull),qfg(ifull,kl),qlg(ifull,kl),
-     & rtsoil(ifull),urban(ifull,12) ! MJT cable ! MJT urban
+     & urban(ifull,12),datoc(ifull,wlev,4) ! MJT urban ! MJT mlo
       ! Dummy variables here replace the aliasing use of aa, bb in infile call
       integer isflag(ifull)
       ! Will get odd results unless this is on process 0 ???
@@ -87,7 +88,7 @@ c     start of processing loop
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,  ! 0808
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    rtsoil,urban) ! MJT cable ! MJT urban
+     .                    urban,datoc) ! MJT urban ! MJT mlo
       return
       end
       subroutine ontheflyx(nested,land_t,kdate_r,ktime_r,
@@ -95,9 +96,10 @@ c     start of processing loop
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    rtsoil,urban) ! MJT cable ! MJT urban
+     .                    urban,datoc) ! MJT urban ! MJT mlo
       use cc_mpi
       use define_dimensions, only : ncs, ncp ! MJT cable
+      use mlo, only : wlev ! MJT mlo
       use utilities
       implicit none
       integer, parameter :: ntest=0
@@ -122,7 +124,6 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       include 'soil.h'
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
       include 'tracers.h'
-      include 'vegpar.h' ! MJT cable
       include 'vecsuv_g.h'
       include 'vvel.h'
       include 'mpif.h'
@@ -134,18 +135,18 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       real, dimension(ifull,ms) :: wb,wbice,tgg
       real, dimension(ifull,3) :: tggsn,smass,ssdn
       real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg
-      real, dimension(ifull) :: rtsoil ! MJT cable
       real, dimension(ifull,12) :: urban ! MJT urban
+      real, dimension(ifull,wlev,4) :: datoc ! MJT urban
       integer, dimension(ifull) :: isflag
       real, dimension(ik*ik*6) :: psl_a,zss_a,tss_a,fracice_a,dum5,
      &      snowd_a,sicedep_a,ssdnn_a,snage_a,pmsl_a,  tss_l_a,tss_s_a
       real, dimension(ik*ik*6,ms) :: wb_a,wbice_a,tgg_a
       real, dimension(ik*ik*6,3) :: tggsn_a,smass_a,ssdn_a
       real, dimension(ik*ik*6,kk) :: t_a,u_a,v_a,qg_a,qfg_a,qlg_a
-      real, dimension(ik*ik*6) :: rtsoil_a,cansto_a ! MJT cable
       real, dimension(ik*ik*6,ncp) :: cplant_a ! MJT cable
       real, dimension(ik*ik*6,ncs) :: csoil_a  ! MJT cable
       real, dimension(ik*ik*6,12) :: urban_a ! MJT urban
+      real, dimension(ik*ik*6,wlev,4) :: datoc_a ! MJT mlo
       integer, dimension(ik*ik*6) :: isflag_a
       real ::  rlong0x, rlat0x, schmidtx, spval
       integer ::  kdate_r, ktime_r, nemi, id2,jd2,idjd2,
@@ -181,19 +182,11 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       ! infile reads and distributes data (not from onthefly) to appropriate processors, so
       ! all processors must call it here.
       ! illegal aliasing of arguments removed now
-   !   if(nested==0)then ! MJT bug
         call infile(nested,kdate_r,ktime_r,timegb,ds,
      &       psl_a,zss_a,tss_a,sicedep_a,fracice_a,t_a,u_a,v_a,qg_a,
      &       tgg_a,wb_a,wbice_a,dum5,snowd_a,qfg_a,qlg_a,                ! dum5 is alb
      &       tggsn_a,smass_a,ssdn_a,ssdnn_a,snage_a,isflag_a,ik*ik*6,
-     &       kk,rtsoil_a,isoilm_a,urban_a,cplant_a,csoil_a,cansto_a) ! MJT cable ! MJT lsmask ! MJT urban
-   !   else
-   !     call infile(nested,kdate_r,ktime_r,timegb,ds,
-   !  &       psl_a,zss_a,tss_a,sicedep_a,fracice_a,t_a,u_a,v_a,qg_a,
-   !  &       tgg_a,wb_a,wbice_a,dum5,snowd_a,qfg_a,qlg_a,                ! dum5 is alb
-   !  &       tggsn_a,smass_a,ssdn_a,ssdnn_a,snage_a,isflag_a,ik*ik*6,
-   !  &       kk,rtsoil_a,isoilm_a,urban_a,cplant_a,csoil_a,cansto_a) ! MJT cable ! MJT lsmask ! MJT urban
-   !   endif   
+     &       kk,isoilm_a,urban_a,cplant_a,csoil_a,datoc_a)     ! MJT cable ! MJT lsmask ! MJT urban ! MJT mlo
 !     N.B. above infile call returns values for ik,jk,kk of source data
 !     Purpose of setxyz call is to get geometry (and so xx4 yy4) 
 !     for the source grid. Only process 0 needs to do this here
@@ -406,10 +399,10 @@ c        print *,'before fill wb'
 c        write(6,"('wb_s(1)#  ',9f7.3)") 
 c     .          ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
        endif  ! (nproc==1.and.nmaxpr==1)
-       call fill_cc(tss_l_a,spval,ik)
-       call fill_cc(tss_s_a,spval,ik)
-       call fill_cc(sicedep_a,spval,ik)
-       call fill_cc(fracice_a,spval,ik)
+       call fill_cc(tss_l_a,spval,ik,0)
+       call fill_cc(tss_s_a,spval,ik,0)
+       call fill_cc(sicedep_a,spval,ik,0)
+       call fill_cc(fracice_a,spval,ik,0)
        if(nproc==1.and.nmaxpr==1)then
         print *,'after fill tss_l, tss_s ',tss_l_a(idjd2),tss_s_a(idjd2)
         print *,'after fill sicedep ',sicedep_a(idjd2)
@@ -451,10 +444,10 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
             enddo
          endif  !   (.not.land_a(iq)) 
         enddo   ! iq loop
-        call fill_cc(snowd_a,spval,ik)
+        call fill_cc(snowd_a,spval,ik,0)
         do k=1,ms
-         call fill_cc(tgg_a(1,k),spval,ik)
-         call fill_cc(wb_a(1,k),spval,ik)
+         call fill_cc(tgg_a(1,k),spval,ik,0)
+         call fill_cc(wb_a(1,k),spval,ik,0)
         enddo
        endif  ! (myid==0)
        call doints4(snowd_a,  snowd,nface4,xg4,yg4,nord,ik)
@@ -470,7 +463,7 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
               where ((.not.land_a(:)).or.(urban_a(:,k).ge.399.))
                 urban_a(:,k)=spval
               end where
-              call fill_cc(urban_a(:,k),spval,ik)
+              call fill_cc(urban_a(:,k),spval,ik,0)
             end do
           end if
           do k=1,12
@@ -480,30 +473,43 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
         end if
         !--------------------------------------------------
         !--------------------------------------------------
-        ! MJT cable
-        if ((nsib.eq.4).or.(nsib.eq.6)) then
+        ! MJT mlo
+        if (nmlo.ne.0) then
           if (myid==0) then
-            where (.not.land_a(:))
-              rtsoil_a(:)=spval
-              cansto_a(:)=spval
-            end where
-            call fill_cc(rtsoil_a(:),spval,ik)
-            call fill_cc(cansto_a(:),spval,ik)
+            do m=1,4
+              do k=1,wlev
+                where (land_a.or.datoc_a(:,k,m).ge.399.)
+                  datoc_a(:,k,m)=spval
+                end where
+                call fill_cc(datoc_a(:,k,m),spval,ik,0)
+              end do
+            end do
+          end if
+          do m=1,4
+            do k=1,wlev
+              call doints4(datoc_a(:,k,m),datoc(:,k,m),nface4,xg4
+     &                   ,yg4,nord,ik)
+            end do
+          end do
+        end if
+        !--------------------------------------------------
+        !--------------------------------------------------
+        ! MJT cable
+        if (nsib.eq.4.or.nsib.eq.6) then
+          if (myid==0) then
             do k=1,ncp
               where (.not.land_a(:))
                 cplant_a(:,k)=spval
               end where
-              call fill_cc(cplant_a(:,k),spval,ik)
+              call fill_cc(cplant_a(:,k),spval,ik,0)
             end do
             do k=1,ncs
               where (.not.land_a(:))
                 csoil_a(:,k)=spval
               end where
-              call fill_cc(csoil_a(:,k),spval,ik)
+              call fill_cc(csoil_a(:,k),spval,ik,0)
             end do
           end if
-          call doints4(rtsoil_a(:),rtsoil(:),nface4,xg4,yg4,nord,ik)
-          call doints4(cansto_a(:),cansto(:),nface4,xg4,yg4,nord,ik)
           do k=1,ncp
             call doints4(cplant_a(:,k),cplant(:,k),nface4,xg4,yg4,
      &                   nord,ik)
@@ -872,7 +878,7 @@ c      print *,'iq,idel,jdel,n ',iq,idel,jdel,n
 
       end subroutine ints_blb
 
-      subroutine fill_cc(a_io,value,ik)
+      subroutine fill_cc(a_io,value,ik,ndiag)
 !     this version holds whole array in memory      
 c     routine fills in interior of an array which has undefined points
       use cc_mpi
@@ -884,13 +890,16 @@ c     include 'indices.h'
       real value            ! array value denoting undefined
 c     real b(ik*ik*6), a(ik*ik*6+iextra)
       real b(ik*ik*6), a(ik*ik*6)
-      integer :: num, nrem, i, ii, ik, iq, ind, j, n, neighb
+      integer :: num, nrem, i, ii, ik, iq, ind, j, n, neighb, ndiag
       real :: av, avx     
       integer, dimension(ik*ik*6) :: in,ie,iw,is
       integer npann(0:5),npane(0:5),npanw(0:5),npans(0:5)
       data npann/1,103,3,105,5,101/,npane/102,2,104,4,100,0/
       data npanw/5,105,1,101,3,103/,npans/104,0,100,2,102,4/
       ind(i,j,n)=i+(j-1)*ik+n*ik*ik  ! *** for n=0,npanels
+      
+      if (all(a_io.eq.value)) return ! MJT urban ! MJT mlo
+      
        do iq=1,ik*ik*6
        in(iq)=iq+ik
        is(iq)=iq-ik
@@ -922,7 +931,7 @@ c     real b(ik*ik*6), a(ik*ik*6+iextra)
         enddo    ! ii loop
       else
         do ii=1,ik
-         iw(ind(1,ii,n))=ind(ik+1-ii,il,npanw(n)-100)
+         iw(ind(1,ii,n))=ind(ik+1-ii,ik,npanw(n)-100)
         enddo    ! ii loop
       endif      ! (npanw(n).lt.100)
       if(npans(n).lt.100)then

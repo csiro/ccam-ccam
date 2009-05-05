@@ -268,7 +268,8 @@ c=======================================================================
       use ateb ! MJT urban
       use cc_mpi
       use cable_ccam, only : savetile ! MJT cable
-      use define_dimensions, only : ncs, ncp ! MJT cable      
+      use define_dimensions, only : ncs, ncp ! MJT cable
+      use mlo, only : wlev,mlosave      
       implicit none
 
 c     this routine creates attributes and writes output
@@ -308,7 +309,7 @@ c     this routine creates attributes and writes output
 
       integer iarch, itype
       logical, intent(in) :: local
-      character lname*40,mnam*21,nnam*21,expdesc*50
+      character lname*40,mnam*21,nnam*21,expdesc*50,vname*8 ! MJT mlo
       integer dim(4)
       integer idim(3)
       real xpnt(il_g),ypnt(jl_g)
@@ -330,7 +331,8 @@ c     this routine creates attributes and writes output
       real cfrac
       common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
       real zsoil(ms)
-      real, dimension(ifull,1:12) :: urban ! MJT urban
+      real, dimension(ifull,12) :: urban ! MJT urban
+      real, dimension(ifull,wlev,4) :: datoc ! MJT mlo
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
 
@@ -523,20 +525,6 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         !call attrib(idnc,idim,3,'wbfroot',lname,'frac',0.,4.,0)
         !lname = 'Soil moisture as frac FC levels 1-6'
         !call attrib(idnc,idim,3,'wbftot',lname,'frac',0.,4.,0)
-        if ((nsib.eq.4).or.(nsib.eq.6)) then  ! MJT cable
-          lname = 'Carbon leaf pool'
-          call attrib(idnc,idim,3,'cplant1',lname,'none',0.,50000.,0)
-          lname = 'Carbon wood pool'
-          call attrib(idnc,idim,3,'cplant2',lname,'none',0.,50000.,0)
-          lname = 'Carbon root pool'
-          call attrib(idnc,idim,3,'cplant3',lname,'none',0.,50000.,0)
-          lname = 'Carbon soil fast pool'
-          call attrib(idnc,idim,3,'csoil1',lname,'none',0.,50000.,0)
-          lname = 'Carbon soil slow pool'
-          call attrib(idnc,idim,3,'csoil2',lname,'none',0.,50000.,0)
-          lname = 'cansto'
-          call attrib(idnc,idim,3,'cansto',lname,'none',0.,10.,0)
-        endif
         if(nextout>=1) then
           print *,'nextout=',nextout
           lname = 'LW at TOA'
@@ -702,6 +690,19 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          call attrib(idnc,dim,4,'cfrac','Cloud fraction','none',0.,1.,0)
         endif
 
+        if (nsib.eq.4.or.nsib.eq.6) then  ! MJT cable
+          lname = 'Carbon leaf pool'
+          call attrib(idnc,idim,3,'cplant1',lname,'none',0.,50000.,0)
+          lname = 'Carbon wood pool'
+          call attrib(idnc,idim,3,'cplant2',lname,'none',0.,50000.,0)
+          lname = 'Carbon root pool'
+          call attrib(idnc,idim,3,'cplant3',lname,'none',0.,50000.,0)
+          lname = 'Carbon soil fast pool'
+          call attrib(idnc,idim,3,'csoil1',lname,'none',0.,50000.,0)
+          lname = 'Carbon soil slow pool'
+          call attrib(idnc,idim,3,'csoil2',lname,'none',0.,50000.,0)
+        endif
+
         if(itype==-1)then   ! extra stuff just written for restart file
          lname= 'sdot: change in grid spacing per time step +.5'
          call attrib(idnc,dim,4,'sdot',lname,'1/ts',-3.,3.,0) 
@@ -739,13 +740,17 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          call attrib(idnc,idim,3,'snage',lname,'none',0.,20.,0)   
          lname = 'Snow flag'
          call attrib(idnc,idim,3,'sflag',lname,'none',0.,4.,0)
-         lname = 'Soil turbulent resistance' ! MJT cable
-         call attrib(idnc,idim,3,'rtsoil',lname,'none',0.,9.e4,0) 
+         if (nsib.eq.4.or.nsib.eq.6) then ! MJT cable
+           lname = 'Soil turbulent resistance' 
+           call attrib(idnc,idim,3,'rtsoil',lname,'none',0.,9.e4,0) 
+           lname = 'cansto'
+           call attrib(idnc,idim,3,'cansto',lname,'none',0.,10.,0)
+         end if
         endif  ! (itype==-1)
 
         !--------------------------------------------------------
         ! MJT urban
-        if ((nurban.eq.-1).or.((nurban.eq.1).and.(itype==-1))) then
+        if (nurban.eq.-1.or.(nurban.eq.1.and.itype==-1)) then
          lname = 'roof temperature lev 1'
          call attrib(idnc,idim,3,'rooftgg1',lname,'K',100.,400.,0)
          lname = 'roof temperature lev 2'
@@ -770,6 +775,28 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          call attrib(idnc,idim,3,'roadtgg2',lname,'K',100.,400.,0)
          lname = 'road temperature lev 3'
          call attrib(idnc,idim,3,'roadtgg3',lname,'K',100.,400.,0)
+        end if
+        !--------------------------------------------------------  
+        
+        !--------------------------------------------------------  
+        ! MJT mlo
+        if (nmlo.ne.0) then
+          do k=ms+1,wlev
+           write(lname,'("soil/ocean temperature lev ",I2)') k
+           write(vname,'("tgg",I2.2)') k
+           call attrib(idnc,idim,3,vname,lname,'K',100.,400.,0)
+          end do
+          do k=1,wlev
+           write(lname,'("ocean salinity lev ",I2)') k
+           write(vname,'("sal",I2.2)') k
+           call attrib(idnc,idim,3,vname,lname,'PSU',0.,100.,0)
+           write(lname,'("ocean U velocity lev ",I2)') k
+           write(vname,'("uoc",I2.2)') k
+           call attrib(idnc,idim,3,vname,lname,'m/s',-10.,10.,0)
+           write(lname,'("ocean V velocity lev ",I2)') k
+           write(vname,'("voc",I2.2)') k
+           call attrib(idnc,idim,3,vname,lname,'m/s',-10.,10.,0)
+          end do
         end if
         !--------------------------------------------------------  
 
@@ -911,6 +938,30 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       aa(:)=0.5*sum(albvisnir(:,:),2) ! MJT CHANGE albedo
       call atebalb1(1,ifull,aa(:),0) ! MJT urban
       call histwrt3(aa,'alb',idnc,iarch,local)
+      !---------------------------------------------------------
+      ! MJT mlo
+      if (nmlo.ne.0) then
+        datoc=999. ! must be the same as spval in onthefly.f
+        call mlosave(ifull,datoc,0)
+        do k=1,ms
+          where (.not.land)
+            tgg(:,k)=datoc(:,k,1)
+          end where
+        end do
+        do k=ms+1,wlev
+          write(vname,'("tgg",I2.2)') k
+          call histwrt3(datoc(:,k,1),vname,idnc,iarch,local)
+        end do
+        do k=1,wlev
+          write(vname,'("sal",I2.2)') k
+          call histwrt3(datoc(:,k,2),vname,idnc,iarch,local)
+          write(vname,'("uoc",I2.2)') k
+          call histwrt3(datoc(:,k,3),vname,idnc,iarch,local)
+          write(vname,'("voc",I2.2)') k
+          call histwrt3(datoc(:,k,4),vname,idnc,iarch,local)
+        end do
+      end if
+      !---------------------------------------------------------
       call histwrt3(tgg(1,1),'tgg1',idnc,iarch,local)
       call histwrt3(tgg(1,2),'tgg2',idnc,iarch,local)
       call histwrt3(tgg(1,3),'tgg3',idnc,iarch,local)
@@ -923,18 +974,17 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       !call histwrt3(wb(1,4),'wb4',idnc,iarch,local)
       !call histwrt3(wb(1,5),'wb5',idnc,iarch,local)
       !call histwrt3(wb(1,6),'wb6',idnc,iarch,local)
-      if ((nsib.eq.4).or.(nsib.eq.6)) then ! MJT cable
+      if (nsib.eq.4.or.nsib.eq.6) then ! MJT cable
 ! rml: moved from section that isn't written to restart file
          !call histwrt3(sumpn,'sumpn',idnc,iarch,local)
          !call histwrt3(sumrp,'sumrp',idnc,iarch,local)
          !call histwrt3(sumrs,'sumrs',idnc,iarch,local)
          !call histwrt3(sumrd,'sumrd',idnc,iarch,local)
-      call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local)
-      call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local)
-      call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local)
-      call histwrt3(csoil(:,1),'csoil1',idnc,iarch,local)
-      call histwrt3(csoil(:,2),'csoil2',idnc,iarch,local)
-      call histwrt3(cansto,'cansto',idnc,iarch,local)
+        call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local)
+        call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local)
+        call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local)
+        call histwrt3(csoil(:,1),'csoil1',idnc,iarch,local)
+        call histwrt3(csoil(:,2),'csoil2',idnc,iarch,local)
       endif    
     !  do iq=1,ifull ! MJT delete
 !   !   calculate wb/field_capacity;  up to 3.0 for sand (isoil=1)	   
@@ -1148,14 +1198,17 @@ c      "extra" outputs
        call histwrt3(ssdn(1,2),'ssdn2',idnc,iarch,local)
        call histwrt3(ssdn(1,3),'ssdn3',idnc,iarch,local)
        call histwrt3(snage,'snage',idnc,iarch,local)
-       call histwrt3(rtsoil,'rtsoil',idnc,iarch,local) ! MJT cable       
        aa(:)=isflag(:)
        call histwrt3(aa,'sflag',idnc,iarch,local)
-       if (nsib.eq.4.or.nsib.eq.6) call savetile(idnc,local,idim) ! MJT cable
+       if (nsib.eq.4.or.nsib.eq.6) then ! MJT cable       
+         call histwrt3(rtsoil,'rtsoil',idnc,iarch,local) 
+         call histwrt3(cansto,'cansto',idnc,iarch,local)       
+         call savetile(idnc,local,idim)
+       end if
       endif  ! (itype==-1)
       !---------------------------------------------------------
       ! MJT urban
-      if ((nurban.eq.-1).or.((nurban.eq.1).and.(itype==-1))) then
+      if (nurban.eq.-1.or.(nurban.eq.1.and.itype==-1)) then
        urban(:,:)=999. ! must be the same as spval in onthefly.f
        call atebsavem(ifull,urban,0)
        call histwrt3(urban(:,1),'rooftgg1',idnc,iarch,local)
@@ -1175,23 +1228,23 @@ c      "extra" outputs
       
       !---------------------------------------------------------
       ! MJT CHANGE - Add wetfrac1-6 and possibly remove wb1-6 above
-        aa(:)=(wb(:,1)-swilt(isoilm(:)))/
-     &        (sfc(isoilm(:))-swilt(isoilm(:)))
+        aa(:)=(wb(:,1)-swilt(isoilm))/
+     &        (sfc(isoilm)-swilt(isoilm))
         call histwrt3(aa,'wetfrac1',idnc,iarch,local)
-        aa(:)=(wb(:,2)-swilt(isoilm(:)))/
-     &        (sfc(isoilm(:))-swilt(isoilm(:)))
+        aa(:)=(wb(:,2)-swilt(isoilm))/
+     &        (sfc(isoilm)-swilt(isoilm))
         call histwrt3(aa,'wetfrac2',idnc,iarch,local)
-        aa(:)=(wb(:,3)-swilt(isoilm(:)))/
-     &        (sfc(isoilm(:))-swilt(isoilm(:)))
+        aa(:)=(wb(:,3)-swilt(isoilm))/
+     &        (sfc(isoilm)-swilt(isoilm))
         call histwrt3(aa,'wetfrac3',idnc,iarch,local)
-        aa(:)=(wb(:,4)-swilt(isoilm(:)))/
-     &        (sfc(isoilm(:))-swilt(isoilm(:)))
+        aa(:)=(wb(:,4)-swilt(isoilm))/
+     &        (sfc(isoilm)-swilt(isoilm))
         call histwrt3(aa,'wetfrac4',idnc,iarch,local)
-        aa(:)=(wb(:,5)-swilt(isoilm(:)))/
-     &        (sfc(isoilm(:))-swilt(isoilm(:)))
+        aa(:)=(wb(:,5)-swilt(isoilm))/
+     &        (sfc(isoilm)-swilt(isoilm))
         call histwrt3(aa,'wetfrac5',idnc,iarch,local)
-        aa(:)=(wb(:,6)-swilt(isoilm(:)))/
-     &        (sfc(isoilm(:))-swilt(isoilm(:)))
+        aa(:)=(wb(:,6)-swilt(isoilm))/
+     &        (sfc(isoilm)-swilt(isoilm))
         call histwrt3(aa,'wetfrac6',idnc,iarch,local)       
       !---------------------------------------------------------
 
