@@ -3,7 +3,16 @@ module cable_ccam
   ! CABLE interface originally developed by the CABLE group
   ! Subsequently modified by MJT for mosaic
 
-  use define_types, cbm_ms => ms
+  ! Things to do:
+  !   - interpolate LAI in time (i.e., AMIP stype)
+  !   - fix soil dataset
+  !   - calculate ratio of nir and vis shortwave radiation
+  !   - calculate diffuse and direct components of radiation
+
+  USE define_dimensions, cbm_ms => ms
+  USE cable_variables
+  use cab_albedo_module
+  USE cbm_module  
 
   private
   public CABLE,sib4,loadcbmparm,savetile
@@ -15,29 +24,12 @@ module cable_ccam
   real, dimension(:), allocatable, save :: sv,vl
   integer, parameter :: CO2forcingtype=1   ! 1 constant, 2 prescribed 1900-2004,
                                            ! 3 interactive
-  TYPE (air_type)             :: air
-  TYPE (bgc_pool_type)        :: bgc
-  TYPE (canopy_type)          :: canopy
-  TYPE (met_type)             :: met
-  TYPE (balances_type)        :: bal
-  TYPE (radiation_type)       :: rad
-  TYPE (roughness_type)       :: rough
-  type (soil_parameter_type)  :: soil       ! soil parameters
-  TYPE (soil_snow_type)       :: ssoil
-  TYPE (sum_flux_type)        :: sum_flux
-  type (veg_parameter_type)   :: veg        ! vegetation parameters
-  ! Save these so only have to do the allocation once.
-  save air, bgc, canopy, met, bal, rad, rough, soil, ssoil, &
-       sum_flux, veg
-
   contains
   ! ****************************************************************************
 
   subroutine sib4
 
       use zenith_m
-      USE cbm_module
-      use physical_constants, only : umin
   
       implicit none
 
@@ -70,7 +62,7 @@ module cable_ccam
      & ,aft(ifull),fh(ifull),ri(ifull),theta(ifull)        &
      & ,gamm(ifull),rg(ifull),vmod(ifull),dummwk2(ifull)
 
-      ! for calculation of zenith angle
+     ! for calculation of zenith angle
       real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull)
       real bpyear,alp
       real tmps(ifull)
@@ -116,29 +108,48 @@ module cable_ccam
        met%ca=1.e-6*atmco2(cmap)
        met%coszen=max(1.e-8,coszro2(cmap)) ! use instantaneous value
          
-       met%fld=-rgsave(cmap)        ! long wave down  
        met%qv=qg(cmap,1)        ! specific humidity in kg/kg
        met%pmb=.01*ps(cmap)     ! pressure in mb at ref height
        met%precip=condx(cmap)
-       met%hod=(met%doy-int(met%doy))*24.0 + rlongg(cmap)*180./(15.*pi)
-       where (met%hod.gt.24.0) met%hod=met%hod-24.0
-       rough%za=-287.*t(cmap,1)*log(sig(1))/grav   ! reference height
-       met%fsd=sgsave(cmap)/(1.-0.5*sum(albvisnir(cmap,:),2))! short wave down (positive) W/m^2
+       met%hod=(met%doy-int(met%doy))*24. + rlongg(cmap)*180./(15.*pi)
+       where (met%hod.gt.24.) met%hod=met%hod-24.
+       rough%za_tq=-287.*t(cmap,1)*log(sig(1))/grav   ! reference height
+       rough%za_uv=rough%za_tq
+
+       met%fsd(:,3)=sgsave(cmap)/(1.-0.5*sum(albvisnir(cmap,:),2))! short wave down (positive) W/m^2       
+       met%fsd(:,1)=0.5*met%fsd(:,3) ! should get this ratio from swr99.f
+       met%fsd(:,2)=0.5*met%fsd(:,3)
+       rad%fbeam(:,3)=spitterx(met%doy,met%coszen,met%fsd(:,3)) ! check
+       rad%fbeam(:,1)=rad%fbeam(:,3)
+       rad%fbeam(:,2)=rad%fbeam(:,3)
+       met%fld=-rgsave(cmap)        ! long wave down
        
        veg%vlai(:)=max(vl(:),0.1) ! for updating LAI
 
-       met%tc=met%tk - 273.16
+       met%tc=met%tk-273.16
+       met%tvair=met%tk
+       met%tvrad=met%tk
        met%ua=max(met%ua,umin)
        met%precip_s=0. ! in mm not mm/sec
-       where ( met%tc < 0.0 ) met%precip_s = met%precip
-       
+       where (met%tc<0.) met%precip_s=met%precip
+  
        if (ktau.eq.1.and.all(ssoil%rtsoil.eq.0.)) ssoil%rtsoil=rtsoil(cmap)
 
-!      rml 21/09/07 remove ktauplus+ktau due to change in cable_offline
-       CALL cbm(ktau, kstart, ntau, dt, air, bgc, canopy, met, &
-     &      bal, rad, rough, soil, ssoil, sum_flux, veg, mxvt, mxst)
-
+      CALL cbm(ktau, ntau, dt, air, bgc, canopy, met, bal, &
+            rad, rough, soil, ssoil, sum_flux, veg, .true., .false. )  ! explicit
+      CALL cab_albedo(ktau,dt, ssoil, veg, air, met, rad, &
+                      soil, .true. )                                   ! radiation
+      CALL cbm(ktau, ntau, dt, air, bgc, canopy, met, bal,  &
+            rad, rough, soil, ssoil, sum_flux, veg, .false., .false. ) ! implicit
+      CALL cbm(ktau, ntau, dt, air, bgc, canopy, met, bal,  &
+            rad, rough, soil, ssoil, sum_flux, veg, .false., .true. )  ! hydrology
+    
       ! average diagnostic fields
+      tgg(iperm(1:ipland),:)=0.
+      wb(iperm(1:ipland),:)=0.
+      wbice(iperm(1:ipland),:)=0.
+      cplant(iperm(1:ipland),:)=0.
+      csoil(iperm(1:ipland),:)=0.
       albsoilsn(iperm(1:ipland),:)=0.
       albsav(iperm(1:ipland))=0.
       albnirsav(iperm(1:ipland))=0.
@@ -150,17 +161,6 @@ module cable_ccam
       tprecip(iperm(1:ipland))=0.
       totenbal(iperm(1:ipland))=0.
       trnoff(iperm(1:ipland))=0.
-      tgg(iperm(1:ipland),:)=0.
-      wb(iperm(1:ipland),:)=0.
-      wbice(iperm(1:ipland),:)=0.
-      tggsn(iperm(1:ipland),:)=0.
-      smass(iperm(1:ipland),:)=0.
-      ssdn(iperm(1:ipland),:)=0.
-      ssdnn(iperm(1:ipland))=0.
-      snowd(iperm(1:ipland))=0.
-      !osnowd(iperm(1:ipland))=0.
-      !osnowd0(iperm(1:ipland))=0.
-      snage(iperm(1:ipland))=0.
       rtsoil(iperm(1:ipland))=0.
       rnet(iperm(1:ipland))=0.
       fg(iperm(1:ipland))=0.
@@ -184,11 +184,13 @@ module cable_ccam
       sumrpr(iperm(1:ipland))=0.
       sumrs(iperm(1:ipland))=0.
       sumrd(iperm(1:ipland))=0.
-      cplant(iperm(1:ipland),:)=0.
-      csoil(iperm(1:ipland),:)=0.
       zo(iperm(1:ipland))=0.
+      !cduv(iperm(1:ipland))=0.
+      !ustar(iperm(1:ipland))=0.
+      wetfac(iperm(1:ipland))=0.
       tmps=0.
       do nb=1,5
+       if (pind(nb,1).gt.mp) exit
         do k=1,ms
           tgg(cmap(pind(nb,1):pind(nb,2)),k)=tgg(cmap(pind(nb,1):pind(nb,2)),k) &
                                             +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),k)
@@ -229,8 +231,6 @@ module cable_ccam
                                               +sv(pind(nb,1):pind(nb,2))*bal%ebal_tot(pind(nb,1):pind(nb,2))
         trnoff(cmap(pind(nb,1):pind(nb,2)))=trnoff(cmap(pind(nb,1):pind(nb,2))) &
                                             +sv(pind(nb,1):pind(nb,2))*bal%rnoff_tot(pind(nb,1):pind(nb,2))
-        tmps(cmap(pind(nb,1):pind(nb,2)))=tmps(cmap(pind(nb,1):pind(nb,2))) &
-                                           +sv(pind(nb,1):pind(nb,2))*real(ssoil%isflag(pind(nb,1):pind(nb,2)))
         rtsoil(cmap(pind(nb,1):pind(nb,2)))=rtsoil(cmap(pind(nb,1):pind(nb,2))) &
                                             +sv(pind(nb,1):pind(nb,2))/ssoil%rtsoil(pind(nb,1):pind(nb,2))
         rnet(cmap(pind(nb,1):pind(nb,2)))=rnet(cmap(pind(nb,1):pind(nb,2))) &
@@ -276,19 +276,35 @@ module cable_ccam
         sumrd(cmap(pind(nb,1):pind(nb,2)))=sumrd(cmap(pind(nb,1):pind(nb,2))) &
                                            +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrd(pind(nb,1):pind(nb,2))
         zo(cmap(pind(nb,1):pind(nb,2)))=zo(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))/log(zmin/rough%z0m(pind(nb,1):pind(nb,2)))**2
+                                        +sv(pind(nb,1):pind(nb,2))/log(zmin/max(rough%z0m(pind(nb,1):pind(nb,2)),zobgin))**2
+       ! cduv(cmap(pind(nb,1):pind(nb,2)))=cduv(cmap(pind(nb,1):pind(nb,2))) &
+       !                                  +sv(pind(nb,1):pind(nb,2))*canopy%cduv(pind(nb,1):pind(nb,2))
+       ! ustar(cmap(pind(nb,1):pind(nb,2)))=ustar(cmap(pind(nb,1):pind(nb,2))) &
+       !                                  +sv(pind(nb,1):pind(nb,2))*canopy%us(pind(nb,1):pind(nb,2))
+        wetfac(cmap(pind(nb,1):pind(nb,2)))=wetfac(cmap(pind(nb,1):pind(nb,2))) &
+                                         +sv(pind(nb,1):pind(nb,2))*ssoil%wetfac(pind(nb,1):pind(nb,2))
+        tmps(cmap(pind(nb,1):pind(nb,2)))=tmps(cmap(pind(nb,1):pind(nb,2))) &
+                                           +sv(pind(nb,1):pind(nb,2))*real(ssoil%isflag(pind(nb,1):pind(nb,2)))
       end do
       where (land)
         zo=max(zmin*exp(-sqrt(1./zo)),zobgin)
         rtsoil=1./rtsoil
+       ! cduv=cduv*vmod ! cduv is Cd * vmod in CCAM
       end where
       
+      tggsn(iperm(1:ipland),:)=0.
+      smass(iperm(1:ipland),:)=0.
+      ssdn(iperm(1:ipland),:)=0.
+      ssdnn(iperm(1:ipland))=0.
+      snowd(iperm(1:ipland))=0.
+      snage(iperm(1:ipland))=0.
       where (land.and.tmps.ge.0.5)
         isflag=1
       elsewhere
         isflag=0
       endwhere
-      do nb=1,5 ! update snow
+      do nb=1,5 ! update snow (diagnostic only)
+        if (pind(nb,1).gt.mp) exit
         do k=1,3
           where (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.1) ! pack 1-layer into 3-layer
             tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
@@ -340,10 +356,6 @@ module cable_ccam
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%snage(pind(nb,1):pind(nb,2))
         snowd(cmap(pind(nb,1):pind(nb,2)))=snowd(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%snowd(pind(nb,1):pind(nb,2))
-        !osnowd(cmap(pind(nb,1):pind(nb,2)))=osnowd(cmap(pind(nb,1):pind(nb,2))) &
-        !                                  +sv(pind(nb,1):pind(nb,2))*ssoil%osnowd(pind(nb,1):pind(nb,2))
-        !osnowd0(cmap(pind(nb,1):pind(nb,2)))=osnowd0(cmap(pind(nb,1):pind(nb,2))) &
-        !                                   +sv(pind(nb,1):pind(nb,2))*bal%osnowd0(pind(nb,1):pind(nb,2))
       end do
 
       return
@@ -410,7 +422,6 @@ module cable_ccam
   subroutine loadcbmparm(fveg)
 
   use cc_mpi
-  use define_dimensions, only : mp
   
   implicit none
   
@@ -421,6 +432,7 @@ module cable_ccam
   include 'nsibd.h'
   include 'parm.h'
   include 'parmgeom.h'  ! rlong0,rlat0,schmidt
+  include 'pbl.h'
   include 'sigs.h'
   include 'soil.h'
   include 'soilsnow.h'
@@ -429,13 +441,13 @@ module cable_ccam
 
   integer(i_d), dimension(ifull_g,5) :: ivsg
   integer(i_d), dimension(ifull,5) :: ivs
-  integer(i_d) iq,n,nb,k,iad,ipos,ip
+  integer(i_d) iq,n,k,iad,ipos,isoil
   real(r_1) :: totdepth,ra,rb
   real(r_1), dimension(mxvt,ms) :: froot2
   real(r_1), dimension(ifull_g,5) :: svsg,vling
   real(r_1), dimension(ifull,5) :: svs,vlin
+  real, dimension(ifull) :: hruff_grmx
   character(len=*), intent(in) :: fveg
-  character(len=10), dimension(mxvt) :: vegtype
   integer ilx,jlx
   real rlong0x,rlat0x,schmidtx,dsx
   character*47 header
@@ -447,28 +459,8 @@ module cable_ccam
   hc=(/ 17.,35.,15.5,20.,19.25,0.6,0.6,7.0426,14.3379,0.567,0.5,0.55,6.017,0.55,0.2,0.2,0.2 /)
   xfang=(/ 0.01,0.1,0.01,0.25,0.125,-0.3,0.01,-0.3,-0.3,-0.3,0.,-0.3,0.,-0.3,0.,0.1,0. /)
   dleaf=(/ 0.055,0.1,0.04,0.15,0.1,0.1,0.1,0.233,0.129,0.3,0.3,0.3,0.242,0.3,0.03,0.03,0.03 /)
-  xalbnir=(/ 0.79,0.96,0.81,1.,1.08,1.14,1.2,1.02,1.23,1.16,0.89,0.98,1.1,1.13,1.,1.15,1. /)
-  wai=(/ 1.,1.,1.,1.,1.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0.,0. /)
   canst1=0.1
   shelrb=2.
-  vegcf=(/ 0.91,1.95,0.73,1.5,1.55,0.6,2.05,2.8,2.75,2.75,0.,2.8,0.,2.8,0.,0.4,0. /)
-  vegtype(1)='forest'
-  vegtype(2)='forest'
-  vegtype(3)='deciduous'
-  vegtype(4)='deciduous'
-  vegtype(5)='forest'
-  vegtype(6)='not used'
-  vegtype(7)='shrub'
-  vegtype(8)='shrub'
-  vegtype(9)='shrub'
-  vegtype(10)='grass'
-  vegtype(11)='not used'
-  vegtype(12)='crop'
-  vegtype(13)='not used'
-  vegtype(14)='not used'
-  vegtype(15)='no veg'
-  vegtype(16)='grass'
-  vegtype(17)='not used'
   extkn=0.7
   vcmax=(/ 65.2E-6,65.E-6,70.E-6,85.0E-6,80.E-6,20.E-6,20.E-6,10.E-6,20.E-6,10.E-6,50.E-6,80.E-6,1.E-6,80.E-6, &
            17.E-6,17.E-6,17.E-6 /)
@@ -490,6 +482,16 @@ module cable_ccam
   ratecp(3)=0.14
   ratecs(1)=2.
   ratecs(2)=0.5
+
+  if (any(wb(:,:).lt.0.)) then
+    if (myid==0) print *,"Unpacking wetfrac to wb"
+    wb(:,:)=abs(wb(:,:))
+    do iq=1,ifull
+      isoil=isoilm(iq)
+      wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
+    end do
+  end if
+
 
   if (cbm_ms.ne.ms) then
     print *,"ERROR: CABLE and CCAM soil levels do not match"
@@ -522,13 +524,12 @@ module cable_ccam
     svs(:,n)=svs(:,n)/sum(svs,2)
   end do
 
-   mp=0
-   do iq=1,ifull
-     if (land(iq)) then
-       mp=mp+count(svs(iq,:).gt.0.)
-     end if
-   end do
-   nb=count(land)
+  mp=0
+  do iq=1,ifull
+    if (land(iq)) then
+      mp=mp+count(svs(iq,:).gt.0.)
+    end if
+  end do
   
   allocate(sv(mp))
   allocate(vl(mp))
@@ -564,9 +565,10 @@ module cable_ccam
     froot2(:,k) = froot2(:,k) - froot2(:,k-1)
   enddo
   
+  hruff_grmx=0.01
+  
   ipos=0
   do n=1,5
-    ip=0
     call getc4(ifull,ivs(:,n),rlatt(:)*180./pi,c4frac(:))
     pind(n,1)=ipos+1
     do iq=1,ifull
@@ -582,6 +584,7 @@ module cable_ccam
         veg%iveg(ipos)=ivs(iq,n)
         soil%isoilm(ipos)=isoilm(iq)
         veg%frac4(ipos)=c4frac(iq)
+        hruff_grmx(iq)=max(hruff_grmx(iq),hc(ivs(iq,n)))
       end if
     end do
     pind(n,2)=ipos
@@ -597,7 +600,7 @@ module cable_ccam
   end do
   
   ! aggregate zom
-  zolnd=0.
+  zolnd=zobgin
   do n=1,5
     where (land)
       zolnd=zolnd+svs(:,n)/log(zmin/(0.1*hc(ivs(:,n))))**2
@@ -605,8 +608,6 @@ module cable_ccam
   end do
   where (land)
     zolnd=max(zmin*exp(-sqrt(1./zolnd)),zobgin)
-  elsewhere
-    zolnd=zobgin
   end where
   
   ! use dominant veg type
@@ -623,15 +624,11 @@ module cable_ccam
   veg%vcmax  = vcmax(veg%iveg)
   veg%xfang  = xfang(veg%iveg)
   veg%dleaf  = dleaf(veg%iveg)
-  veg%wai    = wai(veg%iveg)
-  veg%vegcf  = vegcf(veg%iveg)
-  veg%extkn  = extkn(veg%iveg)
-  veg%xalbnir= xalbnir(veg%iveg)
+  rad%extkn  = extkn(veg%iveg)
   soil%rs20  = rs20(veg%iveg)
   do k=1,ms
-    veg%froot(:,k)=froot2(veg%iveg,k)
+    soil%froot(:,k)=froot2(veg%iveg,k)
   end do
-  veg%deciduous =(vegtype(veg%iveg).eq.'deciduous')
   
   if (all(cplant.eq.0.)) then
     if (myid == 0) print *,"Using default carbpools"
@@ -661,7 +658,8 @@ module cable_ccam
   soil%swilt   = swilt(soil%isoilm)
   soil%ibp2    = ibp2(soil%isoilm)
   soil%i2bp3   = i2bp3(soil%isoilm)
-  
+  soil%pwb_min =  (soil%swilt / soil%ssat )**soil%ibp2
+
   bgc%ratecp(:) = ratecp(:)
   bgc%ratecs(:) = ratecs(:)
   
@@ -700,6 +698,9 @@ module cable_ccam
   ssoil%albsoilsn(:,1)=albsoilsn(cmap,1) ! overwritten by CABLE
   ssoil%albsoilsn(:,2)=albsoilsn(cmap,2) ! overwritten by CABLE
   ssoil%albsoilsn(:,3)=0.05
+
+  rad%albedo_T = soil%albsoil
+  rad%trad=tss(cmap)
   
   ssoil%rtsoil=0. ! either load from tile or define in sib4
     
@@ -733,9 +734,10 @@ module cable_ccam
 
   call loadtile ! load tgg,wb,wbice,snowd,snage,tggsn,smass,ssdn,isflag,rtsoil,cansto,cplant and csoil
 
-  ssoil%osnowd=0.                                         ! overwritten by CABLE
-  bal%osnowd0=0.                                          ! overwritten by CABLE
+  ssoil%osnowd=ssoil%snowd                                 ! overwritten by CABLE
+  bal%osnowd0=ssoil%snowd                                  ! overwritten by CABLE
   ssoil%ssdnn=120.                                        ! overwritten by CABLE
+  ssoil%sconds(:,1) = MAX(0.2, MIN(2.876e-6 * ssoil%ssdn(:,1) ** 2 + 0.074, 1.0) )
   where (ssoil%isflag.gt.0)
     ssoil%sdepth(:,1)=ssoil%smass(:,1)/ssoil%ssdn(:,1)    ! overwritten by CABLE
   elsewhere
@@ -744,10 +746,19 @@ module cable_ccam
   do k=2,3
     where (ssoil%isflag.gt.0)
       ssoil%sdepth(:,k)=ssoil%smass(:,k)/ssoil%ssdn(:,k)  ! overwritten by CABLE
+      ssoil%sconds(:,k) = MAX(0.2, MIN(2.876e-6 * ssoil%ssdn(:,k) ** 2 + 0.074, 1.0) )
     elsewhere
       ssoil%sdepth(:,k)=0.                                ! overwritten by CABLE
+      ssoil%sconds(:,k)=0.
     end where
   end do  
+
+  ssoil%wetfac = MAX(0., MIN(1., (ssoil%wb(:,1) - soil%swilt) / (soil%sfc - soil%swilt)))
+  ssoil%owetfac = ssoil%wetfac
+  rough%hruff= max(0.01,veg%hc-1.2*ssoil%snowd/max(ssoil%ssdnn,100.))
+  rough%hruff_grmx=hruff_grmx(cmap)
+  ssoil%wbtot=0.
+  bal%wbtot0 = ssoil%wbtot
   
   return
   end subroutine loadcbmparm
@@ -1047,6 +1058,31 @@ module cable_ccam
   
   return
   end subroutine savetile 
+
+  ! from CABLE code 1.4
+  FUNCTION spitterx(doy, coszen, fsd) RESULT(fbeam)
+    ! Calculate beam fraction
+    ! See spitters et al. 1986, agric. for meteorol., 38:217-229
+    REAL, DIMENSION(mp), INTENT(IN) :: doy	! day of year
+    REAL, DIMENSION(mp), INTENT(IN) :: coszen ! cos(zenith angle of sun)
+    REAL, DIMENSION(mp), INTENT(IN) :: fsd	! short wave down (positive) w/m^2
+    REAL, DIMENSION(mp) :: fbeam	! beam fraction (result)
+    REAL, PARAMETER :: solcon = 1370.0
+    REAL, DIMENSION(mp) :: tmpr !
+    REAL, DIMENSION(mp) :: tmpk !
+    REAL, DIMENSION(mp) :: tmprat !
+    fbeam = 0.0
+    tmpr = 0.847 + coszen * (1.04 * coszen - 1.61)
+    tmpk = (1.47 - tmpr) / 1.66
+    WHERE (coszen > 1.0e-10 .AND. fsd > 10.0)
+       tmprat = fsd / (solcon * (1.0 + 0.033 * COS(two_pi * (doy-10.0) / 365.0)) * coszen)
+    ELSEWHERE
+       tmprat = 0.0
+    END WHERE
+    WHERE (tmprat > 0.22) fbeam = 6.4 * (tmprat - 0.22) ** 2
+    WHERE (tmprat > 0.35) fbeam = MIN(1.66 * tmprat - 0.4728, 1.0)
+    WHERE (tmprat > tmpk) fbeam = MAX(1.0 - tmpr, 0.0)
+  END FUNCTION spitterx
 
 end module cable_ccam
 

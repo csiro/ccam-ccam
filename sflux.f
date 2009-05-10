@@ -667,9 +667,9 @@ c ----------------------------------------------------------------------
           ! original Eva's, same as NCAR - calculate wetfac for scrnout
          do ip=1,ipland  ! all land points in this nsib=3 loop
            iq=iperm(ip)
-           isoil = isoilm(iq)
-           fle=(wb(iq,1)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
-           wetfac(iq)=max( 0.,min(1.,fle) )
+           !isoil = isoilm(iq)
+           !fle=(wb(iq,1)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
+           !wetfac(iq)=max( 0.,min(1.,fle) )
            es = establ(tss(iq))
            qsttg(iq)= .622*es/(ps(iq)-es)            
          enddo   ! ip=1,ipland

@@ -34,8 +34,11 @@ cloud2.o co2_read.o e1e288.o e3v88.o extras.o fst88.o hconst.o lwr88.o \
 o3_read.o o3set.o resetd.o spa88.o swr99.o table.o zenith.o cc_mpi.o \
 diag_m.o sumdd_m.o ilu_m.o davies.o utilities.o onthefly.o o3read_amip.o \
 o3set_amip.o tracermodule.o timeseries.o trvmix.o ateb.o \
-cable_ccam2.o cable_cbm.o cable_carbon.o cable_soilsnow.o \
-cable_variables.o mlo.o
+mlo.o cable_ccam2.o albedo_module.o cable_air.o cable_albedo.o cable_canopy.o \
+cable_carbon.o cable_cbm.o cable_define_dimensions.o cable_define_types.o \
+cable_math_constants.o cable_other_constants.o cable_photosynthetic_constants.o \
+cable_physical_constants.o cable_radiation.o cable_roughness.o cable_soilsnow.o \
+cable_variables.o
 
 globpea: $(OBJS)
 	$(FC) -o globpea $(FFLAGS) $(LDFLAGS) $(OBJS) $(LIBS)
@@ -43,14 +46,14 @@ globpea: $(OBJS)
 clean:
 	rm *.o *.mod globpea
 
-.SUFFIXES:.f90
+.SUFFIXES:.f90 .F90
 
 .f90.o:
 	$(FC) -c $(FFLAGS) $<
+.F90.o:
+	$(FC) -c $(FFLAGS) $<	
 .f.o:
 	$(FC) -c $(FFLAGS) $<
-infile.o:infile.f
-	$(FC) -c -Cvopt  $(FFLAGS) $<
 
 # Remove mod rule from Modula 2 so GNU make doesn't get confused
 %.o : %.mod
@@ -64,10 +67,12 @@ bettinit.o : bettinit.f betts1.h newmpar.h
 bettrain.o : bettrain.f betts1.h newmpar.h 
 betts.o : betts.f sigs.h prec.h parm.h morepbl.h betts1.h newmpar.h 
 bettspli.o : bettspli.f 
-cable_ccam2.o : cable_cbm.o zenith.o
-cable_carbon.o : cable_variables.o
-cable_cbm.o : cable_soilsnow.o cable_carbon.o
-cable_soilsnow.o : cable_variables.o
+cable_ccam2.o : cable_cbm.o zenith.o cable_define_dimensions.o cable_albedo.o
+cable_cbm.o: cable_canopy.o cable_albedo.o cable_carbon.o cable_soilsnow.o albedo_module.o
+cable_canopy.o: cable_photosynthetic_constants.o cable_radiation.o cable_roughness.o cable_air.o
+cable_photosynthetic_constants.o: cable_define_dimensions.o
+cable_radiation.o: cable_math_constants.o cable_other_constants.o cable_define_types.o cable_physical_constants.o cable_variables.o
+cable_albedo.o: cable_math_constants.o cable_other_constants.o cable_define_types.o cable_physical_constants.o cable_variables.o
 cldblk.o : cldblk.f 
 cldcom.o : cldcom.f 
 clddia.o : clddia.f vvel.h soil.h sigs.h pbl.h parm.h morepbl.h map.h kuocom.h davb.h const_phys.h arrays.h newmpar.h cc_mpi.o 
