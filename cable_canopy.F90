@@ -223,10 +223,8 @@ CONTAINS
 !    print *,'define_can 9',canopy%through,canopy%cansto,ssoil%wetfac
 !    print *,'zeta0',zeta0,zetpos
 
-    !canopy%zetar(:,1) = zeta0 ! stability correction terms
-    !canopy%zetar(:,2) = zetpos + 1 
-    
-    canopy%zetar = zeta0 ! MJT suggestion
+    canopy%zetar(:,1) = zeta0 ! stability correction terms
+    canopy%zetar(:,2) = zetpos + 1 
     
 !    print *,'zetar',canopy%zetar
 

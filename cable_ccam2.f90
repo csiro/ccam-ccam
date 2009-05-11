@@ -12,7 +12,14 @@ module cable_ccam
   USE define_dimensions, cbm_ms => ms
   USE cable_variables
   use cab_albedo_module
-  USE cbm_module  
+  USE canopy_module
+  USE carbon_module
+  USE soil_snow_module
+  USE define_types
+  USE physical_constants
+  USE roughness_module
+  USE radiation_module
+  USE air_module
 
   private
   public CABLE,sib4,loadcbmparm,savetile
@@ -135,14 +142,26 @@ module cable_ccam
   
        if (ktau.eq.1.and.all(ssoil%rtsoil.eq.0.)) ssoil%rtsoil=rtsoil(cmap)
 
-      CALL cbm(ktau, ntau, dt, air, bgc, canopy, met, bal, &
-            rad, rough, soil, ssoil, sum_flux, veg, .true., .false. )  ! explicit
-      CALL cab_albedo(ktau,dt, ssoil, veg, air, met, rad, &
-                      soil, .true. )                                   ! radiation
-      CALL cbm(ktau, ntau, dt, air, bgc, canopy, met, bal,  &
-            rad, rough, soil, ssoil, sum_flux, veg, .false., .false. ) ! implicit
-      CALL cbm(ktau, ntau, dt, air, bgc, canopy, met, bal,  &
-            rad, rough, soil, ssoil, sum_flux, veg, .false., .true. )  ! hydrology
+      !--------------------------------------------------------------
+      ! CABLE
+      veg%meth = 1
+      CALL ruff_resist(veg, rough, ssoil)
+      CALL define_air (met, air)
+      CALL init_radiation(met,rad,veg) ! need to be called at every dt
+      CALL cab_albedo(ktau, dt, ssoil, veg, air, met, rad, soil, .true.) ! set L_RADUM=.true. as radriv90.f has been called
+      CALL define_canopy(ktau,bal,rad,rough,air,met,dt,ssoil,soil,veg,bgc,canopy,.true.)
+      ssoil%owetfac = ssoil%wetfac
+      CALL soil_snow(dt, ktau, soil, ssoil, canopy, met, bal)
+      !	need to adjust fe after soilsnow
+      canopy%fev	= canopy%fevc + canopy%fevw
+      ! Calculate total latent heat flux:
+      canopy%fe = canopy%fev + canopy%fes
+      ! Calculate net radiation absorbed by soil + veg
+      canopy%rnet = canopy%fns + canopy%fnv
+      ! Set net ecosystem exchange after adjustments to frs:
+      canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
+      !--------------------------------------------------------------
+    
     
       ! average diagnostic fields
       tgg(iperm(1:ipland),:)=0.
