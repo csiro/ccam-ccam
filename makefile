@@ -73,6 +73,8 @@ cable_canopy.o: cable_photosynthetic_constants.o cable_radiation.o cable_roughne
 cable_photosynthetic_constants.o: cable_define_dimensions.o
 cable_radiation.o: cable_math_constants.o cable_other_constants.o cable_define_types.o cable_physical_constants.o cable_variables.o
 cable_albedo.o: cable_math_constants.o cable_other_constants.o cable_define_types.o cable_physical_constants.o cable_variables.o
+cable_variables.o: cable_define_types.o
+cable_define_types.o: cable_define_dimensions.o
 cldblk.o : cldblk.f 
 cldcom.o : cldcom.f 
 clddia.o : clddia.f vvel.h soil.h sigs.h pbl.h parm.h morepbl.h map.h kuocom.h davb.h const_phys.h arrays.h newmpar.h cc_mpi.o 
@@ -117,7 +119,7 @@ leoncld.o : leoncld.f establ.h vvel.h tracers.h soil.h sigs.h prec.h parm.h nlin
 lwr88.o : lwr88.f tfcom.h rnddta.h kdacom.h co2dta.h radisw.h rdparm.h parm.h hcon.h newmpar.h 
 mslp.o : mslp.f sigs.h parm.h const_phys.h newmpar.h cc_mpi.o 
 mtimerget.o : mtimerget.f 
-nestin.o : nestin.f stime.h soilsnow.h soil.h sigs.h pbl.h parm.h map.h davb.h dava.h dates.h const_phys.h arrays.h aalat.h newmpar.h diag_m.o cc_mpi.o cable_variables.o mlo.o
+nestin.o : nestin.f stime.h soilsnow.h soil.h sigs.h pbl.h parm.h map.h davb.h dava.h dates.h const_phys.h arrays.h aalat.h newmpar.h diag_m.o cc_mpi.o cable_variables.o mlo.o cable_define_dimensions.o
 newcloud.o : newcloud.f sigs.h parm.h params.h kuocom.h cparams.h const_phys.h newmpar.h 
 newrain.o : newrain.f params.h morepbl.h kuocom.h cparams.h const_phys.h newmpar.h 
 nonlin.o : nonlin.f xyzinfo.h xarrs.h vvel.h vecsuv.h tracers.h sigs.h savuvt.h parmvert.h parmdyn.h parm.h nlin.h morepbl.h map.h latlong.h liqwpar.h kuocom.h indices.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o 

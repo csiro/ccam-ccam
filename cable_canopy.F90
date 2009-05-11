@@ -887,8 +887,7 @@ CONTAINS
        ! monin-obukhov stability parameter zetar=zref/l
        !	recompute zetar for the next iteration, except on last iteration
        IF (iter < niter) THEN ! dont compute zetar on the last iter
-          !iterplus = max(iter+1,2)
-          iterplus = max(iter+1,niter) ! MJT suggestion
+          iterplus = max(iter+1,2)
           canopy%zetar(:,iterplus) = -(vonk*grav*rough%zref_tq*(canopy%fh+0.07*canopy%fe))/ &
                (air%rho*capp*met%tk*canopy%us**3)
           ! case niter=2: final zetar=zetmul*zetar(2) (compute only when iter=1)

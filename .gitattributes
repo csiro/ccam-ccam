@@ -5,11 +5,8 @@
 /cable_albedo.F90 -text
 /cable_canopy.F90 -text
 /cable_carbon.F90 -text
-/cable_carbon.f90 -text
 /cable_cbm.F90 -text
-/cable_cbm.f90 -text
 /cable_ccam2.f90 -text
-/cable_checks.f90 -text
 /cable_define_dimensions.F90 -text
 /cable_define_types.F90 -text
 /cable_math_constants.F90 -text
@@ -19,13 +16,10 @@
 /cable_radiation.F90 -text
 /cable_roughness.F90 -text
 /cable_soilsnow.F90 -text
-/cable_soilsnow.f90 -text
 /cable_variables.F90 -text
-/cable_variables.f90 -text
 /carbpools.h -text
 /makefile -text
 /mlo.f90 -text
-/mpif.h -text
 /parmgeom.h -text
 /parmsurf.h -text
 /soilbal.h -text
