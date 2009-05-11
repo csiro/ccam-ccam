@@ -5,7 +5,6 @@
 /cable_albedo.F90 -text
 /cable_canopy.F90 -text
 /cable_carbon.F90 -text
-/cable_cbm.F90 -text
 /cable_ccam2.f90 -text
 /cable_define_dimensions.F90 -text
 /cable_define_types.F90 -text
