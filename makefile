@@ -35,7 +35,7 @@ o3_read.o o3set.o resetd.o spa88.o swr99.o table.o zenith.o cc_mpi.o \
 diag_m.o sumdd_m.o ilu_m.o davies.o utilities.o onthefly.o o3read_amip.o \
 o3set_amip.o tracermodule.o timeseries.o trvmix.o ateb.o \
 mlo.o cable_ccam2.o albedo_module.o cable_air.o cable_albedo.o cable_canopy.o \
-cable_carbon.o cable_cbm.o cable_define_dimensions.o cable_define_types.o \
+cable_carbon.o cable_define_dimensions.o cable_define_types.o \
 cable_math_constants.o cable_other_constants.o cable_photosynthetic_constants.o \
 cable_physical_constants.o cable_radiation.o cable_roughness.o cable_soilsnow.o \
 cable_variables.o
