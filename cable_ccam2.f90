@@ -124,8 +124,8 @@ module cable_ccam
        rough%za_uv=rough%za_tq
 
        met%fsd(:,3)=sgsave(cmap)/(1.-0.5*sum(albvisnir(cmap,:),2))! short wave down (positive) W/m^2       
-       met%fsd(:,1)=0.5*met%fsd(:,3) ! should get this ratio from swr99.f
-       met%fsd(:,2)=0.5*met%fsd(:,3)
+       met%fsd(:,1)=swrsave*met%fsd(:,3)
+       met%fsd(:,2)=(1.-swrsave)*met%fsd(:,3)
        rad%fbeam(:,3)=spitterx(met%doy,met%coszen,met%fsd(:,3)) ! check
        rad%fbeam(:,1)=rad%fbeam(:,3)
        rad%fbeam(:,2)=rad%fbeam(:,3)

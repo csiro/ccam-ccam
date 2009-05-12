@@ -407,18 +407,18 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
       end do ! i=1,imax
       call atebalb1(istart,imax,cuvrf(1:imax,1),0) ! MJT CHANGE - urban
       call atebalb1(istart,imax,cirrf(1:imax,1),0) ! MJT CHANGE - urban
-      albvisnir(istart:iend,1)=cuvrf(1:imax,1)
-      albvisnir(istart:iend,2)=cirrf(1:imax,1)
       if (iaero.ne.0) then
         do i=1,imax
           iq=i+(j-1)*il
            cosz = max ( coszro(i), 1.e-4)
            delta =  coszro(i)*beta_ave*alpha*so4t(iq)* ! still broadband
      &	            ((1.-0.5*(cuvrf(i,1)+cirrf(i,1)))/cosz)**2
-           cuvrf(i,1)=min(1., delta+cuvrf(i,1)) ! surface albedo
-           cirrf(i,1)=min(1., delta+cirrf(i,1)) ! still broadband
+           cuvrf(i,1)=min(0.99, delta+cuvrf(i,1)) ! surface albedo
+           cirrf(i,1)=min(0.99, delta+cirrf(i,1)) ! still broadband
         end do ! i=1,imax
       endif !(iaero.ne.0)then
+      albvisnir(istart:iend,1)=cuvrf(1:imax,1)
+      albvisnir(istart:iend,2)=cirrf(1:imax,1)      
       !-----------------------------------------------------------------------------------------------------------      
 
       do k=1,kl
@@ -505,7 +505,8 @@ c         write(24,*)coszro2
      &     print *,'before swr99 ktau,j,myid ',ktau,j,myid
         call swr99(fsw,hsw,sg,ufsw,dfsw,press,press2,coszro,
      &             taudar,rh2o,rrco2,ssolar,qo3,nclds,
-     &             ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt)
+     &             ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt,
+     &             swrsave) ! MJT cable
         if(ndi<0.and.nmaxpr==1)
      &     print *,'after  swr99 ktau,j,myid ',ktau,j,myid
         do i=1,imax
@@ -538,7 +539,8 @@ c       write(24,*)coszro2
       endif  ! (ldr.ne.0)
       call swr99(fsw,hsw,sg,ufsw,dfsw,press,press2,coszro,
      &           taudar,rh2o,rrco2,ssolar,qo3,nclds,
-     &           ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt)
+     &           ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt,
+     &           swrsave) ! MJT cable
       do i=1,imax
           sint(i) = dfsw(i,1)*h1m3   ! solar in top
           sout(i) = ufsw(i,1)*h1m3   ! solar out top

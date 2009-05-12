@@ -7,7 +7,8 @@
      &                   dfsw_out, press_in, press2_in, coszro_in,
      &                   taudar_in, rh2o_in, rrco2, ssolar,
      &                   qo3_in, nclds_in, ktopsw_in, kbtmsw_in,
-     &                   cirab_in, cirrf_in, cuvrf_in, camt_in )
+     &                   cirab_in, cirrf_in, cuvrf_in, camt_in,
+     &                   swr_out ) ! MJT cable
 
 
 !     This driver routine just calculates the size and passes it to 
@@ -30,7 +31,7 @@
       real, intent(out), dimension(imax,lp1) :: fsw_out,  
      &                                          ufsw_out, dfsw_out
       real, intent(out), dimension(imax,l)   :: hsw_out 
-      real, intent(out), dimension(imax)     :: grdflx_out
+      real, intent(out), dimension(imax)     :: grdflx_out,swr_out ! MJT cable
       
       integer  :: ipts
       ipts = count ( coszro_in > zero )
@@ -39,7 +40,8 @@
      &                   dfsw_out, press_in, press2_in, coszro_in,
      &                   taudar_in, rh2o_in, rrco2, ssolar,
      &                   qo3_in, nclds_in, ktopsw_in, kbtmsw_in,
-     &                   cirab_in, cirrf_in, cuvrf_in, camt_in, ipts )
+     &                   cirab_in, cirrf_in, cuvrf_in, camt_in, ipts,
+     &                   swr_out ) ! MJT cable
 
       end subroutine swr99
 
@@ -47,7 +49,8 @@
      &                   dfsw_out, press_in, press2_in, coszro_in,
      &                   taudar_in, rh2o_in, rrco2, ssolar,
      &                   qo3_in, nclds_in, ktopsw_in, kbtmsw_in,
-     &                   cirab_in, cirrf_in, cuvrf_in, camt_in, ipts )
+     &                   cirab_in, cirrf_in, cuvrf_in, camt_in, ipts,
+     &                   swr_out ) ! MJT cable
 
 
 cfpp$ noconcur r
@@ -75,7 +78,7 @@ c
       real, intent(out), dimension(imax,lp1) :: fsw_out,  
      &                                          ufsw_out, dfsw_out
       real, intent(out), dimension(imax,l)   :: hsw_out 
-      real, intent(out), dimension(imax)     :: grdflx_out
+      real, intent(out), dimension(imax)     :: grdflx_out,swr_out ! MJT cable
 
       real, dimension(ipts,lp1)      :: press, press2
       real,  dimension(ipts)         :: coszro, taudar
@@ -85,7 +88,7 @@ c
       real,  dimension(ipts,lp1)     :: cirab, cirrf, cuvrf, camt
       real,  dimension(ipts,lp1)     :: fsw, ufsw, dfsw
       real,  dimension(ipts,l)       :: hsw
-      real, dimension(ipts)          :: grdflx
+      real, dimension(ipts)          :: grdflx,swr ! MJT cable
 
       integer :: k
       logical, dimension(imax) :: lcoszn
@@ -128,15 +131,18 @@ c
       call swr99_work (  fsw, hsw, grdflx, ufsw, dfsw, press, press2,
      &                   coszro, taudar, rh2o, rrco2, ssolar,
      &                   qo3, nclds, ktopsw, kbtmsw, cirab,
-     &                   cirrf, cuvrf, camt, ipts )
+     &                   cirrf, cuvrf, camt, ipts,
+     &                   swr ) ! MJT cable
 
 !     Unpack results  ( Use my version to get around NEC compiler error )
       grdflx_out = 0.0
+      swr_out = 0.5 ! MJT cable
       fsw_out = 0.0
       hsw_out = 0.0
       ufsw_out = 0.0
       dfsw_out = 0.0
       grdflx_out(pindex) = grdflx
+      swr_out(pindex) = swr ! MJT cable
       do k=1,l
 	 hsw_out(pindex,k)  = hsw(:,k)
       end do
@@ -178,7 +184,8 @@ c
       subroutine swr99_work(fsw, hsw, grdflx, ufsw, dfsw, press,press2,
      &                   coszro, taudar, rh2o, rrco2, ssolar,
      &                   qo3, nclds, ktopsw, kbtmsw, cirab,
-     &                   cirrf, cuvrf, camt, ipts )
+     &                   cirrf, cuvrf, camt, ipts,
+     &                   swr ) ! MJT cable
 
 
       include 'newmpar.h'
@@ -198,7 +205,7 @@ c
 
       real, intent(out), dimension(ipts,lp1) :: fsw, ufsw, dfsw
       real, intent(out), dimension(ipts,l)   :: hsw
-      real, intent(out), dimension(ipts)     :: grdflx
+      real, intent(out), dimension(ipts)     :: grdflx,swr ! MJT cable
 
       real dfn(ipts,lp1),ufn(ipts,lp1),
      &  ttd(ipts,lp1),ttu(ipts,lp1),ttdb1(ipts,lp1),ttub1(ipts,lp1),
@@ -746,6 +753,12 @@ c
 	 ufsw(:,k) = ufsw(:,k) + ufn(:,k)*dfntop
       end do
 
+      !--------------------------------------------------------------
+      ! MJT cable
+      if (nx.eq.1) swr=dfsw(:,lp1) - ufsw(:,lp1) ! store VIS
+      !--------------------------------------------------------------
+
+
       end do BAND ! end of frequency loop (over nx)
 !
       grdflx = dfsw(:,lp1) - ufsw(:,lp1)
@@ -756,6 +769,11 @@ c
       do k=1,l
 	 hsw(:,k) = fsw(:,k+1) - fsw(:,k)
       end do
+
+      !--------------------------------------------------------------
+      ! MJT cable
+      swr=swr/grdflx ! calculate ratio of VIS to NIR
+      !--------------------------------------------------------------
 
       return
       end subroutine swr99_work
