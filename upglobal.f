@@ -83,10 +83,12 @@
           wc(iq,k)=az(iq)*un(iq,k) + bz(iq)*vn(iq,k)
          enddo                 ! iq loop
         enddo
-        call ints(uc,intsch,nface,xg,yg,3)
-        call ints(vc,intsch,nface,xg,yg,3)
-        call ints(wc,intsch,nface,xg,yg,3)
-        call ints(tn,intsch,nface,xg,yg,3)
+        if(mup.ne.0)then
+          call ints(uc,intsch,nface,xg,yg,3)
+          call ints(vc,intsch,nface,xg,yg,3)
+          call ints(wc,intsch,nface,xg,yg,3)
+          call ints(tn,intsch,nface,xg,yg,3)
+        endif
 !       don't bother to rotate un,vn vector to arrival point
 !       convert back to un,vn conformal-cubic velocity components
         do k=1,kl
@@ -185,14 +187,16 @@
         write (6,"(3p9f8.4)") 
      &        ((pslx(ii+jj*il,nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
       endif
-      call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
-      if(mup.ne.0)call ints(pslx,intsch,nface,xg,yg,1)
+      if(mup.ne.0)then
+        call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
+        call ints(pslx,intsch,nface,xg,yg,1)
+      endif
       pslx(:,:)=pslx(:,:)-dd(:,:)
 !     special T advection treatments follow
       do k=1,kl
        tx(1:ifull,k)=tx(1:ifull,k)+aa(1:ifull)*factr(k)   !cy  
       end do   ! k
-      call ints(tx,intsch,nface,xg,yg,3)
+      if(mup.ne.0)call ints(tx,intsch,nface,xg,yg,3)
       do k=1,kl
        tx(1:ifull,k) = tx(1:ifull,k) - dd(1:ifull,k)*factr(k)
       end do
@@ -451,10 +455,15 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
 !     now interpolate ux,vx to the staggered grid
       call staguv(ux,vx,ux,vx)
 
-!     npex=3 add un, vn on staggered grid (should do it on unstaggered grid!!)
+!     npex=3 add un, vn on staggered grid 
       if(npex==3)then  
         ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*un(1:ifull,:)
         vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vn(1:ifull,:)
+      endif
+!     npex=6 similar to npex=3, but adds all un, vn here
+      if(npex==6)then  
+        ux(1:ifull,:)=ux(1:ifull,:)+dt*un(1:ifull,:)
+        vx(1:ifull,:)=vx(1:ifull,:)+dt*vn(1:ifull,:)
       endif
 
       if( diag) then

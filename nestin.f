@@ -6,7 +6,6 @@
       include 'newmpar.h'
 !     ik,jk,kk are array dimensions read in infile - not for globpea
 !     int2d code - not used for globpea
-      include 'aalat.h'
       include 'arrays.h'
       include 'const_phys.h'
       include 'darcdf.h'
@@ -34,6 +33,9 @@
       common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug
       real, dimension(ifull) :: zsb,duma
       integer, dimension(ifull) :: dumm
+      real, dimension(ifull,ms) :: dumg
+      real, dimension(ifull,kl) :: dumv
+      real, dimension(ifull,3) :: dums
       real, dimension(ifull,ncp) :: cplant_h ! MJT cable
       real, dimension(ifull,ncs) :: csoil_h ! MJT cable
       real, dimension(ifull,12) :: urban ! MJT urban
@@ -123,8 +125,8 @@
       if(io_in==1)then
         call infile(1,kdate_r,ktime_r,timeg_b,ds_r, 
      .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
-     &            duma,duma,duma,duma,duma,duma,duma, 
-     &            duma,duma,duma,duma,duma,dumm,ifull,kl,
+     &            dumg,dumg,dumg,duma,duma,dumv,dumv, 
+     &            dums,dums,dums,duma,duma,dumm,ifull,kl,
      &            dumm,urban,cplant_h,csoil_h,datoc) ! MJT cable ! MJT lsmask ! MJT urban ! MJT mlo
       endif   ! (io_in==1)
       if(io_in==-1)then
@@ -132,8 +134,8 @@ c        call onthefl(1,kdate_r,ktime_r,
 c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb) 
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
-     &        duma,duma,duma,duma,duma,duma,duma,duma,duma,duma, ! just dummies
-     &        dumm,duma,urban,datoc) ! MJT cable, MJT lsmask ! MJT mlo
+     &        dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,duma, ! just dummies
+     &        duma,dumm,urban,datoc) ! MJT cable, MJT lsmask ! MJT mlo
       endif   ! (io_in==1)
       tssb(:) = abs(tssb(:))  ! moved here Mar '03
       if (mydiag) then
@@ -277,8 +279,10 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
          endif  ! (.not.land(iq))
         enddo   ! iq loop 
        else if (nmlo.eq.2) then
-         ! nudge mlo (assume 5 deg resolution)
-         call mlofilter(tssb,5.*pi/180.)
+         if (conb.ge.1.) then
+           ! nudge mlo (assume 5 deg resolution)
+           call mlofilter(tssb,5.*pi/180.)
+         end if
        end if
       endif
       
@@ -294,7 +298,6 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       implicit none
       integer, parameter :: ntest=0 
       include 'newmpar.h'
-      include 'aalat.h'
       include 'arrays.h'
       include 'const_phys.h'
       include 'darcdf.h' ! for ncid
@@ -489,7 +492,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
           psla=pslb-psla/real(ncount)
           ua=ub-ua/real(ncount)
           va=vb-va/real(ncount)
-          ta=tb-ta/real(ncount)
+	    ta=tb-ta/real(ncount)
           qa=qb-qa/real(ncount)
 	  
           where (psla*psld.lt.0.) ! anti-windup
@@ -513,7 +516,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
           vd=vd+va
           td=td+ta
           qd=qd+qa
-          pslc=eta*psla+lambda*psld
+          pslc=eta_p*psla+lambda_p*psld
           uc=eta*ua+lambda*ud
           vc=eta*va+lambda*vd
           tc=eta*ta+lambda*td
@@ -2543,3 +2546,4 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       return
       end subroutine mlofilter
+

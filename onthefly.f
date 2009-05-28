@@ -460,7 +460,7 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
         if (nurban.ne.0) then
           if (myid==0) then
             do k=1,12
-              where ((.not.land_a(:)).or.(urban_a(:,k).ge.399.))
+              where (.not.land_a.or.urban_a(:,k).ge.399.)
                 urban_a(:,k)=spval
               end where
               call fill_cc(urban_a(:,k),spval,ik,0)
@@ -890,8 +890,8 @@ c     include 'indices.h'
       real value            ! array value denoting undefined
 c     real b(ik*ik*6), a(ik*ik*6+iextra)
       real b(ik*ik*6), a(ik*ik*6)
-      integer :: num, nrem, i, ii, ik, iq, ind, j, n, neighb, ndiag
-      real :: av, avx     
+      integer :: nrem, i, ii, ik, iq, ind, j, n, neighb, ndiag
+      real :: av     
       integer, dimension(ik*ik*6) :: in,ie,iw,is
       integer npann(0:5),npane(0:5),npanw(0:5),npans(0:5)
       data npann/1,103,3,105,5,101/,npane/102,2,104,4,100,0/
@@ -946,7 +946,6 @@ c     real b(ik*ik*6), a(ik*ik*6+iextra)
       enddo      ! n loop
           
       a(1:ik*ik*6) = a_io(:)
-      num=0
       nrem = 1    ! Just for first iteration
 c     nrem_gmin = 1 ! Just for first iteration
 !     nrem_gmin used to avoid infinite loops, e.g. for no sice
@@ -955,7 +954,6 @@ c     nrem_gmin = 1 ! Just for first iteration
          ! doesn't work.
 c808         call bounds(a)
          nrem=0
-         num=num+1
          do iq=1,ik*ik*6
             b(iq)=a(iq)
             if(a(iq)==value)then
@@ -979,7 +977,6 @@ c808         call bounds(a)
                endif
                if(neighb>0)then
                   b(iq)=av/neighb
-                  avx=av
                else
                   nrem=nrem+1   ! current number of points without a neighbour
                endif

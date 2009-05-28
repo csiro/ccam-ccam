@@ -5,7 +5,6 @@
 c     mev1 = 1 for il even (2 for il odd)
 c     mev2 = 2 for il even (1 for il odd)
       parameter (nwrite0=1) ! 0 original, 1 writes initial nveg,nsoil etc
-      include 'aalat.h'
       include 'arrays.h'
       include 'dates.h'    ! mtimer
       include 'dava.h' ! davt    for writing out in precc
@@ -38,7 +37,6 @@ c     mev2 = 2 for il even (1 for il odd)
       character co2out*80,radonout*80,surfout*80
       integer nface6(4,3)   ! Faces to use in each phase    (c-cub)
       integer ioff6(4,3)    ! Starting offset for each face (c-cub)
-      integer nmi,iout,nwrite ! MJT
       data nface6 / 0, 1, 3, 4,   0, 2, 3, 5,   1, 2, 4, 5 /
       data ioff6 / 1,mev1,mev2,2,  2,1,mev1,mev2,  mev2,2,1,mev1 / ! jlm general
       data nspare/0/

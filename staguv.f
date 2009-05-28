@@ -39,7 +39,7 @@ c     use diag_m             ! for calls to maxmin
          end do
       end do
       
-      if(nstag==0)then
+      if(abs(nstag)<3)then
         call boundsuv(uin,vin,nrows=2)
         do k=1,kl
          do iq=1,ifull
@@ -224,7 +224,7 @@ c     staggered u & v as input; unstaggered as output
          end do
       end do
       
-      if(nstagu==0)then
+      if(abs(nstagu)<3)then
         call boundsuv(uin,vin,nrows=2)
         do k=1,kl
          do iq=1,ifull
@@ -232,8 +232,8 @@ c     staggered u & v as input; unstaggered as output
      &                   -uin(iwwu(iq),k)-uin(ieu(iq),k))/16.
           vout(iq,k)=(9.*(vin(isv(iq),k)+vin(iq,k))
      &                   -vin(issv(iq),k)-vin(inv(iq),k))/16.
-c          uout(iq,k)=.5*(uin(iwu(iq),k)+uin(iq,k))
-c          vout(iq,k)=.5*(vin(isv(iq),k)+vin(iq,k))
+           uout(iq,k)=.5*(uin(iwu(iq),k)+uin(iq,k))  ! for linear tests
+           vout(iq,k)=.5*(vin(isv(iq),k)+vin(iq,k))  ! for linear tests
          enddo   ! iq loop
         enddo
         return

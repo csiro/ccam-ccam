@@ -321,7 +321,7 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*omgf(iq,k)*roncp/sig(k)
        p(1:ifull,k)=phi(1:ifull,k)+rdry*tbar2d(1:ifull)*psl(1:ifull)
       enddo      ! k  loop
 
-!     calculate virtual temp extra terms (mainly -ve)
+!     calculate virtual temp extra terms (mainly -ve): phi -phi_v +r*tbar*psl
       phiv(1:ifull,1)=rdry*tbar2d(1:ifull)*psl(1:ifull)
      &                -bet(1)*tv(1:ifull,1)
       do k=2,kl
@@ -366,8 +366,10 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*omgf(iq,k)*roncp/sig(k)
      &        -.5*rdry*(tv(in(iq),k)+tv(iq,k))*(psl(in(iq))-psl(iq)))/ds
          enddo   ! iq loop
         enddo    ! k loop
-        aa(1:ifull,:)=aa(1:ifull,:)+.5*dt*un(1:ifull,:) ! still staggered
-        bb(1:ifull,:)=bb(1:ifull,:)+.5*dt*vn(1:ifull,:) ! still staggered
+        if(npex.ne.6)then
+          aa(1:ifull,:)=aa(1:ifull,:)+.5*dt*un(1:ifull,:) ! still staggered
+          bb(1:ifull,:)=bb(1:ifull,:)+.5*dt*vn(1:ifull,:) ! still staggered
+        endif  ! (npex.ne.6)
         if(diag)then
           if(mydiag)then
             print *,'tv ',tv(idjd,:)

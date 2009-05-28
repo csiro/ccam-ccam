@@ -319,12 +319,29 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
       if(nstag==0)then
         call staguv(u(1:ifull,:),v(1:ifull,:),        
      &              wrk1(1:ifull,:),wrk2(1:ifull,:)) 
-        wrk1(1:ifull,:)=cc(1:ifull,:)-wrk1(1:ifull,:)
-        wrk2(1:ifull,:)=dd(1:ifull,:)-wrk2(1:ifull,:)
+        if(nmaxpr==1.and.nproc==1)then
+          its=ifull+iextra
+          write (6,"('u_u0 ',10f8.2)") (u(iq,nlv),iq=idjd-3,idjd+3)
+          write (6,"('v_u0 ',10f8.2)") 
+     &               (v(iq,nlv),iq=idjd-3*its,idjd+3*its,its)
+          write (6,"('u_s0 ',10f8.2)") (wrk1(iq,nlv),iq=idjd-3,idjd+3)
+          write (6,"('v_s0 ',10f8.2)") 
+     &               (wrk2(iq,nlv),iq=idjd-3*ifull,idjd+3*ifull,ifull)
+          write (6,"('u_s1 ',10f8.2)") (cc(iq,nlv),iq=idjd-3,idjd+3)
+          write (6,"('v_s1 ',10f8.2)") 
+     &               (dd(iq,nlv),iq=idjd-3*its,idjd+3*its,its)       
+        endif
+        wrk1(1:ifull,:)=cc(1:ifull,:)-wrk1(1:ifull,:) ! staggered increment
+        wrk2(1:ifull,:)=dd(1:ifull,:)-wrk2(1:ifull,:) ! staggered increment
         call unstaguv(wrk1(1:ifull,:),wrk2(1:ifull,:),        
      &                wrk1(1:ifull,:),wrk2(1:ifull,:)) 
         u(1:ifull,:)=u(1:ifull,:)+wrk1(1:ifull,:)
         v(1:ifull,:)=v(1:ifull,:)+wrk2(1:ifull,:)
+        if(nmaxpr==1.and.nproc==1)then
+          write (6,"('u_u1 ',10f8.2)") (u(iq,nlv),iq=idjd-3,idjd+3)
+          write (6,"('v_u1 ',10f8.2)") 
+     &               (v(iq,nlv),iq=idjd-3*its,idjd+3*its,its)
+        endif
       else
         call unstaguv(cc(1:ifull,:),dd(1:ifull,:),        
      &              u(1:ifull,:),v(1:ifull,:)) ! usual

@@ -17,13 +17,13 @@
       integer, parameter :: jlmsigmf=1  ! 1 for jlm fixes to dean's data
 !     parameter (jalbfix=1)   ! 1 for jlm fixes to albedo
       integer, parameter :: nfixwb=2      ! 0, 1 or 2; wb fixes with nrungcm=1
+      integer, parameter :: ntest=0
 !     indataj can read land-sea mask from topofile
 !             alat, along calc now done here; defaults in blockdtb
 !             sets hourst (gmt) from ktime
 !             precc, precip setup moved to bottom
 !     note: unformatted qg in g/kg (i.e. for io_in=3)
       include 'newmpar.h'
-      include 'aalat.h'     ! alat,along
       include 'arrays.h'
       include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       include 'carbpools.h' ! MJT cable
@@ -57,6 +57,7 @@
       include 'xyzinfo.h'   ! x,y,z,wts
       include 'vecsuv.h'    ! vecsuv info
       include 'mpif.h'
+      include 'latlong_g.h'
       real, intent(out) :: hourst
       integer, intent(in) :: newsnow, jalbfix
       real epst
@@ -64,6 +65,7 @@
       integer neigh
       common/neigh/neigh(ifull)
       real rlong0x,rlat0x,schmidtx
+      real rlonx,rlatx,alf
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
       real sigin
       integer ik,jk,kk
@@ -909,7 +911,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
      &          .and.rlatd<-64.-(rlongd-60.)*5.8/15.))then  ! Amery shelf
            zs(iq)=1.
            land(iq)=.true.
-           sicedep=0.
+           sicedep(iq)=0.
            isoilm(iq)=9
            ivegt(iq)=42
 !          tgg(iq,:)=270.  ! set below with isoilm=9 code  Dec 07
@@ -956,8 +958,10 @@ c        end if
 !                    -3  read_in          |     written  (usual for NWP)
 !                    -4  read_in          | not written
 !                    -5  read_in (not wb) |     written  (should be good)
+!                    -6 same as -1 bit tapered wb over dry interio of Aust
 !                    >5 like -1 but sets most wb percentages
-      if(nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5.or.nrungcm>5)then
+      if(nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5.or.nrungcm==-6
+     &              .or.nrungcm>5)then
 !        presetting wb when no soil moisture available initially
         iyr=kdate/10000
         imo=(kdate-10000*iyr)/100
@@ -965,6 +969,8 @@ c        end if
          if(land(iq))then
            iveg=ivegt(iq)
            isoil=isoilm(iq)
+           rlonx=rlongg(iq)*180./pi
+           rlatx=rlatt(iq)*180./pi
 !          fracsum(imo) is .5 for nh summer value, -.5 for nh winter value
            fracs=sign(1.,rlatt(iq))*fracsum(imo)  ! +ve for local summer
            if(nrungcm>5)then
@@ -976,25 +982,26 @@ c        end if
            wb(iq,ms)= (1.-fracwet)*swilt(isoilm(iq))+ 
      &                  fracwet*sfc(isoilm(iq)) 
 !          wb(iq,ms)= .5*swilt(isoilm(iq))+ .5*sfc(isoilm(iq)) ! till july 01
-           if(abs(rlatt(iq)*180./pi)<18.)wb(iq,ms)=sfc(isoilm(iq)) ! tropics
-!          following jlm subtropics from Aug 2003 (.1/.9), (.7, .3)
-!           if(rlatt(iq)*180./pi<18..and.rlatt(iq)*180./pi>8.)
-!     .       wb(iq,ms)=(.4-.6*fracsum(imo))*swilt(isoilm(iq))+   ! NH
-!     .                 (.6+.6*fracsum(imo))*sfc(isoilm(iq))
-!           if(rlatt(iq)*180./pi>-18..and.rlatt(iq)*180./pi<-8.)
-!     .       wb(iq,ms)=(.4+.6*fracsum(imo))*swilt(isoilm(iq))+   ! SH
-!     .                 (.6-.6*fracsum(imo))*sfc(isoilm(iq))
+           if(abs(rlatx)<18.)wb(iq,ms)=sfc(isoilm(iq)) ! tropics
 !          following jlm subtropics from Aug 2003 (.1/.9), (.6, .4)
-           if(rlatt(iq)*180./pi<20..and.rlatt(iq)*180./pi>8.)
+           if(rlatx<20..and.rlatx>8.)
      .       wb(iq,ms)=(.35-.5*fracsum(imo))*swilt(isoilm(iq))+   ! NH
      .                 (.65+.5*fracsum(imo))*sfc(isoilm(iq))
-           if(rlatt(iq)*180./pi>-16..and.rlatt(iq)*180./pi<-8.)
+           if(rlatx>-16..and.rlatx<-8.)
      .       wb(iq,ms)=(.35+.5*fracsum(imo))*swilt(isoilm(iq))+   ! SH
      .                 (.65-.5*fracsum(imo))*sfc(isoilm(iq))
-           if(rlatt(iq)*180./pi>-32..and.
-     &        rlatt(iq)*180./pi<-22..and.
-     &        rlongg(iq)*180./pi>117..and.rlongg(iq)*180./pi<146.)
-     &        wb(iq,ms)=swilt(isoilm(iq)) ! dry interior of Australia
+           if(rlatx>-32..and.
+     &        rlatx<-22..and.
+     &        rlonx>117..and.rlonx<146.) then
+              if(nrungcm==-6)then
+!               following tapers it over 2 degrees lat/long
+                alf=.5*min(abs(rlonx-117.),abs(rlonx-146.),
+     &                     abs(rlatx+22.),abs(rlatx+32.),2.)
+                wb(iq,ms)=alf*swilt(isoilm(iq))+(1.-alf)*wb(iq,ms)
+              else
+                wb(iq,ms)=swilt(isoilm(iq)) ! dry interior of Australia
+              endif
+            endif
          endif    ! (land(iq))
         enddo     ! iq loop
         
@@ -1021,7 +1028,7 @@ c        enddo     !  k=1,ms
         end if
       endif       !  ((nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)
 
-      if(nrungcm<=-3)then
+      if(nrungcm<=-3.and.nrungcm>=-5)then
 !       for sequence of runs starting with values saved from last run
         if(ktime==1200)then
           co2in=co2_12      ! 'co2.12'
@@ -1093,7 +1100,7 @@ c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
         do iq=1,ifull
          if(land(iq))tss(iq)=aa(iq)
         enddo  ! iq loop
-      endif    !  (nrungcm<=-3)
+      endif    !  (nrungcm<=-3.and.nrungcm>=-5)
 
       if(nrungcm.ne.0)then  ! not for restart 
         tgg(:,1) = tss(:)   ! often do this:
@@ -1250,6 +1257,40 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
           print *,'ix,jx,long,lat ',
      &             ix,jx,rlongg(ixjx)*180./pi,rlatt(ixjx)*180./pi
         endif  ! (nhstest==-11.or.nhstest==-12)
+        if(nhstest==-13)then ! a jlm test
+         f(:)=0.
+         u(:,:)=0.
+         v(:,:)=0.
+         t(:,:)=300.
+         do iq=1,ifull
+          if(rlatt(iq)*180./pi>10.and.rlatt(iq)*180./pi<13.)t(iq,1)=305.
+         end do
+        endif
+        if(io_in==5)then ! for chess-board colouring of grid, via tss
+                        ! but get some blurring from cc2hist interps
+          qg(:,:)=0.
+          ps(:)=1.e5
+          psl(:)=.01
+          zs(:)=0.
+          uin=300.
+          if(nhstest==-2)uin=300.5
+          vin=1.
+          vin=3.
+          if(nhstest==-3)vin=0. ! just for 6 colours of panels
+          if(myid==0)then
+            do n=0,5
+             do j=1,il_g
+              do i=1,il_g
+               davt_g(indglobal(i,j,n))=
+     &                uin+mod(n,3)+vin*mod(mod(i,2)+mod(j,2),2)
+              enddo ! i loop
+             enddo  ! j loop
+            enddo   ! n loop
+            call ccmpi_distribute(tss,davt_g)
+          else
+            call ccmpi_distribute(tss)
+          endif ! myid==0
+        endif   ! io_in==5
       endif    ! (nhstest<0)
 
 !     zmin here is approx height of the lowest level in the model
@@ -1259,6 +1300,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
       helim=800.       ! hal used 800.
       hefact=.1*abs(ngwd)   ! hal used hefact=1. (equiv to ngwd=10)
       if (myid==0) print *,'hefact,helim,gwdfac: ',hefact,helim,gwdfac
+      helo(:)=0.
       if(lgwd>0)then
         aamax=0.
         do iq=1,ifull
@@ -1699,8 +1741,8 @@ c       endif
      &        n-noff,em(iq),emu(iq),emv(iq),f(iq),fu(iq),fv(iq)
       enddo ! n=1,npan
 
-      along(:)=rlongg(:)*180./pi    
-      alat(:)=rlatt(:)*180./pi
+      !along(:)=rlongg(:)*180./pi    
+      !alat(:)=rlatt(:)*180./pi
       if(nproc==1)then
         coslong=cos(rlong0*pi/180.)   
         sinlong=sin(rlong0*pi/180.)
@@ -1741,6 +1783,21 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
      &          4f7.1,2f6.2,f5.2)
         enddo
        enddo
+      elseif(myid==0)then
+        coslong=cos(rlong0*pi/180.)
+        sinlong=sin(rlong0*pi/180.)
+        coslat=cos(rlat0*pi/180.)
+        sinlat=sin(rlat0*pi/180.)
+        polenx=-coslat
+        poleny=0.
+        polenz=sinlat
+        write(22,921)
+        do j=1,jl_g
+         do i=1,il_g
+          iq=i+(j-1)*il_g
+          write(22,922) iq,i,j,rlongg_g(iq)*180./pi,rlatt_g(iq)*180./pi
+         enddo
+        enddo
       endif  ! (nproc==1)
 
       if(nsib>=1)then   !  check here for soil & veg mismatches
@@ -1875,7 +1932,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         end where
         call mloinit(ifull,aa,0)
         do k=1,wlev
-          where (datoc(:,wlev,1).ge.399.) ! must be the same as spval in onthefly.f
+          where (datoc(:,k,1).ge.399.) ! must be the same as spval in onthefly.f
             datoc(:,k,1)=tss(:)
             datoc(:,k,2)=35.
             datoc(:,k,3)=0.

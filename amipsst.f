@@ -2,6 +2,7 @@
       use cc_mpi
       implicit none
 !     this one primarily does namip>=2      
+!     but persisted SST anomalies for namip=-1
 !     A routine for the con-cubic model which will interpolate
 !     linearly in time between two sst data sets.
 !     iday is a variable which is equal to the number of
@@ -13,7 +14,7 @@
       include 'dates.h'     !  kdate,ktime,timer,mtimer
       include 'filnames.h'  ! list of files
       include 'latlong.h'
-      include 'nsibd.h'     ! sib, tsigmf, isoilm
+      include 'nsibd.h'     ! res  for saving SST bias during month
       include 'parm.h'      ! id,jd
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt
       include 'pbl.h'       ! tss
@@ -41,7 +42,7 @@
         iyr=kdate/10000
         imo=(kdate-10000*iyr)/100
         iday=kdate-10000*iyr-100*imo  +mtimer/(60*24)
-        print *,'amipsst  called for iyr,imo,iday ',iyr,imo,iday
+        print *,'at start of amipsst for iyr,imo,iday ',iyr,imo,iday
         do while (iday>mdays(imo))
          iday=iday-mdays(imo)
          imo=imo+1
@@ -50,6 +51,7 @@
            iyr=iyr+1
          endif
         enddo
+        if(namip==-1)iyr=0
  
         if(ktau==0)then
           iyr_m=iyr
@@ -57,12 +59,13 @@
           if(imo_m==0)then
             imo_m=12
             iyr_m=iyr-1
+            if(namip==-1)iyr_m=0
           endif
           open(unit=75,file=sstfile,status='old',form='formatted')
 2         print *,'about to read amipsst file'
           read(75,*)
      &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-          write(6,'("reading sst ",i2,i5,2i4,2f6.1,f6.4,a22)')
+          write(6,'("reading sst ",i2,i5,2i4,2f6.1,f7.4,1x,a22)')
      &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
           if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
      &       rlat0/=rlat_in.or.schmidt/=schmidt_in)then
@@ -94,8 +97,8 @@ c         extra read from Oct 08
   
           open(unit=76,file=icefile,status='old',form='formatted') 
           if(namip>=2)then   ! sice also read at middle of month
-21          read(76,'(i2,i5,2i4,2f6.1,f6.3,a22)')
-     &        imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+21         read(76,*)
+     &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
             write(6,'("reading ice ",i2,i5,2i4,2f6.1,f6.3,a22)')
      &        imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
             if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
@@ -121,11 +124,11 @@ c           extra cice read from Oct 08
             print *,'reading c_sice data:',imonth,iyear,header
             read(76,*) cice_g
             print *,'cice(idjd) ',cice_g(idjd_g)
-          endif   ! (namip>=2) 
+           endif   ! (namip>=2) 
         endif     ! (ktau==0)
       endif ! myid==0
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
-!     Each day interpolate non-land sst's
+!     Each day interpolate-in-time non-land sst's
       if (ktau==0) then
          if ( myid == 0 ) then
             call ccmpi_distribute(ssta, ssta_g)
@@ -142,9 +145,24 @@ c           extra cice read from Oct 08
             call ccmpi_distribute(bice)
             call ccmpi_distribute(cice)
          end if
-      end if ! (ktau==0)
+         if(namip==-1)then
+c          c1=0.
+           do iq=1,ifull  
+            if(.not.land(iq))then
+              c2=ssta(iq)
+              c3=ssta(iq)+sstb(iq)
+              c4=c3+sstc(iq)     
+              res(iq)=tgg(iq,1)-     ! just saves bias at beginning of run
+     &           ( .5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x )         
+            endif      ! (.not.land(iq))
+           enddo
+           print *,'some res values',(res(iq),iq=1,ifull,100)
+         endif  ! (namip==-1)
+      endif     ! (ktau==0)
 
-      x=(iday-.5)/mdays(imo)
+      if(namip==-1)print *,'later_a ktau,res,tss ',
+     &                             ktau,res(idjd),tss(idjd)
+      x=(iday-1.)/mdays(imo)  ! simplest at end of day
       if(myid==0)print *,'month_imo,iday,x',imo,iday,x
       if(namip==2)then
         if(iday<mdays(imo)/2)then  ! 1st half of month
@@ -170,6 +188,21 @@ c           extra cice read from Oct 08
           fraciceb(:)=min(.01*(rat1*bice(:)+rat2*cice(:)),1.) ! convert from %
         endif
       endif  ! (namip==2)
+      if(namip==-1)then
+c      c1=0.
+       do iq=1,ifull  
+        if(.not.land(iq))then
+          c2=ssta(iq)
+          c3=ssta(iq)+sstb(iq)
+          c4=c3+sstc(iq)     
+          tgg(iq,1)=res(iq)+     ! adds SST bias back on to interp clim
+     &          ( .5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x )
+          tss(iq)=tgg(iq,1)
+        endif      ! (.not.land(iq))
+       enddo
+       if(namip==-1)print *,'later ktau,res,tss ',ktau,res(idjd),tss(iq)
+       return
+      endif  ! (namip==-1)
       if(namip>2)then
 c       c1=0.
         do iq=1,ifull  
@@ -180,7 +213,7 @@ c       c1=0.
            tgg(iq,1)=.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x
          endif      ! (.not.land(iq))
         enddo
-      endif  ! (namip<=2)
+      endif  ! (namip>2)
       if(namip==4)then
         do iq=1,ifull  
          c2=aice(iq)

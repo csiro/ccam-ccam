@@ -280,16 +280,22 @@ c~`    &                qg(iq,k)/qs(iq,k),delthet(iq,k),aa
         do iq=1,ifull
          do k=kscbase,kl/2
           if(zh(iq,k)<pblh(iq))then
-c           aa=hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k))
-c           if(aa>0.)
-c    &        print *,'iq,k,zh,pblh,rh ',iq,k,zh(iq,k),pblh(iq),
-c~`    &                qg(iq,k)/qs(iq,k),delthet(iq,k),aa 
             delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,
      &                   (qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
            endif
          enddo  ! k loop 
         enddo   ! iq loop
       endif     ! (ksc==-92)
+      if(ksc==-91)then ! capped-by-pblh (anywhere in layer) version of -95
+        do iq=1,ifull
+         do k=2,kl/2
+          if(zh(iq,k-1)<pblh(iq))then
+            delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,
+     &                   (qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
+           endif
+         enddo  ! k loop 
+        enddo   ! iq loop
+      endif     ! (ksc==-91)
 c     ********* end of Geleyn shallow convection section ****************
 
 !     following now defined in vertmix (don't need to pass from sflux)

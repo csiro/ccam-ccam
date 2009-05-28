@@ -64,13 +64,13 @@ c       print *,'j ',j,(mask(iq),iq=1+(j-1)*il,6+(j-1)*il)
        first=.false.
       endif  ! (first)
       if(ktau==1)then
-       if(myid==0)print *,'il,il_g,jl_g,dt ',il,il_g,jl_g,dt
        do k=1,kl
         call optmx(il_g,schmidt,dt,bam(k),accel(k))
 	if(il_g>il)accel(k)=1.+.55*(accel(k)-1.)  ! for uniform-dec 22/4/08
 c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
         if(myid==0)print *,'k,accel ',k,accel(k)
        enddo
+       print *,'myid,il,il_g,jl_g,dt ',myid,il,il_g,jl_g,dt
       endif
 c$      print *,'myid,ktau,precon ',myid,ktau,precon
  
@@ -190,7 +190,9 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
       klim=kl
       iter = 1
       do while ( iter<itmax .and. klim>1)
+       if(ntest==1.and.diag)print *,'myid,iter a ',myid,iter
        call bounds(s, klim=klim)
+       if(ntest==1.and.diag)print *,'myid,iter b ',myid,iter
        do k=1,klim        
         do nx=1,nx_max
          do iq=1,ifull
@@ -211,20 +213,23 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
         enddo  ! nx loop
         iters(k)=iter
       enddo ! k loop   
-      if(ntest>0.and.mydiag)
-     &  write (6,"('Iter ,s',i4,4f14.5)") iter,(s(iq,1),iq=1,4)
+      if(ntest>0.and.diag)
+     &  write (6,"('myid,Iter ,s',i4,4f14.5)")myid,iter,(s(iq,1),iq=1,4)
       do k=1,klim
        if(iter==1)then
          smax(k) = maxval(s(1:ifull,k))
          smin(k) = minval(s(1:ifull,k))
-         if(ntest>0.and.mydiag)print *,'k,smax,smin ',k,smax(k),smin(k)
+         if(ntest>0.and.diag)print *,'myid,k,smax,smin ',
+     &                                myid,k,smax(k),smin(k)
        endif
 c      write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
        dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
       enddo  ! k loop
       if(iter==1)then
+        if(ntest>0.and.diag)print *,' before smax call myid ', myid
         call MPI_AllReduce( smax, smax_g, klim, MPI_REAL, MPI_MAX,
      &                      MPI_COMM_WORLD, ierr )
+        if(ntest>0.and.diag)print *,' before smin call myid ', myid
         call MPI_AllReduce( smin, smin_g, klim, MPI_REAL, MPI_MIN,
      &                      MPI_COMM_WORLD, ierr )
         if(ntest>0.and.myid==0)then

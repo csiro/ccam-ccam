@@ -537,11 +537,7 @@ c      factch is sqrt(zo/zt) for land use in unstable fh            ! land
        aft(iq)=aftland                                              ! land
        aftlandg=vkar**2/( zologbg * (2.+zologbg) )                  ! land
 c      lgwd>0 enhances cduv (momentum) over orog under (stable & unst) condns
-       if(lgwd>0)then
-         af(iq)=afland+helo(iq)       ! jlm special gwd4b           ! land
-       else
-         af(iq)=afland                                              ! land
-       endif
+       af(iq)=afland+helo(iq)       ! jlm special gwd4b             ! land
                                                                     ! land
 c      Having settled on zo (and thus af) now do actual fh and fm calcs 
        xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       ! land
@@ -716,7 +712,7 @@ c ----------------------------------------------------------------------
 c       preferred option to recalc cduv, ustar (gives better uscrn, u10)
         do iq=1,ifull
          afroot=vkar/log(zmin/zo(iq))! land formula is bit different above
-         af(iq)=afroot**2                                             
+         af(iq)=afroot**2+helo(iq)
          xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       
          ri(iq)=min(xx/vmag(iq)**2 , ri_max)                            
          if(ri(iq)>0.)then                                            

@@ -22,7 +22,6 @@
       use timeseries, only : write_ts
       implicit none
       include 'newmpar.h'
-      include 'aalat.h'
       include 'arrays.h'   ! ts, t, u, v, psl, ps, zs
       include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       include 'const_phys.h'
@@ -267,7 +266,7 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
         kbotu=kbotdav      
       endif
       if(nbd.ne.0)nud_hrs=abs(nud_hrs)  ! just for people with old -ves in namelist
-      if(mbd.ne.0.or.nbd.ne.0)newtop=1
+      !if(mbd.ne.0.or.nbd.ne.0)newtop=1
       if(nudu_hrs==0)nudu_hrs=nud_hrs
 
       if ( myid == 0 ) then   ! **** do namelist fixes above this ***
@@ -286,7 +285,6 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
       print *,'Horizontal wind staggering options:'
       print *,'mstagpt nstag nstagu'
       write (6,'(i5,11i7)') mstagpt,nstag,nstagu
-!     if(nstag==0)stop 'need non-zero value for nstag'
       print *,'Vertical advection options:'
       print *,'  nvad  nvadh  '
       write (6,'(i5,11i7)') nvad,nvadh
@@ -327,8 +325,8 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
       write (6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,
      &                                 rcrit_l,rcrit_s
       print *,'Radiation options:'
-      print *,' nrad  ndiur mins_rad kountr  dt'
-      write (6,'(i5,3i7,f10.2)') nrad,ndiur,mins_rad,kountr,dt
+      print *,' nrad  ndiur mins_rad kountr iaero  dt'
+      write (6,'(i5,3i7,f10.2)') nrad,ndiur,mins_rad,kountr,iaero,dt
 !     for 6-hourly output of sint_ave etc, want 6*60 = N*mins_rad      
       if(nrad==4.and.mod(6*60,mins_rad).ne.0)
      &                              stop 'prefer 6*60 = N*mins_rad '
@@ -382,7 +380,7 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
       if(mfix>3)stop 'mfix >3 not allowed now'
 
       ktau=0
-      if(io_in<=4.and.myid==0)then
+      if(io_in<=5.and.myid==0)then
 !       open new topo file and check its dimensions
 !       here used to supply rlong0,rlat0,schmidt
         open(66,file=topofile,recl=2000,status='old')
@@ -610,7 +608,7 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       sgn_ave(:)  = 0.  ! solar_ground (net) +ve down
       rtu_ave(:)  = 0.  ! LW_out_top 
       rtc_ave(:)  = 0.  ! LW_out_top (clear sky)
-      rgdn_ave(:) = 0.  ! LW_ground (down-welling)  +ve up
+      rgdn_ave(:) = 0.  ! LW_ground (down-welling)  +ve down
       rgn_ave(:)  = 0.  ! LW_ground (net)  +ve up
       rgc_ave(:)  = 0.  ! LW_ground (clear sky)
       cld_ave(:)  = 0.
@@ -1418,7 +1416,7 @@ c     if(nmaxpr==1)print *,'before 2nd loadbal ktau,myid = ',ktau,myid
         capemax(:)=0.
         rnd_3hr(:,8)=0.       ! i.e. rnd24(:)=0.
         if(nextout>=4)call setllp ! from Nov 11, reset once per day
-        if(namip>0.and.ktau<ntau)then ! not for last day, as day 1 of next month
+        if(namip.ne.0)then ! not for last day, as day 1 of next month
           if (myid==0)
      &    print *,'amipsst called at end of day for ktau,mtimer,namip ',
      &                                              ktau,mtimer,namip
@@ -1552,15 +1550,15 @@ c     if(nmaxpr==1)print *,'before 2nd loadbal ktau,myid = ',ktau,myid
       use cc_mpi
 !     sets tr arrays for lat, long, pressure if nextout>=4 &(nllp>=3)
       include 'newmpar.h'
-      include 'aalat.h'
       include 'arrays.h'  ! ts, t, u, v, psl, ps, zs
       include 'const_phys.h'
+      include 'latlong.h'
       include 'sigs.h'
       include 'tracers.h'  ! ngas, nllp, ntrac
       do k=1,klt
        do iq=1,ilt*jlt        
-        tr(iq,k,min(ntracmax,ngas+1))=alat(iq)
-        tr(iq,k,min(ntracmax,ngas+2))=along(iq)
+        tr(iq,k,min(ntracmax,ngas+1))=rlatt(iq)*180./pi
+        tr(iq,k,min(ntracmax,ngas+2))=rlongg(iq)*180./pi
         tr(iq,k,min(ntracmax,ngas+3))=.01*ps(iq)*sig(k)  ! in HPa
        enddo
       enddo
@@ -1646,16 +1644,16 @@ c     data nstag/99/,nstagu/99/
 !     Horizontal mixing options
       data khdif/2/,khor/-8/,nhor/-157/,nhorps/-1/,nhorjlm/1/
 !     Vertical mixing options
-      data nvmix/3/,nlocal/6/,nvsplit/2/,ncvmix/0/,lgwd/0/,ngwd/-5/
+      data nvmix/5/,nlocal/6/,nvsplit/2/,ncvmix/0/,lgwd/0/,ngwd/-5/
 !     Cumulus convection options
-      data nkuo/23/,sigcb/1./,sig_ct/-.8/,rhcv/0./,rhmois/.1/,rhsat/1./,
+      data nkuo/23/,sigcb/1./,sig_ct/.8/,rhcv/0./,rhmois/.1/,rhsat/1./,
      &     convfact/1.02/,convtime/.33/,shaltime/0./,      
      &     alflnd/1.1/,alfsea/1.1/,fldown/.6/,iterconv/3/,ncvcloud/0/,
      &     nevapcc/0/,nevapls/-4/,nuvconv/0/
      &     mbase/101/,mdelay/-1/,methprec/8/,nbase/-4/,detrain/.15/,
      &     entrain/.05/,methdetr/2/,detrainx/0./,dsig2/.15/,dsig4/.4/
 !     Shallow convection options
-      data ksc/-95/,kscsea/0/,kscmom/1/,sigkscb/.95/,sigksct/.8/,
+      data ksc/0/,kscsea/0/,kscmom/1/,sigkscb/.95/,sigksct/.8/,
      &     tied_con/2./,tied_over/0./,tied_rh/.75/
 !     Other moist physics options
       data acon/.2/,bcon/.07/,qgmin/1.e-6/,rcm/.92e-5/,
@@ -1671,7 +1669,7 @@ c     data nstag/99/,nstagu/99/
      &     nrungcm/-1/,nsib/3/,nsigmf/1/,
      &     ntaft/2/,ntsea/6/,ntsur/6/,av_vmod/.7/,tss_sh/1./,
      &     vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
-      data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
+      data newsoilm/0/,newztsea/1/,newtop/0/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
       data nurban/0/,nmr/0/,nmlo/0/ ! MJT urban ! MJT nmr ! MJT mlo
 !     Special and test options
@@ -2234,6 +2232,12 @@ c     &	         rh_s(:)
       common/parmhdff/nhor,nhorps,hdiff(kl),khor,khdif,hdifmax,nhorjlm
       integer nversion,nbarewet,nsigmf
       common/nsib/nbarewet,nsigmf
+      if(nversion<904)then
+        newtop=1       ! new is 0
+        nvmix=3        ! new is 5
+        ksc=-95        ! new is 0
+        sig_ct=-.8     ! new is .8
+      endif
       if(nversion<809)then
         nvmix=5        ! new is 3
         ksc=0          ! new is -95

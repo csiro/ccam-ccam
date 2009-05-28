@@ -23,7 +23,6 @@
 !        or, usefully can edit 'ntest.gt.0' to 'ktau.gt.nnn'
       parameter (nalbwb=0)  ! 0  for original alb not depending on wb
       parameter (kcl_top=kl-2) !max level for cloud top (conjob,radrive,vertmix)
-      include 'aalat.h'    ! alat, along
       include 'arrays.h'      
       include 'const_phys.h' ! for ldr cloud scheme
       include 'cparams.h'    ! for ldr cloud scheme

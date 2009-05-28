@@ -275,9 +275,10 @@ c=======================================================================
 c     this routine creates attributes and writes output
 
       include 'newmpar.h'
-      include 'aalat.h'
+      include 'latlong.h'
       include 'arrays.h'
       include 'carbpools.h' ! MJT cable
+      include 'const_phys.h'
       include 'dates.h'    ! ktime,kdate,timer,timeg,xg,yg,mtimer
       include 'extraout.h' ! u10_3hr,v10_3hr
       include 'filnames.h' ! list of files, read in once only
@@ -740,12 +741,6 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          call attrib(idnc,idim,3,'snage',lname,'none',0.,20.,0)   
          lname = 'Snow flag'
          call attrib(idnc,idim,3,'sflag',lname,'none',0.,4.,0)
-         if (nsib.eq.4.or.nsib.eq.6) then ! MJT cable
-           lname = 'Soil turbulent resistance' 
-           call attrib(idnc,idim,3,'rtsoil',lname,'none',0.,9.e4,0) 
-           lname = 'cansto'
-           call attrib(idnc,idim,3,'cansto',lname,'none',0.,10.,0)
-         end if
         endif  ! (itype==-1)
 
         !--------------------------------------------------------
@@ -975,11 +970,6 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       !call histwrt3(wb(1,5),'wb5',idnc,iarch,local)
       !call histwrt3(wb(1,6),'wb6',idnc,iarch,local)
       if (nsib.eq.4.or.nsib.eq.6) then ! MJT cable
-! rml: moved from section that isn't written to restart file
-         !call histwrt3(sumpn,'sumpn',idnc,iarch,local)
-         !call histwrt3(sumrp,'sumrp',idnc,iarch,local)
-         !call histwrt3(sumrs,'sumrs',idnc,iarch,local)
-         !call histwrt3(sumrd,'sumrd',idnc,iarch,local)
         call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local)
         call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local)
         call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local)
@@ -1087,8 +1077,8 @@ c     call histwrt3(snowd,'snd',idnc,iarch,local)
 c         print *,'before corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
           do k=1,klt
            do iq=1,ilt*jlt        
-            tr(iq,k,ngas+1)=tr(iq,k,ngas+1)-alat(iq)
-            tr(iq,k,ngas+2)=tr(iq,k,ngas+2)-along(iq)
+            tr(iq,k,ngas+1)=tr(iq,k,ngas+1)-rlatt(iq)*180./pi
+            tr(iq,k,ngas+2)=tr(iq,k,ngas+2)-rlongg(iq)*180./pi
             if(tr(iq,k,ngas+2)>180.)
      &                         tr(iq,k,ngas+2)=tr(iq,k,ngas+2)-360.
             if(tr(iq,k,ngas+2)<-180.)
@@ -1201,8 +1191,6 @@ c      "extra" outputs
        aa(:)=isflag(:)
        call histwrt3(aa,'sflag',idnc,iarch,local)
        if (nsib.eq.4.or.nsib.eq.6) then ! MJT cable       
-         call histwrt3(rtsoil,'rtsoil',idnc,iarch,local) 
-         call histwrt3(cansto,'cansto',idnc,iarch,local)       
          call savetile(idnc,local,idim)
        end if
       endif  ! (itype==-1)
@@ -1891,7 +1879,6 @@ c=======================================================================
       implicit none
 c     this routine creates attributes and writes output
       include 'newmpar.h'
-      include 'aalat.h'
       include 'arrays.h'
       include 'dates.h'    ! ktime,kdate,timer,timeg,xg,yg,mtimer
       include 'extraout.h' ! u10_3hr,v10_3hr
