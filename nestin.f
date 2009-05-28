@@ -211,16 +211,17 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
         call vertint(vb,4)
       endif  ! (abs(sig(2)-sigin(2))>.0001)
 
-!     N.B. tssb (sea) only altered for newtop=2 (done here now)
-      if(newtop==2)then
-!       reduce sea tss to mslp      e.g. for QCCA in NCEP GCM
-        do iq=1,ifull
-         if(tssb(iq)<0.)tssb(iq)=
-     .                       tssb(iq)-zsb(iq)*stdlapse/grav  ! N.B. -
-        enddo
-      endif  ! (newtop==2)
+!     MJT bugfix
+!!     N.B. tssb (sea) only altered for newtop=2 (done here now)
+!      if(newtop==2)then
+!!       reduce sea tss to mslp      e.g. for QCCA in NCEP GCM
+!        do iq=1,ifull
+!         if(tssb(iq)<0.)tssb(iq)=
+!     .                       tssb(iq)-zsb(iq)*stdlapse/grav  ! N.B. -
+!        enddo
+!      endif  ! (newtop==2)
 
-      if(newtop>=1)then
+      !if(newtop>=1)then !MJT bugfix
 !       in these cases redefine pslb, tb and (effectively) zsb using zs
 !       this keeps fine-mesh land mask & zs
 !       presently simplest to do whole pslb, tb (& qb) arrays
@@ -241,7 +242,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
           print *,'pslb out(idjd) :',pslb(idjd)
           print *,'after pslb print; num= ',num
         endif
-      endif   !  newtop>=1
+      !endif   !  newtop>=1 ! MJT bugfix
 
       if(num==0)then
         num=1
@@ -449,16 +450,17 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
          call vertint(vb,4)
        endif  ! (abs(sig(2)-sigin(2))>.0001)
 
-!      N.B. tssb (sea) only altered for newtop=2 (done here now)
-       if(newtop==2)then
-!        reduce sea tss to mslp      e.g. for QCCA in NCEP GCM
-         do iq=1,ifull
-          if(tssb(iq)<0.)tssb(iq)=
-     .                        tssb(iq)-zsb(iq)*stdlapse/grav  ! N.B. -
-         enddo
-       endif  ! (newtop==2)
+!      MJT bugfix
+!!      N.B. tssb (sea) only altered for newtop=2 (done here now)
+!       if(newtop==2)then
+!!        reduce sea tss to mslp      e.g. for QCCA in NCEP GCM
+!         do iq=1,ifull
+!          if(tssb(iq)<0.)tssb(iq)=
+!     .                        tssb(iq)-zsb(iq)*stdlapse/grav  ! N.B. -
+!         enddo
+!       endif  ! (newtop==2)
 
-       if(newtop>=1)then
+       !if(newtop>=1)then ! MJT bugfix
 !        in these cases redefine pslb, tb and (effectively) zsb using zs
 !        this keeps fine-mesh land mask & zs
 !        presently simplest to do whole pslb, tb (& qb) arrays
@@ -477,7 +479,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
            write (6,"('100*pslb.wesn ',2p5f8.3)") pslb(idjd),
      &       pslb(iw(idjd)),pslb(ie(idjd)),pslb(is(idjd)),pslb(in(idjd))
          endif
-       endif   !  newtop>=1
+       !endif   !  newtop>=1 ! MJT bugfix
 
       end if ! ((mtimer>mtimeb).or.firstcall)
 
