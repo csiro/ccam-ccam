@@ -3,7 +3,7 @@
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,   ! 0808
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                    urban,datoc) ! MJT urban ! MJT mlo
+     .                    urban,datoc,ocndepin) ! MJT urban ! MJT mlo
 !     Target points use values interpolated to their 4 grid "corners";
 !     these corner values are then averaged to the grid centres
 !     N.B. this means will get different fields with io_in=-1 from io_in=1
@@ -49,7 +49,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      & ssdnn(ifull),snage(ifull),qfg(ifull,kl),qlg(ifull,kl),
-     & urban(ifull,12),datoc(ifull,wlev,4) ! MJT urban ! MJT mlo
+     & urban(ifull,12),datoc(ifull,wlev,4),ocndepin(ifull) ! MJT urban ! MJT mlo
       ! Dummy variables here replace the aliasing use of aa, bb in infile call
       integer isflag(ifull)
       ! Will get odd results unless this is on process 0 ???
@@ -88,7 +88,7 @@ c     start of processing loop
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,  ! 0808
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    urban,datoc) ! MJT urban ! MJT mlo
+     .                    urban,datoc,ocndepin) ! MJT urban ! MJT mlo
       return
       end
       subroutine ontheflyx(nested,land_t,kdate_r,ktime_r,
@@ -96,7 +96,7 @@ c     start of processing loop
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    urban,datoc) ! MJT urban ! MJT mlo
+     .                    urban,datoc,ocndepin) ! MJT urban ! MJT mlo
       use cc_mpi
       use define_dimensions, only : ncs, ncp ! MJT cable
       use mlo, only : wlev ! MJT mlo
@@ -132,14 +132,16 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
       real, dimension(ifull) :: psl,zss,tss,fracice,
      &                          snowd,sicedep,ssdnn,snage
+      real, dimension(ifull) :: ocndepin ! MJT mlo
       real, dimension(ifull,ms) :: wb,wbice,tgg
       real, dimension(ifull,3) :: tggsn,smass,ssdn
       real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg
       real, dimension(ifull,12) :: urban ! MJT urban
-      real, dimension(ifull,wlev,4) :: datoc ! MJT urban
+      real, dimension(ifull,wlev,4) :: datoc ! MJT mlo
       integer, dimension(ifull) :: isflag
       real, dimension(ik*ik*6) :: psl_a,zss_a,tss_a,fracice_a,dum5,
      &      snowd_a,sicedep_a,ssdnn_a,snage_a,pmsl_a,  tss_l_a,tss_s_a
+      real, dimension(ik*ik*6) :: ocndepin_a ! MJT mlo
       real, dimension(ik*ik*6,ms) :: wb_a,wbice_a,tgg_a
       real, dimension(ik*ik*6,3) :: tggsn_a,smass_a,ssdn_a
       real, dimension(ik*ik*6,kk) :: t_a,u_a,v_a,qg_a,qfg_a,qlg_a
@@ -186,7 +188,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      &       psl_a,zss_a,tss_a,sicedep_a,fracice_a,t_a,u_a,v_a,qg_a,
      &       tgg_a,wb_a,wbice_a,dum5,snowd_a,qfg_a,qlg_a,                ! dum5 is alb
      &       tggsn_a,smass_a,ssdn_a,ssdnn_a,snage_a,isflag_a,ik*ik*6,
-     &       kk,isoilm_a,urban_a,cplant_a,csoil_a,datoc_a)     ! MJT cable ! MJT lsmask ! MJT urban ! MJT mlo
+     &       kk,isoilm_a,urban_a,cplant_a,csoil_a,datoc_a,ocndepin_a)     ! MJT cable ! MJT lsmask ! MJT urban ! MJT mlo
 !     N.B. above infile call returns values for ik,jk,kk of source data
 !     Purpose of setxyz call is to get geometry (and so xx4 yy4) 
 !     for the source grid. Only process 0 needs to do this here
@@ -476,6 +478,10 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
         ! MJT mlo
         if (nmlo.ne.0) then
           if (myid==0) then
+            where (land_a.or.ocndepin_a.le.0.)
+              ocndepin_a=spval
+            end where
+            call fill_cc(ocndepin_a,spval,ik,0)
             do m=1,4
               do k=1,wlev
                 where (land_a.or.datoc_a(:,k,m).ge.399.)
@@ -485,6 +491,7 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
               end do
             end do
           end if
+          call doints4(ocndepin_a,ocndepin,nface4,xg4,yg4,nord,ik)
           do m=1,4
             do k=1,wlev
               call doints4(datoc_a(:,k,m),datoc(:,k,m),nface4,xg4

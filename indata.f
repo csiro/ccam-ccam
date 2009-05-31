@@ -4,7 +4,7 @@
       use cable_ccam, only : CABLE,loadcbmparm ! MJT cable
       use physical_constants, only : umin ! MJT cable      
       use define_dimensions, only : ncs, ncp ! MJT cable
-      use mlo, only : mloinit,mloload,wlev ! MJT mlo
+      use mlo ! MJT mlo
       use cc_mpi
       use diag_m
 !     rml 21/02/06 removed all so2 code
@@ -71,6 +71,7 @@
       integer ik,jk,kk
       common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug
       real, dimension(ifull) :: zss, aa, zsmask
+      real, dimension(ifull) :: dep,ocndepin ! MJT mlo
       real tbarr(kl),qgin(kl),zbub(kl)
       character co2in*80,radonin*80,surfin*80,header*80
 
@@ -279,7 +280,7 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
      &           tgg,wb,wbice,albsav,snowd,qfg(1:ifull,:), ! MJT albedo
      &           qlg(1:ifull,:), ! 0808 
      &           tggsn,smass,ssdn,ssdnn,snage,isflag,ifull,kl,         ! 0808
-     &           isoilm,urban,cplant,csoil,datoc) ! MJT cable !MJT lsmask ! MJT urban ! MJT mlo
+     &           isoilm,urban,cplant,csoil,datoc,ocndepin) ! MJT cable !MJT lsmask ! MJT urban ! MJT mlo
             albnirsav=albsav ! MJT CHANGE albedo
 c           if(nspecial>100)then
 c!            allows nudging from mesonest with different kdate
@@ -303,7 +304,8 @@ c           endif  ! (nspecial>100)
             call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
      &           tgg,wb,wbice,snowd,qfg(1:ifull,:),qlg(1:ifull,:), !0808
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag,urban,datoc) ! MJT urban ! MJT mlo
+     &           tggsn,smass,ssdn,ssdnn,snage,isflag,urban,datoc,
+     &           ocndepin) ! MJT urban ! MJT mlo
          endif   ! (io_in==-1)
          if( mydiag )then
            print *,'timegb,ds,zss',timegb,ds,zss(idjd)
@@ -1923,14 +1925,18 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       !-----------------------------------------------------------------
       ! nmlo=0 no mixed layer ocean
       ! nmlo=1 free mixed layer ocean
-      ! nmlo=2 nudged mixed layer ocean
+      ! nmlo=2 SST nudged mixed layer ocean
       if (nmlo.ne.0) then
         where (land)
           aa=0.
         elsewhere
           aa=1.
         end where
-        call mloinit(ifull,aa,0)
+        dep=250. ! to be readin
+        call mloinit(ifull,aa,dep,0)
+        if (any(ocndepin.gt.0.5)) then
+          call mloregrid(ifull,ocndepin,datoc)
+        end if
         do k=1,wlev
           where (datoc(:,k,1).ge.399.) ! must be the same as spval in onthefly.f
             datoc(:,k,1)=tss(:)

@@ -171,7 +171,7 @@
      & ,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
-     & ,m_fly,mstn,nqg,nurban,nmr,nmlo ! MJT urban ! MJT nmr ! MJT mlo
+     & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav ! MJT urban ! MJT nmr ! MJT mlo ! MJT nestin
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -1626,8 +1626,9 @@ c     endif
       data ia/1/,ib/3/,id/2/,ja/1/,jb/10/,jd/5/,nlv/1/,
      &     ndi/1/,ndi2/0/,nmaxpr/99/,          
      &     kdate_s/-1/,ktime_s/-1/,leap/0/,
-     &     mbd/0/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/           
-     &     nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/
+     &     mbd/0/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/,           
+     &     nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/,
+     &     ktopdav/kl/ ! MJT nestin
       
 !     Dynamics options A & B      
       data m/5/,mex/30/,mfix/1/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/,npex/0/

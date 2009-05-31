@@ -3,7 +3,7 @@
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                  tgg,wb,wbice,alb,snowd,qfg,qlg,   ! 0808
      .                  tggsn,smass,ssdn,ssdnn,snage,isflag,ifull,kl,
-     .                  isoilh,urban,cplant,csoil,datoc) ! MJT lsmask ! MJT urban ! MJT mlo
+     .                  isoilh,urban,cplant,csoil,datoc,ocndepin) ! MJT lsmask ! MJT urban ! MJT mlo
 !     note kk; vertint.f is attached below
 !     kdate_r and ktime_r are returned from this routine.
 !     They must equal or exceed kdate_s and ktime_s
@@ -42,7 +42,7 @@ c     include 'tracers.h'  **** to be fixed after 0808
      . ssdnn(ifull),snage(ifull)
      & ,qfg(ifull,kl),qlg(ifull,kl),
      & cplant(ifull,ncp),csoil(ifull,ncs), ! MJT cable
-     & urban(ifull,1:12),datoc(ifull,wlev,4) ! MJT urban ! MJT mlo
+     & urban(ifull,1:12),datoc(ifull,wlev,4),ocndepin(ifull) ! MJT urban ! MJT mlo
       integer isoilh(ifull) ! MJT lsmask  
       integer isflag(ifull)
       integer ktau_r, ibb, jbb, i
@@ -556,6 +556,8 @@ c 	    only being tested for nested=0; no need to test for mesonest
         !------------------------------------------------------------
         ! MJT mlo
         datoc=999.
+        ocndepin=0.
+        call histrd1(ncid,iarchi,ierr,'ocndepth',ik,jk,ocndepin,ifull)
         call histrd1(ncid,iarchi,ierr,'sal01',ik,jk,datoc(:,1,2)
      &                ,ifull)
         if (ierr==0) then

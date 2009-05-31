@@ -776,6 +776,8 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         !--------------------------------------------------------  
         ! MJT mlo
         if (nmlo.ne.0) then
+          lname = 'water depth'
+          call attrib(idnc,idim,2,'ocndepth',lname,'m',0.,5000.,0)
           do k=ms+1,wlev
            write(lname,'("soil/ocean temperature lev ",I2)') k
            write(vname,'("tgg",I2.2)') k
@@ -937,7 +939,10 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       ! MJT mlo
       if (nmlo.ne.0) then
         datoc=999. ! must be the same as spval in onthefly.f
-        call mlosave(ifull,datoc,0)
+        call mlosave(ifull,datoc,aa,0)
+        if (ktau==0.or.itype==-1) then
+          call histwrt3(aa,'ocndepth',idnc,iarch,local)
+        end if
         do k=1,ms
           where (.not.land)
             tgg(:,k)=datoc(:,k,1)

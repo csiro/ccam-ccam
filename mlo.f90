@@ -10,7 +10,7 @@ module mlo
 implicit none
 
 private
-public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,wlev
+public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,wlev
 
 type tdata
   real temp,sal,u,v
@@ -37,11 +37,14 @@ integer, parameter :: wlev = 11
 ! model arrays
 integer, save :: wfull
 integer, dimension(:), allocatable, save :: wgrid
-real, dimension(wlev), save :: depth,dz
-real, dimension(wlev+1), save :: depth_hl
-real, dimension(2:wlev), save :: dz_hl
+real, dimension(:,:), allocatable, save :: depth,dz
+real, dimension(:,:), allocatable, save :: depth_hl
+real, dimension(:,:), allocatable, save :: dz_hl
 type(tdata), dimension(:,:), allocatable, save :: water
 type(tprog2), dimension(:), allocatable, save :: pg
+
+! max depth
+real, parameter :: mxd =221.
 
 ! model parameters
 real, parameter :: ric     = 0.3
@@ -66,17 +69,13 @@ contains
 !  Initialise MLO
 
 
-subroutine mloinit(ifull,sigw,diag)
+subroutine mloinit(ifull,sigw,depin,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
 integer iq,iqw,ii
-real, dimension(ifull), intent(in) :: sigw
-real x,y
-real, parameter :: dd1 = 0.
-real, parameter :: dd2 = 2.
-real, parameter :: dd3 = 0.
+real, dimension(ifull), intent(in) :: sigw,depin
 
 if (diag.ge.1) write(6,*) "Initialising MLO"
 
@@ -84,7 +83,9 @@ wfull=count(sigw.gt.0)
 if (wfull.eq.0) return
 
 allocate(water(wfull,wlev),wgrid(wfull),pg(wfull))
-
+allocate(depth(wfull,wlev),dz(wfull,wlev))
+allocate(depth_hl(wfull,wlev+1))
+allocate(dz_hl(wfull,2:wlev))
 
 wgrid=0
 iqw=0
@@ -106,23 +107,48 @@ pg%mixdepth=100. ! m
 !depth = (/ 0.5, 4.5, 13., 25., 41., 61., 85., 113., 145., 181., 221., 265., 313.,
 !           365., 421., 481., 545., 613., 685., 761., 841, 925., 1013.  /)  ! 2.*(x-0.5)^2
 
-do ii=1,wlev
-  x=real(ii)-0.5
-  depth(ii)=dd1*x*x*x+dd2*x*x+dd3*x
-end do
-do ii=1,wlev+1
-  y=real(ii)-1.
-  depth_hl(ii)=dd1*y*y*y+dd2*y*y+dd3*y ! ii is for half level ii-0.5
+do iqw=1,wfull
+  call vgrid(depin(wgrid(iqw)),depth(iqw,:),depth_hl(iqw,:))
 end do
 do ii=1,wlev
-  dz(ii)=depth_hl(ii+1)-depth_hl(ii)
+  dz(:,ii)=depth_hl(:,ii+1)-depth_hl(:,ii)
 end do
 do ii=2,wlev
-  dz_hl(ii)=depth(ii)-depth(ii-1)
+  dz_hl(:,ii)=depth(:,ii)-depth(:,ii-1)
 end do
 
 return
 end subroutine mloinit
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Define vertical grid
+!
+
+subroutine vgrid(depin,depthout,depth_hlout)
+
+implicit none
+
+integer ii
+real, intent(in) :: depin
+real, dimension(wlev), intent(out) :: depthout
+real, dimension(wlev+1), intent(out) :: depth_hlout
+real dd,x,y,al,bt
+
+dd=min(mxd,max(6.,depin))
+x=real(wlev)-0.5
+al=(x-dd)/(0.5*x-x*x)
+bt=(x*x-0.5*dd)/(x*x-0.5*x)
+do ii=1,wlev
+  x=real(ii)-0.5
+  depthout(ii)=al*x*x+bt*x
+end do
+do ii=1,wlev+1
+  y=real(ii)-1.
+  depth_hlout(ii)=al*y*y+bt*y ! ii is for half level ii-0.5
+end do
+
+return
+end subroutine vgrid
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Deallocate MLO arrays
@@ -134,6 +160,7 @@ implicit none
 if (wfull.eq.0) return
 
 deallocate(water,wgrid,pg)
+deallocate(depth,dz,depth_hl,dz_hl)
 
 return
 end subroutine mloend
@@ -164,13 +191,14 @@ end subroutine mloload
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Save MLO data
 
-subroutine mlosave(ifull,dataout,diag)
+subroutine mlosave(ifull,dataout,depout,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
 integer i
 real, dimension(ifull,wlev,4), intent(out) :: dataout
+real, dimension(ifull), intent(out) :: depout
 
 if (wfull.eq.0) return
 
@@ -180,6 +208,8 @@ do i=1,wlev
   dataout(wgrid,i,3)=water(:,i)%u
   dataout(wgrid,i,4)=water(:,i)%v
 end do
+depout=0.
+depout(wgrid)=depth(:,wlev)
 
 return
 end subroutine mlosave
@@ -215,25 +245,48 @@ return
 end subroutine mloexport
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Move runoff to waterbody
+! Regrid MLO data
 !
 
-!subroutine mloinflow(ifull,newrunoff,dt,diag)
-!
-!implicit none
-!
-!include 'mpif.h'
-!
-!integer, intent(in) :: ifull,diag
-!real, dimension(ifull), intent(inout) :: newrunoff
-!
-!if (wfull.eq.0) return
-!
-!pg%inflow=pg%inflow+newrunoff(wgrid)/dt
-!newrunoff(wgrid)=0.
-!
-!return
-!end subroutine mloroute
+subroutine mloregrid(ifull,depin,mlodat)
+
+implicit none
+
+integer, intent(in) :: ifull
+integer iqw,ii,pos(1)
+real, dimension(ifull), intent(in) :: depin
+real, dimension(ifull,wlev,4), intent(inout) :: mlodat
+real, dimension(ifull,wlev,4) :: newdat
+real, dimension(wlev) :: dpin
+real, dimension(wlev+1) :: dp_hlin
+real x
+
+if (wfull.eq.0) return
+if (all(depin.eq.depth(:,wlev))) return
+
+do iqw=1,wfull
+  call vgrid(depin(wgrid(iqw)),dpin,dp_hlin)
+  ii=1
+  do while (ii.le.wlev)
+    if (depth(iqw,ii).gt.dpin(wlev)) then
+      newdat(iqw,ii,:)=mlodat(iqw,wlev,:)
+    else if (depth(iqw,ii).lt.dpin(1)) then
+      newdat(iqw,ii,:)=mlodat(iqw,1,:)
+    else
+      pos=maxloc(dpin,dpin.le.depth(iqw,ii))
+      pos(1)=max(1,min(wlev-1,pos(1)))
+      x=(depth(iqw,ii)-dpin(pos(1)))/(dpin(pos(1)+1)-dpin(pos(1)))
+      x=max(0.,min(1.,x))
+      newdat(iqw,ii,:)=mlodat(iqw,pos(1)+1,:)*x+mlodat(iqw,pos(1),:)*(1.-x)
+    end if
+    ii=ii+1
+  end do  
+end do
+
+mlodat=newdat
+
+return
+end subroutine mloregrid
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
@@ -296,41 +349,41 @@ call getstab(km,ks,gammas,dg2,dg3) ! solve for stability functions and non-local
 ! TEMPERATURE
 ! radiative contribution to non-local term is negected for now (i.e., d2%wt0 only)
 ! use +ve for gamma terms as depth is down
-rhs(:,1)=(0.25/dz(1))*(ks(:,2)+ks(:,1))*(gammas(:,2)+gammas(:,1))*dg2%wt0
+rhs(:,1)=(0.25/dz(:,1))*(ks(:,2)+ks(:,1))*(gammas(:,2)+gammas(:,1))*dg2%wt0
 do ii=2,wlev-1
-  rhs(:,ii)=(0.25/dz(ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
+  rhs(:,ii)=(0.25/dz(:,ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
                           -(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dg2%wt0 ! non-local
 end do
 rhs(:,wlev)=0.
 do ii=1,wlev-1
   ! use -ve as depth is down
-  rhs(:,ii)=rhs(:,ii)-(atm%rg*exp(-depth_hl(ii+1)/mu_lw)+atm%sg*exp(-depth_hl(ii+1)/mu_sw) &
-                      -atm%rg*exp(-depth_hl(ii)/mu_lw)-atm%sg*exp(-depth_hl(ii)/mu_sw))/(dg3(:,ii)%rho*cp0*dz(ii)) ! radiation
+  rhs(:,ii)=rhs(:,ii)-(atm%rg*exp(-depth_hl(:,ii+1)/mu_lw)+atm%sg*exp(-depth_hl(:,ii+1)/mu_sw) &
+                      -atm%rg*exp(-depth_hl(:,ii)/mu_lw)-atm%sg*exp(-depth_hl(:,ii)/mu_sw))/(dg3(:,ii)%rho*cp0*dz(:,ii)) ! radiation
 end do
-rhs(:,wlev)=rhs(:,wlev)+(atm%rg*exp(-depth_hl(wlev)/mu_lw)+atm%sg*exp(-depth_hl(wlev)/mu_sw))/(dg3(:,wlev)%rho*cp0*dz(wlev)) ! remainder
-bb(:,1)=1./dt+0.5*(ks(:,1)+ks(:,2))/(dz_hl(2)*dz(1))
-cc(:,1)=-0.5*(ks(:,1)+ks(:,2))/(dz_hl(2)*dz(1))
+rhs(:,wlev)=rhs(:,wlev)+(atm%rg*exp(-depth_hl(:,wlev)/mu_lw)+atm%sg*exp(-depth_hl(:,wlev)/mu_sw))/(dg3(:,wlev)%rho*cp0*dz(:,wlev)) ! remainder
+bb(:,1)=1./dt+0.5*(ks(:,1)+ks(:,2))/(dz_hl(:,2)*dz(:,1))
+cc(:,1)=-0.5*(ks(:,1)+ks(:,2))/(dz_hl(:,2)*dz(:,1))
 ! use -ve for BC as depth is down
-dd(:,1)=water(:,1)%temp/dt+rhs(:,1)-dg2%wt0/dz(1)
+dd(:,1)=water(:,1)%temp/dt+rhs(:,1)-dg2%wt0/dz(:,1)
 do ii=2,wlev-1
-  aa(:,ii)=-0.5*(ks(:,ii)+ks(:,ii-1))/(dz_hl(ii)*dz(ii))
-  bb(:,ii)=1./dt+0.5*((ks(:,ii+1)+ks(:,ii))/dz_hl(ii+1)+(ks(:,ii)+ks(:,ii-1))/dz_hl(ii))/dz(ii)
-  cc(:,ii)=-0.5*(ks(:,ii+1)+ks(:,ii))/(dz_hl(ii+1)*dz(ii))
+  aa(:,ii)=-0.5*(ks(:,ii)+ks(:,ii-1))/(dz_hl(:,ii)*dz(:,ii))
+  bb(:,ii)=1./dt+0.5*((ks(:,ii+1)+ks(:,ii))/dz_hl(:,ii+1)+(ks(:,ii)+ks(:,ii-1))/dz_hl(:,ii))/dz(:,ii)
+  cc(:,ii)=-0.5*(ks(:,ii+1)+ks(:,ii))/(dz_hl(:,ii+1)*dz(:,ii))
   dd(:,ii)=water(:,ii)%temp/dt+rhs(:,ii)
 end do
-aa(:,wlev)=-0.5*(ks(:,wlev)+ks(:,wlev-1))/(dz_hl(wlev)*dz(wlev))
-bb(:,wlev)=1./dt+0.5*(ks(:,wlev)+ks(:,wlev-1))/(dz_hl(wlev)*dz(wlev))
+aa(:,wlev)=-0.5*(ks(:,wlev)+ks(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
+bb(:,wlev)=1./dt+0.5*(ks(:,wlev)+ks(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
 dd(:,wlev)=water(:,wlev)%temp/dt+rhs(:,wlev)
 call thomas(new%temp,aa,bb,cc,dd)
 
 ! SALINITY
-rhs(:,1)=(0.25/dz(1))*(ks(:,2)+ks(:,1))*(gammas(:,2)+gammas(:,1))*dg2%ws0
+rhs(:,1)=(0.25/dz(:,1))*(ks(:,2)+ks(:,1))*(gammas(:,2)+gammas(:,1))*dg2%ws0
 do ii=2,wlev-1
-  rhs(:,ii)=(0.25/dz(ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
+  rhs(:,ii)=(0.25/dz(:,ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
                           -(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dg2%ws0 ! non-local
 end do
 rhs(:,wlev)=0.
-dd(:,1)=water(:,1)%sal/dt+rhs(:,1)-dg2%ws0/dz(1)
+dd(:,1)=water(:,1)%sal/dt+rhs(:,1)-dg2%ws0/dz(:,1)
 do ii=2,wlev-1
   dd(:,ii)=water(:,ii)%sal/dt+rhs(:,ii)
 end do
@@ -338,22 +391,22 @@ dd(:,wlev)=water(:,wlev)%sal/dt+rhs(:,wlev)
 call thomas(new%sal,aa,bb,cc,dd)
 
 ! split U diffusion term
-bb(:,1)=1./dt+0.5*(km(:,1)+km(:,2))/(dz_hl(2)*dz(1))
-cc(:,1)=-0.5*(km(:,1)+km(:,2))/(dz_hl(2)*dz(1))
-dd(:,1)=water(:,1)%u/dt-dg2%wu0/dz(1)
+bb(:,1)=1./dt+0.5*(km(:,1)+km(:,2))/(dz_hl(:,2)*dz(:,1))
+cc(:,1)=-0.5*(km(:,1)+km(:,2))/(dz_hl(:,2)*dz(:,1))
+dd(:,1)=water(:,1)%u/dt-dg2%wu0/dz(:,1)
 do ii=2,wlev-1
-  aa(:,ii)=-0.5*(km(:,ii)+km(:,ii-1))/(dz_hl(ii)*dz(ii))
-  bb(:,ii)=1./dt+0.5*((km(:,ii+1)+km(:,ii))/dz_hl(ii+1)+(km(:,ii)+km(:,ii-1))/dz_hl(ii))/dz(ii)
-  cc(:,ii)=-0.5*(km(:,ii+1)+km(:,ii))/(dz_hl(ii+1)*dz(ii))
+  aa(:,ii)=-0.5*(km(:,ii)+km(:,ii-1))/(dz_hl(:,ii)*dz(:,ii))
+  bb(:,ii)=1./dt+0.5*((km(:,ii+1)+km(:,ii))/dz_hl(:,ii+1)+(km(:,ii)+km(:,ii-1))/dz_hl(:,ii))/dz(:,ii)
+  cc(:,ii)=-0.5*(km(:,ii+1)+km(:,ii))/(dz_hl(:,ii+1)*dz(:,ii))
   dd(:,ii)=water(:,ii)%u/dt
 end do
-aa(:,wlev)=-0.5*(km(:,wlev)+km(:,wlev-1))/(dz_hl(wlev)*dz(wlev))
-bb(:,wlev)=1./dt+0.5*(km(:,wlev)+km(:,wlev-1))/(dz_hl(wlev)*dz(wlev))
+aa(:,wlev)=-0.5*(km(:,wlev)+km(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
+bb(:,wlev)=1./dt+0.5*(km(:,wlev)+km(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
 dd(:,wlev)=water(:,wlev)%u/dt
 call thomas(new%u,aa,bb,cc,dd)
 
 ! split V diffusion term
-dd(:,1)=water(:,1)%v/dt-dg2%wv0/dz(1)
+dd(:,1)=water(:,1)%v/dt-dg2%wv0/dz(:,1)
 do ii=2,wlev-1
   dd(:,ii)=water(:,ii)%v/dt
 end do
@@ -439,7 +492,7 @@ do ii=1,wlev
 
   iim1=max(ii-1,1)
   iip1=min(ii+1,wlev)
-  ri=dg3(:,ii)%nsq*(depth(iim1)-depth(iip1))**2 &
+  ri=dg3(:,ii)%nsq*(depth(:,iim1)-depth(:,iip1))**2 &
            /max((water(:,iim1)%u-water(:,iip1)%u)**2 &
                +(water(:,iim1)%v-water(:,iip1)%v)**2,0.01)
   
@@ -465,21 +518,21 @@ end do
 
 ! stability ---------------------------------------------------------
 do ii=1,wlev
-  call getwx(wm(:,ii),ws(:,ii),depth(ii),dg2%bf,dg2%ustar,pg%mixdepth)
+  call getwx(wm(:,ii),ws(:,ii),depth(:,ii),dg2%bf,dg2%ustar,pg%mixdepth)
 end do
 !--------------------------------------------------------------------
 
 ! calculate G profile -----------------------------------------------
 do iqw=1,wfull
-  xp=(pg(iqw)%mixdepth-depth(pg(iqw)%mixind))/(depth(pg(iqw)%mixind+1)-depth(pg(iqw)%mixind))
+  xp=(pg(iqw)%mixdepth-depth(iqw,pg(iqw)%mixind))/(depth(iqw,pg(iqw)%mixind+1)-depth(iqw,pg(iqw)%mixind))
   numh=xp*num(iqw,pg(iqw)%mixind)+(1.-xp)*num(iqw,pg(iqw)%mixind+1)
   wm1=xp*wm(iqw,pg(iqw)%mixind)+(1.-xp)*wm(iqw,pg(iqw)%mixind+1)
-  dnumhdz=(num(iqw,pg(iqw)%mixind+1)-num(iqw,pg(iqw)%mixind))/dz_hl(pg(iqw)%mixind+1)
-  dwm1ds=pg(iqw)%mixdepth*(wm(iqw,pg(iqw)%mixind+1)-wm(iqw,pg(iqw)%mixind))/dz_hl(pg(iqw)%mixind+1)
+  dnumhdz=(num(iqw,pg(iqw)%mixind+1)-num(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
+  dwm1ds=pg(iqw)%mixdepth*(wm(iqw,pg(iqw)%mixind+1)-wm(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
   nush=xp*nus(iqw,pg(iqw)%mixind)+(1.-xp)*nus(iqw,pg(iqw)%mixind+1)
   ws1=xp*ws(iqw,pg(iqw)%mixind)+(1.-xp)*ws(iqw,pg(iqw)%mixind+1)
-  dnushdz=(nus(iqw,pg(iqw)%mixind+1)-nus(iqw,pg(iqw)%mixind))/dz_hl(pg(iqw)%mixind+1)
-  dws1ds=pg(iqw)%mixdepth*(ws(iqw,pg(iqw)%mixind+1)-ws(iqw,pg(iqw)%mixind))/dz_hl(pg(iqw)%mixind+1)
+  dnushdz=(nus(iqw,pg(iqw)%mixind+1)-nus(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
+  dws1ds=pg(iqw)%mixdepth*(ws(iqw,pg(iqw)%mixind+1)-ws(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
   
   g1m=numh/max(pg(iqw)%mixdepth*wm1,0.000001)
   dg1mds=-dnumhdz/max(wm1,0.000001)-numh*dwm1ds/max(pg(iqw)%mixdepth*wm1*wm1,0.000001)
@@ -497,7 +550,7 @@ end do
 ! combine
 do ii=1,wlev
   where (ii.le.pg%mixind)
-    sigma=depth(ii)/pg%mixdepth
+    sigma=depth(:,ii)/pg%mixdepth
     km(:,ii)=pg%mixdepth*wm(:,ii)*(sigma+a2m*sigma**2+a3m*sigma**3)
     ks(:,ii)=pg%mixdepth*ws(:,ii)*(sigma+a2s*sigma**2+a3s*sigma**3)
   elsewhere
@@ -540,29 +593,29 @@ type(tdiag3), dimension(wfull,wlev), intent(inout) :: dg3
 vtc=1.8 * sqrt(0.2/(98.96*epsilon)) / (vkar**2*ric)
 
 do ii=1,wlev
-  dum=depth(ii) ! use current depth for boundary layer depth
-  call getwx(wm(:,ii),ws(:,ii),depth(ii),dg2%bf,dg2%ustar,dum)
+  dum=depth(:,ii) ! use current depth for boundary layer depth
+  call getwx(wm(:,ii),ws(:,ii),depth(:,ii),dg2%bf,dg2%ustar,dum)
 end do
 
-pos=maxloc(depth,depth.le.5.)
-ie=pos(1)
-
 do iqw=1,wfull
+  pos=maxloc(depth(iqw,:),depth(iqw,:).le.5.)
+  ie=pos(1)
+
   pg(iqw)%mixind=wlev-1
-  pg(iqw)%mixdepth=depth(wlev)
+  pg(iqw)%mixdepth=depth(iqw,wlev)
   ! should be averaged over 0 < sigma < epsilon instead of 1st level
-  rsfc=sum(dg3(iqw,1:ie)%rho*dz(1:ie))/sum(dz(1:ie))
-  usfc=sum(water(iqw,1:ie)%u*dz(1:ie))/sum(dz(1:ie))
-  vsfc=sum(water(iqw,1:ie)%v*dz(1:ie))/sum(dz(1:ie))
+  rsfc=sum(dg3(iqw,1:ie)%rho*dz(iqw,1:ie))/sum(dz(iqw,1:ie))
+  usfc=sum(water(iqw,1:ie)%u*dz(iqw,1:ie))/sum(dz(iqw,1:ie))
+  vsfc=sum(water(iqw,1:ie)%v*dz(iqw,1:ie))/sum(dz(iqw,1:ie))
   do ii=ie,wlev
-    vtsq=depth(ii)*ws(iqw,ii)*sqrt(abs(dg3(iqw,ii)%nsq))*vtc
+    vtsq=depth(iqw,ii)*ws(iqw,ii)*sqrt(abs(dg3(iqw,ii)%nsq))*vtc
     dvsq=(usfc-water(iqw,ii)%u)**2+(vsfc-water(iqw,ii)%v)**2
-    rib(ii)=(depth(ii)-depth(ie))*(1.-rsfc/dg3(iqw,ii)%rho)/max(dvsq+vtsq,0.000001)
+    rib(ii)=(depth(iqw,ii)-depth(iqw,ie))*(1.-rsfc/dg3(iqw,ii)%rho)/max(dvsq+vtsq,0.000001)
   
     if (rib(ii).gt.ric.and.ii.gt.ie) then
       pg(iqw)%mixind=ii-1
       xp=min(max((rib(ii-1)-ric)/(rib(ii-1)-rib(ii)),0.),1.)
-      pg(iqw)%mixdepth=(1.-xp)*depth(ii-1)+xp*depth(ii)
+      pg(iqw)%mixdepth=(1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii)
       exit
     end if
   
@@ -582,9 +635,8 @@ subroutine getwx(wm,ws,dep,bf,ustar,dp)
 implicit none
 
 real, dimension(wfull), intent(out) :: wm,ws
-real, dimension(wfull), intent(in) :: bf,ustar,dp
+real, dimension(wfull), intent(in) :: bf,ustar,dp,dep
 real, dimension(wfull) :: zeta,sig,l
-real, intent(in) :: dep
 real, parameter :: zetam=-0.2
 real, parameter :: zetas=-1.0
 real, parameter :: am=1.26
@@ -676,7 +728,7 @@ do i=1,nits
   do ii=1,wlev
     t = max(water(:,ii)%temp-273.16,-2.)
     s = water(:,ii)%sal
-    p1 = grav*depth(ii)*dg3(:,ii)%rho/100000.
+    p1 = grav*depth(:,ii)*dg3(:,ii)%rho/100000.
     t2 = t**2
     t3 = t**3
     t4 = t**4
@@ -735,7 +787,7 @@ do ii=1,wlev
   iim1=max(ii-1,1)
   iip1=min(ii+1,wlev)
   ! +ve as depth is down
-  dg3(:,ii)%nsq=(grav/dg3(:,ii)%rho)*(dg3(:,iim1)%rho-dg3(:,iip1)%rho)/(depth(iim1)-depth(iip1))
+  dg3(:,ii)%nsq=(grav/dg3(:,ii)%rho)*(dg3(:,iim1)%rho-dg3(:,iip1)%rho)/(depth(:,iim1)-depth(:,iip1))
 end do
 
 ! Boundary conditions
