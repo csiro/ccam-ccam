@@ -326,7 +326,7 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
      &                                 rcrit_l,rcrit_s
       print *,'Radiation options:'
       print *,' nrad  ndiur mins_rad kountr iaero  dt'
-      write (6,'(i5,3i7,f10.2)') nrad,ndiur,mins_rad,kountr,iaero,dt
+      write (6,'(i5,4i7,f10.2)') nrad,ndiur,mins_rad,kountr,iaero,dt
 !     for 6-hourly output of sint_ave etc, want 6*60 = N*mins_rad      
       if(nrad==4.and.mod(6*60,mins_rad).ne.0)
      &                              stop 'prefer 6*60 = N*mins_rad '

@@ -340,10 +340,8 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       real, dimension(ifull,kl) :: uc,vc,tc,qc
       real, dimension(ifull), save :: psld ! MJT daily ave
       real, dimension(ifull,kl), save :: ud,vd,td,qd ! MJT daily ave
-      real, parameter :: eta = 0.00 ! MJT daily ave
-      real, parameter :: lambda = 0.30 ! MJT daily ave
-      real, parameter :: eta_p = 0.00 ! MJT daily ave
-      real, parameter :: lambda_p = 0.10 ! MJT daily ave
+      real, parameter :: eta = 0.4 ! MJT daily ave
+      real, parameter :: lambda = 0.0 ! MJT daily ave
       logical, save :: firstcall = .true. ! MJT daily ave
       data mtimeb/-1/
       save mtimeb
@@ -492,31 +490,15 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
           psla=pslb-psla/real(ncount)
           ua=ub-ua/real(ncount)
           va=vb-va/real(ncount)
-	    ta=tb-ta/real(ncount)
+          ta=tb-ta/real(ncount)
           qa=qb-qa/real(ncount)
 	  
-          where (psla*psld.lt.0.) ! anti-windup
-            psld=0.
-          end where
-          where (ua*ud.lt.0.)
-            ud=0.
-          end where
-          where (va*vd.lt.0.)
-            vd=0.
-          end where
-          where (ta*td.lt.0.)
-            td=0.
-          end where
-          where (qa*qd.lt.0.)
-            qd=0.
-          end where
-  
           psld=psld+psla
           ud=ud+ua
           vd=vd+va
           td=td+ta
           qd=qd+qa
-          pslc=eta_p*psla+lambda_p*psld
+          pslc=eta*psla+lambda*psld
           uc=eta*ua+lambda*ud
           vc=eta*va+lambda*vd
           tc=eta*ta+lambda*td

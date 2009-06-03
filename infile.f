@@ -653,34 +653,20 @@ c     &                   tr(1:ifull,:,igas),ifull)
 c          enddo
 c        endif
 
+          !--------------------------------------------------------
 ! rml from eak 16/03/06
-! rml 03/01/07 if cplant1-3 and csoil1-2 not available check for carb_* fields
           cplant=0. ! MJT cable
           call histrd1(ncid,iarchi,ier,'cplant1',ik,jk,cplant(:,1) 
      &                ,ifull)
-          if (ier.ne.0) 
-     &      call histrd1(ncid,iarchi,ier,'carb_lf',ik,jk,cplant(:,1)
-     &                ,ifull)
           call histrd1(ncid,iarchi,ier,'cplant2',ik,jk,cplant(:,2)
-     &                ,ifull)
-          if (ier.ne.0) 
-     &      call histrd1(ncid,iarchi,ier,'carb_wd',ik,jk,cplant(:,2)
      &                ,ifull)
           call histrd1(ncid,iarchi,ier,'cplant3',ik,jk,cplant(:,3)
      &                ,ifull)
-          if (ier.ne.0) 
-     &      call histrd1(ncid,iarchi,ier,'carb_rts',ik,jk,cplant(:,3)
-     &                ,ifull)
           call histrd1(ncid,iarchi,ier,'csoil1',ik,jk,csoil(:,1)
-     &                ,ifull)
-          if (ier.ne.0) 
-     &      call histrd1(ncid,iarchi,ier,'carb_slf',ik,jk,csoil(:,1)
      &                ,ifull)
           call histrd1(ncid,iarchi,ier,'csoil2',ik,jk,csoil(:,2)
      &                ,ifull)
-          if (ier.ne.0) 
-     &      call histrd1(ncid,iarchi,ier,'carb_sls',ik,jk,csoil(:,2)
-     &                ,ifull)
+          !--------------------------------------------------------     
 
         if(mydiag)then
           print *,'at end of infile kdate,ktime,ktau,tss: ',
