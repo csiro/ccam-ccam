@@ -109,7 +109,7 @@ integer, parameter :: stabfn=1            ! Stability function scheme (0=Louis, 
 integer, parameter :: vegmode=2           ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out-canyon/in-canyon = X%/Y%)
 integer, parameter :: iqt = 3432          ! Diagnostic point (in terms of host grid)
 real, parameter :: tol=0.001              ! Minimum change for sectant method
-real, parameter :: alpha = 0.7            ! to avoid oscillations in temperatures
+real, parameter :: alpha = 0.7            ! Weighting for determining the rate of convergence when calculating canyon temperatures
 ! physical parameters
 real, parameter :: waterden=1000.         ! water density (kg m^-3)
 real, parameter :: icelambda=2.22         ! conductance of ice (W m^-1 K^-1)
@@ -133,12 +133,13 @@ real, parameter :: minsnowden=100.        ! min snow density (kg m^-3)
 ! generic urban parameters
 real, parameter :: refheight=0.6          ! Displacement height as a fraction of building height (Kanda et al 2007)
 real, parameter :: zomratio=0.1           ! Roughness length to building height ratio (default=10%)
-real, parameter :: zocanyon=0.1           ! Roughness length of canyon surfaces (m)
-real, parameter :: zoveg=0.3              ! Roughness length of in-canyon vegetation (m)
+real, parameter :: zocanyon=0.1           ! Roughness length of in-canyon surfaces (m)
 real, parameter :: maxrfwater=1.          ! Maximum roof water (kg m^-2)
 real, parameter :: maxrdwater=1.          ! Maximum road water (kg m^-2)
 real, parameter :: maxrfsn=1.             ! Maximum roof snow (kg m^-2)
 real, parameter :: maxrdsn=1.             ! Maximum road snow (kg m^-2)
+! in-canyon vegetation parameters
+real, parameter :: zoveg=0.3              ! Roughness length of in-canyon vegetation (m)
 real, parameter :: vegrlai=1.2            ! In-canyon vegetation LAI
 real, parameter :: vegrsmin=80./vegrlai   ! Unconstrained canopy stomatal resistance
 real, parameter :: maxvgwater=0.1*vegrlai ! Maximum leaf water (kg m^-2)
@@ -344,7 +345,7 @@ integer ii
 integer, dimension(ifull), intent(in) :: itype
 integer, parameter :: maxtype = 8
 real, dimension(ufull) :: tsigveg,tsigmabld
-! Urban fraction
+! In-canyon vegetation fraction
 real, dimension(maxtype), parameter ::   csigveg=(/ 0.30, 0.45, 0.38, 0.34, 0.05, 0.50, 0.40, 0.30 /)
 ! Area fraction occupied by buildings
 real, dimension(maxtype), parameter :: csigmabld=(/ 0.40, 0.40, 0.44, 0.46, 0.65, 0.35, 0.40, 0.50 /)

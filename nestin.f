@@ -85,10 +85,10 @@
         if(fraciceb(iq)>0.)then
 !         N.B. if already a sice point, keep present tice (in tgg3)
           if(fracice(iq)==0.)then
-            tgg(iq,3)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
+            tggsn(iq,1)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1 ! MJT seaice
           endif  ! (fracice(iq)==0.)
 !         set averaged tss (tgg1 setting already done)
-          tss(iq)=tgg(iq,3)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq))
+          tss(iq)=tggsn(iq,1)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq)) ! MJT seaice
         endif  ! (fraciceb(iq)==0.)
        enddo	! iq loop
        sicedep(:)=sicedepb(:)  ! from Jan 06
@@ -279,9 +279,10 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
           tgg(iq,1)=tss(iq)
          endif  ! (.not.land(iq))
         enddo   ! iq loop 
-       else if (nmlo.eq.2) then
+       else if (abs(nmlo).eq.2) then
          ! nudge mlo
-         call mlonudge(tssb)
+         if (myid == 0) print *,"Nudge MLO"
+         call mlonudge(cona*tssa+conb*tssb)
        end if
       endif
       
@@ -326,7 +327,6 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       real, dimension(ifull,ncs) :: csoil_h ! MJT cable
       real, dimension(ifull,12) :: urban ! MJT urban
       real, dimension(ifull,wlev,4) :: datoc ! MJT mlo
-      integer, save :: ncount = -1 ! MJT daily ave
       real :: ds_r,rlong0x,rlat0x
       real :: schmidtx,timeg_b
       real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
@@ -338,11 +338,6 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       real, dimension(ifull,3) :: dums
       real, dimension(ifull) :: pslc
       real, dimension(ifull,kl) :: uc,vc,tc,qc
-      real, dimension(ifull), save :: psld ! MJT daily ave
-      real, dimension(ifull,kl), save :: ud,vd,td,qd ! MJT daily ave
-      real, parameter :: eta = 0.4 ! MJT daily ave
-      real, parameter :: lambda = 0.0 ! MJT daily ave
-      logical, save :: firstcall = .true. ! MJT daily ave
       data mtimeb/-1/
       save mtimeb
 
@@ -354,8 +349,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       end if
 
       !------------------------------------------------------------------------------
-      if ((mtimer>mtimeb).or.firstcall) then
-        firstcall=.false.
+      if (mtimer>mtimeb) then
 
 !     following (till end of subr) reads in next bunch of data in readiness
 !     read tb etc  - for globpea, straight into tb etc
@@ -481,54 +475,15 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
 
       !------------------------------------------------------------------------------
       if ((mtimer==mtimeb).and.(mod(nint(ktau*dt),60).eq.0)) then
-        firstcall=.true.
 
-        if (nud_uv.eq.8) then
-          ! preturb daily average
-          if (myid == 0) print *,"Using averaged data for filter"
-	  
-          psla=pslb-psla/real(ncount)
-          ua=ub-ua/real(ncount)
-          va=vb-va/real(ncount)
-          ta=tb-ta/real(ncount)
-          qa=qb-qa/real(ncount)
-	  
-          psld=psld+psla
-          ud=ud+ua
-          vd=vd+va
-          td=td+ta
-          qd=qd+qa
-          pslc=eta*psla+lambda*psld
-          uc=eta*ua+lambda*ud
-          vc=eta*va+lambda*vd
-          tc=eta*ta+lambda*td
-          qc=eta*qa+lambda*qd
+        ! preturb instantaneous
+        pslc(:)=pslb(:)-psl(1:ifull)
+        uc(:,:)=ub(:,:)-u(1:ifull,:)
+        vc(:,:)=vb(:,:)-v(1:ifull,:)
+        tc(:,:)=tb(:,:)-t(1:ifull,:)
+        qc(:,:)=qb(:,:)-qg(1:ifull,:)
 
-          psla(:)=0.
-          ua(:,:)=0.
-          va(:,:)=0.
-          ta(:,:)=0.
-          qa(:,:)=0.
-          ncount=0
-        else
-          ! preturb instantaneous
-          pslc(:)=pslb(:)-psl(1:ifull)
-          uc(:,:)=ub(:,:)-u(1:ifull,:)
-          vc(:,:)=vb(:,:)-v(1:ifull,:)
-          tc(:,:)=tb(:,:)-t(1:ifull,:)
-          qc(:,:)=qb(:,:)-qg(1:ifull,:)
-        end if
-
-        !if(nmaxpr==1)then
-        !  print *,'before call getspecdata ktau,myid ',ktau,myid
-        !  call maxmin(qb,'qb',ktau,1.e3,kl)
-        !  if(mydiag)print *,'qb ',qb(idjd,:)
-        !endif
         call getspecdata(pslc,uc,vc,tc,qc)
-        !if ( myid == 0 ) then
-        !  print *,'following after getspecdata are really psl not ps'
-        !end if
-        !call maxmin(pslb,'pB',ktau,100.,1)
 
         if(namip.eq.0.and.ntest.eq.0) then  ! namip SSTs/sea-ice take precedence
 !         following sice updating code copied from nestin June '08      
@@ -537,10 +492,10 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
            if(fraciceb(iq)>0.)then
 !           N.B. if already a sice point, keep present tice (in tgg3)
             if(fracice(iq)==0.)then
-              tgg(iq,3)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1
+              tggsn(iq,1)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1 ! MJT seaice
             endif  ! (fracice(iq)==0.)
 !           set averaged tss (tgg1 setting already done)
-            tss(iq)=tgg(iq,3)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq))
+            tss(iq)=tggsn(iq,1)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq)) ! MJT seaice
            endif  ! (fraciceb(iq)==0.)
           enddo	! iq loop
           sicedep(:)=sicedepb(:)  ! from Jan 06
@@ -572,7 +527,8 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
               tss=tssb
               tgg(:,1)=tss
             end where  ! (.not.land(iq))
-          else if (nmlo.eq.2) then
+          else if (abs(nmlo).eq.2) then
+            if (myid == 0) print *,"MLO spectral filter"
             ! nudge mlo (assume 1/5 of mbd as nudging resolution)
             call mlofilter(tssb,mbd*5)
           end if
@@ -580,28 +536,6 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       end if ! (mod(nint(ktau*dt),60).eq.0)
 
       !------------------------------------------------------------------------------
-      if (nud_uv.eq.8) then ! MJT daily ave
-        if (ncount.eq.-1) then
-	  psld=0.
-	  ud=0.
-	  vd=0.
-	  td=0.
-	  qd=0.
-	  psla=0.
-	  ua=0.
-	  va=0.
-	  ta=0.
-	  qa=0.
-	  ncount=0
-	end if
-          ! update average
-        psla(:)=psla(:)+psl(1:ifull)
-        ua(:,:)=ua(:,:)+u(1:ifull,:)
-        va(:,:)=va(:,:)+v(1:ifull,:)
-        ta(:,:)=ta(:,:)+t(1:ifull,:)
-        qa(:,:)=qa(:,:)+qg(1:ifull,:)
-        ncount=ncount+1
-      end if 
      
       return
       end subroutine nestinb
@@ -697,7 +631,6 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       ! nud_uv=0 (no preturbing of winds)
       ! nud_uv=1 (1D scale-selective filter)
       ! nud_uv=3 (JLM preturb zonal winds with 1D filter)
-      ! nud_uv=8 (preturb difference in (daily) average with 1D filter)
       ! nud_uv=9 (2D scale-selective filter)
 
       !-----------------------------------------------------------------------
@@ -751,16 +684,18 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
           call ccmpi_distribute(vd(1:ifull,:), xx_g(:,:))
           u(1:ifull,kbotdav:ktopdav)=u(1:ifull,kbotdav:ktopdav)
      &     +ud(1:ifull,kbotdav:ktopdav) ! MJT nestin
+          v(1:ifull,kbotdav:ktopdav)=v(1:ifull,kbotdav:ktopdav)
+     &     +vd(1:ifull,kbotdav:ktopdav)  ! MJT nestin
+          if (nud_uv.ne.8) then
           savu(1:ifull,kbotdav:ktopdav)=savu(1:ifull,kbotdav:ktopdav)
      &     +ud(1:ifull,kbotdav:ktopdav) ! MJT nestin
           savu1(1:ifull,kbotdav:ktopdav)=savu1(1:ifull,kbotdav:ktopdav)
      &     +ud(1:ifull,kbotdav:ktopdav) ! MJT nestin
-          v(1:ifull,kbotdav:ktopdav)=v(1:ifull,kbotdav:ktopdav)
-     &     +vd(1:ifull,kbotdav:ktopdav)  ! MJT nestin
           savv(1:ifull,kbotdav:ktopdav)=savv(1:ifull,kbotdav:ktopdav)
      &     +vd(1:ifull,kbotdav:ktopdav) ! MJT nestin
           savv1(1:ifull,kbotdav:ktopdav)=savv1(1:ifull,kbotdav:ktopdav)
      &     +vd(1:ifull,kbotdav:ktopdav)	! MJT nestin
+          endif
         end if
         if (nud_t.gt.0) then
           call ccmpi_distribute(x_g(1:ifull,:), td(:,:))
@@ -788,16 +723,18 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
           call ccmpi_distribute(vd(1:ifull,:))
           u(1:ifull,kbotdav:ktopdav)=u(1:ifull,kbotdav:ktopdav)
      &     +ud(1:ifull,kbotdav:ktopdav) ! MJT nestin
+          v(1:ifull,kbotdav:ktopdav)=v(1:ifull,kbotdav:ktopdav)
+     &     +vd(1:ifull,kbotdav:ktopdav) ! MJT nestin
+          if (nud_uv.ne.8) then
           savu(1:ifull,kbotdav:ktopdav)=savu(1:ifull,kbotdav:ktopdav)
      &     +ud(1:ifull,kbotdav:ktopdav) ! MJT nestin
           savu1(1:ifull,kbotdav:ktopdav)=savu1(1:ifull,kbotdav:ktopdav)
      &     +ud(1:ifull,kbotdav:ktopdav) ! MJT nestin
-          v(1:ifull,kbotdav:ktopdav)=v(1:ifull,kbotdav:ktopdav)
-     &     +vd(1:ifull,kbotdav:ktopdav) ! MJT nestin
           savv(1:ifull,kbotdav:ktopdav)=savv(1:ifull,kbotdav:ktopdav)
      &     +vd(1:ifull,kbotdav:ktopdav) ! MJT nestin
           savv1(1:ifull,kbotdav:ktopdav)=savv1(1:ifull,kbotdav:ktopdav)
-     &     +vd(1:ifull,kbotdav:ktopdav) ! MJT nestin	  
+     &     +vd(1:ifull,kbotdav:ktopdav) ! MJT nestin
+          end if
         end if
         if (nud_t.gt.0) then
           call ccmpi_distribute(x_g(1:ifull,:))
@@ -2478,7 +2415,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       integer :: iqw,itag=0,status,ierr
       integer :: iproc,ns,ne
-      integer, parameter :: ilev = 2
+      integer, parameter :: ilev = 1
       real, dimension(ifull), intent(in) :: new
       real, dimension(ifull) :: diff,old
       real, dimension(ifull_g) :: diff_g,r,dd
@@ -2551,7 +2488,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       include 'newmpar.h'    ! ifull
       include 'soil.h'       ! land
 
-      integer, parameter :: ilev = 2
+      integer, parameter :: ilev = 1
       real, dimension(ifull), intent(in) :: new
       real, dimension(ifull) :: old
       real wgt

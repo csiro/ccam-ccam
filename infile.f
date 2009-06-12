@@ -558,14 +558,7 @@ c 	    only being tested for nested=0; no need to test for mesonest
         datoc=999.
         ocndepin=0.
         call histrd1(ncid,iarchi,ierr,'ocndepth',ik,jk,ocndepin,ifull)
-        call histrd1(ncid,iarchi,ierr,'sal01',ik,jk,datoc(:,1,2)
-     &                ,ifull)
         if (ierr==0) then
-          do k=2,wlev
-            write(vname,'("sal",I2.2)') k
-            call histrd1(ncid,iarchi,ierr,vname,ik,jk,datoc(:,k,2)
-     &                ,ifull)
-          end do
           datoc(:,1:ms,1)=tgg(:,1:ms)
           do k=ms+1,wlev
             write(vname,'("tgg",I2.2)') k
@@ -573,6 +566,9 @@ c 	    only being tested for nested=0; no need to test for mesonest
      &                ,ifull)
           end do
           do k=1,wlev
+            write(vname,'("sal",I2.2)') k
+            call histrd1(ncid,iarchi,ierr,vname,ik,jk,datoc(:,k,2)
+     &                ,ifull)
             write(vname,'("uoc",I2.2)') k
             call histrd1(ncid,iarchi,ierr,vname,ik,jk,datoc(:,k,3)
      &                ,ifull)
@@ -653,7 +649,7 @@ c     &                   tr(1:ifull,:,igas),ifull)
 c          enddo
 c        endif
 
-          !--------------------------------------------------------
+          !----------------------------------------------------------
 ! rml from eak 16/03/06
           cplant=0. ! MJT cable
           call histrd1(ncid,iarchi,ier,'cplant1',ik,jk,cplant(:,1) 
@@ -666,7 +662,7 @@ c        endif
      &                ,ifull)
           call histrd1(ncid,iarchi,ier,'csoil2',ik,jk,csoil(:,2)
      &                ,ifull)
-          !--------------------------------------------------------     
+           !----------------------------------------------------------
 
         if(mydiag)then
           print *,'at end of infile kdate,ktime,ktau,tss: ',

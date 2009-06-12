@@ -636,7 +636,7 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       call gettin(0)             ! preserve initial mass & T fields; nmi too
 
       if(nbd.ne.0)call nestin
-      if(mbd.ne.0)call nestinb
+      !if(mbd.ne.0)call nestinb ! MJT bugfix
       nmaxprsav=nmaxpr
       nwtsav=nwt
       hrs_dt = dtin/3600.      ! time step in hours
@@ -867,7 +867,7 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
       endif
       call adjust5
       if(mspec==1.and.nbd.ne.0)call davies  ! nesting now after mass fixers
-      if(mbd.ne.0)call nestinb
+      if(mspec==1.and.mbd.ne.0)call nestinb ! MJT bugfix
 
       if(mspec==2)then     ! for very first step restore mass & T fields
         call gettin(1)

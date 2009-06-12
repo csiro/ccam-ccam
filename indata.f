@@ -1923,28 +1923,31 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       endif     !  (nstn>0)
 
       !-----------------------------------------------------------------
+      ! nmlo<0 same as below, but save in history file
       ! nmlo=0 no mixed layer ocean
       ! nmlo=1 free mixed layer ocean
       ! nmlo=2 SST nudged mixed layer ocean
       if (nmlo.ne.0) then
-        where (land)
-          aa=0.
-        elsewhere
-          aa=1.
-        end where
+        if (myid==0) print *,"Initialising MLO"
         dep=250. ! to be readin
-        call mloinit(ifull,aa,dep,0)
+        where (land)
+          dep=0.
+        else where
+          dep=max(dep,real(wlev)) ! limit minimum depth
+        end where
+        call mloinit(ifull,dep,0)
         if (any(ocndepin.gt.0.5)) then
+          if (myid == 0) print *,"Importing MLO data"
           call mloregrid(ifull,ocndepin,datoc)
-        end if
-        do k=1,wlev
-          where (datoc(:,k,1).ge.399.) ! must be the same as spval in onthefly.f
+        else
+          if (myid == 0) print *,"Using MLO defaults"
+          do k=1,wlev
             datoc(:,k,1)=tss(:)
             datoc(:,k,2)=35.
             datoc(:,k,3)=0.
             datoc(:,k,4)=0.
-          end where
-        end do
+          end do
+        end if
         call mloload(ifull,datoc,0)
       end if
       !-----------------------------------------------------------------

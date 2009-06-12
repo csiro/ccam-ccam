@@ -475,6 +475,8 @@ c       For time varying surface fields
         call attrib(idnc,idim,3,'tscrn',lname,'K',100.,400.,0)
         lname = 'Screen mixing ratio'
         call attrib(idnc,idim,3,'qgscrn',lname,'kg/kg',0.,.06,0)
+        lname = 'Screen relative humidity' ! MJT rh
+        call attrib(idnc,idim,3,'rhscrn',lname,'%',0.,200.,0) ! MJT rh
         lname = 'Maximum screen relative humidity'
         call attrib(idnc,idim,3,'rhmaxscr',lname,'%',0.,200.,1)
         lname = 'Minimum screen relative humidity'
@@ -775,7 +777,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         
         !--------------------------------------------------------  
         ! MJT mlo
-        if (nmlo.ne.0) then
+        if (nmlo.lt.0.or.(nmlo.gt.0.and.itype==-1)) then
           lname = 'water depth'
           call attrib(idnc,idim,2,'ocndepth',lname,'m',0.,5000.,0)
           do k=ms+1,wlev
@@ -939,15 +941,17 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       ! MJT mlo
       if (nmlo.ne.0) then
         datoc=999. ! must be the same as spval in onthefly.f
-        call mlosave(ifull,datoc,aa,0)
-        if (ktau==0.or.itype==-1) then
-          call histwrt3(aa,'ocndepth',idnc,iarch,local)
-        end if
+        call mlosave(ifull,datoc,aa,0)      
         do k=1,ms
           where (.not.land)
             tgg(:,k)=datoc(:,k,1)
           end where
         end do
+      end if
+      if (nmlo.lt.0.or.(nmlo.gt.0.and.itype==-1)) then
+        if (ktau==0.or.itype==-1) then
+          call histwrt3(aa,'ocndepth',idnc,iarch,local)
+        end if
         do k=ms+1,wlev
           write(vname,'("tgg",I2.2)') k
           call histwrt3(datoc(:,k,1),vname,idnc,iarch,local)
@@ -1120,6 +1124,7 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
        endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
        call histwrt3(tscrn,'tscrn',idnc,iarch,local)
        call histwrt3(qgscrn,'qgscrn',idnc,iarch,local)
+       call histwrt3(rhscrn,'rhscrn',idnc,iarch,local) ! MJT rh
        call histwrt3(u10,'u10',idnc,iarch,local)
        call histwrt3(uscrn,'uscrn',idnc,iarch,local)
        call histwrt3(rnet,'rnet',idnc,iarch,local)

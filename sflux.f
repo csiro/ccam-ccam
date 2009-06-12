@@ -347,14 +347,14 @@ c     section to update pan temperatures
       
     !----------------------------------------------------------------
     ! MJT mlo
-    ! can run once per hour, but need to average fluxes  
-      if (nmlo.gt.0) then
+      if (nmlo.ne.0) then
         ! note taux and tauy do not include sea-ice at this point
         call mloeval(ifull,tgg(:,1),dt,fg,eg
      &               ,sgsave(:),-rgsave(:)-stefbo*tgg(:,1)**4
      &               ,condx(:)/dt,taux,tauy,f,0)
         where(.not.land)
           tpan=tgg(:,1)
+          tss=tgg(:,1)
         endwhere
         do k=2,ms
           call mloexport(ifull,tgg(:,k),k,0)

@@ -478,18 +478,18 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
         ! MJT mlo
         if (nmlo.ne.0) then
           if (myid==0) then
-            where (land_a.or.ocndepin_a.le.0.)
-              ocndepin_a=spval
-            end where
-            call fill_cc(ocndepin_a,spval,ik,0)
             do m=1,4
               do k=1,wlev
-                where (land_a.or.datoc_a(:,k,m).ge.399.)
+                where (land_a.or.ocndepin_a.le.0.)
                   datoc_a(:,k,m)=spval
                 end where
                 call fill_cc(datoc_a(:,k,m),spval,ik,0)
               end do
             end do
+            where (land_a.or.ocndepin_a.le.0.)
+              ocndepin_a=spval
+            end where
+            call fill_cc(ocndepin_a,spval,ik,0)            
           end if
           call doints4(ocndepin_a,ocndepin,nface4,xg4,yg4,nord,ik)
           do m=1,4
