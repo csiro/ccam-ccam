@@ -209,7 +209,6 @@ module cable_ccam
       wetfac(iperm(1:ipland))=0.
       tmps=0.
       do nb=1,5
-       if (pind(nb,1).gt.mp) exit
         do k=1,ms
           tgg(cmap(pind(nb,1):pind(nb,2)),k)=tgg(cmap(pind(nb,1):pind(nb,2)),k) &
                                             +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),k)
@@ -323,7 +322,6 @@ module cable_ccam
         isflag=0
       endwhere
       do nb=1,5 ! update snow (diagnostic only)
-        if (pind(nb,1).gt.mp) exit
         do k=1,3
           where (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.1) ! pack 1-layer into 3-layer
             tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
@@ -585,6 +583,8 @@ module cable_ccam
   enddo
   
   hruff_grmx=0.01
+  sv=0.
+  vl=0.
   
   ipos=0
   do n=1,5
@@ -608,6 +608,8 @@ module cable_ccam
     end do
     pind(n,2)=ipos
   end do
+  
+  pind=min(pind,mp)
   
   if (ipos.ne.mp) then
     print *,"ERROR: Internal memory allocation error for CABLE set-up"
