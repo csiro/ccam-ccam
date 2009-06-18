@@ -33,7 +33,7 @@ type tdiag3
 end type tdiag3
 
 ! parameters
-integer, parameter :: wlev = 16
+integer, parameter :: wlev = 10
 integer, parameter :: iqx = 500
 ! model arrays
 integer, save :: wfull
@@ -49,8 +49,8 @@ integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 0 ! include shortwave in non-local term
 
 ! max depth
-real, parameter :: mxd    = 250.    ! Max depth
-real, parameter :: mindep = 1.      ! Thickness of first layer
+real, parameter :: mxd    = 200.    ! Max depth
+real, parameter :: mindep = 2.      ! Thickness of first layer
 
 ! model parameters
 real, parameter :: ric     = 0.3    ! Critical Ri for diagnosing mixed layer depth
@@ -231,7 +231,7 @@ do ii=1,wlev
   dataout(wgrid,ii,4)=water(:,ii)%v
 end do
 depout=0.
-depout(wgrid)=depth(:,wlev)
+depout(wgrid)=depth_hl(:,wlev+1)
 
 return
 end subroutine mlosave
@@ -364,6 +364,8 @@ type(tdiag2), dimension(wfull) :: dg2
 type(tdiag3), dimension(wfull,wlev) :: dg3
 type(tdata), dimension(wfull,wlev) :: new
 
+uo%sst=water(:,1)%temp
+
 call getrho(dg2,dg3,atm)           ! calculate rho and bf.  Also calculate boundary conditions.
 call getmixdepth(dg2,dg3)          ! solve for mixed layer depth
 call getstab(km,ks,gammas,dg2,dg3) ! solve for stability functions and non-local term
@@ -456,24 +458,20 @@ end subroutine mlocalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! tri-diagonal solver
 
-subroutine thomas(outo,aai,bbi,cci,ddi)
+subroutine thomas(out,aa,bbi,cc,ddi)
 
 implicit none
 
 integer ii
-real, dimension(wfull,2:wlev), intent(in) :: aai
+real, dimension(wfull,2:wlev), intent(in) :: aa
 real, dimension(wfull,wlev), intent(in) :: bbi,ddi
-real, dimension(wfull,wlev-1), intent(in) :: cci
-real, dimension(wfull,wlev), intent(out) :: outo
-double precision, dimension(wfull,2:wlev) :: aa
-double precision, dimension(wfull,wlev) :: bb,dd,out
-double precision, dimension(wfull,wlev-1) :: cc
-double precision, dimension(wfull) :: n
+real, dimension(wfull,wlev-1), intent(in) :: cc
+real, dimension(wfull,wlev), intent(out) :: out
+real, dimension(wfull,wlev) :: bb,dd
+real, dimension(wfull) :: n
 
-aa=aai
 bb=bbi
 dd=ddi
-cc=cci
 
 ! solve for temperature
 do ii=2,wlev
@@ -485,8 +483,6 @@ out(:,wlev)=dd(:,wlev)/bb(:,wlev)
 do ii=wlev-1,1,-1
   out(:,ii)=(dd(:,ii)-cc(:,ii)*out(:,ii+1))/bb(:,ii)
 end do
-
-outo=out
 
 return
 end subroutine thomas
@@ -682,13 +678,13 @@ real, parameter :: cm=8.38
 real, parameter :: as=-28.86
 real, parameter :: cs=98.96
 
-where (bf.lt.0.) ! unstable
+where (bf.le.0.) ! unstable
   sig=epsilon
 elsewhere        ! stable
   sig=dep/dp
 end where
 invl=vkar*bf/(ustar**3)
-zeta=sig*dp/invl
+zeta=sig*dp*invl
 
 where (zeta.gt.0.)
   wm=vkar*ustar/(1.+5.*zeta)

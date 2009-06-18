@@ -802,17 +802,17 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         !-------------------------------------------------------
         ! MJT CHANGE - add wetfrac1-6 and possibly delete wb1-6 above
         lname = 'Wetness fraction layer 1' ! 5. for frozen sand
-        call attrib(idnc,idim,3,'wetfrac1',lname,'none',-2.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac1',lname,'none',-5.,5.,0)
         lname = 'Wetness fraction layer 2'
-        call attrib(idnc,idim,3,'wetfrac2',lname,'none',-2.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac2',lname,'none',-5.,5.,0)
         lname = 'Wetness fraction layer 3'
-        call attrib(idnc,idim,3,'wetfrac3',lname,'none',-2.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac3',lname,'none',-5.,5.,0)
         lname = 'Wetness fraction layer 4'
-        call attrib(idnc,idim,3,'wetfrac4',lname,'none',-2.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac4',lname,'none',-5.,5.,0)
         lname = 'Wetness fraction layer 5'
-        call attrib(idnc,idim,3,'wetfrac5',lname,'none',-2.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac5',lname,'none',-5.,5.,0)
         lname = 'Wetness fraction layer 6'
-        call attrib(idnc,idim,3,'wetfrac6',lname,'none',-2.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac6',lname,'none',-5.,5.,0)
         !-------------------------------------------------------        
  
         print *,'finished defining attributes'

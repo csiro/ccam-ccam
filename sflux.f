@@ -35,6 +35,7 @@ c     cp specific heat at constant pressure joule/kgm/deg
       include 'morepbl.h'  ! condx,fg,eg
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tgf
       include 'parm.h'
+      include 'parmgeom.h' ! MJT urban
       include 'parmsurf.h' ! nplens
       include 'pbl.h'
       include 'permsurf.h'
@@ -48,7 +49,9 @@ c     cp specific heat at constant pressure joule/kgm/deg
       include 'soilsnow.h' ! new soil arrays for scam - tgg too
       include 'tracers.h'  ! ngas, nllp, ntrac
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
+      include 'vecsuv.h'   ! MJT urban
       include 'vvel.h'
+      include 'xyzinfo.h'  ! MJT urban
       common/tafts/taftfh(ifull),taftfhg(ifull)
       common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
      . ,wetfac(ifull),degdw(ifull),cie(ifull)
@@ -63,6 +66,8 @@ c     cp specific heat at constant pressure joule/kgm/deg
      . ism(ifull),fwtop(ifull),af(ifull),   ! watch soilsnow.f after epot
      . extin(ifull),dum3(5*ijk-17*ifull)
       real plens(ifull),vmag(ifull),charnck(ifull)
+      real zonx(ifull),zony(ifull),zonz(ifull),costh(ifull) ! MJT urban
+      real sinth(ifull),uzon(ifull),vmer(ifull)             ! MJT urban
       save plens
       data plens/ifull*0./
       include 'establ.h'
@@ -355,7 +360,8 @@ c     section to update pan temperatures
         where(.not.land)
           tpan=tgg(:,1)
           tss=tgg(:,1)
-        endwhere
+          rnet=sgsave-rgsave-stefbo*tss**4
+        end where
         do k=2,ms
           call mloexport(ifull,tgg(:,k),k,0)
         end do
@@ -645,7 +651,7 @@ c            Now heat ; allow for smaller zo via aft and factch     ! land
       endif
       else
         factch(iperm(:))=sqrt(7.4)
-      end if ! (nsib.ne.6).and.any(rtsoil.ne.0.)
+      end if ! (nsib.ne.6).and.all(rtsoil.ne.0.)
 c ----------------------------------------------------------------------
       !----------------------------------------------------------
       select case(nsib) ! MJT cable
@@ -673,13 +679,21 @@ c ----------------------------------------------------------------------
       !----------------------------------------------------------
       ! MJT urban
       if (nurban.ne.0) then
+         zonx=                       -sin(rlat0*pi/180.)*y(:)
+         zony=sin(rlat0*pi/180.)*x(:)+cos(rlat0*pi/180.)*z(:)
+         zonz=-cos(rlat0*pi/180.)*y(:)
+         costh= (zonx*ax(1:ifull)+zony*ay(1:ifull)+zonz*az(1:ifull))
+     &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )
+         sinth=-(zonx*bx(1:ifull)+zony*by(1:ifull)+zonz*bz(1:ifull))
+     &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )
+         zonx=av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(1:ifull,1)
+         zony=av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(1:ifull,1)
+         uzon= costh*zonx-sinth*zony ! zonal
+         vmer= sinth*zonx+costh*zony ! meridonal     
          call atebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin
      &               ,sgsave(:)/(1.-0.5*sum(albvisnir,2)),-rgsave(:)
      &               ,condx(:)/dt,rho(:),t(:,1),qg(:,1)
-     &               ,ps(:),sig(1)*ps(:)
-     &               ,av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(1:ifull,1)
-     &               ,av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(1:ifull,1)
-     &               ,vmodmin,0)
+     &               ,ps(:),sig(1)*ps(:),uzon,vmer,vmodmin,0)
         ! here we blend zo with the urban part for the
         ! calculation of ustar (occuring later in sflux.f)
         factch(iperm(:))=zo(iperm(:))/factch(iperm(:))**2

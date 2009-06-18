@@ -476,7 +476,6 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       !------------------------------------------------------------------------------
       if ((mtimer==mtimeb).and.(mod(nint(ktau*dt),60).eq.0)) then
 
-        ! preturb instantaneous
         pslc(:)=pslb(:)-psl(1:ifull)
         uc(:,:)=ub(:,:)-u(1:ifull,:)
         vc(:,:)=vb(:,:)-v(1:ifull,:)
@@ -530,13 +529,11 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
           else if (abs(nmlo).eq.2) then
             if (myid == 0) print *,"MLO spectral filter"
             ! nudge mlo (assume 1/5 of mbd as nudging resolution)
-            call mlofilter(tssb,mbd*5)
+            call mlofilter(tssb,mbd)
           end if
         end if ! (namip.eq.0.and.ntest.eq.0)
       end if ! (mod(nint(ktau*dt),60).eq.0)
 
-      !------------------------------------------------------------------------------
-     
       return
       end subroutine nestinb
 
@@ -631,6 +628,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
       ! nud_uv=0 (no preturbing of winds)
       ! nud_uv=1 (1D scale-selective filter)
       ! nud_uv=3 (JLM preturb zonal winds with 1D filter)
+      ! nud_uv=8 (preturb difference in (daily) average with 1D filter)
       ! nud_uv=9 (2D scale-selective filter)
 
       !-----------------------------------------------------------------------

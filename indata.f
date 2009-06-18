@@ -1948,6 +1948,9 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
             datoc(:,k,4)=0.
           end do
         end if
+        datoc(:,1,1)=tss(:) ! Always use tss for top ocean layer
+                            ! This has no effect in a climate mode and
+                            ! ensures SST track analyses in a NWP mode
         call mloload(ifull,datoc,0)
       end if
       !-----------------------------------------------------------------
