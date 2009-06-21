@@ -114,7 +114,7 @@ c      aft10(iq)=vkar* afroot10(iq) /(2. + log(z10)-zlog)  ! land only
       do iq=1,ifull
        if(.not.land(iq))then 
 !        tsurf(iq)=fracice(iq)*tgg(iq,3)+(1.-fracice(iq))*tgg(iq,2) 
-         tsurf(iq)=fracice(iq)*tgg(iq,3)+(1.-fracice(iq))*tpan(iq) ! Dec05
+         tsurf(iq)=fracice(iq)*tggsn(iq,1)+(1.-fracice(iq))*tpan(iq) ! Dec05 ! MJT seaice
          aft2(iq)=fracice(iq)*aft2ice+(1.-fracice(iq))*chnscr
          aft10(iq)=fracice(iq)*aft10ice+(1.-fracice(iq))*chn10
          aft(iq)=fracice(iq)*aft38ice+(1.-fracice(iq))*chnsea

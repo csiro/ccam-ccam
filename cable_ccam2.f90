@@ -6,7 +6,6 @@ module cable_ccam
   ! Things to do:
   !   - interpolate LAI in time (i.e., AMIP stype)
   !   - fix soil dataset
-  !   - calculate ratio of nir and vis shortwave radiation
   !   - calculate diffuse and direct components of radiation
 
   USE define_dimensions, cbm_ms => ms
@@ -126,7 +125,7 @@ module cable_ccam
        met%fsd(:,3)=sgsave(cmap)/(1.-0.5*sum(albvisnir(cmap,:),2))! short wave down (positive) W/m^2       
        met%fsd(:,1)=swrsave*met%fsd(:,3)
        met%fsd(:,2)=(1.-swrsave)*met%fsd(:,3)
-       rad%fbeam(:,3)=spitterx(met%doy,met%coszen,met%fsd(:,3)) 
+       rad%fbeam(:,3)=spitterx(met%doy,met%coszen,met%fsd(:,3)) ! check
        rad%fbeam(:,1)=rad%fbeam(:,3)
        rad%fbeam(:,2)=rad%fbeam(:,3)
        met%fld=-rgsave(cmap)        ! long wave down
@@ -140,8 +139,6 @@ module cable_ccam
        met%precip_s=0. ! in mm not mm/sec
        where (met%tc<0.) met%precip_s=met%precip
   
-       if (ktau.eq.1.and.all(ssoil%rtsoil.eq.0.)) ssoil%rtsoil=rtsoil(cmap)
-
       !--------------------------------------------------------------
       ! CABLE
       veg%meth = 1
@@ -163,7 +160,11 @@ module cable_ccam
       !--------------------------------------------------------------
     
     
-      ! average diagnostic fields
+      ! Unpack tiles into grid point averages.
+      ! Note that albsav and albnirsave are the VIS and NIR albedo output from CABLE to
+      ! be used by the radiadiation scheme at the next time step.  albvisnir(:,1) and
+      ! albvisnir(:,2) are the VIS and NIR albedo used by the radiation scheme for the
+      ! current time step.
       tgg(iperm(1:ipland),:)=0.
       wb(iperm(1:ipland),:)=0.
       wbice(iperm(1:ipland),:)=0.
@@ -204,8 +205,8 @@ module cable_ccam
       sumrs(iperm(1:ipland))=0.
       sumrd(iperm(1:ipland))=0.
       zo(iperm(1:ipland))=0.
-      !cduv(iperm(1:ipland))=0.
-      !ustar(iperm(1:ipland))=0.
+      cduv(iperm(1:ipland))=0.
+      ustar(iperm(1:ipland))=0.
       wetfac(iperm(1:ipland))=0.
       tmps=0.
       do nb=1,5
@@ -295,10 +296,10 @@ module cable_ccam
                                            +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrd(pind(nb,1):pind(nb,2))
         zo(cmap(pind(nb,1):pind(nb,2)))=zo(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))/log(zmin/max(rough%z0m(pind(nb,1):pind(nb,2)),zobgin))**2
-       ! cduv(cmap(pind(nb,1):pind(nb,2)))=cduv(cmap(pind(nb,1):pind(nb,2))) &
-       !                                  +sv(pind(nb,1):pind(nb,2))*canopy%cduv(pind(nb,1):pind(nb,2))
-       ! ustar(cmap(pind(nb,1):pind(nb,2)))=ustar(cmap(pind(nb,1):pind(nb,2))) &
-       !                                  +sv(pind(nb,1):pind(nb,2))*canopy%us(pind(nb,1):pind(nb,2))
+        cduv(cmap(pind(nb,1):pind(nb,2)))=cduv(cmap(pind(nb,1):pind(nb,2))) &
+                                         +sv(pind(nb,1):pind(nb,2))*canopy%cduv(pind(nb,1):pind(nb,2))
+        ustar(cmap(pind(nb,1):pind(nb,2)))=ustar(cmap(pind(nb,1):pind(nb,2))) &
+                                         +sv(pind(nb,1):pind(nb,2))*canopy%us(pind(nb,1):pind(nb,2))
         wetfac(cmap(pind(nb,1):pind(nb,2)))=wetfac(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%wetfac(pind(nb,1):pind(nb,2))
         tmps(cmap(pind(nb,1):pind(nb,2)))=tmps(cmap(pind(nb,1):pind(nb,2))) &
@@ -307,9 +308,14 @@ module cable_ccam
       where (land)
         zo=max(zmin*exp(-sqrt(1./zo)),zobgin)
         rtsoil=1./rtsoil
-       ! cduv=cduv*vmod ! cduv is Cd * vmod in CCAM
+        cduv=cduv*vmod ! cduv is Cd * vmod in CCAM
       end where
       
+      ! The following lines unpack snow.  This is more complicated as we need to decide
+      ! how to unpack tiles with 1 layer or 3 layers of snow in the same grid point.
+      ! Here we estimate whether the majority of snow points is 1 layer or 3 layers and then
+      ! convert each snow tile to that number of layers.  Note this calculations are purely
+      ! dianoistic.  They are not fed back into the CCAM simulation.
       tggsn(iperm(1:ipland),:)=0.
       smass(iperm(1:ipland),:)=0.
       ssdn(iperm(1:ipland),:)=0.
@@ -719,12 +725,9 @@ module cable_ccam
   ssoil%albsoilsn(:,1)=albsoilsn(cmap,1) ! overwritten by CABLE
   ssoil%albsoilsn(:,2)=albsoilsn(cmap,2) ! overwritten by CABLE
   ssoil%albsoilsn(:,3)=0.05
-
+  
   rad%albedo_T = soil%albsoil
   rad%trad=tss(cmap)
-  
-  ssoil%rtsoil=0. ! either load from tile or define in sib4
-    
   rad%latitude=rlatt(cmap)*180./pi
   
   gflux=0. ! MJT suggestion
@@ -755,8 +758,8 @@ module cable_ccam
 
   call loadtile ! load tgg,wb,wbice,snowd,snage,tggsn,smass,ssdn,isflag,rtsoil,cansto,cplant and csoil
 
-  ssoil%osnowd=ssoil%snowd                                 ! overwritten by CABLE
-  bal%osnowd0=ssoil%snowd                                  ! overwritten by CABLE
+  ssoil%osnowd=ssoil%snowd                                ! overwritten by CABLE
+  bal%osnowd0=ssoil%snowd                                 ! overwritten by CABLE
   ssoil%ssdnn=120.                                        ! overwritten by CABLE
   ssoil%sconds(:,1) = MAX(0.2, MIN(2.876e-6 * ssoil%ssdn(:,1) ** 2 + 0.074, 1.0) )
   where (ssoil%isflag.gt.0)
@@ -866,7 +869,7 @@ module cable_ccam
     ssoil%isflag=isflag(cmap)
     ssoil%snowd=snowd(cmap)
     ssoil%snage=snage(cmap)
-    ssoil%rtsoil=0.
+    ssoil%rtsoil=100.
     canopy%cansto=0.
     do k=1,ncp
       bgc%cplant(:,k) = cplant(cmap,k)

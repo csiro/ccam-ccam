@@ -361,7 +361,7 @@ c     section to update pan temperatures
           tpan=tgg(:,1)
           tss=tgg(:,1)
           rnet=sgsave-rgsave-stefbo*tss**4
-        end where
+        endwhere
         do k=2,ms
           call mloexport(ifull,tgg(:,k),k,0)
         end do
@@ -510,209 +510,216 @@ c     if(mydiag.and.diag)then
          print *,'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)          
       endif   ! (mydiag.and.nmaxpr==1)                                    
 c----------------------------------------------------------------------
-!cdir nodep
-      if (nsib.ne.6.or.all(rtsoil.eq.0.)) then
-      do ip=1,ipland  ! all land points in this shared loop         ! land
-c      fh itself was only used outside this loop in sib0 (jlm)      ! land
-       iq=iperm(ip)                                                 ! land
-       zobg=zobgin                                                  ! land
-       es = establ(tss(iq))                                         ! land
-       qsttg(iq)= .622*es/(ps(iq)-es)  ! prim for scrnout, bur recalc end sib3    
-c      factch is sqrt(zo/zt) for land use in unstable fh            ! land
-       factch(iq)=sqrt(7.4)                                         ! land
-       if(snowd(iq)>0.)then                                         ! land
-!        reduce zo over snow;
-         zobg=max(zobgin -snowd(iq)*0.00976/12., 0.00024)           ! land
-         zologbg=log(zmin/zobg)                                     ! land
-!        following line is bit simpler than csiro9                  ! land
-         zo(iq)=max(zolnd(iq) -.001*snowd(iq), .01)                 ! land
-         zologx=log(zmin/zo(iq))                                    ! land
-       else  ! land but not snow                                    ! land
-         zo(iq)=zolnd(iq)                                           ! land
-         zologbg=zologbgin                                          ! land
-         zologx=zolog(iq)
-       endif     ! (snowd(iq)>0.)                                   ! land
-       if(nblend==1)then  ! blended zo for momentum                 ! land
-!        note that Dorman & Sellers zo is already an average, 
-!        accounting for sigmf, so may not wish to further blend zo	
-         afland=(vkar/((1.-sigmf(iq))*zologbg+sigmf(iq)*zologx))**2 ! land
-       else    ! non-blended zo for momentum                        ! land
-         afland=(vkar/zologx)**2                                    ! land
-       endif   ! (nblend==1)                                        ! land
-       aftland=vkar**2/( zologx * (2.+zologx) )                     ! land
-       aft(iq)=aftland                                              ! land
-       aftlandg=vkar**2/( zologbg * (2.+zologbg) )                  ! land
-c      lgwd>0 enhances cduv (momentum) over orog under (stable & unst) condns
-       af(iq)=afland+helo(iq)       ! jlm special gwd4b             ! land
-                                                                    ! land
-c      Having settled on zo (and thus af) now do actual fh and fm calcs 
-       xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       ! land
-       ri(iq)=min(xx/vmag(iq)**2 , ri_max)                          ! land
-       if(ri(iq)>0.)then                                            ! land
-         fm=vmod(iq)/(1.+bprm*ri(iq))**2                            ! land
-         fh(iq)=fm                                                  ! land
-         fhbg=fh(iq)                                                ! land
-       else                                                         ! land
-         root=sqrt(-ri(iq)*zmin/zo(iq))  ! ignoring blending here   ! land
-c        First do momentum                                          ! land
-         denma=1.+cms*2.*bprm*af(iq)*root                           ! land
-         fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma                 ! land
-c        n.b. fm denotes ustar**2/(vmod(iq)*af)                     ! land
-c        Now heat ; allow for smaller zo via aft and factch         ! land
-         denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root               ! land
-         fh(iq)=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha             ! land
-         rootbg=sqrt(-ri(iq)*zmin/zobg)                             ! land
-         denhabg=1.+chs*2.*bprm*factch(iq)*aftlandg*rootbg          ! land
-         fhbg=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denhabg             ! land
-       endif                                                        ! land
-       taftfhg_temp(iq)=aftlandg*fhbg ! uses fmroot above, for sib3 ! land
-       taftfhg(iq)=aftlandg*fhbg ! value used for ntaft=3 (may need improving)
-                                                                    ! land
-c      cduv is now drag coeff *vmod                                 ! land
-       cduv(iq) =af(iq)*fm                                          ! land
-       ustar(iq) = sqrt(vmod(iq)*cduv(iq))                          ! land
-c      cdtq(iq) =aft(iq)*fh(iq)                                     ! land
-c      Surface stresses taux, tauy: diagnostic only - unstaggered now   
-       taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                            ! land
-       tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! land
-       if(ntest==1.and.iq==idjd.and.mydiag)then                     ! land
-         print *,'in main land loop'                                ! land
-         print *,'zmin,zobg,zobgin,snowd ',zmin,zobg,zobgin,snowd(iq) 
-         print *,'afland,aftland,zologbg ',afland,aftland,zologbg   ! land
-         print *,'af,vmag,vmod,es ',af(iq),vmag(iq),vmod(iq),es     ! land
-         print *,'tss,theta,t1 ',tss(iq),theta(iq),t(iq,1)          ! land
-         print *,'aft,fm,fh,rho,conh ',aft(iq),fm,fh(iq),rho(iq),conh 
-         print *,'ri,vmod,cduv,fg ',ri(iq),vmod(iq),cduv(iq),fg(iq) ! land
-       endif  ! (ntest==1.and.iq==idjd)                             ! land
-      enddo     ! ip=1,ipland                                       ! land
-c     iq=899
-c     print *,'in sflux; iq,af,zo,zolnd,snowd,zolog ',iq,af(iq),
-c    &               zo(iq),zolnd(iq),snowd(iq),zolog(iq)  
-
-      if(ntaft==0.or.ktau==1)then
-        do iq=1,ifull  ! will only use land values
-         if(land(iq))then
-           taftfh(iq)=aft(iq)*fh(iq) ! uses fmroot above            ! land
-           taftfhg(iq)=taftfhg_temp(iq)
-         endif
-        enddo
-      elseif(ntaft==1.)then
-        do iq=1,ifull         ! will only use land values
-         if(land(iq))then
-           thnew=aft(iq)*fh(iq) ! uses fmroot above                 ! land
-           thgnew=taftfhg_temp(iq)
-           if(thnew>2.*taftfh(iq).or.thnew<.5*taftfh(iq))then
-             taftfh(iq)=.5*(thnew+taftfh(iq))
-           else
-             taftfh(iq)=thnew
-           endif
-           if(thgnew>2.*taftfhg(iq).or.thgnew<.5*taftfhg(iq))then
-             taftfhg(iq)=.5*(thgnew+taftfhg(iq))
-           else
-             taftfhg(iq)=thgnew
-           endif
-         endif
-        enddo
-      elseif(ntaft==2)then    ! preferred faster option
-        do iq=1,ifull         ! will only use land values
-         if(land(iq))then
-           thnew=aft(iq)*fh(iq) ! uses fmroot above                 ! land
-           thgnew=taftfhg_temp(iq)
-           thnewa=min(thnew,
-     .            max(2.*taftfh(iq),.5*(thnew+taftfh(iq))))
-           taftfh(iq)=max(thnewa,
-     .                min(.5*taftfh(iq),.5*(thnew+taftfh(iq))))
-           thgnewa=min(thgnew,
-     .             max(2.*taftfhg(iq),.5*(thgnew+taftfhg(iq))))
-           taftfhg(iq)=max(thgnewa,
-     .                 min(.5*taftfhg(iq),.5*(thgnew+taftfhg(iq))))
-         endif
-        enddo
-      elseif(ntaft==3)then
-!       do vegetation calulation for taftfh	
-        do iq=1,ifull
-         if(land(iq))then
-           xx=grav*zmin*(1.-tgf(iq)*srcp/t(iq,1)) ! actually otgf   ! land
-           ri_tmp=min(xx/vmag(iq)**2 , ri_max)                      ! land
-           if(ri_tmp>0.)then                                        ! land 
-             fh_tmp=vmod(iq)/(1.+bprm*ri_tmp)**2                    ! land
-           else                                                     ! land
-             root=sqrt(-ri_tmp*zmin/zo(iq))  ! ignoring blending    ! land
-c            Now heat ; allow for smaller zo via aft and factch     ! land
-             denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root           ! land
-             fh_tmp=vmod(iq)-vmod(iq)*2.*bprm *ri_tmp/denha         ! land
-           endif
-           taftfh(iq)=aft(iq)*fh_tmp ! uses fmroot above, for sib3  ! land 
-         endif
-        enddo
-      endif  ! (ntaft==0.or.ktau==1)  .. else ..
-      if(ntest>0.and.mydiag)then
-        print *,'before sib3 zo,zolnd,af ',zo(idjd),zolnd(idjd),af(idjd)
-      endif
-      else
-        factch(iperm(:))=sqrt(7.4)
-      end if ! (nsib.ne.6).and.all(rtsoil.ne.0.)
-c ----------------------------------------------------------------------
       !----------------------------------------------------------
       select case(nsib) ! MJT cable
         case(3,5)
-         call sib3(nalpha)  ! for nsib=3, 5
+!cdir nodep
+          do ip=1,ipland  ! all land points in this shared loop         ! land
+c          fh itself was only used outside this loop in sib0 (jlm)      ! land
+           iq=iperm(ip)                                                 ! land
+           zobg=zobgin                                                  ! land
+           es = establ(tss(iq))                                         ! land
+           qsttg(iq)= .622*es/(ps(iq)-es)  ! prim for scrnout, bur recalc end sib3    
+c          factch is sqrt(zo/zt) for land use in unstable fh            ! land
+           factch(iq)=sqrt(7.4)                                         ! land
+           if(snowd(iq)>0.)then                                         ! land
+!            reduce zo over snow;
+             zobg=max(zobgin -snowd(iq)*0.00976/12., 0.00024)           ! land
+             zologbg=log(zmin/zobg)                                     ! land
+!            following line is bit simpler than csiro9                  ! land
+             zo(iq)=max(zolnd(iq) -.001*snowd(iq), .01)                 ! land
+             zologx=log(zmin/zo(iq))                                    ! land
+           else  ! land but not snow                                    ! land
+             zo(iq)=zolnd(iq)                                           ! land
+             zologbg=zologbgin                                          ! land
+             zologx=zolog(iq)
+           endif     ! (snowd(iq)>0.)                                   ! land
+           if(nblend==1)then  ! blended zo for momentum                 ! land
+!            note that Dorman & Sellers zo is already an average, 
+!            accounting for sigmf, so may not wish to further blend zo	
+             afland=(vkar/((1.-sigmf(iq))*zologbg+sigmf(iq)*zologx))**2 ! land
+           else    ! non-blended zo for momentum                        ! land
+             afland=(vkar/zologx)**2                                    ! land
+           endif   ! (nblend==1)                                        ! land
+           aftland=vkar**2/( zologx * (2.+zologx) )                     ! land
+           aft(iq)=aftland                                              ! land
+           aftlandg=vkar**2/( zologbg * (2.+zologbg) )                  ! land
+c          lgwd>0 enhances cduv (momentum) over orog under (stable & unst) condns
+           af(iq)=afland+helo(iq)       ! jlm special gwd4b             ! land
+                                                                        ! land
+c          Having settled on zo (and thus af) now do actual fh and fm calcs 
+           xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       ! land
+           ri(iq)=min(xx/vmag(iq)**2 , ri_max)                          ! land
+           if(ri(iq)>0.)then                                            ! land
+             fm=vmod(iq)/(1.+bprm*ri(iq))**2                            ! land
+             fh(iq)=fm                                                  ! land
+             fhbg=fh(iq)                                                ! land
+           else                                                         ! land
+             root=sqrt(-ri(iq)*zmin/zo(iq))  ! ignoring blending here   ! land
+c            First do momentum                                          ! land
+             denma=1.+cms*2.*bprm*af(iq)*root                           ! land
+             fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denma                 ! land
+c            n.b. fm denotes ustar**2/(vmod(iq)*af)                     ! land
+c            Now heat ; allow for smaller zo via aft and factch         ! land
+             denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root               ! land
+             fh(iq)=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denha             ! land
+             rootbg=sqrt(-ri(iq)*zmin/zobg)                             ! land
+             denhabg=1.+chs*2.*bprm*factch(iq)*aftlandg*rootbg          ! land
+             fhbg=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/denhabg             ! land
+           endif                                                        ! land
+           taftfhg_temp(iq)=aftlandg*fhbg ! uses fmroot above, for sib3 ! land
+           taftfhg(iq)=aftlandg*fhbg ! value used for ntaft=3 (may need improving)
+                                                                        ! land
+c          cduv is now drag coeff *vmod                                 ! land
+           cduv(iq) =af(iq)*fm                                          ! land
+           ustar(iq) = sqrt(vmod(iq)*cduv(iq))                          ! land
+c          cdtq(iq) =aft(iq)*fh(iq)                                     ! land
+c          Surface stresses taux, tauy: diagnostic only - unstaggered now   
+           taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                            ! land
+           tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! land
+           if(ntest==1.and.iq==idjd.and.mydiag)then                     ! land
+             print *,'in main land loop'                                ! land
+             print *,'zmin,zobg,zobgin,snowd ',zmin,zobg,zobgin,
+     &                                         snowd(iq) 
+             print *,'afland,aftland,zologbg ',afland,aftland,zologbg   ! land
+             print *,'af,vmag,vmod,es ',af(iq),vmag(iq),vmod(iq),es     ! land
+             print *,'tss,theta,t1 ',tss(iq),theta(iq),t(iq,1)          ! land
+             print *,'aft,fm,fh,rho,conh ',aft(iq),fm,fh(iq),rho(iq)
+     &                                    ,conh 
+             print *,'ri,vmod,cduv,fg ',ri(iq),vmod(iq),cduv(iq),fg(iq) ! land
+           endif  ! (ntest==1.and.iq==idjd)                             ! land
+          enddo     ! ip=1,ipland                                       ! land
+c         iq=899
+c         print *,'in sflux; iq,af,zo,zolnd,snowd,zolog ',iq,af(iq),
+c    &                   zo(iq),zolnd(iq),snowd(iq),zolog(iq)  
+
+          if(ntaft==0.or.ktau==1)then                                   ! land
+            do iq=1,ifull  ! will only use land values
+             if(land(iq))then                                           ! land
+               taftfh(iq)=aft(iq)*fh(iq) ! uses fmroot above            ! land
+               taftfhg(iq)=taftfhg_temp(iq)                             ! land
+             endif                                                      ! land
+            enddo                                                       ! land
+          elseif(ntaft==1.)then                                         ! land
+            do iq=1,ifull         ! will only use land values
+             if(land(iq))then                                           ! land
+               thnew=aft(iq)*fh(iq) ! uses fmroot above                 ! land
+               thgnew=taftfhg_temp(iq)                                  ! land
+               if(thnew>2.*taftfh(iq).or.thnew<.5*taftfh(iq))then       ! land
+                 taftfh(iq)=.5*(thnew+taftfh(iq))                       ! land
+               else                                                     ! land
+                 taftfh(iq)=thnew                                       ! land
+               endif                                                    ! land
+               if(thgnew>2.*taftfhg(iq).or.thgnew<.5*taftfhg(iq))then   ! land
+                 taftfhg(iq)=.5*(thgnew+taftfhg(iq))                    ! land
+               else                                                     ! land
+                 taftfhg(iq)=thgnew                                     ! land
+               endif                                                    ! land
+             endif                                                      ! land
+            enddo                                                       ! land
+          elseif(ntaft==2)then    ! preferred faster option
+            do iq=1,ifull         ! will only use land values
+             if(land(iq))then                                           ! land
+               thnew=aft(iq)*fh(iq) ! uses fmroot above                 ! land
+               thgnew=taftfhg_temp(iq)                                  ! land
+               thnewa=min(thnew,                                        ! land
+     .                max(2.*taftfh(iq),.5*(thnew+taftfh(iq))))         ! land
+               taftfh(iq)=max(thnewa,                                   ! land
+     .                min(.5*taftfh(iq),.5*(thnew+taftfh(iq))))         ! land
+               thgnewa=min(thgnew,                                      ! land
+     .                 max(2.*taftfhg(iq),.5*(thgnew+taftfhg(iq))))     ! land
+               taftfhg(iq)=max(thgnewa,                                 ! land
+     .                     min(.5*taftfhg(iq),.5*(thgnew+taftfhg(iq)))) ! land
+             endif                                                      ! land
+            enddo                                                       ! land
+          elseif(ntaft==3)then                                          ! land
+!           do vegetation calulation for taftfh	
+            do iq=1,ifull                                               ! land
+             if(land(iq))then                                           ! land
+               xx=grav*zmin*(1.-tgf(iq)*srcp/t(iq,1)) ! actually otgf   ! land
+               ri_tmp=min(xx/vmag(iq)**2 , ri_max)                      ! land
+               if(ri_tmp>0.)then                                        ! land 
+                 fh_tmp=vmod(iq)/(1.+bprm*ri_tmp)**2                    ! land
+               else                                                     ! land
+                 root=sqrt(-ri_tmp*zmin/zo(iq))  ! ignoring blending    ! land
+c                Now heat ; allow for smaller zo via aft and factch     ! land
+                 denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root           ! land
+                 fh_tmp=vmod(iq)-vmod(iq)*2.*bprm *ri_tmp/denha         ! land
+               endif
+               taftfh(iq)=aft(iq)*fh_tmp ! uses fmroot above, for sib3  ! land 
+             endif                                                      ! land
+            enddo                                                       ! land
+          endif  ! (ntaft==0.or.ktau==1)  .. else ..                    ! land
+          if(ntest>0.and.mydiag)then                                    ! land
+            print *,'before sib3 zo,zolnd,af ',zo(idjd),zolnd(idjd)
+     &                                        ,af(idjd)
+          endif                                                         ! land
+          call sib3(nalpha)  ! for nsib=3, 5                            ! land
         case(CABLE)
          print *,"nsib==CABLE option not avaliable"
          stop
-        case(6)
-         if (all(rtsoil.eq.0.)) then
-           if (myid==0) print *,"Using default rtsoil for CABLE"
-           rtsoil=max(25.,1./max(taftfhg,0.0001))
-         end if
-         call sib4
-          ! original Eva's, same as NCAR - calculate wetfac for scrnout
-         do ip=1,ipland  ! all land points in this nsib=3 loop
-           iq=iperm(ip)
-           !isoil = isoilm(iq)
-           !fle=(wb(iq,1)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
-           !wetfac(iq)=max( 0.,min(1.,fle) )
-           es = establ(tss(iq))
-           qsttg(iq)= .622*es/(ps(iq)-es)            
-         enddo   ! ip=1,ipland
+        case(6)                                                         ! cable
+         factch(iperm)=sqrt(7.4)                                        ! cable
+         call sib4                                                      ! cable
+         ! update arrays for scrnout                                    ! cable
+         do ip=1,ipland                                                 ! cable
+           iq=iperm(ip)                                                 ! cable
+           es = establ(tss(iq))                                         ! cable
+           qsttg(iq)= .622*es/(ps(iq)-es)                               ! cable
+           zologx=log(zmin/zo(iq))                                      ! cable
+           aft(iq)=vkar**2/(zologx*(log(factch(iq)**2)+zologx))         ! cable
+           af(iq)=(vkar/log(zmin/zo(iq)))**2                            ! cable
+           xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       ! cable
+           ri(iq)=min(xx/vmag(iq)**2 , ri_max)                          ! cable
+           taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                            ! cable
+           tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! cable
+         enddo   ! ip=1,ipland                                          ! cable
       end select
       !----------------------------------------------------------
       ! MJT urban
-      if (nurban.ne.0) then
-         zonx=                       -sin(rlat0*pi/180.)*y(:)
-         zony=sin(rlat0*pi/180.)*x(:)+cos(rlat0*pi/180.)*z(:)
-         zonz=-cos(rlat0*pi/180.)*y(:)
-         costh= (zonx*ax(1:ifull)+zony*ay(1:ifull)+zonz*az(1:ifull))
-     &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )
-         sinth=-(zonx*bx(1:ifull)+zony*by(1:ifull)+zonz*bz(1:ifull))
-     &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )
-         zonx=av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(1:ifull,1)
-         zony=av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(1:ifull,1)
-         uzon= costh*zonx-sinth*zony ! zonal
-         vmer= sinth*zonx+costh*zony ! meridonal     
-         call atebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin
-     &               ,sgsave(:)/(1.-0.5*sum(albvisnir,2)),-rgsave(:)
-     &               ,condx(:)/dt,rho(:),t(:,1),qg(:,1)
-     &               ,ps(:),sig(1)*ps(:),uzon,vmer,vmodmin,0)
-        ! here we blend zo with the urban part for the
-        ! calculation of ustar (occuring later in sflux.f)
-        factch(iperm(:))=zo(iperm(:))/factch(iperm(:))**2
-        call atebzo(ifull,zo(:),factch(:),0)
-        factch(iperm(:))=sqrt(zo(iperm(:))/factch(iperm(:)))
-        do ip=1,ipland ! assumes all urban points are land points
-          iq=iperm(ip)
-          if (sigmu(iq).gt.0.) then
-            es = establ(tss(iq))
-            qsttg(iq)= .622*es/(ps(iq)-es)
-            zologx=log(zmin/zo(iq))
-            aft(iq)=vkar**2/(zologx*(log(factch(iq)**2)+zologx))
-            rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4
-            ! the following are done by ntsur.ne.5
-            !af(iq)=(vkar/log(zmin/zo(iq)))**2
-            !xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       
-            !ri(iq)=min(xx/vmag(iq)**2 , ri_max)            
-          end if            
-        end do
+      if (nurban.ne.0) then                                             ! urban
+         ! calculate zonal and meridonal winds                          ! urban
+         zonx=                       -sin(rlat0*pi/180.)*y(:)           ! urban
+         zony=sin(rlat0*pi/180.)*x(:)+cos(rlat0*pi/180.)*z(:)           ! urban
+         zonz=-cos(rlat0*pi/180.)*y(:)                                  ! urban
+         costh= (zonx*ax(1:ifull)+zony*ay(1:ifull)+zonz*az(1:ifull))    ! urban
+     &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )             ! urban
+         sinth=-(zonx*bx(1:ifull)+zony*by(1:ifull)+zonz*bz(1:ifull))    ! urban
+     &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )             ! urban
+         zonx=av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(1:ifull,1)         ! urban
+         zony=av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(1:ifull,1)         ! urban
+         uzon= costh*zonx-sinth*zony ! zonal                            ! urban
+         vmer= sinth*zonx+costh*zony ! meridonal                        ! urban
+         ! call aTEB                                                    ! urban
+         call atebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin       ! urban
+     &               ,sgsave(:)/(1.-0.5*sum(albvisnir,2)),-rgsave(:)    ! urban
+     &               ,condx(:)/dt,rho(:),t(:,1),qg(:,1)                 ! urban
+     &               ,ps(:),sig(1)*ps(:),uzon,vmer,vmodmin,0)           ! urban
+        ! here we blend zo with the urban part for the                  ! urban
+        ! calculation of ustar (occuring later in sflux.f)              ! urban
+        factch(iperm)=zo(iperm)/factch(iperm)**2                        ! urban
+        call atebzo(ifull,zo,factch,0)                                  ! urban
+        factch(iperm)=sqrt(zo(iperm)/factch(iperm))                     ! urban
+        cduv(iperm)=cduv(iperm)/max(vmod(iperm),vmodmin)                ! urban
+        call atebcd(ifull,cduv,0)                                       ! urban
+        cduv(iperm)=cduv(iperm)*max(vmod(iperm),vmodmin)                ! urban
+        ustar(iperm)=sqrt(vmod(iperm)*cduv(iperm))                      ! urban
+        ! update arrays for scrnout                                     ! urban
+        do ip=1,ipland ! assumes all urban points are land points       ! urban
+          iq=iperm(ip)                                                  ! urban
+          if (sigmu(iq).gt.0.) then                                     ! urban
+            es = establ(tss(iq))                                        ! urban
+            qsttg(iq)= .622*es/(ps(iq)-es)                              ! urban
+            zologx=log(zmin/zo(iq))                                     ! urban
+            aft(iq)=vkar**2/(zologx*(log(factch(iq)**2)+zologx))        ! urban
+            rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4            ! urban
+            af(iq)=(vkar/log(zmin/zo(iq)))**2                           ! urban
+            xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                      ! urban
+            ri(iq)=min(xx/vmag(iq)**2 , ri_max)                         ! urban
+            taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                           ! urban
+            tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                           ! urban
+          end if                                                        ! urban
+        end do                                                          ! urban
       end if
       !----------------------------------------------------------
 c ----------------------------------------------------------------------
