@@ -323,7 +323,11 @@ c       turn ON fatal netcdf errors
 c     begin reading data
 c     log scaled sfc.press
       call histrd1(ncid,iarchi,ier,'psf',ik,jk,psl,ifull)
+c     turn OFF fatal netcdf errors ! MJT
+      if(myid == 0)call ncpopt(0)      
       call histrd1(ncid,iarchi,ier,'zht',ik,jk,zs,ifull)
+c     turn on fatal netcdf errors ! MJT
+      if(myid == 0)call ncpopt(NCVERBOS+NCFATAL)      
       call histrd1(ncid,iarchi,ier,'tsu',ik,jk,tss,ifull)
 !***  tss(:)=abs(tss(:)) ! not here because -ves needed for onthefly
       if(nspecial<-50)then

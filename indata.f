@@ -1929,11 +1929,11 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       ! nmlo=2 SST nudged mixed layer ocean
       if (nmlo.ne.0) then
         if (myid==0) print *,"Initialising MLO"
-        dep=250. ! to be readin
+        call readreal('bath',dep,ifull)
         where (land)
           dep=0.
         else where
-          dep=max(dep,real(wlev)) ! limit minimum depth
+          dep=max(dep,2.*real(wlev)) ! limit minimum depth
         end where
         call mloinit(ifull,dep,0)
         if (any(ocndepin.gt.0.5)) then
@@ -2053,7 +2053,8 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
 
        !------------------------------------------------------------------------
        ! MJT CHANGE sib ! MJT CHANGE cable
-       ! if cable, then the albedo is soil albedo only (converted when cable is initialised)
+       ! if cable, then the albedo is soil albedo only (converted to net albedo
+       ! when cable is initialised)
        call readreal(albfile,albvisnir(:,1),ifull)
        if ((nsib.eq.5).or.(nsib.eq.6)) then
          call readreal('albnir',albvisnir(:,2),ifull)
@@ -2066,7 +2067,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        if (nsib.ne.6) then
          call readreal(zofile,zolnd,ifull)
        else
-         zolnd=zobgin ! updated later
+         zolnd=zobgin ! updated in cable_ccam2.f90
        end if
        if(iradon.ne.0)call readreal(radonemfile,radonem,ifull)
        if ((nsib.ne.5).and.(nsib.ne.6)) then

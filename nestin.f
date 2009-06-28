@@ -2400,7 +2400,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       end subroutine procdiv
       !---------------------------------------------------------------------------------
 
-      ! Filter for MLO 
+      ! 2D Filter for MLO 
       subroutine mlofilter(new,hostscale) ! MJT mlo
 
       use mlo, only : mloimport,mloexport
@@ -2483,6 +2483,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       return
       end subroutine mlofilter
 
+      ! 1D filter for mlo
       subroutine mlofilterfast(new,hostscale) ! MJT mlo
 
       use mlo, only : mloimport,mloexport
@@ -2543,8 +2544,6 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       call mlospechost(myid,mproc,hproc,npta,pn,px,ns,ne,cq,diff_g,miss)      
       
-      call MPI_Bcast(diff_g,ifull_g,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-
       if (myid == 0) then
         call ccmpi_distribute(diff, diff_g)
       else
@@ -2588,6 +2587,8 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       if (ns.gt.ne) return
       if ((myid==0).and.(nmaxpr==1)) print *,"MLO Start 1D filter"
+
+      zp=0.
 
       do qpass=pn,px
         ppass=qaps(qpass)
@@ -2838,6 +2839,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       return  
       end subroutine mlospeclocal
       
+      ! Relaxation scheme for MLO
       subroutine mlonudge(new) ! MJT mlo
 
       use mlo, only : mloimport,mloexport

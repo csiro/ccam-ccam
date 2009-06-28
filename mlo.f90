@@ -157,7 +157,7 @@ real, dimension(wlev), intent(out) :: depthout
 real, dimension(wlev+1), intent(out) :: depth_hlout
 real dd,x,al,bt
 
-dd=min(mxd,max(6.,depin))
+dd=min(mxd,max(0.5*real(wlev),depin))
 x=real(wlev)
 al=(mindep*x-dd)/(x-x*x)
 bt=(mindep*x*x-dd)/(x*x-x)
@@ -288,6 +288,8 @@ real x
 if (wfull.eq.0) return
 if (all(depin(wgrid).eq.depth(:,wlev))) return
 
+newdat=mlodat
+
 do iqw=1,wfull
   call vgrid(depin(wgrid(iqw)),dpin,dp_hlin)
   do ii=1,wlev
@@ -364,8 +366,6 @@ type(tdiag2), dimension(wfull) :: dg2
 type(tdiag3), dimension(wfull,wlev) :: dg3
 type(tdata), dimension(wfull,wlev) :: new
 
-uo%sst=water(:,1)%temp
-
 call getrho(dg2,dg3,atm)           ! calculate rho and bf.  Also calculate boundary conditions.
 call getmixdepth(dg2,dg3)          ! solve for mixed layer depth
 call getstab(km,ks,gammas,dg2,dg3) ! solve for stability functions and non-local term
@@ -384,7 +384,7 @@ do ii=2,wlev-1
  rhs(:,ii)=(0.25/dz(:,ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
                           -(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dumt0 ! non-local
 end do
-rhs(:,wlev)=0.
+rhs(:,wlev)=(0.25/dz(:,wlev))*(-(ks(:,wlev)+ks(:,wlev-1))*(gammas(:,wlev)+gammas(:,wlev-1)))*dumt0
 rhs(:,:)=rhs(:,:)+dg3%rad/dz ! shortwave
 bb(:,1)=1./dt+0.5*(ks(:,1)+ks(:,2))/(dz_hl(:,2)*dz(:,1))
 cc(:,1)=-0.5*(ks(:,1)+ks(:,2))/(dz_hl(:,2)*dz(:,1))
@@ -407,7 +407,7 @@ do ii=2,wlev-1
   rhs(:,ii)=(0.25/dz(:,ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
                           -(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dg2%ws0 ! non-local
 end do
-rhs(:,wlev)=0.
+rhs(:,wlev)=(0.25/dz(:,wlev))*(-(ks(:,wlev)+ks(:,wlev-1))*(gammas(:,wlev)+gammas(:,wlev-1)))*dg2%ws0
 dd(:,1)=water(:,1)%sal/dt+rhs(:,1)-dg2%ws0/dz(:,1)
 do ii=2,wlev
   dd(:,ii)=water(:,ii)%sal/dt+rhs(:,ii)
@@ -473,7 +473,6 @@ real, dimension(wfull) :: n
 bb=bbi
 dd=ddi
 
-! solve for temperature
 do ii=2,wlev
   n=aa(:,ii)/bb(:,ii-1)
   bb(:,ii)=bb(:,ii)-n*cc(:,ii-1)

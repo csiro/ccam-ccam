@@ -415,7 +415,7 @@ c       Sigma levels
         lname ='Mean sea level pressure'
         call attrib(idnc,idim,3,'pmsl',lname,'hPa',800.,1200.,0)
         lname = 'Surface geopotential'
-        call attrib(idnc,idim,2,'zht',lname,'m2/s2',-100.,90.e3,0)
+        call attrl(idnc,idim,2,'zht',lname,'m2/s2',-1000.,90.e3,0) ! MJT bug fix
 c       call attrib(idnc,idim,2,'zht',lname,'m2/s2',-1.e6,90.e3,0) ! ocean too
 
 c       For time invariant surface fields
@@ -927,7 +927,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         !call histwrt3(aa,'wetfrac',idnc,iarch,local)
       endif ! (ktau==0.or.itype==-1) 
 
-      call histwrt3(zs,'zht',idnc,iarch,local)   ! always from 13/9/02
+      call histwrt3l(zs,'zht',idnc,iarch,local)   ! always from 13/9/02 ! MJT bug fix
       call histwrt3(psl,'psf',idnc,iarch,local)
       do iq=1,ifull
         aa(iq)=pmsl(iq)/100.

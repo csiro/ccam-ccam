@@ -1,7 +1,7 @@
 
 ! This code was originally based on the TEB scheme of Masson, Boundary-Layer Meteorology, 94, p357 (2000)
 ! The snow scheme is based on Douville, Royer and Mahfouf, Climate Dynamics, 12, p21 (1995)
-! The in-canyon vegetation is based on Kowalczyk et al, DAR Tech Paper 32 (1994), but simplied by assiming sigmaf=1.
+! The in-canyon vegetation is based on Kowalczyk et al, DAR Tech Paper 32 (1994), but simplified by assiming sigmaf=1.
 
 ! The main changes include an alternative formulation for in-canyon aerodynamical resistances based on Harman, et al (2004)
 ! and Kanada et al (2007), combined with a second canyon wall for completeness.  The stability functions are also modified
@@ -49,7 +49,7 @@ implicit none
 
 private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb1, &
-       atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd
+       atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,vegmode
 
 ! type definitions
 type tatm
