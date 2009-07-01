@@ -381,10 +381,20 @@ else
 end if
 rhs(:,1)=(0.25/dz(:,1))*(ks(:,2)+ks(:,1))*(gammas(:,2)+gammas(:,1))*dumt0
 do ii=2,wlev-1
- rhs(:,ii)=(0.25/dz(:,ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
+  where(ii.le.pg%mixind)
+    rhs(:,ii)=(0.25/dz(:,ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
                           -(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dumt0 ! non-local
+  elsewhere(ii.eq.pg%mixind+1)
+    rhs(:,ii)=(0.25/dz(:,ii))*(-(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dumt0
+  elsewhere
+    rhs(:,ii)=0.
+  end where
 end do
-rhs(:,wlev)=(0.25/dz(:,wlev))*(-(ks(:,wlev)+ks(:,wlev-1))*(gammas(:,wlev)+gammas(:,wlev-1)))*dumt0
+where(wlev.eq.pg%mixind+1)
+  rhs(:,wlev)=(0.25/dz(:,wlev))*(-(ks(:,wlev)+ks(:,wlev-1))*(gammas(:,wlev)+gammas(:,wlev-1)))*dumt0
+elsewhere
+  rhs(:,wlev)=0.
+end where
 rhs(:,:)=rhs(:,:)+dg3%rad/dz ! shortwave
 bb(:,1)=1./dt+0.5*(ks(:,1)+ks(:,2))/(dz_hl(:,2)*dz(:,1))
 cc(:,1)=-0.5*(ks(:,1)+ks(:,2))/(dz_hl(:,2)*dz(:,1))
@@ -404,10 +414,20 @@ call thomas(new%temp,aa,bb,cc,dd)
 ! SALINITY
 rhs(:,1)=(0.25/dz(:,1))*(ks(:,2)+ks(:,1))*(gammas(:,2)+gammas(:,1))*dg2%ws0
 do ii=2,wlev-1
-  rhs(:,ii)=(0.25/dz(:,ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
+  where(ii.le.pg%mixind)
+    rhs(:,ii)=(0.25/dz(:,ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
                           -(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dg2%ws0 ! non-local
+  elsewhere(ii.eq.pg%mixind+1)
+    rhs(:,ii)=(0.25/dz(:,ii))*(-(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dg2%ws0
+  elsewhere
+    rhs(:,ii)=0.
+  end where
 end do
-rhs(:,wlev)=(0.25/dz(:,wlev))*(-(ks(:,wlev)+ks(:,wlev-1))*(gammas(:,wlev)+gammas(:,wlev-1)))*dg2%ws0
+where(wlev.eq.pg%mixind+1)
+  rhs(:,wlev)=(0.25/dz(:,wlev))*(-(ks(:,wlev)+ks(:,wlev-1))*(gammas(:,wlev)+gammas(:,wlev-1)))*dg2%ws0
+elsewhere
+  rhs(:,wlev)=0.
+end where
 dd(:,1)=water(:,1)%sal/dt+rhs(:,1)-dg2%ws0/dz(:,1)
 do ii=2,wlev
   dd(:,ii)=water(:,ii)%sal/dt+rhs(:,ii)
@@ -594,7 +614,7 @@ end do
 ! gammas is the same for temp and sal when double-diffusion is not employed
 cg=10.*vkar*(98.96*vkar*epsilon)**(1./3.)
 do ii=1,wlev
-  where (dumbf.lt.0..and.ii.le.pg%mixind) ! unstable
+  where (dumbf.lt.0.) ! unstable
     gammas(:,ii)=cg/(ws(:,ii)*pg%mixdepth)
   elsewhere            ! stable
     gammas(:,ii)=0.
