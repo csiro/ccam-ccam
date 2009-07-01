@@ -580,6 +580,7 @@ c 	    only being tested for nested=0; no need to test for mesonest
             call histrd1(ncid,iarchi,ierr,vname,ik,jk,datoc(:,k,4)
      &                ,ifull)
           end do
+	  if (any(datoc.gt.900.)) ocndepin=0. ! missing levels
         end if
         !------------------------------------------------------------
 

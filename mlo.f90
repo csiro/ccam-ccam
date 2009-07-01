@@ -594,7 +594,7 @@ end do
 ! gammas is the same for temp and sal when double-diffusion is not employed
 cg=10.*vkar*(98.96*vkar*epsilon)**(1./3.)
 do ii=1,wlev
-  where (dumbf.lt.0.) ! unstable
+  where (dumbf.lt.0..and.ii.le.pg%mixind) ! unstable
     gammas(:,ii)=cg/(ws(:,ii)*pg%mixdepth)
   elsewhere            ! stable
     gammas(:,ii)=0.
@@ -663,13 +663,13 @@ end subroutine getmixdepth
 ! This calculates the stability functions
 !
 
-subroutine getwx(wm,ws,dep,bf,ustar,dp)
+subroutine getwx(wm,ws,dep,bf,ustar,mixdp)
 
 implicit none
 
 real, dimension(wfull), intent(out) :: wm,ws
-real, dimension(wfull), intent(in) :: bf,ustar,dp,dep
-real, dimension(wfull) :: zeta,sig,invl
+real, dimension(wfull), intent(in) :: bf,ustar,mixdp,dep
+real, dimension(wfull) :: zeta,sig,invl,uuu
 real, parameter :: zetam=-0.2
 real, parameter :: zetas=-1.0
 real, parameter :: am=1.26
@@ -677,28 +677,29 @@ real, parameter :: cm=8.38
 real, parameter :: as=-28.86
 real, parameter :: cs=98.96
 
-where (bf.le.0.) ! unstable
+sig=dep/mixdp                       ! stable
+where (bf.le.0..and.sig.gt.epsilon) ! unstable
   sig=epsilon
-elsewhere        ! stable
-  sig=dep/dp
 end where
-invl=vkar*bf/(ustar**3)
-zeta=sig*dp*invl
+uuu=ustar**3
+invl=vkar*bf ! invl = ustar*3/L or L=ustar**3/(vkar*bf)
+invl=max(invl,-10.*uuu/mixdp) ! MJT suggestion
+zeta=sig*mixdp*invl
 
 where (zeta.gt.0.)
-  wm=vkar*ustar/(1.+5.*zeta)
-elsewhere (zeta.gt.zetam)
-  wm=vkar*ustar/((1.-16.*zeta)**(-1./4.))
+  wm=vkar*ustar*uuu/(uuu+5.*zeta)
+elsewhere (zeta.gt.zetam*uuu)
+  wm=vkar*ustar*(1.-16.*zeta/uuu)**(1./4.)
 elsewhere
-  wm=vkar*ustar/((am-cm*zeta)**(-1./3.))
+  wm=vkar*(am*uuu-cm*zeta)**(1./3.)
 end where
 
 where (zeta.gt.0.)
-  ws=vkar*ustar/(1.+5.*zeta)
-elsewhere (zeta.gt.zetas)
-  ws=vkar*ustar/((1.-16.*zeta)**(-1./2.))
+  ws=vkar*ustar*uuu/(uuu+5.*zeta)
+elsewhere (zeta.gt.zetas*uuu)
+  ws=vkar*ustar*(1.-16.*zeta/uuu)**(1./2.)
 elsewhere
-  ws=vkar*ustar/((as-cs*zeta)**(-1./3.))
+  ws=vkar*(as*uuu-cs*zeta)**(1./3.)
 end where
 
 return
