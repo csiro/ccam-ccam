@@ -1932,8 +1932,6 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         call readreal('bath',dep,ifull)
         where (land)
           dep=0.
-        else where
-          dep=max(dep,2.*real(wlev)) ! limit minimum depth
         end where
         call mloinit(ifull,dep,0)
         if (any(ocndepin.gt.0.5)) then
@@ -1943,9 +1941,12 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           if (myid == 0) print *,"Using MLO defaults"
           do k=1,wlev
             datoc(:,k,1)=tss(:)
-            datoc(:,k,2)=35.
+            datoc(:,k,2)=34.72
             datoc(:,k,3)=0.
             datoc(:,k,4)=0.
+            !where (zs(1:ifull).gt.1.) ! lakes?
+            !  datoc(:,k,2)=0.
+            !end where
           end do
         end if
         datoc(:,1,1)=tss(:) ! Always use tss for top ocean layer

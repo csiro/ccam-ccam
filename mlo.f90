@@ -10,13 +10,13 @@ module mlo
 implicit none
 
 private
-public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,wlev
+public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,wlev,depth
 
 type tdata
   real temp,sal,u,v
 end type tdata
 type tprog2
-  real mixdepth
+  real mixdepth,bf
   integer mixind
 end type tprog2
 type tatm
@@ -26,7 +26,7 @@ type tout
   real sst
 end type tout
 type tdiag2
-  real bf,ustar,wu0,wv0,wt0,ws0
+  real b0,ustar,wu0,wv0,wt0,ws0
 end type tdiag2
 type tdiag3
   real rho,nsq,rad,alpha,beta
@@ -49,8 +49,8 @@ integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 0 ! include shortwave in non-local term
 
 ! max depth
-real, parameter :: mxd    = 200.    ! Max depth
-real, parameter :: mindep = 2.      ! Thickness of first layer
+real, parameter :: mxd    = 1000.   ! Max depth
+real, parameter :: mindep = 1.      ! Thickness of first layer
 
 ! model parameters
 real, parameter :: ric     = 0.3    ! Critical Ri for diagnosing mixed layer depth
@@ -157,13 +157,13 @@ real, dimension(wlev), intent(out) :: depthout
 real, dimension(wlev+1), intent(out) :: depth_hlout
 real dd,x,al,bt
 
-dd=min(mxd,max(0.5*real(wlev),depin))
+dd=min(mxd,max(mindep*real(wlev),depin))
 x=real(wlev)
-al=(mindep*x-dd)/(x-x*x)
-bt=(mindep*x*x-dd)/(x*x-x)
+al=(mindep*x-dd)/(x-x*x*x)
+bt=(mindep*x*x*x-dd)/(x*x*x-x)
 do ii=1,wlev+1
   x=real(ii)-1.
-  depth_hlout(ii)=al*x*x+bt*x ! ii is for half level ii-0.5
+  depth_hlout(ii)=al*x*x*x+bt*x ! ii is for half level ii-0.5
 end do
 do ii=1,wlev
   depthout(ii)=0.5*(depth_hlout(ii)+depth_hlout(ii+1))
@@ -367,7 +367,7 @@ type(tdiag3), dimension(wfull,wlev) :: dg3
 type(tdata), dimension(wfull,wlev) :: new
 
 call getrho(dg2,dg3,atm)           ! calculate rho and bf.  Also calculate boundary conditions.
-call getmixdepth(dg2,dg3)          ! solve for mixed layer depth
+call getmixdepth(dg2,dg3,atm)      ! solve for mixed layer depth
 call getstab(km,ks,gammas,dg2,dg3) ! solve for stability functions and non-local term
 
 ! TEMPERATURE
@@ -381,16 +381,16 @@ else
 end if
 rhs(:,1)=(0.25/dz(:,1))*(ks(:,2)+ks(:,1))*(gammas(:,2)+gammas(:,1))*dumt0
 do ii=2,wlev-1
-  where(ii.le.pg%mixind)
+  where (ii.le.pg%mixind)
     rhs(:,ii)=(0.25/dz(:,ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
                           -(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dumt0 ! non-local
-  elsewhere(ii.eq.pg%mixind+1)
+  elsewhere (ii.eq.pg%mixind+1)
     rhs(:,ii)=(0.25/dz(:,ii))*(-(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dumt0
   elsewhere
     rhs(:,ii)=0.
   end where
 end do
-where(wlev.eq.pg%mixind+1)
+where (wlev.eq.pg%mixind+1)
   rhs(:,wlev)=(0.25/dz(:,wlev))*(-(ks(:,wlev)+ks(:,wlev-1))*(gammas(:,wlev)+gammas(:,wlev-1)))*dumt0
 elsewhere
   rhs(:,wlev)=0.
@@ -418,7 +418,7 @@ do ii=2,wlev-1
     rhs(:,ii)=(0.25/dz(:,ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
                           -(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dg2%ws0 ! non-local
   elsewhere(ii.eq.pg%mixind+1)
-    rhs(:,ii)=(0.25/dz(:,ii))*(-(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dg2%ws0
+    rhs(:,ii)=(0.25/dz(:,ii))*(-(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dg2%ws0  
   elsewhere
     rhs(:,ii)=0.
   end where
@@ -517,7 +517,7 @@ implicit none
 integer ii,iqw
 real, dimension(wfull,wlev), intent(out) :: km,ks,gammas
 real, dimension(wfull,wlev) :: num,nus,wm,ws,ri
-real, dimension(wfull) :: sigma,dumbf
+real, dimension(wfull) :: sigma
 real, dimension(wfull) :: a2m,a3m,a2s,a3s
 real numh,wm1,dnumhdz,dwm1ds,g1m,dg1mds
 real nush,ws1,dnushdz,dws1ds,g1s,dg1sds
@@ -560,15 +560,8 @@ nus=nus+nusw
 !--------------------------------------------------------------------
 
 ! stability ---------------------------------------------------------
-if (incradbf.gt.0) then
-  do iqw=1,wfull
-    dumbf(iqw)=dg2(iqw)%bf+grav*sum(dg3(iqw,1:pg(iqw)%mixind)%alpha*dg3(iqw,1:pg(iqw)%mixind)%rad)
-  end do
-else
-  dumbf=dg2%bf
-end if
 do ii=1,wlev
-  call getwx(wm(:,ii),ws(:,ii),depth(:,ii),dumbf,dg2%ustar,pg%mixdepth)
+  call getwx(wm(:,ii),ws(:,ii),depth(:,ii),pg%bf,dg2%ustar,pg%mixdepth)
 end do
 !--------------------------------------------------------------------
 
@@ -597,7 +590,6 @@ do iqw=1,wfull
   a3s(iqw)=1.-2.*g1s+dg1sds
 end do
 !--------------------------------------------------------------------
-
 ! combine
 do ii=1,wlev
   where (ii.le.pg%mixind)
@@ -614,7 +606,7 @@ end do
 ! gammas is the same for temp and sal when double-diffusion is not employed
 cg=10.*vkar*(98.96*vkar*epsilon)**(1./3.)
 do ii=1,wlev
-  where (dumbf.lt.0.) ! unstable
+  where (pg%bf.lt.0.) ! unstable
     gammas(:,ii)=cg/(ws(:,ii)*pg%mixdepth)
   elsewhere            ! stable
     gammas(:,ii)=0.
@@ -629,27 +621,28 @@ end subroutine getstab
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! calculate mixing layer depth
 
-subroutine getmixdepth(dg2,dg3)
+subroutine getmixdepth(dg2,dg3,atm)
 
 implicit none
 
 integer ii,iqw
 real vtc,dvsq,vtsq,xp
 real, dimension(wfull,wlev) :: ws,wm
-real, dimension(wfull) :: dumbf
+real, dimension(wfull) :: dumbf,l,he
 real, dimension(wlev) :: rib
 type(tdiag2), dimension(wfull), intent(in) :: dg2
-type(tdiag3), dimension(wfull,wlev), intent(inout) :: dg3
+type(tdiag3), dimension(wfull,wlev), intent(in) :: dg3
+type(tatm), dimension(wfull), intent(in) :: atm
 
 vtc=1.8*sqrt(0.2/(98.96*epsilon))/(vkar**2*ric)
 
 if (incradbf.gt.0) then
   do ii=1,wlev
-    dumbf=dg2%bf+grav*sum(dg3(:,1:ii)%alpha*dg3(:,1:ii)%rad,2)
+    dumbf=dg2%b0+grav*sum(dg3(:,1:ii)%alpha*dg3(:,1:ii)%rad,2)
     call getwx(wm(:,ii),ws(:,ii),depth(:,ii),dumbf,dg2%ustar,depth(:,ii))
   end do
 else
-  dumbf=dg2%bf
+  dumbf=dg2%b0
   do ii=1,wlev
     call getwx(wm(:,ii),ws(:,ii),depth(:,ii),dumbf,dg2%ustar,depth(:,ii))
   end do
@@ -676,8 +669,56 @@ do iqw=1,wfull
 
 end do
 
+! calculate buoyancy forcing
+call getbf(dg2,dg3)
+
+! impose limits for stable conditions
+l=dg2%ustar*dg2%ustar*dg2%ustar/(vkar*pg%bf)
+he=0.7*dg2%ustar/abs(atm%f)
+where(pg%bf.gt.0.)
+  pg%mixdepth=min(pg%mixdepth,l)
+  pg%mixdepth=min(pg%mixdepth,he)
+end where
+pg%mixdepth=max(pg%mixdepth,depth(:,1))
+
+! recalculate index for mixdepth
+do iqw=1,wfull
+  do ii=2,wlev
+    if (depth(iqw,ii).gt.pg(iqw)%mixdepth) then
+      pg(iqw)%mixind=ii-1
+      exit
+    end if
+  end do
+end do
+
+! recalculate buoyancy forcing
+call getbf(dg2,dg3)
+
 return
 end subroutine getmixdepth
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Estimate bouyancy forcing
+!
+
+subroutine getbf(dg2,dg3)
+
+implicit none
+
+integer iqw
+type(tdiag2), dimension(wfull), intent(in) :: dg2
+type(tdiag3), dimension(wfull,wlev), intent(in) :: dg3
+
+if (incradbf.gt.0) then
+  do iqw=1,wfull
+    pg(iqw)%bf=dg2(iqw)%b0+grav*sum(dg3(iqw,1:pg(iqw)%mixind)%alpha*dg3(iqw,1:pg(iqw)%mixind)%rad)
+  end do
+else
+  pg%bf=dg2%b0
+end if
+
+return
+end subroutine getbf
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This calculates the stability functions
@@ -702,8 +743,9 @@ where (bf.le.0..and.sig.gt.epsilon) ! unstable
   sig=epsilon
 end where
 uuu=ustar**3
-invl=vkar*bf ! invl = ustar*3/L or L=ustar**3/(vkar*bf)
+invl=vkar*bf ! invl = ustar**3/L or L=ustar**3/(vkar*bf)
 invl=max(invl,-10.*uuu/mixdp) ! MJT suggestion
+invl=min(invl,1.*uuu/mixdp)   ! MJT suggestion
 zeta=sig*mixdp*invl
 
 where (zeta.gt.0.)
@@ -831,10 +873,10 @@ do i=1,nits
     dg3(:,ii)%rho=rho0/(1.-p1/sk)
     rs(:,ii)=rs0/(1.-p1/sks) ! sal=0.
   
-    drhodt=drho0dt/(1.-p1/sk)+rho0*p1*dskdt/((sk-p1)**2)
-    drhods=drho0ds/(1.-p1/sk)+rho0*p1*dskds/((sk-p1)**2)
-    dg3(:,ii)%alpha=-drhodt
-    dg3(:,ii)%beta=drhods
+    drhodt=drho0dt/(1.-p1/sk)-rho0*p1*dskdt/((sk-p1)**2)
+    drhods=drho0ds/(1.-p1/sk)-rho0*p1*dskds/((sk-p1)**2)
+    dg3(:,ii)%alpha=-drhodt/dg3(:,ii)%rho ! MOM convention
+    dg3(:,ii)%beta=drhods/dg3(:,ii)%rho   ! MOM convention
   end do
 
 end do
@@ -867,8 +909,8 @@ dg2%wt0=-(-atm%fg-atm%eg+atm%rg)/(dg3(:,1)%rho*cp0)        ! BC
 dg2%ws0=(atm%rnd-atm%eg/lv)*water(:,1)%sal/rs(:,1)         ! BC ! negect ice for now
 
 dg2%ustar=max(sqrt(sqrt(dg2%wu0*dg2%wu0+dg2%wv0*dg2%wv0)),1.E-10)
-dg2%bf=-grav*(dg3(:,1)%alpha*dg2%wt0-dg3(:,1)%beta*dg2%ws0)
-!dg2%bf=-grav*(-drho0dt*dg2%wt0-drho0ds*dg2%ws0)
+dg2%b0=-grav*(dg3(:,1)%alpha*dg2%wt0-dg3(:,1)%beta*dg2%ws0)
+!dg2%b0=-grav*(-drho0dt*dg2%wt0-drho0ds*dg2%ws0)
 
 return
 end subroutine getrho

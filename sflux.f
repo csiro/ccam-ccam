@@ -66,8 +66,8 @@ c     cp specific heat at constant pressure joule/kgm/deg
      . ism(ifull),fwtop(ifull),af(ifull),   ! watch soilsnow.f after epot
      . extin(ifull),dum3(5*ijk-17*ifull)
       real plens(ifull),vmag(ifull),charnck(ifull)
-      real zonx(ifull),zony(ifull),zonz(ifull),costh(ifull) ! MJT urban
-      real sinth(ifull),uzon(ifull),vmer(ifull)             ! MJT urban
+      real zonx(ifull),zony(ifull),zonz(ifull),costh(ifull) ! MJT urban ! MJT mlo
+      real sinth(ifull),uzon(ifull),vmer(ifull)             ! MJT urban ! MJT mlo
       save plens
       data plens/ifull*0./
       include 'establ.h'
@@ -173,6 +173,22 @@ c     using av_vmod (1. for no time averaging)
       enddo
       vmag(:)=max( vmod(:) , vmodmin) ! vmag used to calculate ri
       if(ntsur.ne.7)vmod(:)=vmag(:)	! gives usual way
+
+      !--------------------------------------------------------------
+      ! MJT urban ! MJT mlo
+      ! calculate zonal and meridonal winds
+      zonx=                       -sin(rlat0*pi/180.)*y(:)
+      zony=sin(rlat0*pi/180.)*x(:)+cos(rlat0*pi/180.)*z(:)
+      zonz=-cos(rlat0*pi/180.)*y(:)                       
+      costh= (zonx*ax(1:ifull)+zony*ay(1:ifull)+zonz*az(1:ifull))
+     &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )      
+      sinth=-(zonx*bx(1:ifull)+zony*by(1:ifull)+zonz*bz(1:ifull))
+     &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )      
+      zonx=av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(1:ifull,1)     
+      zony=av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(1:ifull,1)     
+      uzon= costh*zonx-sinth*zony ! zonal                        
+      vmer= sinth*zonx+costh*zony ! meridonal
+      !--------------------------------------------------------------
 
       if(ntest==2.and.mydiag)print *,'before sea loop'
 !      from June '03 use basic sea temp from tgg1 (so leads is sensible)      
@@ -356,7 +372,7 @@ c     section to update pan temperatures
         ! note taux and tauy do not include sea-ice at this point
         call mloeval(ifull,tgg(:,1),dt,fg,eg
      &               ,sgsave(:),-rgsave(:)-stefbo*tgg(:,1)**4
-     &               ,condx(:)/dt,taux,tauy,f,0)
+     &               ,condx(:)/dt,rho*cduv*uzon,rho*cduv*vmer,f,0)
         where(.not.land)
           tpan=tgg(:,1)
           tss=tgg(:,1)
@@ -678,18 +694,6 @@ c                Now heat ; allow for smaller zo via aft and factch     ! land
       !----------------------------------------------------------
       ! MJT urban
       if (nurban.ne.0) then                                             ! urban
-         ! calculate zonal and meridonal winds                          ! urban
-         zonx=                       -sin(rlat0*pi/180.)*y(:)           ! urban
-         zony=sin(rlat0*pi/180.)*x(:)+cos(rlat0*pi/180.)*z(:)           ! urban
-         zonz=-cos(rlat0*pi/180.)*y(:)                                  ! urban
-         costh= (zonx*ax(1:ifull)+zony*ay(1:ifull)+zonz*az(1:ifull))    ! urban
-     &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )             ! urban
-         sinth=-(zonx*bx(1:ifull)+zony*by(1:ifull)+zonz*bz(1:ifull))    ! urban
-     &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )             ! urban
-         zonx=av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(1:ifull,1)         ! urban
-         zony=av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(1:ifull,1)         ! urban
-         uzon= costh*zonx-sinth*zony ! zonal                            ! urban
-         vmer= sinth*zonx+costh*zony ! meridonal                        ! urban
          ! call aTEB                                                    ! urban
          call atebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin       ! urban
      &               ,sgsave(:)/(1.-0.5*sum(albvisnir,2)),-rgsave(:)    ! urban
