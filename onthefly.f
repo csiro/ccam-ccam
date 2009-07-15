@@ -492,11 +492,46 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
             call fill_cc(ocndepin_a,spval,ik,0)            
           end if
           call doints4(ocndepin_a,ocndepin,nface4,xg4,yg4,nord,ik)
-          do m=1,4
+          do m=1,2
             do k=1,wlev
               call doints4(datoc_a(:,k,m),datoc(:,k,m),nface4,xg4
      &                   ,yg4,nord,ik)
             end do
+          end do
+          do k=1,wlev          
+           if ( myid==0 ) then ! rotate mlo U & V to new coordinates
+!           first set up winds in Cartesian "source" coords
+            uc=axs_a*datoc_a(:,k,3) + bxs_a*datoc_a(:,k,4)
+            vc=ays_a*datoc_a(:,k,3) + bys_a*datoc_a(:,k,4)
+            wc=azs_a*datoc_a(:,k,3) + bzs_a*datoc_a(:,k,4)
+!           now convert to winds in "absolute" Cartesian components
+            ucc=uc*rotpoles(1,1)+vc*rotpoles(1,2)+wc*rotpoles(1,3)
+            vcc=uc*rotpoles(2,1)+vc*rotpoles(2,2)+wc*rotpoles(2,3)
+            wcc=uc*rotpoles(3,1)+vc*rotpoles(3,2)+wc*rotpoles(3,3)
+!           interpolate all required arrays to new C-C positions
+            call ints4(ucc,        uct_g, nface4,xg4,yg4,nord,ik)
+            call ints4(vcc,        vct_g, nface4,xg4,yg4,nord,ik)
+            call ints4(wcc,        wct_g, nface4,xg4,yg4,nord,ik)
+            do iq=1,ifull_g
+!            now convert to "target" Cartesian components (transpose used)
+             uct_gg=uct_g(iq)*rotpole(1,1)+vct_g(iq)*rotpole(2,1)
+     &                         +wct_g(iq)*rotpole(3,1)
+             vct_gg=uct_g(iq)*rotpole(1,2)+vct_g(iq)*rotpole(2,2)
+     &                         +wct_g(iq)*rotpole(3,2)
+             wct_gg=uct_g(iq)*rotpole(1,3)+vct_g(iq)*rotpole(2,3)
+     &                         +wct_g(iq)*rotpole(3,3)
+!            then finally to "target" local x-y components
+             u_g(iq) = ax_g(iq)*uct_gg + ay_g(iq)*vct_gg +
+     &                 az_g(iq)*wct_gg
+             v_g(iq) = bx_g(iq)*uct_gg + by_g(iq)*vct_gg +
+     &                 bz_g(iq)*wct_gg
+            enddo               ! iq loop
+            call ccmpi_distribute(datoc(:,k,3), u_g)
+            call ccmpi_distribute(datoc(:,k,4), v_g)
+           else ! myid /= 0
+            call ccmpi_distribute(datoc(:,k,3))
+            call ccmpi_distribute(datoc(:,k,4))
+           endif ! myid==0
           end do
         end if
         !--------------------------------------------------

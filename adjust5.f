@@ -53,12 +53,11 @@
       common /zzalf/ zz,zzn,zze,zzw,zzs,pfact,alff,alf,alfe,alfn,
      &     alfu,alfv
       real ps_sav(ifull),cc(ifull+iextra,kl),
-     &     dd(ifull+iextra,kl),pslxint(ifull)
+     &     dd(ifull+iextra,kl),pslxint(ifull),pslsav(ifull)
       real pe(ifull+iextra,kl),e(ifull,kl)
       real helm(ifull+iextra,kl),rhsl(ifull+iextra,kl),delps(ifull)
       real omgf(ifull,kl)
-      real bb(ifull),pse(ifull+iextra),psn(ifull+iextra)
-      real fluxe(ifull+iextra),fluxn(ifull+iextra)
+      real bb(ifull)
 !     Save this so we can check whether initialisation needs to be redone
       real, save :: dtsave = 0.0
       real :: hdt, hdtds, sdmx, sdmx_g, sum, qgminm, ratio, sumdiffb,
@@ -300,12 +299,6 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
      &     cc(idjd,nlv)/emu(idjd),cc(iwu(idjd),nlv)/emu(iwu(idjd)),
      &     dd(idjd,nlv)/emv(idjd),dd(isv(idjd),nlv)/emv(isv(idjd))      
       endif   ! (nmaxpr==1)
-      if(m==7)then
-        do k=1,kl
-         cc(1:ifull,k)=cc(1:ifull,k)/pse(1:ifull)
-         dd(1:ifull,k)=dd(1:ifull,k)/psn(1:ifull)
-        enddo
-      endif  ! (m==7)
 
 !     npex=4 add un, vn on staggered grid in belated split manner
       if(npex==4)then  
@@ -364,6 +357,7 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
        enddo    ! iq loop
       enddo     ! k  loop
       ps_sav(1:ifull)=ps(1:ifull)  ! saved for gas fixers below, and diags
+      if(mfix==-1.or.mfix==3)pslsav(1:ifull)=psl(1:ifull) 
       do iq=1,ifull
        omgf(iq,kl)=-ratb(kl)*wrk2(iq,kl)
        psl(iq)=pslxint(iq)-hdt*wrk2(iq,1)  *(1.+epst(iq))  ! Eq. 116
@@ -487,7 +481,36 @@ c    &                               (grav*dt*dt)
         endif
       endif     !  (nvadh==2.and.nvad>0)
 
-      ps(1:ifull)=1.e5*exp(psl(1:ifull))     
+      if (mfix==-1) then   ! perform conservation fix on psl
+!        delpos is the sum of all positive changes over globe
+!        delneg is the sum of all negative changes over globe
+!        alph_p is chosen to satisfy alph_p*delpos + delneg/alph_p = 0
+!            _l means local to this processor        
+         delps(1:ifull) = psl(1:ifull)-pslsav(1:ifull)
+         call ccglobal_posneg(delps,delpos,delneg)
+	 if(ntest==1)then
+           if(myid==0)then
+              print *,'psl_delpos,delneg ',delpos,delneg
+              print *,'ps,psl,delps ',ps(idjd),psl(idjd),delps(idjd)
+           endif
+           call ccglobal_sum(pslsav,sumsav)
+           call ccglobal_sum(psl,sumin)
+	 endif  ! (ntest==1)
+         alph_p = sqrt( -delneg/delpos)
+         alph_pm=1./alph_p
+         do iq=1,ifull
+            psl(iq) = pslsav(iq) +
+     &           alph_p*max(0.,delps(iq)) + alph_pm*min(0.,delps(iq))
+         enddo
+	 if(ntest==1)then
+           if(myid==0)print *,'alph_p,alph_pm ',alph_p,alph_pm
+           call ccglobal_sum(psl,sumout)
+           if(myid==0)
+     &        print *,'psl_sumsav,sumin,sumout ',sumsav,sumin,sumout
+	 endif  ! (ntest==1)
+      endif                     !  (mfix==-1)
+
+      if(mfix.ne.3)ps(1:ifull)=1.e5*exp(psl(1:ifull))     
       if(mfix==1.or.mfix==2) then   ! perform conservation fix on ps
 !         fix is on ps (not psl) from 24/1/06      
 !         delpos is the sum of all positive changes over globe
@@ -498,8 +521,12 @@ c    &                               (grav*dt*dt)
          delps(1:ifull) = ps(1:ifull)-ps_sav(1:ifull)
          call ccglobal_posneg(delps,delpos,delneg)
          if(ntest==1)then
-            call ccglobal_sum(ps_sav,sumsav)
-            call ccglobal_sum(ps,sumin)
+           if(myid==0)then
+              print *,'psl_delpos,delneg ',delpos,delneg
+              print *,'ps,psl,delps ',ps(idjd),psl(idjd),delps(idjd)
+           endif
+           call ccglobal_sum(ps_sav,sumsav)
+           call ccglobal_sum(ps,sumin)
          endif  ! (ntest==1)
          if(mfix==1)then
             alph_p = sqrt( -delneg/max(1.e-20,delpos))
@@ -519,8 +546,7 @@ c    &                               (grav*dt*dt)
      &           alph_p*max(0.,delps(iq)) + alph_pm*min(0.,delps(iq))
          enddo
         if(ntest==1)then
-           if (myid==0) print *,'ps_delpos,delneg,alph_p,alph_pm ',
-     &                 delpos,delneg,alph_p,alph_pm
+           if(myid==0)print *,'alph_p,alph_pm ',alph_p,alph_pm
            call ccglobal_sum(ps,sumout)
            if (myid==0)
      &        print *,'ps_sumsav,sumin,sumout ',sumsav,sumin,sumout
@@ -531,26 +557,41 @@ c    &                               (grav*dt*dt)
      &              (ps(1:ifull)/bb(1:ifull)-1.)     
       endif                   !  (mfix==1.or.mfix==2)
       
-      if(mfix==3)then
-c       just code fully implicit for a start      
-        call bounds(ps)       
+      if(mfix==3) then   ! perform conservation fix on ps (best for 32-bit)
+!       fix is on ps (not psl) from 24/1/06      
+!       delpos is the sum of all positive changes over globe
+!       delneg is the sum of all negative changes over globe
+!       alph_p is chosen to satisfy alph_p*delpos + delneg/alph_p = 0
+!           _l means local to this processor     
+        delps(1:ifull)=psl(1:ifull)-pslsav(1:ifull)
+        delps(1:ifull)=ps_sav(1:ifull)*
+     &                 delps(1:ifull)*(1.+.5*delps(1:ifull))         
+        call ccglobal_posneg(delps,delpos,delneg)
+        if(ntest==1)then
+          if(myid==0)then
+             print *,'psl_delpos,delneg ',delpos,delneg
+             print *,'ps,psl,delps ',ps(idjd),psl(idjd),delps(idjd)
+             print *,'ps_sav,pslsav ',ps_sav(idjd),pslsav(idjd)
+          endif
+          call ccglobal_sum(ps_sav,sumsav)
+          call ccglobal_sum(ps,sumin)
+        endif  ! (ntest==1)
+        alph_p = sqrt( -delneg/max(1.e-20,delpos))
+        alph_pm=1./max(1.e-20,alph_p)
         do iq=1,ifull
-         pse(iq)=.5*(ps(iq)+ps(ie(iq)))/emu(iq)
-         psn(iq)=.5*(ps(iq)+ps(in(iq)))/emv(iq)
+         delps(iq)=alph_p*max(0.,delps(iq)) + alph_pm*min(0.,delps(iq))
         enddo
-!       note that cc and dd still contain staggered u and v       
-        fluxe(1:ifull)=-cc(1:ifull,1)*pse(1:ifull)*dsig(1) 
-        fluxn(1:ifull)=-dd(1:ifull,1)*psn(1:ifull)*dsig(1) 
-        do k=2,kl
-        fluxe(1:ifull)=fluxe(1:ifull)-cc(1:ifull,k)*pse(1:ifull)*dsig(k)
-        fluxn(1:ifull)=fluxn(1:ifull)-dd(1:ifull,k)*psn(1:ifull)*dsig(k)
-        enddo
-        call boundsuv(fluxe,fluxn)
-        do iq=1,ifull
-         bb(iq)=ps_sav(iq)-dt*(fluxe(iq)-fluxe(iwu(iq))
-     &                    +fluxn(iq)-fluxn(isv(iq)))*em(iq)**2/ds
-        enddo
-      endif  ! (mfix==3)
+        delps(1:ifull)=delps(1:ifull)/ps_sav(1:ifull)
+        psl(1:ifull)=pslsav(1:ifull)+
+     &               delps(1:ifull)*(1.-.5*delps(1:ifull))
+        ps(1:ifull)=1.e5*exp(psl(1:ifull))     
+	if(ntest==1)then
+          if(myid==0)print *,'alph_p,alph_pm ',alph_p,alph_pm
+          call ccglobal_sum(ps,sumout)
+          if(myid==0)
+     &       print *,'ps_sumsav,sumin,sumout ',sumsav,sumin,sumout
+	endif  ! (ntest==1)
+      endif                   !  (mfix==3)
       
 !     following dpsdt diagnostic is in hPa/day  
       dpsdtbb(:)=dpsdtb(:)    
@@ -809,7 +850,7 @@ c       just code fully implicit for a start
       integer :: iq, n
 
       hdt = 0.5*dt
-      if(m<5)then
+      if(m<3)then  ! 14/7/09 getting ready for gnomonic options
         do iq=1,ifull
          alf(iq)=1.+epsu
          alff(iq)=0.

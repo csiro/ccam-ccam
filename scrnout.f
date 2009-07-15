@@ -201,10 +201,13 @@ c        Starting value of the Richardson number.
        endif
 
 !      in calculating tstar & qstar, use derived ri38, NOT eg and fg	
-       tstarx(iq)=aft(iq)*vmod(iq)*fh38(iq)*deltat/ustar(iq)
-       qstarx(iq)=aft(iq)*vmod(iq)*fh38(iq)*deltaq/ustar(iq)
+       !tstarx(iq)=aft(iq)*vmod(iq)*fh38(iq)*deltat/ustar(iq) ! MJT cable
+       !qstarx(iq)=aft(iq)*vmod(iq)*fh38(iq)*deltaq/ustar(iq) ! MJT cable
+       tstarx(iq)=aft(iq)*fh38(iq)*deltat/sqrt(af(iq)*fm38(iq)) ! MJT cable
+       qstarx(iq)=aft(iq)*fh38(iq)*deltaq/sqrt(af(iq)*fm38(iq)) ! MJT cable
        fact=sqrt(af2(iq)*fm2(iq))/(aft2(iq)*fh2(iq))
        tscrn(iq)=tsurf(iq)-fact*tstarx(iq)
+       
 c      N.B. over unstable sea points, may sometimes get supersat qgscrn
 c      also over stable snow points, as tscrn & qgscrn derived independently in
 c      location with large vertical gradients
@@ -212,8 +215,12 @@ c      location with large vertical gradients
      
 c      screen wind speeds
        vfact=sqrt(u(iq,1)**2+v(iq,1)**2)/vmod(iq)
-       uscrn(iq) = vfact*ustar(iq)/(afroot2(iq)*sqrt(fm2(iq)))
-       u10(iq) = vfact*ustar(iq)/(afroot10(iq)*sqrt(fm10(iq)))
+       !uscrn(iq) = vfact*ustar(iq)/(afroot2(iq)*sqrt(fm2(iq))) ! MJT cable
+       !u10(iq) = vfact*ustar(iq)/(afroot10(iq)*sqrt(fm10(iq))) ! MJT cable
+       uscrn(iq) = vfact*vmod(iq)*sqrt(af(iq)*fm38(iq))
+     &  /(afroot2(iq)*sqrt(fm2(iq))) ! MJT cable
+       u10(iq) = vfact*vmod(iq)*sqrt(af(iq)*fm38(iq))
+     &  /(afroot10(iq)*sqrt(fm10(iq))) ! MJT cable
        if(ntest==-1)then
          vmag=sqrt(u(iq,1)**2+v(iq,1)**2)
          if(u10(iq)>vmag)then
