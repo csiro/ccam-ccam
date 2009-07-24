@@ -122,9 +122,10 @@ module cable_ccam
        rough%za_tq=-287.*t(cmap,1)*log(sig(1))/grav   ! reference height
        rough%za_uv=rough%za_tq
 
-       met%fsd(:,3)=sgsave(cmap)/(1.-0.5*sum(albvisnir(cmap,:),2))! short wave down (positive) W/m^2       
-       met%fsd(:,1)=swrsave*met%fsd(:,3)
-       met%fsd(:,2)=(1.-swrsave)*met%fsd(:,3)
+       met%fsd(:,3)=sgsave(cmap)/(1.-swrsave(cmap)*albvisnir(cmap,1) &
+                   -(1.-swrsave(cmap))*albvisnir(cmap,2)) ! short wave down (positive) W/m^2
+       met%fsd(:,1)=swrsave(cmap)*met%fsd(:,3)
+       met%fsd(:,2)=(1.-swrsave(cmap))*met%fsd(:,3)
        rad%fbeam(:,3)=spitterx(met%doy,met%coszen,met%fsd(:,3)) ! check
        rad%fbeam(:,1)=rad%fbeam(:,3)
        rad%fbeam(:,2)=rad%fbeam(:,3)

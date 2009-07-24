@@ -12,6 +12,8 @@ c     rml 25/11/03 declarations from sflux
       integer, save :: indship,nshippts,inshipid(4),outshipid(3)
       integer, save :: nshipout
       integer, pointer, dimension(:), save :: shipdate,shiptime
+!     rml 19/09/07 conversion of u,v from ccam grid to zonal/merid
+      real, dimension(:), save, allocatable :: costh,sinth
 
 
       contains
@@ -67,16 +69,19 @@ c     All processors read this list and select the points in their own
 c     region.
 c
       use cc_mpi, only : myid, indv_mpi, fproc, ipan
-      use tracermodule, only : sitefile
+!     rml 19/09/07 add tracname so that can be written to ts output file
+      use tracermodule, only : sitefile,tracname
       implicit none
       integer kount,kountprof,n,kount500
       integer ierr,ntrac
       integer griddim,ijkdim,timedim,tracdim,gridid,dims(3)
+!     rml 19/09/07 addition of tracer name array in output file
+      integer lendim, tracnamid
       integer surfdim,gridsurfid
       integer gridorderid, surforderid
       integer, allocatable, dimension(:,:) :: templist
       integer, allocatable, dimension(:) :: gridorder, surforder
-      integer i,i1,nn,k,ntop
+      integer i,i1,k,ntop
       character*20 outfile
       character*8 chtemp
       character*80 head
@@ -85,6 +90,15 @@ c
       include 'dates.h'
       include 'newmpar.h'  ! kl
       integer ip, nface, ii, jj, iqg, istn, jstn
+!     rml 19/09/07 arrays needed for wind conversion
+      include 'xyzinfo.h'     ! x, y, z
+      include 'vecsuv.h'      ! ax, ay, az
+      include 'parmgeom.h'    ! rlong0, rlat0
+      include 'const_phys.h'  ! pi
+      logical windconv
+      real coslong,sinlong,coslat,sinlat,polenx,poleny,polenz
+      real zonx,zony,zonz,den
+      integer iq
 
 c     read file of site locations for timeseries output
       open(88,file=sitefile,form='formatted', status='unknown')
@@ -135,8 +149,12 @@ c     Read in any additional variables to output besides tracer
       read(88,*,end=880) head
       read(88,*) n3d
       allocate(varname3(n3d))
+      windconv = .false.
       do n=1,n3d
         read(88,*) varname3(n)
+!       rml 19/09/07 check if wind conversion required
+        if (trim(varname3(n)).eq.'u'.or.trim(varname3(n)).eq.'v')
+     &           windconv=.true.
       enddo
       read(88,*) head
       read(88,*) n2d
@@ -146,6 +164,29 @@ c     Read in any additional variables to output besides tracer
       enddo
  880  continue
       close(88)
+
+!     rml 19/09/07 fill arrays needed for wind conversion
+      if (windconv) then
+        allocate(costh(ifull),sinth(ifull))
+!       code taken from cc2hist 
+        coslong=cos(rlong0*pi/180.)
+        sinlong=sin(rlong0*pi/180.)
+        coslat=cos(rlat0*pi/180.)
+        sinlat=sin(rlat0*pi/180.)
+        polenx=-coslat
+        poleny=0.
+        polenz=sinlat
+        do iq=1,ifull
+!         Set up unit zonal vector components
+          zonx = poleny*z(iq)-polenz*y(iq)
+          zony = polenz*x(iq)-polenx*z(iq)
+          zonz = polenx*y(iq)-poleny*x(iq)
+!         Allow for poles by taking max
+          den = sqrt( max(zonx**2 + zony**2 + zonz**2,1.e-7) )
+          costh(iq) =  (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
+          sinth(iq) = -(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
+        enddo
+      endif
 
       ngrdpts = ngrdpts1 + kountprof*(kl-1) + kount500*8
       allocate(listijk(ngrdpts,3))
@@ -205,7 +246,16 @@ c     define dimensions
       if (ierr.ne.nf_noerr) stop 'timeseries: tracer dimension error'
       ierr=nf_def_dim(tsid(1),'time',nf_unlimited,timedim)
       if (ierr.ne.nf_noerr) stop 'timeseries: time dimension error'
+!     rml 19/09/07 add length dimension for tracname character array
+      ierr = nf_def_dim(tsid(1),'len',13,lendim)
+      if (ierr.ne.nf_noerr) stop 'timeseries: length dimension error'
+
 c     define variables
+!     rml 19/09/07 add tracer name variable
+      dims(1)=lendim; dims(2)=tracdim
+      ierr = nf_def_var(tsid(1),'tracer_name',nf_char,2,dims,tracnamid)
+      if (ierr.ne.nf_noerr) stop 'timeseries: tracer name var error'
+
       dims(1)=griddim; dims(2)=ijkdim
       ierr = nf_def_var(tsid(1),'grid',nf_int,2,dims,gridid)
       if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
@@ -252,6 +302,10 @@ c     leave define mode
       ierr = nf_enddef(tsid(1))
       if (ierr.ne.nf_noerr) stop 'timeseries: end define error'
 c
+!     rml 19/09/07 write tracer name array
+      ierr = nf_put_var_text(tsid(1),tracnamid,tracname)
+      if (ierr.ne.nf_noerr) stop 'timeseries: error writing tracname'
+
 c     write grid point arrays
       ierr = nf_put_var_int(tsid(1),gridid,listijk)
       if (ierr.ne.nf_noerr) stop 'error writing grid'
@@ -281,6 +335,7 @@ c     rml: subroutine to write timeseries data to netcdf file
 c  rml 10/11/05: added pressure, surface flux and pblh for TC
 c
       use tracermodule, only : co2em,unit_trout
+      use define_dimensions, only : ncs, ncp ! Used in carbpool.h
       implicit none
       real, dimension(:,:), allocatable :: cts
       real, dimension(:), allocatable :: vts
@@ -299,11 +354,9 @@ c
       include 'pbl.h'        ! tss
       include 'morepbl.h'    ! rnet,eg,fg
       include 'soilsnow.h'   ! soil temp (tgg)
-!!!      include 'nsibd.h'      ! rlai
+      include 'vegpar.h'     ! rlai
       include 'sigs.h'       ! sigma levels for pressure
-!!!      common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
-!!!      common/co2fluxes/pfnee(mp),pfpn(mp),pfrp(mp),pfrpw(mp),pfrpr(mp)
-!!!     .       ,pfrs(mp) 
+      include 'carbpools.h'  ! cbm co2 fluxes
 
 
 
@@ -327,8 +380,15 @@ c
         do m=1,n3d
           select case(trim(varname3(m)))
           case ('t') ; temparr2=t(1:ifull,:)
-          case ('u') ; temparr2=u(1:ifull,:)
-          case ('v') ; temparr2=v(1:ifull,:)
+!        rml 19/09/07 fix for u, v - convert to zonal/meridional from ccam grid
+          case ('u') 
+            do k=1,kl
+              temparr2(:,k) = costh*u(1:ifull,k) - sinth*v(1:ifull,k)
+            enddo
+          case ('v') 
+            do k=1,kl
+              temparr2(:,k) = sinth*u(1:ifull,k) + costh*v(1:ifull,k)
+            enddo
           case ('qg') ; temparr2=qg(1:ifull,:)
           case ('sdotm') ; temparr2=sdot(:,1:kl)
           case ('sdotp') ; temparr2=sdot(:,2:kl+1)
@@ -365,30 +425,20 @@ c
           case ('rnet')    ; temparr=rnet
           case ('eg')      ; temparr=eg
           case ('fg')      ; temparr=fg
-          case ('alb')     ; temparr=0.5*sum(albvisnir,2) ! MJT cable
+!         case ('alb')     ; temparr=alb
+          case ('alb')     ; temparr=swrsave*albvisnir(:,1)+
+     &                               (1.-swrsave)*albvisnir(:,2) ! MJT cable
           case ('sgsave')  ; temparr=sgsave
           case ('rgsave')  ; temparr=rgsave
           case ('precip')  ; temparr=precip
           case ('tgg4')    ; temparr=tgg(:,4)
           case ('tgg5')    ; temparr=tgg(:,5)
           case ('tgg6')    ; temparr=tgg(:,6)
-!!!          case ('rlai')    ; temparr=rlai
-!!!          case ('pfnee') 
-!!!            do ip=1,ipland
-!!!              temparr(iperm(ip))=pfnee(ip)
-!!!            enddo
-!!!          case ('pfpn')
-!!!            do ip=1,ipland
-!!!              temparr(iperm(ip))=pfpn(ip)
-!!!            enddo
-!!!          case ('pfrp')
-!!!            do ip=1,ipland
-!!!              temparr(iperm(ip))=pfrp(ip)
-!!!            enddo
-!!!          case ('pfrs')
-!!!            do ip=1,ipland
-!!!              temparr(iperm(ip))=pfrs(ip)
-!!!            enddo
+          case ('rlai')    ; temparr=rlai
+          case ('pfnee')   ; temparr=fnee
+          case ('pfpn')    ; temparr=fpn
+          case ('pfrp')    ; temparr=frp
+          case ('pfrs')    ; temparr=frs
           case ('pblh') ; temparr=pblh
           case ('flux')  
             allocate(cts(ngrdpts1,ntrac))

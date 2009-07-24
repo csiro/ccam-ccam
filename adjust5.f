@@ -1,6 +1,8 @@
       subroutine adjust5
       use cc_mpi
       use diag_m
+!     rml 19/09/07 replace gasmin from tracers.h with tracmin from tracermodule
+      use tracermodule, only: tracmin
       implicit none
       integer, parameter :: mfix_rad=0 ! used to make gases 2 to ng add up to gas 1
       integer, parameter :: ntest=0
@@ -732,8 +734,10 @@ c    &                               (grav*dt*dt)
          endif
          enddo    ! k  loop
           do k=1,kl
+!          rml 19/09/07 replace gasmin with tracmin
            wrk1(1:ifull,k)=max(tr(1:ifull,k,ng),     ! has increments
-     &            gasmin(ng)*ps(1:ifull))         -trsav(1:ifull,k,ng) 
+     &           tracmin(ng)*ps(1:ifull))         -trsav(1:ifull,k,ng) 
+!    &            gasmin(ng)*ps(1:ifull))         -trsav(1:ifull,k,ng) 
           enddo   ! k loop
          call ccglobal_posneg(wrk1,delpos,delneg)
 ! rml 17/02/06 suspect divide by zero error because tr=0 at start run

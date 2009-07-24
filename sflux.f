@@ -715,7 +715,8 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          vmer= sinth*zonx+costh*zony ! meridonal                        ! urban
          ! call aTEB                                                    ! urban
          call atebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin       ! urban
-     &               ,sgsave(:)/(1.-0.5*sum(albvisnir,2)),-rgsave(:)    ! urban
+     &               ,sgsave(:)/(1.-swrsave*albvisnir(:,1)              ! urban
+     &               -(1.-swrsave)*albvisnir(:,2)),-rgsave(:)           ! urban
      &               ,condx(:)/dt,rho(:),t(:,1),qg(:,1)                 ! urban
      &               ,ps(:),sig(1)*ps(:),uzon,vmer,vmodmin,0)           ! urban
         ! here we blend zo with the urban part for the                  ! urban

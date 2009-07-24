@@ -59,7 +59,7 @@ clean:
 %.o : %.mod
 
 # Dependencies
-adjust5.o : adjust5.f xyzinfo.h xarrs.h vvel.h vecsuv.h vecs.h tracers.h sigs.h pbl.h parmvert.h parmdyn.h parm.h nlin.h morepbl.h map.h liqwpar.h kuocom.h indices.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o 
+adjust5.o : adjust5.f xyzinfo.h xarrs.h vvel.h vecsuv.h vecs.h tracers.h sigs.h pbl.h parmvert.h parmdyn.h parm.h nlin.h morepbl.h map.h liqwpar.h kuocom.h indices.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o tracermodule.o
 amipsst.o : amipsst.f soilsnow.h soil.h pbl.h parm.h nsibd.h map.h filnames.h dates.h arrays.h newmpar.h cc_mpi.o 
 ateb.o : ateb.f90
 bett_cuc.o : bett_cuc.f betts1.h newmpar.h 
@@ -125,7 +125,7 @@ nonlin.o : nonlin.f xyzinfo.h xarrs.h vvel.h vecsuv.h tracers.h sigs.h savuvt.h 
 o3_read.o : o3_read.f newmpar.h 
 o3set.o : o3set.f const_phys.h newmpar.h 
 onthefly.o : onthefly.f indices.h indices_g.h xyzinfo_g.h vvel.h vecsuv_g.h tracers.h stime.h sigs.h parm_nqg.h parm.h map.h latlong.h const_phys.h bigxy4.h newmpar.h utilities.o cc_mpi.o mlo.o
-outcdf.o : outcdf.f vvel.h version.h trcom2.h soilv.h soilsnow.h soil.h sigs.h screen.h scamdim.h raddiag.h prec.h pbl.h nsibd.h morepbl.h mapproj.h map.h histave.h extraout.h arrays.h tracers.h parmvert.h parmhor.h parmdyn.h parm.h liqwpar.h kuocom.h filnames.h dates.h darcdf.h newmpar.h cc_mpi.o ateb.o mlo.o
+outcdf.o : outcdf.f vvel.h version.h trcom2.h soilv.h soilsnow.h soil.h sigs.h screen.h scamdim.h raddiag.h prec.h pbl.h nsibd.h morepbl.h mapproj.h map.h histave.h extraout.h arrays.h tracers.h parmvert.h parmhor.h parmdyn.h parm.h liqwpar.h kuocom.h filnames.h dates.h darcdf.h newmpar.h cc_mpi.o ateb.o mlo.o tracermodule.o
 outfile.o : outfile.f vvel.h tracers.h soilsnow.h soilv.h soil.h sigs.h screen.h scamdim.h prec.h pbl.h parmvert.h parmdyn.h parm.h nsibd.h nlin.h morepbl.h map.h kuocom.h histave.h filnames.h extraout.h dava.h dates.h darcdf.h arrays.h newmpar.h cc_mpi.o 
 pbldif.o : pbldif.f map.h sigs.h parm.h morepbl.h kuocom.h extraout.h const_phys.h arrays.h newmpar.h 
 radriv90.o : radriv90.f establ.h tfcom.h swocom.h srccom.h rdflux.h raddiag.h radisw.h lwout.h hcon.h cldcom.h rdparm.h soilv.h soilsnow.h soil.h sigs.h scamdim.h pbl.h parm.h nsibd.h map.h liqwpar.h latlong.h kuocom.h extraout.h dates.h cparams.h const_phys.h arrays.h newmpar.h zenith.o swr99.o ateb.o
@@ -162,5 +162,5 @@ sumdd_m.o : sumdd_m.f90
 utilities.o : utilities.f90 const_phys.h 
 zenith.o : zenith.f90 
 tracermodule.o: tracermodule.f newmpar.h tracers.h parm.h const_phys.h arrays.h sigs.h xyzinfo.h
-timeseries.o: timeseries.f dates.h newmpar.h tracers.h extraout.h arrays.h soil.h prec.h vvel.h pbl.h morepbl.h soilsnow.h nsibd.h sigs.h tracermodule.o
+timeseries.o: timeseries.f dates.h newmpar.h tracers.h extraout.h arrays.h soil.h prec.h vvel.h pbl.h morepbl.h soilsnow.h nsibd.h sigs.h tracermodule.o cable_define_dimensions.o
 trvmix.o: trvmix.f newmpar.h const_phys.h parm.h sigs.h tracers.h arrays.h tracermodule.o

@@ -1932,7 +1932,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         call readreal('bath',dep,ifull)
         where (land)
           dep=0.
-	else where
+	elsewhere
 	  dep=max(12.,dep)
         end where
         call mloinit(ifull,dep,0)
@@ -1942,7 +1942,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         else
           if (myid == 0) print *,"Using MLO defaults"
           do k=1,wlev
-            datoc(:,k,1)=tss(:)
+            datoc(:,k,1)=tss(:)-0.01*real(k)
             datoc(:,k,2)=34.72
             datoc(:,k,3)=0.
             datoc(:,k,4)=0.

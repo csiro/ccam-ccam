@@ -63,50 +63,54 @@ c rml 08/11/04 add decay flag
 c ***************************************************************************
       subroutine trgassflux(igas,trsrc)
       use tracermodule, only :co2em,tractype,tracname,tracdaytime
+      use define_dimensions, only : ncs, ncp ! Used in carbpool.h
 c     this routine put the correct tracer surface flux into trsrc
       implicit none
       include 'newmpar.h'
       include 'dates.h'  ! timeg
-!!!      include 'cbmdim.h' ! mp
+      include 'carbpools.h' ! online co2 fluxes
+!     tml 17/09/07 online tracers by veg type
+      include 'nsibd.h' !ivegt (vegetation type)
 c     can these common blocks be 'lost' with rewrite of cbm/soilsnow?
       integer igas
       real trsrc(ifull,kl)
-!!!      common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
-!!!      common/co2fluxes/pfnee(mp),pfpn(mp),pfrp(mp),pfrpw(mp),pfrpr(mp)
-!!!     &                 ,pfrs(mp) 
+!     rml 17/09/07 online tracers by veg type
+      integer nchar, mveg
 
 c     initialise (to allow for ocean gridpoints for cbm fluxes)      
 !     and non surface layers
       trsrc = 0.
 
-c     rml 2/10/03 allow for online (cbm) tracers or flux from file
+!     rml 2/10/03 allow for online (cbm) tracers or flux from file
+!     rml 17/09/07 rewrite online tracer section to include tracers
+!     separated by vegetation type (also moved if/elseif to case)
       if (trim(tractype(igas)).eq.'online') then
-!!!     temporarily do nothing
-        trsrc(:,1)=0.
-!!!c        write(6,*) 'adding surface flux for ',trim(tracname(igas))
-!!!        if (trim(tracname(igas)).eq.'cbmnep') then
-!!!          do ip=1,ipland
-!!!            iq=iperm(ip)
-!!!            trsrc(iq,1) = pfnee(ip)
-!!!          enddo
-!!!        elseif (trim(tracname(igas)).eq.'cbmpn') then
-!!!          do ip=1,ipland
-!!!            iq=iperm(ip)
-!!!            trsrc(iq,1) = pfpn(ip) 
-!!!          enddo
-!!!        elseif (trim(tracname(igas)).eq.'cbmrp') then
-!!!          do ip=1,ipland
-!!!            iq=iperm(ip)
-!!!            trsrc(iq,1) = pfrp(ip)
-!!!          enddo
-!!!        elseif (trim(tracname(igas)).eq.'cbmrs') then
-!!!          do ip=1,ipland
-!!!            iq=iperm(ip)
-!!!            trsrc(iq,1) = pfrs(ip)
-!!!          enddo
-!!!        else
-!!!          stop 'unknown online tracer name'
-!!!        endif
+!       write(6,*) 'adding surface flux for ',trim(tracname(igas))
+        if (trim(tracname(igas)(1:3)).eq.'cbm') then
+          select case (trim(tracname(igas)))
+            case('cbmnep'); trsrc(:,1) = fnee
+            case('cbmpn'); trsrc(:,1) = fpn
+            case('cbmrp'); trsrc(:,1) = frp
+            case('cbmrs'); trsrc(:,1) = frs
+            case default ; stop 'unknown online tracer name'
+          end select
+        else
+          nchar = len_trim(tracname(igas))
+          read(tracname(igas)(nchar-1:nchar),'(i2)',err=101) mveg
+c         write(131,*) 'tracer test: ',mveg
+          if (mveg.lt.1.or.mveg.gt.maxval(ivegt)) stop 
+     &      'tracer selection: veg type out of range'
+          select case (tracname(igas)(1:nchar-2))
+            case('gpp')
+              where(ivegt==mveg) trsrc(:,1)=fpn-frd
+            case('plresp')
+              where(ivegt==mveg) trsrc(:,1)=frp+frd
+            case('slresp')
+              where(ivegt==mveg) trsrc(:,1)=frs
+            case default 
+              stop 'unknown online tracer name'
+          end select
+        endif
       elseif (trim(tractype(igas)).eq.'daypulseon') then
 c       only add flux during day time
         if (tracdaytime(igas,1).lt.tracdaytime(igas,2) .and.
@@ -126,6 +130,7 @@ c       emissions from file
       endif
 
       return
+ 101  stop 'unknown online tracer name or veg type number error'
       end subroutine
 c *****************************************************************
       subroutine gasvmix(temptr, fluxfact, igas, decay,trsrc)
@@ -135,7 +140,7 @@ c *****************************************************************
       include 'arrays.h'  ! ps
       include 'tracers.h' ! tr
       include 'parm.h'    ! dt
-      real trsrc(ilt*jlt,klt)
+      real trsrc(ilt*jlt,kl)
       real temptr(ilt*jlt,klt)
 c rml 08/11/04 decay flag to all decay for radon
       logical decay

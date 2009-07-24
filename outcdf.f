@@ -269,6 +269,9 @@ c=======================================================================
       use cc_mpi
       use cable_ccam, only : savetile ! MJT cable
       use define_dimensions, only : ncs, ncp ! MJT cable
+c     rml 18/09/07 pass through tracmax,tracmin; 19/09/07 add tracname
+      use tracermodule, only : tracmax,tracmin,tracname
+
       use mlo, only : wlev,mlosave      
       implicit none
 
@@ -659,11 +662,16 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         if (ngas>0) then 
          do igas=1,ngas
            write(trnum,'(i3.3)') igas
-           trmax=max(1.,10.*maxval(tr(:,:,igas))) !max to avoid trmax and trmin=0
-           trmin=gasmin(igas) !gasmin needed in adjust5, set in tracers.h
-           lname = 'Tracer (inst.) '//trnum
+!          rml 18/09/07 use tracmax from tracer.dat as previous formula
+!                       wasn't always reliable
+!          trmax=max(1.,10.*maxval(tr(:,:,igas))) !max to avoid trmax and trmin=0
+           trmax = tracmax(igas)
+           trmin = tracmin(igas)
+!          trmin=gasmin(igas) !gasmin needed in adjust5, set in tracers.h
+!          rml 19/09/07 use tracname as part of tracer long name
+           lname = 'Tracer (inst.) '//trim(tracname(igas))
            call attrib(idnc,dim,4,'tr'//trnum,lname,'ppm',trmin,trmax,0)
-           lname = 'Tracer (average) '//trnum
+           lname = 'Tracer (average) '//trim(tracname(igas))
            call attrib(idnc,dim,4,'trav'//trnum,lname,'ppm',trmin,trmax
      &                 ,0)
          enddo ! igas loop
@@ -934,7 +942,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       enddo
       call histwrt3(aa,'pmsl',idnc,iarch,local)
       call histwrt3(tss,'tsu',idnc,iarch,local)
-      aa(:)=0.5*sum(albvisnir(:,:),2) ! MJT CHANGE albedo
+      aa(:)=swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2) ! MJT CHANGE albedo
       call atebalb1(1,ifull,aa(:),0) ! MJT urban
       call histwrt3(aa,'alb',idnc,iarch,local)
       !---------------------------------------------------------

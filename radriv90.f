@@ -545,7 +545,8 @@ c       write(24,*)coszro2
           sout(i) = ufsw(i,1)*h1m3   ! solar out top
           sg(i)   = sg(i)*h1m3       ! solar absorbed at the surface
           iq=i+(j-1)*il              ! fixed Mar '05
-          sgdn(i) = sg(i) / ( 1. - 0.5*sum(albvisnir(iq,:)) ) ! MJT albedo
+          sgdn(i) = sg(i) / ( 1. - swrsave(iq)*albvisnir(iq,1)
+     &           -(1.-swrsave(iq))*albvisnir(iq,2) ) ! MJT albedo
       end do
       if(ntest.gt.0.and.j.eq.jdrad)then
         print *,'idrad,j,sint,sout,soutclr,sg,cuvrf1 ',
