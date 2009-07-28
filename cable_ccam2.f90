@@ -211,100 +211,102 @@ module cable_ccam
       wetfac(iperm(1:ipland))=0.
       tmps=0.
       do nb=1,5
-        do k=1,ms
-          tgg(cmap(pind(nb,1):pind(nb,2)),k)=tgg(cmap(pind(nb,1):pind(nb,2)),k) &
+        if (pind(nb,1).le.mp) then
+          do k=1,ms
+            tgg(cmap(pind(nb,1):pind(nb,2)),k)=tgg(cmap(pind(nb,1):pind(nb,2)),k) &
                                             +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),k)
-          wb(cmap(pind(nb,1):pind(nb,2)),k)=wb(cmap(pind(nb,1):pind(nb,2)),k) &
+            wb(cmap(pind(nb,1):pind(nb,2)),k)=wb(cmap(pind(nb,1):pind(nb,2)),k) &
                                             +sv(pind(nb,1):pind(nb,2))*ssoil%wb(pind(nb,1):pind(nb,2),k)
-          wbice(cmap(pind(nb,1):pind(nb,2)),k)=wbice(cmap(pind(nb,1):pind(nb,2)),k) &
+            wbice(cmap(pind(nb,1):pind(nb,2)),k)=wbice(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*ssoil%wbice(pind(nb,1):pind(nb,2),k)
-        end do
-        do k=1,ncp
-          cplant(cmap(pind(nb,1):pind(nb,2)),k)=cplant(cmap(pind(nb,1):pind(nb,2)),k) &
+          end do
+          do k=1,ncp
+            cplant(cmap(pind(nb,1):pind(nb,2)),k)=cplant(cmap(pind(nb,1):pind(nb,2)),k) &
                                                 +sv(pind(nb,1):pind(nb,2))*bgc%cplant(pind(nb,1):pind(nb,2),k)
-        enddo
-        do k=1,ncs
-          csoil(cmap(pind(nb,1):pind(nb,2)),k)=csoil(cmap(pind(nb,1):pind(nb,2)),k) &
+          enddo
+          do k=1,ncs
+            csoil(cmap(pind(nb,1):pind(nb,2)),k)=csoil(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*bgc%csoil(pind(nb,1):pind(nb,2),k)
-        enddo
-        albsoilsn(cmap(pind(nb,1):pind(nb,2)),1)=albsoilsn(cmap(pind(nb,1):pind(nb,2)),1) &
+          enddo
+          albsoilsn(cmap(pind(nb,1):pind(nb,2)),1)=albsoilsn(cmap(pind(nb,1):pind(nb,2)),1) &
                                                 +sv(pind(nb,1):pind(nb,2))*ssoil%albsoilsn(pind(nb,1):pind(nb,2),1)
-        albsoilsn(cmap(pind(nb,1):pind(nb,2)),2)=albsoilsn(cmap(pind(nb,1):pind(nb,2)),2) &
+          albsoilsn(cmap(pind(nb,1):pind(nb,2)),2)=albsoilsn(cmap(pind(nb,1):pind(nb,2)),2) &
                                                  +sv(pind(nb,1):pind(nb,2))*ssoil%albsoilsn(pind(nb,1):pind(nb,2),2)
-        albsav(cmap(pind(nb,1):pind(nb,2)))=albsav(cmap(pind(nb,1):pind(nb,2))) &
+          albsav(cmap(pind(nb,1):pind(nb,2)))=albsav(cmap(pind(nb,1):pind(nb,2))) &
                                             +sv(pind(nb,1):pind(nb,2))*rad%albedo(pind(nb,1):pind(nb,2),1)
-        albnirsav(cmap(pind(nb,1):pind(nb,2)))=albnirsav(cmap(pind(nb,1):pind(nb,2))) &
+          albnirsav(cmap(pind(nb,1):pind(nb,2)))=albnirsav(cmap(pind(nb,1):pind(nb,2))) &
                                                +sv(pind(nb,1):pind(nb,2))*rad%albedo(pind(nb,1):pind(nb,2),2)
-        runoff(cmap(pind(nb,1):pind(nb,2)))=runoff(cmap(pind(nb,1):pind(nb,2))) &
+          runoff(cmap(pind(nb,1):pind(nb,2)))=runoff(cmap(pind(nb,1):pind(nb,2))) &
                                             +sv(pind(nb,1):pind(nb,2))*ssoil%runoff(pind(nb,1):pind(nb,2))
-        rnof1(cmap(pind(nb,1):pind(nb,2)))=rnof1(cmap(pind(nb,1):pind(nb,2))) &
+          rnof1(cmap(pind(nb,1):pind(nb,2)))=rnof1(cmap(pind(nb,1):pind(nb,2))) &
                                            +sv(pind(nb,1):pind(nb,2))*ssoil%rnof1(pind(nb,1):pind(nb,2))
-        rnof2(cmap(pind(nb,1):pind(nb,2)))=rnof2(cmap(pind(nb,1):pind(nb,2))) &
+          rnof2(cmap(pind(nb,1):pind(nb,2)))=rnof2(cmap(pind(nb,1):pind(nb,2))) &
                                            +sv(pind(nb,1):pind(nb,2))*ssoil%rnof2(pind(nb,1):pind(nb,2))
-        wbtot(cmap(pind(nb,1):pind(nb,2)))=wbtot(cmap(pind(nb,1):pind(nb,2))) &
+          wbtot(cmap(pind(nb,1):pind(nb,2)))=wbtot(cmap(pind(nb,1):pind(nb,2))) &
                                            +sv(pind(nb,1):pind(nb,2))*ssoil%wbtot(pind(nb,1):pind(nb,2))
-        tevap(cmap(pind(nb,1):pind(nb,2)))=tevap(cmap(pind(nb,1):pind(nb,2))) &
+          tevap(cmap(pind(nb,1):pind(nb,2)))=tevap(cmap(pind(nb,1):pind(nb,2))) &
                                            +sv(pind(nb,1):pind(nb,2))*bal%evap_tot(pind(nb,1):pind(nb,2))
-        tprecip(cmap(pind(nb,1):pind(nb,2)))=tprecip(cmap(pind(nb,1):pind(nb,2))) &
+          tprecip(cmap(pind(nb,1):pind(nb,2)))=tprecip(cmap(pind(nb,1):pind(nb,2))) &
                                              +sv(pind(nb,1):pind(nb,2))*bal%precip_tot(pind(nb,1):pind(nb,2))
-        totenbal(cmap(pind(nb,1):pind(nb,2)))=totenbal(cmap(pind(nb,1):pind(nb,2))) &
+          totenbal(cmap(pind(nb,1):pind(nb,2)))=totenbal(cmap(pind(nb,1):pind(nb,2))) &
                                               +sv(pind(nb,1):pind(nb,2))*bal%ebal_tot(pind(nb,1):pind(nb,2))
-        trnoff(cmap(pind(nb,1):pind(nb,2)))=trnoff(cmap(pind(nb,1):pind(nb,2))) &
+          trnoff(cmap(pind(nb,1):pind(nb,2)))=trnoff(cmap(pind(nb,1):pind(nb,2))) &
                                             +sv(pind(nb,1):pind(nb,2))*bal%rnoff_tot(pind(nb,1):pind(nb,2))
-        rtsoil(cmap(pind(nb,1):pind(nb,2)))=rtsoil(cmap(pind(nb,1):pind(nb,2))) &
+          rtsoil(cmap(pind(nb,1):pind(nb,2)))=rtsoil(cmap(pind(nb,1):pind(nb,2))) &
                                             +sv(pind(nb,1):pind(nb,2))/ssoil%rtsoil(pind(nb,1):pind(nb,2))
-        rnet(cmap(pind(nb,1):pind(nb,2)))=rnet(cmap(pind(nb,1):pind(nb,2))) &
+          rnet(cmap(pind(nb,1):pind(nb,2)))=rnet(cmap(pind(nb,1):pind(nb,2))) &
                                           +sv(pind(nb,1):pind(nb,2))*canopy%rnet(pind(nb,1):pind(nb,2))
-        fg(cmap(pind(nb,1):pind(nb,2)))=fg(cmap(pind(nb,1):pind(nb,2))) &
+          fg(cmap(pind(nb,1):pind(nb,2)))=fg(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*canopy%fh(pind(nb,1):pind(nb,2))
-        eg(cmap(pind(nb,1):pind(nb,2)))=eg(cmap(pind(nb,1):pind(nb,2))) &
+          eg(cmap(pind(nb,1):pind(nb,2)))=eg(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*canopy%fe(pind(nb,1):pind(nb,2))
-        epot(cmap(pind(nb,1):pind(nb,2)))=epot(cmap(pind(nb,1):pind(nb,2))) &
+          epot(cmap(pind(nb,1):pind(nb,2)))=epot(cmap(pind(nb,1):pind(nb,2))) &
                                           +sv(pind(nb,1):pind(nb,2))*ssoil%potev(pind(nb,1):pind(nb,2))
-        tss(cmap(pind(nb,1):pind(nb,2)))=tss(cmap(pind(nb,1):pind(nb,2))) &
+          tss(cmap(pind(nb,1):pind(nb,2)))=tss(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*rad%trad(pind(nb,1):pind(nb,2))
-        tgf(cmap(pind(nb,1):pind(nb,2)))=tgf(cmap(pind(nb,1):pind(nb,2))) &
+          tgf(cmap(pind(nb,1):pind(nb,2)))=tgf(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*canopy%tv(pind(nb,1):pind(nb,2))
-        cansto(cmap(pind(nb,1):pind(nb,2)))=cansto(cmap(pind(nb,1):pind(nb,2))) &
+          cansto(cmap(pind(nb,1):pind(nb,2)))=cansto(cmap(pind(nb,1):pind(nb,2))) &
                                             +sv(pind(nb,1):pind(nb,2))*canopy%cansto(pind(nb,1):pind(nb,2))
-        gflux(cmap(pind(nb,1):pind(nb,2)))=gflux(cmap(pind(nb,1):pind(nb,2))) &
+          gflux(cmap(pind(nb,1):pind(nb,2)))=gflux(cmap(pind(nb,1):pind(nb,2))) &
                                            +sv(pind(nb,1):pind(nb,2))*canopy%ghflux(pind(nb,1):pind(nb,2))
-        sgflux(cmap(pind(nb,1):pind(nb,2)))=sgflux(cmap(pind(nb,1):pind(nb,2))) &
+          sgflux(cmap(pind(nb,1):pind(nb,2)))=sgflux(cmap(pind(nb,1):pind(nb,2))) &
                                             +sv(pind(nb,1):pind(nb,2))*canopy%sghflux(pind(nb,1):pind(nb,2))
-        fnee(cmap(pind(nb,1):pind(nb,2)))=fnee(cmap(pind(nb,1):pind(nb,2))) &
+          fnee(cmap(pind(nb,1):pind(nb,2)))=fnee(cmap(pind(nb,1):pind(nb,2))) &
                                           +sv(pind(nb,1):pind(nb,2))*canopy%fnee(pind(nb,1):pind(nb,2))
-        fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2))) &
+          fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*canopy%fpn(pind(nb,1):pind(nb,2))
-        frd(cmap(pind(nb,1):pind(nb,2)))=frd(cmap(pind(nb,1):pind(nb,2))) &
+          frd(cmap(pind(nb,1):pind(nb,2)))=frd(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*canopy%frday(pind(nb,1):pind(nb,2))
-        frp(cmap(pind(nb,1):pind(nb,2)))=frp(cmap(pind(nb,1):pind(nb,2))) &
+          frp(cmap(pind(nb,1):pind(nb,2)))=frp(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*canopy%frp(pind(nb,1):pind(nb,2))
-        frpw(cmap(pind(nb,1):pind(nb,2)))=frpw(cmap(pind(nb,1):pind(nb,2))) &
+          frpw(cmap(pind(nb,1):pind(nb,2)))=frpw(cmap(pind(nb,1):pind(nb,2))) &
                                           +sv(pind(nb,1):pind(nb,2))*canopy%frpw(pind(nb,1):pind(nb,2))
-        frs(cmap(pind(nb,1):pind(nb,2)))=frs(cmap(pind(nb,1):pind(nb,2))) &
+          frs(cmap(pind(nb,1):pind(nb,2)))=frs(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*canopy%frs(pind(nb,1):pind(nb,2))
-        sumpn(cmap(pind(nb,1):pind(nb,2)))=sumpn(cmap(pind(nb,1):pind(nb,2))) &
+          sumpn(cmap(pind(nb,1):pind(nb,2)))=sumpn(cmap(pind(nb,1):pind(nb,2))) &
                                            +sv(pind(nb,1):pind(nb,2))*sum_flux%sumpn(pind(nb,1):pind(nb,2))
-        sumrp(cmap(pind(nb,1):pind(nb,2)))=sumrp(cmap(pind(nb,1):pind(nb,2))) &
+          sumrp(cmap(pind(nb,1):pind(nb,2)))=sumrp(cmap(pind(nb,1):pind(nb,2))) &
                                            +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrp(pind(nb,1):pind(nb,2))
-        sumrpw(cmap(pind(nb,1):pind(nb,2)))=sumrpw(cmap(pind(nb,1):pind(nb,2))) &
+          sumrpw(cmap(pind(nb,1):pind(nb,2)))=sumrpw(cmap(pind(nb,1):pind(nb,2))) &
                                             +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrpw(pind(nb,1):pind(nb,2))
-        sumrpr(cmap(pind(nb,1):pind(nb,2)))=sumrpr(cmap(pind(nb,1):pind(nb,2))) &
+          sumrpr(cmap(pind(nb,1):pind(nb,2)))=sumrpr(cmap(pind(nb,1):pind(nb,2))) &
                                             +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrpr(pind(nb,1):pind(nb,2))
-        sumrs(cmap(pind(nb,1):pind(nb,2)))=sumrs(cmap(pind(nb,1):pind(nb,2))) &
+          sumrs(cmap(pind(nb,1):pind(nb,2)))=sumrs(cmap(pind(nb,1):pind(nb,2))) &
                                            +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrs(pind(nb,1):pind(nb,2))
-        sumrd(cmap(pind(nb,1):pind(nb,2)))=sumrd(cmap(pind(nb,1):pind(nb,2))) &
+          sumrd(cmap(pind(nb,1):pind(nb,2)))=sumrd(cmap(pind(nb,1):pind(nb,2))) &
                                            +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrd(pind(nb,1):pind(nb,2))
-        zo(cmap(pind(nb,1):pind(nb,2)))=zo(cmap(pind(nb,1):pind(nb,2))) &
+          zo(cmap(pind(nb,1):pind(nb,2)))=zo(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))/log(zmin/max(rough%z0m(pind(nb,1):pind(nb,2)),zobgin))**2
-        cduv(cmap(pind(nb,1):pind(nb,2)))=cduv(cmap(pind(nb,1):pind(nb,2))) &
+          cduv(cmap(pind(nb,1):pind(nb,2)))=cduv(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*canopy%cduv(pind(nb,1):pind(nb,2))
-        ustar(cmap(pind(nb,1):pind(nb,2)))=ustar(cmap(pind(nb,1):pind(nb,2))) &
+          ustar(cmap(pind(nb,1):pind(nb,2)))=ustar(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*canopy%us(pind(nb,1):pind(nb,2))
-        wetfac(cmap(pind(nb,1):pind(nb,2)))=wetfac(cmap(pind(nb,1):pind(nb,2))) &
+          wetfac(cmap(pind(nb,1):pind(nb,2)))=wetfac(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%wetfac(pind(nb,1):pind(nb,2))
-        tmps(cmap(pind(nb,1):pind(nb,2)))=tmps(cmap(pind(nb,1):pind(nb,2))) &
+          tmps(cmap(pind(nb,1):pind(nb,2)))=tmps(cmap(pind(nb,1):pind(nb,2))) &
                                            +sv(pind(nb,1):pind(nb,2))*real(ssoil%isflag(pind(nb,1):pind(nb,2)))
+        end if
       end do
       where (land)
         zo=max(zmin*exp(-sqrt(1./zo)),zobgin)
@@ -329,57 +331,59 @@ module cable_ccam
         isflag=0
       endwhere
       do nb=1,5 ! update snow (diagnostic only)
-        do k=1,3
-          where (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.1) ! pack 1-layer into 3-layer
-            tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
+        if (pind(nb,1).le.mp) then      
+          do k=1,3
+            where (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.1) ! pack 1-layer into 3-layer
+              tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),1)
-            smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
+              smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*0.05*ssoil%ssdn(pind(nb,1):pind(nb,2),1)
-            ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
+              ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
                                               +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),1)
-          elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.2)
-            tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
+            elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.2)
+              tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),1)
-            smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
+              smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*(ssoil%snowd(pind(nb,1):pind(nb,2)) &
-					       -0.05*ssoil%ssdn(pind(nb,1):pind(nb,2),1))*0.4
-            ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               -0.05*ssoil%ssdn(pind(nb,1):pind(nb,2),1))*0.4
+              ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
                                               +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),1)          
-          elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.3)
-            tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
+            elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).lt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.3)
+              tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*ssoil%tgg(pind(nb,1):pind(nb,2),1)
-            smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
+              smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*(ssoil%snowd(pind(nb,1):pind(nb,2)) &
-					       -0.05*ssoil%ssdn(pind(nb,1):pind(nb,2),1))*0.6
-            ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
+                                               -0.05*ssoil%ssdn(pind(nb,1):pind(nb,2),1))*0.6
+              ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
                                               +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),1)
-          elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).gt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.1) ! pack 3-layer into 1-layer
-            tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
+            elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).gt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.eq.1) ! pack 3-layer into 1-layer
+              tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*273.16
-            smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
+              smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*ssoil%snowd(pind(nb,1):pind(nb,2))
-            ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
+              ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
                                               +sv(pind(nb,1):pind(nb,2))*ssoil%ssdnn(pind(nb,1):pind(nb,2))
-          elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).gt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.ge.2)
-            tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
+            elsewhere (ssoil%isflag(pind(nb,1):pind(nb,2)).gt.isflag(cmap(pind(nb,1):pind(nb,2))).and.k.ge.2)
+              tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*273.16
-            ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
+              ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
                                               +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),k)          
-          elsewhere
-            tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
+            elsewhere
+              tggsn(cmap(pind(nb,1):pind(nb,2)),k)=tggsn(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*ssoil%tggsn(pind(nb,1):pind(nb,2),k)
-            smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
+              smass(cmap(pind(nb,1):pind(nb,2)),k)=smass(cmap(pind(nb,1):pind(nb,2)),k) &
                                                +sv(pind(nb,1):pind(nb,2))*ssoil%smass(pind(nb,1):pind(nb,2),k)
-            ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
+              ssdn(cmap(pind(nb,1):pind(nb,2)),k)=ssdn(cmap(pind(nb,1):pind(nb,2)),k) &
                                               +sv(pind(nb,1):pind(nb,2))*ssoil%ssdn(pind(nb,1):pind(nb,2),k)
-          end where
-        end do
-        ssdnn(cmap(pind(nb,1):pind(nb,2)))=ssdnn(cmap(pind(nb,1):pind(nb,2))) &
+            end where
+          end do
+          ssdnn(cmap(pind(nb,1):pind(nb,2)))=ssdnn(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%ssdnn(pind(nb,1):pind(nb,2))
-        snage(cmap(pind(nb,1):pind(nb,2)))=snage(cmap(pind(nb,1):pind(nb,2))) &
+          snage(cmap(pind(nb,1):pind(nb,2)))=snage(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%snage(pind(nb,1):pind(nb,2))
-        snowd(cmap(pind(nb,1):pind(nb,2)))=snowd(cmap(pind(nb,1):pind(nb,2))) &
+          snowd(cmap(pind(nb,1):pind(nb,2)))=snowd(cmap(pind(nb,1):pind(nb,2))) &
                                          +sv(pind(nb,1):pind(nb,2))*ssoil%snowd(pind(nb,1):pind(nb,2))
+        end if
       end do
 
       return
@@ -615,8 +619,6 @@ module cable_ccam
     end do
     pind(n,2)=ipos
   end do
-  
-  pind=min(pind,mp)
   
   if (ipos.ne.mp) then
     print *,"ERROR: Internal memory allocation error for CABLE set-up"
@@ -881,53 +883,55 @@ module cable_ccam
   else
     if (myid==0) write(6,*) "Use tiled data to initialise CABLE"
     do n=1,5
-      do k=1,ms
-        write(vname,'("tgg",I1.1,"_",I1.1)') k,n
+      if (pind(n,1).le.mp) then    
+        do k=1,ms
+          write(vname,'("tgg",I1.1,"_",I1.1)') k,n
+          call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+          ssoil%tgg(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+          write(vname,'("wb",I1.1,"_",I1.1)') k,n
+          call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+          ssoil%wb(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+          write(vname,'("wbice",I1.1,"_",I1.1)') k,n
+          call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+          ssoil%wbice(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+        end do
+        do k=1,3
+          write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
+          call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+          ssoil%tggsn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+          write(vname,'("smass",I1.1,"_",I1.1)') k,n
+          call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+          ssoil%smass(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+          write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
+          call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+          ssoil%ssdn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
+        end do
+        write(vname,'("sflag_",I1.1)') n
         call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
-        ssoil%tgg(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
-        write(vname,'("wb",I1.1,"_",I1.1)') k,n
+        ssoil%isflag(pind(n,1):pind(n,2))=int(dat(cmap(pind(n,1):pind(n,2))))
+        write(vname,'("snd_",I1.1)') n
         call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
-        ssoil%wb(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
-        write(vname,'("wbice",I1.1,"_",I1.1)') k,n
+        ssoil%snowd(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+        write(vname,'("snage_",I1.1)') n
         call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
-        ssoil%wbice(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
-      end do
-      do k=1,3
-        write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
+        ssoil%snage(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+        write(vname,'("rtsoil_",I1.1)') n
         call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
-        ssoil%tggsn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
-        write(vname,'("smass",I1.1,"_",I1.1)') k,n
+        ssoil%rtsoil(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+        write(vname,'("cansto_",I1.1)') n
         call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
-        ssoil%smass(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
-        write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
-        call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
-        ssoil%ssdn(pind(n,1):pind(n,2),k)=dat(cmap(pind(n,1):pind(n,2)))
-      end do
-      write(vname,'("sflag_",I1.1)') n
-      call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
-      ssoil%isflag(pind(n,1):pind(n,2))=int(dat(cmap(pind(n,1):pind(n,2))))
-      write(vname,'("snd_",I1.1)') n
-      call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
-      ssoil%snowd(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
-      write(vname,'("snage_",I1.1)') n
-      call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
-      ssoil%snage(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
-      write(vname,'("rtsoil_",I1.1)') n
-      call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
-      ssoil%rtsoil(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
-      write(vname,'("cansto_",I1.1)') n
-      call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
-      canopy%cansto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
-      do k=1,ncp
-        write(vname,'("cplant",I1.1,"_",I1.1)') k,n
-        call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
-        bgc%cplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2))) 
-      enddo
-      do k=1,ncs
-        write(vname,'("csoil",I1.1,"_",I1.1)') k,n
-        call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
-        bgc%csoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
-      enddo
+        canopy%cansto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+        do k=1,ncp
+          write(vname,'("cplant",I1.1,"_",I1.1)') k,n
+          call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+          bgc%cplant(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2))) 
+        enddo
+        do k=1,ncs
+          write(vname,'("csoil",I1.1,"_",I1.1)') k,n
+          call histrd1(ncid,iarchi,ierr,vname,ik,jk,dat,ifull)
+          bgc%csoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
+        enddo
+      end if
     end do
   end if
   
@@ -1021,61 +1025,87 @@ module cable_ccam
   do n=1,5
     do k=1,ms
       dat=tgg(:,k)
-      dat(cmap(pind(1,n):pind(2,n)))=ssoil%tgg(pind(n,1):pind(n,2),k)
+      if (pind(n,1).le.mp) then      
+        dat(cmap(pind(n,1):pind(n,2)))=ssoil%tgg(pind(n,1):pind(n,2),k)
+      end if
       write(vname,'("tgg",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local)
       dat=wb(:,k)
-      dat(cmap(pind(1,n):pind(2,n)))=ssoil%wb(pind(n,1):pind(n,2),k)
+      if (pind(n,1).le.mp) then  
+        dat(cmap(pind(n,1):pind(n,2)))=ssoil%wb(pind(n,1):pind(n,2),k)
+      end if
       write(vname,'("wb",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local)
       dat=wbice(:,k)
-      dat(cmap(pind(1,n):pind(2,n)))=ssoil%wbice(pind(n,1):pind(n,2),k)
+      if (pind(n,1).le.mp) then  
+        dat(cmap(pind(n,1):pind(n,2)))=ssoil%wbice(pind(n,1):pind(n,2),k)
+      end if
       write(vname,'("wbice",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local)
     end do
     do k=1,3
       dat=tggsn(:,k)
-      dat(cmap(pind(1,n):pind(2,n)))=ssoil%tggsn(pind(n,1):pind(n,2),k)
+      if (pind(n,1).le.mp) then  
+        dat(cmap(pind(n,1):pind(n,2)))=ssoil%tggsn(pind(n,1):pind(n,2),k)
+      end if
       write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local)
       dat=smass(:,k)
-      dat(cmap(pind(1,n):pind(2,n)))=ssoil%smass(pind(n,1):pind(n,2),k)
+      if (pind(n,1).le.mp) then  
+        dat(cmap(pind(n,1):pind(n,2)))=ssoil%smass(pind(n,1):pind(n,2),k)
+      end if
       write(vname,'("smass",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local)
       dat=ssdn(:,k)
-      dat(cmap(pind(1,n):pind(2,n)))=ssoil%ssdn(pind(n,1):pind(n,2),k)
+      if (pind(n,1).le.mp) then  
+        dat(cmap(pind(n,1):pind(n,2)))=ssoil%ssdn(pind(n,1):pind(n,2),k)
+      end if
       write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local)
     end do
     dat=real(isflag)
-    dat(cmap(pind(1,n):pind(2,n)))=real(ssoil%isflag(pind(n,1):pind(n,2)))
+    if (pind(n,1).le.mp) then  
+      dat(cmap(pind(n,1):pind(n,2)))=real(ssoil%isflag(pind(n,1):pind(n,2)))
+    end if
     write(vname,'("sflag_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local)
     dat=snowd
-    dat(cmap(pind(1,n):pind(2,n)))=ssoil%snowd(pind(n,1):pind(n,2))
+    if (pind(n,1).le.mp) then  
+      dat(cmap(pind(n,1):pind(n,2)))=ssoil%snowd(pind(n,1):pind(n,2))
+    end if
     write(vname,'("snd_",I1.1)') n
     call histwrt3l(dat,vname,idnc,iarch,local)  ! long write    
     dat=snage
-    dat(cmap(pind(1,n):pind(2,n)))=ssoil%snage(pind(n,1):pind(n,2))
+    if (pind(n,1).le.mp) then  
+      dat(cmap(pind(n,1):pind(n,2)))=ssoil%snage(pind(n,1):pind(n,2))
+    end if
     write(vname,'("snage_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local)
     dat=rtsoil
-    dat(cmap(pind(1,n):pind(2,n)))=ssoil%rtsoil(pind(n,1):pind(n,2))
+    if (pind(n,1).le.mp) then  
+      dat(cmap(pind(n,1):pind(n,2)))=ssoil%rtsoil(pind(n,1):pind(n,2))
+    end if
     write(vname,'("rtsoil_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local)   
     dat=cansto
-    dat(cmap(pind(1,n):pind(2,n)))=canopy%cansto(pind(n,1):pind(n,2))
+    if (pind(n,1).le.mp) then  
+      dat(cmap(pind(n,1):pind(n,2)))=canopy%cansto(pind(n,1):pind(n,2))
+    end if
     write(vname,'("cansto_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local)
     do k=1,ncp
       dat=cplant(:,k)
-      dat(cmap(pind(1,n):pind(2,n)))=bgc%cplant(pind(n,1):pind(n,2),k)
+      if (pind(n,1).le.mp) then  
+        dat(cmap(pind(n,1):pind(n,2)))=bgc%cplant(pind(n,1):pind(n,2),k)
+      end if
       write(vname,'("cplant",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local)    
     end do
     do k=1,ncs
       dat=csoil(:,k)
-      dat(cmap(pind(1,n):pind(2,n)))=bgc%csoil(pind(n,1):pind(n,2),k)
+      if (pind(n,1).le.mp) then  
+        dat(cmap(pind(n,1):pind(n,2)))=bgc%csoil(pind(n,1):pind(n,2),k)
+      end if
       write(vname,'("csoil",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local)
     end do
