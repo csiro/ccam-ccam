@@ -28,6 +28,7 @@
       include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       include 'carbpools.h' ! MJT cable
       include 'const_phys.h'
+      include 'darcdf.h'    ! MJT tracerfix
       include 'dates.h'     ! mtimer
       include 'dava.h'      ! davt
       include 'filnames.h'  ! list of files, read in once only
@@ -135,6 +136,9 @@
       real, dimension(ifull_g) :: davt_g
       real, dimension(ifull,12) :: urban ! MJT urban
       real, dimension(ifull,wlev,4) :: datoc ! MJT mlo
+      integer igas,ier  ! MJT tracerfix
+      character*3 trnum ! MJT tracerfix
+      
 
       call start_log(indata_begin)
       bam(1)=114413.
@@ -281,6 +285,16 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
      &           qlg(1:ifull,:), ! 0808 
      &           tggsn,smass,ssdn,ssdnn,snage,isflag,ifull,kl,         ! 0808
      &           isoilm,urban,cplant,csoil,datoc,ocndepin) ! MJT cable !MJT lsmask ! MJT urban ! MJT mlo
+     
+!           rml 16/02/06 read tracer from restart for up to 999 tracers
+            if (ngas>0) then                                        ! MJT tracerfix
+              do igas=1,ngas                                        ! MJT tracerfix
+                write(trnum,'(i3.3)') igas                          ! MJT tracerfix
+                call histrd4(ncid,iarchi,ier,'tr'//trnum,ik,jk,kk,
+     &                   tr(1:ifull,:,igas),ifull)                  ! MJT tracerfix
+              enddo                                                 ! MJT tracerfix
+            endif                                                   ! MJT tracerfix
+     
             albnirsav=albsav ! MJT CHANGE albedo
 c           if(nspecial>100)then
 c!            allows nudging from mesonest with different kdate

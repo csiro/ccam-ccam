@@ -40,7 +40,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       include 'netcdf.inc'
       integer, parameter :: nihead=54,nrhead=14
       integer nahead(nihead),ier,ilen,itype
-      integer, save :: ncidold=-1,iarchi
+      integer, save :: ncidold=-1 !,iarchi ! MJT tracerfix
 
 !     These are local arrays, not the versions in arrays.h
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
@@ -59,7 +59,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       if ( myid==0 )then
         print *,'entering onthefly for nested = ',nested
         if(ncid.ne.ncidold)then
-          iarchi=1
+          !iarchi=1 ! remove iarchi ! MJT tracerfix
           ncidold=ncid
           call ncainq(ncid,ncglobal,'int_header',itype,ilen,ier)
           call ncagt(ncid,ncglobal,'int_header',nahead,ier)

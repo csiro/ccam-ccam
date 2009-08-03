@@ -841,18 +841,18 @@ module cable_ccam
   include 'soilsnow.h'
   include 'vegpar.h'    
   
-  integer k,n,iarchi,ierr,ierr2,idv
+  integer k,n,ierr,ierr2,idv ! removed iarchi ! MJT tracerfix
   real, dimension(ifull) :: dat
   character*9 vname
   real sigin  
   integer ik,jk,kk
   common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug  
 
-  iarchi=1 ! assume restart file
+  ! removed iarchi ! MJT tracerfix
 
   if (io_in.eq.1) then
     if (myid.eq.0) idv = ncvid(ncid,"tgg1_1",ierr)
-    call MPI_Bcast(ierr,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr2)    
+    call MPI_Bcast(ierr,iarchi,MPI_INTEGER,0,MPI_COMM_WORLD,ierr2)    
   else
     ierr=1
   end if

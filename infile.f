@@ -67,7 +67,7 @@ c     include 'tracers.h'  **** to be fixed after 0808
 
       integer, parameter :: nihead=54,nrhead=14
       integer nahead(nihead),ier,ilen,itype
-      integer, save :: ncidold=-1, ncalled=0, iarchi
+      integer, save :: ncidold=-1, ncalled=0 !, iarchi ! MJT tracerfix
       integer ::  kdatea,kdateb,ktimea,ktimeb
       integer,save ::mtimer_use 
       real ahead(nrhead)

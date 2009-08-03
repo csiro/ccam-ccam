@@ -27,9 +27,11 @@
       real, dimension(ifull,kl) :: sb, sa, snew, dsol
       integer, save, dimension(ifull) :: mask
       integer, dimension(kl) :: iters
+      integer, dimension(3),save :: ifullx    ! MJT pack
+      integer, dimension(ifull,3),save :: iqx ! MJT pack
       real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
       real, dimension(kl) ::  smin, smin_g
-      real aa, bb, cc, axel, accel(kl)
+      real aa(ifull), bb(ifull), cc(ifull), axel, accel(kl) ! MJT pack
       integer iq, iter, k, nx, j, jx, i,klim,klimnew, ierr, meth, nx_max
       logical first
       save  first, meth, nx_max, axel, accel
@@ -61,6 +63,12 @@
          enddo
 c       print *,'j ',j,(mask(iq),iq=1+(j-1)*il,6+(j-1)*il)
        enddo
+       ifullx=0                              ! MJT pack
+       iqx=0                                 ! MJT pack
+       do iq=1,ifull                         ! MJT pack
+         ifullx(mask(iq))=ifullx(mask(iq))+1 ! MJT pack
+         iqx(ifullx(mask(iq)),mask(iq))=iq   ! MJT pack
+       end do                                ! MJT pack
        first=.false.
       endif  ! (first)
       if(ktau==1)then
@@ -81,67 +89,110 @@ c$      print *,'myid,ktau,precon ',myid,ktau,precon
        call bounds(s, klim=klim)
        do k=1,klim        
         do nx=1,nx_max
-         do iq=1,ifull
-          if(mask(iq)==nx)then
-             dsol(iq,k)=( zzn(iq)*s(in(iq),k) + zzw(iq)*s(iw(iq),k)    
-     &          +zze(iq)*s(ie(iq),k) + zzs(iq)*s(is(iq),k)
-     &          +(zz(iq)-helm(iq,k))*s(iq,k) - rhs(iq,k))      
-     &               /(helm(iq,k)-zz(iq))
-             snew(iq,k) = s(iq,k) + dsol(iq,k)
+!         do iq=1,ifull
+!          if(mask(iq)==nx)then
+           dsol(iqx(1:ifullx(nx),nx),k)=
+     &        ( zzn(iqx(1:ifullx(nx),nx))*s(in(iqx(1:ifullx(nx),nx)),k)
+     &        + zzw(iqx(1:ifullx(nx),nx))*s(iw(iqx(1:ifullx(nx),nx)),k)
+     &        +zze(iqx(1:ifullx(nx),nx))*s(ie(iqx(1:ifullx(nx),nx)),k)
+     &        + zzs(iqx(1:ifullx(nx),nx))*s(is(iqx(1:ifullx(nx),nx)),k)
+     &        +(zz(iqx(1:ifullx(nx),nx))
+     &        -helm(iqx(1:ifullx(nx),nx),k))*s(iqx(1:ifullx(nx),nx),k)
+     &        - rhs(iqx(1:ifullx(nx),nx),k))      
+     &        /(helm(iqx(1:ifullx(nx),nx),k)-zz(iqx(1:ifullx(nx),nx)))
+           snew(iqx(1:ifullx(nx),nx),k) = s(iqx(1:ifullx(nx),nx),k)
+     &        + dsol(iqx(1:ifullx(nx),nx),k)
 c            snew(iq,k) = s(iq,k) + dsol(iq,k)*accel(k)  ! no help
-          endif
-         enddo
+!          endif
+!         enddo
 
 !        following are jlm methods for improving guess
-         if(iter>=3.and.meth==3)then   ! qls
-          do iq=1,ifull
-           if(mask(iq)==nx)then
-            aa=(sb(iq,k)-3*sa(iq,k)+3*s(iq,k)+19*snew(iq,k))/20.  
-            bb=(9*sb(iq,k)-17*sa(iq,k)-13*s(iq,k)+21*snew(iq,k))/20.  
+         if(iter>=3)then
+         select case(meth)
+          case(3)
+!         if(iter>=3.and.meth==3)then   ! qls
+!          do iq=1,ifull
+!           if(mask(iq)==nx)then
+            aa(iqx(1:ifullx(nx),nx))=
+     &       (sb(iqx(1:ifullx(nx),nx),k)
+     &       -3*sa(iqx(1:ifullx(nx),nx),k)
+     &       +3*s(iqx(1:ifullx(nx),nx),k)
+     &       +19*snew(iqx(1:ifullx(nx),nx),k))/20.  
+            bb(iqx(1:ifullx(nx),nx))=(9*sb(iqx(1:ifullx(nx),nx),k)
+     &       -17*sa(iqx(1:ifullx(nx),nx),k)
+     &       -13*s(iqx(1:ifullx(nx),nx),k)
+     &       +21*snew(iqx(1:ifullx(nx),nx),k))/20.  
 c           snew(iq,k)=aa+.25*bb+.0625*cc !3c
-            snew(iq,k)=aa+axel*bb          
-           endif
-          enddo
-         endif  ! meth=3
-         if(iter>=3.and.meth==4)then   ! oscill
-          do iq=1,ifull
-           if(mask(iq)==nx)then
-            aa=(7.*snew(iq,k)+3.*s(iq,k)-3.*sa(iq,k)+sb(iq,k))/8. ! oscill
-            bb=snew(iq,k)-.5*s(iq,k)-sa(iq,k)+.5*sb(iq,k)         ! oscill
+            snew(iqx(1:ifullx(nx),nx),k)=aa(iqx(1:ifullx(nx),nx))
+     &       +axel*bb(iqx(1:ifullx(nx),nx))
+!           endif
+!          enddo
+!         endif  ! meth=3
+          case(4)
+!         if(iter>=3.and.meth==4)then   ! oscill
+!          do iq=1,ifull
+!           if(mask(iq)==nx)then
+            aa(iqx(1:ifullx(nx),nx))=(7.*snew(iqx(1:ifullx(nx),nx),k)
+     &       +3.*s(iqx(1:ifullx(nx),nx),k)
+     &       -3.*sa(iqx(1:ifullx(nx),nx),k)
+     &       +sb(iqx(1:ifullx(nx),nx),k))/8. ! oscill
+            bb(iqx(1:ifullx(nx),nx))=snew(iqx(1:ifullx(nx),nx),k)
+     &       -.5*s(iqx(1:ifullx(nx),nx),k)
+     &       -sa(iqx(1:ifullx(nx),nx),k)
+     &       +.5*sb(iqx(1:ifullx(nx),nx),k)         ! oscill
 c           cc=.25*(snew(iq,k)-s(iq,k)-sa(iq,k)+sb(iq,k))         !             aa=(sb(iq,k)-3*sa(iq,k)+3*s(iq,k)+19*snew(iq,k))/20.  
-            snew(iq,k)=aa+axel*bb          
-           endif
-          enddo
-         endif  ! meth=4
-         if(iter>=3.and.meth==5)then   ! wqls
-          do iq=1,ifull
-           if(mask(iq)==nx)then
-            aa=(2*sb(iq,k)-6*sa(iq,k)+6*s(iq,k)+68*snew(iq,k))/70.  
-            bb=(5*sb(iq,k)-8*sa(iq,k)-13*s(iq,k)+16*snew(iq,k))/14.  
+            snew(iqx(1:ifullx(nx),nx),k)=aa(iqx(1:ifullx(nx),nx))
+     &       +axel*bb(iqx(1:ifullx(nx),nx))
+!           endif
+!          enddo
+!         endif  ! meth=4
+          case(5)
+!         if(iter>=3.and.meth==5)then   ! wqls
+!          do iq=1,ifull
+!           if(mask(iq)==nx)then
+            aa(iqx(1:ifullx(nx),nx))=(2*sb(iqx(1:ifullx(nx),nx),k)
+     &       -6*sa(iqx(1:ifullx(nx),nx),k)+6*s(iqx(1:ifullx(nx),nx),k)
+     &       +68*snew(iqx(1:ifullx(nx),nx),k))/70.  
+            bb(iqx(1:ifullx(nx),nx))=(5*sb(iqx(1:ifullx(nx),nx),k)
+     &       -8*sa(iqx(1:ifullx(nx),nx),k)
+     &       -13*s(iqx(1:ifullx(nx),nx),k)
+     &       +16*snew(iqx(1:ifullx(nx),nx),k))/14.  
 c           cc=(3*sb(iq,k)-2*sa(iq,k)-5*s(iq,k)+4*snew(iq,k))/14.  
-            snew(iq,k)=aa+axel*bb          
-          endif
-          enddo
-         endif  ! meth=5
-         if(iter>=3.and.meth==6)then   ! wqls again
-          do iq=1,ifull
-           if(mask(iq)==nx)then
-            aa=(2*sb(iq,k)-6*sa(iq,k)+6*s(iq,k)+68*snew(iq,k))/70.  
-            bb=(5*sb(iq,k)-8*sa(iq,k)-13*s(iq,k)+16*snew(iq,k))/14.  
-            cc=(3*sb(iq,k)-2*sa(iq,k)-5*s(iq,k)+4*snew(iq,k))/14.  
-            snew(iq,k)=aa+axel*(bb+axel*cc)          
-          endif
-          enddo
-         endif  ! meth=5
+            snew(iqx(1:ifullx(nx),nx),k)=aa(iqx(1:ifullx(nx),nx))
+     &       +axel*bb(iqx(1:ifullx(nx),nx))          
+!          endif
+!          enddo
+!         endif  ! meth=5
+          case(6)
+!         if(iter>=3.and.meth==6)then   ! wqls again
+!          do iq=1,ifull
+!           if(mask(iq)==nx)then
+            aa(iqx(1:ifullx(nx),nx))=(2*sb(iqx(1:ifullx(nx),nx),k)
+     &       -6*sa(iqx(1:ifullx(nx),nx),k)+6*s(iqx(1:ifullx(nx),nx),k)
+     &       +68*snew(iqx(1:ifullx(nx),nx),k))/70.  
+            bb(iqx(1:ifullx(nx),nx))=(5*sb(iqx(1:ifullx(nx),nx),k)
+     &       -8*sa(iqx(1:ifullx(nx),nx),k)-13*s(iqx(1:ifullx(nx),nx),k)
+     &       +16*snew(iqx(1:ifullx(nx),nx),k))/14.  
+            cc(iqx(1:ifullx(nx),nx))=(3*sb(iqx(1:ifullx(nx),nx),k)
+     &       -2*sa(iqx(1:ifullx(nx),nx),k)-5*s(iqx(1:ifullx(nx),nx),k)
+     &       +4*snew(iqx(1:ifullx(nx),nx),k))/14.  
+            snew(iqx(1:ifullx(nx),nx),k)=aa(iqx(1:ifullx(nx),nx))
+     &       +axel*(bb(iqx(1:ifullx(nx),nx))
+     &       +axel*cc(iqx(1:ifullx(nx),nx)))          
+!          endif
+!          enddo
+!         endif  ! meth=5
+         end select
+         end if
 
-         do iq=1,ifull
-          if(mask(iq)==nx)then
+!         do iq=1,ifull
+!          if(mask(iq)==nx)then
 c           rotate s files
-            sb(iq,k)=sa(iq,k)
-            sa(iq,k)=s(iq,k)
-            s(iq,k)=snew(iq,k)
-          endif
-         enddo
+            sb(iqx(1:ifullx(nx),nx),k)=sa(iqx(1:ifullx(nx),nx),k)
+            sa(iqx(1:ifullx(nx),nx),k)=s(iqx(1:ifullx(nx),nx),k)
+            s(iqx(1:ifullx(nx),nx),k)=snew(iqx(1:ifullx(nx),nx),k)
+!          endif
+!         enddo
         enddo  ! nx loop
         iters(k)=iter
       enddo ! k loop   
@@ -195,21 +246,35 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
        if(ntest==1.and.diag)print *,'myid,iter b ',myid,iter
        do k=1,klim        
         do nx=1,nx_max
-         do iq=1,ifull
-          if(mask(iq)==nx)then
-             dsol(iq,k)=( zzn(iq)*s(in(iq),k) + zzw(iq)*s(iw(iq),k)    
-     &          +zze(iq)*s(ie(iq),k) + zzs(iq)*s(is(iq),k)
-     &          +(zz(iq)-helm(iq,k))*s(iq,k) - rhs(iq,k))      
-     &               /(helm(iq,k)-zz(iq))
-             snew(iq,k) = s(iq,k) + accel(k)*dsol(iq,k)
-          endif
-         enddo
-
-         do iq=1,ifull
-          if(mask(iq)==nx)then
-            s(iq,k)=snew(iq,k)
-          endif
-         enddo
+        !------------------------------------------------------------
+        ! MJT pack
+!         do iq=1,ifull
+!          if(mask(iq)==nx)then
+!             dsol(iq,k)=( zzn(iq)*s(in(iq),k) + zzw(iq)*s(iw(iq),k)    
+!     &          +zze(iq)*s(ie(iq),k) + zzs(iq)*s(is(iq),k)
+!     &          +(zz(iq)-helm(iq,k))*s(iq,k) - rhs(iq,k))      
+!     &               /(helm(iq,k)-zz(iq))
+!             snew(iq,k) = s(iq,k) + accel(k)*dsol(iq,k)
+!          endif
+!         enddo
+!         do iq=1,ifull
+!          if(mask(iq)==nx)then
+!            s(iq,k)=snew(iq,k)
+!          endif
+!         enddo
+          dsol(iqx(1:ifullx(nx),nx),k)=
+     &       ( zzn(iqx(1:ifullx(nx),nx))*s(in(iqx(1:ifullx(nx),nx)),k)
+     &       + zzw(iqx(1:ifullx(nx),nx))*s(iw(iqx(1:ifullx(nx),nx)),k)
+     &       +zze(iqx(1:ifullx(nx),nx))*s(ie(iqx(1:ifullx(nx),nx)),k)
+     &       + zzs(iqx(1:ifullx(nx),nx))*s(is(iqx(1:ifullx(nx),nx)),k)
+     &       +(zz(iqx(1:ifullx(nx),nx))
+     &       -helm(iqx(1:ifullx(nx),nx),k))*s(iqx(1:ifullx(nx),nx),k)
+     &       - rhs(iqx(1:ifullx(nx),nx),k))      
+     &       /(helm(iqx(1:ifullx(nx),nx),k)-zz(iqx(1:ifullx(nx),nx)))
+          snew(iqx(1:ifullx(nx),nx),k) = s(iqx(1:ifullx(nx),nx),k)
+     &       + accel(k)*dsol(iqx(1:ifullx(nx),nx),k)
+          s(iqx(1:ifullx(nx),nx),k)=snew(iqx(1:ifullx(nx),nx),k)
+         !------------------------------------------------------------
         enddo  ! nx loop
         iters(k)=iter
       enddo ! k loop   

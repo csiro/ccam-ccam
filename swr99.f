@@ -35,6 +35,7 @@
       
       integer  :: ipts
       ipts = count ( coszro_in > zero )
+      if (any(nclds_in>0)) ipts=count(coszro_in>0..and.nclds_in>0) ! MJT rad
 
       call swr99p      ( fsw_out, hsw_out, grdflx_out, ufsw_out, 
      &                   dfsw_out, press_in, press2_in, coszro_in,
@@ -80,6 +81,11 @@ c
       real, intent(out), dimension(imax,l)   :: hsw_out 
       real, intent(out), dimension(imax)     :: grdflx_out,swr_out ! MJT cable
 
+      real, dimension(imax,lp1),save :: fsw_sav,  
+     &                                  ufsw_sav, dfsw_sav ! MJT rad
+      real, dimension(imax,l),save   :: hsw_sav            ! MJT rad
+      real, dimension(imax),save     :: grdflx_sav,swr_sav ! MJT rad
+
       real, dimension(ipts,lp1)      :: press, press2
       real,  dimension(ipts)         :: coszro, taudar
       real,  dimension(ipts,l)       :: rh2o, qo3
@@ -90,20 +96,36 @@ c
       real,  dimension(ipts,l)       :: hsw
       real, dimension(ipts)          :: grdflx,swr ! MJT cable
 
-      integer :: k
+      integer :: k,kclds ! MJT rad
       logical, dimension(imax) :: lcoszn
       integer, dimension(ipts) :: pindex
 
+      kclds=maxval(nclds_in) ! MJT rad
       lcoszn = coszro_in > zero
+      if (kclds>0) then              ! MJT rad
+        lcoszn=lcoszn.and.nclds_in>0 ! MJT rad
+        grdflx_out=grdflx_sav        ! MJT rad
+        ufsw_out=ufsw_sav            ! MJT rad
+        dfsw_out=dfsw_sav            ! MJT rad
+        fsw_out=fsw_sav              ! MJT rad
+        hsw_out=hsw_sav              ! MJT rad
+      end if                         ! MJT rad
 
 !     If there are no sunlit points set everything to zero and return 
 !     immediately
       if ( ipts == 0 ) then
-	 grdflx_out = zero
-	 ufsw_out   = zero
-	 dfsw_out   = zero
-	 fsw_out    = zero
-	 hsw_out    = zero
+       if (kclds==0) then ! MJT rad
+	  grdflx_out = zero
+	  ufsw_out   = zero
+	  dfsw_out   = zero
+	  fsw_out    = zero
+	  hsw_out    = zero
+	  grdflx_sav = zero ! MJT rad
+	  ufsw_sav   = zero ! MJT rad
+	  dfsw_sav   = zero ! MJT rad
+	  fsw_sav    = zero ! MJT rad
+	  hsw_sav    = zero ! MJT rad
+	 end if ! MJT rad
 	 return
       endif
 
@@ -135,12 +157,14 @@ c
      &                   swr ) ! MJT cable
 
 !     Unpack results  ( Use my version to get around NEC compiler error )
-      grdflx_out = 0.0
-      swr_out = 0.5 ! MJT cable
-      fsw_out = 0.0
-      hsw_out = 0.0
-      ufsw_out = 0.0
-      dfsw_out = 0.0
+      if (kclds==0) then ! MJT rad
+       grdflx_out = 0.0
+       swr_out = 0.5 ! MJT cable
+       fsw_out = 0.0
+       hsw_out = 0.0
+       ufsw_out = 0.0
+       dfsw_out = 0.0
+      end if ! MJT rad
       grdflx_out(pindex) = grdflx
       swr_out(pindex) = swr ! MJT cable
       do k=1,l
@@ -151,6 +175,14 @@ c
 	 ufsw_out(pindex,k) = ufsw(:,k)
 	 dfsw_out(pindex,k) = dfsw(:,k)
       end do
+      
+      if (kclds==0) then             ! MJT rad
+        grdflx_sav=grdflx_out        ! MJT rad
+        ufsw_sav=ufsw_out            ! MJT rad
+        dfsw_sav=dfsw_out            ! MJT rad
+        fsw_sav=fsw_out              ! MJT rad
+        hsw_sav=hsw_out              ! MJT rad
+      end if                         ! MJT rad
 
       end subroutine swr99p
 
