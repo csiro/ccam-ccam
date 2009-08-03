@@ -852,7 +852,7 @@ module cable_ccam
 
   if (io_in.eq.1) then
     if (myid.eq.0) idv = ncvid(ncid,"tgg1_1",ierr)
-    call MPI_Bcast(ierr,iarchi,MPI_INTEGER,0,MPI_COMM_WORLD,ierr2)    
+    call MPI_Bcast(ierr,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr2)    
   else
     ierr=1
   end if
