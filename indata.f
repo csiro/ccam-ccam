@@ -290,7 +290,7 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
             if (ngas>0) then                                        ! MJT tracerfix
               do igas=1,ngas                                        ! MJT tracerfix
                 write(trnum,'(i3.3)') igas                          ! MJT tracerfix
-                call histrd4(ncid,iarchi,ier,'tr'//trnum,ik,jk,kk,
+                call histrd4(ncid,iarchi-1,ier,'tr'//trnum,ik,jk,kk,
      &                   tr(1:ifull,:,igas),ifull)                  ! MJT tracerfix
               enddo                                                 ! MJT tracerfix
             endif                                                   ! MJT tracerfix
