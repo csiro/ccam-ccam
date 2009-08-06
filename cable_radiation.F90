@@ -212,7 +212,8 @@ CONTAINS
     WHERE (mask) ! i.e. vegetation and sunlight are present
        ! Calculate shortwave radiation absorbed by soil:
        ! (av. of transmitted NIR and PAR through canopy)*SWdown
-       rad%qssabs = 0.5 * met%fsd(:,1) * ( &
+       !rad%qssabs = 0.5 * met%fsd(:,1) * ( &
+       rad%qssabs = met%fsd(:,1) * ( &       
             rad%fbeam(:,1)*(1.-rad%reffbm(:,1))*EXP(-rad%extkbm(:,1)*veg%vlaiw) &
             +(1.-rad%fbeam(:,1))*(1.-rad%reffdf(:,1))*EXP(-rad%extkdm(:,1)*veg%vlaiw)) + &
             met%fsd(:,2)*(                                                               &

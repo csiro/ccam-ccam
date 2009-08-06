@@ -799,10 +799,10 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
            call attrib(idnc,idim,3,vname,lname,'PSU',0.,100.,0)
            write(lname,'("ocean U velocity lev ",I2)') k
            write(vname,'("uoc",I2.2)') k
-           call attrib(idnc,idim,3,vname,lname,'m/s',-10.,10.,0)
+           call attrib(idnc,idim,3,vname,lname,'m/s',-100.,100.,0)
            write(lname,'("ocean V velocity lev ",I2)') k
            write(vname,'("voc",I2.2)') k
-           call attrib(idnc,idim,3,vname,lname,'m/s',-10.,10.,0)
+           call attrib(idnc,idim,3,vname,lname,'m/s',-100.,100.,0)
           end do
         end if
         !--------------------------------------------------------  
