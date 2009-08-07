@@ -578,6 +578,9 @@ do iqw=1,wfull
   ws1=(1.-xp)*ws(iqw,pg(iqw)%mixind)+xp*ws(iqw,pg(iqw)%mixind+1)
   dnushdz=-(nus(iqw,pg(iqw)%mixind+1)-nus(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
   dws1ds=-pg(iqw)%mixdepth*(ws(iqw,pg(iqw)%mixind+1)-ws(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
+
+  wm1=max(wm1,1.E-10)
+  ws1=max(ws1,1.E-10)
   
   g1m=numh/(pg(iqw)%mixdepth*wm1)
   dg1mds=-dnumhdz/wm1-numh*dwm1ds/(pg(iqw)%mixdepth*wm1*wm1)
@@ -656,11 +659,11 @@ do iqw=1,wfull
   do ii=2,wlev
     vtsq=depth(iqw,ii)*ws(iqw,ii)*sqrt(abs(dg3(iqw,ii)%nsq))*vtc
     dvsq=(water(iqw,1)%u-water(iqw,ii)%u)**2+(water(iqw,1)%v-water(iqw,ii)%v)**2
-    rib(ii)=(depth(iqw,ii)-depth(iqw,1))*(1.-dg3(iqw,1)%rho/dg3(iqw,ii)%rho)/(dvsq+vtsq)
+    rib(ii)=(depth(iqw,ii)-depth(iqw,1))*(1.-dg3(iqw,1)%rho/dg3(iqw,ii)%rho)/max(dvsq+vtsq,1.E-10)
   
     if (rib(ii).gt.ric) then
       pg(iqw)%mixind=ii-1
-      xp=min(max((ric-rib(ii-1))/(rib(ii)-rib(ii-1)),0.),1.)
+      xp=min(max((ric-rib(ii-1))/max(rib(ii)-rib(ii-1),1.E-10),0.),1.)
       pg(iqw)%mixdepth=(1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii)
       exit
     end if
