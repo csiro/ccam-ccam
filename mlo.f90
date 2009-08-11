@@ -745,7 +745,7 @@ sig=dep/mixdp                       ! stable
 where (bf.le.0..and.sig.gt.epsilon) ! unstable
   sig=epsilon
 end where
-uuu=ustar**3
+uuu=max(ustar**3,1.E-10)
 invl=vkar*bf ! invl = ustar**3/L or L=ustar**3/(vkar*bf)
 invl=max(invl,-10.*uuu/mixdp) ! MJT suggestion
 invl=min(invl,1.*uuu/mixdp)   ! MJT suggestion

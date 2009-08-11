@@ -185,10 +185,11 @@ CONTAINS
     ! BATS-type canopy saturation proportional to LAI:
     cansat = veg%canst1 * veg%vlaiw
     ! Leaf phenology influence on vcmax and jmax
-    phenps = max (1.0e-4, MIN(1.,1. - ( (veg%tmaxvj - ssoil%tgg(:,4)+tfrz)/ &
-         (veg%tmaxvj - veg%tminvj) )**2 ) )
-    WHERE ( ssoil%tgg(:,4) < (veg%tminvj + tfrz) ) phenps = 0.0
-    WHERE ( ssoil%tgg(:,4) > (veg%tmaxvj + tfrz) ) phenps = 1.0
+    !phenps = max (1.0e-4, MIN(1.,1. - ( (veg%tmaxvj - ssoil%tgg(:,4)+tfrz)/ &
+    !     (veg%tmaxvj - veg%tminvj) )**2 ) )
+    !WHERE ( ssoil%tgg(:,4) < (veg%tminvj + tfrz) ) phenps = 0.0
+    !WHERE ( ssoil%tgg(:,4) > (veg%tmaxvj + tfrz) ) phenps = 1.0
+    phenps = 1. ! MJT fix from Eva
     ! Set previous time step canopy water storage:
     canopy%oldcansto=canopy%cansto
     ! Rainfall variable is limited so canopy interception is limited,
@@ -710,12 +711,16 @@ CONTAINS
                  (canopy%fev + canopy%fes)/(air%rho*air%rlam)
           ! Within canopy air temperature:
           met%tvair = met%tk + (dmbe*dmch-dmbh*dmce)/(dmah*dmbe-dmae*dmbh+1.0e-12)
+          met%tvair = max(met%tvair , min( ssoil%tss, met%tk) - 5.0)
+          met%tvair = min(met%tvair , max( ssoil%tss, met%tk) + 5.0)	  
           ! Within canopy specific humidity:
           met%qvair = met%qv + (dmah*dmce-dmae*dmch)/(dmah*dmbe-dmae*dmbh+1.0e-12)
           met%qvair = max(0.0,met%qvair)
        END WHERE
-       where (abs(met%tvair-met%tk).ge.20.) ! MJT
-         met%tvair=met%tk
+       where (met%tvair.lt.min(met%tk,ssoil%tss)-4.9) ! MJT
+         met%qvair=met%qv
+       end where
+       where (met%tvair.gt.max(met%tk,ssoil%tss)+4.9) ! MJT
          met%qvair=met%qv
        end where
        ! Saturated specific humidity in canopy:

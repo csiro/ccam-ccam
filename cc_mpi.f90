@@ -128,6 +128,17 @@ module cc_mpi
    integer, public, save :: phys_begin, phys_end
    integer, public, save :: outfile_begin, outfile_end
    integer, public, save :: indata_begin, indata_end
+   integer, public, save :: gwdrag_begin, gwdrag_end
+   integer, public, save :: convection_begin, convection_end
+   integer, public, save :: cloud_begin, cloud_end
+   integer, public, save :: radsw_begin, radsw_end
+   integer, public, save :: radlw_begin, radlw_end
+   integer, public, save :: sfluxwater_begin, sfluxwater_end
+   integer, public, save :: sfluxsice_begin, sfluxsice_end
+   integer, public, save :: sfluxland_begin, sfluxland_end
+   integer, public, save :: sfluxurban_begin, sfluxurban_end
+   integer, public, save :: vertmix_begin, vertmix_end
+   integer, public, save :: nestin_begin, nestin_end
    integer, public, save :: model_begin, model_end
    integer, public, save :: maincalc_begin, maincalc_end
    integer, public, save :: gather_begin, gather_end
@@ -137,7 +148,7 @@ module cc_mpi
    integer, public, save :: mpiwait_begin, mpiwait_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents=25
+   integer, parameter :: nevents=36
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -1860,6 +1871,7 @@ contains
       call start_log(bounds_begin)
 
       double = .false.
+      extra = .false.
       if (present(nrows)) then
          if ( nrows == 2 ) then
             double = .true.
@@ -2856,6 +2868,39 @@ contains
       indata_begin = MPE_Log_get_event_number()
       indata_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(indata_begin, indata_end, "Indata", "Yellow")
+      gwdrag_begin = MPE_Log_get_event_number()
+      gwdrag_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(gwdrag_begin, gwdrag_end, "GWdrag", "Yellow")
+      convection_begin = MPE_Log_get_event_number()
+      convection_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(convection_begin, convection_end, "Convection", "Yellow")
+      cloud_begin = MPE_Log_get_event_number()
+      cloud_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(cloud_begin, cloud_end, "Cloud", "Yellow")
+      radsw_begin = MPE_Log_get_event_number()
+      radsw_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(radsw_begin, radsw_end, "Rad_SW", "Yellow")
+      radlw_begin = MPE_Log_get_event_number()
+      radlw_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(radlw_begin, radlw_end, "Rad_LW", "Yellow")
+      sfluxwater_begin = MPE_Log_get_event_number()
+      sfluxwater_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(sfluxwater_begin, sfluxwater_end, "Sflux_water", "Yellow")
+      sfluxsice_begin = MPE_Log_get_event_number()
+      sfluxsice_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(sfluxsice_begin, sfluxsice_end, "Sflux_sice", "Yellow")
+      sfluxland_begin = MPE_Log_get_event_number()
+      sfluxland_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(sfluxland_begin, sfluxland_end, "Sflux_land", "Yellow")
+      sfluxurban_begin = MPE_Log_get_event_number()
+      sfluxurban_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(sfluxurban_begin, sfluxurban_end, "Sflux_urban", "Yellow")
+      vertmix_begin = MPE_Log_get_event_number()
+      vertmix_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(vertmix_begin, vertmix_end, "Vertmix", "Yellow")
+      nestin_begin = MPE_Log_get_event_number()
+      nestin_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(nestin_begin, nestin_end, "Nestin", "Yellow")
 #endif
 #ifdef vampir
       call vtfuncdef("Bounds", classhandle, bounds_begin, ierr)
@@ -2894,6 +2939,28 @@ contains
       outfile_end =  outfile_begin
       call vtfuncdef("Indata", classhandle, indata_begin, ierr)
       indata_end =  indata_begin
+      call vtfuncdef("GWdrag", classhandle, gwdrag_begin, ierr)
+      gwdrag_end =  gwdrag_begin
+      call vtfuncdef("Convection", classhandle, convection_begin, ierr)
+      convection_end =  convection_begin
+      call vtfuncdef("Cloud", classhandle, cloud_begin, ierr)
+      cloud_end =  cloud_begin
+      call vtfuncdef("Rad_SW", classhandle, radsw_begin, ierr)
+      radsw_end =  radsw_begin
+      call vtfuncdef("Rad_LW", classhandle, radlw_begin, ierr)
+      radlw_end =  radlw_begin
+      call vtfuncdef("Sflux_water", classhandle, sfluxwater_begin, ierr)
+      sfluxwater_end =  sfluxwater_begin
+      call vtfuncdef("Sflux_sice", classhandle, sfluxsice_begin, ierr)
+      sfluxsice_end =  sfluxsice_begin
+      call vtfuncdef("Sflux_land", classhandle, sfluxland_begin, ierr)
+      sfluxland_end =  sfluxland_begin
+      call vtfuncdef("Sflux_urban", classhandle, sfluxurban_begin, ierr)
+      sfluxurban_end =  sfluxurban_begin
+      call vtfuncdef("Vertmix", classhandle, vertmix_begin, ierr)
+      vertmix_end =  vertmix_begin
+      call vtfuncdef("Nestin", classhandle, nestin_begin, ierr)
+      nestin_end =  nestin_begin
 #endif
 #ifdef simple_timer
 
@@ -2996,7 +3063,51 @@ contains
       indata_begin = 25
       indata_end =  indata_begin
       event_name(indata_begin) = "Indata"
+      
+      gwdrag_begin = 26
+      gwdrag_end =  gwdrag_begin
+      event_name(gwdrag_begin) = "GWdrag"
 
+      convection_begin = 27
+      convection_end =  convection_begin
+      event_name(convection_begin) = "Convection"
+
+      cloud_begin = 28
+      cloud_end =  cloud_begin
+      event_name(cloud_begin) = "Cloud"
+      
+      radsw_begin = 29
+      radsw_end =  radsw_begin
+      event_name(radsw_begin) = "Rad_SW"
+
+      radlw_begin = 30
+      radlw_end =  radlw_begin
+      event_name(radlw_begin) = "Rad_LW"     
+      
+      sfluxwater_begin = 31
+      sfluxwater_end =  sfluxwater_begin
+      event_name(sfluxwater_begin) = "Sflux_water"
+
+      sfluxsice_begin = 32
+      sfluxsice_end =  sfluxsice_begin
+      event_name(sfluxsice_begin) = "Sflux_sice"
+      
+      sfluxland_begin = 33
+      sfluxland_end =  sfluxland_begin
+      event_name(sfluxland_begin) = "Sflux_land"
+
+      sfluxurban_begin = 34
+      sfluxurban_end =  sfluxurban_begin
+      event_name(sfluxurban_begin) = "Sflux_urban"
+
+      vertmix_begin = 35
+      vertmix_end =  vertmix_begin
+      event_name(vertmix_begin) = "Vertmix"
+
+      nestin_begin = 36
+      nestin_end =  nestin_begin
+      event_name(nestin_begin) = "Nestin"
+      
 #endif
    end subroutine log_setup
    

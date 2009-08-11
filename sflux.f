@@ -174,6 +174,7 @@ c     using av_vmod (1. for no time averaging)
       vmag(:)=max( vmod(:) , vmodmin) ! vmag used to calculate ri
       if(ntsur.ne.7)vmod(:)=vmag(:)	! gives usual way
 
+      call start_log(sfluxwater_begin)
       if(ntest==2.and.mydiag)print *,'before sea loop'
 !      from June '03 use basic sea temp from tgg1 (so leads is sensible)      
 !     all sea points in this loop; also open water of leads  
@@ -355,17 +356,19 @@ c     section to update pan temperatures
       if (nmlo.ne.0) then
         ! note taux and tauy do not include sea-ice at this point
         call mloeval(ifull,tgg(:,1),dt,fg,eg
-     &               ,sgsave(:),-rgsave(:)-stefbo*tgg(:,1)**4
-     &               ,condx(:)/dt,taux,tauy,f,0)
+     &               ,sgsave,-rgsave-stefbo*tgg(:,1)**4
+     &               ,condx/dt,taux,tauy,f,0)
         where(.not.land)
           tpan=tgg(:,1)
           tss=tgg(:,1)
-          rnet=sgsave-rgsave-stefbo*tss**4
         endwhere
         do k=2,ms
           call mloexport(ifull,tgg(:,k),k,0)
         end do
       end if
+      where (.not.land)
+        rnet=sgsave-rgsave-stefbo*tss**4
+      end where
     !----------------------------------------------------------------
 
       if(nmaxpr==1.and.mydiag)then
@@ -388,7 +391,9 @@ c     section to update pan temperatures
      &    9f9.4)") af(iq),aft(iq),factch(iq),root,denha,denma,fm
       endif                       
       zminlog=log(zmin)
+      call end_log(sfluxwater_end)
 
+      call start_log(sfluxsice_begin)
       do iq=1,ifull
        if(sicedep(iq)>0.)then
 !      non-leads for sea ice points                                 ! sice
@@ -488,6 +493,7 @@ c      no snow on the ice assumed for now                           ! sice
 c      N.B. potential evaporation is now eg+eg2                     ! sice
        epot(iq) =fracice(iq)*epotice + (1.-fracice(iq))*epot(iq)    ! sice
        tss(iq) = fracice(iq)*tggsn(iq,1)+(1.-fracice(iq))*tpan(iq)  ! 2004 ! MJT seaice
+       rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4                    ! MJT seaice
 c      Surface stresses taux, tauy: diagnostic only - unstag now    ! sice
        taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                            ! sice
        tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! sice
@@ -510,6 +516,8 @@ c     if(mydiag.and.diag)then
          print *,'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)          
       endif   ! (mydiag.and.nmaxpr==1)                                    
 c----------------------------------------------------------------------
+      call end_log(sfluxsice_end)
+      call start_log(sfluxland_begin)
       !----------------------------------------------------------
       select case(nsib) ! MJT cable
         case(3,5)
@@ -699,6 +707,8 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          enddo   ! ip=1,ipland                                          ! cable
       end select
       !----------------------------------------------------------
+      call end_log(sfluxland_end)
+      call start_log(sfluxurban_begin)
       ! MJT urban
       if (nurban.ne.0) then                                             ! urban
          ! calculate zonal and meridonal winds                          ! urban
@@ -715,8 +725,8 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          vmer= sinth*zonx+costh*zony ! meridonal                        ! urban
          ! call aTEB                                                    ! urban
          call atebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin       ! urban
-     &               ,sgsave(:)/(1.-swrsave*albvisnir(:,1)              ! urban
-     &               -(1.-swrsave)*albvisnir(:,2)),-rgsave(:)           ! urban
+     &               ,sgsave(:)/(1.-swrsave*albvisnir(:,1)-             ! urban
+     &               (1.-swrsave)*albvisnir(:,2)),-rgsave(:)            ! urban
      &               ,condx(:)/dt,rho(:),t(:,1),qg(:,1)                 ! urban
      &               ,ps(:),sig(1)*ps(:),uzon,vmer,vmodmin,0)           ! urban
         ! here we blend zo with the urban part for the                  ! urban
@@ -746,6 +756,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
         end do                                                          ! urban
       end if
       !----------------------------------------------------------
+      call end_log(sfluxurban_end)
 c ----------------------------------------------------------------------
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
       if(diag.or.ntest>0)then
@@ -1621,9 +1632,10 @@ c                                               combined fluxes
       !integer iq,ip
       !integer, dimension(8) :: xp
       !real, dimension(ifull), intent(in) :: runoff
-      !real, dimension(ifull+iextra), save :: watbdy
+      !real, dimension(ifull+iextra), save :: watbdy=0.
       !real, dimension(8) :: zp,dp
-      !real dis,vel
+      !real dis,vel,area
+      !real, parameter :: rhowater=1000.
       !logical, dimension(8) :: lp
       !
       !watbdy(1:ifull)=watbdy(1:ifull)+runoff
@@ -1652,13 +1664,16 @@ c                                               combined fluxes
       !    end if
       !    niq=xp(pos(1))
       !    dis=dp(pos(1))*rearth
-      !    vel=0.35*sqrt((zs(iq)-zs(iqn))/(dis*0.00005)) ! from Mk3.5 scheme
-      !    flow=watbdy(iq)*dt*vel/dis
-      !    watbdy(niq)=watbdy(niq)+flow
-      !    watbdy(iq)=watbdy(iq)-flow*em(iq)/(iqn) ! correct for map factor
+      !    vel=0.35*sqrt((zs(iq)-zs(iqn))/(dis*0.00005)) ! from Hal's Mk3.5 scheme
+      !    vel=min(max(vel,0.15),5.)
+      !    area=(2.*pi*rearth/(real(4*il_g)*em(iq)))**2
+      !    flow=rhowater*area*vel ! (kg/s)
+      !    flow=min(flow,watbdy(iq)*area/dt)
+      !    watbdy(iq)=watbdy(iq)-flow*dt/area
+      !    area=(2.*pi*rearth/(real(4*il_g)*em(niq)))**2
+      !    watbdy(niq)=watbdy(niq)+flow*dt/area
       !  end if          
       !end do
-      !call bounds(watbdy)
       !call mloinflow(ifull,watbdy,dt,0)
       !
       !return

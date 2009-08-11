@@ -589,6 +589,7 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       epot_ave(:)=0.
       eg_ave(:)=0.
       fg_ave(:)=0.
+      rnet_ave(:)=0.
       ga_ave(:)=0.
       riwp_ave(:)=0.
       rlwp_ave(:)=0.
@@ -866,8 +867,10 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
         endif
       endif
       call adjust5
+      call start_log(nestin_begin)
       if(mspec==1.and.nbd.ne.0)call davies  ! nesting now after mass fixers
       if(mspec==1.and.mbd.ne.0)call nestinb ! MJT bugfix
+      call end_log(nestin_end)
 
       if(mspec==2)then     ! for very first step restore mass & T fields
         call gettin(1)
@@ -904,8 +907,11 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
       if(nhor<0)call hordifgt  ! now not tendencies
       if (diag.and.mydiag)print *,'after hordifgt t ',t(idjd,:)
       call start_log(phys_begin)
+      call start_log(gwdrag_begin)
       if(ngwd<0)call gwdrag  ! <0 for split - only one now allowed
+      call end_log(gwdrag_end)
 
+      call start_log(convection_begin)
       if(nkuo==23)call convjlm     ! split convjlm 
       if( nkuo /= 0 ) then
          ! Not set in HS tests.
@@ -914,8 +920,10 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
       end if
       if(nkuo==46)call conjob    ! split Arakawa-Gordon scheme
       if(nkuo==5)call betts(t,qg,tn,land,ps) ! not called these days
+      call end_log(convection_end)
 
       if(ldr.ne.0)then
+        call start_log(cloud_begin)
 c       print*,'Calling prognostic cloud scheme'
         call leoncld(cfrac)  !Output
         do k=1,kl
@@ -927,6 +935,7 @@ c       print*,'Calling prognostic cloud scheme'
           write (6,"('qlrad',3p9f8.3/5x,9f8.3)") qlrad(idjd,:)
           write (6,"('qf   ',3p9f8.3/5x,9f8.3)") qfg(idjd,:)
         endif
+	call end_log(cloud_end)
       endif  ! (ldr.ne.0)
       rnd_3hr(:,8)=rnd_3hr(:,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
 
@@ -1075,11 +1084,13 @@ c         write (6,"('div(nlx+)',9f8.2)") (div(k),k=nlx,nlx+8)
          endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
         endif   ! (ntsur>1)
         if(ntsur>=1)then ! calls vertmix but not sflux for ntsur=1
+	  call start_log(vertmix_begin)
           if(nmaxpr==1.and.mydiag)
      &      write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
           call vertmix 
           if(nmaxpr==1.and.mydiag)
      &      write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+          call end_log(vertmix_end)
         endif  ! (ntsur>=1)
 
 !     This is the end of the physics. The next routine makes the load imbalance
@@ -1224,7 +1235,8 @@ c     if(nmaxpr==1)print *,'before 2nd loadbal ktau,myid = ',ktau,myid
       u10mx    = max(u10mx,u10)  ! for hourly scrnfile
       dew_ave  = dew_ave-min(0.,eg)    
       eg_ave = eg_ave+eg    
-      fg_ave = fg_ave+fg     
+      fg_ave = fg_ave+fg
+      rnet_ave=rnet_ave+rnet     
       tscr_ave = tscr_ave+tscrn 
       qscrn_ave = qscrn_ave+qgscrn 
       spare1(:)=u(1:ifull,1)**2+v(1:ifull,1)**2
@@ -1272,6 +1284,7 @@ c     if(nmaxpr==1)print *,'before 2nd loadbal ktau,myid = ',ktau,myid
         epot_ave(:)  =  epot_ave(:)/min(ntau,nperavg)
         eg_ave(:)    =    eg_ave(:)/min(ntau,nperavg)
         fg_ave(:)    =    fg_ave(:)/min(ntau,nperavg)
+	rnet_ave(:)  =  rnet_ave(:)/min(ntau,nperavg)
         ga_ave(:)    =    ga_ave(:)/min(ntau,nperavg)
         riwp_ave(:)  =  riwp_ave(:)/min(ntau,nperavg)
         rlwp_ave(:)  =  rlwp_ave(:)/min(ntau,nperavg)
@@ -1359,6 +1372,7 @@ c     if(nmaxpr==1)print *,'before 2nd loadbal ktau,myid = ',ktau,myid
         epot_ave(:)=0.
         eg_ave(:)=0.
         fg_ave(:)=0.
+	rnet_ave(:)=0.
         riwp_ave(:)=0.
         rlwp_ave(:)=0.
         qscrn_ave(:) = 0.

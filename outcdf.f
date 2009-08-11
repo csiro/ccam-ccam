@@ -657,7 +657,47 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         call attrib(idnc,idim,3,'iwp_ave',lname,'kg/m2',0.,2.,0)
         lname = 'Avg liquid water path'
         call attrib(idnc,idim,3,'lwp_ave',lname,'kg/m2',0.,2.,0)
-
+        if (nsib.eq.4.or.nsib.eq.6) then ! MJT cable
+          lname = 'Avg theta'
+          call attrib(idnc,idim,3,'theta_ave',lname,'K',100.,400.,0)
+          lname = 'Avg soil moisture 1'
+          call attrib(idnc,idim,3,'wb1_ave',lname,'m3/m3',0.,1.,0)
+          lname = 'Avg soil moisture 2'
+          call attrib(idnc,idim,3,'wb2_ave',lname,'m3/m3',0.,1.,0)
+          lname = 'Avg soil moisture 3'
+          call attrib(idnc,idim,3,'wb3_ave',lname,'m3/m3',0.,1.,0)
+          lname = 'Avg soil moisture 4'
+          call attrib(idnc,idim,3,'wb4_ave',lname,'m3/m3',0.,1.,0)
+          lname = 'Avg soil moisture 5'
+          call attrib(idnc,idim,3,'wb5_ave',lname,'m3/m3',0.,1.,0)
+          lname = 'Avg soil moisture 6'
+          call attrib(idnc,idim,3,'wb6_ave',lname,'m3/m3',0.,1.,0)
+          lname = 'Avg soil temperature 1'
+          call attrib(idnc,idim,3,'tgg1_ave',lname,'K',100.,400.,0)
+          lname = 'Avg soil temperature 2'
+          call attrib(idnc,idim,3,'tgg2_ave',lname,'K',100.,400.,0)
+          lname = 'Avg soil temperature 3'
+          call attrib(idnc,idim,3,'tgg3_ave',lname,'K',100.,400.,0)
+          lname = 'Avg soil temperature 4'
+          call attrib(idnc,idim,3,'tgg4_ave',lname,'K',100.,400.,0)
+          lname = 'Avg soil temperature 5'
+          call attrib(idnc,idim,3,'tgg5_ave',lname,'K',100.,400.,0)
+          lname = 'Avg soil temperature 6'
+          call attrib(idnc,idim,3,'tgg6_ave',lname,'K',100.,400.,0)
+          lname = 'Avg fpn'
+          call attrib(idnc,idim,3,'fpn_ave',lname,'none',-1.E-3,
+     &                                                   1.E-3,0)
+          lname = 'Avg frday'
+          call attrib(idnc,idim,3,'frday_ave',lname,'none',-1.E-3,
+     &                                                     1.E-3,0)
+          lname = 'Avg frp'
+          call attrib(idnc,idim,3,'frp_ave',lname,'none',-1.E-3,
+     &                                                    1.E-3,0)
+          lname = 'Avg net radiation'
+          call attrib(idnc,idim,3,'rnet_ave',lname,'none',-3000.,
+     &                                                     3000.,0)
+        end if
+	  
 !       rml 16/02/06 set attributes for trNNN and travNNN
         if (ngas>0) then 
          do igas=1,ngas
@@ -949,7 +989,12 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       ! MJT mlo
       if (nmlo.ne.0) then
         datoc=999. ! must be the same as spval in onthefly.f
-        call mlosave(ifull,datoc,aa,0)      
+        call mlosave(ifull,datoc,aa,0)
+        !do k=1,wlev
+        !  where(zs(1:ifull).gt.1.)
+        !    dataoc(:,k,2)=999. ! lakes?
+        !  end where
+        !end do
         do k=1,ms
           where (.not.land)
             tgg(:,k)=datoc(:,k,1)
@@ -1122,6 +1167,7 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
          call histwrt3(epot_ave,'epot_ave',idnc,iarch,local)
          call histwrt3(eg_ave,'eg_ave',idnc,iarch,local)
          call histwrt3(fg_ave,'fg_ave',idnc,iarch,local)
+         call histwrt3(rnet_ave,'rnet_ave',idnc,iarch,local) ! MJT cable
          call histwrt3(ga_ave,'ga_ave',idnc,iarch,local)
          call histwrt3(riwp_ave,'iwp_ave',idnc,iarch,local)
          call histwrt3(rlwp_ave,'lwp_ave',idnc,iarch,local)
@@ -1129,6 +1175,24 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
          call histwrt3(clm_ave,'clm',idnc,iarch,local)
          call histwrt3(clh_ave,'clh',idnc,iarch,local)
          call histwrt3(cld_ave,'cld',idnc,iarch,local)
+         if (nsib.eq.4.or.nsib.eq.6) then ! MJT cable
+           call histwrt3(theta_ave,'theta_ave',idnc,iarch,local)
+           call histwrt3(wb1_ave,'wb1_ave',idnc,iarch,local)
+           call histwrt3(wb2_ave,'wb2_ave',idnc,iarch,local)
+           call histwrt3(wb3_ave,'wb3_ave',idnc,iarch,local)
+           call histwrt3(wb4_ave,'wb4_ave',idnc,iarch,local)
+           call histwrt3(wb5_ave,'wb5_ave',idnc,iarch,local)
+           call histwrt3(wb6_ave,'wb6_ave',idnc,iarch,local)
+           call histwrt3(tgg1_ave,'tgg1_ave',idnc,iarch,local)
+           call histwrt3(tgg2_ave,'tgg2_ave',idnc,iarch,local)
+           call histwrt3(tgg3_ave,'tgg3_ave',idnc,iarch,local)
+           call histwrt3(tgg4_ave,'tgg4_ave',idnc,iarch,local)
+           call histwrt3(tgg5_ave,'tgg5_ave',idnc,iarch,local)
+           call histwrt3(tgg6_ave,'tgg6_ave',idnc,iarch,local)
+           call histwrt3(fpn_ave,'fpn_ave',idnc,iarch,local)
+           call histwrt3(frday_ave,'frday_ave',idnc,iarch,local)
+           call histwrt3(frp_ave,'frp_ave',idnc,iarch,local)
+         end if
        endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
        call histwrt3(tscrn,'tscrn',idnc,iarch,local)
        call histwrt3(qgscrn,'qgscrn',idnc,iarch,local)

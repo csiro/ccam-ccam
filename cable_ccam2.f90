@@ -45,6 +45,7 @@ module cable_ccam
       include 'const_phys.h' ! grav
       include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg
       include 'extraout.h'
+      include 'histave.h'
       include 'latlong.h'  ! rlatt,rlongg
       include 'morepbl.h'
       include 'nsibd.h'
@@ -62,11 +63,18 @@ module cable_ccam
       real dirad,dfgdt,degdt,wetfac,degdw,cie
       real factch,qsttg,rho,zo,aft,fh,ri,theta
       real gamm,rg,vmod,dummwk2
+      real egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,residf
+      real ga,condxpr,fev,fes,ism,fwtop,af,extin,dum3
       common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)  &
      & ,wetfac(ifull),degdw(ifull),cie(ifull)              &
      & ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)    &
      & ,aft(ifull),fh(ifull),ri(ifull),theta(ifull)        &
      & ,gamm(ifull),rg(ifull),vmod(ifull),dummwk2(ifull)
+      common/work3/egg(ifull),evapxf(ifull),ewww(ifull),fgf(ifull),  &
+     & fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull), &     
+     & ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),               &
+     & ism(ifull),fwtop(ifull),af(ifull),                            &
+     & extin(ifull),dum3(5*ijk-17*ifull)
 
      ! for calculation of zenith angle
       real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull)
@@ -81,6 +89,34 @@ module cable_ccam
       data imonth /31,28,31,30,31,30,31,31,30,31,30,31/
       integer ndoy(12)   ! days from beginning of year (1st Jan is 0)
       data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
+
+      if (ktau==1.and.nrungcm.ne.0) then
+        do k=1,ms ! use preset for wb
+          ssoil%wb(:,k)=wb(cmap,k)
+        end do
+        ssoil%wetfac = MAX(0., MIN(1., (ssoil%wb(:,1) - soil%swilt) / (soil%sfc - soil%swilt)))
+        ssoil%owetfac = ssoil%wetfac        
+      end if
+
+      if (ktau==1.or.ktau-1==ntau.or.mod(ktau-1,nperavg)==0) then
+        theta_ave=0.
+        wb1_ave=0.
+        wb2_ave=0.
+        wb3_ave=0.
+        wb4_ave=0.
+        wb5_ave=0.
+        wb6_ave=0.
+        tgg1_ave=0.
+        tgg2_ave=0.
+        tgg3_ave=0.
+        tgg4_ave=0.
+        tgg5_ave=0.
+        tgg6_ave=0.
+        fpn_ave=0.
+        frday_ave=0.
+        frp_ave=0.
+      end if
+
 !
 !      set meteorological forcing
 !
@@ -139,7 +175,7 @@ module cable_ccam
        met%ua=max(met%ua,umin)
        met%precip_s=0. ! in mm not mm/sec
        where (met%tc<0.) met%precip_s=met%precip
-  
+       
       !--------------------------------------------------------------
       ! CABLE
       veg%meth = 1
@@ -186,6 +222,7 @@ module cable_ccam
       rnet(iperm(1:ipland))=0.
       fg(iperm(1:ipland))=0.
       eg(iperm(1:ipland))=0.
+      ga(iperm(1:ipland))=0.
       epot(iperm(1:ipland))=0.
       tss(iperm(1:ipland))=0.
       tgf(iperm(1:ipland))=0.
@@ -260,6 +297,8 @@ module cable_ccam
                                         +sv(pind(nb,1):pind(nb,2))*canopy%fh(pind(nb,1):pind(nb,2))
           eg(cmap(pind(nb,1):pind(nb,2)))=eg(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*canopy%fe(pind(nb,1):pind(nb,2))
+          ga(cmap(pind(nb,1):pind(nb,2)))=ga(cmap(pind(nb,1):pind(nb,2))) &
+                                        +sv(pind(nb,1):pind(nb,2))*canopy%ga(pind(nb,1):pind(nb,2))
           epot(cmap(pind(nb,1):pind(nb,2)))=epot(cmap(pind(nb,1):pind(nb,2))) &
                                           +sv(pind(nb,1):pind(nb,2))*ssoil%potev(pind(nb,1):pind(nb,2))
           tss(cmap(pind(nb,1):pind(nb,2)))=tss(cmap(pind(nb,1):pind(nb,2))) &
@@ -386,6 +425,43 @@ module cable_ccam
         end if
       end do
 
+      ! For Yingping off-line experiments
+      theta_ave=theta_ave+theta
+      wb1_ave  =wb1_ave  +wb(:,1)
+      wb2_ave  =wb2_ave  +wb(:,2)
+      wb3_ave  =wb3_ave  +wb(:,3)
+      wb4_ave  =wb4_ave  +wb(:,4)
+      wb5_ave  =wb5_ave  +wb(:,5)
+      wb6_ave  =wb6_ave  +wb(:,6)                              
+      tgg1_ave =tgg1_ave +tgg(:,1)
+      tgg2_ave =tgg2_ave +tgg(:,2)
+      tgg3_ave =tgg3_ave +tgg(:,3)
+      tgg4_ave =tgg4_ave +tgg(:,4)
+      tgg5_ave =tgg5_ave +tgg(:,5)
+      tgg6_ave =tgg6_ave +tgg(:,6)
+      fpn_ave  =fpn_ave  +fpn
+      frday_ave=frday_ave+frd
+      frp_ave  =frp_ave  +frp
+      
+      if (ktau==ntau.or.mod(ktau,nperavg)==0) then
+        theta_ave=theta_ave/min(ntau,nperavg)
+        wb1_ave  =wb1_ave  /min(ntau,nperavg)
+        wb2_ave  =wb2_ave  /min(ntau,nperavg)
+        wb3_ave  =wb3_ave  /min(ntau,nperavg)
+        wb4_ave  =wb4_ave  /min(ntau,nperavg)
+        wb5_ave  =wb5_ave  /min(ntau,nperavg)
+        wb6_ave  =wb6_ave  /min(ntau,nperavg)
+        tgg1_ave =tgg1_ave /min(ntau,nperavg)
+        tgg2_ave =tgg2_ave /min(ntau,nperavg)
+        tgg3_ave =tgg3_ave /min(ntau,nperavg)
+        tgg4_ave =tgg4_ave /min(ntau,nperavg)
+        tgg5_ave =tgg5_ave /min(ntau,nperavg)
+        tgg6_ave =tgg6_ave /min(ntau,nperavg)
+        fpn_ave  =fpn_ave  /min(ntau,nperavg)
+        frday_ave=frday_ave/min(ntau,nperavg)
+        frp_ave  =frp_ave  /min(ntau,nperavg)
+      end if      
+      
       return
       end subroutine sib4
 
@@ -510,6 +586,11 @@ module cable_ccam
   ratecp(3)=0.14
   ratecs(1)=2.
   ratecs(2)=0.5
+  
+  if (nrungcm.ne.0) then
+    if (myid==0) print *,"Use wb preset for CABLE"
+    wb=-0.5 ! dummy for now
+  end if
 
   if (any(wb(:,:).lt.0.)) then
     if (myid==0) print *,"Unpacking wetfrac to wb"

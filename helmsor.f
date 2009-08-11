@@ -28,7 +28,7 @@
       integer, save, dimension(ifull) :: mask
       integer, dimension(kl) :: iters
       integer, dimension(3),save :: ifullx    ! MJT pack
-      integer, dimension(ifull,3),save :: iqx ! MJT pack
+      integer, dimension(ifull,3),save :: iqx,iqn,iqe,iqw,iqs ! MJT pack
       real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
       real, dimension(kl) ::  smin, smin_g
       real aa(ifull), bb(ifull), cc(ifull), axel, accel(kl) ! MJT pack
@@ -36,6 +36,8 @@
       logical first
       save  first, meth, nx_max, axel, accel
       data first /.true./
+
+      call start_log(helm_begin) ! MJT
 
       if(first)then
         if(precon==-1)precon=-2325  ! i.e. 2, 3, .25
@@ -63,12 +65,20 @@
          enddo
 c       print *,'j ',j,(mask(iq),iq=1+(j-1)*il,6+(j-1)*il)
        enddo
-       ifullx=0                              ! MJT pack
-       iqx=0                                 ! MJT pack
-       do iq=1,ifull                         ! MJT pack
-         ifullx(mask(iq))=ifullx(mask(iq))+1 ! MJT pack
-         iqx(ifullx(mask(iq)),mask(iq))=iq   ! MJT pack
-       end do                                ! MJT pack
+       ifullx=0                                ! MJT pack
+       iqx=0                                   ! MJT pack
+       iqn=0                                   ! MJT pack
+       iqe=0                                   ! MJT pack
+       iqw=0                                   ! MJT pack
+       iqs=0                                   ! MJT pack
+       do iq=1,ifull                           ! MJT pack
+         ifullx(mask(iq))=ifullx(mask(iq))+1   ! MJT pack
+         iqx(ifullx(mask(iq)),mask(iq))=iq     ! MJT pack
+         iqn(ifullx(mask(iq)),mask(iq))=in(iq) ! MJT pack
+         iqe(ifullx(mask(iq)),mask(iq))=ie(iq) ! MJT pack
+         iqw(ifullx(mask(iq)),mask(iq))=iw(iq) ! MJT pack
+         iqs(ifullx(mask(iq)),mask(iq))=is(iq) ! MJT pack
+       end do                                  ! MJT pack
        first=.false.
       endif  ! (first)
       if(ktau==1)then
@@ -92,10 +102,10 @@ c$      print *,'myid,ktau,precon ',myid,ktau,precon
 !         do iq=1,ifull
 !          if(mask(iq)==nx)then
            dsol(iqx(1:ifullx(nx),nx),k)=
-     &        ( zzn(iqx(1:ifullx(nx),nx))*s(in(iqx(1:ifullx(nx),nx)),k)
-     &        + zzw(iqx(1:ifullx(nx),nx))*s(iw(iqx(1:ifullx(nx),nx)),k)
-     &        +zze(iqx(1:ifullx(nx),nx))*s(ie(iqx(1:ifullx(nx),nx)),k)
-     &        + zzs(iqx(1:ifullx(nx),nx))*s(is(iqx(1:ifullx(nx),nx)),k)
+     &        ( zzn(iqx(1:ifullx(nx),nx))*s(iqn(1:ifullx(nx),nx),k)
+     &        + zzw(iqx(1:ifullx(nx),nx))*s(iqw(1:ifullx(nx),nx),k)
+     &        + zze(iqx(1:ifullx(nx),nx))*s(iqe(1:ifullx(nx),nx),k)
+     &        + zzs(iqx(1:ifullx(nx),nx))*s(iqs(1:ifullx(nx),nx),k)
      &        +(zz(iqx(1:ifullx(nx),nx))
      &        -helm(iqx(1:ifullx(nx),nx),k))*s(iqx(1:ifullx(nx),nx),k)
      &        - rhs(iqx(1:ifullx(nx),nx),k))      
@@ -198,19 +208,19 @@ c           rotate s files
       enddo ! k loop   
       if(ntest>0.and.meth>=1.and.mydiag)
      &  write (6,"('Iter ,s',i4,4f14.5)") iter,(s(iq,1),iq=1,4)
-      do k=1,klim
-       if(iter==1)then
+      if(iter==1)then
+       do k=1,klim
          smax(k) = maxval(s(1:ifull,k))
          smin(k) = minval(s(1:ifull,k))
-       endif
-       dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
-      enddo
-      if(iter==1)then
+       end do
         call MPI_Reduce( smax, smax_g, klim, MPI_REAL, MPI_MAX, 0,
      &                    MPI_COMM_WORLD, ierr )
         call MPI_Reduce( smin, smin_g, klim, MPI_REAL, MPI_MIN, 0,
      &                    MPI_COMM_WORLD, ierr )
       endif
+      do k=1,klim
+       dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
+      enddo
       call MPI_Reduce( dsolmax, dsolmax_g, klim, MPI_REAL, MPI_MAX, 0,
      &                    MPI_COMM_WORLD, ierr )
       if(myid==0.and.ntest>0)then
@@ -226,7 +236,7 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
        endif
       enddo
       klim=klimnew
-      call MPI_Bcast(klim,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr) 
+      call MPI_Bcast(klim,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)  ! MJT why is this needed?
       iter = iter + 1
       enddo   ! while( iter<itmax .and. klim>1)
 
@@ -235,6 +245,7 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
          print*,'helmjlm ktau,k,Iterations ',ktau,k,iters(k)
         enddo
       endif
+      call end_log(helm_end) ! MJT
       return
 
 5     continue  
@@ -248,25 +259,11 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
         do nx=1,nx_max
         !------------------------------------------------------------
         ! MJT pack
-!         do iq=1,ifull
-!          if(mask(iq)==nx)then
-!             dsol(iq,k)=( zzn(iq)*s(in(iq),k) + zzw(iq)*s(iw(iq),k)    
-!     &          +zze(iq)*s(ie(iq),k) + zzs(iq)*s(is(iq),k)
-!     &          +(zz(iq)-helm(iq,k))*s(iq,k) - rhs(iq,k))      
-!     &               /(helm(iq,k)-zz(iq))
-!             snew(iq,k) = s(iq,k) + accel(k)*dsol(iq,k)
-!          endif
-!         enddo
-!         do iq=1,ifull
-!          if(mask(iq)==nx)then
-!            s(iq,k)=snew(iq,k)
-!          endif
-!         enddo
           dsol(iqx(1:ifullx(nx),nx),k)=
-     &       ( zzn(iqx(1:ifullx(nx),nx))*s(in(iqx(1:ifullx(nx),nx)),k)
-     &       + zzw(iqx(1:ifullx(nx),nx))*s(iw(iqx(1:ifullx(nx),nx)),k)
-     &       +zze(iqx(1:ifullx(nx),nx))*s(ie(iqx(1:ifullx(nx),nx)),k)
-     &       + zzs(iqx(1:ifullx(nx),nx))*s(is(iqx(1:ifullx(nx),nx)),k)
+     &       ( zzn(iqx(1:ifullx(nx),nx))*s(iqn(1:ifullx(nx),nx),k)
+     &       + zzw(iqx(1:ifullx(nx),nx))*s(iqw(1:ifullx(nx),nx),k)
+     &       + zze(iqx(1:ifullx(nx),nx))*s(iqe(1:ifullx(nx),nx),k)
+     &       + zzs(iqx(1:ifullx(nx),nx))*s(iqs(1:ifullx(nx),nx),k)
      &       +(zz(iqx(1:ifullx(nx),nx))
      &       -helm(iqx(1:ifullx(nx),nx),k))*s(iqx(1:ifullx(nx),nx),k)
      &       - rhs(iqx(1:ifullx(nx),nx),k))      
@@ -280,17 +277,13 @@ c        print *,'k,klim,iter,restol ',k,klim,iter,restol
       enddo ! k loop   
       if(ntest>0.and.diag)
      &  write (6,"('myid,Iter ,s',i4,4f14.5)")myid,iter,(s(iq,1),iq=1,4)
-      do k=1,klim
-       if(iter==1)then
+      if(iter==1)then
+        do k=1,klim
          smax(k) = maxval(s(1:ifull,k))
          smin(k) = minval(s(1:ifull,k))
-         if(ntest>0.and.diag)print *,'myid,k,smax,smin ',
-     &                                myid,k,smax(k),smin(k)
-       endif
-c      write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
-       dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
-      enddo  ! k loop
-      if(iter==1)then
+!         if(ntest>0.and.diag)print *,'myid,k,smax,smin ',
+!     &                                myid,k,smax(k),smin(k)
+        enddo
         if(ntest>0.and.diag)print *,' before smax call myid ', myid
         call MPI_AllReduce( smax, smax_g, klim, MPI_REAL, MPI_MAX,
      &                      MPI_COMM_WORLD, ierr )
@@ -301,7 +294,11 @@ c      write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
           print *,'ktau,myid,smin_g ',ktau,myid,smin_g(:)
           print *,'ktau,myid,smax_g ',ktau,myid,smax_g(:)
         endif  ! (myid==0)
-      endif    ! (iter==1)
+      end if
+      do k=1,klim
+c      write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
+       dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
+      enddo  ! k loop
       if(ntest>0)then
         print *,'ktau,myid,iter,dsolmax ',ktau,myid,iter,dsolmax(:)
       endif  ! (myid==0)
@@ -326,5 +323,7 @@ c      write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
          enddo
         endif
       endif
+      
+      call end_log(helm_end) ! MJT
       return
       end

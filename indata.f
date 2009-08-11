@@ -990,9 +990,9 @@ c        end if
 !          fracsum(imo) is .5 for nh summer value, -.5 for nh winter value
            fracs=sign(1.,rlatt(iq))*fracsum(imo)  ! +ve for local summer
            if(nrungcm>5)then
-             fracwet=.01*nrungcm   ! e.g. 50 gives .5
+            fracwet=.01*nrungcm   ! e.g. 50 gives .5
            else
-             fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
+            fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
 !            N.B. for all Dean's points, fracwet=fracwets=fracwetw=.5           
            endif
            wb(iq,ms)= (1.-fracwet)*swilt(isoilm(iq))+ 
