@@ -116,8 +116,7 @@ water%v=0.      ! m/s
 pg%mixdepth=100. ! m
 pg%mixind=wlev-1
 
-!depth = (/ 0.5, 4.5, 13., 25., 41., 61., 85., 113., 145., 181., 221., 265., 313.,
-!           365., 421., 481., 545., 613., 685., 761., 841, 925., 1013.  /)  ! 2.*(x-0.5)^2
+!depth = (/ 0.5, 4.5, 17.5, 45.5, 94.5, 170.5, 279.5, 427.5, 620.5, 864.5 /)
 
 smxd=maxval(depin(wgrid))
 smnd=minval(depin(wgrid))
@@ -379,59 +378,42 @@ if (incradgam.gt.0) then
 else
   dumt0=dg2%wt0
 end if
-rhs(:,1)=(0.25/dz(:,1))*(ks(:,2)+ks(:,1))*(gammas(:,2)+gammas(:,1))*dumt0
+rhs(:,1)=(0.25/dz(:,1))*(ks(:,2)+ks(:,1))*(gammas(:,2)+gammas(:,1))
 do ii=2,wlev-1
   where (ii.le.pg%mixind)
     rhs(:,ii)=(0.25/dz(:,ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
-                          -(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dumt0 ! non-local
+                              -(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1))) ! non-local
   elsewhere (ii.eq.pg%mixind+1)
-    rhs(:,ii)=(0.25/dz(:,ii))*(-(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dumt0
+    rhs(:,ii)=(0.25/dz(:,ii))*(-(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))
   elsewhere
     rhs(:,ii)=0.
   end where
 end do
 where (wlev.eq.pg%mixind+1)
-  rhs(:,wlev)=(0.25/dz(:,wlev))*(-(ks(:,wlev)+ks(:,wlev-1))*(gammas(:,wlev)+gammas(:,wlev-1)))*dumt0
+  rhs(:,wlev)=(0.25/dz(:,wlev))*(-(ks(:,wlev)+ks(:,wlev-1))*(gammas(:,wlev)+gammas(:,wlev-1)))
 elsewhere
   rhs(:,wlev)=0.
 end where
-rhs(:,:)=rhs(:,:)+dg3%rad/dz ! shortwave
 bb(:,1)=1./dt+0.5*(ks(:,1)+ks(:,2))/(dz_hl(:,2)*dz(:,1))
 cc(:,1)=-0.5*(ks(:,1)+ks(:,2))/(dz_hl(:,2)*dz(:,1))
 ! use -ve for BC as depth is down
-dd(:,1)=water(:,1)%temp/dt+rhs(:,1)-dg2%wt0/dz(:,1)
+dd(:,1)=water(:,1)%temp/dt+rhs(:,1)*dumt0+dg3(:,1)%rad/dz(:,1)-dg2%wt0/dz(:,1)
 do ii=2,wlev-1
   aa(:,ii)=-0.5*(ks(:,ii)+ks(:,ii-1))/(dz_hl(:,ii)*dz(:,ii))
   bb(:,ii)=1./dt+0.5*((ks(:,ii+1)+ks(:,ii))/dz_hl(:,ii+1)+(ks(:,ii)+ks(:,ii-1))/dz_hl(:,ii))/dz(:,ii)
   cc(:,ii)=-0.5*(ks(:,ii+1)+ks(:,ii))/(dz_hl(:,ii+1)*dz(:,ii))
-  dd(:,ii)=water(:,ii)%temp/dt+rhs(:,ii)
+  dd(:,ii)=water(:,ii)%temp/dt+rhs(:,ii)*dumt0+dg3(:,ii)%rad/dz(:,ii)
 end do
 aa(:,wlev)=-0.5*(ks(:,wlev)+ks(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
 bb(:,wlev)=1./dt+0.5*(ks(:,wlev)+ks(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
-dd(:,wlev)=water(:,wlev)%temp/dt+rhs(:,wlev)
+dd(:,wlev)=water(:,wlev)%temp/dt+rhs(:,wlev)*dumt0+dg3(:,wlev)%rad/dz(:,wlev)
 call thomas(new%temp,aa,bb,cc,dd)
 
 ! SALINITY
-rhs(:,1)=(0.25/dz(:,1))*(ks(:,2)+ks(:,1))*(gammas(:,2)+gammas(:,1))*dg2%ws0
-do ii=2,wlev-1
-  where(ii.le.pg%mixind)
-    rhs(:,ii)=(0.25/dz(:,ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
-                          -(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dg2%ws0 ! non-local
-  elsewhere(ii.eq.pg%mixind+1)
-    rhs(:,ii)=(0.25/dz(:,ii))*(-(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))*dg2%ws0  
-  elsewhere
-    rhs(:,ii)=0.
-  end where
+do ii=1,wlev
+  dd(:,ii)=water(:,ii)%sal/dt+rhs(:,ii)*dg2%ws0
 end do
-where(wlev.eq.pg%mixind+1)
-  rhs(:,wlev)=(0.25/dz(:,wlev))*(-(ks(:,wlev)+ks(:,wlev-1))*(gammas(:,wlev)+gammas(:,wlev-1)))*dg2%ws0
-elsewhere
-  rhs(:,wlev)=0.
-end where
-dd(:,1)=water(:,1)%sal/dt+rhs(:,1)-dg2%ws0/dz(:,1)
-do ii=2,wlev
-  dd(:,ii)=water(:,ii)%sal/dt+rhs(:,ii)
-end do
+dd(:,1)=dd(:,1)-dg2%ws0/dz(:,1)
 call thomas(new%sal,aa,bb,cc,dd)
 
 ! split U diffusion term
@@ -450,10 +432,10 @@ dd(:,wlev)=water(:,wlev)%u/dt
 call thomas(new%u,aa,bb,cc,dd)
 
 ! split V diffusion term
-dd(:,1)=water(:,1)%v/dt-dg2%wv0/dz(:,1)
-do ii=2,wlev
+do ii=1,wlev
   dd(:,ii)=water(:,ii)%v/dt
 end do
+dd(:,1)=dd(:,1)-dg2%wv0/dz(:,1)
 call thomas(new%v,aa,bb,cc,dd)
 
 water%u=new%u
@@ -586,7 +568,7 @@ do iqw=1,wfull
   dg1mds=-dnumhdz/wm1-numh*dwm1ds/(pg(iqw)%mixdepth*wm1*wm1)
   g1s=nush/(pg(iqw)%mixdepth*ws1)
   dg1sds=-dnushdz/ws1-nush*dws1ds/(pg(iqw)%mixdepth*ws1*ws1)
-
+  
   a2m(iqw)=-2.+3.*g1m-dg1mds
   a3m(iqw)=1.-2.*g1m+dg1mds
   a2s(iqw)=-2.+3.*g1s-dg1sds
@@ -611,12 +593,10 @@ cg=10.*vkar*(98.96*vkar*epsilon)**(1./3.)
 do ii=1,wlev
   where (pg%bf.lt.0.) ! unstable
     gammas(:,ii)=cg/(ws(:,ii)*pg%mixdepth)
-  elsewhere            ! stable
+  elsewhere           ! stable
     gammas(:,ii)=0.
   end where
 end do
-
-! enhancement is neglected for now
 
 return
 end subroutine getstab
