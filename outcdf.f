@@ -651,6 +651,8 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         call attrib(idnc,idim,3,'fg',lname,'W/m2',-3000.,3000.,0)
         lname = 'Avg sensible heat flux'
         call attrib(idnc,idim,3,'fg_ave',lname,'W/m2',-3000.,3000.,0)
+        lname = 'Avg net radiation'
+        call attrib(idnc,idim,3,'rnet_ave',lname,'none',-3000.,3000.,0)
         lname = 'Avg flux into tgg1 layer'
         call attrib(idnc,idim,3,'ga_ave',lname,'W/m2',-1000.,1000.,0)
         lname = 'Avg ice water path'
@@ -693,9 +695,6 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
           lname = 'Avg frp'
           call attrib(idnc,idim,3,'frp_ave',lname,'none',-1.E-3,
      &                                                    1.E-3,0)
-          lname = 'Avg net radiation'
-          call attrib(idnc,idim,3,'rnet_ave',lname,'none',-3000.,
-     &                                                     3000.,0)
         end if
 	  
 !       rml 16/02/06 set attributes for trNNN and travNNN
