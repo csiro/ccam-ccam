@@ -174,43 +174,43 @@ c     using av_vmod (1. for no time averaging)
       vmag(:)=max( vmod(:) , vmodmin) ! vmag used to calculate ri
       if(ntsur.ne.7)vmod(:)=vmag(:)	! gives usual way
 
-      call start_log(sfluxwater_begin)
-      if(ntest==2.and.mydiag)print *,'before sea loop'
+      call start_log(sfluxwater_begin)                               ! sea
+      if(ntest==2.and.mydiag)print *,'before sea loop'               ! sea
 !      from June '03 use basic sea temp from tgg1 (so leads is sensible)      
-!     all sea points in this loop; also open water of leads  
-      if(charnock>0.)then
-        charnck(:)=charnock
-      elseif(charnock<-1.)then            ! zo like Moon (2004)
-        if(ktau==1)u10(:)=vmod(:)/3.8
-        charnck(:)=max(.0000386*u10(:),.000085*u10(:)-.00058)
-      else
-        if(ktau==1)u10(:)=vmod(:)/3.8
-        charnck(:)=.008+3.e-4*(u10(:)-9.)**2/ ! like Makin (2002)
-     &            (1.+(.006+.00008*u10(:))*u10(:)**2)
-      endif
+!     all sea points in this loop; also open water of leads          ! sea
+      if(charnock>0.)then                                            ! sea
+        charnck(:)=charnock                                          ! sea
+      elseif(charnock<-1.)then            ! zo like Moon (2004)      ! sea
+        if(ktau==1)u10(:)=vmod(:)/3.8                                ! sea
+        charnck(:)=max(.0000386*u10(:),.000085*u10(:)-.00058)        ! sea
+      else                                                           ! sea
+        if(ktau==1)u10(:)=vmod(:)/3.8                                ! sea
+        charnck(:)=.008+3.e-4*(u10(:)-9.)**2/ ! like Makin (2002)    ! sea
+     &            (1.+(.006+.00008*u10(:))*u10(:)**2)                ! sea
+      endif                                                          ! sea
       !--------------------------------------------------------------
       ! MJT mlo
-      if (nmlo.eq.0) then
-      
-      do iq=1,ifull
-       if(.not.land(iq))then 
-        wetfac(iq)=1.                                                ! sea
-!       tgg2 (called tpan from Oct 05) holds effective skin sst for this loop 
-        if(ntss_sh==0)then
-         dtsol=.01*sgsave(iq)/(1.+.25*vmod(iq)**2)   ! solar heating ! sea
-         tpan(iq)=tgg(iq,1)+tss_sh*min(dtsol,8.)     ! of ssts       ! sea
+      if (nmlo.eq.0) then                                            ! JLM SST
+                                                                     ! JLM SST
+      do iq=1,ifull                                                  ! JLM SST
+       if(.not.land(iq))then                                         ! JLM SST 
+        wetfac(iq)=1.                                                ! JLM SST
+!       tgg2 (called tpan from Oct 05) holds effective JLM SST for this loop 
+        if(ntss_sh==0)then                                           ! JLM SST
+         dtsol=.01*sgsave(iq)/(1.+.25*vmod(iq)**2)   ! solar heating ! JLM SST
+         tpan(iq)=tgg(iq,1)+tss_sh*min(dtsol,8.)     ! of ssts       ! JLM SST
 c        if(iq==idjd)print*,'ip,iq,tgg1,tss_sh,sgsave,vmod,dtsol ',
 c     &               ip,iq,tgg(iq,1),tss_sh,sgsave(iq),vmod(iq),dtsol  
-        elseif(ntss_sh==3)then                                       ! sea
-         dtsol=tss_sh*.01*sgsave(iq)/                                ! sea
-     .                (1.+.035*vmod(iq)**3)          ! solar heating ! sea
-         tpan(iq)=tgg(iq,1)+min(dtsol,8.)            ! of ssts       ! sea
-        elseif(ntss_sh==4)then                                       ! sea
-         dtsol=tss_sh*.01*sgsave(iq)/                                ! sea
-     .                (1.+vmod(iq)**4/81.)           ! solar heating ! sea
-         tpan(iq)=tgg(iq,1)+min(dtsol,8.)            ! of ssts       ! sea
-        endif   ! (ntss_sh==0) .. else ..
-        if(nplens.ne.0)then
+        elseif(ntss_sh==3)then                                       ! JLM SST
+         dtsol=tss_sh*.01*sgsave(iq)/                                ! JLM SST
+     .                (1.+.035*vmod(iq)**3)          ! solar heating ! JLM SST
+         tpan(iq)=tgg(iq,1)+min(dtsol,8.)            ! of ssts       ! JLM SST
+        elseif(ntss_sh==4)then                                       ! JLM SST
+         dtsol=tss_sh*.01*sgsave(iq)/                                ! JLM SST
+     .                (1.+vmod(iq)**4/81.)           ! solar heating ! JLM SST
+         tpan(iq)=tgg(iq,1)+min(dtsol,8.)            ! of ssts       ! JLM SST
+        endif   ! (ntss_sh==0) .. else ..                            ! JLM SST
+        if(nplens.ne.0)then                                          ! JLM SST
 !        calculate running total (over last 24 h) of daily precip in mm  jlm
          plens(iq)=(1.-dt/86400.)*plens(iq)+condx(iq)  ! in mm/day
 !        scale so that nplens m/s wind for 1/2 hr reduces effect by 1/1.2
@@ -218,28 +218,28 @@ c     &               ip,iq,tgg(iq,1),tss_sh,sgsave(iq),vmod(iq),dtsol
          plens(iq)=plens(iq)/(1.+vmod(iq)*dt*.2/
      .                    max(nplens*1800.,1.))      ! avoids Cray compiler bug
 !        produce a cooling of 4 K for an effective plens of 10 mm/day
-         tpan(iq)=tpan(iq)-min(.4*plens(iq) , 6.)
-        endif   !  (nplens.ne.0)
-       if(ntsea==1.and.condx(iq)>.1)tpan(iq)=t(iq,2)  
-       if(ntsea==2.and.condx(iq)>.1)tpan(iq)=t(iq,1)  
-       if(ntsea==3.and.condx(iq)>.1)tpan(iq)=.5*(t(iq,2)+tgg(iq,1))  
-       if(ntsea==4.and.condx(iq)>.1)tpan(iq)=.5*(t(iq,1)+tgg(iq,1)) 
-       endif  ! (.not.land(iq)) 
-      enddo   ! iq loop
-      
-      else ! nmlo.ne.0
-        where(.not.land)
-          tpan=tgg(:,1) ! MLO updates solar heating
-          wetfac=1.
-        endwhere
-      end if
+         tpan(iq)=tpan(iq)-min(.4*plens(iq) , 6.)                    ! JLM SST
+        endif   !  (nplens.ne.0)                                     ! JLM SST
+       if(ntsea==1.and.condx(iq)>.1)tpan(iq)=t(iq,2)                 ! JLM SST
+       if(ntsea==2.and.condx(iq)>.1)tpan(iq)=t(iq,1)                 ! JLM SST
+       if(ntsea==3.and.condx(iq)>.1)tpan(iq)=.5*(t(iq,2)+tgg(iq,1))  ! JLM SST
+       if(ntsea==4.and.condx(iq)>.1)tpan(iq)=.5*(t(iq,1)+tgg(iq,1))  ! JLM SST
+       endif  ! (.not.land(iq))                                      ! JLM SST
+      enddo   ! iq loop                                              ! JLM SST
+                                                                     ! JLM SST
+      else ! nmlo.ne.0                                               ! MLO
+        where(.not.land)                                             ! MLO
+          tpan=tgg(:,1) ! MLO updates solar heating                  ! MLO
+          wetfac=1.                                                  ! MLO
+        endwhere                                                     ! MLO
+      end if                                                         ! MLO
       !--------------------------------------------------------------
 
 !     here calculate fluxes for sea point, and nominal pan points	 
-      afrootpan=vkar/log(zmin/panzo)                       
-      do iq=1,ifull
-c      drag coefficients  for momentum           cduv        
-c      for heat and moisture  cdtq                  
+      afrootpan=vkar/log(zmin/panzo)                                 ! sea
+      do iq=1,ifull                                                  ! sea
+c      drag coefficients  for momentum           cduv                ! sea
+c      for heat and moisture  cdtq                                   ! sea
        es = establ(tpan(iq))                                         ! sea
        constz=ps(iq)-es                                              ! sea
        qsttg(iq)= .98*.622*es/constz  ! with Zeng 1998 for sea water ! sea
@@ -249,16 +249,16 @@ c      for heat and moisture  cdtq
 !      if(ngas>0)stop 'call co2sflux'                                ! sea
 c      this is in-line ocenzo using latest coefficient, i.e. .018    ! sea
        consea=vmod(iq)*charnck(iq)/grav  ! usually charnock=.018     ! sea
-       if(land(iq))then
-         zo(iq)=panzo
+       if(land(iq))then                                              ! sea
+         zo(iq)=panzo                                                ! sea
          af(iq)=afrootpan**2                                         ! sea
-       else
-        if(charnock<-1.)then  ! Moon (2004) over sea
-         zo(iq)=charnck(iq)
+       else                                                          ! sea
+        if(charnock<-1.)then  ! Moon (2004) over sea                 ! sea
+         zo(iq)=charnck(iq)                                          ! sea
          afroot=vkar/log(zmin/zo(iq))                                ! sea
          af(iq)=afroot**2                                            ! sea
-        else            ! usual charnock method over sea
-         zo(iq)=.001    ! .0005 better first guess                 
+        else            ! usual charnock method over sea             ! sea
+         zo(iq)=.001    ! .0005 better first guess                   ! sea
          if(ri(iq)>0.)then             ! stable sea points           ! sea
            fm=vmod(iq) /(1.+bprm*ri(iq))**2 ! N.B. this is vmod*fm   ! sea
            con=consea*fm                                             ! sea
@@ -319,6 +319,7 @@ c        so eg (& epan) and fg  (also aft) then indept of zo
        conw=rho(iq)*aft(iq)*hl                                       ! sea
        fg(iq)=conh*fh(iq)*(tpan(iq)-theta(iq))                       ! sea
        eg(iq)=conw*fh(iq)*(qsttg(iq)-qg(iq,1))                       ! sea
+       rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tpan(iq)**4 ! MJT mlo   ! sea
 c      cduv is now drag coeff *vmod                                  ! sea
        cduv(iq) =af(iq)*fm                                           ! sea
        ustar(iq) = sqrt(vmod(iq)*cduv(iq))                           ! sea
@@ -337,38 +338,35 @@ c      Surface stresses taux, tauy: diagnostic only - unstaggered now
          print *,'vmod,cduv,fg ',vmod(iq),cduv(iq),fg(iq)            ! sea
        endif                                                         ! sea
       enddo     ! iq loop                                            ! sea
-      epot(:) = eg(:)                                               
-      epan(:) = eg(:)                         
-c     section to update pan temperatures
-      do iq=1,ifull
-       if(land(iq))then
-         rgg(iq)=5.67e-8*tpan(iq)**4    
-!        assume gflux = 0
-!        note pan depth=.254 m, spec heat water=4186 joule/kg K
-!        and change in heat supplied=spec_heatxmassxdelta_T
-         ga(iq)=-slwa(iq)-rgg(iq)-panfg*fg(iq)
-         tpan(iq)=tpan(iq)+ga(iq)*dt/(4186.*.254*1000.)             
-       endif  ! (land(iq))
-      enddo   ! iq loop
+      epot(:) = eg(:)                                                ! sea
+      epan(:) = eg(:)                                                ! sea
+c     section to update pan temperatures                             ! sea
+      do iq=1,ifull                                                  ! sea
+       if(land(iq))then                                              ! sea
+         rgg(iq)=5.67e-8*tpan(iq)**4                                 ! sea
+!        assume gflux = 0                                            ! sea
+!        note pan depth=.254 m, spec heat water=4186 joule/kg K      ! sea
+!        and change in heat supplied=spec_heatxmassxdelta_T          ! sea
+         ga(iq)=-slwa(iq)-rgg(iq)-panfg*fg(iq)                       ! sea
+         tpan(iq)=tpan(iq)+ga(iq)*dt/(4186.*.254*1000.)              ! sea
+       endif  ! (land(iq))                                           ! sea
+      enddo   ! iq loop                                              ! sea
       
     !----------------------------------------------------------------
     ! MJT mlo
-      if (nmlo.ne.0) then
-        ! note taux and tauy do not include sea-ice at this point
-        call mloeval(ifull,tgg(:,1),dt,fg,eg
-     &               ,sgsave,-rgsave-stefbo*tgg(:,1)**4
-     &               ,condx/dt,taux,tauy,f,0)
-        where(.not.land)
-          tpan=tgg(:,1)
-          tss=tgg(:,1)
-        endwhere
-        do k=2,ms
-          call mloexport(ifull,tgg(:,k),k,0)
-        end do
-      end if
-      where (.not.land)
-        rnet=sgsave-rgsave-stefbo*tss**4
-      end where
+      if (nmlo.ne.0) then                                            ! MLO
+        ! note taux and tauy do not include sea-ice at this point    ! MLO
+        call mloeval(ifull,tgg(:,1),dt,fg,eg                         ! MLO
+     &               ,sgsave,-rgsave-stefbo*tgg(:,1)**4              ! MLO
+     &               ,condx/dt,taux,tauy,u(:,1),v(:,1),f,0)          ! MLO
+        where(.not.land)                                             ! MLO
+          tpan=tgg(:,1)                                              ! MLO
+          tss=tgg(:,1)                                               ! MLO
+        endwhere                                                     ! MLO
+        do k=2,ms                                                    ! MLO
+          call mloexport(ifull,tgg(:,k),k,0)                         ! MLO
+        end do                                                       ! MLO
+      end if                                                         ! MLO
     !----------------------------------------------------------------
 
       if(nmaxpr==1.and.mydiag)then

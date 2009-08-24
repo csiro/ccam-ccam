@@ -373,6 +373,7 @@ c            call ccmpi_gather(qg(:,k))
          if(numneg==0)nemi=1  ! should be using zss in that case
        endif                     !  (nemi==2)
        print *,'using nemi = ',nemi
+       tss_a=abs(tss_a) ! MJT bug fix
       
        if(nemi==1)then
          land_a(:) = zss_a(:) > 0.

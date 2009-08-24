@@ -314,14 +314,15 @@ end subroutine mloregrid
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
 
-subroutine mloeval(ifull,sst,dt,fg,eg,sg,rg,precp,taux,tauy,f,diag)
+subroutine mloeval(ifull,sst,dt,fg,eg,sg,rg,precp,taux,tauy,uatm,vatm,f,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
 real, intent(in) :: dt
-real, dimension(ifull), intent(in) :: sg,rg,fg,eg,taux,tauy,precp,f
+real, dimension(ifull), intent(in) :: sg,rg,fg,eg,taux,tauy,precp,f,uatm,vatm
 real, dimension(ifull), intent(inout) :: sst
+real, dimension(wfull) :: ua,va,umag,uad,vad,umagd
 type(tatm), dimension(wfull) :: atm
 type(tout), dimension(wfull) :: uo
 
@@ -335,6 +336,20 @@ atm%rnd=precp(wgrid)
 atm%taux=taux(wgrid)
 atm%tauy=tauy(wgrid)
 atm%f=f(wgrid)
+!atm%f=0. ! turn off coriolis terms when no geostrophic term)
+
+ua=uatm(wgrid)
+va=vatm(wgrid)
+uad=ua-water(:,1)%u
+vad=va-water(:,1)%v
+umag=sqrt(ua*ua+va*va)
+umagd=sqrt(uad*uad+vad*vad)
+where (abs(ua).gt.0.01)
+  atm%taux=atm%taux*umagd*uad/(umag*ua)
+end where
+where (abs(va).gt.0.01)
+  atm%tauy=atm%tauy*umagd*vad/(umag*va)
+end where
 
 call mlocalc(uo,dt,atm,diag)
 
@@ -378,36 +393,37 @@ if (incradgam.gt.0) then
 else
   dumt0=dg2%wt0
 end if
-rhs(:,1)=(0.25/dz(:,1))*(ks(:,2)+ks(:,1))*(gammas(:,2)+gammas(:,1))
+rhs(:,1)=(1./dz_hl(:,2))*(ks(:,2)*gammas(:,2)-ks(:,1)*gammas(:,1))
 do ii=2,wlev-1
-  where (ii.le.pg%mixind)
-    rhs(:,ii)=(0.25/dz(:,ii))*((ks(:,ii+1)+ks(:,ii))*(gammas(:,ii+1)+gammas(:,ii)) &
-                              -(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1))) ! non-local
-  elsewhere (ii.eq.pg%mixind+1)
-    rhs(:,ii)=(0.25/dz(:,ii))*(-(ks(:,ii)+ks(:,ii-1))*(gammas(:,ii)+gammas(:,ii-1)))
+  where (ii.lt.pg%mixind)
+    rhs(:,ii)=(0.5/dz(:,ii))*(ks(:,ii+1)*gammas(:,ii+1)-ks(:,ii-1)*gammas(:,ii-1)) ! non-local
+  elsewhere (ii.eq.pg%mixind)
+    rhs(:,ii)=(1./dz_hl(:,ii))*(-ks(:,ii-1)*gammas(:,ii-1))
   elsewhere
     rhs(:,ii)=0.
   end where
 end do
-where (wlev.eq.pg%mixind+1)
-  rhs(:,wlev)=(0.25/dz(:,wlev))*(-(ks(:,wlev)+ks(:,wlev-1))*(gammas(:,wlev)+gammas(:,wlev-1)))
+where (wlev.eq.pg%mixind)
+  rhs(:,wlev)=(1./dz_hl(:,wlev))*(-ks(:,wlev-1)*gammas(:,wlev-1))
 elsewhere
   rhs(:,wlev)=0.
 end where
-bb(:,1)=1./dt+0.5*(ks(:,1)+ks(:,2))/(dz_hl(:,2)*dz(:,1))
 cc(:,1)=-0.5*(ks(:,1)+ks(:,2))/(dz_hl(:,2)*dz(:,1))
+bb(:,1)=1./dt-cc(:,1)
 ! use -ve for BC as depth is down
 dd(:,1)=water(:,1)%temp/dt+rhs(:,1)*dumt0+dg3(:,1)%rad/dz(:,1)-dg2%wt0/dz(:,1)
 do ii=2,wlev-1
   aa(:,ii)=-0.5*(ks(:,ii)+ks(:,ii-1))/(dz_hl(:,ii)*dz(:,ii))
-  bb(:,ii)=1./dt+0.5*((ks(:,ii+1)+ks(:,ii))/dz_hl(:,ii+1)+(ks(:,ii)+ks(:,ii-1))/dz_hl(:,ii))/dz(:,ii)
   cc(:,ii)=-0.5*(ks(:,ii+1)+ks(:,ii))/(dz_hl(:,ii+1)*dz(:,ii))
+  bb(:,ii)=1./dt-aa(:,ii)-cc(:,ii)
   dd(:,ii)=water(:,ii)%temp/dt+rhs(:,ii)*dumt0+dg3(:,ii)%rad/dz(:,ii)
 end do
 aa(:,wlev)=-0.5*(ks(:,wlev)+ks(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
-bb(:,wlev)=1./dt+0.5*(ks(:,wlev)+ks(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
+bb(:,wlev)=1./dt-aa(:,wlev)
 dd(:,wlev)=water(:,wlev)%temp/dt+rhs(:,wlev)*dumt0+dg3(:,wlev)%rad/dz(:,wlev)
 call thomas(new%temp,aa,bb,cc,dd)
+
+new%temp=max(200.,new%temp) ! MJT suggestion
 
 ! SALINITY
 do ii=1,wlev
@@ -416,18 +432,23 @@ end do
 dd(:,1)=dd(:,1)-dg2%ws0/dz(:,1)
 call thomas(new%sal,aa,bb,cc,dd)
 
+new%sal=max(0.,new%sal) ! MJT suggestion
+
 ! split U diffusion term
-bb(:,1)=1./dt+0.5*(km(:,1)+km(:,2))/(dz_hl(:,2)*dz(:,1))
 cc(:,1)=-0.5*(km(:,1)+km(:,2))/(dz_hl(:,2)*dz(:,1))
+bb(:,1)=1./dt-cc(:,1)
 dd(:,1)=water(:,1)%u/dt-dg2%wu0/dz(:,1)
 do ii=2,wlev-1
   aa(:,ii)=-0.5*(km(:,ii)+km(:,ii-1))/(dz_hl(:,ii)*dz(:,ii))
-  bb(:,ii)=1./dt+0.5*((km(:,ii+1)+km(:,ii))/dz_hl(:,ii+1)+(km(:,ii)+km(:,ii-1))/dz_hl(:,ii))/dz(:,ii)
   cc(:,ii)=-0.5*(km(:,ii+1)+km(:,ii))/(dz_hl(:,ii+1)*dz(:,ii))
+  bb(:,ii)=1./dt-aa(:,ii)-cc(:,ii)
   dd(:,ii)=water(:,ii)%u/dt
 end do
 aa(:,wlev)=-0.5*(km(:,wlev)+km(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
-bb(:,wlev)=1./dt+0.5*(km(:,wlev)+km(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
+bb(:,wlev)=1./dt-aa(:,wlev)
+!where (depth_hl(:,wlev+1).lt.(mxd-0.1))
+!  bb(:,wlev)=bb(:,wlev)+km(:,wlev)/((depth_hl(:,wlev+1)-depth(:,wlev))*dz(:,wlev))
+!end where
 dd(:,wlev)=water(:,wlev)%u/dt
 call thomas(new%u,aa,bb,cc,dd)
 
@@ -448,6 +469,9 @@ do ii=1,wlev
   new(:,ii)%u=(water(:,ii)%u*xm+water(:,ii)%v*dt*atm%f)/xp
   new(:,ii)%v=(water(:,ii)%v*xm-water(:,ii)%u*dt*atm%f)/xp
 end do
+
+new%u=max(-100.,min(new%u,100.)) ! MJT suggestion
+new%v=max(-100.,min(new%v,100.)) ! MJT suggestion
 
 water=new
 
@@ -511,17 +535,20 @@ real, parameter :: nu0 = 50.E-4
 real, parameter :: numw = 1.E-4
 real, parameter :: nusw = 0.1E-4
 
+ri(:,1)=dg3(:,1)%nsq*(2.*dz_hl(:,2))**2 &
+           /max((water(:,1)%u-water(:,2)%u)**2 &
+               +(water(:,1)%v-water(:,2)%v)**2,1.E-10)
 do ii=2,wlev-1
   ri(:,ii)=dg3(:,ii)%nsq*(2.*dz(:,ii))**2 &
            /max((water(:,ii-1)%u-water(:,ii+1)%u)**2 &
                +(water(:,ii-1)%v-water(:,ii+1)%v)**2,1.E-10)
 end do
-ri(:,1)=2.*ri(:,2)-ri(:,3)
-ri(:,wlev)=2.*ri(:,wlev-1)-ri(:,wlev-2)
+ri(:,wlev)=dg3(:,wlev)%nsq*(2.*dz_hl(:,wlev))**2 &
+           /max((water(:,wlev-1)%u-water(:,wlev)%u)**2 &
+               +(water(:,wlev-1)%v-water(:,wlev)%v)**2,1.E-10)
 
 ! diffusion ---------------------------------------------------------
 do ii=1,wlev
-
   ! s - shear
   where (ri(:,ii).lt.0.)
     num(:,ii)=nu0
@@ -531,12 +558,10 @@ do ii=1,wlev
     num(:,ii)=0.
   endwhere
   nus(:,ii)=num(:,ii)
-  
   ! d - double-diffusive
   ! double-diffusive mixing is neglected for now
-  
 end do
-! w - internal wave
+! w - internal ave
 num=num+numw
 nus=nus+nusw
 !--------------------------------------------------------------------
@@ -640,16 +665,13 @@ do iqw=1,wfull
     vtsq=depth(iqw,ii)*ws(iqw,ii)*sqrt(abs(dg3(iqw,ii)%nsq))*vtc
     dvsq=(water(iqw,1)%u-water(iqw,ii)%u)**2+(water(iqw,1)%v-water(iqw,ii)%v)**2
     rib(ii)=(depth(iqw,ii)-depth(iqw,1))*(1.-dg3(iqw,1)%rho/dg3(iqw,ii)%rho)/max(dvsq+vtsq,1.E-10)
-  
     if (rib(ii).gt.ric) then
       pg(iqw)%mixind=ii-1
       xp=min(max((ric-rib(ii-1))/max(rib(ii)-rib(ii-1),1.E-10),0.),1.)
       pg(iqw)%mixdepth=(1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii)
       exit
     end if
-  
   end do 
-
 end do
 
 ! calculate buoyancy forcing
@@ -663,8 +685,10 @@ where(pg%bf.gt.0.)
   pg%mixdepth=min(pg%mixdepth,he)
 end where
 pg%mixdepth=max(pg%mixdepth,depth(:,1))
+pg%mixdepth=min(pg%mixdepth,depth(:,wlev))
 
 ! recalculate index for mixdepth
+pg%mixind=wlev-1
 do iqw=1,wfull
   do ii=2,wlev
     if (depth(iqw,ii).gt.pg(iqw)%mixdepth) then
@@ -806,7 +830,7 @@ do i=1,nits
 
   do ii=1,wlev
     t = max(water(:,ii)%temp-273.16,-2.)
-    s = max(water(:,ii)%sal,0.)
+    s = max(water(:,ii)%sal,0.01)
     p1 = grav*depth(:,ii)*dg3(:,ii)%rho/100000.
     t2 = t**2
     t3 = t**3
@@ -865,11 +889,11 @@ do i=1,nits
 end do
 
 ! buoyancy frequency
+dg3(:,1)%nsq=-(grav/dg3(:,1)%rho)*(dg3(:,1)%rho-dg3(:,2)%rho)/dz_hl(:,2)
 do ii=2,wlev-1
   dg3(:,ii)%nsq=-(grav/dg3(:,ii)%rho)*0.5*(dg3(:,ii-1)%rho-dg3(:,ii+1)%rho)/dz(:,ii)
 end do
-dg3(:,1)%nsq=2.*dg3(:,2)%nsq-dg3(:,3)%nsq
-dg3(:,wlev)%nsq=2.*dg3(:,wlev-1)%nsq-dg3(:,wlev-2)%nsq
+dg3(:,wlev)%nsq=-(grav/dg3(:,wlev)%rho)*(dg3(:,wlev-1)%rho-dg3(:,wlev)%rho)/dz_hl(:,wlev)
 
 ! shortwave
 ! use -ve as depth is down

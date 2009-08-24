@@ -529,10 +529,10 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
           else if (abs(nmlo).eq.2) then
             ! nudge mlo
 	    if (nud_uv.ne.9) then
-              if (myid == 0) print *,"MLO spectral filter"	    
+              if (myid == 0) print *,"MLO 1D filter"	    
 	      call mlofilterfast(tssb,mbd)
 	    else
-              if (myid == 0) print *,"MLO fast filter"	    
+              if (myid == 0) print *,"MLO 2D filter"	    
               call mlofilter(tssb,mbd)
 	    end if
           end if

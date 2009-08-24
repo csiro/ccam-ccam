@@ -838,10 +838,10 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
            write(lname,'("ocean salinity lev ",I2)') k
            write(vname,'("sal",I2.2)') k
            call attrib(idnc,idim,3,vname,lname,'PSU',0.,100.,0)
-           write(lname,'("ocean U velocity lev ",I2)') k
+           write(lname,'("x-component current lev ",I2)') k
            write(vname,'("uoc",I2.2)') k
            call attrib(idnc,idim,3,vname,lname,'m/s',-100.,100.,0)
-           write(lname,'("ocean V velocity lev ",I2)') k
+           write(lname,'("y-component current lev ",I2)') k
            write(vname,'("voc",I2.2)') k
            call attrib(idnc,idim,3,vname,lname,'m/s',-100.,100.,0)
           end do
@@ -990,7 +990,8 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       !---------------------------------------------------------
       ! MJT mlo
       if (nmlo.ne.0) then
-        datoc=999. ! must be the same as spval in onthefly.f
+        datoc(:,:,1:2)=999.
+	datoc(:,:,3:4)=0.
         call mlosave(ifull,datoc,aa,0)
         !do k=1,wlev
         !  where(zs(1:ifull).gt.1.)

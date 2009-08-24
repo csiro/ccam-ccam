@@ -1947,7 +1947,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         where (land)
           dep=0.
 	elsewhere
-	  dep=max(12.,dep)
+	  dep=max(10.,dep)
         end where
         call mloinit(ifull,dep,0)
         if (any(ocndepin.gt.0.5)) then
