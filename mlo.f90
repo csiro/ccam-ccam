@@ -67,6 +67,7 @@ real, parameter :: vkar=0.4               ! von Karman constant
 real, parameter :: lv=2.501e6             ! Latent heat of vaporisation
 real, parameter :: cp0=3990.              ! heat capacity of mixed layer (J kg^-1 K^-1)
 real, parameter :: grav=9.80              ! graviational constant (m/s^2)
+real, parameter :: cdbot=2.4E-3           ! Bottom drag coefficent
 
 contains
 
@@ -373,7 +374,7 @@ real, dimension(wfull,wlev) :: rhs
 real, dimension(wfull,2:wlev) :: aa
 real, dimension(wfull,wlev) :: bb,dd
 real, dimension(wfull,1:wlev-1) :: cc
-real, dimension(wfull) :: xp,xm,dumt0
+real, dimension(wfull) :: xp,xm,dumt0,umag
 type(tout), dimension(wfull), intent(out) :: uo
 type(tatm), dimension(wfull), intent(in) :: atm
 type(tdiag2), dimension(wfull) :: dg2
@@ -423,7 +424,7 @@ bb(:,wlev)=1./dt-aa(:,wlev)
 dd(:,wlev)=water(:,wlev)%temp/dt+rhs(:,wlev)*dumt0+dg3(:,wlev)%rad/dz(:,wlev)
 call thomas(new%temp,aa,bb,cc,dd)
 
-new%temp=max(200.,new%temp) ! MJT suggestion
+new%temp=max(100.,new%temp) ! MJT suggestion
 
 ! SALINITY
 do ii=1,wlev
@@ -446,10 +447,11 @@ do ii=2,wlev-1
 end do
 aa(:,wlev)=-0.5*(km(:,wlev)+km(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
 bb(:,wlev)=1./dt-aa(:,wlev)
-!where (depth_hl(:,wlev+1).lt.(mxd-0.1))
-!  bb(:,wlev)=bb(:,wlev)+km(:,wlev)/((depth_hl(:,wlev+1)-depth(:,wlev))*dz(:,wlev))
-!end where
 dd(:,wlev)=water(:,wlev)%u/dt
+umag=sqrt(water(:,wlev)%u*water(:,wlev)%u+water(:,wlev)%v*water(:,wlev)%v)
+where (depth_hl(:,wlev+1).lt.(mxd-0.1)) ! bottom drag
+  bb(:,wlev)=bb(:,wlev)+cdbot*umag/dz(:,wlev)
+end where
 call thomas(new%u,aa,bb,cc,dd)
 
 ! split V diffusion term
@@ -604,8 +606,8 @@ end do
 do ii=1,wlev
   where (ii.le.pg%mixind)
     sigma=depth(:,ii)/pg%mixdepth
-    km(:,ii)=pg%mixdepth*wm(:,ii)*(sigma+a2m*sigma**2+a3m*sigma**3)
-    ks(:,ii)=pg%mixdepth*ws(:,ii)*(sigma+a2s*sigma**2+a3s*sigma**3)
+    km(:,ii)=pg%mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
+    ks(:,ii)=pg%mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
   elsewhere
     km(:,ii)=num(:,ii)
     ks(:,ii)=nus(:,ii)
@@ -617,7 +619,7 @@ end do
 cg=10.*vkar*(98.96*vkar*epsilon)**(1./3.)
 do ii=1,wlev
   where (pg%bf.lt.0.) ! unstable
-    gammas(:,ii)=cg/(ws(:,ii)*pg%mixdepth)
+    gammas(:,ii)=cg/max(ws(:,ii)*pg%mixdepth,1.E-10)
   elsewhere           ! stable
     gammas(:,ii)=0.
   end where

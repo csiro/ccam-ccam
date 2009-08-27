@@ -357,7 +357,11 @@ c            call ccmpi_gather(qg(:,k))
        ! MJT lsmask
        if(nemi==3)then 
          land_a(:)=isoilm_a(:).gt.0
-         if (any(isoilm_a(:).lt.0)) nemi=2
+         if (any(isoilm_a(:).lt.0)) then
+	   nemi=2
+	 else
+           tss_a=abs(tss_a) ! MJT bug fix	 
+	 end if
        end if
        !-------------------------------------------
        if(nemi==2)then
@@ -373,7 +377,6 @@ c            call ccmpi_gather(qg(:,k))
          if(numneg==0)nemi=1  ! should be using zss in that case
        endif                     !  (nemi==2)
        print *,'using nemi = ',nemi
-       tss_a=abs(tss_a) ! MJT bug fix
       
        if(nemi==1)then
          land_a(:) = zss_a(:) > 0.
