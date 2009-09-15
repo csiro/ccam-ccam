@@ -1,6 +1,7 @@
       subroutine nonlin      
       use cc_mpi
       use diag_m
+      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       implicit none
       integer, parameter :: ntest=0
       integer, parameter :: mfix_rad=0 ! used to make gases 2 to ng add up to gas 1
@@ -99,6 +100,14 @@
          enddo    ! k  loop
         enddo     ! ng loop
       endif       ! (ngas>=1)
+ 
+      !--------------------------------------------------------------
+      ! MJT tke
+      if(nvmix==6)then
+        tkesav(1:ifull,:)=tke(1:ifull,:)
+        epssav(1:ifull,:)=eps(1:ifull,:)
+      endif       ! (nvmix==6)
+      !--------------------------------------------------------------
 
       if (diag) then
          call bounds(ps)

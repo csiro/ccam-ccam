@@ -1,6 +1,7 @@
       subroutine upglobal      ! globpea version   use ritchie 103
       use cc_mpi
       use diag_m
+      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       implicit none
 !     parameter (nrot=1)       ! nrot=1 to rotate velocity vectors (parmdyn.h)
       integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
@@ -102,37 +103,49 @@
       
 !     calculate factr for choice of nt_adv, as usually used
       if(nt_adv==0)factr(:)=0.
-      do k=1,kl
-             if(nt_adv==3) then   ! 1. up to sig=.3
+      if(nt_adv==3) then   ! 1. up to sig=.3
+        do k=1,kl
                    factr(k)=stdlapse*(rdry*nritch_t/grav)
                    if(sig(k)<0.3)factr(k)=0.
-             endif   ! (nt_adv==3)then   
-             if(nt_adv==4) ! (1, .5, 0) for sig=(1, .75, .5)
-     &          factr(k)=max(2.*sig(k)-1., 0.)*stdlapse*(rdry*300./grav)
-             if(nt_adv==5)    ! 1 to 0 for sig=1 to 0
-     &          factr(k)=sig(k)*stdlapse*(rdry*nritch_t/grav)
-             if(nt_adv==6)    ! (1, .5625, 0) for sig=(1, .5, .2)
-     &          factr(k)=max(0.,1.25*(sig(k)-.2)*(2.-sig(k)))
+        end do
+       else if(nt_adv==4) then ! (1, .5, 0) for sig=(1, .75, .5)
+        do k=1,kl
+               factr(k)=max(2.*sig(k)-1., 0.)*stdlapse*(rdry*300./grav)
+        end do
+       else if(nt_adv==5) then   ! 1 to 0 for sig=1 to 0
+        do k=1,kl
+               factr(k)=sig(k)*stdlapse*(rdry*nritch_t/grav)
+        end do       
+       else if(nt_adv==6) then   ! (1, .5625, 0) for sig=(1, .5, .2)
+        do k=1,kl
+               factr(k)=max(0.,1.25*(sig(k)-.2)*(2.-sig(k)))
      &                   *stdlapse*(rdry*nritch_t/grav)
-             if(nt_adv==7)    ! 1 up to .4, then lin decr. to .2, then 0
-     &          factr(k)=max(0.,min(1.,(sig(k)-.2)/(.4-.2)))
+        end do
+       else if(nt_adv==7) then   ! 1 up to .4, then lin decr. to .2, then 0
+        do k=1,kl
+               factr(k)=max(0.,min(1.,(sig(k)-.2)/(.4-.2)))
      &                   *stdlapse*(rdry*nritch_t/grav)
-             if(nt_adv==8)    ! .8 up to .4, then lin decr. to .2, then 0
-     &          factr(k)=.8*max(0.,min(1.,(sig(k)-.2)/(.4-.2)))
+        end do
+       else if(nt_adv==8) then   ! .8 up to .4, then lin decr. to .2, then 0
+        do k=1,kl
+               factr(k)=.8*max(0.,min(1.,(sig(k)-.2)/(.4-.2)))
      &                   *stdlapse*(rdry*nritch_t/grav)
-             if(nt_adv==9)then ! (1,1,.84375,.5,.15625,0) for sig=(1,.6,.5,.4,.3,.2)  
+        end do
+       else if(nt_adv==9)then ! (1,1,.84375,.5,.15625,0) for sig=(1,.6,.5,.4,.3,.2)  
+        do k=1,kl
                 factr(k)=3.*((sig(k)-.2)/.4)**2 -2.*((sig(k)-.2)/.4)**3
      &           *stdlapse*(rdry*nritch_t/grav)
                 if(sig(k)>.6)factr(k)=stdlapse*(rdry*nritch_t/grav)
                 if(sig(k)<.2)factr(k)=0.
-             endif
-             if(nt_adv==10)then ! (1,1,.741,.259,0) for sig=(1,.5,.4,.3,.2) 
+        end do
+       else if(nt_adv==10)then ! (1,1,.741,.259,0) for sig=(1,.5,.4,.3,.2) 
+        do k=1,kl
                 factr(k)=3.*((sig(k)-.2)/.3)**2 -2.*((sig(k)-.2)/.3)**3
      &           *stdlapse*(rdry*nritch_t/grav)
                 if(sig(k)>.5)factr(k)=stdlapse*(rdry*nritch_t/grav)
                 if(sig(k)<.2)factr(k)=0.
-             endif
-         enddo   ! k
+        end do
+       endif
 
       if ( mydiag ) then
          if(tx(idjd,kl)>264.)then  !cb
@@ -380,6 +393,10 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
               write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
 	     endif
           endif  ! (ngas>0.or.nextout>=4)
+          if(nvmix.eq.6)then                       ! MJT tke
+             call ints(tke,intsch,nface,xg,yg,5)   ! MJT tke
+             call ints(eps,intsch,nface,xg,yg,5)   ! MJT tke
+          endif                 ! nvmix.eq.6       ! MJT tke
        endif     ! mspec==1
        if(nh.ne.0)then
         call ints(h_nh,intsch,nface,xg,yg,2) ! 2?

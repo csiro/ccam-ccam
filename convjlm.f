@@ -4,6 +4,7 @@
 !     N.B. nevapcc option has been removed   
       use cc_mpi, only : mydiag, myid
       use diag_m
+      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       implicit none
       integer itn,iq,k,k13,k23,kcl_top
      .       ,khalf,khalfd,khalfp,kt
@@ -15,7 +16,7 @@
      .    ,facuv,fldownn,fluxa,fluxb,fluxd,fluxup
      .    ,frac,fraca,fracb,gam,hbas,hbase,heatlev
      .    ,pwater,pwater0,qavg,qavgb,qentrr,qprec,qsk,rkmid
-     .    ,savg,savgb,sentrr,sum,totprec,veldt
+     .    ,savg,savgb,sentrr,sumx,totprec,veldt
      
      .    ,rKa,Dva,cfls,cflscon,rhodz,qpf,pk,Apr,Bpr,Fr,rhoa,dz,Vr
      .    ,dtev,qr,qgdiff,Cev2,qr2,Cevx,alphal,blx,evapls,revq
@@ -758,9 +759,9 @@ C       following just shows flux into kt layer, and fldown at base and top
        elseif(methdetr==8)then        ! moisten all cloud layers, top most
          do iq=1,ifull  
           nlayers=kt_sav(iq)-kb_sav(iq)
-          sum=.5*nlayers*(nlayers+1)
+          sumx=.5*nlayers*(nlayers+1)
           do k=kb_sav(iq)+1,kt_sav(iq)
-          deltaq=qxcess(iq)*(k-kb_sav(iq))/sum ! moistening
+          deltaq=qxcess(iq)*(k-kb_sav(iq))/sumx ! moistening
           delq(iq,k)=delq(iq,k)+deltaq
           dels(iq,k)=dels(iq,k)-deltaq*hl
           enddo  
@@ -768,9 +769,9 @@ C       following just shows flux into kt layer, and fldown at base and top
        elseif(methdetr==-8)then ! moisten all cloud layers, bottom most
         do iq=1,ifull  
          nlayers=kt_sav(iq)-kb_sav(iq)
-         sum=.5*nlayers*(nlayers+1)
+         sumx=.5*nlayers*(nlayers+1)
          do k=kb_sav(iq)+1,kt_sav(iq)
-          deltaq=qxcess(iq)*(kt_sav(iq)+1-k)/sum ! moistening
+          deltaq=qxcess(iq)*(kt_sav(iq)+1-k)/sumx ! moistening
           delq(iq,k)=delq(iq,k)+deltaq
           dels(iq,k)=dels(iq,k)-deltaq*hl
          enddo  
@@ -807,11 +808,11 @@ C       following just shows flux into kt layer, and fldown at base and top
      &             (dels(iq,k)+hl*delq(iq,k),k=1,kl)
         write (6,"('delhb',9f8.0/(5x,9f8.0))")
      &             (dels(iq,k)+alfqarr(iq)*hl*delq(iq,k),k=1,kl)
-        sum=0.
+        sumx=0.
         do k=kb_sav(iq),kt_sav(iq)
-         sum=sum+dels(iq,k)+hl*delq(iq,k)
+         sumx=sumx+dels(iq,k)+hl*delq(iq,k)
         enddo
-        print *,'qplume,sum_delh ',qplume(iq,kb_sav(iq)),sum
+        print *,'qplume,sum_delh ',qplume(iq,kb_sav(iq)),sumx
       endif
 
 !     calculate actual delq and dels
@@ -1122,9 +1123,9 @@ c          if(nums<20)then
        do k=kuocb+1,kl-1 
         do iq=1,ifull  
          nlayers=kt_sav(iq)-kb_sav(iq)
-         sum=.5*nlayers*(nlayers+1)
+         sumx=.5*nlayers*(nlayers+1)
          if(k>kb_sav(iq).and.k<=kt_sav(iq))then
-           deltaq=convpsav(iq)*qxcess(iq)*(k-kb_sav(iq))/(sum*dsk(k))    
+           deltaq=convpsav(iq)*qxcess(iq)*(k-kb_sav(iq))/(sumx*dsk(k))    
            qliqw(iq,k)=qliqw(iq,k)+deltaq
          endif
         enddo  ! iq loop
@@ -1152,13 +1153,13 @@ c          if(nums<20)then
       elseif(methprec==-3)then          ! moisten mostly middle third
        do k=kuocb+1,kl-1 
         do iq=1,ifull  
-         sum=.25*(kt_sav(iq)-kb_sav(iq))**2
+         sumx=.25*(kt_sav(iq)-kb_sav(iq))**2
          rkmid=.5*(kt_sav(iq)+kb_sav(iq)+1)
          if(k>kb_sav(iq).and.k<=kt_sav(iq))then
            frac=kt_sav(iq)-rkmid+.5-abs(rkmid-k)
            if(abs(rkmid-k)<.1)frac=frac-.25    ! for central rkmid value
 c          if(iq==idjd)print *,'k,frac ',k,frac
-           deltaq=convpsav(iq)*qxcess(iq)*frac/(sum*dsk(k))         
+           deltaq=convpsav(iq)*qxcess(iq)*frac/(sumx*dsk(k))         
            qliqw(iq,k)=qliqw(iq,k)+deltaq
          endif
         enddo  ! iq loop
@@ -1361,6 +1362,46 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
          enddo   ! iq loop
         enddo    ! ntr loop    
       endif      ! (ngas>0)
+
+      !--------------------------------------------------------------
+      ! MJT tke
+      if(nvmix==6)then
+        s(1:ifull,1:kl-2)=tke(1:ifull,1:kl-2)
+         do iq=1,ifull
+          if(kt_sav(iq)<kl-1)then
+            kb=kb_sav(iq)
+            kt=kt_sav(iq)
+            veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+            fluxup=veldt*s(iq,kb)
+!           remove tke from cloud base layer
+            tke(iq,kb)=tke(iq,kb)-fluxup/dsk(kb)
+!           put flux of tke into top convective layer
+            tke(iq,kt)=tke(iq,kt)+fluxup/dsk(kt)
+            do k=kb+1,kt
+             tke(iq,k)=tke(iq,k)-s(iq,k)*veldt/dsk(k)
+             tke(iq,k-1)=tke(iq,k-1)+s(iq,k)*veldt/dsk(k-1)
+            enddo
+          endif
+         enddo   ! iq loop
+         s(1:ifull,1:kl-2)=eps(1:ifull,1:kl-2)
+         do iq=1,ifull
+          if(kt_sav(iq)<kl-1)then
+            kb=kb_sav(iq)
+            kt=kt_sav(iq)
+            veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+            fluxup=veldt*s(iq,kb)
+!           remove eps from cloud base layer
+            eps(iq,kb)=eps(iq,kb)-fluxup/dsk(kb)
+!           put flux of eps into top convective layer
+            eps(iq,kt)=eps(iq,kt)+fluxup/dsk(kt)
+            do k=kb+1,kt
+             eps(iq,k)=eps(iq,k)-s(iq,k)*veldt/dsk(k)
+             eps(iq,k-1)=eps(iq,k-1)+s(iq,k)*veldt/dsk(k-1)
+            enddo
+          endif
+         enddo   ! iq loop
+      endif      ! (nvmix==6)
+      !--------------------------------------------------------------
       
       if((ntest>0.or.diag).and.mydiag)then
         iq=idjd

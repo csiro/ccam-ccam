@@ -1,4 +1,4 @@
-      subroutine nestin               
+      subroutine nestin  ! called for nbd.ne.0 - far-field nudging
       use cc_mpi, only : myid, mydiag
       use diag_m
       use define_dimensions, only : ncs, ncp ! MJT cable
@@ -83,7 +83,7 @@
 !      check whether present ice points should change to/from sice points
        do iq=1,ifull
         if(fraciceb(iq)>0.)then
-!         N.B. if already a sice point, keep present tice (in tgg3)
+!         N.B. if already a sice point, keep present tice (in tggsn)
           if(fracice(iq)==0.)then
             tggsn(iq,1)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1 ! MJT seaice
           endif  ! (fracice(iq)==0.)
@@ -125,17 +125,15 @@
       if(io_in==1)then
         call infile(1,kdate_r,ktime_r,timeg_b,ds_r, 
      .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
-     &            dumg,dumg,dumg,duma,duma,dumv,dumv, 
-     &            dums,dums,dums,duma,duma,dumm,ifull,kl,
-     &            dumm,urban,cplant_h,csoil_h,datoc,ocndepin) ! MJT cable ! MJT lsmask ! MJT urban ! MJT mlo
+     &              dumg,dumg,dumg,duma,duma,dumv,dumv, 
+     &              dums,dums,dums,duma,duma,dumm,ifull,kl,
+     &              dumm,urban,cplant_h,csoil_h,datoc,ocndepin) ! MJT cable ! MJT lsmask ! MJT urban ! MJT mlo
       endif   ! (io_in==1)
       if(io_in==-1)then
-c        call onthefl(1,kdate_r,ktime_r,
-c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb) 
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
-     &        dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,duma, ! just dummies
-     &        duma,dumm,urban,datoc,ocndepin) ! MJT cable, MJT lsmask ! MJT mlo
+     &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,
+     &                 duma,duma,dumm,urban,datoc,ocndepin) ! MJT cable, MJT lsmask ! MJT mlo
       endif   ! (io_in==1)
       tssb(:) = abs(tssb(:))  ! moved here Mar '03
       if (mydiag) then
@@ -272,14 +270,14 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
 
 !     calculate time interpolated tss 
       if(namip.eq.0)then     ! namip SSTs/sea-ice take precedence
-       if (nmlo.eq.0) then ! MJT mlo
+       if (nmlo.eq.0.or.nud_sst.eq.0) then ! MJT mlo
         do iq=1,ifull
          if(.not.land(iq))then
           tss(iq)=cona*tssa(iq)+conb*tssb(iq)
           tgg(iq,1)=tss(iq)
          endif  ! (.not.land(iq))
         enddo   ! iq loop 
-       else if (abs(nmlo).eq.2) then
+       else
          ! nudge mlo
          if (myid == 0) print *,"Nudge MLO"
          call mlonudge(cona*tssa+conb*tssb)
@@ -356,16 +354,16 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
        if(io_in==1)then
         call infile(1,kdate_r,ktime_r,timeg_b,ds_r, 
      .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
-     &            dumg,dumg,dumg,duma,duma,dumv,dumv, 
-     &            dums,dums,dums,duma,duma,dumm,ifull,kl,
-     &            dumm,urban,cplant_h,csoil_h,datoc,ocndepin) ! MJT cable ! MJT lsmask ! MJT urban ! MJT mlo
+     &              dumg,dumg,dumg,duma,duma,dumv,dumv, 
+     &              dums,dums,dums,duma,duma,dumm,ifull,kl,
+     &              dumm,urban,cplant_h,csoil_h,datoc,ocndepin) ! MJT cable ! MJT lsmask ! MJT urban ! MJT mlo
        endif   ! (io_in==1)
 
        if(io_in==-1)then
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
-     &        dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,duma, ! just dummies
-     &        duma,dumm,urban,datoc,ocndepin) ! MJT urban ! MJT mlo
+     &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,
+     &                 duma,duma,dumm,urban,datoc,ocndepin) ! MJT urban ! MJT mlo
        endif   ! (io_in==1)
        tssb(:) = abs(tssb(:))  ! moved here Mar '03
        if (mydiag) then
@@ -489,7 +487,7 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
 !         check whether present ice points should change to/from sice points
           do iq=1,ifull
            if(fraciceb(iq)>0.)then
-!           N.B. if already a sice point, keep present tice (in tgg3)
+!           N.B. if already a sice point, keep present tice (in tggsn)
             if(fracice(iq)==0.)then
               tggsn(iq,1)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1 ! MJT seaice
             endif  ! (fracice(iq)==0.)
@@ -520,21 +518,21 @@ c    &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb)
            endif    ! (land(iq))
           enddo     ! iq loop
 
-          if (nmlo.eq.0) then ! MJT mlo
+          if (nmlo.eq.0.or.nud_sst.eq.0) then ! MJT mlo
 !           calculate time interpolated tss 
             where (.not.land)
               tss=tssb
               tgg(:,1)=tss
             end where  ! (.not.land(iq))
-          else if (abs(nmlo).eq.2) then
+          else
             ! nudge mlo
-	    if (nud_uv.ne.9) then
-              if (myid == 0) print *,"MLO 1D filter"	    
-	      call mlofilterfast(tssb,mbd)
-	    else
-              if (myid == 0) print *,"MLO 2D filter"	    
+            if (nud_uv.ne.9) then
+              if (myid == 0) print *,"MLO 1D spectral filter"	    
+              call mlofilterfast(tssb,mbd)
+            else
+              if (myid == 0) print *,"MLO 2D spectral filter"	    
               call mlofilter(tssb,mbd)
-	    end if
+            end if
           end if
         end if ! (namip.eq.0.and.ntest.eq.0)
       end if ! (mod(nint(ktau*dt),60).eq.0)
@@ -2455,7 +2453,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         r(:)=x_g(iqw)*x_g(:)+y_g(iqw)*y_g(:)+z_g(iqw)*z_g(:)
         r(:)=acos(max(min(r(:),1.),-1.))
         r(:)=exp(-(cq*r(:))**2)/(em_g(:)*em_g(:))
-	r=r*mm ! apply land/sea mask
+        r=r*mm ! apply land/sea mask
         dd(iqw)=sum(r(:)*diff_g(:))/max(sum(r(:)),0.0001)
       end do
       diff_g=dd
@@ -2483,7 +2481,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       return
       end subroutine mlofilter
 
-      ! 1D filter for mlo
+      ! 1D filer for mlo
       subroutine mlofilterfast(new,hostscale) ! MJT mlo
 
       use mlo, only : mloimport,mloexport
@@ -2518,14 +2516,14 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         pn=myid*npta/mproc                        ! start panel
         px=(myid+mproc)*npta/mproc-1              ! end panel
         hproc=pn*mproc/npta                       ! host processor for panel
-        call procdiv(ns,ne,il_g,mproc,myid-hproc) ! number of rows per processor      
+        call procdiv(ns,ne,il_g,mproc,myid-hproc) ! number of rows per processor
       else
         npta=1                              ! number of panels per processor
         mproc=nproc                         ! number of processors per panel
         pn=0                                ! start panel
         px=5                                ! end panel
         hproc=0                             ! host processor for panel
-        call procdiv(ns,ne,il_g,nproc,myid) ! number of rows per processor      
+        call procdiv(ns,ne,il_g,nproc,myid) ! number of rows per processor
       end if
       
       old=new
@@ -2542,7 +2540,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         call ccmpi_gather(diff)
       end if
       
-      call mlospechost(myid,mproc,hproc,npta,pn,px,ns,ne,cq,diff_g,miss)      
+      call mlospechost(myid,mproc,hproc,npta,pn,px,ns,ne,cq,diff_g,miss)
       
       if (myid == 0) then
         call ccmpi_distribute(diff, diff_g)
@@ -2596,10 +2594,10 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         where(diff_g.lt.miss) ! land/sea mask
           qsum(:)=1./(em_g(:)*em_g(:))
           qp(:)=diff_g(:)/(em_g(:)*em_g(:))
-	elsewhere
-	  qsum=0.
-	  qp=0.
-	end where
+        elsewhere
+          qsum=0.
+          qp=0.
+        end where
 
         ! computations for the local processor group
         call mlospeclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,qp,
@@ -2607,9 +2605,9 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         
         nns=qms(qpass)+1
         nne=qms(qpass)+til
-	where (qsum(nns:nne).gt.0.)
+        where (qsum(nns:nne).gt.0.)
           zp(nns:nne)=qp(nns:nne)/qsum(nns:nne)
-	end where
+        end where
       end do
 
       if ((myid==0).and.(nmaxpr==1)) print *,"MLO End 1D filter"
@@ -2753,11 +2751,11 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             ya(1:me)=y_g(igrd(1:me,j,ipass))
             za(1:me)=z_g(igrd(1:me,j,ipass))
             ap(1:me)=qp(igrd(1:me,j,ipass))
-	    where(asum(1:me).eq.0.) ! land/sea mask
-	      dd=0.
-	    elsewhere
-	      dd=1.
-	    end where
+            where(asum(1:me).eq.0.) ! land/sea mask
+              dd=0.
+            elsewhere
+              dd=1.
+            end where
             do n=1,il_g
               ra(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
               ra(1:me)=acos(max(min(ra(1:me),1.),-1.))
@@ -2839,7 +2837,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       return  
       end subroutine mlospeclocal
       
-      ! Relaxation scheme for MLO
+      ! Relaxtion method for mlo
       subroutine mlonudge(new) ! MJT mlo
 
       use mlo, only : mloimport,mloexport

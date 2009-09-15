@@ -7,7 +7,7 @@
      &        ia,ib,ja,jb,id,jd,idjd,                                    &
      &        io_clim,io_in,io_out,io_rest,io_spec,                      &
      &        nwt,nqg,nrun,nrunx,nextout,nclim,m_fly,nsemble,            &
-     &        nurban,nmr,nmlo,ktopdav ! MJT urban ! MJT mr ! MJT mlo ! MJT nestin
+     &        nurban,nmr,nmlo,ktopdav,nud_sst ! MJT urban ! MJT mr ! MJT mlo ! MJT nestin
       real qgmin,                                                        &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
      &     ds,dt,dtin,timea,panfg,panzo
@@ -27,7 +27,7 @@
      &                panfg,panzo,nurban,nmr,nmlo ! MJT urban ! MJT nmr ! MJT mlo
 
       common/parmnudg/nbd,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,   &
-     &                nud_hrs,nudu_hrs,mbd,ktopdav ! MJT nestin
+     &                nud_hrs,nudu_hrs,mbd,ktopdav,nud_sst ! MJT nestin
 
       common/parmtime/ktau,ntau,nperavg,nperday,ds,dt,dtin,timea,nmaxpr, &
      &                diag,nlv,ia,ib,ja,jb,id,jd,idjd,ndi,ndi2

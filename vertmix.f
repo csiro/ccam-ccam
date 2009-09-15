@@ -2,6 +2,7 @@
 !     inputs & outputs: t,u,v,qg
       use cc_mpi, only : mydiag, myid
       use diag_m
+      use tkeeps ! MJT tke
       
 !     rml 16/02/06 use trvmix module
       use trvmix, only : tracervmix
@@ -18,6 +19,7 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       include 'arrays.h'
       include 'const_phys.h'
       include 'dates.h'
+      include 'extraout.h' ! ustar ! MJT tke
       include 'indices.h'
       include 'kuocom.h'   ! also with kbsav,ktsav,convpsav,kscsea,sigksct
       include 'liqwpar.h'  ! ifullw, qfg, qlg
@@ -58,6 +60,7 @@ c     set coefficients for Louis scheme
       data bprmj/5./,cmj/5./,chj/2.6/
       save kscbase,ksctop,prcpv
       include 'establ.h'
+      real zg(ifull,kl) ! MJT tke
 
       rong=rdry/grav
       do k=1,kl-1
@@ -102,6 +105,32 @@ c     set coefficients for Louis scheme
       enddo      !  k loop
       if(nmaxpr==1.and.mydiag)
      &  write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
+
+      ! moved from below ! MJT tke
+      if(ktau==1.and.ksc.ne.0)then
+!       set ksctop for shallow convection
+        ksctop=1    ! ksctop will be first level below sigkcst
+        do while(sig(ksctop+1)>sigksct)  !  e.g. sigksct=.75
+         ksctop=ksctop+1
+        enddo
+        kscbase=1  ! kscbase will be first level above sigkcsb
+        do while(sig(kscbase)>sigkscb.and.sigkscb>0.) ! e.g. sigkscb=.99
+         kscbase=kscbase+1
+        enddo
+        if ( myid == 0 ) then
+        print *,'For shallow convection:'
+        print *,'ksc,kscbase,ksctop,kscsea ',
+     &           ksc,kscbase,ksctop,kscsea
+        write (6,"(' sigkscb,sigksct,tied_con,tied_over,tied_rh:',
+     &       5f8.3)")sigkscb,sigksct,tied_con,tied_over,tied_rh
+        end if
+        do k=1,kl
+         prcpv(k)=sig(k)**(-roncp)
+        enddo  ! k loop
+      endif    ! (ktau==1.and.ksc.ne.0)
+
+
+      if (nvmix.ne.6) then ! usual ! MJT tke
 
 c Pre-calculate the buoyancy parameters if using qcloud scheme.
 c Follow Smith's (1990) notation; gam() is HBG's notation for (L/cp)dqsdt.
@@ -174,27 +203,28 @@ c           betaq=delta/(1.+delta*qg(iq,k)-qc)
        delthet(:,k)=rhs(:,k+1)-rhs(:,k)  ! rhs is theta or thetal here
       enddo      !  k loop
 
-      if(ktau==1.and.ksc.ne.0)then
-!       set ksctop for shallow convection
-        ksctop=1    ! ksctop will be first level below sigkcst
-        do while(sig(ksctop+1)>sigksct)  !  e.g. sigksct=.75
-         ksctop=ksctop+1
-        enddo
-        kscbase=1  ! kscbase will be first level above sigkcsb
-        do while(sig(kscbase)>sigkscb.and.sigkscb>0.) ! e.g. sigkscb=.99
-         kscbase=kscbase+1
-        enddo
-        if ( myid == 0 ) then
-        print *,'For shallow convection:'
-        print *,'ksc,kscbase,ksctop,kscsea ',
-     &           ksc,kscbase,ksctop,kscsea
-        write (6,"(' sigkscb,sigksct,tied_con,tied_over,tied_rh:',
-     &       5f8.3)")sigkscb,sigksct,tied_con,tied_over,tied_rh
-        end if
-        do k=1,kl
-         prcpv(k)=sig(k)**(-roncp)
-        enddo  ! k loop
-      endif    ! (ktau==1.and.ksc.ne.0)
+      ! moved above ! MJT the
+!      if(ktau==1.and.ksc.ne.0)then
+!!       set ksctop for shallow convection
+!        ksctop=1    ! ksctop will be first level below sigkcst
+!        do while(sig(ksctop+1)>sigksct)  !  e.g. sigksct=.75
+!         ksctop=ksctop+1
+!        enddo
+!        kscbase=1  ! kscbase will be first level above sigkcsb
+!        do while(sig(kscbase)>sigkscb.and.sigkscb>0.) ! e.g. sigkscb=.99
+!         kscbase=kscbase+1
+!        enddo
+!        if ( myid == 0 ) then
+!        print *,'For shallow convection:'
+!        print *,'ksc,kscbase,ksctop,kscsea ',
+!     &           ksc,kscbase,ksctop,kscsea
+!        write (6,"(' sigkscb,sigksct,tied_con,tied_over,tied_rh:',
+!     &       5f8.3)")sigkscb,sigksct,tied_con,tied_over,tied_rh
+!        end if
+!        do k=1,kl
+!         prcpv(k)=sig(k)**(-roncp)
+!        enddo  ! k loop
+!      endif    ! (ktau==1.and.ksc.ne.0)
 
 c     ****** section for Geleyn shallow convection; others moved lower****
       if(ksc==-99)then
@@ -481,6 +511,22 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
           call printa('zs  ',zs,ktau,1,ia,ib,ja,jb,0.,1.)
         endif
       endif      ! (nlocal>0)
+      
+      else ! tke scheme                                                 ! MJT tke
+       ! note ksc < 0 options are clobbered when nvmix=6                ! MJT tke
+       uav(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*savu(1:ifull,:) ! MJT tke
+       vav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*savv(1:ifull,:) ! MJT tke
+       zg(:,1)=bet(1)*t(1:ifull,1)/grav                                 ! MJT tke
+       do k=2,kl                                                        ! MJT tke
+         zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
+     &                     +betm(k)*t(1:ifull,k-1))/grav                ! MJT tke
+       end do                                                           ! MJT tke
+       call tkemix(rkm,rhs,qg(1:ifull,:),uav,vav,pblh,
+     &             rdry*fg*t(1:ifull,1)/(ps(1:ifull)*cp*sigmh(1)),
+     &             rdry*eg*t(1:ifull,1)/(ps(1:ifull)*hl*sigmh(1)),
+     &             ps(1:ifull),ustar,zg,sigkap,dt,0)                    ! MJT tke
+       rkh=rkm                                                          ! MJT tke
+      end if ! nvmix.ne.6                                               ! MJT tke
 
       rk_shal(:,:)=0.
 c     ***** ***** section for jlm shallow convection v4 *****************
@@ -868,6 +914,11 @@ c     first do theta (then convert back to t)
          end if
         call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
       endif
+      
+      if (nvmix.eq.6) then ! MJT tke
+        at=2.5*at          ! MJT tke
+        ct=2.5*ct          ! MJT tke
+      end if               ! MJT tke
 
 c     now do moisture
       rhs(1:ifull,:)=qg(1:ifull,:)
@@ -894,7 +945,7 @@ c       now do qlg
 
 c     now do trace gases rml 16/02/06 changed call
       if (ngas>0) call tracervmix(at,ct)
-
+      
 !     from here on just u and v stuff
       au(:,1)=cduv(:)*condrag/tss(:)   ! globpea
       do k=2,kl

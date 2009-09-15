@@ -354,7 +354,7 @@ c     section to update pan temperatures                             ! sea
       
     !----------------------------------------------------------------
     ! MJT mlo
-      if (nmlo.ne.0) then                                            ! MLO
+      if (abs(nmlo).eq.1) then                                       ! MLO
         ! note taux and tauy do not include sea-ice at this point    ! MLO
         call mloeval(ifull,tgg(:,1),dt,fg,eg                         ! MLO
      &               ,sgsave,-rgsave-stefbo*tgg(:,1)**4              ! MLO
@@ -1614,65 +1614,3 @@ c                                               combined fluxes
 
       return
       end
-      
-      !subroutine mloroute(runoff) ! MJT river
-      !
-      !use cc_mpi
-      !
-      !implicit none
-      !
-      !include 'newmpar.h'
-      !include 'const_phys.h'
-      !include 'xyzinfo.h'
-      !include 'indices.h'
-      !include 'permsurf.h'
-      !
-      !integer iq,ip
-      !integer, dimension(8) :: xp
-      !real, dimension(ifull), intent(in) :: runoff
-      !real, dimension(ifull+iextra), save :: watbdy=0.
-      !real, dimension(8) :: zp,dp
-      !real dis,vel,area
-      !real, parameter :: rhowater=1000.
-      !logical, dimension(8) :: lp
-      !
-      !watbdy(1:ifull)=watbdy(1:ifull)+runoff
-      !call bounds(watbdy)
-      !do ip=1,ipland
-      !  iq=iperm(ip)
-      !  xp(1)=in(iq)
-      !  xp(2)=ine(iq)
-      !  xp(3)=ie(iq)
-      !  xp(4)=ise(iq)
-      !  xp(5)=is(iq)
-      !  xp(6)=isw(iq)
-      !  xp(7)=iw(iq)
-      !  xp(8)=iwn(iq)
-      !  zp=zs(xp)
-      !  if (all(zs(iq).lt.zp)) then
-      !    watbdy(iq)=0. ! sink
-      !  else
-      !    lp=land(xp)
-      !    dp=acos(max(min(x(xp)*x(iq)+y(xp)*y(iq)+z(xp)*z(iq),
-    ! &            -1.),1.))
-      !    if any(.not.lp) then
-      !      pos=minloc(dp,.not.lp) ! ocean
-      !    else
-      !      pos=minloc(zp) ! downhill
-      !    end if
-      !    niq=xp(pos(1))
-      !    dis=dp(pos(1))*rearth
-      !    vel=0.35*sqrt((zs(iq)-zs(iqn))/(dis*0.00005)) ! from Hal's Mk3.5 scheme
-      !    vel=min(max(vel,0.15),5.)
-      !    area=(2.*pi*rearth/(real(4*il_g)*em(iq)))**2
-      !    flow=rhowater*area*vel ! (kg/s)
-      !    flow=min(flow,watbdy(iq)*area/dt)
-      !    watbdy(iq)=watbdy(iq)-flow*dt/area
-      !    area=(2.*pi*rearth/(real(4*il_g)*em(niq)))**2
-      !    watbdy(niq)=watbdy(niq)+flow*dt/area
-      !  end if          
-      !end do
-      !call mloinflow(ifull,watbdy,dt,0)
-      !
-      !return
-      !end

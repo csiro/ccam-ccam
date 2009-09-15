@@ -5,6 +5,7 @@
       use physical_constants, only : umin ! MJT cable      
       use define_dimensions, only : ncs, ncp ! MJT cable
       use mlo ! MJT mlo
+      use tkeeps ! MJT tke
       use cc_mpi
       use diag_m
 !     rml 21/02/06 removed all so2 code
@@ -138,7 +139,6 @@
       real, dimension(ifull,wlev,4) :: datoc ! MJT mlo
       integer igas,ier  ! MJT tracerfix
       character*3 trnum ! MJT tracerfix
-      
 
       call start_log(indata_begin)
       bam(1)=114413.
@@ -287,13 +287,13 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
      &           isoilm,urban,cplant,csoil,datoc,ocndepin) ! MJT cable !MJT lsmask ! MJT urban ! MJT mlo
      
 !           rml 16/02/06 read tracer from restart for up to 999 tracers
-            if (ngas>0) then                                        ! MJT tracerfix
-              do igas=1,ngas                                        ! MJT tracerfix
-                write(trnum,'(i3.3)') igas                          ! MJT tracerfix
+            if (ngas>0) then                                       ! MJT tracerfix
+              do igas=1,ngas                                       ! MJT tracerfix
+                write(trnum,'(i3.3)') igas                         ! MJT tracerfix
                 call histrd4(ncid,iarchi-1,ier,'tr'//trnum,ik,jk,kk,
-     &                   tr(1:ifull,:,igas),ifull)                  ! MJT tracerfix
-              enddo                                                 ! MJT tracerfix
-            endif                                                   ! MJT tracerfix
+     &                   tr(1:ifull,:,igas),ifull)                 ! MJT tracerfix
+              enddo                                                ! MJT tracerfix
+            endif                                                  ! MJT tracerfix
      
             albnirsav=albsav ! MJT CHANGE albedo
 c           if(nspecial>100)then
@@ -990,9 +990,9 @@ c        end if
 !          fracsum(imo) is .5 for nh summer value, -.5 for nh winter value
            fracs=sign(1.,rlatt(iq))*fracsum(imo)  ! +ve for local summer
            if(nrungcm>5)then
-            fracwet=.01*nrungcm   ! e.g. 50 gives .5
+             fracwet=.01*nrungcm   ! e.g. 50 gives .5
            else
-            fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
+             fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
 !            N.B. for all Dean's points, fracwet=fracwets=fracwetw=.5           
            endif
            wb(iq,ms)= (1.-fracwet)*swilt(isoilm(iq))+ 
@@ -1939,15 +1939,12 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       !-----------------------------------------------------------------
       ! nmlo<0 same as below, but save in history file
       ! nmlo=0 no mixed layer ocean
-      ! nmlo=1 free mixed layer ocean
-      ! nmlo=2 SST nudged mixed layer ocean
+      ! nmlo=1 mixed layer ocean (KPP)
       if (nmlo.ne.0) then
         if (myid==0) print *,"Initialising MLO"
-        call readreal('bath',dep,ifull)
+        call readreal(bathfile,dep,ifull)
         where (land)
           dep=0.
-	elsewhere
-	  dep=max(10.,dep)
         end where
         call mloinit(ifull,dep,0)
         if (any(ocndepin.gt.0.5)) then
@@ -1957,7 +1954,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           if (myid == 0) print *,"Using MLO defaults"
           do k=1,wlev
             datoc(:,k,1)=tss(:)-0.01*real(k)
-            datoc(:,k,2)=34.72
+            datoc(:,k,2)=34.72-0.01*real(k)
             datoc(:,k,3)=0.
             datoc(:,k,4)=0.
             !where (zs(1:ifull).gt.1.) ! lakes?
@@ -2005,6 +2002,27 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       else
         sigmu(:)=0.
         call atebdisable(0) ! disable urban
+      end if
+      !-----------------------------------------------------------------
+
+      !-----------------------------------------------------------------
+      ! MJT tke
+      if (nvmix.eq.6) then
+        if (myid==0) print *,"Initialising TKE-eps scheme"
+        call tkeinit(ifull,iextra,kl,0)
+        pblh=1000. ! move to infile
+        if (io_in.eq.1) then
+          call histrd1(ncid,iarchi-1,ier,'pblh',ik,jk,pblh,ifull)
+          call histrd4(ncid,iarchi-1,ier,'tke',ik,jk,kk,
+     &                   tke(1:ifull,:),ifull)
+          call histrd4(ncid,iarchi-1,ier,'eps',ik,jk,kk,
+     &                   eps(1:ifull,:),ifull)
+          if (ier.eq.0) then
+            if (myid==0) print *,"Importing TKE data"
+          else
+            if (myid==0) print *,"Using TKE defaults"
+          end if     
+        endif          
       end if
       !-----------------------------------------------------------------
 
@@ -2074,7 +2092,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        ! when cable is initialised)
        call readreal(albfile,albvisnir(:,1),ifull)
        if ((nsib.eq.5).or.(nsib.eq.6)) then
-         call readreal('albnir',albvisnir(:,2),ifull)
+         call readreal(albnirfile,albvisnir(:,2),ifull)
        else
          albvisnir(:,2)=albvisnir(:,1)
        end if
@@ -2094,13 +2112,13 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        end if
        call readint(soilfile,isoilm,ifull)
        if(nsib.eq.5) then
-         call readreal('lai',vlai,ifull)
+         call readreal(laifile,vlai,ifull)
          vlai(:)=0.01*vlai(:)
        end if
        !------------------------------------------------
        ! MJT urban
        if (nurban.ne.0) then
-         call readreal('urban',sigmu,ifull)
+         call readreal(urbanfile,sigmu,ifull)
          sigmu(:)=0.01*sigmu(:)
        else
          sigmu(:)=0.

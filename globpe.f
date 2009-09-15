@@ -171,7 +171,7 @@
      & ,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
-     & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav ! MJT urban ! MJT nmr ! MJT mlo ! MJT nestin
+     & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst ! MJT urban ! MJT nmr ! MJT mlo ! MJT nestin
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -179,7 +179,8 @@
      &    rsmfile,scamfile,scrnfile,snowfile,so4tfile,soilfile,sstfile,
      &    surfile,tmaxfile,tminfile,topofile,trcfil,vegfile,zofile,
      &    smoistfile,soil2file,radonemfile,
-     &    co2_00,radon_00,surf_00,co2_12,radon_12,surf_12
+     &    co2_00,radon_00,surf_00,co2_12,radon_12,surf_12,
+     &    laifile,albnirfile,urbanfile,bathfile ! MJT sib ! MJT urban ! MJT mlo
       namelist/kuonml/alflnd,alfsea
      &        ,cldh_lnd,cldm_lnd,cldl_lnd
      &        ,cldh_sea,cldm_sea,cldl_sea
@@ -200,6 +201,8 @@
 
       ! Check that declarations in include files match
       call check_dims()
+      
+      !call setstacklimit(-1)
 
 #ifndef scyld
       call MPI_Init(ierr)       ! Start
@@ -909,7 +912,7 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
       call start_log(phys_begin)
       call start_log(gwdrag_begin)
       if(ngwd<0)call gwdrag  ! <0 for split - only one now allowed
-      call end_log(gwdrag_end)
+      call end_log(gwdrag_end)      
 
       call start_log(convection_begin)
       if(nkuo==23)call convjlm     ! split convjlm 
@@ -1284,7 +1287,7 @@ c     if(nmaxpr==1)print *,'before 2nd loadbal ktau,myid = ',ktau,myid
         epot_ave(:)  =  epot_ave(:)/min(ntau,nperavg)
         eg_ave(:)    =    eg_ave(:)/min(ntau,nperavg)
         fg_ave(:)    =    fg_ave(:)/min(ntau,nperavg)
-	rnet_ave(:)  =  rnet_ave(:)/min(ntau,nperavg)
+	rnet_ave     =  rnet_ave(:)/min(ntau,nperavg)
         ga_ave(:)    =    ga_ave(:)/min(ntau,nperavg)
         riwp_ave(:)  =  riwp_ave(:)/min(ntau,nperavg)
         rlwp_ave(:)  =  rlwp_ave(:)/min(ntau,nperavg)
@@ -1686,10 +1689,10 @@ c     data nstag/99/,nstagu/99/
      &     vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
       data newsoilm/0/,newztsea/1/,newtop/0/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
-      data nurban/0/,nmr/0/,nmlo/0/ ! MJT urban ! MJT nmr ! MJT mlo
 !     Special and test options
       data namip/0/,amipo3/.false./,nhstest/0/,nsemble/0/,nspecial/0/,
      &     panfg/4./,panzo/.001/,nplens/0/
+      data nurban/0/,nmr/0/,nmlo/0/,nud_sst/0/ ! MJT urban ! MJT nmr ! MJT mlo
 !     I/O options
       data m_fly/4/,io_in/1/,io_out/1/,io_rest/1/
       data nperavg/-99/,nwt/-99/
@@ -1710,6 +1713,7 @@ c     initialize file names to something
      &    ,radon_12/' '/,ifile/' '/,ofile/' '/,nmifile/' '/
      &    ,eigenv/' '/,radfile/' '/,o3file/' '/,hfile/' '/,mesonest/' '/
      &          ,scrnfile/' '/,tmaxfile/' '/,tminfile/' '/,trcfil/' '/
+     &    ,laifile/' '/,albnirfile/' '/,urbanfile/' '/,bathfile/' '/ ! MJT sib ! MJT urban ! MJT mlo
       data climcdf/'clim.cdf'/
       data monfil/'monthly.cdf'/,scrfcdf/'scrave.cdf'/
 c     floating point:

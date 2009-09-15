@@ -1,6 +1,7 @@
       subroutine vadv30(tarr,uarr,varr)   
 !     only calls vadvbess or vadvbess8 (nvad=7,8) from Aug 2003      
       use cc_mpi, only : mydiag
+      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       parameter (ntest=0) !  0: usual   1: for diagnostic prints
       parameter (nvdep=7) !  0  for original;
 !                            1  for newer average vels
@@ -364,6 +365,10 @@ c       interpolate sdot to full-level sd with cubic polynomials
                call vadvbess(tr(1:ilt*jlt,:,ntr),st,kdel,3)    ! tr next
               enddo
             endif   ! (ilt>1)
+	     if(nvmix.eq.6)then                                                  ! MJT tke
+	       call vadvbess8(tke(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet ! MJT tke
+	       call vadvbess8(eps(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet ! MJT tke
+	     endif  ! (nvmix.eq.6)                                               ! MJT tke
           endif     ! (mspec==1)
          elseif(abs(nvad)==8)then 
           call vadvbess8(tarr,st,kdel,1)                          
@@ -380,6 +385,10 @@ c       interpolate sdot to full-level sd with cubic polynomials
                call vadvbess8(tr(1:ilt*jlt,:,ntr),st,kdel,3)    ! tr next
               enddo
             endif   ! (ilt>1)
+	     if(nvmix.eq.6)then                           ! MJT tke
+	       call vadvbess8(tke(1:ifullw,:),st,kdel,3)  ! MJT tke
+	       call vadvbess8(eps(1:ifullw,:),st,kdel,3)  ! MJT tke
+	     endif  ! (nvmix.eq.6)                        ! MJT tke
           endif     ! (mspec==1)
          elseif(abs(nvad)==9)then   !  just qg and gases  
           if(mspec==1)then
@@ -393,6 +402,10 @@ c       interpolate sdot to full-level sd with cubic polynomials
                call vadvbess(tr(1:ilt*jlt,:,ntr),st,kdel,3)    ! tr next
               enddo
             endif   ! (ilt>1)
+             if(nvmix.eq.6)then                                                   ! MJT tke
+               call vadvbess8(tke(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet  ! MJT tke
+               call vadvbess8(eps(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet  ! MJT tke
+             endif  ! (nvmix.eq.6)                                                ! MJT tke
           endif     ! (mspec==1)
          endif     ! (abs(nvad)==7)  .. else .. ..
 	 return

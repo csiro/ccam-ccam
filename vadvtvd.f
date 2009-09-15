@@ -3,6 +3,7 @@ c                              vadvbott & vadvyu at bottom
 !     can show adding tbar has no effect
       use cc_mpi, only : mydiag, myid
       use diag_m
+      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       include 'newmpar.h'
       parameter (npslx=1)  ! 0 off, 1 on for nvad=-4
       parameter (nqq=0)    ! 0 off, 3 possible
@@ -623,6 +624,101 @@ c        enddo   ! iq loop
       endif   ! (nimp==1)      
       enddo      ! ntr loop
       endif      ! (nextout>=4)
+
+      !--------------------------------------------------------------
+      ! MJT tke
+      if(nvmix.eq.6)then
+       do k=1,kl-1       ! eps first
+        delt(1:ifull,k)=eps(1:ifull,k+1)-eps(1:ifull,k)
+       enddo     ! k loop
+       delt(1:ifull,0)=min(delt(1:ifull,1),eps(1:ifull,1))       ! for non-negative tt
+       do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+        do iq=1,ifull
+         kp=sign(1.,sdot(iq,k+1))
+         kx=k+(1-kp)/2  !  k for sdot +ve,  k+1 for sdot -ve
+         rat=delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+         if(ntvd==1)then
+          phitvd=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
+         else if(ntvd==2) then
+          phitvd=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
+         else if(ntvd==3) then
+          phitvd=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
+         end if
+         if(nthub==1) then
+          fluxhi=rathb(k)*eps(iq,k)+ratha(k)*eps(iq,k+1)
+         else if(nthub==2)then     ! higher order scheme
+           fluxhi=rathb(k)*eps(iq,k)+ratha(k)*eps(iq,k+1)
+     .                   -.5*delt(iq,k)*tfact*sdot(iq,k)
+         endif  ! (nthub==2)
+         fluxlo=eps(iq,kx)
+         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+        enddo    ! iq loop
+       enddo     ! k loop
+       if(nimp==1)then
+        do k=1,kl
+         do iq=1,ifull
+          hdsdot=.5*tfact*(sdot(iq,k+1)-sdot(iq,k))
+          eps(iq,k)=(eps(iq,k)
+     .                +tfact*(fluxh(iq,k-1)-fluxh(iq,k))
+     .                +hdsdot*eps(iq,k) )/(1.-hdsdot)
+         end do
+        end do
+       else
+        do k=1,kl
+         do iq=1,ifull       
+          eps(iq,k)=eps(iq,k)
+     .            +tfact*(fluxh(iq,k-1)-fluxh(iq,k)
+     .            +eps(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
+         enddo     ! iq loop
+        enddo      ! k loop
+       endif   ! (nimp==1)
+       do k=1,kl-1       ! tke next
+        delt(1:ifull,k)=tke(1:ifull,k+1)-tke(1:ifull,k)
+       enddo     ! k loop
+       delt(1:ifull,0)=min(delt(1:ifull,1),tke(1:ifull,1))       ! for non-negative tt
+       do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+        do iq=1,ifull
+         kp=sign(1.,sdot(iq,k+1))
+         kx=k+(1-kp)/2  !  k for sdot +ve,  k+1 for sdot -ve
+         rat=delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+         if(ntvd==1)then
+          phitvd=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
+         else if(ntvd==2) then
+          phitvd=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
+         else if(ntvd==3) then
+          phitvd=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
+         end if
+         if(nthub==1) then
+          fluxhi=rathb(k)*tke(iq,k)+ratha(k)*tke(iq,k+1)
+         else if(nthub==2)then     ! higher order scheme
+           fluxhi=rathb(k)*tke(iq,k)+ratha(k)*tke(iq,k+1)
+     .                   -.5*delt(iq,k)*tfact*sdot(iq,k)
+         endif  ! (nthub==2)
+         fluxlo=tke(iq,kx)
+         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+        enddo    ! iq loop
+       enddo     ! k loop
+       if(nimp==1)then
+        do k=1,kl
+         do iq=1,ifull
+          hdsdot=.5*tfact*(sdot(iq,k+1)-sdot(iq,k))
+          tke(iq,k)=(tke(iq,k)
+     .                +tfact*(fluxh(iq,k-1)-fluxh(iq,k))
+     .                +hdsdot*tke(iq,k) )/(1.-hdsdot)
+         end do
+        end do
+       else
+        do k=1,kl
+         do iq=1,ifull
+          tke(iq,k)=tke(iq,k)
+     .                +tfact*(fluxh(iq,k-1)-fluxh(iq,k)
+     .                +tke(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))
+         enddo     ! iq loop
+        enddo      ! k loop
+       endif   ! (nimp==1)
+      endif      ! if(nvmix.eq.6)
+      !--------------------------------------------------------------
+
 
       endif       ! if(mspec==1.and.abs(nvad).ne.9)
 

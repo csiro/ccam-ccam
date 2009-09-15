@@ -8,7 +8,8 @@
      &          ,co2_00,radon_00,surf_00,co2_12,radon_12,surf_12         &
      &          ,ifile,ofile,nmifile,so4tfile                            &
      &          ,eigenv,radfile,o3file,hfile,mesonest                    &
-     &          ,scrnfile,tmaxfile,tminfile,trcfil
+     &          ,scrnfile,tmaxfile,tminfile,trcfil                       &
+     &          ,laifile,albnirfile,urbanfile,bathfile ! MJT sib,urban
       character*80 albfile,icefile,maskfile                              &
      &          ,snowfile,sstfile,topofile,zofile                        &
      &          ,rsmfile,scamfile,soilfile,vegfile                       &
@@ -18,4 +19,5 @@
      &          ,co2_00,radon_00,surf_00,co2_12,radon_12,surf_12         &
      &          ,ifile,ofile,nmifile,so4tfile                            &
      &          ,eigenv,radfile,o3file,hfile,mesonest                    &
-     &          ,scrnfile,tmaxfile,tminfile,trcfil
+     &          ,scrnfile,tmaxfile,tminfile,trcfil                       &
+     &          ,laifile,albnirfile,urbanfile,bathfile ! MJT sib,urban

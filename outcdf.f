@@ -271,7 +271,7 @@ c=======================================================================
       use define_dimensions, only : ncs, ncp ! MJT cable
 c     rml 18/09/07 pass through tracmax,tracmin; 19/09/07 add tracname
       use tracermodule, only : tracmax,tracmin,tracname
-
+      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       use mlo, only : wlev,mlosave      
       implicit none
 
@@ -741,6 +741,12 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          call attrib(idnc,dim,4,'qlg','Liquid water','kg/kg',0.,.02,0)
          call attrib(idnc,dim,4,'cfrac','Cloud fraction','none',0.,1.,0)
         endif
+        if (nvmix.eq.6)then                                       ! MJT tke
+         call attrib(idnc,dim,4,'tke','Turbulent-Kinetic-Energy'
+     &              ,'none',0.,650.,0)                            ! MJT tke
+         call attrib(idnc,dim,4,'eps','Eddy dissipation rate'
+     &              ,'none',0.,65.,0)                             ! MJT tke
+        end if                                                    ! MJT tke
 
         if (nsib.eq.4.or.nsib.eq.6) then  ! MJT cable
           lname = 'Carbon leaf pool'
@@ -991,7 +997,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       ! MJT mlo
       if (nmlo.ne.0) then
         datoc(:,:,1:2)=999.
-	datoc(:,:,3:4)=0.
+        datoc(:,:,3:4)=0.
         call mlosave(ifull,datoc,aa,0)
         !do k=1,wlev
         !  where(zs(1:ifull).gt.1.)
@@ -1245,6 +1251,10 @@ c      "extra" outputs
         call histwrt4(qlg(1:ifullw,:),'qlg',idnc,iarch,local)
         call histwrt4(cfrac,'cfrac',idnc,iarch,local)
       endif
+      if (nvmix.eq.6)then                                    ! MJT tke
+        call histwrt4(tke(1:ifull,:),'tke',idnc,iarch,local) ! MJT tke
+        call histwrt4(eps(1:ifull,:),'eps',idnc,iarch,local) ! MJT tke
+      end if                                                 ! MJT tke
 
 !     rml 16/02/06 histwrt4 for trNNN and travNNN
       if(ngas>0)then 
@@ -1431,7 +1441,7 @@ c     character*8 sname
                ipack(iq)=max(min(ipack(iq),maxv),minv)
             end do
 
-            call ncvpt(idnc, mid, start, count, ipack, ier)
+            call ncvpt(idnc, mid, start, count, ipack(1:ifull), ier) ! MJT bug fix
          else
             call ncvpt(idnc, mid, start, count, var, ier)
          endif
@@ -1530,7 +1540,7 @@ c     character*8 sname
          mid = ncvid(idnc,sname,ier)
 
 !        Check variable type
-         ier = nf_inq_vartype(idnc, mid, NCFLOAT)
+c        ier = nf_inq_vartype(idnc, mid, NCFLOAT) ! removed 13/6/07
          call ncvpt(idnc, mid, start, count, var, ier)
          if(ier.ne.0)then
            write(0,*) "in histwrt3l ier not zero"
@@ -1623,13 +1633,13 @@ c find variable index
 !           xmax=xmin+scale_f*float(maxv-minv)
             xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
             do k=1,kl
-               do iq=1,ifull_g
+               do iq=1,ifull ! MJT bug fix
                   pvar = max(xmin,min(xmax,var(iq,k)))
                   ipack(iq,k)=nint((pvar-addoff)/scale_f)
                   ipack(iq,k)=max(min(ipack(iq,k),maxv),minv)
                end do
             end do
-            call ncvpt(idnc, mid, start, count, ipack, ier)
+            call ncvpt(idnc, mid, start, count, ipack(1:ifull,:), ier) !MJT bug fix
          else
             call ncvpt(idnc, mid, start, count, var, ier)
          endif

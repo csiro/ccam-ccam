@@ -67,7 +67,7 @@ real, parameter :: vkar=0.4               ! von Karman constant
 real, parameter :: lv=2.501e6             ! Latent heat of vaporisation
 real, parameter :: cp0=3990.              ! heat capacity of mixed layer (J kg^-1 K^-1)
 real, parameter :: grav=9.80              ! graviational constant (m/s^2)
-real, parameter :: cdbot=2.4E-3           ! Bottom drag coefficent
+real, parameter :: cdbot=2.4E-3           ! bottom drag coefficent
 
 contains
 
@@ -527,8 +527,8 @@ real, dimension(wfull,wlev), intent(out) :: km,ks,gammas
 real, dimension(wfull,wlev) :: num,nus,wm,ws,ri
 real, dimension(wfull) :: sigma
 real, dimension(wfull) :: a2m,a3m,a2s,a3s
-real numh,wm1,dnumhdz,dwm1ds,g1m,dg1mds
-real nush,ws1,dnushdz,dws1ds,g1s,dg1sds
+real, dimension(wfull) :: numh,wm1,dnumhdz,dwm1ds,g1m,dg1mds
+real, dimension(wfull) :: nush,ws1,dnushdz,dws1ds,g1s,dg1sds
 real xp,cg
 type(tdiag2), dimension(wfull), intent(in) :: dg2
 type(tdiag3), dimension(wfull,wlev), intent(in) :: dg3
@@ -579,28 +579,29 @@ end do
 do iqw=1,wfull
   xp=(pg(iqw)%mixdepth-depth(iqw,pg(iqw)%mixind))/(depth(iqw,pg(iqw)%mixind+1)-depth(iqw,pg(iqw)%mixind))
   xp=max(0.,min(1.,xp))
-  numh=(1.-xp)*num(iqw,pg(iqw)%mixind)+xp*num(iqw,pg(iqw)%mixind+1)
-  wm1=(1.-xp)*wm(iqw,pg(iqw)%mixind)+xp*wm(iqw,pg(iqw)%mixind+1)
-  dnumhdz=-(num(iqw,pg(iqw)%mixind+1)-num(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
-  dwm1ds=-pg(iqw)%mixdepth*(wm(iqw,pg(iqw)%mixind+1)-wm(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
-  nush=(1.-xp)*nus(iqw,pg(iqw)%mixind)+xp*nus(iqw,pg(iqw)%mixind+1)
-  ws1=(1.-xp)*ws(iqw,pg(iqw)%mixind)+xp*ws(iqw,pg(iqw)%mixind+1)
-  dnushdz=-(nus(iqw,pg(iqw)%mixind+1)-nus(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
-  dws1ds=-pg(iqw)%mixdepth*(ws(iqw,pg(iqw)%mixind+1)-ws(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
-
-  wm1=max(wm1,1.E-10)
-  ws1=max(ws1,1.E-10)
-  
-  g1m=numh/(pg(iqw)%mixdepth*wm1)
-  dg1mds=-dnumhdz/wm1-numh*dwm1ds/(pg(iqw)%mixdepth*wm1*wm1)
-  g1s=nush/(pg(iqw)%mixdepth*ws1)
-  dg1sds=-dnushdz/ws1-nush*dws1ds/(pg(iqw)%mixdepth*ws1*ws1)
-  
-  a2m(iqw)=-2.+3.*g1m-dg1mds
-  a3m(iqw)=1.-2.*g1m+dg1mds
-  a2s(iqw)=-2.+3.*g1s-dg1sds
-  a3s(iqw)=1.-2.*g1s+dg1sds
+  numh(iqw)=(1.-xp)*num(iqw,pg(iqw)%mixind)+xp*num(iqw,pg(iqw)%mixind+1)
+  wm1(iqw)=(1.-xp)*wm(iqw,pg(iqw)%mixind)+xp*wm(iqw,pg(iqw)%mixind+1)
+  dnumhdz(iqw)=-(num(iqw,pg(iqw)%mixind+1)-num(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
+  dwm1ds(iqw)=-pg(iqw)%mixdepth*(wm(iqw,pg(iqw)%mixind+1)-wm(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
+  nush(iqw)=(1.-xp)*nus(iqw,pg(iqw)%mixind)+xp*nus(iqw,pg(iqw)%mixind+1)
+  ws1(iqw)=(1.-xp)*ws(iqw,pg(iqw)%mixind)+xp*ws(iqw,pg(iqw)%mixind+1)
+  dnushdz(iqw)=-(nus(iqw,pg(iqw)%mixind+1)-nus(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
+  dws1ds(iqw)=-pg(iqw)%mixdepth*(ws(iqw,pg(iqw)%mixind+1)-ws(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
 end do
+
+wm1=max(wm1,1.E-10)
+ws1=max(ws1,1.E-10)
+  
+g1m=numh/(pg%mixdepth*wm1)
+dg1mds=-dnumhdz/wm1-numh*dwm1ds/(pg%mixdepth*wm1*wm1)
+g1s=nush/(pg%mixdepth*ws1)
+dg1sds=-dnushdz/ws1-nush*dws1ds/(pg%mixdepth*ws1*ws1)
+  
+a2m=-2.+3.*g1m-dg1mds
+a3m=1.-2.*g1m+dg1mds
+a2s=-2.+3.*g1s-dg1sds
+a3s=1.-2.*g1s+dg1sds
+
 !--------------------------------------------------------------------
 ! combine
 do ii=1,wlev
@@ -799,48 +800,48 @@ do ii=1,wlev
   dg3(:,ii)%rho=density
 end do
 
+t = max(water(:,1)%temp-273.16,-2.)
+s = max(water(:,1)%sal,0.)
+t2 = t*t
+t3 = t2*t
+t4 = t3*t
+t5 = t4*t
+s2 = s*s
+s3 = s2*s
+s32 = sqrt(s3)
+
+rs0 = 999.842594 + 6.793952e-2*t(:) &
+       - 9.095290e-3*t2(:) + 1.001685e-4*t3(:) &
+       - 1.120083e-6*t4(:) + 6.536332e-9*t5(:) ! density for sal=0.
+rho0 = rs0+ s(:)*(0.824493 - 4.0899e-3*t(:) &
+       + 7.6438e-5*t2(:) &
+       - 8.2467e-7*t3(:) + 5.3875e-9*t4(:)) &
+       + s32(:)*(-5.72466e-3 + 1.0227e-4*t(:) &
+       - 1.6546e-6*t2(:)) + 4.8314e-4*s2(:)     ! + sal terms    
+drho0dt=6.793952e-2 &
+       - 2.*9.095290e-3*t(:) + 3.*1.001685e-4*t2(:) &
+       - 4.*1.120083e-6*t3(:) + 5.*6.536332e-9*t4(:) &
+       + s(:)*( - 4.0899e-3 + 2.*7.6438e-5*t(:) &
+       - 3.*8.2467e-7*t2(:) + 4.*5.3875e-9*t3(:)) &
+       + s32(:)*(1.0227e-4 - 2.*1.6546e-6*t(:))
+drho0ds= (0.824493 - 4.0899e-3*t(:) &
+       + 7.6438e-5*t2(:) &
+       - 8.2467e-7*t3(:) + 5.3875e-9*t4(:)) &
+       + 1.5*sqrt(s(:))*(-5.72466e-3 + 1.0227e-4*t(:) &
+       - 1.6546e-6*t2(:)) + 2.*4.8314e-4*s(:)
+
 do i=1,nits
-  t = max(water(:,1)%temp-273.16,-2.)
-  s = max(water(:,1)%sal,0.)
-  t2 = t**2
-  t3 = t**3
-  t4 = t**4
-  t5 = t**5
-  s2 = s**2
-  s3 = s**3
-  s32 = sqrt(s3)
-
-  rs0 = 999.842594 + 6.793952e-2*t(:) &
-         - 9.095290e-3*t2(:) + 1.001685e-4*t3(:) &
-         - 1.120083e-6*t4(:) + 6.536332e-9*t5(:) ! density for sal=0.
-  rho0 = rs0+ s(:)*(0.824493 - 4.0899e-3*t(:) &
-         + 7.6438e-5*t2(:) &
-         - 8.2467e-7*t3(:) + 5.3875e-9*t4(:)) &
-         + s32(:)*(-5.72466e-3 + 1.0227e-4*t(:) &
-         - 1.6546e-6*t2(:)) + 4.8314e-4*s2(:)     ! + sal terms    
-  drho0dt=6.793952e-2 &
-         - 2.*9.095290e-3*t(:) + 3.*1.001685e-4*t2(:) &
-         - 4.*1.120083e-6*t3(:) + 5.*6.536332e-9*t4(:) &
-         + s(:)*( - 4.0899e-3 + 2.*7.6438e-5*t(:) &
-         - 3.*8.2467e-7*t2(:) + 4.*5.3875e-9*t3(:)) &
-         + s32(:)*(1.0227e-4 - 2.*1.6546e-6*t(:))
-  drho0ds= (0.824493 - 4.0899e-3*t(:) &
-         + 7.6438e-5*t2(:) &
-         - 8.2467e-7*t3(:) + 5.3875e-9*t4(:)) &
-         + 1.5*sqrt(s(:))*(-5.72466e-3 + 1.0227e-4*t(:) &
-         - 1.6546e-6*t2(:)) + 2.*4.8314e-4*s(:)
-
   do ii=1,wlev
     t = max(water(:,ii)%temp-273.16,-2.)
     s = max(water(:,ii)%sal,0.01)
     p1 = grav*depth(:,ii)*dg3(:,ii)%rho/100000.
-    t2 = t**2
-    t3 = t**3
-    t4 = t**4
-    t5 = t**5
-    s2 = s**2
-    s3 = s**3
-    p2 = p1**2
+    t2 = t*t
+    t3 = t2*t
+    t4 = t3*t
+    t5 = t4*t
+    s2 = s*s
+    s3 = s2*s
+    p2 = p1*p1
     s32 = sqrt(s3)
     
     sks = 1.965933e4 + 1.444304e2*t(:) - 1.706103*t2(:) &
