@@ -557,11 +557,15 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
           call attrib(idnc,idim,3,'sgn_ave',lname,'W/m2',-500.,2000.,0)
           lname = 'Surface pressure tendency'
           call attrib(idnc,idim,3,'dpsdt',lname,'hPa/day',-400.,400.,0)
-          lname = 'PBL depth'
-          call attrib(idnc,idim,3,'pblh',lname,'m',0.,6000.,0)
+          !lname = 'PBL depth'                                   ! MJT tke
+          !call attrib(idnc,idim,3,'pblh',lname,'m',0.,6000.,0)  ! MJT tke
           lname = 'friction velocity'
           call attrib(idnc,idim,3,'ustar',lname,'m/s',0.,10.,0)
         endif     ! (nextout>=1)
+        if (nextout>=1.or.(nvmix.eq.6.and.itype==-1)) then      ! MJT tke
+          lname = 'PBL depth'                                   ! MJT tke
+          call attrib(idnc,idim,3,'pblh',lname,'m',0.,6000.,0)  ! MJT tke
+        end if                                                  ! MJT tke
         if(nextout>=2) then  ! 6-hourly u10, v10, tscr, rh1
          mnam ='x-component 10m wind '
          nnam ='y-component 10m wind '
@@ -741,11 +745,11 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          call attrib(idnc,dim,4,'qlg','Liquid water','kg/kg',0.,.02,0)
          call attrib(idnc,dim,4,'cfrac','Cloud fraction','none',0.,1.,0)
         endif
-        if (nvmix.eq.6)then                                       ! MJT tke
-         call attrib(idnc,dim,4,'tke','Turbulent-Kinetic-Energy'
-     &              ,'none',0.,650.,0)                            ! MJT tke
-         call attrib(idnc,dim,4,'eps','Eddy dissipation rate'
+        if (nextout>=1.or.(nvmix.eq.6.and.itype==-1))then         ! MJT tke
+         call attrib(idnc,dim,4,'tke','Turbulent Kinetic Energy'
      &              ,'none',0.,65.,0)                             ! MJT tke
+         call attrib(idnc,dim,4,'eps','Eddy dissipation rate'
+     &              ,'none',0.,6.5,0)                             ! MJT tke
         end if                                                    ! MJT tke
 
         if (nsib.eq.4.or.nsib.eq.6) then  ! MJT cable
@@ -1230,10 +1234,14 @@ c      "extra" outputs
            call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local)
          endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
          call histwrt3(dpsdt,'dpsdt',idnc,iarch,local)
-         call histwrt3(pblh,'pblh',idnc,iarch,local)
+         !call histwrt3(pblh,'pblh',idnc,iarch,local) ! MJT tke
          call histwrt3(ustar,'ustar',idnc,iarch,local)
        endif   ! nextout>=1
       endif    ! (ktau>0.and.itype.ne.-1)
+      
+      if (nextout>=1.or.(nvmix.eq.6.and.itype.eq.-1)) then ! MJT tke
+       call histwrt3(pblh,'pblh',idnc,iarch,local)         ! MJT tke
+      end if                                               ! MJT tke
 
       if(myid == 0 ) print *,'netcdf save of 3d variables'
       call histwrt4(t(1:ifull,:),'temp',idnc,iarch,local)

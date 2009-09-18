@@ -10,7 +10,7 @@
 !   ...
 !   (host horizontal advection routines for tke and eps)
 !   ...
-!   call tkeshear   ! Calculates horizontal shear for tkemix
+!   shear=...       ! Calculate horizontal shear for tkemix
 !   call tkemix     ! Updates TKE and eps source terms, updates theta and qg non-local terms and outputs kdiff
 !   ...
 !   (host vertical advection for TKE, eps, theta and mixing ratio)
@@ -24,12 +24,12 @@ module tkeeps
 implicit none
 
 private
-public tkeinit,tkemix,tkeshear,tkeend,tke,eps,tkesav,epssav
+public tkeinit,tkemix,tkeend,tke,eps,tkesav,epssav,shear
 
 integer, save :: ifull,iextra,kl
 real, dimension(:,:), allocatable, save :: tke,eps
 real, dimension(:,:), allocatable, save :: tkesav,epssav
-real, dimension(:,:), allocatable, save :: hshear
+real, dimension(:,:), allocatable, save :: shear
 real, parameter :: cm  = 0.09
 real, parameter :: ce0 = 0.69
 real, parameter :: ce1 = 1.46
@@ -69,51 +69,35 @@ kl=klin
 
 allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
 allocate(tkesav(ifull,kl),epssav(ifull,kl))
-allocate(hshear(ifull,kl))
+allocate(shear(ifull,kl))
 
 tke=1.5E-4
 eps=1.0E-6
 tkesav=tke(1:ifull,:)
 epssav=eps(1:ifull,:)
-hshear=0.
+shear=0.
 
 return
 end subroutine tkeinit
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate horizontal shear
-
-subroutine tkeshear(u,v,w,in,ie,iw,is,diag)
-
-implicit none
-
-integer, intent(in) :: diag
-integer k
-real, dimension(ifull+iextra,kl), intent(in) :: u,v,w
-integer, dimension(ifull), intent(in) :: in,ie,iw,is
-
-return
-end subroutine tkeshear
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! PBL mixing from TKE
 
-subroutine tkemix(kmo,theta,qg,u,v,zi,wt0,wq0,ps,ustar,zz,sigkap,dt,diag)
+subroutine tkemix(kmo,theta,qg,u,v,zi,wt0,wq0,ps,ustar,zz,sigkap,dt,av_vmod,diag)
 
 implicit none
 
 integer, intent(in) :: diag
 integer k,i,maxits
-real, intent(in) :: dt
+real, intent(in) :: dt,av_vmod
 real, dimension(ifull,kl), intent(inout) :: theta,qg
 real, dimension(ifull,kl), intent(in) :: u,v,zz
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: wt0,wq0,ps,ustar
 real, dimension(kl), intent(in) :: sigkap
-real, dimension(ifull,kl) :: km,gam,gamhl
-real, dimension(ifull,kl) :: jacobi11,jacobi21,jacobi12,jacobi22,det,fn,gn
-real, dimension(ifull,kl) :: dkmdtke,dkmdeps
+real, dimension(ifull,kl) :: km,kmsav,gam,gamhl
+real, dimension(ifull,2:kl) :: jacobi11,jacobi21,jacobi12,jacobi22,det,fn,gn
 real, dimension(ifull,kl) :: tkenew,epsnew
 real, dimension(ifull,2:kl) :: pps,ppb,ppt
 real, dimension(ifull,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
@@ -126,8 +110,9 @@ real, dimension(kl-1) :: wpv_flux,tup,qup,w2up
 real xp,wup,mflx,qupsat,qsat,temp,acldf,qt2,ee
 real dt_s,dz_ref
 logical sconv
-integer, parameter :: method = 0 ! 0 = explicit, 1 = semi-implicit
-real, parameter :: alpha = 0.5
+logical, dimension(ifull,kl) :: teok
+integer, parameter :: method = 1 ! 0 = explicit, 1 = implicit
+real, parameter :: alpha=0.6
 real, parameter :: dt_t = 100.01
 
 if (diag.gt.0) write(6,*) "Update PBL mixing with TKE"
@@ -146,6 +131,8 @@ end do
 
 ! Calculate diffusion coeffs
 km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-3)
+kmsav=max(cm*tkesav*tkesav/epssav,1.E-3)
+km=av_vmod*km+(1.-av_vmod)*kmsav
 
 ! calculate wstar and phim (from TAPM)
 wstar=0.
@@ -211,7 +198,7 @@ do i=1,ifull
           mflx=acldf*aup*wup
         end if
       else
-        if (w2up(k).gt.0.) then              ! moist convection
+        if (w2up(k).gt.0.) then     ! moist convection
           mflx=mflx*exp((entr-detr)*dz_hl(i,k-1))
         else
           mflx=0.
@@ -233,12 +220,12 @@ do i=1,ifull
     else
       do k=2,kl-1
         wpv_flux(k)=-km(i,k)*0.5*(theta(i,k+1)-theta(i,k-1))/dz_fl(i,k) !+km(i,k)*gam(i,k)
-    !    if (abs(wpv_flux(k)).lt.0.05*abs(wpv_flux(1))) then
-    !      xp=(0.05*abs(wpv_flux(1))-abs(wpv_flux(k-1)))/(abs(wpv_flux(k))-abs(wpv_flux(k-1)))
-    !      xp=min(max(xp,0.),1.)
-    !      zi(i)=(1.-xp)*zz(i,k-1)+xp*zz(i,k)
-    !      exit
-    !    end if
+        if (abs(wpv_flux(k)).lt.0.05*abs(wpv_flux(1))) then
+          xp=(0.05*abs(wpv_flux(1))-abs(wpv_flux(k-1)))/(abs(wpv_flux(k))-abs(wpv_flux(k-1)))
+          xp=min(max(xp,0.),1.)
+          zi(i)=(1.-xp)*zz(i,k-1)+xp*zz(i,k)
+          exit
+        end if
         if (wpv_flux(k).le.0.) then
           xp=-wpv_flux(k-1)/(wpv_flux(k)-wpv_flux(k-1))
           xp=min(max(xp,0.),1.)
@@ -258,72 +245,68 @@ eps(1:ifull,1)=ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wt0/theta(:,1)
 tke(1:ifull,1)=max(tke(1:ifull,1),1.5E-4)
 eps(1:ifull,1)=max(eps(1:ifull,1),1.E-6)
 
-
 ! Calculate source and sink terms for TKE and eps (vertical only)
 do k=2,kl-1
-  pps(:,k)=0.25*((u(:,k+1)-u(:,k-1))**2+(v(:,k+1)-v(:,k-1))**2)/dz_fl(:,k)**2
+  pps(:,k)=0.25*((u(:,k+1)-u(:,k-1))**2+(v(:,k+1)-v(:,k-1))**2)/dz_fl(:,k)**2+shear(:,k)/km(:,k)
   ppb(:,k)=-grav*(0.5*(theta(:,k+1)-theta(:,k-1))/dz_fl(:,k)-min(max(gam(:,k)/km(:,k),0.),0.002))/theta(:,k)
+  where (wt0.le.0.)
+    ppt(:,k)=0.5*((km(:,k+1)+km(:,k))*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k) &
+                 -(km(:,k)+km(:,k-1))*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1))/dz_fl(:,k)
+  else where
+    ppt(:,k)=0.
+  end where  
 end do
-pps(:,kl)=((u(:,kl)-u(:,kl-1))**2+(v(:,kl)-v(:,kl-1))**2)/dz_hl(:,kl-1)**2
+pps(:,kl)=((u(:,kl)-u(:,kl-1))**2+(v(:,kl)-v(:,kl-1))**2)/dz_hl(:,kl-1)**2+shear(:,kl)/km(:,kl)
 ppb(:,kl)=-grav*((theta(:,kl)-theta(:,kl-1))/dz_hl(:,kl-1)-min(max(gam(:,kl)/km(:,kl),0.),0.002))/theta(:,kl)
+where (wt0.le.0.)
+  ppt(:,kl)=0.5*(-(km(:,kl)+km(:,kl-1))*(tke(1:ifull,kl)-tke(1:ifull,kl-1))/dz_hl(:,kl-1))/dz_fl(:,kl)
+else where
+  ppt(:,kl)=0.
+end where
+
 
 select case(method)
   !******************************************************************
-  case(0) ! explicit
+  case(0) ! explicit (yields correct results)
 
     maxits=1+int(dt/dt_t)
     dt_s=dt/real(maxits)
 
     do i=1,maxits
 
-      ! Calculate diffusion coeffs
-      km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-3)
-
-      ! Calculate source and sink terms for TKE and eps (vertical only)
-      do k=2,kl-1
-        where (wt0.le.0.)
-           ppt(:,k)=0.5*((km(:,k+1)+km(:,k))*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k) &
-                 -(km(:,k)+km(:,k-1))*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1))/dz_fl(:,k)
-        else where
-          ppt(:,k)=0.
-        end where
-      end do
-      where (wt0.le.0.)
-        ppt(:,kl)=0.5*(-(km(:,kl)+km(:,kl-1))*(tke(1:ifull,kl)-tke(1:ifull,kl-1))/dz_hl(:,kl-1))/dz_fl(:,kl)
-      else where
-        ppt(:,kl)=0.
-      end where
-
       ! TKE vertical mixing (done here as we skip level 1, instead of using trim)
       aa(:,2)=-0.5*(km(:,2)+km(:,1))/(dz_fl(:,2)*dz_hl(:,1))
       cc(:,2)=-0.5*(km(:,3)+km(:,2))/(dz_fl(:,2)*dz_hl(:,2))
-      bb(:,2)=1./dt_s-cc(:,2)-aa(:,2)-cm*(pps(:,2)+ppb(:,2))*tke(1:ifull,2)/eps(1:ifull,2)
-      dd(:,2)=tke(1:ifull,2)/dt_s-aa(:,2)*tke(1:ifull,1)-eps(1:ifull,2)
+      bb(:,2)=1./dt_s-cc(:,2)-aa(:,2)
+      dd(:,2)=tke(1:ifull,2)/dt_s-aa(:,2)*tke(1:ifull,1)+km(:,2)*(pps(:,2)+ppb(:,2))-eps(1:ifull,2)
       do k=3,kl-1
         aa(:,k)=-0.5*(km(:,k)+km(:,k-1))/(dz_fl(:,k)*dz_hl(:,k-1))
         cc(:,k)=-0.5*(km(:,k+1)+km(:,k))/(dz_fl(:,k)*dz_hl(:,k))
-        bb(:,k)=1./dt_s-aa(:,k)-cc(:,k)-cm*(pps(:,k)+ppb(:,k))*tke(1:ifull,k)/eps(1:ifull,k)
-        dd(:,k)=tke(1:ifull,k)/dt_s-eps(1:ifull,k)
+        bb(:,k)=1./dt_s-aa(:,k)-cc(:,k)
+        dd(:,k)=tke(1:ifull,k)/dt_s+km(:,k)*(pps(:,k)+ppb(:,k))-eps(1:ifull,k)
       end do
       aa(:,kl)=-0.5*(km(:,kl)+km(:,kl-1))/(dz_fl(:,kl)*dz_hl(:,kl-1))
-      bb(:,kl)=1./dt_s-aa(:,kl)-cm*(pps(:,kl)+ppb(:,kl))*tke(1:ifull,kl)/eps(1:ifull,kl)
-      dd(:,kl)=tke(1:ifull,kl)/dt_s-eps(1:ifull,kl)
+      bb(:,kl)=1./dt_s-aa(:,kl)
+      dd(:,kl)=tke(1:ifull,kl)/dt_s+km(:,kl)*(pps(:,kl)+ppb(:,kl))-eps(1:ifull,kl)
       call thomas_min(tkenew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
 
       ! eps vertical mixing (done here as we skip level 1, instead of using trim)
       aa(:,2)=-0.5*ce0*(km(:,2)+km(:,1))/(dz_fl(:,2)*dz_hl(:,1))
       cc(:,2)=-0.5*ce0*(km(:,3)+km(:,2))/(dz_fl(:,2)*dz_hl(:,2))
-      bb(:,2)=1./dt_s-cc(:,2)-aa(:,2)+(eps(1:ifull,2)/tke(1:ifull,2))*ce2-ce1*max(ppt(:,2),0.)/tke(1:ifull,2)
-      dd(:,2)=eps(1:ifull,2)/dt_s-aa(:,2)*eps(1:ifull,1)+ce1*cm*tke(1:ifull,2)*(pps(:,2)+max(ppb(:,2),0.))
+      bb(:,2)=1./dt_s-cc(:,2)-aa(:,2)+ce2*eps(1:ifull,2)/tke(1:ifull,2)
+      dd(:,2)=eps(1:ifull,2)/dt_s-aa(:,2)*eps(1:ifull,1)+ce1*(eps(1:ifull,2)/tke(1:ifull,2)) &
+                                  *(km(:,2)*(pps(:,2)+max(ppb(:,2),0.))+max(ppt(:,2),0.))
       do k=3,kl-1
         aa(:,k)=-0.5*ce0*(km(:,k)+km(:,k-1))/(dz_fl(:,k)*dz_hl(:,k-1))
         cc(:,k)=-0.5*ce0*(km(:,k+1)+km(:,k))/(dz_fl(:,k)*dz_hl(:,k))
-        bb(:,k)=1./dt_s-aa(:,k)-cc(:,k)+(eps(1:ifull,k)/tke(1:ifull,k))*ce2-ce1*max(ppt(:,k),0.)/tke(1:ifull,k)
-        dd(:,k)=eps(1:ifull,k)/dt_s+ce1*cm*tke(1:ifull,k)*(pps(:,k)+max(ppb(:,k),0.))
+        bb(:,k)=1./dt_s-aa(:,k)-cc(:,k)+ce2*eps(1:ifull,k)/tke(1:ifull,k)
+        dd(:,k)=eps(1:ifull,k)/dt_s+ce1*(eps(1:ifull,k)/tke(1:ifull,k)) &
+                                   *(km(:,k)*(pps(:,k)+max(ppb(:,k),0.))+max(ppt(:,k),0.))
       end do
       aa(:,kl)=-0.5*ce0*(km(:,kl)+km(:,kl-1))/(dz_fl(:,kl)*dz_hl(:,kl-1))
-      bb(:,kl)=1./dt_s-aa(:,kl)+(eps(1:ifull,kl)/tke(1:ifull,kl))*ce2-ce1*max(ppt(:,kl),0.)/tke(1:ifull,kl)
-      dd(:,kl)=eps(1:ifull,kl)/dt_s+ce1*cm*tke(1:ifull,kl)*(pps(:,kl)+max(ppb(:,kl),0.))
+      bb(:,kl)=1./dt_s-aa(:,kl)+ce2*eps(1:ifull,kl)/tke(1:ifull,kl)
+      dd(:,kl)=eps(1:ifull,kl)/dt_s+ce1*(eps(1:ifull,kl)/tke(1:ifull,kl)) &
+                                   *(km(:,kl)*(pps(:,kl)+max(ppb(:,kl),0.))+max(ppt(:,kl),0.))
       call thomas_min(epsnew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
 
       tke(1:ifull,2:kl)=tkenew(:,2:kl)
@@ -345,39 +328,59 @@ select case(method)
     end do
 
   !******************************************************************
-  case(1) ! implicit
+  case(1) ! implicit (currently yields incorrect results due to the split formulation)
 
     ! implicit approach
     maxits=10
-
+    teok=.true.
     tkenew=tke(1:ifull,:)
     epsnew=eps(1:ifull,:)
+
     do i=1,maxits
  
-      km=max(cm*tkenew*tkenew/epsnew,1.E-3)
-      dkmdtke=2.*cm*tkenew/epsnew
-      dkmdeps=-cm*tkenew*tkenew/(epsnew*epsnew)
-
       ! non-linear part
       fn(:,2:kl)=tke(1:ifull,2:kl)-tkenew(:,2:kl)+dt*(km(:,2:kl)*(pps(:,2:kl)+ppb(:,2:kl))-epsnew(:,2:kl))
-      gn(:,2:kl)=eps(1:ifull,2:kl)-epsnew(:,2:kl)+dt*(ce1*cm*tkenew(:,2:kl)*(pps(:,2:kl)+max(ppb(:,2:kl),0.)) &
-                                                  -ce2*epsnew(:,2:kl)*epsnew(:,2:kl)/tkenew(:,2:kl))
+      gn(:,2:kl)=eps(1:ifull,2:kl)-epsnew(:,2:kl)+dt*(epsnew(:,2:kl)/tkenew(:,2:kl)) &
+                                                  *(ce1*km(:,2:kl)*(pps(:,2:kl)+max(ppb(:,2:kl),0.)) &
+                                                   +ce1*max(ppt(:,2:kl),0.)-ce2*epsnew(:,2:kl))
                                          
-      jacobi11(:,2:kl)=-1.+dt*dkmdtke(:,2:kl)*(pps(:,2:kl)+ppb(:,2:kl))
-      jacobi21(:,2:kl)=dt*(dkmdeps(:,2:kl)*(pps(:,2:kl)+ppb(:,2:kl))-1.)
-      jacobi12(:,2:kl)=dt*(ce1*cm*(pps(:,2:kl)+max(ppb(:,2:kl),0.)) &
-                       +ce2*epsnew(:,2:kl)*epsnew(:,2:kl)/(tkenew(:,2:kl)*tkenew(:,2:kl)))
-      jacobi22(:,2:kl)=-1.+dt*(-2.*ce2*epsnew(:,2:kl)/tkenew(:,2:kl))
-  
+      jacobi11(:,2:kl)=-1.
+      jacobi21(:,2:kl)=-dt
+      jacobi12(:,2:kl)=-dt*(epsnew(:,2:kl)/tkenew(:,2:kl)**2) &
+                          *(ce1*km(:,2:kl)*(pps(:,2:kl)+max(ppb(:,2:kl),0.)) &
+                           +ce1*max(ppt(:,2:kl),0.)-ce2*epsnew(:,2:kl))
+      jacobi22(:,2:kl)=-1.+dt*(1./tkenew(:,2:kl)) &
+                          *(ce1*km(:,2:kl)*(pps(:,2:kl)+max(ppb(:,2:kl),0.)) &
+                           +ce1*max(ppt(:,2:kl),0.)-ce2*epsnew(:,2:kl)) &
+                           +dt*(epsnew(:,2:kl)/tkenew(:,2:kl))*(-ce2)
+      where (.not.teok(:,2:kl)) ! MJT suggestion - decouple equations when a bound is reached
+        jacobi12(:,2:kl)=0.
+        jacobi21(:,2:kl)=0.
+      end where
       det(:,2:kl)=jacobi11(:,2:kl)*jacobi22(:,2:kl)-jacobi12(:,2:kl)*jacobi21(:,2:kl)
       where (abs(det(:,2:kl)).gt.0.001)
         tkenew(:,2:kl)=tkenew(:,2:kl)-alpha*(jacobi22(:,2:kl)*fn(:,2:kl)-jacobi21(:,2:kl)*gn(:,2:kl))/det(:,2:kl)
         epsnew(:,2:kl)=epsnew(:,2:kl)-alpha*(-jacobi12(:,2:kl)*fn(:,2:kl)+jacobi11(:,2:kl)*gn(:,2:kl))/det(:,2:kl)
       end where
-      tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-4)
-      epsnew(:,2:kl)=min(epsnew(:,2:kl),(cm**0.75)*(tkenew(:,2:kl)**1.5)/5.)
-      epsnew(:,2:kl)=max(epsnew(:,2:kl),(cm**0.75)*(tkenew(:,2:kl)**1.5)/500.)
-      epsnew(:,2:kl)=max(epsnew(:,2:kl),1.E-6)
+      teok=.true.
+      where (tkenew(:,2:kl).le.1.5E-4)
+        tkenew(:,2:kl)=1.5E-4
+        teok(:,2:kl)=.false.
+      end where
+      where (tkenew(:,2:kl).ge.65.)
+        tkenew(:,2:kl)=65.
+        teok(:,2:kl)=.false.
+      end where      
+      aa(:,2:kl)=(cm**0.75)*(tkenew(:,2:kl)**1.5)/5.
+      where (epsnew(:,2:kl).ge.aa(:,2:kl))
+        epsnew(:,2:kl)=aa(:,2:kl)
+        teok(:,2:kl)=.false.
+      end where
+      aa(:,2:kl)=max(aa(:,2:kl)*5./500.,1.E-6)
+      where (epsnew(:,2:kl).le.aa(:,2:kl))
+        epsnew(:,2:kl)=aa(:,2:kl)
+        teok(:,2:kl)=.false.
+      end where
     end do
 
     tke(1:ifull,2:kl)=tkenew(:,2:kl)
@@ -399,33 +402,19 @@ select case(method)
     dd(:,kl)=tke(1:ifull,kl)/dt
     call thomas_min(tkenew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
 
-    do k=2,kl
-      where (wt0.le.0.)
-        ppt(:,k)=0.5*((km(:,k+1)+km(:,k))*(tkenew(1:ifull,k+1)-tkenew(1:ifull,k))/dz_hl(:,k) &
-               -(km(:,k)+km(:,k-1))*(tkenew(1:ifull,k)-tkenew(1:ifull,k-1))/dz_hl(:,k-1))/dz_fl(:,k)
-      else where
-        ppt(:,k)=0.
-      end where
-    end do
-    where (wt0.le.0.)
-      ppt(:,kl)=0.5*(-(km(:,kl)+km(:,kl-1))*(tkenew(1:ifull,kl)-tkenew(1:ifull,kl-1))/dz_hl(:,kl-1))/dz_fl(:,kl)
-    else where
-      ppt(:,kl)=0.
-    end where
-
     ! eps vertical mixing (done here as we skip level 1, instead of using trim)
     aa(:,2)=-0.5*ce0*(km(:,2)+km(:,1))/(dz_fl(:,2)*dz_hl(:,1))
     cc(:,2)=-0.5*ce0*(km(:,3)+km(:,2))/(dz_fl(:,2)*dz_hl(:,2))
-    bb(:,2)=1./dt-cc(:,2)-aa(:,2)-ce1*max(ppt(:,2),0.)/tkenew(1:ifull,2)
+    bb(:,2)=1./dt-cc(:,2)-aa(:,2)
     dd(:,2)=eps(1:ifull,2)/dt-aa(:,2)*eps(1:ifull,1)
     do k=3,kl-1
       aa(:,k)=-0.5*ce0*(km(:,k)+km(:,k-1))/(dz_fl(:,k)*dz_hl(:,k-1))
       cc(:,k)=-0.5*ce0*(km(:,k+1)+km(:,k))/(dz_fl(:,k)*dz_hl(:,k))
-      bb(:,k)=1./dt-aa(:,k)-cc(:,k)-ce1*max(ppt(:,k),0.)/tkenew(1:ifull,k)
+      bb(:,k)=1./dt-aa(:,k)-cc(:,k)
       dd(:,k)=eps(1:ifull,k)/dt
     end do
     aa(:,kl)=-0.5*ce0*(km(:,kl)+km(:,kl-1))/(dz_fl(:,kl)*dz_hl(:,kl-1))
-    bb(:,kl)=1./dt-aa(:,kl)-ce1*max(ppt(:,k),0.)/tkenew(1:ifull,k)
+    bb(:,kl)=1./dt-aa(:,kl)
     dd(:,kl)=eps(1:ifull,kl)/dt
     call thomas_min(epsnew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
 
@@ -437,10 +426,10 @@ select case(method)
     !    eps(1:ifull,k)=max(eps(1:ifull,k),eps(1:ifull,k-1)*(1.-0.05*dz_hl(:,k-1)/dz_ref))
     !  end where
     !end do
-    tke=max(tke,1.5E-4)
-    eps(:,2:kl)=min(eps(:,2:kl),(cm**0.75)*(tke(:,2:kl)**1.5)/5.)
-    eps(:,2:kl)=max(eps(:,2:kl),(cm**0.75)*(tke(:,2:kl)**1.5)/500.)
-    eps=max(eps,1.E-6)
+    tke(1:ifull,:)=max(tkenew,1.5E-4)
+    eps(1:ifull,2:kl)=min(epsnew(:,2:kl),(cm**0.75)*(tkenew(:,2:kl)**1.5)/5.)
+    eps(1:ifull,2:kl)=max(epsnew(:,2:kl),(cm**0.75)*(tkenew(:,2:kl)**1.5)/500.)
+    eps(1:ifull,:)=max(epsnew,1.E-6)
 
   !******************************************************************
 end select
@@ -462,6 +451,9 @@ do k=2,kl-1
   theta(:,k)=theta(:,k)-dt*(kmo(:,k)*gamhl(:,k)-kmo(:,k-1)*gamhl(:,k-1))/dz_fl(:,k)
 end do
 theta(:,kl)=theta(:,kl)-dt*(-kmo(:,kl-1)*gamhl(:,kl-1))/dz_fl(:,kl)
+
+tkesav=tke(1:ifull,:) ! Not needed, but for consistancy when not using CCAM
+epssav=eps(1:ifull,:) ! Not needed, but for consistancy when not using CCAM
 
 return
 end subroutine tkemix
@@ -534,7 +526,7 @@ if (diag.gt.0) write(6,*) "Terminate TKE scheme"
 
 deallocate(tke,eps)
 deallocate(tkesav,epssav)
-deallocate(hshear)
+deallocate(shear)
 
 return
 end subroutine tkeend

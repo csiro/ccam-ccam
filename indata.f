@@ -2017,6 +2017,12 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
      &                   tke(1:ifull,:),ifull)
           call histrd4(ncid,iarchi-1,ier,'eps',ik,jk,kk,
      &                   eps(1:ifull,:),ifull)
+          tke=max(tke,1.5E-4)
+          eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)
+          eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)          
+          eps=max(eps,1.E-6)
+          tkesav=tke(1:ifull,:)
+          epssav=eps(1:ifull,:)
           if (ier.eq.0) then
             if (myid==0) print *,"Importing TKE data"
           else

@@ -2,6 +2,7 @@
 !     usual scheme
       use cc_mpi
       use diag_m
+      !use tkeeps, only : shear ! MJT tke
       implicit none
 !      integer, parameter :: nhorjlm=1 ! 1 for jlm 3D deformation rather than Smagorinsky
 c     called from globpe (now not tendencies),
@@ -81,6 +82,47 @@ c     above code independent of k
          print *,'bx,by,bz ',bx(idjd),by(idjd),bz(idjd)
       endif
 
+!      !--------------------------------------------------------------
+!      ! MJT tke ! MJT smag
+!      ! Calculate du/dx,dv/dx,du/dy,dv/dy but use cartesian vectors
+!      ! so as to avoid changes in vector direction across panel boundaries.
+!      ! Also compatible with gnomic grid.
+!      if (nhorjlm==0.or.nvmix==6) then
+!        ! neglect terrain following component for now
+!        do k=1,kl
+!          uc(:,k)=ax*u(:,k)
+!          vc(:,k)=ay*u(:,k)
+!          wc(:,k)=az*u(:,k)
+!        end do
+!        call bounds(uc)
+!        call bounds(vc)
+!        call bounds(wc)
+!        do k=1,kl
+!          dudx(:,k)=(ax*(uc(ie)-uc(iw))
+!     &             +ay*(vc(ie)-vc(iw))
+!     &             +az*(wc(ie)-wc(iw)))*em/ds
+!          dudy(:,k)=(ax*(uc(in)-uc(is))
+!     &             +ay*(vc(in)-vc(is))
+!     &             +az*(wc(in)-wc(is)))*em/ds
+!        end do
+!        do k=1,kl
+!          uc(:,k)=bx*v(:,k)
+!          vc(:,k)=by*v(:,k)
+!          wc(:,k)=bz*v(:,k)
+!        end do
+!        call bounds(uc)
+!        call bounds(vc)
+!        call bounds(wc)
+!        do k=1,kl
+!          dvdx(:,k)=(bx*(uc(ie)-uc(iw))
+!     &             +by*(vc(ie)-vc(iw))
+!     &             +bz*(wc(ie)-wc(iw)))*em/ds
+!          dvdy(:,k)=(bx*(uc(in)-uc(is))
+!     &             +by*(vc(in)-vc(is))
+!     &             +bz*(wc(in)-wc(is)))*em/ds
+!        end do
+!     else ! usual deformation for nhorjlm=1 or nhorjlm=2
+
       do k=1,kl
 !        in hordifgt, need to calculate Cartesian components 
          do iq=1,ifull
@@ -92,6 +134,9 @@ c     above code independent of k
       call bounds(uc)
       call bounds(vc)
       call bounds(wc)
+      
+!      end if
+!      !--------------------------------------------------------------
 
       if(nhorjlm==1)then
 c      jlm scheme using 3D uc, vc, wc
@@ -128,6 +173,20 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
          enddo
 
       else
+
+!       !-------------------------------------------------------------
+!       ! MJT smag
+!       ! Smagorinsky REDUX
+!       do k=1,kl
+!         do iq=1,ifull
+!           cc=0.5*(dvdx(iq,k)+dudy(iq,k))
+!           cc=cc**2+(0.5*dudx(iq,k)-0.5*dvdy(iq,k))**2
+!           hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1 
+!           t_kh(iq,k)= sqrt(cc)*hdif/em(iq)  ! this one without em in D terms
+!         end do
+!       end do
+!       !-------------------------------------------------------------      
+      
          print*, "NHORJLM /= 1,2 not implemented in MPI version"
          stop
 
@@ -202,6 +261,24 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
          endif                  ! (nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1
       end do
       call boundsuv(xfact,yfact)
+
+!      !--------------------------------------------------------------
+!      ! MJT tke
+!      ! calculate shear
+!      if ((nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1) then
+!        do k=1,kl
+!          dudx(:,k)=dudx(:,k)*tx_fact
+!          dvdx(:,k)=dvdx(:,k)*tx_fact
+!          dudy(:,k)=dudy(:,k)*ty_fact
+!          dvdy(:,k)=dvdy(:,k)*ty_fact
+!        end do
+!      end if
+!      do k=1,kl
+!        shear(:,k)=t_kh(:,k)*(dudx(:,k)*dudx(:,k)+dvdy(:,k)*dvdy(:,k)
+!     &             +(dudy(:,k)+dvdx(:,k))**2)
+!      end do
+!      !--------------------------------------------------------------
+
 
       if(nhorps.eq.0.or.nhorps.eq.-2)then ! for nhorps=-1,-3 don't diffuse u,v
          do k=1,kl
