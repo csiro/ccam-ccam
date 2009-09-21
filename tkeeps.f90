@@ -262,7 +262,7 @@ do k=2,kl-1
 end do
 pps(:,kl)=((u(:,kl)-u(:,kl-1))**2+(v(:,kl)-v(:,kl-1))**2)/dz_hl(:,kl-1)**2+shear(:,kl)/km(:,kl)
 ppb(:,kl)=-grav*((theta(:,kl)-theta(:,kl-1))/dz_hl(:,kl-1)-min(max(gam(:,kl)/km(:,kl),0.),0.002))/theta(:,kl) &
-          -grav*0.61*0.5*(qg(:,kl)-qg(:,kl-1))/dz_hl(:,k-1)  ! using JLM approach from vertmix.f (nvmix=4)
+          -grav*0.61*(qg(:,kl)-qg(:,kl-1))/dz_hl(:,k-1)  ! using JLM approach from vertmix.f (nvmix=4)
 where (wt0.le.0.)
   ppt(:,kl)=0.5*(-(km(:,kl)+km(:,kl-1))*(tke(1:ifull,kl)-tke(1:ifull,kl-1))/dz_hl(:,kl-1))/dz_fl(:,kl)
 else where
