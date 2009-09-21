@@ -793,14 +793,15 @@ c    &                               (grav*dt*dt)
 
       !--------------------------------------------------------------
       ! MJT tke
+      if (nvmix.eq.6) then
 !      if(mfix_qg.ne.0.and.mspec==1.and.nvmix.eq.6)then
 !        if(mfix_qg>0)then
-!         do k=1,kl
-!          tke(1:ifull,k)=tke(1:ifull,k)*ps(1:ifull)
-!          tkesav(1:ifull,k)=tkesav(1:ifull,k)*ps_sav(1:ifull)
-!          eps(1:ifull,k)=eps(1:ifull,k)*ps(1:ifull)
-!          epssav(1:ifull,k)=epssav(1:ifull,k)*ps_sav(1:ifull)
-!         end do
+         do k=1,kl
+          tke(1:ifull,k)=tke(1:ifull,k)*ps(1:ifull)
+          tkesav(1:ifull,k)=tkesav(1:ifull,k)*ps_sav(1:ifull)
+          eps(1:ifull,k)=eps(1:ifull,k)*ps(1:ifull)
+          epssav(1:ifull,k)=epssav(1:ifull,k)*ps_sav(1:ifull)
+         end do
 !        else
 !         do k=1,kl
 !          tke(1:ifull,k)=tke(1:ifull,k)*ps(1:ifull)*wts(1:ifull)
@@ -815,34 +816,34 @@ c    &                               (grav*dt*dt)
 !!       N.B. won't cope with any -ves from conjob
 !!       delpos is the sum of all positive changes over globe
 !!       delneg is the sum of all negative changes over globe
-!        wrk1(1:ifull,1:kl)=max(tke(1:ifull,1:kl),0.)
-!     &                    -tkesav(1:ifull,1:kl) ! increments
-!        call ccglobal_posneg(wrk1,delpos,delneg)
-!        ratio = -delneg/max(delpos,1.e-30)
-!        if(mfix_qg==1)alph_q = min(ratio,sqrt(ratio))  ! best option
-!        if(mfix_qg==2)alph_q = sqrt(ratio)
-!!       this is cunning 2-sided scheme
-!        tke(1:ifull,:)=tkesav(:,:)+
-!     &     alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
-!        wrk1(1:ifull,1:kl)=max(eps(1:ifull,1:kl),0.)
-!     &                        -epssav(1:ifull,1:kl)  ! increments
-!        call ccglobal_posneg(wrk1,delpos,delneg)
-!        ratio = -delneg/max(delpos,1.e-30)
-!        if(mfix_qg==1)alph_q = min(ratio,sqrt(ratio))  ! best option
-!        if(mfix_qg==2)alph_q = sqrt(ratio)
-!!       this is cunning 2-sided scheme
-!        eps(1:ifull,:)=epssav(:,:)+
-!     &     alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
-!!          undo ps weighting
-!        do k=1,kl
-!         tke(1:ifull,k)=tke(1:ifull,k)/ps(1:ifull)
-!         eps(1:ifull,k)=eps(1:ifull,k)/ps(1:ifull)
-!        enddo    ! k  loop
+        wrk1(1:ifull,1:kl)=max(tke(1:ifull,1:kl),0.)
+     &                    -tkesav(1:ifull,1:kl) ! increments
+        call ccglobal_posneg(wrk1,delpos,delneg)
+        ratio = -delneg/max(delpos,1.e-30)
+        if(mfix_qg==1)alph_q = min(ratio,sqrt(ratio))  ! best option
+        if(mfix_qg==2)alph_q = sqrt(ratio)
+!       this is cunning 2-sided scheme
+        tke(1:ifull,:)=tkesav(:,:)+
+     &     alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
+        wrk1(1:ifull,1:kl)=max(eps(1:ifull,1:kl),0.)
+     &                        -epssav(1:ifull,1:kl)  ! increments
+        call ccglobal_posneg(wrk1,delpos,delneg)
+        ratio = -delneg/max(delpos,1.e-30)
+        if(mfix_qg==1)alph_q = min(ratio,sqrt(ratio))  ! best option
+        if(mfix_qg==2)alph_q = sqrt(ratio)
+!       this is cunning 2-sided scheme
+        eps(1:ifull,:)=epssav(:,:)+
+     &     alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
+!          undo ps weighting
+        do k=1,kl
+         tke(1:ifull,k)=tke(1:ifull,k)/ps(1:ifull)
+         eps(1:ifull,k)=eps(1:ifull,k)/ps(1:ifull)
+        enddo    ! k  loop
 !        if(mfix_qg>0)then
-!         do k=1,kl
-!          tkesav(1:ifull,k)=tkesav(1:ifull,k)/ps_sav(1:ifull)
-!          epssav(1:ifull,k)=epssav(1:ifull,k)/ps_sav(1:ifull)
-!         end do
+         do k=1,kl
+          tkesav(1:ifull,k)=tkesav(1:ifull,k)/ps_sav(1:ifull)
+          epssav(1:ifull,k)=epssav(1:ifull,k)/ps_sav(1:ifull)
+         end do
 !        else
 !         do k=1,kl
 !          tkesav(1:ifull,k)=
@@ -852,6 +853,7 @@ c    &                               (grav*dt*dt)
 !         enddo    ! k  loop
 !        endif 
 !      endif      !  (mfix_qg.ne0.and.mspec==1.and.nvmix.eq.6)
+       end if
       !--------------------------------------------------------------
 
       if ((diag.or.nmaxpr==1) .and. mydiag ) then

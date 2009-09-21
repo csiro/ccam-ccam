@@ -2,7 +2,7 @@
 !     usual scheme
       use cc_mpi
       use diag_m
-      !use tkeeps, only : shear ! MJT tke
+      use tkeeps, only : shear ! MJT tke
       implicit none
 !      integer, parameter :: nhorjlm=1 ! 1 for jlm 3D deformation rather than Smagorinsky
 c     called from globpe (now not tendencies),
@@ -35,6 +35,7 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
+      real, dimension(ifull,kl) :: dudx,dudy,dvdx,dvdy ! MJT smag
       integer, parameter :: nf=2
 !     Local variables
       integer iq, k, nhora, nhorx
@@ -82,60 +83,71 @@ c     above code independent of k
          print *,'bx,by,bz ',bx(idjd),by(idjd),bz(idjd)
       endif
 
-!      !--------------------------------------------------------------
-!      ! MJT tke ! MJT smag
-!      ! Calculate du/dx,dv/dx,du/dy,dv/dy but use cartesian vectors
-!      ! so as to avoid changes in vector direction across panel boundaries.
-!      ! Also compatible with gnomic grid.
-!      if (nhorjlm==0.or.nvmix==6) then
-!        ! neglect terrain following component for now
-!        do k=1,kl
-!          uc(:,k)=ax*u(:,k)
-!          vc(:,k)=ay*u(:,k)
-!          wc(:,k)=az*u(:,k)
-!        end do
-!        call bounds(uc)
-!        call bounds(vc)
-!        call bounds(wc)
-!        do k=1,kl
-!          dudx(:,k)=(ax*(uc(ie)-uc(iw))
-!     &             +ay*(vc(ie)-vc(iw))
-!     &             +az*(wc(ie)-wc(iw)))*em/ds
-!          dudy(:,k)=(ax*(uc(in)-uc(is))
-!     &             +ay*(vc(in)-vc(is))
-!     &             +az*(wc(in)-wc(is)))*em/ds
-!        end do
-!        do k=1,kl
-!          uc(:,k)=bx*v(:,k)
-!          vc(:,k)=by*v(:,k)
-!          wc(:,k)=bz*v(:,k)
-!        end do
-!        call bounds(uc)
-!        call bounds(vc)
-!        call bounds(wc)
-!        do k=1,kl
-!          dvdx(:,k)=(bx*(uc(ie)-uc(iw))
-!     &             +by*(vc(ie)-vc(iw))
-!     &             +bz*(wc(ie)-wc(iw)))*em/ds
-!          dvdy(:,k)=(bx*(uc(in)-uc(is))
-!     &             +by*(vc(in)-vc(is))
-!     &             +bz*(wc(in)-wc(is)))*em/ds
-!        end do
-!     else ! usual deformation for nhorjlm=1 or nhorjlm=2
-
-      do k=1,kl
+      !--------------------------------------------------------------
+      ! MJT tke ! MJT smag
+      ! Calculate du/dx,dv/dx,du/dy,dv/dy but use cartesian vectors
+      ! so as to avoid changes in vector direction across panel boundaries.
+      ! Also compatible with gnomic grid.
+      if (nhorjlm==0.or.nvmix==6) then
+        ! neglect terrain following component for now
+        ! u=ax*uc+ay*vc+az*wc
+        ! dudx=u(ie)-u(iw)=ax*(uc(ie)-uc(iw))+ay*(vc(ie)-vc(iw))+az*(wc(ie)-wc(iw))
+        ! dudy=u(in)-u(is)=ax*(uc(in)-uc(is))+ay*(vc(in)-vc(is))+az*(wc(in)-wc(is))
+        do k=1,kl
+          uc(1:ifull,k)=ax(1:ifull)*u(1:ifull,k)
+          vc(1:ifull,k)=ay(1:ifull)*u(1:ifull,k)
+          wc(1:ifull,k)=az(1:ifull)*u(1:ifull,k)
+        end do
+        call bounds(uc)
+        call bounds(vc)
+        call bounds(wc)
+        do k=1,kl
+          dudx(:,k)=(ax(1:ifull)*(uc(ie,k)-uc(iw,k))
+     &              +ay(1:ifull)*(vc(ie,k)-vc(iw,k))
+     &              +az(1:ifull)*(wc(ie,k)-wc(iw,k)))
+     &              *0.5*em(1:ifull)/ds
+          dudy(:,k)=(ax(1:ifull)*(uc(in,k)-uc(is,k))
+     &              +ay(1:ifull)*(vc(in,k)-vc(is,k))
+     &              +az(1:ifull)*(wc(in,k)-wc(is,k)))
+     &              *0.5*em(1:ifull)/ds
+        end do
+        ! v=bx*uc+by*vc+bz*wc
+        ! dvdx=v(ie)-v(iw)=bx*(uc(ie)-uc(iw))+by*(vc(ie)-vc(iw))+bz*(wc(ie)-wc(iw))
+        ! dvdy=v(in)-v(is)=bx*(uc(in)-uc(is))+by*(vc(in)-vc(is))+bz*(wc(in)-wc(is))
+        do k=1,kl
+          uc(1:ifull,k)=bx(1:ifull)*v(1:ifull,k)
+          vc(1:ifull,k)=by(1:ifull)*v(1:ifull,k)
+          wc(1:ifull,k)=bz(1:ifull)*v(1:ifull,k)
+        end do
+        call bounds(uc)
+        call bounds(vc)
+        call bounds(wc)
+        do k=1,kl
+          dvdx(:,k)=(bx(1:ifull)*(uc(ie,k)-uc(iw,k))
+     &              +by(1:ifull)*(vc(ie,k)-vc(iw,k))
+     &              +bz(1:ifull)*(wc(ie,k)-wc(iw,k)))
+     &              *0.5*em(1:ifull)/ds
+          dvdy(:,k)=(bx(1:ifull)*(uc(in,k)-uc(is,k))
+     &              +by(1:ifull)*(vc(in,k)-vc(is,k))
+     &              +bz(1:ifull)*(wc(in,k)-wc(is,k)))
+     &              *0.5*em(1:ifull)/ds
+        end do
+      end if
+      if (nhorjlm.ne.0) then ! usual deformation for nhorjlm=1 or nhorjlm=2
+        
+        do k=1,kl
 !        in hordifgt, need to calculate Cartesian components 
          do iq=1,ifull
             uc(iq,k) = ax(iq)*u(iq,k) + bx(iq)*v(iq,k)
             vc(iq,k) = ay(iq)*u(iq,k) + by(iq)*v(iq,k)
             wc(iq,k) = az(iq)*u(iq,k) + bz(iq)*v(iq,k)
          enddo
-      end do
-      call bounds(uc)
-      call bounds(vc)
-      call bounds(wc)
+        end do
+        call bounds(uc)
+        call bounds(vc)
+        call bounds(wc)
       
-!      end if
+      end if
 !      !--------------------------------------------------------------
 
       if(nhorjlm==1)then
@@ -174,24 +186,30 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
 
       else
 
-!       !-------------------------------------------------------------
-!       ! MJT smag
-!       ! Smagorinsky REDUX
-!       do k=1,kl
-!         do iq=1,ifull
-!           cc=0.5*(dvdx(iq,k)+dudy(iq,k))
-!           cc=cc**2+(0.5*dudx(iq,k)-0.5*dvdy(iq,k))**2
-!           hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1 
-!           t_kh(iq,k)= sqrt(cc)*hdif/em(iq)  ! this one without em in D terms
-!         end do
-!       end do
+       !-------------------------------------------------------------
+       ! MJT smag
+       ! Smagorinsky REDUX
+       ! JLM's original notes ...
+!!!c      uses (dv/dx+du/dy)**2 + .5*(du/dx)**2 + .5*(dv/dy)**2
+!!!c      following Kikuchi et al. 1981      now Smag. Wed  04-30-1997
+!!!!      N.B. original Smag. had m on top (in D formulae) and khdif=3.2
+!!!!      More recently (21/9/00) I think original Smag has khdif=0.8
+!!!!      Smag's actual diffusion also differentiated Dt and Ds
+!!!c      t_kh is kh at t points
+         do k=1,kl
+           do iq=1,ifull
+             cc=(dvdx(iq,k)+dudy(iq,k))
+             cc=cc**2+(dudx(iq,k)-dvdy(iq,k))**2
+             hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1 
+             t_kh(iq,k)= sqrt(cc)*hdif/em(iq)  ! this one without em in D terms
+           end do
+         end do
+!         print*, "NHORJLM /= 1,2 not implemented in MPI version"
+!         stop
 !       !-------------------------------------------------------------      
-      
-         print*, "NHORJLM /= 1,2 not implemented in MPI version"
-         stop
+
 
 !        Need to understand the special panel boundary stuff
-
 !!!c      uses (dv/dx+du/dy)**2 + .5*(du/dx)**2 + .5*(dv/dy)**2
 !!!c      following Kikuchi et al. 1981      now Smag. Wed  04-30-1997
 !!!!      N.B. original Smag. had m on top (in D formulae) and khdif=3.2
@@ -265,18 +283,11 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
 !      !--------------------------------------------------------------
 !      ! MJT tke
 !      ! calculate shear
-!      if ((nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1) then
-!        do k=1,kl
-!          dudx(:,k)=dudx(:,k)*tx_fact
-!          dvdx(:,k)=dvdx(:,k)*tx_fact
-!          dudy(:,k)=dudy(:,k)*ty_fact
-!          dvdy(:,k)=dvdy(:,k)*ty_fact
-!        end do
-!      end if
-!      do k=1,kl
-!        shear(:,k)=t_kh(:,k)*(dudx(:,k)*dudx(:,k)+dvdy(:,k)*dvdy(:,k)
-!     &             +(dudy(:,k)+dvdx(:,k))**2)
-!      end do
+      do k=1,kl
+        shear(:,k)=t_kh(1:ifull,k)*(dudx(:,k)*dudx(:,k)
+     &                 +dvdy(:,k)*dvdy(:,k)
+     &                 +(dudy(:,k)+dvdx(:,k))**2)
+      end do
 !      !--------------------------------------------------------------
 
 
