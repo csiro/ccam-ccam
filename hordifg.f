@@ -284,9 +284,11 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
 !      ! MJT tke
 !      ! calculate shear
       do k=1,kl
-        shear(:,k)=t_kh(1:ifull,k)*(dudx(:,k)*dudx(:,k)
-     &                 +dvdy(:,k)*dvdy(:,k)
-     &                 +(dudy(:,k)+dvdx(:,k))**2)
+        shear(:,k)=t_kh(1:ifull,k)*(
+     &    (dudx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf))**2
+     &   +(dvdy(:,k)/(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf))**2
+     &   +(dudy(:,k)/(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf)
+     &    +dvdx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf))**2)
       end do
 !      !--------------------------------------------------------------
 

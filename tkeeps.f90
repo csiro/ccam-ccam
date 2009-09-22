@@ -241,7 +241,11 @@ eps(1:ifull,1)=ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wt0/theta(:,1)
 tke(1:ifull,1)=av_vmod*tke(1:ifull,1)+(1.-av_vmod)*tkesav(:,1) ! helps with numerical stability
 eps(1:ifull,1)=av_vmod*eps(1:ifull,1)+(1.-av_vmod)*epssav(:,1) ! helps with numerical stability
 tke(1:ifull,1)=max(tke(1:ifull,1),1.5E-4)
-eps(1:ifull,1)=max(eps(1:ifull,1),1.E-6)
+tke(1:ifull,1)=min(tke(1:ifull,1),65.)
+aa(:,2)=cm34*(tke(1:ifull,1)**1.5)/5.
+eps(1:ifull,1)=min(eps(1:ifull,1),aa(:,2))
+aa(:,2)=max(aa(:,2)*5./500.,1.E-6)
+eps(1:ifull,1)=max(eps(1:ifull,1),aa(:,2))
 
 ! Calculate source and sink terms for TKE and eps (vertical only)
 ! (replace 1/theta with Smith (1990) form to account for cloudy air.
@@ -270,8 +274,9 @@ else where
 end where
 
 ! implicit approach (split form - helps with numerical stability)
-epsnew(:,2:kl)=eps(1:ifull,2:kl)*(1.+dt*(ce1*km(:,2:kl)*(pps+max(ppb,0.))+ce1*max(ppt,0.))/tke(1:ifull,2:kl)) &
-                                 /(1.+dt*ce2*eps(1:ifull,2:kl)/tke(1:ifull,2:kl))
+aa=av_vmod*(eps(1:ifull,2:kl)/tke(1:ifull,2:kl))+(1.-av_vmod)*(epssav(1:ifull,2:kl)/tkesav(1:ifull,2:kl))
+!aa=(eps(1:ifull,2:kl)/tke(1:ifull,2:kl))
+epsnew(:,2:kl)=(eps(1:ifull,2:kl)+dt*aa*(ce1*km(:,2:kl)*(pps+max(ppb,0.))+ce1*max(ppt,0.)))/(1.+dt*ce2*aa)
 tkenew(:,2:kl)=tke(1:ifull,2:kl)+dt*(km(:,2:kl)*(pps+ppb)-max(epsnew(:,2:kl),1.E-6))
 
 tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-4)
