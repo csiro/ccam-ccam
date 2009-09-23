@@ -73,7 +73,7 @@
       integer ik,jk,kk
       common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug
       real, dimension(ifull) :: zss, aa, zsmask
-      real, dimension(ifull) :: dep,ocndepin ! MJT mlo
+      real, dimension(ifull) :: dep ! MJT mlo
       real tbarr(kl),qgin(kl),zbub(kl)
       character co2in*80,radonin*80,surfin*80,header*80
 
@@ -135,8 +135,6 @@
 !    &              .05,.85,.85,.55,.65,.2,.05,.5, .0, .0, 0.,         ! 21-31
       real, dimension(ifull_g) :: glob2d
       real, dimension(ifull_g) :: davt_g
-      real, dimension(ifull,12) :: urban ! MJT urban
-      real, dimension(ifull,wlev,4) :: datoc ! MJT mlo
       integer igas,ier  ! MJT tracerfix
       character*3 trnum ! MJT tracerfix
 
@@ -278,13 +276,36 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
          kdate_sav=kdate_s
          ktime_sav=ktime_s
          if(io_in==1)then
+            
+            !--------------------------------------------------------------
+            ! MJT urban
+            ! Allocate arrays for onthefly.f
+            if (nurban.ne.0) then
+              allocate(atebdwn(ifull,13))
+            end if
+            !--------------------------------------------------------------
+            !--------------------------------------------------------------
+            ! MJT mlo
+            ! Allocate arrays for onthefly.f
+            if (nmlo.ne.0) then
+              allocate(mlodwn(ifull,wlev,4),ocndwn(ifull))
+            end if
+            !-------------------------------------------------------------- 
+            !--------------------------------------------------------------
+            ! MJT tke
+            ! Allocate arrays for onthefly.f
+            if (nvmix.eq.6) then
+              allocate(tkedwn(ifull,kl),epsdwn(ifull,kl),pblhdwn(ifull))
+            end if
+            !--------------------------------------------------------------
+         
             call infile(0,kdate,ktime,timegb,ds,
      &           psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
      &           tgg,wb,wbice,albsav,snowd,qfg(1:ifull,:), ! MJT albedo
      &           qlg(1:ifull,:), ! 0808 
      &           tggsn,smass,ssdn,ssdnn,snage,isflag,ifull,kl,         ! 0808
-     &           isoilm,urban,cplant,csoil,datoc,ocndepin) ! MJT cable !MJT lsmask ! MJT urban ! MJT mlo
+     &           isoilm,cplant,csoil) ! MJT cable !MJT lsmask
      
 !           rml 16/02/06 read tracer from restart for up to 999 tracers
             if (ngas>0) then                                       ! MJT tracerfix
@@ -318,8 +339,7 @@ c           endif  ! (nspecial>100)
             call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
      &           tgg,wb,wbice,snowd,qfg(1:ifull,:),qlg(1:ifull,:), !0808
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag,urban,datoc,
-     &           ocndepin) ! MJT urban ! MJT mlo
+     &           tggsn,smass,ssdn,ssdnn,snage,isflag)
          endif   ! (io_in==-1)
          if( mydiag )then
            print *,'timegb,ds,zss',timegb,ds,zss(idjd)
@@ -1947,25 +1967,26 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           dep=0.
         end where
         call mloinit(ifull,dep,0)
-        if (any(ocndepin.gt.0.5)) then
+        if (any(ocndwn.gt.0.5)) then
           if (myid == 0) print *,"Importing MLO data"
-          call mloregrid(ifull,ocndepin,datoc)
+          call mloregrid(ifull,ocndwn,mlodwn)
         else
           if (myid == 0) print *,"Using MLO defaults"
           do k=1,wlev
-            datoc(:,k,1)=tss(:)-0.01*real(k)
-            datoc(:,k,2)=34.72-0.01*real(k)
-            datoc(:,k,3)=0.
-            datoc(:,k,4)=0.
+            mlodwn(:,k,1)=tss(:)-0.01*real(k-1)
+            mlodwn(:,k,2)=34.72-0.01*real(k-1)
+            mlodwn(:,k,3)=0.
+            mlodwn(:,k,4)=0.
             !where (zs(1:ifull).gt.1.) ! lakes?
-            !  datoc(:,k,2)=0.
+            !  mlodwn(:,k,2)=0.
             !end where
           end do
         end if
-        datoc(:,1,1)=tss(:) ! Always use tss for top ocean layer
-                            ! This has no effect in a climate mode and
-                            ! ensures SST track analyses in a NWP mode
-        call mloload(ifull,datoc,0)
+        mlodwn(:,1,1)=tss(:) ! Always use tss for top ocean layer
+                             ! This has no effect in a climate mode and
+                             ! ensures SST track analyses in a NWP mode
+        call mloload(ifull,mlodwn,0)
+        deallocate(mlodwn,ocndwn)
       end if
       !-----------------------------------------------------------------
 
@@ -1978,27 +1999,25 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           sigmu(:)=0.
         end where
         call atebinit(ifull,sigmu(:),zmin,0)
-        where(urban(:,1).ge.399.) ! must be the same as spval in onthefly.f
-          urban(:,1)=tgg(:,1)
-          urban(:,2)=0.5*(tgg(:,1)+291.16)
-          urban(:,3)=291.16
-          urban(:,4)=tgg(:,1)
-          urban(:,5)=0.5*(tgg(:,1)+291.16)
-          urban(:,6)=291.16
-          urban(:,7)=tgg(:,1)
-          urban(:,8)=0.5*(tgg(:,1)+291.16)
-          urban(:,9)=291.16
-          urban(:,10)=tgg(:,1)
-          urban(:,11)=0.5*(tgg(:,1)+tgg(:,ms))
-          urban(:,12)=tgg(:,ms)
+        where(atebdwn(:,1).ge.399.) ! must be the same as spval in onthefly.f
+          atebdwn(:,1)=tgg(:,1)
+          atebdwn(:,2)=0.5*(tgg(:,1)+291.16)
+          atebdwn(:,3)=291.16
+          atebdwn(:,4)=tgg(:,1)
+          atebdwn(:,5)=0.5*(tgg(:,1)+291.16)
+          atebdwn(:,6)=291.16
+          atebdwn(:,7)=tgg(:,1)
+          atebdwn(:,8)=0.5*(tgg(:,1)+291.16)
+          atebdwn(:,9)=291.16
+          atebdwn(:,10)=tgg(:,1)
+          atebdwn(:,11)=0.5*(tgg(:,1)+tgg(:,ms))
+          atebdwn(:,12)=tgg(:,ms)
+          atebdwn(:,13)=(wb(:,ms)-swilt(isoilm))
+     &                 /(sfc(isoilm)-swilt(isoilm))
+          atebdwn(:,13)=atebdwn(:,13)*0.26+(1.-atebdwn(:,13))*0.18
         end where
-        where (land)
-          aa=(wb(:,ms)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
-          aa=aa*0.26+(1.-aa)*0.18
-        elsewhere
-          aa=0.
-        end where
-        call atebloadm(ifull,urban,aa,0)	
+        call atebloadm(ifull,atebdwn(:,1:12),atebdwn(:,13),0)	
+        deallocate(atebdwn)
       else
         sigmu(:)=0.
         call atebdisable(0) ! disable urban
@@ -2010,25 +2029,16 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       if (nvmix.eq.6) then
         if (myid==0) print *,"Initialising TKE-eps scheme"
         call tkeinit(ifull,iextra,kl,0)
-        pblh=1000. ! move to infile
-        if (io_in.eq.1) then
-          call histrd1(ncid,iarchi-1,ier,'pblh',ik,jk,pblh,ifull)
-          call histrd4(ncid,iarchi-1,ier,'tke',ik,jk,kk,
-     &                   tke(1:ifull,:),ifull)
-          call histrd4(ncid,iarchi-1,ier,'eps',ik,jk,kk,
-     &                   eps(1:ifull,:),ifull)
-          tke=max(tke,1.5E-4)
-          eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)
-          eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)          
-          eps=max(eps,1.E-6)
-          tkesav=tke(1:ifull,:)
-          epssav=eps(1:ifull,:)
-          if (ier.eq.0) then
-            if (myid==0) print *,"Importing TKE data"
-          else
-            if (myid==0) print *,"Using TKE defaults"
-          end if     
-        endif          
+        pblh=pblhdwn
+        tke(1:ifull,:)=tkedwn
+        eps(1:ifull,:)=epsdwn
+        tke=max(tke,1.5E-4)
+        eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)
+        eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)          
+        eps=max(eps,1.E-6)       
+        tkesav=tke(1:ifull,:)
+        epssav=eps(1:ifull,:)
+        deallocate(tkedwn,epsdwn,pblhdwn)          
       end if
       !-----------------------------------------------------------------
 

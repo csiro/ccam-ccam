@@ -271,8 +271,8 @@ c=======================================================================
       use define_dimensions, only : ncs, ncp ! MJT cable
 c     rml 18/09/07 pass through tracmax,tracmin; 19/09/07 add tracname
       use tracermodule, only : tracmax,tracmin,tracname
-      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
-      use mlo, only : wlev,mlosave      
+      use tkeeps, only : tke,eps ! MJT tke
+      use mlo, only : wlev,mlosave,mlodwn ! MJT mlo
       implicit none
 
 c     this routine creates attributes and writes output
@@ -335,8 +335,6 @@ c     this routine creates attributes and writes output
       real cfrac
       common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
       real zsoil(ms)
-      real, dimension(ifull,12) :: urban ! MJT urban
-      real, dimension(ifull,wlev,4) :: datoc ! MJT mlo
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
 
@@ -745,11 +743,11 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          call attrib(idnc,dim,4,'qlg','Liquid water','kg/kg',0.,.02,0)
          call attrib(idnc,dim,4,'cfrac','Cloud fraction','none',0.,1.,0)
         endif
-        if (nextout>=1.or.(nvmix.eq.6.and.itype==-1))then         ! MJT tke
+        if (nvmix.eq.6.and.(nextout>=1.or.itype==-1))then         ! MJT tke
          call attrib(idnc,dim,4,'tke','Turbulent Kinetic Energy'
-     &              ,'none',0.,65.,0)                             ! MJT tke
+     &              ,'m2/s2',0.,65.,0)                            ! MJT tke
          call attrib(idnc,dim,4,'eps','Eddy dissipation rate'
-     &              ,'none',0.,6.5,0)                             ! MJT tke
+     &              ,'m2/s3',0.,6.5,0)                            ! MJT tke
         end if                                                    ! MJT tke
 
         if (nsib.eq.4.or.nsib.eq.6) then  ! MJT cable
@@ -806,7 +804,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
 
         !--------------------------------------------------------
         ! MJT urban
-        if (nurban.eq.-1.or.(nurban.eq.1.and.itype==-1)) then
+        if (nurban.le.-1.or.(nurban.ge.1.and.itype==-1)) then
          lname = 'roof temperature lev 1'
          call attrib(idnc,idim,3,'rooftgg1',lname,'K',100.,400.,0)
          lname = 'roof temperature lev 2'
@@ -831,6 +829,8 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          call attrib(idnc,idim,3,'roadtgg2',lname,'K',100.,400.,0)
          lname = 'road temperature lev 3'
          call attrib(idnc,idim,3,'roadtgg3',lname,'K',100.,400.,0)
+         lname = 'urban soil moisture'
+         call attrib(idnc,idim,3,'urbansm',lname,'m3/m3',0.,1.,0)
         end if
         !--------------------------------------------------------  
         
@@ -1000,17 +1000,18 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       !---------------------------------------------------------
       ! MJT mlo
       if (nmlo.ne.0) then
-        datoc(:,:,1:2)=999.
-        datoc(:,:,3:4)=0.
-        call mlosave(ifull,datoc,aa,0)
+        allocate(mlodwn(ifull,wlev,4))
+        mlodwn(:,:,1:2)=999.
+        mlodwn(:,:,3:4)=0.
+        call mlosave(ifull,mlodwn,aa,0)
         !do k=1,wlev
         !  where(zs(1:ifull).gt.1.)
-        !    dataoc(:,k,2)=999. ! lakes?
+        !    mlodwn(:,k,2)=999. ! lakes?
         !  end where
         !end do
         do k=1,ms
           where (.not.land)
-            tgg(:,k)=datoc(:,k,1)
+            tgg(:,k)=mlodwn(:,k,1)
           end where
         end do
       end if
@@ -1020,16 +1021,17 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         end if
         do k=ms+1,wlev
           write(vname,'("tgg",I2.2)') k
-          call histwrt3(datoc(:,k,1),vname,idnc,iarch,local)
+          call histwrt3(mlodwn(:,k,1),vname,idnc,iarch,local)
         end do
         do k=1,wlev
           write(vname,'("sal",I2.2)') k
-          call histwrt3(datoc(:,k,2),vname,idnc,iarch,local)
+          call histwrt3(mlodwn(:,k,2),vname,idnc,iarch,local)
           write(vname,'("uoc",I2.2)') k
-          call histwrt3(datoc(:,k,3),vname,idnc,iarch,local)
+          call histwrt3(mlodwn(:,k,3),vname,idnc,iarch,local)
           write(vname,'("voc",I2.2)') k
-          call histwrt3(datoc(:,k,4),vname,idnc,iarch,local)
+          call histwrt3(mlodwn(:,k,4),vname,idnc,iarch,local)
         end do
+        deallocate(mlodwn)
       end if
       !---------------------------------------------------------
       call histwrt3(tgg(1,1),'tgg1',idnc,iarch,local)
@@ -1259,7 +1261,7 @@ c      "extra" outputs
         call histwrt4(qlg(1:ifullw,:),'qlg',idnc,iarch,local)
         call histwrt4(cfrac,'cfrac',idnc,iarch,local)
       endif
-      if (nvmix.eq.6)then                                    ! MJT tke
+      if (nvmix.eq.6.and.(nextout>=1.or.itype.eq.-1))then    ! MJT tke
         call histwrt4(tke(1:ifull,:),'tke',idnc,iarch,local) ! MJT tke
         call histwrt4(eps(1:ifull,:),'eps',idnc,iarch,local) ! MJT tke
       end if                                                 ! MJT tke
@@ -1299,21 +1301,24 @@ c      "extra" outputs
       endif  ! (itype==-1)
       !---------------------------------------------------------
       ! MJT urban
-      if (nurban.eq.-1.or.(nurban.eq.1.and.itype==-1)) then
-       urban(:,:)=999. ! must be the same as spval in onthefly.f
-       call atebsavem(ifull,urban,0)
-       call histwrt3(urban(:,1),'rooftgg1',idnc,iarch,local)
-       call histwrt3(urban(:,2),'rooftgg2',idnc,iarch,local)
-       call histwrt3(urban(:,3),'rooftgg3',idnc,iarch,local)
-       call histwrt3(urban(:,4),'waletgg1',idnc,iarch,local)
-       call histwrt3(urban(:,5),'waletgg2',idnc,iarch,local)
-       call histwrt3(urban(:,6),'waletgg3',idnc,iarch,local)
-       call histwrt3(urban(:,7),'walwtgg1',idnc,iarch,local)
-       call histwrt3(urban(:,8),'walwtgg2',idnc,iarch,local)
-       call histwrt3(urban(:,9),'walwtgg3',idnc,iarch,local)
-       call histwrt3(urban(:,10),'roadtgg1',idnc,iarch,local)
-       call histwrt3(urban(:,11),'roadtgg2',idnc,iarch,local)
-       call histwrt3(urban(:,12),'roadtgg3',idnc,iarch,local)
+      if (nurban.le.-1.or.(nurban.ge.1.and.itype==-1)) then
+       allocate(atebdwn(ifull,13))
+       atebdwn(:,:)=999. ! must be the same as spval in onthefly.f
+       call atebsavem(ifull,atebdwn(:,1:12),atebdwn(:,13),0)
+       call histwrt3(atebdwn(:,1),'rooftgg1',idnc,iarch,local)
+       call histwrt3(atebdwn(:,2),'rooftgg2',idnc,iarch,local)
+       call histwrt3(atebdwn(:,3),'rooftgg3',idnc,iarch,local)
+       call histwrt3(atebdwn(:,4),'waletgg1',idnc,iarch,local)
+       call histwrt3(atebdwn(:,5),'waletgg2',idnc,iarch,local)
+       call histwrt3(atebdwn(:,6),'waletgg3',idnc,iarch,local)
+       call histwrt3(atebdwn(:,7),'walwtgg1',idnc,iarch,local)
+       call histwrt3(atebdwn(:,8),'walwtgg2',idnc,iarch,local)
+       call histwrt3(atebdwn(:,9),'walwtgg3',idnc,iarch,local)
+       call histwrt3(atebdwn(:,10),'roadtgg1',idnc,iarch,local)
+       call histwrt3(atebdwn(:,11),'roadtgg2',idnc,iarch,local)
+       call histwrt3(atebdwn(:,12),'roadtgg3',idnc,iarch,local)
+       call histwrt3(atebdwn(:,13),'urbansm',idnc,iarch,local)
+       deallocate(atebdwn)
       end if
       !---------------------------------------------------------      
       

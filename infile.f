@@ -3,7 +3,7 @@
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                  tgg,wb,wbice,alb,snowd,qfg,qlg,   ! 0808
      .                  tggsn,smass,ssdn,ssdnn,snage,isflag,ifull,kl,
-     .                  isoilh,urban,cplant,csoil,datoc,ocndepin) ! MJT lsmask ! MJT urban ! MJT mlo
+     .                  isoilh,cplant,csoil) ! MJT lsmask
 !     note kk; vertint.f is attached below
 !     kdate_r and ktime_r are returned from this routine.
 !     They must equal or exceed kdate_s and ktime_s
@@ -15,8 +15,10 @@
 !     This is called from nestin and onthefly 
 
       use cc_mpi
+      use ateb, only : atebdwn ! MJT urban
       use define_dimensions, only : ncs, ncp ! MJT cable
-      use mlo, only : wlev ! MJT mlo
+      use mlo, only : wlev,mlodwn,ocndwn ! MJT mlo
+      use tkeeps, only : tkedwn,epsdwn,pblhdwn ! MJT tke
       use diag_m
       implicit none
 c     include 'newmpar.h'
@@ -41,8 +43,7 @@ c     include 'tracers.h'  **** to be fixed after 0808
      . tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      . ssdnn(ifull),snage(ifull)
      & ,qfg(ifull,kl),qlg(ifull,kl),
-     & cplant(ifull,ncp),csoil(ifull,ncs), ! MJT cable
-     & urban(ifull,1:12),datoc(ifull,wlev,4),ocndepin(ifull) ! MJT urban ! MJT mlo
+     & cplant(ifull,ncp),csoil(ifull,ncs) ! MJT cable
       integer isoilh(ifull) ! MJT lsmask  
       integer isflag(ifull)
       integer ktau_r, ibb, jbb, i
@@ -528,59 +529,76 @@ c 	    only being tested for nested=0; no need to test for mesonest
 
         !------------------------------------------------------------
         ! MJT urban
-        urban(:,:)=999. ! this must equal spval in onthefly.f
-        call histrd1(ncid,iarchi,ierr,'rooftgg1',ik,jk,urban(:,1)
+        if (nurban.ne.0) then
+          atebdwn(:,:)=999. ! this must equal spval in onthefly.f
+          call histrd1(ncid,iarchi,ierr,'rooftgg1',ik,jk,atebdwn(:,1)
      &                ,ifull)
-        if (ierr==0) then
-          call histrd1(ncid,iarchi,ierr,'rooftgg2',ik,jk,urban(:,2)
-     &                ,ifull)
-          call histrd1(ncid,iarchi,ierr,'rooftgg3',ik,jk,urban(:,3)
-     &                ,ifull)
-          call histrd1(ncid,iarchi,ierr,'waletgg1',ik,jk,urban(:,4)
-     &                ,ifull)
-          call histrd1(ncid,iarchi,ierr,'waletgg2',ik,jk,urban(:,5)
-     &                ,ifull)
-          call histrd1(ncid,iarchi,ierr,'waletgg3',ik,jk,urban(:,6)
-     &                ,ifull)
-          call histrd1(ncid,iarchi,ierr,'walwtgg1',ik,jk,urban(:,7)
-     &                ,ifull)
-          call histrd1(ncid,iarchi,ierr,'walwtgg2',ik,jk,urban(:,8)
-     &                ,ifull)
-          call histrd1(ncid,iarchi,ierr,'walwtgg3',ik,jk,urban(:,9)
-     &                ,ifull)
-          call histrd1(ncid,iarchi,ierr,'roadtgg1',ik,jk,urban(:,10)
-     &                ,ifull)
-          call histrd1(ncid,iarchi,ierr,'roadtgg2',ik,jk,urban(:,11)
-     &                ,ifull)
-          call histrd1(ncid,iarchi,ierr,'roadtgg3',ik,jk,urban(:,12)
-     &                ,ifull)
+          if (ierr==0) then
+            call histrd1(ncid,iarchi,ierr,'rooftgg2',ik,jk
+     &                ,atebdwn(:,2),ifull)
+            call histrd1(ncid,iarchi,ierr,'rooftgg3',ik,jk
+     &                ,atebdwn(:,3),ifull)
+            call histrd1(ncid,iarchi,ierr,'waletgg1',ik,jk
+     &                ,atebdwn(:,4),ifull)
+            call histrd1(ncid,iarchi,ierr,'waletgg2',ik,jk
+     &                ,atebdwn(:,5),ifull)
+            call histrd1(ncid,iarchi,ierr,'waletgg3',ik,jk
+     &                ,atebdwn(:,6),ifull)
+            call histrd1(ncid,iarchi,ierr,'walwtgg1',ik,jk
+     &                ,atebdwn(:,7),ifull)
+            call histrd1(ncid,iarchi,ierr,'walwtgg2',ik,jk
+     &                ,atebdwn(:,8),ifull)
+            call histrd1(ncid,iarchi,ierr,'walwtgg3',ik,jk
+     &                ,atebdwn(:,9),ifull)
+            call histrd1(ncid,iarchi,ierr,'roadtgg1',ik,jk
+     &                ,atebdwn(:,10),ifull)
+            call histrd1(ncid,iarchi,ierr,'roadtgg2',ik,jk
+     &                ,atebdwn(:,11),ifull)
+            call histrd1(ncid,iarchi,ierr,'roadtgg3',ik,jk
+     &                ,atebdwn(:,12),ifull)
+            call histrd1(ncid,iarchi,ierr,'urbansm',ik,jk
+     &                ,atebdwn(:,13),ifull)     
+          end if
         end if
         !------------------------------------------------------------
         
         !------------------------------------------------------------
         ! MJT mlo
-        datoc=999.
-        ocndepin=0.
-        call histrd1(ncid,iarchi,ierr,'ocndepth',ik,jk,ocndepin,ifull)
+        mlodwn=999.
+        ocndwn=0.
+        call histrd1(ncid,iarchi,ierr,'ocndepth',ik,jk,ocndwn,ifull)
         if (ierr==0) then
-          datoc(:,1:ms,1)=tgg(:,1:ms)
+          mlodwn(:,1:ms,1)=tgg(:,1:ms)
           do k=ms+1,wlev
             write(vname,'("tgg",I2.2)') k
-            call histrd1(ncid,iarchi,ierr,vname,ik,jk,datoc(:,k,1)
+            call histrd1(ncid,iarchi,ierr,vname,ik,jk,mlodwn(:,k,1)
      &                ,ifull)
           end do
           do k=1,wlev
             write(vname,'("sal",I2.2)') k
-            call histrd1(ncid,iarchi,ierr,vname,ik,jk,datoc(:,k,2)
+            call histrd1(ncid,iarchi,ierr,vname,ik,jk,mlodwn(:,k,2)
      &                ,ifull)
             write(vname,'("uoc",I2.2)') k
-            call histrd1(ncid,iarchi,ierr,vname,ik,jk,datoc(:,k,3)
+            call histrd1(ncid,iarchi,ierr,vname,ik,jk,mlodwn(:,k,3)
      &                ,ifull)
             write(vname,'("voc",I2.2)') k
-            call histrd1(ncid,iarchi,ierr,vname,ik,jk,datoc(:,k,4)
+            call histrd1(ncid,iarchi,ierr,vname,ik,jk,mlodwn(:,k,4)
      &                ,ifull)
           end do
-	  if (any(datoc.gt.900.)) ocndepin=0. ! missing levels
+          if (any(mlodwn.gt.900.)) ocndwn=0. ! missing levels
+        end if
+        !------------------------------------------------------------
+        
+        !------------------------------------------------------------
+        if (nvmix.eq.6) then
+          pblhdwn=1000.
+          tkedwn=1.5E-4
+          epsdwn=1.E-6
+          call histrd1(ncid,iarchi,ierr,'pblh',ik,jk,pblhdwn,ifull)
+          call histrd4(ncid,iarchi,ierr,'tke',ik,jk,kk,
+     &                   tkedwn(1:ifull,:),ifull)
+          call histrd4(ncid,iarchi,ierr,'eps',ik,jk,kk,
+     &                   epsdwn(1:ifull,:),ifull)
         end if
         !------------------------------------------------------------
 

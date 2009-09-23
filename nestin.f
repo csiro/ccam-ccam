@@ -2,7 +2,6 @@
       use cc_mpi, only : myid, mydiag
       use diag_m
       use define_dimensions, only : ncs, ncp ! MJT cable
-      use mlo, only : wlev ! MJT mlo
       include 'newmpar.h'
 !     ik,jk,kk are array dimensions read in infile - not for globpea
 !     int2d code - not used for globpea
@@ -31,15 +30,13 @@
       real sigin
       integer ik,jk,kk
       common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug
-      real, dimension(ifull) :: zsb,duma,ocndepin ! MJT mlo
+      real, dimension(ifull) :: zsb,duma
       integer, dimension(ifull) :: dumm
       real, dimension(ifull,ms) :: dumg
       real, dimension(ifull,kl) :: dumv
       real, dimension(ifull,3) :: dums
       real, dimension(ifull,ncp) :: cplant_h ! MJT cable
       real, dimension(ifull,ncs) :: csoil_h ! MJT cable
-      real, dimension(ifull,12) :: urban ! MJT urban
-      real, dimension(ifull,wlev,4) :: datoc ! MJT mlo
       character*12 dimnam
       integer num,mtimea,mtimeb
       data num/0/,mtimea/0/,mtimeb/-1/
@@ -127,13 +124,13 @@
      .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
      &              dumg,dumg,dumg,duma,duma,dumv,dumv, 
      &              dums,dums,dums,duma,duma,dumm,ifull,kl,
-     &              dumm,urban,cplant_h,csoil_h,datoc,ocndepin) ! MJT cable ! MJT lsmask ! MJT urban ! MJT mlo
+     &              dumm,cplant_h,csoil_h) ! MJT cable ! MJT lsmask
       endif   ! (io_in==1)
       if(io_in==-1)then
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,
-     &                 duma,duma,dumm,urban,datoc,ocndepin) ! MJT cable, MJT lsmask ! MJT mlo
+     &                 duma,duma,dumm) ! MJT cable ! MJT lsmask
       endif   ! (io_in==1)
       tssb(:) = abs(tssb(:))  ! moved here Mar '03
       if (mydiag) then
@@ -292,7 +289,6 @@
       use cc_mpi, only : myid, mydiag
       use diag_m
       use define_dimensions, only : ncs, ncp ! MJT cable
-      use mlo, only : wlev ! MJT mlo
       implicit none
       integer, parameter :: ntest=0 
       include 'newmpar.h'
@@ -323,13 +319,11 @@
       integer ::  iabsdate,iq,k,kdhour,kdmin
       real, dimension(ifull,ncp) :: cplant_h ! MJT cable
       real, dimension(ifull,ncs) :: csoil_h ! MJT cable
-      real, dimension(ifull,12) :: urban ! MJT urban
-      real, dimension(ifull,wlev,4) :: datoc ! MJT mlo
       real :: ds_r,rlong0x,rlat0x
       real :: schmidtx,timeg_b
       real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
       real :: fraciceb,sicedepb
-      real, dimension(ifull) :: zsb,duma,ocndepin ! MJT mlo
+      real, dimension(ifull) :: zsb,duma
       integer, dimension(ifull) :: dumm
       real, dimension(ifull,ms) :: dumg
       real, dimension(ifull,kl) :: dumv
@@ -356,14 +350,14 @@
      .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
      &              dumg,dumg,dumg,duma,duma,dumv,dumv, 
      &              dums,dums,dums,duma,duma,dumm,ifull,kl,
-     &              dumm,urban,cplant_h,csoil_h,datoc,ocndepin) ! MJT cable ! MJT lsmask ! MJT urban ! MJT mlo
+     &              dumm,cplant_h,csoil_h) ! MJT cable ! MJT lsmask
        endif   ! (io_in==1)
 
        if(io_in==-1)then
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,
-     &                 duma,duma,dumm,urban,datoc,ocndepin) ! MJT urban ! MJT mlo
+     &                 duma,duma,dumm)
        endif   ! (io_in==1)
        tssb(:) = abs(tssb(:))  ! moved here Mar '03
        if (mydiag) then

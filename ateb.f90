@@ -49,7 +49,8 @@ implicit none
 
 private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb1, &
-       atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,vegmode
+       atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,vegmode, &
+       atebdwn,atebotf
 
 ! type definitions
 type tatm
@@ -94,6 +95,7 @@ end type tprog
 integer, save :: ufull,iqut
 integer, dimension(:), allocatable, save :: ugrid,mgrid
 real, dimension(:), allocatable, save :: sigmau
+real, dimension(:,:), allocatable, save :: atebdwn,atebotf ! These variables are for CCAM onthefly.f
 type(tsurf), dimension(:), allocatable, save :: roof,road
 type(twall), dimension(:), allocatable, save :: walle,wallw
 type(tvege), dimension(:), allocatable, save :: veg
@@ -101,7 +103,7 @@ type(tdata), dimension(:), allocatable, save :: fn
 type(tprog), dimension(:), allocatable, save :: pg
 ! model parameters
 integer, parameter :: resmeth=1           ! Canyon sensible heat transfer (0=Masson, 1=Harman, 2=Kusaka)
-integer, parameter :: zohmeth=2           ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003zom)
+integer, parameter :: zohmeth=2           ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003*zom)
 integer, parameter :: acmeth=1            ! AC heat pump into canyon (0=Off, 1=On)
 integer, parameter :: nrefl=3             ! Number of canyon reflections (default=3)
 integer, parameter :: nfgits=20           ! Maximum number of iterations for calculating sensible heat flux (default=6)
@@ -555,13 +557,14 @@ end subroutine atebsave
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! temperature only version of tebsave
 
-subroutine atebsavem(ifull,urban,diag)
+subroutine atebsavem(ifull,urban,moist,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
 integer ii
 real, dimension(ifull,12), intent(inout) :: urban
+real, dimension(ifull), intent(inout) :: moist
 
 if (ufull.eq.0) return
 if (diag.ge.1) write(6,*) "Save aTEB state arrays"
@@ -572,6 +575,7 @@ do ii=1,3
   urban(ugrid,ii+6)=wallw%temp(ii)
   urban(ugrid,ii+9)=road%temp(ii)
 end do
+moist(ugrid)=veg%moist
 
 return
 end subroutine atebsavem
@@ -996,7 +1000,7 @@ dg%vegdelta=(veg%water/maxvgwater)**(2./3.)
 dg%rfsndelta=roof%snow/(roof%snow+maxrfsn)
 dg%rdsndelta=road%snow/(road%snow+maxrdsn)
 
-! calculate c1 for soil
+! calculate c1 for soil (for in-canyon vegetation)
 n=veg%moist/ssat
 where (n.le.0.226)
   dg%c1=10.
@@ -1004,7 +1008,7 @@ elsewhere
   dg%c1=(1.78*n+0.253)/(2.96*n-0.581)
 end where
 
-! calculate incanyon roughness length
+! calculate in-canyon roughness length
 zolog=1./sqrt(dg%rdsndelta/log(0.1*fn%bldheight/zosnow)**2 &
      +(1.-dg%rdsndelta)*(fn%sigmaveg/log(0.1*fn%bldheight/zoveg)**2 &
      +(1.-fn%sigmaveg)/log(0.1*fn%bldheight/zocanyon)**2))
@@ -1012,7 +1016,6 @@ zonet=0.1*fn%bldheight*exp(-1./zolog)
 
 ! Estimate urban roughness length
 zom=zomratio*fn%bldheight
-! Adjust urban roughness due to snow
 n=road%snow/(road%snow+maxrdsn+0.408*grav*zom)                 ! snow cover for urban roughness calc (Douville, et al 1995)
 zom=(1.-n)*zom+n*zosnow                                        ! blend urban and snow roughness length
 dg%rfdzmin=max(abs(zmin-fn%bldheight*(1.-refheight)),zonet+1.) ! distance to roof displacement height
@@ -1025,7 +1028,8 @@ elsewhere ! lowest atmospheric model level is within the canopy.  Need to intera
 end where
 pg%cndzmin=zom*exp(pg%lzom)                                     ! distance to canyon displacement height
 
-if (acmeth.eq.1) then ! heat pump into canyon?
+! calculate heat pumped into canyon by air conditioning
+if (acmeth.eq.1) then
   dg%accool=max(0.,2.*fn%rooflambda(3)*(roof%temp(3)-fn%bldtemp)/fn%roofdepth(3) &
                   +2.*fn%walllambda(3)*(walle%temp(3)-fn%bldtemp)/fn%walldepth(3) &
                   +2.*fn%walllambda(3)*(wallw%temp(3)-fn%bldtemp)/fn%walldepth(3))
@@ -1043,7 +1047,7 @@ sg%veg=(1.-fn%vegalpha)*sg%veg*atm%sg
 sg%rfsn=(1.-roof%alpha)*sg%rfsn*atm%sg
 sg%rdsn=(1.-road%alpha)*sg%rdsn*atm%sg
 
-! Calculate long wave reflections to nrefl order
+! Calculate long wave reflections to nrefl order (pregenerated before solvecanyon subroutine)
 dg%netemiss=dg%rdsndelta*snowemiss+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*fn%roademiss+fn%sigmaveg*fn%vegemiss)
 dg%cwa=wallpsi
 dg%cra=roadpsi
@@ -1547,7 +1551,7 @@ real, dimension(cn), intent(out) :: invres,cd
 real, dimension(cn), intent(inout) :: olzoh
 real, dimension(cn) :: af,aft,ri,fm,fh,root,denma,denha,re,lna
 real, dimension(cn) :: z_on_l,z0_on_l,zt_on_l,pm0,pm1,ph0,ph1
-real, dimension(cn) :: integralm,integralh,pvstar
+real, dimension(cn) :: integralm,integralh,thetastar
 real, parameter :: bprm=5. ! 4.7 in rams
 real, parameter :: chs=2.6 ! 5.3 in rams
 real, parameter :: cms=5.  ! 7.4 in rams
@@ -1604,9 +1608,9 @@ end where
 invres=aft*fh*umag
  
 if (stabfn.eq.1) then ! from TAPM
-  pvstar=aft*fh*(theta-stemp)/sqrt(cd)
+  thetastar=aft*fh*(theta-stemp)/sqrt(cd)
   do ic=1,nc
-    z_on_l=vkar*zmin*grav*pvstar/(theta*cd*umag**2)
+    z_on_l=vkar*zmin*grav*thetastar/(theta*cd*umag**2)
     z_on_l=min(z_on_l,10.)
     z0_on_l  = z_on_l*exp(-ilzom)
     zt_on_l  = z0_on_l/exp(lna)
@@ -1633,7 +1637,7 @@ if (stabfn.eq.1) then ! from TAPM
       cd = (max(0.01,min(vkar*umag/(aa1*( ( z_on_l**bb1)*(1.0+cc1* z_on_l**(1.-bb1)) &
           -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1)) )),2.))/umag)**2
     endwhere
-    pvstar= vkar*(theta-stemp)/integralh
+    thetastar= vkar*(theta-stemp)/integralh
   end do
   invres=(vkar/integralh)*sqrt(cd)*umag
 end if
@@ -1922,7 +1926,7 @@ dg%canyonrgout=atm%rg*(2.*ifn%hwratio*wallpsi*(1.-ifn%wallemiss)*dg%cwa+roadpsi*
                +roadpsi*(1.-dg%netemiss)*dg%crw) &
                +sbconst*dg%netrad*(2.*ifn%hwratio*wallpsi*(1.-ifn%wallemiss)*dg%cwr+roadpsi*(1.+(1.-dg%netemiss)*dg%crr))
 
-! transpiration terms (from CCAM sflux.f - CSIRO9)
+! transpiration terms (developed by Eva in CCAM sflux.f and CSIRO9)
 ff=1.1*sg%veg/(vegrlai*150.)
 f1=(1.+ff)/(ff+vegrsmin*vegrlai/5000.)
 f2=max(0.5*(sfc-swilt)/max(iveg%moist-swilt,0.01*(sfc-swilt)),1.)
@@ -1958,7 +1962,7 @@ canyonmix=(dg%rdsndelta*rdsnqsat*ls/lv*acond%rdsn+(1.-dg%rdsndelta)*((1.-fn%sigm
            /(dg%rdsndelta*ls/lv*acond%rdsn+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dumroaddelta*acond%road &
            +ifn%sigmaveg*(dumvegdelta*acond%veg+(1.-dumvegdelta)/(1./acond%veg+res)))+topinvres)
 
-! calculate transpiration and evaporation
+! calculate transpiration and evaporation of in-canyon vegetation
 dg%tran=min(max((1.-dumvegdelta)*atm%rho*(vegqsat-canyonmix)/(1./acond%veg+res),0.), &
             max((iveg%moist-swilt)*dg%totdepth*waterden/(dg%c1*ddt),0.))
 dg%evap=min(dumvegdelta*atm%rho*(vegqsat-canyonmix)*acond%veg,iveg%water/ddt+atm%rnd)

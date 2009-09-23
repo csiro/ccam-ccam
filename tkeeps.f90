@@ -24,12 +24,16 @@ module tkeeps
 implicit none
 
 private
-public tkeinit,tkemix,tkeend,tke,eps,tkesav,epssav,shear
+public tkeinit,tkemix,tkeend,tke,eps,tkesav,epssav,shear,tkedwn,epsdwn,pblhdwn,tkeotf,epsotf,pblhotf
 
 integer, save :: ifull,iextra,kl
+real, dimension(:,:), allocatable, save :: shear
 real, dimension(:,:), allocatable, save :: tke,eps
 real, dimension(:,:), allocatable, save :: tkesav,epssav
-real, dimension(:,:), allocatable, save :: shear
+real, dimension(:,:), allocatable, save :: tkedwn,epsdwn ! These variables are for CCAM onthefly.f
+real, dimension(:,:), allocatable, save :: tkeotf,epsotf ! These variables are for CCAM onthefly.f
+real, dimension(:), allocatable, save :: pblhdwn         ! These variables are for CCAM onthefly.f
+real, dimension(:), allocatable, save :: pblhotf         ! These variables are for CCAM onthefly.f
 real, parameter :: cm  = 0.09
 real, parameter :: ce0 = 0.69
 real, parameter :: ce1 = 1.46

@@ -10,7 +10,8 @@ module mlo
 implicit none
 
 private
-public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,wlev,depth
+public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,wlev,depth, &
+       mlodwn,mlootf,ocndwn,ocnotf
 
 type tdata
   real temp,sal,u,v
@@ -41,6 +42,8 @@ integer, dimension(:), allocatable, save :: wgrid
 real, dimension(:,:), allocatable, save :: depth,dz
 real, dimension(:,:), allocatable, save :: depth_hl
 real, dimension(:,:), allocatable, save :: dz_hl
+real, dimension(:,:,:), allocatable, save :: mlodwn,mlootf ! These variables are for CCAM onthefly.f
+real, dimension(:), allocatable, save :: ocndwn,ocnotf     ! These variables are for CCAM onthefly.f
 type(tdata), dimension(:,:), allocatable, save :: water
 type(tprog2), dimension(:), allocatable, save :: pg
 
