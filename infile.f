@@ -596,9 +596,9 @@ c 	    only being tested for nested=0; no need to test for mesonest
           epsdwn=1.E-6
           call histrd1(ncid,iarchi,ierr,'pblh',ik,jk,pblhdwn,ifull)
           call histrd4(ncid,iarchi,ierr,'tke',ik,jk,kk,
-     &                   tkedwn(1:ifull,:),ifull)
+     &                   tkedwn,ifull)
           call histrd4(ncid,iarchi,ierr,'eps',ik,jk,kk,
-     &                   epsdwn(1:ifull,:),ifull)
+     &                   epsdwn,ifull)
         end if
         !------------------------------------------------------------
 

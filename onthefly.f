@@ -2,8 +2,7 @@
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,   ! 0808
-     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                    urban,datoc,ocndepin) ! MJT urban ! MJT mlo
+     .                    tggsn,smass,ssdn,ssdnn,snage,isflag)
 !     Target points use values interpolated to their 4 grid "corners";
 !     these corner values are then averaged to the grid centres
 !     N.B. this means will get different fields with io_in=-1 from io_in=1
@@ -12,7 +11,6 @@
 !     ****  qfg and qlg not yet interpolated in ontheflyx
       use cc_mpi
       use utilities
-      use mlo, only : wlev ! MJT mlo
       implicit none
       integer, parameter :: ntest=0
       integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
@@ -48,8 +46,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      & wb(ifull,ms),wbice(ifull,ms),snowd(ifull),sicedep(ifull),
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     & ssdnn(ifull),snage(ifull),qfg(ifull,kl),qlg(ifull,kl),
-     & urban(ifull,12),datoc(ifull,wlev,4),ocndepin(ifull) ! MJT urban ! MJT mlo
+     & ssdnn(ifull),snage(ifull),qfg(ifull,kl),qlg(ifull,kl)
       ! Dummy variables here replace the aliasing use of aa, bb in infile call
       integer isflag(ifull)
       ! Will get odd results unless this is on process 0 ???
@@ -87,19 +84,20 @@ c     start of processing loop
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,  ! 0808
-     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    urban,datoc,ocndepin) ! MJT urban ! MJT mlo
+     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk)
+
       return
       end
       subroutine ontheflyx(nested,land_t,kdate_r,ktime_r,
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,
-     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    urban,datoc,ocndepin) ! MJT urban ! MJT mlo
+     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk)
       use cc_mpi
+      use ateb, only : atebdwn,atebotf ! MJT urban
       use define_dimensions, only : ncs, ncp ! MJT cable
-      use mlo, only : wlev ! MJT mlo
+      use mlo, only : wlev,mlodwn,ocndwn,mlootf,ocnotf ! MJT mlo
+      use tkeeps, only : tkedwn,epsdwn,pblhdwn,tkeotf,epsotf,pblhotf ! MJT tke
       use utilities
       implicit none
       integer, parameter :: ntest=0
@@ -132,23 +130,17 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
       real, dimension(ifull) :: psl,zss,tss,fracice,
      &                          snowd,sicedep,ssdnn,snage
-      real, dimension(ifull) :: ocndepin ! MJT mlo
       real, dimension(ifull,ms) :: wb,wbice,tgg
       real, dimension(ifull,3) :: tggsn,smass,ssdn
       real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg
-      real, dimension(ifull,12) :: urban ! MJT urban
-      real, dimension(ifull,wlev,4) :: datoc ! MJT mlo
       integer, dimension(ifull) :: isflag
       real, dimension(ik*ik*6) :: psl_a,zss_a,tss_a,fracice_a,dum5,
      &      snowd_a,sicedep_a,ssdnn_a,snage_a,pmsl_a,  tss_l_a,tss_s_a
-      real, dimension(ik*ik*6) :: ocndepin_a ! MJT mlo
       real, dimension(ik*ik*6,ms) :: wb_a,wbice_a,tgg_a
       real, dimension(ik*ik*6,3) :: tggsn_a,smass_a,ssdn_a
       real, dimension(ik*ik*6,kk) :: t_a,u_a,v_a,qg_a,qfg_a,qlg_a
       real, dimension(ik*ik*6,ncp) :: cplant_a ! MJT cable
       real, dimension(ik*ik*6,ncs) :: csoil_a  ! MJT cable
-      real, dimension(ik*ik*6,12) :: urban_a ! MJT urban
-      real, dimension(ik*ik*6,wlev,4) :: datoc_a ! MJT mlo
       integer, dimension(ik*ik*6) :: isflag_a
       real ::  rlong0x, rlat0x, schmidtx, spval
       integer ::  kdate_r, ktime_r, nemi, id2,jd2,idjd2,
@@ -174,6 +166,30 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       logical, dimension(ik*ik*6) :: land_a
       logical, dimension(ifull) :: land_t
       integer, dimension(ik*ik*6) :: isoilm_a ! MJT lsmask
+
+      !--------------------------------------------------------------
+      ! MJT urban
+      ! allocate arrays for onthefly
+      if (nurban.ne.0.and.nested.eq.0) then
+        allocate(atebotf(ifull,13),atebdwn(ik*ik*6,13))
+      end if
+      !--------------------------------------------------------------
+      !--------------------------------------------------------------
+      ! MJT mlo
+      ! allocate arrays for onthefly
+      if (nmlo.ne.0.and.nested.eq.0) then
+        allocate(mlootf(ifull,wlev,4),ocnotf(ifull))
+        allocate(mlodwn(ik*ik*6,wlev,4),ocndwn(ik*ik*6))
+      end if
+      !--------------------------------------------------------------      
+      !--------------------------------------------------------------
+      ! MJT tke
+      ! allocate arrays for onthefly
+      if (nvmix.eq.6.and.nested.eq.0) then
+        allocate(tkeotf(ifull,kl),epsotf(ifull,kl),pblhotf(ifull))
+        allocate(tkedwn(ik*ik*6,kk),epsdwn(ik*ik*6,kk),pblhdwn(ik*ik*6))
+      end if
+      !--------------------------------------------------------------
    
       nemi=3   !  MJT lsmask
       if(m_fly==1)then
@@ -188,7 +204,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
      &       psl_a,zss_a,tss_a,sicedep_a,fracice_a,t_a,u_a,v_a,qg_a,
      &       tgg_a,wb_a,wbice_a,dum5,snowd_a,qfg_a,qlg_a,                ! dum5 is alb
      &       tggsn_a,smass_a,ssdn_a,ssdnn_a,snage_a,isflag_a,ik*ik*6,
-     &       kk,isoilm_a,urban_a,cplant_a,csoil_a,datoc_a,ocndepin_a)     ! MJT cable ! MJT lsmask ! MJT urban ! MJT mlo
+     &       kk,isoilm_a,cplant_a,csoil_a)     ! MJT cable ! MJT lsmask
 !     N.B. above infile call returns values for ik,jk,kk of source data
 !     Purpose of setxyz call is to get geometry (and so xx4 yy4) 
 !     for the source grid. Only process 0 needs to do this here
@@ -357,11 +373,7 @@ c            call ccmpi_gather(qg(:,k))
        ! MJT lsmask
        if(nemi==3)then 
          land_a(:)=isoilm_a(:).gt.0
-         if (any(isoilm_a(:).lt.0)) then
-	   nemi=2
-	 else
-           tss_a=abs(tss_a) ! MJT bug fix	 
-	 end if
+         if (any(isoilm_a(:).lt.0)) nemi=2
        end if
        !-------------------------------------------
        if(nemi==2)then
@@ -377,6 +389,7 @@ c            call ccmpi_gather(qg(:,k))
          if(numneg==0)nemi=1  ! should be using zss in that case
        endif                     !  (nemi==2)
        print *,'using nemi = ',nemi
+       tss_a=abs(tss_a) ! MJT bug fix
       
        if(nemi==1)then
          land_a(:) = zss_a(:) > 0.
@@ -465,17 +478,21 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
         ! MJT urban
         if (nurban.ne.0) then
           if (myid==0) then
-            do k=1,12
-              where (.not.land_a.or.urban_a(:,k).ge.399.)
-                urban_a(:,k)=spval
+            do k=1,13
+              where (.not.land_a.or.atebdwn(:,k).ge.399.)
+                atebdwn(:,k)=spval
               end where
-              call fill_cc(urban_a(:,k),spval,ik,0)
+              call fill_cc(atebdwn(:,k),spval,ik,0)
             end do
           end if
-          do k=1,12
-            call doints4(urban_a(:,k),urban(:,k),nface4,xg4,yg4,nord
+          do k=1,13
+            call doints4(atebdwn(:,k),atebotf(:,k),nface4,xg4,yg4,nord
      &                   ,ik)
           end do
+          deallocate(atebdwn)
+          allocate(atebdwn(ifull,13))
+          atebdwn=atebotf
+          deallocate(atebotf)          
         end if
         !--------------------------------------------------
         !--------------------------------------------------
@@ -484,30 +501,30 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
           if (myid==0) then
             do m=1,4
               do k=1,wlev
-                where (land_a.or.ocndepin_a.le.0.)
-                  datoc_a(:,k,m)=spval
+                where (land_a.or.ocndwn.le.0.)
+                  mlodwn(:,k,m)=spval
                 end where
-                call fill_cc(datoc_a(:,k,m),spval,ik,0)
+                call fill_cc(mlodwn(:,k,m),spval,ik,0)
               end do
             end do
-            where (land_a.or.ocndepin_a.le.0.)
-              ocndepin_a=spval
+            where (land_a.or.ocndwn.le.0.)
+              ocndwn=spval
             end where
-            call fill_cc(ocndepin_a,spval,ik,0)            
+            call fill_cc(ocndwn,spval,ik,0)            
           end if
-          call doints4(ocndepin_a,ocndepin,nface4,xg4,yg4,nord,ik)
+          call doints4(ocndwn,ocnotf,nface4,xg4,yg4,nord,ik)
           do m=1,2
             do k=1,wlev
-              call doints4(datoc_a(:,k,m),datoc(:,k,m),nface4,xg4
+              call doints4(mlodwn(:,k,m),mlootf(:,k,m),nface4,xg4
      &                   ,yg4,nord,ik)
             end do
           end do
           do k=1,wlev          
            if ( myid==0 ) then ! rotate mlo U & V to new coordinates
 !           first set up winds in Cartesian "source" coords
-            uc=axs_a*datoc_a(:,k,3) + bxs_a*datoc_a(:,k,4)
-            vc=ays_a*datoc_a(:,k,3) + bys_a*datoc_a(:,k,4)
-            wc=azs_a*datoc_a(:,k,3) + bzs_a*datoc_a(:,k,4)
+            uc=axs_a*mlodwn(:,k,3) + bxs_a*mlodwn(:,k,4)
+            vc=ays_a*mlodwn(:,k,3) + bys_a*mlodwn(:,k,4)
+            wc=azs_a*mlodwn(:,k,3) + bzs_a*mlodwn(:,k,4)
 !           now convert to winds in "absolute" Cartesian components
             ucc=uc*rotpoles(1,1)+vc*rotpoles(1,2)+wc*rotpoles(1,3)
             vcc=uc*rotpoles(2,1)+vc*rotpoles(2,2)+wc*rotpoles(2,3)
@@ -530,13 +547,18 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
              v_g(iq) = bx_g(iq)*uct_gg + by_g(iq)*vct_gg +
      &                 bz_g(iq)*wct_gg
             enddo               ! iq loop
-            call ccmpi_distribute(datoc(:,k,3), u_g)
-            call ccmpi_distribute(datoc(:,k,4), v_g)
+            call ccmpi_distribute(mlootf(:,k,3), u_g)
+            call ccmpi_distribute(mlootf(:,k,4), v_g)
            else ! myid /= 0
-            call ccmpi_distribute(datoc(:,k,3))
-            call ccmpi_distribute(datoc(:,k,4))
+            call ccmpi_distribute(mlootf(:,k,3))
+            call ccmpi_distribute(mlootf(:,k,4))
            endif ! myid==0
           end do
+          deallocate(mlodwn,ocndwn)
+          allocate(mlodwn(ifull,wlev,4),ocndwn(ifull))
+          mlodwn=mlootf
+          ocndwn=ocnotf
+          deallocate(mlootf,ocnotf)          
         end if
         !--------------------------------------------------
         !--------------------------------------------------
@@ -564,6 +586,25 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
             call doints4(csoil_a(:,k),csoil(:,k),nface4,xg4,yg4,
      &                   nord,ik)
           end do
+        end if
+        !--------------------------------------------------
+        !--------------------------------------------------
+        ! MJT tke
+        if (nvmix.eq.6) then
+          call doints4(pblhdwn,pblhotf,nface4,xg4,yg4,
+     &                   nord,ik)
+          do k=1,kl
+            call doints4(tkedwn(:,k),tkeotf(:,k),nface4,xg4,yg4,
+     &                   nord,ik)
+            call doints4(epsdwn(:,k),epsotf(:,k),nface4,xg4,yg4,
+     &                   nord,ik)
+          end do
+          deallocate(tkedwn,epsdwn,pblhdwn)
+          allocate(tkedwn(ifull,kl),epsdwn(ifull,kl),pblhdwn(ifull))
+          tkedwn=tkeotf
+          epsdwn=epsotf
+          pblhdwn=pblhotf
+          deallocate(tkeotf,epsotf,pblhotf)
         end if
         !--------------------------------------------------
 c       incorporate target land mask effects for initial fields
@@ -628,6 +669,8 @@ c     incorporate other target land mask effects
       land(:) = land_t(:)  
 c     write (30+myid,*) 'Z1 myid ',myid
 c     close (30+myid)
+
+      return
       end subroutine ontheflyx
 
       subroutine doints4(s_a,sout,nface4 ,xg4 ,yg4,nord,ik)  ! does calls to intsb

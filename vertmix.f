@@ -521,10 +521,10 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
          zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
      &                     +betm(k)*t(1:ifull,k-1))/grav                ! MJT tke
        end do                                                           ! MJT tke
-       call tkemix(rkm,rhs,qg(1:ifull,:),uav,vav,pblh,
+       call tkemix(rkm,rhs,qg(1:ifull,:),qlg,qfg,uav,vav,pblh,
      &             rdry*fg*t(1:ifull,1)/(ps(1:ifull)*cp*sigmh(1)),
      &             rdry*eg*t(1:ifull,1)/(ps(1:ifull)*hl*sigmh(1)),
-     &             ps(1:ifull),ustar,zg,sigkap,dt,av_vmod,0)            ! MJT tke
+     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,av_vmod,0)        ! MJT tke
        rkh=rkm                                                          ! MJT tke
       end if ! nvmix.ne.6                                               ! MJT tke
 
