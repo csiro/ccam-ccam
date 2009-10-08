@@ -1965,6 +1965,8 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         call readreal(bathfile,dep,ifull)
         where (land)
           dep=0.
+        else where
+          dep=max(dep,10.)
         end where
         call mloinit(ifull,dep,0)
         if (any(ocndwn.gt.0.5)) then

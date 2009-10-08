@@ -214,7 +214,7 @@ c       c1=0.
          endif      ! (.not.land(iq))
         enddo
       endif  ! (namip>2)
-      if(namip==4)then
+      if(namip==3)then
         do iq=1,ifull  
          c2=aice(iq)
          c3=aice(iq)+bice(iq)

@@ -34,6 +34,8 @@ real, dimension(:,:), allocatable, save :: tkedwn,epsdwn ! These variables are f
 real, dimension(:,:), allocatable, save :: tkeotf,epsotf ! These variables are for CCAM onthefly.f
 real, dimension(:), allocatable, save :: pblhdwn         ! These variables are for CCAM onthefly.f
 real, dimension(:), allocatable, save :: pblhotf         ! These variables are for CCAM onthefly.f
+
+! model constants
 real, parameter :: cm  = 0.09
 real, parameter :: ce0 = 0.69
 real, parameter :: ce1 = 1.46
@@ -41,15 +43,19 @@ real, parameter :: ce2 = 1.83
 real, parameter :: aup = 0.1
 real, parameter :: b1  = 1.
 real, parameter :: b2  = 2.
+real, parameter :: entr = 2.E-3
+real, parameter :: detr = 3.E-3
+real, parameter :: cq   = 2.5
+
+! physical constants
 real, parameter :: grav = 9.80616
 real, parameter :: lv = 2.5104e6
 real, parameter :: epsl = 0.622
 real, parameter :: rd = 287.04
 real, parameter :: cp = 1004.64
-real, parameter :: entr = 2.E-3
-real, parameter :: detr = 3.E-3
-real, parameter :: cq   = 2.5
 real, parameter :: vkar = 0.4
+
+! stability constants
 real, parameter :: a_1   = 1.0
 real, parameter :: b_1   = 2.0/3.0
 real, parameter :: c_1   = 5.0
@@ -57,6 +63,7 @@ real, parameter :: d_1   = 0.35
 real, parameter :: aa1 = 3.8
 real, parameter :: bb1 = 0.5
 real, parameter :: cc1 = 0.3
+
 integer, parameter :: shallmeth = 1 ! 0 = Dry air, 1=WRF buoyancy, 2=Geleyn
 
 contains
@@ -253,8 +260,8 @@ end where
 ! boundary condition
 tke(1:ifull,1)=ustar*ustar/sqrt(cm)+0.5*wstar*wstar
 eps(1:ifull,1)=ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wtv0/thetav(:,1)
-tke(1:ifull,1)=av_vmod*tke(1:ifull,1)+(1.-av_vmod)*tkesav(:,1) ! helps with numerical stability
-eps(1:ifull,1)=av_vmod*eps(1:ifull,1)+(1.-av_vmod)*epssav(:,1) ! helps with numerical stability
+!tke(1:ifull,1)=av_vmod*tke(1:ifull,1)+(1.-av_vmod)*tkesav(:,1) ! helps with numerical stability
+!eps(1:ifull,1)=av_vmod*eps(1:ifull,1)+(1.-av_vmod)*epssav(:,1) ! helps with numerical stability
 tke(1:ifull,1)=max(tke(1:ifull,1),1.5E-4)
 tke(1:ifull,1)=min(tke(1:ifull,1),65.)
 aa(:,2)=cm34*(tke(1:ifull,1)**1.5)/5.
@@ -273,22 +280,19 @@ select case(shallmeth)
     end do
     do k=2,kl-1
       where (qg(:,k).lt.qsat(:,k))
-        ppb(:,k)=-grav*(0.5*(theta(:,k+1)-theta(:,k-1))/(dz_fl(:,k)*theta(:,k))-min(max(gam(:,k)/km(:,k),0.),0.002)/thetav(:,k)) &
-                 -grav*0.61*0.5*(qg(:,k+1)-qg(:,k-1))/dz_fl(:,k) & ! using JLM approach from vertmix.f (nvmix=4)
-                 +grav*0.5*(qlg(:,k+1)+qfg(:,k+1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k) ! from WRF
+        ppb(:,k)=-grav*(0.5*(thetav(:,k+1)-thetav(:,k-1))/dz_fl(:,k)-min(max(gam(:,k)/km(:,k),0.),0.002))/thetav(:,k) &
+                 +grav*0.5*(qlg(:,k+1)+qfg(:,k+1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k)
       elsewhere
         ppb(:,k)=-grav*(gg(:,k)*0.5*(ff(:,k+1)-ff(:,k-1))/dz_fl(:,k)-min(max(gam(:,k)/km(:,k),0.),0.002)/thetav(:,k)) &
-                 +grav*0.5*(qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-qg(:,k-1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k) ! from WRF
+                 +grav*0.5*(qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-qg(:,k-1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k)
       end where
     end do
     where (qg(:,kl).lt.qsat(:,kl))
-      ppb(:,kl)=-grav*((theta(:,kl)-theta(:,kl-1))/(dz_hl(:,kl-1)*theta(:,kl)) &
-                          -min(max(gam(:,kl)/km(:,kl),0.),0.002)/thetav(:,kl)) &
-                -grav*0.61*(qg(:,kl)-qg(:,kl-1))/dz_hl(:,kl-1) & ! using JLM approach from vertmix.f (nvmix=4)
-                +grav*(qlg(:,kl)+qfg(:,kl)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1) ! from WRF
+      ppb(:,kl)=-grav*((thetav(:,kl)-thetav(:,kl-1))/dz_hl(:,kl-1)-min(max(gam(:,kl)/km(:,kl),0.),0.002))/thetav(:,kl) &
+                +grav*(qlg(:,kl)+qfg(:,kl)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1)
     elsewhere
       ppb(:,kl)=-grav*(gg(:,kl)*(ff(:,kl)-ff(:,kl-1))/dz_hl(:,kl-1)-min(max(gam(:,kl)/km(:,kl),0.),0.002)/thetav(:,kl)) &
-                +grav*(qg(:,kl)+qlg(:,kl)+qfg(:,kl)-qg(:,kl-1)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1) ! from WRF
+                +grav*(qg(:,kl)+qlg(:,kl)+qfg(:,kl)-qg(:,kl-1)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1)
     end where
       
   case(2) ! Geleyn
@@ -317,7 +321,6 @@ end select
 do k=2,kl-1
   pps(:,k)=0.5*(((u(:,k+1)-u(:,k))**2+(v(:,k+1)-v(:,k))**2)/dz_hl(:,k)**2 &
                +((u(:,k)-u(:,k-1))**2+(v(:,k)-v(:,k-1))**2)/dz_hl(:,k-1)**2)+shear(:,k)/km(:,k)
-  ppb(:,k)=-grav*(0.5*(theta(:,k+1)-theta(:,k-1))/dz_fl(:,k)-gam(:,k)/km(:,k))/theta(:,k)
   where (wt0.le.0.)
     ppt(:,k)=0.5*((km(:,k+1)+km(:,k))*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k) &
                  -(km(:,k)+km(:,k-1))*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1))/dz_fl(:,k)
@@ -326,7 +329,6 @@ do k=2,kl-1
   end where  
 end do
 pps(:,kl)=((u(:,kl)-u(:,kl-1))**2+(v(:,kl)-v(:,kl-1))**2)/dz_hl(:,kl-1)**2+shear(:,kl)/km(:,kl)
-ppb(:,kl)=-grav*((theta(:,kl)-theta(:,kl-1))/dz_hl(:,kl-1)-gam(:,kl)/km(:,kl))/theta(:,kl)
 where (wt0.le.0.)
   ppt(:,kl)=0.5*(-(km(:,kl)+km(:,kl-1))*(tke(1:ifull,kl)-tke(1:ifull,kl-1))/dz_hl(:,kl-1))/dz_fl(:,kl)
 elsewhere

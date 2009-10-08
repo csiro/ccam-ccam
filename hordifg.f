@@ -41,6 +41,7 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       integer iq, k, nhora, nhorx
       real cc, delphi, emi, hdif, ucc, vcc, wcc
       integer i, j, n, ind
+      integer, save :: kmax=-1 ! MJT smag
       ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
 
 c     nhorx used in hordif  ! previous code effectively has nhorx=0
@@ -84,10 +85,21 @@ c     above code independent of k
       endif
 
       !--------------------------------------------------------------
+      ! MJT smag
+      ! replace kmax=2*kl/3 with sig(kmax)=0.2, no impact for 18 level
+      ! version
+      if (kmax.lt.0) then
+        do k=1,kl
+          if (sig(k).ge.0.2) kmax=k
+        end do
+      end if
+      !--------------------------------------------------------------
+
+      !--------------------------------------------------------------
       ! MJT tke ! MJT smag
       ! Calculate du/dx,dv/dx,du/dy,dv/dy but use cartesian vectors
       ! so as to avoid changes in vector direction across panel boundaries.
-      ! Also compatible with gnomic grid.
+      ! Should be compatible with gnomic grid.
       if (nhorjlm==0.or.nvmix==6) then
         ! neglect terrain following component for now
         ! u=ax*uc+ay*vc+az*wc
@@ -271,7 +283,8 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
             xfact(iq,k) = (t_kh(ie(iq),k)+t_kh(iq,k))*.5
             yfact(iq,k) = (t_kh(in(iq),k)+t_kh(iq,k))*.5
          enddo
-         if((nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1)then
+         !if((nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1)then
+         if((nhorx.ge.7.and.k.le.kmax).or.nhorx.eq.1)then ! MJT smag
             do iq=1,ifull
                xfact(iq,k) = xfact(iq,k)*tx_fact(iq)
                yfact(iq,k) = yfact(iq,k)*ty_fact(iq)
@@ -283,6 +296,7 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
 !      !--------------------------------------------------------------
 !      ! MJT tke
 !      ! calculate shear
+       ! vertical component included in tkeeps.f90
       do k=1,kl
         shear(:,k)=t_kh(1:ifull,k)*(
      &    (dudx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf))**2
