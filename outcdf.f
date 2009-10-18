@@ -1031,6 +1031,8 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
           write(vname,'("voc",I2.2)') k
           call histwrt3(mlodwn(:,k,4),vname,idnc,iarch,local)
         end do
+      end if
+      if (nmlo.ne.0) then
         deallocate(mlodwn)
       end if
       !---------------------------------------------------------

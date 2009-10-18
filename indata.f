@@ -2023,6 +2023,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       else
         sigmu(:)=0.
         call atebdisable(0) ! disable urban
+	deallocate(atebdwn)
       end if
       !-----------------------------------------------------------------
 
