@@ -521,11 +521,13 @@
           else
             ! nudge mlo
             if (nud_uv.ne.9) then
-              if (myid == 0) print *,"MLO 1D spectral filter"	    
-              call mlofilterfast(tssb,mbd)
+              if (myid == 0) print *,"MLO 1D spectral filter"
+              ! replace nud_sst with mbd once horz transport is implemented
+              call mlofilterfast(tssb,nud_sst) 
             else
-              if (myid == 0) print *,"MLO 2D spectral filter"	    
-              call mlofilter(tssb,mbd)
+              if (myid == 0) print *,"MLO 2D spectral filter"
+              ! replace nud_sst with mbd once horz transport is implemented
+              call mlofilter(tssb,nud_sst)
             end if
           end if
         end if ! (namip.eq.0.and.ntest.eq.0)

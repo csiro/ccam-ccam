@@ -50,6 +50,7 @@ type(tprog2), dimension(:), allocatable, save :: pg
 ! mode
 integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 0 ! include shortwave in non-local term
+integer, parameter :: salrelax  = 1 ! relax salinity to 34.72 PSU (used for single column mode)
 
 ! max depth
 real, parameter :: mxd    = 1000.   ! Max depth
@@ -434,6 +435,9 @@ do ii=1,wlev
   dd(:,ii)=water(:,ii)%sal/dt+rhs(:,ii)*dg2%ws0
 end do
 dd(:,1)=dd(:,1)-dg2%ws0/dz(:,1)
+if (salrelax.eq.1) then ! relax salinity
+  dd=dd+(34.72-water%sal)/(3600.*24.*365.25*10.)
+end if
 call thomas(new%sal,aa,bb,cc,dd)
 
 new%sal=max(0.,new%sal) ! MJT suggestion

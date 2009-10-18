@@ -514,6 +514,7 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
       
       else ! tke scheme                                                 ! MJT tke
        ! note ksc < 0 options are clobbered when nvmix=6                ! MJT tke
+       ! However, nvmix=6 supports its own shallow convection options   ! MJT tke
        uav(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*savu(1:ifull,:) ! MJT tke
        vav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*savv(1:ifull,:) ! MJT tke
        zg(:,1)=bet(1)*t(1:ifull,1)/grav                                 ! MJT tke

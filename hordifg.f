@@ -2,7 +2,7 @@
 !     usual scheme
       use cc_mpi
       use diag_m
-      use tkeeps, only : shear ! MJT tke
+      use tkeeps, only : shear,ww,dwdx,dwdy ! MJT tke
       implicit none
 !      integer, parameter :: nhorjlm=1 ! 1 for jlm 3D deformation rather than Smagorinsky
 c     called from globpe (now not tendencies),
@@ -31,6 +31,9 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       integer nhor,nhorps,khor,khdif,nhorjlm
       real hdiff,hdifmax
       common/parmhdff/nhor,nhorps,hdiff(kl),khor,khdif,hdifmax,nhorjlm
+      
+      real dpsdt,dpsdtb,dpsdtbb                              ! MJT tke
+      common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull) ! MJT tke
       
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
@@ -297,13 +300,25 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
 !      ! MJT tke
 !      ! calculate shear
        ! vertical component included in tkeeps.f90
-      do k=1,kl
-        shear(:,k)=t_kh(1:ifull,k)*(
-     &    (dudx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf))**2
-     &   +(dvdy(:,k)/(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf))**2
-     &   +(dudy(:,k)/(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf)
-     &    +dvdx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf))**2)
-      end do
+       if (nvmix==6) then
+        do k=1,kl
+         shear(:,k)=t_kh(1:ifull,k)*(
+     &     (2.*dudx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf))**2
+     &    +(2.*dvdy(:,k)/(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf))**2
+     &    +(dudy(:,k)/(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf)
+     &     +dvdx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf))**2)
+
+         ! omega=ps*dpsldt
+         ww(:,k)=(dpsldt(:,k)/sig(k)-dpsdt/(860.*ps(1:ifull)))
+     &           *(-rdry/grav)*t(1:ifull,k)
+     &           *(1.+0.61*qg(1:ifull,k))
+
+         dwdx(:,k)=(ww(ie,k)-ww(iw,k))*0.5*em(1:ifull)/ds
+         dwdx(:,k)=dwdx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf)
+         dwdy(:,k)=(ww(in,k)-ww(is,k))*0.5*em(1:ifull)/ds
+         dwdy(:,k)=dwdy(:,k)/(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf)
+        end do
+       end if
 !      !--------------------------------------------------------------
 
 

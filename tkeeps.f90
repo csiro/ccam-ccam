@@ -25,11 +25,13 @@ implicit none
 
 private
 public tkeinit,tkemix,tkeend,tke,eps,tkesav,epssav,shear,tkedwn,epsdwn,pblhdwn,tkeotf,epsotf,pblhotf
+public ww,dwdx,dwdy
 
 integer, save :: ifull,iextra,kl
 real, dimension(:,:), allocatable, save :: shear
 real, dimension(:,:), allocatable, save :: tke,eps
 real, dimension(:,:), allocatable, save :: tkesav,epssav
+real, dimension(:,:), allocatable, save :: ww,dwdx,dwdy
 real, dimension(:,:), allocatable, save :: tkedwn,epsdwn ! These variables are for CCAM onthefly.f
 real, dimension(:,:), allocatable, save :: tkeotf,epsotf ! These variables are for CCAM onthefly.f
 real, dimension(:), allocatable, save :: pblhdwn         ! These variables are for CCAM onthefly.f
@@ -85,13 +87,17 @@ kl=klin
 
 allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
 allocate(tkesav(ifull,kl),epssav(ifull,kl))
-allocate(shear(ifull,kl))
+allocate(shear(ifull,kl),ww(ifull,kl))
+allocate(dwdx(ifull,kl),dwdy(ifull,kl))
 
 tke=1.5E-4
 eps=1.0E-6
 tkesav=tke(1:ifull,:)
 epssav=eps(1:ifull,:)
 shear=0.
+ww=0.
+dwdx=0.
+dwdy=0.
 
 return
 end subroutine tkeinit
@@ -319,8 +325,8 @@ end select
 
 ! Calculate shear and transport terms
 do k=2,kl-1
-  pps(:,k)=0.5*(((u(:,k+1)-u(:,k))**2+(v(:,k+1)-v(:,k))**2)/dz_hl(:,k)**2 &
-               +((u(:,k)-u(:,k-1))**2+(v(:,k)-v(:,k-1))**2)/dz_hl(:,k-1)**2)+shear(:,k)/km(:,k)
+  pps(:,k)=((u(:,k+1)-u(:,k-1))/dz_fl(:,k)+dwdx(:,k))**2+((v(:,k+1)-v(:,k-1))/dz_fl(:,k)+dwdy(:,k))**2 &
+          +(2.*(ww(:,k+1)-ww(:,k-1))/dz_fl(:,k))**2+shear(:,k)/km(:,k)
   where (wt0.le.0.)
     ppt(:,k)=0.5*((km(:,k+1)+km(:,k))*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k) &
                  -(km(:,k)+km(:,k-1))*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1))/dz_fl(:,k)
@@ -328,7 +334,8 @@ do k=2,kl-1
     ppt(:,k)=0.
   end where  
 end do
-pps(:,kl)=((u(:,kl)-u(:,kl-1))**2+(v(:,kl)-v(:,kl-1))**2)/dz_hl(:,kl-1)**2+shear(:,kl)/km(:,kl)
+pps(:,kl)=((u(:,kl)-u(:,kl-1))/dz_hl(:,kl-1)+dwdx(:,kl))**2+((v(:,kl)-v(:,kl-1))/dz_hl(:,kl-1)+dwdy(:,kl))**2 &
+         +(2.*(ww(:,kl)-ww(:,kl-1))/dz_hl(:,kl-1))**2+shear(:,kl)/km(:,kl)
 where (wt0.le.0.)
   ppt(:,kl)=0.5*(-(km(:,kl)+km(:,kl-1))*(tke(1:ifull,kl)-tke(1:ifull,kl-1))/dz_hl(:,kl-1))/dz_fl(:,kl)
 elsewhere
@@ -495,7 +502,8 @@ if (diag.gt.0) write(6,*) "Terminate TKE scheme"
 
 deallocate(tke,eps)
 deallocate(tkesav,epssav)
-deallocate(shear)
+deallocate(shear,ww)
+deallocate(dwdx,dwdy)
 
 return
 end subroutine tkeend
