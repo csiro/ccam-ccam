@@ -34,7 +34,7 @@ type tdiag3
 end type tdiag3
 
 ! parameters
-integer, parameter :: wlev = 10
+integer, parameter :: wlev = 20
 integer, parameter :: iqx = 500
 ! model arrays
 integer, save :: wfull
@@ -53,7 +53,7 @@ integer, parameter :: incradgam = 0 ! include shortwave in non-local term
 integer, parameter :: salrelax  = 1 ! relax salinity to 34.72 PSU (used for single column mode)
 
 ! max depth
-real, parameter :: mxd    = 1000.   ! Max depth
+real, parameter :: mxd    = 977.6   ! Max depth
 real, parameter :: mindep = 1.      ! Thickness of first layer
 
 ! model parameters
@@ -161,10 +161,15 @@ real, dimension(wlev), intent(out) :: depthout
 real, dimension(wlev+1), intent(out) :: depth_hlout
 real dd,x,al,bt
 
-dd=min(mxd,max(mindep*real(wlev),depin))
+dd=min(mxd,max(mindep,depin))
 x=real(wlev)
-al=(mindep*x-dd)/(x-x*x*x)
-bt=(mindep*x*x*x-dd)/(x*x*x-x)
+if (dd.gt.x) then
+  al=(mindep*x-dd)/(x-x*x*x)
+  bt=(mindep*x*x*x-dd)/(x*x*x-x)
+else
+  al=0.
+  bt=dd/x
+end if
 do ii=1,wlev+1
   x=real(ii)-1.
   depth_hlout(ii)=al*x*x*x+bt*x ! ii is for half level ii-0.5
