@@ -121,7 +121,12 @@ water%v=0.      ! m/s
 pg%mixdepth=100. ! m
 pg%mixind=wlev-1
 
-!depth = (/ 0.5, 4.5, 17.5, 45.5, 94.5, 170.5, 279.5, 427.5, 620.5, 864.5 /)
+! MLO
+!depth = (/   0.5,   1.9,   4.3,   8.5,  15.3,  25.3,  39.3,  57.9,  81.9, 112.1 &
+!           149.1, 193.7, 246.5, 308.3, 379.9, 461.9, 555.1, 660.1, 777.7, 908.7 /)
+! Mk3.5
+!depth = (/   5.0,  15.0,  28.2,  42.0,  59.7,  78.5, 102.1, 127.9, 159.5, 194.6, &
+!           237.0, 284.7, 341.7, 406.4, 483.2, 570.9, 674.9, 793.8, 934.1 /)
 
 smxd=maxval(depin(wgrid))
 smnd=minval(depin(wgrid))
@@ -166,14 +171,18 @@ x=real(wlev)
 if (dd.gt.x) then
   al=(mindep*x-dd)/(x-x*x*x)
   bt=(mindep*x*x*x-dd)/(x*x*x-x)
+  do ii=1,wlev+1
+    x=real(ii-1)
+    depth_hlout(ii)=al*x*x*x+bt*x ! ii is for half level ii-0.5
+  end do
 else
-  al=0.
-  bt=dd/x
+  depth_hlout(1)=0.
+  depth_hlout(2)=mindep
+  do ii=3,wlev+1
+    x=(dd-mindep)*real(ii-2)/real(wlev-1)+mindep
+    depth_hlout(ii)=x
+  end do
 end if
-do ii=1,wlev+1
-  x=real(ii)-1.
-  depth_hlout(ii)=al*x*x*x+bt*x ! ii is for half level ii-0.5
-end do
 do ii=1,wlev
   depthout(ii)=0.5*(depth_hlout(ii)+depth_hlout(ii+1))
 end do
@@ -626,6 +635,9 @@ do ii=1,wlev
     ks(:,ii)=nus(:,ii)
   end where
 end do
+
+km=max(km,numw) ! MJT suggestion
+ks=max(ks,nusw) ! MJT suggestion
 
 ! non-local term
 ! gammas is the same for temp and sal when double-diffusion is not employed

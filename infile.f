@@ -564,29 +564,31 @@ c 	    only being tested for nested=0; no need to test for mesonest
         
         !------------------------------------------------------------
         ! MJT mlo
-        mlodwn=999.
-        ocndwn=0.
-        call histrd1(ncid,iarchi,ierr,'ocndepth',ik,jk,ocndwn,ifull)
-        if (ierr==0) then
-          mlodwn(:,1:ms,1)=tgg(:,1:ms)
-          do k=ms+1,wlev
-            write(vname,'("tgg",I2.2)') k
-            call histrd1(ncid,iarchi,ierr,vname,ik,jk,mlodwn(:,k,1)
-     &                ,ifull)
-          end do
-          do k=1,wlev
-            write(vname,'("sal",I2.2)') k
-            call histrd1(ncid,iarchi,ierr,vname,ik,jk,mlodwn(:,k,2)
-     &                ,ifull)
-            write(vname,'("uoc",I2.2)') k
-            call histrd1(ncid,iarchi,ierr,vname,ik,jk,mlodwn(:,k,3)
-     &                ,ifull)
-            write(vname,'("voc",I2.2)') k
-            call histrd1(ncid,iarchi,ierr,vname,ik,jk,mlodwn(:,k,4)
-     &                ,ifull)
-          end do
-          if (any(mlodwn.gt.900.)) ocndwn=0. ! missing levels
-        end if
+	if (nmlo.ne.0) then
+          mlodwn=999.
+          ocndwn=0.
+          call histrd1(ncid,iarchi,ierr,'ocndepth',ik,jk,ocndwn,ifull)
+          if (ierr==0) then
+            mlodwn(:,1:ms,1)=tgg(:,1:ms)
+            do k=ms+1,wlev
+              write(vname,'("tgg",I2.2)') k
+              call histrd1(ncid,iarchi,ierr,vname,ik,jk,mlodwn(:,k,1)
+     &                  ,ifull)
+            end do
+            do k=1,wlev
+              write(vname,'("sal",I2.2)') k
+              call histrd1(ncid,iarchi,ierr,vname,ik,jk,mlodwn(:,k,2)
+     &                  ,ifull)
+              write(vname,'("uoc",I2.2)') k
+              call histrd1(ncid,iarchi,ierr,vname,ik,jk,mlodwn(:,k,3)
+     &                  ,ifull)
+              write(vname,'("voc",I2.2)') k
+              call histrd1(ncid,iarchi,ierr,vname,ik,jk,mlodwn(:,k,4)
+     &                  ,ifull)
+            end do
+            if (any(mlodwn.gt.900.)) ocndwn=0. ! missing levels
+          end if
+	end if
         !------------------------------------------------------------
         
         !------------------------------------------------------------

@@ -254,7 +254,7 @@ c       c1=0.
            if(fracice(iq)==0.)then
 !            create values for tice, and set averaged tss
 !            N.B. if already a sice point, keep present tice
-             tgg(iq,3)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m lev1
+             tggsn(iq,1)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m lev1 ! MJT seaice
            endif  ! (fracice(iq)==0.)
            if(rlatt(iq)>0.)then
              sicedep(iq)=2.
@@ -263,7 +263,7 @@ c       c1=0.
            endif ! (rlatt(iq)>0.)
          endif    ! (fraciceb(iq)>0.)
          fracice(iq)=fraciceb(iq)
-         tss(iq)=tgg(iq,3)*fracice(iq)+tgg(iq,1)*(1.-fracice(iq))
+         tss(iq)=tggsn(iq,1)*fracice(iq)+tgg(iq,1)*(1.-fracice(iq)) ! MJT seaice
        endif      ! (.not.land(iq))
       enddo
       if (mydiag)print *,'ktau,sicedep,aice,bice,cice,fracice: ',

@@ -168,10 +168,11 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       integer, dimension(ik*ik*6) :: isoilm_a ! MJT lsmask
 
       !--------------------------------------------------------------
-      ! MJT urban
+      ! MJT tke
       ! allocate arrays for onthefly
-      if (nurban.ne.0.and.nested.eq.0) then
-        allocate(atebotf(ifull,13),atebdwn(ik*ik*6,13))
+      if (nvmix.eq.6.and.nested.eq.0) then
+        allocate(tkeotf(ifull,kl),epsotf(ifull,kl),pblhotf(ifull))
+        allocate(tkedwn(ik*ik*6,kk),epsdwn(ik*ik*6,kk),pblhdwn(ik*ik*6))
       end if
       !--------------------------------------------------------------
       !--------------------------------------------------------------
@@ -183,11 +184,10 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       end if
       !--------------------------------------------------------------      
       !--------------------------------------------------------------
-      ! MJT tke
+      ! MJT urban
       ! allocate arrays for onthefly
-      if (nvmix.eq.6.and.nested.eq.0) then
-        allocate(tkeotf(ifull,kl),epsotf(ifull,kl),pblhotf(ifull))
-        allocate(tkedwn(ik*ik*6,kk),epsdwn(ik*ik*6,kk),pblhdwn(ik*ik*6))
+      if (nurban.ne.0.and.nested.eq.0) then
+        allocate(atebotf(ifull,13),atebdwn(ik*ik*6,13))
       end if
       !--------------------------------------------------------------
    
