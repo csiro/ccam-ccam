@@ -202,7 +202,7 @@
       ! Check that declarations in include files match
       call check_dims()
       
-      !call setstacklimit(-1)
+      call setstacklimit(-1)
 
 #ifndef scyld
       call MPI_Init(ierr)       ! Start

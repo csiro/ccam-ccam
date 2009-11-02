@@ -1,6 +1,6 @@
 !     This version is for the MPI code. Variables with suffix _g
 !     are truly global, others refer to a processor's own region.
-      integer, parameter :: nproc = 3  ! Number of processors to use
+      integer, parameter :: nproc = 6 ! Number of processors to use
 
       integer, parameter :: kl=18  ! Vertical levels
       integer, parameter :: ms=6  ! Levels in surface scheme

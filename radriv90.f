@@ -137,6 +137,7 @@ c          Define the amplitudes of the mean, annual and semi-annual cycles
            call o3_read(sig)
            call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
         end if
+        swrsave=0.5 ! MJT cable
       end if  ! (first)
 
 C---------------------------------------------------------------------*
@@ -417,7 +418,7 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
         end do ! i=1,imax
       endif !(iaero.ne.0)then
       albvisnir(istart:iend,1)=cuvrf(1:imax,1)
-      albvisnir(istart:iend,2)=cirrf(1:imax,1)      
+      albvisnir(istart:iend,2)=cirrf(1:imax,1)
       !-----------------------------------------------------------------------------------------------------------      
 
       do k=1,kl
@@ -490,7 +491,6 @@ c       Stuff needed for cloud2 routine...
 
 c  Clear sky calculation
       if (clforflag) then
-        call start_log(radsw_begin)
         cldoff=.true.
 c       set up cloud for this time and latitude
         if(ldr.ne.0)then  !Call LDR cloud scheme
@@ -506,7 +506,7 @@ c         write(24,*)coszro2
         call swr99(fsw,hsw,sg,ufsw,dfsw,press,press2,coszro,
      &             taudar,rh2o,rrco2,ssolar,qo3,nclds,
      &             ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt,
-     &             swrsave) ! MJT cable
+     &             swrsave(istart:iend)) ! MJT cable
         if(ndi<0.and.nmaxpr==1)
      &     print *,'after  swr99 ktau,j,myid ',ktau,j,myid
         do i=1,imax
@@ -540,7 +540,7 @@ c       write(24,*)coszro2
       call swr99(fsw,hsw,sg,ufsw,dfsw,press,press2,coszro,
      &           taudar,rh2o,rrco2,ssolar,qo3,nclds,
      &           ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt,
-     &           swrsave) ! MJT cable
+     &           swrsave(istart:iend)) ! MJT cable
       do i=1,imax
           sint(i) = dfsw(i,1)*h1m3   ! solar in top
           sout(i) = ufsw(i,1)*h1m3   ! solar out top
@@ -559,8 +559,7 @@ c       print *,'soutclr ',(soutclr(i),i=1,imax)
 c       print *,'sg ',(sg(i),i=1,imax)
 c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
       endif
-      call end_log(radsw_end)
-      call start_log(radlw_begin)
+
       call clo89
       if(ndi<0.and.nmaxpr==1)
      &     print *,'before lwr88 ktau,j,myid ',ktau,j,myid
@@ -574,7 +573,6 @@ c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
          ! rg is net upwards = sigma T^4 - Rdown
          rgdn(i) = stefbo*temp(i,lp1)**4 - rg(i)
       end do
-      call end_log(radlw_end)
 
       do k=1,kl
          do i=1,imax

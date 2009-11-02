@@ -32,6 +32,7 @@
       include 'darcdf.h'    ! MJT tracerfix
       include 'dates.h'     ! mtimer
       include 'dava.h'      ! davt
+      include 'extraout.h'  ! MJT cable
       include 'filnames.h'  ! list of files, read in once only
       include 'gdrag.h'
       include 'indices.h'
@@ -870,6 +871,8 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
        fg(iq)=0.
        cduv(iq)=0.
       enddo   ! iq loop
+
+      swrsave=0.5 ! MJT cable
 
 !     read data for biospheric scheme if required
       if(nsib>=1)then

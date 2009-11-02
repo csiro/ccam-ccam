@@ -1,24 +1,7 @@
-FC = sxmpif90
+FC = ifort
 
-# -ew is 64 bit precision (-dw for 32 bit)
-# nodiv: division may not be changed to mult.
-# noassume: array decl. not used to give assumed length of do loop
-# loopcnt=  specifies max value of iteration count for a do loop (default 5000)
-#     applies just to sflux   Needs 70000 for C200
-#     applies just to sflux   Needs 180000 for C200 1 proc
-#     applies just to sflux,soilsnow   40000 now OK for C200 3 proc
-
-FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -pvctl noassume  -pvctl loopcnt=70000" -P stack
-#use following line for 4, 16 processors
-FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -pvctl noassume  -pvctl loopcnt=40000" -P stack -Duniform_decomp
-#next one to ensure identical results for any number of processors
-#            affecting tracermodule.o  cc_mpi.o    helmsol.o    sumdd_m.o  
-FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -pvctl noassume  -pvctl loopcnt=40000" -P stack -Dsumdd
-#following line is usual choice for SX6, SX8
-FFLAGS = -I /SX/local/include -Cvopt -ew -Ep -Wf"-O nodiv -pvctl noassume  -pvctl loopcnt=40000" -P stack
-
-#LIBS = -lnetcdf 
-LIBS = -lnetcdf  
+FFLAGS = -O -fpp -I /tools/netcdf/3.6.0-p1/include
+LIBS = -L /tools/netcdf/3.6.0-p1/lib -lnetcdf -lmpi
 
 LDFLAGS = 
 
@@ -33,7 +16,7 @@ newrain.o latltoij.o cldblk.o clddia.o cldset.o clo89.o cloud.o \
 cloud2.o co2_read.o e1e288.o e3v88.o extras.o fst88.o hconst.o lwr88.o \
 o3_read.o o3set.o resetd.o spa88.o swr99.o table.o zenith.o cc_mpi.o \
 diag_m.o sumdd_m.o ilu_m.o davies.o utilities.o onthefly.o o3read_amip.o \
-o3set_amip.o tracermodule.o timeseries.o trvmix.o  \
+o3set_amip.o tracermodule.o timeseries.o trvmix.o  stacklimit.o \
 cable_ccam2.o albedo_module.o cable_air.o cable_albedo.o cable_canopy.o \
 cable_carbon.o cable_define_dimensions.o cable_define_types.o \
 cable_math_constants.o cable_other_constants.o cable_photosynthetic_constants.o \
@@ -48,6 +31,14 @@ clean:
 
 .SUFFIXES:.f90 .F90
 
+ateb.o: ateb.f90
+	$(FC)  -c -O -override-limits -fpp -I /tools/netcdf/3.6.0-p1/include $<
+cable_canopy.o: cable_canopy.F90
+	$(FC)  -c -O -override-limits -fpp -I /tools/netcdf/3.6.0-p1/include $<	
+stacklimit.o: stacklimit.c
+	cc -c stacklimit.c
+
+
 .f90.o:
 	$(FC) -c $(FFLAGS) $<
 .F90.o:
@@ -61,7 +52,6 @@ clean:
 # Dependencies
 adjust5.o : adjust5.f xyzinfo.h xarrs.h vvel.h vecsuv.h vecs.h tracers.h sigs.h pbl.h parmvert.h parmdyn.h parm.h nlin.h morepbl.h map.h liqwpar.h kuocom.h indices.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o tracermodule.o tkeeps.o
 amipsst.o : amipsst.f soilsnow.h soil.h pbl.h parm.h nsibd.h map.h filnames.h dates.h arrays.h newmpar.h cc_mpi.o 
-ateb.o : ateb.f90
 bett_cuc.o : bett_cuc.f betts1.h newmpar.h 
 bettinit.o : bettinit.f betts1.h newmpar.h 
 bettrain.o : bettrain.f betts1.h newmpar.h 
@@ -104,7 +94,7 @@ gettin.o : gettin.f savuvt.h arrays.h newmpar.h
 globpe.o : globpe.f mapproj.h establ.h xyzinfo.h xarrs.h vvel.h vecsuv.h trcom2.h tracers.h stime.h soilv.h soilsnow.h soil.h sigs.h screen.h scamdim.h savuvt.h raddiag.h prec.h pbl.h parmvert.h parm_nqg.h parmhor.h parmdyn.h parm.h nsibd.h nlin.h morepbl.h map.h liqwpar.h latlong.h kuocom.h indices.h histave.h filnames.h extraout.h dates.h darcdf.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o tracermodule.o timeseries.o
 gwdrag.o : gwdrag.f soil.h sigs.h pbl.h parm.h morepbl.h nlin.h gdrag.h const_phys.h arrays.h newmpar.h 
 hconst.o : hconst.f hcon.h 
-hordifg.o : hordifg.f vecsuv.h sigs.h parm.h nlin.h map.h indices.h const_phys.h arrays.h newmpar.h cc_mpi.o 
+hordifg.o : hordifg.f vecsuv.h sigs.h parm.h nlin.h map.h indices.h const_phys.h arrays.h newmpar.h cc_mpi.o tkeeps.o
 hs_phys.o : hs_phys.f sigs.h parm.h nlin.h latlong.h arrays.h newmpar.h 
 iabsdate.o : iabsdate.f 
 icefall.o : icefall.f params.h parm.h morepbl.h kuocom.h cparams.h const_phys.h newmpar.h cc_mpi.o
@@ -118,13 +108,13 @@ leoncld.o : leoncld.f establ.h vvel.h tracers.h soil.h sigs.h prec.h parm.h nlin
 lwr88.o : lwr88.f tfcom.h rnddta.h kdacom.h co2dta.h radisw.h rdparm.h parm.h hcon.h newmpar.h 
 mslp.o : mslp.f sigs.h parm.h const_phys.h newmpar.h cc_mpi.o 
 mtimerget.o : mtimerget.f 
-nestin.o : nestin.f stime.h soilsnow.h soil.h sigs.h pbl.h parm.h map.h davb.h dava.h dates.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o cable_variables.o cable_define_dimensions.o
+nestin.o : nestin.f stime.h soilsnow.h soil.h sigs.h pbl.h parm.h map.h davb.h dava.h dates.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o cable_define_dimensions.o
 newcloud.o : newcloud.f sigs.h parm.h params.h kuocom.h cparams.h const_phys.h newmpar.h 
 newrain.o : newrain.f params.h morepbl.h kuocom.h cparams.h const_phys.h newmpar.h 
 nonlin.o : nonlin.f xyzinfo.h xarrs.h vvel.h vecsuv.h tracers.h sigs.h savuvt.h parmvert.h parmdyn.h parm.h nlin.h morepbl.h map.h latlong.h liqwpar.h kuocom.h indices.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o tkeeps.o
 o3_read.o : o3_read.f newmpar.h 
 o3set.o : o3set.f const_phys.h newmpar.h 
-onthefly.o : onthefly.f indices.h indices_g.h xyzinfo_g.h vvel.h vecsuv_g.h tracers.h stime.h sigs.h parm_nqg.h parm.h map.h latlong.h const_phys.h bigxy4.h newmpar.h utilities.o cc_mpi.o mlo.o ateb.o tkeeps.o
+onthefly.o : onthefly.f indices.h indices_g.h xyzinfo_g.h vvel.h vecsuv_g.h tracers.h stime.h sigs.h parm_nqg.h parm.h map.h latlong.h const_phys.h bigxy4.h newmpar.h utilities.o cc_mpi.o mlo.o tkeeps.o ateb.o
 outcdf.o : outcdf.f vvel.h version.h trcom2.h soilv.h soilsnow.h soil.h sigs.h screen.h scamdim.h raddiag.h prec.h pbl.h nsibd.h morepbl.h mapproj.h map.h histave.h extraout.h arrays.h tracers.h parmvert.h parmhor.h parmdyn.h parm.h liqwpar.h kuocom.h filnames.h dates.h darcdf.h newmpar.h cc_mpi.o ateb.o mlo.o tracermodule.o tkeeps.o
 outfile.o : outfile.f vvel.h tracers.h soilsnow.h soilv.h soil.h sigs.h screen.h scamdim.h prec.h pbl.h parmvert.h parmdyn.h parm.h nsibd.h nlin.h morepbl.h map.h kuocom.h histave.h filnames.h extraout.h dava.h dates.h darcdf.h arrays.h newmpar.h cc_mpi.o 
 pbldif.o : pbldif.f map.h sigs.h parm.h morepbl.h kuocom.h extraout.h const_phys.h arrays.h newmpar.h 
