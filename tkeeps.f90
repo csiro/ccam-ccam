@@ -66,7 +66,7 @@ real, parameter :: aa1 = 3.8
 real, parameter :: bb1 = 0.5
 real, parameter :: cc1 = 0.3
 
-integer, parameter :: shallmeth = 1 ! 0 = Dry air, 1=WRF buoyancy, 2=Geleyn
+integer, parameter :: shallmeth = 1 ! 0 = Dry air, 1=Duynkerke, 2=Geleyn
 
 contains
 
@@ -105,20 +105,20 @@ end subroutine tkeinit
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! PBL mixing from TKE
 
-subroutine tkemix(kmo,theta,qg,qlg,qfg,u,v,zi,wt0,wq0,ps,ustar,zz,sig,sigkap,dt,av_vmod,diag)
+subroutine tkemix(kmo,theta,qg,qlg,qfg,u,v,zi,wt0,wq0,ps,ustar,zz,sig,sigkap,dt,diag)
 
 implicit none
 
 integer, intent(in) :: diag
 integer k,i,ktop,kbot
-real, intent(in) :: dt,av_vmod
+real, intent(in) :: dt
 real, dimension(ifull,kl), intent(inout) :: theta,qg
 real, dimension(ifull,kl), intent(in) :: u,v,zz,qlg,qfg
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: wt0,wq0,ps,ustar
 real, dimension(kl), intent(in) :: sigkap,sig
-real, dimension(ifull,kl) :: km,kmsav,gam,gamhl,ff,gg,thetav,temp
+real, dimension(ifull,kl) :: km,gam,gamhl,ff,gg,thetav,temp
 real, dimension(ifull,kl) :: tkenew,epsnew,qsat
 real, dimension(ifull,2:kl) :: pps,ppb,ppt
 real, dimension(ifull,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
@@ -154,9 +154,8 @@ end do
 
 ! Calculate diffusion coeffs
 km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-3)
-kmsav=max(cm*tkesav*tkesav/epssav,1.E-3)
-km=av_vmod*km+(1.-av_vmod)*kmsav
 
+! calculate saturated mixing ratio
 do k=1,kl
   temp(:,k)=theta(:,k)/sigkap(k)
   call getqsat(ifull,qsat(:,k),temp(:,k),ps*sig(k))
@@ -266,8 +265,6 @@ end where
 ! boundary condition
 tke(1:ifull,1)=ustar*ustar/sqrt(cm)+0.5*wstar*wstar
 eps(1:ifull,1)=ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wtv0/thetav(:,1)
-!tke(1:ifull,1)=av_vmod*tke(1:ifull,1)+(1.-av_vmod)*tkesav(:,1) ! helps with numerical stability
-!eps(1:ifull,1)=av_vmod*eps(1:ifull,1)+(1.-av_vmod)*epssav(:,1) ! helps with numerical stability
 tke(1:ifull,1)=max(tke(1:ifull,1),1.5E-4)
 tke(1:ifull,1)=min(tke(1:ifull,1),65.)
 aa(:,2)=cm34*(tke(1:ifull,1)**1.5)/5.
@@ -343,10 +340,11 @@ elsewhere
 end where
 
 ! implicit approach (split form - helps with numerical stability)
-aa=av_vmod*(eps(1:ifull,2:kl)/tke(1:ifull,2:kl))+(1.-av_vmod)*(epssav(1:ifull,2:kl)/tkesav(1:ifull,2:kl))
-!aa=(eps(1:ifull,2:kl)/tke(1:ifull,2:kl))
-epsnew(:,2:kl)=(eps(1:ifull,2:kl)+dt*aa*(ce1*km(:,2:kl)*(pps+max(ppb,0.))+ce1*max(ppt,0.)))/(1.+dt*ce2*aa)
-tkenew(:,2:kl)=tke(1:ifull,2:kl)+dt*(km(:,2:kl)*(pps+ppb)-max(epsnew(:,2:kl),1.E-6))
+aa=ce1/tke(1:ifull,2:kl)
+bb=1./dt-ce1*(km(:,2:kl)*(pps+max(ppb,0.))+max(ppt,0.))/tke(1:ifull,2:kl)
+cc=-eps(1:ifull,2:kl)/dt
+epsnew(:,2:kl)=(-bb+sqrt(bb*bb-4.*aa*cc))/(2.*aa)
+tkenew(:,2:kl)=tke(1:ifull,2:kl)+dt*(km(:,2:kl)*(pps+ppb)-epsnew(:,2:kl))
 
 tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-4)
 tkenew(:,2:kl)=min(tkenew(:,2:kl),65.)

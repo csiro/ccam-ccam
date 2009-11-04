@@ -2416,7 +2416,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull), intent(in) :: new
       real, dimension(ifull) :: diff,old
       real, dimension(ifull_g) :: diff_g,r,dd,mm
-      real, intent(in) :: hostscale
+      integer, intent(in) :: hostscale
       real :: cq
       real, parameter :: miss = 999999.
       real, parameter :: alpha = 1. ! nudging weight
@@ -2499,7 +2499,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull), intent(in) :: new
       real, dimension(ifull) :: diff,old
       real, dimension(ifull_g) :: diff_g
-      real, intent(in) :: hostscale
+      integer, intent(in) :: hostscale
       real cq
       real, parameter :: miss = 999999.
       real, parameter :: alpha = 1. ! nudging weight
