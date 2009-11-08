@@ -123,14 +123,15 @@ real, dimension(ifull,kl) :: tkenew,epsnew,qsat
 real, dimension(ifull,2:kl) :: pps,ppb,ppt
 real, dimension(ifull,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl ! dz_hl(k)=zz(k+1)-zz(k)
-real, dimension(ifull,2:kl) :: aa
-real, dimension(ifull,2:kl) :: bb,dd
-real, dimension(ifull,2:kl-1) :: cc
+real, dimension(ifull,2:kl) :: aa,bb,cc,dd
 real, dimension(ifull) :: wstar,z_on_l,phim,wtv0
 real, dimension(kl-1) :: wpv_flux,tup,qup,w2up
 real xp,wup,mflx,qupsat(1),acldf,qt2,ee
 real dz_ref,cm34
 logical sconv
+integer icount
+integer, parameter :: icm = 10
+real, parameter :: tol=0.001
 !real, parameter :: cm34=cm**0.75 ! Crashes the SX6 cross-compiler
 
 cm34=cm**0.75
@@ -338,13 +339,25 @@ where (wt0.le.0.)
 elsewhere
   ppt(:,kl)=0.
 end where
+ppt=ppt/km(:,2:kl)
 
 ! implicit approach (split form - helps with numerical stability)
-aa=ce1/tke(1:ifull,2:kl)
-bb=1./dt-ce1*(km(:,2:kl)*(pps+max(ppb,0.))+max(ppt,0.))/tke(1:ifull,2:kl)
-cc=-eps(1:ifull,2:kl)/dt
-epsnew(:,2:kl)=(-bb+sqrt(bb*bb-4.*aa*cc))/(2.*aa)
-tkenew(:,2:kl)=tke(1:ifull,2:kl)+dt*(km(:,2:kl)*(pps+ppb)-epsnew(:,2:kl))
+tkenew(:,2:kl)=tke(1:ifull,2:kl) ! 1st guess
+ee=1./dt
+do icount=1,icm
+  tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-4)
+  tkenew(:,2:kl)=min(tkenew(:,2:kl),65.)  
+  aa=ce2/tkenew(:,2:kl)
+  cc=-eps(1:ifull,2:kl)/dt-ce1*cm*tkenew(:,2:kl)*(pps+max(ppb,0.)+max(ppt,0.))
+  epsnew(:,2:kl)=(-ee+sqrt(max(ee*ee-4.*aa*cc,0.)))/(2.*aa)
+  !dd=-tkenew(:,2:kl)+tke(1:ifull,2:kl)+dt*(max(cm*tkenew(:,2:kl)*tkenew(:,2:kl)/epsnew(:,2:kl),1.E-3)*(pps+ppb)-epsnew(:,2:kl)) ! error function
+  dd=-tkenew(:,2:kl)+tke(1:ifull,2:kl)+dt*(km(:,2:kl)*(pps+ppb)-epsnew(:,2:kl)) ! error function
+  ff(:,2:kl)=-1.-dt*(epsnew(:,2:kl)/tkenew(:,2:kl) &
+                 +(cc/tkenew(:,2:kl)+ce1*cm*(pps+max(ppb,0.)+max(ppt,0.)))/sqrt(max(ee*ee-4.*aa*cc,0.)))
+  where (abs(ff(:,2:kl)).gt.tol)  
+    tkenew(:,2:kl)=tkenew(:,2:kl)-dd/ff(:,2:kl)
+  end where
+end do
 
 tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-4)
 tkenew(:,2:kl)=min(tkenew(:,2:kl),65.)
@@ -355,22 +368,6 @@ epsnew(:,2:kl)=max(epsnew(:,2:kl),aa)
 
 tke(1:ifull,2:kl)=tkenew(:,2:kl)
 eps(1:ifull,2:kl)=epsnew(:,2:kl)
-
-! TKE vertical mixing (done here as we skip level 1, instead of using trim)
-aa(:,2)=-0.5*(km(:,2)+km(:,1))/(dz_fl(:,2)*dz_hl(:,1))
-cc(:,2)=-0.5*(km(:,3)+km(:,2))/(dz_fl(:,2)*dz_hl(:,2))
-bb(:,2)=1./dt-cc(:,2)-aa(:,2)
-dd(:,2)=tke(1:ifull,2)/dt-aa(:,2)*tke(1:ifull,1)
-do k=3,kl-1
-  aa(:,k)=-0.5*(km(:,k)+km(:,k-1))/(dz_fl(:,k)*dz_hl(:,k-1))
-  cc(:,k)=-0.5*(km(:,k+1)+km(:,k))/(dz_fl(:,k)*dz_hl(:,k))
-  bb(:,k)=1./dt-aa(:,k)-cc(:,k)
-  dd(:,k)=tke(1:ifull,k)/dt
-end do
-aa(:,kl)=-0.5*(km(:,kl)+km(:,kl-1))/(dz_fl(:,kl)*dz_hl(:,kl-1))
-bb(:,kl)=1./dt-aa(:,kl)
-dd(:,kl)=tke(1:ifull,kl)/dt
-call thomas_min(tkenew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
 
 ! eps vertical mixing (done here as we skip level 1, instead of using trim)
 aa(:,2)=-0.5*ce0*(km(:,2)+km(:,1))/(dz_fl(:,2)*dz_hl(:,1))
@@ -387,6 +384,22 @@ aa(:,kl)=-0.5*ce0*(km(:,kl)+km(:,kl-1))/(dz_fl(:,kl)*dz_hl(:,kl-1))
 bb(:,kl)=1./dt-aa(:,kl)
 dd(:,kl)=eps(1:ifull,kl)/dt
 call thomas_min(epsnew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
+
+! TKE vertical mixing (done here as we skip level 1, instead of using trim)
+aa(:,2)=-0.5*(km(:,2)+km(:,1))/(dz_fl(:,2)*dz_hl(:,1))
+cc(:,2)=-0.5*(km(:,3)+km(:,2))/(dz_fl(:,2)*dz_hl(:,2))
+bb(:,2)=1./dt-cc(:,2)-aa(:,2)
+dd(:,2)=tke(1:ifull,2)/dt-aa(:,2)*tke(1:ifull,1)
+do k=3,kl-1
+  aa(:,k)=-0.5*(km(:,k)+km(:,k-1))/(dz_fl(:,k)*dz_hl(:,k-1))
+  cc(:,k)=-0.5*(km(:,k+1)+km(:,k))/(dz_fl(:,k)*dz_hl(:,k))
+  bb(:,k)=1./dt-aa(:,k)-cc(:,k)
+  dd(:,k)=tke(1:ifull,k)/dt
+end do
+aa(:,kl)=-0.5*(km(:,kl)+km(:,kl-1))/(dz_fl(:,kl)*dz_hl(:,kl-1))
+bb(:,kl)=1./dt-aa(:,kl)
+dd(:,kl)=tke(1:ifull,kl)/dt
+call thomas_min(tkenew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
 
 ! Limits
 !dz_ref=500.
