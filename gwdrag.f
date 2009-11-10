@@ -20,6 +20,7 @@
      . ,apuw(ifull),apvw(ifull),alam(ifull),wmag(ifull),frsav(ifull)
      . ,dum2(ifull,9)
       real delt(kl),dsk(kl),sigk(kl)
+      integer, save :: kbrk = -1 ! MJT bug fix
 c     real fr2vsav(ifull,kl),uusav(ifull,kl)   ! jlm diag
 c     interface mods for darlam & globpe
       do k=1,kl
@@ -77,7 +78,14 @@ c     calculate bvnf at other levels,  (Brunt-Vaisala-N-full)
        enddo   ! iq loop
       enddo    ! k loop
 
-      do k=1,2
+      if (kbrk.lt.1) then             ! MJT bug fix
+        do k=1,kl                     ! MJT bug fix
+          if (sig(k).gt.0.95) kbrk=k  ! MJT bug fix
+        end do                        ! MJT bug fix
+        print *,"kbrk = ",kbrk        ! MJT bug fix
+      end if                          ! MJT bug fix
+
+      do k=1,kbrk ! MJT bug fix
        do iq=1,ifull
         uu(iq,k)=
      .        max(0. , u(iq,k)*u(iq,1)+v(iq,k)*v(iq,1))/wmag(iq)
@@ -86,7 +94,7 @@ c     calculate bvnf at other levels,  (Brunt-Vaisala-N-full)
 
 c**** set uu() to zero above if uu() zero below
 c**** uu>0 at k=1, uu>=0 at k=2 - only set for k=3 to kl  OK
-      do k=3,kl
+      do k=kbrk+1,kl ! MJT bug fix
        do iq=1,ifull
         if(uu(iq,k-1).eq.0.)then
           uu(iq,k)=0.

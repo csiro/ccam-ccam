@@ -355,7 +355,7 @@ do icount=1,icm
   ff(:,2:kl)=-1.-dt*(epsnew(:,2:kl)/tkenew(:,2:kl) &
                  +(cc/tkenew(:,2:kl)+ce1*cm*(pps+max(ppb,0.)+max(ppt,0.)))/sqrt(max(ee*ee-4.*aa*cc,0.)))
   where (abs(ff(:,2:kl)).gt.tol)  
-    tkenew(:,2:kl)=tkenew(:,2:kl)-dd/ff(:,2:kl)
+    tkenew(:,2:kl)=tkenew(:,2:kl)-0.7*dd/ff(:,2:kl)
   end where
 end do
 
