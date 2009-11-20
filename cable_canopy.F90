@@ -189,7 +189,7 @@ CONTAINS
     !     (veg%tmaxvj - veg%tminvj) )**2 ) )
     !WHERE ( ssoil%tgg(:,4) < (veg%tminvj + tfrz) ) phenps = 0.0
     !WHERE ( ssoil%tgg(:,4) > (veg%tmaxvj + tfrz) ) phenps = 1.0
-    phenps = 1. ! MJT fix from Eva
+    phenps = 1. ! MJT Fix from Eva
     ! Set previous time step canopy water storage:
     canopy%oldcansto=canopy%cansto
     ! Rainfall variable is limited so canopy interception is limited,
@@ -617,11 +617,14 @@ CONTAINS
        WHERE (veg%vlaiw > 0.01 .and. rough%hruff > rough%z0soilsn)
        !YP & Mao (jun08) replaced met%tk with met%tvair 
        !   canopy%tv = (rad%lwabv / (2.0*(1.0-rad%transd)*sboltz*emleaf)+met%tk**4)**0.25
-          canopy%tv = (rad%lwabv / (2.0*(1.0-rad%transd)*sboltz*emleaf)+met%tvair**4)**0.25
+          canopy%tv = max(rad%lwabv / (2.0*(1.0-rad%transd)*sboltz*emleaf)+met%tvair**4,0.)**0.25 ! MJT
        ELSEWHERE ! sparse canopy
           !canopy%tv = met%tk
           canopy%tv = met%tvair
        END WHERE
+       where (canopy%tv.lt.met%tvair-50.) ! MJT
+         canopy%tv=met%tvair              ! MJT
+       end where                          ! MJT
        ! Calculate ground heat flux:
 !       canopy%ghflux = (1-ssoil%isflag)*canopy%ghflux + ssoil%isflag*canopy%sghflux
        ! Saturation specific humidity at soil/snow surface temperature:
@@ -711,8 +714,9 @@ CONTAINS
                  (canopy%fev + canopy%fes)/(air%rho*air%rlam)
           ! Within canopy air temperature:
           met%tvair = met%tk + (dmbe*dmch-dmbh*dmce)/(dmah*dmbe-dmae*dmbh+1.0e-12)
-          met%tvair = max(met%tvair , min( ssoil%tss, met%tk) - 5.0)
-          met%tvair = min(met%tvair , max( ssoil%tss, met%tk) + 5.0)	  
+! tvair clobbered at present
+          met%tvair = max(met%tvair , min( ssoil%tss, met%tk) - 5.0) ! MJT fix from Eva
+          met%tvair = min(met%tvair , max( ssoil%tss, met%tk) + 5.0) ! MJT fix from Eva        
           ! Within canopy specific humidity:
           met%qvair = met%qv + (dmah*dmce-dmae*dmch)/(dmah*dmbe-dmae*dmbh+1.0e-12)
           met%qvair = max(0.0,met%qvair)
@@ -814,11 +818,14 @@ CONTAINS
                + canopy%fhvw*SUM(rad%gradis,2)/ghwet
           ! Set canopy temperature:
           WHERE (rad%transd <= 0.98)
-             canopy%tv = (rad%lwabv / (2.0*(1.0-rad%transd)*sboltz*emleaf) + met%tvair**4)**0.25
+             canopy%tv = max(rad%lwabv / (2.0*(1.0-rad%transd)*sboltz*emleaf) + met%tvair**4,0.)**0.25 ! MJT
           ELSEWHERE
              ! sparse canopy 
              canopy%tv = met%tvair
           END WHERE
+          where (canopy%tv.lt.met%tvair-50.) ! MJT
+            canopy%tv=met%tvair              ! MJT
+          end where                          ! MJT
           ! Ground heat flux:
 !          canopy%ghflux = (1-ssoil%isflag)*canopy%ghflux + ssoil%isflag*canopy%sghflux
           dq = qstss - met%qvair

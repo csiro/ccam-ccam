@@ -139,7 +139,8 @@ CONTAINS
     ! Define fraction of SW beam tranmitted through canopy:
     rad%transb = EXP(-rad%extkb * veg%vlaiw)
     ! Define longwave from vegetation:
-    flpwb = sboltz * (met%tvrad) ** 4
+!    flpwb = sboltz * (met%tvrad) ** 4
+    flpwb = sboltz * (met%tk) ** 4    
     flwv = emleaf * flpwb
 !    print *,'rad3',rad%transb,met%tvrad,emleaf,flwv
     ! Combined soil/snow temperature:
@@ -155,10 +156,12 @@ CONTAINS
     WHERE (veg%vlaiw > 1.e-2)
        ! Define radiative conductance (Leuning et al, 1995), eq. D7:
        rad%gradis(:,1) = (4.0 * emleaf / (capp * air%rho)) * flpwb / &
-            (met%tvrad) * rad%extkd * &
+!            (met%tvrad) * rad%extkd * &
+            (met%tk) * rad%extkd * &
             ((1.0 - rad%transb * rad%transd) / (rad%extkb + rad%extkd) + &
             (rad%transd - rad%transb) / (rad%extkb - rad%extkd))
-       rad%gradis(:,2) = (8.0 * emleaf / (capp * air%rho)) * flpwb / (met%tvrad) * &
+!       rad%gradis(:,2) = (8.0 * emleaf / (capp * air%rho)) * flpwb / (met%tvrad) * &
+       rad%gradis(:,2) = (8.0 * emleaf / (capp * air%rho)) * flpwb / (met%tk) * &
             rad%extkd * (1.0 - rad%transd) / rad%extkd - rad%gradis(:,1)
        ! Longwave radiation absorbed by sunlit canopy fraction:
        rad%qcan(:,1,3) = (rad%flws-flwv) *rad%extkd * (rad%transd - rad%transb) / &

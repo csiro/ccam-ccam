@@ -153,6 +153,14 @@ do k=1,kl-1
   dz_hl(:,k)=zz(:,k+1)-zz(:,k)
 end do
 
+! impose limits after host advection
+tke(1:ifull,:)=max(tke(1:ifull,:),1.5E-4)
+tke(1:ifull,:)=min(tke(1:ifull,:),65.)
+ff=cm34*(tke(1:ifull,:)**1.5)/5.
+eps(1:ifull,:)=min(eps(1:ifull,:),ff)
+ff=max(ff*5./500.,1.E-6)
+eps(1:ifull,:)=max(eps(1:ifull,:),ff)
+
 ! Calculate diffusion coeffs
 km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-3)
 
