@@ -1416,12 +1416,13 @@ do ii=2,1,-1
 end do
 
 ! calculate water for canyon surfaces
-n=atm%rnd-min(max(atm%rnd-eg%veg/lv,0.),(maxvgwater-veg%water)/ddt) ! rainfall reaching the soil under vegetation
-! note that since sigmaf=1, then there is no soil evaporation, only transpiration
-veg%moist=veg%moist+ddt*dg%c1*(max(n*waterden+rdsnmelt*road%den,0.)-dg%tran)/(waterden*dg%totdepth)
+n=max(atm%rnd-max(dg%evap/lv,0.)-max(maxvgwater-veg%water,0.)/ddt,0.) ! rainfall reaching the soil under vegetation
+! note that since sigmaf=1, then there is no soil evaporation, only transpiration.  Evaporation only occurs form leaves.
+!veg%moist=veg%moist+ddt*(dg%c1*max(n*waterden+rdsnmelt*road%den,0.)-dg%tran/lv)/(waterden*dg%totdepth)
+veg%moist=veg%moist+ddt*dg%c1*(max(n+rdsnmelt*road%den/waterden,0.)-dg%tran/lv)/(waterden*dg%totdepth) ! fix units to kg/m^2
 roof%water=roof%water+ddt*(atm%rnd-eg%roof/lv+rfsnmelt)
 road%water=road%water+ddt*(atm%rnd-eg%road/lv+rdsnmelt)
-veg%water=veg%water+ddt*(atm%rnd-dg%evap)
+veg%water=veg%water+ddt*(atm%rnd-dg%evap/lv)
 
 ! calculate snow
 roof%snow=roof%snow+ddt*(atm%snd-eg%rfsn/ls-rfsnmelt)
@@ -1963,13 +1964,21 @@ canyonmix=(dg%rdsndelta*rdsnqsat*ls/lv*acond%rdsn+(1.-dg%rdsndelta)*((1.-fn%sigm
            +ifn%sigmaveg*(dumvegdelta*acond%veg+(1.-dumvegdelta)/(1./acond%veg+res)))+topinvres)
 
 ! calculate transpiration and evaporation of in-canyon vegetation
-dg%tran=min(max((1.-dumvegdelta)*atm%rho*(vegqsat-canyonmix)/(1./acond%veg+res),0.), &
+dg%tran=lv*min(max((1.-dumvegdelta)*atm%rho*(vegqsat-canyonmix)/(1./acond%veg+res),0.), &
             max((iveg%moist-swilt)*dg%totdepth*waterden/(dg%c1*ddt),0.))
-dg%evap=min(dumvegdelta*atm%rho*(vegqsat-canyonmix)*acond%veg,iveg%water/ddt+atm%rnd)
+where (vegqsat.lt.canyonmix)
+  dg%evap=lv*atm%rho*(vegqsat-canyonmix)*acond%veg
+elsewhere
+  dg%evap=lv*min(dumvegdelta*atm%rho*(vegqsat-canyonmix)*acond%veg,iveg%water/ddt+atm%rnd)
+endwhere
 
 ! calculate canyon latent heat fluxes
-eg%road=lv*min(atm%rho*dumroaddelta*(roadqsat-canyonmix)*acond%road,iroad%water/ddt+atm%rnd+(1.-fn%sigmaveg)*rdsnmelt)
-eg%veg=lv*(dg%evap+dg%tran)
+where (roadqsat.lt.canyonmix)
+  eg%road=lv*atm%rho*(roadqsat-canyonmix)*acond%road
+elsewhere
+  eg%road=lv*min(atm%rho*dumroaddelta*(roadqsat-canyonmix)*acond%road,iroad%water/ddt+atm%rnd+(1.-fn%sigmaveg)*rdsnmelt)
+endwhere
+eg%veg=dg%evap+dg%tran
 where (dg%rdsndelta.gt.0.)
   eg%rdsn=ls*min(atm%rho*dg%rdsndelta*max(0.,rdsnqsat-canyonmix)*acond%rdsn,iroad%snow/ddt+atm%snd-rdsnmelt)
   gardsn=(rdsntemp-iroad%temp(1))/ldratio ! use road temperature to represent canyon bottom surface temperature
