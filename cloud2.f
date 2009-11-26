@@ -108,8 +108,9 @@ C Local work arrays and variables
       real sigmai, tciwc, tclwc, temp_correction, tmid
       real trani, tranw, wice, wliq
 
-      real nfrac,csig,csum,ctemp ! MJT CHANGE - mr
-      logical, dimension(l) :: ctest ! MJT CHANGE - mr
+      real csum,ctemp,ttgsum,refacsum ! MJT CHANGE - mr
+      real refflsum,reffisum,dzsum,qlpathsum,qipathsum ! MJT CHANGE - mr
+      real refflhold,reffihold,ficehold ! MJT CHANGE - mr
 
       integer, save :: istart
       data istart/0/
@@ -259,6 +260,270 @@ c          endif
 c         enddo
 c        enddo
 
+       
+        !--------------------------------------------------------------------------------
+        ! MJT CHANGE - mr
+        ! Attempt to remove vertical dependence using GFDL AM2 approach
+        ! Here we determine the top and bottom of the cloud using the largest overlap
+        ! Cloud fraction is the largest cloud fraction
+        ! Bulk cloud properties are calculated from average Reff and LWP.
+        if (nmr.eq.1) then
+
+        taul=0.
+        taui=0.
+        Reffl=0.
+        Reffi=0.
+        Emw=0.
+        Emi=0.
+        
+c Locate clouds
+          do mg=1,imax
+            k=1
+            do while (k.le.nl-1)
+              if (cfrac(mg,k).gt.0.) then
+
+                ! find cloud levels from k to kk
+                ! break large changes in cloud properties into seperate clouds
+                kk=k
+                do while (cfrac(mg,kk+1).gt.0..and.kk.lt.nl-1)
+                  kk=kk+1
+                end do
+                ! find maximum cloud fraction level
+                pos=maxloc(cfrac(mg,k:kk))
+                km=pos(1)+k-1
+
+                ! find cloud bottom
+                csum=cfrac(mg,k)
+                kb=k
+                do kp=k+1,km
+                  ctemp=max(0.,cfrac(mg,kp)-cfrac(mg,kp-1))
+                  if (ctemp.gt.csum) then
+                    csum=ctemp
+                    kb=kp
+                  end if
+                end do
+                
+                ! find cloud top
+                csum=cfrac(mg,kk)
+                kt=kk
+                do kp=kk-1,km,-1
+                  ctemp=max(0.,cfrac(mg,kp)-cfrac(mg,kp+1))
+                  if (ctemp.gt.csum) then
+                    csum=ctemp
+                    kt=kp
+                  end if
+                end do
+
+                ! Store cloud data
+                nclds(mg)=nclds(mg)+1
+                nc=nclds(mg)+1
+                camt(mg,nc)=cfrac(mg,km) ! max cloud fraction
+                tau_sfac(mg,nc)=1.
+                kbtm(mg,nc)=nlp-kb
+                kbtmsw(mg,nc)=nlp-kb+1
+                ktop(mg,nc)=nlp-kt
+                ktopsw(mg,nc)=nlp-kt
+                
+                k=kk
+              end if
+              k=k+1
+            end do
+          end do
+
+c Liquid water clouds
+c Ice clouds : Choose scheme according to resolution
+       IF(ldr.gt.0)THEN  ! 1,2,3  corresponds to previous lw=22 option
+        
+	 refac1=0.85
+        refac2=0.95
+        do mg=1,imax
+          do kp=1,nclds(mg)
+            nc=kp+1
+            dzsum=0.
+            refflsum=0.
+            reffisum=0.
+            qlpathsum=0.
+            qipathsum=0.
+            do k=nlp-kbtm(mg,nc),nlp-ktop(mg,nc)
+              ficehold=qfg(mg,k)/(qfg(mg,k)+qlg(mg,k))
+              rhoa=100.*prf(mg,k)/(rdry*ttg(mg,k))
+              dz=(dprf(mg,k)/prf(mg,k))*rdry*ttg(mg,k)/grav
+              cfl=cfrac(mg,k)*(1.-ficehold)
+              if (qlg(mg,k).gt.1.E-8) then
+                Wliq=rhoa*qlg(mg,k)/cfl     !kg/m^3
+c Reffl is the effective radius at the top of the cloud (calculated following
+c Martin etal 1994, JAS 51, 1823-1842) due to the extra factor of 2 in the
+c formula for reffl. Use mid cloud value of Reff for emissivity.
+                Refflhold=
+     &           (3.*2.*Wliq/(4.*rhow*pi*rk(mg,k)*Cdrop(mg,k)))**(1./3.)
+                refflsum=refflsum+rhoa*qlg(mg,k)*dz*Refflhold
+                qlpathsum=qlpathsum+rhoa*qlg(mg,k)*dz
+              end if
+
+              if (qfg(mg,k).gt.1.E-8) then
+                Wice=rhoa*qfg(mg,k)/(cfrac(mg,k)*ficehold) !kg/m**3
+                Reffihold=min(150.e-6,3.73e-4*Wice**0.216) !Lohmann et al.(1999)
+                reffisum=reffisum+rhoa*qfg(mg,k)*dz*Reffihold
+                qipathsum=qipathsum+rhoa*qfg(mg,k)*dz
+              end if
+
+              dzsum=dzsum+dz
+            end do
+            fice(mg,nc)=qipathsum/max(qipathsum+qlpathsum,1.E-8)
+            if (qlpathsum.gt.0.) then
+              Reffl(mg,nc)=refflsum/qlpathsum
+              qlpathsum=qlpathsum/camt(mg,nc)              
+              taul(mg,nc)=tau_sfac(mg,nc)*1.5*qlpathsum
+     &                 /(rhow*Reffl(mg,nc))
+              qlptot(mg)=qlptot(mg)+qlpathsum
+              taultot(mg)=taultot(mg)+taul(mg,nc)*camt(mg,nc)
+              cldht=dzsum/1000.           ! in km
+              tclwc=qlpathsum*1000./dzsum ! in g/m**3
+              tranw=exp(-1.66*cldht*50.885*tclwc**0.769917)
+              Emw(mg,nc)=1.-tranw
+            end if
+
+            if (qipathsum.gt.0.) then
+              Reffi(mg,nc)=reffisum/qipathsum
+              qipathsum=qipathsum/camt(mg,nc)
+              taui(mg,nc)=1.5*qipathsum/(rhoice*Reffi(mg,nc))
+              deltai=min(0.5*taui(mg,nc),45.) !IR optical depth for ice.
+              taui(mg,nc)=tau_sfac(mg,nc)*taui(mg,nc)
+c Ice-cloud emissivity following Platt
+              if(taui(mg,nc).gt.0.4)then
+                diffk=1.6
+              else
+                diffk=1.8
+              endif
+              Emi(mg,nc)=1.-exp(-diffk*deltai)
+            end if
+          end do
+        end do
+        
+       ELSE  ! i.e. for ldr = -1,-2,-3
+
+        refac1=0.90
+        refac2=1.00
+        do mg=1,imax
+          do kp=1,nclds(mg)
+            nc=kp+1
+            dzsum=0.
+            refflsum=0.
+            ttgsum=0.
+            qlpathsum=0.
+            qipathsum=0.
+            do k=nlp-kbtm(mg,nc),nlp-ktop(mg,nc)
+              ficehold=qfg(mg,k)/(qfg(mg,k)+qlg(mg,k))
+              rhoa=100.*prf(mg,k)/(rdry*ttg(mg,k))
+              dz=(dprf(mg,k)/prf(mg,k))*rdry*ttg(mg,k)/grav
+              cfl=cfrac(mg,k)*(1-ficehold)
+              if (qlg(mg,k).gt.1.E-8) then
+                Wliq=rhoa*qlg(mg,k)/cfl     !kg/m^3
+c Reffl is the effective radius at the top of the cloud (calculated following
+c Martin etal 1994, JAS 51, 1823-1842) due to the extra factor of 2 in the
+c formula for reffl. Use mid cloud value of Reff for emissivity.
+                Refflhold=
+     &           (3.*2.*Wliq/(4.*rhow*pi*rk(mg,k)*Cdrop(mg,k)))**(1./3.)
+                refflsum=refflsum+rhoa*qlg(mg,k)*dz*Refflhold
+                qlpathsum=qlpathsum+rhoa*qlg(mg,k)*dz
+              end if            
+
+              if (qfg(mg,k).gt.1.E-8) then
+                Wice=rhoa*qfg(mg,k)/(cfrac(mg,k)*fice(mg,k)) !kg/m**3
+                qipathsum=qipathsum+rhoa*qfg(mg,k)*dz                
+              end if
+
+              dzsum=dzsum+dz
+              ttgsum=ttgsum+dz*ttg(mg,k)
+            end do
+            fice(mg,nc)=qipathsum/max(qipathsum+qlpathsum,1.E-8)
+            if (qlpathsum.gt.0.) then
+              Reffl(mg,nc)=refflsum/qlpathsum
+              qlpathsum=qlpathsum/camt(mg,nc)
+              taul(mg,nc)=tau_sfac(mg,nc)*1.5*qlpathsum
+     &                   /(rhow*Reffl(mg,nc))
+              qlptot(mg)=qlptot(mg)+qlpathsum
+              taultot(mg)=taultot(mg)+taul(mg,nc)*camt(mg,nc)
+              cldht=dzsum/1000.           ! in km
+              tclwc=qlpathsum*1000./dzsum ! in g/m**3
+              tranw=exp(-1.66*cldht*50.885*tclwc**0.769917)
+              Emw(mg,nc)=1.-tranw
+            end if
+            
+            if (qipathsum.gt.0.) then
+              qipathsum=qipathsum/camt(mg,nc)
+              sigmai=aice*(qipathsum/dzsum)**bice !visible ext. coeff. for ice
+              taui(mg,nc)=sigmai*dzsum !visible opt. depth for ice
+              Reffi(mg,nc)=1.5*qipathsum/(rhoice*taui(mg,nc))
+              taui(mg,nc)=tau_sfac(mg,nc)*taui(mg,nc)
+c Ice-cloud emissivity following the Sunshine scheme
+              tmid=ttgsum/dzsum-tfrz      !in celsius
+              cldht=dzsum/1000.           !in km
+              tciwc=qipathsum*1000./dzsum !in g/m**3
+
+              temp_correction=1.047E+00+tmid
+     &        *(-9.13e-05+tmid
+     &        *(2.026e-04-1.056e-05*tmid))
+              temp_correction=max(1.0, temp_correction)
+              trani = exp(-1.66*temp_correction * tciwc*cldht
+     &              / (0.630689d-01+0.265874*tciwc))
+c-- Limit ice cloud emissivities
+c             trani=min(0.70,trani)
+              kk=(2*nlp-kbtm(mg,nc)-ktop(mg,nc))/2
+              if(kk.gt.nlow) trani=min(0.70,trani)
+              Emi(mg,nc) = 1.0 - trani    ! em is (1 - transmittance)
+            end if
+          end do
+        end do
+        
+        ENDIF ! (ldr.gt.0) .. ELSE ..
+          
+c Calculate the SW cloud radiative properties for liquid water and ice clouds
+c respectively, following Tony Slingo's (1989) Delta-Eddington scheme.
+
+        call slingo (Reffl, taul, cosz, !inputs
+     &       Rew1, Rew2, Abw )  !outputs
+        
+        call slingi (Reffi, taui, cosz, !inputs
+     &       Rei1, Rei2, Abi )  !outputs
+
+        onem=1.-1.e-6   ! to avoid possible later 0/0
+        do mg=1,imax        
+          do kp=1,nclds(mg)
+            nc=kp+1
+            refacsum=0.
+            dzsum=0.
+            do k=nlp-kbtm(mg,nc),nlp-ktop(mg,nc)
+              dz=(dprf(mg,k)/prf(mg,k))*rdry*ttg(mg,k)/grav            
+              fcon=min(1.,qccon(mg,k)/(qlg(mg,k)+qfg(mg,k)))
+c Mk3 with direct aerosol effect :
+              refac=refac1*fcon+refac2*(1.-fcon)
+              refacsum=refacsum+refac*dz
+              dzsum=dzsum+dz
+            end do
+            refac=refacsum/dzsum
+
+              Rei1(mg,nc)=min(refac*Rei1(mg,nc),onem)
+              Rei2(mg,nc)=min(refac*Rei2(mg,nc),onem-2.*Abi(mg,nc))
+              Rew1(mg,nc)=min(refac*Rew1(mg,nc),onem)
+              Rew2(mg,nc)=min(refac*Rew2(mg,nc),onem-2.*Abw(mg,nc))
+
+              Re1=fice(mg,nc)*Rei1(mg,nc)+(1.-fice(mg,nc))*Rew1(mg,nc)
+              Re2=fice(mg,nc)*Rei2(mg,nc)+(1.-fice(mg,nc))*Rew2(mg,nc)
+              Em=fice(mg,nc)*Emi(mg,nc)+(1.-fice(mg,nc))*Emw(mg,nc)
+              Ab=fice(mg,nc)*Abi(mg,nc)+(1.-fice(mg,nc))*Abw(mg,nc)
+              emcld(mg,nc)=Em
+              cuvrf(mg,nc)=Re1
+              cirrf(mg,nc)=Re2
+              cirab(mg,nc)=2.*Ab
+              
+         enddo
+        enddo
+
+
+        else ! usual random overlap (nmr=0) and M/R without bulk cloud properties (nmr=2), see swr99.f and clo89.f
+
+
 c Define the emissivity (Em), and the SW properties (Re, Ab) for liquid (w)
 c and ice (i) clouds respectively.
         
@@ -276,7 +541,7 @@ c and ice (i) clouds respectively.
             endif         !cfrac
           enddo
         enddo
-              
+
 c Liquid water clouds
         do k=1,nl-1
           do mg=1,imax
@@ -440,96 +705,6 @@ c Mk3 with direct aerosol effect :
 
 c Weight cloud properties by liquid/ice fraction
         
-        !--------------------------------------------------------------------------------
-        ! MJT CHANGE - mr
-        ! Attempt to remove vertical dependence using a modified version the approach used by stubenrauch et al 1997
-        if (nmr.eq.1) then
-          do mg=1,imax
-            k=1
-            do while (k.le.nl-1)
-              if (cfrac(mg,k).gt.0.) then
-
-                ! find cloud levels from k to kk
-                ! break large changes in cloud properties into seperate clouds
-                kk=k
-                do while (cfrac(mg,kk+1).gt.0..and.kk.lt.nl-1)
-                  kk=kk+1
-                end do
-                ! find maximum cloud fraction level
-                pos=maxloc(cfrac(mg,k:kk))
-                km=pos(1)+k-1
-
-                ! find cloud bottom
-                csig=sig(k)*cfrac(mg,k)
-                csum=cfrac(mg,k)
-                do kb=k+1,km
-                  ctemp=max(0.,cfrac(mg,kb)-cfrac(mg,kb-1))
-                  csig=csig+sig(kb)*ctemp
-                  csum=csum+ctemp
-                end do
-                pos=minloc((csig/csum-sig(k:km))**2)
-                kb=pos(1)+k-1
-                
-                ! find cloud top
-                csig=sig(kk)*cfrac(mg,kk)
-                csum=cfrac(mg,kk)
-                do kt=kk-1,km,-1
-                  ctemp=max(0.,cfrac(mg,kt)-cfrac(mg,kt+1))
-                  csig=csig+sig(kt)*ctemp
-                  csum=csum+ctemp
-                end do
-                pos=minloc((csig/csum-sig(km:kk))**2)
-                kt=pos(1)+km-1
-
-                ! Calculate bulk cloud properties
-                ctest=.false.
-                ctest(k:kk)=.true.
-                nfrac=0.
-                csum=0.
-                Re1=0.
-                Re2=0.
-                Em=0.
-                Ab=0.
-                do while (any(ctest(k:kk)))
-                  pos=minloc(cfrac(mg,k:kk),ctest(k:kk))
-                  kp=pos(1)-1+k
-                  ctemp=cfrac(mg,kp)-csum
-                  nfrac=nfrac+ctemp ! should add up to cfrac(mg,km)
-                  ! to avoid problems with 0. (but slower)
-                  Re1=Re1+product(1.-fice(mg,k:kk)*Rei1(mg,k:kk)
-     &              -(1.-fice(mg,k:kk))*Rew1(mg,k:kk),ctest(k:kk))*ctemp
-                  Re2=Re2+product(1.-fice(mg,k:kk)*Rei2(mg,k:kk)
-     &              -(1.-fice(mg,k:kk))*Rew2(mg,k:kk),ctest(k:kk))*ctemp
-                  Em=Em+product(1.-fice(mg,k:kk)*Emi(mg,k:kk)
-     &              -(1.-fice(mg,k:kk))*Emw(mg,k:kk),ctest(k:kk))*ctemp
-                  Ab=Ab+product(1.-fice(mg,k:kk)*Abi(mg,k:kk)
-     &              -(1.-fice(mg,k:kk))*Abw(mg,k:kk),ctest(k:kk))*ctemp
-                  ctest(kp)=.false.
-                  csum=cfrac(mg,kp)
-                end do
-                
-                ! Store cloud data
-                nclds(mg)=nclds(mg)+1
-                nc=nclds(mg)+1
-
-                camt(mg,nc)=cfrac(mg,km)
-                emcld(mg,nc)=(1.-Em/nfrac)
-                cuvrf(mg,nc)=(1.-Re1/nfrac)
-                cirrf(mg,nc)=(1.-Re2/nfrac)
-                cirab(mg,nc)=(1.-Ab/nfrac)
-                kbtm(mg,nc)=nlp-kb
-                kbtmsw(mg,nc)=nlp-kb+1
-                ktop(mg,nc)=nlp-kt
-                ktopsw(mg,nc)=nlp-kt
-                
-                k=kk
-              end if
-              k=k+1
-            end do
-          end do
-
-        else ! usual random overlap (nmr=0) and M/R without bulk cloud properties (nmr=2), see swr99.f and clo89.f
-        
         do k=1,nl-1
           do mg=1,imax
             if(cfrac(mg,k).gt.0.)then
@@ -555,9 +730,12 @@ c             if(prf(mg,k).gt.800.) Em = 1.
               cuvrf(mg,nc)=Re1
               cirrf(mg,nc)=Re2
               cirab(mg,nc)=2*Ab
+
             endif
           enddo
         enddo
+
+        
         end if ! (nmr.eq.1)
         !--------------------------------------------------------------------------------
 

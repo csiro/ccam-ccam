@@ -1,6 +1,6 @@
 FC = ifort
 
-FFLAGS = -O -fpp -I /tools/netcdf/3.6.0-p1/include
+FFLAGS = -O -fpp -I /tools/netcdf/3.6.0-p1/include -Dsimple_timer
 LIBS = -L /tools/netcdf/3.6.0-p1/lib -lnetcdf -lmpi
 
 LDFLAGS = 

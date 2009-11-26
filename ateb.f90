@@ -187,7 +187,7 @@ do iq=1,ifull
     ugrid(iqu)=iq
     mgrid(iq)=iqu
     sigmau(iqu)=sigu(iq)
-    if (iq.eq.iqt) iqut=iqu    
+    if (iq.ge.iqt.and.iqut.eq.0) iqut=iqu    
   end if
 end do
 
@@ -1473,11 +1473,18 @@ uo%wf=fn%sigmabld*(1.-dg%rfsndelta)*dg%roofdelta+(1.-fn%sigmabld)*(1.-dg%rdsndel
 
 ! (re)calculate heat roughness length for MOST
 select case(zohmeth)
-  case(2)
-    pg%lzoh=6.+pg%lzom ! Kanda (2005)
+  case(0)
+    pg%lzoh=2.3+pg%lzom
     call getinvres(ufull,a,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,dg%tempc,atm%umag,4)
-  case DEFAULT
-    call getinvres(ufull,a,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,dg%tempc,atm%umag,zohmeth+1)
+  case(1)
+    call getinvres(ufull,a,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,dg%tempc,atm%umag,2)
+    ! Adjust roughness length for heat to account for in-canyon vegetation
+    n=pg%lzoh-pg%lzom
+    n=n*(1.-fn%sigmaveg*(1.-fn%sigmabld))+2.3*fn%sigmaveg*(1.-fn%sigmabld)
+    pg%lzoh=n+pg%lzom
+  case(2)
+    pg%lzoh=6.*(1.-fn%sigmaveg*(1.-fn%sigmabld))+2.3*fn%sigmaveg*(1.-fn%sigmabld)+pg%lzom ! Kanda (2005)
+    call getinvres(ufull,a,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,dg%tempc,atm%umag,4)
 end select
 
 !if (caleffzo) then ! verification

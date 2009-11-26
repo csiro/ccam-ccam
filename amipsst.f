@@ -38,7 +38,7 @@
 
       idjd_g = id + (jd-1)*il_g
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      if ( myid == 0 ) then
+
         iyr=kdate/10000
         imo=(kdate-10000*iyr)/100
         iday=kdate-10000*iyr-100*imo  +mtimer/(60*24)
@@ -53,6 +53,7 @@
         enddo
         if(namip==-1)iyr=0
  
+       if ( myid == 0 ) then
         if(ktau==0)then
           iyr_m=iyr
           imo_m=imo-1
