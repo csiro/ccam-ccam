@@ -131,8 +131,7 @@ module cc_mpi
    integer, public, save :: gwdrag_begin, gwdrag_end
    integer, public, save :: convection_begin, convection_end
    integer, public, save :: cloud_begin, cloud_end
-   integer, public, save :: radsw_begin, radsw_end
-   integer, public, save :: radlw_begin, radlw_end
+   integer, public, save :: radiation_begin, radiation_end
    integer, public, save :: sfluxwater_begin, sfluxwater_end
    integer, public, save :: sfluxsice_begin, sfluxsice_end
    integer, public, save :: sfluxland_begin, sfluxland_end
@@ -148,7 +147,7 @@ module cc_mpi
    integer, public, save :: mpiwait_begin, mpiwait_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents=36
+   integer, parameter :: nevents=35
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -2877,12 +2876,9 @@ contains
       cloud_begin = MPE_Log_get_event_number()
       cloud_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(cloud_begin, cloud_end, "Cloud", "Yellow")
-      radsw_begin = MPE_Log_get_event_number()
-      radsw_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(radsw_begin, radsw_end, "Rad_SW", "Yellow")
-      radlw_begin = MPE_Log_get_event_number()
-      radlw_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(radlw_begin, radlw_end, "Rad_LW", "Yellow")
+      radiation_begin = MPE_Log_get_event_number()
+      radiation_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(radiation_begin, radiation_end, "Radiation", "Yellow")
       sfluxwater_begin = MPE_Log_get_event_number()
       sfluxwater_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(sfluxwater_begin, sfluxwater_end, "Sflux_water", "Yellow")
@@ -2945,10 +2941,8 @@ contains
       convection_end =  convection_begin
       call vtfuncdef("Cloud", classhandle, cloud_begin, ierr)
       cloud_end =  cloud_begin
-      call vtfuncdef("Rad_SW", classhandle, radsw_begin, ierr)
-      radsw_end =  radsw_begin
-      call vtfuncdef("Rad_LW", classhandle, radlw_begin, ierr)
-      radlw_end =  radlw_begin
+      call vtfuncdef("Radiation", classhandle, radiation_begin, ierr)
+      radiation_end =  radiation_begin
       call vtfuncdef("Sflux_water", classhandle, sfluxwater_begin, ierr)
       sfluxwater_end =  sfluxwater_begin
       call vtfuncdef("Sflux_sice", classhandle, sfluxsice_begin, ierr)
@@ -3076,35 +3070,31 @@ contains
       cloud_end =  cloud_begin
       event_name(cloud_begin) = "Cloud"
       
-      radsw_begin = 29
-      radsw_end =  radsw_begin
-      event_name(radsw_begin) = "Rad_SW"
+      radiation_begin = 29
+      radiation_end =  radiation_begin
+      event_name(radiation_begin) = "Radiation"
 
-      radlw_begin = 30
-      radlw_end =  radlw_begin
-      event_name(radlw_begin) = "Rad_LW"     
-      
-      sfluxwater_begin = 31
+      sfluxwater_begin = 30
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxsice_begin = 32
+      sfluxsice_begin = 31
       sfluxsice_end =  sfluxsice_begin
       event_name(sfluxsice_begin) = "Sflux_sice"
       
-      sfluxland_begin = 33
+      sfluxland_begin = 32
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 34
+      sfluxurban_begin = 33
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 35
+      vertmix_begin = 34
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      nestin_begin = 36
+      nestin_begin = 35
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
       

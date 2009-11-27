@@ -943,6 +943,7 @@ c       print*,'Calling prognostic cloud scheme'
       rnd_3hr(:,8)=rnd_3hr(:,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
 
 !       put radiation here
+        call start_log(radiation_begin)
         if(nrad==4) then
 !         Fels-Schwarzkopf radiation
           odcalc=mod(ktau,kountr)==0 .or. ktau==1 ! ktau-1 better
@@ -972,6 +973,7 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
           slwa(:)=-10*nrad  
 !         N.B. no rtt array for this nrad option
         endif  !  (nrad==4)
+        call end_log(radiation_end)	
 
         egg(:)=0.   ! reset for fort.60 files
         fgg(:)=0.   ! reset for fort.60 files
