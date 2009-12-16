@@ -57,7 +57,7 @@ module cable_ccam
   integer, dimension(:), allocatable, save :: cmap
   integer, dimension(5,2), save :: pind  
   real, dimension(:), allocatable, save :: atmco2
-  real, dimension(:), allocatable, save :: sv,vl
+  real, dimension(:), allocatable, save :: sv,vl1,vl2,vl3
   integer, parameter :: CO2forcingtype=1   ! 1 constant, 2 prescribed 1900-2004,
                                            ! 3 interactive
   contains
@@ -108,12 +108,12 @@ module cable_ccam
 
      ! for calculation of zenith angle
       real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull)
-      real bpyear,alp
+      real bpyear,alp,x
       real tmps(ifull)
 
       integer jyear,jmonth,jday,jhour,jmin
       integer mstart,ktauplus,k,mins,kstart
-      integer nb
+      integer nb,monthstart
 
       integer imonth(12)
       data imonth /31,28,31,30,31,30,31,31,30,31,30,31/
@@ -197,7 +197,10 @@ module cable_ccam
        rad%fbeam(:,2)=rad%fbeam(:,3)
        met%fld=-rgsave(cmap)        ! long wave down
        
-       veg%vlai(:)=max(vl(:),0.1) ! for updating LAI
+       monthstart=1440*(jday-1) + 60*jhour + jmin ! mins from start of month
+       x=min(max(real(mtimer+monthstart)/real(1440.*imonth(jmonth)),0.),1.)
+       veg%vlai(:)=vl1+vl2*x+vl3*x*x
+       veg%vlai(:)=max(veg%vlai(:),0.1) ! for updating LAI
 
        met%tc=met%tk-273.16
        met%tvair=met%tk
@@ -281,6 +284,14 @@ module cable_ccam
       ustar(iperm(1:ipland))=0.
       wetfac(iperm(1:ipland))=0.
       tmps=0. ! average isflag
+      vlai(iperm(1:ipland))=0.
+      
+      ! screen and 10m diagnostics - rhscrn calculated in sflux.f
+      tscrn(iperm(1:ipland))=0.
+      uscrn(iperm(1:ipland))=0.
+      qgscrn(iperm(1:ipland))=0.
+      u10(iperm(1:ipland))=0.
+      
       do nb=1,5
         if (pind(nb,1).le.mp) then
           do k=1,ms
@@ -379,18 +390,30 @@ module cable_ccam
                                             +sv(pind(nb,1):pind(nb,2))*ssoil%wetfac(pind(nb,1):pind(nb,2))
           tmps(cmap(pind(nb,1):pind(nb,2)))=tmps(cmap(pind(nb,1):pind(nb,2))) &
                                             +sv(pind(nb,1):pind(nb,2))*real(ssoil%isflag(pind(nb,1):pind(nb,2)))
+
+          tscrn(cmap(pind(nb,1):pind(nb,2)))=tscrn(cmap(pind(nb,1):pind(nb,2))) &
+                                             +sv(pind(nb,1):pind(nb,2))*canopy%tscrn(pind(nb,1):pind(nb,2))
+          uscrn(cmap(pind(nb,1):pind(nb,2)))=uscrn(cmap(pind(nb,1):pind(nb,2))) &
+                                             +sv(pind(nb,1):pind(nb,2))*canopy%uscrn(pind(nb,1):pind(nb,2))
+          qgscrn(cmap(pind(nb,1):pind(nb,2)))=qgscrn(cmap(pind(nb,1):pind(nb,2))) &
+                                             +sv(pind(nb,1):pind(nb,2))*canopy%qscrn(pind(nb,1):pind(nb,2))
+          u10(cmap(pind(nb,1):pind(nb,2)))=u10(cmap(pind(nb,1):pind(nb,2))) &
+                                             +sv(pind(nb,1):pind(nb,2))*canopy%ua_10m(pind(nb,1):pind(nb,2))
+          vlai(cmap(pind(nb,1):pind(nb,2)))=vlai(cmap(pind(nb,1):pind(nb,2))) &
+                                             +sv(pind(nb,1):pind(nb,2))*veg%vlai(pind(nb,1):pind(nb,2))
         end if
       end do
       where (land)
         zo=max(zmin*exp(-sqrt(1./zo)),zobgin)
         rtsoil=1./rtsoil
         cduv=cduv*vmod ! cduv is Cd * vmod in CCAM
+        tscrn=tscrn+273.16
       end where
       
       ! The following lines unpack snow.  This is more complicated as we need to decide
       ! how to unpack tiles with 1 layer or 3 layers of snow in the same grid point.
       ! Here we estimate whether the majority of snow points is 1 layer or 3 layers and then
-      ! convert each snow tile to that number of layers.  Note this calculations are purely
+      ! convert each snow tile to that number of layers.  Note these calculations are purely
       ! diagnoistic.  They are not fed back into the CCAM simulation.
       tggsn(iperm(1:ipland),:)=0.
       smass(iperm(1:ipland),:)=0.
@@ -557,7 +580,7 @@ module cable_ccam
       end subroutine setco2for
 
 ! *************************************************************************************
-  subroutine loadcbmparm(fveg)
+  subroutine loadcbmparm(fveg,fvegprev,fvegnext)
 
   use cc_mpi
   
@@ -583,9 +606,9 @@ module cable_ccam
   real(r_1) :: totdepth,ra,rb
   real(r_1), dimension(mxvt,ms) :: froot2
   real(r_1), dimension(ifull_g,5) :: svsg,vling
-  real(r_1), dimension(ifull,5) :: svs,vlin
+  real(r_1), dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
   real, dimension(ifull) :: hruff_grmx
-  character(len=*), intent(in) :: fveg
+  character(len=*), intent(in) :: fveg,fvegprev,fvegnext
   integer ilx,jlx
   real rlong0x,rlat0x,schmidtx,dsx
   character*47 header
@@ -623,12 +646,12 @@ module cable_ccam
   
   if (nrungcm.ne.0) then
     if (myid==0) print *,"Use wb preset for CABLE"
-    wb=-0.5 ! dummy for now
+    wb=20.5 ! dummy for now
   end if
 
-  if (any(wb(:,:).lt.0.)) then
+  if (any(wb(:,:).gt.10.)) then
     if (myid==0) print *,"Unpacking wetfrac to wb"
-    wb(:,:)=abs(wb(:,:))
+    wb(:,:)=wb(:,:)-20.
     do iq=1,ifull
       isoil=isoilm(iq)
       wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
@@ -643,6 +666,33 @@ module cable_ccam
 
   if (myid==0) then
     print *,"Reading land-use data for CABLE"
+    if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
+      open(87,file=fvegprev,status='old')
+      read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+      if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
+      do iq=1,ifull_g
+        read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
+                   ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
+      end do
+      close(87)
+      do n=1,5
+        call ccmpi_distribute(vlinprev(:,n),vling(:,n))
+      end do
+      open(87,file=fvegnext,status='old')
+      read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+      if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
+      do iq=1,ifull_g
+        read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
+                   ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
+      end do
+      close(87)
+      do n=1,5
+        call ccmpi_distribute(vlinnext(:,n),vling(:,n))
+      end do      
+    else
+      vlinprev=-1.
+      vlinnext=-1.    
+    end if
     open(87,file=fveg,status='old')
     read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
     if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
@@ -657,6 +707,17 @@ module cable_ccam
       call ccmpi_distribute(vlin(:,n),vling(:,n))
     end do
   else
+    if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
+      do n=1,5
+        call ccmpi_distribute(vlinprev(:,n))
+      end do
+      do n=1,5
+        call ccmpi_distribute(vlinnext(:,n))
+      end do
+    else
+      vlinprev=-1.
+      vlinnext=-1.
+    end if    
     do n=1,5
       call ccmpi_distribute(ivs(:,n))
       call ccmpi_distribute(svs(:,n))
@@ -675,7 +736,7 @@ module cable_ccam
   end do
   
   allocate(sv(mp))
-  allocate(vl(mp))
+  allocate(vl1(mp),vl2(mp),vl3(mp))
   allocate(cmap(mp))
   allocate(atmco2(ifull))
   call alloc_cbm_var(air, mp)
@@ -689,7 +750,7 @@ module cable_ccam
   call alloc_cbm_var(ssoil, mp)
   call alloc_cbm_var(sum_flux, mp)
   call alloc_cbm_var(veg, mp)
-  
+
   ! soil parameters
   soil%zse = (/.022, .058, .154, .409, 1.085, 2.872/) ! soil layer thickness
   soil%zshh(1) = 0.5 * soil%zse(1)
@@ -710,7 +771,9 @@ module cable_ccam
   
   hruff_grmx=0.01
   sv=0.
-  vl=0.
+  vl1=0.
+  vl2=0.
+  vl3=0.
   
   ipos=0
   do n=1,5
@@ -725,11 +788,21 @@ module cable_ccam
         end if
         cmap(ipos)=iq
         sv(ipos)=svs(iq,n)
-        vl(ipos)=vlin(iq,n)
         veg%iveg(ipos)=ivs(iq,n)
         soil%isoilm(ipos)=isoilm(iq)
         veg%frac4(ipos)=c4frac(iq)
         hruff_grmx(iq)=max(hruff_grmx(iq),hc(ivs(iq,n)))
+        if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
+          vlin(iq,n)=vlin(iq,n)+vlinprev(iq,n)
+          vlinnext(iq,n)=vlinnext(iq,n)+vlin(iq,n)
+          vl1(ipos)=0.5*vlin(iq,n)
+          vl2(ipos)=4.*vlin(iq,n)-5.*vlinprev(iq,n)-vlinnext(iq,n)
+          vl3(ipos)=1.5*(vlinnext(iq,n)+3.*vlinprev(iq,n)-3.*vlin(iq,n))
+        else
+          vl1(ipos)=vlin(iq,n)
+          vl2(ipos)=0.
+          vl3(ipos)=0.
+        end if
       end if
     end do
     pind(n,2)=ipos
@@ -739,9 +812,13 @@ module cable_ccam
     print *,"ERROR: Internal memory allocation error for CABLE set-up"
     stop
   end if
-  
-  do iq=1,ifull
-    vlai(iq)=dot_product(vlin(iq,:),svs(iq,:))
+
+  vlai=0.
+  do n=1,5
+    if (pind(n,1).le.mp) then
+      vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
+                                      +vl1(pind(n,1):pind(n,2))*sv(pind(n,1):pind(n,2))
+    end if
   end do
   
   ! aggregate zom

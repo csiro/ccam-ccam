@@ -348,3 +348,221 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       endif
       return
       end
+      
+      ! MJT cable ---------------------------------------------------
+      ! Use TAPM approach to screen diagnostics for ocean and lake points
+      subroutine scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,
+     &                    zo,tsu,temp,qsttg,qg,umag,ps,land,zmin,sig)
+     
+      implicit none
+
+      integer, intent(in) :: ifull
+      integer pfull
+      real, dimension(ifull), intent(inout) :: qgscrn,tscrn,uscrn,u10
+      real, dimension(ifull), intent(inout) :: rhscrn
+      real, dimension(ifull), intent(in) :: zo,tsu,temp,qsttg
+      real, dimension(ifull), intent(in) :: qg,umag,ps
+      real, intent(in) :: zmin,sig
+      real, dimension(ifull) :: qgscrn_pack,tscrn_pack
+      real, dimension(ifull) :: uscrn_pack,u10_pack
+      real, dimension(ifull) :: rhscrn_pack,zo_pack
+      real, dimension(ifull) :: stemp_pack,temp_pack
+      real, dimension(ifull) :: smixr_pack,mixr_pack
+      real, dimension(ifull) :: umag_pack,ps_pack
+      logical, dimension(ifull), intent(in) :: land
+      
+      pfull=count(.not.land)
+
+      if (pfull.eq.0) return
+
+      zo_pack(1:pfull)=pack(zo,.not.land)
+      stemp_pack(1:pfull)=pack(tsu,.not.land)
+      temp_pack(1:pfull)=pack(temp,.not.land)
+      smixr_pack(1:pfull)=pack(qsttg,.not.land)
+      mixr_pack(1:pfull)=pack(qg,.not.land)
+      umag_pack(1:pfull)=pack(umag,.not.land)
+      ps_pack(1:pfull)=pack(ps,.not.land)
+
+      call scrncalc(pfull,qgscrn_pack(1:pfull),tscrn_pack(1:pfull),
+     &              uscrn_pack(1:pfull),u10_pack(1:pfull),
+     &              rhscrn_pack(1:pfull),zo_pack(1:pfull),
+     &              stemp_pack(1:pfull),temp_pack(1:pfull),
+     &              smixr_pack(1:pfull),mixr_pack(1:pfull),
+     &              umag_pack(1:pfull),ps_pack(1:pfull),zmin,sig)
+
+      qgscrn=unpack(qgscrn_pack(1:pfull),.not.land,qgscrn)
+      tscrn=unpack(tscrn_pack(1:pfull),.not.land,tscrn)
+      uscrn=unpack(uscrn_pack(1:pfull),.not.land,uscrn)
+      u10=unpack(u10_pack(1:pfull),.not.land,u10)
+      rhscrn=unpack(rhscrn_pack(1:pfull),.not.land,rhscrn)
+
+      return
+      end subroutine scrnocn
+      
+      subroutine scrncalc(pfull,qscrn,tscrn,uscrn,u10,rhscrn,
+     &                    zo,stemp,temp,smixr,mixr,umag,ps,zmin,sig)
+      
+      implicit none
+
+      include 'const_phys.h'
+
+      integer, intent(in) :: pfull
+      integer ic
+      real, dimension(pfull), intent(out) :: qscrn,tscrn,uscrn,u10
+      real, dimension(pfull), intent(out) :: rhscrn
+      real, dimension(pfull), intent(in) :: zo,stemp,temp,umag
+      real, dimension(pfull), intent(in) :: smixr,mixr,ps
+      real, dimension(pfull) :: lzom,lzoh,af,aft,ri,fm,fh,root
+      real, dimension(pfull) :: denma,denha,cd,thetav,sthetav
+      real, dimension(pfull) :: thetavstar,z_on_l,z0_on_l,zt_on_l
+      real, dimension(pfull) :: pm0,ph0,pm1,ph1,integralm,integralh
+      real, dimension(pfull) :: ustar,qstar,z10_on_l
+      real, dimension(pfull) :: neutral,neutral10,pm10
+      real, dimension(pfull) :: integralm10
+      real, dimension(pfull) :: esat,qsat,tstar
+      real, intent(in) :: zmin,sig
+      real scrp
+      integer, parameter ::  nc     = 5
+      real, parameter    ::  vkar   = 0.4
+      real, parameter    ::  bprm   = 5.  ! 4.7 in rams
+      real, parameter    ::  chs    = 2.6 ! 5.3 in rams
+      real, parameter    ::  cms    = 5.  ! 7.4 in rams
+      real, parameter    ::  fmroot = 0.57735
+      real, parameter    ::  rimax  =(1./fmroot-1.)/bprm
+      real, parameter    ::  a_1    = 1.
+      real, parameter    ::  b_1    = 2./3.
+      real, parameter    ::  c_1    = 5.
+      real, parameter    ::  d_1    = 0.35
+      real, parameter    ::  aa1    = 3.8
+      real, parameter    ::  bb1    = 0.5
+      real, parameter    ::  cc1    = 0.3
+      real, parameter    ::  lna    = 2.3
+      real, parameter    ::  z0     = 1.5
+      real, parameter    ::  z10    = 10.
+
+      scrp=(sig)**(rdry/cp)
+      thetav=temp*(1.+0.61*mixr)/scrp
+      sthetav=stemp*(1.+0.61*smixr)
+
+      ! Roughness length for heat
+      lzom=log(zmin/zo)
+      lzoh=lna+lzom
+
+      ! use Louis as first guess for Dyer and Hicks scheme
+      af=vkar*vkar/(lzom*lzom)
+      aft=vkar*vkar/(lzom*lzoh)
+      ! umag is now constrained to be above umin
+      ri=min(grav*zmin*(1.-sthetav/thetav)/umag**2,rimax)
+      where (ri>0.)
+        fm=1./(1.+bprm*ri)**2
+        fh=fm
+      elsewhere
+        root=sqrt(-ri*exp(lzom))
+        denma=1.+cms*2.*bprm*af*root
+        denha=1.+chs*2.*bprm*aft*exp(0.5*lna)*root
+        fm=1.-2.*bprm *ri/denma
+        fh=1.-2.*bprm*ri/denha
+      end where
+      cd=af*fm
+
+      ! Dyer and Hicks approach 
+      thetavstar=aft*fh*(thetav-sthetav)/sqrt(cd)
+      do ic=1,nc
+        z_on_l=vkar*zmin*grav*thetavstar/(thetav*cd*umag**2)
+        z_on_l=min(z_on_l,10.)
+        z0_on_l  = z_on_l*exp(-lzom)
+        zt_on_l  = z0_on_l*exp(-lna)
+        where (z_on_l.lt.0.)
+          pm0     = (1.-16.*z0_on_l)**(-0.25)
+          ph0     = (1.-16.*zt_on_l)**(-0.5)
+          pm1     = (1.-16.*z_on_l)**(-0.25)
+          ph1     = (1.-16.*z_on_l)**(-0.5)
+          integralm = lzom-2.*log((1.+1./pm1)/(1.+1./pm0))
+     &                -log((1.+1./pm1**2)/(1.+1./pm0**2))
+     &                +2.*(atan(1./pm1)-atan(1./pm0))
+          integralh = lzoh-2.*log((1.+1./ph1)/(1.+1./ph0))
+        elsewhere
+          !--------------Beljaars and Holtslag (1991) momentum & heat            
+          pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)
+     &          +b_1*c_1/d_1)
+          pm1 = -(a_1*z_on_l+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)
+     &          +b_1*c_1/d_1)
+          ph0 = -((1.+(2./3.)*a_1*zt_on_l)**1.5
+     &          +b_1*(zt_on_l-(c_1/d_1))*exp(-d_1*zt_on_l)
+     &          +b_1*c_1/d_1-1.)
+          ph1 = -((1.+(2./3.)*a_1*z_on_l)**1.5
+     &          +b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)
+     &          +b_1*c_1/d_1-1.)
+          integralm = lzom-(pm1-pm0)    
+          integralh = lzoh-(ph1-ph0)         
+        endwhere
+   !     where (z_on_l.le.0.4)
+          cd = (max(0.01,min(vkar*umag/integralm,2.))/umag)**2
+   !     elsewhere
+   !       cd = (max(0.01,min(vkar*umag/(aa1*( ( z_on_l**bb1)*
+   !  &         (1.0+cc1* z_on_l**(1.-bb1))
+   !  &         -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1)) )),2.))
+   !  &         /umag)**2
+   !     endwhere
+        thetavstar= vkar*(thetav-sthetav)/integralh
+      end do
+      ustar=sqrt(cd)*umag
+      tstar=vkar*(temp/scrp-stemp)/integralh
+      qstar=vkar*(mixr-smixr)/integralh
+      
+      ! estimate screen diagnostics
+      z0_on_l   = z0*z_on_l/zmin
+      z10_on_l  = z10*z_on_l/zmin
+      z0_on_l=min(z0_on_l,10.)
+      z10_on_l=min(z10_on_l,10.)
+      neutral = log(zmin/z0)
+      neutral10 = log(zmin/z10)
+      where (z_on_l.lt.0.)
+        ph0     = (1.-16.*z0_on_l)**(-0.50)
+        ph1     = (1.-16.*z_on_l)**(-0.50)
+        pm0     = (1.-16.*z0_on_l)**(-0.25)
+        pm10    = (1.-16.*z10_on_l)**(-0.25)
+        pm1     = (1.-16.*z_on_l)**(-0.25)
+        integralh = neutral
+     &              -2.*log((1.+1./ph1)/(1.+1./ph0))
+        integralm = neutral-2.*log((1.+1./pm1)/(1.+1./pm0))
+     &                -log((1.+1./pm1**2)/(1.+1./pm0**2))
+     &                +2.*(atan(1./pm1)-atan(1./pm0))
+        integralm10 = neutral10-2.*log((1.+1./pm1)/(1.+1./pm10))
+     &                -log((1.+1./pm1**2)/(1.+1./pm10**2))
+     &                +2.*(atan(1./pm1)-atan(1./pm10))     
+      elsewhere
+c-------Beljaars and Holtslag (1991) heat function
+        ph0  = -((1.+(2./3.)*a_1*z0_on_l)**1.5
+     &         +b_1*(z0_on_l-(c_1/d_1))
+     &         *exp(-d_1*z0_on_l)+b_1*c_1/d_1-1.)
+        ph1  = -((1.+(2./3.)*a_1*z_on_l)**1.5
+     &         +b_1*(z_on_l-(c_1/d_1))
+     &         *exp(-d_1*z_on_l)+b_1*c_1/d_1-1.)
+        pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)
+     &        +b_1*c_1/d_1)
+        pm10 = -(a_1*z10_on_l+b_1*(z10_on_l-(c_1/d_1))
+     ^         *exp(-d_1*z10_on_l)+b_1*c_1/d_1)
+        pm1  = -(a_1*z_on_l+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)
+     &         +b_1*c_1/d_1)
+        integralh = neutral-(ph1-ph0)
+        integralm = neutral-(pm1-pm0)
+        integralm10 = neutral10-(pm1-pm10)
+      endwhere
+      tscrn       = temp-tstar/vkar*integralh*scrp
+      qscrn       = mixr-qstar/vkar*integralh
+      qscrn       = max(qscrn,1.E-4)
+      where (tscrn.ge.273.15)
+        esat = 610.*exp(hl/rvap*(1./273.15-1./tscrn))
+      elsewhere
+        esat = 610.*exp(hls/rvap*(1./273.15-1./tscrn))
+      endwhere
+      qsat = 0.622*esat/(ps-0.378*esat)
+      rhscrn = 100.*min(qscrn/qsat,1.)
+      
+      uscrn=max(umag-ustar/vkar*integralm,0.)
+      u10=max(umag-ustar/vkar*integralm10,0.)
+      
+      return
+      end subroutine scrncalc
+      !--------------------------------------------------------------

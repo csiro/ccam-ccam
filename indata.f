@@ -893,7 +893,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
         if (nsib.eq.6) then  ! MJT cable
           ! albvisnir at this point holds soil albedo for cable initialisation
           vmodmin=umin
-          call loadcbmparm(vegfile)
+          call loadcbmparm(vegfile,vegprev,vegnext)
           ! albvisnir now is the net albedo
         end if
       else
@@ -963,9 +963,9 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
       enddo
       endif ! (nsib==3) ! MJT cable
 
-      if (any(wb(:,:).lt.0.)) then
+      if (any(wb(:,:).gt.10.)) then
         if (mydiag) print *,"Unpacking wetfrac to wb",wb(idjd,1)
-        wb(:,:)=abs(wb(:,:))
+        wb(:,:)=wb(:,:)-20.
         do iq=1,ifull
           isoil=isoilm(iq)
           wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)

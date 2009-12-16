@@ -167,6 +167,7 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: spill ! can.storage excess after dewfall (mm)
      REAL(r_1), DIMENSION(:), POINTER :: wcint ! canopy rainfall interception (mm)
      REAL(r_1), DIMENSION(:), POINTER :: us    ! friction velocity
+     REAL(r_1), DIMENSION(:), POINTER :: ua_10m	 ! screen level or 10m wind speed (m/s)
      REAL(r_1), DIMENSION(:), POINTER :: tscrn ! air temperature at screen height (oC)
      REAL(r_1), DIMENSION(:), POINTER :: qscrn ! specific humudity at screen height (g/g)
      REAL(r_1), DIMENSION(:), POINTER :: uscrn ! wind speed at screen height (m/s)
@@ -499,6 +500,7 @@ CONTAINS
     ALLOCATE ( var % spill(mp) )
     ALLOCATE ( var % wcint(mp) )
     ALLOCATE ( var % us(mp) )
+    ALLOCATE ( var % ua_10m(mp) )
     ALLOCATE ( var % tscrn(mp) )
     ALLOCATE ( var % qscrn(mp) )
     ALLOCATE ( var % uscrn(mp) )
@@ -804,6 +806,7 @@ CONTAINS
     DEALLOCATE ( var % spill )
     DEALLOCATE ( var % wcint )
     DEALLOCATE ( var % us )
+    DEALLOCATE ( var % ua_10m )
     DEALLOCATE ( var % tscrn )
     DEALLOCATE ( var % qscrn )
     DEALLOCATE ( var % uscrn )

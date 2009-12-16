@@ -160,6 +160,16 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)	        :: zeta1
     REAL(r_1), DIMENSION(mp)	        :: zeta2
     REAL(r_1), DIMENSION(mp)	        :: usA
+    REAL(r_1), DIMENSION(mp)            :: term1
+    REAL(r_1), DIMENSION(mp)            :: term2
+    REAL(r_1), DIMENSION(mp)            :: term3
+    REAL(r_1), DIMENSION(mp)            :: term5
+    REAL(r_1), DIMENSION(mp)            :: r_sc
+    REAL(r_1), DIMENSION(mp)	        :: qscrn3
+    REAL(r_1), DIMENSION(mp)            :: beta_sc
+    REAL(r_1), DIMENSION(mp)            :: pnt2
+    REAL(r_1), DIMENSION(mp)            :: zscl_10m,zscl_scrn
+    REAL(r_1), DIMENSION(mp)            :: zscl
 !%%
 
     !
@@ -177,7 +187,7 @@ CONTAINS
     met%da = (qsatf(met%tc,met%pmb) - met%qv ) * rmair/rmh2o * met%pmb * 100.
     ! Soil water limitation on stomatal conductance:
     rwater = MAX(1.0e-4_r_2, &
-         SUM(soil%froot * MIN(1.0_r_2,ssoil%wb - SPREAD(soil%swilt, 2, ms)),2) &
+         SUM(soil%froot * max(0.024,MIN(1.0_r_2,ssoil%wb - SPREAD(soil%swilt, 2, ms))),2) &
          /(soil%sfc-soil%swilt))
 !    print *,'define_can 5',rwater,soil%froot(1,:),ktau,soil%froot(2,:)
     ! construct function to limit stom cond for soil water availability
@@ -210,7 +220,7 @@ CONTAINS
 
 !    wetfac = MAX(0.0_r_2, MIN(1.0_r_2, &
     ssoil%wetfac = MAX(0.0_r_2, MIN(1.0_r_2, &
-         (ssoil%wb(:,1) - soil%swilt) / (soil%sfc - soil%swilt)))
+         (ssoil%wb(:,1) - soil%swilt/3.) / (soil%sfc - soil%swilt/3.)))
     ssoil%wetfac = 0.5*(ssoil%wetfac + ssoil%owetfac)
 
     ! Temporay fixer for accounting of reduction of soil evaporation due to freezing
@@ -294,16 +304,16 @@ CONTAINS
             psim(canopy%zetar(:,iter)) + &
             psim(canopy%zetar(:,iter) * rough%z0m / rough%zref_uv) ))
 !%%change by Ashok Luhar - low wind formulation
-            usA = 0.0
-        where (canopy%zetar(:,iter) > 0.7)
-            zeta1=canopy%zetar(:,iter) * rough%z0m / rough%zref_uv
-!            usA = MAX(1.e-6, &
-            canopy%us = MAX(1.e-6, &
-            vonk * MAX(met%ua,umin) / ( &
-            alpha1* ((canopy%zetar(:,iter)**beta1*  &
-               (1.0+gamma1*canopy%zetar(:,iter)**(1.0-beta1)))  &       
-             - (zeta1**beta1*(1.0+gamma1*zeta1**(1.0-beta1))))))
-        endwhere         
+!            usA = 0.0
+!        where (canopy%zetar(:,iter) > 0.7)
+!            zeta1=canopy%zetar(:,iter) * rough%z0m / rough%zref_uv
+!!            usA = MAX(1.e-6, &
+!            canopy%us = MAX(1.e-6, &
+!            vonk * MAX(met%ua,umin) / ( &
+!            alpha1* ((canopy%zetar(:,iter)**beta1*  &
+!               (1.0+gamma1*canopy%zetar(:,iter)**(1.0-beta1)))  &       
+!             - (zeta1**beta1*(1.0+gamma1*zeta1**(1.0-beta1))))))
+!        endwhere         
 !%%
 !        print 191,iter,ktau,met%ua(1),canopy%us,usA, &
 !                  canopy%zetar(1,iter),canopy%zetar(2,iter), &
@@ -652,7 +662,7 @@ CONTAINS
        canopy%fes= ssoil%wetfac * ssoil%potev
 !       canopy%fes= wetfac * ssoil%potev
        WHERE (ssoil%snowd < 0.1 .and. canopy%fes .gt. 0. )
-        canopy%fes= min(canopy%fes,max(0._r_2,(ssoil%wb(:,1)-soil%swilt))*soil%zse(1) &
+        canopy%fes= min(canopy%fes,max(0._r_2,(ssoil%wb(:,1)-soil%swilt/3.))*soil%zse(1) &
                * 1000. * air%rlam / dels)
         canopy%fes = min(canopy%fes,(ssoil%wb(:,1)-ssoil%wbice(:,1))* soil%zse(1) &
                * 1000. * air%rlam / dels)
@@ -849,7 +859,7 @@ CONTAINS
           canopy%fes= ssoil%wetfac * ssoil%potev
 !          canopy%fes= wetfac * ssoil%potev
           WHERE (ssoil%snowd < 0.1 .and. canopy%fes .gt. 0. )
-             canopy%fes= min(canopy%fes,max(0._r_2,(ssoil%wb(:,1)-soil%swilt))* soil%zse(1) &
+             canopy%fes= min(canopy%fes,max(0._r_2,(ssoil%wb(:,1)-soil%swilt/3.))* soil%zse(1) &
                   * 1000. * air%rlam / dels)
              canopy%fes = min(canopy%fes,(ssoil%wb(:,1)-ssoil%wbice(:,1)) * soil%zse(1) &
                   * 1000. * air%rlam / dels)
@@ -931,13 +941,13 @@ CONTAINS
          psis(canopy%zetar(:,iterplus) * zscrn / rough%zref_tq) ) /vonk
 
 !%% change by Ashok Luhar
-    where (canopy%zetar(:,iterplus) > 0.7)
-!            zeta2(:)=zetar(:,iterplus) * zscrn / rough%zref
-            zeta2=canopy%zetar(:,iterplus) * zscrn / rough%zref_tq
-            denom =alpha1* ((canopy%zetar(:,iterplus)**beta1* &
-               (1.0+gamma1*canopy%zetar(:,iterplus)**(1.0-beta1)))  &       
-             - (zeta2*beta1*(1.0+gamma1*zeta2**(1.0-beta1)))) /vonk 
-     endwhere
+!    where (canopy%zetar(:,iterplus) > 0.7)
+!!            zeta2(:)=zetar(:,iterplus) * zscrn / rough%zref
+!            zeta2=canopy%zetar(:,iterplus) * zscrn / rough%zref_tq
+!            denom =alpha1* ((canopy%zetar(:,iterplus)**beta1* &
+!               (1.0+gamma1*canopy%zetar(:,iterplus)**(1.0-beta1)))  &       
+!             - (zeta2*beta1*(1.0+gamma1*zeta2**(1.0-beta1)))) /vonk 
+!     endwhere
 !%%
 
     ! Calculate screen temperature:
@@ -959,14 +969,100 @@ CONTAINS
        qsurf = 0.1*rsts*ssoil%wetfac + 0.9*met%qv
 !       qsurf = 0.1*rsts*wetfac + 0.9*met%qv
     END WHERE
-!    canopy%qscrn = qsurf + qstar * denom
-!    canopy%qscrn = (met%qv - qstar * denom)/qsatf(canopy%tscrn,met%pmb)
     canopy%qscrn = met%qv - qstar * denom
-!   temporary fix for screen humidity to stay in the range
-!    where ( met%qv .gt. qsurf )  &  
-!           canopy%qscrn = min(met%qv,max( qsurf,canopy%qscrn))
-!    where ( met%qv .le. qsurf )  &  
-!           canopy%qscrn = min(qsurf,max( met%qv,canopy%qscrn))
+
+! calculation of screen temepratures for LAI > 0.1 . Method by Ian Harman
+
+     where ( veg%vlaiw > 0.1 )
+        term1=0.
+        term2=0.
+        term5=0.
+        zscl = max(rough%z0soilsn,1.5)
+        where ( rough%hruff  > 0.0 .and. rough%disp  > 0.0 )
+           term1 = EXP(2*csw*veg%vlaiw*(1-zscl/rough%hruff))
+           term2 = EXP(2*csw*veg%vlaiw*(1-rough%disp/rough%hruff))
+           term5 = MAX(2./3.*rough%hruff/rough%disp, 1.)
+        endwhere
+        term3 = a33**2*ctl*2*csw*veg%vlaiw
+        where( zscl < rough%disp )
+            r_sc = term5 * LOG(zscl/rough%z0soilsn) * ( exp(2*csw*veg%vlaiw) - term1 ) / term3
+        elsewhere ( rough%disp <= zscl .and. zscl < rough%hruff )
+            r_sc = rough%rt0us + term5 * ( term2 - term1 ) / term3
+        elsewhere ( rough%hruff <= zscl .and. zscl <  rough%zruffs )
+            r_sc = rough%rt0us + rough%rt1usa + term5 * ( zscl - rough%hruff ) /  &
+                                                          (a33**2*ctl*rough%hruff)
+        elsewhere (zscl >= rough%zruffs )
+            r_sc = rough%rt0us + rough%rt1usa + rough%rt1usb +  &
+              ( log( (zscl - rough%disp)/MAX(rough%zruffs-rough%disp, rough%z0soilsn) ) &
+                - psis( (zscl - rough%disp) / (rough%zref_tq/canopy%zetar(:,iterplus)) )  &
+                + psis( (rough%zruffs - rough%disp) / (rough%zref_tq/canopy%zetar(:,iterplus)) )  &
+              ) / vonk
+        endwhere
+
+        canopy%tscrn = ssoil%tss + (met%tk - ssoil%tss) * r_sc /                            &
+            (rough%rt0us + rough%rt1usa + rough%rt1usb + rt1usc)-tfrz
+     endwhere
+     
+    rsts = qsatf(canopy%tscrn, met%pmb)  ! I.Harman method
+    qtgnet = rsts * ssoil%wetfac - met%qv
+    WHERE (qtgnet .gt. 0. )
+       qsurf = rsts * ssoil%wetfac
+    ELSEWHERE
+       qsurf = 0.1*rsts*ssoil%wetfac + 0.9*met%qv
+    END WHERE
+    qscrn3 =  qsurf + (met%qv - qsurf) * r_sc /                            &
+        (rough%rt0us + rough%rt1usa + rough%rt1usb + rt1usc) 
+    canopy%qscrn = qscrn3   
+
+    where ( rough%hruff > 0.01 ) &
+    beta_sc = vonk /                                                                     &
+           ( LOG( (rough%hruff - rough%disp) / rough%z0m )                               &
+                 - psim( (rough%hruff - rough%disp) / (rough%zref_uv/canopy%zetar(:,iterplus)) )  &
+                 + psim(  rough%z0m / (rough%zref_uv/canopy%zetar(:,iterplus)) )                  &
+            ) 
+    zscl_10m = max(rough%z0soilsn,10.)
+    pnt2 = 0
+    where ( rough%hruff <= 1.e-2 ) 
+       canopy%ua_10m = canopy%us/vonk *                                                     &
+           ( LOG( zscl_10m  / rough%z0m )                                  &
+                 - psim( zscl_10m  / (rough%zref_uv/canopy%zetar(:,iterplus)) )   &
+                 + psim( rough%z0m / (rough%zref_uv/canopy%zetar(:,iterplus)) )                          &
+            )
+       pnt2 = 1
+    elsewhere ( rough%hruff > 1.e-2 .and.  rough%hruff > zscl_10m ) 
+       canopy%ua_10m = canopy%us *                                                       &
+                       exp( (zscl_10m-rough%hruff)*beta_sc/(rough%disp*vonk) ) / beta_sc
+       pnt2 = 2
+    elsewhere ( rough%hruff > 1.e-2 .and.  rough%hruff <= zscl_10m ) 
+       canopy%ua_10m = canopy%us/vonk *                                                     &
+           ( LOG( (zscl_10m - rough%disp) / rough%z0m )                                  &
+                 - psim( (zscl_10m - rough%disp) / (rough%zref_uv/canopy%zetar(:,iterplus)) )   &
+                 + psim(  rough%z0m / (rough%zref_uv/canopy%zetar(:,iterplus)) )                          &
+            ) 
+       pnt2 = 3
+    endwhere
+
+!   calculation of uscrn at 1.8m
+    zscl_scrn = max(rough%z0soilsn,1.8)
+    canopy%uscrn = max(0., max(met%ua,umin) - canopy%us * denom ) ! for bare ground only
+    where ( rough%hruff <= 1.e-2 )
+       canopy%uscrn = canopy%us/vonk *                                                     &
+           ( LOG( zscl_scrn  / rough%z0m )                                  &
+                 - psim( zscl_scrn  / (rough%zref_uv/canopy%zetar(:,iterplus)) )   &
+                 + psim( rough%z0m / (rough%zref_uv/canopy%zetar(:,iterplus)) )                          &
+            )
+    elsewhere ( rough%hruff > 1.e-2 .and.  rough%hruff > zscl_scrn )
+       canopy%uscrn = canopy%us *                                                       &
+                       exp( (zscl_scrn-rough%hruff)*beta_sc/(rough%disp*vonk) ) / beta_sc
+    elsewhere ( rough%hruff > 1.e-2 .and.  rough%hruff <= zscl_scrn )
+       canopy%uscrn = canopy%us/vonk *                                                     &
+           ( LOG( (zscl_scrn - rough%disp) / rough%z0m )                                  &
+                 - psim( (zscl_scrn - rough%disp) / (rough%zref_uv/canopy%zetar(:,iterplus)) )   &
+                 + psim(  rough%z0m / (rough%zref_uv/canopy%zetar(:,iterplus)) )                          &
+            )
+    endwhere
+
+
 !#if defined(SCMA)
 !    IF(L_EXPLICIT)THEN
 !      print *,'rough%disp',rough%disp,zscrn,canopy%zetar(:,iterplus),rough%z0m 

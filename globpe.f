@@ -180,7 +180,7 @@
      &    surfile,tmaxfile,tminfile,topofile,trcfil,vegfile,zofile,
      &    smoistfile,soil2file,radonemfile,
      &    co2_00,radon_00,surf_00,co2_12,radon_12,surf_12,
-     &    laifile,albnirfile,urbanfile,bathfile ! MJT sib ! MJT urban ! MJT mlo
+     &    laifile,albnirfile,urbanfile,bathfile,vegprev,vegnext ! MJT sib ! MJT urban ! MJT mlo ! MJT cable
       namelist/kuonml/alflnd,alfsea
      &        ,cldh_lnd,cldm_lnd,cldl_lnd
      &        ,cldh_sea,cldm_sea,cldl_sea
@@ -1715,7 +1715,8 @@ c     initialize file names to something
      &    ,radon_12/' '/,ifile/' '/,ofile/' '/,nmifile/' '/
      &    ,eigenv/' '/,radfile/' '/,o3file/' '/,hfile/' '/,mesonest/' '/
      &          ,scrnfile/' '/,tmaxfile/' '/,tminfile/' '/,trcfil/' '/
-     &    ,laifile/' '/,albnirfile/' '/,urbanfile/' '/,bathfile/' '/ ! MJT sib ! MJT urban ! MJT mlo
+     &    ,laifile/' '/,albnirfile/' '/,urbanfile/' '/,bathfile/' '/
+     7    ,vegprev/' '/,vegnext/' '/ ! MJT sib ! MJT urban ! MJT mlo ! MJT cable
       data climcdf/'clim.cdf'/
       data monfil/'monthly.cdf'/,scrfcdf/'scrave.cdf'/
 c     floating point:

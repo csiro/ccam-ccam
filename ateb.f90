@@ -50,7 +50,7 @@ implicit none
 private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb1, &
        atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,vegmode, &
-       atebdwn,atebotf
+       atebdwn,atebotf,atebscrnout
 
 ! type definitions
 type tatm
@@ -66,8 +66,9 @@ type tdiag
   real :: roofdelta,roaddelta,vegdelta,rfsndelta,rdsndelta
   real :: tempc,mixrc,tempr,mixrr,sigd,sigr,rfdzmin
   real :: accool,canyonrgout,roofrgout,tran,evap,c1
-  real :: totdepth,netemiss,netrad
+  real :: totdepth,netemiss,netrad,topu
   real :: cwa,cwe,cww,cwr,cra,crr,crw
+  real :: canyontemp,canyonmix
 end type tdiag
 type twall
   real, dimension(3) :: temp
@@ -89,6 +90,7 @@ type tdata
 end type tdata
 type tprog
   real :: lzom,lzoh,cndzmin,cduv,vegtemp
+  real :: tscrn,qscrn,uscrn,u10
 end type tprog
 
 ! state arrays
@@ -109,6 +111,7 @@ integer, parameter :: nrefl=3             ! Number of canyon reflections (defaul
 integer, parameter :: nfgits=20           ! Maximum number of iterations for calculating sensible heat flux (default=6)
 integer, parameter :: stabfn=1            ! Stability function scheme (0=Louis, 1=Dyer and Hicks)
 integer, parameter :: vegmode=2           ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out-canyon/in-canyon = X%/Y%)
+integer, parameter :: scrnmeth=1          ! Screen diagnostic method (0=Slab, 1=Canopy)
 integer, parameter :: iqt = 3432          ! Diagnostic point (in terms of host grid)
 real, parameter :: tol=0.001              ! Minimum change for sectant method
 real, parameter :: alpha = 0.7            ! Weighting for determining the rate of convergence when calculating canyon temperatures
@@ -252,6 +255,10 @@ pg%lzom=log(pg%cndzmin/(0.1*fn%bldheight)) ! updated in atebcalc
 pg%lzoh=6.+pg%lzom ! (Kanda et al 2005)    ! updated in atebcalc
 pg%cduv=(vkar/pg%lzom)**2                  ! updated in atebcalc
 pg%vegtemp=291.                            ! updated in atebcalc
+pg%tscrn=291.                              ! updated in atebcalc
+pg%qscrn=0.                                ! updated in atebcalc
+pg%uscrn=0.                                ! updated in atebcalc
+pg%u10=0.                                  ! updated in atebcalc
 
 return
 end subroutine atebinit
@@ -776,6 +783,38 @@ end where
 return
 end subroutine atebccangle
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine calcuates screen level diagnostics
+!
+
+subroutine atebscrnout(ifull,tscrn,qscrn,uscrn,u10,diag,raw)
+
+implicit none
+
+integer, intent(in) :: ifull,diag
+real, dimension(ifull), intent(inout) :: tscrn,qscrn,uscrn,u10
+logical, intent(in), optional :: raw
+logical mode
+
+if (ufull.eq.0) return
+
+mode=.false.
+if (present(raw)) mode=raw
+
+if (mode) then
+  tscrn(ugrid)=pg%tscrn
+  qscrn(ugrid)=pg%qscrn
+  uscrn(ugrid)=pg%uscrn
+  u10(ugrid)=pg%u10
+else
+  tscrn(ugrid)=sigmau*pg%tscrn+(1.-sigmau)*tscrn(ugrid)
+  qscrn(ugrid)=sigmau*pg%qscrn+(1.-sigmau)*qscrn(ugrid)
+  uscrn(ugrid)=sigmau*pg%uscrn+(1.-sigmau)*uscrn(ugrid)
+  u10(ugrid)=sigmau*pg%u10+(1.-sigmau)*u10(ugrid)
+end if
+
+return
+end subroutine atebscrnout
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Main routine for calculating urban flux contrabution
@@ -894,7 +933,7 @@ real, dimension(ufull,3) :: garoof,gawalle,gawallw,garoad
 real, dimension(ufull) :: garfsn,gardsn
 real, dimension(ufull) :: rdsntemp,rfsntemp,rdsnmelt,rfsnmelt
 real, dimension(ufull) :: wallpsi,roadpsi,fgtop,egtop,qsatr
-real, dimension(ufull) :: oldval,newval,topu,cu,ctmax,ctmin,evctx,evct
+real, dimension(ufull) :: oldval,newval,cu,ctmax,ctmin,evctx,evct
 real, dimension(ufull) :: ln,rn,we,ww,wr,zolog,a,xe,xw,cuven,n,zom,zonet,dis
 real, dimension(ufull) :: ncwa,ncwe,ncww,ncwr,ncra,ncrr,ncrw
 real, dimension(ufull) :: rcwa,rcwe,rcww,rcwr,rcra,rcrr,rcrw
@@ -947,35 +986,11 @@ dg%roofrgout=0.
 dg%tran=0.
 dg%evap=0.
 dg%c1=0.
+dg%topu=0.
+dg%canyontemp=0.
+dg%canyonmix=0.
 
-! total soil depth
-dg%totdepth=0.
-do ii=1,3
-  dg%totdepth=dg%totdepth+fn%roaddepth(ii)
-end do
-
-! canyon (displacement height at refheight*building height)
-dg%sigd=atm%ps
-dg%tempc=atm%temp*(dg%sigd/atm%pa)**(rd/aircp)
-call getqsat(ufull,qsatr,dg%tempc,dg%sigd)
-call getqsat(ufull,a,atm%temp,atm%pa)
-dg%mixrc=atm%mixr*qsatr/a ! a=qsata
-
-! roof (displacement height at building height)
-dg%sigr=atm%ps*exp(grav*fn%bldheight*(refheight-1.)/(rd*atm%temp))
-dg%tempr=atm%temp*(dg%sigr/atm%pa)**(rd/aircp)
-call getqsat(ufull,qsatr,dg%tempr,dg%sigr)
-dg%mixrr=atm%mixr*qsatr/a ! a=qsata
-
-! new snowfall
-where (atm%snd.gt.0.)
-  roof%den=(roof%snow*roof%den+atm%snd*ddt*minsnowden)/(roof%snow+ddt*atm%snd)
-  road%den=(road%snow*road%den+atm%snd*ddt*minsnowden)/(road%snow+ddt*atm%snd)
-  roof%alpha=maxsnowalpha
-  road%alpha=maxsnowalpha
-end where
-
-! limit state variables
+! limit prognostic state variables
 do ii=1,3
   roof%temp(ii)=min(max(roof%temp(ii),200.),400.)
   walle%temp(ii)=min(max(walle%temp(ii),200.),400.)
@@ -992,6 +1007,14 @@ roof%den=min(max(roof%den,minsnowden),maxsnowden)
 road%den=min(max(road%den,minsnowden),maxsnowden)
 roof%alpha=min(max(roof%alpha,minsnowalpha),maxsnowalpha)
 road%alpha=min(max(road%alpha,minsnowalpha),maxsnowalpha)
+
+! new snowfall
+where (atm%snd.gt.0.)
+  roof%den=(roof%snow*roof%den+atm%snd*ddt*minsnowden)/(roof%snow+ddt*atm%snd)
+  road%den=(road%snow*road%den+atm%snd*ddt*minsnowden)/(road%snow+ddt*atm%snd)
+  roof%alpha=maxsnowalpha
+  road%alpha=maxsnowalpha
+end where
     
 ! water and snow cover fractions
 dg%roofdelta=(roof%water/maxrfwater)**(2./3.)
@@ -1000,6 +1023,25 @@ dg%vegdelta=(veg%water/maxvgwater)**(2./3.)
 dg%rfsndelta=roof%snow/(roof%snow+maxrfsn)
 dg%rdsndelta=road%snow/(road%snow+maxrdsn)
 
+! canyon (displacement height at refheight*building height)
+dg%sigd=atm%ps*exp(-grav*fn%bldheight*refheight/(rd*atm%temp))
+dg%tempc=atm%temp*(dg%sigd/atm%pa)**(rd/aircp)
+call getqsat(ufull,qsatr,dg%tempc,dg%sigd)
+call getqsat(ufull,a,atm%temp,atm%pa)
+dg%mixrc=atm%mixr*qsatr/a ! a=qsata
+
+! roof (displacement height at building height)
+dg%sigr=atm%ps*exp(-grav*fn%bldheight/(rd*atm%temp))
+dg%tempr=atm%temp*(dg%sigr/atm%pa)**(rd/aircp)
+call getqsat(ufull,qsatr,dg%tempr,dg%sigr)
+dg%mixrr=atm%mixr*qsatr/a ! a=qsata
+
+! total soil depth (for in-canyon vegetation)
+dg%totdepth=0.
+do ii=1,3
+  dg%totdepth=dg%totdepth+fn%roaddepth(ii)
+end do
+
 ! calculate c1 for soil (for in-canyon vegetation)
 n=veg%moist/ssat
 where (n.le.0.226)
@@ -1007,26 +1049,6 @@ where (n.le.0.226)
 elsewhere
   dg%c1=(1.78*n+0.253)/(2.96*n-0.581)
 end where
-
-! calculate in-canyon roughness length
-zolog=1./sqrt(dg%rdsndelta/log(0.1*fn%bldheight/zosnow)**2 &
-     +(1.-dg%rdsndelta)*(fn%sigmaveg/log(0.1*fn%bldheight/zoveg)**2 &
-     +(1.-fn%sigmaveg)/log(0.1*fn%bldheight/zocanyon)**2))
-zonet=0.1*fn%bldheight*exp(-1./zolog)
-
-! Estimate urban roughness length
-zom=zomratio*fn%bldheight
-n=road%snow/(road%snow+maxrdsn+0.408*grav*zom)                 ! snow cover for urban roughness calc (Douville, et al 1995)
-zom=(1.-n)*zom+n*zosnow                                        ! blend urban and snow roughness length
-dg%rfdzmin=max(abs(zmin-fn%bldheight*(1.-refheight)),zonet+1.) ! distance to roof displacement height
-where (zmin.ge.fn%bldheight*(1.-refheight))
-  pg%lzom=log(zmin/zom)
-  topu=(2./pi)*atm%umag*log(fn%bldheight*(1.-refheight)/zom)/pg%lzom ! wind speed at canyon top
-elsewhere ! lowest atmospheric model level is within the canopy.  Need to interact with boundary layer scheme.
-  pg%lzom=log(fn%bldheight*(1.-refheight)/zom)*exp(0.5*fn%hwratio*(1.-zmin/(fn%bldheight*(1.-refheight))))
-  topu=(2./pi)*atm%umag*exp(0.5*fn%hwratio*(1.-zmin/(fn%bldheight*(1.-refheight))))
-end where
-pg%cndzmin=zom*exp(pg%lzom)                                     ! distance to canyon displacement height
 
 ! calculate heat pumped into canyon by air conditioning
 if (acmeth.eq.1) then
@@ -1087,10 +1109,31 @@ do k=1,nrefl
   dg%crr=dg%crr+rcrr
 end do
 
+! calculate in-canyon roughness length
+zolog=1./sqrt(dg%rdsndelta/log(0.1*fn%bldheight/zosnow)**2 &
+     +(1.-dg%rdsndelta)*(fn%sigmaveg/log(0.1*fn%bldheight/zoveg)**2 &
+     +(1.-fn%sigmaveg)/log(0.1*fn%bldheight/zocanyon)**2))
+zonet=0.1*fn%bldheight*exp(-1./zolog)
+
+! Estimate urban roughness length
+zom=zomratio*fn%bldheight
+n=road%snow/(road%snow+maxrdsn+0.408*grav*zom)                 ! snow cover for urban roughness calc (Douville, et al 1995)
+zom=(1.-n)*zom+n*zosnow                                        ! blend urban and snow roughness lengths (i.e., snow fills canyon)
+dg%rfdzmin=max(abs(zmin-fn%bldheight),zocanyon+1.)             ! distance to roof displacement height
+! use neutral stability for first guess at estimating topu (=wind speed at canyon top)
+where (zmin.ge.fn%bldheight)
+  pg%lzom=log(zmin/zom)
+  dg%topu=(2./pi)*atm%umag*log(fn%bldheight/zom)/pg%lzom ! wind speed at canyon top
+elsewhere ! lowest atmospheric model level is within the canopy.  Need to interact with boundary layer scheme.
+  pg%lzom=log(fn%bldheight/zom)*exp(0.5*fn%hwratio*(1.-zmin/fn%bldheight))
+  dg%topu=(2./pi)*atm%umag*exp(0.5*fn%hwratio*(1.-zmin/fn%bldheight))
+end where
+pg%cndzmin=zom*exp(pg%lzom)                                     ! distance to canyon displacement height
+
 ! calculate canyon wind speed and bulk transfer coefficents
 select case(resmeth)
   case(0) ! Masson (2000)
-    cu=topu*exp(-0.25*fn%hwratio)
+    cu=exp(-0.25*fn%hwratio)
     acond%road=cu ! bulk transfer coefficents are updated in solvecanyon
     acond%walle=cu
     acond%wallw=cu
@@ -1100,14 +1143,14 @@ select case(resmeth)
     ln=fn%bldheight*max(0.,1./fn%hwratio-1.5)
     rn=max(0.,fn%bldheight-ln/1.5)
     ln=min(1.5*fn%bldheight,ln)
-    cu=topu*exp(-0.9*sqrt(ln**2+(fn%bldheight-rn)**2)/fn%bldheight)
+    cu=exp(-0.9*sqrt(ln**2+(fn%bldheight-rn)**2)/fn%bldheight)
     a=0.15*max(1.,1.5*fn%hwratio)
     dis=max(max(max(0.1*fn%bldheight,zocanyon+0.1),zoveg+0.1),zosnow+0.1)
     zolog=log(dis/zonet)
     where (rn.gt.0.) ! recirculation starts on east wall
       n=min(max(dis,rn),fn%bldheight)
       ! MJT suggestion (cuven is multipled by (fn%bldheight-rn) to avoid divide by zero)
-      cuven=topu*((fn%bldheight-n*log(n/zonet)/(2.3+zolog))-(fn%bldheight-n)/(2.3+zolog))
+      cuven=((fn%bldheight-n*log(n/zonet)/(2.3+zolog))-(fn%bldheight-n)/(2.3+zolog))
       ! cuven is back to the correct units of m/s
       cuven=max(cuven/fn%bldheight,cu*(1.-exp(-a*(1.-rn/fn%bldheight)))/a)
       xe=exp(-a*rn/fn%bldheight)
@@ -1116,14 +1159,14 @@ select case(resmeth)
       wr=cu*fn%hwratio*xe*(1.-xw)/a
       ww=cu*xe*xw*(1.-exp(-a))/a
     elsewhere ! recirculation starts on road
-      cuven=topu*zolog/(2.3+zolog)
+      cuven=zolog/(2.3+zolog)
       n=max(1./fn%hwratio-3.,0.)
       xe=exp(-a*n)
       cuven=fn%bldheight*max(cuven*n,cu*(1.-xe)/a)
       xw=exp(-a*3.)
       wr=fn%hwratio*(cuven/fn%bldheight+cu*(1.-xw)/a)
       ! MJT suggestion
-      cuven=topu*(1./0.9-(1.+0.1/0.9*zolog)/(2.3+zolog))
+      cuven=(1./0.9-(1.+0.1/0.9*zolog)/(2.3+zolog))
       xe=cu*xe*(1.-exp(-a))/a
       we=max(cuven,xe)
       ww=cu*xw*(1.-exp(-a))/a
@@ -1141,7 +1184,7 @@ select case(resmeth)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     acond%rdsn=a*wr                  ! road snow bulk transfer
   case(2) ! Kusaka et al (2001)
-    cu=topu*exp(-0.25*fn%hwratio)
+    cu=exp(-0.25*fn%hwratio)
     where (cu.le.5.)
       acond%road=6.15+4.18*cu
     elsewhere
@@ -1316,15 +1359,19 @@ rg%roof=fn%roofemiss*(atm%rg-sbconst*roof%temp(1)**4)
 dg%roofrgout=sbconst*(dg%rfsndelta*snowemiss*rfsntemp**4+(1.-dg%rfsndelta)*fn%roofemiss*roof%temp(1)**4) &
              +(1.-dg%rfsndelta*snowemiss-(1.-dg%rfsndelta)*fn%roofemiss)*atm%rg
 a=log(dg%rfdzmin/zocanyon)
+xw=(dg%roofdelta*(1.-dg%rfsndelta)+dg%rfsndelta)*qsatr ! roof surface mixing ratio
+we=roof%temp(1)*(1.+0.61*xw)
+ww=dg%tempr*(1.+0.61*dg%mixrr)
 ! n and xe are dummy variables for cd and lzohroof
-call getinvres(ufull,acond%roof,n,xe,a,dg%rfdzmin,roof%temp(1),dg%tempr,atm%umag,1) ! Assume zot=0.1*zom (i.e., Kanda et al 2007, small experiment)
-fg%roof=aircp*atm%rho*(roof%temp(1)-dg%tempr)*acond%roof
+call getinvres(ufull,acond%roof,n,xe,a,dg%rfdzmin,we,ww,atm%umag,1) ! Assume zot=0.1*zom (i.e., Kanda et al 2007, small experiment)
+acond%roof=acond%roof/atm%umag
+fg%roof=aircp*atm%rho*(roof%temp(1)-dg%tempr)*acond%roof*atm%umag
 call getqsat(ufull,qsatr,roof%temp(1),dg%sigr)
 where (qsatr.lt.dg%mixrr)
-  eg%roof=lv*atm%rho*(qsatr-dg%mixrr)*acond%roof
+  eg%roof=lv*atm%rho*(qsatr-dg%mixrr)*acond%roof*atm%umag
 elsewhere
   ! MJT suggestion for max eg   
-  eg%roof=lv*min(atm%rho*dg%roofdelta*(qsatr-dg%mixrr)*acond%roof,roof%water/ddt+atm%rnd+rfsnmelt)
+  eg%roof=lv*min(atm%rho*dg%roofdelta*(qsatr-dg%mixrr)*acond%roof*atm%umag,roof%water/ddt+atm%rnd+rfsnmelt)
 end where
 
 ! join two walls into a single wall
@@ -1417,8 +1464,7 @@ end do
 
 ! calculate water for canyon surfaces
 n=max(atm%rnd-max(dg%evap/lv,0.)-max(maxvgwater-veg%water,0.)/ddt,0.) ! rainfall reaching the soil under vegetation
-! note that since sigmaf=1, then there is no soil evaporation, only transpiration.  Evaporation only occurs form leaves.
-!veg%moist=veg%moist+ddt*(dg%c1*max(n*waterden+rdsnmelt*road%den,0.)-dg%tran/lv)/(waterden*dg%totdepth)
+! note that since sigmaf=1, then there is no soil evaporation, only transpiration.  Evaporation only occurs from water on leaves.
 veg%moist=veg%moist+ddt*dg%c1*(max(n+rdsnmelt*road%den/waterden,0.)-dg%tran/lv)/(waterden*dg%totdepth) ! fix units to kg/m^2
 roof%water=roof%water+ddt*(atm%rnd-eg%roof/lv+rfsnmelt)
 road%water=road%water+ddt*(atm%rnd-eg%road/lv+rdsnmelt)
@@ -1458,7 +1504,7 @@ road%den=min(max(road%den,minsnowden),maxsnowden)
 roof%alpha=min(max(roof%alpha,minsnowalpha),maxsnowalpha)
 road%alpha=min(max(road%alpha,minsnowalpha),maxsnowalpha)
 
-! combine snow and snow free tiles
+! combine snow and snow-free tiles
 fg%roof=dg%rfsndelta*fg%rfsn+(1.-dg%rfsndelta)*fg%roof ! redefine as net roof fg
 eg%roof=dg%rfsndelta*eg%rfsn+(1.-dg%rfsndelta)*eg%roof ! redefine as net roof eg
 egtop=dg%rdsndelta*eg%rdsn+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*eg%road+fn%sigmaveg*eg%veg)
@@ -1468,24 +1514,32 @@ egtop=dg%rdsndelta*eg%rdsn+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*eg%road+fn%sigmav
 uo%ts=((fn%sigmabld*dg%roofrgout+(1.-fn%sigmabld)*dg%canyonrgout)/sbconst)**0.25
 uo%fg=fn%sigmabld*fg%roof+(1.-fn%sigmabld)*fgtop+fn%industryfg
 uo%eg=fn%sigmabld*eg%roof+(1.-fn%sigmabld)*egtop
+n=max(min((veg%moist-swilt/3.)/(sfc-swilt/3.),1.),0.) ! veg wetfac (see sflux.f or cable_canopy.f90)
 uo%wf=fn%sigmabld*(1.-dg%rfsndelta)*dg%roofdelta+(1.-fn%sigmabld)*(1.-dg%rdsndelta)* &
-      ((1.-fn%sigmaveg)*dg%roaddelta+fn%sigmaveg*dg%vegdelta)
+      ((1.-fn%sigmaveg)*dg%roaddelta+fn%sigmaveg*((1.-dg%vegdelta)*n+dg%vegdelta))
 
 ! (re)calculate heat roughness length for MOST
+call getqsat(ufull,a,uo%ts,dg%sigd)
+a=a*uo%wf
+we=uo%ts*(1.+0.61*a)
+ww=dg%tempc*(1.+0.61*dg%mixrc)
 select case(zohmeth)
   case(0)
     pg%lzoh=2.3+pg%lzom
-    call getinvres(ufull,a,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,dg%tempc,atm%umag,4)
+    call getinvres(ufull,n,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,we,ww,atm%umag,4)
   case(1)
-    call getinvres(ufull,a,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,dg%tempc,atm%umag,2)
+    call getinvres(ufull,n,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,we,ww,atm%umag,2)
     ! Adjust roughness length for heat to account for in-canyon vegetation
-    n=pg%lzoh-pg%lzom
-    n=n*(1.-fn%sigmaveg*(1.-fn%sigmabld))+2.3*fn%sigmaveg*(1.-fn%sigmabld)
-    pg%lzoh=n+pg%lzom
+    pg%lzoh=1./((1.-fn%sigmaveg*(1.-fn%sigmabld))/pg%lzoh+fn%sigmaveg*(1.-fn%sigmabld)/(2.3+pg%lzom))
+    ! (re)calculate drag coeff
+    call getinvres(ufull,n,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,we,ww,atm%umag,4)
   case(2)
-    pg%lzoh=6.*(1.-fn%sigmaveg*(1.-fn%sigmabld))+2.3*fn%sigmaveg*(1.-fn%sigmabld)+pg%lzom ! Kanda (2005)
-    call getinvres(ufull,a,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,dg%tempc,atm%umag,4)
+    pg%lzoh=1./((1.-fn%sigmaveg*(1.-fn%sigmabld))/(6.+pg%lzom)+fn%sigmaveg*(1.-fn%sigmabld)/(2.3+pg%lzom)) ! Kanda (2005)
+    call getinvres(ufull,n,pg%cduv,pg%lzoh,pg%lzom,pg%cndzmin,we,ww,atm%umag,4)
 end select
+
+! calculate screen diagnostics
+call scrncalc(uo%ts,atm%temp,a,atm%mixr,atm%umag,dg,rdsntemp,veg%moist,zonet)
 
 !if (caleffzo) then ! verification
 !  if ((uo(iqut)%ts-dg(iqut)%tempc)*uo(iqut)%fg.le.0.) then
@@ -1547,32 +1601,23 @@ end subroutine getqsat
 ! but modified for increased ration between momentum and heat roughness lengths
 ! Also, included Dyer and Hicks scheme based on TAPM Surf.f
 
-subroutine getinvres(cn,invres,cd,olzoh,ilzom,zmin,stemp,theta,umag,mode)
+subroutine getinvres(cn,invres,cd,olzoh,ilzom,zmin,sthetav,thetav,umag,mode)
 
 implicit none
 
 integer, intent(in) :: cn,mode
-integer ic
-integer, parameter :: nc=5
-real, dimension(cn), intent(in) :: ilzom,zmin,stemp,theta,umag
+
+real, dimension(cn), intent(in) :: ilzom,zmin,sthetav,thetav,umag
 real, dimension(cn), intent(out) :: invres,cd
 real, dimension(cn), intent(inout) :: olzoh
 real, dimension(cn) :: af,aft,ri,fm,fh,root,denma,denha,re,lna
-real, dimension(cn) :: z_on_l,z0_on_l,zt_on_l,pm0,pm1,ph0,ph1
-real, dimension(cn) :: integralm,integralh,thetastar
+real, dimension(cn) :: thetavstar,integralh,z_on_l
 real, parameter :: bprm=5. ! 4.7 in rams
 real, parameter :: chs=2.6 ! 5.3 in rams
 real, parameter :: cms=5.  ! 7.4 in rams
 real, parameter :: fmroot=0.57735
 real, parameter :: rimax=(1./fmroot-1.)/bprm
 real, parameter :: nu = 1.461E-5
-real, parameter :: a_1 = 1.
-real, parameter :: b_1 = 2./3.
-real, parameter :: c_1 = 5.
-real, parameter :: d_1 = 0.35
-real, parameter :: aa1 = 3.8
-real, parameter :: bb1 = 0.5
-real, parameter :: cc1 = 0.3
 !real, parameter :: eta0 = 1.827E-5
 !real, parameter :: t0 = 291.15
 !real, parameter :: c = 120.
@@ -1582,7 +1627,7 @@ real, parameter :: cc1 = 0.3
 ! use Louis as first guess for Dyer and Hicks scheme (if used)
 af=(vkar/ilzom)**2
 ! umag is now constrained to be above umin in tebcalc
-ri=min(grav*zmin*(1.-stemp/theta)/umag**2,rimax)
+ri=min(grav*zmin*(1.-sthetav/thetav)/umag**2,rimax)
 where (ri>0.)
   fm=1./(1.+bprm*ri)**2
 elsewhere
@@ -1616,42 +1661,72 @@ end where
 invres=aft*fh*umag
  
 if (stabfn.eq.1) then ! from TAPM
-  thetastar=aft*fh*(theta-stemp)/sqrt(cd)
-  do ic=1,nc
-    z_on_l=vkar*zmin*grav*thetastar/(theta*cd*umag**2)
-    z_on_l=min(z_on_l,10.)
-    z0_on_l  = z_on_l*exp(-ilzom)
-    zt_on_l  = z0_on_l/exp(lna)
-    where (z_on_l.lt.0.)
-      pm0     = (1.-16.*z0_on_l)**(-0.25)
-      ph0     = (1.-16.*zt_on_l)**(-0.5)
-      pm1     = (1.-16.*z_on_l)**(-0.25)
-      ph1     = (1.-16.*z_on_l)**(-0.5)
-      integralm = ilzom-2.*log((1.+1./pm1)/(1.+1./pm0))-log((1.+1./pm1**2)/(1.+1./pm0**2)) &
-                 +2.*(atan(1./pm1)-atan(1./pm0))
-      integralh = olzoh-2.*log((1.+1./ph1)/(1.+1./ph0))
-    elsewhere
-      !--------------Beljaars and Holtslag (1991) momentum & heat            
-      pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
-      pm1 = -(a_1*z_on_l+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)+b_1*c_1/d_1)
-      ph0 = -((1.+(2./3.)*a_1*zt_on_l)**1.5+b_1*(zt_on_l-(c_1/d_1))*exp(-d_1*zt_on_l)+b_1*c_1/d_1-1.)
-      ph1 = -((1.+(2./3.)*a_1*z_on_l)**1.5+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)+b_1*c_1/d_1-1.)
-      integralm = ilzom-(pm1-pm0)    
-      integralh = olzoh-(ph1-ph0)         
-    endwhere
-    where (z_on_l.le.0.4)
-      cd = (max(0.01,min(vkar*umag/integralm,2.))/umag)**2
-    elsewhere
-      cd = (max(0.01,min(vkar*umag/(aa1*( ( z_on_l**bb1)*(1.0+cc1* z_on_l**(1.-bb1)) &
-          -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1)) )),2.))/umag)**2
-    endwhere
-    thetastar= vkar*(theta-stemp)/integralh
-  end do
+  thetavstar=aft*fh*(thetav-sthetav)/sqrt(cd)
+  call dyerhicks(cn,integralh,z_on_l,cd,thetavstar,thetav,sthetav,umag,zmin,ilzom,lna)
   invres=(vkar/integralh)*sqrt(cd)*umag
 end if
 
 return
 end subroutine getinvres
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate stability functions using Dyerhicks
+
+subroutine dyerhicks(cn,integralh,z_on_l,cd,thetavstar,thetav,sthetav,umag,zmin,ilzom,lna)
+
+implicit none
+
+integer, intent(in) :: cn
+integer ic
+real, dimension(cn), intent(in) :: thetav,sthetav,umag,zmin,ilzom,lna
+real, dimension(cn), intent(inout) :: cd,thetavstar
+real, dimension(cn), intent(out) :: integralh,z_on_l
+real, dimension(cn) :: z0_on_l,zt_on_l,olzoh
+real, dimension(cn) :: pm0,ph0,pm1,ph1,integralm
+integer, parameter :: icmax=5
+real, parameter :: a_1 = 1.
+real, parameter :: b_1 = 2./3.
+real, parameter :: c_1 = 5.
+real, parameter :: d_1 = 0.35
+real, parameter :: aa1 = 3.8
+real, parameter :: bb1 = 0.5
+real, parameter :: cc1 = 0.3
+
+olzoh=ilzom+lna
+
+do ic=1,icmax
+  z_on_l=vkar*zmin*grav*thetavstar/(thetav*cd*umag**2)
+  z_on_l=min(z_on_l,10.)
+  z0_on_l  = z_on_l*exp(-ilzom)
+  zt_on_l  = z0_on_l*exp(-lna)
+  where (z_on_l.lt.0.)
+    pm0     = (1.-16.*z0_on_l)**(-0.25)
+    ph0     = (1.-16.*zt_on_l)**(-0.5)
+    pm1     = (1.-16.*z_on_l)**(-0.25)
+    ph1     = (1.-16.*z_on_l)**(-0.5)
+    integralm = ilzom-2.*log((1.+1./pm1)/(1.+1./pm0))-log((1.+1./pm1**2)/(1.+1./pm0**2)) &
+               +2.*(atan(1./pm1)-atan(1./pm0))
+    integralh = olzoh-2.*log((1.+1./ph1)/(1.+1./ph0))
+  elsewhere
+    !--------------Beljaars and Holtslag (1991) momentum & heat            
+    pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
+    pm1 = -(a_1*z_on_l+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)+b_1*c_1/d_1)
+    ph0 = -((1.+(2./3.)*a_1*zt_on_l)**1.5+b_1*(zt_on_l-(c_1/d_1))*exp(-d_1*zt_on_l)+b_1*c_1/d_1-1.)
+    ph1 = -((1.+(2./3.)*a_1*z_on_l)**1.5+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)+b_1*c_1/d_1-1.)
+    integralm = ilzom-(pm1-pm0)    
+    integralh = olzoh-(ph1-ph0)         
+  endwhere
+  !where (z_on_l.le.0.4)
+    cd = (max(0.01,min(vkar*umag/integralm,2.))/umag)**2
+  !elsewhere
+  !  cd = (max(0.01,min(vkar*umag/(aa1*( ( z_on_l**bb1)*(1.0+cc1* z_on_l**(1.-bb1)) &
+  !      -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1)) )),2.))/umag)**2
+  !endwhere
+  thetavstar= vkar*(thetav-sthetav)/integralh
+end do
+
+return
+end subroutine dyerhicks
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! calculate shortwave radiation coefficents (modified to include 2nd wall)
@@ -1725,7 +1800,7 @@ integer, intent(in) :: cn
 real, intent(in) :: ddt
 real, dimension(cn), intent(out) :: evct,rfsnmelt,garfsn
 real, dimension(cn), intent(in) :: rfsntemp
-real, dimension(cn) :: cd,rfsnqsat,lzotdum,lzosnow,sndepth,snlambda,ldratio
+real, dimension(cn) :: cd,rfsnqsat,lzotdum,lzosnow,sndepth,snlambda,ldratio,we,ww
 type(trad), dimension(cn), intent(inout) :: rg,fg,eg,acond
 type(trad), dimension(cn), intent(in) :: sg
 type(tatm), dimension(cn), intent(in) :: atm
@@ -1739,12 +1814,15 @@ snlambda=icelambda*(iroof%den/waterden)**1.88
 ldratio=0.5*(sndepth/snlambda+ifn%roofdepth(1)/ifn%rooflambda(1))
 
 lzosnow=log(dg%rfdzmin/zosnow)
-call getinvres(cn,acond%rfsn,cd,lzotdum,lzosnow,dg%rfdzmin,rfsntemp,dg%tempr,atm%umag,1)
 call getqsat(cn,rfsnqsat,rfsntemp,dg%sigr)
+we=rfsntemp*(1.+0.61*rfsnqsat)
+ww=dg%tempr*(1.+0.61*dg%mixrr)
+call getinvres(cn,acond%rfsn,cd,lzotdum,lzosnow,dg%rfdzmin,we,ww,atm%umag,1)
+acond%rfsn=acond%rfsn/atm%umag
 rfsnmelt=dg%rfsndelta*max(0.,rfsntemp-273.16)/(icecp*iroof%den*lf*ddt) 
 rg%rfsn=snowemiss*(atm%rg-sbconst*rfsntemp**4)
-fg%rfsn=aircp*atm%rho*(rfsntemp-dg%tempr)*acond%rfsn
-eg%rfsn=ls*min(atm%rho*dg%rfsndelta*max(0.,rfsnqsat-dg%mixrr)*acond%rfsn,iroof%snow/ddt+atm%snd-rfsnmelt) ! MJT suggestion for max eg
+fg%rfsn=aircp*atm%rho*(rfsntemp-dg%tempr)*acond%rfsn*atm%umag
+eg%rfsn=ls*min(atm%rho*dg%rfsndelta*max(0.,rfsnqsat-dg%mixrr)*acond%rfsn*atm%umag,iroof%snow/ddt+atm%snd-rfsnmelt) ! MJT suggestion for max eg
 garfsn=(rfsntemp-iroof%temp(1))/ldratio
 evct=sg%rfsn+rg%rfsn-fg%rfsn-eg%rfsn-garfsn
 
@@ -1760,12 +1838,13 @@ subroutine solverdsn(cn,evct,rg,fg,fgtop,eg,gardsn,rdsnmelt,rdsntemp,iroad,iwall
 implicit none
 
 integer, intent(in) :: cn
-integer k
+integer k,ic
 real, intent(in) :: ddt
 real, dimension(cn), intent(out) :: evct,fgtop,gardsn,rdsnmelt
 real, dimension(cn), intent(in) :: rdsntemp,wallpsi,roadpsi
-real, dimension(cn) :: ctmax,ctmin,canyontemp,topinvres
+real, dimension(cn) :: ctmax,ctmin,topinvres
 real, dimension(cn) :: trafficout,ldratio,sndepth,snlambda,da,db,det
+real, dimension(cn) :: we,ww
 real, dimension(cn,2) :: oldval,newval,evctveg,evctx
 real, dimension(cn,2,2) :: ja
 type(trad), dimension(cn), intent(inout) :: rg,fg,eg,acond
@@ -1777,6 +1856,7 @@ type(twall), dimension(cn), intent(in) :: iwalle,iwallw
 type(tvege), dimension(cn), intent(in) :: iveg
 type(tdata), dimension(cn), intent(in) :: ifn
 type(tprog), dimension(cn), intent(inout) :: ipg
+integer, parameter :: icmax=2 ! number of iterations for topu
 
 ! traffic sensible heat flux
 call gettraffic(cn,trafficout,ifn%trafficfg,ifn%ctime)
@@ -1790,72 +1870,80 @@ ldratio=0.5*(sndepth/snlambda+ifn%roaddepth(1)/ifn%roadlambda(1))
 ! solve for vegetation canopy and canyon temperature
 ctmax=max(dg%tempc,iroad%temp(1),iwalle%temp(1),iwallw%temp(1),rdsntemp)+10. ! max temp
 ctmin=min(dg%tempc,iroad%temp(1),iwalle%temp(1),iwallw%temp(1),rdsntemp)-10. ! min temp
-if (any(ifn%sigmaveg.gt.0.)) then ! in-canyon vegetation
-  canyontemp=0.5*ctmax+0.5*ctmin
-  ipg%vegtemp=0.6*ctmax+0.4*ctmin
-  call solvecanyon(cn,evctveg,rg,fg,fgtop,eg,gardsn,rdsnmelt,topinvres,canyontemp,rdsntemp,iroad,iwalle, &
+do ic=1,icmax ! no sectant scheme.  Use icmax=1 or 2 only.
+  if (any(ifn%sigmaveg.gt.0.)) then ! in-canyon vegetation
+    dg%canyontemp=0.5*ctmax+0.5*ctmin
+    ipg%vegtemp=0.6*ctmax+0.4*ctmin
+    call solvecanyon(cn,evctveg,rg,fg,fgtop,eg,gardsn,rdsnmelt,topinvres,rdsntemp,iroad,iwalle, &
+           iwallw,iveg,dg,sg,atm,ddt,acond,wallpsi,roadpsi,ifn,ipg,trafficout,ldratio)
+    oldval(:,1)=dg%canyontemp
+    oldval(:,2)=ipg%vegtemp
+    fgtop=(dg%rdsndelta*fg%rdsn+(1.-dg%rdsndelta)*((1.-ifn%sigmaveg)*fg%road &
+        +ifn%sigmaveg*fg%veg)+ifn%hwratio*(fg%walle+fg%wallw)+trafficout+dg%accool)
+    dg%canyontemp=fgtop/(aircp*atm%rho*topinvres)+dg%tempc
+    ipg%vegtemp=0.4*ctmax+0.6*ctmin
+    do k=1,nfgits/icmax ! Newton-Raphson
+      evctx=evctveg
+      call solvecanyon(cn,evctveg,rg,fg,fgtop,eg,gardsn,rdsnmelt,topinvres,rdsntemp,iroad,iwalle, &
+             iwallw,iveg,dg,sg,atm,ddt,acond,wallpsi,roadpsi,ifn,ipg,trafficout,ldratio)
+      evctx=evctveg-evctx
+      call getqsat(cn,da,ipg%vegtemp+0.1,dg%sigd) ! numerical approx to d(eg)/d(vegtemp)
+      call getqsat(cn,db,ipg%vegtemp-0.1,dg%sigd)
+      ! calculate jacobian
+      ja(:,1,1)=aircp*atm%rho*(topinvres+dg%rdsndelta*acond%rdsn*dg%topu+(1.-dg%rdsndelta)*((1.-ifn%sigmaveg)*acond%road*dg%topu &
+           +ifn%sigmaveg*acond%veg*dg%topu)+ifn%hwratio*(acond%walle+acond%wallw)*dg%topu)
+      ja(:,2,1)=-(1.-dg%rdsndelta)*ifn%sigmaveg*acond%veg*dg%topu
+      ja(:,1,2)=aircp*atm%rho*acond%veg*dg%topu
+      ja(:,2,2)=4.*ifn%vegemiss*sbconst*ipg%vegtemp**3*(-1.+(1.-dg%rdsndelta)*ifn%sigmaveg*ifn%vegemiss*dg%crr) &
+            -aircp*atm%rho*acond%veg*dg%topu-lv*dg%vegdelta*atm%rho*acond%veg*dg%topu*(da-db)/0.2
+      det=ja(:,1,1)*ja(:,2,2)-ja(:,2,1)*ja(:,1,2)
+      if (all(abs(evctx).le.tol)) exit
+      where (abs(det).gt.tol) 
+        newval(:,1)=dg%canyontemp-alpha*(ja(:,2,2)*evctveg(:,1)-ja(:,2,1)*evctveg(:,2))/det
+        newval(:,2)=ipg%vegtemp-alpha*(-ja(:,1,2)*evctveg(:,1)+ja(:,1,1)*evctveg(:,2))/det
+        oldval(:,1)=dg%canyontemp
+        oldval(:,2)=ipg%vegtemp
+        dg%canyontemp=newval(:,1)
+        ipg%vegtemp=newval(:,2)
+      end where
+      dg%canyontemp=min(max(dg%canyontemp,ctmin),ctmax)
+      ipg%vegtemp=min(max(ipg%vegtemp,ctmin),ctmax)
+    end do
+  else ! no in-canyon vegetation
+    dg%canyontemp=0.4*ctmax+0.6*ctmin
+    ipg%vegtemp=dg%canyontemp
+    call solvecanyon(cn,evctveg,rg,fg,fgtop,eg,gardsn,rdsnmelt,topinvres,rdsntemp,iroad,iwalle, &
          iwallw,iveg,dg,sg,atm,ddt,acond,wallpsi,roadpsi,ifn,ipg,trafficout,ldratio)
-  oldval(:,1)=canyontemp
-  oldval(:,2)=ipg%vegtemp
-  fgtop=(dg%rdsndelta*fg%rdsn+(1.-dg%rdsndelta)*((1.-ifn%sigmaveg)*fg%road &
-      +ifn%sigmaveg*fg%veg)+ifn%hwratio*(fg%walle+fg%wallw)+trafficout+dg%accool)
-  canyontemp=fgtop/(aircp*atm%rho*topinvres)+dg%tempc
-  ipg%vegtemp=0.4*ctmax+0.6*ctmin
-  do k=1,nfgits ! Newton-Raphson
-    evctx=evctveg
-    call solvecanyon(cn,evctveg,rg,fg,fgtop,eg,gardsn,rdsnmelt,topinvres,canyontemp,rdsntemp,iroad,iwalle, &
+    oldval(:,1)=dg%canyontemp
+    dg%canyontemp=0.6*ctmax+0.4*ctmin
+    do k=1,nfgits/icmax
+      evctx(:,1)=evctveg(:,1)
+      call solvecanyon(cn,evctveg,rg,fg,fgtop,eg,gardsn,rdsnmelt,topinvres,rdsntemp,iroad,iwalle, &
            iwallw,iveg,dg,sg,atm,ddt,acond,wallpsi,roadpsi,ifn,ipg,trafficout,ldratio)
-    evctx=evctveg-evctx
-    call getqsat(cn,da,ipg%vegtemp+0.1,dg%sigd) ! numerical approx to d(eg)/d(vegtemp)
-    call getqsat(cn,db,ipg%vegtemp-0.1,dg%sigd)
-    ! calculate jacobian
-    ja(:,1,1)=aircp*atm%rho*(topinvres+dg%rdsndelta*acond%rdsn+(1.-dg%rdsndelta)*((1.-ifn%sigmaveg)*acond%road &
-           +ifn%sigmaveg*acond%veg)+ifn%hwratio*(acond%walle+acond%wallw))
-    ja(:,2,1)=-(1.-dg%rdsndelta)*ifn%sigmaveg*acond%veg
-    ja(:,1,2)=aircp*atm%rho*acond%veg
-    ja(:,2,2)=4.*ifn%vegemiss*sbconst*ipg%vegtemp**3*(-1.+(1.-dg%rdsndelta)*ifn%sigmaveg*ifn%vegemiss*dg%crr) &
-            -aircp*atm%rho*acond%veg-lv*dg%vegdelta*atm%rho*acond%veg*(da-db)/0.2
-    det=ja(:,1,1)*ja(:,2,2)-ja(:,2,1)*ja(:,1,2)
-    if (all(abs(evctx).le.tol)) exit
-    where (abs(det).gt.tol) 
-      newval(:,1)=canyontemp-alpha*(ja(:,2,2)*evctveg(:,1)-ja(:,2,1)*evctveg(:,2))/det
-      newval(:,2)=ipg%vegtemp-alpha*(-ja(:,1,2)*evctveg(:,1)+ja(:,1,1)*evctveg(:,2))/det
-      oldval(:,1)=canyontemp
-      oldval(:,2)=ipg%vegtemp
-      canyontemp=newval(:,1)
-      ipg%vegtemp=newval(:,2)
-    end where
-    canyontemp=min(max(canyontemp,ctmin),ctmax)
-    ipg%vegtemp=min(max(ipg%vegtemp,ctmin),ctmax)
-  end do
-else ! no in-canyon vegetation
-  canyontemp=0.4*ctmax+0.6*ctmin
-  ipg%vegtemp=canyontemp
-  call solvecanyon(cn,evctveg,rg,fg,fgtop,eg,gardsn,rdsnmelt,topinvres,canyontemp,rdsntemp,iroad,iwalle, &
-       iwallw,iveg,dg,sg,atm,ddt,acond,wallpsi,roadpsi,ifn,ipg,trafficout,ldratio)
-  oldval(:,1)=canyontemp
-  canyontemp=0.6*ctmax+0.4*ctmin
-  do k=1,nfgits
-    evctx(:,1)=evctveg(:,1)
-    call solvecanyon(cn,evctveg,rg,fg,fgtop,eg,gardsn,rdsnmelt,topinvres,canyontemp,rdsntemp,iroad,iwalle, &
-           iwallw,iveg,dg,sg,atm,ddt,acond,wallpsi,roadpsi,ifn,ipg,trafficout,ldratio)
-    evctx(:,1)=evctveg(:,1)-evctx(:,1)
-    if (all(abs(evctx(:,1)).le.tol)) exit
-    where (abs(evctx(:,1)).gt.tol) 
-      newval(:,1)=canyontemp-alpha*evctveg(:,1)*(canyontemp-oldval(:,1))/evctx(:,1)
-      oldval(:,1)=canyontemp
-      canyontemp=newval(:,1)
-    end where
-    canyontemp=min(max(canyontemp,ctmin),ctmax)
-    ipg%vegtemp=canyontemp
-  end do
-end if
+      evctx(:,1)=evctveg(:,1)-evctx(:,1)
+      if (all(abs(evctx(:,1)).le.tol)) exit
+      where (abs(evctx(:,1)).gt.tol) 
+        newval(:,1)=dg%canyontemp-alpha*evctveg(:,1)*(dg%canyontemp-oldval(:,1))/evctx(:,1)
+        oldval(:,1)=dg%canyontemp
+        dg%canyontemp=newval(:,1)
+      end where
+      dg%canyontemp=min(max(dg%canyontemp,ctmin),ctmax)
+      ipg%vegtemp=dg%canyontemp
+    end do
+  end if
+  
+  ! (re)calculate topu (neglect molecular diffusion)
+  we=dg%canyontemp*(1.+0.61*dg%canyonmix)
+  ww=dg%tempc*(1.+0.61*dg%mixrc)
+  call gettopu(cn,dg%topu,we,ww,atm%umag,ipg%lzom,ipg%lzom,ipg%cndzmin,ifn%bldheight*(1.-refheight),ifn%hwratio)
+
+end do  
     
 ! ---------------------------------------------------------------    
 
 fgtop=(dg%rdsndelta*fg%rdsn+(1.-dg%rdsndelta)*((1.-ifn%sigmaveg)*fg%road &
       +ifn%sigmaveg*fg%veg)+ifn%hwratio*(fg%walle+fg%wallw)+trafficout+dg%accool)
-canyontemp=fgtop/(aircp*atm%rho*topinvres)+dg%tempc
+dg%canyontemp=fgtop/(aircp*atm%rho*topinvres)+dg%tempc
 
 evct=sg%rdsn+rg%rdsn-fg%rdsn-eg%rdsn-gardsn
 
@@ -1865,19 +1953,21 @@ end subroutine solverdsn
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! solve for vegetation canopy temperature and canyon temperature
 
-subroutine solvecanyon(cn,evct,rg,fg,fgtop,eg,gardsn,rdsnmelt,topinvres,canyontemp,rdsntemp,iroad,iwalle,iwallw,iveg,dg,sg,atm &
-                    ,ddt,acond,wallpsi,roadpsi,ifn,ipg,trafficout,ldratio)
+subroutine solvecanyon(cn,evct,rg,fg,fgtop,eg,gardsn,rdsnmelt,topinvres,rdsntemp,iroad,iwalle,iwallw,iveg &
+                    ,dg,sg,atm,ddt,acond,wallpsi,roadpsi,ifn,ipg,trafficout,ldratio)
 
 implicit none
 
 integer, intent(in) :: cn
+integer i
+integer, parameter :: ic=1
 real, intent(in) :: ddt
 real, dimension(cn), intent(out) :: fgtop,gardsn,rdsnmelt,topinvres
 real, dimension(cn,2), intent(out) :: evct
-real, dimension(cn), intent(in) :: rdsntemp,wallpsi,roadpsi,canyontemp,trafficout,ldratio
-real, dimension(cn) :: roadqsat,rdsnqsat,canyonmix
+real, dimension(cn), intent(in) :: rdsntemp,wallpsi,roadpsi,trafficout,ldratio
+real, dimension(cn) :: roadqsat,rdsnqsat
 real, dimension(cn) :: vegqsat,res,f1,f2,f3,f4,ff,qsat
-real, dimension(cn) :: dumroaddelta,dumvegdelta
+real, dimension(cn) :: dumroaddelta,dumvegdelta,we,ww
 type(trad), dimension(cn), intent(inout) :: rg,fg,eg,acond
 type(trad), dimension(cn), intent(in) :: sg
 type(tatm), dimension(cn), intent(in) :: atm
@@ -1888,8 +1978,58 @@ type(tvege), dimension(cn), intent(in) :: iveg
 type(tdata), dimension(cn), intent(in) :: ifn
 type(tprog), dimension(cn), intent(inout) :: ipg
 
+! transpiration terms (developed by Eva in CCAM sflux.f and CSIRO9)
+ff=1.1*sg%veg/(vegrlai*150.)
+f1=(1.+ff)/(ff+vegrsmin*vegrlai/5000.)
+f2=max(0.5*(sfc-swilt)/max(iveg%moist-swilt,0.01*(sfc-swilt)),1.)
+f4=max(1.-.0016*(298.-dg%tempc)**2,0.05)
+call getqsat(cn,qsat,dg%tempc,dg%sigd)
+f3=max(1.-.00025*(qsat-atm%mixr*dg%sigd/0.622),0.05)
+res=max(30.,vegrsmin*f1*f2/(f3*f4))
+
+! estimate mixing ratio at canyon surfaces
+call getqsat(cn,roadqsat,iroad%temp(1),dg%sigd) ! evaluate using pressure at displacement height
+call getqsat(cn,vegqsat,ipg%vegtemp,dg%sigd)    ! evaluate using pressure at displacement height
+call getqsat(cn,rdsnqsat,rdsntemp,dg%sigd)
+
+! set-up initial guess for canyon mixing ratio
+dg%canyonmix=dg%mixrc
+
+! currently no sectant solver.  ic is intended to be 1 or 2 at most.
+do i=1,ic
+  we=dg%canyontemp*(1.+0.61*dg%canyonmix)
+  ww=dg%tempc*(1.+0.61*dg%mixrc)
+  ! solve for aerodynamical resistance between canyon and atmosphere (neglect molecular diffusion)
+  call getinvres(cn,topinvres,ipg%cduv,ipg%lzoh,ipg%lzom,ipg%cndzmin,we,ww,atm%umag,3)
+
+  ! estimate canyon mixing ratio
+  dg%canyonmix=(dg%rdsndelta*rdsnqsat*ls/lv*acond%rdsn*dg%topu &
+             +(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dg%roaddelta*roadqsat*acond%road*dg%topu &
+             +ifn%sigmaveg*vegqsat*(dg%vegdelta*acond%veg*dg%topu &
+             +(1.-dg%vegdelta)/(1./(acond%veg*dg%topu)+res)))+dg%mixrc*topinvres) &
+             /(dg%rdsndelta*ls/lv*acond%rdsn*dg%topu+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dg%roaddelta*acond%road*dg%topu &
+             +ifn%sigmaveg*(dg%vegdelta*acond%veg*dg%topu+(1.-dg%vegdelta)/(1./(acond%veg*dg%topu)+res)))+topinvres)
+  where (roadqsat.lt.dg%canyonmix)
+    dumroaddelta=1.
+  elsewhere
+    dumroaddelta=dg%roaddelta
+  endwhere
+  where (vegqsat.lt.dg%canyonmix)
+    dumvegdelta=1.
+  elsewhere
+    dumvegdelta=dg%vegdelta
+  endwhere
+  ! re-calc canyon mixing ratio
+  dg%canyonmix=(dg%rdsndelta*rdsnqsat*ls/lv*acond%rdsn*dg%topu &
+             +(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dumroaddelta*roadqsat*acond%road*dg%topu &
+             +ifn%sigmaveg*vegqsat*(dumvegdelta*acond%veg*dg%topu &
+             +(1.-dumvegdelta)/(1./(acond%veg*dg%topu)+res)))+dg%mixrc*topinvres) &
+             /(dg%rdsndelta*ls/lv*acond%rdsn*dg%topu+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dumroaddelta*acond%road*dg%topu &
+             +ifn%sigmaveg*(dumvegdelta*acond%veg*dg%topu+(1.-dumvegdelta)/(1./(acond%veg*dg%topu)+res)))+topinvres)
+
+end do
+
 ! solve for canyon sensible heat flux ----------------------------------
-call getinvres(cn,topinvres,ipg%cduv,ipg%lzoh,ipg%lzom,ipg%cndzmin,canyontemp,dg%tempc,atm%umag,3) ! no molecular diffusion
 if (resmeth.eq.0) then
   !cw=pg%cduv*atm%umag ! diagnose canyonw (from Masson 2000)
   acond%road=(11.8+4.2*sqrt(acond%road**2+ipg%cduv*atm%umag**2))/(aircp*atm%rho) ! From Rowley, et al (1930)
@@ -1898,21 +2038,21 @@ if (resmeth.eq.0) then
   acond%rdsn=acond%road
   acond%veg=acond%road
 end if
-fg%walle=aircp*atm%rho*(iwalle%temp(1)-canyontemp)*acond%walle
-fg%wallw=aircp*atm%rho*(iwallw%temp(1)-canyontemp)*acond%wallw
-fg%road=aircp*atm%rho*(iroad%temp(1)-canyontemp)*acond%road
-fg%veg=aircp*atm%rho*(ipg%vegtemp-canyontemp)*acond%veg
+fg%walle=aircp*atm%rho*(iwalle%temp(1)-dg%canyontemp)*acond%walle*dg%topu
+fg%wallw=aircp*atm%rho*(iwallw%temp(1)-dg%canyontemp)*acond%wallw*dg%topu
+fg%road=aircp*atm%rho*(iroad%temp(1)-dg%canyontemp)*acond%road*dg%topu
+fg%veg=aircp*atm%rho*(ipg%vegtemp-dg%canyontemp)*acond%veg*dg%topu
 where (dg%rdsndelta.gt.0.)
-  fg%rdsn=aircp*atm%rho*(rdsntemp-canyontemp)*acond%rdsn
+  fg%rdsn=aircp*atm%rho*(rdsntemp-dg%canyontemp)*acond%rdsn*dg%topu
 elsewhere
   fg%rdsn=0.
 end where
-fgtop=aircp*atm%rho*(canyontemp-dg%tempc)*topinvres
-! ---------------------------------------------------------------     
+fgtop=aircp*atm%rho*(dg%canyontemp-dg%tempc)*topinvres
+! ---------------------------------------------------------------   
 
 ! longwave radiation
 dg%netrad=dg%rdsndelta*snowemiss*rdsntemp**4+(1.-dg%rdsndelta)*((1.-ifn%sigmaveg)*ifn%roademiss*iroad%temp(1)**4 &
-       +ifn%sigmaveg*ifn%vegemiss*ipg%vegtemp**4)    
+                  +ifn%sigmaveg*ifn%vegemiss*ipg%vegtemp**4)    
 rg%walle=ifn%wallemiss*(atm%rg*dg%cwa+sbconst*iwalle%temp(1)**4*(-1.+ifn%wallemiss*dg%cwe) & 
                   +sbconst*iwallw%temp(1)**4*ifn%wallemiss*dg%cww+sbconst*dg%netrad*dg%cwr)
 rg%wallw=ifn%wallemiss*(atm%rg*dg%cwa+sbconst*iwallw%temp(1)**4*(-1.+ifn%wallemiss*dg%cwe) &
@@ -1934,60 +2074,29 @@ dg%canyonrgout=atm%rg*(2.*ifn%hwratio*wallpsi*(1.-ifn%wallemiss)*dg%cwa+roadpsi*
                +roadpsi*(1.-dg%netemiss)*dg%crw) &
                +sbconst*dg%netrad*(2.*ifn%hwratio*wallpsi*(1.-ifn%wallemiss)*dg%cwr+roadpsi*(1.+(1.-dg%netemiss)*dg%crr))
 
-! transpiration terms (developed by Eva in CCAM sflux.f and CSIRO9)
-ff=1.1*sg%veg/(vegrlai*150.)
-f1=(1.+ff)/(ff+vegrsmin*vegrlai/5000.)
-f2=max(0.5*(sfc-swilt)/max(iveg%moist-swilt,0.01*(sfc-swilt)),1.)
-f4=max(1.-.0016*(298.-atm%temp)**2,0.05)
-call getqsat(cn,qsat,atm%temp,atm%ps)
-f3=max(1.-.00025*(qsat-atm%mixr*atm%ps/0.622),0.05)
-res=max(30.,vegrsmin*f1*f2/(f3*f4))
-
 ! estimate snow melt
 rdsnmelt=dg%rdsndelta*max(0.,rdsntemp-273.16)/(icecp*iroad%den*lf*ddt)
 
-! estimate canyon mixing ratio
-call getqsat(cn,roadqsat,iroad%temp(1),dg%sigd) ! evaluate using pressure at displacement height
-call getqsat(cn,vegqsat,ipg%vegtemp,dg%sigd)    ! evaluate using pressure at displacement height
-call getqsat(cn,rdsnqsat,rdsntemp,dg%sigd)
-canyonmix=(dg%rdsndelta*rdsnqsat*ls/lv*acond%rdsn+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dg%roaddelta*roadqsat*acond%road &
-           +ifn%sigmaveg*vegqsat*(dg%vegdelta*acond%veg+(1.-dg%vegdelta)/(1./acond%veg+res)))+dg%mixrc*topinvres) &
-           /(dg%rdsndelta*ls/lv*acond%rdsn+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dg%roaddelta*acond%road &
-           +ifn%sigmaveg*(dg%vegdelta*acond%veg+(1.-dg%vegdelta)/(1./acond%veg+res)))+topinvres)
-where (roadqsat.lt.canyonmix)
-  dumroaddelta=1.
-elsewhere
-  dumroaddelta=dg%roaddelta
-endwhere
-where (vegqsat.lt.canyonmix)
-  dumvegdelta=1.
-elsewhere
-  dumvegdelta=dg%vegdelta
-endwhere
-! re-calc canyon mixing ratio
-canyonmix=(dg%rdsndelta*rdsnqsat*ls/lv*acond%rdsn+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dumroaddelta*roadqsat*acond%road &
-           +ifn%sigmaveg*vegqsat*(dumvegdelta*acond%veg+(1.-dumvegdelta)/(1./acond%veg+res)))+dg%mixrc*topinvres) &
-           /(dg%rdsndelta*ls/lv*acond%rdsn+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dumroaddelta*acond%road &
-           +ifn%sigmaveg*(dumvegdelta*acond%veg+(1.-dumvegdelta)/(1./acond%veg+res)))+topinvres)
-
 ! calculate transpiration and evaporation of in-canyon vegetation
-dg%tran=lv*min(max((1.-dumvegdelta)*atm%rho*(vegqsat-canyonmix)/(1./acond%veg+res),0.), &
+dg%tran=lv*min(max((1.-dumvegdelta)*atm%rho*(vegqsat-dg%canyonmix)/(1./(acond%veg*dg%topu)+res),0.), &
             max((iveg%moist-swilt)*dg%totdepth*waterden/(dg%c1*ddt),0.))
-where (vegqsat.lt.canyonmix)
-  dg%evap=lv*atm%rho*(vegqsat-canyonmix)*acond%veg
+where (vegqsat.lt.dg%canyonmix)
+  dg%evap=lv*atm%rho*(vegqsat-dg%canyonmix)*acond%veg*dg%topu
 elsewhere
-  dg%evap=lv*min(dumvegdelta*atm%rho*(vegqsat-canyonmix)*acond%veg,iveg%water/ddt+atm%rnd)
+  dg%evap=lv*min(dumvegdelta*atm%rho*(vegqsat-dg%canyonmix)*acond%veg*dg%topu,iveg%water/ddt+atm%rnd)
 endwhere
 
 ! calculate canyon latent heat fluxes
-where (roadqsat.lt.canyonmix)
-  eg%road=lv*atm%rho*(roadqsat-canyonmix)*acond%road
+where (roadqsat.lt.dg%canyonmix)
+  eg%road=lv*atm%rho*(roadqsat-dg%canyonmix)*acond%road*dg%topu
 elsewhere
-  eg%road=lv*min(atm%rho*dumroaddelta*(roadqsat-canyonmix)*acond%road,iroad%water/ddt+atm%rnd+(1.-fn%sigmaveg)*rdsnmelt)
+  eg%road=lv*min(atm%rho*dumroaddelta*(roadqsat-dg%canyonmix)*acond%road*dg%topu &
+               ,iroad%water/ddt+atm%rnd+(1.-fn%sigmaveg)*rdsnmelt)
 endwhere
 eg%veg=dg%evap+dg%tran
 where (dg%rdsndelta.gt.0.)
-  eg%rdsn=ls*min(atm%rho*dg%rdsndelta*max(0.,rdsnqsat-canyonmix)*acond%rdsn,iroad%snow/ddt+atm%snd-rdsnmelt)
+  eg%rdsn=ls*min(atm%rho*dg%rdsndelta*max(0.,rdsnqsat-dg%canyonmix)*acond%rdsn*dg%topu &
+                ,iroad%snow/ddt+atm%snd-rdsnmelt)
   gardsn=(rdsntemp-iroad%temp(1))/ldratio ! use road temperature to represent canyon bottom surface temperature
                                           ! (i.e., we have ommited soil under vegetation temperature)
 elsewhere
@@ -2030,6 +2139,307 @@ trafficout=trafficfg*((1.-rp)*trafficcycle(ip)+rp*trafficcycle(ip+1))
 
 return
 end subroutine gettraffic
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate wind speed at canyon top
+subroutine gettopu(cn,topu,thetav,sthetav,umag,lzom,lzoh,zmin,bldheight,hwratio)
+      
+implicit none
+
+integer, intent(in) :: cn
+integer ic
+real, dimension(cn), intent(in) :: thetav,sthetav,umag,zmin
+real, dimension(cn), intent(in) :: lzom,lzoh,bldheight,hwratio
+real, dimension(cn), intent(out) :: topu
+real, dimension(cn) :: af,aft,ri,fm,fh,root
+real, dimension(cn) :: denma,denha,cd
+real, dimension(cn) :: thetavstar,z_on_l,z0_on_l
+real, dimension(cn) :: pm0,pm1,integralm,integralh
+real, dimension(cn) :: ustar,neutral,lna
+integer, parameter ::  nc     = 5
+real, parameter    ::  bprm   = 5.  ! 4.7 in rams
+real, parameter    ::  chs    = 2.6 ! 5.3 in rams
+real, parameter    ::  cms    = 5.  ! 7.4 in rams
+real, parameter    ::  fmroot = 0.57735
+real, parameter    ::  rimax  =(1./fmroot-1.)/bprm
+real, parameter :: a_1 = 1.
+real, parameter :: b_1 = 2./3.
+real, parameter :: c_1 = 5.
+real, parameter :: d_1 = 0.35
+
+! Roughness length for heat
+lna=lzoh-lzom
+
+! use Louis as first guess for Dyer and Hicks scheme
+af=vkar*vkar/(lzom*lzom)
+aft=vkar*vkar/(lzom*lzoh)
+! umag is now constrained to be above umin
+ri=min(grav*zmin*(1.-sthetav/thetav)/umag**2,rimax)
+where (ri>0.)
+  fm=1./(1.+bprm*ri)**2
+  fh=fm
+elsewhere
+  root=sqrt(-ri*exp(lzom))
+  denma=1.+cms*2.*bprm*af*root
+  denha=1.+chs*2.*bprm*aft*exp(0.5*lna)*root
+  fm=1.-2.*bprm *ri/denma
+  fh=1.-2.*bprm*ri/denha
+end where
+cd=af*fm
+
+! Dyer and Hicks approach 
+thetavstar=aft*fh*(thetav-sthetav)/sqrt(cd)
+call dyerhicks(cn,integralh,z_on_l,cd,thetavstar,thetav,sthetav,umag,zmin,lzom,lna)
+ustar=sqrt(cd)*umag
+
+z0_on_l   = min(bldheight,zmin)*z_on_l/zmin ! calculate at canyon top
+z0_on_l=min(z0_on_l,10.)
+neutral = log(zmin/min(bldheight,zmin))
+where (z_on_l.lt.0.)
+  pm0     = (1.-16.*z0_on_l)**(-0.25)
+  pm1     = (1.-16.*z_on_l)**(-0.25)
+  integralm = neutral-2.*log((1.+1./pm1)/(1.+1./pm0)) &
+                -log((1.+1./pm1**2)/(1.+1./pm0**2)) &
+                +2.*(atan(1./pm1)-atan(1./pm0))
+elsewhere
+  !-------Beljaars and Holtslag (1991) heat function
+  pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
+  pm1  = -(a_1*z_on_l+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)+b_1*c_1/d_1)
+  integralm = neutral-(pm1-pm0)
+endwhere
+where (bldheight.lt.zmin)
+  topu=(2./pi)*(umag-ustar/vkar*integralm)
+elsewhere ! within canyon
+  topu=(2./pi)*umag*exp(0.5*hwratio*(1.-zmin/bldheight))
+end where
+
+topu=max(topu,0.1)
+
+return
+end subroutine gettopu
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate screen diagnostics
+subroutine scrncalc(stemp,temp,smixr,mixr,umag,dg,rdsntemp,moist,zonet)
+      
+implicit none
+
+integer ic
+real, dimension(ufull), intent(in) :: stemp,temp,umag
+real, dimension(ufull), intent(in) :: smixr,mixr,rdsntemp,moist,zonet
+real, dimension(ufull) :: af,aft,ri,fm,fh,root
+real, dimension(ufull) :: denma,denha,cd,thetav,sthetav
+real, dimension(ufull) :: thetavstar,z_on_l,z0_on_l
+real, dimension(ufull) :: pm0,ph0,pm1,ph1,integralm,integralh
+real, dimension(ufull) :: ustar,qstar,z10_on_l
+real, dimension(ufull) :: neutral,neutral10,pm10
+real, dimension(ufull) :: integralm10
+real, dimension(ufull) :: tstar,lna
+real, dimension(ufull) :: utop,ttop,qtop,wf,tsurf,qsurf,n
+type(tdiag), dimension(ufull), intent(in) :: dg
+integer, parameter ::  nc     = 5
+real, parameter    ::  bprm   = 5.  ! 4.7 in rams
+real, parameter    ::  chs    = 2.6 ! 5.3 in rams
+real, parameter    ::  cms    = 5.  ! 7.4 in rams
+real, parameter    ::  fmroot = 0.57735
+real, parameter    ::  rimax  =(1./fmroot-1.)/bprm
+real, parameter    ::  a_1    = 1.
+real, parameter    ::  b_1    = 2./3.
+real, parameter    ::  c_1    = 5.
+real, parameter    ::  d_1    = 0.35
+real, parameter    ::  z0     = 1.5
+real, parameter    ::  z10    = 10.
+
+thetav=temp*(1.+0.61*mixr)
+sthetav=stemp*(1.+0.61*smixr)
+
+! Roughness length for heat
+lna=pg%lzoh-pg%lzom
+
+! use Louis as first guess for Dyer and Hicks scheme
+af=vkar*vkar/(pg%lzom*pg%lzom)
+aft=vkar*vkar/(pg%lzom*pg%lzoh)
+! umag is now constrained to be above umin
+ri=min(grav*pg%cndzmin*(1.-sthetav/thetav)/umag**2,rimax)
+where (ri>0.)
+  fm=1./(1.+bprm*ri)**2
+  fh=fm
+elsewhere
+  root=sqrt(-ri*exp(pg%lzom))
+  denma=1.+cms*2.*bprm*af*root
+  denha=1.+chs*2.*bprm*aft*exp(0.5*lna)*root
+  fm=1.-2.*bprm *ri/denma
+  fh=1.-2.*bprm*ri/denha
+end where
+cd=af*fm
+
+! Dyer and Hicks approach 
+thetavstar=aft*fh*(thetav-sthetav)/sqrt(cd)
+call dyerhicks(ufull,integralh,z_on_l,cd,thetavstar,thetav,sthetav,umag,pg%cndzmin,pg%lzom,lna)
+ustar=sqrt(cd)*umag
+tstar=vkar*(temp-stemp)/integralh
+qstar=vkar*(mixr-smixr)/integralh
+
+select case(scrnmeth)
+  case(0) ! estimate screen diagnostics (slab at displacement height approach)
+    z0_on_l   = z0*z_on_l/pg%cndzmin
+    z10_on_l  = z10*z_on_l/pg%cndzmin
+    z0_on_l=min(z0_on_l,10.)
+    z10_on_l=min(z10_on_l,10.)
+    neutral = log(pg%cndzmin/z0)
+    neutral10 = log(pg%cndzmin/z10)
+    where (z_on_l.lt.0.)
+      ph0     = (1.-16.*z0_on_l)**(-0.50)
+      ph1     = (1.-16.*z_on_l)**(-0.50)
+      pm0     = (1.-16.*z0_on_l)**(-0.25)
+      pm10    = (1.-16.*z10_on_l)**(-0.25)
+      pm1     = (1.-16.*z_on_l)**(-0.25)
+      integralh = neutral-2.*log((1.+1./ph1)/(1.+1./ph0))
+      integralm = neutral-2.*log((1.+1./pm1)/(1.+1./pm0)) &
+                    -log((1.+1./pm1**2)/(1.+1./pm0**2)) &
+                    +2.*(atan(1./pm1)-atan(1./pm0))
+      integralm10 = neutral10-2.*log((1.+1./pm1)/(1.+1./pm10)) &
+                    -log((1.+1./pm1**2)/(1.+1./pm10**2)) &
+                    +2.*(atan(1./pm1)-atan(1./pm10))     
+    elsewhere
+      !-------Beljaars and Holtslag (1991) heat function
+      ph0  = -((1.+(2./3.)*a_1*z0_on_l)**1.5 &
+             +b_1*(z0_on_l-(c_1/d_1)) &
+             *exp(-d_1*z0_on_l)+b_1*c_1/d_1-1.)
+      ph1  = -((1.+(2./3.)*a_1*z_on_l)**1.5 &
+             +b_1*(z_on_l-(c_1/d_1)) &
+             *exp(-d_1*z_on_l)+b_1*c_1/d_1-1.)
+      pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
+      pm10 = -(a_1*z10_on_l+b_1*(z10_on_l-(c_1/d_1))*exp(-d_1*z10_on_l)+b_1*c_1/d_1)
+      pm1  = -(a_1*z_on_l+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)+b_1*c_1/d_1)
+      integralh = neutral-(ph1-ph0)
+      integralm = neutral-(pm1-pm0)
+      integralm10 = neutral10-(pm1-pm10)
+    endwhere
+    pg%tscrn       = temp-tstar/vkar*integralh
+    pg%qscrn       = mixr-qstar/vkar*integralh
+    pg%uscrn=max(umag-ustar/vkar*integralm,0.)
+    pg%u10=max(umag-ustar/vkar*integralm10,0.)
+    
+  case(1) ! estimate screen diagnostics (two step canopy approach)
+    z0_on_l   = fn%bldheight*(1.-refheight)*z_on_l/pg%cndzmin ! calculate at canyon top
+    z10_on_l  = max(z10-fn%bldheight*refheight,1.)*z_on_l/pg%cndzmin
+    z0_on_l=min(z0_on_l,10.)
+    z10_on_l=min(z10_on_l,10.)
+    neutral = log(pg%cndzmin/(fn%bldheight*(1.-refheight)))
+    neutral10 = log(pg%cndzmin/max(z10-fn%bldheight*refheight,1.))
+    where (z_on_l.lt.0.)
+      ph0     = (1.-16.*z0_on_l)**(-0.50)
+      ph1     = (1.-16.*z_on_l)**(-0.50)
+      pm0     = (1.-16.*z0_on_l)**(-0.25)
+      pm10    = (1.-16.*z10_on_l)**(-0.25)
+      pm1     = (1.-16.*z_on_l)**(-0.25)
+      integralh = neutral-2.*log((1.+1./ph1)/(1.+1./ph0))
+      integralm = neutral-2.*log((1.+1./pm1)/(1.+1./pm0)) &
+                    -log((1.+1./pm1**2)/(1.+1./pm0**2)) &
+                    +2.*(atan(1./pm1)-atan(1./pm0))
+      integralm10 = neutral10-2.*log((1.+1./pm1)/(1.+1./pm10)) &
+                    -log((1.+1./pm1**2)/(1.+1./pm10**2)) &
+                    +2.*(atan(1./pm1)-atan(1./pm10))     
+    elsewhere
+      !-------Beljaars and Holtslag (1991) heat function
+      ph0  = -((1.+(2./3.)*a_1*z0_on_l)**1.5 &
+             +b_1*(z0_on_l-(c_1/d_1)) &
+             *exp(-d_1*z0_on_l)+b_1*c_1/d_1-1.)
+      ph1  = -((1.+(2./3.)*a_1*z_on_l)**1.5 &
+             +b_1*(z_on_l-(c_1/d_1)) &
+             *exp(-d_1*z_on_l)+b_1*c_1/d_1-1.)
+      pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
+      pm10 = -(a_1*z10_on_l+b_1*(z10_on_l-(c_1/d_1))*exp(-d_1*z10_on_l)+b_1*c_1/d_1)
+      pm1  = -(a_1*z_on_l+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)+b_1*c_1/d_1)
+      integralh = neutral-(ph1-ph0)
+      integralm = neutral-(pm1-pm0)
+      integralm10 = neutral10-(pm1-pm10)
+    endwhere
+    ttop       = temp-tstar/vkar*integralh
+    qtop       = mixr-qstar/vkar*integralh
+    utop       = umag-ustar/vkar*integralm
+
+    where (fn%bldheight.le.z10) ! above canyon
+      pg%u10=max(umag-ustar/vkar*integralm10,0.)
+    end where
+
+    ! assume standard stability functions hold for urban canyon for now
+    tsurf=dg%rdsndelta*rdsntemp+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*road%temp(1)+fn%sigmaveg*pg%vegtemp)
+    n=max(min((veg%moist-swilt/3.)/(sfc-swilt/3.),1.),0.)
+    wf=(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dg%roaddelta+fn%sigmaveg*((1.-dg%vegdelta)*n+dg%vegdelta))
+    call getqsat(ufull,qsurf,tsurf,dg%sigd)
+    qsurf=qsurf*wf
+    thetav=ttop*(1.+0.61*qtop)
+    sthetav=tsurf*(1.+0.61*qsurf)
+    lna=2.3
+    n=log(fn%bldheight/zonet)
+    af=vkar*vkar/(n*n)
+    aft=vkar*vkar/(n*(lna+n))
+    ri=min(grav*fn%bldheight*(1.-sthetav/thetav)/umag**2,rimax)
+    where (ri>0.)
+      fm=1./(1.+bprm*ri)**2
+      fh=fm
+    elsewhere
+      root=sqrt(-ri*fn%bldheight/zonet)
+      denma=1.+cms*2.*bprm*af*root
+      denha=1.+chs*2.*bprm*aft*exp(0.5*lna)*root
+      fm=1.-2.*bprm *ri/denma
+      fh=1.-2.*bprm*ri/denha
+    end where
+    cd=af*fm
+    thetavstar=aft*fh*(thetav-sthetav)/sqrt(cd)
+    call dyerhicks(ufull,integralh,z_on_l,cd,thetavstar,thetav,sthetav,utop,fn%bldheight,n,lna)
+    ustar=sqrt(cd)*utop
+    tstar=vkar*(ttop-tsurf)/integralh
+    qstar=vkar*(qtop-qsurf)/integralh
+    z0_on_l   = z0*z_on_l/fn%bldheight
+    z10_on_l  = max(z10,fn%bldheight)*z_on_l/fn%bldheight
+    z0_on_l=min(z0_on_l,10.)
+    z10_on_l=min(z10_on_l,10.)
+    neutral = log(fn%bldheight/z0)
+    neutral10 = log(fn%bldheight/max(z10,fn%bldheight))
+    where (z_on_l.lt.0.)
+      ph0     = (1.-16.*z0_on_l)**(-0.50)
+      ph1     = (1.-16.*z_on_l)**(-0.50)
+      pm0     = (1.-16.*z0_on_l)**(-0.25)
+      pm10    = (1.-16.*z10_on_l)**(-0.25)
+      pm1     = (1.-16.*z_on_l)**(-0.25)
+      integralh = neutral-2.*log((1.+1./ph1)/(1.+1./ph0))
+      integralm = neutral-2.*log((1.+1./pm1)/(1.+1./pm0)) &
+                    -log((1.+1./pm1**2)/(1.+1./pm0**2)) &
+                    +2.*(atan(1./pm1)-atan(1./pm0))
+      integralm10 = neutral10-2.*log((1.+1./pm1)/(1.+1./pm10)) &
+                    -log((1.+1./pm1**2)/(1.+1./pm10**2)) &
+                    +2.*(atan(1./pm1)-atan(1./pm10))     
+    elsewhere
+      !-------Beljaars and Holtslag (1991) heat function
+      ph0  = -((1.+(2./3.)*a_1*z0_on_l)**1.5 &
+             +b_1*(z0_on_l-(c_1/d_1)) &
+             *exp(-d_1*z0_on_l)+b_1*c_1/d_1-1.)
+      ph1  = -((1.+(2./3.)*a_1*z_on_l)**1.5 &
+             +b_1*(z_on_l-(c_1/d_1)) &
+             *exp(-d_1*z_on_l)+b_1*c_1/d_1-1.)
+      pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l)+b_1*c_1/d_1)
+      pm10 = -(a_1*z10_on_l+b_1*(z10_on_l-(c_1/d_1))*exp(-d_1*z10_on_l)+b_1*c_1/d_1)
+      pm1  = -(a_1*z_on_l+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l)+b_1*c_1/d_1)
+      integralh = neutral-(ph1-ph0)
+      integralm = neutral-(pm1-pm0)
+      integralm10 = neutral10-(pm1-pm10)
+    endwhere
+
+    pg%tscrn       = temp-tstar/vkar*integralh
+    pg%qscrn       = mixr-qstar/vkar*integralh
+    pg%uscrn=max(umag-ustar/vkar*integralm,0.)
+    where (fn%bldheight.gt.z10) ! within canyon
+      pg%u10=max(umag-ustar/vkar*integralm10,0.)
+    end where
+
+end select
+pg%qscrn       = max(pg%qscrn,1.E-4)
+      
+return
+end subroutine scrncalc
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Disables aTEB so subroutine calls have no effect

@@ -436,10 +436,19 @@ c       For time invariant surface fields
         call attrib(idnc,idim,2,'vegt',lname,'none',0.,44.,0)
         !lname = 'Initial wetness fraction layer 3' ! MJT delete
         !call attrib(idnc,idim,2,'wetfrac',lname,'none',-2.,5.,0)
-        lname = 'Leaf area index'
-        call attrib(idnc,idim,2,'lai',lname,'none',0.,10.,0)	
+!        lname = 'Leaf area index'                            ! MJT cable
+!        call attrib(idnc,idim,2,'lai',lname,'none',0.,10.,0) ! MJT cable
+        !--------------------------------------------
+        ! MJT urban
+        if (nurban.lt.0) then
+          lname = 'Urban fraction'
+          call attrib(idnc,idim,2,'sigmu',lname,'none',0.,3.25,0)
+        end if
+        !--------------------------------------------
 
 c       For time varying surface fields
+        lname = 'Leaf area index'                            ! MJT cable
+        call attrib(idnc,idim,3,'lai',lname,'none',0.,10.,0) ! MJT cable
         lname = 'Surface temperature'
         call attrib(idnc,idim,3,'tsu',lname,'K',0.,350.,0)
         lname = 'Pan temperature'
@@ -838,7 +847,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         ! MJT mlo
         if (nmlo.lt.0.or.(nmlo.gt.0.and.itype==-1)) then
           lname = 'water depth'
-          call attrib(idnc,idim,2,'ocndepth',lname,'m',0.,5000.,0)
+          call attrib(idnc,idim,2,'ocndepth',lname,'m',0.,32500.,0)
           do k=ms+1,wlev
            write(lname,'("soil/ocean temperature lev ",I2)') k
            write(vname,'("tgg",I2.2)') k
@@ -964,6 +973,12 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         call histwrt3(sigmf,'sigmf',idnc,iarch,local)
         !--------------------------------------------
         ! MJT urban
+        if (nurban.lt.0) then
+          call histwrt3(sigmu,'sigmu',idnc,iarch,local)
+        end if
+        !--------------------------------------------
+        !--------------------------------------------
+        ! MJT urban
         aa=zolnd
         bb=zolnd/7.4 ! dummy
         call atebzo(ifull,aa(:),bb(:),0)
@@ -984,9 +999,10 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         ! aa(iq)=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
         !enddo
         !call histwrt3(aa,'wetfrac',idnc,iarch,local)
-	call histwrt3(vlai,'lai',idnc,iarch,local)
+	!call histwrt3(vlai,'lai',idnc,iarch,local) ! MJT cable
       endif ! (ktau==0.or.itype==-1) 
 
+      call histwrt3(vlai,'lai',idnc,iarch,local) ! MJT cable
       call histwrt3l(zs,'zht',idnc,iarch,local)   ! always from 13/9/02 ! MJT bug fix
       call histwrt3(psl,'psf',idnc,iarch,local)
       do iq=1,ifull

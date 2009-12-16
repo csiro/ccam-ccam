@@ -267,7 +267,7 @@ c      this is in-line ocenzo using latest coefficient, i.e. .018    ! sea
             af(iq)=afroot**2                                         ! sea
             daf=2.*af(iq)*afroot/(vkar*zo(iq))                       ! sea
             zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-con*af(iq))/(1.-con*daf))
-            zo(iq)=min(zo(iq),13.) ! JLM fix
+            zo(iq)=min(zo(iq),13.) ! JLM fix            
            enddo    ! it=1,3                                         ! sea
            afroot=vkar/log(zmin/zo(iq))                              ! sea
            af(iq)=afroot**2                                          ! sea
@@ -283,7 +283,7 @@ c      this is in-line ocenzo using latest coefficient, i.e. .018    ! sea
             dfm=2.*bprm*ri(iq)*dden/den**2                           ! sea
             zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-consea*af(iq)*fm)/      ! sea
      .                       (1.-consea*(daf*fm+af(iq)*dfm)))        ! sea
-            zo(iq)=min(zo(iq),13.) ! JLM fix
+            zo(iq)=min(zo(iq),13.) ! JLM fix     
            enddo  ! it=1,3                                           ! sea
          endif    ! (xx>0.) .. else..                                ! sea
         endif     ! (charnock<-1.) .. else ..
@@ -531,7 +531,7 @@ c          fh itself was only used outside this loop in sib0 (jlm)      ! land
 c          factch is sqrt(zo/zt) for land use in unstable fh            ! land
            factch(iq)=sqrt(7.4)                                         ! land
            if(snowd(iq)>0.)then                                         ! land
-!            reduce zo over snow;
+!            reduce zo over snow;                                       ! land
              zobg=max(zobgin -snowd(iq)*0.00976/12., 0.00024)           ! land
              zologbg=log(zmin/zobg)                                     ! land
 !            following line is bit simpler than csiro9                  ! land
@@ -540,11 +540,11 @@ c          factch is sqrt(zo/zt) for land use in unstable fh            ! land
            else  ! land but not snow                                    ! land
              zo(iq)=zolnd(iq)                                           ! land
              zologbg=zologbgin                                          ! land
-             zologx=zolog(iq)
+             zologx=zolog(iq)                                           ! land
            endif     ! (snowd(iq)>0.)                                   ! land
            if(nblend==1)then  ! blended zo for momentum                 ! land
-!            note that Dorman & Sellers zo is already an average, 
-!            accounting for sigmf, so may not wish to further blend zo	
+!            note that Dorman & Sellers zo is already an average,       ! land
+!            accounting for sigmf, so may not wish to further blend zo	! land
              afland=(vkar/((1.-sigmf(iq))*zologbg+sigmf(iq)*zologx))**2 ! land
            else    ! non-blended zo for momentum                        ! land
              afland=(vkar/zologx)**2                                    ! land
@@ -588,28 +588,28 @@ c          Surface stresses taux, tauy: diagnostic only - unstaggered now
            if(ntest==1.and.iq==idjd.and.mydiag)then                     ! land
              print *,'in main land loop'                                ! land
              print *,'zmin,zobg,zobgin,snowd ',zmin,zobg,zobgin,
-     &                                         snowd(iq) 
+     &                                         snowd(iq)                ! land
              print *,'afland,aftland,zologbg ',afland,aftland,zologbg   ! land
              print *,'af,vmag,vmod,es ',af(iq),vmag(iq),vmod(iq),es     ! land
              print *,'tss,theta,t1 ',tss(iq),theta(iq),t(iq,1)          ! land
              print *,'aft,fm,fh,rho,conh ',aft(iq),fm,fh(iq),rho(iq)
-     &                                    ,conh 
+     &                                    ,conh                         ! land
              print *,'ri,vmod,cduv,fg ',ri(iq),vmod(iq),cduv(iq),fg(iq) ! land
            endif  ! (ntest==1.and.iq==idjd)                             ! land
           enddo     ! ip=1,ipland                                       ! land
-c         iq=899
+c         iq=899                                                        ! land
 c         print *,'in sflux; iq,af,zo,zolnd,snowd,zolog ',iq,af(iq),
-c    &                   zo(iq),zolnd(iq),snowd(iq),zolog(iq)  
-
+c    &                   zo(iq),zolnd(iq),snowd(iq),zolog(iq)           ! land
+                                                                        ! land
           if(ntaft==0.or.ktau==1)then                                   ! land
-            do iq=1,ifull  ! will only use land values
+            do iq=1,ifull  ! will only use land values                  ! land
              if(land(iq))then                                           ! land
                taftfh(iq)=aft(iq)*fh(iq) ! uses fmroot above            ! land
                taftfhg(iq)=taftfhg_temp(iq)                             ! land
              endif                                                      ! land
             enddo                                                       ! land
           elseif(ntaft==1.)then                                         ! land
-            do iq=1,ifull         ! will only use land values
+            do iq=1,ifull         ! will only use land values           ! land
              if(land(iq))then                                           ! land
                thnew=aft(iq)*fh(iq) ! uses fmroot above                 ! land
                thgnew=taftfhg_temp(iq)                                  ! land
@@ -625,8 +625,8 @@ c    &                   zo(iq),zolnd(iq),snowd(iq),zolog(iq)
                endif                                                    ! land
              endif                                                      ! land
             enddo                                                       ! land
-          elseif(ntaft==2)then    ! preferred faster option
-            do iq=1,ifull         ! will only use land values
+          elseif(ntaft==2)then    ! preferred faster option             ! land
+            do iq=1,ifull         ! will only use land values           ! land
              if(land(iq))then                                           ! land
                thnew=aft(iq)*fh(iq) ! uses fmroot above                 ! land
                thgnew=taftfhg_temp(iq)                                  ! land
@@ -641,7 +641,7 @@ c    &                   zo(iq),zolnd(iq),snowd(iq),zolog(iq)
              endif                                                      ! land
             enddo                                                       ! land
           elseif(ntaft==3)then                                          ! land
-!           do vegetation calulation for taftfh	
+!           do vegetation calulation for taftfh	                        ! land
             do iq=1,ifull                                               ! land
              if(land(iq))then                                           ! land
                xx=grav*zmin*(1.-tgf(iq)*srcp/t(iq,1)) ! actually otgf   ! land
@@ -653,16 +653,20 @@ c    &                   zo(iq),zolnd(iq),snowd(iq),zolog(iq)
 c                Now heat ; allow for smaller zo via aft and factch     ! land
                  denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root           ! land
                  fh_tmp=vmod(iq)-vmod(iq)*2.*bprm *ri_tmp/denha         ! land
-               endif
+               endif                                                    ! land
                taftfh(iq)=aft(iq)*fh_tmp ! uses fmroot above, for sib3  ! land
              endif                                                      ! land
             enddo                                                       ! land
           endif  ! (ntaft==0.or.ktau==1)  .. else ..                    ! land
           if(ntest>0.and.mydiag)then                                    ! land
             print *,'before sib3 zo,zolnd,af ',zo(idjd),zolnd(idjd)
-     &                                        ,af(idjd)
+     &                                        ,af(idjd)                 ! land
           endif                                                         ! land
           call sib3(nalpha)  ! for nsib=3, 5                            ! land
+          if(diag.or.ntest>0)then                                       ! land
+            if (mydiag) print *,'before call scrnout'                   ! land
+            call maxmin(t,' t',ktau,1.,kl)                              ! land
+          endif                                                         ! land
           if(ntsur.ne.5)then    ! ntsur=6 is default from Mar '05       ! land
 c           preferred option to recalc cduv, ustar (gives better uscrn, u10)
             do iq=1,ifull                                               ! land
@@ -686,22 +690,62 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
              tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                          ! land
             enddo                                                       ! land
            endif  ! (ntsur==6)                                          ! land
+           if(nproc==1.and.diag)then                                    ! land
+              taftfhmin=1.e20                                           ! land
+              taftfhmax=-100.                                           ! land
+              taftfhgmin=1.e20                                          ! land
+              taftfhgmax=-100.                                          ! land
+              do iq=1,ifull                                             ! land
+               if(taftfh(iq)<taftfhmin)then                             ! land
+                 taftfhmin=taftfh(iq)           ! ~.0012                ! land
+                 iqmin1=iq                                              ! land
+               endif                                                    ! land
+               if(taftfh(iq)>taftfhmax)then                             ! land
+                 taftfhmax=taftfh(iq)           ! ~.13                  ! land
+                 iqmax1=iq                                              ! land
+               endif                                                    ! land
+               if(taftfhg(iq)<taftfhgmin)then                           ! land
+                 taftfhgmin=taftfhg(iq)         ! ~.0006                ! land
+                 iqmin2=iq                                              ! land
+               endif                                                    ! land
+               if(taftfhg(iq)>taftfhgmax)then                           ! land
+                 taftfhgmax=taftfhg(iq)         ! ~.004                 ! land
+                 iqmax2=iq                                              ! land
+               endif                                                    ! land
+              enddo                                                     ! land
+              print *,'taftfhmin,taftfhmax ',
+     &                 taftfhmin,iqmin1,taftfhmax,iqmax1                ! land
+              print *,'taftfhgmin,taftfhgmax ',
+     &                 taftfhgmin,iqmin2,taftfhgmax,iqmax2              ! land
+            endif  ! (nproc==1.and.diag)                                ! land
+                                                                        ! land
+!          always call scrnout from 19/9/02                             ! land
+           call scrnout(zo,ustar,factch,wetfac,qsttg,            ! arrays
+     .            qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,  ! arrays
+     .            bprm,cms,chs,chnsea,nalpha)                           ! land
         case(CABLE)
          print *,"nsib==CABLE option not avaliable"
          stop
         case(6)                                                         ! cable
+         ! update ocean diagnostics                                     ! cable
+         call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss,
+     &                t(1:ifull,1),qsttg,qg(1:ifull,1),vmod,
+     &                ps(1:ifull),land,zmin,sig(1))                     ! cable
          factch(iperm)=sqrt(7.4)                                        ! cable
+         ! call cable                                                   ! cable
          call sib4                                                      ! cable
-         ! update arrays for scrnout                                    ! cable
+         ! update remaining diagnostic arrays                           ! cable
          do ip=1,ipland                                                 ! cable
            iq=iperm(ip)                                                 ! cable
            es = establ(tss(iq))                                         ! cable
            qsttg(iq)= .622*es/(ps(iq)-es)                               ! cable
-           zologx=log(zmin/zo(iq))                                      ! cable
-           aft(iq)=vkar**2/(zologx*(log(factch(iq)**2)+zologx))         ! cable
-           af(iq)=(vkar/log(zmin/zo(iq)))**2                            ! cable
-           xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                       ! cable
-           ri(iq)=min(xx/vmag(iq)**2 , ri_max)                          ! cable
+           rhscrn(iq)=100.*qgscrn(iq)/qsttg(iq)                         ! cable
+           rhscrn(iq)=min(max(rhscrn(iq),0.),100.)                      ! cable
+!           zologx=log(zmin/zo(iq))                                     ! cable
+!           aft(iq)=vkar**2/(zologx*(log(factch(iq)**2)+zologx))        ! cable
+!           af(iq)=(vkar/log(zmin/zo(iq)))**2                           ! cable
+!           xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                      ! cable
+!           ri(iq)=min(xx/vmag(iq)**2 , ri_max)                         ! cable
            taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                            ! cable
            tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! cable
          enddo   ! ip=1,ipland                                          ! cable
@@ -727,10 +771,11 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          call atebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin       ! urban
      &               ,sgsave(:)/(1.-swrsave*albvisnir(:,1)-             ! urban
      &               (1.-swrsave)*albvisnir(:,2)),-rgsave(:)            ! urban
-     &               ,condx(:)/dt,rho(:),t(:,1),qg(:,1)                 ! urban
-     &               ,ps(:),sig(1)*ps(:),uzon,vmer,vmodmin,0)           ! urban
+     &               ,condx(:)/dt,rho(:),t(1:ifull,1),qg(1:ifull,1)     ! urban
+     &               ,ps(1:ifull),sig(1)*ps(1:ifull),uzon,vmer          ! urban
+     &               ,vmodmin,0)                                        ! urban
         ! here we blend zo with the urban part for the                  ! urban
-        ! calculation of ustar (occuring later in sflux.f)              ! urban
+        ! calculation of ustar                                          ! urban
         factch(iperm)=zo(iperm)/factch(iperm)**2                        ! urban
         call atebzo(ifull,zo,factch,0)                                  ! urban
         factch(iperm)=sqrt(zo(iperm)/factch(iperm))                     ! urban
@@ -738,18 +783,21 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
         call atebcd(ifull,cduv,0)                                       ! urban
         cduv(iperm)=cduv(iperm)*vmod(iperm)                             ! urban
         ustar(iperm)=sqrt(vmod(iperm)*cduv(iperm))                      ! urban
+        call atebscrnout(ifull,tscrn,qgscrn,uscrn,u10,0)                ! urban
         ! update arrays for scrnout                                     ! urban
         do ip=1,ipland ! assumes all urban points are land points       ! urban
           iq=iperm(ip)                                                  ! urban
           if (sigmu(iq).gt.0.) then                                     ! urban
             es = establ(tss(iq))                                        ! urban
             qsttg(iq)= .622*es/(ps(iq)-es)                              ! urban
-            zologx=log(zmin/zo(iq))                                     ! urban
-            aft(iq)=vkar**2/(zologx*(log(factch(iq)**2)+zologx))        ! urban
-            rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4            ! urban
-            af(iq)=(vkar/log(zmin/zo(iq)))**2                           ! urban
-            xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                      ! urban
-            ri(iq)=min(xx/vmag(iq)**2 , ri_max)                         ! urban
+            rhscrn(iq)=100.*qgscrn(iq)/qsttg(iq)                        ! urban
+            rhscrn(iq)=min(max(rhscrn(iq),0.),100.)                     ! urban
+!            zologx=log(zmin/zo(iq))                                    ! urban
+!            aft(iq)=vkar**2/(zologx*(log(factch(iq)**2)+zologx))       ! urban
+!            rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4           ! urban
+!            af(iq)=(vkar/log(zmin/zo(iq)))**2                          ! urban
+!            xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                     ! urban
+!            ri(iq)=min(xx/vmag(iq)**2 , ri_max)                        ! urban
             taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                           ! urban
             tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                           ! urban
           end if                                                        ! urban
@@ -759,10 +807,6 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
       call end_log(sfluxurban_end)
 c ----------------------------------------------------------------------
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
-      if(diag.or.ntest>0)then
-        if (mydiag) print *,'before call scrnout'
-        call maxmin(t,' t',ktau,1.,kl)
-      endif
 
       !--------------------------------------------------------------
       ! MJT cable MJT urban - moved above
@@ -790,40 +834,43 @@ c     !   Surface stresses taux, tauy: diagnostic only - unstaggered now
       !  enddo     
       ! endif  ! (ntsur==6)
       !--------------------------------------------------------------
-       
-       if(nproc==1.and.diag)then
-          taftfhmin=1.e20
-          taftfhmax=-100.
-          taftfhgmin=1.e20
-          taftfhgmax=-100.
-          do iq=1,ifull
-           if(taftfh(iq)<taftfhmin)then
-             taftfhmin=taftfh(iq)           ! ~.0012
-             iqmin1=iq
-           endif
-           if(taftfh(iq)>taftfhmax)then
-             taftfhmax=taftfh(iq)           ! ~.13
-             iqmax1=iq
-           endif
-           if(taftfhg(iq)<taftfhgmin)then
-             taftfhgmin=taftfhg(iq)         ! ~.0006
-             iqmin2=iq
-           endif
-           if(taftfhg(iq)>taftfhgmax)then
-             taftfhgmax=taftfhg(iq)         ! ~.004
-             iqmax2=iq
-           endif
-          enddo
-          print *,'taftfhmin,taftfhmax ',
-     &             taftfhmin,iqmin1,taftfhmax,iqmax1
-          print *,'taftfhgmin,taftfhgmax ',
-     &             taftfhgmin,iqmin2,taftfhgmax,iqmax2
-       endif  ! (nproc==1.and.diag)
 
-!     always call scrnout from 19/9/02
-      call scrnout(zo,ustar,factch,wetfac,qsttg,            ! arrays
-     .       qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,  ! arrays
-     .       bprm,cms,chs,chnsea,nalpha)
+      !--------------------------------------------------------------
+      ! MJT CABLE - moved above
+   !    if(nproc==1.and.diag)then
+   !       taftfhmin=1.e20
+   !       taftfhmax=-100.
+   !       taftfhgmin=1.e20
+   !       taftfhgmax=-100.
+   !       do iq=1,ifull
+   !        if(taftfh(iq)<taftfhmin)then
+   !          taftfhmin=taftfh(iq)           ! ~.0012
+   !          iqmin1=iq
+   !        endif
+   !        if(taftfh(iq)>taftfhmax)then
+   !          taftfhmax=taftfh(iq)           ! ~.13
+   !          iqmax1=iq
+   !        endif
+   !        if(taftfhg(iq)<taftfhgmin)then
+   !          taftfhgmin=taftfhg(iq)         ! ~.0006
+   !          iqmin2=iq
+   !        endif
+   !        if(taftfhg(iq)>taftfhgmax)then
+   !          taftfhgmax=taftfhg(iq)         ! ~.004
+   !          iqmax2=iq
+   !        endif
+   !       enddo
+   !       print *,'taftfhmin,taftfhmax ',
+   !  &             taftfhmin,iqmin1,taftfhmax,iqmax1
+   !       print *,'taftfhgmin,taftfhgmax ',
+   !  &             taftfhgmin,iqmin2,taftfhgmax,iqmax2
+   !    endif  ! (nproc==1.and.diag)
+   !
+!  !   always call scrnout from 19/9/02
+   !   call scrnout(zo,ustar,factch,wetfac,qsttg,            ! arrays
+   !  .       qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,  ! arrays
+   !  .       bprm,cms,chs,chnsea,nalpha)
+      !--------------------------------------------------------------
 
 c***  end of surface updating loop
 

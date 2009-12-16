@@ -101,6 +101,7 @@ C Local work arrays and variables
       integer nc
 
       integer kb,km,kk,kt,kp,pos(1) ! MJT CHANGE - mr
+      integer, dimension(imax,l) :: cldtop,cldbtm
 
       real ab, cfl, cldht, deltai, diffk, dz, em, eps, f1, f2, fcon
       real onem, qlpath, refac, refac1, refac2, re1, re2, rhoa
@@ -108,7 +109,7 @@ C Local work arrays and variables
       real sigmai, tciwc, tclwc, temp_correction, tmid
       real trani, tranw, wice, wliq
 
-      real csum,ctemp,ttgsum,refacsum ! MJT CHANGE - mr
+      real csum,ctemp,ttgsum,qlsum,qfsum,qconsum ! MJT CHANGE - mr
       real refflsum,reffisum,dzsum,qlpathsum,qipathsum ! MJT CHANGE - mr
       real refflhold,reffihold,ficehold ! MJT CHANGE - mr
 
@@ -275,6 +276,8 @@ c        enddo
         Reffi=0.
         Emw=0.
         Emi=0.
+        cldtop=0
+        cldbtm=0
         
 c Locate clouds
           do mg=1,imax
@@ -323,6 +326,8 @@ c Locate clouds
                 kbtmsw(mg,nc)=nlp-kb+1
                 ktop(mg,nc)=nlp-kt
                 ktopsw(mg,nc)=nlp-kt
+                cldtop(mg,nc)=kk
+                cldbtm(mg,nc)=k
                 
                 k=kk
               end if
@@ -344,7 +349,9 @@ c Ice clouds : Choose scheme according to resolution
             reffisum=0.
             qlpathsum=0.
             qipathsum=0.
-            do k=nlp-kbtm(mg,nc),nlp-ktop(mg,nc)
+            qfsum=0.
+            qlsum=0.
+            do k=cldbtm(mg,nc),cldtop(mg,nc)
               ficehold=qfg(mg,k)/(qfg(mg,k)+qlg(mg,k))
               rhoa=100.*prf(mg,k)/(rdry*ttg(mg,k))
               dz=(dprf(mg,k)/prf(mg,k))*rdry*ttg(mg,k)/grav
@@ -358,6 +365,7 @@ c formula for reffl. Use mid cloud value of Reff for emissivity.
      &           (3.*2.*Wliq/(4.*rhow*pi*rk(mg,k)*Cdrop(mg,k)))**(1./3.)
                 refflsum=refflsum+rhoa*qlg(mg,k)*dz*Refflhold
                 qlpathsum=qlpathsum+rhoa*qlg(mg,k)*dz
+                qlsum=qlsum+qlg(mg,k)*dz
               end if
 
               if (qfg(mg,k).gt.1.E-8) then
@@ -365,14 +373,19 @@ c formula for reffl. Use mid cloud value of Reff for emissivity.
                 Reffihold=min(150.e-6,3.73e-4*Wice**0.216) !Lohmann et al.(1999)
                 reffisum=reffisum+rhoa*qfg(mg,k)*dz*Reffihold
                 qipathsum=qipathsum+rhoa*qfg(mg,k)*dz
+                qfsum=qfsum+qfg(mg,k)*dz
               end if
 
               dzsum=dzsum+dz
             end do
-            fice(mg,nc)=qipathsum/max(qipathsum+qlpathsum,1.E-8)
+            if (qfsum+qlsum.gt.0.) then
+              fice(mg,nc)=qfsum/(qfsum+qlsum)
+            else
+              fice(mg,nc)=0.
+            end if
             if (qlpathsum.gt.0.) then
               Reffl(mg,nc)=refflsum/qlpathsum
-              qlpathsum=qlpathsum/camt(mg,nc)              
+              qlpathsum=qlpathsum/(camt(mg,nc)*(1.-fice(mg,nc)))
               taul(mg,nc)=tau_sfac(mg,nc)*1.5*qlpathsum
      &                 /(rhow*Reffl(mg,nc))
               qlptot(mg)=qlptot(mg)+qlpathsum
@@ -385,7 +398,7 @@ c formula for reffl. Use mid cloud value of Reff for emissivity.
 
             if (qipathsum.gt.0.) then
               Reffi(mg,nc)=reffisum/qipathsum
-              qipathsum=qipathsum/camt(mg,nc)
+              qipathsum=qipathsum/(camt(mg,nc)*fice(mg,nc))
               taui(mg,nc)=1.5*qipathsum/(rhoice*Reffi(mg,nc))
               deltai=min(0.5*taui(mg,nc),45.) !IR optical depth for ice.
               taui(mg,nc)=tau_sfac(mg,nc)*taui(mg,nc)
@@ -412,7 +425,9 @@ c Ice-cloud emissivity following Platt
             ttgsum=0.
             qlpathsum=0.
             qipathsum=0.
-            do k=nlp-kbtm(mg,nc),nlp-ktop(mg,nc)
+            qlsum=0.
+            qfsum=0.
+            do k=cldbtm(mg,nc),cldtop(mg,nc)
               ficehold=qfg(mg,k)/(qfg(mg,k)+qlg(mg,k))
               rhoa=100.*prf(mg,k)/(rdry*ttg(mg,k))
               dz=(dprf(mg,k)/prf(mg,k))*rdry*ttg(mg,k)/grav
@@ -426,20 +441,26 @@ c formula for reffl. Use mid cloud value of Reff for emissivity.
      &           (3.*2.*Wliq/(4.*rhow*pi*rk(mg,k)*Cdrop(mg,k)))**(1./3.)
                 refflsum=refflsum+rhoa*qlg(mg,k)*dz*Refflhold
                 qlpathsum=qlpathsum+rhoa*qlg(mg,k)*dz
+                qlsum=qlsum+qlg(mg,k)*dz
               end if            
 
               if (qfg(mg,k).gt.1.E-8) then
-                Wice=rhoa*qfg(mg,k)/(cfrac(mg,k)*fice(mg,k)) !kg/m**3
+                Wice=rhoa*qfg(mg,k)/(cfrac(mg,k)*ficehold) !kg/m**3
                 qipathsum=qipathsum+rhoa*qfg(mg,k)*dz                
+                qfsum=qfsum+qfg(mg,k)*dz
               end if
 
               dzsum=dzsum+dz
               ttgsum=ttgsum+dz*ttg(mg,k)
             end do
-            fice(mg,nc)=qipathsum/max(qipathsum+qlpathsum,1.E-8)
+            if (qfsum+qlsum.gt.0.) then
+              fice(mg,nc)=qfsum/(qfsum+qlsum)
+            else
+              fice(mg,nc)=0.
+            end if
             if (qlpathsum.gt.0.) then
               Reffl(mg,nc)=refflsum/qlpathsum
-              qlpathsum=qlpathsum/camt(mg,nc)
+              qlpathsum=qlpathsum/(camt(mg,nc)*(1.-fice(mg,nc)))
               taul(mg,nc)=tau_sfac(mg,nc)*1.5*qlpathsum
      &                   /(rhow*Reffl(mg,nc))
               qlptot(mg)=qlptot(mg)+qlpathsum
@@ -451,7 +472,7 @@ c formula for reffl. Use mid cloud value of Reff for emissivity.
             end if
             
             if (qipathsum.gt.0.) then
-              qipathsum=qipathsum/camt(mg,nc)
+              qipathsum=qipathsum/(camt(mg,nc)*fice(mg,nc))
               sigmai=aice*(qipathsum/dzsum)**bice !visible ext. coeff. for ice
               taui(mg,nc)=sigmai*dzsum !visible opt. depth for ice
               Reffi(mg,nc)=1.5*qipathsum/(rhoice*taui(mg,nc))
@@ -491,17 +512,22 @@ c respectively, following Tony Slingo's (1989) Delta-Eddington scheme.
         do mg=1,imax        
           do kp=1,nclds(mg)
             nc=kp+1
-            refacsum=0.
-            dzsum=0.
-            do k=nlp-kbtm(mg,nc),nlp-ktop(mg,nc)
-              dz=(dprf(mg,k)/prf(mg,k))*rdry*ttg(mg,k)/grav            
-              fcon=min(1.,qccon(mg,k)/(qlg(mg,k)+qfg(mg,k)))
+            qfsum=0.
+            qlsum=0.
+            qconsum=0.
+            do k=cldbtm(mg,nc),cldtop(mg,nc)
+              dz=(dprf(mg,k)/prf(mg,k))*rdry*ttg(mg,k)/grav
+              qconsum=qconsum+qccon(mg,k)*dz
+              qlsum=qlsum+qlg(mg,k)*dz
+              qfsum=qfsum+qfg(mg,k)*dz
+            end do
+            if (qlsum+qfsum.gt.0.) then
+              fcon=min(1.,qconsum/(qlsum+qfsum))
+            else
+              fcon=0.
+            end if
 c Mk3 with direct aerosol effect :
               refac=refac1*fcon+refac2*(1.-fcon)
-              refacsum=refacsum+refac*dz
-              dzsum=dzsum+dz
-            end do
-            refac=refacsum/dzsum
 
               Rei1(mg,nc)=min(refac*Rei1(mg,nc),onem)
               Rei2(mg,nc)=min(refac*Rei2(mg,nc),onem-2.*Abi(mg,nc))

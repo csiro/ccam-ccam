@@ -524,7 +524,7 @@ c 	    only being tested for nested=0; no need to test for mesonest
           call histrd1(ncid,iarchi,ierr,'wetfrac4',ik,jk,wb(:,4),ifull)
           call histrd1(ncid,iarchi,ierr,'wetfrac5',ik,jk,wb(:,5),ifull)
           call histrd1(ncid,iarchi,ierr,'wetfrac6',ik,jk,wb(:,6),ifull)
-          wb(:,:)=-abs(wb(:,:)) ! flag to indicate wetfrac, not volumetric soil moisture (unpacked in indata)
+          wb(:,:)=wb(:,:)+20. ! flag to indicate wetfrac, not volumetric soil moisture (unpacked in indata)
         end if
 
         !------------------------------------------------------------
