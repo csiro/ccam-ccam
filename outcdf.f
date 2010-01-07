@@ -1011,7 +1011,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       call histwrt3(aa,'pmsl',idnc,iarch,local)
       call histwrt3(tss,'tsu',idnc,iarch,local)
       !aa(:)=swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2) ! MJT CHANGE albedo
-      aa(:)=0.5*albvisnir(:,1)+0.5*albvisnir(:,2)               ! MJT CHANGE albedo
+      aa(:)=0.5*sum(albvisnir,2)                                ! MJT CHANGE albedo
       call atebalb1(1,ifull,aa(:),0) ! MJT urban
       call histwrt3(aa,'alb',idnc,iarch,local)
       !---------------------------------------------------------

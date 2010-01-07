@@ -301,7 +301,7 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
             !--------------------------------------------------------------
          
             call infile(0,kdate,ktime,timegb,ds,
-     &           psl,zss,tss,sicedep,fracice,
+     &           psl(1:ifull),zss,tss,sicedep,fracice,
      &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
      &           tgg,wb,wbice,albsav,snowd,qfg(1:ifull,:), ! MJT albedo
      &           qlg(1:ifull,:), ! 0808 
@@ -337,10 +337,10 @@ c           endif  ! (nspecial>100)
          endif     ! (io_in==1)
 
          if(io_in==-1)then
-            call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,
-     &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
-     &           tgg,wb,wbice,snowd,qfg(1:ifull,:),qlg(1:ifull,:), !0808
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag)
+            call onthefly(0,kdate,ktime,psl(1:ifull),zss,tss,sicedep,
+     &           fracice,t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
+     &           qg(1:ifull,:),tgg,wb,wbice,snowd,qfg(1:ifull,:),
+     &           qlg(1:ifull,:),tggsn,smass,ssdn,ssdnn,snage,isflag)
          endif   ! (io_in==-1)
          if( mydiag )then
            print *,'timegb,ds,zss',timegb,ds,zss(idjd)
@@ -437,7 +437,8 @@ c           endif  ! (nspecial>100)
 !     &          ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
                print *,'now call retopo from indata'
            end if ! ( mydiag )
-           call retopo(psl,zss,zs,t(1:ifull,:),qg(1:ifull,:))
+           call retopo(psl(1:ifull),zss,zs(1:ifull),t(1:ifull,:),
+     &                 qg(1:ifull,:))
            if(nmaxpr==1.and.mydiag)then
                write(6,"('100*psl# out',9f8.2)") 100.*diagvals(psl)
 !     &          ((100.*psl(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)

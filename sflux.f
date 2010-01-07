@@ -741,14 +741,23 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
            qsttg(iq)= .622*es/(ps(iq)-es)                               ! cable
            rhscrn(iq)=100.*qgscrn(iq)/qsttg(iq)                         ! cable
            rhscrn(iq)=min(max(rhscrn(iq),0.),100.)                      ! cable
-!           zologx=log(zmin/zo(iq))                                     ! cable
-!           aft(iq)=vkar**2/(zologx*(log(factch(iq)**2)+zologx))        ! cable
-!           af(iq)=(vkar/log(zmin/zo(iq)))**2                           ! cable
-!           xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                      ! cable
-!           ri(iq)=min(xx/vmag(iq)**2 , ri_max)                         ! cable
            taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                            ! cable
            tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! cable
          enddo   ! ip=1,ipland                                          ! cable
+         ! The following patch overrides CABLE screen level diagnostics
+!         if (.true.) then                                         ! PATCH
+!           do ip=1,ipland                                         ! PATCH
+!             iq=iperm(ip)                                         ! PATCH
+!             zologx=log(zmin/zo(iq))                              ! PATCH
+!             aft(iq)=vkar**2/(zologx*(log(factch(iq)**2)+zologx)) ! PATCH
+!             af(iq)=(vkar/log(zmin/zo(iq)))**2                    ! PATCH
+!             xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))               ! PATCH
+!             ri(iq)=min(xx/vmag(iq)**2 , ri_max)                  ! PATCH
+!           enddo   ! ip=1,ipland                                  ! PATCH
+!           call scrnout(zo,ustar,factch,wetfac,qsttg,             
+!     .            qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,
+!     .            bprm,cms,chs,chnsea,nalpha)                     ! PATCH
+!        end if                                                    ! PATCH
       end select
       !----------------------------------------------------------
       call end_log(sfluxland_end)

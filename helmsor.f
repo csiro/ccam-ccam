@@ -88,7 +88,6 @@ c       print *,'j ',j,(mask(iq),iq=1+(j-1)*il,6+(j-1)*il)
 c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
         if(myid==0)print *,'k,accel ',k,accel(k)
        enddo
-       print *,'myid,il,il_g,jl_g,dt ',myid,il,il_g,jl_g,dt
       endif
 c$      print *,'myid,ktau,precon ',myid,ktau,precon
  

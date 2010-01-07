@@ -636,8 +636,8 @@ CONTAINS
     TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil ! soil+snow variables
     TYPE(soil_parameter_type), INTENT(INOUT) :: soil ! soil parameters
     INTEGER(i_d), PARAMETER  :: ntest = 0 ! for snow diag prints
-    INTEGER(i_d), PARAMETER  :: nglacier = 0 ! 0 original, 1 off, 2 new Eva
-!    INTEGER(i_d), PARAMETER  :: nglacier = 2 ! 0 original, 1 off, 2 new Eva
+!    INTEGER(i_d), PARAMETER  :: nglacier = 0 ! 0 original, 1 off, 2 new Eva
+    INTEGER(i_d), PARAMETER  :: nglacier = 2 ! 0 original, 1 off, 2 new Eva
 !    REAL(r_1), DIMENSION(mp) :: evapsn   ! now put in soil_snow_type EAK aug08
     INTEGER(i_d)             :: k
     REAL(r_1), DIMENSION(mp) :: osm
@@ -782,8 +782,8 @@ CONTAINS
     TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil  ! soil+snow variables
     TYPE(soil_parameter_type), INTENT(INOUT) :: soil ! soil parameters
     INTEGER(i_d), PARAMETER      :: ntest = 0 ! for snow diag prints
-    INTEGER(i_d), PARAMETER      :: nglacier = 0 ! 0 original, 1 off, 2 new Eva
-!    INTEGER(i_d), PARAMETER      :: nglacier = 2 ! 0 original, 1 off, 2 new Eva
+!    INTEGER(i_d), PARAMETER      :: nglacier = 0 ! 0 original, 1 off, 2 new Eva
+    INTEGER(i_d), PARAMETER      :: nglacier = 2 ! 0 original, 1 off, 2 new Eva
     INTEGER(i_d)                 :: k
     REAL(r_1), DIMENSION(mp)     :: rnof5
     REAL(r_1), DIMENSION(mp)     :: sfact

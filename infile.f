@@ -779,7 +779,7 @@ c     read in all data
                 if(odiag)write(6,*)'ivar(1)(ik*jk)=',ivar(1),ivar(ik*jk)
                 rvar(:)=real(ivar(:))
               case DEFAULT
-                if (myid == 0) print *,"ERROR: Unknown NetCDF format"
+                print *,"ERROR: Unknown NetCDF format"
                 stop
             end select
             !------------------------------------------------------------
@@ -856,7 +856,7 @@ c          read in all data
                call ncvgt(ncid,idv,start,count,ivar,ier)
                rvar(:,:)=real(ivar(:,:))
              case DEFAULT
-               if (myid == 0) print *,"ERROR: Unknown NetCDF format"
+               print *,"ERROR: Unknown NetCDF format"
                stop
            end select
            !------------------------------------------------------------
