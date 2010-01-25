@@ -31,9 +31,11 @@
 /optical_path.f90 -text
 /parmgeom.h -text
 /parmsurf.h -text
+/rad_utilities.f90 -text
 /seaesfrad.f90 -text
 /sealw99.f90 -text
 /soilbal.h -text
 /soilsnin.h -text
+/stacklimit.c -text
 /tkeeps.f90 -text
 /vegpar.h -text
