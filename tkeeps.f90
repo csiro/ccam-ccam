@@ -52,7 +52,7 @@ real, parameter :: cq   = 2.5
 ! physical constants
 real, parameter :: grav = 9.80616
 real, parameter :: lv = 2.5104e6
-real, parameter :: epsl = 0.622
+real, parameter :: epsl = 1./1.61
 real, parameter :: rd = 287.04
 real, parameter :: cp = 1004.64
 real, parameter :: vkar = 0.4
@@ -62,9 +62,9 @@ real, parameter :: a_1   = 1.0
 real, parameter :: b_1   = 2.0/3.0
 real, parameter :: c_1   = 5.0
 real, parameter :: d_1   = 0.35
-real, parameter :: aa1 = 3.8
-real, parameter :: bb1 = 0.5
-real, parameter :: cc1 = 0.3
+!real, parameter :: aa1 = 3.8 ! Luhar low wind
+!real, parameter :: bb1 = 0.5 ! Luhar low wind
+!real, parameter :: cc1 = 0.3 ! Luhar low wind
 
 integer, parameter :: shallmeth = 1 ! 0 = Dry air, 1=Duynkerke, 2=Geleyn
 
@@ -87,7 +87,7 @@ kl=klin
 
 allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
 allocate(tkesav(ifull,kl),epssav(ifull,kl))
-allocate(shear(ifull,kl),ww(ifull,kl))
+allocate(shear(ifull,kl),ww(ifull+iextra,kl))
 allocate(dwdx(ifull,kl),dwdy(ifull,kl))
 
 tke=1.5E-4
@@ -105,7 +105,7 @@ end subroutine tkeinit
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! PBL mixing from TKE
 
-subroutine tkemix(kmo,theta,qg,qlg,qfg,u,v,zi,wt0,wq0,ps,ustar,zz,sig,sigkap,dt,diag)
+subroutine tkemix(kmo,theta,qg,qlg,qfg,u,v,cfrac,zi,wt0,wq0,ps,ustar,zz,sig,sigkap,dt,diag)
 
 implicit none
 
@@ -113,14 +113,14 @@ integer, intent(in) :: diag
 integer k,i,ktop,kbot
 real, intent(in) :: dt
 real, dimension(ifull,kl), intent(inout) :: theta,qg
-real, dimension(ifull,kl), intent(in) :: u,v,zz,qlg,qfg
+real, dimension(ifull,kl), intent(in) :: u,v,zz,qlg,qfg,cfrac
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: wt0,wq0,ps,ustar
 real, dimension(kl), intent(in) :: sigkap,sig
-real, dimension(ifull,kl) :: km,gam,gamhl,ff,gg,thetav,temp
-real, dimension(ifull,kl) :: tkenew,epsnew,qsat
-real, dimension(ifull,2:kl) :: pps,ppb,ppt
+real, dimension(ifull,kl) :: km,gamt,gamthl,ff,gg,thetav,temp,gamq,gamqhl
+real, dimension(ifull,kl) :: tkenew,epsnew,qsat,ppb
+real, dimension(ifull,2:kl) :: pps,ppt
 real, dimension(ifull,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull,2:kl) :: aa,bb,cc,dd
@@ -170,30 +170,90 @@ do k=1,kl
   call getqsat(ifull,qsat(:,k),temp(:,k),ps*sig(k))
 end do
 
+! Calculate buoyancy terms (gamt included later)
+select case(shallmeth)
+
+  case(0) ! Hurley
+    ppb(:,1)=-grav/thetav(:,1)*(thetav(:,2)-thetav(:,1))/dz_hl(:,1)
+    do k=2,kl-1
+      ppb(:,k)=-grav/thetav(:,k)*0.5*(thetav(:,k+1)-thetav(:,k-1))/dz_fl(:,k)
+    end do
+    ppb(:,kl)=-grav/thetav(:,kl)*(thetav(:,kl)-thetav(:,kl-1))/dz_hl(:,kl-1)
+
+  case(1) ! Saturated conditions based on WRF formulation
+    do k=1,kl
+      ff(:,k)=theta(:,k)*(1.+lv*qsat(:,k)/(cp*temp(:,k)))
+      gg(:,k)=(1.+1.61*epsl*lv*qg(:,k)/(rd*temp(:,k))) &
+             /(1.+epsl*lv*lv*qg(:,k)/(cp*1.61*rd*temp(:,k)*temp(:,k)))/theta(:,k)
+    end do
+    where (qg(:,1).lt.qsat(:,1).and.cfrac(:,1).eq.0.)
+      ppb(:,1)=-grav/thetav(:,1)*(thetav(:,2)-thetav(:,1))/dz_hl(:,1) &
+                +grav*(qlg(:,2)+qfg(:,2)-qlg(:,1)-qfg(:,1))/dz_hl(:,1) ! same as nvmix=5
+    elsewhere
+      ppb(:,1)=-grav*gg(:,1)*(ff(:,2)-ff(:,1))/dz_hl(:,1) &
+                +grav*(qg(:,2)+qlg(:,2)+qfg(:,2)-qg(:,1)-qlg(:,1)-qfg(:,1))/dz_hl(:,1)
+    end where
+    do k=2,kl-1
+      where (qg(:,k).lt.qsat(:,k).and.cfrac(:,k).eq.0.)
+        ppb(:,k)=-grav/thetav(:,k)*0.5*(thetav(:,k+1)-thetav(:,k-1))/dz_fl(:,k) &
+                 +grav*0.5*(qlg(:,k+1)+qfg(:,k+1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k) ! same as nvmix=5
+      elsewhere
+        ppb(:,k)=-grav*gg(:,k)*0.5*(ff(:,k+1)-ff(:,k-1))/dz_fl(:,k) &
+                 +grav*0.5*(qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-qg(:,k-1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k)
+      end where
+    end do
+    where (qg(:,kl).lt.qsat(:,kl).and.cfrac(:,kl).eq.0.)
+      ppb(:,kl)=-grav/thetav(:,kl)*(thetav(:,kl)-thetav(:,kl-1))/dz_hl(:,kl-1) &
+                +grav*(qlg(:,kl)+qfg(:,kl)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1) ! same as nvmix=5
+    elsewhere
+      ppb(:,kl)=-grav*gg(:,kl)*(ff(:,kl)-ff(:,kl-1))/dz_hl(:,kl-1) &
+                +grav*(qg(:,kl)+qlg(:,kl)+qfg(:,kl)-qg(:,kl-1)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1)
+    end where
+      
+  !case(2) ! Geleyn
+  !  ktop=2
+  !  do while(sig(ktop+1).gt.0.75)
+  !    ktop=ktop+1
+  !  end do
+  !  kbot=2
+  !  do while(sig(kbot).gt.0.99)
+  !    kbot=kbot+1
+  !  end do
+  !  do k=kbot,ktop
+  !    ppb(:,k)=-grav/theta(:,k)*0.5*(theta(:,k+1)-theta(:,k-1))/dz_fl(:,k) &
+  !             -grav*(lv/cp)*min(0.,0.5*(qg(:,k+1)-qsat(:,k+1)-qg(:,k-1)+qsat(:,k-1))/dz_fl(:,k))
+  !  end do
+
+  case DEFAULT
+    write(6,*) "ERROR: Unsupported shallow convection option"
+    stop
+    
+end select
+
 ! Calculate non-local terms for theta_v
 zi=zz(:,kl)
-gam=0.
+gamt=0.
+gamq=0.
 
 do i=1,ifull
   if (wtv0(i).gt.0.) then ! unstable
     sconv=.false.
-    ee=0.5*(1./zz(i,1)+1./(zi(i)+zz(i,1))) ! dz_hl(:,0)=zz(:,1)
-    tup(1)=thetav(i,1)+wtv0(i)/sqrt(tke(i,1))
-    qup(1)=qg(i,1)+wq0(i)/sqrt(tke(i,1))
+    ee=0.5*(1./zz(i,1)+1./(zi(i)+zz(i,1)))    ! dz_hl(:,0)=zz(:,1)
+    tup(1)=thetav(i,1)+wtv0(i)/sqrt(tke(i,1)) !*0.3 in Soares et al (2004)
+    qup(1)=qg(i,1)+wq0(i)/sqrt(tke(i,1))      !*0.3 in Soares et al (2004)
     w2up(1)=(2.*zz(i,1)*b2*grav*(tup(1)-thetav(i,1))/thetav(i,1))/(1.+zz(i,1)*b1*ee)
     wup=sqrt(max(w2up(1),0.))
     aa(1,2)=ps(i)*sig(1)
-    call getqsat(1,qupsat(1),temp(i,1),aa(1,2))
+    bb(1,2)=tup(1)/((1.+0.61*qup(1))*sigkap(k))
+    call getqsat(1,qupsat(1),bb(1,2),aa(1,2))
     if (qup(1).lt.qupsat(1)) then ! dry convection
       mflx=aup*wup 
-    else                       ! moist convection (boundary condition)
+    else                          ! moist convection (boundary condition)
       sconv=.true.
-      qt2=max(1.E-6,1.6*(tke(i,1)/eps(i,1))*cq*km(i,1)*((qg(i,2)-qg(i,1))/dz_hl(i,1))**2)      
-      acldf=0.5+0.36*atan(1.55*(qg(i,1)-qsat(i,k))/sqrt(qt2))    
-      mflx=acldf*aup*wup
+      mflx=cfrac(i,1)*aup*wup
     end if
-    gam(i,1)=mflx*(tup(1)-thetav(i,1))
-    !wpv_flux(1)=-km(i,1)*(thetav(i,2)-thetav(i,1))/dz_hl(i,1)+gam(i,1)
+    gamt(i,1)=mflx*(tup(1)-thetav(i,1))
+    gamq(i,1)=mflx*(qup(1)-qg(i,1))
     do k=2,kl-1
       ee=0.5*(1./(zz(i,k-1)+dz_hl(i,k-1))+1./(max(zi(i)-zz(i,k-1),0.)+dz_hl(i,k-1)))
       tup(k)=(tup(k-1)*(1.-0.5*dz_hl(i,k-1)*ee)+0.5*dz_hl(i,k-1)*ee*(thetav(i,k)+thetav(i,k-1))) &
@@ -205,24 +265,23 @@ do i=1,ifull
       wup=sqrt(max(w2up(k),0.))
       if (.not.sconv) then
         aa(1,2)=ps(i)*sig(k)
-        call getqsat(1,qupsat(1),temp(i,1),aa(1,2))      
+        bb(1,2)=tup(k)/((1.+0.61*qup(k))*sigkap(k))
+        call getqsat(1,qupsat(1),bb(1,2),aa(1,2))      
         if (qup(k).lt.qupsat(1)) then ! dry convection
           mflx=aup*wup
-        else                       ! moist convection (boundary condition)
+        else                          ! moist convection (boundary condition)
           sconv=.true.
-          qt2=max(1.E-6,1.6*(tke(i,k)/eps(i,k))*cq*km(i,k)*0.25*((qg(i,k+1)-qg(i,k-1))/dz_fl(i,k))**2)        
-          acldf=0.5+0.36*atan(1.55*(qg(i,k)-qsat(i,k))/sqrt(qt2))
-          mflx=acldf*aup*wup
+          mflx=cfrac(i,k)*aup*wup
         end if
       else
-        if (w2up(k).gt.0.) then     ! moist convection
+        if (w2up(k).gt.0.) then       ! moist convection
           mflx=mflx*exp((entr-detr)*dz_hl(i,k-1))
         else
           mflx=0.
         end if
       end if
-      gam(i,k)=mflx*(tup(k)-thetav(i,k))
-      !wpv_flux(k)=-km(i,k)*0.5*(thetav(i,k+1)-thetav(i,k-1))/dz_fl(i,k)+gam(i,k)
+      gamt(i,k)=mflx*(tup(k)-thetav(i,k))
+      gamq(i,k)=mflx*(qup(k)-qg(i,k))
       if (w2up(k).le.0.) then
         xp=w2up(k-1)/(w2up(k-1)-w2up(k))
         xp=min(max(xp,0.),1.)
@@ -231,12 +290,12 @@ do i=1,ifull
       end if
     end do
   else                   ! stable
-    wpv_flux(1)=-km(i,1)*(thetav(i,2)-thetav(i,1))/dz_hl(i,1) !+gam(i,1)
+    wpv_flux(1)=km(i,1)*ppb(i,1)*thetav(i,1)/grav !+gamt(i,1)
     if (wpv_flux(1).lt.0.) then
       zi(i)=zz(i,1)
     else
       do k=2,kl-1
-        wpv_flux(k)=-km(i,k)*0.5*(thetav(i,k+1)-thetav(i,k-1))/dz_fl(i,k) !+gam(i,k)
+        wpv_flux(k)=km(i,k)*ppb(i,k)*thetav(i,k)/grav !+gamt(i,k)
         if (abs(wpv_flux(k)).lt.0.05*abs(wpv_flux(1))) then
           xp=(0.05*abs(wpv_flux(1))-abs(wpv_flux(k-1)))/(abs(wpv_flux(k))-abs(wpv_flux(k-1)))
           xp=min(max(xp,0.),1.)
@@ -254,7 +313,8 @@ do i=1,ifull
   end if
 end do
 
-gam=max(gam,0.)
+gamt=max(gamt,0.)
+gamq=max(gamq,0.)
 
 ! calculate wstar and phim (from TAPM)
 wstar=0.
@@ -265,14 +325,14 @@ z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*ustar*ustar*ustar)
 z_on_l=min(z_on_l,10.)
 where (z_on_l.lt.0.)
   phim=(1.-16.*z_on_l)**(-0.25)
-elsewhere (z_on_l.le.0.4)
+elsewhere !(z_on_l.le.0.4)
   phim=1.+z_on_l*(a_1+b_1*exp(-d_1*z_on_l)*(1.+c_1-d_1*z_on_l)) ! Beljarrs and Holtslag (1991)
-elsewhere
-  phim=aa1*bb1*(z_on_l**bb1)*(1.+cc1/bb1*z_on_l**(1.-bb1)) ! Luhar (2007)
+!elsewhere
+!  phim=aa1*bb1*(z_on_l**bb1)*(1.+cc1/bb1*z_on_l**(1.-bb1)) ! Luhar (2007)
 end where
 
 ! boundary condition
-tke(1:ifull,1)=ustar*ustar/sqrt(cm)+0.5*wstar*wstar
+tke(1:ifull,1)=ustar*ustar/sqrt(cm)+0.45*wstar*wstar
 eps(1:ifull,1)=ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wtv0/thetav(:,1)
 tke(1:ifull,1)=max(tke(1:ifull,1),1.5E-4)
 tke(1:ifull,1)=min(tke(1:ifull,1),65.)
@@ -281,58 +341,13 @@ eps(1:ifull,1)=min(eps(1:ifull,1),aa(:,2))
 aa(:,2)=max(aa(:,2)*5./500.,1.E-6)
 eps(1:ifull,1)=max(eps(1:ifull,1),aa(:,2))
 
-! Calculate buoyancy terms
-select case(shallmeth)
-
-  case(1) ! Saturated conditions based on WRF formulation
-    do k=1,kl
-      ff(:,k)=theta(:,k)*(1.+lv*qsat(:,k)/(cp*temp(:,k)))
-      gg(:,k)=(1.+1.61*epsl*lv*qg(:,k)/(rd*temp(:,k))) &
-             /(1.+epsl*lv*lv*qg(:,k)/(cp*1.61*rd*temp(:,k)*temp(:,k)))/theta(:,k)  
-    end do
-    do k=2,kl-1
-      where (qg(:,k).lt.qsat(:,k))
-        ppb(:,k)=-grav*(0.5*(thetav(:,k+1)-thetav(:,k-1))/dz_fl(:,k)-min(max(gam(:,k)/km(:,k),0.),0.002))/thetav(:,k) &
-                 +grav*0.5*(qlg(:,k+1)+qfg(:,k+1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k)
-      elsewhere
-        ppb(:,k)=-grav*(gg(:,k)*0.5*(ff(:,k+1)-ff(:,k-1))/dz_fl(:,k)-min(max(gam(:,k)/km(:,k),0.),0.002)/thetav(:,k)) &
-                 +grav*0.5*(qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-qg(:,k-1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k)
-      end where
-    end do
-    where (qg(:,kl).lt.qsat(:,kl))
-      ppb(:,kl)=-grav*((thetav(:,kl)-thetav(:,kl-1))/dz_hl(:,kl-1)-min(max(gam(:,kl)/km(:,kl),0.),0.002))/thetav(:,kl) &
-                +grav*(qlg(:,kl)+qfg(:,kl)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1)
-    elsewhere
-      ppb(:,kl)=-grav*(gg(:,kl)*(ff(:,kl)-ff(:,kl-1))/dz_hl(:,kl-1)-min(max(gam(:,kl)/km(:,kl),0.),0.002)/thetav(:,kl)) &
-                +grav*(qg(:,kl)+qlg(:,kl)+qfg(:,kl)-qg(:,kl-1)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1)
-    end where
-      
-  case(2) ! Geleyn
-    ktop=2
-    do while(sig(ktop+1).gt.0.75)
-      ktop=ktop+1
-    end do
-    kbot=2
-    do while(sig(kbot).gt.0.99)
-      kbot=kbot+1
-    end do
-    do k=kbot,ktop
-      ppb(:,k)=-grav*(0.5*(theta(:,k+1)-theta(:,k-1))/(dz_fl(:,k)*theta(:,k))-min(max(gam(:,k)/km(:,k),0.),0.002)/thetav(:,k)) &
-               -grav*(lv/cp)*min(0.,0.5*(qg(:,k+1)-qsat(:,k+1)-qg(:,k-1)+qsat(:,k-1))/dz_fl(:,k))
-    end do
-  
-  case DEFAULT ! Hurley
-    do k=2,kl-1
-      ppb(:,k)=-grav*(0.5*(thetav(:,k+1)-thetav(:,k-1))/dz_fl(:,k)-min(max(gam(:,k)/km(:,k),0.),0.002))/thetav(:,k)
-    end do
-    ppb(:,kl)=-grav*((thetav(:,kl)-thetav(:,kl-1))/dz_hl(:,kl-1)-min(max(gam(:,kl)/km(:,kl),0.),0.002))/thetav(:,kl)
-    
-end select
+! Calculate buoyancy terms (include gamt)
+ppb(:,2:kl)=ppb(:,2:kl)+(grav/thetav(:,2:kl))*min(max(gamt(:,2:kl)/km(:,2:kl),0.),0.002)
 
 ! Calculate shear and transport terms
 do k=2,kl-1
   pps(:,k)=((u(:,k+1)-u(:,k-1))/dz_fl(:,k)+dwdx(:,k))**2+((v(:,k+1)-v(:,k-1))/dz_fl(:,k)+dwdy(:,k))**2 &
-          +(2.*(ww(:,k+1)-ww(:,k-1))/dz_fl(:,k))**2+shear(:,k)/km(:,k)
+          +(2.*(ww(1:ifull,k+1)-ww(1:ifull,k-1))/dz_fl(:,k))**2+shear(:,k)/km(:,k)
   where (wt0.le.0.)
     ppt(:,k)=0.5*((km(:,k+1)+km(:,k))*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k) &
                  -(km(:,k)+km(:,k-1))*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1))/dz_fl(:,k)
@@ -341,7 +356,7 @@ do k=2,kl-1
   end where  
 end do
 pps(:,kl)=((u(:,kl)-u(:,kl-1))/dz_hl(:,kl-1)+dwdx(:,kl))**2+((v(:,kl)-v(:,kl-1))/dz_hl(:,kl-1)+dwdy(:,kl))**2 &
-         +(2.*(ww(:,kl)-ww(:,kl-1))/dz_hl(:,kl-1))**2+shear(:,kl)/km(:,kl)
+         +(2.*(ww(1:ifull,kl)-ww(1:ifull,kl-1))/dz_hl(:,kl-1))**2+shear(:,kl)/km(:,kl)
 where (wt0.le.0.)
   ppt(:,kl)=0.5*(-(km(:,kl)+km(:,kl-1))*(tke(1:ifull,kl)-tke(1:ifull,kl-1))/dz_hl(:,kl-1))/dz_fl(:,kl)
 elsewhere
@@ -356,12 +371,12 @@ do icount=1,icm
   tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-4)
   tkenew(:,2:kl)=min(tkenew(:,2:kl),65.)  
   aa=ce2/tkenew(:,2:kl)
-  cc=-eps(1:ifull,2:kl)/dt-ce1*cm*tkenew(:,2:kl)*(pps+max(ppb,0.)+max(ppt,0.))
+  cc=-eps(1:ifull,2:kl)/dt-ce1*cm*tkenew(:,2:kl)*(pps+max(ppb(:,2:kl),0.)+max(ppt,0.))
   epsnew(:,2:kl)=(-ee+sqrt(max(ee*ee-4.*aa*cc,0.)))/(2.*aa)
   !dd=-tkenew(:,2:kl)+tke(1:ifull,2:kl)+dt*(max(cm*tkenew(:,2:kl)*tkenew(:,2:kl)/epsnew(:,2:kl),1.E-3)*(pps+ppb)-epsnew(:,2:kl)) ! error function
-  dd=-tkenew(:,2:kl)+tke(1:ifull,2:kl)+dt*(km(:,2:kl)*(pps+ppb)-epsnew(:,2:kl)) ! error function
+  dd=-tkenew(:,2:kl)+tke(1:ifull,2:kl)+dt*(km(:,2:kl)*(pps+ppb(:,2:kl))-epsnew(:,2:kl)) ! error function
   ff(:,2:kl)=-1.-dt*(epsnew(:,2:kl)/tkenew(:,2:kl) &
-                 +(cc/tkenew(:,2:kl)+ce1*cm*(pps+max(ppb,0.)+max(ppt,0.)))/sqrt(max(ee*ee-4.*aa*cc,0.)))
+                 +(cc/tkenew(:,2:kl)+ce1*cm*(pps+max(ppb(:,2:kl),0.)+max(ppt,0.)))/sqrt(max(ee*ee-4.*aa*cc,0.)))
   where (abs(ff(:,2:kl)).gt.tol)  
     tkenew(:,2:kl)=tkenew(:,2:kl)-0.7*dd/ff(:,2:kl)
   end where
@@ -429,20 +444,28 @@ eps(1:ifull,2:kl)=epsnew(:,2:kl)
 ! Update diffusion coeffs at half levels
 do k=1,kl-1
   kmo(:,k)=0.5*(km(:,k+1)+km(:,k))
-  gamhl(:,k)=0.5*(gam(:,k)+gam(:,k+1))/kmo(:,k)
+  gamthl(:,k)=0.5*(gamt(:,k+1)/km(:,k+1)+gamt(:,k)/km(:,k))
+  gamqhl(:,k)=0.5*(gamq(:,k+1)/km(:,k+1)+gamq(:,k)/km(:,k))
 end do
 ! These terms are never used
 kmo(:,kl)=2.*kmo(:,kl-1)-kmo(:,kl-2) 
-gamhl(:,kl)=2.*gamhl(:,kl-1)-gamhl(:,kl-2)
+gamthl(:,kl)=2.*gamthl(:,kl-1)-gamthl(:,kl-2)
+gamqhl(:,kl)=2.*gamqhl(:,kl-1)-gamqhl(:,kl-2)
 
-gamhl=min(max(gamhl,0.),0.002)
+gamthl=min(max(gamthl,0.),2.E-3)
+gamqhl=min(max(gamqhl,0.),2.E-5)
 
-! Update thetav due to non-local term (split form)
-thetav(:,1)=thetav(:,1)-dt*(kmo(:,1)*gamhl(:,1))/dz_fl(:,1)
+! Update thetav and qg due to non-local term (split form)
+thetav(:,1)=thetav(:,1)-dt*(kmo(:,1)*gamthl(:,1))/dz_fl(:,1)
+qg(:,1)=qg(:,1)-dt*(kmo(:,1)*gamqhl(:,1))/dz_fl(:,1)
 do k=2,kl-1
-  thetav(:,k)=thetav(:,k)-dt*(kmo(:,k)*gamhl(:,k)-kmo(:,k-1)*gamhl(:,k-1))/dz_fl(:,k)
+  thetav(:,k)=thetav(:,k)-dt*(kmo(:,k)*gamthl(:,k)-kmo(:,k-1)*gamthl(:,k-1))/dz_fl(:,k)
+  qg(:,k)=qg(:,k)-dt*(kmo(:,k)*gamqhl(:,k)-kmo(:,k-1)*gamqhl(:,k-1))/dz_fl(:,k)
 end do
-thetav(:,kl)=thetav(:,kl)-dt*(-kmo(:,kl-1)*gamhl(:,kl-1))/dz_fl(:,kl)
+thetav(:,kl)=thetav(:,kl)-dt*(-kmo(:,kl-1)*gamthl(:,kl-1))/dz_fl(:,kl)
+qg(:,kl)=qg(:,kl)-dt*(-kmo(:,kl-1)*gamqhl(:,kl-1))/dz_fl(:,kl)
+
+qg=max(qg,1.E-6)
 
 theta=thetav/(1.+0.61*qg)
 

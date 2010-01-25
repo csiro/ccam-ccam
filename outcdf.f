@@ -85,7 +85,7 @@ c       itype=-1 restfile
 c       Turn off the data filling
         imode = ncsfil(idnc,ncnofill,ier)
         print *,'imode=',imode
-c       Create dimensions, lon, lat
+c       Create dimensions, lon, runtopo.shlat
         if(local)then
            xdim = ncddef(idnc, 'longitude', il, ier)
            ydim = ncddef(idnc, 'latitude', jl, ier)
@@ -534,12 +534,12 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         call attrib(idnc,idim,3,'taux',lname,'N/m2',-50.,50.,0)
         lname = 'y-component wind stress'
         call attrib(idnc,idim,3,'tauy',lname,'N/m2',-50.,50.,0)
-        !lname = 'Soil moisture as frac FC levels 1-2' ! MJT delete
-        !call attrib(idnc,idim,3,'wbfshal',lname,'frac',0.,4.,0)
-        !lname = 'Soil moisture as frac FC levels 3-4'
-        !call attrib(idnc,idim,3,'wbfroot',lname,'frac',0.,4.,0)
-        !lname = 'Soil moisture as frac FC levels 1-6'
-        !call attrib(idnc,idim,3,'wbftot',lname,'frac',0.,4.,0)
+        lname = 'Soil moisture as frac FC levels 1-2'
+        call attrib(idnc,idim,3,'wbfshal',lname,'frac',0.,4.,0)
+        lname = 'Soil moisture as frac FC levels 3-4'
+        call attrib(idnc,idim,3,'wbfroot',lname,'frac',0.,4.,0)
+        lname = 'Soil moisture as frac FC levels 1-6'
+        call attrib(idnc,idim,3,'wbftot',lname,'frac',0.,4.,0)
         if(nextout>=1) then
           print *,'nextout=',nextout
           lname = 'LW at TOA'
@@ -1072,20 +1072,20 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         call histwrt3(csoil(:,1),'csoil1',idnc,iarch,local)
         call histwrt3(csoil(:,2),'csoil2',idnc,iarch,local)
       endif    
-    !  do iq=1,ifull ! MJT delete
-!   !   calculate wb/field_capacity;  up to 3.0 for sand (isoil=1)	   
-    !   isoil=isoilm(iq)
-    !   aa(iq)=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2))/
-    ! .	       ((zse(1)+zse(2))*sfc(isoil))
-    !   bb(iq)=(zse(3)*wb(iq,3)+zse(4)*wb(iq,4))/
-    ! .	       ((zse(3)+zse(4))*sfc(isoil))
-    !   cc(iq)=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)+
-    ! .         zse(4)*wb(iq,4)+zse(5)*wb(iq,5)+zse(6)*wb(iq,6))/
-    ! .	       ((zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6))*sfc(isoil))
-    !  enddo
-    !  call histwrt3(aa,'wbfshal',idnc,iarch,local)
-    !  call histwrt3(bb,'wbfroot',idnc,iarch,local)
-    !  call histwrt3(cc,'wbftot',idnc,iarch,local)
+      do iq=1,ifull
+!      calculate wb/field_capacity;  up to 3.0 for sand (isoil=1)	   
+       isoil=isoilm(iq)
+       aa(iq)=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2))/
+     .	       ((zse(1)+zse(2))*sfc(isoil))
+       bb(iq)=(zse(3)*wb(iq,3)+zse(4)*wb(iq,4))/
+     .	       ((zse(3)+zse(4))*sfc(isoil))
+       cc(iq)=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)+
+     .         zse(4)*wb(iq,4)+zse(5)*wb(iq,5)+zse(6)*wb(iq,6))/
+     .	       ((zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6))*sfc(isoil))
+      enddo
+      call histwrt3(aa,'wbfshal',idnc,iarch,local)
+      call histwrt3(bb,'wbfroot',idnc,iarch,local)
+      call histwrt3(cc,'wbftot',idnc,iarch,local)
       call histwrt3(sicedep,'siced',idnc,iarch,local)
       call histwrt3(fracice,'fracice',idnc,iarch,local)
 c     call histwrt3(snowd,'snd',idnc,iarch,local)

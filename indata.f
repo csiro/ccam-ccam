@@ -343,7 +343,7 @@ c           endif  ! (nspecial>100)
      &           qlg(1:ifull,:),tggsn,smass,ssdn,ssdnn,snage,isflag)
          endif   ! (io_in==-1)
          if( mydiag )then
-           print *,'timegb,ds,zss',timegb,ds,zss(idjd)
+           print *,'ds,zss',ds,zss(idjd) ! MJT bug fix
            print *,'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
            print *,'kdate_s,ktime_s >= ',kdate_s,ktime_s
            print *,'kdate,ktime ',kdate,ktime
@@ -1991,6 +1991,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         mlodwn(:,1,1)=tss(:) ! Always use tss for top ocean layer
                              ! This has no effect in a climate mode and
                              ! ensures SST track analyses in a NWP mode
+        mlodwn(:,:,1)=max(271.3,mlodwn(:,:,1)) ! ocean temp - not net temp
         call mloload(ifull,mlodwn,0)
         deallocate(mlodwn,ocndwn)
       end if

@@ -309,7 +309,7 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
      &     +dvdx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf))**2)
 
          ! omega=ps*dpsldt
-         ww(:,k)=(dpsldt(:,k)/sig(k)-dpsdt/(860.*ps(1:ifull)))
+         ww(1:ifull,k)=(dpsldt(:,k)/sig(k)-dpsdt/(860.*ps(1:ifull)))
      &           *(-rdry/grav)*t(1:ifull,k)
      &           *(1.+0.61*qg(1:ifull,k))
 

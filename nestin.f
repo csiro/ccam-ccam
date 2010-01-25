@@ -158,7 +158,7 @@
         print *,' kdate ',kdate,' ktime ',ktime
         print *,'timeg,mtimer,mtimea,mtimeb: ',
      &           timeg,mtimer,mtimea,mtimeb
-        print *,'ds,ds_r ',ds,ds_r
+        print *,'ds ',ds
       end if
 
 !     ensure qb big enough, but not too big in top levels (from Sept '04)
@@ -384,7 +384,7 @@
          print *,' kdate ',kdate,' ktime ',ktime
          print *,'timeg,mtimer,mtimeb: ',
      &            timeg,mtimer,mtimeb ! MJT CHANGE - delete mtimea
-         print *,'ds,ds_r ',ds,ds_r
+         print *,'ds ',ds ! MJT bug fix
        end if
 
 !      ensure qb big enough, but not too big in top levels (from Sept '04)
@@ -522,11 +522,11 @@
             ! nudge mlo
             if (nud_uv.ne.9) then
               if (myid == 0) print *,"MLO 1D spectral filter"
-              ! replace nud_sst with mbd once horz transport is implemented
+              ! replace nud_sst with mbd once horz trasport is implemented
               call mlofilterfast(tssb,nud_sst) 
             else
               if (myid == 0) print *,"MLO 2D spectral filter"
-              ! replace nud_sst with mbd once horz transport is implemented
+              ! replace nud_sst with mbd once horz trasport is implemented
               call mlofilter(tssb,nud_sst)
             end if
           end if
@@ -2428,7 +2428,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       diff=miss
       where (.not.land)
-        diff(:)=new-old
+        diff(:)=max(271.3,new)-max(271.3,old)
       end where
 
       if (myid.eq.0) then
@@ -2470,7 +2470,8 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       where (.not.land)
         old=old+alpha*diff(:)
-      end where  
+      end where
+      old=max(271.3,old)  
       
       call mloimport(ifull,old,ilev,0)
 
@@ -2527,7 +2528,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       diff=miss
       where (.not.land)
-        diff(:)=new-old
+        diff(:)=max(271.3,new)-max(271.3,old)
       end where
 
       if (myid.eq.0) then
@@ -2546,7 +2547,8 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       where (.not.land)
         old=old+alpha*diff(:)
-      end where  
+      end where
+      old=max(271.3,old)  
       
       call mloimport(ifull,old,ilev,0)
 
@@ -2854,7 +2856,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       wgt=dt/real(nud_hrs*3600)
       where (.not.land)
-        old=old*(1.-wgt)+new*wgt
+        old=max(271.3,old)*(1.-wgt)+max(271.3,new)*wgt
       end where
       
       call mloimport(ifull,old,ilev,0)

@@ -15,6 +15,7 @@
 !                      v+ve northwards (on the panel)
       use cc_mpi
       use diag_m
+      use seaesfrad_m ! MJT radiation
 !     rml 21/02/06 removed redundant tracer code (so2/o2 etc)
 !     rml 16/02/06 use tracermodule, timeseries
       use tracermodule, only :init_tracer,trfiles,tracer_mass,unit_trout
@@ -127,7 +128,7 @@
       integer, dimension(13), parameter :: mdays =
      &     (/31,28,31,30,31,30,31,31,30,31,30,31, 31/)
       logical odcalc
-      character comm*60,comment*60,rundate*8,header*47,text*2
+      character comm*60,comment*60,rundate*10,header*47,text*2 ! MJT bug fix
       character(len=10) :: timeval
       integer, dimension(8) :: tvals1, tvals2
 
@@ -180,7 +181,8 @@
      &    surfile,tmaxfile,tminfile,topofile,trcfil,vegfile,zofile,
      &    smoistfile,soil2file,radonemfile,
      &    co2_00,radon_00,surf_00,co2_12,radon_12,surf_12,
-     &    laifile,albnirfile,urbanfile,bathfile,vegprev,vegnext ! MJT sib ! MJT urban ! MJT mlo ! MJT cable
+     &    laifile,albnirfile,urbanfile,bathfile,vegprev,vegnext,
+     &    cnsdir ! MJT sib ! MJT urban ! MJT mlo ! MJT cable ! MJT radiation
       namelist/kuonml/alflnd,alfsea
      &        ,cldh_lnd,cldm_lnd,cldl_lnd
      &        ,cldh_sea,cldm_sea,cldl_sea
@@ -201,7 +203,7 @@
 
       ! Check that declarations in include files match
       call check_dims()
-      
+
       call setstacklimit(-1)
 
 #ifndef scyld
@@ -331,7 +333,7 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
       print *,' nrad  ndiur mins_rad kountr iaero  dt'
       write (6,'(i5,4i7,f10.2)') nrad,ndiur,mins_rad,kountr,iaero,dt
 !     for 6-hourly output of sint_ave etc, want 6*60 = N*mins_rad      
-      if(nrad==4.and.mod(6*60,mins_rad).ne.0)
+      if((nrad==4.or.nrad==5).and.mod(6*60,mins_rad).ne.0) ! MJT radiation
      &                              stop 'prefer 6*60 = N*mins_rad '
       print *,'Diagnostic cloud options:'
       print *,'  ldr nclddia nstab_cld nrhcrit sigcll '
@@ -435,7 +437,7 @@ c     set up cc geometry
 !     open input file for radiative data.
 !     replaces block data bdata in new Fels-Schwarzkopf radiation code.
 !     All processes read these
-      if(nrad==4)then
+      if(nrad==4.or.nrad==5)then ! MJT radiation
         if (myid==0) then                                     ! MJT read
           print *,'Radiative data read from file ',radfile    ! MJT read
           open(16,file=o3file,form='formatted',status='old')  ! MJT read
@@ -872,7 +874,7 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
       call adjust5
       call start_log(nestin_begin)
       if(mspec==1.and.nbd.ne.0)call davies  ! nesting now after mass fixers
-      if(mspec==1.and.mbd.ne.0)call nestinb ! MJT bugfix
+      if(mspec==1.and.mbd.ne.0)call nestinb
       call end_log(nestin_end)
 
       if(mspec==2)then     ! for very first step restore mass & T fields
@@ -912,7 +914,7 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
       call start_log(phys_begin)
       call start_log(gwdrag_begin)
       if(ngwd<0)call gwdrag  ! <0 for split - only one now allowed
-      call end_log(gwdrag_end)      
+      call end_log(gwdrag_end)
 
       call start_log(convection_begin)
       if(nkuo==23)call convjlm     ! split convjlm 
@@ -938,7 +940,7 @@ c       print*,'Calling prognostic cloud scheme'
           write (6,"('qlrad',3p9f8.3/5x,9f8.3)") qlrad(idjd,:)
           write (6,"('qf   ',3p9f8.3/5x,9f8.3)") qfg(idjd,:)
         endif
-	call end_log(cloud_end)
+        call end_log(cloud_end)
       endif  ! (ldr.ne.0)
       rnd_3hr(:,8)=rnd_3hr(:,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
 
@@ -968,12 +970,25 @@ c         call maxmin(tgg,'tg',ktau,1.,ms)
              call maxmin(rtt,'rt',ktau,1.e4,kl)
              call maxmin(slwa,'sl',ktau,.1,1)
           end if
+        else if (nrad==5) then                        ! MJT radiation
+          ! GFDL SEA-EFS radiation                    ! MJT radiation
+          odcalc=mod(ktau,kountr)==0 .or. ktau==1     ! MJT radiation
+          nnrad=kountr                                ! MJT radiation
+          if(nhstest<0)then                           ! MJT radiation
+           mtimer_sav=mtimer                          ! MJT radiation
+           mtimer=mins_gmt                            ! MJT radiation
+          endif                                       ! MJT radiation
+          call seaesfrad(odcalc,iaero)                ! MJT radiation
+          if(nhstest<0)then                           ! MJT radiation
+            mtimer=mtimer_sav                         ! MJT radiation
+          endif                                       ! MJT radiation
+          t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:) ! MJT radiation
         else
 !         use preset slwa array (use +ve nrad)
           slwa(:)=-10*nrad  
 !         N.B. no rtt array for this nrad option
         endif  !  (nrad==4)
-        call end_log(radiation_end)	
+        call end_log(radiation_end)
 
         egg(:)=0.   ! reset for fort.60 files
         fgg(:)=0.   ! reset for fort.60 files
@@ -1089,7 +1104,7 @@ c         write (6,"('div(nlx+)',9f8.2)") (div(k),k=nlx,nlx+8)
          endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
         endif   ! (ntsur>1)
         if(ntsur>=1)then ! calls vertmix but not sflux for ntsur=1
-	  call start_log(vertmix_begin)
+          call start_log(vertmix_begin)
           if(nmaxpr==1.and.mydiag)
      &      write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
           call vertmix 
@@ -1289,7 +1304,7 @@ c     if(nmaxpr==1)print *,'before 2nd loadbal ktau,myid = ',ktau,myid
         epot_ave(:)  =  epot_ave(:)/min(ntau,nperavg)
         eg_ave(:)    =    eg_ave(:)/min(ntau,nperavg)
         fg_ave(:)    =    fg_ave(:)/min(ntau,nperavg)
-	rnet_ave     =  rnet_ave(:)/min(ntau,nperavg)
+        rnet_ave(:)  =  rnet_ave(:)/min(ntau,nperavg)
         ga_ave(:)    =    ga_ave(:)/min(ntau,nperavg)
         riwp_ave(:)  =  riwp_ave(:)/min(ntau,nperavg)
         rlwp_ave(:)  =  rlwp_ave(:)/min(ntau,nperavg)
@@ -1366,7 +1381,7 @@ c     if(nmaxpr==1)print *,'before 2nd loadbal ktau,myid = ',ktau,myid
            precavge = gtemparray(1)
            evapavge  = gtemparray(2)
            pwatr    = gtemparray(3)
-           print 985,pwatr,preccavge,precavge,evapavge
+           print 985,pwatr,precavge,evapavge ! MJT bug fix
         end if
 985     format(' average pwatr,precc,prec,evap: ',4f7.3)
 !       also zero most averaged fields every nperavg
@@ -1377,7 +1392,7 @@ c     if(nmaxpr==1)print *,'before 2nd loadbal ktau,myid = ',ktau,myid
         epot_ave(:)=0.
         eg_ave(:)=0.
         fg_ave(:)=0.
-	rnet_ave(:)=0.
+        rnet_ave(:)=0.
         riwp_ave(:)=0.
         rlwp_ave(:)=0.
         qscrn_ave(:) = 0.
@@ -1647,10 +1662,10 @@ c     endif
      &     kdate_s/-1/,ktime_s/-1/,leap/0/,
      &     mbd/0/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/,           
      &     nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/,
-     &     ktopdav/kl/ ! MJT nestin
+     &     ktopdav/kl/,nud_sst/0/ ! MJT nestin ! MJT mlo
       
 !     Dynamics options A & B      
-      data m/5/,mex/30/,mfix/1/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/,npex/0/
+      data m/5/,mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/,npex/0/
       data nritch_t/300/,nrot/1/,nxmap/0/,
      &     epsp/-15./,epsu/0./,epsf/0./,precon/-2900/,restol/4.e-7/
       data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/,nrunx/0/
@@ -1664,16 +1679,16 @@ c     data nstag/99/,nstagu/99/
 !     Horizontal mixing options
       data khdif/2/,khor/-8/,nhor/-157/,nhorps/-1/,nhorjlm/1/
 !     Vertical mixing options
-      data nvmix/5/,nlocal/6/,nvsplit/2/,ncvmix/0/,lgwd/0/,ngwd/-5/
+      data nvmix/3/,nlocal/6/,nvsplit/2/,ncvmix/0/,lgwd/0/,ngwd/-5/
 !     Cumulus convection options
-      data nkuo/23/,sigcb/1./,sig_ct/.8/,rhcv/0./,rhmois/.1/,rhsat/1./,
+      data nkuo/23/,sigcb/1./,sig_ct/1./,rhcv/0./,rhmois/.1/,rhsat/1./,
      &     convfact/1.02/,convtime/.33/,shaltime/0./,      
      &     alflnd/1.1/,alfsea/1.1/,fldown/.6/,iterconv/3/,ncvcloud/0/,
      &     nevapcc/0/,nevapls/-4/,nuvconv/0/
      &     mbase/101/,mdelay/-1/,methprec/8/,nbase/-4/,detrain/.15/,
      &     entrain/.05/,methdetr/2/,detrainx/0./,dsig2/.15/,dsig4/.4/
 !     Shallow convection options
-      data ksc/0/,kscsea/0/,kscmom/1/,sigkscb/.95/,sigksct/.8/,
+      data ksc/-95/,kscsea/0/,kscmom/1/,sigkscb/.95/,sigksct/.8/,
      &     tied_con/2./,tied_over/0./,tied_rh/.75/
 !     Other moist physics options
       data acon/.2/,bcon/.07/,qgmin/1.e-6/,rcm/.92e-5/,
@@ -1685,16 +1700,16 @@ c     data nstag/99/,nstagu/99/
       data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./  ! not used for ldr
       data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./  ! not used for ldr
 !     Soil, canopy, PBL options
-      data nbarewet/0/,newrough/2/,nglacier/1/,
+      data nbarewet/0/,newrough/0/,nglacier/1/,
      &     nrungcm/-1/,nsib/3/,nsigmf/1/,
      &     ntaft/2/,ntsea/6/,ntsur/6/,av_vmod/.7/,tss_sh/1./,
      &     vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
-      data newsoilm/0/,newztsea/1/,newtop/0/,nem/2/                    
+      data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
+      data nurban/0/,nmr/0/,nmlo/0/ ! MJT urban ! MJT nmr ! MJT mlo
 !     Special and test options
       data namip/0/,amipo3/.false./,nhstest/0/,nsemble/0/,nspecial/0/,
      &     panfg/4./,panzo/.001/,nplens/0/
-      data nurban/0/,nmr/0/,nmlo/0/,nud_sst/0/ ! MJT urban ! MJT nmr ! MJT mlo
 !     I/O options
       data m_fly/4/,io_in/1/,io_out/1/,io_rest/1/
       data nperavg/-99/,nwt/-99/
@@ -1716,7 +1731,7 @@ c     initialize file names to something
      &    ,eigenv/' '/,radfile/' '/,o3file/' '/,hfile/' '/,mesonest/' '/
      &          ,scrnfile/' '/,tmaxfile/' '/,tminfile/' '/,trcfil/' '/
      &    ,laifile/' '/,albnirfile/' '/,urbanfile/' '/,bathfile/' '/
-     7    ,vegprev/' '/,vegnext/' '/ ! MJT sib ! MJT urban ! MJT mlo ! MJT cable
+     &    ,vegprev/' '/,vegnext/' '/,cnsdir/' '/ ! MJT sib ! MJT urban ! MJT mlo ! MJT cable ! MJT radiation
       data climcdf/'clim.cdf'/
       data monfil/'monthly.cdf'/,scrfcdf/'scrave.cdf'/
 c     floating point:
@@ -2254,6 +2269,14 @@ c     &	         rh_s(:)
       common/parmhdff/nhor,nhorps,hdiff(kl),khor,khdif,hdifmax,nhorjlm
       integer nversion,nbarewet,nsigmf
       common/nsib/nbarewet,nsigmf
+      if(nversion<907)then
+        mfix=1         ! new is 3
+        newrough=2     ! new is 0
+        newtop=0       ! new is 1
+        nvmix=5        ! new is 3
+        ksc=0          ! new is -95
+        sig_ct=.8      ! new is 1.
+      endif
       if(nversion<904)then
         newtop=1       ! new is 0
         nvmix=3        ! new is 5

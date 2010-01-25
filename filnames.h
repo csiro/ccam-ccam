@@ -9,7 +9,8 @@
      &          ,ifile,ofile,nmifile,so4tfile                            &
      &          ,eigenv,radfile,o3file,hfile,mesonest                    &
      &          ,scrnfile,tmaxfile,tminfile,trcfil                       &
-     &          ,laifile,albnirfile,urbanfile,bathfile,vegprev,vegnext ! MJT sib,urban,cable
+     &          ,laifile,albnirfile,urbanfile,bathfile,vegprev,vegnext   &
+     &          ,cnsdir ! MJT sib,urban,cable,radiation
       character*80 albfile,icefile,maskfile                              &
      &          ,snowfile,sstfile,topofile,zofile                        &
      &          ,rsmfile,scamfile,soilfile,vegfile                       &
@@ -20,4 +21,5 @@
      &          ,ifile,ofile,nmifile,so4tfile                            &
      &          ,eigenv,radfile,o3file,hfile,mesonest                    &
      &          ,scrnfile,tmaxfile,tminfile,trcfil                       &
-     &          ,laifile,albnirfile,urbanfile,bathfile,vegprev,vegnext ! MJT sib,urban,cable
+     &          ,laifile,albnirfile,urbanfile,bathfile,vegprev,vegnext   &
+     &          ,cnsdir ! MJT sib,urban,cable,radiation

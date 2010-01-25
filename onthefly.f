@@ -189,7 +189,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       if (nurban.ne.0.and.nested.eq.0) then
         allocate(atebotf(ifull,13),atebdwn(ik*ik*6,13))
       end if
-      !--------------------------------------------------------------
+      !--------------------------------------------------------------      
    
       nemi=3   !  MJT lsmask
       if(m_fly==1)then
@@ -373,6 +373,7 @@ c            call ccmpi_gather(qg(:,k))
        ! MJT lsmask
        if(nemi==3)then 
          land_a(:)=isoilm_a(:).gt.0
+         numneg=count(.not.land_a)
          if (any(isoilm_a(:).lt.0)) nemi=2
        end if
        !-------------------------------------------

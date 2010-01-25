@@ -3,10 +3,6 @@ module cable_ccam
   ! CABLE interface originally developed by the CABLE group
   ! Subsequently modified by MJT for mosaic
 
-  ! Things to do:
-  !   - interpolate LAI in time (i.e., AMIP stype)
-  !   - calculate diffuse and direct components of radiation
-
   ! ivegt   type
   ! 1       Evergreen Needleleaf Forest
   ! 2       Evergreen Broadleaf Forest
@@ -63,6 +59,7 @@ module cable_ccam
   contains
   ! ****************************************************************************
 
+  ! CABLE-CCAM interface
   subroutine sib4
 
       use zenith_m
@@ -120,6 +117,7 @@ module cable_ccam
       integer ndoy(12)   ! days from beginning of year (1st Jan is 0)
       data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
 
+      ! Set soil moisture to presets when nrungcm.ne.0
       if (ktau==1.and.nrungcm.ne.0) then
         do k=1,ms ! use preset for wb
           ssoil%wb(:,k)=wb(cmap,k)
@@ -128,6 +126,7 @@ module cable_ccam
         ssoil%owetfac = ssoil%wetfac        
       end if
 
+      ! Reset averages
       if (ktau==1.or.ktau-1==ntau.or.mod(ktau-1,nperavg)==0) then
         theta_ave=0.
         wb1_ave=0.
@@ -188,19 +187,22 @@ module cable_ccam
        rough%za_tq=-287.*t(cmap,1)*log(sig(1))/grav   ! reference height
        rough%za_uv=rough%za_tq
 
+       ! swrsave indicates the fraction of VIS radiation (compared to NIR)
+       ! fbeamvis indicates the fraction of direct radiation (compared to diffuse) for VIS
+       ! fbeamnir indicates the fraction of direct radiation (compared to diffuse) for NIR
        met%fsd(:,3)=sgsave(cmap)/(1.-swrsave(cmap)*albvisnir(cmap,1) &
                    -(1.-swrsave(cmap))*albvisnir(cmap,2)) ! short wave down (positive) W/m^2
        met%fsd(:,1)=swrsave(cmap)*met%fsd(:,3)
        met%fsd(:,2)=(1.-swrsave(cmap))*met%fsd(:,3)
-       rad%fbeam(:,3)=spitterx(met%doy,met%coszen,met%fsd(:,3)) ! check
-       rad%fbeam(:,1)=rad%fbeam(:,3)
-       rad%fbeam(:,2)=rad%fbeam(:,3)
+       rad%fbeam(:,1)=fbeamvis(cmap)
+       rad%fbeam(:,2)=fbeamnir(cmap)
+       rad%fbeam(:,3)=swrsave(cmap)*fbeamvis(cmap)+(1.-swrsave(cmap))*fbeamnir(cmap)
        met%fld=-rgsave(cmap)        ! long wave down
-
+       
        monthstart=1440*(jday-1) + 60*jhour + jmin ! mins from start of month
        x=min(max(real(mtimer+monthstart)/real(1440.*imonth(jmonth)),0.),1.)
-       veg%vlai(:)=vl1+vl2*x+vl3*x*x
-       veg%vlai(:)=max(veg%vlai(:),0.1) ! for updating LAI
+       veg%vlai(:)=vl1+vl2*x+vl3*x*x ! LAI as a function of time
+       veg%vlai(:)=max(veg%vlai(:),0.1)
        where (soil%isoilm.eq.9.or.veg%iveg.eq.15.or.veg%iveg.eq.16)
          veg%vlai=0.001
        endwhere
@@ -246,6 +248,10 @@ module cable_ccam
       albsoilsn(iperm(1:ipland),:)=0.
       albsav(iperm(1:ipland))=0.
       albnirsav(iperm(1:ipland))=0.
+      albvisdir(iperm(1:ipland))=0.
+      albvisdif(iperm(1:ipland))=0.
+      albnirdir(iperm(1:ipland))=0.
+      albnirdir(iperm(1:ipland))=0.
       runoff(iperm(1:ipland))=0.
       rnof1(iperm(1:ipland))=0.
       rnof2(iperm(1:ipland))=0.
@@ -317,6 +323,14 @@ module cable_ccam
                                             +sv(pind(nb,1):pind(nb,2))*rad%albedo(pind(nb,1):pind(nb,2),1)
           albnirsav(cmap(pind(nb,1):pind(nb,2)))=albnirsav(cmap(pind(nb,1):pind(nb,2))) &
                                             +sv(pind(nb,1):pind(nb,2))*rad%albedo(pind(nb,1):pind(nb,2),2)
+          albvisdir(cmap(pind(nb,1):pind(nb,2)))=albvisdir(cmap(pind(nb,1):pind(nb,2))) &
+                                            +sv(pind(nb,1):pind(nb,2))*rad%reffbm(pind(nb,1):pind(nb,2),1)
+          albnirdir(cmap(pind(nb,1):pind(nb,2)))=albnirdir(cmap(pind(nb,1):pind(nb,2))) &
+                                            +sv(pind(nb,1):pind(nb,2))*rad%reffbm(pind(nb,1):pind(nb,2),2)
+          albvisdif(cmap(pind(nb,1):pind(nb,2)))=albvisdif(cmap(pind(nb,1):pind(nb,2))) &
+                                            +sv(pind(nb,1):pind(nb,2))*rad%reffdf(pind(nb,1):pind(nb,2),1)
+          albnirdif(cmap(pind(nb,1):pind(nb,2)))=albnirdif(cmap(pind(nb,1):pind(nb,2))) &
+                                            +sv(pind(nb,1):pind(nb,2))*rad%reffdf(pind(nb,1):pind(nb,2),2)                                                                                        
           runoff(cmap(pind(nb,1):pind(nb,2)))=runoff(cmap(pind(nb,1):pind(nb,2))) &
                                             +sv(pind(nb,1):pind(nb,2))*ssoil%runoff(pind(nb,1):pind(nb,2))
           rnof1(cmap(pind(nb,1):pind(nb,2)))=rnof1(cmap(pind(nb,1):pind(nb,2))) &
@@ -730,7 +744,7 @@ module cable_ccam
   mp=0
   do iq=1,ifull
     if (land(iq)) then
-      mp=mp+count(svs(iq,:).gt.0.001)
+      mp=mp+count(svs(iq,:).gt.0.)
     end if
   end do
   
@@ -802,12 +816,12 @@ module cable_ccam
           vl2(ipos)=0.
           vl3(ipos)=0.
         end if
-	if (veg%iveg(ipos).eq.15.or.veg%iveg(ipos).eq.16) then
-	  vl1(ipos)=0.001
-	  vl2(ipos)=0.
-	  vl3(ipos)=0.
-	end if
-	veg%vlai(ipos)=vl1(ipos)
+        if (veg%iveg(ipos).eq.15.or.veg%iveg(ipos).eq.16) then
+          vl1(ipos)=0.001
+          vl2(ipos)=0.
+          vl3(ipos)=0.
+        end if
+        veg%vlai(ipos)=vl1(ipos)
       end if
     end do
     pind(n,2)=ipos
@@ -890,7 +904,11 @@ module cable_ccam
   bgc%ratecp(:) = ratecp(:)
   bgc%ratecs(:) = ratecs(:)
   
-  sigmf=(1.-exp(-extkn(ivegt(:))*vlai(:)))
+  where (land)
+    sigmf=(1.-exp(-extkn(ivegt(:))*vlai(:)))
+  elsewhere
+    sigmf=0.
+  end where
 
   ! store bare soil albedo and define snow free albedo
   albsoilsn(:,:)=0.08
@@ -920,6 +938,11 @@ module cable_ccam
     albvisnir(:,1)=albsoilsn(:,1)
     albvisnir(:,2)=albsoilsn(:,2)
   end where
+  
+  albvisdir=albvisnir(:,1) ! To be updated by CABLE
+  albvisdif=albvisnir(:,1) ! To be updated by CABLE
+  albnirdir=albvisnir(:,2) ! To be updated by CABLE
+  albnirdif=albvisnir(:,2) ! To be updated by CABLE
 
   soil%albsoil=albsoil(cmap)
   ssoil%albsoilsn(:,1)=albsoilsn(cmap,1) ! overwritten by CABLE
@@ -1035,18 +1058,16 @@ module cable_ccam
   include 'netcdf.inc'
   include 'mpif.h'
   include 'carbpools.h'
+  include 'soil.h'
   include 'soilsnow.h'
   include 'vegpar.h'    
   
-  integer k,n,ierr,ierr2,idv ! removed iarchi ! MJT tracerfix
+  integer k,n,ierr,ierr2,idv
   real, dimension(ifull) :: dat
   character*9 vname
   real sigin  
   integer ik,jk,kk
   common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug  
-
-  ! removed iarchi ! MJT tracerfix
-  write(6,*) "Start loadtile ",myid,io_in
 
   if (io_in.eq.1) then
     if (myid.eq.0) idv = ncvid(ncid,"tgg1_1",ierr)
@@ -1077,7 +1098,7 @@ module cable_ccam
     enddo
     do k=1,ncs
       bgc%csoil(:,k) = csoil(cmap,k)
-    enddo  
+    enddo
   else
     if (myid==0) write(6,*) "Use tiled data to initialise CABLE"
     do n=1,5
@@ -1129,6 +1150,14 @@ module cable_ccam
         if (pind(n,1).le.mp) bgc%csoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
       enddo
     end do
+    vname='albvisdir'
+    call histrd1(ncid,iarchi-1,ierr,vname,ik,jk,albvisdir,ifull)
+    vname='albvisdif'
+    call histrd1(ncid,iarchi-1,ierr,vname,ik,jk,albvisdif,ifull)
+    vname='albnirdir'
+    call histrd1(ncid,iarchi-1,ierr,vname,ik,jk,albnirdir,ifull)
+    vname='albnirdif'
+    call histrd1(ncid,iarchi-1,ierr,vname,ik,jk,albnirdif,ifull)
   end if
   
   return
@@ -1143,6 +1172,7 @@ module cable_ccam
 
   include 'newmpar.h'
   include 'carbpools.h'
+  include 'soil.h'
   include 'soilsnow.h'
   include 'vegpar.h'
   
@@ -1215,7 +1245,19 @@ module cable_ccam
       write(lname,'("Carbon soil slow pool tile ",I1.1)') n
       write(vname,'("csoil2_",I1.1)') n
       call attrib(idnc,idim,3,vname,lname,'none',0.,50000.,0)
-    end do      
+    end do
+    lname='DIR VIS albedo'
+    vname='albvisdir'
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.,0)
+    lname='DIF VIS albedo'
+    vname='albvisdif'
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.,0)
+    lname='DIR NIR albedo'
+    vname='albnirdir'
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.,0)
+    lname='DIF NIR albedo'
+    vname='albnirdif'
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.,0)
     call ncendf(idnc,ierr)
   end if
   do n=1,5
@@ -1241,99 +1283,62 @@ module cable_ccam
     end do
     do k=1,3
       dat=tggsn(:,k)
-      if (pind(n,1).le.mp) then  
-        dat(cmap(pind(n,1):pind(n,2)))=ssoil%tggsn(pind(n,1):pind(n,2),k)
-      end if
+      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%tggsn(pind(n,1):pind(n,2),k)
       write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local)
       dat=smass(:,k)
-      if (pind(n,1).le.mp) then  
-        dat(cmap(pind(n,1):pind(n,2)))=ssoil%smass(pind(n,1):pind(n,2),k)
-      end if
+      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%smass(pind(n,1):pind(n,2),k)
       write(vname,'("smass",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local)
       dat=ssdn(:,k)
-      if (pind(n,1).le.mp) then  
-        dat(cmap(pind(n,1):pind(n,2)))=ssoil%ssdn(pind(n,1):pind(n,2),k)
-      end if
+      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%ssdn(pind(n,1):pind(n,2),k)
       write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local)
     end do
     dat=real(isflag)
-    if (pind(n,1).le.mp) then  
-      dat(cmap(pind(n,1):pind(n,2)))=real(ssoil%isflag(pind(n,1):pind(n,2)))
-    end if
+    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=real(ssoil%isflag(pind(n,1):pind(n,2)))
     write(vname,'("sflag_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local)
     dat=snowd
-    if (pind(n,1).le.mp) then  
-      dat(cmap(pind(n,1):pind(n,2)))=ssoil%snowd(pind(n,1):pind(n,2))
-    end if
+    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%snowd(pind(n,1):pind(n,2))
     write(vname,'("snd_",I1.1)') n
     call histwrt3l(dat,vname,idnc,iarch,local)  ! long write    
     dat=snage
-    if (pind(n,1).le.mp) then  
-      dat(cmap(pind(n,1):pind(n,2)))=ssoil%snage(pind(n,1):pind(n,2))
-    end if
+    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%snage(pind(n,1):pind(n,2))
     write(vname,'("snage_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local)
     dat=rtsoil
-    if (pind(n,1).le.mp) then  
-      dat(cmap(pind(n,1):pind(n,2)))=ssoil%rtsoil(pind(n,1):pind(n,2))
-    end if
+    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%rtsoil(pind(n,1):pind(n,2))
     write(vname,'("rtsoil_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local)   
     dat=cansto
-    if (pind(n,1).le.mp) then  
-      dat(cmap(pind(n,1):pind(n,2)))=canopy%cansto(pind(n,1):pind(n,2))
-    end if
+    if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=canopy%cansto(pind(n,1):pind(n,2))
     write(vname,'("cansto_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local)
     do k=1,ncp
       dat=cplant(:,k)
-      if (pind(n,1).le.mp) then  
-        dat(cmap(pind(n,1):pind(n,2)))=bgc%cplant(pind(n,1):pind(n,2),k)
-      end if
+      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=bgc%cplant(pind(n,1):pind(n,2),k)
       write(vname,'("cplant",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local)    
     end do
     do k=1,ncs
       dat=csoil(:,k)
-      if (pind(n,1).le.mp) then  
-        dat(cmap(pind(n,1):pind(n,2)))=bgc%csoil(pind(n,1):pind(n,2),k)
-      end if
+      if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=bgc%csoil(pind(n,1):pind(n,2),k)
       write(vname,'("csoil",I1.1,"_",I1.1)') k,n
       call histwrt3(dat,vname,idnc,iarch,local)
     end do
   end do
+  vname='albvisdir'
+  call histwrt3(albvisdir,vname,idnc,iarch,local)
+  vname='albvisdif'
+  call histwrt3(albvisdif,vname,idnc,iarch,local)
+  vname='albnirdir'
+  call histwrt3(albnirdir,vname,idnc,iarch,local)
+  vname='albnirdif'
+  call histwrt3(albnirdif,vname,idnc,iarch,local)
   
   return
   end subroutine savetile 
-
-  ! from CABLE code 1.4
-  FUNCTION spitterx(doy, coszen, fsd) RESULT(fbeam)
-    ! Calculate beam fraction
-    ! See spitters et al. 1986, agric. for meteorol., 38:217-229
-    REAL, DIMENSION(mp), INTENT(IN) :: doy	! day of year
-    REAL, DIMENSION(mp), INTENT(IN) :: coszen ! cos(zenith angle of sun)
-    REAL, DIMENSION(mp), INTENT(IN) :: fsd	! short wave down (positive) w/m^2
-    REAL, DIMENSION(mp) :: fbeam	! beam fraction (result)
-    REAL, PARAMETER :: solcon = 1370.0
-    REAL, DIMENSION(mp) :: tmpr !
-    REAL, DIMENSION(mp) :: tmpk !
-    REAL, DIMENSION(mp) :: tmprat !
-    fbeam = 0.0
-    tmpr = 0.847 + coszen * (1.04 * coszen - 1.61)
-    tmpk = (1.47 - tmpr) / 1.66
-    WHERE (coszen > 1.0e-10 .AND. fsd > 10.0)
-       tmprat = fsd / (solcon * (1.0 + 0.033 * COS(two_pi * (doy-10.0) / 365.0)) * coszen)
-    ELSEWHERE
-       tmprat = 0.0
-    END WHERE
-    WHERE (tmprat > 0.22) fbeam = 6.4 * (tmprat - 0.22) ** 2
-    WHERE (tmprat > 0.35) fbeam = MIN(1.66 * tmprat - 0.4728, 1.0)
-    WHERE (tmprat > tmpk) fbeam = MAX(1.0 - tmpr, 0.0)
-  END FUNCTION spitterx
 
 end module cable_ccam
 
