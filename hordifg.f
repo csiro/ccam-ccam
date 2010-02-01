@@ -2,7 +2,7 @@
 !     usual scheme
       use cc_mpi
       use diag_m
-      use tkeeps, only : shear,ww,dwdx,dwdy ! MJT tke
+      use tkeeps, only : tke,eps,shear,ww,dwdx,dwdy ! MJT tke
       implicit none
 !      integer, parameter :: nhorjlm=1 ! 1 for jlm 3D deformation rather than Smagorinsky
 c     called from globpe (now not tendencies),
@@ -199,7 +199,7 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
             enddo               !  iq loop
          enddo
 
-      else
+      elseif(nhorjlm==0)then ! MJT smag
 
        !-------------------------------------------------------------
        ! MJT smag
@@ -278,6 +278,15 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
 !!!        t_kh(iq)= sqrt(cc)*hdif/em(iq)  ! this one without em in D terms
 !!!       enddo   !  iq loop
 !!!c      ee now finished with (not used till now in globpea)
+       elseif(nhorjlm==3)then                                     ! MJT tke
+         do k=1,kl                                                ! MJT tke
+           hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1          ! MJT tke
+           t_kh(1:ifull,k)= tke(1:ifull,k)*tke(1:ifull,k)
+     &     /eps(i:ifull,k)*hdif/em(1:ifull)                       ! MJT tke
+         end do                                                   ! MJT tke
+       else                                                   ! MJT smag
+         write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm  ! MJT smag
+         stop                                                 ! MJT smag
        endif    !  (nhorjlm.eq.1)
 
       call bounds(t_kh)

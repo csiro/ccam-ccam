@@ -14,12 +14,19 @@ use esfsw_parameters_mod, only:  Solar_spect,esfsw_parameters_init
 private
 public seaesfrad
 
+real, parameter :: cp=1004.64 ! Specific heat of dry air at const P
+real, parameter :: grav=9.80616 ! Acceleration of gravity
+real, parameter :: stefbo=5.67e-8 !Stefan-Boltzmann constant
 real, parameter :: rdry     = 287.04
 real, parameter :: rhow     = 1000.
 real, parameter :: pi       = 3.1415927
-real, parameter :: csolar   = 1.96
+real, parameter :: csolar   = 1365 ! W/m^2
 real, parameter :: siglow   =.68
 real, parameter :: sigmid   =.44
+real, parameter :: ratco2mw =1.519449738
+!real, parameter :: h1m3     =1.0e-3 
+real, parameter :: cong     = cp/grav
+
 
 logical, parameter :: do_totcld_forcing = .true.
 logical, parameter :: calculate_volcanic_sw_heating = .false.
@@ -47,7 +54,6 @@ include 'parm.h'
 include 'newmpar.h'
 integer, parameter :: imax=il*nrows_rad
 include 'arrays.h'
-include 'const_phys.h'
 include 'cparams.h'
 include 'dates.h'
 include 'extraout.h'
@@ -68,17 +74,17 @@ integer jyear,jmonth,jday,jhour,jmin
 integer k,ksigtop,mstart,mins
 integer i,j,iq,istart,iend,kr
 integer, save :: nlow,nmid
-real, dimension(ifull) :: qsat
-real, dimension(ifull) :: sgamp
-real, dimension(imax) :: coszro2,taudar2,coszro,taudar
+real, dimension(ifull), save :: sgamp
+real, dimension(imax) :: qsat,coszro2,taudar2,coszro,taudar
 real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn
 real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr,sga
-real, dimension(imax,kl) :: hswsav,hlwsav
+real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
+real, dimension(ifull,kl), save :: hswsav,hlwsav
 real, dimension(imax,kl) :: duo3n
-real, dimension(imax,1) :: cuvrf,cirrf,cuvrf_dif,cirrf_dif
+real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
 real, dimension(imax,kl) :: p2,cd2
 real, dimension(kl+1) :: sigh
-real, dimension(kl+1,2) :: pref
+real(kind=8), dimension(kl+1,2) :: pref
 real dduo3n,ddo3n2,ddo3n3,ddo3n4
 real rtt,qccon,qlrad,qfrad,cfrac
 real r1,dlt,alp,slag
@@ -88,28 +94,25 @@ real dnsnow,snrat,dtau,alvo,aliro,fage,cczen,fzen,fzenm
 real alvd,alv,alird,alir
 real rrvco2,ssolar,rrco2
 real f1,f2
-real, parameter :: ratco2mw =1.519449738
-real, parameter :: h1m3     =1.0e-3 
-real, parameter :: cong     = cp/grav
 logical maxover,newcld
 logical, save :: first = .true.
 
-type(time_type)                       Rad_time
-type(atmos_input_type)                Atmos_input
-type(surface_type)                    Surface     
-type(astronomy_type)                  Astro
-type(aerosol_type)                    Aerosol
-type(aerosol_properties_type)         Aerosol_props
-type(radiative_gases_type)            Rad_gases
-type(cldrad_properties_type)          Cldrad_props
-type(cld_specification_type)          Cld_spec
-type(microphysics_type)               Cloud_microphysics
-type(microrad_properties_type)        Lscrad_props
-type(lw_output_type), dimension(1) :: Lw_output
-type(sw_output_type), dimension(1) :: Sw_output
-type(aerosol_diagnostics_type)        Aerosol_diags
-type(lw_table_type)                   Lw_tables
-real, dimension(:,:,:,:), allocatable  ::   r
+type(time_type), save ::                    Rad_time
+type(atmos_input_type), save ::             Atmos_input
+type(surface_type), save ::                 Surface     
+type(astronomy_type), save ::               Astro
+type(aerosol_type), save ::                 Aerosol
+type(aerosol_properties_type), save ::      Aerosol_props
+type(radiative_gases_type), save ::         Rad_gases
+type(cldrad_properties_type), save ::       Cldrad_props
+type(cld_specification_type), save ::       Cld_spec
+type(microphysics_type), save ::            Cloud_microphysics
+type(microrad_properties_type), save ::     Lscrad_props
+type(lw_output_type), dimension(1), save :: Lw_output
+type(sw_output_type), dimension(1), save :: Sw_output
+type(aerosol_diagnostics_type), save ::     Aerosol_diags
+type(lw_table_type), save ::                Lw_tables
+real(kind=8), dimension(:,:,:,:), allocatable  ::   r
 
 common/cfrac/cfrac(ifull,kl)
 common/work3d/rtt(ifull,kl) ! just to pass between radriv90 & globpe
@@ -237,7 +240,7 @@ if ( first ) then
   allocate (Lscrad_props%cldext(imax, 1, kl, Solar_spect%nbands) )
   allocate (Lscrad_props%cldsct(imax, 1, kl, Solar_spect%nbands) )
   allocate (Lscrad_props%cldasymm(imax, 1, kl, Solar_spect%nbands) )
-  allocate (Lscrad_props%abscoeff(imax, 1, kl, Solar_spect%nbands) )
+  allocate (Lscrad_props%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb) )
 
   allocate ( Cld_spec%camtsw (imax, 1, kl ) )
   allocate ( Cld_spec%cmxolw (imax, 1, kl ) )
@@ -350,7 +353,7 @@ do j=1,jl,imax/il
     ! calculations
     dhr = kountr*dt/3600.0
     call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),rlongg(istart:iend),dhr,imax,coszro,taudar)
-
+    
     ! Set up ozone for this time and row
     if (amipo3) then
       call o3set_amip ( rlatt(istart:iend), imax, mins,sigh, ps(istart:iend), Rad_gases%qo3(:,1,:) )
@@ -368,18 +371,18 @@ do j=1,jl,imax/il
     if (nsib.eq.CABLE.or.nsib.eq.6) then
       ! CABLE version
       where (land(istart:iend))
-        cuvrf(1:imax,1) = albvisdir(istart:iend)        ! from cable (inc snow)
-        cirrf(1:imax,1) = albnirdir(istart:iend)        ! from cable (inc snow)
-        cuvrf_dif(1:imax,1) = albvisdif(istart:iend)    ! from cable (inc snow)
-        cirrf_dif(1:imax,1) = albnirdif(istart:iend)    ! from cable (inc snow)
+        cuvrf_dir(1:imax) = albvisdir(istart:iend)    ! from cable (inc snow)
+        cirrf_dir(1:imax) = albnirdir(istart:iend)    ! from cable (inc snow)
+        cuvrf_dif(1:imax) = albvisdif(istart:iend)    ! from cable (inc snow)
+        cirrf_dif(1:imax) = albnirdif(istart:iend)    ! from cable (inc snow)
       end where
     else
       ! nsib=3 version (calculate snow)
       where (land(istart:iend))
-        cuvrf(1:imax,1) = albsav(istart:iend)    ! from albfile (indata.f)
-        cirrf(1:imax,1) = albnirsav(istart:iend) ! from albnirfile (indata.f)
-        cuvrf_dif(1:imax,1) = cuvrf(1:imax,1)    ! assume DIR and DIF are the same
-        cirrf_dif(1:imax,1) = cirrf(1:imax,1)    ! assume DIR and DIF are the same
+        cuvrf_dir(1:imax) = albsav(istart:iend)    ! from albfile (indata.f)
+        cirrf_dir(1:imax) = albnirsav(istart:iend) ! from albnirfile (indata.f)
+        cuvrf_dif(1:imax) = cuvrf_dir(1:imax)      ! assume DIR and DIF are the same
+        cirrf_dif(1:imax) = cirrf_dir(1:imax)      ! assume DIR and DIF are the same
       end where
       ! The following snow calculation show be done by sib3 (sflux.f)
       do i=1,imax
@@ -418,10 +421,10 @@ do j=1,jl,imax/il
             alv = .4 * fzenm * (1.-alvd) + alvd
             alird = aliro*(1.-.5*fage)
             alir = .4 * fzenm * (1.0-alird) + alird
-            cuvrf(i,1)=(1.-snrat)*cuvrf(i,1) + snrat*alv
-            cirrf(i,1)=(1.-snrat)*cirrf(i,1) + snrat*alir
-            cuvrf_dif(i,1)=cuvrf(i,1) ! assume DIR and DIF are the same
-            cirrf_dif(i,1)=cirrf(i,1) ! assume DIR and DIF are the same
+            cuvrf_dir(i)=(1.-snrat)*cuvrf_dir(i) + snrat*alv
+            cirrf_dir(i)=(1.-snrat)*cirrf_dir(i) + snrat*alir
+            cuvrf_dif(i)=cuvrf_dir(i) ! assume DIR and DIF are the same
+            cirrf_dif(i)=cirrf_dir(i) ! assume DIR and DIF are the same
           end if
         end if
       end do
@@ -431,30 +434,30 @@ do j=1,jl,imax/il
     ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
     ! J. Clim. and Appl. Met., v. 27, 214-226)     ! 
     where (.not.land(istart:iend).and.coszro(1:imax).ge.0.)
-      cuvrf(1:imax,1) = 0.026/(coszro(1:imax)**1.7+0.065)                  &
+      cuvrf_dir(1:imax) = 0.026/(coszro(1:imax)**1.7+0.065)                  &
                      +0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
     else where (.not.land(istart:iend))
-      cuvrf(1:imax,1) = 0.4075 ! coszen=0 value of above expression
+      cuvrf_dir(1:imax) = 0.4075 ! coszen=0 value of above expression
     endwhere
     where (.not.land(istart:iend))
-      cuvrf_dif(1:imax,1) = 0.06
-      cirrf(1:imax,1) = cuvrf(1:imax,1)
-      cirrf_dif(1:imax,1) = 0.06
+      cuvrf_dif(1:imax) = 0.06
+      cirrf_dir(1:imax) = cuvrf_dir(1:imax)
+      cirrf_dif(1:imax) = 0.06
     end where
     
     ! sea ice albedo ------------------------------------------------
     where (fracice(istart:iend).gt.0.)
-      cuvrf(1:imax,1)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf(1:imax,1)
-      cuvrf_dif(1:imax,1)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dif(1:imax,1)
-      cirrf(1:imax,1)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf(1:imax,1)
-      cirrf_dif(1:imax,1)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax,1)
+      cuvrf_dir(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dir(1:imax)
+      cuvrf_dif(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dif(1:imax)
+      cirrf_dir(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
+      cirrf_dif(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
     end where
 
     ! Urban albedo --------------------------------------------------
-    call atebalb1(istart,imax,cuvrf(1:imax,1),0)
-    call atebalb1(istart,imax,cirrf(1:imax,1),0)
-    call atebalb1(istart,imax,cuvrf_dif(1:imax,1),0)
-    call atebalb1(istart,imax,cirrf_dif(1:imax,1),0)    
+    call atebalb1(istart,imax,cuvrf_dir(1:imax),0)
+    call atebalb1(istart,imax,cirrf_dir(1:imax),0)
+    call atebalb1(istart,imax,cuvrf_dif(1:imax),0)
+    call atebalb1(istart,imax,cirrf_dif(1:imax),0)    
 
     ! Aerosols -------------------------------------------------------
     select case (iaero)
@@ -465,13 +468,13 @@ do j=1,jl,imax/il
         !do i=1,imax
         !  iq=i+(j-1)*il
         !  cosz = max ( coszro(i), 1.e-4)
-        !  delta =  coszro(i)*beta_ave*alpha*so4t(iq)*((1.-0.5*(cuvrf(i,1)+cirrf(i,1)))/cosz)**2
-        !  cuvrf(i,1)=min(0.99, delta+cuvrf(i,1)) ! surface albedo
-        !  cirrf(i,1)=min(0.99, delta+cirrf(i,1)) ! still broadband
-        !  cuvrf_dif(i,1)=min(0.99, delta+cuvrf(i,1)) ! fix this
-        !  cirrf_dif(i,1)=min(0.99, delta+cirrf(i,1)) ! fix this
+        !  delta =  coszro(i)*beta_ave*alpha*so4t(iq)*((1.-0.5*(cuvrf_dir(i)+cirrf_dir(i)))/cosz)**2
+        !  cuvrf_dir(i)=min(0.99, delta+cuvrf_dir(i)) ! surface albedo
+        !  cirrf_dir(i)=min(0.99, delta+cirrf_dir(i)) ! still broadband
+        !  cuvrf_dif(i)=min(0.99, delta+cuvrf_dir(i)) ! fix this
+        !  cirrf_dif(i)=min(0.99, delta+cirrf_dir(i)) ! fix this
         !end do ! i=1,imax
-        write(6,*) "ERROR: prescribed aerosols are not supported"
+        write(6,*) "ERROR: prescribed aerosols are not supported with nrad=5"
         stop        
       case(2)
         ! prognostic aerosols
@@ -518,12 +521,12 @@ do j=1,jl,imax/il
       Atmos_input%deltaz(:,1,kr) =(-dsig(k)/sig(k))*rdry*t(istart:iend,k)/grav
       Atmos_input%rh2o(:,1,kr)   =max(qg(istart:iend,k) ,1.e-7)
       Atmos_input%temp(:,1,kr)   =t(istart:iend,k)      
-      Atmos_input%press(:,1,kr)  =ps(istart:iend)*sig(k)*10.
-      call getqsat(ifull,qsat,t(1:ifull,k),ps(1:ifull)*sig(k))
-      Atmos_input%rel_hum(:,1,kr)=(qg(1:ifull,k)/qsat)*100.
+      Atmos_input%press(:,1,kr)  =ps(istart:iend)*sig(k)
+      call getqsat(imax,qsat,t(istart:iend,k),ps(istart:iend)*sig(k))
+      Atmos_input%rel_hum(:,1,kr)=min(qg(istart:iend,k)/qsat,1.)
     end do
     Atmos_input%temp(:,1,kl+1) =tss(istart:iend)
-    Atmos_input%press(:,1,kl+1)=ps(istart:iend)*10.
+    Atmos_input%press(:,1,kl+1)=ps(istart:iend)
     Atmos_input%pflux(:,1,1  )  = 0.
     Atmos_input%tflux(:,1,1  )  = Atmos_input%temp (:,1,1  )
     do k=2,kl
@@ -546,11 +549,11 @@ do j=1,jl,imax/il
     Atmos_input%psfc(:,1)    =ps(istart:iend)
     Atmos_input%tsfc(:,1)    =tss(istart:iend)
     do k=1,kl+1
-      kr = kl+2-k
-      Atmos_input%phalf(:,1,kr)=ps(istart:iend)*sigh(k)*10.
+      kr=kl+2-k
+      Atmos_input%phalf(:,1,kr)=ps(istart:iend)*sigh(k)
     end do
     
-    Rad_gases%rrvco2=rrco2
+    Rad_gases%rrvco2=rrvco2
     Rad_gases%rrvch4=0.
     Rad_gases%rrvn2o=0.
     !Rad_gases%rrvf11  = rrvf11
@@ -564,27 +567,27 @@ do j=1,jl,imax/il
     !Cld_spec%ncldsw=0
     !Cld_spec%nrndlw=0
     !Cld_spec%nmxolw=0
-    do iq=1,imax
-      i=iq+istart-1
+    do i=1,imax
+      iq=i+istart-1
       newcld=.true.
       do k=1,kl
         kr=kl+1-k
-        if (cfrac(i,k).gt.0.) then
-          Cld_spec%camtsw(iq,1,kr)=cfrac(i,k) ! Max+Rnd overlap clouds for SW
+        if (cfrac(iq,k).gt.0.) then
+          Cld_spec%camtsw(i,1,kr)=cfrac(iq,k) ! Max+Rnd overlap clouds for SW
           !Cld_spec%ncldsw=Cld_spec%ncldsw+1
           maxover=.false.
           if (k.gt.1) then
-            if (cfrac(i,k-1).gt.0.) maxover=.true.
+            if (cfrac(iq,k-1).gt.0.) maxover=.true.
           end if
           if (k.lt.kl) then
-            if (cfrac(i,k+1).gt.0.) maxover=.true.
+            if (cfrac(iq,k+1).gt.0.) maxover=.true.
           end if
           if (maxover) then
-            Cld_spec%cmxolw(iq,1,kr)=cfrac(i,k) ! Max overlap for LW
+            Cld_spec%cmxolw(i,1,kr)=cfrac(iq,k) ! Max overlap for LW
             !if (newcld) Cld_spec%nmxolw=Cld_spec%nmxolw+1
             newcld=.false.
           else
-            Cld_spec%crndlw(iq,1,kr)=cfrac(i,k) ! Rnd overlap for LW
+            Cld_spec%crndlw(i,1,kr)=cfrac(iq,k) ! Rnd overlap for LW
             !Cld_spec%nrndlw=Cld_spec%nrndlw+1
           end if
         else
@@ -594,7 +597,7 @@ do j=1,jl,imax/il
     end do
 
     do k=1,kl
-      p2(:,k)=0.01*ps(istart:iend)*sig(k) !
+      p2(:,k)=ps(istart:iend)*sig(k) !
     end do
     call cloud3(Cloud_microphysics%size_drop,Cloud_microphysics%size_ice, &
                 Cloud_microphysics%conc_drop,Cloud_microphysics%conc_ice, &
@@ -614,16 +617,16 @@ do j=1,jl,imax/il
     Cldrad_props%cldext(:,:,:,:,1)  =Lscrad_props%cldext(:,:,:,:)   ! Large scale cloud properties only
     Cldrad_props%cldasymm(:,:,:,:,1)=Lscrad_props%cldasymm(:,:,:,:) ! Large scale cloud properties only
     Cldrad_props%abscoeff(:,:,:,:,1)=Lscrad_props%abscoeff(:,:,:,:) ! Large scale cloud properties only
-
+    
     call lwemiss_calc (Atmos_input%clouddeltaz,Cldrad_props%abscoeff,Cldrad_props%cldemiss)
     Cldrad_props%emmxolw = Cldrad_props%cldemiss
     Cldrad_props%emrndlw = Cldrad_props%cldemiss
     
     Surface%asfc(:,1)=0.5*(albsav(istart:iend)+albnirsav(istart:iend))
-    Surface%asfc_vis_dir(:,1)=cuvrf(:,1)
-    Surface%asfc_nir_dir(:,1)=cirrf(:,1)
-    Surface%asfc_vis_dif(:,1)=cuvrf_dif(:,1)
-    Surface%asfc_nir_dif(:,1)=cirrf_dif(:,1)
+    Surface%asfc_vis_dir(:,1)=cuvrf_dir(:)
+    Surface%asfc_nir_dir(:,1)=cirrf_dir(:)
+    Surface%asfc_vis_dif(:,1)=cuvrf_dif(:)
+    Surface%asfc_nir_dif(:,1)=cirrf_dif(:)
     where (land(istart:iend))
       Surface%land(1:imax,1)=1.
     else where
@@ -637,29 +640,34 @@ do j=1,jl,imax/il
                           Rad_gases, Aerosol, Aerosol_props,   &
                           Cldrad_props, Cld_spec, Aerosol_diags, &
                           Lw_output)
+
     call shortwave_driver (1, imax, 1, 1, Atmos_input, Surface,  &
                            Astro, Aerosol, Aerosol_props, Rad_gases, &
                            Cldrad_props, Cld_spec, Sw_output,   &
                            Aerosol_diags, r)
 
-    sg  =Sw_output(1)%dfsw_dir_sfc(:,1) + Sw_output(1)%dfsw_dif_sfc(:,1) - Sw_output(1)%ufsw_dif_sfc(:,1)
-    where (sg(1:imax).ne.0.)
-      swrsave(istart:iend)=Sw_output(1)%dfsw_dir_sfc(:,1)/sg
-      fbeamvis(istart:iend)=Sw_output(1)%dfsw_vis_sfc_dir(:,1) / &
-                           (Sw_output(1)%dfsw_vis_sfc_dir(:,1) + Sw_output(1)%dfsw_vis_sfc_dif(:,1))
-      fbeamnir(istart:iend)=(Sw_output(1)%dfsw_dir_sfc(:,1)-Sw_output(1)%dfsw_vis_sfc_dir(:,1)) / &
-                            (Sw_output(1)%dfsw_dir_sfc(:,1)-Sw_output(1)%dfsw_vis_sfc_dir(:,1) + &
-                             Sw_output(1)%dfsw_dif_sfc(:,1)-Sw_output(1)%dfsw_vis_sfc_dif(:,1))
-    else where
-      swrsave(istart:iend)=0.5
-      fbeamvis(istart:iend)=0.
-      fbeamnir(istart:iend)=0.
-    end where
-
-    ! Store albedo and fbeam data -----------------------------------
-    albvisnir(istart:iend,1)=cuvrf(1:imax,1)*fbeamvis(istart:iend)+cuvrf_dif(1:imax,1)*(1.-fbeamvis(istart:iend))
-    albvisnir(istart:iend,2)=cirrf(1:imax,1)*fbeamnir(istart:iend)+cirrf_dif(1:imax,1)*(1.-fbeamnir(istart:iend))
-
+    ! store shortwave and fbeam data --------------------------------
+    sg=Sw_output(1)%dfsw(:,1,kl+1)-Sw_output(1)%ufsw(:,1,kl+1)
+    sgvis=Sw_output(1)%dfsw_vis_sfc(:,1)-Sw_output(1)%ufsw_vis_sfc(:,1)
+    !sgvisdir=Sw_output(1)%dfsw_vis_sfc_dir(:,1)
+    !sgvisdif=Sw_output(1)%dfsw_vis_sfc_dif(:,1)-Sw_output(1)%ufsw_vis_sfc_dif(:,1)
+    !sgnirdir=Sw_output(1)%dfsw_dir_sfc(:,1)-sgvisdir
+    !sgnirdif=Sw_output(1)%dfsw_dif_sfc(:,1)-Sw_output(1)%ufsw_dif_sfc(:,1)-sgvisdif
+    !sgdir=Sw_output(1)%dfsw_dir_sfc(:,1)
+    !sgdif=Sw_output(1)%dfsw_dif_sfc(:,1)-Sw_output(1)%ufsw_dif_sfc(:,1)
+    sgdnvisdir=Sw_output(1)%dfsw_vis_sfc_dir(:,1)
+    sgdnvisdif=Sw_output(1)%dfsw_vis_sfc_dif(:,1)
+    sgdnnirdir=Sw_output(1)%dfsw_dir_sfc(:,1)-sgdnvisdir
+    sgdnnirdif=Sw_output(1)%dfsw_dif_sfc(:,1)-sgdnvisdif
+    
+    swrsave(istart:iend)=sgvis/max(sg,0.1)
+    fbeamvis(istart:iend)=sgdnvisdir/max(sgdnvisdir+sgdnvisdif,0.1)
+    fbeamnir(istart:iend)=sgdnnirdir/max(sgdnnirdir+sgdnnirdif,0.1)
+    
+    ! Store albedo data ---------------------------------------------
+    albvisnir(istart:iend,1)=cuvrf_dir(1:imax)*fbeamvis(istart:iend)+cuvrf_dif(1:imax)*(1.-fbeamvis(istart:iend))
+    albvisnir(istart:iend,2)=cirrf_dir(1:imax)*fbeamnir(istart:iend)+cirrf_dif(1:imax)*(1.-fbeamnir(istart:iend))
+    
     ! longwave output -----------------------------------------------
     rg(1:imax) = Lw_output(1)%flxnet(:,1,kl+1)          ! longwave at surface
     rt(1:imax) = Lw_output(1)%flxnet(:,1,1)             ! longwave at top
@@ -667,12 +675,11 @@ do j=1,jl,imax/il
     rgdn(1:imax) = stefbo*tss(istart:iend)**4 - rg(1:imax)
 
     ! shortwave output ----------------------------------------------
-    sint(1:imax) = Sw_output(1)%dfsw(:,1,1)*h1m3   ! solar in top
-    sout(1:imax) = Sw_output(1)%ufsw(:,1,1)*h1m3   ! solar out top
-    sg(1:imax)   = sg(1:imax)*h1m3       ! solar absorbed at the surface
+    sint(1:imax) = Sw_output(1)%dfsw(:,1,1)   ! solar in top
+    sout(1:imax) = Sw_output(1)%ufsw(:,1,1)   ! solar out top
     sgdn(1:imax) = sg(1:imax) / ( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
                   -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) ) ! MJT albedo
- 
+
     ! Clear sky calculation -----------------------------------------
     if (do_totcld_forcing) then
       soutclr(1:imax) = Sw_output(1)%ufswcf(:,1,1)      ! solar out top
@@ -688,11 +695,9 @@ do j=1,jl,imax/il
 
     ! heating rate --------------------------------------------------
     do k=1,kl
-      ! total heating rate
-      ! note : htk now in Watts/M**2 (no pressure at level weighting)
-      ! Convert from cgs to SI units
-      hswsav(:,kl+1-k) = 0.001*Sw_output(1)%hsw(:,1,k)
-      hlwsav(:,kl+1-k) = 0.001*Lw_output(1)%heatra(:,1,k)
+      ! total heating rate (convert deg K/day to deg K/sec)
+      hswsav(istart:iend,kl+1-k) = Sw_output(1)%hsw(:,1,k)/86400.
+      hlwsav(istart:iend,kl+1-k) = Lw_output(1)%heatra(:,1,k)/86400.
     end do
 
     ! Calculate the amplitude of the diurnal cycle of solar radiation
@@ -725,7 +730,7 @@ do j=1,jl,imax/il
     ! over the end of the first index
     if(ktau>1)then ! averages not added at time zero
       if(j==1)koundiag=koundiag+1  
-      sint_ave(istart:iend) = sint_ave(iq) + sint(i)
+      sint_ave(istart:iend) = sint_ave(istart:iend) + sint(1:imax)
       sot_ave(istart:iend)  = sot_ave(istart:iend)  + sout(1:imax)
       soc_ave(istart:iend)  = soc_ave(istart:iend)  + soutclr(1:imax)
       rtu_ave(istart:iend)  = rtu_ave(istart:iend)  + rt(1:imax)
@@ -739,7 +744,7 @@ do j=1,jl,imax/il
       clm_ave(istart:iend)  = clm_ave(istart:iend)  + cloudmi(istart:iend)
       clh_ave(istart:iend)  = clh_ave(istart:iend)  + cloudhi(istart:iend)
     endif   ! (ktau>1)
-      
+
   end if  ! odcalc
       
   ! Calculate the solar using the saved amplitude.
@@ -755,14 +760,10 @@ do j=1,jl,imax/il
   slwa(istart:iend) = -sg(1:imax)+rgsave(istart:iend)
   sgsave(istart:iend) = sg(1:imax)   ! this is the repeat after solarfit 26/7/02
 
-  ! Calculate rtt, the net radiational cooling of atmosphere (K/s) from htk (in
-  ! W/m^2 for the layer). Note that dsig is negative which does the conversion
-  ! to a cooling rate.
-  do k=1,kl
-    rtt(istart:iend,k) = (hswsav(:,k)+hlwsav(:,k))/(cong*ps(istart:iend)*dsig(k))
-  end do
-
 end do  ! Row loop (j)  j=1,jl,imax/il
+
+! Calculate rtt, the net radiational cooling of atmosphere (K/s)
+rtt = -(hswsav+hlwsav)
 
 return
 end subroutine seaesfrad
@@ -897,7 +898,7 @@ type(cldrad_properties_type),    intent(in)    :: Cldrad_props
 type(cld_specification_type),    intent(in)    :: Cld_spec
 type(sw_output_type), dimension(:), intent(inout) :: Sw_output
 type(aerosol_diagnostics_type), intent(inout)  :: Aerosol_diags
-real, dimension(:,:,:,:),        intent(inout) :: r
+real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
 
 !--------------------------------------------------------------------
 !  intent(in) variables:
@@ -981,8 +982,6 @@ real, dimension(:,:,:,:),        intent(inout) :: r
       Sw_output(1)%dfsw_vis_sfc_dir = 0.
       Sw_output(1)%dfsw_vis_sfc_dif = 0.
       Sw_output(1)%ufsw_vis_sfc_dif = 0.
-      !Sw_output(1)%swdn_special  (:,:,:) = 0.0
-      !Sw_output(1)%swup_special  (:,:,:) = 0.0
       Sw_output(1)%bdy_flx(:,:,:) = 0.0       
 
 !---------------------------------------------------------------------
@@ -996,8 +995,6 @@ real, dimension(:,:,:,:),        intent(inout) :: r
         Sw_output(1)%hswcf (:,:,:) = 0.0
         Sw_output(1)%dfsw_dir_sfc_clr = 0.0
         Sw_output(1)%dfsw_dif_sfc_clr  = 0.0
-        !Sw_output(1)%swdn_special_clr  (:,:,:) = 0.0
-        !Sw_output(1)%swup_special_clr  (:,:,:) = 0.0
         Sw_output(1)%bdy_flx_clr (:,:,:) = 0.0
       endif
 
@@ -1010,13 +1007,12 @@ real, dimension(:,:,:,:),        intent(inout) :: r
 !--------------------------------------------------------------------
       skipswrad = .true.
       do j=1,jx        
-        if ( Astro%cosz(1,j) > 0.0 ) skipswrad = .false.
-          do i = 2,ix         
-            if (Astro%cosz(i,j) > 0.0 )  then
-              skipswrad = .false.
-              exit
-            endif
-          end do
+        do i = 1,ix         
+          if (Astro%cosz(i,j) > 0.0 )  then
+            skipswrad = .false.
+            exit
+          endif
+        end do
       end do
 
 
@@ -1046,7 +1042,7 @@ real, dimension(:,:,:,:),        intent(inout) :: r
                        Cld_spec, calculate_volcanic_sw_heating, &
                        Sw_output(1), Aerosol_diags, r,  &
                        do_aerosol_forcing, naerosol_optical)
-      endif  
+      endif
 !--------------------------------------------------------------------
 
 end subroutine shortwave_driver
@@ -1082,7 +1078,7 @@ integer, intent(in) :: imax,kl
 integer k,kr,mg
 real, dimension(imax,kl), intent(in) :: cfrac,qlg,qfg,prf,ttg
 real, dimension(imax,kl), intent(in) :: cdrop
-real, dimension(imax,kl), intent(out) :: Rdrop,Rice,conl,coni
+real(kind=8), dimension(imax,kl), intent(out) :: Rdrop,Rice,conl,coni
 real, dimension(imax,kl) :: reffl,reffi,fice,cfl,Wliq,rhoa
 real, dimension(imax,kl) :: eps,rk,Wice
 
@@ -1113,7 +1109,7 @@ else where
   fice=0.
 end where
 cfl=cfrac*(1.-fice)
-rhoa=100.*prf/(rdry*ttg)
+rhoa=prf/(rdry*ttg)
 
 where (qlg.gt.1.E-8.and.cfrac.gt.0.)
   Wliq=rhoa*qlg/cfl     !kg/m^3
@@ -1143,7 +1139,7 @@ do k=1,kl
 end do
 
 Rdrop=min(max(Rdrop,8.4),33.2) ! constrain diameter to acceptable range (see microphys_rad.f90)
-Rice=min(max(Rice,20.),260.)
+Rice=min(max(Rice,18.6),130.2)
 
 return
 end subroutine cloud3

@@ -5551,8 +5551,11 @@ end subroutine rctrns
 subroutine read_lbltfs (gas_type, callrctrns, nstd_lo, nstd_hi, nf,   &
                         ntbnd, trns_std_hi_nf, trns_std_lo_nf )
  
- include 'netcdf.inc' ! MJT
+ use cc_mpi, only : myid ! MJT
+ 
  include 'filnames.h' ! MJT
+ include 'netcdf.inc' ! MJT
+ include 'mpif.h'
  
 !--------------------------------------------------------------------
 !
@@ -5586,7 +5589,7 @@ real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
 
       integer        :: n, nt, nrec_inhi, inrad, nrec_inlo
       
-      integer ncid,ncstatus,varid,startpos(3),npos(3) ! MJT
+      integer ncid,ncstatus,varid,startpos(3),npos(3),ierr ! MJT
  
       data (input_lblco2name(n,1),n=1,nfreq_bands_sea_co2)/            &
         'cns_0_490850   ', 'cns_0_490630   ', 'cns_0_630700   ', &
@@ -5678,22 +5681,25 @@ real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
 !    read in tfs of higher std gas concentration
 !-------------------------------------------------------------------
       !filename = 'INPUT/' // trim(name_hi)
-      filename = trim(cnsdir) // trim(name_hi)
+      filename = trim(cnsdir) // '/' // trim(name_hi)
       ncname = trim(filename) // '.nc'
-      
-      ncstatus=nf_open(ncname,nf_nowrite,ncid)
-      if (ncstatus.ne.0) then
-        write(6,*) "ERROR: Cannot open ",trim(ncname)
-        stop
-      end if
-      write(6,*) "Reading ",trim(ncname)
-      ncstatus=nf_inq_varid(ncid,"trns_std_nf",varid)
+
       startpos=1
       npos(1)=size(trns_std_hi_nf(:,:,1:ntbnd(nf)),1)
       npos(2)=size(trns_std_hi_nf(:,:,1:ntbnd(nf)),2)
       npos(3)=ntbnd(nf)
-      ncstatus=nf_get_vara_real(ncid,varid,startpos,npos,trns_std_hi_nf(:,:,1:ntbnd(nf)))
-      ncstatus=nf_close(ncid)
+      if (myid==0) then
+        ncstatus=nf_open(ncname,nf_nowrite,ncid)
+        if (ncstatus.ne.0) then
+          write(6,*) "ERROR: Cannot open ",trim(ncname)
+          stop
+        end if
+        write(6,*) "Reading ",trim(ncname)
+        ncstatus=nf_inq_varid(ncid,"trns_std_nf",varid)
+        ncstatus=nf_get_vara_double(ncid,varid,startpos,npos,trns_std_hi_nf(:,:,1:ntbnd(nf)))
+        ncstatus=nf_close(ncid)
+      end if
+      call MPI_Bcast(trns_std_hi_nf(:,:,1:ntbnd(nf)),npos(1)*npos(2)*npos(3),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
       
       !write(6,*) "UNSUPPORTED read ",ncname
       !stop
@@ -5723,22 +5729,25 @@ real,    dimension (:,:,:), intent(out)  :: trns_std_hi_nf,   &
 !-------------------------------------------------------------------
       if (callrctrns) then
         !filename = 'INPUT/' // trim(name_lo )
-        filename = trim(cnsdir) // trim(name_lo )
+        filename = trim(cnsdir) // '/' // trim(name_lo )
         ncname = trim(filename) // '.nc'
 
-        ncstatus=nf_open(ncname,nf_nowrite,ncid)
-        if (ncstatus.ne.0) then
-          write(6,*) "ERROR: Cannot open ",trim(ncname)
-          stop
-        end if
-        write(6,*) "Reading ",trim(ncname)
-        ncstatus=nf_inq_varid(ncid,"trns_std_nf",varid)
-        startpos=1
         npos(1)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),1)
         npos(2)=size(trns_std_lo_nf(:,:,1:ntbnd(nf)),2)
         npos(3)=ntbnd(nf)
-        ncstatus=nf_get_vara_real(ncid,varid,startpos,npos,trns_std_lo_nf(:,:,1:ntbnd(nf)))
-        ncstatus=nf_close(ncid)        
+        if (myid==0) then
+          ncstatus=nf_open(ncname,nf_nowrite,ncid)
+          if (ncstatus.ne.0) then
+            write(6,*) "ERROR: Cannot open ",trim(ncname)
+            stop
+          end if
+          write(6,*) "Reading ",trim(ncname)
+          ncstatus=nf_inq_varid(ncid,"trns_std_nf",varid)
+          startpos=1
+          ncstatus=nf_get_vara_double(ncid,varid,startpos,npos,trns_std_lo_nf(:,:,1:ntbnd(nf)))
+          ncstatus=nf_close(ncid)
+        end if
+        call MPI_Bcast(trns_std_lo_nf(:,:,1:ntbnd(nf)),npos(1)*npos(2)*npos(3),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
         
         !write(6,*) "UNSUPPORTED read ",ncname
         !stop

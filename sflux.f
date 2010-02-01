@@ -212,9 +212,9 @@ c     &               ip,iq,tgg(iq,1),tss_sh,sgsave(iq),vmod(iq),dtsol
         endif   ! (ntss_sh==0) .. else ..                            ! JLM SST
         if(nplens.ne.0)then                                          ! JLM SST
 !        calculate running total (over last 24 h) of daily precip in mm  jlm
-         plens(iq)=(1.-dt/86400.)*plens(iq)+condx(iq)  ! in mm/day
+         plens(iq)=(1.-dt/86400.)*plens(iq)+condx(iq)  ! in mm/day   ! JLM SST
 !        scale so that nplens m/s wind for 1/2 hr reduces effect by 1/1.2
-!        plens(iq)=plens(iq)/(1.+vmod(iq)*dt*.2/(nplens*1800.))
+!        plens(iq)=plens(iq)/(1.+vmod(iq)*dt*.2/(nplens*1800.))      ! JLM SST
          plens(iq)=plens(iq)/(1.+vmod(iq)*dt*.2/
      .                    max(nplens*1800.,1.))      ! avoids Cray compiler bug
 !        produce a cooling of 4 K for an effective plens of 10 mm/day
@@ -358,9 +358,9 @@ c     section to update pan temperatures                             ! sea
     ! MJT mlo
       if (abs(nmlo).eq.1) then                                       ! MLO
         ! note taux and tauy do not include sea-ice at this point    ! MLO
-        call mloeval(ifull,tgg(:,1),dt,fg,eg                         ! MLO
-     &               ,sgsave,-rgsave-stefbo*tgg(:,1)**4              ! MLO
-     &               ,condx/dt,taux,tauy,u(:,1),v(:,1),f,0)          ! MLO
+        call mloeval(ifull,tgg(:,1),dt,fg,eg,sgsave                  ! MLO
+     &               ,-rgsave-stefbo*tgg(:,1)**4,condx/dt            ! MLO
+     &               ,taux,tauy,u(:,1),v(:,1),f,swrsave,0)           ! MLO
         where(.not.land)                                             ! MLO
           tpan=tgg(:,1)                                              ! MLO
           tss=tgg(:,1)                                               ! MLO
@@ -752,12 +752,15 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
 !             aft(iq)=vkar**2/(zologx*(log(factch(iq)**2)+zologx)) ! PATCH
 !             af(iq)=(vkar/log(zmin/zo(iq)))**2                    ! PATCH
 !             xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))               ! PATCH
-!             ri(iq)=min(xx/vmag(iq)**2 , ri_max)                  ! PATCH
+!             ri(iq)=min(xx/vmag(iq)**2,ri_max)                    ! PATCH
 !           enddo   ! ip=1,ipland                                  ! PATCH
-!           call scrnout(zo,ustar,factch,wetfac,qsttg,             
-!     .            qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,
+!           call scrnout(zo,ustar,factch,wetfac,qsttg,            
+!     .            qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,  
 !     .            bprm,cms,chs,chnsea,nalpha)                     ! PATCH
-!        end if                                                    ! PATCH
+!         end if                                                   ! PATCH
+        case DEFAULT
+          print *,"ERROR: Unknown land-use option nsib=",nsib
+          stop
       end select
       !----------------------------------------------------------
       call end_log(sfluxland_end)
@@ -801,12 +804,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
             qsttg(iq)= .622*es/(ps(iq)-es)                              ! urban
             rhscrn(iq)=100.*qgscrn(iq)/qsttg(iq)                        ! urban
             rhscrn(iq)=min(max(rhscrn(iq),0.),100.)                     ! urban
-!            zologx=log(zmin/zo(iq))                                    ! urban
-!            aft(iq)=vkar**2/(zologx*(log(factch(iq)**2)+zologx))       ! urban
-!            rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4           ! urban
-!            af(iq)=(vkar/log(zmin/zo(iq)))**2                          ! urban
-!            xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))                     ! urban
-!            ri(iq)=min(xx/vmag(iq)**2 , ri_max)                        ! urban
+            rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4            ! urban
             taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                           ! urban
             tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                           ! urban
           end if                                                        ! urban

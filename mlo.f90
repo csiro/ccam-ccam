@@ -1,8 +1,11 @@
 
 ! This is a 1D, mixed layer ocean model for regioal climate simulations based on Large, et al (1994)
-! (i.e., adapted from the GFDL code)
+! (i.e., adapted from the GFDL code).  This code is also used for modelling lakes in CCAM.
 
-! Specifically, this version can assimilate SSTs from GCMs, using a convolution based digital filter
+! This version has a relatively thin 1st layer (0.5m) so as to reproduce a diurnal cycle in SST.  It also
+! supports sea ice based on O'Farrell's sea ice model from Mk3.5.
+
+! This version can assimilate SSTs from GCMs, using a convolution based digital filter (see nestin.f)
 ! which avoids problems with complex land-sea boundary conditions
 
 module mlo
@@ -16,12 +19,16 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,wlev
 type tdata
   real temp,sal,u,v
 end type tdata
+!type tice
+!  real tn(0:3)
+!  real dic,sto
+!end type tice
 type tprog2
   real mixdepth,bf
   integer mixind
 end type tprog2
 type tatm
-  real sg,rg,fg,eg,rnd,taux,tauy,f
+  real sg,rg,fg,eg,rnd,taux,tauy,f,vnratio
 end type tatm
 type tout
   real sst
@@ -53,18 +60,18 @@ integer, parameter :: incradgam = 0 ! include shortwave in non-local term
 integer, parameter :: salrelax  = 1 ! relax salinity to 34.72 PSU (used for single column mode)
 
 ! max depth
-real, parameter :: mxd    = 977.6   ! Max depth
-real, parameter :: mindep = 1.      ! Thickness of first layer
+real, parameter :: mxd    = 977.6   ! Max depth (m)
+real, parameter :: mindep = 1.      ! Thickness of first layer (m)
 
 ! model parameters
 real, parameter :: ric     = 0.3    ! Critical Ri for diagnosing mixed layer depth
 real, parameter :: epsilon = 0.1
 
 ! radiation parameters
-real, parameter :: r_1 = 0.58
-real, parameter :: r_2 = 1.-r_1
-real, parameter :: mu_1 = 0.35
-real, parameter :: mu_2 = 23.
+!real, parameter :: r_1 = 0.58       ! VIS/(VIS+NIR) ratio - should be taken from host radiation
+!real, parameter :: r_2 = 1.-r_1
+real, parameter :: mu_1 = 23.       ! VIS depth (m)
+real, parameter :: mu_2 = 0.35      ! NIR depth (m)
 
 ! physical parameters
 real, parameter :: vkar=0.4               ! von Karman constant
@@ -333,13 +340,13 @@ end subroutine mloregrid
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
 
-subroutine mloeval(ifull,sst,dt,fg,eg,sg,rg,precp,taux,tauy,uatm,vatm,f,diag)
+subroutine mloeval(ifull,sst,dt,fg,eg,sg,rg,precp,taux,tauy,uatm,vatm,f,visnirratio,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
 real, intent(in) :: dt
-real, dimension(ifull), intent(in) :: sg,rg,fg,eg,taux,tauy,precp,f,uatm,vatm
+real, dimension(ifull), intent(in) :: sg,rg,fg,eg,taux,tauy,precp,f,uatm,vatm,visnirratio
 real, dimension(ifull), intent(inout) :: sst
 real, dimension(wfull) :: ua,va,umag,uad,vad,umagd
 type(tatm), dimension(wfull) :: atm
@@ -356,6 +363,7 @@ atm%taux=taux(wgrid)
 atm%tauy=tauy(wgrid)
 atm%f=f(wgrid)
 !atm%f=0. ! turn off coriolis terms when no geostrophic term)
+atm%vnratio=visnirratio(wgrid)
 
 ua=uatm(wgrid)
 va=vatm(wgrid)
@@ -442,7 +450,7 @@ bb(:,wlev)=1./dt-aa(:,wlev)
 dd(:,wlev)=water(:,wlev)%temp/dt+rhs(:,wlev)*dumt0+dg3(:,wlev)%rad/dz(:,wlev)
 call thomas(new%temp,aa,bb,cc,dd)
 
-new%temp=max(100.,new%temp) ! MJT suggestion
+new%temp=max(271.3,new%temp) ! MJT suggestion
 
 ! SALINITY
 do ii=1,wlev
@@ -925,16 +933,16 @@ dg3(:,wlev)%nsq=-(grav/dg3(:,wlev)%rho)*(dg3(:,wlev-1)%rho-dg3(:,wlev)%rho)/dz_h
 ! shortwave
 ! use -ve as depth is down
 hlrb=0.5*(dg3(:,1)%rho+dg3(:,2)%rho)
-dg3(:,1)%rad=-atm%sg/cp0*((r_1*exp(-depth_hl(:,2)/mu_1)+r_2*exp(-depth_hl(:,2)/mu_2))/hlrb &
-                         -(r_1*exp(-depth_hl(:,1)/mu_1)+r_2*exp(-depth_hl(:,1)/mu_2))/rho0)
+dg3(:,1)%rad=-atm%sg/cp0*((atm%vnratio*exp(-depth_hl(:,2)/mu_1)+(1.-atm%vnratio)*exp(-depth_hl(:,2)/mu_2))/hlrb &
+                         -(atm%vnratio*exp(-depth_hl(:,1)/mu_1)+(1.-atm%vnratio)*exp(-depth_hl(:,1)/mu_2))/rho0)
 do ii=2,wlev-1 
   hlra=0.5*(dg3(:,ii-1)%rho+dg3(:,ii)%rho)
   hlrb=0.5*(dg3(:,ii)%rho+dg3(:,ii+1)%rho)
-  dg3(:,ii)%rad=-atm%sg/cp0*((r_1*exp(-depth_hl(:,ii+1)/mu_1)+r_2*exp(-depth_hl(:,ii+1)/mu_2))/hlrb &
-                            -(r_1*exp(-depth_hl(:,ii)/mu_1)+r_2*exp(-depth_hl(:,ii)/mu_2))/hlra)
+  dg3(:,ii)%rad=-atm%sg/cp0*((atm%vnratio*exp(-depth_hl(:,ii+1)/mu_1)+(1.-atm%vnratio)*exp(-depth_hl(:,ii+1)/mu_2))/hlrb &
+                            -(atm%vnratio*exp(-depth_hl(:,ii)/mu_1)+(1.-atm%vnratio)*exp(-depth_hl(:,ii)/mu_2))/hlra)
 end do
 hlra=0.5*(dg3(:,wlev-1)%rho+dg3(:,wlev)%rho)
-dg3(:,wlev)%rad=atm%sg/cp0*(r_1*exp(-depth_hl(:,wlev)/mu_1)+r_2*exp(-depth_hl(:,wlev)/mu_2))/hlra ! remainder
+dg3(:,wlev)%rad=atm%sg/cp0*(atm%vnratio*exp(-depth_hl(:,wlev)/mu_1)+(1.-atm%vnratio)*exp(-depth_hl(:,wlev)/mu_2))/hlra ! remainder
 
 ! Boundary conditions (use rho at level 1 for consistancy with shortwave radiation)
 dg2%wu0=-atm%taux/dg3(:,1)%rho                             ! BC
@@ -948,5 +956,54 @@ dg2%b0=-grav*(dg3(:,1)%alpha*dg2%wt0-dg3(:,1)%beta*dg2%ws0)
 
 return
 end subroutine getrho
+
+!Pack sea ice for calcuation
+!subroutine seaice()
+
+!implicit none
+
+! Formation
+
+
+!cice=dic.gt.0.
+!nice=count(cice)
+
+!iqc=0
+!do iqw=1,nice
+!  if (cice(iqw)) then
+!    iqc=iqc+1
+!    icegrid(iqc)=iqw
+!  end if
+!end do
+
+!ice_pack(1:nice)%dic=ice(icegrid(1:nice))%dic
+!ice_pack(1:nice)%sto=ice(icegrid(1:nice))%sto
+!do k=0,3
+!  ice_pack(1:nice)%tn(k)=ice(icegrid(1:nice))%tn(k)
+!end do
+
+!atm_pack(1:nice)%sg=atm(icegrid(1:nice))%sg
+!atm_pack(1:nice)%rg=atm(icegrid(1:nice))%rg
+!atm_pack(1:nice)%fg=atm(icegrid(1:nice))%fg
+!atm_pack(1:nice)%eg=atm(icegrid(1:nice))%eg
+!atm_pack(1:nice)%rnd=atm(icegrid(1:nice))%rnd
+!atm_pack(1:nice)%taux=atm(icegrid(1:nice))%taux
+!atm_pack(1:nice)%tauy=atm(icegrid(1:nice))%tauy
+!atm_pack(1:nice)%f=atm(icegrid(1:nice))%f
+
+!call seaicecalc(nice,ice_pack,atm_pack,sst_pack)
+
+!sst=sst*(1.-fracice)+sst_pack(icegrid)*fracice
+
+!return
+!end subroutine seaice
+
+!Update sea ice prognostic variables
+!subroutine seaicecalc
+
+!implicit none
+
+!return
+!end subroutine seaicecalc
 
 end module mlo

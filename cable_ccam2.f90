@@ -1,7 +1,7 @@
 module cable_ccam
 
   ! CABLE interface originally developed by the CABLE group
-  ! Subsequently modified by MJT for mosaic
+  ! Subsequently modified by MJT for mosaic and new radiation scheme
 
   ! ivegt   type
   ! 1       Evergreen Needleleaf Forest
@@ -54,7 +54,7 @@ module cable_ccam
   integer, dimension(5,2), save :: pind  
   real, dimension(:), allocatable, save :: atmco2
   real, dimension(:), allocatable, save :: sv,vl1,vl2,vl3
-  integer, parameter :: CO2forcingtype=1   ! 1 constant, 2 prescribed 1900-2004,
+  integer, parameter :: CO2forcingtype=2   ! 1 constant, 2 time-varying,
                                            ! 3 interactive
   contains
   ! ****************************************************************************
@@ -169,7 +169,7 @@ module cable_ccam
        dhr = dt/3600.
        call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
 
-       call setco2for(jyear)
+       call setco2for
 
        kstart = 1
 
@@ -178,7 +178,7 @@ module cable_ccam
        met%ua=vmod(cmap)
        met%ca=1.e-6*atmco2(cmap)
        met%coszen=max(1.e-8,coszro2(cmap)) ! use instantaneous value
-         
+
        met%qv=qg(cmap,1)        ! specific humidity in kg/kg
        met%pmb=.01*ps(cmap)     ! pressure in mb at ref height
        met%precip=condx(cmap)
@@ -187,9 +187,9 @@ module cable_ccam
        rough%za_tq=-287.*t(cmap,1)*log(sig(1))/grav   ! reference height
        rough%za_uv=rough%za_tq
 
-       ! swrsave indicates the fraction of VIS radiation (compared to NIR)
-       ! fbeamvis indicates the fraction of direct radiation (compared to diffuse) for VIS
-       ! fbeamnir indicates the fraction of direct radiation (compared to diffuse) for NIR
+       ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
+       ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
+       ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
        met%fsd(:,3)=sgsave(cmap)/(1.-swrsave(cmap)*albvisnir(cmap,1) &
                    -(1.-swrsave(cmap))*albvisnir(cmap,2)) ! short wave down (positive) W/m^2
        met%fsd(:,1)=swrsave(cmap)*met%fsd(:,3)
@@ -197,8 +197,8 @@ module cable_ccam
        rad%fbeam(:,1)=fbeamvis(cmap)
        rad%fbeam(:,2)=fbeamnir(cmap)
        rad%fbeam(:,3)=swrsave(cmap)*fbeamvis(cmap)+(1.-swrsave(cmap))*fbeamnir(cmap)
-       met%fld=-rgsave(cmap)        ! long wave down
-       
+       met%fld=-rgsave(cmap)        ! long wave down (positive) W/m^2
+
        monthstart=1440*(jday-1) + 60*jhour + jmin ! mins from start of month
        x=min(max(real(mtimer+monthstart)/real(1440.*imonth(jmonth)),0.),1.)
        veg%vlai(:)=vl1+vl2*x+vl3*x*x ! LAI as a function of time
@@ -234,7 +234,6 @@ module cable_ccam
       canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
       !--------------------------------------------------------------
     
-    
       ! Unpack tiles into grid point averages.
       ! Note that albsav and albnirsave are the VIS and NIR albedo output from CABLE to
       ! be used by the radiadiation scheme at the next time step.  albvisnir(:,1) and
@@ -251,7 +250,7 @@ module cable_ccam
       albvisdir(iperm(1:ipland))=0.
       albvisdif(iperm(1:ipland))=0.
       albnirdir(iperm(1:ipland))=0.
-      albnirdir(iperm(1:ipland))=0.
+      albnirdif(iperm(1:ipland))=0.
       runoff(iperm(1:ipland))=0.
       rnof1(iperm(1:ipland))=0.
       rnof2(iperm(1:ipland))=0.
@@ -536,11 +535,10 @@ module cable_ccam
       end subroutine sib4
 
 ! *************************************************************************************
-      subroutine setco2for(jyear)
+      subroutine setco2for
 !     set co2 forcing for cable
 !     constant: atmospheric co2 = 360 ppm 
-!     prescribed: atmospheric co2 follows prescribed trend from 1900-2004
-!                 based on ice core and Mauna Loa/South Pole data
+!     host: atmospheric co2 follows that from CCAM radiation scheme
 !     interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
 
       implicit none
@@ -548,42 +546,16 @@ module cable_ccam
       include 'newmpar.h'
       include 'tracers.h'
 
-      integer, intent(in) :: jyear
       integer, parameter :: constantCO2 = 1
-      integer, parameter :: prescribedCO2 = 2
+      integer, parameter :: hostCO2 = 2
       integer, parameter :: interactiveCO2 = 3
-      integer ipco2
-
-!     rml added values for 2000-2004 using scripps records from cdiac
-!     0.75*mauna loa + 0.25*south pole
-!     2005 from gv07, noaa flask record
-      real co2for(0:105)
-      data co2for/296.0049,296.3785,296.7731,297.1795,297.5887,297.9919 &
-     &           ,298.3842,298.7654,299.1349,299.4925,299.838 ,300.1709 &
-     &           ,300.491 ,300.801 ,301.106 ,301.4113,301.7205,302.0357 &
-     &           ,302.3587,302.6915,303.036,303.3941,303.7677,304.1587 &
-     &           ,304.569,304.9971,305.4388,305.8894,306.3444,306.7992 &
-     &           ,307.2494,307.6902,308.117,308.521,308.8895,309.2135 &
-     &           ,309.4877,309.7068,309.8658,309.9668,310.019,310.0358 &
-     &           ,310.035,310.0345,310.0522,310.0989,310.1794,310.2977 &
-     &           ,310.4581,310.6661,310.928,311.2503,311.6395,312.1015 &
-     &           ,312.6341,313.227,313.8694,314.5506,315.2599,315.9866 &
-     &           ,316.7167,317.4268,318.106,318.7638,319.4402,320.1901 &
-     &           ,321.0398,321.9713,322.9779,324.045,325.1356,326.2445 &
-     &           ,327.3954,328.5711,329.723,330.8865,332.1331,333.5012 &
-     &           ,334.9617,336.4614,337.9588,339.4225,340.8724,342.3488 &
-     &           ,343.8625,345.421,347.0481,348.7452,350.4397,352.0169 &
-     &           ,353.4269,354.6917,355.8849,357.1348,358.5514,360.1441 &
-     &           ,361.8578,363.6479,365.4682,367.2137 &
-     &           ,368.87,370.35,372.49,374.93,376.69,379.09/
+      real rrco2,ssolar,rrvco2
+      common /radisw2/ rrco2, ssolar, rrvco2
 
       select case (CO2forcingtype)
         case (constantCO2); atmco2 = 360.
-        case (prescribedCO2) 
-          ipco2 = jyear-1900
-          if (ipco2.lt.0.or.ipco2.gt.105) stop 'year out of range for&
-     & co2 forcing for cable'
-          atmco2 = co2for(ipco2)
+        case (hostCO2) 
+          atmco2 = rrvco2 * 1.E6
         case (interactiveCO2)
           write(6,*) 'need to replace with tracer sum'
           atmco2 = tr(1:ifull,1,1)

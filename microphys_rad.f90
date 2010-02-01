@@ -1634,6 +1634,7 @@ real, intent(out), dimension(:,:,:,:)           :: cldext
 !    be sure module has been initialized.
 !--------------------------------------------------------------------
       if (.not. module_is_initialized) then
+        print *,"ERROR: initialization routine of this module was never called"
         !call error_mesg('microphys_rad_mod',  &
         ! 'initialization routine of this module was never called', &
         !                                                         FATAL)
@@ -1789,6 +1790,7 @@ real, intent(out), dimension(:,:,:,:)           :: abscoeff
 !    be sure module has been initialized.
 !--------------------------------------------------------------------
       if (.not. module_is_initialized) then
+        write(6,*) "ERROR: initialization routine of this module was never called"
         !call error_mesg('microphys_rad_mod',  &
         ! 'initialization routine of this module was never called', &
         !                                                         FATAL)
@@ -1924,6 +1926,7 @@ real, dimension(:,:,:,:,:), intent(out)  :: cldemiss
 !    be sure module has been initialized.
 !--------------------------------------------------------------------
       if (.not. module_is_initialized) then
+        write(6,*) "ERROR: initialization routine of this module was never called"
         !call error_mesg('microphys_rad_mod',  &
         ! 'initialization routine of this module was never called', &
         !                                                         FATAL)
@@ -2114,6 +2117,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
 !    be sure module has been initialized.
 !--------------------------------------------------------------------
       if (.not. module_is_initialized) then
+        write(6,*) "ERROR: initialization routine of this module was never called"
         !call error_mesg('microphys_rad_mod',  &
         ! 'initialization routine of this module was never called', &
         !                                                         FATAL)
@@ -3863,6 +3867,7 @@ integer, intent(in), optional             ::   starting_band,  &
                   cldasymmivlrain(i,j,k,ni) = asymm(ni)
                 end do
               else
+                write(6,*) "ERROR: rain drop size out of range"
                 !call error_mesg ('microphys_rad_mod', &
                 !          'rain drop size out of range', FATAL)
                 stop
@@ -4162,6 +4167,7 @@ integer,     intent(in), optional          ::  starting_band, &
                           c3fu(ni)*size_ice(i,j,k)**3
                 end do
               else
+                write(6,*) "ERROR: ice crystal size out of range"
                 !call error_mesg ('microphys_rad_mod', &
                 !             'ice crystal size out of range', FATAL)
                 stop
@@ -4416,6 +4422,7 @@ integer,  intent(in), optional            ::   starting_band, &
                               ((1. - fdel2)*fgam2 + 3.*fdel2)/3.
                 end do
               else
+                write(6,*) "ERROR: ice crystal size out of range"
                 !call error_mesg ('microphys_rad_mod',  &
                 !                'ice crystal size out of range', FATAL)
                 stop

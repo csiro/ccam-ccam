@@ -35,11 +35,33 @@ clean:
 .SUFFIXES:.f90 .F90
 
 esfsw_driver.o: esfsw_driver.f90
-	$(FC)  -c -O -override-limits -fpp -I /tools/netcdf/3.6.0-p1/include $<
+	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+esfsw_parameters.o: esfsw_parameters.f90
+	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+gas_tf.o: gas_tf.f90
+	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+longwave_clouds.o: longwave_clouds.f90
+	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+longwave_fluxes.o: longwave_fluxes.f90
+	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+longwave_tables.o: longwave_tables.f90
+	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+longwave_params.o: longwave_params.f90
+	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+lw_gases_stdtf.o: lw_gases_stdtf.f90
+	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+microphys_rad.o: microphys_rad.f90
+	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+optical_path.o: optical_path.f90
+	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+rad_utilities.o: rad_utilities.f90
+	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+sealw99.o: sealw99.f90
+	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
 ateb.o: ateb.f90
-	$(FC)  -c -O -override-limits -fpp -I /tools/netcdf/3.6.0-p1/include $<
+	$(FC)  -c -O -override-limits $(FFLAGS) $<
 cable_canopy.o: cable_canopy.F90
-	$(FC)  -c -O -override-limits -fpp -I /tools/netcdf/3.6.0-p1/include $<	
+	$(FC)  -c -O -override-limits $(FFLAGS) $<	
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
 
