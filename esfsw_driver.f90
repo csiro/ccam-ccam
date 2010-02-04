@@ -2667,6 +2667,8 @@ integer :: nextinct
         stop
       endif
 
+      tlayerdif=0. ! MJT bug fix
+
 !---------------------------------------------------------------------
 !    define the solar_constant appropriate at Rad_time when solar
 !    input is varying with time.
@@ -3890,8 +3892,7 @@ end if
             call adding (ix, jx, kx, rlayerdir, tlayerdir,   &
                          rlayerdif, tlayerdif, tlayerde, sfcalb_dir,  &
                          sfcalb_dif,    &
-                         daylight, reflectance, transmittance, tr_dir)    
-
+                         daylight, reflectance, transmittance, tr_dir)
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------

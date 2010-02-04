@@ -24,7 +24,6 @@ real, parameter :: csolar   = 1365 ! W/m^2
 real, parameter :: siglow   =.68
 real, parameter :: sigmid   =.44
 real, parameter :: ratco2mw =1.519449738
-!real, parameter :: h1m3     =1.0e-3 
 real, parameter :: cong     = cp/grav
 
 
@@ -437,7 +436,7 @@ do j=1,jl,imax/il
       cuvrf_dir(1:imax) = 0.026/(coszro(1:imax)**1.7+0.065)                  &
                      +0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
     else where (.not.land(istart:iend))
-      cuvrf_dir(1:imax) = 0.4075 ! coszen=0 value of above expression
+      cuvrf_dir(1:imax) = 0.3925 ! coszen=0 value of above expression
     endwhere
     where (.not.land(istart:iend))
       cuvrf_dif(1:imax) = 0.06
@@ -520,12 +519,12 @@ do j=1,jl,imax/il
       kr=kl+1-k
       Atmos_input%deltaz(:,1,kr) =(-dsig(k)/sig(k))*rdry*t(istart:iend,k)/grav
       Atmos_input%rh2o(:,1,kr)   =max(qg(istart:iend,k) ,1.e-7)
-      Atmos_input%temp(:,1,kr)   =t(istart:iend,k)      
+      Atmos_input%temp(:,1,kr)   =min(max(t(istart:iend,k),100.),370.)
       Atmos_input%press(:,1,kr)  =ps(istart:iend)*sig(k)
       call getqsat(imax,qsat,t(istart:iend,k),ps(istart:iend)*sig(k))
-      Atmos_input%rel_hum(:,1,kr)=min(qg(istart:iend,k)/qsat,1.)
+      Atmos_input%rel_hum(:,1,kr)=min(max(qg(istart:iend,k)/qsat,2.E-7),1.)
     end do
-    Atmos_input%temp(:,1,kl+1) =tss(istart:iend)
+    Atmos_input%temp(:,1,kl+1) =min(max(tss(istart:iend),100.),370.)
     Atmos_input%press(:,1,kl+1)=ps(istart:iend)
     Atmos_input%pflux(:,1,1  )  = 0.
     Atmos_input%tflux(:,1,1  )  = Atmos_input%temp (:,1,1  )
@@ -539,7 +538,7 @@ do j=1,jl,imax/il
     !Atmos_input%cloudtemp       = Atmos_input%temp ! fix
     !do k=1,kl
     !  kr = kl+1-k
-    !  Atmos_input%cloudvapor(:,1,kr)=qg(istart:iend,k) ! fix
+    !  Atmos_input%cloudvapor(:,1,kr)=max(qg(istart:iend,k),1.E-7) ! fix
     !end do
     !Atmos_input%aerosolrelhum   =Atmos_input%rel_hum
     !Atmos_input%aerosoltemp     =Atmos_input%temp ! fix
@@ -547,7 +546,7 @@ do j=1,jl,imax/il
     !Atmos_input%aerosolpress    =Atmos_input%press  ! fix    
 
     Atmos_input%psfc(:,1)    =ps(istart:iend)
-    Atmos_input%tsfc(:,1)    =tss(istart:iend)
+    Atmos_input%tsfc(:,1)    =min(max(tss(istart:iend),100.),370.)
     do k=1,kl+1
       kr=kl+2-k
       Atmos_input%phalf(:,1,kr)=ps(istart:iend)*sigh(k)
@@ -559,7 +558,7 @@ do j=1,jl,imax/il
     !Rad_gases%rrvf11  = rrvf11
     !Rad_gases%rrvf12  = rrvf12
     !Rad_gases%rrvf113 = rrvf113
-    !Rad_gases%rrvf22  = rrvf22    
+    !Rad_gases%rrvf22  = rrvf22
     
     Cld_spec%camtsw=0.
     Cld_spec%crndlw=0.
@@ -633,9 +632,9 @@ do j=1,jl,imax/il
       Surface%land(1:imax,1)=0.
     end where
     
-    Astro%cosz(:,1)   =coszro
+    Astro%cosz(:,1)   =max(coszro,0.)
     Astro%fracday(:,1)=taudar
-
+    
     call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input,  &
                           Rad_gases, Aerosol, Aerosol_props,   &
                           Cldrad_props, Cld_spec, Aerosol_diags, &
