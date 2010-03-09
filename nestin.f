@@ -2427,8 +2427,8 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       call mloexport(ifull,old,ilev,0)
 
       diff=miss
-      where (.not.land)
-        diff(:)=max(271.3,new)-max(271.3,old)
+      where (.not.land.and.new.gt.271.3)
+        diff(:)=new-old
       end where
 
       if (myid.eq.0) then
@@ -2471,7 +2471,6 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       where (.not.land)
         old=old+alpha*diff(:)
       end where
-      old=max(271.3,old)  
       
       call mloimport(ifull,old,ilev,0)
 
@@ -2527,8 +2526,8 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       call mloexport(ifull,old,ilev,0)
 
       diff=miss
-      where (.not.land)
-        diff(:)=max(271.3,new)-max(271.3,old)
+      where (.not.land.and.new.gt.271.3)
+        diff(:)=new-old
       end where
 
       if (myid.eq.0) then
@@ -2548,7 +2547,6 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       where (.not.land)
         old=old+alpha*diff(:)
       end where
-      old=max(271.3,old)  
       
       call mloimport(ifull,old,ilev,0)
 
@@ -2855,8 +2853,8 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       call mloexport(ifull,old,ilev,0)
       
       wgt=dt/real(nud_hrs*3600)
-      where (.not.land)
-        old=max(271.3,old)*(1.-wgt)+max(271.3,new)*wgt
+      where (.not.land.and.new.gt.271.3)
+        old=old*(1.-wgt)+new*wgt
       end where
       
       call mloimport(ifull,old,ilev,0)

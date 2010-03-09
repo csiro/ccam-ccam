@@ -230,10 +230,6 @@ c     calculations
       call zenith(fjd,r1,dlt,slag,rlatt(1+(j-1)*il),
      &            rlongg(1+(j-1)*il),dhr,imax,coszro,taudar)
 
-      call atebccangle(istart,imax,coszro(1:imax) ! MJT urban
-     &   ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt*kountr
-     &   ,cos(dlt)) 
-
 c     Set up basic variables, reversing the order of the vertical levels
       do i=1,imax
          iq=i+(j-1)*il
@@ -260,14 +256,16 @@ c             qo3(i,k) = duo3n(i,k)*1.01325e+02/press(i,lp1)
 
 !     Set up surface albedo. The input value is > 1 over ocean points where
 !     the zenith angle dependent formula should be used.
-      do i=1,imax
+      ! LAND --------------------------------------------------------
+      if (nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7) then ! MJT CHANGE cable
+        where(land(istart:iend))                        ! MJT CHANGE cable
+          cuvrf(1:imax,1)=albsav(istart:iend)           ! MJT CHANGE cable
+          cirrf(1:imax,1)=albnirsav(istart:iend)        ! MJT CHANGE cable
+        end where                                       ! MJT CHANGE cable
+      else                                              ! MJT CHANGE cable
+        do i=1,imax
           iq=i+(j-1)*il
           if( land(iq) )then
-           if (nsib.eq.CABLE.or.nsib.eq.6) then ! MJT CHANGE sib
-             cuvrf(i,1) = albsav(iq) ! from cable (inc snow)
-             cirrf(i,1) = albnirsav(iq) ! from cable (inc snow)
-           else ! (nsib.le.3).or.(nsib.eq.5)
-	   
            if(nalbwb.eq.0)then
              cuvrf(i,1) = albsav(iq)    ! use surface albedo from indata
              cirrf(i,1) = albnirsav(iq)    ! MJT CHANGE albedo
@@ -390,23 +388,33 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
      .                 albsav(iq),dnsnow,talb,cuvrf(i,1)
             endif
            endif          !  snowd(iq).gt.0.
-	   
-           end if ! (nsib.eq.CABLE).or.(nsib.eq.6) ! MJT CHANGE sib
-         else             !  over the ocean or sea ice
-!          following for CCAM from 11/6/03
-    !       cuvrf(i,1)=.65*fracice(iq)+
-    ! .                (1.-fracice(iq))*.05/(coszro(i)+0.15)
-           cuvrf(i,1)=.85*fracice(iq)+
-     .                (1.-fracice(iq))*.05/(coszro(i)+0.15) ! MJT CHANGE albedo (follow CICE)
-           cirrf(i,1)=.45*fracice(iq)+
-     .                (1.-fracice(iq))*.05/(coszro(i)+0.15) ! MJT CHANGE albedo (follow CICE)
-        endif       ! if( land(iq)) .. else..
+!         else             !  over the ocean or sea ice      ! MJT CHANGE sib
+!!          following for CCAM from 11/6/03                  ! MJT CHANGE sib
+!    !       cuvrf(i,1)=.65*fracice(iq)+
+!    ! .                (1.-fracice(iq))*.05/(coszro(i)+0.15)! MJT CHANGE sib
+!           cuvrf(i,1)=.85*fracice(iq)+
+!     .                (1.-fracice(iq))*.05/(coszro(i)+0.15) ! MJT CHANGE sib
+!           cirrf(i,1)=.45*fracice(iq)+
+!     .                (1.-fracice(iq))*.05/(coszro(i)+0.15) ! MJT CHANGE sib
+          endif       ! if( land(iq)) .. else..
+        end do ! i=1,imax
+      end if ! else nsib.eq.CABLE.or.nsib.eq.6               ! MJT CHANGE sib
 
-      !-----------------------------------------------------------------------------------------------------------
+      ! OCEAN/WATER -------------------------------------------------
+      where (.not.land(istart:iend))                           ! MJT CHANGE sib
+         cuvrf(1:imax,1)=.85*fracice(istart:iend)+
+     .     (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15) ! MJT CHANGE sib
+         cirrf(1:imax,1)=.45*fracice(istart:iend)+
+     .     (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15) ! MJT CHANGE sib
+      end where                                                ! MJT CHANGE sib
+
+      !--------------------------------------------------------------
       ! MJT albedo
-      end do ! i=1,imax
+      ! URBAN -------------------------------------------------------
       call atebalb1(istart,imax,cuvrf(1:imax,1),0) ! MJT CHANGE - urban
       call atebalb1(istart,imax,cirrf(1:imax,1),0) ! MJT CHANGE - urban
+      
+      ! AEROSOLS ----------------------------------------------------
       if (iaero.ne.0) then
         do i=1,imax
           iq=i+(j-1)*il
@@ -419,7 +427,7 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
       endif !(iaero.ne.0)then
       albvisnir(istart:iend,1)=cuvrf(1:imax,1)
       albvisnir(istart:iend,2)=cirrf(1:imax,1)
-      !-----------------------------------------------------------------------------------------------------------      
+      !--------------------------------------------------------------
 
       do k=1,kl
          kr = kl+1-k
@@ -724,6 +732,16 @@ c       endif
       soutx(istart:iend)=sout(:)
       sintx(istart:iend)=sint(:)
       rtx(istart:iend)=rt(:)
+      
+      !--------------------------------------------------------------
+      ! MJT CHANGE cable
+      sgdn(1:imax)=sgsave(istart:iend)/
+     &   (1.-swrsave(istart:iend)*albvisnir(istart:iend,1)
+     & -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2)) ! MJT albedo      
+      call spitter(imax,fjd,coszro2(1:imax),
+     &             sgdn(1:imax),fbeamvis(istart:iend))
+      fbeamnir(istart:iend)=fbeamvis(istart:iend)
+      !--------------------------------------------------------------
 
  100  continue  ! Row loop (j)  j=1,jl,imax/il
       if(ntest>0.and.mydiag)then
@@ -740,3 +758,34 @@ c       endif
       endif
       return
       end
+
+      !--------------------------------------------------------------
+      ! MJT change cable
+      ! from CABLE code 1.4
+      subroutine spitter(mp,doy, coszen, fsd,fbeam)
+      ! Calculate beam fraction
+      ! See spitters et al. 1986, agric. for meteorol., 38:217-229
+      integer, intent(in) :: mp
+      REAL, INTENT(IN) :: doy	! day of year
+      REAL, DIMENSION(mp), INTENT(IN) :: coszen ! cos(zenith angle of sun)
+      REAL, DIMENSION(mp), INTENT(IN) :: fsd	! short wave down (positive) w/m^2
+      REAL, DIMENSION(mp), intent(out) :: fbeam	! beam fraction (result)
+      REAL, PARAMETER :: solcon = 1370.0
+      REAL, DIMENSION(mp) :: tmpr !
+      REAL, DIMENSION(mp) :: tmpk !
+      REAL, DIMENSION(mp) :: tmprat !
+      real, parameter :: two_pi = 2. * 3.1415927
+      fbeam = 0.0
+      tmpr = 0.847 + coszen * (1.04 * coszen - 1.61)
+      tmpk = (1.47 - tmpr) / 1.66
+      WHERE (coszen > 1.0e-10 .AND. fsd > 10.0)
+       tmprat = fsd / (solcon * (1.0 + 0.033 * 
+     &          COS(two_pi * (doy-10.0) / 365.0)) * coszen)
+      ELSEWHERE
+       tmprat = 0.0
+      END WHERE
+      WHERE (tmprat > 0.22) fbeam = 6.4 * (tmprat - 0.22) ** 2
+      WHERE (tmprat > 0.35) fbeam = MIN(1.66 * tmprat - 0.4728, 1.0)
+      WHERE (tmprat > tmpk) fbeam = MAX(1.0 - tmpr, 0.0)
+      END subroutine spitter
+      !--------------------------------------------------------------

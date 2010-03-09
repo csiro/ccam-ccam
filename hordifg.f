@@ -43,9 +43,9 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
 !     Local variables
       integer iq, k, nhora, nhorx
       real cc, delphi, emi, hdif, ucc, vcc, wcc
-      integer i, j, n, ind
       integer, save :: kmax=-1 ! MJT smag
-      ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
+      !integer i, j, n, ind
+      !ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
 
 c     nhorx used in hordif  ! previous code effectively has nhorx=0
 c           = 1 u, v, T, qg  diffusion reduced near mountains
@@ -165,42 +165,8 @@ c     above code independent of k
       end if
 !      !--------------------------------------------------------------
 
-      if(nhorjlm==1)then
-c      jlm scheme using 3D uc, vc, wc
-         do k=1,kl
-            do iq=1,ifull
-               cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 +
-     &              (uc(in(iq),k)-uc(is(iq),k))**2 +
-     &              (vc(ie(iq),k)-vc(iw(iq),k))**2 +
-     &              (vc(in(iq),k)-vc(is(iq),k))**2 +
-     &              (wc(ie(iq),k)-wc(iw(iq),k))**2 +
-     &              (wc(in(iq),k)-wc(is(iq),k))**2
-               hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1 
-!              N.B. using double grid length
-               t_kh(iq,k)= .5*sqrt(cc)*hdif/em(iq) ! this one without em in D terms
-            enddo               !  iq loop
-         enddo
-      elseif(nhorjlm==2)then
-c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
-         do k=1,kl
-            do iq=1,ifull
-               cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 +
-     &              (uc(in(iq),k)-uc(is(iq),k))**2 +
-     &              (vc(ie(iq),k)-vc(iw(iq),k))**2 +
-     &              (vc(in(iq),k)-vc(is(iq),k))**2 +
-     &              (wc(ie(iq),k)-wc(iw(iq),k))**2 +
-     &              (wc(in(iq),k)-wc(is(iq),k))**2 +
-     & .01*(dpsldt(ie(iq),k)*ps(ie(iq))-dpsldt(iw(iq),k)*ps(iw(iq)))**2+
-     & .01*(dpsldt(in(iq),k)*ps(in(iq))-dpsldt(is(iq),k)*ps(is(iq)))**2 
-!         approx 1 Pa/s = .1 m/s     
-               hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1 
-!              N.B. using double grid length
-               t_kh(iq,k)= .5*sqrt(cc)*hdif/em(iq) ! this one without em in D terms
-            enddo               !  iq loop
-         enddo
-
-      elseif(nhorjlm==0)then ! MJT smag
-
+      select case(nhorjlm)
+       case(0) ! MJT smag
        !-------------------------------------------------------------
        ! MJT smag
        ! Smagorinsky REDUX
@@ -212,11 +178,11 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
 !!!!      Smag's actual diffusion also differentiated Dt and Ds
 !!!c      t_kh is kh at t points
          do k=1,kl
+           hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
            do iq=1,ifull
-             cc=(dvdx(iq,k)+dudy(iq,k))
+             cc=dvdx(iq,k)+dudy(iq,k)
              cc=cc**2+(dudx(iq,k)-dvdy(iq,k))**2
-             hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1 
-             t_kh(iq,k)= sqrt(cc)*hdif/em(iq)  ! this one without em in D terms
+             t_kh(iq,k)= sqrt(cc)*hdif/(em(iq)*em(iq))  ! this one with em in D terms
            end do
          end do
 !         print*, "NHORJLM /= 1,2 not implemented in MPI version"
@@ -278,16 +244,54 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
 !!!        t_kh(iq)= sqrt(cc)*hdif/em(iq)  ! this one without em in D terms
 !!!       enddo   !  iq loop
 !!!c      ee now finished with (not used till now in globpea)
-       elseif(nhorjlm==3)then                                     ! MJT tke
+       case(1)
+c      jlm scheme using 3D uc, vc, wc
+         do k=1,kl
+            hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1  ! MJT bug fix
+            do iq=1,ifull
+               cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 +
+     &              (uc(in(iq),k)-uc(is(iq),k))**2 +
+     &              (vc(ie(iq),k)-vc(iw(iq),k))**2 +
+     &              (vc(in(iq),k)-vc(is(iq),k))**2 +
+     &              (wc(ie(iq),k)-wc(iw(iq),k))**2 +
+     &              (wc(in(iq),k)-wc(is(iq),k))**2
+!              N.B. using double grid length
+               t_kh(iq,k)= .5*sqrt(cc)*hdif/em(iq) ! this one without em in D terms
+            enddo               !  iq loop
+         enddo
+       case(2)
+c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
+         do k=1,kl
+            hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1  ! MJT bug fix
+            do iq=1,ifull
+               cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 +
+     &              (uc(in(iq),k)-uc(is(iq),k))**2 +
+     &              (vc(ie(iq),k)-vc(iw(iq),k))**2 +
+     &              (vc(in(iq),k)-vc(is(iq),k))**2 +
+     &              (wc(ie(iq),k)-wc(iw(iq),k))**2 +
+     &              (wc(in(iq),k)-wc(is(iq),k))**2 +
+     & .01*(dpsldt(ie(iq),k)*ps(ie(iq))-dpsldt(iw(iq),k)*ps(iw(iq)))**2+
+     & .01*(dpsldt(in(iq),k)*ps(in(iq))-dpsldt(is(iq),k)*ps(is(iq)))**2 
+!         approx 1 Pa/s = .1 m/s     
+!              N.B. using double grid length
+               t_kh(iq,k)= .5*sqrt(cc)*hdif/em(iq) ! this one without em in D terms
+            enddo               !  iq loop
+         enddo
+
+        case(3)                                                   ! MJT tke
+         if (nvmix.ne.6) then                                     ! MJT tke
+           write(6,*) "ERROR: nhorjlm=3 requires nvmix=6"         ! MJT tke
+           stop                                                   ! MJT tke
+         end if                                                   ! MJT tke
+         hdif=dt*0.09/ds                                          ! MJT tke
          do k=1,kl                                                ! MJT tke
-           hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1          ! MJT tke
-           t_kh(1:ifull,k)= tke(1:ifull,k)*tke(1:ifull,k)
-     &     /eps(i:ifull,k)*hdif/em(1:ifull)                       ! MJT tke
+           t_kh(1:ifull,k)= max(tke(1:ifull,k)*tke(1:ifull,k)
+     &     /eps(1:ifull,k),1.E-3)*hdif/em(1:ifull)                ! MJT tke
          end do                                                   ! MJT tke
-       else                                                   ! MJT smag
+        case DEFAULT                                          ! MJT smag
          write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm  ! MJT smag
          stop                                                 ! MJT smag
-       endif    !  (nhorjlm.eq.1)
+       end select
 
       call bounds(t_kh)
       do k=1,kl
@@ -311,7 +315,7 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
        ! vertical component included in tkeeps.f90
        if (nvmix==6) then
         do k=1,kl
-         shear(:,k)=t_kh(1:ifull,k)*(
+         shear(:,k)=t_kh(1:ifull,k)*ds*em(1:ifull)/dt*(
      &     (2.*dudx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf))**2
      &    +(2.*dvdy(:,k)/(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf))**2
      &    +(dudy(:,k)/(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf)

@@ -790,7 +790,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &                     +betm(k)*t(1:ifull,k-1))/grav                ! MJT tke
        end do                                                           ! MJT tke
        call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),qfg(1:ifull,:),
-     &             uav,vav,cfrac,pblh,
+     &             uav,vav,cfrac,pblh,land(1:ifull),
      &             rdry*fg*t(1:ifull,1)/(ps(1:ifull)*cp*sigmh(1)),
      &             rdry*eg*t(1:ifull,1)/(ps(1:ifull)*hl*sigmh(1)),
      &             ps(1:ifull),ustar,zg,sig,sigkap,dt,0)                ! MJT tke

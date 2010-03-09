@@ -3,7 +3,7 @@ MODULE define_types
   USE define_dimensions
   ! Energy and water balance variables:
   TYPE balances_type 
-     REAL(r_1), DIMENSION(:), POINTER :: cansto0 ! canopy water storage (mm)
+!!les     REAL(r_1), DIMENSION(:), POINTER :: cansto0 ! canopy water storage (mm)
      REAL(r_1), DIMENSION(:), POINTER :: drybal ! energy balance for dry canopy
      REAL(r_1), DIMENSION(:), POINTER :: ebal   ! energy balance per time step (W/m^2)
      REAL(r_1), DIMENSION(:), POINTER :: ebal_tot ! cumulative energy balance (W/m^2)
@@ -34,15 +34,17 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: c3   ! c3 drainage coeff (fraction)
      REAL(r_1), DIMENSION(:), POINTER :: clay ! fraction of soil which is clay
      REAL(r_2), DIMENSION(:), POINTER :: cnsd ! thermal conductivity of dry soil [W/m/K]
-!     REAL(r_1), DIMENSION(:), POINTER :: cnsdJ ! thermal conductivity of dry soil [W/m/K]
+!les     REAL(r_1), DIMENSION(:), POINTER :: cnsdJ ! thermal conductivity of dry soil [W/m/K]
      REAL(r_1), DIMENSION(:), POINTER :: css  ! soil specific heat capacity [kJ/kg/K]
-     REAL(r_1), DIMENSION(:,:), POINTER :: froot  ! fraction of root in each soil layer
+!les: move froot to veg param
+!     REAL(r_1), DIMENSION(:,:), POINTER :: froot  ! fraction of root in each soil layer
      REAL(r_1), DIMENSION(:), POINTER :: hsbh  ! difsat * etasat (=hyds*abs(sucs)*bch)
      REAL(r_1), DIMENSION(:), POINTER :: hyds  ! hydraulic conductivity @ saturation [m/s], Ksat
      INTEGER(i_d), DIMENSION(:), POINTER :: i2bp3  ! parameter one in K vis suction (=nint(bch)+2)
      INTEGER(i_d), DIMENSION(:), POINTER :: ibp2   ! parameter two in K vis suction (function of pbch)
      INTEGER(i_d), DIMENSION(:), POINTER :: isoilm ! integer soil type
      REAL(r_2), DIMENSION(:), POINTER :: pwb_min ! working variable (swilt/ssat)**ibp2
+ 
      REAL(r_1), DIMENSION(:), POINTER :: rhosoil ! soil density [kg/m3]
      REAL(r_1), DIMENSION(:), POINTER :: rs20  ! soil respiration at 20 C [mol m-2 s-1]
      REAL(r_1), DIMENSION(:), POINTER :: sand  ! fraction of soil which is sand
@@ -79,27 +81,29 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: snage   ! snow age
      REAL(r_1), DIMENSION(:), POINTER :: snowd   ! snow depth (liquid water)
      REAL(r_1), DIMENSION(:), POINTER :: osnowd  ! snow depth from previous time step
+!les: Making wetfac global
      REAL(r_1), DIMENSION(:), POINTER :: wetfac ! surface wetness fact. at current time step
      REAL(r_1), DIMENSION(:), POINTER :: owetfac ! surface wetness fact. at previous time step
+
      REAL(r_1), DIMENSION(:), POINTER :: smelt   ! snow melt 
 !     REAL(r_1), DIMENSION(:,0:3), POINTER :: smelt1 ! snow melt (3 layer snowpack) 
      REAL(r_1), DIMENSION(:,:), POINTER  :: ssdn ! snow densities
      REAL(r_1), DIMENSION(:), POINTER :: ssdnn   ! average snow density
      REAL(r_1), DIMENSION(:,:), POINTER :: tgg   ! soil temperature in K
-     REAL(r_1), DIMENSION(:), POINTER :: otgg   ! soil temperature in K
+!!les     REAL(r_1), DIMENSION(:), POINTER :: otgg   ! soil temperature in K
      REAL(r_1), DIMENSION(:,:), POINTER  :: tggsn ! snow temperature in K
      REAL(r_1), DIMENSION(:), POINTER :: tss     ! surface temperature (weighted soil, snow)
-     REAL(r_1), DIMENSION(:), POINTER :: otss     ! surface temperature (weighted soil, snow)
+!!les     REAL(r_1), DIMENSION(:), POINTER :: otss     ! surface temperature (weighted soil, snow)
      REAL(r_2), DIMENSION(:,:), POINTER :: wb    ! volumetric soil moisture (solid+liq)
      REAL(r_2), DIMENSION(:,:), POINTER :: wbfice !
-     REAL(r_2), DIMENSION(:,:), POINTER :: wbice  ! soil ice
+     REAL(r_2), DIMENSION(:,:), POINTER :: wbice  ! volumetric soil ice
      REAL(r_2), DIMENSION(:,:), POINTER :: wblf !
      REAL(r_1), DIMENSION(:), POINTER :: wbtot   ! total soil water (mm)
-     REAL(r_1), DIMENSION(:), POINTER :: tprecip
-     REAL(r_1), DIMENSION(:), POINTER :: tevap
-     REAL(r_1), DIMENSION(:), POINTER :: trnoff
-     REAL(r_1), DIMENSION(:), POINTER :: totenbal
-     REAL(r_1), DIMENSION(:), POINTER :: totenbal2
+!!les     REAL(r_1), DIMENSION(:), POINTER :: tprecip
+!!     REAL(r_1), DIMENSION(:), POINTER :: tevap
+!!     REAL(r_1), DIMENSION(:), POINTER :: trnoff
+!!     REAL(r_1), DIMENSION(:), POINTER :: totenbal
+!!     REAL(r_1), DIMENSION(:), POINTER :: totenbal2
 !sxy
     REAL(r_1), DIMENSION(:), POINTER :: evapsn  ! snow evaporation  
   END TYPE soil_snow_type
@@ -109,22 +113,35 @@ MODULE define_types
      INTEGER(i_d),DIMENSION(:), POINTER :: meth ! method for calculation of canopy fluxes and temp.
      REAL(r_1), DIMENSION(:), POINTER :: vlai   ! leaf area index
      REAL(r_1), DIMENSION(:), POINTER :: vlaimax ! ???
-     REAL(r_1), DIMENSION(:), POINTER :: vlaiw  ! lai adjusted for snow depth for calculation of resistances
-     REAL(r_1), DIMENSION(:), POINTER :: fwet   ! fraction of canopy wet
+!les: move vlaiw to canopy
+!     REAL(r_1), DIMENSION(:), POINTER :: vlaiw  ! lai adjusted for snow depth for calculation of resistances
+     REAL(r_1), DIMENSION(:,:), POINTER :: refl
+     REAL(r_1), DIMENSION(:,:), POINTER :: taul
+     REAL(r_1), DIMENSION(:), POINTER :: xalbnir ! modifier for albedo in near ir bnad (YP Apr08)
+
+!les: moved to canopy_type
+!     REAL(r_1), DIMENSION(:), POINTER :: fwet   ! fraction of canopy wet
      REAL(r_1), DIMENSION(:), POINTER :: canst1 ! max intercepted water by canopy (mm/LAI)
      REAL(r_1), DIMENSION(:), POINTER :: ejmax  ! max pot. electron transport rate top leaf(mol/m2/s)
      REAL(r_1), DIMENSION(:), POINTER :: frac4  ! fraction of c4 plants
+     REAL(r_1), DIMENSION(:,:), POINTER :: froot  ! fraction of root in each soil layer
      REAL(r_1), DIMENSION(:), POINTER :: tminvj ! min temperature of the start of photosynthesis
      REAL(r_1), DIMENSION(:), POINTER :: tmaxvj ! max temperature of the start of photosynthesis
      REAL(r_1), DIMENSION(:), POINTER :: vbeta  ! 
+!     REAL(r_1), DIMENSION(:), POINTER :: hc_grdmax ! maximum height of canopy from tiles belonging to the same grid
      REAL(r_1), DIMENSION(:), POINTER :: hc	! roughness height of canopy (veg - snow)
-!     REAL(r_1), DIMENSION(:), POINTER :: hc_grdmax ! maximum height of canopy from tiles belonging to the same grid 
      REAL(r_1), DIMENSION(:), POINTER :: shelrb ! sheltering factor (dimensionless)
+!les wai,vegcf,xalbnir
+     REAL(r_1), DIMENSION(:), POINTER :: wai    ! wood area index (stem+branches+twigs)
+     REAL(r_1), DIMENSION(:), POINTER :: vegcf  ! biome-specific soil respiration rate
      REAL(r_1), DIMENSION(:), POINTER :: vcmax  ! maximum RuBP carboxylation rate top leaf (mol/m2/s)
      REAL(r_1), DIMENSION(:), POINTER :: xfang  ! leaf angle PARAMETER
      REAL(r_1), DIMENSION(:), POINTER :: dleaf  ! chararacteristc legnth of leaf (m)
      REAL(r_1), DIMENSION(:), POINTER :: rp20   ! plant respiration coefficient at 20 C
      REAL(r_1), DIMENSION(:), POINTER :: rpcoef ! temperature coef nonleaf plant respiration (1/C)
+!les
+!    rml 22/10/07
+     LOGICAL,   DIMENSION(:), POINTER :: deciduous ! flag used for phenology fix
   END TYPE veg_parameter_type
   ! Canopy/vegetation variables:
   TYPE canopy_type
@@ -139,9 +156,9 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: frp   ! plant respiration (g C m-2 s-1)
      REAL(r_1), DIMENSION(:), POINTER :: frpw  ! plant respiration (g C m-2 s-1)???
      REAL(r_1), DIMENSION(:), POINTER :: frpr  ! plant respiration (g C m-2 s-1)???
+     REAL(r_1), DIMENSION(:), POINTER :: fnpp  ! npp flux
      REAL(r_1), DIMENSION(:), POINTER :: frs   ! soil respiration (g C m-2 s-1)
      REAL(r_1), DIMENSION(:), POINTER :: fnee  ! net carbon flux (g C m-2 s-1)
-     REAL(r_1), DIMENSION(:), POINTER :: fnpp  ! npp flux
      REAL(r_1), DIMENSION(:), POINTER :: frday ! daytime leaf resp
      REAL(r_1), DIMENSION(:), POINTER :: fnv   ! net rad. avail. to canopy (W/m2)
      REAL(r_1), DIMENSION(:), POINTER :: fev   ! latent hf from canopy (W/m2)
@@ -154,6 +171,8 @@ MODULE define_types
      REAL(r_2), DIMENSION(:), POINTER :: fes   ! latent heatfl from soil (W/m2)
      REAL(r_1), DIMENSION(:), POINTER :: segg  ! latent heatfl from soil mm
      REAL(r_1), DIMENSION(:), POINTER :: fhs   ! sensible heat flux from soil
+!
+     REAL(r_1), DIMENSION(:), POINTER :: fwet  ! fraction of canopy wet
      REAL(r_1), DIMENSION(:), POINTER :: tv    ! vegetation temp (K)
      REAL(r_1), DIMENSION(:,:), POINTER :: gswx ! ! stom cond for water
      REAL(r_1), DIMENSION(:), POINTER :: gswx_T ! ! stom cond for water
@@ -169,9 +188,16 @@ MODULE define_types
      REAL(r_1), DIMENSION(:), POINTER :: us    ! friction velocity
      REAL(r_1), DIMENSION(:), POINTER :: ua_10m	 ! screen level or 10m wind speed (m/s)
      REAL(r_1), DIMENSION(:), POINTER :: tscrn ! air temperature at screen height (oC)
+     REAL(r_1), DIMENSION(:), POINTER :: tscrn1 ! air temperature at screen height (oC)
+     REAL(r_1), DIMENSION(:), POINTER :: tscrn2 ! air temperature at screen height (oC)
+     REAL(r_1), DIMENSION(:), POINTER :: tscrn3 ! air temperature at screen height (oC)
      REAL(r_1), DIMENSION(:), POINTER :: qscrn ! specific humudity at screen height (g/g)
      REAL(r_1), DIMENSION(:), POINTER :: uscrn ! wind speed at screen height (m/s)
+     REAL(r_1), DIMENSION(:), POINTER :: uscrn1 ! wind speed at screen height (m/s)
+!les
+     REAL(r_1), DIMENSION(:), POINTER :: vlaiw  ! lai adjusted for snow depth for calculation of resistances
      REAL(r_1), DIMENSION(:), POINTER :: cduv  ! drag coefficient for momentum
+     REAL(r_1), DIMENSION(:), POINTER :: cdtq  ! drag coefficient for heat
      REAL(r_1), DIMENSION(:), POINTER :: wetfac_cs ! 
      REAL(r_1), DIMENSION(:,:), POINTER :: zetar ! stability correction
 
@@ -216,9 +242,9 @@ MODULE define_types
      ! U(z) = U(h)*exp(coexp*(z/h-1)), found by gradient-matching
      ! canopy and roughness-sublayer U(z) at z=h
      REAL(r_1), DIMENSION(:), POINTER	:: coexp ! Extinction coefficient for wind profile in canopy
+     REAL(r_1), DIMENSION(:), POINTER   :: hruff_grmx ! maximum height of canopy from tiles belonging to the same grid
      REAL(r_1), DIMENSION(:), POINTER	:: disp  ! zero-plane displacement
      REAL(r_1), DIMENSION(:), POINTER	:: hruff ! canopy height above snow level
-     REAL(r_1), DIMENSION(:), POINTER :: hruff_grmx ! maximum height of canopy from tiles belonging to the same grid 
      REAL(r_1), DIMENSION(:), POINTER	:: rt0us ! eq. 3.54, SCAM manual (CSIRO tech report 132)
      REAL(r_1), DIMENSION(:), POINTER	:: rt1usa ! resistance from disp to hruf
      REAL(r_1), DIMENSION(:), POINTER	:: rt1usb ! resistance from hruf to zruffs (or zref if zref<zruffs)
@@ -291,13 +317,27 @@ MODULE define_types
      REAL(r_1), DIMENSION(ncp)	:: ratecp ! plant carbon rate constant (1/year)
      REAL(r_1), DIMENSION(ncs)	:: ratecs ! soil carbon rate constant (1/year)
   END TYPE bgc_pool_type
-  TYPE grid_type
-     REAL(r_1), DIMENSION(:,:), POINTER :: cplant_g ! plant carbon (g C/m2))
-     REAL(r_1), DIMENSION(:,:), POINTER :: csoil_g  ! soil carbon (g C/m2)
-     REAL(r_1), DIMENSION(:,:), POINTER :: frac_g  ! tile fractions 
-     REAL(r_1), DIMENSION(:), POINTER :: fe_g    ! total latent heat (W/m2)
-     REAL(r_1), DIMENSION(:), POINTER :: fh_g    ! total sensible heat (W/m2)
-  END TYPE grid_type
+!les
+!!  TYPE grid_type
+!!     REAL(r_1), DIMENSION(:,:), POINTER :: cplant_g ! plant carbon (g C/m2))
+!!     REAL(r_1), DIMENSION(:,:), POINTER :: csoil_g  ! soil carbon (g C/m2)
+!!     REAL(r_1), DIMENSION(:,:), POINTER :: frac_g  ! tile fractions 
+!!     REAL(r_1), DIMENSION(:), POINTER :: fe_g    ! total latent heat (W/m2)
+!!     REAL(r_1), DIMENSION(:), POINTER :: fh_g    ! total sensible heat (W/m2)
+!!  END TYPE grid_type
+
+!les
+  TYPE (air_type)       :: air ! air property variables
+  TYPE (bgc_pool_type)  :: bgc ! carbon pool variables
+  TYPE (canopy_type)    :: canopy ! vegetation variables
+  TYPE (met_type)       :: met ! met input variables
+  TYPE (balances_type)  :: bal ! energy and water balance variables
+  TYPE (radiation_type) :: rad ! radiation variables
+  TYPE (roughness_type) :: rough ! roughness variables
+  TYPE (soil_parameter_type) :: soil ! soil parameters
+  TYPE (soil_snow_type) :: ssoil ! soil and snow variables
+  TYPE (sum_flux_type)  :: sum_flux ! cumulative flux variables 
+  TYPE (veg_parameter_type) :: veg  ! vegetation parameters
 
   ! Functions for allocating these types
   ! All overloaded so code only needs to call alloc_cbm_var
@@ -316,8 +356,8 @@ MODULE define_types
           alloc_air_type,                 &
           alloc_met_type,                 &
           alloc_sum_flux_type,            &
-          alloc_bgc_pool_type,            &
-          alloc_grid_type
+          alloc_bgc_pool_type!,            &
+!!les          alloc_grid_type
   END INTERFACE
   INTERFACE dealloc_cbm_var
      MODULE PROCEDURE dealloc_balances_type,            &
@@ -330,15 +370,15 @@ MODULE define_types
           dealloc_air_type,                 &
           dealloc_met_type,                 &
           dealloc_sum_flux_type,            &
-          dealloc_bgc_pool_type,            &
-          dealloc_grid_type
+          dealloc_bgc_pool_type!,            &
+!!les          dealloc_grid_type
   END INTERFACE
 CONTAINS
   
   SUBROUTINE alloc_balances_type(var, mp)
     TYPE(balances_type), INTENT(inout) :: var
     INTEGER, INTENT(in) :: mp
-    ALLOCATE ( var % cansto0(mp) )
+!!les    ALLOCATE ( var % cansto0(mp) )
     ALLOCATE ( var % drybal(mp) )
     ALLOCATE ( var % ebal(mp) )
     ALLOCATE ( var % ebal_tot(mp) )
@@ -371,9 +411,9 @@ CONTAINS
     ALLOCATE ( var % c3(mp) )
     ALLOCATE ( var % clay(mp) )
     ALLOCATE ( var % cnsd(mp) )
-!    ALLOCATE ( var % cnsdJ(mp) )
+!les    ALLOCATE ( var % cnsdJ(mp) )
     ALLOCATE ( var % css(mp) )
-    ALLOCATE ( var % froot(mp,ms) )
+!    ALLOCATE ( var % froot(mp,ms) )
     ALLOCATE ( var % hsbh(mp) )
     ALLOCATE ( var % hyds(mp) )
     ALLOCATE ( var % i2bp3(mp) )
@@ -388,6 +428,7 @@ CONTAINS
     ALLOCATE ( var % ssat(mp) )
     ALLOCATE ( var % sucs(mp) )
     ALLOCATE ( var % swilt(mp) )
+   print *,'testing cable_define_types.F9a v674'
   END SUBROUTINE alloc_soil_parameter_type
  
   SUBROUTINE alloc_soil_snow_type(var, mp)
@@ -402,6 +443,7 @@ CONTAINS
     ALLOCATE ( var % gammzz(mp,ms) )
     ALLOCATE ( var % isflag(mp) )
     ALLOCATE ( var % osnowd(mp) )
+!les
     ALLOCATE ( var % wetfac(mp) )
     ALLOCATE ( var % owetfac(mp) )
     ALLOCATE ( var % potev(mp) )
@@ -422,10 +464,10 @@ CONTAINS
     ALLOCATE ( var % ssdn(mp,3) )
     ALLOCATE ( var % ssdnn(mp) )
     ALLOCATE ( var % tgg(mp,ms) )
-    ALLOCATE ( var % otgg(mp) )
+!!les    ALLOCATE ( var % otgg(mp) )
     ALLOCATE ( var % tggsn(mp,3) )
     ALLOCATE ( var % tss(mp) )
-    ALLOCATE ( var % otss(mp) )
+!!les    ALLOCATE ( var % otss(mp) )
     ALLOCATE ( var % wb(mp,ms) )
     ALLOCATE ( var % wbfice(mp,ms) )
     ALLOCATE ( var % wbice(mp,ms) )
@@ -441,11 +483,19 @@ CONTAINS
     ALLOCATE ( var % meth(mp) )
     ALLOCATE ( var % vlai(mp) )
     ALLOCATE ( var % vlaimax(mp) )
-    ALLOCATE ( var % vlaiw(mp) )
-    ALLOCATE ( var % fwet(mp) )
+!    ALLOCATE ( var % vlaiw(mp) )
+!    ALLOCATE ( var % fwet(mp) )
+    ALLOCATE ( var % refl(mp,2) )
+    ALLOCATE ( var % taul(mp,2) )
+    ALLOCATE ( var % xalbnir(mp) )
     ALLOCATE ( var % canst1(mp) )
     ALLOCATE ( var % ejmax(mp) )
     ALLOCATE ( var % frac4(mp) )
+    ALLOCATE ( var % froot(mp,ms) )
+!les
+    ALLOCATE ( var % wai(mp) )     ! new addition in Oct 2007 (YP)
+    ALLOCATE ( var % vegcf(mp) )   ! new addition in Oct 2007 (YP) 
+    ALLOCATE ( var % xalbnir(mp) ) ! new addition in Apr 2008 (YP)
     ALLOCATE ( var % tminvj(mp) )
     ALLOCATE ( var % tmaxvj(mp) )
     ALLOCATE ( var % vbeta(mp) )
@@ -456,6 +506,7 @@ CONTAINS
     ALLOCATE ( var % dleaf(mp) )
     ALLOCATE ( var % rp20(mp) )
     ALLOCATE ( var % rpcoef(mp) )
+    ALLOCATE ( var % deciduous(mp) ) ! les: rml addition 22/10/07
   END SUBROUTINE alloc_veg_parameter_type
    
   SUBROUTINE alloc_canopy_type(var, mp)
@@ -470,11 +521,11 @@ CONTAINS
     ALLOCATE ( var % fh(mp) )
     ALLOCATE ( var % fpn(mp) )
     ALLOCATE ( var % frp(mp) )
+    ALLOCATE ( var % fnpp(mp) )
     ALLOCATE ( var % frpw(mp) )
     ALLOCATE ( var % frpr(mp) )
     ALLOCATE ( var % frs(mp) )
     ALLOCATE ( var % fnee(mp) )
-    ALLOCATE ( var % fnpp(mp) )
     ALLOCATE ( var % frday(mp) )
     ALLOCATE ( var % fnv(mp) )
     ALLOCATE ( var % fev(mp) )
@@ -487,6 +538,8 @@ CONTAINS
     ALLOCATE ( var % fes(mp) )
     ALLOCATE ( var % segg(mp) )
     ALLOCATE ( var % fhs(mp) )
+!les
+    ALLOCATE ( var % fwet(mp) )
     ALLOCATE ( var % tv(mp) )
     ALLOCATE ( var % gswx(mp,mf) )
     ALLOCATE ( var % gswx_T(mp) )
@@ -502,9 +555,16 @@ CONTAINS
     ALLOCATE ( var % us(mp) )
     ALLOCATE ( var % ua_10m(mp) )
     ALLOCATE ( var % tscrn(mp) )
+    ALLOCATE ( var % tscrn1(mp) )
+    ALLOCATE ( var % tscrn2(mp) )
+    ALLOCATE ( var % tscrn3(mp) )
     ALLOCATE ( var % qscrn(mp) )
     ALLOCATE ( var % uscrn(mp) )
+    ALLOCATE ( var % uscrn1(mp) )
+!les
+    ALLOCATE ( var % vlaiw(mp) )
     ALLOCATE ( var % cduv(mp) )
+    ALLOCATE ( var % cdtq(mp) )
     ALLOCATE ( var % wetfac_cs(mp) )
     ALLOCATE ( var % zetar(mp,niter) )
 
@@ -538,9 +598,13 @@ CONTAINS
     ALLOCATE ( var % rhocbm(mp,nrb))
     ALLOCATE ( var % extkbm(mp,nrb))
     ALLOCATE ( var % extkdm(mp,nrb))
-    ALLOCATE ( var % fbeam (mp,3))
-    ALLOCATE ( var % cexpkbm(mp,2))
-    ALLOCATE ( var % cexpkdm(mp,2))
+!les: remove hard wiring
+    ALLOCATE ( var % fbeam (mp,nrb))  ! needs 3 in second dimension
+    ALLOCATE ( var % cexpkbm(mp,nrb)) ! only needs 2 in the second dimension
+    ALLOCATE ( var % cexpkdm(mp,nrb)) ! only needs 2 in the second dimension
+!    ALLOCATE ( var % fbeam (mp,3))
+!    ALLOCATE ( var % cexpkbm(mp,2))
+!    ALLOCATE ( var % cexpkdm(mp,2))
     ALLOCATE ( var % transb (mp))
 !==sxy
   END SUBROUTINE alloc_radiation_type
@@ -548,10 +612,10 @@ CONTAINS
   SUBROUTINE alloc_roughness_type(var, mp)
     TYPE(roughness_type), INTENT(inout) :: var
     INTEGER, INTENT(in) :: mp
+    ALLOCATE ( var % hruff_grmx(mp) )
     ALLOCATE ( var % coexp(mp) )
     ALLOCATE ( var % disp(mp) )
     ALLOCATE ( var % hruff(mp) )
-    ALLOCATE ( var % hruff_grmx(mp) )
     ALLOCATE ( var % rt0us(mp) )
     ALLOCATE ( var % rt1usa(mp) )
     ALLOCATE ( var % rt1usb(mp) )
@@ -574,7 +638,9 @@ CONTAINS
   SUBROUTINE alloc_air_type(var, mp)
     TYPE(air_type), INTENT(inout) :: var
     INTEGER, INTENT(in) :: mp
+    print*,'mp==',mp
     ALLOCATE ( var % rho(mp) )
+    print*,'alloc_air_type2',mp
     ALLOCATE ( var % volm(mp) )
     ALLOCATE ( var % rlam(mp) )
     ALLOCATE ( var % qsat(mp) )
@@ -593,7 +659,9 @@ CONTAINS
     ALLOCATE ( var % moy(mp) )
     ALLOCATE ( var % doy(mp) )
     ALLOCATE ( var % hod(mp) )
-    ALLOCATE ( var % fsd(mp,3) )
+!les: remove hardwiring
+    ALLOCATE ( var % fsd(mp,nrb) )
+!    ALLOCATE ( var % fsd(mp,3) )
     ALLOCATE ( var % fld(mp) )
     ALLOCATE ( var % precip(mp) )
     ALLOCATE ( var % precip_s(mp) )
@@ -634,21 +702,21 @@ CONTAINS
     ALLOCATE ( var % csoil(mp,ncs) )
   END SUBROUTINE alloc_bgc_pool_type
 
-  SUBROUTINE alloc_grid_type(var, mg)
-    TYPE(grid_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mg
-    ALLOCATE ( var % frac_g(mg,12) )
-    ALLOCATE ( var % csoil_g(mg,ncs) )
-    ALLOCATE ( var % fe_g(mg) )
-    ALLOCATE ( var % fh_g(mg) )
-  END SUBROUTINE alloc_grid_type
+!les
+!!  SUBROUTINE alloc_grid_type(var, mg)
+!!    TYPE(grid_type), INTENT(inout) :: var
+!!    INTEGER, INTENT(in) :: mg
+!!    ALLOCATE ( var % frac_g(mg,12) )
+!!    ALLOCATE ( var % csoil_g(mg,ncs) )
+!!    ALLOCATE ( var % fe_g(mg) )
+!!    ALLOCATE ( var % fh_g(mg) )
+!!  END SUBROUTINE alloc_grid_type
 
   ! Begin deallocation routines:
    SUBROUTINE dealloc_balances_type(var, mp)
     TYPE(balances_type), INTENT(inout) :: var
     INTEGER, INTENT(in) :: mp
-    DEALLOCATE ( var % cansto0 )
-    DEALLOCATE ( var % cansto0 )
+!!les    DEALLOCATE ( var % cansto0 )
     DEALLOCATE ( var % drybal )
     DEALLOCATE ( var % ebal )
     DEALLOCATE ( var % ebal_tot )
@@ -678,9 +746,9 @@ CONTAINS
     DEALLOCATE ( var % c3 )
     DEALLOCATE ( var % clay )
     DEALLOCATE ( var % cnsd )
-!    DEALLOCATE ( var % cnsdJ )
+!les    DEALLOCATE ( var % cnsdJ )
     DEALLOCATE ( var % css )
-    DEALLOCATE ( var % froot )
+!    DEALLOCATE ( var % froot )
     DEALLOCATE ( var % hsbh )
     DEALLOCATE ( var % hyds )
     DEALLOCATE ( var % i2bp3 )
@@ -709,6 +777,7 @@ CONTAINS
     DEALLOCATE ( var % gammzz )
     DEALLOCATE ( var % isflag )
     DEALLOCATE ( var % osnowd )
+!les
     DEALLOCATE ( var % wetfac )
     DEALLOCATE ( var % owetfac )
     DEALLOCATE ( var % potev )
@@ -729,10 +798,10 @@ CONTAINS
     DEALLOCATE ( var % ssdn )
     DEALLOCATE ( var % ssdnn )
     DEALLOCATE ( var % tgg )
-    DEALLOCATE ( var % otgg )
+!!les    DEALLOCATE ( var % otgg )
     DEALLOCATE ( var % tggsn )
     DEALLOCATE ( var % tss )
-    DEALLOCATE ( var % otss )
+!!les    DEALLOCATE ( var % otss )
     DEALLOCATE ( var % wb )
     DEALLOCATE ( var % wbfice )
     DEALLOCATE ( var % wbice )
@@ -748,11 +817,19 @@ CONTAINS
     DEALLOCATE ( var % meth )
     DEALLOCATE ( var % vlai )
     DEALLOCATE ( var % vlaimax )
-    DEALLOCATE ( var % vlaiw )
-    DEALLOCATE ( var % fwet )
+!    DEALLOCATE ( var % vlaiw )
+!    DEALLOCATE ( var % fwet )
+    DEALLOCATE ( var % refl )
+    DEALLOCATE ( var % taul )
+    DEALLOCATE ( var % xalbnir )
     DEALLOCATE ( var % canst1 )
     DEALLOCATE ( var % ejmax )
     DEALLOCATE ( var % frac4 )
+    DEALLOCATE ( var % froot )
+!les
+    DEALLOCATE ( var % wai )     ! new addition in Oct 2007 (YP)
+    DEALLOCATE ( var % vegcf )   ! new addition in Oct 2007 (YP)
+    DEALLOCATE ( var % xalbnir ) ! new addition in Apr 2008 (YP)
     DEALLOCATE ( var % tminvj )
     DEALLOCATE ( var % tmaxvj )
     DEALLOCATE ( var % vbeta )
@@ -763,6 +840,7 @@ CONTAINS
     DEALLOCATE ( var % dleaf )
     DEALLOCATE ( var % rp20 )
     DEALLOCATE ( var % rpcoef )
+    DEALLOCATE ( var % deciduous ) ! les: rml addition 22/10/07
   END SUBROUTINE dealloc_veg_parameter_type
    
   SUBROUTINE dealloc_canopy_type(var, mp)
@@ -776,12 +854,12 @@ CONTAINS
     DEALLOCATE ( var % epot )
     DEALLOCATE ( var % fh )
     DEALLOCATE ( var % fpn )
+    DEALLOCATE ( var % fnpp )
     DEALLOCATE ( var % frp )
     DEALLOCATE ( var % frpw )
     DEALLOCATE ( var % frpr )
     DEALLOCATE ( var % frs )
     DEALLOCATE ( var % fnee )
-    DEALLOCATE ( var % fnpp )
     DEALLOCATE ( var % frday )
     DEALLOCATE ( var % fnv )
     DEALLOCATE ( var % fev )
@@ -793,6 +871,8 @@ CONTAINS
     DEALLOCATE ( var % fns )
     DEALLOCATE ( var % fes )
     DEALLOCATE ( var % fhs )
+!les
+    DEALLOCATE ( var % fwet )
     DEALLOCATE ( var % tv )
     DEALLOCATE ( var % gswx )
     DEALLOCATE ( var % gswx_T )
@@ -808,9 +888,16 @@ CONTAINS
     DEALLOCATE ( var % us )
     DEALLOCATE ( var % ua_10m )
     DEALLOCATE ( var % tscrn )
+    DEALLOCATE ( var % tscrn1 )
+    DEALLOCATE ( var % tscrn2 )
+    DEALLOCATE ( var % tscrn3 )
     DEALLOCATE ( var % qscrn )
     DEALLOCATE ( var % uscrn )
+    DEALLOCATE ( var % uscrn1 )
+!les
+    DEALLOCATE ( var % vlaiw )
     DEALLOCATE ( var % cduv )
+    DEALLOCATE ( var % cdtq )
     DEALLOCATE ( var % wetfac_cs )
     DEALLOCATE ( var % zetar )
 
@@ -854,10 +941,10 @@ CONTAINS
   SUBROUTINE dealloc_roughness_type(var, mp)
     TYPE(roughness_type), INTENT(inout) :: var
     INTEGER, INTENT(in) :: mp
+    DEALLOCATE ( var % hruff_grmx )
     DEALLOCATE ( var % coexp )
     DEALLOCATE ( var % disp )
     DEALLOCATE ( var % hruff )
-    DEALLOCATE ( var % hruff_grmx )
     DEALLOCATE ( var % rt0us )
     DEALLOCATE ( var % rt1usa )
     DEALLOCATE ( var % rt1usb )
@@ -939,15 +1026,16 @@ CONTAINS
     DEALLOCATE ( var % cplant )
     DEALLOCATE ( var % csoil )
   END SUBROUTINE dealloc_bgc_pool_type
-  
-  SUBROUTINE dealloc_grid_type(var, mg)
-    TYPE(grid_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mg
-    DEALLOCATE ( var % frac_g )
-    DEALLOCATE ( var % csoil_g )
-    DEALLOCATE ( var % fe_g )
-    DEALLOCATE ( var % fh_g )
-  END SUBROUTINE dealloc_grid_type
+
+!les  
+!!  SUBROUTINE dealloc_grid_type(var, mg)
+!!    TYPE(grid_type), INTENT(inout) :: var
+!!    INTEGER, INTENT(in) :: mg
+!!    DEALLOCATE ( var % frac_g )
+!!    DEALLOCATE ( var % csoil_g )
+!!    DEALLOCATE ( var % fe_g )
+!!    DEALLOCATE ( var % fh_g )
+!!  END SUBROUTINE dealloc_grid_type
 
 
 END MODULE define_types

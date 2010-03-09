@@ -92,7 +92,7 @@ real ttbg,ar1,exp_ar1,ar2,exp_ar2,ar3,snr
 real dnsnow,snrat,dtau,alvo,aliro,fage,cczen,fzen,fzenm
 real alvd,alv,alird,alir
 real rrvco2,ssolar,rrco2
-real f1,f2
+real f1,f2,cosz,delta
 logical maxover,newcld
 logical, save :: first = .true.
 
@@ -185,12 +185,17 @@ if ( first ) then
   Lw_control%do_o3                       =.true.
   Lw_control%do_co2                      =.true.
   Lw_control%do_ch4                      =.false.
-  Lw_control%do_n2o                      =.false.  
+  Lw_control%do_n2o                      =.false.
+  Lw_control%do_h2o                      =.true.
+  Lw_control%do_cfc                      =.false.
   Astro%rrsun                            =1./(r1*r1)
   Rad_control%using_solar_timeseries_data=.false.
   Rad_control%do_totcld_forcing          =do_totcld_forcing
   Rad_control%rad_time_step              =kountr*dt
   Rad_control%rad_time_step_iz           =.true.
+  Rad_control%do_aerosol                 =.false.
+  Rad_control%do_swaerosol_forcing       =.false.
+  Rad_control%do_lwaerosol_forcing       =.false.
 
   call sealw99_init(pref, Lw_tables)  
   call esfsw_parameters_init
@@ -245,12 +250,10 @@ if ( first ) then
   allocate ( Cld_spec%cmxolw (imax, 1, kl ) )
   allocate ( Cld_spec%crndlw (imax, 1, kl ) )
   
-  allocate (Surface%asfc (imax, 1) )
   allocate (Surface%asfc_vis_dir (imax, 1 ) )
   allocate (Surface%asfc_nir_dir (imax, 1 ) )
   allocate (Surface%asfc_vis_dif (imax, 1 ) )
   allocate (Surface%asfc_nir_dif (imax, 1 ) )
-  allocate (Surface%land (imax, 1) )    
 
   allocate ( Astro%cosz   (imax, 1 ) )
   allocate ( Astro%fracday(imax, 1 ) )
@@ -367,7 +370,7 @@ do j=1,jl,imax/il
 
     ! Set-up albedo
     ! Land albedo ---------------------------------------------------
-    if (nsib.eq.CABLE.or.nsib.eq.6) then
+    if (nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7) then
       ! CABLE version
       where (land(istart:iend))
         cuvrf_dir(1:imax) = albvisdir(istart:iend)    ! from cable (inc snow)
@@ -445,12 +448,10 @@ do j=1,jl,imax/il
     end where
     
     ! sea ice albedo ------------------------------------------------
-    where (fracice(istart:iend).gt.0.)
-      cuvrf_dir(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dir(1:imax)
-      cuvrf_dif(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dif(1:imax)
-      cirrf_dir(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
-      cirrf_dif(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
-    end where
+    cuvrf_dir(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dir(1:imax)
+    cuvrf_dif(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dif(1:imax)
+    cirrf_dir(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
+    cirrf_dif(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
 
     ! Urban albedo --------------------------------------------------
     call atebalb1(istart,imax,cuvrf_dir(1:imax),0)
@@ -464,17 +465,15 @@ do j=1,jl,imax/il
         ! no aerosols
       case(1)
         ! aerosols are read in (direct effect only)
-        !do i=1,imax
-        !  iq=i+(j-1)*il
-        !  cosz = max ( coszro(i), 1.e-4)
-        !  delta =  coszro(i)*beta_ave*alpha*so4t(iq)*((1.-0.5*(cuvrf_dir(i)+cirrf_dir(i)))/cosz)**2
-        !  cuvrf_dir(i)=min(0.99, delta+cuvrf_dir(i)) ! surface albedo
-        !  cirrf_dir(i)=min(0.99, delta+cirrf_dir(i)) ! still broadband
-        !  cuvrf_dif(i)=min(0.99, delta+cuvrf_dir(i)) ! fix this
-        !  cirrf_dif(i)=min(0.99, delta+cirrf_dir(i)) ! fix this
-        !end do ! i=1,imax
-        write(6,*) "ERROR: prescribed aerosols are not supported with nrad=5"
-        stop        
+        do i=1,imax
+          iq=i+(j-1)*il
+          cosz = max ( coszro(i), 1.e-4)
+          delta =  coszro(i)*0.29*8.*so4t(iq)*((1.-0.25*(cuvrf_dir(i)+cuvrf_dif(i)+cirrf_dir(i)+cirrf_dif(i)))/cosz)**2
+          cuvrf_dir(i)=min(0.99, delta+cuvrf_dir(i)) ! still broadband
+          cirrf_dir(i)=min(0.99, delta+cirrf_dir(i)) ! still broadband
+          cuvrf_dif(i)=min(0.99, delta+cuvrf_dif(i)) ! still broadband
+          cirrf_dif(i)=min(0.99, delta+cirrf_dif(i)) ! still broadband
+        end do ! i=1,imax
       case(2)
         ! prognostic aerosols
         !Aerosol=
@@ -518,13 +517,13 @@ do j=1,jl,imax/il
     do k=1,kl
       kr=kl+1-k
       Atmos_input%deltaz(:,1,kr) =(-dsig(k)/sig(k))*rdry*t(istart:iend,k)/grav
-      Atmos_input%rh2o(:,1,kr)   =max(qg(istart:iend,k) ,1.e-7)
-      Atmos_input%temp(:,1,kr)   =min(max(t(istart:iend,k),100.),370.)
+      Atmos_input%rh2o(:,1,kr)   =max(qg(istart:iend,k) ,2.e-7)
+      Atmos_input%temp(:,1,kr)   =t(istart:iend,k)      
       Atmos_input%press(:,1,kr)  =ps(istart:iend)*sig(k)
       call getqsat(imax,qsat,t(istart:iend,k),ps(istart:iend)*sig(k))
-      Atmos_input%rel_hum(:,1,kr)=min(max(qg(istart:iend,k)/qsat,2.E-7),1.)
+      Atmos_input%rel_hum(:,1,kr)=min(qg(istart:iend,k)/qsat,1.)
     end do
-    Atmos_input%temp(:,1,kl+1) =min(max(tss(istart:iend),100.),370.)
+    Atmos_input%temp(:,1,kl+1) =tss(istart:iend)
     Atmos_input%press(:,1,kl+1)=ps(istart:iend)
     Atmos_input%pflux(:,1,1  )  = 0.
     Atmos_input%tflux(:,1,1  )  = Atmos_input%temp (:,1,1  )
@@ -538,7 +537,7 @@ do j=1,jl,imax/il
     !Atmos_input%cloudtemp       = Atmos_input%temp ! fix
     !do k=1,kl
     !  kr = kl+1-k
-    !  Atmos_input%cloudvapor(:,1,kr)=max(qg(istart:iend,k),1.E-7) ! fix
+    !  Atmos_input%cloudvapor(:,1,kr)=qg(istart:iend,k) ! fix
     !end do
     !Atmos_input%aerosolrelhum   =Atmos_input%rel_hum
     !Atmos_input%aerosoltemp     =Atmos_input%temp ! fix
@@ -546,7 +545,7 @@ do j=1,jl,imax/il
     !Atmos_input%aerosolpress    =Atmos_input%press  ! fix    
 
     Atmos_input%psfc(:,1)    =ps(istart:iend)
-    Atmos_input%tsfc(:,1)    =min(max(tss(istart:iend),100.),370.)
+    Atmos_input%tsfc(:,1)    =tss(istart:iend)
     do k=1,kl+1
       kr=kl+2-k
       Atmos_input%phalf(:,1,kr)=ps(istart:iend)*sigh(k)
@@ -558,7 +557,7 @@ do j=1,jl,imax/il
     !Rad_gases%rrvf11  = rrvf11
     !Rad_gases%rrvf12  = rrvf12
     !Rad_gases%rrvf113 = rrvf113
-    !Rad_gases%rrvf22  = rrvf22
+    !Rad_gases%rrvf22  = rrvf22    
     
     Cld_spec%camtsw=0.
     Cld_spec%crndlw=0.
@@ -621,20 +620,14 @@ do j=1,jl,imax/il
     Cldrad_props%emmxolw = Cldrad_props%cldemiss
     Cldrad_props%emrndlw = Cldrad_props%cldemiss
     
-    Surface%asfc(:,1)=0.5*(albsav(istart:iend)+albnirsav(istart:iend))
     Surface%asfc_vis_dir(:,1)=cuvrf_dir(:)
     Surface%asfc_nir_dir(:,1)=cirrf_dir(:)
     Surface%asfc_vis_dif(:,1)=cuvrf_dif(:)
     Surface%asfc_nir_dif(:,1)=cirrf_dif(:)
-    where (land(istart:iend))
-      Surface%land(1:imax,1)=1.
-    else where
-      Surface%land(1:imax,1)=0.
-    end where
-    
+   
     Astro%cosz(:,1)   =max(coszro,0.)
     Astro%fracday(:,1)=taudar
-    
+
     call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input,  &
                           Rad_gases, Aerosol, Aerosol_props,   &
                           Cldrad_props, Cld_spec, Aerosol_diags, &
@@ -659,9 +652,21 @@ do j=1,jl,imax/il
     sgdnnirdir=Sw_output(1)%dfsw_dir_sfc(:,1)-sgdnvisdir
     sgdnnirdif=Sw_output(1)%dfsw_dif_sfc(:,1)-sgdnvisdif
     
-    swrsave(istart:iend)=sgvis/max(sg,0.1)
-    fbeamvis(istart:iend)=sgdnvisdir/max(sgdnvisdir+sgdnvisdif,0.1)
-    fbeamnir(istart:iend)=sgdnnirdir/max(sgdnnirdir+sgdnnirdif,0.1)
+    where (sg.gt.0.)
+      swrsave(istart:iend)=sgvis/sg
+    elsewhere
+      swrsave(istart:iend)=0.
+    end where
+    where (sgdnvisdir+sgdnvisdif.gt.0.)
+      fbeamvis(istart:iend)=sgdnvisdir/(sgdnvisdir+sgdnvisdif)
+    elsewhere
+      fbeamvis(istart:iend)=0.
+    end where
+    where (sgdnnirdir+sgdnnirdif.gt.0.)
+      fbeamnir(istart:iend)=sgdnnirdir/(sgdnnirdir+sgdnnirdif)
+    elsewhere
+      fbeamnir(istart:iend)=0.
+    end where
     
     ! Store albedo data ---------------------------------------------
     albvisnir(istart:iend,1)=cuvrf_dir(1:imax)*fbeamvis(istart:iend)+cuvrf_dif(1:imax)*(1.-fbeamvis(istart:iend))

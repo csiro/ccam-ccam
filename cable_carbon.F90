@@ -16,12 +16,13 @@ MODULE carbon_module
   PUBLIC carbon_pl, soilcarb
 CONTAINS
 
-  SUBROUTINE carbon_pl(dels, soil, ssoil, veg, canopy, bgc)
-    TYPE (soil_parameter_type), INTENT(IN)		:: soil  ! soil parameters
-    TYPE (soil_snow_type), INTENT(IN)	                :: ssoil   ! soil/snow variables
-    TYPE (veg_parameter_type), INTENT(IN)		:: veg     ! vegetation parameters
-    TYPE (canopy_type), INTENT(INOUT)	         	:: canopy ! canopy/veg variables
-    TYPE (bgc_pool_type), INTENT(INOUT)	                :: bgc     ! biogeochemistry variables
+  SUBROUTINE carbon_pl(dels)
+!  SUBROUTINE carbon_pl(dels, soil, ssoil, veg, canopy, bgc)
+!    TYPE (soil_parameter_type), INTENT(IN)		:: soil  ! soil parameters
+!    TYPE (soil_snow_type), INTENT(IN)	                :: ssoil   ! soil/snow variables
+!    TYPE (veg_parameter_type), INTENT(IN)		:: veg     ! vegetation parameters
+!    TYPE (canopy_type), INTENT(INOUT)	         	:: canopy ! canopy/veg variables
+!    TYPE (bgc_pool_type), INTENT(INOUT)	                :: bgc     ! biogeochemistry variables
     REAL(r_1), INTENT(IN)			        :: dels    ! integration time step (s)
     REAL(r_1), PARAMETER        :: beta = 0.9
     REAL(r_1), DIMENSION(mp)	:: cfsf     ! fast soil carbon turnover
@@ -54,7 +55,9 @@ CONTAINS
     ! Limit size of exponent to avoif overflow when tv is very cold
 !    coef_cold = EXP(MIN(50., -(canopy%tv - tvclst(veg%iveg))))   ! cold stress
     coef_cold = EXP(MIN(1., -(canopy%tv - tvclst(veg%iveg))))   ! cold stress
-    wbav = SUM(soil%froot * ssoil%wb, 2)
+!les
+    wbav = REAL(SUM(veg%froot * ssoil%wb, 2),r_1)
+!    wbav = SUM(veg%froot * ssoil%wb, 2)
 !    coef_drght = EXP(10.*( MIN(1., MAX(1.,wbav**(2-soil%ibp2)-1.) / & ! drought stress
     coef_drght = EXP(5.*( MIN(1., MAX(1.,wbav**(2-soil%ibp2)-1.) / & ! drought stress
          (soil%swilt**(2-soil%ibp2) - 1.)) - 1.))
@@ -101,13 +104,14 @@ CONTAINS
     bgc%csoil(:,2) = MAX(0.001, bgc%csoil(:,2))
   END SUBROUTINE carbon_pl
 
-  SUBROUTINE soilcarb(soil, ssoil, veg, bgc, met, canopy)
-    TYPE (soil_parameter_type), INTENT(IN) :: soil
-    TYPE (soil_snow_type), INTENT(IN)	:: ssoil
-    TYPE (veg_parameter_type), INTENT(IN)  :: veg
-    TYPE (bgc_pool_type), INTENT(IN)	:: bgc
-    TYPE (met_type), INTENT(IN)		:: met	
-    TYPE (canopy_type), INTENT(INOUT)	:: canopy
+  SUBROUTINE soilcarb
+!  SUBROUTINE soilcarb(soil, ssoil, veg, bgc, met, canopy)
+!    TYPE (soil_parameter_type), INTENT(IN) :: soil
+!    TYPE (soil_snow_type), INTENT(IN)	:: ssoil
+!    TYPE (veg_parameter_type), INTENT(IN)  :: veg
+!    TYPE (bgc_pool_type), INTENT(IN)	:: bgc
+!    TYPE (met_type), INTENT(IN)		:: met	
+!    TYPE (canopy_type), INTENT(INOUT)	:: canopy
     REAL(r_1), DIMENSION(mp)		:: den ! sib3
     INTEGER(i_d)			:: k
     REAL(r_1), DIMENSION(mp)		:: rswc
@@ -120,14 +124,14 @@ CONTAINS
     REAL(r_1), PARAMETER		:: t0 = -46.0
     REAL(r_1), DIMENSION(mp)		:: tref
     REAL(r_1), DIMENSION(mp)		:: tsoil
-    REAL(r_1), PARAMETER, DIMENSION(13)	:: vegcf = &
-         (/ 1.95, 1.5, 1.55, 0.91, 0.73, 2.8, 2.75, 0.0, 2.05, 0.6, 0.4, 2.8, 0.0 /)
+!    REAL(r_1), PARAMETER, DIMENSION(13)	:: vegcf = &
+!         (/ 1.95, 1.5, 1.55, 0.91, 0.73, 2.8, 2.75, 0.0, 2.05, 0.6, 0.4, 2.8, 0.0 /)
 
 !      print *,'soilcarb1'
     den = max(0.07,soil%sfc - soil%swilt)
-    rswc =  MAX(0.0001_r_2, soil%froot(:,1)*(ssoil%wb(:,2) - soil%swilt)) / den
-!    rswc = soil%froot(:, 1) * max(0.0001, ssoil%wb(:,2) - soil%swilt) / den
-    tsoil = soil%froot(:,1) * ssoil%tgg(:,2) - 273.15
+    rswc =  MAX(0.0001_r_2, veg%froot(:,1)*(ssoil%wb(:,2) - soil%swilt)) / den
+!    rswc = veg%froot(:, 1) * max(0.0001, ssoil%wb(:,2) - soil%swilt) / den
+    tsoil = veg%froot(:,1) * ssoil%tgg(:,2) - 273.15
 !    tref = MAX(t0 + 1.,ssoil%tgg(:,ms) - 273.1)
     tref = MAX(0.,ssoil%tgg(:,ms) - 273.1)
 
@@ -135,8 +139,8 @@ CONTAINS
 !      print *,'soilcarb2'
     DO k = 2,ms  ! start from 2nd index for less dependency on the surface condition
        rswc = rswc +  &
-            MAX(0.0001_r_2, soil%froot(:,k) * (ssoil%wb(:,k) - soil%swilt)) / den
-       tsoil = tsoil + soil%froot(:,k) * ssoil%tgg(:,k)
+            MAX(0.0001_r_2, veg%froot(:,k) * (ssoil%wb(:,k) - soil%swilt)) / den
+       tsoil = tsoil + veg%froot(:,k) * ssoil%tgg(:,k)
     ENDDO
 !      print *,'soilcarb3'
     rswc = MIN(1.,rswc)
@@ -153,7 +157,10 @@ CONTAINS
 !      print *,'soilcarb4'
 !      print *,'soilcarb41',veg%iveg,vegcf(veg%iveg),soil%isoilm, &
 !               soilcf(soil%isoilm),ftsrs,rswc,rswch(soil%isoilm)
-    canopy%frs = vegcf(veg%iveg) * (144.0 / 44.0e6)  &
+
+! rml vegcf(veg%iveg) replaced with veg%vegcf
+!    canopy%frs = vegcf(veg%iveg) * (144.0 / 44.0e6)  &
+     canopy%frs = veg%vegcf * (144.0 / 44.0e6)  &
          * soilcf(soil%isoilm) * MIN(1.,1.4 * MAX(.3,.0278 * tsoil + .5)) &
          * ftsrs &
          * rswc / (rswch(soil%isoilm) + rswc)

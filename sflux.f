@@ -726,7 +726,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
         case(CABLE)
          print *,"nsib==CABLE option not avaliable"
          stop
-        case(6)                                                         ! cable
+        case(6,7)                                                       ! cable
          ! update ocean diagnostics                                     ! cable
          call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss,
      &                t(1:ifull,1),qsttg,qg(1:ifull,1),vmod,
@@ -745,19 +745,12 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
            tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! cable
          enddo   ! ip=1,ipland                                          ! cable
          ! The following patch overrides CABLE screen level diagnostics
-!         if (.true.) then                                         ! PATCH
-!           do ip=1,ipland                                         ! PATCH
-!             iq=iperm(ip)                                         ! PATCH
-!             zologx=log(zmin/zo(iq))                              ! PATCH
-!             aft(iq)=vkar**2/(zologx*(log(factch(iq)**2)+zologx)) ! PATCH
-!             af(iq)=(vkar/log(zmin/zo(iq)))**2                    ! PATCH
-!             xx=grav*zmin*(1.-tss(iq)*srcp/t(iq,1))               ! PATCH
-!             ri(iq)=min(xx/vmag(iq)**2,ri_max)                    ! PATCH
-!           enddo   ! ip=1,ipland                                  ! PATCH
-!           call scrnout(zo,ustar,factch,wetfac,qsttg,            
-!     .            qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,  
-!     .            bprm,cms,chs,chnsea,nalpha)                     ! PATCH
-!         end if                                                   ! PATCH
+         if (nsib.eq.7) then                                      ! PATCH
+	   qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))
+           call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss,
+     &                t(1:ifull,1),qsttg,qg(1:ifull,1),vmod,
+     &                ps(1:ifull),.not.land,zmin,sig(1))          ! PATCH
+         end if                                                   ! PATCH
         case DEFAULT
           print *,"ERROR: Unknown land-use option nsib=",nsib
           stop

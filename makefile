@@ -1,6 +1,7 @@
 FC = ifort
 
 FFLAGS = -O -fpp -I /tools/netcdf/3.6.0-p1/include -Dsimple_timer
+#FFLAGS = -O -fpp -I /tools/netcdf/3.6.0-p1/include -Dsimple_timer -fpe0 -g
 LIBS = -L /tools/netcdf/3.6.0-p1/lib -lnetcdf -lmpi
 
 LDFLAGS = 
@@ -21,7 +22,7 @@ cable_ccam2.o albedo_module.o cable_air.o cable_albedo.o cable_canopy.o \
 cable_carbon.o cable_define_dimensions.o cable_define_types.o \
 cable_math_constants.o cable_other_constants.o cable_photosynthetic_constants.o \
 cable_physical_constants.o cable_radiation.o cable_roughness.o cable_soilsnow.o \
-cable_variables.o ateb.o mlo.o tkeeps.o \
+ateb.o mlo.o tkeeps.o \
 seaesfrad.o rad_utilities.o microphys_rad.o esfsw_driver.o esfsw_parameters.o \
 longwave_params.o sealw99.o longwave_clouds.o longwave_fluxes.o longwave_tables.o \
 optical_path.o gas_tf.o lw_gases_stdtf.o
@@ -35,33 +36,33 @@ clean:
 .SUFFIXES:.f90 .F90
 
 esfsw_driver.o: esfsw_driver.f90
-	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+	$(FC)  -c -r8 -override-limits $(FFLAGS) $<
 esfsw_parameters.o: esfsw_parameters.f90
-	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+	$(FC)  -c -r8 $(FFLAGS) $<
 gas_tf.o: gas_tf.f90
-	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+	$(FC)  -c -r8 $(FFLAGS) $<
 longwave_clouds.o: longwave_clouds.f90
-	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+	$(FC)  -c -r8 $(FFLAGS) $<
 longwave_fluxes.o: longwave_fluxes.f90
-	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+	$(FC)  -c -r8 $(FFLAGS) $<
 longwave_tables.o: longwave_tables.f90
-	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+	$(FC)  -c -r8 $(FFLAGS) $<
 longwave_params.o: longwave_params.f90
-	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+	$(FC)  -c -r8 $(FFLAGS) $<
 lw_gases_stdtf.o: lw_gases_stdtf.f90
-	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+	$(FC)  -c -r8 $(FFLAGS) $<
 microphys_rad.o: microphys_rad.f90
-	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+	$(FC)  -c -r8 $(FFLAGS) $<
 optical_path.o: optical_path.f90
-	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+	$(FC)  -c -r8 $(FFLAGS) $<
 rad_utilities.o: rad_utilities.f90
-	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+	$(FC)  -c -r8 $(FFLAGS) $<
 sealw99.o: sealw99.f90
-	$(FC)  -c -O -r8 -override-limits $(FFLAGS) $<
+	$(FC)  -c -r8 $(FFLAGS) $<
 ateb.o: ateb.f90
-	$(FC)  -c -O -override-limits $(FFLAGS) $<
+	$(FC)  -c -override-limits $(FFLAGS) $<
 cable_canopy.o: cable_canopy.F90
-	$(FC)  -c -O -override-limits $(FFLAGS) $<	
+	$(FC)  -c -override-limits $(FFLAGS) $<
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
 
@@ -85,11 +86,10 @@ bettrain.o : bettrain.f betts1.h newmpar.h
 betts.o : betts.f sigs.h prec.h parm.h morepbl.h betts1.h newmpar.h 
 bettspli.o : bettspli.f 
 cable_ccam2.o : zenith.o cable_define_dimensions.o cable_albedo.o cable_canopy.o cable_albedo.o cable_carbon.o cable_soilsnow.o
-cable_canopy.o: cable_photosynthetic_constants.o cable_radiation.o cable_roughness.o cable_air.o
+cable_canopy.o: cable_photosynthetic_constants.o cable_radiation.o cable_roughness.o cable_air.o cable_define_types.o cable_physical_constants.o
 cable_photosynthetic_constants.o: cable_define_dimensions.o
-cable_radiation.o: cable_math_constants.o cable_other_constants.o cable_define_types.o cable_physical_constants.o cable_variables.o
-cable_albedo.o: cable_math_constants.o cable_other_constants.o cable_define_types.o cable_physical_constants.o cable_variables.o
-cable_variables.o: cable_define_types.o
+cable_radiation.o: cable_math_constants.o cable_other_constants.o cable_define_types.o cable_physical_constants.o 
+cable_albedo.o: cable_math_constants.o cable_other_constants.o cable_define_types.o cable_physical_constants.o 
 cable_define_types.o: cable_define_dimensions.o
 cldblk.o : cldblk.f 
 cldcom.o : cldcom.f 

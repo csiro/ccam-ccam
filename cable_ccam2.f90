@@ -35,7 +35,6 @@ module cable_ccam
   ! 9       land ice
 
   USE define_dimensions, cbm_ms => ms
-  USE cable_variables
   use cab_albedo_module
   USE canopy_module
   USE carbon_module
@@ -50,6 +49,7 @@ module cable_ccam
   public CABLE,sib4,loadcbmparm,savetile
 
   integer, parameter :: CABLE = 4
+  integer, parameter :: hruffmethod = 1 ! Method for max hruff
   integer, dimension(:), allocatable, save :: cmap
   integer, dimension(5,2), save :: pind  
   real, dimension(:), allocatable, save :: atmco2
@@ -106,7 +106,7 @@ module cable_ccam
      ! for calculation of zenith angle
       real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull)
       real bpyear,alp,x
-      real tmps(ifull)
+      real tmps(ifull),hruff_grmx(ifull)
 
       integer jyear,jmonth,jday,jhour,jmin
       integer mstart,ktauplus,k,mins,kstart
@@ -214,22 +214,42 @@ module cable_ccam
        met%precip_s=0. ! in mm not mm/sec
        where (met%tc<0.) met%precip_s=met%precip
 
+       rough%hruff=max(0.01,veg%hc-1.2*ssoil%snowd/max(ssoil%ssdnn,100.))
+       select case(hruffmethod)
+         case(0) ! hruff is mixed in a tile (find max hruff for tile)
+           hruff_grmx=0.01
+           do nb=1,5
+             if (pind(nb,1).le.mp) then
+               hruff_grmx(cmap(pind(nb,1):pind(nb,2)))=max( &
+                 hruff_grmx(cmap(pind(nb,1):pind(nb,2))),rough%hruff(pind(nb,1):pind(nb,2)))
+             end if
+           end do
+           rough%hruff_grmx=hruff_grmx(cmap)
+         case(1) ! hruff is seperate in a tile (no max hruff for tile)
+           rough%hruff_grmx=rough%hruff
+         case DEFAULT
+           write(6,*) "ERROR: Unsupported hruffmethod ",hruffmethod
+           stop
+       end select
+
       !--------------------------------------------------------------
       ! CABLE
       veg%meth = 1
-      CALL ruff_resist(veg, rough, ssoil)
-      CALL define_air (met, air)
-      CALL init_radiation(met,rad,veg) ! need to be called at every dt
-      CALL cab_albedo(ktau, dt, ssoil, veg, air, met, rad, soil, .true.) ! set L_RADUM=.true. as radriv90.f has been called
-      CALL define_canopy(ktau,bal,rad,rough,air,met,dt,ssoil,soil,veg,bgc,canopy,.true.)
+      CALL ruff_resist
+      CALL define_air
+      CALL init_radiation ! need to be called at every dt
+      CALL cab_albedo(ktau, dt, .true.) ! set L_RADUM=.true. as radriv90.f has been called
+      CALL define_canopy(ktau,dt,.true.)
       ssoil%owetfac = ssoil%wetfac
-      CALL soil_snow(dt, ktau, soil, ssoil, canopy, met, bal)
+      CALL soil_snow(dt, ktau)
       !	need to adjust fe after soilsnow
       canopy%fev	= canopy%fevc + canopy%fevw
       ! Calculate total latent heat flux:
       canopy%fe = canopy%fev + canopy%fes
       ! Calculate net radiation absorbed by soil + veg
       canopy%rnet = canopy%fns + canopy%fnv
+      ! Calculate radiative/skin temperature:
+      rad%trad = ( (1.-rad%transd)*canopy%tv**4 + rad%transd * ssoil%tss**4 )**0.25
       ! Set net ecosystem exchange after adjustments to frs:
       canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
       !--------------------------------------------------------------
@@ -557,7 +577,7 @@ module cable_ccam
         case (hostCO2) 
           atmco2 = rrvco2 * 1.E6
         case (interactiveCO2)
-          write(6,*) 'need to replace with tracer sum'
+          !write(6,*) 'need to replace with tracer sum'
           atmco2 = tr(1:ifull,1,1)
       end select
 
@@ -592,7 +612,6 @@ module cable_ccam
   real(r_1), dimension(mxvt,ms) :: froot2
   real(r_1), dimension(ifull_g,5) :: svsg,vling
   real(r_1), dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
-  real, dimension(ifull) :: hruff_grmx
   character(len=*), intent(in) :: fveg,fvegprev,fvegnext
   integer ilx,jlx
   real rlong0x,rlat0x,schmidtx,dsx
@@ -608,6 +627,11 @@ module cable_ccam
   canst1=0.1
   shelrb=2.
   extkn=0.7
+  refl(:,1)=(/ 0.062,0.076,0.062,0.092,0.069,0.100,0.100,0.091,0.075,0.107,0.107,0.101,0.097,0.101,0.159,0.159,0.159 /)
+  refl(:,2)=(/ 0.302,0.350,0.302,0.380,0.336,0.400,0.400,0.414,0.347,0.469,0.469,0.399,0.396,0.399,0.305,0.305,0.305 /)
+  taul(:,1)=(/ 0.050,0.050,0.050,0.050,0.050,0.054,0.054,0.062,0.053,0.070,0.070,0.067,0.062,0.067,0.026,0.026,0.026 /)
+  taul(:,2)=(/ 0.100,0.250,0.100,0.250,0.158,0.240,0.240,0.221,0.166,0.250,0.250,0.225,0.232,0.250,0.126,0.126,0.126 /)
+  vegcf=(/ 0.91, 1.95, 0.73, 1.50, 1.55, 0.60, 2.05, 2.80, 2.75, 2.75, 0.00, 2.80, 0.00, 2.80, 0.00, 0.40, 0.40 /)
   vcmax=(/ 65.2E-6,65.E-6,70.E-6,85.0E-6,80.E-6,20.E-6,20.E-6,10.E-6,20.E-6,10.E-6,50.E-6,80.E-6,1.E-6,80.E-6, &
            17.E-6,17.E-6,17.E-6 /)
   ejmax=2.*vcmax
@@ -709,6 +733,30 @@ module cable_ccam
       call ccmpi_distribute(vlin(:,n))
     end do
   end if
+  
+  
+!  !test
+!  do iq=1,ifull
+!    if (land(iq)) then
+!      do n=2,5
+!        if (hc(ivs(iq,n)).lt.0.1*hc(ivs(iq,1)).or. &
+!	    hc(ivs(iq,n)).gt.10.*hc(ivs(iq,1))) then
+!	  svs(iq,n)=0.
+!	  print *,"Delete iq,n,ivs ",iq,n,ivs(iq,n)
+!	end if
+!      end do
+!    end if
+!  end do
+!  !test
+!  where (land)
+!    svs(:,1)=1.
+!    svs(:,2)=0.
+!    svs(:,3)=0.
+!    svs(:,4)=0.
+!    svs(:,5)=0.
+!  end where
+
+  ! normalise
   do n=1,5
     svs(:,n)=svs(:,n)/sum(svs,2)
   end do
@@ -754,7 +802,6 @@ module cable_ccam
     froot2(:,k) = froot2(:,k) - froot2(:,k-1)
   enddo
   
-  hruff_grmx=0.01
   sv=0.
   vl1=0.
   vl2=0.
@@ -776,7 +823,6 @@ module cable_ccam
         veg%iveg(ipos)=ivs(iq,n)
         soil%isoilm(ipos)=isoilm(iq)
         veg%frac4(ipos)=c4frac(iq)
-        hruff_grmx(iq)=max(hruff_grmx(iq),hc(ivs(iq,n)))
         if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
           vlin(iq,n)=vlin(iq,n)+vlinprev(iq,n)
           vlinnext(iq,n)=vlinnext(iq,n)+vlin(iq,n)
@@ -825,22 +871,28 @@ module cable_ccam
   
   ! use dominant veg type
   ivegt=ivs(:,1)
-  veg%hc     = hc(veg%iveg)
-  veg%canst1 = canst1(veg%iveg)
-  veg%ejmax  = ejmax(veg%iveg)
-  veg%tminvj = tminvj(veg%iveg)
-  veg%tmaxvj = tmaxvj(veg%iveg)
-  veg%vbeta  = vbeta(veg%iveg)
-  veg%rp20   = rp20(veg%iveg)
-  veg%rpcoef = rpcoef(veg%iveg)
-  veg%shelrb = shelrb(veg%iveg)
-  veg%vcmax  = vcmax(veg%iveg)
-  veg%xfang  = xfang(veg%iveg)
-  veg%dleaf  = dleaf(veg%iveg)
-  rad%extkn  = extkn(veg%iveg)
-  soil%rs20  = rs20(veg%iveg)
+  veg%hc        = hc(veg%iveg)
+  veg%canst1    = canst1(veg%iveg)
+  veg%ejmax     = ejmax(veg%iveg)
+  veg%tminvj    = tminvj(veg%iveg)
+  veg%tmaxvj    = tmaxvj(veg%iveg)
+  veg%vbeta     = vbeta(veg%iveg)
+  veg%rp20      = rp20(veg%iveg)
+  veg%rpcoef    = rpcoef(veg%iveg)
+  veg%shelrb    = shelrb(veg%iveg)
+  veg%vcmax     = vcmax(veg%iveg)
+  veg%xfang     = xfang(veg%iveg)
+  veg%dleaf     = dleaf(veg%iveg)
+  veg%xalbnir   = 1.
+  veg%taul(:,1) = taul(veg%iveg,1)
+  veg%taul(:,2) = taul(veg%iveg,2)  
+  veg%refl(:,1) = refl(veg%iveg,1)
+  veg%refl(:,2) = refl(veg%iveg,2)  
+  rad%extkn     = extkn(veg%iveg)
+  soil%rs20     = rs20(veg%iveg)
+  veg%vegcf     = vegcf(veg%iveg)
   do k=1,ms
-    soil%froot(:,k)=froot2(veg%iveg,k)
+    veg%froot(:,k)=froot2(veg%iveg,k)
   end do
   
   if (all(cplant.eq.0.)) then
@@ -871,7 +923,7 @@ module cable_ccam
   soil%swilt   = swilt(soil%isoilm)
   soil%ibp2    = ibp2(soil%isoilm)
   soil%i2bp3   = i2bp3(soil%isoilm)
-  soil%pwb_min =  (soil%swilt / soil%ssat )**soil%ibp2
+  soil%pwb_min = (soil%swilt/soil%ssat)**soil%ibp2
 
   bgc%ratecp(:) = ratecp(:)
   bgc%ratecs(:) = ratecs(:)
@@ -924,6 +976,7 @@ module cable_ccam
   rad%albedo_T = soil%albsoil
   rad%trad=tss(cmap)
   rad%latitude=rlatt(cmap)*180./pi
+  rad%longitude=rlongg(cmap)*180./pi
   
   gflux=0. ! MJT suggestion
   sgflux=0. ! MJT suggestion
@@ -974,8 +1027,6 @@ module cable_ccam
 
   ssoil%wetfac = MAX(0., MIN(1., (ssoil%wb(:,1) - soil%swilt) / (soil%sfc - soil%swilt)))
   ssoil%owetfac = ssoil%wetfac
-  rough%hruff= max(0.01,veg%hc-1.2*ssoil%snowd/max(ssoil%ssdnn,100.))
-  rough%hruff_grmx=hruff_grmx(cmap)
   ssoil%wbtot=0.
   bal%wbtot0 = ssoil%wbtot
   

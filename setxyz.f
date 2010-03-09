@@ -600,8 +600,19 @@ c        make sure they are perpendicular & normalize
            emv(iq)=sqrt(dy2)*(1.+dy2/24.) *dsfact
           enddo   ! iq loop
           do iq=1,ifull   ! based on inverse values of emu & emv
+           if (isv2(iq).lt.1.and.iwu2(iq).gt.ifull) then  ! MJT bug fix
+           em(iq)=4./(emv(iwu2(iq)-ifull)+emu(iq)+
+     .                  emu(isv2(iq)+ifull)+emv(iq))      ! MJT bug fix           
+           else if (isv2(iq).lt.1) then                   ! MJT bug fix
            em(iq)=4./(emu(iwu2(iq))+emu(iq)+
-     .                  emv(isv2(iq))+emv(iq))
+     .                  emu(isv2(iq)+ifull)+emv(iq))      ! MJT bug fix
+           else if (iwu2(iq).gt.ifull) then               ! MJT bug fix
+           em(iq)=4./(emv(iwu2(iq)-ifull)+emu(iq)+
+     .                  emv(isv2(iq))+emv(iq))            ! MJT bug fix
+           else                                           ! MJT bug fix
+           em(iq)=4./(emu(iwu2(iq))+emu(iq)+
+     .                  emv(isv2(iq))+emv(iq))            ! MJT bug fix
+           end if                                         ! MJT bug fix
 c          experimental option follows - only tiniest difference for ikk=20
 c          em(iq)=2./sqrt((emu(iwu2(iq))+emu(iq))*
 c    .                  (emv(isv2(iq))+emv(iq)))
@@ -803,7 +814,8 @@ c    .  rlongg(iq)*180./pi,rlatt(iq)*180./pi
           endif
 	 enddo
 	 print *,'for j=ikk/2 & myid=0, ratmin,ratmax = ',ratmin,ratmax
-	 print *,'with imin,imax ',imin,jmin,imax,jmax
+	 !print *,'with imin,imax ',imin,jmin,imax,jmax ! MJT bug
+	 print *,'with imin,imax ',imin,imax            ! MJT bug
         ratmin=100.
 	 ratmax=0.
         do n=0,npanels

@@ -11,7 +11,7 @@
 
 !=========================================================================
 MODULE define_dimensions
-  INTEGER 	        :: mg      ! # no of grid land points
+!les  INTEGER 	        :: mg      ! # no of grid land points
   INTEGER 	        :: mp      ! # total no of patches/tiles 
   INTEGER, PARAMETER	:: mf = 2  ! # leaves (sunlit, shaded)
   INTEGER, PARAMETER	:: nrb = 3 ! # radiation bands

@@ -20,27 +20,31 @@ MODULE cab_albedo_module
   USE other_constants
   USE define_types
   USE physical_constants
-  USE cable_variables
+!les  USE cable_variables
 
   IMPLICIT NONE
   ! This module contains the following subroutines:
   PUBLIC cab_albedo
 CONTAINS
   !-------------------------------------------------------------------------------
-  SUBROUTINE cab_albedo(istep_cur,dels,ssoil, veg, air, met, rad,  &
-                        soil, L_RADUM)
-    TYPE (soil_snow_type),INTENT(INOUT)	:: ssoil
-    TYPE (veg_parameter_type),INTENT(IN):: veg
-    TYPE (air_type),INTENT(IN)	        :: air
-    TYPE (met_type),INTENT(INOUT)	:: met
-    TYPE (radiation_type),INTENT(INOUT)	:: rad
-    TYPE(soil_parameter_type), INTENT(INOUT) :: soil   
+  SUBROUTINE cab_albedo(istep_cur,dels,L_RADUM)
+!  SUBROUTINE cab_albedo(istep_cur,dels,ssoil, veg, air, met, rad,  &
+!                        soil, canopy, L_RADUM)
+!    TYPE (soil_snow_type),INTENT(INOUT)	:: ssoil
+!    TYPE (veg_parameter_type),INTENT(IN):: veg
+!    TYPE (air_type),INTENT(IN)	        :: air
+!    TYPE (met_type),INTENT(INOUT)	:: met
+!    TYPE (radiation_type),INTENT(INOUT)	:: rad
+!    TYPE(soil_parameter_type), INTENT(INOUT) :: soil
+!    TYPE (canopy_type),INTENT(INOUT)    :: canopy   
 
     REAL(r_1), INTENT(IN)           :: dels      !integration time step (s)
     INTEGER(i_d), INTENT(IN)        :: istep_cur ! current dt
     LOGICAL, INTENT(IN)             :: L_RADUM   ! true if called from HADGEM
-    REAL(r_1), DIMENSION(nrb) :: c1	! sqrt(1. - taul - refl)
-    REAL(r_1), DIMENSION(nrb) :: rhoch  ! canopy reflection black horizontal leaves(6.19)
+!    REAL(r_1), DIMENSION(nrb) :: c1	! sqrt(1. - taul - refl)
+!    REAL(r_1), DIMENSION(nrb) :: rhoch  ! canopy reflection black horizontal leaves(6.19)
+    REAL(r_1), DIMENSION(mp,nrb) :: c1  ! sqrt(1. - taul - refl)
+    REAL(r_1), DIMENSION(mp,nrb) :: rhoch  ! canopy reflection black horizontal leaves(6.19)
     REAL(r_1), DIMENSION(mp)    :: alv ! Snow albedo for visible
     REAL(r_1), DIMENSION(mp)    :: alir ! Snow albedo for near infra-red
     REAL(r_1), PARAMETER        :: alvo  = 0.95 ! albedo for vis. on a new snow
@@ -67,6 +71,7 @@ CONTAINS
 !==sxy
     !    calculate soil/snow albedo
 !    print *,'in cab_alb',soil%albsoil
+    where( veg%iveg == 14) soil%albsoil = 0.07
     sfact = 0.68
     WHERE (soil%albsoil <= 0.14)
        sfact = 0.5
@@ -101,7 +106,7 @@ CONTAINS
           ar3 = .1
           snrat = min (1., snr / (snr + .01) )
        END WHERE
-          dtau = 1.e-6 * (exp(ar1) + exp(ar2) + ar3) * dels 
+       dtau = 1.e-6 * (exp(ar1) + exp(ar2) + ar3) * dels 
        WHERE (ssoil%snowd <= 1.0)
           ssoil%snage = 0.
           snage_UM = 0.
@@ -122,7 +127,7 @@ CONTAINS
        alv = .4 * fzenm * (1. - tmp) + tmp
        tmp = aliro * (1. - .5 * fage)
        alir = .4 * fzenm * (1.0 - tmp) + tmp
-       talb = .5 * (alv + alir) ! snow albedo
+!       talb = met%fsd(:,1)/max(1.,met%fsd(:,3))*alv + met%fsd(:,2)/max(1.,met%fsd(:,3))*alir ! snow albedo
     ENDWHERE        ! snowd > 0
     WHERE (ssoil%snowd > 0 .and.  L_RADUM )
        dnsnow = min (1., .1 * max (0., ssoil%snowd - ssoil%osnowd ) ) ! new snow (cm H2O)
@@ -144,7 +149,7 @@ CONTAINS
           ar3 = .1
           snrat = min (1., snr / (snr + .01) )
        END WHERE
-          dtau = 1.e-6 * (exp(ar1) + exp(ar2) + ar3) * dels
+       dtau = 1.e-6 * (exp(ar1) + exp(ar2) + ar3) * dels
        WHERE (ssoil%snowd <= 1.0)
           ssoil%snage = 0.
           snage_UM = 0.
@@ -163,40 +168,44 @@ CONTAINS
        alv = .4 * fzenm * (1. - tmp) + tmp
        tmp = aliro * (1. - .5 * fage)
        alir = .4 * fzenm * (1.0 - tmp) + tmp
-       talb = .5 * (alv + alir) ! snow albedo
+!       talb = .5 * (alv + alir) ! snow albedo
+!       talb = met%fsd(:,1)/max(1.,met%fsd(:,3))*alv + met%fsd(:,2)/max(1.,met%fsd(:,3))*alir ! snow albedo
     ENDWHERE        ! snowd > 0
 
 
-    ssoil%albsoilsn(:,2) = (1. - snrat) * ssoil%albsoilsn(:,2) + snrat * alir
     ssoil%albsoilsn(:,1) = (1. - snrat) * ssoil%albsoilsn(:,1) + snrat * alv
+    ssoil%albsoilsn(:,2) = (1. - snrat) * ssoil%albsoilsn(:,2) + snrat * alir
 !    print *,'ALBSOILSN',snrat,ssoil%albsoilsn(:,1),ssoil%albsoilsn(:,2),ssoil%snowd,ssoil%ssdnn
-!==sxy
     
     rad%reffbm = ssoil%albsoilsn   ! initialise effective conopy beam reflectance
     rad%reffdf = ssoil%albsoilsn   ! initialise effective conopy beam reflectance
 !    print *,'in cab_alb5', ssoil%albsoilsn,rad%reffbm,rad%reffdf
     ! Define vegetation mask:
-    mask = veg%vlaiw > 1e-2 .AND. met%fsd(:,3) > 1.0e-2
+    mask = canopy%vlaiw > 1e-2 .AND. met%fsd(:,3) > 1.0e-2
 
-    c1 = SQRT(1. - taul - refl)
+!    c1 = SQRT(1. - taul - refl)
+    c1(:,1) = SQRT(1. - veg%taul(:,1) - veg%refl(:,1))
+    c1(:,2) = SQRT(1. - veg%taul(:,2) - veg%refl(:,2))
+    c1(:,3) = 1.
+
     ! Define canopy reflection black horizontal leaves(6.19)
     rhoch = (1.0 - c1) / (1.0 + c1)
     ! Update extinction coefficients and fractional transmittance for 
     ! leaf transmittance and reflection (ie. NOT black leaves):
     DO b = 1, 2	! 1 = visible, 2 = nir radiaition
-      rad%extkdm(:,b) = rad%extkd * c1(b)
+      rad%extkdm(:,b) = rad%extkd * c1(:,b)
        ! Define canopy diffuse transmittance (fraction):
-       rad%cexpkdm(:,b) = EXP(-rad%extkdm(:,b) * veg%vlaiw)
+       rad%cexpkdm(:,b) = EXP(-rad%extkdm(:,b) * canopy%vlaiw)
        ! Calculate effective diffuse reflectance (fraction):
        rad%reffdf(:,b) = rad%rhocdf(:,b) + &
             (ssoil%albsoilsn(:,b) - rad%rhocdf(:,b)) * rad%cexpkdm(:,b)**2
 !       print *,'RADIAT',ktau,b,rad%rhocdf(:,b),ssoil%albsoilsn(:,b),cexpkdm,fbeam,reffdf(:,b)
        WHERE (mask) ! i.e. vegetation and sunlight are present
-          rad%extkbm(:,b) = rad%extkb * c1(b)
+          rad%extkbm(:,b) = rad%extkb * c1(:,b)
           ! Canopy reflection (6.21) beam:
-          rad%rhocbm(:,b) = 2.*rad%extkb/(rad%extkb+rad%extkd)*rhoch(b)
+          rad%rhocbm(:,b) = 2.*rad%extkb/(rad%extkb+rad%extkd)*rhoch(:,b)
           ! Canopy beam transmittance (fraction):
-          rad%cexpkbm(:,b) = EXP(-rad%extkbm(:,b)*veg%vlaiw)
+          rad%cexpkbm(:,b) = EXP(-rad%extkbm(:,b)*canopy%vlaiw)
           ! Calculate effective beam reflectance (fraction):
           rad%reffbm(:,b) = rad%rhocbm(:,b) + (ssoil%albsoilsn(:,b) - rad%rhocbm(:,b))*rad%cexpkbm(:,b)**2
        END WHERE
@@ -204,9 +213,13 @@ CONTAINS
        rad%albedo(:,b) = (1.0-rad%fbeam(:,b))*rad%reffdf(:,b)+rad%fbeam(:,b)*rad%reffbm(:,b)
     END DO
 !    print *,'in cab_alb8',rad%albedo
-!    print 101,istep_cur,rad%albedo(1,1),rad%albedo(2,1),rad%albedo(1,2),rad%albedo(2,2),&
-!                         rad%reffdf(1,1),rad%reffdf(2,1),rad%reffdf(1,2),rad%reffdf(2,2), &
-!                         rad%reffbm(1,1),rad%reffbm(2,1),rad%reffbm(1,2),rad%reffbm(2,2),rad%fbeam
-!101 format(1x,'alb_atmph1',i6,12f6.3,6f6.3)
+
+!les    ! Modify near IR albedo (YP Apr09)
+    rad%reffdf(:,2)=rad%reffdf(:,2)*veg%xalbnir(:)
+    rad%reffbm(:,2)=rad%reffbm(:,2)*veg%xalbnir(:)
+    rad%albedo(:,2) = rad%albedo(:,2) * veg%xalbnir(:)
+    ! Define IR albedo - CURRENTLY NOT USED elsewhere
+    rad%albedo(:,3) = 0.05
+!print *,'xalbnir',rad%albedo,veg%xalbnir
   END SUBROUTINE cab_albedo 
 END MODULE cab_albedo_module

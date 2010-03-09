@@ -39,6 +39,7 @@
       include 'latlong.h'   ! rlatt, rlongg
       include 'liqwpar.h'
       include 'map.h'
+      include 'map_g.h'      ! MJT bug fix
       include 'morepbl.h'
       include 'nsibd.h'     ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
@@ -712,7 +713,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
         zt=2000.
         ic=il_g/2    ! Indices on the global grid
         jc=3*il_g/2
-        emcent=em(3*il_g*il_g/2)
+        emcent=em_g(3*il_g*il_g/2) ! MJT bug fix
         if(myid==0) print *,'emcent, ds/emcent ',emcent,ds/emcent
         xc=ic*ds/emcent
         yc=jc*ds/emcent
@@ -836,7 +837,48 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
                  davt_g(indglobal(j,i,4))=1./nud_hrs !  e.g. 1/48
                enddo            ! i loop
              enddo              ! j loop
-           endif                !  (nbd==-5) 
+           endif                !  (nbd==-5)
+           if(abs(nbd)==6)then ! more like 1-way nesting
+             do j=1,il_g   ! full nudging on all further panels; 6 rows on 1
+               do i=1,il_g
+                 davt_g(indglobal(j,i,0))=1./nud_hrs !  e.g. 1/48
+                 davt_g(indglobal(j,i,2))=1./nud_hrs !  e.g. 1/48
+                 davt_g(indglobal(j,i,3))=1./nud_hrs !  e.g. 1/48
+                 davt_g(indglobal(j,i,4))=1./nud_hrs !  e.g. 1/48
+                 davt_g(indglobal(j,i,5))=1./nud_hrs !  e.g. 1/48
+                 davt_g(indglobal(j,i,1))=0.
+               enddo            ! i loop
+             enddo              ! j loop
+             do j=0,5
+c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
+               rhs=(6-j)/(6.*nud_hrs)
+               do i=1+j,il_g-j
+                 davt_g(indglobal(i,j+1,1))=rhs
+                 davt_g(indglobal(i,il_g-j,1))=rhs
+                 davt_g(indglobal(j+1,i,1))=rhs
+                 davt_g(indglobal(il_g-j,i,1))=rhs
+               enddo         ! i loop
+             enddo           ! j loop
+           endif             !  (nbd==-6)
+           if(abs(nbd)==7)then    ! another special form with no nudging on panel 1
+             do n=0,5
+               do j=1,il_g
+!                linearly between 0 (at j=.5) and 1/nud_hrs (at j=il/2)
+                 rhs=min((j-.5)/(.5*il_g*nud_hrs),1./nud_hrs)
+                 do i=1,il_g
+                   if(n==0)davt_g(indglobal(i,il_g+1-j,n))=rhs
+                   if(n==2)davt_g(indglobal(j,i,n))=rhs
+                   if(n==3)davt_g(indglobal(j,i,n))=rhs
+                   if(n==5)davt_g(indglobal(i,il_g+1-j,n))=rhs
+                 enddo          ! i loop
+               enddo            ! j loop
+             enddo              ! n loop
+             do j=1,il_g        ! full nudging on furthest panel
+               do i=1,il_g
+                 davt_g(indglobal(j,i,4))=1./nud_hrs !  e.g. 1/48
+               enddo            ! i loop
+             enddo              ! j loop
+           endif                !  (nbd==-7)  
            call ccmpi_distribute(davt,davt_g)
          else
            call ccmpi_distribute(davt)
@@ -891,7 +933,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
           vmodmin=umin
           !call cbmrdn(nveg) ! MJT cable
         end if
-        if (nsib.eq.6) then  ! MJT cable
+        if (nsib.eq.6.or.nsib.eq.7) then  ! MJT cable
           ! albvisnir at this point holds soil albedo for cable initialisation
           vmodmin=umin
           call loadcbmparm(vegfile,vegprev,vegnext)
@@ -2051,7 +2093,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
 
       !-----------------------------------------------------------------
       ! MJT CHANGE albedo
-      if ((nsib.eq.CABLE).or.(nsib.eq.6)) then
+      if (nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7) then
         if (all(albsav.ne.-1.)) then
           if (myid==0) print *,
      &      "CABLE in use.  Initialising albedo with infile data"
@@ -2114,21 +2156,21 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        ! if cable, then the albedo is soil albedo only (converted to net albedo
        ! when cable is initialised)
        call readreal(albfile,albvisnir(:,1),ifull)
-       if ((nsib.eq.5).or.(nsib.eq.6)) then
+       if (nsib.eq.5.or.nsib.eq.6.or.nsib.eq.7) then
          call readreal(albnirfile,albvisnir(:,2),ifull)
        else
          albvisnir(:,2)=albvisnir(:,1)
        end if
-       if ((nsib.ne.CABLE).and.(nsib.ne.6)) then 
+       if (nsib.ne.CABLE.and.nsib.ne.6.and.nsib.ne.7) then 
          call readreal(rsmfile,rsmin,ifull)  ! not used these days
        end if
-       if (nsib.ne.6) then
+       if (nsib.ne.6.and.nsib.ne.7) then
          call readreal(zofile,zolnd,ifull)
        else
          zolnd=zobgin ! updated in cable_ccam2.f90
        end if
        if(iradon.ne.0)call readreal(radonemfile,radonem,ifull)
-       if ((nsib.ne.5).and.(nsib.ne.6)) then
+       if (nsib.ne.5.and.nsib.ne.6.and.nsib.ne.7) then
          call readint(vegfile,ivegt,ifull)
        else
          ivegt=1 ! updated later
@@ -2151,7 +2193,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        mismatch = .false.
        if( rdatacheck(land,albvisnir(:,1),'alb',idatafix,falbdflt))
      &      mismatch = .true. ! MJT albedo
-       if ((nsib.ne.CABLE).and.(nsib.ne.6)) then ! MJT cable
+       if (nsib.ne.CABLE.and.nsib.ne.6.and.nsib.ne.7) then ! MJT cable
          if( rdatacheck(land,rsmin,'rsmin',idatafix,frsdflt))
      &        mismatch = .true.
        end if
@@ -2191,7 +2233,8 @@ c         if(ivegt(iq)>40)print *,'iq, ivegt ',iq,ivegt(iq)
      &                  MPI_COMM_WORLD, ierr )
       call MPI_Allreduce(ivegmax, ivegmax_g, 1, MPI_INTEGER, MPI_MAX, 
      &                  MPI_COMM_WORLD, ierr )
-      if((ivegmax_g<14).and.(nsib.ne.CABLE).and.(nsib.ne.6)) then ! MJT CHANGE cable
+      if((ivegmax_g<14).and.nsib.ne.CABLE.and.nsib.ne.6
+     &    .and.nsib.ne.7) then ! MJT CHANGE cable
        if ( mydiag ) print *,
      &      '**** in this run veg types increased from 1-13 to 32-44'
        do iq=1,ifull            ! add offset to sib values so 1-13 becomes 32-44

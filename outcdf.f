@@ -672,7 +672,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         call attrib(idnc,idim,3,'iwp_ave',lname,'kg/m2',0.,2.,0)
         lname = 'Avg liquid water path'
         call attrib(idnc,idim,3,'lwp_ave',lname,'kg/m2',0.,2.,0)
-        if (nsib.eq.4.or.nsib.eq.6) then ! MJT cable
+        if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then ! MJT cable
           lname = 'Avg theta'
           call attrib(idnc,idim,3,'theta_ave',lname,'K',100.,400.,0)
           lname = 'Avg soil moisture 1'
@@ -759,7 +759,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
      &              ,'m2/s3',0.,6.5,0)                            ! MJT tke
         end if                                                    ! MJT tke
 
-        if (nsib.eq.4.or.nsib.eq.6) then  ! MJT cable
+        if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then  ! MJT cable
           lname = 'Carbon leaf pool'
           call attrib(idnc,idim,3,'cplant1',lname,'none',0.,50000.,0)
           lname = 'Carbon wood pool'
@@ -1065,7 +1065,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       !call histwrt3(wb(1,4),'wb4',idnc,iarch,local)
       !call histwrt3(wb(1,5),'wb5',idnc,iarch,local)
       !call histwrt3(wb(1,6),'wb6',idnc,iarch,local)
-      if (nsib.eq.4.or.nsib.eq.6) then ! MJT cable
+      if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then ! MJT cable
         call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local)
         call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local)
         call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local)
@@ -1209,7 +1209,7 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
          call histwrt3(clm_ave,'clm',idnc,iarch,local)
          call histwrt3(clh_ave,'clh',idnc,iarch,local)
          call histwrt3(cld_ave,'cld',idnc,iarch,local)
-         if (nsib.eq.4.or.nsib.eq.6) then ! MJT cable
+         if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then ! MJT cable
            call histwrt3(theta_ave,'theta_ave',idnc,iarch,local)
            call histwrt3(wb1_ave,'wb1_ave',idnc,iarch,local)
            call histwrt3(wb2_ave,'wb2_ave',idnc,iarch,local)
@@ -1314,7 +1314,7 @@ c      "extra" outputs
        call histwrt3(snage,'snage',idnc,iarch,local)
        aa(:)=isflag(:)
        call histwrt3(aa,'sflag',idnc,iarch,local)
-       if (nsib.eq.4.or.nsib.eq.6) then ! MJT cable       
+       if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then ! MJT cable       
          call savetile(idnc,local,idim)
        end if
       endif  ! (itype==-1)

@@ -3,7 +3,8 @@
       real, dimension(mxvt)   ::canst1,dleaf,ejmax,frac4,hc,rp20
       real, dimension(mxvt)   ::rpcoef,shelrb,vcmax,xfang
       real, dimension(mxvt)   ::tminvj,tmaxvj,vbeta
-      real, dimension(mxvt)   :: extkn,rootbeta
+      real, dimension(mxvt)   :: extkn,rootbeta,vegcf
+      real, dimension(mxvt,2) ::taul,refl      
       real, dimension(ifull)   ::cansto,vlai
       real, dimension(ifull)   ::sumpn,sumrp,sumrpw,sumrpr,sumrs,sumrd
       real, dimension(ifull)   ::dsumpn,dsumrp,dsumrs,dsumrd
@@ -18,6 +19,7 @@
       common/vegpar/sumpn,sumrp,sumrpw,sumrpr,sumrs,sumrd
       common/vegpar/dsumpn,dsumrp,dsumrs,dsumrd
       common/vegpar/rlai,rlaimax,rlai123
+      common/vegpar/taul,refl,vegcf
 
 
 

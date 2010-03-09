@@ -129,7 +129,7 @@ c       siglow=.8
 c       sigmid=.4
         siglow=.68
         sigmid=.44
- 	f1=1.
+        f1=1.
         f2=1.
         do k=1,nl-1
          if(abs(sigh(k+1)-siglow)<f1)then

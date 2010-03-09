@@ -5,8 +5,8 @@
       real tr,traver,radonem
 !     parameter(iradon=0,ico2=1,ngas=9)  ! rlw setting
       parameter(iradon=0,ico2=0,ngas=0)
-      parameter(nllp=0)              ! set this or next lines
-!     parameter(nllp=3)
+!     parameter(nllp=0)              ! set this or next lines
+      parameter(nllp=3)
 
       parameter(ntrac=ngas+nllp)
       parameter(ntracmax=max(ntrac,1))      ! ntracmax >= 1

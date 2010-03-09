@@ -25,9 +25,10 @@ MODULE air_module
   PUBLIC define_air
 CONTAINS
   !-----------------------------------------------------------------------
-  SUBROUTINE define_air(met,air)
-    TYPE (air_type), INTENT(INOUT) :: air ! air_type variables
-    TYPE (met_type), INTENT(IN)	 :: met ! meteorological variables
+  SUBROUTINE define_air
+!  SUBROUTINE define_air(met,air)
+!    TYPE (air_type), INTENT(INOUT) :: air ! air_type variables
+!    TYPE (met_type), INTENT(IN)	 :: met ! meteorological variables
     REAL(r_1), DIMENSION(mp)	 :: es	! sat vapour pressure (mb)
 !    print *,'air 1',met%tvair,tfrz
     es	 = tetena * EXP(tetenb * (met%tvair-tfrz)/(tetenc + (met%tvair-tfrz)))

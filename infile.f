@@ -750,6 +750,8 @@ c     include 'newmpar.h'
       real globvar(ik*jk), vmax, vmin, addoff, sf  ! 0808
       integer ierr, idv
 
+      globvar=0. ! MJT bug
+
       if(myid==0)then
          start = (/ 1, 1, iarchi /)
          count = (/ ik, jk, 1 /)
@@ -834,6 +836,8 @@ c     include 'newmpar.h'
       real var(ifull,kk)
       real globvar(ik*jk,kk), vmax, vmin, addoff, sf
       integer ierr, idv, k
+
+      globvar=0. ! MJT bug
 
       if(myid == 0)then
          start = (/ 1, 1, 1, iarchi /)

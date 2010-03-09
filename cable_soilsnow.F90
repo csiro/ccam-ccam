@@ -40,8 +40,9 @@ MODULE soil_snow_module
   REAL(r_1), PARAMETER :: hlf = 0.335e6   ! latent heat of fusion
   REAL(r_1), PARAMETER :: cp = 1004.64    ! specific heat capacity for air
   REAL(r_1), PARAMETER :: rhowat = 1000.0 ! density of water
-  REAL(r_1), PARAMETER :: snmin = 0.11    ! for 3-layer;
-!  REAL(r_1), PARAMETER :: snmin =  1000.0 ! for 1-layer;
+!  REAL(r_1), PARAMETER :: snmin = 0.09    ! for 3-layer;
+!  REAL(r_1), PARAMETER :: snmin = 0.11    ! for 3-layer;
+  REAL(r_1), PARAMETER :: snmin =  1000.0 ! for 1-layer;
 
   ! This module contains the following subroutines:
   PUBLIC soil_snow ! must be available outside this module
@@ -99,11 +100,12 @@ CONTAINS
   !      Solves implicit soil moisture equation
   !      Science development by Eva Kowalczyk and John McGregor, CMAR
   !
-  SUBROUTINE smoisturev (dels,ktau,ssoil,soil)
+  SUBROUTINE smoisturev (dels,ktau)
+!  SUBROUTINE smoisturev (dels,ktau,ssoil,soil)
     REAL(r_1), INTENT(IN)                     :: dels    ! time step size (s)
     INTEGER(i_d), INTENT(IN)                  :: ktau  ! integration step number
-    TYPE (soil_snow_type), INTENT(INOUT)      :: ssoil ! soil and snow variables
-    TYPE (soil_parameter_type), INTENT(INOUT) :: soil  ! soil parameters
+!    TYPE (soil_snow_type), INTENT(INOUT)      :: ssoil ! soil and snow variables
+!    TYPE (soil_parameter_type), INTENT(INOUT) :: soil  ! soil parameters
     INTEGER(i_d), PARAMETER                   :: ntest = 0 ! 2 for funny pre-set
                                                            ! for idjd
     ! nmeth selects the solution method
@@ -319,7 +321,7 @@ CONTAINS
 !        PRINT * , 'ct ', (ct(idjd,k) , k = 1, ms)
       END IF
       ssoil%wblf(:,1) = ssoil%wblf(:,1) + dtt(:,1) * ssoil%fwtop / rhowat
-    END IF
+    END IF  ! IF (nmeth <= 0)
 
     IF (nmeth > 0) THEN
       wbficemx = 0.0
@@ -374,7 +376,7 @@ CONTAINS
                    & * ssoil%wblf(:,k) ) / (soil%zse(k) + soil%zse(k-1) )
           fact = wbh(:,k) ** (soil%ibp2 - 1) ! i.e. wbh**(bch+1)
           IF (nmeth == 2) pwb_wbh = soil%hsbh * wbh(:,k) * fact
-          IF (nmeth >= 3) pwb_wbh = soil%hsbh * MAX(soil%pwb_min,wbh(:,k)*fact)
+          IF (nmeth >= 3) pwb_wbh = soil%hsbh * MAX(soil%pwb_min, wbh(:,k)*fact)
           fact2 = fact * fact
           ! moisture diffusivity (D) is  wbh*pwb
           ! other term (K) is wbh*soil%hyds*fact2
@@ -463,8 +465,10 @@ CONTAINS
         ! (nmeth == 3)
       END IF
       ssoil%wblf(:,1) = ssoil%wblf(:,1) + dtt(:,1) * ssoil%fwtop / rhowat
-    END IF
+    END IF ! IF (nmeth > 0)
+
     CALL trimb(at, bt, ct, ssoil%wblf, ms)
+
     DO k = 1, ms
       ssatcurr(:,k) = soil%ssat - ssoil%wbice(:,k)
       ssoil%wb(:,k) = ssoil%wblf(:,k) * ssatcurr(:,k) + ssoil%wbice(:,k)
@@ -493,9 +497,11 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  SUBROUTINE snowdensity (dels, ssoil)
+
+  SUBROUTINE snowdensity (dels)
+!  SUBROUTINE snowdensity (dels, ssoil)
     REAL(r_1), INTENT(IN)   :: dels   ! integration time step (s)
-    TYPE(soil_snow_type), INTENT(INOUT) :: ssoil  ! soil+snow variables
+!    TYPE(soil_snow_type), INTENT(INOUT) :: ssoil  ! soil+snow variables
 
     WHERE (ssoil%snowd > 0.1 .and. ssoil%isflag == 0)
       ssoil%ssdn(:,1) = MIN(400.0,MAX(120.0, ssoil%ssdn(:,1) + dels &
@@ -561,11 +567,12 @@ CONTAINS
   END SUBROUTINE snowdensity
 
   !-------------------------------------------------------------------------
-  SUBROUTINE snow_melting (dels, snowmlt, ktau, ssoil )
+  SUBROUTINE snow_melting (dels, snowmlt, ktau)
+!  SUBROUTINE snow_melting (dels, snowmlt, ktau, ssoil )
     REAL(r_1), INTENT(IN)                 :: dels   ! integration time step (s)
     REAL(r_1), DIMENSION(mp), INTENT(OUT) :: snowmlt ! snow melt   
     INTEGER(i_d), INTENT(IN)              :: ktau ! integration step number
-    TYPE(soil_snow_type), INTENT(INOUT)   :: ssoil  ! soil+snow variables
+!    TYPE(soil_snow_type), INTENT(INOUT)   :: ssoil  ! soil+snow variables
     INTEGER(i_d), PARAMETER      :: ntest = 0 ! for snow diag prints
     INTEGER(i_d)                 :: k
     REAL(r_1), DIMENSION(mp)     :: osm
@@ -628,13 +635,14 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  SUBROUTINE snow_accum (dels,  ktau, canopy, met, ssoil, soil)
+  SUBROUTINE snow_accum (dels,  ktau)
+!  SUBROUTINE snow_accum (dels,  ktau, canopy, met, ssoil, soil)
     REAL(r_1), INTENT(IN)                    :: dels   ! integration time step (s)
     INTEGER(i_d), INTENT(IN)                 :: ktau ! integration step number
-    TYPE(canopy_type), INTENT(INOUT)         :: canopy ! vegetation variables
-    TYPE(met_type), INTENT(INOUT)            :: met   ! all met forcing
-    TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil ! soil+snow variables
-    TYPE(soil_parameter_type), INTENT(INOUT) :: soil ! soil parameters
+!    TYPE(canopy_type), INTENT(INOUT)         :: canopy ! vegetation variables
+!    TYPE(met_type), INTENT(INOUT)            :: met   ! all met forcing
+!    TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil ! soil+snow variables
+!    TYPE(soil_parameter_type), INTENT(INOUT) :: soil ! soil parameters
     INTEGER(i_d), PARAMETER  :: ntest = 0 ! for snow diag prints
 !    INTEGER(i_d), PARAMETER  :: nglacier = 0 ! 0 original, 1 off, 2 new Eva
     INTEGER(i_d), PARAMETER  :: nglacier = 2 ! 0 original, 1 off, 2 new Eva
@@ -741,7 +749,7 @@ CONTAINS
 
     WHERE (ssoil%snowd < 0.1 .and. canopy%fes .gt. 0.0)
       canopy%fes = MIN(canopy%fes, &
-                 & MAX(0.0,(REAL(ssoil%wb(:,1),r_1)-soil%swilt/3.))* soil%zse(1) &
+                 & MAX(0.0,(REAL(ssoil%wb(:,1),r_1)-soil%swilt))* soil%zse(1) &
                  & * 1000.0 * hl / dels)
       canopy%fes = MIN(canopy%fes, &
                  & REAL((ssoil%wb(:,1)-ssoil%wbice(:,1)),r_1) * soil%zse(1) &
@@ -775,12 +783,13 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  SUBROUTINE surfbv (dels, ktau, met, ssoil, soil )
+  SUBROUTINE surfbv (dels, ktau)
+!  SUBROUTINE surfbv (dels, ktau, met, ssoil, soil )
     REAL(r_1), INTENT(IN)                    :: dels   ! integration time step (s)
     INTEGER(i_d), INTENT(IN)                 :: ktau ! integration step number
-    TYPE(met_type), INTENT(INOUT)            :: met    ! all met forcing
-    TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil  ! soil+snow variables
-    TYPE(soil_parameter_type), INTENT(INOUT) :: soil ! soil parameters
+!    TYPE(met_type), INTENT(INOUT)            :: met    ! all met forcing
+!    TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil  ! soil+snow variables
+!    TYPE(soil_parameter_type), INTENT(INOUT) :: soil ! soil parameters
     INTEGER(i_d), PARAMETER      :: ntest = 0 ! for snow diag prints
 !    INTEGER(i_d), PARAMETER      :: nglacier = 0 ! 0 original, 1 off, 2 new Eva
     INTEGER(i_d), PARAMETER      :: nglacier = 2 ! 0 original, 1 off, 2 new Eva
@@ -796,7 +805,8 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)     :: tmp ! temporary value
     REAL(r_1), DIMENSION(mp)     :: xxx
 
-    CALL smoisturev ( dels, ktau, ssoil, soil)
+    CALL smoisturev ( dels, ktau)
+!    CALL smoisturev ( dels, ktau, ssoil, soil)
 
     ! Diagnostic block below:
     IF (ntest > 0) THEN
@@ -961,11 +971,12 @@ CONTAINS
   !	 ga - heat flux from the atmosphere (ground heat flux)
   !	 ccnsw - soil thermal conductivity, including water/ice
   !
-  SUBROUTINE stempv(dels, canopy, ssoil, soil)
+  SUBROUTINE stempv(dels)
+!  SUBROUTINE stempv(dels, canopy, ssoil, soil)
     REAL(r_1), INTENT(IN)                    :: dels ! integration time step (s)
-    TYPE(canopy_type), INTENT(INOUT)         :: canopy
-    TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil
-    TYPE(soil_parameter_type), INTENT(INOUT) :: soil
+!    TYPE(canopy_type), INTENT(INOUT)         :: canopy
+!    TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil
+!    TYPE(soil_parameter_type), INTENT(INOUT) :: soil
     INTEGER(i_d), PARAMETER          :: ntest = 0
     REAL(r_2), DIMENSION(mp, -2:ms)  :: at
     REAL(r_2), DIMENSION(mp, -2:ms)  :: bt
@@ -1149,13 +1160,14 @@ CONTAINS
   !	 ga - heat flux from the atmosphere 
   !	 ccnsw - soil thermal conductivity, including water/ice
   !
-  SUBROUTINE stempvsn(dels,soilcond, soilhcp, canopy, ssoil, soil)
+  SUBROUTINE stempvsn(dels,soilcond, soilhcp)
+!  SUBROUTINE stempvsn(dels,soilcond, soilhcp, canopy, ssoil, soil)
     REAL(r_1), INTENT(IN)                    :: dels ! integration time step (s)
     REAL(r_1), DIMENSION(mp), INTENT(IN)     :: soilcond   
     REAL(r_1), DIMENSION(mp), INTENT(IN)     :: soilhcp   
-    TYPE(canopy_type), INTENT(INOUT)         :: canopy
-    TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil
-    TYPE(soil_parameter_type), INTENT(INOUT) :: soil
+!    TYPE(canopy_type), INTENT(INOUT)         :: canopy
+!    TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil
+!    TYPE(soil_parameter_type), INTENT(INOUT) :: soil
     INTEGER(i_d), PARAMETER            :: mssn = 1
     INTEGER(i_d), PARAMETER            :: ntest = 0
     REAL(r_2), DIMENSION(mp, -2:mssn)  :: at
@@ -1251,10 +1263,12 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  SUBROUTINE snowcheck(dels, ktau, ssoil )
+
+  SUBROUTINE snowcheck(dels, ktau)
+!  SUBROUTINE snowcheck(dels, ktau, ssoil )
     REAL(r_1), INTENT(IN)               :: dels ! integration time step (s)
     INTEGER(i_d), INTENT(IN)            :: ktau ! integration step number
-    TYPE(soil_snow_type), INTENT(INOUT) :: ssoil
+!    TYPE(soil_snow_type), INTENT(INOUT) :: ssoil
     INTEGER(i_d), PARAMETER :: ntest = 0 !  for prints
     INTEGER(i_d)            :: k
 
@@ -1267,11 +1281,13 @@ CONTAINS
       PRINT *, 'tggsn ', (ssoil%tggsn(idjd,k),k=1,3)
     END IF
 
+! If no restart file then snow variables need initialisation
     IF (ktau <= 1) THEN
       ssoil%ssdn = 120.0
       ssoil%ssdnn = 120.0
       ssoil%tggsn = tfrz
       ssoil%isflag = 0
+!     ssoil%snage = 0.
     END IF
 
     WHERE (ssoil%snowd <= 0.0)
@@ -1337,11 +1353,12 @@ CONTAINS
 
 
   !******************************************************************
-  SUBROUTINE snowl_adjust(dels, ktau,  ssoil, canopy )
+  SUBROUTINE snowl_adjust(dels, ktau)
+!  SUBROUTINE snowl_adjust(dels, ktau,  ssoil, canopy )
     REAL(r_1), INTENT(IN)               :: dels ! integration time step (s)
     INTEGER(i_d), INTENT(IN)            :: ktau ! integration step number
-    TYPE(soil_snow_type), INTENT(INOUT) :: ssoil
-    TYPE(canopy_type), INTENT(INOUT)    :: canopy
+!    TYPE(soil_snow_type), INTENT(INOUT) :: ssoil
+!    TYPE(canopy_type), INTENT(INOUT)    :: canopy
     INTEGER(i_d), PARAMETER  :: ntest = 0 !  for prints
     INTEGER(i_d)             :: k
     REAL(r_2), DIMENSION(mp) :: excd
@@ -1470,10 +1487,11 @@ CONTAINS
 
 
   !******************************************************************
-  SUBROUTINE soilfreeze(dels, soil, ssoil)
+  SUBROUTINE soilfreeze(dels)
+!  SUBROUTINE soilfreeze(dels, soil, ssoil)
     REAL(r_1), INTENT(IN)                    :: dels ! integration time step (s)
-    TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil
-    TYPE(soil_parameter_type), INTENT(INOUT) :: soil
+!    TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil
+!    TYPE(soil_parameter_type), INTENT(INOUT) :: soil
     REAL(r_1), DIMENSION(mp)           :: sicefreeze
     REAL(r_1), DIMENSION(mp)           :: sicemelt
     REAL(r_1), DIMENSION(mp)           :: xx
@@ -1517,12 +1535,13 @@ CONTAINS
 
 
   !******************************************************************
-!  SUBROUTINE remove_trans(dels, soil, ssoil, canopy, veg)
-    SUBROUTINE remove_trans(dels, soil, ssoil, canopy)
+    SUBROUTINE remove_trans(dels)
+!    SUBROUTINE remove_trans(dels, soil, ssoil, canopy, veg)
+!    SUBROUTINE remove_trans(dels, soil, ssoil, canopy)
     REAL(r_1), INTENT(IN)                    :: dels ! integration time step (s)
-    TYPE(canopy_type), INTENT(INOUT)         :: canopy
-    TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil
-    TYPE(soil_parameter_type), INTENT(INOUT) :: soil
+!    TYPE(canopy_type), INTENT(INOUT)         :: canopy
+!    TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil
+!    TYPE(soil_parameter_type), INTENT(INOUT) :: soil
 !    TYPE(veg_parameter_type), INTENT(INOUT)  :: veg
     REAL(r_1), DIMENSION(mp,ms)   :: evapfbl
     REAL(r_1), DIMENSION(mp,0:ms) :: diff 
@@ -1537,7 +1556,7 @@ CONTAINS
       WHERE (canopy%fevc > 0.0)     ! convert to mm/dels
         ! Calculate the amount (perhaps moisture/ice limited)
         ! which can be removed:
-        xx = canopy%fevc * dels / hl * soil%froot(:,k) + diff(:,k-1)
+        xx = canopy%fevc * dels / hl * veg%froot(:,k) + diff(:,k-1)
         diff(:,k) = (MAX( 0.0, MIN( ssoil%wb(:,k) - soil%swilt, &
                   & ssoil%wb(:,k) - ssoil%wbice(:,k) ) ) &
                   & * soil%zse(k) * 1000.0 - xx) / (soil%zse(k) * 1000.0)
@@ -1548,7 +1567,7 @@ CONTAINS
         ELSEWHERE
           diff(:,k) = xx
         ENDWHERE
-!        evapfbl(:,k) = (MIN(canopy%fevc * dels / hl * soil%froot(:,k), &
+!        evapfbl(:,k) = (MIN(canopy%fevc * dels / hl * veg%froot(:,k), &
 ! MAX(0._r_2, MIN(ssoil%wb(:,k) - soil%swilt,ssoil%wb(:,k)-ssoil%wbice(:,k))) &
 !             * soil%zse(k) * 1000.)) / (soil%zse(k) * 1000.)
 !          ! Remove this amount from  the soil:
@@ -1586,16 +1605,17 @@ CONTAINS
   !	 ivegt - vegetation type
   ! Output
   !	 ssoil
+ SUBROUTINE soil_snow(dels, ktau)
 ! SUBROUTINE soil_snow(dels, ktau, soil, ssoil, veg,canopy, met, bal)
-  SUBROUTINE soil_snow(dels, ktau, soil, ssoil, canopy, met, bal)
+!  SUBROUTINE soil_snow(dels, ktau, soil, ssoil, canopy, met, bal)
     REAL(r_1), INTENT(IN)                    :: dels ! integration time step (s)
     INTEGER(i_d), INTENT(IN)                 :: ktau ! integration step number
-    TYPE(soil_parameter_type), INTENT(INOUT) :: soil
-    TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil
-    TYPE(canopy_type), INTENT(INOUT)         :: canopy
+!    TYPE(soil_parameter_type), INTENT(INOUT) :: soil
+!    TYPE(soil_snow_type), INTENT(INOUT)      :: ssoil
+!    TYPE(canopy_type), INTENT(INOUT)         :: canopy
 !    TYPE(veg_parameter_type), INTENT(INOUT)  :: veg
-    TYPE(met_type), INTENT(INOUT)            :: met ! all met forcing
-    TYPE (balances_type), INTENT(INOUT)      :: bal
+!    TYPE(met_type), INTENT(INOUT)            :: met ! all met forcing
+!    TYPE (balances_type), INTENT(INOUT)      :: bal
     INTEGER(i_d), PARAMETER  :: ntest = 0 !  for prints
     INTEGER(i_d)             :: k
 !    REAL(r_2), DIMENSION(mp):: sicefreeze
@@ -1657,19 +1677,21 @@ CONTAINS
       ssoil%wbfice(:,k) = REAL(ssoil%wbice(:,k),r_1) / soil%ssat
     END DO
 
-    CALL snowcheck (dels, ktau, ssoil )
-
-    CALL snowdensity (dels, ssoil)
-
-    CALL snow_accum (dels, ktau, canopy, met, ssoil, soil )
-
-    CALL snow_melting (dels, snowmlt, ktau, ssoil )
+    CALL snowcheck (dels, ktau)
+!    CALL snowcheck (dels, ktau, ssoil )
+    CALL snowdensity (dels)
+!    CALL snowdensity (dels, ssoil)
+    CALL snow_accum (dels, ktau)
+!    CALL snow_accum (dels, ktau, canopy, met, ssoil, soil )
+    CALL snow_melting (dels, snowmlt, ktau)
+!    CALL snow_melting (dels, snowmlt, ktau, ssoil )
     ssoil%smelt = snowmlt
 
     ! adjust levels in the snowpack due to snow accumulation/melting,
     ! snow aging etc...
 
-    CALL snowl_adjust(dels, ktau, ssoil, canopy )
+    CALL snowl_adjust(dels, ktau)
+!    CALL snowl_adjust(dels, ktau, ssoil, canopy )
 
     ! Diagnostic block:
     IF (ntest > 0) THEN
@@ -1685,9 +1707,10 @@ CONTAINS
       PRINT *, 'wbfice ', (ssoil%wbfice(idjd,k),k=1,ms)
     END IF
 
-    CALL stempv(dels, canopy, ssoil, soil)
-
-    CALL snow_melting (dels, snowmlt, ktau, ssoil )
+    CALL stempv(dels)
+!    CALL stempv(dels, canopy, ssoil, soil)
+    CALL snow_melting (dels, snowmlt, ktau)
+!    CALL snow_melting (dels, snowmlt, ktau, ssoil )
     ssoil%smelt = ssoil%smelt + snowmlt
 
     totwet = canopy%precis + ssoil%smelt
@@ -1701,14 +1724,13 @@ CONTAINS
                 & weting - 0.99 * MIN( xxx * soil%zse(1) * rhowat, weting))
     weting = totwet - ssoil%rnof1
     ssoil%fwtop = weting / dels - canopy%segg
-
-    CALL  soilfreeze(dels, soil, ssoil)
-
+    CALL  soilfreeze(dels)
+!    CALL  soilfreeze(dels, soil, ssoil)
+    CALL remove_trans(dels)
 !    CALL remove_trans(dels, soil, ssoil, canopy, veg)
-    CALL remove_trans(dels, soil, ssoil, canopy)
-
-    CALL surfbv(dels, ktau,  met, ssoil, soil )
-
+!    CALL remove_trans(dels, soil, ssoil, canopy)
+    CALL surfbv(dels, ktau)
+!    CALL surfbv(dels, ktau,  met, ssoil, soil )
 !    CALL snow_albedo(dels, ktau, met, ssoil, soil )
 
     ! Diagnostic block:

@@ -450,8 +450,6 @@ bb(:,wlev)=1./dt-aa(:,wlev)
 dd(:,wlev)=water(:,wlev)%temp/dt+rhs(:,wlev)*dumt0+dg3(:,wlev)%rad/dz(:,wlev)
 call thomas(new%temp,aa,bb,cc,dd)
 
-new%temp=max(271.3,new%temp) ! MJT suggestion
-
 ! SALINITY
 do ii=1,wlev
   dd(:,ii)=water(:,ii)%sal/dt+rhs(:,ii)*dg2%ws0
@@ -508,6 +506,8 @@ water=new
 
 !--------------------------------------------------------------------
 uo%sst=water(:,1)%temp
+
+call seaice
 
 return
 end subroutine mlocalc
@@ -958,11 +958,17 @@ return
 end subroutine getrho
 
 !Pack sea ice for calcuation
-!subroutine seaice()
+subroutine seaice
 
-!implicit none
+implicit none
 
 ! Formation
+water%temp=max(water%temp,271.3) ! fix for missing sea-ice (to be removed)
+
+! where (water%temp(:,1).lt.271.3) ! form new sea-ice
+!   dic=dic+
+!   water%temp(:,1)=271.3
+! end where
 
 
 !cice=dic.gt.0.
@@ -995,8 +1001,8 @@ end subroutine getrho
 
 !sst=sst*(1.-fracice)+sst_pack(icegrid)*fracice
 
-!return
-!end subroutine seaice
+return
+end subroutine seaice
 
 !Update sea ice prognostic variables
 !subroutine seaicecalc
