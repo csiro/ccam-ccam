@@ -564,7 +564,7 @@ c 	    only being tested for nested=0; no need to test for mesonest
         
         !------------------------------------------------------------
         ! MJT mlo
-	if (nmlo.ne.0) then
+        if (nmlo.ne.0) then
           mlodwn=999.
           ocndwn=0.
           call histrd1(ncid,iarchi,ierr,'ocndepth',ik,jk,ocndwn,ifull)
@@ -588,7 +588,7 @@ c 	    only being tested for nested=0; no need to test for mesonest
             end do
             if (any(mlodwn.gt.900.)) ocndwn=0. ! missing levels
           end if
-	end if
+        end if
         !------------------------------------------------------------
         
         !------------------------------------------------------------
@@ -770,8 +770,8 @@ c     read in all data
             !------------------------------------------------------------
             ! MJT CHANGE
             ierr=nf_inq_vartype(ncid,idv,nctype)
-	      addoff=0.
-	      sf=1.
+            addoff=0.
+            sf=1.
             select case(nctype)
               case(nf_float)
                 call ncvgt(ncid,idv,start,count,rvar,ier)

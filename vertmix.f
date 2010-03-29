@@ -779,9 +779,10 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         endif ! mydiag
       endif
       
-      else ! tke-eps scheme                                             ! MJT tke
+      else ! tke-eps closure scheme
        ! note ksc < 0 options are clobbered when nvmix=6                ! MJT tke
-       ! However, nvmix=6 supports its own shallow convection options   ! MJT tke
+       ! However, nvmix=6 with nlocal=7 supports its own shallow        ! MJT tke
+       ! convection options                                             ! MJT tke
        uav(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*savu(1:ifull,:) ! MJT tke
        vav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*savv(1:ifull,:) ! MJT tke
        zg(:,1)=bet(1)*t(1:ifull,1)/grav                                 ! MJT tke
@@ -789,12 +790,33 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
      &                     +betm(k)*t(1:ifull,k-1))/grav                ! MJT tke
        end do                                                           ! MJT tke
-       call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),qfg(1:ifull,:),
-     &             uav,vav,cfrac,pblh,land(1:ifull),
+       select case(nlocal)                                              ! MJT tke
+        case(0) ! no counter gradient                                   ! MJT tke
+         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
+     &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
      &             rdry*fg*t(1:ifull,1)/(ps(1:ifull)*cp*sigmh(1)),
      &             rdry*eg*t(1:ifull,1)/(ps(1:ifull)*hl*sigmh(1)),
-     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,0)                ! MJT tke
-       rkh=rkm                                                          ! MJT tke
+     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)              ! MJT tke
+           rkh=rkm                                                      ! MJT tke
+        case(1,2,3,4,5,6) ! KCN counter gradient method                 ! MJT tke
+         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
+     &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
+     &             rdry*fg*t(1:ifull,1)/(ps(1:ifull)*cp*sigmh(1)),
+     &             rdry*eg*t(1:ifull,1)/(ps(1:ifull)*hl*sigmh(1)),
+     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)              ! MJT tke
+         rkh=rkm                                                        ! MJT tke
+         call pbldif(rhs,rkh,rkm,uav,vav)                               ! MJT tke
+        case(7) ! mass-flux counter gradient                            ! MJT tke
+         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
+     &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
+     &             rdry*fg*t(1:ifull,1)/(ps(1:ifull)*cp*sigmh(1)),
+     &             rdry*eg*t(1:ifull,1)/(ps(1:ifull)*hl*sigmh(1)),
+     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,0,0)              ! MJT tke
+         rkh=rkm                                                        ! MJT tke
+         case DEFAULT                                                   ! MJT tke
+           write(6,*) "ERROR: Unknown nlocal option for nvmix=6"        ! MJT tke
+           stop                                                         ! MJT tke
+       end select                                                       ! MJT tke
       end if ! nvmix.ne.6                                               ! MJT tke
 
       do k=1,kl-1

@@ -568,13 +568,13 @@ c
 !---the maximum no of clouds in the row (kclds) is used. this creates
 !   extra work (may be removed in a subsequent update).
 
-!   note 100% cloud cover
+!   note 100% cloud cover (removed camt term)
        cr(:,2:kclds+1)=cuvrf(:,2:kclds+1)
        ct(:,2:kclds+1)=one-cr(:,2:kclds+1)
   
       else  !  IR, no Rayleigh scattering
 
-!   note 100% cloud cover
+!   note 100% cloud cover (removed camt term)
 	 cr(:,1:kclds+1)=cirrf(:,1:kclds+1)
 	 ct(:,1:kclds+1)=one-(cirrf(:,1:kclds+1)+cirab(:,1:kclds+1))
 

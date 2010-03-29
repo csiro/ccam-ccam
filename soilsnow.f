@@ -224,7 +224,7 @@ c            smass(iq,2)=max(0.,.45*(snowd(iq)-smass(iq,1)))  ! jlm fix
         print *,'tggsn ',(tggsn(idjd,k),k=1,3)
         print *,'tgg ',(tgg(idjd,k),k=1,ms)
         print *,'wb ',(wb(idjd,k),k=1,ms)
-	print *,'wbice ',(wbice(idjd,k),k=1,ms)
+        print *,'wbice ',(wbice(idjd,k),k=1,ms)
         print *,'wblf ',(wblf(idjd,k),k=1,ms)
         print *,'wbfice ',(wbfice(idjd,k),k=1,ms)
 c       print *,'in soilsnow printing wbfice_max'

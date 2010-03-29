@@ -33,7 +33,7 @@ c     mev2 = 2 for il even (1 for il odd)
      .      ,aa(ifull),bb(ifull),cc(ifull),dum2(ifull,12)
       real omgf(ifull,kl)
       equivalence (omgf,dpsldt)
-      character rundate*10,qgout*20
+      character rundate*8,qgout*20
       character co2out*80,radonout*80,surfout*80
       integer nface6(4,3)   ! Faces to use in each phase    (c-cub)
       integer ioff6(4,3)    ! Starting offset for each face (c-cub)

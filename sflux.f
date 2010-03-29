@@ -746,7 +746,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          enddo   ! ip=1,ipland                                          ! cable
          ! The following patch overrides CABLE screen level diagnostics
          if (nsib.eq.7) then                                      ! PATCH
-	   qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))
+           qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))
            call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss,
      &                t(1:ifull,1),qsttg,qg(1:ifull,1),vmod,
      &                ps(1:ifull),.not.land,zmin,sig(1))          ! PATCH

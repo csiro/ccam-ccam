@@ -2275,7 +2275,6 @@ logical,                   intent(in)            :: including_aerosols
         end do
      end do
 
-
      do m=1,NBTRGE
      do kk = ks+1,KE+1
         do j = 1,size(trans_band1(:,:,:,:),2)

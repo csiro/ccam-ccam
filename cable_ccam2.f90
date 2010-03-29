@@ -203,7 +203,7 @@ module cable_ccam
        x=min(max(real(mtimer+monthstart)/real(1440.*imonth(jmonth)),0.),1.)
        veg%vlai(:)=vl1+vl2*x+vl3*x*x ! LAI as a function of time
        veg%vlai(:)=max(veg%vlai(:),0.1)
-       where (soil%isoilm.eq.9.or.veg%iveg.eq.15.or.veg%iveg.eq.16)
+       where (veg%iveg.eq.15.or.veg%iveg.eq.16)
          veg%vlai=0.001
        endwhere
 
@@ -243,7 +243,7 @@ module cable_ccam
       ssoil%owetfac = ssoil%wetfac
       CALL soil_snow(dt, ktau)
       !	need to adjust fe after soilsnow
-      canopy%fev	= canopy%fevc + canopy%fevw
+      canopy%fev = canopy%fevc + canopy%fevw
       ! Calculate total latent heat flux:
       canopy%fe = canopy%fev + canopy%fes
       ! Calculate net radiation absorbed by soil + veg
@@ -733,30 +733,6 @@ module cable_ccam
       call ccmpi_distribute(vlin(:,n))
     end do
   end if
-  
-  
-!  !test
-!  do iq=1,ifull
-!    if (land(iq)) then
-!      do n=2,5
-!        if (hc(ivs(iq,n)).lt.0.1*hc(ivs(iq,1)).or. &
-!	    hc(ivs(iq,n)).gt.10.*hc(ivs(iq,1))) then
-!	  svs(iq,n)=0.
-!	  print *,"Delete iq,n,ivs ",iq,n,ivs(iq,n)
-!	end if
-!      end do
-!    end if
-!  end do
-!  !test
-!  where (land)
-!    svs(:,1)=1.
-!    svs(:,2)=0.
-!    svs(:,3)=0.
-!    svs(:,4)=0.
-!    svs(:,5)=0.
-!  end where
-
-  ! normalise
   do n=1,5
     svs(:,n)=svs(:,n)/sum(svs,2)
   end do
@@ -923,7 +899,7 @@ module cable_ccam
   soil%swilt   = swilt(soil%isoilm)
   soil%ibp2    = ibp2(soil%isoilm)
   soil%i2bp3   = i2bp3(soil%isoilm)
-  soil%pwb_min = (soil%swilt/soil%ssat)**soil%ibp2
+  soil%pwb_min =  (soil%swilt / soil%ssat )**soil%ibp2
 
   bgc%ratecp(:) = ratecp(:)
   bgc%ratecs(:) = ratecs(:)

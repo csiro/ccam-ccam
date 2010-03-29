@@ -1,6 +1,6 @@
       function iabsdate(kdate_r,kdate)
       
-      common/leap_yr/leap
+      common/leap_yr/leap  ! MJT bug fix
       
 !     Y2K version
 c     if before 1960, suppress leap years (GCM-nested runs) (jlm 31/5/95)
@@ -32,15 +32,15 @@ c     Accumulate days month by month, up to last completed month
       do mon=1,months
         mnth=mod(mon-1,12)+1
         iabsdate=iabsdate+mdays(mnth)
-	if (mnth.eq.2.and.leap.eq.1) then
-          nl=0
-          if (mod(iyear0,4  ).eq.0) nl=1
-          if (mod(iyear0,100).eq.0) nl=0
-          if (mod(iyear0,400).eq.0) nl=1
-	  iabsdate=iabsdate+nl
-	end if
-!        if(mnth.eq.2.and.mod(iyear0,4).eq.0.and.iyear0.ge.1960)
-!     .                  iabsdate=iabsdate+1 ! Leap year
+        if (leap.eq.1.and.mnth.eq.2) then    ! MJT bug fix
+          nl=0                               ! MJT bug fix        
+          if (mod(iyear0,4  ).eq.0) nl=1     ! MJT bug fix
+          if (mod(iyear0,100).eq.0) nl=0     ! MJT bug fix
+          if (mod(iyear0,400).eq.0) nl=1     ! MJT bug fix
+          iabsdate=iabsdate+nl               ! MJT bug fix
+        end if
+!        if(mnth.eq.2.and.mod(iyear0,4).eq.0.and.iyear0.ge.1960)    ! MJT bug fix
+!     .                  iabsdate=iabsdate+1 ! Leap year            ! MJT bug fix
       enddo
 
 c     Add days from this current month

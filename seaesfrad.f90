@@ -122,7 +122,7 @@ common /o3dat/ dduo3n(37,kl),ddo3n2(37,kl),ddo3n3(37,kl),ddo3n4(37,kl)
 data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
 
 ! Aerosol flag
-do_aerosol_forcing=iaero.ne.0
+do_aerosol_forcing=iaero.gt.1
 
 ! set-up half levels ------------------------------------------------
 sigh(1:kl) = sigmh(1:kl)

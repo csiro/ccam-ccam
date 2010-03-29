@@ -4,7 +4,7 @@
 ! The in-canyon vegetation is based on Kowalczyk et al, DAR Tech Paper 32 (1994), but simplified by assiming sigmaf=1.
 
 ! The main changes include an alternative formulation for in-canyon aerodynamical resistances based on Harman, et al (2004)
-! and Kanada et al (2007), combined with a second canyon wall for completeness.  The stability functions are also modified
+! and Kanada et al (2007), combined with a second canyon wall for completeness.  The stability functions can also be modified
 ! to account for low wind speeds by Luhar (2008).  The scheme includes nrefl order reflections in the canyon for both longwave
 ! and shortwave radiation (in TEB infinite reflections are used for shortwave and 1st order reflections in longwave). A
 ! big-leaf vegetation tile is included in the canyon using the Kowalczyk et al (1994) scheme but with a simplified soil moisture
@@ -108,12 +108,15 @@ integer, parameter :: resmeth=1           ! Canyon sensible heat transfer (0=Mas
 integer, parameter :: zohmeth=2           ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003*zom)
 integer, parameter :: acmeth=1            ! AC heat pump into canyon (0=Off, 1=On)
 integer, parameter :: nrefl=3             ! Number of canyon reflections (default=3)
-integer, parameter :: nfgits=6            ! Maximum number of iterations for calculating sensible heat flux (default=6)
 integer, parameter :: vegmode=2           ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out-canyon/in-canyon = X%/Y%)
 integer, parameter :: scrnmeth=1          ! Screen diagnostic method (0=Slab, 1=Canopy)
 integer, parameter :: iqt = 3432          ! Diagnostic point (in terms of host grid)
-real, parameter :: tol=0.001              ! Tolarance for sectant method
-real, parameter :: alpha = 0.7            ! Weighting for determining the rate of convergence when calculating canyon temperatures
+! sectant solver parameters
+integer, parameter :: nfgits=4            ! Maximum number of iterations for calculating sensible heat flux (default=6)
+integer, parameter :: negits=2            ! Maximum number of iterations for calculating latent heat flux (default=2)
+real, parameter    :: tol=0.001           ! Sectant method tolarance for sensible heat flux
+real, parameter    :: tolqg=1.E-8         ! Sectant method tolarance for latent heat flux
+real, parameter    :: alpha=0.7           ! Weighting for determining the rate of convergence when calculating canyon temperatures
 ! physical parameters
 real, parameter :: waterden=1000.         ! water density (kg m^-3)
 real, parameter :: icelambda=2.22         ! conductance of ice (W m^-1 K^-1)
@@ -151,16 +154,16 @@ real, parameter :: swilt=0.18             ! In-canyon soil wilting point
 real, parameter :: sfc=0.26               ! In-canyon soil field capacity
 real, parameter :: ssat=0.42              ! In-canyon soil saturation point
 ! stability function parameters
-integer, parameter ::  nc     = 5
-real, parameter ::  bprm   = 5.  ! 4.7 in rams
-real, parameter ::  chs    = 2.6 ! 5.3 in rams
-real, parameter ::  cms    = 5.  ! 7.4 in rams
-real, parameter ::  fmroot = 0.57735
-real, parameter ::  rimax  =(1./fmroot-1.)/bprm
-real, parameter :: a_1 = 1.
-real, parameter :: b_1 = 2./3.
-real, parameter :: c_1 = 5.
-real, parameter :: d_1 = 0.35
+integer, parameter :: icmax=1             ! number of iterations for stability functions (default=5)
+real, parameter    :: bprm   = 5.  ! 4.7 in rams
+real, parameter    :: chs    = 2.6 ! 5.3 in rams
+real, parameter    :: cms    = 5.  ! 7.4 in rams
+real, parameter    :: fmroot = 0.57735
+real, parameter    :: rimax  =(1./fmroot-1.)/bprm
+real, parameter    :: a_1 = 1.
+real, parameter    :: b_1 = 2./3.
+real, parameter    :: c_1 = 5.
+real, parameter    :: d_1 = 0.35
 
 
 contains
@@ -906,25 +909,27 @@ end subroutine atebcalc
 ! urban flux calculations
 
 ! Basic loop is:
-!  Heat flux through walls/roofs/roads
 !  Short wave flux (nrefl reflections)
 !  Long wave flux (nrefl reflections precomputed)
 !  Estimate building roughness length for momentum
 !  Canyon aerodynamic resistances
-!  Solve canyon snow temperature
-!    Canyon snow fluxes
-!    Solve vegetation and canyon temperature
-!      Canyon sensible and latent heat fluxes
-!    End vegetation and canyon temperature loop
-!  End canyon snow temprature loop
-!  Solve roof snow temperature
+!  Solve canyon snow energy budget
+!    Canyon snow temperature
+!    Solve vegetation energy budget
+!      Solve canyon sensible heat budget
+!        Solve canyon latent heat budget
+!          Canyon temperature and mixing ratio
+!        End latent heat budget loop
+!      End sensible heat budget loop
+!    End vegetation energy budget loop
+!  End canyon snow energy budget loop
+!  Solve roof snow energy budget
 !    Roof snow temperature
-!  End roof snow temperature loop
-!  Roof sensible and latent heat fluxes
-!  Roof long wave flux
+!  End roof snow energy budget loop
+!  Roof longwave, sensible and latent heat fluxes
 !  Update water on canyon surfaces
 !  Update snow albedo and density
-!  Update urban temperatures
+!  Update urban roof, road and wall temperatures
 !  Estimate bulk roughness length for heat
 !  Estimate bulk long wave flux and surface temperature
 !  Estimate bulk sensible and latent heat fluxes
@@ -1132,7 +1137,6 @@ zom=zomratio*fn%bldheight
 n=road%snow/(road%snow+maxrdsn+0.408*grav*zom)                 ! snow cover for urban roughness calc (Douville, et al 1995)
 zom=(1.-n)*zom+n*zosnow                                        ! blend urban and snow roughness lengths (i.e., snow fills canyon)
 dg%rfdzmin=max(abs(zmin-fn%bldheight),zocanyon+1.)             ! distance to roof displacement height
-! use neutral stability for first guess at estimating topu (=wind speed at canyon top)
 where (zmin.ge.fn%bldheight)
   pg%lzom=log(zmin/zom)
 elsewhere ! lowest atmospheric model level is within the canopy.  Need to interact with boundary layer scheme.
@@ -1367,7 +1371,7 @@ end if
 ! calculate roof sensible and latent heat fluxes (without snow)
 rg%roof=fn%roofemiss*(atm%rg-sbconst*roof%temp(1)**4)
 dg%roofrgout=sbconst*(dg%rfsndelta*snowemiss*rfsntemp**4+(1.-dg%rfsndelta)*fn%roofemiss*roof%temp(1)**4) &
-             +(1.-dg%rfsndelta*snowemiss-(1.-dg%rfsndelta)*fn%roofemiss)*atm%rg
+                    +(1.-dg%rfsndelta*snowemiss-(1.-dg%rfsndelta)*fn%roofemiss)*atm%rg
 a=log(dg%rfdzmin/zocanyon)
 xw=(dg%roofdelta*(1.-dg%rfsndelta)+dg%rfsndelta)*qsatr ! roof surface mixing ratio
 we=roof%temp(1)*(1.+0.61*xw)
@@ -1384,7 +1388,7 @@ elsewhere
   eg%roof=lv*min(atm%rho*dg%roofdelta*(qsatr-dg%mixrr)*acond%roof*atm%umag,roof%water/ddt+atm%rnd+rfsnmelt)
 end where
 
-! join two walls into a single wall
+! join two walls into a single wall (testing only)
 if (resmeth.eq.0.or.resmeth.eq.2) then
   do k=1,3
     n=0.5*(walle%temp(k)+wallw%temp(k))
@@ -1405,7 +1409,7 @@ if (resmeth.eq.0.or.resmeth.eq.2) then
   eg%wallw=n
 end if
 
-! tridiagonal solver coefficents
+! tridiagonal solver coefficents for calculating roof, road and wall temperatures
 do k=2,3
   ggaroof(:,k)=-2./(fn%roofdepth(k-1)/fn%rooflambda(k-1)+fn%roofdepth(k)/fn%rooflambda(k))
   ggawall(:,k)=-2./(fn%walldepth(k-1)/fn%walllambda(k-1)+fn%walldepth(k)/fn%walllambda(k))
@@ -1448,7 +1452,7 @@ gawalle(:,3)=2.*fn%walllambda(3)*fn%bldtemp/fn%walldepth(3)+walle%temp(3)*fn%wal
 gawallw(:,3)=2.*fn%walllambda(3)*fn%bldtemp/fn%walldepth(3)+wallw%temp(3)*fn%wallcp(3)*fn%walldepth(3)/ddt
 garoad(:,3)=road%temp(3)*fn%roadcp(3)*fn%roaddepth(3)/ddt
     
-! tridiagonal solver (Thomas algorithm) to solve for urban temperatures
+! tridiagonal solver (Thomas algorithm) to solve for roof, road and wall temperatures
 do ii=2,3
   n=ggaroof(:,ii)/ggbroof(:,ii-1)
   ggbroof(:,ii)=ggbroof(:,ii)-n*ggcroof(:,ii-1)
@@ -1519,7 +1523,7 @@ fg%roof=dg%rfsndelta*fg%rfsn+(1.-dg%rfsndelta)*fg%roof ! redefine as net roof fg
 eg%roof=dg%rfsndelta*eg%rfsn+(1.-dg%rfsndelta)*eg%roof ! redefine as net roof eg
 egtop=dg%rdsndelta*eg%rdsn+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*eg%road+fn%sigmaveg*eg%veg)
 
-! calculate outputs
+! calculate longwave, sensible heat latent heat and surface water (i.e., bc for RH) outputs
 ! estimate surface temp from outgoing longwave radiation
 uo%ts=((fn%sigmabld*dg%roofrgout+(1.-fn%sigmabld)*dg%canyonrgout)/sbconst)**0.25
 uo%fg=fn%sigmabld*fg%roof+(1.-fn%sigmabld)*fgtop+fn%industryfg
@@ -1528,27 +1532,27 @@ n=max(min((veg%moist-swilt/3.)/(sfc-swilt/3.),1.),0.) ! veg wetfac (see sflux.f 
 uo%wf=fn%sigmabld*(1.-dg%rfsndelta)*dg%roofdelta+(1.-fn%sigmabld)*(1.-dg%rdsndelta)* &
       ((1.-fn%sigmaveg)*dg%roaddelta+fn%sigmaveg*((1.-dg%vegdelta)*n+dg%vegdelta))
 
-! (re)calculate heat roughness length for MOST
+! (re)calculate heat roughness length for MOST (diagnostic only)
 call getqsat(ufull,a,uo%ts,dg%sigd)
 a=a*uo%wf
 we=uo%ts*(1.+0.61*a)
 ww=dg%tempc*(1.+0.61*dg%mixrc)
 select case(zohmeth)
-  case(0)
+  case(0) ! Use veg formulation
     pg%lzoh=2.3+pg%lzom
     call getinvres(ufull,n,pg%cduv,z_on_l,pg%lzoh,pg%lzom,pg%cndzmin,we,ww,atm%umag,4)
-  case(1)
+  case(1) ! Use Kanda parameterisation
     call getinvres(ufull,n,pg%cduv,z_on_l,pg%lzoh,pg%lzom,pg%cndzmin,we,ww,atm%umag,2)
     ! Adjust roughness length for heat to account for in-canyon vegetation
     pg%lzoh=1./((1.-fn%sigmaveg*(1.-fn%sigmabld))/pg%lzoh+fn%sigmaveg*(1.-fn%sigmabld)/(2.3+pg%lzom))
     ! (re)calculate drag coeff
     call getinvres(ufull,n,pg%cduv,z_on_l,pg%lzoh,pg%lzom,pg%cndzmin,we,ww,atm%umag,4)
-  case(2)
+  case(2) ! Use Kanda parameterisation
     pg%lzoh=1./((1.-fn%sigmaveg*(1.-fn%sigmabld))/(6.+pg%lzom)+fn%sigmaveg*(1.-fn%sigmabld)/(2.3+pg%lzom)) ! Kanda (2005)
     call getinvres(ufull,n,pg%cduv,z_on_l,pg%lzoh,pg%lzom,pg%cndzmin,we,ww,atm%umag,4)
 end select
 
-! calculate screen diagnostics
+! calculate screen level diagnostics
 call scrncalc(uo%ts,atm%temp,a,atm%mixr,atm%umag,dg,rdsntemp,veg%moist,zonet)
 
 !if (caleffzo) then ! verification
@@ -1689,7 +1693,6 @@ real, dimension(cn) :: pm0,ph0,pm1,ph1,integralm
 real, parameter :: aa1 = 3.8
 real, parameter :: bb1 = 0.5
 real, parameter :: cc1 = 0.3
-integer, parameter :: icmax=5 ! number of iterations for stability functions
 
 olzoh=ilzom+lna
 
@@ -1812,6 +1815,7 @@ sndepth=iroof%snow*waterden/iroof%den
 snlambda=icelambda*(iroof%den/waterden)**1.88
 ldratio=0.5*(sndepth/snlambda+ifn%roofdepth(1)/ifn%rooflambda(1))
 
+! Update roof snow energy budget
 lzosnow=log(dg%rfdzmin/zosnow)
 call getqsat(cn,rfsnqsat,rfsntemp,dg%sigr)
 we=rfsntemp*(1.+0.61*rfsnqsat)
@@ -1864,7 +1868,7 @@ snlambda=icelambda*(iroad%den/waterden)**1.88
 ldratio=0.5*(sndepth/snlambda+ifn%roaddepth(1)/ifn%roadlambda(1))
 
 ! solve for vegetation canopy and canyon temperature
-! (we used to employ the sectant method here.  However, it is difficult to handle the
+! (we used to employ a multi-variable Newton-Raphson method here.  However, it is difficult to handle the
 !  dependence of the wind speed at the canyon top (i.e., affecting aerodynamical resistances)
 !  when the wind speed at the canyon top depends on the stability functions.  This multiply
 !  nested version is slower, but more robust).
@@ -1988,17 +1992,13 @@ type(twall), dimension(cn), intent(in) :: iwalle,iwallw
 type(tvege), dimension(cn), intent(in) :: iveg
 type(tdata), dimension(cn), intent(in) :: ifn
 type(tprog), dimension(cn), intent(inout) :: ipg
-integer, parameter :: icmax=2  ! number of iterations for canyon mixing ratio
-real, parameter :: tolqg=1.E-8 ! tolerance for sectant method
 
 ! transpiration terms (developed by Eva in CCAM sflux.f and CSIRO9)
 ff=1.1*sg%veg/(vegrlai*150.)
 f1=(1.+ff)/(ff+vegrsmin*vegrlai/5000.)
 f2=max(0.5*(sfc-swilt)/max(iveg%moist-swilt,0.01*(sfc-swilt)),1.)
-f4=max(1.-.0016*(298.-dg%tempc)**2,0.05)
-call getqsat(cn,qsat,dg%tempc,dg%sigd)
-f3=max(1.-.00025*(qsat-atm%mixr*dg%sigd/0.622),0.05)
-res=max(30.,vegrsmin*f1*f2/(f3*f4))
+f4=max(1.-.0016*(298.-dg%canyontemp)**2,0.05)
+call getqsat(cn,qsat,dg%canyontemp,dg%sigd)
 
 ! estimate mixing ratio at canyon surfaces
 call getqsat(cn,roadqsat,iroad%temp(1),dg%sigd) ! evaluate using pressure at displacement height
@@ -2022,6 +2022,9 @@ where (vegqsat.lt.dg%canyonmix)
 elsewhere
   dumvegdelta=dg%vegdelta
 endwhere
+! remaining transpiration terms
+f3=max(1.-.00025*(qsat-dg%canyonmix*dg%sigd/0.622),0.05)
+res=max(30.,vegrsmin*f1*f2/(f3*f4))
 evctmx=(dg%rdsndelta*rdsnqsat*ls/lv*acond%rdsn*dg%topu &
        +(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dumroaddelta*roadqsat*acond%road*dg%topu &
        +ifn%sigmaveg*vegqsat*(dumvegdelta*acond%veg*dg%topu &
@@ -2031,7 +2034,7 @@ evctmx=(dg%rdsndelta*rdsnqsat*ls/lv*acond%rdsn*dg%topu &
 dg%canyonmix=dg%mixrc
 
 ! Sectant solver for canyonmix
-do ic=1,icmax
+do ic=1,negits
   evctmxdif=evctmx ! store to calculate derivative
   we=dg%canyontemp*(1.+0.61*dg%canyonmix)
   ! solve for aerodynamical resistance between canyon and atmosphere (neglect molecular diffusion)
@@ -2048,6 +2051,9 @@ do ic=1,icmax
   elsewhere
     dumvegdelta=dg%vegdelta
   endwhere
+  ! remaining transpiration terms
+  f3=max(1.-.00025*(qsat-dg%canyonmix*dg%sigd/0.622),0.05)
+  res=max(30.,vegrsmin*f1*f2/(f3*f4))
   ! balance canyon latent heat budget
   evctmx=(dg%rdsndelta*rdsnqsat*ls/lv*acond%rdsn*dg%topu &
          +(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dumroaddelta*roadqsat*acond%road*dg%topu &
@@ -2086,7 +2092,7 @@ end where
 fgtop=aircp*atm%rho*(dg%canyontemp-dg%tempc)*topinvres
 ! ---------------------------------------------------------------   
 
-! longwave radiation
+! calculate longwave radiation
 dg%netrad=dg%rdsndelta*snowemiss*rdsntemp**4+(1.-dg%rdsndelta)*((1.-ifn%sigmaveg)*ifn%roademiss*iroad%temp(1)**4 &
                   +ifn%sigmaveg*ifn%vegemiss*ipg%vegtemp**4)    
 rg%walle=ifn%wallemiss*(atm%rg*dg%cwa+sbconst*iwalle%temp(1)**4*(-1.+ifn%wallemiss*dg%cwe) & 
@@ -2116,20 +2122,12 @@ rdsnmelt=dg%rdsndelta*max(0.,rdsntemp-273.16)/(icecp*iroad%den*lf*ddt)
 ! calculate transpiration and evaporation of in-canyon vegetation
 dg%tran=lv*min(max((1.-dumvegdelta)*atm%rho*(vegqsat-dg%canyonmix)/(1./(acond%veg*dg%topu)+res),0.), &
                max((iveg%moist-swilt)*dg%totdepth*waterden/(dg%c1*ddt),0.))
-where (vegqsat.lt.dg%canyonmix)
-  dg%evap=lv*atm%rho*(vegqsat-dg%canyonmix)*acond%veg*dg%topu
-elsewhere
-  dg%evap=lv*min(dumvegdelta*atm%rho*(vegqsat-dg%canyonmix)*acond%veg*dg%topu,iveg%water/ddt+atm%rnd)
-endwhere
+dg%evap=lv*min(dumvegdelta*atm%rho*(vegqsat-dg%canyonmix)*acond%veg*dg%topu,iveg%water/ddt+atm%rnd)
+eg%veg=dg%evap+dg%tran
 
 ! calculate canyon latent heat fluxes
-where (roadqsat.lt.dg%canyonmix)
-  eg%road=lv*atm%rho*(roadqsat-dg%canyonmix)*acond%road*dg%topu
-elsewhere
-  eg%road=lv*min(atm%rho*dumroaddelta*(roadqsat-dg%canyonmix)*acond%road*dg%topu &
-               ,iroad%water/ddt+atm%rnd+(1.-fn%sigmaveg)*rdsnmelt)
-endwhere
-eg%veg=dg%evap+dg%tran
+eg%road=lv*min(atm%rho*dumroaddelta*(roadqsat-dg%canyonmix)*acond%road*dg%topu &
+             ,iroad%water/ddt+atm%rnd+(1.-fn%sigmaveg)*rdsnmelt)
 where (dg%rdsndelta.gt.0.)
   eg%rdsn=ls*min(atm%rho*dg%rdsndelta*max(0.,rdsnqsat-dg%canyonmix)*acond%rdsn*dg%topu &
                 ,iroad%snow/ddt+atm%snd-rdsnmelt)
@@ -2355,7 +2353,7 @@ select case(scrnmeth)
       pg%u10=max(umag-ustar/vkar*integralm10,0.)
     end where
 
-    ! assume standard stability functions hold for urban canyon for now
+    ! assume standard stability functions hold for urban canyon (needs more work)
     tsurf=dg%rdsndelta*rdsntemp+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*road%temp(1)+fn%sigmaveg*pg%vegtemp)
     n=max(min((veg%moist-swilt/3.)/(sfc-swilt/3.),1.),0.)
     wf=(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dg%roaddelta+fn%sigmaveg*((1.-dg%vegdelta)*n+dg%vegdelta))

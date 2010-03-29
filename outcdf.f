@@ -16,7 +16,7 @@ c=======================================================================
       include 'parmhor.h'  ! mhint, m_bs, nt_adv, ndept
       include 'parmvert.h'
       include 'tracers.h'  ! ngas, nllp, ntrac, tr
-      character rundate*10
+      character rundate*8
       integer nmi, itype, ms_out
 
       integer, parameter :: nihead=54

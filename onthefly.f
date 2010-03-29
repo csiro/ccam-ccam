@@ -511,7 +511,8 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
             where (land_a.or.ocndwn.le.0.)
               ocndwn=spval
             end where
-            call fill_cc(ocndwn,spval,ik,0)            
+            call fill_cc(ocndwn,spval,ik,0)
+	    if (all(ocndwn.gt.0.99*spval)) ocndwn=0.            
           end if
           call doints4(ocndwn,ocnotf,nface4,xg4,yg4,nord,ik)
           do m=1,2
@@ -559,12 +560,12 @@ c     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
           allocate(mlodwn(ifull,wlev,4),ocndwn(ifull))
           mlodwn=mlootf
           ocndwn=ocnotf
-          deallocate(mlootf,ocnotf)          
+          deallocate(mlootf,ocnotf)
         end if
         !--------------------------------------------------
         !--------------------------------------------------
         ! MJT cable
-        if (nsib.eq.4.or.nsib.eq.6) then
+        if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
           if (myid==0) then
             do k=1,ncp
               where (.not.land_a(:))

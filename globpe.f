@@ -128,7 +128,7 @@
       integer, dimension(13), parameter :: mdays =
      &     (/31,28,31,30,31,30,31,31,30,31,30,31, 31/)
       logical odcalc
-      character comm*60,comment*60,rundate*10,header*47,text*2 ! MJT bug fix
+      character comm*60,comment*60,rundate*8,header*47,text*2 ! MJT bug fix
       character(len=10) :: timeval
       integer, dimension(8) :: tvals1, tvals2
 

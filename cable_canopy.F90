@@ -67,7 +67,6 @@ CONTAINS
     INTEGER(i_d)			:: iterplus !
     INTEGER(i_d)			:: k		! interation count
     INTEGER(i_d)			:: kk		! interation count
-    integer iq
     REAL(r_1), DIMENSION(mp,mf)		:: psycst ! modified pych. constant
     REAL(r_1), DIMENSION(mp)		:: rt0 ! turbulent resistance
     REAL(r_1), DIMENSION(mp)		:: ortsoil ! turbulent resistance, prev time step
@@ -362,7 +361,7 @@ CONTAINS
        ! add if condition here to avoid dividing by zero ie when rad%transd=1.0 Ypw:24-02-2003
        WHERE (canopy%vlaiw > 0.01 .and. rough%hruff > rough%z0soilsn)
 !          canopy%tv = ( rad%lwabv/(2.0*(1.0-rad%transd)*sboltz*emleaf) + met%tvair**4)**0.25
-          canopy%tv = max( rad%lwabv/(2.*(1.-rad%transd)*sboltz*emleaf)  + met%tk**4,0.)**0.25 ! MJT
+          canopy%tv = max( rad%lwabv/(2.*(1.-rad%transd)*sboltz*emleaf)  + met%tk**4,0. )**0.25 ! MJT
        ELSEWHERE ! sparse canopy
 !          canopy%tv = met%tvair
           canopy%tv = met%tk
@@ -456,7 +455,7 @@ CONTAINS
           ! Within canopy air temperature:
           met%tvair = met%tk + (dmbe*dmch-dmbh*dmce)/(dmah*dmbe-dmae*dmbh+1.0e-12)
           ! tvair clobbered at present
-          met%tvair = max(met%tvair , min( ssoil%tss, met%tk) - 5.0) ! MJT fix from Eva 	  
+          met%tvair = max(met%tvair , min( ssoil%tss, met%tk) - 5.0) ! MJT fix from Eva
           met%tvair = min(met%tvair , max( ssoil%tss, met%tk) + 5.0) ! MJT fix from Eva 
           ! Within canopy specific humidity:
           met%qvair = met%qv + (dmah*dmce-dmae*dmch)/(dmah*dmbe-dmae*dmbh+1.0e-12)
@@ -466,7 +465,6 @@ CONTAINS
 !          denom2 = dmah*dmbe-dmae*dmbh+1.0e-12
 
        END WHERE
-
 !     IF( .not. L_EXPLICIT) THEN 
 !    print 93, iter, ktau, denom1, denom2, dmbe, dmch, dmbh, dmce, dmbe*dmch, dmbh*dmce, dmah, dmae, dmah*dmbe, dmae*dmbh, rt0, rough%rt1, air%epsi, rrsw, rrbw, air%rlam, capp, canopy%fhv, canopy%fhs, air%rho, ssoil%wetfac, canopy%fev, canopy%fes, met%tvair, met%qvair, met%tk, met%qv, gbhu, gbhf, air%cmolar, canopy%fwet, hcy, canopy%fhvw, rough%rt1usa, rough%rt1usb, rt1usc, canopy%us, rough%rt0us, ssoil%tss, ssoil%rtsoil  
 !,canopy%gswx 

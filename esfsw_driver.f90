@@ -2218,48 +2218,6 @@ subroutine esfsw_driver_init
                              c3o2strschrun) ** (1.0/c3o2strschrun) - &
                              c2o2strschrun
 
-!     if (mpp_pe() == 0) then
-!       print *, 'c1ch4    ', c1ch4    
-!       print *, 'c2ch4    ', c2ch4    
-!       print *, 'c3ch4    ', c3ch4    
-!       print *, 'c4ch4    ', c4ch4    
-!       print *, 'totch4max', totch4max
-!       print *, 'c1ch4str ', c1ch4str    
-!       print *, 'c2ch4str ', c2ch4str    
-!       print *, 'c3ch4str ', c3ch4str    
-!       print *, 'c4ch4str ', c4ch4str    
-!       print *, 'totch4strmax', totch4strmax
-!       print *, 'c1co2    ', c1co2    
-!       print *, 'c2ch4    ', c2co2    
-!       print *, 'c3ch4    ', c3co2    
-!       print *, 'c4ch4    ', c4co2    
-!       print *, 'totch4max', totco2max
-!       print *, 'c1ch4str ', c1co2str    
-!       print *, 'c2ch4str ', c2co2str    
-!       print *, 'c3ch4str ', c3co2str    
-!       print *, 'c4ch4str ', c4co2str    
-!       print *, 'totch4strmax', totco2strmax
-!       print *, 'c1n2o    ', c1n2o    
-!       print *, 'c2ch4    ', c2n2o    
-!       print *, 'c3ch4    ', c3n2o    
-!       print *, 'c4ch4    ', c4n2o    
-!       print *, 'totch4max', totn2omax
-!       print *, 'c1ch4str ', c1n2ostr    
-!       print *, 'c2ch4str ', c2n2ostr    
-!       print *, 'c3ch4str ', c3n2ostr    
-!       print *, 'c4ch4str ', c4n2ostr    
-!       print *, 'totch4strmax', totn2ostrmax
-!       print *, '1/c1', 1.0/c1co2str
-!       print *, '1/c3', 1.0/c3co2str
-!       print *, 'c2**c3', c2co2str**c3co2str
-!       print *, '(1 / + c2**c3)**1/c3',  &
-!                 (1.0/c1co2str + c2co2str**c3co2str)**(1./c3co2str)
-!       print *, 'c4o2    ', c4o2    
-!       print *, 'c4o2str    ', c4o2str    
-!       print *, 'toto2max', toto2max
-!       print *, 'toto2strmax', toto2strmax
-!     endif
-
 !----------------------------------------------------------------------
 !
 !----------------------------------------------------------------------
@@ -2311,7 +2269,7 @@ subroutine esfsw_driver_init
         ri = ristdm1 + 1
         betaddensitymol(nband) = twopiesq*( ri ** 2 - 1.0E+00 ) ** 2 * &
                                  corrfac / ( densmolrefsqt3 *  &
-                                 wavelength ** 4 ) * pinteg * convfac 
+                                 wavelength ** 4 ) * pinteg * convfac
       end do
  
 !---------------------------------------------------------------------
@@ -2666,8 +2624,6 @@ integer :: nextinct
         !      'module has not been initialized', FATAL )
         stop
       endif
-
-      tlayerdif=0. ! MJT bug fix
 
 !---------------------------------------------------------------------
 !    define the solar_constant appropriate at Rad_time when solar
@@ -3551,7 +3507,7 @@ integer :: nextinct
          end if  !( c1n2o(nband).ne.1.0E-99 )
     else  !do_n2o = .false.
        efftaun2o(:,:,:,:) = 0.0
-end if
+    end if
 
           if ( c1o2(nband).ne.1.0E-99 ) then
             do ng = 1,NSOLWG
@@ -3883,7 +3839,7 @@ end if
                 end do
               end do
             end do
- 
+
 !-------------------------------------------------------------------- 
 !    calculate the reflection and transmission at flux levels from the  
 !    direct and diffuse values of reflection and transmission in the  
@@ -3893,6 +3849,7 @@ end if
                          rlayerdif, tlayerdif, tlayerde, sfcalb_dir,  &
                          sfcalb_dif,    &
                          daylight, reflectance, transmittance, tr_dir)
+
 !---------------------------------------------------------------------
 !
 !---------------------------------------------------------------------

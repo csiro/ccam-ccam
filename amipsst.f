@@ -52,8 +52,8 @@
          endif
         enddo
         if(namip==-1)iyr=0
- 
-       if ( myid == 0 ) then
+
+      if ( myid == 0 ) then 
         if(ktau==0)then
           iyr_m=iyr
           imo_m=imo-1
@@ -154,7 +154,7 @@ c          c1=0.
               c3=ssta(iq)+sstb(iq)
               c4=c3+sstc(iq)     
               res(iq)=tgg(iq,1)-     ! just saves bias at beginning of run
-     &           ( .5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x )         
+     &           ( .5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x )
             endif      ! (.not.land(iq))
            enddo
            print *,'some res values',(res(iq),iq=1,ifull,100)

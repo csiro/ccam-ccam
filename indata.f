@@ -1042,6 +1042,8 @@ c        end if
 !                    -5  read_in (not wb) |     written  (should be good)
 !                    -6 same as -1 bit tapered wb over dry interio of Aust
 !                    >5 like -1 but sets most wb percentages
+      if(nsib.ne.CABLE.and.(nsib.lt.6.or.nsib.gt.7)) then
+      ! CABLE presets defined in cable_ccam2.f90
       if(nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5.or.nrungcm==-6
      &              .or.nrungcm>5)then
 !        presetting wb when no soil moisture available initially
@@ -1109,6 +1111,7 @@ c        enddo     !  k=1,ms
      &              fracs,fracwet,wb(idjd,ms)
         end if
       endif       !  ((nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)
+      endif ! not CABLE
 
       if(nrungcm<=-3.and.nrungcm>=-5)then
 !       for sequence of runs starting with values saved from last run

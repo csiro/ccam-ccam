@@ -138,29 +138,28 @@ c     before calling newcloud
       ! MJT CHANGE - mr
       if (nmr.ge.1) then 
         do k=1,kl
-          do iq=1,ifull
-            if(k.le.ktop(iq).and.k.ge.kbase(iq))then
-              clcon(iq,k)=cldcon(iq) ! single convective cloud
-              ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
-              qccon(iq,k)=clcon(iq,k)*ccw
-              qcl(iq,k)=qsg(iq,k)
-              qcl(iq,k)=max(qsg(iq,k),qg(iq,k))  ! jlm
-              qenv(iq,k)=max(1.e-8,
-     &                   qg(iq,k)-clcon(iq,k)*qcl(iq,k))
-     &                   /(1-clcon(iq,k))
-              qcl(iq,k)=(qg(iq,k)-(1-clcon(iq,k))*qenv(iq,k))
-     &                  /clcon(iq,k)
-              qlg(iq,k)=qlg(iq,k)/(1-clcon(iq,k))
-              qfg(iq,k)=qfg(iq,k)/(1-clcon(iq,k))
-            else
-              clcon(iq,k)=0.
-              qccon(iq,k)=0.
-              qcl(iq,k)=0.
-              qenv(iq,k)=qg(iq,k)
-            endif
-          enddo
+          where (k.le.ktop(1:ifull).and.k.ge.kbase(1:ifull))
+            clcon(1:ifull,k)=cldcon(1:ifull) ! maximum overlap
+            !ccw=wcon(:)/rhoa(:,k)  !In-cloud l.w. mixing ratio
+            qccon(1:ifull,k)=clcon(1:ifull,k)*
+     &                 wcon(1:ifull)/rhoa(1:ifull,k)
+            qcl(1:ifull,k)=qsg(1:ifull,k)
+            qcl(1:ifull,k)=max(qsg(1:ifull,k),qg(1:ifull,k))  ! jlm
+            qenv(1:ifull,k)=max(1.e-8,
+     &                 qg(1:ifull,k)-clcon(1:ifull,k)*qcl(1:ifull,k))
+     &                 /(1-clcon(1:ifull,k))
+            qcl(1:ifull,k)=(qg(1:ifull,k)-(1-clcon(1:ifull,k))
+     &                *qenv(1:ifull,k))/clcon(1:ifull,k)
+            qlg(1:ifull,k)=qlg(1:ifull,k)/(1-clcon(1:ifull,k))
+            qfg(1:ifull,k)=qfg(1:ifull,k)/(1-clcon(1:ifull,k))
+          elsewhere
+            clcon(1:ifull,k)=0.
+            qccon(1:ifull,k)=0.
+            qcl(1:ifull,k)=0.
+            qenv(1:ifull,k)=qg(1:ifull,k)
+          endwhere
         enddo
-      else
+      else ! usual
       
       do k=1,kl
         do iq=1,ifull
