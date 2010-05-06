@@ -43,13 +43,13 @@
       save num,mtimea,mtimeb
 !     mtimer, mtimeb are in minutes
       if(ktau<100.and.myid==0)then
-        print *,'in nestin ktau,mtimer,mtimea,mtimeb ',
+        write(6,*) 'in nestin ktau,mtimer,mtimea,mtimeb ',
      &                     ktau,mtimer,mtimea,mtimeb
-        print *,'with kdate_s,ktime_s >= ',kdate_s,ktime_s
+        write(6,*) 'with kdate_s,ktime_s >= ',kdate_s,ktime_s
       end if
       if(mtimeb==-1)then
-        if ( myid==0 )
-     &  print *,'set nesting fields to those already read in via indata'
+        if ( myid==0 ) write(6,*)
+     &  'set nesting fields to those already read in via indata'
         do iq=1,ifull
          pslb(iq)=psl(iq)
          tssb(iq)=tss(iq)
@@ -117,21 +117,24 @@
       
       if(myid==0)then
          call ncdinq(ncid,1,dimnam,ik,ier)
-         print *,'in nestin ncid,dimnam,ik,ier ',ncid,dimnam,ik,ier
+         write(6,*) 'in nestin ncid,dimnam,ik,ier ',ncid,dimnam,ik,ier
        endif
-      if(io_in==1)then
-        call infile(1,kdate_r,ktime_r,timeg_b,ds_r, 
-     .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
-     &              dumg,dumg,dumg,duma,duma,dumv,dumv, 
-     &              dums,dums,dums,duma,duma,dumm,ifull,kl,
-     &              dumm,cplant_h,csoil_h) ! MJT cable ! MJT lsmask
-      endif   ! (io_in==1)
-      if(io_in==-1)then
+      !--------------------------------------------------------------
+      ! MJT small otf
+!      if(io_in==1)then
+!        call infile(1,kdate_r,ktime_r,timeg_b,ds_r, 
+!     .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
+!     &              dumg,dumg,dumg,duma,duma,dumv,dumv, 
+!     &              dums,dums,dums,duma,duma,dumm,ifull,kl,
+!     &              cplant_h,csoil_h) ! MJT cable
+!      endif   ! (io_in==1)
+!      if(io_in==-1)then
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,
-     &                 duma,duma,dumm) ! MJT cable ! MJT lsmask
-      endif   ! (io_in==1)
+     &                 duma,duma,dumm) ! MJT cable
+!      endif   ! (io_in==1)
+      !--------------------------------------------------------------
       tssb(:) = abs(tssb(:))  ! moved here Mar '03
       if (mydiag) then
         write (6,"('zsb# nestin  ',9f7.1)") diagvals(zsb)
@@ -146,19 +149,19 @@
       kdhour=ktime_r/100-ktime/100   ! integer hour diff from Oct '05
       kdmin=(ktime_r-100*(ktime_r/100))-(ktime-100*(ktime/100))
       if ( myid == 0 ) then
-        print *,'nesting file has: kdate_r,ktime_r,kdhour,kdmin ',
+        write(6,*) 'nesting file has: kdate_r,ktime_r,kdhour,kdmin ',
      &                             kdate_r,ktime_r,kdhour,kdmin
       end if
       mtimeb=60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate))
      .               +60*kdhour+kdmin
       if ( myid == 0 ) then
-        print *,'kdate_r,iabsdate ',kdate_r,iabsdate(kdate_r,kdate)
-        print *,'giving mtimeb = ',mtimeb
+        write(6,*) 'kdate_r,iabsdate ',kdate_r,iabsdate(kdate_r,kdate)
+        write(6,*) 'giving mtimeb = ',mtimeb
 !     print additional information
-        print *,' kdate ',kdate,' ktime ',ktime
-        print *,'timeg,mtimer,mtimea,mtimeb: ',
+        write(6,*) ' kdate ',kdate,' ktime ',ktime
+        write(6,*) 'timeg,mtimer,mtimea,mtimeb: ',
      &           timeg,mtimer,mtimea,mtimeb
-        print *,'ds ',ds
+        write(6,*) 'ds ',ds
       end if
 
 !     ensure qb big enough, but not too big in top levels (from Sept '04)
@@ -170,14 +173,14 @@
       if(mod(ktau,nmaxpr)==0.or.ktau==2.or.diag)then
 !       following is useful if troublesome data is read in
         if ( myid == 0 ) then
-          print *,'following max/min values printed from nestin'
+          write(6,*) 'following max/min values printed from nestin'
         end if
         call maxmin(ub,'ub',ktau,1.,kk)
         call maxmin(vb,'vb',ktau,1.,kk)
         call maxmin(tb,'tb',ktau,1.,kk)
         call maxmin(qb,'qb',ktau,1.e3,kk)
         if ( myid == 0 ) then
-          print *,'following are really psl not ps'
+          write(6,*) 'following are really psl not ps'
         end if
         call maxmin(pslb,'ps',ktau,100.,1)
       endif
@@ -189,19 +192,19 @@
 !       option in eigenv, though original csiro9 levels are sufficiently
 !       close for these interpolation purposes.
         if(ktau==1.and.mydiag)then
-          print*,'calling vertint with kk,sigin ',kk,sigin(1:kk)
+          write(6,*) 'calling vertint with kk,sigin ',kk,sigin(1:kk)
         endif
         if(diag.and.mydiag)then
-          print *,'kk,sigin ',kk,(sigin(k),k=1,kk)
-          print *,'tb before vertint ',(tb(idjd,k),k=1,kk)
+          write(6,*) 'kk,sigin ',kk,(sigin(k),k=1,kk)
+          write(6,*) 'tb before vertint ',(tb(idjd,k),k=1,kk)
         endif
         call vertint(tb,1)  ! transforms tb from kk to kl
         if(diag.and.mydiag)then
-          print *,'tb after vertint ',(tb(idjd,k),k=1,kk)
-          print *,'qb before vertint ',(qb(idjd,k),k=1,kk)
+          write(6,*) 'tb after vertint ',(tb(idjd,k),k=1,kk)
+          write(6,*) 'qb before vertint ',(qb(idjd,k),k=1,kk)
         endif
         call vertint(qb,2)
-        if(diag.and.mydiag)print *,'qb after vertint ',qb(idjd,1:kk)
+        if(diag.and.mydiag)write(6,*) 'qb after vertint ',qb(idjd,1:kk)
         call vertint(ub,3)
         call vertint(vb,4)
       endif  ! (abs(sig(2)-sigin(2))>.0001)
@@ -221,21 +224,21 @@
 !       this keeps fine-mesh land mask & zs
 !       presently simplest to do whole pslb, tb (& qb) arrays
         if(nmaxpr==1.and.mydiag)then
-          print *,'zs (idjd) :',zs(idjd)
-          print *,'zsb (idjd) :',zsb(idjd)
+          write(6,*) 'zs (idjd) :',zs(idjd)
+          write(6,*) 'zsb (idjd) :',zsb(idjd)
           write (6,"('100*psl.wesn ',2p5f8.3)") psl(idjd),psl(iw(idjd)),
      &              psl(ie(idjd)),psl(is(idjd)),psl(in(idjd))
           write (6,"('ps.wesn ',-2p5f9.3)") ps(idjd),
      &           ps(iw(idjd)),ps(ie(idjd)),ps(is(idjd)),ps(in(idjd))
-          print *,'pslb in(idjd) :',pslb(idjd)
-          print *,'now call retopo from nestin'
+          write(6,*) 'pslb in(idjd) :',pslb(idjd)
+          write(6,*) 'now call retopo from nestin'
         endif
         call retopo(pslb,zsb,zs(1:ifull),tb,qb)
         if(nmaxpr==1.and.mydiag)then
           write (6,"('100*pslb.wesn ',2p5f8.3)") pslb(idjd),
      &       pslb(iw(idjd)),pslb(ie(idjd)),pslb(is(idjd)),pslb(in(idjd))
-          print *,'pslb out(idjd) :',pslb(idjd)
-          print *,'after pslb print; num= ',num
+          write(6,*) 'pslb out(idjd) :',pslb(idjd)
+          write(6,*) 'after pslb print; num= ',num
         endif
       !endif   !  newtop>=1 ! MJT bugfix
 
@@ -276,7 +279,7 @@
         enddo   ! iq loop 
        else
          ! nudge mlo
-         if (myid == 0) print *,"Nudge MLO"
+         if (myid == 0) write(6,*) "Nudge MLO"
          call mlonudge(cona*tssa+conb*tssb)
        end if
       endif
@@ -335,9 +338,9 @@
 
 !     mtimer, mtimeb are in minutes
       if(ktau<100.and.myid==0)then
-        print *,'in nestinb ktau,mtimer,mtimeb,io_in ',
+        write(6,*) 'in nestinb ktau,mtimer,mtimeb,io_in ',
      &                      ktau,mtimer,mtimeb,io_in
-        print *,'with kdate_s,ktime_s >= ',kdate_s,ktime_s
+        write(6,*) 'with kdate_s,ktime_s >= ',kdate_s,ktime_s
       end if
 
       !------------------------------------------------------------------------------
@@ -345,20 +348,24 @@
 
 !     following (till end of subr) reads in next bunch of data in readiness
 !     read tb etc  - for globpea, straight into tb etc
-       if(io_in==1)then
-        call infile(1,kdate_r,ktime_r,timeg_b,ds_r, 
-     .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
-     &              dumg,dumg,dumg,duma,duma,dumv,dumv, 
-     &              dums,dums,dums,duma,duma,dumm,ifull,kl,
-     &              dumm,cplant_h,csoil_h) ! MJT cable ! MJT lsmask
-       endif   ! (io_in==1)
-
-       if(io_in==-1)then
+       !-------------------------------------------------------------
+       ! MJT small otf
+       if (abs(io_in)==1) then
+!       if(io_in==1)then
+!        call infile(1,kdate_r,ktime_r,timeg_b,ds_r, 
+!     .              pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  ! 0808
+!     &              dumg,dumg,dumg,duma,duma,dumv,dumv, 
+!     &              dums,dums,dums,duma,duma,dumm,ifull,kl,
+!     &              cplant_h,csoil_h) ! MJT cable
+!       endif   ! (io_in==1)
+!
+!       if(io_in==-1)then
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,
      &                 duma,duma,dumm)
-       endif   ! (io_in==1)
+       endif   ! (abs(io_in)==1)
+       !-------------------------------------------------------------
        tssb(:) = abs(tssb(:))  ! moved here Mar '03
        if (mydiag) then
          write (6,"('zsb# nestinb  ',9f7.1)") diagvals(zsb)
@@ -372,19 +379,19 @@
        kdhour=ktime_r/100-ktime/100   ! integer hour diff from Oct '05
        kdmin=(ktime_r-100*(ktime_r/100))-(ktime-100*(ktime/100))
        if ( myid == 0 ) then
-         print *,'nestinb file has: kdate_r,ktime_r,kdhour,kdmin ',
+         write(6,*) 'nestinb file has: kdate_r,ktime_r,kdhour,kdmin ',
      &                              kdate_r,ktime_r,kdhour,kdmin
        end if
        mtimeb=60*24*(iabsdate(kdate_r,kdate)-iabsdate(kdate,kdate))
      .                +60*kdhour+kdmin
        if ( myid == 0 ) then
-         print *,'kdate_r,iabsdate ',kdate_r,iabsdate(kdate_r,kdate)
-         print *,'giving mtimeb = ',mtimeb
+         write(6,*) 'kdate_r,iabsdate ',kdate_r,iabsdate(kdate_r,kdate)
+         write(6,*) 'giving mtimeb = ',mtimeb
 !        print additional information
-         print *,' kdate ',kdate,' ktime ',ktime
-         print *,'timeg,mtimer,mtimeb: ',
+         write(6,*) ' kdate ',kdate,' ktime ',ktime
+         write(6,*) 'timeg,mtimer,mtimeb: ',
      &            timeg,mtimer,mtimeb ! MJT CHANGE - delete mtimea
-         print *,'ds ',ds ! MJT bug fix
+         write(6,*) 'ds ',ds ! MJT bug fix
        end if
 
 !      ensure qb big enough, but not too big in top levels (from Sept '04)
@@ -396,7 +403,7 @@
        if(mod(ktau,nmaxpr)==0.or.ktau==2.or.diag)then
 !        following is useful if troublesome data is read in
          if ( myid == 0 ) then
-           print *,'following max/min values printed from nestinb'
+           write(6,*) 'following max/min values printed from nestinb'
          end if
          call maxmin(ub,'ub',ktau,1.,kk)
          call maxmin(vb,'vb',ktau,1.,kk)
@@ -404,7 +411,8 @@
          call maxmin(qb,'qb',ktau,1.e3,kk)
        endif
        if ( myid == 0 ) then
-         print *,'following in nestinb after read pslb are psl not ps'
+         write(6,*) 
+     &   'following in nestinb after read pslb are psl not ps'
        end if
        call maxmin(pslb,'pB',ktau,100.,1)
 
@@ -415,19 +423,19 @@
 !        option in eigenv, though original csiro9 levels are sufficiently
 !        close for these interpolation purposes.
          if(ktau==1.and.mydiag)then
-           print*,'calling vertint with kk,sigin ',kk,sigin(1:kk)
+           write(6,*) 'calling vertint with kk,sigin ',kk,sigin(1:kk)
          endif
          if(diag.and.mydiag)then
-           print *,'kk,sigin ',kk,(sigin(k),k=1,kk)
-           print *,'tb before vertint ',(tb(idjd,k),k=1,kk)
+           write(6,*) 'kk,sigin ',kk,(sigin(k),k=1,kk)
+           write(6,*) 'tb before vertint ',(tb(idjd,k),k=1,kk)
          endif
          call vertint(tb,1)  ! transforms tb from kk to kl
          if(diag.and.mydiag)then
-           print *,'tb after vertint ',(tb(idjd,k),k=1,kk)
-           print *,'qb before vertint ',(qb(idjd,k),k=1,kk)
+           write(6,*) 'tb after vertint ',(tb(idjd,k),k=1,kk)
+           write(6,*) 'qb before vertint ',(qb(idjd,k),k=1,kk)
          endif
          call vertint(qb,2)
-         if(diag.and.mydiag)print *,'qb after vertint ',qb(idjd,1:kk)
+         if(diag.and.mydiag)write(6,*) 'qb after vertint ',qb(idjd,1:kk)
          call vertint(ub,3)
          call vertint(vb,4)
        endif  ! (abs(sig(2)-sigin(2))>.0001)
@@ -447,14 +455,15 @@
 !        this keeps fine-mesh land mask & zs
 !        presently simplest to do whole pslb, tb (& qb) arrays
          if(mydiag)then
-           print *,'zs (idjd) :',zs(idjd)
-           print *,'zsb (idjd) :',zsb(idjd)
+           write(6,*) 'zs (idjd) :',zs(idjd)
+           write(6,*) 'zsb (idjd) :',zsb(idjd)
            write (6,"('100*psl.wesn ',2p5f8.3)") psl(idjd),
      &           psl(iw(idjd)),psl(ie(idjd)),psl(is(idjd)),psl(in(idjd))
            write (6,"('ps.wesn ',-2p5f9.3)") ps(idjd),
      &           ps(iw(idjd)),ps(ie(idjd)),ps(is(idjd)),ps(in(idjd))
-           print *,'pslb in(idjd) :',pslb(idjd)
-           print *,'call retopo from nestin; psl# prints refer to pslb'
+           write(6,*) 'pslb in(idjd) :',pslb(idjd)
+           write(6,*) 
+     &     'call retopo from nestin; psl# prints refer to pslb'
          endif
          call retopo(pslb,zsb,zs(1:ifull),tb,qb)
          if(mydiag)then
@@ -521,11 +530,11 @@
           else
             ! nudge mlo
             if (nud_uv.ne.9) then
-              if (myid == 0) print *,"MLO 1D spectral filter"
+              if (myid == 0) write(6,*) "MLO 1D spectral filter"
               ! replace nud_sst with mbd once horz trasport is implemented
               call mlofilterfast(tssb,nud_sst) 
             else
-              if (myid == 0) print *,"MLO 2D spectral filter"
+              if (myid == 0) write(6,*) "MLO 2D spectral filter"
               ! replace nud_sst with mbd once horz trasport is implemented
               call mlofilter(tssb,nud_sst)
             end if
@@ -547,20 +556,22 @@
       include 'newmpar.h'    ! ifull_g,kl
       include 'arrays.h'     ! u,v,t,qg,psl
       include 'const_phys.h'
+      include 'map_g.h'      ! em_g
       include 'parm.h'       ! mbd,nud_uv,nud_p,nud_t,nud_q,kbotdav
-      include 'parmgeom.h'  ! rlong0,rlat0,schmidt  - briefly
-      include 'xyzinfo.h'
+      include 'parmgeom.h'   ! rlong0,rlat0,schmidt  - briefly
       include 'savuvt.h'     ! savu,savv
       include 'vecsuv.h'
       include 'vecsuv_g.h'   ! ax_g,bx_g,ay_g,by_g,az_g,bz_g
+      include 'xyzinfo.h'
+      include 'xyzinfo_g.h'  ! x_g,y_g,z_g      
 
-      integer iq,k      
+      integer iq,k
       real, dimension(ifull), intent(in) :: pslb
       real, dimension(ifull,kl), intent(in) :: ub,vb,tb,qb
       real, dimension(ifull) :: costh,sinth
       real, dimension(ifull_g) :: psld
       real, dimension(ifull_g,kl) :: ud,vd,wd,td,qd
-      real, dimension(ifull_g,kl) :: x_g,xx_g
+      real, dimension(ifull_g,kl) :: d_g,dd_g
       real den,polenx,poleny,polenz,zonx,zony,zonz
       real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)
       common/savuv1/savs1,savu1,savv1
@@ -580,21 +591,21 @@
       endif
 
       if (myid == 0) then     
-        print *,"Gather data for spectral downscale"
+        write(6,*) "Gather data for spectral downscale"
         if(nud_p>0)call ccmpi_gather(pslb(:), psld(:))
         if(nud_uv==3)then
           do k=1,kl
-            x_g(1:ifull,k)=costh(:)*ub(:,k)  ! uzon
+            d_g(1:ifull,k)=costh(:)*ub(:,k)  ! uzon
      &                    -sinth(:)*vb(:,k)
           end do
-          call ccmpi_gather(x_g(1:ifull,:), wd(:,:))
+          call ccmpi_gather(d_g(1:ifull,:), wd(:,:))
         elseif(nud_uv.ne.0)then
-          call ccmpi_gather(ub(:,:), x_g(:,:))
-          call ccmpi_gather(vb(:,:), xx_g(:,:))
+          call ccmpi_gather(ub(:,:), d_g(:,:))
+          call ccmpi_gather(vb(:,:), dd_g(:,:))
           do k=1,kl
-            ud(:,k)=ax_g(:)*x_g(:,k)+bx_g(:)*xx_g(:,k)
-            vd(:,k)=ay_g(:)*x_g(:,k)+by_g(:)*xx_g(:,k)
-            wd(:,k)=az_g(:)*x_g(:,k)+bz_g(:)*xx_g(:,k)
+            ud(:,k)=ax_g(:)*d_g(:,k)+bx_g(:)*dd_g(:,k)
+            vd(:,k)=ay_g(:)*d_g(:,k)+by_g(:)*dd_g(:,k)
+            wd(:,k)=az_g(:)*d_g(:,k)+bz_g(:)*dd_g(:,k)
           end do
         endif
         if(nud_t>0)then
@@ -607,10 +618,10 @@
         if(nud_p>0)call ccmpi_gather(pslb(:))
         if(nud_uv==3)then
           do k=1,kl
-            x_g(1:ifull,k)=costh(:)*ub(:,k)  ! uzon
+            d_g(1:ifull,k)=costh(:)*ub(:,k)  ! uzon
      &                    -sinth(:)*vb(:,k)
           end do
-          call ccmpi_gather(x_g(1:ifull,:))	
+          call ccmpi_gather(d_g(1:ifull,:))	
         elseif(nud_uv.ne.0)then
           call ccmpi_gather(ub(:,:))
           call ccmpi_gather(vb(:,:))
@@ -633,52 +644,58 @@
       !-----------------------------------------------------------------------
       if(nud_uv<0)then 
         if (myid == 0) then
-          print *,"Fast spectral downscale"
-          call fastspec((.1*real(mbd)/(pi*schmidt))**2
-     &       ,psld(:),ud(:,kbotdav:ktopdav),vd(:,kbotdav:ktopdav)
-     &       ,wd(:,kbotdav:ktopdav),td(:,kbotdav:ktopdav)
-     &       ,qd(:,kbotdav:ktopdav)) ! e.g. mbd=40 ! MJT nestin
+!          write(6,*) "Fast spectral downscale"
+!          call fastspec((.1*real(mbd)/(pi*schmidt))**2
+!     &       ,psld(:),ud(:,kbotdav:ktopdav),vd(:,kbotdav:ktopdav)
+!     &       ,wd(:,kbotdav:ktopdav),td(:,kbotdav:ktopdav)
+!     &       ,qd(:,kbotdav:ktopdav)) ! e.g. mbd=40 ! MJT nestin
+          write(6,*) "ERROR: nud_uv<0 option is currently not supported"
         end if
+        stop
       elseif(nud_uv==9)then 
-        if (myid == 0) print *,"Two dimensional spectral downscale"
-        call slowspecmpi(myid,.1*real(mbd)/(pi*schmidt)
+        if (myid == 0) write(6,*) "Two dimensional spectral downscale"
+        call slowspecmpi(ifull_g,nproc,myid,.1*real(mbd)/(pi*schmidt)
      &                ,psld(:),ud(:,kbotdav:ktopdav)
      &                ,vd(:,kbotdav:ktopdav),wd(:,kbotdav:ktopdav)
-     &                ,td(:,kbotdav:ktopdav),qd(:,kbotdav:ktopdav)) ! MJT nestin
+     &                ,td(:,kbotdav:ktopdav),qd(:,kbotdav:ktopdav)
+     &                ,em_g,x_g,y_g,z_g) ! MJT nestin
       elseif((mod(6,nproc)==0).or.(mod(nproc,6)==0))then
-        if (myid == 0) print *,"Separable 1D downscale (MPI optimised)"
-        call specfastmpi(myid,.1*real(mbd)/(pi*schmidt)
+        if (myid == 0) write(6,*) 
+     &    "Separable 1D downscale (MPI optimised)"
+        call specfastmpi(il_g,nproc,myid,.1*real(mbd)/(pi*schmidt)
      &                ,psld(:),ud(:,kbotdav:ktopdav)
      &                ,vd(:,kbotdav:ktopdav),wd(:,kbotdav:ktopdav)
-     &                ,td(:,kbotdav:ktopdav),qd(:,kbotdav:ktopdav)) ! MJT nestin
+     &                ,td(:,kbotdav:ktopdav),qd(:,kbotdav:ktopdav)
+     &                ,em_g,x_g,y_g,z_g) ! MJT nestin
       else          !  usual choice e.g. for nud_uv=1 or 2
-        if (myid == 0) print *,"Separable 1D downscale (MPI)"
-        call fourspecmpi(myid,.1*real(mbd)/(pi*schmidt)
+        if (myid == 0) write(6,*) "Separable 1D downscale (MPI)"
+        call fourspecmpi(il_g,nproc,myid,.1*real(mbd)/(pi*schmidt)
      &                ,psld(:),ud(:,kbotdav:ktopdav)
      &                ,vd(:,kbotdav:ktopdav),wd(:,kbotdav:ktopdav)
-     &                ,td(:,kbotdav:ktopdav),qd(:,kbotdav:ktopdav)) ! MJT nestin
+     &                ,td(:,kbotdav:ktopdav),qd(:,kbotdav:ktopdav)
+     &                ,em_g,x_g,y_g,z_g) ! MJT nestin
       endif  ! (nud_uv<0) .. else ..
       !-----------------------------------------------------------------------
 
       if (myid == 0) then
-        print *,"Distribute data from spectral downscale"
+        write(6,*) "Distribute data from spectral downscale"
         if (nud_p.gt.0) then
-          call ccmpi_distribute(x_g(1:ifull,1), psld(:))
-          psl(1:ifull)=psl(1:ifull)+x_g(1:ifull,1)
+          call ccmpi_distribute(d_g(1:ifull,1), psld(:))
+          psl(1:ifull)=psl(1:ifull)+d_g(1:ifull,1)
         end if
         if(nud_uv==3)then
-          call ccmpi_distribute(x_g(1:ifull,:), wd(:,:))
+          call ccmpi_distribute(d_g(1:ifull,:), wd(:,:))
           do k=kbotdav,ktopdav ! MJT nestin 
-            u(1:ifull,k)=u(1:ifull,k)+costh(:)*x_g(1:ifull,k)
-            v(1:ifull,k)=v(1:ifull,k)-sinth(:)*x_g(1:ifull,k)	  
+            u(1:ifull,k)=u(1:ifull,k)+costh(:)*d_g(1:ifull,k)
+            v(1:ifull,k)=v(1:ifull,k)-sinth(:)*d_g(1:ifull,k)	  
           end do
         elseif(nud_uv.ne.0) then
           do k=1,kl        
-            x_g(:,k)=ax_g(:)*ud(:,k)+ay_g(:)*vd(:,k)+az_g(:)*wd(:,k)
-            xx_g(:,k)=bx_g(:)*ud(:,k)+by_g(:)*vd(:,k)+bz_g(:)*wd(:,k)
+            d_g(:,k)=ax_g(:)*ud(:,k)+ay_g(:)*vd(:,k)+az_g(:)*wd(:,k)
+            dd_g(:,k)=bx_g(:)*ud(:,k)+by_g(:)*vd(:,k)+bz_g(:)*wd(:,k)
           end do
-          call ccmpi_distribute(ud(1:ifull,:), x_g(:,:))
-          call ccmpi_distribute(vd(1:ifull,:), xx_g(:,:))
+          call ccmpi_distribute(ud(1:ifull,:), d_g(:,:))
+          call ccmpi_distribute(vd(1:ifull,:), dd_g(:,:))
           u(1:ifull,kbotdav:ktopdav)=u(1:ifull,kbotdav:ktopdav)
      &     +ud(1:ifull,kbotdav:ktopdav) ! MJT nestin
           v(1:ifull,kbotdav:ktopdav)=v(1:ifull,kbotdav:ktopdav)
@@ -695,25 +712,25 @@
           endif
         end if
         if (nud_t.gt.0) then
-          call ccmpi_distribute(x_g(1:ifull,:), td(:,:))
+          call ccmpi_distribute(d_g(1:ifull,:), td(:,:))
           t(1:ifull,kbotdav:ktopdav)=t(1:ifull,kbotdav:ktopdav)
-     &     +x_g(1:ifull,kbotdav:ktopdav) ! MJT nestin
+     &     +d_g(1:ifull,kbotdav:ktopdav) ! MJT nestin
         end if
         if (nud_q.gt.0) then
-          call ccmpi_distribute(x_g(1:ifull,:), qd(:,:))
+          call ccmpi_distribute(d_g(1:ifull,:), qd(:,:))
           qg(1:ifull,kbotdav:ktopdav)=max(qg(1:ifull,kbotdav:ktopdav)
-     &     +x_g(1:ifull,kbotdav:ktopdav),qgmin) ! MJT nestin
+     &     +d_g(1:ifull,kbotdav:ktopdav),qgmin) ! MJT nestin
         end if
       else
         if (nud_p.gt.0) then
-          call ccmpi_distribute(x_g(1:ifull,1))
-          psl(1:ifull)=psl(1:ifull)+x_g(1:ifull,1)	  
+          call ccmpi_distribute(d_g(1:ifull,1))
+          psl(1:ifull)=psl(1:ifull)+d_g(1:ifull,1)	  
         end if
         if(nud_uv==3)then
-          call ccmpi_distribute(x_g(1:ifull,:))
+          call ccmpi_distribute(d_g(1:ifull,:))
           do k=kbotdav,ktopdav ! MJT nestin
-            u(1:ifull,k)=u(1:ifull,k)+costh(:)*x_g(1:ifull,k)
-            v(1:ifull,k)=v(1:ifull,k)-sinth(:)*x_g(1:ifull,k)
+            u(1:ifull,k)=u(1:ifull,k)+costh(:)*d_g(1:ifull,k)
+            v(1:ifull,k)=v(1:ifull,k)-sinth(:)*d_g(1:ifull,k)
           end do
         elseif (nud_uv.ne.0) then
           call ccmpi_distribute(ud(1:ifull,:))
@@ -734,14 +751,14 @@
           end if
         end if
         if (nud_t.gt.0) then
-          call ccmpi_distribute(x_g(1:ifull,:))
+          call ccmpi_distribute(d_g(1:ifull,:))
           t(1:ifull,kbotdav:ktopdav)=t(1:ifull,kbotdav:ktopdav)
-     &     +x_g(1:ifull,kbotdav:ktopdav) ! MJT nestin
+     &     +d_g(1:ifull,kbotdav:ktopdav) ! MJT nestin
         end if
         if (nud_q.gt.0) then
-          call ccmpi_distribute(x_g(1:ifull,:))
+          call ccmpi_distribute(d_g(1:ifull,:))
           qg(1:ifull,kbotdav:ktopdav)=max(qg(1:ifull,kbotdav:ktopdav)
-     &     +x_g(1:ifull,kbotdav:ktopdav),qgmin) ! MJT nestin
+     &     +d_g(1:ifull,kbotdav:ktopdav),qgmin) ! MJT nestin
         end if
       end if
       
@@ -751,398 +768,396 @@
       end subroutine getspecdata
 
 
-      ! Fast spectral downscaling (JLM version)
-      subroutine fastspec(cutoff2,psla,ua,va,wa,ta,qa)
-      
-      implicit none
-      
-      include 'newmpar.h'    ! ifull_g,kl
-      include 'const_phys.h' ! rearth,pi,tpi
-      include 'map_g.h'      ! em_g
-      include 'indices_g.h'  ! in_g,ie_g,is_g,iw_g
-      include 'parm.h'       ! ds,kbotdav
-      include 'parmgeom.h'   ! rlong0,rlat0,schmidt  
-      include 'xyzinfo_g.h'    ! x_g,y_g,z_g
-
-      integer, parameter :: ntest=0 
-      integer i,j,k,n,n1,iq,iq1,num
-      real, intent(in) :: cutoff2
-      real, dimension(ifull_g), intent(inout) :: psla
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: ua,va  ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: wa     ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: ta,qa  ! MJT nestin
-      real, dimension(ifull_g) :: psls,sumwt
-      real, dimension(ifull_g) :: psls2
-      real, dimension(ifull_g), save :: xx,yy,zz
-      real, dimension(ifull_g,kbotdav:ktopdav) :: uu,vv,ww,tt,qgg      ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav) :: uu2,vv2,ww2,tt2,qgg2 ! MJT nestin
-      real emmin,dist,dist1,wt,wt1,xxmax,yymax,zzmax
-      data num/1/
-      save num
-      
-      ! myid must = 0 to get here.  So there is no need to check.
-      
-      if (num==1) then
-      num=2
-!       set up geometry for filtering through panel 1
-!       x pass on panels 1, 2, 4, 5
-!       y pass on panels 0, 1, 3, 4
-!       z pass on panels 0, 2, 3, 5
-        xx=0.
-        yy=0.
-        zz=0.
-        do iq=1+il_g*il_g,3*il_g*il_g
-          xx(iq)=xx(iw_g(iq))+sqrt((x_g(iq)-x_g(iw_g(iq)))**2+
-     &           (y_g(iq)-y_g(iw_g(iq)))**2+(z_g(iq)-z_g(iw_g(iq)))**2)
-        enddo
-         do iq=1+4*il_g*il_g,6*il_g*il_g
-          xx(iq)=xx(is_g(iq))+sqrt((x_g(iq)-x_g(is_g(iq)))**2+
-     &           (y_g(iq)-y_g(is_g(iq)))**2+(z_g(iq)-z_g(is_g(iq)))**2)
-        enddo
-        do iq=1,2*il_g*il_g
-          yy(iq)=yy(is_g(iq))+sqrt((x_g(iq)-x_g(is_g(iq)))**2+
-     &           (y_g(iq)-y_g(is_g(iq)))**2+(z_g(iq)-z_g(is_g(iq)))**2)
-        enddo
-        do iq=1+3*il_g*il_g,5*il_g*il_g
-          yy(iq)=yy(iw_g(iq))+sqrt((x_g(iq)-x_g(iw_g(iq)))**2+
-     &           (y_g(iq)-y_g(iw_g(iq)))**2+(z_g(iq)-z_g(iw_g(iq)))**2)
-        enddo
-        if(mbd>0)then
-         do iq=1,il_g*il_g
-          zz(iq)=zz(iw_g(iq))+sqrt((x_g(iq)-x_g(iw_g(iq)))**2+
-     &           (y_g(iq)-y_g(iw_g(iq)))**2+(z_g(iq)-z_g(iw_g(iq)))**2)
-         enddo
-         do iq=1+2*il_g*il_g,4*il_g*il_g
-          zz(iq)=zz(is_g(iq))+sqrt((x_g(iq)-x_g(is_g(iq)))**2+
-     &           (y_g(iq)-y_g(is_g(iq)))**2+(z_g(iq)-z_g(is_g(iq)))**2)
-         enddo
-         do iq=1+5*il_g*il_g,6*il_g*il_g
-          zz(iq)=zz(iw_g(iq))+sqrt((x_g(iq)-x_g(iw_g(iq)))**2+
-     &           (y_g(iq)-y_g(iw_g(iq)))**2+(z_g(iq)-z_g(iw_g(iq)))**2)
-         enddo
-        endif  ! (mbd>0)
-        if(ntest>0)then
-          do iq=1,144
-           print *,'iq,xx,yy,zz ',iq,xx(iq),yy(iq),zz(iq)
-          enddo
-          do iq=il_g*il_g,il_g*il_g+il_g
-           print *,'iq,xx,yy,zz ',iq,xx(iq),yy(iq),zz(iq)
-          enddo
-         do iq=4*il_g*il_g-il_g,4*il_g*il_g
-           print *,'iq,xx,yy,zz ',iq,xx(iq),yy(iq),zz(iq)
-          enddo
-         do iq=5*il_g*il_g-il_g,5*il_g*il_g
-           print *,'iq,xx,yy,zz ',iq,xx(iq),yy(iq),zz(iq)
-          enddo
-          print *,'xx mid:'   
-          do i=1,48
-           print *,'i xx',i,xx(il_g*il_g*1.5+i)
-          enddo
-          do i=1,48
-           print *,'i xx',i+il_g,xx(il_g*il_g*2.5+i)
-          enddo
-          do i=1,48
-           print *,'i xx',i+2*il_g,xx(il_g*il_g*4-il_g/2+i*il_g)
-          enddo
-          do i=1,48
-           print *,'i xx',i+3*il_g,xx(il_g*il_g*5-il_g/2+i*il_g)
-          enddo
-          print *,'yy mid:'   
-          do j=1,96
-           print *,'j yy',j,yy(-il_g/2+j*il_g)
-          enddo
-          do j=1,48
-           print *,'j yy',j+2*il_g,yy(il_g*il_g*3.5+j)
-          enddo
-          do j=1,48
-           print *,'j yy',j+3*il_g,yy(il_g*il_g*4.5+j)
-          enddo
-!         wrap-around values defined by xx(il_g,5*il_g+j),j=1,il_g; yy(i,5*il_g),i=1,il_g
-          print *,'wrap-round values'
-          do j=1,il_g
-           print *,'j,xx ',j,xx(6*il_g*il_g+1-j)       ! xx(il_g+1-j,il_g,5)
-          enddo
-          do i=1,il_g
-           print *,'i,yy ',i,yy(5*il_g*il_g+il_g-il_g*i)   ! yy(il_g,il_g+1-i,4)
-          enddo
-          do j=1,il_g
-           print *,'j,zz ',j,zz(5*il_g*il_g+il_g*j)      ! zz(il_g,j,5)
-          enddo
-        endif  ! ntest>0
-      endif    !  num==1
-
-      qgg(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      tt(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      uu(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      vv(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      ww(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      psls(1:ifull_g)=0.
-      qgg2(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      tt2(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      uu2(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      vv2(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      ww2(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      psls2(1:ifull_g)=0.
-      sumwt(1:ifull_g)=1.e-20   ! for undefined panels
-      emmin=sqrt(cutoff2)*ds/rearth
-      print *,'schmidt,cutoff,kbotdav ',schmidt,sqrt(cutoff2),kbotdav 
-      
-      do j=1,il_g                ! doing x-filter on panels 1,2,4,5
-       xxmax=xx(il_g*(6*il_g-1)+il_g+1-j)
-       print *,'j,xxmax ',j,xxmax
-       do n=1,4*il_g
-        if(n<=il_g)iq=il_g*(il_g+j-1)+n                   ! panel 1
-        if(n>il_g.and.n<=2*il_g)iq=il_g*(2*il_g+j-2)+n      ! panel 2
-        if(n>2*il_g)iq=il_g*(2*il_g+n-1)+il_g+1-j           ! panel 4,5
-        
-        if (em_g(iq).gt.emmin) then ! MJT
-        
-        do n1=n,4*il_g
-!        following test shows on sx6 don't use "do n1=m+1,4*il_g"
-!        if(n==4*il_g)print *,'problem for i,n,n1 ',i,n,n1
-         if(n1<=il_g)iq1=il_g*(il_g+j-1)+n1               ! panel 1
-         if(n1>il_g.and.n1<=2*il_g)iq1=il_g*(2*il_g+j-2)+n1 ! panel 2
-         if(n1>2*il_g)iq1=il_g*(2*il_g+n1-1)+il_g+1-j       ! panel 4,5
-         dist1=abs(xx(iq)-xx(iq1))
-         dist=min(dist1,xxmax-dist1)
-         wt=exp(-4.5*dist*dist*cutoff2)
-         wt1=wt/em_g(iq1)
-         wt=wt/em_g(iq)
-         if(n==n1)wt1=0.  ! so as not to add in twice
-c        if(iq==10345.or.iq1==10345)
-c    &     print *,'iq,iq1,n,n1,xx,xx1,dist1,dist,wt,wt1 ',         
-c    &              iq,iq1,n,n1,xx(iq),xx(iq1),dist1,dist,wt,wt1 
-         sumwt(iq)=sumwt(iq)+wt1
-         sumwt(iq1)=sumwt(iq1)+wt
-!        producing "x-filtered" version of pslb-psl etc
-c        psls(iq)=psls(iq)+wt1*(pslb(iq1)-psl(iq1))
-c        psls(iq1)=psls(iq1)+wt*(pslb(iq)-psl(iq))
-         psls(iq)=psls(iq)+wt1*psla(iq1)
-         psls(iq1)=psls(iq1)+wt*psla(iq)
-         do k=kbotdav,ktopdav ! MJT nestin
-          qgg(iq,k)=qgg(iq,k)+wt1*qa(iq1,k)
-          qgg(iq1,k)=qgg(iq1,k)+wt*qa(iq,k)
-          tt(iq,k)=tt(iq,k)+wt1*ta(iq1,k)
-          tt(iq1,k)=tt(iq1,k)+wt*ta(iq,k)
-          uu(iq,k)=uu(iq,k)+wt1*ua(iq1,k)
-          uu(iq1,k)=uu(iq1,k)+wt*ua(iq,k)
-          vv(iq,k)=vv(iq,k)+wt1*va(iq1,k)
-          vv(iq1,k)=vv(iq1,k)+wt*va(iq,k)
-          ww(iq,k)=ww(iq,k)+wt1*wa(iq1,k)
-          ww(iq1,k)=ww(iq1,k)+wt*wa(iq,k)
-         enddo  ! k loop
-c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
-        enddo   ! n1 loop
-        else
-          sumwt(iq)=1.
-        end if
-       enddo    ! n loop
-      enddo     ! j loop      
-      if(nud_uv==-1)then
-        do iq=1,ifull_g
-         psls2(iq)=psls(iq)/sumwt(iq)
-         do k=kbotdav,ktopdav  ! MJT nestin
-          qgg2(iq,k)=qgg(iq,k)/sumwt(iq)
-          tt2(iq,k)=tt(iq,k)/sumwt(iq)
-          uu2(iq,k)=uu(iq,k)/sumwt(iq)
-          vv2(iq,k)=vv(iq,k)/sumwt(iq)
-          ww2(iq,k)=ww(iq,k)/sumwt(iq)
-         enddo
-        enddo
-      else  ! original fast scheme
-        do iq=1,ifull_g
-         if(sumwt(iq).ne.1.e-20)then
-           psla(iq)=psls(iq)/sumwt(iq)
-           do k=kbotdav,ktopdav ! MJT nestin
-            qa(iq,k)=qgg(iq,k)/sumwt(iq)
-            ta(iq,k)=tt(iq,k)/sumwt(iq)
-            ua(iq,k)=uu(iq,k)/sumwt(iq)
-            va(iq,k)=vv(iq,k)/sumwt(iq)
-            wa(iq,k)=ww(iq,k)/sumwt(iq)
-           enddo
-         endif  ! (sumwt(iq).ne.1.e-20)
-        enddo
-      endif  ! (nud_uv==-1) .. else ..
-      
-      qgg(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      tt(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      uu(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      vv(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      ww(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-      psls(1:ifull_g)=0.
-      sumwt(1:ifull_g)=1.e-20   ! for undefined panels
-      
-      do i=1,il_g                ! doing y-filter on panels 0,1,3,4
-       yymax=yy(il_g*(5*il_g-i+1))  
-       do n=1,4*il_g
-        if(n<=2*il_g)iq=il_g*(n-1)+i                      ! panel 0,1
-        if(n>2*il_g.and.n<=3*il_g)iq=il_g*(4*il_g-i-2)+n      ! panel 3
-        if(n>3*il_g)iq=il_g*(5*il_g-i-3)+n                  ! panel 4       
-        if (em_g(iq).gt.emmin) then       
-        do n1=n,4*il_g
-         if(n1<=2*il_g)iq1=il_g*(n1-1)+i                  ! panel 0,1
-         if(n1>2*il_g.and.n1<=3*il_g)iq1=il_g*(4*il_g-i-2)+n1 ! panel 3
-         if(n1>3*il_g)iq1=il_g*(5*il_g-i-3)+n1              ! panel 4
-         dist1=abs(yy(iq)-yy(iq1))
-         dist=min(dist1,yymax-dist1)
-         wt=exp(-4.5*dist*dist*cutoff2)
-         wt1=wt/em_g(iq1)
-         wt=wt/em_g(iq)
-         if(n==n1)wt1=0.  ! so as not to add in twice
-         sumwt(iq)=sumwt(iq)+wt1
-         sumwt(iq1)=sumwt(iq1)+wt
-!        producing "y-filtered" version of pslb-psl etc
-         psls(iq)=psls(iq)+wt1*psla(iq1)
-         psls(iq1)=psls(iq1)+wt*psla(iq)
-         do k=kbotdav,ktopdav ! MJT nestin
-          qgg(iq,k)=qgg(iq,k)+wt1*qa(iq1,k)
-          qgg(iq1,k)=qgg(iq1,k)+wt*qa(iq,k)
-          tt(iq,k)=tt(iq,k)+wt1*ta(iq1,k)
-          tt(iq1,k)=tt(iq1,k)+wt*ta(iq,k)
-          uu(iq,k)=uu(iq,k)+wt1*ua(iq1,k)
-          uu(iq1,k)=uu(iq1,k)+wt*ua(iq,k)
-          vv(iq,k)=vv(iq,k)+wt1*va(iq1,k)
-          vv(iq1,k)=vv(iq1,k)+wt*va(iq,k)
-          ww(iq,k)=ww(iq,k)+wt1*wa(iq1,k)
-          ww(iq1,k)=ww(iq1,k)+wt*wa(iq,k)
-         enddo  ! k loop
-        enddo   ! n1 loop
-        else
-          sumwt(iq)=1.
-        end if
-       enddo    ! n loop
-      enddo     ! i loop
-      if(nud_uv==-1)then
-        do iq=1,ifull_g
-         psls2(iq)=psls2(iq)+psls(iq)/sumwt(iq)
-         do k=kbotdav,ktopdav ! MJT nestin
-          qgg2(iq,k)=qgg2(iq,k)+qgg(iq,k)/sumwt(iq)
-          tt2(iq,k)=tt2(iq,k)+tt(iq,k)/sumwt(iq)
-          uu2(iq,k)=uu2(iq,k)+uu(iq,k)/sumwt(iq)
-          vv2(iq,k)=vv2(iq,k)+vv(iq,k)/sumwt(iq)
-          ww2(iq,k)=ww2(iq,k)+ww(iq,k)/sumwt(iq)
-         enddo
-        enddo
-      else  ! original fast scheme
-        do iq=1,ifull_g
-         if(sumwt(iq).ne.1.e-20)then
-           psla(iq)=psls(iq)/sumwt(iq)
-           do k=kbotdav,ktopdav ! MJT nestin
-            qa(iq,k)=qgg(iq,k)/sumwt(iq)
-            ta(iq,k)=tt(iq,k)/sumwt(iq)
-            ua(iq,k)=uu(iq,k)/sumwt(iq)
-            va(iq,k)=vv(iq,k)/sumwt(iq)
-            wa(iq,k)=ww(iq,k)/sumwt(iq)
-           enddo
-         endif  ! (sumwt(iq).ne.1.e-20)
-        enddo
-      endif  ! (nud_uv==-1) .. else ..
-
-      if(mbd.ge.0) then
-       qgg(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-       tt(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-       uu(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-       vv(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-       ww(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
-       psls(1:ifull_g)=0.
-       sumwt(1:ifull_g)=1.e-20   ! for undefined panels
-    
-       do j=1,il_g                ! doing "z"-filter on panels 0,2,3,5
-        zzmax=zz(5*il_g*il_g+il_g*j)
-        print *,'j,zzmax ',j,zzmax
-        do n=1,4*il_g
-         if(n<=il_g)iq=il_g*(j-1)+n                     ! panel 0
-         if(n>il_g.and.n<=3*il_g)iq=il_g*(il_g+n-1)+il_g+1-j  ! panel 2,3
-         if(n>3*il_g)iq=il_g*(5*il_g+j-4)+n               ! panel 5
-        
-         if (em_g(iq).gt.emmin) then ! MJT
-        
-         do n1=n,4*il_g
-          if(n1<=il_g)iq1=il_g*(j-1)+n1                     ! panel 0
-          if(n1>il_g.and.n1<=3*il_g)iq1=il_g*(il_g+n1-1)+il_g+1-j ! panel 2,3
-          if(n1>3*il_g)iq1=il_g*(5*il_g+j-4)+n1               ! panel 5
-          dist1=abs(zz(iq)-zz(iq1))
-          dist=min(dist1,zzmax-dist1)
-          wt=exp(-4.5*dist*dist*cutoff2)
-          wt1=wt/em_g(iq1)
-          wt=wt/em_g(iq)
-          if(n==n1)wt1=0.  ! so as not to add in twice
-          sumwt(iq)=sumwt(iq)+wt1
-          sumwt(iq1)=sumwt(iq1)+wt
-!         producing "z"-filtered version of pslb-psl etc
-          psls(iq)=psls(iq)+wt1*psla(iq1)
-          psls(iq1)=psls(iq1)+wt*psla(iq)
-          do k=kbotdav,ktopdav ! MJT nestin
-           qgg(iq,k)=qgg(iq,k)+wt1*qa(iq1,k)
-           qgg(iq1,k)=qgg(iq1,k)+wt*qa(iq,k)
-           tt(iq,k)=tt(iq,k)+wt1*ta(iq1,k)
-           tt(iq1,k)=tt(iq1,k)+wt*ta(iq,k)
-           uu(iq,k)=uu(iq,k)+wt1*ua(iq1,k)
-           uu(iq1,k)=uu(iq1,k)+wt*ua(iq,k)
-           vv(iq,k)=vv(iq,k)+wt1*va(iq1,k)
-           vv(iq1,k)=vv(iq1,k)+wt*va(iq,k)
-           ww(iq,k)=ww(iq,k)+wt1*wa(iq1,k)
-           ww(iq1,k)=ww(iq1,k)+wt*wa(iq,k)
-          enddo  ! k loop
-         enddo   ! n1 loop
-         else
-           sumwt(iq)=1.
-         end if
-        enddo    ! n loop
-       enddo     ! j loop      
-      if(nud_uv==-1)then
-        print *,'in nestinb nud_uv ',nud_uv
-        do iq=1,ifull_g
-         psls2(iq)=psls2(iq)+psls(iq)/sumwt(iq)
-         do k=kbotdav,ktopdav ! MJT nestin
-          qgg2(iq,k)=qgg2(iq,k)+qgg(iq,k)/sumwt(iq)
-          tt2(iq,k)=tt2(iq,k)+tt(iq,k)/sumwt(iq)
-          uu2(iq,k)=uu2(iq,k)+uu(iq,k)/sumwt(iq)
-          vv2(iq,k)=vv2(iq,k)+vv(iq,k)/sumwt(iq)
-          ww2(iq,k)=ww2(iq,k)+ww(iq,k)/sumwt(iq)
-         enddo
-        enddo
-        psla(1:ifull_g)=.5*psls2(1:ifull_g)
-        qa(1:ifull_g,kbotdav:ktopdav)=.5*qgg2(1:ifull_g,kbotdav:ktopdav) ! MJT nestin
-        ta(1:ifull_g,kbotdav:ktopdav)=.5*tt2(1:ifull_g,kbotdav:ktopdav) ! MJT nestin
-        ua(1:ifull_g,kbotdav:ktopdav)=.5*uu2(1:ifull_g,kbotdav:ktopdav) ! MJT nestin
-        va(1:ifull_g,kbotdav:ktopdav)=.5*vv2(1:ifull_g,kbotdav:ktopdav) ! MJT nestin
-        wa(1:ifull_g,kbotdav:ktopdav)=.5*ww2(1:ifull_g,kbotdav:ktopdav) ! MJT nestin
-      else  ! original fast scheme
-        print *,'in nestinb  nud_uv ',nud_uv
-        do iq=1,ifull_g
-         if(sumwt(iq).ne.1.e-20)then
-           psla(iq)=psls(iq)/sumwt(iq)
-           do k=kbotdav,ktopdav ! MJT nestin
-            qa(iq,k)=qgg(iq,k)/sumwt(iq)
-            ta(iq,k)=tt(iq,k)/sumwt(iq)
-            ua(iq,k)=uu(iq,k)/sumwt(iq)
-            va(iq,k)=vv(iq,k)/sumwt(iq)
-            wa(iq,k)=ww(iq,k)/sumwt(iq)
-           enddo
-         endif  ! (sumwt(iq).ne.1.e-20)
-        enddo
-      endif  ! (nud_uv==-1) .. else ..
-      end if ! (mbd.ge.0)
-
-      return
-      end subroutine fastspec
+!      ! Fast spectral downscaling (JLM version)
+!      subroutine fastspec(cutoff2,psla,ua,va,wa,ta,qa)
+!      
+!      implicit none
+!      
+!      include 'newmpar.h'    ! ifull_g,kl
+!      include 'const_phys.h' ! rearth,pi,tpi
+!      include 'map_g.h'      ! em_g
+!      include 'indices_g.h'  ! in_g,ie_g,is_g,iw_g
+!      include 'parm.h'       ! ds,kbotdav
+!      include 'parmgeom.h'   ! rlong0,rlat0,schmidt  
+!      include 'xyzinfo_g.h'    ! x_g,y_g,z_g
+!
+!      integer, parameter :: ntest=0 
+!      integer i,j,k,n,n1,iq,iq1,num
+!      real, intent(in) :: cutoff2
+!      real, dimension(ifull_g), intent(inout) :: psla
+!      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: ua,va  ! MJT nestin
+!      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: wa     ! MJT nestin
+!      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: ta,qa  ! MJT nestin
+!      real, dimension(ifull_g) :: psls,sumwt
+!      real, dimension(ifull_g) :: psls2
+!      real, dimension(ifull_g), save :: xx,yy,zz
+!      real, dimension(ifull_g,kbotdav:ktopdav) :: uu,vv,ww,tt,qgg      ! MJT nestin
+!      real, dimension(ifull_g,kbotdav:ktopdav) :: uu2,vv2,ww2,tt2,qgg2 ! MJT nestin
+!      real emmin,dist,dist1,wt,wt1,xxmax,yymax,zzmax
+!      data num/1/
+!      save num
+!      
+!      ! myid must = 0 to get here.  So there is no need to check.
+!      
+!      if (num==1) then
+!      num=2
+!!       set up geometry for filtering through panel 1
+!!       x pass on panels 1, 2, 4, 5
+!!       y pass on panels 0, 1, 3, 4
+!!       z pass on panels 0, 2, 3, 5
+!        xx=0.
+!        yy=0.
+!        zz=0.
+!        do iq=1+il_g*il_g,3*il_g*il_g
+!          xx(iq)=xx(iw_g(iq))+sqrt((x_g(iq)-x_g(iw_g(iq)))**2+
+!     &           (y_g(iq)-y_g(iw_g(iq)))**2+(z_g(iq)-z_g(iw_g(iq)))**2)
+!        enddo
+!         do iq=1+4*il_g*il_g,6*il_g*il_g
+!          xx(iq)=xx(is_g(iq))+sqrt((x_g(iq)-x_g(is_g(iq)))**2+
+!     &           (y_g(iq)-y_g(is_g(iq)))**2+(z_g(iq)-z_g(is_g(iq)))**2)
+!        enddo
+!        do iq=1,2*il_g*il_g
+!          yy(iq)=yy(is_g(iq))+sqrt((x_g(iq)-x_g(is_g(iq)))**2+
+!     &           (y_g(iq)-y_g(is_g(iq)))**2+(z_g(iq)-z_g(is_g(iq)))**2)
+!        enddo
+!        do iq=1+3*il_g*il_g,5*il_g*il_g
+!          yy(iq)=yy(iw_g(iq))+sqrt((x_g(iq)-x_g(iw_g(iq)))**2+
+!     &           (y_g(iq)-y_g(iw_g(iq)))**2+(z_g(iq)-z_g(iw_g(iq)))**2)
+!        enddo
+!        if(mbd>0)then
+!         do iq=1,il_g*il_g
+!          zz(iq)=zz(iw_g(iq))+sqrt((x_g(iq)-x_g(iw_g(iq)))**2+
+!     &           (y_g(iq)-y_g(iw_g(iq)))**2+(z_g(iq)-z_g(iw_g(iq)))**2)
+!         enddo
+!         do iq=1+2*il_g*il_g,4*il_g*il_g
+!          zz(iq)=zz(is_g(iq))+sqrt((x_g(iq)-x_g(is_g(iq)))**2+
+!     &           (y_g(iq)-y_g(is_g(iq)))**2+(z_g(iq)-z_g(is_g(iq)))**2)
+!         enddo
+!         do iq=1+5*il_g*il_g,6*il_g*il_g
+!          zz(iq)=zz(iw_g(iq))+sqrt((x_g(iq)-x_g(iw_g(iq)))**2+
+!     &           (y_g(iq)-y_g(iw_g(iq)))**2+(z_g(iq)-z_g(iw_g(iq)))**2)
+!         enddo
+!        endif  ! (mbd>0)
+!        if(ntest>0)then
+!          do iq=1,144
+!           print *,'iq,xx,yy,zz ',iq,xx(iq),yy(iq),zz(iq)
+!          enddo
+!          do iq=il_g*il_g,il_g*il_g+il_g
+!           print *,'iq,xx,yy,zz ',iq,xx(iq),yy(iq),zz(iq)
+!          enddo
+!         do iq=4*il_g*il_g-il_g,4*il_g*il_g
+!           print *,'iq,xx,yy,zz ',iq,xx(iq),yy(iq),zz(iq)
+!          enddo
+!         do iq=5*il_g*il_g-il_g,5*il_g*il_g
+!           print *,'iq,xx,yy,zz ',iq,xx(iq),yy(iq),zz(iq)
+!          enddo
+!          print *,'xx mid:'   
+!          do i=1,48
+!           print *,'i xx',i,xx(il_g*il_g*1.5+i)
+!          enddo
+!          do i=1,48
+!           print *,'i xx',i+il_g,xx(il_g*il_g*2.5+i)
+!          enddo
+!          do i=1,48
+!           print *,'i xx',i+2*il_g,xx(il_g*il_g*4-il_g/2+i*il_g)
+!          enddo
+!          do i=1,48
+!           print *,'i xx',i+3*il_g,xx(il_g*il_g*5-il_g/2+i*il_g)
+!          enddo
+!          print *,'yy mid:'   
+!          do j=1,96
+!           print *,'j yy',j,yy(-il_g/2+j*il_g)
+!          enddo
+!          do j=1,48
+!           print *,'j yy',j+2*il_g,yy(il_g*il_g*3.5+j)
+!          enddo
+!          do j=1,48
+!           print *,'j yy',j+3*il_g,yy(il_g*il_g*4.5+j)
+!          enddo
+!!         wrap-around values defined by xx(il_g,5*il_g+j),j=1,il_g; yy(i,5*il_g),i=1,il_g
+!          print *,'wrap-round values'
+!          do j=1,il_g
+!           print *,'j,xx ',j,xx(6*il_g*il_g+1-j)       ! xx(il_g+1-j,il_g,5)
+!          enddo
+!          do i=1,il_g
+!           print *,'i,yy ',i,yy(5*il_g*il_g+il_g-il_g*i)   ! yy(il_g,il_g+1-i,4)
+!          enddo
+!          do j=1,il_g
+!           print *,'j,zz ',j,zz(5*il_g*il_g+il_g*j)      ! zz(il_g,j,5)
+!          enddo
+!        endif  ! ntest>0
+!      endif    !  num==1
+!
+!      qgg(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      tt(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      uu(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      vv(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      ww(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      psls(1:ifull_g)=0.
+!      qgg2(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      tt2(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      uu2(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      vv2(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      ww2(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      psls2(1:ifull_g)=0.
+!      sumwt(1:ifull_g)=1.e-20   ! for undefined panels
+!      emmin=sqrt(cutoff2)*ds/rearth
+!      print *,'schmidt,cutoff,kbotdav ',schmidt,sqrt(cutoff2),kbotdav 
+!      
+!      do j=1,il_g                ! doing x-filter on panels 1,2,4,5
+!       xxmax=xx(il_g*(6*il_g-1)+il_g+1-j)
+!       print *,'j,xxmax ',j,xxmax
+!       do n=1,4*il_g
+!        if(n<=il_g)iq=il_g*(il_g+j-1)+n                   ! panel 1
+!        if(n>il_g.and.n<=2*il_g)iq=il_g*(2*il_g+j-2)+n      ! panel 2
+!        if(n>2*il_g)iq=il_g*(2*il_g+n-1)+il_g+1-j           ! panel 4,5
+!        
+!        if (em_g(iq).gt.emmin) then ! MJT
+!        
+!        do n1=n,4*il_g
+!!        following test shows on sx6 don't use "do n1=m+1,4*il_g"
+!!        if(n==4*il_g)print *,'problem for i,n,n1 ',i,n,n1
+!         if(n1<=il_g)iq1=il_g*(il_g+j-1)+n1               ! panel 1
+!         if(n1>il_g.and.n1<=2*il_g)iq1=il_g*(2*il_g+j-2)+n1 ! panel 2
+!         if(n1>2*il_g)iq1=il_g*(2*il_g+n1-1)+il_g+1-j       ! panel 4,5
+!         dist1=abs(xx(iq)-xx(iq1))
+!         dist=min(dist1,xxmax-dist1)
+!         wt=exp(-4.5*dist*dist*cutoff2)
+!         wt1=wt/em_g(iq1)
+!         wt=wt/em_g(iq)
+!         if(n==n1)wt1=0.  ! so as not to add in twice
+!c        if(iq==10345.or.iq1==10345)
+!c    &     print *,'iq,iq1,n,n1,xx,xx1,dist1,dist,wt,wt1 ',         
+!c    &              iq,iq1,n,n1,xx(iq),xx(iq1),dist1,dist,wt,wt1 
+!         sumwt(iq)=sumwt(iq)+wt1
+!         sumwt(iq1)=sumwt(iq1)+wt
+!!        producing "x-filtered" version of pslb-psl etc
+!c        psls(iq)=psls(iq)+wt1*(pslb(iq1)-psl(iq1))
+!c        psls(iq1)=psls(iq1)+wt*(pslb(iq)-psl(iq))
+!         psls(iq)=psls(iq)+wt1*psla(iq1)
+!         psls(iq1)=psls(iq1)+wt*psla(iq)
+!         do k=kbotdav,ktopdav ! MJT nestin
+!          qgg(iq,k)=qgg(iq,k)+wt1*qa(iq1,k)
+!          qgg(iq1,k)=qgg(iq1,k)+wt*qa(iq,k)
+!          tt(iq,k)=tt(iq,k)+wt1*ta(iq1,k)
+!          tt(iq1,k)=tt(iq1,k)+wt*ta(iq,k)
+!          uu(iq,k)=uu(iq,k)+wt1*ua(iq1,k)
+!          uu(iq1,k)=uu(iq1,k)+wt*ua(iq,k)
+!          vv(iq,k)=vv(iq,k)+wt1*va(iq1,k)
+!          vv(iq1,k)=vv(iq1,k)+wt*va(iq,k)
+!          ww(iq,k)=ww(iq,k)+wt1*wa(iq1,k)
+!          ww(iq1,k)=ww(iq1,k)+wt*wa(iq,k)
+!         enddo  ! k loop
+!c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
+!        enddo   ! n1 loop
+!        else
+!          sumwt(iq)=1.
+!        end if
+!       enddo    ! n loop
+!      enddo     ! j loop      
+!      if(nud_uv==-1)then
+!        do iq=1,ifull_g
+!         psls2(iq)=psls(iq)/sumwt(iq)
+!         do k=kbotdav,ktopdav  ! MJT nestin
+!          qgg2(iq,k)=qgg(iq,k)/sumwt(iq)
+!          tt2(iq,k)=tt(iq,k)/sumwt(iq)
+!          uu2(iq,k)=uu(iq,k)/sumwt(iq)
+!          vv2(iq,k)=vv(iq,k)/sumwt(iq)
+!          ww2(iq,k)=ww(iq,k)/sumwt(iq)
+!         enddo
+!        enddo
+!      else  ! original fast scheme
+!        do iq=1,ifull_g
+!         if(sumwt(iq).ne.1.e-20)then
+!           psla(iq)=psls(iq)/sumwt(iq)
+!           do k=kbotdav,ktopdav ! MJT nestin
+!            qa(iq,k)=qgg(iq,k)/sumwt(iq)
+!            ta(iq,k)=tt(iq,k)/sumwt(iq)
+!            ua(iq,k)=uu(iq,k)/sumwt(iq)
+!            va(iq,k)=vv(iq,k)/sumwt(iq)
+!            wa(iq,k)=ww(iq,k)/sumwt(iq)
+!           enddo
+!         endif  ! (sumwt(iq).ne.1.e-20)
+!        enddo
+!      endif  ! (nud_uv==-1) .. else ..
+!      
+!      qgg(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      tt(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      uu(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      vv(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      ww(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!      psls(1:ifull_g)=0.
+!      sumwt(1:ifull_g)=1.e-20   ! for undefined panels
+!      
+!      do i=1,il_g                ! doing y-filter on panels 0,1,3,4
+!       yymax=yy(il_g*(5*il_g-i+1))  
+!       do n=1,4*il_g
+!        if(n<=2*il_g)iq=il_g*(n-1)+i                      ! panel 0,1
+!        if(n>2*il_g.and.n<=3*il_g)iq=il_g*(4*il_g-i-2)+n      ! panel 3
+!        if(n>3*il_g)iq=il_g*(5*il_g-i-3)+n                  ! panel 4       
+!        if (em_g(iq).gt.emmin) then       
+!        do n1=n,4*il_g
+!         if(n1<=2*il_g)iq1=il_g*(n1-1)+i                  ! panel 0,1
+!         if(n1>2*il_g.and.n1<=3*il_g)iq1=il_g*(4*il_g-i-2)+n1 ! panel 3
+!         if(n1>3*il_g)iq1=il_g*(5*il_g-i-3)+n1              ! panel 4
+!         dist1=abs(yy(iq)-yy(iq1))
+!         dist=min(dist1,yymax-dist1)
+!         wt=exp(-4.5*dist*dist*cutoff2)
+!         wt1=wt/em_g(iq1)
+!         wt=wt/em_g(iq)
+!         if(n==n1)wt1=0.  ! so as not to add in twice
+!         sumwt(iq)=sumwt(iq)+wt1
+!         sumwt(iq1)=sumwt(iq1)+wt
+!!        producing "y-filtered" version of pslb-psl etc
+!         psls(iq)=psls(iq)+wt1*psla(iq1)
+!         psls(iq1)=psls(iq1)+wt*psla(iq)
+!         do k=kbotdav,ktopdav ! MJT nestin
+!          qgg(iq,k)=qgg(iq,k)+wt1*qa(iq1,k)
+!          qgg(iq1,k)=qgg(iq1,k)+wt*qa(iq,k)
+!          tt(iq,k)=tt(iq,k)+wt1*ta(iq1,k)
+!          tt(iq1,k)=tt(iq1,k)+wt*ta(iq,k)
+!          uu(iq,k)=uu(iq,k)+wt1*ua(iq1,k)
+!          uu(iq1,k)=uu(iq1,k)+wt*ua(iq,k)
+!          vv(iq,k)=vv(iq,k)+wt1*va(iq1,k)
+!          vv(iq1,k)=vv(iq1,k)+wt*va(iq,k)
+!          ww(iq,k)=ww(iq,k)+wt1*wa(iq1,k)
+!          ww(iq1,k)=ww(iq1,k)+wt*wa(iq,k)
+!         enddo  ! k loop
+!        enddo   ! n1 loop
+!        else
+!          sumwt(iq)=1.
+!        end if
+!       enddo    ! n loop
+!      enddo     ! i loop
+!      if(nud_uv==-1)then
+!        do iq=1,ifull_g
+!         psls2(iq)=psls2(iq)+psls(iq)/sumwt(iq)
+!         do k=kbotdav,ktopdav ! MJT nestin
+!          qgg2(iq,k)=qgg2(iq,k)+qgg(iq,k)/sumwt(iq)
+!          tt2(iq,k)=tt2(iq,k)+tt(iq,k)/sumwt(iq)
+!          uu2(iq,k)=uu2(iq,k)+uu(iq,k)/sumwt(iq)
+!          vv2(iq,k)=vv2(iq,k)+vv(iq,k)/sumwt(iq)
+!          ww2(iq,k)=ww2(iq,k)+ww(iq,k)/sumwt(iq)
+!         enddo
+!        enddo
+!      else  ! original fast scheme
+!        do iq=1,ifull_g
+!         if(sumwt(iq).ne.1.e-20)then
+!           psla(iq)=psls(iq)/sumwt(iq)
+!           do k=kbotdav,ktopdav ! MJT nestin
+!            qa(iq,k)=qgg(iq,k)/sumwt(iq)
+!            ta(iq,k)=tt(iq,k)/sumwt(iq)
+!            ua(iq,k)=uu(iq,k)/sumwt(iq)
+!            va(iq,k)=vv(iq,k)/sumwt(iq)
+!            wa(iq,k)=ww(iq,k)/sumwt(iq)
+!           enddo
+!         endif  ! (sumwt(iq).ne.1.e-20)
+!        enddo
+!      endif  ! (nud_uv==-1) .. else ..
+!
+!      if(mbd.ge.0) then
+!       qgg(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!       tt(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!       uu(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!       vv(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!       ww(1:ifull_g,kbotdav:ktopdav)=0. ! MJT nestin
+!       psls(1:ifull_g)=0.
+!       sumwt(1:ifull_g)=1.e-20   ! for undefined panels
+!    
+!       do j=1,il_g                ! doing "z"-filter on panels 0,2,3,5
+!        zzmax=zz(5*il_g*il_g+il_g*j)
+!        print *,'j,zzmax ',j,zzmax
+!        do n=1,4*il_g
+!         if(n<=il_g)iq=il_g*(j-1)+n                     ! panel 0
+!         if(n>il_g.and.n<=3*il_g)iq=il_g*(il_g+n-1)+il_g+1-j  ! panel 2,3
+!         if(n>3*il_g)iq=il_g*(5*il_g+j-4)+n               ! panel 5
+!        
+!         if (em_g(iq).gt.emmin) then ! MJT
+!        
+!         do n1=n,4*il_g
+!          if(n1<=il_g)iq1=il_g*(j-1)+n1                     ! panel 0
+!          if(n1>il_g.and.n1<=3*il_g)iq1=il_g*(il_g+n1-1)+il_g+1-j ! panel 2,3
+!          if(n1>3*il_g)iq1=il_g*(5*il_g+j-4)+n1               ! panel 5
+!          dist1=abs(zz(iq)-zz(iq1))
+!          dist=min(dist1,zzmax-dist1)
+!          wt=exp(-4.5*dist*dist*cutoff2)
+!          wt1=wt/em_g(iq1)
+!          wt=wt/em_g(iq)
+!          if(n==n1)wt1=0.  ! so as not to add in twice
+!          sumwt(iq)=sumwt(iq)+wt1
+!          sumwt(iq1)=sumwt(iq1)+wt
+!!         producing "z"-filtered version of pslb-psl etc
+!          psls(iq)=psls(iq)+wt1*psla(iq1)
+!          psls(iq1)=psls(iq1)+wt*psla(iq)
+!          do k=kbotdav,ktopdav ! MJT nestin
+!           qgg(iq,k)=qgg(iq,k)+wt1*qa(iq1,k)
+!           qgg(iq1,k)=qgg(iq1,k)+wt*qa(iq,k)
+!           tt(iq,k)=tt(iq,k)+wt1*ta(iq1,k)
+!           tt(iq1,k)=tt(iq1,k)+wt*ta(iq,k)
+!           uu(iq,k)=uu(iq,k)+wt1*ua(iq1,k)
+!           uu(iq1,k)=uu(iq1,k)+wt*ua(iq,k)
+!           vv(iq,k)=vv(iq,k)+wt1*va(iq1,k)
+!           vv(iq1,k)=vv(iq1,k)+wt*va(iq,k)
+!           ww(iq,k)=ww(iq,k)+wt1*wa(iq1,k)
+!           ww(iq1,k)=ww(iq1,k)+wt*wa(iq,k)
+!          enddo  ! k loop
+!         enddo   ! n1 loop
+!         else
+!           sumwt(iq)=1.
+!         end if
+!        enddo    ! n loop
+!       enddo     ! j loop      
+!      if(nud_uv==-1)then
+!        print *,'in nestinb nud_uv ',nud_uv
+!        do iq=1,ifull_g
+!         psls2(iq)=psls2(iq)+psls(iq)/sumwt(iq)
+!         do k=kbotdav,ktopdav ! MJT nestin
+!          qgg2(iq,k)=qgg2(iq,k)+qgg(iq,k)/sumwt(iq)
+!          tt2(iq,k)=tt2(iq,k)+tt(iq,k)/sumwt(iq)
+!          uu2(iq,k)=uu2(iq,k)+uu(iq,k)/sumwt(iq)
+!          vv2(iq,k)=vv2(iq,k)+vv(iq,k)/sumwt(iq)
+!          ww2(iq,k)=ww2(iq,k)+ww(iq,k)/sumwt(iq)
+!         enddo
+!        enddo
+!        psla(1:ifull_g)=.5*psls2(1:ifull_g)
+!        qa(1:ifull_g,kbotdav:ktopdav)=.5*qgg2(1:ifull_g,kbotdav:ktopdav) ! MJT nestin
+!        ta(1:ifull_g,kbotdav:ktopdav)=.5*tt2(1:ifull_g,kbotdav:ktopdav) ! MJT nestin
+!        ua(1:ifull_g,kbotdav:ktopdav)=.5*uu2(1:ifull_g,kbotdav:ktopdav) ! MJT nestin
+!        va(1:ifull_g,kbotdav:ktopdav)=.5*vv2(1:ifull_g,kbotdav:ktopdav) ! MJT nestin
+!        wa(1:ifull_g,kbotdav:ktopdav)=.5*ww2(1:ifull_g,kbotdav:ktopdav) ! MJT nestin
+!      else  ! original fast scheme
+!        print *,'in nestinb  nud_uv ',nud_uv
+!        do iq=1,ifull_g
+!         if(sumwt(iq).ne.1.e-20)then
+!           psla(iq)=psls(iq)/sumwt(iq)
+!           do k=kbotdav,ktopdav ! MJT nestin
+!            qa(iq,k)=qgg(iq,k)/sumwt(iq)
+!            ta(iq,k)=tt(iq,k)/sumwt(iq)
+!            ua(iq,k)=uu(iq,k)/sumwt(iq)
+!            va(iq,k)=vv(iq,k)/sumwt(iq)
+!            wa(iq,k)=ww(iq,k)/sumwt(iq)
+!           enddo
+!         endif  ! (sumwt(iq).ne.1.e-20)
+!        enddo
+!      endif  ! (nud_uv==-1) .. else ..
+!      end if ! (mbd.ge.0)
+!
+!      return
+!      end subroutine fastspec
 
 
       !---------------------------------------------------------------------------------
       ! Slow 2D spectral downscaling - MPI version
-      subroutine slowspecmpi(myid,cin,psls,uu,vv,ww,tt,qgg)
+      subroutine slowspecmpi(ifull_g,nproc,myid,cin,psls,uu,vv,ww,tt,
+     &                       qgg,em_g,x_g,y_g,z_g)
       
       implicit none
       
-      include 'newmpar.h'   ! ifull_g
       include 'const_phys.h' ! rearth,pi,tpi
-      include 'map_g.h'     ! em_g
       include 'parm.h'      ! ds,kbotdav,ktopdav
-      include 'xyzinfo_g.h' ! x_g,y_g,z_g
       include 'mpif.h'
 
-      integer, intent(in) :: myid
+      integer, intent(in) :: ifull_g,nproc,myid
       integer :: iq,ns,ne,k,itag=0,ierr,iproc,iy
       integer, dimension(MPI_STATUS_SIZE) :: status
       real, intent(in) :: cin
@@ -1150,6 +1165,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: uu,vv   ! MJT nestin
       real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: ww      ! MJT nestin
       real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: tt,qgg  ! MJT nestin
+      real, dimension(ifull_g), intent(in) :: em_g,x_g,y_g,z_g
       real, dimension(ifull_g) :: pp,r
       real, dimension(ifull_g,kbotdav:ktopdav) :: pu,pv,pw,pt,pq ! MJT nestin
       real, dimension(ifull_g*(ktopdav-kbotdav+1)) :: dd ! MJT nestin
@@ -1158,7 +1174,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       cq=sqrt(4.5)*cin
 
       if (myid == 0) then
-        if(nmaxpr==1) print *,"Send arrays to all processors"
+        if(nmaxpr==1) write(6,*) "Send arrays to all processors"
         if(nud_p>0)then
           call MPI_Bcast(psls(:),ifull_g,MPI_REAL,0,
      &           MPI_COMM_WORLD,ierr)
@@ -1215,7 +1231,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       end if
     
       call procdiv(ns,ne,ifull_g,nproc,myid)
-      if ((myid == 0).and.(nmaxpr==1)) print *,"Start 2D filter"
+      if ((myid == 0).and.(nmaxpr==1)) write(6,*) "Start 2D filter"
       
       do iq=ns,ne
         r(:)=x_g(iq)*x_g(:)+y_g(iq)*y_g(:)+z_g(iq)*z_g(:)
@@ -1259,11 +1275,11 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         qgg(ns:ne,:)=pq(ns:ne,:)
       end if
           
-      if ((myid == 0).and.(nmaxpr==1)) print *,"End 2D filter"
+      if ((myid == 0).and.(nmaxpr==1)) write(6,*) "End 2D filter"
 
       itag=itag+1
       if (myid == 0) then
-        if (nmaxpr==1) print *,"Receive arrays from all processors"
+        if (nmaxpr==1) write(6,*) "Receive arrays from all processors"
         do iproc=1,nproc-1
           call procdiv(ns,ne,ifull_g,nproc,iproc)
           if(nud_p>0)call MPI_Recv(psls(ns:ne),ne-ns+1,MPI_REAL,iproc
@@ -1325,20 +1341,23 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       !---------------------------------------------------------------------------------
       ! Four pass spectral downscaling (symmetric)
       ! Used when mod(6,nproc).ne.0 and mod(nproc,6).ne.0 since it is slower than specfastmpi
-      subroutine fourspecmpi(myid,cin,psls,uu,vv,ww,tt,qgg)
+      subroutine fourspecmpi(il_g,nproc,myid,cin,psls,uu,vv,ww,tt,qgg,
+     &                       em_g,x_g,y_g,z_g)
       
       implicit none
       
-      include 'newmpar.h'    ! ifull_g
       include 'parm.h'       ! kbotdav,ktopdav
       
-      integer, intent(in) :: myid
+      integer, intent(in) :: il_g,nproc,myid
       integer :: pn,px,hproc,mproc,ns,ne,npta
       real, intent(in) :: cin
-      real, dimension(ifull_g), intent(inout) :: psls
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: uu,vv  ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: ww     ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: tt,qgg ! MJT nestin
+      real, dimension(il_g*il_g*6), intent(inout) :: psls
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: uu     ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: vv     ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: ww     ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: tt     ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: qgg    ! MJT nestin
+      real, dimension(il_g*il_g*6), intent(in) :: em_g,x_g,y_g,z_g
       
       npta=1                              ! number of panels per processor
       mproc=nproc                         ! number of processors per panel
@@ -1347,8 +1366,8 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       hproc=0                             ! host processor for panel
       call procdiv(ns,ne,il_g,nproc,myid) ! number of rows per processor
 
-      call spechost(myid,mproc,hproc,npta,pn,px,ns,ne,cin,psls,uu,vv,
-     &       ww,tt,qgg)
+      call spechost(il_g,nproc,myid,mproc,hproc,npta,pn,px,ns,ne,cin,
+     &       psls,uu,vv,ww,tt,qgg,em_g,x_g,y_g,z_g)
           
       return
       end subroutine fourspecmpi
@@ -1359,20 +1378,23 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       ! Four pass spectral downscaling (symmetric)
       ! MPI optimised for magic processor numbers 1,2,3,6,12,18,24,30,36,...
       ! (only works for mod(6,nproc)==0 or mod(nproc,6)==0)
-      subroutine specfastmpi(myid,cin,psls,uu,vv,ww,tt,qgg)
+      subroutine specfastmpi(il_g,nproc,myid,cin,psls,uu,vv,ww,tt,qgg,
+     &                       em_g,x_g,y_g,z_g)
       
       implicit none
       
-      include 'newmpar.h'    ! ifull_g
       include 'parm.h'       ! kbotdav,ktopdav
       
-      integer, intent(in) :: myid
+      integer, intent(in) :: il_g,nproc,myid
       integer :: pn,px,hproc,mproc,ns,ne,npta
       real, intent(in) :: cin
-      real, dimension(ifull_g), intent(inout) :: psls
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: uu,vv  ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: ww     ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: tt,qgg ! MJT nestin
+      real, dimension(il_g*il_g*6), intent(inout) :: psls
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: uu     ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: vv     ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: ww     ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: tt     ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: qgg    ! MJT nestin
+      real, dimension(il_g*il_g*6), intent(in) :: em_g,x_g,y_g,z_g
       
       npta=max(6/nproc,1)                       ! number of panels per processor
       mproc=max(nproc/6,1)                      ! number of processors per panel
@@ -1381,8 +1403,8 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       hproc=pn*mproc/npta                       ! host processor for panel
       call procdiv(ns,ne,il_g,mproc,myid-hproc) ! number of rows per processor
 
-      call spechost(myid,mproc,hproc,npta,pn,px,ns,ne,cin,psls,uu,vv,
-     &       ww,tt,qgg)
+      call spechost(il_g,nproc,myid,mproc,hproc,npta,pn,px,ns,ne,cin,
+     &       psls,uu,vv,ww,tt,qgg,em_g,x_g,y_g,z_g)
 
       return
       end subroutine specfastmpi
@@ -1391,40 +1413,45 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       !---------------------------------------------------------------------------------
       ! This is the main routine for the scale-selective filter
-      subroutine spechost(myid,mproc,hproc,npta,pn,px,ns,ne,cin,psls,
-     &                    uu,vv,ww,tt,qgg)
+      subroutine spechost(il_g,nproc,myid,mproc,hproc,npta,pn,px,ns,ne,
+     &                    cin,psls,uu,vv,ww,tt,qgg,em_g,x_g,y_g,z_g)
       
       implicit none
       
-      include 'newmpar.h'    ! ifull_g
       include 'const_phys.h' ! rearth,pi,tpi
-      include 'map_g.h'      ! em_g
       include 'parm.h'       ! ds,kbotdav,ktopdav
       include 'mpif.h'       ! MPI
       
-      integer, intent(in) :: myid,mproc,hproc,npta,pn,px,ns,ne
+      integer, intent(in) :: il_g,nproc,myid,mproc,hproc,npta,pn,px,ns
+      integer, intent(in) :: ne
       integer :: k,ppass,qpass,iy,ppn,ppx,nne,nns,iproc,itag=0,ierr
       integer :: n,a,b,c
+      integer :: til,ifull_g
       integer, dimension(MPI_STATUS_SIZE) :: status
-      integer, parameter :: til=il_g*il_g
       integer, parameter, dimension(0:5) :: qaps=(/0,3,1,4,2,5/)
-      integer, parameter, dimension(0:5) :: qms=qaps*til
+      integer, dimension(0:5) :: qms
       real, intent(in) :: cin
-      real, dimension(ifull_g), intent(inout) :: psls
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: uu,vv  ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: ww     ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: tt,qgg ! MJT nestin
-      real, dimension(ifull_g) :: qp,qsum,sp,ssum,zp
-      real, dimension(ifull_g,kbotdav:ktopdav) :: qu,qv,qw,qt,qq ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav) :: su,sv,sw,st,sq ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav) :: zu,zv,zw,zt,zq ! MJT nestin
-      real, dimension(ifull_g*(ktopdav-kbotdav+1)) :: dd         ! MJT nestin
+      real, dimension(il_g*il_g*6), intent(inout) :: psls
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: uu     ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: vv     ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: ww     ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: tt     ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: qgg    ! MJT nestin
+      real, dimension(il_g*il_g*6), intent(in) :: em_g,x_g,y_g,z_g
+      real, dimension(il_g*il_g*6) :: qp,qsum,sp,ssum,zp
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav) :: qu,qv,qw,qt,qq ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav) :: su,sv,sw,st,sq ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav) :: zu,zv,zw,zt,zq ! MJT nestin
+      real, dimension(il_g*il_g*6*(ktopdav-kbotdav+1)) :: dd         ! MJT nestin
       real :: cq
 
       cq=sqrt(4.5)*cin ! filter length scale
+      til=il_g*il_g
+      ifull_g=til*6
+      qms=qaps*til
 
       if (myid == 0) then
-        if (nmaxpr==1) print *,"Send arrays to all processors"
+        if (nmaxpr==1) write(6,*) "Send arrays to all processors"
         if(nud_p>0)then
           call MPI_Bcast(psls(:),ifull_g,MPI_REAL,0,
      &           MPI_COMM_WORLD,ierr)
@@ -1481,7 +1508,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       end if
       
       if (ns.gt.ne) return
-      if ((myid==0).and.(nmaxpr==1)) print *,"Start 1D filter"
+      if ((myid==0).and.(nmaxpr==1)) write(6,*) "Start 1D filter"
 
       do qpass=pn,px
         ppass=qaps(qpass)
@@ -1509,8 +1536,8 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
 
         ! computations for the local processor group
-        call speclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,qp,
-     &         qu,qv,qw,qt,qq,ssum,sp,su,sv,sw,st,sq)
+        call speclocal(il_g,myid,mproc,hproc,ns,ne,cq,ppass,qsum,qp,
+     &         qu,qv,qw,qt,qq,ssum,sp,su,sv,sw,st,sq,x_g,y_g,z_g)
         
         nns=qms(qpass)+1
         nne=qms(qpass)+til
@@ -1537,11 +1564,12 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         
       end do
 
-      if ((myid==0).and.(nmaxpr==1)) print *,"End 1D filter"
+      if ((myid==0).and.(nmaxpr==1)) write(6,*) "End 1D filter"
 
       itag=itag+1
       if (myid == 0) then
-        if (nmaxpr==1) print *,"Receive arrays from all host processors"
+        if (nmaxpr==1) write(6,*) 
+     &    "Receive arrays from all host processors"
         do iproc=mproc,nproc-1,mproc
           ppn=iproc*npta/mproc
           ppx=(iproc+mproc)*npta/mproc-1
@@ -1703,48 +1731,55 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       !---------------------------------------------------------------------------------
       ! This code runs between the local processors
       ! Code was moved to this subroutine to help the compiler vectorise the code
-      subroutine speclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
-     &             qp,qu,qv,qw,qt,qq,ssum,sp,su,sv,sw,st,sq)
+      subroutine speclocal(il_g,myid,mproc,hproc,ns,ne,cq,ppass,qsum,
+     &             qp,qu,qv,qw,qt,qq,ssum,sp,su,sv,sw,st,sq,
+     &             x_g,y_g,z_g)
       implicit none
       
-      include 'newmpar.h'    ! ifull_g
       include 'const_phys.h' ! pi
       include 'parm.h'       ! kbotdav,ktopdav
-      include 'xyzinfo_g.h'  ! x_g,y_g,z_g
       include 'mpif.h'       ! MPI
       
-      integer, intent(in) :: myid,mproc,hproc,ns,ne,ppass
+      integer, intent(in) :: il_g,myid,mproc,hproc,ns,ne,ppass
       integer :: j,k,n,ipass,kpass,iy
       integer :: iproc,itag=0,ierr
       integer :: nne,nns,me
       integer :: a,b,c,d,ips
+      integer :: ifull_g
       integer, save :: pold=-1
       integer, dimension(MPI_STATUS_SIZE) :: status
       integer, dimension(4*il_g,il_g,0:3) :: igrd
-      integer, parameter, dimension(0:3) ::
-     &  maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
+      integer, dimension(0:3) :: maps
       integer, parameter, dimension(0:5) :: pair=(/3,4,5,0,1,2/)
       integer, parameter, dimension(2:3) :: kn=(/0,3/)
       integer, parameter, dimension(2:3) :: kx=(/2,3/)
       real, intent(in) :: cq
-      real, dimension(ifull_g), intent(inout) :: qp,qsum
-      real, dimension(ifull_g), intent(inout) :: sp,ssum
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: qu,qv ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: qw    ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: qt,qq ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: su,sv ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: sw    ! MJT nestin
-      real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: st,sq ! MJT nestin
+      real, dimension(il_g*il_g*6), intent(inout) :: qp,qsum
+      real, dimension(il_g*il_g*6), intent(inout) :: sp,ssum
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: qu    ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: qv    ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: qw    ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: qt    ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: qq    ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: su    ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: sv    ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: sw    ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: st    ! MJT nestin
+      real, dimension(il_g*il_g*6,kbotdav:ktopdav), intent(inout) :: sq    ! MJT nestin
+      real, dimension(il_g*il_g*6), intent(in) :: x_g,y_g,z_g
       real, dimension(4*il_g,kbotdav:ktopdav) :: pu,pv,pw,pt,pq ! MJT nestin
       real, dimension(4*il_g,kbotdav:ktopdav) :: au,av,aw,at,aq ! MJT nestin
       real, dimension(4*il_g) :: pp,ap,psum,asum,ra,xa,ya,za
-      real, dimension(ifull_g*(ktopdav-kbotdav+1)) :: dd ! MJT nestin
+      real, dimension(il_g*il_g*6*(ktopdav-kbotdav+1)) :: dd ! MJT nestin
+      
+      ifull_g=il_g*il_g*6
+      maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
       
       if (pold.lt.0) pold=ppass
       
       if (ppass.eq.pair(pold)) then
         if (myid==0.and.nmaxpr==1) then
-          print *,"Use stored convolution for pass 0 and 1"
+          write(6,*) "Use stored convolution for pass 0 and 1"
         end if
         ips=2
         qsum(:)=ssum(:)
@@ -1773,7 +1808,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           if (ipass.eq.3) then
             itag=itag+1
             if (myid==0.and.nmaxpr==1) then
-              print *,"Recieve arrays from local host"
+              write(6,*) "Recieve arrays from local host"
             end if
             if (myid==hproc) then
               do iproc=hproc+1,mproc+hproc-1
@@ -1930,7 +1965,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             end if
           end if
 
-          if ((myid==0).and.(nmaxpr==1)) print *,"Start convolution"
+          if ((myid==0).and.(nmaxpr==1)) write(6,*) "Start convolution"
 
           do j=ns,ne
             asum(1:me)=qsum(igrd(1:me,j,ipass))
@@ -1999,7 +2034,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             end if
           end do
 
-          if (myid==0.and.nmaxpr==1) print *,"End convolution"
+          if (myid==0.and.nmaxpr==1) write(6,*) "End convolution"
 
           if (ipass.eq.1) then
             pold=ppass          
@@ -2021,7 +2056,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           elseif ((ipass.eq.2).or.(ipass.eq.3)) then
             itag=itag+1
             if ((myid==0).and.(nmaxpr==1)) then
-              print *,"Send arrays to local host"
+              write(6,*) "Send arrays to local host"
             end if
             if (myid==hproc) then
               do iproc=hproc+1,mproc+hproc-1
@@ -2354,7 +2389,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             b=-1
             c=2*il_g*il_g+1
           case DEFAULT
-            print *,"Invalid index ",ppass,ipass,sn,
+            write(6,*) "Invalid index ",ppass,ipass,sn,
      &              ppass*100+ipass*10+(sn-1)/il_g
             stop
         end select
@@ -2420,14 +2455,14 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real :: cq
       real, parameter :: miss = 999999.
       real, parameter :: alpha = 1. ! nudging weight
-
+      
       cq=sqrt(4.5)*.1*real(hostscale)/(pi*schmidt)
       
       old=new
       call mloexport(ifull,old,ilev,0)
 
       diff=miss
-      where (.not.land.and.new.gt.271.3)
+      where (.not.land.and.new.gt.271.2)
         diff(:)=new-old
       end where
 
@@ -2526,7 +2561,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       call mloexport(ifull,old,ilev,0)
 
       diff=miss
-      where (.not.land.and.new.gt.271.3)
+      where (.not.land.and.new.gt.271.2)
         diff(:)=new-old
       end where
 
@@ -2536,7 +2571,8 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         call ccmpi_gather(diff)
       end if
       
-      call mlospechost(myid,mproc,hproc,npta,pn,px,ns,ne,cq,diff_g,miss)
+      call mlospechost(il_g,nproc,myid,mproc,hproc,npta,pn,px,ns,ne,
+     &                 cq,diff_g,miss,em_g,x_g,y_g,z_g)
       
       if (myid == 0) then
         call ccmpi_distribute(diff, diff_g)
@@ -2553,34 +2589,37 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       return
       end subroutine mlofilterfast
 
-      subroutine mlospechost(myid,mproc,hproc,npta,pn,px,ns,ne,cq,
-     &                       diff_g,miss)
+      subroutine mlospechost(il_g,nproc,myid,mproc,hproc,npta,pn,px,
+     &                       ns,ne,cq,diff_g,miss,em_g,x_g,y_g,z_g)
       
       implicit none
       
-      include 'newmpar.h'    ! ifull_g
       include 'const_phys.h' ! rearth,pi,tpi
-      include 'map_g.h'      ! em_g
       include 'mpif.h'       ! MPI
       include 'parm.h'
       
-      integer, intent(in) :: myid,mproc,hproc,npta,pn,px,ns,ne
+      integer, intent(in) :: il_g,nproc,myid,mproc,hproc,npta,pn,px,ns
+      integer, intent(in) :: ne
       integer :: ppass,qpass,iy,ppn,ppx,nne,nns,iproc,itag=0,ierr
       integer :: n,a,c
+      integer :: til
       integer, dimension(MPI_STATUS_SIZE) :: status
-      integer, parameter :: til=il_g*il_g
       integer, parameter, dimension(0:5) :: qaps=(/0,3,1,4,2,5/)
-      integer, parameter, dimension(0:5) :: qms=qaps*til
+      integer, dimension(0:5) :: qms
       real, intent(in) :: cq,miss
-      real, dimension(ifull_g), intent(inout) :: diff_g
-      real, dimension(ifull_g) :: qp,qsum,sp,ssum,zp
-      real, dimension(ifull_g) :: dd 
+      real, dimension(il_g*il_g*6), intent(inout) :: diff_g
+      real, dimension(il_g*il_g*6), intent(in) :: em_g,x_g,y_g,z_g
+      real, dimension(il_g*il_g*6) :: qp,qsum,sp,ssum,zp
+      real, dimension(il_g*il_g*6) :: dd 
 
-      call MPI_Bcast(diff_g,ifull_g,MPI_REAL,0,
+      til=il_g*il_g
+      qms=qaps*til
+
+      call MPI_Bcast(diff_g,til*6,MPI_REAL,0,
      &           MPI_COMM_WORLD,ierr)
       
       if (ns.gt.ne) return
-      if ((myid==0).and.(nmaxpr==1)) print *,"MLO Start 1D filter"
+      if ((myid==0).and.(nmaxpr==1)) write(6,*) "MLO Start 1D filter"
 
       zp=0.
 
@@ -2596,8 +2635,8 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end where
 
         ! computations for the local processor group
-        call mlospeclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,qp,
-     &         ssum,sp)
+        call mlospeclocal(il_g,nproc,myid,mproc,hproc,ns,ne,cq,ppass,
+     &         qsum,qp,ssum,sp,x_g,y_g,z_g)
         
         nns=qms(qpass)+1
         nne=qms(qpass)+til
@@ -2606,11 +2645,11 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end where
       end do
 
-      if ((myid==0).and.(nmaxpr==1)) print *,"MLO End 1D filter"
+      if ((myid==0).and.(nmaxpr==1)) write(6,*) "MLO End 1D filter"
 
       itag=itag+1
       if (myid == 0) then
-        if (nmaxpr==1) print *,"MLO Receive arrays from all proc"
+        if (nmaxpr==1) write(6,*) "MLO Receive arrays from all proc"
         do iproc=mproc,nproc-1,mproc
           ppn=iproc*npta/mproc
           ppx=(iproc+mproc)*npta/mproc-1
@@ -2645,17 +2684,15 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       !---------------------------------------------------------------------------------
       
       !---------------------------------------------------------------------------------
-      subroutine mlospeclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
-     &             qp,ssum,sp)
+      subroutine mlospeclocal(il_g,nproc,myid,mproc,hproc,ns,ne,cq,
+     &             ppass,qsum,qp,ssum,sp,x_g,y_g,z_g)
       implicit none
       
-      include 'newmpar.h'    ! ifull_g
       include 'const_phys.h' ! pi
-      include 'xyzinfo_g.h'  ! x_g,y_g,z_g
       include 'mpif.h'       ! MPI
       include 'parm.h'
       
-      integer, intent(in) :: myid,mproc,hproc,ns,ne,ppass
+      integer, intent(in) :: il_g,nproc,myid,mproc,hproc,ns,ne,ppass
       integer :: j,n,ipass,kpass,iy
       integer :: iproc,itag=0,ierr
       integer :: nne,nns,me
@@ -2663,22 +2700,24 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       integer, save :: pold=-1
       integer, dimension(MPI_STATUS_SIZE) :: status
       integer, dimension(4*il_g,il_g,0:3) :: igrd
-      integer, parameter, dimension(0:3) ::
-     &  maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
+      integer, dimension(0:3) ::  maps
       integer, parameter, dimension(0:5) :: pair=(/3,4,5,0,1,2/)
       integer, parameter, dimension(2:3) :: kn=(/0,3/)
       integer, parameter, dimension(2:3) :: kx=(/2,3/)
       real, intent(in) :: cq
-      real, dimension(ifull_g), intent(inout) :: qp,qsum
-      real, dimension(ifull_g), intent(inout) :: sp,ssum
+      real, dimension(il_g*il_g*6), intent(inout) :: qp,qsum
+      real, dimension(il_g*il_g*6), intent(inout) :: sp,ssum
+      real, dimension(il_g*il_g*6), intent(in) :: x_g,y_g,z_g
       real, dimension(4*il_g) :: pp,ap,psum,asum,ra,xa,ya,za
-      real, dimension(ifull_g) :: dd
+      real, dimension(il_g*il_g*6) :: dd
+      
+      maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
       
       if (pold.lt.0) pold=ppass
       
       if (ppass.eq.pair(pold)) then
         if (myid==0.and.nmaxpr==1) then
-          print *,"MLO Use stored convolution"
+          write(6,*) "MLO Use stored convolution"
         end if
         ips=2
         qsum(:)=ssum(:)
@@ -2694,7 +2733,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           if (ipass.eq.3) then
             itag=itag+1
             if (myid==0.and.nmaxpr==1) then
-              print *,"MLO Recieve arrays from local host"
+              write(6,*) "MLO Recieve arrays from local host"
             end if
             if (myid==hproc) then
               do iproc=hproc+1,mproc+hproc-1
@@ -2739,7 +2778,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             end if
           end if
 
-          if ((myid==0).and.(nmaxpr==1)) print *,"MLO start conv"
+          if ((myid==0).and.(nmaxpr==1)) write(6,*) "MLO start conv"
 
           do j=ns,ne
             asum(1:me)=qsum(igrd(1:me,j,ipass))
@@ -2764,7 +2803,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             qp(igrd(1:il_g,j,ipass))=pp(1:il_g)
           end do
 
-          if (myid==0.and.nmaxpr==1) print *,"MLO end conv"
+          if (myid==0.and.nmaxpr==1) write(6,*) "MLO end conv"
 
           if (ipass.eq.1) then
             pold=ppass          
@@ -2773,7 +2812,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           elseif ((ipass.eq.2).or.(ipass.eq.3)) then
             itag=itag+1
             if ((myid==0).and.(nmaxpr==1)) then
-              print *,"MLO Send arrays to local host"
+              write(6,*) "MLO Send arrays to local host"
             end if
             if (myid==hproc) then
               do iproc=hproc+1,mproc+hproc-1
@@ -2853,7 +2892,7 @@ c        print *,'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       call mloexport(ifull,old,ilev,0)
       
       wgt=dt/real(nud_hrs*3600)
-      where (.not.land.and.new.gt.271.3)
+      where (.not.land.and.new.gt.271.2)
         old=old*(1.-wgt)+new*wgt
       end where
       

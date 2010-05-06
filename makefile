@@ -1,6 +1,7 @@
 FC = ifort
 
-FFLAGS = -O -fpp -I /tools/netcdf/3.6.0-p1/include -assume buffered_io -Dsimple_timer
+FFLAGS = -O -fpp -I /tools/netcdf/3.6.0-p1/include -assume buffered_io -Dsimple_timer -Duniform_decomp
+#FFLAGS = -O -fpp -I /tools/netcdf/3.6.0-p1/include -assume buffered_io -Dsimple_timer
 #FFLAGS = -O -fpp -I /tools/netcdf/3.6.0-p1/include -Dsimple_timer -fpe0 -g
 LIBS = -L /tools/netcdf/3.6.0-p1/lib -lnetcdf -lmpi
 
@@ -63,6 +64,8 @@ ateb.o: ateb.f90
 	$(FC)  -c -override-limits $(FFLAGS) $<
 cable_canopy.o: cable_canopy.F90
 	$(FC)  -c -override-limits $(FFLAGS) $<
+onthefly.o: onthefly.f
+	$(FC)  -c -override-limits $(FFLAGS) $<	
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
 
@@ -153,7 +156,7 @@ optical_path.o : rad_utilities.o longwave_params.o lw_gases_stdtf.o
 outcdf.o : outcdf.f vvel.h version.h trcom2.h soilv.h soilsnow.h soil.h sigs.h screen.h scamdim.h raddiag.h prec.h pbl.h nsibd.h morepbl.h mapproj.h map.h histave.h extraout.h arrays.h tracers.h parmvert.h parmhor.h parmdyn.h parm.h liqwpar.h kuocom.h filnames.h dates.h darcdf.h newmpar.h cc_mpi.o ateb.o mlo.o tracermodule.o tkeeps.o
 outfile.o : outfile.f vvel.h tracers.h soilsnow.h soilv.h soil.h sigs.h screen.h scamdim.h prec.h pbl.h parmvert.h parmdyn.h parm.h nsibd.h nlin.h morepbl.h map.h kuocom.h histave.h filnames.h extraout.h dava.h dates.h darcdf.h arrays.h newmpar.h cc_mpi.o 
 pbldif.o : pbldif.f map.h sigs.h parm.h morepbl.h kuocom.h extraout.h const_phys.h arrays.h newmpar.h 
-radriv90.o : radriv90.f establ.h tfcom.h swocom.h srccom.h rdflux.h raddiag.h radisw.h lwout.h hcon.h cldcom.h rdparm.h soilv.h soilsnow.h soil.h sigs.h scamdim.h pbl.h parm.h nsibd.h map.h liqwpar.h latlong.h kuocom.h extraout.h dates.h cparams.h const_phys.h arrays.h newmpar.h zenith.o swr99.o ateb.o
+radriv90.o : radriv90.f establ.h tfcom.h swocom.h srccom.h rdflux.h raddiag.h radisw.h lwout.h hcon.h cldcom.h rdparm.h soilv.h soilsnow.h soil.h sigs.h scamdim.h pbl.h parm.h nsibd.h map.h liqwpar.h latlong.h kuocom.h extraout.h dates.h cparams.h const_phys.h arrays.h newmpar.h zenith.o swr99.o ateb.o mlo.o
 rdparm.o : rdparm.f 
 read_ht.o : read_ht.f 
 resetd.o : resetd.f 
@@ -161,7 +164,7 @@ retopo.o : retopo.f sigs.h parm.h const_phys.h newmpar.h cc_mpi.o
 rnddta.o : rnddta.f 
 scamrdn.o : scamrdn.f soilv.h soilsnow.h soil.h sigs.h scamdim.h pbl.h parm.h nsibd.h filnames.h const_phys.h arrays.h newmpar.h 
 scrnout.o : scrnout.f establ.h soilsnow.h soil.h sigs.h scamdim.h prec.h pbl.h parm.h nsibd.h map.h liqwpar.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o morepbl.h
-seaesfrad.o : rad_utilities.o microphys_rad.o esfsw_driver.o sealw99.o esfsw_parameters.o zenith.o ateb.o cable_ccam2.o
+seaesfrad.o : rad_utilities.o microphys_rad.o esfsw_driver.o sealw99.o esfsw_parameters.o zenith.o ateb.o cable_ccam2.o mlo.o
 sealw99.o : rad_utilities.o longwave_params.o longwave_clouds.o longwave_fluxes.o longwave_tables.o optical_path.o gas_tf.o lw_gases_stdtf.o
 setxyz.o : setxyz.f bigxy4.h indices_gx.h vecsuv_gx.h xyzinfo_gx.h parm.h map_gx.h latlong_gx.h const_phys.h newmpar_gx.h utilities.o 
 sflux.o : sflux.f latlong.h dates.h establ.h vvel.h trcom2.h tracers.h soilsnow.h soilv.h soil.h sigs.h screen.h scamdim.h savuvt.h prec.h permsurf.h pbl.h parm.h nsibd.h morepbl.h map.h liqwpar.h gdrag.h extraout.h const_phys.h arrays.h newmpar.h cc_mpi.o diag_m.o ateb.o cable_ccam2.o mlo.o

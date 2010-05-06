@@ -1,11 +1,11 @@
 
-! This is a 1D, mixed layer ocean model for regioal climate simulations based on Large, et al (1994)
+! This is a 1D, mixed layer ocean model for ensemble regioal climate simulations based on Large, et al (1994)
 ! (i.e., adapted from the GFDL code).  This code is also used for modelling lakes in CCAM.
 
 ! This version has a relatively thin 1st layer (0.5m) so as to reproduce a diurnal cycle in SST.  It also
 ! supports sea ice based on O'Farrell's sea ice model from Mk3.5.
 
-! This version can assimilate SSTs from GCMs, using a convolution based digital filter (see nestin.f)
+! This version can assimilate SSTs from GCMs, using a convolution based digital filter (see nestin.f),
 ! which avoids problems with complex land-sea boundary conditions
 
 module mlo
@@ -13,22 +13,24 @@ module mlo
 implicit none
 
 private
-public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,wlev,depth, &
-       mlodwn,mlootf,ocndwn,ocnotf
+public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
+       wlev,depth,mlodwn,mlootf,ocndwn,ocnotf
 
 type tdata
   real temp,sal,u,v
 end type tdata
-!type tice
-!  real tn(0:3)
-!  real dic,sto
-!end type tice
+type tice
+  real tn(0:3)
+  real dic,fracice
+end type tice
 type tprog2
   real mixdepth,bf
+  real watervisdiralb,watervisdifalb,waternirdiralb,waternirdifalb
+  real icevisdiralb,icevisdifalb,icenirdiralb,icenirdifalb
   integer mixind
 end type tprog2
 type tatm
-  real sg,rg,fg,eg,rnd,taux,tauy,f,vnratio
+  real sg,rg,fg,eg,rnd,taux,tauy,f,vnratio,fbvis,fbnir
 end type tatm
 type tout
   real sst
@@ -52,6 +54,7 @@ real, dimension(:,:), allocatable, save :: dz_hl
 real, dimension(:,:,:), allocatable, save :: mlodwn,mlootf ! These variables are for CCAM onthefly.f
 real, dimension(:), allocatable, save :: ocndwn,ocnotf     ! These variables are for CCAM onthefly.f
 type(tdata), dimension(:,:), allocatable, save :: water
+type(tice), dimension(:), allocatable, save :: ice
 type(tprog2), dimension(:), allocatable, save :: pg
 
 ! mode
@@ -78,7 +81,9 @@ real, parameter :: vkar=0.4               ! von Karman constant
 real, parameter :: lv=2.501e6             ! Latent heat of vaporisation
 real, parameter :: cp0=3990.              ! heat capacity of mixed layer (J kg^-1 K^-1)
 real, parameter :: grav=9.80              ! graviational constant (m/s^2)
+real, parameter :: sbconst=5.67e-8        ! Stefan-Boltzmann constant
 real, parameter :: cdbot=2.4E-3           ! bottom drag coefficent
+real, parameter :: tfi=271.2              ! Freezing temperature
 
 contains
 
@@ -102,6 +107,7 @@ wfull=count(depin.gt.mindep)
 if (wfull.eq.0) return
 
 allocate(water(wfull,wlev),wgrid(wfull),pg(wfull))
+!allocate(ice(wfull))
 allocate(depth(wfull,wlev),dz(wfull,wlev))
 allocate(depth_hl(wfull,wlev+1))
 allocate(dz_hl(wfull,2:wlev))
@@ -120,10 +126,16 @@ if (iqw.ne.wfull) then
   stop
 end if
 
-water%temp=288. ! K
-water%sal=35.   ! PSU
-water%u=0.      ! m/s
-water%v=0.      ! m/s
+water%temp=288.          ! K
+water%sal=35.            ! PSU
+water%u=0.               ! m/s
+water%v=0.               ! m/s
+
+!ice%dic=0.              ! m
+!ice%fracice=0.          ! %
+!do ii=0,3
+!  ice(:)%tn(ii)=271.2   ! K
+!end do
 
 pg%mixdepth=100. ! m
 pg%mixind=wlev-1
@@ -141,11 +153,11 @@ smnd=minval(depin(wgrid))
 do iqw=1,wfull
   call vgrid(depin(wgrid(iqw)),depth(iqw,:),depth_hl(iqw,:))
   if (smxd.eq.depin(wgrid(iqw))) then
-    print *,"MLO max depth ",depth(iqw,:)
+    write(6,*) "MLO max depth ",depth(iqw,:)
     smxd=smxd+10.
   end if
   if (smnd.eq.depin(wgrid(iqw))) then
-    print *,"MLO min depth ",depth(iqw,:)
+    write (6,*) "MLO min depth ",depth(iqw,:)
     smnd=smnd-10.
   end if
 end do
@@ -207,6 +219,7 @@ implicit none
 if (wfull.eq.0) return
 
 deallocate(water,wgrid,pg)
+!deallocate(ice)
 deallocate(depth,dz,depth_hl,dz_hl)
 
 return
@@ -231,6 +244,11 @@ do ii=1,wlev
   water(:,ii)%u=datain(wgrid,ii,3)
   water(:,ii)%v=datain(wgrid,ii,4)
 end do
+!ice(:)%dic=datainb(wgrid,1)
+!ice(:)%fracice=datainb(wgrid,2)
+!do ii=0,3
+!  ice(:)%tn(ii)=datainc(wgrid,ii,1)
+!end do
 
 return
 end subroutine mloload
@@ -255,6 +273,11 @@ do ii=1,wlev
   dataout(wgrid,ii,3)=water(:,ii)%u
   dataout(wgrid,ii,4)=water(:,ii)%v
 end do
+!dataoutb(wgrid,1)=ice(:)%dic
+!dataoutb(wgrid,2)=ice(:)%fracice
+!do ii=0,3
+!  dataoutc(wgrid,ii,1)=ice(:)%tn(ii)
+!end do
 depout=0.
 depout(wgrid)=depth_hl(:,wlev+1)
 
@@ -292,6 +315,136 @@ sst(wgrid)=water(:,ilev)%temp
 
 return
 end subroutine mloexport
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Return mixed layer depth
+
+subroutine mlodiag(ifull,mld,diag)
+
+implicit none
+
+integer, intent(in) :: ifull,diag
+real, dimension(ifull), intent(out) :: mld
+
+mld=0.
+if (wfull.eq.0) return
+mld(wgrid)=pg(:)%mixdepth
+
+return
+end subroutine mlodiag
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate albedo data (VIS + NIR)
+
+subroutine mloalb2(istart,ifull,land,coszro,fracice,ovisalb,oniralb,diag)
+
+implicit none
+
+integer, intent(in) :: istart,ifull,diag
+integer ifinish,ib,ie,iqw
+real, dimension(ifull), intent(in) :: coszro,fracice
+real, dimension(ifull), intent(inout) :: ovisalb,oniralb
+real, dimension(ifull) :: watervis,waternir,icevis,icenir
+logical, dimension(ifull), intent(in) :: land
+
+watervis=.05/(coszro+0.15)
+waternir=.05/(coszro+0.15)
+icevis=0.85
+icenir=0.45
+where (.not.land)
+  ovisalb=icevis*fracice+(1.-fracice)*watervis
+  oniralb=icenir*fracice+(1.-fracice)*waternir
+endwhere
+
+if (wfull.eq.0) return
+
+ifinish=istart+ifull-1
+ib=wfull+1
+do iqw=wfull,1,-1
+  if (wgrid(iqw).lt.istart) exit
+  ib=iqw
+end do
+if (ib.gt.wfull) return
+ie=-1
+do iqw=ib,wfull
+  if (wgrid(iqw).gt.ifinish) exit
+  ie=iqw
+end do
+if (ie.lt.ib) return
+
+pg(ib:ie)%watervisdiralb=watervis(wgrid(ib:ie)-istart+1)
+pg(ib:ie)%watervisdifalb=watervis(wgrid(ib:ie)-istart+1)
+pg(ib:ie)%waternirdiralb=waternir(wgrid(ib:ie)-istart+1)
+pg(ib:ie)%waternirdifalb=waternir(wgrid(ib:ie)-istart+1)
+pg(ib:ie)%icevisdiralb=icevis(wgrid(ib:ie)-istart+1)
+pg(ib:ie)%icevisdifalb=icevis(wgrid(ib:ie)-istart+1)
+pg(ib:ie)%icenirdiralb=icenir(wgrid(ib:ie)-istart+1)
+pg(ib:ie)%icenirdifalb=icenir(wgrid(ib:ie)-istart+1)
+
+return
+end subroutine mloalb2
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate albedo data (VIS-DIR, VIS-DIF, NIR-DIR & NIR-DIF)
+
+subroutine mloalb4(istart,ifull,land,coszro,fracice,ovisdir,ovisdif,onirdir,onirdif,diag)
+
+implicit none
+
+integer, intent(in) :: istart,ifull,diag
+integer ifinish,ib,ie,iqw
+real, dimension(ifull), intent(in) :: coszro,fracice
+real, dimension(ifull), intent(inout) :: ovisdir,ovisdif,onirdir,onirdif
+real, dimension(ifull) :: watervisdiralb,watervisdifalb,waternirdiralb,waternirdifalb
+real, dimension(ifull) :: icevisdiralb,icevisdifalb,icenirdiralb,icenirdifalb
+logical, dimension(ifull), intent(in) :: land
+
+where (coszro.gt.0.)
+  watervisdiralb=0.026/(coszro**1.7+0.065)+0.15*(coszro-0.1)*(coszro-0.5)*(coszro-1.)
+elsewhere
+  watervisdiralb=0.3925 
+endwhere
+watervisdifalb=0.06
+waternirdiralb=watervisdiralb
+waternirdifalb=0.06
+icevisdiralb=0.85
+icevisdifalb=0.85
+icenirdiralb=0.45
+icenirdifalb=0.45
+where (.not.land)
+  ovisdir=fracice*icevisdiralb+(1.-fracice)*watervisdiralb
+  ovisdif=fracice*icevisdifalb+(1.-fracice)*watervisdifalb
+  onirdir=fracice*icenirdiralb+(1.-fracice)*waternirdiralb
+  onirdif=fracice*icenirdifalb+(1.-fracice)*waternirdifalb
+endwhere
+
+if (wfull.eq.0) return
+
+ifinish=istart+ifull-1
+ib=wfull+1
+do iqw=wfull,1,-1
+  if (wgrid(iqw).lt.istart) exit
+  ib=iqw
+end do
+if (ib.gt.wfull) return
+ie=-1
+do iqw=ib,wfull
+  if (wgrid(iqw).gt.ifinish) exit
+  ie=iqw
+end do
+if (ie.lt.ib) return
+
+pg(ib:ie)%watervisdiralb=watervisdiralb(wgrid(ib:ie)-istart+1)
+pg(ib:ie)%watervisdifalb=watervisdifalb(wgrid(ib:ie)-istart+1)
+pg(ib:ie)%waternirdiralb=waternirdiralb(wgrid(ib:ie)-istart+1)
+pg(ib:ie)%waternirdifalb=waternirdifalb(wgrid(ib:ie)-istart+1)
+pg(ib:ie)%icevisdiralb=icevisdiralb(wgrid(ib:ie)-istart+1)
+pg(ib:ie)%icevisdifalb=icevisdifalb(wgrid(ib:ie)-istart+1)
+pg(ib:ie)%icenirdiralb=icenirdiralb(wgrid(ib:ie)-istart+1)
+pg(ib:ie)%icenirdifalb=icenirdifalb(wgrid(ib:ie)-istart+1)
+
+return
+end subroutine mloalb4
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Regrid MLO data
@@ -340,13 +493,13 @@ end subroutine mloregrid
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
 
-subroutine mloeval(ifull,sst,dt,fg,eg,sg,rg,precp,taux,tauy,uatm,vatm,f,visnirratio,diag)
+subroutine mloeval(ifull,sst,dt,fg,eg,sg,rg,precp,taux,tauy,uatm,vatm,f,visnirratio,fbvis,fbnir,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
 real, intent(in) :: dt
-real, dimension(ifull), intent(in) :: sg,rg,fg,eg,taux,tauy,precp,f,uatm,vatm,visnirratio
+real, dimension(ifull), intent(in) :: sg,rg,fg,eg,taux,tauy,precp,f,uatm,vatm,visnirratio,fbvis,fbnir
 real, dimension(ifull), intent(inout) :: sst
 real, dimension(wfull) :: ua,va,umag,uad,vad,umagd
 type(tatm), dimension(wfull) :: atm
@@ -361,9 +514,11 @@ atm%eg=eg(wgrid)
 atm%rnd=precp(wgrid)
 atm%taux=taux(wgrid)
 atm%tauy=tauy(wgrid)
-atm%f=f(wgrid)
-!atm%f=0. ! turn off coriolis terms when no geostrophic term)
+!atm%f=f(wgrid)
+atm%f=0. ! turn off coriolis terms when no geostrophic term
 atm%vnratio=visnirratio(wgrid)
+atm%fbvis=fbvis(wgrid)
+atm%fbnir=fbnir(wgrid)
 
 ua=uatm(wgrid)
 va=vatm(wgrid)
@@ -506,8 +661,6 @@ water=new
 
 !--------------------------------------------------------------------
 uo%sst=water(:,1)%temp
-
-call seaice
 
 return
 end subroutine mlocalc
@@ -822,6 +975,7 @@ integer, parameter :: nits=1 ! iterate for density (nits=1 recommended)
 real, dimension(wfull) :: t,s,p1,p2,t2,t3,t4,t5,s2,s3,s32
 real, dimension(wfull) :: drho0dt,drho0ds,dskdt,dskds,sk,sks
 real, dimension(wfull) :: drhodt,drhods,rs0,rho0,hlra,hlrb
+real, dimension(wfull) :: visalb,niralb
 real, dimension(wfull,wlev) :: rs
 real, parameter :: density = 1035.
 type(tdiag2), dimension(wfull), intent(inout) :: dg2
@@ -932,23 +1086,30 @@ dg3(:,wlev)%nsq=-(grav/dg3(:,wlev)%rho)*(dg3(:,wlev-1)%rho-dg3(:,wlev)%rho)/dz_h
 
 ! shortwave
 ! use -ve as depth is down
+visalb=pg%watervisdiralb*atm%fbvis+pg%watervisdifalb*(1.-atm%fbvis)
+niralb=pg%waternirdiralb*atm%fbnir+pg%waternirdifalb*(1.-atm%fbnir)
 hlrb=0.5*(dg3(:,1)%rho+dg3(:,2)%rho)
-dg3(:,1)%rad=-atm%sg/cp0*((atm%vnratio*exp(-depth_hl(:,2)/mu_1)+(1.-atm%vnratio)*exp(-depth_hl(:,2)/mu_2))/hlrb &
-                         -(atm%vnratio*exp(-depth_hl(:,1)/mu_1)+(1.-atm%vnratio)*exp(-depth_hl(:,1)/mu_2))/rho0)
+dg3(:,1)%rad=-atm%sg/cp0*(((1.-visalb)*atm%vnratio*exp(-depth_hl(:,2)/mu_1)+ &
+                           (1.-niralb)*(1.-atm%vnratio)*exp(-depth_hl(:,2)/mu_2))/hlrb- &
+                          ((1.-visalb)*atm%vnratio*exp(-depth_hl(:,1)/mu_1)+ &
+                           (1.-niralb)*(1.-atm%vnratio)*exp(-depth_hl(:,1)/mu_2))/rho0)
 do ii=2,wlev-1 
   hlra=0.5*(dg3(:,ii-1)%rho+dg3(:,ii)%rho)
   hlrb=0.5*(dg3(:,ii)%rho+dg3(:,ii+1)%rho)
-  dg3(:,ii)%rad=-atm%sg/cp0*((atm%vnratio*exp(-depth_hl(:,ii+1)/mu_1)+(1.-atm%vnratio)*exp(-depth_hl(:,ii+1)/mu_2))/hlrb &
-                            -(atm%vnratio*exp(-depth_hl(:,ii)/mu_1)+(1.-atm%vnratio)*exp(-depth_hl(:,ii)/mu_2))/hlra)
+  dg3(:,ii)%rad=-atm%sg/cp0*(((1.-visalb)*atm%vnratio*exp(-depth_hl(:,ii+1)/mu_1)+ &
+                              (1.-niralb)*(1.-atm%vnratio)*exp(-depth_hl(:,ii+1)/mu_2))/hlrb- &
+                             ((1.-visalb)*atm%vnratio*exp(-depth_hl(:,ii)/mu_1)+ &
+                              (1.-niralb)*(1.-atm%vnratio)*exp(-depth_hl(:,ii)/mu_2))/hlra)
 end do
 hlra=0.5*(dg3(:,wlev-1)%rho+dg3(:,wlev)%rho)
-dg3(:,wlev)%rad=atm%sg/cp0*(atm%vnratio*exp(-depth_hl(:,wlev)/mu_1)+(1.-atm%vnratio)*exp(-depth_hl(:,wlev)/mu_2))/hlra ! remainder
+dg3(:,wlev)%rad=atm%sg/cp0*((1.-visalb)*atm%vnratio*exp(-depth_hl(:,wlev)/mu_1)+ &
+                            (1.-niralb)*(1.-atm%vnratio)*exp(-depth_hl(:,wlev)/mu_2))/hlra ! remainder
 
 ! Boundary conditions (use rho at level 1 for consistancy with shortwave radiation)
-dg2%wu0=-atm%taux/dg3(:,1)%rho                             ! BC
-dg2%wv0=-atm%tauy/dg3(:,1)%rho                             ! BC
-dg2%wt0=-(-atm%fg-atm%eg+atm%rg)/(dg3(:,1)%rho*cp0)        ! BC
-dg2%ws0=(atm%rnd-atm%eg/lv)*water(:,1)%sal/rs(:,1)         ! BC ! negect ice for now
+dg2%wu0=-atm%taux/dg3(:,1)%rho                                                 ! BC
+dg2%wv0=-atm%tauy/dg3(:,1)%rho                                                 ! BC
+dg2%wt0=-(-atm%fg-atm%eg+atm%rg-sbconst*water(:,1)%temp**4)/(dg3(:,1)%rho*cp0) ! BC
+dg2%ws0=(atm%rnd-atm%eg/lv)*water(:,1)%sal/rs(:,1)                             ! BC ! negect ice for now (included in seaice using split form)
 
 dg2%ustar=max(sqrt(sqrt(dg2%wu0*dg2%wu0+dg2%wv0*dg2%wv0)),1.E-10)
 dg2%b0=-grav*(dg3(:,1)%alpha*dg2%wt0-dg3(:,1)%beta*dg2%ws0)
@@ -957,23 +1118,70 @@ dg2%b0=-grav*(dg3(:,1)%alpha*dg2%wt0-dg3(:,1)%beta*dg2%ws0)
 return
 end subroutine getrho
 
-!Pack sea ice for calcuation
-subroutine seaice
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Form seaice before flux calculations
+
+subroutine mlonewice(ifull,fracice,sicedep,diag)
 
 implicit none
 
-! Formation
-water%temp=max(water%temp,271.3) ! fix for missing sea-ice (to be removed)
+integer, intent(in) :: ifull,diag
+real, dimension(ifull), intent(inout) :: fracice,sicedep
+real, dimension(wfull) :: sst_pack,newdic,newtn
+logical, dimension(wfull) :: cice
+!real, parameter :: hcap=
+!real, parameter :: qice=
 
-! where (water%temp(:,1).lt.271.3) ! form new sea-ice
-!   dic=dic+
-!   water%temp(:,1)=271.3
-! end where
+! formation
+cice=water(:,1)%temp.lt.tfi !.and.ice%fracice.le.0.
+!newdic=0.
+!newtn=tfi
+!where(cice)
+!  newdic=(tfi-water(:,1)%temp)*hcap*dz(:,1)/qice
+!endwhere
+!where(newdic.gt.0.15)
+!  newdic=0.15
+!  newtn=water(:,1)%temp+0.15*qice/(hcap*dz(:,1))
+!endwhere
+where (cice) ! form new sea-ice
+!  ice%dic=newdic
+!  ice%fracice=1.
+!  ice%tn(0)=273.05
+!  ice%tn(1)=newtn
+!  ice%tn(2)=newtn
+!  ice%tn(3)=newtn
+!  ice%sto=0.
+!  ice%pl=0. ! set leads to zero until dynamics is working
+  water(:,1)%temp=tfi
+endwhere
 
+!fracice(wgrid)=ice%fracice
+!sicedep(wgrid)=ice%dic
 
+return
+end subroutine mlonewice
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!Pack sea ice for calcuation
+
+! Neglect leads for now until MLO supports horizontal advection.
+! Sea ice model is then only a multi-layer thermodynamical model.
+
+subroutine mloseaice(ifull,sst,diag)
+
+implicit none
+
+integer, intent(in) :: ifull,diag
+integer nice,iqc,iqw,ii
+integer, dimension(wfull) :: icegrid
+real, dimension(ifull), intent(inout) :: sst
+logical, dimension(wfull) :: cice
+type(tice), dimension(wfull) :: ice_pack
+type(tatm), dimension(wfull) :: atm_pack
+
+! identify sea ice for packing
 !cice=dic.gt.0.
 !nice=count(cice)
-
 !iqc=0
 !do iqw=1,nice
 !  if (cice(iqw)) then
@@ -983,11 +1191,16 @@ water%temp=max(water%temp,271.3) ! fix for missing sea-ice (to be removed)
 !end do
 
 !ice_pack(1:nice)%dic=ice(icegrid(1:nice))%dic
+!ice_pack(1:nice)%fracice=ice(icegrid(1:nice))%fracice
 !ice_pack(1:nice)%sto=ice(icegrid(1:nice))%sto
-!do k=0,3
-!  ice_pack(1:nice)%tn(k)=ice(icegrid(1:nice))%tn(k)
+!ice_pack(1:nice)%pl=ice(icegrid(1:nice))%pl
+!do ii=0,3
+!  ice_pack(1:nice)%tn(ii)=ice(icegrid(1:nice))%tn(ii)
 !end do
 
+!atm_pack(1:nice)%vnratio=atm(icegrid(1:nice))%vnratio
+!atm_pack(1:nice)%fbvis=atm(icegrid(1:nice))%fbvis
+!atm_pack(1:nice)%fbnir=atm(icegrid(1:nice))%fbnir
 !atm_pack(1:nice)%sg=atm(icegrid(1:nice))%sg
 !atm_pack(1:nice)%rg=atm(icegrid(1:nice))%rg
 !atm_pack(1:nice)%fg=atm(icegrid(1:nice))%fg
@@ -996,20 +1209,54 @@ water%temp=max(water%temp,271.3) ! fix for missing sea-ice (to be removed)
 !atm_pack(1:nice)%taux=atm(icegrid(1:nice))%taux
 !atm_pack(1:nice)%tauy=atm(icegrid(1:nice))%tauy
 !atm_pack(1:nice)%f=atm(icegrid(1:nice))%f
+!atm_pack(1:nice)%fbvis=atm(icegrid(1:nice))%fbvis
+!atm_pack(1:nice)%fbnir=atm(icegrid(1:nice))%fbnir
 
-!call seaicecalc(nice,ice_pack,atm_pack,sst_pack)
+!call seaicecalc(nice,ice_pack(1:nice),atm_pack(1:nice))
 
-!sst=sst*(1.-fracice)+sst_pack(icegrid)*fracice
+!ice(icegrid(1:nice))%dic=ice_pack(1:nice)%dic
+!ice(icegrid(1:nice))%fracice=ice_pack(1:nice)%fracice
+!ice(icegrid(1:nice))%sto=ice_pack(1:nice)%sto
+!ice(icegrid(1:nice))%pl=ice_pack(1:nice)%pl
+!do ii=0,3
+!  ice(icegrid(1:nice))%tn(ii)=ice_pack(1:nice)%tn(ii)
+!end do
+!sst(wgrid)=sst(wgrid)*(1.-ice%fracice)+ice%tn(0)*ice%fracice
 
 return
-end subroutine seaice
+end subroutine mloseaice
 
-!Update sea ice prognostic variables
-!subroutine seaicecalc
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Update sea ice prognostic variables
+subroutine seaicecalc(nice,ice_pack,atm_pack)
 
-!implicit none
+implicit none
 
-!return
-!end subroutine seaicecalc
+integer, intent(in) :: nice
+type(tice), dimension(nice), intent(inout) :: ice_pack
+type(tatm), dimension(nice), intent(in) :: atm_pack
+
+!alb=     atm_pack%vnratio*(pg_pack%icevisdiralb*atm_pack%fbvis &
+!                          +pg_pack%icevisdifalb*(1.-atm_pack%fbvis))+ &
+!    (1.-atm_pack%vnratio)*(pg_pack%icevisdifalb*atm_pack%fbvis &
+!                          +pg_pack%icevisdifalb*(1.-atm_pack%fbvis))
+
+!rgn=ice_pack%rg-sbconst*ice_pack%tn(0)**4
+
+
+! calculate water temperature at ice bottom
+
+
+! update seaice temperature
+
+
+! update snow
+
+
+! update salinity due to melting ice (split form)
+
+
+return
+end subroutine seaicecalc
 
 end module mlo

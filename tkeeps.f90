@@ -54,8 +54,12 @@ real, parameter :: rcrit_s = 0.85
 ! physical constants
 real, parameter :: grav = 9.80616
 real, parameter :: lv = 2.5104e6
+real, parameter :: lf = 3.36e5
+real, parameter :: ls = lv+lf
 real, parameter :: epsl = 1./1.61
+real, parameter :: delta=1./(epsl-1.)
 real, parameter :: rd = 287.04
+real, parameter :: rv = 461.5
 real, parameter :: cp = 1004.64
 real, parameter :: vkar = 0.4
 
@@ -68,7 +72,7 @@ real, parameter :: d_1   = 0.35
 !real, parameter :: bb1 = 0.5 ! Luhar low wind
 !real, parameter :: cc1 = 0.3 ! Luhar low wind
 
-integer, parameter :: buoymeth = 1 ! 0 = Dry air, 1=Duynkerke
+integer, parameter :: buoymeth = 2 ! 0=Dry air, 1=Duynkerke, 2=Smith
 
 contains
 
@@ -122,13 +126,13 @@ real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: wt0,wq0,ps,ustar
 real, dimension(kl), intent(in) :: sigkap,sig
-real, dimension(ifull,kl) :: km,gamt,ff,gg,thetav,temp,gamq
+real, dimension(ifull,kl) :: km,gamt,ff,gg,thetal,thetav,temp,gamq
 real, dimension(ifull,kl) :: tkenew,epsnew,qsat,ppb
 real, dimension(ifull,2:kl) :: pps,ppt
 real, dimension(ifull,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull,2:kl) :: aa,bb,cc,dd
-real, dimension(ifull) :: wstar,z_on_l,phim,wtv0
+real, dimension(ifull) :: wstar,z_on_l,phim,wtv0,hh,ii,jj,dqsdt
 real, dimension(kl-1) :: wpv_flux,tup,qup,w2up
 real xp,wup,mflx,qupsat(1),ee
 real cf,qc,rcrit,delq
@@ -192,7 +196,7 @@ select case(buoymeth)
       gg(:,k)=(1.+1.61*epsl*lv*qg(:,k)/(rd*temp(:,k))) &
              /(1.+epsl*lv*lv*qg(:,k)/(cp*1.61*rd*temp(:,k)*temp(:,k)))/theta(:,k)
     end do
-    where (qg(:,1).lt.qsat(:,1).and.cfrac(:,1).eq.0.)
+    where (qg(:,1).lt.qsat(:,1).and.cfrac(:,1).lt.0.5)
       ppb(:,1)=-grav/thetav(:,1)*(thetav(:,2)-thetav(:,1))/dz_hl(:,1) &
                 +grav*(qlg(:,2)+qfg(:,2)-qlg(:,1)-qfg(:,1))/dz_hl(:,1) ! same as nvmix=5
     elsewhere
@@ -200,7 +204,7 @@ select case(buoymeth)
                 +grav*(qg(:,2)+qlg(:,2)+qfg(:,2)-qg(:,1)-qlg(:,1)-qfg(:,1))/dz_hl(:,1)
     end where
     do k=2,kl-1
-      where (qg(:,k).lt.qsat(:,k).and.cfrac(:,k).eq.0.)
+      where (qg(:,k).lt.qsat(:,k).and.cfrac(:,k).lt.0.5)
         ppb(:,k)=-grav/thetav(:,k)*0.5*(thetav(:,k+1)-thetav(:,k-1))/dz_fl(:,k) &
                  +grav*0.5*(qlg(:,k+1)+qfg(:,k+1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k) ! same as nvmix=5
       elsewhere
@@ -208,13 +212,33 @@ select case(buoymeth)
                  +grav*0.5*(qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-qg(:,k-1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k)
       end where
     end do
-    where (qg(:,kl).lt.qsat(:,kl).and.cfrac(:,kl).eq.0.)
+    where (qg(:,kl).lt.qsat(:,kl).and.cfrac(:,kl).lt.0.5)
       ppb(:,kl)=-grav/thetav(:,kl)*(thetav(:,kl)-thetav(:,kl-1))/dz_hl(:,kl-1) &
                 +grav*(qlg(:,kl)+qfg(:,kl)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1) ! same as nvmix=5
     elsewhere
       ppb(:,kl)=-grav*gg(:,kl)*(ff(:,kl)-ff(:,kl-1))/dz_hl(:,kl-1) &
                 +grav*(qg(:,kl)+qlg(:,kl)+qfg(:,kl)-qg(:,kl-1)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1)
     end where
+    
+  case(2) ! Smith (1990)
+    do k=1,kl
+      thetal(:,k)=theta(:,k)-(lv/cp*qlg(:,k)+ls/cp*qfg(:,k))*sigkap(k) ! thetal
+      jj(:)=lv+lf*qfg(:,k)/max(qlg(:,k)+qfg(:,k),1.e-12) ! L
+      call getqsat(ifull,ii,thetal(:,k)/sigkap(k),ps*sig(k))
+      dqsdt(:)=epsl*jj(:)*ii(:)/(rd*(thetal(:,k)/sigkap(k))**2)
+      hh(:)=cfrac(:,k)*(jj(:)/cp/temp(:,k) &
+                        -delta/(1.-epsl)/(1.+delta*qg(:,k)-qlg(:,k)-qfg(:,k)))/(1.+jj(:)/cp*dqsdt) ! betac
+      ff(:,k)=(1./temp(:,k)-dqsdt*hh(:))/sigkap(k)             ! betatt
+      gg(:,k)=delta/(1.+delta*qg(:,k)-qlg(:,k)-qfg(:,k))+hh(:) ! betaqt
+    end do    
+    ppb(:,1)=-grav*ff(:,1)*(thetal(:,2)-thetal(:,1))/dz_hl(:,1) &
+             -grav*gg(:,1)*(qg(:,2)+qlg(:,2)+qfg(:,2)-qg(:,1)-qlg(:,1)-qfg(:,1))/dz_hl(:,1)
+    do k=2,kl-1
+      ppb(:,k)=-grav*ff(:,k)*0.5*(thetal(:,k+1)-thetal(:,k-1))/dz_fl(:,k) &
+               -grav*gg(:,k)*0.5*(qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-qg(:,k-1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k)
+    end do
+    ppb(:,kl)=-grav*ff(:,kl)*(thetal(:,kl)-thetal(:,kl-1))/dz_hl(:,kl-1) &
+              -grav*gg(:,kl)*(qg(:,kl)+qlg(:,kl)+qfg(:,kl)-qg(:,kl-1)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1)
       
   case DEFAULT
     write(6,*) "ERROR: Unsupported buoyancy option"
@@ -406,7 +430,7 @@ do icount=1,icm
   aa=ce2/tkenew(:,2:kl)
   cc=-eps(1:ifull,2:kl)/dt-ce1*cm*tkenew(:,2:kl)*(pps+max(ppb(:,2:kl),0.)+max(ppt,0.))
   epsnew(:,2:kl)=(-ee+sqrt(max(ee*ee-4.*aa*cc,0.)))/(2.*aa)
-  !dd=-tkenew(:,2:kl)+tke(1:ifull,2:kl)+dt*(max(cm*tkenew(:,2:kl)*tkenew(:,2:kl)/epsnew(:,2:kl),1.E-3)*(pps+ppb)-epsnew(:,2:kl)) ! error function
+  !dd=-tkenew(:,2:kl)+tke(1:ifull,2:kl)+dt*(max(cm*tkenew(:,2:kl)*tkenew(:,2:kl)/epsnew(:,2:kl),1.E-3)*(pps+max(ppb(:,2:kl),0.))-epsnew(:,2:kl)) ! error function
   dd=-tkenew(:,2:kl)+tke(1:ifull,2:kl)+dt*(km(:,2:kl)*(pps+ppb(:,2:kl))-epsnew(:,2:kl)) ! error function
   ff(:,2:kl)=-1.-dt*(epsnew(:,2:kl)/tkenew(:,2:kl) &
                  +(cc/tkenew(:,2:kl)+ce1*cm*(pps+max(ppb(:,2:kl),0.)+max(ppt,0.)))/sqrt(max(ee*ee-4.*aa*cc,0.)))
@@ -569,14 +593,11 @@ integer, intent(in) :: ilen
 real, dimension(ilen), intent(in) :: temp,ps
 real, dimension(ilen), intent(out) :: qsat
 real, dimension(ilen) :: esatf
-real, parameter :: latent= 2.50E6
-real, parameter :: latsub= 2.83E6
-real, parameter :: rv    = 461.5
 
 where (temp.ge.273.15)
-  esatf = 610.*exp(latent/rv*(1./273.15-1./min(max(temp,123.),343.)))
+  esatf = 610.*exp(lv/rv*(1./273.15-1./min(temp,343.)))
 elsewhere
-  esatf = 610.*exp(latsub/rv*(1./273.15-1./min(max(temp,123.),343.)))
+  esatf = 610.*exp(ls/rv*(1./273.15-1./max(temp,123.)))
 end where
 qsat = 0.622*esatf/(ps-0.378*esatf)
 

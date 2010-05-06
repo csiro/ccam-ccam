@@ -16,7 +16,8 @@
       use cc_mpi
       use diag_m
       use ateb ! MJT urban 
-      use cable_ccam, only : CABLE ! MJT cable      
+      use cable_ccam, only : CABLE ! MJT cable
+      use mlo ! MJT mlo      
       include 'newmpar.h'
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
 !        for diag prints set ntest=1
@@ -398,15 +399,21 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
 !     .                (1.-fracice(iq))*.05/(coszro(i)+0.15) ! MJT CHANGE sib
           endif       ! if( land(iq)) .. else..
         end do ! i=1,imax
-      end if ! else nsib.eq.CABLE.or.nsib.eq.6               ! MJT CHANGE sib
+      end if ! else nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7      ! MJT CHANGE sib
 
       ! OCEAN/WATER -------------------------------------------------
-      where (.not.land(istart:iend))                           ! MJT CHANGE sib
-         cuvrf(1:imax,1)=.85*fracice(istart:iend)+
-     .     (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15) ! MJT CHANGE sib
-         cirrf(1:imax,1)=.45*fracice(istart:iend)+
-     .     (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15) ! MJT CHANGE sib
-      end where                                                ! MJT CHANGE sib
+      if (nmlo.eq.0) then                                        ! MJT mlo
+        where (.not.land(istart:iend))                           ! MJT CHANGE sib
+          cuvrf(1:imax,1)=.85*fracice(istart:iend)+
+     .       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15) ! MJT CHANGE sib
+          cirrf(1:imax,1)=.45*fracice(istart:iend)+
+     .       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15) ! MJT CHANGE sib
+        end where                                                ! MJT CHANGE sib
+      else                                                       ! MJT mlo
+        call mloalb2(istart,imax,land(istart:iend),coszro,       ! MJT mlo
+     &               fracice(istart:iend),cuvrf(:,1),            ! MJT mlo
+     &               cirrf(:,1),0)                               ! MJT mlo
+      end if                                                     ! MJT mlo
 
       !--------------------------------------------------------------
       ! MJT albedo

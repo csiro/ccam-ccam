@@ -357,17 +357,22 @@ c     section to update pan temperatures                             ! sea
     !----------------------------------------------------------------
     ! MJT mlo
       if (abs(nmlo).eq.1) then                                       ! MLO
-        ! note taux and tauy do not include sea-ice at this point    ! MLO
-        call mloeval(ifull,tgg(:,1),dt,fg,eg,sgsave                  ! MLO
-     &               ,-rgsave-stefbo*tgg(:,1)**4,condx/dt            ! MLO
-     &               ,taux,tauy,u(:,1),v(:,1),f,swrsave,0)           ! MLO
-        where(.not.land)                                             ! MLO
-          tpan=tgg(:,1)                                              ! MLO
-          tss=tgg(:,1)                                               ! MLO
-        endwhere                                                     ! MLO
-        do k=2,ms                                                    ! MLO
+        ! Take fg, eg, taux and tauy from host model as may use      ! MLO
+        ! various schemes to calculate zo (e.g., wave model).        ! MLO
+        ! Note that fg, eg, taux and tauy do not include sea-ice at  ! MLO
+        ! this point                                                 ! MLO
+        call mloeval(ifull,tss,dt,fg,eg,sgsave(:)/                   ! MLO
+     &               (1.-swrsave*albvisnir(:,1)-                     ! MLO
+     &               (1.-swrsave)*albvisnir(:,2))                    ! MLO
+     &               ,-rgsave,condx/dt,taux,tauy,u(:,1),v(:,1)       ! MLO
+     &               ,f,swrsave,fbeamvis,fbeamnir,0)                 ! MLO
+        do k=1,ms                                                    ! MLO
           call mloexport(ifull,tgg(:,k),k,0)                         ! MLO
         end do                                                       ! MLO
+        where(.not.land)                                             ! MLO
+          tpan=tgg(:,1)                                              ! MLO
+        endwhere                                                     ! MLO
+        !call mlonewice(ifull,fracice,sicedep,0)                     ! MLO
       end if                                                         ! MLO
     !----------------------------------------------------------------
 
@@ -391,13 +396,11 @@ c     section to update pan temperatures                             ! sea
      &    9f9.4)") af(iq),aft(iq),factch(iq),root,denha,denma,fm
       endif                       
       zminlog=log(zmin)
-      call end_log(sfluxwater_end)
 
-      call start_log(sfluxsice_begin)
       do iq=1,ifull
        if(sicedep(iq)>0.)then
 !      non-leads for sea ice points                                 ! sice
-!      N.B. tgg( ,3) holds tice                                     ! sice
+!      N.B. tggsn( ,3) holds tice                                   ! sice
 c       iq=iperm(ip)                                                ! sice
        es = establ(tggsn(iq,1)) ! MJT seaice                        ! sice
        constz=ps(iq)-es                                             ! sice
@@ -516,7 +519,7 @@ c     if(mydiag.and.diag)then
          print *,'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)          
       endif   ! (mydiag.and.nmaxpr==1)                                    
 c----------------------------------------------------------------------
-      call end_log(sfluxsice_end)
+      call end_log(sfluxwater_end)
       call start_log(sfluxland_begin)
       !----------------------------------------------------------
       select case(nsib) ! MJT cable
@@ -779,17 +782,17 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      &               ,condx(:)/dt,rho(:),t(1:ifull,1),qg(1:ifull,1)     ! urban
      &               ,ps(1:ifull),sig(1)*ps(1:ifull),uzon,vmer          ! urban
      &               ,vmodmin,0)                                        ! urban
-        ! here we blend zo with the urban part for the                  ! urban
-        ! calculation of ustar                                          ! urban
+        ! here we blend zo with the urban part                          ! urban
         factch(iperm)=zo(iperm)/factch(iperm)**2                        ! urban
         call atebzo(ifull,zo,factch,0)                                  ! urban
         factch(iperm)=sqrt(zo(iperm)/factch(iperm))                     ! urban
+        ! calculate ustar                                               ! urban
         cduv(iperm)=cduv(iperm)/vmod(iperm)                             ! urban
         call atebcd(ifull,cduv,0)                                       ! urban
         cduv(iperm)=cduv(iperm)*vmod(iperm)                             ! urban
         ustar(iperm)=sqrt(vmod(iperm)*cduv(iperm))                      ! urban
+        ! calculate screen level diagnostics                            ! urban
         call atebscrnout(ifull,tscrn,qgscrn,uscrn,u10,0)                ! urban
-        ! update arrays for scrnout                                     ! urban
         do ip=1,ipland ! assumes all urban points are land points       ! urban
           iq=iperm(ip)                                                  ! urban
           if (sigmu(iq).gt.0.) then                                     ! urban

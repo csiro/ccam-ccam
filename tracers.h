@@ -2,8 +2,9 @@
 
       integer iradon,ico2,ngas,nllp,ntrac,ntracmax,                       &
      &        npwr,ilt,jlt,klt,ngasmax
-      real tr,traver,radonem
+      real tr,traver,radonem,trback_g,acloss_g
 !     parameter(iradon=0,ico2=1,ngas=9)  ! rlw setting
+!     parameter(iradon=0,ico2=1,ngas=6)  ! rlw setting
       parameter(iradon=0,ico2=0,ngas=0)
 !     parameter(nllp=0)              ! set this or next lines
       parameter(nllp=3)
@@ -16,7 +17,7 @@
       parameter(ilt=il**npwr,jlt=jl**npwr,klt=kl**npwr) ! gives one of next two   
 
       common/tracer/tr(ilt*jlt+npwr*iextra,klt,ntracmax),                 &
-     &              traver(ilt*jlt,klt,ntrac)
+     &        traver(ilt*jlt,klt,ntrac),trback_g(ntrac),acloss_g(ntrac)
 !      suspect alpha and beta can go but need to confirm
 !      real alpha,beta
 !      common/c_tracer/ alpha,beta  

@@ -1,3 +1,5 @@
+! Interface for SEA-ESF radiation scheme from GFDL.
+
 module seaesfrad_m
 
 use rad_utilities_mod, only: atmos_input_type,surface_type,astronomy_type,aerosol_type, &
@@ -46,6 +48,7 @@ use microphys_rad_mod, only: microphys_sw_driver,microphys_lw_driver,lwemiss_cal
 use cc_mpi
 use ateb
 use cable_ccam, only : CABLE
+use mlo
 
 implicit none
 
@@ -122,7 +125,7 @@ common /o3dat/ dduo3n(37,kl),ddo3n2(37,kl),ddo3n3(37,kl),ddo3n4(37,kl)
 data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
 
 ! Aerosol flag
-do_aerosol_forcing=iaero.gt.1
+do_aerosol_forcing=iaero.ne.0
 
 ! set-up half levels ------------------------------------------------
 sigh(1:kl) = sigmh(1:kl)
@@ -296,7 +299,7 @@ if ( first ) then
 
   ! initialise ozone
   if(amipo3)then
-    print *,'AMIP2 ozone input'
+    write(6,*) 'AMIP2 ozone input'
     call o3read_amip
   else
     call o3_read(sig)
@@ -334,7 +337,7 @@ end if
 
 ! main loop ---------------------------------------------------------
 if(mod(ifull,imax).ne.0)then
-  print *,'nproc,il,jl,ifull,imax ',nproc,il,jl,ifull,imax
+  write(6,*) 'nproc,il,jl,ifull,imax ',nproc,il,jl,ifull,imax
   stop 'illegal setting of imax in rdparm'
 endif
 
@@ -432,26 +435,28 @@ do j=1,jl,imax/il
       end do
     end if
 
-    ! Ocean/Water albedo --------------------------------------------
-    ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
-    ! J. Clim. and Appl. Met., v. 27, 214-226)     ! 
-    where (.not.land(istart:iend).and.coszro(1:imax).ge.0.)
-      cuvrf_dir(1:imax) = 0.026/(coszro(1:imax)**1.7+0.065)                  &
-                     +0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
-    else where (.not.land(istart:iend))
-      cuvrf_dir(1:imax) = 0.3925 ! coszen=0 value of above expression
-    endwhere
-    where (.not.land(istart:iend))
-      cuvrf_dif(1:imax) = 0.06
-      cirrf_dir(1:imax) = cuvrf_dir(1:imax)
-      cirrf_dif(1:imax) = 0.06
-    end where
-    
-    ! sea ice albedo ------------------------------------------------
-    cuvrf_dir(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dir(1:imax)
-    cuvrf_dif(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dif(1:imax)
-    cirrf_dir(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
-    cirrf_dif(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
+    ! Water/Ice albedo --------------------------------------------
+    if (nmlo.eq.0) then
+      ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
+      ! J. Clim. and Appl. Met., v. 27, 214-226)     ! 
+      where (.not.land(istart:iend).and.coszro(1:imax).ge.0.)
+        cuvrf_dir(1:imax) = 0.026/(coszro(1:imax)**1.7+0.065)                  &
+                       +0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
+      else where (.not.land(istart:iend))
+        cuvrf_dir(1:imax) = 0.3925 ! coszen=0 value of above expression
+      endwhere
+      where (.not.land(istart:iend))
+        cuvrf_dif(1:imax) = 0.06
+        cirrf_dir(1:imax) = cuvrf_dir(1:imax)
+        cirrf_dif(1:imax) = 0.06
+      end where
+      cuvrf_dir(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dir(1:imax)
+      cuvrf_dif(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dif(1:imax)
+      cirrf_dir(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
+      cirrf_dif(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
+    else
+      call mloalb4(istart,imax,land(istart:iend),coszro,fracice(istart:iend),cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)
+    end if
 
     ! Urban albedo --------------------------------------------------
     call atebalb1(istart,imax,cuvrf_dir(1:imax),0)
@@ -615,7 +620,7 @@ do j=1,jl,imax/il
     Cldrad_props%cldext(:,:,:,:,1)  =Lscrad_props%cldext(:,:,:,:)   ! Large scale cloud properties only
     Cldrad_props%cldasymm(:,:,:,:,1)=Lscrad_props%cldasymm(:,:,:,:) ! Large scale cloud properties only
     Cldrad_props%abscoeff(:,:,:,:,1)=Lscrad_props%abscoeff(:,:,:,:) ! Large scale cloud properties only
-    
+ 
     call lwemiss_calc (Atmos_input%clouddeltaz,Cldrad_props%abscoeff,Cldrad_props%cldemiss)
     Cldrad_props%emmxolw = Cldrad_props%cldemiss
     Cldrad_props%emrndlw = Cldrad_props%cldemiss
@@ -627,7 +632,7 @@ do j=1,jl,imax/il
    
     Astro%cosz(:,1)   =max(coszro,0.)
     Astro%fracday(:,1)=taudar
-
+    
     call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input,  &
                           Rad_gases, Aerosol, Aerosol_props,   &
                           Cldrad_props, Cld_spec, Aerosol_diags, &
@@ -652,17 +657,17 @@ do j=1,jl,imax/il
     sgdnnirdir=Sw_output(1)%dfsw_dir_sfc(:,1)-sgdnvisdir
     sgdnnirdif=Sw_output(1)%dfsw_dif_sfc(:,1)-sgdnvisdif
     
-    where (sg.gt.0.)
+    where (sg.gt.0.1)
       swrsave(istart:iend)=sgvis/sg
     elsewhere
       swrsave(istart:iend)=0.
     end where
-    where (sgdnvisdir+sgdnvisdif.gt.0.)
+    where (sgdnvisdir+sgdnvisdif.gt.0.1)
       fbeamvis(istart:iend)=sgdnvisdir/(sgdnvisdir+sgdnvisdif)
     elsewhere
       fbeamvis(istart:iend)=0.
     end where
-    where (sgdnnirdir+sgdnnirdif.gt.0.)
+    where (sgdnnirdir+sgdnnirdif.gt.0.1)
       fbeamnir(istart:iend)=sgdnnirdir/(sgdnnirdir+sgdnnirdif)
     elsewhere
       fbeamnir(istart:iend)=0.
@@ -1079,12 +1084,12 @@ subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlg,qfg,prf,ttg,cdrop,imax,kl)
 implicit none
 
 integer, intent(in) :: imax,kl
-integer k,kr,mg
+integer k,kr,mg,iq
 real, dimension(imax,kl), intent(in) :: cfrac,qlg,qfg,prf,ttg
 real, dimension(imax,kl), intent(in) :: cdrop
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop,Rice,conl,coni
-real, dimension(imax,kl) :: reffl,reffi,fice,cfl,Wliq,rhoa
-real, dimension(imax,kl) :: eps,rk,Wice
+real(kind=8), dimension(imax,kl) :: reffl,reffi,fice,cfl,Wliq,rhoa
+real(kind=8), dimension(imax,kl) :: eps,rk,Wice
 
 !--------------------------------------------------------------------
 !    if liquid is present in the layer, compute the effective drop
@@ -1108,7 +1113,7 @@ real, dimension(imax,kl) :: eps,rk,Wice
 ! formula for reffl. Use mid cloud value of Reff for emissivity.
 
 where (cfrac.gt.0.)
-  fice= qfg/(qfg+qlg)
+  fice= qfg/max(qfg+qlg,1.E-12)
 else where
   fice=0.
 end where
@@ -1142,8 +1147,12 @@ do k=1,kl
   coni(:,kr)=1000.*Wice(:,k)
 end do
 
-Rdrop=min(max(Rdrop,8.4),33.2) ! constrain diameter to acceptable range (see microphys_rad.f90)
-Rice=min(max(Rice,18.6),130.2)
+where (Rdrop.gt.0.)
+  Rdrop=min(max(Rdrop,8.4),33.2) ! constrain diameter to acceptable range (see microphys_rad.f90)
+endwhere
+where (Rice.gt.0.)
+  Rice=min(max(Rice,18.6),130.2)
+endwhere
 
 return
 end subroutine cloud3

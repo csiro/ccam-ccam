@@ -1124,6 +1124,13 @@ c     if(nmaxpr==1)print *,'before 2nd loadbal ktau,myid = ',ktau,myid
       if(ngas>0) then
         call tracer_mass(ktau,ntau) !also updates average tracer array
         call write_ts(ktau,ntau,dt)
+!     rml 23/4/10 if final timestep write accumulated loss to tracer.stdout file
+        if (ktau.eq.ntau) then
+          if (myid == 0) then
+            write(unit_trout,*) 'Methane loss accumulated over month'
+            write(unit_trout,*) ktau,acloss_g(:)
+          endif
+        endif
       endif
 
       if(ndi==-ktau)then

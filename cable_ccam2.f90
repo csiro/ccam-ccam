@@ -52,7 +52,6 @@ module cable_ccam
   integer, parameter :: hruffmethod = 1 ! Method for max hruff
   integer, dimension(:), allocatable, save :: cmap
   integer, dimension(5,2), save :: pind  
-  real, dimension(:), allocatable, save :: atmco2
   real, dimension(:), allocatable, save :: sv,vl1,vl2,vl3
   integer, parameter :: CO2forcingtype=2   ! 1 constant, 2 time-varying,
                                            ! 3 interactive
@@ -106,7 +105,7 @@ module cable_ccam
      ! for calculation of zenith angle
       real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull)
       real bpyear,alp,x
-      real tmps(ifull),hruff_grmx(ifull)
+      real tmps(ifull),hruff_grmx(ifull),atmco2(ifull)
 
       integer jyear,jmonth,jday,jhour,jmin
       integer mstart,ktauplus,k,mins,kstart
@@ -118,7 +117,7 @@ module cable_ccam
       data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
 
       ! Set soil moisture to presets when nrungcm.ne.0
-      if (ktau==1.and.nrungcm.ne.0) then
+      if (ktau==1.and.nrungcm.ne.0.and.mp.gt.0) then
         do k=1,ms ! use preset for wb
           ssoil%wb(:,k)=wb(cmap,k)
         end do
@@ -145,6 +144,8 @@ module cable_ccam
         frday_ave=0.
         frp_ave=0.
       end if
+      
+      if (mp.le.0) return
 
 !
 !      set meteorological forcing
@@ -169,7 +170,7 @@ module cable_ccam
        dhr = dt/3600.
        call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
 
-       call setco2for
+       call setco2for(atmco2)
 
        kstart = 1
 
@@ -253,7 +254,7 @@ module cable_ccam
       ! Set net ecosystem exchange after adjustments to frs:
       canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
       !--------------------------------------------------------------
-    
+      
       ! Unpack tiles into grid point averages.
       ! Note that albsav and albnirsave are the VIS and NIR albedo output from CABLE to
       ! be used by the radiadiation scheme at the next time step.  albvisnir(:,1) and
@@ -549,13 +550,13 @@ module cable_ccam
         fpn_ave  =fpn_ave  /min(ntau,nperavg)
         frday_ave=frday_ave/min(ntau,nperavg)
         frp_ave  =frp_ave  /min(ntau,nperavg)
-      end if      
+      end if
       
       return
       end subroutine sib4
 
 ! *************************************************************************************
-      subroutine setco2for
+      subroutine setco2for(atmco2)
 !     set co2 forcing for cable
 !     constant: atmospheric co2 = 360 ppm 
 !     host: atmospheric co2 follows that from CCAM radiation scheme
@@ -569,6 +570,7 @@ module cable_ccam
       integer, parameter :: constantCO2 = 1
       integer, parameter :: hostCO2 = 2
       integer, parameter :: interactiveCO2 = 3
+      real, dimension(ifull), intent(out) :: atmco2
       real rrco2,ssolar,rrvco2
       common /radisw2/ rrco2, ssolar, rrvco2
 
@@ -617,7 +619,7 @@ module cable_ccam
   real rlong0x,rlat0x,schmidtx,dsx
   character*47 header
 
-  if (myid == 0) print *,"Setting CABLE defaults (igbp)"
+  if (myid == 0) write(6,*) "Setting CABLE defaults (igbp)"
   
   zmin=-rdry*280.*log(sig(1))/grav ! not yet defined in indata.f
 
@@ -654,12 +656,12 @@ module cable_ccam
   ratecs(2)=0.5
   
   if (nrungcm.ne.0) then
-    if (myid==0) print *,"Use wb preset for CABLE"
+    if (myid==0) write(6,*) "Use wb preset for CABLE"
     wb=20.5 ! dummy for now
   end if
 
   if (any(wb(:,:).gt.10.)) then
-    if (myid==0) print *,"Unpacking wetfrac to wb"
+    if (myid==0) write(6,*) "Unpacking wetfrac to wb"
     wb(:,:)=wb(:,:)-20.
     do iq=1,ifull
       isoil=isoilm(iq)
@@ -669,12 +671,12 @@ module cable_ccam
 
 
   if (cbm_ms.ne.ms) then
-    print *,"ERROR: CABLE and CCAM soil levels do not match"
+    write(6,*) "ERROR: CABLE and CCAM soil levels do not match"
     stop
   end if
 
   if (myid==0) then
-    print *,"Reading land-use data for CABLE"
+    write(6,*) "Reading land-use data for CABLE"
     if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
       open(87,file=fvegprev,status='old')
       read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
@@ -743,268 +745,275 @@ module cable_ccam
       mp=mp+count(svs(iq,:).gt.0.)
     end if
   end do
-  
-  allocate(sv(mp))
-  allocate(vl1(mp),vl2(mp),vl3(mp))
-  allocate(cmap(mp))
-  allocate(atmco2(ifull))
-  call alloc_cbm_var(air, mp)
-  call alloc_cbm_var(bgc, mp)
-  call alloc_cbm_var(canopy, mp)
-  call alloc_cbm_var(met, mp)
-  call alloc_cbm_var(bal, mp)
-  call alloc_cbm_var(rad, mp)
-  call alloc_cbm_var(rough, mp)
-  call alloc_cbm_var(soil, mp)
-  call alloc_cbm_var(ssoil, mp)
-  call alloc_cbm_var(sum_flux, mp)
-  call alloc_cbm_var(veg, mp)
 
-  ! soil parameters
-  soil%zse = (/.022, .058, .154, .409, 1.085, 2.872/) ! soil layer thickness
-  soil%zshh(1) = 0.5 * soil%zse(1)
-  soil%zshh(ms+1) = 0.5 * soil%zse(ms)
-  soil%zshh(2:ms) = 0.5 * (soil%zse(1:ms-1) + soil%zse(2:ms))
-  
-! preferred option
-! froot is now calculated from soil depth and the new parameter rootbeta 
-! according to Jackson et al. 1996, Oceologica, 108:389-411
-  totdepth = 0.0
-  do k=1,ms
-    totdepth = totdepth + soil%zse(k)*100.0
-    froot2(:,k) = min(1.0,1.0-rootbeta(:)**totdepth)
-  enddo
-  do k = ms, 2, -1
-    froot2(:,k) = froot2(:,k) - froot2(:,k-1)
-  enddo
-  
-  sv=0.
-  vl1=0.
-  vl2=0.
-  vl3=0.
-  
-  ipos=0
-  do n=1,5
-    call getc4(ifull,ivs(:,n),rlatt(:)*180./pi,c4frac(:))
-    pind(n,1)=ipos+1
-    do iq=1,ifull
-      if (land(iq).and.(svs(iq,n).gt.0.)) then
-        ipos=ipos+1
-        if (ivs(iq,n).lt.1) then
-          print *,"ERROR: Land-type/lsmask mismatch at iq=",iq
-          stop
-        end if
-        cmap(ipos)=iq
-        sv(ipos)=svs(iq,n)
-        veg%iveg(ipos)=ivs(iq,n)
-        soil%isoilm(ipos)=isoilm(iq)
-        veg%frac4(ipos)=c4frac(iq)
-        if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
-          vlin(iq,n)=vlin(iq,n)+vlinprev(iq,n)
-          vlinnext(iq,n)=vlinnext(iq,n)+vlin(iq,n)
-          vl1(ipos)=0.5*vlin(iq,n)
-          vl2(ipos)=4.*vlin(iq,n)-5.*vlinprev(iq,n)-vlinnext(iq,n)
-          vl3(ipos)=1.5*(vlinnext(iq,n)+3.*vlinprev(iq,n)-3.*vlin(iq,n))
-        else
-          vl1(ipos)=vlin(iq,n)
-          vl2(ipos)=0.
-          vl3(ipos)=0.
-        end if
-        if (veg%iveg(ipos).eq.15.or.veg%iveg(ipos).eq.16) then
-          vl1(ipos)=0.001
-          vl2(ipos)=0.
-          vl3(ipos)=0.
-        end if
-        veg%vlai(ipos)=vl1(ipos)
-      end if
-    end do
-    pind(n,2)=ipos
-  end do
-  
-  if (ipos.ne.mp) then
-    print *,"ERROR: Internal memory allocation error for CABLE set-up"
-    stop
-  end if
-
+  ! default values (i.e., no land)  
   vlai=0.
-  do n=1,5
-    if (pind(n,1).le.mp) then
-      vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
-                                      +vl1(pind(n,1):pind(n,2))*sv(pind(n,1):pind(n,2))
-    end if
-  end do
-  
-  ! aggregate zom
   zolnd=zobgin
-  do n=1,5
-    where (land)
-      zolnd=zolnd+svs(:,n)/log(zmin/(0.1*hc(ivs(:,n))))**2
-    end where
-  end do
-  where (land)
-    zolnd=max(zmin*exp(-sqrt(1./zolnd)),zobgin)
-  end where
-  
-  ! use dominant veg type
-  ivegt=ivs(:,1)
-  veg%hc        = hc(veg%iveg)
-  veg%canst1    = canst1(veg%iveg)
-  veg%ejmax     = ejmax(veg%iveg)
-  veg%tminvj    = tminvj(veg%iveg)
-  veg%tmaxvj    = tmaxvj(veg%iveg)
-  veg%vbeta     = vbeta(veg%iveg)
-  veg%rp20      = rp20(veg%iveg)
-  veg%rpcoef    = rpcoef(veg%iveg)
-  veg%shelrb    = shelrb(veg%iveg)
-  veg%vcmax     = vcmax(veg%iveg)
-  veg%xfang     = xfang(veg%iveg)
-  veg%dleaf     = dleaf(veg%iveg)
-  veg%xalbnir   = 1.
-  veg%taul(:,1) = taul(veg%iveg,1)
-  veg%taul(:,2) = taul(veg%iveg,2)  
-  veg%refl(:,1) = refl(veg%iveg,1)
-  veg%refl(:,2) = refl(veg%iveg,2)  
-  rad%extkn     = extkn(veg%iveg)
-  soil%rs20     = rs20(veg%iveg)
-  veg%vegcf     = vegcf(veg%iveg)
-  do k=1,ms
-    veg%froot(:,k)=froot2(veg%iveg,k)
-  end do
-  
-  if (all(cplant.eq.0.)) then
-    if (myid == 0) print *,"Using default carbpools"
-    do k=1,ncp
-      where (land)
-        cplant(:,ncp)=tcplant(ivegt,ncp)
-      end where
-    end do
-    do k=1,ncs
-      where (land)        
-        csoil(:,ncs)=tcsoil(ivegt,ncs)
-      end where
-    end do
-  else
-    if (myid == 0) print *,"Loading carbpools from ifile"
-  end if
-
-  soil%bch     = bch(soil%isoilm)
-  soil%css     = css(soil%isoilm)
-  soil%rhosoil = rhos(soil%isoilm)
-  soil%cnsd    = cnsd(soil%isoilm)
-  soil%hyds    = hyds(soil%isoilm)
-  soil%sucs    = sucs(soil%isoilm)
-  soil%hsbh    = hsbh(soil%isoilm)
-  soil%sfc     = sfc(soil%isoilm)
-  soil%ssat    = ssat(soil%isoilm)
-  soil%swilt   = swilt(soil%isoilm)
-  soil%ibp2    = ibp2(soil%isoilm)
-  soil%i2bp3   = i2bp3(soil%isoilm)
-  soil%pwb_min =  (soil%swilt / soil%ssat )**soil%ibp2
-
-  bgc%ratecp(:) = ratecp(:)
-  bgc%ratecs(:) = ratecs(:)
-  
-  where (land)
-    sigmf=(1.-exp(-extkn(ivegt(:))*vlai(:)))
-  elsewhere
-    sigmf=0.
-  end where
-
-  ! store bare soil albedo and define snow free albedo
-  albsoilsn(:,:)=0.08
-  where (land)
-    albsoil(:)=0.5*sum(albvisnir,2)
-  elsewhere   
-    albsoil(:)=0.08
-  end where
-  where ((albsoil.le.0.14).and.land)
-    !sfact=0.5 for alb <= 0.14 (see cable_soilsnow.f90)
-    albsoilsn(:,1)=(1.00/1.50)*albsoil(:)
-    albsoilsn(:,2)=(2.00/1.50)*albsoil(:)
-  elsewhere ((albsoil(:).le.0.2).and.land)
-    !sfact=0.62 for 0.14 < alb <= 0.20 (see cable_soilsnow.f90)
-    albsoilsn(:,1)=(1.24/1.62)*albsoil(:)
-    albsoilsn(:,2)=(2.00/1.62)*albsoil(:)
-  elsewhere (land)
-    !sfact=0.68 for 0.2 < alb (see cable_soilsnow.f90)
-    albsoilsn(:,1)=(1.36/1.68)*albsoil(:)
-    albsoilsn(:,2)=(2.00/1.68)*albsoil(:)
-  end where
- ! MJT suggestion to get an approx inital albedo (before cable is called)
-  where (land)
-    albvisnir(:,1)=albsoilsn(:,1)*(1.-sigmf)+0.1*sigmf
-    albvisnir(:,2)=albsoilsn(:,2)*(1.-sigmf)+0.3*sigmf
-  elsewhere
-    albvisnir(:,1)=albsoilsn(:,1)
-    albvisnir(:,2)=albsoilsn(:,2)
-  end where
-  
-  albvisdir=albvisnir(:,1) ! To be updated by CABLE
-  albvisdif=albvisnir(:,1) ! To be updated by CABLE
-  albnirdir=albvisnir(:,2) ! To be updated by CABLE
-  albnirdif=albvisnir(:,2) ! To be updated by CABLE
-
-  soil%albsoil=albsoil(cmap)
-  ssoil%albsoilsn(:,1)=albsoilsn(cmap,1) ! overwritten by CABLE
-  ssoil%albsoilsn(:,2)=albsoilsn(cmap,2) ! overwritten by CABLE
-  ssoil%albsoilsn(:,3)=0.05
-  
-  rad%albedo_T = soil%albsoil
-  rad%trad=tss(cmap)
-  rad%latitude=rlatt(cmap)*180./pi
-  rad%longitude=rlongg(cmap)*180./pi
-  
+  ivegt=0
+  sigmf=0.
+  albsoilsn=0.08  
+  albsoil=0.08
+  albvisdir=0.08
+  albvisdif=0.08
+  albnirdir=0.08
+  albnirdif=0.08
   gflux=0. ! MJT suggestion
   sgflux=0. ! MJT suggestion
-  canopy%ghflux=0.
-  canopy%sghflux=0.  
-  
- ! Initialise sum flux variables
   sumpn = 0.
   sumrp = 0.
   sumrs = 0.
   sumrd = 0.
-  sum_flux%sumpn=0.
-  sum_flux%sumrp=0.
-  sum_flux%sumrs=0.
-  sum_flux%sumrd=0.
-  sum_flux%sumrpw=0.
-  sum_flux%sumrpr=0.
-  sum_flux%dsumpn=0.
-  sum_flux%dsumrp=0.
-  sum_flux%dsumrs=0.
-  sum_flux%dsumrd=0.
+  pind=ifull+1
   
-  bal%evap_tot=0.
-  bal%precip_tot=0.
-  bal%ebal_tot=0.
-  bal%rnoff_tot=0.
+  if (mp.gt.0) then
+  
+    allocate(sv(mp))
+    allocate(vl1(mp),vl2(mp),vl3(mp))
+    allocate(cmap(mp))
+    call alloc_cbm_var(air, mp)
+    call alloc_cbm_var(bgc, mp)
+    call alloc_cbm_var(canopy, mp)
+    call alloc_cbm_var(met, mp)
+    call alloc_cbm_var(bal, mp)
+    call alloc_cbm_var(rad, mp)
+    call alloc_cbm_var(rough, mp)
+    call alloc_cbm_var(soil, mp)
+    call alloc_cbm_var(ssoil, mp)
+    call alloc_cbm_var(sum_flux, mp)
+    call alloc_cbm_var(veg, mp)
+
+    ! soil parameters
+    soil%zse = (/.022, .058, .154, .409, 1.085, 2.872/) ! soil layer thickness
+    soil%zshh(1) = 0.5 * soil%zse(1)
+    soil%zshh(ms+1) = 0.5 * soil%zse(ms)
+    soil%zshh(2:ms) = 0.5 * (soil%zse(1:ms-1) + soil%zse(2:ms))
+  
+    ! preferred option
+    ! froot is now calculated from soil depth and the new parameter rootbeta 
+    ! according to Jackson et al. 1996, Oceologica, 108:389-411
+    totdepth = 0.0
+    do k=1,ms
+      totdepth = totdepth + soil%zse(k)*100.0
+      froot2(:,k) = min(1.0,1.0-rootbeta(:)**totdepth)
+    enddo
+    do k = ms, 2, -1
+      froot2(:,k) = froot2(:,k) - froot2(:,k-1)
+    enddo
+  
+    sv=0.
+    vl1=0.
+    vl2=0.
+    vl3=0.
+  
+    ipos=0
+    do n=1,5
+      call getc4(ifull,ivs(:,n),rlatt(:)*180./pi,c4frac(:))
+      pind(n,1)=ipos+1
+      do iq=1,ifull
+        if (land(iq).and.(svs(iq,n).gt.0.)) then
+          ipos=ipos+1
+          if (ivs(iq,n).lt.1) then
+            write(6,*) "ERROR: Land-type/lsmask mismatch at iq=",iq
+            stop
+          end if
+          cmap(ipos)=iq
+          sv(ipos)=svs(iq,n)
+          veg%iveg(ipos)=ivs(iq,n)
+          soil%isoilm(ipos)=isoilm(iq)
+          veg%frac4(ipos)=c4frac(iq)
+          if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
+            vlin(iq,n)=vlin(iq,n)+vlinprev(iq,n)
+            vlinnext(iq,n)=vlinnext(iq,n)+vlin(iq,n)
+            vl1(ipos)=0.5*vlin(iq,n)
+            vl2(ipos)=4.*vlin(iq,n)-5.*vlinprev(iq,n)-vlinnext(iq,n)
+            vl3(ipos)=1.5*(vlinnext(iq,n)+3.*vlinprev(iq,n)-3.*vlin(iq,n))
+          else
+            vl1(ipos)=vlin(iq,n)
+            vl2(ipos)=0.
+            vl3(ipos)=0.
+          end if
+          if (veg%iveg(ipos).eq.15.or.veg%iveg(ipos).eq.16) then
+            vl1(ipos)=0.001
+            vl2(ipos)=0.
+            vl3(ipos)=0.
+          end if
+          veg%vlai(ipos)=vl1(ipos)
+        end if
+      end do
+      pind(n,2)=ipos
+    end do
+  
+    if (ipos.ne.mp) then
+      write(6,*) "ERROR: Internal memory allocation error for CABLE set-up"
+      stop
+    end if
+
+    do n=1,5
+      if (pind(n,1).le.mp) then
+        vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
+                                        +vl1(pind(n,1):pind(n,2))*sv(pind(n,1):pind(n,2))
+      end if
+    end do
+  
+    ! aggregate zom
+    do n=1,5
+      where (land)
+        zolnd=zolnd+svs(:,n)/log(zmin/(0.1*hc(ivs(:,n))))**2
+      end where
+    end do
+    where (land)
+      zolnd=max(zmin*exp(-sqrt(1./zolnd)),zobgin)
+    end where
+  
+    ! use dominant veg type
+    ivegt=ivs(:,1)
+    veg%hc        = hc(veg%iveg)
+    veg%canst1    = canst1(veg%iveg)
+    veg%ejmax     = ejmax(veg%iveg)
+    veg%tminvj    = tminvj(veg%iveg)
+    veg%tmaxvj    = tmaxvj(veg%iveg)
+    veg%vbeta     = vbeta(veg%iveg)
+    veg%rp20      = rp20(veg%iveg)
+    veg%rpcoef    = rpcoef(veg%iveg)
+    veg%shelrb    = shelrb(veg%iveg)
+    veg%vcmax     = vcmax(veg%iveg)
+    veg%xfang     = xfang(veg%iveg)
+    veg%dleaf     = dleaf(veg%iveg)
+    veg%xalbnir   = 1.
+    veg%taul(:,1) = taul(veg%iveg,1)
+    veg%taul(:,2) = taul(veg%iveg,2)  
+    veg%refl(:,1) = refl(veg%iveg,1)
+    veg%refl(:,2) = refl(veg%iveg,2)  
+    rad%extkn     = extkn(veg%iveg)
+    soil%rs20     = rs20(veg%iveg)
+    veg%vegcf     = vegcf(veg%iveg)
+    do k=1,ms
+      veg%froot(:,k)=froot2(veg%iveg,k)
+    end do
+  
+    if (all(cplant.eq.0.)) then
+      if (myid == 0) write(6,*) "Using default carbpools"
+      do k=1,ncp
+        where (land)
+          cplant(:,ncp)=tcplant(ivegt,ncp)
+        end where
+      end do
+      do k=1,ncs
+        where (land)        
+          csoil(:,ncs)=tcsoil(ivegt,ncs)
+        end where
+      end do
+    else
+      if (myid == 0) write(6,*) "Loading carbpools from ifile"
+    end if
+  
+    soil%bch     = bch(soil%isoilm)
+    soil%css     = css(soil%isoilm)
+    soil%rhosoil = rhos(soil%isoilm)
+    soil%cnsd    = cnsd(soil%isoilm)
+    soil%hyds    = hyds(soil%isoilm)
+    soil%sucs    = sucs(soil%isoilm)
+    soil%hsbh    = hsbh(soil%isoilm)
+    soil%sfc     = sfc(soil%isoilm)
+    soil%ssat    = ssat(soil%isoilm)
+    soil%swilt   = swilt(soil%isoilm)
+    soil%ibp2    = ibp2(soil%isoilm)
+    soil%i2bp3   = i2bp3(soil%isoilm)
+    soil%pwb_min =  (soil%swilt / soil%ssat )**soil%ibp2
+ 
+    bgc%ratecp(:) = ratecp(:)
+    bgc%ratecs(:) = ratecs(:)
+  
+    where (land)
+      sigmf=(1.-exp(-extkn(ivegt(:))*vlai(:)))
+    end where
+
+    ! store bare soil albedo and define snow free albedo
+    where (land)
+      albsoil(:)=0.5*sum(albvisnir,2)
+    end where
+    where ((albsoil.le.0.14).and.land)
+      !sfact=0.5 for alb <= 0.14 (see cable_soilsnow.f90)
+      albsoilsn(:,1)=(1.00/1.50)*albsoil(:)
+      albsoilsn(:,2)=(2.00/1.50)*albsoil(:)
+    elsewhere ((albsoil(:).le.0.2).and.land)
+      !sfact=0.62 for 0.14 < alb <= 0.20 (see cable_soilsnow.f90)
+      albsoilsn(:,1)=(1.24/1.62)*albsoil(:)
+      albsoilsn(:,2)=(2.00/1.62)*albsoil(:)
+    elsewhere (land)
+      !sfact=0.68 for 0.2 < alb (see cable_soilsnow.f90)
+      albsoilsn(:,1)=(1.36/1.68)*albsoil(:)
+      albsoilsn(:,2)=(2.00/1.68)*albsoil(:)
+    end where
+    ! MJT suggestion to get an approx inital albedo (before cable is called)
+    where (land)
+      albvisnir(:,1)=albsoilsn(:,1)*(1.-sigmf)+0.1*sigmf
+      albvisnir(:,2)=albsoilsn(:,2)*(1.-sigmf)+0.3*sigmf
+    end where
+  
+    albvisdir=albvisnir(:,1) ! To be updated by CABLE
+    albvisdif=albvisnir(:,1) ! To be updated by CABLE
+    albnirdir=albvisnir(:,2) ! To be updated by CABLE
+    albnirdif=albvisnir(:,2) ! To be updated by CABLE
+
+    soil%albsoil=albsoil(cmap)
+    ssoil%albsoilsn(:,1)=albsoilsn(cmap,1) ! overwritten by CABLE
+    ssoil%albsoilsn(:,2)=albsoilsn(cmap,2) ! overwritten by CABLE
+    ssoil%albsoilsn(:,3)=0.05
+  
+    rad%albedo_T = soil%albsoil
+    rad%trad=tss(cmap)
+    rad%latitude=rlatt(cmap)*180./pi
+    rad%longitude=rlongg(cmap)*180./pi
+  
+    canopy%ghflux=0.
+    canopy%sghflux=0.  
+  
+    ! Initialise sum flux variables
+    sum_flux%sumpn=0.
+    sum_flux%sumrp=0.
+    sum_flux%sumrs=0.
+    sum_flux%sumrd=0.
+    sum_flux%sumrpw=0.
+    sum_flux%sumrpr=0.
+    sum_flux%dsumpn=0.
+    sum_flux%dsumrp=0.
+    sum_flux%dsumrs=0.
+    sum_flux%dsumrd=0.
+  
+    bal%evap_tot=0.
+    bal%precip_tot=0.
+    bal%ebal_tot=0.
+    bal%rnoff_tot=0.
+  end if
 
   call loadtile ! load tgg,wb,wbice,snowd,snage,tggsn,smass,ssdn,isflag,rtsoil,cansto,cplant and csoil
 
-  ssoil%osnowd=ssoil%snowd                                ! overwritten by CABLE
-  bal%osnowd0=ssoil%snowd                                 ! overwritten by CABLE
-  ssoil%ssdnn=120.                                        ! overwritten by CABLE
-  ssoil%sconds(:,1) = MAX(0.2, MIN(2.876e-6 * ssoil%ssdn(:,1) ** 2 + 0.074, 1.0) )
-  where (ssoil%isflag.gt.0)
-    ssoil%sdepth(:,1)=ssoil%smass(:,1)/ssoil%ssdn(:,1)    ! overwritten by CABLE
-  elsewhere
-    ssoil%sdepth(:,1)=ssoil%snowd/ssoil%ssdn(:,1)         ! overwritten by CABLE
-  end where
-  do k=2,3
+  if (mp.gt.0) then
+    ssoil%osnowd=ssoil%snowd                                ! overwritten by CABLE
+    bal%osnowd0=ssoil%snowd                                 ! overwritten by CABLE
+    ssoil%ssdnn=120.                                        ! overwritten by CABLE
+    ssoil%sconds(:,1) = MAX(0.2, MIN(2.876e-6 * ssoil%ssdn(:,1) ** 2 + 0.074, 1.0) )
     where (ssoil%isflag.gt.0)
-      ssoil%sdepth(:,k)=ssoil%smass(:,k)/ssoil%ssdn(:,k)  ! overwritten by CABLE
-      ssoil%sconds(:,k) = MAX(0.2, MIN(2.876e-6 * ssoil%ssdn(:,k) ** 2 + 0.074, 1.0) )
+      ssoil%sdepth(:,1)=ssoil%smass(:,1)/ssoil%ssdn(:,1)    ! overwritten by CABLE
     elsewhere
-      ssoil%sdepth(:,k)=0.                                ! overwritten by CABLE
-      ssoil%sconds(:,k)=0.
+      ssoil%sdepth(:,1)=ssoil%snowd/ssoil%ssdn(:,1)         ! overwritten by CABLE
     end where
-  end do  
+    do k=2,3
+      where (ssoil%isflag.gt.0)
+        ssoil%sdepth(:,k)=ssoil%smass(:,k)/ssoil%ssdn(:,k)  ! overwritten by CABLE
+        ssoil%sconds(:,k) = MAX(0.2, MIN(2.876e-6 * ssoil%ssdn(:,k) ** 2 + 0.074, 1.0) )
+      elsewhere
+        ssoil%sdepth(:,k)=0.                                ! overwritten by CABLE
+        ssoil%sconds(:,k)=0.
+      end where
+    end do  
 
-  ssoil%wetfac = MAX(0., MIN(1., (ssoil%wb(:,1) - soil%swilt) / (soil%sfc - soil%swilt)))
-  ssoil%owetfac = ssoil%wetfac
-  ssoil%wbtot=0.
-  bal%wbtot0 = ssoil%wbtot
+    ssoil%wetfac = MAX(0., MIN(1., (ssoil%wb(:,1) - soil%swilt) / (soil%sfc - soil%swilt)))
+    ssoil%owetfac = ssoil%wetfac
+    ssoil%wbtot=0.
+    bal%wbtot0 = ssoil%wbtot
+  end if
   
   return
   end subroutine loadcbmparm
@@ -1076,28 +1085,30 @@ module cable_ccam
   end if
   
   if (ierr.ne.0) then
-    if (myid==0) write(6,*) "Use averaged data to initialise CABLE"
-    do k = 1,ms
-      ssoil%tgg(:,k) = tgg(cmap,k)
-      ssoil%wb(:,k) = wb(cmap,k)
-      ssoil%wbice(:,k) = wbice(cmap,k)
-    enddo
-    do k = 1,3
-      ssoil%tggsn(:,k) = tggsn(cmap,k)
-      ssoil%smass(:,k) = smass(cmap,k)
-      ssoil%ssdn(:,k) = ssdn(cmap,k)
-    enddo      
-    ssoil%isflag=isflag(cmap)
-    ssoil%snowd=snowd(cmap)
-    ssoil%snage=snage(cmap)
-    ssoil%rtsoil=100.
-    canopy%cansto=0.
-    do k=1,ncp
-      bgc%cplant(:,k) = cplant(cmap,k)
-    enddo
-    do k=1,ncs
-      bgc%csoil(:,k) = csoil(cmap,k)
-    enddo
+    if (myid==0) write(6,*) "Use gridbox averaged data to initialise CABLE"
+    if (mp.gt.0) then
+      do k = 1,ms
+        ssoil%tgg(:,k) = tgg(cmap,k)
+        ssoil%wb(:,k) = wb(cmap,k)
+        ssoil%wbice(:,k) = wbice(cmap,k)
+      enddo
+      do k = 1,3
+        ssoil%tggsn(:,k) = tggsn(cmap,k)
+        ssoil%smass(:,k) = smass(cmap,k)
+        ssoil%ssdn(:,k) = ssdn(cmap,k)
+      enddo      
+      ssoil%isflag=isflag(cmap)
+      ssoil%snowd=snowd(cmap)
+      ssoil%snage=snage(cmap)
+      ssoil%rtsoil=100.
+      canopy%cansto=0.
+      do k=1,ncp
+        bgc%cplant(:,k) = cplant(cmap,k)
+      enddo
+      do k=1,ncs
+        bgc%csoil(:,k) = csoil(cmap,k)
+      enddo
+    end if
   else
     if (myid==0) write(6,*) "Use tiled data to initialise CABLE"
     do n=1,5
@@ -1125,7 +1136,7 @@ module cable_ccam
       end do
       write(vname,'("sflag_",I1.1)') n
       call histrd1(ncid,iarchi-1,ierr,vname,ik,jk,dat,ifull)
-      if (pind(n,1).le.mp) ssoil%isflag(pind(n,1):pind(n,2))=int(dat(cmap(pind(n,1):pind(n,2))))
+      if (pind(n,1).le.mp) ssoil%isflag(pind(n,1):pind(n,2))=nint(dat(cmap(pind(n,1):pind(n,2))))
       write(vname,'("snd_",I1.1)') n
       call histrd1(ncid,iarchi-1,ierr,vname,ik,jk,dat,ifull)
       if (pind(n,1).le.mp) ssoil%snowd(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
@@ -1149,6 +1160,7 @@ module cable_ccam
         if (pind(n,1).le.mp) bgc%csoil(pind(n,1):pind(n,2),k) = dat(cmap(pind(n,1):pind(n,2)))
       enddo
     end do
+    ! albvisdir, albvisdif, albnirdir, albnirdif are used when nrad=5
     vname='albvisdir'
     call histrd1(ncid,iarchi-1,ierr,vname,ik,jk,albvisdir,ifull)
     vname='albvisdif'
@@ -1157,7 +1169,20 @@ module cable_ccam
     call histrd1(ncid,iarchi-1,ierr,vname,ik,jk,albnirdir,ifull)
     vname='albnirdif'
     call histrd1(ncid,iarchi-1,ierr,vname,ik,jk,albnirdif,ifull)
+    ! albvis and albnir are used when nrad=4
+    vname='albvis'
+    call histrd1(ncid,iarchi-1,ierr,vname,ik,jk,albvisnir(:,1),ifull)
+    vname='albnir'
+    call histrd1(ncid,iarchi-1,ierr,vname,ik,jk,albvisnir(:,2),ifull)        
   end if
+  
+  ssoil%wb=max(ssoil%wb,0.)
+  ssoil%wbice=max(ssoil%wbice,0.)
+  ssoil%smass=max(ssoil%smass,0.)
+  ssoil%rtsoil=max(ssoil%rtsoil,0.)
+  canopy%cansto=max(canopy%cansto,0.)
+  bgc%cplant=max(bgc%cplant,0.)
+  bgc%csoil=max(bgc%csoil,0.)
   
   return
   end subroutine loadtile
@@ -1189,7 +1214,7 @@ module cable_ccam
   iarch=1 ! assume restart file
   
   if (myid.eq.0) then
-    print *,"Storing CABLE tile data"
+    write(6,*) "Storing CABLE tile data"
     call ncredf(idnc,ierr)
     do n=1,5
       do k=1,ms
@@ -1198,10 +1223,10 @@ module cable_ccam
         call attrib(idnc,idim,3,vname,lname,'K',100.,400.,0)
         write(lname,'("Soil moisture lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("wb",I1.1,"_",I1.1)') k,n 
-        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,1.,0)
+        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,1.3,0)
         write(lname,'("Soil ice lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("wbice",I1.1,"_",I1.1)') k,n 
-        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,1.,0)
+        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,1.3,0)
       end do
       do k=1,3
         write(lname,'("Snow temperature lev ",I1.1," tile ",I1.1)') k,n
@@ -1209,14 +1234,14 @@ module cable_ccam
         call attrib(idnc,idim,3,vname,lname,'K',100.,400.,0)
         write(lname,'("Snow mass lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("smass",I1.1,"_",I1.1)') k,n 
-        call attrib(idnc,idim,3,vname,lname,'K',0.,400.,0)
+        call attrib(idnc,idim,3,vname,lname,'K',0.,650.,0)
         write(lname,'("Snow density lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("ssdn",I1.1,"_",I1.1)') k,n 
-        call attrib(idnc,idim,3,vname,lname,'K',0.,400.,0)
+        call attrib(idnc,idim,3,vname,lname,'kg/m3',0.,400.,0)
       end do
       write(lname,'("Snow flag tile ",I1.1)') n
       write(vname,'("sflag_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'mm',0.,4.,0)
+      call attrib(idnc,idim,3,vname,lname,'mm',0.,6.5,0)
       write(lname,'("Snow depth tile ",I1.1)') n
       write(vname,'("snd_",I1.1)') n
       call attrl (idnc,idim,3,vname,lname,'mm',0.,5000.,0)  ! long
@@ -1225,25 +1250,25 @@ module cable_ccam
       call attrib(idnc,idim,3,vname,lname,'none',0.,20.,0)
       write(lname,'("Soil turbulent resistance tile ",I1.1)') n
       write(vname,'("rtsoil_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,9.e4,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,1.3e5,0)
       write(lname,'("cansto tile ",I1.1)') n
       write(vname,'("cansto_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,10.,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,13.,0)
       write(lname,'("Carbon leaf pool tile ",I1.1)') n
       write(vname,'("cplant1_",I1.1)') n    
-      call attrib(idnc,idim,3,vname,lname,'none',0.,50000.,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0)
       write(lname,'("Carbon wood pool tile ",I1.1)') n
       write(vname,'("cplant2_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,50000.,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0)
       write(lname,'("Carbon root pool tile ",I1.1)') n
       write(vname,'("cplant3_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,50000.,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0)
       write(lname,'("Carbon soil fast pool tile ",I1.1)') n
       write(vname,'("csoil1_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,50000.,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0)
       write(lname,'("Carbon soil slow pool tile ",I1.1)') n
       write(vname,'("csoil2_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,50000.,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0)
     end do
     lname='DIR VIS albedo'
     vname='albvisdir'
@@ -1256,6 +1281,12 @@ module cable_ccam
     call attrib(idnc,idim,3,vname,lname,'none',0.,1.,0)
     lname='DIF NIR albedo'
     vname='albnirdif'
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.,0)
+    lname='VIS albedo'
+    vname='albvis'
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.,0)
+    lname='NIR albedo'
+    vname='albnir'
     call attrib(idnc,idim,3,vname,lname,'none',0.,1.,0)
     call ncendf(idnc,ierr)
   end if
@@ -1335,6 +1366,10 @@ module cable_ccam
   call histwrt3(albnirdir,vname,idnc,iarch,local)
   vname='albnirdif'
   call histwrt3(albnirdif,vname,idnc,iarch,local)
+  vname='albvis'
+  call histwrt3(albvisnir(:,1),vname,idnc,iarch,local)
+  vname='albnir'
+  call histwrt3(albvisnir(:,2),vname,idnc,iarch,local)
   
   return
   end subroutine savetile 

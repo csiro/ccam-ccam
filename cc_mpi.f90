@@ -133,7 +133,6 @@ module cc_mpi
    integer, public, save :: cloud_begin, cloud_end
    integer, public, save :: radiation_begin, radiation_end
    integer, public, save :: sfluxwater_begin, sfluxwater_end
-   integer, public, save :: sfluxsice_begin, sfluxsice_end
    integer, public, save :: sfluxland_begin, sfluxland_end
    integer, public, save :: sfluxurban_begin, sfluxurban_end
    integer, public, save :: vertmix_begin, vertmix_end
@@ -147,7 +146,7 @@ module cc_mpi
    integer, public, save :: mpiwait_begin, mpiwait_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents=35
+   integer, parameter :: nevents=34
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -2882,9 +2881,6 @@ contains
       sfluxwater_begin = MPE_Log_get_event_number()
       sfluxwater_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(sfluxwater_begin, sfluxwater_end, "Sflux_water", "Yellow")
-      sfluxsice_begin = MPE_Log_get_event_number()
-      sfluxsice_end = MPE_Log_get_event_number()
-      ierr = MPE_Describe_state(sfluxsice_begin, sfluxsice_end, "Sflux_sice", "Yellow")
       sfluxland_begin = MPE_Log_get_event_number()
       sfluxland_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(sfluxland_begin, sfluxland_end, "Sflux_land", "Yellow")
@@ -2945,8 +2941,6 @@ contains
       radiation_end =  radiation_begin
       call vtfuncdef("Sflux_water", classhandle, sfluxwater_begin, ierr)
       sfluxwater_end =  sfluxwater_begin
-      call vtfuncdef("Sflux_sice", classhandle, sfluxsice_begin, ierr)
-      sfluxsice_end =  sfluxsice_begin
       call vtfuncdef("Sflux_land", classhandle, sfluxland_begin, ierr)
       sfluxland_end =  sfluxland_begin
       call vtfuncdef("Sflux_urban", classhandle, sfluxurban_begin, ierr)
@@ -3078,23 +3072,19 @@ contains
       sfluxwater_end =  sfluxwater_begin
       event_name(sfluxwater_begin) = "Sflux_water"
 
-      sfluxsice_begin = 31
-      sfluxsice_end =  sfluxsice_begin
-      event_name(sfluxsice_begin) = "Sflux_sice"
-      
-      sfluxland_begin = 32
+      sfluxland_begin = 31
       sfluxland_end =  sfluxland_begin
       event_name(sfluxland_begin) = "Sflux_land"
 
-      sfluxurban_begin = 33
+      sfluxurban_begin = 32
       sfluxurban_end =  sfluxurban_begin
       event_name(sfluxurban_begin) = "Sflux_urban"
 
-      vertmix_begin = 34
+      vertmix_begin = 33
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      nestin_begin = 35
+      nestin_begin = 34
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
       

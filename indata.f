@@ -11,7 +11,7 @@
 !     rml 21/02/06 removed all so2 code
 !     rml 16/02/06 use tracermodule, timeseries
       use tracermodule, only : tracini,readtracerflux,tracvalin,
-     &                         unit_trout
+     &                         unit_trout,tr_back
       use timeseries, only : init_ts
       implicit none
 !     parameter (gwdfac=.02)  ! now .02 for lgwd=2  see below
@@ -277,72 +277,76 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
       if(io_in<4)then  ! ********************************************************
          kdate_sav=kdate_s
          ktime_sav=ktime_s
-         if(io_in==1)then
-            
-            !--------------------------------------------------------------
-            ! MJT urban
-            ! Allocate arrays for onthefly.f
-            if (nurban.ne.0) then
-              allocate(atebdwn(ifull,13))
-            end if
-            !--------------------------------------------------------------
-            !--------------------------------------------------------------
-            ! MJT mlo
-            ! Allocate arrays for onthefly.f
-            if (nmlo.ne.0) then
-              allocate(mlodwn(ifull,wlev,4),ocndwn(ifull))
-            end if
-            !-------------------------------------------------------------- 
-            !--------------------------------------------------------------
-            ! MJT tke
-            ! Allocate arrays for onthefly.f
-            if (nvmix.eq.6) then
-              allocate(tkedwn(ifull,kl),epsdwn(ifull,kl),pblhdwn(ifull))
-            end if
-            !--------------------------------------------------------------
-         
-            call infile(0,kdate,ktime,timegb,ds,
-     &           psl(1:ifull),zss,tss,sicedep,fracice,
-     &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
-     &           tgg,wb,wbice,albsav,snowd,qfg(1:ifull,:), ! MJT albedo
-     &           qlg(1:ifull,:), ! 0808 
-     &           tggsn,smass,ssdn,ssdnn,snage,isflag,ifull,kl,         ! 0808
-     &           isoilm,cplant,csoil) ! MJT cable !MJT lsmask
-     
-!           rml 16/02/06 read tracer from restart for up to 999 tracers
-            if (ngas>0) then                                       ! MJT tracerfix
-              do igas=1,ngas                                       ! MJT tracerfix
-                write(trnum,'(i3.3)') igas                         ! MJT tracerfix
-                call histrd4(ncid,iarchi-1,ier,'tr'//trnum,ik,jk,kk,
-     &                   tr(1:ifull,:,igas),ifull)                 ! MJT tracerfix
-              enddo                                                ! MJT tracerfix
-            endif                                                  ! MJT tracerfix
-     
-            albnirsav=albsav ! MJT CHANGE albedo
-c           if(nspecial>100)then
-c!            allows nudging from mesonest with different kdate
-c             kdate=nspecial
-c             kdate_s=nspecial
-c             print *,'re-setting kate & kdate_s to nspecial'
-c           endif  ! (nspecial>100)
-            if(newtop>=0)then  ! no check if just plotting zs
-              if(abs(rlong0  -rlong0x)>.01.or.
-     &           abs(rlat0    -rlat0x)>.01.or.
-     &           abs(schmidt-schmidtx)>.01)then
-                 write(0,*) "grid mismatch in indata"
-                 print *,'rlong0,rlong0x,rlat0,rlat0x,schmidt,schmidtx '
-     &                   ,rlong0,rlong0x,rlat0,rlat0x,schmidt,schmidtx
-                 stop 
-              endif
-            endif  ! (newtop>=0)
-         endif     ! (io_in==1)
-
-         if(io_in==-1)then
+         !-----------------------------------------------------------
+         ! MJT small otf
+         if (abs(io_in)==1) then
+!         if(io_in==1)then
+!            
+!            !--------------------------------------------------------------
+!            ! MJT urban
+!            ! Allocate arrays for onthefly.f
+!            if (nurban.ne.0) then
+!              allocate(atebdwn(ifull,13))
+!            end if
+!            !--------------------------------------------------------------
+!            !--------------------------------------------------------------
+!            ! MJT mlo
+!            ! Allocate arrays for onthefly.f
+!            if (nmlo.ne.0) then
+!              allocate(mlodwn(ifull,wlev,4),ocndwn(ifull))
+!            end if
+!            !-------------------------------------------------------------- 
+!            !--------------------------------------------------------------
+!            ! MJT tke
+!            ! Allocate arrays for onthefly.f
+!            if (nvmix.eq.6) then
+!              allocate(tkedwn(ifull,kl),epsdwn(ifull,kl),pblhdwn(ifull))
+!            end if
+!            !--------------------------------------------------------------
+!         
+!            call infile(0,kdate,ktime,timegb,ds,
+!     &           psl(1:ifull),zss,tss,sicedep,fracice,
+!     &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
+!     &           tgg,wb,wbice,albsav,snowd,qfg(1:ifull,:), ! MJT albedo
+!     &           qlg(1:ifull,:), ! 0808 
+!     &           tggsn,smass,ssdn,ssdnn,snage,isflag,ifull,kl,         ! 0808
+!     &           cplant,csoil) ! MJT cable
+!     
+!!           rml 16/02/06 read tracer from restart for up to 999 tracers
+!            if (ngas>0) then                                       ! MJT tracerfix
+!              do igas=1,ngas                                       ! MJT tracerfix
+!                write(trnum,'(i3.3)') igas                         ! MJT tracerfix
+!                call histrd4(ncid,iarchi-1,ier,'tr'//trnum,ik,jk,kk,
+!     &                   tr(1:ifull,:,igas),ifull)                 ! MJT tracerfix
+!              enddo                                                ! MJT tracerfix
+!            endif                                                  ! MJT tracerfix
+!     
+!            albnirsav=albsav ! MJT CHANGE albedo
+!c           if(nspecial>100)then
+!c!            allows nudging from mesonest with different kdate
+!c             kdate=nspecial
+!c             kdate_s=nspecial
+!c             print *,'re-setting kate & kdate_s to nspecial'
+!c           endif  ! (nspecial>100)
+!            if(newtop>=0)then  ! no check if just plotting zs
+!              if(abs(rlong0  -rlong0x)>.01.or.
+!     &           abs(rlat0    -rlat0x)>.01.or.
+!     &           abs(schmidt-schmidtx)>.01)then
+!                 write(0,*) "grid mismatch in indata"
+!                 print *,'rlong0,rlong0x,rlat0,rlat0x,schmidt,schmidtx '
+!     &                   ,rlong0,rlong0x,rlat0,rlat0x,schmidt,schmidtx
+!                 stop 
+!              endif
+!            endif  ! (newtop>=0)
+!         endif     ! (io_in==1)
+!
+!         if(io_in==-1)then
             call onthefly(0,kdate,ktime,psl(1:ifull),zss,tss,sicedep,
      &           fracice,t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
      &           qg(1:ifull,:),tgg,wb,wbice,snowd,qfg(1:ifull,:),
      &           qlg(1:ifull,:),tggsn,smass,ssdn,ssdnn,snage,isflag)
-         endif   ! (io_in==-1)
+         endif   ! (abs(io_in)==1)
+         !-----------------------------------------------------------
          if( mydiag )then
            print *,'ds,zss',ds,zss(idjd) ! MJT bug fix
            print *,'kdate_sav,ktime_sav ',kdate_sav,ktime_sav
@@ -404,6 +408,10 @@ c           endif  ! (nspecial>100)
             call vertint(v(1:ifull,:), 4)
             call vertint(qfg(1:ifull,:),5)
             call vertint(qlg(1:ifull,:),5)
+            if (nvmix.eq.6) then                ! MJT tke
+              call vertint(tkedwn(1:ifull,:),6) ! MJT tke
+              call vertint(epsdwn(1:ifull,:),6) ! MJT tke
+            end if                              ! MJT tke
          endif  ! (abs(sig(2)-sigin(2))>.0001)
 
          if ( mydiag ) then
@@ -925,7 +933,8 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         ! nsib=3 (original land surface scheme with original 1deg+Dean's datasets)
         ! nsib=4=CABLE (CABLE land surface scheme for Eva - Uniform C48 only)
         ! nsib=5 (original land surface scheme with MODIS datasets)
-        ! nsib=6 (CABLE land surface scheme with MODIS datasets)
+        ! nsib=6 (CABLE land surface scheme with internal screen diagnostics)
+        ! nsib=7 (CABLE land surface scheme with CCAM screen diagnostics)
         if (nsib.eq.CABLE) then
           print *,"nsib=CABLE option is not supported in
      &             this version of CCAM"
@@ -1028,6 +1037,9 @@ c        end if
       if (ngas>0) then
 !       tracer initialisation (if start of run) after restart read
         if (tracvalin.ne.-999) call tracini
+!     rml 23/2/10 find a background tracer value for each tracer and remove
+!     to provide better accuracy for transport
+        call tr_back	
         call init_ts(ngas,dt)
         call readtracerflux(kdate)
       endif
@@ -1994,7 +2006,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
              wet3=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil)) 
              print 98,iunp(nn),istn(nn),jstn(nn),iq,slon(nn),slat(nn),
      &          land(iq),rlongg(iq)*180/pi,rlatt(iq)*180/pi,
-     &          isoilm(iq),ivegt(iq),zs(iq)/grav,albvisnir(iq,1), ! MJT albedo
+     &          isoilm(iq),ivegt(iq),zs(iq)/grav,albvisnir(iq,1),       ! MJT albedo
      &          wb(iq,3),wet3,sigmf(iq),zolnd(iq),rsmin(iq),he(iq),
      &          myid
            end if               ! mystn
@@ -2033,10 +2045,9 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
             !end where
           end do
         end if
-        mlodwn(:,1,1)=tss(:) ! Always use tss for top ocean layer
-                             ! This has no effect in a climate mode and
-                             ! ensures SST track analyses in a NWP mode
-        mlodwn(:,:,1)=max(271.3,mlodwn(:,:,1)) ! ocean temp - not net temp
+        where (tss.gt.271.2)   ! Always use tss for top ocean layer
+          mlodwn(:,1,1)=tss(:) ! This has no effect in a climate mode and
+        endwhere               ! ensures SST track analyses in a NWP mode
         call mloload(ifull,mlodwn,0)
         deallocate(mlodwn,ocndwn)
       end if
@@ -2096,28 +2107,28 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
 
       !-----------------------------------------------------------------
       ! MJT CHANGE albedo
-      if (nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7) then
-        if (all(albsav.ne.-1.)) then
-          if (myid==0) print *,
-     &      "CABLE in use.  Initialising albedo with infile data"
-          where ((albsav.le.0.14).and.land)
-            !sfact=0.5 for alb <= 0.14 (see cable_soilsnow.f90)
-            albvisnir(:,1)=(1.00/1.50)*albsav(:)
-            albvisnir(:,2)=(2.00/1.50)*albsav(:)
-          elsewhere ((albsav.le.0.2).and.land)
-            !sfact=0.62 for 0.14 < alb <= 0.20 (see cable_soilsnow.f90)
-            albvisnir(:,1)=(1.24/1.62)*albsav(:)
-            albvisnir(:,2)=(2.00/1.62)*albsav(:)
-          elsewhere (land)
-            !sfact=0.68 for 0.2 < alb (see cable_soilsnow.f90)
-            albvisnir(:,1)=(1.36/1.68)*albsav(:)
-            albvisnir(:,2)=(2.00/1.68)*albsav(:)
-          end where
-        else
-          if (myid==0) print *,
-     &  "CABLE in use.  Initialising albedo with modified soil albedo"
-        end if
-      end if
+!      if (nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7) then
+!        if (all(albsav.ne.-1.)) then
+!          if (myid==0) print *,
+!     &      "CABLE in use.  Initialising albedo with infile data"
+!          where ((albsav.le.0.14).and.land)
+!            !sfact=0.5 for alb <= 0.14 (see cable_soilsnow.f90)
+!            albvisnir(:,1)=(1.00/1.50)*albsav(:)
+!            albvisnir(:,2)=(2.00/1.50)*albsav(:)
+!          elsewhere ((albsav.le.0.2).and.land)
+!            !sfact=0.62 for 0.14 < alb <= 0.20 (see cable_soilsnow.f90)
+!            albvisnir(:,1)=(1.24/1.62)*albsav(:)
+!            albvisnir(:,2)=(2.00/1.62)*albsav(:)
+!          elsewhere (land)
+!            !sfact=0.68 for 0.2 < alb (see cable_soilsnow.f90)
+!            albvisnir(:,1)=(1.36/1.68)*albsav(:)
+!            albvisnir(:,2)=(2.00/1.68)*albsav(:)
+!          end where
+!        else
+!          if (myid==0) print *,
+!     &  "CABLE in use.  Initialising albedo with modified soil albedo"
+!        end if
+!      end if
       !-----------------------------------------------------------------
 
       do iq=1,ifull

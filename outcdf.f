@@ -447,8 +447,8 @@ c       For time invariant surface fields
         !--------------------------------------------
 
 c       For time varying surface fields
-        lname = 'Leaf area index'                            ! MJT cable
-        call attrib(idnc,idim,3,'lai',lname,'none',0.,10.,0) ! MJT cable
+        lname = 'Leaf area index'                             ! MJT cable
+        call attrib(idnc,idim,3,'lai',lname,'none',0.,32.5,0) ! MJT cable
         lname = 'Surface temperature'
         call attrib(idnc,idim,3,'tsu',lname,'K',0.,350.,0)
         lname = 'Pan temperature'
@@ -512,7 +512,7 @@ c       For time varying surface fields
 c       lname = '3m wind speed'
 c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         lname = 'Screen level wind speed'
-        call attrib(idnc,idim,3,'uscrn',lname,'K',0.,40.,0)
+        call attrib(idnc,idim,3,'uscrn',lname,'m/s',0.,40.,0) ! MJT bug fix
         lname = 'Surface albedo'
         call attrib(idnc,idim,3,'alb',lname,'none',0.,1.,0)
         lname = 'Sea ice depth'
@@ -571,7 +571,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         endif     ! (nextout>=1)
         if (nextout>=1.or.(nvmix.eq.6.and.itype==-1)) then      ! MJT tke
           lname = 'PBL depth'                                   ! MJT tke
-          call attrib(idnc,idim,3,'pblh',lname,'m',0.,6000.,0)  ! MJT tke
+          call attrib(idnc,idim,3,'pblh',lname,'m',0.,6500.,0)  ! MJT tke
         end if                                                  ! MJT tke
         if(nextout>=2) then  ! 6-hourly u10, v10, tscr, rh1
          mnam ='x-component 10m wind '
@@ -761,15 +761,15 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
 
         if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then  ! MJT cable
           lname = 'Carbon leaf pool'
-          call attrib(idnc,idim,3,'cplant1',lname,'none',0.,50000.,0)
+          call attrib(idnc,idim,3,'cplant1',lname,'none',0.,65000.,0)
           lname = 'Carbon wood pool'
-          call attrib(idnc,idim,3,'cplant2',lname,'none',0.,50000.,0)
+          call attrib(idnc,idim,3,'cplant2',lname,'none',0.,65000.,0)
           lname = 'Carbon root pool'
-          call attrib(idnc,idim,3,'cplant3',lname,'none',0.,50000.,0)
+          call attrib(idnc,idim,3,'cplant3',lname,'none',0.,65000.,0)
           lname = 'Carbon soil fast pool'
-          call attrib(idnc,idim,3,'csoil1',lname,'none',0.,50000.,0)
+          call attrib(idnc,idim,3,'csoil1',lname,'none',0.,65000.,0)
           lname = 'Carbon soil slow pool'
-          call attrib(idnc,idim,3,'csoil2',lname,'none',0.,50000.,0)
+          call attrib(idnc,idim,3,'csoil2',lname,'none',0.,650000.,0)
         endif
 
         if(itype==-1)then   ! extra stuff just written for restart file
@@ -870,17 +870,17 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         !-------------------------------------------------------
         ! MJT CHANGE - add wetfrac1-6 and possibly delete wb1-6 above
         lname = 'Wetness fraction layer 1' ! 5. for frozen sand
-        call attrib(idnc,idim,3,'wetfrac1',lname,'none',-5.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac1',lname,'none',-6.5,6.5,0)
         lname = 'Wetness fraction layer 2'
-        call attrib(idnc,idim,3,'wetfrac2',lname,'none',-5.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac2',lname,'none',-6.5,6.5,0)
         lname = 'Wetness fraction layer 3'
-        call attrib(idnc,idim,3,'wetfrac3',lname,'none',-5.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac3',lname,'none',-6.5,6.5,0)
         lname = 'Wetness fraction layer 4'
-        call attrib(idnc,idim,3,'wetfrac4',lname,'none',-5.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac4',lname,'none',-6.5,6.5,0)
         lname = 'Wetness fraction layer 5'
-        call attrib(idnc,idim,3,'wetfrac5',lname,'none',-5.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac5',lname,'none',-6.5,6.5,0)
         lname = 'Wetness fraction layer 6'
-        call attrib(idnc,idim,3,'wetfrac6',lname,'none',-5.,5.,0)
+        call attrib(idnc,idim,3,'wetfrac6',lname,'none',-6.5,6.5,0)
         !-------------------------------------------------------        
  
         print *,'finished defining attributes'
