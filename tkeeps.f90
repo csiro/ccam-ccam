@@ -72,7 +72,7 @@ real, parameter :: d_1   = 0.35
 !real, parameter :: bb1 = 0.5 ! Luhar low wind
 !real, parameter :: cc1 = 0.3 ! Luhar low wind
 
-integer, parameter :: buoymeth = 2 ! 0=Dry air, 1=Duynkerke, 2=Smith
+integer, parameter :: buoymeth = 1 ! 0=Dry air, 1=Duynkerke, 2=Smith
 
 contains
 
@@ -126,13 +126,13 @@ real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: wt0,wq0,ps,ustar
 real, dimension(kl), intent(in) :: sigkap,sig
-real, dimension(ifull,kl) :: km,gamt,ff,gg,thetal,thetav,temp,gamq
+real, dimension(ifull,kl) :: km,gamt,ff,gg,templ,thetav,temp,gamq
 real, dimension(ifull,kl) :: tkenew,epsnew,qsat,ppb
 real, dimension(ifull,2:kl) :: pps,ppt
 real, dimension(ifull,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull,2:kl) :: aa,bb,cc,dd
-real, dimension(ifull) :: wstar,z_on_l,phim,wtv0,hh,ii,jj,dqsdt
+real, dimension(ifull) :: wstar,z_on_l,phim,wtv0,hh,jj,dqsdt
 real, dimension(kl-1) :: wpv_flux,tup,qup,w2up
 real xp,wup,mflx,qupsat(1),ee
 real cf,qc,rcrit,delq
@@ -222,22 +222,21 @@ select case(buoymeth)
     
   case(2) ! Smith (1990)
     do k=1,kl
-      thetal(:,k)=theta(:,k)-(lv/cp*qlg(:,k)+ls/cp*qfg(:,k))*sigkap(k) ! thetal
+      templ(:,k)=temp(:,k)-(lv/cp*qlg(:,k)+ls/cp*qfg(:,k))
       jj(:)=lv+lf*qfg(:,k)/max(qlg(:,k)+qfg(:,k),1.e-12) ! L
-      call getqsat(ifull,ii,thetal(:,k)/sigkap(k),ps*sig(k))
-      dqsdt(:)=epsl*jj(:)*ii(:)/(rd*(thetal(:,k)/sigkap(k))**2)
+      dqsdt(:)=epsl*jj(:)*qsat(:,k)/(rd*temp(:,k)**2)
       hh(:)=cfrac(:,k)*(jj(:)/cp/temp(:,k) &
-                        -delta/(1.-epsl)/(1.+delta*qg(:,k)-qlg(:,k)-qfg(:,k)))/(1.+jj(:)/cp*dqsdt) ! betac
-      ff(:,k)=(1./temp(:,k)-dqsdt*hh(:))/sigkap(k)             ! betatt
+                        -delta/(1.-epsl)/(1.+delta*qg(:,k)-qlg(:,k)-qfg(:,k)))/(1.+jj(:)*dqsdt/cp) ! betac
+      ff(:,k)=1./temp(:,k)-dqsdt*hh(:)                         ! betatt
       gg(:,k)=delta/(1.+delta*qg(:,k)-qlg(:,k)-qfg(:,k))+hh(:) ! betaqt
     end do    
-    ppb(:,1)=-grav*ff(:,1)*(thetal(:,2)-thetal(:,1))/dz_hl(:,1) &
+    ppb(:,1)=-grav*ff(:,1)*((templ(:,2)-templ(:,1))/dz_hl(:,1)+grav/cp) &
              -grav*gg(:,1)*(qg(:,2)+qlg(:,2)+qfg(:,2)-qg(:,1)-qlg(:,1)-qfg(:,1))/dz_hl(:,1)
     do k=2,kl-1
-      ppb(:,k)=-grav*ff(:,k)*0.5*(thetal(:,k+1)-thetal(:,k-1))/dz_fl(:,k) &
+      ppb(:,k)=-grav*ff(:,k)*(0.5*(templ(:,k+1)-templ(:,k-1))/dz_fl(:,k)+grav/cp) &
                -grav*gg(:,k)*0.5*(qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-qg(:,k-1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k)
     end do
-    ppb(:,kl)=-grav*ff(:,kl)*(thetal(:,kl)-thetal(:,kl-1))/dz_hl(:,kl-1) &
+    ppb(:,kl)=-grav*ff(:,kl)*((templ(:,kl)-templ(:,kl-1))/dz_hl(:,kl-1)+grav/cp) &
               -grav*gg(:,kl)*(qg(:,kl)+qlg(:,kl)+qfg(:,kl)-qg(:,kl-1)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1)
       
   case DEFAULT
