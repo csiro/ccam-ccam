@@ -1,7 +1,6 @@
       ! MJT - modified to use less memory when interpolating from large host (e.g., C160)
-      !       Eventially plan to remove infile.f and always use onthefly.f for reading
-      !       host data.  This requires some logic to avoid interpolation when ik=il,
-      !       rlong0=rlong0x, rlat0=rlat0x and schmidt=schmidtx.
+      !       Can now remove infile.f and always use onthefly.f for reading
+      !       host data.
       
       subroutine onthefly(nested,kdate_r,ktime_r,
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
@@ -32,9 +31,9 @@
       include 'vecsuv_g.h'
       include 'vvel.h'
       include 'mpif.h'
-      real sigin
+      !real sigin ! MJT vertint
       integer ik,jk,kk
-      common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile
+      !common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT vertin
       logical, dimension(ifull) :: land_t
       real ::  rlong0x, rlat0x, schmidtx      ! MJT small otf
       common/schmidtx/rlong0x,rlat0x,schmidtx ! MJT small otf
@@ -86,22 +85,9 @@
           rlong0x =ahead(6)
           rlat0x  =ahead(7)
           schmidtx=ahead(8)
-        endif  ! (schmidtx<=0..or.schmidtx>1.)	
+        endif  ! (schmidtx<=0..or.schmidtx>1.)        
         write(6,*) 'in onthefly ktau,ncid,iarchi,ik,jk,kk ',
      &                       ktau,ncid,iarchi,ik,jk,kk
-        call ncagt(ncid,ncglobal,'sigma',sigin,ier)
-        if (ier.ne.0) then
-          idv = ncvid(ncid,'lev',ier)
-          if (ier.eq.0) call ncvgt(ncid,idv,1,kk,sigin,ier)
-        end if
-        if (ier.ne.0) then
-          call ncagt(ncid,ncglobal,'sigma_lev',sigin,ier)
-        end if	
-        if (ier.ne.0) then
-          idv = ncvid(ncid,'layer',ier)
-          if (ier.eq.0) call ncvgt(ncid,idv,1,kk,sigin,ier)
-        end if
-	if(ktau<=1)write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
         ltest=.true.
         iarchi=iarchi-1
         do while(ltest)
@@ -109,18 +95,18 @@
           idv = ncvid(ncid,'kdate',ier)
           call ncvgt1(ncid,idv,iarchi,kdate_r,ier)
           idv = ncvid(ncid,'timer',ier)
-	  timer=0.
+          timer=0.
           call ncvgt1(ncid,idv,iarchi,timer,ier)
           idv = ncvid(ncid,'mtimer',ier)
-	  if (ier.eq.0) then
+          if (ier.eq.0) then
             call ncvgt1(ncid,idv,iarchi,mtimer,ier)
-	    timer=mtimer/60.
-	  else
-	    mtimer=nint(timer*60.)
-	  endif
+            timer=mtimer/60.
+          else
+            mtimer=nint(timer*60.)
+          endif
           idv = ncvid(ncid,'ktime',ier)
           call ncvgt1(ncid,idv,iarchi,ktime_r,ier)
-          if (mtimer>0) then        
+          if (mtimer>0) then
             call datefix(kdate_r,ktime_r,mtimer)
           end if
           ltest=2400*(kdate_r-kdate_s)-1200*nsemble
@@ -139,7 +125,6 @@
       call MPI_Bcast(rlong0x ,1,MPI_REAL,0,MPI_COMM_WORLD,ier)
       call MPI_Bcast(rlat0x  ,1,MPI_REAL,0,MPI_COMM_WORLD,ier)
       call MPI_Bcast(schmidtx,1,MPI_REAL,0,MPI_COMM_WORLD,ier)
-      call MPI_Bcast(sigin  ,kk,MPI_REAL,0,MPI_COMM_WORLD,ier)
       !--------------------------------------------------------------
       
 !     save cc land file 
@@ -163,10 +148,10 @@ c     start of processing loop
      .                    tgg,wb,wbice,snowd,qfg,qlg,
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk)
       use cc_mpi
-      use ateb, only : atebdwn,atebotf ! MJT urban
+      use ateb, only : atebdwn ! MJT urban
       use define_dimensions, only : ncs, ncp ! MJT cable
       use mlo, only : wlev,mlodwn,ocndwn,mlootf,ocnotf ! MJT mlo
-      use tkeeps, only : tkedwn,epsdwn,pblhdwn,tkeotf,epsotf,pblhotf ! MJT tke
+      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       use utilities
       implicit none
       integer, parameter :: ntest=0
@@ -185,6 +170,8 @@ c**   onthefly; sometime can get rid of common/bigxy4
       include 'const_phys.h'
       include 'darcdf.h' ! MJT small otf
       include 'latlong_g.h'  ! rlatt_g,rlongg_g,
+      include 'morepbl.h'  ! MJT vertint
+      include 'netcdf.inc' ! MJT vertint
 c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       include 'parm.h'
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
@@ -203,13 +190,14 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       real, dimension(ifull,ms) :: wb,wbice,tgg
       real, dimension(ifull,3) :: tggsn,smass,ssdn
       real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg
+      real, dimension(ifull,kk) :: t_k,u_k,v_k,qg_k ! MJT vertint
       integer, dimension(ifull) :: isflag
       real, dimension(ik*ik*6) :: psl_a,zss_a,tss_a,fracice_a,dum5,
      &      snowd_a,sicedep_a,ssdnn_a,snage_a,pmsl_a,  tss_l_a,tss_s_a,
      &      tggsn_b ! MJT small otf
       real, dimension(ik*ik*6,ms) :: wb_a,wbice_a,tgg_a
       real, dimension(ik*ik*6,3) :: tggsn_a,smass_a,ssdn_a
-      real, dimension(ik*ik*6) :: t_a,u_a,v_a,qg_a,qfg_a,qlg_a ! MJT small otf
+      real, dimension(ik*ik*6) :: t_a,u_a,v_a,qg_a ! MJT small otf
       real, dimension(ik*ik*6) :: t_a_lev ! MJT small otf
       real, dimension(ik*ik*6,ncp) :: cplant_a ! MJT cable
       real, dimension(ik*ik*6,ncs) :: csoil_a  ! MJT cable
@@ -217,6 +205,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       real ::  rlong0x, rlat0x, schmidtx, spval
       integer ::  kdate_r, ktime_r, nemi, id2,jd2,idjd2,
      &            nested, i, j, k, m, iq, ii, jj, np, numneg
+      integer idv ! MJT vertint
 
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
       integer ik, kk
@@ -242,21 +231,34 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       character*8 vname ! MJT small otf
       character*3 trnum ! MJT small otf
       logical iotest ! MJT small otf
-
-      !--------------------------------------------------------------
-      ! MJT bug fix
-      if (kk.gt.kl) then
-        write(6,*) "ERROR: vertint kk.gt.kl is not supported"
-        stop
-      end if
-      !--------------------------------------------------------------
+      real, dimension(kk) :: sigin ! MJT vertint
 
       !--------------------------------------------------------------
       ! MJT small otf
+
+      ! read host sigma levels
+      if (myid==0) then
+        call ncagt(ncid,ncglobal,'sigma',sigin,ier)
+        if (ier.ne.0) then
+          call ncagt(ncid,ncglobal,'sigma_lev',sigin,ier)
+        end if
+        if (ier.ne.0) then
+          idv = ncvid(ncid,'lev',ier)
+          if (ier.eq.0) call ncvgt(ncid,idv,1,kk,sigin,ier)
+        end if
+        if (ier.ne.0) then
+          idv = ncvid(ncid,'layer',ier)
+          if (ier.eq.0) call ncvgt(ncid,idv,1,kk,sigin,ier)
+        end if
+        if(ktau<=1)write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
+      endif
+      call MPI_Bcast(sigin  ,kk,MPI_REAL,0,MPI_COMM_WORLD,ier)
+      
       ! Determine if interpolation is required
       iotest=6*ik*ik.eq.ifull_g.and.abs(rlong0x-rlong0).lt.1.E-5.and.
      &       abs(rlat0x-rlat0).lt.1.E-5.and.
      &       abs(schmidtx-schmidt).lt.1.E-5
+      ! update io_in for compatibility with CABLE loadtile
       if (iotest) then
         io_in=1
       else
@@ -431,15 +433,15 @@ ccc      if ( myid==0 ) then
         !---------------------------------------------------------
         if (iotest) then
           if (myid==0) then
-            call ccmpi_distribute(u(:,k), u_a)
-            call ccmpi_distribute(v(:,k), v_a)
-            call ccmpi_distribute(t(:,k), t_a)
-            call ccmpi_distribute(qg(:,k), qg_a)
+            call ccmpi_distribute(u_k(:,k), u_a)
+            call ccmpi_distribute(v_k(:,k), v_a)
+            call ccmpi_distribute(t_k(:,k), t_a)
+            call ccmpi_distribute(qg_k(:,k), qg_a)
           else
-            call ccmpi_distribute(u(:,k))
-            call ccmpi_distribute(v(:,k))
-            call ccmpi_distribute(t(:,k))
-            call ccmpi_distribute(qg(:,k))         
+            call ccmpi_distribute(u_k(:,k))
+            call ccmpi_distribute(v_k(:,k))
+            call ccmpi_distribute(t_k(:,k))
+            call ccmpi_distribute(qg_k(:,k))         
           end if
         else
           if ( myid==0 ) then
@@ -497,18 +499,22 @@ c           endif
               write(6,*)'bx,by,bz ',bx_g(idjd),by_g(idjd),bz_g(idjd)
               write(6,*)'final u , v: ',u_g(idjd),v_g(idjd)
             endif
-            call ccmpi_distribute(u(:,k), u_g)
-            call ccmpi_distribute(v(:,k), v_g)
-            call ccmpi_distribute(t(:,k), t_g)
-            call ccmpi_distribute(qg(:,k), qg_g)
+            call ccmpi_distribute(u_k(:,k), u_g)
+            call ccmpi_distribute(v_k(:,k), v_g)
+            call ccmpi_distribute(t_k(:,k), t_g)
+            call ccmpi_distribute(qg_k(:,k), qg_g)
           else ! myid /= 0
-            call ccmpi_distribute(u(:,k))
-            call ccmpi_distribute(v(:,k))
-            call ccmpi_distribute(t(:,k))
-            call ccmpi_distribute(qg(:,k))
+            call ccmpi_distribute(u_k(:,k))
+            call ccmpi_distribute(v_k(:,k))
+            call ccmpi_distribute(t_k(:,k))
+            call ccmpi_distribute(qg_k(:,k))
           endif ! myid==0
         end if ! iotest
       enddo  ! k loop
+      call vertint(t_k ,t(1:ifull,:), 1,kk,sigin)
+      call vertint(qg_k,qg(1:ifull,:),2,kk,sigin)
+      call vertint(u_k ,u(1:ifull,:), 3,kk,sigin)
+      call vertint(v_k ,v(1:ifull,:), 4,kk,sigin)
       !--------------------------------------------------------------
 
 !     below we interpolate quantities which may be affected by land-sea mask
@@ -743,7 +749,7 @@ c           endif
         end if
 
         !--------------------------------------------------
-        ! MJT mlo - must execute before tgg is processed
+        ! MJT mlo - must execute the following code before tgg is processed
         if (nmlo.ne.0) then
           allocate(mlootf(ik*ik*6,1,4),ocnotf(ik*ik*6))
           allocate(mlodwn(ifull,wlev,4),ocndwn(ifull))
@@ -940,91 +946,92 @@ c           endif
         isflag=nint(dum6)
 
         do k=1,kk
-         qfg_a=0.
-         qlg_a=0.
-         call histrd4s(ncid,iarchi,ier,'qfg',ik,6*ik,k,qfg_a,
+         u_a=0. ! dummy for qfg
+         v_a=0. ! dummy for qlg
+         call histrd4s(ncid,iarchi,ier,'qfg',ik,6*ik,k,u_a,
      &                 6*ik*ik)
-         call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,qlg_a,
+         call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,v_a,
      &                 6*ik*ik)
          if (iotest) then
            if (myid==0) then
-             call ccmpi_distribute(qfg(:,k),qfg_a)
-             call ccmpi_distribute(qlg(:,k),qlg_a)
+             call ccmpi_distribute(u_k(:,k),u_a)
+             call ccmpi_distribute(v_k(:,k),v_a)
            else
-             call ccmpi_distribute(qfg(:,k))
-             call ccmpi_distribute(qlg(:,k))
+             call ccmpi_distribute(u_k(:,k))
+             call ccmpi_distribute(v_k(:,k))
            end if
          else
-           call doints4(qfg_a,qfg(:,k),nface4,xg4,yg4,nord,ik)
-           call doints4(qlg_a,qlg(:,k),nface4,xg4,yg4,nord,ik)
+           call doints4(u_a,u_k(:,k),nface4,xg4,yg4,nord,ik)
+           call doints4(v_a,v_k(:,k),nface4,xg4,yg4,nord,ik)
          end if ! iotest
         enddo  ! k loop
+        call vertint(u_k,qfg,5,kk,sigin)
+        call vertint(v_k,qlg,5,kk,sigin)
         !------------------------------------------------------------
         !--------------------------------------------------
         ! MJT urban
         if (nurban.ne.0) then
-          allocate(atebotf(6*ik*ik,1),atebdwn(ifull,13))        
+          allocate(atebdwn(ifull,13))        
           do k=1,13
-            atebotf(:,1)=999.
+            t_a=999.
             select case(k)
               case(1)
                 call histrd1(ncid,iarchi,ier,'rooftgg1',ik,6*ik,
-     &                       atebotf(:,1),6*ik*ik)
+     &                       t_a,6*ik*ik)
               case(2)
                 call histrd1(ncid,iarchi,ier,'rooftgg2',ik,6*ik,
-     &                       atebotf(:,1),6*ik*ik)
+     &                       t_a,6*ik*ik)
               case(3)
                 call histrd1(ncid,iarchi,ier,'rooftgg3',ik,6*ik,
-     &                       atebotf(:,1),6*ik*ik)
+     &                       t_a,6*ik*ik)
               case(4)
                 call histrd1(ncid,iarchi,ier,'waletgg1',ik,6*ik,
-     &                       atebotf(:,1),6*ik*ik)
+     &                       t_a,6*ik*ik)
               case(5)
                 call histrd1(ncid,iarchi,ier,'waletgg2',ik,6*ik,
-     &                       atebotf(:,1),6*ik*ik)
+     &                       t_a,6*ik*ik)
               case(6)
                 call histrd1(ncid,iarchi,ier,'waletgg3',ik,6*ik,
-     &                       atebotf(:,1),6*ik*ik)
+     &                       t_a,6*ik*ik)
               case(7)
                 call histrd1(ncid,iarchi,ier,'walwtgg1',ik,6*ik,
-     &                       atebotf(:,1),6*ik*ik)
+     &                       t_a,6*ik*ik)
               case(8)
                 call histrd1(ncid,iarchi,ier,'walwtgg2',ik,6*ik,
-     &                       atebotf(:,1),6*ik*ik)
+     &                       t_a,6*ik*ik)
               case(9)
                 call histrd1(ncid,iarchi,ier,'walwtgg3',ik,6*ik,
-     &                       atebotf(:,1),6*ik*ik)
+     &                       t_a,6*ik*ik)
               case(10)
                 call histrd1(ncid,iarchi,ier,'roadtgg1',ik,6*ik,
-     &                       atebotf(:,1),6*ik*ik)
+     &                       t_a,6*ik*ik)
               case(11)
                 call histrd1(ncid,iarchi,ier,'roadtgg2',ik,6*ik,
-     &                       atebotf(:,1),6*ik*ik)
+     &                       t_a,6*ik*ik)
               case(12)
                 call histrd1(ncid,iarchi,ier,'roadtgg3',ik,6*ik,
-     &                       atebotf(:,1),6*ik*ik)
+     &                       t_a,6*ik*ik)
               case(13)
                 call histrd1(ncid,iarchi,ier,'urbansm',ik,6*ik,
-     &                       atebotf(:,1),6*ik*ik)     
+     &                       t_a,6*ik*ik)     
             end select
             if (iotest) then
               if (myid==0) then
-                call ccmpi_distribute(atebdwn(:,k),atebotf(:,1))
+                call ccmpi_distribute(atebdwn(:,k),t_a)
               else
                 call ccmpi_distribute(atebdwn(:,k))
               end if
             else
               if (myid==0) then
-                where (.not.land_a.or.atebotf(:,1).ge.399.)
-                  atebotf(:,1)=spval
+                where (.not.land_a.or.t_a.ge.399.)
+                  t_a=spval
                 end where
-                call fill_cc(atebotf(:,1),spval,ik,0)
+                call fill_cc(t_a,spval,ik,0)
               end if
-              call doints4(atebotf(:,1),atebdwn(:,k),nface4,xg4,yg4,nord
+              call doints4(t_a,atebdwn(:,k),nface4,xg4,yg4,nord
      &                     ,ik)
             end if ! iotest
           end do
-          deallocate(atebotf)
         end if
         !--------------------------------------------------
         !--------------------------------------------------
@@ -1085,43 +1092,48 @@ c           endif
         !--------------------------------------------------
         ! MJT tke
         if (nvmix.eq.6) then
-          allocate(tkeotf(ik*ik*6,1),epsotf(ik*ik*6,1),pblhotf(ik*ik*6))
-          allocate(tkedwn(ifull,kl),epsdwn(ifull,kl),pblhdwn(ifull))
-          pblhotf=1000.
-          call histrd1(ncid,iarchi,ier,'pblh',ik,6*ik,pblhotf,6*ik*ik)
+          t_a=1000. ! dummy for pbl
+          call histrd1(ncid,iarchi,ier,'pblh',ik,6*ik,t_a,6*ik*ik)
           if (iotest) then
             if (myid==0) then
-              call ccmpi_distribute(pblhdwn,pblhotf)
+              call ccmpi_distribute(pblh,t_a)
             else
-              call ccmpi_distribute(pblhdwn)
+              call ccmpi_distribute(pblh)
             end if
           else
-            call doints4(pblhotf,pblhdwn,nface4,xg4,yg4,
+            call doints4(t_a,pblh,nface4,xg4,yg4,
      &                     nord,ik)
           end if ! iotest
           do k=1,kk
-            tkeotf(:,1)=1.5E-4
+            u_a=1.5E-4 ! dummy for tke
             call histrd4s(ncid,iarchi,ier,'tke',ik,6*ik,k,
-     &                    tkeotf(:,1),6*ik*ik)
-            epsotf(:,1)=1.E-6
+     &                    u_a,6*ik*ik)
+            v_a=1.E-6 ! dummy for eps
             call histrd4s(ncid,iarchi,ier,'eps',ik,6*ik,k,
-     &                    epsotf(:,1),6*ik*ik)
+     &                    v_a,6*ik*ik)
             if (iotest) then
               if (myid==0) then
-                call ccmpi_distribute(tkedwn(:,k),tkeotf(:,1))
-                call ccmpi_distribute(epsdwn(:,k),epsotf(:,1))
+                call ccmpi_distribute(u_k(:,k),u_a)
+                call ccmpi_distribute(v_k(:,k),v_a)
               else
-                call ccmpi_distribute(tkedwn(:,k))
-                call ccmpi_distribute(epsdwn(:,k))
+                call ccmpi_distribute(u_k(:,k))
+                call ccmpi_distribute(v_k(:,k))
               end if
             else
-              call doints4(tkeotf(:,1),tkedwn(:,k),nface4,xg4,yg4,
+              call doints4(u_a,u_k(:,k),nface4,xg4,yg4,
      &                     nord,ik)
-              call doints4(epsotf(:,1),epsdwn(:,k),nface4,xg4,yg4,
+              call doints4(v_a,v_k(:,k),nface4,xg4,yg4,
      &                     nord,ik)
             end if ! iotest
           end do
-          deallocate(tkeotf,epsotf,pblhotf)
+          call vertint(u_k,tke(1:ifull,:),6,kk,sigin)  
+          call vertint(v_k,eps(1:ifull,:),6,kk,sigin)
+          tke=max(tke,1.5E-4)
+          eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)
+          eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)          
+          eps=max(eps,1.E-6)       
+          tkesav=tke(1:ifull,:)
+          epssav=eps(1:ifull,:)
         end if
         !------------------------------------------------------------
         ! MJT tracerfix
@@ -1133,15 +1145,16 @@ c           endif
      &                 t_a,6*ik*ik)
               if (iotest) then
                 if (myid==0) then
-                   call ccmpi_distribute(tr(1:ifull,k,igas),t_a)
+                   call ccmpi_distribute(t_k(:,k),t_a)
                 else
-                  call ccmpi_distribute(tr(1:ifull,k,igas))
+                  call ccmpi_distribute(t_k(:,k))
                 end if
               else
-                call doints4(t_a,tr(1:ifull,k,igas),nface4,xg4,yg4,
+                call doints4(t_a,t_k(:,k),nface4,xg4,yg4,
      &                       nord,ik)              
               end if ! iotest
             end do
+            call vertint(t_k,tr(1:ifull,:,igas),7,kk,sigin)
           enddo                       
         endif                         
         !------------------------------------------------------------

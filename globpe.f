@@ -114,8 +114,8 @@
       real wblf,wbfice,sdepth,dum3b
       common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
      &              dum3b(ijk*2-2*ifull*ms-3*ifull)
-      real rtt
-      common/work3d/rtt(ifull,kl) ! just to pass between radriv90 & globpe
+      !real rtt ! MJT
+      !common/work3d/rtt(ifull,kl) ! just to pass between radriv90 & globpe ! MJT
       real qccon, qlrad, qfrad
       common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) !leoncld etc
       real cfrac
@@ -172,7 +172,8 @@
      & ,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
-     & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst ! MJT urban ! MJT nmr ! MJT mlo ! MJT nestin
+     & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst                          ! MJT urban ! MJT nmr ! MJT mlo ! MJT nestin
+     & ,mfix_tr,mfix_ke                                                         ! MJT tracerfix ! MJT tke
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -444,7 +445,7 @@ c     set up cc geometry
           open(15,file=radfile,form='formatted',status='old') ! MJT read
         end if                                                ! MJT read
       endif
-      if(iaero.ne.0)then
+      if(abs(iaero).eq.1)then ! MJT aero
          if (myid==0) print *,'so4total data read from file ',so4tfile
          call readreal(so4tfile,so4t,ifull)
       endif
@@ -675,7 +676,11 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
 !     mtimer=mtimer+mins_dt
       mtimer=mtimer_in+nint(ktau*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
       mins_gmt=mod(mtimer+60*ktime/100,24*60)
+      
+      ! NESTING ---------------------------------------------------------------
       if(nbd.ne.0)call nestin
+      
+      ! DYNAMICS --------------------------------------------------------------
       if(nstaguin>0.and.ktau>1)then   ! swapping here for nstaguin>0
         if(nstagin<0.and.mod(ktau,abs(nstagin))==0)then
           nstag=7-nstag  ! swap between 3 & 4
@@ -872,11 +877,14 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
         endif
       endif
       call adjust5
+      
+      ! NESTING ---------------------------------------------------------------
       call start_log(nestin_begin)
       if(mspec==1.and.nbd.ne.0)call davies  ! nesting now after mass fixers
       if(mspec==1.and.mbd.ne.0)call nestinb
       call end_log(nestin_end)
 
+      ! DYNAMICS --------------------------------------------------------------
       if(mspec==2)then     ! for very first step restore mass & T fields
         call gettin(1)
       endif    !  (mspec==2) 
@@ -911,11 +919,18 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
 
       if(nhor<0)call hordifgt  ! now not tendencies
       if (diag.and.mydiag)print *,'after hordifgt t ',t(idjd,:)
+
+      ! ***********************************************************************
+      ! START PHYSICS 
+      ! ***********************************************************************
       call start_log(phys_begin)
+
+      ! GWDRAG ----------------------------------------------------------------
       call start_log(gwdrag_begin)
       if(ngwd<0)call gwdrag  ! <0 for split - only one now allowed
       call end_log(gwdrag_end)
 
+      ! CONVECTION ------------------------------------------------------------
       call start_log(convection_begin)
       if(nkuo==23)call convjlm     ! split convjlm 
       if( nkuo /= 0 ) then
@@ -927,8 +942,9 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
       if(nkuo==5)call betts(t,qg,tn,land,ps) ! not called these days
       call end_log(convection_end)
 
+      ! CLOUD MICROPHYSICS ----------------------------------------------------
+      call start_log(cloud_begin)
       if(ldr.ne.0)then
-        call start_log(cloud_begin)
 c       print*,'Calling prognostic cloud scheme'
         call leoncld(cfrac)  !Output
         do k=1,kl
@@ -940,185 +956,187 @@ c       print*,'Calling prognostic cloud scheme'
           write (6,"('qlrad',3p9f8.3/5x,9f8.3)") qlrad(idjd,:)
           write (6,"('qf   ',3p9f8.3/5x,9f8.3)") qfg(idjd,:)
         endif
-        call end_log(cloud_end)
       endif  ! (ldr.ne.0)
       rnd_3hr(:,8)=rnd_3hr(:,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+      call end_log(cloud_end)
 
-!       put radiation here
-        call start_log(radiation_begin)
-        if(nrad==4) then
-!         Fels-Schwarzkopf radiation
-          odcalc=mod(ktau,kountr)==0 .or. ktau==1 ! ktau-1 better
-          nnrad=kountr
-          if(nhstest<0)then ! aquaplanet test -1 to -8  
-           mtimer_sav=mtimer
-           mtimer=mins_gmt     ! so radn scheme repeatedly works thru same day
-          endif    ! (nhstest<0)
-c         print *,'before radrive'
-c         call maxmin(t,' t',ktau,1.,kl)
-c         call maxmin(qg,'qg',ktau,1.e3,kl)
-c         call maxmin(tgg,'tg',ktau,1.,ms)
-          call radrive (odcalc,iaero)
-          if(nhstest<0)then ! aquaplanet test -1 to -8  
-            mtimer=mtimer_sav
-          endif    ! (nhstest<0)
-          t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:) 
-          if (nmaxpr==1) then
-             ! Account for load bal explicitly rather than implicitly in
-             ! the reduce in maxmin.
-             call phys_loadbal
-             call maxmin(rtt,'rt',ktau,1.e4,kl)
-             call maxmin(slwa,'sl',ktau,.1,1)
-          end if
-        else if (nrad==5) then                        ! MJT radiation
-          ! GFDL SEA-EFS radiation                    ! MJT radiation
-          odcalc=mod(ktau,kountr)==0 .or. ktau==1     ! MJT radiation
-          nnrad=kountr                                ! MJT radiation
-          if(nhstest<0)then                           ! MJT radiation
-           mtimer_sav=mtimer                          ! MJT radiation
-           mtimer=mins_gmt                            ! MJT radiation
-          endif                                       ! MJT radiation
-          call seaesfrad(odcalc,iaero)                ! MJT radiation
-          if(nhstest<0)then                           ! MJT radiation
-            mtimer=mtimer_sav                         ! MJT radiation
-          endif                                       ! MJT radiation
-          t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:) ! MJT radiation
-        else
-!         use preset slwa array (use +ve nrad)
-          slwa(:)=-10*nrad  
-!         N.B. no rtt array for this nrad option
-        endif  !  (nrad==4)
-        call end_log(radiation_end)
+      ! RADIATION -------------------------------------------------------------
+      call start_log(radiation_begin)
+      if(nrad==4) then
+!       Fels-Schwarzkopf radiation
+        odcalc=mod(ktau,kountr)==0 .or. ktau==1 ! ktau-1 better
+        nnrad=kountr
+        if(nhstest<0)then ! aquaplanet test -1 to -8  
+         mtimer_sav=mtimer
+         mtimer=mins_gmt     ! so radn scheme repeatedly works thru same day
+        endif    ! (nhstest<0)
+        call radrive (odcalc,iaero)
+        if(nhstest<0)then ! aquaplanet test -1 to -8  
+          mtimer=mtimer_sav
+        endif    ! (nhstest<0)
+        !t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:)  ! MJT moved to radriv90.f
+        if (nmaxpr==1) then
+          ! Account for load bal explicitly rather than implicitly in
+          ! the reduce in maxmin.
+          call phys_loadbal
+          !call maxmin(rtt,'rt',ktau,1.e4,kl)
+          call maxmin(slwa,'sl',ktau,.1,1)
+        end if
+      else if (nrad==5) then                        ! MJT radiation
+        ! GFDL SEA-EFS radiation                    ! MJT radiation
+        odcalc=mod(ktau,kountr)==0.or.ktau==1       ! MJT radiation
+        nnrad=kountr                                ! MJT radiation
+        if(nhstest<0)then                           ! MJT radiation
+         mtimer_sav=mtimer                          ! MJT radiation
+         mtimer=mins_gmt                            ! MJT radiation
+        endif                                       ! MJT radiation
+        call seaesfrad(odcalc,iaero)                ! MJT radiation
+        if(nhstest<0)then                           ! MJT radiation
+          mtimer=mtimer_sav                         ! MJT radiation
+        endif                                       ! MJT radiation
+      else
+!       use preset slwa array (use +ve nrad)
+        slwa(:)=-10*nrad  
+!       N.B. no rtt array for this nrad option
+      endif  !  (nrad==4)
+      call end_log(radiation_end)
 
-        egg(:)=0.   ! reset for fort.60 files
-        fgg(:)=0.   ! reset for fort.60 files
-        if(ntsur<=1.or.nhstest==2)then ! Held & Suarez or no surf fluxes
-         eg(:)=0.
-         fg(:)=0.
-         cdtq(:)=0.
-         cduv(:)=0.
-        endif     ! (ntsur<=1.or.nhstest==2) 
-        if(nhstest==2)call hs_phys
-        if(ntsur>1)then  ! should be better after convjlm
-         if(diag)then
-           call maxmin(u,'#u',ktau,1.,kl)
-           call maxmin(v,'#v',ktau,1.,kl)
-           call maxmin(t,'#t',ktau,1.,kl)
-           call maxmin(qg,'qg',ktau,1.e3,kl)     
-           call MPI_Barrier( MPI_COMM_WORLD, ierr ) ! stop others going past
-         endif
-         call sflux(nalpha)
-         epan_ave = epan_ave+epan  ! 2D 
-         epot_ave = epot_ave+epot  ! 2D 
-         ga_ave = ga_ave+ga        ! 2D   
-         if(nstn>0.and.nrotstn(1)==0)call stationa ! write every time step
-         if(mod(ktau,nmaxpr)==0.and.mydiag)then
-          print *
-          write (6,
-     .	   "('ktau =',i5,' gmt(h,m):',f6.2,i5,' runtime(h,m):',f7.2,i6)")
-     .	      ktau,timeg,mins_gmt,timer,mtimer
-!         some surface (or point) diagnostics
-          isoil = isoilm(idjd)
-          print *,'land,isoil,ivegt,isflag ',
-     &           land(idjd),isoil,ivegt(idjd),isflag(idjd)
-          write (6,"('snage,snowd,osnowd,alb,tsigmf   ',f8.4,4f8.2)")
-     &       snage(idjd),snowd(idjd),osnowd(idjd),albvisnir(idjd,1),
-     &       tsigmf(idjd) ! MJT albedo
-          write (6,"('sicedep,fracice,runoff ',3f8.2)")
-     &             sicedep(idjd),fracice(idjd),runoff(idjd)
-          write (6,"('t1,otgsoil,theta,fev,fgf   ',9f8.2)") 
-     &         t(idjd,1),otgsoil(idjd),theta(idjd),fev(idjd),fgf(idjd)
-          write (6,"('tgg(1-6)   ',9f8.2)") (tgg(idjd,k),k=1,6)
-          write (6,"('tggsn(1-3) ',9f8.2)") (tggsn(idjd,k),k=1,3)
-          write (6,"('wb(1-6)    ',9f8.3)") (wb(idjd,k),k=1,6)
-          write (6,"('wbice(1-6) ',9f8.3)") (wbice(idjd,k),k=1,6)
-          write (6,"('wblf(1-6)  ',9f8.3)") (wblf(idjd,k),k=1,6)
-          write (6,"('wbfice(1-6)',9f8.3)") (wbfice(idjd,k),k=1,6)
-          write (6,"('smass(1-3) ',9f8.2)") (smass(idjd,k),k=1,3) ! as mm of water
-          write (6,"('ssdn(1-3)  ',9f8.2)") (ssdn(idjd,k),k=1,3)
-          write (6,"('sdepth(1-3)',9f8.2)") (sdepth(idjd,k),k=1,3) ! as m of snow
-          pwater=0.   ! in mm
-          iq=idjd
-          div_int=0.
-          do k=1,kl
-           qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
-            pwater=pwater-dsig(k)*qtot*ps(idjd)/grav
-            div(k)=(u(ieu(iq),k)/emu(ieu(iq))
-     &             -u(iwu(iq),k)/emu(iwu(iq))  
-     &             +v(inv(iq),k)/emv(inv(iq))
-     &             -v(isv(iq),k)/emv(isv(iq))) 
-     &              *em(iq)**2/(2.*ds)  *1.e6
-            div_int=div_int-div(k)*dsig(k)
-          enddo
-          write (6,"('pwater,condc,condx,rndmax,rmc',9f8.3)")
-     &       pwater,condc(idjd),condx(idjd),rndmax(idjd),rmc(idjd)
-          write (6,"('wetfac,sno,evap,precc,precip',
-     &       6f8.2)") wetfac(idjd),sno(idjd),evap(idjd),precc(idjd),
-     &       precip(idjd)
-          write (6,"('tmin,tmax,tscr,tss,tgf,tpan',9f8.2)")
-     &       tminscr(idjd),tmaxscr(idjd),tscrn(idjd),tss(idjd),
-     &       tgf(idjd),tpan(idjd)
-          write (6,"('u10,ustar,pblh',9f8.2)")
-     &       u10(idjd),ustar(idjd),pblh(idjd)
-          write (6,"('rgg,rdg,sgflux,div_int,ps,qgscrn',5f8.2,f8.3)")
-     &       rgg(idjd),rdg(idjd),sgflux(idjd),
-     &       div_int,.01*ps(idjd),1000.*qgscrn(idjd)
-          write (6,"('dew_,eg_,epot,epan,eg,fg,ga',9f8.2)") 
-     &       dew_ave(idjd),eg_ave(idjd),epot(idjd),epan(idjd),eg(idjd),
-     &       fg(idjd),ga(idjd)
-          write (6,"('taftfhg,degdt,gflux,dgdtg,zo,cduv', 
-     &       f6.3,f7.2,2f8.2,2f8.5)") taftfhg(idjd),degdt(idjd),
-     &       gflux(idjd),dgdtg(idjd),zo(idjd),cduv(idjd)/vmod(idjd)
-          rlwup=(1.-tsigmf(idjd))*rgg(idjd)+tsigmf(idjd)*rdg(idjd)
-          write (6,"('slwa,rlwup,sint,sg,rt,rg    ',9f8.2)") 
-     &       slwa(idjd),rlwup,sintsave(idjd),sgsave(idjd),
-     &       rtsave(idjd),rgsave(idjd)
-          write (6,"('cll,clm,clh,clt ',9f8.2)") 
-     &       cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
-          write (6,"('u10max,v10max,rhmin,rhmax   ',9f8.2)")
-     &                u10max(iq),v10max(iq),rhminscr(iq),rhmaxscr(iq)
-          write (6,"('kbsav,ktsav,convpsav ',2i3,f8.4,9f8.2)")
-     &                kbsav(idjd),ktsav(idjd),convpsav(idjd)
-          write (6,"('t   ',9f8.3/4x,9f8.3)") t(idjd,:)
-          write (6,"('u   ',9f8.3/4x,9f8.3)") u(idjd,:)
-          write (6,"('v   ',9f8.3/4x,9f8.3)") v(idjd,:)
-          write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
-          write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
-          write (6,"('ql  ',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
-          write (6,"('cfrac',9f8.3/5x,9f8.3)") cfrac(idjd,:)
-          do k=1,kl
-           es=establ(t(idjd,k))
-           spmean(k)=100.*qg(idjd,k)*
-     &               max(ps(idjd)*sig(k)-es,1.)/(.622*es) ! max as for convjlm
-          enddo
-c         nlx=min(nlv,kl-8)
-c         write (6,"('rh(nlx+) ',9f8.2)") (spmean(k),k=nlx,nlx+8)
-c         write (6,"('div(nlx+)',9f8.2)") (div(k),k=nlx,nlx+8)
-          write (6,"('rh  ',9f8.3/4x,9f8.3)") spmean(:)
-          write (6,"('div ',9f8.3/4x,9f8.3)") div(:)
-          write (6,"('omgf ',9f8.3/5x,9f8.3)")   ! in Pa/s
-     &              ps(idjd)*omgf(idjd,:)
-          write (6,"('sdot ',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
-          if(nextout>=4)write (6,"('xlat,long,pres ',3f8.2)")
-     &     tr(idjd,nlv,ngas+1),tr(idjd,nlv,ngas+2),tr(idjd,nlv,ngas+3)
-         endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
-        endif   ! (ntsur>1)
+      ! HELD & SUAREZ ---------------------------------------------------------
+      egg(:)=0.   ! reset for fort.60 files
+      fgg(:)=0.   ! reset for fort.60 files
+      if(ntsur<=1.or.nhstest==2)then ! Held & Suarez or no surf fluxes
+       eg(:)=0.
+       fg(:)=0.
+       cdtq(:)=0.
+       cduv(:)=0.
+      endif     ! (ntsur<=1.or.nhstest==2) 
+      if(nhstest==2)call hs_phys
+      if(ntsur>1)then  ! should be better after convjlm
+       if(diag)then
+         call maxmin(u,'#u',ktau,1.,kl)
+         call maxmin(v,'#v',ktau,1.,kl)
+         call maxmin(t,'#t',ktau,1.,kl)
+         call maxmin(qg,'qg',ktau,1.e3,kl)     
+         call MPI_Barrier( MPI_COMM_WORLD, ierr ) ! stop others going past
+       endif
+         
+       ! SURFACE FLUXES ---------------------------------------------
+       call sflux(nalpha)
+       epan_ave = epan_ave+epan  ! 2D 
+       epot_ave = epot_ave+epot  ! 2D 
+       ga_ave = ga_ave+ga        ! 2D 
+       
+       ! STATION OUTPUT ---------------------------------------------  
+       if(nstn>0.and.nrotstn(1)==0)call stationa ! write every time step
+       if(mod(ktau,nmaxpr)==0.and.mydiag)then
+         print *
+         write (6,
+     .	  "('ktau =',i5,' gmt(h,m):',f6.2,i5,' runtime(h,m):',f7.2,i6)")
+     .      ktau,timeg,mins_gmt,timer,mtimer
+!        some surface (or point) diagnostics
+         isoil = isoilm(idjd)
+         print *,'land,isoil,ivegt,isflag ',
+     &          land(idjd),isoil,ivegt(idjd),isflag(idjd)
+         write (6,"('snage,snowd,osnowd,alb,tsigmf   ',f8.4,4f8.2)")
+     &      snage(idjd),snowd(idjd),osnowd(idjd),albvisnir(idjd,1),
+     &      tsigmf(idjd) ! MJT albedo
+         write (6,"('sicedep,fracice,runoff ',3f8.2)")
+     &            sicedep(idjd),fracice(idjd),runoff(idjd)
+         write (6,"('t1,otgsoil,theta,fev,fgf   ',9f8.2)") 
+     &        t(idjd,1),otgsoil(idjd),theta(idjd),fev(idjd),fgf(idjd)
+         write (6,"('tgg(1-6)   ',9f8.2)") (tgg(idjd,k),k=1,6)
+         write (6,"('tggsn(1-3) ',9f8.2)") (tggsn(idjd,k),k=1,3)
+         write (6,"('wb(1-6)    ',9f8.3)") (wb(idjd,k),k=1,6)
+         write (6,"('wbice(1-6) ',9f8.3)") (wbice(idjd,k),k=1,6)
+         write (6,"('wblf(1-6)  ',9f8.3)") (wblf(idjd,k),k=1,6)
+         write (6,"('wbfice(1-6)',9f8.3)") (wbfice(idjd,k),k=1,6)
+         write (6,"('smass(1-3) ',9f8.2)") (smass(idjd,k),k=1,3) ! as mm of water
+         write (6,"('ssdn(1-3)  ',9f8.2)") (ssdn(idjd,k),k=1,3)
+         write (6,"('sdepth(1-3)',9f8.2)") (sdepth(idjd,k),k=1,3) ! as m of snow
+         pwater=0.   ! in mm
+         iq=idjd
+         div_int=0.
+         do k=1,kl
+          qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
+           pwater=pwater-dsig(k)*qtot*ps(idjd)/grav
+           div(k)=(u(ieu(iq),k)/emu(ieu(iq))
+     &            -u(iwu(iq),k)/emu(iwu(iq))  
+     &            +v(inv(iq),k)/emv(inv(iq))
+     &            -v(isv(iq),k)/emv(isv(iq))) 
+     &             *em(iq)**2/(2.*ds)  *1.e6
+           div_int=div_int-div(k)*dsig(k)
+         enddo
+         write (6,"('pwater,condc,condx,rndmax,rmc',9f8.3)")
+     &      pwater,condc(idjd),condx(idjd),rndmax(idjd),rmc(idjd)
+         write (6,"('wetfac,sno,evap,precc,precip',
+     &      6f8.2)") wetfac(idjd),sno(idjd),evap(idjd),precc(idjd),
+     &      precip(idjd)
+         write (6,"('tmin,tmax,tscr,tss,tgf,tpan',9f8.2)")
+     &      tminscr(idjd),tmaxscr(idjd),tscrn(idjd),tss(idjd),
+     &      tgf(idjd),tpan(idjd)
+         write (6,"('u10,ustar,pblh',9f8.2)")
+     &      u10(idjd),ustar(idjd),pblh(idjd)
+         write (6,"('rgg,rdg,sgflux,div_int,ps,qgscrn',5f8.2,f8.3)")
+     &      rgg(idjd),rdg(idjd),sgflux(idjd),
+     &      div_int,.01*ps(idjd),1000.*qgscrn(idjd)
+         write (6,"('dew_,eg_,epot,epan,eg,fg,ga',9f8.2)") 
+     &      dew_ave(idjd),eg_ave(idjd),epot(idjd),epan(idjd),eg(idjd),
+     &      fg(idjd),ga(idjd)
+         write (6,"('taftfhg,degdt,gflux,dgdtg,zo,cduv', 
+     &      f6.3,f7.2,2f8.2,2f8.5)") taftfhg(idjd),degdt(idjd),
+     &      gflux(idjd),dgdtg(idjd),zo(idjd),cduv(idjd)/vmod(idjd)
+         rlwup=(1.-tsigmf(idjd))*rgg(idjd)+tsigmf(idjd)*rdg(idjd)
+         write (6,"('slwa,rlwup,sint,sg,rt,rg    ',9f8.2)") 
+     &      slwa(idjd),rlwup,sintsave(idjd),sgsave(idjd),
+     &      rtsave(idjd),rgsave(idjd)
+         write (6,"('cll,clm,clh,clt ',9f8.2)") 
+     &      cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
+         write (6,"('u10max,v10max,rhmin,rhmax   ',9f8.2)")
+     &               u10max(iq),v10max(iq),rhminscr(iq),rhmaxscr(iq)
+         write (6,"('kbsav,ktsav,convpsav ',2i3,f8.4,9f8.2)")
+     &               kbsav(idjd),ktsav(idjd),convpsav(idjd)
+         write (6,"('t   ',9f8.3/4x,9f8.3)") t(idjd,:)
+         write (6,"('u   ',9f8.3/4x,9f8.3)") u(idjd,:)
+         write (6,"('v   ',9f8.3/4x,9f8.3)") v(idjd,:)
+         write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
+         write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
+         write (6,"('ql  ',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
+         write (6,"('cfrac',9f8.3/5x,9f8.3)") cfrac(idjd,:)
+         do k=1,kl
+          es=establ(t(idjd,k))
+          spmean(k)=100.*qg(idjd,k)*
+     &              max(ps(idjd)*sig(k)-es,1.)/(.622*es) ! max as for convjlm
+         enddo
+         write (6,"('rh  ',9f8.3/4x,9f8.3)") spmean(:)
+         write (6,"('div ',9f8.3/4x,9f8.3)") div(:)
+         write (6,"('omgf ',9f8.3/5x,9f8.3)")   ! in Pa/s
+     &             ps(idjd)*omgf(idjd,:)
+         write (6,"('sdot ',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
+         if(nextout>=4)write (6,"('xlat,long,pres ',3f8.2)")
+     &    tr(idjd,nlv,ngas+1),tr(idjd,nlv,ngas+2),tr(idjd,nlv,ngas+3)
+        endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
+       endif   ! (ntsur>1)
+
+       ! VERTICAL MIXING ------------------------------------------------------
+        call start_log(vertmix_begin)
         if(ntsur>=1)then ! calls vertmix but not sflux for ntsur=1
-          call start_log(vertmix_begin)
           if(nmaxpr==1.and.mydiag)
      &      write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
           call vertmix 
           if(nmaxpr==1.and.mydiag)
      &      write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
-          call end_log(vertmix_end)
         endif  ! (ntsur>=1)
+        call end_log(vertmix_end)
 
+      ! PHYSICS LOAD BALANCING ------------------------------------------------
 !     This is the end of the physics. The next routine makes the load imbalance
 !     overhead explicit rather than having it hidden in one of the diagnostic
 !     calls.
-c     if(nmaxpr==1)print *,'before 2nd loadbal ktau,myid = ',ktau,myid
       call phys_loadbal
       call end_log(phys_end)
+      ! ***********************************************************************
+      ! END PHYSICS
+      ! ***********************************************************************
 
 !     rml 16/02/06 call tracer_mass, write_ts
       if(ngas>0) then
@@ -1675,6 +1693,7 @@ c     endif
       data m/5/,mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/,npex/0/
       data nritch_t/300/,nrot/1/,nxmap/0/,
      &     epsp/-15./,epsu/0./,epsf/0./,precon/-2900/,restol/4.e-7/
+      data mfix_tr/0/,mfix_ke/0/ ! MJT tracerfix ! MJT tke
       data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/,nrunx/0/
 !     Horiz advection options
       data ndept/1/,nt_adv/7/,mh_bs/4/

@@ -8,7 +8,6 @@ use rad_utilities_mod, only: atmos_input_type,surface_type,astronomy_type,aeroso
                              aerosol_diagnostics_type,time_type,microphysics_type, &
                              microrad_properties_type,lw_diagnostics_type,lw_table_type, &
                              Sw_control,Lw_control, Rad_control,Cldrad_control,Lw_parameters
-
 use esfsw_driver_mod, only : swresf,esfsw_driver_init
 use sealw99_mod, only : sealw99,sealw99_init
 use esfsw_parameters_mod, only:  Solar_spect,esfsw_parameters_init
@@ -16,20 +15,18 @@ use esfsw_parameters_mod, only:  Solar_spect,esfsw_parameters_init
 private
 public seaesfrad
 
-real, parameter :: cp=1004.64 ! Specific heat of dry air at const P
-real, parameter :: grav=9.80616 ! Acceleration of gravity
-real, parameter :: stefbo=5.67e-8 !Stefan-Boltzmann constant
-real, parameter :: rdry     = 287.04
-real, parameter :: rhow     = 1000.
-real, parameter :: pi       = 3.1415927
-real, parameter :: csolar   = 1365 ! W/m^2
-real, parameter :: siglow   =.68
-real, parameter :: sigmid   =.44
+real, parameter :: cp       = 1004.64    ! Specific heat of dry air at const P
+real, parameter :: grav     = 9.80616    ! Acceleration of gravity
+real, parameter :: stefbo   = 5.67e-8    ! Stefan-Boltzmann constant
+real, parameter :: rdry     = 287.04     ! gas constant for dry air
+real, parameter :: rhow     = 1000.      ! Density of water
+real, parameter :: pi       = 3.1415927  ! pi
+real, parameter :: csolar   = 1365       ! Solar constant in W/m^2
+real, parameter :: siglow   =.68         ! sigma level for top of low cloud
+real, parameter :: sigmid   =.44         ! sigma level for top of medium cloud
 real, parameter :: ratco2mw =1.519449738
 real, parameter :: cong     = cp/grav
-
-
-logical, parameter :: do_totcld_forcing = .true.
+logical, parameter :: do_totcld_forcing             = .true.
 logical, parameter :: calculate_volcanic_sw_heating = .false.
 
 logical, save :: do_aerosol_forcing
@@ -77,18 +74,18 @@ integer k,ksigtop,mstart,mins
 integer i,j,iq,istart,iend,kr
 integer, save :: nlow,nmid
 real, dimension(ifull), save :: sgamp
+real, dimension(ifull,kl), save :: rtt
 real, dimension(imax) :: qsat,coszro2,taudar2,coszro,taudar
 real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn
 real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr,sga
 real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
-real, dimension(ifull,kl), save :: hswsav,hlwsav
 real, dimension(imax,kl) :: duo3n
 real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
 real, dimension(imax,kl) :: p2,cd2
 real, dimension(kl+1) :: sigh
 real(kind=8), dimension(kl+1,2) :: pref
 real dduo3n,ddo3n2,ddo3n3,ddo3n4
-real rtt,qccon,qlrad,qfrad,cfrac
+real qccon,qlrad,qfrad,cfrac
 real r1,dlt,alp,slag
 real dhr,fjd,bpyear
 real ttbg,ar1,exp_ar1,ar2,exp_ar2,ar3,snr
@@ -117,7 +114,6 @@ type(lw_table_type), save ::                Lw_tables
 real(kind=8), dimension(:,:,:,:), allocatable  ::   r
 
 common/cfrac/cfrac(ifull,kl)
-common/work3d/rtt(ifull,kl) ! just to pass between radriv90 & globpe
 common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! ditto
 common /radisw2/ rrco2, ssolar, rrvco2
 common /o3dat/ dduo3n(37,kl),ddo3n2(37,kl),ddo3n3(37,kl),ddo3n4(37,kl)
@@ -125,7 +121,7 @@ common /o3dat/ dduo3n(37,kl),ddo3n2(37,kl),ddo3n3(37,kl),ddo3n4(37,kl)
 data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
 
 ! Aerosol flag
-do_aerosol_forcing=iaero.ne.0
+do_aerosol_forcing=abs(iaero).gt.1
 
 ! set-up half levels ------------------------------------------------
 sigh(1:kl) = sigmh(1:kl)
@@ -191,7 +187,6 @@ if ( first ) then
   Lw_control%do_n2o                      =.false.
   Lw_control%do_h2o                      =.true.
   Lw_control%do_cfc                      =.false.
-  Astro%rrsun                            =1./(r1*r1)
   Rad_control%using_solar_timeseries_data=.false.
   Rad_control%do_totcld_forcing          =do_totcld_forcing
   Rad_control%rad_time_step              =kountr*dt
@@ -199,6 +194,7 @@ if ( first ) then
   Rad_control%do_aerosol                 =.false.
   Rad_control%do_swaerosol_forcing       =.false.
   Rad_control%do_lwaerosol_forcing       =.false.
+  Astro%rrsun                            =1./(r1*r1)
 
   call sealw99_init(pref, Lw_tables)  
   call esfsw_parameters_init
@@ -231,6 +227,7 @@ if ( first ) then
   allocate(Cloud_microphysics%size_rain(imax, 1, kl))
   allocate(Cloud_microphysics%size_drop(imax, 1, kl))
   allocate(Cloud_microphysics%size_ice (imax, 1, kl))
+  allocate(Cloud_microphysics%size_snow (imax, 1, kl))
   allocate(Cloud_microphysics%conc_drop(imax, 1, kl))
   allocate(Cloud_microphysics%conc_ice (imax, 1, kl))
   allocate(Cloud_microphysics%conc_rain(imax, 1, kl))
@@ -455,6 +452,7 @@ do j=1,jl,imax/il
       cirrf_dir(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
       cirrf_dif(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
     else
+      ! use MLO to calculate albedo
       call mloalb4(istart,imax,land(istart:iend),coszro,fracice(istart:iend),cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)
     end if
 
@@ -465,7 +463,7 @@ do j=1,jl,imax/il
     call atebalb1(istart,imax,cirrf_dif(1:imax),0)    
 
     ! Aerosols -------------------------------------------------------
-    select case (iaero)
+    select case (abs(iaero))
       case(0)
         ! no aerosols
       case(1)
@@ -491,16 +489,17 @@ do j=1,jl,imax/il
     end select
 
     ! define droplet size (from radriv90.f) -------------------------
-    do k=1,kl   
-      where (land(istart:iend).and.rlatt(istart:iend)>0.)
-        cd2(1:imax,k)=cdropl_nh
-      else where (land(istart:iend))
-        cd2(1:imax,k)=cdropl_sh
-      else where (rlatt(istart:iend)>0.)
-        cd2(1:imax,k)=cdrops_nh
-      else where
-        cd2(1:imax,k)=cdrops_sh
-      end where
+    where (land(istart:iend).and.rlatt(istart:iend)>0.)
+      cd2(1:imax,1)=cdropl_nh
+    else where (land(istart:iend))
+      cd2(1:imax,1)=cdropl_sh
+    else where (rlatt(istart:iend)>0.)
+      cd2(1:imax,1)=cdrops_nh
+    else where
+      cd2(1:imax,1)=cdrops_sh
+    end where
+    do k=2,kl
+      cd2(1:imax,k)=cd2(1:imax,1)
     enddo
 
     ! Cloud fraction diagnostics ------------------------------------
@@ -606,8 +605,11 @@ do j=1,jl,imax/il
                 Cloud_microphysics%conc_drop,Cloud_microphysics%conc_ice, &
                 cfrac(istart:iend,:),qlrad(istart:iend,:),qfrad(istart:iend,:), &
                 p2,t(istart:iend,:),cd2,imax,kl)
-    Cloud_microphysics%size_rain=0.
+    Cloud_microphysics%size_drop=max(Cloud_microphysics%size_drop,1.e-20)
+    Cloud_microphysics%size_ice=max(Cloud_microphysics%size_ice,1.e-20)                
+    Cloud_microphysics%size_rain=1.e-20
     Cloud_microphysics%conc_rain=0.
+    Cloud_microphysics%size_snow=1.e-20
     Cloud_microphysics%conc_snow=0.
 
     Lscrad_props%cldext   = 0.
@@ -620,7 +622,7 @@ do j=1,jl,imax/il
     Cldrad_props%cldext(:,:,:,:,1)  =Lscrad_props%cldext(:,:,:,:)   ! Large scale cloud properties only
     Cldrad_props%cldasymm(:,:,:,:,1)=Lscrad_props%cldasymm(:,:,:,:) ! Large scale cloud properties only
     Cldrad_props%abscoeff(:,:,:,:,1)=Lscrad_props%abscoeff(:,:,:,:) ! Large scale cloud properties only
- 
+    
     call lwemiss_calc (Atmos_input%clouddeltaz,Cldrad_props%abscoeff,Cldrad_props%cldemiss)
     Cldrad_props%emmxolw = Cldrad_props%cldemiss
     Cldrad_props%emrndlw = Cldrad_props%cldemiss
@@ -632,7 +634,7 @@ do j=1,jl,imax/il
    
     Astro%cosz(:,1)   =max(coszro,0.)
     Astro%fracday(:,1)=taudar
-    
+
     call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input,  &
                           Rad_gases, Aerosol, Aerosol_props,   &
                           Cldrad_props, Cld_spec, Aerosol_diags, &
@@ -705,8 +707,7 @@ do j=1,jl,imax/il
     ! heating rate --------------------------------------------------
     do k=1,kl
       ! total heating rate (convert deg K/day to deg K/sec)
-      hswsav(istart:iend,kl+1-k) = Sw_output(1)%hsw(:,1,k)/86400.
-      hlwsav(istart:iend,kl+1-k) = Lw_output(1)%heatra(:,1,k)/86400.
+      rtt(istart:iend,kl+1-k)=-(Sw_output(1)%hsw(:,1,k)+Lw_output(1)%heatra(:,1,k))/86400.
     end do
 
     ! Calculate the amplitude of the diurnal cycle of solar radiation
@@ -771,8 +772,8 @@ do j=1,jl,imax/il
 
 end do  ! Row loop (j)  j=1,jl,imax/il
 
-! Calculate rtt, the net radiational cooling of atmosphere (K/s)
-rtt = -(hswsav+hlwsav)
+! Calculate net radiational cooling of atmosphere (K/s)
+t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:)
 
 return
 end subroutine seaesfrad
@@ -1084,12 +1085,12 @@ subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlg,qfg,prf,ttg,cdrop,imax,kl)
 implicit none
 
 integer, intent(in) :: imax,kl
-integer k,kr,mg,iq
+integer k,kr,mg
 real, dimension(imax,kl), intent(in) :: cfrac,qlg,qfg,prf,ttg
 real, dimension(imax,kl), intent(in) :: cdrop
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop,Rice,conl,coni
-real(kind=8), dimension(imax,kl) :: reffl,reffi,fice,cfl,Wliq,rhoa
-real(kind=8), dimension(imax,kl) :: eps,rk,Wice
+real, dimension(imax,kl) :: reffl,reffi,fice,cfl,Wliq,rhoa
+real, dimension(imax,kl) :: eps,rk,Wice
 
 !--------------------------------------------------------------------
 !    if liquid is present in the layer, compute the effective drop
@@ -1113,7 +1114,7 @@ real(kind=8), dimension(imax,kl) :: eps,rk,Wice
 ! formula for reffl. Use mid cloud value of Reff for emissivity.
 
 where (cfrac.gt.0.)
-  fice= qfg/max(qfg+qlg,1.E-12)
+  fice= qfg/max(qfg+qlg,1.e-12)
 else where
   fice=0.
 end where

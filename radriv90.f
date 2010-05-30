@@ -422,7 +422,7 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
       call atebalb1(istart,imax,cirrf(1:imax,1),0) ! MJT CHANGE - urban
       
       ! AEROSOLS ----------------------------------------------------
-      if (iaero.ne.0) then
+      if (abs(iaero).eq.1) then ! MJT aero
         do i=1,imax
           iq=i+(j-1)*il
            cosz = max ( coszro(i), 1.e-4)
@@ -431,7 +431,7 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
            cuvrf(i,1)=min(0.99, delta+cuvrf(i,1)) ! surface albedo
            cirrf(i,1)=min(0.99, delta+cirrf(i,1)) ! still broadband
         end do ! i=1,imax
-      endif !(iaero.ne.0)then
+      endif !(abs(iaero).eq.1)then
       albvisnir(istart:iend,1)=cuvrf(1:imax,1)
       albvisnir(istart:iend,2)=cirrf(1:imax,1)
       !--------------------------------------------------------------
@@ -710,8 +710,8 @@ c slwa is negative net radiational htg at ground
       do k=1,kl
          do i=1,imax
             iq=i+(j-1)*il
-            rtt(iq,k) = (hswsav(iq,k)+hlwsav(iq,k)) /
-     &                   (cong*ps(iq)*dsig(k))
+            t(iq,k)=t(iq,k)-dt*(hswsav(iq,k)+hlwsav(iq,k)) /
+     &                   (cong*ps(iq)*dsig(k)) ! MJT
          end do
       end do
 !     k = 1  ! these 6 lines removed 18/6/03

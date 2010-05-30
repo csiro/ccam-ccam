@@ -4,12 +4,12 @@
 ! The in-canyon vegetation is based on Kowalczyk et al, DAR Tech Paper 32 (1994), but simplified by assiming sigmaf=1.
 
 ! The main changes include an alternative formulation for in-canyon aerodynamical resistances based on Harman, et al (2004)
-! and Kanada et al (2007), combined with a second canyon wall for completeness.  The stability functions can also be modified
-! to account for low wind speeds by Luhar (2008).  The scheme includes nrefl order reflections in the canyon for both longwave
-! and shortwave radiation (in TEB infinite reflections are used for shortwave and 1st order reflections in longwave). A
-! big-leaf vegetation tile is included in the canyon using the Kowalczyk et al (1994) scheme but with a simplified soil moisture
-! budget and no modelling of the soil temperature since sigmaf=1.  Snow is also included in the canyon and on roofs using a
-! single-layer scheme based on Douville, et al (1995).   Time dependent traffic heat fluxes are based on Coutts, et al (2007).
+! and Kanada et al (2007), combined with a second canyon wall for completeness.  The scheme includes nrefl order reflections
+! in the canyon for both longwave and shortwave radiation (in TEB infinite reflections are used for shortwave and 1st order
+! reflections in longwave). A big-leaf vegetation tile is included in the canyon using the Kowalczyk et al (1994) scheme but
+! with a simplified soil moisture budget and no modelling of the soil temperature since sigmaf=1.  Snow is also included in
+! the canyon and on roofs using a single-layer scheme based on Douville, et al (1995).  Time dependent traffic heat fluxes
+! are based on Coutts, et al (2007).
 
 ! Usual practice is:
 !   call atebinit     ! to initalise state arrays, etc (use tebdisable to disable calls to ateb subroutines)
@@ -22,8 +22,7 @@
 !                       ! use tebnewangle1 for a single grid point)
 !     call atebcalc     ! calculates urban temperatures, fluxes, etc and blends with input
 !     call atebalb      ! blends input and urban albedo (use tebalb1 for a single grid point)
-!     call atebzo       ! blends input and urban roughness lengths for momentum and heat (use tebcd for
-!                       ! blending the drag coefficent)
+!     call atebcd       ! blends input and urban drag coefficent (use tebzo for blending momentum and heat roughness lengths)
 !     ...
 !   end do
 !   ...
@@ -50,7 +49,7 @@ implicit none
 private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb1, &
        atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,vegmode, &
-       atebdwn,atebotf,atebscrnout
+       atebdwn,atebscrnout
 
 ! type definitions
 type tatm
@@ -97,7 +96,7 @@ end type tprog
 integer, save :: ufull,iqut
 integer, dimension(:), allocatable, save :: ugrid,mgrid
 real, dimension(:), allocatable, save :: sigmau
-real, dimension(:,:), allocatable, save :: atebdwn,atebotf ! These variables are for CCAM onthefly.f
+real, dimension(:,:), allocatable, save :: atebdwn ! These variables are for CCAM onthefly.f
 type(tsurf), dimension(:), allocatable, save :: roof,road
 type(twall), dimension(:), allocatable, save :: walle,wallw
 type(tvege), dimension(:), allocatable, save :: veg
@@ -129,6 +128,7 @@ real, parameter :: lf=3.337e5             ! Latent heat of fusion (J kg^-1)
 real, parameter :: ls=lv+lf               ! Latent heat of sublimation (J kg^-1)
 real, parameter :: pi=3.1415927           ! pi
 real, parameter :: rd=287.04              ! Gas constant for dry air
+real, parameter :: rv=461.5               ! Gas constant for water vapor
 real, parameter :: sbconst=5.67e-8        ! Stefan-Boltzmann constant
 ! snow parameters
 real, parameter :: zosnow=0.001           ! Roughness length for snow (m)
@@ -155,15 +155,15 @@ real, parameter :: sfc=0.26               ! In-canyon soil field capacity
 real, parameter :: ssat=0.42              ! In-canyon soil saturation point
 ! stability function parameters
 integer, parameter :: icmax=1             ! number of iterations for stability functions (default=5)
-real, parameter    :: bprm   = 5.  ! 4.7 in rams
-real, parameter    :: chs    = 2.6 ! 5.3 in rams
-real, parameter    :: cms    = 5.  ! 7.4 in rams
-real, parameter    :: fmroot = 0.57735
-real, parameter    :: rimax  =(1./fmroot-1.)/bprm
-real, parameter    :: a_1 = 1.
-real, parameter    :: b_1 = 2./3.
-real, parameter    :: c_1 = 5.
-real, parameter    :: d_1 = 0.35
+real, parameter    :: bprm=5.             ! 4.7 in rams
+real, parameter    :: chs=2.6             ! 5.3 in rams
+real, parameter    :: cms=5.              ! 7.4 in rams
+real, parameter    :: fmroot=0.57735
+real, parameter    :: rimax=(1./fmroot-1.)/bprm
+real, parameter    :: a_1=1.
+real, parameter    :: b_1=2./3.
+real, parameter    :: c_1=5.
+real, parameter    :: d_1=0.35
 
 
 contains
@@ -916,9 +916,11 @@ end subroutine atebcalc
 !  Solve canyon snow energy budget
 !    Canyon snow temperature
 !    Solve vegetation energy budget
+!      Vegetation canopy temperature
 !      Solve canyon sensible heat budget
+!        Canyon temperature
 !        Solve canyon latent heat budget
-!          Canyon temperature and mixing ratio
+!          Canyon mixing ratio
 !        End latent heat budget loop
 !      End sensible heat budget loop
 !    End vegetation energy budget loop
@@ -1154,43 +1156,13 @@ select case(resmeth)
     acond%rdsn=cu
     acond%veg=cu
   case(1) ! Harman et al (2004) - modified to include 2nd wall
-    ln=fn%bldheight*max(0.,1./fn%hwratio-1.5)
-    rn=max(0.,fn%bldheight-ln/1.5)
-    ln=min(1.5*fn%bldheight,ln)
-    cu=exp(-0.9*sqrt(ln**2+(fn%bldheight-rn)**2)/fn%bldheight)
-    a=0.15*max(1.,1.5*fn%hwratio)
+    call getincanwind(we,ww,wr,atm%udir,fn%bldheight,fn%bldheight/fn%hwratio,zonet)
     dis=max(max(max(0.1*fn%bldheight,zocanyon+0.1),zoveg+0.1),zosnow+0.1)
-    zolog=log(dis/zonet)
-    where (rn.gt.0.) ! recirculation starts on east wall
-      n=min(max(dis,rn),fn%bldheight)
-      ! MJT suggestion (cuven is multipled by (fn%bldheight-rn) to avoid divide by zero)
-      cuven=((fn%bldheight-n*log(n/zonet)/(2.3+zolog))-(fn%bldheight-n)/(2.3+zolog))
-      ! cuven is back to the correct units of m/s
-      cuven=max(cuven/fn%bldheight,cu*(1.-exp(-a*(1.-rn/fn%bldheight)))/a)
-      xe=exp(-a*rn/fn%bldheight)
-      we=(cuven+cu*(1.-xe)/a)
-      xw=exp(-a/fn%hwratio)
-      wr=cu*fn%hwratio*xe*(1.-xw)/a
-      ww=cu*xe*xw*(1.-exp(-a))/a
-    elsewhere ! recirculation starts on road
-      cuven=zolog/(2.3+zolog)
-      n=max(1./fn%hwratio-3.,0.)
-      xe=exp(-a*n)
-      cuven=fn%bldheight*max(cuven*n,cu*(1.-xe)/a)
-      xw=exp(-a*3.)
-      wr=fn%hwratio*(cuven/fn%bldheight+cu*(1.-xw)/a)
-      ! MJT suggestion
-      cuven=(1./0.9-(1.+0.1/0.9*zolog)/(2.3+zolog))
-      xe=cu*xe*(1.-exp(-a))/a
-      we=max(cuven,xe)
-      ww=cu*xw*(1.-exp(-a))/a
-    end where
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
-    n=abs(atm%udir)/pi
     acond%road=a*wr                  ! road bulk transfer
-    acond%walle=a*(n*ww+(1.-n)*we)   ! east wall bulk transfer
-    acond%wallw=a*(n*we+(1.-n)*ww)   ! west wall bulk transfer
+    acond%walle=a*we                 ! east wall bulk transfer
+    acond%wallw=a*ww                 ! west wall bulk transfer
     zolog=log(dis/zoveg)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     acond%veg=a*wr
@@ -1528,7 +1500,7 @@ egtop=dg%rdsndelta*eg%rdsn+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*eg%road+fn%sigmav
 uo%ts=((fn%sigmabld*dg%roofrgout+(1.-fn%sigmabld)*dg%canyonrgout)/sbconst)**0.25
 uo%fg=fn%sigmabld*fg%roof+(1.-fn%sigmabld)*fgtop+fn%industryfg
 uo%eg=fn%sigmabld*eg%roof+(1.-fn%sigmabld)*egtop
-n=max(min((veg%moist-swilt/3.)/(sfc-swilt/3.),1.),0.) ! veg wetfac (see sflux.f or cable_canopy.f90)
+n=max(min((veg%moist-swilt)/(sfc-swilt),1.),0.) ! veg wetfac (see sflux.f or cable_canopy.f90)
 uo%wf=fn%sigmabld*(1.-dg%rfsndelta)*dg%roofdelta+(1.-fn%sigmabld)*(1.-dg%rdsndelta)* &
       ((1.-fn%sigmaveg)*dg%roaddelta+fn%sigmaveg*((1.-dg%vegdelta)*n+dg%vegdelta))
 
@@ -1596,14 +1568,11 @@ integer, intent(in) :: ifull
 real, dimension(ifull), intent(in) :: temp,ps
 real, dimension(ifull), intent(out) :: qsat
 real, dimension(ifull) :: esatf
-real, parameter :: latent= 2.50E6
-real, parameter :: latsub= 2.83E6
-real, parameter :: rv    = 461.5
 
 where (temp.ge.273.15)
-  esatf = 610.*exp(latent/rv*(1./273.15-1./min(max(temp,123.),343.)))
+  esatf = 610.*exp(lv/rv*(1./273.15-1./min(temp,343.)))
 elsewhere
-  esatf = 610.*exp(latsub/rv*(1./273.15-1./min(max(temp,123.),343.)))
+  esatf = 610.*exp(ls/rv*(1./273.15-1./max(temp,123.)))
 endwhere
 qsat = 0.622*esatf/(ps-0.378*esatf)
 
@@ -1758,9 +1727,10 @@ elsewhere
   ta=tan(ifn%vangle)
   thetazero=asin(1./max(ifn%hwratio*ta,1.))
   tc=2.*(1.-cos(thetazero))
-  xa=max(ifn%hangle-thetazero,0.)-max(ifn%hangle-pi+thetazero,0.)-min(ifn%hangle+thetazero,0.)
-  ya=cos(min(thetazero,max(ifn%hangle-pi,0.)))-cos(min(thetazero,abs(ifn%hangle))) &
-     +cos(pi-thetazero)-cos(min(pi,max(ifn%hangle,pi-thetazero)))
+  xa=min(max(ifn%hangle-thetazero,0.),pi)-max(ifn%hangle-pi+thetazero,0.)-min(ifn%hangle+thetazero,0.)
+  ya=cos(max(min(0.,ifn%hangle),ifn%hangle-pi))-cos(max(min(thetazero,ifn%hangle),ifn%hangle-pi)) &
+    +cos(min(0.,-ifn%hangle))-cos(min(thetazero,-ifn%hangle)) &
+    +cos(max(0.,pi-ifn%hangle))-cos(max(thetazero,pi-ifn%hangle))
   ! note that these terms now include the azimuth angle
   walles=(xa/ifn%hwratio+ta*ya)/pi
   wallws=((pi-2.*thetazero-xa)/ifn%hwratio+ta*(tc-ya))/pi
@@ -2174,13 +2144,184 @@ return
 end subroutine gettraffic
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate in-canyon wind speed for walls and road
+
+subroutine getincanwind(ueast,uwest,ufloor,wdirin,h,w,z0)
+
+implicit none
+
+real, dimension(ufull), intent(out) :: ueast,uwest,ufloor
+real, dimension(ufull), intent(in) :: wdirin,h,w,z0
+real, dimension(ufull) :: a,b,wsuma,wsumb,fsum
+real, dimension(ufull) :: theta1,wdir
+
+where (wdirin.ge.0.)
+  wdir=wdirin
+elsewhere
+  wdir=wdirin+pi
+endwhere
+
+theta1=acos(min(w/(3.*h),1.))
+wsuma=0.
+wsumb=0.
+fsum=0.
+
+! integrate jet on road, venting side
+a=0.
+b=max(0.,wdir-pi+theta1)
+call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,0)
+
+! integrate jet on wall, venting side
+a=max(0.,wdir-pi+theta1)
+b=max(0.,wdir-theta1)
+call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,1)
+
+! integrate jet on road, venting side
+a=max(0.,wdir-theta1)
+b=wdir
+call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,0)
+
+! integrate jet on road, recirculation side (A)
+a=wdir
+b=min(pi,wdir+theta1)
+call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,0)
+
+! integrate jet on wall, recirculation side
+a=min(pi,wdir+theta1)
+b=min(pi,wdir+pi-theta1)
+call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,1)
+
+! integrate jet on road, recirculation side (B)
+a=min(pi,wdir+pi-theta1)
+b=pi
+call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,0)
+
+! Determine orientation
+where (wdirin.ge.0.)
+  ueast=0.5*wsuma
+  uwest=0.5*wsumb
+elsewhere
+  ueast=0.5*wsumb
+  uwest=0.5*wsuma
+end where
+ufloor=0.5*fsum
+
+return
+end subroutine getincanwind
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! integrate winds
+
+subroutine integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,mode)
+
+implicit none
+
+integer, intent(in) :: mode
+integer n
+integer, parameter :: ntot=45
+real, dimension(ufull), intent(in) :: a,b,h,w,wdir,z0
+real, dimension(ufull), intent(inout) :: wsuma,wsumb,fsum
+real, dimension(ufull) :: theta,dtheta,st,nw
+real, dimension(ufull) :: duf,dur,duv
+
+dtheta=(b-a)/real(ntot)
+select case(mode)
+  case(0) ! jet on road
+    do n=1,ntot
+      theta=dtheta*(real(n)-0.5)+a
+      st=abs(sin(theta-wdir))
+      nw=w/max(st,1.E-9)
+      call winda(duf,dur,duv,h,nw,z0)
+      wsuma=wsuma+dur*st*dtheta
+      wsumb=wsumb+duv*st*dtheta
+      fsum=fsum+duf*st*dtheta
+    end do
+  case(1) ! jet on wall
+    do n=1,ntot
+      theta=dtheta*(real(n)-0.5)+a
+      st=abs(sin(theta-wdir))
+      nw=w/max(st,1.E-9)
+      call windb(duf,dur,duv,h,nw,z0)
+      wsuma=wsuma+dur*st*dtheta
+      wsumb=wsumb+duv*st*dtheta
+      fsum=fsum+duf*st*dtheta
+    end do
+  case DEFAULT
+    write(6,*) "ERROR: Unknown mode ",mode
+    stop
+end select
+
+return
+end subroutine integratewind
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate wind speed, jet on road
+
+subroutine winda(uf,ur,uv,h,w,z0)
+
+implicit none
+
+real, dimension(ufull), intent(out) :: uf,ur,uv
+real, dimension(ufull), intent(in) :: h,w,z0
+real, dimension(ufull) :: a,u0,cuven,zolog
+
+a=0.15*max(1.,3.*h/(2.*w))
+u0=exp(-0.9*sqrt(13./4.))
+
+zolog=log(max(h,z0+0.1)/z0)
+cuven=log(max(0.1*h,z0+0.1)/z0)/log(max(h,z0+0.1)/z0)
+cuven=max(cuven*(1.-3.*h/w),(u0/a)*(h/w)*(1.-exp(-a*(w/h-3.))))
+uf=(u0/a)*(h/w)*(1.-exp(-3.*a))+cuven
+!uf=(u0/a)*(h/w)*(2.-exp(-a*3.)-exp(-a*(w/h-3.)))
+ur=(u0/a)*exp(-a*3.)*(1.-exp(-a))
+! MJT suggestion
+cuven=1.-1./zolog
+uv=(u0/a)*exp(-a*(w/h-3.))*(1.-exp(-a))
+uv=max(cuven,uv)
+!uv=(u0/a)*exp(-a*(w/h-3.))*(1.-exp(-a))
+
+return
+end subroutine winda
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate wind speed, jet on wall
+
+subroutine windb(uf,ur,uv,h,win,z0)
+
+implicit none
+
+real, dimension(ufull), intent(out) :: uf,ur,uv
+real, dimension(ufull), intent(in) :: h,win,z0
+real, dimension(ufull) :: a,dh,u0,w
+real, dimension(ufull) :: zolog,cuven
+
+w=min(win,1.5*h)
+
+a=0.15*max(1.,3.*h/(2.*w))
+dh=max(2.*w/3.-h,0.)
+u0=exp(-0.9*sqrt(13./4.)*dh/h)
+
+zolog=log(max(h,z0+0.1)/z0)
+! MJT suggestion (cuven is multipled by dh to avoid divide by zero)
+cuven=h-(h-dh)*log(max(h-dh,z0+0.1)/z0)/zolog-dh/zolog
+! MJT cuven is back to the correct units of m/s
+cuven=max(cuven/h,(u0/a)*(1.-exp(-a*dh/h)))
+
+uf=(u0/a)*(h/w)*exp(-a*(1.-dh/h))*(1.-exp(-a*w/h))
+ur=(u0/a)*exp(-a*(1.-dh/h+w/h))*(1.-exp(-a))
+uv=(u0/a)*(1.-exp(-a*(1.-dh/h)))+cuven
+!uv=(u0/a)*(2.-exp(-a*(1.-dh/h))-exp(-a*dh/h))
+
+return
+end subroutine windb
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate wind speed at canyon top
 subroutine gettopu(cn,topu,umag,zmin,bldheight,hwratio,z_on_l,cd)
       
 implicit none
 
 integer, intent(in) :: cn
-integer ic
 real, dimension(cn), intent(in) :: umag,zmin
 real, dimension(cn), intent(in) :: bldheight,hwratio
 real, dimension(cn), intent(in) :: z_on_l,cd
@@ -2207,7 +2348,7 @@ elsewhere
   integralm = neutral-(pm1-pm0)
 endwhere
 where (bldheight.lt.zmin)
-  topu=(2./pi)*(umag-ustar/vkar*integralm)
+  topu=(2./pi)*(umag-ustar*integralm/vkar)
 elsewhere ! within canyon
   topu=(2./pi)*umag*exp(0.5*hwratio*(1.-zmin/bldheight))
 end where
@@ -2355,7 +2496,7 @@ select case(scrnmeth)
 
     ! assume standard stability functions hold for urban canyon (needs more work)
     tsurf=dg%rdsndelta*rdsntemp+(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*road%temp(1)+fn%sigmaveg*pg%vegtemp)
-    n=max(min((veg%moist-swilt/3.)/(sfc-swilt/3.),1.),0.)
+    n=max(min((veg%moist-swilt)/(sfc-swilt),1.),0.)
     wf=(1.-dg%rdsndelta)*((1.-fn%sigmaveg)*dg%roaddelta+fn%sigmaveg*((1.-dg%vegdelta)*n+dg%vegdelta))
     call getqsat(ufull,qsurf,tsurf,dg%sigd)
     qsurf=qsurf*wf

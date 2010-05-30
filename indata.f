@@ -11,7 +11,7 @@
 !     rml 21/02/06 removed all so2 code
 !     rml 16/02/06 use tracermodule, timeseries
       use tracermodule, only : tracini,readtracerflux,tracvalin,
-     &                         unit_trout,tr_back
+     &                         unit_trout
       use timeseries, only : init_ts
       implicit none
 !     parameter (gwdfac=.02)  ! now .02 for lgwd=2  see below
@@ -71,9 +71,9 @@
       real rlong0x,rlat0x,schmidtx
       real rlonx,rlatx,alf
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
-      real sigin
-      integer ik,jk,kk
-      common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug
+      !real sigin                                             ! MJT vertint
+      !integer ik,jk,kk                                       ! MJT vertint
+      !common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT vertint
       real, dimension(ifull) :: zss, aa, zsmask
       real, dimension(ifull) :: dep ! MJT mlo
       real tbarr(kl),qgin(kl),zbub(kl)
@@ -272,6 +272,14 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
          write(6,"('zs#_mask ',9f8.2)") diagvals(zsmask)
       end if
 
+      !-----------------------------------------------------------------
+      ! MJT tke
+      if (nvmix.eq.6) then
+        if (myid==0) print *,"Initialising TKE-eps scheme"
+        call tkeinit(ifull,iextra,kl,0)
+      end if
+      !-----------------------------------------------------------------
+
       hourst = 0. ! Some io_in options don't set it.
       albsav=-1. ! missing value flag ! MJT cable
       if(io_in<4)then  ! ********************************************************
@@ -393,26 +401,29 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
             print *,'sigmh: ',sigmh
          end if
 
-         if (mydiag) print *,'t into indata ',t(idjd,1:kk)
-         if(abs(sig(2)-sigin(2))>0.0001)then   ! 11/03
-            if (mydiag) then
-               print *,
-     &            '** interpolating multilevel data vertically to new'//
-     &            ' sigma levels'
-               print*,'calling vertint with kk,sigin ',kk,sigin(1:kk)
-            end if
-            call vertint(t(1:ifull,:), 1) ! vertint expects 1:ifull
-            if ( mydiag ) print *,'t after vertint ',t(idjd,:)
-            call vertint(qg(1:ifull,:),2)
-            call vertint(u(1:ifull,:), 3)
-            call vertint(v(1:ifull,:), 4)
-            call vertint(qfg(1:ifull,:),5)
-            call vertint(qlg(1:ifull,:),5)
-            if (nvmix.eq.6) then                ! MJT tke
-              call vertint(tkedwn(1:ifull,:),6) ! MJT tke
-              call vertint(epsdwn(1:ifull,:),6) ! MJT tke
-            end if                              ! MJT tke
-         endif  ! (abs(sig(2)-sigin(2))>.0001)
+         !-----------------------------------------------------------
+         ! MJT vertint
+!         if (mydiag) print *,'t into indata ',t(idjd,1:kk)         
+!         if(abs(sig(2)-sigin(2))>0.0001)then   ! 11/03
+!            if (mydiag) then
+!               print *,
+!     &            '** interpolating multilevel data vertically to new'//
+!     &            ' sigma levels'
+!               print*,'calling vertint with kk,sigin ',kk,sigin(1:kk)
+!            end if
+!            call vertint(t(1:ifull,:), 1) ! vertint expects 1:ifull
+!            if ( mydiag ) print *,'t after vertint ',t(idjd,:)
+!            call vertint(qg(1:ifull,:),2)
+!            call vertint(u(1:ifull,:), 3)
+!            call vertint(v(1:ifull,:), 4)
+!            call vertint(qfg(1:ifull,:),5)
+!            call vertint(qlg(1:ifull,:),5)
+!            if (nvmix.eq.6) then                ! MJT tke
+!              call vertint(tkedwn(1:ifull,:),6) ! MJT tke
+!              call vertint(epsdwn(1:ifull,:),6) ! MJT tke
+!            end if                              ! MJT tke
+!         endif  ! (abs(sig(2)-sigin(2))>.0001)
+         !-----------------------------------------------------------
 
          if ( mydiag ) then
             print *,'newtop, zsold, zs,tss_in,land '
@@ -1037,9 +1048,6 @@ c        end if
       if (ngas>0) then
 !       tracer initialisation (if start of run) after restart read
         if (tracvalin.ne.-999) call tracini
-!     rml 23/2/10 find a background tracer value for each tracer and remove
-!     to provide better accuracy for transport
-        call tr_back	
         call init_ts(ngas,dt)
         call readtracerflux(kdate)
       endif
@@ -2084,24 +2092,6 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       else
         sigmu(:)=0.
         call atebdisable(0) ! disable urban
-      end if
-      !-----------------------------------------------------------------
-
-      !-----------------------------------------------------------------
-      ! MJT tke
-      if (nvmix.eq.6) then
-        if (myid==0) print *,"Initialising TKE-eps scheme"
-        call tkeinit(ifull,iextra,kl,0)
-        pblh=pblhdwn
-        tke(1:ifull,:)=tkedwn
-        eps(1:ifull,:)=epsdwn
-        tke=max(tke,1.5E-4)
-        eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)
-        eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)          
-        eps=max(eps,1.E-6)       
-        tkesav=tke(1:ifull,:)
-        epssav=eps(1:ifull,:)
-        deallocate(tkedwn,epsdwn,pblhdwn)          
       end if
       !-----------------------------------------------------------------
 

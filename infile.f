@@ -969,20 +969,28 @@ c          unpack data
       end
       !--------------------------------------------------------------   
 
-
-      subroutine vertint(t,n)
+      ! This version of vertint can interpolate from host models with
+      ! a greater number of vertical levels than the nested model.
+      subroutine vertint(told,t,n,kk,sigin) ! MJT vertint
 !     N.B. this ia called just from indata or nestin      
 !     transforms 3d array from dimension kk in vertical to kl   jlm
-!     assuming here kk<kl
 !     jlm vector special, just with linear new=1 option
       include 'newmpar.h'
       include 'sigs.h'
       include 'parm.h'
-      common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile
+      !common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT vertint
+      integer, intent(in) :: kk ! MJT vertint
+      real, dimension(kk), intent(in) :: sigin ! MJT vertint
       dimension t(ifull,kl),ka(kl),kb(kl),wta(kl),wtb(kl)  ! for mpi
-      real told(ifull,kl)
+      real told(ifull,kk) ! MJT vertint
       save num,ka,kb,wta,wtb,klapse
       data num/0/,klapse/0/
+      
+      if (abs(sig(2)-sigin(2))<0.0001.and.kk.eq.kl) then ! MJT vertint
+        t=told                                           ! MJT vertint
+        return                                           ! MJT vertint
+      end if                                             ! MJT vertint
+      
       if(num==0)then
         num=1
         do k=1,kl
@@ -998,10 +1006,11 @@ c          unpack data
            wta(k)=1.
            wtb(k)=0.
          else
+           kin=2
            do kin=2,kk
-            if(sig(k)>sigin(kin))go to 5
+            if(sig(k)>sigin(kin)) exit ! MJT
            enddo     ! kin loop
-5          ka(k)=kin
+           ka(k)=kin
            kb(k)=kin-1
            wta(k)=(sigin(kin-1)-sig(k))/(sigin(kin-1)-sigin(kin))
            wtb(k)=(sig(k)-sigin(kin)  )/(sigin(kin-1)-sigin(kin))
@@ -1020,7 +1029,7 @@ c          unpack data
 94      format('wtb',10f7.4)
       endif     !  (num==0)
 
-      told(:,:)=t(:,:)
+      !told(:,:)=t(:,:) ! MJT vertint
       do k=1,kl
        do iq=1,ifull
 !        N.B. "a" denotes "above", "b" denotes "below"

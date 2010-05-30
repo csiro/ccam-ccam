@@ -1003,7 +1003,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       endif ! (ktau==0.or.itype==-1) 
 
       call histwrt3(vlai,'lai',idnc,iarch,local) ! MJT cable
-      call histwrt3l(zs,'zht',idnc,iarch,local)   ! always from 13/9/02 ! MJT bug fix
+      call histwrt3(zs,'zht',idnc,iarch,local)   ! always from 13/9/02 ! MJT bug fix
       call histwrt3(psl,'psf',idnc,iarch,local)
       do iq=1,ifull
         aa(iq)=pmsl(iq)/100.
@@ -1088,8 +1088,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       call histwrt3(cc,'wbftot',idnc,iarch,local)
       call histwrt3(sicedep,'siced',idnc,iarch,local)
       call histwrt3(fracice,'fracice',idnc,iarch,local)
-c     call histwrt3(snowd,'snd',idnc,iarch,local)
-      call histwrt3l(snowd,'snd',idnc,iarch,local)  ! long write
+      call histwrt3(snowd,'snd',idnc,iarch,local)  ! long write
       
       if(ktau>0.and.nwt.ne.nperday.and.itype.ne.-1)then  ! reinstated July '05
 !       scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
@@ -1315,7 +1314,7 @@ c      "extra" outputs
        aa(:)=isflag(:)
        call histwrt3(aa,'sflag',idnc,iarch,local)
        if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then ! MJT cable       
-         call savetile(idnc,local,idim)
+         call savetile(idnc,local,idim,iarch)
        end if
       endif  ! (itype==-1)
       !---------------------------------------------------------
@@ -1546,85 +1545,6 @@ c     print *,'myid,ktau,nmaxpr,sname ',myid,ktau,nmaxpr,sname
       return
       end ! histwrt3
 c=======================================================================
-      subroutine histwrt3l(var,sname,idnc,iarch,local)  ! long write
-c Write 2d+t fields from the savegrid array.  long write (e.g. snd)
-
-      use cc_mpi
-      implicit none
-      include 'newmpar.h'
-      include 'parm.h'
-      include 'netcdf.inc'
-
-      integer idnc, iarch
-      logical, intent(in) :: local
-      integer mid, start(3), count(3)
-      character* (*) sname
-c     character*8 sname
-
-      real var(ifull)
-      integer iq, ier, imn, imx, jmn, jmx
-      real  varn, varx
-      real, dimension(ifull_g) :: globvar
-
-      if(local)then
-         start = (/ 1, 1, iarch /)
-         count = (/ il, jl, 1 /)
-         mid = ncvid(idnc,sname,ier)
-
-!        Check variable type
-c        ier = nf_inq_vartype(idnc, mid, NCFLOAT) ! removed 13/6/07
-         call ncvpt(idnc, mid, start, count, var, ier)
-         if(ier.ne.0)then
-           write(0,*) "in histwrt3l ier not zero"
-           stop
-         endif
-      else
-
-      if(myid == 0)then
-         call ccmpi_gather(var, globvar)
-         start(1) = 1
-         start(2) = 1
-         start(3) = iarch
-         count(1) = il_g
-         count(2) = jl_g
-         count(3) = 1
-
-c find variable index
-         mid = ncvid(idnc,sname,ier)
-
-!        Check variable type
-c        ier = nf_inq_vartype(idnc, mid, NCFLOAT) ! removed 13/6/07
-         call ncvpt(idnc, mid, start, count, globvar, ier)
-         if(ier.ne.0)then
-           write(0,*) "In histwrt3l ier not zero"
-           stop
-         endif
-      else
-         call ccmpi_gather(var)
-      endif
-
-      if(myid==0 .and. mod(ktau,nmaxpr)==0)then
-         varn = minval(globvar)
-         varx = maxval(globvar)
-         ! This should work ???? but sum trick is more portable???
-         ! iq = minloc(globvar,dim=1)
-         iq = sum(minloc(globvar))
-         ! Convert this 1D index to 2D
-         imn = 1 + modulo(iq-1,il_g)
-         jmn = 1 + (iq-1)/il_g
-         iq = sum(maxloc(globvar))
-         ! Convert this 1D index to 2D
-         imx = 1 + modulo(iq-1,il_g)
-         jmx = 1 + (iq-1)/il_g
-         write(6,'("histwrt3l",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)')
-     &             sname,iarch,varn,imn,jmn,varx,imx,jmx,
-     &             globvar(id+(jd-1)*il_g)
-      endif
-      endif ! local
-
-      return
-      end ! histwrt3l
-c=======================================================================
       subroutine histwrt4(var,sname,idnc,iarch,local)
 c Write 3d+t fields from the savegrid array.
 
@@ -1730,6 +1650,10 @@ c find variable index
 
       return
       end ! histwrt4
+
+! ______________________________________________________________________
+     
+
      
       subroutine mtimerget(mtimer,kdate1,ktime1,kdate2,ktime2) ! jlm
 !     returns mtimer in minutes, corr. to (kdate2,ktime2) -  (kdate1,ktime1)    

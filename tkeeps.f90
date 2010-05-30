@@ -24,7 +24,7 @@ module tkeeps
 implicit none
 
 private
-public tkeinit,tkemix,tkeend,tke,eps,tkesav,epssav,shear,tkedwn,epsdwn,pblhdwn,tkeotf,epsotf,pblhotf
+public tkeinit,tkemix,tkeend,tke,eps,tkesav,epssav,shear
 public ww,dwdx,dwdy
 
 integer, save :: ifull,iextra,kl
@@ -32,10 +32,6 @@ real, dimension(:,:), allocatable, save :: shear
 real, dimension(:,:), allocatable, save :: tke,eps
 real, dimension(:,:), allocatable, save :: tkesav,epssav
 real, dimension(:,:), allocatable, save :: ww,dwdx,dwdy
-real, dimension(:,:), allocatable, save :: tkedwn,epsdwn ! These variables are for CCAM onthefly.f
-real, dimension(:,:), allocatable, save :: tkeotf,epsotf ! These variables are for CCAM onthefly.f
-real, dimension(:), allocatable, save :: pblhdwn         ! These variables are for CCAM onthefly.f
-real, dimension(:), allocatable, save :: pblhotf         ! These variables are for CCAM onthefly.f
 
 ! model constants
 real, parameter :: cm      = 0.09
@@ -196,29 +192,42 @@ select case(buoymeth)
       gg(:,k)=(1.+1.61*epsl*lv*qg(:,k)/(rd*temp(:,k))) &
              /(1.+epsl*lv*lv*qg(:,k)/(cp*1.61*rd*temp(:,k)*temp(:,k)))/theta(:,k)
     end do
-    where (qg(:,1).lt.qsat(:,1).and.cfrac(:,1).lt.0.5)
-      ppb(:,1)=-grav/thetav(:,1)*(thetav(:,2)-thetav(:,1))/dz_hl(:,1) &
-                +grav*(qlg(:,2)+qfg(:,2)-qlg(:,1)-qfg(:,1))/dz_hl(:,1) ! same as nvmix=5
-    elsewhere
-      ppb(:,1)=-grav*gg(:,1)*(ff(:,2)-ff(:,1))/dz_hl(:,1) &
-                +grav*(qg(:,2)+qlg(:,2)+qfg(:,2)-qg(:,1)-qlg(:,1)-qfg(:,1))/dz_hl(:,1)
-    end where
+    !where (qg(:,1).lt.qsat(:,1).and.cfrac(:,1).lt.0.5)
+    !  ppb(:,1)=-grav/thetav(:,1)*(thetav(:,2)-thetav(:,1))/dz_hl(:,1) &
+    !            +grav*(qlg(:,2)+qfg(:,2)-qlg(:,1)-qfg(:,1))/dz_hl(:,1) ! same as nvmix=5
+    !elsewhere
+    !  ppb(:,1)=-grav*gg(:,1)*(ff(:,2)-ff(:,1))/dz_hl(:,1) &
+    !            +grav*(qg(:,2)+qlg(:,2)+qfg(:,2)-qg(:,1)-qlg(:,1)-qfg(:,1))/dz_hl(:,1)
+    !end where
+    ppb(:,1)=-grav/dz_hl(:,1)*((1.-cfrac(:,1))*(thetav(:,2)-thetav(:,1))/thetav(:,1) &
+                              +cfrac(:,1)*(ff(:,2)-ff(:,1))*gg(:,1)) &
+             +grav/dz_hl(:,1)*cfrac(:,1)*(qg(:,2)-qg(:,1)) &
+             +grav/dz_hl(:,1)*(qlg(:,2)+qfg(:,2)-qlg(:,1)-qfg(:,1))
     do k=2,kl-1
-      where (qg(:,k).lt.qsat(:,k).and.cfrac(:,k).lt.0.5)
-        ppb(:,k)=-grav/thetav(:,k)*0.5*(thetav(:,k+1)-thetav(:,k-1))/dz_fl(:,k) &
-                 +grav*0.5*(qlg(:,k+1)+qfg(:,k+1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k) ! same as nvmix=5
-      elsewhere
-        ppb(:,k)=-grav*gg(:,k)*0.5*(ff(:,k+1)-ff(:,k-1))/dz_fl(:,k) &
-                 +grav*0.5*(qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-qg(:,k-1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k)
-      end where
+      !where (qg(:,k).lt.qsat(:,k).and.cfrac(:,k).lt.0.5)
+      !  ppb(:,k)=-grav/thetav(:,k)*0.5*(thetav(:,k+1)-thetav(:,k-1))/dz_fl(:,k) &
+      !           +grav*0.5*(qlg(:,k+1)+qfg(:,k+1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k) ! same as nvmix=5
+      !elsewhere
+      !  ppb(:,k)=-grav*gg(:,k)*0.5*(ff(:,k+1)-ff(:,k-1))/dz_fl(:,k) &
+      !           +grav*0.5*(qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-qg(:,k-1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k)
+      !end where
+      ppb(:,k)=-grav*0.5/dz_fl(:,k)*((1.-cfrac(:,k))*(thetav(:,k+1)-thetav(:,k-1))/thetav(:,k) &
+                                    +cfrac(:,k)*(ff(:,k+1)-ff(:,k-1))*gg(:,k)) &
+               +grav*0.5/dz_fl(:,k)*cfrac(:,k)*(qg(:,k+1)-qg(:,k-1)) &
+               +grav*0.5/dz_fl(:,k)*(qlg(:,k+1)+qfg(:,k+1)-qlg(:,k-1)-qfg(:,k-1))
     end do
-    where (qg(:,kl).lt.qsat(:,kl).and.cfrac(:,kl).lt.0.5)
-      ppb(:,kl)=-grav/thetav(:,kl)*(thetav(:,kl)-thetav(:,kl-1))/dz_hl(:,kl-1) &
-                +grav*(qlg(:,kl)+qfg(:,kl)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1) ! same as nvmix=5
-    elsewhere
-      ppb(:,kl)=-grav*gg(:,kl)*(ff(:,kl)-ff(:,kl-1))/dz_hl(:,kl-1) &
-                +grav*(qg(:,kl)+qlg(:,kl)+qfg(:,kl)-qg(:,kl-1)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1)
-    end where
+    !where (qg(:,kl).lt.qsat(:,kl).and.cfrac(:,kl).lt.0.5)
+    !  ppb(:,kl)=-grav/thetav(:,kl)*(thetav(:,kl)-thetav(:,kl-1))/dz_hl(:,kl-1) &
+    !            +grav*(qlg(:,kl)+qfg(:,kl)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1) ! same as nvmix=5
+    !elsewhere
+    !  ppb(:,kl)=-grav*gg(:,kl)*(ff(:,kl)-ff(:,kl-1))/dz_hl(:,kl-1) &
+    !            +grav*(qg(:,kl)+qlg(:,kl)+qfg(:,kl)-qg(:,kl-1)-qlg(:,kl-1)-qfg(:,kl-1))/dz_hl(:,kl-1)
+    !end where
+    ppb(:,kl)=-grav/dz_hl(:,kl-1)*((1.-cfrac(:,kl))*(thetav(:,kl)-thetav(:,kl-1))/thetav(:,kl) &
+                                  +cfrac(:,kl)*(ff(:,kl)-ff(:,kl-1))*gg(:,kl)) &
+              +grav/dz_hl(:,kl-1)*cfrac(:,kl)*(qg(:,kl)-qg(:,kl-1)) &
+              +grav/dz_hl(:,kl-1)*(qlg(:,kl)+qfg(:,kl)-qlg(:,kl-1)-qfg(:,kl-1))
+              
     
   case(2) ! Smith (1990)
     do k=1,kl
@@ -226,7 +235,7 @@ select case(buoymeth)
       jj(:)=lv+lf*qfg(:,k)/max(qlg(:,k)+qfg(:,k),1.e-12) ! L
       dqsdt(:)=epsl*jj(:)*qsat(:,k)/(rd*temp(:,k)**2)
       hh(:)=cfrac(:,k)*(jj(:)/cp/temp(:,k) &
-                        -delta/(1.-epsl)/(1.+delta*qg(:,k)-qlg(:,k)-qfg(:,k)))/(1.+jj(:)*dqsdt/cp) ! betac
+                        -delta/(1.-epsl)/(1.+delta*qg(:,k)-qlg(:,k)-qfg(:,k)))/(1.+jj(:)/cp*dqsdt) ! betac
       ff(:,k)=1./temp(:,k)-dqsdt*hh(:)                         ! betatt
       gg(:,k)=delta/(1.+delta*qg(:,k)-qlg(:,k)-qfg(:,k))+hh(:) ! betaqt
     end do    
@@ -542,10 +551,6 @@ if ((mode.and.1).eq.0) then
   qg=max(qg,1.E-6)
   theta=thetav/(1.+0.61*qg)
 end if
-
-
-tkesav=tke(1:ifull,:) ! Not needed, but for consistancy when not using CCAM
-epssav=eps(1:ifull,:) ! Not needed, but for consistancy when not using CCAM
 
 return
 end subroutine tkemix
