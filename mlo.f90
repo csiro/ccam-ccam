@@ -14,7 +14,7 @@ implicit none
 
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
-       wlev,depth,mlodwn,mlootf,ocndwn,ocnotf
+       mlonewice,wlev,depth,mlodwn,mlootf,ocndwn,ocnotf
 
 type tdata
   real temp,sal,u,v

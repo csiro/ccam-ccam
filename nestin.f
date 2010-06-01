@@ -1519,7 +1519,7 @@
 
         ! computations for the local processor group
         call speclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,qp,
-     &         qu,qv,qw,qt,qq,dd)
+     &         qu,qv,qw,qt,qq)
         
         nns=ppass*til+1
         nne=ppass*til+til
@@ -1714,7 +1714,7 @@
       ! This code runs between the local processors
       ! Code was moved to this subroutine to help the compiler vectorise the code
       subroutine speclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
-     &             qp,qu,qv,qw,qt,qq,dd)
+     &             qp,qu,qv,qw,qt,qq)
       implicit none
       
       include 'newmpar.h'    ! ifull_g
@@ -1742,7 +1742,7 @@
       real, dimension(4*il_g,kbotdav:ktopdav) :: pu,pv,pw,pt,pq ! MJT nestin
       real, dimension(4*il_g,kbotdav:ktopdav) :: au,av,aw,at,aq ! MJT nestin
       real, dimension(4*il_g) :: pp,ap,psum,asum,ra,xa,ya,za
-      real, dimension(ifull_g*(ktopdav-kbotdav+1)), intent(inout) :: dd ! MJT nestin
+      real, dimension(ifull_g*(ktopdav-kbotdav+1)) :: dd ! MJT nestin
       
       do ipass=0,3
         me=maps(ipass)
@@ -2467,7 +2467,7 @@
 
       cq=sqrt(4.5)*.1*real(hostscale)/(pi*schmidt)
       
-      if((mod(6,nproc)==0).or.(mod(nproc,6)==0))then
+      if(mod(6,nproc)==0.or.mod(nproc,6)==0)then
         npta=max(6/nproc,1)                       ! number of panels per processor
         mproc=max(nproc/6,1)                      ! number of processors per panel
         pn=myid*npta/mproc                        ! start panel
@@ -2508,7 +2508,7 @@
       where (.not.land)
         old=old+alpha*diff(:)
       end where
-      
+
       call mloimport(ifull,old,ilev,0)
 
       return
@@ -2539,23 +2539,22 @@
      &           MPI_COMM_WORLD,ierr)
       
       if (ns.gt.ne) return
-      if ((myid==0).and.(nmaxpr==1)) write(6,*) "MLO Start 1D filter"
+      if (myid==0.and.nmaxpr==1) write(6,*) "MLO Start 1D filter"
 
       zp=0.
-
+      
       do ppass=pn,px
 
-        where(diff_g.lt.miss) ! land/sea mask
+        where(abs(diff_g-miss).gt.0.1) ! land/sea mask
           qsum(:)=1./(em_g(:)*em_g(:))
           qp(:)=diff_g(:)/(em_g(:)*em_g(:))
         elsewhere
           qsum=0.
           qp=0.
         end where
-
+	
         ! computations for the local processor group
-        call mlospeclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,qp,
-     &         dd)
+        call mlospeclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,qp)
         
         nns=ppass*til+1
         nne=ppass*til+til
@@ -2564,7 +2563,7 @@
         end where
       end do
 
-      if ((myid==0).and.(nmaxpr==1)) write(6,*) "MLO End 1D filter"
+      if (myid==0.and.nmaxpr==1) write(6,*) "MLO End 1D filter"
 
       itag=itag+1
       if (myid == 0) then
@@ -2604,7 +2603,7 @@
       
       !---------------------------------------------------------------------------------
       subroutine mlospeclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
-     &             qp,dd)
+     &             qp)
      
       implicit none
       
@@ -2628,12 +2627,12 @@
       real, intent(in) :: cq
       real, dimension(ifull_g), intent(inout) :: qp,qsum
       real, dimension(4*il_g) :: pp,ap,psum,asum,ra,xa,ya,za
-      real, dimension(ifull_g), intent(inout) :: dd
+      real, dimension(ifull_g) :: dd
       
       do ipass=0,3
         me=maps(ipass)
         call getiqa(igrd(1:me,1:il_g,ipass),me,ipass,ppass,il_g)
-
+      
         if (ipass.eq.3) then
           itag=itag+1
           if (myid==0.and.nmaxpr==1) then
@@ -2682,7 +2681,7 @@
           end if
         end if
 
-        if ((myid==0).and.(nmaxpr==1)) write(6,*) "MLO start conv"
+        if (myid==0.and.nmaxpr==1) write(6,*) "MLO start conv"
 
         do j=ns,ne
           asum(1:me)=qsum(igrd(1:me,j,ipass))
@@ -2690,16 +2689,10 @@
           ya(1:me)=y_g(igrd(1:me,j,ipass))
           za(1:me)=z_g(igrd(1:me,j,ipass))
           ap(1:me)=qp(igrd(1:me,j,ipass))
-          where(asum(1:me).eq.0.) ! land/sea mask
-            dd=0.
-          elsewhere
-            dd=1.
-          end where
           do n=1,il_g
             ra(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
             ra(1:me)=acos(max(min(ra(1:me),1.),-1.))
             ra(1:me)=exp(-(cq*ra(1:me))**2)
-            ra(1:me)=ra(1:me)*dd(1:me) ! land/sea mask
             psum(n)=sum(ra(1:me)*asum(1:me))
             pp(n)=sum(ra(1:me)*ap(1:me))
           end do
@@ -2766,7 +2759,7 @@
      &               MPI_COMM_WORLD,ierr)
           end if
         end if
-          
+
       end do
       
       return  

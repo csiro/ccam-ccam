@@ -372,7 +372,7 @@ c     section to update pan temperatures                             ! sea
         where(.not.land)                                             ! MLO
           tpan=tgg(:,1)                                              ! MLO
         endwhere                                                     ! MLO
-        !call mlonewice(ifull,fracice,sicedep,0)                     ! MLO
+        call mlonewice(ifull,fracice,sicedep,0)                      ! MLO
       end if                                                         ! MLO
     !----------------------------------------------------------------
 
