@@ -781,7 +781,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
       
       else ! tke-eps closure scheme
        ! note ksc < 0 options are clobbered when nvmix=6                ! MJT tke
-       ! However, nvmix=6 with nlocal=7 supports its own shallow        ! MJT tke
+       ! However, nvmix=6 with nlocal=2 supports its own shallow        ! MJT tke
        ! convection options                                             ! MJT tke
        uav(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*savu(1:ifull,:) ! MJT tke
        vav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*savv(1:ifull,:) ! MJT tke
@@ -807,11 +807,19 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          rkh=rkm                                                        ! MJT tke
          call pbldif(rhs,rkh,rkm,uav,vav)                               ! MJT tke
         case(7) ! mass-flux counter gradient                            ! MJT tke
-         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
+         if (nkuo.eq.24) then ! no moist convection                     ! MJT tke
+           call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
+     &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
+     &             rdry*fg*t(1:ifull,1)/(ps(1:ifull)*cp*sigmh(1)),
+     &             rdry*eg*t(1:ifull,1)/(ps(1:ifull)*hl*sigmh(1)),
+     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,2,0)              ! MJT tke
+         else ! include moist convection                                ! MJT tke
+           call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
      &             rdry*fg*t(1:ifull,1)/(ps(1:ifull)*cp*sigmh(1)),
      &             rdry*eg*t(1:ifull,1)/(ps(1:ifull)*hl*sigmh(1)),
      &             ps(1:ifull),ustar,zg,sig,sigkap,dt,0,0)              ! MJT tke
+         end if                                                         ! MJT tke
          rkh=rkm                                                        ! MJT tke
          case DEFAULT                                                   ! MJT tke
            write(6,*) "ERROR: Unknown nlocal option for nvmix=6"        ! MJT tke
@@ -914,24 +922,33 @@ c     first do theta (then convert back to t)
          end if
         call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
       endif
-      
+
 c     now do moisture
       rhs(1:ifull,:)=qg(1:ifull,:)
       rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/hl)*eg(1:ifull)/ps(1:ifull)
-c     could add extra sfce moisture flux term for crank-nicholson
-      call trim(at,ct,rhs,0)    ! for qg
+      if (nvmix.eq.6.and.nkuo.eq.24) then ! turn off counter-gradient for moisture ! MJT tke
+       ! increase mixing to replace counter gradient term                          ! MJT tke
+       at=2.5*at                                                                   ! MJT tke
+       ct=2.5*ct                                                                   ! MJT tke
+       call trim(at,ct,rhs,0)    ! for qg                                          ! MJT tke
+      else ! usual                                                                 ! MJT tke
+c      could add extra sfce moisture flux term for crank-nicholson                 ! MJT tke
+       call trim(at,ct,rhs,0)    ! for qg                                          ! MJT tke
+       qg(1:ifull,:)=rhs(1:ifull,:)                                                ! MJT tke
+       if (nvmix.eq.6) then                                                        ! MJT tke
+        ! increase mixing to replace counter gradient term                         ! MJT tke
+        at=2.5*at                                                                  ! MJT tke
+        ct=2.5*ct                                                                  ! MJT tke
+       end if                                                                      ! MJT tke
+      end if                                                                       ! MJT tke
       qg(1:ifull,:)=rhs(1:ifull,:)
       if(diag.and.mydiag)then
-        print *,'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
-        write (6,"('qg ',9f7.3/(8x,9f7.3))") 
-     &             (1000.*qg(idjd,k),k=1,kl)
+       print *,'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
+       write (6,"('qg ',9f7.3/(8x,9f7.3))")
+     &            (1000.*qg(idjd,k),k=1,kl)
       endif
-
-      if (nvmix.eq.6) then ! MJT tke
-        ! increase mixing to replace counter gradient term
-        at=2.5*at          ! MJT tke
-        ct=2.5*ct          ! MJT tke
-      end if               ! MJT tke
+      
+      
 
       if(ldr.ne.0)then
 c       now do qfg

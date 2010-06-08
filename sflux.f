@@ -209,6 +209,9 @@ c     &               ip,iq,tgg(iq,1),tss_sh,sgsave(iq),vmod(iq),dtsol
          dtsol=tss_sh*.01*sgsave(iq)/                                ! JLM SST
      .                (1.+vmod(iq)**4/81.)           ! solar heating ! JLM SST
          tpan(iq)=tgg(iq,1)+min(dtsol,8.)            ! of ssts       ! JLM SST
+	elseif(ntss_sh==5)then                                       ! JLM SST
+	 dtsol=0.              ! Raw SST                             ! JLM SST
+	 tpan(iq)=tgg(iq,1)    ! Raw SST                             ! JLM SST
         endif   ! (ntss_sh==0) .. else ..                            ! JLM SST
         if(nplens.ne.0)then                                          ! JLM SST
 !        calculate running total (over last 24 h) of daily precip in mm  jlm

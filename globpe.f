@@ -932,7 +932,7 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
 
       ! CONVECTION ------------------------------------------------------------
       call start_log(convection_begin)
-      if(nkuo==23)call convjlm     ! split convjlm 
+      if(nkuo==23.or.nkuo==24)call convjlm     ! split convjlm 
       if( nkuo /= 0 ) then
          ! Not set in HS tests.
          cbas_ave(:)=cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:))) ! diagnostic
