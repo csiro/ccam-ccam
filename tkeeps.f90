@@ -547,7 +547,7 @@ if (mode.ne.1) then
   end do
   thetav(:,kl)=thetav(:,kl)+dt*0.5*(gamt(:,kl)+gamt(:,kl-1))/dz_fl(:,kl)
 end if
-if (mode.ne.2) then
+if (mode.eq.0) then
   qg(:,1)=qg(:,1)-dt*0.5*(gamq(:,2)+gamq(:,1))/dz_fl(:,1)
   do k=2,kl-1
     qg(:,k)=qg(:,k)-dt*0.5*(gamq(:,k+1)-gamq(:,k-1))/dz_fl(:,k)

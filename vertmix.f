@@ -780,8 +780,8 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
       endif
       
       else ! tke-eps closure scheme
-       ! note ksc < 0 options are clobbered when nvmix=6                ! MJT tke
-       ! However, nvmix=6 with nlocal=2 supports its own shallow        ! MJT tke
+       ! note ksc.ne.0 options are clobbered when nvmix=6               ! MJT tke
+       ! However, nvmix=6 with nlocal=7 supports its own shallow        ! MJT tke
        ! convection options                                             ! MJT tke
        uav(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*savu(1:ifull,:) ! MJT tke
        vav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*savv(1:ifull,:) ! MJT tke
