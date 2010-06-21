@@ -272,6 +272,13 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
          write(6,"('zs#_mask ',9f8.2)") diagvals(zsmask)
       end if
 
+      !--------------------------------------------------------------
+      ! MJT moved from below
+!     zmin here is approx height of the lowest level in the model
+      zmin=-rdry*280.*log(sig(1))/grav
+      if (myid==0) print *,'zmin = ',zmin
+      !--------------------------------------------------------------
+
       !-----------------------------------------------------------------
       ! MJT tke
       if (nvmix.eq.6) then
@@ -1398,9 +1405,12 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
         endif   ! io_in==5
       endif    ! (nhstest<0)
 
-!     zmin here is approx height of the lowest level in the model
-      zmin=-rdry*280.*log(sig(1))/grav
-      if (myid==0) print *,'zmin = ',zmin
+      !--------------------------------------------------------------
+      ! MJT moved above onthefly call
+!!     zmin here is approx height of the lowest level in the model
+!      zmin=-rdry*280.*log(sig(1))/grav
+!      if (myid==0) print *,'zmin = ',zmin
+      !--------------------------------------------------------------
       gwdfac=.01*lgwd   ! most runs used .02 up to fri  10-10-1997
       helim=800.       ! hal used 800.
       hefact=.1*abs(ngwd)   ! hal used hefact=1. (equiv to ngwd=10)
@@ -2125,6 +2135,11 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        albsav(iq)=albvisnir(iq,1)    ! MJT albedo
        albnirsav(iq)=albvisnir(iq,2) ! MJT albedo
       enddo   ! iq loop
+      
+      do k=1,ms
+        wb(:,k)=max(wb(:,k),swilt(isoilm))
+      end do
+      
       call end_log(indata_end)
       return
       end

@@ -4,6 +4,7 @@
 !     N.B. nevapcc option has been removed   
       use cc_mpi, only : mydiag, myid
       use diag_m
+      use tkeeps, only : tke,eps
       implicit none
       integer itn,iq,k,k13,k23,kcl_top
      .       ,khalf,khalfd,khalfp,kt
@@ -1327,6 +1328,46 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
          enddo   ! iq loop
         enddo    ! ntr loop    
       endif      ! (ngas>0)
+      
+      !--------------------------------------------------------------
+      ! MJT tke
+      if (nvmix.eq.6) then
+        s(:,1:kl-2)=tke(1:ifull,1:kl-2)
+        do iq=1,ifull
+         if(kt_sav(iq)<kl-1)then
+           kb=kb_sav(iq)
+           kt=kt_sav(iq)
+           veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+           fluxup=veldt*s(iq,kb)
+!          remove tke from cloud base layer
+           tke(iq,kb)=tke(iq,kb)-fluxup/dsk(kb)
+!          put flux of tke into top convective layer
+           tke(iq,kt)=tke(iq,kt)+fluxup/dsk(kt)
+           do k=kb+1,kt
+            tke(iq,k)=tke(iq,k)-s(iq,k)*veldt/dsk(k)
+            tke(iq,k-1)=tke(iq,k-1)+s(iq,k)*veldt/dsk(k-1)
+           enddo
+         endif
+        enddo   ! iq loop
+        s(:,1:kl-2)=eps(1:ifull,1:kl-2)
+        do iq=1,ifull
+         if(kt_sav(iq)<kl-1)then
+           kb=kb_sav(iq)
+           kt=kt_sav(iq)
+           veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+           fluxup=veldt*s(iq,kb)
+!          remove eps from cloud base layer
+           eps(iq,kb)=eps(iq,kb)-fluxup/dsk(kb)
+!          put flux of eps into top convective layer
+           eps(iq,kt)=eps(iq,kt)+fluxup/dsk(kt)
+           do k=kb+1,kt
+            eps(iq,k)=eps(iq,k)-s(iq,k)*veldt/dsk(k)
+            eps(iq,k-1)=eps(iq,k-1)+s(iq,k)*veldt/dsk(k-1)
+           enddo
+         endif
+        enddo   ! iq loop        
+      end if
+      !--------------------------------------------------------------
       
       if((ntest>0.or.diag).and.mydiag)then
         iq=idjd

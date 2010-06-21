@@ -257,7 +257,8 @@ c       create the attributes of the header record of the file
         call ncsnc(idnc,ier)
         if(ier.ne.0)write(6,*)"ncsnc idnc,ier=",idnc,ier
       endif    ! (myid==0.or.local)
-      if(ktau.eq.ntau.and.(myid==0.or.localhist))then
+      !if(ktau.eq.ntau.and.(myid==0.or.localhist))then
+      if(ktau.eq.ntau.and.(myid==0.or.local))then ! MJT bug fix
         call ncclos(idnc,ier)
         write(6,*) "calling ncclos(idnc,ier) ",idnc,ier
       endif
@@ -322,9 +323,10 @@ c     this routine creates attributes and writes output
       common/cdfind/ixp,iyp,idlev,idnt,idms
       real dpsdt,dpsdtb,dpsdtbb
       common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull) !globpe,adjust5,outcdf
-      real pmsl,aa,bb,cc,dum2
-      common/work2/pmsl(ifull),aa(ifull),bb(ifull),cc(ifull),
-     &             dum2(ifull,14)
+!      real pmsl,aa,bb,cc,dum2                                 ! MJT cable
+!      common/work2/pmsl(ifull),aa(ifull),bb(ifull),cc(ifull), ! MJT cable
+!     &             dum2(ifull,14)                             ! MJT cable
+      real aa(ifull),bb(ifull),cc(ifull)                       ! MJT cable
       real tmpry
       common/work3c/tmpry(ifull,kl)
 
@@ -1005,9 +1007,11 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       call histwrt3(vlai,'lai',idnc,iarch,local) ! MJT cable
       call histwrt3(zs,'zht',idnc,iarch,local)   ! always from 13/9/02 ! MJT bug fix
       call histwrt3(psl,'psf',idnc,iarch,local)
-      do iq=1,ifull
-        aa(iq)=pmsl(iq)/100.
-      enddo
+      call mslp(aa,psl,zs,t(1:ifull,:)) ! MJT cable
+      aa=aa/100.                        ! MJT cable
+!      do iq=1,ifull                    ! MJT cable
+!        aa(iq)=pmsl(iq)/100.           ! MJT cable
+!      enddo                            ! MJT cable
       call histwrt3(aa,'pmsl',idnc,iarch,local)
       call histwrt3(tss,'tsu',idnc,iarch,local)
       !aa(:)=swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2) ! MJT CHANGE albedo
@@ -1104,6 +1108,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       call histwrt3(sno,'sno',idnc,iarch,local)
       call histwrt3(runoff,'runoff',idnc,iarch,local)
       call histwrt3(tpan,'tpan',idnc,iarch,local)
+      call histwrt3(u10,'u10',idnc,iarch,local) ! MJT zosea
       
       if(ktau>0.and.itype.ne.-1)then  ! these not written to restart file
        if(mod(ktau,nperday)==0.or.ktau==ntau)then  ! only write once per day
@@ -1230,7 +1235,7 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
        call histwrt3(tscrn,'tscrn',idnc,iarch,local)
        call histwrt3(qgscrn,'qgscrn',idnc,iarch,local)
        call histwrt3(rhscrn,'rhscrn',idnc,iarch,local) ! MJT rh
-       call histwrt3(u10,'u10',idnc,iarch,local)
+       !call histwrt3(u10,'u10',idnc,iarch,local) ! MJT zosea
        call histwrt3(uscrn,'uscrn',idnc,iarch,local)
        call histwrt3(rnet,'rnet',idnc,iarch,local)
        call histwrt3(epan,'epan',idnc,iarch,local)

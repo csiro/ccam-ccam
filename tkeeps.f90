@@ -138,7 +138,7 @@ real dz_ref,cm34
 logical, dimension(ifull), intent(in) :: land
 logical sconv
 integer icount
-integer, parameter :: icm = 10
+integer, parameter :: icm = 10 ! iterations for tke-eps
 real, parameter :: tol=0.001
 !real, parameter :: cm34=cm**0.75 ! Crashes the SX6 cross-compiler
 
@@ -229,7 +229,6 @@ select case(buoymeth)
                                   +cfrac(:,kl)*(ff(:,kl)-ff(:,kl-1))*gg(:,kl)) &
               +grav/dz_hl(:,kl-1)*cfrac(:,kl)*(qg(:,kl)-qg(:,kl-1)) &
               +grav/dz_hl(:,kl-1)*(qlg(:,kl)+qfg(:,kl)-qlg(:,kl-1)-qfg(:,kl-1))
-              
     
   case(2) ! Smith (1990)
     do k=1,kl
@@ -261,11 +260,11 @@ gamt=0.
 gamq=0.
 
 if (mode.ne.1) then ! mass flux when mode is an even number
-  zi=zz(:,kl)
   do i=1,ifull
     if (wtv0(i).gt.0.) then ! unstable
       sconv=.false.
-      ee=0.5*(1./zz(i,1)+1./(zi(i)+zz(i,1)))    ! dz_hl(:,0)=zz(:,1)
+      !ee=0.5*(1./zz(i,1)+1./(zi(i)+zz(i,1)))    ! dz_hl(:,0)=zz(:,1) ! soares 2004
+      ee=0.5*(1./zz(i,1)+1./max(zi(i)-0.5*zz(i,1),zz(i,1))) ! MJT suggestion
       tup(1)=thetav(i,1)+wtv0(i)/sqrt(tke(i,1)) !*0.3 in Soares et al (2004)
       qup(1)=qg(i,1)+wq0(i)/sqrt(tke(i,1))      !*0.3 in Soares et al (2004)
       w2up(1)=(2.*zz(i,1)*b2*grav*(tup(1)-thetav(i,1))/thetav(i,1))/(1.+zz(i,1)*b1*ee)
@@ -299,7 +298,8 @@ if (mode.ne.1) then ! mass flux when mode is an even number
       gamt(i,1)=mflx*(tup(1)-thetav(i,1))
       gamq(i,1)=mflx*(qup(1)-qg(i,1))
       do k=2,kl-1
-        ee=0.5*(1./(zz(i,k-1)+dz_hl(i,k-1))+1./(max(zi(i)-zz(i,k-1),0.)+dz_hl(i,k-1)))
+        !ee=0.5*(1./(zz(i,k-1)+dz_hl(i,k-1))+1./(max(zi(i)-zz(i,k-1),0.)+dz_hl(i,k-1))) ! soares et al 2004
+        ee=0.5*(1./max(0.5*(zz(i,k)+zz(i,k-1)),dz_hl(i,k-1))+1./max(zi(i)-0.5*(zz(i,k)+zz(i,k-1)),dz_hl(i,k-1))) ! MJT suggestion
         tup(k)=(tup(k-1)*(1.-0.5*dz_hl(i,k-1)*ee)+0.5*dz_hl(i,k-1)*ee*(thetav(i,k)+thetav(i,k-1))) &
              /(1.+0.5*dz_hl(i,k-1)*ee)
         qup(k)=(qup(k-1)*(1.-0.5*dz_hl(i,k-1)*ee)+0.5*dz_hl(i,k-1)*ee*(qg(i,k)+qg(i,k-1))) &

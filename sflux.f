@@ -16,7 +16,7 @@
 !     parameter (newztsea=1)   ! 0 for original, 1 for correct zt over sea
 !     vmag introduced Mar '05 as vmod was being used in ri
 !     From 11/8/98 runoff() is accumulated & zeroed with precip
-!     Now using tgg(,3) for the tice calculations
+!     Now using tggsn(,3) for the tice calculations
 c     with leads option via fracice (using tgg1 and tgg3)
 c     now in parm.h with zero as default and used in rdnsib/rdnscam
 c     cp specific heat at constant pressure joule/kgm/deg
@@ -181,10 +181,10 @@ c     using av_vmod (1. for no time averaging)
       if(charnock>0.)then                                            ! sea
         charnck(:)=charnock                                          ! sea
       elseif(charnock<-1.)then            ! zo like Moon (2004)      ! sea
-        if(ktau==1)u10(:)=vmod(:)/3.8                                ! sea
+        !if(ktau==1)u10(:)=vmod(:)/3.8 !MJT zosea                    ! sea
         charnck(:)=max(.0000386*u10(:),.000085*u10(:)-.00058)        ! sea
       else                                                           ! sea
-        if(ktau==1)u10(:)=vmod(:)/3.8                                ! sea
+        !if(ktau==1)u10(:)=vmod(:)/3.8 !MJT zosea                    ! sea
         charnck(:)=.008+3.e-4*(u10(:)-9.)**2/ ! like Makin (2002)    ! sea
      &            (1.+(.006+.00008*u10(:))*u10(:)**2)                ! sea
       endif                                                          ! sea
@@ -209,9 +209,9 @@ c     &               ip,iq,tgg(iq,1),tss_sh,sgsave(iq),vmod(iq),dtsol
          dtsol=tss_sh*.01*sgsave(iq)/                                ! JLM SST
      .                (1.+vmod(iq)**4/81.)           ! solar heating ! JLM SST
          tpan(iq)=tgg(iq,1)+min(dtsol,8.)            ! of ssts       ! JLM SST
-	elseif(ntss_sh==5)then                                       ! JLM SST
-	 dtsol=0.              ! Raw SST                             ! JLM SST
-	 tpan(iq)=tgg(iq,1)    ! Raw SST                             ! JLM SST
+        elseif(ntss_sh==5)then                                       ! JLM SST
+          dtsol=0.             ! raw SST                             ! JLM SST
+          tpan(iq)=tgg(iq,1)   ! raw SST                             ! JLM SST
         endif   ! (ntss_sh==0) .. else ..                            ! JLM SST
         if(nplens.ne.0)then                                          ! JLM SST
 !        calculate running total (over last 24 h) of daily precip in mm  jlm
@@ -270,7 +270,7 @@ c      this is in-line ocenzo using latest coefficient, i.e. .018    ! sea
             af(iq)=afroot**2                                         ! sea
             daf=2.*af(iq)*afroot/(vkar*zo(iq))                       ! sea
             zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-con*af(iq))/(1.-con*daf))
-            zo(iq)=min(zo(iq),13.) ! JLM fix            
+            zo(iq)=min(zo(iq),13.) ! JLM fix                         ! sea
            enddo    ! it=1,3                                         ! sea
            afroot=vkar/log(zmin/zo(iq))                              ! sea
            af(iq)=afroot**2                                          ! sea
@@ -292,7 +292,7 @@ c      this is in-line ocenzo using latest coefficient, i.e. .018    ! sea
         endif     ! (charnock<-1.) .. else ..
        endif      ! (land(iq)) .. else ..
        aft(iq)=chnsea                                                ! sea
-      enddo  ! iq loop   
+      enddo  ! iq loop
 
       if(newztsea==0)then ! 0 for original, 1 for different zt over sea
 c       enhanced formula used in Feb '92 Air-Sea conference follows: ! sea
@@ -357,13 +357,13 @@ c     section to update pan temperatures                             ! sea
        endif  ! (land(iq))                                           ! sea
       enddo   ! iq loop                                              ! sea
       
-    !----------------------------------------------------------------
-    ! MJT mlo
+      !----------------------------------------------------------------
+      ! MJT mlo
       if (abs(nmlo).eq.1) then                                       ! MLO
         ! Take fg, eg, taux and tauy from host model as may use      ! MLO
         ! various schemes to calculate zo (e.g., wave model).        ! MLO
-        ! Note that fg, eg, taux and tauy do not include sea-ice at  ! MLO
-        ! this point                                                 ! MLO
+        ! Note that fg, eg, taux and tauy do not include sea-ice     ! MLO
+        ! at this point                                              ! MLO
         call mloeval(ifull,tss,dt,fg,eg,sgsave(:)/                   ! MLO
      &               (1.-swrsave*albvisnir(:,1)-                     ! MLO
      &               (1.-swrsave)*albvisnir(:,2))                    ! MLO
@@ -375,9 +375,10 @@ c     section to update pan temperatures                             ! sea
         where(.not.land)                                             ! MLO
           tpan=tgg(:,1)                                              ! MLO
         endwhere                                                     ! MLO
+        ! Update seaice fraction before calculating sea ice fluxes   ! MLO
         call mlonewice(ifull,fracice,sicedep,0)                      ! MLO
       end if                                                         ! MLO
-    !----------------------------------------------------------------
+      !----------------------------------------------------------------
 
       if(nmaxpr==1.and.mydiag)then
         iq=idjd

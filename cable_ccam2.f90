@@ -1016,6 +1016,10 @@ module cable_ccam
     ssoil%wbtot=0.
     bal%wbtot0 = ssoil%wbtot
   end if
+
+  do k=1,ms
+    ssoil%wb(:,k)=max(ssoil%wb(:,k),soil%swilt)
+  end do
   
   return
   end subroutine loadcbmparm

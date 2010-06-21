@@ -148,7 +148,8 @@ c     above code independent of k
      &              *0.5*em(1:ifull)/ds
         end do
       end if
-      if (nhorjlm.ne.0) then ! usual deformation for nhorjlm=1 or nhorjlm=2
+      if (nhorjlm.eq.1.or.nhorjlm.eq.2.or.
+     &    nhorps.eq.0.or.nhorps.eq.-2) then ! usual deformation for nhorjlm=1 or nhorjlm=2
         
         do k=1,kl
 !        in hordifgt, need to calculate Cartesian components 
@@ -283,6 +284,10 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
            write(6,*) "ERROR: nhorjlm=3 requires nvmix=6"         ! MJT tke
            stop                                                   ! MJT tke
          end if                                                   ! MJT tke
+         tke=max(tke,1.5E-4)                                      ! MJT tke
+         eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)                  ! MJT tke
+         eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)                ! MJT tke
+         eps=max(eps,1.E-6)                                       ! MJT tke
          hdif=dt*0.09/ds                                          ! MJT tke
          do k=1,kl                                                ! MJT tke
            t_kh(1:ifull,k)= max(tke(1:ifull,k)*tke(1:ifull,k)

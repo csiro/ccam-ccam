@@ -1,5 +1,6 @@
       subroutine conjob      ! globpea & rcsb (non-chen); nkuo=46 only
       use cc_mpi, only : mydiag
+      use tkeeps, only : tke, eps
       include 'newmpar.h' 
       parameter (itermax=1)  ! originally 2 - not available in vect. version
       parameter (ntest=0)    ! 1 or 2 to turn on; for 3 uncomment !!! lines
@@ -777,6 +778,46 @@ c       reaching the next level (or the surface).
          enddo   ! iq loop
         enddo    ! ntr loop    
       endif      ! ilt.gt.1
+      
+      !--------------------------------------------------------------
+      ! MJT tke
+      if(nvmix.eq.6)then
+        ss(:,:)=tke(1:ifull,:)
+        do iq=1,ifull
+         if(kbsav(iq).gt.0)then
+           kb=kbsav(iq)
+           kt=ktsav(iq)
+           veldt=convpsav(iq)
+           fluxup=veldt*ss(iq,kb)
+!          remove tke from cloud base layer
+           tke(iq,kb)=tke(iq,kb)-fluxup/dsk(kb)
+!          put flux of tke into top convective layer
+           tke(iq,kt)=tke(iq,kt)+fluxup/dsk(kt)
+           do k=kb+1,kt
+            tke(iq,k)=tke(iq,k)-ss(iq,k)*veldt/dsk(k)
+            tke(iq,k-1)=tke(iq,k-1)+ss(iq,k)*veldt/dsk(k-1)
+           enddo
+         endif
+        enddo   ! iq loop
+        ss(:,:)=eps(1:ifull,:)
+        do iq=1,ifull
+         if(kbsav(iq).gt.0)then
+           kb=kbsav(iq)
+           kt=ktsav(iq)
+           veldt=convpsav(iq)
+           fluxup=veldt*ss(iq,kb)
+!          remove eps from cloud base layer
+           eps(iq,kb)=eps(iq,kb)-fluxup/dsk(kb)
+!          put flux of eps into top convective layer
+           eps(iq,kt)=eps(iq,kt)+fluxup/dsk(kt)
+           do k=kb+1,kt
+            eps(iq,k)=eps(iq,k)-ss(iq,k)*veldt/dsk(k)
+            eps(iq,k-1)=eps(iq,k-1)+ss(iq,k)*veldt/dsk(k-1)
+           enddo
+         endif
+        enddo   ! iq loop
+      endif      ! nvmix.eq.6
+      !--------------------------------------------------------------
 
 !     usual conformal-cubic (DARLAM option removed)
         qg(1:ifull,:)=qq(:,:)

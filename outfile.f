@@ -29,8 +29,8 @@ c     mev2 = 2 for il even (1 for il odd)
       include 'soilsnow.h'  ! tgg,wb,snowd
       include 'tracers.h'
       include 'vvel.h'
-      common/work2/pmsl(ifull),tssout(ifull),seaice(ifull)
-     .      ,aa(ifull),bb(ifull),cc(ifull),dum2(ifull,12)
+!      common/work2/pmsl(ifull),tssout(ifull),seaice(ifull) ! MJT cable
+!     .      ,aa(ifull),bb(ifull),cc(ifull),dum2(ifull,12)  ! MJT cable
       real omgf(ifull,kl)
       equivalence (omgf,dpsldt)
       character rundate*8,qgout*20
@@ -50,13 +50,13 @@ c     mev2 = 2 for il even (1 for il odd)
      &                              iout,kdate,ktime,mtimer
       end if
 
-      call mslp(pmsl,psl,zs,t(1:ifull,:))
+!      call mslp(pmsl,psl,zs,t(1:ifull,:)) ! MJT cable
 c     reincorporate land mask into surface temperature
-      do iq=1,ifull
-       tssout(iq)=tss(iq)
-       if(.not.land(iq))tssout(iq)=-tss(iq)
-      enddo   ! iq loop
-      if ( mydiag ) print *,'tssout: ',tssout(idjd)
+!      do iq=1,ifull                                  ! MJT cable
+!       tssout(iq)=tss(iq)                            ! MJT cable
+!       if(.not.land(iq))tssout(iq)=-tss(iq)          ! MJT cable
+!      enddo   ! iq loop                              ! MJT cable
+!      if ( mydiag ) print *,'tssout: ',tssout(idjd)  ! MJT cable
 
       if(io_outt.eq.3)then
          print*, "Error, binary output not supported"

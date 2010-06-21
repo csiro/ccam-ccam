@@ -175,6 +175,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
 c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       include 'parm.h'
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
+      include 'screen.h' ! MJT zosea
       include 'sigs.h'
       include 'soil.h'
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
@@ -747,7 +748,7 @@ c           endif
           endwhere
           wbice_a=0.
         end if
-
+        
         !--------------------------------------------------
         ! MJT mlo - must execute the following code before tgg is processed
         if (nmlo.ne.0) then
@@ -968,6 +969,26 @@ c           endif
         call vertint(u_k,qfg,5,kk,sigin)
         call vertint(v_k,qlg,5,kk,sigin)
         !------------------------------------------------------------
+
+        !--------------------------------------------------
+        ! MJT zosea
+        call histrd1(ncid,iarchi,ier,'u10',ik,6*ik,t_a,6*ik*ik)
+        if (ier==0) then
+          if (iotest) then
+            if (myid==0) then
+              call ccmpi_distribute(u10,t_a)
+            else
+              call ccmpi_distribute(u10)
+            end if
+          else
+            call doints4(t_a,u10,nface4,xg4,yg4,nord,ik)
+          end if ! iotest
+        else
+          u10=sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)*log(10./0.001)
+     &                                            /log(zmin/0.001)
+        end if
+        !--------------------------------------------------
+        
         !--------------------------------------------------
         ! MJT urban
         if (nurban.ne.0) then

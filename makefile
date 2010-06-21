@@ -105,7 +105,7 @@ Co2blk.o : co2blk.f
 co2dta.o : co2dta.f 
 co2_read.o : co2_read.f radisw.h co2dta.h rdparm.h newmpar.h cc_mpi.o 
 co2trn.o : co2trn.f 
-conjob.o : conjob.f establ.h tracers.h soil.h sigs.h prec.h parm.h nlin.h morepbl.h kuocom.h dava.h const_phys.h arrays.h newmpar.h 
+conjob.o : conjob.f establ.h tracers.h soil.h sigs.h prec.h parm.h nlin.h morepbl.h kuocom.h dava.h const_phys.h arrays.h newmpar.h tkeeps.o
 convjlm.o : convjlm.f establ.h vvel.h tracers.h soil.h sigs.h prec.h parm.h nlin.h morepbl.h map.h liqwpar.h latlong.h kuocom.h dava.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o tkeeps.o
 davies.o : davies.f dates.h sigs.h parm.h davb.h dava.h arrays.h newmpar.h cc_mpi.o 
 depts.o : depts.f bigxy4.h xyzinfo.h vecsuv.h parm.h map.h indices.h const_phys.h newmpar.h cc_mpi.o 
