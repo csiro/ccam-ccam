@@ -193,15 +193,18 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg
       real, dimension(ifull,kk) :: t_k,u_k,v_k,qg_k ! MJT vertint
       integer, dimension(ifull) :: isflag
-      real, dimension(ik*ik*6) :: psl_a,zss_a,tss_a,fracice_a,dum5,
-     &      snowd_a,sicedep_a,ssdnn_a,snage_a,pmsl_a,  tss_l_a,tss_s_a,
-     &      tggsn_b ! MJT small otf
-      real, dimension(ik*ik*6,ms) :: wb_a,wbice_a,tgg_a
-      real, dimension(ik*ik*6,3) :: tggsn_a,smass_a,ssdn_a
-      real, dimension(ik*ik*6) :: t_a,u_a,v_a,qg_a ! MJT small otf
-      real, dimension(ik*ik*6) :: t_a_lev ! MJT small otf
-      real, dimension(ik*ik*6,ncp) :: cplant_a ! MJT cable
-      real, dimension(ik*ik*6,ncs) :: csoil_a  ! MJT cable
+    !  real, dimension(ik*ik*6) :: psl_a,zss_a,tss_a,fracice_a,dum5,
+    ! &      snowd_a,sicedep_a,ssdnn_a,snage_a,pmsl_a,  tss_l_a,tss_s_a,
+    ! &      tggsn_b ! MJT small otf
+      real, dimension(ik*ik*6) :: psl_a,zss_a,tss_a,fracice_a,
+     &      snowd_a,sicedep_a,snage_a,pmsl_a,  tss_l_a,tss_s_a,
+     &      tggsn_b ! MJT small otf     
+      !real, dimension(ik*ik*6,ms) :: wb_a,wbice_a,tgg_a ! MJT small otf
+      real, dimension(ik*ik*6,ms) :: tgg_a               ! MJT small otf
+      !real, dimension(ik*ik*6,3) :: tggsn_a,smass_a,ssdn_a ! MJT small otf
+      real, dimension(ik*ik*6,3) :: tggsn_a                 ! MJT small otf
+      real, dimension(ik*ik*6) :: t_a,qg_a ! MJT small otf
+      real, dimension(ik*ik*6) :: t_a_lev  ! MJT small otf
       integer, dimension(ik*ik*6) :: isflag_a
       real ::  rlong0x, rlat0x, schmidtx, spval
       integer ::  kdate_r, ktime_r, nemi, id2,jd2,idjd2,
@@ -215,9 +218,12 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       real, dimension(ifull_g,4) :: rlong4, rlat4
       common/workglob/rlong4,rlat4   ! shared with setxyz
       ! Used in the global interpolation
-      real, dimension(ik*ik*6) :: ucc, vcc, wcc, uc, vc, wc
-      real, dimension(ifull_g) :: u_g, v_g, t_g, qg_g,
-     &                            uct_g, vct_g, wct_g
+      !real, dimension(ik*ik*6) :: ucc, vcc, wcc, uc, vc, wc ! MJT small otf
+      real, dimension(ik*ik*6) :: ucc, vcc, wcc              ! MJT small otf
+      real uc, vc, wc                                        ! MJT small otf
+    !  real, dimension(ifull_g) :: u_g, v_g, t_g, qg_g,      ! MJT small otf
+    ! &                            uct_g, vct_g, wct_g       ! MJT small otf
+      real, dimension(ifull_g) :: t_g, qg_g,uct_g, vct_g, wct_g ! MJT small otf
       real  uct_gg, vct_gg, wct_gg
       real, dimension(ifull) :: tss_l, tss_s, pmsl,tggsn_s ! MJT small otf
       real, dimension(ifull_g,4) :: xg4, yg4
@@ -333,9 +339,9 @@ c***      but needed here for onthefly (different dims) 28/8/08
           endwhere
         endif  ! (ierr.ne.0)
       endif    ! (ier.ne.0) .. else ..    for sicedep
-      dum5(:)=-1.
-      call histrd1(ncid,iarchi,ier,'soilt',ik,6*ik,dum5,6*ik*ik)
-      isoilm_a=nint(dum5)
+      t_a(:)=-1.
+      call histrd1(ncid,iarchi,ier,'soilt',ik,6*ik,t_a,6*ik*ik)
+      isoilm_a=nint(t_a)
       !--------------------------------------------------------------
 
 ccc      if ( myid==0 ) then
@@ -424,8 +430,8 @@ ccc      if ( myid==0 ) then
       ! - irrelevant for onthefly after 0808
       do k=1,kk
         call histrd4s(ncid,iarchi,ier,'temp',ik,6*ik,k,t_a,6*ik*ik) !     temperature
-        call histrd4s(ncid,iarchi,ier,'u',ik,6*ik,k,u_a,6*ik*ik)    !     u wind component
-        call histrd4s(ncid,iarchi,ier,'v',ik,6*ik,k,v_a,6*ik*ik)    !     v wind component
+        call histrd4s(ncid,iarchi,ier,'u',ik,6*ik,k,ucc,6*ik*ik)    !     u wind component
+        call histrd4s(ncid,iarchi,ier,'v',ik,6*ik,k,vcc,6*ik*ik)    !     v wind component
         call histrd4s(ncid,iarchi,ier,'mixr',ik,6*ik,k,qg_a,6*ik*ik)!     mixing ratio
         if(ier.ne.0)then                                            !     mixing ratio
           call histrd4s(ncid,iarchi,ier,'q',ik,6*ik,k,qg_a,6*ik*ik) !     mixing ratio
@@ -434,8 +440,8 @@ ccc      if ( myid==0 ) then
         !---------------------------------------------------------
         if (iotest) then
           if (myid==0) then
-            call ccmpi_distribute(u_k(:,k), u_a)
-            call ccmpi_distribute(v_k(:,k), v_a)
+            call ccmpi_distribute(u_k(:,k), ucc)
+            call ccmpi_distribute(v_k(:,k), vcc)
             call ccmpi_distribute(t_k(:,k), t_a)
             call ccmpi_distribute(qg_k(:,k), qg_a)
           else
@@ -446,16 +452,17 @@ ccc      if ( myid==0 ) then
           end if
         else
           if ( myid==0 ) then
-!           first set up winds in Cartesian "source" coords
-            uc=axs_a*u_a + bxs_a*v_a
-            vc=ays_a*u_a + bys_a*v_a
-            wc=azs_a*u_a + bzs_a*v_a
-!           now convert to winds in "absolute" Cartesian components
-            ucc=uc*rotpoles(1,1)+vc*rotpoles(1,2)+wc*rotpoles(1,3)
-            vcc=uc*rotpoles(2,1)+vc*rotpoles(2,2)+wc*rotpoles(2,3)
-            wcc=uc*rotpoles(3,1)+vc*rotpoles(3,2)+wc*rotpoles(3,3)
+            do iq=1,ik*ik*6
+!             first set up winds in Cartesian "source" coords            
+              uc=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
+              vc=ays_a(iq)*ucc(iq) + bys_a(iq)*vcc(iq)
+              wc=azs_a(iq)*ucc(iq) + bzs_a(iq)*vcc(iq)
+!             now convert to winds in "absolute" Cartesian components
+              ucc(iq)=uc*rotpoles(1,1)+vc*rotpoles(1,2)+wc*rotpoles(1,3)
+              vcc(iq)=uc*rotpoles(2,1)+vc*rotpoles(2,2)+wc*rotpoles(2,3)
+              wcc(iq)=uc*rotpoles(3,1)+vc*rotpoles(3,2)+wc*rotpoles(3,3)
+            end do
             if(ktau<3.and.k==1.and.nproc==1)then
-              write(6,*)'uc,vc,wc: ',uc(id),vc(idjd),wc(idjd)
               write(6,*)'ucc,vcc,wcc: ',ucc(idjd),vcc(idjd),wcc(idjd)
               write(6,*)'calling ints4 for k= ',k
             endif
@@ -469,13 +476,6 @@ ccc      if ( myid==0 ) then
             call ints4(vcc,  vct_g, nface4,xg4,yg4,nord,ik)
             call ints4(wcc,  wct_g, nface4,xg4,yg4,nord,ik)
 
-c           ********************** N.B. tracers not ready yet
-c           if(iltin>1)then
-c             do ntr=1,ntracin
-c               call ints4(tr(1,k,ntr),nface4,xg4,yg4,nord,ik)
-c             enddo
-c           endif
- 
             do iq=1,ifull_g
 !             now convert to "target" Cartesian components (transpose used)
               uct_gg=uct_g(iq)*rotpole(1,1)+vct_g(iq)*rotpole(2,1)
@@ -485,9 +485,9 @@ c           endif
               wct_gg=uct_g(iq)*rotpole(1,3)+vct_g(iq)*rotpole(2,3)
      &                          +wct_g(iq)*rotpole(3,3)
 !             then finally to "target" local x-y components
-              u_g(iq) = ax_g(iq)*uct_gg + ay_g(iq)*vct_gg +
+              uct_g(iq) = ax_g(iq)*uct_gg + ay_g(iq)*vct_gg +
      &                  az_g(iq)*wct_gg
-              v_g(iq) = bx_g(iq)*uct_gg + by_g(iq)*vct_gg +
+              vct_g(iq) = bx_g(iq)*uct_gg + by_g(iq)*vct_gg +
      &                  bz_g(iq)*wct_gg
             enddo               ! iq loop
             if(ktau<3.and.k==1.and.nproc==1)then
@@ -498,10 +498,9 @@ c           endif
      &                 wct_g(idjd)
               write(6,*)'ax,ay,az ',ax_g(idjd),ay_g(idjd),az_g(idjd)
               write(6,*)'bx,by,bz ',bx_g(idjd),by_g(idjd),bz_g(idjd)
-              write(6,*)'final u , v: ',u_g(idjd),v_g(idjd)
             endif
-            call ccmpi_distribute(u_k(:,k), u_g)
-            call ccmpi_distribute(v_k(:,k), v_g)
+            call ccmpi_distribute(u_k(:,k), uct_g)
+            call ccmpi_distribute(v_k(:,k), vct_g)
             call ccmpi_distribute(t_k(:,k), t_g)
             call ccmpi_distribute(qg_k(:,k), qg_g)
           else ! myid /= 0
@@ -655,99 +654,134 @@ c           endif
             tgg_a(:,k)=tgg_a(:,4)
           end do
         end if
-        call histrd1(ncid,iarchi,ier,'wb1',ik,6*ik,wb_a(:,1),6*ik*ik)
-        if (ier.eq.0) then
-          call histrd1(ncid,iarchi,ier,'wb2',ik,6*ik,wb_a(:,2),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wb3',ik,6*ik,wb_a(:,3),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wb4',ik,6*ik,wb_a(:,4),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wb5',ik,6*ik,wb_a(:,5),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wb6',ik,6*ik,wb_a(:,6),
-     &                 6*ik*ik)
-        else
-          call histrd1(ncid,iarchi,ier,'wfg',ik,6*ik,wb_a(:,1),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wfb',ik,6*ik,wb_a(:,3),
-     &                 6*ik*ik)
-          wb_a(:,2)=wb_a(:,1)
-          do k=4,ms
-            wb_a(:,k)=wb_a(:,3)
-          end do
-        end if
-        call histrd1(ncid,iarchi,ier,'wetfrac1',ik,6*ik,wb_a(:,1),
+
+        snage_a(:)  = 0.
+        t_a(:)     = 0.
+        tggsn_a(:,:)= 280.
+        call histrd1(ncid,iarchi,ier,'snage',ik,6*ik,snage_a,
      &               6*ik*ik)
-        if (ier.eq.0) then
-          call histrd1(ncid,iarchi,ier,'wetfrac2',ik,6*ik,wb_a(:,2),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wetfrac3',ik,6*ik,wb_a(:,3),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wetfrac4',ik,6*ik,wb_a(:,4),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wetfrac5',ik,6*ik,wb_a(:,5),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wetfrac6',ik,6*ik,wb_a(:,6),
-     &                 6*ik*ik)
-          wb_a=wb_a+20.
-        end if
-          
-        call histrd1(ncid,iarchi,ier,'smass1',ik,6*ik,smass_a(:,1),
+        call histrd1(ncid,iarchi,ier,'sflag',ik,6*ik,t_a,
      &               6*ik*ik)
-        if (ier.eq.0) then
-          call histrd1(ncid,iarchi,ier,'smass2',ik,6*ik,smass_a(:,2),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'smass3',ik,6*ik,smass_a(:,3),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'ssdn1',ik,6*ik,ssdn_a(:,1),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'ssdn2',ik,6*ik,ssdn_a(:,2),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'ssdn3',ik,6*ik,ssdn_a(:,3),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'tggsn1',ik,6*ik,tggsn_a(:,1),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'tggsn2',ik,6*ik,tggsn_a(:,2),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'tggsn3',ik,6*ik,tggsn_a(:,3),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wbice1',ik,6*ik,wbice_a(:,1),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wbice2',ik,6*ik,wbice_a(:,2),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wbice3',ik,6*ik,wbice_a(:,3),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wbice4',ik,6*ik,wbice_a(:,4),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wbice5',ik,6*ik,wbice_a(:,5),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'wbice6',ik,6*ik,wbice_a(:,6),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'snage',ik,6*ik,snage_a,
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'sflag',ik,6*ik,dum5,
-     &                 6*ik*ik)
-          isflag_a(:)=nint(dum5(:))
-        else
-          smass_a(:,:)=0.
-          tggsn_a(:,:)=280.     ! just a default
-          isflag_a(:) = 0
-          snage_a(:)  = 0.
-          where (snowd_a>100.)
-            ssdn_a(:,1)=240
-          elsewhere
-            ssdn_a(:,1)=140.
-          endwhere
-          do k=2,3
-            ssdn_a(:,k)=ssdn_a(:,1)
-          enddo
-          ssdnn_a(:)  = ssdn_a(:,1)
+        call histrd1(ncid,iarchi,ier,'tggsn1',ik,6*ik,tggsn_a(:,1),
+     &               6*ik*ik)
+        call histrd1(ncid,iarchi,ier,'tggsn2',ik,6*ik,tggsn_a(:,2),
+     &               6*ik*ik)
+        call histrd1(ncid,iarchi,ier,'tggsn3',ik,6*ik,tggsn_a(:,3),
+     &               6*ik*ik)
+        isflag_a(:)=nint(t_a)
+        if (ier.ne.0) then
           where (snowd_a>0.)
             tgg_a(:,1)=min(tgg_a(:,1),270.1)
           endwhere
-          wbice_a=0.
         end if
+        
+        do k=1,ms
+          write(vname,'("wetfrac",I1.1)') k
+          call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   t_a,6*ik*ik)
+          if (ier.eq.0) then
+            t_a=t_a+20.
+          else
+            write(vname,'("wb",I1.1)') k
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     t_a,6*ik*ik)
+            if (ier.ne.0) then
+              if (k.le.2) then
+                call histrd1(ncid,iarchi,ier,'wfg',ik,6*ik,t_a,
+     &                 6*ik*ik)
+              else
+                call histrd1(ncid,iarchi,ier,'wfb',ik,6*ik,t_a,
+     &                 6*ik*ik)
+              end if
+            end if
+          end if
+          if (iotest) then
+            if (myid==0) then
+              call ccmpi_distribute(tgg(:,k),t_a)
+            else
+              call ccmpi_distribute(tgg(:,k))
+            end if
+          else
+            if (myid==0) then
+              where (.not.land_a(:))
+                t_a=spval
+              end where
+              call fill_cc(t_a,spval,ik,0)
+            end if
+            call doints4(t_a,tgg(:,k),nface4,xg4,yg4,
+     &                     nord,ik)
+          end if ! iotest
+
+          t_a=0.
+          write(vname,'("wbice",I1.1)') k
+          call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   t_a,6*ik*ik)
+          if (iotest) then
+            if (myid==0) then
+              call ccmpi_distribute(wbice(:,k),t_a)
+            else
+              call ccmpi_distribute(wbice(:,k))
+            end if
+          else
+            if (myid==0) then
+              where (.not.land_a(:))
+                t_a=spval
+              end where
+              call fill_cc(t_a,spval,ik,0)
+            end if
+            call doints4(t_a,wbice(:,k),nface4,xg4,yg4,
+     &                     nord,ik)
+          end if ! iotest
+        end do
+
+        do k=1,3
+          t_a=0.
+          write(vname,'("smass",I1.1)') k
+          call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   t_a,6*ik*ik)
+          if (iotest) then
+            if (myid==0) then
+              call ccmpi_distribute(smass(:,k),t_a)
+            else
+              call ccmpi_distribute(smass(:,k))
+            end if
+          else
+            if (myid==0) then
+              where (.not.land_a(:))
+                t_a=spval
+              end where
+              call fill_cc(t_a,spval,ik,0)
+            end if
+            call doints4(t_a,smass(:,k),nface4,xg4,yg4,
+     &                     nord,ik)
+          end if ! iotest
+
+          where(snowd_a>100.)
+            t_a=240.
+          elsewhere
+            t_a=140.
+          endwhere
+          write(vname,'("ssdn",I1.1)') k
+          call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   t_a,6*ik*ik)
+          if (iotest) then
+            if (myid==0) then
+              call ccmpi_distribute(ssdn(:,k),t_a)
+            else
+              call ccmpi_distribute(ssdn(:,k))
+            end if
+          else
+            if (myid==0) then
+              where (.not.land_a(:))
+                t_a=spval
+              end where
+              call fill_cc(t_a,spval,ik,0)
+            end if
+            call doints4(t_a,ssdn(:,k),nface4,xg4,yg4,
+     &                     nord,ik)
+          end if ! iotest
+        end do
+        ssdnn=ssdn(:,1)
         
         !--------------------------------------------------
         ! MJT mlo - must execute the following code before tgg is processed
@@ -794,14 +828,19 @@ c           endif
                   end where
                   call fill_cc(mlootf(:,1,m),spval,ik,0)
                 end do
- !              first set up winds in Cartesian "source" coords
-                uc=axs_a*mlootf(:,1,3) + bxs_a*mlootf(:,1,4)
-                vc=ays_a*mlootf(:,1,3) + bys_a*mlootf(:,1,4)
-                wc=azs_a*mlootf(:,1,3) + bzs_a*mlootf(:,1,4)
-!               now convert to winds in "absolute" Cartesian components
-                ucc=uc*rotpoles(1,1)+vc*rotpoles(1,2)+wc*rotpoles(1,3)
-                vcc=uc*rotpoles(2,1)+vc*rotpoles(2,2)+wc*rotpoles(2,3)
-                wcc=uc*rotpoles(3,1)+vc*rotpoles(3,2)+wc*rotpoles(3,3)
+                do iq=1,ik*ik*6
+ !                first set up winds in Cartesian "source" coords
+                  uc=axs_a(iq)*mlootf(iq,1,3) + bxs_a(iq)*mlootf(iq,1,4)
+                  vc=ays_a(iq)*mlootf(iq,1,3) + bys_a(iq)*mlootf(iq,1,4)
+                  wc=azs_a(iq)*mlootf(iq,1,3) + bzs_a(iq)*mlootf(iq,1,4)
+!                 now convert to winds in "absolute" Cartesian components
+                  ucc(iq)=uc*rotpoles(1,1)+vc*rotpoles(1,2)
+     &                   +wc*rotpoles(1,3)
+                  vcc(iq)=uc*rotpoles(2,1)+vc*rotpoles(2,2)
+     &                   +wc*rotpoles(2,3)
+                  wcc(iq)=uc*rotpoles(3,1)+vc*rotpoles(3,2)
+     &                   +wc*rotpoles(3,3)
+                end do
 !               interpolate all required arrays to new C-C positions
                 call ints4(mlootf(:,1,1),  t_g, nface4,xg4,yg4,nord,ik)
                 call ints4(mlootf(:,1,2), qg_g, nface4,xg4,yg4,nord,ik)
@@ -817,15 +856,15 @@ c           endif
                  wct_gg=uct_g(iq)*rotpole(1,3)+vct_g(iq)*rotpole(2,3)
      &                             +wct_g(iq)*rotpole(3,3)
 !                then finally to "target" local x-y components
-                 u_g(iq) = ax_g(iq)*uct_gg + ay_g(iq)*vct_gg +
+                 uct_g(iq) = ax_g(iq)*uct_gg + ay_g(iq)*vct_gg +
      &                     az_g(iq)*wct_gg
-                 v_g(iq) = bx_g(iq)*uct_gg + by_g(iq)*vct_gg +
+                 vct_g(iq) = bx_g(iq)*uct_gg + by_g(iq)*vct_gg +
      &                     bz_g(iq)*wct_gg
                 enddo               ! iq loop
                 call ccmpi_distribute(mlodwn(:,k,1), t_g)
                 call ccmpi_distribute(mlodwn(:,k,2),qg_g)              
-                call ccmpi_distribute(mlodwn(:,k,3), u_g)
-                call ccmpi_distribute(mlodwn(:,k,4), v_g)
+                call ccmpi_distribute(mlodwn(:,k,3), uct_g)
+                call ccmpi_distribute(mlodwn(:,k,4), vct_g)
               else ! myid /= 0
                 call ccmpi_distribute(mlodwn(:,k,1))
                 call ccmpi_distribute(mlodwn(:,k,2))            
@@ -854,37 +893,27 @@ c           endif
         end if
         !--------------------------------------------------
 
-        dum5=real(isflag_a)
+        t_a=real(isflag_a)
         if (iotest) then
           if (myid==0) then
             call ccmpi_distribute(snowd,snowd_a)
-            call ccmpi_distribute(dum6,dum5)
+            call ccmpi_distribute(dum6,t_a)
             call ccmpi_distribute(snage,snage_a)
-            call ccmpi_distribute(ssdnn,ssdnn_a)
             do k=1,ms
               call ccmpi_distribute(tgg(:,k),tgg_a(:,k))
-              call ccmpi_distribute(wb(:,k),wb_a(:,k))
-              call ccmpi_distribute(wbice(:,k),wbice_a(:,k))
             end do
             do k=1,3
-              call ccmpi_distribute(smass(:,k),smass_a(:,k))
               call ccmpi_distribute(tggsn(:,k),tggsn_a(:,k))
-              call ccmpi_distribute(ssdn(:,k),ssdn_a(:,k))
-            end do
+            end do            
           else
             call ccmpi_distribute(snowd)
             call ccmpi_distribute(dum6)
             call ccmpi_distribute(snage)
-            call ccmpi_distribute(ssdnn)
             do k=1,ms
               call ccmpi_distribute(tgg(:,k))
-              call ccmpi_distribute(wb(:,k))
-              call ccmpi_distribute(wbice(:,k))
             end do
             do k=1,3
-              call ccmpi_distribute(smass(:,k))
               call ccmpi_distribute(tggsn(:,k))
-              call ccmpi_distribute(ssdn(:,k))
             end do
           end if
         else
@@ -894,50 +923,35 @@ c           endif
               if(.not.land_a(iq))then       
                 snowd_a(iq)=spval
                 tgg_a(iq,1:ms)=spval
-                wb_a(iq,1:ms)=spval
-                wbice_a(iq,1:ms)=spval
-                smass_a(iq,1:3)=spval
                 tggsn_a(iq,1:3)=spval
-                dum5(iq)=spval
+                t_a(iq)=spval
                 snage_a(iq)=spval
-                ssdn_a(iq,1:3)=spval
-                ssdnn_a(iq)=spval
               else
                 tggsn_b(iq)=spval ! sea ice temperature (nmlo.eq.0)
               endif  !   (.not.land_a(iq)) 
             enddo   ! iq loop
             call fill_cc(snowd_a,spval,ik,0)
-            call fill_cc(dum5,spval,ik,0)
+            call fill_cc(t_a,spval,ik,0)
             call fill_cc(snage_a,spval,ik,0)
-            call fill_cc(ssdnn_a,spval,ik,0)
             call fill_cc(tggsn_b,spval,ik,0)
             do k=1,ms
               call fill_cc(tgg_a(:,k),spval,ik,0)
-              call fill_cc(wb_a(:,k),spval,ik,0)
-              call fill_cc(wbice_a(:,k),spval,ik,0)
             enddo
             do k=1,3
-              call fill_cc(smass_a(:,k),spval,ik,0)
               call fill_cc(tggsn_a(:,k),spval,ik,0)
-              call fill_cc(ssdn_a(:,k),spval,ik,0)
-            end do
+            enddo
           endif  ! (myid==0)
           call doints4(snowd_a,  snowd,nface4,xg4,yg4,nord,ik)
-          call doints4(dum5,  dum6,nface4,xg4,yg4,nord,ik)
+          call doints4(t_a,  dum6,nface4,xg4,yg4,nord,ik)
           call doints4(snage_a,  snage,nface4,xg4,yg4,nord,ik)
-          call doints4(ssdnn_a,  ssdnn,nface4,xg4,yg4,nord,ik)
           call doints4(tggsn_b,tggsn_s,nface4,xg4,yg4,nord,ik)
           do k=1,ms
             call doints4(tgg_a(:,k),tgg(:,k),nface4,xg4,yg4,nord,ik)
-            call doints4(wb_a(:,k) ,wb(:,k) ,nface4,xg4,yg4,nord,ik)
-            call doints4(wbice_a(:,k) ,wbice(:,k) ,nface4,xg4,yg4,nord,
-     &                   ik)
           enddo
           do k=1,3
-            call doints4(smass_a(:,k),smass(:,k),nface4,xg4,yg4,nord,ik)
-            call doints4(tggsn_a(:,k),tggsn(:,k),nface4,xg4,yg4,nord,ik)
-            call doints4(ssdn_a(:,k),ssdn(:,k),nface4,xg4,yg4,nord,ik)
-          end do
+            call doints4(tggsn_a(:,k),tggsn(:,k),nface4,xg4,yg4,nord
+     &                   ,ik)
+          enddo          
           where(.not.land)
             tggsn(:,1)=tggsn_s
             tggsn(:,2)=280.
@@ -947,23 +961,23 @@ c           endif
         isflag=nint(dum6)
 
         do k=1,kk
-         u_a=0. ! dummy for qfg
-         v_a=0. ! dummy for qlg
-         call histrd4s(ncid,iarchi,ier,'qfg',ik,6*ik,k,u_a,
+         ucc=0. ! dummy for qfg
+         vcc=0. ! dummy for qlg
+         call histrd4s(ncid,iarchi,ier,'qfg',ik,6*ik,k,ucc,
      &                 6*ik*ik)
-         call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,v_a,
+         call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,vcc,
      &                 6*ik*ik)
          if (iotest) then
            if (myid==0) then
-             call ccmpi_distribute(u_k(:,k),u_a)
-             call ccmpi_distribute(v_k(:,k),v_a)
+             call ccmpi_distribute(u_k(:,k),ucc)
+             call ccmpi_distribute(v_k(:,k),vcc)
            else
              call ccmpi_distribute(u_k(:,k))
              call ccmpi_distribute(v_k(:,k))
            end if
          else
-           call doints4(u_a,u_k(:,k),nface4,xg4,yg4,nord,ik)
-           call doints4(v_a,v_k(:,k),nface4,xg4,yg4,nord,ik)
+           call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,ik)
+           call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,ik)
          end if ! iotest
         enddo  ! k loop
         call vertint(u_k,qfg,5,kk,sigin)
@@ -1058,56 +1072,48 @@ c           endif
         !--------------------------------------------------
         ! MJT cable
         if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
-          call histrd1(ncid,iarchi,ier,'cplant1',ik,6*ik,
-     &                 cplant_a(:,1),6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'cplant2',ik,6*ik,
-     &                 cplant_a(:,2),6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'cplant3',ik,6*ik,
-     &                 cplant_a(:,3),6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'csoil1',ik,6*ik,
-     &                 csoil_a(:,1),6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'csoil2',ik,6*ik,
-     &                 csoil_a(:,2),6*ik*ik)
-          if (iotest) then
-            if (myid==0) then
-              do k=1,ncp
-                call ccmpi_distribute(cplant(:,k),cplant_a(:,k))
-              end do
-              do k=1,ncs
-                call ccmpi_distribute(csoil(:,k),csoil_a(:,k))
-              end do
-            else
-              do k=1,ncp
+          do k=1,ncp
+            write(vname,'("cplant",I1.1)') k
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   t_a,6*ik*ik)
+            if (iotest) then
+              if (myid==0) then
+                call ccmpi_distribute(cplant(:,k),t_a)
+              else
                 call ccmpi_distribute(cplant(:,k))
-              end do
-              do k=1,ncs
+              end if
+            else
+              if (myid==0) then
+                where (.not.land_a(:))
+                  t_a=spval
+                end where
+                call fill_cc(t_a,spval,ik,0)
+              end if
+              call doints4(t_a,cplant(:,k),nface4,xg4,yg4,
+     &                     nord,ik)
+            end if ! iotest
+          end do
+          do k=1,ncs
+            write(vname,'("csoil",I1.1)') k
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   t_a,6*ik*ik)
+            if (iotest) then
+              if (myid==0) then
+                call ccmpi_distribute(csoil(:,k),t_a)
+              else
                 call ccmpi_distribute(csoil(:,k))
-              end do
-            end if
-          else
-            if (myid==0) then
-              do k=1,ncp
+              end if
+            else
+              if (myid==0) then
                 where (.not.land_a(:))
-                  cplant_a(:,k)=spval
+                  t_a=spval
                 end where
-                call fill_cc(cplant_a(:,k),spval,ik,0)
-              end do
-              do k=1,ncs
-                where (.not.land_a(:))
-                  csoil_a(:,k)=spval
-                end where
-                call fill_cc(csoil_a(:,k),spval,ik,0)
-              end do
-            end if
-            do k=1,ncp
-              call doints4(cplant_a(:,k),cplant(:,k),nface4,xg4,yg4,
+                call fill_cc(t_a,spval,ik,0)
+              end if
+              call doints4(t_a,csoil(:,k),nface4,xg4,yg4,
      &                     nord,ik)
-            end do
-            do k=1,ncs
-              call doints4(csoil_a(:,k),csoil(:,k),nface4,xg4,yg4,
-     &                     nord,ik)
-            end do
-          end if ! iotest
+            end if ! iotest
+          end do
         end if
         !--------------------------------------------------
         !--------------------------------------------------
@@ -1126,24 +1132,24 @@ c           endif
      &                     nord,ik)
           end if ! iotest
           do k=1,kk
-            u_a=1.5E-4 ! dummy for tke
+            ucc=1.5E-4 ! dummy for tke
             call histrd4s(ncid,iarchi,ier,'tke',ik,6*ik,k,
-     &                    u_a,6*ik*ik)
-            v_a=1.E-6 ! dummy for eps
+     &                    ucc,6*ik*ik)
+            vcc=1.E-6 ! dummy for eps
             call histrd4s(ncid,iarchi,ier,'eps',ik,6*ik,k,
-     &                    v_a,6*ik*ik)
+     &                    vcc,6*ik*ik)
             if (iotest) then
               if (myid==0) then
-                call ccmpi_distribute(u_k(:,k),u_a)
-                call ccmpi_distribute(v_k(:,k),v_a)
+                call ccmpi_distribute(u_k(:,k),ucc)
+                call ccmpi_distribute(v_k(:,k),vcc)
               else
                 call ccmpi_distribute(u_k(:,k))
                 call ccmpi_distribute(v_k(:,k))
               end if
             else
-              call doints4(u_a,u_k(:,k),nface4,xg4,yg4,
+              call doints4(ucc,u_k(:,k),nface4,xg4,yg4,
      &                     nord,ik)
-              call doints4(v_a,v_k(:,k),nface4,xg4,yg4,
+              call doints4(vcc,v_k(:,k),nface4,xg4,yg4,
      &                     nord,ik)
             end if ! iotest
           end do

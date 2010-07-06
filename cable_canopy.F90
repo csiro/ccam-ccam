@@ -554,7 +554,10 @@ CONTAINS
           !	constrain zeta to zetpos and zetneg (set in param0)
           canopy%zetar(:,iterplus) = min(zetpos,canopy%zetar(:,iterplus))	 ! zetar too +
           canopy%zetar(:,iterplus) = max(zetneg,canopy%zetar(:,iterplus))	 ! zetar too -
+          
+          !canopy%zetar(:,iterplus) = 0.7*canopy%zetar(:,iterplus)+0.3*canopy%zetar(:,iterplus-1) ! MJT suggestion
        END IF
+       !print *,"zetar ",iter,canopy%zetar(1301,iter),maxval(canopy%fpn),maxloc(canopy%fpn)
 
     END DO	     ! do iter = 1, niter
 
@@ -1158,7 +1161,8 @@ CONTAINS
 
 !       write(79,*) 'within while loop=',anx(:,1)/1.2e-5,rdx(:,1)/1.2e-5,anx(:,2)/1.2e-5,rdx(:,2)/1.2e-5
        csx = SPREAD(met%ca, 2, mf) - rgbwc * anx / (gbhu + gbhf)
-       canopy%gswx = gswmin + MAX(0.0, rgswc*xleuning*anx)
+       !canopy%gswx = gswmin + MAX(0.0, rgswc*xleuning*anx)
+       canopy%gswx = MAX(1.e-3, gswmin + MAX(0.0, rgswc*xleuning*anx))
 !       print *,'in dryL ,gbhu1',gbhu
 !       print *,'in dryL ,gbhu2',canopy%gswx
 !       print *,'in dryL ,gbhu3',gbhf,csx
@@ -1251,6 +1255,7 @@ CONTAINS
           rdy = rdx
           an_y = anx
        END IF
+       !print *,"fpn ",k,-12.*sum(an_y(1301,:)),tlfy(1301)
     END DO  ! DO WHILE (ANY(abs_deltlf > 0.1) .AND.  k < maxiter)
     ! dry canopy flux
     canopy%fevc = (1.0-canopy%fwet) * ecy
@@ -1295,10 +1300,24 @@ CONTAINS
                    + cx1z*(rdxz-vcmxt4z))
      coef0z = -(1.0-csxz*xleuningz) *(vcmxt3z*cx2z/2.0  &
                    + cx1z*(rdxz-vcmxt4z)) -(gswminz/rgswc)*cx1z*csxz
-     delcxz = coef1z**2 -4.0*coef0z*coef2z
-     ciz    = (-coef1z+SQRT(MAX(0.0_r_2,delcxz))) /(2.0*max(1.e-6,coef2z))
+!     delcxz = coef1z**2 -4.0*coef0z*coef2z
+!     ciz    = (-coef1z+SQRT(MAX(0.0_r_2,delcxz))) /(2.0*max(1.e-6,coef2z))
+     WHERE (ABS(coef2z) < 1.e-9 .AND. ABS(coef1z) < 1.e-9)
+       ! no solution, give it a huge number
+       ciz = 99999.0
+     END WHERE
+     WHERE (ABS(coef2z) < 1.e-9 .AND. ABS(coef1z) >= 1.e-9)
+       ! solve linearly
+       ciz = -1.0 * coef0z / coef1z
+     END WHERE
+     WHERE (ABS(coef2z) >= 1.e-9)
+       ! solve quadratic 
+       delcxz = coef1z**2 -4.0*coef0z*coef2z
+       ciz    = (-coef1z+SQRT(MAX(0.0_r_2,delcxz))) /(2.0*coef2z)
+     END WHERE
      ciz    = MAX(0.0_r_2,ciz)
      anrubiscoz = vcmxt3z*(ciz-cx2z/2.0) / (ciz + cx1z) + vcmxt4z - rdxz
+          
 !     print *,'anr',anrubiscoz
    ! RuBP limited:
      coef2z = gswminz/rgswc+xleuningz *(vx3z-(rdxz-vx4z))
@@ -1308,8 +1327,21 @@ CONTAINS
      coef0z = -(1.0-csxz*xleuningz) *(vx3z*cx2z/2.0  &
                    + cx2z*(rdxz-vx4z)) -(gswminz/rgswc)*cx2z*csxz
 !     print *,'coef012',coef2z,coef1z,coef0z
-     delcxz = coef1z**2 -4.0*coef0z*coef2z
-     ciz    = (-coef1z+SQRT(MAX(0.0_r_2,delcxz))) /(2.0*max(1.e-6,coef2z))
+     !delcxz = coef1z**2 -4.0*coef0z*coef2z
+     !ciz    = (-coef1z+SQRT(MAX(0.0_r_2,delcxz))) /(2.0*max(1.e-6,coef2z))
+     WHERE (ABS(coef2z) < 1.e-9 .AND. ABS(coef1z) < 1.e-9)
+       ! no solution, give it a huge number
+       ciz = 99999.0
+     END WHERE
+     WHERE (ABS(coef2z) < 1.e-9 .AND. ABS(coef1z) >= 1.e-9)
+       ! solve linearly
+       ciz = -1.0 * coef0z / coef1z
+     END WHERE
+     WHERE (ABS(coef2z) >= 1.e-9)
+       ! solve quadratic 
+       delcxz = coef1z**2 -4.0*coef0z*coef2z
+       ciz    = (-coef1z+SQRT(MAX(0.0_r_2,delcxz))) /(2.0*coef2z)
+     END WHERE
      ciz    = MAX(0.0_r_2,ciz)
      anrubpz  = vx3z*(ciz-cx2z/2.0) /(ciz+cx2z) +vx4z-rdxz
 !     print *,'ciz and anr',ciz,anrubpz
@@ -1319,11 +1351,26 @@ CONTAINS
                      effc4 * vcmxt4z - xleuningz * csxz * effc4 *vcmxt4z
      coef0z = -(gswminz/rgswc)*csxz *effc4*vcmxt4z +    &
                     (rdxz -0.5*vcmxt3z)*gswminz/rgswc
-     delcxz = coef1z**2 -4.0*coef0z*coef2z
-     ansinkz  = (-coef1z+SQRT(MAX(0.0_r_2,delcxz))) /(2.0*max(1.e-6,coef2z))
+     WHERE (ABS(coef2z) < 1.e-9 .AND. ABS(coef1z) < 1.e-9)
+       ! no solution, give it a huge number
+       ciz = 99999.0
+     END WHERE
+     WHERE (ABS(coef2z) < 1.e-9 .AND. ABS(coef1z) >= 1.e-9)
+       ! solve linearly
+       ciz = -1.0 * coef0z / coef1z
+     END WHERE
+     WHERE (ABS(coef2z) >= 1.e-9)
+       ! solve quadratic 
+       delcxz = coef1z**2 -4.0*coef0z*coef2z
+       ciz    = (-coef1z+SQRT(MAX(0.0_r_2,delcxz))) /(2.0*coef2z)
+     END WHERE
+     ciz    = MAX(0.0_r_2,ciz)
+     ansinkz = ciz
+     !ansinkz  = (-coef1z+SQRT(MAX(0.0_r_2,delcxz))) /(2.0*max(1.e-6,coef2z))
 !     print *,'sinl',coef2z,coef0z,delcxz,ansinkz
    ! minimal of three limited rates
      z    = REAL(MIN(anrubiscoz,anrubpz,ansinkz),r_1)
+     !print *,"rubiscoz,rubpz,sinkz ",anrubiscoz(1301),anrubpz(1301),ansinkz(1301)
 !     print *,'z',z
     END FUNCTION photosynthesis
 

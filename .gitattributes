@@ -1,5 +1,4 @@
 * text=auto !eol
-/albedo_module.F90 -text
 /ateb.f90 -text
 /cable_air.F90 -text
 /cable_albedo.F90 -text

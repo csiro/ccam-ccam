@@ -897,12 +897,12 @@ module cable_ccam
       if (myid == 0) write(6,*) "Using default carbpools"
       do k=1,ncp
         where (land)
-          cplant(:,ncp)=tcplant(ivegt,ncp)
+          cplant(:,k)=tcplant(ivegt,k)
         end where
       end do
       do k=1,ncs
         where (land)        
-          csoil(:,ncs)=tcsoil(ivegt,ncs)
+          csoil(:,k)=tcsoil(ivegt,k)
         end where
       end do
     else

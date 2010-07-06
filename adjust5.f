@@ -725,16 +725,18 @@ c    &                               (grav*dt*dt)
 !       perform conservation fix on tr1,tr2 as affected by vadv, hadv, hordif
         do ng=1,ngas
 !          default now with ps weighting
-        do k=1,kl
-         if(mfix_qg>0)then
+         if(mfix_tr>0)then
+          do k=1,kl	 
            tr(1:ifull,k,ng)=tr(1:ifull,k,ng)*ps(1:ifull)
            trsav(1:ifull,k,ng)=trsav(1:ifull,k,ng)*ps_sav(1:ifull)
+          enddo    ! k  loop	   
          else
+          do k=1,kl	 
            tr(1:ifull,k,ng)=tr(1:ifull,k,ng)*ps(1:ifull)*wts(1:ifull)
            trsav(1:ifull,k,ng)=trsav(1:ifull,k,ng)*ps_sav(1:ifull)
      &                                                  *wts(1:ifull)
+          enddo    ! k  loop     
          endif
-         enddo    ! k  loop
           do k=1,kl
 !          rml 19/09/07 replace gasmin with tracmin
            wrk1(1:ifull,k)=max(tr(1:ifull,k,ng),     ! has increments
@@ -746,21 +748,23 @@ c    &                               (grav*dt*dt)
 ! rml 17/02/06 copied line from qlg section as solution
 !         ratio = -delneg/delpos
          ratio = -delneg/max(delpos,1.e-30)
-         if(mfix_qg==1)alph_g = min(ratio,sqrt(ratio))  
-         if(mfix_qg==2)alph_g = sqrt(ratio)
+         if(mfix_tr==1)alph_g = min(ratio,sqrt(ratio))  
+         if(mfix_tr==2)alph_g = sqrt(ratio)
          do k=1,kl   ! this is cunning 2-sided scheme
           do iq=1,ifull
           tr(iq,k,ng)=trsav(iq,k,ng)+
      &     alph_g*max(0.,wrk1(iq,k)) + min(0.,wrk1(iq,k))/max(1.,alph_g)
           enddo   ! iq loop
          enddo    ! k  loop
-         do k=1,kl
-          if(mfix_qg>0)then
+          if(mfix_tr>0)then
+           do k=1,kl	  
             tr(1:ifull,k,ng)=tr(1:ifull,k,ng)/ps(1:ifull)
+           enddo    ! k  loop	    
           else
+           do k=1,kl	  
             tr(1:ifull,k,ng)=tr(1:ifull,k,ng)/(ps(1:ifull)*wts(1:ifull))
+           enddo    ! k  loop	    
           endif
-         enddo    ! k  loop
         enddo    ! ng loop
         if(mfix_rad>0)then  ! to make gases 2 to ng add up to gas 1
          do k=1,kl
