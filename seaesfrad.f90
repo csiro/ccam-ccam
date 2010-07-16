@@ -1,4 +1,4 @@
-! Interface for SEA-ESF radiation scheme from GFDL.
+! Interface for SEA-ESF radiation scheme from GFDL with CCAM.
 
 module seaesfrad_m
 

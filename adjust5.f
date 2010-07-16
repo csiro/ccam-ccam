@@ -726,12 +726,12 @@ c    &                               (grav*dt*dt)
         do ng=1,ngas
 !          default now with ps weighting
          if(mfix_tr>0)then
-          do k=1,kl	 
+          do k=1,kl         
            tr(1:ifull,k,ng)=tr(1:ifull,k,ng)*ps(1:ifull)
            trsav(1:ifull,k,ng)=trsav(1:ifull,k,ng)*ps_sav(1:ifull)
-          enddo    ! k  loop	   
+          enddo    ! k  loop           
          else
-          do k=1,kl	 
+          do k=1,kl         
            tr(1:ifull,k,ng)=tr(1:ifull,k,ng)*ps(1:ifull)*wts(1:ifull)
            trsav(1:ifull,k,ng)=trsav(1:ifull,k,ng)*ps_sav(1:ifull)
      &                                                  *wts(1:ifull)
@@ -756,14 +756,14 @@ c    &                               (grav*dt*dt)
      &     alph_g*max(0.,wrk1(iq,k)) + min(0.,wrk1(iq,k))/max(1.,alph_g)
           enddo   ! iq loop
          enddo    ! k  loop
-          if(mfix_tr>0)then
-           do k=1,kl	  
+          if(mfix_qg>0)then
+           do k=1,kl          
             tr(1:ifull,k,ng)=tr(1:ifull,k,ng)/ps(1:ifull)
-           enddo    ! k  loop	    
+           enddo    ! k  loop
           else
-           do k=1,kl	  
+           do k=1,kl          
             tr(1:ifull,k,ng)=tr(1:ifull,k,ng)/(ps(1:ifull)*wts(1:ifull))
-           enddo    ! k  loop	    
+           enddo    ! k  loop            
           endif
         enddo    ! ng loop
         if(mfix_rad>0)then  ! to make gases 2 to ng add up to gas 1

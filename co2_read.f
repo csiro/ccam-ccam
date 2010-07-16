@@ -27,6 +27,26 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
       data lu/15/
       
       !--------------------------------------------------------------
+      ! MJT radiation
+      if (nrad.eq.5) then
+        if (myid==0) then
+          read(lu,*) nlev
+          if (nlev.gt.0) then ! old format
+            read(lu,*) (sigin(1),i=nlev,1,-1)
+            read(lu,*) rrvco2
+          else                ! new format
+            write(6,*) "ERROR: new radfile format not supported"
+            stop
+          end if
+          write(*,*) ' CO2 mixing ratio is ', rrvco2*1e6,' ppmv'
+          close(lu)
+        end if
+        call MPI_Bcast(rrvco2,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        return
+      end if
+      !--------------------------------------------------------------
+      
+      !--------------------------------------------------------------
       ! MJT read
       if (myid==0) then 
         read(lu,*) nlev

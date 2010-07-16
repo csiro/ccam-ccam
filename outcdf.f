@@ -510,7 +510,7 @@ c       For time varying surface fields
         lname = 'y-component max level_2 wind'
         call attrib(idnc,idim,3,'v2max',lname,'m/s',-99.,99.,1)
         lname = '10m wind speed'
-        call attrib(idnc,idim,3,'u10',lname,'m/s',0.,60.,0)
+        call attrib(idnc,idim,3,'u10',lname,'m/s',0.,100.,0) ! MJT bug fix
 c       lname = '3m wind speed'
 c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         lname = 'Screen level wind speed'
@@ -675,8 +675,6 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         lname = 'Avg liquid water path'
         call attrib(idnc,idim,3,'lwp_ave',lname,'kg/m2',0.,2.,0)
         if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then ! MJT cable
-          lname = 'Avg theta'
-          call attrib(idnc,idim,3,'theta_ave',lname,'K',100.,400.,0)
           lname = 'Avg soil moisture 1'
           call attrib(idnc,idim,3,'wb1_ave',lname,'m3/m3',0.,1.,0)
           lname = 'Avg soil moisture 2'
@@ -701,6 +699,8 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
           call attrib(idnc,idim,3,'tgg5_ave',lname,'K',100.,400.,0)
           lname = 'Avg soil temperature 6'
           call attrib(idnc,idim,3,'tgg6_ave',lname,'K',100.,400.,0)
+          lname = 'Avg theta'
+          call attrib(idnc,idim,3,'theta_ave',lname,'K',100.,400.,0)
           lname = 'Avg fpn'
           call attrib(idnc,idim,3,'fpn_ave',lname,'none',-1.E-3,
      &                                                   1.E-3,0)
@@ -1215,18 +1215,18 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
          call histwrt3(cld_ave,'cld',idnc,iarch,local)
          if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then ! MJT cable
            call histwrt3(theta_ave,'theta_ave',idnc,iarch,local)
-           call histwrt3(wb1_ave,'wb1_ave',idnc,iarch,local)
-           call histwrt3(wb2_ave,'wb2_ave',idnc,iarch,local)
-           call histwrt3(wb3_ave,'wb3_ave',idnc,iarch,local)
-           call histwrt3(wb4_ave,'wb4_ave',idnc,iarch,local)
-           call histwrt3(wb5_ave,'wb5_ave',idnc,iarch,local)
-           call histwrt3(wb6_ave,'wb6_ave',idnc,iarch,local)
-           call histwrt3(tgg1_ave,'tgg1_ave',idnc,iarch,local)
-           call histwrt3(tgg2_ave,'tgg2_ave',idnc,iarch,local)
-           call histwrt3(tgg3_ave,'tgg3_ave',idnc,iarch,local)
-           call histwrt3(tgg4_ave,'tgg4_ave',idnc,iarch,local)
-           call histwrt3(tgg5_ave,'tgg5_ave',idnc,iarch,local)
-           call histwrt3(tgg6_ave,'tgg6_ave',idnc,iarch,local)
+           call histwrt3(wb_ave(:,1),'wb1_ave',idnc,iarch,local)
+           call histwrt3(wb_ave(:,2),'wb2_ave',idnc,iarch,local)
+           call histwrt3(wb_ave(:,3),'wb3_ave',idnc,iarch,local)
+           call histwrt3(wb_ave(:,4),'wb4_ave',idnc,iarch,local)
+           call histwrt3(wb_ave(:,5),'wb5_ave',idnc,iarch,local)
+           call histwrt3(wb_ave(:,6),'wb6_ave',idnc,iarch,local)
+           call histwrt3(tgg_ave(:,1),'tgg1_ave',idnc,iarch,local)
+           call histwrt3(tgg_ave(:,2),'tgg2_ave',idnc,iarch,local)
+           call histwrt3(tgg_ave(:,3),'tgg3_ave',idnc,iarch,local)
+           call histwrt3(tgg_ave(:,4),'tgg4_ave',idnc,iarch,local)
+           call histwrt3(tgg_ave(:,5),'tgg5_ave',idnc,iarch,local)
+           call histwrt3(tgg_ave(:,6),'tgg6_ave',idnc,iarch,local)
            call histwrt3(fpn_ave,'fpn_ave',idnc,iarch,local)
            call histwrt3(frday_ave,'frday_ave',idnc,iarch,local)
            call histwrt3(frp_ave,'frp_ave',idnc,iarch,local)

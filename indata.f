@@ -2036,7 +2036,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       endif     !  (nstn>0)
 
       !-----------------------------------------------------------------
-      ! nmlo<0 same as below, but save in history file
+      ! nmlo<0 same as below, but save all data in history file
       ! nmlo=0 no mixed layer ocean
       ! nmlo=1 mixed layer ocean (KPP)
       if (nmlo.ne.0) then
@@ -2063,9 +2063,9 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
             !end where
           end do
         end if
-        where (tss.gt.271.2)   ! Always use tss for top ocean layer
-          mlodwn(:,1,1)=tss(:) ! This has no effect in a climate mode and
-        endwhere               ! ensures SST track analyses in a NWP mode
+        where (tss.gt.271.2.and.fracice.le.0.) ! Always use tss for top ocean layer
+          mlodwn(:,1,1)=tss(:)                 ! This has no effect in a climate mode and
+        endwhere                               ! ensures SST track analyses in a NWP mode
         call mloload(ifull,mlodwn,0)
         deallocate(mlodwn,ocndwn)
       end if
@@ -2175,21 +2175,19 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        ! if cable, then the albedo is soil albedo only (converted to net albedo
        ! when cable is initialised)
        call readreal(albfile,albvisnir(:,1),ifull)
-       if (nsib.eq.5.or.nsib.eq.6.or.nsib.eq.7) then
+       if (nsib.ge.4) then
          call readreal(albnirfile,albvisnir(:,2),ifull)
        else
          albvisnir(:,2)=albvisnir(:,1)
        end if
-       if (nsib.ne.CABLE.and.nsib.ne.6.and.nsib.ne.7) then 
+       if (nsib.ne.CABLE.and.nsib.le.5) then 
          call readreal(rsmfile,rsmin,ifull)  ! not used these days
-       end if
-       if (nsib.ne.6.and.nsib.ne.7) then
          call readreal(zofile,zolnd,ifull)
        else
          zolnd=zobgin ! updated in cable_ccam2.f90
        end if
        if(iradon.ne.0)call readreal(radonemfile,radonem,ifull)
-       if (nsib.ne.5.and.nsib.ne.6.and.nsib.ne.7) then
+       if (nsib.le.3) then
          call readint(vegfile,ivegt,ifull)
        else
          ivegt=1 ! updated later

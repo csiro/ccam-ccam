@@ -119,19 +119,11 @@ module cable_ccam
 
   ! Reset averages
   if (ktau==1.or.ktau-1==ntau.or.mod(ktau-1,nperavg)==0) then
-    theta_ave=0.
-    wb1_ave=0.
-    wb2_ave=0.
-    wb3_ave=0.
-    wb4_ave=0.
-    wb5_ave=0.
-    wb6_ave=0.
-    tgg1_ave=0.
-    tgg2_ave=0.
-    tgg3_ave=0.
-    tgg4_ave=0.
-    tgg5_ave=0.
-    tgg6_ave=0.
+    do k=1,ms
+      wb_ave(:,k)=wb_ave(:,k)+wb(:,k)
+      tgg_ave(:,k)=tgg_ave(:,k)+tgg(:,k)
+    end do
+    theta_ave=0.    
     fpn_ave=0.
     frday_ave=0.
     frp_ave=0.
@@ -518,37 +510,21 @@ module cable_ccam
   end do
 
   ! Averages for Yingping's off-line experiments
+  do k=1,ms
+    wb_ave(:,k)=wb_ave(:,k)+wb(:,k)
+    tgg_ave(:,k)=tgg_ave(:,k)+tgg(:,k)
+  end do
   theta_ave=theta_ave+theta
-  wb1_ave  =wb1_ave  +wb(:,1)
-  wb2_ave  =wb2_ave  +wb(:,2)
-  wb3_ave  =wb3_ave  +wb(:,3)
-  wb4_ave  =wb4_ave  +wb(:,4)
-  wb5_ave  =wb5_ave  +wb(:,5)
-  wb6_ave  =wb6_ave  +wb(:,6)                              
-  tgg1_ave =tgg1_ave +tgg(:,1)
-  tgg2_ave =tgg2_ave +tgg(:,2)
-  tgg3_ave =tgg3_ave +tgg(:,3)
-  tgg4_ave =tgg4_ave +tgg(:,4)
-  tgg5_ave =tgg5_ave +tgg(:,5)
-  tgg6_ave =tgg6_ave +tgg(:,6)
   fpn_ave  =fpn_ave  +fpn
   frday_ave=frday_ave+frd
   frp_ave  =frp_ave  +frp
       
   if (ktau==ntau.or.mod(ktau,nperavg)==0) then
+    do k=1,ms
+      wb_ave(:,k)=wb_ave(:,k)/min(ntau,nperavg)
+      tgg_ave(:,k)=tgg_ave(:,k)/min(ntau,nperavg)
+    end do
     theta_ave=theta_ave/min(ntau,nperavg)
-    wb1_ave  =wb1_ave  /min(ntau,nperavg)
-    wb2_ave  =wb2_ave  /min(ntau,nperavg)
-    wb3_ave  =wb3_ave  /min(ntau,nperavg)
-    wb4_ave  =wb4_ave  /min(ntau,nperavg)
-    wb5_ave  =wb5_ave  /min(ntau,nperavg)
-    wb6_ave  =wb6_ave  /min(ntau,nperavg)
-    tgg1_ave =tgg1_ave /min(ntau,nperavg)
-    tgg2_ave =tgg2_ave /min(ntau,nperavg)
-    tgg3_ave =tgg3_ave /min(ntau,nperavg)
-    tgg4_ave =tgg4_ave /min(ntau,nperavg)
-    tgg5_ave =tgg5_ave /min(ntau,nperavg)
-    tgg6_ave =tgg6_ave /min(ntau,nperavg)
     fpn_ave  =fpn_ave  /min(ntau,nperavg)
     frday_ave=frday_ave/min(ntau,nperavg)
     frp_ave  =frp_ave  /min(ntau,nperavg)

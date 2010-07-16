@@ -86,7 +86,7 @@
             tggsn(iq,1)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1 ! MJT seaice
           endif  ! (fracice(iq)==0.)
 !         set averaged tss (tgg1 setting already done)
-          tss(iq)=tggsn(iq,1)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq)) ! MJT seaice
+          !tss(iq)=tggsn(iq,1)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq)) ! MJT bug fix (see sflux.f)
         endif  ! (fraciceb(iq)==0.)
        enddo	! iq loop
        sicedep(:)=sicedepb(:)  ! from Jan 06
@@ -273,17 +273,17 @@
 
 !     calculate time interpolated tss 
       if(namip.eq.0)then     ! namip SSTs/sea-ice take precedence
-       if (nmlo.eq.0.or.nud_sst.eq.0) then ! MJT mlo
+       if (nmlo.eq.0) then ! MJT mlo
         do iq=1,ifull
          if(.not.land(iq))then
           tss(iq)=cona*tssa(iq)+conb*tssb(iq)
           tgg(iq,1)=tss(iq)
          endif  ! (.not.land(iq))
         enddo   ! iq loop 
-       else
-         ! nudge mlo
-         if (myid==0.and.nmaxpr==1) write(6,*) "Nudge MLO"
-         call mlonudge(cona*tssa+conb*tssb)
+       else if (abs(nmlo).eq.1.and.nud_sst.ne.0) then
+        ! nudge mlo
+        if (myid==0.and.nmaxpr==1) write(6,*) "Nudge MLO"
+        call mlonudge(cona*tssa+conb*tssb)
        end if
       endif
       
@@ -502,7 +502,7 @@
               tggsn(iq,1)=min(271.2,tssb(iq),tb(iq,1)+.04*6.5) ! for 40 m lev1 ! MJT seaice
             endif  ! (fracice(iq)==0.)
 !           set averaged tss (tgg1 setting already done)
-            tss(iq)=tggsn(iq,1)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq)) ! MJT seaice
+            !tss(iq)=tggsn(iq,1)*fraciceb(iq)+tssb(iq)*(1.-fraciceb(iq)) ! MJT bug fix (see sflux.f)
            endif  ! (fraciceb(iq)==0.)
           enddo	! iq loop
           sicedep(:)=sicedepb(:)  ! from Jan 06
@@ -528,21 +528,21 @@
            endif    ! (land(iq))
           enddo     ! iq loop
 
-          if (nmlo.eq.0.or.nud_sst.eq.0) then ! MJT mlo
+          if (nmlo.eq.0) then ! MJT mlo
 !           calculate time interpolated tss 
             where (.not.land)
               tss=tssb
               tgg(:,1)=tss
             end where  ! (.not.land(iq))
-          else
+          else if (abs(nmlo).eq.1.and.nud_sst.ne.0) then
             ! nudge mlo
             if (nud_uv.ne.9) then
               if (myid == 0) write(6,*) "MLO 1D spectral filter"
-              ! replace nud_sst with mbd once horz trasport is implemented
+              ! replace nud_sst with mbd once horz transport is implemented
               call mlofilterfast(tssb,nud_sst) 
             else
               if (myid == 0) write(6,*) "MLO 2D spectral filter"
-              ! replace nud_sst with mbd once horz trasport is implemented
+              ! replace nud_sst with mbd once horz transport is implemented
               call mlofilter(tssb,nud_sst)
             end if
           end if
@@ -1416,7 +1416,7 @@
       include 'mpif.h'       ! MPI
       
       integer, intent(in) :: myid,mproc,hproc,npta,pn,px,ns,ne
-      integer :: k,ppass,qpass,iy,ppn,ppx,nne,nns,iproc,itag=0,ierr
+      integer :: k,ppass,iy,ppn,ppx,nne,nns,iproc,itag=0,ierr
       integer :: n,a,b,c
       integer, dimension(MPI_STATUS_SIZE) :: status
       integer, parameter :: til=il_g*il_g
@@ -2198,39 +2198,39 @@
       do sn=1,ne,il_g
 
         select case(ppass*100+ipass*10+(sn-1)/il_g)
-          case(0,310,530)                        ! panel 5   - x pass
+          case(0,300,520)                        ! panel 5   - x pass
             a=il_g
             b=-1
             c=5*il_g*il_g+1
-          case(10,230,300)                       ! panel 2   - x pass
+          case(10,220,310)                       ! panel 2   - x pass
             a=1
             b=il_g
             c=il_g*(2*il_g-1)
-          case(20,21)                            ! panel 0,1 - y pass
+          case(20,21,200,321,500)                ! panel 0,1 - y pass
             a=il_g
             b=1
             c=-il_g
-          case(22,432)                           ! panel 3   - y pass
+          case(22)                               ! panel 3   - y pass
             a=1
             b=-il_g
             c=il_g*(4*il_g-2)
-          case(23)                               ! panel 4   - y pass
+          case(23,323)                           ! panel 4   - y pass
             a=1
             b=-il_g
             c=il_g*(5*il_g-3)
-          case(30,100,410)                       ! panel 0   - z pass
+          case(30,100,400)                       ! panel 0   - z pass
             a=1
             b=il_g
             c=-il_g
-          case(31)                               ! panel 2   - z pass
+          case(31,223,232,331,523,532)           ! panel 2   - z pass ! panel 4   - x pass ! panel 3   - z pass
             a=il_g
             b=-1
             c=il_g*il_g+1
-          case(32,222)                           ! panel 5   - z pass
+          case(32,332)                           ! panel 5   - z pass
             a=1
             b=il_g
             c=il_g*(5*il_g-3)
-          case(110,231,330,400)                  ! panel 3   - z pass
+          case(110,222,330,410)                  ! panel 3   - z pass ! panel 5   - x pass
             a=il_g
             b=-1
             c=3*il_g*il_g+1
@@ -2238,82 +2238,58 @@
             a=1
             b=il_g
             c=il_g*(il_g-1)
-          case(121)                              ! panel 2   - x pass
+          case(121,421)                          ! panel 2   - x pass
             a=1
             b=il_g
             c=2*il_g*(il_g-1)
-          case(122,123,220,221)                  ! panel 4,5 - x pass ! panel 2,3 - z pass
+          case(122,123,230,423)                  ! panel 4,5 - x pass ! panel 2   - z pass
             a=il_g
             b=-1
             c=2*il_g*il_g+1
-          case(130,200,510)                      ! panel 1   - y pass
+          case(130)                              ! panel 1   - y pass
             a=il_g
             b=1
             c=il_g*(il_g-1)
-          case(131)                              ! panel 3   - y pass
+          case(131,431)                          ! panel 3   - y pass
             a=1
             b=-il_g
             c=il_g*(4*il_g-1)
-          case(132,322,323)                      ! panel 0,1 - y pass
+          case(132,322,432)                      ! panel 0,1 - y pass
             a=il_g
             b=1
             c=-il_g*(2*il_g+1)
-          case(210,430,500)                      ! panel 4   - y pass
-            a=1
-            b=-il_g
-            c=5*il_g*il_g
-          case(223)                              ! panel 0   - z pass
-            a=1
-            b=il_g
-            c=-4*il_g
-          case(232,422)                          ! panel 1   - x pass
-            a=1
-            b=il_g
-            c=il_g*(il_g-3)
-          case(320)                              ! panel 3   - y pass
+          case(210,320,510)                      ! panel 3   - y pass
             a=1
             b=-il_g
             c=4*il_g*il_g
-          case(321)                              ! panel 4   - y pass
-            a=1
-            b=-il_g
-            c=il_g*(5*il_g-1)
-          case(331)                              ! panel 5   - z pass
-            a=1
-            b=il_g
-            c=il_g*(5*il_g-2)
-          case(332,522,523)                      ! panel 2,3 - z pass 
-            a=il_g
-            b=-1
-            c=1
-          case(420,421)                          ! panel 4,5 - x pass
-            a=il_g
-            b=-1
-            c=4*il_g*il_g+1
-          case(423)                              ! panel 2   - x pass
-            a=1
-            b=il_g
-            c=il_g*(2*il_g-4)
-          case(431)                              ! panel 0   - y pass
-            a=il_g
-            b=1
-            c=-il_g*(il_g+1)
-          case(520)                              ! panel 5   - z pass
-            a=1
-            b=il_g
-            c=il_g*(5*il_g-1)
-          case(521)                              ! panel 0   - z pass
-            a=1
-            b=il_g
-            c=-2*il_g
-          case(531)                              ! panel 1   - x pass
+          case(221,521)                          ! panel 1   - x pass
             a=1
             b=il_g
             c=il_g*(il_g-2)
-          case(532)                              ! panel 4   - x pass
+          case(231,531)                          ! panel 0   - z pass
+            a=1
+            b=il_g
+            c=-2*il_g
+          case(420)                              ! panel 4   - x pass
             a=il_g
             b=-1
-            c=2*il_g*il_g+1
+            c=4*il_g*il_g+1
+          case(422)                              ! panel 1   - x pass
+            a=1
+            b=il_g
+            c=il_g*(il_g-3)
+          case(430)                              ! panel 4   - y pass
+            a=1
+            b=-il_g
+            c=5*il_g*il_g
+          case(522)                              ! panel 2   - x pass
+            a=1
+            b=il_g
+            c=il_g*(2*il_g-3)
+          case(530)                              ! panel 5   - z pass
+            a=1
+            b=il_g
+            c=il_g*(5*il_g-1)            
           case DEFAULT
             write(6,*) "Invalid index ",ppass,ipass,sn,
      &              ppass*100+ipass*10+(sn-1)/il_g
@@ -2467,7 +2443,7 @@
 
       cq=sqrt(4.5)*.1*real(hostscale)/(pi*schmidt)
       
-      if(mod(6,nproc)==0.or.mod(nproc,6)==0)then
+      if((mod(6,nproc)==0).or.(mod(nproc,6)==0))then
         npta=max(6/nproc,1)                       ! number of panels per processor
         mproc=max(nproc/6,1)                      ! number of processors per panel
         pn=myid*npta/mproc                        ! start panel
@@ -2508,7 +2484,7 @@
       where (.not.land)
         old=old+alpha*diff(:)
       end where
-
+      
       call mloimport(ifull,old,ilev,0)
 
       return
@@ -2526,7 +2502,7 @@
       include 'parm.h'
       
       integer, intent(in) :: myid,mproc,hproc,npta,pn,px,ns,ne
-      integer :: ppass,qpass,iy,ppn,ppx,nne,nns,iproc,itag=0,ierr
+      integer :: ppass,iy,ppn,ppx,nne,nns,iproc,itag=0,ierr
       integer :: n,a,c
       integer, dimension(MPI_STATUS_SIZE) :: status
       integer, parameter :: til=il_g*il_g
@@ -2539,10 +2515,10 @@
      &           MPI_COMM_WORLD,ierr)
       
       if (ns.gt.ne) return
-      if (myid==0.and.nmaxpr==1) write(6,*) "MLO Start 1D filter"
+      if ((myid==0).and.(nmaxpr==1)) write(6,*) "MLO Start 1D filter"
 
       zp=0.
-      
+
       do ppass=pn,px
 
         where(abs(diff_g-miss).gt.0.1) ! land/sea mask
@@ -2552,7 +2528,7 @@
           qsum=0.
           qp=0.
         end where
-	
+
         ! computations for the local processor group
         call mlospeclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,qp)
         
@@ -2563,7 +2539,7 @@
         end where
       end do
 
-      if (myid==0.and.nmaxpr==1) write(6,*) "MLO End 1D filter"
+      if ((myid==0).and.(nmaxpr==1)) write(6,*) "MLO End 1D filter"
 
       itag=itag+1
       if (myid == 0) then
@@ -2586,7 +2562,7 @@
         iy=npta*til
         a=til
         c=-til*pn
-        do qpass=pn,px
+        do ppass=pn,px
           do n=1,til
             dd(n+a*ppass+c)=zp(n+ppass*til)
           end do
@@ -2632,7 +2608,7 @@
       do ipass=0,3
         me=maps(ipass)
         call getiqa(igrd(1:me,1:il_g,ipass),me,ipass,ppass,il_g)
-      
+
         if (ipass.eq.3) then
           itag=itag+1
           if (myid==0.and.nmaxpr==1) then
@@ -2681,7 +2657,7 @@
           end if
         end if
 
-        if (myid==0.and.nmaxpr==1) write(6,*) "MLO start conv"
+        if ((myid==0).and.(nmaxpr==1)) write(6,*) "MLO start conv"
 
         do j=ns,ne
           asum(1:me)=qsum(igrd(1:me,j,ipass))
@@ -2759,7 +2735,7 @@
      &               MPI_COMM_WORLD,ierr)
           end if
         end if
-
+          
       end do
       
       return  

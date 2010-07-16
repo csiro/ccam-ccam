@@ -634,8 +634,8 @@ CONTAINS
     elsewhere (zscl >= rough%zruffs ) 
         r_sc = rough%rt0us + rough%rt1usa + rough%rt1usb +  &
               ( log( (zscl - rough%disp)/MAX(rough%zruffs-rough%disp, rough%z0soilsn) ) &
-                - psis( (zscl - rough%disp) / (rough%zref_tq/canopy%zetar(:,iterplus)) )  &
-                + psis( (rough%zruffs - rough%disp) / (rough%zref_tq/canopy%zetar(:,iterplus)) )  &
+                - psis( (zscl - rough%disp) * canopy%zetar(:,iterplus) / rough%zref_tq )  &
+                + psis( (rough%zruffs - rough%disp) * canopy%zetar(:,iterplus) / rough%zref_tq )  &
               ) / vonk  
         pnt1=4
     endwhere 
@@ -681,8 +681,8 @@ CONTAINS
     where ( rough%hruff <= 1.e-2 ) 
        canopy%ua_10m = canopy%us/vonk *                                                     &
            ( LOG( zscl_10m  / rough%z0m )                                  &
-                 - psim( zscl_10m  / (rough%zref_uv/canopy%zetar(:,iterplus)) )   &
-                 + psim( rough%z0m / (rough%zref_uv/canopy%zetar(:,iterplus)) )                          &
+                 - psim( zscl_10m * canopy%zetar(:,iterplus) / rough%zref_uv )   &
+                 + psim( rough%z0m * canopy%zetar(:,iterplus) / rough%zref_uv )  &
             )
        pnt2 = 1
     elsewhere ( rough%hruff > 1.e-2 .and.  rough%hruff > zscl_10m ) 
@@ -692,8 +692,8 @@ CONTAINS
     elsewhere ( rough%hruff > 1.e-2 .and.  rough%hruff <= zscl_10m ) 
        canopy%ua_10m = canopy%us/vonk *                                                     &
            ( LOG( (zscl_10m - rough%disp) / rough%z0m )                                  &
-                 - psim( (zscl_10m - rough%disp) / (rough%zref_uv/canopy%zetar(:,iterplus)) )   &
-                 + psim(  rough%z0m / (rough%zref_uv/canopy%zetar(:,iterplus)) )                          &
+                 - psim( (zscl_10m - rough%disp) * canopy%zetar(:,iterplus) / rough%zref_uv )   &
+                 + psim(  rough%z0m * canopy%zetar(:,iterplus) / rough%zref_uv )                          &
             ) 
        pnt2 = 3
     endwhere
@@ -705,8 +705,8 @@ CONTAINS
     where ( rough%hruff <= 1.e-2 )
        canopy%uscrn = canopy%us/vonk *                                                     &
            ( LOG( zscl_scrn  / rough%z0m )                                  &
-                 - psim( zscl_scrn  / (rough%zref_uv/canopy%zetar(:,iterplus)) )   &
-                 + psim( rough%z0m / (rough%zref_uv/canopy%zetar(:,iterplus)) )                          &
+                 - psim( zscl_scrn * canopy%zetar(:,iterplus) / rough%zref_uv )   &
+                 + psim( rough%z0m * canopy%zetar(:,iterplus)/ rough%zref_uv )    &
             )
     elsewhere ( rough%hruff > 1.e-2 .and.  rough%hruff > zscl_scrn )
        canopy%uscrn = canopy%us *                                                       &
@@ -714,8 +714,8 @@ CONTAINS
     elsewhere ( rough%hruff > 1.e-2 .and.  rough%hruff <= zscl_scrn )
        canopy%uscrn = canopy%us/vonk *                                                     &
            ( LOG( (zscl_scrn - rough%disp) / rough%z0m )                                  &
-                 - psim( (zscl_scrn - rough%disp) / (rough%zref_uv/canopy%zetar(:,iterplus)) )   &
-                 + psim(  rough%z0m / (rough%zref_uv/canopy%zetar(:,iterplus)) )                          &
+                 - psim( (zscl_scrn - rough%disp) * canopy%zetar(:,iterplus) / rough%zref_uv )   &
+                 + psim(  rough%z0m * canopy%zetar(:,iterplus) / rough%zref_uv )                          &
             )
     endwhere
 
