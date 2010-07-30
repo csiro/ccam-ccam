@@ -1442,7 +1442,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
          tgg(iq,1)=max(271.3,tss(iq)) 
          tggsn(iq,1)=tss(iq)         ! a default ! MJT seaice
        endif   ! (.not.land(iq))
-       if(sicedep(iq)>0.)then
+       if(sicedep(iq)>0..and.nmlo.eq.0)then ! MJT seaice
 !        at beginning of month set sice temperatures
          tggsn(iq,1)=min(271.2,tss(iq),t(iq,1)+.04*6.5) ! for 40 m level 1 ! MJT seaice
          tss(iq)=tggsn(iq,1)*fracice(iq)+tgg(iq,1)*(1.-fracice(iq))        ! MJT seaice
@@ -2054,20 +2054,21 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         else
           if (myid == 0) print *,"Using MLO defaults"
           do k=1,wlev
-            mlodwn(:,k,1)=tss(:)-0.01*real(k-1)
+            mlodwn(:,k,1)=max(tss(:)-0.01*real(k-1),271.2)
             mlodwn(:,k,2)=34.72-0.01*real(k-1)
-            mlodwn(:,k,3)=0.
-            mlodwn(:,k,4)=0.
+            mlodwn(:,k,3:4)=0.
             !where (zs(1:ifull).gt.1.) ! lakes?
             !  mlodwn(:,k,2)=0.
             !end where
           end do
+          micdwn(:,1:4)=271.2
+          micdwn(:,5:8)=0.
         end if
         where (tss.gt.271.2.and.fracice.le.0.) ! Always use tss for top ocean layer
           mlodwn(:,1,1)=tss(:)                 ! This has no effect in a climate mode and
         endwhere                               ! ensures SST track analyses in a NWP mode
-        call mloload(ifull,mlodwn,0)
-        deallocate(mlodwn,ocndwn)
+        call mloload(ifull,mlodwn,micdwn,0)
+        deallocate(mlodwn,ocndwn,micdwn)
       end if
       !-----------------------------------------------------------------
 

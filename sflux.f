@@ -349,36 +349,6 @@ c      section to update pan temperatures                            ! sea
         endif  ! (land(iq))                                          ! sea
        enddo   ! iq loop                                             ! sea
                                                                      ! sea
-      elseif (abs(nmlo).eq.1) then                                   ! MLO
-        call mloeval(ifull,tss,zo,cduv,fg,eg,wetfac,                 ! MLO
-     &               dt,zmin,sgsave(:)/                              ! MLO
-     &               (1.-swrsave*albvisnir(:,1)-                     ! MLO
-     &               (1.-swrsave)*albvisnir(:,2))                    ! MLO
-     &               ,-rgsave,condx/dt,u(:,1),v(:,1)                 ! MLO
-     &               ,t(:,1),qg(:,1),ps,sig(1)*ps                    ! MLO
-     &               ,f,swrsave,fbeamvis,fbeamnir,0)                 ! MLO
-        !call mloscrnout(ifull,tscrn,qgscrn,uscrn,u10,0)             ! MLO
-        do k=1,ms                                                    ! MLO
-          call mloexport(ifull,tgg(:,k),k,0)                         ! MLO
-        end do                                                       ! MLO
-        where(.not.land)                                             ! MLO
-          ga=0.                                                      ! MLO
-          epot=eg                                                    ! MLO
-          epan=eg                                                    ! MLO
-          cduv=cduv*vmod                                             ! MLO
-          ustar=sqrt(vmod*cduv)                                      ! MLO
-          taux=rho*cduv*u(1:ifull,1)                                 ! MLO
-          tauy=rho*cduv*v(1:ifull,1)                                 ! MLO
-          tpan=tgg(:,1)                                              ! MLO
-          rnet=sgsave-rgsave-stefbo*tpan**4                          ! MLO
-        endwhere                                                     ! MLO
-                                                                     ! MLO
-      else                                                           ! MLO
-        write(6,*) "ERROR: this option is for ocean model"           ! MLO
-        stop                                                         ! MLO
-      end if                                                         ! MLO
-      !--------------------------------------------------------------
-
        if(nmaxpr==1.and.mydiag)then
         iq=idjd
         write (6,"('after sea loop fg,tpan,epan,ri,fh,vmod',
@@ -521,6 +491,42 @@ c     if(mydiag.and.diag)then
          print *,'cie ',cie(iq)      
          print *,'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)          
       endif   ! (mydiag.and.nmaxpr==1)                                    
+      
+      elseif (abs(nmlo).eq.1) then                                   ! MLO
+        call mloeval(ifull,tss,zo,cduv,fg,eg,wetfac,epot,epan,       ! MLO
+     &               fracice,sicedep,snowd,dt,zmin,sgsave(:)/        ! MLO
+     &               (1.-swrsave*albvisnir(:,1)-                     ! MLO
+     &               (1.-swrsave)*albvisnir(:,2))                    ! MLO
+     &               ,-rgsave,condx/dt,u(:,1),v(:,1)                 ! MLO
+     &               ,t(:,1),qg(:,1),ps,sig(1)*ps                    ! MLO
+     &               ,f,swrsave,fbeamvis,fbeamnir,0)                 ! MLO
+        call mloscrnout(ifull,tscrn,qgscrn,uscrn,u10,0)              ! MLO
+        do k=1,ms                                                    ! MLO
+          call mloexport(ifull,tgg(:,k),k,0)                         ! MLO
+        end do                                                       ! MLO
+        do k=1,3                                                     ! MLO
+          call mloexpice(ifull,tggsn(:,k),k,0)                       ! MLO
+        end do                                                       ! MLO
+        where(.not.land)                                             ! MLO
+          snowd=snowd*1000.                                          ! MLO
+          ga=0.                                                      ! MLO
+          cduv=cduv*vmod                                             ! MLO
+          ustar=sqrt(vmod*cduv)                                      ! MLO
+          taux=rho*cduv*u(1:ifull,1)                                 ! MLO
+          tauy=rho*cduv*v(1:ifull,1)                                 ! MLO
+          tpan=tgg(:,1)                                              ! MLO
+          rnet=sgsave-rgsave-stefbo*tss**4                           ! MLO
+        elsewhere                                                    ! MLO
+          rgg=5.67e-8*tpan(iq)**4                                    ! MLO
+          ga=-slwa-rgg-panfg*fg                                      ! MLO
+          tpan=tpan+ga*dt/(4186.*.254*1000.)                         ! MLO
+        endwhere                                                     ! MLO
+                                                                     ! MLO
+      else                                                           ! MLO
+        write(6,*) "ERROR: this option is for ocean model"           ! MLO
+        stop                                                         ! MLO
+      end if                                                         ! MLO
+      !--------------------------------------------------------------      
 c----------------------------------------------------------------------
       call end_log(sfluxwater_end)
       call start_log(sfluxland_begin)
@@ -719,24 +725,33 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
                  iqmax2=iq                                              ! land
                endif                                                    ! land
               enddo                                                     ! land
-              print *,'taftfhmin,taftfhmax ',
+              print *,'taftfhmin,taftfhmax ',                           ! land
      &                 taftfhmin,iqmin1,taftfhmax,iqmax1                ! land
-              print *,'taftfhgmin,taftfhgmax ',
+              print *,'taftfhgmin,taftfhgmax ',                         ! land
      &                 taftfhgmin,iqmin2,taftfhgmax,iqmax2              ! land
             endif  ! (nproc==1.and.diag)                                ! land
                                                                         ! land
-!          always call scrnout from 19/9/02                             ! land
-           call scrnout(zo,ustar,factch,wetfac,qsttg,            ! arrays
-     .            qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,  ! arrays
-     .            bprm,cms,chs,chnsea,nalpha)                           ! land
+           if (nmlo.eq.0) then                                          ! land
+!            always call scrnout from 19/9/02                           ! land
+             call scrnout(zo,ustar,factch,wetfac,qsttg,            ! arrays
+     .              qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,  ! arrays
+     .              bprm,cms,chs,chnsea,nalpha)                         ! land
+           else                                                         ! land
+             qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))    ! land
+             call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss,   ! land
+     &                  t(1:ifull,1),qsttg,qg(1:ifull,1),vmod,          ! land
+     &                  ps(1:ifull),.not.land,zmin,sig(1))              ! land
+           end if                                                       ! land
         case(CABLE)
          print *,"nsib==CABLE option not avaliable"
          stop
         case(6,7)                                                       ! cable
-         ! update ocean diagnostics                                     ! cable
-         call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss,
-     &                t(1:ifull,1),qsttg,qg(1:ifull,1),vmod,
-     &                ps(1:ifull),land,zmin,sig(1))                     ! cable
+         if (nmlo.eq.0) then                                            ! cable
+           ! update ocean diagnostics                                   ! cable
+           call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss,     ! cable
+     &                  t(1:ifull,1),qsttg,qg(1:ifull,1),vmod,          ! cable
+     &                  ps(1:ifull),land,zmin,sig(1))                   ! cable
+         end if                                                         ! cable
          factch(iperm)=sqrt(7.4)                                        ! cable
          ! call cable                                                   ! cable
          call sib4                                                      ! cable
@@ -751,12 +766,12 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
            tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! cable
          enddo   ! ip=1,ipland                                          ! cable
          ! The following patch overrides CABLE screen level diagnostics
-         if (nsib.eq.7) then                                      ! PATCH
-           qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))
-           call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss,
-     &                t(1:ifull,1),qsttg,qg(1:ifull,1),vmod,
-     &                ps(1:ifull),.not.land,zmin,sig(1))          ! PATCH
-         end if                                                   ! PATCH
+         if (nsib.eq.7) then                                        ! PATCH
+           qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))  ! PATCH
+           call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss, ! PATCH
+     &                t(1:ifull,1),qsttg,qg(1:ifull,1),vmod,        ! PATCH
+     &                ps(1:ifull),.not.land,zmin,sig(1))            ! PATCH
+         end if                                                     ! PATCH
         case DEFAULT
           print *,"ERROR: Unknown land-use option nsib=",nsib
           stop

@@ -968,6 +968,13 @@ module cable_ccam
   call loadtile ! load tgg,wb,wbice,snowd,snage,tggsn,smass,ssdn,isflag,rtsoil,cansto,cplant and csoil
 
   if (mp.gt.0) then
+    ! fixes
+    do k=1,ms
+      ssoil%wb(:,k)=max(ssoil%wb(:,k),soil%swilt)
+    end do
+    ssoil%snowd=max(ssoil%snowd,0.)
+  
+    ! snow and soil data
     ssoil%osnowd=ssoil%snowd                                ! overwritten by CABLE
     bal%osnowd0=ssoil%snowd                                 ! overwritten by CABLE
     ssoil%ssdnn=120.                                        ! overwritten by CABLE
@@ -992,11 +999,7 @@ module cable_ccam
     ssoil%wbtot=0.
     bal%wbtot0 = ssoil%wbtot
   end if
-
-  do k=1,ms
-    ssoil%wb(:,k)=max(ssoil%wb(:,k),soil%swilt)
-  end do
-  
+ 
   return
   end subroutine loadcbmparm
 

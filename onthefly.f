@@ -150,7 +150,7 @@ c     start of processing loop
       use cc_mpi
       use ateb, only : atebdwn ! MJT urban
       use define_dimensions, only : ncs, ncp ! MJT cable
-      use mlo, only : wlev,mlodwn,ocndwn,mlootf,ocnotf ! MJT mlo
+      use mlo, only : wlev,mlodwn,ocndwn,micdwn,mlootf,ocnotf,micotf ! MJT mlo
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       use utilities
       implicit none
@@ -197,8 +197,7 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
     ! &      snowd_a,sicedep_a,ssdnn_a,snage_a,pmsl_a,  tss_l_a,tss_s_a,
     ! &      tggsn_b ! MJT small otf
       real, dimension(ik*ik*6) :: psl_a,zss_a,tss_a,fracice_a,
-     &      snowd_a,sicedep_a,snage_a,pmsl_a,  tss_l_a,tss_s_a,
-     &      tggsn_b ! MJT small otf     
+     &      snowd_a,sicedep_a,snage_a,pmsl_a,  tss_l_a,tss_s_a
       !real, dimension(ik*ik*6,ms) :: wb_a,wbice_a,tgg_a ! MJT small otf
       real, dimension(ik*ik*6,ms) :: tgg_a               ! MJT small otf
       !real, dimension(ik*ik*6,3) :: tggsn_a,smass_a,ssdn_a ! MJT small otf
@@ -788,6 +787,7 @@ ccc      if ( myid==0 ) then
         if (nmlo.ne.0) then
           allocate(mlootf(ik*ik*6,1,4),ocnotf(ik*ik*6))
           allocate(mlodwn(ifull,wlev,4),ocndwn(ifull))
+          allocate(micdwn(ifull,8))
           ocnotf=0.
           call histrd1(ncid,iarchi,ier,'ocndepth',ik,6*ik,ocnotf,
      &                 6*ik*ik)
@@ -873,6 +873,41 @@ ccc      if ( myid==0 ) then
               endif ! myid==0
             end if ! iotest
           end do
+          do k=1,8
+            select case(k)
+              case(1,2,3)
+                t_a=tggsn_a(:,k)
+              case(4)
+                 t_a=280.
+                 call histrd1(ncid,iarchi,ier,'tggsn4',ik,6*ik,t_a,
+     &                 6*ik*ik)
+              case(5)
+                t_a=fracice_a
+              case(6)
+                t_a=sicedep_a
+              case(7)
+                t_a=snowd_a/1000.
+              case(8)
+                 t_a=0.
+                 call histrd1(ncid,iarchi,ier,'sto',ik,6*ik,t_a,
+     &                 6*ik*ik)
+            end select
+            if (iotest) then
+              if (myid==0) then
+                call ccmpi_distribute(micdwn(:,k),t_a)
+              else
+                call ccmpi_distribute(micdwn(:,k))
+              end if
+            else
+              if (myid==0) then
+                where (land_a.or.ocnotf.le.0.)
+                  t_a=spval
+                end where
+                call fill_cc(t_a,spval,ik,0)
+              end if
+              call doints4(t_a,micdwn(:,k),nface4,xg4,yg4,nord,ik)
+            end if
+          end do
           if (iotest) then
             if (myid==0) then
               call ccmpi_distribute(ocndwn,ocnotf)
@@ -889,7 +924,7 @@ ccc      if ( myid==0 ) then
             end if
             call doints4(ocnotf,ocndwn,nface4,xg4,yg4,nord,ik)
           end if ! iotest
-          deallocate(mlootf,ocnotf)          
+          deallocate(mlootf,ocnotf)
         end if
         !--------------------------------------------------
 
@@ -917,7 +952,6 @@ ccc      if ( myid==0 ) then
             end do
           end if
         else
-          tggsn_b=tggsn_a(:,1)
           if(myid==0)then
             do iq=1,ik*ik*6
               if(.not.land_a(iq))then       
@@ -926,14 +960,11 @@ ccc      if ( myid==0 ) then
                 tggsn_a(iq,1:3)=spval
                 t_a(iq)=spval
                 snage_a(iq)=spval
-              else
-                tggsn_b(iq)=spval ! sea ice temperature (nmlo.eq.0)
               endif  !   (.not.land_a(iq)) 
             enddo   ! iq loop
             call fill_cc(snowd_a,spval,ik,0)
             call fill_cc(t_a,spval,ik,0)
             call fill_cc(snage_a,spval,ik,0)
-            call fill_cc(tggsn_b,spval,ik,0)
             do k=1,ms
               call fill_cc(tgg_a(:,k),spval,ik,0)
             enddo
@@ -944,7 +975,6 @@ ccc      if ( myid==0 ) then
           call doints4(snowd_a,  snowd,nface4,xg4,yg4,nord,ik)
           call doints4(t_a,  dum6,nface4,xg4,yg4,nord,ik)
           call doints4(snage_a,  snage,nface4,xg4,yg4,nord,ik)
-          call doints4(tggsn_b,tggsn_s,nface4,xg4,yg4,nord,ik)
           do k=1,ms
             call doints4(tgg_a(:,k),tgg(:,k),nface4,xg4,yg4,nord,ik)
           enddo

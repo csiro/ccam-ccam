@@ -76,7 +76,7 @@
       ua(1:ifull,:)=ub(1:ifull,:)
       va(1:ifull,:)=vb(1:ifull,:)
       
-      if(namip.eq.0)then     ! namip SSTs/sea-ice take precedence      
+      if(namip.eq.0.and.nmlo.eq.0)then     ! namip SSTs/sea-ice take precedence ! MJT seaice
 !      following sice updating code moved from sflux Jan '06      
 !      check whether present ice points should change to/from sice points
        do iq=1,ifull
@@ -492,7 +492,7 @@
           call getspecdata(pslc,uc,vc,tc,qc)
         end if
 
-        if(namip.eq.0.and.ntest.eq.0) then  ! namip SSTs/sea-ice take precedence
+        if(namip.eq.0.and.ntest.eq.0.and.nmlo.eq.0) then  ! namip SSTs/sea-ice take precedence ! MJT seaice
 !         following sice updating code copied from nestin June '08      
 !         check whether present ice points should change to/from sice points
           do iq=1,ifull

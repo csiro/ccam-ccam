@@ -1025,7 +1025,17 @@ c          if(nums<20)then
      &           1.84-2.8*(sig(kb_sav(iq))-sig(kt_sav(iq)))))
          qxcess(iq)=detrain*rnrtcn(iq) 
         enddo
-      endif   ! (methdetr==3)     
+      endif   ! (methdetr==3)
+      if(methdetr>10)then  
+        do iq=1,ifull   
+         if(sig(kb_sav(iq))-sig(kt_sav(iq))<.01*methdetr)then
+           detrain=1.
+         else
+           detrain=.15
+         endif
+         qxcess(iq)=detrain*rnrtcn(iq) 
+        enddo
+      endif   ! (methdetr==4)        
 
       if(itn==1)then
         cape(:)=0.
@@ -1093,6 +1103,22 @@ c          if(nums<20)then
            deltaq=convpsav(iq)*qxcess(iq)*(k-kb_sav(iq))/(sum*dsk(k))    
            qliqw(iq,k)=qliqw(iq,k)+deltaq
          endif
+        enddo  ! iq loop
+       enddo   ! k loop
+      elseif(methprec==-1)then   
+       do k=kuocb+1,kl-1 
+        do iq=1,ifull  
+         deltaq=0.
+         nlayers=kt_sav(iq)-kb_sav(iq)
+         sum=.5*nlayers*(nlayers+1)
+         if(k>kb_sav(iq).and.k<=kt_sav(iq))then
+           deltaq=convpsav(iq)*qxcess(iq)*(k-kb_sav(iq))/(sum*dsk(k))    
+         endif
+         if(sig(kb_sav(iq))-sig(kt_sav(iq))<.01*methdetr.and.  ! shallow clouds
+     &     k>kb_sav(iq).and.k<=kt_sav(iq))then
+           deltaq=convpsav(iq)*qxcess(iq)*(kt_sav(iq)+1-k)/(sum*dsk(k))    
+         endif
+         qliqw(iq,k)=qliqw(iq,k)+deltaq
         enddo  ! iq loop
        enddo   ! k loop
       elseif(methprec==9)then           ! moisten all cloud layers

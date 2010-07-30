@@ -273,7 +273,7 @@ c=======================================================================
 c     rml 18/09/07 pass through tracmax,tracmin; 19/09/07 add tracname
       use tracermodule, only : tracmax,tracmin,tracname
       use tkeeps, only : tke,eps ! MJT tke
-      use mlo, only : wlev,mlosave,mlodwn ! MJT mlo
+      use mlo, only : wlev,mlosave,mlodwn,micdwn ! MJT mlo
       implicit none
 
 c     this routine creates attributes and writes output
@@ -510,7 +510,7 @@ c       For time varying surface fields
         lname = 'y-component max level_2 wind'
         call attrib(idnc,idim,3,'v2max',lname,'m/s',-99.,99.,1)
         lname = '10m wind speed'
-        call attrib(idnc,idim,3,'u10',lname,'m/s',0.,100.,0) ! MJT bug fix
+        call attrib(idnc,idim,3,'u10',lname,'m/s',0.,100.,0)
 c       lname = '3m wind speed'
 c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         lname = 'Screen level wind speed'
@@ -866,6 +866,18 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
            write(vname,'("voc",I2.2)') k
            call attrib(idnc,idim,3,vname,lname,'m/s',-100.,100.,0)
           end do
+          if (nmlo.lt.0.and.itype.ne.-1) then
+            lname = 'Snow temperature lev 1'
+            call attrib(idnc,idim,3,'tggsn1',lname,'K',100.,400.,0)
+            lname = 'Snow temperature lev 2'
+            call attrib(idnc,idim,3,'tggsn2',lname,'K',100.,400.,0)
+            lname = 'Snow temperature lev 3'
+            call attrib(idnc,idim,3,'tggsn3',lname,'K',100.,400.,0)
+          end if
+          lname = 'Ice temperature lev 4'
+          call attrib(idnc,idim,3,'tggsn4',lname,'K',100.,400.,0)
+          lname = 'Ice storage'
+          call attrib(idnc,idim,3,'sto',lname,'J',0.,1000.,0)
         end if
         !--------------------------------------------------------  
 
@@ -1021,10 +1033,11 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       !---------------------------------------------------------
       ! MJT mlo
       if (nmlo.ne.0) then
-        allocate(mlodwn(ifull,wlev,4))
+        allocate(mlodwn(ifull,wlev,4),micdwn(ifull,8))
         mlodwn(:,:,1:2)=999.
         mlodwn(:,:,3:4)=0.
-        call mlosave(ifull,mlodwn,aa,0)
+        micdwn=999.
+        call mlosave(ifull,mlodwn,aa,micdwn,0)
         !do k=1,wlev
         !  where(zs(1:ifull).gt.1.)
         !    mlodwn(:,k,2)=999. ! lakes?
@@ -1035,6 +1048,16 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
             tgg(:,k)=mlodwn(:,k,1)
           end where
         end do
+        do k=1,3
+          where (.not.land)
+            tggsn(:,k)=micdwn(:,k)
+          end where
+        end do
+        where (.not.land)
+          fracice=micdwn(:,5)
+          sicedep=micdwn(:,6)
+          snowd=micdwn(:,7)*1000.
+        end where
       end if
       if (nmlo.lt.0.or.(nmlo.gt.0.and.itype==-1)) then
         if (ktau==0.or.itype==-1) then
@@ -1052,9 +1075,16 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
           write(vname,'("voc",I2.2)') k
           call histwrt3(mlodwn(:,k,4),vname,idnc,iarch,local)
         end do
+        if (nmlo.lt.0.and.itype.ne.-1) then
+          call histwrt3(tggsn(:,1),'tggsn1',idnc,iarch,local)
+          call histwrt3(tggsn(:,2),'tggsn2',idnc,iarch,local)
+          call histwrt3(tggsn(:,3),'tggsn3',idnc,iarch,local)
+        end if
+        call histwrt3(micdwn(:,4),'tggsn4',idnc,iarch,local)
+        call histwrt3(micdwn(:,8),'sto',idnc,iarch,local)
       end if
       if (nmlo.ne.0) then
-        deallocate(mlodwn)
+        deallocate(mlodwn,micdwn)
       end if      
       !---------------------------------------------------------
       call histwrt3(tgg(1,1),'tgg1',idnc,iarch,local)
