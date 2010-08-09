@@ -429,13 +429,13 @@ c       For time invariant surface fields
         lname = 'Rsmin'
         call attrib(idnc,idim,2,'rsmin',lname,'none',0.,200.,0)
         lname = 'Vegetation fraction'
-        call attrib(idnc,idim,2,'sigmf',lname,'none',0.,1.,0)
+        call attrib(idnc,idim,2,'sigmf',lname,'none',0.,3.25,0)
         lname = 'Surface roughness'
-        call attrib(idnc,idim,2,'zolnd',lname,'m',0.,40.,0)
+        call attrib(idnc,idim,2,'zolnd',lname,'m',0.,65.,0)
         lname = 'Soil type'
-        call attrib(idnc,idim,2,'soilt',lname,'none',0.,40.,0)
+        call attrib(idnc,idim,2,'soilt',lname,'none',0.,65.,0)
         lname = 'Vegetation type'
-        call attrib(idnc,idim,2,'vegt',lname,'none',0.,44.,0)
+        call attrib(idnc,idim,2,'vegt',lname,'none',0.,65.,0)
         !lname = 'Initial wetness fraction layer 3' ! MJT delete
         !call attrib(idnc,idim,2,'wetfrac',lname,'none',-2.,5.,0)
 !        lname = 'Leaf area index'                            ! MJT cable
@@ -876,8 +876,8 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
           end if
           lname = 'Ice temperature lev 4'
           call attrib(idnc,idim,3,'tggsn4',lname,'K',100.,400.,0)
-          lname = 'Ice storage'
-          call attrib(idnc,idim,3,'sto',lname,'J',0.,1000.,0)
+          lname = 'Ice heat store'
+          call attrib(idnc,idim,3,'sto',lname,'J/m2',0.,1000.,0)
         end if
         !--------------------------------------------------------  
 

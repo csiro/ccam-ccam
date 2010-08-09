@@ -910,18 +910,21 @@ c         print *,'delq(iq,k) ',delq(iq,k)
      .   (convpsav(iq)*dels(iq,k)*dsk(k)/cp,k=1,kl)
         convmax=0.
         nums=0
+        print *,'      iq nums kb  kt    dsk   flb     flt   flux',
+     &         '  rhb  rht  rnrt    rnd'
         do iq=1,ifull     
          if(kt_sav(iq)-kb_sav(iq)==1)then
            nums=nums+1
            if(convpsav(iq)>convmax)then
 c          if(nums<20)then
              convmax=convpsav(iq)
-             write(6,"('bc  ',2i5,2i3,2x,3f7.3,f6.3,' rh:',2f5.2)") 
+             write(6,"('bc  ',2i5,2i3,2x,3f7.3,f6.3,2f5.2,2f7.4)") 
      .       iq,nums,kb_sav(iq),kt_sav(iq),
      .       dsk(kb_sav(iq)),fluxbb(iq),
      .       fluxt(iq,kt_sav(iq)),convpsav(iq),
      .       qq(iq,kb_sav(iq))/qs(iq,kb_sav(iq)),
-     .       qq(iq,kt_sav(iq))/qs(iq,kt_sav(iq))
+     .       qq(iq,kt_sav(iq))/qs(iq,kt_sav(iq)),
+     &       rnrtcn(iq),rnrtcn(iq)*convpsav(iq)*ps(iq)/grav
            endif
          endif
         enddo  ! iq loop
@@ -933,12 +936,13 @@ c          if(nums<20)then
            if(convpsav(iq)>convmax)then
 c          if(nums<20)then
              convmax=convpsav(iq)
-             write(6,"('bcd ',2i5,2i3,2x,3f7.3,f6.3,' rh:',2f5.2)") 
+             write(6,"('bcd ',2i5,2i3,2x,3f7.3,f6.3,2f5.2,2f7.4)") 
      .       iq,nums,kb_sav(iq),kt_sav(iq),
      .       dsk(kb_sav(iq)),fluxbb(iq),
      .       fluxt(iq,kt_sav(iq)),convpsav(iq),
      .       qq(iq,kb_sav(iq))/qs(iq,kb_sav(iq)),
-     .       qq(iq,kt_sav(iq))/qs(iq,kt_sav(iq))
+     .       qq(iq,kt_sav(iq))/qs(iq,kt_sav(iq)),
+     &       rnrtcn(iq),rnrtcn(iq)*convpsav(iq)*ps(iq)/grav
            endif
          endif
         enddo  ! iq loop
@@ -950,12 +954,13 @@ c          if(nums<20)then
            if(convpsav(iq)>convmax)then
 c          if(nums<20)then
              convmax=convpsav(iq)
-             write(6,"('bcde',2i5,2i3,2x,3f7.3,f6.3,' rh:',2f5.2)") 
+             write(6,"('bcde',2i5,2i3,2x,3f7.3,f6.3,2f5.2,2f7.4)") 
      .       iq,nums,kb_sav(iq),kt_sav(iq),
      .       dsk(kb_sav(iq)),fluxbb(iq),
      .       fluxt(iq,kt_sav(iq)),convpsav(iq),
      .       qq(iq,kb_sav(iq))/qs(iq,kb_sav(iq)),
-     .       qq(iq,kt_sav(iq))/qs(iq,kt_sav(iq))
+     .       qq(iq,kt_sav(iq))/qs(iq,kt_sav(iq)),
+     &       rnrtcn(iq),rnrtcn(iq)*convpsav(iq)*ps(iq)/grav
            endif
          endif
         enddo  ! iq loop
@@ -1019,14 +1024,14 @@ c          if(nums<20)then
          qxcess(iq)=detrain*rnrtcn(iq) 
         enddo
       endif   ! (methdetr==2)     
-       if(methdetr==3)then  
+      if(methdetr==3)then  
         do iq=1,ifull     
          detrain=min(1.,max(.16,               ! thicknesses .3 and .6
      &           1.84-2.8*(sig(kb_sav(iq))-sig(kt_sav(iq)))))
          qxcess(iq)=detrain*rnrtcn(iq) 
         enddo
-      endif   ! (methdetr==3)
-      if(methdetr>10)then  
+      endif   ! (methdetr==3)     
+      if(methdetr>4)then  
         do iq=1,ifull   
          if(sig(kb_sav(iq))-sig(kt_sav(iq))<.01*methdetr)then
            detrain=1.
@@ -1035,7 +1040,7 @@ c          if(nums<20)then
          endif
          qxcess(iq)=detrain*rnrtcn(iq) 
         enddo
-      endif   ! (methdetr==4)        
+      endif   ! (methdetr>4)     
 
       if(itn==1)then
         cape(:)=0.

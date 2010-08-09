@@ -2054,7 +2054,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         else
           if (myid == 0) print *,"Using MLO defaults"
           do k=1,wlev
-            mlodwn(:,k,1)=max(tss(:)-0.01*real(k-1),271.2)
+            mlodwn(:,k,1)=max(tss(:)-0.01*real(k-1),272.)
             mlodwn(:,k,2)=34.72-0.01*real(k-1)
             mlodwn(:,k,3:4)=0.
             !where (zs(1:ifull).gt.1.) ! lakes?

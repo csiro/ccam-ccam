@@ -60,9 +60,9 @@ real, parameter :: cp = 1004.64
 real, parameter :: vkar = 0.4
 
 ! stability constants
-real, parameter :: a_1   = 1.0
-real, parameter :: b_1   = 2.0/3.0
-real, parameter :: c_1   = 5.0
+real, parameter :: a_1   = 1.
+real, parameter :: b_1   = 2./3.
+real, parameter :: c_1   = 5.
 real, parameter :: d_1   = 0.35
 !real, parameter :: aa1 = 3.8 ! Luhar low wind
 !real, parameter :: bb1 = 0.5 ! Luhar low wind
@@ -433,17 +433,16 @@ ppt=ppt/km(:,2:kl)
 
 ! implicit approach (split form - helps with numerical stability)
 tkenew(:,2:kl)=tke(1:ifull,2:kl) ! 1st guess
-ee=1./dt
 do icount=1,icm
   tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-4)
   tkenew(:,2:kl)=min(tkenew(:,2:kl),65.)  
-  aa=ce2/tkenew(:,2:kl)
-  cc=-eps(1:ifull,2:kl)/dt-ce1*cm*tkenew(:,2:kl)*(pps+max(ppb(:,2:kl),0.)+max(ppt,0.))
-  epsnew(:,2:kl)=(-ee+sqrt(max(ee*ee-4.*aa*cc,0.)))/(2.*aa)
+  aa=dt*ce2/tkenew(:,2:kl)
+  cc=-eps(1:ifull,2:kl)-dt*ce1*cm*tkenew(:,2:kl)*(pps+max(ppb(:,2:kl),0.)+max(ppt,0.))
+  epsnew(:,2:kl)=(-1.+sqrt(max(1.-4.*aa*cc,0.)))/(2.*aa)
   !dd=-tkenew(:,2:kl)+tke(1:ifull,2:kl)+dt*(max(cm*tkenew(:,2:kl)*tkenew(:,2:kl)/epsnew(:,2:kl),1.E-3)*(pps+max(ppb(:,2:kl),0.))-epsnew(:,2:kl)) ! error function
   dd=-tkenew(:,2:kl)+tke(1:ifull,2:kl)+dt*(km(:,2:kl)*(pps+ppb(:,2:kl))-epsnew(:,2:kl)) ! error function
   ff(:,2:kl)=-1.-dt*(epsnew(:,2:kl)/tkenew(:,2:kl) &
-                 +(cc/tkenew(:,2:kl)+ce1*cm*(pps+max(ppb(:,2:kl),0.)+max(ppt,0.)))/sqrt(max(ee*ee-4.*aa*cc,0.)))
+                 +(cc/tkenew(:,2:kl)+dt*ce1*cm*(pps+max(ppb(:,2:kl),0.)+max(ppt,0.)))/sqrt(max(1.-4.*aa*cc,0.)))
   where (abs(ff(:,2:kl)).gt.tol) ! sectant method 
     tkenew(:,2:kl)=tkenew(:,2:kl)-0.7*dd/ff(:,2:kl)
   end where
@@ -460,35 +459,35 @@ tke(1:ifull,2:kl)=tkenew(:,2:kl)
 eps(1:ifull,2:kl)=epsnew(:,2:kl)
 
 ! eps vertical mixing (done here as we skip level 1, instead of using trim)
-aa(:,2)=-0.5*ce0*(km(:,2)+km(:,1))/(dz_fl(:,2)*dz_hl(:,1))
-cc(:,2)=-0.5*ce0*(km(:,3)+km(:,2))/(dz_fl(:,2)*dz_hl(:,2))
-bb(:,2)=1./dt-cc(:,2)-aa(:,2)
-dd(:,2)=eps(1:ifull,2)/dt-aa(:,2)*eps(1:ifull,1)
+aa(:,2)=-dt*0.5*ce0*(km(:,2)+km(:,1))/(dz_fl(:,2)*dz_hl(:,1))
+cc(:,2)=-dt*0.5*ce0*(km(:,3)+km(:,2))/(dz_fl(:,2)*dz_hl(:,2))
+bb(:,2)=1.-aa(:,2)-cc(:,2)
+dd(:,2)=eps(1:ifull,2)-aa(:,2)*eps(1:ifull,1)
 do k=3,kl-1
-  aa(:,k)=-0.5*ce0*(km(:,k)+km(:,k-1))/(dz_fl(:,k)*dz_hl(:,k-1))
-  cc(:,k)=-0.5*ce0*(km(:,k+1)+km(:,k))/(dz_fl(:,k)*dz_hl(:,k))
-  bb(:,k)=1./dt-aa(:,k)-cc(:,k)
-  dd(:,k)=eps(1:ifull,k)/dt
+  aa(:,k)=-dt*0.5*ce0*(km(:,k)+km(:,k-1))/(dz_fl(:,k)*dz_hl(:,k-1))
+  cc(:,k)=-dt*0.5*ce0*(km(:,k+1)+km(:,k))/(dz_fl(:,k)*dz_hl(:,k))
+  bb(:,k)=1.-aa(:,k)-cc(:,k)
+  dd(:,k)=eps(1:ifull,k)
 end do
-aa(:,kl)=-0.5*ce0*(km(:,kl)+km(:,kl-1))/(dz_fl(:,kl)*dz_hl(:,kl-1))
-bb(:,kl)=1./dt-aa(:,kl)
-dd(:,kl)=eps(1:ifull,kl)/dt
+aa(:,kl)=-dt*0.5*ce0*(km(:,kl)+km(:,kl-1))/(dz_fl(:,kl)*dz_hl(:,kl-1))
+bb(:,kl)=1.-aa(:,kl)
+dd(:,kl)=eps(1:ifull,kl)
 call thomas_min(epsnew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
 
 ! TKE vertical mixing (done here as we skip level 1, instead of using trim)
-aa(:,2)=-0.5*(km(:,2)+km(:,1))/(dz_fl(:,2)*dz_hl(:,1))
-cc(:,2)=-0.5*(km(:,3)+km(:,2))/(dz_fl(:,2)*dz_hl(:,2))
-bb(:,2)=1./dt-cc(:,2)-aa(:,2)
-dd(:,2)=tke(1:ifull,2)/dt-aa(:,2)*tke(1:ifull,1)
+aa(:,2)=-dt*0.5*(km(:,2)+km(:,1))/(dz_fl(:,2)*dz_hl(:,1))
+cc(:,2)=-dt*0.5*(km(:,3)+km(:,2))/(dz_fl(:,2)*dz_hl(:,2))
+bb(:,2)=1.-aa(:,2)-cc(:,2)
+dd(:,2)=tke(1:ifull,2)-aa(:,2)*tke(1:ifull,1)
 do k=3,kl-1
-  aa(:,k)=-0.5*(km(:,k)+km(:,k-1))/(dz_fl(:,k)*dz_hl(:,k-1))
-  cc(:,k)=-0.5*(km(:,k+1)+km(:,k))/(dz_fl(:,k)*dz_hl(:,k))
-  bb(:,k)=1./dt-aa(:,k)-cc(:,k)
-  dd(:,k)=tke(1:ifull,k)/dt
+  aa(:,k)=-dt*0.5*(km(:,k)+km(:,k-1))/(dz_fl(:,k)*dz_hl(:,k-1))
+  cc(:,k)=-dt*0.5*(km(:,k+1)+km(:,k))/(dz_fl(:,k)*dz_hl(:,k))
+  bb(:,k)=1.-aa(:,k)-cc(:,k)
+  dd(:,k)=tke(1:ifull,k)
 end do
-aa(:,kl)=-0.5*(km(:,kl)+km(:,kl-1))/(dz_fl(:,kl)*dz_hl(:,kl-1))
-bb(:,kl)=1./dt-aa(:,kl)
-dd(:,kl)=tke(1:ifull,kl)/dt
+aa(:,kl)=-dt*0.5*(km(:,kl)+km(:,kl-1))/(dz_fl(:,kl)*dz_hl(:,kl-1))
+bb(:,kl)=1.-aa(:,kl)
+dd(:,kl)=tke(1:ifull,kl)
 call thomas_min(tkenew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
 
 ! Limits

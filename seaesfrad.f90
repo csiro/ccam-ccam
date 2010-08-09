@@ -46,6 +46,7 @@ use cc_mpi
 use ateb
 use cable_ccam, only : CABLE
 use mlo
+use ozoneread
 
 implicit none
 
@@ -91,7 +92,7 @@ real dhr,fjd,bpyear
 real ttbg,ar1,exp_ar1,ar2,exp_ar2,ar3,snr
 real dnsnow,snrat,dtau,alvo,aliro,fage,cczen,fzen,fzenm
 real alvd,alv,alird,alir
-real rrvco2,ssolar,rrco2
+real rrvco2,rrvch4,rrvn2o,ssolar,rrco2
 real f1,f2,cosz,delta
 logical maxover,newcld
 logical, save :: first = .true.
@@ -115,7 +116,7 @@ real(kind=8), dimension(:,:,:,:), allocatable  ::   r
 
 common/cfrac/cfrac(ifull,kl)
 common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! ditto
-common /radisw2/ rrco2, ssolar, rrvco2
+common /radisw2/ rrco2, ssolar, rrvco2,rrvch4,rrvn2o
 common /o3dat/ dduo3n(37,kl),ddo3n2(37,kl),ddo3n3(37,kl),ddo3n4(37,kl)
 
 data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
@@ -141,7 +142,6 @@ end do
 jyear=kdate/10000
 jmonth=(kdate-jyear*10000)/100
 jday=kdate-jyear*10000-jmonth*100
-if(kdate.lt.19800000)jyear=1979 ! for gcm runs - but jyear not used
 jhour=ktime/100
 jmin=ktime-jhour*100
 mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of y
@@ -164,6 +164,19 @@ ssolar = csolar / (r1*r1)
 ! Initialisation ----------------------------------------------------
 if ( first ) then
   first = .false.
+
+  ! initialise co2
+  call co2_read(sig,jyear)
+  rrco2=rrvco2*ratco2mw
+
+  ! initialise ozone
+  if(amipo3)then
+    write(6,*) 'AMIP2 ozone input'
+    call o3read_amip
+  else
+    call o3_read(sig,jyear,jmonth)
+    call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
+  end if
   
   Cldrad_control%do_strat_clouds_iz      =.true.
   Cldrad_control%do_sw_micro_iz          =.true.
@@ -183,8 +196,8 @@ if ( first ) then
   Lw_control%do_n2o_iz                   =.true.
   Lw_control%do_o3                       =.true.
   Lw_control%do_co2                      =.true.
-  Lw_control%do_ch4                      =.false.
-  Lw_control%do_n2o                      =.false.
+  Lw_control%do_ch4                      =rrvch4.gt.0.
+  Lw_control%do_n2o                      =rrvn2o.gt.0.
   Lw_control%do_h2o                      =.true.
   Lw_control%do_cfc                      =.false.
   Rad_control%using_solar_timeseries_data=.false.
@@ -196,7 +209,7 @@ if ( first ) then
   Rad_control%do_lwaerosol_forcing       =.false.
   Astro%rrsun                            =1./(r1*r1)
 
-  call sealw99_init(pref, Lw_tables)  
+  call sealw99_init(pref, Lw_tables)
   call esfsw_parameters_init
   call esfsw_driver_init
   call microphys_rad_init
@@ -290,19 +303,6 @@ if ( first ) then
     allocate (Sw_output(1)%bdy_flx_clr(imax,1,4))
   endif
 
-  ! initialise co2
-  call co2_read(sig)
-  rrco2=rrvco2*ratco2mw
-
-  ! initialise ozone
-  if(amipo3)then
-    write(6,*) 'AMIP2 ozone input'
-    call o3read_amip
-  else
-    call o3_read(sig)
-    call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
-  end if
-
   ! define diagnostic cloud levels
   f1=1.
   f2=1.
@@ -361,10 +361,10 @@ do j=1,jl,imax/il
       call o3set_amip ( rlatt(istart:iend), imax, mins,sigh, ps(istart:iend), Rad_gases%qo3(:,1,:) )
       Rad_gases%qo3(:,1,:)=max(1.e-10,Rad_gases%qo3(:,1,:))    ! July 2008
     else
-      call o3set(rlatt(istart:iend),imax,mins,duo3n,sig)
+      call o3set(rlatt(istart:iend),rlongg(istart:iend),imax,mins,duo3n,sig,ps(istart:iend))
       ! Conversion of o3 from units of cm stp to gm/gm
       do k=1,kl
-        Rad_gases%qo3(:,1,k) = max(1.e-10,duo3n(1:imax,k)*1.01325e+02/(ps(istart:iend)*10.))
+        Rad_gases%qo3(:,1,k) = max(1.e-10,duo3n(1:imax,k)*1.01325e2/(ps(istart:iend)*10.))
       end do
     end if
 
@@ -556,8 +556,8 @@ do j=1,jl,imax/il
     end do
     
     Rad_gases%rrvco2=rrvco2
-    Rad_gases%rrvch4=0.
-    Rad_gases%rrvn2o=0.
+    Rad_gases%rrvch4=rrvch4
+    Rad_gases%rrvn2o=rrvn2o
     !Rad_gases%rrvf11  = rrvf11
     !Rad_gases%rrvf12  = rrvf12
     !Rad_gases%rrvf113 = rrvf113
@@ -569,34 +569,50 @@ do j=1,jl,imax/il
     !Cld_spec%ncldsw=0
     !Cld_spec%nrndlw=0
     !Cld_spec%nmxolw=0
-    do i=1,imax
-      iq=i+istart-1
-      newcld=.true.
-      do k=1,kl
-        kr=kl+1-k
-        if (cfrac(iq,k).gt.0.) then
-          Cld_spec%camtsw(i,1,kr)=cfrac(iq,k) ! Max+Rnd overlap clouds for SW
-          !Cld_spec%ncldsw=Cld_spec%ncldsw+1
-          maxover=.false.
-          if (k.gt.1) then
-            if (cfrac(iq,k-1).gt.0.) maxover=.true.
-          end if
-          if (k.lt.kl) then
-            if (cfrac(iq,k+1).gt.0.) maxover=.true.
-          end if
-          if (maxover) then
-            Cld_spec%cmxolw(i,1,kr)=cfrac(iq,k) ! Max overlap for LW
-            !if (newcld) Cld_spec%nmxolw=Cld_spec%nmxolw+1
-            newcld=.false.
-          else
+    if (nmr.eq.0) then
+      do i=1,imax
+        iq=i+istart-1
+        newcld=.true.
+        do k=1,kl
+          kr=kl+1-k
+          if (cfrac(iq,k).gt.0.) then
+            Cld_spec%camtsw(i,1,kr)=cfrac(iq,k) ! Max+Rnd overlap clouds for SW
+            !Cld_spec%ncldsw=Cld_spec%ncldsw+1
             Cld_spec%crndlw(i,1,kr)=cfrac(iq,k) ! Rnd overlap for LW
             !Cld_spec%nrndlw=Cld_spec%nrndlw+1
           end if
-        else
-          newcld=.true.
-        end if
+        end do
       end do
-    end do
+    else
+      do i=1,imax
+        iq=i+istart-1
+        newcld=.true.
+        do k=1,kl
+          kr=kl+1-k
+          if (cfrac(iq,k).gt.0.) then
+            Cld_spec%camtsw(i,1,kr)=cfrac(iq,k) ! Max+Rnd overlap clouds for SW
+            !Cld_spec%ncldsw=Cld_spec%ncldsw+1
+            maxover=.false.
+            if (k.gt.1) then
+              if (cfrac(iq,k-1).gt.0.) maxover=.true.
+            end if
+            if (k.lt.kl) then
+              if (cfrac(iq,k+1).gt.0.) maxover=.true.
+            end if
+            if (maxover) then
+              Cld_spec%cmxolw(i,1,kr)=cfrac(iq,k) ! Max overlap for LW
+              !if (newcld) Cld_spec%nmxolw=Cld_spec%nmxolw+1
+              newcld=.false.
+            else
+              Cld_spec%crndlw(i,1,kr)=cfrac(iq,k) ! Rnd overlap for LW
+              !Cld_spec%nrndlw=Cld_spec%nrndlw+1
+            end if
+          else
+            newcld=.true.
+          end if
+        end do
+      end do
+    end if
 
     do k=1,kl
       p2(:,k)=ps(istart:iend)*sig(k) !

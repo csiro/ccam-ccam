@@ -647,7 +647,7 @@ ccc      if ( myid==0 ) then
      &                 6*ik*ik)
           call histrd1(ncid,iarchi,ier,'tb2',ik,6*ik,tgg_a(:,4),
      &                 6*ik*ik)
-          tgg_a(:,1)=tss_l_a
+          tgg_a(:,1)=tgg_a(:,2) !=tss_l_a
           tgg_a(:,3)=tgg_a(:,2)
           do k=5,ms
             tgg_a(:,k)=tgg_a(:,4)

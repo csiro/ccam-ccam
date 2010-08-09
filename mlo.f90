@@ -1297,25 +1297,24 @@ call getqsat(qsat,water(:,1)%temp,atm%ps)
 qsat=0.98*qsat ! with Zeng 1998 for sea water
 ri=min(grav*atm%zmin*(1.-water(:,1)%temp*srcp/atm%temp)/max(vmag,0.1)**2,rimax)
 consea=vmag*charnck/grav
-pg%zo=.001    ! first guess
-where (ri>0.) ! stable water points 
-  fm=1./(1.+bprm*ri)**2
-  con=consea*fm*vmag
-end where  
-do it=1,3
+pg%zo=0.001    ! first guess
+do it=1,4
   afroot=vkar/log(atm%zmin/pg%zo)
   af=afroot*afroot
   daf=2.*af*afroot/(vkar*pg%zo)
   where (ri>0.) ! stable water points                                                 
+    fm=1./(1.+bprm*ri)**2
+    con=consea*fm*vmag
     pg%zo=pg%zo-(pg%zo-con*af)/(1.-con*daf)
   elsewhere     ! unstable water points
     con=cms*2.*bprm*sqrt(-ri*atm%zmin/pg%zo)
     den=1.+af*con
     fm=vmag-vmag*2.*bprm*ri/den
-    dfm=2.*bprm*ri*con*(daf-.5*af/pg%zo)/den**2
+    !dfm=2.*bprm*ri*con*(daf-.5*af/pg%zo)/den**2
+    dfm=vmag*2.*bprm*ri*(con*daf+af*cms*bprm*ri*atm%zmin/(sqrt(-ri*atm%zmin/pg%zo)*pg%zo*pg%zo))/(den*den) ! MJT suggestion
     pg%zo=pg%zo-(pg%zo-consea*af*fm)/(1.-consea*(daf*fm+af*dfm))
   end where
-  pg%zo=min(max(pg%zo,1.5e-5),13.)
+  pg%zo=min(max(pg%zo,1.5e-10),13.)
 enddo    ! it=1,3
 afroot=vkar/log(atm%zmin/pg%zo)
 af=afroot**2
@@ -1486,6 +1485,9 @@ type(tprog2), dimension(nice), intent(in) :: pg_pack
 type(tprog2), dimension(nice) :: pg_temp
 
 ! snow fall
+where (atm_pack%snd.gt.0..and.ice_pack%dsn.le.1.E-6)
+  ice_pack%tn(0)=ice_pack%tn(1)
+end where
 ice_pack%dsn=ice_pack%dsn+atm_pack%snd
 
 ! Pack different ice configurations
@@ -1592,11 +1594,6 @@ end where
 
 ! Ice depth limitation
 !where (ice_pack%dic.gt.5.)
-! dsict is change in temp at point due to excess ice removal
-!dsict=(ice_pack%dic-5.0)*1000.0*(1-pl(mg))*hlf/(dt*bot)
-!dsict=(ice_pack%dic-5.0)*1000.0*lf/(dt*bot)
-! limit this change (due to some initial values being >> 5.0m)
-! dsict=min(dsict,1.)
 ! ice_pack%dic=5.
 !end where
 
@@ -1685,8 +1682,7 @@ integer ii,iqi
 real, intent(in) :: dt
 real gamms,qneed,fact,hinew,con0,con1,con2
 real htup,htdown
-real, dimension(nc) :: ti,con,ftopadj,bot
-real, dimension(nc) :: rhin,fs,hsadj
+real, dimension(nc) :: ti,con,bot,rhin,fs
 real, dimension(nc) :: subl,snmelt,dhs,dhb,hsold
 real, dimension(nc) :: fsnmelt
 real, dimension(nc,0:2) :: fl
@@ -1696,16 +1692,13 @@ type(tice), dimension(nc), intent(inout) :: ice_temp
 type(tdiag2), dimension(nc), intent(inout) :: dg2
 type(tprog2), dimension(nc), intent(in) :: pg_temp
 
-ti=(ice_temp%dic*condsnw*ice_temp%tn(0)+real(dg2%nk)*ice_temp%dsn*condice*ice_temp%tn(1)) &
-  /(ice_temp%dic*condsnw+real(dg2%nk)*ice_temp%dsn*condice)
-
 ! adjust ice thickness by the remaining reservoir in sto
 where (dg2%nk.eq.1.and.ice_temp%sto.gt.0.)
   ice_temp%dic=max(0.,ice_temp%dic-ice_temp%sto/qice)
 end where
-where (dg2%nk.eq.1.and.ice_temp%dic.lt.himin)
-  ice_temp%tn(1)=0.5*(ti+dg2%tb)
-end where
+!where (dg2%nk.eq.1.and.ice_temp%dic.lt.himin) ! MJT suggestion
+!  ice_temp%tn(1)=0.5*(ti+dg2%tb)              ! MJT suggestion
+!end where                                     ! MJT suggestion
 where (dg2%nk.eq.1)
   ice_temp%sto=0.
   ice_temp%tn(2)=dg2%tb
@@ -1714,62 +1707,68 @@ end where
 ! update surface temperature
 rhin=real(dg2%nk)/ice_temp%dic
 con=2.*condsnw/ice_temp%dsn
+! Ammendments if surface layer < 5cms
 where (ice_temp%dsn.lt.0.05)
   con=1./(ice_temp%dsn/condsnw+ice_temp%dic/(condice*real(dg2%nk)*2.))
   ice_temp%tn(0)=ice_temp%tn(1)
 end where
-ftopadj=con*(ice_temp%tn(0)-ice_temp%tsurf)
-gamms=4.857e+04 ! density*specific heat*depth (for snow)
+fs=con*(ice_temp%tn(0)-ice_temp%tsurf)
+gamms=4.857e4 ! density*specific heat*depth (for snow)
 bot=gamms/dt+4.*sbconst*ice_temp%tsurf**3+con
-ice_temp%tsurf=ice_temp%tsurf+(dg2%ftop+ftopadj)/bot
+ice_temp%tsurf=ice_temp%tsurf+(dg2%ftop+fs)/bot
+! Snow melt (snmelt >= 0)
+snmelt=10.*max(0.,ice_temp%tsurf-273.16)*gamms/qsnow ! m of "snow"
 ice_temp%tsurf=min(ice_temp%tsurf,273.16) ! melting condition ts=tsmelt
+! Ammendments if surface layer < 5cms : Use adjusted snow depth
+where (ice_temp%dsn.lt.0.05)
+  ti=(ice_temp%dic*condsnw*ice_temp%tsurf+2.*real(dg2%nk)*ice_temp%dsn*condice*ice_temp%tn(1)) & ! MJT suggestion
+    /(ice_temp%dic*condsnw+2.*real(dg2%nk)*ice_temp%dsn*condice)                                 ! MJT suggestion
+  fl(:,0)=fs ! Middle of first ice layer to snow interface                                       ! MJT suggestion
+elsewhere
+  ti=(ice_temp%dic*condsnw*ice_temp%tn(0)+real(dg2%nk)*ice_temp%dsn*condice*ice_temp%tn(1)) &
+    /(ice_temp%dic*condsnw+real(dg2%nk)*ice_temp%dsn*condice)
+  fl(:,0)=2.*rhin*condice*(ice_temp%tn(1)-ti) ! Middle of first ice layer to snow interface    
+end where
 
 ! Upward fluxes between various levels below surface
-fs=con*(ice_temp%tn(0)-ice_temp%tsurf)      ! Middle of snow layer to surface = ftopadj
-fl(:,0)=2.*rhin*condice*(ice_temp%tn(1)-ti) ! Middle of first ice layer to snow interface
-fl(:,1)=condice*(ice_temp%tn(2)-ice_temp%tn(1))*rhin ! Between ice layers 2 and 1
+fl(:,1)=rhin*condice*(ice_temp%tn(2)-ice_temp%tn(1)) ! Between ice layers 2 and 1
+
 ! Ammendments if surface layer < 5cms : Use adjusted snow depth
 ! to compute ti,t0 and fs,f0. Note that f0=fs in this case.
-where(ice_temp%dsn.lt.0.05)
-  hsadj=ice_temp%dsn+0.001
-  ti=(ice_temp%dic*condsnw*ice_temp%tsurf+2.*real(dg2%nk)*hsadj*condice*ice_temp%tn(1)) &
-    /(ice_temp%dic*condsnw+2.*real(dg2%nk)*hsadj*condice)
-  fs=condsnw*(ti-ice_temp%tsurf)/hsadj
-  fl(:,0)=fs
-  ice_temp%tn(0)=0.5*(ti+ice_temp%tsurf)
-end where
+!where(ice_temp%dsn.lt.0.05)                                                               ! MJT suggestion
+!  hsadj=ice_temp%dsn+0.001                                                                ! MJT suggestion
+!  ti=(ice_temp%dic*condsnw*ice_temp%tsurf+2.*real(dg2%nk)*hsadj*condice*ice_temp%tn(1)) & ! MJT suggestion
+!    /(ice_temp%dic*condsnw+2.*real(dg2%nk)*hsadj*condice)                                 ! MJT suggestion
+!  fs=condsnw*(ti-ice_temp%tsurf)/hsadj                                                    ! MJT suggestion
+!  fl(:,0)=fs                                                                              ! MJT suggestion
+!  ice_temp%tn(0)=0.5*(ti+ice_temp%tsurf)                                                  ! MJT suggestion
+!end where                                                                                 ! MJT suggestion
 
 ! Surface evap/sublimation (can be >0 or <0)
 ! Note : dt*eg/hl in Kgm/m**2 => mms of water
 subl=0.001*dt*pg_temp%egice/lv   ! m of "snow"
 dg2%salflx=dg2%salflx+pg_temp%egice/lv
-! Snow melt (snmelt >= 0)
-snmelt=10.*max(0.,ice_temp%tsurf-273.16)*gamms/qsnow ! m of "snow"
 ! Change the snow thickness
 dhs=snmelt+subl
 hsold=ice_temp%dsn
 where(dhs.gt.ice_temp%dsn)
-  ice_temp%dic=ice_temp%dic-0.1*(dhs-ice_temp%dsn)
   snmelt=max(ice_temp%dsn-subl,0.)
+  ice_temp%dic=ice_temp%dic-0.1*(dhs-ice_temp%dsn)
   ice_temp%dsn=0.
 elsewhere
   ice_temp%dsn=ice_temp%dsn-dhs
 end where
 
 ! Update the mid-level snow temperature
-where (hsold.ge.0.05.and.ice_temp%dsn.gt.1.E-6)
-  ice_temp%tn(0)=ice_temp%tn(0)+dt*(fl(:,0)-fs)/(ice_temp%dsn*cps)
-end where
+ice_temp%tn(0)=ice_temp%tn(0)+dt*(fl(:,0)-fs)/(max(ice_temp%dsn,1.E-6)*cps)
+ice_temp%tn(0)=min(ice_temp%tn(0),273.16)
+
 ! Remove very thin snow
 where (ice_temp%dsn.gt.0..and.ice_temp%dsn.lt.1.E-4)
   fsnmelt=ice_temp%dsn*lf/(0.01*dt) ! J/m2/sec ! heat flux to melt snow
   ice_temp%tn(1)=ice_temp%tn(1)-dt*fsnmelt*rhin/cpi
   ice_temp%dsn=0.
 end where
-where (ice_temp%dsn.le.1.E-6)
-  ice_temp%tn(0)=273.05
-end where
-ice_temp%tn(0)=min(ice_temp%tn(0),273.16)
 
 do iqi=1,nc
   zp=0.
@@ -1778,18 +1777,18 @@ do iqi=1,nc
   if (dg2(iqi)%nk.gt.1) then
     ! update temperature in top layer of ice
     tp(1)=min(ice_temp(iqi)%tn(1)+dt*(fl(iqi,1)-fl(iqi,0))*rhin(iqi)/cpi,dg2(iqi)%timelt)
-    if (ice_temp(iqi)%sto.ne.0..and.tp(1).lt.dg2(iqi)%timelt) then
-      ! use stored heat in brine pockets to keep temperature at -0.1 until
-      ! heat is used up
-      qneed=(dg2(iqi)%timelt-tp(1))*cpi*(ice_temp(iqi)%dic/real(dg2(iqi)%nk)) ! J/m**2
+    if (ice_temp(iqi)%sto.gt.0..and.tp(1).lt.dg2(iqi)%timelt) then
+      ! use stored heat in brine pockets to keep temperature at -0.1 until heat is used up
+      qneed=(dg2(iqi)%timelt-tp(1))*cpi/rhin(iqi) ! J/m**2
       if (ice_temp(iqi)%sto.le.qneed) then
         fact=ice_temp(iqi)%sto/qneed
         tp(1)=dg2(iqi)%timelt*fact+tp(1)*(1.-fact)
         tp(1)=min(tp(1),dg2(iqi)%timelt)
         ice_temp(iqi)%sto=0.
+      else
+        tp(1)=dg2(iqi)%timelt
+        ice_temp(iqi)%sto=ice_temp(iqi)%sto-qneed
       end if
-      tp(1)=dg2(iqi)%timelt
-      ice_temp(iqi)%sto=ice_temp(iqi)%sto-qneed
     end if
   end if
 
@@ -1810,9 +1809,9 @@ do iqi=1,nc
     ! construct final values of temperature for case of bottom ablation
     zp(dg2(iqi)%nk)=z(dg2(iqi)%nk)
     tp(dg2(iqi)%nk)=ice_temp(iqi)%tn(dg2(iqi)%nk)+dt/cpi*(fl(iqi,dg2(iqi)%nk)-fl(iqi,dg2(iqi)%nk-1)) &
-                   /(ice_temp(iqi)%dic/real(dg2(iqi)%nk)+dhb(iqi))
+                   /(1./rhin(iqi)+dhb(iqi))
     tp(dg2(iqi)%nk)=min(tp(dg2(iqi)%nk),dg2(iqi)%timelt)
-    tp(0)=ti(iqi)
+    !tp(0)=ti(iqi) ! MJT suggestion
     tp(dg2(iqi)%nk+1)=dg2(iqi)%tb
     do ii=1,dg2(iqi)%nk
       if(z(ii).lt.zp(ii).and.zp(ii).lt.z(ii-1))then
@@ -1859,10 +1858,8 @@ do iqi=1,nc
 !                *ice_temp(iqi)%tn(ii))/con2
 !      enddo
 !    end if
-    do ii=1,dg2(iqi)%nk
-      ice_temp(iqi)%tn(ii)=tp(ii)
-    enddo
-  else if (ice_temp(iqi)%dic.le.htdown) then
+    ice_temp(iqi)%tn(1:dg2(iqi)%nk)=tp(1:dg2(iqi)%nk)
+  elseif (ice_temp(iqi)%dic.le.htdown) then
     ! code to decrease number of layers
     dg2(iqi)%nk=dg2(iqi)%nk-1
     if (dg2(iqi)%nk.gt.0) then
@@ -1876,9 +1873,7 @@ do iqi=1,nc
         tp(ii)=((zp(ii-1)-z(ii))*ice_temp(iqi)%tn(ii) &
                +(z(ii)-zp(ii))*ice_temp(iqi)%tn(ii+1))/con2
       enddo
-      do ii=1,dg2(iqi)%nk
-        ice_temp(iqi)%tn(ii)=tp(ii)
-      enddo
+      ice_temp(iqi)%tn(1:dg2(iqi)%nk)=tp(1:dg2(iqi)%nk)
     end if
   end if
 end do
@@ -1925,9 +1920,9 @@ type(tprog2), dimension(nc), intent(in) :: pg_temp
 where (dg2%nk.eq.1.and.ice_temp%sto.gt.0.)
   ice_temp%dic=max(0.,ice_temp%dic-ice_temp%sto/qice)
 end where
-where (dg2%nk.eq.1.and.ice_temp%dic.lt.himin)
-  ice_temp%tn(1)=0.5*(ice_temp%tsurf+dg2%tb)
-end where
+!where (dg2%nk.eq.1.and.ice_temp%dic.lt.himin) ! MJT suggestion
+!  ice_temp%tn(1)=0.5*(ice_temp%tsurf+dg2%tb)  ! MJT suggestion
+!end where                                     ! MJT suggestion
 where (dg2%nk.eq.1)
   ice_temp%sto=0.
   ice_temp%tn(2)=dg2%tb
@@ -1935,29 +1930,25 @@ end where
 
 ! Get total flux into thin surface ice layer by adding flux from below
 rhin=real(dg2%nk)/ice_temp%dic
-qmax=qice*0.5*(ice_temp%dic-himin)
 con=condice*rhin*2.
 ftopadj=con*(ice_temp%tn(1)-ice_temp%tsurf)
-gamms=3.471e+05 ! density*specific heat*depth (for ice)
+gamms=3.471e5 ! density*specific heat*depth (for ice)
 bot=gamms/dt+4.*sbconst*ice_temp%tsurf**3+con
 ice_temp%tsurf=ice_temp%tsurf+(dg2%ftop+ftopadj)/bot
+! Ice melt (simelt >= 0)
+simelt=max(0.,ice_temp%tsurf-dg2%timelt)*gamms/qice
 ice_temp%tsurf=min(ice_temp%tsurf,dg2%timelt) ! melting condition ti=timelt
 ti=ice_temp%tsurf
 
-! Compute flux of energy leaving surface using new ti + implicit terms
-! (but don't include the flux from below as was done for f)
-!      fa=rg(mg)+cls*eg(mg)+fg(mg)-(1.-eye)*sg(mg)
-!     & +((dfdt-con)*(ti-tpast))
 ! Upward fluxes between various levels below surface
-fl(:,0)=con*(ice_temp%tn(1)-ti)    ! Middle of first ice layer to thin surface layer
-!fl(0)=fa ! ?? f0 ??
+fl(:,0)=con*(ice_temp%tn(1)-ice_temp%tsurf) ! Middle of first ice layer to thin surface layer = ftopadj
 fl(:,1)=condice*(ice_temp%tn(2)-ice_temp%tn(1))*rhin ! Between ice layers 2 and 1
+
 ! Surface evap/sublimation (can be >0 or <0)
 subl=0.001*dt*pg_temp%egice/lv
 dg2%salflx=dg2%salflx+pg_temp%egice/lv
-! Ice melt (simelt >= 0)
-simelt=max(0.,ti-dg2%timelt)*gamms/qice
 dhi=-subl-simelt
+qmax=qice*0.5*(ice_temp%dic-himin)
 where (ice_temp%sto.gt.qmax)
   dhi=dhi-(ice_temp%sto-qmax)/qice
   ice_temp%sto=qmax
@@ -1976,21 +1967,21 @@ do iqi=1,nc
   if (dg2(iqi)%nk.eq.2) then
     tp(1)=ice_temp(iqi)%tn(1)+dt/cpi*(fl(iqi,1)-fl(iqi,0))/(ice_temp(iqi)%dic/real(dg2(iqi)%nk)+dhi(iqi))
     if (ice_temp(iqi)%sto.gt.0..and.tp(1).lt.dg2(iqi)%timelt) then
-      qneed=(dg2(iqi)%timelt-tp(1))*cpi*(ice_temp(iqi)%dic/real(dg2(iqi)%nk))
+      qneed=(dg2(iqi)%timelt-tp(1))*cpi/rhin(iqi) ! J/m**2
       if (ice_temp(iqi)%sto.le.qneed) then
         fact=ice_temp(iqi)%dic/qneed
         tp(1)=dg2(iqi)%timelt*fact+tp(1)*(1.-fact)
         ice_temp(iqi)%sto=0.
+      else
+        tp(1)=dg2(iqi)%timelt
+        ice_temp(iqi)%sto=ice_temp(iqi)%sto-qneed
       end if
-      ice_temp(iqi)%sto=ice_temp(iqi)%sto-qneed
-      tp(1)=dg2(iqi)%timelt
     end if
-    tp(1)=min(tp(1),dg2(iqi)%timelt)
   end if
 
   ! determine amount of bottom ablation or accretion
   fl(iqi,dg2(iqi)%nk)=condice*(dg2(iqi)%tb-ice_temp(iqi)%tn(dg2(iqi)%nk))*2.*rhin(iqi)
-  dhb(iqi)=min(0.01,dt*(fl(iqi,dg2(iqi)%nk)-dg2(iqi)%fb)/qice)
+  dhb(iqi)=min(0.01,dt*(fl(iqi,dg2(iqi)%nk)-dg2(iqi)%fb)/qice) ! limit for poor initial conditions
   hinew=ice_temp(iqi)%dic+dhi(iqi)+dhb(iqi)
   
   ! determine depths below surface of interim and final interfaces
@@ -2007,7 +1998,7 @@ do iqi=1,nc
     tp(dg2(iqi)%nk)=ice_temp(iqi)%tn(dg2(iqi)%nk)+dt*(fl(iqi,dg2(iqi)%nk)-fl(iqi,dg2(iqi)%nk-1))/cpi &
                    /(ice_temp(iqi)%dic/real(dg2(iqi)%nk)+dhb(iqi))
     tp(dg2(iqi)%nk)=min(tp(dg2(iqi)%nk),dg2(iqi)%timelt)
-    tp(0)=ti(iqi)
+    !tp(0)=ti(iqi) ! MJT suggestion
     tp(dg2(iqi)%nk+1)=dg2(iqi)%tb
     do ii=1,dg2(iqi)%nk
       if(z(ii).lt.zp(ii).and.zp(ii).lt.z(ii-1))then
@@ -2102,7 +2093,7 @@ implicit none
 
 integer, intent(in) :: nc,diag
 real, intent(in) :: dt
-real, dimension(nc) :: ti,con,ftopadj,bot,f0
+real, dimension(nc) :: ti,con,bot,f0
 real, dimension(nc) :: subl,snmelt,dhs,dhb
 real gamms
 type(tice), dimension(nc), intent(inout) :: ice_temp
@@ -2111,21 +2102,19 @@ type(tprog2), dimension(nc), intent(in) :: pg_temp
 
 ! Update tsurf and ti based on fluxes from above and below
 con=1./(ice_temp%dsn/condsnw+ice_temp%dic/condice)
-ftopadj=con*(dg2%tb-ice_temp%tsurf) ! flux from below
-gamms=4.857e+04                     ! density*specific heat*depth (for snow)
+f0=con*(dg2%tb-ice_temp%tsurf) ! flux from below
+gamms=4.857e4                     ! density*specific heat*depth (for snow)
 bot=gamms/dt+4.*sbconst*ice_temp%tsurf**3+con
-ice_temp%tsurf=ice_temp%tsurf+(dg2%ftop+ftopadj)/bot
+ice_temp%tsurf=ice_temp%tsurf+(dg2%ftop+f0)/bot
+! Snow melt (snmelt >= 0)
+snmelt=10.*max(0.,ice_temp%tsurf-273.16)*gamms/qsnow
 ice_temp%tsurf=min(ice_temp%tsurf,273.16) ! melting condition ts=tsmelt
 ti=(ice_temp%dic*condsnw*ice_temp%tsurf+ice_temp%dsn*condice*dg2%tb) &
   /(ice_temp%dic*condsnw+ice_temp%dsn*condice)
 
-! Upward fluxes between various levels below surface
-f0=condsnw*(ti-ice_temp%tsurf)/ice_temp%dsn
 ! Surface evap/sublimation (can be >0 or <0)
 subl=0.001*dt*pg_temp%egice/lv
 dg2%salflx=dg2%salflx+pg_temp%egice/lv
-! Snow melt (snmelt >= 0)
-snmelt=10.*max(0.,ice_temp%tsurf-273.16)*gamms/qsnow
 ! Change the snow thickness
 dhs=snmelt+subl
 where (dhs.gt.ice_temp%dsn)
@@ -2136,7 +2125,7 @@ elsewhere
   ice_temp%dsn=ice_temp%dsn-dhs
 end where
 ! determine amount of bottom ablation or accretion
-dhb=min(0.01,dt*(f0-dg2%fb)/qice)
+dhb=min(0.01,dt*(f0-dg2%fb)/qice) ! limit for poor initial conditions
 ! update ice thickness
 ice_temp%dic=ice_temp%dic+dhb
 
@@ -2177,7 +2166,7 @@ implicit none
 
 integer, intent(in) :: nc,diag
 real, intent(in) :: dt
-real, dimension(nc) :: con,ftopadj,bot,subl,simelt
+real, dimension(nc) :: con,bot,subl,simelt
 real, dimension(nc) :: dhi,dhb,f0
 real gamms
 type(tice), dimension(nc), intent(inout) :: ice_temp
@@ -2186,22 +2175,20 @@ type(tprog2), dimension(nc), intent(in) :: pg_temp
 
 ! Update tsurf and ti based on fluxes from above and below
 con=condice/ice_temp%dic
-ftopadj=con*(dg2%tb-ice_temp%tsurf) ! flux from below
-gamms=3.471e+05                     ! density*specific heat*depth (for ice)
+f0=con*(dg2%tb-ice_temp%tsurf) ! flux from below
+gamms=3.471e5                     ! density*specific heat*depth (for ice)
 bot=gamms/dt+4.*sbconst*ice_temp%tsurf**3+con
-ice_temp%tsurf=ice_temp%tsurf+(dg2%ftop+ftopadj)/bot
+ice_temp%tsurf=ice_temp%tsurf+(dg2%ftop+f0)/bot
+! Ice melt (simelt >= 0)
+simelt=max(0.,ice_temp%tsurf-dg2%timelt)*gamms/qice 
 ice_temp%tsurf=min(ice_temp%tsurf,dg2%timelt) ! melting condition ti=timelt
 
-! Upward flux between various levels below surface
-f0=condice*(dg2%tb-ice_temp%tsurf)/ice_temp%dic ! = ftopadj
 ! Surface evap/sublimation (can be >0 or <0)
 subl=0.001*dt*pg_temp%egice/lv
 dg2%salflx=dg2%salflx+pg_temp%egice/lv
-! Ice melt (simelt >= 0)
-simelt=max(0.,ice_temp%tsurf-dg2%timelt)*gamms/qice 
 dhi=-subl-simelt
 ! determine amount of bottom ablation or accretion
-dhb=min(0.01,dt*(f0-dg2%fb)/qice)
+dhb=min(0.01,dt*(f0-dg2%fb)/qice) ! limit for poor initial conditions
 ! update ice thickness
 ice_temp%dic=ice_temp%dic+dhi+dhb
 

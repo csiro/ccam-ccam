@@ -11,12 +11,14 @@ c   The following coeffiecients don't depend on resolution or CO2 conc.
 
 c******************************************************************************
 
-      subroutine co2_read(sigma)
+      subroutine co2_read(sigma,jyear) ! MJT radiation
 c  This routine reads the CO2 transmission coefficients from the
 c  co2_datafile (filename set in namelist)
 c  was unit 15 for DARLAM, unit 17 for conformal-cubic
 
       use cc_mpi, only : myid
+      include 'parm.h'       ! MJT radiation
+      include 'filnames.h'   ! MJT radiation
       include 'newmpar.h'
       include 'mpif.h'       ! MJT read
       include 'rdparm.h'  ! needed before other radiation common blocks
@@ -24,24 +26,53 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
       include 'radisw.h' ! passes rrvco2 to radrive for use in swr89
       parameter(sigtol=1e-3)
       real sigma(kl), sigin(kl)
+      real rcn(35)                 ! MJT radiation
+      integer, intent(in) :: jyear ! MJT radiation
+      integer i,ierr               ! MJT radiation
       data lu/15/
       
       !--------------------------------------------------------------
       ! MJT radiation
+      if (myid==0) then
+        print *,'Radiative data read from file ',radfile
+        open(lu,file=radfile,form='formatted',status='old')
+      end if
+      rrvco2=330.E-6
+      rrvch4=0.
+      rrvn2o=0.
       if (nrad.eq.5) then
+        rrvco2=338.E-6
+        rrvch4=1548.E-9
+        rrvn2o=301.E-9
         if (myid==0) then
-          read(lu,*) nlev
+          nlev=0
+          read(lu,*,iostat=ierr) nlev
           if (nlev.gt.0) then ! old format
             read(lu,*) (sigin(1),i=nlev,1,-1)
             read(lu,*) rrvco2
+            rrvch4=0.
+            rrvn2o=0.
           else                ! new format
-            write(6,*) "ERROR: new radfile format not supported"
-            stop
+            iyr=-9999
+            do while (iyr.lt.jyear)
+              read(lu,*,iostat=ierr) iyr,rcn(1:35)
+              if (ierr.lt.0) then
+                write(6,*) "ERROR: Cannot find concentration data"
+                stop
+              end if
+            end do
+            rrvco2=rcn(3)*1.E-6
+            rrvch4=rcn(4)*1.E-9
+            rrvn2o=rcn(5)*1.E-9
           end if
-          write(*,*) ' CO2 mixing ratio is ', rrvco2*1e6,' ppmv'
+          write(6,*) ' CO2 mixing ratio is ', rrvco2*1e6,' ppmv'
+          write(6,*) ' CH4 mixing ratio is ', rrvch4*1e9,' ppbv'
+          write(6,*) ' N2O mixing ratio is ', rrvn2o*1e9,' ppbv'
           close(lu)
         end if
         call MPI_Bcast(rrvco2,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(rrvch4,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(rrvn2o,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         return
       end if
       !--------------------------------------------------------------
@@ -50,25 +81,25 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
       ! MJT read
       if (myid==0) then 
         read(lu,*) nlev
-        print *,'co2_read nlev=',nlev
+        write(6,*)'co2_read nlev=',nlev
 c       Check that the number of levels is the same
         if ( nlev.ne.kl ) then
-	    print*, ' ERROR - Number of levels wrong in co2_data file'
+	    write(6,*) ' ERROR - Number of levels wrong in co2_data file'
 	    stop
         end if
 c       Check that the sigma levels are the same
 c       Note that the radiation data has the levels in the reverse order
         read(lu,*) (sigin(i),i=kl,1,-1)
-        print *,'co2_read sigin=',sigin
+        write(6,*)'co2_read sigin=',sigin
         do k=1,kl
 	    if ( abs(sigma(k)-sigin(k)) .gt. sigtol ) then
-	      print*, ' ERROR - sigma level wrong in co2_data file'
-	      print*, k, sigma(k), sigin(k)
+	      write(6,*) ' ERROR - sigma level wrong in co2_data file'
+	      write(6,*) k, sigma(k), sigin(k)
 	      stop
           end if
         end do
         read(lu,*) rrvco2
-        write(*,*) ' CO2 mixing ratio is ', rrvco2*1e6,' ppmv'
+        write(6,*) ' CO2 mixing ratio is ', rrvco2*1e6,' ppmv'
         read(lu,*) stemp
         read(lu,*) gtemp
         read(lu,*) cdt51

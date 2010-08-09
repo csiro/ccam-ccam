@@ -17,7 +17,8 @@
       use diag_m
       use ateb ! MJT urban 
       use cable_ccam, only : CABLE ! MJT cable
-      use mlo ! MJT mlo      
+      use mlo ! MJT mlo
+      use ozoneread ! MJT radiation
       include 'newmpar.h'
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
 !        for diag prints set ntest=1
@@ -118,33 +119,6 @@ c     Stuff from cldset
       idrad=idjd-(jdrad0-1)*imax
       jdrad=1+(jdrad0-1)*imax/il  ! j increases in increments of imax/il
 
-!     Initialisation (from initfs)
-      if ( first ) then
-         if(ntest.eq.1)print *,'id,jd,imax,idrad,jdrad0,jdrad ',
-     .                          id,jd,imax,idrad,jdrad0,jdrad
-         first = .false.
-         call hconst
-         call co2_read(sig)
-         call radtable
-         rrco2=rrvco2*ratco2mw
-         if(amipo3)then
-c           AMIP2 ozone
-            call o3read_amip
-            print *,'AMIP2 ozone input'
-        else
-c          Stuff from o3set
-c          Rearrange the seasonal mean O3 data to allow interpolation
-c          Define the amplitudes of the mean, annual and semi-annual cycles
-           call o3_read(sig)
-           call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
-        end if
-        swrsave=0.5 ! MJT cable
-      end if  ! (first)
-
-C---------------------------------------------------------------------*
-C START COMPUTATION                                                   *
-C---------------------------------------------------------------------*
-
 !     Set up number of minutes from beginning of year
 !     This assumes 4-digit year already incorporated (fix done in infile)
 !     For GCM runs assume year is <1980 (e.g. ~321-460 for 140 year run)
@@ -159,6 +133,33 @@ C---------------------------------------------------------------------*
 !     mins = 60 * timer + mstart
 !     mtimer contains number of minutes since the start of the run.
       mins = mtimer + mstart
+
+!     Initialisation (from initfs)
+      if ( first ) then
+         if(ntest.eq.1)print *,'id,jd,imax,idrad,jdrad0,jdrad ',
+     .                          id,jd,imax,idrad,jdrad0,jdrad
+         first = .false.
+         call hconst
+         call co2_read(sig,jyear) ! MJT radiation
+         call radtable
+         rrco2=rrvco2*ratco2mw
+         if(amipo3)then
+c           AMIP2 ozone
+            call o3read_amip
+            print *,'AMIP2 ozone input'
+        else
+c          Stuff from o3set
+c          Rearrange the seasonal mean O3 data to allow interpolation
+c          Define the amplitudes of the mean, annual and semi-annual cycles
+           call o3_read(sig,jyear,jmonth)
+           call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
+        end if
+        swrsave=0.5 ! MJT cable
+      end if  ! (first)
+
+C---------------------------------------------------------------------*
+C START COMPUTATION                                                   *
+C---------------------------------------------------------------------*
 
 c     Set number of years before present for orbital parameters.
 c     Allowed values are 0, 6000 and 21000.
@@ -245,7 +246,8 @@ c     Set up ozone for this time and row
      &                     sigh, ps(1+(j-1)*il:(j-1)*il+imax), qo3 )
          qo3(:,:)=max(1.e-10,qo3(:,:))    ! July 2008
       else
-         call o3set(rlatt(1+(j-1)*il),imax,mins,duo3n,sig)
+         call o3set(rlatt(1+(j-1)*il),rlongg(1+(j-1)*il),imax,mins,
+     &              duo3n,sig,ps(1+(j-1)*il:(j-1)*il+imax))
 c        Conversion of o3 from units of cm stp to gm/gm
          do k=1,kl
             do i=1,imax

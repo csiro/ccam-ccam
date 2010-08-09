@@ -192,7 +192,7 @@ c     using av_vmod (1. for no time averaging)
      &             (1.+(.006+.00008*u10(:))*u10(:)**2)               ! sea
        endif                                                         ! sea
        do iq=1,ifull                                                 ! sea
-        if(.not.land(iq))then                                        ! sea 
+        if(.not.land(iq))then                                        ! sea
          wetfac(iq)=1.                                               ! sea
 !        tgg2 (called tpan from Oct 05) holds effective sea for this loop 
          if(ntss_sh==0)then                                          ! sea
@@ -248,7 +248,7 @@ c       this is in-line ocenzo using latest coefficient, i.e. .018   ! sea
           af(iq)=afrootpan**2                                        ! sea
         else                                                         ! sea
          if(charnock<-1.)then  ! Moon (2004) over sea                ! sea
-          zo(iq)=min(max(charnck(iq),1.5e-5),13.) ! MJT bug fix      ! sea
+          zo(iq)=min(max(charnck(iq),1.5e-10),13.) ! MJT bug fix     ! sea
           afroot=vkar/log(zmin/zo(iq))                               ! sea
           af(iq)=afroot**2                                           ! sea
          else            ! usual charnock method over sea            ! sea
@@ -256,33 +256,36 @@ c       this is in-line ocenzo using latest coefficient, i.e. .018   ! sea
           if(ri(iq)>0.)then             ! stable sea points          ! sea
             fm=vmod(iq) /(1.+bprm*ri(iq))**2 ! N.B. this is vmod*fm  ! sea
             con=consea*fm                                            ! sea
-            do it=1,3                                                ! sea
+            do it=1,4 ! MJT zosea                                    ! sea
              afroot=vkar/log(zmin/zo(iq))                            ! sea
              af(iq)=afroot**2                                        ! sea
              daf=2.*af(iq)*afroot/(vkar*zo(iq))                      ! sea
-             zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-con*af(iq))/
-     &                 (1.-con*daf))                                 ! sea
+             zo(iq)=max(1.5e-10,zo(iq)-(zo(iq)-con*af(iq))/          ! sea
+     &                 (1.-con*daf)) !MJT zosea                      ! sea
              zo(iq)=min(zo(iq),13.) ! JLM fix                        ! sea
             enddo    ! it=1,3                                        ! sea
             afroot=vkar/log(zmin/zo(iq))                             ! sea
             af(iq)=afroot**2                                         ! sea
           else                        ! unstable sea points          ! sea
-            do it=1,3                                                ! sea
+            do it=1,4  ! MJT zosea                                   ! sea
              afroot=vkar/log(zmin/zo(iq))                            ! sea
              af(iq)=afroot**2                                        ! sea
              daf=2.*af(iq)*afroot/(vkar*zo(iq))                      ! sea
              con1=cms*2.*bprm*sqrt(-ri(iq)*zmin/zo(iq))              ! sea
              den=1.+af(iq)*con1                                      ! sea
-             dden=con1*(daf-.5*af(iq)/zo(iq))                        ! sea
+             !dden=con1*(daf-.5*af(iq)/zo(iq))                        ! sea
+             dden=con1*daf+af(iq)*cms*2.*bprm*ri(iq)*zmin
+     &            /(sqrt(-ri(iq)*zmin/zo(iq))*zo(iq)*zo(iq))
              fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/den                ! sea
-             dfm=2.*bprm*ri(iq)*dden/den**2                          ! sea
-             zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-consea*af(iq)*fm)/     ! sea
-     .                        (1.-consea*(daf*fm+af(iq)*dfm)))       ! sea
-             zo(iq)=min(zo(iq),13.) ! JLM fix     
+             !dfm=2.*bprm*ri(iq)*dden/den**2                          ! sea
+             dfm=vmod(iq)*2.*bprm*ri(iq)*dden/den**2 ! MJT zosea
+             zo(iq)=max(1.5e-10,zo(iq)-(zo(iq)-consea*af(iq)*fm)/    ! sea
+     .                        (1.-consea*(daf*fm+af(iq)*dfm))) ! MJT zosea
+             zo(iq)=min(zo(iq),13.) ! JLM fix                        ! sea
             enddo  ! it=1,3                                          ! sea
           endif    ! (xx>0.) .. else..                               ! sea
-         endif     ! (charnock<-1.) .. else ..
-        endif      ! (land(iq)) .. else ..
+         endif     ! (charnock<-1.) .. else ..                       ! sea
+        endif      ! (land(iq)) .. else ..                           ! sea
         aft(iq)=chnsea                                               ! sea
        enddo  ! iq loop
 
