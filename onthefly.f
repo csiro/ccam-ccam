@@ -150,7 +150,8 @@ c     start of processing loop
       use cc_mpi
       use ateb, only : atebdwn ! MJT urban
       use define_dimensions, only : ncs, ncp ! MJT cable
-      use mlo, only : wlev,mlodwn,ocndwn,micdwn,mlootf,ocnotf,micotf ! MJT mlo
+      use mlo, only : wlev,mlodwn,ocndwn,micdwn,mlootf,ocnotf,micotf,
+     &                sssb ! MJT mlo
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       use utilities
       implicit none
@@ -614,6 +615,30 @@ ccc      if ( myid==0 ) then
         call doints4(sicedep_a,sicedep,nface4,xg4,yg4,nord,ik)
         call doints4(fracice_a,fracice,nface4,xg4,yg4,nord,ik)
       end if ! iotest
+      
+      ! surface salinity for MLO
+      if (nmlo.ne.0.and.nud_sss.ne.0) then
+        if (.not.allocated(sssb)) then
+          allocate(sssb(ifull))
+        end if
+        call histrd1(ncid,iarchi,ier,'sal01',ik,6*ik,
+     &               t_a,6*ik*ik)
+        if (iotest) then
+          if (myid==0) then
+            call ccmpi_distribute(sssb,t_a)
+          else
+            call ccmpi_distribute(sssb)
+          end if
+        else
+          if (myid==0) then
+            where (land_a)
+              t_a=spval
+            end where
+            call fill_cc(t_a,spval,ik,0)
+          end if
+          call doints4(t_a,sssb,nface4,xg4,yg4,nord,ik)
+        end if ! iotest        
+      end if
       !--------------------------------------------------------------
 
       if ( nproc==1 ) write(6,*)'after ints4 sicedep ',sicedep(idjd)

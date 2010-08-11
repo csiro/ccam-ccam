@@ -1,5 +1,6 @@
       subroutine amipsst
       use cc_mpi
+      use mlo, only : mloexport,sssb ! MJT mlo
       implicit none
 !     this one primarily does namip>=2      
 !     but persisted SST anomalies for namip=-1
@@ -238,8 +239,9 @@ c       c1=0.
         if(fraciceb(iq)<=.02)fraciceb(iq)=0.
       enddo
       
-      sicedep(:)=0. 
-      if(ktau==0)then  ! will set sicedep in indata
+      if (nmlo.eq.0) then ! MJT mlo
+       sicedep(:)=0. 
+       if(ktau==0)then  ! will set sicedep in indata
         fracice(:)=fraciceb(:)
         do iq=1,ifull
          if(.not.land(iq))then
@@ -247,10 +249,10 @@ c       c1=0.
          endif    ! (.not.land(iq))
         enddo
         return
-      endif       ! (ktau==0)
+       endif       ! (ktau==0)
       
-      do iq=1,ifull
-       if(.not.land(iq))then
+       do iq=1,ifull
+        if(.not.land(iq))then
          if(fraciceb(iq)>0.)then
            if(fracice(iq)==0.)then
 !            create values for tice, and set averaged tss
@@ -265,8 +267,20 @@ c       c1=0.
          endif    ! (fraciceb(iq)>0.)
          fracice(iq)=fraciceb(iq)
          tss(iq)=tggsn(iq,1)*fracice(iq)+tgg(iq,1)*(1.-fracice(iq)) ! MJT seaice
-       endif      ! (.not.land(iq))
-      enddo
+        endif      ! (.not.land(iq))
+       enddo
+      !--------------------------------------------------------------
+      ! MJT mlo
+      else
+        ! if (.not.allocated(sssb)) then
+        !   allocate(sssb(ifull))
+        ! end if
+        ! sssb=input salinity
+        ! nudge mlo
+        call mlonudge(tgg(:,1))
+        call mloexport(0,ifull,tgg(:,1),1,0)
+      end if
+      !--------------------------------------------------------------
       if (mydiag)print *,'ktau,sicedep,aice,bice,cice,fracice: ',
      & ktau,sicedep(idjd),aice(idjd),bice(idjd),cice(idjd),fracice(idjd)
       return

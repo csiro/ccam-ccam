@@ -81,7 +81,7 @@ stacklimit.o: stacklimit.c
 
 # Dependencies
 adjust5.o : adjust5.f xyzinfo.h xarrs.h vvel.h vecsuv.h vecs.h tracers.h sigs.h pbl.h parmvert.h parmdyn.h parm.h nlin.h morepbl.h map.h liqwpar.h kuocom.h indices.h const_phys.h arrays.h newmpar.h diag_m.o cc_mpi.o tracermodule.o tkeeps.o
-amipsst.o : amipsst.f soilsnow.h soil.h pbl.h parm.h nsibd.h map.h filnames.h dates.h arrays.h newmpar.h cc_mpi.o 
+amipsst.o : amipsst.f soilsnow.h soil.h pbl.h parm.h nsibd.h map.h filnames.h dates.h arrays.h newmpar.h cc_mpi.o mlo.o
 bett_cuc.o : bett_cuc.f betts1.h newmpar.h 
 bettinit.o : bettinit.f betts1.h newmpar.h 
 bettrain.o : bettrain.f betts1.h newmpar.h 

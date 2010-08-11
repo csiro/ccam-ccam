@@ -31,7 +31,7 @@ implicit none
 
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
-       mloscrnout,mloexpice,wlev,depth,mlodwn,mlootf,micdwn,micotf,ocndwn,ocnotf
+       mloscrnout,mloexpice,wlev,depth,mlodwn,mlootf,micdwn,micotf,ocndwn,ocnotf,sssb
 
 type tdata
   real temp,sal,u,v
@@ -73,6 +73,7 @@ real, dimension(:,:), allocatable, save :: dz_hl
 real, dimension(:,:,:), allocatable, save :: mlodwn,mlootf ! These variables are for CCAM onthefly.f
 real, dimension(:,:), allocatable, save :: micdwn,micotf   ! These variables are for CCAM onthefly.f
 real, dimension(:), allocatable, save :: ocndwn,ocnotf     ! These variables are for CCAM onthefly.f
+real, dimension(:), allocatable, save :: sssb              ! To hold sea-surface salinity for nudging
 type(tdata), dimension(:,:), allocatable, save :: water
 type(tice), dimension(:), allocatable, save :: ice
 type(tprog2), dimension(:), allocatable, save :: pg
@@ -80,7 +81,7 @@ type(tprog2), dimension(:), allocatable, save :: pg
 ! mode
 integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 0 ! include shortwave in non-local term
-integer, parameter :: salrelax  = 1 ! relax salinity to 34.72 PSU (used for single column mode)
+integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
 
 ! max depth
 real, parameter :: mxd    = 977.6   ! Max depth (m)
@@ -365,15 +366,20 @@ end subroutine mlosave
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Import sst for nudging
 
-subroutine mloimport(ifull,sst,ilev,diag)
+subroutine mloimport(mode,ifull,sst,ilev,diag)
 
 implicit none
 
-integer, intent(in) :: ifull,ilev,diag
+integer, intent(in) :: mode,ifull,ilev,diag
 real, dimension(ifull), intent(in) :: sst
 
 if (wfull.eq.0) return
-water(:,ilev)%temp=sst(wgrid)
+select case(mode)
+  case(0)
+    water(:,ilev)%temp=sst(wgrid)
+  case(1)
+    water(:,ilev)%sal=sst(wgrid)
+end select
 
 return
 end subroutine mloimport
@@ -381,15 +387,20 @@ end subroutine mloimport
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export sst for nudging
 
-subroutine mloexport(ifull,sst,ilev,diag)
+subroutine mloexport(mode,ifull,sst,ilev,diag)
 
 implicit none
 
-integer, intent(in) :: ifull,ilev,diag
+integer, intent(in) :: mode,ifull,ilev,diag
 real, dimension(ifull), intent(inout) :: sst
 
 if (wfull.eq.0) return
-sst(wgrid)=water(:,ilev)%temp
+select case(mode)
+  case(0)
+    sst(wgrid)=water(:,ilev)%temp
+  case(1)
+    sst(wgrid)=water(:,ilev)%sal
+end select
 
 return
 end subroutine mloexport
@@ -1314,7 +1325,7 @@ do it=1,4
     dfm=vmag*2.*bprm*ri*(con*daf+af*cms*bprm*ri*atm%zmin/(sqrt(-ri*atm%zmin/pg%zo)*pg%zo*pg%zo))/(den*den) ! MJT suggestion
     pg%zo=pg%zo-(pg%zo-consea*af*fm)/(1.-consea*(daf*fm+af*dfm))
   end where
-  pg%zo=min(max(pg%zo,1.5e-10),13.)
+  pg%zo=min(max(pg%zo,1.5e-10),0.1)
 enddo    ! it=1,3
 afroot=vkar/log(atm%zmin/pg%zo)
 af=afroot**2

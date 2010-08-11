@@ -262,7 +262,7 @@ c       this is in-line ocenzo using latest coefficient, i.e. .018   ! sea
              daf=2.*af(iq)*afroot/(vkar*zo(iq))                      ! sea
              zo(iq)=max(1.5e-10,zo(iq)-(zo(iq)-con*af(iq))/          ! sea
      &                 (1.-con*daf)) !MJT zosea                      ! sea
-             zo(iq)=min(zo(iq),13.) ! JLM fix                        ! sea
+             zo(iq)=min(zo(iq),0.1) ! JLM fix                        ! sea
             enddo    ! it=1,3                                        ! sea
             afroot=vkar/log(zmin/zo(iq))                             ! sea
             af(iq)=afroot**2                                         ! sea
@@ -273,15 +273,15 @@ c       this is in-line ocenzo using latest coefficient, i.e. .018   ! sea
              daf=2.*af(iq)*afroot/(vkar*zo(iq))                      ! sea
              con1=cms*2.*bprm*sqrt(-ri(iq)*zmin/zo(iq))              ! sea
              den=1.+af(iq)*con1                                      ! sea
-             !dden=con1*(daf-.5*af(iq)/zo(iq))                        ! sea
-             dden=con1*daf+af(iq)*cms*2.*bprm*ri(iq)*zmin
-     &            /(sqrt(-ri(iq)*zmin/zo(iq))*zo(iq)*zo(iq))
+             !dden=con1*(daf-.5*af(iq)/zo(iq))                       ! sea
+             dden=con1*daf+af(iq)*cms*2.*bprm*ri(iq)*zmin            ! sea
+     &            /(sqrt(-ri(iq)*zmin/zo(iq))*zo(iq)*zo(iq))         ! sea
              fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/den                ! sea
-             !dfm=2.*bprm*ri(iq)*dden/den**2                          ! sea
-             dfm=vmod(iq)*2.*bprm*ri(iq)*dden/den**2 ! MJT zosea
+             !dfm=2.*bprm*ri(iq)*dden/den**2                         ! sea
+             dfm=vmod(iq)*2.*bprm*ri(iq)*dden/den**2 ! MJT zosea     ! sea
              zo(iq)=max(1.5e-10,zo(iq)-(zo(iq)-consea*af(iq)*fm)/    ! sea
      .                        (1.-consea*(daf*fm+af(iq)*dfm))) ! MJT zosea
-             zo(iq)=min(zo(iq),13.) ! JLM fix                        ! sea
+             zo(iq)=min(zo(iq),0.1) ! JLM fix                        ! sea
             enddo  ! it=1,3                                          ! sea
           endif    ! (xx>0.) .. else..                               ! sea
          endif     ! (charnock<-1.) .. else ..                       ! sea
@@ -505,7 +505,7 @@ c     if(mydiag.and.diag)then
      &               ,f,swrsave,fbeamvis,fbeamnir,0)                 ! MLO
         call mloscrnout(ifull,tscrn,qgscrn,uscrn,u10,0)              ! MLO
         do k=1,ms                                                    ! MLO
-          call mloexport(ifull,tgg(:,k),k,0)                         ! MLO
+          call mloexport(0,ifull,tgg(:,k),k,0)                       ! MLO
         end do                                                       ! MLO
         do k=1,3                                                     ! MLO
           call mloexpice(ifull,tggsn(:,k),k,0)                       ! MLO
