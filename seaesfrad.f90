@@ -433,28 +433,26 @@ do j=1,jl,imax/il
     end if
 
     ! Water/Ice albedo --------------------------------------------
-    if (nmlo.eq.0) then
-      ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
-      ! J. Clim. and Appl. Met., v. 27, 214-226)     ! 
-      where (.not.land(istart:iend).and.coszro(1:imax).ge.0.)
-        cuvrf_dir(1:imax) = 0.026/(coszro(1:imax)**1.7+0.065)                  &
-                       +0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
-      else where (.not.land(istart:iend))
-        cuvrf_dir(1:imax) = 0.3925 ! coszen=0 value of above expression
-      endwhere
-      where (.not.land(istart:iend))
-        cuvrf_dif(1:imax) = 0.06
-        cirrf_dir(1:imax) = cuvrf_dir(1:imax)
-        cirrf_dif(1:imax) = 0.06
-      end where
+    ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
+    ! J. Clim. and Appl. Met., v. 27, 214-226)     ! 
+    where (.not.land(istart:iend).and.coszro(1:imax).ge.0.)
+      cuvrf_dir(1:imax)=0.026/(coszro(1:imax)**1.7+0.065)                  &
+                     +0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
+    elsewhere (.not.land(istart:iend))
+      cuvrf_dir(1:imax)=0.3925 ! coszen=0 value of above expression
+    end where
+    where (.not.land(istart:iend))
+      cuvrf_dif(1:imax)=0.06
+      cirrf_dir(1:imax)=cuvrf_dir(1:imax)
+      cirrf_dif(1:imax)=0.06
       cuvrf_dir(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dir(1:imax)
       cuvrf_dif(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dif(1:imax)
       cirrf_dir(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
       cirrf_dif(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
-    else
-      ! use MLO to calculate albedo
-      call mloalb4(istart,imax,land(istart:iend),coszro,fracice(istart:iend),cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)
-    end if
+    end where      
+    
+    ! MLO albedo ----------------------------------------------------
+    call mloalb4(istart,imax,coszro,cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)    
 
     ! Urban albedo --------------------------------------------------
     call atebalb1(istart,imax,cuvrf_dir(1:imax),0)

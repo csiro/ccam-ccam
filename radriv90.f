@@ -404,21 +404,18 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
       end if ! else nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7      ! MJT CHANGE sib
 
       ! OCEAN/WATER -------------------------------------------------
-      if (nmlo.eq.0) then                                        ! MJT mlo
-        where (.not.land(istart:iend))                           ! MJT CHANGE sib
-          cuvrf(1:imax,1)=.85*fracice(istart:iend)+
-     .       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15) ! MJT CHANGE sib
-          cirrf(1:imax,1)=.45*fracice(istart:iend)+
-     .       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15) ! MJT CHANGE sib
-        end where                                                ! MJT CHANGE sib
-      else                                                       ! MJT mlo
-        call mloalb2(istart,imax,land(istart:iend),coszro,       ! MJT mlo
-     &               fracice(istart:iend),cuvrf(:,1),            ! MJT mlo
-     &               cirrf(:,1),0)                               ! MJT mlo
-      end if                                                     ! MJT mlo
-
+      where (.not.land(istart:iend))                           ! MJT CHANGE sib
+        cuvrf(1:imax,1)=.85*fracice(istart:iend)+
+     .     (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15) ! MJT CHANGE sib
+        cirrf(1:imax,1)=.45*fracice(istart:iend)+
+     .     (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15) ! MJT CHANGE sib
+      end where
+      
       !--------------------------------------------------------------
       ! MJT albedo
+      ! MLO ---------------------------------------------------------
+      call mloalb2(istart,imax,coszro,cuvrf(:,1),cirrf(:,1),0) ! MJT mlo
+
       ! URBAN -------------------------------------------------------
       call atebalb1(istart,imax,cuvrf(1:imax,1),0) ! MJT CHANGE - urban
       call atebalb1(istart,imax,cirrf(1:imax,1),0) ! MJT CHANGE - urban

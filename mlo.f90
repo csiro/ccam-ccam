@@ -472,26 +472,15 @@ end subroutine mloscrnout
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate albedo data (VIS + NIR)
 
-subroutine mloalb2(istart,ifull,land,coszro,fracice,ovisalb,oniralb,diag)
+subroutine mloalb2(istart,ifull,coszro,ovisalb,oniralb,diag)
 
 implicit none
 
 integer, intent(in) :: istart,ifull,diag
 integer ifinish,ib,ie,iqw
-real, dimension(ifull), intent(in) :: coszro,fracice
+real, dimension(ifull), intent(in) :: coszro
 real, dimension(ifull), intent(inout) :: ovisalb,oniralb
-real, dimension(ifull) :: watervis,waternir,icevis,icenir
-logical, dimension(ifull), intent(in) :: land
-
-watervis=.05/(coszro+0.15)
-waternir=.05/(coszro+0.15)
-! need to factor snow age into albedo
-icevis=0.85
-icenir=0.45
-where (.not.land)
-  ovisalb=icevis*fracice+(1.-fracice)*watervis
-  oniralb=icenir*fracice+(1.-fracice)*waternir
-endwhere
+real, dimension(wfull) :: watervis,waternir,icevis,icenir
 
 if (wfull.eq.0) return
 
@@ -509,14 +498,24 @@ do iqw=ib,wfull
 end do
 if (ie.lt.ib) return
 
-pg(ib:ie)%watervisdiralb=watervis(wgrid(ib:ie)-istart+1)
-pg(ib:ie)%watervisdifalb=watervis(wgrid(ib:ie)-istart+1)
-pg(ib:ie)%waternirdiralb=waternir(wgrid(ib:ie)-istart+1)
-pg(ib:ie)%waternirdifalb=waternir(wgrid(ib:ie)-istart+1)
-pg(ib:ie)%icevisdiralb=icevis(wgrid(ib:ie)-istart+1)
-pg(ib:ie)%icevisdifalb=icevis(wgrid(ib:ie)-istart+1)
-pg(ib:ie)%icenirdiralb=icenir(wgrid(ib:ie)-istart+1)
-pg(ib:ie)%icenirdifalb=icenir(wgrid(ib:ie)-istart+1)
+watervis(ib:ie)=.05/(coszro(wgrid(ib:ie)-istart+1)+0.15)
+waternir(ib:ie)=.05/(coszro(wgrid(ib:ie)-istart+1)+0.15)
+! need to factor snow age into albedo
+icevis(ib:ie)=0.85
+icenir(ib:ie)=0.45
+ovisalb(wgrid(ib:ie)-istart+1)=icevis(ib:ie)*ice(ib:ie)%fracice+ &
+                               (1.-ice(ib:ie)%fracice)*watervis(ib:ie)
+oniralb(wgrid(ib:ie)-istart+1)=icenir(ib:ie)*ice(ib:ie)%fracice+ &
+                               (1.-ice(ib:ie)%fracice)*waternir(ib:ie)
+
+pg(ib:ie)%watervisdiralb=watervis(ib:ie)
+pg(ib:ie)%watervisdifalb=watervis(ib:ie)
+pg(ib:ie)%waternirdiralb=waternir(ib:ie)
+pg(ib:ie)%waternirdifalb=waternir(ib:ie)
+pg(ib:ie)%icevisdiralb=icevis(ib:ie)
+pg(ib:ie)%icevisdifalb=icevis(ib:ie)
+pg(ib:ie)%icenirdiralb=icenir(ib:ie)
+pg(ib:ie)%icenirdifalb=icenir(ib:ie)
 
 return
 end subroutine mloalb2
@@ -524,37 +523,16 @@ end subroutine mloalb2
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate albedo data (VIS-DIR, VIS-DIF, NIR-DIR & NIR-DIF)
 
-subroutine mloalb4(istart,ifull,land,coszro,fracice,ovisdir,ovisdif,onirdir,onirdif,diag)
+subroutine mloalb4(istart,ifull,coszro,ovisdir,ovisdif,onirdir,onirdif,diag)
 
 implicit none
 
 integer, intent(in) :: istart,ifull,diag
 integer ifinish,ib,ie,iqw
-real, dimension(ifull), intent(in) :: coszro,fracice
+real, dimension(ifull), intent(in) :: coszro
 real, dimension(ifull), intent(inout) :: ovisdir,ovisdif,onirdir,onirdif
-real, dimension(ifull) :: watervisdiralb,watervisdifalb,waternirdiralb,waternirdifalb
-real, dimension(ifull) :: icevisdiralb,icevisdifalb,icenirdiralb,icenirdifalb
-logical, dimension(ifull), intent(in) :: land
-
-where (coszro.gt.0.)
-  watervisdiralb=0.026/(coszro**1.7+0.065)+0.15*(coszro-0.1)*(coszro-0.5)*(coszro-1.)
-elsewhere
-  watervisdiralb=0.3925 
-endwhere
-watervisdifalb=0.06
-waternirdiralb=watervisdiralb
-waternirdifalb=0.06
-! need to factor snow age into albedo
-icevisdiralb=0.85
-icevisdifalb=0.85
-icenirdiralb=0.45
-icenirdifalb=0.45
-where (.not.land)
-  ovisdir=fracice*icevisdiralb+(1.-fracice)*watervisdiralb
-  ovisdif=fracice*icevisdifalb+(1.-fracice)*watervisdifalb
-  onirdir=fracice*icenirdiralb+(1.-fracice)*waternirdiralb
-  onirdif=fracice*icenirdifalb+(1.-fracice)*waternirdifalb
-endwhere
+real, dimension(wfull) :: watervisdiralb,watervisdifalb,waternirdiralb,waternirdifalb
+real, dimension(wfull) :: icevisdiralb,icevisdifalb,icenirdiralb,icenirdifalb
 
 if (wfull.eq.0) return
 
@@ -572,14 +550,39 @@ do iqw=ib,wfull
 end do
 if (ie.lt.ib) return
 
-pg(ib:ie)%watervisdiralb=watervisdiralb(wgrid(ib:ie)-istart+1)
-pg(ib:ie)%watervisdifalb=watervisdifalb(wgrid(ib:ie)-istart+1)
-pg(ib:ie)%waternirdiralb=waternirdiralb(wgrid(ib:ie)-istart+1)
-pg(ib:ie)%waternirdifalb=waternirdifalb(wgrid(ib:ie)-istart+1)
-pg(ib:ie)%icevisdiralb=icevisdiralb(wgrid(ib:ie)-istart+1)
-pg(ib:ie)%icevisdifalb=icevisdifalb(wgrid(ib:ie)-istart+1)
-pg(ib:ie)%icenirdiralb=icenirdiralb(wgrid(ib:ie)-istart+1)
-pg(ib:ie)%icenirdifalb=icenirdifalb(wgrid(ib:ie)-istart+1)
+where (coszro(wgrid(ib:ie)-istart+1).gt.0.)
+  watervisdiralb(ib:ie)=0.026/(coszro(wgrid(ib:ie)-istart+1)**1.7+0.065)+ &
+                        0.15*(coszro(wgrid(ib:ie)-istart+1)-0.1)* &
+                        (coszro(wgrid(ib:ie)-istart+1)-0.5)* &
+                        (coszro(wgrid(ib:ie)-istart+1)-1.)
+elsewhere
+  watervisdiralb(ib:ie)=0.3925 
+endwhere
+watervisdifalb(ib:ie)=0.06
+waternirdiralb(ib:ie)=watervisdiralb(ib:ie)
+waternirdifalb(ib:ie)=0.06
+! need to factor snow age into albedo
+icevisdiralb(ib:ie)=0.85
+icevisdifalb(ib:ie)=0.85
+icenirdiralb(ib:ie)=0.45
+icenirdifalb(ib:ie)=0.45
+ovisdir(wgrid(ib:ie)-istart+1)=ice(ib:ie)%fracice*icevisdiralb(ib:ie)+ &
+                              (1.-ice(ib:ie)%fracice)*watervisdiralb(ib:ie)
+ovisdif(wgrid(ib:ie)-istart+1)=ice(ib:ie)%fracice*icevisdifalb(ib:ie)+ &
+                               (1.-ice(ib:ie)%fracice)*watervisdifalb(ib:ie)
+onirdir(wgrid(ib:ie)-istart+1)=ice(ib:ie)%fracice*icenirdiralb(ib:ie)+ &
+                               (1.-ice(ib:ie)%fracice)*waternirdiralb(ib:ie)
+onirdif(wgrid(ib:ie)-istart+1)=ice(ib:ie)%fracice*icenirdifalb(ib:ie)+ &
+                               (1.-ice(ib:ie)%fracice)*waternirdifalb(ib:ie)
+
+pg(ib:ie)%watervisdiralb=watervisdiralb(ib:ie)
+pg(ib:ie)%watervisdifalb=watervisdifalb(ib:ie)
+pg(ib:ie)%waternirdiralb=waternirdiralb(ib:ie)
+pg(ib:ie)%waternirdifalb=waternirdifalb(ib:ie)
+pg(ib:ie)%icevisdiralb=icevisdiralb(ib:ie)
+pg(ib:ie)%icevisdifalb=icevisdifalb(ib:ie)
+pg(ib:ie)%icenirdiralb=icenirdiralb(ib:ie)
+pg(ib:ie)%icenirdifalb=icenirdifalb(ib:ie)
 
 return
 end subroutine mloalb4
