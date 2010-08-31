@@ -162,15 +162,15 @@ do k=1,kl-1
 end do
 
 ! impose limits after host advection
-tke(1:ifull,:)=max(tke(1:ifull,:),1.5E-4)
+tke(1:ifull,:)=max(tke(1:ifull,:),1.5E-8)
 tke(1:ifull,:)=min(tke(1:ifull,:),65.)
 ff=cm34*(tke(1:ifull,:)**1.5)/5.
 eps(1:ifull,:)=min(eps(1:ifull,:),ff)
-ff=max(ff*5./500.,1.E-6)
+ff=max(ff*5./500.,1.E-10)
 eps(1:ifull,:)=max(eps(1:ifull,:),ff)
 
 ! Calculate diffusion coeffs
-km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-3)
+km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-10)
 
 ! calculate saturated mixing ratio
 do k=1,kl
@@ -399,12 +399,14 @@ end where
 ! boundary condition
 tke(1:ifull,1)=ustar*ustar/sqrt(cm)+0.45*wstar*wstar
 eps(1:ifull,1)=ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wtv0/thetav(:,1)
-tke(1:ifull,1)=max(tke(1:ifull,1),1.5E-4)
+tke(1:ifull,1)=max(tke(1:ifull,1),1.5E-8)
 tke(1:ifull,1)=min(tke(1:ifull,1),65.)
 aa(:,2)=cm34*(tke(1:ifull,1)**1.5)/5.
 eps(1:ifull,1)=min(eps(1:ifull,1),aa(:,2))
-aa(:,2)=max(aa(:,2)*5./500.,1.E-6)
+aa(:,2)=max(aa(:,2)*5./500.,1.E-10)
 eps(1:ifull,1)=max(eps(1:ifull,1),aa(:,2))
+
+!km(:,1)=max(cm*tke(1:ifull,1)*tke(1:ifull,1)/eps(1:ifull,1),1.E-3) ! update km at 1st level (see Turb.f)
 
 ! Calculate buoyancy terms (include gamt)
 if (mode.ne.1) then
@@ -434,7 +436,7 @@ ppt=ppt/km(:,2:kl)
 ! implicit approach (split form - helps with numerical stability)
 tkenew(:,2:kl)=tke(1:ifull,2:kl) ! 1st guess
 do icount=1,icm
-  tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-4)
+  tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-8)
   tkenew(:,2:kl)=min(tkenew(:,2:kl),65.)  
   aa=dt*ce2/tkenew(:,2:kl)
   cc=-eps(1:ifull,2:kl)-dt*ce1*cm*tkenew(:,2:kl)*(pps+max(ppb(:,2:kl),0.)+max(ppt,0.))
@@ -448,11 +450,13 @@ do icount=1,icm
   end where
 end do
 
-tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-4)
+!km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-3)
+
+tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-8)
 tkenew(:,2:kl)=min(tkenew(:,2:kl),65.)
 aa=cm34*(tkenew(:,2:kl)**1.5)/5.
 epsnew(:,2:kl)=min(epsnew(:,2:kl),aa)
-aa=max(aa*5./500.,1.E-6)
+aa=max(aa*5./500.,1.E-10)
 epsnew(:,2:kl)=max(epsnew(:,2:kl),aa)
 
 tke(1:ifull,2:kl)=tkenew(:,2:kl)
@@ -498,11 +502,11 @@ call thomas_min(tkenew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
 !    eps(1:ifull,k)=max(eps(1:ifull,k),eps(1:ifull,k-1)*(1.-0.05*dz_hl(:,k-1)/dz_ref))
 !  end where
 !end do
-tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-4)
+tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-8)
 tkenew(:,2:kl)=min(tkenew(:,2:kl),65.)
 aa=cm34*(tkenew(:,2:kl)**1.5)/5.
 epsnew(:,2:kl)=min(epsnew(:,2:kl),aa)
-aa=max(aa*5./500.,1.E-6)
+aa=max(aa*5./500.,1.E-10)
 epsnew(:,2:kl)=max(epsnew(:,2:kl),aa)
 tke(1:ifull,2:kl)=tkenew(:,2:kl)
 eps(1:ifull,2:kl)=epsnew(:,2:kl)
@@ -530,6 +534,8 @@ eps(1:ifull,2:kl)=epsnew(:,2:kl)
 !end do
 !dd(:,kl)=qg(:,kl)/dt+0.25*(mflx(:,kl)+mflx(:,kl-1))*(tup(:,kl)+tup(:,kl-1))/dz_fl(:,kl)
 !call thomas(kl,qg,aa(:,2:kl),bb,cc(:,1:kl-1),dd)
+
+!km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-3)
 
 ! Update diffusion coeffs at half levels
 do k=1,kl-1

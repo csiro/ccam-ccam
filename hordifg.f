@@ -284,14 +284,14 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
            write(6,*) "ERROR: nhorjlm=3 requires nvmix=6"         ! MJT tke
            stop                                                   ! MJT tke
          end if                                                   ! MJT tke
-         tke=max(tke,1.5E-4)                                      ! MJT tke
+         tke=max(tke,1.5E-8)                                      ! MJT tke
          eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)                  ! MJT tke
          eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)                ! MJT tke
-         eps=max(eps,1.E-6)                                       ! MJT tke
+         eps=max(eps,1.E-10)                                      ! MJT tke
          hdif=dt*0.09/ds                                          ! MJT tke
          do k=1,kl                                                ! MJT tke
            t_kh(1:ifull,k)= max(tke(1:ifull,k)*tke(1:ifull,k)
-     &     /eps(1:ifull,k),1.E-3)*hdif/em(1:ifull)                ! MJT tke
+     &     /eps(1:ifull,k),1.E-7)*hdif/em(1:ifull)                ! MJT tke
          end do                                                   ! MJT tke
         case DEFAULT                                          ! MJT smag
          write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm  ! MJT smag

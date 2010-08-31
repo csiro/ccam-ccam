@@ -510,20 +510,21 @@ c       For time varying surface fields
         lname = 'y-component max level_2 wind'
         call attrib(idnc,idim,3,'v2max',lname,'m/s',-99.,99.,1)
         lname = '10m wind speed'
-        call attrib(idnc,idim,3,'u10',lname,'m/s',0.,100.,0)
+        call attrib(idnc,idim,3,'u10',lname,'m/s',0.,130.,0)
 c       lname = '3m wind speed'
 c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         lname = 'Screen level wind speed'
-        call attrib(idnc,idim,3,'uscrn',lname,'m/s',0.,40.,0) ! MJT bug fix
+        call attrib(idnc,idim,3,'uscrn',lname,'m/s',0.,65.,0) ! MJT bug fix
         lname = 'Surface albedo'
         call attrib(idnc,idim,3,'alb',lname,'none',0.,1.,0)
         lname = 'Sea ice depth'
-        call attrib(idnc,idim,3,'siced',lname,'m',0.,50.,0)
+        !call attrib(idnc,idim,3,'siced',lname,'m',0.,65.,0) ! MJT seaice
+        call attrl  (idnc,idim,3,'siced',lname,'m',0.,65.,0) ! MJT seaice	
         lname = 'Sea ice fraction'
-        call attrib(idnc,idim,3,'fracice',lname,'none',0.,1.,0)
+        call attrib(idnc,idim,3,'fracice',lname,'none',0.,6.5,0)
         lname = 'Snow depth (liquid water)'
 c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
-        call attrl (idnc,idim,3,'snd',lname,'mm',0.,5000.,0)  ! long
+        call attrl (idnc,idim,3,'snd',lname,'mm',0.,6500.,0)  ! long
         lname = 'Low cloud ave'
         call attrib(idnc,idim,3,'cll',lname,'frac',0.,1.,0)
         lname = 'Mid cloud ave'

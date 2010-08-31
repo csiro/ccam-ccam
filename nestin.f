@@ -2594,7 +2594,7 @@
       end subroutine mlofilterfast
 
       subroutine mlospechost(myid,mproc,hproc,npta,pn,px,ns,ne,cq,cqs,
-     &                       diffs_g,diff_g,miss)
+     &                       diff_g,diffs_g,miss)
       
       implicit none
       

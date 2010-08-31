@@ -311,10 +311,10 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       call histrd1(ncid,iarchi,ier,'siced',ik,6*ik,sicedep_a,6*ik*ik)
       call histrd1(ncid,iarchi,ierr,'fracice',ik,6*ik,fracice_a,6*ik*ik)
       if(ier==0)then  ! i.e. sicedep read in 
-        where (sicedep_a<.05)
-          sicedep_a=0.
-          fracice_a=0.
-        end where
+        !where (sicedep_a<.05)
+        !  sicedep_a=0.
+        !  fracice_a=0.
+        !end where
         if(ierr.ne.0)then ! i.e. sicedep read in; fracice not read in
           where(sicedep_a>0.)
             fracice_a=1.
@@ -1190,7 +1190,7 @@ ccc      if ( myid==0 ) then
             ucc=1.5E-4 ! dummy for tke
             call histrd4s(ncid,iarchi,ier,'tke',ik,6*ik,k,
      &                    ucc,6*ik*ik)
-            vcc=1.E-6 ! dummy for eps
+            vcc=1.E-7 ! dummy for eps
             call histrd4s(ncid,iarchi,ier,'eps',ik,6*ik,k,
      &                    vcc,6*ik*ik)
             if (iotest) then
@@ -1210,10 +1210,10 @@ ccc      if ( myid==0 ) then
           end do
           call vertint(u_k,tke(1:ifull,:),6,kk,sigin)  
           call vertint(v_k,eps(1:ifull,:),6,kk,sigin)
-          tke=max(tke,1.5E-4)
+          tke=max(tke,1.5E-8)
           eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)
           eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)          
-          eps=max(eps,1.E-6)       
+          eps=max(eps,1.E-10)       
           tkesav=tke(1:ifull,:)
           epssav=eps(1:ifull,:)
         end if

@@ -50,7 +50,7 @@ type tprog2
 end type tprog2
 type tatm
   real sg,rg,rnd,snd,f,vnratio,fbvis,fbnir
-  real ps,p1,u,v,temp,qg,zmin
+  real ps,u,v,temp,qg,zmin,zmins
 end type tatm
 type tdiag2
   real b0,ustar,wu0,wv0,wt0,ws0,taux,tauy
@@ -82,6 +82,7 @@ type(tprog2), dimension(:), allocatable, save :: pg
 integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 0 ! include shortwave in non-local term
 integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
+integer, parameter :: zomode    = 2 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 
 ! max depth
 real, parameter :: mxd    = 977.6   ! Max depth (m)
@@ -355,7 +356,7 @@ iceout(wgrid,4)=ice(:)%tn(2)
 iceout(wgrid,5)=ice(:)%fracice
 iceout(wgrid,6)=ice(:)%dic
 iceout(wgrid,7)=ice(:)%dsn
-iceout(wgrid,8)=0.
+iceout(:,8)=0.
 iceout(wgrid,8)=ice(:)%sto
 depout=0.
 depout(wgrid)=depth_hl(:,wlev+1)
@@ -634,14 +635,14 @@ end subroutine mloregrid
 ! Pack atmospheric data for MLO eval
 
 subroutine mloeval(ifull,sst,zo,cd,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
-                   dt,zmin,sg,rg,precp,uatm,vatm,temp,qg,ps,p1, &
+                   dt,zmin,zmins,sg,rg,precp,uatm,vatm,temp,qg,ps, &
                    f,visnirratio,fbvis,fbnir,diag)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
-real, intent(in) :: dt,zmin
-real, dimension(ifull), intent(in) :: sg,rg,precp,f,uatm,vatm,temp,qg,ps,p1,visnirratio,fbvis,fbnir
+real, intent(in) :: dt
+real, dimension(ifull), intent(in) :: sg,rg,precp,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,zmin,zmins
 real, dimension(ifull), intent(inout) :: sst,zo,cd,fg,eg,wetfac,fracice,siced,epot,epan,snowd
 real, dimension(wfull) :: workb
 type(tatm), dimension(wfull) :: atm
@@ -670,8 +671,8 @@ atm%v=vatm(wgrid)
 atm%temp=temp(wgrid)
 atm%qg=qg(wgrid)
 atm%ps=ps(wgrid)
-atm%p1=p1(wgrid)
 atm%zmin=zmin
+atm%zmins=zmins
 
 call fluxcalc(atm,dg2,diag)        ! ocean fluxes
 call getrho(atm,dg2,dg3)           ! boundary conditions
@@ -1269,6 +1270,7 @@ dg3(:,wlev)%rad=atm%sg/cp0*((1.-visalb)*atm%vnratio*exp(-depth_hl(:,wlev)/mu_1)+
 dg2%wu0=-dg2%taux/dg3(:,1)%rho                                                ! BC
 dg2%wv0=-dg2%tauy/dg3(:,1)%rho                                                ! BC
 dg2%wt0=-(-pg%fg-pg%eg+atm%rg-sbconst*water(:,1)%temp**4)/(dg3(:,1)%rho*cp0)  ! BC
+dg2%wt0=dg2%wt0-lf*atm%snd/(dg3(:,1)%rho*cp0) ! melting snow
 dg2%ws0=(atm%rnd+atm%snd-pg%eg/lv)*water(:,1)%sal/rs(:,1)                     ! BC
 
 dg2%rs=rs(:,1) ! save for sea-ice flux
@@ -1294,61 +1296,115 @@ type(tdiag2), dimension(wfull), intent(inout) :: dg2
 real, dimension(wfull) :: qsat,ri,vmag,rho,srcp
 real, dimension(wfull) :: fm,fh,con,consea,afroot,af,daf
 real, dimension(wfull) :: den,dfm,sig,factch,root
-real, dimension(wfull) :: z1onzt,aft,atu,atv
+real, dimension(wfull) :: aft,atu,atv,dcs,afq,facqch,fq
 real ztv
+! ..... high wind speed - rough sea
+real, parameter :: zcom1 = 1.8e-2    ! Charnock's constant
+real, parameter :: zcoh1 = 0.0       ! Beljaars 1994 values
+real, parameter :: zcoq1 = 0.0
+! ..... low wind speed - smooth sea
+real, parameter :: gnu   = 1.5e-5
+real, parameter :: zcom2 = 0.11
+real, parameter :: zcoh2 = 0.40
+real, parameter :: zcoq2 = 0.62
 
 atu=atm%u-water(:,1)%u
 atv=atm%v-water(:,1)%v
 vmag=sqrt(atu*atu+atv*atv)
-sig=atm%p1/atm%ps
+sig=exp(-grav*atm%zmins/(rdry*atm%temp))
 srcp=sig**(rdry/cp)
 rho=atm%ps/(rdry*water(:,1)%temp)
-ztv=exp(vkar/sqrt(chn10))/10.  ! proper inverse of ztsea
-z1onzt=300.*rdry*(1.-sig)*ztv/grav
-aft=(vkar/log(z1onzt))**2    ! should give .00085 for csiro9
 
 call getqsat(qsat,water(:,1)%temp,atm%ps)
-qsat=0.98*qsat ! with Zeng 1998 for sea water
-ri=min(grav*atm%zmin*(1.-water(:,1)%temp*srcp/atm%temp)/max(vmag,0.1)**2,rimax)
-consea=vmag*charnck/grav
-pg%zo=0.001    ! first guess
-do it=1,4
-  afroot=vkar/log(atm%zmin/pg%zo)
-  af=afroot*afroot
-  daf=2.*af*afroot/(vkar*pg%zo)
-  where (ri>0.) ! stable water points                                                 
-    fm=1./(1.+bprm*ri)**2
-    con=consea*fm*vmag
-    pg%zo=pg%zo-(pg%zo-con*af)/(1.-con*daf)
-  elsewhere     ! unstable water points
-    con=cms*2.*bprm*sqrt(-ri*atm%zmin/pg%zo)
-    den=1.+af*con
-    fm=vmag-vmag*2.*bprm*ri/den
-    !dfm=2.*bprm*ri*con*(daf-.5*af/pg%zo)/den**2
-    dfm=vmag*2.*bprm*ri*(con*daf+af*cms*bprm*ri*atm%zmin/(sqrt(-ri*atm%zmin/pg%zo)*pg%zo*pg%zo))/(den*den) ! MJT suggestion
-    pg%zo=pg%zo-(pg%zo-consea*af*fm)/(1.-consea*(daf*fm+af*dfm))
-  end where
-  pg%zo=min(max(pg%zo,1.5e-10),0.1)
-enddo    ! it=1,3
+if (zomode.eq.0) then ! CSIRO9
+  qsat=0.98*qsat ! with Zeng 1998 for sea water
+end if
+ri=min(grav*(atm%zmin**2/atm%zmins)*(1.-water(:,1)%temp*srcp/atm%temp)/max(vmag,0.1)**2,rimax)
+select case(zomode)
+  case(0,1) ! Charnock
+    consea=vmag*charnck/grav
+    pg%zo=0.001    ! first guess
+    do it=1,4
+      afroot=vkar/log(atm%zmin/pg%zo)
+      af=afroot*afroot
+      daf=2.*af*afroot/(vkar*pg%zo)
+      where (ri>0.) ! stable water points                                                 
+        fm=1./(1.+bprm*ri)**2
+        con=consea*fm*vmag
+        pg%zo=pg%zo-(pg%zo-con*af)/(1.-con*daf)
+      elsewhere     ! unstable water points
+        con=cms*2.*bprm*sqrt(-ri*atm%zmin/pg%zo)
+        den=1.+af*con
+        fm=vmag-vmag*2.*bprm*ri/den
+        dfm=vmag*2.*bprm*ri*(con*daf+af*cms*bprm*ri*atm%zmin/(sqrt(-ri*atm%zmin/pg%zo)*pg%zo*pg%zo))/(den*den) ! MJT suggestion
+        pg%zo=pg%zo-(pg%zo-consea*af*fm)/(1.-consea*(daf*fm+af*dfm))
+      end where
+      pg%zo=min(max(pg%zo,1.5e-10),0.1)
+    enddo    ! it=1,4
+  case(2) ! Beljaars
+    pg%zo=0.001    ! first guess
+    do it=1,4
+      afroot=vkar/log(atm%zmin/pg%zo)
+      af=afroot*afroot
+      daf=2.*af*afroot/(vkar*pg%zo)
+      where (ri>0.) ! stable water points                                                 
+        fm=1./(1.+bprm*ri)**2
+        consea=zcom1*vmag**2*fm*af/grav+zcom2*gnu/max(vmag*sqrt(fm*af),gnu)
+        dcs=(zcom1*vmag**2/grav-0.5*zcom2*gnu/(max(vmag*sqrt(fm*af),gnu)*fm*af))*(fm*daf)
+      elsewhere     ! unstable water points
+        con=cms*2.*bprm*sqrt(-ri*atm%zmin/pg%zo)
+        den=1.+af*con
+        fm=1.-2.*bprm*ri/den
+        dfm=2.*bprm*ri*(con*daf+af*cms*bprm*ri*atm%zmin/(sqrt(-ri*atm%zmin/pg%zo)*pg%zo*pg%zo))/(den*den) ! MJT suggestion
+        consea=zcom1*vmag**2*af*fm/grav+zcom2*gnu/max(vmag*sqrt(fm*af),gnu)
+        dcs=(zcom1*vmag**2/grav-0.5*zcom2*gnu/(max(vmag*sqrt(fm*af),gnu)*fm*af))*(fm*daf+dfm*af)
+      end where
+      pg%zo=pg%zo-(pg%zo-consea)/(1.-dcs)      
+      pg%zo=min(max(pg%zo,1.5e-6),0.1)
+    enddo    ! it=1,4  
+end select
 afroot=vkar/log(atm%zmin/pg%zo)
 af=afroot**2
-factch=sqrt(pg%zo*ztv)
+
+select case(zomode)
+  case(0) ! Charnock CSIRO9
+    ztv=exp(vkar/sqrt(chn10))/10.      ! proper inverse of ztsea
+    aft=(vkar/log(atm%zmins*ztv))**2    ! should give .00085 for csiro9
+    afq=aft    
+    factch=sqrt(pg%zo*ztv)
+    facqch=factch
+  case(1) ! Charnock zot=zom
+    aft=(vkar/log(atm%zmins/pg%zo))**2
+    afq=aft
+    factch=1.
+    facqch=1.
+  case(2) ! Beljaars
+    aft=max(zcoh1+zcoh2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-6)
+    afq=max(zcoq1+zcoq2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-6)
+    factch=sqrt(pg%zo/aft)
+    facqch=sqrt(pg%zo/afq)
+    aft=(vkar/log(atm%zmins/aft))**2
+    afq=(vkar/log(atm%zmins/afq))**2
+end select
 
 where (ri>0.)
   fm=1./(1.+bprm*ri)**2  ! no zo contrib for stable
   fh=fm
+  fq=fm
 elsewhere        ! ri is -ve
   root=sqrt(-ri*atm%zmin/pg%zo)
   den=1.+cms*2.*bprm*af*root
   fm=1.-2.*bprm*ri/den
   den=1.+chs*2.*bprm*factch*aft*root
   fh=1.-2.*bprm*ri/den
+  den=1.+chs*2.*bprm*facqch*afq*root
+  fq=1.-2.*bprm*ri/den  
 end where
 
 pg%wetfac=1.
 pg%cd=af*fm
 pg%fg=rho*aft*cp*fh*vmag*(water(:,1)%temp-atm%temp/srcp)
-pg%eg=rho*aft*lv*fh*vmag*(qsat-atm%qg)
+pg%eg=rho*afq*lv*fq*vmag*(qsat-atm%qg)
 dg2%taux=rho*pg%cd*vmag*atu
 dg2%tauy=rho*pg%cd*vmag*atv
 
@@ -1400,7 +1456,7 @@ type(tprog2), dimension(wfull) :: pg_pack
 type(tdiag3), dimension(wfull,wlev), intent(in) :: dg3
 
 ! identify sea ice for packing
-cice=ice%dic.gt.0.
+cice=ice%dic.gt.1.E-6
 nice=count(cice)
 iqc=0
 do iqw=1,wfull
@@ -1414,6 +1470,7 @@ if (nice.gt.0) then
   ! pack data
   call icepack(wfull,nice,icegrid,ice,ice_pack)
   atm_pack(1:nice)%snd=atm(icegrid(1:nice))%snd
+  atm_pack(1:nice)%rnd=atm(icegrid(1:nice))%rnd
   pg_pack(1:nice)%egice=pg(icegrid(1:nice))%egice
   dg2_pack(1:nice)%tb=dg2(icegrid(1:nice))%tb
   dg2_pack(1:nice)%fb=dg2(icegrid(1:nice))%fb
@@ -1489,7 +1546,7 @@ integer, intent(in) :: nice,diag
 integer iqi,nc0,nc1,nc2,nc3
 integer, dimension(nice) :: iq0,iq1,iq2,iq3
 real, intent(in) :: dt
-real, dimension(nice) :: xxx,excess,hb
+real, dimension(nice) :: xxx,excess
 type(tice), dimension(nice), intent(inout) :: ice_pack
 type(tice), dimension(nice) :: ice_temp
 type(tdiag2), dimension(nice), intent(inout) :: dg2_pack
@@ -1499,10 +1556,10 @@ type(tprog2), dimension(nice), intent(in) :: pg_pack
 type(tprog2), dimension(nice) :: pg_temp
 
 ! snow fall
-where (atm_pack%snd.gt.0..and.ice_pack%dsn.le.1.E-6)
+where ((atm_pack%rnd+atm_pack%snd).gt.0..and.ice_pack%dsn.le.1.E-6)
   ice_pack%tn(0)=ice_pack%tn(1)
 end where
-ice_pack%dsn=ice_pack%dsn+atm_pack%snd
+ice_pack%dsn=ice_pack%dsn+dt*(atm_pack%rnd+atm_pack%snd)/1000.
 
 ! Pack different ice configurations
 nc0=0 ! snow + 1-2 ice layers
@@ -1589,21 +1646,21 @@ end if
 
 ! white ice formation
 xxx=ice_pack%dic+ice_pack%dsn-(rhosn*ice_pack%dsn+rhoic*ice_pack%dic)/rhowt
-where(xxx.lt.ice_pack%dsn)
+where(ice_pack%dsn.gt.xxx)
   excess=(ice_pack%dsn-xxx)*0.1                   ! m of water
-  dg2_pack%salflx=dg2_pack%salflx-1000./dt*excess ! m of water
-  hb=0.5*ice_pack%dic+excess                      ! Assume 2 levels of ice, hence 0.5*hi
-  ice_pack%tn(1)=(0.5*ice_pack%dic*ice_pack%tn(1)+excess*ice_pack%tn(0))/hb
+  dg2_pack%salflx=dg2_pack%salflx-1000.*excess/dt ! m of water
+  ice_pack%tn(1)=(0.5*ice_pack%dic*ice_pack%tn(1)+excess*ice_pack%tn(0)) &
+                /(0.5*ice_pack%dic+excess) ! Assume 2 levels of ice, hence 0.5*hi
   ice_pack%dsn=xxx
   ice_pack%dic=ice_pack%dic+excess
 end where
 
 ! Snow depth limitation and conversion to ice
-where(ice_pack%dsn.gt.2.)
-  excess=(ice_pack%dsn-2.) ! m water
+where(ice_pack%dsn.gt.0.2)
+  excess=(ice_pack%dsn-0.2)*0.1                   ! m water
+  dg2_pack%salflx=dg2_pack%salflx-1000.*excess/dt ! m of water
+  ice_pack%dsn=0.2
   ice_pack%dic=ice_pack%dic+excess
-  dg2_pack%salflx=dg2_pack%salflx-1000./dt*excess     ! m of water
-  ice_pack%dsn=2.
 end where
 
 ! Ice depth limitation
@@ -1732,7 +1789,7 @@ bot=gamms/dt+4.*sbconst*ice_temp%tsurf**3+con
 ice_temp%tsurf=ice_temp%tsurf+(dg2%ftop+fs)/bot
 ! Snow melt (snmelt >= 0)
 snmelt=10.*max(0.,ice_temp%tsurf-273.16)*gamms/qsnow ! m of "snow"
-ice_temp%tsurf=min(ice_temp%tsurf,273.16) ! melting condition ts=tsmelt
+ice_temp%tsurf=min(ice_temp%tsurf,273.16)            ! melting condition ts=tsmelt
 ! Ammendments if surface layer < 5cms : Use adjusted snow depth
 where (ice_temp%dsn.lt.0.05)
   ti=(ice_temp%dic*condsnw*ice_temp%tsurf+2.*real(dg2%nk)*ice_temp%dsn*condice*ice_temp%tn(1)) & ! MJT suggestion
@@ -1760,7 +1817,7 @@ fl(:,1)=rhin*condice*(ice_temp%tn(2)-ice_temp%tn(1)) ! Between ice layers 2 and 
 
 ! Surface evap/sublimation (can be >0 or <0)
 ! Note : dt*eg/hl in Kgm/m**2 => mms of water
-subl=0.001*dt*pg_temp%egice/lv   ! m of "snow"
+subl=0.01*dt*pg_temp%egice/lv   ! m of "snow"
 dg2%salflx=dg2%salflx+pg_temp%egice/lv
 ! Change the snow thickness
 dhs=snmelt+subl
@@ -1778,7 +1835,7 @@ ice_temp%tn(0)=ice_temp%tn(0)+dt*(fl(:,0)-fs)/(max(ice_temp%dsn,1.E-6)*cps)
 ice_temp%tn(0)=min(ice_temp%tn(0),273.16)
 
 ! Remove very thin snow
-where (ice_temp%dsn.gt.0..and.ice_temp%dsn.lt.1.E-4)
+where (ice_temp%dsn.gt.0..and.ice_temp%dsn.lt.1.E-6)
   fsnmelt=ice_temp%dsn*lf/(0.01*dt) ! J/m2/sec ! heat flux to melt snow
   ice_temp%tn(1)=ice_temp%tn(1)-dt*fsnmelt*rhin/cpi
   ice_temp%dsn=0.
@@ -1790,7 +1847,8 @@ do iqi=1,nc
 
   if (dg2(iqi)%nk.gt.1) then
     ! update temperature in top layer of ice
-    tp(1)=min(ice_temp(iqi)%tn(1)+dt*(fl(iqi,1)-fl(iqi,0))*rhin(iqi)/cpi,dg2(iqi)%timelt)
+    tp(1)=ice_temp(iqi)%tn(1)+dt*(fl(iqi,1)-fl(iqi,0))*rhin(iqi)/cpi
+    tp(1)=min(tp(1),dg2(iqi)%timelt)
     if (ice_temp(iqi)%sto.gt.0..and.tp(1).lt.dg2(iqi)%timelt) then
       ! use stored heat in brine pockets to keep temperature at -0.1 until heat is used up
       qneed=(dg2(iqi)%timelt-tp(1))*cpi/rhin(iqi) ! J/m**2
@@ -1808,8 +1866,8 @@ do iqi=1,nc
 
   ! determine amount of bottom ablation or accretion
   fl(iqi,dg2(iqi)%nk)=condice*(dg2(iqi)%tb-ice_temp(iqi)%tn(dg2(iqi)%nk))*2.*rhin(iqi)
-  ! limit the ice growth for cases of poor initial conditions
-  dhb(iqi)=min(0.01,dt*(fl(iqi,dg2(iqi)%nk)-dg2(iqi)%fb)/qice)
+  dhb(iqi)=dt*(fl(iqi,dg2(iqi)%nk)-dg2(iqi)%fb)/qice
+  dhb(iqi)=min(0.01,dhb(iqi)) ! limit the ice growth for cases of poor initial conditions
   hinew=ice_temp(iqi)%dic+dhb(iqi)
   ! determine depths below surface of interim and final interfaces
   con0=hinew/real(dg2(iqi)%nk)
@@ -1955,7 +2013,7 @@ ice_temp%tsurf=min(ice_temp%tsurf,dg2%timelt) ! melting condition ti=timelt
 ti=ice_temp%tsurf
 
 ! Upward fluxes between various levels below surface
-fl(:,0)=con*(ice_temp%tn(1)-ice_temp%tsurf) ! Middle of first ice layer to thin surface layer = ftopadj
+fl(:,0)=ftopadj                                      ! Middle of first ice layer to thin surface layer = ftopadj
 fl(:,1)=condice*(ice_temp%tn(2)-ice_temp%tn(1))*rhin ! Between ice layers 2 and 1
 
 ! Surface evap/sublimation (can be >0 or <0)
@@ -1980,6 +2038,7 @@ do iqi=1,nc
   
   if (dg2(iqi)%nk.eq.2) then
     tp(1)=ice_temp(iqi)%tn(1)+dt/cpi*(fl(iqi,1)-fl(iqi,0))/(ice_temp(iqi)%dic/real(dg2(iqi)%nk)+dhi(iqi))
+    tp(1)=min(tp(1),dg2(iqi)%timelt)
     if (ice_temp(iqi)%sto.gt.0..and.tp(1).lt.dg2(iqi)%timelt) then
       qneed=(dg2(iqi)%timelt-tp(1))*cpi/rhin(iqi) ! J/m**2
       if (ice_temp(iqi)%sto.le.qneed) then
@@ -1995,7 +2054,8 @@ do iqi=1,nc
 
   ! determine amount of bottom ablation or accretion
   fl(iqi,dg2(iqi)%nk)=condice*(dg2(iqi)%tb-ice_temp(iqi)%tn(dg2(iqi)%nk))*2.*rhin(iqi)
-  dhb(iqi)=min(0.01,dt*(fl(iqi,dg2(iqi)%nk)-dg2(iqi)%fb)/qice) ! limit for poor initial conditions
+  dhb(iqi)=dt*(fl(iqi,dg2(iqi)%nk)-dg2(iqi)%fb)/qice
+  dhb(iqi)=min(0.01,dhb(iqi)) ! limit for poor initial conditions
   hinew=ice_temp(iqi)%dic+dhi(iqi)+dhb(iqi)
   
   ! determine depths below surface of interim and final interfaces
@@ -2117,7 +2177,7 @@ type(tprog2), dimension(nc), intent(in) :: pg_temp
 ! Update tsurf and ti based on fluxes from above and below
 con=1./(ice_temp%dsn/condsnw+ice_temp%dic/condice)
 f0=con*(dg2%tb-ice_temp%tsurf) ! flux from below
-gamms=4.857e4                     ! density*specific heat*depth (for snow)
+gamms=4.857e4                  ! density*specific heat*depth (for snow)
 bot=gamms/dt+4.*sbconst*ice_temp%tsurf**3+con
 ice_temp%tsurf=ice_temp%tsurf+(dg2%ftop+f0)/bot
 ! Snow melt (snmelt >= 0)
@@ -2127,10 +2187,9 @@ ti=(ice_temp%dic*condsnw*ice_temp%tsurf+ice_temp%dsn*condice*dg2%tb) &
   /(ice_temp%dic*condsnw+ice_temp%dsn*condice)
 
 ! Surface evap/sublimation (can be >0 or <0)
-subl=0.001*dt*pg_temp%egice/lv
+subl=0.01*dt*pg_temp%egice/lv
 dg2%salflx=dg2%salflx+pg_temp%egice/lv
-! Change the snow thickness
-dhs=snmelt+subl
+dhs=snmelt+subl ! Change the snow thickness
 where (dhs.gt.ice_temp%dsn)
   ice_temp%dic=ice_temp%dic-0.1*(dhs-ice_temp%dsn)
   snmelt=max(ice_temp%dsn-subl,0.)
@@ -2138,9 +2197,8 @@ where (dhs.gt.ice_temp%dsn)
 elsewhere
   ice_temp%dsn=ice_temp%dsn-dhs
 end where
-! determine amount of bottom ablation or accretion
-dhb=min(0.01,dt*(f0-dg2%fb)/qice) ! limit for poor initial conditions
-! update ice thickness
+dhb=dt*(f0-dg2%fb)/qice       ! Ice melt (simelt >= 0)
+dhb=min(0.01,dhb)             ! limit for poor initial conditions
 ice_temp%dic=ice_temp%dic+dhb
 
 where (ice_temp%dic.lt.1.E-3)
@@ -2193,18 +2251,16 @@ f0=con*(dg2%tb-ice_temp%tsurf) ! flux from below
 gamms=3.471e5                     ! density*specific heat*depth (for ice)
 bot=gamms/dt+4.*sbconst*ice_temp%tsurf**3+con
 ice_temp%tsurf=ice_temp%tsurf+(dg2%ftop+f0)/bot
-! Ice melt (simelt >= 0)
-simelt=max(0.,ice_temp%tsurf-dg2%timelt)*gamms/qice 
-ice_temp%tsurf=min(ice_temp%tsurf,dg2%timelt) ! melting condition ti=timelt
+simelt=max(0.,ice_temp%tsurf-dg2%timelt)*gamms/qice ! Ice melt (simelt >= 0)
+ice_temp%tsurf=min(ice_temp%tsurf,dg2%timelt)       ! melting condition ti=timelt
 
 ! Surface evap/sublimation (can be >0 or <0)
 subl=0.001*dt*pg_temp%egice/lv
 dg2%salflx=dg2%salflx+pg_temp%egice/lv
 dhi=-subl-simelt
-! determine amount of bottom ablation or accretion
-dhb=min(0.01,dt*(f0-dg2%fb)/qice) ! limit for poor initial conditions
-! update ice thickness
-ice_temp%dic=ice_temp%dic+dhi+dhb
+dhb=dt*(f0-dg2%fb)/qice           ! determine amount of bottom ablation or accretion
+dhb=min(0.01,dhb)                 ! limit for poor initial conditions
+ice_temp%dic=ice_temp%dic+dhi+dhb ! update ice thickness
 
 where (ice_temp%dic.lt.1.E-3)
   ice_temp%dic=0.
@@ -2237,12 +2293,12 @@ type(tdiag3), dimension(wfull,wlev), intent(in) :: dg3
 real, intent(in) :: dt
 real, dimension(wfull) :: qsat,ri,vmag,rho,srcp
 real, dimension(wfull) :: fm,fh,af,aft,logzo
-real, dimension(wfull) :: den,sig,factch,root
+real, dimension(wfull) :: den,sig,root
 real, dimension(wfull) :: alb,qmax,eye
-real x
+real x,factch
 
 vmag=sqrt(atm%u*atm%u+atm%v*atm%v)
-sig=atm%p1/atm%ps
+sig=exp(-grav*atm%zmins/(rdry*atm%temp))
 srcp=sig**(rdry/cp)
 rho=atm%ps/(rdry*ice%tsurf)
 
@@ -2253,7 +2309,7 @@ aft=vkar**2/(logzo*(2.+logzo))
 factch=sqrt(7.4)
 
 call getqsat(qsat,ice%tsurf,atm%ps)
-ri=min(grav*atm%zmin*(1.-ice%tsurf*srcp/atm%temp)/max(vmag,0.1)**2,rimax)
+ri=min(grav*(atm%zmin**2/atm%zmins)*(1.-ice%tsurf*srcp/atm%temp)/max(vmag,0.1)**2,rimax)
 
 where (ri>0.)
   fm=1./(1.+bprm*ri)**2  ! no zo contrib for stable
@@ -2266,7 +2322,7 @@ elsewhere        ! ri is -ve
   fh=1.-2.*bprm*ri/den
 end where
 
-pg%wetfacice=1.+.008*min(ice%tsurf-273.16,0.)
+pg%wetfacice=max(1.+.008*min(ice%tsurf-273.16,0.),0.)
 pg%cdice=af*fm
 pg%fgice=rho*aft*cp*fh*vmag*(ice%tsurf-atm%temp/srcp)
 pg%egice=pg%wetfacice*rho*aft*lv*fh*vmag*(qsat-atm%qg)
@@ -2380,59 +2436,39 @@ type(tatm), dimension(wfull), intent(in) :: atm
 real, dimension(wfull), intent(in) :: zo,stemp,smixr
 real, dimension(wfull), intent(out) :: tscrn,qgscrn,uscrn,u10
 real, dimension(wfull) :: umag,sig
-real, dimension(wfull) :: lzom,lzoh,af,aft,ri,fm,fh,root
-real, dimension(wfull) :: denma,denha,cd,thetav,sthetav
-real, dimension(wfull) :: thetavstar,z_on_l,z0_on_l,zt_on_l
+real, dimension(wfull) :: lzom,lzoh,thetav,sthetav
+real, dimension(wfull) :: thetavstar,z_on_l,z0_on_l,z0s_on_l,zt_on_l
 real, dimension(wfull) :: pm0,ph0,pm1,ph1,integralm,integralh
 real, dimension(wfull) :: ustar,qstar,z10_on_l
-real, dimension(wfull) :: neutral,neutral10,pm10
+real, dimension(wfull) :: neutrals,neutral,neutral10,pm10
 real, dimension(wfull) :: integralm10,tstar,scrp
 integer, parameter ::  nc     = 5
 real, parameter    ::  a_1    = 1.
 real, parameter    ::  b_1    = 2./3.
 real, parameter    ::  c_1    = 5.
 real, parameter    ::  d_1    = 0.35
-!real, parameter    ::  aa1    = 3.8
-!real, parameter    ::  bb1    = 0.5
-!real, parameter    ::  cc1    = 0.3
 real, parameter    ::  lna    = 2.3
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
 
 umag=sqrt(atm%u*atm%u+atm%v*atm%v)
-sig=atm%p1/atm%ps
+sig=exp(-grav*atm%zmins/(rdry*atm%temp))
 scrp=sig**(rdry/cp)
 thetav=atm%temp*(1.+0.61*atm%qg)/scrp
 sthetav=stemp*(1.+0.61*smixr)
 
 ! Roughness length for heat
 lzom=log(atm%zmin/zo)
-lzoh=lna+lzom
-
-! use Louis as first guess for Dyer and Hicks scheme
-af=vkar*vkar/(lzom*lzom)
-aft=vkar*vkar/(lzom*lzoh)
-! umag is now constrained to be above umin
-ri=min(grav*atm%zmin*(1.-sthetav/thetav)/umag**2,rimax)
-where (ri>0.)
-  fm=1./(1.+bprm*ri)**2
-  fh=fm
-elsewhere
-  root=sqrt(-ri*exp(lzom))
-  denma=1.+cms*2.*bprm*af*root
-  denha=1.+chs*2.*bprm*aft*exp(0.5*lna)*root
-  fm=1.-2.*bprm*ri/denma
-  fh=1.-2.*bprm*ri/denha
-end where
-cd=af*fm
+lzoh=lna+log(atm%zmins/zo)
 
 ! Dyer and Hicks approach 
-thetavstar=aft*fh*(thetav-sthetav)/sqrt(cd)
+thetavstar=vkar*(thetav-sthetav)/lzoh
+ustar=vkar*umag/lzom
 do ic=1,nc
-  z_on_l=vkar*atm%zmin*grav*thetavstar/(thetav*cd*umag**2)
+  z_on_l=vkar*(atm%zmin**2/atm%zmins)*grav*thetavstar/(thetav*ustar**2)
   z_on_l=min(z_on_l,10.)
   z0_on_l  = z_on_l*exp(-lzom)
-  zt_on_l  = z0_on_l*exp(-lna)
+  zt_on_l  = z_on_l*exp(-lzoh)
   where (z_on_l.lt.0.)
     pm0     = (1.-16.*z0_on_l)**(-0.25)
     ph0     = (1.-16.*zt_on_l)**(-0.5)
@@ -2457,34 +2493,29 @@ do ic=1,nc
     integralm = lzom-(pm1-pm0)
     integralh = lzoh-(ph1-ph0)
   endwhere
-! where (z_on_l.le.0.4)
-  cd = (max(0.01,min(vkar*umag/integralm,2.))/umag)**2
-! elsewhere
-!   cd = (max(0.01,min(vkar*umag/(aa1*( ( z_on_l**bb1)*
-!  &         (1.0+cc1* z_on_l**(1.-bb1))
-!  &         -(z0_on_l**bb1)*(1.+cc1*z0_on_l**(1.-bb1)) )),2.))
-!  &         /umag)**2
-! endwhere
-  thetavstar= vkar*(thetav-sthetav)/integralh
+  thetavstar=vkar*(thetav-sthetav)/integralh
+  ustar=vkar*umag/integralm
 end do
-ustar=sqrt(cd)*umag
-tstar=vkar*(atm%temp/scrp-stemp)/integralh
+tstar=vkar*(atm%temp-stemp)/integralh
 qstar=vkar*(atm%qg-smixr)/integralh
       
 ! estimate screen diagnostics
+z0s_on_l=z0*z_on_l/atm%zmins
 z0_on_l=z0*z_on_l/atm%zmin
 z10_on_l=z10*z_on_l/atm%zmin
+z0s_on_l=min(z0s_on_l,10.)
 z0_on_l=min(z0_on_l,10.)
 z10_on_l=min(z10_on_l,10.)
+neutrals=log(atm%zmins/z0)
 neutral=log(atm%zmin/z0)
 neutral10=log(atm%zmin/z10)
 where (z_on_l.lt.0.)
-  ph0     = (1.-16.*z0_on_l)**(-0.50)
+  ph0     = (1.-16.*z0s_on_l)**(-0.50)
   ph1     = (1.-16.*z_on_l)**(-0.50)
   pm0     = (1.-16.*z0_on_l)**(-0.25)
   pm10    = (1.-16.*z10_on_l)**(-0.25)
   pm1     = (1.-16.*z_on_l)**(-0.25)
-  integralh = neutral-2.*log((1.+1./ph1)/(1.+1./ph0))
+  integralh = neutrals-2.*log((1.+1./ph1)/(1.+1./ph0))
   integralm = neutral-2.*log((1.+1./pm1)/(1.+1./pm0)) &
                  -log((1.+1./pm1**2)/(1.+1./pm0**2)) &
                  +2.*(atan(1./pm1)-atan(1./pm0))
@@ -2493,28 +2524,28 @@ where (z_on_l.lt.0.)
                 +2.*(atan(1./pm1)-atan(1./pm10))     
 elsewhere
   !-------Beljaars and Holtslag (1991) heat function
-  ph0  = -((1.+(2./3.)*a_1*z0_on_l)**1.5 &
-         +b_1*(z0_on_l-(c_1/d_1)) &
-         *exp(-d_1*z0_on_l)+b_1*c_1/d_1-1.)
-  ph1  = -((1.+(2./3.)*a_1*z_on_l)**1.5 &
-         +b_1*(z_on_l-(c_1/d_1)) &
-         *exp(-d_1*z_on_l)+b_1*c_1/d_1-1.)
+  ph0  = -((1.+(2./3.)*a_1*z0s_on_l)**1.5 &
+         +b_1*(z0s_on_l-(c_1/d_1)) &
+         *exp(-d_1*z0s_on_l)+b_1*c_1/d_1-1.)
+  ph1  = -((1.+(2./3.)*a_1*z0s_on_l)**1.5 &
+         +b_1*(z0s_on_l-(c_1/d_1)) &
+         *exp(-d_1*z0s_on_l)+b_1*c_1/d_1-1.)
   pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l) &
          +b_1*c_1/d_1)
   pm10 = -(a_1*z10_on_l+b_1*(z10_on_l-(c_1/d_1)) &
          *exp(-d_1*z10_on_l)+b_1*c_1/d_1)
   pm1  = -(a_1*z_on_l+b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l) &
          +b_1*c_1/d_1)
-  integralh = neutral-(ph1-ph0)
+  integralh = neutrals-(ph1-ph0)
   integralm = neutral-(pm1-pm0)
   integralm10 = neutral10-(pm1-pm10)
 endwhere
-tscrn       = atm%temp-tstar/vkar*integralh*scrp
-qgscrn      = atm%qg-qstar/vkar*integralh
-qgscrn      = max(qgscrn,1.E-4)
+tscrn  = atm%temp-tstar*integralh/vkar
+qgscrn = atm%qg-qstar*integralh/vkar
+qgscrn = max(qgscrn,1.E-4)
 
-uscrn=max(umag-ustar/vkar*integralm,0.)
-u10=max(umag-ustar/vkar*integralm10,0.)
+uscrn=max(umag-ustar*integralm/vkar,0.)
+u10  =max(umag-ustar*integralm10/vkar,0.)
 
 return
 end subroutine scrntile

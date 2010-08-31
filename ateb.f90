@@ -53,7 +53,7 @@ public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,ate
 
 ! type definitions
 type tatm
-  real :: sg,rg,rho,temp,mixr,ps,pa,umag,udir,rnd,snd
+  real :: sg,rg,rho,temp,mixr,ps,umag,udir,rnd,snd,zmin
 end type tatm
 type tout
   real :: fg,eg,ts,wf
@@ -111,8 +111,8 @@ integer, parameter :: vegmode=2           ! In-canyon vegetation mode (0=50%/50%
 integer, parameter :: scrnmeth=1          ! Screen diagnostic method (0=Slab, 1=Canopy)
 integer, parameter :: iqt = 3432          ! Diagnostic point (in terms of host grid)
 ! sectant solver parameters
-integer, parameter :: nfgits=4            ! Maximum number of iterations for calculating sensible heat flux (default=6)
-integer, parameter :: negits=2            ! Maximum number of iterations for calculating latent heat flux (default=2)
+integer, parameter :: nfgits=6            ! Maximum number of iterations for calculating sensible heat flux (default=6)
+integer, parameter :: negits=3            ! Maximum number of iterations for calculating latent heat flux (default=2)
 real, parameter    :: tol=0.001           ! Sectant method tolarance for sensible heat flux
 real, parameter    :: tolqg=1.E-8         ! Sectant method tolarance for latent heat flux
 real, parameter    :: alpha=0.7           ! Weighting for determining the rate of convergence when calculating canyon temperatures
@@ -154,7 +154,7 @@ real, parameter :: swilt=0.18             ! In-canyon soil wilting point
 real, parameter :: sfc=0.26               ! In-canyon soil field capacity
 real, parameter :: ssat=0.42              ! In-canyon soil saturation point
 ! stability function parameters
-integer, parameter :: icmax=1             ! number of iterations for stability functions (default=5)
+integer, parameter :: icmax=5             ! number of iterations for stability functions (default=5)
 real, parameter    :: bprm=5.             ! 4.7 in rams
 real, parameter    :: chs=2.6             ! 5.3 in rams
 real, parameter    :: cms=5.              ! 7.4 in rams
@@ -853,13 +853,13 @@ end subroutine atebscrnout
 ! owf = Input/Output wetness fraction/surface water (%)
 ! diag = diagnostic message mode (0=off, 1=basic messages, 2=more detailed messages, etc)
 
-subroutine atebcalc(ifull,ofg,oeg,ots,owf,dt,zmin,sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv,umin,diag,raw)
+subroutine atebcalc(ifull,ofg,oeg,ots,owf,dt,zmin,sg,rg,rnd,rho,temp,mixr,ps,uu,vv,umin,diag,raw)
 
 implicit none
 
 integer, intent(in) :: ifull,diag
-real, intent(in) :: dt,zmin,umin
-real, dimension(ifull), intent(in) :: sg,rg,rnd,rho,temp,mixr,ps,pa,uu,vv
+real, intent(in) :: dt,umin
+real, dimension(ifull), intent(in) :: sg,rg,rnd,rho,temp,mixr,ps,uu,vv,zmin
 real, dimension(ifull), intent(inout) :: ofg,oeg,ots,owf
 type (tatm), dimension(ufull) :: atm
 type (tout), dimension(ufull) :: uo
@@ -871,13 +871,13 @@ if (ufull.eq.0) return
 mode=.false.
 if (present(raw)) mode=raw
 
+atm%zmin=zmin
 atm%sg=sg(ugrid)
 atm%rg=rg(ugrid)
 atm%rho=rho(ugrid)
 atm%temp=temp(ugrid)
 atm%mixr=mixr(ugrid)
 atm%ps=ps(ugrid)
-atm%pa=pa(ugrid)
 atm%umag=max(sqrt(uu(ugrid)**2+vv(ugrid)**2),umin)
 atm%udir=atan2(vv(ugrid),uu(ugrid))
 where (atm%temp.le.273.16) ! diagnose snow
@@ -888,7 +888,7 @@ elsewhere
   atm%snd=0.
 end where
 
-call atebeval(uo,dt,atm,zmin,diag)
+call atebeval(uo,dt,atm,diag)
 
 if (mode) then
   ofg(ugrid)=uo%fg
@@ -936,14 +936,14 @@ end subroutine atebcalc
 !  Estimate bulk long wave flux and surface temperature
 !  Estimate bulk sensible and latent heat fluxes
 
-subroutine atebeval(uo,ddt,atm,zmin,diag)
+subroutine atebeval(uo,ddt,atm,diag)
 
 implicit none
 
 integer, intent(in) :: diag
 integer iqu,k,ii,cns,cnr
 integer, dimension(ufull) :: igs,igr
-real, intent(in) :: ddt,zmin
+real, intent(in) :: ddt
 real, dimension(ufull,2:3) :: ggaroof,ggawall,ggaroad
 real, dimension(ufull,1:3) :: ggbroof,ggbwall,ggbroad
 real, dimension(ufull,1:2) :: ggcroof,ggcwall,ggcroad
@@ -957,7 +957,7 @@ real, dimension(ufull) :: ncwa,ncwe,ncww,ncwr,ncra,ncrr,ncrw
 real, dimension(ufull) :: rcwa,rcwe,rcww,rcwr,rcra,rcrr,rcrw
 real, dimension(ufull) :: p_fgtop,p_wallpsi,p_roadpsi
 real, dimension(ufull) :: p_sntemp,p_gasn,p_snmelt
-real, dimension(ufull) :: z_on_l
+real, dimension(ufull) :: z_on_l,pa
 logical, parameter :: caleffzo=.false. ! estimate effective roughness length
 type(tatm), dimension(ufull), intent(in) :: atm
 type(tatm), dimension(ufull) :: p_atm
@@ -1044,14 +1044,15 @@ dg%rdsndelta=road%snow/(road%snow+maxrdsn)
 
 ! canyon (displacement height at refheight*building height)
 dg%sigd=atm%ps*exp(-grav*fn%bldheight*refheight/(rd*atm%temp))
-dg%tempc=atm%temp*(dg%sigd/atm%pa)**(rd/aircp)
+pa=atm%ps*exp(-grav*atm%zmin/(rd*atm%temp))
+dg%tempc=atm%temp*(dg%sigd/pa)**(rd/aircp)
 call getqsat(ufull,qsatr,dg%tempc,dg%sigd)
-call getqsat(ufull,a,atm%temp,atm%pa)
+call getqsat(ufull,a,atm%temp,pa)
 dg%mixrc=atm%mixr*qsatr/a ! a=qsata
 
 ! roof (displacement height at building height)
 dg%sigr=atm%ps*exp(-grav*fn%bldheight/(rd*atm%temp))
-dg%tempr=atm%temp*(dg%sigr/atm%pa)**(rd/aircp)
+dg%tempr=atm%temp*(dg%sigr/pa)**(rd/aircp)
 call getqsat(ufull,qsatr,dg%tempr,dg%sigr)
 dg%mixrr=atm%mixr*qsatr/a ! a=qsata
 
@@ -1138,11 +1139,11 @@ zonet=0.1*fn%bldheight*exp(-1./zolog)
 zom=zomratio*fn%bldheight
 n=road%snow/(road%snow+maxrdsn+0.408*grav*zom)                 ! snow cover for urban roughness calc (Douville, et al 1995)
 zom=(1.-n)*zom+n*zosnow                                        ! blend urban and snow roughness lengths (i.e., snow fills canyon)
-dg%rfdzmin=max(abs(zmin-fn%bldheight),zocanyon+1.)             ! distance to roof displacement height
-where (zmin.ge.fn%bldheight)
-  pg%lzom=log(zmin/zom)
+dg%rfdzmin=max(abs(atm%zmin-fn%bldheight),zocanyon+1.)         ! distance to roof displacement height
+where (atm%zmin.ge.fn%bldheight)
+  pg%lzom=log(atm%zmin/zom)
 elsewhere ! lowest atmospheric model level is within the canopy.  Need to interact with boundary layer scheme.
-  pg%lzom=log(fn%bldheight/zom)*exp(0.5*fn%hwratio*(1.-zmin/fn%bldheight))
+  pg%lzom=log(fn%bldheight/zom)*exp(0.5*fn%hwratio*(1.-atm%zmin/fn%bldheight))
 end where
 pg%cndzmin=zom*exp(pg%lzom)                                     ! distance to canyon displacement height
 
@@ -1346,10 +1347,8 @@ dg%roofrgout=sbconst*(dg%rfsndelta*snowemiss*rfsntemp**4+(1.-dg%rfsndelta)*fn%ro
                     +(1.-dg%rfsndelta*snowemiss-(1.-dg%rfsndelta)*fn%roofemiss)*atm%rg
 a=log(dg%rfdzmin/zocanyon)
 xw=(dg%roofdelta*(1.-dg%rfsndelta)+dg%rfsndelta)*qsatr ! roof surface mixing ratio
-we=roof%temp(1)*(1.+0.61*xw)
-ww=dg%tempr*(1.+0.61*dg%mixrr)
 ! n and xe are dummy variables for cd and lzohroof
-call getinvres(ufull,acond%roof,n,z_on_l,xe,a,dg%rfdzmin,we,ww,atm%umag,1) ! Assume zot=0.1*zom (i.e., Kanda et al 2007, small experiment)
+call getinvres(ufull,acond%roof,n,z_on_l,xe,a,dg%rfdzmin,roof%temp(1),xw,dg%tempr,dg%mixrr,atm%umag,1) ! Assume zot=0.1*zom (i.e., Kanda et al 2007, small experiment)
 acond%roof=acond%roof/atm%umag
 fg%roof=aircp*atm%rho*(roof%temp(1)-dg%tempr)*acond%roof*atm%umag
 call getqsat(ufull,qsatr,roof%temp(1),dg%sigr)
@@ -1507,25 +1506,23 @@ uo%wf=fn%sigmabld*(1.-dg%rfsndelta)*dg%roofdelta+(1.-fn%sigmabld)*(1.-dg%rdsndel
 ! (re)calculate heat roughness length for MOST (diagnostic only)
 call getqsat(ufull,a,uo%ts,dg%sigd)
 a=a*uo%wf
-we=uo%ts*(1.+0.61*a)
-ww=dg%tempc*(1.+0.61*dg%mixrc)
 select case(zohmeth)
   case(0) ! Use veg formulation
     pg%lzoh=2.3+pg%lzom
-    call getinvres(ufull,n,pg%cduv,z_on_l,pg%lzoh,pg%lzom,pg%cndzmin,we,ww,atm%umag,4)
+    call getinvres(ufull,n,pg%cduv,z_on_l,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,a,dg%tempc,dg%mixrc,atm%umag,4)
   case(1) ! Use Kanda parameterisation
-    call getinvres(ufull,n,pg%cduv,z_on_l,pg%lzoh,pg%lzom,pg%cndzmin,we,ww,atm%umag,2)
+    call getinvres(ufull,n,pg%cduv,z_on_l,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,a,dg%tempc,dg%mixrc,atm%umag,2)
     ! Adjust roughness length for heat to account for in-canyon vegetation
     pg%lzoh=1./((1.-fn%sigmaveg*(1.-fn%sigmabld))/pg%lzoh+fn%sigmaveg*(1.-fn%sigmabld)/(2.3+pg%lzom))
     ! (re)calculate drag coeff
-    call getinvres(ufull,n,pg%cduv,z_on_l,pg%lzoh,pg%lzom,pg%cndzmin,we,ww,atm%umag,4)
+    call getinvres(ufull,n,pg%cduv,z_on_l,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,a,dg%tempc,dg%mixrc,atm%umag,4)
   case(2) ! Use Kanda parameterisation
     pg%lzoh=1./((1.-fn%sigmaveg*(1.-fn%sigmabld))/(6.+pg%lzom)+fn%sigmaveg*(1.-fn%sigmabld)/(2.3+pg%lzom)) ! Kanda (2005)
-    call getinvres(ufull,n,pg%cduv,z_on_l,pg%lzoh,pg%lzom,pg%cndzmin,we,ww,atm%umag,4)
+    call getinvres(ufull,n,pg%cduv,z_on_l,pg%lzoh,pg%lzom,pg%cndzmin,uo%ts,a,dg%tempc,dg%mixrc,atm%umag,4)
 end select
 
 ! calculate screen level diagnostics
-call scrncalc(uo%ts,atm%temp,a,atm%mixr,atm%umag,dg,rdsntemp,veg%moist,zonet)
+call scrncalc(atm%temp,uo%ts,dg%tempc,a,atm%mixr,atm%umag,dg,rdsntemp,veg%moist,zonet)
 
 !if (caleffzo) then ! verification
 !  if ((uo(iqut)%ts-dg(iqut)%tempc)*uo(iqut)%fg.le.0.) then
@@ -1584,17 +1581,17 @@ end subroutine getqsat
 ! but modified for increased ration between momentum and heat roughness lengths
 ! Also, included Dyer and Hicks scheme based on TAPM Surf.f
 
-subroutine getinvres(cn,invres,cd,z_on_l,olzoh,ilzom,zmin,sthetav,thetav,umag,mode)
+subroutine getinvres(cn,invres,cd,z_on_l,olzoh,ilzom,zmin,stheta,smix,theta,mix,umag,mode)
 
 implicit none
 
 integer, intent(in) :: cn,mode
 
-real, dimension(cn), intent(in) :: ilzom,zmin,sthetav,thetav,umag
+real, dimension(cn), intent(in) :: ilzom,zmin,stheta,theta,umag,smix,mix
 real, dimension(cn), intent(out) :: invres,cd,z_on_l
 real, dimension(cn), intent(inout) :: olzoh
 real, dimension(cn) :: af,aft,ri,fm,fh,root,denma,denha,re,lna
-real, dimension(cn) :: thetavstar,integralh
+real, dimension(cn) :: thetavstar,integralh,thetav,sthetav
 real, parameter :: nu = 1.461E-5
 !real, parameter :: eta0 = 1.827E-5
 !real, parameter :: t0 = 291.15
@@ -1602,10 +1599,13 @@ real, parameter :: nu = 1.461E-5
 !eta=eta0*((t0+c)/(theta+c))*(theta/t0)**(2./3.)
 !nu=eta/rho
 
+thetav=theta*(1.+0.61*mix)
+sthetav=stheta*(1.+0.61*smix)
+
 ! use Louis as first guess for Dyer and Hicks scheme (if used)
 af=(vkar/ilzom)**2
 ! umag is now constrained to be above umin in tebcalc
-ri=min(grav*zmin*(1.-sthetav/thetav)/umag**2,rimax)
+ri=min(grav*zmin*(1.-stheta/theta)/umag**2,rimax)
 where (ri>0.)
   fm=1./(1.+bprm*ri)**2
 elsewhere
@@ -1637,10 +1637,11 @@ elsewhere
   fh=1.-2.*bprm*ri/denha
 end where
 invres=aft*fh*umag
- 
-thetavstar=aft*fh*(thetav-sthetav)/sqrt(cd)
+
+integralh=vkar*sqrt(cd)/(aft*fh)
+thetavstar=vkar*(thetav-sthetav)/integralh
 call dyerhicks(cn,integralh,z_on_l,cd,thetavstar,thetav,sthetav,umag,zmin,ilzom,lna)
-invres=(vkar/integralh)*sqrt(cd)*umag
+invres=vkar*sqrt(cd)*umag/integralh
 
 return
 end subroutine getinvres
@@ -1772,7 +1773,7 @@ integer, intent(in) :: cn
 real, intent(in) :: ddt
 real, dimension(cn), intent(out) :: evct,rfsnmelt,garfsn
 real, dimension(cn), intent(in) :: rfsntemp
-real, dimension(cn) :: cd,rfsnqsat,lzotdum,lzosnow,sndepth,snlambda,ldratio,we,ww,z_on_l
+real, dimension(cn) :: cd,rfsnqsat,lzotdum,lzosnow,sndepth,snlambda,ldratio,z_on_l
 type(trad), dimension(cn), intent(inout) :: rg,fg,eg,acond
 type(trad), dimension(cn), intent(in) :: sg
 type(tatm), dimension(cn), intent(in) :: atm
@@ -1788,9 +1789,7 @@ ldratio=0.5*(sndepth/snlambda+ifn%roofdepth(1)/ifn%rooflambda(1))
 ! Update roof snow energy budget
 lzosnow=log(dg%rfdzmin/zosnow)
 call getqsat(cn,rfsnqsat,rfsntemp,dg%sigr)
-we=rfsntemp*(1.+0.61*rfsnqsat)
-ww=dg%tempr*(1.+0.61*dg%mixrr)
-call getinvres(cn,acond%rfsn,cd,z_on_l,lzotdum,lzosnow,dg%rfdzmin,we,ww,atm%umag,1)
+call getinvres(cn,acond%rfsn,cd,z_on_l,lzotdum,lzosnow,dg%rfdzmin,rfsntemp,rfsnqsat,dg%tempr,dg%mixrr,atm%umag,1)
 acond%rfsn=acond%rfsn/atm%umag
 rfsnmelt=dg%rfsndelta*max(0.,rfsntemp-273.16)/(icecp*iroof%den*lf*ddt) 
 rg%rfsn=snowemiss*(atm%rg-sbconst*rfsntemp**4)
@@ -1950,7 +1949,7 @@ real, dimension(cn), intent(out) :: evct
 real, dimension(cn), intent(in) :: rdsntemp,wallpsi,roadpsi,trafficout,ldratio
 real, dimension(cn) :: roadqsat,rdsnqsat,fgtop
 real, dimension(cn) :: vegqsat,res,f1,f2,f3,f4,ff,qsat
-real, dimension(cn) :: dumroaddelta,dumvegdelta,we,ww
+real, dimension(cn) :: dumroaddelta,dumvegdelta
 real, dimension(cn) :: newcanyonmix,oldcanyonmix,evctmx,evctmxdif
 real, dimension(cn) :: z_on_l
 type(trad), dimension(cn), intent(inout) :: rg,fg,eg,acond
@@ -1978,9 +1977,7 @@ call getqsat(cn,rdsnqsat,rdsntemp,dg%sigd)
 ! set-up initial guess for canyon mixing ratio
 dg%canyonmix=0.
 oldcanyonmix=dg%canyonmix
-we=dg%canyontemp*(1.+0.61*dg%canyonmix)
-ww=dg%tempc*(1.+0.61*dg%mixrc)
-call getinvres(cn,topinvres,ipg%cduv,z_on_l,ipg%lzoh,ipg%lzom,ipg%cndzmin,we,ww,atm%umag,3)
+call getinvres(cn,topinvres,ipg%cduv,z_on_l,ipg%lzoh,ipg%lzom,ipg%cndzmin,dg%canyontemp,dg%canyonmix,dg%tempc,dg%mixrc,atm%umag,3)
 call gettopu(cn,dg%topu,atm%umag,ipg%cndzmin,ifn%bldheight*(1.-refheight),ifn%hwratio,z_on_l,ipg%cduv)
 where (roadqsat.lt.dg%canyonmix)
   dumroaddelta=1.
@@ -2006,9 +2003,8 @@ dg%canyonmix=dg%mixrc
 ! Sectant solver for canyonmix
 do ic=1,negits
   evctmxdif=evctmx ! store to calculate derivative
-  we=dg%canyontemp*(1.+0.61*dg%canyonmix)
   ! solve for aerodynamical resistance between canyon and atmosphere (neglect molecular diffusion)
-  call getinvres(cn,topinvres,ipg%cduv,z_on_l,ipg%lzoh,ipg%lzom,ipg%cndzmin,we,ww,atm%umag,3)
+  call getinvres(cn,topinvres,ipg%cduv,z_on_l,ipg%lzoh,ipg%lzom,ipg%cndzmin,dg%canyontemp,dg%canyonmix,dg%tempc,dg%mixrc,atm%umag,3)
   call gettopu(cn,dg%topu,atm%umag,ipg%cndzmin,ifn%bldheight*(1.-refheight),ifn%hwratio,z_on_l,ipg%cduv)
   ! correction for dew
   where (roadqsat.lt.dg%canyonmix)
@@ -2360,12 +2356,12 @@ end subroutine gettopu
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate screen diagnostics
-subroutine scrncalc(stemp,temp,smixr,mixr,umag,dg,rdsntemp,moist,zonet)
+subroutine scrncalc(temp,stheta,theta,smixr,mixr,umag,dg,rdsntemp,moist,zonet)
       
 implicit none
 
 integer ic
-real, dimension(ufull), intent(in) :: stemp,temp,umag
+real, dimension(ufull), intent(in) :: temp,stheta,theta,umag
 real, dimension(ufull), intent(in) :: smixr,mixr,rdsntemp,moist,zonet
 real, dimension(ufull) :: af,aft,ri,fm,fh,root
 real, dimension(ufull) :: denma,denha,cd,thetav,sthetav
@@ -2373,15 +2369,15 @@ real, dimension(ufull) :: thetavstar,z_on_l,z0_on_l
 real, dimension(ufull) :: pm0,ph0,pm1,ph1,integralm,integralh
 real, dimension(ufull) :: ustar,qstar,z10_on_l
 real, dimension(ufull) :: neutral,neutral10,pm10
-real, dimension(ufull) :: integralm10
+real, dimension(ufull) :: integralm10,tts,tetp
 real, dimension(ufull) :: tstar,lna
 real, dimension(ufull) :: utop,ttop,qtop,wf,tsurf,qsurf,n
 type(tdiag), dimension(ufull), intent(in) :: dg
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
 
-thetav=temp*(1.+0.61*mixr)
-sthetav=stemp*(1.+0.61*smixr)
+thetav=theta*(1.+0.61*mixr)
+sthetav=stheta*(1.+0.61*smixr)
 
 ! Roughness length for heat
 lna=pg%lzoh-pg%lzom
@@ -2390,7 +2386,7 @@ lna=pg%lzoh-pg%lzom
 af=vkar*vkar/(pg%lzom*pg%lzom)
 aft=vkar*vkar/(pg%lzom*pg%lzoh)
 ! umag is now constrained to be above umin
-ri=min(grav*pg%cndzmin*(1.-sthetav/thetav)/umag**2,rimax)
+ri=min(grav*pg%cndzmin*(1.-stheta/theta)/umag**2,rimax)
 where (ri>0.)
   fm=1./(1.+bprm*ri)**2
   fh=fm
@@ -2407,11 +2403,11 @@ cd=af*fm
 thetavstar=aft*fh*(thetav-sthetav)/sqrt(cd)
 call dyerhicks(ufull,integralh,z_on_l,cd,thetavstar,thetav,sthetav,umag,pg%cndzmin,pg%lzom,lna)
 ustar=sqrt(cd)*umag
-tstar=vkar*(temp-stemp)/integralh
 qstar=vkar*(mixr-smixr)/integralh
 
 select case(scrnmeth)
   case(0) ! estimate screen diagnostics (slab at displacement height approach)
+    tstar=vkar*(temp-stheta)/integralh  
     z0_on_l   = z0*z_on_l/pg%cndzmin
     z10_on_l  = z10*z_on_l/pg%cndzmin
     z0_on_l=min(z0_on_l,10.)
@@ -2446,12 +2442,14 @@ select case(scrnmeth)
       integralm = neutral-(pm1-pm0)
       integralm10 = neutral10-(pm1-pm10)
     endwhere
-    pg%tscrn       = temp-tstar/vkar*integralh
-    pg%qscrn       = mixr-qstar/vkar*integralh
-    pg%uscrn=max(umag-ustar/vkar*integralm,0.)
-    pg%u10=max(umag-ustar/vkar*integralm10,0.)
+    pg%tscrn = temp-tstar*integralh/vkar
+    pg%qscrn = mixr-qstar*integralh/vkar
+    pg%uscrn=max(umag-ustar*integralm/vkar,0.)
+    pg%u10=max(umag-ustar*integralm10/vkar,0.)
     
   case(1) ! estimate screen diagnostics (two step canopy approach)
+    tts=vkar*(theta-stheta)/integralh
+    tstar=vkar*(temp-stheta)/integralh
     z0_on_l   = fn%bldheight*(1.-refheight)*z_on_l/pg%cndzmin ! calculate at canyon top
     z10_on_l  = max(z10-fn%bldheight*refheight,1.)*z_on_l/pg%cndzmin
     z0_on_l=min(z0_on_l,10.)
@@ -2486,12 +2484,13 @@ select case(scrnmeth)
       integralm = neutral-(pm1-pm0)
       integralm10 = neutral10-(pm1-pm10)
     endwhere
-    ttop       = temp-tstar/vkar*integralh
-    qtop       = mixr-qstar/vkar*integralh
-    utop       = umag-ustar/vkar*integralm
+    ttop       = theta-tts*integralh/vkar
+    tetp       = temp-tstar*integralh/vkar
+    qtop       = mixr-qstar*integralh/vkar
+    utop       = umag-ustar*integralm/vkar
 
     where (fn%bldheight.le.z10) ! above canyon
-      pg%u10=max(umag-ustar/vkar*integralm10,0.)
+      pg%u10=max(umag-ustar*integralm10/vkar,0.)
     end where
 
     ! assume standard stability functions hold for urban canyon (needs more work)
@@ -2506,7 +2505,7 @@ select case(scrnmeth)
     n=log(fn%bldheight/zonet)
     af=vkar*vkar/(n*n)
     aft=vkar*vkar/(n*(lna+n))
-    ri=min(grav*fn%bldheight*(1.-sthetav/thetav)/umag**2,rimax)
+    ri=min(grav*fn%bldheight*(1.-tsurf/ttop)/umag**2,rimax)
     where (ri>0.)
       fm=1./(1.+bprm*ri)**2
       fh=fm
@@ -2521,7 +2520,8 @@ select case(scrnmeth)
     thetavstar=aft*fh*(thetav-sthetav)/sqrt(cd)
     call dyerhicks(ufull,integralh,z_on_l,cd,thetavstar,thetav,sthetav,utop,fn%bldheight,n,lna)
     ustar=sqrt(cd)*utop
-    tstar=vkar*(ttop-tsurf)/integralh
+    tts=vkar*(ttop-tsurf)/integralh
+    tstar=vkar*(tetp-tsurf)/integralh
     qstar=vkar*(qtop-qsurf)/integralh
     z0_on_l   = z0*z_on_l/fn%bldheight
     z10_on_l  = max(z10,fn%bldheight)*z_on_l/fn%bldheight
@@ -2558,11 +2558,11 @@ select case(scrnmeth)
       integralm10 = neutral10-(pm1-pm10)
     endwhere
 
-    pg%tscrn       = temp-tstar/vkar*integralh
-    pg%qscrn       = mixr-qstar/vkar*integralh
-    pg%uscrn=max(umag-ustar/vkar*integralm,0.)
+    pg%tscrn = tetp-tstar*integralh/vkar
+    pg%qscrn = qtop-qstar*integralh/vkar
+    pg%uscrn=max(utop-ustar*integralm/vkar,0.)
     where (fn%bldheight.gt.z10) ! within canyon
-      pg%u10=max(umag-ustar/vkar*integralm10,0.)
+      pg%u10=max(utop-ustar*integralm10/vkar,0.)
     end where
 
 end select

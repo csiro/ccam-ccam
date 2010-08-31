@@ -179,7 +179,7 @@ module cable_ccam
   met%precip=condx(cmap)
   met%hod=(met%doy-int(met%doy))*24. + rlongg(cmap)*180./(15.*pi)
   where (met%hod.gt.24.) met%hod=met%hod-24.
-  rough%za_tq=-287.*t(cmap,1)*log(sig(1))/grav   ! reference height
+  rough%za_tq=-rdry*t(cmap,1)*log(sig(1))/grav   ! reference height
   rough%za_uv=rough%za_tq
 
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
@@ -974,7 +974,6 @@ module cable_ccam
     end do
     ssoil%snowd=max(ssoil%snowd,0.)
   
-    ! snow and soil data
     ssoil%osnowd=ssoil%snowd                                ! overwritten by CABLE
     bal%osnowd0=ssoil%snowd                                 ! overwritten by CABLE
     ssoil%ssdnn=120.                                        ! overwritten by CABLE
@@ -999,7 +998,7 @@ module cable_ccam
     ssoil%wbtot=0.
     bal%wbtot0 = ssoil%wbtot
   end if
- 
+
   return
   end subroutine loadcbmparm
 
@@ -1206,10 +1205,10 @@ module cable_ccam
         call attrib(idnc,idim,3,vname,lname,'K',100.,400.,0)
         write(lname,'("Soil moisture lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("wb",I1.1,"_",I1.1)') k,n 
-        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,1.3,0)
+        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,1.625,0)
         write(lname,'("Soil ice lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("wbice",I1.1,"_",I1.1)') k,n 
-        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,1.3,0)
+        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,1.625,0)
       end do
       do k=1,3
         write(lname,'("Snow temperature lev ",I1.1," tile ",I1.1)') k,n
@@ -1227,7 +1226,7 @@ module cable_ccam
       call attrib(idnc,idim,3,vname,lname,'mm',0.,6.5,0)
       write(lname,'("Snow depth tile ",I1.1)') n
       write(vname,'("snd_",I1.1)') n
-      call attrl (idnc,idim,3,vname,lname,'mm',0.,5000.,0)  ! long
+      call attrl (idnc,idim,3,vname,lname,'mm',0.,6500.,0)  ! long
       write(lname,'("Snow age tile ",I1.1)') n
       write(vname,'("snage_",I1.1)') n
       call attrib(idnc,idim,3,vname,lname,'none',0.,20.,0)

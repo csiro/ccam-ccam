@@ -67,7 +67,7 @@ c     cp specific heat at constant pressure joule/kgm/deg
      . extin(ifull),dum3(5*ijk-17*ifull)
       real plens(ifull),vmag(ifull),charnck(ifull)
       real zonx(ifull),zony(ifull),zonz(ifull),costh(ifull) ! MJT urban
-      real sinth(ifull),uzon(ifull),vmer(ifull)             ! MJT urban
+      real sinth(ifull),uzon(ifull),vmer(ifull),azmin(ifull)! MJT urban
       save plens
       data plens/ifull*0./
       include 'establ.h'
@@ -173,6 +173,7 @@ c     using av_vmod (1. for no time averaging)
       enddo
       vmag(:)=max( vmod(:) , vmodmin) ! vmag used to calculate ri
       if(ntsur.ne.7)vmod(:)=vmag(:)	! gives usual way
+      azmin=-rdry*t(1:ifull,1)*log(sig(1))/grav
 
       call start_log(sfluxwater_begin)                               ! sea
       !--------------------------------------------------------------! sea
@@ -256,32 +257,29 @@ c       this is in-line ocenzo using latest coefficient, i.e. .018   ! sea
           if(ri(iq)>0.)then             ! stable sea points          ! sea
             fm=vmod(iq) /(1.+bprm*ri(iq))**2 ! N.B. this is vmod*fm  ! sea
             con=consea*fm                                            ! sea
-            do it=1,4 ! MJT zosea                                    ! sea
+            do it=1,3                                                ! sea
              afroot=vkar/log(zmin/zo(iq))                            ! sea
              af(iq)=afroot**2                                        ! sea
              daf=2.*af(iq)*afroot/(vkar*zo(iq))                      ! sea
-             zo(iq)=max(1.5e-10,zo(iq)-(zo(iq)-con*af(iq))/          ! sea
-     &                 (1.-con*daf)) !MJT zosea                      ! sea
-             zo(iq)=min(zo(iq),0.1) ! JLM fix                        ! sea
+             zo(iq)=max(1.5e-6,zo(iq)-(zo(iq)-con*af(iq))/           ! sea
+     &                 (1.-con*daf))                                 ! sea
+             zo(iq)=min(zo(iq),13.) ! JLM fix                        ! sea
             enddo    ! it=1,3                                        ! sea
             afroot=vkar/log(zmin/zo(iq))                             ! sea
             af(iq)=afroot**2                                         ! sea
           else                        ! unstable sea points          ! sea
-            do it=1,4  ! MJT zosea                                   ! sea
+            do it=1,3                                                ! sea
              afroot=vkar/log(zmin/zo(iq))                            ! sea
              af(iq)=afroot**2                                        ! sea
              daf=2.*af(iq)*afroot/(vkar*zo(iq))                      ! sea
              con1=cms*2.*bprm*sqrt(-ri(iq)*zmin/zo(iq))              ! sea
              den=1.+af(iq)*con1                                      ! sea
-             !dden=con1*(daf-.5*af(iq)/zo(iq))                       ! sea
-             dden=con1*daf+af(iq)*cms*2.*bprm*ri(iq)*zmin            ! sea
-     &            /(sqrt(-ri(iq)*zmin/zo(iq))*zo(iq)*zo(iq))         ! sea
+             dden=con1*(daf-.5*af(iq)/zo(iq))                        ! sea
              fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/den                ! sea
-             !dfm=2.*bprm*ri(iq)*dden/den**2                         ! sea
-             dfm=vmod(iq)*2.*bprm*ri(iq)*dden/den**2 ! MJT zosea     ! sea
-             zo(iq)=max(1.5e-10,zo(iq)-(zo(iq)-consea*af(iq)*fm)/    ! sea
+             dfm=2.*bprm*ri(iq)*dden/den**2                          ! sea
+             zo(iq)=max(1.5e-6,zo(iq)-(zo(iq)-consea*af(iq)*fm)/     ! sea
      .                        (1.-consea*(daf*fm+af(iq)*dfm))) ! MJT zosea
-             zo(iq)=min(zo(iq),0.1) ! JLM fix                        ! sea
+             zo(iq)=min(zo(iq),13.) ! JLM fix                        ! sea
             enddo  ! it=1,3                                          ! sea
           endif    ! (xx>0.) .. else..                               ! sea
          endif     ! (charnock<-1.) .. else ..                       ! sea
@@ -497,12 +495,12 @@ c     if(mydiag.and.diag)then
       
       elseif (abs(nmlo).eq.1) then                                   ! MLO
         call mloeval(ifull,tss,zo,cduv,fg,eg,wetfac,epot,epan,       ! MLO
-     &               fracice,sicedep,snowd,dt,zmin,sgsave(:)/        ! MLO
+     &               fracice,sicedep,snowd,dt,azmin,azmin,sgsave(:)/ ! MLO
      &               (1.-swrsave*albvisnir(:,1)-                     ! MLO
      &               (1.-swrsave)*albvisnir(:,2))                    ! MLO
      &               ,-rgsave,condx/dt,u(:,1),v(:,1)                 ! MLO
-     &               ,t(:,1),qg(:,1),ps,sig(1)*ps                    ! MLO
-     &               ,f,swrsave,fbeamvis,fbeamnir,0)                 ! MLO
+     &               ,t(:,1),qg(:,1),ps,f,swrsave,fbeamvis           ! MLO
+     &               ,fbeamnir,0)                                    ! MLO
         call mloscrnout(ifull,tscrn,qgscrn,uscrn,u10,0)              ! MLO
         do k=1,ms                                                    ! MLO
           call mloexport(0,ifull,tgg(:,k),k,0)                       ! MLO
@@ -797,12 +795,11 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          uzon= costh*zonx-sinth*zony ! zonal                            ! urban
          vmer= sinth*zonx+costh*zony ! meridonal                        ! urban
          ! call aTEB                                                    ! urban
-         call atebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,zmin       ! urban
+         call atebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,azmin      ! urban
      &               ,sgsave(:)/(1.-swrsave*albvisnir(:,1)-             ! urban
      &               (1.-swrsave)*albvisnir(:,2)),-rgsave(:)            ! urban
      &               ,condx(:)/dt,rho(:),t(1:ifull,1),qg(1:ifull,1)     ! urban
-     &               ,ps(1:ifull),sig(1)*ps(1:ifull),uzon,vmer          ! urban
-     &               ,vmodmin,0)                                        ! urban
+     &               ,ps(1:ifull),uzon,vmer,vmodmin,0)                  ! urban
         ! here we blend zo with the urban part                          ! urban
         factch(iperm)=zo(iperm)/factch(iperm)**2                        ! urban
         call atebzo(ifull,zo,factch,0)                                  ! urban
