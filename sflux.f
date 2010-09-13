@@ -494,19 +494,19 @@ c     if(mydiag.and.diag)then
       endif   ! (mydiag.and.nmaxpr==1)                                    
       
       elseif (abs(nmlo).eq.1) then                                   ! MLO
-        call mloeval(ifull,tss,zo,cduv,fg,eg,wetfac,epot,epan,       ! MLO
-     &               fracice,sicedep,snowd,dt,azmin,azmin,sgsave(:)/ ! MLO
+        call mloeval(tss,zo,cduv,fg,eg,wetfac,epot,epan,fracice,     ! MLO
+     &               sicedep,snowd,dt,azmin,azmin,sgsave(:)/         ! MLO
      &               (1.-swrsave*albvisnir(:,1)-                     ! MLO
      &               (1.-swrsave)*albvisnir(:,2))                    ! MLO
      &               ,-rgsave,condx/dt,u(:,1),v(:,1)                 ! MLO
      &               ,t(:,1),qg(:,1),ps,f,swrsave,fbeamvis           ! MLO
      &               ,fbeamnir,0)                                    ! MLO
-        call mloscrnout(ifull,tscrn,qgscrn,uscrn,u10,0)              ! MLO
+        call mloscrnout(tscrn,qgscrn,uscrn,u10,0)                    ! MLO
         do k=1,ms                                                    ! MLO
-          call mloexport(0,ifull,tgg(:,k),k,0)                       ! MLO
+          call mloexport(0,tgg(:,k),k,0)                             ! MLO
         end do                                                       ! MLO
         do k=1,3                                                     ! MLO
-          call mloexpice(ifull,tggsn(:,k),k,0)                       ! MLO
+          call mloexpice(tggsn(:,k),k,0)                             ! MLO
         end do                                                       ! MLO
         where(.not.land)                                             ! MLO
           snowd=snowd*1000.                                          ! MLO
@@ -795,22 +795,22 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          uzon= costh*zonx-sinth*zony ! zonal                            ! urban
          vmer= sinth*zonx+costh*zony ! meridonal                        ! urban
          ! call aTEB                                                    ! urban
-         call atebcalc(ifull,fg(:),eg(:),tss(:),wetfac(:),dt,azmin      ! urban
+         call atebcalc(fg(:),eg(:),tss(:),wetfac(:),dt,azmin            ! urban
      &               ,sgsave(:)/(1.-swrsave*albvisnir(:,1)-             ! urban
      &               (1.-swrsave)*albvisnir(:,2)),-rgsave(:)            ! urban
      &               ,condx(:)/dt,rho(:),t(1:ifull,1),qg(1:ifull,1)     ! urban
      &               ,ps(1:ifull),uzon,vmer,vmodmin,0)                  ! urban
         ! here we blend zo with the urban part                          ! urban
         factch(iperm)=zo(iperm)/factch(iperm)**2                        ! urban
-        call atebzo(ifull,zo,factch,0)                                  ! urban
+        call atebzo(zo,factch,0)                                        ! urban
         factch(iperm)=sqrt(zo(iperm)/factch(iperm))                     ! urban
         ! calculate ustar                                               ! urban
         cduv(iperm)=cduv(iperm)/vmod(iperm)                             ! urban
-        call atebcd(ifull,cduv,0)                                       ! urban
+        call atebcd(cduv,0)                                             ! urban
         cduv(iperm)=cduv(iperm)*vmod(iperm)                             ! urban
         ustar(iperm)=sqrt(vmod(iperm)*cduv(iperm))                      ! urban
         ! calculate screen level diagnostics                            ! urban
-        call atebscrnout(ifull,tscrn,qgscrn,uscrn,u10,0)                ! urban
+        call atebscrnout(tscrn,qgscrn,uscrn,u10,0)                      ! urban
         do ip=1,ipland ! assumes all urban points are land points       ! urban
           iq=iperm(ip)                                                  ! urban
           if (sigmu(iq).gt.0.) then                                     ! urban

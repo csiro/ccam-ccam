@@ -252,7 +252,7 @@ c        Conversion of o3 from units of cm stp to gm/gm
          do k=1,kl
             do i=1,imax
 c             qo3(i,k) = duo3n(i,k)*1.01325e+02/press(i,lp1)
-              qo3(i,k) = max(1.e-10,duo3n(i,k)*1.01325e+02/press(i,lp1))
+              qo3(i,k) = max(1.e-10,duo3n(i,k)) ! MJT radiation
             end do
          end do
       end if

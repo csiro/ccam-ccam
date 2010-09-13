@@ -9,6 +9,7 @@
       implicit none
       include 'mpif.h'       ! MJT read
       include 'o3amip.h'
+      include 'filnames.h'   ! MJT read
 
       character(len=80)  :: finame
       character(len=120) :: label
@@ -37,6 +38,7 @@
 !           print*, "Error opening file amip2o3.dat"
 !           stop
 !        end if
+        open(un,file=o3file,form='formatted',status='old') ! MJT read
 
         read (un,"(i3)") lato3d
         read (un,"(i3)") layo3d

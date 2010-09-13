@@ -33,40 +33,12 @@ private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloexpice,wlev,depth,mlodwn,mlootf,micdwn,micotf,ocndwn,ocnotf,sssb
 
-type tdata
-  real temp,sal,u,v
-end type tdata
-type tice
-  real tn(0:2),dic,dsn,fracice,tsurf,sto
-end type tice
-type tprog2
-  real mixdepth,bf
-  real watervisdiralb,watervisdifalb,waternirdiralb,waternirdifalb
-  real icevisdiralb,icevisdifalb,icenirdiralb,icenirdifalb
-  real zo,cd,fg,eg,wetfac
-  real zoice,cdice,fgice,egice,wetfacice
-  real tscrn,uscrn,qgscrn,u10
-  integer mixind
-end type tprog2
-type tatm
-  real sg,rg,rnd,snd,f,vnratio,fbvis,fbnir
-  real ps,u,v,temp,qg,zmin,zmins
-end type tatm
-type tdiag2
-  real b0,ustar,wu0,wv0,wt0,ws0,taux,tauy
-  real ftop,tb,fb,timelt,salflx,rs
-  integer nk,did
-end type tdiag2
-type tdiag3
-  real rho,nsq,rad,alpha,beta
-end type tdiag3
-
 ! parameters
 integer, parameter :: wlev = 20
 integer, parameter :: iqx = 500
 ! model arrays
-integer, save :: wfull
-integer, dimension(:), allocatable, save :: wgrid
+integer, save :: wfull,ifull,iqwt
+logical, dimension(:), allocatable, save :: wpack
 real, dimension(:,:), allocatable, save :: depth,dz
 real, dimension(:,:), allocatable, save :: depth_hl
 real, dimension(:,:), allocatable, save :: dz_hl
@@ -74,30 +46,31 @@ real, dimension(:,:,:), allocatable, save :: mlodwn,mlootf ! These variables are
 real, dimension(:,:), allocatable, save :: micdwn,micotf   ! These variables are for CCAM onthefly.f
 real, dimension(:), allocatable, save :: ocndwn,ocnotf     ! These variables are for CCAM onthefly.f
 real, dimension(:), allocatable, save :: sssb              ! To hold sea-surface salinity for nudging
-type(tdata), dimension(:,:), allocatable, save :: water
-type(tice), dimension(:), allocatable, save :: ice
-type(tprog2), dimension(:), allocatable, save :: pg
-
+real, dimension(:,:), allocatable, save :: w_temp,w_sal,w_u,w_v
+real, dimension(:,:), allocatable, save :: i_tn
+real, dimension(:), allocatable, save :: i_dic,i_dsn,i_fracice,i_tsurf,i_sto
+real, dimension(:), allocatable, save :: p_mixdepth,p_bf
+real, dimension(:), allocatable, save :: p_watervisdiralb,p_watervisdifalb,p_waternirdiralb,p_waternirdifalb
+real, dimension(:), allocatable, save :: p_icevisdiralb,p_icevisdifalb,p_icenirdiralb,p_icenirdifalb
+real, dimension(:), allocatable, save :: p_zo,p_cd,p_fg,p_eg
+real, dimension(:), allocatable, save :: p_zoice,p_cdice,p_fgice,p_egice,p_wetfacice
+real, dimension(:), allocatable, save :: p_tscrn,p_uscrn,p_qgscrn,p_u10
+integer, dimension(:), allocatable, save :: p_mixind
+  
 ! mode
 integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 0 ! include shortwave in non-local term
 integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
 integer, parameter :: zomode    = 2 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
-
 ! max depth
 real, parameter :: mxd    = 977.6   ! Max depth (m)
 real, parameter :: mindep = 1.      ! Thickness of first layer (m)
-
 ! model parameters
 real, parameter :: ric     = 0.3    ! Critical Ri for diagnosing mixed layer depth
 real, parameter :: epsilon = 0.1
-
 ! radiation parameters
-!real, parameter :: r_1 = 0.58       ! VIS/(VIS+NIR) ratio - now taken from host radiation
-!real, parameter :: r_2 = 1.-r_1
 real, parameter :: mu_1 = 23.       ! VIS depth (m)
 real, parameter :: mu_2 = 0.35      ! NIR depth (m)
-
 ! physical parameters
 real, parameter :: vkar=0.4               ! von Karman constant
 real, parameter :: lv=2.501e6             ! Latent heat of vaporisation (J kg^-1)
@@ -128,9 +101,6 @@ real, parameter :: chs=2.6                ! 5.3 in rams
 real, parameter :: cms=5.                 ! 7.4 in rams
 real, parameter :: fmroot=0.57735
 real, parameter :: rimax=(1./fmroot-1.)/bprm
-! momentum flux parameters
-real, parameter :: charnck=0.018
-real, parameter :: chn10=0.00125
 
 contains
 
@@ -138,79 +108,92 @@ contains
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !  Initialise MLO
 
-subroutine mloinit(ifull,depin,diag)
+subroutine mloinit(ifin,depin,diag)
 
 implicit none
 
-integer, intent(in) :: ifull,diag
+integer, intent(in) :: ifin,diag
 integer iq,iqw,ii
-real, dimension(ifull), intent(in) :: depin
+real, dimension(ifin), intent(in) :: depin
+real, dimension(ifin) :: deptmp
 real smxd,smnd
 
 if (diag.ge.1) write(6,*) "Initialising MLO"
 
-wfull=count(depin.gt.mindep)
-if (wfull.eq.0) return
+ifull=ifin
+allocate(wpack(ifull))
+wpack=depin.gt.mindep
+wfull=count(wpack)
+if (wfull.eq.0) then
+  deallocate(wpack)
+  return
+end if
 
-allocate(water(wfull,wlev),wgrid(wfull),pg(wfull))
-allocate(ice(wfull))
+allocate(w_temp(wfull,wlev),w_sal(wfull,wlev))
+allocate(w_u(wfull,wlev),w_v(wfull,wlev))
+allocate(i_tn(wfull,0:2),i_dic(wfull),i_dsn(wfull))
+allocate(i_fracice(wfull),i_tsurf(wfull),i_sto(wfull))
+allocate(p_mixdepth(wfull),p_bf(wfull))
+allocate(p_watervisdiralb(wfull),p_watervisdifalb(wfull))
+allocate(p_waternirdiralb(wfull),p_waternirdifalb(wfull))
+allocate(p_icevisdiralb(wfull),p_icevisdifalb(wfull))
+allocate(p_icenirdiralb(wfull),p_icenirdifalb(wfull))
+allocate(p_zo(wfull),p_cd(wfull),p_fg(wfull),p_eg(wfull))
+allocate(p_zoice(wfull),p_cdice(wfull),p_fgice(wfull),p_egice(wfull))
+allocate(p_wetfacice(wfull),p_mixind(wfull))
+allocate(p_tscrn(wfull),p_uscrn(wfull),p_qgscrn(wfull),p_u10(wfull))
 allocate(depth(wfull,wlev),dz(wfull,wlev))
 allocate(depth_hl(wfull,wlev+1))
 allocate(dz_hl(wfull,2:wlev))
 
-wgrid=0
 iqw=0
+iqwt=0
 do iq=1,ifull
   if (depin(iq).gt.mindep) then
     iqw=iqw+1
-    wgrid(iqw)=iq
+    if (iq.ge.iqx) then
+      iqwt=iqw
+      exit
+    end if
   end if
 end do
 
-if (iqw.ne.wfull) then
-  write(6,*) "ERROR: Internal memory error in MLO"
-  stop
-end if
+w_temp=288.             ! K
+w_sal=35.               ! PSU
+w_u=0.                  ! m/s
+w_v=0.                  ! m/s
 
-water%temp=288.          ! K
-water%sal=35.            ! PSU
-water%u=0.               ! m/s
-water%v=0.               ! m/s
+i_dic=0.                ! m
+i_dsn=0.                ! m
+i_fracice=0.            ! %
+i_tsurf=271.2           ! K
+i_tn=271.2              ! K
+i_sto=0.
 
-ice%dic=0.              ! m
-ice%dsn=0.              ! m
-ice%fracice=0.          ! %
-ice%tsurf=271.2         ! K
-do ii=0,2
-  ice(:)%tn(ii)=271.2   ! K
-end do
-ice%sto=0.
-
-pg%mixdepth=100. ! m
-pg%bf=0.
-pg%watervisdiralb=0.06
-pg%watervisdifalb=0.06
-pg%waternirdiralb=0.06
-pg%waternirdifalb=0.06
-pg%icevisdiralb=0.65
-pg%icevisdifalb=0.65
-pg%icenirdiralb=0.65
-pg%icenirdifalb=0.65
-pg%zo=0.001
-pg%cd=0.
-pg%fg=0.
-pg%eg=0.
-pg%wetfac=1.
-pg%zoice=0.001
-pg%cdice=0.
-pg%fgice=0.
-pg%egice=0.
-pg%wetfacice=1.
-pg%tscrn=273.2
-pg%qgscrn=0.
-pg%uscrn=0.
-pg%u10=0.
-pg%mixind=wlev-1
+p_mixdepth=100. ! m
+p_bf=0.
+p_watervisdiralb=0.06
+p_watervisdifalb=0.06
+p_waternirdiralb=0.06
+p_waternirdifalb=0.06
+p_icevisdiralb=0.65
+p_icevisdifalb=0.65
+p_icenirdiralb=0.65
+p_icenirdifalb=0.65
+p_zo=0.001
+p_cd=0.
+p_fg=0.
+p_eg=0.
+p_zoice=0.001
+p_cdice=0.
+p_fgice=0.
+p_egice=0.
+p_wetfacice=1.
+p_tscrn=273.2
+p_qgscrn=0.
+p_uscrn=0.
+p_u10=0.
+p_mixind=wlev-1
 
 ! MLO
 !depth = (/   0.5,   1.9,   4.3,   8.5,  15.3,  25.3,  39.3,  57.9,  81.9, 112.1 &
@@ -219,16 +202,18 @@ pg%mixind=wlev-1
 !depth = (/   5.0,  15.0,  28.2,  42.0,  59.7,  78.5, 102.1, 127.9, 159.5, 194.6, &
 !           237.0, 284.7, 341.7, 406.4, 483.2, 570.9, 674.9, 793.8, 934.1 /)
 
-smxd=maxval(depin(wgrid))
-smnd=minval(depin(wgrid))
+deptmp(1:wfull)=pack(depin,wpack)
+
+smxd=maxval(deptmp(1:wfull))
+smnd=minval(deptmp(1:wfull))
 
 do iqw=1,wfull
-  call vgrid(depin(wgrid(iqw)),depth(iqw,:),depth_hl(iqw,:))
-  if (smxd.eq.depin(wgrid(iqw))) then
+  call vgrid(deptmp(iqw),depth(iqw,:),depth_hl(iqw,:))
+  if (smxd.eq.deptmp(iqw)) then
     write(6,*) "MLO max depth ",depth(iqw,:)
     smxd=smxd+10.
   end if
-  if (smnd.eq.depin(wgrid(iqw))) then
+  if (smnd.eq.deptmp(iqw)) then
     write (6,*) "MLO min depth ",depth(iqw,:)
     smnd=smnd-10.
   end if
@@ -289,8 +274,19 @@ implicit none
 
 if (wfull.eq.0) return
 
-deallocate(water,wgrid,pg)
-deallocate(ice)
+deallocate(wpack)
+deallocate(w_temp,w_sal,w_u,w_v)
+deallocate(i_tn,i_dic,i_dsn)
+deallocate(i_fracice,i_tsurf,i_sto)
+deallocate(p_mixdepth,p_bf)
+deallocate(p_watervisdiralb,p_watervisdifalb)
+deallocate(p_waternirdiralb,p_waternirdifalb)
+deallocate(p_icevisdiralb,p_icevisdifalb)
+deallocate(p_icenirdiralb,p_icenirdifalb)
+deallocate(p_zo,p_cd,p_fg,p_eg)
+deallocate(p_zoice,p_cdice,p_fgice,p_egice)
+deallocate(p_wetfacice,p_mixind)
+deallocate(p_tscrn,p_uscrn,p_qgscrn,p_u10)
 deallocate(depth,dz,depth_hl,dz_hl)
 
 return
@@ -299,11 +295,11 @@ end subroutine mloend
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Load MLO data
 
-subroutine mloload(ifull,datain,icein,diag)
+subroutine mloload(datain,icein,diag)
 
 implicit none
 
-integer, intent(in) :: ifull,diag
+integer, intent(in) :: diag
 integer ii
 real, dimension(ifull,wlev,4), intent(in) :: datain
 real, dimension(ifull,8), intent(in) :: icein
@@ -311,19 +307,19 @@ real, dimension(ifull,8), intent(in) :: icein
 if (wfull.eq.0) return
 
 do ii=1,wlev
-  water(:,ii)%temp=datain(wgrid,ii,1)
-  water(:,ii)%sal=datain(wgrid,ii,2)
-  water(:,ii)%u=datain(wgrid,ii,3)
-  water(:,ii)%v=datain(wgrid,ii,4)
+  w_temp(:,ii)=pack(datain(:,ii,1),wpack)
+  w_sal(:,ii)=pack(datain(:,ii,2),wpack)
+  w_u(:,ii)=pack(datain(:,ii,3),wpack)
+  w_v(:,ii)=pack(datain(:,ii,4),wpack)
 end do
-ice(:)%tsurf=icein(wgrid,1)
-ice(:)%tn(0)=icein(wgrid,2)
-ice(:)%tn(1)=icein(wgrid,3)
-ice(:)%tn(2)=icein(wgrid,4)
-ice(:)%fracice=icein(wgrid,5)
-ice(:)%dic=icein(wgrid,6)
-ice(:)%dsn=icein(wgrid,7)
-ice(:)%sto=icein(wgrid,8)
+i_tsurf=pack(icein(:,1),wpack)
+i_tn(:,0)=pack(icein(:,2),wpack)
+i_tn(:,1)=pack(icein(:,3),wpack)
+i_tn(:,2)=pack(icein(:,4),wpack)
+i_fracice=pack(icein(:,5),wpack)
+i_dic=pack(icein(:,6),wpack)
+i_dsn=pack(icein(:,7),wpack)
+i_sto=pack(icein(:,8),wpack)
 
 return
 end subroutine mloload
@@ -331,11 +327,11 @@ end subroutine mloload
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Save MLO data
 
-subroutine mlosave(ifull,dataout,depout,iceout,diag)
+subroutine mlosave(dataout,depout,iceout,diag)
 
 implicit none
 
-integer, intent(in) :: ifull,diag
+integer, intent(in) :: diag
 integer ii
 real, dimension(ifull,wlev,4), intent(out) :: dataout
 real, dimension(ifull,8), intent(out) :: iceout
@@ -344,22 +340,22 @@ real, dimension(ifull), intent(out) :: depout
 if (wfull.eq.0) return
 
 do ii=1,wlev
-  dataout(wgrid,ii,1)=water(:,ii)%temp
-  dataout(wgrid,ii,2)=water(:,ii)%sal
-  dataout(wgrid,ii,3)=water(:,ii)%u
-  dataout(wgrid,ii,4)=water(:,ii)%v
+  dataout(:,ii,1)=unpack(w_temp(:,ii),wpack,dataout(:,ii,1))
+  dataout(:,ii,2)=unpack(w_sal(:,ii),wpack,dataout(:,ii,2))
+  dataout(:,ii,3)=unpack(w_u(:,ii),wpack,dataout(:,ii,3))
+  dataout(:,ii,4)=unpack(w_v(:,ii),wpack,dataout(:,ii,4))
 end do
-iceout(wgrid,1)=ice(:)%tsurf
-iceout(wgrid,2)=ice(:)%tn(0)
-iceout(wgrid,3)=ice(:)%tn(1)
-iceout(wgrid,4)=ice(:)%tn(2)
-iceout(wgrid,5)=ice(:)%fracice
-iceout(wgrid,6)=ice(:)%dic
-iceout(wgrid,7)=ice(:)%dsn
+iceout(:,1)=unpack(i_tsurf,wpack,iceout(:,1))
+iceout(:,2)=unpack(i_tn(:,0),wpack,iceout(:,2))
+iceout(:,3)=unpack(i_tn(:,1),wpack,iceout(:,3))
+iceout(:,4)=unpack(i_tn(:,2),wpack,iceout(:,4))
+iceout(:,5)=unpack(i_fracice,wpack,iceout(:,5))
+iceout(:,6)=unpack(i_dic,wpack,iceout(:,6))
+iceout(:,7)=unpack(i_dsn,wpack,iceout(:,7))
 iceout(:,8)=0.
-iceout(wgrid,8)=ice(:)%sto
+iceout(:,8)=unpack(i_sto,wpack,iceout(:,8))
 depout=0.
-depout(wgrid)=depth_hl(:,wlev+1)
+depout=unpack(depth_hl(:,wlev+1),wpack,depout)
 
 return
 end subroutine mlosave
@@ -367,19 +363,19 @@ end subroutine mlosave
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Import sst for nudging
 
-subroutine mloimport(mode,ifull,sst,ilev,diag)
+subroutine mloimport(mode,sst,ilev,diag)
 
 implicit none
 
-integer, intent(in) :: mode,ifull,ilev,diag
+integer, intent(in) :: mode,ilev,diag
 real, dimension(ifull), intent(in) :: sst
 
 if (wfull.eq.0) return
 select case(mode)
   case(0)
-    water(:,ilev)%temp=sst(wgrid)
+    w_temp(:,ilev)=pack(sst,wpack)
   case(1)
-    water(:,ilev)%sal=sst(wgrid)
+    w_sal(:,ilev)=pack(sst,wpack)
 end select
 
 return
@@ -388,19 +384,19 @@ end subroutine mloimport
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export sst for nudging
 
-subroutine mloexport(mode,ifull,sst,ilev,diag)
+subroutine mloexport(mode,sst,ilev,diag)
 
 implicit none
 
-integer, intent(in) :: mode,ifull,ilev,diag
+integer, intent(in) :: mode,ilev,diag
 real, dimension(ifull), intent(inout) :: sst
 
 if (wfull.eq.0) return
 select case(mode)
   case(0)
-    sst(wgrid)=water(:,ilev)%temp
+    sst=unpack(w_temp(:,ilev),wpack,sst)
   case(1)
-    sst(wgrid)=water(:,ilev)%sal
+    sst=unpack(w_sal(:,ilev),wpack,sst)
 end select
 
 return
@@ -409,23 +405,23 @@ end subroutine mloexport
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export ice temp
 
-subroutine mloexpice(ifull,tsn,ilev,diag)
+subroutine mloexpice(tsn,ilev,diag)
 
 implicit none
 
-integer, intent(in) :: ifull,ilev,diag
+integer, intent(in) :: ilev,diag
 real, dimension(ifull), intent(inout) :: tsn
 
 if (wfull.eq.0) return
 select case(ilev)
   case(1)
-    tsn(wgrid)=ice%tsurf
+    tsn=unpack(i_tsurf,wpack,tsn)
   case(2)
-    tsn(wgrid)=ice%tn(0)  
+    tsn=unpack(i_tn(:,0),wpack,tsn)
   case(3)
-    tsn(wgrid)=ice%tn(1)
+    tsn=unpack(i_tn(:,1),wpack,tsn)
   case(4)
-    tsn(wgrid)=ice%tn(2)
+    tsn=unpack(i_tn(:,2),wpack,tsn)
   case DEFAULT
     write(6,*) "ERROR: Invalid level ",ilev
     stop
@@ -437,16 +433,16 @@ end subroutine mloexpice
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Return mixed layer depth
 
-subroutine mlodiag(ifull,mld,diag)
+subroutine mlodiag(mld,diag)
 
 implicit none
 
-integer, intent(in) :: ifull,diag
+integer, intent(in) :: diag
 real, dimension(ifull), intent(out) :: mld
 
 mld=0.
 if (wfull.eq.0) return
-mld(wgrid)=pg(:)%mixdepth
+mld=unpack(p_mixdepth,wpack,mld)
 
 return
 end subroutine mlodiag
@@ -454,18 +450,18 @@ end subroutine mlodiag
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate screen diagnostics
 
-subroutine mloscrnout(ifull,tscrn,qgscrn,uscrn,u10,diag)
+subroutine mloscrnout(tscrn,qgscrn,uscrn,u10,diag)
 
 implicit none
 
-integer, intent(in) :: ifull,diag
+integer, intent(in) :: diag
 real, dimension(ifull), intent(inout) :: tscrn,qgscrn,uscrn,u10
 
 if (wfull.eq.0) return
-tscrn(wgrid)=pg%tscrn
-qgscrn(wgrid)=pg%qgscrn
-uscrn(wgrid)=pg%uscrn
-u10(wgrid)=pg%u10
+tscrn=unpack(p_tscrn,wpack,tscrn)
+qgscrn=unpack(p_qgscrn,wpack,qgscrn)
+uscrn=unpack(p_uscrn,wpack,uscrn)
+u10=unpack(p_u10,wpack,u10)
 
 return
 end subroutine mloscrnout
@@ -473,50 +469,42 @@ end subroutine mloscrnout
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate albedo data (VIS + NIR)
 
-subroutine mloalb2(istart,ifull,coszro,ovisalb,oniralb,diag)
+subroutine mloalb2(istart,ifin,coszro,ovisalb,oniralb,diag)
 
 implicit none
 
-integer, intent(in) :: istart,ifull,diag
-integer ifinish,ib,ie,iqw
-real, dimension(ifull), intent(in) :: coszro
-real, dimension(ifull), intent(inout) :: ovisalb,oniralb
+integer, intent(in) :: istart,ifin,diag
+integer ifinish,ib,ie
+real, dimension(ifin), intent(in) :: coszro
+real, dimension(ifin), intent(inout) :: ovisalb,oniralb
 real, dimension(wfull) :: watervis,waternir,icevis,icenir
+real, dimension(wfull) :: costmp
 
 if (wfull.eq.0) return
 
-ifinish=istart+ifull-1
-ib=wfull+1
-do iqw=wfull,1,-1
-  if (wgrid(iqw).lt.istart) exit
-  ib=iqw
-end do
-if (ib.gt.wfull) return
-ie=-1
-do iqw=ib,wfull
-  if (wgrid(iqw).gt.ifinish) exit
-  ie=iqw
-end do
+ifinish=istart+ifin-1
+ib=count(wpack(1:istart-1))+1
+ie=count(wpack(istart:ifinish))+ib-1
 if (ie.lt.ib) return
 
-watervis(ib:ie)=.05/(coszro(wgrid(ib:ie)-istart+1)+0.15)
-waternir(ib:ie)=.05/(coszro(wgrid(ib:ie)-istart+1)+0.15)
+costmp(ib:ie)=pack(coszro,wpack(istart:ifinish))
+
+watervis(ib:ie)=.05/(costmp(ib:ie)+0.15)
+waternir(ib:ie)=.05/(costmp(ib:ie)+0.15)
 ! need to factor snow age into albedo
 icevis(ib:ie)=0.85
 icenir(ib:ie)=0.45
-ovisalb(wgrid(ib:ie)-istart+1)=icevis(ib:ie)*ice(ib:ie)%fracice+ &
-                               (1.-ice(ib:ie)%fracice)*watervis(ib:ie)
-oniralb(wgrid(ib:ie)-istart+1)=icenir(ib:ie)*ice(ib:ie)%fracice+ &
-                               (1.-ice(ib:ie)%fracice)*waternir(ib:ie)
+ovisalb=unpack(icevis(ib:ie)*i_fracice(ib:ie)+(1.-i_fracice(ib:ie))*watervis(ib:ie),wpack(istart:ifinish),ovisalb)
+oniralb=unpack(icenir(ib:ie)*i_fracice(ib:ie)+(1.-i_fracice(ib:ie))*waternir(ib:ie),wpack(istart:ifinish),oniralb)
 
-pg(ib:ie)%watervisdiralb=watervis(ib:ie)
-pg(ib:ie)%watervisdifalb=watervis(ib:ie)
-pg(ib:ie)%waternirdiralb=waternir(ib:ie)
-pg(ib:ie)%waternirdifalb=waternir(ib:ie)
-pg(ib:ie)%icevisdiralb=icevis(ib:ie)
-pg(ib:ie)%icevisdifalb=icevis(ib:ie)
-pg(ib:ie)%icenirdiralb=icenir(ib:ie)
-pg(ib:ie)%icenirdifalb=icenir(ib:ie)
+p_watervisdiralb(ib:ie)=watervis(ib:ie)
+p_watervisdifalb(ib:ie)=watervis(ib:ie)
+p_waternirdiralb(ib:ie)=waternir(ib:ie)
+p_waternirdifalb(ib:ie)=waternir(ib:ie)
+p_icevisdiralb(ib:ie)=icevis(ib:ie)
+p_icevisdifalb(ib:ie)=icevis(ib:ie)
+p_icenirdiralb(ib:ie)=icenir(ib:ie)
+p_icenirdifalb(ib:ie)=icenir(ib:ie)
 
 return
 end subroutine mloalb2
@@ -524,41 +512,33 @@ end subroutine mloalb2
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate albedo data (VIS-DIR, VIS-DIF, NIR-DIR & NIR-DIF)
 
-subroutine mloalb4(istart,ifull,coszro,ovisdir,ovisdif,onirdir,onirdif,diag)
+subroutine mloalb4(istart,ifin,coszro,ovisdir,ovisdif,onirdir,onirdif,diag)
 
 implicit none
 
-integer, intent(in) :: istart,ifull,diag
-integer ifinish,ib,ie,iqw
-real, dimension(ifull), intent(in) :: coszro
-real, dimension(ifull), intent(inout) :: ovisdir,ovisdif,onirdir,onirdif
+integer, intent(in) :: istart,ifin,diag
+integer ifinish,ib,ie
+real, dimension(ifin), intent(in) :: coszro
+real, dimension(ifin), intent(inout) :: ovisdir,ovisdif,onirdir,onirdif
 real, dimension(wfull) :: watervisdiralb,watervisdifalb,waternirdiralb,waternirdifalb
 real, dimension(wfull) :: icevisdiralb,icevisdifalb,icenirdiralb,icenirdifalb
+real, dimension(wfull) :: costmp
 
 if (wfull.eq.0) return
 
-ifinish=istart+ifull-1
-ib=wfull+1
-do iqw=wfull,1,-1
-  if (wgrid(iqw).lt.istart) exit
-  ib=iqw
-end do
-if (ib.gt.wfull) return
-ie=-1
-do iqw=ib,wfull
-  if (wgrid(iqw).gt.ifinish) exit
-  ie=iqw
-end do
+ifinish=istart+ifin-1
+ib=count(wpack(1:istart-1))+1
+ie=count(wpack(istart:ifinish))+ib-1
 if (ie.lt.ib) return
 
-where (coszro(wgrid(ib:ie)-istart+1).gt.0.)
-  watervisdiralb(ib:ie)=0.026/(coszro(wgrid(ib:ie)-istart+1)**1.7+0.065)+ &
-                        0.15*(coszro(wgrid(ib:ie)-istart+1)-0.1)* &
-                        (coszro(wgrid(ib:ie)-istart+1)-0.5)* &
-                        (coszro(wgrid(ib:ie)-istart+1)-1.)
+costmp(ib:ie)=pack(coszro(istart:ifinish),wpack(istart:ifinish))
+
+where (costmp(ib:ie).gt.0.)
+  watervisdiralb(ib:ie)=0.026/(costmp(ib:ie)**1.7+0.065)+0.15*(costmp(ib:ie)-0.1)* &
+                        (costmp(ib:ie)-0.5)*(costmp(ib:ie)-1.)
 elsewhere
-  watervisdiralb(ib:ie)=0.3925 
-endwhere
+  watervisdiralb(ib:ie)=0.3925
+end where
 watervisdifalb(ib:ie)=0.06
 waternirdiralb(ib:ie)=watervisdiralb(ib:ie)
 waternirdifalb(ib:ie)=0.06
@@ -567,23 +547,19 @@ icevisdiralb(ib:ie)=0.85
 icevisdifalb(ib:ie)=0.85
 icenirdiralb(ib:ie)=0.45
 icenirdifalb(ib:ie)=0.45
-ovisdir(wgrid(ib:ie)-istart+1)=ice(ib:ie)%fracice*icevisdiralb(ib:ie)+ &
-                              (1.-ice(ib:ie)%fracice)*watervisdiralb(ib:ie)
-ovisdif(wgrid(ib:ie)-istart+1)=ice(ib:ie)%fracice*icevisdifalb(ib:ie)+ &
-                               (1.-ice(ib:ie)%fracice)*watervisdifalb(ib:ie)
-onirdir(wgrid(ib:ie)-istart+1)=ice(ib:ie)%fracice*icenirdiralb(ib:ie)+ &
-                               (1.-ice(ib:ie)%fracice)*waternirdiralb(ib:ie)
-onirdif(wgrid(ib:ie)-istart+1)=ice(ib:ie)%fracice*icenirdifalb(ib:ie)+ &
-                               (1.-ice(ib:ie)%fracice)*waternirdifalb(ib:ie)
+ovisdir=unpack(i_fracice(ib:ie)*icevisdiralb(ib:ie)+(1.-i_fracice(ib:ie))*watervisdiralb(ib:ie),wpack(istart:ifinish),ovisdir)
+ovisdif=unpack(i_fracice(ib:ie)*icevisdifalb(ib:ie)+(1.-i_fracice(ib:ie))*watervisdifalb(ib:ie),wpack(istart:ifinish),ovisdif)
+onirdir=unpack(i_fracice(ib:ie)*icenirdiralb(ib:ie)+(1.-i_fracice(ib:ie))*waternirdiralb(ib:ie),wpack(istart:ifinish),onirdir)
+onirdif=unpack(i_fracice(ib:ie)*icenirdifalb(ib:ie)+(1.-i_fracice(ib:ie))*waternirdifalb(ib:ie),wpack(istart:ifinish),onirdif)
 
-pg(ib:ie)%watervisdiralb=watervisdiralb(ib:ie)
-pg(ib:ie)%watervisdifalb=watervisdifalb(ib:ie)
-pg(ib:ie)%waternirdiralb=waternirdiralb(ib:ie)
-pg(ib:ie)%waternirdifalb=waternirdifalb(ib:ie)
-pg(ib:ie)%icevisdiralb=icevisdiralb(ib:ie)
-pg(ib:ie)%icevisdifalb=icevisdifalb(ib:ie)
-pg(ib:ie)%icenirdiralb=icenirdiralb(ib:ie)
-pg(ib:ie)%icenirdifalb=icenirdifalb(ib:ie)
+p_watervisdiralb(ib:ie)=watervisdiralb(ib:ie)
+p_watervisdifalb(ib:ie)=watervisdifalb(ib:ie)
+p_waternirdiralb(ib:ie)=waternirdiralb(ib:ie)
+p_waternirdifalb(ib:ie)=waternirdifalb(ib:ie)
+p_icevisdiralb(ib:ie)=icevisdiralb(ib:ie)
+p_icevisdifalb(ib:ie)=icevisdifalb(ib:ie)
+p_icenirdiralb(ib:ie)=icenirdiralb(ib:ie)
+p_icenirdifalb(ib:ie)=icenirdifalb(ib:ie)
 
 return
 end subroutine mloalb4
@@ -591,42 +567,51 @@ end subroutine mloalb4
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Regrid MLO data
 
-subroutine mloregrid(ifull,depin,mlodat)
+subroutine mloregrid(depin,mlodat)
 
 implicit none
 
-integer, intent(in) :: ifull
-integer iqw,ii,pos(1)
+integer iq,iqw,ii,pos(1),nn
 real, dimension(ifull), intent(in) :: depin
 real, dimension(ifull,wlev,4), intent(inout) :: mlodat
-real, dimension(ifull,wlev,4) :: newdat
+real, dimension(wfull,wlev,4) :: newdata,newdatb
+real, dimension(wfull) :: deptmp
 real, dimension(wlev) :: dpin
 real, dimension(wlev+1) :: dp_hlin
 real x
 
 if (wfull.eq.0) return
-if (all(depin(wgrid).eq.depth(:,wlev))) return
+deptmp=pack(depin,wpack)
+if (all(abs(deptmp-depth(:,wlev)).lt.0.01)) return
 
-newdat=mlodat
+do nn=1,4
+  do ii=1,wlev
+    newdata(:,ii,nn)=pack(mlodat(:,ii,nn),wpack)
+  end do
+end do
 
 do iqw=1,wfull
-  call vgrid(depin(wgrid(iqw)),dpin,dp_hlin)
+  call vgrid(deptmp(iqw),dpin,dp_hlin)
   do ii=1,wlev
     if (depth(iqw,ii).ge.dpin(wlev)) then
-      newdat(wgrid(iqw),ii,:)=mlodat(wgrid(iqw),wlev,:)
+      newdatb(iqw,ii,:)=newdata(iqw,wlev,:)
     else if (depth(iqw,ii).le.dpin(1)) then
-      newdat(wgrid(iqw),ii,:)=mlodat(wgrid(iqw),1,:)
+      newdatb(iqw,ii,:)=newdata(iqw,1,:)
     else
       pos=maxloc(dpin,dpin.lt.depth(iqw,ii))
       pos(1)=max(1,min(wlev-1,pos(1)))
       x=(depth(iqw,ii)-dpin(pos(1)))/(dpin(pos(1)+1)-dpin(pos(1)))
       x=max(0.,min(1.,x))
-      newdat(wgrid(iqw),ii,:)=mlodat(wgrid(iqw),pos(1)+1,:)*x+mlodat(wgrid(iqw),pos(1),:)*(1.-x)
+      newdatb(iqw,ii,:)=newdata(iqw,pos(1)+1,:)*x+newdata(iqw,pos(1),:)*(1.-x)
     end if
   end do  
 end do
 
-mlodat=newdat
+do nn=1,4
+  do ii=1,wlev
+    mlodat(:,ii,nn)=unpack(newdatb(:,ii,nn),wpack,mlodat(:,ii,nn))
+  end do
+end do
 
 return
 end subroutine mloregrid
@@ -634,67 +619,73 @@ end subroutine mloregrid
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
 
-subroutine mloeval(ifull,sst,zo,cd,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
+subroutine mloeval(sst,zo,cd,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
                    dt,zmin,zmins,sg,rg,precp,uatm,vatm,temp,qg,ps, &
                    f,visnirratio,fbvis,fbnir,diag)
 
 implicit none
 
-integer, intent(in) :: ifull,diag
+integer, intent(in) :: diag
 real, intent(in) :: dt
 real, dimension(ifull), intent(in) :: sg,rg,precp,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,zmin,zmins
 real, dimension(ifull), intent(inout) :: sst,zo,cd,fg,eg,wetfac,fracice,siced,epot,epan,snowd
 real, dimension(wfull) :: workb
-type(tatm), dimension(wfull) :: atm
-type(tdiag2), dimension(wfull) :: dg2
-type(tdiag3), dimension(wfull,wlev) :: dg3
+real, dimension(wfull) :: a_sg,a_rg,a_rnd,a_snd,a_f,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
+real, dimension(wfull,wlev) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
+real, dimension(wfull) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_taux,d_tauy
+real, dimension(wfull) :: d_ftop,d_tb,d_fb,d_timelt,d_salflx,d_rs
+integer, dimension(wfull) :: d_nk,d_did
 
 if (wfull.eq.0) return
 
-atm%sg=sg(wgrid)
-atm%rg=rg(wgrid)
-where (atm%temp.ge.273.16)
-  atm%rnd=precp(wgrid)
-  atm%snd=0.
+a_sg=pack(sg,wpack)
+a_rg=pack(rg,wpack)
+where (a_temp.ge.273.16)
+  a_rnd=pack(precp,wpack)
+  a_snd=0.
 elsewhere
-  atm%rnd=0.
-  atm%snd=precp(wgrid)
+  a_rnd=0.
+  a_snd=pack(precp,wpack)
 end where
 
-!atm%f=f(wgrid)
-atm%f=0. ! turn off coriolis terms when no geostrophic term
-atm%vnratio=visnirratio(wgrid)
-atm%fbvis=fbvis(wgrid)
-atm%fbnir=fbnir(wgrid)
-atm%u=uatm(wgrid)
-atm%v=vatm(wgrid)
-atm%temp=temp(wgrid)
-atm%qg=qg(wgrid)
-atm%ps=ps(wgrid)
-atm%zmin=zmin
-atm%zmins=zmins
+!a_f=pack(f,wpack)
+a_f=0. ! turn off coriolis terms when no geostrophic term
+a_vnratio=pack(visnirratio,wpack)
+a_fbvis=pack(fbvis,wpack)
+a_fbnir=pack(fbnir,wpack)
+a_u=pack(uatm,wpack)
+a_v=pack(vatm,wpack)
+a_temp=pack(temp,wpack)
+a_qg=pack(qg,wpack)
+a_ps=pack(ps,wpack)
+a_zmin=pack(zmin,wpack)
+a_zmins=pack(zmins,wpack)
 
-call fluxcalc(atm,dg2,diag)        ! ocean fluxes
-call getrho(atm,dg2,dg3)           ! boundary conditions
-call iceflux(dt,atm,dg2,dg3,diag)  ! ice fluxes
-call mlonewice(dg2,dg3,diag)       ! create new ice
-call mloice(dt,atm,dg2,dg3,diag)   ! update ice
-call mlocalc(dt,atm,dg2,dg3,diag)  ! update water
-call mlonewice(dg2,dg3,diag)       ! create new ice
-call scrncalc(atm,diag)            ! screen diagnostics
+call fluxcalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,d_taux,d_tauy,diag)                          ! ocean fluxes
+call getrho(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,d_rho,d_nsq,d_rad,d_alpha,d_beta,            &
+            d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_taux,d_tauy,d_rs)                               ! boundary conditions
+call iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins, &
+             d_rho,d_ftop,d_tb,d_fb,d_timelt,d_salflx,d_nk,d_did,diag)                             ! ice fluxes
+call mlonewice(d_rho,d_timelt,diag)                                                                ! create new ice
+call mloice(dt,a_rnd,a_snd,d_alpha,d_beta,d_b0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt,d_salflx,d_rs,d_nk, &
+            diag)                                                                                  ! update ice
+call mlocalc(dt,a_f,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_fb,d_salflx,d_did,  &
+             diag)                                                                                 ! update water
+call mlonewice(d_rho,d_timelt,diag)                                                                ! create new ice
+call scrncalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,diag)                                        ! screen diagnostics
 
-sst(wgrid)=(1.-ice%fracice)*water(:,1)%temp+ice%fracice*ice%tsurf
-workb=(1.-ice%fracice)/log(atm%zmin/pg%zo)**2+ice%fracice/log(atm%zmin/pg%zoice)**2
-zo(wgrid)=atm%zmin*exp(-1./sqrt(workb))
-cd(wgrid)=(1.-ice%fracice)*pg%cd+ice%fracice*pg%cdice
-fg(wgrid)=(1.-ice%fracice)*pg%fg+ice%fracice*pg%fgice
-eg(wgrid)=(1.-ice%fracice)*pg%eg+ice%fracice*pg%egice
-wetfac(wgrid)=(1.-ice%fracice)*pg%wetfac+ice%fracice*pg%wetfacice
-epan(wgrid)=pg%eg
-epot(wgrid)=(1.-ice%fracice)*pg%eg+ice%fracice*pg%egice/pg%wetfacice
-fracice(wgrid)=ice%fracice
-siced(wgrid)=ice%dic
-snowd(wgrid)=ice%dsn
+sst=unpack((1.-i_fracice)*w_temp(:,1)+i_fracice*i_tsurf,wpack,sst)
+workb=(1.-i_fracice)/log(a_zmin/p_zo)**2+i_fracice/log(a_zmin/p_zoice)**2
+zo=unpack(a_zmin*exp(-1./sqrt(workb)),wpack,zo)
+cd=unpack((1.-i_fracice)*p_cd+i_fracice*p_cdice,wpack,cd)
+fg=unpack((1.-i_fracice)*p_fg+i_fracice*p_fgice,wpack,fg)
+eg=unpack((1.-i_fracice)*p_eg+i_fracice*p_egice,wpack,eg)
+wetfac=unpack((1.-i_fracice)+i_fracice*p_wetfacice,wpack,wetfac)
+epan=unpack(p_eg,wpack,epan)
+epot=unpack((1.-i_fracice)*p_eg+i_fracice*p_egice/p_wetfacice,wpack,epot)
+fracice=unpack(i_fracice,wpack,fracice)
+siced=unpack(i_dic,wpack,siced)
+snowd=unpack(i_dsn,wpack,snowd)
 
 return
 end subroutine mloeval
@@ -702,7 +693,7 @@ end subroutine mloeval
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! MLO calcs for water (no ice)
 
-subroutine mlocalc(dt,atm,dg2,dg3,diag)
+subroutine mlocalc(dt,a_f,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_fb,d_salflx,d_did,diag)
 
 implicit none
 
@@ -711,117 +702,111 @@ integer ii,iqw
 real, intent(in) :: dt
 real, dimension(wfull,wlev) :: km,ks,gammas
 real, dimension(wfull,wlev) :: rhs
-real*8, dimension(wfull,2:wlev) :: aa
-real*8, dimension(wfull,wlev) :: bb,dd
-real*8, dimension(wfull,1:wlev-1) :: cc
+double precision, dimension(wfull,2:wlev) :: aa
+double precision, dimension(wfull,wlev) :: bb,dd
+double precision, dimension(wfull,1:wlev-1) :: cc
 real, dimension(wfull) :: xp,xm,dumt0,umag
-type(tatm), dimension(wfull), intent(in) :: atm
-type(tdiag2), dimension(wfull), intent(in) :: dg2
-type(tdiag3), dimension(wfull,wlev), intent(in) :: dg3
-type(tdata), dimension(wfull,wlev) :: new
+real, dimension(wfull), intent(in) :: a_f
+real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha
+real, dimension(wfull), intent(in) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0
+real, dimension(wfull), intent(in) :: d_fb,d_salflx
+integer, dimension(wfull), intent(in) :: d_did
+real, dimension(wfull) :: newa,newb
 
-call getmixdepth(dg2,dg3,atm)      ! solve for mixed layer depth
-call getstab(km,ks,gammas,dg2,dg3) ! solve for stability functions and non-local term
+call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,a_f) ! solve for mixed layer depth
+call getstab(km,ks,gammas,d_nsq,d_ustar)                     ! solve for stability functions and non-local term
 
 ! TEMPERATURE
 ! use +ve for gamma terms as depth is down
 if (incradgam.gt.0) then
   do iqw=1,wfull
-    dumt0(iqw)=dg2(iqw)%wt0-sum(dg3(iqw,1:pg(iqw)%mixind)%rad)
+    dumt0(iqw)=d_wt0(iqw)-sum(d_rad(iqw,1:p_mixind(iqw)))
   end do
 else
-  dumt0=dg2%wt0
+  dumt0=d_wt0
 end if
 rhs(:,1)=(1./dz_hl(:,2))*(ks(:,2)*gammas(:,2)-ks(:,1)*gammas(:,1))
+rhs(:,2:wlev)=0.
 do ii=2,wlev-1
-  where (ii.lt.pg%mixind)
+  where (ii.lt.p_mixind)
     rhs(:,ii)=(0.5/dz(:,ii))*(ks(:,ii+1)*gammas(:,ii+1)-ks(:,ii-1)*gammas(:,ii-1)) ! non-local
-  elsewhere (ii.eq.pg%mixind)
+  elsewhere (ii.eq.p_mixind)
     rhs(:,ii)=(1./dz_hl(:,ii))*(-ks(:,ii-1)*gammas(:,ii-1))
-  elsewhere
-    rhs(:,ii)=0.
   end where
 end do
-where (wlev.eq.pg%mixind)
+where (wlev.eq.p_mixind)
   rhs(:,wlev)=(1./dz_hl(:,wlev))*(-ks(:,wlev-1)*gammas(:,wlev-1))
-elsewhere
-  rhs(:,wlev)=0.
 end where
 cc(:,1)=-dt*0.5*(ks(:,1)+ks(:,2))/(dz_hl(:,2)*dz(:,1))
 bb(:,1)=1.-cc(:,1)
 ! use -ve for BC as depth is down
-dd(:,1)=water(:,1)%temp+dt*rhs(:,1)*dumt0+dt*dg3(:,1)%rad/dz(:,1)-dt*dg2%wt0/dz(:,1)
+dd(:,1)=w_temp(:,1)+dt*rhs(:,1)*dumt0+dt*d_rad(:,1)/dz(:,1)-dt*d_wt0/dz(:,1)
 do ii=2,wlev-1
   aa(:,ii)=-dt*0.5*(ks(:,ii)+ks(:,ii-1))/(dz_hl(:,ii)*dz(:,ii))
   cc(:,ii)=-dt*0.5*(ks(:,ii+1)+ks(:,ii))/(dz_hl(:,ii+1)*dz(:,ii))
   bb(:,ii)=1.-aa(:,ii)-cc(:,ii)
-  dd(:,ii)=water(:,ii)%temp+dt*rhs(:,ii)*dumt0+dt*dg3(:,ii)%rad/dz(:,ii)
+  dd(:,ii)=w_temp(:,ii)+dt*rhs(:,ii)*dumt0+dt*d_rad(:,ii)/dz(:,ii)
 end do
 aa(:,wlev)=-dt*0.5*(ks(:,wlev)+ks(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
 bb(:,wlev)=1.-aa(:,wlev)
-dd(:,wlev)=water(:,wlev)%temp+dt*rhs(:,wlev)*dumt0+dt*dg3(:,wlev)%rad/dz(:,wlev)
+dd(:,wlev)=w_temp(:,wlev)+dt*rhs(:,wlev)*dumt0+dt*d_rad(:,wlev)/dz(:,wlev)
 do iqw=1,wfull
-  dd(iqw,dg2(iqw)%did)=dd(iqw,dg2(iqw)%did)-dt*ice(iqw)%fracice*dg2(iqw)%fb &
-                     /(dg3(iqw,dg2(iqw)%did)%rho*cp0*dz(iqw,dg2(iqw)%did))
+  dd(iqw,d_did(iqw))=dd(iqw,d_did(iqw))-dt*i_fracice(iqw)*d_fb(iqw) &
+                     /(d_rho(iqw,d_did(iqw))*cp0*dz(iqw,d_did(iqw)))
 end do
-call thomas(new%temp,aa,bb,cc,dd)
+call thomas(w_temp,aa,bb,cc,dd)
 
 ! SALINITY
 do ii=1,wlev
-  dd(:,ii)=water(:,ii)%sal+dt*rhs(:,ii)*dg2%ws0
+  dd(:,ii)=w_sal(:,ii)+dt*rhs(:,ii)*d_ws0
 end do
-dd(:,1)=dd(:,1)-dt*dg2%ws0/dz(:,1)
-dd(:,1)=dd(:,1)-dt*ice%fracice*dg2%salflx*water(:,1)%sal/(dg3(:,1)%rho*dz(:,1))
+dd(:,1)=dd(:,1)-dt*d_ws0/dz(:,1)
+dd(:,1)=dd(:,1)-dt*i_fracice*d_salflx*w_sal(:,1)/(d_rho(:,1)*dz(:,1))
 if (salrelax.eq.1) then ! relax salinity
-  where (water%sal.gt.1.E-6)
-    dd=dd+dt*(34.72-water%sal)/(3600.*24.*365.25*10.)
+  where (w_sal.gt.1.E-6)
+    dd=dd+dt*(34.72-w_sal)/(3600.*24.*365.25*10.)
   end where
 end if
-call thomas(new%sal,aa,bb,cc,dd)
-
-new%sal=max(0.,new%sal) ! MJT suggestion
+call thomas(w_sal,aa,bb,cc,dd)
+w_sal=max(0.,w_sal)
 
 ! split U diffusion term
 cc(:,1)=-dt*0.5*(km(:,1)+km(:,2))/(dz_hl(:,2)*dz(:,1))
 bb(:,1)=1.-cc(:,1)
-dd(:,1)=water(:,1)%u-dt*dg2%wu0/dz(:,1)
+dd(:,1)=w_u(:,1)-dt*d_wu0/dz(:,1)
 do ii=2,wlev-1
   aa(:,ii)=-dt*0.5*(km(:,ii)+km(:,ii-1))/(dz_hl(:,ii)*dz(:,ii))
   cc(:,ii)=-dt*0.5*(km(:,ii+1)+km(:,ii))/(dz_hl(:,ii+1)*dz(:,ii))
   bb(:,ii)=1.-aa(:,ii)-cc(:,ii)
-  dd(:,ii)=water(:,ii)%u
+  dd(:,ii)=w_u(:,ii)
 end do
 aa(:,wlev)=-dt*0.5*(km(:,wlev)+km(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
 bb(:,wlev)=1.-aa(:,wlev)
-dd(:,wlev)=water(:,wlev)%u
-umag=sqrt(water(:,wlev)%u*water(:,wlev)%u+water(:,wlev)%v*water(:,wlev)%v)
+dd(:,wlev)=w_u(:,wlev)
+umag=sqrt(w_u(:,wlev)*w_u(:,wlev)+w_v(:,wlev)*w_v(:,wlev))
 where (depth_hl(:,wlev+1).lt.(mxd-0.1)) ! bottom drag
   bb(:,wlev)=bb(:,wlev)+dt*cdbot*umag/dz(:,wlev)
 end where
-call thomas(new%u,aa,bb,cc,dd)
+call thomas(w_u,aa,bb,cc,dd)
 
 ! split V diffusion term
 do ii=1,wlev
-  dd(:,ii)=water(:,ii)%v
+  dd(:,ii)=w_v(:,ii)
 end do
-dd(:,1)=dd(:,1)-dt*dg2%wv0/dz(:,1)
-call thomas(new%v,aa,bb,cc,dd)
-
-water%u=new%u
-water%v=new%v
+dd(:,1)=dd(:,1)-dt*d_wv0/dz(:,1)
+call thomas(w_v,aa,bb,cc,dd)
 
 ! Split U and V coriolis terms
-xp=1.+(0.5*dt*atm%f)**2
-xm=1.-(0.5*dt*atm%f)**2
+xp=1.+(0.5*dt*a_f)**2
+xm=1.-(0.5*dt*a_f)**2
 do ii=1,wlev
-  new(:,ii)%u=(water(:,ii)%u*xm+water(:,ii)%v*dt*atm%f)/xp
-  new(:,ii)%v=(water(:,ii)%v*xm-water(:,ii)%u*dt*atm%f)/xp
+  newa=(w_u(:,ii)*xm+w_v(:,ii)*dt*a_f)/xp
+  newb=(w_v(:,ii)*xm-w_u(:,ii)*dt*a_f)/xp
+  w_u(:,ii)=newa
+  w_v(:,ii)=newb
 end do
-
-new%u=max(-100.,min(new%u,100.)) ! MJT suggestion
-new%v=max(-100.,min(new%v,100.)) ! MJT suggestion
-
-water=new
+w_u=max(-100.,min(w_u,100.)) ! MJT suggestion
+w_v=max(-100.,min(w_v,100.)) ! MJT suggestion
 
 return
 end subroutine mlocalc
@@ -834,16 +819,15 @@ subroutine thomas(outo,aa,bbi,cc,ddi)
 implicit none
 
 integer ii
-real*8, dimension(wfull,2:wlev), intent(in) :: aa
-real*8, dimension(wfull,wlev), intent(in) :: bbi,ddi
-real*8, dimension(wfull,wlev-1), intent(in) :: cc
+double precision, dimension(wfull,2:wlev), intent(in) :: aa
+double precision, dimension(wfull,wlev), intent(in) :: bbi,ddi
+double precision, dimension(wfull,wlev-1), intent(in) :: cc
 real, dimension(wfull,wlev), intent(out) :: outo
-real*8, dimension(wfull,wlev) :: bb,dd,out
-real*8, dimension(wfull) :: n
+double precision, dimension(wfull,wlev) :: bb,dd,out
+double precision, dimension(wfull) :: n
 
 bb=bbi
 dd=ddi
-
 do ii=2,wlev
   n=aa(:,ii)/bb(:,ii-1)
   bb(:,ii)=bb(:,ii)-n*cc(:,ii-1)
@@ -853,7 +837,6 @@ out(:,wlev)=dd(:,wlev)/bb(:,wlev)
 do ii=wlev-1,1,-1
   out(:,ii)=(dd(:,ii)-cc(:,ii)*out(:,ii+1))/bb(:,ii)
 end do
-
 outo=out
 
 return
@@ -863,7 +846,7 @@ end subroutine thomas
 ! Solve for stability functions
 ! GFDL use a look-up table to speed-up the code...
 
-subroutine getstab(km,ks,gammas,dg2,dg3)
+subroutine getstab(km,ks,gammas,d_nsq,d_ustar)
 
 implicit none
 
@@ -875,34 +858,33 @@ real, dimension(wfull) :: a2m,a3m,a2s,a3s
 real, dimension(wfull) :: numh,wm1,dnumhdz,dwm1ds,g1m,dg1mds
 real, dimension(wfull) :: nush,ws1,dnushdz,dws1ds,g1s,dg1sds
 real xp,cg
-type(tdiag2), dimension(wfull), intent(in) :: dg2
-type(tdiag3), dimension(wfull,wlev), intent(in) :: dg3
+real, dimension(wfull,wlev), intent(in) :: d_nsq
+real, dimension(wfull), intent(in) :: d_ustar
 real, parameter :: ri0 = 0.7
 real, parameter :: nu0 = 50.E-4
 real, parameter :: numw = 1.E-4
 real, parameter :: nusw = 0.1E-4
 
-ri(:,1)=dg3(:,1)%nsq*(2.*dz_hl(:,2))**2 &
-           /max((water(:,1)%u-water(:,2)%u)**2 &
-               +(water(:,1)%v-water(:,2)%v)**2,1.E-10)
+ri(:,1)=d_nsq(:,1)*(2.*dz_hl(:,2))**2 &
+           /max((w_u(:,1)-w_u(:,2))**2 &
+               +(w_v(:,1)-w_v(:,2))**2,1.E-10)
 do ii=2,wlev-1
-  ri(:,ii)=dg3(:,ii)%nsq*(2.*dz(:,ii))**2 &
-           /max((water(:,ii-1)%u-water(:,ii+1)%u)**2 &
-               +(water(:,ii-1)%v-water(:,ii+1)%v)**2,1.E-10)
+  ri(:,ii)=d_nsq(:,ii)*(2.*dz(:,ii))**2 &
+           /max((w_u(:,ii-1)-w_u(:,ii+1))**2 &
+               +(w_v(:,ii-1)-w_v(:,ii+1))**2,1.E-10)
 end do
-ri(:,wlev)=dg3(:,wlev)%nsq*(2.*dz_hl(:,wlev))**2 &
-           /max((water(:,wlev-1)%u-water(:,wlev)%u)**2 &
-               +(water(:,wlev-1)%v-water(:,wlev)%v)**2,1.E-10)
+ri(:,wlev)=d_nsq(:,wlev)*(2.*dz_hl(:,wlev))**2 &
+           /max((w_u(:,wlev-1)-w_u(:,wlev))**2 &
+               +(w_v(:,wlev-1)-w_v(:,wlev))**2,1.E-10)
 
 ! diffusion ---------------------------------------------------------
+num=0.
 do ii=1,wlev
   ! s - shear
   where (ri(:,ii).lt.0.)
     num(:,ii)=nu0
   elsewhere (ri(:,ii).lt.ri0)
     num(:,ii)=nu0*(1.-(ri(:,ii)/ri0)**2)**3
-  elsewhere
-    num(:,ii)=0.
   endwhere
   nus(:,ii)=num(:,ii)
   ! d - double-diffusive
@@ -915,32 +897,32 @@ nus=nus+nusw
 
 ! stability ---------------------------------------------------------
 do ii=1,wlev
-  call getwx(wm(:,ii),ws(:,ii),depth(:,ii),pg%bf,dg2%ustar,pg%mixdepth)
+  call getwx(wm(:,ii),ws(:,ii),depth(:,ii),p_bf,d_ustar,p_mixdepth)
 end do
 !--------------------------------------------------------------------
 
 ! calculate G profile -----------------------------------------------
 ! -ve as z is down
 do iqw=1,wfull
-  xp=(pg(iqw)%mixdepth-depth(iqw,pg(iqw)%mixind))/(depth(iqw,pg(iqw)%mixind+1)-depth(iqw,pg(iqw)%mixind))
+  xp=(p_mixdepth(iqw)-depth(iqw,p_mixind(iqw)))/(depth(iqw,p_mixind(iqw)+1)-depth(iqw,p_mixind(iqw)))
   xp=max(0.,min(1.,xp))
-  numh(iqw)=(1.-xp)*num(iqw,pg(iqw)%mixind)+xp*num(iqw,pg(iqw)%mixind+1)
-  wm1(iqw)=(1.-xp)*wm(iqw,pg(iqw)%mixind)+xp*wm(iqw,pg(iqw)%mixind+1)
-  dnumhdz(iqw)=-(num(iqw,pg(iqw)%mixind+1)-num(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
-  dwm1ds(iqw)=-pg(iqw)%mixdepth*(wm(iqw,pg(iqw)%mixind+1)-wm(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
-  nush(iqw)=(1.-xp)*nus(iqw,pg(iqw)%mixind)+xp*nus(iqw,pg(iqw)%mixind+1)
-  ws1(iqw)=(1.-xp)*ws(iqw,pg(iqw)%mixind)+xp*ws(iqw,pg(iqw)%mixind+1)
-  dnushdz(iqw)=-(nus(iqw,pg(iqw)%mixind+1)-nus(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
-  dws1ds(iqw)=-pg(iqw)%mixdepth*(ws(iqw,pg(iqw)%mixind+1)-ws(iqw,pg(iqw)%mixind))/dz_hl(iqw,pg(iqw)%mixind+1)
+  numh(iqw)=(1.-xp)*num(iqw,p_mixind(iqw))+xp*num(iqw,p_mixind(iqw)+1)
+  wm1(iqw)=(1.-xp)*wm(iqw,p_mixind(iqw))+xp*wm(iqw,p_mixind(iqw)+1)
+  dnumhdz(iqw)=-(num(iqw,p_mixind(iqw)+1)-num(iqw,p_mixind(iqw)))/dz_hl(iqw,p_mixind(iqw)+1)
+  dwm1ds(iqw)=-p_mixdepth(iqw)*(wm(iqw,p_mixind(iqw)+1)-wm(iqw,p_mixind(iqw)))/dz_hl(iqw,p_mixind(iqw)+1)
+  nush(iqw)=(1.-xp)*nus(iqw,p_mixind(iqw))+xp*nus(iqw,p_mixind(iqw)+1)
+  ws1(iqw)=(1.-xp)*ws(iqw,p_mixind(iqw))+xp*ws(iqw,p_mixind(iqw)+1)
+  dnushdz(iqw)=-(nus(iqw,p_mixind(iqw)+1)-nus(iqw,p_mixind(iqw)))/dz_hl(iqw,p_mixind(iqw)+1)
+  dws1ds(iqw)=-p_mixdepth(iqw)*(ws(iqw,p_mixind(iqw)+1)-ws(iqw,p_mixind(iqw)))/dz_hl(iqw,p_mixind(iqw)+1)
 end do
 
 wm1=max(wm1,1.E-10)
 ws1=max(ws1,1.E-10)
   
-g1m=numh/(pg%mixdepth*wm1)
-dg1mds=-dnumhdz/wm1-numh*dwm1ds/(pg%mixdepth*wm1*wm1)
-g1s=nush/(pg%mixdepth*ws1)
-dg1sds=-dnushdz/ws1-nush*dws1ds/(pg%mixdepth*ws1*ws1)
+g1m=numh/(p_mixdepth*wm1)
+dg1mds=-dnumhdz/wm1-numh*dwm1ds/(p_mixdepth*wm1*wm1)
+g1s=nush/(p_mixdepth*ws1)
+dg1sds=-dnushdz/ws1-nush*dws1ds/(p_mixdepth*ws1*ws1)
   
 a2m=-2.+3.*g1m-dg1mds
 a3m=1.-2.*g1m+dg1mds
@@ -949,14 +931,13 @@ a3s=1.-2.*g1s+dg1sds
 
 !--------------------------------------------------------------------
 ! combine
+km=num
+ks=nus
 do ii=1,wlev
-  where (ii.le.pg%mixind)
-    sigma=depth(:,ii)/pg%mixdepth
-    km(:,ii)=pg%mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
-    ks(:,ii)=pg%mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
-  elsewhere
-    km(:,ii)=num(:,ii)
-    ks(:,ii)=nus(:,ii)
+  where (ii.le.p_mixind)
+    sigma=depth(:,ii)/p_mixdepth
+    km(:,ii)=p_mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
+    ks(:,ii)=p_mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
   end where
 end do
 
@@ -966,11 +947,10 @@ ks=max(ks,nusw) ! MJT suggestion
 ! non-local term
 ! gammas is the same for temp and sal when double-diffusion is not employed
 cg=10.*vkar*(98.96*vkar*epsilon)**(1./3.)
+gammas=0.
 do ii=1,wlev
-  where (pg%bf.lt.0.) ! unstable
-    gammas(:,ii)=cg/max(ws(:,ii)*pg%mixdepth,1.E-10)
-  elsewhere           ! stable
-    gammas(:,ii)=0.
+  where (p_bf.lt.0.) ! unstable
+    gammas(:,ii)=cg/max(ws(:,ii)*p_mixdepth,1.E-10)
   end where
 end do
 
@@ -980,7 +960,7 @@ end subroutine getstab
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! calculate mixing layer depth
 
-subroutine getmixdepth(dg2,dg3,atm)
+subroutine getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,a_f)
 
 implicit none
 
@@ -989,68 +969,70 @@ real vtc,dvsq,vtsq,xp
 real, dimension(wfull,wlev) :: ws,wm
 real, dimension(wfull) :: dumbf,l,he
 real, dimension(wlev) :: rib
-type(tdiag2), dimension(wfull), intent(in) :: dg2
-type(tdiag3), dimension(wfull,wlev), intent(in) :: dg3
-type(tatm), dimension(wfull), intent(in) :: atm
+real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha
+real, dimension(wfull), intent(in) :: d_b0,d_ustar
+real, dimension(wfull), intent(in) :: a_f
 
 vtc=1.8*sqrt(0.2/(98.96*epsilon))/(vkar**2*ric)
 
 if (incradbf.gt.0) then
   do ii=1,wlev
-    dumbf=dg2%b0+grav*sum(dg3(:,1:ii)%alpha*dg3(:,1:ii)%rad,2)
-    call getwx(wm(:,ii),ws(:,ii),depth(:,ii),dumbf,dg2%ustar,depth(:,ii))
+    dumbf=d_b0+grav*sum(d_alpha(:,1:ii)*d_rad(:,1:ii),2)
+    call getwx(wm(:,ii),ws(:,ii),depth(:,ii),dumbf,d_ustar,depth(:,ii))
   end do
 else
-  dumbf=dg2%b0
+  dumbf=d_b0
   do ii=1,wlev
-    call getwx(wm(:,ii),ws(:,ii),depth(:,ii),dumbf,dg2%ustar,depth(:,ii))
+    call getwx(wm(:,ii),ws(:,ii),depth(:,ii),dumbf,d_ustar,depth(:,ii))
   end do
 end if
 
-pg%mixind=wlev-1
-pg%mixdepth=depth(:,wlev)
+p_mixind=wlev-1
+p_mixdepth=depth(:,wlev)
 do iqw=1,wfull
   ! should be averaged over 0 < sigma < epsilon instead of 1st level
   rib(1)=0.
   do ii=2,wlev
-    vtsq=depth(iqw,ii)*ws(iqw,ii)*sqrt(abs(dg3(iqw,ii)%nsq))*vtc
-    dvsq=(water(iqw,1)%u-water(iqw,ii)%u)**2+(water(iqw,1)%v-water(iqw,ii)%v)**2
-    rib(ii)=(depth(iqw,ii)-depth(iqw,1))*(1.-dg3(iqw,1)%rho/dg3(iqw,ii)%rho)/max(dvsq+vtsq,1.E-10)
+    vtsq=depth(iqw,ii)*ws(iqw,ii)*sqrt(abs(d_nsq(iqw,ii)))*vtc
+    dvsq=(w_u(iqw,1)-w_u(iqw,ii))**2+(w_v(iqw,1)-w_v(iqw,ii))**2
+    rib(ii)=(depth(iqw,ii)-depth(iqw,1))*(1.-d_rho(iqw,1)/d_rho(iqw,ii))/max(dvsq+vtsq,1.E-10)
     if (rib(ii).gt.ric) then
-      pg(iqw)%mixind=ii-1
+      p_mixind(iqw)=ii-1
       xp=min(max((ric-rib(ii-1))/max(rib(ii)-rib(ii-1),1.E-10),0.),1.)
-      pg(iqw)%mixdepth=(1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii)
+      p_mixdepth(iqw)=(1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii)
       exit
     end if
   end do 
 end do
 
 ! calculate buoyancy forcing
-call getbf(dg2,dg3)
+call getbf(d_rad,d_alpha,d_b0)
 
 ! impose limits for stable conditions
-l=dg2%ustar*dg2%ustar*dg2%ustar/(vkar*pg%bf)
-he=0.7*dg2%ustar/abs(atm%f)
-where(pg%bf.gt.0.)
-  pg%mixdepth=min(pg%mixdepth,l)
-  pg%mixdepth=min(pg%mixdepth,he)
+where(p_bf.gt.0.)
+  l=d_ustar*d_ustar*d_ustar/(vkar*p_bf)
+  p_mixdepth=min(p_mixdepth,l)
 end where
-pg%mixdepth=max(pg%mixdepth,depth(:,1))
-pg%mixdepth=min(pg%mixdepth,depth(:,wlev))
+where(a_f.gt.0.)
+  he=0.7*d_ustar/abs(a_f)
+  p_mixdepth=min(p_mixdepth,he)
+end where
+p_mixdepth=max(p_mixdepth,depth(:,1))
+p_mixdepth=min(p_mixdepth,depth(:,wlev))
 
 ! recalculate index for mixdepth
-pg%mixind=wlev-1
+p_mixind=wlev-1
 do iqw=1,wfull
   do ii=2,wlev
-    if (depth(iqw,ii).gt.pg(iqw)%mixdepth) then
-      pg(iqw)%mixind=ii-1
+    if (depth(iqw,ii).gt.p_mixdepth(iqw)) then
+      p_mixind(iqw)=ii-1
       exit
     end if
   end do
 end do
 
 ! recalculate buoyancy forcing
-call getbf(dg2,dg3)
+call getbf(d_rad,d_alpha,d_b0)
 
 return
 end subroutine getmixdepth
@@ -1058,20 +1040,20 @@ end subroutine getmixdepth
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate bouyancy forcing
 
-subroutine getbf(dg2,dg3)
+subroutine getbf(d_rad,d_alpha,d_b0)
 
 implicit none
 
 integer iqw
-type(tdiag2), dimension(wfull), intent(in) :: dg2
-type(tdiag3), dimension(wfull,wlev), intent(in) :: dg3
+real, dimension(wfull,wlev), intent(in) :: d_rad,d_alpha
+real, dimension(wfull), intent(in) :: d_b0
 
 if (incradbf.gt.0) then
   do iqw=1,wfull
-    pg(iqw)%bf=dg2(iqw)%b0+grav*sum(dg3(iqw,1:pg(iqw)%mixind)%alpha*dg3(iqw,1:pg(iqw)%mixind)%rad)
+    p_bf(iqw)=d_b0(iqw)+grav*sum(d_alpha(iqw,1:p_mixind(iqw))*d_rad(iqw,1:p_mixind(iqw)))
   end do
 else
-  pg%bf=dg2%b0
+  p_bf=d_b0
 end if
 
 return
@@ -1080,13 +1062,14 @@ end subroutine getbf
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This calculates the stability functions
 
-subroutine getwx(wm,ws,dep,bf,ustar,mixdp)
+subroutine getwx(wm,ws,dep,bf,d_ustar,mixdp)
 
 implicit none
 
 real, dimension(wfull), intent(out) :: wm,ws
-real, dimension(wfull), intent(in) :: bf,ustar,mixdp,dep
+real, dimension(wfull), intent(in) :: bf,mixdp,dep
 real, dimension(wfull) :: zeta,sig,invl,uuu
+real, dimension(wfull), intent(in) :: d_ustar
 real, parameter :: zetam=-0.2
 real, parameter :: zetas=-1.0
 real, parameter :: am=1.26
@@ -1098,24 +1081,24 @@ sig=dep/mixdp                       ! stable
 where (bf.le.0..and.sig.gt.epsilon) ! unstable
   sig=epsilon
 end where
-uuu=max(ustar**3,1.E-10)
+uuu=max(d_ustar**3,1.E-10)
 invl=vkar*bf ! invl = ustar**3/L or L=ustar**3/(vkar*bf)
 invl=max(invl,-10.*uuu/mixdp) ! MJT suggestion
 invl=min(invl,1.*uuu/mixdp)   ! MJT suggestion
 zeta=sig*mixdp*invl
 
 where (zeta.gt.0.)
-  wm=vkar*ustar*uuu/(uuu+5.*zeta)
+  wm=vkar*d_ustar*uuu/(uuu+5.*zeta)
 elsewhere (zeta.gt.zetam*uuu)
-  wm=vkar*ustar*(1.-16.*zeta/uuu)**(1./4.)
+  wm=vkar*d_ustar*(1.-16.*zeta/uuu)**(1./4.)
 elsewhere
   wm=vkar*(am*uuu-cm*zeta)**(1./3.)
 end where
 
 where (zeta.gt.0.)
-  ws=vkar*ustar*uuu/(uuu+5.*zeta)
+  ws=vkar*d_ustar*uuu/(uuu+5.*zeta)
 elsewhere (zeta.gt.zetas*uuu)
-  ws=vkar*ustar*(1.-16.*zeta/uuu)**(1./2.)
+  ws=vkar*d_ustar*(1.-16.*zeta/uuu)**(1./2.)
 elsewhere
   ws=vkar*(as*uuu-cs*zeta)**(1./3.)
 end where
@@ -1127,7 +1110,8 @@ end subroutine getwx
 ! Calculate rho from equation of state
 ! From GFDL (MOM3)
 
-subroutine getrho(atm,dg2,dg3)
+subroutine getrho(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,d_rho,d_nsq,d_rad,d_alpha,d_beta, &
+                  d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_taux,d_tauy,d_rs)
 
 implicit none
 
@@ -1139,16 +1123,14 @@ real, dimension(wfull) :: drhodt,drhods,rs0,rho0,hlra,hlrb
 real, dimension(wfull) :: visalb,niralb
 real, dimension(wfull,wlev) :: rs
 real, parameter :: density = 1035.
-type(tdiag2), dimension(wfull), intent(inout) :: dg2
-type(tdiag3), dimension(wfull,wlev), intent(inout) :: dg3
-type(tatm), dimension(wfull), intent(in) :: atm
+real, dimension(wfull,wlev), intent(inout) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
+real, dimension(wfull), intent(inout) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_taux,d_tauy,d_rs
+real, dimension(wfull), intent(in) :: a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir
 
-do ii=1,wlev
-  dg3(:,ii)%rho=density
-end do
+d_rho=density
 
-t = max(water(:,1)%temp-273.16,-2.)
-s = max(water(:,1)%sal,0.)
+t = max(w_temp(:,1)-273.16,-2.)
+s = max(w_sal(:,1),0.)
 t2 = t*t
 t3 = t2*t
 t4 = t3*t
@@ -1179,9 +1161,9 @@ drho0ds= (0.824493 - 4.0899e-3*t(:) &
 
 do i=1,nits
   do ii=1,wlev
-    t = max(water(:,ii)%temp-273.16,-2.)
-    s = max(water(:,ii)%sal,0.01)
-    p1 = grav*depth(:,ii)*dg3(:,ii)%rho/100000.
+    t = max(w_temp(:,ii)-273.16,-2.)
+    s = max(w_sal(:,ii),0.01)
+    p1 = grav*depth(:,ii)*d_rho(:,ii)/100000.
     t2 = t*t
     t3 = t2*t
     t4 = t3*t
@@ -1227,57 +1209,57 @@ do i=1,nits
                 +p2(:)*(-2.040237e-6 &
                 + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
        
-    dg3(:,ii)%rho=rho0/(1.-p1/sk)
+    d_rho(:,ii)=rho0/(1.-p1/sk)
     rs(:,ii)=rs0/(1.-p1/sks) ! sal=0.
   
     drhodt=drho0dt/(1.-p1/sk)-rho0*p1*dskdt/((sk-p1)**2)
     drhods=drho0ds/(1.-p1/sk)-rho0*p1*dskds/((sk-p1)**2)
-    dg3(:,ii)%alpha=-drhodt/dg3(:,ii)%rho ! MOM convention
-    dg3(:,ii)%beta=drhods/dg3(:,ii)%rho   ! MOM convention
+    d_alpha(:,ii)=-drhodt/d_rho(:,ii) ! MOM convention
+    d_beta(:,ii)=drhods/d_rho(:,ii)   ! MOM convention
   end do
 
 end do
 
 ! buoyancy frequency
-dg3(:,1)%nsq=-(grav/dg3(:,1)%rho)*(dg3(:,1)%rho-dg3(:,2)%rho)/dz_hl(:,2)
+d_nsq(:,1)=-(grav/d_rho(:,1))*(d_rho(:,1)-d_rho(:,2))/dz_hl(:,2)
 do ii=2,wlev-1
-  dg3(:,ii)%nsq=-(grav/dg3(:,ii)%rho)*0.5*(dg3(:,ii-1)%rho-dg3(:,ii+1)%rho)/dz(:,ii)
+  d_nsq(:,ii)=-(grav/d_rho(:,ii))*0.5*(d_rho(:,ii-1)-d_rho(:,ii+1))/dz(:,ii)
 end do
-dg3(:,wlev)%nsq=-(grav/dg3(:,wlev)%rho)*(dg3(:,wlev-1)%rho-dg3(:,wlev)%rho)/dz_hl(:,wlev)
+d_nsq(:,wlev)=-(grav/d_rho(:,wlev))*(d_rho(:,wlev-1)-d_rho(:,wlev))/dz_hl(:,wlev)
 
 ! shortwave
 ! use -ve as depth is down
-visalb=pg%watervisdiralb*atm%fbvis+pg%watervisdifalb*(1.-atm%fbvis)
-niralb=pg%waternirdiralb*atm%fbnir+pg%waternirdifalb*(1.-atm%fbnir)
-hlrb=0.5*(dg3(:,1)%rho+dg3(:,2)%rho)
-dg3(:,1)%rad=-atm%sg/cp0*(((1.-visalb)*atm%vnratio*exp(-depth_hl(:,2)/mu_1)+ &
-                           (1.-niralb)*(1.-atm%vnratio)*exp(-depth_hl(:,2)/mu_2))/hlrb- &
-                          ((1.-visalb)*atm%vnratio*exp(-depth_hl(:,1)/mu_1)+ &
-                           (1.-niralb)*(1.-atm%vnratio)*exp(-depth_hl(:,1)/mu_2))/rho0)
+visalb=p_watervisdiralb*a_fbvis+p_watervisdifalb*(1.-a_fbvis)
+niralb=p_waternirdiralb*a_fbnir+p_waternirdifalb*(1.-a_fbnir)
+hlrb=0.5*(d_rho(:,1)+d_rho(:,2))
+d_rad(:,1)=-a_sg/cp0*(((1.-visalb)*a_vnratio*exp(-depth_hl(:,2)/mu_1)+ &
+                       (1.-niralb)*(1.-a_vnratio)*exp(-depth_hl(:,2)/mu_2))/hlrb- &
+                      ((1.-visalb)*a_vnratio*exp(-depth_hl(:,1)/mu_1)+ &
+                       (1.-niralb)*(1.-a_vnratio)*exp(-depth_hl(:,1)/mu_2))/rho0)
 do ii=2,wlev-1 
-  hlra=0.5*(dg3(:,ii-1)%rho+dg3(:,ii)%rho)
-  hlrb=0.5*(dg3(:,ii)%rho+dg3(:,ii+1)%rho)
-  dg3(:,ii)%rad=-atm%sg/cp0*(((1.-visalb)*atm%vnratio*exp(-depth_hl(:,ii+1)/mu_1)+ &
-                              (1.-niralb)*(1.-atm%vnratio)*exp(-depth_hl(:,ii+1)/mu_2))/hlrb- &
-                             ((1.-visalb)*atm%vnratio*exp(-depth_hl(:,ii)/mu_1)+ &
-                              (1.-niralb)*(1.-atm%vnratio)*exp(-depth_hl(:,ii)/mu_2))/hlra)
+  hlra=0.5*(d_rho(:,ii-1)+d_rho(:,ii))
+  hlrb=0.5*(d_rho(:,ii)+d_rho(:,ii+1))
+  d_rad(:,ii)=-a_sg/cp0*(((1.-visalb)*a_vnratio*exp(-depth_hl(:,ii+1)/mu_1)+ &
+                          (1.-niralb)*(1.-a_vnratio)*exp(-depth_hl(:,ii+1)/mu_2))/hlrb- &
+                         ((1.-visalb)*a_vnratio*exp(-depth_hl(:,ii)/mu_1)+ &
+                          (1.-niralb)*(1.-a_vnratio)*exp(-depth_hl(:,ii)/mu_2))/hlra)
 end do
-hlra=0.5*(dg3(:,wlev-1)%rho+dg3(:,wlev)%rho)
-dg3(:,wlev)%rad=atm%sg/cp0*((1.-visalb)*atm%vnratio*exp(-depth_hl(:,wlev)/mu_1)+ &
-                            (1.-niralb)*(1.-atm%vnratio)*exp(-depth_hl(:,wlev)/mu_2))/hlra ! remainder
+hlra=0.5*(d_rho(:,wlev-1)+d_rho(:,wlev))
+d_rad(:,wlev)=a_sg/cp0*((1.-visalb)*a_vnratio*exp(-depth_hl(:,wlev)/mu_1)+ &
+                        (1.-niralb)*(1.-a_vnratio)*exp(-depth_hl(:,wlev)/mu_2))/hlra ! remainder
 
 ! Boundary conditions (use rho at level 1 for consistancy with shortwave radiation)
-dg2%wu0=-dg2%taux/dg3(:,1)%rho                                                ! BC
-dg2%wv0=-dg2%tauy/dg3(:,1)%rho                                                ! BC
-dg2%wt0=-(-pg%fg-pg%eg+atm%rg-sbconst*water(:,1)%temp**4)/(dg3(:,1)%rho*cp0)  ! BC
-dg2%wt0=dg2%wt0-lf*atm%snd/(dg3(:,1)%rho*cp0) ! melting snow
-dg2%ws0=(atm%rnd+atm%snd-pg%eg/lv)*water(:,1)%sal/rs(:,1)                     ! BC
+d_wu0=-d_taux/d_rho(:,1)                                            ! BC
+d_wv0=-d_tauy/d_rho(:,1)                                            ! BC
+d_wt0=-(-p_fg-p_eg+a_rg-sbconst*w_temp(:,1)**4)/(d_rho(:,1)*cp0)    ! BC
+d_wt0=d_wt0-lf*a_snd/(d_rho(:,1)*cp0) ! melting snow
+d_ws0=(a_rnd+a_snd-p_eg/lv)*w_sal(:,1)/rs(:,1)                      ! BC
 
-dg2%rs=rs(:,1) ! save for sea-ice flux
+d_rs=rs(:,1) ! save for sea-ice flux
 
-dg2%ustar=max(sqrt(sqrt(dg2%wu0*dg2%wu0+dg2%wv0*dg2%wv0)),1.E-10)
-dg2%b0=-grav*(dg3(:,1)%alpha*dg2%wt0-dg3(:,1)%beta*dg2%ws0)
-!dg2%b0=-grav*(-drho0dt*dg2%wt0-drho0ds*dg2%ws0)
+d_ustar=max(sqrt(sqrt(d_wu0*d_wu0+d_wv0*d_wv0)),1.E-10)
+d_b0=-grav*(d_alpha(:,1)*d_wt0-d_beta(:,1)*d_ws0)
+!d_b0=-grav*(-drho0dt*d_wt0-drho0ds*d_ws0)
 
 return
 end subroutine getrho
@@ -1285,19 +1267,22 @@ end subroutine getrho
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate fluxes between MLO and atmosphere (from CCAM sflux.f)
 
-subroutine fluxcalc(atm,dg2,diag)
+subroutine fluxcalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,d_taux,d_tauy,diag)
 
 implicit none
 
 integer, intent(in) :: diag
 integer it
-type(tatm), dimension(wfull), intent(in) :: atm
-type(tdiag2), dimension(wfull), intent(inout) :: dg2
+real, dimension(wfull), intent(in) :: a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
+real, dimension(wfull), intent(inout) :: d_taux,d_tauy
 real, dimension(wfull) :: qsat,ri,vmag,rho,srcp
 real, dimension(wfull) :: fm,fh,con,consea,afroot,af,daf
 real, dimension(wfull) :: den,dfm,sig,factch,root
 real, dimension(wfull) :: aft,atu,atv,dcs,afq,facqch,fq
 real ztv
+! momentum flux parameters
+real, parameter :: charnck=0.018
+real, parameter :: chn10=0.00125
 ! ..... high wind speed - rough sea
 real, parameter :: zcom1 = 1.8e-2    ! Charnock's constant
 real, parameter :: zcoh1 = 0.0       ! Beljaars 1994 values
@@ -1308,83 +1293,83 @@ real, parameter :: zcom2 = 0.11
 real, parameter :: zcoh2 = 0.40
 real, parameter :: zcoq2 = 0.62
 
-atu=atm%u-water(:,1)%u
-atv=atm%v-water(:,1)%v
+atu=a_u-w_u(:,1)
+atv=a_v-w_v(:,1)
 vmag=sqrt(atu*atu+atv*atv)
-sig=exp(-grav*atm%zmins/(rdry*atm%temp))
+sig=exp(-grav*a_zmins/(rdry*a_temp))
 srcp=sig**(rdry/cp)
-rho=atm%ps/(rdry*water(:,1)%temp)
+rho=a_ps/(rdry*w_temp(:,1))
 
-call getqsat(qsat,water(:,1)%temp,atm%ps)
+call getqsat(qsat,w_temp(:,1),a_ps)
 if (zomode.eq.0) then ! CSIRO9
   qsat=0.98*qsat ! with Zeng 1998 for sea water
 end if
-ri=min(grav*(atm%zmin**2/atm%zmins)*(1.-water(:,1)%temp*srcp/atm%temp)/max(vmag,0.1)**2,rimax)
+ri=min(grav*(a_zmin**2/a_zmins)*(1.-w_temp(:,1)*srcp/a_temp)/max(vmag,0.1)**2,rimax)
 select case(zomode)
   case(0,1) ! Charnock
     consea=vmag*charnck/grav
-    pg%zo=0.001    ! first guess
+    p_zo=0.001    ! first guess
     do it=1,4
-      afroot=vkar/log(atm%zmin/pg%zo)
+      afroot=vkar/log(a_zmin/p_zo)
       af=afroot*afroot
-      daf=2.*af*afroot/(vkar*pg%zo)
+      daf=2.*af*afroot/(vkar*p_zo)
       where (ri>0.) ! stable water points                                                 
         fm=1./(1.+bprm*ri)**2
         con=consea*fm*vmag
-        pg%zo=pg%zo-(pg%zo-con*af)/(1.-con*daf)
+        p_zo=p_zo-(p_zo-con*af)/(1.-con*daf)
       elsewhere     ! unstable water points
-        con=cms*2.*bprm*sqrt(-ri*atm%zmin/pg%zo)
+        con=cms*2.*bprm*sqrt(-ri*a_zmin/p_zo)
         den=1.+af*con
         fm=vmag-vmag*2.*bprm*ri/den
-        dfm=vmag*2.*bprm*ri*(con*daf+af*cms*bprm*ri*atm%zmin/(sqrt(-ri*atm%zmin/pg%zo)*pg%zo*pg%zo))/(den*den) ! MJT suggestion
-        pg%zo=pg%zo-(pg%zo-consea*af*fm)/(1.-consea*(daf*fm+af*dfm))
+        dfm=vmag*2.*bprm*ri*(con*daf+af*cms*bprm*ri*a_zmin/(sqrt(-ri*a_zmin/p_zo)*p_zo*p_zo))/(den*den) ! MJT suggestion
+        p_zo=p_zo-(p_zo-consea*af*fm)/(1.-consea*(daf*fm+af*dfm))
       end where
-      pg%zo=min(max(pg%zo,1.5e-10),0.1)
+      p_zo=min(max(p_zo,1.5e-10),0.1)
     enddo    ! it=1,4
   case(2) ! Beljaars
-    pg%zo=0.001    ! first guess
+    p_zo=0.001    ! first guess
     do it=1,4
-      afroot=vkar/log(atm%zmin/pg%zo)
+      afroot=vkar/log(a_zmin/p_zo)
       af=afroot*afroot
-      daf=2.*af*afroot/(vkar*pg%zo)
+      daf=2.*af*afroot/(vkar*p_zo)
       where (ri>0.) ! stable water points                                                 
         fm=1./(1.+bprm*ri)**2
         consea=zcom1*vmag**2*fm*af/grav+zcom2*gnu/max(vmag*sqrt(fm*af),gnu)
         dcs=(zcom1*vmag**2/grav-0.5*zcom2*gnu/(max(vmag*sqrt(fm*af),gnu)*fm*af))*(fm*daf)
       elsewhere     ! unstable water points
-        con=cms*2.*bprm*sqrt(-ri*atm%zmin/pg%zo)
+        con=cms*2.*bprm*sqrt(-ri*a_zmin/p_zo)
         den=1.+af*con
         fm=1.-2.*bprm*ri/den
-        dfm=2.*bprm*ri*(con*daf+af*cms*bprm*ri*atm%zmin/(sqrt(-ri*atm%zmin/pg%zo)*pg%zo*pg%zo))/(den*den) ! MJT suggestion
+        dfm=2.*bprm*ri*(con*daf+af*cms*bprm*ri*a_zmin/(sqrt(-ri*a_zmin/p_zo)*p_zo*p_zo))/(den*den) ! MJT suggestion
         consea=zcom1*vmag**2*af*fm/grav+zcom2*gnu/max(vmag*sqrt(fm*af),gnu)
         dcs=(zcom1*vmag**2/grav-0.5*zcom2*gnu/(max(vmag*sqrt(fm*af),gnu)*fm*af))*(fm*daf+dfm*af)
       end where
-      pg%zo=pg%zo-(pg%zo-consea)/(1.-dcs)      
-      pg%zo=min(max(pg%zo,1.5e-6),0.1)
+      p_zo=p_zo-(p_zo-consea)/(1.-dcs)      
+      p_zo=min(max(p_zo,1.5e-6),0.1)
     enddo    ! it=1,4  
 end select
-afroot=vkar/log(atm%zmin/pg%zo)
+afroot=vkar/log(a_zmin/p_zo)
 af=afroot**2
 
 select case(zomode)
   case(0) ! Charnock CSIRO9
     ztv=exp(vkar/sqrt(chn10))/10.      ! proper inverse of ztsea
-    aft=(vkar/log(atm%zmins*ztv))**2    ! should give .00085 for csiro9
+    aft=vkar**2/(log(a_zmins*ztv)*log(a_zmins*ztv))
     afq=aft    
-    factch=sqrt(pg%zo*ztv)
+    factch=sqrt(p_zo*ztv)
     facqch=factch
   case(1) ! Charnock zot=zom
-    aft=(vkar/log(atm%zmins/pg%zo))**2
+    aft=vkar**2/(log(a_zmins/p_zo)*log(a_zmins/p_zo))
     afq=aft
     factch=1.
     facqch=1.
   case(2) ! Beljaars
-    aft=max(zcoh1+zcoh2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-6)
-    afq=max(zcoq1+zcoq2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-6)
-    factch=sqrt(pg%zo/aft)
-    facqch=sqrt(pg%zo/afq)
-    aft=(vkar/log(atm%zmins/aft))**2
-    afq=(vkar/log(atm%zmins/afq))**2
+    aft=max(zcoh1+zcoh2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-6) ! dummy for ztv
+    afq=max(zcoq1+zcoq2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-6) ! dummy for zqv
+    factch=sqrt(p_zo/aft)
+    facqch=sqrt(p_zo/afq)
+    aft=vkar**2/(log(a_zmins/p_zo)*log(a_zmins/aft)) ! now true aft
+    afq=vkar**2/(log(a_zmins/p_zo)*log(a_zmins/afq)) ! now true afq
 end select
 
 where (ri>0.)
@@ -1392,21 +1377,21 @@ where (ri>0.)
   fh=fm
   fq=fm
 elsewhere        ! ri is -ve
-  root=sqrt(-ri*atm%zmin/pg%zo)
+  root=sqrt(-ri*a_zmin/p_zo)
   den=1.+cms*2.*bprm*af*root
   fm=1.-2.*bprm*ri/den
+  root=sqrt(-ri*a_zmins/p_zo)
   den=1.+chs*2.*bprm*factch*aft*root
   fh=1.-2.*bprm*ri/den
   den=1.+chs*2.*bprm*facqch*afq*root
   fq=1.-2.*bprm*ri/den  
 end where
 
-pg%wetfac=1.
-pg%cd=af*fm
-pg%fg=rho*aft*cp*fh*vmag*(water(:,1)%temp-atm%temp/srcp)
-pg%eg=rho*afq*lv*fq*vmag*(qsat-atm%qg)
-dg2%taux=rho*pg%cd*vmag*atu
-dg2%tauy=rho*pg%cd*vmag*atv
+p_cd=af*fm
+p_fg=rho*aft*cp*fh*vmag*(w_temp(:,1)-a_temp/srcp)
+p_eg=rho*afq*lv*fq*vmag*(qsat-a_qg)
+d_taux=rho*p_cd*vmag*atu
+d_tauy=rho*p_cd*vmag*atv
 
 return
 end subroutine fluxcalc
@@ -1414,20 +1399,21 @@ end subroutine fluxcalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio (from TAPM)
 
-subroutine getqsat(qsat,temp,ps)
+subroutine getqsat(qsat,temp,a_ps)
 
 implicit none
 
-real, dimension(wfull), intent(in) :: temp,ps
+real, dimension(wfull), intent(in) :: temp
 real, dimension(wfull), intent(out) :: qsat
 real, dimension(wfull) :: esatf
+real, dimension(wfull), intent(in) :: a_ps
 
 where (temp.ge.273.15)
   esatf = 610.*exp(lv/rvap*(1./273.15-1./min(temp,343.)))
 elsewhere
   esatf = 610.*exp(ls/rvap*(1./273.15-1./max(temp,123.)))
 endwhere
-qsat = 0.622*esatf/(ps-0.378*esatf)
+qsat = 0.622*esatf/(a_ps-0.378*esatf)
 
 return
 end subroutine getqsat
@@ -1438,64 +1424,77 @@ end subroutine getqsat
 ! Neglect leads for now until MLO supports horizontal advection.
 ! Sea ice model is then only a multi-layer thermodynamical model.
 
-subroutine mloice(dt,atm,dg2,dg3,diag)
+subroutine mloice(dt,a_rnd,a_snd,d_alpha,d_beta,d_b0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt,d_salflx,d_rs,d_nk,diag)
 
 implicit none
 
 integer, intent(in) :: diag
-integer nice,iqc,iqw
-integer, dimension(wfull) :: icegrid
+integer nice,ii
 real, intent(in) :: dt
 logical, dimension(wfull) :: cice
-type(tatm), dimension(wfull), intent(in) :: atm
-type(tatm), dimension(wfull) :: atm_pack
-type(tice), dimension(wfull) :: ice_pack
-type(tdiag2), dimension(wfull), intent(inout) :: dg2
-type(tdiag2), dimension(wfull) :: dg2_pack
-type(tprog2), dimension(wfull) :: pg_pack
-type(tdiag3), dimension(wfull,wlev), intent(in) :: dg3
-
+real, dimension(wfull), intent(in) :: a_rnd,a_snd
+real, dimension(wfull) :: ap_rnd,ap_snd
+real, dimension(wfull,0:2) :: ip_tn
+real, dimension(wfull) :: ip_dic,ip_dsn,ip_fracice,ip_tsurf,ip_sto
+real, dimension(wfull) :: pp_egice
+real, dimension(wfull,wlev), intent(in) :: d_alpha,d_beta
+real, dimension(wfull), intent(inout) :: d_b0,d_wt0,d_ws0,d_ftop,d_tb,d_fb,d_timelt,d_salflx,d_rs
+integer, dimension(wfull), intent(inout) :: d_nk
+real, dimension(wfull) :: dp_ftop,dp_tb,dp_fb,dp_timelt,dp_salflx
+integer, dimension(wfull) :: dp_nk
 ! identify sea ice for packing
-cice=ice%dic.gt.1.E-6
+cice=i_dic.gt.1.E-6
 nice=count(cice)
-iqc=0
-do iqw=1,wfull
-  if (cice(iqw)) then
-    iqc=iqc+1
-    icegrid(iqc)=iqw
-  end if
+
+if (nice.eq.0) return
+
+! pack data
+do ii=0,2
+  ip_tn(1:nice,ii)=pack(i_tn(:,ii),cice)
 end do
-
-if (nice.gt.0) then
-  ! pack data
-  call icepack(wfull,nice,icegrid,ice,ice_pack)
-  atm_pack(1:nice)%snd=atm(icegrid(1:nice))%snd
-  atm_pack(1:nice)%rnd=atm(icegrid(1:nice))%rnd
-  pg_pack(1:nice)%egice=pg(icegrid(1:nice))%egice
-  dg2_pack(1:nice)%tb=dg2(icegrid(1:nice))%tb
-  dg2_pack(1:nice)%fb=dg2(icegrid(1:nice))%fb
-  dg2_pack(1:nice)%ftop=dg2(icegrid(1:nice))%ftop
-  dg2_pack(1:nice)%nk=dg2(icegrid(1:nice))%nk
-  dg2_pack(1:nice)%timelt=dg2(icegrid(1:nice))%timelt
-  dg2_pack(1:nice)%salflx=dg2(icegrid(1:nice))%salflx
-
-  ! update ice prognostic variables
-  call seaicecalc(nice,dt,ice_pack(1:nice),atm_pack(1:nice),pg_pack(1:nice),dg2_pack(1:nice),diag)
-
-  ! unpack ice data
-  call iceunpack(wfull,nice,icegrid,ice,ice_pack)
-  dg2(icegrid(1:nice))%salflx=dg2_pack(1:nice)%salflx
-end if
+ip_dic(1:nice)=pack(i_dic,cice)
+ip_dsn(1:nice)=pack(i_dsn,cice)
+ip_fracice(1:nice)=pack(i_fracice,cice)
+ip_tsurf(1:nice)=pack(i_tsurf,cice)
+ip_sto(1:nice)=pack(i_sto,cice)
+ap_rnd(1:nice)=pack(a_rnd,cice)
+ap_snd(1:nice)=pack(a_snd,cice)
+pp_egice(1:nice)=pack(p_egice,cice)
+dp_ftop(1:nice)=pack(d_ftop,cice)
+dp_tb(1:nice)=pack(d_tb,cice)
+dp_fb(1:nice)=pack(d_fb,cice)
+dp_timelt(1:nice)=pack(d_timelt,cice)
+dp_salflx(1:nice)=pack(d_salflx,cice)
+dp_nk(1:nice)=pack(d_nk,cice)
+! update ice prognostic variables
+call seaicecalc(nice,dt,ip_tn(1:nice,:),ip_dic(1:nice),ip_dsn(1:nice),ip_fracice(1:nice),        &
+                ip_tsurf(1:nice),ip_sto(1:nice),ap_rnd(1:nice),ap_rnd(1:nice),pp_egice(1:nice),  &
+                dp_ftop(1:nice),dp_tb(1:nice),dp_fb(1:nice),dp_timelt(1:nice),dp_salflx(1:nice), &
+                dp_nk(1:nice),diag)
+! unpack ice data
+do ii=0,2
+  i_tn(:,ii)=unpack(ip_tn(1:nice,ii),cice,i_tn(:,ii))
+end do
+i_dic=unpack(ip_dic(1:nice),cice,i_dic)
+i_dsn=unpack(ip_dsn(1:nice),cice,i_dsn)
+i_fracice=unpack(ip_fracice(1:nice),cice,i_fracice)
+i_tsurf=unpack(ip_tsurf(1:nice),cice,i_tsurf)
+i_sto=unpack(ip_sto(1:nice),cice,i_sto)
+d_ftop=unpack(dp_ftop(1:nice),cice,d_ftop)
+d_tb=unpack(dp_tb(1:nice),cice,d_tb)
+d_fb=unpack(dp_fb(1:nice),cice,d_fb)
+d_timelt=unpack(dp_timelt(1:nice),cice,d_timelt)
+d_salflx=unpack(dp_salflx(1:nice),cice,d_salflx)
+d_nk=unpack(dp_nk(1:nice),cice,d_nk)
 
 ! update ice fraction
-where (ice%dic.lt.1.E-6)
-  ice%fracice=0.
-  ice%dic=0.
-  ice%dsn=0.
-elsewhere
-  dg2%ws0=dg2%ws0-ice%fracice*dg2%salflx*water(:,1)%sal/dg2%rs ! actually salflx*(watersal-icesal)/density(icesal)
-  dg2%b0=-grav*(dg3(:,1)%alpha*dg2%wt0-dg3(:,1)%beta*dg2%ws0)
+where (i_dic.lt.1.E-6)
+  i_fracice=0.
+  i_dic=0.
+  i_dsn=0.
 end where
+d_ws0=d_ws0-i_fracice*d_salflx*w_sal(:,1)/d_rs ! actually salflx*(watersal-icesal)/density(icesal)
+d_b0=-grav*(d_alpha(:,1)*d_wt0-d_beta(:,1)*d_ws0)
 
 return
 end subroutine mloice
@@ -1503,33 +1502,31 @@ end subroutine mloice
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Form seaice before flux calculations
 
-subroutine mlonewice(dg2,dg3,diag)
+subroutine mlonewice(d_rho,d_timelt,diag)
 
 implicit none
 
 integer, intent(in) :: diag
 real, dimension(wfull) :: newdic,newtn,oldfrac
-type(tdiag2), dimension(wfull), intent(in) :: dg2
-type(tdiag3), dimension(wfull,wlev), intent(in) :: dg3
+real, dimension(wfull,wlev), intent(in) :: d_rho
+real, dimension(wfull), intent(in) :: d_timelt
 
 ! formation
-newdic=max((dg2%timelt-water(:,1)%temp)*cp0*dg3(:,1)%rho*dz(:,1)/qice,0.)
-newtn=dg2%timelt
-where(newdic.gt.0.15)
-  newdic=0.15
-  newtn=water(:,1)%temp+0.15*qice/(cp0*dg3(:,1)%rho*dz(:,1))
-endwhere
-oldfrac=ice%fracice
+newdic=max((d_timelt-w_temp(:,1))*cp0*d_rho(:,1)*dz(:,1)/qice,0.)
+newtn=d_timelt
+newdic=min(0.15,newdic)
+newtn=w_temp(:,1)+newdic*qice/(cp0*d_rho(:,1)*dz(:,1))
+oldfrac=i_fracice
 where (newdic.gt.1.E-6) ! form new sea-ice
-  ice%dic=newdic*(1.-oldfrac)+ice%dic*oldfrac
-  ice%dsn=ice%dsn*oldfrac
-  ice%fracice=(1.-oldfrac)+ice%fracice*oldfrac
-  ice%tsurf=273.05*(1.-oldfrac)+ice%tsurf*oldfrac
-  ice%tn(0)=273.05*(1.-oldfrac)+ice%tn(0)*oldfrac
-  ice%tn(1)=newtn*(1.-oldfrac)+ice%tn(1)*oldfrac
-  ice%tn(2)=newtn*(1.-oldfrac)+ice%tn(2)*oldfrac
-  ice%sto=ice%sto*oldfrac
-  water(:,1)%temp=dg2%timelt
+  i_dic=newdic*(1.-oldfrac)+i_dic*oldfrac
+  i_dsn=i_dsn*oldfrac
+  i_fracice=(1.-oldfrac)+i_fracice*oldfrac
+  i_tsurf=273.05*(1.-oldfrac)+i_tsurf*oldfrac
+  i_tn(:,0)=273.05*(1.-oldfrac)+i_tn(:,0)*oldfrac
+  i_tn(:,1)=newtn*(1.-oldfrac)+i_tn(:,1)*oldfrac
+  i_tn(:,2)=newtn*(1.-oldfrac)+i_tn(:,2)*oldfrac
+  i_sto=i_sto*oldfrac
+  w_temp(:,1)=d_timelt
 endwhere
 
 return
@@ -1538,188 +1535,213 @@ end subroutine mlonewice
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update sea ice prognostic variables
 
-subroutine seaicecalc(nice,dt,ice_pack,atm_pack,pg_pack,dg2_pack,diag)
+subroutine seaicecalc(nice,dt,ip_tn,ip_dic,ip_dsn,ip_fracice,ip_tsurf,ip_sto,ap_rnd,ap_snd, &
+                      pp_egice,dp_ftop,dp_tb,dp_fb,dp_timelt,dp_salflx,dp_nk,diag)
 
 implicit none
 
 integer, intent(in) :: nice,diag
-integer iqi,nc0,nc1,nc2,nc3
-integer, dimension(nice) :: iq0,iq1,iq2,iq3
+integer iqi,nc0,nc1,nc2,nc3,ii
+logical, dimension(nice) :: pq0,pq1,pq2,pq3
 real, intent(in) :: dt
 real, dimension(nice) :: xxx,excess
-type(tice), dimension(nice), intent(inout) :: ice_pack
-type(tice), dimension(nice) :: ice_temp
-type(tdiag2), dimension(nice), intent(inout) :: dg2_pack
-type(tdiag2), dimension(nice) :: dg2_temp
-type(tatm), dimension(nice), intent(in) :: atm_pack
-type(tprog2), dimension(nice), intent(in) :: pg_pack
-type(tprog2), dimension(nice) :: pg_temp
+real, dimension(nice,0:2), intent(inout) :: ip_tn
+real, dimension(nice), intent(inout) :: ip_dic,ip_dsn,ip_fracice,ip_tsurf,ip_sto
+real, dimension(nice,0:2) :: it_tn
+real, dimension(nice) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
+real, dimension(nice), intent(inout) :: dp_ftop,dp_tb,dp_fb,dp_timelt,dp_salflx
+integer, dimension(nice), intent(inout) :: dp_nk
+real, dimension(nice) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx
+integer, dimension(nice) :: dt_nk
+real, dimension(nice), intent(in) :: ap_rnd,ap_snd
+real, dimension(nice), intent(in) :: pp_egice
+real, dimension(nice) :: pt_egice
 
 ! snow fall
-where ((atm_pack%rnd+atm_pack%snd).gt.0..and.ice_pack%dsn.le.1.E-6)
-  ice_pack%tn(0)=ice_pack%tn(1)
+where ((ap_rnd+ap_snd).gt.0..and.ip_dsn.le.1.E-6)
+  ip_tn(:,0)=ip_tn(:,1)
 end where
-ice_pack%dsn=ice_pack%dsn+dt*(atm_pack%rnd+atm_pack%snd)/1000.
+ip_dsn=ip_dsn+dt*(ap_rnd+ap_snd)/1000.
 
 ! Pack different ice configurations
 nc0=0 ! snow + 1-2 ice layers
-iq0=0
+pq0=.false.
 nc1=0 ! no snow + 1-2 ice layers
-iq1=0
+pq1=.false.
 nc2=0 ! snow + 1 ice layer
-iq2=0
+pq2=.false.
 nc3=0 ! no snow + 1 ice layer
-iq3=0
+pq3=.false.
 do iqi=1,nice
-  if (dg2_pack(iqi)%nk.gt.0.and.ice_pack(iqi)%dsn.gt.1.E-6) then
+  if (dp_nk(iqi).gt.0.and.ip_dsn(iqi).gt.1.E-6) then
     nc0=nc0+1
-    iq0(nc0)=iqi
-  elseif (dg2_pack(iqi)%nk.gt.0) then
+    pq0(nc0)=.true.
+  elseif (dp_nk(iqi).gt.0) then
     nc1=nc1+1
-    iq1(nc1)=iqi
-  elseif (ice_pack(iqi)%dsn.gt.1.E-6) then
+    pq1(nc1)=.true.
+  elseif (ip_dsn(iqi).gt.1.E-6) then
     nc2=nc2+1
-    iq2(nc2)=iqi
+    pq2(nc2)=.true.
   else
     nc3=nc3+1
-    iq3(nc3)=iqi
+    pq3(nc3)=.true.
   end if
 end do
 
 ! Update ice and snow temperatures
 if (nc0.gt.0) then
-  pg_temp(1:nc0)%egice=pg_pack(iq0(1:nc0))%egice
-  dg2_temp(1:nc0)%tb=dg2_pack(iq0(1:nc0))%tb
-  dg2_temp(1:nc0)%fb=dg2_pack(iq0(1:nc0))%fb
-  dg2_temp(1:nc0)%ftop=dg2_pack(iq0(1:nc0))%ftop
-  dg2_temp(1:nc0)%nk=dg2_pack(iq0(1:nc0))%nk
-  dg2_temp(1:nc0)%timelt=dg2_pack(iq0(1:nc0))%timelt
-  dg2_temp(1:nc0)%salflx=dg2_pack(iq0(1:nc0))%salflx
-  call icepack(nice,nc0,iq0,ice_pack,ice_temp)
-  call icetemps2(nc0,dt,ice_temp(1:nc0),dg2_temp(1:nc0),pg_temp(1:nc0),diag)
-  dg2_pack(iq0(1:nc0))%nk=dg2_temp(1:nc0)%nk
-  dg2_pack(iq0(1:nc0))%salflx=dg2_temp(1:nc0)%salflx
-  call iceunpack(nice,nc0,iq0,ice_pack,ice_temp)
+  do ii=0,2
+    it_tn(1:nc0,ii)=pack(ip_tn(:,ii),pq0)
+  end do
+  it_dic(1:nc0)=pack(ip_dic,pq0)
+  it_dsn(1:nc0)=pack(ip_dsn,pq0)
+  it_fracice(1:nc0)=pack(ip_fracice,pq0)
+  it_tsurf(1:nc0)=pack(ip_tsurf,pq0)
+  it_sto(1:nc0)=pack(ip_sto,pq0)
+  pt_egice(1:nc0)=pack(pp_egice,pq0)
+  dt_ftop(1:nc0)=pack(dp_ftop,pq0)
+  dt_tb(1:nc0)=pack(dp_tb,pq0)
+  dt_fb(1:nc0)=pack(dp_fb,pq0)
+  dt_timelt(1:nc0)=pack(dp_timelt,pq0)
+  dt_salflx(1:nc0)=pack(dp_salflx,pq0)
+  dt_nk(1:nc0)=pack(dp_nk,pq0)
+  call icetemps2(nc0,dt,it_tn(1:nc0,:),it_dic(1:nc0),it_dsn(1:nc0),it_fracice(1:nc0),it_tsurf(1:nc0),it_sto(1:nc0), &
+                 dt_ftop(1:nc0),dt_tb(1:nc0),dt_fb(1:nc0),dt_timelt(1:nc0),dt_salflx(1:nc0),dt_nk(1:nc0),pt_egice(1:nc0),diag)
+  do ii=0,2
+    ip_tn(:,ii)=unpack(it_tn(1:nc0,ii),pq0,ip_tn(:,ii))
+  end do
+  ip_dic=unpack(it_dic(1:nc0),pq0,ip_dic)
+  ip_dsn=unpack(it_dsn(1:nc0),pq0,ip_dsn)
+  ip_fracice=unpack(it_fracice(1:nc0),pq0,ip_fracice)
+  ip_tsurf=unpack(it_tsurf(1:nc0),pq0,ip_tsurf)
+  ip_sto=unpack(it_sto(1:nc0),pq0,ip_sto)
+  dp_ftop=unpack(dt_ftop(1:nc0),pq0,dp_ftop)
+  dp_tb=unpack(dt_tb(1:nc0),pq0,dp_tb)
+  dp_fb=unpack(dt_fb(1:nc0),pq0,dp_fb)
+  dp_timelt=unpack(dt_timelt(1:nc0),pq0,dp_timelt)
+  dp_salflx=unpack(dt_salflx(1:nc0),pq0,dp_salflx)
+  dp_nk=unpack(dt_nk(1:nc0),pq0,dp_nk)
 end if
 if (nc1.gt.0) then
-  pg_temp(1:nc1)%egice=pg_pack(iq1(1:nc1))%egice
-  dg2_temp(1:nc1)%tb=dg2_pack(iq1(1:nc1))%tb
-  dg2_temp(1:nc1)%fb=dg2_pack(iq1(1:nc1))%fb
-  dg2_temp(1:nc1)%ftop=dg2_pack(iq1(1:nc1))%ftop
-  dg2_temp(1:nc1)%nk=dg2_pack(iq1(1:nc1))%nk
-  dg2_temp(1:nc1)%timelt=dg2_pack(iq1(1:nc1))%timelt
-  dg2_temp(1:nc1)%salflx=dg2_pack(iq1(1:nc1))%salflx
-  call icepack(nice,nc1,iq1,ice_pack,ice_temp)
-  call icetempn2(nc1,dt,ice_temp(1:nc1),dg2_temp(1:nc1),pg_temp(1:nc1),diag)
-  dg2_pack(iq1(1:nc1))%nk=dg2_temp(1:nc1)%nk
-  dg2_pack(iq1(1:nc1))%salflx=dg2_temp(1:nc1)%salflx
-  call iceunpack(nice,nc1,iq1,ice_pack,ice_temp)
+  do ii=0,2
+    it_tn(1:nc1,ii)=pack(ip_tn(:,ii),pq1)
+  end do
+  it_dic(1:nc1)=pack(ip_dic,pq1)
+  it_dsn(1:nc1)=pack(ip_dsn,pq1)
+  it_fracice(1:nc1)=pack(ip_fracice,pq1)
+  it_tsurf(1:nc1)=pack(ip_tsurf,pq1)
+  it_sto(1:nc1)=pack(ip_sto,pq1)
+  pt_egice(1:nc1)=pack(pp_egice,pq1)
+  dt_ftop(1:nc1)=pack(dp_ftop,pq1)
+  dt_tb(1:nc1)=pack(dp_tb,pq1)
+  dt_fb(1:nc1)=pack(dp_fb,pq1)
+  dt_timelt(1:nc1)=pack(dp_timelt,pq1)
+  dt_salflx(1:nc1)=pack(dp_salflx,pq1)
+  dt_nk(1:nc1)=pack(dp_nk,pq1)
+  call icetempn2(nc1,dt,it_tn(1:nc1,:),it_dic(1:nc1),it_dsn(1:nc1),it_fracice(1:nc1),it_tsurf(1:nc1),it_sto(1:nc1), &
+                 dt_ftop(1:nc1),dt_tb(1:nc1),dt_fb(1:nc1),dt_timelt(1:nc1),dt_salflx(1:nc1),dt_nk(1:nc1),pt_egice(1:nc1),diag)
+  do ii=0,2
+    ip_tn(:,ii)=unpack(it_tn(1:nc1,ii),pq1,ip_tn(:,ii))
+  end do
+  ip_dic=unpack(it_dic(1:nc1),pq1,ip_dic)
+  ip_dsn=unpack(it_dsn(1:nc1),pq1,ip_dsn)
+  ip_fracice=unpack(it_fracice(1:nc1),pq1,ip_fracice)
+  ip_tsurf=unpack(it_tsurf(1:nc1),pq1,ip_tsurf)
+  ip_sto=unpack(it_sto(1:nc1),pq1,ip_sto)
+  dp_ftop=unpack(dt_ftop(1:nc1),pq1,dp_ftop)
+  dp_tb=unpack(dt_tb(1:nc1),pq1,dp_tb)
+  dp_fb=unpack(dt_fb(1:nc1),pq1,dp_fb)
+  dp_timelt=unpack(dt_timelt(1:nc1),pq1,dp_timelt)
+  dp_salflx=unpack(dt_salflx(1:nc1),pq1,dp_salflx)
+  dp_nk=unpack(dt_nk(1:nc1),pq1,dp_nk)
 end if
 if (nc2.gt.0) then
-  pg_temp(1:nc2)%egice=pg_pack(iq2(1:nc2))%egice
-  dg2_temp(1:nc2)%tb=dg2_pack(iq2(1:nc2))%tb
-  dg2_temp(1:nc2)%fb=dg2_pack(iq2(1:nc2))%fb
-  dg2_temp(1:nc2)%ftop=dg2_pack(iq2(1:nc2))%ftop
-  dg2_temp(1:nc2)%nk=dg2_pack(iq2(1:nc2))%nk
-  dg2_temp(1:nc2)%timelt=dg2_pack(iq2(1:nc2))%timelt
-  dg2_temp(1:nc2)%salflx=dg2_pack(iq2(1:nc2))%salflx
-  call icepack(nice,nc2,iq2,ice_pack,ice_temp)
-  call icetemps1(nc2,dt,ice_temp(1:nc2),dg2_temp(1:nc2),pg_temp(1:nc2),diag)
-  dg2_pack(iq2(1:nc2))%nk=dg2_temp(1:nc2)%nk
-  dg2_pack(iq2(1:nc2))%salflx=dg2_temp(1:nc2)%salflx
-  call iceunpack(nice,nc2,iq2,ice_pack,ice_temp)
+  do ii=0,2
+    it_tn(1:nc2,ii)=pack(ip_tn(:,ii),pq2)
+  end do
+  it_dic(1:nc2)=pack(ip_dic,pq2)
+  it_dsn(1:nc2)=pack(ip_dsn,pq2)
+  it_fracice(1:nc2)=pack(ip_fracice,pq2)
+  it_tsurf(1:nc2)=pack(ip_tsurf,pq2)
+  it_sto(1:nc2)=pack(ip_sto,pq2)
+  pt_egice(1:nc2)=pack(pp_egice,pq2)
+  dt_ftop(1:nc2)=pack(dp_ftop,pq2)
+  dt_tb(1:nc2)=pack(dp_tb,pq2)
+  dt_fb(1:nc2)=pack(dp_fb,pq2)
+  dt_timelt(1:nc2)=pack(dp_timelt,pq2)
+  dt_salflx(1:nc2)=pack(dp_salflx,pq2)
+  dt_nk(1:nc2)=pack(dp_nk,pq2)
+  call icetemps1(nc2,dt,it_tn(1:nc2,:),it_dic(1:nc2),it_dsn(1:nc2),it_fracice(1:nc2),it_tsurf(1:nc2),it_sto(1:nc2), &
+                 dt_ftop(1:nc2),dt_tb(1:nc2),dt_fb(1:nc2),dt_timelt(1:nc2),dt_salflx(1:nc2),dt_nk(1:nc2),pt_egice(1:nc2),diag)
+  do ii=0,2
+    ip_tn(:,ii)=unpack(it_tn(1:nc2,ii),pq2,ip_tn(:,ii))
+  end do
+  ip_dic=unpack(it_dic(1:nc2),pq2,ip_dic)
+  ip_dsn=unpack(it_dsn(1:nc2),pq2,ip_dsn)
+  ip_fracice=unpack(it_fracice(1:nc2),pq2,ip_fracice)
+  ip_tsurf=unpack(it_tsurf(1:nc2),pq2,ip_tsurf)
+  ip_sto=unpack(it_sto(1:nc2),pq2,ip_sto)
+  dp_ftop=unpack(dt_ftop(1:nc2),pq2,dp_ftop)
+  dp_tb=unpack(dt_tb(1:nc2),pq2,dp_tb)
+  dp_fb=unpack(dt_fb(1:nc2),pq2,dp_fb)
+  dp_timelt=unpack(dt_timelt(1:nc2),pq2,dp_timelt)
+  dp_salflx=unpack(dt_salflx(1:nc2),pq2,dp_salflx)
+  dp_nk=unpack(dt_nk(1:nc2),pq2,dp_nk)
 end if
 if (nc3.gt.0) then
-  pg_temp(1:nc3)%egice=pg_pack(iq3(1:nc3))%egice
-  dg2_temp(1:nc3)%tb=dg2_pack(iq3(1:nc3))%tb
-  dg2_temp(1:nc3)%fb=dg2_pack(iq3(1:nc3))%fb
-  dg2_temp(1:nc3)%ftop=dg2_pack(iq3(1:nc3))%ftop
-  dg2_temp(1:nc3)%nk=dg2_pack(iq3(1:nc3))%nk
-  dg2_temp(1:nc3)%timelt=dg2_pack(iq3(1:nc3))%timelt
-  dg2_temp(1:nc3)%salflx=dg2_pack(iq3(1:nc3))%salflx
-  call icepack(nice,nc3,iq3,ice_pack,ice_temp)
-  call icetempn1(nc3,dt,ice_temp(1:nc3),dg2_temp(1:nc3),pg_temp(1:nc3),diag)
-  dg2_pack(iq3(1:nc3))%nk=dg2_temp(1:nc3)%nk
-  dg2_pack(iq3(1:nc3))%salflx=dg2_temp(1:nc3)%salflx
-  call iceunpack(nice,nc3,iq3,ice_pack,ice_temp)
+  do ii=0,2
+    it_tn(1:nc3,ii)=pack(ip_tn(:,ii),pq3)
+  end do
+  it_dic(1:nc3)=pack(ip_dic,pq3)
+  it_dsn(1:nc3)=pack(ip_dsn,pq3)
+  it_fracice(1:nc3)=pack(ip_fracice,pq3)
+  it_tsurf(1:nc3)=pack(ip_tsurf,pq3)
+  it_sto(1:nc3)=pack(ip_sto,pq3)
+  pt_egice(1:nc3)=pack(pp_egice,pq3)
+  dt_ftop(1:nc3)=pack(dp_ftop,pq3)
+  dt_tb(1:nc3)=pack(dp_tb,pq3)
+  dt_fb(1:nc3)=pack(dp_fb,pq3)
+  dt_timelt(1:nc3)=pack(dp_timelt,pq3)
+  dt_salflx(1:nc3)=pack(dp_salflx,pq3)
+  dt_nk(1:nc3)=pack(dp_nk,pq3)
+  call icetempn1(nc3,dt,it_tn(1:nc3,:),it_dic(1:nc3),it_dsn(1:nc3),it_fracice(1:nc3),it_tsurf(1:nc3),it_sto(1:nc3), &
+                 dt_ftop(1:nc3),dt_tb(1:nc3),dt_fb(1:nc3),dt_timelt(1:nc3),dt_salflx(1:nc3),dt_nk(1:nc3),pt_egice(1:nc3),diag)
+  do ii=0,2
+    ip_tn(:,ii)=unpack(it_tn(1:nc3,ii),pq3,ip_tn(:,ii))
+  end do
+  ip_dic=unpack(it_dic(1:nc3),pq3,ip_dic)
+  ip_dsn=unpack(it_dsn(1:nc3),pq3,ip_dsn)
+  ip_fracice=unpack(it_fracice(1:nc3),pq3,ip_fracice)
+  ip_tsurf=unpack(it_tsurf(1:nc3),pq3,ip_tsurf)
+  ip_sto=unpack(it_sto(1:nc3),pq3,ip_sto)
+  dp_ftop=unpack(dt_ftop(1:nc3),pq3,dp_ftop)
+  dp_tb=unpack(dt_tb(1:nc3),pq3,dp_tb)
+  dp_fb=unpack(dt_fb(1:nc3),pq3,dp_fb)
+  dp_timelt=unpack(dt_timelt(1:nc3),pq3,dp_timelt)
+  dp_salflx=unpack(dt_salflx(1:nc3),pq3,dp_salflx)
+  dp_nk=unpack(dt_nk(1:nc3),pq3,dp_nk)
 end if
 
 ! white ice formation
-xxx=ice_pack%dic+ice_pack%dsn-(rhosn*ice_pack%dsn+rhoic*ice_pack%dic)/rhowt
-where(ice_pack%dsn.gt.xxx)
-  excess=(ice_pack%dsn-xxx)*0.1                   ! m of water
-  dg2_pack%salflx=dg2_pack%salflx-1000.*excess/dt ! m of water
-  ice_pack%tn(1)=(0.5*ice_pack%dic*ice_pack%tn(1)+excess*ice_pack%tn(0)) &
-                /(0.5*ice_pack%dic+excess) ! Assume 2 levels of ice, hence 0.5*hi
-  ice_pack%dsn=xxx
-  ice_pack%dic=ice_pack%dic+excess
-end where
+xxx=ip_dic+ip_dsn-(rhosn*ip_dsn+rhoic*ip_dic)/rhowt
+excess=max(ip_dsn-xxx,0.)*0.1                   ! m of water
+dp_salflx=dp_salflx-1000.*excess/dt ! m of water
+ip_tn(:,1)=(0.5*ip_dic*ip_tn(:,1)+excess*ip_tn(:,0)) &
+              /(0.5*ip_dic+excess) ! Assume 2 levels of ice, hence 0.5*hi
+ip_dsn=min(xxx,ip_dsn)
+ip_dic=ip_dic+excess
 
 ! Snow depth limitation and conversion to ice
-where(ice_pack%dsn.gt.0.2)
-  excess=(ice_pack%dsn-0.2)*0.1                   ! m water
-  dg2_pack%salflx=dg2_pack%salflx-1000.*excess/dt ! m of water
-  ice_pack%dsn=0.2
-  ice_pack%dic=ice_pack%dic+excess
-end where
+excess=max(ip_dsn-0.2,0.)*0.1                   ! m water
+dp_salflx=dp_salflx-1000.*excess/dt ! m of water
+ip_dsn=min(0.2,ip_dsn)
+ip_dic=ip_dic+excess
 
 ! Ice depth limitation
-!where (ice_pack%dic.gt.5.)
-! ice_pack%dic=5.
-!end where
+!ip_dic=min(5.,ip_dic)
 
 return
 end subroutine seaicecalc
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Pack ice
-
-subroutine icepack(nsize,nice,icegrid,ice_temp,ice_pack)
-
-implicit none
-
-integer, intent(in) :: nsize,nice
-integer ii
-integer, dimension(nsize), intent(in) :: icegrid
-type(tice), dimension(nsize), intent(in) :: ice_temp
-type(tice), dimension(nsize), intent(out) :: ice_pack
-
-ice_pack(1:nice)%dsn=ice_temp(icegrid(1:nice))%dsn
-ice_pack(1:nice)%dic=ice_temp(icegrid(1:nice))%dic
-ice_pack(1:nice)%fracice=ice_temp(icegrid(1:nice))%fracice
-do ii=0,2
-  ice_pack(1:nice)%tn(ii)=ice_temp(icegrid(1:nice))%tn(ii)
-end do
-ice_pack(1:nice)%tsurf=ice_temp(icegrid(1:nice))%tsurf
-ice_pack(1:nice)%sto=ice_temp(icegrid(1:nice))%sto
-
-return
-end subroutine icepack
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Unpack ice
-
-subroutine iceunpack(nsize,nice,icegrid,ice_temp,ice_pack)
-
-implicit none
-
-integer, intent(in) :: nsize,nice
-integer ii
-integer, dimension(nsize), intent(in) :: icegrid
-type(tice), dimension(nsize), intent(inout) :: ice_temp
-type(tice), dimension(nsize), intent(in) :: ice_pack
-
-ice_temp(icegrid(1:nice))%dsn=ice_pack(1:nice)%dsn
-ice_temp(icegrid(1:nice))%dic=ice_pack(1:nice)%dic
-ice_temp(icegrid(1:nice))%fracice=ice_pack(1:nice)%fracice
-do ii=0,2
-  ice_temp(icegrid(1:nice))%tn(ii)=ice_pack(1:nice)%tn(ii)
-end do
-ice_temp(icegrid(1:nice))%tsurf=ice_pack(1:nice)%tsurf
-ice_temp(icegrid(1:nice))%sto=ice_pack(1:nice)%sto
-
-return
-end subroutine iceunpack
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate ice temperature for two layers and snow (from Mk3 seaice.f)
@@ -1744,7 +1766,8 @@ end subroutine iceunpack
 !                                                                E
 ! ################################################################
 
-subroutine icetemps2(nc,dt,ice_temp,dg2,pg_temp,diag)
+subroutine icetemps2(nc,dt,it_tn,it_dic,it_dsn,it_fracice,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx, &
+                     dt_nk,pt_egice,diag)
 
 implicit none
 
@@ -1759,193 +1782,160 @@ real, dimension(nc) :: fsnmelt
 real, dimension(nc,0:2) :: fl
 real, dimension(0:3) :: tp
 real, dimension(0:2) :: zp,z
-type(tice), dimension(nc), intent(inout) :: ice_temp
-type(tdiag2), dimension(nc), intent(inout) :: dg2
-type(tprog2), dimension(nc), intent(in) :: pg_temp
+real, dimension(nc,0:2), intent(inout) :: it_tn
+real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
+real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx
+integer, dimension(nc), intent(inout) :: dt_nk
+real, dimension(nc), intent(in) :: pt_egice
 
 ! adjust ice thickness by the remaining reservoir in sto
-where (dg2%nk.eq.1.and.ice_temp%sto.gt.0.)
-  ice_temp%dic=max(0.,ice_temp%dic-ice_temp%sto/qice)
+where (dt_nk.eq.1.and.it_sto.gt.0.)
+  it_dic=max(0.,it_dic-it_sto/qice)
 end where
-!where (dg2%nk.eq.1.and.ice_temp%dic.lt.himin) ! MJT suggestion
-!  ice_temp%tn(1)=0.5*(ti+dg2%tb)              ! MJT suggestion
-!end where                                     ! MJT suggestion
-where (dg2%nk.eq.1)
-  ice_temp%sto=0.
-  ice_temp%tn(2)=dg2%tb
+where (dt_nk.eq.1)
+  it_sto=0.
+  it_tn(:,2)=dt_tb
 end where
 
 ! update surface temperature
-rhin=real(dg2%nk)/ice_temp%dic
-con=2.*condsnw/ice_temp%dsn
+rhin=real(dt_nk)/it_dic
+con=2.*condsnw/it_dsn
 ! Ammendments if surface layer < 5cms
-where (ice_temp%dsn.lt.0.05)
-  con=1./(ice_temp%dsn/condsnw+ice_temp%dic/(condice*real(dg2%nk)*2.))
-  ice_temp%tn(0)=ice_temp%tn(1)
+where (it_dsn.lt.0.05)
+  con=1./(it_dsn/condsnw+it_dic/(condice*real(dt_nk)*2.))
+  it_tn(:,0)=it_tn(:,1)
 end where
-fs=con*(ice_temp%tn(0)-ice_temp%tsurf)
+fs=con*(it_tn(:,0)-it_tsurf)
 gamms=4.857e4 ! density*specific heat*depth (for snow)
-bot=gamms/dt+4.*sbconst*ice_temp%tsurf**3+con
-ice_temp%tsurf=ice_temp%tsurf+(dg2%ftop+fs)/bot
+bot=gamms/dt+4.*sbconst*it_tsurf**3+con
+it_tsurf=it_tsurf+(dt_ftop+fs)/bot
 ! Snow melt (snmelt >= 0)
-snmelt=10.*max(0.,ice_temp%tsurf-273.16)*gamms/qsnow ! m of "snow"
-ice_temp%tsurf=min(ice_temp%tsurf,273.16)            ! melting condition ts=tsmelt
+snmelt=10.*max(0.,it_tsurf-273.16)*gamms/qsnow ! m of "snow"
+it_tsurf=min(it_tsurf,273.16)                  ! melting condition ts=tsmelt
 ! Ammendments if surface layer < 5cms : Use adjusted snow depth
-where (ice_temp%dsn.lt.0.05)
-  ti=(ice_temp%dic*condsnw*ice_temp%tsurf+2.*real(dg2%nk)*ice_temp%dsn*condice*ice_temp%tn(1)) & ! MJT suggestion
-    /(ice_temp%dic*condsnw+2.*real(dg2%nk)*ice_temp%dsn*condice)                                 ! MJT suggestion
-  fl(:,0)=fs ! Middle of first ice layer to snow interface                                       ! MJT suggestion
+where (it_dsn.lt.0.05)
+  fl(:,0)=fs ! Middle of first ice layer to snow interface                 ! MJT suggestion
 elsewhere
-  ti=(ice_temp%dic*condsnw*ice_temp%tn(0)+real(dg2%nk)*ice_temp%dsn*condice*ice_temp%tn(1)) &
-    /(ice_temp%dic*condsnw+real(dg2%nk)*ice_temp%dsn*condice)
-  fl(:,0)=2.*rhin*condice*(ice_temp%tn(1)-ti) ! Middle of first ice layer to snow interface    
+  ti=(it_dic*condsnw*it_tn(:,0)+real(dt_nk)*it_dsn*condice*it_tn(:,1)) &
+    /(it_dic*condsnw+real(dt_nk)*it_dsn*condice)
+  fl(:,0)=2.*rhin*condice*(it_tn(:,1)-ti) ! Middle of first ice layer to snow interface    
 end where
 
 ! Upward fluxes between various levels below surface
-fl(:,1)=rhin*condice*(ice_temp%tn(2)-ice_temp%tn(1)) ! Between ice layers 2 and 1
-
-! Ammendments if surface layer < 5cms : Use adjusted snow depth
-! to compute ti,t0 and fs,f0. Note that f0=fs in this case.
-!where(ice_temp%dsn.lt.0.05)                                                               ! MJT suggestion
-!  hsadj=ice_temp%dsn+0.001                                                                ! MJT suggestion
-!  ti=(ice_temp%dic*condsnw*ice_temp%tsurf+2.*real(dg2%nk)*hsadj*condice*ice_temp%tn(1)) & ! MJT suggestion
-!    /(ice_temp%dic*condsnw+2.*real(dg2%nk)*hsadj*condice)                                 ! MJT suggestion
-!  fs=condsnw*(ti-ice_temp%tsurf)/hsadj                                                    ! MJT suggestion
-!  fl(:,0)=fs                                                                              ! MJT suggestion
-!  ice_temp%tn(0)=0.5*(ti+ice_temp%tsurf)                                                  ! MJT suggestion
-!end where                                                                                 ! MJT suggestion
+fl(:,1)=rhin*condice*(it_tn(:,2)-it_tn(:,1)) ! Between ice layers 2 and 1
 
 ! Surface evap/sublimation (can be >0 or <0)
 ! Note : dt*eg/hl in Kgm/m**2 => mms of water
-subl=0.01*dt*pg_temp%egice/lv   ! m of "snow"
-dg2%salflx=dg2%salflx+pg_temp%egice/lv
+subl=0.01*dt*pt_egice/lv   ! m of "snow"
+dt_salflx=dt_salflx+pt_egice/lv
 ! Change the snow thickness
 dhs=snmelt+subl
-hsold=ice_temp%dsn
-where(dhs.gt.ice_temp%dsn)
-  snmelt=max(ice_temp%dsn-subl,0.)
-  ice_temp%dic=ice_temp%dic-0.1*(dhs-ice_temp%dsn)
-  ice_temp%dsn=0.
+hsold=it_dsn
+where(dhs.gt.it_dsn)
+  snmelt=max(it_dsn-subl,0.)
+  it_dic=it_dic-0.1*(dhs-it_dsn)
+  it_dsn=0.
 elsewhere
-  ice_temp%dsn=ice_temp%dsn-dhs
+  it_dsn=it_dsn-dhs
 end where
 
 ! Update the mid-level snow temperature
-ice_temp%tn(0)=ice_temp%tn(0)+dt*(fl(:,0)-fs)/(max(ice_temp%dsn,1.E-6)*cps)
-ice_temp%tn(0)=min(ice_temp%tn(0),273.16)
+it_tn(:,0)=it_tn(:,0)+dt*(fl(:,0)-fs)/(max(it_dsn,1.E-6)*cps)
+it_tn(:,0)=min(it_tn(:,0),273.16)
 
 ! Remove very thin snow
-where (ice_temp%dsn.gt.0..and.ice_temp%dsn.lt.1.E-6)
-  fsnmelt=ice_temp%dsn*lf/(0.01*dt) ! J/m2/sec ! heat flux to melt snow
-  ice_temp%tn(1)=ice_temp%tn(1)-dt*fsnmelt*rhin/cpi
-  ice_temp%dsn=0.
+where (it_dsn.gt.0..and.it_dsn.lt.1.E-6)
+  fsnmelt=it_dsn*lf/(0.01*dt) ! J/m2/sec ! heat flux to melt snow
+  it_tn(:,1)=it_tn(:,1)-dt*fsnmelt*rhin/cpi
+  it_dsn=0.
 end where
 
 do iqi=1,nc
   zp=0.
   z=0.
 
-  if (dg2(iqi)%nk.gt.1) then
+  if (dt_nk(iqi).gt.1) then
     ! update temperature in top layer of ice
-    tp(1)=ice_temp(iqi)%tn(1)+dt*(fl(iqi,1)-fl(iqi,0))*rhin(iqi)/cpi
-    tp(1)=min(tp(1),dg2(iqi)%timelt)
-    if (ice_temp(iqi)%sto.gt.0..and.tp(1).lt.dg2(iqi)%timelt) then
-      ! use stored heat in brine pockets to keep temperature at -0.1 until heat is used up
-      qneed=(dg2(iqi)%timelt-tp(1))*cpi/rhin(iqi) ! J/m**2
-      if (ice_temp(iqi)%sto.le.qneed) then
-        fact=ice_temp(iqi)%sto/qneed
-        tp(1)=dg2(iqi)%timelt*fact+tp(1)*(1.-fact)
-        tp(1)=min(tp(1),dg2(iqi)%timelt)
-        ice_temp(iqi)%sto=0.
-      else
-        tp(1)=dg2(iqi)%timelt
-        ice_temp(iqi)%sto=ice_temp(iqi)%sto-qneed
-      end if
+    tp(1)=it_tn(iqi,1)+dt*(fl(iqi,1)-fl(iqi,0))*rhin(iqi)/cpi
+    tp(1)=min(tp(1),dt_timelt(iqi))
+    ! use stored heat in brine pockets to keep temperature at -0.1 until heat is used up
+    qneed=(dt_timelt(iqi)-tp(1))*cpi/rhin(iqi) ! J/m**2
+    if (it_sto(iqi).le.qneed) then
+      fact=it_sto(iqi)/qneed
+      tp(1)=dt_timelt(iqi)*fact+tp(1)*(1.-fact)
+      tp(1)=min(tp(1),dt_timelt(iqi))
+      it_sto(iqi)=0.
+    else
+      tp(1)=dt_timelt(iqi)
+      it_sto(iqi)=it_sto(iqi)-qneed
     end if
   end if
 
   ! determine amount of bottom ablation or accretion
-  fl(iqi,dg2(iqi)%nk)=condice*(dg2(iqi)%tb-ice_temp(iqi)%tn(dg2(iqi)%nk))*2.*rhin(iqi)
-  dhb(iqi)=dt*(fl(iqi,dg2(iqi)%nk)-dg2(iqi)%fb)/qice
+  fl(iqi,dt_nk(iqi))=condice*(dt_tb(iqi)-it_tn(iqi,dt_nk(iqi)))*2.*rhin(iqi)
+  dhb(iqi)=dt*(fl(iqi,dt_nk(iqi))-dt_fb(iqi))/qice
   dhb(iqi)=min(0.01,dhb(iqi)) ! limit the ice growth for cases of poor initial conditions
-  hinew=ice_temp(iqi)%dic+dhb(iqi)
+  hinew=it_dic(iqi)+dhb(iqi)
   ! determine depths below surface of interim and final interfaces
-  con0=hinew/real(dg2(iqi)%nk)
-  do ii=1,dg2(iqi)%nk
+  con0=hinew/real(dt_nk(iqi))
+  do ii=1,dt_nk(iqi)
     z(ii)=z(ii-1)-con0
   enddo
-  con0=ice_temp(iqi)%dic/real(dg2(iqi)%nk)
+  con0=it_dic(iqi)/real(dt_nk(iqi))
   zp(1)=-con0
 
   if (dhb(iqi).le.0.) then
     ! construct final values of temperature for case of bottom ablation
-    zp(dg2(iqi)%nk)=z(dg2(iqi)%nk)
-    tp(dg2(iqi)%nk)=ice_temp(iqi)%tn(dg2(iqi)%nk)+dt/cpi*(fl(iqi,dg2(iqi)%nk)-fl(iqi,dg2(iqi)%nk-1)) &
+    zp(dt_nk(iqi))=z(dt_nk(iqi))
+    tp(dt_nk(iqi))=it_tn(iqi,dt_nk(iqi))+dt/cpi*(fl(iqi,dt_nk(iqi))-fl(iqi,dt_nk(iqi)-1)) &
                    /(1./rhin(iqi)+dhb(iqi))
-    tp(dg2(iqi)%nk)=min(tp(dg2(iqi)%nk),dg2(iqi)%timelt)
-    !tp(0)=ti(iqi) ! MJT suggestion
-    tp(dg2(iqi)%nk+1)=dg2(iqi)%tb
-    do ii=1,dg2(iqi)%nk
+    tp(dt_nk(iqi))=min(tp(dt_nk(iqi)),dt_timelt(iqi))
+    tp(dt_nk(iqi)+1)=dt_tb(iqi)
+    do ii=1,dt_nk(iqi)
       if(z(ii).lt.zp(ii).and.zp(ii).lt.z(ii-1))then
-        ice_temp(iqi)%tn(ii)=((z(ii-1)-zp(ii))*tp(ii)+(zp(ii)-z(ii))*tp(ii+1)) &
-                             *real(dg2(iqi)%nk)/hinew
+        it_tn(iqi,ii)=((z(ii-1)-zp(ii))*tp(ii)+(zp(ii)-z(ii))*tp(ii+1))*real(dt_nk(iqi))/hinew
       elseif(z(ii).lt.zp(ii-1).and.zp(ii-1).lt.z(ii-1))then
-        ice_temp(iqi)%tn(ii)=((z(ii-1)-zp(ii-1))*tp(ii-1)+(zp(ii-1)-z(ii))*tp(ii)) &
-                             *real(dg2(iqi)%nk)/hinew
+        it_tn(iqi,ii)=((z(ii-1)-zp(ii-1))*tp(ii-1)+(zp(ii-1)-z(ii))*tp(ii))*real(dt_nk(iqi))/hinew
       else
-        ice_temp(iqi)%tn(ii)=tp(ii)
+        it_tn(iqi,ii)=tp(ii)
       endif
     enddo
   else
     ! construct final values of temperature for case of bottom accretion
-    zp(dg2(iqi)%nk)=zp(dg2(iqi)%nk-1)-con0
-    tp(dg2(iqi)%nk)=ice_temp(iqi)%tn(dg2(iqi)%nk)+dt*(fl(iqi,dg2(iqi)%nk)-fl(iqi,dg2(iqi)%nk-1))*rhin(iqi)/cpi
-    tp(dg2(iqi)%nk)=min(tp(dg2(iqi)%nk),dg2(iqi)%timelt)
-    tp(dg2(iqi)%nk+1)=dg2(iqi)%tb
-    do ii=1,dg2(iqi)%nk
-      ice_temp(iqi)%tn(ii)=((z(ii-1)-zp(ii))*tp(ii)+(zp(ii)-z(ii))*tp(ii+1)) &
-                           *real(dg2(iqi)%nk)/hinew
+    zp(dt_nk(iqi))=zp(dt_nk(iqi)-1)-con0
+    tp(dt_nk(iqi))=it_tn(iqi,dt_nk(iqi))+dt*(fl(iqi,dt_nk(iqi))-fl(iqi,dt_nk(iqi)-1))*rhin(iqi)/cpi
+    tp(dt_nk(iqi))=min(tp(dt_nk(iqi)),dt_timelt(iqi))
+    tp(dt_nk(iqi)+1)=dt_tb(iqi)
+    do ii=1,dt_nk(iqi)
+      it_tn(iqi,ii)=((z(ii-1)-zp(ii))*tp(ii)+(zp(ii)-z(ii))*tp(ii+1))*real(dt_nk(iqi))/hinew
     enddo
   end if
 
-  ice_temp(iqi)%dic=hinew
+  it_dic(iqi)=hinew
   ! test whether to change number of layers
-  htup=real(dg2(iqi)%nk+1)*himin
-  htdown=real(dg2(iqi)%nk)*himin
+  htup=real(dt_nk(iqi)+1)*himin
+  htdown=real(dt_nk(iqi))*himin
 
-  if (ice_temp(iqi)%dic.ge.htup.and.dg2(iqi)%nk.lt.2) then
+  if (it_dic(iqi).ge.htup.and.dt_nk(iqi).lt.2) then
     ! code to increase number of layers
-    dg2(iqi)%nk=dg2(iqi)%nk+1
-    tp(1)=ice_temp(iqi)%tn(1)
-    tp(dg2(iqi)%nk)=ice_temp(iqi)%tn(dg2(iqi)%nk-1)
-!    if (dg2(iqi)%nk.lt.2) then
-!      con1=ice_temp(iqi)%dic/real(dg2(iqi)%nk-1)
-!      con2=ice_temp(iqi)%dic/real(dg2(iqi)%nk)
-!      do ii=1,dg2(iqi)%nk
-!        z(iqi,ii) =z(iqi,ii-1) -con1
-!        zp(iqi,ii)=zp(iqi,ii-1)-con2
-!      enddo
-!      do ii=2,dg2(iqi)%nk-1
-!        tp(ii)=((zp(iqi,ii-1)-z(iqi,ii-1))*ice_temp(iqi)%tn(ii-1)+(z(iqi,ii-1)-zp(iqi,ii)) &
-!                *ice_temp(iqi)%tn(ii))/con2
-!      enddo
-!    end if
-    ice_temp(iqi)%tn(1:dg2(iqi)%nk)=tp(1:dg2(iqi)%nk)
-  elseif (ice_temp(iqi)%dic.le.htdown) then
+    dt_nk(iqi)=dt_nk(iqi)+1
+    tp(1)=it_tn(iqi,1)
+    tp(dt_nk(iqi))=it_tn(iqi,dt_nk(iqi)-1)
+    it_tn(iqi,1:dt_nk(iqi))=tp(1:dt_nk(iqi))
+  elseif (it_dic(iqi).le.htdown) then
     ! code to decrease number of layers
-    dg2(iqi)%nk=dg2(iqi)%nk-1
-    if (dg2(iqi)%nk.gt.0) then
-      con1=ice_temp(iqi)%dic/real(dg2(iqi)%nk+1)
-      con2=ice_temp(iqi)%dic/real(dg2(iqi)%nk)
-      do ii=1,dg2(iqi)%nk
+    dt_nk(iqi)=dt_nk(iqi)-1
+    if (dt_nk(iqi).gt.0) then
+      con1=it_dic(iqi)/real(dt_nk(iqi)+1)
+      con2=it_dic(iqi)/real(dt_nk(iqi))
+      do ii=1,dt_nk(iqi)
         z(ii) =z(ii-1) -con1
         zp(ii)=zp(ii-1)-con2
       enddo
-      do ii=1,dg2(iqi)%nk
-        tp(ii)=((zp(ii-1)-z(ii))*ice_temp(iqi)%tn(ii) &
-               +(z(ii)-zp(ii))*ice_temp(iqi)%tn(ii+1))/con2
+      do ii=1,dt_nk(iqi)
+        tp(ii)=((zp(ii-1)-z(ii))*it_tn(iqi,ii)+(z(ii)-zp(ii))*it_tn(iqi,ii+1))/con2
       enddo
-      ice_temp(iqi)%tn(1:dg2(iqi)%nk)=tp(1:dg2(iqi)%nk)
+      it_tn(iqi,1:dt_nk(iqi))=tp(1:dt_nk(iqi))
     end if
   end if
 end do
@@ -1970,7 +1960,8 @@ end subroutine icetemps2
 !                                                                E
 ! ################################################################
 
-subroutine icetempn2(nc,dt,ice_temp,dg2,pg_temp,diag)
+subroutine icetempn2(nc,dt,it_tn,it_dic,it_dsn,it_fracice,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx, &
+                     dt_nk,pt_egice,diag)
 
 implicit none
 
@@ -1979,165 +1970,145 @@ integer ii,iqi
 real, intent(in) :: dt
 real gamms,qneed,fact,hinew,con0,con1,con2
 real htup,htdown
-real, dimension(nc) :: ti,con,rhin,qmax,ftopadj
+real, dimension(nc) :: con,rhin,qmax,ftopadj
 real, dimension(nc) :: bot,subl,simelt,dhi,dhb
 real, dimension(nc,0:2) :: fl
 real, dimension(0:3) :: tp
 real, dimension(0:2) :: zp,z
-type(tice), dimension(nc), intent(inout) :: ice_temp
-type(tdiag2), dimension(nc), intent(inout) :: dg2
-type(tprog2), dimension(nc), intent(in) :: pg_temp
+real, dimension(nc,0:2), intent(inout) :: it_tn
+real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
+real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx
+integer, dimension(nc), intent(inout) :: dt_nk
+real, dimension(nc), intent(in) :: pt_egice
 
 ! adjust ice thickness by the remaining reservoir in sto
-where (dg2%nk.eq.1.and.ice_temp%sto.gt.0.)
-  ice_temp%dic=max(0.,ice_temp%dic-ice_temp%sto/qice)
+where (dt_nk.eq.1.and.it_sto.gt.0.)
+  it_dic=max(0.,it_dic-it_sto/qice)
 end where
-!where (dg2%nk.eq.1.and.ice_temp%dic.lt.himin) ! MJT suggestion
-!  ice_temp%tn(1)=0.5*(ice_temp%tsurf+dg2%tb)  ! MJT suggestion
-!end where                                     ! MJT suggestion
-where (dg2%nk.eq.1)
-  ice_temp%sto=0.
-  ice_temp%tn(2)=dg2%tb
+where (dt_nk.eq.1)
+  it_sto=0.
+  it_tn(:,2)=dt_tb
 end where
 
 ! Get total flux into thin surface ice layer by adding flux from below
-rhin=real(dg2%nk)/ice_temp%dic
+rhin=real(dt_nk)/it_dic
 con=condice*rhin*2.
-ftopadj=con*(ice_temp%tn(1)-ice_temp%tsurf)
+ftopadj=con*(it_tn(:,1)-it_tsurf)
 gamms=3.471e5 ! density*specific heat*depth (for ice)
-bot=gamms/dt+4.*sbconst*ice_temp%tsurf**3+con
-ice_temp%tsurf=ice_temp%tsurf+(dg2%ftop+ftopadj)/bot
+bot=gamms/dt+4.*sbconst*it_tsurf**3+con
+it_tsurf=it_tsurf+(dt_ftop+ftopadj)/bot
 ! Ice melt (simelt >= 0)
-simelt=max(0.,ice_temp%tsurf-dg2%timelt)*gamms/qice
-ice_temp%tsurf=min(ice_temp%tsurf,dg2%timelt) ! melting condition ti=timelt
-ti=ice_temp%tsurf
+simelt=max(0.,it_tsurf-dt_timelt)*gamms/qice
+it_tsurf=min(it_tsurf,dt_timelt) ! melting condition ti=timelt
 
 ! Upward fluxes between various levels below surface
 fl(:,0)=ftopadj                                      ! Middle of first ice layer to thin surface layer = ftopadj
-fl(:,1)=condice*(ice_temp%tn(2)-ice_temp%tn(1))*rhin ! Between ice layers 2 and 1
+fl(:,1)=condice*(it_tn(:,2)-it_tn(:,1))*rhin ! Between ice layers 2 and 1
 
 ! Surface evap/sublimation (can be >0 or <0)
-subl=0.001*dt*pg_temp%egice/lv
-dg2%salflx=dg2%salflx+pg_temp%egice/lv
+subl=0.001*dt*pt_egice/lv
+dt_salflx=dt_salflx+pt_egice/lv
 dhi=-subl-simelt
-qmax=qice*0.5*(ice_temp%dic-himin)
-where (ice_temp%sto.gt.qmax)
-  dhi=dhi-(ice_temp%sto-qmax)/qice
-  ice_temp%sto=qmax
+qmax=qice*0.5*(it_dic-himin)
+where (it_sto.gt.qmax)
+  dhi=dhi-(it_sto-qmax)/qice
+  it_sto=qmax
 end where
-where (dhi.lt.0..and.dg2%nk.lt.2)
+where (dhi.lt.0..and.dt_nk.lt.2)
   ! if ice is melting, update thickness when single level
-  ice_temp%dic=max(0.,ice_temp%dic+dhi)
+  it_dic=max(0.,it_dic+dhi)
   dhi=0.
-  rhin=1./ice_temp%dic
+  rhin=1./it_dic
 end where
 
 do iqi=1,nc
   zp=0.
   z=0.
   
-  if (dg2(iqi)%nk.eq.2) then
-    tp(1)=ice_temp(iqi)%tn(1)+dt/cpi*(fl(iqi,1)-fl(iqi,0))/(ice_temp(iqi)%dic/real(dg2(iqi)%nk)+dhi(iqi))
-    tp(1)=min(tp(1),dg2(iqi)%timelt)
-    if (ice_temp(iqi)%sto.gt.0..and.tp(1).lt.dg2(iqi)%timelt) then
-      qneed=(dg2(iqi)%timelt-tp(1))*cpi/rhin(iqi) ! J/m**2
-      if (ice_temp(iqi)%sto.le.qneed) then
-        fact=ice_temp(iqi)%dic/qneed
-        tp(1)=dg2(iqi)%timelt*fact+tp(1)*(1.-fact)
-        ice_temp(iqi)%sto=0.
-      else
-        tp(1)=dg2(iqi)%timelt
-        ice_temp(iqi)%sto=ice_temp(iqi)%sto-qneed
-      end if
+  if (dt_nk(iqi).eq.2) then
+    tp(1)=it_tn(iqi,1)+dt/cpi*(fl(iqi,1)-fl(iqi,0))/(it_dic(iqi)/real(dt_nk(iqi))+dhi(iqi))
+    tp(1)=min(tp(1),dt_timelt(iqi))
+    qneed=(dt_timelt(iqi)-tp(1))*cpi/rhin(iqi) ! J/m**2
+    if (it_sto(iqi).le.qneed) then
+      fact=it_dic(iqi)/qneed
+      tp(1)=dt_timelt(iqi)*fact+tp(1)*(1.-fact)
+      it_sto(iqi)=0.
+    else
+      tp(1)=dt_timelt(iqi)
+      it_sto(iqi)=it_sto(iqi)-qneed
     end if
   end if
 
   ! determine amount of bottom ablation or accretion
-  fl(iqi,dg2(iqi)%nk)=condice*(dg2(iqi)%tb-ice_temp(iqi)%tn(dg2(iqi)%nk))*2.*rhin(iqi)
-  dhb(iqi)=dt*(fl(iqi,dg2(iqi)%nk)-dg2(iqi)%fb)/qice
+  fl(iqi,dt_nk(iqi))=condice*(dt_tb(iqi)-it_tn(iqi,dt_nk(iqi)))*2.*rhin(iqi)
+  dhb(iqi)=dt*(fl(iqi,dt_nk(iqi))-dt_fb(iqi))/qice
   dhb(iqi)=min(0.01,dhb(iqi)) ! limit for poor initial conditions
-  hinew=ice_temp(iqi)%dic+dhi(iqi)+dhb(iqi)
+  hinew=it_dic(iqi)+dhi(iqi)+dhb(iqi)
   
   ! determine depths below surface of interim and final interfaces
-  con0=hinew/real(dg2(iqi)%nk)
-  do ii=1,dg2(iqi)%nk
+  con0=hinew/real(dt_nk(iqi))
+  do ii=1,dt_nk(iqi)
     z(ii)=z(ii-1)-con0
   enddo
-  con0=ice_temp(iqi)%dic/real(dg2(iqi)%nk)
+  con0=it_dic(iqi)/real(dt_nk(iqi))
   zp(1)=-con0-dhi(iqi)
 
   if (dhb(iqi).le.0.) then
     ! construct final values of temperature for case of bottom ablation
-    zp(dg2(iqi)%nk)=z(dg2(iqi)%nk)
-    tp(dg2(iqi)%nk)=ice_temp(iqi)%tn(dg2(iqi)%nk)+dt*(fl(iqi,dg2(iqi)%nk)-fl(iqi,dg2(iqi)%nk-1))/cpi &
-                   /(ice_temp(iqi)%dic/real(dg2(iqi)%nk)+dhb(iqi))
-    tp(dg2(iqi)%nk)=min(tp(dg2(iqi)%nk),dg2(iqi)%timelt)
+    zp(dt_nk(iqi))=z(dt_nk(iqi))
+    tp(dt_nk(iqi))=it_tn(iqi,dt_nk(iqi))+dt*(fl(iqi,dt_nk(iqi))-fl(iqi,dt_nk(iqi)-1))/cpi &
+                   /(it_dic(iqi)/real(dt_nk(iqi))+dhb(iqi))
+    tp(dt_nk(iqi))=min(tp(dt_nk(iqi)),dt_timelt(iqi))
     !tp(0)=ti(iqi) ! MJT suggestion
-    tp(dg2(iqi)%nk+1)=dg2(iqi)%tb
-    do ii=1,dg2(iqi)%nk
+    tp(dt_nk(iqi)+1)=dt_tb(iqi)
+    do ii=1,dt_nk(iqi)
       if(z(ii).lt.zp(ii).and.zp(ii).lt.z(ii-1))then
-        ice_temp(iqi)%tn(ii)=((z(ii-1)-zp(ii))*tp(ii)+(zp(ii)-z(ii))*tp(ii+1)) &
-                             *real(dg2(iqi)%nk)/hinew
+        it_tn(iqi,ii)=((z(ii-1)-zp(ii))*tp(ii)+(zp(ii)-z(ii))*tp(ii+1))*real(dt_nk(iqi))/hinew
       elseif(z(ii).lt.zp(ii-1).and.zp(ii-1).lt.z(ii-1))then
-        ice_temp(iqi)%tn(ii)=((z(ii-1)-zp(ii-1))*tp(ii-1)+(zp(ii-1)-z(ii))*tp(ii)) &
-                             *real(dg2(iqi)%nk)/hinew
+        it_tn(iqi,ii)=((z(ii-1)-zp(ii-1))*tp(ii-1)+(zp(ii-1)-z(ii))*tp(ii))*real(dt_nk(iqi))/hinew
       else
-        ice_temp(iqi)%tn(ii)=tp(ii)
+        it_tn(iqi,ii)=tp(ii)
       endif
     enddo
   else
     ! construct final values of temperature for case of bottom accretion
-    zp(dg2(iqi)%nk)=zp(dg2(iqi)%nk-1)-con0
-    tp(dg2(iqi)%nk)=ice_temp(iqi)%tn(dg2(iqi)%nk)+dt*(fl(iqi,dg2(iqi)%nk)-fl(iqi,dg2(iqi)%nk-1))*rhin(iqi)/cpi
-    tp(dg2(iqi)%nk)=min(tp(dg2(iqi)%nk),dg2(iqi)%timelt)
-    tp(dg2(iqi)%nk+1)=dg2(iqi)%tb
-    do ii=1,dg2(iqi)%nk
-      ice_temp(iqi)%tn(ii)=((z(ii-1)-zp(ii))*tp(ii)+(zp(ii)-z(ii))*tp(ii+1)) &
-                           *real(dg2(iqi)%nk)/hinew
+    zp(dt_nk(iqi))=zp(dt_nk(iqi)-1)-con0
+    tp(dt_nk(iqi))=it_tn(iqi,dt_nk(iqi))+dt*(fl(iqi,dt_nk(iqi))-fl(iqi,dt_nk(iqi)-1))*rhin(iqi)/cpi
+    tp(dt_nk(iqi))=min(tp(dt_nk(iqi)),dt_timelt(iqi))
+    tp(dt_nk(iqi)+1)=dt_tb(iqi)
+    do ii=1,dt_nk(iqi)
+      it_tn(iqi,ii)=((z(ii-1)-zp(ii))*tp(ii)+(zp(ii)-z(ii))*tp(ii+1))*real(dt_nk(iqi))/hinew
     enddo
   end if
 
-  ice_temp(iqi)%dic=hinew
+  it_dic(iqi)=hinew
   ! test whether to change number of layers
-  htup=real(dg2(iqi)%nk+1)*himin
-  htdown=real(dg2(iqi)%nk)*himin
+  htup=real(dt_nk(iqi)+1)*himin
+  htdown=real(dt_nk(iqi))*himin
 
-  if (ice_temp(iqi)%dic.ge.htup.and.dg2(iqi)%nk.lt.2) then
+  if (it_dic(iqi).ge.htup.and.dt_nk(iqi).lt.2) then
     ! code to increase number of layers
-    dg2(iqi)%nk=dg2(iqi)%nk+1
-    tp(1)=ice_temp(iqi)%tn(1)
-    tp(dg2(iqi)%nk)=ice_temp(iqi)%tn(dg2(iqi)%nk-1)
-!    if (dg2(iqi)%nk.lt.2) then
-!      con1=ice_temp(iqi)%dic/real(dg2(iqi)%nk-1)
-!      con2=ice_temp(iqi)%dic/real(dg2(iqi)%nk)
-!      do ii=1,dg2(iqi)%nk
-!        z(iqi,ii) =z(iqi,ii-1) -con1
-!        zp(iqi,ii)=zp(iqi,ii-1)-con2
-!      enddo
-!      do ii=2,dg2(iqi)%nk-1
-!        tp(iqi,ii)=((zp(iqi,ii-1)-z(iqi,ii-1))*ice_temp(iqi)%tn(ii-1)+(z(iqi,ii-1)-zp(iqi,ii)) &
-!                   *ice_temp(iqi)%tn(ii))/con2
-!      enddo
-!    end if
-    do ii=1,dg2(iqi)%nk
-      ice_temp(iqi)%tn(ii)=tp(ii)
+    dt_nk(iqi)=dt_nk(iqi)+1
+    tp(1)=it_tn(iqi,1)
+    tp(dt_nk(iqi))=it_tn(iqi,dt_nk(iqi)-1)
+    do ii=1,dt_nk(iqi)
+      it_tn(iqi,ii)=tp(ii)
     enddo
-  else if (ice_temp(iqi)%dic.le.htdown) then
+  else if (it_dic(iqi).le.htdown) then
     ! code to decrease number of layers
-    dg2(iqi)%nk=dg2(iqi)%nk-1
-    if (dg2(iqi)%nk.gt.0) then
-      con1=ice_temp(iqi)%dic/real(dg2(iqi)%nk+1)
-      con2=ice_temp(iqi)%dic/real(dg2(iqi)%nk)
-      do ii=1,dg2(iqi)%nk
+    dt_nk(iqi)=dt_nk(iqi)-1
+    if (dt_nk(iqi).gt.0) then
+      con1=it_dic(iqi)/real(dt_nk(iqi)+1)
+      con2=it_dic(iqi)/real(dt_nk(iqi))
+      do ii=1,dt_nk(iqi)
         z(ii) =z(ii-1) -con1
         zp(ii)=zp(ii-1)-con2
       enddo
-      do ii=1,dg2(iqi)%nk
-        tp(ii)=((zp(ii-1)-z(ii))*ice_temp(iqi)%tn(ii) &
-               +(z(ii)-zp(ii))*ice_temp(iqi)%tn(ii+1))/con2
+      do ii=1,dt_nk(iqi)
+        tp(ii)=((zp(ii-1)-z(ii))*it_tn(iqi,ii)+(z(ii)-zp(ii))*it_tn(iqi,ii+1))/con2
       enddo
-      do ii=1,dg2(iqi)%nk
-        ice_temp(iqi)%tn(ii)=tp(ii)
+      do ii=1,dt_nk(iqi)
+        it_tn(iqi,ii)=tp(ii)
       enddo
     end if
   end if
@@ -2161,7 +2132,8 @@ end subroutine icetempn2
 !                                                                E
 ! ## tb ##########################################################
 
-subroutine icetemps1(nc,dt,ice_temp,dg2,pg_temp,diag)
+subroutine icetemps1(nc,dt,it_tn,it_dic,it_dsn,it_fracice,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx, &
+                     dt_nk,pt_egice,diag)
 
 implicit none
 
@@ -2170,53 +2142,54 @@ real, intent(in) :: dt
 real, dimension(nc) :: ti,con,bot,f0
 real, dimension(nc) :: subl,snmelt,dhs,dhb
 real gamms
-type(tice), dimension(nc), intent(inout) :: ice_temp
-type(tdiag2), dimension(nc), intent(inout) :: dg2
-type(tprog2), dimension(nc), intent(in) :: pg_temp
+real, dimension(nc,0:2), intent(inout) :: it_tn
+real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
+real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx
+integer, dimension(nc), intent(inout) :: dt_nk
+real, dimension(nc), intent(in) :: pt_egice
 
 ! Update tsurf and ti based on fluxes from above and below
-con=1./(ice_temp%dsn/condsnw+ice_temp%dic/condice)
-f0=con*(dg2%tb-ice_temp%tsurf) ! flux from below
+con=1./(it_dsn/condsnw+it_dic/condice)
+f0=con*(dt_tb-it_tsurf) ! flux from below
 gamms=4.857e4                  ! density*specific heat*depth (for snow)
-bot=gamms/dt+4.*sbconst*ice_temp%tsurf**3+con
-ice_temp%tsurf=ice_temp%tsurf+(dg2%ftop+f0)/bot
+bot=gamms/dt+4.*sbconst*it_tsurf**3+con
+it_tsurf=it_tsurf+(dt_ftop+f0)/bot
 ! Snow melt (snmelt >= 0)
-snmelt=10.*max(0.,ice_temp%tsurf-273.16)*gamms/qsnow
-ice_temp%tsurf=min(ice_temp%tsurf,273.16) ! melting condition ts=tsmelt
-ti=(ice_temp%dic*condsnw*ice_temp%tsurf+ice_temp%dsn*condice*dg2%tb) &
-  /(ice_temp%dic*condsnw+ice_temp%dsn*condice)
+snmelt=10.*max(0.,it_tsurf-273.16)*gamms/qsnow
+it_tsurf=min(it_tsurf,273.16) ! melting condition ts=tsmelt
+ti=(it_dic*condsnw*it_tsurf+it_dsn*condice*dt_tb)/(it_dic*condsnw+it_dsn*condice)
 
 ! Surface evap/sublimation (can be >0 or <0)
-subl=0.01*dt*pg_temp%egice/lv
-dg2%salflx=dg2%salflx+pg_temp%egice/lv
+subl=0.01*dt*pt_egice/lv
+dt_salflx=dt_salflx+pt_egice/lv
 dhs=snmelt+subl ! Change the snow thickness
-where (dhs.gt.ice_temp%dsn)
-  ice_temp%dic=ice_temp%dic-0.1*(dhs-ice_temp%dsn)
-  snmelt=max(ice_temp%dsn-subl,0.)
-  ice_temp%dsn=0.
+where (dhs.gt.it_dsn)
+  it_dic=it_dic-0.1*(dhs-it_dsn)
+  snmelt=max(it_dsn-subl,0.)
+  it_dsn=0.
 elsewhere
-  ice_temp%dsn=ice_temp%dsn-dhs
+  it_dsn=it_dsn-dhs
 end where
-dhb=dt*(f0-dg2%fb)/qice       ! Ice melt (simelt >= 0)
+dhb=dt*(f0-dt_fb)/qice       ! Ice melt (simelt >= 0)
 dhb=min(0.01,dhb)             ! limit for poor initial conditions
-ice_temp%dic=ice_temp%dic+dhb
+it_dic=it_dic+dhb
 
-where (ice_temp%dic.lt.1.E-3)
-  ice_temp%dic=0.
+where (it_dic.lt.1.E-3)
+  it_dic=0.
 end where
 
-where (ice_temp%dsn.lt.1.E-4) ! Remove very thin snow
-  ice_temp%dsn=0.
+where (it_dsn.lt.1.E-4) ! Remove very thin snow
+  it_dsn=0.
 end where
 
-where (ice_temp%dic.ge.himin) ! increase ice thickness
-  dg2%nk=1
-  ice_temp%sto=0.
+where (it_dic.ge.himin) ! increase ice thickness
+  dt_nk=1
+  it_sto=0.
 end where
 
-ice_temp%tn(0)=0.5*(ice_temp%tsurf+ti)
-ice_temp%tn(1)=0.5*(ti+dg2%tb)
-ice_temp%tn(2)=dg2%tb
+it_tn(:,0)=0.5*(it_tsurf+ti)
+it_tn(:,1)=0.5*(ti+dt_tb)
+it_tn(:,2)=dt_tb
 
 return
 end subroutine icetemps1
@@ -2232,7 +2205,8 @@ end subroutine icetemps1
 !                                                                E
 ! ## tb ##########################################################
 
-subroutine icetempn1(nc,dt,ice_temp,dg2,pg_temp,diag)
+subroutine icetempn1(nc,dt,it_tn,it_dic,it_dsn,it_fracice,it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx, &
+                     dt_nk,pt_egice,diag)
 
 implicit none
 
@@ -2241,39 +2215,41 @@ real, intent(in) :: dt
 real, dimension(nc) :: con,bot,subl,simelt
 real, dimension(nc) :: dhi,dhb,f0
 real gamms
-type(tice), dimension(nc), intent(inout) :: ice_temp
-type(tdiag2), dimension(nc), intent(inout) :: dg2
-type(tprog2), dimension(nc), intent(in) :: pg_temp
+real, dimension(nc,0:2), intent(inout) :: it_tn
+real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
+real, dimension(nc), intent(inout) :: dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx
+integer, dimension(nc), intent(inout) :: dt_nk
+real, dimension(nc), intent(in) :: pt_egice
 
 ! Update tsurf and ti based on fluxes from above and below
-con=condice/ice_temp%dic
-f0=con*(dg2%tb-ice_temp%tsurf) ! flux from below
-gamms=3.471e5                     ! density*specific heat*depth (for ice)
-bot=gamms/dt+4.*sbconst*ice_temp%tsurf**3+con
-ice_temp%tsurf=ice_temp%tsurf+(dg2%ftop+f0)/bot
-simelt=max(0.,ice_temp%tsurf-dg2%timelt)*gamms/qice ! Ice melt (simelt >= 0)
-ice_temp%tsurf=min(ice_temp%tsurf,dg2%timelt)       ! melting condition ti=timelt
+con=condice/it_dic
+f0=con*(dt_tb-it_tsurf) ! flux from below
+gamms=3.471e5                  ! density*specific heat*depth (for ice)
+bot=gamms/dt+4.*sbconst*it_tsurf**3+con
+it_tsurf=it_tsurf+(dt_ftop+f0)/bot
+simelt=max(0.,it_tsurf-dt_timelt)*gamms/qice ! Ice melt (simelt >= 0)
+it_tsurf=min(it_tsurf,dt_timelt)       ! melting condition ti=timelt
 
 ! Surface evap/sublimation (can be >0 or <0)
-subl=0.001*dt*pg_temp%egice/lv
-dg2%salflx=dg2%salflx+pg_temp%egice/lv
+subl=0.001*dt*pt_egice/lv
+dt_salflx=dt_salflx+pt_egice/lv
 dhi=-subl-simelt
-dhb=dt*(f0-dg2%fb)/qice           ! determine amount of bottom ablation or accretion
+dhb=dt*(f0-dt_fb)/qice           ! determine amount of bottom ablation or accretion
 dhb=min(0.01,dhb)                 ! limit for poor initial conditions
-ice_temp%dic=ice_temp%dic+dhi+dhb ! update ice thickness
+it_dic=it_dic+dhi+dhb ! update ice thickness
 
-where (ice_temp%dic.lt.1.E-3)
-  ice_temp%dic=0.
+where (it_dic.lt.1.E-3)
+  it_dic=0.
 end where
 
-where (ice_temp%dic.ge.himin) ! increase ice thickness
-  dg2%nk=1
-  ice_temp%sto=0.
+where (it_dic.ge.himin) ! increase ice thickness
+  dt_nk=1
+  it_sto=0.
 end where
 
-ice_temp%tn(0)=ice_temp%tsurf
-ice_temp%tn(1)=0.5*(ice_temp%tsurf+dg2%tb)
-ice_temp%tn(2)=dg2%tb
+it_tn(:,0)=it_tsurf
+it_tn(:,1)=0.5*(it_tsurf+dt_tb)
+it_tn(:,2)=dt_tb
 
 return
 end subroutine icetempn1
@@ -2281,77 +2257,79 @@ end subroutine icetempn1
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Determine ice fluxes
 
-subroutine iceflux(dt,atm,dg2,dg3,diag)
+subroutine iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins, &
+                   d_rho,d_ftop,d_tb,d_fb,d_timelt,d_salflx,d_nk,d_did,diag)
 
 implicit none
 
 integer, intent(in) :: diag
 integer iqw,ii
-type(tatm), dimension(wfull), intent(in) :: atm
-type(tdiag2), dimension(wfull), intent(inout) :: dg2
-type(tdiag3), dimension(wfull,wlev), intent(in) :: dg3
+real, dimension(wfull), intent(in) :: a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
+real, dimension(wfull,wlev), intent(in) :: d_rho
+real, dimension(wfull), intent(inout) :: d_ftop,d_tb,d_fb,d_timelt,d_salflx
+integer, dimension(wfull), intent(inout) :: d_nk,d_did
 real, intent(in) :: dt
 real, dimension(wfull) :: qsat,ri,vmag,rho,srcp
-real, dimension(wfull) :: fm,fh,af,aft,logzo
+real, dimension(wfull) :: fm,fh,af,aft
 real, dimension(wfull) :: den,sig,root
 real, dimension(wfull) :: alb,qmax,eye
 real x,factch
 
-vmag=sqrt(atm%u*atm%u+atm%v*atm%v)
-sig=exp(-grav*atm%zmins/(rdry*atm%temp))
+vmag=sqrt(a_u*a_u+a_v*a_v)
+sig=exp(-grav*a_zmins/(rdry*a_temp))
 srcp=sig**(rdry/cp)
-rho=atm%ps/(rdry*ice%tsurf)
+rho=a_ps/(rdry*i_tsurf)
 
-pg%zoice=0.001
-logzo=log(atm%zmin/pg%zoice)
-af=(vkar/logzo)**2
-aft=vkar**2/(logzo*(2.+logzo))
+p_zoice=0.001
+af=vkar**2/(log(a_zmin/p_zoice)*log(a_zmin/p_zoice))
+aft=vkar**2/(log(a_zmins/p_zoice)*(2.3+log(a_zmins/p_zoice)))
 factch=sqrt(7.4)
 
-call getqsat(qsat,ice%tsurf,atm%ps)
-ri=min(grav*(atm%zmin**2/atm%zmins)*(1.-ice%tsurf*srcp/atm%temp)/max(vmag,0.1)**2,rimax)
+call getqsat(qsat,i_tsurf,a_ps)
+ri=min(grav*(a_zmin**2/a_zmins)*(1.-i_tsurf*srcp/a_temp)/max(vmag,0.1)**2,rimax)
 
 where (ri>0.)
   fm=1./(1.+bprm*ri)**2  ! no zo contrib for stable
   fh=fm
 elsewhere        ! ri is -ve
-  root=sqrt(-ri*atm%zmin/pg%zoice)
+  root=sqrt(-ri*a_zmin/p_zoice)
   den=1.+cms*2.*bprm*af*root
   fm=1.-2.*bprm*ri/den
+  root=sqrt(-ri*a_zmins/p_zoice)
   den=1.+chs*2.*bprm*factch*aft*root
   fh=1.-2.*bprm*ri/den
 end where
 
-pg%wetfacice=max(1.+.008*min(ice%tsurf-273.16,0.),0.)
-pg%cdice=af*fm
-pg%fgice=rho*aft*cp*fh*vmag*(ice%tsurf-atm%temp/srcp)
-pg%egice=pg%wetfacice*rho*aft*lv*fh*vmag*(qsat-atm%qg)
+p_wetfacice=max(1.+.008*min(i_tsurf-273.16,0.),0.)
+p_cdice=af*fm
+p_fgice=rho*aft*cp*fh*vmag*(i_tsurf-a_temp/srcp)
+p_egice=p_wetfacice*rho*aft*lv*fh*vmag*(qsat-a_qg)
 
 ! ice melting temperature (should depend on salinity)
-dg2%timelt=273.16-0.054*water(:,1)%sal ! from CICE
+d_timelt=273.16-0.054*w_sal(:,1) ! from CICE
 
 ! determine water temperature at bottom of ice
-dg2%did=0
+d_did=0
 do iqw=1,wfull
-  if (ice(iqw)%dic.gt.depth(iqw,1)) then
-    dg2(iqw)%tb=water(iqw,wlev)%temp
-    dg2(iqw)%did=wlev
+  if (i_dic(iqw).gt.depth(iqw,1)) then
+    d_tb(iqw)=w_temp(iqw,wlev)
+    d_did(iqw)=wlev
     do ii=2,wlev
-      if (ice(iqw)%dic.lt.depth(iqw,ii)) then
-        x=(ice(iqw)%dic-depth(iqw,ii-1))/dz_hl(iqw,ii)
+      if (i_dic(iqw).lt.depth(iqw,ii)) then
+        x=(i_dic(iqw)-depth(iqw,ii-1))/dz_hl(iqw,ii)
         x=max(min(x,1.),0.)
-        dg2(iqw)%did=ii-1+nint(x)
+        d_did(iqw)=ii-1+nint(x)
         exit
       end if
     end do
   else
-    dg2(iqw)%did=1
+    d_did(iqw)=1
   end if
   ! water temperature at bottom of ice
-  dg2(iqw)%tb=water(iqw,dg2(iqw)%did)%temp
+  d_tb(iqw)=w_temp(iqw,d_did(iqw))
   ! flux from water to ice
-  x=sum(dz(iqw,1:dg2(iqw)%did)) ! cumulative depth
-  dg2(iqw)%fb=cp0*dg3(iqw,dg2(iqw)%did)%rho*antarck*(dg2(iqw)%tb-dg2(iqw)%timelt)/x
+  x=sum(dz(iqw,1:d_did(iqw))) ! cumulative depth
+  d_fb(iqw)=cp0*d_rho(iqw,d_did(iqw))*antarck*(d_tb(iqw)-d_timelt(iqw))/x
   !   If the actual ocean model top level temperature (sstocean) is less
   !   than freezing, then add an additional ice to ocean heat flux
   !   proportional to the deficit of this temperature below freezing.
@@ -2360,32 +2338,30 @@ do iqw=1,wfull
   !   the ocean as the water temperature drops below freezing, and thereby
   !   prevents the ocean temperature from falling much below freezing
   !   while conserving heat flux.  
-!  if (dg2(iqw)%tb.lt.271.3) then
-!    dg2(iqw)%fb=dg2(iqw)%fb+cp0*dg3(iqw,dg2(iqw)%did)%rho*6.E-4*(dg2(iqw)%tb-dg2(iqw)%timelt)/(0.25*dz(iqw,dg2(iqw)%did))
+!  if (d_tb(iqw).lt.271.3) then
+!    d_fb(iqw)=d_fb(iqw)+cp0*d_rho(iqw,d_did(iqw))*6.E-4*(d_tb(iqw)-d_timelt(iqw))/(0.25*dz(iqw,d_did(iqw)))
 !  end if
 end do
 
 ! index of different ice configurations
-dg2%nk=min(int(ice%dic/himin),2)
+d_nk=min(int(i_dic/himin),2)
 
 ! radiation
-alb=     atm%vnratio*(pg%icevisdiralb*atm%fbvis &
-                     +pg%icevisdifalb*(1.-atm%fbvis))+ &
-    (1.-atm%vnratio)*(pg%icevisdifalb*atm%fbvis &
-                     +pg%icevisdifalb*(1.-atm%fbvis))
-qmax=qice*0.5*(ice%dic-himin)
+alb=     a_vnratio*(p_icevisdiralb*a_fbvis+p_icevisdifalb*(1.-a_fbvis))+ &
+    (1.-a_vnratio)*(p_icevisdifalb*a_fbvis+p_icevisdifalb*(1.-a_fbvis))
+qmax=qice*0.5*(i_dic-himin)
 eye=0.
-where (ice%dsn.lt.1.E-6.and.ice%sto.le.qmax.and.dg2%nk.gt.0)
+where (i_dsn.lt.1.E-6.and.i_sto.le.qmax.and.d_nk.gt.0)
   eye=0.35
 end where
-ice%sto=ice%sto+dt*eye*atm%sg
-dg2%ftop=-pg%fgice-pg%egice+atm%rg-sbconst*ice%tsurf**4+atm%sg*(1.-alb)*(1.-eye)
+i_sto=i_sto+dt*eye*a_sg
+d_ftop=-p_fgice-p_egice+a_rg-sbconst*i_tsurf**4+a_sg*(1.-alb)*(1.-eye)
 
 ! Add flux of heat due to converting any rain to snowfall over ice
-dg2%ftop=dg2%ftop+lf*atm%rnd ! rain (mm) to W/m**2
+d_ftop=d_ftop+lf*a_rnd ! rain (mm) to W/m**2
 
 ! Salinity flux due to melting ice (zero to zero for non-ice points)
-dg2%salflx=0.
+d_salflx=0.
 
 return
 end subroutine iceflux
@@ -2393,32 +2369,36 @@ end subroutine iceflux
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Determine screen diagnostics
 
-subroutine scrncalc(atm,diag)
+subroutine scrncalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,diag)
 
 implicit none
 
 integer, intent(in) :: diag
-type(tatm), dimension(wfull), intent(in) :: atm
+real, dimension(wfull), intent(in) :: a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
 real, dimension(wfull) :: tscrn,qgscrn,uscrn,u10
 real, dimension(wfull) :: smixr,qsat
 
 ! water
-call getqsat(qsat,water(:,1)%temp,atm%ps)
-smixr=pg%wetfac*0.98*qsat+(1.-pg%wetfac)*min(0.98*qsat,atm%qg)
-call scrntile(tscrn,qgscrn,uscrn,u10,pg%zo,water(:,1)%temp,smixr,atm,diag)
-pg%tscrn=tscrn
-pg%qgscrn=qgscrn
-pg%uscrn=uscrn
-pg%u10=u10
+call getqsat(qsat,w_temp(:,1),a_ps)
+if (zomode.eq.0) then
+  smixr=0.98*qsat
+else
+  smixr=qsat
+end if
+call scrntile(tscrn,qgscrn,uscrn,u10,p_zo,w_temp(:,1),smixr,a_u,a_v,a_temp,a_qg,a_zmin,a_zmins,diag)
+p_tscrn=tscrn
+p_qgscrn=qgscrn
+p_uscrn=uscrn
+p_u10=u10
 
 ! ice
-call getqsat(qsat,ice%tsurf,atm%ps)
-smixr=pg%wetfac*qsat+(1.-pg%wetfac)*min(qsat,atm%qg)
-call scrntile(tscrn,qgscrn,uscrn,u10,pg%zoice,ice%tsurf,smixr,atm,diag)
-pg%tscrn=(1.-ice%fracice)*pg%tscrn+ice%fracice*tscrn
-pg%qgscrn=(1.-ice%fracice)*pg%qgscrn+ice%fracice*qgscrn
-pg%uscrn=(1.-ice%fracice)*pg%uscrn+ice%fracice*uscrn
-pg%u10=(1.-ice%fracice)*pg%u10+ice%fracice*u10
+call getqsat(qsat,i_tsurf,a_ps)
+smixr=p_wetfacice*qsat+(1.-p_wetfacice)*min(qsat,a_qg)
+call scrntile(tscrn,qgscrn,uscrn,u10,p_zoice,i_tsurf,smixr,a_u,a_v,a_temp,a_qg,a_zmin,a_zmins,diag)
+p_tscrn=(1.-i_fracice)*p_tscrn+i_fracice*tscrn
+p_qgscrn=(1.-i_fracice)*p_qgscrn+i_fracice*qgscrn
+p_uscrn=(1.-i_fracice)*p_uscrn+i_fracice*uscrn
+p_u10=(1.-i_fracice)*p_u10+i_fracice*u10
 
 return
 end subroutine scrncalc
@@ -2426,13 +2406,13 @@ end subroutine scrncalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! screen diagnostic for individual tile
 
-subroutine scrntile(tscrn,qgscrn,uscrn,u10,zo,stemp,smixr,atm,diag)
+subroutine scrntile(tscrn,qgscrn,uscrn,u10,zo,stemp,smixr,a_u,a_v,a_temp,a_qg,a_zmin,a_zmins,diag)
       
 implicit none
 
 integer, intent(in) :: diag
 integer ic
-type(tatm), dimension(wfull), intent(in) :: atm
+real, dimension(wfull), intent(in) :: a_u,a_v,a_temp,a_qg,a_zmin,a_zmins
 real, dimension(wfull), intent(in) :: zo,stemp,smixr
 real, dimension(wfull), intent(out) :: tscrn,qgscrn,uscrn,u10
 real, dimension(wfull) :: umag,sig
@@ -2451,21 +2431,21 @@ real, parameter    ::  lna    = 2.3
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
 
-umag=sqrt(atm%u*atm%u+atm%v*atm%v)
-sig=exp(-grav*atm%zmins/(rdry*atm%temp))
+umag=sqrt(a_u*a_u+a_v*a_v)
+sig=exp(-grav*a_zmins/(rdry*a_temp))
 scrp=sig**(rdry/cp)
-thetav=atm%temp*(1.+0.61*atm%qg)/scrp
+thetav=a_temp*(1.+0.61*a_qg)/scrp
 sthetav=stemp*(1.+0.61*smixr)
 
 ! Roughness length for heat
-lzom=log(atm%zmin/zo)
-lzoh=lna+log(atm%zmins/zo)
+lzom=log(a_zmin/zo)
+lzoh=lna+log(a_zmins/zo)
 
 ! Dyer and Hicks approach 
 thetavstar=vkar*(thetav-sthetav)/lzoh
 ustar=vkar*umag/lzom
 do ic=1,nc
-  z_on_l=vkar*(atm%zmin**2/atm%zmins)*grav*thetavstar/(thetav*ustar**2)
+  z_on_l=vkar*a_zmins*grav*thetavstar/(thetav*ustar**2)
   z_on_l=min(z_on_l,10.)
   z0_on_l  = z_on_l*exp(-lzom)
   zt_on_l  = z_on_l*exp(-lzoh)
@@ -2496,19 +2476,19 @@ do ic=1,nc
   thetavstar=vkar*(thetav-sthetav)/integralh
   ustar=vkar*umag/integralm
 end do
-tstar=vkar*(atm%temp-stemp)/integralh
-qstar=vkar*(atm%qg-smixr)/integralh
+tstar=vkar*(a_temp-stemp)/integralh
+qstar=vkar*(a_qg-smixr)/integralh
       
 ! estimate screen diagnostics
-z0s_on_l=z0*z_on_l/atm%zmins
-z0_on_l=z0*z_on_l/atm%zmin
-z10_on_l=z10*z_on_l/atm%zmin
+z0s_on_l=z0*z_on_l/a_zmins
+z0_on_l=z0*z_on_l/a_zmin
+z10_on_l=z10*z_on_l/a_zmin
 z0s_on_l=min(z0s_on_l,10.)
 z0_on_l=min(z0_on_l,10.)
 z10_on_l=min(z10_on_l,10.)
-neutrals=log(atm%zmins/z0)
-neutral=log(atm%zmin/z0)
-neutral10=log(atm%zmin/z10)
+neutrals=log(a_zmins/z0)
+neutral=log(a_zmin/z0)
+neutral10=log(a_zmin/z10)
 where (z_on_l.lt.0.)
   ph0     = (1.-16.*z0s_on_l)**(-0.50)
   ph1     = (1.-16.*z_on_l)**(-0.50)
@@ -2540,8 +2520,8 @@ elsewhere
   integralm = neutral-(pm1-pm0)
   integralm10 = neutral10-(pm1-pm10)
 endwhere
-tscrn  = atm%temp-tstar*integralh/vkar
-qgscrn = atm%qg-qstar*integralh/vkar
+tscrn  = a_temp-tstar*integralh/vkar
+qgscrn = a_qg-qstar*integralh/vkar
 qgscrn = max(qgscrn,1.E-4)
 
 uscrn=max(umag-ustar*integralm/vkar,0.)

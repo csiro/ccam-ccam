@@ -208,8 +208,8 @@ c          winter       spring       summer       autumn       (nh)
         dlat=180./real(jj-1)
         dlon=360./real(ii-1)
         do j=1,npts
-         serlat=(90.+alat(j)*180./pi)/dlat+1
-         serlon=alon(j)*180./(pi*dlon)+1
+         serlat=(90.+alat(j)*180./pi)/dlat+1.
+         serlon=alon(j)*180./(pi*dlon)+1.
          ilat=int(serlat)
          ilon=int(serlon)
          serlat=serlat-real(ilat)
@@ -268,82 +268,88 @@ c          winter       spring       summer       autumn       (nh)
          
          ! convert units
          where (o3inp.lt.1.)
-           o3inp=o3inp*dobson*amo/(amd*grav)
+           !o3inp=o3inp*dobson*amo/(amd*grav)
+           o3inp=o3inp*amo/amd
          end where
          
          !-----------------------------------------------------------
          ! Simple interpolation on pressure levels
-!         ! vertical interpolation (from LDR - Mk3.6)
-!         do m=kl-1,1,-1
-!           if (o3inp(m).gt.1) o3inp(m)=o3inp(m+1)
+         ! vertical interpolation (from LDR - Mk3.6)
+         do m=kl-1,1,-1
+           if (o3inp(m).gt.1) o3inp(m)=o3inp(m+1)
+         end do
+         prf=0.01*ps(j)*sig
+         do m=1,kl
+           if (prf(m).gt.pres(1)) then
+             duo3n(j,kl-m+1)=o3inp(1)
+           elseif (prf(m).lt.pres(kk)) then
+             duo3n(j,kl-m+1)=o3inp(kk)
+           else
+             do k1=2,kk
+               if (prf(m).gt.pres(k1)) exit
+             end do
+             fp=(prf(m)-pres(k1))/(pres(k1-1)-pres(k1))
+             duo3n(j,kl-m+1)=(1.-fp)*o3inp(k1)+fp*o3inp(k1-1)
+           end if
+         end do
+         !-----------------------------------------------------------
+         
+         !-----------------------------------------------------------
+         ! Approximate integral of ozone column
+!         
+!         ! calculate total column of ozone
+!         o3sum=0.
+!         o3sum(kk)=o3inp(kk)*0.5*sum(pres(kk-1:kk))
+!         do m=kk-1,2,-1
+!           if (o3inp(m).gt.1.) then
+!             o3sum(m)=o3sum(m+1)
+!!           else
+!             o3sum(m)=o3sum(m+1)+o3inp(m)*0.5*(pres(m-1)-pres(m+1))
+!           end if
 !         end do
+!         if (o3inp(1).gt.1.) then
+!           o3sum(1)=o3sum(2)
+!         else
+!           o3sum(1)=o3sum(2)+o3inp(1)*0.5*(1000.-0.5*sum(pres(1:2)))
+!         end if
+!         
+!        ! vertical interpolation (from LDR - Mk3.6)
 !         prf=0.01*ps(j)*sig
+!         o3new=0.
 !         do m=1,kl
 !           if (prf(m).gt.pres(1)) then
-!             duo3n(j,kl-m+1)=o3inp(1)
+!             o3new(m)=o3sum(1)
 !           elseif (prf(m).lt.pres(kk)) then
-!             duo3n(j,kl-m+1)=o3inp(kk)
+!             o3new(m)=o3sum(kk)
 !           else
 !             do k1=2,kk
 !               if (prf(m).gt.pres(k1)) exit
 !             end do
 !             fp=(prf(m)-pres(k1))/(pres(k1-1)-pres(k1))
-!             duo3n(j,kl-m+1)=(1.-fp)*o3inp(k1)+fp*o3inp(k1-1)
+!             o3new(m)=(1.-fp)*o3sum(k1)+fp*o3sum(k1-1)
 !           end if
+!         end do        
+!         
+!         ! output ozone
+!         if (sum(prf(1:2)).gt.2000.) then
+!           duo3n(j,kl)=0.
+!         else
+!           duo3n(j,kl)=(o3sum(1)-o3new(1))/(1000.-0.5*sum(prf(1:2)))
+!         end if
+!         do m=2,kl-1
+!           duo3n(j,kl-m+1)=2.*(o3new(m)-o3new(m+1))/(prf(m-1)-prf(m+1))
 !         end do
-         !-----------------------------------------------------------
-         
-         !-----------------------------------------------------------
-         ! Approximate integral of ozone column
-         
-         ! calculate total column of ozone
-         o3sum=0.
-         o3sum(kk)=o3inp(kk)*0.5*sum(pres(kk-1:kk))
-         do m=kk-1,2,-1
-           if (o3inp(m).gt.1.) then
-             o3sum(m)=o3sum(m+1)
-           else
-             o3sum(m)=o3sum(m+1)+o3inp(m)*0.5*(pres(m-1)-pres(m+1))
-           end if
-         end do
-         if (o3inp(1).gt.1) then
-           o3sum(1)=o3sum(2)
-         else
-           o3sum(1)=o3sum(2)+o3inp(1)*0.5*(1000.-0.5*sum(pres(1:2)))
-         end if
-         
-        ! vertical interpolation (from LDR - Mk3.6)
-         prf=0.01*ps(j)*sig
-         o3new=0. 
-         do m=1,kl-1
-           prh=0.5*sum(prf(m:m+1))
-           if (prh.gt.0.5*sum(pres(1:2))) then
-             o3new(m)=o3sum(1)
-           elseif (prh.lt.0.5*sum(pres(kk-1:kk))) then
-             o3new(m)=o3sum(kk) ! =zero
-           else
-             do k1=2,kk-1
-               presh=0.5*sum(pres(k1:k1+1))
-               if (prh.gt.presh) exit
-             end do
-             fp=2.*(prh-presh)/(pres(k1-1)-pres(k1+1))
-             o3new(m)=(1.-fp)*o3sum(k1)+fp*o3sum(k1-1)
-           end if
-         end do        
-         
-         ! output ozone
-         duo3n(j,kl)=(o3sum(1)-o3new(1))/(ps(j)-0.5*sum(prf(1:2)))
-         do m=2,kl-1
-           duo3n(j,kl-m+1)=2.*(o3new(m-1)-o3new(m))/(prf(m-1)-prf(m+1))
-         end do
-         duo3n(j,1)=2.*o3new(kl-1)/sum(prf(kl-1:kl))
-         duo3n(j,:)=max(duo3n(j,:),0.)
+!         duo3n(j,1)=2.*o3new(kl)/sum(prf(kl-1:kl))
+!         duo3n(j,:)=max(duo3n(j,:),0.)
          !-----------------------------------------------------------
          
          !-----------------------------------------------------------
          ! Check ozone column
-!         o3s1=0.
-!         o3s1=o3s1+duo3n(j,kl)*(ps(j)-0.5*sum(prf(1:2)))
+!         if (sum(prf(1:2)).gt.2000.) then
+!           o3s1=0.
+!         else
+!           o3s1=duo3n(j,kl)*(1000.-0.5*sum(prf(1:2)))
+!         end if
 !         do m=2,kl-1
 !           o3s1=o3s1+duo3n(j,kl-m+1)*0.5*(prf(m-1)-prf(m+1))
 !         end do
@@ -361,7 +367,7 @@ c          winter       spring       summer       autumn       (nh)
 !         print *,"o3s1,o3s2 ",o3s1,o3s2
          !-----------------------------------------------------------
          
-        end do        
+        end do
       else
 c       This moved to initfs
 c
@@ -387,6 +393,10 @@ c
      &              + rcos1*ddo3n3(ilat+1,m) + rcos2*ddo3n4(ilat+1,m)
             duo3n(j,m)=do3+than*(do3p-do3)
            end do
+        end do
+        ! convert from cm stp to gm/gm
+        do m=1,kl
+          duo3n(:,m)=duo3n(:,m)*1.01325e2/(ps(:)*10.)
         end do
       end if
       

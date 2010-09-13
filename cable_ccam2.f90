@@ -595,7 +595,7 @@ module cable_ccam
   character(len=*), intent(in) :: fveg,fvegprev,fvegnext
   integer ilx,jlx
   real rlong0x,rlat0x,schmidtx,dsx
-  character*47 header
+  character(len=47) header
 
   if (myid == 0) write(6,*) "Setting CABLE defaults (igbp)"
   
@@ -835,7 +835,7 @@ module cable_ccam
   
     ! aggregate zom
     do n=1,5
-      where (land)
+      where (land.and.ivs(:,n).ne.0)
         zolnd=zolnd+svs(:,n)/log(zmin/(0.1*hc(ivs(:,n))))**2
       end where
     end do
@@ -897,7 +897,7 @@ module cable_ccam
     soil%swilt   = swilt(soil%isoilm)
     soil%ibp2    = ibp2(soil%isoilm)
     soil%i2bp3   = i2bp3(soil%isoilm)
-    soil%pwb_min =  (soil%swilt / soil%ssat )**soil%ibp2
+    soil%pwb_min = (soil%swilt / soil%ssat )**soil%ibp2
  
     bgc%ratecp(:) = ratecp(:)
     bgc%ratecs(:) = ratecs(:)
@@ -1056,7 +1056,7 @@ module cable_ccam
   
   integer k,n,ierr,ierr2,idv
   real, dimension(ifull) :: dat
-  character*9 vname
+  character(len=9) vname
   !real sigin  
   !integer ik,jk,kk
   !common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug  
@@ -1188,8 +1188,8 @@ module cable_ccam
   integer k,n,ierr
   integer, dimension(3), intent(in) :: idim  
   real, dimension(ifull) :: dat
-  character*9 vname
-  character*40 lname
+  character(len=9) vname
+  character(len=40) lname
   logical, intent(in) :: local
   !real sigin  
   !integer ik,jk,kk

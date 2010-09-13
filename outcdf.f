@@ -518,8 +518,8 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         lname = 'Surface albedo'
         call attrib(idnc,idim,3,'alb',lname,'none',0.,1.,0)
         lname = 'Sea ice depth'
-        !call attrib(idnc,idim,3,'siced',lname,'m',0.,65.,0) ! MJT seaice
-        call attrl  (idnc,idim,3,'siced',lname,'m',0.,65.,0) ! MJT seaice	
+        !call attrib(idnc,idim,3,'siced',lname,'m',0.,65.,0)
+        call attrl  (idnc,idim,3,'siced',lname,'m',0.,65.,0) ! MJT seaice
         lname = 'Sea ice fraction'
         call attrib(idnc,idim,3,'fracice',lname,'none',0.,6.5,0)
         lname = 'Snow depth (liquid water)'
@@ -996,7 +996,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         ! MJT urban
         aa=zolnd
         bb=zolnd/7.4 ! dummy
-        call atebzo(ifull,aa(:),bb(:),0)
+        call atebzo(aa(:),bb(:),0)
         call histwrt3(aa,'zolnd',idnc,iarch,local)
         !call histwrt3(zolnd,'zolnd',idnc,iarch,local)
         !-------------------------------------------- 
@@ -1038,7 +1038,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         mlodwn(:,:,1:2)=999.
         mlodwn(:,:,3:4)=0.
         micdwn=999.
-        call mlosave(ifull,mlodwn,aa,micdwn,0)
+        call mlosave(mlodwn,aa,micdwn,0)
         !do k=1,wlev
         !  where(zs(1:ifull).gt.1.)
         !    mlodwn(:,k,2)=999. ! lakes?
@@ -1358,7 +1358,7 @@ c      "extra" outputs
       if (nurban.le.-1.or.(nurban.ge.1.and.itype==-1)) then
        allocate(atebdwn(ifull,13))
        atebdwn(:,:)=999. ! must be the same as spval in onthefly.f
-       call atebsavem(ifull,atebdwn(:,1:12),atebdwn(:,13),0)
+       call atebsavem(atebdwn(:,1:12),atebdwn(:,13),0)
        call histwrt3(atebdwn(:,1),'rooftgg1',idnc,iarch,local)
        call histwrt3(atebdwn(:,2),'rooftgg2',idnc,iarch,local)
        call histwrt3(atebdwn(:,3),'rooftgg3',idnc,iarch,local)

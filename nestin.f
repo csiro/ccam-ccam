@@ -2369,7 +2369,7 @@
       
       if (nud_sst.ne.0) then
         old=new
-        call mloexport(0,ifull,old,ilev,0)
+        call mloexport(0,old,ilev,0)
         diff=miss
         where (.not.land.and.new.gt.271.2)
           diff(:)=new-old
@@ -2384,7 +2384,7 @@
 
       if (nud_sss.ne.0) then
         olds=sssb      
-        call mloexport(1,ifull,olds,ilev,0)
+        call mloexport(1,olds,ilev,0)
         diff=miss
         where (.not.land)
           diff(:)=sssb-olds
@@ -2444,7 +2444,7 @@
         where (.not.land)
           old=old+alpha*diff(:)
         end where
-        call mloimport(0,ifull,old,ilev,0)
+        call mloimport(0,old,ilev,0)
       end if
 
       if (nud_sss.ne.0) then
@@ -2464,7 +2464,7 @@
         where (.not.land)
           olds=olds+alpha*diff(:)
         end where
-        call mloimport(1,ifull,olds,ilev,0)
+        call mloimport(1,olds,ilev,0)
       end if
 
       if (myid==0.and.nmaxpr==1) then
@@ -2533,7 +2533,7 @@
       
       if (nud_sst.ne.0) then
         old=new
-        call mloexport(0,ifull,old,ilev,0)
+        call mloexport(0,old,ilev,0)
         diff=miss
         where (.not.land.and.new.gt.271.2)
           diff(:)=new-old
@@ -2547,7 +2547,7 @@
 
       if (nud_sss.ne.0) then
         olds=sssb
-        call mloexport(1,ifull,olds,ilev,0)
+        call mloexport(1,olds,ilev,0)
         diff=miss
         where (.not.land)
           diff(:)=sssb-olds
@@ -2571,7 +2571,7 @@
         where (.not.land)
           old=old+alpha*diff(:)
         end where
-        call mloimport(0,ifull,old,ilev,0)
+        call mloimport(0,old,ilev,0)
       end if
 
       if (nud_sss.ne.0) then
@@ -2583,7 +2583,7 @@
         where (.not.land)
           olds=olds+alpha*diff(:)
         end where
-        call mloimport(1,ifull,olds,ilev,0)
+        call mloimport(1,olds,ilev,0)
       end if
 
       if (myid==0.and.nmaxpr==1) then
@@ -3016,20 +3016,20 @@
       wgt=dt/real(nud_hrs*3600)
       if (nud_sst.ne.0) then
         old=new
-        call mloexport(0,ifull,old,ilev,0)
+        call mloexport(0,old,ilev,0)
         where (.not.land.and.new.gt.271.2)
           old=old*(1.-wgt)+new*wgt
         end where
-        call mloimport(0,ifull,old,ilev,0)
+        call mloimport(0,old,ilev,0)
       end if
       
       if (nud_sss.ne.0) then
         old=sssb
-        call mloexport(1,ifull,old,ilev,0)
+        call mloexport(1,old,ilev,0)
         where (.not.land)
           old=old*(1.-wgt)+sssb*wgt
         end where
-        call mloimport(1,ifull,old,ilev,0)      
+        call mloimport(1,old,ilev,0)      
       end if
       
       return

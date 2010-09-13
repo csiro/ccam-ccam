@@ -278,7 +278,7 @@ c       c1=0.
         ! sssb=input salinity
         ! nudge mlo
         call mlonudge(tgg(:,1))
-        call mloexport(0,ifull,tgg(:,1),1,0)
+        call mloexport(0,tgg(:,1),1,0)
       end if
       !--------------------------------------------------------------
       if (mydiag)print *,'ktau,sicedep,aice,bice,cice,fracice: ',

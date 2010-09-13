@@ -2050,7 +2050,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         call mloinit(ifull,dep,0)
         if (any(ocndwn.gt.0.5)) then
           if (myid == 0) print *,"Importing MLO data"
-          call mloregrid(ifull,ocndwn,mlodwn)
+          call mloregrid(ocndwn,mlodwn)
         else
           if (myid == 0) print *,"Using MLO defaults"
           do k=1,wlev
@@ -2067,7 +2067,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         where (tss.gt.271.2.and.fracice.le.0.) ! Always use tss for top ocean layer
           mlodwn(:,1,1)=tss(:)                 ! This has no effect in a climate mode and
         endwhere                               ! ensures SST track analyses in a NWP mode
-        call mloload(ifull,mlodwn,micdwn,0)
+        call mloload(mlodwn,micdwn,0)
         deallocate(mlodwn,ocndwn,micdwn)
       end if
       !-----------------------------------------------------------------
@@ -2080,7 +2080,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         where (.not.land(:))
           sigmu(:)=0.
         end where
-        call atebinit(ifull,sigmu(:),zmin,0)
+        call atebinit(ifull,sigmu(:),0)
         where(atebdwn(:,1).ge.399.) ! must be the same as spval in onthefly.f
           atebdwn(:,1)=tgg(:,1)
           atebdwn(:,2)=0.5*(tgg(:,1)+291.16)
@@ -2098,7 +2098,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
      &                 /(sfc(isoilm)-swilt(isoilm))
           atebdwn(:,13)=atebdwn(:,13)*0.26+(1.-atebdwn(:,13))*0.18
         end where
-        call atebloadm(ifull,atebdwn(:,1:12),atebdwn(:,13),0)	
+        call atebloadm(atebdwn(:,1:12),atebdwn(:,13),0)	
         deallocate(atebdwn)
       else
         sigmu(:)=0.
@@ -2140,6 +2140,11 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       do k=1,ms
         wb(:,k)=max(wb(:,k),swilt(isoilm))
       end do
+      
+      ! for CAI experiment
+      if (nspecial.eq.42) then
+        call caispecial
+      endif 
       
       call end_log(indata_end)
       return
@@ -2656,3 +2661,66 @@ c find coexp: see notes "simplified wind model ..." eq 34a
       end
 !=======================================================================
 
+      subroutine caispecial
+      
+      use cc_mpi
+      
+      implicit none
+      
+      include 'newmpar.h'
+      include 'const_phys.h'  
+      include 'latlong.h'
+      include 'pbl.h'
+      include 'soil.h'
+      include 'soilsnow.h'
+      include 'netcdf.inc'
+      include 'mpif.h'
+      
+      integer iq,ix
+      integer ncid,ncs,varid,ierr
+      integer, dimension(3) :: spos,npos
+      real x,r
+      real, dimension(300) :: sdata,ldata
+      
+      if (myid==0) then
+        write(6,*) "Reading nspecial=42 SSTs"
+	spos=1
+        ncs=nf_open('sst_djf.cdf',nf_nowrite,ncid)
+	if (ncs.ne.0) then
+	  write(6,*) "ERROR: Cannot open sst_djf.cdf"
+	  stop
+	end if
+	npos=1
+	npos(1)=300
+	ncs=nf_inq_varid(ncid,'SST_DJF',varid)
+	ncs=nf_get_vara_real(ncid,varid,spos,npos,sdata)
+	npos=1
+	npos(1)=300
+	ncs=nf_inq_varid(ncid,'YT_OCEAN',varid)
+	ncs=nf_get_vara_real(ncid,varid,spos(1),npos(1),ldata)	
+	ncs=nf_close(ncid)
+	sdata=sdata+273.16
+      end if
+      call MPI_Bcast(sdata,300,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(ldata,300,MPI_REAL,0,MPI_COMM_WORLD,ierr)      
+      
+      do iq=1,ifull
+        if (.not.land(iq)) then
+	  r=rlatt(iq)*180./pi
+          if (r.lt.ldata(2)) then
+            tss(iq)=sdata(2)
+          elseif (r.gt.ldata(300)) then
+	    tss(iq)=sdata(300)
+          else
+            do ix=2,300
+              if (ldata(ix).gt.r) exit
+            end do
+            x=(r-ldata(ix))/(ldata(ix+1)-ldata(ix))
+	    tss(iq)=(1.-x)*sdata(ix)+x*sdata(ix+1)
+          end if
+	  tgg(iq,1)=tss(iq)
+        end if
+      end do
+      
+      return
+      end subroutine caispecial

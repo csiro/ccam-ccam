@@ -364,7 +364,7 @@ do j=1,jl,imax/il
       call o3set(rlatt(istart:iend),rlongg(istart:iend),imax,mins,duo3n,sig,ps(istart:iend))
       ! Conversion of o3 from units of cm stp to gm/gm
       do k=1,kl
-        Rad_gases%qo3(:,1,k) = max(1.e-10,duo3n(1:imax,k)*1.01325e2/(ps(istart:iend)*10.))
+        Rad_gases%qo3(:,1,k) = max(1.e-10,duo3n(1:imax,k))
       end do
     end if
 
@@ -437,7 +437,7 @@ do j=1,jl,imax/il
     ! J. Clim. and Appl. Met., v. 27, 214-226)     ! 
     where (.not.land(istart:iend).and.coszro(1:imax).ge.0.)
       cuvrf_dir(1:imax)=0.026/(coszro(1:imax)**1.7+0.065)                  &
-                     +0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
+        +0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
     elsewhere (.not.land(istart:iend))
       cuvrf_dir(1:imax)=0.3925 ! coszen=0 value of above expression
     end where
@@ -559,7 +559,7 @@ do j=1,jl,imax/il
     !Rad_gases%rrvf11  = rrvf11
     !Rad_gases%rrvf12  = rrvf12
     !Rad_gases%rrvf113 = rrvf113
-    !Rad_gases%rrvf22  = rrvf22    
+    !Rad_gases%rrvf22  = rrvf22
     
     Cld_spec%camtsw=0.
     Cld_spec%crndlw=0.
