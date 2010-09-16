@@ -92,7 +92,7 @@ real dhr,fjd,bpyear
 real ttbg,ar1,exp_ar1,ar2,exp_ar2,ar3,snr
 real dnsnow,snrat,dtau,alvo,aliro,fage,cczen,fzen,fzenm
 real alvd,alv,alird,alir
-real rrvco2,rrvch4,rrvn2o,ssolar,rrco2
+real rrvco2,rrvch4,rrvn2o,rrvf11,rrvf12,rrvf113,rrvf22,ssolar,rrco2
 real f1,f2,cosz,delta
 logical maxover,newcld
 logical, save :: first = .true.
@@ -112,11 +112,11 @@ type(lw_output_type), dimension(1), save :: Lw_output
 type(sw_output_type), dimension(1), save :: Sw_output
 type(aerosol_diagnostics_type), save ::     Aerosol_diags
 type(lw_table_type), save ::                Lw_tables
-real(kind=8), dimension(:,:,:,:), allocatable  ::   r
+real(kind=8), dimension(:,:,:,:), allocatable :: r
 
 common/cfrac/cfrac(ifull,kl)
 common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! ditto
-common /radisw2/ rrco2, ssolar, rrvco2,rrvch4,rrvn2o
+common /radisw2/ rrco2, ssolar, rrvco2,rrvch4,rrvn2o,rrvf11,rrvf12,rrvf113,rrvf22
 common /o3dat/ dduo3n(37,kl),ddo3n2(37,kl),ddo3n3(37,kl),ddo3n4(37,kl)
 
 data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
@@ -197,9 +197,9 @@ if ( first ) then
   Lw_control%do_o3                       =.true.
   Lw_control%do_co2                      =.true.
   Lw_control%do_ch4                      =rrvch4.gt.0.
-  Lw_control%do_n2o                      =rrvn2o.gt.0.
+  Lw_control%do_n2o                      =rrvch4.gt.0.
   Lw_control%do_h2o                      =.true.
-  Lw_control%do_cfc                      =.false.
+  Lw_control%do_cfc                      =rrvch4.gt.0.
   Rad_control%using_solar_timeseries_data=.false.
   Rad_control%do_totcld_forcing          =do_totcld_forcing
   Rad_control%rad_time_step              =kountr*dt
@@ -553,13 +553,13 @@ do j=1,jl,imax/il
       Atmos_input%phalf(:,1,kr)=ps(istart:iend)*sigh(k)
     end do
     
-    Rad_gases%rrvco2=rrvco2
-    Rad_gases%rrvch4=rrvch4
-    Rad_gases%rrvn2o=rrvn2o
-    !Rad_gases%rrvf11  = rrvf11
-    !Rad_gases%rrvf12  = rrvf12
-    !Rad_gases%rrvf113 = rrvf113
-    !Rad_gases%rrvf22  = rrvf22
+    Rad_gases%rrvco2 =rrvco2
+    Rad_gases%rrvch4 =rrvch4
+    Rad_gases%rrvn2o =rrvn2o
+    Rad_gases%rrvf11 =rrvf11
+    Rad_gases%rrvf12 =rrvf12
+    Rad_gases%rrvf113=rrvf113
+    Rad_gases%rrvf22 =rrvf22
     
     Cld_spec%camtsw=0.
     Cld_spec%crndlw=0.

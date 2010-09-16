@@ -273,7 +273,7 @@ c=======================================================================
 c     rml 18/09/07 pass through tracmax,tracmin; 19/09/07 add tracname
       use tracermodule, only : tracmax,tracmin,tracname
       use tkeeps, only : tke,eps ! MJT tke
-      use mlo, only : wlev,mlosave,mlodwn,micdwn ! MJT mlo
+      use mlo, only : wlev,mlosave,mlodiag,mlodwn,micdwn ! MJT mlo
       implicit none
 
 c     this routine creates attributes and writes output
@@ -880,6 +880,10 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
           lname = 'Ice heat store'
           call attrib(idnc,idim,3,'sto',lname,'J/m2',0.,1000.,0)
         end if
+        if (nmlo.ne.0) then
+          lname = 'mixed layer depth'
+          call attrib(idnc,idim,2,'mixdepth',lname,'m',0.,32500.,0)
+        end if
         !--------------------------------------------------------  
 
         !-------------------------------------------------------
@@ -1085,6 +1089,8 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         call histwrt3(micdwn(:,8),'sto',idnc,iarch,local)
       end if
       if (nmlo.ne.0) then
+        call mlodiag(aa,0)
+        call histwrt3(aa,'mixdepth',idnc,iarch,local)
         deallocate(mlodwn,micdwn)
       end if      
       !---------------------------------------------------------

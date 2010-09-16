@@ -37,13 +37,7 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
         print *,'Radiative data read from file ',radfile
         open(lu,file=radfile,form='formatted',status='old')
       end if
-      rrvco2=330.E-6
-      rrvch4=0.
-      rrvn2o=0.
       if (nrad.eq.5) then
-        rrvco2=338.E-6
-        rrvch4=1548.E-9
-        rrvn2o=301.E-9
         if (myid==0) then
           nlev=0
           read(lu,*,iostat=ierr) nlev
@@ -52,6 +46,10 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
             read(lu,*) rrvco2
             rrvch4=0.
             rrvn2o=0.
+            rrvf11=0.
+            rrvf12=0.
+            rrvf113=0.
+            rrvf22=0.
           else                ! new format
             iyr=-9999
             do while (iyr.lt.jyear)
@@ -64,15 +62,27 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
             rrvco2=rcn(3)*1.E-6
             rrvch4=rcn(4)*1.E-9
             rrvn2o=rcn(5)*1.E-9
+            rrvf11=rcn(20)*1.E-12
+            rrvf12=rcn(21)*1.E-12
+            rrvf113=rcn(22)*1.E-12
+            rrvf22=rcn(27)*1.E-12            
           end if
-          write(6,*) ' CO2 mixing ratio is ', rrvco2*1e6,' ppmv'
-          write(6,*) ' CH4 mixing ratio is ', rrvch4*1e9,' ppbv'
-          write(6,*) ' N2O mixing ratio is ', rrvn2o*1e9,' ppbv'
+          write(6,*) ' CO2  mixing ratio is ', rrvco2*1e6,' ppmv'
+          write(6,*) ' CH4  mixing ratio is ', rrvch4*1e9,' ppbv'
+          write(6,*) ' N2O  mixing ratio is ', rrvn2o*1e9,' ppbv'
+          write(6,*) ' F11  mixing ratio is ', rrvf11*1e12,' pptv'
+          write(6,*) ' F12  mixing ratio is ', rrvf12*1e12,' pptv'
+          write(6,*) ' F113 mixing ratio is ', rrvf113*1e12,' pptv'
+          write(6,*) ' F22  mixing ratio is ', rrvf22*1e12,' pptv'
           close(lu)
         end if
         call MPI_Bcast(rrvco2,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         call MPI_Bcast(rrvch4,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         call MPI_Bcast(rrvn2o,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(rrvf11,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(rrvf12,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(rrvf113,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(rrvf22,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         return
       end if
       !--------------------------------------------------------------

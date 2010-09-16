@@ -282,7 +282,7 @@
         enddo   ! iq loop 
        else if (abs(nmlo).eq.1) then
         ! nudge mlo
-        call mlonudge(cona*tssa+conb*tssb)
+        call mlonudge(cona*tssa+conb*tssb,1)
        end if
       endif
       
@@ -537,10 +537,10 @@
           ! nudge mlo
           if (nud_uv.ne.9) then
             ! replace nud_sst with mbd once horz transport is implemented
-            call mlofilterfast(tssb) ! surface sal saved in mlo
+            call mlofilterfast(tssb,1) ! surface sal saved in mlo
           else
             ! replace nud_sst with mbd once horz transport is implemented
-            call mlofilter(tssb)  ! surface sal saved in mlo
+            call mlofilter(tssb,1)  ! surface sal saved in mlo
           end if
          end if ! (nmlo.eq.0)
         end if ! (namip.eq.0.and.ntest.eq.0)
@@ -2329,7 +2329,7 @@
       !---------------------------------------------------------------------------------
 
       ! 2D Filter for MLO 
-      subroutine mlofilter(new) ! MJT mlo
+      subroutine mlofilter(new,ilev) ! MJT mlo
 
       use mlo, only : mloimport,mloexport,sssb
       use cc_mpi
@@ -2347,7 +2347,7 @@
 
       integer :: iqw,itag=0,status,ierr
       integer :: iproc,ns,ne
-      integer, parameter :: ilev = 1
+      integer, intent(in) :: ilev
       real, dimension(ifull), intent(in) :: new
       real, dimension(ifull) :: diff,old,olds
       real, dimension(ifull_g) :: diff_g,diffs_g,r,rr,dd,dds,mm,mms
@@ -2475,7 +2475,7 @@
       end subroutine mlofilter
 
       ! 1D filer for mlo
-      subroutine mlofilterfast(new) ! MJT mlo
+      subroutine mlofilterfast(new,ilev) ! MJT mlo
 
       use mlo, only : mloimport,mloexport,sssb
       use cc_mpi
@@ -2493,7 +2493,7 @@
 
       integer :: pn,px,hproc,mproc,ns,ne,npta      
       integer :: ierr
-      integer, parameter :: ilev = 1
+      integer, intent(in) :: ilev
       real, dimension(ifull), intent(in) :: new
       real, dimension(ifull) :: diff,old,olds
       real, dimension(ifull_g) :: diff_g,diffs_g
@@ -2996,7 +2996,7 @@
       end subroutine mlospeclocal
       
       ! Relaxtion method for mlo
-      subroutine mlonudge(new) ! MJT mlo
+      subroutine mlonudge(new,ilev) ! MJT mlo
 
       use mlo, only : mloimport,mloexport,sssb
       
@@ -3006,7 +3006,7 @@
       include 'newmpar.h'    ! ifull
       include 'soil.h'       ! land
 
-      integer, parameter :: ilev = 1
+      integer, intent(in) :: ilev
       real, dimension(ifull), intent(in) :: new
       real, dimension(ifull) :: old
       real wgt

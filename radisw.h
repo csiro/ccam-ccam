@@ -39,8 +39,13 @@
                                ! (This value must be the same as that used for
                                ! longwave tables).
       real    rrvch4           ! MJT radiation
-      real    rrvn2o           ! MJT radiation 
+      real    rrvn2o           ! MJT radiation
+      real    rrvf11           ! MJT radiation 
+      real    rrvf12           ! MJT radiation 
+      real    rrvf113          ! MJT radiation
+      real    rrvf22           ! MJT radiation   
       common /radisw/ ktop, kbtm, nclds, ktopsw, kbtmsw, emcld, 
      &                temp, temp2, press, press2, rh2o, qo3,
      &                camt, cuvrf, cirrf, cirab, coszro, taudar
-      common /radisw2/ rrco2, ssolar, rrvco2,rrvch4,rrvn2o ! MJT radiation
+      common /radisw2/ rrco2, ssolar, rrvco2,rrvch4,rrvn2o,
+     &                 rrvf11,rrvf12,rrvf113,rrvf22 ! MJT radiation

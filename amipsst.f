@@ -36,6 +36,8 @@
       real rat1, rat2
       integer il_in,jl_in
       real rlon_in,rlat_in,schmidt_in
+      integer, parameter :: mlomode = 1 ! (0=relax, 1=scale-select)    ! MJT mlo
+      integer, parameter :: mlotime = 6 ! scale-select period in hours ! MJT mlo
 
       idjd_g = id + (jd-1)*il_g
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -276,9 +278,19 @@ c       c1=0.
         !   allocate(sssb(ifull))
         ! end if
         ! sssb=input salinity
-        ! nudge mlo
-        call mlonudge(tgg(:,1))
-        call mloexport(0,tgg(:,1),1,0)
+        select case(mlomode)
+          case(0) ! relax
+            call mlonudge(tgg(:,1),3)
+          case(1)
+            if (mod(mtimer,mlotime*60).eq.0) then
+              call mlofilterfast(tgg(:,1),3) ! 1D version
+              !call mlofilter(tgg(:,1),3) ! 2D version
+            end if
+          case DEFAULT
+            write(6,*) "ERROR: Unknown mlomode ",mlomode
+            stop
+        end select
+        call mloexport(0,tgg(:,1),1,0)        
       end if
       !--------------------------------------------------------------
       if (mydiag)print *,'ktau,sicedep,aice,bice,cice,fracice: ',
