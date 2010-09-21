@@ -77,7 +77,7 @@ integer, parameter :: zohmeth=2           ! Urban roughness length for heat (0=0
 integer, parameter :: acmeth=1            ! AC heat pump into canyon (0=Off, 1=On)
 integer, parameter :: nrefl=3             ! Number of canyon reflections (default=3)
 integer, parameter :: vegmode=2           ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out/in=X/Y)
-integer, parameter :: scrnmeth=1          ! Screen diagnostic method (0=Slab, 1=Canopy, 2=Canyon)
+integer, parameter :: scrnmeth=1          ! Screen diagnostic method (0=Slab, 1=Hybrid, 2=Canyon)
 integer, parameter :: iqt = 314           ! Diagnostic point (in terms of host grid)
 ! sectant solver parameters
 integer, parameter :: nfgits=6            ! Maximum number of iterations for calculating sensible heat flux (default=6)
@@ -120,9 +120,9 @@ real, parameter :: zoveg=0.3              ! Roughness length of in-canyon vegeta
 real, parameter :: vegrlai=2.             ! In-canyon vegetation LAI
 real, parameter :: vegrsmin=100./vegrlai  ! Unconstrained canopy stomatal resistance
 real, parameter :: maxvgwater=0.1*vegrlai ! Maximum leaf water (kg m^-2)
-real, parameter :: swilt=0.18             ! In-canyon soil wilting point
-real, parameter :: sfc  =0.26             ! In-canyon soil field capacity
-real, parameter :: ssat =0.42             ! In-canyon soil saturation point
+real, parameter :: swilt=0.18             ! In-canyon soil wilting point (m^3 m^-3)
+real, parameter :: sfc  =0.26             ! In-canyon soil field capacity (m^3 m^-3)
+real, parameter :: ssat =0.42             ! In-canyon soil saturation point (m^3 m^-3)
 ! stability function parameters
 integer, parameter :: icmax=5             ! number of iterations for stability functions (default=5)
 real, parameter    :: a_1=1.
@@ -241,14 +241,14 @@ call atebtype(utype,diag)
 
 p_cndzmin=max(40.,0.1*f_bldheight+1.)   ! updated in atebcalc
 p_lzom=log(p_cndzmin/(0.1*f_bldheight)) ! updated in atebcalc
-p_lzoh=6.+p_lzom ! (Kanda et al 2005)    ! updated in atebcalc
-p_cduv=(vkar/p_lzom)**2                  ! updated in atebcalc
-p_vegtemp=291.                            ! updated in atebcalc
-p_tscrn=291.                              ! updated in atebcalc
-p_qscrn=0.                                ! updated in atebcalc
-p_uscrn=0.                                ! updated in atebcalc
-p_u10=0.                                  ! updated in atebcalc
-p_emiss=0.97                              ! updated in atebcalc
+p_lzoh=6.+p_lzom ! (Kanda et al 2005)   ! updated in atebcalc
+p_cduv=(vkar/p_lzom)**2                 ! updated in atebcalc
+p_vegtemp=291.                          ! updated in atebcalc
+p_tscrn=291.                            ! updated in atebcalc
+p_qscrn=0.                              ! updated in atebcalc
+p_uscrn=0.                              ! updated in atebcalc
+p_u10=0.                                ! updated in atebcalc
+p_emiss=0.97                            ! updated in atebcalc
 
 return
 end subroutine atebinit
@@ -358,13 +358,13 @@ integer, dimension(ufull) :: itmp
 integer, parameter :: maxtype = 8
 real, dimension(ufull) :: tsigveg,tsigmabld
 ! In-canyon vegetation fraction
-real, dimension(maxtype), parameter ::     csigveg=(/  0.35, 0.45, 0.38, 0.34, 0.05, 0.40, 0.30, 0.20 /)
+real, dimension(maxtype), parameter ::     csigveg=(/  0.38, 0.45, 0.38, 0.34, 0.05, 0.40, 0.30, 0.20 /)
 ! Area fraction occupied by buildings
 real, dimension(maxtype), parameter ::   csigmabld=(/  0.45, 0.40, 0.44, 0.46, 0.65, 0.40, 0.45, 0.50 /)
 ! Building height (m)
-real, dimension(maxtype), parameter ::  cbldheight=(/    8.,   4.,   6.,   8.,  20.,   4.,   8.,  12. /)
+real, dimension(maxtype), parameter ::  cbldheight=(/    6.,   4.,   6.,   8.,  20.,   4.,   8.,  12. /)
 ! Building height to width ratio
-real, dimension(maxtype), parameter ::    chwratio=(/   0.6,  0.2,  0.4,  0.6,   2.,  0.5,   1.,  1.5 /)
+real, dimension(maxtype), parameter ::    chwratio=(/   0.4,  0.2,  0.4,  0.6,   2.,  0.5,   1.,  1.5 /)
 ! Industral sensible heat flux (W m^-2)
 real, dimension(maxtype), parameter :: cindustryfg=(/    0.,   0.,   0.,   0.,   0.,  10.,  20.,  30. /)
 ! Daily averaged traffic sensible heat flux (W m^-2)
@@ -380,27 +380,27 @@ real, dimension(maxtype), parameter ::  croadalpha=(/ 0.10, 0.10, 0.10, 0.10, 0.
 ! Veg albedo
 real, dimension(maxtype), parameter ::   cvegalpha=(/ 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20 /)
 ! Roof emissitivity
-real, dimension(maxtype), parameter ::  croofemiss=(/ 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95 /)
+real, dimension(maxtype), parameter ::  croofemiss=(/ 0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90 /)
 ! Wall emissitivity
-real, dimension(maxtype), parameter ::  cwallemiss=(/ 0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90, 0.90 /) 
+real, dimension(maxtype), parameter ::  cwallemiss=(/ 0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85 /) 
 ! Road emissitivity
-real, dimension(maxtype), parameter ::  croademiss=(/ 0.97, 0.97, 0.97, 0.97, 0.97, 0.97, 0.97, 0.97 /)
+real, dimension(maxtype), parameter ::  croademiss=(/ 0.94, 0.94, 0.94, 0.94, 0.94, 0.94, 0.94, 0.94 /)
 ! Veg emissitivity
-real, dimension(maxtype), parameter ::   cvegemiss=(/ 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00 /)
+real, dimension(maxtype), parameter ::   cvegemiss=(/ 0.96, 0.96, 0.96, 0.96, 0.96, 0.96, 0.96, 0.96 /)
 ! Roof depths (m)
 real, dimension(maxtype,3), parameter :: croofdepth=reshape((/ 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, &
                                                                0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, &
                                                                0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.20 /), &
                                                                (/maxtype,3/))
 ! Wall depths (m)
-real, dimension(maxtype,3), parameter :: cwalldepth=reshape((/ 0.020, 0.020, 0.020, 0.020, 0.020, 0.020, 0.020, 0.020, &
-                                                               0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, &
-                                                               0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050, 0.050 /), &
+real, dimension(maxtype,3), parameter :: cwalldepth=reshape((/ 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, &
+                                                               0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, &
+                                                               0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05 /), &
                                                                (/maxtype,3/))
 ! Road depths (m)
 real, dimension(maxtype,3), parameter :: croaddepth=reshape((/ 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, &
                                                                0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, &
-                                                               1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00 /), &
+                                                               3.00, 3.00, 3.00, 3.00, 3.00, 3.00, 3.00, 3.00 /), &
                                                                (/maxtype,3/))
 ! Roof heat capacity (J m^-3 K^-1)
 real, dimension(maxtype,3), parameter :: croofcp=reshape((/ 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, &

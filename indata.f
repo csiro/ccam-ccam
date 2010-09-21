@@ -2063,6 +2063,11 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           end do
           micdwn(:,1:4)=271.2
           micdwn(:,5:8)=0.
+          where (.not.land)
+            fracice=micdwn(:,5)
+            sicedep=micdwn(:,6)
+            snowd=micdwn(:,7)*1000.
+          end where          
         end if
         where (tss.gt.271.2.and.fracice.le.0.) ! Always use tss for top ocean layer
           mlodwn(:,1,1)=tss(:)                 ! This has no effect in a climate mode and

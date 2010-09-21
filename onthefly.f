@@ -721,9 +721,9 @@ ccc      if ( myid==0 ) then
           end if
           if (iotest) then
             if (myid==0) then
-              call ccmpi_distribute(tgg(:,k),t_a)
+              call ccmpi_distribute(wb(:,k),t_a)
             else
-              call ccmpi_distribute(tgg(:,k))
+              call ccmpi_distribute(wb(:,k))
             end if
           else
             if (myid==0) then
@@ -732,7 +732,7 @@ ccc      if ( myid==0 ) then
               end where
               call fill_cc(t_a,spval,ik,0)
             end if
-            call doints4(t_a,tgg(:,k),nface4,xg4,yg4,
+            call doints4(t_a,wb(:,k),nface4,xg4,yg4,
      &                     nord,ik)
           end if ! iotest
 
@@ -903,7 +903,7 @@ ccc      if ( myid==0 ) then
               case(1,2,3)
                 t_a=tggsn_a(:,k)
               case(4)
-                 t_a=280.
+                 t_a=272.2
                  call histrd1(ncid,iarchi,ier,'tggsn4',ik,6*ik,t_a,
      &                 6*ik*ik)
               case(5)

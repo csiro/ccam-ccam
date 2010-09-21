@@ -751,8 +751,8 @@ aa(:,wlev)=-dt*0.5*(ks(:,wlev)+ks(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
 bb(:,wlev)=1.-aa(:,wlev)
 dd(:,wlev)=w_temp(:,wlev)+dt*rhs(:,wlev)*dumt0+dt*d_rad(:,wlev)/dz(:,wlev)
 do iqw=1,wfull
-  dd(iqw,d_did(iqw))=dd(iqw,d_did(iqw))-dt*i_fracice(iqw)*d_fb(iqw) &
-                     /(d_rho(iqw,d_did(iqw))*cp0*dz(iqw,d_did(iqw)))
+  ii=d_did(iqw)
+  dd(iqw,ii)=dd(iqw,ii)-dt*i_fracice(iqw)*d_fb(iqw)/(d_rho(iqw,ii)*cp0*dz(iqw,ii))
 end do
 call thomas(w_temp,aa,bb,cc,dd)
 
@@ -761,7 +761,7 @@ do ii=1,wlev
   dd(:,ii)=w_sal(:,ii)+dt*rhs(:,ii)*d_ws0
 end do
 dd(:,1)=dd(:,1)-dt*d_ws0/dz(:,1)
-dd(:,1)=dd(:,1)-dt*i_fracice*d_salflx*w_sal(:,1)/(d_rho(:,1)*dz(:,1))
+dd(:,1)=dd(:,1)+dt*i_fracice*d_salflx*w_sal(:,1)/(d_rho(:,1)*dz(:,1))
 if (salrelax.eq.1) then ! relax salinity
   where (w_sal.gt.1.E-6)
     dd=dd+dt*(34.72-w_sal)/(3600.*24.*365.25*10.)
@@ -1527,8 +1527,8 @@ where (newdic.gt.1.E-6) ! form new sea-ice
   i_dic=newdic*(1.-oldfrac)+i_dic*oldfrac
   i_dsn=i_dsn*oldfrac
   i_fracice=(1.-oldfrac)+i_fracice*oldfrac
-  i_tsurf=273.05*(1.-oldfrac)+i_tsurf*oldfrac
-  i_tn(:,0)=273.05*(1.-oldfrac)+i_tn(:,0)*oldfrac
+  i_tsurf=newtn*(1.-oldfrac)+i_tsurf*oldfrac
+  i_tn(:,0)=newtn*(1.-oldfrac)+i_tn(:,0)*oldfrac
   i_tn(:,1)=newtn*(1.-oldfrac)+i_tn(:,1)*oldfrac
   i_tn(:,2)=newtn*(1.-oldfrac)+i_tn(:,2)*oldfrac
   i_sto=i_sto*oldfrac
@@ -1570,29 +1570,14 @@ end where
 ip_dsn=ip_dsn+dt*(ap_rnd+ap_snd)/1000.
 
 ! Pack different ice configurations
-nc0=0 ! snow + 1-2 ice layers
-pq0=.false.
-nc1=0 ! no snow + 1-2 ice layers
-pq1=.false.
-nc2=0 ! snow + 1 ice layer
-pq2=.false.
-nc3=0 ! no snow + 1 ice layer
-pq3=.false.
-do iqi=1,nice
-  if (dp_nk(iqi).gt.0.and.ip_dsn(iqi).gt.1.E-6) then
-    nc0=nc0+1
-    pq0(nc0)=.true.
-  elseif (dp_nk(iqi).gt.0) then
-    nc1=nc1+1
-    pq1(nc1)=.true.
-  elseif (ip_dsn(iqi).gt.1.E-6) then
-    nc2=nc2+1
-    pq2(nc2)=.true.
-  else
-    nc3=nc3+1
-    pq3(nc3)=.true.
-  end if
-end do
+pq0=dp_nk.gt.0.and.ip_dsn.gt.1.E-6 ! snow + 1-2 ice layers
+nc0=count(pq0)
+pq1=dp_nk.gt.0.and.ip_dsn.le.1.E-6 ! no snow + 1-2 ice layers
+nc1=count(pq1)
+pq2=dp_nk.le.0.and.ip_dsn.gt.1.E-6 ! snow + 1 ice layer
+nc2=count(pq2)
+pq3=dp_nk.le.0.and.ip_dsn.le.1.E-6 ! no snow + 1 ice layer
+nc3=count(pq3)
 
 ! Update ice and snow temperatures
 if (nc0.gt.0) then
@@ -1744,8 +1729,10 @@ end if
 xxx=ip_dic+ip_dsn-(rhosn*ip_dsn+rhoic*ip_dic)/rhowt
 excess=max(ip_dsn-xxx,0.)*0.1       ! m of water
 dp_salflx=dp_salflx-1000.*excess/dt ! m of water
-ip_tn(:,1)=(0.5*ip_dic*ip_tn(:,1)+excess*ip_tn(:,0)) &
-              /(0.5*ip_dic+excess) ! Assume 2 levels of ice, hence 0.5*hi
+where (ip_dic.gt.0.)
+  ip_tn(:,1)=(0.5*ip_dic*ip_tn(:,1)+excess*ip_tn(:,0)) &
+            /(0.5*ip_dic+excess) ! Assume 2 levels of ice, hence 0.5*hi
+end where
 ip_dsn=min(xxx,ip_dsn)
 ip_dic=ip_dic+excess
 
@@ -1807,10 +1794,8 @@ integer, dimension(nc), intent(inout) :: dt_nk
 real, dimension(nc), intent(in) :: pt_egice
 
 ! adjust ice thickness by the remaining reservoir in sto
-where (dt_nk.eq.1.and.it_sto.gt.0.)
+where (dt_nk.eq.1.)
   it_dic=max(0.,it_dic-it_sto/qice)
-end where
-where (dt_nk.eq.1)
   it_sto=0.
   it_tn(:,2)=dt_tb
 end where
@@ -1829,16 +1814,14 @@ it_tsurf=it_tsurf+(dt_ftop+fs)/(dt_bot+gamms/dt+con)
 ! Snow melt (snmelt >= 0)
 snmelt=10.*max(0.,it_tsurf-273.16)*gamms/qsnow ! m of "snow"
 it_tsurf=min(it_tsurf,273.16)                  ! melting condition ts=tsmelt
-! Ammendments if surface layer < 5cms : Use adjusted snow depth
-where (it_dsn.lt.0.05)
-  fl(:,0)=fs ! Middle of first ice layer to snow interface                 ! MJT suggestion
-elsewhere
-  ti=(it_dic*condsnw*it_tn(:,0)+real(dt_nk)*it_dsn*condice*it_tn(:,1)) &
-    /(it_dic*condsnw+real(dt_nk)*it_dsn*condice)
-  fl(:,0)=2.*rhin*condice*(it_tn(:,1)-ti) ! Middle of first ice layer to snow interface    
-end where
 
-! Upward fluxes between various levels below surface
+ti=(it_dic*condsnw*it_tn(:,0)+real(dt_nk)*it_dsn*condice*it_tn(:,1)) &
+  /(it_dic*condsnw+real(dt_nk)*it_dsn*condice)
+fl(:,0)=2.*rhin*condice*(it_tn(:,1)-ti)      ! Middle of first ice layer to snow interface
+! Ammendments if surface layer < 5cms
+where (it_dsn.lt.0.05)
+  fl(:,0)=fs
+end where
 fl(:,1)=rhin*condice*(it_tn(:,2)-it_tn(:,1)) ! Between ice layers 2 and 1
 
 ! Surface evap/sublimation (can be >0 or <0)
@@ -1848,13 +1831,8 @@ dt_salflx=dt_salflx+pt_egice/lv
 ! Change the snow thickness
 dhs=snmelt+subl
 hsold=it_dsn
-where(dhs.gt.it_dsn)
-  snmelt=max(it_dsn-subl,0.)
-  it_dic=it_dic-0.1*(dhs-it_dsn)
-  it_dsn=0.
-elsewhere
-  it_dsn=it_dsn-dhs
-end where
+it_dic=it_dic-0.1*max(dhs-it_dsn,0.)
+it_dsn=max(it_dsn-dhs,0.)
 
 ! Update the mid-level snow temperature
 it_tn(:,0)=it_tn(:,0)+dt*(fl(:,0)-fs)/(max(it_dsn,1.E-6)*cps)
@@ -1874,13 +1852,11 @@ do iqi=1,nc
   if (dt_nk(iqi).gt.1) then
     ! update temperature in top layer of ice
     tp(1)=it_tn(iqi,1)+dt*(fl(iqi,1)-fl(iqi,0))*rhin(iqi)/cpi
-    tp(1)=min(tp(1),dt_timelt(iqi))
     ! use stored heat in brine pockets to keep temperature at -0.1 until heat is used up
     qneed=(dt_timelt(iqi)-tp(1))*cpi/rhin(iqi) ! J/m**2
     if (it_sto(iqi).le.qneed) then
       fact=it_sto(iqi)/qneed
       tp(1)=dt_timelt(iqi)*fact+tp(1)*(1.-fact)
-      tp(1)=min(tp(1),dt_timelt(iqi))
       it_sto(iqi)=0.
     else
       tp(1)=dt_timelt(iqi)
@@ -1901,13 +1877,13 @@ do iqi=1,nc
   con0=it_dic(iqi)/real(dt_nk(iqi))
   zp(1)=-con0
 
+  tp(0)=ti(iqi)
+  tp(dt_nk(iqi)+1)=dt_tb(iqi)
   if (dhb(iqi).le.0.) then
     ! construct final values of temperature for case of bottom ablation
     zp(dt_nk(iqi))=z(dt_nk(iqi))
     tp(dt_nk(iqi))=it_tn(iqi,dt_nk(iqi))+dt/cpi*(fl(iqi,dt_nk(iqi))-fl(iqi,dt_nk(iqi)-1)) &
                    /(1./rhin(iqi)+dhb(iqi))
-    tp(dt_nk(iqi))=min(tp(dt_nk(iqi)),dt_timelt(iqi))
-    tp(dt_nk(iqi)+1)=dt_tb(iqi)
     do ii=1,dt_nk(iqi)
       if(z(ii).lt.zp(ii).and.zp(ii).lt.z(ii-1))then
         it_tn(iqi,ii)=((z(ii-1)-zp(ii))*tp(ii)+(zp(ii)-z(ii))*tp(ii+1))*real(dt_nk(iqi))/hinew
@@ -1921,8 +1897,6 @@ do iqi=1,nc
     ! construct final values of temperature for case of bottom accretion
     zp(dt_nk(iqi))=zp(dt_nk(iqi)-1)-con0
     tp(dt_nk(iqi))=it_tn(iqi,dt_nk(iqi))+dt*(fl(iqi,dt_nk(iqi))-fl(iqi,dt_nk(iqi)-1))*rhin(iqi)/cpi
-    tp(dt_nk(iqi))=min(tp(dt_nk(iqi)),dt_timelt(iqi))
-    tp(dt_nk(iqi)+1)=dt_tb(iqi)
     do ii=1,dt_nk(iqi)
       it_tn(iqi,ii)=((z(ii-1)-zp(ii))*tp(ii)+(zp(ii)-z(ii))*tp(ii+1))*real(dt_nk(iqi))/hinew
     enddo
@@ -1999,10 +1973,8 @@ integer, dimension(nc), intent(inout) :: dt_nk
 real, dimension(nc), intent(in) :: pt_egice
 
 ! adjust ice thickness by the remaining reservoir in sto
-where (dt_nk.eq.1.and.it_sto.gt.0.)
-  it_dic=max(0.,it_dic-it_sto/qice)
-end where
 where (dt_nk.eq.1)
+  it_dic=max(0.,it_dic-it_sto/qice)
   it_sto=0.
   it_tn(:,2)=dt_tb
 end where
@@ -2043,7 +2015,6 @@ do iqi=1,nc
   
   if (dt_nk(iqi).eq.2) then
     tp(1)=it_tn(iqi,1)+dt/cpi*(fl(iqi,1)-fl(iqi,0))/(it_dic(iqi)/real(dt_nk(iqi))+dhi(iqi))
-    tp(1)=min(tp(1),dt_timelt(iqi))
     qneed=(dt_timelt(iqi)-tp(1))*cpi/rhin(iqi) ! J/m**2
     if (it_sto(iqi).le.qneed) then
       fact=it_dic(iqi)/qneed
@@ -2069,14 +2040,13 @@ do iqi=1,nc
   con0=it_dic(iqi)/real(dt_nk(iqi))
   zp(1)=-con0-dhi(iqi)
 
+  tp(0)=it_tsurf(iqi)
+  tp(dt_nk(iqi)+1)=dt_tb(iqi)
   if (dhb(iqi).le.0.) then
     ! construct final values of temperature for case of bottom ablation
     zp(dt_nk(iqi))=z(dt_nk(iqi))
     tp(dt_nk(iqi))=it_tn(iqi,dt_nk(iqi))+dt*(fl(iqi,dt_nk(iqi))-fl(iqi,dt_nk(iqi)-1))/cpi &
                    /(it_dic(iqi)/real(dt_nk(iqi))+dhb(iqi))
-    tp(dt_nk(iqi))=min(tp(dt_nk(iqi)),dt_timelt(iqi))
-    !tp(0)=ti(iqi) ! MJT suggestion
-    tp(dt_nk(iqi)+1)=dt_tb(iqi)
     do ii=1,dt_nk(iqi)
       if(z(ii).lt.zp(ii).and.zp(ii).lt.z(ii-1))then
         it_tn(iqi,ii)=((z(ii-1)-zp(ii))*tp(ii)+(zp(ii)-z(ii))*tp(ii+1))*real(dt_nk(iqi))/hinew
@@ -2090,8 +2060,6 @@ do iqi=1,nc
     ! construct final values of temperature for case of bottom accretion
     zp(dt_nk(iqi))=zp(dt_nk(iqi)-1)-con0
     tp(dt_nk(iqi))=it_tn(iqi,dt_nk(iqi))+dt*(fl(iqi,dt_nk(iqi))-fl(iqi,dt_nk(iqi)-1))*rhin(iqi)/cpi
-    tp(dt_nk(iqi))=min(tp(dt_nk(iqi)),dt_timelt(iqi))
-    tp(dt_nk(iqi)+1)=dt_tb(iqi)
     do ii=1,dt_nk(iqi)
       it_tn(iqi,ii)=((z(ii-1)-zp(ii))*tp(ii)+(zp(ii)-z(ii))*tp(ii+1))*real(dt_nk(iqi))/hinew
     enddo
@@ -2178,15 +2146,10 @@ ti=(it_dic*condsnw*it_tsurf+it_dsn*condice*dt_tb)/(it_dic*condsnw+it_dsn*condice
 subl=0.01*dt*pt_egice/lv
 dt_salflx=dt_salflx+pt_egice/lv
 dhs=snmelt+subl ! Change the snow thickness
-where (dhs.gt.it_dsn)
-  it_dic=it_dic-0.1*(dhs-it_dsn)
-  snmelt=max(it_dsn-subl,0.)
-  it_dsn=0.
-elsewhere
-  it_dsn=it_dsn-dhs
-end where
+it_dic=it_dic-0.1*max(dhs-it_dsn,0.)
+it_dsn=max(it_dsn-dhs,0.)
 dhb=dt*(f0-dt_fb)/qice       ! Ice melt (simelt >= 0)
-dhb=min(0.01,dhb)             ! limit for poor initial conditions
+dhb=min(0.01,dhb)            ! limit for poor initial conditions
 it_dic=it_dic+dhb
 
 where (it_dic.lt.1.E-3)
@@ -2249,7 +2212,7 @@ subl=0.001*dt*pt_egice/lv
 dt_salflx=dt_salflx+pt_egice/lv
 dhi=-subl-simelt
 dhb=dt*(f0-dt_fb)/qice           ! determine amount of bottom ablation or accretion
-dhb=min(0.01,dhb)                 ! limit for poor initial conditions
+dhb=min(0.01,dhb)                ! limit for poor initial conditions
 it_dic=it_dic+dhi+dhb ! update ice thickness
 
 where (it_dic.lt.1.E-3)
@@ -2287,7 +2250,7 @@ real, dimension(wfull) :: qsat,dqdt,ri,vmag,rho,srcp
 real, dimension(wfull) :: fm,fh,af,aft
 real, dimension(wfull) :: den,sig,root
 real, dimension(wfull) :: alb,qmax,eye
-real x,factch
+real x,factch,ustar
 
 vmag=sqrt(a_u*a_u+a_v*a_v)
 sig=exp(-grav*a_zmins/(rdry*a_temp))
@@ -2341,20 +2304,11 @@ do iqw=1,wfull
   end if
   ! water temperature at bottom of ice
   d_tb(iqw)=w_temp(iqw,d_did(iqw))
-  ! flux from water to ice
-  x=sum(dz(iqw,1:d_did(iqw))) ! cumulative depth
-  d_fb(iqw)=cp0*d_rho(iqw,d_did(iqw))*antarck*(d_tb(iqw)-d_timelt(iqw))/x
-  !   If the actual ocean model top level temperature (sstocean) is less
-  !   than freezing, then add an additional ice to ocean heat flux
-  !   proportional to the deficit of this temperature below freezing.
-  !   Use a heat transfer coefficient hfrz, typically 20-200 times
-  !   larger than antarck above. This simulates formation of sea ice from
-  !   the ocean as the water temperature drops below freezing, and thereby
-  !   prevents the ocean temperature from falling much below freezing
-  !   while conserving heat flux.  
-!  if (d_tb(iqw).lt.271.3) then
-!    d_fb(iqw)=d_fb(iqw)+cp0*d_rho(iqw,d_did(iqw))*6.E-4*(d_tb(iqw)-d_timelt(iqw))/(0.25*dz(iqw,d_did(iqw)))
-!  end if
+  ! flux from water to ice (from CICE)
+  ! assume ice is stationay for now
+  ustar=sqrt(0.00536*(w_u(iqw,d_did(iqw))*w_u(iqw,d_did(iqw))+w_v(iqw,d_did(iqw))*w_v(iqw,d_did(iqw))))
+  ustar=max(ustar,5.E-4)
+  d_fb(iqw)=cp0*d_rho(iqw,d_did(iqw))*0.006*ustar*(d_tb(iqw)-d_timelt(iqw))
 end do
 
 ! index of different ice configurations

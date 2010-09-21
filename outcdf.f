@@ -882,7 +882,7 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         end if
         if (nmlo.ne.0) then
           lname = 'mixed layer depth'
-          call attrib(idnc,idim,2,'mixdepth',lname,'m',0.,32500.,0)
+          call attrib(idnc,idim,3,'mixdepth',lname,'m',0.,32500.,0)
         end if
         !--------------------------------------------------------  
 
