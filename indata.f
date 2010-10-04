@@ -2148,8 +2148,23 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       
       ! for CAI experiment
       if (nspecial.eq.42) then
-        call caispecial
+       call caispecial
       endif 
+      if (nspecial.eq.43) then
+       call caispecial
+       do iq=1,ifull
+        rlongd=rlongg(iq)*180./pi
+        rlatd=rlatt(iq)*180./pi	
+        if (rlatd.ge.-6..and.rlatd.le.6.) then
+	 if (rlongd.ge.180..and.rlongd.le.290.) then
+	  if (.not.land(iq)) then
+	   tgg(iq,1)=293.16
+	   tss(iq)=293.16
+	  end if
+	 end if
+        end if
+       end do      
+      end if
       
       call end_log(indata_end)
       return

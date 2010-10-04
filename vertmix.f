@@ -60,7 +60,8 @@ c     set coefficients for Louis scheme
       data bprmj/5./,cmj/5./,chj/2.6/
       save kscbase,ksctop,prcpv
       include 'establ.h'
-      real zg(ifull,kl) ! MJT tke
+      real zg(ifull,kl),tmp(ifull),qgs(ifull),wq0(ifull) ! MJT tke
+      real wt0(ifull)                                    ! MJT tke
 
       rong=rdry/grav
       do k=1,kl-1
@@ -790,35 +791,33 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
      &                     +betm(k)*t(1:ifull,k-1))/grav                ! MJT tke
        end do                                                           ! MJT tke
+       tmp=rdry*fg*tss/(ps(1:ifull)*cp)
+       tmp=tmp/(tss-rhs(:,1)) ! k*ustar/I_H
+       wq0=rdry*eg*tss/(ps(1:ifull)*hl)
+       qgs=wq0/tmp+qg(1:ifull,1) ! qsat at surface
+       wt0=tmp*(tss*(1.+0.61*qgs)
+     &    -rhs(:,1)*(1.+0.61*qg(1:ifull,1)))
        select case(nlocal)                                              ! MJT tke
         case(0) ! no counter gradient                                   ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             rdry*fg*tss/(ps(1:ifull)*cp),
-     &             rdry*eg*tss/(ps(1:ifull)*hl),
-     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)              ! MJT tke
-           rkh=rkm                                                      ! MJT tke
+     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)      ! MJT tke
+         rkh=rkm                                                        ! MJT tke
         case(1,2,3,4,5,6) ! KCN counter gradient method                 ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             rdry*fg*tss/(ps(1:ifull)*cp),
-     &             rdry*eg*tss/(ps(1:ifull)*hl),
-     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)              ! MJT tke
+     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)      ! MJT tke
          rkh=rkm                                                        ! MJT tke
          call pbldif(rhs,rkh,rkm,uav,vav)                               ! MJT tke
         case(7) ! mass-flux counter gradient                            ! MJT tke
          if (methdetr.ne.0) then ! no moist counter gradient            ! MJT tke
            call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             rdry*fg*tss/(ps(1:ifull)*cp),
-     &             rdry*eg*tss/(ps(1:ifull)*hl),
-     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,2,0)              ! MJT tke
+     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,2,0)      ! MJT tke
          else ! include moist counter gradient                          ! MJT tke
            call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             rdry*fg*tss/(ps(1:ifull)*cp),
-     &             rdry*eg*tss/(ps(1:ifull)*hl),
-     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,0,0)              ! MJT tke
+     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,0,0)      ! MJT tke
          end if                                                         ! MJT tke
          rkh=rkm                                                        ! MJT tke
          case DEFAULT                                                   ! MJT tke
