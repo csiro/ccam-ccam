@@ -109,7 +109,7 @@ real, parameter :: minsnowden=100.        ! min snow density (kg m^-3)
 ! generic urban parameters
 real, parameter :: refheight=0.6          ! Displacement height as a fraction of building height (Kanda et al 2007)
 real, parameter :: zomratio=0.1           ! Roughness length to building height ratio (default=10%)
-real, parameter :: zocanyon=0.01          ! Roughness length of in-canyon surfaces (m)
+real, parameter :: zocanyon=0.05          ! Roughness length of in-canyon surfaces (m)
 real, parameter :: zoroof=0.05            ! Roughness length of roof surfaces (m)
 real, parameter :: maxrfwater=1.          ! Maximum roof water (kg m^-2)
 real, parameter :: maxrdwater=1.          ! Maximum road water (kg m^-2)

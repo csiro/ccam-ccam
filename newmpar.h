@@ -2,7 +2,7 @@
 !     are truly global, others refer to a processor's own region.
       integer, parameter :: nproc = 6 ! Number of processors to use
 
-      integer, parameter :: kl=18  ! Vertical levels
+      integer, parameter :: kl=18 ! Vertical levels
       integer, parameter :: ms=6  ! Levels in surface scheme
 
       integer, parameter :: npanels = 5
@@ -20,47 +20,51 @@
       integer, parameter :: mxst=13       ! max_no_of_soil_types
       integer, parameter :: mxvt=17       ! max_no_of_vegetation_types
 
-      integer, parameter :: nprocmax = 96
-!   Preprocessor in include files doesn't work.
-!!! #ifdef uniform_decomp
+      integer, parameter :: nprocmax = 384
+!     This array defines the split up of processors. Zero values are 
+!     for values of nproc that won't work.
       integer, parameter, dimension(nprocmax) :: nxp = (/                &
-     &         1, 1, 1, 2, 1, 2, 1, 2, 3, 2, 1, 3,                       &
-     &         1, 2, 3, 4, 1, 3, 1, 4, 3, 2, 1, 4,                       &
-     &         5, 2, 3, 4, 1, 5, 1, 4, 3, 2, 5, 6,                       &
-     &         1, 2, 3, 5, 1, 6, 1, 4, 5, 2, 1, 6,                       &
-     &         7, 5, 3, 4, 1, 6, 5, 7, 3, 2, 1, 6,                       &
-     &         1, 2, 7, 8, 5, 6, 1, 4, 3, 7, 1, 8,                       &
-     &         1, 2, 5, 4, 7, 6, 1, 8, 9, 2, 1, 7,                       &
-     &         5, 2, 3, 8, 1, 9, 7, 4, 3, 2, 5, 8    /)
-      integer, parameter :: npan=npanels+1
-!!!#else
-!!!!     This array defines the split up of processors. Zero values are 
-!!!!     for values of nproc that won't work.
-!!!      integer, parameter, dimension(nprocmax) :: nxp = (/                &
-!!!     &         1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1,                       & 
-!!!     &         0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 2,                       &
-!!!     &         0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 2,                       &
-!!!     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,                       &
-!!!     &         0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 2,                       &
-!!!     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3,                       &
-!!!     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
-!!!     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4    /)    
-!!!      integer, parameter :: npan=max(1,(npanels+1)/nproc)
-!!!#endif
-
+     &         1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1,                       & 
+     &         0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 2,                       &
+     &         0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 2,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,                       &
+     &         0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 2,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
+     &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8 /)    
       integer, parameter :: nyp = nproc/nxp(nproc)
 
       integer, parameter :: il=il_g/nxp(nproc), jl=jl_g/nyp
 
+      integer, parameter :: npan=max(1,(npanels+1)/nproc)
       integer, parameter :: ifull = il*jl, ijk = il*jl*kl
 
 !     The perimeter of the processor region has length 2*(il+jl).
 !     The first row has 8 possible corner points per panel and the 
 !     second has 16. In practice these are not all distinct so there could
 !     be some optimisation.
-!!! #ifdef uniform_decomp
-!     This should use jpan rather than jl. Will be far too big.
-      integer, parameter :: iextra = (4*(il+jl)+24)*npan
-!!!#else
-!!!      integer, parameter :: iextra = 4*(il+jl)+24*npan
-!!!#endif
+      integer, parameter :: iextra = 4*(il+jl)+24*npan

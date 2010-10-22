@@ -2054,15 +2054,24 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         else
           if (myid == 0) print *,"Using MLO defaults"
           do k=1,wlev
-            mlodwn(:,k,1)=max(tss(:)-0.01*real(k-1),272.)
-            mlodwn(:,k,2)=34.72-0.01*real(k-1)
+            mlodwn(:,k,1)=max(tss(:),272.)
+            mlodwn(:,k,2)=34.72
             mlodwn(:,k,3:4)=0.
             !where (zs(1:ifull).gt.1.) ! lakes?
             !  mlodwn(:,k,2)=0.
             !end where
           end do
-          micdwn(:,1:4)=271.2
-          micdwn(:,5:8)=0.
+	  micdwn(:,1:4)=271.2
+	  micdwn(:,5:6)=0.
+	  where (tss.lt.271.2)
+	    micdwn(:,1)=tss
+	    micdwn(:,2)=tss
+	    micdwn(:,3)=tss
+	    micdwn(:,4)=tss	    	    	    
+            micdwn(:,5)=1.
+            micdwn(:,6)=1.
+	  end where
+          micdwn(:,7:8)=0.
           where (.not.land)
             fracice=micdwn(:,5)
             sicedep=micdwn(:,6)

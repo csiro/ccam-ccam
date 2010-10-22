@@ -282,7 +282,7 @@
         enddo   ! iq loop 
        else if (abs(nmlo).eq.1) then
         ! nudge mlo
-        call mlonudge(cona*tssa+conb*tssb,1)
+        call mlonudge(cona*tssa+conb*tssb,3)
        end if
       endif
       
@@ -537,10 +537,10 @@
           ! nudge mlo
           if (nud_uv.ne.9) then
             ! replace nud_sst with mbd once horz transport is implemented
-            call mlofilterfast(tssb,1) ! surface sal saved in mlo
+            call mlofilterfast(tssb,3) ! surface sal saved in mlo
           else
             ! replace nud_sst with mbd once horz transport is implemented
-            call mlofilter(tssb,1)  ! surface sal saved in mlo
+            call mlofilter(tssb,3)  ! surface sal saved in mlo
           end if
          end if ! (nmlo.eq.0)
         end if ! (namip.eq.0.and.ntest.eq.0)
@@ -2346,7 +2346,7 @@
       include 'parm.h'
 
       integer :: iqw,itag=0,status,ierr
-      integer :: iproc,ns,ne
+      integer :: iproc,ns,ne,k
       integer, intent(in) :: ilev
       real, dimension(ifull), intent(in) :: new
       real, dimension(ifull) :: diff,old,olds
@@ -2369,7 +2369,7 @@
       
       if (nud_sst.ne.0) then
         old=new
-        call mloexport(0,old,ilev,0)
+        call mloexport(0,old,1,0)
         diff=miss
         where (.not.land.and.new.gt.271.2)
           diff(:)=new-old
@@ -2384,7 +2384,7 @@
 
       if (nud_sss.ne.0) then
         olds=sssb      
-        call mloexport(1,olds,ilev,0)
+        call mloexport(1,olds,1,0)
         diff=miss
         where (.not.land)
           diff(:)=sssb-olds
@@ -2441,10 +2441,14 @@
      &                 MPI_COMM_WORLD,ierr)
           call ccmpi_distribute(diff)
         end if
-        where (.not.land)
-          old=old+alpha*diff(:)
-        end where
-        call mloimport(0,old,ilev,0)
+	do k=1,ilev
+          old=new
+          call mloexport(0,old,k,0)	
+          where (.not.land)
+            old=old+alpha*diff(:)
+          end where
+          call mloimport(0,old,k,0)
+	end do
       end if
 
       if (nud_sss.ne.0) then
@@ -2461,10 +2465,14 @@
      &                 MPI_COMM_WORLD,ierr)
           call ccmpi_distribute(diff)
         end if
-        where (.not.land)
-          olds=olds+alpha*diff(:)
-        end where
-        call mloimport(1,olds,ilev,0)
+	do k=1,ilev
+	  olds=sssb
+	  call mloexport(1,olds,k,0)
+          where (.not.land)
+            olds=olds+alpha*diff(:)
+          end where
+          call mloimport(1,olds,k,0)
+	end do
       end if
 
       if (myid==0.and.nmaxpr==1) then
@@ -2492,7 +2500,7 @@
       include 'parm.h'
 
       integer :: pn,px,hproc,mproc,ns,ne,npta      
-      integer :: ierr
+      integer :: ierr,k
       integer, intent(in) :: ilev
       real, dimension(ifull), intent(in) :: new
       real, dimension(ifull) :: diff,old,olds
@@ -2533,7 +2541,7 @@
       
       if (nud_sst.ne.0) then
         old=new
-        call mloexport(0,old,ilev,0)
+        call mloexport(0,old,1,0)
         diff=miss
         where (.not.land.and.new.gt.271.2)
           diff(:)=new-old
@@ -2547,7 +2555,7 @@
 
       if (nud_sss.ne.0) then
         olds=sssb
-        call mloexport(1,olds,ilev,0)
+        call mloexport(1,olds,1,0)
         diff=miss
         where (.not.land)
           diff(:)=sssb-olds
@@ -2568,10 +2576,14 @@
         else
           call ccmpi_distribute(diff)
         end if
-        where (.not.land)
-          old=old+alpha*diff(:)
-        end where
-        call mloimport(0,old,ilev,0)
+	do k=1,ilev
+	  old=new
+          call mloexport(0,old,k,0)	
+          where (.not.land)
+            old=old+alpha*diff(:)
+          end where
+          call mloimport(0,old,k,0)
+	end do
       end if
 
       if (nud_sss.ne.0) then
@@ -2580,10 +2592,14 @@
         else
           call ccmpi_distribute(diff)
         end if
-        where (.not.land)
-          olds=olds+alpha*diff(:)
-        end where
-        call mloimport(1,olds,ilev,0)
+	do k=1,ilev
+	  olds=sssb
+	  call mloexport(1,olds,k,0)
+          where (.not.land)
+            olds=olds+alpha*diff(:)
+          end where
+          call mloimport(1,olds,k,0)
+	end do
       end if
 
       if (myid==0.and.nmaxpr==1) then
@@ -3007,6 +3023,7 @@
       include 'soil.h'       ! land
 
       integer, intent(in) :: ilev
+      integer k
       real, dimension(ifull), intent(in) :: new
       real, dimension(ifull) :: old
       real wgt
@@ -3015,21 +3032,25 @@
 
       wgt=dt/real(nud_hrs*3600)
       if (nud_sst.ne.0) then
-        old=new
-        call mloexport(0,old,ilev,0)
-        where (.not.land.and.new.gt.271.2)
-          old=old*(1.-wgt)+new*wgt
-        end where
-        call mloimport(0,old,ilev,0)
+        do k=1,ilev
+          old=new
+          call mloexport(0,old,k,0)
+          where (.not.land.and.new.gt.271.2)
+            old=old*(1.-wgt)+new*wgt
+          end where
+          call mloimport(0,old,k,0)
+	end do
       end if
       
       if (nud_sss.ne.0) then
-        old=sssb
-        call mloexport(1,old,ilev,0)
-        where (.not.land)
-          old=old*(1.-wgt)+sssb*wgt
-        end where
-        call mloimport(1,old,ilev,0)      
+        do k=1,ilev
+          old=sssb
+          call mloexport(1,old,k,0)
+          where (.not.land)
+            old=old*(1.-wgt)+sssb*wgt
+          end where
+          call mloimport(1,old,k,0)
+	end do
       end if
       
       return

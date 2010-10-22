@@ -183,7 +183,7 @@
      &    smoistfile,soil2file,radonemfile,
      &    co2_00,radon_00,surf_00,co2_12,radon_12,surf_12,
      &    laifile,albnirfile,urbanfile,bathfile,vegprev,vegnext,
-     &    cnsdir ! MJT sib ! MJT urban ! MJT mlo ! MJT cable ! MJT radiation
+     &    cnsdir,salfile ! MJT sib ! MJT urban ! MJT mlo ! MJT cable ! MJT radiation
       namelist/kuonml/alflnd,alfsea
      &        ,cldh_lnd,cldm_lnd,cldl_lnd
      &        ,cldh_sea,cldm_sea,cldl_sea
@@ -1481,6 +1481,8 @@ c       print*,'Calling prognostic cloud scheme'
      &                                              ktau,mtimer,namip
           call amipsst
         endif ! (namip>0)
+      elseif (namip.ne.0.and.nmlo.ne.0) then
+        call amipsst
       endif   ! (mod(ktau,nperday)==0)
 
 #ifdef vampir
@@ -1757,7 +1759,7 @@ c     initialize file names to something
      &    ,eigenv/' '/,radfile/' '/,o3file/' '/,hfile/' '/,mesonest/' '/
      &          ,scrnfile/' '/,tmaxfile/' '/,tminfile/' '/,trcfil/' '/
      &    ,laifile/' '/,albnirfile/' '/,urbanfile/' '/,bathfile/' '/
-     &    ,vegprev/' '/,vegnext/' '/,cnsdir/' '/ ! MJT sib ! MJT urban ! MJT mlo ! MJT cable ! MJT radiation
+     &    ,vegprev/' '/,vegnext/' '/,cnsdir/' '/,salfile/' '/ ! MJT sib ! MJT urban ! MJT mlo ! MJT cable ! MJT radiation
       data climcdf/'clim.cdf'/
       data monfil/'monthly.cdf'/,scrfcdf/'scrave.cdf'/
 c     floating point:

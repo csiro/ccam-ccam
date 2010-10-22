@@ -1205,10 +1205,10 @@ module cable_ccam
         call attrib(idnc,idim,3,vname,lname,'K',100.,400.,0)
         write(lname,'("Soil moisture lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("wb",I1.1,"_",I1.1)') k,n 
-        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,1.625,0)
+        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,2.6,0)
         write(lname,'("Soil ice lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("wbice",I1.1,"_",I1.1)') k,n 
-        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,1.625,0)
+        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,2.6,0)
       end do
       do k=1,3
         write(lname,'("Snow temperature lev ",I1.1," tile ",I1.1)') k,n
@@ -1219,7 +1219,7 @@ module cable_ccam
         call attrib(idnc,idim,3,vname,lname,'K',0.,650.,0)
         write(lname,'("Snow density lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("ssdn",I1.1,"_",I1.1)') k,n 
-        call attrib(idnc,idim,3,vname,lname,'kg/m3',0.,400.,0)
+        call attrib(idnc,idim,3,vname,lname,'kg/m3',0.,650.,0)
       end do
       write(lname,'("Snow flag tile ",I1.1)') n
       write(vname,'("sflag_",I1.1)') n
@@ -1229,7 +1229,7 @@ module cable_ccam
       call attrl (idnc,idim,3,vname,lname,'mm',0.,6500.,0)  ! long
       write(lname,'("Snow age tile ",I1.1)') n
       write(vname,'("snage_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,20.,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,26.,0)
       write(lname,'("Soil turbulent resistance tile ",I1.1)') n
       write(vname,'("rtsoil_",I1.1)') n
       call attrib(idnc,idim,3,vname,lname,'none',0.,1.3e5,0)
@@ -1254,22 +1254,22 @@ module cable_ccam
     end do
     lname='DIR VIS albedo'
     vname='albvisdir'
-    call attrib(idnc,idim,3,vname,lname,'none',0.,1.,0)
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0)
     lname='DIF VIS albedo'
     vname='albvisdif'
-    call attrib(idnc,idim,3,vname,lname,'none',0.,1.,0)
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0)
     lname='DIR NIR albedo'
     vname='albnirdir'
-    call attrib(idnc,idim,3,vname,lname,'none',0.,1.,0)
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0)
     lname='DIF NIR albedo'
     vname='albnirdif'
-    call attrib(idnc,idim,3,vname,lname,'none',0.,1.,0)
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0)
     lname='VIS albedo'
     vname='albvis'
-    call attrib(idnc,idim,3,vname,lname,'none',0.,1.,0)
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0)
     lname='NIR albedo'
     vname='albnir'
-    call attrib(idnc,idim,3,vname,lname,'none',0.,1.,0)
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0)
     call ncendf(idnc,ierr)
   end if
   do n=1,5
