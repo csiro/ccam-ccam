@@ -2,17 +2,22 @@
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
       use ateb ! MJT urban
       use cable_ccam, only : CABLE,loadcbmparm ! MJT cable
-      use physical_constants, only : umin ! MJT cable      
-      use define_dimensions, only : ncs, ncp ! MJT cable
-      use mlo ! MJT mlo
-      use tkeeps ! MJT tke
       use cc_mpi
       use diag_m
+      use define_dimensions, only : ncs, ncp ! MJT cable
+      use indices_m
+      use latlong_m
+      use map_m
+      use mlo ! MJT mlo
+      use physical_constants, only : umin ! MJT cable      
+      use tkeeps ! MJT tke
 !     rml 21/02/06 removed all so2 code
 !     rml 16/02/06 use tracermodule, timeseries
+      use timeseries, only : init_ts
       use tracermodule, only : tracini,readtracerflux,tracvalin,
      &                         unit_trout
-      use timeseries, only : init_ts
+      use vecsuv_m
+      use xyzinfo_m
       implicit none
 !     parameter (gwdfac=.02)  ! now .02 for lgwd=2  see below
       integer, parameter :: jlmsigmf=1  ! 1 for jlm fixes to dean's data
@@ -35,11 +40,7 @@
       include 'extraout.h'  ! MJT cable
       include 'filnames.h'  ! list of files, read in once only
       include 'gdrag.h'
-      include 'indices.h'
-      include 'latlong.h'   ! rlatt, rlongg
       include 'liqwpar.h'
-      include 'map.h'
-      include 'map_g.h'      ! MJT bug fix
       include 'morepbl.h'
       include 'nsibd.h'     ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
@@ -58,10 +59,7 @@
       include 'trcom2.h'    ! trcfil,nstn,slat,slon,istn,jstn
       include 'vecs.h'
       include 'vegpar.h' ! MJT cable
-      include 'xyzinfo.h'   ! x,y,z,wts
-      include 'vecsuv.h'    ! vecsuv info
       include 'mpif.h'
-      include 'latlong_g.h'
       real, intent(out) :: hourst
       integer, intent(in) :: newsnow, jalbfix
       real epst
@@ -2061,16 +2059,16 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
             !  mlodwn(:,k,2)=0.
             !end where
           end do
-	  micdwn(:,1:4)=271.2
-	  micdwn(:,5:6)=0.
-	  where (tss.lt.271.2)
-	    micdwn(:,1)=tss
-	    micdwn(:,2)=tss
-	    micdwn(:,3)=tss
-	    micdwn(:,4)=tss	    	    	    
+          micdwn(:,1:4)=271.2
+          micdwn(:,5:6)=0.
+          where (fracice.gt.0.)
+            micdwn(:,1)=tss
+            micdwn(:,2)=tss
+            micdwn(:,3)=tss
+            micdwn(:,4)=tss
             micdwn(:,5)=1.
             micdwn(:,6)=1.
-	  end where
+          end where
           micdwn(:,7:8)=0.
           where (.not.land)
             fracice=micdwn(:,5)
@@ -2078,7 +2076,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
             snowd=micdwn(:,7)*1000.
           end where          
         end if
-        where (tss.gt.271.2.and.fracice.le.0.) ! Always use tss for top ocean layer
+        where (tss.gt.273.2.and.fracice.le.0.) ! Always use tss for top ocean layer
           mlodwn(:,1,1)=tss(:)                 ! This has no effect in a climate mode and
         endwhere                               ! ensures SST track analyses in a NWP mode
         call mloload(mlodwn,micdwn,0)
@@ -2182,12 +2180,12 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       subroutine rdnsib
 !     subroutine to read in  data sets required for biospheric scheme.
       use cc_mpi
-      use cable_ccam, only : CABLE ! MJT cable      
+      use cable_ccam, only : CABLE ! MJT cable
+      use map_m
       include 'newmpar.h'
       include 'arrays.h'
       include 'const_phys.h'
       include 'filnames.h'  ! list of files, read in once only in darlam
-      include 'map.h'
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
       include 'pbl.h'
@@ -2431,9 +2429,9 @@ c     zobg = .05
 
 !=======================================================================
       subroutine calczo    !  option to call from July '04
+      use map_m
       include 'newmpar.h'
       include 'arrays.h'
-      include 'map.h'   
       include 'nsibd.h' ! ivegt
       include 'parm.h'
 !     include 'scamdim.h'
@@ -2693,12 +2691,12 @@ c find coexp: see notes "simplified wind model ..." eq 34a
       subroutine caispecial
       
       use cc_mpi
+      use latlong_m
       
       implicit none
       
       include 'newmpar.h'
       include 'const_phys.h'  
-      include 'latlong.h'
       include 'pbl.h'
       include 'soil.h'
       include 'soilsnow.h'

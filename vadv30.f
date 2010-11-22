@@ -1,6 +1,8 @@
       subroutine vadv30(tarr,uarr,varr)   
 !     only calls vadvbess or vadvbess8 (nvad=7,8) from Aug 2003      
       use cc_mpi, only : mydiag
+      use indices_m
+      use map_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       parameter (ntest=0) !  0: usual   1: for diagnostic prints
       parameter (nvdep=7) !  0  for original;
@@ -18,10 +20,8 @@ c     does t, u,v then qg, [q1, q2,]
       include 'newmpar.h'
       parameter (kl1=kl+1,kl2=kl+2)
       include 'arrays.h'
-      include 'indices.h'
       include 'kuocom.h'    ! ldr
       include 'liqwpar.h'   ! ifullw,qfg,qlg
-      include 'map.h'
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmvert.h'
@@ -369,6 +369,11 @@ c       interpolate sdot to full-level sd with cubic polynomials
 	       call vadvbess8(tke(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet ! MJT tke
 	       call vadvbess8(eps(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet ! MJT tke
 	     endif  ! (nvmix.eq.6)                                               ! MJT tke
+	     !if(iaero==2)then                                                      ! MJT aerosol
+	     !  do l=1,ntrac                                                        ! MJT aerosol
+	     !    call vadvbess8(tke(1:ifullw,:,l),st,kdel,3) ! bess8 as no consv yet ! MJT aerosol
+	     !  end do                                                              ! MJT aerosol
+	     !endif  ! (iaero==2)                                                   ! MJT aerosol
           endif     ! (mspec==1)
          elseif(abs(nvad)==8)then 
           call vadvbess8(tarr,st,kdel,1)                          

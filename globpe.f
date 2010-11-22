@@ -15,12 +15,17 @@
 !                      v+ve northwards (on the panel)
       use cc_mpi
       use diag_m
+      use indices_m
+      use latlong_m
+      use map_m
       use seaesfrad_m ! MJT radiation
 !     rml 21/02/06 removed redundant tracer code (so2/o2 etc)
 !     rml 16/02/06 use tracermodule, timeseries
       use tracermodule, only :init_tracer,trfiles,tracer_mass,unit_trout
      &                        ,interp_tracerflux
       use timeseries, only : write_ts
+      use vecsuv_m      
+      use xyzinfo_m      
       implicit none
       include 'newmpar.h'
       include 'arrays.h'   ! ts, t, u, v, psl, ps, zs
@@ -32,11 +37,8 @@
       include 'extraout.h'
       include 'filnames.h' ! list of files, read in once only
       include 'histave.h'
-      include 'indices.h'
       include 'kuocom.h'
-      include 'latlong.h'  ! rlatt,rlongg
       include 'liqwpar.h'  ! ifullw,qfg,qlg
-      include 'map.h'      ! em, f, dpsldt, fu, fv, etc
       include 'morepbl.h'
       include 'mpif.h'
       include 'netcdf.inc' ! stuff for writing netcdf
@@ -61,14 +63,11 @@
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
       include 'tracers.h'  ! ngas, nllp, ntrac, tr
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
-      include 'vecsuv.h'
-      include 'vecsuv_g.h'
+      include 'vegpar.h'
       include 'version.h'
       include 'vvel.h'     ! sdot
       include 'xarrs.h'
-      include 'xyzinfo.h'  ! x,y,z,wts
-      include 'xyzinfo_g.h'  ! x_g,y_g,z_g,wts_g
-
+      
       integer leap,nbarewet,nsigmf
       integer nnrad,idcld
       real alph_p,alph_pm,delneg,delpos,alph_q
@@ -203,7 +202,7 @@
       data nsnowout/999999/
 
       ! Check that declarations in include files match
-      call check_dims()
+      !call check_dims()
 
       call setstacklimit(-1)
 
@@ -271,9 +270,16 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
         nbd=0
         kbotu=kbotdav      
       endif
-      if(nbd.ne.0)nud_hrs=abs(nud_hrs)  ! just for people with old -ves in namelist
-      !if(mbd.ne.0.or.nbd.ne.0)newtop=1
+      nud_hrs=abs(nud_hrs)  ! just for people with old -ves in namelist
       if(nudu_hrs==0)nudu_hrs=nud_hrs
+
+      !--------------------------------------------------------------
+      ! INITIALISE ifull_g ALLOCATALE ARRAYS
+      call indices_init(ifull_g,ifull,iextra,npanels,npan)
+      call latlong_init(ifull_g,ifull,iextra)
+      call map_init(ifull_g,ifull,iextra)
+      call vecsuv_init(ifull_g,ifull,iextra)
+      call xyzinfo_init(ifull_g,ifull,iextra)
 
       if ( myid == 0 ) then   ! **** do namelist fixes above this ***
       print *,'Dynamics options A:'
@@ -406,8 +412,30 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
 c     set up cc geometry
 !     All processors call setxyz
       call setxyz(il_g,rlong0,rlat0,schmidt,
-     &   x_g,y_g,z_g,wts_g, ax_g,ay_g,az_g,bx_g,by_g,bz_g, xx4,yy4,myid)
+     &   x_g,y_g,z_g,wts_g, ax_g,ay_g,az_g,bx_g,by_g,bz_g, xx4,yy4,
+     &   myid)
       call ccmpi_setup()
+      
+      !--------------------------------------------------------------
+      ! RELEASE ifull_g ARRAYS WHERE POSSIBLE
+      if (myid.ne.0) then
+        deallocate(wts_g)
+        deallocate(ax_g,bx_g,ay_g,by_g,az_g,bz_g)
+        deallocate(emu_g,emv_g,f_g,fu_g,fv_g,dmdx_g,dmdy_g)
+        deallocate(rlatt_g,rlongg_g)
+        deallocate(iw_g,isw_g,is_g,ise_g,ie_g,ine_g,in_g,iwn_g,ien_g)
+        deallocate(inn_g,iss_g,iww_g,iee_g,iwu_g,isv_g)
+        deallocate(iwu2_g,isv2_g,ieu2_g,inv2_g,iev2_g,inu2_g,ieu_g)
+        deallocate(inv_g,iwwu2_g,issv2_g,ieeu2_g,innv2_g)
+        deallocate(lwnn_g,leen_g,lenn_g,lsww_g)
+        deallocate(lsw_g,lssw_g,lsee_g,lsse_g,lnww_g,lnw_g,lnnw_g)
+        deallocate(lnee_g,lnne_g)
+        deallocate(npann_g,npane_g,npanw_g,npans_g)
+      end if
+      
+      !--------------------------------------------------------------
+      ! INITIALISE ifull ARRAYS
+      
       con=180./pi
       if ( mydiag ) then
          print *,'id,jd,rlongg,rlatt in degrees: ',
@@ -1067,7 +1095,7 @@ c       print*,'Calling prognostic cloud scheme'
            div_int=div_int-div(k)*dsig(k)
          enddo
          write (6,"('pwater,condc,condx,rndmax,rmc',9f8.3)")
-     &      pwater,condc(idjd),condx(idjd),rndmax(idjd),rmc(idjd)
+     &      pwater,condc(idjd),condx(idjd),rndmax(idjd),cansto(idjd)
          write (6,"('wetfac,sno,evap,precc,precip',
      &      6f8.2)") wetfac(idjd),sno(idjd),evap(idjd),precc(idjd),
      &      precip(idjd)
@@ -1127,6 +1155,12 @@ c       print*,'Calling prognostic cloud scheme'
      &      write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
         endif  ! (ntsur>=1)
         call end_log(vertmix_end)
+
+      ! AEROSOLS --------------------------------------------------------------
+!      if (iaero==2) then ! LDR prognostic aerosol scheme
+!        call aldrcalc(dt,sig,sigh,dsig,sigkap,bet,betm,cansto,vlai,wb(:,1),sfc(isoilm),pblh,ps,tss,t(1:ifull,:),condx,condc, &
+!     &                snowd,sg,fg,eg,u10,ustar,zo,land,fracice,sigmf,qlg,qfg,ktsav,kbsav,acon,bcon,nmr)
+!      end if
 
       ! PHYSICS LOAD BALANCING ------------------------------------------------
 !     This is the end of the physics. The next routine makes the load imbalance
@@ -1512,6 +1546,7 @@ c       print*,'Calling prognostic cloud scheme'
       call simple_timer_finalize
 #endif
 
+      call MPI_Barrier( MPI_COMM_WORLD, ierr )
 #ifndef scyld
       call MPI_Finalize(ierr)
 #endif
@@ -1609,11 +1644,11 @@ c       print*,'Calling prognostic cloud scheme'
 
       subroutine setllp
       use cc_mpi
+      use latlong_m
 !     sets tr arrays for lat, long, pressure if nextout>=4 &(nllp>=3)
       include 'newmpar.h'
       include 'arrays.h'  ! ts, t, u, v, psl, ps, zs
       include 'const_phys.h'
-      include 'latlong.h'
       include 'sigs.h'
       include 'tracers.h'  ! ngas, nllp, ntrac
       do k=1,klt
@@ -1646,12 +1681,12 @@ c     endif
       end subroutine setllp
 
       blockdata main_blockdata
+      use indices_m
       implicit none
       include 'newmpar.h'
       include 'dates.h' ! ktime,kdate,timer,timeg,mtimer
       include 'filnames.h'  ! list of files, read in once only
       include 'kuocom.h'
-      include 'indices.h'
       include 'mapproj.h'
       include 'parm.h'
       include 'parmdyn.h'  ! nstag,epsp,epsu
@@ -1861,6 +1896,9 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       subroutine stationa
       use cc_mpi
       use diag_m
+      use map_m
+      use vecsuv_m
+      use xyzinfo_m
       implicit none
       include 'newmpar.h'
       include 'arrays.h'   ! ts, t, u, v, psl, ps, zs
@@ -1868,7 +1906,6 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       include 'dates.h'    ! dtin,mtimer
       include 'establ.h'
       include 'extraout.h'
-      include 'map.h'      ! em, f, dpsldt, fu, fv, etc
       include 'nsibd.h'    ! sib, tsigmf, isoilm
       include 'morepbl.h'
       include 'parm.h'
@@ -1882,8 +1919,6 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       include 'soilv.h'
       include 'tracers.h'  ! ngas, nllp, ntrac, tr
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
-      include 'vecsuv.h'
-      include 'xyzinfo.h'  ! x,y,z,wts
       common/leap_yr/leap  ! 1 to allow leap years
       real, dimension(ifull) :: dirad,dfgdt,degdt,wetfac,degdw,cie,
      &                          factch,qsttg,rho,zo,aft,fh,spare1,theta,
@@ -1986,6 +2021,9 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       subroutine stationb  ! primarily for ICTS
       use cc_mpi
       use diag_m
+      use map_m
+      use vecsuv_m
+      use xyzinfo_m
       implicit none
       include 'newmpar.h'
       include 'arrays.h'   ! ts, t, u, v, psl, ps, zs
@@ -1995,7 +2033,6 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       include 'extraout.h'
       include 'histave.h'
       include 'liqwpar.h'  ! ifullw,qfg,qlg
-      include 'map.h'      ! em, f, dpsldt, fu, fv, etc
       include 'nsibd.h'    ! sib, tsigmf, isoilm
       include 'morepbl.h'
       include 'parm.h'
@@ -2010,8 +2047,6 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       include 'soilv.h'
       include 'tracers.h'  ! ngas, nllp, ntrac, tr
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
-      include 'vecsuv.h'
-      include 'xyzinfo.h'  ! x,y,z,wts
       real cfrac
       common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
       real sgx,sgdnx,rgx,rgdnx,soutx,sintx,rtx

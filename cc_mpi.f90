@@ -23,12 +23,12 @@ module cc_mpi
 
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
              ccmpi_distributer8,  &
-             indp, indg, deptsync, intssync, start_log, end_log, check_dims, &
+             indp, indg, deptsync, intssync, start_log, end_log,        &
              log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg, &
              ccglobal_sum, iq2iqg, indv_mpi, indglobal, readglobvar, writeglobvar
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
               ccmpi_distribute2r8,   &
-              ccmpi_gather2, ccmpi_gather3, checksize, get_dims, get_dims_gx,&
+              ccmpi_gather2, ccmpi_gather3, checksize, get_dims,              &
               ccglobal_posneg2, ccglobal_posneg3, ccglobal_sum2, ccglobal_sum3
    interface ccmpi_gather
       module procedure ccmpi_gather2, ccmpi_gather3
@@ -173,15 +173,11 @@ module cc_mpi
 contains
 
    subroutine ccmpi_setup()
+      use latlong_m
+      use map_m
       use sumdd_m
-      include 'xyzinfo.h'
-      include 'xyzinfo_g.h'
-      include 'map.h'
-      include 'map_g.h'
-      include 'vecsuv.h'
-      include 'vecsuv_g.h'
-      include 'latlong.h'
-      include 'latlong_g.h'
+      use vecsuv_m
+      use xyzinfo_m
       integer :: ierr
 
 #ifdef uniform_decomp
@@ -292,6 +288,7 @@ contains
 !     operator MPI_SUMDR is created based on an external function DRPDR. 
       call MPI_OP_CREATE (DRPDR, .TRUE., MPI_SUMDR, ierr) 
 #endif
+
    end subroutine ccmpi_setup
 
    subroutine ccmpi_distribute2(af,a1)
@@ -668,8 +665,7 @@ contains
 
    subroutine bounds_setup()
 
-      include 'indices.h'
-      include 'indices_g.h'
+      use indices_m
       integer :: n, nr, i, j, iq, iqx, count
       integer :: ierr,ierr2, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
@@ -3092,17 +3088,17 @@ contains
    end subroutine log_setup
    
 
-   subroutine check_dims
-!    Check that the dimensions defined in the newmpar and newmpar_gx file
-!    match. A single routine can't include both of these because declarations
-!    would conflict so return them from separate functions
-      integer :: ierr,ierr2
-      if ( .not. all(get_dims()==get_dims_gx()) ) then
-         print*, "Error, mismatch in newmpar.h and newmpar_gx.h"
-         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
-      end if
-
-   end subroutine check_dims
+!   subroutine check_dims
+!!    Check that the dimensions defined in the newmpar and newmpar_gx file
+!!    match. A single routine can't include both of these because declarations
+!!    would conflict so return them from separate functions
+!      integer :: ierr,ierr2
+!      if ( .not. all(get_dims()==get_dims_gx()) ) then
+!         print*, "Error, mismatch in newmpar.h and newmpar_gx.h"
+!         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
+!      end if
+!
+!   end subroutine check_dims
    
    function get_dims() result(dims)
       include 'newmpar.h'
@@ -3110,11 +3106,11 @@ contains
       dims = (/ il_g, kl /)
    end function get_dims
 
-   function get_dims_gx() result(dims)
-      include 'newmpar_gx.h'
-      integer, dimension(2) :: dims
-      dims = (/ il, kl /)
-   end function get_dims_gx
+!   function get_dims_gx() result(dims)
+!      include 'newmpar_gx.h'
+!      integer, dimension(2) :: dims
+!      dims = (/ il, kl /)
+!   end function get_dims_gx
 
    subroutine phys_loadbal()
 !     This forces a sychronisation to make the physics load imbalance overhead
@@ -3153,8 +3149,9 @@ contains
     subroutine ccglobal_posneg2 (array, delpos, delneg)
        ! Calculate global sums of positive and negative values of array
        use sumdd_m
+       use xyzinfo_m       
        include 'newmpar.h'
-       include 'xyzinfo.h'
+
        real, intent(in), dimension(ifull) :: array
        real, intent(out) :: delpos, delneg
        real :: delpos_l, delneg_l
@@ -3198,9 +3195,9 @@ contains
     subroutine ccglobal_posneg3 (array, delpos, delneg)
        ! Calculate global sums of positive and negative values of array
        use sumdd_m
+       use xyzinfo_m
        include 'newmpar.h'
        include 'sigs.h'
-       include 'xyzinfo.h'
        real, intent(in), dimension(ifull,kl) :: array
        real, intent(out) :: delpos, delneg
        real :: delpos_l, delneg_l
@@ -3250,8 +3247,8 @@ contains
     subroutine ccglobal_sum2 (array, result)
        ! Calculate global sum of an array
        use sumdd_m
+       use xyzinfo_m
        include 'newmpar.h'
-       include 'xyzinfo.h'
        real, intent(in), dimension(ifull) :: array
        real, intent(out) :: result
        real :: result_l
@@ -3286,9 +3283,9 @@ contains
     subroutine ccglobal_sum3 (array, result)
        ! Calculate global sum of 3D array, appyling vertical weighting
        use sumdd_m
+       use xyzinfo_m
        include 'newmpar.h'
        include 'sigs.h'
-       include 'xyzinfo.h'
        real, intent(in), dimension(ifull,kl) :: array
        real, intent(out) :: result
        real :: result_l

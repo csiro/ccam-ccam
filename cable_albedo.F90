@@ -177,8 +177,8 @@ CONTAINS
     ssoil%albsoilsn(:,2) = (1. - snrat) * ssoil%albsoilsn(:,2) + snrat * alir
 !    print *,'ALBSOILSN',snrat,ssoil%albsoilsn(:,1),ssoil%albsoilsn(:,2),ssoil%snowd,ssoil%ssdnn
     
-    rad%reffbm = ssoil%albsoilsn   ! initialise effective conopy beam reflectance
-    rad%reffdf = ssoil%albsoilsn   ! initialise effective conopy beam reflectance
+    rad%reffbm = ssoil%albsoilsn   ! initialise effective canopy beam reflectance
+    rad%reffdf = ssoil%albsoilsn   ! initialise effective canopy beam reflectance
 !    print *,'in cab_alb5', ssoil%albsoilsn,rad%reffbm,rad%reffdf
     ! Define vegetation mask:
     mask = canopy%vlaiw > 1e-2 .AND. met%fsd(:,3) > 1.0e-2

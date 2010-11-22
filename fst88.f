@@ -144,12 +144,13 @@ c---decrementing the index by 9 accounts for the tables beginning
 c   at t=100k.
 
 !!!      print*, ' In fst88 '
-      do 101 i=1,imax*lp1
-      vtmp2(i,1)=aint(temp(i,1)*hp1)
-      fxo(i,1)=vtmp2(i,1)-9.
-      dtemp(i,1)=temp(i,1)-ten*vtmp2(i,1)
-      ixo(i,1)=fxo(i,1)
-101   continue
+      do 101 k=1,lp1                      ! MJT bug fix
+      do 101 i=1,imax                     ! MJT bug fix
+      vtmp2(i,k)=aint(temp(i,l)*hp1)      ! MJT bug fix
+      fxo(i,k)=vtmp2(i,k)-9.              ! MJT bug fix
+      dtemp(i,k)=temp(i,k)-ten*vtmp2(i,k) ! MJT bug fix
+      ixo(i,k)=fxo(i,k)                   ! MJT bug fix
+101   continue                            ! MJT bug fix
 c 
 c---source function for combined band 1
       do 4114 i=1,imax 
@@ -300,13 +301,15 @@ c
 c 
 c---obtain special source functions for the 15 um band (csour),the
 c   9.6 um band (osour) and the window region (ss1)
-      do 131 i=1,imax*lp1
-      ss1(i,1)=sorc(i,1,11)+sorc(i,1,12)+sorc(i,1,14)
-131   continue
-      do 143 i=1,imax*lp1
-      csour(i,1)=sorc(i,1,9)+sorc(i,1,10)
-      osour(i,1)=sorc(i,1,13) 
-143   continue
+      do 131 k=1,lp1                                   ! MJT bug fix
+      do 131 i=1,imax                                  ! MJT bug fix
+      ss1(i,k)=sorc(i,k,11)+sorc(i,k,12)+sorc(i,k,14)  ! MJT bug fix
+131   continue                                         ! MJT bug fix
+      do 143 k=1,lp1                                   ! MJT bug fix
+      do 143 i=1,imax                                  ! MJT bug fix
+      csour(i,k)=sorc(i,k,9)+sorc(i,k,10)              ! MJT bug fix
+      osour(i,k)=sorc(i,k,13)                          ! MJT bug fix
+143   continue                                         ! MJT bug fix
 c 
 c 
 c     second section produces 4 matrices for later use in program:  
@@ -373,26 +376,27 @@ c      stage 1....compute o3 ,over transmission fctns and avephi
 c---do k=1 calculation (from flux layer kk to the top) separately
 c   as vectorization is improved,and ozone cts transmissivity
 c   may be extracted here.
-      do 302 i=1,imax*l
-      avmo3(i,1)=toto3(i,2)
-      avpho3(i,1)=tphio3(i,2)
-      avephj(i,1)=totphi(i,2)
-      avvo2(i,1)=totvo2(i,2)
-      fac1(i,1)=bo3rnd(2)*avpho3(i,1)/avmo3(i,1)
-      vtmp2(i,1)=haf*(fac1(i,1)*
-     &    (sqrt(one+(four*ao3rnd(2)*avmo3(i,1))/fac1(i,1))-one))
-      vtmp1(i,1)=exp(hm1ez*(vtmp2(i,1)+sko3r*avvo2(i,1)))
-      vtmp3(i,1)=exp(hm1ez*(sqrt(ab15wd*avephj(i,1))+    
-     &            skc1r*avvo2(i,1)))
+      do 302 k=1,l                                               ! MJT bug fix
+      do 302 i=1,imax                                            ! MJT bug fix
+      avmo3(i,k)=toto3(i,k+1)                                    ! MJT bug fix
+      avpho3(i,k)=tphio3(i,k+1)                                  ! MJT bug fix
+      avephj(i,k)=totphi(i,k+1)                                  ! MJT bug fix
+      avvo2(i,k)=totvo2(i,k+1)                                   ! MJT bug fix
+      fac1(i,k)=bo3rnd(2)*avpho3(i,k)/avmo3(i,k)                 ! MJT bug fix
+      vtmp2(i,k)=haf*(fac1(i,k)*
+     &    (sqrt(one+(four*ao3rnd(2)*avmo3(i,k))/fac1(i,k))-one)) ! MJT bug fix
+      vtmp1(i,k)=exp(hm1ez*(vtmp2(i,k)+sko3r*avvo2(i,k)))        ! MJT bug fix
+      vtmp3(i,k)=exp(hm1ez*(sqrt(ab15wd*avephj(i,k))+    
+     &            skc1r*avvo2(i,k)))                             ! MJT bug fix
 c---the next 4 lines fill up the upper triangle of the to3,avephi
 c   and over matrices, and all of the to3spc array. the notation
 c   is obscure; note that an equivalent statement for line 1 would be:
 c   for i=1 to imax and kp=k+1(=2) to lp1:  to3(i,kp,1)=vtmp1(i,kp)
-      to3(i,2,1)=vtmp1(i,1)
-      avephi(i,2,1)=avephj(i,1)
-      over(i,2,1)=vtmp3(i,1)
-      to3spc(i,1)=vtmp2(i,1)
-302   continue
+      to3(i,k+1,1)=vtmp1(i,k)                                    ! MJT bug fix
+      avephi(i,k+1,1)=avephj(i,k)                                ! MJT bug fix
+      over(i,k+1,1)=vtmp3(i,k)                                   ! MJT bug fix
+      to3spc(i,k)=vtmp2(i,k)                                     ! MJT bug fix
+302   continue                                                   ! MJT bug fix
 
         if(ndi<0.and.nmaxpr==1.and.idjd<=imax.and.mydiag)then
          print *,'during_b fst88 myid',myid

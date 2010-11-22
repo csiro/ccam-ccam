@@ -1,18 +1,20 @@
       subroutine nonlin      
       use cc_mpi
       use diag_m
+      use indices_m
+      use latlong_m
+      use map_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
+      use vecsuv_m
+      use xyzinfo_m
       implicit none
       integer, parameter :: ntest=0
       integer, parameter :: mfix_rad=0 ! used to make gases 2 to ng add up to gas 1
       include 'newmpar.h'
       include 'arrays.h'
       include 'const_phys.h' ! r,g,cp,cpv,roncp
-      include 'indices.h'  ! in,is,iw,ie,inn,iss,iww,iee
       include 'kuocom.h'   ! ldr
       include 'liqwpar.h'  ! qfg,qlg
-      include 'latlong.h'
-      include 'map.h'
       include 'morepbl.h'  ! condx
       include 'nlin.h'
       include 'parm.h'
@@ -21,10 +23,8 @@
       include 'savuvt.h'
       include 'sigs.h'
       include 'tracers.h'
-      include 'vecsuv.h'
       include 'vvel.h'     ! sdot
       include 'xarrs.h'
-      include 'xyzinfo.h'  ! x,y,z
       include 'mpif.h'
       real epst
       common/epst/epst(ifull)
@@ -107,6 +107,15 @@
         tkesav(1:ifull,:)=tke(1:ifull,:)
         epssav(1:ifull,:)=eps(1:ifull,:)
       endif       ! (nvmix==6)
+      !--------------------------------------------------------------
+      
+      !--------------------------------------------------------------
+      ! MJT aerosols
+      !if (iaero==2) then
+      !  do l=1,ntrac
+      !    xtgsav=xtg
+      !  end do
+      !end if
       !--------------------------------------------------------------
 
       if (diag) then

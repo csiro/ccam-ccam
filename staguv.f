@@ -11,13 +11,13 @@ c     - no longer, as transferred here to uin and vin
 c     unstaggered u & v as input; staggered as output
       use cc_mpi
 c     use diag_m             ! for calls to maxmin
+      use indices_m
+      use map_m
+      use vecsuv_m
       implicit none
       include 'newmpar.h'
-      include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
-      include 'map.h'
       include 'parm.h'
       include 'parmdyn.h'
-      include 'vecsuv.h'   ! vecsuv info
       real, dimension(ifull,kl), intent(in)  :: u, v
       real, dimension(ifull,kl), intent(out) :: uout, vout
       real, dimension(ifull+iextra,kl) :: ua, va, ud, vd,
@@ -197,13 +197,13 @@ c          vout(iq,k)=.5*(vin(inv(iq),k)+vin(iq,k))
       subroutine unstaguv(u,v,uout,vout)
 c     staggered u & v as input; unstaggered as output
       use cc_mpi
+      use indices_m
+      use map_m
+      use vecsuv_m
       implicit none
       include 'newmpar.h'
-      include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
-      include 'map.h'
       include 'parm.h'
       include 'parmdyn.h'
-      include 'vecsuv.h'   ! vecsuv info
       real, dimension(ifull,kl), intent(in)  :: u, v
       real, dimension(ifull,kl), intent(out) :: uout, vout
       real, dimension(ifull+iextra,kl) :: ua, va, ud, vd,

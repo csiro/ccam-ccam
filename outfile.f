@@ -1,5 +1,6 @@
       subroutine outfile(iout,rundate,nmi,nwrite)
       use cc_mpi
+      use map_m
       include 'newmpar.h'
       parameter (mev1=il+1-il/2*2,mev2=3-mev1)  ! from helmsol
 c     mev1 = 1 for il even (2 for il odd)
@@ -12,7 +13,6 @@ c     mev2 = 2 for il even (1 for il odd)
       include 'filnames.h' ! list of files, read in once only
       include 'histave.h'
       include 'kuocom.h'
-      include 'map.h'     ! passes thru omgf/ps in dpsldt array
       include 'morepbl.h'  ! fg,eg,runoff
       include 'nlin.h'
       include 'nsibd.h'

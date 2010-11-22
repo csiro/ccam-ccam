@@ -42,7 +42,7 @@ c
             ctest=.false.
             ctest(nc:nc1)=.true. ! cloud layers in current path through cloud block
             cldfip1=0.
-            ! loop over possible paths through cloud (maximum overlap levels within cloud block)
+            ! loop over possible paths through cloud
             do while (any(ctest(nc:nc1)))
               pos=minloc(camt(ip,nc+1:nc1+1),ctest(nc:nc1))
               nc2=pos(1)-1+nc ! level of smallest cloud fraction from remaning levels
@@ -58,31 +58,32 @@ c
                   cldfip(k1:lp1,1:k2)=cldfip(k1:lp1,1:k2)*xcld
                 end if
               end do
-              cldfip1=cldfip1+ctemp*cldfip !  weighted sum of transmission over possible paths throught the cloud
+              cldfip1=cldfip1+ctemp*cldfip !  maximum overlap levels within a cloud block
               ctest(nc2)=.false.
               ctemp=camt(ip,nc2+1)
             end do
             cldfip1=cldfip1+1.-ctemp ! add clear sky transmission
             nc=nc1+1
-            tempc(:,:)=tempc(:,:)*cldfip1(:,:) ! random overlap cloud blocks
+            tempc(:,:)=tempc(:,:)*cldfip1(:,:) ! random overlap between cloud blocks
           end do
           cldfac(ip,:,:)=tempc(:,:)
         end do
 
       else ! usual
+      
        do 11 ip=1,imax
          if (nclds(ip).eq.0) then
-           do 29 i=1,lp1*lp1
-           tempc(i,1)=1.
-29         continue
+!           do 29 i=1,lp1*lp1 ! MJT bug fix
+           tempc(:,:)=1.      ! MJT bug fix
+!29         continue          ! MJT bug fix
          endif
          if (nclds(ip).ge.1) then
           xcld=1.-camt(ip,2)*emcld(ip,2)
            k1=ktop(ip,2)+1
            k2=kbtm(ip,2)
-          do 31 i=1,lp1*lp1
-              cldfip(i,1)=1.
-31        continue
+!          do 31 i=1,lp1*lp1 ! MJT bug fix
+              cldfip(:,:)=1. ! MJT bug fix
+!31        continue          ! MJT bug fix
           do 41 k=k1,lp1
           do 41 kp=1,k2
                cldfip(kp,k)=xcld
@@ -91,18 +92,18 @@ c
           do 43 kp=k1,lp1
               cldfip(kp,k)=xcld
 43        continue
-          do 61 i=1,lp1*lp1
-          tempc(i,1)=cldfip(i,1)
-61        continue
+!          do 61 i=1,lp1*lp1     ! MJT bug fix
+          tempc(:,:)=cldfip(:,:) ! MJT bug fix
+!61        continue              ! MJT bug fix
          endif
          if (nclds(ip).ge.2) then
           do 21 nc=2,nclds(ip)
            xcld=1.-camt(ip,nc+1)*emcld(ip,nc+1)
            k1=ktop(ip,nc+1)+1
            k2=kbtm(ip,nc+1)
-           do 32 i=1,lp1*lp1
-              cldfip(i,1)=1.
-32         continue
+!           do 32 i=1,lp1*lp1 ! MJT bug fix
+              cldfip(:,:)=1.  ! MJT bug fix
+!32         continue          ! MJT bug fix
            do 42 k=k1,lp1
            do 42 kp=1,k2
               cldfip(kp,k)=xcld
@@ -111,14 +112,15 @@ c
            do 44 kp=k1,lp1
              cldfip(kp,k)=xcld
 44         continue
-           do 62 i=1,lp1*lp1
-            tempc(i,1)=tempc(i,1)*cldfip(i,1)
-62         continue
+!           do 62 i=1,lp1*lp1                 ! MJT bug fix
+            tempc(:,:)=tempc(:,:)*cldfip(:,:) ! MJT bug fix
+!62         continue                          ! MJT bug fix
 21        continue
          endif
-       do 11 i=1,lp1*lp1
-         cldfac(ip,i,1)=tempc(i,1)
+!       do 11 i=1,lp1*lp1          ! MJT bug fix
+         cldfac(ip,:,:)=tempc(:,:) ! MJT bug fix
 11     continue
+
       end if ! nmr.ne.2
       return
       end 

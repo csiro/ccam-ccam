@@ -726,16 +726,28 @@
 !      end subroutine infile
 
 c*************************************************************************
-      subroutine histrd1(ncid,iarchi,ier,name,ik,jk,var,ifull)  ! 0808
+      subroutine histrd1(ncid,iarchi,ier,name,ik,jk,var,ifull)
       use cc_mpi
       implicit none
-c     include 'newmpar.h'
+      integer ncid,iarchi,ier,ik,jk,ifull
+      character name*(*)
+      real var(ifull)
+      if (myid==0) then
+        call hr1a(ncid,iarchi,ier,name,ik,jk,var,ifull)
+      else
+        call hr4sb(ier,ik,jk,var,ifull)      
+      end if
+      return
+      end subroutine histrd1    
+
+      subroutine hr1a(ncid,iarchi,ier,name,ik,jk,var,ifull)  ! 0808
+      use cc_mpi
+      implicit none
       include 'parm.h'
       include 'netcdf.inc'
       include 'mpif.h'
       integer ncid, iarchi, ier, ik, jk, nctype, ierb ! MJT CHANGE - bug fix
       integer*2 ivar(ik*jk)
-      real rvar(ik*jk) ! MJT CHANGE
       logical odiag
       parameter(odiag=.false. )
       character name*(*)
@@ -744,229 +756,249 @@ c     include 'newmpar.h'
       real globvar(ik*jk), vmax, vmin, addoff, sf  ! 0808
       integer ierr, idv
 
-      globvar=0. ! MJT bug
-
-      if(myid==0)then
-         start = (/ 1, 1, iarchi /)
-         count = (/ ik, jk, 1 /)
-c        if(ik<il_g)globvar(:)=2. ! default for onthefly
+      start = (/ 1, 1, iarchi /)
+      count = (/ ik, jk, 1 /)
 
 c     get variable idv
-         idv = ncvid(ncid,name,ier)
-         if(ier.ne.0)then
-            print *,'***absent field for ncid,name,idv,ier: ',
-     &                               ncid,name,idv,ier
-         else
-            if(odiag)write(6,*)'ncid,name,idv,ier',ncid,name,idv,ier
-            if(odiag)write(6,*)'start=',start
-            if(odiag)write(6,*)'count=',count
-c     read in all data
-            !------------------------------------------------------------
-            ! MJT CHANGE
-            ierr=nf_inq_vartype(ncid,idv,nctype)
-	      addoff=0.
-	      sf=1.
-            select case(nctype)
-              case(nf_float)
-                call ncvgt(ncid,idv,start,count,rvar,ier)
-                if(odiag)write(6,*)'rvar(1)(ik*jk)=',rvar(1),rvar(ik*jk)
-              case(nf_short)
-                call ncvgt(ncid,idv,start,count,ivar,ier)
-                if(odiag)write(6,*)'ivar(1)(ik*jk)=',ivar(1),ivar(ik*jk)
-                rvar(:)=real(ivar(:))
-              case DEFAULT
-                print *,"ERROR: Unknown NetCDF format"
-                stop
-            end select
-            !------------------------------------------------------------
+      idv = ncvid(ncid,name,ier)
+      if(ier.ne.0)then
+       print *,'***absent field for ncid,name,idv,ier: ',
+     &                              ncid,name,idv,ier
+      else
+       if(odiag)write(6,*)'ncid,name,idv,ier',ncid,name,idv,ier
+       if(odiag)write(6,*)'start=',start
+       if(odiag)write(6,*)'count=',count
+c      read in all data
+       ierr=nf_inq_vartype(ncid,idv,nctype)
+       addoff=0.
+       sf=1.
+       select case(nctype)
+        case(nf_float)
+         call ncvgt(ncid,idv,start,count,globvar,ier)
+         if(odiag)write(6,*)'rvar(1)(ik*jk)=',globvar(1),globvar(ik*jk)
+        case(nf_short)
+         call ncvgt(ncid,idv,start,count,ivar,ier)
+         if(odiag)write(6,*)'ivar(1)(ik*jk)=',ivar(1),ivar(ik*jk)
+         globvar(:)=real(ivar(:))
+        case DEFAULT
+         print *,"ERROR: Unknown NetCDF format"
+         stop
+       end select
 
-c     obtain scaling factors and offsets from attributes
-            call ncagt(ncid,idv,'add_offset',addoff,ierb)
-            if (ierb.ne.0) addoff=0.        ! MJT CHANGE - bug fix
-            if(odiag)write(6,*)'addoff,ier=',addoff,ier
-            call ncagt(ncid,idv,'scale_factor',sf,ierb)
-            if (ierb.ne.0) sf=1.            ! MJT CHANGE - bug fix
-            if(odiag)write(6,*)'sf,ier=',sf,ier
+c      obtain scaling factors and offsets from attributes
+       call ncagt(ncid,idv,'add_offset',addoff,ierb)
+       if (ierb.ne.0) addoff=0.        ! MJT CHANGE - bug fix
+       if(odiag)write(6,*)'addoff,ier=',addoff,ier
+       call ncagt(ncid,idv,'scale_factor',sf,ierb)
+       if (ierb.ne.0) sf=1.            ! MJT CHANGE - bug fix
+       if(odiag)write(6,*)'sf,ier=',sf,ier
 
-c     unpack data
-            globvar(1:ik*jk) = rvar(1:ik*jk)*sf+addoff ! MJT CHANGE
-            if(mod(ktau,nmaxpr)==0.or.odiag)then
-               vmax = maxval(rvar*sf+addoff) ! MJT CHANGE
-               vmin = minval(rvar*sf+addoff) ! MJT CHANGE
-               write(6,'("done histrd1 ",a8,i4,i3,3e14.6)')
-     &           name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik)
-            endif
-         endif ! ier
-      endif ! myid == 0
+c      unpack data
+       globvar = globvar*sf+addoff ! MJT CHANGE
+       if(mod(ktau,nmaxpr)==0.or.odiag)then
+        vmax = maxval(globvar*sf+addoff) ! MJT CHANGE
+        vmin = minval(globvar*sf+addoff) ! MJT CHANGE
+        write(6,'("done histrd1 ",a8,i4,i3,3e14.6)')
+     &   name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik)
+       endif
+      endif ! ier
+
       ! Have to return correct value of ier on all processes because it's 
       ! used for initialisation in calling routine
       call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      if(ier==0)then
-        if(ifull==ik*jk)then  !  808
-          var(:)=globvar(:) ! MJT bug
-          return  
-        endif
-         if(myid == 0)then
-            call ccmpi_distribute(var,globvar)
-         else
-            call ccmpi_distribute(var)
-         endif
+      if(ifull==ik*jk)then  !  808
+       if(ier==0)then
+        var(:)=globvar(:) ! MJT bug
+       endif
+      else
+       if(ier==0)then
+        call ccmpi_distribute(var,globvar)
+       endif
       endif
       return    ! histrd1
-      end   
-c***************************************************************************
-      subroutine histrd4(ncid,iarchi,ier,name,ik,jk,kk,var,ifull)
-      use cc_mpi
-      implicit none
-c     include 'newmpar.h'
-      include 'netcdf.inc'
-      include 'parm.h'
-      include 'mpif.h'
-      integer ncid, iarchi, ier, ik, jk, kk, nctype, ierb ! MJT CHANGE - bug fix
-      integer*2 ivar(ik*jk,kk)
-      real rvar(ik*jk,kk) ! MJT CHANGE
-      character name*(*)
-      integer start(4),count(4), ifull
-      real var(ifull,kk)
-      real globvar(ik*jk,kk), vmax, vmin, addoff, sf
-      integer ierr, idv, k
-
-      globvar=0. ! MJT bug
-
-      if(myid == 0)then
-         start = (/ 1, 1, 1, iarchi /)
-         count = (/   ik,   jk, kk, 1 /)
-c        if(ik<il_g)globvar(:,:)=1.234 ! default for onthefly
-c        get variable idv
-         idv = ncvid(ncid,name,ier)
-         if(ier.ne.0)then
-            print *,'***absent hist4 field for ncid,name,idv,ier: ',
-     &                                         ncid,name,idv,ier
-         else
-c          read in all data
-           !------------------------------------------------------------
-           ! MJT CHANGE
-           ier=nf_inq_vartype(ncid,idv,nctype)
-           select case(nctype)
-             case(nf_float)
-               call ncvgt(ncid,idv,start,count,rvar,ier)
-             case(nf_short)
-               call ncvgt(ncid,idv,start,count,ivar,ier)
-               rvar(:,:)=real(ivar(:,:))
-             case DEFAULT
-               print *,"ERROR: Unknown NetCDF format"
-               stop
-           end select
-           !------------------------------------------------------------
-c          obtain scaling factors and offsets from attributes
-           call ncagt(ncid,idv,'add_offset',addoff,ierb)
-           if (ierb.ne.0) addoff=0.        ! MJT CHANGE - bug fix
-           call ncagt(ncid,idv,'scale_factor',sf,ierb)
-           if (ierb.ne.0) sf=1.            ! MJT CHANGE - bug fix
-c          unpack data
-!          globvar = ivar*sf + addoff
-           do k=1,kk  ! following allows for ik < il_g
-            globvar(1:ik*jk,k) = rvar(1:ik*jk,k)*sf + addoff ! MJT CHANGE
-           enddo
-           if(mod(ktau,nmaxpr)==0)then
-!            vmax = maxval(globvar)
-!            vmin = minval(globvar)
-             vmax = maxval(rvar*sf + addoff)  ! allows for ik < il_g ! MJT CHANGE
-             vmin = minval(rvar*sf + addoff)                         ! MJT CHANGE
-             write(6,'("done histrd4 ",a6,i4,i3,3f12.4)') 
-     &           name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
-           endif
-         endif ! ier
-      endif ! myid == 0
-      ! Have to return correct value of ier on all processes because it's 
-      ! used for initialisation in calling routine
-      call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      if(ier==0)then
-          if(ifull==ik*jk)then  !  808
-            var(:,1:kk)=globvar(:,1:kk) ! MJT bug
-            return  
-          endif
-         if(myid == 0)then
-            call ccmpi_distribute(var,globvar)
-         else
-            call ccmpi_distribute(var)
-         endif
-      endif
-      return ! histrd4
-      end   
+      end subroutine hr1a  
+!c***************************************************************************
+!      subroutine histrd4(ncid,iarchi,ier,name,ik,jk,kk,var,ifull)
+!      use cc_mpi
+!      implicit none
+!c     include 'newmpar.h'
+!      include 'netcdf.inc'
+!      include 'parm.h'
+!      include 'mpif.h'
+!      integer ncid, iarchi, ier, ik, jk, kk, nctype, ierb ! MJT CHANGE - bug fix
+!      integer*2 ivar(ik*jk,kk)
+!      real rvar(ik*jk,kk) ! MJT CHANGE
+!      character name*(*)
+!      integer start(4),count(4), ifull
+!      real var(ifull,kk)
+!      real globvar(ik*jk,kk), vmax, vmin, addoff, sf
+!      integer ierr, idv, k
+!
+!      globvar=0. ! MJT bug
+!
+!      if(myid == 0)then
+!         start = (/ 1, 1, 1, iarchi /)
+!         count = (/   ik,   jk, kk, 1 /)
+!c        if(ik<il_g)globvar(:,:)=1.234 ! default for onthefly
+!c        get variable idv
+!         idv = ncvid(ncid,name,ier)
+!         if(ier.ne.0)then
+!            print *,'***absent hist4 field for ncid,name,idv,ier: ',
+!     &                                         ncid,name,idv,ier
+!         else
+!c          read in all data
+!           !------------------------------------------------------------
+!           ! MJT CHANGE
+!           ier=nf_inq_vartype(ncid,idv,nctype)
+!           select case(nctype)
+!             case(nf_float)
+!               call ncvgt(ncid,idv,start,count,rvar,ier)
+!             case(nf_short)
+!               call ncvgt(ncid,idv,start,count,ivar,ier)
+!               rvar(:,:)=real(ivar(:,:))
+!             case DEFAULT
+!               print *,"ERROR: Unknown NetCDF format"
+!               stop
+!           end select
+!           !------------------------------------------------------------
+!c          obtain scaling factors and offsets from attributes
+!           call ncagt(ncid,idv,'add_offset',addoff,ierb)
+!           if (ierb.ne.0) addoff=0.        ! MJT CHANGE - bug fix
+!           call ncagt(ncid,idv,'scale_factor',sf,ierb)
+!           if (ierb.ne.0) sf=1.            ! MJT CHANGE - bug fix
+!c          unpack data
+!!          globvar = ivar*sf + addoff
+!           do k=1,kk  ! following allows for ik < il_g
+!            globvar(1:ik*jk,k) = rvar(1:ik*jk,k)*sf + addoff ! MJT CHANGE
+!           enddo
+!           if(mod(ktau,nmaxpr)==0)then
+!!            vmax = maxval(globvar)
+!!            vmin = minval(globvar)
+!             vmax = maxval(rvar*sf + addoff)  ! allows for ik < il_g ! MJT CHANGE
+!             vmin = minval(rvar*sf + addoff)                         ! MJT CHANGE
+!             write(6,'("done histrd4 ",a6,i4,i3,3f12.4)') 
+!     &           name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik,nlv)
+!           endif
+!         endif ! ier
+!      endif ! myid == 0
+!      ! Have to return correct value of ier on all processes because it's 
+!      ! used for initialisation in calling routine
+!      call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+!      if(ier==0)then
+!          if(ifull==ik*jk)then  !  808
+!            var(:,1:kk)=globvar(:,1:kk) ! MJT bug
+!            return  
+!          endif
+!         if(myid == 0)then
+!            call ccmpi_distribute(var,globvar)
+!         else
+!            call ccmpi_distribute(var)
+!         endif
+!      endif
+!      return ! histrd4
+!      end   
 
       !--------------------------------------------------------------
       ! MJT otf small - this version reads a single kk level of a 3d field
       subroutine histrd4s(ncid,iarchi,ier,name,ik,jk,kk,var,ifull)
       use cc_mpi
       implicit none
+      integer ncid,iarchi,ier,ik,jk,kk,ifull
+      character name*(*)
+      real var(ifull)
+      if (myid==0) then
+        call hr4sa(ncid,iarchi,ier,name,ik,jk,kk,var,ifull)
+      else
+        call hr4sb(ier,ik,jk,var,ifull)      
+      end if
+      return
+      end subroutine histrd4s      
+
+      subroutine hr4sa(ncid,iarchi,ier,name,ik,jk,kk,var,ifull)
+      use cc_mpi
+      implicit none
       include 'netcdf.inc'
       include 'parm.h'
       include 'mpif.h'
-      integer ncid, iarchi, ier, ik, jk, kk, nctype, ierb
-      integer idv, k
+      integer ncid,iarchi,ier,ik,jk,kk,ifull
+      integer idv,ierb,nctype
+      integer start(4),count(4)      
       integer*2 ivar(ik*jk)
       character name*(*)
-      integer start(4),count(4), ifull
+      real vmax, vmin, addoff, sf
       real var(ifull)
-      real globvar(ik*jk), vmax, vmin, addoff, sf
-
-      globvar=0.
-
-      if(myid == 0)then
-         start = (/ 1, 1, kk, iarchi /)
-         count = (/   ik,   jk, 1, 1 /)
-         idv = ncvid(ncid,name,ier)
-         if(ier.ne.0)then
-            print *,'***absent hist4 field for ncid,name,idv,ier: ',
-     &                                         ncid,name,idv,ier
-         else
-c          read in all data
-           ier=nf_inq_vartype(ncid,idv,nctype)
-           select case(nctype)
-             case(nf_float)
-               call ncvgt(ncid,idv,start,count,globvar,ier)
-             case(nf_short)
-               call ncvgt(ncid,idv,start,count,ivar,ier)
-               globvar(:)=real(ivar(:))
-             case DEFAULT
-               print *,"ERROR: Unknown NetCDF format"
-               stop
-           end select
-
-c          obtain scaling factors and offsets from attributes
-           call ncagt(ncid,idv,'add_offset',addoff,ierb)
-           if (ierb.ne.0) addoff=0.
-           call ncagt(ncid,idv,'scale_factor',sf,ierb)
-           if (ierb.ne.0) sf=1.
+      real globvar(ik*jk)
            
-c          unpack data
-           globvar=globvar*sf + addoff
+      start = (/ 1, 1, kk, iarchi /)
+      count = (/   ik,   jk, 1, 1 /)
+      idv = ncvid(ncid,name,ier)
+      if(ier.ne.0)then
+       print *,'***absent hist4 field for ncid,name,idv,ier: ',
+     &                                         ncid,name,idv,ier
+      else
+c      read in all data
+       ier=nf_inq_vartype(ncid,idv,nctype)
+       select case(nctype)
+        case(nf_float)
+         call ncvgt(ncid,idv,start,count,globvar,ier)
+        case(nf_short)
+         call ncvgt(ncid,idv,start,count,ivar,ier)
+         globvar(:)=real(ivar(:))
+        case DEFAULT
+         print *,"ERROR: Unknown NetCDF format"
+         stop
+       end select
 
-           if(mod(ktau,nmaxpr)==0)then
-            vmax = maxval(globvar)
-            vmin = minval(globvar)
-             write(6,'("done histrd4s ",a6,i3,i4,i3,3f12.4)') 
-     &           name,kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik)
-           endif
-         endif ! ier
-      endif ! myid == 0
+c      obtain scaling factors and offsets from attributes
+       call ncagt(ncid,idv,'add_offset',addoff,ierb)
+       if (ierb.ne.0) addoff=0.
+       call ncagt(ncid,idv,'scale_factor',sf,ierb)
+       if (ierb.ne.0) sf=1.
+           
+c      unpack data
+       globvar=globvar*sf + addoff
+
+       if(mod(ktau,nmaxpr)==0)then
+        vmax = maxval(globvar)
+        vmin = minval(globvar)
+        write(6,'("done histrd4s ",a6,i3,i4,i3,3f12.4)') 
+     &   name,kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik)
+       endif
+      endif ! ier
+
       ! Have to return correct value of ier on all processes because it's 
       ! used for initialisation in calling routine
       call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierb)
-      if(ier==0)then
-          if(ifull==ik*jk)then  !  808
-            var(:)=globvar(:)
-            return  
-          endif
-         if(myid == 0)then
-            call ccmpi_distribute(var,globvar)
-         else
-            call ccmpi_distribute(var)
-         endif
+      if(ifull==ik*jk)then  !  808
+       if(ier==0)then
+        var(:)=globvar(:)
+       end if
+      else
+       if(ier==0)then
+        call ccmpi_distribute(var,globvar)
+       end if
       endif
-      return ! histrd4s
-      end
+
+      return
+      end subroutine hr4sa      
+      
+      subroutine hr4sb(ier,ik,jk,var,ifull)
+      use cc_mpi
+      implicit none
+      include 'mpif.h'
+      integer ier,ik,jk,ifull
+      integer ierb
+      real var(ifull)     
+      ! Have to return correct value of ier on all processes because it's 
+      ! used for initialisation in calling routine
+      call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierb)
+      if(ifull.ne.ik*jk)then  !  808
+       if(ier==0)then
+        call ccmpi_distribute(var)
+       endif
+      endif
+      return
+      end subroutine hr4sb     
       !--------------------------------------------------------------   
 
       ! This version of vertint can interpolate from host models with

@@ -136,7 +136,7 @@ real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: wtv0,wq0,ps,ustar
 real, dimension(kl), intent(in) :: sigkap,sig
-real, dimension(ifull,kl) :: km,ff,gg,thetal,thetav,temp,gamt,gamq
+real, dimension(ifull,kl) :: km,ff,gg,thetal,thetav,temp,gamt,gamq,gamhl
 real, dimension(ifull,kl) :: tkenew,epsnew,qsat,ppb
 real, dimension(ifull,kl) :: bb,cc,dd
 real, dimension(ifull,2:kl) :: aa,pps,ppt
@@ -527,18 +527,32 @@ end do
 
 ! Update thetav and qg due to non-local term (explicit split form)
 if (mode.ne.1) then
-  thetav(:,1)=thetav(:,1)-dt*0.5*(gamt(:,2)+gamt(:,1))/dz_fl(:,1)
-  do k=2,kl-1
-    thetav(:,k)=thetav(:,k)-dt*0.5*(gamt(:,k+1)-gamt(:,k-1))/dz_fl(:,k)
+  gamhl=0.
+  gamhl(:,1)=0.
+  do k=1,kl-1
+    where (zi.gt.zz(:,k+1))
+      gamhl(:,k+1)=0.5*(gamt(:,k)+gamt(:,k+1))
+    elsewhere (zi.le.zz(:,k+1).and.zi.gt.zz(:,k))
+      gamhl(:,k+1)=gamt(:,k)*(1.-min(0.5*(zz(:,k+1)-zz(:,k))/(zi-zz(:,k)),1.))
+    end where
   end do
-  thetav(:,kl)=thetav(:,kl)+dt*0.5*(gamt(:,kl)+gamt(:,kl-1))/dz_fl(:,kl)
+  do k=1,kl-1
+    thetav(:,k)=thetav(:,k)-dt*(gamhl(:,k+1)-gamhl(:,k))/dz_fl(:,k)
+  end do
 end if
 if (mode.eq.0) then
-  qg(:,1)=qg(:,1)-dt*0.5*(gamq(:,2)+gamq(:,1))/dz_fl(:,1)
-  do k=2,kl-1
-    qg(:,k)=qg(:,k)-dt*0.5*(gamq(:,k+1)-gamq(:,k-1))/dz_fl(:,k)
+  gamhl=0.
+  gamhl(:,1)=0.
+  do k=1,kl-1
+    where (zi.gt.zz(:,k+1))
+      gamhl(:,k+1)=0.5*(gamq(:,k)+gamq(:,k+1))
+    elsewhere (zi.le.zz(:,k+1).and.zi.gt.zz(:,k))
+      gamhl(:,k+1)=gamq(:,k)*(1.-min(0.5*(zz(:,k+1)-zz(:,k))/(zi-zz(:,k)),1.))
+    end where
   end do
-  qg(:,kl)=qg(:,kl)+dt*0.5*(gamq(:,kl)+gamq(:,kl-1))/dz_fl(:,kl)
+  do k=1,kl-1
+    qg(:,k)=qg(:,k)-dt*(gamhl(:,k+1)-gamhl(:,k))/dz_fl(:,k)
+  end do
 end if
 
 qg=max(qg,1.E-6)

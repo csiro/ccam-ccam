@@ -179,6 +179,7 @@ c
       real, parameter :: amd=28.9644
       real, parameter :: amo=48.
       real, parameter :: dobson=6.022e3/2.69/48.e-3
+      integer, parameter :: ozoneintp=1 ! ozone interpolation (0=simple, 1=integrate column)
 
       real duo3n(npts,kl), sigma(kl), alat(npts),alon(npts)
       real dduo3n,ddo3n2,ddo3n3,ddo3n4
@@ -275,72 +276,75 @@ c          winter       spring       summer       autumn       (nh)
          !-----------------------------------------------------------
          ! Simple interpolation on pressure levels
          ! vertical interpolation (from LDR - Mk3.6)
-         do m=kl-1,1,-1
-           if (o3inp(m).gt.1) o3inp(m)=o3inp(m+1)
-         end do
-         prf=0.01*ps(j)*sig
-         do m=1,kl
-           if (prf(m).gt.pres(1)) then
-             duo3n(j,kl-m+1)=o3inp(1)
-           elseif (prf(m).lt.pres(kk)) then
-             duo3n(j,kl-m+1)=o3inp(kk)
-           else
-             do k1=2,kk
-               if (prf(m).gt.pres(k1)) exit
-             end do
-             fp=(prf(m)-pres(k1))/(pres(k1-1)-pres(k1))
-             duo3n(j,kl-m+1)=(1.-fp)*o3inp(k1)+fp*o3inp(k1-1)
-           end if
-         end do
+         if (ozoneintp.eq.0) then
+           do m=kl-1,1,-1
+             if (o3inp(m).gt.1) o3inp(m)=o3inp(m+1)
+           end do
+           prf=0.01*ps(j)*sig
+           do m=1,kl
+             if (prf(m).gt.pres(1)) then
+               duo3n(j,kl-m+1)=o3inp(1)
+             elseif (prf(m).lt.pres(kk)) then
+               duo3n(j,kl-m+1)=o3inp(kk)
+             else
+               do k1=2,kk
+                 if (prf(m).gt.pres(k1)) exit
+               end do
+               fp=(prf(m)-pres(k1))/(pres(k1-1)-pres(k1))
+               duo3n(j,kl-m+1)=(1.-fp)*o3inp(k1)+fp*o3inp(k1-1)
+             end if
+           end do
          !-----------------------------------------------------------
-         
+         else
          !-----------------------------------------------------------
          ! Approximate integral of ozone column
-!         
-!         ! calculate total column of ozone
-!         o3sum=0.
-!         o3sum(kk)=o3inp(kk)*0.5*sum(pres(kk-1:kk))
-!         do m=kk-1,2,-1
-!           if (o3inp(m).gt.1.) then
-!             o3sum(m)=o3sum(m+1)
-!!           else
-!             o3sum(m)=o3sum(m+1)+o3inp(m)*0.5*(pres(m-1)-pres(m+1))
-!           end if
-!         end do
-!         if (o3inp(1).gt.1.) then
-!           o3sum(1)=o3sum(2)
-!         else
-!           o3sum(1)=o3sum(2)+o3inp(1)*0.5*(1000.-0.5*sum(pres(1:2)))
-!         end if
-!         
-!        ! vertical interpolation (from LDR - Mk3.6)
-!         prf=0.01*ps(j)*sig
-!         o3new=0.
-!         do m=1,kl
-!           if (prf(m).gt.pres(1)) then
-!             o3new(m)=o3sum(1)
-!           elseif (prf(m).lt.pres(kk)) then
-!             o3new(m)=o3sum(kk)
-!           else
-!             do k1=2,kk
-!               if (prf(m).gt.pres(k1)) exit
-!             end do
-!             fp=(prf(m)-pres(k1))/(pres(k1-1)-pres(k1))
-!             o3new(m)=(1.-fp)*o3sum(k1)+fp*o3sum(k1-1)
-!           end if
-!         end do        
-!         
-!         ! output ozone
-!         if (sum(prf(1:2)).gt.2000.) then
-!           duo3n(j,kl)=0.
-!         else
-!           duo3n(j,kl)=(o3sum(1)-o3new(1))/(1000.-0.5*sum(prf(1:2)))
-!         end if
-!         do m=2,kl-1
-!           duo3n(j,kl-m+1)=2.*(o3new(m)-o3new(m+1))/(prf(m-1)-prf(m+1))
-!         end do
-!         duo3n(j,1)=2.*o3new(kl)/sum(prf(kl-1:kl))
-!         duo3n(j,:)=max(duo3n(j,:),0.)
+         
+           ! calculate total column of ozone
+           o3sum=0.
+           o3sum(kk)=o3inp(kk)*0.5*sum(pres(kk-1:kk))
+           do m=kk-1,2,-1
+             if (o3inp(m).gt.1.) then
+               o3sum(m)=o3sum(m+1)
+             else
+               o3sum(m)=o3sum(m+1)+o3inp(m)*0.5*(pres(m-1)-pres(m+1))
+             end if
+           end do
+           if (o3inp(1).gt.1.) then
+             o3sum(1)=o3sum(2)
+           else
+             o3sum(1)=o3sum(2)+o3inp(1)*0.5*(1000.-0.5*sum(pres(1:2)))
+           end if
+         
+          ! vertical interpolation (from LDR - Mk3.6)
+           prf=0.01*ps(j)*sig
+           o3new=0.
+           do m=1,kl
+             if (prf(m).gt.pres(1)) then
+               o3new(m)=o3sum(1)
+             elseif (prf(m).lt.pres(kk)) then
+               o3new(m)=o3sum(kk)
+             else
+               do k1=2,kk
+                 if (prf(m).gt.pres(k1)) exit
+               end do
+               fp=(prf(m)-pres(k1))/(pres(k1-1)-pres(k1))
+               o3new(m)=(1.-fp)*o3sum(k1)+fp*o3sum(k1-1)
+             end if
+           end do        
+         
+           ! output ozone
+           if (sum(prf(1:2)).ge.2000.) then
+             duo3n(j,kl)=0.
+           else
+             duo3n(j,kl)=(o3sum(1)-o3new(2))/(1000.-0.5*sum(prf(1:2)))
+           end if
+           do m=2,kl-1
+             duo3n(j,kl-m+1)=2.*(o3new(m)-o3new(m+1))
+     &                       /(prf(m-1)-prf(m+1))
+           end do
+           duo3n(j,1)=2.*o3new(kl)/sum(prf(kl-1:kl))
+           duo3n(j,:)=max(duo3n(j,:),0.)
+         end if
          !-----------------------------------------------------------
          
          !-----------------------------------------------------------

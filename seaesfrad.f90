@@ -42,9 +42,10 @@ subroutine seaesfrad(odcalc,iaero)
 use zenith_m
 use microphys_rad_mod, only: microphys_sw_driver,microphys_lw_driver,lwemiss_calc,microphys_rad_init
 
-use cc_mpi
 use ateb
+use cc_mpi
 use cable_ccam, only : CABLE
+use latlong_m
 use mlo
 use ozoneread
 
@@ -58,7 +59,6 @@ include 'cparams.h'
 include 'dates.h'
 include 'extraout.h'
 include 'kuocom.h'
-include 'latlong.h'
 include 'liqwpar.h'
 include 'nsibd.h'
 include 'pbl.h'
@@ -344,7 +344,7 @@ do j=1,jl,imax/il
 
   ! Calculate zenith angle for the solarfit calculation.
   ! This call averages zenith angle just over this time step.
-  dhr = dt/3600.0
+  dhr = dt/3600.
   call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),rlongg(istart:iend),dhr,imax,coszro2,taudar2)
   call atebccangle(istart,imax,coszro2(1:imax),rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt,sin(dlt))
 
@@ -487,19 +487,23 @@ do j=1,jl,imax/il
     end select
 
     ! define droplet size (from radriv90.f) -------------------------
-    where (land(istart:iend).and.rlatt(istart:iend)>0.)
-      cd2(1:imax,1)=cdropl_nh
-    else where (land(istart:iend))
-      cd2(1:imax,1)=cdropl_sh
-    else where (rlatt(istart:iend)>0.)
-      cd2(1:imax,1)=cdrops_nh
-    else where
-      cd2(1:imax,1)=cdrops_sh
-    end where
-    do k=2,kl
-      cd2(1:imax,k)=cd2(1:imax,1)
-    enddo
-
+    if (iaero.ne.2) then
+      where (land(istart:iend).and.rlatt(istart:iend)>0.)
+        cd2(1:imax,1)=cdropl_nh
+      else where (land(istart:iend))
+        cd2(1:imax,1)=cdropl_sh
+      else where (rlatt(istart:iend)>0.)
+        cd2(1:imax,1)=cdrops_nh
+      else where
+        cd2(1:imax,1)=cdrops_sh
+      end where
+      do k=2,kl
+        cd2(1:imax,k)=cd2(1:imax,1)
+      enddo
+    else
+      !call cldrop(cd2,rhoa)
+    end if
+    
     ! Cloud fraction diagnostics ------------------------------------
     cloudlo(istart:iend)=0.
     cloudmi(istart:iend)=0.
@@ -525,8 +529,8 @@ do j=1,jl,imax/il
       call getqsat(imax,qsat,t(istart:iend,k),ps(istart:iend)*sig(k))
       Atmos_input%rel_hum(:,1,kr)=min(qg(istart:iend,k)/qsat,1.)
     end do
-    Atmos_input%temp(:,1,kl+1) =tss(istart:iend)
-    Atmos_input%press(:,1,kl+1)=ps(istart:iend)
+    Atmos_input%temp(:,1,kl+1)  = tss(istart:iend)
+    Atmos_input%press(:,1,kl+1) = ps(istart:iend)
     Atmos_input%pflux(:,1,1  )  = 0.
     Atmos_input%tflux(:,1,1  )  = Atmos_input%temp (:,1,1  )
     do k=2,kl
@@ -615,12 +619,12 @@ do j=1,jl,imax/il
     do k=1,kl
       p2(:,k)=ps(istart:iend)*sig(k) !
     end do
-    call cloud3(Cloud_microphysics%size_drop,Cloud_microphysics%size_ice, &
-                Cloud_microphysics%conc_drop,Cloud_microphysics%conc_ice, &
+    call cloud3(Cloud_microphysics%size_drop,Cloud_microphysics%size_ice,       &
+                Cloud_microphysics%conc_drop,Cloud_microphysics%conc_ice,       &
                 cfrac(istart:iend,:),qlrad(istart:iend,:),qfrad(istart:iend,:), &
                 p2,t(istart:iend,:),cd2,imax,kl)
     Cloud_microphysics%size_drop=max(Cloud_microphysics%size_drop,1.e-20)
-    Cloud_microphysics%size_ice=max(Cloud_microphysics%size_ice,1.e-20)                
+    Cloud_microphysics%size_ice =max(Cloud_microphysics%size_ice,1.e-20)                
     Cloud_microphysics%size_rain=1.e-20
     Cloud_microphysics%conc_rain=0.
     Cloud_microphysics%size_snow=1.e-20
@@ -630,14 +634,14 @@ do j=1,jl,imax/il
     Lscrad_props%cldsct   = 0.
     Lscrad_props%cldasymm = 1.
     Lscrad_props%abscoeff = 0.
-    call microphys_lw_driver (1, imax, 1, 1, Cloud_microphysics,Micro_rad_props=Lscrad_props)
-    call microphys_sw_driver (1, imax, 1, 1, Cloud_microphysics,Micro_rad_props=Lscrad_props)
+    call microphys_lw_driver(1, imax, 1, 1, Cloud_microphysics,Micro_rad_props=Lscrad_props)
+    call microphys_sw_driver(1, imax, 1, 1, Cloud_microphysics,Micro_rad_props=Lscrad_props)
     Cldrad_props%cldsct(:,:,:,:,1)  =Lscrad_props%cldsct(:,:,:,:)   ! Large scale cloud properties only
     Cldrad_props%cldext(:,:,:,:,1)  =Lscrad_props%cldext(:,:,:,:)   ! Large scale cloud properties only
     Cldrad_props%cldasymm(:,:,:,:,1)=Lscrad_props%cldasymm(:,:,:,:) ! Large scale cloud properties only
     Cldrad_props%abscoeff(:,:,:,:,1)=Lscrad_props%abscoeff(:,:,:,:) ! Large scale cloud properties only
     
-    call lwemiss_calc (Atmos_input%clouddeltaz,Cldrad_props%abscoeff,Cldrad_props%cldemiss)
+    call lwemiss_calc(Atmos_input%clouddeltaz,Cldrad_props%abscoeff,Cldrad_props%cldemiss)
     Cldrad_props%emmxolw = Cldrad_props%cldemiss
     Cldrad_props%emrndlw = Cldrad_props%cldemiss
     
@@ -650,13 +654,13 @@ do j=1,jl,imax/il
     Astro%fracday(:,1)=taudar
 
     call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input,  &
-                          Rad_gases, Aerosol, Aerosol_props,   &
+                          Rad_gases, Aerosol, Aerosol_props,     &
                           Cldrad_props, Cld_spec, Aerosol_diags, &
                           Lw_output)
 
-    call shortwave_driver (1, imax, 1, 1, Atmos_input, Surface,  &
+    call shortwave_driver (1, imax, 1, 1, Atmos_input, Surface,      &
                            Astro, Aerosol, Aerosol_props, Rad_gases, &
-                           Cldrad_props, Cld_spec, Sw_output,   &
+                           Cldrad_props, Cld_spec, Sw_output,        &
                            Aerosol_diags, r)
 
     ! store shortwave and fbeam data --------------------------------
@@ -792,8 +796,8 @@ t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:)
 return
 end subroutine seaesfrad
 
-subroutine longwave_driver (is, ie, js, je, Rad_time, Atmos_input,  &
-                            Rad_gases, Aerosol, Aerosol_props,   &
+subroutine longwave_driver (is, ie, js, je, Rad_time, Atmos_input, &
+                            Rad_gases, Aerosol, Aerosol_props,     &
                             Cldrad_props, Cld_spec, Aerosol_diags, &
                             Lw_output)
 
@@ -872,9 +876,9 @@ type(lw_diagnostics_type)  :: Lw_diagnostics
 !----------------------------------------------------------------------
 !    standard call, where radiation output feeds back into the model.
 !----------------------------------------------------------------------
-        call sealw99 (is, ie, js, je, Rad_time, Atmos_input,  &
+        call sealw99 (is, ie, js, je, Rad_time, Atmos_input,           &
                       Rad_gases, Aerosol, Aerosol_props, Cldrad_props, &
-                      Cld_spec, Aerosol_diags, Lw_output(1),  &
+                      Cld_spec, Aerosol_diags, Lw_output(1),           &
                       Lw_diagnostics, do_aerosol_forcing)
 
 !--------------------------------------------------------------------
@@ -897,9 +901,9 @@ type(lw_diagnostics_type)  :: Lw_diagnostics
 
 end subroutine longwave_driver
 
-subroutine shortwave_driver (is, ie, js, je, Atmos_input, Surface,  &
+subroutine shortwave_driver (is, ie, js, je, Atmos_input, Surface,     &
                              Astro, Aerosol, Aerosol_props, Rad_gases, &
-                             Cldrad_props,  Cld_spec, Sw_output,      &
+                             Cldrad_props,  Cld_spec, Sw_output,       &
                              Aerosol_diags, r) 
 
 !---------------------------------------------------------------------

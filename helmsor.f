@@ -5,10 +5,10 @@
       use cc_mpi
       use diag_m
       use ilu_m
+      use indices_m
       use sumdd_m
       implicit none
       include 'newmpar.h'
-      include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt  - briefly

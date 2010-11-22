@@ -9,6 +9,7 @@ c     this one does linear interp in x on outer y sides
 c     doing x-interpolation before y-interpolation
 !     nfield: 1 (psl), 2 (u, v), 3 (T), 4 (gases)
       use cc_mpi
+      use indices_m
       implicit none
       integer, parameter :: ntest=0
       include 'newmpar.h'
@@ -21,7 +22,6 @@ c     doing x-interpolation before y-interpolation
       ! Need work common for this
       real sx(-1:ipan+2,-1:jpan+2,1:npan,kl)
       real s(ifull+iextra,kl),r(4)
-      include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
       integer idel, iq, jdel, nn
       real a3, a4, c1, c2, c3, c4, cmax, cmin, sss, xxg, yyg
       integer i, j, k, n, ind, ip, jp, iproc, ierr

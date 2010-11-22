@@ -14,7 +14,7 @@ module ilu_m
 contains
    subroutine iludecomp(ilumax,fac,zzn,zze,zzs,zzw)
       use cc_mpi
-      include 'indices.h'
+      use indices_m
       integer, intent(in) :: ilumax
       real, dimension(ifull), intent(in)  :: zzn, zze, zzs, zzw
       real, dimension(ifull,ilumax), intent(in)  :: fac
@@ -106,7 +106,7 @@ contains
    
    subroutine ilusolve(x,rhs,k)
       use cc_mpi
-      include 'indices.h'
+      use indices_m
       real, dimension(:,:), intent(in)  :: rhs
       real, dimension(:,:), intent(out) :: x
       integer, intent(in) :: k

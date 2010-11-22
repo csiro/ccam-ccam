@@ -614,6 +614,7 @@ type(lw_table_type), intent(inout) :: Lw_tables
           trim(continuum_form) == 'rsb'         .or.   &
           trim(continuum_form) == 'none'        )      then
       else
+        write(6,*) "continuum_form is not specified correctly"
         !call error_mesg ( 'sealw99_mod', &
         !   'continuum_form is not specified correctly', FATAL)
         stop
@@ -625,6 +626,7 @@ type(lw_table_type), intent(inout) :: Lw_tables
       if (trim(linecatalog_form) == 'hitran_1992'  .or.  &
           trim(linecatalog_form) == 'hitran_2000' )  then
       else
+        write(6,*) "linecatalog_form is not specified correctly"
         !call error_mesg ( 'sealw99_mod', &
         !   'linecatalog_form is not specified correctly', FATAL)
         stop
@@ -870,12 +872,14 @@ type(lw_table_type), intent(inout) :: Lw_tables
                                  tab1a, tab2a, tab3a)
       if (Lw_control%do_co2_iz) then
         if (do_nlte .and. .not. Lw_control%do_co2) then
+         write(6,*) "cannot activate nlte when co2 not active as radiative gas"
          ! call error_mesg ('sealw99_mod', &
          !' cannot activate nlte when co2 not active as radiative gas',&
          !                                                 FATAL)
          stop
         endif 
       else  ! (do_co2_iz)
+        write(6,*) "do_co2 not yet defined"
         !call error_mesg ('sealw99_mod', &
         !   'do_co2 not yet defined', FATAL)
         stop
@@ -1027,6 +1031,8 @@ type(lw_table_type), intent(inout) :: Lw_tables
         endif
       end do
       if (NBTRGE == 0 .and. .not. use_bnd1_cldtf_for_h2o_bands) then
+        write(6,*) "must use band1 cld tfs for the 1200-1400 cm(-1) bands when"
+        write(6,*) "they are included in the 1200-2200 cm(-1) band"
         !call error_mesg ('sealw99_mod', &
         !'must use band1 cld tfs for the 1200-1400 cm(-1) bands when &
         !  & they are included in the 1200-2200 cm(-1) band', FATAL)
@@ -2708,6 +2714,8 @@ logical,          intent(in) :: calc_gas_tfs_on_first_step,  &
           .not. calc_gas_tfs_monthly) then
         if (INT(3600.0*gas_tf_calc_intrvl) <   &
             Rad_control%rad_time_step) then
+          write(6,*) trim(gas)//' tf calculation interval must be greater'
+          write(6,*) 'than or equal to the radiation time step'
           !call error_mesg ('sealw99_mod', &
           !   trim(gas)// ' tf calculation interval must be greater&
           !          & than or equal to the radiation time step', FATAL)
@@ -2720,6 +2728,8 @@ logical,          intent(in) :: calc_gas_tfs_on_first_step,  &
 !---------------------------------------------------------------------
         if (mod(INT(3600.0*gas_tf_calc_intrvl),   &
                 Rad_control%rad_time_step) /= 0) then
+          write(6,*) trim(gas)//' transmission function calculation interval'
+          write(6,*) 'must be integral multiple of radiation time step'
           !call  error_mesg ('sealw99_mod',  &
           ! trim(gas)//' transmission function calculation interval &
           ! &must be integral multiple of radiation time step', FATAL)
@@ -2735,6 +2745,10 @@ logical,          intent(in) :: calc_gas_tfs_on_first_step,  &
 !---------------------------------------------------------------------
       if (calc_gas_tfs_on_first_step) then
         if (use_current_gas_for_tf) then
+          write(6,*) 'cannot specify use of current '//trim(gas)//' value'
+          write(6,*) 'for tfs when calculating tfs on first step; instead'
+          write(6,*) 'set use_current_'//trim(gas)//'_for_tf to false and set'
+          write(6,*) trim(gas)//'_tf_time_displacement =    0.0'
           !call error_mesg ('sealw99_mod', &
           !    'cannot specify use of current '//trim(gas)//' value&
           !    & for tfs when calculating tfs on first step; instead   &
@@ -2746,6 +2760,7 @@ logical,          intent(in) :: calc_gas_tfs_on_first_step,  &
 
       if (calc_gas_tfs_on_first_step .and. &
           calc_gas_tfs_monthly) then
+          write(6,*) "cannot request calc of tfs both on first step and monthly"
         !call error_mesg ( 'sealw99_mod',  &
         !  'cannot request calc of tfs both on first step and monthly',&
         !                                                        FATAL)

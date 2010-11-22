@@ -818,6 +818,34 @@ c       reaching the next level (or the surface).
         enddo   ! iq loop
       endif      ! nvmix.eq.6
       !--------------------------------------------------------------
+      
+      !--------------------------------------------------------------
+      ! MJT aerosols
+      !if (iaero==2) then
+      !  xtu=0.
+      !  call convscav(fscav)
+      !  do l=1,ntrac
+      !    ss(:,:)=xtg(1:ifull,:,l)
+      !    do iq=1,ifull
+      !     if(kbsav(iq).gt.0)then
+      !       kb=kbsav(iq)
+      !       kt=ktsav(iq)
+      !       veldt=convpsav(iq)
+      !       fluxup=veldt*ss(iq,kb)*(1.-fscav(iq)) ! MJT suggestion
+!     !       remove aerosol from cloud base layer
+      !       xtg(iq,kb,l)=xtg(iq,kb,l)-fluxup/dsk(kb)
+!     !       put flux of tke into top convective layer
+      !       xtg(iq,kt,l)=xtg(iq,kt,l)+fluxup/dsk(kt)
+      !       xtu(iq,:,l)=xtg(iq,:,;) ! MJT suggestion
+      !       do k=kb+1,kt
+      !        xtg(iq,k,l)=xtg(iq,k,l)-ss(iq,k)*veldt/dsk(k)
+      !        xtg(iq,k-1,l)=xtg(iq,k-1,l)+ss(iq,k)*veldt/dsk(k-1)
+      !       enddo
+      !     endif
+      !    enddo   ! iq loop
+      !  end do
+      !end if
+      !--------------------------------------------------------------
 
 !     usual conformal-cubic (DARLAM option removed)
         qg(1:ifull,:)=qq(:,:)

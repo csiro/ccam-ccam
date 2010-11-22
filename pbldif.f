@@ -2,6 +2,7 @@
 !     vectorized version      
       use cc_mpi, only : mydiag, myid
       use diag_m
+      use map_m
       implicit none
       integer ntest,nrkmin,npblmin,kmax
       parameter (ntest=0)
@@ -48,7 +49,6 @@ C-----------------------------------------------------------------------
       include 'const_phys.h'
       include 'extraout.h'     !ustar
       include 'kuocom.h'
-      include 'map.h'          !f (coriolis)
       include 'morepbl.h'      !fg,eg
       include 'parm.h'         !dtin
       include 'sigs.h'         !sig,sigmh

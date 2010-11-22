@@ -1,16 +1,16 @@
       subroutine depts1(x3d,y3d,z3d)  ! input ubar,vbar are unstaggered vels for level k
 !     3D version
       use cc_mpi
+      use indices_m
+      use map_m
+      use vecsuv_m
+      use xyzinfo_m
       implicit none
 c     modify toij5 for Cray
       integer, parameter :: ntest=0
       include 'newmpar.h'
       include 'const_phys.h'   ! rearth
-      include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
-      include 'map.h'
       include 'parm.h'
-      include 'vecsuv.h'   ! vecsuv info
-      include 'xyzinfo.h'  ! x,y,z,wts
       real ubar, vbar
       common/uvbar/ubar(ifull,kl),vbar(ifull,kl)
       integer nface
@@ -123,15 +123,15 @@ c     convert to grid point numbering
 !     3D version
 c     modify toij5 for Cray
       use cc_mpi
+      use indices_m
+      use map_m
+      use vecsuv_m
+      use xyzinfo_m
       implicit none
       integer, parameter :: ntest=0
       include 'newmpar.h'
       include 'const_phys.h'   ! rearth
-      include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
-      include 'map.h'
       include 'parm.h'
-      include 'vecsuv.h'   ! vecsuv info
-      include 'xyzinfo.h'  ! x,y,z,wts
       real ubar, vbar
       common/uvbar/ubar(ifull,kl),vbar(ifull,kl)
       integer nface
@@ -257,6 +257,7 @@ c     convert to grid point numbering
 
       subroutine toij5(k,x3d,y3d,z3d)
       use cc_mpi
+      use xyzinfo_m
 c     modify toij5 for Cray
       parameter (ncray=1)    ! 0 for most computers, 1 for Cray
       parameter (ntest=0)
@@ -269,7 +270,6 @@ c     modify toij5 for Cray
       common/work2b/xstr(ifull),ystr(ifull),zstr(ifull)
       real*8 alf,alfonsch,den,one  ! 6/11/07 esp for 200m
       data one/1./             ! to force real*8
-      include 'xyzinfo.h'  ! x,y,z,wts
       dimension xgx(0:5),xgy(0:5),xgz(0:5),ygx(0:5),ygy(0:5),ygz(0:5)
       data xgx/0., 0., 0., 0., 1., 1./, ygx/0.,-1.,-1., 0., 0., 0./,
      .     xgy/1., 1., 0., 0., 0., 0./, ygy/0., 0., 0.,-1.,-1., 0./,

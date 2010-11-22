@@ -2,8 +2,9 @@
 !     inputs & outputs: t,u,v,qg
       use cc_mpi, only : mydiag, myid
       use diag_m
+      use indices_m
+      use map_m
       use tkeeps ! MJT tke
-      
 !     rml 16/02/06 use trvmix module
       use trvmix, only : tracervmix
       include 'newmpar.h'
@@ -20,10 +21,8 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       include 'const_phys.h'
       include 'dates.h'
       include 'extraout.h' ! ustar ! MJT tke
-      include 'indices.h'
       include 'kuocom.h'   ! also with kbsav,ktsav,convpsav,kscsea,sigksct
       include 'liqwpar.h'  ! ifullw, qfg, qlg
-      include 'map.h'      ! em, f, fu, fv, etc  not needed here?
       include 'mpif.h'
       include 'nlin.h'
       include 'morepbl.h'
@@ -958,6 +957,17 @@ c       now do qlg
         call trim(at,ct,rhs,0)    ! for qlg
         qlg(1:ifull,:)=rhs(1:ifull,:)
       endif    ! (ldr.ne.0)
+
+      !--------------------------------------------------------------
+      ! MJT aerosol
+      !if (iaero==2) then
+      !  do l=1,ntrac
+      !    rhs(1:ifull,:)=xtg(1:ifull,:,l)
+      !    call trim(at,ct,rhs,0)
+      !    xtg(1:ifull,:,l)=rhs(1:ifull,:)
+      !  end do
+      !end if
+      !--------------------------------------------------------------
 
 c     now do trace gases rml 16/02/06 changed call
       if (ngas>0) call tracervmix(at,ct)

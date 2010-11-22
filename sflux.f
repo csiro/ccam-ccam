@@ -1,9 +1,12 @@
       subroutine sflux(nalpha)              ! for globpe code
       use ateb ! MJT urban
       use cable_ccam, only : CABLE,sib4 ! MJT cable
-      use mlo ! MJT mlo
+      use map_m ! MJT mlo
+      use mlo   ! MJT mlo
       use diag_m
       use cc_mpi
+      use vecsuv_m  ! MJT urban
+      use xyzinfo_m ! MJT urban
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
       parameter (ntss_sh=0) ! 0 for original, 3 for **3, 4 for **4
 !     parameter (nplens=0)  ! 0 to turn off plens, 10 (e.g.) is on
@@ -31,7 +34,6 @@ c     cp specific heat at constant pressure joule/kgm/deg
       include 'extraout.h' ! ustar
       include 'gdrag.h'
       include 'liqwpar.h'  ! qfg,qlg
-      include 'map.h'      ! MJT mlo
       include 'morepbl.h'  ! condx,fg,eg
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tgf
       include 'parm.h'
@@ -49,9 +51,7 @@ c     cp specific heat at constant pressure joule/kgm/deg
       include 'soilsnow.h' ! new soil arrays for scam - tgg too
       include 'tracers.h'  ! ngas, nllp, ntrac
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
-      include 'vecsuv.h'   ! MJT urban
       include 'vvel.h'
-      include 'xyzinfo.h'  ! MJT urban
       common/tafts/taftfh(ifull),taftfhg(ifull)
       common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
      . ,wetfac(ifull),degdw(ifull),cie(ifull)
@@ -518,7 +518,7 @@ c     if(mydiag.and.diag)then
           tpan=tgg(:,1)                                              ! MLO
           rnet=sgsave-rgsave-stefbo*tss**4                           ! MLO
         elsewhere                                                    ! MLO
-          rgg=5.67e-8*tpan(iq)**4                                    ! MLO
+          rgg=5.67e-8*tpan**4                                        ! MLO
           ga=-slwa-rgg-panfg*fg                                      ! MLO
           tpan=tpan+ga*dt/(4186.*.254*1000.)                         ! MLO
         endwhere                                                     ! MLO
@@ -927,6 +927,7 @@ c***  end of surface updating loop
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine sib3(nalpha)     ! new version of sib1 with soilsnowv
       use cc_mpi
+      use latlong_m
       parameter (ntest=0) ! ntest= 0 for diags off; ntest= 1 for diags on
 !                                  2 for ewww diags      
 !                           N.B. may need vsafe for correct diags
@@ -942,7 +943,6 @@ c***  end of surface updating loop
       include 'const_phys.h'
       include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg
       include 'extraout.h'
-      include 'latlong.h'  ! rlatt,rlongg
       include 'liqwpar.h'  ! qfg,qlg
 c     include 'map.h'
       include 'morepbl.h'
@@ -1014,6 +1014,9 @@ c                             if( tsoil >= tstom ) ftsoil=1.
            srlai(iq)=rlai(iq)+rlais44(iveg)    ! nsib=3  leaf area index
            rsmin(iq) = rsunc44(iveg)/rlai(iq)  ! nsib=3  
            tsigmf(iq)=max(.001, sigmf(iq)-scveg44(iveg)*(1.-ftsoil(iq)))
+           vlai(iq)=rlai(iq) ! MJT aerosols
+         else
+           vlai(iq)=0. ! MJT aerosols
          endif ! (land)
         enddo
       else     ! i.e. nsib=5
@@ -1029,7 +1032,7 @@ c                             if( tsoil >= tstom ) ftsoil=1.
      .             ipland,ipsice,ipsea
           do iq=1,ifull  ! give default over sea too
            tgf(iq) = t(iq,1)  ! was tss(iq)
-           rmc(iq) = 0.
+           cansto(iq) = 0.
           enddo    
         endif  ! if(ktau==1)
 
@@ -1038,7 +1041,7 @@ c                             if( tsoil >= tstom ) ftsoil=1.
      .                     ipland,ipsice,ipsea
         do iq=1,ifull     ! gives default over sea too
          tgf(iq)=t(iq,1)  ! was tss(iq)
-         rmc(iq)=0.
+         cansto(iq)=0.
         enddo    
         do iq=1,ifull
          if(land(iq))then  ! following gives agreement on restarts
@@ -1336,7 +1339,7 @@ c         if(wbav<0.5) f2=max(1.0 , 0.5/ max( wbav,1.e-7))
           cc(iq) =min(condx(iq) , 4./(1440. *60./dt))  ! jlm speedup for 4 mm/day
 c                       depth of the reservoir of water on the canopy
           rmcmax(iq) = max(0.5,srlai(iq)) * .1
-          omc(iq) = rmc(iq)  ! value from previous timestep as starting guess
+          omc(iq) = cansto(iq)  ! value from previous timestep as starting guess
           f3=max(1.-.00025*(establ(t(iq,1))-qg(iq,1)*ps(iq)/.622), .05)
           res(iq)=max(30.,rsmin(iq)*f1*f2/(f3*f4))
           if(ntest==1.and.iq==idjd.and.mydiag)then
@@ -1348,22 +1351,23 @@ c                       depth of the reservoir of water on the canopy
           otgf(iq)=tgf(iq)
            do icount=1,5        ! original iteration method
 c                                            transpiration
-            rmc(iq) = omc(iq)
+            cansto(iq) = omc(iq)
             esatf = establ(tgf(iq))
             qsatgf=.622*esatf/(ps(iq)-esatf)
 c                                                     wet evaporation
             ewww(iq) = rho(iq)*taftfh(iq) *(qsatgf-qg(iq,1))
             if(qsatgf>=qg(iq,1)) then
-              ewww(iq)  = min(rmc(iq)/dt , rmc(iq)*ewww(iq)/rmcmax(iq) )
+              ewww(iq)  = min(cansto(iq)/dt , cansto(iq)*ewww(iq)
+     &                        /rmcmax(iq) )
             endif         ! qsatgf>=qg(iq,1)
-            rmc(iq)=omc(iq)+cc(iq) -ewww(iq)*dt
+            cansto(iq)=omc(iq)+cc(iq) -ewww(iq)*dt
 c                         precipitation reaching the ground under the canopy
 c                                            water interception by the canopy
             condxg(iq)=max(condx(iq)-cc(iq)+
-     .                 max(0.,rmc(iq)-rmcmax(iq)),0.) ! keep here
-            rmc(iq) = min( max(rmc(iq),0.), rmcmax(iq))
-!           beta =  min(rmc(iq)/rmcmax(iq),1.)   ! not needed
-            beta =      rmc(iq)/rmcmax(iq)
+     .                 max(0.,cansto(iq)-rmcmax(iq)),0.) ! keep here
+            cansto(iq) = min( max(cansto(iq),0.), rmcmax(iq))
+!           beta =  min(cansto(iq)/rmcmax(iq),1.)   ! not needed
+            beta =      cansto(iq)/rmcmax(iq)
             if( qsatgf < qg(iq,1) ) beta = 1.
 
             Etr=rho(iq)/(airr(iq) +res(iq))*(qsatgf-qg(iq,1))
@@ -1404,7 +1408,7 @@ c                                                     Calculate dE/dTg
             tgf(iq)=tgf(iq)-residf(iq)/residp
             if(ntest==1.and.iq==idjd.and.mydiag)then
               print *,'icount,omc,rmc,otgf ',
-     .                 icount,omc(iq),rmc(iq),otgf(iq)
+     .                 icount,omc(iq),cansto(iq),otgf(iq)
               print *,'tfg,residf,evapxf,fgf ',
      .                 tgf(iq),residf(iq),evapxf(iq),fgf(iq)
             endif
@@ -1448,7 +1452,7 @@ c       if(wbav<0.5) f2=max(1.0 , 0.5/ max( wbav,1.e-7))
         cc(iq) =min(condx(iq) , 4./(1440. *60./dt))  ! jlm speedup for 4 mm/day
 c                     depth of the reservoir of water on the canopy
         rmcmax(iq) = max(0.5,srlai(iq)) * .1
-        omc(iq) = rmc(iq)  ! value from previous timestep as starting guess
+        omc(iq) = cansto(iq)  ! value from previous timestep as starting guess
         f3=max(1.-.00025*(establ(t(iq,1))-qg(iq,1)*ps(iq)/.622),.05)
         res(iq)=max(30.,rsmin(iq)*f1*f2/(f3*f4))
         if(ntest==1.and.iq==idjd.and.mydiag)then
@@ -1485,22 +1489,23 @@ c                                                  wet evaporation
 !        endif         ! qsatgf>=qg(iq,1)
 !        above 3 lines are equivalent to next line
 c        ewww(iq)=min(ewww(iq),omc(iq)/dt,ewww(iq)*omc(iq)/rmcmax(iq))
-c        rmcav=.5*(omc(iq)+rmc(iq))
+c        rmcav=.5*(omc(iq)+cansto(iq))
 c        ewww(iq)=min(ewwwa,rmcav/dt,ewwwa*rmcav/rmcmax(iq))
-c        rmc(iq)=omc(iq)+cc(iq) -ewww(iq)*dt
+c        cansto(iq)=omc(iq)+cc(iq) -ewww(iq)*dt
 !        to reduce risk of underflow, replace above few lines by following
          ewww(iq)=min(dt*ewwwa,omc(iq),dt*ewwwa*omc(iq)/rmcmax(iq))
 !                     dew(-ve), no_dew ,        no_dew
-!        rmc is reservoir on leaf
-         rmc(iq)=(omc(iq)-ewww(iq)) +cc(iq)
+!        cansto is reservoir on leaf
+         cansto(iq)=(omc(iq)-ewww(iq)) +cc(iq)
          ewww(iq)=ewww(iq)/dt  ! these changes on 19/1/06 jlm
 
 c                      precipitation reaching the ground under the canopy
 c                                         water interception by the canopy
-         condxg(iq)=max(condx(iq)-cc(iq)+max(0.,rmc(iq)-rmcmax(iq)),0.) ! keep 
-         rmc(iq) = min( max(0.,rmc(iq)), rmcmax(iq))
-!        beta =  min(rmc(iq)/rmcmax(iq),1.)   ! min not needed
-         beta =      rmc(iq)/rmcmax(iq)
+         condxg(iq)=max(condx(iq)-cc(iq)
+     &             +max(0.,cansto(iq)-rmcmax(iq)),0.) ! keep 
+         cansto(iq) = min( max(0.,cansto(iq)), rmcmax(iq))
+!        beta =  min(cansto(iq)/rmcmax(iq),1.)   ! min not needed
+         beta =      cansto(iq)/rmcmax(iq)
 !!       if( qsatgf < qg(iq,1) ) beta = 1.   ! i.e. dew
 !        Etr=rho(iq)*(qsatgf-qg(iq,1))/(airr(iq) +res(iq))
          Etr=rho(iq)*max(0.,qsatgf-qg(iq,1))/(airr(iq) +res(iq))  ! jlm
@@ -1545,7 +1550,7 @@ c        tgfnew(iq)=otgf(iq)+
 c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
          enddo  ! ip loop
          if((ntest==1.or.diag).and.mydiag)then 
-          if(ktau==99999)then  ! to track rmc & ewww underflow
+          if(ktau==99999)then  ! to track cansto & ewww underflow
             print *,'sflux icount = ',icount
             do ip=1,ipland  
              iq=iperm(ip)
@@ -1557,13 +1562,13 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
            iq=idjd
            print *,'ktau,icount,iq,omc,cc ',
      &              ktau,icount,iq,omc(iq),cc(iq)
-           print *,'rmc,rmcmax,ewww ',rmc(iq),rmcmax(iq),ewww(iq)
+           print *,'rmc,rmcmax,ewww ',cansto(iq),rmcmax(iq),ewww(iq)
            esatf = establ(tgfnew(iq))  ! value for next itn
            qsatgf=.622*esatf/(ps(iq)-esatf)
            ewwwa = rho(iq) *(qsatgf-qg(iq,1))/airr(iq)
            print *,'esatf,qsatgf,ewwwa ',esatf,qsatgf,ewwwa
            prz = rho(iq)*cp*taftfh(iq)
-           beta =      rmc(iq)/rmcmax(iq)
+           beta =      cansto(iq)/rmcmax(iq)
            devf= (hl*hlars/300.**2)*qsatgf*(1.-beta)/res(iq)
            dirad1 = 4.*rdg(iq)/300.
            print *,'beta,airr,res ',beta,airr(iq),res(iq)
@@ -1582,7 +1587,7 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
 !cdir nodep
       do ip=1,ipland  ! all land points in this nsib=3 loop
        iq=iperm(ip)
-       if(rmc(iq)<1.e-10)rmc(iq)=0.  ! to avoid underflow 24/1/06
+       if(cansto(iq)<1.e-10)cansto(iq)=0.  ! to avoid underflow 24/1/06
        if(tsigmf(iq) <= .0101) then
          condxpr(iq)=condx(iq)
          evapfb(iq) = 0.
@@ -1620,7 +1625,7 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
      .           ,tgg(iq,1),t(iq,1),theta(iq),tscrn(iq)
          print *,'qg1,qsttg ',qg(iq,1),qsttg(iq)
          print *,'dfgdt,taftfhg,rho ',dfgdt(iq),taftfhg(iq),rho(iq)
-         print *,'rmc,rmcmax(iq) ',rmc(iq),rmcmax(iq)
+         print *,'rmc,rmcmax(iq) ',cansto(iq),rmcmax(iq)
          if(abs(tgf(iq)-otgf(iq))>4.9)
      .      write(6,"('ktau,iq,otgf,tgf,dtgf,t1,t2',i4,i6,5f8.2)")
      .        ktau,iq,otgf(iq),tgf(iq),tgf(iq)-otgf(iq),t(iq,1),t(iq,2)

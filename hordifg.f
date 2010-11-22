@@ -2,7 +2,10 @@
 !     usual scheme
       use cc_mpi
       use diag_m
+      use indices_m
+      use map_m
       use tkeeps, only : tke,eps,shear,ww,dwdx,dwdy ! MJT tke
+      use vecsuv_m
       implicit none
 !      integer, parameter :: nhorjlm=1 ! 1 for jlm 3D deformation rather than Smagorinsky
 c     called from globpe (now not tendencies),
@@ -20,12 +23,9 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       include 'newmpar.h'
       include 'arrays.h'
       include 'const_phys.h'
-      include 'indices.h'
-      include 'map.h'
       include 'nlin.h'
       include 'parm.h'
       include 'sigs.h'
-      include 'vecsuv.h'   ! vecsuv info
       include 'vvel.h'
  
       integer nhor,nhorps,khor,khdif,nhorjlm

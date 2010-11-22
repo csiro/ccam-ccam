@@ -1,5 +1,6 @@
       subroutine amipsst
       use cc_mpi
+      use latlong_m
       use mlo, only : mloexport,sssb ! MJT mlo
       implicit none
 !     this one primarily does namip>=2      
@@ -13,29 +14,23 @@
       include 'newmpar.h'
       include 'arrays.h'    ! ts, t, u, v, psl, ps, zs
       include 'dates.h'     !  kdate,ktime,timer,mtimer
-      include 'filnames.h'  ! list of files
-      include 'latlong.h'
       include 'nsibd.h'     ! res  for saving SST bias during month
       include 'parm.h'      ! id,jd
-      include 'parmgeom.h'  ! rlong0,rlat0,schmidt
       include 'pbl.h'       ! tss
       include 'permsurf.h'  ! iperm etc
       include 'soil.h'      ! ,tice, alb
       include 'soilsnow.h'  ! fracice,sicedep
       include 'mpif.h'
-      real, dimension(ifull_g) :: ssta_g
       real, save, dimension(ifull) :: ssta, sstb, sstc, aice, bice, cice
       real, save, dimension(ifull) :: asal, bsal, csal
       real fraciceb, dum2b, x, c2, c3, c4
       common/work2b/fraciceb(ifull),dum2b(ifull,2)
-      character*22 header
       integer, parameter, dimension(0:13) :: mdays =
      &     (/ 31, 31,28,31,30,31,30,31,31,30,31,30,31, 31 /)
-      integer iyr, imo, iday, iyr_m, imo_m, imonth, iyear, idjd_g, iq
+      integer iyr, imo, iday, iyr_m, imo_m, idjd_g, iq
       save iyr,imo,iday,iyr_m,imo_m
       real rat1, rat2
-      integer il_in,jl_in
-      real rlon_in,rlat_in,schmidt_in
+      integer k
       integer, parameter :: mlomode = 1 ! (0=relax, 1=scale-select)    ! MJT mlo
       integer, parameter :: mlotime = 6 ! scale-select period in hours ! MJT mlo
 
@@ -45,7 +40,7 @@
         iyr=kdate/10000
         imo=(kdate-10000*iyr)/100
         iday=kdate-10000*iyr-100*imo  +mtimer/(60*24)
-        print *,'at start of amipsst for iyr,imo,iday ',iyr,imo,iday
+        !print *,'at start of amipsst for iyr,imo,iday ',iyr,imo,iday
         do while (iday>mdays(imo))
          iday=iday-mdays(imo)
          imo=imo+1
@@ -58,135 +53,8 @@
 
       if ( myid == 0 ) then 
         if(ktau==0)then
-          iyr_m=iyr
-          imo_m=imo-1
-          if(imo_m==0)then
-            imo_m=12
-            iyr_m=iyr-1
-            if(namip==-1)iyr_m=0
-          endif
-          open(unit=75,file=sstfile,status='old',form='formatted')
-	  iyear=-999
-          imonth=-999	  
-	  do while(iyr_m.ne.iyear.or.imo_m.ne.imonth)
-           print *,'about to read amipsst file'
-           read(75,*)
-     &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-           write(6,'("reading sst ",i2,i5,2i4,2f6.1,f7.4,1x,a22)')
-     &      imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-           if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
-     &       rlat0/=rlat_in.or.schmidt/=schmidt_in)then
-            write(0,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
-     &                  il_g,il_in,jl_g,jl_in,rlong0,rlon_in
-            write(0,*) 'rlat0,rlat_in,schmidt,schmidt_in',
-     &                  rlat0,rlat_in,schmidt,schmidt_in
-            write(0,*) 'wrong amipsst file'
-            stop
-           endif
-           read(75,*) ssta_g
-           ssta_g(:)=ssta_g(:)*.01 -50. +273.16
-           print *,'want imo_m,iyr_m; ssta ',imo_m,iyr_m,ssta_g(idjd_g)
-          enddo
-	  call ccmpi_distribute(ssta, ssta_g)
-
-          read(75,'(i2,i5,a22)') imonth,iyear,header
-          print *,'reading sstb data:',imonth,iyear,header
-          print *,'should agree with imo,iyr ',imo,iyr
-          if(iyr.ne.iyear.or.imo.ne.imonth)stop
-          read(75,*) ssta_g
-          ssta_g(:)=ssta_g(:)*.01 -50. +273.16
-          print *,'sstb(idjd) ',ssta_g(idjd_g)
-	  call ccmpi_distribute(sstb, ssta_g)
-	  
-c         extra read from Oct 08        
-          read(75,'(i2,i5,a22)') imonth,iyear,header
-          print *,'reading sstc data:',imonth,iyear,header
-          read(75,*) ssta_g
-          ssta_g(:)=ssta_g(:)*.01 -50. +273.16
-          print *,'sstc(idjd) ',ssta_g(idjd_g)
-          call ccmpi_distribute(sstc, ssta_g)	  
-  
-          if(namip>=2)then   ! sice also read at middle of month
-           open(unit=76,file=icefile,status='old',form='formatted')
-	   iyear=-999
-	   imonth=-999	   
-	   do while(iyr_m.ne.iyear.or.imo_m.ne.imonth)
-            read(76,*)
-     &       imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-            write(6,'("reading ice ",i2,i5,2i4,2f6.1,f6.3,a22)')
-     &        imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-            if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
-     &         rlat0/=rlat_in.or.schmidt/=schmidt_in)then
-              write(0,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
-     &                    il_g,il_in,jl_g,jl_in,rlong0,rlon_in
-              write(0,*) 'rlat0,rlat_in,schmidt,schmidt_in',
-     &                    rlat0,rlat_in,schmidt,schmidt_in
-              write(0,*) 'wrong amipice file'
-              stop
-            endif
-            read(76,*) ssta_g
-            print *,'want imo_m,iyr_m; aice ',imo_m,iyr_m,ssta_g(idjd_g)
-           enddo
-           call ccmpi_distribute(aice, ssta_g)
-	    
-           read(76,'(i2,i5,a22)') imonth,iyear,header
-           print *,'reading b_sice data:',imonth,iyear,header
-           print *,'should agree with imo,iyr ',imo,iyr
-           if(iyr.ne.iyear.or.imo.ne.imonth)stop
-           read(76,*) ssta_g
-           print *,'bice(idjd) ',ssta_g(idjd_g)
-           call ccmpi_distribute(bice, ssta_g)
-	    	    
-c          extra cice read from Oct 08        
-           read(76,'(i2,i5,a22)') imonth,iyear,header
-           print *,'reading c_sice data:',imonth,iyear,header
-           read(76,*) ssta_g
-           print *,'cice(idjd) ',ssta_g(idjd_g)
-           call ccmpi_distribute(cice, ssta_g)
-	    	    
-          endif   ! (namip>=2) 
-	  if (namip>=5) then
-           open(unit=77,file=salfile,status='old',form='formatted')
-	   iyear=-999
-	   imonth=-999
-	   do while (iyr_m.ne.iyear.or.imo_m.ne.imonth)
-            read(77,*)
-     &       imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-            write(6,'("reading sal ",i2,i5,2i4,2f6.1,f6.3,a22)')
-     &       imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
-            if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
-     &          rlat0/=rlat_in.or.schmidt/=schmidt_in)then
-              write(0,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
-     &                    il_g,il_in,jl_g,jl_in,rlong0,rlon_in
-              write(0,*) 'rlat0,rlat_in,schmidt,schmidt_in',
-     &                    rlat0,rlat_in,schmidt,schmidt_in
-              write(0,*) 'wrong sal file'
-              stop
-            endif
-            read(77,*) ssta_g
-            print *,'want imo_m,iyr_m; asal ',imo_m,iyr_m,ssta_g(idjd_g)
-           end do
-           call ccmpi_distribute(asal, ssta_g)
-	   
-           read(77,'(i2,i5,a22)') imonth,iyear,header
-           print *,'reading b_sal data:',imonth,iyear,header
-           print *,'should agree with imo,iyr ',imo,iyr
-           if(iyr.ne.iyear.or.imo.ne.imonth)stop
-           read(77,*) ssta_g
-           print *,'bsal(idjd) ',ssta_g(idjd_g)
-           call ccmpi_distribute(bsal, ssta_g)
-	   
-           read(77,'(i2,i5,a22)') imonth,iyear,header
-           print *,'reading c_sal data:',imonth,iyear,header
-           read(77,*) ssta_g
-           print *,'cice(idjd) ',ssta_g(idjd_g)
-           call ccmpi_distribute(csal, ssta_g)
-	   	   
-	  else
-	   asal=0.
-	   bsal=0.
-	   csal=0.
-	  endif
+          call amiprd(ssta,sstb,sstc,aice,bice,cice,asal,bsal,csal,
+     &                namip,iyr,imo,idjd_g)
         endif     ! (ktau==0)
       else
         if (ktau==0) then
@@ -203,11 +71,11 @@ c          extra cice read from Oct 08
           call ccmpi_distribute(bsal)
           call ccmpi_distribute(csal)
          else
-	  asal=0.
-	  bsal=0.
-	  csal=0.      
-	 endif
-	endif
+          asal=0.
+          bsal=0.
+          csal=0.      
+         endif
+        endif
       endif ! myid==0
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!      
 !     Each day interpolate-in-time non-land sst's
@@ -230,7 +98,7 @@ c          c1=0.
       if(namip==-1)print *,'later_a ktau,res,tss ',
      &                             ktau,res(idjd),tss(idjd)
       x=(iday-1.)/mdays(imo)  ! simplest at end of day
-      if(myid==0)print *,'month_imo,iday,x',imo,iday,x
+      !if(myid==0)print *,'month_imo,iday,x',imo,iday,x
       if(namip==2)then
         if(iday<mdays(imo)/2)then  ! 1st half of month
           rat1=(mdays(imo)-2.*iday)/(mdays(imo)+mdays(imo-1))
@@ -289,7 +157,7 @@ c       c1=0.
          fraciceb(iq)=min(.01*bice(iq),1.)
         enddo
       endif  ! (namip==3)
-      if(namip==4)then
+      if(namip>=4)then
         do iq=1,ifull  
            c2=aice(iq)
            c3=aice(iq)+bice(iq)
@@ -302,17 +170,18 @@ c       c1=0.
         if (.not.allocated(sssb)) then
           allocate(sssb(ifull))
         end if
+        sssb=0.
         do iq=1,ifull  
            c2=asal(iq)
            c3=asal(iq)+bsal(iq)
            c4=c3+csal(iq)          
-           sssb(iq)=min(.01*(.5*c3+(4.*c3-5.*c2-c4)*x
-     &                     +1.5*(c4+3.*c2-3.*c3)*x*x),1.)
+           sssb(iq)=.5*c3+(4.*c3-5.*c2-c4)*x
+     &              +1.5*(c4+3.*c2-3.*c3)*x*x
         enddo
 	sssb=max(sssb,0.)
       endif
-      if(mydiag)print *,'ktau,ssta,sstb,sstc,tgg1: ',
-     &                 ktau,ssta(idjd),sstb(idjd),sstc(idjd),tgg(idjd,1)
+!      if(mydiag)print *,'ktau,ssta,sstb,sstc,tgg1: ',
+!     &                 ktau,ssta(idjd),sstb(idjd),sstc(idjd),tgg(idjd,1)
       do iq=1,ifull
         if(fraciceb(iq)<=.02)fraciceb(iq)=0.
       enddo
@@ -362,10 +231,171 @@ c       c1=0.
             write(6,*) "ERROR: Unknown mlomode ",mlomode
             stop
         end select
-        call mloexport(0,tgg(:,1),1,0)        
+        do k=1,3
+          call mloexport(0,tgg(:,k),k,0)
+        end do
       end if
       !--------------------------------------------------------------
-      if (mydiag)print *,'ktau,sicedep,aice,bice,cice,fracice: ',
-     & ktau,sicedep(idjd),aice(idjd),bice(idjd),cice(idjd),fracice(idjd)
+!      if (mydiag)print *,'ktau,sicedep,aice,bice,cice,fracice: ',
+!     & ktau,sicedep(idjd),aice(idjd),bice(idjd),cice(idjd),fracice(idjd)
       return
       end
+      
+      subroutine amiprd(ssta,sstb,sstc,aice,bice,cice,asal,bsal,csal,
+     &                  namip,iyr,imo,idjd_g)
+      
+      use cc_mpi
+      
+      implicit none
+      
+      include 'newmpar.h'
+      include 'filnames.h'  ! list of files
+      include 'parmgeom.h'  ! rlong0,rlat0,schmidt      
+      
+      integer, intent(in) :: namip,iyr,imo,idjd_g
+      integer imonth,iyear,il_in,jl_in,iyr_m,imo_m
+      real, dimension(ifull), intent(out) :: ssta,sstb,sstc
+      real, dimension(ifull), intent(out) :: aice,bice,cice
+      real, dimension(ifull), intent(out) :: asal,bsal,csal
+      real, dimension(ifull_g) :: ssta_g
+      real rlon_in,rlat_in,schmidt_in
+      character*22 header
+
+      iyr_m=iyr
+      imo_m=imo-1
+      if(imo_m==0)then
+        imo_m=12
+        iyr_m=iyr-1
+        if(namip==-1)iyr_m=0
+      endif      
+
+      open(unit=75,file=sstfile,status='old',form='formatted')
+	iyear=-999
+      imonth=-999	  
+	do while(iyr_m.ne.iyear.or.imo_m.ne.imonth)
+        write(6,*) 'about to read amipsst file'
+        read(75,*)
+     &    imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+        write(6,'("reading sst ",i2,i5,2i4,2f6.1,f7.4,1x,a22)')
+     &    imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+        if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
+     &    rlat0/=rlat_in.or.schmidt/=schmidt_in)then
+          write(0,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
+     &                il_g,il_in,jl_g,jl_in,rlong0,rlon_in
+          write(0,*) 'rlat0,rlat_in,schmidt,schmidt_in',
+     &                rlat0,rlat_in,schmidt,schmidt_in
+          write(0,*) 'wrong amipsst file'
+          stop
+        endif
+        read(75,*) ssta_g
+        ssta_g(:)=ssta_g(:)*.01 -50. +273.16
+        write(6,*) 'want imo_m,iyr_m; ssta ',imo_m,iyr_m,ssta_g(idjd_g)
+      enddo
+	call ccmpi_distribute(ssta, ssta_g)
+
+      read(75,'(i2,i5,a22)') imonth,iyear,header
+      write(6,*) 'reading sstb data:',imonth,iyear,header
+      write(6,*) 'should agree with imo,iyr ',imo,iyr
+      if(iyr.ne.iyear.or.imo.ne.imonth)stop
+      read(75,*) ssta_g
+      ssta_g(:)=ssta_g(:)*.01 -50. +273.16
+      write(6,*) 'sstb(idjd) ',ssta_g(idjd_g)
+	call ccmpi_distribute(sstb, ssta_g)
+	  
+c     extra read from Oct 08        
+      read(75,'(i2,i5,a22)') imonth,iyear,header
+      write(6,*) 'reading sstc data:',imonth,iyear,header
+      read(75,*) ssta_g
+      ssta_g(:)=ssta_g(:)*.01 -50. +273.16
+      write(6,*) 'sstc(idjd) ',ssta_g(idjd_g)
+      call ccmpi_distribute(sstc, ssta_g)
+      close(75)
+  
+      if(namip>=2)then   ! sice also read at middle of month
+        open(unit=76,file=icefile,status='old',form='formatted')
+	  iyear=-999
+	  imonth=-999	   
+	  do while(iyr_m.ne.iyear.or.imo_m.ne.imonth)
+          read(76,*)
+     &     imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+          write(6,'("reading ice ",i2,i5,2i4,2f6.1,f6.3,a22)')
+     &     imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+          if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
+     &      rlat0/=rlat_in.or.schmidt/=schmidt_in)then
+            write(0,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
+     &                  il_g,il_in,jl_g,jl_in,rlong0,rlon_in
+            write(0,*) 'rlat0,rlat_in,schmidt,schmidt_in',
+     &                  rlat0,rlat_in,schmidt,schmidt_in
+            write(0,*) 'wrong amipice file'
+            stop
+          endif
+          read(76,*) ssta_g
+          write(6,*) 'want imo_m,iyr_m; aice ',imo_m,iyr_m,
+     &                ssta_g(idjd_g)
+        enddo
+        call ccmpi_distribute(aice, ssta_g)
+	   
+        read(76,'(i2,i5,a22)') imonth,iyear,header
+        write(6,*) 'reading b_sice data:',imonth,iyear,header
+        write(6,*) 'should agree with imo,iyr ',imo,iyr
+        if(iyr.ne.iyear.or.imo.ne.imonth)stop
+        read(76,*) ssta_g
+        write(6,*) 'bice(idjd) ',ssta_g(idjd_g)
+        call ccmpi_distribute(bice, ssta_g)
+	    	    
+c       extra cice read from Oct 08        
+        read(76,'(i2,i5,a22)') imonth,iyear,header
+        write(6,*) 'reading c_sice data:',imonth,iyear,header
+        read(76,*) ssta_g
+        write(6,*) 'cice(idjd) ',ssta_g(idjd_g)
+        call ccmpi_distribute(cice, ssta_g)
+        close(76)
+	    	    
+      endif   ! (namip>=2) 
+	if (namip>=5) then
+        open(unit=77,file=salfile,status='old',form='formatted')
+	  iyear=-999
+	  imonth=-999
+	  do while (iyr_m.ne.iyear.or.imo_m.ne.imonth)
+          read(77,*)
+     &     imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+          write(6,'("reading sal ",i2,i5,2i4,2f6.1,f6.3,a22)')
+     &     imonth,iyear,il_in,jl_in,rlon_in,rlat_in,schmidt_in,header
+          if(il_g/=il_in.or.jl_g/=jl_in.or.rlong0/=rlon_in.or.
+     &      rlat0/=rlat_in.or.schmidt/=schmidt_in)then
+            write(0,*) 'il_g,il_in,jl_g,jl_in,rlong0,rlon_in',
+     &                  il_g,il_in,jl_g,jl_in,rlong0,rlon_in
+            write(0,*) 'rlat0,rlat_in,schmidt,schmidt_in',
+     &                  rlat0,rlat_in,schmidt,schmidt_in
+            write(0,*) 'wrong sal file'
+            stop
+          endif
+          read(77,*) ssta_g
+          write(6,*) 'want imo_m,iyr_m; asal ',imo_m,iyr_m,
+     &                ssta_g(idjd_g)
+        end do
+        call ccmpi_distribute(asal, ssta_g)
+	   
+        read(77,'(i2,i5,a22)') imonth,iyear,header
+        write(6,*) 'reading b_sal data:',imonth,iyear,header
+        write(6,*) 'should agree with imo,iyr ',imo,iyr
+        if(iyr.ne.iyear.or.imo.ne.imonth)stop
+        read(77,*) ssta_g
+        write(6,*) 'bsal(idjd) ',ssta_g(idjd_g)
+        call ccmpi_distribute(bsal, ssta_g)
+	   
+        read(77,'(i2,i5,a22)') imonth,iyear,header
+        write(6,*) 'reading c_sal data:',imonth,iyear,header
+        read(77,*) ssta_g
+        write(6,*) 'cice(idjd) ',ssta_g(idjd_g)
+        call ccmpi_distribute(csal, ssta_g)
+        close(77)
+
+	else
+	  asal=0.
+	  bsal=0.
+	  csal=0.
+	endif
+      
+      return
+      end subroutine amiprd

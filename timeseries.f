@@ -71,6 +71,8 @@ c
       use cc_mpi, only : myid, indv_mpi, fproc, ipan
 !     rml 19/09/07 add tracname so that can be written to ts output file
       use tracermodule, only : sitefile,tracname
+      use vecsuv_m
+      use xyzinfo_m
       implicit none
       integer kount,kountprof,n,kount500
       integer ierr,ntrac
@@ -91,8 +93,6 @@ c
       include 'newmpar.h'  ! kl
       integer ip, nface, ii, jj, iqg, istn, jstn
 !     rml 19/09/07 arrays needed for wind conversion
-      include 'xyzinfo.h'     ! x, y, z
-      include 'vecsuv.h'      ! ax, ay, az
       include 'parmgeom.h'    ! rlong0, rlat0
       include 'const_phys.h'  ! pi
       logical windconv

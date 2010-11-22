@@ -1,7 +1,11 @@
       subroutine upglobal      ! globpea version   use ritchie 103
       use cc_mpi
       use diag_m
+      use indices_m
+      use map_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
+      use vecsuv_m
+      use xyzinfo_m
       implicit none
 !     parameter (nrot=1)       ! nrot=1 to rotate velocity vectors (parmdyn.h)
       integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
@@ -9,10 +13,8 @@
       include 'newmpar.h'
       include 'arrays.h'
       include 'const_phys.h'
-      include 'indices.h'
       include 'kuocom.h'   ! ldr
       include 'liqwpar.h'  ! ifullw
-      include 'map.h'
       include 'nlin.h'
       include 'parm.h'
       include 'parmdyn.h'  
@@ -20,10 +22,8 @@
       include 'parmvert.h'  
       include 'sigs.h'
       include 'tracers.h'
-      include 'vecsuv.h'   ! ax,bx etc
       include 'vvel.h'     ! sdot
       include 'xarrs.h'
-      include 'xyzinfo.h'  ! x,y,z,wts
       include 'mpif.h'
       real epst
       common/epst/epst(ifull)
@@ -397,6 +397,11 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
              call ints(tke,intsch,nface,xg,yg,5)   ! MJT tke
              call ints(eps,intsch,nface,xg,yg,5)   ! MJT tke
           endif                 ! nvmix.eq.6       ! MJT tke
+          !if (iaero==2) then                             ! MJT aerosols
+          !  do l=1,ntrac                                 ! MJT aerosols
+          !    call ints(xtg(:,:,l),intsch,nface,xg,yg,5) ! MJT aerosols
+          !  end do                                       ! MJT aerosols
+          !end if                                         ! MJT aerosols
        endif     ! mspec==1
        if(nh.ne.0)then
         call ints(h_nh,intsch,nface,xg,yg,2) ! 2?

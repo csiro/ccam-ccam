@@ -1,21 +1,21 @@
       subroutine updps(iadj)    
       use cc_mpi
       use diag_m             ! for calls to maxmin
+      use indices_m
+      use map_m
+      use vecsuv_m
+      use xyzinfo_m
       include 'newmpar.h'
       include 'arrays.h'
       include 'const_phys.h'
-      include 'indices.h'
-      include 'map.h'
       include 'nlin.h'  ! savs
       include 'savuvt.h'
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmhor.h'
       include 'sigs.h'
-      include 'vecsuv.h'   ! ax,bx etc
       include 'vvel.h'     ! sdot
       include 'xarrs.h'
-      include 'xyzinfo.h'  ! x,y,z,wts
       real derpsl(ifull),cc(ifull+iextra,kl),dd(ifull+iextra,kl)
       real d(ifull,kl)   ! NOT shared adjust5 or nonlin
       real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)

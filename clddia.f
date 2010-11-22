@@ -1,5 +1,6 @@
       subroutine clddia(rhum,sigf,cf,ktd,kbd,icld,i,j) ! jlm
       use cc_mpi, only : myid
+      use map_m
       parameter (maprhcrt=0)  ! 1 for grid size dependent rhcrit
       parameter (nconv_cld=0) ! 1,2,3 for convective enhancement of clouds
       parameter (ntest=0)     ! 0 to turn off test prints   jd ~ every 6th j
@@ -15,7 +16,6 @@
       include 'const_phys.h'
       include 'davb.h'      ! for qgg
       include 'kuocom.h'    ! for sigcll,nclddia,nstab_cld,nrhcrit
-      include 'map.h'       ! em
       include 'morepbl.h'   ! for condc
       include 'parm.h'      ! ds,id,jd
       include 'pbl.h'       ! for tss

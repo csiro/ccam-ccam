@@ -1,9 +1,13 @@
       subroutine adjust5
       use cc_mpi
       use diag_m
+      use indices_m
+      use map_m
 !     rml 19/09/07 replace gasmin from tracers.h with tracmin from tracermodule
       use tracermodule, only: tracmin
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
+      use vecsuv_m
+      use xyzinfo_m
       implicit none
       integer, parameter :: mfix_rad=0 ! used to make gases 2 to ng add up to gas 1
       integer, parameter :: ntest=0
@@ -14,10 +18,8 @@
       include 'newmpar.h'
       include 'arrays.h'
       include 'const_phys.h'
-      include 'indices.h'
       include 'kuocom.h'   ! ldr
       include 'liqwpar.h'  ! qfg,qlg
-      include 'map.h'
       include 'morepbl.h'  ! condx,eg
       include 'nlin.h'
       include 'parm.h'     ! qgmin
@@ -27,10 +29,8 @@
       include 'sigs.h'
       include 'tracers.h'
       include 'vecs.h'
-      include 'vecsuv.h'   ! vecsuv info
       include 'vvel.h'     ! sdot
       include 'xarrs.h'
-      include 'xyzinfo.h'
       include 'mpif.h'
       real dpsdt,dpsdtb,dpsdtbb,epst
       common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull) !globpe, adjust5,outcdf
@@ -836,6 +836,37 @@ c    &                               (grav*dt*dt)
         end do
       end if
       !--------------------------------------------------------------
+      
+      !--------------------------------------------------------------
+      ! MJT aerosols
+      !if (mfix_aero.ne.0.and.mspec==1.and.iaero==2) then
+      !  do l=1,ntrac
+      !    do k=1,kl
+      !      xtg(1:ifull,k,l)=xtg(1:ifull,k,l)*ps(1:ifull)
+      !      xtgsav(1:ifull,k,l)=xtgsav(1:ifull,k,l)*ps_sav(1:ifull)
+      !    end do
+!!    !    perform conservation fix on tke, eps as affected by vadv, hadv, hordif
+!!    !    N.B. won't cope with any -ves from conjob
+!!    !    delpos is the sum of all positive changes over globe
+!!    !    delneg is the sum of all negative changes over globe
+      !    wrk1(1:ifull,1:kl)=max(xtg(1:ifull,1:kl,l),0.)
+    ! &                    -xtgsav(1:ifull,1:kl,l) ! increments
+      !    call ccglobal_posneg(wrk1,delpos,delneg)
+      !    ratio = -delneg/max(delpos,1.e-30)
+      !    alph_q = min(ratio,sqrt(ratio))  ! best option
+!     !    this is cunning 2-sided scheme
+      !    xtg(1:ifull,:,l)=xtgsav(:,:,l)+
+    ! &       alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
+!     !       undo ps weighting
+      !    do k=1,kl
+      !      xtg(1:ifull,k,l)=xtg(1:ifull,k,l)/ps(1:ifull)
+      !    enddo    ! k  loop
+      !    do k=1,kl
+      !      xtgsav(1:ifull,k,l)=xtgsav(1:ifull,k,l)/ps_sav(1:ifull)
+      !    end do
+      !  end do
+      !end if
+      !--------------------------------------------------------------
 
       if ((diag.or.nmaxpr==1) .and. mydiag ) then
         print *,'at end of adjust5 for ktau= ',ktau
@@ -886,12 +917,12 @@ c    &                               (grav*dt*dt)
 
       subroutine adjust_init
       use cc_mpi
+      use indices_m
+      use map_m
       implicit none
       include 'newmpar.h'
       include 'parm.h'
       include 'parmdyn.h'
-      include 'indices.h'
-      include 'map.h'
       real zz(ifull),zzn(ifull),zze(ifull),zzw(ifull),
      &     zzs(ifull),pfact(ifull),alff(ifull+iextra),alf(ifull+iextra),
      &     alfe(ifull+iextra),alfn(ifull+iextra),alfu(ifull),alfv(ifull)

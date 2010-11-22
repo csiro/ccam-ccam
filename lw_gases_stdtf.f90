@@ -657,6 +657,7 @@ real,              intent(in)  :: ch4_vmr
 !--------------------------------------------------------------------
         if (ch4_vmr .LT. ch4_std_vmr(1) .OR.               &
             ch4_vmr .GT. ch4_std_vmr(number_std_ch4_vmrs)) then
+          write(6,*) "ch4 volume mixing ratio is out of range"
           !call error_mesg ('lw_gases_stdtf_mod', &
           !           'ch4 volume mixing ratio is out of range', FATAL)
           stop

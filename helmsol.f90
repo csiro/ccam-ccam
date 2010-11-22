@@ -8,10 +8,10 @@
 
       use cc_mpi
       use ilu_m
+      use indices_m
       use sumdd_m
       implicit none
       include 'newmpar.h'
-      include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
       include 'parm.h'
       include 'parmdyn.h'
       include 'mpif.h'

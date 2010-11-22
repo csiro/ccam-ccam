@@ -19,12 +19,15 @@
 /esfsw_driver.f90 -text
 /esfsw_parameters.f90 -text
 /gas_tf.f90 -text
+/indices_m.f90 -text
+/latlong_m.f90 -text
 /longwave_clouds.f90 -text
 /longwave_fluxes.f90 -text
 /longwave_params.f90 -text
 /longwave_tables.f90 -text
 /lw_gases_stdtf.f90 -text
 /makefile -text
+/map_m.f90 -text
 /microphys_rad.f90 -text
 /mlo.f90 -text
 /optical_path.f90 -text
@@ -37,4 +40,6 @@
 /soilsnin.h -text
 /stacklimit.c -text
 /tkeeps.f90 -text
+/vecsuv_m.f90 -text
 /vegpar.h -text
+/xyzinfo_m.f90 -text

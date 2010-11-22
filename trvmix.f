@@ -5,9 +5,9 @@
 c ***************************************************************************
       subroutine tracervmix(at,ct)
 !     next to lines in JLM version of tracervmix - not sure if need
-      use cc_mpi, only : mydiag,myid
+      use cc_mpi, only : mydiag
       use diag_m
-      use tracermodule, only :tracunit,tracname,unit_trout
+      use tracermodule, only :tracunit,tracname
 c     this routine does the vertical mixing of tracers
       implicit none
       include 'newmpar.h'
@@ -18,7 +18,7 @@ c     this routine does the vertical mixing of tracers
       real trsrc(ifull,kl)
       real updtr(ilt*jlt,klt,ngasmax),at(ifull,kl),ct(ifull,kl)
       real trfact,molfact,radfact,co2fact,gasfact
-      logical decay,methloss,mcfloss
+      logical decay
       integer igas
 
       trfact = grav * dt / dsig(1)
@@ -51,17 +51,9 @@ c         set it to zero
         endif
 c rml 05/12/05 also set decay for tracer name 'radon' in case not in Bq/m2/s
         if (trim(tracname(igas)).eq.'radon') decay=.true.
-
-! rml 16/2/10 check for methane tracers to set flag to do loss
-        methloss=.false.
-        if (tracname(igas)(1:7).eq.'methane') methloss=.true.
-! rml 30/4/10 check for mcf tracers to set flag to do loss
-        mcfloss = .false.
-        if (tracname(igas)(1:3).eq.'mcf') mcfloss=.true.
 c
-c rml 08/11/04 add decay flag 30/4/10 add mcfloss flag
-        call gasvmix(updtr(:,:,igas), gasfact, igas, decay,trsrc,
-     &               methloss,mcfloss)
+c rml 08/11/04 add decay flag
+        call gasvmix(updtr(:,:,igas), gasfact, igas, decay,trsrc)
       enddo
       call trimt(ngas,at,ct,updtr,0)
       tr(1:ilt*jlt,:,1:ngasmax)=updtr(1:ilt*jlt,:,1:ngasmax)
@@ -72,7 +64,6 @@ c ***************************************************************************
       subroutine trgassflux(igas,trsrc)
       use tracermodule, only :co2em,tractype,tracname,tracdaytime
       use define_dimensions, only : ncs, ncp ! Used in carbpool.h
-
 c     this routine put the correct tracer surface flux into trsrc
       implicit none
       include 'newmpar.h'
@@ -142,39 +133,19 @@ c       emissions from file
  101  stop 'unknown online tracer name or veg type number error'
       end subroutine
 c *****************************************************************
-      subroutine gasvmix(temptr,fluxfact,igas,decay,trsrc,methloss,
-     &                   mcfloss)
-! rml 16/2/10 addition for methane
-! rml 30/4/10 addition for mcf
-      use cc_mpi, only : myid
-      use tracermodule, only : oh,strloss,unit_trout,mcfdep,jmcf
+      subroutine gasvmix(temptr, fluxfact, igas, decay,trsrc)
 
       implicit none
       include 'newmpar.h'
-      include 'arrays.h'  ! ps,t,zs
+      include 'arrays.h'  ! ps
       include 'tracers.h' ! tr
       include 'parm.h'    ! dt
-      include 'const_phys.h' !eradsq,pi,grav
-      include 'xyzinfo.h' ! wts
-      include 'sigs.h'    ! disg,bet,betm
-      include 'mpif.h'
-
       real trsrc(ilt*jlt,kl)
       real temptr(ilt*jlt,klt)
-      real loss(ilt*jlt,kl)
-! rml 30/4/10 deposition for mcf
-      real dep(ilt*jlt),dz(ifull),zg1,zg2
 c rml 08/11/04 decay flag to all decay for radon
-      logical decay,methloss,mcfloss
+      logical decay
       real drate,fluxfact
       integer igas
-      real koh,totloss_l,totloss,kohmcf
-      parameter(koh=2.45e-12,kohmcf=1.64e-12)
-      integer ierr,k,iq
-
-! rml 30/4/10 Since decay, loss and deposition need total tracer field
-!  add trback in at start of this subroutine and remove again at end
-      tr(1:ilt*jlt,:,igas) = tr(1:ilt*jlt,:,igas)+trback_g(igas)
 
 c rml 08/11/04 decay rate for radon (using units of source, Bq/m2/s, to
 c indicate that radon and need decay
@@ -184,55 +155,10 @@ c indicate that radon and need decay
         drate = 1.
       endif
 c
-! rml 16/2/10 methane loss by OH and in stratosphere
-      if (methloss) then
-        loss(:,:) = tr(1:ilt*jlt,:,igas)*dt*
-     &     (koh*exp(-1775./t(1:ilt*jlt,:))*oh(:,:) + strloss(:,:))
-!
-!       calculate total loss
-        totloss_l = 0.
-        do k=1,kl
-          do iq=1,ilt*jlt
-            totloss_l = totloss_l + loss(iq,k)*dsig(k)*ps(iq)*wts(iq)
-          enddo
-        enddo
-        call MPI_Allreduce(totloss_l,totloss,1,MPI_REAL,MPI_SUM,
-     &                     MPI_COMM_WORLD,ierr)
-!       convert to TgCH4 and write out
-        if (myid == 0) then
-          totloss = -1.*totloss*4*pi*eradsq*fCH4_MolM/
-     &                 (grav*fAIR_MolM*1.e18)
-          write(unit_trout,*) 'Total loss',ktau,totloss
-!         accumulate loss over month
-          acloss_g(igas) = acloss_g(igas) + totloss
-        endif
-        dep=1.
-      elseif (mcfloss) then
-        loss(:,:) = tr(1:ilt*jlt,:,igas)*dt*
-     &     (kohmcf*exp(-1520./t(1:ilt*jlt,:))*oh(:,:) + jmcf(:,:))
-!       deposition
-!       calculate thickness of surface layer
-        do iq=1,ifull
-         zg1=bet(1)*t(iq,1)/grav
-         zg2=zg1+(bet(2)*t(iq,2)+betm(2)*t(iq,1))/grav
-         dz(iq) = 0.5*(zg1+zg2) - zs(iq)
-        enddo      ! iq loop
-
-        dep =  exp(-1.*mcfdep(:)*dt/dz)
-      else
-        loss = 0.
-        dep = 1.
-      endif
-
-      temptr(:,1) = tr(1:ilt*jlt,1,igas)*drate *dep(:)
+      temptr(:,1) = tr(1:ilt*jlt,1,igas)*drate 
      &              - fluxfact*trsrc(:,1)/ps(1:ilt*jlt)
-     &              - loss(:,1)
       temptr(:,2:kl) = tr(1:ilt*jlt,2:kl,igas)*drate 
-     &                 - loss(:,2:kl)
 
-!     remove trback from tr and temptr
-      tr(1:ilt*jlt,:,igas) = tr(1:ilt*jlt,:,igas)-trback_g(igas)
-      temptr(1:ilt*jlt,:) = temptr(1:ilt*jlt,:)-trback_g(igas)
 
       return
       end subroutine

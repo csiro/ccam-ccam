@@ -790,12 +790,12 @@ c ***************************************************************************
 c     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
       use cc_mpi
       use sumdd_m
+      use xyzinfo_m
       implicit none
       include 'newmpar.h'
       include 'const_phys.h' ! rearth,fc_molm,fair_molm
       include 'arrays.h'   ! ps
       include 'sigs.h'     ! dsig
-      include 'xyzinfo.h'  ! wts
       include 'tracers.h'  ! tr
       include 'mpif.h'
       integer it,iq,k,ktau,ntau,igas,ierr

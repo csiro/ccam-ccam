@@ -62,6 +62,7 @@ module cable_ccam
   ! CABLE-CCAM interface
   subroutine sib4
 
+  use latlong_m
   use zenith_m
   
   implicit none
@@ -73,7 +74,6 @@ module cable_ccam
   include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg
   include 'extraout.h'
   include 'histave.h'
-  include 'latlong.h'  ! rlatt,rlongg
   include 'morepbl.h'
   include 'nsibd.h'
   include 'parm.h'
@@ -117,6 +117,9 @@ module cable_ccam
   integer ndoy(12)   ! days from beginning of year (1st Jan is 0)
   data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
 
+  ! abort calculation if no land points on this processor  
+  if (mp.le.0) return
+
   ! Reset averages
   if (ktau==1.or.ktau-1==ntau.or.mod(ktau-1,nperavg)==0) then
     do k=1,ms
@@ -129,9 +132,6 @@ module cable_ccam
     frp_ave=0.
   end if
     
-  ! abort calculation if no land points on this processor  
-  if (mp.le.0) return
-
   ! Set soil moisture to presets when nrungcm.ne.0
   if (ktau==1.and.nrungcm.ne.0) then
     do k=1,ms ! use preset for wb
@@ -201,6 +201,12 @@ module cable_ccam
   where (veg%iveg.eq.15.or.veg%iveg.eq.16)
     veg%vlai=0.001
   endwhere
+  do nb=1,5
+    if (pind(nb,1).le.mp) then
+      sigmf(cmap(pind(nb,1):pind(nb,2)))=sigmf(cmap(pind(nb,1):pind(nb,2))) &
+        +sv(pind(nb,1):pind(nb,2))*(1.-exp(-extkn(veg%iveg(pind(nb,1):pind(nb,2)))*veg%vlai(pind(nb,1):pind(nb,2))))
+    end if
+  end do  
 
   met%tc=met%tk-273.16
   met%tvair=met%tk
@@ -344,7 +350,7 @@ module cable_ccam
       albvisdif(cmap(pind(nb,1):pind(nb,2)))=albvisdif(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*rad%reffdf(pind(nb,1):pind(nb,2),1)
       albnirdif(cmap(pind(nb,1):pind(nb,2)))=albnirdif(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*rad%reffdf(pind(nb,1):pind(nb,2),2)                                                                                        
+                                        +sv(pind(nb,1):pind(nb,2))*rad%reffdf(pind(nb,1):pind(nb,2),2)
       runoff(cmap(pind(nb,1):pind(nb,2)))=runoff(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*ssoil%runoff(pind(nb,1):pind(nb,2))
       rnof1(cmap(pind(nb,1):pind(nb,2)))=rnof1(cmap(pind(nb,1):pind(nb,2))) &
@@ -568,16 +574,15 @@ module cable_ccam
   subroutine loadcbmparm(fveg,fvegprev,fvegnext)
 
   use cc_mpi
+  use latlong_m
   
   implicit none
   
   include 'newmpar.h'
   include 'const_phys.h'
   include 'carbpools.h'
-  include 'latlong.h'  
   include 'nsibd.h'
   include 'parm.h'
-  include 'parmgeom.h'  ! rlong0,rlat0,schmidt
   include 'pbl.h'
   include 'sigs.h'
   include 'soil.h'
@@ -585,17 +590,12 @@ module cable_ccam
   include 'soilv.h'
   include 'vegpar.h' !   
 
-  integer(i_d), dimension(ifull_g,5) :: ivsg
   integer(i_d), dimension(ifull,5) :: ivs
-  integer(i_d) iq,n,k,iad,ipos,isoil
-  real(r_1) :: totdepth,ra,rb
+  integer(i_d) iq,n,k,ipos,isoil
+  real(r_1) :: totdepth
   real(r_1), dimension(mxvt,ms) :: froot2
-  real(r_1), dimension(ifull_g,5) :: svsg,vling
   real(r_1), dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
   character(len=*), intent(in) :: fveg,fvegprev,fvegnext
-  integer ilx,jlx
-  real rlong0x,rlat0x,schmidtx,dsx
-  character(len=47) header
 
   if (myid == 0) write(6,*) "Setting CABLE defaults (igbp)"
   
@@ -654,64 +654,9 @@ module cable_ccam
   end if
 
   if (myid==0) then
-    write(6,*) "Reading land-use data for CABLE"
-    if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
-      open(87,file=fvegprev,status='old')
-      read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-      if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
-      do iq=1,ifull_g
-        read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
-                   ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
-      end do
-      close(87)
-      do n=1,5
-        call ccmpi_distribute(vlinprev(:,n),vling(:,n))
-      end do
-      open(87,file=fvegnext,status='old')
-      read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-      if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
-      do iq=1,ifull_g
-        read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
-                   ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
-      end do
-      close(87)
-      do n=1,5
-        call ccmpi_distribute(vlinnext(:,n),vling(:,n))
-      end do      
-    else
-      vlinprev=-1.
-      vlinnext=-1.    
-    end if
-    open(87,file=fveg,status='old')
-    read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-    if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
-    do iq=1,ifull_g
-      read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
-                 ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
-    end do
-    close(87)
-    do n=1,5
-      call ccmpi_distribute(ivs(:,n),ivsg(:,n))
-      call ccmpi_distribute(svs(:,n),svsg(:,n))
-      call ccmpi_distribute(vlin(:,n),vling(:,n))
-    end do
+    call vegta(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
   else
-    if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
-      do n=1,5
-        call ccmpi_distribute(vlinprev(:,n))
-      end do
-      do n=1,5
-        call ccmpi_distribute(vlinnext(:,n))
-      end do
-    else
-      vlinprev=-1.
-      vlinnext=-1.
-    end if    
-    do n=1,5
-      call ccmpi_distribute(ivs(:,n))
-      call ccmpi_distribute(svs(:,n))
-      call ccmpi_distribute(vlin(:,n))
-    end do
+    call vegtb(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
   end if
   do n=1,5
     svs(:,n)=svs(:,n)/sum(svs,2)
@@ -826,10 +771,13 @@ module cable_ccam
       stop
     end if
 
+    sigmf=0.
     do n=1,5
       if (pind(n,1).le.mp) then
         vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
                                         +vl1(pind(n,1):pind(n,2))*sv(pind(n,1):pind(n,2))
+        sigmf(cmap(pind(n,1):pind(n,2)))=sigmf(cmap(pind(n,1):pind(n,2))) &
+          +sv(pind(n,1):pind(n,2))*(1.-exp(-extkn(veg%iveg(pind(n,1):pind(n,2)))*veg%vlai(pind(n,1):pind(n,2))))
       end if
     end do
   
@@ -898,13 +846,8 @@ module cable_ccam
     soil%ibp2    = ibp2(soil%isoilm)
     soil%i2bp3   = i2bp3(soil%isoilm)
     soil%pwb_min = (soil%swilt / soil%ssat )**soil%ibp2
- 
     bgc%ratecp(:) = ratecp(:)
     bgc%ratecs(:) = ratecs(:)
-  
-    where (land)
-      sigmf=(1.-exp(-extkn(ivegt(:))*vlai(:)))
-    end where
 
     ! store bare soil albedo and define snow free albedo
     where (land)
@@ -1037,6 +980,103 @@ module cable_ccam
   return
   end subroutine getc4
 
+! *************************************************************************************
+  subroutine vegta(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
+  
+  use cc_mpi
+  
+  implicit none
+  
+  include 'newmpar.h'
+  include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
+  
+  character(len=*), intent(in) :: fveg,fvegprev,fvegnext
+  integer(i_d), dimension(ifull,5), intent(out) :: ivs
+  integer(i_d), dimension(ifull_g,5) :: ivsg  
+  integer n,iq,ilx,jlx,iad  
+  real(r_1), dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
+  real(r_1), dimension(ifull_g,5) :: svsg,vling
+  real rlong0x,rlat0x,schmidtx,dsx,ra,rb
+  character(len=47) header  
+
+  write(6,*) "Reading land-use data for CABLE"
+  if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
+    open(87,file=fvegprev,status='old')
+    read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+    if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
+    do iq=1,ifull_g
+      read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
+                 ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
+    end do
+    close(87)
+    do n=1,5
+      call ccmpi_distribute(vlinprev(:,n),vling(:,n))
+    end do
+    open(87,file=fvegnext,status='old')
+    read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+    if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
+    do iq=1,ifull_g
+      read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
+                 ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
+    end do
+    close(87)
+    do n=1,5
+      call ccmpi_distribute(vlinnext(:,n),vling(:,n))
+    end do      
+  else
+    vlinprev=-1.
+    vlinnext=-1.    
+  end if
+  open(87,file=fveg,status='old')
+  read(87,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+  if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt) stop 'wrong data file supplied'
+  do iq=1,ifull_g
+    read(87,*) iad,ra,rb,ivsg(iq,1),svsg(iq,1),vling(iq,1),ivsg(iq,2),svsg(iq,2),vling(iq,2),ivsg(iq,3),svsg(iq,3),vling(iq,3), &
+               ivsg(iq,4),svsg(iq,4),vling(iq,4),ivsg(iq,5),svsg(iq,5),vling(iq,5)
+  end do
+  close(87)
+  do n=1,5
+    call ccmpi_distribute(ivs(:,n),ivsg(:,n))
+    call ccmpi_distribute(svs(:,n),svsg(:,n))
+    call ccmpi_distribute(vlin(:,n),vling(:,n))
+  end do
+  
+  return
+  end subroutine vegta
+  
+  subroutine vegtb(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
+  
+  use cc_mpi
+  
+  implicit none
+
+  include 'newmpar.h'
+
+  character(len=*), intent(in) :: fveg,fvegprev,fvegnext
+  integer(i_d), dimension(ifull,5), intent(out) :: ivs
+  integer n,iq
+  real(r_1), dimension(ifull,5), intent(out) :: svs,vlinprev,vlin,vlinnext
+
+  if (fvegprev.ne.' '.and.fvegnext.ne.' ') then
+    do n=1,5
+      call ccmpi_distribute(vlinprev(:,n))
+    end do
+    do n=1,5
+      call ccmpi_distribute(vlinnext(:,n))
+    end do
+  else
+    vlinprev=-1.
+    vlinnext=-1.
+  end if    
+  do n=1,5
+    call ccmpi_distribute(ivs(:,n))
+    call ccmpi_distribute(svs(:,n))
+    call ccmpi_distribute(vlin(:,n))
+  end do
+  
+  return
+  end subroutine vegtb
+
 ! *************************************************************************************  
   subroutine loadtile
 
@@ -1160,13 +1200,15 @@ module cable_ccam
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,albvisnir(:,2),ifull)        
   end if
   
-  ssoil%wb=max(ssoil%wb,0.)
-  ssoil%wbice=max(ssoil%wbice,0.)
-  ssoil%smass=max(ssoil%smass,0.)
-  ssoil%rtsoil=max(ssoil%rtsoil,0.)
-  canopy%cansto=max(canopy%cansto,0.)
-  bgc%cplant=max(bgc%cplant,0.)
-  bgc%csoil=max(bgc%csoil,0.)
+  if (mp.gt.0) then
+    ssoil%wb=max(ssoil%wb,0.)
+    ssoil%wbice=max(ssoil%wbice,0.)
+    ssoil%smass=max(ssoil%smass,0.)
+    ssoil%rtsoil=max(ssoil%rtsoil,0.)
+    canopy%cansto=max(canopy%cansto,0.)
+    bgc%cplant=max(bgc%cplant,0.)
+    bgc%csoil=max(bgc%csoil,0.)
+  end if
   
   return
   end subroutine loadtile

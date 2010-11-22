@@ -4,6 +4,9 @@
 !     N.B. nevapcc option has been removed   
       use cc_mpi, only : mydiag, myid
       use diag_m
+      use indices_m
+      use latlong_m
+      use map_m
       use tkeeps, only : tke,eps ! MJT
       implicit none
       integer itn,iq,k,k13,k23,kcl_top
@@ -49,11 +52,8 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       include 'arrays.h'
       include 'const_phys.h'
       include 'dava.h'     ! davt
-      include 'indices.h'  ! for -ve alfsea
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
-      include 'latlong.h'  ! rlatt
       include 'liqwpar.h'  ! ifullw
-      include 'map.h'      ! land
       include 'morepbl.h'
       include 'nlin.h'
       include 'parm.h'
@@ -1455,6 +1455,34 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
          endif
         enddo   ! iq loop        
       end if
+      !--------------------------------------------------------------
+      
+      !--------------------------------------------------------------
+      ! MJT aerosols
+      !if (iaero==2) then
+      !  xtu=0.
+      !  call convscav(fscav)
+      !  do l=1,ntrac
+      !    s(:,1:kl-2)=xtg(1:ifull,1:kl-2,l)
+      !    do iq=1,ifull
+      !     if(kt_sav(iq)<kl-1)then
+      !       kb=kb_sav(iq)
+      !       kt=kt_sav(iq)
+      !       veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+      !       fluxup=veldt*s(iq,kb)*(1.-fscav(iq)) ! MJT suggestion
+!     !       remove aerosol from cloud base layer
+      !       xtg(iq,kb,l)=xtg(iq,kb,l)-fluxup/dsk(kb)
+!     !       put flux of tke into top convective layer
+      !       xtg(iq,kt,l)=xtg(iq,kt,l)+fluxup/dsk(kt)
+      !       xtu(iq,:,l)=xtg(iq,:,l) ! MJT suggestion
+      !       do k=kb+1,kt
+      !        xtg(iq,k,l)=xtg(iq,k,l)-s(iq,k)*veldt/dsk(k)
+      !        xtg(iq,k-1,l)=xtg(iq,k-1,l)+s(iq,k)*veldt/dsk(k-1)
+      !       enddo
+      !     endif
+      !    enddo   ! iq loop
+      !  end do
+      !end if
       !--------------------------------------------------------------
       
       if((ntest>0.or.diag).and.mydiag)then

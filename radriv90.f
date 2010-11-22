@@ -11,14 +11,15 @@
 ! N.B. (iq) indexing is still OK whether arrays have i dimension
 !       of il or imax, because j advances sensibly
 
-      use swr99_m
-      use zenith_m
-      use cc_mpi
-      use diag_m
       use ateb ! MJT urban 
       use cable_ccam, only : CABLE ! MJT cable
+      use cc_mpi
+      use diag_m
+      use latlong_m
       use mlo ! MJT mlo
       use ozoneread ! MJT radiation
+      use swr99_m
+      use zenith_m
       include 'newmpar.h'
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
 !        for diag prints set ntest=1
@@ -31,7 +32,6 @@
       include 'dates.h'      ! timer,kdate,ktime,dt,mtimer
       include 'extraout.h'   ! sintsave, etc
       include 'kuocom.h'     ! also with kbsav,ktsav
-      include 'latlong.h'    ! rlatt,rlongg
       include 'liqwpar.h'    ! ifullw
       include 'nsibd.h'      ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
@@ -502,6 +502,13 @@ c       Stuff needed for cloud2 routine...
           enddo
         enddo
       endif  ! (ldr.ne.0)
+      
+      !--------------------------------------------------------------
+      ! MJT aerosols
+      !if (iaero==2) then
+      !  call cldrop(cd2,rhoa)
+      !end if
+      !--------------------------------------------------------------
 
 c  Clear sky calculation
       if (clforflag) then

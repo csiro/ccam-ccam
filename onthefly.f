@@ -14,6 +14,7 @@
 !     nested=0  for calls from indata; 1  for calls from nestin     
       use cc_mpi
       use utilities
+      use vecsuv_m
       implicit none
       integer, parameter :: ntest=0
       integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
@@ -28,7 +29,6 @@
       include 'soil.h'
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
       include 'tracers.h'
-      include 'vecsuv_g.h'
       include 'vvel.h'
       include 'mpif.h'
       !real sigin ! MJT vertint
@@ -150,10 +150,12 @@ c     start of processing loop
       use cc_mpi
       use ateb, only : atebdwn ! MJT urban
       use define_dimensions, only : ncs, ncp ! MJT cable
+      use latlong_m
       use mlo, only : wlev,mlodwn,ocndwn,micdwn,mlootf,ocnotf,micotf,
      &                sssb ! MJT mlo
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       use utilities
+      use vecsuv_m
       implicit none
       integer, parameter :: ntest=0
       integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
@@ -170,7 +172,6 @@ c**   onthefly; sometime can get rid of common/bigxy4
       include 'carbpools.h' ! MJT cable      
       include 'const_phys.h'
       include 'darcdf.h' ! MJT small otf
-      include 'latlong_g.h'  ! rlatt_g,rlongg_g,
       include 'morepbl.h'  ! MJT vertint
       include 'netcdf.inc' ! MJT vertint
 c     include 'map.h'  ! zs,land & used for giving info after all setxyz
@@ -181,7 +182,6 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       include 'soil.h'
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
       include 'tracers.h'
-      include 'vecsuv_g.h'
       include 'vvel.h'
       include 'mpif.h'
 
@@ -605,8 +605,21 @@ ccc      if ( myid==0 ) then
         call doints4(pmsl_a,pmsl, nface4,xg4,yg4,nord,ik)
 !       invert pmsl to get psl
         call to_pslx(pmsl,psl,zss,t(:,lev),ifull,lev)  ! on target grid
-        call doints4(tss_l_a , tss_l,  nface4,xg4,yg4,nord,ik)
-        call doints4(tss_s_a ,tss_s,   nface4,xg4,yg4,nord,ik)
+c       incorporate other target land mask effects
+        do iq=1,ik*ik*6
+          if(land_a(iq))then
+            tss_a(iq)=tss_l_a(iq)
+            sicedep_a(iq)=0.
+            fracice_a(iq)=0.
+          else
+            tss_a(iq)=tss_s_a(iq)   ! no sign switch in CCAM
+            if(sicedep_a(iq)<.05)then ! for sflux
+              sicedep_a(iq)=0.
+              fracice_a(iq)=0.
+            endif
+          endif
+        enddo  ! iq loop        
+        call doints4(tss_a , tss,  nface4,xg4,yg4,nord,ik)
         if(nproc==1.and.nmaxpr==1)then
            write(6,*)'after ints4 idjd,zss(idjd) ',idjd,zss(idjd)
            write(6,*)'zss1-5 ',(zss(iq),iq=1,5)
@@ -654,19 +667,27 @@ ccc      if ( myid==0 ) then
             snowd_a=0.
           end where
         end if
-        call histrd1(ncid,iarchi,ier,'tgg1',ik,6*ik,tgg_a(:,1),
+        tgg_a=293.
+        call histrd1(ncid,iarchi,ier,'tgg2',ik,6*ik,tgg_a(:,2),
      &               6*ik*ik)
         if (ier.eq.0) then
-          call histrd1(ncid,iarchi,ier,'tgg2',ik,6*ik,tgg_a(:,2),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'tgg3',ik,6*ik,tgg_a(:,3),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'tgg4',ik,6*ik,tgg_a(:,4),
-     &                 6*ik*ik)
-          call histrd1(ncid,iarchi,ier,'tgg5',ik,6*ik,tgg_a(:,5),
-     &                 6*ik*ik)
           call histrd1(ncid,iarchi,ier,'tgg6',ik,6*ik,tgg_a(:,6),
      &                 6*ik*ik)
+          call histrd1(ncid,iarchi,ier,'tgg1',ik,6*ik,tgg_a(:,1),
+     &                 6*ik*ik)
+          if (ier.eq.0) then
+            call histrd1(ncid,iarchi,ier,'tgg3',ik,6*ik,tgg_a(:,3),
+     &                   6*ik*ik)
+            call histrd1(ncid,iarchi,ier,'tgg4',ik,6*ik,tgg_a(:,4),
+     &                   6*ik*ik)
+            call histrd1(ncid,iarchi,ier,'tgg5',ik,6*ik,tgg_a(:,5),
+     &                   6*ik*ik)
+          else
+            tgg_a(:,1)=tgg_a(:,2)
+            tgg_a(:,3)=tgg_a(:,2)
+            tgg_a(:,4)=tgg_a(:,6)
+            tgg_a(:,5)=tgg_a(:,6)
+          end if
         else
           call histrd1(ncid,iarchi,ier,'tb3',ik,6*ik,tgg_a(:,2),
      &                 6*ik*ik)
@@ -700,6 +721,7 @@ ccc      if ( myid==0 ) then
         end if
         
         do k=1,ms
+          t_a=20.5
           write(vname,'("wetfrac",I1.1)') k
           call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   t_a,6*ik*ik)
@@ -711,11 +733,19 @@ ccc      if ( myid==0 ) then
      &                     t_a,6*ik*ik)
             if (ier.ne.0) then
               if (k.le.2) then
-                call histrd1(ncid,iarchi,ier,'wfg',ik,6*ik,t_a,
+                call histrd1(ncid,iarchi,ier,'wb2',ik,6*ik,t_a,
      &                 6*ik*ik)
+                if (ier.ne.0) then
+                  call histrd1(ncid,iarchi,ier,'wfg',ik,6*ik,t_a,
+     &                   6*ik*ik)
+                end if
               else
-                call histrd1(ncid,iarchi,ier,'wfb',ik,6*ik,t_a,
+                call histrd1(ncid,iarchi,ier,'wb6',ik,6*ik,t_a,
      &                 6*ik*ik)
+                if (ier.ne.0) then
+                  call histrd1(ncid,iarchi,ier,'wfb',ik,6*ik,t_a,
+     &                   6*ik*ik)
+                end if
               end if
             end if
           end if
@@ -1011,6 +1041,7 @@ ccc      if ( myid==0 ) then
             tggsn(:,1)=tggsn_s
             tggsn(:,2)=280.
             tggsn(:,3)=280.
+            tgg(:,1)=tss
           end where
         end if ! iotest
         isflag=nint(dum6)
@@ -1279,28 +1310,6 @@ c       incorporate target land mask effects for initial fields
         !------------------------------------------------------------
       endif    ! (nested==0)
 
-      if (.not.iotest) then
-c       incorporate other target land mask effects
-        do iq=1,ifull
-           if(land_t(iq))then
-             tss(iq)=tss_l(iq)
-             sicedep(iq)=0.
-             fracice(iq)=0.
-           else
-             tss(iq)=tss_s(iq)   ! no sign switch in CCAM
-             tgg(iq,1)=tss(iq)
-             if(sicedep(iq)<.05)then ! for sflux
-               sicedep(iq)=0.
-               fracice(iq)=0.
-             endif
-           endif
-        enddo  ! iq loop
-        if(nproc==1.and.nmaxpr==1)then
-           write(6,*)'after ints tss_l, tss_s ',tss_l(idjd),tss_s(idjd)
-           write(6,*)'after ints tss',tss(idjd)
-        endif  ! (nproc==1.and.nmaxpr==1)
-      end if
-
 !     end of processing loop
 
       rlong0x=rlong0  ! just for indata cross-check
@@ -1313,7 +1322,7 @@ c       incorporate other target land mask effects
       iarchi=iarchi+1
       kdate_s=kdate_r
       ktime_s=ktime_r+1
-      qg(1:ifull,1:kk) = max(qg(1:ifull,1:kk),1.e-6)
+      qg(1:ifull,1:kl) = max(qg(1:ifull,1:kl),1.e-6)
 
       return
       end subroutine ontheflyx

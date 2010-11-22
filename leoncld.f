@@ -1,6 +1,7 @@
       subroutine leoncld(cfrac)
       use diag_m
       use cc_mpi, only : mydiag, myid
+      use latlong_m
       implicit none
       include 'newmpar.h'
       include 'liqwpar.h' ! ifullw
@@ -13,14 +14,13 @@
       include 'arrays.h'
       include 'dava.h'    ! davt
       include 'kuocom.h'  ! acon,bcon,Rcm
-      include 'latlong.h' ! rlatt,rlongg
       include 'morepbl.h'
       include 'nlin.h'
       include 'parm.h'
       include 'prec.h'
       include 'sigs.h'
       include 'soil.h'    ! land
-      include 'tracers.h'  ! ngas, nllp, ntrac
+      include 'tracers.h' ! ngas, nllp, ntrac
       include 'vvel.h'
 
 c for cfrp
@@ -98,6 +98,14 @@ c These outputs are not used in this model at present
           endif  ! (land(iq)) .. else ..
         enddo
       enddo
+      
+      !--------------------------------------------------------------
+      ! MJT aerosols
+      ! Calculate droplet concentration from aerosols
+      !if (iaero==2) then
+      !  call cldrop(cdso4,rhoa)
+      !end if
+      !--------------------------------------------------------------
 
       kbase(:)=0  ! default
       ktop(:) =0  ! default
@@ -280,6 +288,37 @@ c     Calculate precipitation and related processes
         call maxmin(qfg,'qf',ktau,1.e3,kl)
         call maxmin(qlg,'ql',ktau,1.e3,kl)
       endif
+
+      !--------------------------------------------------------------
+      ! MJT aerosols
+!      if (iaero.eq.2) then
+!        ppfprec(:,1)=0. !At TOA
+!        ppfmelt(:,1)=0. !At TOA
+!        ppfsnow(:,1)=0. !At TOA
+!        ppfconv(:,1)=0. !At TOA
+!        do k=1,kl-1
+!          ppfprec(:,kl+1-k)=(fluxr(:,k+1)+fluxm(:,k))/dt !flux *entering* layer k
+!          ppfmelt(:,kl+1-k)=fluxm(:,k)/dt                !flux melting in layer k
+!          ppfsnow(:,kl+1-k)=(fluxi(:,k+1)-fluxm(:,k))/dt !flux *entering* layer k
+!          ppfconv(:,kl+1-k)=fluxc(:,k)/dt                !flux *leaving* layer k
+!        enddo
+!        do k=1,kl
+!          ppfevap(:,kl+1-k)=qevap(:,k)*rhoa(:,k)*dz(:,k)/dt
+!          ppfsubl(:,kl+1-k)=qsubl(:,k)*rhoa(:,k)*dz(:,k)/dt !flux sublimating or staying in k
+!          pplambs(:,kl+1-k)=slopes(:,k)
+!          ppfstay(:,kl+1-k)=pfstay(:,k)
+!          ppqfsed(:,kl+1-k)=pqfsed(:,k)
+!          pprscav(:,kl+1-k)=prscav(:,k)
+!          where (qlg(:,k)+qfg(:,k).gt.1.e-12)
+!            ppmrate(:,kl+1-k)=(qauto(:,k)+qcoll(:,k))/dt
+!            ppmaccr(:,kl+1-k)=qaccr(:,k)/dt
+!          elsewhere
+!            ppmrate(:,kl+1-k)=0.
+!            ppmaccr(:,kl+1-k)=0.
+!          end where
+!        enddo
+!      end if
+      !--------------------------------------------------------------
 
 !     Add convective cloud water into fields for radiation
 !     cfrad replaced by updating cfrac Oct 2005

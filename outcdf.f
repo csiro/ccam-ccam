@@ -270,16 +270,17 @@ c=======================================================================
       use cc_mpi
       use cable_ccam, only : savetile ! MJT cable
       use define_dimensions, only : ncs, ncp ! MJT cable
+      use latlong_m
+      use mlo, only : wlev,mlosave,mlodiag,mlodwn,micdwn ! MJT mlo
+      use map_m
 c     rml 18/09/07 pass through tracmax,tracmin; 19/09/07 add tracname
       use tracermodule, only : tracmax,tracmin,tracname
       use tkeeps, only : tke,eps ! MJT tke
-      use mlo, only : wlev,mlosave,mlodiag,mlodwn,micdwn ! MJT mlo
       implicit none
 
 c     this routine creates attributes and writes output
 
       include 'newmpar.h'
-      include 'latlong.h'
       include 'arrays.h'
       include 'carbpools.h' ! MJT cable
       include 'const_phys.h'
@@ -289,7 +290,6 @@ c     this routine creates attributes and writes output
       include 'histave.h'
       include 'kuocom.h'
       include 'liqwpar.h'  ! ifullw
-      include 'map.h'
       include 'mapproj.h'
       include 'morepbl.h'
       include 'netcdf.inc'
@@ -452,41 +452,41 @@ c       For time varying surface fields
         lname = 'Leaf area index'                             ! MJT cable
         call attrib(idnc,idim,3,'lai',lname,'none',0.,32.5,0) ! MJT cable
         lname = 'Surface temperature'
-        call attrib(idnc,idim,3,'tsu',lname,'K',0.,350.,0)
+        call attrib(idnc,idim,3,'tsu',lname,'K',100.,425.,0)
         lname = 'Pan temperature'
-        call attrib(idnc,idim,3,'tpan',lname,'K',0.,350.,0)
+        call attrib(idnc,idim,3,'tpan',lname,'K',100.,425.,0)
         lname = 'Precipitation'
-        call attrib(idnc,idim,3,'rnd',lname,'mm/day',0.,1000.,0)
+        call attrib(idnc,idim,3,'rnd',lname,'mm/day',0.,1300.,0)
         lname = 'Convective precipitation'
-        call attrib(idnc,idim,3,'rnc',lname,'mm/day',0.,1000.,0)
-        call attrib(idnc,idim,3,'sno','snowfall','mm/day',0.,1000.,0)
-        call attrib(idnc,idim,3,'runoff','Runoff','mm/day',0.,1000.,0)
+        call attrib(idnc,idim,3,'rnc',lname,'mm/day',0.,1300.,0)
+        call attrib(idnc,idim,3,'sno','snowfall','mm/day',0.,1300.,0)
+        call attrib(idnc,idim,3,'runoff','Runoff','mm/day',0.,1300.,0)
         lname = '3hr precipitation'
-        call attrib(idnc,idim,3,'rnd03',lname,'mm',0.,1000.,1)
+        call attrib(idnc,idim,3,'rnd03',lname,'mm',0.,1300.,1)
         lname = '6hr precipitation'
-        call attrib(idnc,idim,3,'rnd06',lname,'mm',0.,1000.,1)
+        call attrib(idnc,idim,3,'rnd06',lname,'mm',0.,1300.,1)
         lname = '9hr precipitation'
-        call attrib(idnc,idim,3,'rnd09',lname,'mm',0.,1000.,1)
+        call attrib(idnc,idim,3,'rnd09',lname,'mm',0.,1300.,1)
         lname = '12hr precipitation'
-        call attrib(idnc,idim,3,'rnd12',lname,'mm',0.,1000.,1)
+        call attrib(idnc,idim,3,'rnd12',lname,'mm',0.,1300.,1)
         lname = '15hr precipitation'
-        call attrib(idnc,idim,3,'rnd15',lname,'mm',0.,1000.,1)
+        call attrib(idnc,idim,3,'rnd15',lname,'mm',0.,1300.,1)
         lname = '18hr precipitation'
-        call attrib(idnc,idim,3,'rnd18',lname,'mm',0.,1000.,1)
+        call attrib(idnc,idim,3,'rnd18',lname,'mm',0.,1300.,1)
         lname = '21hr precipitation'
-        call attrib(idnc,idim,3,'rnd21',lname,'mm',0.,1000.,1)
+        call attrib(idnc,idim,3,'rnd21',lname,'mm',0.,1300.,1)
         lname = '24hr precipitation'
-        call attrib(idnc,idim,3,'rnd24',lname,'mm',0.,1000.,1)
+        call attrib(idnc,idim,3,'rnd24',lname,'mm',0.,1300.,1)
         lname = 'Maximum precip rate in a timestep'
-        call attrib(idnc,idim,3,'maxrnd',lname,'mm/day',0.,2000.,1)
+        call attrib(idnc,idim,3,'maxrnd',lname,'mm/day',0.,2600.,1)
         lname = 'Maximum screen temperature'
-        call attrib(idnc,idim,3,'tmaxscr',lname,'K',100.,400.,1)
+        call attrib(idnc,idim,3,'tmaxscr',lname,'K',100.,425.,1)
         lname = 'Minimum screen temperature'
-        call attrib(idnc,idim,3,'tminscr',lname,'K',100.,400.,1)
+        call attrib(idnc,idim,3,'tminscr',lname,'K',100.,425.,1)
         lname = 'Average screen temperature'
-        call attrib(idnc,idim,3,'tscr_ave',lname,'K',100.,400.,0)
+        call attrib(idnc,idim,3,'tscr_ave',lname,'K',100.,425.,0)
         lname = 'Screen temperature'
-        call attrib(idnc,idim,3,'tscrn',lname,'K',100.,400.,0)
+        call attrib(idnc,idim,3,'tscrn',lname,'K',100.,425.,0)
         lname = 'Screen mixing ratio'
         call attrib(idnc,idim,3,'qgscrn',lname,'kg/kg',0.,.06,0)
         lname = 'Screen relative humidity' ! MJT rh
@@ -589,20 +589,20 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          call attrib(idnc,idim,3,'v10_24',nnam//'24hr','m/s',-99.,99.,1)
          mnam ='tscrn 3-hrly'
          nnam ='rhum level_1 3-hrly'
-         call attrib(idnc,idim,3,'tscr_06',mnam//'6hr', 'K',100.,400.,1)
-         call attrib(idnc,idim,3,'tscr_12',mnam//'12hr','K',100.,400.,1)
-         call attrib(idnc,idim,3,'tscr_18',mnam//'18hr','K',100.,400.,1)
-         call attrib(idnc,idim,3,'tscr_24',mnam//'24hr','K',100.,400.,1)
+         call attrib(idnc,idim,3,'tscr_06',mnam//'6hr', 'K',100.,425.,1)
+         call attrib(idnc,idim,3,'tscr_12',mnam//'12hr','K',100.,425.,1)
+         call attrib(idnc,idim,3,'tscr_18',mnam//'18hr','K',100.,425.,1)
+         call attrib(idnc,idim,3,'tscr_24',mnam//'24hr','K',100.,425.,1)
          call attrib(idnc,idim,3,'rh1_06', nnam//'6hr', '%',-9.,200.,1)
          call attrib(idnc,idim,3,'rh1_12', nnam//'12hr','%',-9.,200.,1)
          call attrib(idnc,idim,3,'rh1_18', nnam//'18hr','%',-9.,200.,1)
          call attrib(idnc,idim,3,'rh1_24', nnam//'24hr','%',-9.,200.,1)
         endif     ! (nextout>=2)
         if(nextout>=3) then  ! also 3-hourly u10, v10, tscr, rh1
-         call attrib(idnc,idim,3,'tscr_03',mnam//'3hr', 'K',100.,400.,1)
-         call attrib(idnc,idim,3,'tscr_09',mnam//'9hr', 'K',100.,400.,1)
-         call attrib(idnc,idim,3,'tscr_15',mnam//'15hr','K',100.,400.,1)
-         call attrib(idnc,idim,3,'tscr_21',mnam//'21hr','K',100.,400.,1)
+         call attrib(idnc,idim,3,'tscr_03',mnam//'3hr', 'K',100.,425.,1)
+         call attrib(idnc,idim,3,'tscr_09',mnam//'9hr', 'K',100.,425.,1)
+         call attrib(idnc,idim,3,'tscr_15',mnam//'15hr','K',100.,425.,1)
+         call attrib(idnc,idim,3,'tscr_21',mnam//'21hr','K',100.,425.,1)
          call attrib(idnc,idim,3,'rh1_03', nnam//'3hr', '%',-9.,200.,1)
          call attrib(idnc,idim,3,'rh1_09', nnam//'9hr', '%',-9.,200.,1)
          call attrib(idnc,idim,3,'rh1_15', nnam//'15hr','%',-9.,200.,1)
@@ -620,17 +620,17 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         endif     ! (nextout>=3)
 
         lname = 'Soil temperature lev 1'
-        call attrib(idnc,idim,3,'tgg1',lname,'K',100.,400.,0)
+        call attrib(idnc,idim,3,'tgg1',lname,'K',100.,425.,0)
         lname = 'Soil temperature lev 2'
-        call attrib(idnc,idim,3,'tgg2',lname,'K',100.,400.,0)
+        call attrib(idnc,idim,3,'tgg2',lname,'K',100.,425.,0)
         lname = 'Soil temperature lev 3'
-        call attrib(idnc,idim,3,'tgg3',lname,'K',100.,400.,0)
+        call attrib(idnc,idim,3,'tgg3',lname,'K',100.,425.,0)
         lname = 'Soil temperature lev 4'
-        call attrib(idnc,idim,3,'tgg4',lname,'K',100.,400.,0)
+        call attrib(idnc,idim,3,'tgg4',lname,'K',100.,425.,0)
         lname = 'Soil temperature lev 5'
-        call attrib(idnc,idim,3,'tgg5',lname,'K',100.,400.,0)
+        call attrib(idnc,idim,3,'tgg5',lname,'K',100.,425.,0)
         lname = 'Soil temperature lev 6'
-        call attrib(idnc,idim,3,'tgg6',lname,'K',100.,400.,0)
+        call attrib(idnc,idim,3,'tgg6',lname,'K',100.,425.,0)
        ! lname = 'Soil moisture lev 1' ! MJT delete
        ! call attrib(idnc,idim,3,'wb1',lname,'m3/m3',0.,1.,0)
        ! lname = 'Soil moisture lev 2'
@@ -689,19 +689,19 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
           lname = 'Avg soil moisture 6'
           call attrib(idnc,idim,3,'wb6_ave',lname,'m3/m3',0.,1.,0)
           lname = 'Avg soil temperature 1'
-          call attrib(idnc,idim,3,'tgg1_ave',lname,'K',100.,400.,0)
+          call attrib(idnc,idim,3,'tgg1_ave',lname,'K',100.,425.,0)
           lname = 'Avg soil temperature 2'
-          call attrib(idnc,idim,3,'tgg2_ave',lname,'K',100.,400.,0)
+          call attrib(idnc,idim,3,'tgg2_ave',lname,'K',100.,425.,0)
           lname = 'Avg soil temperature 3'
-          call attrib(idnc,idim,3,'tgg3_ave',lname,'K',100.,400.,0)
+          call attrib(idnc,idim,3,'tgg3_ave',lname,'K',100.,425.,0)
           lname = 'Avg soil temperature 4'
-          call attrib(idnc,idim,3,'tgg4_ave',lname,'K',100.,400.,0)
+          call attrib(idnc,idim,3,'tgg4_ave',lname,'K',100.,425.,0)
           lname = 'Avg soil temperature 5'
-          call attrib(idnc,idim,3,'tgg5_ave',lname,'K',100.,400.,0)
+          call attrib(idnc,idim,3,'tgg5_ave',lname,'K',100.,425.,0)
           lname = 'Avg soil temperature 6'
-          call attrib(idnc,idim,3,'tgg6_ave',lname,'K',100.,400.,0)
+          call attrib(idnc,idim,3,'tgg6_ave',lname,'K',100.,425.,0)
           lname = 'Avg theta'
-          call attrib(idnc,idim,3,'theta_ave',lname,'K',100.,400.,0)
+          call attrib(idnc,idim,3,'theta_ave',lname,'K',100.,425.,0)
           lname = 'Avg fpn'
           call attrib(idnc,idim,3,'fpn_ave',lname,'none',-1.E-3,
      &                                                   1.E-3,0)
@@ -791,23 +791,23 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
          lname = 'Soil ice lev 6'
          call attrib(idnc,idim,3,'wbice6',lname,'m3/m3',0.,1.,0)
          lname = 'Snow temperature lev 1'
-         call attrib(idnc,idim,3,'tggsn1',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'tggsn1',lname,'K',100.,425.,0)
          lname = 'Snow temperature lev 2'
-         call attrib(idnc,idim,3,'tggsn2',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'tggsn2',lname,'K',100.,425.,0)
          lname = 'Snow temperature lev 3'
-         call attrib(idnc,idim,3,'tggsn3',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'tggsn3',lname,'K',100.,425.,0)
          lname = 'Snow mass lev 1'
-         call attrib(idnc,idim,3,'smass1',lname,'K',0.,400.,0)
+         call attrib(idnc,idim,3,'smass1',lname,'K',0.,425.,0)
          lname = 'Snow mass lev 2'
-         call attrib(idnc,idim,3,'smass2',lname,'K',0.,400.,0)
+         call attrib(idnc,idim,3,'smass2',lname,'K',0.,425.,0)
          lname = 'Snow mass lev 3'
-         call attrib(idnc,idim,3,'smass3',lname,'K',0.,400.,0)
+         call attrib(idnc,idim,3,'smass3',lname,'K',0.,425.,0)
          lname = 'Snow density lev 1'
-         call attrib(idnc,idim,3,'ssdn1',lname,'K',0.,400.,0)
+         call attrib(idnc,idim,3,'ssdn1',lname,'K',0.,425.,0)
          lname = 'Snow density lev 2'
-         call attrib(idnc,idim,3,'ssdn2',lname,'K',0.,400.,0)
+         call attrib(idnc,idim,3,'ssdn2',lname,'K',0.,425.,0)
          lname = 'Snow density lev 3'
-         call attrib(idnc,idim,3,'ssdn3',lname,'K',0.,400.,0)
+         call attrib(idnc,idim,3,'ssdn3',lname,'K',0.,425.,0)
          lname = 'Snow age'
          call attrib(idnc,idim,3,'snage',lname,'none',0.,20.,0)   
          lname = 'Snow flag'
@@ -818,31 +818,31 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         ! MJT urban
         if (nurban.le.-1.or.(nurban.ge.1.and.itype==-1)) then
          lname = 'roof temperature lev 1'
-         call attrib(idnc,idim,3,'rooftgg1',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'rooftgg1',lname,'K',100.,425.,0)
          lname = 'roof temperature lev 2'
-         call attrib(idnc,idim,3,'rooftgg2',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'rooftgg2',lname,'K',100.,425.,0)
          lname = 'roof temperature lev 3'
-         call attrib(idnc,idim,3,'rooftgg3',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'rooftgg3',lname,'K',100.,425.,0)
          lname = 'east wall temperature lev 1'
-         call attrib(idnc,idim,3,'waletgg1',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'waletgg1',lname,'K',100.,425.,0)
          lname = 'east wall temperature lev 2'
-         call attrib(idnc,idim,3,'waletgg2',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'waletgg2',lname,'K',100.,425.,0)
          lname = 'east wall temperature lev 3'
-         call attrib(idnc,idim,3,'waletgg3',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'waletgg3',lname,'K',100.,425.,0)
          lname = 'west wall temperature lev 1'
-         call attrib(idnc,idim,3,'walwtgg1',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'walwtgg1',lname,'K',100.,425.,0)
          lname = 'west wall temperature lev 2'
-         call attrib(idnc,idim,3,'walwtgg2',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'walwtgg2',lname,'K',100.,425.,0)
          lname = 'west wall temperature lev 3'
-         call attrib(idnc,idim,3,'walwtgg3',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'walwtgg3',lname,'K',100.,425.,0)
          lname = 'road temperature lev 1'
-         call attrib(idnc,idim,3,'roadtgg1',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'roadtgg1',lname,'K',100.,425.,0)
          lname = 'road temperature lev 2'
-         call attrib(idnc,idim,3,'roadtgg2',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'roadtgg2',lname,'K',100.,425.,0)
          lname = 'road temperature lev 3'
-         call attrib(idnc,idim,3,'roadtgg3',lname,'K',100.,400.,0)
+         call attrib(idnc,idim,3,'roadtgg3',lname,'K',100.,425.,0)
          lname = 'urban soil moisture'
-         call attrib(idnc,idim,3,'urbansm',lname,'m3/m3',0.,1.,0)
+         call attrib(idnc,idim,3,'urbansm',lname,'m3/m3',0.,1.3,0)
         end if
         !--------------------------------------------------------  
         
@@ -854,31 +854,31 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
           do k=ms+1,wlev
            write(lname,'("soil/ocean temperature lev ",I2)') k
            write(vname,'("tgg",I2.2)') k
-           call attrib(idnc,idim,3,vname,lname,'K',100.,400.,0)
+           call attrib(idnc,idim,3,vname,lname,'K',100.,425.,0)
           end do
           do k=1,wlev
            write(lname,'("ocean salinity lev ",I2)') k
            write(vname,'("sal",I2.2)') k
-           call attrib(idnc,idim,3,vname,lname,'PSU',0.,100.,0)
+           call attrib(idnc,idim,3,vname,lname,'PSU',0.,130.,0)
            write(lname,'("x-component current lev ",I2)') k
            write(vname,'("uoc",I2.2)') k
-           call attrib(idnc,idim,3,vname,lname,'m/s',-100.,100.,0)
+           call attrib(idnc,idim,3,vname,lname,'m/s',-130.,130.,0)
            write(lname,'("y-component current lev ",I2)') k
            write(vname,'("voc",I2.2)') k
-           call attrib(idnc,idim,3,vname,lname,'m/s',-100.,100.,0)
+           call attrib(idnc,idim,3,vname,lname,'m/s',-130.,130.,0)
           end do
           if (nmlo.lt.0.and.itype.ne.-1) then
             lname = 'Snow temperature lev 1'
-            call attrib(idnc,idim,3,'tggsn1',lname,'K',100.,400.,0)
+            call attrib(idnc,idim,3,'tggsn1',lname,'K',100.,425.,0)
             lname = 'Snow temperature lev 2'
-            call attrib(idnc,idim,3,'tggsn2',lname,'K',100.,400.,0)
+            call attrib(idnc,idim,3,'tggsn2',lname,'K',100.,425.,0)
             lname = 'Snow temperature lev 3'
-            call attrib(idnc,idim,3,'tggsn3',lname,'K',100.,400.,0)
+            call attrib(idnc,idim,3,'tggsn3',lname,'K',100.,425.,0)
           end if
           lname = 'Ice temperature lev 4'
-          call attrib(idnc,idim,3,'tggsn4',lname,'K',100.,400.,0)
+          call attrib(idnc,idim,3,'tggsn4',lname,'K',100.,425.,0)
           lname = 'Ice heat store'
-          call attrib(idnc,idim,3,'sto',lname,'J/m2',0.,1000.,0)
+          call attrib(idnc,idim,3,'sto',lname,'J/m2',0.,1300.,0)
         end if
         if (nmlo.ne.0) then
           lname = 'mixed layer depth'
@@ -1472,211 +1472,250 @@ c=======================================================================
 c=======================================================================
       subroutine histwrt3(var,sname,idnc,iarch,local)
 c Write 2d+t fields from the savegrid array.
+      use cc_mpi
+      implicit none
+      include 'newmpar.h'
+      integer idnc, iarch
+      character* (*) sname
+      real var(ifull)
+      logical, intent(in) :: local
+      if (local) then
+        call hw3l(var,sname,idnc,iarch)
+      elseif (myid==0) then
+        call hw3a(var,sname,idnc,iarch)
+      else
+        call ccmpi_gather(var)
+      endif
+      return
+      end subroutine histwrt3
 
+      subroutine hw3l(var,sname,idnc,iarch)
+      implicit none
+      include 'newmpar.h'
+      include 'netcdf.inc'
+      integer idnc, iarch, mid, vtype, ier, iq
+      integer start(3), count(3)
+      integer*2 minv, maxv, missval
+      integer*2 ipack(ifull)
+      character* (*) sname
+      real var(ifull)
+      real addoff, scale_f, pvar, xmin, xmax
+      parameter(minv = -32500, maxv = 32500, missval = -32501)
+
+      start = (/ 1, 1, iarch /)
+      count = (/ il, jl, 1 /)
+      mid = ncvid(idnc,sname,ier)
+!     Check variable type
+      ier = nf_inq_vartype(idnc, mid, vtype)
+      if(vtype == ncshort)then
+       call ncagt(idnc,mid,'add_offset',addoff,ier)
+       call ncagt(idnc,mid,'scale_factor',scale_f,ier)
+       xmin=addoff+scale_f*minv
+       xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
+       do iq=1,ifull
+        pvar = max(xmin,min(xmax,var(iq)))
+        ipack(iq)=nint((pvar-addoff)/scale_f)
+        ipack(iq)=max(min(ipack(iq),maxv),minv)
+       end do
+       call ncvpt(idnc, mid, start, count, ipack, ier)
+      else
+       call ncvpt(idnc, mid, start, count, var, ier)
+      endif
+      if(ier.ne.0)then
+       write(0,*) "in histwrt3 ier not zero",ier
+       stop
+      endif
+
+      return
+      end subroutine hw3l
+      
+      subroutine hw3a(var,sname,idnc,iarch)
       use cc_mpi
       implicit none
       include 'newmpar.h'
       include 'parm.h'
       include 'netcdf.inc'
-
-      integer idnc, iarch
-      logical, intent(in) :: local
-      integer mid, start(3), count(3)
-      integer*2 ipack(ifull_g) ! was integer*2 
+      integer idnc, iarch, mid, vtype, ier, iq
+      integer imn, imx, jmn, jmx
+      integer start(3), count(3)
+      integer*2 minv, maxv, missval
+      integer*2 ipack(ifull_g)
       character* (*) sname
-c     character*8 sname
-      integer*2 minv, maxv, missval ! was integer*2 
-      parameter(minv = -32500, maxv = 32500, missval = -32501)
-
       real var(ifull)
-      integer iq, ier, imn, imx, jmn, jmx, vtype
-      real addoff, pvar, scale_f, varn, varx, xmax, xmin
-      real, dimension(ifull_g) :: globvar
+      real globvar(ifull_g)
+      real addoff, scale_f, pvar, xmin, xmax, varn, varx
+      parameter(minv = -32500, maxv = 32500, missval = -32501)      
 
-      if(local)then
-         start = (/ 1, 1, iarch /)
-         count = (/ il, jl, 1 /)
-         mid = ncvid(idnc,sname,ier)
+      call ccmpi_gather(var, globvar)
+      start(1) = 1
+      start(2) = 1
+      start(3) = iarch
+      count(1) = il_g
+      count(2) = jl_g
+      count(3) = 1
 
-!        Check variable type
-         ier = nf_inq_vartype(idnc, mid, vtype)
-         if(vtype == ncshort)then
-            call ncagt(idnc,mid,'add_offset',addoff,ier)
-            call ncagt(idnc,mid,'scale_factor',scale_f,ier)
+c     find variable index
+      mid = ncvid(idnc,sname,ier)
 
-            xmin=addoff+scale_f*minv
-!     xmax=xmin+scale_f*float(maxv-minv)
-            xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
+!     Check variable type
+      ier = nf_inq_vartype(idnc, mid, vtype)
+      if(vtype == ncshort)then
+       call ncagt(idnc,mid,'add_offset',addoff,ier)
+       call ncagt(idnc,mid,'scale_factor',scale_f,ier)
 
-            do iq=1,ifull
-               pvar = max(xmin,min(xmax,var(iq)))
-               ipack(iq)=nint((pvar-addoff)/scale_f)
-               ipack(iq)=max(min(ipack(iq),maxv),minv)
-            end do
+       xmin=addoff+scale_f*minv
+       xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
 
-            call ncvpt(idnc, mid, start, count, ipack(1:ifull), ier) ! MJT bug fix
-         else
-            call ncvpt(idnc, mid, start, count, var, ier)
-         endif
-         if(ier.ne.0)then
-           write(0,*) "in histwrt3 ier not zero",ier
-           stop
-         endif
+       do iq=1,ifull_g
+        pvar = max(xmin,min(xmax,globvar(iq)))
+        ipack(iq)=nint((pvar-addoff)/scale_f)
+        ipack(iq)=max(min(ipack(iq),maxv),minv)
+       end do
+
+       call ncvpt(idnc, mid, start, count, ipack, ier)
       else
-
-      if(myid == 0)then
-         call ccmpi_gather(var, globvar)
-         start(1) = 1
-         start(2) = 1
-         start(3) = iarch
-         count(1) = il_g
-         count(2) = jl_g
-         count(3) = 1
-
-c find variable index
-         mid = ncvid(idnc,sname,ier)
-
-!        Check variable type
-         ier = nf_inq_vartype(idnc, mid, vtype)
-         if(vtype == ncshort)then
-            call ncagt(idnc,mid,'add_offset',addoff,ier)
-            call ncagt(idnc,mid,'scale_factor',scale_f,ier)
-
-            xmin=addoff+scale_f*minv
-!           xmax=xmin+scale_f*float(maxv-minv)
-            xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
-
-            do iq=1,ifull_g
-               pvar = max(xmin,min(xmax,globvar(iq)))
-               ipack(iq)=nint((pvar-addoff)/scale_f)
-               ipack(iq)=max(min(ipack(iq),maxv),minv)
-            end do
-
-            call ncvpt(idnc, mid, start, count, ipack, ier)
-         else
-            call ncvpt(idnc, mid, start, count, globvar, ier)
-         endif
-         if(ier.ne.0)then
-           write(0,*) "In histwrt3 ier not zero",ier
-           stop
-         endif
-      else
-         call ccmpi_gather(var)
-      endif  ! (myid == 0) .. else ..
+       call ncvpt(idnc, mid, start, count, globvar, ier)
+      endif
+      if(ier.ne.0)then
+       write(0,*) "In histwrt3 ier not zero",ier
+       stop
+      endif
 
 c     print *,'myid,ktau,nmaxpr,sname ',myid,ktau,nmaxpr,sname
-      if(myid==0 .and. mod(ktau,nmaxpr)==0)then
-         varn = minval(globvar)
-         varx = maxval(globvar)
-         ! This should work ???? but sum trick is more portable???
-         ! iq = minloc(globvar,dim=1)
-         iq = sum(minloc(globvar))
-         ! Convert this 1D index to 2D
-         imn = 1 + modulo(iq-1,il_g)
-         jmn = 1 + (iq-1)/il_g
-         iq = sum(maxloc(globvar))
-         ! Convert this 1D index to 2D
-         imx = 1 + modulo(iq-1,il_g)
-         jmx = 1 + (iq-1)/il_g
-         write(6,'("histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)')
-     &             sname,iarch,varn,imn,jmn,varx,imx,jmx,
-     &             globvar(id+(jd-1)*il_g)
+      if(mod(ktau,nmaxpr)==0)then
+       varn = minval(globvar)
+       varx = maxval(globvar)
+       ! This should work ???? but sum trick is more portable???
+       ! iq = minloc(globvar,dim=1)
+       iq = sum(minloc(globvar))
+       ! Convert this 1D index to 2D
+       imn = 1 + modulo(iq-1,il_g)
+       jmn = 1 + (iq-1)/il_g
+       iq = sum(maxloc(globvar))
+       ! Convert this 1D index to 2D
+       imx = 1 + modulo(iq-1,il_g)
+       jmx = 1 + (iq-1)/il_g
+       write(6,'("histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)')
+     &           sname,iarch,varn,imn,jmn,varx,imx,jmx,
+     &           globvar(id+(jd-1)*il_g)
       endif
-      endif ! local  .. else ..
 
       return
-      end ! histwrt3
+      end subroutine hw3a
+
 c=======================================================================
       subroutine histwrt4(var,sname,idnc,iarch,local)
 c Write 3d+t fields from the savegrid array.
+      use cc_mpi
+      implicit none
+      include 'newmpar.h'
+      integer idnc, iarch
+      character* (*) sname
+      real var(ifull,kl)
+      logical, intent(in) :: local
+      if (local) then
+        call hw4l(var,sname,idnc,iarch)
+      elseif (myid==0) then
+        call hw4a(var,sname,idnc,iarch)
+      else
+        call ccmpi_gather(var)
+      endif
+      return
+      end subroutine histwrt4
+      
+      subroutine hw4l(var,sname,idnc,iarch)
+      implicit none
+      include 'newmpar.h'
+      include 'netcdf.inc'
+      integer idnc, iarch, mid, vtype, ier, iq, k
+      integer start(4), count(4)
+      integer*2 minv, maxv, missval
+      integer*2 ipack(ifull,kl)
+      character* (*) sname
+      real var(ifull,kl)
+      real addoff, scale_f, pvar, xmin, xmax
+      parameter(minv = -32500, maxv = 32500, missval = -32501)
 
+      start = (/ 1, 1, 1, iarch /)
+      count = (/ il, jl, kl, 1 /)
+      mid = ncvid(idnc,sname,ier)
+!     Check variable type
+      ier = nf_inq_vartype(idnc, mid, vtype)
+      if(vtype == ncshort)then
+       call ncagt(idnc,mid,'add_offset',addoff,ier)
+       call ncagt(idnc,mid,'scale_factor',scale_f,ier)
+       xmin=addoff+scale_f*minv
+       xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
+       do k=1,kl
+        do iq=1,ifull
+         pvar = max(xmin,min(xmax,var(iq,k)))
+         ipack(iq,k)=nint((pvar-addoff)/scale_f)
+         ipack(iq,k)=max(min(ipack(iq,k),maxv),minv)
+        end do
+       end do
+       call ncvpt(idnc, mid, start, count, ipack, ier)
+      else
+       call ncvpt(idnc, mid, start, count, var, ier)
+      endif
+      if(ier.ne.0)then
+       write(0,*) "in histwrt3 ier not zero",ier
+       stop
+      endif
+
+      return
+      end subroutine hw4l      
+
+      subroutine hw4a(var,sname,idnc,iarch)
       use cc_mpi
       implicit none
       include 'newmpar.h'
       include 'parm.h'
       include 'netcdf.inc'
-
-      integer idnc, iarch
-      logical, intent(in) :: local
-      integer mid, start(4), count(4)
-      integer*2 ipack(ifull_g,kl) ! was integer*2 
-      character* (*) sname
-c     character*8 sname
-      integer*2 minv, maxv, missval ! was integer*2 
-      parameter(minv = -32500, maxv = 32500, missval = -32501)
-
-      real var(ifull,kl)
-      integer ier, imx, jmx, k, kmx, iq, vtype
-      real addoff, pvar, scale_f, varn, varx, xmax, xmin
-      real, dimension(ifull_g,kl) :: globvar
+      integer idnc, iarch, mid, vtype, ier, iq, k
+      integer imx, jmx, kmx
+      integer start(4), count(4)
       integer, dimension(2) :: max_result
+      integer*2 minv, maxv, missval
+      integer*2 ipack(ifull_g,kl)
+      character* (*) sname
+      real var(ifull,kl)
+      real globvar(ifull_g,kl)
+      real addoff, scale_f, pvar, xmin, xmax, varn, varx
+      parameter(minv = -32500, maxv = 32500, missval = -32501)
+      
+      call ccmpi_gather(var, globvar)
+      start(1) = 1
+      start(2) = 1
+      start(3) = 1
+      start(4) = iarch
+      count(1) = il_g
+      count(2) = jl_g
+      count(3) = kl
+      count(4) = 1
 
-      if(local)then
-         start = (/ 1, 1, 1, iarch /)
-         count = (/ il, jl, kl, 1 /)
+c     find variable index
+      mid = ncvid(idnc,sname,ier)
+!     Check variable type
+      ier = nf_inq_vartype(idnc, mid, vtype)
+      if(vtype == ncshort)then
+       call ncagt(idnc,mid,'add_offset',addoff,ier)
+       call ncagt(idnc,mid,'scale_factor',scale_f,ier)
 
-c find variable index
-         mid = ncvid(idnc,sname,ier)
-!        Check variable type
-         ier = nf_inq_vartype(idnc, mid, vtype)
-         if(vtype == ncshort)then
-            call ncagt(idnc,mid,'add_offset',addoff,ier)
-            call ncagt(idnc,mid,'scale_factor',scale_f,ier)
-
-            xmin=addoff+scale_f*minv
-!           xmax=xmin+scale_f*float(maxv-minv)
-            xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
-            do k=1,kl
-               do iq=1,ifull ! MJT bug fix
-                  pvar = max(xmin,min(xmax,var(iq,k)))
-                  ipack(iq,k)=nint((pvar-addoff)/scale_f)
-                  ipack(iq,k)=max(min(ipack(iq,k),maxv),minv)
-               end do
-            end do
-            call ncvpt(idnc, mid, start, count, ipack(1:ifull,:), ier) !MJT bug fix
-         else
-            call ncvpt(idnc, mid, start, count, var, ier)
-         endif
-
-      else ! not local
-      if(myid == 0)then
-         call ccmpi_gather(var, globvar)
-         start(1) = 1
-         start(2) = 1
-         start(3) = 1
-         start(4) = iarch
-         count(1) = il_g
-         count(2) = jl_g
-         count(3) = kl
-         count(4) = 1
-
-c find variable index
-         mid = ncvid(idnc,sname,ier)
-!        Check variable type
-         ier = nf_inq_vartype(idnc, mid, vtype)
-         if(vtype == ncshort)then
-            call ncagt(idnc,mid,'add_offset',addoff,ier)
-            call ncagt(idnc,mid,'scale_factor',scale_f,ier)
-
-            xmin=addoff+scale_f*minv
-!     xmax=xmin+scale_f*float(maxv-minv)
-            xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
-            do k=1,kl
-               do iq=1,ifull_g
-                  pvar = max(xmin,min(xmax,globvar(iq,k)))
-                  ipack(iq,k)=nint((pvar-addoff)/scale_f)
-                  ipack(iq,k)=max(min(ipack(iq,k),maxv),minv)
-               end do
-            end do
-            call ncvpt(idnc, mid, start, count, ipack, ier)
-         else
-            call ncvpt(idnc, mid, start, count, globvar, ier)
-         endif
+       xmin=addoff+scale_f*minv
+       xmax=xmin+scale_f*(real(maxv)-real(minv)) ! jlm fix for precision problems
+       do k=1,kl
+        do iq=1,ifull_g
+         pvar = max(xmin,min(xmax,globvar(iq,k)))
+         ipack(iq,k)=nint((pvar-addoff)/scale_f)
+         ipack(iq,k)=max(min(ipack(iq,k),maxv),minv)
+        end do
+       end do
+       call ncvpt(idnc, mid, start, count, ipack, ier)
       else
-         call ccmpi_gather(var)
+       call ncvpt(idnc, mid, start, count, globvar, ier)
       endif
 
-      if(myid==0 .and. mod(ktau,nmaxpr)==0)then
+      if(mod(ktau,nmaxpr)==0)then
          varn = minval(globvar)
          varx = maxval(globvar)
          max_result = maxloc(globvar)
@@ -1688,10 +1727,10 @@ c find variable index
          write(6,'("histwrt4 ",a7,i4,2f12.4,3i4,f12.4)')
      &     sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
       endif
-      endif ! local
 
       return
-      end ! histwrt4
+      end subroutine hw4a      
+
 
 ! ______________________________________________________________________
      
@@ -1969,6 +2008,7 @@ c     print *,'after openhists for myid = ',myid
 c=======================================================================
       subroutine openhists(iarch,dim,local,idnc)
       use cc_mpi
+      use map_m
       implicit none
 c     this routine creates attributes and writes output
       include 'newmpar.h'
@@ -1979,7 +2019,6 @@ c     this routine creates attributes and writes output
       include 'histave.h'
       include 'kuocom.h'
       include 'liqwpar.h'  ! ifullw
-      include 'map.h'
       include 'mapproj.h'
       include 'morepbl.h'
       include 'netcdf.inc'

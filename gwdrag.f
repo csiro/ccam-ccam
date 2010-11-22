@@ -86,7 +86,7 @@ c     calculate bvnf at other levels,  (Brunt-Vaisala-N-full)
 
 c**** set uu() to zero above if uu() zero below
 c**** uu>0 at k=1, uu>=0 at k=2 - only set for k=3 to kl  OK
-      do k=2,kl
+      do k=3,kl
        do iq=1,ifull
         if(uu(iq,k-1).eq.0.)then
           uu(iq,k)=0.

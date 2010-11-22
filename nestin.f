@@ -1,6 +1,9 @@
       subroutine nestin  ! called for nbd.ne.0 - far-field nudging
       use cc_mpi, only : myid, mydiag
       use diag_m
+      use indices_m
+      use latlong_m
+      use map_m
       include 'newmpar.h'
 !     ik,jk,kk are array dimensions read in infile - not for globpea
 !     int2d code - not used for globpea
@@ -11,9 +14,6 @@
       include 'dates.h'    ! mtimer
       include 'dava.h'
       include 'davb.h'     ! psls,qgg,tt,uu,vv
-      include 'indices.h'
-      include 'latlong.h'
-      include 'map.h'
       include 'parm.h'     ! qgmin
       include 'parmgeom.h' ! rlong0,rlat0,schmidt
       include 'pbl.h'      ! tss
@@ -294,6 +294,8 @@
       use cc_mpi, only : myid, mydiag
       use diag_m
       use define_dimensions, only : ncs, ncp ! MJT cable
+      use indices_m
+      use latlong_m
       implicit none
       integer, parameter :: ntest=0 
       include 'newmpar.h'
@@ -303,8 +305,6 @@
       include 'netcdf.inc'
       include 'mpif.h'
       include 'dates.h'    ! mtimer
-      include 'indices.h'
-      include 'latlong.h'
       include 'parm.h'     ! qgmin
       include 'parmgeom.h' ! rlong0,rlat0,schmidt  
       include 'pbl.h'      ! tss
@@ -554,6 +554,8 @@
       subroutine getspecdata(pslb,ub,vb,tb,qb)
 
       use cc_mpi
+      use vecsuv_m
+      use xyzinfo_m, only : x,y,z,wts
       
       implicit none
 
@@ -562,10 +564,7 @@
       include 'const_phys.h'
       include 'parm.h'       ! mbd,nud_uv,nud_p,nud_t,nud_q,kbotdav
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt  - briefly
-      include 'xyzinfo.h'
       include 'savuvt.h'     ! savu,savv
-      include 'vecsuv.h'
-      include 'vecsuv_g.h'   ! ax_g,bx_g,ay_g,by_g,az_g,bz_g
 
       integer iq,k      
       real, dimension(ifull), intent(in) :: pslb
@@ -764,15 +763,16 @@
 !      ! Fast spectral downscaling (JLM version)
 !      subroutine fastspec(cutoff2,psla,ua,va,wa,ta,qa)
 !      
+!      use map_m
+!      use xyzinfo_m
+!
 !      implicit none
 !      
 !      include 'newmpar.h'    ! ifull_g,kl
 !      include 'const_phys.h' ! rearth,pi,tpi
-!      include 'map_g.h'      ! em_g
 !      include 'indices_g.h'  ! in_g,ie_g,is_g,iw_g
 !      include 'parm.h'       ! ds,kbotdav
 !      include 'parmgeom.h'   ! rlong0,rlat0,schmidt  
-!      include 'xyzinfo_g.h'    ! x_g,y_g,z_g
 !
 !      integer, parameter :: ntest=0 
 !      integer i,j,k,n,n1,iq,iq1,num
@@ -1142,14 +1142,15 @@
       !---------------------------------------------------------------------------------
       ! Slow 2D spectral downscaling - MPI version
       subroutine slowspecmpi(myid,cin,psls,uu,vv,ww,tt,qgg)
+
+      use map_m
+      use xyzinfo_m
       
       implicit none
       
       include 'newmpar.h'   ! ifull_g
       include 'const_phys.h' ! rearth,pi,tpi
-      include 'map_g.h'     ! em_g
       include 'parm.h'      ! ds,kbotdav,ktopdav
-      include 'xyzinfo_g.h' ! x_g,y_g,z_g
       include 'mpif.h'
 
       integer, intent(in) :: myid
@@ -1403,12 +1404,13 @@
       ! This is the main routine for the scale-selective filter
       subroutine spechost(myid,mproc,hproc,npta,pn,px,ns,ne,cin,psls,
      &                    uu,vv,ww,tt,qgg)
+
+      use map_m
       
       implicit none
       
       include 'newmpar.h'    ! ifull_g
       include 'const_phys.h' ! rearth,pi,tpi
-      include 'map_g.h'      ! em_g
       include 'parm.h'       ! ds,kbotdav,ktopdav
       include 'mpif.h'       ! MPI
       
@@ -1712,12 +1714,14 @@
       ! Code was moved to this subroutine to help the compiler vectorise the code
       subroutine speclocal(myid,mproc,hproc,ns,ne,cq,ppass,qsum,
      &             qp,qu,qv,qw,qt,qq)
+
+      use xyzinfo_m
+
       implicit none
       
       include 'newmpar.h'    ! ifull_g
       include 'const_phys.h' ! pi
       include 'parm.h'       ! kbotdav,ktopdav
-      include 'xyzinfo_g.h'  ! x_g,y_g,z_g
       include 'mpif.h'       ! MPI
       
       integer, intent(in) :: myid,mproc,hproc,ns,ne,ppass
@@ -2331,16 +2335,16 @@
       ! 2D Filter for MLO 
       subroutine mlofilter(new,ilev) ! MJT mlo
 
-      use mlo, only : mloimport,mloexport,sssb
       use cc_mpi
+      use map_m
+      use mlo, only : mloimport,mloexport,sssb      
+      use xyzinfo_m
 
       implicit none
 
       include 'newmpar.h'    ! ifull_g
       include 'parmgeom.h'   ! schmidt
       include 'const_phys.h' ! pi
-      include 'xyzinfo_g.h'  ! x_g,y_g,z_g
-      include 'map_g.h'      ! em_g
       include 'mpif.h'       ! MPI
       include 'soil.h'       ! land
       include 'parm.h'
@@ -2371,7 +2375,7 @@
         old=new
         call mloexport(0,old,1,0)
         diff=miss
-        where (.not.land.and.new.gt.271.2)
+        where (.not.land.and.new.gt.273.2)
           diff(:)=new-old
         end where
         if (myid.eq.0) then
@@ -2441,14 +2445,14 @@
      &                 MPI_COMM_WORLD,ierr)
           call ccmpi_distribute(diff)
         end if
-	do k=1,ilev
+        do k=1,ilev
           old=new
-          call mloexport(0,old,k,0)	
+          call mloexport(0,old,k,0)
           where (.not.land)
             old=old+alpha*diff(:)
           end where
           call mloimport(0,old,k,0)
-	end do
+        end do
       end if
 
       if (nud_sss.ne.0) then
@@ -2465,14 +2469,14 @@
      &                 MPI_COMM_WORLD,ierr)
           call ccmpi_distribute(diff)
         end if
-	do k=1,ilev
-	  olds=sssb
-	  call mloexport(1,olds,k,0)
+        do k=1,ilev
+          olds=sssb
+          call mloexport(1,olds,k,0)
           where (.not.land)
             olds=olds+alpha*diff(:)
           end where
           call mloimport(1,olds,k,0)
-	end do
+        end do
       end if
 
       if (myid==0.and.nmaxpr==1) then
@@ -2485,16 +2489,16 @@
       ! 1D filer for mlo
       subroutine mlofilterfast(new,ilev) ! MJT mlo
 
-      use mlo, only : mloimport,mloexport,sssb
       use cc_mpi
+      use map_m
+      use mlo, only : mloimport,mloexport,sssb
+      use xyzinfo_m
 
       implicit none
 
       include 'newmpar.h'    ! ifull_g
       include 'parmgeom.h'   ! schmidt
       include 'const_phys.h' ! pi
-      include 'xyzinfo_g.h'  ! x_g,y_g,z_g
-      include 'map_g.h'      ! em_g
       include 'mpif.h'       ! MPI
       include 'soil.h'       ! land
       include 'parm.h'
@@ -2543,7 +2547,7 @@
         old=new
         call mloexport(0,old,1,0)
         diff=miss
-        where (.not.land.and.new.gt.271.2)
+        where (.not.land.and.new.gt.273.2)
           diff(:)=new-old
         end where
         if (myid.eq.0) then
@@ -2576,14 +2580,14 @@
         else
           call ccmpi_distribute(diff)
         end if
-	do k=1,ilev
-	  old=new
-          call mloexport(0,old,k,0)	
+        do k=1,ilev
+          old=new
+          call mloexport(0,old,k,0)
           where (.not.land)
             old=old+alpha*diff(:)
           end where
           call mloimport(0,old,k,0)
-	end do
+        end do
       end if
 
       if (nud_sss.ne.0) then
@@ -2592,14 +2596,14 @@
         else
           call ccmpi_distribute(diff)
         end if
-	do k=1,ilev
-	  olds=sssb
-	  call mloexport(1,olds,k,0)
+        do k=1,ilev
+          olds=sssb
+          call mloexport(1,olds,k,0)
           where (.not.land)
             olds=olds+alpha*diff(:)
           end where
-          call mloimport(1,olds,k,0)
-	end do
+          call mloimport(1,olds,ilev,0)
+        end do
       end if
 
       if (myid==0.and.nmaxpr==1) then
@@ -2611,12 +2615,13 @@
 
       subroutine mlospechost(myid,mproc,hproc,npta,pn,px,ns,ne,cq,cqs,
      &                       diff_g,diffs_g,miss)
+
+      use map_m
       
       implicit none
       
       include 'newmpar.h'    ! ifull_g
       include 'const_phys.h' ! rearth,pi,tpi
-      include 'map_g.h'      ! em_g
       include 'mpif.h'       ! MPI
       include 'parm.h'
       
@@ -2749,12 +2754,13 @@
       !---------------------------------------------------------------------------------
       subroutine mlospeclocal(myid,mproc,hproc,ns,ne,cq,cqs,ppass,qsum,
      &             qp,qsums,qps)
+
+      use xyzinfo_m
      
       implicit none
       
       include 'newmpar.h'    ! ifull_g
       include 'const_phys.h' ! pi
-      include 'xyzinfo_g.h'  ! x_g,y_g,z_g
       include 'mpif.h'       ! MPI
       include 'parm.h'
       
@@ -3035,11 +3041,11 @@
         do k=1,ilev
           old=new
           call mloexport(0,old,k,0)
-          where (.not.land.and.new.gt.271.2)
+          where (.not.land.and.new.gt.273.2)
             old=old*(1.-wgt)+new*wgt
           end where
           call mloimport(0,old,k,0)
-	end do
+        end do
       end if
       
       if (nud_sss.ne.0) then
@@ -3050,7 +3056,7 @@
             old=old*(1.-wgt)+sssb*wgt
           end where
           call mloimport(1,old,k,0)
-	end do
+        end do
       end if
       
       return
