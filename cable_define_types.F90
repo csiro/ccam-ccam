@@ -93,7 +93,7 @@ MODULE define_types
 !!les     REAL(r_1), DIMENSION(:), POINTER :: otgg   ! soil temperature in K
      REAL(r_1), DIMENSION(:,:), POINTER  :: tggsn ! snow temperature in K
      REAL(r_1), DIMENSION(:), POINTER :: tss     ! surface temperature (weighted soil, snow)
-!!les     REAL(r_1), DIMENSION(:), POINTER :: otss     ! surface temperature (weighted soil, snow)
+     REAL(r_1), DIMENSION(:), POINTER :: otss     ! surface temperature (weighted soil, snow)
      REAL(r_2), DIMENSION(:,:), POINTER :: wb    ! volumetric soil moisture (solid+liq)
      REAL(r_2), DIMENSION(:,:), POINTER :: wbfice !
      REAL(r_2), DIMENSION(:,:), POINTER :: wbice  ! volumetric soil ice
@@ -467,7 +467,7 @@ CONTAINS
 !!les    ALLOCATE ( var % otgg(mp) )
     ALLOCATE ( var % tggsn(mp,3) )
     ALLOCATE ( var % tss(mp) )
-!!les    ALLOCATE ( var % otss(mp) )
+    ALLOCATE ( var % otss(mp) )
     ALLOCATE ( var % wb(mp,ms) )
     ALLOCATE ( var % wbfice(mp,ms) )
     ALLOCATE ( var % wbice(mp,ms) )
@@ -801,7 +801,7 @@ CONTAINS
 !!les    DEALLOCATE ( var % otgg )
     DEALLOCATE ( var % tggsn )
     DEALLOCATE ( var % tss )
-!!les    DEALLOCATE ( var % otss )
+    DEALLOCATE ( var % otss )
     DEALLOCATE ( var % wb )
     DEALLOCATE ( var % wbfice )
     DEALLOCATE ( var % wbice )

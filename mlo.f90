@@ -86,7 +86,9 @@ real, parameter :: rdry=287.04            ! Specific gas const for dry air
 real, parameter :: rvap=461.5             ! Gas constant for water vapor
 ! ice parameters
 real, parameter :: himin=0.1              ! minimum ice thickness for multiple layers (m)
-real, parameter :: icemin=2.E-3           ! minimum ice thickness
+real, parameter :: icebreak=0.05          ! minimum ice thickness before breakup (1D model)
+real, parameter :: fracbreak=0.05         ! minimum ice fraction (1D model)
+real, parameter :: icemin=0.002           ! minimum ice thickness
 real, parameter :: rhosn=330.             ! density snow
 real, parameter :: rhowt=1025.            ! density water (replace with dg3%rho ?)
 real, parameter :: rhoic=900.             ! density ice
@@ -685,7 +687,9 @@ eg=unpack((1.-i_fracice)*p_eg+i_fracice*p_egice,wpack,eg)
 wetfac=unpack((1.-i_fracice)+i_fracice*p_wetfacice,wpack,wetfac)
 epan=unpack(p_eg,wpack,epan)
 epot=unpack((1.-i_fracice)*p_eg+i_fracice*p_egice/p_wetfacice,wpack,epot)
+fracice=0.
 fracice=unpack(i_fracice,wpack,fracice)
+siced=0.
 siced=unpack(i_dic,wpack,siced)
 snowd=unpack(i_dsn,wpack,snowd)
 
@@ -1586,13 +1590,6 @@ do iqw=1,wfull
   d_b0(iqw)=-grav*(d_alpha(iqw,1)*d_wt0(iqw)-d_beta(iqw,1)*d_ws0(iqw))
  end do
 
-! update ice fraction
-where (i_dic.le.icemin)
-  i_fracice=0.
-  i_dic=0.
-  i_dsn=0.
-end where
-
 return
 end subroutine mloice
 
@@ -1608,10 +1605,10 @@ integer ii
 real, dimension(wfull) :: newdic,newtn
 real, dimension(wfull,wlev), intent(in) :: d_rho
 real, dimension(wfull), intent(in) :: d_timelt
-real, parameter :: delta=0.1
+real, dimension(wfull) :: worka
 
 ! formation
-newdic=max(d_timelt-delta-w_temp(:,1),0.)*cp0*d_rho(:,1)/qice
+newdic=max(d_timelt-w_temp(:,1),0.)*cp0*d_rho(:,1)/qice
 newdic=min(0.15,newdic)
 newtn=w_temp(:,1)+newdic*qice/(cp0*d_rho(:,1))
 where (newdic.gt.2.*icemin.and.i_fracice.le.0.) ! form new sea-ice
@@ -1623,8 +1620,28 @@ where (newdic.gt.2.*icemin.and.i_fracice.le.0.) ! form new sea-ice
   i_tn(:,1)=newtn
   i_tn(:,2)=newtn
   i_sto=0.
-  w_temp(:,1)=d_timelt
+  w_temp(:,1)=newtn
 endwhere
+
+! removal
+where (i_dic.le.icemin)
+  i_fracice=0.
+  i_dic=0.
+  i_dsn=0.
+end where
+
+! 1D model of ice break-up
+where (i_dic.lt.icebreak.and.i_fracice.gt.fracbreak)
+  i_fracice=i_fracice*i_dic/icebreak
+  i_dic=icebreak
+end where
+where (i_fracice.lt.1..and.i_dic.gt.icebreak)
+   worka=min(i_dic/icebreak,1./max(i_fracice,fracbreak))
+   worka=max(worka,1.)
+   i_fracice=i_fracice*worka
+   i_dic=i_dic/worka
+end where
+i_fracice=min(max(i_fracice,0.),1.)
 
 return
 end subroutine mlonewice
@@ -2279,20 +2296,20 @@ d_timelt=273.16-0.054*w_sal(:,1) ! from CICE
 ! determine water temperature at bottom of ice
 d_did=0
 do iqw=1,wfull
-  if (i_dic(iqw).gt.depth(iqw,1)) then
-    d_tb(iqw)=w_temp(iqw,wlev)
-    d_did(iqw)=wlev
-    do ii=2,wlev
-      if (i_dic(iqw).lt.depth(iqw,ii)) then
-        x=(i_dic(iqw)-depth(iqw,ii-1))/dz_hl(iqw,ii)
-        x=max(min(x,1.),0.)
-        d_did(iqw)=ii-1+nint(x)
-        exit
-      end if
-    end do
-  else
+  !if (i_dic(iqw).gt.depth(iqw,1)) then
+  !  d_tb(iqw)=w_temp(iqw,wlev)
+  !  d_did(iqw)=wlev
+  !  do ii=2,wlev
+  !    if (i_dic(iqw).lt.depth(iqw,ii)) then
+  !      x=(i_dic(iqw)-depth(iqw,ii-1))/dz_hl(iqw,ii)
+  !      x=max(min(x,1.),0.)
+  !      d_did(iqw)=ii-1+nint(x)
+  !      exit
+  !    end if
+  !  end do
+  !else
     d_did(iqw)=1
-  end if
+  !end if
   ! water temperature at bottom of ice
   d_tb(iqw)=w_temp(iqw,d_did(iqw))
   ! flux from water to ice (from CICE)

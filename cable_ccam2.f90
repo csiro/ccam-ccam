@@ -107,6 +107,7 @@ module cable_ccam
   real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull)
   real bpyear,alp,x
   real tmps(ifull),hruff_grmx(ifull),atmco2(ifull)
+  real deltat(mp)
 
   integer jyear,jmonth,jday,jhour,jmin
   integer mstart,ktauplus,k,mins,kstart
@@ -130,6 +131,8 @@ module cable_ccam
     fpn_ave=0.
     frday_ave=0.
     frp_ave=0.
+    tsu_ave=0.
+    alb_ave=0.
   end if
     
   ! Set soil moisture to presets when nrungcm.ne.0
@@ -241,8 +244,13 @@ module cable_ccam
   CALL init_radiation ! need to be called at every dt
   CALL cab_albedo(ktau, dt, .true.) ! set L_RADUM=.true. as radriv90.f has been called
   CALL define_canopy(ktau,dt,.true.)
+  ssoil%otss = ssoil%tss                                                     ! MJT from eak energy bal
   ssoil%owetfac = ssoil%wetfac
   CALL soil_snow(dt, ktau)
+  ! adjust for new soil temperature
+  deltat = ssoil%tss - ssoil%otss                                            ! MJT from eak energy bal
+  canopy%fhs = canopy%fhs + deltat*ssoil%dfh_dtg                             ! MJT from eak energy bal
+  canopy%fes = canopy%fes + deltat*(ssoil%cls*ssoil%dfe_ddq * ssoil%ddq_dtg) ! MJT from eak energy bal
   ! need to adjust fe after soilsnow
   canopy%fev = canopy%fevc + canopy%fevw
   ! Calculate total latent heat flux:
@@ -524,6 +532,8 @@ module cable_ccam
   fpn_ave  =fpn_ave  +fpn
   frday_ave=frday_ave+frd
   frp_ave  =frp_ave  +frp
+  tsu_ave  =tsu_ave  +tss
+  alb_ave  =alb_ave  +swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
       
   if (ktau==ntau.or.mod(ktau,nperavg)==0) then
     do k=1,ms
@@ -534,6 +544,8 @@ module cable_ccam
     fpn_ave  =fpn_ave  /min(ntau,nperavg)
     frday_ave=frday_ave/min(ntau,nperavg)
     frp_ave  =frp_ave  /min(ntau,nperavg)
+    tsu_ave  =tsu_ave  /min(ntau,nperavg)
+    alb_ave  =alb_ave  /min(ntau,nperavg)    
   end if
       
   return

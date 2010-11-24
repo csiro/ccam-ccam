@@ -1712,6 +1712,8 @@ CONTAINS
     CALL snow_melting (dels, snowmlt, ktau)
 !    CALL snow_melting (dels, snowmlt, ktau, ssoil )
     ssoil%smelt = ssoil%smelt + snowmlt
+    
+    canopy%fhs = canopy%fhs+ssoil%smelt*hlf/dels ! MJT from eak energy bal
 
     totwet = canopy%precis + ssoil%smelt
     ! remove an excessive precipitation of more than > 300mm/day

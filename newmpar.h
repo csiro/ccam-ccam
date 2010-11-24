@@ -2,12 +2,12 @@
 !     are truly global, others refer to a processor's own region.
       integer, parameter :: nproc = 12 ! Number of processors to use
 
-      integer, parameter :: kl=35 ! Vertical levels
+      integer, parameter :: kl=18 ! Vertical levels
       integer, parameter :: ms=6  ! Levels in surface scheme
 
       integer, parameter :: npanels = 5
-      integer, parameter :: il_g = 72
-      integer, parameter :: nrows_rad = 6    ! usually 8, but 6 for C63/3
+      integer, parameter :: il_g = 48
+      integer, parameter :: nrows_rad = 8    ! usually 8, but 6 for C63/3
       integer, parameter :: jl_g = il_g + npanels*il_g
       integer, parameter :: ifull_g = il_g*jl_g, ijk_g = il_g*jl_g*kl
       ! Note that iquad is only used globally

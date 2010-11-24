@@ -23,6 +23,7 @@
       include 'mpif.h'
       real, save, dimension(ifull) :: ssta, sstb, sstc, aice, bice, cice
       real, save, dimension(ifull) :: asal, bsal, csal
+      real, dimension(ifull) :: duma
       real fraciceb, dum2b, x, c2, c3, c4
       common/work2b/fraciceb(ifull),dum2b(ifull,2)
       integer, parameter, dimension(0:13) :: mdays =
@@ -221,11 +222,19 @@ c       c1=0.
       else
         select case(mlomode)
           case(0) ! relax
-            call mlonudge(tgg(:,1),3)
+            duma=tgg(:,1)
+            where(fraciceb.gt.0.)
+              duma=271.2
+            end where
+            call mlonudge(duma,3)
           case(1)
             if (mod(mtimer,mlotime*60).eq.0) then
-              call mlofilterfast(tgg(:,1),3) ! 1D version
-              !call mlofilter(tgg(:,1),3) ! 2D version
+              duma=tgg(:,1)
+              where(fraciceb.gt.0.)
+                duma=271.2
+              end where            
+              call mlofilterfast(duma,3) ! 1D version
+              !call mlofilter(duma,3) ! 2D version
             end if
           case DEFAULT
             write(6,*) "ERROR: Unknown mlomode ",mlomode

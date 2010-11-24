@@ -711,6 +711,10 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
           lname = 'Avg frp'
           call attrib(idnc,idim,3,'frp_ave',lname,'none',-1.E-3,
      &                                                    1.E-3,0)
+          lname = 'Avg surface temperature'
+          call attrib(idnc,idim,3,'tsu_ave',lname,'K',100.,425.,0)
+          lname = 'Avg albedo'
+          call attrib(idnc,idim,3,'alb_ave',lname,'none',0.,1.,0)
         end if
 	  
 !       rml 16/02/06 set attributes for trNNN and travNNN
@@ -1031,8 +1035,8 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
 !      enddo                            ! MJT cable
       call histwrt3(aa,'pmsl',idnc,iarch,local)
       call histwrt3(tss,'tsu',idnc,iarch,local)
-      !aa(:)=swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2) ! MJT CHANGE albedo
-      aa(:)=0.5*sum(albvisnir,2)                                ! MJT CHANGE albedo
+      aa(:)=swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2) ! MJT CHANGE albedo
+      !aa(:)=0.5*sum(albvisnir,2)                                ! MJT CHANGE albedo
       call atebalb1(1,ifull,aa(:),0) ! MJT urban
       call histwrt3(aa,'alb',idnc,iarch,local)
       !---------------------------------------------------------
@@ -1267,6 +1271,8 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
            call histwrt3(fpn_ave,'fpn_ave',idnc,iarch,local)
            call histwrt3(frday_ave,'frday_ave',idnc,iarch,local)
            call histwrt3(frp_ave,'frp_ave',idnc,iarch,local)
+           call histwrt3(tsu_ave,'tsu_ave',idnc,iarch,local)
+           call histwrt3(alb_ave,'alb_ave',idnc,iarch,local)
          end if
        endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
        call histwrt3(tscrn,'tscrn',idnc,iarch,local)

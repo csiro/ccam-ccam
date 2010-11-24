@@ -282,7 +282,11 @@
         enddo   ! iq loop 
        else if (abs(nmlo).eq.1) then
         ! nudge mlo
-        call mlonudge(cona*tssa+conb*tssb,3)
+        duma=cona*tssa+conb*tssb
+        where (fraciceb.gt.0.)
+          duma=271.2
+        end where
+        call mlonudge(duma,3)
        end if
       endif
       
@@ -537,10 +541,18 @@
           ! nudge mlo
           if (nud_uv.ne.9) then
             ! replace nud_sst with mbd once horz transport is implemented
-            call mlofilterfast(tssb,3) ! surface sal saved in mlo
+            duma=tssb
+            where (fraciceb.gt.0.)
+              duma=271.2
+            end where
+            call mlofilterfast(duma,3) ! surface sal saved in mlo
           else
             ! replace nud_sst with mbd once horz transport is implemented
-            call mlofilter(tssb,3)  ! surface sal saved in mlo
+            duma=tssb
+            where (fraciceb.gt.0.)
+              duma=271.2
+            end where            
+            call mlofilter(duma,3)  ! surface sal saved in mlo
           end if
          end if ! (nmlo.eq.0)
         end if ! (namip.eq.0.and.ntest.eq.0)
@@ -2362,7 +2374,7 @@
       if (nud_sst.eq.0.and.nud_sss.eq.0) return
       
       if (myid==0) then
-        write(6,*) "MLO 2D scale-selective filter"
+        write(6,*) "Gather data for MLO filter"
       end if
       
       cq=sqrt(4.5)*.1*real(nud_sst)/(pi*schmidt)
@@ -2401,6 +2413,10 @@
         call MPI_Bcast(diffs_g,ifull_g,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       end if
 
+      if (myid==0) then
+        write(6,*) "MLO 2D scale-selective filter"
+      end if
+
       where(diff_g.lt.miss)
         mm=1.
       elsewhere
@@ -2424,12 +2440,16 @@
           end if
           if (nud_sss.ne.0) then
             rr(:)=exp(-(cqs*r(:))**2)/(em_g(:)*em_g(:))*mms 
-           dds(iqw)=sum(rr(:)*diffs_g(:))/max(sum(rr(:)),0.0001)
+            dds(iqw)=sum(rr(:)*diffs_g(:))/max(sum(rr(:)),0.0001)
           end if
         end if
       end do
       diff_g=dd
       diffs_g=dds
+
+      if (myid==0) then
+        write(6,*) "Distribute data from MLO filter"
+      end if
 
       if (nud_sst.ne.0) then
         itag=itag+1
@@ -2448,7 +2468,7 @@
         do k=1,ilev
           old=new
           call mloexport(0,old,k,0)
-          where (.not.land)
+          where (.not.land.and.new.gt.273.2)
             old=old+alpha*diff(:)
           end where
           call mloimport(0,old,k,0)
@@ -2516,7 +2536,7 @@
       if (nud_sst.eq.0.and.nud_sss.eq.0) return
       
       if (myid==0) then
-        write(6,*) "MLO 1D scale-selective filter"
+        write(6,*) "Gather data for MLO filter"
       end if
 
       cq=sqrt(4.5)*.1*real(nud_sst)/(pi*schmidt)
@@ -2570,9 +2590,17 @@
           call ccmpi_gather(diff)
         end if
       end if
+
+      if (myid==0) then
+        write(6,*) "MLO 1D scale-selective filter"
+      end if
       
       call mlospechost(myid,mproc,hproc,npta,pn,px,ns,ne,cq,cqs,
      &                 diff_g,diffs_g,miss)
+
+      if (myid==0) then
+        write(6,*) "Distribute data from MLO filter"
+      end if
       
       if (nud_sst.ne.0) then
         if (myid == 0) then
@@ -2583,7 +2611,7 @@
         do k=1,ilev
           old=new
           call mloexport(0,old,k,0)
-          where (.not.land)
+          where (.not.land.and.new.gt.273.2)
             old=old+alpha*diff(:)
           end where
           call mloimport(0,old,k,0)
