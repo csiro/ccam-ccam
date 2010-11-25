@@ -15,10 +15,11 @@ c
 c          called by:      radmn or model routine 
 c          calls    : 
 c 
+      use cldcom_m
+
       include 'newmpar.h'
       include 'rdparm.h'
       include 'radisw.h'
-      include 'cldcom.h'
       include 'parm.h' ! MJT CHANGE - mr
 c 
       real tempc(lp1,lp1),cldfip(lp1,lp1) ! MJT CHANGE - mr

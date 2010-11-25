@@ -11,9 +11,11 @@
 ! N.B. (iq) indexing is still OK whether arrays have i dimension
 !       of il or imax, because j advances sensibly
 
+      use arrays_m
       use ateb ! MJT urban 
       use cable_ccam, only : CABLE ! MJT cable
       use cc_mpi
+      use cldcom_m
       use diag_m
       use latlong_m
       use mlo ! MJT mlo
@@ -26,7 +28,6 @@
 !        or, usefully can edit 'ntest.gt.0' to 'ktau.gt.nnn'
       parameter (nalbwb=0)  ! 0  for original alb not depending on wb
       parameter (kcl_top=kl-2) !max level for cloud top (conjob,radrive,vertmix)
-      include 'arrays.h'      
       include 'const_phys.h' ! for ldr cloud scheme
       include 'cparams.h'    ! for ldr cloud scheme
       include 'dates.h'      ! timer,kdate,ktime,dt,mtimer
@@ -43,7 +44,6 @@
       include 'soilv.h'
 !     For the radiation code
       include 'rdparm.h'   ! imax
-      include 'cldcom.h'
       include 'hcon.h'
       include 'lwout.h'
       include 'radisw.h'

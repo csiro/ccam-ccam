@@ -1,5 +1,8 @@
       subroutine nestin  ! called for nbd.ne.0 - far-field nudging
+      use arrays_m
       use cc_mpi, only : myid, mydiag
+      use dava_m
+      use davb_m    ! psls,qgg,tt,uu,vv
       use diag_m
       use indices_m
       use latlong_m
@@ -7,13 +10,10 @@
       include 'newmpar.h'
 !     ik,jk,kk are array dimensions read in infile - not for globpea
 !     int2d code - not used for globpea
-      include 'arrays.h'
       include 'const_phys.h'
       include 'darcdf.h'
       include 'netcdf.inc'
       include 'dates.h'    ! mtimer
-      include 'dava.h'
-      include 'davb.h'     ! psls,qgg,tt,uu,vv
       include 'parm.h'     ! qgmin
       include 'parmgeom.h' ! rlong0,rlat0,schmidt
       include 'pbl.h'      ! tss
@@ -295,15 +295,14 @@
 
       subroutine nestinb  ! called for mbd>0 - spectral filter method
 !     this is x-y-z version      
+      use arrays_m
       use cc_mpi, only : myid, mydiag
       use diag_m
-      use define_dimensions, only : ncs, ncp ! MJT cable
       use indices_m
       use latlong_m
       implicit none
       integer, parameter :: ntest=0 
       include 'newmpar.h'
-      include 'arrays.h'
       include 'const_phys.h'
       include 'darcdf.h' ! for ncid
       include 'netcdf.inc'
@@ -565,6 +564,7 @@
       ! This subroutine gathers data for the MPI version of spectral downscaling
       subroutine getspecdata(pslb,ub,vb,tb,qb)
 
+      use arrays_m
       use cc_mpi
       use vecsuv_m
       use xyzinfo_m, only : x,y,z,wts
@@ -572,7 +572,6 @@
       implicit none
 
       include 'newmpar.h'    ! ifull_g,kl
-      include 'arrays.h'     ! u,v,t,qg,psl
       include 'const_phys.h'
       include 'parm.h'       ! mbd,nud_uv,nud_p,nud_t,nud_q,kbotdav
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt  - briefly
@@ -2534,7 +2533,7 @@
       real, parameter :: alpha = 1. ! nudging weight
       
       if (nud_sst.eq.0.and.nud_sss.eq.0) return
-      
+
       if (myid==0) then
         write(6,*) "Gather data for MLO filter"
       end if
@@ -2590,7 +2589,7 @@
           call ccmpi_gather(diff)
         end if
       end if
-
+      
       if (myid==0) then
         write(6,*) "MLO 1D scale-selective filter"
       end if

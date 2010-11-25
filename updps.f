@@ -1,4 +1,5 @@
       subroutine updps(iadj)    
+      use arrays_m
       use cc_mpi
       use diag_m             ! for calls to maxmin
       use indices_m
@@ -6,7 +7,6 @@
       use vecsuv_m
       use xyzinfo_m
       include 'newmpar.h'
-      include 'arrays.h'
       include 'const_phys.h'
       include 'nlin.h'  ! savs
       include 'savuvt.h'

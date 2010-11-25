@@ -1,9 +1,9 @@
       subroutine gwdrag   ! globpea/darlam (but not staggered)
 !     this is vectorized jlm version
+      use arrays_m
 !     parameter(fc2=.5,ndzx=0)    !  as per Hal      gwd1a
       parameter(fc2=1.,ndzx=1)    !  as per jlm      gwd1b
       include 'newmpar.h'
-      include 'arrays.h'
       include 'const_phys.h'
       include 'gdrag.h'
       include 'nlin.h'

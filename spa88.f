@@ -29,6 +29,8 @@ CDIR$ TASK COMMON SRCCOM
 CDIR$ TASK COMMON TFCOM
 c CDIR$ TASK COMMON VTEMP
 
+      use cldcom_m
+
       include 'newmpar.h'
       include 'hcon.h'
       include 'rdparm.h'
@@ -38,7 +40,6 @@ c CDIR$ TASK COMMON VTEMP
       include 'srccom.h'
       include 'kdacom.h'
       include 'tfcom.h'
-      include 'cldcom.h'
       include 'lwout.h'
 c 
       real      phitmp(imax,l),psitmp(imax,l),

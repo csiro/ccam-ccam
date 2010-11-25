@@ -1,5 +1,9 @@
 * text=auto !eol
+/aerosolldr.f90 -text
+/arrays_m.f90 -text
 /ateb.f90 -text
+/betts1_m.f90 -text
+/bigxy4_m.f90 -text
 /cable_air.F90 -text
 /cable_albedo.F90 -text
 /cable_canopy.F90 -text
@@ -14,8 +18,11 @@
 /cable_radiation.F90 -text
 /cable_roughness.F90 -text
 /cable_soilsnow.F90 -text
-/cable_variables.F90 -text
-/carbpools.h -text
+/carbpools_m.f90 -text
+/cldcom_m.f90 -text
+/co2dta_m.f90 -text
+/dava_m.f90 -text
+/davb_m.f90 -text
 /esfsw_driver.f90 -text
 /esfsw_parameters.f90 -text
 /gas_tf.f90 -text

@@ -5,9 +5,8 @@ c     *                                                                *
 c     * setup betts scheme for csiro model                             *
 c     *                                                                *
 c     ******************************************************************
-
+      use betts1_m !  includes work3a
       include 'newmpar.h'
-      include 'betts1.h'   !  includes work3a
       include 'morepbl.h'
       include 'parm.h'
       include 'prec.h'

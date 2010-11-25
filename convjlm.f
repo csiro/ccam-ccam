@@ -1,7 +1,8 @@
       subroutine convjlm      ! jlm convective scheme - Version v3
 !     the shallow convection options here just for iterconv=1
 !     has +ve fldownn depending on delta sigma; -ve uses older abs(fldown)   
-!     N.B. nevapcc option has been removed   
+!     N.B. nevapcc option has been removed
+      use arrays_m   
       use cc_mpi, only : mydiag, myid
       use diag_m
       use indices_m
@@ -49,9 +50,7 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       parameter (kcl_top=kl-2) ! max level for cloud top (convjlm,radrive,vertmix)
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
 !     could reinstate nbase=0 & kbsav_b from .f0406
-      include 'arrays.h'
       include 'const_phys.h'
-      include 'dava.h'     ! davt
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
       include 'liqwpar.h'  ! ifullw
       include 'morepbl.h'

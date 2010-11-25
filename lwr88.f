@@ -28,12 +28,13 @@ c      radmn or input routine of model
 c          calls: 
 c      fst88
 c 
+      use co2dta_m
+
       include 'newmpar.h'
       include 'hcon.h'
       include 'parm.h'
       include 'rdparm.h'
       include 'radisw.h'
-      include 'co2dta.h'
       include 'kdacom.h'
       include 'rnddta.h'
       include 'tfcom.h'

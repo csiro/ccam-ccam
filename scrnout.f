@@ -1,6 +1,7 @@
       subroutine scrnout(zo,ustar,factch,wetfac,qsttg,              ! arrays
      .     qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,            ! arrays
      .     bprm,cms,chs,chnsea,nalpha)
+      use arrays_m
       use cc_mpi, only : mydiag,myid
       use diag_m
       implicit none
@@ -12,7 +13,6 @@
 !     parameter (chn10=.00136733)   ! sea only, same as in sflux via parm.h
       real, parameter :: vkar=.4, zscr=1.8
       include 'newmpar.h'
-      include 'arrays.h'
       include 'const_phys.h'
       include 'liqwpar.h'  ! ifullw,qfg,qlg  just for diags
 c     include 'map.h'

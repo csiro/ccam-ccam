@@ -266,9 +266,11 @@ c       create the attributes of the header record of the file
       end
 c=======================================================================
       subroutine openhist(iarch,itype,dim,local,idnc)
+      use arrays_m
       use ateb ! MJT urban
-      use cc_mpi
       use cable_ccam, only : savetile ! MJT cable
+      use carbpools_m
+      use cc_mpi
       use define_dimensions, only : ncs, ncp ! MJT cable
       use latlong_m
       use mlo, only : wlev,mlosave,mlodiag,mlodwn,micdwn ! MJT mlo
@@ -281,8 +283,6 @@ c     rml 18/09/07 pass through tracmax,tracmin; 19/09/07 add tracname
 c     this routine creates attributes and writes output
 
       include 'newmpar.h'
-      include 'arrays.h'
-      include 'carbpools.h' ! MJT cable
       include 'const_phys.h'
       include 'dates.h'    ! ktime,kdate,timer,timeg,xg,yg,mtimer
       include 'extraout.h' ! u10_3hr,v10_3hr
@@ -2013,12 +2013,12 @@ c     print *,'after openhists for myid = ',myid
       end
 c=======================================================================
       subroutine openhists(iarch,dim,local,idnc)
+      use arrays_m
       use cc_mpi
       use map_m
       implicit none
 c     this routine creates attributes and writes output
       include 'newmpar.h'
-      include 'arrays.h'
       include 'dates.h'    ! ktime,kdate,timer,timeg,xg,yg,mtimer
       include 'extraout.h' ! u10_3hr,v10_3hr
       include 'filnames.h' ! list of files, read in once only

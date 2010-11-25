@@ -1,4 +1,5 @@
       subroutine nonlin      
+      use arrays_m
       use cc_mpi
       use diag_m
       use indices_m
@@ -11,7 +12,6 @@
       integer, parameter :: ntest=0
       integer, parameter :: mfix_rad=0 ! used to make gases 2 to ng add up to gas 1
       include 'newmpar.h'
-      include 'arrays.h'
       include 'const_phys.h' ! r,g,cp,cpv,roncp
       include 'kuocom.h'   ! ldr
       include 'liqwpar.h'  ! qfg,qlg

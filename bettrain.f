@@ -1,4 +1,5 @@
       subroutine bettrain (  pt, kpnt )  ! was rain
+      use betts1_m
       parameter (ntest=0)  ! replaces debug; set to 1 for degugging
 !     just returns prec, t, q (all in betts1.h)     jlm
 c     this is part of the Betts-Miller parameterization
@@ -27,7 +28,6 @@ c
      &, pq0c=pq0*tresh,rrog=1./(row*g))
 c
       include 'newmpar.h'
-      include 'betts1.h'
       parameter (ltop=1)
 !     all work2 variables are just local
       common/work2/pdsl(ifull),tl(ifull),ql(ifull),precl(ifull), 

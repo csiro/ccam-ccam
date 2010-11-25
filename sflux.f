@@ -1,4 +1,5 @@
       subroutine sflux(nalpha)              ! for globpe code
+      use arrays_m
       use ateb ! MJT urban
       use cable_ccam, only : CABLE,sib4 ! MJT cable
       use map_m ! MJT mlo
@@ -29,7 +30,6 @@ c     cp specific heat at constant pressure joule/kgm/deg
       parameter (fmroot=.57735)     ! was .4 till 7 Feb 1996
 !     parameter (chn10=.00136733)   ! sea only - in parm.h from 2004
       include 'newmpar.h'
-      include 'arrays.h'
       include 'const_phys.h'
       include 'extraout.h' ! ustar
       include 'gdrag.h'
@@ -926,6 +926,7 @@ c***  end of surface updating loop
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       subroutine sib3(nalpha)     ! new version of sib1 with soilsnowv
+      use arrays_m
       use cc_mpi
       use latlong_m
       parameter (ntest=0) ! ntest= 0 for diags off; ntest= 1 for diags on
@@ -939,7 +940,6 @@ c***  end of surface updating loop
       parameter (ndiag_arr=0) ! 0 off; 1 for diag arrays on
       parameter (neva=0)    ! neva= 0 for diags off; neva= 1 for eva's diags on
       include 'newmpar.h'
-      include 'arrays.h'
       include 'const_phys.h'
       include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg
       include 'extraout.h'

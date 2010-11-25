@@ -788,13 +788,13 @@ c                this error check only useful for hourly resolution
 c ***************************************************************************
       subroutine tracer_mass(ktau,ntau)
 c     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
+      use arrays_m ! ps
       use cc_mpi
       use sumdd_m
       use xyzinfo_m
       implicit none
       include 'newmpar.h'
       include 'const_phys.h' ! rearth,fc_molm,fair_molm
-      include 'arrays.h'   ! ps
       include 'sigs.h'     ! dsig
       include 'tracers.h'  ! tr
       include 'mpif.h'

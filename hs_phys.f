@@ -10,9 +10,9 @@
 !  it's recalculated for each point.
 
       subroutine hs_phys
+      use arrays_m
       use latlong_m
       include 'newmpar.h'
-      include 'arrays.h'
       include 'nlin.h'
       include 'parm.h'
       include 'sigs.h'

@@ -1,5 +1,7 @@
       subroutine clddia(rhum,sigf,cf,ktd,kbd,icld,i,j) ! jlm
+      use arrays_m  ! for t
       use cc_mpi, only : myid
+      use davb_m    ! for qgg
       use map_m
       parameter (maprhcrt=0)  ! 1 for grid size dependent rhcrit
       parameter (nconv_cld=0) ! 1,2,3 for convective enhancement of clouds
@@ -12,9 +14,7 @@
 !     N.B. C-C uses imax loop, so may not have every diag. jd value here
 
       include 'newmpar.h'
-      include 'arrays.h'    ! for t
       include 'const_phys.h'
-      include 'davb.h'      ! for qgg
       include 'kuocom.h'    ! for sigcll,nclddia,nstab_cld,nrhcrit
       include 'morepbl.h'   ! for condc
       include 'parm.h'      ! ds,id,jd

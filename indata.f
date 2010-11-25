@@ -1,8 +1,12 @@
       subroutine indata(hourst,newsnow,jalbfix)! nb  newmask not yet passed thru
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
+      use arrays_m
       use ateb ! MJT urban
+      use bigxy4_m ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       use cable_ccam, only : CABLE,loadcbmparm ! MJT cable
+      use carbpools_m
       use cc_mpi
+      use dava_m    ! davt
       use diag_m
       use define_dimensions, only : ncs, ncp ! MJT cable
       use indices_m
@@ -30,13 +34,9 @@
 !             precc, precip setup moved to bottom
 !     note: unformatted qg in g/kg (i.e. for io_in=3)
       include 'newmpar.h'
-      include 'arrays.h'
-      include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
-      include 'carbpools.h' ! MJT cable
       include 'const_phys.h'
       include 'darcdf.h'    ! MJT tracerfix
       include 'dates.h'     ! mtimer
-      include 'dava.h'      ! davt
       include 'extraout.h'  ! MJT cable
       include 'filnames.h'  ! list of files, read in once only
       include 'gdrag.h'
@@ -2179,11 +2179,11 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
 
       subroutine rdnsib
 !     subroutine to read in  data sets required for biospheric scheme.
+      use arrays_m
       use cc_mpi
       use cable_ccam, only : CABLE ! MJT cable
       use map_m
       include 'newmpar.h'
-      include 'arrays.h'
       include 'const_phys.h'
       include 'filnames.h'  ! list of files, read in once only in darlam
       include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
@@ -2429,9 +2429,9 @@ c     zobg = .05
 
 !=======================================================================
       subroutine calczo    !  option to call from July '04
+      use arrays_m
       use map_m
       include 'newmpar.h'
-      include 'arrays.h'
       include 'nsibd.h' ! ivegt
       include 'parm.h'
 !     include 'scamdim.h'

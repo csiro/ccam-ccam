@@ -1,4 +1,5 @@
       subroutine outfile(iout,rundate,nmi,nwrite)
+      use arrays_m
       use cc_mpi
       use map_m
       include 'newmpar.h'
@@ -6,9 +7,7 @@
 c     mev1 = 1 for il even (2 for il odd)
 c     mev2 = 2 for il even (1 for il odd)
       parameter (nwrite0=1) ! 0 original, 1 writes initial nveg,nsoil etc
-      include 'arrays.h'
       include 'dates.h'    ! mtimer
-      include 'dava.h' ! davt    for writing out in precc
       include 'extraout.h'    ! taux,tauy,rtsave,rtclsave
       include 'filnames.h' ! list of files, read in once only
       include 'histave.h'

@@ -1,4 +1,5 @@
       subroutine conjob      ! globpea & rcsb (non-chen); nkuo=46 only
+      use arrays_m
       use cc_mpi, only : mydiag
       use tkeeps, only : tke, eps
       include 'newmpar.h' 
@@ -15,9 +16,7 @@ c        0 off, 1 for Hal's evap, 2 for jlm, 3 for UK (ls only), 4 & 5 newer UK
 c     Has dq(1) fix for cloud base drying
 c     For 32-bit machine need real*8  cam()
 c     Hal's ds() renamed dsh()
-      include 'arrays.h'
       include 'const_phys.h'
-      include 'dava.h' ! davt
       include 'kuocom.h'   ! also with kbsav,ktsav,convpsav,ndavconv
       include 'morepbl.h'
       include 'nlin.h'

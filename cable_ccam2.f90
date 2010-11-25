@@ -62,14 +62,14 @@ module cable_ccam
   ! CABLE-CCAM interface
   subroutine sib4
 
+  use arrays_m
+  use carbpools_m
   use latlong_m
   use zenith_m
   
   implicit none
 
   include 'newmpar.h'
-  include 'arrays.h'
-  include 'carbpools.h'
   include 'const_phys.h' ! grav
   include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg
   include 'extraout.h'
@@ -585,6 +585,7 @@ module cable_ccam
 ! *************************************************************************************
   subroutine loadcbmparm(fveg,fvegprev,fvegnext)
 
+  use carbpools_m
   use cc_mpi
   use latlong_m
   
@@ -592,7 +593,6 @@ module cable_ccam
   
   include 'newmpar.h'
   include 'const_phys.h'
-  include 'carbpools.h'
   include 'nsibd.h'
   include 'parm.h'
   include 'pbl.h'
@@ -607,6 +607,10 @@ module cable_ccam
   real(r_1) :: totdepth
   real(r_1), dimension(mxvt,ms) :: froot2
   real(r_1), dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
+  real(r_1), dimension(ncp) :: ratecp
+  real(r_1), dimension(ncs) :: ratecs
+  real(r_1), dimension(mxvt,ncp) ::tcplant
+  real(r_1), dimension(mxvt,ncs) ::tcsoil  
   character(len=*), intent(in) :: fveg,fvegprev,fvegnext
 
   if (myid == 0) write(6,*) "Setting CABLE defaults (igbp)"
@@ -1092,6 +1096,7 @@ module cable_ccam
 ! *************************************************************************************  
   subroutine loadtile
 
+  use carbpools_m
   use cc_mpi, only : myid
   
   implicit none
@@ -1101,7 +1106,6 @@ module cable_ccam
   include 'parm.h'
   include 'netcdf.inc'
   include 'mpif.h'
-  include 'carbpools.h'
   include 'soil.h'
   include 'soilsnow.h'
   include 'vegpar.h'    
@@ -1228,12 +1232,12 @@ module cable_ccam
  ! *************************************************************************************
   subroutine savetile(idnc,local,idim,iarch)
 
+  use carbpools_m
   use cc_mpi, only : myid
   
   implicit none
 
   include 'newmpar.h'
-  include 'carbpools.h'
   include 'soil.h'
   include 'soilsnow.h'
   include 'vegpar.h'

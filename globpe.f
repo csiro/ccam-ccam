@@ -13,11 +13,20 @@
 !     sign convention:
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
+      use arrays_m    ! ts, t, u, v, psl, ps, zs
+      use betts1_m, only : betts1_init
+      use bigxy4_m
+      use carbpools_m, only : carbpools_init
       use cc_mpi
+      use cldcom_m, only : cldcom_init
+      use co2dta_m, only : co2dta_init
+      use dava_m
+      use davb_m
       use diag_m
+      use define_dimensions, only : ncs,ncp
       use indices_m
       use latlong_m
-      use map_m
+      use map_m       ! em, f, dpsldt, fu, fv, etc
       use seaesfrad_m ! MJT radiation
 !     rml 21/02/06 removed redundant tracer code (so2/o2 etc)
 !     rml 16/02/06 use tracermodule, timeseries
@@ -25,11 +34,9 @@
      &                        ,interp_tracerflux
       use timeseries, only : write_ts
       use vecsuv_m      
-      use xyzinfo_m      
+      use xyzinfo_m   ! x,y,z,wts,x_g,y_g,z_g,wts_g     
       implicit none
       include 'newmpar.h'
-      include 'arrays.h'   ! ts, t, u, v, psl, ps, zs
-      include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       include 'const_phys.h'
       include 'darcdf.h'   ! idnc,ncid  - stuff for reading netcdf
       include 'dates.h'    ! dtin,mtimer
@@ -201,10 +208,12 @@
       data nwrite/0/
       data nsnowout/999999/
 
+      call setstacklimit(-1)
+
+      !--------------------------------------------------------------
+      ! INITALISE MPI ROUTINES
       ! Check that declarations in include files match
       !call check_dims()
-
-      call setstacklimit(-1)
 
 #ifndef scyld
       call MPI_Init(ierr)       ! Start
@@ -217,12 +226,16 @@
       end if
       call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr) ! Find my id
 
+      !--------------------------------------------------------------
+      ! INITALISE LOGS
       call log_off()
       call log_setup()
 #ifdef simple_timer
       call start_log(model_begin)
 #endif
 
+      !--------------------------------------------------------------
+      ! READ NAMELISTS AND SET PARAMETER DEFAULTS
       ia=il/2
       ib=ia+3
 !     ntbar=(kl+1)/4  ! just a default
@@ -272,14 +285,6 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
       endif
       nud_hrs=abs(nud_hrs)  ! just for people with old -ves in namelist
       if(nudu_hrs==0)nudu_hrs=nud_hrs
-
-      !--------------------------------------------------------------
-      ! INITIALISE ifull_g ALLOCATALE ARRAYS
-      call indices_init(ifull_g,ifull,iextra,npanels,npan)
-      call latlong_init(ifull_g,ifull,iextra)
-      call map_init(ifull_g,ifull,iextra)
-      call vecsuv_init(ifull_g,ifull,iextra)
-      call xyzinfo_init(ifull_g,ifull,iextra)
 
       if ( myid == 0 ) then   ! **** do namelist fixes above this ***
       print *,'Dynamics options A:'
@@ -409,7 +414,17 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       call MPI_Bcast(schmidt,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
 !     N.B. to display orog alone, run with io_in=4, nbd=0, nsib=0      
 
-c     set up cc geometry
+      !--------------------------------------------------------------
+      ! INITIALISE ifull_g ALLOCATALE ARRAYS
+      call bigxy4_init(iquad)
+      call indices_init(ifull_g,ifull,iextra,npanels,npan)
+      call latlong_init(ifull_g,ifull,iextra)
+      call map_init(ifull_g,ifull,iextra)
+      call vecsuv_init(ifull_g,ifull,iextra)
+      call xyzinfo_init(ifull_g,ifull,iextra)
+
+      !--------------------------------------------------------------
+      ! SET UP CC GEOMETRY
 !     All processors call setxyz
       call setxyz(il_g,rlong0,rlat0,schmidt,
      &   x_g,y_g,z_g,wts_g, ax_g,ay_g,az_g,bx_g,by_g,bz_g, xx4,yy4,
@@ -435,7 +450,24 @@ c     set up cc geometry
       
       !--------------------------------------------------------------
       ! INITIALISE ifull ARRAYS
+      call arrays_init(ifull,iextra,kl)
+      if (nbd.ne.0) then ! nudging arrays
+        call dava_init(ifull,iextra,kl)
+        call davb_init(ifull,iextra,kl)
+      end if
+      if (nkuo==5) then ! convection arrays
+        call betts1_init(ifull,iextra,kl)
+      end if
+      if (nrad==4) then ! radiation arrays
+        call cldcom_init(ifull,iextra,kl,il*nrows_rad)
+        call co2dta_init(ifull,iextra,kl)
+      end if
+      if (nsib==4.or.nsib>=6) then ! land-surface arrays
+        call carbpools_init(ifull,iextra,kl,ncp,ncs)
+      end if
       
+      !--------------------------------------------------------------
+      ! READ INPUT FILES
       con=180./pi
       if ( mydiag ) then
          print *,'id,jd,rlongg,rlatt in degrees: ',
@@ -688,7 +720,9 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
         endif
       endif
  
-      if ( myid == 0 ) then
+      !--------------------------------------------------------------
+      ! BEGIN MAIN TIME LOOP
+       if ( myid == 0 ) then
          call date_and_time(time=timeval,values=tvals1)
          print*, "Start of loop time ", timeval
       end if
@@ -1643,11 +1677,11 @@ c       print*,'Calling prognostic cloud scheme'
       end subroutine readreal
 
       subroutine setllp
+      use arrays_m   ! ts, t, u, v, psl, ps, zs
       use cc_mpi
       use latlong_m
 !     sets tr arrays for lat, long, pressure if nextout>=4 &(nllp>=3)
       include 'newmpar.h'
-      include 'arrays.h'  ! ts, t, u, v, psl, ps, zs
       include 'const_phys.h'
       include 'sigs.h'
       include 'tracers.h'  ! ngas, nllp, ntrac
@@ -1894,6 +1928,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
 
       end
       subroutine stationa
+      use arrays_m  ! ts, t, u, v, psl, ps, zs
       use cc_mpi
       use diag_m
       use map_m
@@ -1901,7 +1936,6 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       use xyzinfo_m
       implicit none
       include 'newmpar.h'
-      include 'arrays.h'   ! ts, t, u, v, psl, ps, zs
       include 'const_phys.h'
       include 'dates.h'    ! dtin,mtimer
       include 'establ.h'
@@ -2019,6 +2053,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       return	    
       end               
       subroutine stationb  ! primarily for ICTS
+      use arrays_m
       use cc_mpi
       use diag_m
       use map_m
@@ -2026,7 +2061,6 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       use xyzinfo_m
       implicit none
       include 'newmpar.h'
-      include 'arrays.h'   ! ts, t, u, v, psl, ps, zs
       include 'const_phys.h'
       include 'dates.h'    ! dtin,mtimer
       include 'establ.h'

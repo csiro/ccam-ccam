@@ -256,6 +256,7 @@ c     convert to grid point numbering
       end
 
       subroutine toij5(k,x3d,y3d,z3d)
+      use bigxy4_m ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       use cc_mpi
       use xyzinfo_m
 c     modify toij5 for Cray
@@ -264,7 +265,6 @@ c     modify toij5 for Cray
       include 'newmpar.h'
       include 'parm.h'
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
-      include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
       real*8 x3d(ifull),y3d(ifull),z3d(ifull)
       common/work2b/xstr(ifull),ystr(ifull),zstr(ifull)

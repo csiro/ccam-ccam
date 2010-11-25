@@ -1,5 +1,6 @@
       subroutine bett_cuc ( dt, pt, kpnt, oshal )  ! was called cucnvc
 c***  efiln was undefined  - changed to efimn 28/9/00
+      use betts1_m
       parameter (ntest=0)  ! replaces debug; set to 1 or 2 for degugging
 c     with constants altered by bfr
 c     this is part of the Betts-Miller parameterization
@@ -56,7 +57,6 @@ c
      &, elocp=elivw/cp, cprlg=cp/(row*g*elwv), rcp=1./cp )
 c
       include 'newmpar.h'
-      include 'betts1.h'
 c     include 'imjmkl.h'     ! now in betts1.h
 c
       parameter ( ksmud=0 )  ! this option actually removed by jlm

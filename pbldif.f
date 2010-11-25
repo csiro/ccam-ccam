@@ -1,5 +1,6 @@
       subroutine pbldif(theta,rkh,rkm,uav,vav)
 !     vectorized version      
+      use arrays_m   !t
       use cc_mpi, only : mydiag, myid
       use diag_m
       use map_m
@@ -45,7 +46,6 @@ C Modified for boundary layer height diagnosis: Bert Holtslag, june 1994
 C >>>>>>>>>  (Use ricr = 0.3 in this formulation)
 C
 C-----------------------------------------------------------------------
-      include 'arrays.h'       !t
       include 'const_phys.h'
       include 'extraout.h'     !ustar
       include 'kuocom.h'

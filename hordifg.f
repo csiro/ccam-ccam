@@ -1,5 +1,6 @@
       subroutine hordifgt    !  globpea version    N.B. k loop in here
 !     usual scheme
+      use arrays_m
       use cc_mpi
       use diag_m
       use indices_m
@@ -21,7 +22,6 @@ c     this one has got map factors
 c     N.B. no trace_gases yet
 c     has jlm nhorx option as last digit of nhor, e.g. -157
       include 'newmpar.h'
-      include 'arrays.h'
       include 'const_phys.h'
       include 'nlin.h'
       include 'parm.h'

@@ -1,6 +1,7 @@
       subroutine vadvtvd(tarr,uarr,varr,nvadh_pass)   ! globpea  version
 c                              vadvbott & vadvyu at bottom
 !     can show adding tbar has no effect
+      use arrays_m
       use cc_mpi, only : mydiag, myid
       use diag_m
       use map_m
@@ -20,7 +21,6 @@ c                              vadvbott & vadvyu at bottom
 c     split vertical advection routine; tvd scheme; used with nonlin or upglobal
 c     In flux limiter, assuming zero gradient for all top and bottom
 c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
-      include 'arrays.h'
       include 'kuocom.h'     ! also with kbsav,ktsav
       include 'liqwpar.h'  ! ifullw
       include 'parm.h'

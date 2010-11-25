@@ -1,4 +1,5 @@
       subroutine amipsst
+      use arrays_m ! ts, t, u, v, psl, ps, zs
       use cc_mpi
       use latlong_m
       use mlo, only : mloexport,sssb ! MJT mlo
@@ -12,7 +13,6 @@
 !     start of a month, is updated to 2 at end of first day etc.)
 !     imo is the number of the month we are in (1<=imo<=12)
       include 'newmpar.h'
-      include 'arrays.h'    ! ts, t, u, v, psl, ps, zs
       include 'dates.h'     !  kdate,ktime,timer,mtimer
       include 'nsibd.h'     ! res  for saving SST bias during month
       include 'parm.h'      ! id,jd

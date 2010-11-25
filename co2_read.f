@@ -1,13 +1,13 @@
-      block data co2_blk
-
-      include 'newmpar.h'
-      include 'rdparm.h'  ! needed before other radiation common blocks
-      include 'co2dta.h'
-
-c   The following coeffiecients don't depend on resolution or CO2 conc.
-      data b0,b1,b2,b3/-.51926410e-4,-.18113332e-3,
-     & -.10680132e-5,-.67303519e-7/
-      end
+!      block data co2_blk
+!
+!      include 'newmpar.h'
+!      include 'rdparm.h'  ! needed before other radiation common blocks
+!      include 'co2dta.h'
+!
+!c   The following coeffiecients don't depend on resolution or CO2 conc.
+!      data b0,b1,b2,b3/-.51926410e-4,-.18113332e-3,
+!     & -.10680132e-5,-.67303519e-7/
+!      end
 
 c******************************************************************************
 
@@ -17,12 +17,12 @@ c  co2_datafile (filename set in namelist)
 c  was unit 15 for DARLAM, unit 17 for conformal-cubic
 
       use cc_mpi, only : myid
+      use co2dta_m
       include 'parm.h'       ! MJT radiation
       include 'filnames.h'   ! MJT radiation
       include 'newmpar.h'
       include 'mpif.h'       ! MJT read
       include 'rdparm.h'  ! needed before other radiation common blocks
-      include 'co2dta.h'
       include 'radisw.h' ! passes rrvco2 to radrive for use in swr89
       parameter(sigtol=1e-3)
       real sigma(kl), sigin(kl)

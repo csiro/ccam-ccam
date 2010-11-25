@@ -1,5 +1,6 @@
       subroutine vadv30(tarr,uarr,varr)   
 !     only calls vadvbess or vadvbess8 (nvad=7,8) from Aug 2003      
+      use arrays_m
       use cc_mpi, only : mydiag
       use indices_m
       use map_m
@@ -19,7 +20,6 @@ c     does t, u,v then qg, [q1, q2,]
 
       include 'newmpar.h'
       parameter (kl1=kl+1,kl2=kl+2)
-      include 'arrays.h'
       include 'kuocom.h'    ! ldr
       include 'liqwpar.h'   ! ifullw,qfg,qlg
       include 'parm.h'

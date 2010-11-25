@@ -67,8 +67,9 @@ CDIR$ TASK COMMON SRCCOM
 CDIR$ TASK COMMON TFCOM
 c CDIR$ TASK COMMON VTEMP
 
-      use diag_m
       use cc_mpi, only : mydiag,myid
+      use cldcom_m
+      use diag_m
       implicit none
       include 'newmpar.h'
       include 'hcon.h'
@@ -82,7 +83,6 @@ c CDIR$ TASK COMMON VTEMP
       include 'kdacom.h'
       include 'srccom.h'
       include 'tfcom.h'
-      include 'cldcom.h'
       integer ixo(imax,lp1)  !itop(imax),ibot(imax),indtc(imax)
       real vtmp1(imax,lp1),vtmp2(imax,lp1),
      & vtmp3(imax,lp1),c(imax,llp1),alp(imax,llp1), !dsorc(imax,lp1),

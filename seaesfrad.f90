@@ -42,6 +42,7 @@ subroutine seaesfrad(odcalc,iaero)
 use zenith_m
 use microphys_rad_mod, only: microphys_sw_driver,microphys_lw_driver,lwemiss_calc,microphys_rad_init
 
+use arrays_m
 use ateb
 use cc_mpi
 use cable_ccam, only : CABLE
@@ -54,7 +55,6 @@ implicit none
 include 'parm.h'
 include 'newmpar.h'
 integer, parameter :: imax=il*nrows_rad
-include 'arrays.h'
 include 'cparams.h'
 include 'dates.h'
 include 'extraout.h'

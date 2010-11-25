@@ -1,4 +1,5 @@
       subroutine leoncld(cfrac)
+      use arrays_m
       use diag_m
       use cc_mpi, only : mydiag, myid
       use latlong_m
@@ -10,9 +11,6 @@
 !     parameter (ncfrp=1,icfrp=ifullw)   ! cfrp diags on     
       include 'const_phys.h' !Input physical constants
       include 'cparams.h'    !Input cloud scheme parameters
-
-      include 'arrays.h'
-      include 'dava.h'    ! davt
       include 'kuocom.h'  ! acon,bcon,Rcm
       include 'morepbl.h'
       include 'nlin.h'

@@ -1,9 +1,9 @@
       subroutine gettin(n)
+      use arrays_m
 c  gettina reads back preceding u,v,t,psl for n=2 (for nmi, assuming mex=1)
 c  saves and re-reads initial arrays of t and psl
 c  called only by darlam and vmodes
       include 'newmpar.h'
-      include 'arrays.h'
       include 'savuvt.h'
       if(n.eq.0)then
         savt(:,:)=t(1:ifull,:)

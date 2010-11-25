@@ -147,8 +147,9 @@ c     start of processing loop
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk)
-      use cc_mpi
       use ateb, only : atebdwn ! MJT urban
+      use carbpools_m
+      use cc_mpi
       use define_dimensions, only : ncs, ncp ! MJT cable
       use latlong_m
       use mlo, only : wlev,mlodwn,ocndwn,micdwn,mlootf,ocnotf,micotf,
@@ -169,7 +170,6 @@ c     include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       real*8, dimension(ik*ik*6):: z_a,x_a,y_a
 c**   xx4 & yy4 only used in indata & here, so no need to redefine after
 c**   onthefly; sometime can get rid of common/bigxy4
-      include 'carbpools.h' ! MJT cable      
       include 'const_phys.h'
       include 'darcdf.h' ! MJT small otf
       include 'morepbl.h'  ! MJT vertint

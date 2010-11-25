@@ -1,4 +1,5 @@
       subroutine adjust5
+      use arrays_m
       use cc_mpi
       use diag_m
       use indices_m
@@ -16,7 +17,6 @@
 !     nuv in parm.h:  now always 10
 !          !  0y for increments   , 1y for actual values, 2y for true increments
       include 'newmpar.h'
-      include 'arrays.h'
       include 'const_phys.h'
       include 'kuocom.h'   ! ldr
       include 'liqwpar.h'  ! qfg,qlg

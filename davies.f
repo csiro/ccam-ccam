@@ -1,11 +1,11 @@
       subroutine davies    ! for globpea - only large-scale available
+      use arrays_m         ! t,u,v,ps
       use cc_mpi, only : mydiag
+      use dava_m           ! davt, davu
+      use davb_m           ! psls,qgg,tt,uu,vv
       parameter(ntest=0)
 c     from Nov 05, separate davu & davt, just abs(nud_hrs) used)
       include 'newmpar.h' ! il,jl,kl,ij
-      include 'arrays.h' ! t,u,v,ps
-      include 'dava.h' ! davt, davu
-      include 'davb.h' ! psls,qgg,tt,uu,vv
       include 'parm.h' ! kbotdav,nud_u,nud_v,nud_t,nud_p,nud_q,nud_hrs,nudu_hrs
       include 'sigs.h' ! sig
 
@@ -92,10 +92,10 @@ c    .                           *davt(iq)*dt/3600.
       end
 c=======================================================================
       subroutine davset
+      use arrays_m        ! t,u,v,ps
+      use davb_m
       implicit none
       include 'newmpar.h' ! il,jl,kl,ij
-      include 'arrays.h' ! t,u,v,ps
-      include 'davb.h'
       psls(1:ifull) = psl(1:ifull)
       tt(1:ifull,:) = t(1:ifull,:)
       qgg(1:ifull,:) = qg(1:ifull,:)

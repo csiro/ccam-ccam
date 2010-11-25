@@ -321,13 +321,13 @@ c       endif
 c***********************************************************************
 
       subroutine surfbv
+      use arrays_m
       use cc_mpi, only : mydiag
       parameter (ntest=0)    ! 3: forces 3-layer snow, 1: for snow diag prints
       parameter (ncondxpr=1) ! 0: old sfce scheme, 1: jlm mid-level suggestion
       parameter (newsmelt=1) ! 0: old, 1: new from Aug 2003
 !     parameter (nglacier=1)  ! 0 original, 1 off, 2 new from Eva; to parm.h
       include 'newmpar.h'   
-      include 'arrays.h'
       include 'const_phys.h'  ! cp
       include 'parm.h'      ! ktau,dt
       include 'permsurf.h'

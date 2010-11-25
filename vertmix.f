@@ -1,5 +1,6 @@
       subroutine vertmix
 !     inputs & outputs: t,u,v,qg
+      use arrays_m
       use cc_mpi, only : mydiag, myid
       use diag_m
       use indices_m
@@ -17,7 +18,6 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
 !     typically tied_con=6., tied_over=2., tied_rh=.75
 !     nlocal in parm.h         ! 0 local scheme, 1 or 2 non-local scheme
 !     real t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),ps(ifull)
-      include 'arrays.h'
       include 'const_phys.h'
       include 'dates.h'
       include 'extraout.h' ! ustar ! MJT tke

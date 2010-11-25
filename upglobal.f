@@ -1,4 +1,5 @@
       subroutine upglobal      ! globpea version   use ritchie 103
+      use arrays_m
       use cc_mpi
       use diag_m
       use indices_m
@@ -11,7 +12,6 @@
       integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
 !     m=6 had three options; only option 3 has been adopted here
       include 'newmpar.h'
-      include 'arrays.h'
       include 'const_phys.h'
       include 'kuocom.h'   ! ldr
       include 'liqwpar.h'  ! ifullw

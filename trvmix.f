@@ -62,13 +62,13 @@ c rml 08/11/04 add decay flag
 
 c ***************************************************************************
       subroutine trgassflux(igas,trsrc)
+      use carbpools_m ! online co2 fluxes
       use tracermodule, only :co2em,tractype,tracname,tracdaytime
       use define_dimensions, only : ncs, ncp ! Used in carbpool.h
 c     this routine put the correct tracer surface flux into trsrc
       implicit none
       include 'newmpar.h'
       include 'dates.h'  ! timeg
-      include 'carbpools.h' ! online co2 fluxes
 !     tml 17/09/07 online tracers by veg type
       include 'nsibd.h' !ivegt (vegetation type)
 c     can these common blocks be 'lost' with rewrite of cbm/soilsnow?
@@ -135,9 +135,9 @@ c       emissions from file
 c *****************************************************************
       subroutine gasvmix(temptr, fluxfact, igas, decay,trsrc)
 
+      use arrays_m        ! ps
       implicit none
       include 'newmpar.h'
-      include 'arrays.h'  ! ps
       include 'tracers.h' ! tr
       include 'parm.h'    ! dt
       real trsrc(ilt*jlt,kl)
