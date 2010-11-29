@@ -6,8 +6,15 @@
       use cc_mpi, only : mydiag, myid
       use diag_m
       use indices_m
+      use kuocomb_m
       use latlong_m
+      use liqwpar_m  ! ifullw
       use map_m
+      use morepbl_m
+      use nlin_m
+      use prec_m
+      use sigs_m
+      use soil_m
       use tkeeps, only : tke,eps ! MJT
       implicit none
       integer itn,iq,k,k13,k23,kcl_top
@@ -52,13 +59,7 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
 !     could reinstate nbase=0 & kbsav_b from .f0406
       include 'const_phys.h'
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
-      include 'liqwpar.h'  ! ifullw
-      include 'morepbl.h'
-      include 'nlin.h'
       include 'parm.h'
-      include 'prec.h'
-      include 'sigs.h'
-      include 'soil.h'
       include 'tracers.h'  ! ngas, nllp, ntrac
       include 'vvel.h'
       real cfrac

@@ -43,6 +43,8 @@ c******************************************************************************
 
       use diag_m
       use cc_mpi, only : mydiag,myid
+      use radisw_m  !Output various things (see above) and input coszro
+      use sigs_m
       implicit none
 C Global parameters
       include 'newmpar.h'
@@ -53,7 +55,6 @@ C Global parameters
       include 'parm.h'       !for printing diags
       include 'rdparm.h'     !Input radiation scheme parameters
       include 'hcon.h'       !Input radiation physical constants
-      include 'sigs.h'       ! MJT change - mr
 
 C Argument list
       logical cldoff
@@ -76,7 +77,6 @@ c      real Refflm(imax)
 c      real cldliq(imax)
 
 C Local shared common blocks (see TASK COMMON/TASKLOCAL above)
-      include 'radisw.h'     !Output various things (see above) and input coszro
 
 C Global data blocks
       integer naerosol_i(2)

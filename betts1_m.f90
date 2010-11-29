@@ -10,12 +10,12 @@ public qs0,sqs,the0,sthe,ptbl,ttbl
 public sm,pd,prec,cuprec,cldefi,t,q
 public betts1_init,betts1_end
 
-integer ktm
+integer, save :: ktm
 integer, parameter :: la = 25
 integer, parameter :: itb = 76
 integer, parameter :: jtb = 171
-real dtq2,pl,rdq,rdth,rdp,rdthe
-real :: thl = 210.
+real, save :: dtq2,pl,rdq,rdth,rdp,rdthe
+real, save :: thl = 210.
 
 integer, dimension(:), allocatable, save :: klh
 real, dimension(:), allocatable, save :: deta,aeta,eta

@@ -4,6 +4,13 @@
       use arrays_m
       use cc_mpi, only : mydiag,myid
       use diag_m
+      use liqwpar_m  ! ifullw,qfg,qlg  just for diags
+      use morepbl_m  ! condx,fg,eg
+      use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
+      use pbl_m
+      use prec_m     ! just for diags
+      use sigs_m
+      use soil_m
       implicit none
 !     from Feb '05 scales uscrn, u10 to remove vmod>2 effect
 !     allows for zo>zscr from 30/7/04
@@ -14,16 +21,8 @@
       real, parameter :: vkar=.4, zscr=1.8
       include 'newmpar.h'
       include 'const_phys.h'
-      include 'liqwpar.h'  ! ifullw,qfg,qlg  just for diags
-c     include 'map.h'
-      include 'morepbl.h'  ! condx,fg,eg
-      include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
-      include 'pbl.h'
-      include 'prec.h'     ! just for diags
       include 'scamdim.h'
-      include 'sigs.h'
-      include 'soil.h'
       include 'soilsnow.h'
       real ri(ifull),vmod(ifull)
       real af(ifull),aft(ifull)  ! passed in

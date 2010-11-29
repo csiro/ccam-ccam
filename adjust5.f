@@ -3,7 +3,12 @@
       use cc_mpi
       use diag_m
       use indices_m
+      use liqwpar_m  ! qfg,qlg
       use map_m
+      use morepbl_m  ! condx,eg
+      use nlin_m
+      use pbl_m
+      use sigs_m
 !     rml 19/09/07 replace gasmin from tracers.h with tracmin from tracermodule
       use tracermodule, only: tracmin
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
@@ -18,15 +23,10 @@
 !          !  0y for increments   , 1y for actual values, 2y for true increments
       include 'newmpar.h'
       include 'const_phys.h'
-      include 'kuocom.h'   ! ldr
-      include 'liqwpar.h'  ! qfg,qlg
-      include 'morepbl.h'  ! condx,eg
-      include 'nlin.h'
+      include 'kuocom.h'
       include 'parm.h'     ! qgmin
       include 'parmdyn.h'  
       include 'parmvert.h'  
-      include 'pbl.h'
-      include 'sigs.h'
       include 'tracers.h'
       include 'vecs.h'
       include 'vvel.h'     ! sdot

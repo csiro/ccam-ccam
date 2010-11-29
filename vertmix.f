@@ -3,9 +3,20 @@
       use arrays_m
       use cc_mpi, only : mydiag, myid
       use diag_m
+      use extraout_m
       use indices_m
+      use kuocomb_m
+      use liqwpar_m  ! ifullw, qfg, qlg
       use map_m
-      use tkeeps ! MJT tke
+      use morepbl_m
+      use nlin_m, tmnht => un, at => un
+      use pbl_m
+      use permsurf_m
+      use savuvt_m
+      use screen_m   ! tscrn
+      use sigs_m
+      use soil_m
+      use tkeeps     ! MJT tke
 !     rml 16/02/06 use trvmix module
       use trvmix, only : tracervmix
       include 'newmpar.h'
@@ -20,19 +31,9 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
 !     real t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),ps(ifull)
       include 'const_phys.h'
       include 'dates.h'
-      include 'extraout.h' ! ustar ! MJT tke
       include 'kuocom.h'   ! also with kbsav,ktsav,convpsav,kscsea,sigksct
-      include 'liqwpar.h'  ! ifullw, qfg, qlg
       include 'mpif.h'
-      include 'nlin.h'
-      include 'morepbl.h'
       include 'parm.h'
-      include 'pbl.h'
-      include 'screen.h'   ! tscrn
-      include 'permsurf.h'
-      include 'savuvt.h'
-      include 'sigs.h'
-      include 'soil.h'
       include 'tracers.h'  ! ngas, nllp, ntrac
       common/cfrac/cfrac(ifull,kl)
       real betatt(ifull,kl),betaqt(ifull,kl),rhs(ifull,kl),dqtot(ifull)
@@ -46,13 +47,13 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
      &     x(ifull),zhv(ifull),theeb(ifull),sigsp(ifull)
       integer kbase(ifull),ktop(ifull)
       real sighkap(kl),sigkap(kl),delons(kl),delh(kl),prcpv(kl)
-      real at(ifull,kl),au(ifull,kl),ct(ifull,kl)
-      real zh(ifull,kl),tmnht(ifull,kl)
+      real au(ifull,kl),ct(ifull,kl)
+      real zh(ifull,kl)
       real gt(ifull,kl),guv(ifull,kl),ri(ifull,kl)
       real rkm(ifull,kl),rkh(ifull,kl),rk_shal(ifull,kl)
       real condrag
       equivalence (rkh,wrk1),(rkm,wrk2),(rk_shal,uav)
-      equivalence (tmnht,at,un),(zh,au,wrk3)
+      equivalence (zh,au,wrk3)
 !     equivalence (gamat,ct)
 c     set coefficients for Louis scheme
       data bprm/4.7/,cm/7.4/,ch/5.3/,amxlsq/100./,vkar3/.35/,vkar4/.4/

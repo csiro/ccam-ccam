@@ -5,10 +5,10 @@
 !  This routine is fixed format f90
 
       use cc_mpi, only : myid ! MJT read
+      use o3amip_m
 
       implicit none
       include 'mpif.h'       ! MJT read
-      include 'o3amip.h'
       include 'filnames.h'   ! MJT read
 
       character(len=80)  :: finame

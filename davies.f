@@ -3,11 +3,11 @@
       use cc_mpi, only : mydiag
       use dava_m           ! davt, davu
       use davb_m           ! psls,qgg,tt,uu,vv
+      use sigs_m           ! sig
       parameter(ntest=0)
 c     from Nov 05, separate davu & davt, just abs(nud_hrs) used)
       include 'newmpar.h' ! il,jl,kl,ij
       include 'parm.h' ! kbotdav,nud_u,nud_v,nud_t,nud_p,nud_q,nud_hrs,nudu_hrs
-      include 'sigs.h' ! sig
 
 !     and new nud_p, nud_t, nud_q, nud_uv just off/on switches (0/1)
 !       large-scale style with davies-style weights (already scaled for nud_hrs)

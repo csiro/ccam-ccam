@@ -1,17 +1,17 @@
       subroutine gwdrag   ! globpea/darlam (but not staggered)
 !     this is vectorized jlm version
       use arrays_m
+      use gdrag_m
+      use morepbl_m
+      use nlin_m
+      use pbl_m
+      use sigs_m
+      use soil_m
 !     parameter(fc2=.5,ndzx=0)    !  as per Hal      gwd1a
       parameter(fc2=1.,ndzx=1)    !  as per jlm      gwd1b
       include 'newmpar.h'
       include 'const_phys.h'
-      include 'gdrag.h'
-      include 'nlin.h'
-      include 'morepbl.h'
       include 'parm.h'
-      include 'pbl.h'
-      include 'sigs.h'
-      include 'soil.h'
       common/work3/uu(ifull,kl),fni(ifull,kl),bvnf(ifull,kl)
      .            ,thf(ifull,kl),spare(ifull,kl)
       real dthdz(ifull,kl)

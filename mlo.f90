@@ -121,6 +121,8 @@ integer, intent(in) :: ifin,diag
 integer iq,iqw,ii
 real, dimension(ifin), intent(in) :: depin
 real, dimension(ifin) :: deptmp
+real, dimension(wlev) :: dumdf
+real, dimension(wlev+1) :: dumdh
 real smxd,smnd
 
 if (diag.ge.1) write(6,*) "Initialising MLO"
@@ -213,7 +215,9 @@ smxd=maxval(deptmp(1:wfull))
 smnd=minval(deptmp(1:wfull))
 
 do iqw=1,wfull
-  call vgrid(deptmp(iqw),depth(iqw,:),depth_hl(iqw,:))
+  call vgrid(deptmp(iqw),dumdf,dumdh)
+  depth(iqw,:)=dumdf
+  depth_hl(iqw,:)=dumdh
   if (smxd.eq.deptmp(iqw)) then
     write(6,*) "MLO max depth ",depth(iqw,:)
     smxd=smxd+10.

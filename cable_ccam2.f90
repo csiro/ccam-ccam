@@ -64,7 +64,16 @@ module cable_ccam
 
   use arrays_m
   use carbpools_m
+  use extraout_m
   use latlong_m
+  use morepbl_m
+  use nsibd_m
+  use pbl_m
+  use permsurf_m
+  use prec_m
+  use screen_m
+  use sigs_m
+  use soil_m
   use zenith_m
   
   implicit none
@@ -72,17 +81,7 @@ module cable_ccam
   include 'newmpar.h'
   include 'const_phys.h' ! grav
   include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg
-  include 'extraout.h'
-  include 'histave.h'
-  include 'morepbl.h'
-  include 'nsibd.h'
   include 'parm.h'
-  include 'permsurf.h'
-  include 'pbl.h'
-  include 'prec.h'
-  include 'screen.h'   ! tscrn etc
-  include 'sigs.h'
-  include 'soil.h'     ! ... zmin zolnd zolog sice alb
   include 'soilbal.h'
   include 'soilsnow.h' ! 
   include 'vegpar.h' ! 
@@ -122,18 +121,18 @@ module cable_ccam
   if (mp.le.0) return
 
   ! Reset averages
-  if (ktau==1.or.ktau-1==ntau.or.mod(ktau-1,nperavg)==0) then
-    do k=1,ms
-      wb_ave(:,k)=wb_ave(:,k)+wb(:,k)
-      tgg_ave(:,k)=tgg_ave(:,k)+tgg(:,k)
-    end do
-    theta_ave=0.    
-    fpn_ave=0.
-    frday_ave=0.
-    frp_ave=0.
-    tsu_ave=0.
-    alb_ave=0.
-  end if
+  !if (ktau==1.or.ktau-1==ntau.or.mod(ktau-1,nperavg)==0) then
+  !  do k=1,ms
+  !    wb_ave(:,k)=wb_ave(:,k)+wb(:,k)
+  !    tgg_ave(:,k)=tgg_ave(:,k)+tgg(:,k)
+  !  end do
+  !  theta_ave=0.    
+  !  fpn_ave=0.
+  !  frday_ave=0.
+  !  frp_ave=0.
+  !  tsu_ave=0.
+  !  alb_ave=0.
+  !end if
     
   ! Set soil moisture to presets when nrungcm.ne.0
   if (ktau==1.and.nrungcm.ne.0) then
@@ -209,7 +208,8 @@ module cable_ccam
       sigmf(cmap(pind(nb,1):pind(nb,2)))=sigmf(cmap(pind(nb,1):pind(nb,2))) &
         +sv(pind(nb,1):pind(nb,2))*(1.-exp(-extkn(veg%iveg(pind(nb,1):pind(nb,2)))*veg%vlai(pind(nb,1):pind(nb,2))))
     end if
-  end do  
+  end do
+  tsigmf=sigmf  
 
   met%tc=met%tk-273.16
   met%tvair=met%tk
@@ -251,6 +251,7 @@ module cable_ccam
   deltat = ssoil%tss - ssoil%otss                                            ! MJT from eak energy bal
   canopy%fhs = canopy%fhs + deltat*ssoil%dfh_dtg                             ! MJT from eak energy bal
   canopy%fes = canopy%fes + deltat*(ssoil%cls*ssoil%dfe_ddq * ssoil%ddq_dtg) ! MJT from eak energy bal
+  canopy%fh  = canopy%fhv + canopy%fhs                                       ! MJT from eak energy bal
   ! need to adjust fe after soilsnow
   canopy%fev = canopy%fevc + canopy%fevw
   ! Calculate total latent heat flux:
@@ -524,29 +525,29 @@ module cable_ccam
   end do
 
   ! Averages for Yingping's off-line experiments
-  do k=1,ms
-    wb_ave(:,k)=wb_ave(:,k)+wb(:,k)
-    tgg_ave(:,k)=tgg_ave(:,k)+tgg(:,k)
-  end do
-  theta_ave=theta_ave+theta
-  fpn_ave  =fpn_ave  +fpn
-  frday_ave=frday_ave+frd
-  frp_ave  =frp_ave  +frp
-  tsu_ave  =tsu_ave  +tss
-  alb_ave  =alb_ave  +swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
-      
-  if (ktau==ntau.or.mod(ktau,nperavg)==0) then
-    do k=1,ms
-      wb_ave(:,k)=wb_ave(:,k)/min(ntau,nperavg)
-      tgg_ave(:,k)=tgg_ave(:,k)/min(ntau,nperavg)
-    end do
-    theta_ave=theta_ave/min(ntau,nperavg)
-    fpn_ave  =fpn_ave  /min(ntau,nperavg)
-    frday_ave=frday_ave/min(ntau,nperavg)
-    frp_ave  =frp_ave  /min(ntau,nperavg)
-    tsu_ave  =tsu_ave  /min(ntau,nperavg)
-    alb_ave  =alb_ave  /min(ntau,nperavg)    
-  end if
+  !do k=1,ms
+  !  wb_ave(:,k)=wb_ave(:,k)+wb(:,k)
+  !  tgg_ave(:,k)=tgg_ave(:,k)+tgg(:,k)
+  !end do
+  !theta_ave=theta_ave+theta
+  !fpn_ave  =fpn_ave  +fpn
+  !frday_ave=frday_ave+frd
+  !frp_ave  =frp_ave  +frp
+  !tsu_ave  =tsu_ave  +tss
+  !alb_ave  =alb_ave  +swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
+  !    
+  !if (ktau==ntau.or.mod(ktau,nperavg)==0) then
+  !  do k=1,ms
+  !    wb_ave(:,k)=wb_ave(:,k)/min(ntau,nperavg)
+  !    tgg_ave(:,k)=tgg_ave(:,k)/min(ntau,nperavg)
+  !  end do
+  !  theta_ave=theta_ave/min(ntau,nperavg)
+  !  fpn_ave  =fpn_ave  /min(ntau,nperavg)
+  !  frday_ave=frday_ave/min(ntau,nperavg)
+  !  frp_ave  =frp_ave  /min(ntau,nperavg)
+  !  tsu_ave  =tsu_ave  /min(ntau,nperavg)
+  !  alb_ave  =alb_ave  /min(ntau,nperavg)    
+  !end if
       
   return
   end subroutine sib4
@@ -558,6 +559,8 @@ module cable_ccam
 ! host: atmospheric co2 follows that from CCAM radiation scheme
 ! interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
 
+  use radisw_m, only : rrco2,ssolar,rrvco2
+
   implicit none
 
   include 'newmpar.h'
@@ -567,8 +570,6 @@ module cable_ccam
   integer, parameter :: hostCO2 = 2
   integer, parameter :: interactiveCO2 = 3
   real, dimension(ifull), intent(out) :: atmco2
-  real rrco2,ssolar,rrvco2
-  common /radisw2/ rrco2, ssolar, rrvco2
 
   select case (CO2forcingtype)
     case (constantCO2); atmco2 = 360.
@@ -588,16 +589,16 @@ module cable_ccam
   use carbpools_m
   use cc_mpi
   use latlong_m
+  use nsibd_m
+  use pbl_m
+  use sigs_m
+  use soil_m
   
   implicit none
   
   include 'newmpar.h'
   include 'const_phys.h'
-  include 'nsibd.h'
   include 'parm.h'
-  include 'pbl.h'
-  include 'sigs.h'
-  include 'soil.h'
   include 'soilsnow.h'
   include 'soilv.h'
   include 'vegpar.h' !   
@@ -610,7 +611,8 @@ module cable_ccam
   real(r_1), dimension(ncp) :: ratecp
   real(r_1), dimension(ncs) :: ratecs
   real(r_1), dimension(mxvt,ncp) ::tcplant
-  real(r_1), dimension(mxvt,ncs) ::tcsoil  
+  real(r_1), dimension(mxvt,ncs) ::tcsoil
+  real(r_1), dimension(ifull) :: dumr  
   character(len=*), intent(in) :: fveg,fvegprev,fvegnext
 
   if (myid == 0) write(6,*) "Setting CABLE defaults (igbp)"
@@ -746,7 +748,8 @@ module cable_ccam
   
     ipos=0
     do n=1,5
-      call getc4(ifull,ivs(:,n),rlatt(:)*180./pi,c4frac(:))
+      dumr=rlatt(:)*180./pi
+      call getc4(ifull,ivs(:,n),dumr,c4frac)
       pind(n,1)=ipos+1
       do iq=1,ifull
         if (land(iq).and.(svs(iq,n).gt.0.)) then
@@ -796,6 +799,7 @@ module cable_ccam
           +sv(pind(n,1):pind(n,2))*(1.-exp(-extkn(veg%iveg(pind(n,1):pind(n,2)))*veg%vlai(pind(n,1):pind(n,2))))
       end if
     end do
+    tsigmf=0.
   
     ! aggregate zom
     do n=1,5
@@ -1098,6 +1102,7 @@ module cable_ccam
 
   use carbpools_m
   use cc_mpi, only : myid
+  use soil_m
   
   implicit none
 
@@ -1106,7 +1111,6 @@ module cable_ccam
   include 'parm.h'
   include 'netcdf.inc'
   include 'mpif.h'
-  include 'soil.h'
   include 'soilsnow.h'
   include 'vegpar.h'    
   
@@ -1234,11 +1238,11 @@ module cable_ccam
 
   use carbpools_m
   use cc_mpi, only : myid
+  use soil_m
   
   implicit none
 
   include 'newmpar.h'
-  include 'soil.h'
   include 'soilsnow.h'
   include 'vegpar.h'
   

@@ -337,6 +337,12 @@ c
       use arrays_m    ! temp, q, ps
       use carbpools_m ! cbm co2 fluxes
       use define_dimensions, only : ncs, ncp ! Used in carbpool.h
+      use extraout_m  ! cloud arrays
+      use morepbl_m   ! rnet,eg,fg
+      use pbl_m       ! tss
+      use prec_m      ! precip
+      use sigs_m      ! sigma levels for pressure
+      use soil_m      ! albedo
       use tracermodule, only : co2em,unit_trout
       implicit none
       real, dimension(:,:), allocatable :: cts
@@ -348,17 +354,9 @@ c
 !!!      include 'cbmdim.h'
       include 'newmpar.h'    ! dimensions for tr array
       include 'tracers.h'    ! ntrac and tr array
-      include 'extraout.h'   ! cloud arrays
-      include 'soil.h'       ! albedo
-      include 'prec.h'       ! precip
       include 'vvel.h'       ! vertical velocity
-      include 'pbl.h'        ! tss
-      include 'morepbl.h'    ! rnet,eg,fg
       include 'soilsnow.h'   ! soil temp (tgg)
       include 'vegpar.h'     ! rlai
-      include 'sigs.h'       ! sigma levels for pressure
-
-
 
       real temparr2(il*jl,kl),temparr(il*jl)
 
@@ -439,7 +437,7 @@ c
           case ('pfpn')    ; temparr=fpn
           case ('pfrp')    ; temparr=frp
           case ('pfrs')    ; temparr=frs
-          case ('pblh') ; temparr=pblh
+          case ('pblh')    ; temparr=pblh
           case ('flux')  
             allocate(cts(ngrdpts1,ntrac))
             kount=0

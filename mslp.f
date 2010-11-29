@@ -1,12 +1,12 @@
       subroutine mslp(pmsl,psl,zs,t)
       use cc_mpi, only : mydiag
+      use sigs_m
 !     this one will ignore negative zs (i.e. over the ocean)
       parameter (meth=1) ! 0 for original, 1 for other jlm - always now
       include 'newmpar.h'
       include 'const_phys.h'
       include 'parm.h'
       real pmsl(ifull),psl(ifull),zs(ifull),t(ifull,kl)
-      include 'sigs.h'
       save lev
       c=grav/stdlapse
       conr=c/rdry

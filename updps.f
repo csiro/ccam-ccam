@@ -4,16 +4,16 @@
       use diag_m             ! for calls to maxmin
       use indices_m
       use map_m
+      use nlin_m             ! savs
+      use savuvt_m
+      use sigs_m
       use vecsuv_m
       use xyzinfo_m
       include 'newmpar.h'
       include 'const_phys.h'
-      include 'nlin.h'  ! savs
-      include 'savuvt.h'
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmhor.h'
-      include 'sigs.h'
       include 'vvel.h'     ! sdot
       include 'xarrs.h'
       real derpsl(ifull),cc(ifull+iextra,kl),dd(ifull+iextra,kl)

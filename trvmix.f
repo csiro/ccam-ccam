@@ -7,13 +7,13 @@ c ***************************************************************************
 !     next to lines in JLM version of tracervmix - not sure if need
       use cc_mpi, only : mydiag
       use diag_m
+      use sigs_m
       use tracermodule, only :tracunit,tracname
 c     this routine does the vertical mixing of tracers
       implicit none
       include 'newmpar.h'
       include 'const_phys.h'      ! grav,fair_molm,fc_molm
       include 'parm.h'          ! dt
-      include 'sigs.h'          ! dsig
       include 'tracers.h'       ! tr
       real trsrc(ifull,kl)
       real updtr(ilt*jlt,klt,ngasmax),at(ifull,kl),ct(ifull,kl)
@@ -63,14 +63,14 @@ c rml 08/11/04 add decay flag
 c ***************************************************************************
       subroutine trgassflux(igas,trsrc)
       use carbpools_m ! online co2 fluxes
-      use tracermodule, only :co2em,tractype,tracname,tracdaytime
       use define_dimensions, only : ncs, ncp ! Used in carbpool.h
+      use nsibd_m     !ivegt (vegetation type)
+      use tracermodule, only :co2em,tractype,tracname,tracdaytime
 c     this routine put the correct tracer surface flux into trsrc
       implicit none
       include 'newmpar.h'
       include 'dates.h'  ! timeg
 !     tml 17/09/07 online tracers by veg type
-      include 'nsibd.h' !ivegt (vegetation type)
 c     can these common blocks be 'lost' with rewrite of cbm/soilsnow?
       integer igas
       real trsrc(ifull,kl)

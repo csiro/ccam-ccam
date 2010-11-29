@@ -70,17 +70,17 @@ c CDIR$ TASK COMMON VTEMP
       use cc_mpi, only : mydiag,myid
       use cldcom_m
       use diag_m
+      use kdacom_m
+      use lwout_m
+      use radisw_m
+      use rdflux_m
       implicit none
       include 'newmpar.h'
       include 'hcon.h'
       include 'parm.h'
       include 'rdparm.h'
-      include 'radisw.h'
       include 'rnddta.h'
       include 'tabcom.h'
-      include 'rdflux.h'
-      include 'lwout.h'
-      include 'kdacom.h'
       include 'srccom.h'
       include 'tfcom.h'
       integer ixo(imax,lp1)  !itop(imax),ibot(imax),indtc(imax)

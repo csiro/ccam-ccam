@@ -6,11 +6,10 @@
 !     In CCAM version latitude may be different for every point.
 
 !     Fixed format f90
-
+      use o3amip_m
       implicit none
       include 'newmpar.h'
       integer, parameter :: klp = kl+1
-      include 'o3amip.h'
       include 'const_phys.h'
       integer, intent(in) :: npts
       real, dimension(npts), intent(in) :: alat     ! Latitude

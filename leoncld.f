@@ -2,22 +2,23 @@
       use arrays_m
       use diag_m
       use cc_mpi, only : mydiag, myid
+      use kuocomb_m
       use latlong_m
+      use liqwpar_m  ! ifullw
+      use morepbl_m
+      use nlin_m
+      use prec_m
+      use sigs_m
+      use soil_m     ! land
       implicit none
       include 'newmpar.h'
-      include 'liqwpar.h' ! ifullw
       integer  ncfrp,icfrp
       parameter (ncfrp=0,icfrp=1)        ! cfrp diags off      
 !     parameter (ncfrp=1,icfrp=ifullw)   ! cfrp diags on     
       include 'const_phys.h' !Input physical constants
       include 'cparams.h'    !Input cloud scheme parameters
       include 'kuocom.h'  ! acon,bcon,Rcm
-      include 'morepbl.h'
-      include 'nlin.h'
       include 'parm.h'
-      include 'prec.h'
-      include 'sigs.h'
-      include 'soil.h'    ! land
       include 'tracers.h' ! ngas, nllp, ntrac
       include 'vvel.h'
 

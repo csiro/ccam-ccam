@@ -9,11 +9,21 @@
       use dava_m    ! davt
       use diag_m
       use define_dimensions, only : ncs, ncp ! MJT cable
+      use extraout_m
+      use gdrag_m
       use indices_m
       use latlong_m
+      use liqwpar_m
       use map_m
       use mlo ! MJT mlo
+      use morepbl_m
+      use nsibd_m   ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
+      use pbl_m
       use physical_constants, only : umin ! MJT cable      
+      use permsurf_m
+      use prec_m
+      use sigs_m
+      use soil_m    ! sicedep,fracice
       use tkeeps ! MJT tke
 !     rml 21/02/06 removed all so2 code
 !     rml 16/02/06 use tracermodule, timeseries
@@ -37,21 +47,10 @@
       include 'const_phys.h'
       include 'darcdf.h'    ! MJT tracerfix
       include 'dates.h'     ! mtimer
-      include 'extraout.h'  ! MJT cable
       include 'filnames.h'  ! list of files, read in once only
-      include 'gdrag.h'
-      include 'liqwpar.h'
-      include 'morepbl.h'
-      include 'nsibd.h'     ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
       include 'parmdyn.h'   ! epsp
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt
-      include 'pbl.h'
-      include 'permsurf.h'
-      include 'prec.h'
-!     include 'scamdim.h'
-      include 'sigs.h'
-      include 'soil.h'      ! sicedep,fracice
       include 'soilsnow.h'  ! tgg,wb
       include 'soilv.h'
       include 'stime.h'
@@ -1791,7 +1790,7 @@ c       endif
       if(nbd>=3)then   ! separate (global) davu from (f-f) davt
         davu(:) = 1./nudu_hrs    !  e.g. 1/48
         print *,'all davu set to ',1./nudu_hrs 
-      else 
+      elseif (nbd.ne.0) then
         davu(:) = davt(:)
       endif
       do iq=1,ifull
@@ -2183,14 +2182,13 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       use cc_mpi
       use cable_ccam, only : CABLE ! MJT cable
       use map_m
+      use nsibd_m  ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
+      use pbl_m
+      use soil_m
       include 'newmpar.h'
       include 'const_phys.h'
       include 'filnames.h'  ! list of files, read in once only in darlam
-      include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
-      include 'pbl.h'
-!     include 'scamdim.h'
-      include 'soil.h'
       include 'soilsnow.h' ! new soil arrays for scam - tgg too
       include 'soilv.h'
       include 'tracers.h'
@@ -2431,11 +2429,10 @@ c     zobg = .05
       subroutine calczo    !  option to call from July '04
       use arrays_m
       use map_m
+      use nsibd_m  ! ivegt
+      use soil_m   ! zolnd
       include 'newmpar.h'
-      include 'nsibd.h' ! ivegt
       include 'parm.h'
-!     include 'scamdim.h'
-      include 'soil.h'      ! zolnd
       include 'soilsnow.h'  ! tgg,wb
       real xhc(0:44)
 c     vegetation height
@@ -2692,13 +2689,13 @@ c find coexp: see notes "simplified wind model ..." eq 34a
       
       use cc_mpi
       use latlong_m
+      use pbl_m
+      use soil_m
       
       implicit none
       
       include 'newmpar.h'
       include 'const_phys.h'  
-      include 'pbl.h'
-      include 'soil.h'
       include 'soilsnow.h'
       include 'netcdf.inc'
       include 'mpif.h'

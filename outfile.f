@@ -1,29 +1,29 @@
       subroutine outfile(iout,rundate,nmi,nwrite)
       use arrays_m
       use cc_mpi
+      use extraout_m
+      use histave_m
       use map_m
+      use morepbl_m  ! fg,eg,runoff
+      use nlin_m
+      use nsibd_m
+      use pbl_m
+      use prec_m
+      use screen_m
+      use sigs_m
+      use soil_m     ! land,sice,sicedep,alb
       include 'newmpar.h'
       parameter (mev1=il+1-il/2*2,mev2=3-mev1)  ! from helmsol
 c     mev1 = 1 for il even (2 for il odd)
 c     mev2 = 2 for il even (1 for il odd)
       parameter (nwrite0=1) ! 0 original, 1 writes initial nveg,nsoil etc
       include 'dates.h'    ! mtimer
-      include 'extraout.h'    ! taux,tauy,rtsave,rtclsave
       include 'filnames.h' ! list of files, read in once only
-      include 'histave.h'
       include 'kuocom.h'
-      include 'morepbl.h'  ! fg,eg,runoff
-      include 'nlin.h'
-      include 'nsibd.h'
       include 'parm.h'
       include 'parmdyn.h'  
       include 'parmvert.h'
-      include 'pbl.h'
-      include 'prec.h'
       include 'scamdim.h' ! npmax
-      include 'screen.h'  
-      include 'sigs.h'
-      include 'soil.h'  ! land,sice,sicedep,alb
       include 'soilv.h'  ! swilt,sfc
       include 'soilsnow.h'  ! tgg,wb,snowd
       include 'tracers.h'

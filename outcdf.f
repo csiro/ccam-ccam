@@ -4,12 +4,12 @@ c=======================================================================
 !            1  for outfile
 !     N.B. subr outcdfs is down the bottom (for nscrn=1)
       use cc_mpi
+      use liqwpar_m  ! ifullw
       implicit none
       include 'newmpar.h'
       include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg,mtimer
       include 'filnames.h'  ! list of files, read in once only
       include 'kuocom.h'
-      include 'liqwpar.h'  ! ifullw
       include 'parm.h'
       include 'parmdyn.h'  
       include 'parmgeom.h' ! rlong0,rlat0,schmidt  
@@ -272,9 +272,20 @@ c=======================================================================
       use carbpools_m
       use cc_mpi
       use define_dimensions, only : ncs, ncp ! MJT cable
+      use extraout_m  ! u10_3hr,v10_3hr
+      use histave_m
       use latlong_m
-      use mlo, only : wlev,mlosave,mlodiag,mlodwn,micdwn ! MJT mlo
+      use liqwpar_m   ! ifullw
       use map_m
+      use mlo, only : wlev,mlosave,mlodiag,mlodwn,micdwn ! MJT mlo
+      use morepbl_m
+      use nsibd_m     ! rsmin,ivegt,sigmf,tgg,tgf,ssdn,res,rmc,isoilm,ico2em
+      use pbl_m
+      use prec_m
+      use raddiag_m
+      use screen_m
+      use sigs_m
+      use soil_m
 c     rml 18/09/07 pass through tracmax,tracmin; 19/09/07 add tracname
       use tracermodule, only : tracmax,tracmin,tracname
       use tkeeps, only : tke,eps ! MJT tke
@@ -285,25 +296,14 @@ c     this routine creates attributes and writes output
       include 'newmpar.h'
       include 'const_phys.h'
       include 'dates.h'    ! ktime,kdate,timer,timeg,xg,yg,mtimer
-      include 'extraout.h' ! u10_3hr,v10_3hr
       include 'filnames.h' ! list of files, read in once only
-      include 'histave.h'
       include 'kuocom.h'
-      include 'liqwpar.h'  ! ifullw
       include 'mapproj.h'
-      include 'morepbl.h'
       include 'netcdf.inc'
-      include 'nsibd.h' ! rsmin,ivegt,sigmf,tgg,tgf,ssdn,res,rmc,isoilm,ico2em
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmvert.h'
-      include 'pbl.h'
-      include 'prec.h'
-      include 'raddiag.h'
       include 'scamdim.h'
-      include 'screen.h'
-      include 'sigs.h'
-      include 'soil.h'
       include 'soilsnow.h'
       include 'soilv.h'   ! sfc,zse
       include 'tracers.h'
@@ -675,47 +675,47 @@ c       call attrib(idnc,idim,3,'snd',lname,'mm',0.,5000.,0)
         call attrib(idnc,idim,3,'iwp_ave',lname,'kg/m2',0.,2.,0)
         lname = 'Avg liquid water path'
         call attrib(idnc,idim,3,'lwp_ave',lname,'kg/m2',0.,2.,0)
-        if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then ! MJT cable
-          lname = 'Avg soil moisture 1'
-          call attrib(idnc,idim,3,'wb1_ave',lname,'m3/m3',0.,1.,0)
-          lname = 'Avg soil moisture 2'
-          call attrib(idnc,idim,3,'wb2_ave',lname,'m3/m3',0.,1.,0)
-          lname = 'Avg soil moisture 3'
-          call attrib(idnc,idim,3,'wb3_ave',lname,'m3/m3',0.,1.,0)
-          lname = 'Avg soil moisture 4'
-          call attrib(idnc,idim,3,'wb4_ave',lname,'m3/m3',0.,1.,0)
-          lname = 'Avg soil moisture 5'
-          call attrib(idnc,idim,3,'wb5_ave',lname,'m3/m3',0.,1.,0)
-          lname = 'Avg soil moisture 6'
-          call attrib(idnc,idim,3,'wb6_ave',lname,'m3/m3',0.,1.,0)
-          lname = 'Avg soil temperature 1'
-          call attrib(idnc,idim,3,'tgg1_ave',lname,'K',100.,425.,0)
-          lname = 'Avg soil temperature 2'
-          call attrib(idnc,idim,3,'tgg2_ave',lname,'K',100.,425.,0)
-          lname = 'Avg soil temperature 3'
-          call attrib(idnc,idim,3,'tgg3_ave',lname,'K',100.,425.,0)
-          lname = 'Avg soil temperature 4'
-          call attrib(idnc,idim,3,'tgg4_ave',lname,'K',100.,425.,0)
-          lname = 'Avg soil temperature 5'
-          call attrib(idnc,idim,3,'tgg5_ave',lname,'K',100.,425.,0)
-          lname = 'Avg soil temperature 6'
-          call attrib(idnc,idim,3,'tgg6_ave',lname,'K',100.,425.,0)
-          lname = 'Avg theta'
-          call attrib(idnc,idim,3,'theta_ave',lname,'K',100.,425.,0)
-          lname = 'Avg fpn'
-          call attrib(idnc,idim,3,'fpn_ave',lname,'none',-1.E-3,
-     &                                                   1.E-3,0)
-          lname = 'Avg frday'
-          call attrib(idnc,idim,3,'frday_ave',lname,'none',-1.E-3,
-     &                                                     1.E-3,0)
-          lname = 'Avg frp'
-          call attrib(idnc,idim,3,'frp_ave',lname,'none',-1.E-3,
-     &                                                    1.E-3,0)
-          lname = 'Avg surface temperature'
-          call attrib(idnc,idim,3,'tsu_ave',lname,'K',100.,425.,0)
-          lname = 'Avg albedo'
-          call attrib(idnc,idim,3,'alb_ave',lname,'none',0.,1.,0)
-        end if
+!        if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then ! MJT cable
+!          lname = 'Avg soil moisture 1'
+!          call attrib(idnc,idim,3,'wb1_ave',lname,'m3/m3',0.,1.,0)
+!          lname = 'Avg soil moisture 2'
+!          call attrib(idnc,idim,3,'wb2_ave',lname,'m3/m3',0.,1.,0)
+!          lname = 'Avg soil moisture 3'
+!          call attrib(idnc,idim,3,'wb3_ave',lname,'m3/m3',0.,1.,0)
+!          lname = 'Avg soil moisture 4'
+!          call attrib(idnc,idim,3,'wb4_ave',lname,'m3/m3',0.,1.,0)
+!          lname = 'Avg soil moisture 5'
+!          call attrib(idnc,idim,3,'wb5_ave',lname,'m3/m3',0.,1.,0)
+!          lname = 'Avg soil moisture 6'
+!          call attrib(idnc,idim,3,'wb6_ave',lname,'m3/m3',0.,1.,0)
+!          lname = 'Avg soil temperature 1'
+!          call attrib(idnc,idim,3,'tgg1_ave',lname,'K',100.,425.,0)
+!          lname = 'Avg soil temperature 2'
+!          call attrib(idnc,idim,3,'tgg2_ave',lname,'K',100.,425.,0)
+!          lname = 'Avg soil temperature 3'
+!          call attrib(idnc,idim,3,'tgg3_ave',lname,'K',100.,425.,0)
+!          lname = 'Avg soil temperature 4'
+!          call attrib(idnc,idim,3,'tgg4_ave',lname,'K',100.,425.,0)
+!          lname = 'Avg soil temperature 5'
+!          call attrib(idnc,idim,3,'tgg5_ave',lname,'K',100.,425.,0)
+!          lname = 'Avg soil temperature 6'
+!          call attrib(idnc,idim,3,'tgg6_ave',lname,'K',100.,425.,0)
+!          lname = 'Avg theta'
+!          call attrib(idnc,idim,3,'theta_ave',lname,'K',100.,425.,0)
+!          lname = 'Avg fpn'
+!          call attrib(idnc,idim,3,'fpn_ave',lname,'none',-1.E-3,
+!     &                                                   1.E-3,0)
+!          lname = 'Avg frday'
+!          call attrib(idnc,idim,3,'frday_ave',lname,'none',-1.E-3,
+!     &                                                     1.E-3,0)
+!          lname = 'Avg frp'
+!          call attrib(idnc,idim,3,'frp_ave',lname,'none',-1.E-3,
+!     &                                                    1.E-3,0)
+!          lname = 'Avg surface temperature'
+!          call attrib(idnc,idim,3,'tsu_ave',lname,'K',100.,425.,0)
+!          lname = 'Avg albedo'
+!          call attrib(idnc,idim,3,'alb_ave',lname,'none',0.,1.,0)
+!        end if
 	  
 !       rml 16/02/06 set attributes for trNNN and travNNN
         if (ngas>0) then 
@@ -1254,26 +1254,26 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
          call histwrt3(clm_ave,'clm',idnc,iarch,local)
          call histwrt3(clh_ave,'clh',idnc,iarch,local)
          call histwrt3(cld_ave,'cld',idnc,iarch,local)
-         if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then ! MJT cable
-           call histwrt3(theta_ave,'theta_ave',idnc,iarch,local)
-           call histwrt3(wb_ave(:,1),'wb1_ave',idnc,iarch,local)
-           call histwrt3(wb_ave(:,2),'wb2_ave',idnc,iarch,local)
-           call histwrt3(wb_ave(:,3),'wb3_ave',idnc,iarch,local)
-           call histwrt3(wb_ave(:,4),'wb4_ave',idnc,iarch,local)
-           call histwrt3(wb_ave(:,5),'wb5_ave',idnc,iarch,local)
-           call histwrt3(wb_ave(:,6),'wb6_ave',idnc,iarch,local)
-           call histwrt3(tgg_ave(:,1),'tgg1_ave',idnc,iarch,local)
-           call histwrt3(tgg_ave(:,2),'tgg2_ave',idnc,iarch,local)
-           call histwrt3(tgg_ave(:,3),'tgg3_ave',idnc,iarch,local)
-           call histwrt3(tgg_ave(:,4),'tgg4_ave',idnc,iarch,local)
-           call histwrt3(tgg_ave(:,5),'tgg5_ave',idnc,iarch,local)
-           call histwrt3(tgg_ave(:,6),'tgg6_ave',idnc,iarch,local)
-           call histwrt3(fpn_ave,'fpn_ave',idnc,iarch,local)
-           call histwrt3(frday_ave,'frday_ave',idnc,iarch,local)
-           call histwrt3(frp_ave,'frp_ave',idnc,iarch,local)
-           call histwrt3(tsu_ave,'tsu_ave',idnc,iarch,local)
-           call histwrt3(alb_ave,'alb_ave',idnc,iarch,local)
-         end if
+         !if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then ! MJT cable
+         !  call histwrt3(theta_ave,'theta_ave',idnc,iarch,local)
+         !  call histwrt3(wb_ave(:,1),'wb1_ave',idnc,iarch,local)
+         !  call histwrt3(wb_ave(:,2),'wb2_ave',idnc,iarch,local)
+         !  call histwrt3(wb_ave(:,3),'wb3_ave',idnc,iarch,local)
+         !  call histwrt3(wb_ave(:,4),'wb4_ave',idnc,iarch,local)
+         !  call histwrt3(wb_ave(:,5),'wb5_ave',idnc,iarch,local)
+         !  call histwrt3(wb_ave(:,6),'wb6_ave',idnc,iarch,local)
+         !  call histwrt3(tgg_ave(:,1),'tgg1_ave',idnc,iarch,local)
+         !  call histwrt3(tgg_ave(:,2),'tgg2_ave',idnc,iarch,local)
+         !  call histwrt3(tgg_ave(:,3),'tgg3_ave',idnc,iarch,local)
+         !  call histwrt3(tgg_ave(:,4),'tgg4_ave',idnc,iarch,local)
+         !  call histwrt3(tgg_ave(:,5),'tgg5_ave',idnc,iarch,local)
+         !  call histwrt3(tgg_ave(:,6),'tgg6_ave',idnc,iarch,local)
+         !  call histwrt3(fpn_ave,'fpn_ave',idnc,iarch,local)
+         !  call histwrt3(frday_ave,'frday_ave',idnc,iarch,local)
+         !  call histwrt3(frp_ave,'frp_ave',idnc,iarch,local)
+         !  call histwrt3(tsu_ave,'tsu_ave',idnc,iarch,local)
+         !  call histwrt3(alb_ave,'alb_ave',idnc,iarch,local)
+         !end if
        endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
        call histwrt3(tscrn,'tscrn',idnc,iarch,local)
        call histwrt3(qgscrn,'qgscrn',idnc,iarch,local)
@@ -1774,12 +1774,12 @@ c     find variable index
 ce=======================================================================
       subroutine outcdfs(rundate)  ! for (hourly) scrnfile
       use cc_mpi
+      use liqwpar_m  ! ifullw
       implicit none
       include 'newmpar.h'
       include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg,mtimer
       include 'filnames.h'  ! list of files, read in once only
       include 'kuocom.h'
-      include 'liqwpar.h'  ! ifullw
       include 'parm.h'
       include 'parmdyn.h'  
       include 'parmgeom.h' ! rlong0,rlat0,schmidt  
@@ -2015,30 +2015,30 @@ c=======================================================================
       subroutine openhists(iarch,dim,local,idnc)
       use arrays_m
       use cc_mpi
+      use extraout_m ! u10_3hr,v10_3hr
+      use histave_m
+      use liqwpar_m  ! ifullw
       use map_m
+      use morepbl_m
+      use nsibd_m    ! rsmin,ivegt,sigmf,tgg,tgf,ssdn,res,rmc,isoilm,ico2em
+      use pbl_m
+      use prec_m
+      use raddiag_m
+      use screen_m
+      use sigs_m
+      use soil_m
       implicit none
 c     this routine creates attributes and writes output
       include 'newmpar.h'
       include 'dates.h'    ! ktime,kdate,timer,timeg,xg,yg,mtimer
-      include 'extraout.h' ! u10_3hr,v10_3hr
       include 'filnames.h' ! list of files, read in once only
-      include 'histave.h'
       include 'kuocom.h'
-      include 'liqwpar.h'  ! ifullw
       include 'mapproj.h'
-      include 'morepbl.h'
       include 'netcdf.inc'
-      include 'nsibd.h' ! rsmin,ivegt,sigmf,tgg,tgf,ssdn,res,rmc,isoilm,ico2em
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmvert.h'
-      include 'pbl.h'
-      include 'prec.h'
-      include 'raddiag.h'
       include 'scamdim.h'
-      include 'screen.h'
-      include 'sigs.h'
-      include 'soil.h'
       include 'soilsnow.h'
       include 'soilv.h'   ! sfc,zse
       include 'tracers.h'

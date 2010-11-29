@@ -7,6 +7,9 @@
       use indices_m
       use latlong_m
       use map_m
+      use pbl_m
+      use sigs_m
+      use soil_m    ! sicedep fracice
       include 'newmpar.h'
 !     ik,jk,kk are array dimensions read in infile - not for globpea
 !     int2d code - not used for globpea
@@ -16,9 +19,6 @@
       include 'dates.h'    ! mtimer
       include 'parm.h'     ! qgmin
       include 'parmgeom.h' ! rlong0,rlat0,schmidt
-      include 'pbl.h'      ! tss
-      include 'sigs.h'
-      include 'soil.h'     ! sicedep fracice
       include 'soilsnow.h' ! tgg
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
       real, dimension(ifull,kl), save :: ta,ua,va,qa
@@ -300,6 +300,9 @@
       use diag_m
       use indices_m
       use latlong_m
+      use pbl_m
+      use sigs_m
+      use soil_m  ! sicedep fracice
       implicit none
       integer, parameter :: ntest=0 
       include 'newmpar.h'
@@ -310,9 +313,6 @@
       include 'dates.h'    ! mtimer
       include 'parm.h'     ! qgmin
       include 'parmgeom.h' ! rlong0,rlat0,schmidt  
-      include 'pbl.h'      ! tss
-      include 'sigs.h'
-      include 'soil.h'     ! sicedep fracice
       include 'soilsnow.h' ! tgg
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
 !      common/nest/ta(ifull,kl),ua(ifull,kl),va(ifull,kl),psla(ifull),
@@ -566,6 +566,7 @@
 
       use arrays_m
       use cc_mpi
+      use savuvt_m
       use vecsuv_m
       use xyzinfo_m, only : x,y,z,wts
       
@@ -575,7 +576,6 @@
       include 'const_phys.h'
       include 'parm.h'       ! mbd,nud_uv,nud_p,nud_t,nud_q,kbotdav
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt  - briefly
-      include 'savuvt.h'     ! savu,savv
 
       integer iq,k      
       real, dimension(ifull), intent(in) :: pslb
@@ -2349,6 +2349,7 @@
       use cc_mpi
       use map_m
       use mlo, only : mloimport,mloexport,sssb      
+      use soil_m  ! land
       use xyzinfo_m
 
       implicit none
@@ -2357,7 +2358,6 @@
       include 'parmgeom.h'   ! schmidt
       include 'const_phys.h' ! pi
       include 'mpif.h'       ! MPI
-      include 'soil.h'       ! land
       include 'parm.h'
 
       integer :: iqw,itag=0,status,ierr
@@ -2511,6 +2511,7 @@
       use cc_mpi
       use map_m
       use mlo, only : mloimport,mloexport,sssb
+      use soil_m  ! land
       use xyzinfo_m
 
       implicit none
@@ -2519,7 +2520,6 @@
       include 'parmgeom.h'   ! schmidt
       include 'const_phys.h' ! pi
       include 'mpif.h'       ! MPI
-      include 'soil.h'       ! land
       include 'parm.h'
 
       integer :: pn,px,hproc,mproc,ns,ne,npta      
@@ -2544,6 +2544,9 @@
       if (nud_sss.eq.0) cqs=-1.
       
       if((mod(6,nproc)==0).or.(mod(nproc,6)==0))then
+        if (myid==0) then
+          write(6,*) "MLO 1D scale-selective filter (MPI optimised)"
+        end if
         npta=max(6/nproc,1)                       ! number of panels per processor
         mproc=max(nproc/6,1)                      ! number of processors per panel
         pn=myid*npta/mproc                        ! start panel
@@ -2551,6 +2554,9 @@
         hproc=pn*mproc/npta                       ! host processor for panel
         call procdiv(ns,ne,il_g,mproc,myid-hproc) ! number of rows per processor
       else
+        if (myid==0) then
+          write(6,*) "MLO 1D scale-selective filter (MPI)"
+        end if        
         npta=1                              ! number of panels per processor
         mproc=nproc                         ! number of processors per panel
         pn=0                                ! start panel
@@ -2588,10 +2594,6 @@
         else
           call ccmpi_gather(diff)
         end if
-      end if
-      
-      if (myid==0) then
-        write(6,*) "MLO 1D scale-selective filter"
       end if
       
       call mlospechost(myid,mproc,hproc,npta,pn,px,ns,ne,cq,cqs,
@@ -3048,12 +3050,12 @@
       subroutine mlonudge(new,ilev) ! MJT mlo
 
       use mlo, only : mloimport,mloexport,sssb
+      use soil_m  ! land
       
       implicit none
 
       include 'parm.h'       ! nud_hrs,dt
       include 'newmpar.h'    ! ifull
-      include 'soil.h'       ! land
 
       integer, intent(in) :: ilev
       integer k

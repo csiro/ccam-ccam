@@ -26,6 +26,7 @@ module cc_mpi
              indp, indg, deptsync, intssync, start_log, end_log,        &
              log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg, &
              ccglobal_sum, iq2iqg, indv_mpi, indglobal, readglobvar, writeglobvar
+   public :: dpoints_t, dindex_t, sextra_t ! MJT memory
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
               ccmpi_distribute2r8,   &
               ccmpi_gather2, ccmpi_gather3, checksize, get_dims,              &
@@ -89,6 +90,17 @@ module cc_mpi
       integer :: slen_uv, rlen_uv, slen2_uv, rlen2_uv
       integer :: len
    end type bounds_info
+   
+   type dpoints_t                              ! MJT memory
+     real, dimension(:,:), allocatable :: a    ! MJT memory
+     real, dimension(:), allocatable :: b      ! MJT memory
+   end type dpoints_t                          ! MJT memory
+   type dindex_t                               ! MJT memory
+     integer, dimension(:,:), allocatable :: a ! MJT memory
+   end type dindex_t                           ! MJT memory
+   type sextra_t                               ! MJT memory
+     real, dimension(:), allocatable :: a      ! MJT memory
+   end type sextra_t                           ! MJT memory
 
    type(bounds_info), dimension(0:nproc-1), save :: bnds
 
@@ -99,9 +111,13 @@ module cc_mpi
 
    ! Off processor departure points
    integer, private, save :: maxsize
-   real, dimension(:,:,:), allocatable, public, save :: dpoints
-   integer, dimension(:,:,:), allocatable, public, save :: dindex
-   real, dimension(:,:),  allocatable, public, save :: sextra
+   !real, dimension(:,:,:), allocatable, public, save :: dpoints       ! MJT memory
+   !integer, dimension(:,:,:), allocatable, public, save :: dindex     ! MJT memory
+   !real, dimension(:,:),  allocatable, public, save :: sextra         ! MJT memory
+   type(dpoints_t), dimension(0:nproc-1), public, save :: dpoints      ! MJT memory
+   type(dpoints_t), dimension(0:nproc-1), private, save :: dbuf        ! MJT memory
+   type(dindex_t), dimension(0:nproc-1), public, save :: dindex        ! MJT memory
+   type(sextra_t), dimension(0:nproc-1), public, save :: sextra        ! MJT memory
    ! Number of points for each processor.
    integer, dimension(:), allocatable, public, save :: dslen, drlen
 
@@ -178,7 +194,7 @@ contains
       use sumdd_m
       use vecsuv_m
       use xyzinfo_m
-      integer :: ierr
+      integer :: ierr,n ! MJT memory
 
 #ifdef uniform_decomp
       call proc_setup_uniform(npanels,ifull)
@@ -212,8 +228,8 @@ contains
          maxsize = 4*max(ipan,jpan)*npan*kl
       end if
       ! Off processor departure points
-      allocate ( dpoints(4,maxsize,0:nproc-1), sextra(maxsize,0:nproc-1) )
-      allocate ( dindex(2,maxsize,0:nproc-1) )
+      !allocate ( dpoints(4,maxsize,0:nproc-1), sextra(maxsize,0:nproc-1) ) ! MJT memory
+      !allocate ( dindex(2,maxsize,0:nproc-1) )                             ! MJT memory
       
       if ( myid == 0 ) then
          call ccmpi_distribute(wts,wts_g)
@@ -283,6 +299,17 @@ contains
 !!$      call bounds(bxv)
 !!$      call bounds(byv)
 !!$      call bounds(bzv)
+
+      ! Off processor departure points
+      do n=0,nproc-1                        ! MJT memory
+        if (neighbour(n)) then              ! MJT memory
+          allocate(dpoints(n)%a(4,maxsize)) ! MJT memory
+          allocate(dbuf(n)%a(4,maxsize))    ! MJT memory
+          allocate(dbuf(n)%b(maxsize))      ! MJT memory
+          allocate(sextra(n)%a(maxsize))    ! MJT memory
+          allocate(dindex(n)%a(2,maxsize))  ! MJT memory
+        end if                              ! MJT memory
+      end do
 
 #ifdef sumdd
 !     operator MPI_SUMDR is created based on an external function DRPDR. 
@@ -2215,7 +2242,7 @@ contains
       integer, dimension(ifull,kl), intent(in) :: nface
       real, dimension(ifull,kl), intent(in) :: xg, yg
       integer :: iproc
-      real, dimension(4,maxsize,0:nproc) :: buf
+      !real, dimension(4,maxsize,0:nproc) :: buf ! MJT memory
       integer :: nreq, itag = 99, ierr,ierr2, rproc, sproc
       integer, dimension(2*nproc) :: ireq
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
@@ -2228,7 +2255,11 @@ contains
       call start_log(deptsync_begin)
       dslen = 0
       drlen = 0
-      dindex = 0
+      do iproc=0,nproc-1            ! MJT memory
+        if (neighbour(iproc)) then  ! MJT memory
+          dindex(iproc)%a = 0       ! MJT memory
+        end if                      ! MJT memory
+      end do                        ! MJT memory
       do k=1,kl
          do iq=1,ifull
             nf = nface(iq,k) + noff ! Make this a local index
@@ -2254,8 +2285,8 @@ contains
 #endif
                ! Since nface is a small integer it can be exactly represented by a
                ! real. It's simpler to send like this than use a proper structure.
-               buf(:,dslen(iproc),iproc) = (/ real(nface(iq,k)), xg(iq,k), yg(iq,k), real(k) /)
-               dindex(:,dslen(iproc),iproc) = (/ iq,k /)
+               dbuf(iproc)%a(:,dslen(iproc)) = (/ real(nface(iq,k)), xg(iq,k), yg(iq,k), real(k) /) ! MJT memory
+               dindex(iproc)%a(:,dslen(iproc)) = (/ iq,k /)                                         ! MJT memory
             end if
          end do
       end do
@@ -2272,7 +2303,7 @@ contains
          if ( neighbour(sproc) ) then
             ! Send, even if length is zero
             nreq = nreq + 1
-            call MPI_ISend( buf(1,1,sproc), 4*dslen(sproc), &
+            call MPI_ISend( dbuf(sproc)%a(:,1:dslen(sproc)), 4*dslen(sproc), &     ! MJT memory
                     MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          else
             if ( dslen(sproc) > 0 ) then
@@ -2285,7 +2316,7 @@ contains
          if ( neighbour(rproc) ) then
             nreq = nreq + 1
             ! Use the maximum size in the recv call.
-            call MPI_IRecv( dpoints(1,1,rproc), 4*maxsize, &
+            call MPI_IRecv( dpoints(rproc)%a, 4*maxsize, &                         ! MJT memory
                          MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -2316,7 +2347,7 @@ contains
    subroutine intssync(s)
       real, dimension(:,:), intent(inout) :: s
       integer :: iproc
-      real, dimension(maxsize,0:nproc) :: buf
+      !real, dimension(maxsize,0:nproc) :: buf ! MJT memory
       integer :: nreq, itag = 0, ierr, rproc, sproc
       integer :: iq
       integer, dimension(2*nproc) :: ireq
@@ -2331,12 +2362,12 @@ contains
          rproc = modulo(myid-iproc,nproc)  ! Recv from
          if ( drlen(sproc) /= 0 ) then
             nreq = nreq + 1
-            call MPI_ISend( sextra(1,sproc), drlen(sproc), &
+            call MPI_ISend( sextra(sproc)%a, drlen(sproc), &                        ! MJT memory
                  MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
          if ( dslen(rproc) /= 0 ) then
             nreq = nreq + 1
-            call MPI_IRecv( buf(1,rproc), dslen(rproc), &
+            call MPI_IRecv( dbuf(rproc)%b, dslen(rproc), &                          ! MJT memory
                             MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -2353,7 +2384,7 @@ contains
 !!!         print*, "INTSSYNC recvd", myid, buf(1:dslen(iproc),iproc)
          do iq=1,dslen(iproc)
 !!!            print*, "UNPACKING", myid, dindex(1,iq,iproc),dindex(2,iq,iproc), buf(iq,iproc) 
-            s(dindex(1,iq,iproc),dindex(2,iq,iproc)) = buf(iq,iproc)
+            s(dindex(iproc)%a(1,iq),dindex(iproc)%a(2,iq)) = dbuf(iproc)%b(iq)      ! MJT memory
          end do
       end do
       call end_log(intssync_end)
@@ -3194,10 +3225,10 @@ contains
     
     subroutine ccglobal_posneg3 (array, delpos, delneg)
        ! Calculate global sums of positive and negative values of array
+       use sigs_m
        use sumdd_m
        use xyzinfo_m
        include 'newmpar.h'
-       include 'sigs.h'
        real, intent(in), dimension(ifull,kl) :: array
        real, intent(out) :: delpos, delneg
        real :: delpos_l, delneg_l
@@ -3282,10 +3313,10 @@ contains
 
     subroutine ccglobal_sum3 (array, result)
        ! Calculate global sum of 3D array, appyling vertical weighting
+       use sigs_m
        use sumdd_m
        use xyzinfo_m
        include 'newmpar.h'
-       include 'sigs.h'
        real, intent(in), dimension(ifull,kl) :: array
        real, intent(out) :: result
        real :: result_l

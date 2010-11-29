@@ -3,7 +3,10 @@
       use cc_mpi
       use diag_m
       use indices_m
+      use liqwpar_m  ! ifullw
       use map_m
+      use nlin_m
+      use sigs_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       use vecsuv_m
       use xyzinfo_m
@@ -14,13 +17,10 @@
       include 'newmpar.h'
       include 'const_phys.h'
       include 'kuocom.h'   ! ldr
-      include 'liqwpar.h'  ! ifullw
-      include 'nlin.h'
       include 'parm.h'
       include 'parmdyn.h'  
       include 'parmhor.h'  ! mhint, m_bs, nt_adv
       include 'parmvert.h'  
-      include 'sigs.h'
       include 'tracers.h'
       include 'vvel.h'     ! sdot
       include 'xarrs.h'

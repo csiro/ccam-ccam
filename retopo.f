@@ -8,11 +8,11 @@ c     called by indata and nestin for newtop>=1
 !     nowadays just for ps and atmospheric fields Mon  08-23-1999
       use cc_mpi, only : mydiag
       use diag_m
+      use sigs_m
       implicit none
       include 'newmpar.h'
       include 'const_phys.h'
       include 'parm.h'
-      include 'sigs.h'
       real psl(ifull),zsold(ifull),zs(ifull)
       real qg(ifull,kl),t(ifull,kl)
       real told(kl),qgold(kl),psnew(ifull),psold(ifull),pslold(ifull)

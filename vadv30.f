@@ -3,7 +3,9 @@
       use arrays_m
       use cc_mpi, only : mydiag
       use indices_m
+      use liqwpar_m  ! ifullw,qfg,qlg
       use map_m
+      use sigs_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       parameter (ntest=0) !  0: usual   1: for diagnostic prints
       parameter (nvdep=7) !  0  for original;
@@ -21,11 +23,9 @@ c     does t, u,v then qg, [q1, q2,]
       include 'newmpar.h'
       parameter (kl1=kl+1,kl2=kl+2)
       include 'kuocom.h'    ! ldr
-      include 'liqwpar.h'   ! ifullw,qfg,qlg
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmvert.h'
-      include 'sigs.h'
       include 'tracers.h'
       include 'vvel.h'
       include 'xarrs.h'
@@ -419,13 +419,13 @@ c       interpolate sdot to full-level sd with cubic polynomials
       subroutine vadvbess(t,st,kdel,ifield)
 !     returns t, u, v, q -  but tendencies formed in nonlin/adjust5
       use cc_mpi, only : mydiag
+      use sigs_m
 
       parameter (ntopp=1)  ! 1 for 1-sided gradient at top & bottom full-levels
 c                          ! 2 for zero gradient at top & bottom full-levels
       include 'newmpar.h'
       include 'parm.h'
       include 'parmvert.h'
-      include 'sigs.h'
       real t(ifull,kl),st(ifull,kl)
       dimension kdel(ifull,kl)
       common/work3/tgrad(ifull,kl),toutt(ifull,kl),dum(3*ijk)
@@ -497,12 +497,12 @@ c     .                                 +tgrad(iq,kk)+tgrad(iq,kk+1) )))
 !     returns t, u, v, q -  but tendencies formed in nonlin/adjust5
 !     watch out for replacing qg in place!
       use cc_mpi, only : mydiag
+      use sigs_m
       parameter (ntopp=1)  ! 1 for 1-sided gradient at top & bottom full-levels
 c                          ! 2 for zero gradient at top & bottom full-levels
       include 'newmpar.h'
       include 'parm.h'
       include 'parmvert.h'
-      include 'sigs.h'
       real t(ifull,kl),st(ifull,kl)
       dimension kdel(ifull,kl)
       common/work3/tgrad(ifull,kl),toutt(ifull,kl),dum(3*ijk)

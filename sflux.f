@@ -1,13 +1,25 @@
       subroutine sflux(nalpha)              ! for globpe code
       use arrays_m
-      use ateb ! MJT urban
+      use ateb       ! MJT urban
       use cable_ccam, only : CABLE,sib4 ! MJT cable
-      use map_m ! MJT mlo
-      use mlo   ! MJT mlo
-      use diag_m
       use cc_mpi
-      use vecsuv_m  ! MJT urban
-      use xyzinfo_m ! MJT urban
+      use diag_m
+      use extraout_m ! ustar
+      use gdrag_m
+      use liqwpar_m  ! qfg,qlg
+      use map_m      ! MJT mlo
+      use mlo        ! MJT mlo
+      use morepbl_m  ! condx,fg,eg
+      use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tgf
+      use pbl_m
+      use permsurf_m
+      use prec_m     ! evap
+      use savuvt_m
+      use screen_m   ! tscrn,qgscrn,uscrn,rhscrn,u10
+      use sigs_m
+      use soil_m     ! ... zmin zolod zolog sicedep fracice alb
+      use vecsuv_m   ! MJT urban
+      use xyzinfo_m  ! MJT urban
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
       parameter (ntss_sh=0) ! 0 for original, 3 for **3, 4 for **4
 !     parameter (nplens=0)  ! 0 to turn off plens, 10 (e.g.) is on
@@ -31,22 +43,10 @@ c     cp specific heat at constant pressure joule/kgm/deg
 !     parameter (chn10=.00136733)   ! sea only - in parm.h from 2004
       include 'newmpar.h'
       include 'const_phys.h'
-      include 'extraout.h' ! ustar
-      include 'gdrag.h'
-      include 'liqwpar.h'  ! qfg,qlg
-      include 'morepbl.h'  ! condx,fg,eg
-      include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tgf
       include 'parm.h'
       include 'parmgeom.h' ! MJT urban
       include 'parmsurf.h' ! nplens
-      include 'pbl.h'
-      include 'permsurf.h'
-      include 'prec.h'     ! evap
-      include 'savuvt.h'
       include 'scamdim.h'  ! dimension of patches
-      include 'screen.h'   ! tscrn,qgscrn,uscrn,rhscrn,u10
-      include 'sigs.h'
-      include 'soil.h'     ! ... zmin zolod zolog sicedep fracice alb
       include 'soilv.h'    ! ... ssat
       include 'soilsnow.h' ! new soil arrays for scam - tgg too
       include 'tracers.h'  ! ngas, nllp, ntrac
@@ -928,7 +928,16 @@ c***  end of surface updating loop
       subroutine sib3(nalpha)     ! new version of sib1 with soilsnowv
       use arrays_m
       use cc_mpi
+      use extraout_m
       use latlong_m
+      use liqwpar_m  ! qfg,qlg
+      use morepbl_m
+      use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
+      use pbl_m
+      use permsurf_m
+      use screen_m   ! tscrn etc
+      use sigs_m
+      use soil_m     ! ... zmin zolnd zolog sice alb
       parameter (ntest=0) ! ntest= 0 for diags off; ntest= 1 for diags on
 !                                  2 for ewww diags      
 !                           N.B. may need vsafe for correct diags
@@ -942,18 +951,8 @@ c***  end of surface updating loop
       include 'newmpar.h'
       include 'const_phys.h'
       include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg
-      include 'extraout.h'
-      include 'liqwpar.h'  ! qfg,qlg
-c     include 'map.h'
-      include 'morepbl.h'
-      include 'nsibd.h'    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
-      include 'pbl.h'
-      include 'permsurf.h'
       include 'scamdim.h'  ! dimension of patches
-      include 'screen.h'   ! tscrn etc
-      include 'sigs.h'
-      include 'soil.h'     ! ... zmin zolnd zolog sice alb
       include 'soilv.h'    ! ssat, clay,..
       include 'soilsnow.h' ! new soil arrays for scam - tgg too
       include 'tracers.h'  ! ngas, nllp, ntrac

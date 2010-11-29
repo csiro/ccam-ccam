@@ -57,13 +57,14 @@ c
      &                  fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
 
       use cc_mpi, only : mydiag
+      use kuocomb_m
+      use morepbl_m  !condx        
       implicit none
 C Global parameters
       include 'newmpar.h'
       include 'const_phys.h' !Input physical constants
       include 'cparams.h'    !Input cloud scheme parameters
       include 'kuocom.h'     !acon,bcon,Rcm,ktsav,nevapls
-      include 'morepbl.h'    !condx        
       include 'params.h'     !Input model grid dimensions (modified PARAMS.f for CCAM)
       include 'parm.h'
 

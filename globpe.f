@@ -24,10 +24,31 @@
       use davb_m
       use diag_m
       use define_dimensions, only : ncs,ncp
+      use extraout_m
+      use gdrag_m, only : gdrag_init
+      use histave_m
       use indices_m
+      use kdacom_m, only : kdacom_init
+      use kuocomb_m
       use latlong_m
+      use liqwpar_m   ! ifullw,qfg,qlg
+      use lwout_m, only : lwout_init
       use map_m       ! em, f, dpsldt, fu, fv, etc
+      use morepbl_m
+      use nlin_m
+      use nsibd_m     ! sib, tsigmf, isoilm
+      use o3amip_m, only : o3amip_init
+      use pbl_m       ! cduv, cdtq, tss, qg
+      use permsurf_m, only : permsurf_init
+      use prec_m
+      use raddiag_m
+      use radisw_m, only : radisw_init
+      use rdflux_m, only : rdflux_init
+      use savuvt_m
+      use screen_m    ! tscrn etc
       use seaesfrad_m ! MJT radiation
+      use sigs_m
+      use soil_m      ! fracice
 !     rml 21/02/06 removed redundant tracer code (so2/o2 etc)
 !     rml 16/02/06 use tracermodule, timeseries
       use tracermodule, only :init_tracer,trfiles,tracer_mass,unit_trout
@@ -41,30 +62,18 @@
       include 'darcdf.h'   ! idnc,ncid  - stuff for reading netcdf
       include 'dates.h'    ! dtin,mtimer
       include 'establ.h'
-      include 'extraout.h'
       include 'filnames.h' ! list of files, read in once only
-      include 'histave.h'
       include 'kuocom.h'
-      include 'liqwpar.h'  ! ifullw,qfg,qlg
-      include 'morepbl.h'
       include 'mpif.h'
       include 'netcdf.inc' ! stuff for writing netcdf
-      include 'nlin.h'
-      include 'nsibd.h'    ! sib, tsigmf, isoilm
       include 'parm.h'
       include 'parmdyn.h'  
       include 'parmgeom.h' ! rlong0,rlat0,schmidt
       include 'parmhor.h'  ! mhint, mh_bs, nt_adv, ndept
       include 'parmsurf.h' ! nplens
       include 'parmvert.h'
-      include 'pbl.h'      ! cduv, cdtq, tss, qg
-      include 'prec.h'
-      include 'raddiag.h'
-      include 'savuvt.h'
+      include 'rdparm.h'
       include 'scamdim.h'  ! npmax
-      include 'screen.h'   ! tscrn etc
-      include 'sigs.h'
-      include 'soil.h'     ! fracice
       include 'soilsnow.h'
       include 'soilv.h'
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
@@ -208,6 +217,8 @@
       data nwrite/0/
       data nsnowout/999999/
 
+      ! used to remove stack limit on other processors
+      ! (LINUX ONLY)
       call setstacklimit(-1)
 
       !--------------------------------------------------------------
@@ -417,11 +428,11 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       !--------------------------------------------------------------
       ! INITIALISE ifull_g ALLOCATALE ARRAYS
       call bigxy4_init(iquad)
+      call xyzinfo_init(ifull_g,ifull,iextra)
       call indices_init(ifull_g,ifull,iextra,npanels,npan)
       call latlong_init(ifull_g,ifull,iextra)
       call map_init(ifull_g,ifull,iextra)
       call vecsuv_init(ifull_g,ifull,iextra)
-      call xyzinfo_init(ifull_g,ifull,iextra)
 
       !--------------------------------------------------------------
       ! SET UP CC GEOMETRY
@@ -451,6 +462,22 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       !--------------------------------------------------------------
       ! INITIALISE ifull ARRAYS
       call arrays_init(ifull,iextra,kl)
+      call extraout_init(ifull,iextra,kl)
+      call gdrag_init(ifull,iextra,kl)
+      call histave_init(ifull,iextra,kl,ms)
+      call kuocomb_init(ifull,iextra,kl)
+      call liqwpar_init(ifull,iextra,kl)
+      call nlin_init(ifull,iextra,kl)
+      call morepbl_init(ifull,iextra,kl)
+      call nsibd_init(ifull,iextra,kl)
+      call pbl_init(ifull,iextra,kl)
+      call permsurf_init(ifull,iextra,kl)
+      call prec_init(ifull,iextra,kl)
+      call raddiag_init(ifull,iextra,kl)
+      call savuvt_init(ifull,iextra,kl)
+      call screen_init(ifull,iextra,kl)
+      call sigs_init(ifull,iextra,kl)
+      call soil_init(ifull,iextra,kl)
       if (nbd.ne.0) then ! nudging arrays
         call dava_init(ifull,iextra,kl)
         call davb_init(ifull,iextra,kl)
@@ -458,9 +485,16 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       if (nkuo==5) then ! convection arrays
         call betts1_init(ifull,iextra,kl)
       end if
+      if (amipo3) then
+        call o3amip_init(ifull,iextra,kl)
+      end if
       if (nrad==4) then ! radiation arrays
         call cldcom_init(ifull,iextra,kl,il*nrows_rad)
         call co2dta_init(ifull,iextra,kl)
+        call kdacom_init(ifull,iextra,kl,il*nrows_rad)
+        call lwout_init(ifull,iextra,kl,il*nrows_rad)
+        call radisw_init(ifull,iextra,kl,il*nrows_rad)
+        call rdflux_init(ifull,iextra,kl,il*nrows_rad,nbly)
       end if
       if (nsib==4.or.nsib>=6) then ! land-surface arrays
         call carbpools_init(ifull,iextra,kl,ncp,ncs)
@@ -1680,10 +1714,10 @@ c       print*,'Calling prognostic cloud scheme'
       use arrays_m   ! ts, t, u, v, psl, ps, zs
       use cc_mpi
       use latlong_m
+      use sigs_m
 !     sets tr arrays for lat, long, pressure if nextout>=4 &(nllp>=3)
       include 'newmpar.h'
       include 'const_phys.h'
-      include 'sigs.h'
       include 'tracers.h'  ! ngas, nllp, ntrac
       do k=1,klt
        do iq=1,ilt*jlt        
@@ -1716,6 +1750,7 @@ c     endif
 
       blockdata main_blockdata
       use indices_m
+      use soil_m
       implicit none
       include 'newmpar.h'
       include 'dates.h' ! ktime,kdate,timer,timeg,mtimer
@@ -1729,7 +1764,6 @@ c     endif
       include 'parmsurf.h' ! nplens
       include 'parmvert.h'
       include 'scamdim.h'   ! passes npmax=ifull
-      include 'soil.h'   
       include 'soilv.h'
       include 'stime.h'
       include 'trcom2.h'  ! nstn,slat,slon,istn,jstn etc.
@@ -1836,7 +1870,7 @@ c     floating point:
       data du/19.76/,tanl/60.2/,rnml/130./,stl1/40./,stl2/10./
 
 c     stuff from indata in soil.h
-      data zoland/.16/
+      !data zoland/.16/
 
 c     stuff from insoil  for soilv.h
       data rlaim44/4.8, 6.3, 5., 3.75, 2.78, 2.5, 3.9, 2.77, 2.04, 2.6,  ! 1-10
@@ -1931,7 +1965,15 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       use arrays_m  ! ts, t, u, v, psl, ps, zs
       use cc_mpi
       use diag_m
+      use extraout_m
       use map_m
+      use morepbl_m
+      use nsibd_m   ! sib, tsigmf, isoilm
+      use pbl_m     ! cduv, cdtq, tss, qg
+      use prec_m
+      use screen_m
+      use sigs_m
+      use soil_m
       use vecsuv_m
       use xyzinfo_m
       implicit none
@@ -1939,16 +1981,8 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       include 'const_phys.h'
       include 'dates.h'    ! dtin,mtimer
       include 'establ.h'
-      include 'extraout.h'
-      include 'nsibd.h'    ! sib, tsigmf, isoilm
-      include 'morepbl.h'
       include 'parm.h'
       include 'parmgeom.h' ! rlong0,rlat0,schmidt
-      include 'pbl.h'      ! cduv, cdtq, tss, qg
-      include 'prec.h'
-      include 'screen.h'   ! tscrn etc
-      include 'sigs.h'
-      include 'soil.h'
       include 'soilsnow.h'
       include 'soilv.h'
       include 'tracers.h'  ! ngas, nllp, ntrac, tr
@@ -2056,7 +2090,18 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       use arrays_m
       use cc_mpi
       use diag_m
+      use extraout_m
+      use histave_m
+      use liqwpar_m  ! ifullw,qfg,qlg
       use map_m
+      use morepbl_m
+      use nsibd_m
+      use pbl_m      ! cduv, cdtq, tss, qg
+      use prec_m
+      use raddiag_m
+      use screen_m   ! tscrn etc
+      use sigs_m
+      use soil_m
       use vecsuv_m
       use xyzinfo_m
       implicit none
@@ -2064,19 +2109,8 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       include 'const_phys.h'
       include 'dates.h'    ! dtin,mtimer
       include 'establ.h'
-      include 'extraout.h'
-      include 'histave.h'
-      include 'liqwpar.h'  ! ifullw,qfg,qlg
-      include 'nsibd.h'    ! sib, tsigmf, isoilm
-      include 'morepbl.h'
       include 'parm.h'
       include 'parmgeom.h' ! rlong0,rlat0,schmidt
-      include 'pbl.h'      ! cduv, cdtq, tss, qg
-      include 'prec.h'
-      include 'raddiag.h'
-      include 'screen.h'   ! tscrn etc
-      include 'sigs.h'
-      include 'soil.h'
       include 'soilsnow.h'
       include 'soilv.h'
       include 'tracers.h'  ! ngas, nllp, ntrac, tr

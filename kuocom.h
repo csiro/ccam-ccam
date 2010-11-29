@@ -1,8 +1,8 @@
-      integer kbsav,ktsav,iterconv,ksc,kscmom,kscsea,kuocb,ldr,mbase,   &
+      integer iterconv,ksc,kscmom,kscsea,kuocb,ldr,mbase,               &
      &        mdelay,methdetr,methprec,nbase,nclddia,ncvcloud,ncvmix,   &
      &        nevapcc,nevapls,nkuo,nrhcrit,nstab_cld,nuvconv
       real alflnd,alfsea ,cldh_lnd,cldm_lnd,cldl_lnd,cldh_sea,cldm_sea, &
-     &     cldl_sea,convfact,convpsav,convtime,                         &
+     &     cldl_sea,convfact,convtime,                                  &
      &     detrain,detrainx,dsig2,dsig4,entrain,                        &
      &     fldown,rhcv,rhmois,rhsat,shaltime,                           &
      &     sigcb,sigcll,sigkscb,sig_ct,sigksct,                         &
@@ -10,8 +10,7 @@
       real acon,bcon,rcm,rcrit_l,rcrit_s
       
       common/kuocom/                                                    &
-     &   kbsav(ifull),ktsav(ifull),convpsav(ifull)                      & ! used by conjob
-     &  ,alflnd                                                         & ! land-weighting ratio for cloud bases         [1.15]
+     &   alflnd                                                         & ! land-weighting ratio for cloud bases         [1.15]
      &  ,alfsea                                                         & ! sea-weighting ratio for cloud bases          [1.05]
      &  ,cldh_lnd,cldm_lnd,cldl_lnd                                     & !      for old nrhcrit=5     [95.,85.,75.]
      &  ,cldh_sea,cldm_sea,cldl_sea                                     & !      for old nrhcrit=5     [95.,90.,80.]

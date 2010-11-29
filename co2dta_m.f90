@@ -11,7 +11,7 @@ public co271,co278,cdt71,cdt78,c2d71,c2d78
 public co211,co218
 public co2dta_init,co2dta_end
 
-real :: b0,b1,b2,b3
+real, save :: b0,b1,b2,b3
 real, dimension(:), allocatable, save :: co2m51,co2m58,cdtm51,cdtm58,c2dm51,c2dm58,stemp,gtemp
 real, dimension(:), allocatable, save :: co231,co238,cdt31,cdt38,c2d31,c2d38
 real, dimension(:), allocatable, save :: co271,co278,cdt71,cdt78,c2d71,c2d78

@@ -13,6 +13,8 @@
 !     Called by either indata or nestin
 !     nested=0  for calls from indata; 1  for calls from nestin     
       use cc_mpi
+      use sigs_m
+      use soil_m
       use utilities
       use vecsuv_m
       implicit none
@@ -25,8 +27,6 @@
       include 'newmpar.h'
       include 'const_phys.h'
       include 'parm.h'
-      include 'sigs.h'
-      include 'soil.h'
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
       include 'tracers.h'
       include 'vvel.h'
@@ -154,6 +154,10 @@ c     start of processing loop
       use latlong_m
       use mlo, only : wlev,mlodwn,ocndwn,micdwn,mlootf,ocnotf,micotf,
      &                sssb ! MJT mlo
+      use morepbl_m
+      use screen_m
+      use sigs_m
+      use soil_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       use utilities
       use vecsuv_m
@@ -172,14 +176,10 @@ c**   xx4 & yy4 only used in indata & here, so no need to redefine after
 c**   onthefly; sometime can get rid of common/bigxy4
       include 'const_phys.h'
       include 'darcdf.h' ! MJT small otf
-      include 'morepbl.h'  ! MJT vertint
       include 'netcdf.inc' ! MJT vertint
 c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       include 'parm.h'
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
-      include 'screen.h' ! MJT zosea
-      include 'sigs.h'
-      include 'soil.h'
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
       include 'tracers.h'
       include 'vvel.h'
@@ -1726,6 +1726,7 @@ c         endif                  ! (nrem>0)
 !     generalized from ifull to allow new onthefly    0808
 !     can replace usual mslp sometime
       use cc_mpi, only : mydiag
+      use sigs_m
 !     this one will ignore negative zs (i.e. over the ocean)
       implicit none
       integer, parameter :: meth=1 ! 0 for original, 1 for other jlm - always now
@@ -1734,7 +1735,6 @@ c         endif                  ! (nrem>0)
       include 'parm.h'
       integer ifullx,iq
       real pmsl(ifullx),psl(ifullx),zs(ifullx),t(ifullx) ! MJT small otf
-      include 'sigs.h'
       integer :: lev
       real c, con, conr, dlnps, phi1, tav, tsurf
       c=grav/stdlapse
@@ -1772,6 +1772,7 @@ c     endif  ! (meth.eq.0)
 !     generalized from ifull to allow new onthefly    0808
 !     can replace usual mslp sometime
       use cc_mpi, only : mydiag
+      use sigs_m
 !     this one will ignore negative zs (i.e. over the ocean)
       implicit none
       integer, parameter :: meth=1 ! 0 for original, 1 for other jlm - always now
@@ -1780,7 +1781,6 @@ c     endif  ! (meth.eq.0)
       include 'parm.h'
       integer ifullx,iq
       real pmsl(ifullx),psl(ifullx),zs(ifullx),t(ifullx) ! MJT small otf
-      include 'sigs.h'
       integer :: lev
       real dlnps, phi1, tav, tsurf
       !--------------------------------------------------------------

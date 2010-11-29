@@ -4,6 +4,10 @@ c************************* soilsnowv follows  ****some to be vectorized*****
       subroutine soilsnowv
       use cc_mpi, only : mydiag, myid
       use diag_m
+      use morepbl_m  ! need runoff
+      use nsibd_m    ! soilm
+      use permsurf_m
+      use soil_m     ! land
       parameter (ntest=0)   ! 3: forces 3-layer snow, 1: for snow diag prints
 !        for snow diag prints set ntest to 1 throughout
 !        or, usefully can edit 'ntest>0' to 'ktau>nnn'
@@ -24,12 +28,8 @@ c----------------------------------------------------------------------
 c     include 'arrays.h'    ! t
       include 'const_phys.h'  ! cp
       include 'parm.h'      ! ktau,dt
-      include 'permsurf.h'
       include 'soilsnow.h'
-      include 'soil.h'      ! land
       include 'soilv.h'
-      include 'nsibd.h'     ! soilm
-      include 'morepbl.h'   ! need runoff
 
 c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
       common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
@@ -323,6 +323,11 @@ c***********************************************************************
       subroutine surfbv
       use arrays_m
       use cc_mpi, only : mydiag
+      use morepbl_m  ! need runoff
+      use nsibd_m
+      use permsurf_m
+      use sigs_m
+      use soil_m     ! land,sice,sicedep,alb
       parameter (ntest=0)    ! 3: forces 3-layer snow, 1: for snow diag prints
       parameter (ncondxpr=1) ! 0: old sfce scheme, 1: jlm mid-level suggestion
       parameter (newsmelt=1) ! 0: old, 1: new from Aug 2003
@@ -330,13 +335,8 @@ c***********************************************************************
       include 'newmpar.h'   
       include 'const_phys.h'  ! cp
       include 'parm.h'      ! ktau,dt
-      include 'permsurf.h'
-      include 'sigs.h'
-      include 'soil.h'      ! land,sice,sicedep,alb
       include 'soilsnow.h'
       include 'soilv.h'
-      include 'morepbl.h'        ! need runoff
-      include 'nsibd.h'
 
 c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
       common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
@@ -598,6 +598,10 @@ c***********************************************************************
 
       subroutine smoisturev
       use cc_mpi, only : mydiag
+      use nlin_m, at => un, ct => vn
+      use nsibd_m
+      use permsurf_m
+      use soil_m           ! land
       parameter (ntest=0)  ! 2 for funny pre-set for idjd
       parameter (nmeth=-1) ! 1 for full implicit, 2 for simpler implicit
 !                            3 for simple implicit D, explicit K jlm pref
@@ -605,15 +609,9 @@ c***********************************************************************
 !                            0 for simple implicit D, new jlm TVD K  
 !                           -1 for simple implicit D, new jlm TVD K constrained 
       include 'newmpar.h'
-      include 'nlin.h'
-      include 'nsibd.h'
       include 'parm.h'      ! ktau,dt
-      include 'permsurf.h'
       include 'soilsnow.h'
-      include 'soil.h'      ! land
       include 'soilv.h'
-      real at(ifull,kl),ct(ifull,kl)   ! assume kl >= ms+3
-      equivalence (at,un),(ct,vn)
 c
 c     solves implicit soil moisture equation
 c
@@ -1022,15 +1020,15 @@ c***********************************************************************
 
       subroutine stempv
       use cc_mpi, only : mydiag, myid
+      use morepbl_m
+      use nsibd_m
+      use permsurf_m
+      use soil_m     ! land
       parameter (ntest=0)
       include 'newmpar.h'
-      include 'nlin.h'
       include 'parm.h'      ! ktau,dt
-      include 'permsurf.h'
-      include 'soil.h'      ! land
       include 'soilsnow.h'
       include 'soilv.h'
-      include 'nsibd.h'
       real at(ifull,-2:kl-3),ct(ifull,-2:kl-3)   ! assume kl >= ms+3
       equivalence (at,un),(ct,vn)
 
@@ -1264,14 +1262,14 @@ c      endif ! (myid==0.and.nmaxpr==1)
 c***********************************************************************
 
       subroutine snowprv(iq)    ! N.B. this one is not vectorized
+      use nsibd_m
+      use soil_m  ! land
       parameter (newsmlt=1) ! 0: old, 1: new from Aug 2003
       include 'newmpar.h'   
       include 'const_phys.h'
       include 'parm.h'      ! ktau,dt
-      include 'soil.h'      ! land
       include 'soilsnow.h'
       include 'soilv.h'
-      include 'nsibd.h'
 
       common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
      .              dum3b(ijk*2-2*ifull*ms-3*ifull)

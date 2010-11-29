@@ -18,12 +18,12 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
 
       use cc_mpi, only : myid
       use co2dta_m
+      use radisw_m           ! passes rrvco2 to radrive for use in swr89
       include 'parm.h'       ! MJT radiation
       include 'filnames.h'   ! MJT radiation
       include 'newmpar.h'
       include 'mpif.h'       ! MJT read
       include 'rdparm.h'  ! needed before other radiation common blocks
-      include 'radisw.h' ! passes rrvco2 to radrive for use in swr89
       parameter(sigtol=1e-3)
       real sigma(kl), sigin(kl)
       real rcn(35)                 ! MJT radiation

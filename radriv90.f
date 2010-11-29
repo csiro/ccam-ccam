@@ -12,14 +12,25 @@
 !       of il or imax, because j advances sensibly
 
       use arrays_m
-      use ateb ! MJT urban 
+      use ateb       ! MJT urban 
       use cable_ccam, only : CABLE ! MJT cable
       use cc_mpi
       use cldcom_m
       use diag_m
+      use extraout_m ! sintsave, etc
+      use kuocomb_m
       use latlong_m
-      use mlo ! MJT mlo
-      use ozoneread ! MJT radiation
+      use liqwpar_m  ! ifullw
+      use lwout_m
+      use mlo        ! MJT mlo
+      use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
+      use ozoneread  ! MJT radiation
+      use pbl_m
+      use raddiag_m
+      use radisw_m
+      use rdflux_m
+      use sigs_m
+      use soil_m     ! land, rhgdum ... zmin  alb
       use swr99_m
       use zenith_m
       include 'newmpar.h'
@@ -31,24 +42,14 @@
       include 'const_phys.h' ! for ldr cloud scheme
       include 'cparams.h'    ! for ldr cloud scheme
       include 'dates.h'      ! timer,kdate,ktime,dt,mtimer
-      include 'extraout.h'   ! sintsave, etc
       include 'kuocom.h'     ! also with kbsav,ktsav
-      include 'liqwpar.h'    ! ifullw
-      include 'nsibd.h'      ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
-      include 'pbl.h'
       include 'scamdim.h'
-      include 'sigs.h'
-      include 'soil.h'      ! land, rhgdum ... zmin  alb
       include 'soilsnow.h'  ! sicedep tgg,wb,snowd
       include 'soilv.h'
 !     For the radiation code
       include 'rdparm.h'   ! imax
       include 'hcon.h'
-      include 'lwout.h'
-      include 'radisw.h'
-      include 'raddiag.h'
-      include 'rdflux.h'
       include 'srccom.h'
       include 'swocom.h'
       include 'tfcom.h'

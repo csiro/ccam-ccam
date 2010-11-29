@@ -31,12 +31,13 @@ CDIR$ TASK COMMON RADISW
 CDIR$ TASK COMMON TFCOM
 c CDIR$ TASK COMMON VTEMP
 
+      use kdacom_m
+      use radisw_m
+
       include 'newmpar.h'
       include 'hcon.h'
       include 'rdparm.h'
-      include 'radisw.h'
       include 'tabcom.h'
-      include 'kdacom.h'
       include 'tfcom.h'
       integer it1(imax,ll3p),ival(imax,lp1)
       real dtot1(imax,ll3p),dtot2(imax,ll3p),dtot3(imax,ll3p),

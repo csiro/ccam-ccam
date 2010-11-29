@@ -39,16 +39,23 @@ contains
 
 subroutine seaesfrad(odcalc,iaero)
 
-use zenith_m
-use microphys_rad_mod, only: microphys_sw_driver,microphys_lw_driver,lwemiss_calc,microphys_rad_init
-
 use arrays_m
 use ateb
 use cc_mpi
 use cable_ccam, only : CABLE
+use extraout_m
 use latlong_m
+use liqwpar_m
+use microphys_rad_mod, only: microphys_sw_driver,microphys_lw_driver,lwemiss_calc,microphys_rad_init
 use mlo
+use nsibd_m
 use ozoneread
+use pbl_m
+use raddiag_m
+use radisw_m, only : rrco2,ssolar,rrvco2,rrvch4,rrvn2o,rrvf11,rrvf12,rrvf113,rrvf22
+use sigs_m
+use soil_m
+use zenith_m
 
 implicit none
 
@@ -57,14 +64,7 @@ include 'newmpar.h'
 integer, parameter :: imax=il*nrows_rad
 include 'cparams.h'
 include 'dates.h'
-include 'extraout.h'
 include 'kuocom.h'
-include 'liqwpar.h'
-include 'nsibd.h'
-include 'pbl.h'
-include 'raddiag.h'
-include 'sigs.h'
-include 'soil.h'
 include 'soilsnow.h'
 
 logical, intent(in) :: odcalc  ! True for full radiation calculation
@@ -73,6 +73,7 @@ integer, dimension(12) :: ndoy   ! days from beginning of year (1st Jan is 0)
 integer jyear,jmonth,jday,jhour,jmin
 integer k,ksigtop,mstart,mins
 integer i,j,iq,istart,iend,kr
+integer swcount
 integer, save :: nlow,nmid
 real, dimension(ifull), save :: sgamp
 real, dimension(ifull,kl), save :: rtt
@@ -82,7 +83,7 @@ real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr,sga
 real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
 real, dimension(imax,kl) :: duo3n
 real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
-real, dimension(imax,kl) :: p2,cd2
+real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt
 real, dimension(kl+1) :: sigh
 real(kind=8), dimension(kl+1,2) :: pref
 real dduo3n,ddo3n2,ddo3n3,ddo3n4
@@ -92,7 +93,6 @@ real dhr,fjd,bpyear
 real ttbg,ar1,exp_ar1,ar2,exp_ar2,ar3,snr
 real dnsnow,snrat,dtau,alvo,aliro,fage,cczen,fzen,fzenm
 real alvd,alv,alird,alir
-real rrvco2,rrvch4,rrvn2o,rrvf11,rrvf12,rrvf113,rrvf22,ssolar,rrco2
 real f1,f2,cosz,delta
 logical maxover,newcld
 logical, save :: first = .true.
@@ -114,10 +114,9 @@ type(aerosol_diagnostics_type), save ::     Aerosol_diags
 type(lw_table_type), save ::                Lw_tables
 real(kind=8), dimension(:,:,:,:), allocatable :: r
 
-common/cfrac/cfrac(ifull,kl)
+common/cfrac/cfrac(ifull,kl) ! from globpe.f
 common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! ditto
-common /radisw2/ rrco2, ssolar, rrvco2,rrvch4,rrvn2o,rrvf11,rrvf12,rrvf113,rrvf22
-common /o3dat/ dduo3n(37,kl),ddo3n2(37,kl),ddo3n3(37,kl),ddo3n4(37,kl)
+common /o3dat/ dduo3n(37,kl),ddo3n2(37,kl),ddo3n3(37,kl),ddo3n4(37,kl) ! from o3_read.f
 
 data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
 
@@ -338,6 +337,7 @@ if(mod(ifull,imax).ne.0)then
   stop 'illegal setting of imax in rdparm'
 endif
 
+swcount=0
 do j=1,jl,imax/il
   istart=1+(j-1)*il
   iend=istart+imax-1
@@ -489,16 +489,16 @@ do j=1,jl,imax/il
     ! define droplet size (from radriv90.f) -------------------------
     if (iaero.ne.2) then
       where (land(istart:iend).and.rlatt(istart:iend)>0.)
-        cd2(1:imax,1)=cdropl_nh
+        cd2(:,1)=cdropl_nh
       else where (land(istart:iend))
-        cd2(1:imax,1)=cdropl_sh
+        cd2(:,1)=cdropl_sh
       else where (rlatt(istart:iend)>0.)
-        cd2(1:imax,1)=cdrops_nh
+        cd2(:,1)=cdrops_nh
       else where
-        cd2(1:imax,1)=cdrops_sh
+        cd2(:,1)=cdrops_sh
       end where
       do k=2,kl
-        cd2(1:imax,k)=cd2(1:imax,1)
+        cd2(:,k)=cd2(1:imax,1)
       enddo
     else
       !call cldrop(cd2,rhoa)
@@ -526,7 +526,9 @@ do j=1,jl,imax/il
       Atmos_input%rh2o(:,1,kr)   =max(qg(istart:iend,k) ,2.e-7)
       Atmos_input%temp(:,1,kr)   =t(istart:iend,k)      
       Atmos_input%press(:,1,kr)  =ps(istart:iend)*sig(k)
-      call getqsat(imax,qsat,t(istart:iend,k),ps(istart:iend)*sig(k))
+      dumt(:,k)=t(istart:iend,k)
+      p2(:,k)=ps(istart:iend)*sig(k)
+      call getqsat(imax,qsat,dumt(:,k),p2(:,k))
       Atmos_input%rel_hum(:,1,kr)=min(qg(istart:iend,k)/qsat,1.)
     end do
     Atmos_input%temp(:,1,kl+1)  = tss(istart:iend)
@@ -616,13 +618,12 @@ do j=1,jl,imax/il
       end do
     end if
 
-    do k=1,kl
-      p2(:,k)=ps(istart:iend)*sig(k) !
-    end do
+    dumcf=cfrac(istart:iend,:)
+    dumql=qlrad(istart:iend,:)
+    dumqf=qfrad(istart:iend,:)
     call cloud3(Cloud_microphysics%size_drop,Cloud_microphysics%size_ice,       &
                 Cloud_microphysics%conc_drop,Cloud_microphysics%conc_ice,       &
-                cfrac(istart:iend,:),qlrad(istart:iend,:),qfrad(istart:iend,:), &
-                p2,t(istart:iend,:),cd2,imax,kl)
+                dumcf,dumql,dumqf,p2,dumt,cd2,imax,kl)
     Cloud_microphysics%size_drop=max(Cloud_microphysics%size_drop,1.e-20)
     Cloud_microphysics%size_ice =max(Cloud_microphysics%size_ice,1.e-20)                
     Cloud_microphysics%size_rain=1.e-20
@@ -652,6 +653,7 @@ do j=1,jl,imax/il
    
     Astro%cosz(:,1)   =max(coszro,0.)
     Astro%fracday(:,1)=taudar
+    swcount=swcount+count(coszro.gt.0.)
 
     call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input,  &
                           Rad_gases, Aerosol, Aerosol_props,     &
@@ -789,6 +791,10 @@ do j=1,jl,imax/il
   sgsave(istart:iend) = sg(1:imax)   ! this is the repeat after solarfit 26/7/02
 
 end do  ! Row loop (j)  j=1,jl,imax/il
+
+if ( odcalc ) then
+  write(6,*) "swcount,myid ",swcount,myid
+end if
 
 ! Calculate net radiational cooling of atmosphere (K/s)
 t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:)

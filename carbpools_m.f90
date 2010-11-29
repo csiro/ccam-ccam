@@ -8,7 +8,7 @@ public fnee,fpn,frd,frp,frpw,frpr,frs
 public cplant,csoil
 public carbpools_init,carbpools_end
 
-integer inyear_carb
+integer, save :: inyear_carb
 real, dimension(:), allocatable, save :: fnee,fpn,frd,frp,frpw,frpr,frs
 real, dimension(:,:), allocatable, save :: cplant,csoil
 

@@ -12,10 +12,10 @@
       subroutine hs_phys
       use arrays_m
       use latlong_m
+      use nlin_m
+      use sigs_m
       include 'newmpar.h'
-      include 'nlin.h'
       include 'parm.h'
-      include 'sigs.h'
 
       parameter(stefan=5.67e-8)
 

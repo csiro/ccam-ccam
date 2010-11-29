@@ -264,8 +264,8 @@ if (mode.ne.1) then ! mass flux when mode is an even number
     if (wtv0(i).gt.0.) then ! unstable
       do icount=1,icm
         mflx=0.
-        tup=thetav(i,:)
-        qup=qg(i,:)
+        tup=thetav(i,1:kl-1)
+        qup=qg(i,1:kl-1)
         sconv=.false.
         !ee=0.5*(1./(zz(i,1)+dz_fl(i,1))+1./(max(zi(i)-zz(i,1),0.)+dz_fl(i,1))) ! Soares 2004
         ee=0.5*(1./max(zz(i,1),10.)+1./max(zi(i)-zz(i,1),10.))
@@ -352,8 +352,8 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         zi(i)=alpha*zi(i)+(1.-alpha)*ziold(i)
         ziold(i)=zi(i)
       end do
-      gamt(i,:)=mflx(:)*(tup(:)-thetav(i,:))
-      gamq(i,:)=mflx(:)*(qup(:)-qg(i,:))
+      gamt(i,1:kl-1)=mflx(:)*(tup(:)-thetav(i,1:kl-1))
+      gamq(i,1:kl-1)=mflx(:)*(qup(:)-qg(i,1:kl-1))
     else                   ! stable
       wpv_flux(1)=km(i,1)*(thetav(i,2)-thetav(i,1))/dz_hl(i,1) !+gamt(i,1)
       if (wpv_flux(1).lt.0.) then

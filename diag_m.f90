@@ -245,10 +245,10 @@ contains
    end subroutine maxmin1
 
    subroutine average(speed,spmean_g,spavge_g)
+      use sigs_m
       use xyzinfo_m
       include 'mpif.h'
       include 'newmpar.h'
-      include 'sigs.h'
       real, dimension(:,: ), intent(in) :: speed
       real, dimension(:), intent(out) :: spmean_g
       real, intent(out) :: spavge_g

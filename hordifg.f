@@ -5,6 +5,8 @@
       use diag_m
       use indices_m
       use map_m
+      use nlin_m
+      use sigs_m
       use tkeeps, only : tke,eps,shear,ww,dwdx,dwdy ! MJT tke
       use vecsuv_m
       implicit none
@@ -23,9 +25,7 @@ c     N.B. no trace_gases yet
 c     has jlm nhorx option as last digit of nhor, e.g. -157
       include 'newmpar.h'
       include 'const_phys.h'
-      include 'nlin.h'
       include 'parm.h'
-      include 'sigs.h'
       include 'vvel.h'
  
       integer nhor,nhorps,khor,khdif,nhorjlm

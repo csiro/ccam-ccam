@@ -30,17 +30,17 @@ CDIR$ TASK COMMON TFCOM
 c CDIR$ TASK COMMON VTEMP
 
       use cldcom_m
+      use kdacom_m
+      use lwout_m
+      use radisw_m
+      use rdflux_m
 
       include 'newmpar.h'
       include 'hcon.h'
       include 'rdparm.h'
-      include 'radisw.h'
       include 'rnddta.h'
-      include 'rdflux.h'
       include 'srccom.h'
-      include 'kdacom.h'
       include 'tfcom.h'
-      include 'lwout.h'
 c 
       real      phitmp(imax,l),psitmp(imax,l),
      .          fac2(imax,l),

@@ -53,6 +53,7 @@ c This routine is part of the prognostic cloud water scheme
 
       use diag_m
       use cc_mpi, only : mydiag
+      use sigs_m
       implicit none
 C Global parameters
       include 'newmpar.h'
@@ -61,7 +62,6 @@ C Global parameters
       include 'kuocom.h'     !Input cloud scheme parameters rcrit_l & rcrit_s
       include 'params.h'     !Input model grid dimensions (modified params.h for CCAM)
       include 'parm.h'
-      include 'sigs.h'
 
 C Argument list
       real tdt,den1

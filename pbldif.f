@@ -3,7 +3,11 @@
       use arrays_m   !t
       use cc_mpi, only : mydiag, myid
       use diag_m
+      use extraout_m !ustar
       use map_m
+      use morepbl_m  !fg,eg
+      use sigs_m     !sig,sigmh
+      use soil_m     !land
       implicit none
       integer ntest,nrkmin,npblmin,kmax
       parameter (ntest=0)
@@ -47,12 +51,8 @@ C >>>>>>>>>  (Use ricr = 0.3 in this formulation)
 C
 C-----------------------------------------------------------------------
       include 'const_phys.h'
-      include 'extraout.h'     !ustar
       include 'kuocom.h'
-      include 'morepbl.h'      !fg,eg
       include 'parm.h'         !dtin
-      include 'sigs.h'         !sig,sigmh
-      include 'soil.h'         !land
 C------------------------------Arguments--------------------------------
 C
 C Input arguments:u,v,fg,eg,theta,ustar,uav,vav

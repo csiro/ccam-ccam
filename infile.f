@@ -1007,8 +1007,8 @@ c      unpack data
 !     N.B. this ia called just from indata or nestin      
 !     transforms 3d array from dimension kk in vertical to kl   jlm
 !     jlm vector special, just with linear new=1 option
+      use sigs_m
       include 'newmpar.h'
-      include 'sigs.h'
       include 'parm.h'
       !common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT vertint
       integer, intent(in) :: kk ! MJT vertint

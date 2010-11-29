@@ -4,7 +4,9 @@ c                              vadvbott & vadvyu at bottom
       use arrays_m
       use cc_mpi, only : mydiag, myid
       use diag_m
+      use liqwpar_m  ! ifullw
       use map_m
+      use sigs_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       include 'newmpar.h'
       parameter (npslx=1)  ! 0 off, 1 on for nvad=-4
@@ -22,11 +24,9 @@ c     split vertical advection routine; tvd scheme; used with nonlin or upglobal
 c     In flux limiter, assuming zero gradient for all top and bottom
 c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
       include 'kuocom.h'     ! also with kbsav,ktsav
-      include 'liqwpar.h'  ! ifullw
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmvert.h' ! nthub,nimp,ntvd
-      include 'sigs.h'
       include 'tracers.h'
       include 'vvel.h'
       include 'xarrs.h'
