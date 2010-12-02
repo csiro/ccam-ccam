@@ -8,6 +8,7 @@
       use sigs_m
       use soil_m
       use tkeeps, only : tke, eps
+      use tracers_m  ! ngas, nllp, ntrac
       include 'newmpar.h' 
       parameter (itermax=1)  ! originally 2 - not available in vect. version
       parameter (ntest=0)    ! 1 or 2 to turn on; for 3 uncomment !!! lines
@@ -24,7 +25,6 @@ c     For 32-bit machine need real*8  cam()
 c     Hal's ds() renamed dsh()
       include 'const_phys.h'
       include 'parm.h'
-      include 'tracers.h'  ! ngas, nllp, ntrac
       common/epst/epst(ifull)
       common/work2/alphac(ifull),conrev(ifull),fluxr(ifull)
      .  ,heatpc(ifull),rhmx(ifull),smin(ifull),sumd(ifull)

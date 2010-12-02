@@ -1890,7 +1890,7 @@ integer ii,iqi
 real, intent(in) :: dt
 real gamms,qneed,fact
 real htup,htdown
-real, dimension(nc) :: ti,con,rhin,fs
+real, dimension(nc) :: con,rhin,fs,conb
 real, dimension(nc) :: subl,snmelt,dhs,dhb
 real, dimension(nc) :: fsnmelt
 real, dimension(nc,0:2) :: fl
@@ -1909,7 +1909,7 @@ rhin=real(dt_nk)/it_dic
 con=2.*condsnw/max(it_dsn,1.E-6)
 ! Ammendments if surface layer < 5cms
 where (it_dsn.lt.0.05)
-  con=1./(it_dsn/condsnw+it_dic/(condice*real(dt_nk)*2.))
+  con=1./(it_dsn/condsnw+0.5/(condice*rhin))
   it_tn(:,0)=it_tn(:,1)
 end where
 fs=con*(it_tn(:,0)-it_tsurf)
@@ -1919,14 +1919,21 @@ it_tsurf=it_tsurf+(dt_ftop+fs)/(dt_bot+gamms/dt+con)
 snmelt=max(0.,it_tsurf-273.16)*gamms/qsnow ! m of "snow"
 it_tsurf=min(it_tsurf,273.16)              ! melting condition ts=tsmelt
 
-ti=(it_dic*condsnw*it_tn(:,0)+real(dt_nk)*it_dsn*condice*it_tn(:,1)) &
-  /(it_dic*condsnw+real(dt_nk)*it_dsn*condice)
-fl(:,0)=2.*rhin*condice*(it_tn(:,1)-ti)      ! Middle of first ice layer to snow interface
+!ti=(it_dic*condsnw*it_tn(:,0)+real(dt_nk)*it_dsn*condice*it_tn(:,1)) &
+!  /(it_dic*condsnw+real(dt_nk)*it_dsn*condice)
+!fl(:,0)=2.*rhin*condice*(it_tn(:,1)-ti)      ! Middle of first ice layer to snow interface
+conb=2./(it_dsn/condsnw+1./(condice*rhin))
+fl(:,0)=conb*(it_tn(:,1)-it_tn(:,0))
 ! Ammendments if surface layer < 5cms
 where (it_dsn.lt.0.05)
   fl(:,0)=fs
 end where
 fl(:,1)=rhin*condice*(it_tn(:,2)-it_tn(:,1)) ! Between ice layers 2 and 1
+
+! Update the mid-level snow temperature
+where (it_dsn.ge.0.05)
+  it_tn(:,0)=it_tn(:,0)+dt*(fl(:,0)-fs)/(it_dsn*cps)
+end where
 
 ! Surface evap/sublimation (can be >0 or <0)
 ! Note : dt*eg/hl in Kgm/m**2 => mms of water
@@ -1936,9 +1943,6 @@ dt_salflx=dt_salflx-snmelt*rhosn/dt ! melt fresh water snow (no salt from egice)
 dhs=snmelt+subl
 it_dic=max(it_dic-(rhosn/rhoic)*max(dhs-it_dsn,0.),0.)
 it_dsn=max(it_dsn-dhs,0.)
-
-! Update the mid-level snow temperature
-it_tn(:,0)=it_tn(:,0)+dt*(fl(:,0)-fs)/(max(it_dsn,1.E-6)*cps)
 
 ! Remove very thin snow
 where (it_dsn.gt.0..and.it_dsn.lt.icemin)
@@ -2144,7 +2148,7 @@ integer, dimension(nc), intent(inout) :: dt_nk
 real, dimension(nc), intent(in) :: pt_egice
 
 ! Update tsurf and ti based on fluxes from above and below
-con=1./(max(it_dsn,1.E-6)/condsnw+max(it_dic,1.E-6)/condice)
+con=1./(it_dsn/condsnw+max(it_dic,1.E-6)/condice)
 f0=con*(dt_tb-it_tsurf) ! flux from below
 f0=min(max(f0,-1000.),1000.)
 gamms=4.857e4                  ! density*specific heat*depth (for snow)

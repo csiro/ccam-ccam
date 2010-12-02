@@ -12,6 +12,9 @@
       use screen_m
       use sigs_m
       use soil_m     ! land,sice,sicedep,alb
+      use soilsnow_m ! tgg,wb,snowd
+      use tracers_m
+      use vvel_m
       include 'newmpar.h'
       parameter (mev1=il+1-il/2*2,mev2=3-mev1)  ! from helmsol
 c     mev1 = 1 for il even (2 for il odd)
@@ -25,13 +28,8 @@ c     mev2 = 2 for il even (1 for il odd)
       include 'parmvert.h'
       include 'scamdim.h' ! npmax
       include 'soilv.h'  ! swilt,sfc
-      include 'soilsnow.h'  ! tgg,wb,snowd
-      include 'tracers.h'
-      include 'vvel.h'
 !      common/work2/pmsl(ifull),tssout(ifull),seaice(ifull) ! MJT cable
 !     .      ,aa(ifull),bb(ifull),cc(ifull),dum2(ifull,12)  ! MJT cable
-      real omgf(ifull,kl)
-      equivalence (omgf,dpsldt)
       character rundate*8,qgout*20
       character co2out*80,radonout*80,surfout*80
       integer nface6(4,3)   ! Faces to use in each phase    (c-cub)

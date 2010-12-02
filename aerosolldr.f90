@@ -7,7 +7,7 @@ implicit none
 
 private
 public aldrcalc,aldrinit,aldrend,aldrloademiss,cldrop,convscav, &
-       xtg,xtgsav,xtu,ntrac,ppfprec,ppfmelt,ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate, &
+       xtg,xtgsav,xtu,naero,ppfprec,ppfmelt,ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate, &
        ppmaccr,ppfstay,ppqfesd,pprscav
 
 integer, save :: ifull,kl
@@ -25,7 +25,7 @@ real, dimension(:,:), save :: ppmaccr,ppfstay,ppqfsed,pprscav  ! data saved from
 integer, parameter :: nsulf = 3
 integer, parameter :: ncarb = 4
 integer, parameter :: ndust = 4
-integer, parameter :: ntrac = nsulf+ncarb+ndust ! Tracers: DMS, SO2, SO4, BCO, BCI, OCO, OCI, DUST(4)
+integer, parameter :: naero = nsulf+ncarb+ndust ! Tracers: DMS, SO2, SO4, BCO, BCI, OCO, OCI, DUST(4)
 integer, parameter :: ITRACSO2=2                ! Index for SO2 tracer
 integer, parameter :: ITRACBC=NSULF+1           ! Index for BC    "
 integer, parameter :: ITRACOC=NSULF+3           ! Index for OC    "
@@ -51,9 +51,9 @@ integer, intent(in) :: ifin,iextra,klin
 
 ifull=ifin
 kl=klin
-allocate(xtg(ifull+iextra,kl,ntrac))
-allocate(xtgsav(ifull+iextra,kl,ntrac))
-allocate(xtu(ifull,kl,ntrac))
+allocate(xtg(ifull+iextra,kl,naero))
+allocate(xtgsav(ifull+iextra,kl,naero))
+allocate(xtu(ifull,kl,naero))
 allocate(vso2(ifull),hvolc(ifull))
 allocate(field(ifull,15))
 allocate(xss(ifull,kl,3))
@@ -160,10 +160,10 @@ integer, intent(in) :: nmr                     ! cloud overlap (0=random, 1=max/
 integer, dimension(ifull), intent(in) :: ktsav ! convective cloud top level
 integer, dimension(ifull), intent(in) :: kbsav ! convective cloud base level
 logical, dimension(ifull), intent(in) :: land  ! land/sea mask (t=land)
-real, dimension(ifull,ntrac) :: conwd          ! Diagnostic only: Convective wet deposition
+real, dimension(ifull,naero) :: conwd          ! Diagnostic only: Convective wet deposition
 real, dimension(ifull,kl) :: rhoa              ! Air density
-real, dimension(ifull,ntrac) :: xtem
-real, dimension(ifull,kl,ntrac) :: xte,xtm1
+real, dimension(ifull,naero) :: xtem
+real, dimension(ifull,kl,naero) :: xte,xtm1
 real, dimension(ifull,kl+1) :: aphp1
 real, dimension(ifull,kl) :: dz,zz
 real, dimension(ifull,kl) :: prhop1,ptp1,pxtm1,pfevap,pfsubl,plambs
@@ -448,7 +448,7 @@ implicit none
 
 ! Argument list
 REAL ztmst
-REAL PXTM1(ifull,kl,NTRAC)  !Tracer mixing ratio at t-1 [kg/kg]
+REAL PXTM1(ifull,kl,naero)  !Tracer mixing ratio at t-1 [kg/kg]
 REAL P1MXTM1(ifull)         !Density of air in surface layer
 real TSM1M(ifull)           !Surface temp
 real SEAICEM(ifull)         !Sea-ice fraction
@@ -463,8 +463,8 @@ real WLM1M(ifull)           !skin reservoir content of plant [mm for CSIRO GCM, 
 real WSMXM(ifull)           !field capacity of soil [ditto]
 real WSM1M(ifull)           !surface wetness [vol fraction for CSIRO GCM, not m]
 real sig(kl)                !sigma levels
-real XTE(ifull,KL,NTRAC)    !Tracer tendencies (kg/kg/s)
-REAL PXTEMS(ifull,NTRAC)    !Sfc. flux of tracer passed to vertical mixing [kg/m2/s]
+real XTE(ifull,KL,naero)    !Tracer tendencies (kg/kg/s)
+REAL PXTEMS(ifull,naero)    !Sfc. flux of tracer passed to vertical mixing [kg/m2/s]
 ! Some diagnostics
 real so2dd(ifull)
 real so4dd(ifull)
@@ -885,11 +885,11 @@ implicit none
 
 ! Argument list
 REAL PTMST
-REAL PXTM1(ifull,kl,NTRAC)
-REAL PXTE(ifull,kl,NTRAC)
+REAL PXTM1(ifull,kl,naero)
+REAL PXTE(ifull,kl,naero)
 
 ! Local data, functions etc
-real sxtsink(ntrac)
+real sxtsink(naero)
 
 real pqtmst,zfac,zdecay,zxtp1,zdxtdt
 
@@ -906,7 +906,7 @@ endif
 PQTMST=1./PTMST
 ZFAC=ALOG(0.5)*PTMST
 
-DO JT=1,NTRAC
+DO JT=1,naero
   IF (SXTSINK(JT).NE.0.) THEN
     ZDECAY=EXP(ZFAC/SXTSINK(JT))
     DO JK=1,kl
@@ -1009,9 +1009,9 @@ REAL PMLWC(ifull,kl)
 REAL PRHOP1(ifull,kl)
 REAL PTP1(ifull,kl)
 real sg(ifull)
-REAL XTM1(ifull,kl,NTRAC)
-real xtu(ifull,kl,ntrac)
-REAL XTE(ifull,kl,NTRAC)
+REAL XTM1(ifull,kl,naero)
+real xtu(ifull,kl,naero)
+REAL XTE(ifull,kl,naero)
 real pfsnow(ifull,kl)
 real pfconv(ifull,kl)
 real pfsubl(ifull,kl)
@@ -1025,7 +1025,7 @@ real plambs(ifull,kl)
 real prscav(ifull,kl)
 real pclcon(ifull,kl)
 real pccw(ifull,kl)
-real conwd(ifull,ntrac)
+real conwd(ifull,naero)
 
 real dmsoh(ifull) !Diagnostic output
 real dmsn3(ifull) !Diagnostic output
@@ -1054,11 +1054,11 @@ REAL ZXTP10(ifull,kl),          ZXTP1C(ifull,kl),   &
      zsolub(ifull,kl)
 REAL ZZOH(ifull,kl),            ZZH2O2(ifull,kl),   &
      ZZO3(ifull,kl),            ZDUMMY(ifull,kl),   &
-     ZZNO2(ifull,kl),           ZDXTE(ifull,kl,NTRAC)
+     ZZNO2(ifull,kl),           ZDXTE(ifull,kl,naero)
 REAL ZDEP3D(ifull,kl),                               &
      ZAMU0(ifull),zlwcic(ifull,kl),ziwcic(ifull,kl)
 real zrevap(ifull,kl),zso2ev(ifull,kl)
-real xto(ifull,kl,ntrac)
+real xto(ifull,kl,naero)
 integer ZRDAYL(ifull)
 real, dimension(ifull), save :: zdayfac=-1. !Two hemispheric values 
 parameter (nfastox=0) !1 for "fast" in-cloud oxidation; 0 for "slow"
@@ -1092,7 +1092,7 @@ end where
 
 ! Calculate xto, tracer mixing ratio outside convective updraughts
 ! Assumes pclcon < 1, but this shouldn't be a problem.
-do jt=1,ntrac
+do jt=1,naero
   xto(:,:,jt)=(xtm1(:,:,jt)-pclcon(:,:)*xtu(:,:,jt))/(1.-pclcon(:,:))
 enddo
 xto=max(0.,xto)
@@ -1420,7 +1420,7 @@ ENDDO
 !
 !    CALCULATE THE WET DEPOSITION
 !
-DO JT=ITRACSO2,NTRAC
+DO JT=ITRACSO2,naero
   zdep3d=0.
 
   IF (LWETDEP(JT)) THEN          !True for all except DMS
@@ -1504,8 +1504,8 @@ XTE(:,ktop:kl,JT+1)=XTE(:,ktop:kl,JT+1)+ZDXTE(:,ktop:kl,JT+1)
       
 ! Update wet-scavenging tendencies for non-sulfate aerosols (JT >= ITRACBC)
 ! This covers BC, OC and dust in the current version of the model.
-if(ntrac.gt.nsulf)then
-  do jt = itracbc, ntrac
+if(naero.gt.nsulf)then
+  do jt = itracbc, naero
     if(lwetdep(jt)) then
       xte(:,:,jt) = xte(:,:,jt) + zdxte(:,:,jt)
     endif
@@ -1704,7 +1704,7 @@ real pqfsed(ifull,kl)
 real plambs(ifull,kl)
 real prscav(ifull,kl)
 real prevap(ifull,kl)
-real conwd(ifull,ntrac)
+real conwd(ifull,naero)
 
 ! Local work arrays and variables
 REAL ZDEP(ifull) !Only needed for old code
@@ -1712,9 +1712,9 @@ REAL ZDEPS(ifull),ZDEPR(ifull),    &
      ZMTOF(ifull),   ZFTOM(ifull), &
      ZCLEAR(ifull), ZCLR0(ifull)
 
-parameter (MAXNTRAC=29) !Max possible NTRAC handled by filerd
-real zcollefr(maxntrac), zcollefs(maxntrac), Ecols(maxntrac), &
-     Rcoeff(maxntrac), Evfac(maxntrac)
+parameter (MAXnaero=29) !Max possible naero handled by filerd
+real zcollefr(maxnaero), zcollefs(maxnaero), Ecols(maxnaero), &
+     Rcoeff(maxnaero), Evfac(maxnaero)
 
 integer kbase(ifull)
 
@@ -2368,7 +2368,7 @@ subroutine convscav(fscav,xpkp1,xpold,bwkp1,tt)
 
 implicit none
 
-real, dimension(ifull,ntrac), intent(out) :: fscav
+real, dimension(ifull,naero), intent(out) :: fscav
 real, dimension(ifull), intent(in) :: xpkp1,xpold,tt
 real, dimension(ifull) :: f_so2
 logical, dimension(ifull), intent(in) :: bwkp1
@@ -2376,7 +2376,7 @@ logical, dimension(ifull), intent(in) :: bwkp1
 ! Hard-coded for 3 sulfur variables, 4 carbonaceous, 4 mineral dust.
 ! Reason is that 'include ECPARM.f' conflicts with something in this routine. 
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.      
-real scav_effl(11), scav_effi(11), scav_eff(ifull,ntrac)
+real scav_effl(11), scav_effi(11), scav_eff(ifull,naero)
 real zqtp1,ze2,ze3,zlwc,zfac,zso4l,zso2l,zza,zzb
 real zzp,zzq,zzp2,zhp,zqhr,zheneff,p_so2
 integer i,nt
@@ -2416,7 +2416,7 @@ do i=1,ifull
   endif
 enddo
 
-do nt=1,ntrac
+do nt=1,naero
   do i=1,ifull
     if(bwkp1(i))then
       if(nt.eq.ITRACSO2)then
@@ -2432,7 +2432,7 @@ enddo
 
 ! Wet deposition scavenging fraction
 fscav(:,:)=0.
-do nt=1,ntrac
+do nt=1,naero
   do i=1,ifull
     if(xpold(i).gt.0.)then
       fscav(i,nt)=scav_eff(i,nt)*(xpold(i)-xpkp1(i))/xpold(i)

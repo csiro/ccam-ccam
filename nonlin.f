@@ -11,7 +11,10 @@
       use savuvt_m
       use sigs_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
+      use tracers_m
       use vecsuv_m
+      use vvel_m, omgf => dpsldt
+      use xarrs_m
       use xyzinfo_m
       implicit none
       integer, parameter :: ntest=0
@@ -22,9 +25,6 @@
       include 'parm.h'
       include 'parmdyn.h'  
       include 'parmvert.h'
-      include 'tracers.h'
-      include 'vvel.h'     ! sdot
-      include 'xarrs.h'
       include 'mpif.h'
       real epst
       common/epst/epst(ifull)
@@ -41,8 +41,6 @@
       real qgsav, qfgsav, qlgsav, trsav
       common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
      &             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
-      real omgf(ifull,kl)
-      equivalence (omgf,dpsldt)
       integer iq, k, ng, ii, jj, its, nits, nvadh_pass
       real const_nh, contv, delneg, delpos, ratio
       real sumdiffb, sdmx, sdmx_g, spmax2,termlin

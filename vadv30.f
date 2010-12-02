@@ -7,6 +7,9 @@
       use map_m
       use sigs_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
+      use tracers_m
+      use vvel_m
+      use xarrs_m
       parameter (ntest=0) !  0: usual   1: for diagnostic prints
       parameter (nvdep=7) !  0  for original;
 !                            1  for newer average vels
@@ -26,9 +29,6 @@ c     does t, u,v then qg, [q1, q2,]
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmvert.h'
-      include 'tracers.h'
-      include 'vvel.h'
-      include 'xarrs.h'
       real wrk1(ifull,kl),ders(ifull,kl)   ! just work arrays here
       integer kdel(ifull,kl)
       real sd(ifull,kl)

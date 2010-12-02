@@ -2,14 +2,15 @@
       use arrays_m
       use cc_mpi, only : myid, mydiag
       use dava_m
-      use davb_m    ! psls,qgg,tt,uu,vv
+      use davb_m     ! psls,qgg,tt,uu,vv
       use diag_m
       use indices_m
       use latlong_m
       use map_m
       use pbl_m
       use sigs_m
-      use soil_m    ! sicedep fracice
+      use soil_m     ! sicedep fracice
+      use soilsnow_m ! tgg
       include 'newmpar.h'
 !     ik,jk,kk are array dimensions read in infile - not for globpea
 !     int2d code - not used for globpea
@@ -19,7 +20,6 @@
       include 'dates.h'    ! mtimer
       include 'parm.h'     ! qgmin
       include 'parmgeom.h' ! rlong0,rlat0,schmidt
-      include 'soilsnow.h' ! tgg
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
       real, dimension(ifull,kl), save :: ta,ua,va,qa
       real, dimension(ifull,kl), save :: tb,ub,vb,qb
@@ -286,7 +286,7 @@
         where (fraciceb.gt.0.)
           duma=271.2
         end where
-        call mlonudge(duma,3)
+        call mlonudge(duma,12)
        end if
       endif
       
@@ -302,7 +302,8 @@
       use latlong_m
       use pbl_m
       use sigs_m
-      use soil_m  ! sicedep fracice
+      use soil_m     ! sicedep fracice
+      use soilsnow_m ! tgg
       implicit none
       integer, parameter :: ntest=0 
       include 'newmpar.h'
@@ -313,7 +314,6 @@
       include 'dates.h'    ! mtimer
       include 'parm.h'     ! qgmin
       include 'parmgeom.h' ! rlong0,rlat0,schmidt  
-      include 'soilsnow.h' ! tgg
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
 !      common/nest/ta(ifull,kl),ua(ifull,kl),va(ifull,kl),psla(ifull),
 !     .            tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),pslb(ifull),
@@ -544,14 +544,14 @@
             where (fraciceb.gt.0.)
               duma=271.2
             end where
-            call mlofilterfast(duma,3) ! surface sal saved in mlo
+            call mlofilterfast(duma,12) ! surface sal saved in mlo
           else
             ! replace nud_sst with mbd once horz transport is implemented
             duma=tssb
             where (fraciceb.gt.0.)
               duma=271.2
             end where            
-            call mlofilter(duma,3)  ! surface sal saved in mlo
+            call mlofilter(duma,12)  ! surface sal saved in mlo
           end if
          end if ! (nmlo.eq.0)
         end if ! (namip.eq.0.and.ntest.eq.0)

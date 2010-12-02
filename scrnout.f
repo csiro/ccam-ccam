@@ -11,6 +11,7 @@
       use prec_m     ! just for diags
       use sigs_m
       use soil_m
+      use soilsnow_m
       implicit none
 !     from Feb '05 scales uscrn, u10 to remove vmod>2 effect
 !     allows for zo>zscr from 30/7/04
@@ -23,7 +24,6 @@
       include 'const_phys.h'
       include 'parm.h'
       include 'scamdim.h'
-      include 'soilsnow.h'
       real ri(ifull),vmod(ifull)
       real af(ifull),aft(ifull)  ! passed in
       integer ipsice,ipsea,ipland,iperm

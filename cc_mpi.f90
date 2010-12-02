@@ -26,7 +26,7 @@ module cc_mpi
              indp, indg, deptsync, intssync, start_log, end_log,        &
              log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg, &
              ccglobal_sum, iq2iqg, indv_mpi, indglobal, readglobvar, writeglobvar
-   public :: dpoints_t, dindex_t, sextra_t ! MJT memory
+   public :: dpoints_t,dindex_t,sextra_t ! MJT memory
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
               ccmpi_distribute2r8,   &
               ccmpi_gather2, ccmpi_gather3, checksize, get_dims,              &
@@ -194,7 +194,7 @@ contains
       use sumdd_m
       use vecsuv_m
       use xyzinfo_m
-      integer :: ierr,n ! MJT memory
+      integer :: ierr,iproc ! MJT memory
 
 #ifdef uniform_decomp
       call proc_setup_uniform(npanels,ifull)
@@ -301,14 +301,14 @@ contains
 !!$      call bounds(bzv)
 
       ! Off processor departure points
-      do n=0,nproc-1                        ! MJT memory
-        if (neighbour(n)) then              ! MJT memory
-          allocate(dpoints(n)%a(4,maxsize)) ! MJT memory
-          allocate(dbuf(n)%a(4,maxsize))    ! MJT memory
-          allocate(dbuf(n)%b(maxsize))      ! MJT memory
-          allocate(sextra(n)%a(maxsize))    ! MJT memory
-          allocate(dindex(n)%a(2,maxsize))  ! MJT memory
-        end if                              ! MJT memory
+      do iproc=0,nproc-1                                ! MJT memory
+        if (neighbour(iproc)) then                      ! MJT memory
+          allocate(dpoints(iproc)%a(4,bnds(iproc)%len)) ! MJT memory
+          allocate(dbuf(iproc)%a(4,bnds(iproc)%len))    ! MJT memory
+          allocate(dbuf(iproc)%b(bnds(iproc)%len))      ! MJT memory
+          allocate(sextra(iproc)%a(bnds(iproc)%len))    ! MJT memory
+          allocate(dindex(iproc)%a(2,bnds(iproc)%len))  ! MJT memory
+        end if                                          ! MJT memory
       end do
 
 #ifdef sumdd
@@ -1382,6 +1382,8 @@ contains
       if ( nreq > 0 ) then
          call MPI_Waitall(nreq,ireq,status,ierr)
       end if
+      
+      call reducealloc ! MJT memory - resize arrays
 
 !     Start of UV section
 
@@ -1718,6 +1720,8 @@ contains
          bnds(myid)%request_list_uv(iq) = sign(indp(i,j,n),bnds(myid)%request_list_uv(iq))
       end do
 
+      call reducealloc ! MJT memory - resize arrays
+
 !  Final check for values that haven't been set properly
       do n=1,npan
          do j=1,jpan
@@ -1768,6 +1772,67 @@ contains
       end do
 
    end subroutine bounds_setup
+   
+   ! MJT memory
+   subroutine reducealloc
+   
+   implicit none
+   
+   integer iproc,nlen
+   integer, dimension(maxbuflen) :: idum
+   logical, dimension(maxbuflen) :: ldum
+   
+   do iproc=0,nproc-1
+     nlen=kl*max(bnds(iproc)%rlen2,bnds(iproc)%rlen2_uv,bnds(iproc)%slen2,bnds(iproc)%slen2_uv)
+     if (nlen.lt.bnds(iproc)%len) then
+       write(6,*) "Reducing array size.  myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
+       bnds(iproc)%len=nlen
+       if (iproc.ne.myid) then
+         deallocate ( bnds(iproc)%rbuf )
+         allocate ( bnds(iproc)%rbuf(bnds(iproc)%len) )
+         deallocate ( bnds(iproc)%sbuf )
+         allocate ( bnds(iproc)%sbuf(bnds(iproc)%len) )
+         idum(1:bnds(iproc)%len)=bnds(iproc)%request_list(1:bnds(iproc)%len)
+         deallocate ( bnds(iproc)%request_list )
+         allocate ( bnds(iproc)%request_list(bnds(iproc)%len) )
+         bnds(iproc)%request_list(1:bnds(iproc)%len)=idum(1:bnds(iproc)%len)
+         idum(1:bnds(iproc)%len)=bnds(iproc)%send_list(1:bnds(iproc)%len)
+         deallocate ( bnds(iproc)%send_list )
+         allocate ( bnds(iproc)%send_list(bnds(iproc)%len) )
+         bnds(iproc)%send_list(1:bnds(iproc)%len)=idum(1:bnds(iproc)%len)
+         idum(1:bnds(iproc)%len)=bnds(iproc)%unpack_list(1:bnds(iproc)%len)
+         deallocate ( bnds(iproc)%unpack_list )
+         allocate ( bnds(iproc)%unpack_list(bnds(iproc)%len) )
+         bnds(iproc)%unpack_list(1:bnds(iproc)%len)=idum(1:bnds(iproc)%len)
+       end if
+       idum(1:bnds(iproc)%len)=bnds(iproc)%request_list_uv(1:bnds(iproc)%len)
+       deallocate ( bnds(iproc)%request_list_uv )
+       allocate ( bnds(iproc)%request_list_uv(bnds(iproc)%len) )
+       bnds(iproc)%request_list_uv(1:bnds(iproc)%len)=idum(1:bnds(iproc)%len)
+       idum(1:bnds(iproc)%len)=bnds(iproc)%send_list_uv(1:bnds(iproc)%len)
+       deallocate ( bnds(iproc)%send_list_uv )
+       allocate ( bnds(iproc)%send_list_uv(bnds(iproc)%len) )
+       bnds(iproc)%send_list_uv(1:bnds(iproc)%len)=idum(1:bnds(iproc)%len)
+       idum(1:bnds(iproc)%len)=bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len)
+       deallocate ( bnds(iproc)%unpack_list_uv )
+       allocate ( bnds(iproc)%unpack_list_uv(bnds(iproc)%len) )
+       bnds(iproc)%unpack_list_uv(1:bnds(iproc)%len)=idum(1:bnds(iproc)%len)
+       ldum(1:bnds(iproc)%len)=bnds(iproc)%uv_swap(1:bnds(iproc)%len)
+       deallocate ( bnds(iproc)%uv_swap )
+       allocate ( bnds(iproc)%uv_swap(bnds(iproc)%len) )
+       bnds(iproc)%uv_swap(1:bnds(iproc)%len)=ldum(1:bnds(iproc)%len)
+       ldum(1:bnds(iproc)%len)=bnds(iproc)%send_swap(1:bnds(iproc)%len)
+       deallocate ( bnds(iproc)%send_swap )
+       allocate ( bnds(iproc)%send_swap(bnds(iproc)%len) )
+       bnds(iproc)%send_swap(1:bnds(iproc)%len)=ldum(1:bnds(iproc)%len)
+     elseif (nlen.gt.bnds(iproc)%len) then
+       write(6,*) "ERROR: myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
+       stop
+     end if
+   end do
+   
+   return
+   end subroutine reducealloc
 
    subroutine check_set(ind,str,i,j,n,iq)
       integer, intent(in) :: ind,i,j,n,iq
@@ -2281,7 +2346,7 @@ contains
                ! Add this point to the list of requests I need to send to iproc
                dslen(iproc) = dslen(iproc) + 1
 #ifdef debug
-               call checksize(dslen(iproc),"Deptssync")
+               call checksize(dslen(iproc),bnds(iproc)%len,"Deptssync")                             ! MJT memory
 #endif
                ! Since nface is a small integer it can be exactly represented by a
                ! real. It's simpler to send like this than use a proper structure.
@@ -2316,7 +2381,7 @@ contains
          if ( neighbour(rproc) ) then
             nreq = nreq + 1
             ! Use the maximum size in the recv call.
-            call MPI_IRecv( dpoints(rproc)%a, 4*maxsize, &                         ! MJT memory
+            call MPI_IRecv( dpoints(rproc)%a, 4*bnds(rproc)%len, &                 ! MJT memory
                          MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -2456,11 +2521,11 @@ contains
 
    end function iq2iqg
 
-   subroutine checksize(len, mesg)
-      integer, intent(in) :: len
+   subroutine checksize(len, msize, mesg)             ! MJT memory
+      integer, intent(in) :: len,msize                ! MJT memory
       character(len=*), intent(in) :: mesg
       integer :: ierr,ierr2
-      if ( len > maxsize ) then
+      if ( len > msize ) then                         ! MJT memory
          print*, "Error, maxsize exceeded in ", mesg
          call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
       end if
@@ -2477,11 +2542,13 @@ contains
       if ( bnds(rproc)%len == 0 ) then
          ! Not allocated yet.
          len = maxbuflen
-         allocate ( bnds(rproc)%rbuf(len) )
-         allocate ( bnds(rproc)%sbuf(len) )
-         allocate ( bnds(rproc)%request_list(len) )
-         allocate ( bnds(rproc)%send_list(len) )
-         allocate ( bnds(rproc)%unpack_list(len) )
+         if (rproc.ne.myid) then                 ! MJT memory
+           allocate ( bnds(rproc)%rbuf(len) )
+           allocate ( bnds(rproc)%sbuf(len) )
+           allocate ( bnds(rproc)%request_list(len) )
+           allocate ( bnds(rproc)%send_list(len) )
+           allocate ( bnds(rproc)%unpack_list(len) )
+         end if                                  ! MJT memory
          allocate ( bnds(rproc)%request_list_uv(len) )
          allocate ( bnds(rproc)%send_list_uv(len) )
          allocate ( bnds(rproc)%unpack_list_uv(len) )

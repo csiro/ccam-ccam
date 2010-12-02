@@ -7,6 +7,7 @@
       use pbl_m       ! tss
       use permsurf_m  ! iperm etc
       use soil_m      ! ,tice, alb
+      use soilsnow_m  ! fracice,sicedep
       implicit none
 !     this one primarily does namip>=2      
 !     but persisted SST anomalies for namip=-1
@@ -19,7 +20,6 @@
       include 'newmpar.h'
       include 'dates.h'     !  kdate,ktime,timer,mtimer
       include 'parm.h'      ! id,jd
-      include 'soilsnow.h'  ! fracice,sicedep
       include 'mpif.h'
       real, save, dimension(ifull) :: ssta, sstb, sstc, aice, bice, cice
       real, save, dimension(ifull) :: asal, bsal, csal
@@ -226,15 +226,15 @@ c       c1=0.
             where(fraciceb.gt.0.)
               duma=271.2
             end where
-            call mlonudge(duma,3)
+            call mlonudge(duma,12)
           case(1)
             if (mod(mtimer,mlotime*60).eq.0) then
               duma=tgg(:,1)
               where(fraciceb.gt.0.)
                 duma=271.2
               end where            
-              call mlofilterfast(duma,3) ! 1D version
-              !call mlofilter(duma,3) ! 2D version
+              call mlofilterfast(duma,12) ! 1D version
+              !call mlofilter(duma,12) ! 2D version
             end if
           case DEFAULT
             write(6,*) "ERROR: Unknown mlomode ",mlomode

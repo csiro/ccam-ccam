@@ -8,7 +8,10 @@
       use nlin_m
       use sigs_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
+      use tracers_m
       use vecsuv_m
+      use vvel_m     ! sdot
+      use xarrs_m
       use xyzinfo_m
       implicit none
 !     parameter (nrot=1)       ! nrot=1 to rotate velocity vectors (parmdyn.h)
@@ -21,9 +24,6 @@
       include 'parmdyn.h'  
       include 'parmhor.h'  ! mhint, m_bs, nt_adv
       include 'parmvert.h'  
-      include 'tracers.h'
-      include 'vvel.h'     ! sdot
-      include 'xarrs.h'
       include 'mpif.h'
       real epst
       common/epst/epst(ifull)

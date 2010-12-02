@@ -74,15 +74,15 @@ c CDIR$ TASK COMMON VTEMP
       use lwout_m
       use radisw_m
       use rdflux_m
+      use srccom_m
+      use tabcom_m
+      use tfcom_m
       implicit none
       include 'newmpar.h'
       include 'hcon.h'
       include 'parm.h'
       include 'rdparm.h'
       include 'rnddta.h'
-      include 'tabcom.h'
-      include 'srccom.h'
-      include 'tfcom.h'
       integer ixo(imax,lp1)  !itop(imax),ibot(imax),indtc(imax)
       real vtmp1(imax,lp1),vtmp2(imax,lp1),
      & vtmp3(imax,lp1),c(imax,llp1),alp(imax,llp1), !dsorc(imax,lp1),

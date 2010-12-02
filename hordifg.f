@@ -9,6 +9,7 @@
       use sigs_m
       use tkeeps, only : tke,eps,shear,ww,dwdx,dwdy ! MJT tke
       use vecsuv_m
+      use vvel_m
       implicit none
 !      integer, parameter :: nhorjlm=1 ! 1 for jlm 3D deformation rather than Smagorinsky
 c     called from globpe (now not tendencies),
@@ -26,7 +27,6 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       include 'newmpar.h'
       include 'const_phys.h'
       include 'parm.h'
-      include 'vvel.h'
  
       integer nhor,nhorps,khor,khdif,nhorjlm
       real hdiff,hdifmax

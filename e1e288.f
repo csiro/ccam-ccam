@@ -33,12 +33,12 @@ c CDIR$ TASK COMMON VTEMP
 
       use kdacom_m
       use radisw_m
+      use tabcom_m
+      use tfcom_m
 
       include 'newmpar.h'
       include 'hcon.h'
       include 'rdparm.h'
-      include 'tabcom.h'
-      include 'tfcom.h'
       integer it1(imax,ll3p),ival(imax,lp1)
       real dtot1(imax,ll3p),dtot2(imax,ll3p),dtot3(imax,ll3p),
      &  dtot4(imax,ll3p),dtot5(imax,llp1),dtot6(imax,llp1),
@@ -54,9 +54,17 @@ c---variables in the argument list
       dimension fxoe1(imax,lp1),dte1(imax,lp1), 
      &    g1(imax,lp1),g2(imax,l),g3(imax,lp1),g4(imax,lp1),g5(imax,l) 
 c
-      equivalence (em1v(1),em1(1,1)),(em1vw(1),em1wde(1,1)) 
-      equivalence (t1(1),table1(1,1)),(t2(1),table2(1,1)),
-     & (t4(1),table3(1,1))
+!      equivalence (em1v(1),em1(1,1)),(em1vw(1),em1wde(1,1)) 
+!      equivalence (t1(1),table1(1,1)),(t2(1),table2(1,1)),
+!     & (t4(1),table3(1,1))
+     
+      ! MJT resize array to replace equivalence
+      em1v=reshape(em1, (/ size(em1) /))
+      em1vw=reshape(em1wde, (/ size(em1wde) /))
+      t1=reshape(table1, (/ size(table1) /))
+      t2=reshape(table2, (/ size(table2) /))
+      t4=reshape(table3, (/ size(table3) /))
+     
 c---first we obtain the emissivities as a function of temperature
 c   (index fxo) and water amount (index fyo). this part of the code
 c   thus generates the e2 function.

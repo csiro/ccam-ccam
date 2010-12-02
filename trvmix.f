@@ -9,12 +9,12 @@ c ***************************************************************************
       use diag_m
       use sigs_m
       use tracermodule, only :tracunit,tracname
+      use tracers_m  ! tr
 c     this routine does the vertical mixing of tracers
       implicit none
       include 'newmpar.h'
       include 'const_phys.h'      ! grav,fair_molm,fc_molm
       include 'parm.h'          ! dt
-      include 'tracers.h'       ! tr
       real trsrc(ifull,kl)
       real updtr(ilt*jlt,klt,ngasmax),at(ifull,kl),ct(ifull,kl)
       real trfact,molfact,radfact,co2fact,gasfact
@@ -136,9 +136,9 @@ c *****************************************************************
       subroutine gasvmix(temptr, fluxfact, igas, decay,trsrc)
 
       use arrays_m        ! ps
+      use tracers_m       ! tr
       implicit none
       include 'newmpar.h'
-      include 'tracers.h' ! tr
       include 'parm.h'    ! dt
       real trsrc(ilt*jlt,kl)
       real temptr(ilt*jlt,klt)

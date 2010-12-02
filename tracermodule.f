@@ -41,11 +41,11 @@ c     in outcdf.f (current setting of trmax unreliable)
 c ***************************************************************************
       subroutine init_tracer
       use cc_mpi, only : myid
+      use tracers_m
       implicit none
       character(len=80) :: header
       integer nt
       include 'newmpar.h'
-      include 'tracers.h'
       character(len=80) :: tempname  ! Temp file name
 
 !     if ( myid == 0 ) then
@@ -114,9 +114,9 @@ c ***********************************************************************
       subroutine tracini
 c     initial value now read from tracerlist 
       use cc_mpi
+      use tracers_m
       implicit none
       include 'newmpar.h'
-      include 'tracers.h'
       include 'netcdf.inc'
       include 'mpif.h'
       integer i,ierr
@@ -185,9 +185,9 @@ c ***********************************************************************
       subroutine tr_back
 c     remove a background value for tracer fields for more accurate transport
       use cc_mpi, only : myid
+      use tracers_m
       implicit none
       include 'newmpar.h'
-      include 'tracers.h'
       include 'mpif.h'
       integer i,ierr
       real trmin,trmin_g
@@ -221,9 +221,9 @@ c *********************************************************************
 c     needs to happen further down the code than reading the tracer
 c     list file
       use cc_mpi, only : myid
+      use tracers_m
       implicit none
       include 'newmpar.h'
-      include 'tracers.h'
       include 'parm.h'
       real ajunk(3)
       integer nt,jyear,jmonth,kdate
@@ -292,10 +292,10 @@ c *************************************************************************
       subroutine readrco2(igas,iyr,imon,nflux,fluxin,co2time)
 c     rml 23/09/03 largely rewritten to use netcdf files
       use cc_mpi
+      use tracers_m
       implicit none
       include 'newmpar.h' !il,jl,kl
       include 'parm.h' !nperday
-      include 'tracers.h'
 c     include 'trcom2.h'
       character*50 filename
 c     rml 25/08/04 added fluxunit variable
@@ -788,15 +788,15 @@ c                this error check only useful for hourly resolution
 c ***************************************************************************
       subroutine tracer_mass(ktau,ntau)
 c     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
-      use arrays_m ! ps
+      use arrays_m   ! ps
       use cc_mpi
-      use sigs_m   ! dsig
+      use sigs_m     ! dsig
       use sumdd_m
+      use tracers_m  ! tr
       use xyzinfo_m
       implicit none
       include 'newmpar.h'
       include 'const_phys.h' ! rearth,fc_molm,fair_molm
-      include 'tracers.h'  ! tr
       include 'mpif.h'
       integer it,iq,k,ktau,ntau,igas,ierr
 

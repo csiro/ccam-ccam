@@ -16,6 +16,8 @@
       use sigs_m
       use soil_m
       use tkeeps, only : tke,eps ! MJT
+      use tracers_m  ! ngas, nllp, ntrac
+      use vvel_m
       implicit none
       integer itn,iq,k,k13,k23,kcl_top
      .       ,khalf,khalfd,khalfp,kt
@@ -60,8 +62,6 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       include 'const_phys.h'
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
       include 'parm.h'
-      include 'tracers.h'  ! ngas, nllp, ntrac
-      include 'vvel.h'
       real cfrac
       common/cfrac/cfrac(ifull,kl)
       integer ktmax(ifull),kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)

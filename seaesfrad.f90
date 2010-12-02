@@ -55,6 +55,7 @@ use raddiag_m
 use radisw_m, only : rrco2,ssolar,rrvco2,rrvch4,rrvn2o,rrvf11,rrvf12,rrvf113,rrvf22
 use sigs_m
 use soil_m
+use soilsnow_m
 use zenith_m
 
 implicit none
@@ -65,7 +66,6 @@ integer, parameter :: imax=il*nrows_rad
 include 'cparams.h'
 include 'dates.h'
 include 'kuocom.h'
-include 'soilsnow.h'
 
 logical, intent(in) :: odcalc  ! True for full radiation calculation
 integer, intent(in) :: iaero
@@ -792,7 +792,7 @@ do j=1,jl,imax/il
 
 end do  ! Row loop (j)  j=1,jl,imax/il
 
-if ( odcalc ) then
+if ( odcalc .and. nmaxpr.eq.1 ) then
   write(6,*) "swcount,myid ",swcount,myid
 end if
 

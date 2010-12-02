@@ -1,9 +1,9 @@
 !  this is eig derived from eignew, but used in-line in C-CAM
       subroutine eig(sigin,sigmhin,tbar,lapsbot,isoth,dtin,eps,nh)
+      use vecs_m
       include 'newmpar.h'
       real sigin(kl),sigmhin(kl)
       common/simpl/sig(kl),sigmh(kl+1)
-      include 'vecs.h'
 c     common/new/emat(kl,kl),bam(kl),einv(kl,kl)
       data neig/1/,nsig/5/,nflip/0/
 
@@ -77,6 +77,7 @@ c       write data from bottom up
       end
 
       subroutine eigs(lapsbot,isoth,tbar,dt,eps,nh)
+      use vecs_m
       include 'newmpar.h'
       parameter (klkl=kl*kl)
 c     sets up eigenvectors
@@ -85,7 +86,6 @@ c     sets up eigenvectors
       real bet(kl),betm(kl),get(kl),getm(kl),gmat(kl,kl)
       real bmat(kl,kl),evimag(kl),veci(kl,kl),sum1(kl)
       dimension indic(kl)
-      include 'vecs.h'
 c     common/new/emat(kl,kl),bam(kl),einv(kl,kl)
       real aa(kl,kl),ab(kl,kl),ac(kl,kl)
       real aaa(kl,kl),cc(kl,kl)

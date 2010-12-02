@@ -17,6 +17,7 @@
       use sigs_m
       use soil_m
       use tkeeps     ! MJT tke
+      use tracers_m  ! ngas, nllp, ntrac
 !     rml 16/02/06 use trvmix module
       use trvmix, only : tracervmix
       include 'newmpar.h'
@@ -34,7 +35,6 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       include 'kuocom.h'   ! also with kbsav,ktsav,convpsav,kscsea,sigksct
       include 'mpif.h'
       include 'parm.h'
-      include 'tracers.h'  ! ngas, nllp, ntrac
       common/cfrac/cfrac(ifull,kl)
       real betatt(ifull,kl),betaqt(ifull,kl),rhs(ifull,kl),dqtot(ifull)
       common/work3/delthet(ifull,kl),

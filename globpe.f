@@ -49,12 +49,24 @@
       use seaesfrad_m ! MJT radiation
       use sigs_m
       use soil_m      ! fracice
+      use soilbal_m, only : soilbal_init
+      use soilsnin_m, only : soilsnin_init
+      use soilsnow_m
+      use srccom_m, only : srccom_init
+      use swocom_m, only : swocom_init
+      use tabcom_m, only : tabcom_init
+      use tfcom_m, only : tfcom_init
+      use timeseries, only : write_ts      
 !     rml 21/02/06 removed redundant tracer code (so2/o2 etc)
 !     rml 16/02/06 use tracermodule, timeseries
       use tracermodule, only :init_tracer,trfiles,tracer_mass,unit_trout
      &                        ,interp_tracerflux
-      use timeseries, only : write_ts
-      use vecsuv_m      
+      use tracers_m   ! ngas, nllp, ntrac, tr
+      use vecs_m, only : vecs_init
+      use vecsuv_m
+      use vegpar_m
+      use vvel_m      ! sdot
+      use xarrs_m
       use xyzinfo_m   ! x,y,z,wts,x_g,y_g,z_g,wts_g     
       implicit none
       include 'newmpar.h'
@@ -74,23 +86,18 @@
       include 'parmvert.h'
       include 'rdparm.h'
       include 'scamdim.h'  ! npmax
-      include 'soilsnow.h'
       include 'soilv.h'
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
-      include 'tracers.h'  ! ngas, nllp, ntrac, tr
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
-      include 'vegpar.h'
       include 'version.h'
-      include 'vvel.h'     ! sdot
-      include 'xarrs.h'
       
       integer leap,nbarewet,nsigmf
       integer nnrad,idcld
       real alph_p,alph_pm,delneg,delpos,alph_q
       real dpsdt,dpsdtb,dpsdtbb
-      common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull) !globpe,adjust5,outcdf
+      common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull) !globpe,adjust5,outcdf,hordifg
       real epst
-      common/epst/epst(ifull)
+      common/epst/epst(ifull) !globpe,adjust5,conjob,indata,nonlin,upglobal
       common/leap_yr/leap  ! 1 to allow leap years
       common/mfixdiag/alph_p,alph_pm,delneg,delpos,alph_q
       common/nsib/nbarewet,nsigmf
@@ -138,8 +145,8 @@
       real qgsav, qfgsav, qlgsav, trsav
       common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
      &             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
-      real spmean(kl),div(kl),omgf(ifull,kl),pmsl(ifull)
-      equivalence (omgf,dpsldt),(pmsl,dum3a)
+      real spmean(kl),div(kl),pmsl(ifull)
+      equivalence (pmsl,dum3a)
       integer, dimension(13), parameter :: mdays =
      &     (/31,28,31,30,31,30,31,31,30,31,30,31, 31/)
       logical odcalc
@@ -217,8 +224,7 @@
       data nwrite/0/
       data nsnowout/999999/
 
-      ! used to remove stack limit on other processors
-      ! (LINUX ONLY)
+      ! For linux only
       call setstacklimit(-1)
 
       !--------------------------------------------------------------
@@ -430,16 +436,105 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       call bigxy4_init(iquad)
       call xyzinfo_init(ifull_g,ifull,iextra)
       call indices_init(ifull_g,ifull,iextra,npanels,npan)
-      call latlong_init(ifull_g,ifull,iextra)
       call map_init(ifull_g,ifull,iextra)
+      call latlong_init(ifull_g,ifull,iextra)      
       call vecsuv_init(ifull_g,ifull,iextra)
 
       !--------------------------------------------------------------
       ! SET UP CC GEOMETRY
-!     All processors call setxyz
-      call setxyz(il_g,rlong0,rlat0,schmidt,
-     &   x_g,y_g,z_g,wts_g, ax_g,ay_g,az_g,bx_g,by_g,bz_g, xx4,yy4,
-     &   myid)
+!     Only one processor calls setxyz to save memory with large grids
+      if (myid==0) then ! MJT memory
+        call setxyz(il_g,rlong0,rlat0,schmidt,
+     &     x_g,y_g,z_g,wts_g, ax_g,ay_g,az_g,bx_g,by_g,bz_g, xx4,yy4,
+     &     myid)
+      end if            ! MJT memory
+      call MPI_Bcast(ds,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(xx4,iquad*iquad,MPI_DOUBLE_PRECISION,0,
+     &               MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(yy4,iquad*iquad,MPI_DOUBLE_PRECISION,0,
+     &               MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(x_g,ifull_g,MPI_DOUBLE_PRECISION,0,
+     &               MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(y_g,ifull_g,MPI_DOUBLE_PRECISION,0,
+     &               MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(z_g,ifull_g,MPI_DOUBLE_PRECISION,0,
+     &               MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(iw_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(isw_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(is_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(ise_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(ie_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(ine_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(in_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(iwn_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(ien_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(inn_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(iss_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(iww_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(iee_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(iwu_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(isv_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(iwu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(isv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(ieu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(inv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(iev2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(inu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(ieu_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(inv_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(iwwu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(issv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(ieeu2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(innv2_g,ifull_g,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lwws_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lws_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lwss_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(les_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lees_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(less_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lwwn_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lwnn_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(leen_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lenn_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lsww_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lsw_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lssw_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lsee_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lsse_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lnww_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lnw_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lnnw_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lnee_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(lnne_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
+     &               ierr)
+      call MPI_Bcast(npann_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(npane_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(npanw_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(npans_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(em_g,ifull_g,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call ccmpi_setup()
       
       !--------------------------------------------------------------
@@ -453,6 +548,7 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
         deallocate(inn_g,iss_g,iww_g,iee_g,iwu_g,isv_g)
         deallocate(iwu2_g,isv2_g,ieu2_g,inv2_g,iev2_g,inu2_g,ieu_g)
         deallocate(inv_g,iwwu2_g,issv2_g,ieeu2_g,innv2_g)
+        deallocate(lwws_g,lws_g,lwss_g,les_g,lees_g,less_g,lwwn_g)
         deallocate(lwnn_g,leen_g,lenn_g,lsww_g)
         deallocate(lsw_g,lssw_g,lsee_g,lsse_g,lnww_g,lnw_g,lnnw_g)
         deallocate(lnee_g,lnne_g)
@@ -478,6 +574,12 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       call screen_init(ifull,iextra,kl)
       call sigs_init(ifull,iextra,kl)
       call soil_init(ifull,iextra,kl)
+      call soilbal_init(ifull,iextra,kl)
+      call soilsnow_init(ifull,iextra,kl,ms)
+      call vecs_init(ifull,iextra,kl)
+      call vegpar_init(ifull,iextra,kl)
+      call vvel_init(ifull,iextra,kl)
+      call xarrs_init(ifull,iextra,kl)
       if (nbd.ne.0) then ! nudging arrays
         call dava_init(ifull,iextra,kl)
         call davb_init(ifull,iextra,kl)
@@ -495,9 +597,18 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
         call lwout_init(ifull,iextra,kl,il*nrows_rad)
         call radisw_init(ifull,iextra,kl,il*nrows_rad)
         call rdflux_init(ifull,iextra,kl,il*nrows_rad,nbly)
+        call srccom_init(ifull,iextra,kl,il*nrows_rad,nbly)
+        call swocom_init(ifull,iextra,kl,il*nrows_rad)
+        call tabcom_init(ifull,iextra,kl,il*nrows_rad,nbly)
+        call tfcom_init(ifull,iextra,kl,il*nrows_rad,nbly)
       end if
-      if (nsib==4.or.nsib>=6) then ! land-surface arrays
+      if (nsib.le.3.or.nsib==5) then ! land-surface arrays
+        call soilsnin_init(ifull,iextra,kl)
+      else
         call carbpools_init(ifull,iextra,kl,ncp,ncs)
+      end if
+      if (ngas.gt.0) then
+        call tracers_init
       end if
       
       !--------------------------------------------------------------
@@ -1122,7 +1233,7 @@ c       print*,'Calling prognostic cloud scheme'
        epot_ave = epot_ave+epot  ! 2D 
        ga_ave = ga_ave+ga        ! 2D 
        
-       ! STATION OUTPUT ---------------------------------------------  
+       ! STATION OUTPUT ---------------------------------------------
        if(nstn>0.and.nrotstn(1)==0)call stationa ! write every time step
        if(mod(ktau,nmaxpr)==0.and.mydiag)then
          print *
@@ -1206,7 +1317,7 @@ c       print*,'Calling prognostic cloud scheme'
          write (6,"('rh  ',9f8.3/4x,9f8.3)") spmean(:)
          write (6,"('div ',9f8.3/4x,9f8.3)") div(:)
          write (6,"('omgf ',9f8.3/5x,9f8.3)")   ! in Pa/s
-     &             ps(idjd)*omgf(idjd,:)
+     &             ps(idjd)*dpsldt(idjd,:)
          write (6,"('sdot ',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
          if(nextout>=4)write (6,"('xlat,long,pres ',3f8.2)")
      &    tr(idjd,nlv,ngas+1),tr(idjd,nlv,ngas+2),tr(idjd,nlv,ngas+3)
@@ -1715,10 +1826,10 @@ c       print*,'Calling prognostic cloud scheme'
       use cc_mpi
       use latlong_m
       use sigs_m
+      use tracers_m  ! ngas, nllp, ntrac
 !     sets tr arrays for lat, long, pressure if nextout>=4 &(nllp>=3)
       include 'newmpar.h'
       include 'const_phys.h'
-      include 'tracers.h'  ! ngas, nllp, ntrac
       do k=1,klt
        do iq=1,ilt*jlt        
         tr(iq,k,min(ntracmax,ngas+1))=rlatt(iq)*180./pi
@@ -1749,8 +1860,6 @@ c     endif
       end subroutine setllp
 
       blockdata main_blockdata
-      use indices_m
-      use soil_m
       implicit none
       include 'newmpar.h'
       include 'dates.h' ! ktime,kdate,timer,timeg,mtimer
@@ -1767,14 +1876,13 @@ c     endif
       include 'soilv.h'
       include 'stime.h'
       include 'trcom2.h'  ! nstn,slat,slon,istn,jstn etc.
-      include 'vvel.h'    ! sdot
       real rlai,hc,disp,usuh,coexp,zruffs,trans,rt0us,rt1usa,rt1usb,
      &    xgsmax,xjmax0
       common /canopy/
      &    rlai,hc,disp,usuh,coexp,zruffs,trans,rt0us,rt1usa,rt1usb,
      &    xgsmax(0:44),xjmax0(0:44)
       integer, parameter :: ijkij=ijk+ifull
-      data sdot/ijkij*0./   ! for vvel.h
+      !data sdot/ijkij*0./   ! for vvel.h
 
       integer leap,nbarewet,nsigmf
       integer nnrad,idcld
@@ -1968,12 +2076,14 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       use extraout_m
       use map_m
       use morepbl_m
-      use nsibd_m   ! sib, tsigmf, isoilm
-      use pbl_m     ! cduv, cdtq, tss, qg
+      use nsibd_m    ! sib, tsigmf, isoilm
+      use pbl_m      ! cduv, cdtq, tss, qg
       use prec_m
       use screen_m
       use sigs_m
       use soil_m
+      use soilsnow_m
+      use tracers_m  ! ngas, nllp, ntrac, tr
       use vecsuv_m
       use xyzinfo_m
       implicit none
@@ -1983,9 +2093,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       include 'establ.h'
       include 'parm.h'
       include 'parmgeom.h' ! rlong0,rlat0,schmidt
-      include 'soilsnow.h'
       include 'soilv.h'
-      include 'tracers.h'  ! ngas, nllp, ntrac, tr
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
       common/leap_yr/leap  ! 1 to allow leap years
       real, dimension(ifull) :: dirad,dfgdt,degdt,wetfac,degdw,cie,
@@ -2044,6 +2152,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
              iradonx=max(1,iradon)
              iqt = min(iq,ilt*jlt) ! Avoid bounds problems if there are no tracers
              k2=min(2,klt)
+             if (ngas>0) then
              write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
      &         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
      &         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
@@ -2057,6 +2166,21 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
      &         tr(iqt,1,iradonx),tr(iqt,k2,iradonx) ,.01*ps(iq),wbav,
      &         epot(iq),qgscrn(iq)*1.e3,rh_s,u10(iq),uscrn(iq),
      &         condx(iq)
+             else
+             write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
+     &         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
+     &         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
+     &         wb(iq,1),wb(iq,2),
+     &         cloudlo(iq),cloudmi(iq)+1.,cloudhi(iq)+2.,
+     &         cloudtot(iq)+3.,
+     &         fg(iq),eg(iq),(1.-tsigmf(iq))*fgg(iq),
+     &         (1.-tsigmf(iq))*egg(iq),rnet(iq),sgsave(iq),
+     &         qg(iq,1)*1.e3,uzon,vmer,precc(iq),
+     &         qg(iq,2)*1.e3,rh1,rh2,0.,0.,
+     &         0.,0.,.01*ps(iq),wbav,
+     &         epot(iq),qgscrn(iq)*1.e3,rh_s,u10(iq),uscrn(iq),
+     &         condx(iq)              
+             end if
 !              N.B. qgscrn formula needs to be greatly improved
 951          format(i4,6f7.2, 
      &              2f7.2, 2f6.3, 4f5.2,                ! t1 ... cld
@@ -2080,7 +2204,11 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
      &                              ssat(isoil),albvisnir(iq,1) ! MJT albedo
 954            format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
 !              rml 16/02/06 removed ico2em
-               write (iunp(nn),955) i,j,radonem(iqt)
+               if (ngas>0) then
+                 write (iunp(nn),955) i,j,radonem(iqt)
+               else
+                 write (iunp(nn),955) i,j,0.
+               end if
 955            format("#i,j,radonem: ",2i4,f7.3)
              endif
            enddo
@@ -2102,6 +2230,8 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       use screen_m   ! tscrn etc
       use sigs_m
       use soil_m
+      use soilsnow_m
+      use tracers_m  ! ngas, nllp, ntrac, tr
       use vecsuv_m
       use xyzinfo_m
       implicit none
@@ -2111,9 +2241,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       include 'establ.h'
       include 'parm.h'
       include 'parmgeom.h' ! rlong0,rlat0,schmidt
-      include 'soilsnow.h'
       include 'soilv.h'
-      include 'tracers.h'  ! ngas, nllp, ntrac, tr
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
       real cfrac
       common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm

@@ -23,14 +23,18 @@
       use permsurf_m
       use prec_m
       use sigs_m
-      use soil_m    ! sicedep,fracice
+      use soil_m     ! sicedep,fracice
+      use soilsnow_m ! tgg,wb
       use tkeeps ! MJT tke
 !     rml 21/02/06 removed all so2 code
 !     rml 16/02/06 use tracermodule, timeseries
       use timeseries, only : init_ts
       use tracermodule, only : tracini,readtracerflux,tracvalin,
      &                         unit_trout
+      use tracers_m
+      use vecs_m
       use vecsuv_m
+      use vegpar_m
       use xyzinfo_m
       implicit none
 !     parameter (gwdfac=.02)  ! now .02 for lgwd=2  see below
@@ -51,13 +55,9 @@
       include 'parm.h'
       include 'parmdyn.h'   ! epsp
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt
-      include 'soilsnow.h'  ! tgg,wb
       include 'soilv.h'
       include 'stime.h'
-      include 'tracers.h'
       include 'trcom2.h'    ! trcfil,nstn,slat,slon,istn,jstn
-      include 'vecs.h'
-      include 'vegpar.h' ! MJT cable
       include 'mpif.h'
       real, intent(out) :: hourst
       integer, intent(in) :: newsnow, jalbfix
@@ -2182,17 +2182,17 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       use cc_mpi
       use cable_ccam, only : CABLE ! MJT cable
       use map_m
-      use nsibd_m  ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
+      use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       use pbl_m
       use soil_m
+      use soilsnow_m ! new soil arrays for scam - tgg too
+      use tracers_m
+      use vegpar_m
       include 'newmpar.h'
       include 'const_phys.h'
       include 'filnames.h'  ! list of files, read in once only in darlam
       include 'parm.h'
-      include 'soilsnow.h' ! new soil arrays for scam - tgg too
       include 'soilv.h'
-      include 'tracers.h'
-      include 'vegpar.h' ! MJT cable
       include 'mpif.h'
       parameter( ivegdflt=1, isoildflt=7, ico2dflt = 999 )
       parameter( falbdflt=15., fsoildflt=0.15, frsdflt=990.)
@@ -2429,11 +2429,11 @@ c     zobg = .05
       subroutine calczo    !  option to call from July '04
       use arrays_m
       use map_m
-      use nsibd_m  ! ivegt
-      use soil_m   ! zolnd
+      use nsibd_m    ! ivegt
+      use soil_m     ! zolnd
+      use soilsnow_m ! tgg,wb
       include 'newmpar.h'
       include 'parm.h'
-      include 'soilsnow.h'  ! tgg,wb
       real xhc(0:44)
 c     vegetation height
       data xhc    / 0.0,                                               ! 0
@@ -2691,12 +2691,12 @@ c find coexp: see notes "simplified wind model ..." eq 34a
       use latlong_m
       use pbl_m
       use soil_m
+      use soilsnow_m
       
       implicit none
       
       include 'newmpar.h'
       include 'const_phys.h'  
-      include 'soilsnow.h'
       include 'netcdf.inc'
       include 'mpif.h'
       

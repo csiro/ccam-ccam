@@ -15,8 +15,10 @@
       use cc_mpi
       use sigs_m
       use soil_m
+      use tracers_m
       use utilities
       use vecsuv_m
+      use vvel_m
       implicit none
       integer, parameter :: ntest=0
       integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
@@ -28,8 +30,6 @@
       include 'const_phys.h'
       include 'parm.h'
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
-      include 'tracers.h'
-      include 'vvel.h'
       include 'mpif.h'
       !real sigin ! MJT vertint
       integer ik,jk,kk
@@ -159,17 +159,16 @@ c     start of processing loop
       use sigs_m
       use soil_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
+      use tracers_m
       use utilities
       use vecsuv_m
+      use vvel_m
       implicit none
       integer, parameter :: ntest=0
       integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
 !     related to cctocc4                       
 
-!     Note: 1) The arrays are replaced in place
-!           2) kl is assumed to be the same for both grids
       include 'newmpar.h'
-c     include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       real*8 xx4(1+4*ik,1+4*ik),yy4(1+4*ik,1+4*ik)
       real*8, dimension(ik*ik*6):: z_a,x_a,y_a
 c**   xx4 & yy4 only used in indata & here, so no need to redefine after
@@ -177,12 +176,9 @@ c**   onthefly; sometime can get rid of common/bigxy4
       include 'const_phys.h'
       include 'darcdf.h' ! MJT small otf
       include 'netcdf.inc' ! MJT vertint
-c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       include 'parm.h'
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
-      include 'tracers.h'
-      include 'vvel.h'
       include 'mpif.h'
 
 !     These are local arrays, not the versions in arrays.h
@@ -194,14 +190,9 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg
       real, dimension(ifull,kk) :: t_k,u_k,v_k,qg_k ! MJT vertint
       integer, dimension(ifull) :: isflag
-    !  real, dimension(ik*ik*6) :: psl_a,zss_a,tss_a,fracice_a,dum5,
-    ! &      snowd_a,sicedep_a,ssdnn_a,snage_a,pmsl_a,  tss_l_a,tss_s_a,
-    ! &      tggsn_b ! MJT small otf
       real, dimension(ik*ik*6) :: psl_a,zss_a,tss_a,fracice_a,
      &      snowd_a,sicedep_a,snage_a,pmsl_a,  tss_l_a,tss_s_a
-      !real, dimension(ik*ik*6,ms) :: wb_a,wbice_a,tgg_a ! MJT small otf
       real, dimension(ik*ik*6,ms) :: tgg_a               ! MJT small otf
-      !real, dimension(ik*ik*6,3) :: tggsn_a,smass_a,ssdn_a ! MJT small otf
       real, dimension(ik*ik*6,3) :: tggsn_a                 ! MJT small otf
       real, dimension(ik*ik*6) :: t_a,qg_a ! MJT small otf
       real, dimension(ik*ik*6) :: t_a_lev  ! MJT small otf
@@ -218,11 +209,8 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       real, dimension(ifull_g,4) :: rlong4, rlat4
       common/workglob/rlong4,rlat4   ! shared with setxyz
       ! Used in the global interpolation
-      !real, dimension(ik*ik*6) :: ucc, vcc, wcc, uc, vc, wc ! MJT small otf
       real, dimension(ik*ik*6) :: ucc, vcc, wcc              ! MJT small otf
       real uc, vc, wc                                        ! MJT small otf
-    !  real, dimension(ifull_g) :: u_g, v_g, t_g, qg_g,      ! MJT small otf
-    ! &                            uct_g, vct_g, wct_g       ! MJT small otf
       real, dimension(ifull_g) :: t_g, qg_g,uct_g, vct_g, wct_g ! MJT small otf
       real  uct_gg, vct_gg, wct_gg
       real, dimension(ifull) :: tss_l, tss_s, pmsl,tggsn_s ! MJT small otf
@@ -231,7 +219,6 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       real rotpoles(3,3),rotpole(3,3)
       real, dimension(ik*ik*6):: axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a
       real, dimension(ik*ik*6):: wts_a  ! not used here or defined in call setxyz
-      !real ::   timegb ! MJT small otf
       logical, dimension(ik*ik*6) :: land_a
       logical, dimension(ifull) :: land_t
       integer, dimension(ik*ik*6) :: isoilm_a ! MJT lsmask
@@ -241,8 +228,6 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       real, dimension(kk) :: sigin ! MJT vertint
 
       !--------------------------------------------------------------
-      ! MJT small otf
-
       ! read host sigma levels
       if (myid==0) then
         call ncagt(ncid,ncglobal,'sigma',sigin,ier)
@@ -271,8 +256,8 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       else
         io_in=-1
       end if
-      !--------------------------------------------------------------
 
+      !--------------------------------------------------------------
       nemi=3   !  MJT lsmask
       if(m_fly==1)then
         rlong4(:,1)=rlongg_g(:)*180./pi
@@ -280,19 +265,6 @@ c     include 'map.h'  ! zs,land & used for giving info after all setxyz
       endif
 
       !--------------------------------------------------------------
-      ! MJT small otf
-      ! infile reads and distributes data (not from onthefly) to appropriate processors, so
-      ! all processors must call it here.
-      ! illegal aliasing of arguments removed now
-!        call infile(nested,kdate_r,ktime_r,timegb,ds,
-!     &       psl_a,zss_a,tss_a,sicedep_a,fracice_a,t_a,u_a,v_a,qg_a,
-!     &       tgg_a,wb_a,wbice_a,dum5,snowd_a,qfg_a,qlg_a,                ! dum5 is alb
-!     &       tggsn_a,smass_a,ssdn_a,ssdnn_a,snage_a,isflag_a,ik*ik*6,
-!     &       kk,cplant_a,csoil_a)     ! MJT cable
-!     N.B. above infile call returns values for ik,jk,kk of source data
-!     Purpose of setxyz call is to get geometry (and so xx4 yy4) 
-!     for the source grid. Only process 0 needs to do this here
-
       ! detemine the level below sig=0.9 (used to calculate psl)
       lev=0
       do while(sig(lev+1).gt.0.9)
@@ -342,92 +314,83 @@ c***      but needed here for onthefly (different dims) 28/8/08
       t_a(:)=-1.
       call histrd1(ncid,iarchi,ier,'soilt',ik,6*ik,t_a,6*ik*ik)
       isoilm_a=nint(t_a)
+      
       !--------------------------------------------------------------
+      if ( myid==0 ) then
+!       N.B. -ve ik in call setxyz preserves TARGET rlat4, rlong4     
+!       following setxyz call is for source data geom    ****   
+        do iq=1,ik*ik*6
+         axs_a(iq)=iq
+         ays_a(iq)=iq
+         azs_a(iq)=iq
+        enddo      
+        call setxyz(ik,rlong0x,rlat0x,-schmidtx,
+     &   x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4,
+     &   myid)
+        rotpoles = calc_rotpole(rlong0x,rlat0x)
+        if(ktau<3)then
+           write(6,*)'m_fly,nord ',m_fly,nord
+           write(6,*)'kdate_r,ktime_r,ktau,ds',
+     &              kdate_r,ktime_r,ktau,ds
+           if ( nproc==1 ) write(6,*)'a zss(idjd) ',zss(idjd)
+           write(6,*)'rotpoles:'
+           do i=1,3
+              write(6,9)(i,j,j=1,3),(rotpoles(i,j),j=1,3)
+           enddo
+        endif                  ! (ktau<3)
 
-ccc      if ( myid==0 ) then
-!        N.B. -ve ik in call setxyz preserves TARGET rlat4, rlong4     
-!        following setxyz call is for source data geom    ****   
-         do iq=1,ik*ik*6
-          axs_a(iq)=iq
-          ays_a(iq)=iq
-          azs_a(iq)=iq
-         enddo      
-         call setxyz(ik,rlong0x,rlat0x,-schmidtx,
-     &    x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4,
-     &    myid)
-         rotpoles = calc_rotpole(rlong0x,rlat0x)
-         if(ktau<3)then
-            write(6,*)'m_fly,nord ',m_fly,nord
-            write(6,*)'kdate_r,ktime_r,ktau,ds',
-     &               kdate_r,ktime_r,ktau,ds
-            if ( nproc==1 ) write(6,*)'a zss(idjd) ',zss(idjd)
-            write(6,*)'rotpoles:'
-            do i=1,3
-               write(6,9)(i,j,j=1,3),(rotpoles(i,j),j=1,3)
-            enddo
-         endif                  ! (ktau<3)
+!       rotpole(1,) is x-axis of rotated coords in terms of orig Cartesian
+!       rotpole(2,) is y-axis of rotated coords in terms of orig Cartesian
+!       rotpole(3,) is z-axis of rotated coords in terms of orig Cartesian
+        rotpole = calc_rotpole(rlong0,rlat0)
+        if(nmaxpr==1)then   ! already in myid==0 loop
+           write(6,*)'in onthefly rotpole:'
+           do i=1,3
+              write(6,9)(i,j,j=1,3),(rotpole(i,j),j=1,3)
+ 9            format(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)
+           enddo
+           write(6,*)'xx4,yy4 ',xx4(id,jd),yy4(id,jd)
+        endif                  ! (nmaxpr==1)
 
-!        rotpole(1,) is x-axis of rotated coords in terms of orig Cartesian
-!        rotpole(2,) is y-axis of rotated coords in terms of orig Cartesian
-!        rotpole(3,) is z-axis of rotated coords in terms of orig Cartesian
-         rotpole = calc_rotpole(rlong0,rlat0)
-         if(nmaxpr==1)then   ! already in myid==0 loop
-            write(6,*)'in onthefly rotpole:'
-            do i=1,3
-               write(6,9)(i,j,j=1,3),(rotpole(i,j),j=1,3)
- 9             format(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)
-            enddo
-            write(6,*)'xx4,yy4 ',xx4(id,jd),yy4(id,jd)
-         endif                  ! (nmaxpr==1)
-
-         if(nmaxpr==1)then  ! already in myid==0 loop
-            write(6,*)'before latltoij for id,jd: ',id,jd
-            if ( nproc==1 ) then
-               ! Diagnostics will only be correct if nproc==1
-               write(6,*)'rlong4(1-4) ',(rlong4(idjd,m),m=1,4)
-               write(6,*)'rlat4(1-4) ',(rlat4(idjd,m),m=1,4)
-            end if
-            write(6,*)'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,
-     &                 schmidtx
-         endif                  ! (nmaxpr==1)
-         do m=1,m_fly  !  was 4, now may be set to 1 in namelist
-            do iq=1,ifull_g
-               call latltoij(rlong4(iq,m),rlat4(iq,m),         !input
-     &                       rlong0x,rlat0x,schmidtx,          !input
-     &                       xg4(iq,m),yg4(iq,m),nface4(iq,m), !output (source)
-     &                       xx4,yy4,ik)
-            enddo
-         enddo
-         if(nproc==1.and.nmaxpr==1)then
-           ! Diagnostics will only be correct if nproc==1
-           id2=nint(xg4(idjd,1))
-           jd2=il*nface4(idjd,1)+nint(yg4(idjd,1))
-           idjd2=id2+il*(jd2-1)
-           write(6,*)'after latltoij giving id2,jd2,idjd2: ',
-     .                                    id2,jd2,idjd2
-           write(6,*)'nface4(1-4) ',(nface4(idjd,m),m=1,4)
-           write(6,*)'xg4(1-4) ',(xg4(idjd,m),m=1,4)
-           write(6,*)'yg4(1-4) ',(yg4(idjd,m),m=1,4)
-           if(nested==0)then
-              write(6,"('wb_s(1)#  ',9f7.3)") 
-     .            ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
-              write(6,"('wb_s(ms)# ',9f7.3)") 
-     .            ((wb(ii+(jj-1)*il,ms),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
-           endif  ! (nested==0)
-         endif
+        if(nmaxpr==1)then  ! already in myid==0 loop
+           write(6,*)'before latltoij for id,jd: ',id,jd
+           if ( nproc==1 ) then
+              ! Diagnostics will only be correct if nproc==1
+              write(6,*)'rlong4(1-4) ',(rlong4(idjd,m),m=1,4)
+              write(6,*)'rlat4(1-4) ',(rlat4(idjd,m),m=1,4)
+           end if
+           write(6,*)'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,
+     &                schmidtx
+        endif                  ! (nmaxpr==1)
+        do m=1,m_fly  !  was 4, now may be set to 1 in namelist
+           do iq=1,ifull_g
+              call latltoij(rlong4(iq,m),rlat4(iq,m),         !input
+     &                      rlong0x,rlat0x,schmidtx,          !input
+     &                      xg4(iq,m),yg4(iq,m),nface4(iq,m), !output (source)
+     &                      xx4,yy4,ik)
+           enddo
+        enddo
+        if(nproc==1.and.nmaxpr==1)then
+          ! Diagnostics will only be correct if nproc==1
+          id2=nint(xg4(idjd,1))
+          jd2=il*nface4(idjd,1)+nint(yg4(idjd,1))
+          idjd2=id2+il*(jd2-1)
+          write(6,*)'after latltoij giving id2,jd2,idjd2: ',
+     .                                   id2,jd2,idjd2
+          write(6,*)'nface4(1-4) ',(nface4(idjd,m),m=1,4)
+          write(6,*)'xg4(1-4) ',(xg4(idjd,m),m=1,4)
+          write(6,*)'yg4(1-4) ',(yg4(idjd,m),m=1,4)
+          if(nested==0)then
+             write(6,"('wb_s(1)#  ',9f7.3)") 
+     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
+             write(6,"('wb_s(ms)# ',9f7.3)") 
+     .           ((wb(ii+(jj-1)*il,ms),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
+          endif  ! (nested==0)
+        endif
+      end if ! (myid==0)
+      
       !--------------------------------------------------------------
-      ! MJT small otf - moved below
-      !if ( myid==0 ) then
-      !  call mslpx(pmsl_a,psl_a,zss_a,t_a,ik*ik*6)  ! needs pmsl (preferred) 
-      !end if ! myid==0
-      !--------------------------------------------------------------
-
-      !---------------------------------------------------------
-      ! MJT small otf
-
-      ! All the following processing is done on processor 0
       ! Avoid memory blow out by only having single level global arrays
-      ! - irrelevant for onthefly after 0808
       do k=1,kk
         call histrd4s(ncid,iarchi,ier,'temp',ik,6*ik,k,t_a,6*ik*ik) !     temperature
         call histrd4s(ncid,iarchi,ier,'u',ik,6*ik,k,ucc,6*ik*ik)    !     u wind component
@@ -515,8 +478,8 @@ ccc      if ( myid==0 ) then
       call vertint(qg_k,qg(1:ifull,:),2,kk,sigin)
       call vertint(u_k ,u(1:ifull,:), 3,kk,sigin)
       call vertint(v_k ,v(1:ifull,:), 4,kk,sigin)
-      !--------------------------------------------------------------
 
+      !--------------------------------------------------------------
 !     below we interpolate quantities which may be affected by land-sea mask
 !     set up land-sea mask from either tss or zss
       if(myid==0)then
@@ -1270,43 +1233,6 @@ c       incorporate other target land mask effects
             call vertint(t_k,tr(1:ifull,:,igas),7,kk,sigin)
           enddo                       
         endif                         
-        !------------------------------------------------------------
-        !--------------------------------------------------
-c       incorporate target land mask effects for initial fields
-!        do iq=1,ifull                                       ! MJT bug fix
-!         if(land_t(iq))then                                 ! MJT bug fix
-!           tss(iq)=tss_l(iq)                                ! MJT bug fix
-!         else                                               ! MJT bug fix
-!           tgg(iq,1)=tss_s(iq)   ! no sign switch in CCAM   ! MJT bug fix
-!         endif                                              ! MJT bug fix
-!        enddo  ! iq loop                                    ! MJT bug fix
-!       onthefly not yet handling wbice, tggsn, smass etc  
-!       so set infile-style defaults
-
-        !------------------------------------------------------------
-        ! MJT - small otf
-!        smass(:,:)=0.
-!        tggsn(:,:)=280.     ! just a default
-!        isflag(:) = 0
-!        snage(:)  = 0.
-!        do iq=1,ifull
-!         if(snowd(iq)>100.)then
-!           ssdn(iq,1)=240.
-!         else
-!           ssdn(iq,1) = 140.
-!         endif  ! (snowd(iq)>100.)
-!         do k=2,3
-!          ssdn(iq,k)=ssdn(iq,1)
-!         enddo
-!         ssdnn(iq)  = ssdn(iq,1)
-!         if(snowd(iq)>0.)tgg(iq,1)=min(tgg(iq,1),270.1)
-!        enddo   ! iq loop
-!        wbice=0.
-!c        do k=1,ms     ! wbice presets done near end of indata from Dec 07
-!c!         following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
-!c          wbice(:,k)=
-!c     &         min(.99,max(0.,.99*(273.1-tgg(:,k))/5.))*wb(:,k) ! jlm
-!c         enddo ! ms
         !------------------------------------------------------------
       endif    ! (nested==0)
 

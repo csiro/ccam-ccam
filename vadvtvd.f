@@ -8,6 +8,9 @@ c                              vadvbott & vadvyu at bottom
       use map_m
       use sigs_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
+      use tracers_m
+      use vvel_m
+      use xarrs_m
       include 'newmpar.h'
       parameter (npslx=1)  ! 0 off, 1 on for nvad=-4
       parameter (nqq=0)    ! 0 off, 3 possible
@@ -27,9 +30,6 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmvert.h' ! nthub,nimp,ntvd
-      include 'tracers.h'
-      include 'vvel.h'
-      include 'xarrs.h'
       common/nharrs/phi(ifull,kl),h_nh(ifull+iextra,kl)
 !     N.B. first 3 arrays of work3 are available from nonlin, all from upglobal
       common/work3/delt(ifull,0:kl),fluxh(ifull,0:kl),

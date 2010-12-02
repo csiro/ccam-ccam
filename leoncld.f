@@ -10,6 +10,8 @@
       use prec_m
       use sigs_m
       use soil_m     ! land
+      use tracers_m  ! ngas, nllp, ntrac
+      use vvel_m
       implicit none
       include 'newmpar.h'
       integer  ncfrp,icfrp
@@ -19,8 +21,6 @@
       include 'cparams.h'    !Input cloud scheme parameters
       include 'kuocom.h'  ! acon,bcon,Rcm
       include 'parm.h'
-      include 'tracers.h' ! ngas, nllp, ntrac
-      include 'vvel.h'
 
 c for cfrp
       real taul(icfrp,kl)

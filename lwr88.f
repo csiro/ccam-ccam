@@ -31,13 +31,13 @@ c
       use co2dta_m
       use kdacom_m
       use radisw_m
+      use tfcom_m
 
       include 'newmpar.h'
       include 'hcon.h'
       include 'parm.h'
       include 'rdparm.h'
       include 'rnddta.h'
-      include 'tfcom.h'
 c 
       parameter (ndum=5*ijk- imax*(2*lp1*lp1 +9*lp1 +4*l +4)) !jlm
 !     Changed from work3 to work3lwr for now. Problems with differing lengths

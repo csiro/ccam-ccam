@@ -74,6 +74,9 @@ module cable_ccam
   use screen_m
   use sigs_m
   use soil_m
+  use soilbal_m
+  use soilsnow_m
+  use vegpar_m
   use zenith_m
   
   implicit none
@@ -82,9 +85,6 @@ module cable_ccam
   include 'const_phys.h' ! grav
   include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg
   include 'parm.h'
-  include 'soilbal.h'
-  include 'soilsnow.h' ! 
-  include 'vegpar.h' ! 
 ! met forcing for CBM
   real dirad,dfgdt,degdt,wetfac,degdw,cie
   real factch,qsttg,rho,zo,aft,fh,ri,theta
@@ -206,7 +206,7 @@ module cable_ccam
   do nb=1,5
     if (pind(nb,1).le.mp) then
       sigmf(cmap(pind(nb,1):pind(nb,2)))=sigmf(cmap(pind(nb,1):pind(nb,2))) &
-        +sv(pind(nb,1):pind(nb,2))*(1.-exp(-extkn(veg%iveg(pind(nb,1):pind(nb,2)))*veg%vlai(pind(nb,1):pind(nb,2))))
+        +sv(pind(nb,1):pind(nb,2))*(1.-exp(-0.7*veg%vlai(pind(nb,1):pind(nb,2))))
     end if
   end do
   tsigmf=sigmf  
@@ -560,11 +560,11 @@ module cable_ccam
 ! interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
 
   use radisw_m, only : rrco2,ssolar,rrvco2
+  use tracers_m
 
   implicit none
 
   include 'newmpar.h'
-  include 'tracers.h'
 
   integer, parameter :: constantCO2 = 1
   integer, parameter :: hostCO2 = 2
@@ -593,15 +593,15 @@ module cable_ccam
   use pbl_m
   use sigs_m
   use soil_m
+  use soilsnow_m
+  use vegpar_m
   
   implicit none
   
   include 'newmpar.h'
   include 'const_phys.h'
   include 'parm.h'
-  include 'soilsnow.h'
   include 'soilv.h'
-  include 'vegpar.h' !   
 
   integer(i_d), dimension(ifull,5) :: ivs
   integer(i_d) iq,n,k,ipos,isoil
@@ -612,6 +612,11 @@ module cable_ccam
   real(r_1), dimension(ncs) :: ratecs
   real(r_1), dimension(mxvt,ncp) ::tcplant
   real(r_1), dimension(mxvt,ncs) ::tcsoil
+  real(r_1), dimension(mxvt)   ::canst1,dleaf,ejmax,frac4,hc,rp20
+  real(r_1), dimension(mxvt)   ::rpcoef,shelrb,vcmax,xfang
+  real(r_1), dimension(mxvt)   ::tminvj,tmaxvj,vbeta
+  real(r_1), dimension(mxvt)   :: extkn,rootbeta,vegcf
+  real(r_1), dimension(mxvt,2) ::taul,refl  
   real(r_1), dimension(ifull) :: dumr  
   character(len=*), intent(in) :: fveg,fvegprev,fvegnext
 
@@ -704,6 +709,7 @@ module cable_ccam
   sumrp = 0.
   sumrs = 0.
   sumrd = 0.
+  rsmin = 0.
   pind=ifull+1
   
   if (mp.gt.0) then
@@ -1103,6 +1109,8 @@ module cable_ccam
   use carbpools_m
   use cc_mpi, only : myid
   use soil_m
+  use soilsnow_m
+  use vegpar_m
   
   implicit none
 
@@ -1111,8 +1119,6 @@ module cable_ccam
   include 'parm.h'
   include 'netcdf.inc'
   include 'mpif.h'
-  include 'soilsnow.h'
-  include 'vegpar.h'    
   
   integer k,n,ierr,ierr2,idv
   real, dimension(ifull) :: dat
@@ -1239,12 +1245,12 @@ module cable_ccam
   use carbpools_m
   use cc_mpi, only : myid
   use soil_m
+  use soilsnow_m
+  use vegpar_m
   
   implicit none
 
   include 'newmpar.h'
-  include 'soilsnow.h'
-  include 'vegpar.h'
   
   integer, intent(in) :: idnc,iarch
   integer k,n,ierr
@@ -1264,74 +1270,74 @@ module cable_ccam
       do k=1,ms
         write(lname,'("Soil temperature lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("tgg",I1.1,"_",I1.1)') k,n
-        call attrib(idnc,idim,3,vname,lname,'K',100.,400.,0)
+        call attrib(idnc,idim,3,vname,lname,'K',100.,400.,0,-1)
         write(lname,'("Soil moisture lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("wb",I1.1,"_",I1.1)') k,n 
-        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,2.6,0)
+        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,2.6,0,-1)
         write(lname,'("Soil ice lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("wbice",I1.1,"_",I1.1)') k,n 
-        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,2.6,0)
+        call attrib(idnc,idim,3,vname,lname,'m3/m3',0.,2.6,0,-1)
       end do
       do k=1,3
         write(lname,'("Snow temperature lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
-        call attrib(idnc,idim,3,vname,lname,'K',100.,400.,0)
+        call attrib(idnc,idim,3,vname,lname,'K',100.,400.,0,-1)
         write(lname,'("Snow mass lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("smass",I1.1,"_",I1.1)') k,n 
-        call attrib(idnc,idim,3,vname,lname,'K',0.,650.,0)
+        call attrib(idnc,idim,3,vname,lname,'K',0.,650.,0,-1)
         write(lname,'("Snow density lev ",I1.1," tile ",I1.1)') k,n
         write(vname,'("ssdn",I1.1,"_",I1.1)') k,n 
-        call attrib(idnc,idim,3,vname,lname,'kg/m3',0.,650.,0)
+        call attrib(idnc,idim,3,vname,lname,'kg/m3',0.,650.,0,-1)
       end do
       write(lname,'("Snow flag tile ",I1.1)') n
       write(vname,'("sflag_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'mm',0.,6.5,0)
+      call attrib(idnc,idim,3,vname,lname,'mm',0.,6.5,0,-1)
       write(lname,'("Snow depth tile ",I1.1)') n
       write(vname,'("snd_",I1.1)') n
-      call attrl (idnc,idim,3,vname,lname,'mm',0.,6500.,0)  ! long
+      call attrib(idnc,idim,3,vname,lname,'mm',0.,6500.,0,-1)  ! -1=long
       write(lname,'("Snow age tile ",I1.1)') n
       write(vname,'("snage_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,26.,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,26.,0,-1)
       write(lname,'("Soil turbulent resistance tile ",I1.1)') n
       write(vname,'("rtsoil_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,1.3e5,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,1.3e5,0,-1)
       write(lname,'("cansto tile ",I1.1)') n
       write(vname,'("cansto_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,13.,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,13.,0,-1)
       write(lname,'("Carbon leaf pool tile ",I1.1)') n
       write(vname,'("cplant1_",I1.1)') n    
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
       write(lname,'("Carbon wood pool tile ",I1.1)') n
       write(vname,'("cplant2_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
       write(lname,'("Carbon root pool tile ",I1.1)') n
       write(vname,'("cplant3_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
       write(lname,'("Carbon soil fast pool tile ",I1.1)') n
       write(vname,'("csoil1_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
       write(lname,'("Carbon soil slow pool tile ",I1.1)') n
       write(vname,'("csoil2_",I1.1)') n
-      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0)
+      call attrib(idnc,idim,3,vname,lname,'none',0.,65000.,0,-1)
     end do
     lname='DIR VIS albedo'
     vname='albvisdir'
-    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0)
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0,-1)
     lname='DIF VIS albedo'
     vname='albvisdif'
-    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0)
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0,-1)
     lname='DIR NIR albedo'
     vname='albnirdir'
-    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0)
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0,-1)
     lname='DIF NIR albedo'
     vname='albnirdif'
-    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0)
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0,-1)
     lname='VIS albedo'
     vname='albvis'
-    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0)
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0,-1)
     lname='NIR albedo'
     vname='albnir'
-    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0)
+    call attrib(idnc,idim,3,vname,lname,'none',0.,1.3,0,-1)
     call ncendf(idnc,ierr)
   end if
   do n=1,5

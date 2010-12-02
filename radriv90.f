@@ -31,7 +31,11 @@
       use rdflux_m
       use sigs_m
       use soil_m     ! land, rhgdum ... zmin  alb
+      use soilsnow_m ! sicedep tgg,wb,snowd
+      use srccom_m
+      use swocom_m
       use swr99_m
+      use tfcom_m
       use zenith_m
       include 'newmpar.h'
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
@@ -45,14 +49,10 @@
       include 'kuocom.h'     ! also with kbsav,ktsav
       include 'parm.h'
       include 'scamdim.h'
-      include 'soilsnow.h'  ! sicedep tgg,wb,snowd
       include 'soilv.h'
 !     For the radiation code
       include 'rdparm.h'   ! imax
       include 'hcon.h'
-      include 'srccom.h'
-      include 'swocom.h'
-      include 'tfcom.h'
       common/cfrac/cfrac(ifull,kl)
       common/work3c/rhg(ifull,kl) ! shared between cloud &radriv90
       common/work3d/rtt(ifull,kl) ! just to pass between radriv90 & globpe

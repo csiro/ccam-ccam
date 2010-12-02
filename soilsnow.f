@@ -8,6 +8,7 @@ c************************* soilsnowv follows  ****some to be vectorized*****
       use nsibd_m    ! soilm
       use permsurf_m
       use soil_m     ! land
+      use soilsnow_m
       parameter (ntest=0)   ! 3: forces 3-layer snow, 1: for snow diag prints
 !        for snow diag prints set ntest to 1 throughout
 !        or, usefully can edit 'ntest>0' to 'ktau>nnn'
@@ -28,7 +29,6 @@ c----------------------------------------------------------------------
 c     include 'arrays.h'    ! t
       include 'const_phys.h'  ! cp
       include 'parm.h'      ! ktau,dt
-      include 'soilsnow.h'
       include 'soilv.h'
 
 c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
@@ -328,6 +328,7 @@ c***********************************************************************
       use permsurf_m
       use sigs_m
       use soil_m     ! land,sice,sicedep,alb
+      use soilsnow_m
       parameter (ntest=0)    ! 3: forces 3-layer snow, 1: for snow diag prints
       parameter (ncondxpr=1) ! 0: old sfce scheme, 1: jlm mid-level suggestion
       parameter (newsmelt=1) ! 0: old, 1: new from Aug 2003
@@ -335,7 +336,6 @@ c***********************************************************************
       include 'newmpar.h'   
       include 'const_phys.h'  ! cp
       include 'parm.h'      ! ktau,dt
-      include 'soilsnow.h'
       include 'soilv.h'
 
 c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
@@ -602,6 +602,7 @@ c***********************************************************************
       use nsibd_m
       use permsurf_m
       use soil_m           ! land
+      use soilsnow_m
       parameter (ntest=0)  ! 2 for funny pre-set for idjd
       parameter (nmeth=-1) ! 1 for full implicit, 2 for simpler implicit
 !                            3 for simple implicit D, explicit K jlm pref
@@ -610,7 +611,6 @@ c***********************************************************************
 !                           -1 for simple implicit D, new jlm TVD K constrained 
       include 'newmpar.h'
       include 'parm.h'      ! ktau,dt
-      include 'soilsnow.h'
       include 'soilv.h'
 c
 c     solves implicit soil moisture equation
@@ -1024,10 +1024,10 @@ c***********************************************************************
       use nsibd_m
       use permsurf_m
       use soil_m     ! land
+      use soilsnow_m
       parameter (ntest=0)
       include 'newmpar.h'
       include 'parm.h'      ! ktau,dt
-      include 'soilsnow.h'
       include 'soilv.h'
       real at(ifull,-2:kl-3),ct(ifull,-2:kl-3)   ! assume kl >= ms+3
       equivalence (at,un),(ct,vn)
@@ -1264,11 +1264,11 @@ c***********************************************************************
       subroutine snowprv(iq)    ! N.B. this one is not vectorized
       use nsibd_m
       use soil_m  ! land
+      use soilsnow_m
       parameter (newsmlt=1) ! 0: old, 1: new from Aug 2003
       include 'newmpar.h'   
       include 'const_phys.h'
       include 'parm.h'      ! ktau,dt
-      include 'soilsnow.h'
       include 'soilv.h'
 
       common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),

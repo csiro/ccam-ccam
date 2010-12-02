@@ -9,10 +9,14 @@
       use nlin_m
       use pbl_m
       use sigs_m
+      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
 !     rml 19/09/07 replace gasmin from tracers.h with tracmin from tracermodule
       use tracermodule, only: tracmin
-      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
+      use tracers_m
       use vecsuv_m
+      use vecs_m
+      use vvel_m     ! sdot
+      use xarrs_m
       use xyzinfo_m
       implicit none
       integer, parameter :: mfix_rad=0 ! used to make gases 2 to ng add up to gas 1
@@ -27,10 +31,6 @@
       include 'parm.h'     ! qgmin
       include 'parmdyn.h'  
       include 'parmvert.h'  
-      include 'tracers.h'
-      include 'vecs.h'
-      include 'vvel.h'     ! sdot
-      include 'xarrs.h'
       include 'mpif.h'
       real dpsdt,dpsdtb,dpsdtbb,epst
       common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull) !globpe, adjust5,outcdf

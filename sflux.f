@@ -18,7 +18,9 @@
       use screen_m   ! tscrn,qgscrn,uscrn,rhscrn,u10
       use sigs_m
       use soil_m     ! ... zmin zolod zolog sicedep fracice alb
+      use soilsnow_m ! new soil arrays for scam - tgg too
       use vecsuv_m   ! MJT urban
+      use vvel_m
       use xyzinfo_m  ! MJT urban
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
       parameter (ntss_sh=0) ! 0 for original, 3 for **3, 4 for **4
@@ -48,10 +50,7 @@ c     cp specific heat at constant pressure joule/kgm/deg
       include 'parmsurf.h' ! nplens
       include 'scamdim.h'  ! dimension of patches
       include 'soilv.h'    ! ... ssat
-      include 'soilsnow.h' ! new soil arrays for scam - tgg too
-      include 'tracers.h'  ! ngas, nllp, ntrac
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
-      include 'vvel.h'
       common/tafts/taftfh(ifull),taftfhg(ifull)
       common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
      . ,wetfac(ifull),degdw(ifull),cie(ifull)
@@ -938,6 +937,8 @@ c***  end of surface updating loop
       use screen_m   ! tscrn etc
       use sigs_m
       use soil_m     ! ... zmin zolnd zolog sice alb
+      use soilsnow_m ! new soil arrays for scam - tgg too
+      use vegpar_m
       parameter (ntest=0) ! ntest= 0 for diags off; ntest= 1 for diags on
 !                                  2 for ewww diags      
 !                           N.B. may need vsafe for correct diags
@@ -954,10 +955,7 @@ c***  end of surface updating loop
       include 'parm.h'
       include 'scamdim.h'  ! dimension of patches
       include 'soilv.h'    ! ssat, clay,..
-      include 'soilsnow.h' ! new soil arrays for scam - tgg too
-      include 'tracers.h'  ! ngas, nllp, ntrac
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
-      include 'vegpar.h' ! MJT cable      
       common/nsib/nbarewet,nsigmf
       common/tafts/taftfh(ifull),taftfhg(ifull)
       common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)

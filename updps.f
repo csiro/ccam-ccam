@@ -8,22 +8,21 @@
       use savuvt_m
       use sigs_m
       use vecsuv_m
+      use vvel_m, omgf => dpsldt
+      use xarrs_m
       use xyzinfo_m
       include 'newmpar.h'
       include 'const_phys.h'
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmhor.h'
-      include 'vvel.h'     ! sdot
-      include 'xarrs.h'
       real derpsl(ifull),cc(ifull+iextra,kl),dd(ifull+iextra,kl)
       real d(ifull,kl)   ! NOT shared adjust5 or nonlin
       real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)
       real sbar(ifull,2:kl)
       common/sbar/sbar 
       common/savuv1/savs1,savu1,savv1 
-      real omgf(ifull,kl),e(ifull,kl)
-      equivalence (omgf,dpsldt)
+      real e(ifull,kl)
       real sdotin(ifull,kl),pslxin(ifull,kl),omgfin(ifull,kl)
       real pse(ifull+iextra),psn(ifull+iextra),psz(ifull+iextra)
       real, dimension(ifull+iextra,kl) :: uc, vc, wc

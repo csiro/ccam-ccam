@@ -343,7 +343,11 @@ c
       use prec_m      ! precip
       use sigs_m      ! sigma levels for pressure
       use soil_m      ! albedo
+      use soilsnow_m  ! soil temp (tgg)
       use tracermodule, only : co2em,unit_trout
+      use tracers_m   ! ntrac and tr array
+      use vegpar_m    ! rlai
+      use vvel_m      ! vertical velocity
       implicit none
       real, dimension(:,:), allocatable :: cts
       real, dimension(:), allocatable :: vts
@@ -353,10 +357,6 @@ c
       include 'netcdf.inc'
 !!!      include 'cbmdim.h'
       include 'newmpar.h'    ! dimensions for tr array
-      include 'tracers.h'    ! ntrac and tr array
-      include 'vvel.h'       ! vertical velocity
-      include 'soilsnow.h'   ! soil temp (tgg)
-      include 'vegpar.h'     ! rlai
 
       real temparr2(il*jl,kl),temparr(il*jl)
 
@@ -577,6 +577,7 @@ c ********************************************************************
 c
 c     rml 25/11/03 subroutine to write mobile timeseries e.g. ship
 c
+      use tracers_m
       implicit none
       integer ktau,ntau,ok,iloc,ilev,iship,ierr
       integer jdate1,jdate2,jtime1,jtime2,mon
@@ -588,7 +589,6 @@ c
       
       include 'newmpar.h'    ! dimensions for tr array
       include 'netcdf.inc'
-      include 'tracers.h'
       include 'dates.h'
 c
 c     if reached end of data leave subroutine
