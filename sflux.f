@@ -143,7 +143,8 @@ c        code where eta provided (e.g. for PIRCS)
       endif      !  (nrungcm==3)
 
       if (diag.or.ntest==1) then
-        if (mydiag.and.land(idjd)) then
+        if (mydiag) then
+         if (land(idjd)) then ! MJT bugfix
           print *,'entering sflux ktau,nsib,ivegt,isoilm,land '
      .         ,ktau,nsib,ivegt(idjd),isoilm(idjd),land(idjd)
           print *,'idjd,id,jd,slwa,sgsave ',
@@ -153,6 +154,7 @@ c        code where eta provided (e.g. for PIRCS)
           print *,'t1,tss ',t(idjd,1),tss(idjd)
           print *,'wb ',(wb(idjd,k),k=1,ms)
           print *,'tgg ',(tgg(idjd,k),k=1,ms)
+	 endif
         end if
         call maxmin(t,' t',ktau,1.,kl)
       endif
@@ -1024,14 +1026,14 @@ c                             if( tsoil >= tstom ) ftsoil=1.
         end where
       endif  !(nsib==3) .. else ..
 
-        if(ktau==1)then  !To initialize new nsib=1/3 run (or restart) only
-          print *,'ipland,ipsice,ipsea in sflux: ',
-     .             ipland,ipsice,ipsea
-          do iq=1,ifull  ! give default over sea too
-           tgf(iq) = t(iq,1)  ! was tss(iq)
-           cansto(iq) = 0.
-          enddo    
-        endif  ! if(ktau==1)
+!        if(ktau==1)then  !To initialize new nsib=1/3 run (or restart) only
+!          print *,'ipland,ipsice,ipsea in sflux: ',
+!     .             ipland,ipsice,ipsea
+!          do iq=1,ifull  ! give default over sea too
+!           tgf(iq) = t(iq,1)  ! was tss(iq)
+!           cansto(iq) = 0.
+!          enddo    
+!        endif  ! if(ktau==1)
 
       if(ktau==1)then
         if(mydiag)print *,'ipland,ipsice,ipsea in sflux: ',
@@ -1039,7 +1041,7 @@ c                             if( tsoil >= tstom ) ftsoil=1.
         do iq=1,ifull     ! gives default over sea too
          tgf(iq)=t(iq,1)  ! was tss(iq)
          cansto(iq)=0.
-        enddo    
+        enddo 
         do iq=1,ifull
          if(land(iq))then  ! following gives agreement on restarts
            ! MJT urban - remove due to problems with urban (and snow?)...         
@@ -1052,7 +1054,8 @@ c                             if( tsoil >= tstom ) ftsoil=1.
            endif  ! (nrungcm==3)
          endif  ! (land)
         enddo
-        if ( mydiag.and.land(idjd) ) then
+        if ( mydiag ) then
+	 if ( land(idjd) ) then ! MJT bugfix
            iveg=ivegt(idjd)
            isoil = isoilm(idjd)
            tsoil=0.5*(0.3333*tgg(idjd,2)+0.6667*tgg(idjd,3)
@@ -1064,6 +1067,7 @@ c                             if( tsoil >= tstom ) ftsoil=1.
            print *,'swilt,sfc,wb1-6 ',
      &              swilt(isoil),sfc(isoil),(wb(idjd,k),k=1,ms)
            print *,'srlai,rsmin ',srlai(idjd),rsmin(idjd)
+	 endif
         endif
       endif           ! (ktau==1)
 
@@ -1253,7 +1257,8 @@ c        following reduces degdt by factor of 10 for dew
          degdt(iq)=.55*deg+sign(.45*deg,qtgnet)
         enddo   ! ip=1,ipland
       endif    ! (nalpha==1) .. else ..
-      if((ntest==1.or.diag).and.mydiag.and.land(idjd))then 
+      if((ntest==1.or.diag).and.mydiag ) then
+       if (land(idjd))then ! MJT bugfix
           iq=idjd
           print *,'epot,egg,tgg1,snowd ',
      .             epot(iq),egg(iq),tgg(iq,1),snowd(iq)
@@ -1270,6 +1275,7 @@ c         evaporation from the bare ground
      .             iq,isoil,conw_fh,qsttg(iq),qtgair
           print *,'eg1,eg2,wetfac ',eg1,eg2,wetfac(iq)
           print *,'epot,egg,egg_alph1 ',epot(iq),egg(iq),egg_alph1
+       endif
       endif  ! (ntest==1)
 
 !cdir nodep
@@ -1608,7 +1614,8 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
        fes(iq)=(1.-tsigmf(iq))*egg(iq)*cls(iq)  ! also passed to soilsnow
        otgsoil(iq)=isflag(iq)*tggsn(iq,1) + (1-isflag(iq))*tgg(iq,1)
       enddo  !  ip=1,ipland
-      if((ntest==1.or.diag).and.mydiag.and.land(idjd))then 
+      if((ntest==1.or.diag).and.mydiag) then
+       if(land(idjd))then ! MJT bugfix
          iq=idjd
          isoil = isoilm(iq)
          iveg=ivegt(iq)
@@ -1626,6 +1633,7 @@ c     .              sign(min(abs(delta_tx(iq)),8.),delta_tx(iq))
          if(abs(tgf(iq)-otgf(iq))>4.9)
      .      write(6,"('ktau,iq,otgf,tgf,dtgf,t1,t2',i4,i6,5f8.2)")
      .        ktau,iq,otgf(iq),tgf(iq),tgf(iq)-otgf(iq),t(iq,1),t(iq,2)
+       endif
       endif
 !-------------------------------------
 c     print *,'before soilsnow'
@@ -1671,7 +1679,8 @@ c                                               combined fluxes
 
       enddo   ! ip=1,ipland
 
-      if((ntest==1.or.diag).and.mydiag.and.land(idjd))then 
+      if((ntest==1.or.diag).and.mydiag) then
+       if (land(idjd))then ! MJT bugfix
         iq=idjd
         print *,'even further down sib3 after soilsnowv'
         print *,'tgg ',(tgg(iq,k),k=1,ms)
@@ -1682,6 +1691,7 @@ c                                               combined fluxes
         print *,'deltat,degdt,wb,zse ',
      .           tgg(iq,1)-otgsoil(iq),degdt(iq),wb(iq,1),zse(1)
         print *,'eg,fg ',eg(iq),fg(iq)
+       endif
       endif
 
       return
