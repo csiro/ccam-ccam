@@ -810,15 +810,9 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          rkh=rkm                                                        ! MJT tke
          call pbldif(rhs,rkh,rkm,uav,vav)                               ! MJT tke
         case(7) ! mass-flux counter gradient                            ! MJT tke
-         if (methdetr.ne.0) then ! no moist counter gradient            ! MJT tke
-           call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
+         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
      &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,2,0)      ! MJT tke
-         else ! include moist counter gradient                          ! MJT tke
-           call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
-     &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,0,0)      ! MJT tke
-         end if                                                         ! MJT tke
          rkh=rkm                                                        ! MJT tke
          case DEFAULT                                                   ! MJT tke
            write(6,*) "ERROR: Unknown nlocal option for nvmix=6"        ! MJT tke

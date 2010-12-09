@@ -1,6 +1,5 @@
       ! MJT - modified to use less memory when interpolating from large host (e.g., C160)
-      !       Can now remove infile.f and always use onthefly.f for reading
-      !       host data.
+      !       Now always use onthefly.f for reading host data.
       
       subroutine onthefly(nested,kdate_r,ktime_r,
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
@@ -13,6 +12,7 @@
 !     Called by either indata or nestin
 !     nested=0  for calls from indata; 1  for calls from nestin     
       use cc_mpi
+      use infile
       use sigs_m
       use soil_m
       use tracers_m
@@ -22,18 +22,14 @@
       implicit none
       integer, parameter :: ntest=0
       integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
-!     related to cctocc4                       
 
-!     Note: 1) The arrays are replaced in place
-!           2) kl is assumed to be the same for both grids
+!     Note: The arrays are replaced in place
       include 'newmpar.h'
       include 'const_phys.h'
       include 'parm.h'
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
       include 'mpif.h'
-      !real sigin ! MJT vertint
       integer ik,jk,kk
-      !common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT vertin
       logical, dimension(ifull) :: land_t
       real ::  rlong0x, rlat0x, schmidtx      ! MJT small otf
       common/schmidtx/rlong0x,rlat0x,schmidtx ! MJT small otf
@@ -134,11 +130,28 @@ c     start of processing loop
       if(ktau<3.and.myid==0)write(6,*)'search for kdate_s,ktime_s >= ',
      &                                          kdate_s,ktime_s
 
-      call ontheflyx(nested,land_t,kdate_r,ktime_r,
+      !--------------------------------------------------------------
+      ! MJT memory
+      ! The following calls ontheflyx with different automatic array
+      ! sizes.  This means the arrays are correct for interpolation
+      ! and file i/o on myid==0, as well as the arrays are smaller
+      ! on myid.ne.0 when they are not needed.  The code is still
+      ! human readiable since there is only one subroutine.
+      if (myid==0) then
+        call ontheflyx(nested,land_t,kdate_r,ktime_r,
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,  ! 0808
-     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk)
+     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
+     .                    ik) ! this last variable controls automatic array size
+      else
+        call ontheflyx(nested,land_t,kdate_r,ktime_r,
+     .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
+!     following not used or returned if called by nestin (i.e.nested=1)   
+     .                    tgg,wb,wbice,snowd,qfg,qlg,  ! 0808
+     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
+     .                    0) ! this last variable controls automatic array size
+      end if
 
       return
       end
@@ -146,14 +159,15 @@ c     start of processing loop
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,
-     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk)
+     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
+     .                    dk)
       use ateb, only : atebdwn ! MJT urban
       use carbpools_m
       use cc_mpi
       use define_dimensions, only : ncs, ncp ! MJT cable
+      use infile
       use latlong_m
-      use mlo, only : wlev,mlodwn,ocndwn,micdwn,mlootf,ocnotf,micotf,
-     &                sssb ! MJT mlo
+      use mlo, only : wlev,mlodwn,ocndwn,micdwn,sssb ! MJT mlo
       use morepbl_m
       use screen_m
       use sigs_m
@@ -164,15 +178,7 @@ c     start of processing loop
       use vecsuv_m
       use vvel_m
       implicit none
-      integer, parameter :: ntest=0
-      integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
-!     related to cctocc4                       
-
       include 'newmpar.h'
-      real*8 xx4(1+4*ik,1+4*ik),yy4(1+4*ik,1+4*ik)
-      real*8, dimension(ik*ik*6):: z_a,x_a,y_a
-c**   xx4 & yy4 only used in indata & here, so no need to redefine after
-c**   onthefly; sometime can get rid of common/bigxy4
       include 'const_phys.h'
       include 'darcdf.h' ! MJT small otf
       include 'netcdf.inc' ! MJT vertint
@@ -180,6 +186,18 @@ c**   onthefly; sometime can get rid of common/bigxy4
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
       include 'mpif.h'
+      integer, parameter :: ntest=0
+      integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
+      integer ik, kk, idv
+      integer dk ! controls automatic array size
+      integer lev,ier,ierr,igas ! MJT small otf
+      integer ::  kdate_r, ktime_r, nemi, id2,jd2,idjd2,
+     &            nested, i, j, k, m, iq, ii, jj, np, numneg
+
+c**   xx4 & yy4 only used in indata & here, so no need to redefine after
+c**   onthefly; sometime can get rid of common/bigxy4
+      real*8 xx4(1+4*dk,1+4*dk),yy4(1+4*dk,1+4*dk)
+      real*8, dimension(dk*dk*6):: z_a,x_a,y_a
 
 !     These are local arrays, not the versions in arrays.h
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
@@ -190,42 +208,43 @@ c**   onthefly; sometime can get rid of common/bigxy4
       real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg
       real, dimension(ifull,kk) :: t_k,u_k,v_k,qg_k ! MJT vertint
       integer, dimension(ifull) :: isflag
-      real, dimension(ik*ik*6) :: psl_a,zss_a,tss_a,fracice_a,
+      real, dimension(dk*dk*6) :: psl_a,zss_a,tss_a,fracice_a,
      &      snowd_a,sicedep_a,snage_a,pmsl_a,  tss_l_a,tss_s_a
-      real, dimension(ik*ik*6,ms) :: tgg_a               ! MJT small otf
-      real, dimension(ik*ik*6,3) :: tggsn_a                 ! MJT small otf
-      real, dimension(ik*ik*6) :: t_a,qg_a ! MJT small otf
-      real, dimension(ik*ik*6) :: t_a_lev  ! MJT small otf
-      integer, dimension(ik*ik*6) :: isflag_a
+      real, dimension(dk*dk*6,ms) :: tgg_a               ! MJT small otf
+      real, dimension(dk*dk*6,3) :: tggsn_a                 ! MJT small otf
+      real, dimension(dk*dk*6) :: t_a,qg_a ! MJT small otf
+      real, dimension(dk*dk*6) :: t_a_lev  ! MJT small otf
+      integer, dimension(dk*dk*6) :: isflag_a
       real ::  rlong0x, rlat0x, schmidtx, spval
-      integer ::  kdate_r, ktime_r, nemi, id2,jd2,idjd2,
-     &            nested, i, j, k, m, iq, ii, jj, np, numneg
-      integer idv ! MJT vertint
-
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
-      integer ik, kk
-      integer lev,ier,ierr,igas ! MJT small otf
+
       ! rlong4 needs to be shared with setxyz. These are global arrays.
       real, dimension(ifull_g,4) :: rlong4, rlat4
       common/workglob/rlong4,rlat4   ! shared with setxyz
+
       ! Used in the global interpolation
-      real, dimension(ik*ik*6) :: ucc, vcc, wcc              ! MJT small otf
-      real uc, vc, wc                                        ! MJT small otf
-      real, dimension(ifull_g) :: t_g, qg_g,uct_g, vct_g, wct_g ! MJT small otf
-      real  uct_gg, vct_gg, wct_gg
-      real, dimension(ifull) :: tss_l, tss_s, pmsl,tggsn_s ! MJT small otf
       real, dimension(ifull_g,4) :: xg4, yg4
       integer, dimension(ifull_g,4) :: nface4
+      real, dimension(ifull_g) :: t_g, qg_g,uct_g, vct_g, wct_g ! MJT small otf
       real rotpoles(3,3),rotpole(3,3)
-      real, dimension(ik*ik*6):: axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a
-      real, dimension(ik*ik*6):: wts_a  ! not used here or defined in call setxyz
-      logical, dimension(ik*ik*6) :: land_a
+      real, dimension(dk*dk*6) :: ucc, vcc, wcc              ! MJT small otf
+      real uc, vc, wc                                        ! MJT small otf
+      real  uct_gg, vct_gg, wct_gg
+      real, dimension(ifull) :: tss_l, tss_s, pmsl,tggsn_s ! MJT small otf
+      real, dimension(dk*dk*6):: axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a
+      real, dimension(dk*dk*6):: wts_a  ! not used here or defined in call setxyz
       logical, dimension(ifull) :: land_t
-      integer, dimension(ik*ik*6) :: isoilm_a ! MJT lsmask
+      logical, dimension(dk*dk*6) :: land_a
+      integer, dimension(dk*dk*6) :: isoilm_a ! MJT lsmask
       character*8 vname ! MJT small otf
       character*3 trnum ! MJT small otf
       logical iotest ! MJT small otf
       real, dimension(kk) :: sigin ! MJT vertint
+
+      if (myid==0.and.ik.ne.dk) then
+        write(6,*) "ERROR: Incorrect automatic array size in onthefly"
+        stop
+      end if
 
       !--------------------------------------------------------------
       ! read host sigma levels
@@ -273,6 +292,9 @@ c**   onthefly; sometime can get rid of common/bigxy4
       if (myid==0) write(6,*) "iotest,io_in,lev,iarchi =",
      &                         iotest,io_in,lev,iarchi
 
+      psl_a=1.E5
+      zss_a=0.
+      tss_a=293.
       call histrd1(ncid,iarchi,ier,'psf',ik,6*ik,psl_a,6*ik*ik)
       call histrd1(ncid,iarchi,ier,'zht',ik,6*ik,zss_a,6*ik*ik)
       call histrd1(ncid,iarchi,ier,'tsu',ik,6*ik,tss_a,6*ik*ik)
@@ -569,19 +591,21 @@ c***      but needed here for onthefly (different dims) 28/8/08
 !       invert pmsl to get psl
         call to_pslx(pmsl,psl,zss,t(:,lev),ifull,lev)  ! on target grid
 c       incorporate other target land mask effects
-        do iq=1,ik*ik*6
-          if(land_a(iq))then
-            tss_a(iq)=tss_l_a(iq)
-            sicedep_a(iq)=0.
-            fracice_a(iq)=0.
-          else
-            tss_a(iq)=tss_s_a(iq)   ! no sign switch in CCAM
-            if(sicedep_a(iq)<.05)then ! for sflux
+        if (myid==0) then
+          do iq=1,ik*ik*6
+            if(land_a(iq))then
+              tss_a(iq)=tss_l_a(iq)
               sicedep_a(iq)=0.
               fracice_a(iq)=0.
+            else
+              tss_a(iq)=tss_s_a(iq)   ! no sign switch in CCAM
+              if(sicedep_a(iq)<.05)then ! for sflux
+                sicedep_a(iq)=0.
+                fracice_a(iq)=0.
+              endif
             endif
-          endif
-        enddo  ! iq loop        
+          enddo  ! iq loop
+        end if
         call doints4(tss_a , tss,  nface4,xg4,yg4,nord,ik)
         if(nproc==1.and.nmaxpr==1)then
            write(6,*)'after ints4 idjd,zss(idjd) ',idjd,zss(idjd)
@@ -803,35 +827,34 @@ c       incorporate other target land mask effects
         !--------------------------------------------------
         ! MJT mlo - must execute the following code before tgg is processed
         if (nmlo.ne.0) then
-          allocate(mlootf(ik*ik*6,1,4),ocnotf(ik*ik*6))
           allocate(mlodwn(ifull,wlev,4),ocndwn(ifull))
           allocate(micdwn(ifull,8))
-          ocnotf=0.
-          call histrd1(ncid,iarchi,ier,'ocndepth',ik,6*ik,ocnotf,
+          zss_a=0.
+          call histrd1(ncid,iarchi,ier,'ocndepth',ik,6*ik,zss_a,
      &                 6*ik*ik)
           do k=1,wlev                  
             if (k.le.ms) then
-              mlootf(:,1,1)=tgg_a(:,k)
+              t_a=tgg_a(:,k)
             else
               write(vname,'("tgg",I2.2)') k
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                     mlootf(:,1,1),6*ik*ik)
+     &                     t_a,6*ik*ik)
             end if
             write(vname,'("sal",I2.2)') k
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   mlootf(:,1,2),6*ik*ik)
+     &                   qg_a,6*ik*ik)
             write(vname,'("uoc",I2.2)') k
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   mlootf(:,1,3),6*ik*ik)
+     &                   ucc,6*ik*ik)
             write(vname,'("voc",I2.2)') k
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   mlootf(:,1,4),6*ik*ik)
+     &                   vcc,6*ik*ik)
             if (iotest) then
               if (myid==0) then
-                call ccmpi_distribute(mlodwn(:,k,1),mlootf(:,1,1))
-                call ccmpi_distribute(mlodwn(:,k,2),mlootf(:,1,2))     
-                call ccmpi_distribute(mlodwn(:,k,3),mlootf(:,1,3))
-                call ccmpi_distribute(mlodwn(:,k,4),mlootf(:,1,4))
+                call ccmpi_distribute(mlodwn(:,k,1),t_a)
+                call ccmpi_distribute(mlodwn(:,k,2),qg_a)     
+                call ccmpi_distribute(mlodwn(:,k,3),ucc)
+                call ccmpi_distribute(mlodwn(:,k,4),vcc)
               else
                 call ccmpi_distribute(mlodwn(:,k,1))
                 call ccmpi_distribute(mlodwn(:,k,2))
@@ -840,17 +863,21 @@ c       incorporate other target land mask effects
               end if
             else
               if (myid==0) then
-                do m=1,4
-                  where (land_a.or.ocnotf.le.0.)
-                    mlootf(:,1,m)=spval
-                  end where
-                  call fill_cc(mlootf(:,1,m),spval,ik,0)
-                end do
+                where (land_a.or.zss_a.le.0.)
+                  t_a=spval
+                  qg_a=spval
+                  ucc=spval
+                  vcc=spval
+                end where
+                call fill_cc(t_a,spval,ik,0)
+                call fill_cc(qg_a,spval,ik,0)
+                call fill_cc(ucc,spval,ik,0)
+                call fill_cc(vcc,spval,ik,0)
                 do iq=1,ik*ik*6
  !                first set up winds in Cartesian "source" coords
-                  uc=axs_a(iq)*mlootf(iq,1,3) + bxs_a(iq)*mlootf(iq,1,4)
-                  vc=ays_a(iq)*mlootf(iq,1,3) + bys_a(iq)*mlootf(iq,1,4)
-                  wc=azs_a(iq)*mlootf(iq,1,3) + bzs_a(iq)*mlootf(iq,1,4)
+                  uc=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
+                  vc=ays_a(iq)*ucc(iq) + bys_a(iq)*vcc(iq)
+                  wc=azs_a(iq)*ucc(iq) + bzs_a(iq)*vcc(iq)
 !                 now convert to winds in "absolute" Cartesian components
                   ucc(iq)=uc*rotpoles(1,1)+vc*rotpoles(1,2)
      &                   +wc*rotpoles(1,3)
@@ -860,11 +887,11 @@ c       incorporate other target land mask effects
      &                   +wc*rotpoles(3,3)
                 end do
 !               interpolate all required arrays to new C-C positions
-                call ints4(mlootf(:,1,1),  t_g, nface4,xg4,yg4,nord,ik)
-                call ints4(mlootf(:,1,2), qg_g, nface4,xg4,yg4,nord,ik)
-                call ints4(ucc,          uct_g, nface4,xg4,yg4,nord,ik)
-                call ints4(vcc,          vct_g, nface4,xg4,yg4,nord,ik)
-                call ints4(wcc,          wct_g, nface4,xg4,yg4,nord,ik)
+                call ints4(t_a,   t_g, nface4,xg4,yg4,nord,ik)
+                call ints4(qg_a, qg_g, nface4,xg4,yg4,nord,ik)
+                call ints4(ucc, uct_g, nface4,xg4,yg4,nord,ik)
+                call ints4(vcc, vct_g, nface4,xg4,yg4,nord,ik)
+                call ints4(wcc, wct_g, nface4,xg4,yg4,nord,ik)
                 do iq=1,ifull_g
 !                now convert to "target" Cartesian components (transpose used)
                  uct_gg=uct_g(iq)*rotpole(1,1)+vct_g(iq)*rotpole(2,1)
@@ -918,7 +945,7 @@ c       incorporate other target land mask effects
               end if
             else
               if (myid==0) then
-                where (land_a.or.ocnotf.le.0.)
+                where (land_a.or.zss_a.le.0.)
                   t_a=spval
                 end where
                 call fill_cc(t_a,spval,ik,0)
@@ -928,21 +955,20 @@ c       incorporate other target land mask effects
           end do
           if (iotest) then
             if (myid==0) then
-              call ccmpi_distribute(ocndwn,ocnotf)
+              call ccmpi_distribute(ocndwn,zss_a)
             else
               call ccmpi_distribute(ocndwn)
             end if
           else
             if (myid==0) then
-              where (land_a.or.ocnotf.le.0.)
-                ocnotf=spval
+              where (land_a.or.zss_a.le.0.)
+                zss_a=spval
               end where
-              call fill_cc(ocnotf,spval,ik,0)
-              if (all(ocnotf.gt.0.99*spval)) ocnotf=0.            
+              call fill_cc(zss_a,spval,ik,0)
+              if (all(zss_a.gt.0.99*spval)) zss_a=0. ! missing data flag
             end if
-            call doints4(ocnotf,ocndwn,nface4,xg4,yg4,nord,ik)
+            call doints4(zss_a,ocndwn,nface4,xg4,yg4,nord,ik)
           end if ! iotest
-          deallocate(mlootf,ocnotf)
         end if
         !--------------------------------------------------
 

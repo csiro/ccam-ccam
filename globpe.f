@@ -106,24 +106,24 @@
       real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)
       real savu2(ifull,kl),savv2(ifull,kl)
       real sbar
-      common/sbar/sbar(ifull,2:kl)
-      common/savuv1/savs1,savu1,savv1 
+      common/sbar/sbar(ifull,2:kl) ! globpe,updps,upglobal
+      common/savuv1/savs1,savu1,savv1 ! globpea,nestin,updps
       real ubar(ifull,kl),vbar(ifull,kl)
-      common/uvbar/ubar,vbar
+      common/uvbar/ubar,vbar ! globpe,depts
 
       real taftfh(ifull),taftfhg(ifull)
-      common/tafts/taftfh,taftfhg
+      common/tafts/taftfh,taftfhg ! globpe,sflux
       real unn,vnn
-      common/unn/unn(ifull,kl),vnn(ifull,kl) ! nonlin,upglobal for nvsplit3,4
+      common/unn/unn(ifull,kl),vnn(ifull,kl) ! globpe,nonlin,upglobal for nvsplit3,4
       real, dimension(ifull) :: dirad,dfgdt,degdt,wetfac,degdw,cie,
      &                          factch,qsttg,rho,zo,aft,fh,spare1,theta,
      &                          gamm,rg,vmod,dgdtg
       common/work2/dirad,dfgdt,degdt,wetfac,degdw,cie,factch,qsttg,rho,
-     &     zo,aft,fh,spare1,theta,gamm,rg,vmod,dgdtg
+     &     zo,aft,fh,spare1,theta,gamm,rg,vmod,dgdtg ! globpe,bett_cuc,bettrain,cable_ccam2,conjob,outcdf,pbldif,sflux,soilsnow
  
       integer nhor,nhorps,khor,khdif,nhorjlm
       real hdiff,hdifmax
-      common/parmhdff/nhor,nhorps,hdiff(kl),khor,khdif,hdifmax,nhorjlm
+      common/parmhdff/nhor,nhorps,hdiff(kl),khor,khdif,hdifmax,nhorjlm ! globpe,hordifg,outcdf
 
       real, dimension(ifull) :: egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,
      &                          residf,ga,condxpr,fev,fes,fwtop,spare2
@@ -131,20 +131,18 @@
       real, dimension(ifull,kl) :: dum3a,speed,spare
       real, dimension(2*ijk-16*ifull) :: dum3
       common/work3/egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,residf,ga,
-     &     condxpr,fev,fes,ism,fwtop,spare2,dum3,dum3a,speed,spare
+     &     condxpr,fev,fes,ism,fwtop,spare2,dum3,dum3a,speed,spare  ! globpe,betts,gwdrag,pbldif,sflux,soilsnow,vadv30,vadvtvd,vertmix
 
       real wblf,wbfice,sdepth,dum3b
       common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
-     &              dum3b(ijk*2-2*ifull*ms-3*ifull)
-      !real rtt ! MJT
-      !common/work3d/rtt(ifull,kl) ! just to pass between radriv90 & globpe ! MJT
+     &              dum3b(ijk*2-2*ifull*ms-3*ifull) ! globpe,adjust5,bett_cuc,conjob,soilsnow,trim,vadvtvd,vertmix
       real qccon, qlrad, qfrad
-      common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) !leoncld etc
+      common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! globpe,depts,leoncld,radriv90,seaesfrad,soilsnow,upglobal,vadv30,vertmix
       real cfrac
       common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
       real qgsav, qfgsav, qlgsav, trsav
       common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
-     &             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
+     &             ,trsav(ilt*jlt,klt,ngasmax)  ! globpe,adjust5,nonlin
       real spmean(kl),div(kl),pmsl(ifull)
       equivalence (pmsl,dum3a)
       integer, dimension(13), parameter :: mdays =
@@ -665,7 +663,7 @@ c     if(ndi2>0)diag=.true.
 !     indata for initial conditions
       if (myid==0) print *,'calling indata; will read from file ',ifile
 !     N.B. first call to amipsst now done within indata
-      call indata(hourst,newsnow,jalbfix)
+      call indata(hourst,newsnow,jalbfix,iaero)
       
       call maxmin(u,' u',ktau,1.,kl)
       call maxmin(v,' v',ktau,1.,kl)
@@ -1168,7 +1166,6 @@ c       print*,'Calling prognostic cloud scheme'
       call end_log(cloud_end)
 
       ! RADIATION -------------------------------------------------------------
-      call start_log(radiation_begin)
       if(nrad==4) then
 !       Fels-Schwarzkopf radiation
         odcalc=mod(ktau,kountr)==0 .or. ktau==1 ! ktau-1 better
@@ -1206,7 +1203,6 @@ c       print*,'Calling prognostic cloud scheme'
         slwa(:)=-10*nrad  
 !       N.B. no rtt array for this nrad option
       endif  !  (nrad==4)
-      call end_log(radiation_end)
 
       ! HELD & SUAREZ ---------------------------------------------------------
       egg(:)=0.   ! reset for fort.60 files
@@ -2220,6 +2216,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       use diag_m
       use extraout_m
       use histave_m
+      use infile
       use liqwpar_m  ! ifullw,qfg,qlg
       use map_m
       use morepbl_m

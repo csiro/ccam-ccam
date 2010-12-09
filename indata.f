@@ -1,5 +1,6 @@
-      subroutine indata(hourst,newsnow,jalbfix)! nb  newmask not yet passed thru
+      subroutine indata(hourst,newsnow,jalbfix,iaero)! nb  newmask not yet passed thru
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
+      use aerosolldr
       use arrays_m
       use ateb ! MJT urban
       use bigxy4_m ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
@@ -60,7 +61,7 @@
       include 'trcom2.h'    ! trcfil,nstn,slat,slon,istn,jstn
       include 'mpif.h'
       real, intent(out) :: hourst
-      integer, intent(in) :: newsnow, jalbfix
+      integer, intent(in) :: newsnow,jalbfix,iaero
       real epst
       common/epst/epst(ifull)
       integer neigh
@@ -2088,6 +2089,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       ! nurban=1 urban (save in restart file)
       ! nurban=-1 urban (save in history and restart file)
       if (nurban.ne.0) then ! MJT urban
+        if (myid==0) print *,"Initialising ateb urban scheme"
         where (.not.land(:))
           sigmu(:)=0.
         end where
@@ -2114,6 +2116,15 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       else
         sigmu(:)=0.
         call atebdisable(0) ! disable urban
+      end if
+      !-----------------------------------------------------------------
+      
+      !-----------------------------------------------------------------
+      ! MJT aerosols
+      if (iaero.eq.2) then
+        if (myid==0) print *,"Initialising LDR prognostic aerosols"
+        call aldrinit(ifull,iextra,kl)
+        call load_aerosolldr(so4tfile)
       end if
       !-----------------------------------------------------------------
 
@@ -2748,3 +2759,127 @@ c find coexp: see notes "simplified wind model ..." eq 34a
       
       return
       end subroutine caispecial
+
+      ! Load aerosols emissions from netcdf
+      subroutine load_aerosolldr(aerofile)
+      
+      use aerosolldr
+      use cc_mpi
+      
+      implicit none
+      
+      include 'netcdf.inc'
+      include 'newmpar.h'
+      include 'parmgeom.h'
+      
+      integer ncstatus,ncid,i,varid,tilg
+      integer, dimension(2) :: spos,npos
+      real, dimension(ifull_g) :: dumg
+      real, dimension(ifull) :: duma
+      real tlat,tlon,tschmidt
+      character(len=*), intent(in) :: aerofile
+
+      if (myid==0) then
+        ncstatus=nf_open(aerofile,nf_nowrite,ncid)
+        if (ncstatus.ne.nf_noerr) then
+          write(6,*) "ERROR: Cannot open ",trim(aerofile)
+          stop
+        end if
+        ! check dimensions and location
+        ncstatus=nf_get_att_real(ncid,nf_global,'lat0',tlat)
+        ncstatus=nf_get_att_real(ncid,nf_global,'lon0',tlon)
+        ncstatus=nf_get_att_real(ncid,nf_global,'schmidt0',tschmidt)
+        if (rlong0.ne.tlon.or.rlat0.ne.tlat.or.schmidt.ne.tschmidt) 
+     &     then
+          write(6,*) "ERROR: Grid mismatch for ",trim(aerofile)
+          write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
+          write(6,*) "tlon,tlat,tschmidt   ",tlon,tlat,tschmidt
+          stop
+        end if
+        ncstatus = nf_inq_dimid(ncid,'lognitude',varid)
+        ncstatus = nf_inq_dimlen(ncid,varid,tilg)
+        if (tilg.ne.il_g) then
+          write (6,*) "ERROR: Grid mismatch for ",trim(aerofile)
+          write (6,*) "il_g,tilg ",il_g,tilg
+          stop
+        end if
+        ! read data
+        spos=1
+        npos(1)=il_g
+        npos(2)=il_g*6
+        ncstatus = nf_inq_varid(ncid,'so2a1',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(1,duma)
+        ncstatus = nf_inq_varid(ncid,'so2a2',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(2,duma)
+        ncstatus = nf_inq_varid(ncid,'bca1',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(3,duma)
+        ncstatus = nf_inq_varid(ncid,'bca2',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(4,duma)
+        ncstatus = nf_inq_varid(ncid,'oca1',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(5,duma)
+        ncstatus = nf_inq_varid(ncid,'oca2',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(6,duma)
+        ncstatus = nf_inq_varid(ncid,'so2b1',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(7,duma)
+        ncstatus = nf_inq_varid(ncid,'so2b2',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(8,duma)
+        ncstatus = nf_inq_varid(ncid,'bcb1',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(9,duma)
+        ncstatus = nf_inq_varid(ncid,'bcb2',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(10,duma)
+        ncstatus = nf_inq_varid(ncid,'ocb1',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(11,duma)
+        ncstatus = nf_inq_varid(ncid,'ocb2',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(12,duma)
+        ncstatus = nf_inq_varid(ncid,'dmso',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(13,duma)
+        ncstatus = nf_inq_varid(ncid,'dmst',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(14,duma)
+        ncstatus = nf_inq_varid(ncid,'ocna',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(15,duma)
+        ncstatus = nf_inq_varid(ncid,'vso2',varid)
+        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+        call ccmpi_distribute(duma,dumg)
+        call aldrloademiss(16,duma)
+        ncstatus=nf_close(ncid)
+        ! load oxidant fields
+      else
+        do i=1,16
+          call ccmpi_distribute(duma)
+          call aldrloademiss(i,duma)
+        end do
+        ! load oxidant fields
+      end if
+
+      return
+      end subroutine load_aerosolldr

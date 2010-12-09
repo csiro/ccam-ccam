@@ -143,6 +143,7 @@ real, dimension(ifull,2:kl) :: aa,pps,ppt
 real, dimension(ifull,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull) :: wstar,z_on_l,phim,hh,jj,dqsdt,ziold
+real, dimension(ifull) :: dum
 real, dimension(kl-1) :: wpv_flux,w2up,mflx,tup,qup
 real xp,wup,qupsat(1),ee
 real cf,qc,rcrit,delq
@@ -184,7 +185,8 @@ call updatekmo(kmo,km,zz)
 ! calculate saturated mixing ratio
 do k=1,kl
   temp(:,k)=theta(:,k)/sigkap(k)
-  call getqsat(ifull,qsat(:,k),temp(:,k),ps*sig(k))
+  dum=ps*sig(k)
+  call getqsat(ifull,qsat(:,k),temp(:,k),dum)
 end do
 
 ! Calculate buoyancy terms (gamt included later)

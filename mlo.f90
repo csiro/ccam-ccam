@@ -31,7 +31,7 @@ implicit none
 
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
-       mloscrnout,mloexpice,wlev,depth,mlodwn,mlootf,micdwn,micotf,ocndwn,ocnotf,sssb
+       mloscrnout,mloexpice,wlev,depth,mlodwn,micdwn,ocndwn,sssb
 
 ! parameters
 integer, parameter :: wlev = 20
@@ -42,9 +42,9 @@ logical, dimension(:), allocatable, save :: wpack
 real, dimension(:,:), allocatable, save :: depth,dz
 real, dimension(:,:), allocatable, save :: depth_hl
 real, dimension(:,:), allocatable, save :: dz_hl
-real, dimension(:,:,:), allocatable, save :: mlodwn,mlootf ! These variables are for CCAM onthefly.f
-real, dimension(:,:), allocatable, save :: micdwn,micotf   ! These variables are for CCAM onthefly.f
-real, dimension(:), allocatable, save :: ocndwn,ocnotf     ! These variables are for CCAM onthefly.f
+real, dimension(:,:,:), allocatable, save :: mlodwn        ! These variables are for CCAM onthefly.f
+real, dimension(:,:), allocatable, save :: micdwn          ! These variables are for CCAM onthefly.f
+real, dimension(:), allocatable, save :: ocndwn            ! These variables are for CCAM onthefly.f
 real, dimension(:), allocatable, save :: sssb              ! To hold sea-surface salinity for nudging
 real, dimension(:,:), allocatable, save :: w_temp,w_sal,w_u,w_v
 real, dimension(:,:), allocatable, save :: i_tn

@@ -203,9 +203,9 @@ if ( first ) then
   Rad_control%do_totcld_forcing          =do_totcld_forcing
   Rad_control%rad_time_step              =kountr*dt
   Rad_control%rad_time_step_iz           =.true.
-  Rad_control%do_aerosol                 =.false.
-  Rad_control%do_swaerosol_forcing       =.false.
-  Rad_control%do_lwaerosol_forcing       =.false.
+  Rad_control%do_aerosol                 =do_aerosol_forcing
+  Rad_control%do_swaerosol_forcing       =do_aerosol_forcing
+  Rad_control%do_lwaerosol_forcing       =do_aerosol_forcing
   Astro%rrsun                            =1./(r1*r1)
 
   call sealw99_init(pref, Lw_tables)
@@ -655,15 +655,19 @@ do j=1,jl,imax/il
     Astro%fracday(:,1)=taudar
     swcount=swcount+count(coszro.gt.0.)
 
+    call start_log(radlw_begin)
     call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input,  &
                           Rad_gases, Aerosol, Aerosol_props,     &
                           Cldrad_props, Cld_spec, Aerosol_diags, &
                           Lw_output)
+    call end_log(radlw_end)
 
+    call start_log(radsw_begin)
     call shortwave_driver (1, imax, 1, 1, Atmos_input, Surface,      &
                            Astro, Aerosol, Aerosol_props, Rad_gases, &
                            Cldrad_props, Cld_spec, Sw_output,        &
                            Aerosol_diags, r)
+    call end_log(radsw_end)			   
 
     ! store shortwave and fbeam data --------------------------------
     sg=Sw_output(1)%dfsw(:,1,kl+1)-Sw_output(1)%ufsw(:,1,kl+1)
@@ -978,6 +982,7 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
       integer  :: naerosol_optical
       integer  :: i, j       
       integer  :: ix, jx, kx
+      integer  :: ier
 
 !---------------------------------------------------------------------
 !   local variables:
@@ -1048,7 +1053,6 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
           endif
         end do
       end do
-
 
 !--------------------------------------------------------------------
 !    if the sun is shining nowhere in the physics window allocate

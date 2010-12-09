@@ -1108,6 +1108,7 @@ module cable_ccam
 
   use carbpools_m
   use cc_mpi, only : myid
+  use infile
   use soil_m
   use soilsnow_m
   use vegpar_m

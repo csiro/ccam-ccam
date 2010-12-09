@@ -542,6 +542,7 @@ c         write(24,*)coszro2
         end do
       endif
 
+      call start_log(radsw_begin)
 c     Cloudy sky calculation
       cldoff=.false.
       if(ldr.ne.0)then  !Call LDR cloud scheme
@@ -581,11 +582,14 @@ c       print *,'soutclr ',(soutclr(i),i=1,imax)
 c       print *,'sg ',(sg(i),i=1,imax)
 c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
       endif
+      call end_log(radsw_end)      
 
+      call start_log(radlw_begin)
       call clo89
       if(ndi<0.and.nmaxpr==1)
      &     print *,'before lwr88 ktau,j,myid ',ktau,j,myid
       call lwr88
+      call end_log(radlw_end)
 
       do i=1,imax
          rt(i) = ( gxcts(i)+flx1e1(i) ) * h1m3          ! longwave at top
