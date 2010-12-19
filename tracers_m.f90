@@ -20,17 +20,23 @@ integer, parameter :: ntrac=ngas+nllp
 integer, parameter :: ntracmax=max(ntrac,1) ! ntracmax >= 1
 integer, parameter :: ngasmax=max(ngas,1)   ! ngasmax >= 1
 integer, parameter :: npwr=min(ntrac,1)     ! i.e. 0 or 1 for no_gas/gas
-integer, parameter :: ilt=il**npwr
-integer, parameter :: jlt=jl**npwr
-integer, parameter :: klt=kl**npwr
+integer, save :: ilt
+integer, save :: jlt
+integer, save :: klt
 real, dimension(:,:,:), allocatable, save :: tr,traver
 real, dimension(:), allocatable, save :: radonem,trback_g,acloss_g,gasmin
 
 contains
 
-subroutine tracers_init
+subroutine tracers_init(il,jl,kl)
 
 implicit none
+
+integer, intent(in) :: il,jl,kl
+
+ilt=il**npwr
+jlt=jl**npwr
+klt=kl**npwr
 
 allocate(tr(ilt*jlt+iextra,klt,ntracmax),traver(ilt*jlt,klt,ntrac))
 allocate(radonem(ilt*jlt),trback_g(ntrac),acloss_g(ntrac),gasmin(ngasmax))

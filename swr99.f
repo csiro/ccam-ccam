@@ -81,10 +81,10 @@ c
       real, intent(out), dimension(imax,l)   :: hsw_out 
       real, intent(out), dimension(imax)     :: grdflx_out,swr_out ! MJT cable
 
-      real, dimension(imax,lp1),save :: fsw_sav,  
+      real, dimension(:,:),allocatable,save :: fsw_sav,  
      &                                  ufsw_sav, dfsw_sav ! MJT rad
-      real, dimension(imax,l),save   :: hsw_sav            ! MJT rad
-      real, dimension(imax),save     :: grdflx_sav,swr_sav ! MJT rad
+      real, dimension(:,:),allocatable,save :: hsw_sav     ! MJT rad
+      real, dimension(:),allocatable,save   :: grdflx_sav,swr_sav ! MJT rad
 
       real, dimension(ipts,lp1)      :: press, press2
       real,  dimension(ipts)         :: coszro, taudar
@@ -99,6 +99,12 @@ c
       integer :: k,kclds ! MJT rad
       logical, dimension(imax) :: lcoszn
       integer, dimension(ipts) :: pindex
+      
+      if (.not.allocated(fsw_sav)) then
+        allocate(fsw_sav(imax,lp1),ufsw_sav(imax,lp1))
+        allocate(dfsw_sav(imax,lp1),hsw_sav(imax,l))
+        allocate(grdflx_sav(imax),swr_sav(imax))
+      end if
 
       kclds=maxval(nclds_in) ! MJT rad
       lcoszn = coszro_in > zero

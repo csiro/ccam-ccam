@@ -13,19 +13,13 @@
 !     nested=0  for calls from indata; 1  for calls from nestin     
       use cc_mpi
       use infile
-      use sigs_m
       use soil_m
-      use tracers_m
-      use utilities
-      use vecsuv_m
-      use vvel_m
       implicit none
       integer, parameter :: ntest=0
       integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
 
 !     Note: The arrays are replaced in place
       include 'newmpar.h'
-      include 'const_phys.h'
       include 'parm.h'
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
       include 'mpif.h'
@@ -177,6 +171,7 @@ c     start of processing loop
       use utilities
       use vecsuv_m
       use vvel_m
+      use workglob_m
       implicit none
       include 'newmpar.h'
       include 'const_phys.h'
@@ -218,10 +213,6 @@ c**   onthefly; sometime can get rid of common/bigxy4
       real ::  rlong0x, rlat0x, schmidtx, spval
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
 
-      ! rlong4 needs to be shared with setxyz. These are global arrays.
-      real, dimension(ifull_g,4) :: rlong4, rlat4
-      common/workglob/rlong4,rlat4   ! shared with setxyz
-
       ! Used in the global interpolation
       real, dimension(ifull_g,4) :: xg4, yg4
       integer, dimension(ifull_g,4) :: nface4
@@ -245,7 +236,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
         write(6,*) "ERROR: Incorrect automatic array size in onthefly"
         stop
       end if
-
+      
       !--------------------------------------------------------------
       ! read host sigma levels
       if (myid==0) then
@@ -276,12 +267,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
         io_in=-1
       end if
 
-      !--------------------------------------------------------------
       nemi=3   !  MJT lsmask
-      if(m_fly==1)then
-        rlong4(:,1)=rlongg_g(:)*180./pi
-        rlat4(:,1)=rlatt_g(:)*180./pi
-      endif
 
       !--------------------------------------------------------------
       ! detemine the level below sig=0.9 (used to calculate psl)
@@ -339,6 +325,10 @@ c***      but needed here for onthefly (different dims) 28/8/08
       
       !--------------------------------------------------------------
       if ( myid==0 ) then
+        if(m_fly==1)then
+          rlong4(:,1)=rlongg_g(:)*180./pi
+          rlat4(:,1)=rlatt_g(:)*180./pi
+        endif
 !       N.B. -ve ik in call setxyz preserves TARGET rlat4, rlong4     
 !       following setxyz call is for source data geom    ****   
         do iq=1,ik*ik*6

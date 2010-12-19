@@ -1,4 +1,4 @@
-      subroutine cloud (cldoff,sig,j)   ! jlm
+      subroutine cloud (cldoff,sig,j,rhg)   ! jlm
 !     this one allows different emissivities for middle & high clouds      
       use extraout_m
       use radisw_m
@@ -66,7 +66,7 @@ c                         longwave tables).
 c***********************************************************************
 
 c index cloud top bottom
-      common/work3c/rhg(ifull,kl) ! N.B. common/work3/ used in various radn subs
+      real rhg(ifull,kl)
       real sig(l)
 !     real rcsw(l),rclw(l),aclw(l)
       real rhg1(l),sigf(l)

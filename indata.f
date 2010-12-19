@@ -10,6 +10,7 @@
       use dava_m    ! davt
       use diag_m
       use define_dimensions, only : ncs, ncp ! MJT cable
+      use epst_m
       use extraout_m
       use gdrag_m
       use indices_m
@@ -18,6 +19,7 @@
       use map_m
       use mlo ! MJT mlo
       use morepbl_m
+      use neigh_m
       use nsibd_m   ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       use pbl_m
       use physical_constants, only : umin ! MJT cable      
@@ -62,19 +64,13 @@
       include 'mpif.h'
       real, intent(out) :: hourst
       integer, intent(in) :: newsnow,jalbfix,iaero
-      real epst
-      common/epst/epst(ifull)
-      integer neigh
-      common/neigh/neigh(ifull)
       real rlong0x,rlat0x,schmidtx
       real rlonx,rlatx,alf
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
-      !real sigin                                             ! MJT vertint
-      !integer ik,jk,kk                                       ! MJT vertint
-      !common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT vertint
       real, dimension(ifull) :: zss, aa, zsmask
       real, dimension(ifull) :: dep ! MJT mlo
-      real tbarr(kl),qgin(kl),zbub(kl)
+      integer, parameter :: klmax=100
+      real tbarr(klmax),qgin(klmax),zbub(klmax) ! for tin namelist
       character co2in*80,radonin*80,surfin*80,header*80
 
 !     for the held-suarez test
@@ -576,10 +572,13 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
             do j=1,jpan
                do i=1,ipan
                   ! Need to add offsets to get proper face indices
-                  rad=sqrt((i+ioff-cent)**2+(j+joff-cent)**2)
-                  radu=sqrt((i+ioff+.5-cent)**2+(j+joff-cent)**2)
-                  radv=sqrt((i+ioff-cent)**2+(j+joff+.5-cent)**2)
                   do n=1,npan
+                    rad=sqrt((i+ioff(n-noff)-cent)**2
+     &                      +(j+joff(n-noff)-cent)**2)
+                    radu=sqrt((i+ioff(n-noff)+.5-cent)**2
+     &                      +(j+joff(n-noff)-cent)**2)
+                    radv=sqrt((i+ioff(n-noff)-cent)**2
+     &                       +(j+joff(n-noff)+.5-cent)**2)
                      iq=indp(i,j,n)
                      u(iq,k)=uin*max(1.-radu/(.5*il_g),0.)
                      v(iq,k)=vin*max(1.-radv/(.5*il_g),0.)

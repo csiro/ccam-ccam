@@ -34,16 +34,16 @@ module cable_ccam
   ! 8       organi!              peat
   ! 9       land ice
 
-  USE define_dimensions, cbm_ms => ms
-  use cab_albedo_module
+  USE air_module
+  USE cab_albedo_module
   USE canopy_module
   USE carbon_module
-  USE soil_snow_module
+  USE define_dimensions, cbm_ms => ms
   USE define_types
   USE physical_constants
-  USE roughness_module
   USE radiation_module
-  USE air_module
+  USE roughness_module
+  USE soil_snow_module
 
   private
   public CABLE,sib4,loadcbmparm,savetile
@@ -77,6 +77,8 @@ module cable_ccam
   use soilbal_m
   use soilsnow_m
   use vegpar_m
+  use work2_m
+  use work3_m
   use zenith_m
   
   implicit none
@@ -85,22 +87,6 @@ module cable_ccam
   include 'const_phys.h' ! grav
   include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg
   include 'parm.h'
-! met forcing for CBM
-  real dirad,dfgdt,degdt,wetfac,degdw,cie
-  real factch,qsttg,rho,zo,aft,fh,ri,theta
-  real gamm,rg,vmod,dummwk2
-  real egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,residf
-  real ga,condxpr,fev,fes,ism,fwtop,af,extin,dum3
-  common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)  &
- & ,wetfac(ifull),degdw(ifull),cie(ifull)              &
- & ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)    &
- & ,aft(ifull),fh(ifull),ri(ifull),theta(ifull)        &
- & ,gamm(ifull),rg(ifull),vmod(ifull),dummwk2(ifull)
-  common/work3/egg(ifull),evapxf(ifull),ewww(ifull),fgf(ifull),  &
- & fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull), &     
- & ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),               &
- & ism(ifull),fwtop(ifull),af(ifull),                            &
- & extin(ifull),dum3(5*ijk-17*ifull)
 
  ! for calculation of zenith angle
   real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull)
@@ -1117,17 +1103,14 @@ module cable_ccam
 
   include 'newmpar.h'
   include 'darcdf.h'
-  include 'parm.h'
-  include 'netcdf.inc'
   include 'mpif.h'
+  include 'netcdf.inc'
+  include 'parm.h'  
   
   integer k,n,ierr,ierr2,idv
   real, dimension(ifull) :: dat
   character(len=9) vname
-  !real sigin  
-  !integer ik,jk,kk
-  !common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug  
-
+  
   if (io_in.eq.1) then
     if (myid.eq.0) idv = ncvid(ncid,"tgg1_1",ierr)
     call MPI_Bcast(ierr,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr2)    
@@ -1260,9 +1243,6 @@ module cable_ccam
   character(len=9) vname
   character(len=40) lname
   logical, intent(in) :: local
-  !real sigin  
-  !integer ik,jk,kk
-  !common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT bug    
   
   if (myid.eq.0) then
     write(6,*) "Storing CABLE tile data"

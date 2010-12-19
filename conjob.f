@@ -1,6 +1,7 @@
       subroutine conjob      ! globpea & rcsb (non-chen); nkuo=46 only
       use arrays_m
       use cc_mpi, only : mydiag
+      use epst_m
       use kuocomb_m  ! also with kbsav,ktsav,convpsav,ndavconv
       use morepbl_m
       use nlin_m
@@ -14,7 +15,7 @@
       parameter (ntest=0)    ! 1 or 2 to turn on; for 3 uncomment !!! lines
       parameter (nrenorm=1)  ! usually 1
       parameter (no2layer=0) ! usually 0, 1 to suppress 2-layer clouds (no good)
-      parameter (kcl_top=kl-2) !max level for cloud top (conjob,radrive,vertmix)
+      integer kcl_top        !max level for cloud top (conjob,radrive,vertmix)
 !     N.B. usually set nkuo=44, rhcv=.75, rhmois=.6, sigcb=.9      
 c     this one has safer code for nevapls=5
 c     this one vectorized by jlm Tue  04-07-1998 (N.B. won't do chen)
@@ -25,17 +26,14 @@ c     For 32-bit machine need real*8  cam()
 c     Hal's ds() renamed dsh()
       include 'const_phys.h'
       include 'parm.h'
-      common/epst/epst(ifull)
-      common/work2/alphac(ifull),conrev(ifull),fluxr(ifull)
+      real alphac(ifull),conrev(ifull),fluxr(ifull)
      .  ,heatpc(ifull),rhmx(ifull),smin(ifull),sumd(ifull)
      .  ,rnrt(ifull),rnrtc(ifull),sumqs(ifull),sumqt(ifull)
-     .  ,sumss(ifull),factdav(ifull),kbsav_ls(ifull),dum2(ifull,4)
-      common/work3/tt(ifull,kl),qq(ifull,kl),qsg(ifull,kl),gam(ifull,kl)
-     .  ,spare(ifull,kl)
-      common/work3b/ss(ifull,kl),uh(ifull,kl)
-      common/work3c/dsh(ifull,kl)
+     .  ,sumss(ifull),factdav(ifull),kbsav_ls(ifull)
+      real tt(ifull,kl),qq(ifull,kl),qsg(ifull,kl),gam(ifull,kl)
+      real ss(ifull,kl),uh(ifull,kl)
+      real dsh(ifull,kl)
       real dq(ifull,kl)
-      equivalence (dq,ss)
       real*8 cam(kl-1,kl)
       real algf(kl),delt(kl),dsk(kl),rhs(kl),sigadd(kl),s(kl)
 !     set convective relaxation time (convtime [was btcnv], usually 1 hour)
@@ -46,6 +44,8 @@ c     Hal's ds() renamed dsh()
       Aev(tm) = 2.008e-9*tm**2 - 1.385e-6*tm + 2.424e-4  !For UKMO evap scheme
       Asb(tm) = max (-5.2e-9*tm**2+2.5332e-6*tm-2.9111e-4,1.e-5) !For UKMO subl
 !!!   ntest=3   !!!
+
+      kcl_top=kl-2
 
       do k=1,kl
        dsk(k)=-dsig(k)    !   dsk = delta sigma (positive)

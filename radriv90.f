@@ -15,6 +15,7 @@
       use ateb       ! MJT urban 
       use cable_ccam, only : CABLE ! MJT cable
       use cc_mpi
+      use cfrac_m
       use cldcom_m
       use diag_m
       use extraout_m ! sintsave, etc
@@ -36,27 +37,25 @@
       use swocom_m
       use swr99_m
       use tfcom_m
+      use work3f_m
       use zenith_m
       include 'newmpar.h'
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
 !        for diag prints set ntest=1
 !        or, usefully can edit 'ntest.gt.0' to 'ktau.gt.nnn'
       parameter (nalbwb=0)  ! 0  for original alb not depending on wb
-      parameter (kcl_top=kl-2) !max level for cloud top (conjob,radrive,vertmix)
+      integer kcl_top       !max level for cloud top (conjob,radrive,vertmix)
       include 'const_phys.h' ! for ldr cloud scheme
       include 'cparams.h'    ! for ldr cloud scheme
       include 'dates.h'      ! timer,kdate,ktime,dt,mtimer
       include 'kuocom.h'     ! also with kbsav,ktsav
       include 'parm.h'
-      include 'scamdim.h'
       include 'soilv.h'
 !     For the radiation code
       include 'rdparm.h'   ! imax
       include 'hcon.h'
-      common/cfrac/cfrac(ifull,kl)
-      common/work3c/rhg(ifull,kl) ! shared between cloud &radriv90
-      common/work3d/rtt(ifull,kl) ! just to pass between radriv90 & globpe
-      common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! ditto
+      real rhg(ifull,kl) ! shared between cloud &radriv90
+      real rtt(ifull,kl)
 
       parameter(cong = cp/grav)
       parameter(csolar=1.96)
@@ -72,12 +71,11 @@ c     parameters for the aerosol calculation
 !     Radiation fields (CSIRO GCM names)
       real sg(imax), sgclr(imax), sint(imax), sout(imax), soutclr(imax)
       real rg(imax), rgclr(imax), rt(imax), rtclr(imax)
-      real sga(imax),sgamp(ifull)
+      real sga(imax)
       real sgdn(imax), rgdn(imax)
-      real hlwsav(ifull,kl),hswsav(ifull,kl)
-      save hlwsav, hswsav, sgamp
-!     when there is time incorporate properly here      
-      common/radstuff/sgx(ifull),sgdnx(ifull),rgx(ifull),rgdnx(ifull),
+      real, dimension(:,:), allocatable, save :: hlwsav,hswsav
+      real, dimension(:), allocatable, save :: sgamp
+      real sgx(ifull),sgdnx(ifull),rgx(ifull),rgdnx(ifull),
      &             soutx(ifull),sintx(ifull),rtx(ifull)
       
 c     Following are for cloud2 routine
@@ -86,10 +84,7 @@ c     Following are for cloud2 routine
      &     dp2(imax,kl),cll(imax),clm(imax),clh(imax)
       logical land2(imax)
 
-!     From initfs
-c     Stuff from o3set
-      common /o3dat/ dduo3n(37,kl),ddo3n2(37,kl),ddo3n3(37,kl),
-     &               ddo3n4(37,kl)
+
 c     Stuff from cldset
       common /clddat/ ccd(37,5),ccd2(37,5),ccd3(37,5),ccd4(37,5),
      &                kkth(37,5),kkbh(37,5)
@@ -110,6 +105,14 @@ c     Stuff from cldset
       save first
       data first /.true./
       include 'establ.h'
+
+      call start_log(radmisc_begin)
+
+      kcl_top=kl-2
+      if (.not.allocated(sgamp)) then
+        allocate(hlwsav(ifull,kl),hswsav(ifull,kl))
+        allocate(sgamp(ifull))
+      end if
 
       do k=kl,1,-1
          if(sig(k).le. .15)ksigtop=k  ! top level for RH calc for clouds
@@ -153,7 +156,6 @@ c          Stuff from o3set
 c          Rearrange the seasonal mean O3 data to allow interpolation
 c          Define the amplitudes of the mean, annual and semi-annual cycles
            call o3_read(sig,jyear,jmonth)
-           call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
         end if
         swrsave=0.5 ! MJT cable
       end if  ! (first)
@@ -521,7 +523,7 @@ c         write(24,*)coszro2
      &                cd2,land2,sigh,p2,dp2,coszro,      !Inputs
      &                cll,clm,clh)                       !Outputs
         else
-          call cloud(cldoff,sig,j) ! jlm
+          call cloud(cldoff,sig,j,rhg) ! jlm
         endif  ! (ldr.ne.0)
         if(ndi<0.and.nmaxpr==1)
      &     print *,'before swr99 ktau,j,myid ',ktau,j,myid
@@ -542,6 +544,7 @@ c         write(24,*)coszro2
         end do
       endif
 
+      call end_log(radmisc_end)
       call start_log(radsw_begin)
 c     Cloudy sky calculation
       cldoff=.false.
@@ -590,6 +593,7 @@ c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
      &     print *,'before lwr88 ktau,j,myid ',ktau,j,myid
       call lwr88
       call end_log(radlw_end)
+      call start_log(radmisc_begin)
 
       do i=1,imax
          rt(i) = ( gxcts(i)+flx1e1(i) ) * h1m3          ! longwave at top
@@ -774,6 +778,9 @@ c       endif
         write (6,"('cloudlo,cloudmi,cloudhi,cloudtot',4f8.3)")
      .          cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
       endif
+      
+      call end_log(radmisc_end)
+      
       return
       end
 

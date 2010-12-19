@@ -9,12 +9,11 @@
       use o3amip_m
       implicit none
       include 'newmpar.h'
-      integer, parameter :: klp = kl+1
       include 'const_phys.h'
       integer, intent(in) :: npts
       real, dimension(npts), intent(in) :: alat     ! Latitude
       integer, intent(in) :: mins  ! Time
-      real, intent(in),  dimension(klp) :: sigh ! Half level sigma
+      real, intent(in),  dimension(kl+1) :: sigh ! Half level sigma
       real, intent(in),  dimension(npts) :: ps  ! Surface pressure
       real, intent(out), dimension(npts,kl) :: qo3  ! Ozone mixing ratio
 !     Day no of middle of month
@@ -23,10 +22,10 @@
      &     288.5, 319.0, 349.5 /)
       real, dimension(kg) :: oz    ! Column for this date and lat.
       real, dimension(lg) :: ozcol ! Integrated column
-      real, dimension(klp) :: qo3p
+      real, dimension(kl+1) :: qo3p
       integer :: k1
       integer :: j, m1, m2, j1, j2, k, kk, k1min
-      real, dimension(klp) :: prh ! Half level pressure
+      real, dimension(kl+1) :: prh ! Half level pressure
       real :: fac1, fac2, tfac1, tfac2, date, theta
 
 !     Time interpolation factors (assume year of exactly 365 days)
@@ -99,7 +98,7 @@
          prh = sigh * ps(j)*0.01 ! Input PS in Pa
 
          qo3p = 0.
-         qo3p(klp) = 0.0      ! TOA
+         qo3p(kl+1) = 0.0      ! TOA
          do k=kl,1,-1           ! Start at the top model level
 
 !        Find largest k1 such that gpri(k1) <= prh(k)

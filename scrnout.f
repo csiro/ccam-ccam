@@ -8,6 +8,7 @@
       use morepbl_m  ! condx,fg,eg
       use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       use pbl_m
+      use permsurf_m
       use prec_m     ! just for diags
       use sigs_m
       use soil_m
@@ -23,11 +24,8 @@
       include 'newmpar.h'
       include 'const_phys.h'
       include 'parm.h'
-      include 'scamdim.h'
       real ri(ifull),vmod(ifull)
       real af(ifull),aft(ifull)  ! passed in
-      integer ipsice,ipsea,ipland,iperm
-      common/permsurf/ipsice,ipsea,ipland,iperm(ifull)
       real qgscrn(ifull),tscrn(ifull)
      . ,uscrn(ifull),u10(ifull),rhscrn(ifull)
       real wetfac(ifull),factch(ifull),qsttg(ifull),ustar(ifull)

@@ -1062,7 +1062,7 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST, kdate, ktime,rlatt,rlongg,PDPP1, PMRATEP, PFPRE
 !      ------------
 !          *XTWETDEP*  CALCULATES THE WET DEPOSITION
 
-use zenith_m
+!use zenith_m
 
 implicit none
 
@@ -1627,26 +1627,27 @@ endif
 !      ZNLON=FLOAT(lon)
 !      IF(ZDAYL.NE.0.) ZDAYFAC(1)=ZNLON/ZDAYL !NH
 !      IF(ZDAYL.NE.znlon) ZDAYFAC(2)=ZNLON/(znlon-ZDAYL) !SH
-if (any(zdayfac.lt.0.)) then
-  jyear=kdate/10000
-  jmonth=(kdate-jyear*10000)/100
-  jday=kdate-jyear*10000-jmonth*100
-  jhour=ktime/100
-  jmin=ktime-jhour*100
-  mstart=1440*(ndoy(jmonth)+jday-1)+60*jhour+jmin ! mins from start of y
-  bpyear=0.
-  dhr=PTMST/3600.
-  ttx=nint(86400./PTMST)
-  zdayfac(:)=0.
-  do tt=1,ttx
-    mins=real(tt)*PTMST/60.+mstart
-    fjd=float(mod(mins,525600))/1440.  ! 525600 = 1440*365
-    call solargh(fjd,bpyear,r1,dlt,alp,slag)
-    call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
-    zdayfac(:)=zdayfac(:)+taudar
-  end do
-  zdayfac(:)=real(ttx)/zdayfac(:)
-end if
+!if (any(zdayfac.lt.0.)) then
+!  jyear=kdate/10000
+!  jmonth=(kdate-jyear*10000)/100
+!  jday=kdate-jyear*10000-jmonth*100
+!  jhour=ktime/100
+!  jmin=ktime-jhour*100
+!  mstart=1440*(ndoy(jmonth)+jday-1)+60*jhour+jmin ! mins from start of y
+!  bpyear=0.
+!  dhr=PTMST/3600.
+!  ttx=nint(86400./PTMST)
+!  zdayfac(:)=0.
+!  do tt=1,ttx
+!    mins=real(tt)*PTMST/60.+mstart
+!    fjd=float(mod(mins,525600))/1440.  ! 525600 = 1440*365
+!    call solargh(fjd,bpyear,r1,dlt,alp,slag)
+!    call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
+!    zdayfac(:)=zdayfac(:)+taudar
+!  end do
+!  zdayfac(:)=real(ttx)/zdayfac(:)
+!end if
+zdayfac=2. ! MJT suggestion to account for changing day length
 
 JT=ITRACSO2
 !   DAY-TIME CHEMISTRY

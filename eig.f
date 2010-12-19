@@ -3,7 +3,7 @@
       use vecs_m
       include 'newmpar.h'
       real sigin(kl),sigmhin(kl)
-      common/simpl/sig(kl),sigmh(kl+1)
+      real sig(kl),sigmh(kl+1)
 c     common/new/emat(kl,kl),bam(kl),einv(kl,kl)
       data neig/1/,nsig/5/,nflip/0/
 
@@ -26,7 +26,7 @@ c     expect data from bottom up
       print *,'final sig values: ',sig
       print *,'final sigmh values: ',sigmh
       open(28,file='eigenv.out')
-      call eigs(lapsbot,isoth,tbar,dt,eps,nh)   !------------------------
+      call eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh)   !------------------------
       print *,'about to write to 28 '
       write(28,*)kl,lapsbot,isoth,nsig,
      .       '   kl,lapsbot,isoth,nsig'
@@ -76,20 +76,20 @@ c       write data from bottom up
       write(28,945)(sigmh(k),k=1,kl+1)
       end
 
-      subroutine eigs(lapsbot,isoth,tbar,dt,eps,nh)
+      subroutine eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh)
       use vecs_m
       include 'newmpar.h'
-      parameter (klkl=kl*kl)
 c     sets up eigenvectors
-      common/simpl/sig(kl),sigmh(kl+1)
+      real sig(kl),sigmh(kl+1)
       real dsig(kl)
       real bet(kl),betm(kl),get(kl),getm(kl),gmat(kl,kl)
       real bmat(kl,kl),evimag(kl),veci(kl,kl),sum1(kl)
       dimension indic(kl)
-c     common/new/emat(kl,kl),bam(kl),einv(kl,kl)
       real aa(kl,kl),ab(kl,kl),ac(kl,kl)
       real aaa(kl,kl),cc(kl,kl)
-      data aa/klkl*0./,bmat/klkl*0./
+      
+      aa=0.
+      bmat=0.
 
 c     units here are SI, but final output is dimensionless
       g=9.806
@@ -291,8 +291,9 @@ c     matrix multiplication      a = b * c
 
       subroutine eigenp(n,nm,a,evr,evi,vecr,veci,indic)
       include 'newmpar.h'
-      common/large/ iwork(kl*kl),local(kl*kl),prfact(kl*kl)
-     1,subdia(kl*kl),work1(kl*kl),work2(kl*kl),work(kl*kl)
+      integer, dimension(:), allocatable, save :: iwork,local
+      real, dimension(:), allocatable, save :: prfact,subdia,
+     &                                       work
 c     currently set up for a general number of 10 levels
 c a.c.m. algorithm number 343
 c revised july, 1970 by n.r.pummeroy, dcr, csiro, canberra
@@ -347,6 +348,11 @@ c            1              found          not found
 c            2              found          found
 c
 c
+      if (.not.allocated(iwork)) then
+        allocate(iwork(kl*kl),local(kl*kl),prfact(kl*kl))
+        allocate(subdia(kl*kl),work(kl*kl))
+      end if
+
       if(n.ne.1)go to 1
       evr(1) = a(1,1)
       evi(1) = 0.0

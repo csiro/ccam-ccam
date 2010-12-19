@@ -25,19 +25,28 @@
       real, intent(inout) :: s(ifull+iextra,kl)      ! Solution
       real, intent(in) :: rhs(ifull+iextra,kl)       ! RHS
       real, dimension(ifull,kl) :: sb, sa, snew, dsol
-      integer, save, dimension(ifull) :: mask
+      integer, allocatable, save, dimension(:) :: mask
       integer, dimension(kl) :: iters
       integer, dimension(3),save :: ifullx    ! MJT pack
-      integer, dimension(ifull,3),save :: iqx,iqn,iqe,iqw,iqs ! MJT pack
+      integer, dimension(:,:), allocatable, save :: iqx,iqn,iqe ! MJT pack
+      integer, dimension(:,:), allocatable, save :: iqw,iqs     ! MJT pack
       real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
       real, dimension(kl) ::  smin, smin_g
-      real aa(ifull), bb(ifull), cc(ifull), axel, accel(kl) ! MJT pack
+      real, dimension(:), allocatable, save :: accel ! MJT pack
+      real aa(ifull), bb(ifull), cc(ifull), axel
       integer iq, iter, k, nx, j, jx, i,klim,klimnew, ierr, meth, nx_max
       logical first
-      save  first, meth, nx_max, axel, accel
+      save  first, meth, nx_max, axel
       data first /.true./
 
       call start_log(helm_begin) ! MJT
+      
+      if (.not.allocated(mask)) then
+        allocate(mask(ifull))
+        allocate(iqx(ifull,3),iqn(ifull,3),iqe(ifull,3))
+        allocate(iqw(ifull,3),iqs(ifull,3))
+        allocate(accel(kl))
+      end if
 
       if(first)then
         if(precon==-1)precon=-2325  ! i.e. 2, 3, .25

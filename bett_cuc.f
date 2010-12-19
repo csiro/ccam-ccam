@@ -61,8 +61,8 @@ c     include 'imjmkl.h'     ! now in betts1.h
 c
       parameter ( ksmud=0 )  ! this option actually removed by jlm
       parameter ( lsh=4, kbm=3 )
-      parameter ( lscrch=4*kl+1+la
-     &, l1=la+1, l2=la+kl+1, l3=la+2*kl+1, l4=la+3*kl+1)
+!      parameter ( lscrch=4*kl+1+la
+!     &, l1=la+1, l2=la+kl+1, l3=la+2*kl+1, l4=la+3*kl+1)
 c
 c-----------------------------------------------------------------------
 c     include 'eta.h'        ! now in betts1.h
@@ -80,16 +80,16 @@ c     include 'scrch.h'    !  uses common/work2/   now
 
 c     real htop(ifull),hbot(ifull) not used
 
-      common/work2/ltop(ifull),lbot(ifull),ittb(ifull),iqtb(ifull),
+      real ltop(ifull),lbot(ifull),ittb(ifull),iqtb(ifull),
      . pdsl(ifull),tbt(ifull),qbt(ifull),apebt(ifull),tth(ifull),
      . pp(ifull),bqs00(ifull),sqs00(ifull),bqs10(ifull),sqs10(ifull),
      . bq(ifull),sq(ifull),qq(ifull),psp(ifull)
 
       real thbt(ifull),thesp(ifull),tdif(ifull)
 
-      common/work3b/ape(ifull,kl),tref(ifull,kl)  ! 28/9/00
-      common/work3c/qmod(ifull,kl)                ! 28/9/00
-      common/work3d/tmod(ifull,kl)                ! 28/9/00
+      real ape(ifull,kl),tref(ifull,kl)  ! 28/9/00
+      real qmod(ifull,kl)                ! 28/9/00
+      real tmod(ifull,kl)                ! 28/9/00
 
       logical ofirst,oshal
 
@@ -101,23 +101,23 @@ c     real htop(ifull),hbot(ifull) not used
      . sthe00(ifull),t10(ifull),p01(ifull),bthe10(ifull),t01(ifull),
      . p11(ifull),sthe10(ifull),t11(ifull),bth(ifull),sth(ifull)
 
-      equivalence (ittb  ,iptb  ,ql)
-      equivalence (iqtb  ,ithtb ,tl   )
-      equivalence (tdif  ,tne   )
-      equivalence (thbt  ,qne    )
-      equivalence (tbt   ,p     ,tse  )
-      equivalence (psp   ,qse)
-      equivalence (qbt   ,botchk)
-      equivalence (apebt ,tthbt)
-      equivalence (pp    ,tpsp)
-      equivalence (cqq   ,apesp ,tthes )
-      equivalence (tth   ,tq    ,tp )
-      equivalence (bqs00 ,p00   ,bthe00,t00)
-      equivalence (sqs00 ,p10   ,sthe00,t10  )
-      equivalence (bqs10 ,p01   ,bthe10,t01)
-      equivalence (sqs10 ,p11   ,sthe10,t11  )
-      equivalence (bq    ,bth )
-      equivalence (sq    ,sth  )
+!      equivalence (ittb  ,iptb  ,ql)
+!      equivalence (iqtb  ,ithtb ,tl   )
+!      equivalence (tdif  ,tne   )
+!      equivalence (thbt  ,qne    )
+!      equivalence (tbt   ,p     ,tse  )
+!      equivalence (psp   ,qse)
+!      equivalence (qbt   ,botchk)
+!      equivalence (apebt ,tthbt)
+!      equivalence (pp    ,tpsp)
+!      equivalence (cqq   ,apesp ,tthes )
+!      equivalence (tth   ,tq    ,tp )
+!      equivalence (bqs00 ,p00   ,bthe00,t00)
+!      equivalence (sqs00 ,p10   ,sthe00,t10  )
+!      equivalence (bqs10 ,p01   ,bthe10,t01)
+!      equivalence (sqs10 ,p11   ,sthe10,t11  )
+!      equivalence (bq    ,bth )
+!      equivalence (sq    ,sth  )
 
 
       data ofirst/.true./

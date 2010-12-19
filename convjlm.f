@@ -4,6 +4,7 @@
 !     N.B. nevapcc option has been removed
       use arrays_m   
       use cc_mpi, only : mydiag, myid
+      use cfrac_m
       use diag_m
       use indices_m
       use kuocomb_m
@@ -19,7 +20,7 @@
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
       implicit none
-      integer itn,iq,k,k13,k23,kcl_top
+      integer itn,iq,k,k13,k23
      .       ,khalf,khalfd,khalfp,kt
      .       ,ncubase,nfluxq,nfluxdsk,nlayers,nlayersd,nlayersp
      .       ,ntest,ntr,nums,nuv
@@ -56,17 +57,15 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
 !     parameter (methprec=8)   ! 1 (top only); 2 (top half); 4 top quarter (= kbconv)
 !     parameter (nuvconv=0)    ! usually 0, >0 or <0 to turn on momentum mixing
 !     parameter (nuv=0)        ! usually 0, >0 to turn on new momentum mixing (base layers too)
-      parameter (kcl_top=kl-2) ! max level for cloud top (convjlm,radrive,vertmix)
+      integer kcl_top          ! max level for cloud top (convjlm,radrive,vertmix)
 !     nevapls:  turn off/on ls evap - through parm.h; 0 off, 5 newer UK
 !     could reinstate nbase=0 & kbsav_b from .f0406
       include 'const_phys.h'
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
       include 'parm.h'
-      real cfrac
-      common/cfrac/cfrac(ifull,kl)
       integer ktmax(ifull),kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
       integer kmin(ifull)
-      real, save, dimension(ifull) :: alfqarr
+      real, allocatable, save, dimension(:) :: alfqarr
       real, dimension(ifull) :: conrev
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
       real delv(ifull,kl),dqsdt(ifull,kl),es(ifull,kl) 
@@ -75,22 +74,25 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       real phi(ifull,kl),qbase(ifull),qdown(ifull),qliqw(ifull,kl)
       real qq(ifull,kl),qs(ifull,kl),qxcess(ifull)
       real qbass(ifull,kl-1)
-      real revc(ifull,kl),rnrt(ifull),rnrtc(ifull),rnrtcn(ifull)
+      real rnrt(ifull),rnrtc(ifull),rnrtcn(ifull)
       real s(ifull,kl),sbase(ifull),tdown(ifull),tt(ifull,kl)
       real dsk(kl),h0(kl),q0(kl),t0(kl)  
       real qplume(ifull,kl),splume(ifull,kl)
-c     equivalence (delu,revc,delq),(delv,dels)
-      equivalence (revc,delq)
-!     data rhcv/.75/                  option not used from Sept 2010
       integer kdown(ifull)
       real entr(ifull),qentr(ifull),sentr(ifull),factr(ifull)
       real fluxqs,fluxt_k(kl)
       real cfraclim(ifull),convtim(ifull)    
-      real, save:: detrainin,timeconv(ifull)  
-      real, save, dimension(kl) :: factnb
+      real, save:: detrainin
+      real, allocatable, dimension(:), save:: timeconv
+      real, allocatable, dimension(:), save :: factnb
       integer, save:: klon2,klon3
       data nuv/0/
       include 'establ.h'
+
+      kcl_top=kl-2
+      if (.not.allocated(alfqarr)) allocate(alfqarr(ifull))
+      if (.not.allocated(timeconv)) allocate(timeconv(ifull))
+      if (.not.allocated(factnb)) allocate(factnb(kl))
 
       do k=1,kl
        dsk(k)=-dsig(k)    !   dsk = delta sigma (positive)
@@ -1570,8 +1572,8 @@ c     if(ktau<=3.and.nmaxpr==1.and.mydiag)then
         heatlev=0.
 !       following calc of integ. column heatlev really needs iterconv=1  
          do k=kl-2,1,-1
-          delt_av=delt_av-dsk(k)*revc(iq,k)*hlcp
-          heatlev=heatlev-sig(k)*dsk(k)*revc(iq,k)*hlcp
+          delt_av=delt_av-dsk(k)*delq(iq,k)*hlcp
+          heatlev=heatlev-sig(k)*dsk(k)*delq(iq,k)*hlcp
           write (6,"('k, rh, delt_av, heatlev',i5,f7.2,2f10.2)")
      .                k,100.*qq(iq,k)/qs(iq,k),delt_av,heatlev
          enddo

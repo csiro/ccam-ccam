@@ -32,8 +32,8 @@ c=======================================================================
       common/cdfind/ixp,iyp,idlev,idnt,idms
  
       integer nhor,nhorps,khor,khdif,nhorjlm
-      real hdiff,hdifmax
-      common/parmhdff/nhor,nhorps,hdiff(kl),khor,khdif,hdifmax,nhorjlm
+      real hdifmax
+      common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
 
       integer dim(4),dims(4)
       integer xdim,ydim,zdim,tdim,msdim
@@ -271,7 +271,9 @@ c=======================================================================
       use cable_ccam, only : savetile ! MJT cable
       use carbpools_m
       use cc_mpi
+      use cfrac_m
       use define_dimensions, only : ncs, ncp ! MJT cable
+      use dpsdt_m
       use extraout_m  ! u10_3hr,v10_3hr
       use histave_m
       use latlong_m
@@ -307,7 +309,6 @@ c     this routine creates attributes and writes output
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmvert.h'
-      include 'scamdim.h'
       include 'soilv.h'   ! sfc,zse
       include 'trcom2.h'
       include 'version.h'
@@ -321,21 +322,13 @@ c     this routine creates attributes and writes output
 
       integer ixp,iyp,idlev,idnt,idms
       common/cdfind/ixp,iyp,idlev,idnt,idms
-      real dpsdt,dpsdtb,dpsdtbb
-      common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull) !globpe,adjust5,outcdf
-!      real pmsl,aa,bb,cc,dum2                                 ! MJT cable
-!      common/work2/pmsl(ifull),aa(ifull),bb(ifull),cc(ifull), ! MJT cable
-!     &             dum2(ifull,14)                             ! MJT cable
       real aa(ifull),bb(ifull),cc(ifull)                       ! MJT cable
-      real tmpry
-      common/work3c/tmpry(ifull,kl)
+      real tmpry(ifull,kl)
 
       integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter,
      &     idv, ier, iq, isoil, j, k, igas, idnc
       real trmax, trmin
       character*3 mon(12),trnum
-      real cfrac
-      common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
       real zsoil(ms)
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
@@ -577,6 +570,9 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           lname = 'Solar net at ground (+ve down)'
           call attrib(idnc,idim,3,'sgn_ave',lname,'W/m2',-500.,2000.,0,
      &                itype)
+          lname = 'Fraction of direct radiation'
+          call attrib(idnc,idim,3,'fbeam_ave',lname,'none',-3.25,3.25,0,
+     &                itype)
           lname = 'Surface pressure tendency'
           call attrib(idnc,idim,3,'dpsdt',lname,'hPa/day',-400.,400.,0,
      &                itype)
@@ -729,19 +725,18 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         call attrib(idnc,idim,3,'iwp_ave',lname,'kg/m2',0.,2.,0,itype)
         lname = 'Avg liquid water path'
         call attrib(idnc,idim,3,'lwp_ave',lname,'kg/m2',0.,2.,0,itype)
-!        if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then ! MJT cable
-!          lname = 'Avg soil moisture 1'
-!          call attrib(idnc,idim,3,'wb1_ave',lname,'m3/m3',0.,1.,0)
-!          lname = 'Avg soil moisture 2'
-!          call attrib(idnc,idim,3,'wb2_ave',lname,'m3/m3',0.,1.,0)
-!          lname = 'Avg soil moisture 3'
-!          call attrib(idnc,idim,3,'wb3_ave',lname,'m3/m3',0.,1.,0)
-!          lname = 'Avg soil moisture 4'
-!          call attrib(idnc,idim,3,'wb4_ave',lname,'m3/m3',0.,1.,0)
-!          lname = 'Avg soil moisture 5'
-!          call attrib(idnc,idim,3,'wb5_ave',lname,'m3/m3',0.,1.,0)
-!          lname = 'Avg soil moisture 6'
-!          call attrib(idnc,idim,3,'wb6_ave',lname,'m3/m3',0.,1.,0)
+        lname = 'Avg soil moisture 1'
+        call attrib(idnc,idim,3,'wb1_ave',lname,'m3/m3',0.,1.,0,itype)
+        lname = 'Avg soil moisture 2'
+        call attrib(idnc,idim,3,'wb2_ave',lname,'m3/m3',0.,1.,0,itype)
+        lname = 'Avg soil moisture 3'
+        call attrib(idnc,idim,3,'wb3_ave',lname,'m3/m3',0.,1.,0,itype)
+        lname = 'Avg soil moisture 4'
+        call attrib(idnc,idim,3,'wb4_ave',lname,'m3/m3',0.,1.,0,itype)
+        lname = 'Avg soil moisture 5'
+        call attrib(idnc,idim,3,'wb5_ave',lname,'m3/m3',0.,1.,0,itype)
+        lname = 'Avg soil moisture 6'
+        call attrib(idnc,idim,3,'wb6_ave',lname,'m3/m3',0.,1.,0,itype)
 !          lname = 'Avg soil temperature 1'
 !          call attrib(idnc,idim,3,'tgg1_ave',lname,'K',100.,425.,0)
 !          lname = 'Avg soil temperature 2'
@@ -765,11 +760,13 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
 !          lname = 'Avg frp'
 !          call attrib(idnc,idim,3,'frp_ave',lname,'none',-1.E-3,
 !     &                                                    1.E-3,0)
-!          lname = 'Avg surface temperature'
-!          call attrib(idnc,idim,3,'tsu_ave',lname,'K',100.,425.,0)
-!          lname = 'Avg albedo'
-!          call attrib(idnc,idim,3,'alb_ave',lname,'none',0.,1.,0)
-!        end if
+        lname = 'Avg surface temperature'
+        call attrib(idnc,idim,3,'tsu_ave',lname,'K',100.,425.,0,itype)
+        lname = 'Avg albedo'
+        call attrib(idnc,idim,3,'alb_ave',lname,'none',0.,1.,0,itype)
+        lname = 'Avg mean sea level pressure'
+        call attrib(idnc,idim,3,'pmsl_ave',lname,'none',800.,1200.,0,
+     &              itype)
 	  
 !       rml 16/02/06 set attributes for trNNN and travNNN
         if (ngas>0) then 
@@ -988,9 +985,9 @@ c       Leave define mode
         print *,'leave define mode: ier=',ier
 
         if(local)then
-           ! Set these to global indices
+           ! Set these to global indices (currently broken for uniform_decomp)
            do i=1,ipan
-              xpnt(i) = float(i) + ioff
+              xpnt(i) = float(i) + ioff(0)
            end do
            call ncvpt(idnc,ixp,1,il,xpnt,ier)
            do j=1,jl
@@ -1330,14 +1327,13 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
          call histwrt3(clm_ave,'clm',idnc,iarch,local)
          call histwrt3(clh_ave,'clh',idnc,iarch,local)
          call histwrt3(cld_ave,'cld',idnc,iarch,local)
-         !if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then ! MJT cable
-         !  call histwrt3(theta_ave,'theta_ave',idnc,iarch,local)
-         !  call histwrt3(wb_ave(:,1),'wb1_ave',idnc,iarch,local)
-         !  call histwrt3(wb_ave(:,2),'wb2_ave',idnc,iarch,local)
-         !  call histwrt3(wb_ave(:,3),'wb3_ave',idnc,iarch,local)
-         !  call histwrt3(wb_ave(:,4),'wb4_ave',idnc,iarch,local)
-         !  call histwrt3(wb_ave(:,5),'wb5_ave',idnc,iarch,local)
-         !  call histwrt3(wb_ave(:,6),'wb6_ave',idnc,iarch,local)
+         !call histwrt3(theta_ave,'theta_ave',idnc,iarch,local)
+         call histwrt3(wb_ave(:,1),'wb1_ave',idnc,iarch,local)
+         call histwrt3(wb_ave(:,2),'wb2_ave',idnc,iarch,local)
+         call histwrt3(wb_ave(:,3),'wb3_ave',idnc,iarch,local)
+         call histwrt3(wb_ave(:,4),'wb4_ave',idnc,iarch,local)
+         call histwrt3(wb_ave(:,5),'wb5_ave',idnc,iarch,local)
+         call histwrt3(wb_ave(:,6),'wb6_ave',idnc,iarch,local)
          !  call histwrt3(tgg_ave(:,1),'tgg1_ave',idnc,iarch,local)
          !  call histwrt3(tgg_ave(:,2),'tgg2_ave',idnc,iarch,local)
          !  call histwrt3(tgg_ave(:,3),'tgg3_ave',idnc,iarch,local)
@@ -1347,8 +1343,9 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
          !  call histwrt3(fpn_ave,'fpn_ave',idnc,iarch,local)
          !  call histwrt3(frday_ave,'frday_ave',idnc,iarch,local)
          !  call histwrt3(frp_ave,'frp_ave',idnc,iarch,local)
-         !  call histwrt3(tsu_ave,'tsu_ave',idnc,iarch,local)
-         !  call histwrt3(alb_ave,'alb_ave',idnc,iarch,local)
+         call histwrt3(tsu_ave,'tsu_ave',idnc,iarch,local)
+         call histwrt3(alb_ave,'alb_ave',idnc,iarch,local)
+         call histwrt3(psl_ave,'pmsl_ave',idnc,iarch,local)
          !end if
        endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
        call histwrt3(tscrn,'tscrn',idnc,iarch,local)
@@ -1376,6 +1373,7 @@ c      "extra" outputs
            call histwrt3(soc_ave,'soc_ave',idnc,iarch,local)
            call histwrt3(sgdn_ave,'sgdn_ave',idnc,iarch,local)
            call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local)
+           call histwrt3(fbeam_ave,'fbeam_ave',idnc,iarch,local)
          endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
          call histwrt3(dpsdt,'dpsdt',idnc,iarch,local)
          !call histwrt3(pblh,'pblh',idnc,iarch,local) ! MJT tke
@@ -1872,8 +1870,8 @@ ce=======================================================================
       character rundate*10
  
       integer nhor,nhorps,khor,khdif,nhorjlm
-      real hdiff,hdifmax
-      common/parmhdff/nhor,nhorps,hdiff(kl),khor,khdif,hdifmax,nhorjlm
+      real hdifmax
+      common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
       integer, parameter :: nihead=54
       integer nahead(nihead)
 
@@ -2124,7 +2122,6 @@ c     this routine creates attributes and writes output
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmvert.h'
-      include 'scamdim.h'
       include 'soilv.h'   ! sfc,zse
       include 'trcom2.h'
       include 'version.h'
@@ -2138,11 +2135,6 @@ c     this routine creates attributes and writes output
 
       integer ixp,iyp,idlev,idnt,idms
       common/cdfind/ixp,iyp,idlev,idnt,idms
-      real pmsl,aa,bb,cc,dum2
-      common/work2/pmsl(ifull),aa(ifull),bb(ifull),cc(ifull),
-     &             dum2(ifull,14)
-      real tmpry
-      common/work3c/tmpry(ifull,kl)
 
       integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter,
      &     idv, ier, j, idnc
@@ -2251,9 +2243,9 @@ c       Leave define mode
         print *,'leave define mode: ier=',ier
 
         if(local)then
-           ! Set these to global indices
+           ! Set these to global indices (currently broken for uniform_decomp)
            do i=1,ipan
-              xpnt(i) = float(i) + ioff
+              xpnt(i) = float(i) + ioff(0)
            end do
            call ncvpt(idnc,ixp,1,il,xpnt,ier)
            do j=1,jl

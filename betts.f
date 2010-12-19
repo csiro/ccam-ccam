@@ -11,7 +11,7 @@ c     ******************************************************************
       use sigs_m
       include 'newmpar.h'
       include 'parm.h'
-      common/work3/tnew(ifull,kl),dum3(ifull,kl,4)
+      real tnew(ifull,kl)
 
       dimension tin(ifull,kl), qg(ifull,kl), tn(ifull,kl)
       dimension land(ifull), ps(ifull)

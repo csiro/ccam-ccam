@@ -8,6 +8,7 @@ c     subroutine setxyz(ik,rlat0,rlong0,schmidt,xx4,yy4,myid)
       use latlong_m
       use map_m
       use utilities
+      use workglob_m
       implicit none
 c     integer, parameter :: ntang=2  ! always done
                             ! ntang=0 for tang. vectors from Rancic et al.
@@ -38,8 +39,6 @@ c     real*8 xx4(1+4*abs(ik),1+4*abs(ik)),yy4(1+4*abs(ik),1+4*abs(ik))
       integer :: ik  ! passed as argument. Actual i dimension.
 !                  if negative, suppress calc of rlat4, rlong4, indices,em_g                             
 !     These can no longer be shared because they use true global ifull_g.
-      real rlong4(ifull_g,4),rlat4(ifull_g,4)  ! really ifull_g
-      common /workglob/ rlong4, rlat4 ! Shared with onthefly.f
 c      real em4(1+4*abs(ik),1+4*abs(ik))
 c     .    ,ax4(1+4*abs(ik),1+4*abs(ik)),ay4(1+4*abs(ik),1+4*abs(ik))
 c     &    ,az4(1+4*abs(ik),1+4*abs(ik))

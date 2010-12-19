@@ -3,9 +3,11 @@
       use arrays_m
       use cc_mpi
       use diag_m
+      use dpsdt_m
       use indices_m
       use map_m
       use nlin_m
+      use parmhdff_m
       use sigs_m
       use tkeeps, only : tke,eps,shear,ww,dwdx,dwdy ! MJT tke
       use vecsuv_m
@@ -29,12 +31,9 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       include 'parm.h'
  
       integer nhor,nhorps,khor,khdif,nhorjlm
-      real hdiff,hdifmax
-      common/parmhdff/nhor,nhorps,hdiff(kl),khor,khdif,hdifmax,nhorjlm
-      
-      real dpsdt,dpsdtb,dpsdtbb                              ! MJT tke
-      common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull) ! MJT tke
-      
+      real hdifmax
+      common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
+     
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
@@ -288,10 +287,10 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
          eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)                  ! MJT tke
          eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)                ! MJT tke
          eps=max(eps,1.E-10)                                      ! MJT tke
-         hdif=dt*0.09/ds                                          ! MJT tke
+         hdif=dt*0.09/(ds*ds)                                     ! MJT tke
          do k=1,kl                                                ! MJT tke
            t_kh(1:ifull,k)= max(tke(1:ifull,k)*tke(1:ifull,k)
-     &     /eps(1:ifull,k),1.E-7)*hdif/em(1:ifull)                ! MJT tke
+     &     /eps(1:ifull,k),1.E-7)*hdif                            ! MJT tke
          end do                                                   ! MJT tke
         case DEFAULT                                          ! MJT smag
          write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm  ! MJT smag
@@ -317,10 +316,12 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
 !      !--------------------------------------------------------------
 !      ! MJT tke
 !      ! calculate shear
-       ! vertical component included in tkeeps.f90
+       ! vertical component included in tkeeps.f90 and additional terms
+       ! for changing orography are neglected for now and we instead use
+       ! JLM's enhanced mountain diffusion
        if (nvmix==6) then
         do k=1,kl
-         shear(:,k)=t_kh(1:ifull,k)*ds*em(1:ifull)/dt*(
+         shear(:,k)=t_kh(1:ifull,k)*ds*ds/dt*(
      &     (2.*dudx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf))**2
      &    +(2.*dvdy(:,k)/(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf))**2
      &    +(dudy(:,k)/(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf)
@@ -328,8 +329,7 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
 
          ! omega=ps*dpsldt
          ww(1:ifull,k)=(dpsldt(:,k)/sig(k)-dpsdt/(860.*ps(1:ifull)))
-     &           *(-rdry/grav)*t(1:ifull,k)
-     &           *(1.+0.61*qg(1:ifull,k))
+     &           *(-rdry/grav)*t(1:ifull,k)*(1.+0.61*qg(1:ifull,k))
 
          dwdx(:,k)=(ww(ie,k)-ww(iw,k))*0.5*em(1:ifull)/ds
          dwdx(:,k)=dwdx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf)
@@ -421,9 +421,39 @@ c        do t diffusion based on potential temperature ff
      &                       yfact(isv(iq),k)*ee(is(iq),k) ) /
      &                     ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
      &                       yfact(iq,k)+yfact(isv(iq),k))
-             enddo              !  iq loop
+             end do              !  iq loop
           end do
        endif                    ! (nhorps.ge.-1)
+       
+       ! MJT - apply horizontal diffusion to TKE and EPS terms
+       if (nvmix.eq.6) then
+         ee(1:ifull,:)=tke(1:ifull,:)
+         do k=1,kl
+           do iq=1,ifull
+             emi=1./em(iq)**2
+             tke(iq,k) = ( ee(iq,k)*emi +
+     &                     xfact(iq,k)*ee(ie(iq),k) +
+     &                     xfact(iwu(iq),k)*ee(iw(iq),k) +
+     &                     yfact(iq,k)*ee(in(iq),k) +
+     &                     yfact(isv(iq),k)*ee(is(iq),k) ) /
+     &                   ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
+     &                     yfact(iq,k)+yfact(isv(iq),k))
+           enddo           !  iq loop
+         end do
+         ee(1:ifull,:)=eps(1:ifull,:)
+         do k=1,kl
+           do iq=1,ifull
+             emi=1./em(iq)**2
+             eps(iq,k) = ( ee(iq,k)*emi +
+     &                     xfact(iq,k)*ee(ie(iq),k) +
+     &                     xfact(iwu(iq),k)*ee(iw(iq),k) +
+     &                     yfact(iq,k)*ee(in(iq),k) +
+     &                     yfact(isv(iq),k)*ee(is(iq),k) ) /
+     &                   ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
+     &                     yfact(iq,k)+yfact(isv(iq),k))
+           end do           !  iq loop
+         end do
+       end if
 
       return
       end

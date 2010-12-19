@@ -37,12 +37,13 @@ contains
 ! CCAM interface
 !
 
-subroutine seaesfrad(odcalc,iaero)
+subroutine seaesfrad(imax,odcalc,iaero)
 
 use arrays_m
 use ateb
-use cc_mpi
 use cable_ccam, only : CABLE
+use cc_mpi
+use cfrac_m
 use extraout_m
 use latlong_m
 use liqwpar_m
@@ -56,27 +57,27 @@ use radisw_m, only : rrco2,ssolar,rrvco2,rrvch4,rrvn2o,rrvf11,rrvf12,rrvf113,rrv
 use sigs_m
 use soil_m
 use soilsnow_m
+use work3f_m
 use zenith_m
 
 implicit none
 
 include 'parm.h'
 include 'newmpar.h'
-integer, parameter :: imax=il*nrows_rad
 include 'cparams.h'
 include 'dates.h'
 include 'kuocom.h'
 
 logical, intent(in) :: odcalc  ! True for full radiation calculation
-integer, intent(in) :: iaero
+integer, intent(in) :: imax,iaero
 integer, dimension(12) :: ndoy   ! days from beginning of year (1st Jan is 0)
 integer jyear,jmonth,jday,jhour,jmin
 integer k,ksigtop,mstart,mins
 integer i,j,iq,istart,iend,kr
 integer swcount
 integer, save :: nlow,nmid
-real, dimension(ifull), save :: sgamp
-real, dimension(ifull,kl), save :: rtt
+real, dimension(:), allocatable, save :: sgamp
+real, dimension(:,:), allocatable, save :: rtt
 real, dimension(imax) :: qsat,coszro2,taudar2,coszro,taudar
 real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn
 real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr,sga
@@ -86,8 +87,6 @@ real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
 real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt
 real, dimension(kl+1) :: sigh
 real(kind=8), dimension(kl+1,2) :: pref
-real dduo3n,ddo3n2,ddo3n3,ddo3n4
-real qccon,qlrad,qfrad,cfrac
 real r1,dlt,alp,slag
 real dhr,fjd,bpyear
 real ttbg,ar1,exp_ar1,ar2,exp_ar2,ar3,snr
@@ -114,11 +113,13 @@ type(aerosol_diagnostics_type), save ::     Aerosol_diags
 type(lw_table_type), save ::                Lw_tables
 real(kind=8), dimension(:,:,:,:), allocatable :: r
 
-common/cfrac/cfrac(ifull,kl) ! from globpe.f
-common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! ditto
-common /o3dat/ dduo3n(37,kl),ddo3n2(37,kl),ddo3n3(37,kl),ddo3n4(37,kl) ! from o3_read.f
-
 data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
+
+call start_log(radmisc_begin)
+
+if (.not.allocated(sgamp)) then
+  allocate(sgamp(ifull),rtt(ifull,kl))
+end if
 
 ! Aerosol flag
 do_aerosol_forcing=abs(iaero).gt.1
@@ -174,7 +175,6 @@ if ( first ) then
     call o3read_amip
   else
     call o3_read(sig,jyear,jmonth)
-    call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
   end if
   
   Cldrad_control%do_strat_clouds_iz      =.true.
@@ -386,7 +386,7 @@ do j=1,jl,imax/il
         cuvrf_dif(1:imax) = cuvrf_dir(1:imax)      ! assume DIR and DIF are the same
         cirrf_dif(1:imax) = cirrf_dir(1:imax)      ! assume DIR and DIF are the same
       end where
-      ! The following snow calculation show be done by sib3 (sflux.f)
+      ! The following snow calculation should be done by sib3 (sflux.f)
       do i=1,imax
         iq=i+(j-1)*il
         if (land(iq)) then
@@ -655,6 +655,7 @@ do j=1,jl,imax/il
     Astro%fracday(:,1)=taudar
     swcount=swcount+count(coszro.gt.0.)
 
+    call end_log(radmisc_end)
     call start_log(radlw_begin)
     call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input,  &
                           Rad_gases, Aerosol, Aerosol_props,     &
@@ -667,7 +668,8 @@ do j=1,jl,imax/il
                            Astro, Aerosol, Aerosol_props, Rad_gases, &
                            Cldrad_props, Cld_spec, Sw_output,        &
                            Aerosol_diags, r)
-    call end_log(radsw_end)			   
+    call end_log(radsw_end)
+    call start_log(radmisc_begin)
 
     ! store shortwave and fbeam data --------------------------------
     sg=Sw_output(1)%dfsw(:,1,kl+1)-Sw_output(1)%ufsw(:,1,kl+1)
@@ -803,6 +805,8 @@ end if
 ! Calculate net radiational cooling of atmosphere (K/s)
 t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:)
 
+call end_log(radmisc_end)
+
 return
 end subroutine seaesfrad
 
@@ -869,19 +873,6 @@ type(lw_diagnostics_type)  :: Lw_diagnostics
 !                     module
 !  
 !---------------------------------------------------------------------
-
-!--------------------------------------------------------------------
-!   local variables
-
-      integer  :: ix, jx, kx  ! dimensions of current physics window
-
-!--------------------------------------------------------------------
-!    call longwave_driver_alloc to allocate component arrays of a
-!    lw_output_type variable.
-!----------------------------------------------------------------------
-      ix = ie - is + 1
-      jx = je - js + 1
-      kx = size (Atmos_input%press,3) - 1
  
 !----------------------------------------------------------------------
 !    standard call, where radiation output feeds back into the model.
@@ -981,8 +972,6 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
       logical  :: calc_includes_aerosols
       integer  :: naerosol_optical
       integer  :: i, j       
-      integer  :: ix, jx, kx
-      integer  :: ier
 
 !---------------------------------------------------------------------
 !   local variables:
@@ -991,18 +980,9 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
 !                   shining any where in current physics window ?
 !      with_clouds  are clouds to be considered in determining
 !                   the sw fluxes and heating rates ?
-!      ix,jx,kx     dimensions of current physics window
 !      i,j          do-loop indices
 !
 !---------------------------------------------------------------------
-
-!----------------------------------------------------------------------
-!    call shortwave_driver_alloc to initialize shortwave fluxes and 
-!    heating rates.
-!--------------------------------------------------------------------
-      ix = ie - is + 1
-      jx = je - js + 1
-      kx = size (Atmos_input%press,3) - 1
 
 !--------------------------------------------------------------------
 !    allocate and initialize fields to contain net(up-down) sw flux 
@@ -1040,19 +1020,9 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
 !--------------------------------------------------------------------
 !    determine when the no-sun case exists at all points within the 
 !    physics window and bypass the sw radiation calculations for that 
-!    window. for do_annual_mean or do_daily_mean, only one cosz in a
-!    model row need be tested, since all points in i have the same 
-!    zenith angle.
+!    window.
 !--------------------------------------------------------------------
-      skipswrad = .true.
-      do j=1,jx        
-        do i = 1,ix         
-          if (Astro%cosz(i,j) > 0.0 )  then
-            skipswrad = .false.
-            exit
-          endif
-        end do
-      end do
+      skipswrad = .not.any(Astro%cosz > 0.0)
 
 !--------------------------------------------------------------------
 !    if the sun is shining nowhere in the physics window allocate
@@ -1076,9 +1046,9 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
             naerosol_optical = 0  
           endif 
           call swresf (is, ie, js, je, Atmos_input, Surface, Rad_gases,&
-                       Aerosol, Aerosol_props, Astro, Cldrad_props,  &
-                       Cld_spec, calculate_volcanic_sw_heating, &
-                       Sw_output(1), Aerosol_diags, r,  &
+                       Aerosol, Aerosol_props, Astro, Cldrad_props,      &
+                       Cld_spec, calculate_volcanic_sw_heating,          &
+                       Sw_output(1), Aerosol_diags, r,                   &
                        do_aerosol_forcing, naerosol_optical)
       endif
 !--------------------------------------------------------------------

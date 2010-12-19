@@ -21,18 +21,11 @@
       include 'parm.h'     ! qgmin
       include 'parmgeom.h' ! rlong0,rlat0,schmidt
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
-      real, dimension(ifull,kl), save :: ta,ua,va,qa
-      real, dimension(ifull,kl), save :: tb,ub,vb,qb
-      real, dimension(ifull), save :: psla,pslb,tssa,tssb
-      real, dimension(ifull), save :: sicedepb,fraciceb
-!      common/nest/ta(ifull,kl),ua(ifull,kl),va(ifull,kl),psla(ifull),
-!     .            tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),pslb(ifull),
-!     .            qa(ifull,kl),qb(ifull,kl),tssa(ifull),tssb(ifull),
-!     .            sicedepb(ifull),fraciceb(ifull)
+      real, dimension(:,:), allocatable, save :: ta,ua,va,qa
+      real, dimension(:,:), allocatable, save :: tb,ub,vb,qb
+      real, dimension(:), allocatable, save :: psla,pslb,tssa,tssb
+      real, dimension(:), allocatable, save :: sicedepb,fraciceb
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
-      !real sigin                                             ! MJT vertint
-      !integer ik,jk,kk                                       ! MJT vertint
-      !common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT vertint
       real, dimension(ifull) :: zsb,duma
       integer, dimension(ifull) :: dumm
       real, dimension(ifull,ms) :: dumg
@@ -42,6 +35,14 @@
       integer num,mtimea,mtimeb
       data num/0/,mtimea/0/,mtimeb/-1/
       save num,mtimea,mtimeb
+      
+      if (.not.allocated(ta)) then
+        allocate(ta(ifull,kl),ua(ifull,kl),va(ifull,kl),qa(ifull,kl))
+        allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
+        allocate(psla(ifull),pslb(ifull),tssa(ifull),tssb(ifull))
+        allocate(sicedepb(ifull),fraciceb(ifull))
+      end if
+      
 !     mtimer, mtimeb are in minutes
       if(ktau<100.and.myid==0)then
         write(6,*) 'in nestin ktau,mtimer,mtimea,mtimeb ',
@@ -286,7 +287,7 @@
         where (fraciceb.gt.0.)
           duma=271.2
         end where
-        call mlonudge(duma,12)
+        call mlonudge(duma)
        end if
       endif
       
@@ -315,22 +316,14 @@
       include 'parm.h'     ! qgmin
       include 'parmgeom.h' ! rlong0,rlat0,schmidt  
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
-!      common/nest/ta(ifull,kl),ua(ifull,kl),va(ifull,kl),psla(ifull),
-!     .            tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),pslb(ifull),
-!     .            qa(ifull,kl),qb(ifull,kl),tssa(ifull),tssb(ifull),
-!     .            sicedepb(ifull),fraciceb(ifull)
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
-      !real sigin                                             ! MJT vertint
-      !integer ik,jk,kk                                       ! MJT vertint
-      !common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT vertint
       integer mtimeb,kdate_r,ktime_r
       integer ::  iabsdate,iq,k,kdhour,kdmin
       real :: ds_r,rlong0x,rlat0x
       real :: schmidtx,timeg_b
-      !real :: psla,pslb,qa,qb,ta,tb,tssa,tssb,ua,ub,va,vb
-      !real :: fraciceb,sicedepb
-      real, dimension(ifull,kl), save :: tb,ub,vb,qb
-      real, dimension(ifull), save :: pslb,tssb,fraciceb,sicedepb
+      real, dimension(:,:), allocatable, save :: tb,ub,vb,qb
+      real, dimension(:), allocatable, save :: pslb,tssb,fraciceb
+      real, dimension(:), allocatable, save :: sicedepb
       real, dimension(ifull) :: zsb,duma
       integer, dimension(ifull) :: dumm
       real, dimension(ifull,ms) :: dumg
@@ -340,6 +333,12 @@
       real, dimension(ifull,kl) :: uc,vc,tc,qc      
       data mtimeb/-1/
       save mtimeb
+      
+      if (.not.allocated(tb)) then
+        allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
+        allocate(pslb(ifull),tssb(ifull),fraciceb(ifull))
+        allocate(sicedepb(ifull))
+      end if
 
 !     mtimer, mtimeb are in minutes
       if(ktau<100.and.myid==0)then
@@ -544,14 +543,14 @@
             where (fraciceb.gt.0.)
               duma=271.2
             end where
-            call mlofilterfast(duma,12) ! surface sal saved in mlo
+            call mlofilterfast(duma) ! surface sal saved in mlo
           else
             ! replace nud_sst with mbd once horz transport is implemented
             duma=tssb
             where (fraciceb.gt.0.)
               duma=271.2
             end where            
-            call mlofilter(duma,12)  ! surface sal saved in mlo
+            call mlofilter(duma)  ! surface sal saved in mlo
           end if
          end if ! (nmlo.eq.0)
         end if ! (namip.eq.0.and.ntest.eq.0)
@@ -567,6 +566,7 @@
       use arrays_m
       use cc_mpi
       use savuvt_m
+      use savuv1_m
       use vecsuv_m
       use xyzinfo_m, only : x,y,z,wts
       
@@ -585,8 +585,6 @@
       real, dimension(ifull_g,kl) :: ud,vd,wd,td,qd
       real, dimension(ifull_g,kl) :: x_g,xx_g
       real den,polenx,poleny,polenz,zonx,zony,zonz
-      real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)
-      common/savuv1/savs1,savu1,savv1
 
       if(nud_uv==3)then
         polenx=-cos(rlat0*pi/180.)
@@ -1429,7 +1427,7 @@
       integer :: k,ppass,iy,ppn,ppx,nne,nns,iproc,itag=0,ierr
       integer :: n,a,b,c
       integer, dimension(MPI_STATUS_SIZE) :: status
-      integer, parameter :: til=il_g*il_g
+      integer :: til
       real, intent(in) :: cin
       real, dimension(ifull_g), intent(inout) :: psls
       real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: uu,vv  ! MJT nestin
@@ -1440,7 +1438,8 @@
       real, dimension(ifull_g,kbotdav:ktopdav) :: zu,zv,zw,zt,zq ! MJT nestin
       real, dimension(ifull_g*(ktopdav-kbotdav+1)) :: dd         ! MJT nestin
       real :: cq
-
+      
+      til=il_g*il_g
       cq=sqrt(4.5)*cin ! filter length scale
 
       if (myid == 0) then
@@ -1742,8 +1741,7 @@
       integer :: a,b,c,d
       integer, dimension(MPI_STATUS_SIZE) :: status
       integer, dimension(4*il_g,il_g,0:3) :: igrd
-      integer, parameter, dimension(0:3) ::
-     &  maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
+      integer, dimension(0:3) :: maps
       integer, parameter, dimension(2:3) :: kn=(/0,3/)
       integer, parameter, dimension(2:3) :: kx=(/2,3/)
       real, intent(in) :: cq
@@ -1755,6 +1753,8 @@
       real, dimension(4*il_g,kbotdav:ktopdav) :: au,av,aw,at,aq ! MJT nestin
       real, dimension(4*il_g) :: pp,ap,psum,asum,ra,xa,ya,za
       real, dimension(ifull_g*(ktopdav-kbotdav+1)) :: dd ! MJT nestin
+      
+      maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
       
       do ipass=0,3
         me=maps(ipass)
@@ -2344,7 +2344,7 @@
       !---------------------------------------------------------------------------------
 
       ! 2D Filter for MLO 
-      subroutine mlofilter(new,ilev) ! MJT mlo
+      subroutine mlofilter(new) ! MJT mlo
 
       use cc_mpi
       use map_m
@@ -2362,7 +2362,6 @@
 
       integer :: iqw,itag=0,status,ierr
       integer :: iproc,ns,ne,k
-      integer, intent(in) :: ilev
       real, dimension(ifull), intent(in) :: new
       real, dimension(ifull) :: diff,old,olds
       real, dimension(ifull_g) :: diff_g,diffs_g,r,rr,dd,dds,mm,mms
@@ -2464,7 +2463,7 @@
      &                 MPI_COMM_WORLD,ierr)
           call ccmpi_distribute(diff)
         end if
-        do k=1,ilev
+        do k=1,kbotmlo
           old=new
           call mloexport(0,old,k,0)
           old=old+alpha*diff(:)
@@ -2486,7 +2485,7 @@
      &                 MPI_COMM_WORLD,ierr)
           call ccmpi_distribute(diff)
         end if
-        do k=1,ilev
+        do k=1,kbotmlo
           olds=sssb
           call mloexport(1,olds,k,0)
           olds=olds+alpha*diff(:)
@@ -2502,7 +2501,7 @@
       end subroutine mlofilter
 
       ! 1D filer for mlo
-      subroutine mlofilterfast(new,ilev) ! MJT mlo
+      subroutine mlofilterfast(new) ! MJT mlo
 
       use cc_mpi
       use map_m
@@ -2520,7 +2519,6 @@
 
       integer :: pn,px,hproc,mproc,ns,ne,npta      
       integer :: ierr,k
-      integer, intent(in) :: ilev
       real, dimension(ifull), intent(in) :: new
       real, dimension(ifull) :: diff,old,olds
       real, dimension(ifull_g) :: diff_g,diffs_g
@@ -2605,7 +2603,7 @@
         else
           call ccmpi_distribute(diff)
         end if
-        do k=1,ilev
+        do k=1,kbotmlo
           old=new
           call mloexport(0,old,k,0)
           old=old+alpha*diff(:)
@@ -2619,11 +2617,11 @@
         else
           call ccmpi_distribute(diff)
         end if
-        do k=1,ilev
+        do k=1,kbotmlo
           olds=sssb
           call mloexport(1,olds,k,0)
           olds=olds+alpha*diff(:)
-          call mloimport(1,olds,ilev,0)
+          call mloimport(1,olds,k,0)
         end do
       end if
 
@@ -2650,11 +2648,13 @@
       integer :: ppass,iy,ppn,ppx,nne,nns,iproc,itag=0,ierr
       integer :: n,a,c
       integer, dimension(MPI_STATUS_SIZE) :: status
-      integer, parameter :: til=il_g*il_g
+      integer :: til
       real, intent(in) :: cq,cqs,miss
       real, dimension(ifull_g), intent(inout) :: diff_g,diffs_g
       real, dimension(ifull_g) :: qp,qps,qsum,qsums,zp,zps
-      real, dimension(ifull_g) :: dd 
+      real, dimension(ifull_g) :: dd
+      
+      til=il_g*il_g 
 
       if (cq.gt.0.) then
         call MPI_Bcast(diff_g,ifull_g,MPI_REAL,0,
@@ -2792,8 +2792,7 @@
       integer :: a,c,d
       integer, dimension(MPI_STATUS_SIZE) :: status
       integer, dimension(4*il_g,il_g,0:3) :: igrd
-      integer, parameter, dimension(0:3) ::
-     &  maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
+      integer, dimension(0:3) :: maps
       integer, parameter, dimension(2:3) :: kn=(/0,3/)
       integer, parameter, dimension(2:3) :: kx=(/2,3/)
       real, intent(in) :: cq,cqs
@@ -2802,6 +2801,8 @@
       real, dimension(4*il_g) :: pp,ap,psum,asum,ra,xa,ya,za
       real, dimension(4*il_g) :: pps,aps,psums,asums,rr
       real, dimension(ifull_g) :: dd
+      
+      maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
       
       do ipass=0,3
         me=maps(ipass)
@@ -3039,7 +3040,7 @@
       end subroutine mlospeclocal
       
       ! Relaxtion method for mlo
-      subroutine mlonudge(new,ilev) ! MJT mlo
+      subroutine mlonudge(new) ! MJT mlo
 
       use mlo, only : mloimport,mloexport,sssb
       use soil_m  ! land
@@ -3049,7 +3050,6 @@
       include 'parm.h'       ! nud_hrs,dt
       include 'newmpar.h'    ! ifull
 
-      integer, intent(in) :: ilev
       integer k
       real, dimension(ifull), intent(in) :: new
       real, dimension(ifull) :: old
@@ -3059,7 +3059,7 @@
 
       wgt=dt/real(nud_hrs*3600)
       if (nud_sst.ne.0) then
-        do k=1,ilev
+        do k=1,kbotmlo
           old=new
           call mloexport(0,old,k,0)
           old=old*(1.-wgt)+new*wgt
@@ -3068,7 +3068,7 @@
       end if
       
       if (nud_sss.ne.0) then
-        do k=1,ilev
+        do k=1,kbotmlo
           old=sssb
           call mloexport(1,old,k,0)
           old=old*(1.-wgt)+sssb*wgt

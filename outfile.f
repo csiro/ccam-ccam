@@ -1,44 +1,37 @@
       subroutine outfile(iout,rundate,nmi,nwrite)
       use arrays_m
       use cc_mpi
-      use extraout_m
-      use histave_m
-      use map_m
-      use morepbl_m  ! fg,eg,runoff
-      use nlin_m
-      use nsibd_m
       use pbl_m
-      use prec_m
-      use screen_m
-      use sigs_m
-      use soil_m     ! land,sice,sicedep,alb
       use soilsnow_m ! tgg,wb,snowd
       use tracers_m
-      use vvel_m
+      implicit none
       include 'newmpar.h'
-      parameter (mev1=il+1-il/2*2,mev2=3-mev1)  ! from helmsol
+      integer mev1,mev2,nwrite0
+      integer nspare,io_outt
+      integer iradonx,ico2x,ms_out
+      integer iout,nmi,nwrite
+      real ndt
 c     mev1 = 1 for il even (2 for il odd)
 c     mev2 = 2 for il even (1 for il odd)
       parameter (nwrite0=1) ! 0 original, 1 writes initial nveg,nsoil etc
       include 'dates.h'    ! mtimer
       include 'filnames.h' ! list of files, read in once only
-      include 'kuocom.h'
       include 'parm.h'
-      include 'parmdyn.h'  
-      include 'parmvert.h'
-      include 'scamdim.h' ! npmax
-      include 'soilv.h'  ! swilt,sfc
-!      common/work2/pmsl(ifull),tssout(ifull),seaice(ifull) ! MJT cable
-!     .      ,aa(ifull),bb(ifull),cc(ifull),dum2(ifull,12)  ! MJT cable
       character rundate*8,qgout*20
       character co2out*80,radonout*80,surfout*80
       integer nface6(4,3)   ! Faces to use in each phase    (c-cub)
       integer ioff6(4,3)    ! Starting offset for each face (c-cub)
       data nface6 / 0, 1, 3, 4,   0, 2, 3, 5,   1, 2, 4, 5 /
-      data ioff6 / 1,mev1,mev2,2,  2,1,mev1,mev2,  mev2,2,1,mev1 / ! jlm general
       data nspare/0/
 
       call start_log(outfile_begin)
+      
+      mev1=il+1-il/2*2
+      mev2=3-mev1
+      ioff6(:,1)=(/ 1,mev1,mev2,2 /)
+      ioff6(:,2)=(/ 2,1,mev1,mev2 /)
+      ioff6(:,3)=(/ mev2,2,1,mev1 /)
+      
       ndt=dt
       io_outt=io_out
       if(iout.eq.19)io_outt=io_rest  !  choice for writing restart file

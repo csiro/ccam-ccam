@@ -649,14 +649,6 @@ if (wfull.eq.0) return
 
 a_sg=pack(sg,wpack)
 a_rg=pack(rg,wpack)
-where (a_temp.ge.273.16)
-  a_rnd=pack(precp,wpack)
-  a_snd=0.
-elsewhere
-  a_rnd=0.
-  a_snd=pack(precp,wpack)
-end where
-
 !a_f=pack(f,wpack)
 a_f=0. ! turn off coriolis terms when no geostrophic term
 a_vnratio=pack(visnirratio,wpack)
@@ -669,6 +661,13 @@ a_qg=pack(qg,wpack)
 a_ps=pack(ps,wpack)
 a_zmin=pack(zmin,wpack)
 a_zmins=pack(zmins,wpack)
+where (a_temp.ge.273.16)
+  a_rnd=pack(precp,wpack)
+  a_snd=0.
+elsewhere
+  a_rnd=0.
+  a_snd=pack(precp,wpack)
+end where
 
 call fluxcalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,d_taux,d_tauy,diag)                          ! ocean fluxes
 call getrho(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,d_rho,d_nsq,d_rad,d_alpha,d_beta,            &
@@ -1852,7 +1851,7 @@ ip_dsn=min(min(xxx,ip_dsn),0.2)
 ip_dic=ip_dic+rhowt/rhoic*excess
 
 ! Ice depth limitation for poor initial conditions
-ip_dic=min(5.,ip_dic)
+ip_dic=min(2.,ip_dic)
 
 return
 end subroutine seaicecalc

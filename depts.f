@@ -3,7 +3,9 @@
       use cc_mpi
       use indices_m
       use map_m
+      use uvbar_m
       use vecsuv_m
+      use work3f_m
       use xyzinfo_m
       implicit none
 c     modify toij5 for Cray
@@ -11,11 +13,6 @@ c     modify toij5 for Cray
       include 'newmpar.h'
       include 'const_phys.h'   ! rearth
       include 'parm.h'
-      real ubar, vbar
-      common/uvbar/ubar(ifull,kl),vbar(ifull,kl)
-      integer nface
-      real xg, yg
-      common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
 !     Work common for these?
 !     temp needs iextra becaue it's used in ints
       real uc(ifull,kl),vc(ifull,kl),wc(ifull,kl), temp(ifull+iextra,kl)
@@ -125,18 +122,15 @@ c     modify toij5 for Cray
       use cc_mpi
       use indices_m
       use map_m
+      use uvbar_m
       use vecsuv_m
+      use work3f_m
       use xyzinfo_m
       implicit none
       integer, parameter :: ntest=0
       include 'newmpar.h'
       include 'const_phys.h'   ! rearth
       include 'parm.h'
-      real ubar, vbar
-      common/uvbar/ubar(ifull,kl),vbar(ifull,kl)
-      integer nface
-      real xg, yg
-      common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
       ! Is there an appropriate work common for this?
       real, dimension(ifull,kl) :: gx, gy, gz
       real, dimension(ifull+iextra,kl) :: derx, dery, derz
@@ -258,6 +252,7 @@ c     convert to grid point numbering
       subroutine toij5(k,x3d,y3d,z3d)
       use bigxy4_m ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
       use cc_mpi
+      use work3f_m
       use xyzinfo_m
 c     modify toij5 for Cray
       parameter (ncray=1)    ! 0 for most computers, 1 for Cray
@@ -265,9 +260,8 @@ c     modify toij5 for Cray
       include 'newmpar.h'
       include 'parm.h'
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
-      common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
       real*8 x3d(ifull),y3d(ifull),z3d(ifull)
-      common/work2b/xstr(ifull),ystr(ifull),zstr(ifull)
+      real xstr(ifull),ystr(ifull),zstr(ifull)
       real*8 alf,alfonsch,den,one  ! 6/11/07 esp for 200m
       data one/1./             ! to force real*8
       dimension xgx(0:5),xgy(0:5),xgz(0:5),ygx(0:5),ygy(0:5),ygz(0:5)

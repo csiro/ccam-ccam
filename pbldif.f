@@ -2,6 +2,7 @@
 !     vectorized version      
       use arrays_m   !t
       use cc_mpi, only : mydiag, myid
+      use cfrac_m
       use diag_m
       use extraout_m !ustar
       use map_m
@@ -14,7 +15,6 @@
       parameter (nrkmin=1)  ! 1 original (& from 0510); 2 new; 3 newer
       parameter (npblmin=4) ! 1 original (best for Oz); 2 new ; 3,4 newer
       include 'newmpar.h'
-      parameter (kmax=3*kl/4)  ! changed from kl/2 on 30/1/06
 C------------------------------------------------------------------------
 C 
 C Atmospheric boundary layer computation.
@@ -63,15 +63,11 @@ C Input & Output arguments
       real theta(ifull,kl)         ! potential temperature [K]
 C     also qg                      ! mixing ratio [kg/kg}
 
-      real cfrac
-      common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
-      common/work3/cgh(ifull,kl), ! counter-gradient term for heat [K/m]
-     .             cgq(ifull,kl), ! counter-gradient term for constituents
-     .             rino(ifull,kl),dum3(ifull,2*kl)
-      common/work3d/zg(ifull,kl)
-      integer iq,iflag
-      real c1,zg,cgh,cgq,ztodtgor,delsig,tmp1,sigotbk,sigotbkm1
-      real dum2,dum3
+      real cgh(ifull,kl), ! counter-gradient term for heat [K/m]
+     .     cgq(ifull,kl)  ! counter-gradient term for constituents
+      integer iq,iflag(ifull)
+      real c1,zg(ifull,kl),ztodtgor,delsig,tmp1,sigotbk,sigotbkm1
+      real dum3
       real cgs                     ! counter-gradient star (cg/flux)
 !     real pblh(ifull)             ! boundary-layer height [m] - in morepbl.h
 C     Not used at the moment
@@ -87,20 +83,20 @@ C---------------------------Local workspace-----------------------------
 C
       integer k                 ! level index
 
-      real heatv                ! surface virtual heat flux
-      real thvref               ! reference level virtual temperature
+      real heatv(ifull)         ! surface virtual heat flux
+      real thvref(ifull)        ! reference level virtual temperature
       real tkv                  ! model level potential temperature
       real therm                ! thermal virtual temperature excess
       real pmid                 ! midpoint pressures
-      real phiminv              ! inverse phi function for momentum
-      real phihinv              ! inverse phi function for heat 
-      real wm                   ! turbulent velocity scale for momentum
+      real phiminv(ifull)       ! inverse phi function for momentum
+      real phihinv(ifull)       ! inverse phi function for heat 
+      real wm(ifull)            ! turbulent velocity scale for momentum
       real vvk                  ! velocity magnitude squared
-      real rkhfs                ! surface kinematic heat flux [mK/s]
-      real rkqfs                ! sfc kinematic constituent flux [m/s]
+      real rkhfs(ifull)         ! surface kinematic heat flux [mK/s]
+      real rkqfs(ifull)         ! sfc kinematic constituent flux [m/s]
       real zmzp                 ! level height halfway between zm and zp
-      real rino                 ! bulk Richardson no. from level to ref lev
-      real tlv                  ! ref. level pot tmp + tmp excess
+      real rino(ifull,kl)       ! bulk Richardson no. from level to ref lev
+      real tlv(ifull)           ! ref. level pot tmp + tmp excess
       real fak1                 ! k*ustar*pblh
       real fak2                 ! k*wm*pblh
       real fak3                 ! fakn*wstr/wm 
@@ -111,9 +107,9 @@ C
       real zl                   ! zmzp / Obukhov length
       real zh                   ! zmzp / pblh      at half levels
       real zzh                  ! (1-(zmzp/pblh))**2      at half levels
-      real wstr                 ! w*, convective velocity scale
+      real wstr(ifull)          ! w*, convective velocity scale
       real rrho                 ! 1./bottom level density (temporary)
-      real obklen               ! Obukhov length
+      real obklen(ifull)        ! Obukhov length
       real term                 ! intermediate calculation
       real fac                  ! interpolation factor
 c     real pblmin               ! min pbl height due to mechanical mixing
@@ -121,9 +117,6 @@ c     real pblmin               ! min pbl height due to mechanical mixing
 c     logical unstbl(il)        ! pts w/unstbl pbl (positive virtual ht flx)
 C------------------------------Commons----------------------------------
       real uav(ifull,kl),vav(ifull,kl)
-      common/work2/heatv(ifull),rkhfs(ifull),rkqfs(ifull),thvref(ifull),
-     .       phihinv(ifull),phiminv(ifull),tlv(ifull),wm(ifull),
-     .       wstr(ifull),obklen(ifull),iflag(ifull),dum2(7*ifull)
 
       real betam   ! Constant in wind gradient expression
       real betas   ! Constant in surface layer gradient expression
@@ -146,6 +139,7 @@ C Initialize COMCON
       data fakn,fak,vk,zkmin,c1/7.2, 8.5, 0.4, 0.01, 0.61/
       data ricr /0.25/
       
+      kmax=3*kl/4
       fac=100.
       if(nlocal==6)fac=10.
       binh   = betah*sffrac

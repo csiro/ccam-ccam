@@ -2,13 +2,17 @@
       use arrays_m
       use cc_mpi
       use diag_m
+      use dpsdt_m
+      use epst_m
       use indices_m
       use liqwpar_m  ! qfg,qlg
       use map_m
       use morepbl_m  ! condx,eg
+      use nharrs_m
       use nlin_m
       use pbl_m
       use sigs_m
+      use tbar2d_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
 !     rml 19/09/07 replace gasmin from tracers.h with tracmin from tracermodule
       use tracermodule, only: tracmin
@@ -16,6 +20,7 @@
       use vecsuv_m
       use vecs_m
       use vvel_m     ! sdot
+      use work3sav_m
       use xarrs_m
       use xyzinfo_m
       implicit none
@@ -32,29 +37,17 @@
       include 'parmdyn.h'  
       include 'parmvert.h'  
       include 'mpif.h'
-      real dpsdt,dpsdtb,dpsdtbb,epst
-      common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull) !globpe, adjust5,outcdf
-      common/epst/epst(ifull)
       real alph_p, alph_pm, delneg, delpos, delnegk, delposk, alph_q
       common/mfixdiag/alph_p,alph_pm,delneg,delpos,alph_q
       real :: sumdiffb_l  ! Local versions
       real, dimension(3) :: delarr, delarr_l
-      common/nharrs/phi(ifull,kl),h_nh(ifull+iextra,kl)
-      real phi, h_nh, tbar2d
-      common/tbar2d/tbar2d(ifull)
       ! Work common here ????
       real p(ifull+iextra,kl),omgfnl(ifull,kl)
-      real wrk1, wrk2  
-      common/work3b/wrk1(ifull,kl),wrk2(ifull,kl)   ! just work arrays here
+      real wrk1(ifull,kl), wrk2 (ifull,kl) ! just work arrays here
       real d(ifull,kl)   ! NOT shared updps
-      real qgsav, qfgsav, qlgsav, trsav
-      common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
-     &             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
-      real zz(ifull),zzn(ifull),zze(ifull),zzw(ifull),
-     &     zzs(ifull),pfact(ifull),alff(ifull+iextra),alf(ifull+iextra),
-     &     alfe(ifull+iextra),alfn(ifull+iextra),alfu(ifull),alfv(ifull)
-      common /zzalf/ zz,zzn,zze,zzw,zzs,pfact,alff,alf,alfe,alfn,
-     &     alfu,alfv
+      real, dimension(:), allocatable, save :: zz,zzn,zze,zzw,zzs
+      real, dimension(:), allocatable, save :: pfact,alff,alf,alfe
+      real, dimension(:), allocatable, save :: alfn,alfu,alfv
       real ps_sav(ifull),cc(ifull+iextra,kl),
      &     dd(ifull+iextra,kl),pslxint(ifull),pslsav(ifull)
       real pe(ifull+iextra,kl),e(ifull,kl)
@@ -74,8 +67,16 @@
       hdt=dt/2.
       hdtds=hdt/ds
 
+      if (.not.allocated(zz)) then
+        allocate(zz(ifull),zzn(ifull),zze(ifull),zzw(ifull))
+        allocate(zzs(ifull),pfact(ifull),alff(ifull+iextra))
+        allocate(alf(ifull+iextra),alfe(ifull+iextra))
+        allocate(alfn(ifull+iextra),alfu(ifull),alfv(ifull))
+      end if
+
       if(dt /= dtsave) then 
-         call adjust_init
+         call adjust_init(zz,zzn,zze,zzw,zzs,pfact,alff,alf,alfe,alfn,
+     &                    alfu,alfv)
          precon_in=precon
          if(precon>0)precon=0  ! 22/4/07
       end if
@@ -915,7 +916,8 @@ c    &                               (grav*dt*dt)
 
       end subroutine adjust5
 
-      subroutine adjust_init
+      subroutine adjust_init(zz,zzn,zze,zzw,zzs,pfact,alff,alf,alfe,
+     &                       alfn,alfu,alfv)
       use cc_mpi
       use indices_m
       use map_m
@@ -926,8 +928,6 @@ c    &                               (grav*dt*dt)
       real zz(ifull),zzn(ifull),zze(ifull),zzw(ifull),
      &     zzs(ifull),pfact(ifull),alff(ifull+iextra),alf(ifull+iextra),
      &     alfe(ifull+iextra),alfn(ifull+iextra),alfu(ifull),alfv(ifull)
-      common /zzalf/ zz,zzn,zze,zzw,zzs,pfact,alff,alf,alfe,alfn,
-     &     alfu,alfv
       real :: hdt
       integer :: iq, n
 
@@ -972,26 +972,26 @@ c    &                               (grav*dt*dt)
       enddo     ! iq loop
 !     N.B. there are some special z values at the 8 vertices
          do n=1,npan            ! 1,6
-            if(edge_s .and. edge_w ) then
+            if(edge_s(n-noff) .and. edge_w(n-noff) ) then
                iq=indp(1,1,n)
 c              print *,'adjust5 iq,zzs,zzw,alfF_s,alfF_w ',
 c    &                iq,zzs(iq),zzw(iq),alfF(is(iq)),alfF(iw(iq))        
                zzs(iq)=zzs(iq)+.25*alfF(is(iq)) ! i,j-1 coeff
                zzw(iq)=zzw(iq)-.25*alfF(iw(iq)) ! i-1,j coeff
             end if
-            if(edge_n .and. edge_e ) then
+            if(edge_n(n-noff) .and. edge_e(n-noff) ) then
                iq=indp(ipan,jpan,n)
                zzn(iq)=zzn(iq)+.25*alfF(in(iq)) ! i,j+1 coeff
                zze(iq)=zze(iq)-.25*alfF(ie(iq)) ! i+1,j coeff
 c              print *,'in,ine,ie,ien ',in(iq),ine(iq),ie(iq),ien(iq)
             end if
-            if(edge_s .and. edge_e ) then
+            if(edge_s(n-noff) .and. edge_e(n-noff) ) then
                iq=indp(ipan,1,n)
                zzs(iq)=zzs(iq)-.25*alfF(is(iq)) ! i,j-1 coeff
                zze(iq)=zze(iq)+.25*alfF(ie(iq)) ! i+1,j coeff
 c              print *,'iq,is,ise ',iq,is(iq),ise(iq)
             end if
-            if(edge_n .and. edge_w ) then
+            if(edge_n(n-noff) .and. edge_w(n-noff) ) then
                iq=indp(1,jpan,n)
                zzn(iq)=zzn(iq)-.25*alfF(in(iq)) ! i,j+1 coeff
                zzw(iq)=zzw(iq)+.25*alfF(iw(iq)) ! i-1,j coeff

@@ -49,8 +49,6 @@ c
      &          ctmp3(imax,lp1),ctmp2(imax,lp1)
       double precision tt(imax,l),fac1(imax,l) ! double precision
       dimension f(imax,l),ff(imax,l),ag(imax,l),agg(imax,l)
-      equivalence (f,ag,phitmp) 
-      equivalence (ff,agg,psitmp)
 c---compute temperature quantities for use in program
       do 101 k=1,l
       do 101 i=1,imax 

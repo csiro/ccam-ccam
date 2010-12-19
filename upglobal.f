@@ -2,15 +2,20 @@
       use arrays_m
       use cc_mpi
       use diag_m
+      use epst_m
       use indices_m
       use liqwpar_m  ! ifullw
       use map_m
+      use nharrs_m
       use nlin_m
+      use sbar_m
       use sigs_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       use tracers_m
+      use unn_m
       use vecsuv_m
       use vvel_m     ! sdot
+      use work3f_m
       use xarrs_m
       use xyzinfo_m
       implicit none
@@ -25,21 +30,12 @@
       include 'parmhor.h'  ! mhint, m_bs, nt_adv
       include 'parmvert.h'  
       include 'mpif.h'
-      real epst
-      common/epst/epst(ifull)
-      common/nharrs/phi(ifull,kl),h_nh(ifull+iextra,kl)
-      real phi, h_nh, unn, vnn
-      common/unn/unn(ifull,kl),vnn(ifull,kl) ! nonlin,upglobal for nvsplit3,4
-      real, save, dimension(ifull,kl):: tnsav,unsav,vnsav ! for npex=-1
+      real, save, allocatable, dimension(:,:):: tnsav,unsav,vnsav ! for npex=-1
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
       real aa(ifull+iextra)
       real*8 x3d(ifull,kl),y3d(ifull,kl),z3d(ifull,kl)
-      integer nface,idjdd
-      real xg, yg
-      common/work3f/nface(ifull,kl),xg(ifull,kl),yg(ifull,kl) ! depts, upglobal
+      integer idjdd
       real theta(ifull,kl), factr(kl)
-      real sbar
-      common/sbar/sbar(ifull,2:kl)
       integer ii,intsch, iq, jj,k, kk, ntr, ierr, its, nits, nvadh_pass
       real denb, tempry, vdot1,
      &     vdot2, vec1x, vec1y, vec1z, vec2x, vec2y, vec2z, vec3x,
@@ -47,6 +43,11 @@
       integer, save :: num_hight = 0, numunstab = 0
 
       call start_log(upglobal_begin)
+      
+      if (.not.allocated(tnsav)) then
+        allocate(tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl))
+      end if
+      
       intsch=mod(ktau,2)
 
       if(m>=5)then

@@ -21,11 +21,11 @@
       include 'dates.h'     !  kdate,ktime,timer,mtimer
       include 'parm.h'      ! id,jd
       include 'mpif.h'
-      real, save, dimension(ifull) :: ssta, sstb, sstc, aice, bice, cice
-      real, save, dimension(ifull) :: asal, bsal, csal
+      real, allocatable, save, dimension(:) :: ssta, sstb, sstc
+      real, allocatable, save, dimension(:) :: aice, bice, cice
+      real, allocatable, save, dimension(:) :: asal, bsal, csal
       real, dimension(ifull) :: duma
-      real fraciceb, dum2b, x, c2, c3, c4
-      common/work2b/fraciceb(ifull),dum2b(ifull,2)
+      real fraciceb(ifull), x, c2, c3, c4
       integer, parameter, dimension(0:13) :: mdays =
      &     (/ 31, 31,28,31,30,31,30,31,31,30,31,30,31, 31 /)
       integer iyr, imo, iday, iyr_m, imo_m, idjd_g, iq
@@ -34,6 +34,12 @@
       integer k
       integer, parameter :: mlomode = 1 ! (0=relax, 1=scale-select)    ! MJT mlo
       integer, parameter :: mlotime = 6 ! scale-select period in hours ! MJT mlo
+
+      if (.not.allocated(ssta)) then
+        allocate(ssta(ifull),sstb(ifull),sstc(ifull))
+        allocate(aice(ifull),bice(ifull),cice(ifull))
+        allocate(asal(ifull),bsal(ifull),csal(ifull))
+      end if
 
       idjd_g = id + (jd-1)*il_g
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -226,15 +232,15 @@ c       c1=0.
             where(fraciceb.gt.0.)
               duma=271.2
             end where
-            call mlonudge(duma,12)
+            call mlonudge(duma)
           case(1)
             if (mod(mtimer,mlotime*60).eq.0) then
               duma=tgg(:,1)
               where(fraciceb.gt.0.)
                 duma=271.2
               end where            
-              call mlofilterfast(duma,12) ! 1D version
-              !call mlofilter(duma,12) ! 2D version
+              call mlofilterfast(duma) ! 1D version
+              !call mlofilter(duma) ! 2D version
             end if
           case DEFAULT
             write(6,*) "ERROR: Unknown mlomode ",mlomode

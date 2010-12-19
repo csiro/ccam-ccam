@@ -9,6 +9,8 @@ c************************* soilsnowv follows  ****some to be vectorized*****
       use permsurf_m
       use soil_m     ! land
       use soilsnow_m
+      use work3_m
+      use work3b_m
       parameter (ntest=0)   ! 3: forces 3-layer snow, 1: for snow diag prints
 !        for snow diag prints set ntest to 1 throughout
 !        or, usefully can edit 'ntest>0' to 'ktau>nnn'
@@ -30,15 +32,7 @@ c----------------------------------------------------------------------
       include 'parm.h'      ! ktau,dt
       include 'soilv.h'
 
-c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
-      common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
-     . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
-     . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull),
-     . dum3(5*ijk-16*ifull)
-      common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
-     .              dum3b(ijk*2-2*ifull*ms-3*ifull)
-      common/work3c/gammzz(ifull,ms),dum3c(ijk-ifull*ms)
+      real gammzz(ifull,ms)
       common/soilzs/zshh(ms+1),ww(ms)
       dimension  etac(3)
 
@@ -233,7 +227,7 @@ c       call maxmin(wbfice,'ic',ktau,1.,6)
        endif
       endif
 
-      call stempv 
+      call stempv(gammzz) 
 
 *cdir nodep
       do ip=1,ipland  ! all land points in this nsib=1 or 3 loop
@@ -306,7 +300,7 @@ c         wb(iq,5)=wb(iq,5)-evapfb5/(zse(5)*1000.)
 c       endif
       enddo   ! ip loop for land points
 
-      call surfbv
+      call surfbv(gammzz)
 
       if((ntest>0.or.diag).and.mydiag) then
        if(land(idjd))then ! MJT bugfix
@@ -323,7 +317,7 @@ c       endif
 
 c***********************************************************************
 
-      subroutine surfbv
+      subroutine surfbv(gammzz)
       use arrays_m
       use cc_mpi, only : mydiag
       use morepbl_m  ! need runoff
@@ -332,6 +326,8 @@ c***********************************************************************
       use sigs_m
       use soil_m     ! land,sice,sicedep,alb
       use soilsnow_m
+      use work3_m
+      use work3b_m
       parameter (ntest=0)    ! 3: forces 3-layer snow, 1: for snow diag prints
       parameter (ncondxpr=1) ! 0: old sfce scheme, 1: jlm mid-level suggestion
       parameter (newsmelt=1) ! 0: old, 1: new from Aug 2003
@@ -341,15 +337,7 @@ c***********************************************************************
       include 'parm.h'      ! ktau,dt
       include 'soilv.h'
 
-c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
-      common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
-     . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
-     . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull),
-     . dum3(5*ijk-16*ifull)
-      common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
-     .              dum3b(ijk*2-2*ifull*ms-3*ifull)
-      common/work3c/gammzz(ifull,ms),dum3c(ijk-ifull*ms)
+      real gammzz(ifull,ms)
       common/soilzs/zshh(ms+1),ww(ms)
       !dimension rnof1(ifull) ! MJT cable
 
@@ -613,6 +601,8 @@ c***********************************************************************
       use permsurf_m
       use soil_m           ! land
       use soilsnow_m
+      use work3_m
+      use work3b_m
       parameter (ntest=0)  ! 2 for funny pre-set for idjd
       parameter (nmeth=-1) ! 1 for full implicit, 2 for simpler implicit
 !                            3 for simple implicit D, explicit K jlm pref
@@ -633,16 +623,7 @@ c     ism    - 0 if all soil layers frozen, otherwise set to 1
 c
 
       dimension wbh(ms+1),z1(ms+1),z2(ms+1),z3(ms+1)
-c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
-      common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
-     . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
-     . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull),
-     . dum3(5*ijk-16*ifull)
-      common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
-     .              dum3b(ijk*2-2*ifull*ms-3*ifull)
-      common/work3f/fluxh(ifull,0:ms),delt(ifull,0:ms),dtt(ifull,ms),
-     .              dum3f(3*ijk-3*ifull*ms-2*ifull)
+      real fluxh(ifull,0:ms),delt(ifull,0:ms),dtt(ifull,ms)
       common/soilzs/zshh(ms+1),ww(ms)
       real pwb_min(mxst),ssatcurr(ms)
       real z1mult(ms+1)
@@ -1034,12 +1015,15 @@ c       rhs(1) = wblf(iq,1)      ! for A
 
 c***********************************************************************
 
-      subroutine stempv
+      subroutine stempv(gammzz)
       use cc_mpi, only : mydiag, myid
       use nsibd_m
       use permsurf_m
       use soil_m     ! land
       use soilsnow_m
+      use work2_m
+      use work3_m
+      use work3b_m
       parameter (ntest=0)
       include 'newmpar.h'
       include 'parm.h'      ! ktau,dt
@@ -1053,22 +1037,9 @@ c     ga - heat flux from the atmosphere (ground heat flux)
 c     ccnsw - soil conductivity
 c     dt  - time step 
 
-      common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
-     . ,wetfac(ifull),degdw(ifull),cie(ifull)
-     . ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)
-     . ,aft(ifull),fh(ifull),spare1(ifull),theta(ifull)
-     . ,gamm(ifull),rg(ifull),vmod(ifull),dgdtg(ifull)
-c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
-      common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
-     . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
-     . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull), coefa(ifull),coefb(ifull),
-     . dum3(5*ijk-18*ifull)
-      common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
-     .              dum3b(ijk*2-2*ifull*ms-3*ifull)
-      common/work3c/gammzz(ifull,ms),dum3c(ijk-ifull*ms)
+      real coefa(ifull),coefb(ifull)
+      real gammzz(ifull,ms)
       real ccnsw(ifull,ms)
-      equivalence (gammzz,ccnsw)
       common/soilzs/zshh(ms+1),ww(ms)
 
       dimension rhs(-2:ms),coeff(-2:ms+1),sconds(3)
@@ -1285,14 +1256,13 @@ c***********************************************************************
       use nsibd_m
       use soil_m  ! land
       use soilsnow_m
+      use work3b_m
       parameter (newsmlt=1) ! 0: old, 1: new from Aug 2003
       include 'newmpar.h'   
       include 'const_phys.h'
       include 'parm.h'      ! ktau,dt
       include 'soilv.h'
 
-      common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
-     .              dum3b(ijk*2-2*ifull*ms-3*ifull)
       dimension  etac(3)
 
       if( isflag(iq)==0) then
@@ -1414,10 +1384,8 @@ c***********************************************************************
 c     rhs initially contains rhs; leaves with answer (jlm)
 c     n.b. this one does not assume b = 1-a-c
       include 'newmpar.h'
-      common/work3f/wrk1(ijk),wrk2(ijk),wrk3(ijk) 
       dimension a(ifull,kl),b(ifull,kl),c(ifull,kl)
       real e(ifull,kl),g(ifull,kl),temp(ifull,kl)
-      equivalence (e,wrk1),(g,wrk2),(temp,wrk3)
       real rhs(ifull,kl)
 
 c     this routine solves the system

@@ -224,13 +224,17 @@ c      unpack data
       use sigs_m
       include 'newmpar.h'
       include 'parm.h'
-      !common/sigin/ik,jk,kk,sigin(40)  ! for vertint, infile ! MJT vertint
       integer, intent(in) :: kk ! MJT vertint
       real, dimension(kk), intent(in) :: sigin ! MJT vertint
-      dimension t(ifull,kl),ka(kl),kb(kl),wta(kl),wtb(kl)  ! for mpi
+      dimension t(ifull,kl)  ! for mpi
+      real, dimension(:), allocatable, save :: ka,kb,wta,wtb
       real told(ifull,kk) ! MJT vertint
-      save num,ka,kb,wta,wtb,klapse
+      save num,klapse
       data num/0/,klapse/0/
+      
+      if (.not.allocated(ka)) then
+        allocate(ka(kl),kb(kl),wta(kl),wtb(kl))
+      end if
       
       if (abs(sig(2)-sigin(2))<0.0001.and.kk.eq.kl) then ! MJT vertint
         t=told                                           ! MJT vertint

@@ -21,6 +21,8 @@
       use soilsnow_m ! new soil arrays for scam - tgg too
       use vecsuv_m   ! MJT urban
       use vvel_m
+      use work2_m
+      use work3_m
       use xyzinfo_m  ! MJT urban
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
       parameter (ntss_sh=0) ! 0 for original, 3 for **3, 4 for **4
@@ -48,27 +50,15 @@ c     cp specific heat at constant pressure joule/kgm/deg
       include 'parm.h'
       include 'parmgeom.h' ! MJT urban
       include 'parmsurf.h' ! nplens
-      include 'scamdim.h'  ! dimension of patches
       include 'soilv.h'    ! ... ssat
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
-      common/tafts/taftfh(ifull),taftfhg(ifull)
-      common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
-     . ,wetfac(ifull),degdw(ifull),cie(ifull)
-     . ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)
-     . ,aft(ifull),fh(ifull),ri(ifull),theta(ifull)
-     . ,gamm(ifull),rg(ifull),vmod(ifull),dgdtg(ifull) ! rg in radriv90
+      real taftfh(ifull),taftfhg(ifull)
       real taftfhg_temp(ifull)
 !     following common block makes available other arrays for diag. output 
-      common/work3/egg(ifull),evapxf(ifull),ewww(ifull),fgf(ifull),
-     . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
-     . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),af(ifull),   ! watch soilsnow.f after epot
-     . extin(ifull),dum3(5*ijk-17*ifull)
-      real plens(ifull),vmag(ifull),charnck(ifull)
+      real vmag(ifull),charnck(ifull)
       real zonx(ifull),zony(ifull),zonz(ifull),costh(ifull) ! MJT urban
       real sinth(ifull),uzon(ifull),vmer(ifull),azmin(ifull)! MJT urban
-      save plens
-      data plens/ifull*0./
+      real, dimension(:), allocatable, save :: plens
       include 'establ.h'
 
 c     stability dependent drag coefficients using Louis (1979,blm) f'
@@ -82,6 +72,11 @@ c     fg is sensible heat flux (was h0)
 c     eg is latent heat flux (was wv)
 c     dfgdt is dfgdt (was csen in surfupa/b)
 c     degdt is degdt (was ceva in surfupa/b)
+
+      if (.not.allocated(plens)) then
+        allocate(plens(ifull))
+        plens=0.
+      end if
 
       ri_max=(1./fmroot -1.)/bprm  ! i.e. .14641
 c     zobgin = .05   ! jlm: NB seems to be .01 in csiro9. Mar '05: in parm.h
@@ -676,7 +671,7 @@ c                Now heat ; allow for smaller zo via aft and factch     ! land
             print *,'before sib3 zo,zolnd,af ',zo(idjd),zolnd(idjd)
      &                                        ,af(idjd)                 ! land
           endif                                                         ! land
-          call sib3(nalpha)  ! for nsib=3, 5                            ! land
+          call sib3(nalpha,taftfh,taftfhg)  ! for nsib=3, 5             ! land
           if(diag.or.ntest>0)then                                       ! land
             if (mydiag) print *,'before call scrnout'                   ! land
             call maxmin(t,' t',ktau,1.,kl)                              ! land
@@ -926,7 +921,7 @@ c***  end of surface updating loop
       end
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine sib3(nalpha)     ! new version of sib1 with soilsnowv
+      subroutine sib3(nalpha,taftfh,taftfhg)     ! new version of sib1 with soilsnowv
       use arrays_m
       use cc_mpi
       use extraout_m
@@ -941,6 +936,8 @@ c***  end of surface updating loop
       use soil_m     ! ... zmin zolnd zolog sice alb
       use soilsnow_m ! new soil arrays for scam - tgg too
       use vegpar_m
+      use work2_m
+      use work3_m
       parameter (ntest=0) ! ntest= 0 for diags off; ntest= 1 for diags on
 !                                  2 for ewww diags      
 !                           N.B. may need vsafe for correct diags
@@ -955,28 +952,16 @@ c***  end of surface updating loop
       include 'const_phys.h'
       include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg
       include 'parm.h'
-      include 'scamdim.h'  ! dimension of patches
       include 'soilv.h'    ! ssat, clay,..
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
       common/nsib/nbarewet,nsigmf
-      common/tafts/taftfh(ifull),taftfhg(ifull)
-      common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
-     . ,wetfac(ifull),degdw(ifull),cie(ifull)
-     . ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)
-     . ,aft(ifull),fh(ifull),ri(ifull),theta(ifull)
-     . ,gamm(ifull),rg(ifull),vmod(ifull),dgdtg(ifull)
-      common/work3/egg(ifull),evapxf(ifull),ewww(ifull),fgf(ifull),
-     . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
-     . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),af(ifull),
-     . extin(ifull),dum3(5*ijk-17*ifull)
-      common/work3c/airr(ifull),cc(ifull),condxg(ifull),delta_tx(ifull),
+      real taftfh(ifull),taftfhg(ifull)
+      real airr(ifull),cc(ifull),condxg(ifull),delta_tx(ifull),
      . evapfb1(ifull),evapfb2(ifull),evapfb3(ifull),evapfb4(ifull),
      . evapfb5(ifull),evapfb1a(ifull),evapfb2a(ifull),evapfb3a(ifull),
      . evapfb4a(ifull),evapfb5a(ifull),otgf(ifull),rmcmax(ifull),
-     . tgfnew(ifull),evapfb(ijk-17*ifull)  ! to allow > 18 levels
-      common/work3d/dqsttg(ifull),tstom(ifull),dumxx(ifull), ! MJT cable
-     .   cls(ifull),omc(ifull),dum3d(ijk-5*ifull)  ! allows L9
+     . tgfnew(ifull),evapfb(ifull)
+      real dqsttg(ifull),tstom(ifull),cls(ifull),omc(ifull)
       real, dimension(ifull) :: ftsoil, srlai
       include 'establ.h'
 

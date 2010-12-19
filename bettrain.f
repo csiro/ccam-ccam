@@ -30,8 +30,8 @@ c
       include 'newmpar.h'
       parameter (ltop=1)
 !     all work2 variables are just local
-      common/work2/pdsl(ifull),tl(ifull),ql(ifull),precl(ifull), 
-     .  aprec(ifull),elv(ifull),qc(ifull),dum(ifull,11)
+      real pdsl(ifull),tl(ifull),ql(ifull),precl(ifull), 
+     .  aprec(ifull),elv(ifull),qc(ifull)
 
 c--------------preparatory calculations---------------------------------
 c

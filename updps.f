@@ -6,6 +6,8 @@
       use map_m
       use nlin_m             ! savs
       use savuvt_m
+      use savuv1_m
+      use sbar_m
       use sigs_m
       use vecsuv_m
       use vvel_m, omgf => dpsldt
@@ -18,10 +20,6 @@
       include 'parmhor.h'
       real derpsl(ifull),cc(ifull+iextra,kl),dd(ifull+iextra,kl)
       real d(ifull,kl)   ! NOT shared adjust5 or nonlin
-      real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)
-      real sbar(ifull,2:kl)
-      common/sbar/sbar 
-      common/savuv1/savs1,savu1,savv1 
       real e(ifull,kl)
       real sdotin(ifull,kl),pslxin(ifull,kl),omgfin(ifull,kl)
       real pse(ifull+iextra),psn(ifull+iextra),psz(ifull+iextra)

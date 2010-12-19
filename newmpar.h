@@ -1,17 +1,17 @@
 !     This version is for the MPI code. Variables with suffix _g
 !     are truly global, others refer to a processor's own region.
-      integer, parameter :: nproc = 12 ! Number of processors to use
+      integer :: nproc ! Number of processors to use
 
-      integer, parameter :: kl=18 ! Vertical levels
+      integer :: kl ! Vertical levels
       integer, parameter :: ms=6  ! Levels in surface scheme
 
       integer, parameter :: npanels = 5
-      integer, parameter :: il_g = 48
-      integer, parameter :: nrows_rad = 8 ! usually 8, but 6 for C63/3
-      integer, parameter :: jl_g = il_g + npanels*il_g
-      integer, parameter :: ifull_g = il_g*jl_g, ijk_g = il_g*jl_g*kl
+      integer :: il_g
+      integer :: nrows_rad    ! usually 8, but 6 for C63/3
+      integer :: jl_g
+      integer :: ifull_g, ijk_g
       ! Note that iquad is only used globally
-      integer, parameter :: iquad=1+il_g*((8*npanels)/(npanels+4))
+      integer :: iquad
 !     for     npanels:   0          5        13
 !                  jl:   -         6*il     14*il
 !                quad:   1         4*il+1   6*il+1
@@ -56,15 +56,18 @@
      &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6,                       &
      &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,                       &
      &         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8 /)    
-      integer, parameter :: nyp = nproc/nxp(nproc)
+      integer :: nyp
 
-      integer, parameter :: il=il_g/nxp(nproc), jl=jl_g/nyp
+      integer :: il, jl
 
-      integer, parameter :: npan=max(1,(npanels+1)/nproc)
-      integer, parameter :: ifull = il*jl, ijk = il*jl*kl
+      integer :: npan
+      integer :: ifull, ijk
 
 !     The perimeter of the processor region has length 2*(il+jl).
 !     The first row has 8 possible corner points per panel and the 
 !     second has 16. In practice these are not all distinct so there could
 !     be some optimisation.
-      integer, parameter :: iextra = 4*(il+jl)+24*npan
+      integer :: iextra
+
+      common/newmpar/nproc,kl,il_g,jl_g,ifull_g,nrows_rad,ijk_g,         &
+     &               iquad,nyp,il,jl,ifull,npan,ijk,iextra

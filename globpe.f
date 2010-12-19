@@ -13,6 +13,7 @@
 !     sign convention:
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
+      use aerosolldr
       use arrays_m    ! ts, t, u, v, psl, ps, zs
       use betts1_m, only : betts1_init
       use bigxy4_m
@@ -20,10 +21,13 @@
       use cc_mpi
       use cldcom_m, only : cldcom_init
       use co2dta_m, only : co2dta_init
+      use cfrac_m
       use dava_m
       use davb_m
       use diag_m
       use define_dimensions, only : ncs,ncp
+      use dpsdt_m
+      use epst_m
       use extraout_m
       use gdrag_m, only : gdrag_init
       use histave_m
@@ -35,9 +39,12 @@
       use lwout_m, only : lwout_init
       use map_m       ! em, f, dpsldt, fu, fv, etc
       use morepbl_m
+      use neigh_m, only : neigh_init
+      use nharrs_m, only : nharrs_init
       use nlin_m
       use nsibd_m     ! sib, tsigmf, isoilm
       use o3amip_m, only : o3amip_init
+      use parmhdff_m
       use pbl_m       ! cduv, cdtq, tss, qg
       use permsurf_m, only : permsurf_init
       use prec_m
@@ -45,6 +52,8 @@
       use radisw_m, only : radisw_init
       use rdflux_m, only : rdflux_init
       use savuvt_m
+      use savuv1_m
+      use sbar_m
       use screen_m    ! tscrn etc
       use seaesfrad_m ! MJT radiation
       use sigs_m
@@ -55,6 +64,7 @@
       use srccom_m, only : srccom_init
       use swocom_m, only : swocom_init
       use tabcom_m, only : tabcom_init
+      use tbar2d_m, only : tbar2d_init
       use tfcom_m, only : tfcom_init
       use timeseries, only : write_ts      
 !     rml 21/02/06 removed redundant tracer code (so2/o2 etc)
@@ -62,10 +72,19 @@
       use tracermodule, only :init_tracer,trfiles,tracer_mass,unit_trout
      &                        ,interp_tracerflux
       use tracers_m   ! ngas, nllp, ntrac, tr
+      use unn_m
+      use uvbar_m
       use vecs_m, only : vecs_init
       use vecsuv_m
       use vegpar_m
       use vvel_m      ! sdot
+      use workglob_m
+      use work2_m
+      use work3_m
+      use work3b_m, only : work3b_init
+      use work3f_m
+      use work3lwr_m, only : work3lwr_init
+      use work3sav_m
       use xarrs_m
       use xyzinfo_m   ! x,y,z,wts,x_g,y_g,z_g,wts_g     
       implicit none
@@ -78,6 +97,7 @@
       include 'kuocom.h'
       include 'mpif.h'
       include 'netcdf.inc' ! stuff for writing netcdf
+      include 'params.h'
       include 'parm.h'
       include 'parmdyn.h'  
       include 'parmgeom.h' ! rlong0,rlat0,schmidt
@@ -85,7 +105,6 @@
       include 'parmsurf.h' ! nplens
       include 'parmvert.h'
       include 'rdparm.h'
-      include 'scamdim.h'  ! npmax
       include 'soilv.h'
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
@@ -94,57 +113,20 @@
       integer leap,nbarewet,nsigmf
       integer nnrad,idcld
       real alph_p,alph_pm,delneg,delpos,alph_q
-      real dpsdt,dpsdtb,dpsdtbb
-      common/dpsdt/dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull) !globpe,adjust5,outcdf,hordifg
-      real epst
-      common/epst/epst(ifull) !globpe,adjust5,conjob,indata,nonlin,upglobal
       common/leap_yr/leap  ! 1 to allow leap years
       common/mfixdiag/alph_p,alph_pm,delneg,delpos,alph_q
       common/nsib/nbarewet,nsigmf
       common/radnml/nnrad,idcld
 
-      real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)
-      real savu2(ifull,kl),savv2(ifull,kl)
-      real sbar
-      common/sbar/sbar(ifull,2:kl) ! globpe,updps,upglobal
-      common/savuv1/savs1,savu1,savv1 ! globpea,nestin,updps
-      real ubar(ifull,kl),vbar(ifull,kl)
-      common/uvbar/ubar,vbar ! globpe,depts
-
-      real taftfh(ifull),taftfhg(ifull)
-      common/tafts/taftfh,taftfhg ! globpe,sflux
-      real unn,vnn
-      common/unn/unn(ifull,kl),vnn(ifull,kl) ! globpe,nonlin,upglobal for nvsplit3,4
-      real, dimension(ifull) :: dirad,dfgdt,degdt,wetfac,degdw,cie,
-     &                          factch,qsttg,rho,zo,aft,fh,spare1,theta,
-     &                          gamm,rg,vmod,dgdtg
-      common/work2/dirad,dfgdt,degdt,wetfac,degdw,cie,factch,qsttg,rho,
-     &     zo,aft,fh,spare1,theta,gamm,rg,vmod,dgdtg ! globpe,bett_cuc,bettrain,cable_ccam2,conjob,outcdf,pbldif,sflux,soilsnow
+      real, dimension(:,:), allocatable :: savu2,savv2
+      real, dimension(:,:), allocatable :: speed
+      real, dimension(:), allocatable :: spare1,spare2
+      real, dimension(:), allocatable :: spmean,div
  
       integer nhor,nhorps,khor,khdif,nhorjlm
-      real hdiff,hdifmax
-      common/parmhdff/nhor,nhorps,hdiff(kl),khor,khdif,hdifmax,nhorjlm ! globpe,hordifg,outcdf
+      real hdifmax
+      common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
 
-      real, dimension(ifull) :: egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,
-     &                          residf,ga,condxpr,fev,fes,fwtop,spare2
-      integer, dimension(ifull) :: ism
-      real, dimension(ifull,kl) :: dum3a,speed,spare
-      real, dimension(2*ijk-16*ifull) :: dum3
-      common/work3/egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,residf,ga,
-     &     condxpr,fev,fes,ism,fwtop,spare2,dum3,dum3a,speed,spare  ! globpe,betts,gwdrag,pbldif,sflux,soilsnow,vadv30,vadvtvd,vertmix
-
-      real wblf,wbfice,sdepth,dum3b
-      common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
-     &              dum3b(ijk*2-2*ifull*ms-3*ifull) ! globpe,adjust5,bett_cuc,conjob,soilsnow,trim,vadvtvd,vertmix
-      real qccon, qlrad, qfrad
-      common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! globpe,depts,leoncld,radriv90,seaesfrad,soilsnow,upglobal,vadv30,vertmix
-      real cfrac
-      common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
-      real qgsav, qfgsav, qlgsav, trsav
-      common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
-     &             ,trsav(ilt*jlt,klt,ngasmax)  ! globpe,adjust5,nonlin
-      real spmean(kl),div(kl),pmsl(ifull)
-      equivalence (pmsl,dum3a)
       integer, dimension(13), parameter :: mdays =
      &     (/31,28,31,30,31,30,31,31,30,31,30,31, 31/)
       logical odcalc
@@ -193,7 +175,7 @@
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
      & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss                  ! MJT urban ! MJT nmr ! MJT mlo ! MJT nestin
-     & ,mfix_tr,mfix_ke                                                         ! MJT tracerfix ! MJT tke
+     & ,mfix_tr,mfix_ke,kbotmlo,il_g,kl                                         ! MJT tracerfix ! MJT tke
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -223,22 +205,14 @@
       data nsnowout/999999/
 
       ! For linux only
-      call setstacklimit(-1)
+      !call setstacklimit(-1)
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
-      ! Check that declarations in include files match
-      !call check_dims()
-
 #ifndef scyld
       call MPI_Init(ierr)       ! Start
 #endif
-      call MPI_Comm_size(MPI_COMM_WORLD, nproc_in, ierr) ! Find # of processes
-      if ( nproc_in /= nproc ) then
-         print*, "Error, model is compiled for ", nproc, " processors."
-         print*, "Trying to run with", nproc_in
-         call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr) ! MJT mpi
-      end if
+      call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierr) ! Find # of processes
       call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr) ! Find my id
 
       !--------------------------------------------------------------
@@ -251,10 +225,11 @@
 
       !--------------------------------------------------------------
       ! READ NAMELISTS AND SET PARAMETER DEFAULTS
-      ia=il/2
-      ib=ia+3
-!     ntbar=(kl+1)/4  ! just a default
-      ntbar=kl/3      ! just a default 7/3/07
+      il_g=48
+      kl=18
+      ia=-1
+      ib=-1
+      ntbar=-1      ! just a default 7/3/07
 
       ! Some extra default values
       rel_lat = 0.
@@ -262,8 +237,8 @@
       ! All processors read the namelist, standard input doesn't work properly
       open(99,file="input",form="formatted",status="old")
       if (myid==0)
-     &  write(6,'(a10," compiled for il,jl,kl,nproc =",4i7)')
-     &                       version,il_g,jl_g ,kl,nproc 
+     &  write(6,'(a10," compiled for version,nproc =",2i7)')
+     &                       version,nproc 
       read (99, defaults)
       if(myid==0)print *,'Using defaults for nversion = ',nversion
       if(nversion.ne.0)call change_defaults(nversion)
@@ -287,8 +262,37 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
 !     rml 16/02/06 read trfiles namelist and call init_tracer
       if(ngas>0) then
         read(99, trfiles)
-        call init_tracer
       endif
+
+      !--------------------------------------------------------------
+      ! DEFINE newmpar VARIABLES AND DEFAULTS
+      jl_g = il_g + npanels*il_g
+      ifull_g = il_g*jl_g
+      ijk_g = il_g*jl_g*kl
+      iquad=1+il_g*((8*npanels)/(npanels+4))
+      nyp = nproc/nxp(nproc)
+      il=il_g/nxp(nproc)
+      jl=jl_g/nyp
+#ifdef uniform_decomp
+      npan=npanels+1
+#else      
+      npan=max(1,(npanels+1)/nproc)
+#endif
+      ifull = il*jl
+      ijk = il*jl*kl
+      iextra = 4*(il+jl)+24*npan
+      nrows_rad = 8
+      do while(mod(jl,nrows_rad).ne.0)
+        nrows_rad = nrows_rad-1
+      end do
+      if (myid.eq.0) then
+        write(6,*) "nrows_rad = ",nrows_rad
+      end if
+      
+      if (ia.lt.0) ia=il/2
+      if (ib.lt.0) ib=ia+3
+      if (ntbar.lt.0) ntbar=kl/3      ! just a default 7/3/07
+      if (ktopdav.lt.0) ktopdav=kl
      
       if(ldr==0)mbase=0
       dsig4=max(dsig2+.01,dsig4)
@@ -411,6 +415,8 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
      &        stop 'nkuo=4,nvad=44: mfix_qg>0 not allowed'
       if(mfix>3)stop 'mfix >3 not allowed now'
 
+      !--------------------------------------------------------------
+      ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
       ktau=0
       if(io_in<=5.and.myid==0)then
 !       open new topo file and check its dimensions
@@ -442,6 +448,7 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       ! SET UP CC GEOMETRY
 !     Only one processor calls setxyz to save memory with large grids
       if (myid==0) then ! MJT memory
+        call workglob_init(ifull_g)
         call setxyz(il_g,rlong0,rlat0,schmidt,
      &     x_g,y_g,z_g,wts_g, ax_g,ay_g,az_g,bx_g,by_g,bz_g, xx4,yy4,
      &     myid)
@@ -555,7 +562,14 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       
       !--------------------------------------------------------------
       ! INITIALISE ifull ARRAYS
+      allocate(savu2(ifull,kl),savv2(ifull,kl))
+      allocate(spare1(ifull),spare2(ifull))
+      allocate(speed(ifull,kl))
+      allocate(spmean(kl),div(kl))
       call arrays_init(ifull,iextra,kl)
+      call cfrac_init(ifull,iextra,kl)
+      call dpsdt_init(ifull,iextra,kl)
+      call epst_init(ifull,iextra,kl)
       call extraout_init(ifull,iextra,kl)
       call gdrag_init(ifull,iextra,kl)
       call histave_init(ifull,iextra,kl,ms)
@@ -563,21 +577,39 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       call liqwpar_init(ifull,iextra,kl)
       call nlin_init(ifull,iextra,kl)
       call morepbl_init(ifull,iextra,kl)
+      call neigh_init(ifull,iextra,kl)
+      call nharrs_init(ifull,iextra,kl)
       call nsibd_init(ifull,iextra,kl)
+      call parmhdff_init(ifull,iextra,kl)
       call pbl_init(ifull,iextra,kl)
       call permsurf_init(ifull,iextra,kl)
       call prec_init(ifull,iextra,kl)
       call raddiag_init(ifull,iextra,kl)
       call savuvt_init(ifull,iextra,kl)
+      call savuv1_init(ifull,iextra,kl)
+      call sbar_init(ifull,iextra,kl)
       call screen_init(ifull,iextra,kl)
       call sigs_init(ifull,iextra,kl)
       call soil_init(ifull,iextra,kl)
       call soilbal_init(ifull,iextra,kl)
       call soilsnow_init(ifull,iextra,kl,ms)
+      call tbar2d_init(ifull,iextra,kl)
+      call unn_init(ifull,iextra,kl)
+      call uvbar_init(ifull,iextra,kl)
       call vecs_init(ifull,iextra,kl)
       call vegpar_init(ifull,iextra,kl)
       call vvel_init(ifull,iextra,kl)
+      call work2_init(ifull,iextra,kl)
+      call work3_init(ifull,iextra,kl)
+      call work3f_init(ifull,iextra,kl)
       call xarrs_init(ifull,iextra,kl)
+      if (ldr.ne.0) then
+        ln2=ifull
+        lon=ln2/2
+        nl=kl
+        nlp=nl+1
+        nlm=nl-1
+      end if
       if (nbd.ne.0) then ! nudging arrays
         call dava_init(ifull,iextra,kl)
         call davb_init(ifull,iextra,kl)
@@ -589,25 +621,52 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
         call o3amip_init(ifull,iextra,kl)
       end if
       if (nrad==4) then ! radiation arrays
-        call cldcom_init(ifull,iextra,kl,il*nrows_rad)
+        l=kl
+        imax=il*nrows_rad
+        lp1=l+1
+        lp2=l+2
+        lp3=l+3
+        lm1=l-1
+        lm2=l-2
+        lm3=l-3
+        ll=2*l
+        llp1=ll+1
+        llp2=ll+2
+        llp3=ll+3
+        llm1=ll-1
+        llm2=ll-2
+        llm3=ll-3
+        lp1m=lp1*lp1
+        lp1m1=lp1m-1
+        lp1v=lp1*(1+2*l/2)
+        lp121=lp1*nbly
+        ll3p=3*l+2
+        lp1i=imax*lp1
+        llp1i=imax*llp1
+        ll3pi=imax*ll3p
+        call cldcom_init(ifull,iextra,kl,imax)
         call co2dta_init(ifull,iextra,kl)
-        call kdacom_init(ifull,iextra,kl,il*nrows_rad)
-        call lwout_init(ifull,iextra,kl,il*nrows_rad)
-        call radisw_init(ifull,iextra,kl,il*nrows_rad)
-        call rdflux_init(ifull,iextra,kl,il*nrows_rad,nbly)
-        call srccom_init(ifull,iextra,kl,il*nrows_rad,nbly)
-        call swocom_init(ifull,iextra,kl,il*nrows_rad)
-        call tabcom_init(ifull,iextra,kl,il*nrows_rad,nbly)
-        call tfcom_init(ifull,iextra,kl,il*nrows_rad,nbly)
+        call kdacom_init(ifull,iextra,kl,imax)
+        call lwout_init(ifull,iextra,kl,imax)
+        call radisw_init(ifull,iextra,kl,imax)
+        call rdflux_init(ifull,iextra,kl,imax,nbly)
+        call srccom_init(ifull,iextra,kl,imax,nbly)
+        call swocom_init(ifull,iextra,kl,imax)
+        call tabcom_init(ifull,iextra,kl,imax,nbly)
+        call tfcom_init(ifull,iextra,kl,imax,nbly)
+        call work3lwr_init(ifull,iextra,kl,imax)
       end if
       if (nsib.le.3.or.nsib==5) then ! land-surface arrays
         call soilsnin_init(ifull,iextra,kl)
+        call work3b_init(ifull,iextra,kl,ms)
       else
         call carbpools_init(ifull,iextra,kl,ncp,ncs)
       end if
       if (ngas.gt.0) then
-        call tracers_init
+        call tracers_init(il,jl,kl)
+        call init_tracer
       end if
+      call work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
       
       !--------------------------------------------------------------
       ! READ INPUT FILES
@@ -810,6 +869,11 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       ctop_ave(:)=0.
       sno(:)=0.
       runoff(:)=0.
+      wb_ave(:,:)=0.
+      tsu_ave(:)=0.
+      alb_ave(:)=0.
+      fbeam_ave(:)=0.
+      psl_ave(:)=0.
       koundiag=0
       sint_ave(:) = 0.  ! solar_in_top
       sot_ave(:)  = 0.  ! solar_out_top
@@ -1194,7 +1258,7 @@ c       print*,'Calling prognostic cloud scheme'
          mtimer_sav=mtimer                          ! MJT radiation
          mtimer=mins_gmt                            ! MJT radiation
         endif                                       ! MJT radiation
-        call seaesfrad(odcalc,iaero)                ! MJT radiation
+        call seaesfrad(il*nrows_rad,odcalc,iaero)   ! MJT radiation
         if(nhstest<0)then                           ! MJT radiation
           mtimer=mtimer_sav                         ! MJT radiation
         endif                                       ! MJT radiation
@@ -1251,11 +1315,8 @@ c       print*,'Calling prognostic cloud scheme'
          write (6,"('tggsn(1-3) ',9f8.2)") (tggsn(idjd,k),k=1,3)
          write (6,"('wb(1-6)    ',9f8.3)") (wb(idjd,k),k=1,6)
          write (6,"('wbice(1-6) ',9f8.3)") (wbice(idjd,k),k=1,6)
-         write (6,"('wblf(1-6)  ',9f8.3)") (wblf(idjd,k),k=1,6)
-         write (6,"('wbfice(1-6)',9f8.3)") (wbfice(idjd,k),k=1,6)
          write (6,"('smass(1-3) ',9f8.2)") (smass(idjd,k),k=1,3) ! as mm of water
          write (6,"('ssdn(1-3)  ',9f8.2)") (ssdn(idjd,k),k=1,3)
-         write (6,"('sdepth(1-3)',9f8.2)") (sdepth(idjd,k),k=1,3) ! as m of snow
          pwater=0.   ! in mm
          iq=idjd
          div_int=0.
@@ -1285,8 +1346,8 @@ c       print*,'Calling prognostic cloud scheme'
          write (6,"('dew_,eg_,epot,epan,eg,fg,ga',9f8.2)") 
      &      dew_ave(idjd),eg_ave(idjd),epot(idjd),epan(idjd),eg(idjd),
      &      fg(idjd),ga(idjd)
-         write (6,"('taftfhg,degdt,gflux,dgdtg,zo,cduv', 
-     &      f6.3,f7.2,2f8.2,2f8.5)") taftfhg(idjd),degdt(idjd),
+         write (6,"('degdt,gflux,dgdtg,zo,cduv', 
+     &      f7.2,2f8.2,2f8.5)") degdt(idjd),
      &      gflux(idjd),dgdtg(idjd),zo(idjd),cduv(idjd)/vmod(idjd)
          rlwup=(1.-tsigmf(idjd))*rgg(idjd)+tsigmf(idjd)*rdg(idjd)
          write (6,"('slwa,rlwup,sint,sg,rt,rg    ',9f8.2)") 
@@ -1333,8 +1394,10 @@ c       print*,'Calling prognostic cloud scheme'
 
       ! AEROSOLS --------------------------------------------------------------
 !      if (iaero==2) then ! LDR prognostic aerosol scheme
-!        call aldrcalc(dt,sig,sigh,dsig,sigkap,bet,betm,cansto,vlai,wb(:,1),sfc(isoilm),pblh,ps,tss,t(1:ifull,:),condx,condc, &
-!     &                snowd,sg,fg,eg,u10,ustar,zo,land,fracice,sigmf,qlg,qfg,ktsav,kbsav,acon,bcon,nmr)
+!        call aldrcalc(dt,sig,sigh,dsig,sigkap,bet,betm,cansto,vlai,
+!     &                wb(:,1),sfc(isoilm),pblh,ps,tss,t(1:ifull,:),
+!     &                condx,condc,snowd,sg,fg,eg,u10,ustar,zo,land,
+!     &                fracice,sigmf,qlg,qfg,ktsav,kbsav,acon,bcon,nmr)
 !      end if
 
       ! PHYSICS LOAD BALANCING ------------------------------------------------
@@ -1493,6 +1556,11 @@ c       print*,'Calling prognostic cloud scheme'
       rnet_ave=rnet_ave+rnet     
       tscr_ave = tscr_ave+tscrn 
       qscrn_ave = qscrn_ave+qgscrn 
+      wb_ave=wb_ave+wb
+      tsu_ave=tsu_ave+tss
+      alb_ave=alb_ave+swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
+      fbeam_ave=fbeam_ave+fbeamvis*swrsave+fbeamnir*(1.-swrsave)
+      psl_ave=psl_ave+psl
       spare1(:)=u(1:ifull,1)**2+v(1:ifull,1)**2
       spare2(:)=u(1:ifull,2)**2+v(1:ifull,2)**2
       do iq=1,ifull
@@ -1544,6 +1612,13 @@ c       print*,'Calling prognostic cloud scheme'
         rlwp_ave(:)  =  rlwp_ave(:)/min(ntau,nperavg)
         tscr_ave(:)  =  tscr_ave(:)/min(ntau,nperavg)
         qscrn_ave(:) = qscrn_ave(:)/min(ntau,nperavg)
+        do k=1,ms
+          wb_ave(:,k)=wb_ave(:,k)/min(ntau,nperavg)
+        end do
+        tsu_ave(:)=tsu_ave(:)/min(ntau,nperavg)
+        alb_ave(:)=alb_ave(:)/min(ntau,nperavg)
+        fbeam_ave(:)=fbeam_ave(:)/min(ntau,nperavg)
+        psl_ave(:)=psl_ave(:)/min(ntau,nperavg)
         sgn_ave(:)  =  sgn_ave(:)/min(ntau,nperavg)  ! Dec07 because of solar fit
         if(myid==0)
      &       print *,'ktau,koundiag,nperavg =',ktau,koundiag,nperavg
@@ -1631,6 +1706,11 @@ c       print*,'Calling prognostic cloud scheme'
         rlwp_ave(:)=0.
         qscrn_ave(:) = 0.
         tscr_ave(:) = 0.
+        wb_ave(:,:)=0.
+        tsu_ave(:)=0.
+        alb_ave(:)=0.
+        fbeam_ave(:)=0.
+        psl_ave(:)=0.
         if (myid==0) print *,'resetting tscr_ave for ktau = ',ktau
         koundiag=0
         sint_ave(:) = 0.
@@ -1721,7 +1801,6 @@ c       print*,'Calling prognostic cloud scheme'
       call simple_timer_finalize
 #endif
 
-      call MPI_Barrier( MPI_COMM_WORLD, ierr )
 #ifndef scyld
       call MPI_Finalize(ierr)
 #endif
@@ -1868,17 +1947,9 @@ c     endif
       include 'parmhor.h'  ! mhint, m_bs
       include 'parmsurf.h' ! nplens
       include 'parmvert.h'
-      include 'scamdim.h'   ! passes npmax=ifull
       include 'soilv.h'
       include 'stime.h'
       include 'trcom2.h'  ! nstn,slat,slon,istn,jstn etc.
-      real rlai,hc,disp,usuh,coexp,zruffs,trans,rt0us,rt1usa,rt1usb,
-     &    xgsmax,xjmax0
-      common /canopy/
-     &    rlai,hc,disp,usuh,coexp,zruffs,trans,rt0us,rt1usa,rt1usb,
-     &    xgsmax(0:44),xjmax0(0:44)
-      integer, parameter :: ijkij=ijk+ifull
-      !data sdot/ijkij*0./   ! for vvel.h
 
       integer leap,nbarewet,nsigmf
       integer nnrad,idcld
@@ -1887,8 +1958,8 @@ c     endif
       common/radnml/nnrad,idcld   ! darlam, clddia
  
       integer nhor,nhorps,khor,khdif,nhorjlm
-      real hdiff,hdifmax
-      common/parmhdff/nhor,nhorps,hdiff(kl),khor,khdif,hdifmax,nhorjlm
+      real hdifmax
+      common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
 
 !     for cardin
       data ia/1/,ib/3/,id/2/,ja/1/,jb/10/,jd/5/,nlv/1/,
@@ -1896,7 +1967,7 @@ c     endif
      &     kdate_s/-1/,ktime_s/-1/,leap/0/,
      &     mbd/0/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/,           
      &     nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/,
-     &     ktopdav/kl/,nud_sst/0/,nud_sss/0/ ! MJT nestin ! MJT mlo
+     &     ktopdav/-1/,nud_sst/0/,nud_sss/0/,kbotmlo/12/ ! MJT nestin ! MJT mlo
       
 !     Dynamics options A & B      
       data m/5/,mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/,npex/0/
@@ -2045,24 +2116,24 @@ c      data npann/  1, 2,107,  4,106,  6,  7,109,  9,112, 11, 12,102,101/
 c      data npane/103, 3,  4,105,  5,110,108,  8, 10, 11,100,113, 13,  0/
 c      data npanw/13,113,112,  1,  2,  4,104,102,  7,107,  8,  9,109, 12/
 c      data npans/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/
-c Leaf gsmax for forest (0.006), grass (0.008) and crop (0.012)
-c littoral is regarded as forest, dense pasture between grass and crop
-      data xgsmax  / 0.0,
-     &     0.006,0.006,0.006,0.006,0.006,0.006,0.006,0.006,0.006,0.006,
-     &     0.006,0.006,0.006,0.006,0.006,0.008,0.008,0.008,0.008,0.008,
-     &     0.008,0.010,0.010,0.012,0.012,0.008,0.008,0.006,0.000,0.000,
-     &     0.000,
-     &  .006,.006,.006,.006,.006,.006,.008,.008,.006,.006,.0,0.010,0.0/
-c littoral is regarded as forest, dense pasture between grass and crop
-      data xjmax0 / 0.0,
-     &     5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,
-     &     5e-5,5e-5,5e-5,5e-5,5e-5,10e-5,10e-5,10e-5,10e-5,10e-5,
-     &     10e-5,15e-5,15e-5,15e-5,15e-5,10e-5,10e-5,5e-5,1e-5,1e-5,
-     &     1e-5,
-     &     5e-5,5e-5,5e-5,5e-5,5e-5,10e-5,10e-5,10e-5,5e-5,10e-5,
-     &     1e-5,15e-5,1e-5/
-c     &     25e-5,25e-5,20e-5,15e-5,25e-5,7e-5,7e-5,7e-5,15e-5,15e-5,
-c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
+!c Leaf gsmax for forest (0.006), grass (0.008) and crop (0.012)
+!c littoral is regarded as forest, dense pasture between grass and crop
+!      data xgsmax  / 0.0,
+!     &     0.006,0.006,0.006,0.006,0.006,0.006,0.006,0.006,0.006,0.006,
+!     &     0.006,0.006,0.006,0.006,0.006,0.008,0.008,0.008,0.008,0.008,
+!     &     0.008,0.010,0.010,0.012,0.012,0.008,0.008,0.006,0.000,0.000,
+!     &     0.000,
+!     &  .006,.006,.006,.006,.006,.006,.008,.008,.006,.006,.0,0.010,0.0/
+!c littoral is regarded as forest, dense pasture between grass and crop
+!      data xjmax0 / 0.0,
+!     &     5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,
+!     &     5e-5,5e-5,5e-5,5e-5,5e-5,10e-5,10e-5,10e-5,10e-5,10e-5,
+!     &     10e-5,15e-5,15e-5,15e-5,15e-5,10e-5,10e-5,5e-5,1e-5,1e-5,
+!     &     1e-5,
+!     &     5e-5,5e-5,5e-5,5e-5,5e-5,10e-5,10e-5,10e-5,5e-5,10e-5,
+!     &     1e-5,15e-5,1e-5/
+!c     &     25e-5,25e-5,20e-5,15e-5,25e-5,7e-5,7e-5,7e-5,15e-5,15e-5,
+!c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
 
       end
       subroutine stationa
@@ -2081,6 +2152,8 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       use soilsnow_m
       use tracers_m  ! ngas, nllp, ntrac, tr
       use vecsuv_m
+      use work2_m
+      use work3_m
       use xyzinfo_m
       implicit none
       include 'newmpar.h'
@@ -2092,23 +2165,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       include 'soilv.h'
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
       common/leap_yr/leap  ! 1 to allow leap years
-      real, dimension(ifull) :: dirad,dfgdt,degdt,wetfac,degdw,cie,
-     &                          factch,qsttg,rho,zo,aft,fh,spare1,theta,
-     &                          gamm,rg,vmod,dgdtg
-      common/work2/dirad,dfgdt,degdt,wetfac,degdw,cie,factch,qsttg,rho,
-     &     zo,aft,fh,spare1,theta,gamm,rg,vmod,dgdtg
 
-      real, dimension(ifull) :: egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,
-     &                          residf,ga,condxpr,fev,fes,fwtop,spare2
-      integer, dimension(ifull) :: ism
-      real, dimension(ifull,kl) :: dum3a,speed,spare
-      real, dimension(2*ijk-16*ifull) :: dum3
-      common/work3/egg,evapxf,ewww,fgf,fgg,ggflux,rdg,rgg,residf,ga,
-     &     condxpr,fev,fes,ism,fwtop,spare2,dum3,dum3a,speed,spare
-
-      real wblf,wbfice,sdepth,dum3b
-      common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
-     &              dum3b(ijk*2-2*ifull*ms-3*ifull)
       integer i,j,iq,ico2x,iqt,iradonx,isoil,k2,leap,nn
       real coslong, sinlong, coslat, sinlat, polenx, poleny, polenz,
      &     zonx, zony, zonz, den, costh, sinth, uzon, vmer, rh1, rh2,
@@ -2213,6 +2270,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       subroutine stationb  ! primarily for ICTS
       use arrays_m
       use cc_mpi
+      use cfrac_m
       use diag_m
       use extraout_m
       use histave_m
@@ -2240,13 +2298,7 @@ c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
       include 'parmgeom.h' ! rlong0,rlat0,schmidt
       include 'soilv.h'
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
-      real cfrac
-      common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
-      real sgx,sgdnx,rgx,rgdnx,soutx,sintx,rtx
-      common/radstuff/sgx(ifull),sgdnx(ifull),rgx(ifull),rgdnx(ifull),
-     &             soutx(ifull),sintx(ifull),rtx(ifull)
       real p(ifull,kl),tv(ifull,kl),energy(ifull,kl)
-      equivalence (tv,energy)
       real pmsl(ifull)
       integer i,j,iq,k,nn,kdateb,ktimeb,mtimerb,npres,iyr,imo,iday,itim
       integer niq,nr,iqq(9)
@@ -2487,20 +2539,20 @@ c     &	         rh_s(:)
      &	         iyr,imo,iday,itim,off,sca,u10(iqq(:))
          write (iunp(nn),"('W_SNOW    ',i6,3i3,'   1',f8.0,g8.1,9f8.3)") 
      &	         iyr,imo,iday,itim,off,sca,snowd(iqq(:))*.001  ! converts mm to m
-         write (iunp(nn),"('SWUP_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
-     &	         iyr,imo,iday,itim,off,sca,sgdnx(iqq(:))-sgx(iqq(:)) 
-         write (iunp(nn),"('SWDOWN_S  ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
-     &	         iyr,imo,iday,itim,off,sca,sgdnx(iqq(:))
-         write (iunp(nn),"('LWUP_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
-     &	         iyr,imo,iday,itim,off,sca,rgdnx(iqq(:))+rgx(iqq(:))
-         write (iunp(nn),"('LWDOWN_S  ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
-     &	         iyr,imo,iday,itim,off,sca,rgdnx(iqq(:))
-         write (iunp(nn),"('SWUP_T    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
-     &	         iyr,imo,iday,itim,off,sca,soutx(iqq(:))  
-         write (iunp(nn),"('SWDOWN_T  ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
-     &	         iyr,imo,iday,itim,off,sca,sintx(iqq(:))
-         write (iunp(nn),"('LWUP_T    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
-     &	         iyr,imo,iday,itim,off,sca,rtx(iqq(:))  
+!         write (iunp(nn),"('SWUP_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
+!     &	         iyr,imo,iday,itim,off,sca,sgdnx(iqq(:))-sgx(iqq(:)) 
+!         write (iunp(nn),"('SWDOWN_S  ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
+!     &	         iyr,imo,iday,itim,off,sca,sgdnx(iqq(:))
+!         write (iunp(nn),"('LWUP_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
+!     &	         iyr,imo,iday,itim,off,sca,rgdnx(iqq(:))+rgx(iqq(:))
+!         write (iunp(nn),"('LWDOWN_S  ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
+!     &	         iyr,imo,iday,itim,off,sca,rgdnx(iqq(:))
+!         write (iunp(nn),"('SWUP_T    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
+!     &	         iyr,imo,iday,itim,off,sca,soutx(iqq(:))  
+!         write (iunp(nn),"('SWDOWN_T  ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
+!     &	         iyr,imo,iday,itim,off,sca,sintx(iqq(:))
+!         write (iunp(nn),"('LWUP_T    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
+!     &	         iyr,imo,iday,itim,off,sca,rtx(iqq(:))  
          write (iunp(nn),"('SHFL_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
      &	         iyr,imo,iday,itim,off,sca,fg(iqq(:))
          write (iunp(nn),"('LHFL_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
@@ -2521,8 +2573,8 @@ c     &	         rh_s(:)
       include 'parmvert.h'
 
       integer nhor,nhorps,khor,khdif,nhorjlm
-      real hdiff,hdifmax
-      common/parmhdff/nhor,nhorps,hdiff(kl),khor,khdif,hdifmax,nhorjlm
+      real hdifmax
+      common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
       integer nversion,nbarewet,nsigmf
       common/nsib/nbarewet,nsigmf
       if(nversion<907)then

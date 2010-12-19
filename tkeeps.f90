@@ -71,7 +71,7 @@ real, parameter :: d_1   = 0.35
 integer, parameter :: buoymeth = 3 ! 0=Dry air, 1=Durran (no wgt), 2=Smith, 3=Durran (wgt)
 integer, parameter :: kmlimit  = 0 ! 0=No adjustment, 1=Limit decay in pbl top
 integer, parameter :: usedt    = 0 ! 0=No sub time step, 1=Use dt=100sec time step, 2=Use 2 sub time steps
-integer, parameter :: interpmeth=0 ! 0=linear, 1=quadratic
+integer, parameter :: interpmeth=1 ! 0=linear, 1=quadratic
 integer, parameter :: icm  = 10    ! iterations for pblh
 integer, parameter :: icm2 = 10    ! iterations for tke-eps
 real, parameter :: tol    = 1.E-9  ! tolarance for sectant method
@@ -136,18 +136,22 @@ real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: wtv0,wq0,ps,ustar
 real, dimension(kl), intent(in) :: sigkap,sig
-real, dimension(ifull,kl) :: km,ff,gg,thetal,thetav,temp,gamt,gamq,gamhl
-real, dimension(ifull,kl) :: tkenew,epsnew,qsat,ppb
+real, dimension(ifull,kl) :: km,ff,gg,thetal,thetav,temp
+real, dimension(ifull,kl) :: gamt_hl,gamq_hl
+real, dimension(ifull,kl) :: tkenew,epsnew,qsat
 real, dimension(ifull,kl) :: bb,cc,dd
-real, dimension(ifull,2:kl) :: aa,pps,ppt
+real, dimension(ifull,2:kl) :: aa,pps,ppt,ppb
 real, dimension(ifull,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull) :: wstar,z_on_l,phim,hh,jj,dqsdt,ziold
 real, dimension(ifull) :: dum
-real, dimension(kl-1) :: wpv_flux,w2up,mflx,tup,qup
+real, dimension(kl-1) :: wpv_flux
+real, dimension(kl-1) :: mflx_hl,tup_hl,qup_hl,w2up_hl
 real xp,wup,qupsat(1),ee
 real cf,qc,rcrit,delq
 real cm34,ddt
+real zht,dzht,thetav_hl,qg_hl,sig_hl
+real tup,qup,w2up
 logical, dimension(ifull), intent(in) :: land
 logical sconv
 !real, parameter :: cm34=cm**0.75 ! Crashes the SX6 cross-compiler
@@ -193,22 +197,16 @@ end do
 select case(buoymeth)
 
   case(0) ! Hurley
-    ppb(:,1)=-grav/thetav(:,1)*(thetav(:,2)-thetav(:,1))/dz_hl(:,1)
     do k=2,kl-1
       ppb(:,k)=-grav/thetav(:,k)*0.5*(thetav(:,k+1)-thetav(:,k-1))/dz_fl(:,k)
     end do
     ppb(:,kl)=-grav/thetav(:,kl)*(thetav(:,kl)-thetav(:,kl-1))/dz_hl(:,kl-1)
 
   case(1,3) ! Saturated conditions based on WRF formulation (see Durran and Klemp JAS 1982)
-    do k=1,kl
+    do k=2,kl
       gg(:,k)=(1.+lv*qsat(:,k)/(rd*temp(:,k))) &
              /(1.+lv*lv*qsat(:,k)/(cp*rv*temp(:,k)*temp(:,k)))
     end do
-    bb(:,1)=-grav/dz_hl(:,1)*gg(:,1)*((theta(:,2)-theta(:,1))/theta(:,1)        &
-                            +lv*qsat(:,1)/(cp*temp(:,1))*(qsat(:,2)-qsat(:,1))) &
-            +grav/dz_hl(:,1)*(qsat(:,2)+qlg(:,2)+qfg(:,2)-qsat(:,1)-qlg(:,1)-qfg(:,1))
-    cc(:,1)=-grav/dz_hl(:,1)*(thetav(:,2)-thetav(:,1))/thetav(:,1) &
-            +grav/dz_hl(:,1)*(qlg(:,2)+qfg(:,2)-qlg(:,1)-qfg(:,1))
     do k=2,kl-1
       bb(:,k)=-grav*0.5/dz_fl(:,k)*gg(:,k)*((theta(:,k+1)-theta(:,k-1))/theta(:,k)        &
                                   +lv*qsat(:,k)/(cp*temp(:,k))*(qsat(:,k+1)-qsat(:,k-1))) &
@@ -223,16 +221,16 @@ select case(buoymeth)
              +grav/dz_hl(:,kl-1)*(qlg(:,kl)+qfg(:,kl)-qlg(:,kl-1)-qfg(:,kl-1))    
     if (buoymeth.eq.1) then
       where (cfrac.gt.0.5)
-        ppb=bb
+        ppb=bb(:,2:kl)
       elsewhere
-        ppb=cc
+        ppb=cc(:,2:kl)
       end where
     else
-      ppb=cfrac*bb+(1.-cfrac)*cc
+      ppb=cfrac(:,2:kl)*bb(:,2:kl)+(1.-cfrac(:,2:kl))*cc(:,2:kl)
     end if
     
   case(2) ! Smith (1990) (based on CCAM vertmix.f version)
-    do k=1,kl
+    do k=2,kl
       thetal(:,k)=theta(:,k)-(lv/cp*qlg(:,k)+ls/cp*qfg(:,k))*sigkap(k)
       jj(:)=lv+lf*qfg(:,k)/max(qlg(:,k)+qfg(:,k),1.e-12) ! L
       dqsdt(:)=jj(:)*qsat(:,k)/(rv*temp(:,k)*temp(:,k))
@@ -241,8 +239,6 @@ select case(buoymeth)
       ff(:,k)=1./theta(:,k)-dqsdt*hh(:)/sigkap(k)              ! betatt
       gg(:,k)=delta/(1.+delta*qg(:,k)-qlg(:,k)-qfg(:,k))+hh(:) ! betaqt
     end do    
-    ppb(:,1)=-grav*ff(:,1)*(thetal(:,2)-thetal(:,1))/dz_hl(:,1) &
-             -grav*gg(:,1)*(qg(:,2)+qlg(:,2)+qfg(:,2)-qg(:,1)-qlg(:,1)-qfg(:,1))/dz_hl(:,1)
     do k=2,kl-1
       ppb(:,k)=-grav*ff(:,k)*0.5*(thetal(:,k+1)-thetal(:,k-1))/dz_fl(:,k) &
                -grav*gg(:,k)*0.5*(qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-qg(:,k-1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k)
@@ -257,37 +253,52 @@ select case(buoymeth)
 end select
 
 ! Calculate non-local terms for theta_v
-gamt=0.
-gamq=0.
+gamt_hl=0.
+gamq_hl=0.
 ziold=zi
 
 if (mode.ne.1) then ! mass flux when mode is an even number
   do i=1,ifull
     if (wtv0(i).gt.0.) then ! unstable
       do icount=1,icm
-        mflx=0.
-        tup=thetav(i,1:kl-1)
-        qup=qg(i,1:kl-1)
+        mflx_hl=0.
+        do k=1,kl-1
+          tup_hl(k)=0.5*sum(thetav(i,k:k+1))
+          qup_hl(k)=0.5*sum(qg(i,k:k+1))
+        end do
         sconv=.false.
+        ! first level ---------------
         !ee=0.5*(1./(zz(i,1)+dz_fl(i,1))+1./(max(zi(i)-zz(i,1),0.)+dz_fl(i,1))) ! Soares 2004
         ee=0.5*(1./max(zz(i,1),10.)+1./max(zi(i)-zz(i,1),10.))
-        tup(1)=thetav(i,1)+wtv0(i)/sqrt(tke(i,1)) !*0.3 in Soares et al (2004)
-        qup(1)=qg(i,1)+wq0(i)/sqrt(tke(i,1))      !*0.3 in Soares et al (2004)
-        w2up(1)=2.*dz_fl(i,1)*b2*grav*(tup(1)-thetav(i,1))/thetav(i,1)/(1.+2.*dz_fl(i,1)*b1*ee)
-        wup=sqrt(max(w2up(1),0.))
-        aa(1,2)=ps(i)*sig(1)
-        bb(1,2)=tup(1)/((1.+0.61*qup(1))*sigkap(1))
+        tup=thetav(i,1)+wtv0(i)/sqrt(tke(i,1)) !*0.3 in Soares et al (2004)
+        qup=qg(i,1)+wq0(i)/sqrt(tke(i,1))      !*0.3 in Soares et al (2004)
+        w2up=2.*zz(i,1)*b2*grav*(tup-thetav(i,1))/thetav(i,1)/(1.+2.*zz(i,1)*b1*ee)
+       
+        ! half level ----------------
+        zht=0.5*sum(zz(i,1:2))
+        dzht=zht-zz(i,1)
+        thetav_hl=0.5*sum(thetav(i,1:2))
+        qg_hl=0.5*sum(qg(i,1:2))
+        ee=0.5*(1./max(zht,10.)+1./max(zi(i)-zht,10.)) ! MJT suggestion
+        tup_hl(1)=(tup+dzht*ee*thetav_hl)/(1.+dzht*ee)
+        qup_hl(1)=(qup+dzht*ee*qg_hl)/(1.+dzht*ee)             
+        w2up_hl(1)=(w2up+2.*dzht*b2*grav*(tup_hl(1)-thetav_hl)/thetav_hl)/(1.+2.*dzht*b1*ee)
+        wup=sqrt(max(w2up_hl(1),0.))
+        sig_hl=0.5*sum(sig(1:2))
+        aa(1,2)=ps(i)*sig_hl
+        bb(1,2)=tup_hl(1)/((1.+0.61*qup_hl(1))*0.5*sum(sigkap(1:2)))
         call getqsat(1,qupsat(1),bb(1,2),aa(1,2))
-        cf=0.
-        if (qup(1).lt.qupsat(1).or.mode.eq.2) then ! dry convection
-          mflx(1)=aup*wup 
+        if (qup_hl(1).lt.qupsat(1).or.mode.eq.2) then ! dry convection
+          mflx_hl(1)=aup*wup
         else                                       ! moist convection (boundary condition)
           sconv=.true.
-          qc=qup(1)-qupsat(1) ! cf calculation from LDR (1996)
+          !sigup=max(1.E-6,-1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qup(k)-qup(k-1))/dz_hl(i,k-1))**2
+          !cf=0.5+0.36*arctan(1.55*(qup(k)-qupsat(1))/sqrt(sigup)) ! Cuijpers and Bechtold (1995)
+          qc=qup_hl(1)-qupsat(1) ! cf calculation from LDR (1996)
           if (land(i)) then
-            rcrit=max(rcrit_l,sig(1)**3)
+            rcrit=max(rcrit_l,sig_hl**3)
           else
-            rcrit=max(rcrit_s,sig(1)**3)
+            rcrit=max(rcrit_s,sig_hl**3)
           end if
           delq=(1.-rcrit)*qupsat(1)
           if (qc.ge.delq) then
@@ -299,31 +310,41 @@ if (mode.ne.1) then ! mass flux when mode is an even number
           else
             cf=0.
           end if
-          mflx(1)=cf*aup*wup
+          mflx_hl(1)=cf*aup*wup
         end if
+        if (w2up_hl(1).le.0.) then
+          xp=w2up/(w2up-w2up_hl(1))
+          xp=min(max(xp,0.),1.)
+          zi(i)=(1.-xp)*zz(i,1)+xp*zht
+          exit
+        end if
+
+        ! half level ----------------
         do k=2,kl-1
-          !ee=0.5*(1./(zz(i,k)+dz_fl(i,k))+1./(max(zi(i)-zz(i,k),0.)+dz_fl(i,k)))\ ! Soares 2004
-          ee=0.5*(1./max(zz(i,k),10.)+1./max(zi(i)-zz(i,k),10.)) ! MJT suggestion
-          tup(k)=(tup(k-1)+dz_fl(i,k)*ee*thetav(i,k))/(1.+dz_fl(i,k)*ee)
-          qup(k)=(qup(k-1)+dz_fl(i,k)*ee*qg(i,k))/(1.+dz_fl(i,k)*ee)             
-          w2up(k)=(w2up(k-1)+2.*dz_fl(i,k)*b2*grav*(tup(k)-thetav(i,k))/thetav(i,k))/(1.+2.*dz_fl(i,k)*b1*ee)
-          wup=sqrt(max(w2up(k),0.))
+          zht=0.5*sum(zz(i,k:k+1))
+          thetav_hl=0.5*sum(thetav(i,k:k+1))
+          qg_hl=0.5*sum(qg(i,k:k+1))
+          ee=0.5*(1./max(zht,10.)+1./max(zi(i)-zht,10.)) ! MJT suggestion
+          tup_hl(k)=(tup_hl(k-1)+dz_fl(i,k)*ee*thetav_hl)/(1.+dz_fl(i,k)*ee)
+          qup_hl(k)=(qup_hl(k-1)+dz_fl(i,k)*ee*qg_hl)/(1.+dz_fl(i,k)*ee)             
+          w2up_hl(k)=(w2up_hl(k-1)+2.*dz_fl(i,k)*b2*grav*(tup_hl(k)-thetav_hl)/thetav_hl)/(1.+2.*dz_fl(i,k)*b1*ee)
+          wup=sqrt(max(w2up_hl(k),0.))
           if (.not.sconv) then
-            aa(1,2)=ps(i)*sig(k)
-            bb(1,2)=tup(k)/((1.+0.61*qup(k))*sigkap(k))
+            sig_hl=0.5*sum(sig(k:k+1))
+            aa(1,2)=ps(i)*sig_hl
+            bb(1,2)=tup_hl(k)/((1.+0.61*qup_hl(k))*0.5*sum(sigkap(k:k+1)))
             call getqsat(1,qupsat(1),bb(1,2),aa(1,2))
-            cf=0.
-            if (qup(k).lt.qupsat(1).or.mode.eq.2) then ! dry convection
-              mflx(k)=aup*wup
+            if (qup_hl(k).lt.qupsat(1).or.mode.eq.2) then ! dry convection
+              mflx_hl(k)=aup*wup
             else                                       ! moist convection (boundary condition)
               sconv=.true.
               !sigup=max(1.E-6,-1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qup(k)-qup(k-1))/dz_hl(i,k-1))**2
               !cf=0.5+0.36*arctan(1.55*(qup(k)-qupsat(1))/sqrt(sigup)) ! Cuijpers and Bechtold (1995)
-              qc=qup(k)-qupsat(1) ! cf calculation from LDR (1996)
+              qc=qup_hl(k)-qupsat(1) ! cf calculation from LDR (1996)
               if (land(i)) then
-                rcrit=max(rcrit_l,sig(k)**3)
+                rcrit=max(rcrit_l,sig_hl**3)
               else
-                rcrit=max(rcrit_s,sig(k)**3)
+                rcrit=max(rcrit_s,sig_hl**3)
               end if
               delq=(1.-rcrit)*qupsat(1)
               if (qc.ge.delq) then
@@ -335,57 +356,61 @@ if (mode.ne.1) then ! mass flux when mode is an even number
               else
                 cf=0.
               end if
-              mflx(k)=cf*aup*wup
+              mflx_hl(k)=cf*aup*wup
             end if
           else
-            if (w2up(k).gt.0.) then       ! moist convection
-              mflx(k)=mflx(k-1)*exp((entr-detr)*dz_hl(i,k-1))
+            if (w2up_hl(k).gt.0.) then       ! moist convection
+              mflx_hl(k)=mflx_hl(k-1)*exp((entr-detr)*dz_fl(i,k))
             else
-              mflx(k)=0.
+              mflx_hl(k)=0.
             end if
           end if
-          if (w2up(k).le.0.) then
-            xp=w2up(k-1)/(w2up(k-1)-w2up(k))
+          if (w2up_hl(k).le.0.) then
+            xp=w2up_hl(k-1)/(w2up_hl(k-1)-w2up_hl(k))
             xp=min(max(xp,0.),1.)
-            zi(i)=(1.-xp)*zz(i,k-1)+xp*zz(i,k)
+            zi(i)=(1.-xp)*0.5*zz(i,k-1)+0.5*zz(i,k)+xp*0.5*zz(i,k+1)
             exit
           end if
         end do
         zi(i)=alpha*zi(i)+(1.-alpha)*ziold(i)
         ziold(i)=zi(i)
       end do
-      gamt(i,1:kl-1)=mflx(:)*(tup(:)-thetav(i,1:kl-1))
-      gamq(i,1:kl-1)=mflx(:)*(qup(:)-qg(i,1:kl-1))
+      do k=1,kl-1
+        gamt_hl(i,k)=mflx_hl(k)*(tup_hl(k)-0.5*sum(thetav(i,k:k+1)))
+        gamq_hl(i,k)=mflx_hl(k)*(qup_hl(k)-0.5*sum(qg(i,k:k+1)))
+      end do
     else                   ! stable
-      wpv_flux(1)=km(i,1)*(thetav(i,2)-thetav(i,1))/dz_hl(i,1) !+gamt(i,1)
+      wpv_flux(1)=kmo(i,1)*(thetav(i,2)-thetav(i,1))/dz_hl(i,1) !+gamt_hl(i,1)
       if (wpv_flux(1).lt.0.) then
         zi(i)=zz(i,1)
       else
         do k=2,kl-1
-          wpv_flux(k)=km(i,k)*0.5*(thetav(i,k+1)-thetav(i,k-1))/dz_fl(i,k) !+gamt(i,k)
+          wpv_flux(k)=kmo(i,k)*(thetav(i,k+1)-thetav(i,k))/dz_hl(i,k) !+gamt_hl(i,k)
           if (abs(wpv_flux(k)).lt.0.05*abs(wpv_flux(1))) then
             xp=(0.05*abs(wpv_flux(1))-abs(wpv_flux(k-1)))/(abs(wpv_flux(k))-abs(wpv_flux(k-1)))
             xp=min(max(xp,0.),1.)
-            zi(i)=(1.-xp)*zz(i,k-1)+xp*zz(i,k)
+            zi(i)=(1.-xp)*0.5*zz(i,k-1)+0.5*zz(i,k)+xp*0.5*zz(i,k+1)
             exit
           end if
           if (wpv_flux(k).le.0.) then
             xp=-wpv_flux(k-1)/(wpv_flux(k)-wpv_flux(k-1))
             xp=min(max(xp,0.),1.)
-            zi(i)=(1.-xp)*zz(i,k-1)+xp*zz(i,k)
+            zi(i)=(1.-xp)*0.5*zz(i,k-1)+0.5*zz(i,k)+xp*0.5*zz(i,k+1)
             exit
           end if
         end do
       end if
     end if
   end do
-  gamt=km*min(max(gamt/km,0.),2.E-3)
-  gamq=km*min(max(gamq/km,0.),2.E-5)  
+  gamt_hl=kmo*min(max(gamt_hl/kmo,0.),2.E-3)
+  gamq_hl=kmo*min(max(gamq_hl/kmo,0.),2.E-5)
 end if
 
 ! Calculate buoyancy terms (include gamt)
 if (mode.ne.1) then
-  ppb=ppb+grav*gamt/(km*thetav)
+  do k=2,kl-1
+    ppb(:,k)=ppb(:,k)+grav*0.5*sum(gamt_hl(:,k:k+1),2)/(km(:,k)*thetav(:,k))
+  end do
 end if
 
 ! calculate wstar and phim (from TAPM)
@@ -461,7 +486,7 @@ do jcount=1,ncount
       tkenew(:,2:kl)=tkenew(:,2:kl)-alpha2*dd(:,2:kl)/ff(:,2:kl)
     end where
   end do
-
+  
   tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-8)
   tkenew(:,2:kl)=min(tkenew(:,2:kl),65.)
   aa(:,2:kl)=cm34*(tkenew(:,2:kl)**1.5)/5.
@@ -529,31 +554,15 @@ end do
 
 ! Update thetav and qg due to non-local term (explicit split form)
 if (mode.ne.1) then
-  gamhl=0.
-  gamhl(:,1)=0.
-  do k=1,kl-1
-    where (zi.gt.zz(:,k+1))
-      gamhl(:,k+1)=0.5*(gamt(:,k)+gamt(:,k+1))
-    elsewhere (zi.le.zz(:,k+1).and.zi.gt.zz(:,k))
-      gamhl(:,k+1)=gamt(:,k)*(1.-min(0.5*(zz(:,k+1)-zz(:,k))/(zi-zz(:,k)),1.))
-    end where
-  end do
-  do k=1,kl-1
-    thetav(:,k)=thetav(:,k)-dt*(gamhl(:,k+1)-gamhl(:,k))/dz_fl(:,k)
+  thetav(:,1)=thetav(:,1)-dt*gamt_hl(:,1)/dz_fl(:,1)
+  do k=2,kl-1
+    thetav(:,k)=thetav(:,k)-dt*(gamt_hl(:,k)-gamt_hl(:,k-1))/dz_fl(:,k)
   end do
 end if
 if (mode.eq.0) then
-  gamhl=0.
-  gamhl(:,1)=0.
-  do k=1,kl-1
-    where (zi.gt.zz(:,k+1))
-      gamhl(:,k+1)=0.5*(gamq(:,k)+gamq(:,k+1))
-    elsewhere (zi.le.zz(:,k+1).and.zi.gt.zz(:,k))
-      gamhl(:,k+1)=gamq(:,k)*(1.-min(0.5*(zz(:,k+1)-zz(:,k))/(zi-zz(:,k)),1.))
-    end where
-  end do
-  do k=1,kl-1
-    qg(:,k)=qg(:,k)-dt*(gamhl(:,k+1)-gamhl(:,k))/dz_fl(:,k)
+  qg(:,1)=qg(:,1)-dt*gamq_hl(:,1)/dz_fl(:,1)
+  do k=2,kl-1
+    qg(:,k)=qg(:,k)-dt*(gamq_hl(:,k)-gamq_hl(:,k-1))/dz_fl(:,k)
   end do
 end if
 
@@ -632,27 +641,27 @@ real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull) :: zhl
 
 select case(interpmeth)
-  case(0)
+  case(0) ! linear
     do k=1,kl-1
-      kmo(:,k)=0.5*(km(:,k+1)+km(:,k))
+      kmo(:,k)=0.5*sum(km(:,k:k+1),2)
     end do
-  case(1)
-    zhl=0.5*(zz(:,2)+zz(:,1))
-    kmo(:,k)=(zhl-zz(:,2))/(zz(:,3)-zz(:,1))*                          &
-               ((zz(:,2)-zz(:,1))*(km(:,3)-km(:,2))/(zz(:,3)-zz(:,2))  &
-               +(zz(:,3)-zz(:,2))*(km(:,2)-km(:,1))/(zz(:,2)-zz(:,1))) &
-             +(zhl-zz(:,2))**2/(zz(:,3)-zz(:,1))*                      &
-               ((km(:,3)-km(:,2))/(zz(:,3)-zz(:,2))                    &
-               -(km(:,2)-km(:,1))/(zz(:,2)-zz(:,1)))
-    do k=2,kl-1
-      zhl=0.5*(zz(:,k+1)+zz(:,k))
-      kmo(:,k)=(zhl-zz(:,k))/(zz(:,k+1)-zz(:,k-1))*                            &
-                 ((zz(:,k)-zz(:,k-1))*(km(:,k+1)-km(:,k))/(zz(:,k+1)-zz(:,k))  &
-                 +(zz(:,k+1)-zz(:,k))*(km(:,k)-km(:,k-1))/(zz(:,k)-zz(:,k-1))) &
-               +(zhl-zz(:,k))**2/(zz(:,k+1)-zz(:,k-1))*                        &
-                 ((km(:,k+1)-km(:,k))/(zz(:,k+1)-zz(:,k))                      &
-                 -(km(:,k)-km(:,k-1))/(zz(:,k)-zz(:,k-1)))
+  case(1) ! quadratic
+    do k=1,kl-2
+      zhl=0.5*sum(zz(:,k:k+1),2)
+      kmo(:,k)=km(:,k+1)+(zhl-zz(:,k+1))/(zz(:,k+2)-zz(:,k))*                      &
+                 ((zz(:,k+1)-zz(:,k))*(km(:,k+2)-km(:,k+1))/(zz(:,k+2)-zz(:,k+1))  &
+                 +(zz(:,k+2)-zz(:,k+1))*(km(:,k+1)-km(:,k))/(zz(:,k+1)-zz(:,k)))   &
+               +(zhl-zz(:,k+1))**2/(zz(:,k+2)-zz(:,k))*                            &
+                 ((km(:,k+2)-km(:,k+1))/(zz(:,k+2)-zz(:,k+1))                      &
+                 -(km(:,k+1)-km(:,k))/(zz(:,k+1)-zz(:,k)))
     end do
+    zhl=0.5*sum(zz(:,kl-1:kl),2)
+    kmo(:,kl-1)=km(:,kl-1)+(zhl-zz(:,kl-1))/(zz(:,kl)-zz(:,kl-2))*                     &
+               ((zz(:,kl-1)-zz(:,kl-2))*(km(:,kl)-km(:,kl-1))/(zz(:,kl)-zz(:,kl-1))    &
+               +(zz(:,kl)-zz(:,kl-1))*(km(:,kl-1)-km(:,kl-2))/(zz(:,kl-1)-zz(:,kl-2))) &
+             +(zhl-zz(:,kl-1))**2/(zz(:,kl)-zz(:,kl-2))*                               &
+               ((km(:,kl)-km(:,kl-1))/(zz(:,kl)-zz(:,kl-1))                            &
+               -(km(:,kl-1)-km(:,kl-2))/(zz(:,kl-1)-zz(:,kl-2)))    
 end select
 ! These terms are never used
 kmo(:,kl)=2.*kmo(:,kl-1)-kmo(:,kl-2)

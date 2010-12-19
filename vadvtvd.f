@@ -6,6 +6,7 @@ c                              vadvbott & vadvyu at bottom
       use diag_m
       use liqwpar_m  ! ifullw
       use map_m
+      use nharrs_m
       use sigs_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       use tracers_m
@@ -30,13 +31,10 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmvert.h' ! nthub,nimp,ntvd
-      common/nharrs/phi(ifull,kl),h_nh(ifull+iextra,kl)
 !     N.B. first 3 arrays of work3 are available from nonlin, all from upglobal
-      common/work3/delt(ifull,0:kl),fluxh(ifull,0:kl),
-     .             dum3(3*ijk-2*ifull)
-      common/work3b/xin(ifull,kl),uav(ifull,kl)
+      real delt(ifull,0:kl),fluxh(ifull,0:kl)
+      real xin(ifull,kl),uav(ifull,kl)
       real udiff(ifull,kl)
-      equivalence (udiff,delt)  ! udiff just used for qg, before delt
       real tarr(ifull,kl),uarr(ifull,kl),varr(ifull,kl)
       real sig3(kl)
       integer num,nsign

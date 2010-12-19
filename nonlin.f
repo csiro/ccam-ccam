@@ -2,18 +2,24 @@
       use arrays_m
       use cc_mpi
       use diag_m
+      use epst_m
       use indices_m
       use latlong_m
       use liqwpar_m  ! qfg,qlg
       use map_m
       use morepbl_m  ! condx
+      use neigh_m
+      use nharrs_m
       use nlin_m
       use savuvt_m
       use sigs_m
+      use tbar2d_m
       use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
       use tracers_m
+      use unn_m
       use vecsuv_m
       use vvel_m, omgf => dpsldt
+      use work3sav_m
       use xarrs_m
       use xyzinfo_m
       implicit none
@@ -26,29 +32,18 @@
       include 'parmdyn.h'  
       include 'parmvert.h'
       include 'mpif.h'
-      real epst
-      common/epst/epst(ifull)
-      integer neigh
-      common/neigh/neigh(ifull)
-      common/nharrs/phi(ifull,kl),h_nh(ifull+iextra,kl)
-      real phi, h_nh
-      real tbar2d
-      common/tbar2d/tbar2d(ifull)
-      real unn, vnn
-      common/unn/unn(ifull,kl),vnn(ifull,kl) ! nonlin,upglobal for nvsplit3,4
       real aa(ifull,kl),bb(ifull,kl)
       real p(ifull+iextra,kl),phiv(ifull+iextra,kl),tv(ifull+iextra,kl)
-      real qgsav, qfgsav, qlgsav, trsav
-      common/work3sav/qgsav(ifull,kl),qfgsav(ifull,kl),qlgsav(ifull,kl)
-     &             ,trsav(ilt*jlt,klt,ngasmax)  ! shared adjust5 & nonlin
       integer iq, k, ng, ii, jj, its, nits, nvadh_pass
       real const_nh, contv, delneg, delpos, ratio
       real sumdiffb, sdmx, sdmx_g, spmax2,termlin
-      real, save, dimension(ifull)     :: epstsav
+      real, allocatable, save, dimension(:) :: epstsav
       integer :: ierr
       integer, save :: num = 0
       
       call start_log(nonlin_begin)
+      
+      if (.not.allocated(epstsav)) allocate(epstsav(ifull))
 
       if(epsp<-2.)then
         if(num==0)epstsav(:)=epst(:)

@@ -2,6 +2,7 @@
 !     inputs & outputs: t,u,v,qg
       use arrays_m
       use cc_mpi, only : mydiag, myid
+      use cfrac_m
       use diag_m
       use extraout_m
       use indices_m
@@ -24,7 +25,7 @@
       parameter (ntest=0)
 c     parameter (ipwr=1)       ! really can use (ipwr=min(1,nlocal))
 c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
-      parameter (kcl_top=kl-2) ! maximum level for cloud top (conjob & vertmix)
+      integer kcl_top          ! maximum level for cloud top (conjob & vertmix)
 !     parameter (kscmom=0)     ! 0 off, 1 turns on shal_conv momentum (usual)
       parameter (ndvmod=0)     ! 0 default, 1+ for dvmod tests
 !     typically tied_con=6., tied_over=2., tied_rh=.75
@@ -35,33 +36,31 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       include 'kuocom.h'   ! also with kbsav,ktsav,convpsav,kscsea,sigksct
       include 'mpif.h'
       include 'parm.h'
-      common/cfrac/cfrac(ifull,kl)
       real betatt(ifull,kl),betaqt(ifull,kl),rhs(ifull,kl),dqtot(ifull)
-      common/work3/delthet(ifull,kl),
+      real delthet(ifull,kl),
      &    thebas(ifull,kl),cu(ifull,kl),thee(ifull,kl),qs(ifull,kl)
-      common/work3b/uav(ifull,kl),vav(ifull,kl)   
-!     n.b. uav & vav also used by pbldif; all of work3 used by tracervmix
-      common/work3f/wrk1(ijk),wrk2(ijk),wrk3(ijk) 
+      real uav(ifull,kl),vav(ifull,kl)   
       real csq(ifull),dvmod(ifull),dz(ifull),dzr(ifull),
      &     fm(ifull),fh(ifull),sqmxl(ifull),
      &     x(ifull),zhv(ifull),theeb(ifull),sigsp(ifull)
       integer kbase(ifull),ktop(ifull)
-      real sighkap(kl),sigkap(kl),delons(kl),delh(kl),prcpv(kl)
+      real sighkap(kl),sigkap(kl),delons(kl),delh(kl)
+      real, dimension(:), allocatable, save :: prcpv
       real au(ifull,kl),ct(ifull,kl)
       real zh(ifull,kl)
       real gt(ifull,kl),guv(ifull,kl),ri(ifull,kl)
       real rkm(ifull,kl),rkh(ifull,kl),rk_shal(ifull,kl)
       real condrag
-      equivalence (rkh,wrk1),(rkm,wrk2),(rk_shal,uav)
-      equivalence (zh,au,wrk3)
-!     equivalence (gamat,ct)
 c     set coefficients for Louis scheme
       data bprm/4.7/,cm/7.4/,ch/5.3/,amxlsq/100./,vkar3/.35/,vkar4/.4/
       data bprmj/5./,cmj/5./,chj/2.6/
-      save kscbase,ksctop,prcpv
+      save kscbase,ksctop
       include 'establ.h'
       real zg(ifull,kl),tmp(ifull),qgs(ifull),wq0(ifull) ! MJT tke
       real wt0(ifull)                                    ! MJT tke
+
+      kcl_top=kl-2
+      if (.not.allocated(prcpv)) allocate(prcpv(kl))
 
       rong=rdry/grav
       do k=1,kl-1
@@ -812,7 +811,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         case(7) ! mass-flux counter gradient                            ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,2,0)      ! MJT tke
+     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,0,0)      ! MJT tke
          rkh=rkm                                                        ! MJT tke
          case DEFAULT                                                   ! MJT tke
            write(6,*) "ERROR: Unknown nlocal option for nvmix=6"        ! MJT tke

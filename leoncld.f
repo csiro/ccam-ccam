@@ -1,7 +1,7 @@
       subroutine leoncld(cfrac)
       use arrays_m
-      use diag_m
       use cc_mpi, only : mydiag, myid
+      use diag_m
       use kuocomb_m
       use latlong_m
       use liqwpar_m  ! ifullw
@@ -12,6 +12,7 @@
       use soil_m     ! land
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
+      use work3f_m
       implicit none
       include 'newmpar.h'
       integer  ncfrp,icfrp
@@ -31,8 +32,6 @@ c for cfrp
       real reffl,tau_sfac,wliq,rk,qlpath,wice,sigmai,cfd,fcf
       common/leoncfrp/tautot(icfrp),cldmax(icfrp)
      &               ,ctoptmp(icfrp),ctoppre(icfrp)
-      common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! ditto
-      real qccon,qlrad,qfrad
 
 c Local variables
       integer iq,k,ncl
