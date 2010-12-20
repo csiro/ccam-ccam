@@ -1,4 +1,5 @@
-      subroutine indata(hourst,newsnow,jalbfix,iaero)! nb  newmask not yet passed thru
+      subroutine indata(hourst,newsnow,jalbfix,iaero,lapsbot,isoth,
+     &                  nsig)! nb  newmask not yet passed thru
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
       use aerosolldr
       use arrays_m
@@ -78,14 +79,14 @@
       real, parameter :: deltheta = 10. ! vertical variation
       real, parameter :: rkappa = 2./7.
 
-      integer :: lapsbot=0
+      integer :: lapsbot
       real :: pmsl=1.010e5, thlapse=3.e-3, tsea=290., gauss=2.,
      &        heightin=2000., hfact=0.1, uin=0., vin=0.
       namelist/tin/gauss,heightin,hfact,pmsl,qgin,tbarr,tsea,uin,vin
      &             ,thlapse
 
       integer i1, ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth,
-     &     iveg, iyr, j1, jj, k, kdate_sav, kmax, ktime_sav, l,
+     &     iveg, iyr, j1, jj, k, kdate_sav, ktime_sav, l,
      &     nface, nn, npgb, nsig, i, j, n,
      &     ix, jx, ixjx, ierr, ico2x, iradonx, ic, jc, iqg, ig, jg,
      &     isav, jsav
@@ -138,18 +139,11 @@
       bam(1)=114413.
 !     now always read eig file fri  12-18-1992
 !     All processes read this
-      read(28,*)kmax,lapsbot,isoth,nsig
-      if (myid==0) print*,'kl,lapsbot,isoth,nsig: ',
-     &             kl,lapsbot,isoth,nsig
-      if(kmax.ne.kl)then
-        write(0,*) 'file 28 wrongly has kmax = ',kmax
-        stop
-      endif
       read(28,*)(sig(k),k=1,kl),(tbar(k),k=1,kl),(bam(k),k=1,kl)
      & ,((emat(k,l),k=1,kl),l=1,kl),((einv(k,l),k=1,kl),l=1,kl),
      & (qvec(k),k=1,kl),((tmat(k,l),k=1,kl),l=1,kl)
-      if (myid==0) print*,'kmax,lapsbot,sig from eigenv file: ',
-     &                     kmax,lapsbot,sig
+      if (myid==0) print*,'kl,lapsbot,sig from eigenv file: ',
+     &                     kl,lapsbot,sig
       ! File has an sigmh(kl+1) which isn't required. Causes bounds violation
       ! to read this.
       ! read(28,*)(sigmh(k),k=1,kl+1) !runs into dsig, but ok

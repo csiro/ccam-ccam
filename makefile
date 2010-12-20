@@ -1,7 +1,7 @@
 FC = ifort
 
-FFLAGS = -O -ftz -fpp -I /tools/netcdf/3.6.0-p1/include -assume buffered_io -Dsimple_timer -Duniform_decomp
-#FFLAGS = -O -ftz -fpp -I /tools/netcdf/3.6.0-p1/include -assume buffered_io -Dsimple_timer
+#FFLAGS = -O -ftz -fpp -I /tools/netcdf/3.6.0-p1/include -assume buffered_io -Dsimple_timer -Duniform_decomp
+FFLAGS = -O -ftz -fpp -I /tools/netcdf/3.6.0-p1/include -assume buffered_io -Dsimple_timer
 LIBS = -L /tools/netcdf/3.6.0-p1/lib -lnetcdf -lmpi
 
 LDFLAGS = 
@@ -34,7 +34,8 @@ cable_radiation.o cable_roughness.o cable_soilsnow.o \
 aerosolldr.o ateb.o mlo.o tkeeps.o \
 seaesfrad.o rad_utilities.o microphys_rad.o esfsw_driver.o esfsw_parameters.o \
 longwave_params.o sealw99.o longwave_clouds.o longwave_fluxes.o longwave_tables.o \
-optical_path.o gas_tf.o lw_gases_stdtf.o
+optical_path.o gas_tf.o lw_gases_stdtf.o \
+stacklimit.o
 
 globpea: $(OBJS)
 	$(FC) -o globpea $(FFLAGS) $(LDFLAGS) $(OBJS) $(LIBS)

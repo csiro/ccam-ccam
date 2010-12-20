@@ -151,6 +151,8 @@
      &     pwatr, pwatr_l, qtot, aa,bb,cc,bb_2,cc_2,rat
       real, dimension(9) :: temparray, gtemparray ! For global sums
       integer :: nproc_in, ierr, nperhr, nscrn=0,nversion=0, ierr2 ! MJT mpi
+      integer :: kmax,isoth,nsig
+      integer :: lapsbot=0
       namelist/defaults/nversion
       namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps,nperavg
      & ,ia,ib,ja,jb,itr1,jtr1,itr2,jtr2,id,jd,iaero,khdif,khor,nhorjlm
@@ -175,7 +177,7 @@
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
      & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss                  ! MJT urban ! MJT nmr ! MJT mlo ! MJT nestin
-     & ,mfix_tr,mfix_ke,kbotmlo,il_g,kl                                         ! MJT tracerfix ! MJT tke
+     & ,mfix_tr,mfix_ke,kbotmlo                                                 ! MJT tracerfix ! MJT tke
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -205,7 +207,7 @@
       data nsnowout/999999/
 
       ! For linux only
-      !call setstacklimit(-1)
+      call setstacklimit(-1)
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
@@ -263,6 +265,36 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
       if(ngas>0) then
         read(99, trfiles)
       endif
+
+      !--------------------------------------------------------------
+      ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
+      ktau=0
+      if(io_in<=5.and.myid==0)then
+!       open new topo file and check its dimensions
+!       here used to supply rlong0,rlat0,schmidt
+        open(66,file=topofile,recl=2000,status='old')
+        print *,'reading topofile header'
+c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
+        read(66,*)
+     &           ilx,jlx,rlong0,rlat0,schmidt,dsx,header
+        print *,'ilx,jlx,rlong0,rlat0,schmidt,dsx ',
+     &           ilx,jlx,rlong0,rlat0,schmidt,dsx,header
+        il_g=ilx
+      endif      ! (io_in<=4)
+      call MPI_Bcast(il_g,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(rlong0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(rlat0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(schmidt,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+!     N.B. to display orog alone, run with io_in=4, nbd=0, nsib=0  
+
+      !--------------------------------------------------------------
+      ! READ EIGENV FILE TO DEFINE VERTICAL LEVELS
+!     Note that all processes read the eigenv file
+      open(28,file=eigenv,status='old',form='formatted')
+      read(28,*)kmax,lapsbot,isoth,nsig
+      if (myid==0) print*,'kl,lapsbot,isoth,nsig: ',
+     &             kl,lapsbot,isoth,nsig
+      kl=kmax
 
       !--------------------------------------------------------------
       ! DEFINE newmpar VARIABLES AND DEFAULTS
@@ -414,26 +446,6 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
       if(mfix_qg>0.and.(nkuo==4.or.nvad==44))
      &        stop 'nkuo=4,nvad=44: mfix_qg>0 not allowed'
       if(mfix>3)stop 'mfix >3 not allowed now'
-
-      !--------------------------------------------------------------
-      ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
-      ktau=0
-      if(io_in<=5.and.myid==0)then
-!       open new topo file and check its dimensions
-!       here used to supply rlong0,rlat0,schmidt
-        open(66,file=topofile,recl=2000,status='old')
-        print *,'reading topofile header'
-c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
-        read(66,*)
-     &           ilx,jlx,rlong0,rlat0,schmidt,dsx,header
-        print *,'ilx,jlx,rlong0,rlat0,schmidt,dsx ',
-     &           ilx,jlx,rlong0,rlat0,schmidt,dsx,header
-        if(ilx.ne.il_g.or.jlx.ne.jl_g)stop 'wrong topo file supplied'
-      endif      ! (io_in<=4)
-      call MPI_Bcast(rlong0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(rlat0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(schmidt,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-!     N.B. to display orog alone, run with io_in=4, nbd=0, nsib=0      
 
       !--------------------------------------------------------------
       ! INITIALISE ifull_g ALLOCATALE ARRAYS
@@ -684,8 +696,6 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       end if
 
 !     open input files
-!     Note that all processes read the eigenv file
-      open(28,file=eigenv,status='old',form='formatted')
       if (myid==0) then
          if(io_in==2)
      &       open(10,file=ifile,form='formatted',status='old')
@@ -722,7 +732,7 @@ c     if(ndi2>0)diag=.true.
 !     indata for initial conditions
       if (myid==0) print *,'calling indata; will read from file ',ifile
 !     N.B. first call to amipsst now done within indata
-      call indata(hourst,newsnow,jalbfix,iaero)
+      call indata(hourst,newsnow,jalbfix,iaero,lapsbot,isoth,nsig)
       
       call maxmin(u,' u',ktau,1.,kl)
       call maxmin(v,' v',ktau,1.,kl)
