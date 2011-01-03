@@ -268,7 +268,7 @@ c       c1=0.
       include 'parmgeom.h'  ! rlong0,rlat0,schmidt      
       
       integer, intent(in) :: namip,iyr,imo,idjd_g
-      integer imonth,iyear,il_in,jl_in,iyr_m,imo_m
+      integer imonth,iyear,il_in,jl_in,iyr_m,imo_m,ierr
       real, dimension(ifull), intent(out) :: ssta,sstb,sstc
       real, dimension(ifull), intent(out) :: aice,bice,cice
       real, dimension(ifull), intent(out) :: asal,bsal,csal
@@ -284,7 +284,12 @@ c       c1=0.
         if(namip==-1)iyr_m=0
       endif      
 
-      open(unit=75,file=sstfile,status='old',form='formatted')
+      open(unit=75,file=sstfile,status='old',form='formatted',
+     &     iostat=ierr)
+      if (ierr.ne.0) then
+        write(6,*) "ERROR: Cannot read AMIP sstfile ",trim(sstfile)
+        stop
+      end if
 	iyear=-999
       imonth=-999	  
 	do while(iyr_m.ne.iyear.or.imo_m.ne.imonth)
@@ -327,7 +332,12 @@ c     extra read from Oct 08
       close(75)
   
       if(namip>=2)then   ! sice also read at middle of month
-        open(unit=76,file=icefile,status='old',form='formatted')
+        open(unit=76,file=icefile,status='old',form='formatted',
+     &       iostat=ierr)
+        if (ierr.ne.0) then
+          write(6,*) "ERROR: Cannot read AMIP icefile ",trim(icefile)
+          stop
+        end if
 	  iyear=-999
 	  imonth=-999	   
 	  do while(iyr_m.ne.iyear.or.imo_m.ne.imonth)
@@ -368,7 +378,12 @@ c       extra cice read from Oct 08
 	    	    
       endif   ! (namip>=2) 
 	if (namip>=5) then
-        open(unit=77,file=salfile,status='old',form='formatted')
+        open(unit=77,file=salfile,status='old',form='formatted',
+     &       iostat=ierr)
+        if (ierr.ne.0) then
+          write(6,*) "ERROR: Cannot read AMIP salfile ",trim(salfile)
+          stop
+        end if
 	  iyear=-999
 	  imonth=-999
 	  do while (iyr_m.ne.iyear.or.imo_m.ne.imonth)

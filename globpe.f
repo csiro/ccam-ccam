@@ -13,7 +13,7 @@
 !     sign convention:
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
-      use aerosolldr
+      use aerointerface
       use arrays_m    ! ts, t, u, v, psl, ps, zs
       use betts1_m, only : betts1_init
       use bigxy4_m
@@ -177,7 +177,7 @@
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
      & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss                  ! MJT urban ! MJT nmr ! MJT mlo ! MJT nestin
-     & ,mfix_tr,mfix_ke,kbotmlo                                                 ! MJT tracerfix ! MJT tke
+     & ,mfix_tr,mfix_ke,mfix_aero,kbotmlo,ktopmlo,mloalpha                      ! MJT tracerfix ! MJT tke
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -187,7 +187,7 @@
      &    smoistfile,soil2file,radonemfile,
      &    co2_00,radon_00,surf_00,co2_12,radon_12,surf_12,
      &    laifile,albnirfile,urbanfile,bathfile,vegprev,vegnext,
-     &    cnsdir,salfile ! MJT sib ! MJT urban ! MJT mlo ! MJT cable ! MJT radiation
+     &    cnsdir,salfile,oxidantfile ! MJT sib ! MJT urban ! MJT mlo ! MJT cable ! MJT radiation
       namelist/kuonml/alflnd,alfsea
      &        ,cldh_lnd,cldm_lnd,cldl_lnd
      &        ,cldh_sea,cldm_sea,cldl_sea
@@ -207,7 +207,7 @@
       data nsnowout/999999/
 
       ! For linux only
-      call setstacklimit(-1)
+      !call setstacklimit(-1)
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
@@ -239,7 +239,7 @@
       ! All processors read the namelist, standard input doesn't work properly
       open(99,file="input",form="formatted",status="old")
       if (myid==0)
-     &  write(6,'(a10," compiled for version,nproc =",2i7)')
+     &  write(6,'(a10," running for nproc =",i7)')
      &                       version,nproc 
       read (99, defaults)
       if(myid==0)print *,'Using defaults for nversion = ',nversion
@@ -298,27 +298,61 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
 
       !--------------------------------------------------------------
       ! DEFINE newmpar VARIABLES AND DEFAULTS
+#ifdef uniform_decomp
+      nxp=nint(sqrt(real(nproc)))
+      nyp=nproc/nxp
+      do while(mod(il_g,nxp).ne.0.and.mod(nproc,nxp).ne.0.and.
+     &         mod(jl_g,nyp).ne.0.and.nxp.gt.0)
+        nxp=nxp-1
+        nyp=nproc/max(nxp,1)
+      end do
+#else
+      if (mod(nproc,6).ne.0.and.mod(6,nproc).ne.0) then
+        write(6,*) "ERROR: nproc must be a multiple of 6 or"
+        write(6,*) "a factor of 6"
+        stop
+      end if
+      nxp=max(1,nint(sqrt(real(nproc/6))))
+      nyp=nproc/nxp
+      do while(mod(il_g,nxp).ne.0.and.mod(nproc/6,nxp).ne.0.and.
+     &         mod(jl_g,nyp).ne.0.and.nxp.gt.0)
+        nxp=nxp-1
+        nyp=nproc/max(nxp,1)
+      end do
+#endif
+      if (nxp.eq.0) then
+        write(6,*) "ERROR: Invalid number of processors for this grid"
+        write(6,*) "Try increasing or decreasing nproc"
+        stop
+      end if
       jl_g = il_g + npanels*il_g
       ifull_g = il_g*jl_g
       ijk_g = il_g*jl_g*kl
       iquad=1+il_g*((8*npanels)/(npanels+4))
-      nyp = nproc/nxp(nproc)
-      il=il_g/nxp(nproc)
+      il=il_g/nxp
       jl=jl_g/nyp
-#ifdef uniform_decomp
-      npan=npanels+1
-#else      
-      npan=max(1,(npanels+1)/nproc)
-#endif
       ifull = il*jl
       ijk = il*jl*kl
+!     The perimeter of the processor region has length 2*(il+jl).
+!     The first row has 8 possible corner points per panel and the 
+!     second has 16. In practice these are not all distinct so there could
+!     be some optimisation.
+#ifdef uniform_decomp
+      npan=npanels+1
+!     This should use jpan rather than jl. Will be far too big.
+      iextra = (4*(il+jl)+24)*npan
+#else      
+      npan=max(1,(npanels+1)/nproc)
       iextra = 4*(il+jl)+24*npan
+#endif
       nrows_rad = 8
       do while(mod(jl,nrows_rad).ne.0)
         nrows_rad = nrows_rad-1
       end do
       if (myid.eq.0) then
-        write(6,*) "nrows_rad = ",nrows_rad
+        write(6,*) "il_g,jl_g,il,jl ",il_g,jl_g,il,jl
+        write(6,*) "nxp,nyp         ",nxp,nyp
+        write(6,*) "nrows_rad     = ",nrows_rad
       end if
       
       if (ia.lt.0) ia=il/2
@@ -337,6 +371,8 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       nud_hrs=abs(nud_hrs)  ! just for people with old -ves in namelist
       if(nudu_hrs==0)nudu_hrs=nud_hrs
 
+      !--------------------------------------------------------------
+      ! DISPLAY NAMELIST
       if ( myid == 0 ) then   ! **** do namelist fixes above this ***
       print *,'Dynamics options A:'
       print *,'   m    mex   mfix  mfix_qg   mup    nh    nonl',    
@@ -903,7 +939,7 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       if(nmi==0.and.nwt>0)then
 !       write out the first ofile data set 
         print *,'calling outfile myid= ',myid
-        call outfile(20,rundate,nmi,nwrite)  ! which calls outcdf
+        call outfile(20,rundate,nmi,nwrite,iaero)  ! which calls outcdf
         if(newtop<0)stop  ! just for outcdf to plot zs  & write fort.22
       endif    ! (nmi==0.and.nwt.ne.0)
       dtin=dt
@@ -919,8 +955,7 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       endif
       call gettin(0)             ! preserve initial mass & T fields; nmi too
 
-      if(nbd.ne.0)call nestin
-      !if(mbd.ne.0)call nestinb ! MJT bugfix
+      if(nbd.ne.0)call nestin(iaero)
       nmaxprsav=nmaxpr
       nwtsav=nwt
       hrs_dt = dtin/3600.      ! time step in hours
@@ -957,7 +992,9 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       mins_gmt=mod(mtimer+60*ktime/100,24*60)
       
       ! NESTING ---------------------------------------------------------------
-      if(nbd.ne.0)call nestin
+      call start_log(nestin_begin)
+      if(nbd.ne.0)call nestin(iaero)
+      call end_log(nestin_end)
       
       ! DYNAMICS --------------------------------------------------------------
       if(nstaguin>0.and.ktau>1)then   ! swapping here for nstaguin>0
@@ -1114,7 +1151,7 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
         enddo
       endif      ! (ngas>=1)
 
-      call nonlin
+      call nonlin(iaero)
       if (diag)then
          if (mydiag) print *,'before hadv'
          call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -1131,7 +1168,7 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
       endif
 
 !     evaluate horizontal advection for combined quantities
-      call upglobal
+      call upglobal(iaero)
       if (diag)then
          if (mydiag) then
             print *,'after hadv'
@@ -1155,12 +1192,12 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
           nstagu=nstag
         endif
       endif
-      call adjust5
+      call adjust5(iaero)
       
       ! NESTING ---------------------------------------------------------------
       call start_log(nestin_begin)
       if(mspec==1.and.nbd.ne.0)call davies  ! nesting now after mass fixers
-      if(mspec==1.and.mbd.ne.0)call nestinb
+      if(mspec==1.and.mbd.ne.0)call nestinb(iaero)
       call end_log(nestin_end)
 
       ! DYNAMICS --------------------------------------------------------------
@@ -1196,7 +1233,7 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
 !     &                  MPI_COMM_WORLD, ierr )
 !      if ( myid == 0 ) print*,'ktau,ave_pwatr ',ktau,pwatr
 
-      if(nhor<0)call hordifgt  ! now not tendencies
+      if(nhor<0)call hordifgt(iaero)  ! now not tendencies
       if (diag.and.mydiag)print *,'after hordifgt t ',t(idjd,:)
 
       ! ***********************************************************************
@@ -1211,13 +1248,13 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
 
       ! CONVECTION ------------------------------------------------------------
       call start_log(convection_begin)
-      if(nkuo==23.or.nkuo==24)call convjlm     ! split convjlm 
+      if(nkuo==23.or.nkuo==24)call convjlm(iaero)     ! split convjlm 
       if( nkuo /= 0 ) then
          ! Not set in HS tests.
          cbas_ave(:)=cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:))) ! diagnostic
          ctop_ave(:)=ctop_ave(:)+condc(:)*(1.1-sig(abs(ktsav(:)))) ! diagnostic
       end if
-      if(nkuo==46)call conjob    ! split Arakawa-Gordon scheme
+      if(nkuo==46)call conjob(iaero)    ! split Arakawa-Gordon scheme
       if(nkuo==5)call betts(t,qg,tn,land,ps) ! not called these days
       call end_log(convection_end)
 
@@ -1225,7 +1262,7 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
       call start_log(cloud_begin)
       if(ldr.ne.0)then
 c       print*,'Calling prognostic cloud scheme'
-        call leoncld(cfrac)  !Output
+        call leoncld(cfrac,iaero)  !Output
         do k=1,kl
          riwp_ave(:)=riwp_ave(:)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
          rlwp_ave(:)=rlwp_ave(:)-qlrad(:,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
@@ -1396,19 +1433,16 @@ c       print*,'Calling prognostic cloud scheme'
         if(ntsur>=1)then ! calls vertmix but not sflux for ntsur=1
           if(nmaxpr==1.and.mydiag)
      &      write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
-          call vertmix 
+          call vertmix(iaero) 
           if(nmaxpr==1.and.mydiag)
      &      write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
         endif  ! (ntsur>=1)
         call end_log(vertmix_end)
 
       ! AEROSOLS --------------------------------------------------------------
-!      if (iaero==2) then ! LDR prognostic aerosol scheme
-!        call aldrcalc(dt,sig,sigh,dsig,sigkap,bet,betm,cansto,vlai,
-!     &                wb(:,1),sfc(isoilm),pblh,ps,tss,t(1:ifull,:),
-!     &                condx,condc,snowd,sg,fg,eg,u10,ustar,zo,land,
-!     &                fracice,sigmf,qlg,qfg,ktsav,kbsav,acon,bcon,nmr)
-!      end if
+      call start_log(aerosol_begin)
+      if (abs(iaero).ge.2) call aerocalc(odcalc)
+      call end_log(aerosol_end)
 
       ! PHYSICS LOAD BALANCING ------------------------------------------------
 !     This is the end of the physics. The next routine makes the load imbalance
@@ -1655,7 +1689,7 @@ c       print*,'Calling prognostic cloud scheme'
       endif
       if(ktau==ntau.or.mod(ktau,nwt)==0)then
         call log_off()
-        call outfile(20,rundate,nmi,nwrite)  ! which calls outcdf
+        call outfile(20,rundate,nmi,nwrite,iaero)  ! which calls outcdf
  
         if(ktau==ntau.and.irest==1) then
 #ifdef simple_timer
@@ -1667,7 +1701,7 @@ c       print*,'Calling prognostic cloud scheme'
      &      (19,file=restfile,form='formatted',status='unknown')
           if(io_rest==3)open
      &      (19,file=restfile,form='unformatted',status='unknown')
-          call outfile(19,rundate,nmi,nwrite)
+          call outfile(19,rundate,nmi,nwrite,iaero)
           if(myid==0)print *,'finished writing restart file in outfile'
           close(19)
 #ifdef simple_timer
@@ -1977,13 +2011,14 @@ c     endif
      &     kdate_s/-1/,ktime_s/-1/,leap/0/,
      &     mbd/0/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/,           
      &     nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/,
-     &     ktopdav/-1/,nud_sst/0/,nud_sss/0/,kbotmlo/12/ ! MJT nestin ! MJT mlo
+     &     ktopdav/-1/,nud_sst/0/,nud_sss/0/,kbotmlo/12/,ktopmlo/1/,
+     &     mloalpha/10/ ! MJT nestin ! MJT mlo
       
 !     Dynamics options A & B      
       data m/5/,mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/,npex/0/
       data nritch_t/300/,nrot/1/,nxmap/0/,
      &     epsp/-15./,epsu/0./,epsf/0./,precon/-2900/,restol/4.e-7/
-      data mfix_tr/0/,mfix_ke/0/ ! MJT tracerfix ! MJT tke
+      data mfix_tr/0/,mfix_ke/0/,mfix_aero/0/ ! MJT tracerfix ! MJT tke
       data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/,nrunx/0/
 !     Horiz advection options
       data ndept/1/,nt_adv/7/,mh_bs/4/
@@ -2047,7 +2082,8 @@ c     initialize file names to something
      &    ,eigenv/' '/,radfile/' '/,o3file/' '/,hfile/' '/,mesonest/' '/
      &          ,scrnfile/' '/,tmaxfile/' '/,tminfile/' '/,trcfil/' '/
      &    ,laifile/' '/,albnirfile/' '/,urbanfile/' '/,bathfile/' '/
-     &    ,vegprev/' '/,vegnext/' '/,cnsdir/' '/,salfile/' '/ ! MJT sib ! MJT urban ! MJT mlo ! MJT cable ! MJT radiation
+     &    ,vegprev/' '/,vegnext/' '/,cnsdir/' '/,salfile/' '/
+     &    ,oxidantfile/' '/ ! MJT sib ! MJT urban ! MJT mlo ! MJT cable ! MJT radiation
       data climcdf/'clim.cdf'/
       data monfil/'monthly.cdf'/,scrfcdf/'scrave.cdf'/
 c     floating point:

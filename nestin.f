@@ -1,4 +1,4 @@
-      subroutine nestin  ! called for nbd.ne.0 - far-field nudging
+      subroutine nestin(iaero)  ! called for nbd.ne.0 - far-field nudging
       use arrays_m
       use cc_mpi, only : myid, mydiag
       use dava_m
@@ -32,7 +32,7 @@
       real, dimension(ifull,kl) :: dumv
       real, dimension(ifull,3) :: dums
       character*12 dimnam
-      integer num,mtimea,mtimeb
+      integer num,mtimea,mtimeb,iaero
       data num/0/,mtimea/0/,mtimeb/-1/
       save num,mtimea,mtimeb
       
@@ -134,7 +134,7 @@
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,
-     &                 duma,duma,dumm) ! MJT cable
+     &                 duma,duma,dumm,iaero) ! MJT cable
 !      endif   ! (io_in==1)
       !--------------------------------------------------------------
       tssb(:) = abs(tssb(:))  ! moved here Mar '03
@@ -294,7 +294,7 @@
       return
       end subroutine nestin
 
-      subroutine nestinb  ! called for mbd>0 - spectral filter method
+      subroutine nestinb(iaero)  ! called for mbd>0 - spectral filter method
 !     this is x-y-z version      
       use arrays_m
       use cc_mpi, only : myid, mydiag
@@ -317,7 +317,7 @@
       include 'parmgeom.h' ! rlong0,rlat0,schmidt  
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
-      integer mtimeb,kdate_r,ktime_r
+      integer mtimeb,kdate_r,ktime_r,iaero
       integer ::  iabsdate,iq,k,kdhour,kdmin
       real :: ds_r,rlong0x,rlat0x
       real :: schmidtx,timeg_b
@@ -367,7 +367,7 @@
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,
-     &                 duma,duma,dumm)
+     &                 duma,duma,dumm,iaero)
        endif   ! (abs(io_in)==1)
        !-------------------------------------------------------------
        tssb(:) = abs(tssb(:))  ! moved here Mar '03
@@ -2367,7 +2367,6 @@
       real, dimension(ifull_g) :: diff_g,diffs_g,r,rr,dd,dds,mm,mms
       real :: cq,cqs
       real, parameter :: miss = 999999.
-      real, parameter :: alpha = 1. ! nudging weight
 
       if (nud_sst.eq.0.and.nud_sss.eq.0) return
       
@@ -2383,7 +2382,7 @@
       
       if (nud_sst.ne.0) then
         old=new
-        call mloexport(0,old,1,0)
+        call mloexport(0,old,ktopmlo,0)
         diff=miss
         where (.not.land)
           diff(:)=new-old
@@ -2398,7 +2397,7 @@
 
       if (nud_sss.ne.0) then
         olds=sssb      
-        call mloexport(1,olds,1,0)
+        call mloexport(1,olds,ktopmlo,0)
         diff=miss
         where (.not.land)
           diff(:)=sssb-olds
@@ -2463,10 +2462,10 @@
      &                 MPI_COMM_WORLD,ierr)
           call ccmpi_distribute(diff)
         end if
-        do k=1,kbotmlo
+        do k=ktopmlo,kbotmlo
           old=new
           call mloexport(0,old,k,0)
-          old=old+alpha*diff(:)
+          old=old+diff(:)*10./real(mloalpha)
           call mloimport(0,old,k,0)
         end do
       end if
@@ -2485,10 +2484,10 @@
      &                 MPI_COMM_WORLD,ierr)
           call ccmpi_distribute(diff)
         end if
-        do k=1,kbotmlo
+        do k=ktopmlo,kbotmlo
           olds=sssb
           call mloexport(1,olds,k,0)
-          olds=olds+alpha*diff(:)
+          olds=olds+diff(:)*10./real(mloalpha)
           call mloimport(1,olds,k,0)
         end do
       end if
@@ -2524,7 +2523,6 @@
       real, dimension(ifull_g) :: diff_g,diffs_g
       real cq,cqs
       real, parameter :: miss = 999999.
-      real, parameter :: alpha = 1. ! nudging weight
       
       if (nud_sst.eq.0.and.nud_sss.eq.0) return
 
@@ -2564,7 +2562,7 @@
       
       if (nud_sst.ne.0) then
         old=new
-        call mloexport(0,old,1,0)
+        call mloexport(0,old,ktopmlo,0)
         diff=miss
         where (.not.land)
           diff(:)=new-old
@@ -2578,7 +2576,7 @@
 
       if (nud_sss.ne.0) then
         olds=sssb
-        call mloexport(1,olds,1,0)
+        call mloexport(1,olds,ktopmlo,0)
         diff=miss
         where (.not.land)
           diff(:)=sssb-olds
@@ -2603,10 +2601,10 @@
         else
           call ccmpi_distribute(diff)
         end if
-        do k=1,kbotmlo
+        do k=ktopmlo,kbotmlo
           old=new
           call mloexport(0,old,k,0)
-          old=old+alpha*diff(:)
+          old=old+diff(:)*10./real(mloalpha)
           call mloimport(0,old,k,0)
         end do
       end if
@@ -2617,10 +2615,10 @@
         else
           call ccmpi_distribute(diff)
         end if
-        do k=1,kbotmlo
+        do k=ktopmlo,kbotmlo
           olds=sssb
           call mloexport(1,olds,k,0)
-          olds=olds+alpha*diff(:)
+          olds=olds+diff(:)*10./real(mloalpha)
           call mloimport(1,olds,k,0)
         end do
       end if
@@ -3059,7 +3057,7 @@
 
       wgt=dt/real(nud_hrs*3600)
       if (nud_sst.ne.0) then
-        do k=1,kbotmlo
+        do k=ktopmlo,kbotmlo
           old=new
           call mloexport(0,old,k,0)
           old=old*(1.-wgt)+new*wgt
@@ -3068,7 +3066,7 @@
       end if
       
       if (nud_sss.ne.0) then
-        do k=1,kbotmlo
+        do k=ktopmlo,kbotmlo
           old=sssb
           call mloexport(1,old,k,0)
           old=old*(1.-wgt)+sssb*wgt

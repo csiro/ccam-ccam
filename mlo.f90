@@ -1,12 +1,12 @@
 
-! This is a 1D, mixed layer ocean model for ensemble regioal climate simulations based on Large, et al (1994)
+! This is a 1D, mixed layer ocean model for ensemble regional climate simulations based on Large, et al (1994)
 ! (i.e., adapted from the GFDL code).  This code is also used for modelling lakes in CCAM.
 
 ! This version has a relatively thin 1st layer (0.5m) so as to reproduce a diurnal cycle in SST.  It also
 ! supports sea ice based on O'Farrell's sea ice model from Mk3.5.
 
 ! This version can assimilate SSTs from GCMs, using a convolution based digital filter (see nestin.f),
-! which avoids problems with complex land-sea boundary conditions
+! which avoids problems with complex land-sea boundary conditions.
 
 ! Order of calls:
 !    call mloinit
@@ -61,7 +61,7 @@ integer, dimension(:), allocatable, save :: p_mixind
 integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 0 ! include shortwave in non-local term
 integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
-integer, parameter :: zomode    = 2 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
+integer, parameter :: zomode    = 0 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 ! max depth
 real, parameter :: mxd    = 977.6   ! Max depth (m)
 real, parameter :: mindep = 1.      ! Thickness of first layer (m)
@@ -710,7 +710,7 @@ integer, intent(in) :: diag
 integer ii,iqw
 real, intent(in) :: dt
 real, dimension(wfull,wlev) :: km,ks,gammas
-real, dimension(wfull,wlev) :: rhs,gamhl
+real, dimension(wfull,wlev) :: rhs
 double precision, dimension(wfull,2:wlev) :: aa
 double precision, dimension(wfull,wlev) :: bb,dd
 double precision, dimension(wfull,1:wlev-1) :: cc
@@ -720,8 +720,9 @@ real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha
 real, dimension(wfull), intent(in) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0
 real, dimension(wfull) :: newa,newb
 
-call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,a_f) ! solve for mixed layer depth
+call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,a_f) ! solve for mixed layer depth (calculated at full levels)
 call getstab(km,ks,gammas,d_nsq,d_ustar)                     ! solve for stability functions and non-local term
+                                                             ! (calculated at half levels)
 
 ! TEMPERATURE
 ! use +ve for gamma terms as depth is down
@@ -732,35 +733,27 @@ if (incradgam.gt.0) then
 else
   dumt0=d_wt0
 end if
-gamhl=0.
-gamhl(:,1)=0.
-do ii=1,wlev-1
-  where (p_mixdepth.gt.depth(:,ii+1))
-    gamhl(:,ii+1)=0.5*(ks(:,ii)*gammas(:,ii)+ks(:,ii+1)*gammas(:,ii+1))
-  elsewhere (p_mixdepth.le.depth(:,ii+1).and.p_mixdepth.gt.depth(:,ii))
-    gamhl(:,ii+1)=ks(:,ii)*gammas(:,ii)*(1.-min(0.5*(depth(:,ii+1)-depth(:,ii))/(p_mixdepth-depth(:,ii)),1.))
-  end where
+rhs(:,1)=km(:,2)*gammas(:,2)/dz(:,1)
+do ii=2,wlev-1
+  rhs(:,ii)=(km(:,ii+1)*gammas(:,ii+1)-km(:,ii)*gammas(:,ii))/dz(:,ii)
 end do
-do ii=1,wlev-1
-  rhs(:,ii)=(gamhl(:,ii+1)-gamhl(:,ii))/dz(:,ii)
-end do
-rhs(:,wlev)=(-gamhl(:,wlev))/dz(:,wlev)
+rhs(:,wlev)=(-km(:,wlev)*gammas(:,wlev))/dz(:,wlev)
 do iqw=1,wfull
   if (rhs(iqw,1)*dumt0(iqw).lt.0.) then
     rhs(iqw,:)=0. ! MJT suggestion
   end if
 end do
-cc(:,1)=-dt*0.5*(ks(:,1)+ks(:,2))/(dz_hl(:,2)*dz(:,1))
+cc(:,1)=-dt*ks(:,2)/(dz_hl(:,2)*dz(:,1))
 bb(:,1)=1.-cc(:,1)
 ! use -ve for BC as depth is down
 dd(:,1)=w_temp(:,1)+dt*rhs(:,1)*dumt0+dt*d_rad(:,1)/dz(:,1)-dt*d_wt0/dz(:,1)
 do ii=2,wlev-1
-  aa(:,ii)=-dt*0.5*(ks(:,ii)+ks(:,ii-1))/(dz_hl(:,ii)*dz(:,ii))
-  cc(:,ii)=-dt*0.5*(ks(:,ii+1)+ks(:,ii))/(dz_hl(:,ii+1)*dz(:,ii))
+  aa(:,ii)=-dt*ks(:,ii)/(dz_hl(:,ii)*dz(:,ii))
+  cc(:,ii)=-dt*ks(:,ii+1)/(dz_hl(:,ii+1)*dz(:,ii))
   bb(:,ii)=1.-aa(:,ii)-cc(:,ii)
   dd(:,ii)=w_temp(:,ii)+dt*rhs(:,ii)*dumt0+dt*d_rad(:,ii)/dz(:,ii)
 end do
-aa(:,wlev)=-dt*0.5*(ks(:,wlev)+ks(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
+aa(:,wlev)=-dt*ks(:,wlev)/(dz_hl(:,wlev)*dz(:,wlev))
 bb(:,wlev)=1.-aa(:,wlev)
 dd(:,wlev)=w_temp(:,wlev)+dt*rhs(:,wlev)*dumt0+dt*d_rad(:,wlev)/dz(:,wlev)
 call thomas(w_temp,aa,bb,cc,dd)
@@ -779,16 +772,16 @@ call thomas(w_sal,aa,bb,cc,dd)
 w_sal=max(0.,w_sal)
 
 ! split U diffusion term
-cc(:,1)=-dt*0.5*(km(:,1)+km(:,2))/(dz_hl(:,2)*dz(:,1))
+cc(:,1)=-dt*km(:,2)/(dz_hl(:,2)*dz(:,1))
 bb(:,1)=1.-cc(:,1)
 dd(:,1)=w_u(:,1)-dt*d_wu0/dz(:,1)
 do ii=2,wlev-1
-  aa(:,ii)=-dt*0.5*(km(:,ii)+km(:,ii-1))/(dz_hl(:,ii)*dz(:,ii))
-  cc(:,ii)=-dt*0.5*(km(:,ii+1)+km(:,ii))/(dz_hl(:,ii+1)*dz(:,ii))
+  aa(:,ii)=-dt*km(:,ii)/(dz_hl(:,ii)*dz(:,ii))
+  cc(:,ii)=-dt*km(:,ii+1)/(dz_hl(:,ii+1)*dz(:,ii))
   bb(:,ii)=1.-aa(:,ii)-cc(:,ii)
   dd(:,ii)=w_u(:,ii)
 end do
-aa(:,wlev)=-dt*0.5*(km(:,wlev)+km(:,wlev-1))/(dz_hl(:,wlev)*dz(:,wlev))
+aa(:,wlev)=-dt*km(:,wlev)/(dz_hl(:,wlev)*dz(:,wlev))
 bb(:,wlev)=1.-aa(:,wlev)
 dd(:,wlev)=w_u(:,wlev)
 umag=sqrt(w_u(:,wlev)*w_u(:,wlev)+w_v(:,wlev)*w_v(:,wlev))
@@ -859,6 +852,7 @@ subroutine getstab(km,ks,gammas,d_nsq,d_ustar)
 implicit none
 
 integer ii,iqw
+integer, dimension(wfull) :: mixind_hl
 real, dimension(wfull,wlev), intent(out) :: km,ks,gammas
 real, dimension(wfull,wlev) :: num,nus,wm,ws,ri
 real, dimension(wfull) :: sigma
@@ -873,21 +867,16 @@ real, parameter :: nu0 = 50.E-4
 real, parameter :: numw = 1.E-4
 real, parameter :: nusw = 0.1E-4
 
-ri(:,1)=d_nsq(:,1)*(2.*dz_hl(:,2))**2 &
-           /max((w_u(:,1)-w_u(:,2))**2 &
-               +(w_v(:,1)-w_v(:,2))**2,1.E-10)
-do ii=2,wlev-1
-  ri(:,ii)=d_nsq(:,ii)*(2.*dz(:,ii))**2 &
-           /max((w_u(:,ii-1)-w_u(:,ii+1))**2 &
-               +(w_v(:,ii-1)-w_v(:,ii+1))**2,1.E-10)
+ri=0. ! ri(:,1) is not used
+do ii=2,wlev
+  ri(:,ii)=d_nsq(:,ii)*dz_hl(:,ii)**2      & 
+           /max((w_u(:,ii-1)-w_u(:,ii))**2 &
+               +(w_v(:,ii-1)-w_v(:,ii))**2,1.E-10)
 end do
-ri(:,wlev)=d_nsq(:,wlev)*(2.*dz_hl(:,wlev))**2 &
-           /max((w_u(:,wlev-1)-w_u(:,wlev))**2 &
-               +(w_v(:,wlev-1)-w_v(:,wlev))**2,1.E-10)
 
 ! diffusion ---------------------------------------------------------
 num=0.
-do ii=1,wlev
+do ii=2,wlev
   ! s - shear
   where (ri(:,ii).lt.0.)
     num(:,ii)=nu0
@@ -904,24 +893,28 @@ nus=nus+nusw
 !--------------------------------------------------------------------
 
 ! stability ---------------------------------------------------------
-do ii=1,wlev
-  call getwx(wm(:,ii),ws(:,ii),depth(:,ii),p_bf,d_ustar,p_mixdepth)
+wm=0.
+ws=0.
+do ii=2,wlev
+  call getwx(wm(:,ii),ws(:,ii),depth_hl(:,ii),p_bf,d_ustar,p_mixdepth)
 end do
 !--------------------------------------------------------------------
 
 ! calculate G profile -----------------------------------------------
 ! -ve as z is down
 do iqw=1,wfull
-  xp=(p_mixdepth(iqw)-depth(iqw,p_mixind(iqw)))/(depth(iqw,p_mixind(iqw)+1)-depth(iqw,p_mixind(iqw)))
+  mixind_hl(iqw)=p_mixind(iqw)
+  if (p_mixdepth(iqw).gt.depth_hl(iqw,mixind_hl(iqw)+1)) mixind_hl(iqw)=min(mixind_hl(iqw)+1,wlev-1)
+  xp=(p_mixdepth(iqw)-depth_hl(iqw,mixind_hl(iqw)))/(depth_hl(iqw,mixind_hl(iqw)+1)-depth_hl(iqw,mixind_hl(iqw)))
   xp=max(0.,min(1.,xp))
-  numh(iqw)=(1.-xp)*num(iqw,p_mixind(iqw))+xp*num(iqw,p_mixind(iqw)+1)
-  wm1(iqw)=(1.-xp)*wm(iqw,p_mixind(iqw))+xp*wm(iqw,p_mixind(iqw)+1)
-  dnumhdz(iqw)=-(num(iqw,p_mixind(iqw)+1)-num(iqw,p_mixind(iqw)))/dz_hl(iqw,p_mixind(iqw)+1)
-  dwm1ds(iqw)=-p_mixdepth(iqw)*(wm(iqw,p_mixind(iqw)+1)-wm(iqw,p_mixind(iqw)))/dz_hl(iqw,p_mixind(iqw)+1)
-  nush(iqw)=(1.-xp)*nus(iqw,p_mixind(iqw))+xp*nus(iqw,p_mixind(iqw)+1)
-  ws1(iqw)=(1.-xp)*ws(iqw,p_mixind(iqw))+xp*ws(iqw,p_mixind(iqw)+1)
-  dnushdz(iqw)=-(nus(iqw,p_mixind(iqw)+1)-nus(iqw,p_mixind(iqw)))/dz_hl(iqw,p_mixind(iqw)+1)
-  dws1ds(iqw)=-p_mixdepth(iqw)*(ws(iqw,p_mixind(iqw)+1)-ws(iqw,p_mixind(iqw)))/dz_hl(iqw,p_mixind(iqw)+1)
+  numh(iqw)=(1.-xp)*num(iqw,mixind_hl(iqw))+xp*num(iqw,mixind_hl(iqw)+1)
+  wm1(iqw)=(1.-xp)*wm(iqw,mixind_hl(iqw))+xp*wm(iqw,mixind_hl(iqw)+1)
+  dnumhdz(iqw)=-(num(iqw,mixind_hl(iqw)+1)-num(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
+  dwm1ds(iqw)=-p_mixdepth(iqw)*(wm(iqw,mixind_hl(iqw)+1)-wm(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
+  nush(iqw)=(1.-xp)*nus(iqw,mixind_hl(iqw))+xp*nus(iqw,mixind_hl(iqw)+1)
+  ws1(iqw)=(1.-xp)*ws(iqw,mixind_hl(iqw))+xp*ws(iqw,mixind_hl(iqw)+1)
+  dnushdz(iqw)=-(nus(iqw,mixind_hl(iqw)+1)-nus(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
+  dws1ds(iqw)=-p_mixdepth(iqw)*(ws(iqw,mixind_hl(iqw)+1)-ws(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
 end do
 
 wm1=max(wm1,1.E-10)
@@ -941,23 +934,23 @@ a3s=1.-2.*g1s+dg1sds
 ! combine
 km=num
 ks=nus
-do ii=1,wlev
-  where (ii.le.p_mixind)
-    sigma=depth(:,ii)/p_mixdepth
+do ii=2,wlev
+  where (ii.le.mixind_hl)
+    sigma=depth_hl(:,ii)/p_mixdepth
     km(:,ii)=p_mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
     ks(:,ii)=p_mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
   end where
 end do
 
-km=max(km,numw) ! MJT suggestion
-ks=max(ks,nusw) ! MJT suggestion
+km=max(km,num) ! MJT suggestion
+ks=max(ks,nus) ! MJT suggestion
 
 ! non-local term
 ! gammas is the same for temp and sal when double-diffusion is not employed
 cg=10.*vkar*(98.96*vkar*epsilon)**(1./3.)
 gammas=0.
-do ii=1,wlev
-  where (p_bf.lt.0..and.ii.le.p_mixind) ! unstable
+do ii=2,wlev
+  where (p_bf.lt.0..and.ii.le.mixind_hl) ! unstable
     gammas(:,ii)=cg/max(ws(:,ii)*p_mixdepth,1.E-10)
   end where
 end do
@@ -1002,9 +995,9 @@ p_mixdepth=depth(:,wlev)
 do iqw=1,wfull
   ! should be averaged over 0 < sigma < epsilon instead of 1st level
   di=wlev
-  do ii=1,wlev
+  do ii=2,wlev
     if (depth(iqw,ii).gt.5.) then
-      di=ii
+      di=ii-1
       exit
     end if
   end do
@@ -1012,10 +1005,10 @@ do iqw=1,wfull
   averho=sum(d_rho(iqw,1:di)*depth(iqw,1:di))/totdepth
   aveu=sum(w_u(iqw,1:di)*depth(iqw,1:di))/totdepth
   avev=sum(w_v(iqw,1:di)*depth(iqw,1:di))/totdepth
-  avedepth=0.5*totdepth
+  avedepth=0.5*depth_hl(iqw,di+1)
   rib(1)=0.
   do ii=di+1,wlev
-    vtsq=depth(iqw,ii)*ws(iqw,ii)*sqrt(abs(d_nsq(iqw,ii)))*vtc
+    vtsq=depth(iqw,ii)*ws(iqw,ii)*sqrt(0.5*abs(d_nsq(iqw,ii)+d_nsq(iqw,min(ii+1,wlev))))*vtc
     dvsq=(aveu-w_u(iqw,ii))**2+(avev-w_v(iqw,ii))**2
     rib(ii)=(depth(iqw,ii)-avedepth)*(1.-averho/d_rho(iqw,ii))/max(dvsq+vtsq,1.E-10)
     if (rib(ii).gt.ric) then
@@ -1246,12 +1239,11 @@ do i=1,nits
 
 end do
 
-! buoyancy frequency
-d_nsq(:,1)=-(grav/d_rho(:,1))*(d_rho(:,1)-d_rho(:,2))/dz_hl(:,2)
-do ii=2,wlev-1
-  d_nsq(:,ii)=-(grav/d_rho(:,ii))*0.5*(d_rho(:,ii-1)-d_rho(:,ii+1))/dz(:,ii)
+! buoyancy frequency (calculated at half levels)
+do ii=2,wlev
+  d_nsq(:,ii)=-(2.*grav/(d_rho(:,ii-1)+d_rho(:,ii)))*(d_rho(:,ii-1)-d_rho(:,ii))/dz_hl(:,ii)
 end do
-d_nsq(:,wlev)=-(grav/d_rho(:,wlev))*(d_rho(:,wlev-1)-d_rho(:,wlev))/dz_hl(:,wlev)
+d_nsq(:,1)=2.*d_nsq(:,2)-d_nsq(:,3) ! not used
 
 ! shortwave
 ! use -ve as depth is down

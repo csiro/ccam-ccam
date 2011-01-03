@@ -1,4 +1,5 @@
-      subroutine nonlin      
+      subroutine nonlin(iaero)
+      use aerosolldr      
       use arrays_m
       use cc_mpi
       use diag_m
@@ -34,7 +35,7 @@
       include 'mpif.h'
       real aa(ifull,kl),bb(ifull,kl)
       real p(ifull+iextra,kl),phiv(ifull+iextra,kl),tv(ifull+iextra,kl)
-      integer iq, k, ng, ii, jj, its, nits, nvadh_pass
+      integer iq, k, ng, ii, jj, its, nits, nvadh_pass, iaero
       real const_nh, contv, delneg, delpos, ratio
       real sumdiffb, sdmx, sdmx_g, spmax2,termlin
       real, allocatable, save, dimension(:) :: epstsav
@@ -104,11 +105,9 @@
       
       !--------------------------------------------------------------
       ! MJT aerosols
-      !if (iaero==2) then
-      !  do l=1,ntrac
-      !    xtgsav=xtg
-      !  end do
-      !end if
+      if (abs(iaero)==2) then
+        xtgsav(1:ifull,:,:)=xtg(1:ifull,:,:)
+      end if
       !--------------------------------------------------------------
 
       if (diag) then
@@ -163,12 +162,12 @@
      &                         sdmx_g,nits,nvadh_pass
          do its=1,nits
             call vadvtvd(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
-     &                   nvadh_pass) 
+     &                   nvadh_pass,iaero) 
         enddo
       endif  ! (nvad==4.or.nvad==9)
 
       if(nvad>=7)then
-         call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:))  ! for vadvbess
+         call vadv30(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),iaero)  ! for vadvbess
       endif
 
 cx      do k=1,kl  ! following done in upglobal from 04/09

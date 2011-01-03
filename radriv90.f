@@ -11,6 +11,7 @@
 ! N.B. (iq) indexing is still OK whether arrays have i dimension
 !       of il or imax, because j advances sensibly
 
+      use aerointerface
       use arrays_m
       use ateb       ! MJT urban 
       use cable_ccam, only : CABLE ! MJT cable
@@ -46,7 +47,6 @@
       parameter (nalbwb=0)  ! 0  for original alb not depending on wb
       integer kcl_top       !max level for cloud top (conjob,radrive,vertmix)
       include 'const_phys.h' ! for ldr cloud scheme
-      include 'cparams.h'    ! for ldr cloud scheme
       include 'dates.h'      ! timer,kdate,ktime,dt,mtimer
       include 'kuocom.h'     ! also with kbsav,ktsav
       include 'parm.h'
@@ -95,6 +95,8 @@ c     Stuff from cldset
 
 !     Ozone returned by o3set
       real duo3n(imax,kl)
+      
+      real rhoa(imax,kl)
 
       logical clforflag, solarfit
       parameter (clforflag = .true., solarfit=.true.)
@@ -424,7 +426,11 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
       call atebalb1(istart,imax,cirrf(1:imax,1),0) ! MJT CHANGE - urban
       
       ! AEROSOLS ----------------------------------------------------
-      if (abs(iaero).eq.1) then ! MJT aero
+      select case(abs(iaero))
+       case(0)
+         ! do nothing
+       case(1,2) ! prognostic aerosols are included as direct effect only
+                 ! with this radiation code
         do i=1,imax
           iq=i+(j-1)*il
            cosz = max ( coszro(i), 1.e-4)
@@ -433,7 +439,10 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
            cuvrf(i,1)=min(0.99, delta+cuvrf(i,1)) ! surface albedo
            cirrf(i,1)=min(0.99, delta+cirrf(i,1)) ! still broadband
         end do ! i=1,imax
-      endif !(abs(iaero).eq.1)then
+       case default
+        write(6,*) "ERROR: Unknown aerosol option ",iaero
+        stop       
+      end select
       albvisnir(istart:iend,1)=cuvrf(1:imax,1)
       albvisnir(istart:iend,2)=cirrf(1:imax,1)
       !--------------------------------------------------------------
@@ -485,34 +494,18 @@ c       Stuff needed for cloud2 routine...
             qf2(i,k)=qfrad(iq,k)
             cf2(i,k)=cfrac(iq,k) ! called cfrad till Oct '05
             qc2(i,k)=qccon(iq,k)
-!           will need this test eventually: if(naerosol_i(1).gt.0)then .. else
-            if(land(iq))then
-              if(rlatt(iq)>0.)then     
-                cd2(i,k)=cdropl_nh
-              else
-                cd2(i,k)=cdropl_sh
-              endif
-            else
-              if(rlatt(iq)>0.)then     
-                cd2(i,k)=cdrops_nh
-              else
-                cd2(i,k)=cdrops_sh
-              endif
-            endif  ! (land(iq)) .. else ..
             land2(i)=land(iq)
             p2(i,k)=0.01*ps(iq)*sig(k) !Looks like ps is SI units
             dp2(i,k)=-0.01*ps(iq)*dsig(k) !dsig is -ve
           enddo
         enddo
+        do k=1,kl
+          rhoa(:,k)=ps(istart:iend)*sig(k)/(rdry*t(istart:iend,k)) !density of air
+        end do
+        call aerodrop(iaero,istart,imax,kl,cd2,rhoa,
+     &                land(istart:iend),rlatt(istart:iend))
       endif  ! (ldr.ne.0)
       
-      !--------------------------------------------------------------
-      ! MJT aerosols
-      !if (iaero==2) then
-      !  call cldrop(cd2,rhoa)
-      !end if
-      !--------------------------------------------------------------
-
 c  Clear sky calculation
       if (clforflag) then
         cldoff=.true.

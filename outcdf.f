@@ -1,5 +1,5 @@
 c=======================================================================
-      subroutine outcdf(rundate,nmi,itype,ms_out)
+      subroutine outcdf(rundate,nmi,itype,ms_out,iaero)
 !     itype=-1  for restart file
 !            1  for outfile
 !     N.B. subr outcdfs is down the bottom (for nscrn=1)
@@ -17,7 +17,7 @@ c=======================================================================
       include 'parmhor.h'  ! mhint, m_bs, nt_adv, ndept
       include 'parmvert.h'
       character rundate*8
-      integer nmi, itype, ms_out
+      integer nmi, itype, ms_out, iaero
 
       integer, parameter :: nihead=54
       integer nahead(nihead)
@@ -251,7 +251,7 @@ c       create the attributes of the header record of the file
 
       endif ! (myid==0.or.local) #########################
       ! openhist writes some fields so needs to be called by all processes
-      call openhist(iarch,itype,dim,local,idnc)
+      call openhist(iarch,itype,dim,local,idnc,iaero)
 
       if(myid==0.or.local)then
         call ncsnc(idnc,ier)
@@ -265,7 +265,8 @@ c       create the attributes of the header record of the file
       return   ! outcdf  
       end
 c=======================================================================
-      subroutine openhist(iarch,itype,dim,local,idnc)
+      subroutine openhist(iarch,itype,dim,local,idnc,iaero)
+      use aerosolldr
       use arrays_m
       use ateb ! MJT urban
       use cable_ccam, only : savetile ! MJT cable
@@ -313,7 +314,7 @@ c     this routine creates attributes and writes output
       include 'trcom2.h'
       include 'version.h'
 
-      integer iarch, itype
+      integer iarch, itype, iaero
       logical, intent(in) :: local
       character lname*40,mnam*21,nnam*21,expdesc*50,vname*8 ! MJT mlo
       integer dim(4)
@@ -956,6 +957,38 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
      &                itype)
         end if
         !--------------------------------------------------------  
+        
+        !--------------------------------------------------------
+        ! MJT aerosols
+        if (iaero.le.-2.or.(iaero.ge.2.and.itype==-1)) then  
+          call attrib(idnc,dim,4,'dms','Dimethyl sulfide'
+     &              ,'kg/kg',0.,6.5E-7,0,itype)
+          call attrib(idnc,dim,4,'so2','Sulfur dioxide'
+     &              ,'kg/kg',0.,6.5E-7,0,itype)
+          call attrib(idnc,dim,4,'so4','Sulfate'
+     &              ,'kg/kg',0.,6.5E-7,0,itype)
+          call attrib(idnc,dim,4,'bco','Black carbon hydrophobic'
+     &              ,'kg/kg',0.,6.5E-6,0,itype)
+          call attrib(idnc,dim,4,'bci','Black carbon hydrophilic'
+     &              ,'kg/kg',0.,6.5E-6,0,itype)
+          call attrib(idnc,dim,4,'oco','Organic aerosol hydrophobic'
+     &              ,'kg/kg',0.,6.5E-6,0,itype)
+          call attrib(idnc,dim,4,'oci','Organic aerosol hydrophilic'
+     &              ,'kg/kg',0.,6.5E-6,0,itype)
+          call attrib(idnc,dim,4,'dust1','Dust 0.1-1 micrometers'
+     &              ,'kg/kg',0.,6.5E-6,0,itype)
+          call attrib(idnc,dim,4,'dust2','Dust 1-2 micrometers'
+     &              ,'kg/kg',0.,6.5E-6,0,itype)
+          call attrib(idnc,dim,4,'dust3','Dust 2-3 micrometers'
+     &              ,'kg/kg',0.,6.5E-6,0,itype)
+          call attrib(idnc,dim,4,'dust4','Dust 3-6 micrometers'
+     &              ,'kg/kg',0.,6.5E-6,0,itype)
+          call attrib(idnc,dim,4,'seasalt1','Sea salt small'
+     &              ,'1/m3',0.,6.5E-6,0,itype)
+          call attrib(idnc,dim,4,'seasalt2','Sea salt large'
+     &              ,'1/m3',0.,6.5E-6,0,itype)
+        end if
+        !--------------------------------------------------------  
 
         !-------------------------------------------------------
         ! MJT CHANGE - add wetfrac1-6 and possibly delete wb1-6 above
@@ -1103,13 +1136,9 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       call histwrt3(psl,'psf',idnc,iarch,local)
       call mslp(aa,psl,zs,t(1:ifull,:)) ! MJT cable
       aa=aa/100.                        ! MJT cable
-!      do iq=1,ifull                    ! MJT cable
-!        aa(iq)=pmsl(iq)/100.           ! MJT cable
-!      enddo                            ! MJT cable
       call histwrt3(aa,'pmsl',idnc,iarch,local)
       call histwrt3(tss,'tsu',idnc,iarch,local)
       aa(:)=swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2) ! MJT CHANGE albedo
-      !aa(:)=0.5*sum(albvisnir,2)                                ! MJT CHANGE albedo
       call atebalb1(1,ifull,aa(:),0) ! MJT urban
       call histwrt3(aa,'alb',idnc,iarch,local)
       !---------------------------------------------------------
@@ -1461,6 +1490,25 @@ c      "extra" outputs
        deallocate(atebdwn)
       end if
       !---------------------------------------------------------      
+
+      !--------------------------------------------------------
+      ! MJT aerosols
+      if (iaero.le.-2.or.(iaero.ge.2.and.itype==-1)) then
+        call histwrt4(xtg(1:ifull,:,1),'dms',idnc,iarch,local)
+        call histwrt4(xtg(1:ifull,:,2),'so2',idnc,iarch,local)
+        call histwrt4(xtg(1:ifull,:,3),'so4',idnc,iarch,local)
+        call histwrt4(xtg(1:ifull,:,4),'bco',idnc,iarch,local)
+        call histwrt4(xtg(1:ifull,:,5),'bci',idnc,iarch,local)
+        call histwrt4(xtg(1:ifull,:,6),'oco',idnc,iarch,local)
+        call histwrt4(xtg(1:ifull,:,7),'oci',idnc,iarch,local)
+        call histwrt4(xtg(1:ifull,:,8),'dust1',idnc,iarch,local)
+        call histwrt4(xtg(1:ifull,:,9),'dust2',idnc,iarch,local)
+        call histwrt4(xtg(1:ifull,:,10),'dust3',idnc,iarch,local)
+        call histwrt4(xtg(1:ifull,:,11),'dust4',idnc,iarch,local)
+        call histwrt4(ssn(1:ifull,:,1),'seasalt1',idnc,iarch,local)
+        call histwrt4(ssn(1:ifull,:,2),'seasalt2',idnc,iarch,local)
+      end if
+      !--------------------------------------------------------
       
       !---------------------------------------------------------
       ! MJT CHANGE - Add wetfrac1-6 and possibly remove wb1-6 above
@@ -1499,7 +1547,7 @@ c=======================================================================
       character name*(*), lname*(*), units*(*)
       real xmin, xmax
       
-      if (itype==-1) then
+      if (itype==1) then
         vtype = ncshort
       else
         vtype = ncfloat

@@ -1,4 +1,5 @@
-      subroutine upglobal      ! globpea version   use ritchie 103
+      subroutine upglobal(iaero)      ! globpea version   use ritchie 103
+      use aerosolldr
       use arrays_m
       use cc_mpi
       use diag_m
@@ -37,6 +38,7 @@
       integer idjdd
       real theta(ifull,kl), factr(kl)
       integer ii,intsch, iq, jj,k, kk, ntr, ierr, its, nits, nvadh_pass
+      integer iaero, l
       real denb, tempry, vdot1,
      &     vdot2, vec1x, vec1y, vec1z, vec2x, vec2y, vec2z, vec3x,
      &     vec3y, vec3z, vecdot, sdmx, sdmx_g
@@ -181,7 +183,7 @@
 	 nvadh_pass=nvadh*nits ! use - for nvadu
         do its=1,nits
          call vadvtvd(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
-     &                nvadh_pass) 
+     &                nvadh_pass,iaero) 
         enddo
         if( (diag.or.nmaxpr==1) .and. mydiag )then
           print *,'in upglobal after vadv1'
@@ -398,11 +400,11 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
              call ints(tke,intsch,nface,xg,yg,5)   ! MJT tke
              call ints(eps,intsch,nface,xg,yg,5)   ! MJT tke
           endif                 ! nvmix.eq.6       ! MJT tke
-          !if (iaero==2) then                             ! MJT aerosols
-          !  do l=1,ntrac                                 ! MJT aerosols
-          !    call ints(xtg(:,:,l),intsch,nface,xg,yg,5) ! MJT aerosols
-          !  end do                                       ! MJT aerosols
-          !end if                                         ! MJT aerosols
+          if (abs(iaero)==2) then                        ! MJT aerosols
+            do l=1,naero                                 ! MJT aerosols
+              call ints(xtg(:,:,l),intsch,nface,xg,yg,5) ! MJT aerosols
+            end do                                       ! MJT aerosols
+          end if                                         ! MJT aerosols
        endif     ! mspec==1
        if(nh.ne.0)then
         call ints(h_nh,intsch,nface,xg,yg,2) ! 2?
@@ -443,7 +445,7 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
           endif
           do its=1,nits
             call vadvtvd(tx(1:ifull,:),ux(1:ifull,:),vx(1:ifull,:),
-     &                   nvadh_pass) 
+     &                   nvadh_pass,iaero) 
           enddo
           if( (diag.or.nmaxpr==1) .and. mydiag )then
             print *,'in upglobal after vadv2'

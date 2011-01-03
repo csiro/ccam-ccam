@@ -1,7 +1,7 @@
       subroutine indata(hourst,newsnow,jalbfix,iaero,lapsbot,isoth,
      &                  nsig)! nb  newmask not yet passed thru
 !     indata.f bundles together indata, insoil, rdnsib, tracini, co2
-      use aerosolldr
+      use aerointerface
       use arrays_m
       use ateb ! MJT urban
       use bigxy4_m ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
@@ -275,6 +275,14 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
       end if
       !-----------------------------------------------------------------
 
+      !-----------------------------------------------------------------
+      ! MJT aerosols
+      if (abs(iaero).ge.2) then
+        if (myid==0) print *,"Initialising LDR prognostic aerosols"
+        call load_aerosolldr(so4tfile,oxidantfile)
+      end if
+      !-----------------------------------------------------------------
+
       hourst = 0. ! Some io_in options don't set it.
       albsav=-1. ! missing value flag ! MJT cable
       if(io_in<4)then  ! ********************************************************
@@ -283,71 +291,11 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
          !-----------------------------------------------------------
          ! MJT small otf
          if (abs(io_in)==1) then
-!         if(io_in==1)then
-!            
-!            !--------------------------------------------------------------
-!            ! MJT urban
-!            ! Allocate arrays for onthefly.f
-!            if (nurban.ne.0) then
-!              allocate(atebdwn(ifull,13))
-!            end if
-!            !--------------------------------------------------------------
-!            !--------------------------------------------------------------
-!            ! MJT mlo
-!            ! Allocate arrays for onthefly.f
-!            if (nmlo.ne.0) then
-!              allocate(mlodwn(ifull,wlev,4),ocndwn(ifull))
-!            end if
-!            !-------------------------------------------------------------- 
-!            !--------------------------------------------------------------
-!            ! MJT tke
-!            ! Allocate arrays for onthefly.f
-!            if (nvmix.eq.6) then
-!              allocate(tkedwn(ifull,kl),epsdwn(ifull,kl),pblhdwn(ifull))
-!            end if
-!            !--------------------------------------------------------------
-!         
-!            call infile(0,kdate,ktime,timegb,ds,
-!     &           psl(1:ifull),zss,tss,sicedep,fracice,
-!     &           t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),qg(1:ifull,:),
-!     &           tgg,wb,wbice,albsav,snowd,qfg(1:ifull,:), ! MJT albedo
-!     &           qlg(1:ifull,:), ! 0808 
-!     &           tggsn,smass,ssdn,ssdnn,snage,isflag,ifull,kl,         ! 0808
-!     &           cplant,csoil) ! MJT cable
-!     
-!!           rml 16/02/06 read tracer from restart for up to 999 tracers
-!            if (ngas>0) then                                       ! MJT tracerfix
-!              do igas=1,ngas                                       ! MJT tracerfix
-!                write(trnum,'(i3.3)') igas                         ! MJT tracerfix
-!                call histrd4(ncid,iarchi-1,ier,'tr'//trnum,ik,jk,kk,
-!     &                   tr(1:ifull,:,igas),ifull)                 ! MJT tracerfix
-!              enddo                                                ! MJT tracerfix
-!            endif                                                  ! MJT tracerfix
-!     
-!            albnirsav=albsav ! MJT CHANGE albedo
-!c           if(nspecial>100)then
-!c!            allows nudging from mesonest with different kdate
-!c             kdate=nspecial
-!c             kdate_s=nspecial
-!c             print *,'re-setting kate & kdate_s to nspecial'
-!c           endif  ! (nspecial>100)
-!            if(newtop>=0)then  ! no check if just plotting zs
-!              if(abs(rlong0  -rlong0x)>.01.or.
-!     &           abs(rlat0    -rlat0x)>.01.or.
-!     &           abs(schmidt-schmidtx)>.01)then
-!                 write(0,*) "grid mismatch in indata"
-!                 print *,'rlong0,rlong0x,rlat0,rlat0x,schmidt,schmidtx '
-!     &                   ,rlong0,rlong0x,rlat0,rlat0x,schmidt,schmidtx
-!                 stop 
-!              endif
-!            endif  ! (newtop>=0)
-!         endif     ! (io_in==1)
-!
-!         if(io_in==-1)then
             call onthefly(0,kdate,ktime,psl(1:ifull),zss,tss,sicedep,
      &           fracice,t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
      &           qg(1:ifull,:),tgg,wb,wbice,snowd,qfg(1:ifull,:),
-     &           qlg(1:ifull,:),tggsn,smass,ssdn,ssdnn,snage,isflag)
+     &           qlg(1:ifull,:),tggsn,smass,ssdn,ssdnn,snage,isflag,
+     &           iaero)
          endif   ! (abs(io_in)==1)
          !-----------------------------------------------------------
          if( mydiag )then
@@ -2112,41 +2060,6 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       end if
       !-----------------------------------------------------------------
       
-      !-----------------------------------------------------------------
-      ! MJT aerosols
-      if (iaero.eq.2) then
-        if (myid==0) print *,"Initialising LDR prognostic aerosols"
-        call aldrinit(ifull,iextra,kl)
-        call load_aerosolldr(so4tfile)
-      end if
-      !-----------------------------------------------------------------
-
-      !-----------------------------------------------------------------
-      ! MJT CHANGE albedo
-!      if (nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7) then
-!        if (all(albsav.ne.-1.)) then
-!          if (myid==0) print *,
-!     &      "CABLE in use.  Initialising albedo with infile data"
-!          where ((albsav.le.0.14).and.land)
-!            !sfact=0.5 for alb <= 0.14 (see cable_soilsnow.f90)
-!            albvisnir(:,1)=(1.00/1.50)*albsav(:)
-!            albvisnir(:,2)=(2.00/1.50)*albsav(:)
-!          elsewhere ((albsav.le.0.2).and.land)
-!            !sfact=0.62 for 0.14 < alb <= 0.20 (see cable_soilsnow.f90)
-!            albvisnir(:,1)=(1.24/1.62)*albsav(:)
-!            albvisnir(:,2)=(2.00/1.62)*albsav(:)
-!          elsewhere (land)
-!            !sfact=0.68 for 0.2 < alb (see cable_soilsnow.f90)
-!            albvisnir(:,1)=(1.36/1.68)*albsav(:)
-!            albvisnir(:,2)=(2.00/1.68)*albsav(:)
-!          end where
-!        else
-!          if (myid==0) print *,
-!     &  "CABLE in use.  Initialising albedo with modified soil albedo"
-!        end if
-!      end if
-      !-----------------------------------------------------------------
-
       do iq=1,ifull
        albsav(iq)=albvisnir(iq,1)    ! MJT albedo
        albnirsav(iq)=albvisnir(iq,2) ! MJT albedo
@@ -2166,12 +2079,12 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         rlongd=rlongg(iq)*180./pi
         rlatd=rlatt(iq)*180./pi	
         if (rlatd.ge.-6..and.rlatd.le.6.) then
-	 if (rlongd.ge.180..and.rlongd.le.290.) then
-	  if (.not.land(iq)) then
-	   tgg(iq,1)=293.16
-	   tss(iq)=293.16
-	  end if
-	 end if
+         if (rlongd.ge.180..and.rlongd.le.290.) then
+          if (.not.land(iq)) then
+           tgg(iq,1)=293.16
+           tss(iq)=293.16
+          end if
+         end if
         end if
        end do      
       end if
@@ -2752,127 +2665,3 @@ c find coexp: see notes "simplified wind model ..." eq 34a
       
       return
       end subroutine caispecial
-
-      ! Load aerosols emissions from netcdf
-      subroutine load_aerosolldr(aerofile)
-      
-      use aerosolldr
-      use cc_mpi
-      
-      implicit none
-      
-      include 'netcdf.inc'
-      include 'newmpar.h'
-      include 'parmgeom.h'
-      
-      integer ncstatus,ncid,i,varid,tilg
-      integer, dimension(2) :: spos,npos
-      real, dimension(ifull_g) :: dumg
-      real, dimension(ifull) :: duma
-      real tlat,tlon,tschmidt
-      character(len=*), intent(in) :: aerofile
-
-      if (myid==0) then
-        ncstatus=nf_open(aerofile,nf_nowrite,ncid)
-        if (ncstatus.ne.nf_noerr) then
-          write(6,*) "ERROR: Cannot open ",trim(aerofile)
-          stop
-        end if
-        ! check dimensions and location
-        ncstatus=nf_get_att_real(ncid,nf_global,'lat0',tlat)
-        ncstatus=nf_get_att_real(ncid,nf_global,'lon0',tlon)
-        ncstatus=nf_get_att_real(ncid,nf_global,'schmidt0',tschmidt)
-        if (rlong0.ne.tlon.or.rlat0.ne.tlat.or.schmidt.ne.tschmidt) 
-     &     then
-          write(6,*) "ERROR: Grid mismatch for ",trim(aerofile)
-          write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
-          write(6,*) "tlon,tlat,tschmidt   ",tlon,tlat,tschmidt
-          stop
-        end if
-        ncstatus = nf_inq_dimid(ncid,'lognitude',varid)
-        ncstatus = nf_inq_dimlen(ncid,varid,tilg)
-        if (tilg.ne.il_g) then
-          write (6,*) "ERROR: Grid mismatch for ",trim(aerofile)
-          write (6,*) "il_g,tilg ",il_g,tilg
-          stop
-        end if
-        ! read data
-        spos=1
-        npos(1)=il_g
-        npos(2)=il_g*6
-        ncstatus = nf_inq_varid(ncid,'so2a1',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(1,duma)
-        ncstatus = nf_inq_varid(ncid,'so2a2',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(2,duma)
-        ncstatus = nf_inq_varid(ncid,'bca1',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(3,duma)
-        ncstatus = nf_inq_varid(ncid,'bca2',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(4,duma)
-        ncstatus = nf_inq_varid(ncid,'oca1',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(5,duma)
-        ncstatus = nf_inq_varid(ncid,'oca2',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(6,duma)
-        ncstatus = nf_inq_varid(ncid,'so2b1',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(7,duma)
-        ncstatus = nf_inq_varid(ncid,'so2b2',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(8,duma)
-        ncstatus = nf_inq_varid(ncid,'bcb1',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(9,duma)
-        ncstatus = nf_inq_varid(ncid,'bcb2',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(10,duma)
-        ncstatus = nf_inq_varid(ncid,'ocb1',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(11,duma)
-        ncstatus = nf_inq_varid(ncid,'ocb2',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(12,duma)
-        ncstatus = nf_inq_varid(ncid,'dmso',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(13,duma)
-        ncstatus = nf_inq_varid(ncid,'dmst',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(14,duma)
-        ncstatus = nf_inq_varid(ncid,'ocna',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(15,duma)
-        ncstatus = nf_inq_varid(ncid,'vso2',varid)
-        ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-        call ccmpi_distribute(duma,dumg)
-        call aldrloademiss(16,duma)
-        ncstatus=nf_close(ncid)
-        ! load oxidant fields
-      else
-        do i=1,16
-          call ccmpi_distribute(duma)
-          call aldrloademiss(i,duma)
-        end do
-        ! load oxidant fields
-      end if
-
-      return
-      end subroutine load_aerosolldr

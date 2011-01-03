@@ -7,7 +7,8 @@ use rad_utilities_mod, only: atmos_input_type,surface_type,astronomy_type,aeroso
                              cld_specification_type,lw_output_type,sw_output_type, &
                              aerosol_diagnostics_type,time_type,microphysics_type, &
                              microrad_properties_type,lw_diagnostics_type,lw_table_type, &
-                             Sw_control,Lw_control, Rad_control,Cldrad_control,Lw_parameters
+                             Sw_control,Lw_control, Rad_control,Cldrad_control,Lw_parameters, &
+                             thickavg
 use esfsw_driver_mod, only : swresf,esfsw_driver_init
 use sealw99_mod, only : sealw99,sealw99_init
 use esfsw_parameters_mod, only:  Solar_spect,esfsw_parameters_init
@@ -26,8 +27,14 @@ real, parameter :: siglow   =.68         ! sigma level for top of low cloud
 real, parameter :: sigmid   =.44         ! sigma level for top of medium cloud
 real, parameter :: ratco2mw =1.519449738
 real, parameter :: cong     = cp/grav
+integer, parameter :: naermodels                    = 37
+integer, parameter :: N_AEROSOL_BANDS_FR            = 8
+integer, parameter :: N_AEROSOL_BANDS_CO            = 1
+integer, parameter :: N_AEROSOL_BANDS_CN            = 1
+integer, parameter :: N_AEROSOL_BANDS               = N_AEROSOL_BANDS_FR+N_AEROSOL_BANDS_CO
+integer, parameter :: nfields                       = 11
 logical, parameter :: do_totcld_forcing             = .true.
-logical, parameter :: calculate_volcanic_sw_heating = .false.
+logical, parameter :: include_volcanoes             = .false.
 
 logical, save :: do_aerosol_forcing
 
@@ -39,6 +46,8 @@ contains
 
 subroutine seaesfrad(imax,odcalc,iaero)
 
+use aerointerface
+use aerosolldr
 use arrays_m
 use ateb
 use cable_ccam, only : CABLE
@@ -64,7 +73,6 @@ implicit none
 
 include 'parm.h'
 include 'newmpar.h'
-include 'cparams.h'
 include 'dates.h'
 include 'kuocom.h'
 
@@ -82,7 +90,8 @@ real, dimension(imax) :: qsat,coszro2,taudar2,coszro,taudar
 real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn
 real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr,sga
 real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
-real, dimension(imax,kl) :: duo3n
+real, dimension(imax) :: dprf
+real, dimension(imax,kl) :: duo3n,rhoa
 real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
 real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt
 real, dimension(kl+1) :: sigh
@@ -122,7 +131,7 @@ if (.not.allocated(sgamp)) then
 end if
 
 ! Aerosol flag
-do_aerosol_forcing=abs(iaero).gt.1
+do_aerosol_forcing=abs(iaero).ge.2
 
 ! set-up half levels ------------------------------------------------
 sigh(1:kl) = sigmh(1:kl)
@@ -144,7 +153,7 @@ jmonth=(kdate-jyear*10000)/100
 jday=kdate-jyear*10000-jmonth*100
 jhour=ktime/100
 jmin=ktime-jhour*100
-mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of y
+mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of year
 ! mtimer contains number of minutes since the start of the run.
 mins = mtimer + mstart
 
@@ -218,13 +227,7 @@ if ( first ) then
   allocate ( Atmos_input%temp (imax, 1, kl+1) )
   allocate ( Atmos_input%rh2o (imax, 1, kl  ) )
   allocate ( Atmos_input%rel_hum(imax, 1, kl  ) )
-  !allocate ( Atmos_input%cloudtemp(imax, 1,kl  ) )
-  !allocate ( Atmos_input%cloudvapor(imax, 1,kl  ) )
   allocate ( Atmos_input%clouddeltaz(imax, 1,kl  ) )
-  !allocate ( Atmos_input%aerosoltemp(imax, 1,kl  ) )
-  !allocate ( Atmos_input%aerosolpress(imax, 1,kl+1) )
-  !allocate ( Atmos_input%aerosolvapor(imax, 1,kl  ) )
-  !allocate ( Atmos_input%aerosolrelhum(imax, 1,kl  ) )
   allocate ( Atmos_input%deltaz(imax, 1, kl ) )
   allocate ( Atmos_input%pflux (imax, 1, kl+1) )
   allocate ( Atmos_input%tflux (imax, 1, kl+1) )
@@ -301,6 +304,93 @@ if ( first ) then
     allocate (Sw_output(1)%dfsw_dif_sfc_clr(imax,1))
     allocate (Sw_output(1)%bdy_flx_clr(imax,1,4))
   endif
+
+  if (do_aerosol_forcing) then
+    allocate(Aerosol_props%sulfate_index(0:100))
+    allocate(Aerosol_props%omphilic_index(0:100))
+    allocate(Aerosol_props%bcphilic_index(0:100))
+    allocate(Aerosol_props%seasalt1_index(0:100))
+    allocate(Aerosol_props%seasalt2_index(0:100))
+    allocate(Aerosol_props%seasalt3_index(0:100))
+    allocate(Aerosol_props%seasalt4_index(0:100))
+    allocate(Aerosol_props%seasalt5_index(0:100))
+    allocate(Aerosol_props%optical_index(nfields))
+    allocate(Aerosol%aerosol(imax,1,kl,nfields))
+    allocate(Atmos_input%aerosolrelhum(imax,1,kl))
+    allocate(Aerosol_props%aerextband(Solar_spect%nbands, naermodels))
+    allocate(Aerosol_props%aerssalbband(Solar_spect%nbands, naermodels))
+    allocate(Aerosol_props%aerasymmband(Solar_spect%nbands, naermodels))
+    allocate(Aerosol_props%aerssalbbandlw(N_AEROSOL_BANDS, naermodels))
+    allocate(Aerosol_props%aerextbandlw(N_AEROSOL_BANDS, naermodels))
+    allocate(Aerosol_props%aerssalbbandlw_cn(N_AEROSOL_BANDS, naermodels))
+    allocate(Aerosol_props%aerextbandlw_cn(N_AEROSOL_BANDS, naermodels))
+    allocate(Aerosol_diags%extopdep(imax,1,kl,nfields,5))
+    allocate(Aerosol_diags%absopdep(imax,1,kl,nfields,5))
+
+    Aerosol_props%sulfate_flag=0
+    Aerosol_props%omphilic_flag=-1
+    Aerosol_props%bcphilic_flag=-2
+    Aerosol_props%seasalt1_flag=-3
+    Aerosol_props%seasalt2_flag=-4
+    Aerosol_props%seasalt3_flag=-5
+    Aerosol_props%seasalt4_flag=-6
+    Aerosol_props%seasalt5_flag=-7
+    Lw_parameters%n_lwaerosol_bands=N_AEROSOL_BANDS
+    Aerosol_props%optical_index(1)=Aerosol_props%sulfate_flag ! so4
+    Aerosol_props%optical_index(2)=28   ! soot
+    Aerosol_props%optical_index(3)=28   ! soot
+    Aerosol_props%optical_index(4)=27   ! organic carbon
+    Aerosol_props%optical_index(5)=27   ! organic carbon
+    Aerosol_props%optical_index(6)=32   ! dust 0.1-1 (using 0.4)
+    Aerosol_props%optical_index(7)=34   ! dust 1-2   (using 1)
+    Aerosol_props%optical_index(8)=35   ! dust 2-3   (using 2)
+    Aerosol_props%optical_index(9)=36   ! dust 3-6   (using 4)
+    Aerosol_props%optical_index(10)=29  ! sea-salt
+    Aerosol_props%optical_index(11)=29  ! sea-salt
+    !aerosol_optical_names = "sulfate_30%", "sulfate_35%", "sulfate_40%", "sulfate_45%",
+    !                        "sulfate_50%", "sulfate_55%", "sulfate_60%", "sulfate_65%",
+    !                        "sulfate_70%", "sulfate_75%", "sulfate_80%", "sulfate_82%",
+    !                        "sulfate_84%", "sulfate_86%", "sulfate_88%", "sulfate_90%",
+    !                        "sulfate_91%", "sulfate_92%", "sulfate_93%", "sulfate_94%",
+    !                        "sulfate_95%", "sulfate_96%", "sulfate_97%", "sulfate_98%",
+    !                        "sulfate_99%", "sulfate_100%","organic_carbon","soot",
+    !                        "sea_salt",    "dust_0.1",    "dust_0.2",    "dust_0.4",
+    !                        "dust_0.8",    "dust_1.0",    "dust_2.0",    "dust_4.0",
+    !                        "dust_8.0" /    
+    Aerosol_props%sulfate_index( 0: 13)=(/  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 /)
+    Aerosol_props%sulfate_index(14: 27)=(/  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 /)
+    Aerosol_props%sulfate_index(28: 41)=(/  1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3 /)
+    Aerosol_props%sulfate_index(42: 55)=(/  3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6 /)
+    Aerosol_props%sulfate_index(56: 69)=(/  6, 6, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 9, 9 /)
+    Aerosol_props%sulfate_index(70: 83)=(/  9, 9, 9,10,10,10,10,10,11,11,11,11,12,12 /)
+    Aerosol_props%sulfate_index(84: 97)=(/ 13,13,14,14,15,15,16,17,18,19,20,21,22,23 /)
+    Aerosol_props%sulfate_index(98:100)=(/ 24,25,26 /)
+    Aerosol_props%omphilic_index=0
+    Aerosol_props%bcphilic_index=0
+    Aerosol_props%seasalt1_index=0
+    Aerosol_props%seasalt2_index=0
+    Aerosol_props%seasalt3_index=0
+    Aerosol_props%seasalt4_index=0
+    Aerosol_props%seasalt5_index=0
+
+    call loadaerooptical(Aerosol_props)
+    
+    Aerosol_diags%extopdep=0.
+    Aerosol_diags%absopdep=0.
+
+    if (include_volcanoes) then
+      !allocate(Aerosol_props%sw_ext(imax,1,kl,Solar_spect%nbands)
+      !allocate(Aerosol_props%sw_ssa(imax,1,kl,Solar_spect%nbands)
+      !allocate(Aerosol_props%sw_asy(imax,1,kl,Solar_spect%nbands)
+      !allocate(Aerosol_props%lw_ext(imax,1,kl,N_AEROSOL_BANDS))      
+      !allocate(Aerosol_diags%lw_extopdep_vlcno(imax,1,kl+1,2))
+      !allocate(Aerosol_diags%lw_absopdep_vlcno(imax,1,kl+1,2))
+      write(6,*) "ERROR: Prescribed aerosol properties for"
+      write(6,*) "volcanoes is currently unsupported"
+      stop
+    end if
+
+  end if
 
   ! define diagnostic cloud levels
   f1=1.
@@ -461,6 +551,9 @@ do j=1,jl,imax/il
     call atebalb1(istart,imax,cirrf_dif(1:imax),0)    
 
     ! Aerosols -------------------------------------------------------
+    do k=1,kl
+      rhoa(:,k)=ps(istart:iend)*sig(k)/(rdry*t(istart:iend,k)) !density of air
+    end do
     select case (abs(iaero))
       case(0)
         ! no aerosols
@@ -476,33 +569,30 @@ do j=1,jl,imax/il
           cirrf_dif(i)=min(0.99, delta+cirrf_dif(i)) ! still broadband
         end do ! i=1,imax
       case(2)
-        ! prognostic aerosols
-        !Aerosol=
-        !Aerosol_props=
-        write(6,*) "ERROR: prognostic aerosols are not supported"
-        stop
+        do k=1,kl
+          kr=kl+1-k
+          dprf=ps(istart:iend)*(sigh(k+1)-sigh(k))
+          Aerosol%aerosol(:,1,kr,1) =xtg(istart:iend,k,3)*dprf*3.0e3/grav  ! so4
+          Aerosol%aerosol(:,1,kr,2) =xtg(istart:iend,k,4)*dprf*1.0e3/grav  ! bc hydrophobic
+          Aerosol%aerosol(:,1,kr,3) =xtg(istart:iend,k,5)*dprf*1.0e3/grav  ! bc hydrophilic
+          Aerosol%aerosol(:,1,kr,4) =xtg(istart:iend,k,6)*dprf*1.3e3/grav  ! oc hydrophobic
+          Aerosol%aerosol(:,1,kr,5) =xtg(istart:iend,k,7)*dprf*1.3e3/grav  ! oc hydrophilic
+          Aerosol%aerosol(:,1,kr,6) =xtg(istart:iend,k,8)*dprf*1.0e3/grav  ! dust 0.1-1
+          Aerosol%aerosol(:,1,kr,7) =xtg(istart:iend,k,9)*dprf*1.0e3/grav  ! dust 1-2
+          Aerosol%aerosol(:,1,kr,8) =xtg(istart:iend,k,10)*dprf*1.0e3/grav ! dust 2-3
+          Aerosol%aerosol(:,1,kr,9) =xtg(istart:iend,k,11)*dprf*1.0e3/grav ! dust 3-6
+          Aerosol%aerosol(:,1,kr,10)=5.3e-17*ssn(istart:iend,k,1) &
+                                     /rhoa(istart:iend,k)*dprf*1.0e3/grav  ! Small sea salt
+          Aerosol%aerosol(:,1,kr,11)=9.1e-15*ssn(istart:iend,k,2) &
+                                     /rhoa(istart:iend,k)*dprf*1.0e3/grav  ! Large sea salt
+        end do
       case DEFAULT
         write(6,*) "ERROR: unknown iaero option ",iaero
         stop
     end select
 
-    ! define droplet size (from radriv90.f) -------------------------
-    if (iaero.ne.2) then
-      where (land(istart:iend).and.rlatt(istart:iend)>0.)
-        cd2(:,1)=cdropl_nh
-      else where (land(istart:iend))
-        cd2(:,1)=cdropl_sh
-      else where (rlatt(istart:iend)>0.)
-        cd2(:,1)=cdrops_nh
-      else where
-        cd2(:,1)=cdrops_sh
-      end where
-      do k=2,kl
-        cd2(:,k)=cd2(1:imax,1)
-      enddo
-    else
-      !call cldrop(cd2,rhoa)
-    end if
+    ! define droplet size -------------------------------------------
+    call aerodrop(iaero,istart,imax,kl,cd2,rhoa,land(istart:iend),rlatt(istart:iend))
     
     ! Cloud fraction diagnostics ------------------------------------
     cloudlo(istart:iend)=0.
@@ -542,15 +632,6 @@ do j=1,jl,imax/il
     Atmos_input%pflux(:,1,kl+1) = Atmos_input%press(:,1,kl+1)
     Atmos_input%tflux(:,1,kl+1) = Atmos_input%temp (:,1,kl+1)
     Atmos_input%clouddeltaz     = Atmos_input%deltaz        
-    !Atmos_input%cloudtemp       = Atmos_input%temp ! fix
-    !do k=1,kl
-    !  kr = kl+1-k
-    !  Atmos_input%cloudvapor(:,1,kr)=qg(istart:iend,k) ! fix
-    !end do
-    !Atmos_input%aerosolrelhum   =Atmos_input%rel_hum
-    !Atmos_input%aerosoltemp     =Atmos_input%temp ! fix
-    !Atmos_input%aerosolvapor    =Atmos_input%cloudvapor ! fix
-    !Atmos_input%aerosolpress    =Atmos_input%press  ! fix    
 
     Atmos_input%psfc(:,1)    =ps(istart:iend)
     Atmos_input%tsfc(:,1)    =tss(istart:iend)
@@ -558,6 +639,10 @@ do j=1,jl,imax/il
       kr=kl+2-k
       Atmos_input%phalf(:,1,kr)=ps(istart:iend)*sigh(k)
     end do
+
+    if (do_aerosol_forcing) then
+      Atmos_input%aerosolrelhum=Atmos_input%rel_hum
+    end if
     
     Rad_gases%rrvco2 =rrvco2
     Rad_gases%rrvch4 =rrvch4
@@ -1047,7 +1132,7 @@ real(kind=8), dimension(:,:,:,:),        intent(inout) :: r
           endif 
           call swresf (is, ie, js, je, Atmos_input, Surface, Rad_gases,&
                        Aerosol, Aerosol_props, Astro, Cldrad_props,      &
-                       Cld_spec, calculate_volcanic_sw_heating,          &
+                       Cld_spec, include_volcanoes,                      &
                        Sw_output(1), Aerosol_diags, r,                   &
                        do_aerosol_forcing, naerosol_optical)
       endif
@@ -1155,6 +1240,680 @@ endwhere
 
 return
 end subroutine cloud3
+
+subroutine loadaerooptical(Aerosol_props)
+
+use cc_mpi
+
+implicit none
+
+include 'filnames.h'
+include 'mpif.h'
+
+integer n,nmodel,unit,num_wavenumbers,num_input_categories
+integer noptical,nivl3,nband,nw,ierr,na,ni
+integer, dimension(:), allocatable :: endaerwvnsf
+integer, dimension(:), allocatable :: nivl1aero,nivl2aero
+real(kind=8) sumsol3
+real(kind=8), dimension(:,:), allocatable :: aeroextivl,aerossalbivl,aeroasymmivl
+real(kind=8), dimension(:,:), allocatable :: sflwwts,sflwwts_cn
+real(kind=8), dimension(:,:), allocatable :: solivlaero
+real(kind=8), dimension(:), allocatable :: aeroext_in,aerossalb_in,aeroasymm_in
+logical, dimension(:), allocatable :: found
+character(len=64), dimension(naermodels) :: aerosol_optical_names
+character(len=64) :: name_in
+character(len=110) :: filename
+type(aerosol_properties_type), intent(inout) :: Aerosol_props
+
+aerosol_optical_names( 1: 4)=(/ "sulfate_30%", "sulfate_35%", "sulfate_40%", "sulfate_45%" /)
+aerosol_optical_names( 5: 8)=(/ "sulfate_50%", "sulfate_55%", "sulfate_60%", "sulfate_65%" /)
+aerosol_optical_names( 9:12)=(/ "sulfate_70%", "sulfate_75%", "sulfate_80%", "sulfate_82%" /)
+aerosol_optical_names(13:16)=(/ "sulfate_84%", "sulfate_86%", "sulfate_88%", "sulfate_90%" /)
+aerosol_optical_names(17:20)=(/ "sulfate_91%", "sulfate_92%", "sulfate_93%", "sulfate_94%" /)
+aerosol_optical_names(21:24)=(/ "sulfate_95%", "sulfate_96%", "sulfate_97%", "sulfate_98%" /)
+aerosol_optical_names(25:28)=(/ "sulfate_99%", "sulfate_100%","organic_carbon","soot" /)
+aerosol_optical_names(29:32)=(/ "sea_salt",    "dust_0.1",    "dust_0.2",    "dust_0.4" /)
+aerosol_optical_names(33:36)=(/ "dust_0.8",    "dust_1.0",    "dust_2.0",    "dust_4.0" /)
+aerosol_optical_names(37)   =   "dust_8.0"
+
+! shortwave optical models
+
+if (myid==0) then
+  filename=trim(cnsdir) // '/aerosol.optical.dat'
+  unit=16
+  open(unit,file=filename,iostat=ierr,status='old')
+  if (ierr.ne.0) then
+    write(6,*) "ERROR: Cannot open ",trim(filename)
+    stop
+  end if
+  write(6,*) "Loading aerosol optical properties"
+
+  !----------------------------------------------------------------------
+  !    read the dimension information contained in the input file.
+  !----------------------------------------------------------------------
+  read ( unit,* ) num_wavenumbers
+  read ( unit,* ) num_input_categories
+
+  !----------------------------------------------------------------------
+  !    read wavenumber limits for aerosol parameterization bands from 
+  !    the input file.
+  !----------------------------------------------------------------------
+  allocate (endaerwvnsf(num_wavenumbers) )
+  read (unit,* )
+  read (unit,* ) endaerwvnsf
+ 
+  !----------------------------------------------------------------------
+  !    allocate module arrays to hold the specified sw properties for 
+  !    each parameterization bnad and each aerosol properties type.
+  !----------------------------------------------------------------------
+  allocate (aeroextivl   (num_wavenumbers, naermodels), &
+           aerossalbivl (num_wavenumbers, naermodels), &
+           aeroasymmivl (num_wavenumbers, naermodels) )
+
+  !----------------------------------------------------------------------
+  !    allocate local working arrays.
+  !----------------------------------------------------------------------
+  allocate (aeroext_in   (num_wavenumbers ),           &
+          aerossalb_in (num_wavenumbers ),           &
+          aeroasymm_in (num_wavenumbers ),           &
+          found        (naermodels ) )
+
+  !----------------------------------------------------------------------
+  !    match the names of optical property categories from input file with
+  !    those specified in the namelist, and store the following data
+  !    appropriately. indicate that the data has been found.
+  !----------------------------------------------------------------------
+  found(:) = .false.
+  do n=1,num_input_categories
+    read( unit,* ) name_in
+    read( unit,* )
+    read( unit,* ) aeroext_in
+    read( unit,* )
+    read( unit,* ) aerossalb_in
+    read( unit,* )
+    read( unit,* ) aeroasymm_in
+    do noptical=1,naermodels
+      if (aerosol_optical_names(noptical) == name_in) then
+        write(6,*) "Loading optical model for ",trim(name_in)
+        aeroextivl(:,noptical)   = aeroext_in
+        aerossalbivl(:,noptical) = aerossalb_in
+        aeroasymmivl(:,noptical) = aeroasymm_in
+        found( noptical ) = .true.
+        exit
+      endif
+    end do
+  end do
+
+  close(unit)
+
+  allocate ( nivl1aero  (Solar_spect%nbands) )
+  allocate ( nivl2aero  (Solar_spect%nbands) )
+  allocate ( solivlaero (Solar_spect%nbands, num_wavenumbers))
+
+  !---------------------------------------------------------------------
+  !    define the solar weights and interval counters that are needed to  
+  !    map the aerosol parameterization spectral intervals onto the solar
+  !    spectral intervals and so determine the single-scattering proper-
+  !    ties on the solar spectral intervals.
+  !--------------------------------------------------------------------
+  nivl3 = 1
+  sumsol3 = 0.0
+  nband = 1
+  solivlaero(:,:) = 0.0
+  nivl1aero(1) = 1
+  do nw = 1,Solar_spect%endwvnbands(Solar_spect%nbands)
+    sumsol3 = sumsol3 + Solar_spect%solarfluxtoa(nw)
+    if (nw == endaerwvnsf(nivl3) ) then
+      solivlaero(nband,nivl3) = sumsol3
+      sumsol3 = 0.0
+    end if
+    if ( nw == Solar_spect%endwvnbands(nband) ) then
+      if ( nw /= endaerwvnsf(nivl3) ) then
+        solivlaero(nband,nivl3) = sumsol3 
+        sumsol3 = 0.0
+      end if
+      nivl2aero(nband) = nivl3
+      nband = nband + 1
+      if ( nband <= Solar_spect%nbands ) then
+        if ( nw == endaerwvnsf(nivl3) ) then
+          nivl1aero(nband) = nivl3 + 1
+        else
+          nivl1aero(nband) = nivl3
+        end if
+      end if
+    end if
+    if ( nw == endaerwvnsf(nivl3) ) nivl3 = nivl3 + 1
+  end do
+
+  Aerosol_props%aerextband=0.
+  Aerosol_props%aerssalbband=0.
+  Aerosol_props%aerasymmband=0.
+
+  do nmodel=1,naermodels
+    call thickavg (nivl1aero, nivl2aero, num_wavenumbers,   &
+                   Solar_spect%nbands, aeroextivl(:,nmodel), &
+                   aerossalbivl(:,nmodel),    &
+                   aeroasymmivl(:,nmodel), solivlaero,   &
+                   Solar_spect%solflxbandref,       & 
+                   Aerosol_props%aerextband(:,nmodel),    &
+                   Aerosol_props%aerssalbband(:,nmodel),   &
+                   Aerosol_props%aerasymmband(:,nmodel))
+  end do
+
+  deallocate (aeroext_in,aerossalb_in,aeroasymm_in,found)
+  deallocate (nivl1aero,nivl2aero,solivlaero)
+
+  ! longwave optical models
+
+  allocate (sflwwts (N_AEROSOL_BANDS, num_wavenumbers))
+  allocate (sflwwts_cn (N_AEROSOL_BANDS_CN, num_wavenumbers))
+
+  call lw_aerosol_interaction(num_wavenumbers,sflwwts,sflwwts_cn,endaerwvnsf)
+
+  Aerosol_props%aerextbandlw=0.
+  Aerosol_props%aerssalbbandlw=0.
+  Aerosol_props%aerextbandlw_cn=0.
+  Aerosol_props%aerssalbbandlw_cn=0.
+
+  do nw=1,naermodels    
+    do na=1,N_AEROSOL_BANDS  
+      do ni=1,num_wavenumbers 
+        Aerosol_props%aerextbandlw(na,nw) =    &
+                        Aerosol_props%aerextbandlw(na,nw) + &
+                        aeroextivl(ni,nw)*sflwwts(na,ni)*  &
+                        1.0E+03
+        Aerosol_props%aerssalbbandlw(na,nw) =     &
+                        Aerosol_props%aerssalbbandlw(na,nw) +&
+                        aerossalbivl(ni,nw)*sflwwts(na,ni)
+      end do
+    end do
+  end do
+  do nw=1,naermodels    
+    do na=1,N_AEROSOL_BANDS_CN
+      do ni=1,num_wavenumbers 
+        Aerosol_props%aerextbandlw_cn(na,nw) =    &
+                        Aerosol_props%aerextbandlw_cn(na,nw) + &
+                        aeroextivl(ni,nw)*sflwwts_cn(na,ni)*  &
+                        1.0E+03
+        Aerosol_props%aerssalbbandlw_cn(na,nw) =     &
+                        Aerosol_props%aerssalbbandlw_cn(na,nw) +&
+                        aerossalbivl(ni,nw)*sflwwts_cn(na,ni)
+      end do
+    end do
+  end do
+
+  deallocate (endaerwvnsf)
+  deallocate (sflwwts,sflwwts_cn)
+  deallocate (aeroextivl,aerossalbivl,aeroasymmivl)
+
+end if
+
+call MPI_Bcast(Aerosol_props%aerextband,Solar_spect%nbands*naermodels,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(Aerosol_props%aerssalbband,Solar_spect%nbands*naermodels,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(Aerosol_props%aerasymmband,Solar_spect%nbands*naermodels,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(Aerosol_props%aerextbandlw,N_AEROSOL_BANDS*naermodels,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(Aerosol_props%aerssalbbandlw,N_AEROSOL_BANDS*naermodels,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(Aerosol_props%aerextbandlw_cn,N_AEROSOL_BANDS*naermodels,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(Aerosol_props%aerssalbbandlw_cn,N_AEROSOL_BANDS*naermodels,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+
+return
+end subroutine loadaerooptical
+
+subroutine lw_aerosol_interaction(num_wavenumbers,sflwwts,sflwwts_cn,endaerwvnsf)      
+
+use longwave_params_mod
+
+implicit none
+
+integer, intent(in) :: num_wavenumbers
+integer, dimension(num_wavenumbers), intent(in) :: endaerwvnsf
+real(kind=8), dimension(N_AEROSOL_BANDS, num_wavenumbers), intent(out) :: sflwwts,sflwwts_cn
+
+!----------------------------------------------------------------------
+!    lw_aerosol_interaction defines the weights and interval infor-
+!    mation needed to map the aerosol radiative properties from the
+!    aerosol parameterization bands to the aerosol emissivity bands
+!    being used by the model.
+!----------------------------------------------------------------------
+
+!-----------------------------------------------------------------------
+!  local variables:
+
+!---------------------------------------------------------------------
+!    the following arrays define the wavenumber ranges for the separate
+!    aerosol emissivity bands in the model infrared parameterization. 
+!    these may be changed only by the keeper of the radiation code.
+!    the order of the frequency bands corresponds to the order used
+!    in the lw radiation code.
+!
+!      aerbandlo_fr      low wavenumber limit for the non-continuum 
+!                        aerosol emissivity bands
+!      aerbandhi_fr      high wavenumber limit for the non-continuum
+!                        aerosol emissivity bands
+!      istartaerband_fr  starting wavenumber index for the non-continuum
+!                        aerosol emissivity bands
+!      iendaerband_fr    ending wavenumber index for the non-continuum
+!                        aerosol emissivity bands
+!      aerbandlo_co      low wavenumber limit for the continuum 
+!                        aerosol emissivity bands
+!      aerbandhi_co      high wavenumber limit for the continuum
+!                        aerosol emissivity bands
+!      istartaerband_co  starting wavenumber index for the continuum
+!                        aerosol emissivity bands
+!      iendaerband_co    ending wavenumber index for the continuum
+!                        aerosol emissivity bands
+!      aerbandlo         low wavenumber limit for the entire set of
+!                        aerosol emissivity bands
+!      aerbandhi         high wavenumber limit for the entire set of
+!                        aerosol emissivity bands
+!      istartaerband     starting wavenumber index for the entire set of
+!                        aerosol emissivity bands
+!      iendaerband       ending wavenumber index for the entire set of
+!                        aerosol emissivity bands
+!
+!----------------------------------------------------------------------
+      real(kind=8), dimension (N_AEROSOL_BANDS_FR)     :: aerbandlo_fr =  &
+      (/ 560.0, 630.0, 700.0, 800.0, 900.0,  990.0, 1070.0, 1200.0 /)
+
+      real(kind=8), dimension (N_AEROSOL_BANDS_FR)     :: aerbandhi_fr =  &
+      (/ 630.0, 700.0, 800.0, 900.0, 990.0, 1070.0, 1200.0, 1400.0 /)
+
+      integer, dimension (N_AEROSOL_BANDS_FR)  :: istartaerband_fr =  &
+      (/ 57,  64,  71,  81,  91, 100, 108, 121 /)
+
+      integer, dimension (N_AEROSOL_BANDS_FR)  :: iendaerband_fr =  &
+      (/ 63,  70,  80,  90,  99, 107, 120, 140 /)
+
+      real(kind=8), dimension (N_AEROSOL_BANDS_CO)     :: aerbandlo_co =  &
+      (/ 560.0 /)
+
+      real(kind=8), dimension (N_AEROSOL_BANDS_CO)     :: aerbandhi_co =  &
+      (/ 800.0 /)
+
+      integer, dimension (N_AEROSOL_BANDS_CO)  :: istartaerband_co =  &
+      (/ 57  /)
+
+      integer, dimension (N_AEROSOL_BANDS_CO)  :: iendaerband_co =  &
+      (/ 80  /)
+      real(kind=8), dimension (N_AEROSOL_BANDS_CN)     :: aerbandlo_cn =  &
+      (/ 800.0 /)
+
+      real(kind=8), dimension (N_AEROSOL_BANDS_CN)     :: aerbandhi_cn =  &
+      (/ 1200.0 /)
+
+      integer, dimension (N_AEROSOL_BANDS_CN)  :: istartaerband_cn =  &
+      (/ 81  /)
+
+      integer, dimension (N_AEROSOL_BANDS_CN)  :: iendaerband_cn =  &
+      (/ 120 /)
+
+      real(kind=8),    dimension(N_AEROSOL_BANDS)      :: aerbandlo, aerbandhi
+      integer, dimension(N_AEROSOL_BANDS)      :: istartaerband,    &
+                                                  iendaerband
+
+!---------------------------------------------------------------------
+!    the following arrays define how the ir aerosol band structure 
+!    relates to the aerosol parameterization bands.
+!
+!      nivl1aer_fr(n)    aerosol parameterization band index corres-
+!                        ponding to the lowest wavenumber of the 
+!                        non-continuum ir aerosol emissivity band n
+!      nivl2aer_fr(n)    aerosol parameterization band index corres-
+!                        ponding to the highest wavenumber of the 
+!                        non-continuum ir aerosol emissivity band n
+!      nivl1aer_co(n)    aerosol parameterization band index corres-
+!                        ponding to the lowest wavenumber of the 
+!                        continuum ir aerosol emissivity band n
+!      nivl2aer_co(n)    aerosol parameterization band index corres-
+!                        ponding to the highest wavenumber of the 
+!                        continuum ir aerosol emissivity band n
+!      nivl1aer(n)       aerosol parameterization band index corres-
+!                        ponding to the lowest wavenumber for the 
+!                        ir aerosol emissivity band n
+!      nivl2aer(n)       aerosol parameterization band index corres-
+!                        ponding to the highest wavenumber for the 
+!                        ir aerosol emissivity band n
+!      planckaerband(n)  planck function summed over each lw param-
+!                        eterization band that is contained in the 
+!                        ir aerosol emissivity band n
+!
+!---------------------------------------------------------------------
+      integer, dimension (N_AEROSOL_BANDS_FR)  :: nivl1aer_fr,   &
+                                                  nivl2aer_fr
+      integer, dimension (N_AEROSOL_BANDS_CO)  :: nivl1aer_co,   &
+                                                  nivl2aer_co
+      integer, dimension (N_AEROSOL_BANDS_CN)  :: nivl1aer_cn,   &
+                                                  nivl2aer_cn
+      integer, dimension (N_AEROSOL_BANDS)     :: nivl1aer, nivl2aer
+      real(kind=8),    dimension (N_AEROSOL_BANDS)     :: planckaerband
+      real(kind=8),    dimension (N_AEROSOL_BANDS_CN)  :: planckaerband_cn
+
+!----------------------------------------------------------------------
+!    the following arrays relate the ir aerosol emissivity band n to
+!    either the aerosol optical properties type na or to the aerosol 
+!    parameterization band ni.
+!        aerextbandlw_fr(n,na)  band averaged extinction coefficient
+!                               for non-continuum aerosol emissivity 
+!                               band n and aerosol properties type na
+!        aerssalbbandlw_fr(n,na)
+!                               band averaged single-scattering
+!                               coefficient for non-continuum aerosol
+!                               emissivity band n and aerosol properties
+!                               type na
+!        aerextbandlw_co(n,na)  band averaged extinction coefficient
+!                               for the continuum aerosol emissivity
+!                               band n and aerosol properties type na
+!        aerssalbbandlw_co(n,na)
+!                               band averaged single-scattering
+!                               coefficient for continuum aerosol
+!                               emissivity band n and aerosol properties
+!                               type na
+!        planckivlaer_fr(n,ni)  planck function over the spectral range
+!                               common to aerosol emissivity non-
+!                               continuum band n and aerosol parameter-
+!                               ization band ni
+!        planckivlaer_co(n,ni)  planck function over the spectral range
+!                               common to aerosol emissivity continuum 
+!                               band n and aerosol parameterization 
+!                               band ni
+!        sflwwts_fr(n,ni)       band weights for the aerosol emissivity
+!                               non-continuum band n and the aerosol 
+!                               parameterization band ni 
+!        sflwwts_co(n,ni)       band weights for the aerosol emissivity
+!                               continuum band n and the aerosol 
+!                               parameterization band ni 
+!        planckivlaer(n,ni)     planck function over the spectral range
+!                               common to aerosol emissivity band n and
+!                               aerosol parameterization band ni
+!        iendsfbands(ni)        ending wavenumber index for aerosol 
+!                               parameterization band ni
+!
+!----------------------------------------------------------------------
+      real(kind=8),    dimension (N_AEROSOL_BANDS_FR, naermodels) ::   &
+                                                  aerextbandlw_fr, &
+                                                  aerssalbbandlw_fr
+      real(kind=8),    dimension (N_AEROSOL_BANDS_CO, naermodels) ::   &
+                                                  aerextbandlw_co, &
+                                                  aerssalbbandlw_co
+      real(kind=8),    dimension (N_AEROSOL_BANDS_FR, num_wavenumbers) :: &
+                                                  planckivlaer_fr, &
+                                                  sflwwts_fr
+      real(kind=8),    dimension (N_AEROSOL_BANDS_CO, num_wavenumbers) :: &
+                                                  planckivlaer_co, &
+                                                  sflwwts_co
+      real(kind=8),    dimension (N_AEROSOL_BANDS_CN, num_wavenumbers) :: &
+                                                  planckivlaer_cn   
+      real(kind=8),    dimension (N_AEROSOL_BANDS, num_wavenumbers)  ::    &
+                                                  planckivlaer
+      integer, dimension (num_wavenumbers)    ::  iendsfbands
+
+!---------------------------------------------------------------------
+!    variables associated with the planck function calculation.
+!    the planck function is defined for each of the NBLW longwave 
+!    parameterization bands.
+!---------------------------------------------------------------------
+      real(kind=8), dimension(NBLW)  :: c1, centnb, sc, src1nb, x, x1
+      real(kind=8)                   :: del, xtemv, sumplanck
+
+!---------------------------------------------------------------------
+!    miscellaneous variables:
+
+     logical         :: do_band1   !  should we do special calculation 
+                                   !  for band 1 ?
+     integer         :: ib, nw, nivl, nband, n, ni 
+                                   !  do-loop indices and counters
+
+!--------------------------------------------------------------------
+!    define arrays containing the characteristics of all the ir aerosol
+!    emissivity bands, both continuum and non-continuum.
+!--------------------------------------------------------------------
+      do n=1,N_AEROSOL_BANDS_FR
+        aerbandlo(n)     = aerbandlo_fr(n)
+        aerbandhi(n)     = aerbandhi_fr(n)
+        istartaerband(n) = istartaerband_fr(n)
+        iendaerband(n)   = iendaerband_fr(n)
+      end do
+      do n=N_AEROSOL_BANDS_FR+1,N_AEROSOL_BANDS
+        aerbandlo(n)     = aerbandlo_co     (n - N_AEROSOL_BANDS_FR)
+        aerbandhi(n)     = aerbandhi_co     (n - N_AEROSOL_BANDS_FR)
+        istartaerband(n) = istartaerband_co (n - N_AEROSOL_BANDS_FR)
+        iendaerband(n)   = iendaerband_co   (n - N_AEROSOL_BANDS_FR)
+      end do
+
+!---------------------------------------------------------------------
+!    define the number of aerosol ir bands to be used in other modules.
+!    set the initialization flag to .true.
+!---------------------------------------------------------------------
+      Lw_parameters%n_lwaerosol_bands = N_AEROSOL_BANDS
+      Lw_parameters%n_lwaerosol_bands_iz = .true.
+
+!--------------------------------------------------------------------
+!    define the ending aerosol band index for each of the aerosol
+!    parameterization bands.
+!--------------------------------------------------------------------
+      iendsfbands(:) = INT((endaerwvnsf(:) + 0.01)/10.0)
+
+!--------------------------------------------------------------------
+!    compute the planck function at 10C over each of the longwave
+!    parameterization bands to be used as the weighting function. 
+!--------------------------------------------------------------------
+      do n=1,NBLW 
+        del  = 10.0E+00
+        xtemv = 283.15
+        centnb(n) = 5.0 + (n - 1)*del
+        c1(n)     = (3.7412E-05)*centnb(n)**3
+        x(n)      = 1.4387E+00*centnb(n)/xtemv
+        x1(n)     = EXP(x(n))
+        sc(n)     = c1(n)/(x1(n) - 1.0E+00)
+        src1nb(n) = del*sc(n)
+      end do
+ 
+!--------------------------------------------------------------------
+!    sum the weighting function calculated over the longwave param-
+!    eterization bands that are contained in each of the aerosol 
+!    emissivity bands. 
+!--------------------------------------------------------------------
+      planckaerband(:) = 0.0E+00
+      do n = 1,N_AEROSOL_BANDS
+        do ib = istartaerband(n),iendaerband(n)
+          planckaerband(n) = planckaerband(n) + src1nb(ib)
+        end do
+      end do
+      planckaerband_cn(:) = 0.0E+00
+      do n = 1,N_AEROSOL_BANDS_CN
+        do ib = istartaerband_cn(n),iendaerband_cn(n)
+          planckaerband_cn(n) = planckaerband_cn(n) + src1nb(ib)
+        end do
+      end do
+ 
+!--------------------------------------------------------------------
+!    define the weights and interval counters that are needed to  
+!    map the aerosol parameterization spectral intervals onto the non-
+!    continuum ir aerosol emissivity bands and so determine the 
+!    single-scattering properties on the ir aerosol emissivity bands.
+!--------------------------------------------------------------------
+      nivl = 1
+      sumplanck = 0.0
+      nband = 1
+      planckivlaer_fr(:,:) = 0.0
+      nivl1aer_fr(1) = 1
+      do_band1 = .true.
+ 
+      do nw = 1,NBLW
+        sumplanck = sumplanck + src1nb(nw)
+        if ( nw == iendsfbands(nivl) ) then
+          planckivlaer_fr(nband,nivl) = sumplanck
+          sumplanck = 0.0
+        end if
+        if ( nw == iendaerband_fr(nband) ) then
+          if ( nw /= iendsfbands(nivl) ) then
+            planckivlaer_fr(nband,nivl) = sumplanck 
+            sumplanck = 0.0
+          end if
+          nivl2aer_fr(nband) = nivl
+          nband = nband + 1
+          if ( nband <= N_AEROSOL_BANDS_FR ) then
+            if ( nw == iendsfbands(nivl) ) then
+              nivl1aer_fr(nband) = nivl + 1
+            else
+              nivl1aer_fr(nband) = nivl
+            end if
+          end if
+        end if
+        if ( nw == iendsfbands(nivl) ) then
+          nivl = nivl + 1
+          if (do_band1 .and. nband .eq. 1 .and.   &
+              iendsfbands(nivl-1) >= istartaerband_fr(1) .and.  &
+              iendsfbands(nivl-1) < iendaerband_fr(1)) then
+            nivl1aer_fr(nband) = nivl-1
+            do_band1 = .false.
+          endif
+        endif
+        if (nw >= iendaerband_fr(N_AEROSOL_BANDS_FR) ) then
+          exit
+        endif
+      end do
+
+!--------------------------------------------------------------------
+!    define the weights and interval counters that are needed to  
+!    map the aerosol parameterization spectral intervals onto the 
+!    continuum ir aerosol emissivity bands and so determine the 
+!    single-scattering properties on the ir aerosol emissivity bands.
+!--------------------------------------------------------------------
+      nivl = 1
+      sumplanck = 0.0
+      nband = 1
+      planckivlaer_co(:,:) = 0.0
+      nivl1aer_co(1) = 1
+      do_band1 = .true.
+ 
+      do nw = 1,NBLW
+        sumplanck = sumplanck + src1nb(nw)
+        if ( nw == iendsfbands(nivl) ) then
+          planckivlaer_co(nband,nivl) = sumplanck
+          sumplanck = 0.0
+        end if
+        if ( nw == iendaerband_co(nband) ) then
+          if ( nw /= iendsfbands(nivl) ) then
+            planckivlaer_co(nband,nivl) = sumplanck 
+            sumplanck = 0.0
+          end if
+          nivl2aer_co(nband) = nivl
+          nband = nband + 1
+          if ( nband <= N_AEROSOL_BANDS_CO ) then
+            if ( nw == iendsfbands(nivl) ) then
+              nivl1aer_co(nband) = nivl + 1
+            else
+              nivl1aer_co(nband) = nivl
+            end if
+          end if
+        end if
+        if ( nw == iendsfbands(nivl) ) then
+          nivl = nivl + 1
+          if (do_band1 .and. nband == 1 .and.  &
+              iendsfbands(nivl-1) >= istartaerband_co(1) .and.  &
+              iendsfbands(nivl-1) < iendaerband_co(1)) then
+            nivl1aer_co(nband) = nivl-1
+            do_band1 = .false.
+          endif
+        endif
+        if ( nw >= iendaerband_co(N_AEROSOL_BANDS_CO) ) then
+          exit
+        endif
+      end do
+
+!--------------------------------------------------------------------
+!    define the weights and interval counters that are needed to  
+!    map the aerosol parameterization spectral intervals onto the 
+!    continuum ir aerosol emissivity bands and so determine the 
+!    single-scattering properties on the ir aerosol emissivity bands.
+!--------------------------------------------------------------------
+      nivl = 1
+      sumplanck = 0.0
+      nband = 1
+      planckivlaer_cn(:,:) = 0.0
+      nivl1aer_cn(1) = 1
+      do_band1 = .true.
+ 
+      do nw = 1,NBLW
+        sumplanck = sumplanck + src1nb(nw)
+        if ( nw == iendsfbands(nivl) ) then
+          planckivlaer_cn(nband,nivl) = sumplanck
+          sumplanck = 0.0
+        end if
+        if ( nw == iendaerband_cn(nband) ) then
+          if ( nw /= iendsfbands(nivl) ) then
+            planckivlaer_cn(nband,nivl) = sumplanck 
+            sumplanck = 0.0
+          end if
+          nivl2aer_cn(nband) = nivl
+          nband = nband + 1
+          if ( nband <= N_AEROSOL_BANDS_CN ) then
+            if ( nw == iendsfbands(nivl) ) then
+              nivl1aer_cn(nband) = nivl + 1
+            else
+              nivl1aer_cn(nband) = nivl
+            end if
+          end if
+        end if
+        if ( nw == iendsfbands(nivl) ) then
+          nivl = nivl + 1
+          if (do_band1 .and. nband == 1 .and.  &
+              iendsfbands(nivl-1) >= istartaerband_cn(1) .and.  &
+              iendsfbands(nivl-1) < iendaerband_cn(1)) then
+            nivl1aer_cn(nband) = nivl-1
+            do_band1 = .false.
+          endif
+        endif
+        if ( nw >= iendaerband_cn(N_AEROSOL_BANDS_CN) ) then
+          exit
+        endif
+      end do
+
+!--------------------------------------------------------------------
+!    define the planck-function-weighted band weights for the aerosol
+!    parameterization bands onto the non-continuum and continuum ir 
+!    aerosol emissivity bands.
+!--------------------------------------------------------------------
+      sflwwts_fr(:,:) = 0.0E+00
+      do n=1,N_AEROSOL_BANDS_FR
+        do ni=nivl1aer_fr(n),nivl2aer_fr(n)
+          sflwwts_fr(n,ni) = planckivlaer_fr(n,ni)/planckaerband(n)
+        end do
+      end do
+      sflwwts_co(:,:) = 0.0E+00
+      do n=1,N_AEROSOL_BANDS_CO
+        do ni=nivl1aer_co(n),nivl2aer_co(n)
+          sflwwts_co(n,ni) = planckivlaer_co(n,ni)/     &
+                             planckaerband(N_AEROSOL_BANDS_FR+n)
+        end do
+      end do
+      sflwwts_cn(:,:) = 0.0E+00
+      do n=1,N_AEROSOL_BANDS_CN
+        do ni=nivl1aer_cn(n),nivl2aer_cn(n)
+          sflwwts_cn(n,ni) = planckivlaer_cn(n,ni)/     &
+                             planckaerband_cn(n)
+        end do
+      end do
+
+!--------------------------------------------------------------------
+!    consolidate the continuum and non-continuum weights into an
+!    array covering all ir aerosol emissivity bands.
+!--------------------------------------------------------------------
+      do n=1,N_AEROSOL_BANDS_FR
+        do ni = 1,num_wavenumbers
+          sflwwts(n,ni) = sflwwts_fr(n,ni)
+        end do
+      end do
+      do n=N_AEROSOL_BANDS_FR+1,N_AEROSOL_BANDS
+        do ni = 1,num_wavenumbers
+          sflwwts(n,ni) = sflwwts_co(n-N_AEROSOL_BANDS_FR,ni)
+        end do
+      end do
+
+!----------------------------------------------------------------------
+
+end subroutine lw_aerosol_interaction
 
 
 end module seaesfrad_m

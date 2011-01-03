@@ -5,7 +5,8 @@
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,   ! 0808
-     .                    tggsn,smass,ssdn,ssdnn,snage,isflag)
+     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
+     .                    iaero)
 !     Target points use values interpolated to their 4 grid "corners";
 !     these corner values are then averaged to the grid centres
 !     N.B. this means will get different fields with io_in=-1 from io_in=1
@@ -31,7 +32,7 @@
       include 'darcdf.h'    ! idnc, ncid
       include 'netcdf.inc'
       integer, parameter :: nihead=54,nrhead=14
-      integer nahead(nihead),ier,ilen,itype
+      integer nahead(nihead),ier,ilen,itype,iaero
       integer, save :: ncidold=-1 !,iarchi ! MJT tracerfix
       real ahead(nrhead) ! MJT small otf
 
@@ -137,14 +138,14 @@ c     start of processing loop
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,  ! 0808
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    ik) ! this last variable controls automatic array size
+     .                    ik,iaero) ! this last variable controls automatic array size
       else
         call ontheflyx(nested,land_t,kdate_r,ktime_r,
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,  ! 0808
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    0) ! this last variable controls automatic array size
+     .                    0,iaero) ! this last variable controls automatic array size
       end if
 
       return
@@ -154,7 +155,9 @@ c     start of processing loop
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    dk)
+     .                    dk,iaero)
+      
+      use aerosolldr, only : xtg,ssn,naero
       use ateb, only : atebdwn ! MJT urban
       use carbpools_m
       use cc_mpi
@@ -183,7 +186,7 @@ c     start of processing loop
       include 'mpif.h'
       integer, parameter :: ntest=0
       integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
-      integer ik, kk, idv
+      integer ik, kk, idv, iaero
       integer dk ! controls automatic array size
       integer lev,ier,ierr,igas ! MJT small otf
       integer ::  kdate_r, ktime_r, nemi, id2,jd2,idjd2,
@@ -1226,6 +1229,79 @@ c       incorporate other target land mask effects
           eps=max(eps,1.E-10)       
           tkesav=tke(1:ifull,:)
           epssav=eps(1:ifull,:)
+        end if
+        !--------------------------------------------------
+        ! MJT aerosol
+        if (abs(iaero).ge.2) then
+          do i=1,naero+2
+            do k=1,kk
+              ucc=0. ! dummy for aerosol
+              select case(i)
+                case(1)
+                  call histrd4s(ncid,iarchi,ier,'dms',ik,6*ik,k,
+     &                          ucc,6*ik*ik)
+                case(2)
+                  call histrd4s(ncid,iarchi,ier,'so2',ik,6*ik,k,
+     &                          ucc,6*ik*ik)
+                case(3)
+                  call histrd4s(ncid,iarchi,ier,'so4',ik,6*ik,k,
+     &                          ucc,6*ik*ik)
+                case(4)
+                  call histrd4s(ncid,iarchi,ier,'bco',ik,6*ik,k,
+     &                          ucc,6*ik*ik)
+                case(5)
+                  call histrd4s(ncid,iarchi,ier,'bci',ik,6*ik,k,
+     &                          ucc,6*ik*ik)
+                case(6)
+                  call histrd4s(ncid,iarchi,ier,'oco',ik,6*ik,k,
+     &                          ucc,6*ik*ik)
+                case(7)
+                  call histrd4s(ncid,iarchi,ier,'oci',ik,6*ik,k,
+     &                          ucc,6*ik*ik)
+                case(8)
+                  call histrd4s(ncid,iarchi,ier,'dust1',ik,6*ik,k,
+     &                          ucc,6*ik*ik)
+                case(9)
+                  call histrd4s(ncid,iarchi,ier,'dust2',ik,6*ik,k,
+     &                          ucc,6*ik*ik)
+                case(10)
+                  call histrd4s(ncid,iarchi,ier,'dust3',ik,6*ik,k,
+     &                          ucc,6*ik*ik)
+                case(11)
+                  call histrd4s(ncid,iarchi,ier,'dust4',ik,6*ik,k,
+     &                          ucc,6*ik*ik)
+                case(12)
+                  call histrd4s(ncid,iarchi,ier,'seasalt1',ik,6*ik,k,
+     &                          ucc,6*ik*ik)
+                case(13)
+                  call histrd4s(ncid,iarchi,ier,'seasalt2',ik,6*ik,k,
+     &                          ucc,6*ik*ik)
+                case default
+                  write(6,*) "ERROR: Unknown aerosol type ",i
+                  stop
+              end select
+              if (iotest) then
+                if (myid==0) then
+                  call ccmpi_distribute(u_k(:,k),ucc)
+                else
+                  call ccmpi_distribute(u_k(:,k))
+                end if
+              else
+                call doints4(ucc,u_k(:,k),nface4,xg4,yg4,
+     &                       nord,ik)
+              end if ! iotest
+            end do
+            if (i.le.naero) then
+              call vertint(u_k,xtg(1:ifull,:,i),6,kk,sigin)
+            else
+              call vertint(u_k,ssn(1:ifull,:,i-naero),6,kk,sigin)
+            end if
+          end do
+          ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
+          so4t(:)=0.
+          do k=1,kl
+            so4t(:)=so4t(:)+3.e3*xtg(:,k,3)*(-psl(:)*dsig(k))/grav
+          enddo
         end if
         !------------------------------------------------------------
         ! MJT tracerfix

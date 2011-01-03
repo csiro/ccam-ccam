@@ -1,4 +1,5 @@
-      subroutine conjob      ! globpea & rcsb (non-chen); nkuo=46 only
+      subroutine conjob(iaero)      ! globpea & rcsb (non-chen); nkuo=46 only
+      use aerosolldr
       use arrays_m
       use cc_mpi, only : mydiag
       use epst_m
@@ -36,6 +37,7 @@ c     Hal's ds() renamed dsh()
       real dq(ifull,kl)
       real*8 cam(kl-1,kl)
       real algf(kl),delt(kl),dsk(kl),rhs(kl),sigadd(kl),s(kl)
+      integer iaero
 !     set convective relaxation time (convtime [was btcnv], usually 1 hour)
 !     data convtime/1./,rhcv/.75/,rhmois/.6/ ! usually 1., .75, .6 now in kuocom
       data epsconv/0./
@@ -820,30 +822,30 @@ c       reaching the next level (or the surface).
       
       !--------------------------------------------------------------
       ! MJT aerosols
-      !if (iaero==2) then
-      !  xtu=0.
-      !  call convscav(fscav)
-      !  do l=1,ntrac
-      !    ss(:,:)=xtg(1:ifull,:,l)
-      !    do iq=1,ifull
-      !     if(kbsav(iq).gt.0)then
-      !       kb=kbsav(iq)
-      !       kt=ktsav(iq)
-      !       veldt=convpsav(iq)
-      !       fluxup=veldt*ss(iq,kb)*(1.-fscav(iq)) ! MJT suggestion
-!     !       remove aerosol from cloud base layer
-      !       xtg(iq,kb,l)=xtg(iq,kb,l)-fluxup/dsk(kb)
-!     !       put flux of tke into top convective layer
-      !       xtg(iq,kt,l)=xtg(iq,kt,l)+fluxup/dsk(kt)
-      !       xtu(iq,:,l)=xtg(iq,:,;) ! MJT suggestion
-      !       do k=kb+1,kt
-      !        xtg(iq,k,l)=xtg(iq,k,l)-ss(iq,k)*veldt/dsk(k)
-      !        xtg(iq,k-1,l)=xtg(iq,k-1,l)+ss(iq,k)*veldt/dsk(k-1)
-      !       enddo
-      !     endif
-      !    enddo   ! iq loop
-      !  end do
-      !end if
+      if (abs(iaero)==2) then
+        xtusav=0.
+        ! fscav=0. because there is no qlg in this convection scheme
+        do ntr=1,naero
+          ss(:,:)=xtg(1:ifull,:,ntr)
+          do iq=1,ifull
+           if(kbsav(iq).gt.0)then
+             kb=kbsav(iq)
+             kt=ktsav(iq)
+             veldt=convpsav(iq)
+             fluxup=veldt*ss(iq,kb)
+!            remove aerosol from cloud base layer
+             xtg(iq,kb,ntr)=xtg(iq,kb,ntr)-fluxup/dsk(kb)
+!            put flux of tke into top convective layer
+             xtg(iq,kt,ntr)=xtg(iq,kt,ntr)+fluxup/dsk(kt)
+             xtusav(iq,:,ntr)=xtg(iq,:,ntr) ! MJT suggestion
+             do k=kb+1,kt
+              xtg(iq,k,ntr)=xtg(iq,k,ntr)-ss(iq,k)*veldt/dsk(k)
+              xtg(iq,k-1,ntr)=xtg(iq,k-1,ntr)+ss(iq,k)*veldt/dsk(k-1)
+             enddo
+           endif
+          enddo   ! iq loop
+        end do
+      end if
       !--------------------------------------------------------------
 
 !     usual conformal-cubic (DARLAM option removed)

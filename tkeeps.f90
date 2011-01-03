@@ -122,7 +122,7 @@ end subroutine tkeinit
 ! mode=1 no mass flux
 ! mode=2 mass flux without moist convection (no counter-gradient for moisture)
 
-subroutine tkemix(kmo,theta,qg,qlg,qfg,u,v,cfrac,zi,land,wtv0,wq0,ps,ustar,zz,sig,sigkap,dt,mode,diag)
+subroutine tkemix(kmo,theta,qg,qlg,qfg,u,v,cfrac,zi,land,wtv0,wq0,ps,tsv,ustar,zz,sig,sigkap,dt,mode,diag)
 
 implicit none
 
@@ -134,7 +134,7 @@ real, dimension(ifull,kl), intent(inout) :: theta,qg
 real, dimension(ifull,kl), intent(in) :: u,v,zz,qlg,qfg,cfrac
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull), intent(inout) :: zi
-real, dimension(ifull), intent(in) :: wtv0,wq0,ps,ustar
+real, dimension(ifull), intent(in) :: wtv0,wq0,ps,tsv,ustar
 real, dimension(kl), intent(in) :: sigkap,sig
 real, dimension(ifull,kl) :: km,ff,gg,thetal,thetav,temp
 real, dimension(ifull,kl) :: gamt_hl,gamq_hl
@@ -145,7 +145,7 @@ real, dimension(ifull,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull) :: wstar,z_on_l,phim,hh,jj,dqsdt,ziold
 real, dimension(ifull) :: dum
-real, dimension(kl-1) :: wpv_flux
+real, dimension(0:kl-1) :: wpv_flux
 real, dimension(kl-1) :: mflx_hl,tup_hl,qup_hl,w2up_hl
 real xp,wup,qupsat(1),ee
 real cf,qc,rcrit,delq
@@ -269,7 +269,7 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         sconv=.false.
         ! first level ---------------
         !ee=0.5*(1./(zz(i,1)+dz_fl(i,1))+1./(max(zi(i)-zz(i,1),0.)+dz_fl(i,1))) ! Soares 2004
-        ee=0.5*(1./max(zz(i,1),10.)+1./max(zi(i)-zz(i,1),10.))
+        ee=0.5*(1./max(zz(i,1),10.)+1./max(zi(i)-zz(i,1),10.)) ! MJT suggestion
         tup=thetav(i,1)+wtv0(i)/sqrt(tke(i,1)) !*0.3 in Soares et al (2004)
         qup=qg(i,1)+wq0(i)/sqrt(tke(i,1))      !*0.3 in Soares et al (2004)
         w2up=2.*zz(i,1)*b2*grav*(tup-thetav(i,1))/thetav(i,1)/(1.+2.*zz(i,1)*b1*ee)
@@ -380,20 +380,18 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         gamq_hl(i,k)=mflx_hl(k)*(qup_hl(k)-0.5*sum(qg(i,k:k+1)))
       end do
     else                   ! stable
-      wpv_flux(1)=kmo(i,1)*(thetav(i,2)-thetav(i,1))/dz_hl(i,1) !+gamt_hl(i,1)
-      if (wpv_flux(1).lt.0.) then
-        zi(i)=zz(i,1)
+      !wpv_flux(0)=km(i,1)*(thetav(i,2)-tsv(i))/zz(i,2) !+gamt(i,1)
+      wpv_flux(0)=km(i,1)*(thetav(i,1)-tsv(i))/zz(i,1) !+gamt(i,1)
+      wpv_flux(1)=kmo(i,1)*(thetav(i,2)-thetav(i,1))/dz_hl(i,1)
+      if (wpv_flux(1).le.0.05*abs(wpv_flux(0))) then
+        xp=-0.95*abs(wpv_flux(0))/(wpv_flux(1)-abs(wpv_flux(0)))
+        xp=min(max(xp,0.),1.)
+        zi(i)=(1.-xp)*zz(i,1)+xp*0.5*sum(zz(i,1:2))
       else
         do k=2,kl-1
           wpv_flux(k)=kmo(i,k)*(thetav(i,k+1)-thetav(i,k))/dz_hl(i,k) !+gamt_hl(i,k)
-          if (abs(wpv_flux(k)).lt.0.05*abs(wpv_flux(1))) then
-            xp=(0.05*abs(wpv_flux(1))-abs(wpv_flux(k-1)))/(abs(wpv_flux(k))-abs(wpv_flux(k-1)))
-            xp=min(max(xp,0.),1.)
-            zi(i)=(1.-xp)*0.5*zz(i,k-1)+0.5*zz(i,k)+xp*0.5*zz(i,k+1)
-            exit
-          end if
-          if (wpv_flux(k).le.0.) then
-            xp=-wpv_flux(k-1)/(wpv_flux(k)-wpv_flux(k-1))
+          if (wpv_flux(k).le.0.05*abs(wpv_flux(0))) then
+            xp=(0.05*abs(wpv_flux(0))-wpv_flux(k-1))/(wpv_flux(k)-wpv_flux(k-1))
             xp=min(max(xp,0.),1.)
             zi(i)=(1.-xp)*0.5*zz(i,k-1)+0.5*zz(i,k)+xp*0.5*zz(i,k+1)
             exit

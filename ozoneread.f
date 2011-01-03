@@ -8,7 +8,7 @@
       implicit none
 
       private      
-      public o3_read,o3set
+      public o3_read,o3set,fieldinterpolate
       
       integer, save :: ii,jj,kk
       real, dimension(:,:,:), allocatable, save :: o3pre,o3mth,o3nxt
@@ -170,209 +170,37 @@ c
       include 'const_phys.h'
       integer, intent(in) :: npts,mins
       integer j,ilat,m
-      integer ilon,ip,k1
       real, parameter :: rlag=14.8125
       real, parameter :: year=365
       real date,rang,rsin1,rcos1,rcos2,theta,angle,than
       real do3,do3p
-      real dlat,dlon,serlat,serlon,prh,presh,fp
       real, intent(in),  dimension(npts) :: ps
       real, dimension(kl), intent(in) :: sig
-      real, dimension(kk) :: o3inp,b,c,d,o3sum
-      real, dimension(kk,3) :: o3tmp
-      real, dimension(kl) :: prf,o3new
       real, parameter :: amd=28.9644
       real, parameter :: amo=48.
       real, parameter :: dobson=6.022e3/2.69/48.e-3
-      integer, parameter :: ozoneintp=1 ! ozone interpolation (0=simple, 1=integrate column)
-
-      real duo3n(npts,kl), sigma(kl), alat(npts),alon(npts)
-!      logical start
-!      data start / .true. /
-!      save start
-      real, parameter, dimension(12) :: monlen =  
-     &  (/ 0.,31.,59.,90.,120.,151.,181.,212.,243.,273.,304.,334. /)
+      real rlon(ii),rlat(jj)
+      real blon(npts),blat(npts)
+      real duo3n(npts,kl), alat(npts),alon(npts)
 
       if (allocated(o3mth)) then
-!       Time interpolation factors (assume year of exactly 365 days)
-        date = real(modulo(mins,525600))/1440.
-        if (date>=monlen(12)) then
-          rang=(date-monlen(12))/31.
-        else
-!         Search for bracketing dates, i such that monmid(i) >= date
-          do j=2,12
-            if (monlen(j)>=date) exit
-          end do
-          rang=(date-monlen(j-1))/(monlen(j)-monlen(j-1))
-        end if
-        rang=min(max(rang,0.),1.)
-        
-        dlat=180./real(jj-1)
-        dlon=360./real(ii-1)
-        do j=1,npts
-         serlat=(90.+alat(j)*180./pi)/dlat+1.
-         serlon=alon(j)*180./(pi*dlon)+1.
-         ilat=int(serlat)
-         ilon=int(serlon)
-         serlat=serlat-real(ilat)
-         serlon=serlon-real(ilon)
-         ip=ilon+1
-         if (ip.gt.ii) ip=1
-
-         ! spatial interpolation (previous month)
-         d=o3pre(ip,ilat+1,:)-o3pre(ilon,ilat+1,:)
-     &    -o3pre(ip,ilat,:)+o3pre(ilon,ilat,:)
-         b=o3pre(ip,ilat,:)-o3pre(ilon,ilat,:)
-         c=o3pre(ilon,ilat+1,:)-o3pre(ilon,ilat,:)
-         o3tmp(:,1)=b*serlon+c*serlat+d*serlon*serlat+o3pre(ilon,ilat,:)
-         where (o3pre(ilon,ilat,:).gt.1..or.o3pre(ip,ilat,:).gt.1.
-     &     .or.o3pre(ilon,ilat+1,:).gt.1..or.o3pre(ip,ilat+1,:).gt.1.)
-           o3tmp(:,1)=1.E35
-         end where
-         
-         ! spatial interpolation (current month)
-         d=o3mth(ip,ilat+1,:)-o3mth(ilon,ilat+1,:)
-     &    -o3mth(ip,ilat,:)+o3mth(ilon,ilat,:)
-         b=o3mth(ip,ilat,:)-o3mth(ilon,ilat,:)
-         c=o3mth(ilon,ilat+1,:)-o3mth(ilon,ilat,:)
-         o3tmp(:,2)=b*serlon+c*serlat+d*serlon*serlat+o3mth(ilon,ilat,:)
-         where (o3mth(ilon,ilat,:).gt.1..or.o3mth(ip,ilat,:).gt.1.
-     &     .or.o3mth(ilon,ilat+1,:).gt.1..or.o3mth(ip,ilat+1,:).gt.1.)
-           o3tmp(:,2)=1.E35
-         end where         
-
-         ! spatial interpolation (next month)
-         d=o3nxt(ip,ilat+1,:)-o3nxt(ilon,ilat+1,:)
-     &    -o3nxt(ip,ilat,:)+o3nxt(ilon,ilat,:)
-         b=o3nxt(ip,ilat,:)-o3nxt(ilon,ilat,:)
-         c=o3nxt(ilon,ilat+1,:)-o3nxt(ilon,ilat,:)
-         o3tmp(:,3)=b*serlon+c*serlat+d*serlon*serlat+o3nxt(ilon,ilat,:)
-         where (o3nxt(ilon,ilat,:).gt.1..or.o3nxt(ip,ilat,:).gt.1.
-     &     .or.o3nxt(ilon,ilat+1,:).gt.1..or.o3nxt(ip,ilat+1,:).gt.1.)
-           o3tmp(:,3)=1.E35
-         end where
-         
-         ! avoid interpolating missing values
-         where (o3tmp(:,1).gt.1..or.o3tmp(:,2).gt.1.
-     &      .or.o3tmp(:,3).gt.1.)
-           o3tmp(:,1)=1.E35
-           o3tmp(:,2)=1.E35
-           o3tmp(:,3)=1.E35
-         end where
-
-         ! temporal interpolation (PWCB)
-         o3tmp(:,2)=o3tmp(:,2)+o3tmp(:,1)
-         o3tmp(:,3)=o3tmp(:,3)+o3tmp(:,2)
-         b=0.5*o3tmp(:,2)
-         c=4.*o3tmp(:,2)-5.*o3tmp(:,1)-o3tmp(:,3)
-         d=1.5*(o3tmp(:,3)+3.*o3tmp(:,1)-3.*o3tmp(:,2))
-         o3inp=b+c*rang+d*rang*rang
-         
-         ! convert units
-         where (o3inp.lt.1.)
-           !o3inp=o3inp*dobson*amo/(amd*grav)
-           o3inp=o3inp*amo/amd
-         end where
-         
-         !-----------------------------------------------------------
-         ! Simple interpolation on pressure levels
-         ! vertical interpolation (from LDR - Mk3.6)
-         if (ozoneintp.eq.0) then
-           do m=kl-1,1,-1
-             if (o3inp(m).gt.1) o3inp(m)=o3inp(m+1)
-           end do
-           prf=0.01*ps(j)*sig
-           do m=1,kl
-             if (prf(m).gt.pres(1)) then
-               duo3n(j,kl-m+1)=o3inp(1)
-             elseif (prf(m).lt.pres(kk)) then
-               duo3n(j,kl-m+1)=o3inp(kk)
-             else
-               do k1=2,kk
-                 if (prf(m).gt.pres(k1)) exit
-               end do
-               fp=(prf(m)-pres(k1))/(pres(k1-1)-pres(k1))
-               duo3n(j,kl-m+1)=(1.-fp)*o3inp(k1)+fp*o3inp(k1-1)
-             end if
-           end do
-         !-----------------------------------------------------------
-         else
-         !-----------------------------------------------------------
-         ! Approximate integral of ozone column
-         
-           ! calculate total column of ozone
-           o3sum=0.
-           o3sum(kk)=o3inp(kk)*0.5*sum(pres(kk-1:kk))
-           do m=kk-1,2,-1
-             if (o3inp(m).gt.1.) then
-               o3sum(m)=o3sum(m+1)
-             else
-               o3sum(m)=o3sum(m+1)+o3inp(m)*0.5*(pres(m-1)-pres(m+1))
-             end if
-           end do
-           if (o3inp(1).gt.1.) then
-             o3sum(1)=o3sum(2)
-           else
-             o3sum(1)=o3sum(2)+o3inp(1)*0.5*(1000.-0.5*sum(pres(1:2)))
-           end if
-         
-          ! vertical interpolation (from LDR - Mk3.6)
-           prf=0.01*ps(j)*sig
-           o3new=0.
-           do m=1,kl
-             if (prf(m).gt.pres(1)) then
-               o3new(m)=o3sum(1)
-             elseif (prf(m).lt.pres(kk)) then
-               o3new(m)=o3sum(kk)
-             else
-               do k1=2,kk
-                 if (prf(m).gt.pres(k1)) exit
-               end do
-               fp=(prf(m)-pres(k1))/(pres(k1-1)-pres(k1))
-               o3new(m)=(1.-fp)*o3sum(k1)+fp*o3sum(k1-1)
-             end if
-           end do        
-         
-           ! output ozone
-           if (sum(prf(1:2)).ge.2000.) then
-             duo3n(j,kl)=0.
-           else
-             duo3n(j,kl)=(o3sum(1)-o3new(2))/(1000.-0.5*sum(prf(1:2)))
-           end if
-           do m=2,kl-1
-             duo3n(j,kl-m+1)=2.*(o3new(m)-o3new(m+1))
-     &                       /(prf(m-1)-prf(m+1))
-           end do
-           duo3n(j,1)=2.*o3new(kl)/sum(prf(kl-1:kl))
-           duo3n(j,:)=max(duo3n(j,:),0.)
-         end if
-         !-----------------------------------------------------------
-         
-         !-----------------------------------------------------------
-         ! Check ozone column
-!         if (sum(prf(1:2)).gt.2000.) then
-!           o3s1=0.
-!         else
-!           o3s1=duo3n(j,kl)*(1000.-0.5*sum(prf(1:2)))
-!         end if
-!         do m=2,kl-1
-!           o3s1=o3s1+duo3n(j,kl-m+1)*0.5*(prf(m-1)-prf(m+1))
-!         end do
-!         o3s1=o3s1+duo3n(j,1)*0.5*sum(prf(kl-1:kl))
-!         o3s2=0.
-!         if (o3inp(1).lt.1.) then
-!           o3s2=o3s2+o3inp(1)*(1000.-0.5*sum(pres(1:2)))
-!         end if
-!         do m=2,kk-1
-!           if (o3inp(m).lt.1.) then
-!             o3s2=o3s2+o3inp(m)*0.5*(pres(m-1)-pres(m+1))
-!           end if
-!         end do
-!         o3s2=o3s2+o3inp(kk)*0.5*sum(pres(kk-1:kk))
-!         print *,"o3s1,o3s2 ",o3s1,o3s2
-         !-----------------------------------------------------------
-         
+        do j=1,ii
+          rlon(j)=real(j-1)*360./real(ii)
         end do
+        do j=1,jj
+          rlat(j)=-90.+real(j-1)*180./real(jj-1)
+        end do
+        blon=alon*180./pi
+        blat=alat*180./pi
+      
+        call fieldinterpolate(duo3n,blon,blat,o3pre,o3mth,o3nxt,rlon,
+     &                        rlat,pres,npts,kl,ii,jj,kk,mins,sig,ps)
+      
+        ! convert units
+        where (duo3n.lt.1.)
+          duo3n=duo3n*amo/amd
+        end where
+         
       else
 c       This moved to initfs
 c
@@ -410,5 +238,207 @@ c
       
       return
       end subroutine o3set
+
+      subroutine fieldinterpolate(out,alon,alat,fpre,fmth,fnxt,rlon,
+     &                            rlat,fpres,ipts,ilev,nlon,nlat,nlev,
+     &                            mins,sig,ps)
+      
+      implicit none
+      
+      integer, intent(in) :: ipts,ilev,nlon,nlat,nlev,mins
+      integer date,ilon,ilat,j,ip,m,k1
+      real, dimension(ipts,ilev), intent(out) :: out
+      real, dimension(ipts), intent(in) :: alon,alat
+      real, dimension(nlon,nlat,nlev), intent(in) :: fpre,fmth,fnxt
+      real, dimension(nlon), intent(in) :: rlon
+      real, dimension(nlat), intent(in) :: rlat
+      real, dimension(nlev), intent(in) :: fpres
+      real, dimension(ipts), intent(in) :: ps
+      real, dimension(ilev), intent(in) :: sig
+      real, dimension(ilev) :: prf
+      real, dimension(nlev) :: b,c,d,o3inp,o3sum,o3new
+      real, dimension(nlev,3) :: o3tmp
+      real rang,serlon,serlat,fp,lonadj,alonx
+      real, parameter, dimension(12) :: monlen =  
+     &  (/ 0.,31.,59.,90.,120.,151.,181.,212.,243.,273.,304.,334. /)
+     
+      integer, parameter :: ozoneintp=1 ! ozone interpolation (0=simple, 1=integrate column)     
+
+!     Time interpolation factors (assume year of exactly 365 days)
+      date = real(modulo(mins,525600))/1440.
+      if (date>=monlen(12)) then
+        rang=(date-monlen(12))/31.
+      else
+!       Search for bracketing dates, i such that monmid(i) >= date
+        do j=2,12
+          if (monlen(j)>=date) exit
+        end do
+        rang=(date-monlen(j-1))/(monlen(j)-monlen(j-1))
+      end if
+      rang=min(max(rang,0.),1.)
+      
+      do j=1,ipts
+
+        alonx=alon(j)
+        if (alonx.lt.rlon(1)) then
+          alonx=alonx+360.
+          ilon=nlon
+        else
+          do ilon=1,nlon-1
+            if (rlon(ilon+1).gt.alonx) exit
+          end do
+        end if
+        ip=ilon+1
+        lonadj=0.
+        if (ip.gt.nlon) then
+          ip=1
+          lonadj=360.
+        end if
+        serlon=(alonx-rlon(ilon))/(rlon(ip)+lonadj-rlon(ilon))
+
+        if (alat(j).lt.rlat(1)) then
+          ilat=1
+          serlat=0.
+        else if (alat(j).gt.rlat(nlat)) then
+          ilat=nlat-1
+          serlat=1.
+        else
+          do ilat=1,nlat-1
+            if (rlat(ilat+1).gt.alat(j)) exit
+          end do
+          serlat=(alat(j)-rlat(ilat))/(rlat(ilat+1)-rlat(ilat))  
+        end if
+
+        ! spatial interpolation (previous month)
+        d=fpre(ip,ilat+1,:)-fpre(ilon,ilat+1,:)
+     &   -fpre(ip,ilat,:)+fpre(ilon,ilat,:)
+        b=fpre(ip,ilat,:)-fpre(ilon,ilat,:)
+        c=fpre(ilon,ilat+1,:)-fpre(ilon,ilat,:)
+        o3tmp(:,1)=b*serlon+c*serlat+d*serlon*serlat+fpre(ilon,ilat,:)
+        where (fpre(ilon,ilat,:).gt.1.E34
+     &     .or.fpre(ip,ilat,:).gt.1.E34
+     &     .or.fpre(ilon,ilat+1,:).gt.1.E34
+     &     .or.fpre(ip,ilat+1,:).gt.1.E34)
+          o3tmp(:,1)=1.E35
+        end where
+         
+        ! spatial interpolation (current month)
+        d=fmth(ip,ilat+1,:)-fmth(ilon,ilat+1,:)
+     &   -fmth(ip,ilat,:)+fmth(ilon,ilat,:)
+        b=fmth(ip,ilat,:)-fmth(ilon,ilat,:)
+        c=fmth(ilon,ilat+1,:)-fmth(ilon,ilat,:)
+        o3tmp(:,2)=b*serlon+c*serlat+d*serlon*serlat+fmth(ilon,ilat,:)
+        where (fmth(ilon,ilat,:).gt.1.E34
+     &     .or.fmth(ip,ilat,:).gt.1.E34
+     &     .or.fmth(ilon,ilat+1,:).gt.1.E34
+     &     .or.fmth(ip,ilat+1,:).gt.1.E34)
+          o3tmp(:,2)=1.E35
+        end where         
+
+        ! spatial interpolation (next month)
+        d=fnxt(ip,ilat+1,:)-fnxt(ilon,ilat+1,:)
+     &   -fnxt(ip,ilat,:)+fnxt(ilon,ilat,:)
+        b=fnxt(ip,ilat,:)-fnxt(ilon,ilat,:)
+        c=fnxt(ilon,ilat+1,:)-fnxt(ilon,ilat,:)
+        o3tmp(:,3)=b*serlon+c*serlat+d*serlon*serlat+fnxt(ilon,ilat,:)
+        where (fnxt(ilon,ilat,:).gt.1.E34
+     &     .or.fnxt(ip,ilat,:).gt.1.E34
+     &     .or.fnxt(ilon,ilat+1,:).gt.1.E34
+     &     .or.fnxt(ip,ilat+1,:).gt.1.E34)
+          o3tmp(:,3)=1.E35
+        end where
+         
+        ! avoid interpolating missing values
+        where (o3tmp(:,1).gt.1.E34.or.o3tmp(:,2).gt.1.E34
+     &     .or.o3tmp(:,3).gt.1.E34)
+          o3tmp(:,1)=1.E35
+          o3tmp(:,2)=1.E35
+          o3tmp(:,3)=1.E35
+        end where
+
+        ! temporal interpolation (PWCB)
+        o3tmp(:,2)=o3tmp(:,2)+o3tmp(:,1)
+        o3tmp(:,3)=o3tmp(:,3)+o3tmp(:,2)
+        b=0.5*o3tmp(:,2)
+        c=4.*o3tmp(:,2)-5.*o3tmp(:,1)-o3tmp(:,3)
+        d=1.5*(o3tmp(:,3)+3.*o3tmp(:,1)-3.*o3tmp(:,2))
+        o3inp=b+c*rang+d*rang*rang
+         
+        !-----------------------------------------------------------
+        ! Simple interpolation on pressure levels
+        ! vertical interpolation (from LDR - Mk3.6)
+        ! Note inverted levels
+        if (ozoneintp.eq.0) then
+          do m=nlev-1,1,-1
+            if (o3inp(m).gt.1.E34) o3inp(m)=o3inp(m+1)
+          end do
+          prf=0.01*ps(j)*sig
+          do m=1,ilev
+            if (prf(m).gt.fpres(1)) then
+              out(j,ilev-m+1)=o3inp(1)
+            elseif (prf(m).lt.fpres(nlev)) then
+              out(j,ilev-m+1)=o3inp(nlev)
+            else
+              do k1=2,nlev
+                if (prf(m).gt.fpres(k1)) exit
+              end do
+              fp=(prf(m)-fpres(k1))/(fpres(k1-1)-fpres(k1))
+              out(j,ilev-m+1)=(1.-fp)*o3inp(k1)+fp*o3inp(k1-1)
+            end if
+          end do
+        !-----------------------------------------------------------
+        else
+        !-----------------------------------------------------------
+        ! Approximate integral of ozone column
+         
+          ! calculate total column of ozone
+          o3sum=0.
+          o3sum(nlev)=o3inp(nlev)*0.5*sum(fpres(nlev-1:nlev))
+          do m=nlev-1,2,-1
+            if (o3inp(m).gt.1.E34) then
+              o3sum(m)=o3sum(m+1)
+            else
+              o3sum(m)=o3sum(m+1)+o3inp(m)*0.5*(fpres(m-1)-fpres(m+1))
+            end if
+          end do
+          if (o3inp(1).gt.1.E34) then
+            o3sum(1)=o3sum(2)
+          else
+            o3sum(1)=o3sum(2)+o3inp(1)*(max(fpres(1),ps(j))
+     &               -0.5*sum(fpres(1:2)))
+          end if
+        
+         ! vertical interpolation
+          prf=0.01*ps(j)*sig
+          o3new=0.
+          do m=1,ilev
+            if (prf(m).gt.fpres(1)) then
+              o3new(m)=o3sum(1)
+            elseif (prf(m).lt.fpres(nlev)) then
+              o3new(m)=o3sum(nlev)
+            else
+              do k1=2,nlev
+                if (prf(m).gt.fpres(k1)) exit
+              end do
+              fp=(prf(m)-fpres(k1))/(fpres(k1-1)-fpres(k1))
+              o3new(m)=(1.-fp)*o3sum(k1)+fp*o3sum(k1-1)
+            end if
+          end do        
+         
+          ! output ozone (invert levels)
+          out(j,ilev)=(o3sum(1)-o3new(2))/(max(fpres(1),ps(j))
+     &                 -0.5*sum(prf(1:2)))
+          do m=2,ilev-1
+            out(j,ilev-m+1)=2.*(o3new(m)-o3new(m+1))
+     &                        /(prf(m-1)-prf(m+1))
+          end do
+          out(j,1)=2.*o3new(ilev)/sum(prf(ilev-1:ilev))
+          out(j,:)=max(out(j,:),0.)
+        end if
+        !-----------------------------------------------------------
+      end do
+      
+      return
+      end subroutine fieldinterpolate
 
       end module ozoneread

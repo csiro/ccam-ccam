@@ -1,4 +1,5 @@
-      subroutine adjust5
+      subroutine adjust5(iaero)
+      use aerosolldr
       use arrays_m
       use cc_mpi
       use diag_m
@@ -58,7 +59,7 @@
       real, save :: dtsave = 0.0
       real :: hdt, hdtds, sdmx, sdmx_g, sumx, qgminm, ratio, sumdiffb,
      &        alph_g
-      integer :: its, k, l, nits, nvadh_pass, iq, ng, ierr
+      integer :: its, k, l, nits, nvadh_pass, iq, ng, ierr, iaero
       integer, save :: precon_in
       real :: sumin, sumout, sumsav
       real :: delpos_l, delneg_l, const_nh
@@ -469,12 +470,12 @@ c    &                               (grav*dt*dt)
            ! For now use this form of call so that vadvtvd doesn't need to 
            ! be changed. With assumed shape arguments this wouldn't be necessary
             call vadvtvd(t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
-     &                   nvadh_pass)
+     &                   nvadh_pass,iaero)
           enddo
         endif  !  nvad==4 .or. nvad==9
         if(nvad>=7) call vadv30(t(1:ifull,:),
      &                            u(1:ifull,:),
-     &                            v(1:ifull,:)) ! for vadvbess
+     &                            v(1:ifull,:),iaero) ! for vadvbess
         if (( diag.or.nmaxpr==1) .and. mydiag ) then
           print *,'after vertical advection in adjust5'
           write (6,"('qg_a3',3p10f8.3)") qg(idjd,:)
@@ -840,33 +841,33 @@ c    &                               (grav*dt*dt)
       
       !--------------------------------------------------------------
       ! MJT aerosols
-      !if (mfix_aero.ne.0.and.mspec==1.and.iaero==2) then
-      !  do l=1,ntrac
-      !    do k=1,kl
-      !      xtg(1:ifull,k,l)=xtg(1:ifull,k,l)*ps(1:ifull)
-      !      xtgsav(1:ifull,k,l)=xtgsav(1:ifull,k,l)*ps_sav(1:ifull)
-      !    end do
-!!    !    perform conservation fix on tke, eps as affected by vadv, hadv, hordif
-!!    !    N.B. won't cope with any -ves from conjob
-!!    !    delpos is the sum of all positive changes over globe
-!!    !    delneg is the sum of all negative changes over globe
-      !    wrk1(1:ifull,1:kl)=max(xtg(1:ifull,1:kl,l),0.)
-    ! &                    -xtgsav(1:ifull,1:kl,l) ! increments
-      !    call ccglobal_posneg(wrk1,delpos,delneg)
-      !    ratio = -delneg/max(delpos,1.e-30)
-      !    alph_q = min(ratio,sqrt(ratio))  ! best option
-!     !    this is cunning 2-sided scheme
-      !    xtg(1:ifull,:,l)=xtgsav(:,:,l)+
-    ! &       alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
-!     !       undo ps weighting
-      !    do k=1,kl
-      !      xtg(1:ifull,k,l)=xtg(1:ifull,k,l)/ps(1:ifull)
-      !    enddo    ! k  loop
-      !    do k=1,kl
-      !      xtgsav(1:ifull,k,l)=xtgsav(1:ifull,k,l)/ps_sav(1:ifull)
-      !    end do
-      !  end do
-      !end if
+      if (mfix_aero.ne.0.and.mspec==1.and.abs(iaero)==2) then
+        do l=1,naero
+          do k=1,kl
+            xtg(1:ifull,k,l)=xtg(1:ifull,k,l)*ps(1:ifull)
+            xtgsav(1:ifull,k,l)=xtgsav(1:ifull,k,l)*ps_sav(1:ifull)
+          end do
+!!        perform conservation fix on aerosol as affected by vadv, hadv, hordif
+!!        N.B. won't cope with any -ves from conjob
+!!        delpos is the sum of all positive changes over globe
+!!        delneg is the sum of all negative changes over globe
+          wrk1(1:ifull,1:kl)=max(xtg(1:ifull,1:kl,l),0.)
+     &                    -xtgsav(1:ifull,1:kl,l) ! increments
+          call ccglobal_posneg(wrk1,delpos,delneg)
+          ratio = -delneg/max(delpos,1.e-30)
+          alph_q = min(ratio,sqrt(ratio))  ! best option
+!         this is cunning 2-sided scheme
+          xtg(1:ifull,:,l)=xtgsav(:,:,l)+
+     &       alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
+!            undo ps weighting
+          do k=1,kl
+            xtg(1:ifull,k,l)=xtg(1:ifull,k,l)/ps(1:ifull)
+          enddo    ! k  loop
+          do k=1,kl
+            xtgsav(1:ifull,k,l)=xtgsav(1:ifull,k,l)/ps_sav(1:ifull)
+          end do
+        end do
+      end if
       !--------------------------------------------------------------
 
       if ((diag.or.nmaxpr==1) .and. mydiag ) then

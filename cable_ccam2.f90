@@ -189,6 +189,7 @@ module cable_ccam
   where (veg%iveg.eq.15.or.veg%iveg.eq.16)
     veg%vlai=0.001
   endwhere
+  sigmf=0.
   do nb=1,5
     if (pind(nb,1).le.mp) then
       sigmf(cmap(pind(nb,1):pind(nb,2)))=sigmf(cmap(pind(nb,1):pind(nb,2))) &
@@ -788,10 +789,10 @@ module cable_ccam
         vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
                                         +vl1(pind(n,1):pind(n,2))*sv(pind(n,1):pind(n,2))
         sigmf(cmap(pind(n,1):pind(n,2)))=sigmf(cmap(pind(n,1):pind(n,2))) &
-          +sv(pind(n,1):pind(n,2))*(1.-exp(-extkn(veg%iveg(pind(n,1):pind(n,2)))*veg%vlai(pind(n,1):pind(n,2))))
+          +sv(pind(n,1):pind(n,2))*(1.-exp(-0.7*veg%vlai(pind(n,1):pind(n,2))))
       end if
     end do
-    tsigmf=0.
+    tsigmf=sigmf
   
     ! aggregate zom
     do n=1,5

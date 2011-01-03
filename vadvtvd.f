@@ -1,6 +1,7 @@
-      subroutine vadvtvd(tarr,uarr,varr,nvadh_pass)   ! globpea  version
+      subroutine vadvtvd(tarr,uarr,varr,nvadh_pass,iaero)   ! globpea  version
 c                              vadvbott & vadvyu at bottom
 !     can show adding tbar has no effect
+      use aerosolldr
       use arrays_m
       use cc_mpi, only : mydiag, myid
       use diag_m
@@ -37,7 +38,7 @@ c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
       real udiff(ifull,kl)
       real tarr(ifull,kl),uarr(ifull,kl),varr(ifull,kl)
       real sig3(kl)
-      integer num,nsign
+      integer num,nsign,iaero,l
       data num/0/,nsign/1/
       save num,nsign   ! -1,1, -1,1 and so on
 
@@ -719,54 +720,54 @@ c        enddo   ! iq loop
 
       !--------------------------------------------------------------
       ! MJT aerosols
-      !if (aero==2) then
-      !  do l=1,ntrac
-      !    do k=1,kl-1       ! aerosols next
-      !     delt(1:ifull,k)=xtg(1:ifull,k+1,l)-xtg(1:ifull,k,l)
-      !    enddo     ! k loop
-      !    delt(1:ifull,0)=min(delt(1:ifull,1),xtg(1:ifull,1,l))       ! for non-negative tt
-      !    do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-      !     do iq=1,ifull
-      !      kp=sign(1.,sdot(iq,k+1))
-      !      kx=k+(1-kp)/2  !  k for sdot +ve,  k+1 for sdot -ve
-      !      rat=delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
-      !      if(ntvd==1)then
-      !       phitvd=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
-      !      else if(ntvd==2) then
-      !       phitvd=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
-      !      else if(ntvd==3) then
-      !       phitvd=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-      !      end if
-      !      if(nthub==1) then
-      !       fluxhi=rathb(k)*xtg(iq,k,l)+ratha(k)*xtg(iq,k+1,l)
-      !      else if(nthub==2)then     ! higher order scheme
-      !        fluxhi=rathb(k)*xtg(iq,k,l)+ratha(k)*xtg(iq,k+1,l)
-    ! .                      -.5*delt(iq,k)*tfact*sdot(iq,k)
-      !      endif  ! (nthub==2)
-      !      fluxlo=tke(iq,kx)
-      !      fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-      !     enddo    ! iq loop
-      !    enddo     ! k loop
-      !    if(nimp==1)then
-      !     do k=1,kl
-      !      do iq=1,ifull
-      !       hdsdot=.5*tfact*(sdot(iq,k+1)-sdot(iq,k))
-      !       xtg(iq,k,l)=(xtg(iq,k,l)
-    ! .                   +tfact*(fluxh(iq,k-1)-fluxh(iq,k))
-    ! .                   +hdsdot*xtg(iq,k,l) )/(1.-hdsdot)
-      !      end do
-      !     end do
-      !    else
-      !     do k=1,kl
-      !      do iq=1,ifull
-      !       xtg(iq,k,l)=xtg(iq,k,l)
-    ! .                   +tfact*(fluxh(iq,k-1)-fluxh(iq,k)
-    ! .                   +xtg(iq,k,l)*(sdot(iq,k+1)-sdot(iq,k)))
-      !      enddo     ! iq loop
-      !     enddo      ! k loop
-      !    endif   ! (nimp==1)
-      !  end do
-      !end if
+      if (abs(iaero)==2) then
+        do l=1,naero
+          do k=1,kl-1       ! aerosols next
+           delt(1:ifull,k)=xtg(1:ifull,k+1,l)-xtg(1:ifull,k,l)
+          enddo     ! k loop
+          delt(1:ifull,0)=min(delt(1:ifull,1),xtg(1:ifull,1,l))       ! for non-negative xtg
+          do k=1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+           do iq=1,ifull
+            kp=sign(1.,sdot(iq,k+1))
+            kx=k+(1-kp)/2  !  k for sdot +ve,  k+1 for sdot -ve
+            rat=delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+            if(ntvd==1)then
+             phitvd=(rat+abs(rat))/(1.+abs(rat))       ! 0 for -ve rat
+            else if(ntvd==2) then
+             phitvd=max(0.,min(2.*rat,.5+.5*rat,2.))   ! 0 for -ve rat
+            else if(ntvd==3) then
+             phitvd=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
+            end if
+            if(nthub==1) then
+             fluxhi=rathb(k)*xtg(iq,k,l)+ratha(k)*xtg(iq,k+1,l)
+            else if(nthub==2)then     ! higher order scheme
+              fluxhi=rathb(k)*xtg(iq,k,l)+ratha(k)*xtg(iq,k+1,l)
+    !                       -.5*delt(iq,k)*tfact*sdot(iq,k)
+            endif  ! (nthub==2)
+            fluxlo=xtg(iq,kx,l)
+            fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+           enddo    ! iq loop
+          enddo     ! k loop
+          if(nimp==1)then
+           do k=1,kl
+            do iq=1,ifull
+             hdsdot=.5*tfact*(sdot(iq,k+1)-sdot(iq,k))
+             xtg(iq,k,l)=(xtg(iq,k,l)
+     .                   +tfact*(fluxh(iq,k-1)-fluxh(iq,k))
+     .                   +hdsdot*xtg(iq,k,l) )/(1.-hdsdot)
+            end do
+           end do
+          else
+           do k=1,kl
+            do iq=1,ifull
+             xtg(iq,k,l)=xtg(iq,k,l)
+     .                   +tfact*(fluxh(iq,k-1)-fluxh(iq,k)
+     .                   +xtg(iq,k,l)*(sdot(iq,k+1)-sdot(iq,k)))
+            enddo     ! iq loop
+           enddo      ! k loop
+          endif   ! (nimp==1)
+        end do
+      end if
       !--------------------------------------------------------------
 
 

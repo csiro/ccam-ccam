@@ -1,4 +1,5 @@
 * text=auto !eol
+/aerointerface.f90 -text
 /aerosolldr.f90 -text
 /arrays_m.f90 -text
 /ateb.f90 -text

@@ -518,6 +518,13 @@ c     if(mydiag.and.diag)then
           ga=-slwa-rgg-panfg*fg                                      ! MLO
           tpan=tpan+ga*dt/(4186.*.254*1000.)                         ! MLO
         endwhere                                                     ! MLO
+        do iq=1,ifull                                                ! MLO
+          if (.not.land(iq)) then                                    ! MLO
+            esatf = establ(tss(iq))                                  ! MLO
+            qsttg(iq)=.622*esatf/(ps(iq)-esatf)                      ! MLO
+            rhscrn(iq)=100.*qgscrn(iq)/qsttg(iq)                     ! MLO
+          end if                                                     ! MLO
+        end do                                                       ! MLO
                                                                      ! MLO
       else                                                           ! MLO
         write(6,*) "ERROR: this option is for ocean model"           ! MLO

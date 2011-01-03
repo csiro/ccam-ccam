@@ -1,7 +1,8 @@
-      subroutine convjlm      ! jlm convective scheme - Version v3
+      subroutine convjlm(iaero)      ! jlm convective scheme - Version v3
 !     the shallow convection options here just for iterconv=1
 !     has +ve fldownn depending on delta sigma; -ve uses older abs(fldown)   
 !     N.B. nevapcc option has been removed
+      use aerosolldr
       use arrays_m   
       use cc_mpi, only : mydiag, myid
       use cfrac_m
@@ -31,7 +32,6 @@
      .    ,frac,fraca,fracb,gam,hbas,hbase,heatlev
      .    ,pwater,pwater0,qavg,qavgb,qentrr,qprec,qsk,rkmid
      .    ,savg,savgb,sentrr,sum,totprec,veldt
-     
      .    ,rKa,Dva,cfls,cflscon,rhodz,qpf,pk,Apr,Bpr,Fr,rhoa,dz,Vr
      .    ,dtev,qr,qgdiff,Cev2,qr2,Cevx,alphal,blx,evapls,revq
      .    ,deluu,delvv,pb
@@ -64,9 +64,12 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
       include 'parm.h'
       integer ktmax(ifull),kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
-      integer kmin(ifull)
+      integer kmin(ifull),iaero
       real, allocatable, save, dimension(:) :: alfqarr
       real, dimension(ifull) :: conrev
+      real, dimension(ifull,kl,naero) :: fscav
+      real, dimension(ifull) :: rho
+      logical, dimension(ifull) :: bliqu
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
       real delv(ifull,kl),dqsdt(ifull,kl),es(ifull,kl) 
       real fldow(ifull),fluxq(ifull),fluxbb(ifull)
@@ -1459,34 +1462,6 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
       end if
       !--------------------------------------------------------------
       
-      !--------------------------------------------------------------
-      ! MJT aerosols
-      !if (iaero==2) then
-      !  xtu=0.
-      !  call convscav(fscav)
-      !  do l=1,ntrac
-      !    s(:,1:kl-2)=xtg(1:ifull,1:kl-2,l)
-      !    do iq=1,ifull
-      !     if(kt_sav(iq)<kl-1)then
-      !       kb=kb_sav(iq)
-      !       kt=kt_sav(iq)
-      !       veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
-      !       fluxup=veldt*s(iq,kb)*(1.-fscav(iq)) ! MJT suggestion
-!     !       remove aerosol from cloud base layer
-      !       xtg(iq,kb,l)=xtg(iq,kb,l)-fluxup/dsk(kb)
-!     !       put flux of tke into top convective layer
-      !       xtg(iq,kt,l)=xtg(iq,kt,l)+fluxup/dsk(kt)
-      !       xtu(iq,:,l)=xtg(iq,:,l) ! MJT suggestion
-      !       do k=kb+1,kt
-      !        xtg(iq,k,l)=xtg(iq,k,l)-s(iq,k)*veldt/dsk(k)
-      !        xtg(iq,k-1,l)=xtg(iq,k-1,l)+s(iq,k)*veldt/dsk(k-1)
-      !       enddo
-      !     endif
-      !    enddo   ! iq loop
-      !  end do
-      !end if
-      !--------------------------------------------------------------
-      
       if((ntest>0.or.diag).and.mydiag)then
         iq=idjd
         write (6,"('uuc ',12f6.1/(4x,12f6.1))") (u(iq,k),k=1,kl)
@@ -1540,6 +1515,45 @@ c     if(ktau<=3.and.nmaxpr==1.and.mydiag)then
       qliqw(1:ifull,k)=factr(:)*qliqw(1:ifull,k)      
       tt(1:ifull,k)= t(1:ifull,k)+factr(:)*(tt(1:ifull,k)- t(1:ifull,k))
       enddo
+
+      !--------------------------------------------------------------
+      ! MJT aerosols
+      if (abs(iaero)==2) then
+        xtusav=0.
+        ! currently fscav is 0. because only qg is converted to qliqw.
+        ! qlg can only increase.
+        do k=1,kl
+          rho=ps(1:ifull)*sig(k)/(rdry*tt(:,k))
+          bliqu=tt(:,k).ge.253.16
+          call convscav(fscav(:,k,:),qlg(1:ifull,k)+qliqw(:,k),
+     &                  qlg(1:ifull,k),bliqu,tt(:,k),xtg(1:ifull,k,3),
+     &                  rho)
+        end do
+        do ntr=1,naero
+          s(:,1:kl-2)=xtg(1:ifull,1:kl-2,ntr)
+          do iq=1,ifull
+           if(kt_sav(iq)<kl-1)then
+             kb=kb_sav(iq)
+             kt=kt_sav(iq)
+             veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+             fluxup=veldt*s(iq,kb)
+             do k=kb,kt-1                                          ! MJT suggestion
+!              remove aerosol from lower layer
+               xtg(iq,k,ntr)=xtg(iq,k,ntr)-fluxup/dsk(k)
+!              put flux of aerosol into upper layer
+               xtg(iq,k+1,ntr)=xtg(iq,k+1,ntr)+fluxup* 
+     &                       (1.-fscav(iq,k,ntr))/dsk(k+1)         ! MJT suggestion
+             end do
+             xtusav(iq,:,ntr)=xtg(iq,:,ntr) ! MJT suggestion
+             do k=kb+1,kt
+              xtg(iq,k,ntr)=xtg(iq,k,ntr)-s(iq,k)*veldt/dsk(k)
+              xtg(iq,k-1,ntr)=xtg(iq,k-1,ntr)+s(iq,k)*veldt/dsk(k-1)
+             enddo
+           endif
+          enddo   ! iq loop
+        end do
+      end if
+      !--------------------------------------------------------------
 
 !     update qq, tt for evap of qliqw (qliqw arose from moistening)
       if(ldr.ne.0)then

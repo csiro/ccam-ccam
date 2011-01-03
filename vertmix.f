@@ -1,5 +1,6 @@
-      subroutine vertmix
+      subroutine vertmix(iaero)
 !     inputs & outputs: t,u,v,qg
+      use aerosolldr
       use arrays_m
       use cc_mpi, only : mydiag, myid
       use cfrac_m
@@ -43,7 +44,7 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       real csq(ifull),dvmod(ifull),dz(ifull),dzr(ifull),
      &     fm(ifull),fh(ifull),sqmxl(ifull),
      &     x(ifull),zhv(ifull),theeb(ifull),sigsp(ifull)
-      integer kbase(ifull),ktop(ifull)
+      integer kbase(ifull),ktop(ifull),iaero,l
       real sighkap(kl),sigkap(kl),delons(kl),delh(kl)
       real, dimension(:), allocatable, save :: prcpv
       real au(ifull,kl),ct(ifull,kl)
@@ -790,28 +791,29 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
      &                     +betm(k)*t(1:ifull,k-1))/grav                ! MJT tke
        end do                                                           ! MJT tke
-       tmp=rdry*fg*tss/(ps(1:ifull)*cp)
-       tmp=tmp/(tss-rhs(:,1)) ! k*ustar/I_H
-       wq0=rdry*eg*tss/(ps(1:ifull)*hl)
-       qgs=wq0/tmp+qg(1:ifull,1) ! qsat at surface
+       tmp=rdry*fg*tss/(ps(1:ifull)*cp)                                 ! MJT tke
+       tmp=tmp/(tss-rhs(:,1)) ! k*ustar/I_H                             ! MJT tke
+       wq0=rdry*eg*tss/(ps(1:ifull)*hl)                                 ! MJT tke
+       qgs=wq0/tmp+qg(1:ifull,1) ! qsat at surface                      ! MJT tke
        wt0=tmp*(tss*(1.+0.61*qgs)
-     &    -rhs(:,1)*(1.+0.61*qg(1:ifull,1)))
+     &    -rhs(:,1)*(1.+0.61*qg(1:ifull,1)))                            ! MJT tke
+       tmp=tss*(1.+0.61*qqs)                                            ! MJT tke
        select case(nlocal)                                              ! MJT tke
         case(0) ! no counter gradient                                   ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)      ! MJT tke
+     &             wt0,wq0,ps(1:ifull),tmp,ustar,zg,sig,sigkap,dt,1,0)  ! MJT tke
          rkh=rkm                                                        ! MJT tke
         case(1,2,3,4,5,6) ! KCN counter gradient method                 ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)      ! MJT tke
+     &             wt0,wq0,ps(1:ifull),tmp,ustar,zg,sig,sigkap,dt,1,0)  ! MJT tke
          rkh=rkm                                                        ! MJT tke
          call pbldif(rhs,rkh,rkm,uav,vav)                               ! MJT tke
         case(7) ! mass-flux counter gradient                            ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,0,0)      ! MJT tke
+     &             wt0,wq0,ps(1:ifull),tmp,ustar,zg,sig,sigkap,dt,0,0)  ! MJT tke
          rkh=rkm                                                        ! MJT tke
          case DEFAULT                                                   ! MJT tke
            write(6,*) "ERROR: Unknown nlocal option for nvmix=6"        ! MJT tke
@@ -918,23 +920,15 @@ c     first do theta (then convert back to t)
 c     now do moisture
       rhs(1:ifull,:)=qg(1:ifull,:)
       rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/hl)*eg(1:ifull)/ps(1:ifull)
-      if (nvmix.eq.6) then                                         ! MJT tke
-       if ((methdetr.ne.0.and.nlocal.eq.7).or.nlocal.eq.0) then    ! MJT tke
-        ! increase mixing to replace counter gradient term         ! MJT tke
-        at=2.5*at                                                  ! MJT tke
-        ct=2.5*ct                                                  ! MJT tke
-       end if                                                      ! MJT tke
-       call trim(at,ct,rhs,0)    ! for qg                          ! MJT tke
-       if ((methdetr.eq.0.or.nlocal.ne.7).and.nlocal.ne.0) then    ! MJT tke
-        ! increase mixing to replace counter gradient term         ! MJT tke
-        at=2.5*at                                                  ! MJT tke
-        ct=2.5*ct                                                  ! MJT tke
-       end if                                                      ! MJT tke
-      else ! usual                                                 ! MJT tke
-c      could add extra sfce moisture flux term for crank-nicholson ! MJT tke
-       call trim(at,ct,rhs,0)    ! for qg                          ! MJT tke
-      end if                                                       ! MJT tke
+c     could add extra sfce moisture flux term for crank-nicholson
+      call trim(at,ct,rhs,0)    ! for qg
       qg(1:ifull,:)=rhs(1:ifull,:)
+      if (nvmix.eq.6) then
+       ! increase mixing to replace counter gradient term          ! MJT tke
+       at=2.5*at                                                   ! MJT tke
+       ct=2.5*ct                                                   ! MJT tke
+      end if                                                       ! MJT tke
+
       if(diag.and.mydiag)then
        print *,'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
        write (6,"('qg ',9f7.3/(8x,9f7.3))")
@@ -954,13 +948,13 @@ c       now do qlg
 
       !--------------------------------------------------------------
       ! MJT aerosol
-      !if (iaero==2) then
-      !  do l=1,ntrac
-      !    rhs(1:ifull,:)=xtg(1:ifull,:,l)
-      !    call trim(at,ct,rhs,0)
-      !    xtg(1:ifull,:,l)=rhs(1:ifull,:)
-      !  end do
-      !end if
+      if (abs(iaero)==2) then
+        do l=1,naero
+          rhs(1:ifull,:)=xtg(1:ifull,:,l)
+          call trim(at,ct,rhs,0)
+          xtg(1:ifull,:,l)=rhs(1:ifull,:)
+        end do
+      end if
       !--------------------------------------------------------------
 
 c     now do trace gases rml 16/02/06 changed call

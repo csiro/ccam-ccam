@@ -152,6 +152,7 @@ module cc_mpi
    integer, public, save :: sfluxland_begin, sfluxland_end
    integer, public, save :: sfluxurban_begin, sfluxurban_end
    integer, public, save :: vertmix_begin, vertmix_end
+   integer, public, save :: aerosol_begin, aerosol_end
    integer, public, save :: nestin_begin, nestin_end
    integer, public, save :: model_begin, model_end
    integer, public, save :: maincalc_begin, maincalc_end
@@ -162,7 +163,7 @@ module cc_mpi
    integer, public, save :: mpiwait_begin, mpiwait_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents=36
+   integer, parameter :: nevents=37
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -3116,6 +3117,9 @@ contains
       vertmix_begin = MPE_Log_get_event_number()
       vertmix_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(vertmix_begin, vertmix_end, "Vertmix", "Yellow")
+      aerosol_begin = MPE_Log_get_event_number()
+      aerosol_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(aerosol_begin, aerosol_end, "Aerosol", "Yellow")
       nestin_begin = MPE_Log_get_event_number()
       nestin_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(nestin_begin, nestin_end, "Nestin", "Yellow")
@@ -3177,6 +3181,8 @@ contains
       sfluxurban_end =  sfluxurban_begin
       call vtfuncdef("Vertmix", classhandle, vertmix_begin, ierr)
       vertmix_end =  vertmix_begin
+      call vtfuncdef("Aerosol", classhandle, aerosol_begin, ierr)
+      aerosol_end = aerosol_begin
       call vtfuncdef("Nestin", classhandle, nestin_begin, ierr)
       nestin_end =  nestin_begin
 #endif
@@ -3322,7 +3328,11 @@ contains
       vertmix_end =  vertmix_begin
       event_name(vertmix_begin) = "Vertmix"
 
-      nestin_begin = 36
+      aerosol_begin = 36
+      aerosol_end =  aerosol_begin
+      event_name(aerosol_begin) = "Aerosol"
+
+      nestin_begin = 37
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
 

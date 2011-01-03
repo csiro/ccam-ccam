@@ -1,4 +1,5 @@
-      subroutine leoncld(cfrac)
+      subroutine leoncld(cfrac,iaero)
+      use aerointerface
       use arrays_m
       use cc_mpi, only : mydiag, myid
       use diag_m
@@ -15,7 +16,7 @@
       use work3f_m
       implicit none
       include 'newmpar.h'
-      integer  ncfrp,icfrp
+      integer  ncfrp,icfrp,iaero
       parameter (ncfrp=0,icfrp=1)        ! cfrp diags off      
 !     parameter (ncfrp=1,icfrp=ifullw)   ! cfrp diags on     
       include 'const_phys.h' !Input physical constants
@@ -81,28 +82,13 @@ c These outputs are not used in this model at present
           dprf(iq,k)=-0.01*ps(iq)*dsig(k) !dsig is -ve
           rhoa(iq,k)=100.*prf(iq,k)/(rdry*t(iq,k))
           qsg(iq,k)=qsat(100.*prf(iq,k),t(iq,k))
-          if(land(iq))then
-            if(rlatt(iq)>0.)then     
-              cdso4(iq,k)=cdropl_nh
-            else
-              cdso4(iq,k)=cdropl_sh
-            endif
-          else
-            if(rlatt(iq)>0.)then     
-              cdso4(iq,k)=cdrops_nh
-            else
-              cdso4(iq,k)=cdrops_sh
-            endif
-          endif  ! (land(iq)) .. else ..
         enddo
       enddo
       
       !--------------------------------------------------------------
       ! MJT aerosols
       ! Calculate droplet concentration from aerosols
-      !if (iaero==2) then
-      !  call cldrop(cdso4,rhoa)
-      !end if
+      call aerodrop(iaero,1,ifull,kl,cdso4,rhoa,land,rlatt)
       !--------------------------------------------------------------
 
       kbase(:)=0  ! default
@@ -288,34 +274,34 @@ c     Calculate precipitation and related processes
       endif
 
       !--------------------------------------------------------------
-      ! MJT aerosols
-!      if (iaero.eq.2) then
-!        ppfprec(:,1)=0. !At TOA
-!        ppfmelt(:,1)=0. !At TOA
-!        ppfsnow(:,1)=0. !At TOA
-!        ppfconv(:,1)=0. !At TOA
-!        do k=1,kl-1
-!          ppfprec(:,kl+1-k)=(fluxr(:,k+1)+fluxm(:,k))/dt !flux *entering* layer k
-!          ppfmelt(:,kl+1-k)=fluxm(:,k)/dt                !flux melting in layer k
-!          ppfsnow(:,kl+1-k)=(fluxi(:,k+1)-fluxm(:,k))/dt !flux *entering* layer k
-!          ppfconv(:,kl+1-k)=fluxc(:,k)/dt                !flux *leaving* layer k
-!        enddo
-!        do k=1,kl
-!          ppfevap(:,kl+1-k)=qevap(:,k)*rhoa(:,k)*dz(:,k)/dt
-!          ppfsubl(:,kl+1-k)=qsubl(:,k)*rhoa(:,k)*dz(:,k)/dt !flux sublimating or staying in k
-!          pplambs(:,kl+1-k)=slopes(:,k)
-!          ppfstay(:,kl+1-k)=pfstay(:,k)
-!          ppqfsed(:,kl+1-k)=pqfsed(:,k)
-!          pprscav(:,kl+1-k)=prscav(:,k)
-!          where (qlg(:,k)+qfg(:,k).gt.1.e-12)
-!            ppmrate(:,kl+1-k)=(qauto(:,k)+qcoll(:,k))/dt
-!            ppmaccr(:,kl+1-k)=qaccr(:,k)/dt
-!          elsewhere
-!            ppmrate(:,kl+1-k)=0.
-!            ppmaccr(:,kl+1-k)=0.
-!          end where
-!        enddo
-!      end if
+      ! MJT aerosols - store data needed by prognostic aerosol scheme
+      if (abs(iaero).ge.2) then
+        ppfprec(:,1)=0. !At TOA
+        ppfmelt(:,1)=0. !At TOA
+        ppfsnow(:,1)=0. !At TOA
+        ppfconv(:,1)=0. !At TOA
+        do k=1,kl-1
+          ppfprec(:,kl+1-k)=(fluxr(:,k+1)+fluxm(:,k))/dt !flux *entering* layer k
+          ppfmelt(:,kl+1-k)=fluxm(:,k)/dt                !flux melting in layer k
+          ppfsnow(:,kl+1-k)=(fluxi(:,k+1)-fluxm(:,k))/dt !flux *entering* layer k
+          ppfconv(:,kl+1-k)=fluxc(:,k)/dt                !flux *leaving* layer k
+        enddo
+        do k=1,kl
+          ppfevap(:,kl+1-k)=qevap(:,k)*rhoa(:,k)*dz(:,k)/dt
+          ppfsubl(:,kl+1-k)=qsubl(:,k)*rhoa(:,k)*dz(:,k)/dt !flux sublimating or staying in k
+          pplambs(:,kl+1-k)=slopes(:,k)
+          where (qlg(:,k)+qfg(:,k).gt.1.e-8)
+            ppmrate(:,kl+1-k)=(qauto(:,k)+qcoll(:,k))/dt
+            ppmaccr(:,kl+1-k)=qaccr(:,k)/dt
+          elsewhere
+            ppmrate(:,kl+1-k)=0.
+            ppmaccr(:,kl+1-k)=0.
+          end where
+        enddo
+        ppfstay=pfstay
+        ppqfsed=pqfsed
+        pprscav=prscav
+      end if
       !--------------------------------------------------------------
 
 !     Add convective cloud water into fields for radiation

@@ -1,5 +1,6 @@
-      subroutine hordifgt    !  globpea version    N.B. k loop in here
+      subroutine hordifgt(iaero)    !  globpea version    N.B. k loop in here
 !     usual scheme
+      use aerosolldr
       use arrays_m
       use cc_mpi
       use diag_m
@@ -40,7 +41,7 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull,kl) :: dudx,dudy,dvdx,dvdy ! MJT smag
       integer, parameter :: nf=2
 !     Local variables
-      integer iq, k, nhora, nhorx
+      integer iq, k, nhora, nhorx, iaero, l
       real cc, delphi, emi, hdif, ucc, vcc, wcc
       integer, save :: kmax=-1 ! MJT smag
       !integer i, j, n, ind
@@ -428,6 +429,7 @@ c        do t diffusion based on potential temperature ff
        ! MJT - apply horizontal diffusion to TKE and EPS terms
        if (nvmix.eq.6) then
          ee(1:ifull,:)=tke(1:ifull,:)
+         call bounds(ee)
          do k=1,kl
            do iq=1,ifull
              emi=1./em(iq)**2
@@ -441,6 +443,7 @@ c        do t diffusion based on potential temperature ff
            enddo           !  iq loop
          end do
          ee(1:ifull,:)=eps(1:ifull,:)
+         call bounds(ee)
          do k=1,kl
            do iq=1,ifull
              emi=1./em(iq)**2
@@ -454,6 +457,27 @@ c        do t diffusion based on potential temperature ff
            end do           !  iq loop
          end do
        end if
+
+       ! MJT aerosols
+       if (abs(iaero).eq.2) then
+         do l=1,naero
+           ee(1:ifull,:)=xtg(1:ifull,:,l)
+           call bounds(ee)
+           do k=1,kl
+             do iq=1,ifull
+               emi=1./em(iq)**2
+               xtg(iq,k,l) = ( ee(iq,k)*emi +
+     &                     xfact(iq,k)*ee(ie(iq),k) +
+     &                     xfact(iwu(iq),k)*ee(iw(iq),k) +
+     &                     yfact(iq,k)*ee(in(iq),k) +
+     &                     yfact(isv(iq),k)*ee(is(iq),k) ) /
+     &                   ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
+     &                     yfact(iq,k)+yfact(isv(iq),k))
+             enddo           !  iq loop
+           end do
+         end do
+       end if
+
 
       return
       end
