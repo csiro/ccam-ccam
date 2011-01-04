@@ -504,6 +504,16 @@ c     if(mydiag.and.diag)then
         do k=1,3                                                     ! MLO
           call mloexpice(tggsn(:,k),k,0)                             ! MLO
         end do                                                       ! MLO
+                                                                     ! MLO
+        ! stuff to keep tpan over land working                       ! MLO
+        ri=min(grav*zmin*(1.-tpan*srcp/t(:,1))/vmag**2,ri_max)       ! MLO
+        where (ri>0.)                                                ! MLO
+          fh=vmod/(1.+bprm*ri)**2                                    ! MLO
+        elsewhere                                                    ! MLO
+          fh=vmod-vmod*2.*bprm*ri/(1.+chs*2.*bprm*factch*chnsea      ! MLO
+     &       *sqrt(-ri*zmin/zo))                                     ! MLO
+        end where                                                    ! MLO
+                                                                     ! MLO
         where(.not.land)                                             ! MLO
           snowd=snowd*1000.                                          ! MLO
           ga=0.                                                      ! MLO
@@ -515,6 +525,7 @@ c     if(mydiag.and.diag)then
           rnet=sgsave-rgsave-stefbo*tss**4                           ! MLO
         elsewhere                                                    ! MLO
           rgg=5.67e-8*tpan**4                                        ! MLO
+          fg=rho*chnsea*cp*fh*(tpan-theta)                           ! MLO
           ga=-slwa-rgg-panfg*fg                                      ! MLO
           tpan=tpan+ga*dt/(4186.*.254*1000.)                         ! MLO
         endwhere                                                     ! MLO

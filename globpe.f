@@ -207,7 +207,7 @@
       data nsnowout/999999/
 
       ! For linux only
-      !call setstacklimit(-1)
+      call setstacklimit(-1)
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
@@ -301,8 +301,8 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
 #ifdef uniform_decomp
       nxp=nint(sqrt(real(nproc)))
       nyp=nproc/nxp
-      do while(mod(il_g,nxp).ne.0.and.mod(nproc,nxp).ne.0.and.
-     &         mod(jl_g,nyp).ne.0.and.nxp.gt.0)
+      do while((mod(il_g,nxp).ne.0.or.mod(nproc,nxp).ne.0.or.
+     &         mod(jl_g,nyp).ne.0).and.nxp.gt.0)
         nxp=nxp-1
         nyp=nproc/max(nxp,1)
       end do
@@ -314,8 +314,8 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       end if
       nxp=max(1,nint(sqrt(real(nproc/6))))
       nyp=nproc/nxp
-      do while(mod(il_g,nxp).ne.0.and.mod(nproc/6,nxp).ne.0.and.
-     &         mod(jl_g,nyp).ne.0.and.nxp.gt.0)
+      do while((mod(il_g,nxp).ne.0.or.mod(nproc/6,nxp).ne.0.or.
+     &         mod(jl_g,nyp).ne.0).and.nxp.gt.0)
         nxp=nxp-1
         nyp=nproc/max(nxp,1)
       end do
