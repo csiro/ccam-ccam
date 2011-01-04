@@ -1467,7 +1467,8 @@ implicit none
 
 integer, intent(in) :: num_wavenumbers
 integer, dimension(num_wavenumbers), intent(in) :: endaerwvnsf
-real(kind=8), dimension(N_AEROSOL_BANDS, num_wavenumbers), intent(out) :: sflwwts,sflwwts_cn
+real(kind=8), dimension(N_AEROSOL_BANDS, num_wavenumbers), intent(out) :: sflwwts
+real(kind=8), dimension(N_AEROSOL_BANDS_CN, num_wavenumbers), intent(out) :: sflwwts_cn
 
 !----------------------------------------------------------------------
 !    lw_aerosol_interaction defines the weights and interval infor-
