@@ -396,6 +396,7 @@ else
 end if
 
 ! update prognostic aerosols
+xtg=max(xtg,0.)
 call aldrcalc(dt,sig,sigh,dsig,zg,cansto,mcmax,wg,pblh,ps,  &
               tss,t(1:ifull,:),condx,condc,snowd,sgsave,fg, &
               eg,u10,ustar,zo,land,fracice,sigmf,           &
@@ -403,6 +404,7 @@ call aldrcalc(dt,sig,sigh,dsig,zg,cansto,mcmax,wg,pblh,ps,  &
               pccw,dxy,rhoa,ppfprec,ppfmelt,ppfsnow,        &
               ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,      &
               ppmaccr,ppfstay,ppqfsed,pprscav)
+xtg=max(xtg,0.)	      
 
 ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
 so4t(:)=0.

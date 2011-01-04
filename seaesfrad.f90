@@ -572,20 +572,21 @@ do j=1,jl,imax/il
         do k=1,kl
           kr=kl+1-k
           dprf=ps(istart:iend)*(sigh(k+1)-sigh(k))
-          Aerosol%aerosol(:,1,kr,1) =xtg(istart:iend,k,3)*dprf*3.0e3/grav  ! so4
-          Aerosol%aerosol(:,1,kr,2) =xtg(istart:iend,k,4)*dprf*1.0e3/grav  ! bc hydrophobic
-          Aerosol%aerosol(:,1,kr,3) =xtg(istart:iend,k,5)*dprf*1.0e3/grav  ! bc hydrophilic
-          Aerosol%aerosol(:,1,kr,4) =xtg(istart:iend,k,6)*dprf*1.3e3/grav  ! oc hydrophobic
-          Aerosol%aerosol(:,1,kr,5) =xtg(istart:iend,k,7)*dprf*1.3e3/grav  ! oc hydrophilic
-          Aerosol%aerosol(:,1,kr,6) =xtg(istart:iend,k,8)*dprf*1.0e3/grav  ! dust 0.1-1
-          Aerosol%aerosol(:,1,kr,7) =xtg(istart:iend,k,9)*dprf*1.0e3/grav  ! dust 1-2
-          Aerosol%aerosol(:,1,kr,8) =xtg(istart:iend,k,10)*dprf*1.0e3/grav ! dust 2-3
-          Aerosol%aerosol(:,1,kr,9) =xtg(istart:iend,k,11)*dprf*1.0e3/grav ! dust 3-6
+          Aerosol%aerosol(:,1,kr,1) =xtg(istart:iend,k,3)*dprf*3.0/grav  ! so4
+          Aerosol%aerosol(:,1,kr,2) =xtg(istart:iend,k,4)*dprf*1.0/grav  ! bc hydrophobic
+          Aerosol%aerosol(:,1,kr,3) =xtg(istart:iend,k,5)*dprf*1.0/grav  ! bc hydrophilic
+          Aerosol%aerosol(:,1,kr,4) =xtg(istart:iend,k,6)*dprf*1.3/grav  ! oc hydrophobic
+          Aerosol%aerosol(:,1,kr,5) =xtg(istart:iend,k,7)*dprf*1.3/grav  ! oc hydrophilic
+          Aerosol%aerosol(:,1,kr,6) =xtg(istart:iend,k,8)*dprf*1.0/grav  ! dust 0.1-1
+          Aerosol%aerosol(:,1,kr,7) =xtg(istart:iend,k,9)*dprf*1.0/grav  ! dust 1-2
+          Aerosol%aerosol(:,1,kr,8) =xtg(istart:iend,k,10)*dprf*1.0/grav ! dust 2-3
+          Aerosol%aerosol(:,1,kr,9) =xtg(istart:iend,k,11)*dprf*1.0/grav ! dust 3-6
           Aerosol%aerosol(:,1,kr,10)=5.3e-17*ssn(istart:iend,k,1) &
-                                     /rhoa(istart:iend,k)*dprf*1.0e3/grav  ! Small sea salt
+                                     /rhoa(:,k)*dprf*1.0/grav  ! Small sea salt
           Aerosol%aerosol(:,1,kr,11)=9.1e-15*ssn(istart:iend,k,2) &
-                                     /rhoa(istart:iend,k)*dprf*1.0e3/grav  ! Large sea salt
+                                     /rhoa(:,k)*dprf*1.0/grav  ! Large sea salt
         end do
+	Aerosol%aerosol=max(Aerosol%aerosol,0.)
       case DEFAULT
         write(6,*) "ERROR: unknown iaero option ",iaero
         stop
