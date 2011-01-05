@@ -77,7 +77,7 @@ c     degdt is degdt (was ceva in surfupa/b)
         allocate(plens(ifull))
         plens=0.
       end if
-
+      
       ri_max=(1./fmroot -1.)/bprm  ! i.e. .14641
 c     zobgin = .05   ! jlm: NB seems to be .01 in csiro9. Mar '05: in parm.h
       zologbgin=log(zmin/zobgin)   ! pre-calculated for all except snow points

@@ -341,7 +341,7 @@ if ( first ) then
     Aerosol_props%optical_index(3)=28   ! soot
     Aerosol_props%optical_index(4)=27   ! organic carbon
     Aerosol_props%optical_index(5)=27   ! organic carbon
-    Aerosol_props%optical_index(6)=32   ! dust 0.1-1 (using 0.4)
+    Aerosol_props%optical_index(6)=33   ! dust 0.1-1 (using 0.8)
     Aerosol_props%optical_index(7)=34   ! dust 1-2   (using 1)
     Aerosol_props%optical_index(8)=35   ! dust 2-3   (using 2)
     Aerosol_props%optical_index(9)=36   ! dust 3-6   (using 4)

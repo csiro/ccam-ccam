@@ -57,8 +57,7 @@ c     set coefficients for Louis scheme
       data bprmj/5./,cmj/5./,chj/2.6/
       save kscbase,ksctop
       include 'establ.h'
-      real zg(ifull,kl),tmp(ifull),qgs(ifull),wq0(ifull) ! MJT tke
-      real wt0(ifull)                                    ! MJT tke
+      real zg(ifull,kl),rhoa(ifull),wt0(ifull),wq0(ifull) ! MJT tke
 
       kcl_top=kl-2
       if (.not.allocated(prcpv)) allocate(prcpv(kl))
@@ -791,29 +790,25 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
      &                     +betm(k)*t(1:ifull,k-1))/grav                ! MJT tke
        end do                                                           ! MJT tke
-       tmp=rdry*fg*tss/(ps(1:ifull)*cp)                                 ! MJT tke
-       tmp=tmp/(tss-rhs(:,1)) ! k*ustar/I_H                             ! MJT tke
-       wq0=rdry*eg*tss/(ps(1:ifull)*hl)                                 ! MJT tke
-       qgs=wq0/tmp+qg(1:ifull,1) ! qsat at surface                      ! MJT tke
-       wt0=tmp*(tss*(1.+0.61*qgs)
-     &    -rhs(:,1)*(1.+0.61*qg(1:ifull,1)))                            ! MJT tke
-       tmp=tss*(1.+0.61*qqs)                                            ! MJT tke
+       rhoa=rdry*t(iq,1)/(ps(1:ifull)*sigmh(1))                         ! MJT tke
+       wq0=eg*rhoa/hl                                                   ! MJT tke
+       wt0=fg*rhoa/cp+0.61*rhs(:,1)*wq0                                 ! MJT tke
        select case(nlocal)                                              ! MJT tke
         case(0) ! no counter gradient                                   ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             wt0,wq0,ps(1:ifull),tmp,ustar,zg,sig,sigkap,dt,1,0)  ! MJT tke
+     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)      ! MJT tke
          rkh=rkm                                                        ! MJT tke
         case(1,2,3,4,5,6) ! KCN counter gradient method                 ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             wt0,wq0,ps(1:ifull),tmp,ustar,zg,sig,sigkap,dt,1,0)  ! MJT tke
+     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)      ! MJT tke
          rkh=rkm                                                        ! MJT tke
          call pbldif(rhs,rkh,rkm,uav,vav)                               ! MJT tke
         case(7) ! mass-flux counter gradient                            ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             wt0,wq0,ps(1:ifull),tmp,ustar,zg,sig,sigkap,dt,0,0)  ! MJT tke
+     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,0,0)      ! MJT tke
          rkh=rkm                                                        ! MJT tke
          case DEFAULT                                                   ! MJT tke
            write(6,*) "ERROR: Unknown nlocal option for nvmix=6"        ! MJT tke

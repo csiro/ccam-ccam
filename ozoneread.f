@@ -191,6 +191,9 @@ c
           rlat(j)=-90.+real(j-1)*180./real(jj-1)
         end do
         blon=alon*180./pi
+	where (blon.lt.0.)
+	  blon=blon+360.
+	end where
         blat=alat*180./pi
       
         call fieldinterpolate(duo3n,blon,blat,o3pre,o3mth,o3nxt,rlon,

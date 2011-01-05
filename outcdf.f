@@ -984,9 +984,9 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           call attrib(idnc,dim,4,'dust4','Dust 3-6 micrometers'
      &              ,'kg/kg',0.,6.5E-6,0,itype)
           call attrib(idnc,dim,4,'seasalt1','Sea salt small'
-     &              ,'1/m3',0.,6.5E-6,0,itype)
+     &              ,'1/m3',0.,6.5E9,0,itype)
           call attrib(idnc,dim,4,'seasalt2','Sea salt large'
-     &              ,'1/m3',0.,6.5E-6,0,itype)
+     &              ,'1/m3',0.,6.5E7,0,itype)
         end if
         !--------------------------------------------------------  
 

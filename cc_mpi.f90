@@ -894,6 +894,8 @@ contains
       bnds(:)%slenx = 0
       bnds(:)%rlen2 = 0
       bnds(:)%slen2 = 0
+      bnds(:)%rlen2_uv = 0
+      bnds(:)%slen2_uv = 0
 
 
 !     In the first pass through, set up list of points to be requested from
@@ -1402,9 +1404,9 @@ contains
       if ( nreq > 0 ) then
          call MPI_Waitall(nreq,ireq,status,ierr)
       end if
-      
-      call reducealloc ! MJT memory - resize arrays
 
+      call reducealloc ! MJT memory - resize arrays
+      
 !     Start of UV section
 
       bnds(:)%rlen_uv = 0

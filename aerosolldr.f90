@@ -160,7 +160,7 @@ end subroutine aldrloaderod
 ! Main routine
 
 subroutine aldrcalc(dt,sig,sigh,dsig,zz,mc,mcmax,wg,pblh,prf,ts,ttg,rcondx,condc,snowd,sg,fg,eg,v10m, &
-                    ustar,zo,land,sicef,tsigmf,qlg,qfg,cfrac,clcon,pccw,dxy,rhoa,ppfprec,ppfmelt,     &
+                    ustar,zo,land,sicef,tsigmf,qlg,qfg,cfrac,clcon,pccw,dxy,rhoa,vt,ppfprec,ppfmelt,  &
                     ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed,pprscav)
 
 implicit none
@@ -187,6 +187,7 @@ real, dimension(ifull), intent(in) :: zo       ! Roughness length
 real, dimension(ifull), intent(in) :: sicef    ! Sea-ice fraction
 real, dimension(ifull), intent(in) :: tsigmf   ! Vegetation fraction
 real, dimension(ifull), intent(in) :: dxy      ! area of grid box
+real, dimension(ifull), intent(in) :: vt       ! transfer velocity
 real, dimension(ifull,kl), intent(in) :: zz    ! Height of vertical level (meters)
 real, dimension(ifull,kl), intent(in) :: ttg   ! Air temperature
 real, dimension(ifull,kl), intent(in) :: qlg   ! liquid water mixing ratio
@@ -210,10 +211,10 @@ real, dimension(ifull) :: so2em,so4em,dmsem,bem,oem,bbem
 real, dimension(ifull) :: so2dd,so4dd
 real, dimension(ifull) :: so2wd,so4wd,dustwd
 real, dimension(ifull) :: so2oh,so2h2,so2o3,dmsoh,dmsn3
-real, dimension(ifull) :: v10n,vt
+real, dimension(ifull) :: v10n
 real, dimension(ifull) :: veff,vefn,dustdd,duste
 real, dimension(kl) :: isig
-real rrate,wstar3,vgust_free,vgust_deep,cstrat,sigkap
+real rrate,wstar3,vgust_free,vgust_deep,cstrat
 real qlgx,qfgx
 real, parameter :: beta=0.65
 integer mg,nt,k
@@ -227,9 +228,7 @@ end do
 dz(:,kl)=zz(:,kl)-zz(:,kl-1)
 
 conwd=0.
-sigkap=sig(1)**(-rdry/cp)
 v10n=ustar*log(10./zo)/vkar
-vt=fg*rdry*ts/(prf*cp*(ts-ttg(:,1)*sigkap)) ! k*ustar/I_H
 
 ! Calculate sub-grid Vgust
 ! Mesoscale enhancement follows Redelsperger et al. (2000), J. Climate 13, 402-421.
@@ -271,27 +270,23 @@ do k=1,kl
 enddo
 
 ! Emission and dry deposition of dust
-if(ndust.gt.0)then
-  ! Calculate the settling of large dust particles
-  dustdd(:)=0.
-  do k=1,kl
-    aphp1(:,k)=prf(:)*sig(k)/100.
-  end do
-  call dsettling(dt,ttg,dz,aphp1(:,1:kl),                     & !Inputs
-                 xtg(1:ifull,:,itracdu:itracdu+ndust-1),dustdd) !In and out
-  ! Calculate dust emission and turbulent dry deposition at the surface
-  duste(:)=0.
-  call dustem(dt,rhoa(:,1),wg,Veff,dz(:,1),vt,snowd,dxy,land,             & !Inputs
-              xtg(1:ifull,:,itracdu:itracdu+ndust-1),dustdd,duste)          !In and out
-endif
+! Calculate the settling of large dust particles
+dustdd(:)=0.
+do k=1,kl
+  aphp1(:,k)=prf(:)*sig(k)/100. ! hPa
+end do
+call dsettling(dt,ttg,dz,aphp1(:,1:kl),                     & !Inputs
+               xtg(1:ifull,:,itracdu:itracdu+ndust-1),dustdd) !In and out
+! Calculate dust emission and turbulent dry deposition at the surface
+duste(:)=0.
+call dustem(dt,rhoa(:,1),wg,Veff,dz(:,1),vt,snowd,dxy,land,             & !Inputs
+            xtg(1:ifull,:,itracdu:itracdu+ndust-1),dustdd,duste)          !In and out
 
-! Add tendency to tracer mixing ratio for ECHAM variables (invert vertical levels)
-! Dust mixing ratio was updated above
+! Decay of hydrophobic black and organic carbon into hydrophilic forms
 do k=1,kl
   xtm1(:,kl+1-k,:)=xtg(1:ifull,k,:)
 enddo
 xtm1(:,:,:)=max(0.,xtm1(:,:,:))
-! Decay of hydrophobic black and organic carbon into hydrophilic forms
 call xtsink (dt, xtm1, &  !Inputs
              xte)         !Output
 do k=1,kl
@@ -301,6 +296,7 @@ enddo
 ! Compute diagnostic sea salt aerosol
 call seasalt(land,sicef,zz,pblh,veff)
 
+! Aerosol chemistry and wet deposition
 do k=1,kl
   aphp1(:,kl+1-k)=-prf(:)*dsig(k)
   prhop1(:,kl+1-k)=rhoa(:,k)
@@ -587,80 +583,79 @@ DO JL=1,ifull
   xte(jl,jk,itracso2+1)=xte(jl,jk,itracso2+1)+pxtems(jl,itracso2+1)*gdp1
 end do
 
-if(ncarb.gt.0)then !Do carbonaceous aerosols
-  do jl=1,ifull
-    ! Inject the low-level fossil-fuel and natural SOA emissions into layer 1
-    ! Assume BC 80% hydrophobic, OC 50%.
-    PXTEMS(JL,ITRACBC)=0.8*FIELD(JL,ibca1)
-    PXTEMS(JL,ITRACBC+1)=0.2*FIELD(JL,ibca1)
-    PXTEMS(JL,ITRACOC)=0.5*(FIELD(JL,ioca1)+FIELD(JL,iocna))
-    PXTEMS(JL,ITRACOC+1)=0.5*(FIELD(JL,ioca1)+FIELD(JL,iocna))
-    ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via hvertmx.
-    jk=kl
-    gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))
+!Do carbonaceous aerosols
+do jl=1,ifull
+  ! Inject the low-level fossil-fuel and natural SOA emissions into layer 1
+  ! Assume BC 80% hydrophobic, OC 50%.
+  PXTEMS(JL,ITRACBC)=0.8*FIELD(JL,ibca1)
+  PXTEMS(JL,ITRACBC+1)=0.2*FIELD(JL,ibca1)
+  PXTEMS(JL,ITRACOC)=0.5*(FIELD(JL,ioca1)+FIELD(JL,iocna))
+  PXTEMS(JL,ITRACOC+1)=0.5*(FIELD(JL,ioca1)+FIELD(JL,iocna))
+  ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via hvertmx.
+  jk=kl
+  gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))
+  xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+pxtems(jl,itracbc)*gdp1
+  xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+pxtems(jl,itracbc+1)*gdp1
+  xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+pxtems(jl,itracoc)*gdp1
+  xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+pxtems(jl,itracoc+1)*gdp1
+  ! Inject the upper-level fossil-fuel emissions into layer 2
+  ! Assume BC 80% hydrophobic, OC 50%.
+  PXTEMS(JL,ITRACBC)=0.8*FIELD(JL,ibca2)
+  PXTEMS(JL,ITRACBC+1)=0.2*FIELD(JL,ibca2)
+  PXTEMS(JL,ITRACOC)=0.5*FIELD(JL,ioca2)
+  PXTEMS(JL,ITRACOC+1)=0.5*FIELD(JL,ioca2)
+  ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via hvertmx.
+  do jk=jk3+1,jk2
+    gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk2-jk3)
     xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+pxtems(jl,itracbc)*gdp1
     xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+pxtems(jl,itracbc+1)*gdp1
     xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+pxtems(jl,itracoc)*gdp1
     xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+pxtems(jl,itracoc+1)*gdp1
-    ! Inject the upper-level fossil-fuel emissions into layer 2
-    ! Assume BC 80% hydrophobic, OC 50%.
-    PXTEMS(JL,ITRACBC)=0.8*FIELD(JL,ibca2)
-    PXTEMS(JL,ITRACBC+1)=0.2*FIELD(JL,ibca2)
-    PXTEMS(JL,ITRACOC)=0.5*FIELD(JL,ioca2)
-    PXTEMS(JL,ITRACOC+1)=0.5*FIELD(JL,ioca2)
-    ! Apply these here as a tendency (XTE), rather than as a surface flux (PXTEMS) via hvertmx.
-    do jk=jk3+1,jk2
-      gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk2-jk3)
-      xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+pxtems(jl,itracbc)*gdp1
-      xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+pxtems(jl,itracbc+1)*gdp1
-      xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+pxtems(jl,itracoc)*gdp1
-      xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+pxtems(jl,itracoc+1)*gdp1
-    end do
-    ! Inject the lower-level biomass emissions into layer 2 (NB: Doesn't include biofuel any more)
-    ! Assume BC and OC both 50% hydrophobic.
-    PXTEMS(JL,ITRACBC)=0.5*FIELD(JL,ibcb1)
-    PXTEMS(JL,ITRACBC+1)=0.5*FIELD(JL,ibcb1)
-    PXTEMS(JL,ITRACOC)=0.5*FIELD(JL,iocb1)
-    PXTEMS(JL,ITRACOC+1)=0.5*FIELD(JL,iocb1)
-    ! Apply these here as a tendency (XTE)
-    do jk=jk3+1,jk2
-      gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk2-jk3)
-      xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+pxtems(jl,itracbc)*gdp1
-      xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+pxtems(jl,itracbc+1)*gdp1
-      xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+pxtems(jl,itracoc)*gdp1
-      xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+pxtems(jl,itracoc+1)*gdp1
-    end do
-    ! Inject the upper-level biomass emissions into layers 3-5 (30%, 40%, 30%)
-    ! Assume BC and OC both 50% hydrophobic.
-    ! Note that this is effectively hard-coded for 18 levels
-    PXTEMS(JL,ITRACBC)=0.5*FIELD(JL,ibcb2)
-    PXTEMS(JL,ITRACBC+1)=0.5*FIELD(JL,ibcb2)
-    PXTEMS(JL,ITRACOC)=0.5*FIELD(JL,iocb2)
-    PXTEMS(JL,ITRACOC+1)=0.5*FIELD(JL,iocb2)
-    ! Apply these here as a tendency (XTE)
-    do jk=jk4+1,jk3
-      gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk3-jk4)
-      xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+0.3*pxtems(jl,itracbc)*gdp1
-      xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+0.3*pxtems(jl,itracbc+1)*gdp1
-      xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+0.3*pxtems(jl,itracoc)*gdp1
-      xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+0.3*pxtems(jl,itracoc+1)*gdp1
-    end do
-    do jk=jk5+1,jk4
-      gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk5-jk4)
-      xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+0.4*pxtems(jl,itracbc)*gdp1
-      xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+0.4*pxtems(jl,itracbc+1)*gdp1
-      xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+0.4*pxtems(jl,itracoc)*gdp1
-      xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+0.4*pxtems(jl,itracoc+1)*gdp1
-    end do
-    do jk=jk6+1,jk5
-      gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk6-jk5)
-      xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+0.3*pxtems(jl,itracbc)*gdp1
-      xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+0.3*pxtems(jl,itracbc+1)*gdp1
-      xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+0.3*pxtems(jl,itracoc)*gdp1
-      xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+0.3*pxtems(jl,itracoc+1)*gdp1
-    end do
   end do
-endif !ncarb.gt.0
+  ! Inject the lower-level biomass emissions into layer 2 (NB: Doesn't include biofuel any more)
+  ! Assume BC and OC both 50% hydrophobic.
+  PXTEMS(JL,ITRACBC)=0.5*FIELD(JL,ibcb1)
+  PXTEMS(JL,ITRACBC+1)=0.5*FIELD(JL,ibcb1)
+  PXTEMS(JL,ITRACOC)=0.5*FIELD(JL,iocb1)
+  PXTEMS(JL,ITRACOC+1)=0.5*FIELD(JL,iocb1)
+  ! Apply these here as a tendency (XTE)
+  do jk=jk3+1,jk2
+    gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk2-jk3)
+    xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+pxtems(jl,itracbc)*gdp1
+    xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+pxtems(jl,itracbc+1)*gdp1
+    xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+pxtems(jl,itracoc)*gdp1
+    xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+pxtems(jl,itracoc+1)*gdp1
+  end do
+  ! Inject the upper-level biomass emissions into layers 3-5 (30%, 40%, 30%)
+  ! Assume BC and OC both 50% hydrophobic.
+  ! Note that this is effectively hard-coded for 18 levels
+  PXTEMS(JL,ITRACBC)=0.5*FIELD(JL,ibcb2)
+  PXTEMS(JL,ITRACBC+1)=0.5*FIELD(JL,ibcb2)
+  PXTEMS(JL,ITRACOC)=0.5*FIELD(JL,iocb2)
+  PXTEMS(JL,ITRACOC+1)=0.5*FIELD(JL,iocb2)
+  ! Apply these here as a tendency (XTE)
+  do jk=jk4+1,jk3
+    gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk3-jk4)
+    xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+0.3*pxtems(jl,itracbc)*gdp1
+    xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+0.3*pxtems(jl,itracbc+1)*gdp1
+    xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+0.3*pxtems(jl,itracoc)*gdp1
+    xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+0.3*pxtems(jl,itracoc+1)*gdp1
+  end do
+  do jk=jk5+1,jk4
+    gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk5-jk4)
+    xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+0.4*pxtems(jl,itracbc)*gdp1
+    xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+0.4*pxtems(jl,itracbc+1)*gdp1
+    xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+0.4*pxtems(jl,itracoc)*gdp1
+    xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+0.4*pxtems(jl,itracoc+1)*gdp1
+  end do
+  do jk=jk6+1,jk5
+    gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk6-jk5)
+    xte(jl,jk,itracbc)=xte(jl,jk,itracbc)+0.3*pxtems(jl,itracbc)*gdp1
+    xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)+0.3*pxtems(jl,itracbc+1)*gdp1
+    xte(jl,jk,itracoc)=xte(jl,jk,itracoc)+0.3*pxtems(jl,itracoc)*gdp1
+    xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)+0.3*pxtems(jl,itracoc+1)*gdp1
+  end do
+end do
 
 !  EMISSION OF ANTHROPOGENIC SO2 IN THE NEXT HIGHER LEVEL PLUS BIOMASS BURNING
 JT=ITRACSO2
@@ -829,19 +824,17 @@ DO JL=1,ifull
   xte(jl,jk,jt+1)=xte(jl,jk,jt+1)-zhilso4t*gdp
 end do
 
-if(ncarb.gt.0)then
-  do jl=1,ifull
-    gdp=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))
-    ZHILBCO=P1MXTM1(JL)*PXTM1(JL,kl,ITRACBC)*ZVDPHOBIC
-    ZHILBCY=P1MXTM1(JL)*PXTM1(JL,kl,ITRACBC+1)*ZVDRD(JL,2)
-    ZHILOCO=P1MXTM1(JL)*PXTM1(JL,kl,ITRACOC)*ZVDPHOBIC
-    ZHILOCY=P1MXTM1(JL)*PXTM1(JL,kl,ITRACOC+1)*ZVDRD(JL,2)
-    xte(jl,jk,itracbc)=xte(jl,jk,itracbc)-zhilbco*gdp
-    xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)-zhilbcy*gdp
-    xte(jl,jk,itracoc)=xte(jl,jk,itracoc)-zhiloco*gdp
-    xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)-zhilocy*gdp
-  enddo
-endif
+do jl=1,ifull
+  gdp=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))
+  ZHILBCO=P1MXTM1(JL)*PXTM1(JL,kl,ITRACBC)*ZVDPHOBIC
+  ZHILBCY=P1MXTM1(JL)*PXTM1(JL,kl,ITRACBC+1)*ZVDRD(JL,2)
+  ZHILOCO=P1MXTM1(JL)*PXTM1(JL,kl,ITRACOC)*ZVDPHOBIC
+  ZHILOCY=P1MXTM1(JL)*PXTM1(JL,kl,ITRACOC+1)*ZVDRD(JL,2)
+  xte(jl,jk,itracbc)=xte(jl,jk,itracbc)-zhilbco*gdp
+  xte(jl,jk,itracbc+1)=xte(jl,jk,itracbc+1)-zhilbcy*gdp
+  xte(jl,jk,itracoc)=xte(jl,jk,itracoc)-zhiloco*gdp
+  xte(jl,jk,itracoc+1)=xte(jl,jk,itracoc+1)-zhilocy*gdp
+enddo
 
 RETURN
 END subroutine xtemiss
@@ -889,10 +882,8 @@ integer jt,jk,jl
 pxte(:,:,:)=0. !Very important!
 
 sxtsink(:)=0.
-if(ncarb.gt.0)then
-  sxtsink(ITRACBC)=172800.
-  sxtsink(ITRACOC)=172800. !2 days
-endif
+sxtsink(ITRACBC)=172800.
+sxtsink(ITRACOC)=172800. !2 days
 
 PQTMST=1./PTMST
 ZFAC=ALOG(0.5)*PTMST
@@ -1753,51 +1744,41 @@ zcollefs(:)=0.01          !Below-cloud collection eff. for snow
 
 ! Larger dust classes need larger below-cloud coll. efficiency, but treat the
 ! hydrophobic and hydrophilic ones the same.
-if(ndust.gt.0)then
 
 ! Hydrophobic ones...
-  zcollefr(itracdu+1) = 0.1
-  zcollefr(itracdu+2) = 0.2
-  zcollefr(itracdu+3) = 0.5
-  zcollefs(itracdu+1) = 0.02
-  zcollefs(itracdu+2) = 0.04
-  zcollefs(itracdu+3) = 0.1
+zcollefr(itracdu+1) = 0.1
+zcollefr(itracdu+2) = 0.2
+zcollefr(itracdu+3) = 0.5
+zcollefs(itracdu+1) = 0.02
+zcollefs(itracdu+2) = 0.04
+zcollefs(itracdu+3) = 0.1
 
 ! Hydrophilic ones...
-  !if(ndust.gt.4)then
-  !  zcollefr(itracdu+5) = 0.1
-  !  zcollefr(itracdu+6) = 0.2
-  !  zcollefr(itracdu+7) = 0.5
-  !  zcollefs(itracdu+5) = 0.02
-  !  zcollefs(itracdu+6) = 0.04
-  !  zcollefs(itracdu+7) = 0.1
-  !endif
-endif
+!if(ndust.gt.4)then
+!  zcollefr(itracdu+5) = 0.1
+!  zcollefr(itracdu+6) = 0.2
+!  zcollefr(itracdu+7) = 0.5
+!  zcollefs(itracdu+5) = 0.02
+!  zcollefs(itracdu+6) = 0.04
+!  zcollefs(itracdu+7) = 0.1
+!endif
       
 ! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
 ! Value of 0.5 is just a guess at present
 
 Ecols(:)=0.              !In-cloud scav. eff. (snow)
 
-if(ncarb.gt.0)then
-  Ecols(itracbc)=0.5
-  Ecols(itracoc)=0.5
-endif
-
-if(ndust.gt.0)then
-  Ecols(itracdu)   = 0.
-  Ecols(itracdu+1) = 0.
-  Ecols(itracdu+2) = 0.
-  Ecols(itracdu+3) = 0.
-endif
-
+Ecols(itracbc)=0.5
+Ecols(itracoc)=0.5
+Ecols(itracdu)   = 0.
+Ecols(itracdu+1) = 0.
+Ecols(itracdu+2) = 0.
+Ecols(itracdu+3) = 0.
 
 Rcoeff(:)=1.             !Retention coeff. on riming
 Rcoeff(itracso2)=0.62    !Smaller value for SO2 (Iribarne et al, 1990)
-if(ncarb.gt.0)then
-  Rcoeff(itracbc)=0.      !This is not scavenged by cloud droplets, so set to 0
-  Rcoeff(itracoc)=0.      !Ditto
-endif
+Rcoeff(itracbc)=0.       !This is not scavenged by cloud droplets, so set to 0
+Rcoeff(itracoc)=0.       !Ditto
 
 Evfac(:)=0.5             !Relative reevaporation rate < 1 for aerosols
 Evfac(itracso2)=1.       !Relative reevaporation rate = 1 for SO2
@@ -2119,7 +2100,7 @@ implicit none
 !     Inputs:
 real tdt              !Leapfrog timestep
 real airden(ifull)    !air density (kg/m3)
-real wg(ifull)        !ground wetness (volume fraction)
+real wg(ifull)        !ground wetness (fraction of field capacity)
 real w10m(ifull)      !10m windspeed (m/s)
 real dz1(ifull)       !Lowest layer thickness (m)
 real vt(ifull)        !Transfer velocity at surface for dry deposition (m/s)
@@ -2290,7 +2271,6 @@ implicit none
 
 ! Argument list
 logical land(ifull)  !True for land points
-logical cice(ifull)  !True for seaice points
 real sicef(ifull)    !Sea-ice fraction
 real zmid(ifull,kl)  !Height of full level (m)
 real pblh(ifull)     !PBL height (m)
