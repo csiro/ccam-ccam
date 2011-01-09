@@ -298,11 +298,12 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
 
       !--------------------------------------------------------------
       ! DEFINE newmpar VARIABLES AND DEFAULTS
+      jl_g = il_g + npanels*il_g      
 #ifdef uniform_decomp
       nxp=nint(sqrt(real(nproc)))
       nyp=nproc/nxp
       do while((mod(il_g,nxp).ne.0.or.mod(nproc,nxp).ne.0.or.
-     &         mod(jl_g,nyp).ne.0).and.nxp.gt.0)
+     &         mod(il_g,nyp).ne.0).and.nxp.gt.0)
         nxp=nxp-1
         nyp=nproc/max(nxp,1)
       end do
@@ -312,7 +313,7 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
         write(6,*) "a factor of 6"
         stop
       end if
-      nxp=max(1,nint(sqrt(real(nproc/6))))
+      nxp=max(1,nint(sqrt(real(nproc)/6.)))
       nyp=nproc/nxp
       do while((mod(il_g,nxp).ne.0.or.mod(nproc/6,nxp).ne.0.or.
      &         mod(jl_g,nyp).ne.0).and.nxp.gt.0)
@@ -325,7 +326,6 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
         write(6,*) "Try increasing or decreasing nproc"
         stop
       end if
-      jl_g = il_g + npanels*il_g
       ifull_g = il_g*jl_g
       ijk_g = il_g*jl_g*kl
       iquad=1+il_g*((8*npanels)/(npanels+4))

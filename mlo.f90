@@ -2314,8 +2314,8 @@ do iqw=1,wfull
   ! flux from water to ice (from CICE)
   ! assume ice is stationary for now
   icemag=sqrt(w_u(iqw,d_did(iqw))*w_u(iqw,d_did(iqw))+w_v(iqw,d_did(iqw))*w_v(iqw,d_did(iqw)))
-  d_tauxice(iqw)=0.00536*icemag*w_u(iqw,d_did(iqw))
-  d_tauyice(iqw)=0.00536*icemag*w_v(iqw,d_did(iqw))
+  d_tauxice(iqw)=-0.00536*icemag*w_u(iqw,d_did(iqw))
+  d_tauyice(iqw)=-0.00536*icemag*w_v(iqw,d_did(iqw))
   ustar=sqrt(d_tauxice(iqw)*d_tauxice(iqw)+d_tauyice(iqw)*d_tauyice(iqw))
   ustar=max(ustar,5.E-4)
   d_fb(iqw)=cp0*d_rho(iqw,d_did(iqw))*0.006*ustar*(d_tb(iqw)-d_timelt(iqw))

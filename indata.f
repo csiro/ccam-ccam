@@ -1655,9 +1655,15 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
         if(jalbfix==1)then ! jlm fix for albedos, esp. for bare sandy soil
            if(mydiag)then
               isoil=isoilm(idjd)
+	      if (isoil.gt.0) then
               print *,'before jalbfix isoil,sand,alb,rsmin ',
      &                        isoil,sand(isoil),albvisnir(idjd,1), ! MJT albedo
      &                        rsmin(idjd)
+              else
+              print *,'before jalbfix isoil,sand,alb,rsmin ',
+     &                        isoil,0.,albvisnir(idjd,1), ! MJT albedo
+     &                        rsmin(idjd)
+	      end if
            endif
            do ip=1,ipland  
             iq=iperm(ip)
@@ -1824,7 +1830,8 @@ c        sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
      &               zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))*180./pi
          if(thet<0.)thet=thet+360.
 c        uzon= costh*u(iq,1)-sinth*v(iq,1)
-c        vmer= sinth*u(iq,1)+costh*v(iq,1)	  
+c        vmer= sinth*u(iq,1)+costh*v(iq,1)
+         if (ngas>0) then	  
          write(22,922) iq,i,j,rlongg(iq)*180./pi,rlatt(iq)*180./pi,
      &          thet,em(iq),land(iq),sicedep(iq),zs(iq)/grav,
      &              albvisnir(iq,1), ! MJT albedo
@@ -1833,6 +1840,16 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
      &              wb(iq,1),wb(iq,ms),
 ! rml 16/02/06 removed ico2em
      &              radonem(min(iq,ilt*jlt))
+         else
+         write(22,922) iq,i,j,rlongg(iq)*180./pi,rlatt(iq)*180./pi,
+     &          thet,em(iq),land(iq),sicedep(iq),zs(iq)/grav,
+     &              albvisnir(iq,1), ! MJT albedo
+     &              isoilm(iq),ivegt(iq),
+     &              tss(iq),t(iq,1),tgg(iq,2),tgg(iq,ms),
+     &              wb(iq,1),wb(iq,ms),
+! rml 16/02/06 removed ico2em
+     &              0.
+	 end if
 922      format(i6,2i5,3f8.3,f8.4,l2,f4.1,f7.1,f5.2,2i3,
      &          4f7.1,2f6.2,f5.2)
         enddo

@@ -790,7 +790,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
      &                     +betm(k)*t(1:ifull,k-1))/grav                ! MJT tke
        end do                                                           ! MJT tke
-       rhoa=rdry*t(iq,1)/(ps(1:ifull)*sigmh(1))                         ! MJT tke
+       rhoa=rdry*t(1:ifull,1)/(ps(1:ifull)*sigmh(1))                    ! MJT tke
        wq0=eg*rhoa/hl                                                   ! MJT tke
        wt0=fg*rhoa/cp+0.61*rhs(:,1)*wq0                                 ! MJT tke
        select case(nlocal)                                              ! MJT tke

@@ -82,7 +82,7 @@ integer, dimension(12) :: ndoy   ! days from beginning of year (1st Jan is 0)
 integer jyear,jmonth,jday,jhour,jmin
 integer k,ksigtop,mstart,mins
 integer i,j,iq,istart,iend,kr
-integer swcount
+integer swcount,cldcount
 integer, save :: nlow,nmid
 real, dimension(:), allocatable, save :: sgamp
 real, dimension(:,:), allocatable, save :: rtt
@@ -428,6 +428,7 @@ if(mod(ifull,imax).ne.0)then
 endif
 
 swcount=0
+cldcount=0
 do j=1,jl,imax/il
   istart=1+(j-1)*il
   iend=istart+imax-1
@@ -740,6 +741,7 @@ do j=1,jl,imax/il
     Astro%cosz(:,1)   =max(coszro,0.)
     Astro%fracday(:,1)=taudar
     swcount=swcount+count(coszro.gt.0.)
+    cldcount=cldcount+count(Cld_spec%camtsw.gt.0.)
 
     call end_log(radmisc_end)
     call start_log(radlw_begin)
@@ -885,7 +887,7 @@ do j=1,jl,imax/il
 end do  ! Row loop (j)  j=1,jl,imax/il
 
 if ( odcalc .and. nmaxpr.eq.1 ) then
-  write(6,*) "swcount,myid ",swcount,myid
+  write(6,*) "swcount,cldcount,myid ",swcount,cldcount,myid
 end if
 
 ! Calculate net radiational cooling of atmosphere (K/s)
