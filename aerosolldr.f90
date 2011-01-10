@@ -1734,7 +1734,7 @@ pow75(x)=sqrt(x*sqrt(x))
 
 !    PHYSICAL CONSTANTS
 
-KTOP=1     !Top level for wet deposition (counting from top)
+KTOP=2     !Top level for wet deposition (counting from top)
 PQTMST=1./PTMST
 ZMIN=1.E-20
 

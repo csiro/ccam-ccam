@@ -258,8 +258,8 @@ c
       real, dimension(nlev), intent(in) :: fpres
       real, dimension(ipts), intent(in) :: ps
       real, dimension(ilev), intent(in) :: sig
-      real, dimension(ilev) :: prf
-      real, dimension(nlev) :: b,c,d,o3inp,o3sum,o3new
+      real, dimension(ilev) :: prf,o3new
+      real, dimension(nlev) :: b,c,d,o3inp,o3sum
       real, dimension(nlev,3) :: o3tmp
       real rang,serlon,serlat,fp,lonadj,alonx
       real, parameter, dimension(12) :: monlen =  
