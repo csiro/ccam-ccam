@@ -58,6 +58,7 @@ c     cp specific heat at constant pressure joule/kgm/deg
       real vmag(ifull),charnck(ifull)
       real zonx(ifull),zony(ifull),zonz(ifull),costh(ifull) ! MJT urban
       real sinth(ifull),uzon(ifull),vmer(ifull),azmin(ifull)! MJT urban
+      real uav(ifull),vav(ifull) ! MJT tke
       real, dimension(:), allocatable, save :: plens
       include 'establ.h'
 
@@ -158,18 +159,18 @@ c     using av_vmod (1. for no time averaging)
 !      *****  check next comment
 !       sflux called at beginning of time loop, hence savu, savv
 
+      azmin=-rdry*t(1:ifull,1)*log(sig(1))/grav             ! MJT mlo ! MJT ateb
       srcp =sig(1)**(rdry/cp)
       ga(:)=0.              !  for ocean points in ga_ave diagnostic
       theta(:)=t(1:ifull,1)/srcp
       rho(:)=ps(1:ifull)/(rdry*tss(:))
       do iq=1,ifull
-       uav=av_vmod*u(iq,1)+(1.-av_vmod)*savu(iq,1)   
-       vav=av_vmod*v(iq,1)+(1.-av_vmod)*savv(iq,1)  
-       vmod(iq)=sqrt(uav**2+vav**2)  ! i.e. vmod for tss_sh
+       uav(iq)=av_vmod*u(iq,1)+(1.-av_vmod)*savu(iq,1)   
+       vav(iq)=av_vmod*v(iq,1)+(1.-av_vmod)*savv(iq,1)  
+       vmod(iq)=sqrt(uav(iq)**2+vav(iq)**2)  ! i.e. vmod for tss_sh
       enddo
       vmag(:)=max( vmod(:) , vmodmin) ! vmag used to calculate ri
       if(ntsur.ne.7)vmod(:)=vmag(:)	! gives usual way
-      azmin=-rdry*t(1:ifull,1)*log(sig(1))/grav
 
       call start_log(sfluxwater_begin)                               ! sea
       !--------------------------------------------------------------! sea
@@ -244,7 +245,7 @@ c       this is in-line ocenzo using latest coefficient, i.e. .018   ! sea
           zo(iq)=panzo                                               ! sea
           af(iq)=afrootpan**2                                        ! sea
         else                                                         ! sea
-         if(charnock<-1.)then  ! Moon (2004) over sea                ! sea
+         if(charnock<0.)then  ! Moon (2004) over sea                 ! sea
           zo(iq)=min(max(charnck(iq),1.5e-10),13.) ! MJT bug fix     ! sea
           afroot=vkar/log(zmin/zo(iq))                               ! sea
           af(iq)=afroot**2                                           ! sea
@@ -494,9 +495,9 @@ c     if(mydiag.and.diag)then
      &               sicedep,snowd,dt,azmin,azmin,sgsave(:)/         ! MLO
      &               (1.-swrsave*albvisnir(:,1)-                     ! MLO
      &               (1.-swrsave)*albvisnir(:,2))                    ! MLO
-     &               ,-rgsave,condx/dt,u(:,1),v(:,1)                 ! MLO
-     &               ,t(:,1),qg(:,1),ps,f,swrsave,fbeamvis           ! MLO
-     &               ,fbeamnir,0)                                    ! MLO
+     &               ,-rgsave,condx/dt,uav,vav,t(1:ifull,1)          ! MLO
+     &               ,qg(1:ifull,1),ps,f,swrsave,fbeamvis,fbeamnir   ! MLO
+     &               ,0)                                             ! MLO
         call mloscrnout(tscrn,qgscrn,uscrn,u10,0)                    ! MLO
         do k=1,ms                                                    ! MLO
           call mloexport(0,tgg(:,k),k,0)                             ! MLO
@@ -506,7 +507,7 @@ c     if(mydiag.and.diag)then
         end do                                                       ! MLO
                                                                      ! MLO
         ! stuff to keep tpan over land working                       ! MLO
-        ri=min(grav*zmin*(1.-tpan*srcp/t(:,1))/vmag**2,ri_max)       ! MLO
+        ri=min(grav*zmin*(1.-tpan*srcp/t(1:ifull,1))/vmag**2,ri_max) ! MLO
         where (ri>0.)                                                ! MLO
           fh=vmod/(1.+bprm*ri)**2                                    ! MLO
         elsewhere                                                    ! MLO
@@ -754,7 +755,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
            else                                                         ! land
              qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))    ! land
              call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss,   ! land
-     &                  t(1:ifull,1),qsttg,qg(1:ifull,1),vmod,          ! land
+     &                  t(1:ifull,1),qsttg,qg(1:ifull,1),               ! land
+     &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! land
+     &                       v(1:ifull,1)*v(1:ifull,1)),                ! land
      &                  ps(1:ifull),.not.land,zmin,sig(1))              ! land
            end if                                                       ! land
         case(CABLE)
@@ -764,7 +767,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          if (nmlo.eq.0) then                                            ! cable
            ! update ocean diagnostics                                   ! cable
            call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss,     ! cable
-     &                  t(1:ifull,1),qsttg,qg(1:ifull,1),vmod,          ! cable
+     &                  t(1:ifull,1),qsttg,qg(1:ifull,1),               ! cable
+     &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! cable
+     &                       v(1:ifull,1)*v(1:ifull,1)),                ! cable
      &                  ps(1:ifull),land,zmin,sig(1))                   ! cable
          end if                                                         ! cable
          factch(iperm)=sqrt(7.4)                                        ! cable
@@ -784,7 +789,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          if (nsib.eq.7) then                                        ! PATCH
            qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))  ! PATCH
            call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss, ! PATCH
-     &                t(1:ifull,1),qsttg,qg(1:ifull,1),vmod,        ! PATCH
+     &                t(1:ifull,1),qsttg,qg(1:ifull,1),             ! PATCH
+     &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+             ! PATCH
+     &                       v(1:ifull,1)*v(1:ifull,1)),            ! PATCH
      &                ps(1:ifull),.not.land,zmin,sig(1))            ! PATCH
          end if                                                     ! PATCH
         case DEFAULT
@@ -804,10 +811,8 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )             ! urban
          sinth=-(zonx*bx(1:ifull)+zony*by(1:ifull)+zonz*bz(1:ifull))    ! urban
      &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )             ! urban
-         zonx=av_vmod*u(1:ifull,1)+(1.-av_vmod)*savu(1:ifull,1)         ! urban
-         zony=av_vmod*v(1:ifull,1)+(1.-av_vmod)*savv(1:ifull,1)         ! urban
-         uzon= costh*zonx-sinth*zony ! zonal                            ! urban
-         vmer= sinth*zonx+costh*zony ! meridonal                        ! urban
+         uzon= costh*uav-sinth*vav ! zonal                              ! urban
+         vmer= sinth*uav+costh*vav ! meridonal                          ! urban
          ! call aTEB                                                    ! urban
          call atebcalc(fg(:),eg(:),tss(:),wetfac(:),dt,azmin            ! urban
      &               ,sgsave(:)/(1.-swrsave*albvisnir(:,1)-             ! urban

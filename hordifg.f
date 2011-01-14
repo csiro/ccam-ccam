@@ -3,14 +3,19 @@
       use aerosolldr
       use arrays_m
       use cc_mpi
+      use cfrac_m
       use diag_m
       use dpsdt_m
       use indices_m
+      use liqwpar_m
       use map_m
+      !use morepbl_m ! for nhorjlm.eq.4
       use nlin_m
       use parmhdff_m
+      !use pbl_m     ! for nhorjlm.eq.4
       use sigs_m
-      use tkeeps, only : tke,eps,shear,ww,dwdx,dwdy ! MJT tke
+      use tkeeps, only : tke,eps,shear,tkeww => ww,tkewx => dwdx,
+     &                   tkewy => dwdy ! MJT tke
       use vecsuv_m
       use vvel_m
       implicit none
@@ -38,7 +43,12 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
+      real, dimension(ifull,kl) :: zg,gg,bb,dd,ppb     ! MJT smag
+      real, dimension(ifull,kl) :: theta,thetav,qs     ! MJT smag
       real, dimension(ifull,kl) :: dudx,dudy,dvdx,dvdy ! MJT smag
+      real, dimension(ifull,kl) :: dwdx,dwdy,dwdz      ! MJT smag
+      real, dimension(ifull+iextra,kl) :: ww           ! MJT smag
+      real es                                          ! MJT emag
       integer, parameter :: nf=2
 !     Local variables
       integer iq, k, nhora, nhorx, iaero, l
@@ -46,6 +56,7 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       integer, save :: kmax=-1 ! MJT smag
       !integer i, j, n, ind
       !ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
+      include 'establ.h'
 
 c     nhorx used in hordif  ! previous code effectively has nhorx=0
 c           = 1 u, v, T, qg  diffusion reduced near mountains
@@ -103,7 +114,7 @@ c     above code independent of k
       ! Calculate du/dx,dv/dx,du/dy,dv/dy but use cartesian vectors
       ! so as to avoid changes in vector direction across panel boundaries.
       ! Should be compatible with gnomic grid.
-      if (nhorjlm==0.or.nvmix==6) then
+      if (nhorjlm==0.or.nhorjlm==3.or.nvmix==6) then
         ! neglect terrain following component for now
         ! u=ax*uc+ay*vc+az*wc
         ! dudx=u(ie)-u(iw)=ax*(uc(ie)-uc(iw))+ay*(vc(ie)-vc(iw))+az*(wc(ie)-wc(iw))
@@ -147,6 +158,82 @@ c     above code independent of k
      &              +bz(1:ifull)*(wc(in,k)-wc(is,k)))
      &              *0.5*em(1:ifull)/ds
         end do
+  
+        do k=1,kl
+          if (k.eq.1) then
+            zg(:,1)=bet(1)*t(1:ifull,1)/grav
+          else
+            zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
+     &                        +betm(k)*t(1:ifull,k-1))/grav
+          end if        
+          ! omega=ps*dpsldt
+          ww(1:ifull,k)=(dpsldt(:,k)/sig(k)-dpsdt/(860.*ps(1:ifull)))
+     &           *(-rdry/grav)*t(1:ifull,k)*(1.+0.61*qg(1:ifull,k))
+        end do
+        call bounds(ww)
+        do k=1,kl
+          dwdx(:,k)=(ww(ie,k)-ww(iw,k))*0.5*em(1:ifull)/ds
+          dwdy(:,k)=(ww(in,k)-ww(is,k))*0.5*em(1:ifull)/ds
+        end do
+        dwdz(:,1)=(ww(1:ifull,2)-ww(1:ifull,1))
+     &           /(zg(:,2)-zg(:,1))
+        do k=2,kl-1
+          dwdz(:,k)=(ww(1:ifull,k+1)-ww(1:ifull,k-1))
+     &             /(zg(:,k+1)-zg(:,k-1))
+        end do
+        dwdz(:,kl)=(ww(1:ifull,kl)-ww(1:ifull,kl-1))
+     &            /(zg(:,kl)-zg(:,kl-1))
+        
+        do k=1,kl
+          do iq=1,ifull
+            theta(iq,k)=t(iq,k)*sig(k)**(-roncp)
+            thetav(iq,k)=theta(iq,k)*(1.+0.61*qg(iq,k))
+            es = establ(t(iq,k))
+            qs(iq,k)=.622*es/(ps(iq)*sig(k)-es)
+            gg(iq,k)=(1.+hl*qs(iq,k)/(rdry*t(iq,k)))
+     &      /(1.+hl*hl*qs(iq,k)/(cp*rvap*t(iq,k)*t(iq,k)))
+          end do
+        end do
+        bb(:,1)=-grav/(zg(:,2)-zg(:,1))*gg(:,1)
+     &    *((theta(:,2)-theta(:,1))/theta(:,1)
+     &    +hl*qs(:,1)/(cp*t(1:ifull,1))*(qs(:,2)-qs(:,1)))
+     &    +grav/(zg(:,2)-zg(:,1))*(qs(:,2)+qlg(1:ifull,2)
+     &    +qfg(1:ifull,2)-qs(:,1)-qlg(1:ifull,1)-qfg(1:ifull,1))
+        dd(:,1)=-grav/(zg(:,2)-zg(:,1))
+     &    *(thetav(:,2)-thetav(:,1))/thetav(:,1)
+     &    +grav/(zg(:,2)-zg(:,1))*(qlg(1:ifull,2)+qfg(1:ifull,2)
+     &    -qlg(1:ifull,1)-qfg(1:ifull,1))
+        do k=2,kl-1
+          bb(:,k)=-grav/(zg(:,k+1)-zg(:,k-1))*gg(:,k)
+     &      *((theta(:,k+1)-theta(:,k-1))/theta(:,k)
+     &      +hl*qs(:,k)/(cp*t(1:ifull,k))*(qs(:,k+1)-qs(:,k-1)))
+     &      +grav/(zg(:,k+1)-zg(:,k-1))*(qs(:,k+1)+qlg(1:ifull,k+1)
+     &      +qfg(1:ifull,k+1)-qs(:,k-1)-qlg(1:ifull,k-1)
+     &      -qfg(1:ifull,k-1))
+          dd(:,k)=-grav/(zg(:,k+1)-zg(:,k-1))
+     &      *(thetav(:,k+1)-thetav(:,k-1))/thetav(:,k)
+     &      +grav/(zg(:,k+1)-zg(:,k-1))*(qlg(1:ifull,k+1)
+     &      +qfg(1:ifull,k+1)-qlg(1:ifull,k-1)-qfg(1:ifull,k-1))
+        end do
+        bb(:,kl)=-grav/(zg(:,kl)-zg(:,kl-1))*gg(:,kl)
+     &    *((theta(:,kl)-theta(:,kl-1))/theta(:,kl)
+     &    +hl*qs(:,kl)/(cp*t(1:ifull,kl))*(qs(:,kl)-qs(:,kl-1)))
+     &    +grav/(zg(:,kl)-zg(:,kl-1))*(qs(:,kl)+qlg(1:ifull,kl)
+     &    +qfg(1:ifull,kl)-qs(:,kl-1)-qlg(1:ifull,kl-1)
+     &    -qfg(1:ifull,kl-1))
+        dd(:,kl)=-grav/(zg(:,kl)-zg(:,kl-1))
+     &    *(thetav(:,kl)-thetav(:,kl-1))/thetav(:,kl)
+     &    +grav/(zg(:,kl)-zg(:,kl-1))*(qlg(1:ifull,kl)+qfg(1:ifull,kl)
+     &    -qlg(1:ifull,kl-1)-qfg(1:ifull,kl-1))    
+        !if (buoymeth.eq.1) then
+        !  where (cfrac.gt.0.5)
+        !    ppb=bb(:,2:kl)
+        !  elsewhere
+        !    ppb=cc(:,2:kl)
+        !  end where
+        !else
+          ppb=cfrac*bb+(1.-cfrac)*dd
+        !end if
       end if
       if (nhorjlm.eq.1.or.nhorjlm.eq.2.or.
      &    nhorps.eq.0.or.nhorps.eq.-2) then ! usual deformation for nhorjlm=1 or nhorjlm=2
@@ -181,9 +268,12 @@ c     above code independent of k
          do k=1,kl
            hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
            do iq=1,ifull
-             cc=dvdx(iq,k)+dudy(iq,k)
-             cc=cc**2+(dudx(iq,k)-dvdy(iq,k))**2
-             t_kh(iq,k)= sqrt(cc)*hdif/(em(iq)*em(iq))  ! this one with em in D terms
+             cc=(dvdx(iq,k)+dudy(iq,k))**2
+             cc=cc+0.5*dudx(iq,k)**2+0.5*dvdy(iq,k)**2
+             cc=cc+0.5*dwdz(iq,k)**2+dwdx(iq,k)**2+dwdy(iq,k)**2
+             cc=cc+3.*ppb(iq,k) ! ppb=-N^2
+             cc=max(cc,1.E-10)
+             t_kh(iq,k)=sqrt(cc)*hdif/(em(iq)*em(iq))  ! this one with em in D terms
            end do
          end do
 !         print*, "NHORJLM /= 1,2 not implemented in MPI version"
@@ -279,24 +369,60 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
             enddo               !  iq loop
          enddo
 
-        case(3)                                                   ! MJT tke
-         if (nvmix.ne.6) then                                     ! MJT tke
-           write(6,*) "ERROR: nhorjlm=3 requires nvmix=6"         ! MJT tke
-           stop                                                   ! MJT tke
-         end if                                                   ! MJT tke
+       case(3)
+         t_kh=0. ! no diffusion (i.e., for pure nvmix.eq.6)
+               
+!       case(4) ! same as case 0, but extra diffusion to kill partially
+!               ! resolved eddies (MJT)
+!         do k=1,kl
+!           hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
+!           do iq=1,ifull
+!             cc=dvdx(iq,k)+dudy(iq,k)
+!             cc=cc**2+(dudx(iq,k)-dvdy(iq,k))**2
+!             t_kh(iq,k)= sqrt(cc)*hdif/(em(iq)*em(iq))  ! this one with em in D terms
+!             if (ds/em(iq).lt.pblh(iq).and.zg(iq,k).lt.pblh(iq).and.
+!     &           t(iq,1).lt.tss(iq)) then
+!               if (k.eq.1) then
+!               print *,"iq,k,g,p,z ",iq,k,ds/em(iq),pblh(iq),zg(iq,k)
+!               print *,"iq,kh,l ",t_kh(iq,k),ds/em(iq)*sqrt(dt*1.E5/
+!     &                            (ds*ds*t_kh(iq,k)))
+!               end if
+!               t_kh(iq,k)=max(t_kh(iq,k),dt*1.E6/(ds*ds))
+!             end if
+!    !          t_kh(iq,k)=t_kh(iq,k)*max(1.,9.*pblh(iq)*pblh(iq)
+!    ! &                   *em(iq)*em(iq)/(ds*ds))
+!    !          t_kh(iq,k)=t_kh(iq,k)*max(1.,16.E6
+!    ! &                   *em(iq)*em(iq)/(ds*ds))   
+!           end do
+!         end do
+
+        case DEFAULT                                          ! MJT smag
+         write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm  ! MJT smag
+         stop                                                 ! MJT smag
+       end select
+       
+       if (nvmix.eq.6) then                                       ! MJT tke
          tke=max(tke,1.5E-8)                                      ! MJT tke
          eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)                  ! MJT tke
          eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)                ! MJT tke
          eps=max(eps,1.E-10)                                      ! MJT tke
          hdif=dt*0.09/(ds*ds)                                     ! MJT tke
          do k=1,kl                                                ! MJT tke
-           t_kh(1:ifull,k)= max(tke(1:ifull,k)*tke(1:ifull,k)
-     &     /eps(1:ifull,k),1.E-7)*hdif                            ! MJT tke
+           t_kh(1:ifull,k)= max(max(tke(1:ifull,k)*tke(1:ifull,k) ! MJT tke
+     &     /eps(1:ifull,k),1.E-7)*hdif,t_kh(1:ifull,k))           ! MJT tke
          end do                                                   ! MJT tke
-        case DEFAULT                                          ! MJT smag
-         write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm  ! MJT smag
-         stop                                                 ! MJT smag
-       end select
+         do k=1,kl                                                ! MJT tke
+           ! vertical component included in tkeeps.f90 and        ! MJT tke
+           ! additional terms for changing orography are          ! MJT tke
+           ! neglected for now                                    ! MJT tke
+           shear(:,k)=t_kh(1:ifull,k)*ds*ds/dt*(                  ! MJT tke
+     &       (2.*dudx(:,k))**2+(2.*dvdy(:,k))**2                  ! MJT tke
+     &      +(dudy(:,k)+dvdx(:,k))**2)                            ! MJT tke
+         end do                                                   ! MJT tke
+         tkewx=dwdx ! save dwdx for tke                           ! MJT tke
+         tkewy=dwdy ! save dwdy for tke                           ! MJT tke
+         tkeww=ww   ! save ww for tke                             ! MJT tke
+       end if                                                     ! MJT tke
 
       call bounds(t_kh)
       do k=1,kl
@@ -313,33 +439,6 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
          endif                  ! (nhorx.ge.7.and.k.le.2*kl/3).or.nhorx.eq.1
       end do
       call boundsuv(xfact,yfact)
-
-!      !--------------------------------------------------------------
-!      ! MJT tke
-!      ! calculate shear
-       ! vertical component included in tkeeps.f90 and additional terms
-       ! for changing orography are neglected for now and we instead use
-       ! JLM's enhanced mountain diffusion
-       if (nvmix==6) then
-        do k=1,kl
-         shear(:,k)=t_kh(1:ifull,k)*ds*ds/dt*(
-     &     (2.*dudx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf))**2
-     &    +(2.*dvdy(:,k)/(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf))**2
-     &    +(dudy(:,k)/(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf)
-     &     +dvdx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf))**2)
-
-         ! omega=ps*dpsldt
-         ww(1:ifull,k)=(dpsldt(:,k)/sig(k)-dpsdt/(860.*ps(1:ifull)))
-     &           *(-rdry/grav)*t(1:ifull,k)*(1.+0.61*qg(1:ifull,k))
-
-         dwdx(:,k)=(ww(ie,k)-ww(iw,k))*0.5*em(1:ifull)/ds
-         dwdx(:,k)=dwdx(:,k)/(1.+(0.5*abs(zs(ie)-zs(iw))/delphi)**nf)
-         dwdy(:,k)=(ww(in,k)-ww(is,k))*0.5*em(1:ifull)/ds
-         dwdy(:,k)=dwdy(:,k)/(1.+(0.5*abs(zs(in)-zs(is))/delphi)**nf)
-        end do
-       end if
-!      !--------------------------------------------------------------
-
 
       if(nhorps.eq.0.or.nhorps.eq.-2)then ! for nhorps=-1,-3 don't diffuse u,v
          do k=1,kl
@@ -387,6 +486,44 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
           end do
        endif
 
+       ! MJT - apply horizontal diffusion to TKE and EPS terms
+       if (nvmix.eq.6) then
+         ee(1:ifull,:)=tke(1:ifull,:)
+         call bounds(ee)
+         do k=1,kl
+           do iq=1,ifull
+             emi=1./em(iq)**2
+             tke(iq,k) = ( ee(iq,k)*emi +
+     &                     xfact(iq,k)*ee(ie(iq),k) +
+     &                     xfact(iwu(iq),k)*ee(iw(iq),k) +
+     &                     yfact(iq,k)*ee(in(iq),k) +
+     &                     yfact(isv(iq),k)*ee(is(iq),k) ) /
+     &                   ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
+     &                     yfact(iq,k)+yfact(isv(iq),k))
+           enddo           !  iq loop
+         end do
+         ee(1:ifull,:)=eps(1:ifull,:)
+         call bounds(ee)
+         do k=1,kl
+           do iq=1,ifull
+             emi=1./em(iq)**2
+             eps(iq,k) = ( ee(iq,k)*emi +
+     &                     xfact(iq,k)*ee(ie(iq),k) +
+     &                     xfact(iwu(iq),k)*ee(iw(iq),k) +
+     &                     yfact(iq,k)*ee(in(iq),k) +
+     &                     yfact(isv(iq),k)*ee(is(iq),k) ) /
+     &                   ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
+     &                     yfact(iq,k)+yfact(isv(iq),k))
+           end do           !  iq loop
+         end do
+       end if
+       
+       if (nhorjlm.eq.0.or.nhorjlm.eq.3.or.nvmix.eq.6) then
+         ! increase by 1/Prandtl number for scalars
+         xfact=xfact*3.
+         yfact=yfact*3.
+       end if
+
        if(nhorps.ne.-2)then   ! for nhorps=-2 don't diffuse T, qg
 c        do t diffusion based on potential temperature ff
           do k=1,kl
@@ -426,38 +563,6 @@ c        do t diffusion based on potential temperature ff
           end do
        endif                    ! (nhorps.ge.-1)
        
-       ! MJT - apply horizontal diffusion to TKE and EPS terms
-       if (nvmix.eq.6) then
-         ee(1:ifull,:)=tke(1:ifull,:)
-         call bounds(ee)
-         do k=1,kl
-           do iq=1,ifull
-             emi=1./em(iq)**2
-             tke(iq,k) = ( ee(iq,k)*emi +
-     &                     xfact(iq,k)*ee(ie(iq),k) +
-     &                     xfact(iwu(iq),k)*ee(iw(iq),k) +
-     &                     yfact(iq,k)*ee(in(iq),k) +
-     &                     yfact(isv(iq),k)*ee(is(iq),k) ) /
-     &                   ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
-     &                     yfact(iq,k)+yfact(isv(iq),k))
-           enddo           !  iq loop
-         end do
-         ee(1:ifull,:)=eps(1:ifull,:)
-         call bounds(ee)
-         do k=1,kl
-           do iq=1,ifull
-             emi=1./em(iq)**2
-             eps(iq,k) = ( ee(iq,k)*emi +
-     &                     xfact(iq,k)*ee(ie(iq),k) +
-     &                     xfact(iwu(iq),k)*ee(iw(iq),k) +
-     &                     yfact(iq,k)*ee(in(iq),k) +
-     &                     yfact(isv(iq),k)*ee(is(iq),k) ) /
-     &                   ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
-     &                     yfact(iq,k)+yfact(isv(iq),k))
-           end do           !  iq loop
-         end do
-       end if
-
        ! MJT aerosols
        if (abs(iaero).eq.2) then
          do l=1,naero

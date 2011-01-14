@@ -68,7 +68,6 @@ real, parameter :: mindep = 1.      ! Thickness of first layer (m)
 ! model parameters
 real, parameter :: ric     = 0.3    ! Critical Ri for diagnosing mixed layer depth
 real, parameter :: epsilon = 0.1
-real, parameter :: alphamd = 1.     ! Smooth mixed depth (1.=No smoothing)
 ! radiation parameters
 real, parameter :: mu_1 = 23.       ! VIS depth (m)
 real, parameter :: mu_2 = 0.35      ! NIR depth (m)
@@ -968,7 +967,7 @@ implicit none
 integer ii,iqw,di
 real vtc,dvsq,vtsq,xp
 real, dimension(wfull,wlev) :: ws,wm
-real, dimension(wfull) :: dumbf,l,he,oldmixdepth
+real, dimension(wfull) :: dumbf,l,he
 real, dimension(wlev) :: rib
 real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha
 real, dimension(wfull), intent(in) :: d_b0,d_ustar
@@ -976,7 +975,6 @@ real, dimension(wfull), intent(in) :: a_f
 real totdepth,averho,aveu,avev,avedepth
 
 vtc=1.8*sqrt(0.2/(98.96*epsilon))/(vkar**2*ric)
-oldmixdepth=p_mixdepth
 
 if (incradbf.gt.0) then
   do ii=1,wlev
@@ -1034,10 +1032,6 @@ where(p_bf.gt.0..and.a_f.gt.0.)
 end where
 p_mixdepth=max(max(p_mixdepth,depth(:,1)),5.)
 p_mixdepth=min(p_mixdepth,depth(:,wlev))
-
-if (all(oldmixdepth.gt.0.)) then
-  p_mixdepth=alphamd*p_mixdepth+(1.-alphamd)*oldmixdepth
-end if
 
 ! recalculate index for mixdepth
 p_mixind=wlev-1

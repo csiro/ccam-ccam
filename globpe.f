@@ -292,9 +292,9 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
 !     Note that all processes read the eigenv file
       open(28,file=eigenv,status='old',form='formatted')
       read(28,*)kmax,lapsbot,isoth,nsig
+      kl=kmax
       if (myid==0) print*,'kl,lapsbot,isoth,nsig: ',
      &             kl,lapsbot,isoth,nsig
-      kl=kmax
 
       !--------------------------------------------------------------
       ! DEFINE newmpar VARIABLES AND DEFAULTS

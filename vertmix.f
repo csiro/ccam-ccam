@@ -783,38 +783,43 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        ! note ksc.ne.0 options are clobbered when nvmix=6               ! MJT tke
        ! However, nvmix=6 with nlocal=7 supports its own shallow        ! MJT tke
        ! convection options                                             ! MJT tke
-       uav(1:ifull,:)=av_vmod*u(1:ifull,:)+(1.-av_vmod)*savu(1:ifull,:) ! MJT tke
-       vav(1:ifull,:)=av_vmod*v(1:ifull,:)+(1.-av_vmod)*savv(1:ifull,:) ! MJT tke
        zg(:,1)=bet(1)*t(1:ifull,1)/grav                                 ! MJT tke
        do k=2,kl                                                        ! MJT tke
-         zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
+         zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)                         ! MJT tke
      &                     +betm(k)*t(1:ifull,k-1))/grav                ! MJT tke
        end do                                                           ! MJT tke
-       rhoa=rdry*t(1:ifull,1)/(ps(1:ifull)*sigmh(1))                    ! MJT tke
+       rhoa=ps(1:ifull)/(rdry*tss(:))                                   ! MJT tke
        wq0=eg*rhoa/hl                                                   ! MJT tke
        wt0=fg*rhoa/cp+0.61*rhs(:,1)*wq0                                 ! MJT tke
        select case(nlocal)                                              ! MJT tke
         case(0) ! no counter gradient                                   ! MJT tke
-         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
-     &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)      ! MJT tke
+         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
+     &             qfg(1:ifull,:),u(1:ifull,:),v(1:ifull,:),cfrac,      ! MJT tke
+     &             pblh,land(1:ifull),wt0,wq0,ps(1:ifull),ustar,zg,     ! MJT tke
+     &             sig,sigkap,dt,1,0)                                   ! MJT tke
          rkh=rkm                                                        ! MJT tke
         case(1,2,3,4,5,6) ! KCN counter gradient method                 ! MJT tke
-         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
-     &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)      ! MJT tke
+         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
+     &             qfg(1:ifull,:),u(1:ifull,:),v(1:ifull,:),cfrac,      ! MJT tke
+     &             pblh,land(1:ifull),wt0,wq0,ps(1:ifull),ustar,zg,     ! MJT tke
+     &             sig,sigkap,dt,1,0)                                   ! MJT tke
          rkh=rkm                                                        ! MJT tke
+         uav(1:ifull,:)=av_vmod*u(1:ifull,:)                            ! MJT tke
+     &                 +(1.-av_vmod)*savu(1:ifull,:)                    ! MJT tke
+         vav(1:ifull,:)=av_vmod*v(1:ifull,:)                            ! MJT tke
+     &                 +(1.-av_vmod)*savv(1:ifull,:)                    ! MJT tke
          call pbldif(rhs,rkh,rkm,uav,vav)                               ! MJT tke
         case(7) ! mass-flux counter gradient                            ! MJT tke
-         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
-     &             qfg(1:ifull,:),uav,vav,cfrac,pblh,land(1:ifull),
-     &             wt0,wq0,ps(1:ifull),ustar,zg,sig,sigkap,dt,0,0)      ! MJT tke
+         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
+     &             qfg(1:ifull,:),u(1:ifull,:),v(1:ifull,:),cfrac,      ! MJT tke
+     &             pblh,land(1:ifull),wt0,wq0,ps(1:ifull),ustar,zg,     ! MJT tke
+     &             sig,sigkap,dt,0,0)                                   ! MJT tke
          rkh=rkm                                                        ! MJT tke
          case DEFAULT                                                   ! MJT tke
            write(6,*) "ERROR: Unknown nlocal option for nvmix=6"        ! MJT tke
            stop                                                         ! MJT tke
        end select                                                       ! MJT tke
-      end if ! nvmix.ne.6                                               ! MJT tke
+      end if ! nvmix.ne.6                                               ! MJT tkeuav
 
       do k=1,kl-1
         delsig=sig(k+1)-sig(k)
@@ -887,6 +892,11 @@ c     first do theta (then convert back to t)
          enddo   ! iq loop
         enddo    !  k loop
       endif      !  (npanels>0) .. else ..
+      if (nvmix.eq.6.and.nlocal.eq.0) then
+       ! increase mixing to replace counter gradient term          ! MJT tke
+       at=2.5*at                                                   ! MJT tke
+       ct=2.5*ct                                                   ! MJT tke
+      end if 
       if((diag.or.ntest==2).and.mydiag)then
         print *,'ktau,fg,tss,ps ',ktau,fg(idjd),tss(idjd),ps(idjd)
         print *,'at ',(at(idjd,k),k=1,kl)
@@ -918,7 +928,7 @@ c     now do moisture
 c     could add extra sfce moisture flux term for crank-nicholson
       call trim(at,ct,rhs,0)    ! for qg
       qg(1:ifull,:)=rhs(1:ifull,:)
-      if (nvmix.eq.6) then
+      if (nvmix.eq.6.and.nlocal.ne.0) then
        ! increase mixing to replace counter gradient term          ! MJT tke
        at=2.5*at                                                   ! MJT tke
        ct=2.5*ct                                                   ! MJT tke
