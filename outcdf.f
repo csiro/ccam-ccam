@@ -296,6 +296,7 @@ c     rml 18/09/07 pass through tracmax,tracmin; 19/09/07 add tracname
       use tracers_m
       use vegpar_m
       use vvel_m      ! sdot, dpsldt
+      use work2_m
       implicit none
 
 c     this routine creates attributes and writes output
@@ -443,7 +444,7 @@ c       For time invariant surface fields
         !--------------------------------------------
 
 c       For time varying surface fields
-        lname = 'Leaf area index'                             ! MJT cable
+        lname = 'Leaf area index'                                   ! MJT cable
         call attrib(idnc,idim,3,'lai',lname,'none',0.,32.5,0,itype) ! MJT cable
         lname = 'Surface temperature'
         call attrib(idnc,idim,3,'tsu',lname,'K',100.,425.,0,itype)
@@ -570,6 +571,9 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
      &                itype)
           lname = 'Solar net at ground (+ve down)'
           call attrib(idnc,idim,3,'sgn_ave',lname,'W/m2',-500.,2000.,0,
+     &                itype)
+          lname = 'Sunshine hours'
+          call attrib(idnc,idim,3,'sunhours',lname,'s',0.,130000.,0,
      &                itype)
           lname = 'Fraction of direct radiation'
           call attrib(idnc,idim,3,'fbeam_ave',lname,'none',-3.25,3.25,0,
@@ -910,6 +914,26 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          call attrib(idnc,idim,3,'roadtgg3',lname,'K',100.,425.,0,itype)
          lname = 'urban soil moisture'
          call attrib(idnc,idim,3,'urbansm',lname,'m3/m3',0.,1.3,0,itype)
+         lname = 'urban roof water'
+         call attrib(idnc,idim,3,'roofwtr',lname,'mm',0.,1.3,0,itype)
+         lname = 'urban road water'
+         call attrib(idnc,idim,3,'roadwtr',lname,'mm',0.,1.3,0,itype)
+         lname = 'urban leaf water'
+         call attrib(idnc,idim,3,'urblwtr',lname,'mm',0.,1.3,0,itype)
+         lname = 'urban roof snow'
+         call attrib(idnc,idim,3,'roofsnd',lname,'mm',0.,1.3,0,itype)
+         lname = 'urban road snow'
+         call attrib(idnc,idim,3,'roadsnd',lname,'mm',0.,1.3,0,itype)
+         lname = 'urban roof snow density'
+         call attrib(idnc,idim,3,'roofden',lname,'kg/m3',0.,650.,0,
+     &               itype)
+         lname = 'urban road snow density'
+         call attrib(idnc,idim,3,'roadden',lname,'kg/m3',0.,650.,0,
+     &               itype)
+         lname = 'urban roof snow albedo'
+         call attrib(idnc,idim,3,'roofsna',lname,'none',0.,1.3,0,itype)
+         lname = 'urban road snow albedo'
+         call attrib(idnc,idim,3,'roadsna',lname,'none',0.,1.3,0,itype)
         end if
         !--------------------------------------------------------  
         
@@ -1108,10 +1132,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         !--------------------------------------------
         !--------------------------------------------
         ! MJT urban
-        aa=zolnd
-        bb=zolnd/7.4 ! dummy
-        call atebzo(aa(:),bb(:),0)
-        call histwrt3(aa,'zolnd',idnc,iarch,local)
+        call histwrt3(zo,'zolnd',idnc,iarch,local)
         !call histwrt3(zolnd,'zolnd',idnc,iarch,local)
         !-------------------------------------------- 
         do iq=1,ifull
@@ -1139,7 +1160,6 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       call histwrt3(aa,'pmsl',idnc,iarch,local)
       call histwrt3(tss,'tsu',idnc,iarch,local)
       aa(:)=swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2) ! MJT CHANGE albedo
-      call atebalb1(1,ifull,aa(:),0) ! MJT urban
       call histwrt3(aa,'alb',idnc,iarch,local)
       !---------------------------------------------------------
       ! MJT mlo
@@ -1402,6 +1422,7 @@ c      "extra" outputs
            call histwrt3(soc_ave,'soc_ave',idnc,iarch,local)
            call histwrt3(sgdn_ave,'sgdn_ave',idnc,iarch,local)
            call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local)
+           call histwrt3(sunhours,'sunhours',idnc,iarch,local)
            call histwrt3(fbeam_ave,'fbeam_ave',idnc,iarch,local)
          endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
          call histwrt3(dpsdt,'dpsdt',idnc,iarch,local)
@@ -1471,9 +1492,9 @@ c      "extra" outputs
       !---------------------------------------------------------
       ! MJT urban
       if (nurban.le.-1.or.(nurban.ge.1.and.itype==-1)) then
-       allocate(atebdwn(ifull,13))
+       allocate(atebdwn(ifull,22))
        atebdwn(:,:)=999. ! must be the same as spval in onthefly.f
-       call atebsavem(atebdwn(:,1:12),atebdwn(:,13),0)
+       call atebsave(atebdwn,0)
        call histwrt3(atebdwn(:,1),'rooftgg1',idnc,iarch,local)
        call histwrt3(atebdwn(:,2),'rooftgg2',idnc,iarch,local)
        call histwrt3(atebdwn(:,3),'rooftgg3',idnc,iarch,local)
@@ -1487,6 +1508,15 @@ c      "extra" outputs
        call histwrt3(atebdwn(:,11),'roadtgg2',idnc,iarch,local)
        call histwrt3(atebdwn(:,12),'roadtgg3',idnc,iarch,local)
        call histwrt3(atebdwn(:,13),'urbansm',idnc,iarch,local)
+       call histwrt3(atebdwn(:,14),'roofwtr',idnc,iarch,local)
+       call histwrt3(atebdwn(:,15),'roadwtr',idnc,iarch,local)
+       call histwrt3(atebdwn(:,16),'urblwtr',idnc,iarch,local)
+       call histwrt3(atebdwn(:,17),'roofsnd',idnc,iarch,local)
+       call histwrt3(atebdwn(:,18),'roadsnd',idnc,iarch,local)
+       call histwrt3(atebdwn(:,19),'roofden',idnc,iarch,local)
+       call histwrt3(atebdwn(:,20),'roadden',idnc,iarch,local)
+       call histwrt3(atebdwn(:,21),'roofsna',idnc,iarch,local)
+       call histwrt3(atebdwn(:,22),'roadsna',idnc,iarch,local)
        deallocate(atebdwn)
       end if
       !---------------------------------------------------------      

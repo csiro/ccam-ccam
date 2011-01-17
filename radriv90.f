@@ -276,7 +276,7 @@ c             qo3(i,k) = duo3n(i,k)*1.01325e+02/press(i,lp1)
           if( land(iq) )then
            if(nalbwb.eq.0)then
              cuvrf(i,1) = albsav(iq)    ! use surface albedo from indata
-             cirrf(i,1) = albnirsav(iq)    ! MJT CHANGE albedo
+             cirrf(i,1) = albnirsav(iq) ! MJT CHANGE albedo
            else    ! soil albedo adjusted according to wetness of top layer
 !            can do quadratic fit [ 0 to wbav to ssat]
 !            wbs=sfc(isoilm(iq))         ! or consider using wbs=ssat()
@@ -693,6 +693,10 @@ c     cloud amounts for saving
        do i=1,imax
          iq=i+(j-1)*il
          sgn_ave(iq)  = sgn_ave(iq)  + sg(i)
+         if (sg(i)/ ( 1. - swrsave(iq)*albvisnir(iq,1)
+     &            -(1.-swrsave(iq))*albvisnir(iq,2) ).gt.120.) then
+           sunhours(iq)=sunhours(iq)+dt
+         end if
        end do
       endif  ! (ktau>1)
       

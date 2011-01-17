@@ -75,7 +75,6 @@
 /sigs_m.f90 -text
 /soil_m.f90 -text
 /soilbal_m.f90 -text
-/soilsnin_m.f90 -text
 /soilsnow_m.f90 -text
 /srccom_m.f90 -text
 /stacklimit.c -text

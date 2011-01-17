@@ -59,7 +59,6 @@
       use sigs_m
       use soil_m      ! fracice
       use soilbal_m, only : soilbal_init
-      use soilsnin_m, only : soilsnin_init
       use soilsnow_m
       use srccom_m, only : srccom_init
       use swocom_m, only : swocom_init
@@ -704,8 +703,7 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
         call tfcom_init(ifull,iextra,kl,imax,nbly)
         call work3lwr_init(ifull,iextra,kl,imax)
       end if
-      if (nsib.le.3.or.nsib==5) then ! land-surface arrays
-        call soilsnin_init(ifull,iextra,kl)
+      if (nsib<=3.or.nsib==5) then ! land-surface arrays
         call work3b_init(ifull,iextra,kl,ms)
       else
         call carbpools_init(ifull,iextra,kl,ncp,ncs)
@@ -904,6 +902,7 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       eg_ave(:)=0.
       fg_ave(:)=0.
       rnet_ave(:)=0.
+      sunhours(:)=0.
       ga_ave(:)=0.
       riwp_ave(:)=0.
       rlwp_ave(:)=0.
@@ -1425,19 +1424,19 @@ c       print*,'Calling prognostic cloud scheme'
          write (6,"('sdot ',9f8.3/5x,9f8.3)") sdot(idjd,1:kl)
          if(nextout>=4)write (6,"('xlat,long,pres ',3f8.2)")
      &    tr(idjd,nlv,ngas+1),tr(idjd,nlv,ngas+2),tr(idjd,nlv,ngas+3)
-        endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
-       endif   ! (ntsur>1)
+       endif  ! (mod(ktau,nmaxpr)==0.and.mydiag)
+      endif   ! (ntsur>1)
 
-       ! VERTICAL MIXING ------------------------------------------------------
-        call start_log(vertmix_begin)
-        if(ntsur>=1)then ! calls vertmix but not sflux for ntsur=1
-          if(nmaxpr==1.and.mydiag)
-     &      write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
-          call vertmix(iaero) 
-          if(nmaxpr==1.and.mydiag)
-     &      write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
-        endif  ! (ntsur>=1)
-        call end_log(vertmix_end)
+      ! VERTICAL MIXING ------------------------------------------------------
+      call start_log(vertmix_begin)
+      if(ntsur>=1)then ! calls vertmix but not sflux for ntsur=1
+        if(nmaxpr==1.and.mydiag)
+     &    write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+        call vertmix(iaero) 
+        if(nmaxpr==1.and.mydiag)
+     &    write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+      endif  ! (ntsur>=1)
+      call end_log(vertmix_end)
 
       ! AEROSOLS --------------------------------------------------------------
       call start_log(aerosol_begin)
@@ -1597,7 +1596,7 @@ c       print*,'Calling prognostic cloud scheme'
       dew_ave  = dew_ave-min(0.,eg)    
       eg_ave = eg_ave+eg    
       fg_ave = fg_ave+fg
-      rnet_ave=rnet_ave+rnet     
+      rnet_ave=rnet_ave+rnet
       tscr_ave = tscr_ave+tscrn 
       qscrn_ave = qscrn_ave+qgscrn 
       wb_ave=wb_ave+wb
@@ -1651,6 +1650,7 @@ c       print*,'Calling prognostic cloud scheme'
         eg_ave(:)    =    eg_ave(:)/min(ntau,nperavg)
         fg_ave(:)    =    fg_ave(:)/min(ntau,nperavg)
         rnet_ave(:)  =  rnet_ave(:)/min(ntau,nperavg)
+        sunhours(:)  =  sunhours(:)/min(ntau,nperavg)
         ga_ave(:)    =    ga_ave(:)/min(ntau,nperavg)
         riwp_ave(:)  =  riwp_ave(:)/min(ntau,nperavg)
         rlwp_ave(:)  =  rlwp_ave(:)/min(ntau,nperavg)
@@ -1746,6 +1746,7 @@ c       print*,'Calling prognostic cloud scheme'
         eg_ave(:)=0.
         fg_ave(:)=0.
         rnet_ave(:)=0.
+        sunhours(:)=0.
         riwp_ave(:)=0.
         rlwp_ave(:)=0.
         qscrn_ave(:) = 0.

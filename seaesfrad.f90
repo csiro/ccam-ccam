@@ -82,7 +82,7 @@ integer, dimension(12) :: ndoy   ! days from beginning of year (1st Jan is 0)
 integer jyear,jmonth,jday,jhour,jmin
 integer k,ksigtop,mstart,mins
 integer i,j,iq,istart,iend,kr
-integer swcount,cldcount
+integer swcount
 integer, save :: nlow,nmid
 real, dimension(:), allocatable, save :: sgamp
 real, dimension(:,:), allocatable, save :: rtt
@@ -428,7 +428,6 @@ if(mod(ifull,imax).ne.0)then
 endif
 
 swcount=0
-cldcount=0
 do j=1,jl,imax/il
   istart=1+(j-1)*il
   iend=istart+imax-1
@@ -464,10 +463,10 @@ do j=1,jl,imax/il
     if (nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7) then
       ! CABLE version
       where (land(istart:iend))
-        cuvrf_dir(1:imax) = albvisdir(istart:iend)    ! from cable (inc snow)
-        cirrf_dir(1:imax) = albnirdir(istart:iend)    ! from cable (inc snow)
-        cuvrf_dif(1:imax) = albvisdif(istart:iend)    ! from cable (inc snow)
-        cirrf_dif(1:imax) = albnirdif(istart:iend)    ! from cable (inc snow)
+        cuvrf_dir(1:imax) = albvisdir(istart:iend) ! from cable (inc snow)
+        cirrf_dir(1:imax) = albnirdir(istart:iend) ! from cable (inc snow)
+        cuvrf_dif(1:imax) = albvisdif(istart:iend) ! from cable (inc snow)
+        cirrf_dif(1:imax) = albnirdif(istart:iend) ! from cable (inc snow)
       end where
     else
       ! nsib=3 version (calculate snow)
@@ -482,7 +481,8 @@ do j=1,jl,imax/il
         iq=i+(j-1)*il
         if (land(iq)) then
           if (snowd(iq).gt.0.) then
-            ttbg=isflag(iq)*tggsn(iq,1) + (1-isflag(iq))*tgg(iq,1)
+            dnsnow=min(1.,.1*max(0.,snowd(iq)-osnowd(iq)))
+            ttbg=real(isflag(iq))*tggsn(iq,1) + real(1-isflag(iq))*tgg(iq,1)
             ttbg=min(ttbg,273.1)
             ar1 = 5000.*( 1./273.1 - 1./ttbg) ! crystal growth  (-ve)
             exp_ar1=exp(ar1)                  ! e.g. exp(0 to -4)
@@ -549,7 +549,7 @@ do j=1,jl,imax/il
     call atebalb1(istart,imax,cuvrf_dir(1:imax),0)
     call atebalb1(istart,imax,cirrf_dir(1:imax),0)
     call atebalb1(istart,imax,cuvrf_dif(1:imax),0)
-    call atebalb1(istart,imax,cirrf_dif(1:imax),0)    
+    call atebalb1(istart,imax,cirrf_dif(1:imax),0)
 
     ! Aerosols -------------------------------------------------------
     do k=1,kl
@@ -587,7 +587,7 @@ do j=1,jl,imax/il
           Aerosol%aerosol(:,1,kr,11)=9.1e-15*ssn(istart:iend,k,2) &
                                      /rhoa(:,k)*dprf*1.0/grav  ! Large sea salt
         end do
-	Aerosol%aerosol=max(Aerosol%aerosol,0.)
+        Aerosol%aerosol=max(Aerosol%aerosol,0.)
       case DEFAULT
         write(6,*) "ERROR: unknown iaero option ",iaero
         stop
@@ -741,7 +741,6 @@ do j=1,jl,imax/il
     Astro%cosz(:,1)   =max(coszro,0.)
     Astro%fracday(:,1)=taudar
     swcount=swcount+count(coszro.gt.0.)
-    cldcount=cldcount+count(Cld_spec%camtsw.gt.0.)
 
     call end_log(radmisc_end)
     call start_log(radlw_begin)
@@ -875,19 +874,23 @@ do j=1,jl,imax/il
   sg(1:imax) = sgamp(istart:iend)*coszro2(1:imax)*taudar2(1:imax)
   if(ktau>1)then ! averages not added at time zero
     sgn_ave(istart:iend)  = sgn_ave(istart:iend)  + sg(1:imax)
+    where (sg(1:imax)/ ( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
+                  -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) ).gt.120.)
+      sunhours(istart:iend)=sunhours(istart:iend)+dt
+    end where
   endif  ! (ktau>1)
       
   ! Set up the CC model radiation fields
   ! slwa is negative net radiational htg at ground
   ! Note that this does not include the upward LW radiation from the surface.
   ! That is included in sflux.f
-  slwa(istart:iend) = -sg(1:imax)+rgsave(istart:iend)
   sgsave(istart:iend) = sg(1:imax)   ! this is the repeat after solarfit 26/7/02
+  slwa(istart:iend) = -sgsave(istart:iend)+rgsave(istart:iend)
 
 end do  ! Row loop (j)  j=1,jl,imax/il
 
 if ( odcalc .and. nmaxpr.eq.1 ) then
-  write(6,*) "swcount,cldcount,myid ",swcount,cldcount,myid
+  write(6,*) "swcount,myid ",swcount,myid
 end if
 
 ! Calculate net radiational cooling of atmosphere (K/s)
@@ -1412,7 +1415,7 @@ if (myid==0) then
   allocate (sflwwts_cn (N_AEROSOL_BANDS_CN, num_wavenumbers))
 
   call lw_aerosol_interaction(num_wavenumbers,sflwwts,sflwwts_cn,endaerwvnsf)
-
+  
   Aerosol_props%aerextbandlw=0.
   Aerosol_props%aerssalbbandlw=0.
   Aerosol_props%aerextbandlw_cn=0.

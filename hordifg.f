@@ -9,10 +9,8 @@
       use indices_m
       use liqwpar_m
       use map_m
-      !use morepbl_m ! for nhorjlm.eq.4
       use nlin_m
       use parmhdff_m
-      !use pbl_m     ! for nhorjlm.eq.4
       use sigs_m
       use tkeeps, only : tke,eps,shear,tkeww => ww,tkewx => dwdx,
      &                   tkewy => dwdy ! MJT tke
@@ -47,6 +45,7 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull,kl) :: theta,thetav,qs     ! MJT smag
       real, dimension(ifull,kl) :: dudx,dudy,dvdx,dvdy ! MJT smag
       real, dimension(ifull,kl) :: dwdx,dwdy,dwdz      ! MJT smag
+      real, dimension(ifull,kl) :: dudz,dvdz           ! MJT smag
       real, dimension(ifull+iextra,kl) :: ww           ! MJT smag
       real es                                          ! MJT emag
       integer, parameter :: nf=2
@@ -114,7 +113,7 @@ c     above code independent of k
       ! Calculate du/dx,dv/dx,du/dy,dv/dy but use cartesian vectors
       ! so as to avoid changes in vector direction across panel boundaries.
       ! Should be compatible with gnomic grid.
-      if (nhorjlm==0.or.nhorjlm==3.or.nvmix==6) then
+      if (nhorjlm==0.or.nvmix==6) then
         ! neglect terrain following component for now
         ! u=ax*uc+ay*vc+az*wc
         ! dudx=u(ie)-u(iw)=ax*(uc(ie)-uc(iw))+ay*(vc(ie)-vc(iw))+az*(wc(ie)-wc(iw))
@@ -159,13 +158,14 @@ c     above code independent of k
      &              *0.5*em(1:ifull)/ds
         end do
   
-        do k=1,kl
-          if (k.eq.1) then
-            zg(:,1)=bet(1)*t(1:ifull,1)/grav
-          else
-            zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
-     &                        +betm(k)*t(1:ifull,k-1))/grav
-          end if        
+        ! calculate model level heights in meters (zg)
+        ! calculate vertical velocity in m/s (ww)
+        zg(:,1)=bet(1)*t(1:ifull,1)/grav
+        do k=2,kl
+          zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
+     &                      +betm(k)*t(1:ifull,k-1))/grav
+        end do
+        do k=1,kl        
           ! omega=ps*dpsldt
           ww(1:ifull,k)=(dpsldt(:,k)/sig(k)-dpsdt/(860.*ps(1:ifull)))
      &           *(-rdry/grav)*t(1:ifull,k)*(1.+0.61*qg(1:ifull,k))
@@ -177,13 +177,29 @@ c     above code independent of k
         end do
         dwdz(:,1)=(ww(1:ifull,2)-ww(1:ifull,1))
      &           /(zg(:,2)-zg(:,1))
+        dudz(:,1)=(u(1:ifull,2)-u(1:ifull,1))
+     &           /(zg(:,2)-zg(:,1))
+        dvdz(:,1)=(v(1:ifull,2)-v(1:ifull,1))
+     &           /(zg(:,2)-zg(:,1))
         do k=2,kl-1
           dwdz(:,k)=(ww(1:ifull,k+1)-ww(1:ifull,k-1))
+     &             /(zg(:,k+1)-zg(:,k-1))
+          dudz(:,k)=(u(1:ifull,k+1)-u(1:ifull,k-1))
+     &             /(zg(:,k+1)-zg(:,k-1))
+          dvdz(:,k)=(v(1:ifull,k+1)-v(1:ifull,k-1))
      &             /(zg(:,k+1)-zg(:,k-1))
         end do
         dwdz(:,kl)=(ww(1:ifull,kl)-ww(1:ifull,kl-1))
      &            /(zg(:,kl)-zg(:,kl-1))
+        dudz(:,kl)=(u(1:ifull,kl)-u(1:ifull,kl-1))
+     &            /(zg(:,kl)-zg(:,kl-1))
+        dvdz(:,kl)=(v(1:ifull,kl)-v(1:ifull,kl-1))
+     &            /(zg(:,kl)-zg(:,kl-1))
         
+        ! Calculate bouyancy = kh * ppb (ppb=-N^2)
+        ! Based on Durran and Klemp JAS 1982, where
+        ! bb is for dry air and dd is for cloudy/saturated
+        ! air
         do k=1,kl
           do iq=1,ifull
             theta(iq,k)=t(iq,k)*sig(k)**(-roncp)
@@ -258,85 +274,25 @@ c     above code independent of k
        !-------------------------------------------------------------
        ! MJT smag
        ! Smagorinsky REDUX
-       ! JLM's original notes ...
-!!!c      uses (dv/dx+du/dy)**2 + .5*(du/dx)**2 + .5*(dv/dy)**2
-!!!c      following Kikuchi et al. 1981      now Smag. Wed  04-30-1997
-!!!!      N.B. original Smag. had m on top (in D formulae) and khdif=3.2
-!!!!      More recently (21/9/00) I think original Smag has khdif=0.8
-!!!!      Smag's actual diffusion also differentiated Dt and Ds
-!!!c      t_kh is kh at t points
+       ! This is based on 3D Smagorinsky closure (see WRF)
+       ! This seems to help when the grid spacing is less than
+       ! the boundary layer height.
          do k=1,kl
            hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
            do iq=1,ifull
-             cc=(dvdx(iq,k)+dudy(iq,k))**2
-             cc=cc+0.5*dudx(iq,k)**2+0.5*dvdy(iq,k)**2
-             cc=cc+0.5*dwdz(iq,k)**2+dwdx(iq,k)**2+dwdy(iq,k)**2
-             cc=cc+3.*ppb(iq,k) ! ppb=-N^2
+             cc=2.*dudx(iq,k)**2+2.*dvdy(iq,k)**2
+             cc=cc+2.*dwdz(iq,k)**2
+             cc=cc+(dvdx(iq,k)+dudy(iq,k))**2
+             cc=cc+(dwdx(iq,k)+dudz(iq,k))**2
+             cc=cc+(dwdy(iq,k)+dvdz(iq,k))**2
+             cc=cc+3.*ppb(iq,k) ! 3*ppb=-N^2/Pr
              cc=max(cc,1.E-10)
              t_kh(iq,k)=sqrt(cc)*hdif/(em(iq)*em(iq))  ! this one with em in D terms
            end do
          end do
-!         print*, "NHORJLM /= 1,2 not implemented in MPI version"
-!         stop
-!       !-------------------------------------------------------------      
 
-
-!        Need to understand the special panel boundary stuff
-!!!c      uses (dv/dx+du/dy)**2 + .5*(du/dx)**2 + .5*(dv/dy)**2
-!!!c      following Kikuchi et al. 1981      now Smag. Wed  04-30-1997
-!!!!      N.B. original Smag. had m on top (in D formulae) and khdif=3.2
-!!!!      More recently (21/9/00) I think original Smag has khdif=0.8
-!!!!      Smag's actual diffusion also differentiated Dt and Ds
-!!!c      t_kh is kh at t points
-!!!
-!!!c      use ee and ff arrays temporarily for x and y derivs for 2nd deformation
-!!!       do iq=1,ifull
-!!!        ee(iq)= v(ie(iq),k)-v(iw(iq),k)              ! globpea
-!!!        ff(iq)= u(in(iq),k)-u(is(iq),k)              ! globpea
-!!!!       some bdy vals changed in next loops
-!!!       enddo   !  iq loop
-!!!
-!!!c      some special boundary values switch signs as well as vel components
-!!!       do n=0,npanels
-!!!c       following treats unusual panel boundaries
-!!!        if(npann(n).ge.100)then
-!!!          do i=1,il
-!!!           iq=ind(i,il,n)
-!!!           ff(iq)= -v(in(iq),k)-u(iq-il,k)     ! globpea sign switch too
-!!!          enddo  ! i loop
-!!!        endif      ! (npann(n).ge.100)
-!!!        if(npane(n).ge.100)then
-!!!          do j=1,il
-!!!           iq=ind(il,j,n)
-!!!           ee(iq)= -u(ie(iq),k)-v(iq-1,k)     ! globpea sign switch too
-!!!          enddo   ! j loop
-!!!        endif      ! (npane(n).ge.100)
-!!!        if(npanw(n).ge.100)then
-!!!          do j=1,il
-!!!           iq=ind(1,j,n)
-!!!           ee(iq)= v(iq+1,k)+u(iw(iq),k)      ! globpea sign switch too
-!!!          enddo   ! j loop
-!!!        endif      ! (npanw(n).ge.100)
-!!!        if(npans(n).ge.100)then
-!!!          do i=1,il
-!!!           iq=ind(i,1,n)
-!!!           ff(iq)= u(iq+1,k)+v(is(iq),k)      ! globpea sign switch too
-!!!          enddo   ! i loop
-!!!        endif      ! (npans(n).ge.100)
-!!!       enddo      ! n loop
-!!!
-!!!       do iq=1,ifull
-!!!c       better to use ordinary u & v for divergence-type calcs
-!!!        aa=.5*(u(ieu(iq),k)-u(iwu(iq),k))    ! globpea code
-!!!        bb=.5*(v(inv(iq),k)-v(isv(iq),k))    ! globpea code
-!!!        cc=.5*(ee(iq)+ff(iq))   !  .5 because double grid length
-!!!!       cc=cc**2+(aa**2+bb**2)*.5   ! this one for Kikuchi
-!!!        cc=cc**2+(aa-bb)**2         ! this one for Smagorinsky
-!!!        t_kh(iq)= sqrt(cc)*hdif/em(iq)  ! this one without em in D terms
-!!!       enddo   !  iq loop
-!!!c      ee now finished with (not used till now in globpea)
        case(1)
-c      jlm scheme using 3D uc, vc, wc
+c      jlm deformation scheme using 3D uc, vc, wc
          do k=1,kl
             hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1  ! MJT bug fix
             do iq=1,ifull
@@ -350,8 +306,9 @@ c      jlm scheme using 3D uc, vc, wc
                t_kh(iq,k)= .5*sqrt(cc)*hdif/em(iq) ! this one without em in D terms
             enddo               !  iq loop
          enddo
+
        case(2)
-c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
+c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
          do k=1,kl
             hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1  ! MJT bug fix
             do iq=1,ifull
@@ -371,36 +328,19 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
 
        case(3)
          t_kh=0. ! no diffusion (i.e., for pure nvmix.eq.6)
-               
-!       case(4) ! same as case 0, but extra diffusion to kill partially
-!               ! resolved eddies (MJT)
-!         do k=1,kl
-!           hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
-!           do iq=1,ifull
-!             cc=dvdx(iq,k)+dudy(iq,k)
-!             cc=cc**2+(dudx(iq,k)-dvdy(iq,k))**2
-!             t_kh(iq,k)= sqrt(cc)*hdif/(em(iq)*em(iq))  ! this one with em in D terms
-!             if (ds/em(iq).lt.pblh(iq).and.zg(iq,k).lt.pblh(iq).and.
-!     &           t(iq,1).lt.tss(iq)) then
-!               if (k.eq.1) then
-!               print *,"iq,k,g,p,z ",iq,k,ds/em(iq),pblh(iq),zg(iq,k)
-!               print *,"iq,kh,l ",t_kh(iq,k),ds/em(iq)*sqrt(dt*1.E5/
-!     &                            (ds*ds*t_kh(iq,k)))
-!               end if
-!               t_kh(iq,k)=max(t_kh(iq,k),dt*1.E6/(ds*ds))
-!             end if
-!    !          t_kh(iq,k)=t_kh(iq,k)*max(1.,9.*pblh(iq)*pblh(iq)
-!    ! &                   *em(iq)*em(iq)/(ds*ds))
-!    !          t_kh(iq,k)=t_kh(iq,k)*max(1.,16.E6
-!    ! &                   *em(iq)*em(iq)/(ds*ds))   
-!           end do
-!         end do
+                 ! Probably works best for grid scales that
+                 ! are less than 500 m, since that is the
+                 ! maximum length scale allowed by the
+                 ! prognostic eddy diffusivity - MJT
 
         case DEFAULT                                          ! MJT smag
          write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm  ! MJT smag
          stop                                                 ! MJT smag
        end select
        
+       ! Calculate horizontal diffusion based on prognostic TKE
+       ! This can be combined with the filters above operate
+       ! over a large range of grid length scales
        if (nvmix.eq.6) then                                       ! MJT tke
          tke=max(tke,1.5E-8)                                      ! MJT tke
          eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)                  ! MJT tke
@@ -518,7 +458,7 @@ c      jlm scheme using 3D uc, vc, wc and omega (1st rough scheme)
          end do
        end if
        
-       if (nhorjlm.eq.0.or.nhorjlm.eq.3.or.nvmix.eq.6) then
+       if (nhorjlm.eq.0) then
          ! increase by 1/Prandtl number for scalars
          xfact=xfact*3.
          yfact=yfact*3.

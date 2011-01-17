@@ -52,7 +52,7 @@ c     cp specific heat at constant pressure joule/kgm/deg
       include 'parmsurf.h' ! nplens
       include 'soilv.h'    ! ... ssat
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn
-      real taftfh(ifull),taftfhg(ifull)
+      real, dimension(:), allocatable, save :: taftfh,taftfhg
       real taftfhg_temp(ifull)
 !     following common block makes available other arrays for diag. output 
       real vmag(ifull),charnck(ifull)
@@ -74,9 +74,13 @@ c     eg is latent heat flux (was wv)
 c     dfgdt is dfgdt (was csen in surfupa/b)
 c     degdt is degdt (was ceva in surfupa/b)
 
-      if (.not.allocated(plens)) then
+      if (.not.allocated(plens).and.nmlo.eq.0) then
         allocate(plens(ifull))
         plens=0.
+      end if
+      if (.not.allocated(taftfh).and.(nsib==3.or.nsib==5)) then
+        allocate(taftfh(ifull))
+        allocate(taftfhg(ifull))
       end if
       
       ri_max=(1./fmroot -1.)/bprm  ! i.e. .14641
@@ -117,7 +121,7 @@ c     zobgin = .05   ! jlm: NB seems to be .01 in csiro9. Mar '05: in parm.h
         enddo
       endif   !  (nspecial==1)
 
-      if(ktau==1)then
+      if(ktau==1.and.(nsib.eq.3.or.nsib.eq.5))then
        taftfh(:)=.05        ! just a diag default for sea points
        taftfhg(:)=7.e-4     ! just a diag default for sea points
        if(nrungcm==3)then   ! for runs for PIRCS
@@ -508,11 +512,12 @@ c     if(mydiag.and.diag)then
                                                                      ! MLO
         ! stuff to keep tpan over land working                       ! MLO
         ri=min(grav*zmin*(1.-tpan*srcp/t(1:ifull,1))/vmag**2,ri_max) ! MLO
+        factch=sqrt(panzo*ztv)                                       ! MLO
         where (ri>0.)                                                ! MLO
           fh=vmod/(1.+bprm*ri)**2                                    ! MLO
         elsewhere                                                    ! MLO
           fh=vmod-vmod*2.*bprm*ri/(1.+chs*2.*bprm*factch*chnsea      ! MLO
-     &       *sqrt(-ri*zmin/zo))                                     ! MLO
+     &       *sqrt(-ri*zmin/panzo))                                  ! MLO
         end where                                                    ! MLO
                                                                      ! MLO
         where(.not.land)                                             ! MLO

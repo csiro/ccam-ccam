@@ -1655,7 +1655,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
         if(jalbfix==1)then ! jlm fix for albedos, esp. for bare sandy soil
            if(mydiag)then
               isoil=isoilm(idjd)
-	      if (isoil.gt.0) then
+              if (isoil.gt.0) then
               print *,'before jalbfix isoil,sand,alb,rsmin ',
      &                        isoil,sand(isoil),albvisnir(idjd,1), ! MJT albedo
      &                        rsmin(idjd)
@@ -1663,7 +1663,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
               print *,'before jalbfix isoil,sand,alb,rsmin ',
      &                        isoil,0.,albvisnir(idjd,1), ! MJT albedo
      &                        rsmin(idjd)
-	      end if
+              end if
            endif
            do ip=1,ipland  
             iq=iperm(ip)
@@ -1849,7 +1849,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
      &              wb(iq,1),wb(iq,ms),
 ! rml 16/02/06 removed ico2em
      &              0.
-	 end if
+         end if
 922      format(i6,2i5,3f8.3,f8.4,l2,f4.1,f7.1,f5.2,2i3,
      &          4f7.1,2f6.2,f5.2)
         enddo
@@ -2068,8 +2068,17 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           atebdwn(:,13)=(wb(:,ms)-swilt(isoilm))
      &                 /(sfc(isoilm)-swilt(isoilm))
           atebdwn(:,13)=atebdwn(:,13)*0.26+(1.-atebdwn(:,13))*0.18
+          atebdwn(:,14)=0.   ! roof water
+          atebdwn(:,15)=0.   ! road water
+          atebdwn(:,16)=0.   ! leaf water
+          atebdwn(:,17)=0.   ! roof snow
+          atebdwn(:,18)=0.   ! road snow
+          atebdwn(:,19)=100. ! roof snow density
+          atebdwn(:,20)=100. ! road snow density
+          atebdwn(:,21)=0.85 ! roof snow albedo
+          atebdwn(:,22)=0.85 ! road snow albedo
         end where
-        call atebloadm(atebdwn(:,1:12),atebdwn(:,13),0)	
+        call atebload(atebdwn,0)	
         deallocate(atebdwn)
       else
         sigmu(:)=0.

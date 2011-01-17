@@ -1074,8 +1074,8 @@ c       incorporate other target land mask effects
         !--------------------------------------------------
         ! MJT urban
         if (nurban.ne.0) then
-          allocate(atebdwn(ifull,13))        
-          do k=1,13
+          allocate(atebdwn(ifull,22))        
+          do k=1,22
             t_a=999.
             select case(k)
               case(1)
@@ -1116,7 +1116,43 @@ c       incorporate other target land mask effects
      &                       t_a,6*ik*ik)
               case(13)
                 call histrd1(ncid,iarchi,ier,'urbansm',ik,6*ik,
-     &                       t_a,6*ik*ik)     
+     &                       t_a,6*ik*ik)
+              case(14)
+                call histrd1(ncid,iarchi,ier,'roofwtr',ik,6*ik,
+     &                       t_a,6*ik*ik)
+                if (ier.ne.0) t_a=0.
+              case(15)
+                call histrd1(ncid,iarchi,ier,'roadwtr',ik,6*ik,
+     &                       t_a,6*ik*ik)
+                if (ier.ne.0) t_a=0.
+              case(16)
+                call histrd1(ncid,iarchi,ier,'urblwtr',ik,6*ik,
+     &                       t_a,6*ik*ik)
+                if (ier.ne.0) t_a=0.
+              case(17)
+                call histrd1(ncid,iarchi,ier,'roofsnd',ik,6*ik,
+     &                       t_a,6*ik*ik)
+                if (ier.ne.0) t_a=0.
+              case(18)
+                call histrd1(ncid,iarchi,ier,'roadsnd',ik,6*ik,
+     &                       t_a,6*ik*ik)
+                if (ier.ne.0) t_a=0.
+              case(19)
+                call histrd1(ncid,iarchi,ier,'roofden',ik,6*ik,
+     &                       t_a,6*ik*ik)
+                if (ier.ne.0) t_a=100.
+              case(20)
+                call histrd1(ncid,iarchi,ier,'roadden',ik,6*ik,
+     &                       t_a,6*ik*ik)
+                if (ier.ne.0) t_a=100.
+              case(21)
+                call histrd1(ncid,iarchi,ier,'roofsna',ik,6*ik,
+     &                       t_a,6*ik*ik)
+                if (ier.ne.0) t_a=0.85
+              case(22)
+                call histrd1(ncid,iarchi,ier,'roadsna',ik,6*ik,
+     &                       t_a,6*ik*ik)
+                if (ier.ne.0) t_a=0.85
             end select
             if (iotest) then
               if (myid==0) then
