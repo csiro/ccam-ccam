@@ -425,8 +425,6 @@ c       For time invariant surface fields
         call attrib(idnc,idim,2,'rsmin',lname,'none',0.,200.,0,itype)
         lname = 'Vegetation fraction'
         call attrib(idnc,idim,2,'sigmf',lname,'none',0.,3.25,0,itype)
-        lname = 'Surface roughness'
-        call attrib(idnc,idim,2,'zolnd',lname,'m',0.,65.,0,itype)
         lname = 'Soil type'
         call attrib(idnc,idim,2,'soilt',lname,'none',0.,65.,0,itype)
         lname = 'Vegetation type'
@@ -444,6 +442,8 @@ c       For time invariant surface fields
         !--------------------------------------------
 
 c       For time varying surface fields
+        lname = 'Surface roughness'
+        call attrib(idnc,idim,3,'zolnd',lname,'m',0.,65.,0,itype)
         lname = 'Leaf area index'                                   ! MJT cable
         call attrib(idnc,idim,3,'lai',lname,'none',0.,32.5,0,itype) ! MJT cable
         lname = 'Surface temperature'
@@ -1130,11 +1130,6 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
           call histwrt3(sigmu,'sigmu',idnc,iarch,local)
         end if
         !--------------------------------------------
-        !--------------------------------------------
-        ! MJT urban
-        call histwrt3(zo,'zolnd',idnc,iarch,local)
-        !call histwrt3(zolnd,'zolnd',idnc,iarch,local)
-        !-------------------------------------------- 
         do iq=1,ifull
          aa(iq)=isoilm(iq)
         enddo
@@ -1152,6 +1147,8 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
 	!call histwrt3(vlai,'lai',idnc,iarch,local) ! MJT cable
       endif ! (ktau==0.or.itype==-1) 
 
+      call histwrt3(zo,'zolnd',idnc,iarch,local)
+      !call histwrt3(zolnd,'zolnd',idnc,iarch,local)
       call histwrt3(vlai,'lai',idnc,iarch,local) ! MJT cable
       call histwrt3(zs,'zht',idnc,iarch,local)   ! always from 13/9/02 ! MJT bug fix
       call histwrt3(psl,'psf',idnc,iarch,local)
