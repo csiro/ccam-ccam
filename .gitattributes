@@ -48,6 +48,7 @@
 /map_m.f90 -text
 /microphys_rad.f90 -text
 /mlo.f90 -text
+/mlodynamics.f90 -text
 /morepbl_m.f90 -text
 /neigh_m.f90 -text
 /nharrs_m.f90 -text

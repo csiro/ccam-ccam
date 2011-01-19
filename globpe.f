@@ -38,6 +38,7 @@
       use liqwpar_m   ! ifullw,qfg,qlg
       use lwout_m, only : lwout_init
       use map_m       ! em, f, dpsldt, fu, fv, etc
+      use mlo, only : mlodiag
       use morepbl_m
       use neigh_m, only : neigh_init
       use nharrs_m, only : nharrs_init
@@ -919,6 +920,7 @@ c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       alb_ave(:)=0.
       fbeam_ave(:)=0.
       psl_ave(:)=0.
+      mixdep_ave(:)=0.
       koundiag=0
       sint_ave(:) = 0.  ! solar_in_top
       sot_ave(:)  = 0.  ! solar_out_top
@@ -1604,6 +1606,8 @@ c       print*,'Calling prognostic cloud scheme'
       alb_ave=alb_ave+swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
       fbeam_ave=fbeam_ave+fbeamvis*swrsave+fbeamnir*(1.-swrsave)
       psl_ave=psl_ave+psl
+      call mlodiag(spare1,0)
+      mixdep_ave=mixdep_ave+spare1
       spare1(:)=u(1:ifull,1)**2+v(1:ifull,1)**2
       spare2(:)=u(1:ifull,2)**2+v(1:ifull,2)**2
       do iq=1,ifull
@@ -1663,6 +1667,7 @@ c       print*,'Calling prognostic cloud scheme'
         alb_ave(:)=alb_ave(:)/min(ntau,nperavg)
         fbeam_ave(:)=fbeam_ave(:)/min(ntau,nperavg)
         psl_ave(:)=psl_ave(:)/min(ntau,nperavg)
+        mixdep_ave(:)=mixdep_ave(:)/min(ntau,nperavg)
         sgn_ave(:)  =  sgn_ave(:)/min(ntau,nperavg)  ! Dec07 because of solar fit
         if(myid==0)
      &       print *,'ktau,koundiag,nperavg =',ktau,koundiag,nperavg
@@ -1756,6 +1761,7 @@ c       print*,'Calling prognostic cloud scheme'
         alb_ave(:)=0.
         fbeam_ave(:)=0.
         psl_ave(:)=0.
+        mixdep_ave(:)=0.
         if (myid==0) print *,'resetting tscr_ave for ktau = ',ktau
         koundiag=0
         sint_ave(:) = 0.

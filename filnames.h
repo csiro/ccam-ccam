@@ -11,7 +11,7 @@
      &          ,scrnfile,tmaxfile,tminfile,trcfil                       &
      &          ,laifile,albnirfile,urbanfile,bathfile,vegprev,vegnext   &
      &          ,cnsdir,salfile,oxidantfile ! MJT sib,urban,cable,radiation
-      character*80 albfile,icefile,maskfile                              &
+      character*160 albfile,icefile,maskfile                             &
      &          ,snowfile,sstfile,topofile,zofile                        &
      &          ,rsmfile,scamfile,soilfile,vegfile                       &
      &          ,co2emfile,so2depfile,so2emfile,smoistfile,soil2file     &

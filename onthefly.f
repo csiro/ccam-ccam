@@ -614,6 +614,7 @@ c       incorporate other target land mask effects
         if (.not.allocated(sssb)) then
           allocate(sssb(ifull))
         end if
+	t_a=34.72
         call histrd1(ncid,iarchi,ier,'sal01',ik,6*ik,
      &               t_a,6*ik*ik)
         if (iotest) then

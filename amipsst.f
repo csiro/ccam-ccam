@@ -180,7 +180,7 @@ c       c1=0.
         sssb=0.
         do iq=1,ifull  
            c2=asal(iq)
-           c3=asal(iq)+bsal(iq)
+           c3=c2+bsal(iq)
            c4=c3+csal(iq)          
            sssb(iq)=.5*c3+(4.*c3-5.*c2-c4)*x
      &              +1.5*(c4+3.*c2-3.*c3)*x*x
@@ -225,7 +225,7 @@ c       c1=0.
        enddo
       !--------------------------------------------------------------
       ! MJT mlo
-      else
+      elseif (ktau.gt.0) then
         select case(mlomode)
           case(0) ! relax
             duma=tgg(:,1)
@@ -246,7 +246,7 @@ c       c1=0.
             write(6,*) "ERROR: Unknown mlomode ",mlomode
             stop
         end select
-        do k=1,3
+        do k=1,ms
           call mloexport(0,tgg(:,k),k,0)
         end do
       end if

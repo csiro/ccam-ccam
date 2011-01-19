@@ -772,6 +772,11 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         lname = 'Avg mean sea level pressure'
         call attrib(idnc,idim,3,'pmsl_ave',lname,'none',800.,1200.,0,
      &              itype)
+        if (nmlo.ne.0) then
+          lname = 'Avg mixed layer depth'
+          call attrib(idnc,idim,3,'mixdepth',lname,'m',0.,1300.,0,
+     &              itype)
+        end if
 	  
 !       rml 16/02/06 set attributes for trNNN and travNNN
         if (ngas>0) then 
@@ -974,11 +979,6 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           call attrib(idnc,idim,3,'tggsn4',lname,'K',100.,425.,0,itype)
           lname = 'Ice heat store'
           call attrib(idnc,idim,3,'sto',lname,'J/m2',0.,1300.,0,itype)
-        end if
-        if (nmlo.ne.0) then
-          lname = 'mixed layer depth'
-          call attrib(idnc,idim,3,'mixdepth',lname,'m',0.,32500.,0,
-     &                itype)
         end if
         !--------------------------------------------------------  
         
@@ -1212,8 +1212,6 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         call histwrt3(micdwn(:,8),'sto',idnc,iarch,local)
       end if
       if (nmlo.ne.0) then
-        call mlodiag(aa,0)
-        call histwrt3(aa,'mixdepth',idnc,iarch,local)
         deallocate(mlodwn,micdwn)
       end if      
       !---------------------------------------------------------
@@ -1392,6 +1390,9 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
          call histwrt3(tsu_ave,'tsu_ave',idnc,iarch,local)
          call histwrt3(alb_ave,'alb_ave',idnc,iarch,local)
          call histwrt3(psl_ave,'pmsl_ave',idnc,iarch,local)
+         if (nmlo.ne.0) then
+           call histwrt3(mixdep_ave,'mixdepth',idnc,iarch,local)
+         end if
          !end if
        endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
        call histwrt3(tscrn,'tscrn',idnc,iarch,local)

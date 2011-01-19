@@ -384,6 +384,10 @@ select case(mode)
     w_temp(:,ilev)=pack(sst,wpack)
   case(1)
     w_sal(:,ilev)=pack(sst,wpack)
+  case(2)
+    w_u(:,ilev)=pack(sst,wpack)
+  case(3)
+    w_v(:,ilev)=pack(sst,wpack)
 end select
 
 return
@@ -405,6 +409,10 @@ select case(mode)
     sst=unpack(w_temp(:,ilev),wpack,sst)
   case(1)
     sst=unpack(w_sal(:,ilev),wpack,sst)
+  case(2)
+    sst=unpack(w_u(:,ilev),wpack,sst)
+  case(3)
+    sst=unpack(w_v(:,ilev),wpack,sst)
 end select
 
 return
@@ -737,11 +745,6 @@ do ii=2,wlev-1
   rhs(:,ii)=(km(:,ii+1)*gammas(:,ii+1)-km(:,ii)*gammas(:,ii))/dz(:,ii)
 end do
 rhs(:,wlev)=(-km(:,wlev)*gammas(:,wlev))/dz(:,wlev)
-do iqw=1,wfull
-  if (rhs(iqw,1)*dumt0(iqw).lt.0.) then
-    rhs(iqw,:)=0. ! MJT suggestion
-  end if
-end do
 cc(:,1)=-dt*ks(:,2)/(dz_hl(:,2)*dz(:,1))
 bb(:,1)=1.-cc(:,1)
 ! use -ve for BC as depth is down
@@ -964,7 +967,7 @@ subroutine getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,a_f)
 
 implicit none
 
-integer ii,iqw,di
+integer ii,iqw
 real vtc,dvsq,vtsq,xp
 real, dimension(wfull,wlev) :: ws,wm
 real, dimension(wfull) :: dumbf,l,he
@@ -972,7 +975,6 @@ real, dimension(wlev) :: rib
 real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha
 real, dimension(wfull), intent(in) :: d_b0,d_ustar
 real, dimension(wfull), intent(in) :: a_f
-real totdepth,averho,aveu,avev,avedepth
 
 vtc=1.8*sqrt(0.2/(98.96*epsilon))/(vkar**2*ric)
 
@@ -991,24 +993,11 @@ end if
 p_mixind=wlev-1
 p_mixdepth=depth(:,wlev)
 do iqw=1,wfull
-  ! should be averaged over 0 < sigma < epsilon instead of 1st level
-  di=wlev
-  do ii=2,wlev
-    if (depth(iqw,ii).gt.5.) then
-      di=ii-1
-      exit
-    end if
-  end do
-  totdepth=sum(depth(iqw,1:di))
-  averho=sum(d_rho(iqw,1:di)*depth(iqw,1:di))/totdepth
-  aveu=sum(w_u(iqw,1:di)*depth(iqw,1:di))/totdepth
-  avev=sum(w_v(iqw,1:di)*depth(iqw,1:di))/totdepth
-  avedepth=0.5*depth_hl(iqw,di+1)
   rib(1)=0.
-  do ii=di+1,wlev
+  do ii=2,wlev
     vtsq=depth(iqw,ii)*ws(iqw,ii)*sqrt(0.5*abs(d_nsq(iqw,ii)+d_nsq(iqw,min(ii+1,wlev))))*vtc
-    dvsq=(aveu-w_u(iqw,ii))**2+(avev-w_v(iqw,ii))**2
-    rib(ii)=(depth(iqw,ii)-avedepth)*(1.-averho/d_rho(iqw,ii))/max(dvsq+vtsq,1.E-10)
+    dvsq=(w_u(iqw,1)-w_u(iqw,ii))**2+(w_v(iqw,1)-w_v(iqw,ii))**2
+    rib(ii)=(depth(iqw,ii)-depth(iqw,1))*(1.-d_rho(iqw,1)/d_rho(iqw,ii))/max(dvsq+vtsq,1.E-10)
     if (rib(ii).gt.ric) then
       p_mixind(iqw)=ii-1
       xp=min(max((ric-rib(ii-1))/max(rib(ii)-rib(ii-1),1.E-10),0.),1.)
@@ -1176,7 +1165,7 @@ do i=1,nits
   do ii=1,wlev
     t = max(w_temp(:,ii)-273.16,-2.)
     s = max(w_sal(:,ii),0.01)
-    p1 = grav*depth(:,ii)*d_rho(:,ii)/100000.
+    p1 = grav*depth(:,ii)*d_rho(:,ii)*1.E-5
     t2 = t*t
     t3 = t2*t
     t4 = t3*t
@@ -1267,7 +1256,7 @@ end do
 d_wu0=-(1.-i_fracice)*d_taux/d_rho(:,1)                                            ! BC
 d_wv0=-(1.-i_fracice)*d_tauy/d_rho(:,1)                                            ! BC
 d_wt0=-(1.-i_fracice)*(-p_fg-p_eg+a_rg-sbconst*w_temp(:,1)**4)/(d_rho(:,1)*cp0)    ! BC
-d_wt0=d_wt0+(1.-i_fracice)*lf*a_snd/(d_rho(:,1)*cp0) ! melting snow
+d_wt0=d_wt0+(1.-i_fracice)*lf*a_snd/(d_rho(:,1)*cp0) ! melting snow                ! BC
 d_ws0=(1.-i_fracice)*(a_rnd+a_snd-p_eg/lv)*w_sal(:,1)/rs(:,1)                      ! BC
 
 d_ustar=max(sqrt(sqrt(d_wu0*d_wu0+d_wv0*d_wv0)),5.E-4)
@@ -1377,8 +1366,8 @@ select case(zomode)
     factch=1.
     facqch=1.
   case(2) ! Beljaars
-    aft=max(zcoh1+zcoh2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-6) ! dummy for ztv
-    afq=max(zcoq1+zcoq2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-6) ! dummy for zqv
+    aft=max(zcoh1+zcoh2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-6) ! dummy for ztsea
+    afq=max(zcoq1+zcoq2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-6) ! dummy for zqsea
     factch=sqrt(p_zo/aft)
     facqch=sqrt(p_zo/afq)
     aft=vkar**2/(log(a_zmins/p_zo)*log(a_zmins/aft)) ! now true aft

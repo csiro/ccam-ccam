@@ -1995,6 +1995,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       ! nmlo<0 same as below, but save all data in history file
       ! nmlo=0 no mixed layer ocean
       ! nmlo=1 mixed layer ocean (KPP)
+      ! nmlo=2 same as 1, but with Smag horz diffusion
       if (nmlo.ne.0) then
         if (myid==0) print *,"Initialising MLO"
         call readreal(bathfile,dep,ifull)
