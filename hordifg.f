@@ -9,6 +9,7 @@
       use indices_m
       use liqwpar_m
       use map_m
+      use morepbl_m
       use nlin_m
       use parmhdff_m
       use sigs_m
@@ -113,7 +114,7 @@ c     above code independent of k
       ! Calculate du/dx,dv/dx,du/dy,dv/dy but use cartesian vectors
       ! so as to avoid changes in vector direction across panel boundaries.
       ! Should be compatible with gnomic grid.
-      if (nhorjlm==0.or.nvmix==6) then
+      if (nhorjlm==0.or.nhorjlm==4.or.nvmix==6) then
         ! neglect terrain following component for now
         ! u=ax*uc+ay*vc+az*wc
         ! dudx=u(ie)-u(iw)=ax*(uc(ie)-uc(iw))+ay*(vc(ie)-vc(iw))+az*(wc(ie)-wc(iw))
@@ -251,8 +252,8 @@ c     above code independent of k
           ppb=cfrac*bb+(1.-cfrac)*dd
         !end if
       end if
-      if (nhorjlm.eq.1.or.nhorjlm.eq.2.or.
-     &    nhorps.eq.0.or.nhorps.eq.-2) then ! usual deformation for nhorjlm=1 or nhorjlm=2
+      if (nhorjlm==1.or.nhorjlm==2.or.
+     &    nhorps==0.or.nhorps==-2) then ! usual deformation for nhorjlm=1 or nhorjlm=2
         
         do k=1,kl
 !        in hordifgt, need to calculate Cartesian components 
@@ -270,7 +271,7 @@ c     above code independent of k
 !      !--------------------------------------------------------------
 
       select case(nhorjlm)
-       case(0) ! MJT smag
+       case(0,4) ! MJT smag
        !-------------------------------------------------------------
        ! MJT smag
        ! Smagorinsky REDUX
@@ -290,6 +291,12 @@ c     above code independent of k
              t_kh(iq,k)=sqrt(cc)*hdif/(em(iq)*em(iq))  ! this one with em in D terms
            end do
          end do
+         if (nhorjlm==4) then
+           do k=1,kl
+             t_kh(1:ifull,k)=t_kh(1:ifull,k)*max(1.,
+     &         pblh*pblh*em(1:ifull)*em(1:ifull)/(ds*ds))
+           end do
+         end if
 
        case(1)
 c      jlm deformation scheme using 3D uc, vc, wc
@@ -458,7 +465,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
          end do
        end if
        
-       if (nhorjlm.eq.0) then
+       if (nhorjlm==0.or.nhorjlm==4) then
          ! increase by 1/Prandtl number for scalars
          xfact=xfact*3.
          yfact=yfact*3.
