@@ -637,16 +637,17 @@ end subroutine mloregrid
 
 subroutine mloeval(sst,zo,cd,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
                    dt,zmin,zmins,sg,rg,precp,uatm,vatm,temp,qg,ps, &
-                   f,visnirratio,fbvis,fbnir,diag)
+                   f,visnirratio,fbvis,fbnir,inflow,diag)
 
 implicit none
 
 integer, intent(in) :: diag
 real, intent(in) :: dt
-real, dimension(ifull), intent(in) :: sg,rg,precp,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,zmin,zmins
+real, dimension(ifull), intent(in) :: sg,rg,precp,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
 real, dimension(ifull), intent(inout) :: sst,zo,cd,fg,eg,wetfac,fracice,siced,epot,epan,snowd
 real, dimension(wfull) :: workb
 real, dimension(wfull) :: a_sg,a_rg,a_rnd,a_snd,a_f,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
+real, dimension(wfull) :: a_inflow
 real, dimension(wfull,wlev) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_taux,d_tauy
 real, dimension(wfull) :: d_ftop,d_bot,d_tb,d_fb,d_timelt,d_salflx,d_tauxice,d_tauyice
@@ -656,8 +657,8 @@ if (wfull.eq.0) return
 
 a_sg=pack(sg,wpack)
 a_rg=pack(rg,wpack)
-!a_f=pack(f,wpack)
-a_f=0. ! turn off coriolis terms when no geostrophic term
+a_f=pack(f,wpack)
+!a_f=0. ! turn off coriolis terms when no geostrophic term
 a_vnratio=pack(visnirratio,wpack)
 a_fbvis=pack(fbvis,wpack)
 a_fbnir=pack(fbnir,wpack)
@@ -668,6 +669,7 @@ a_qg=pack(qg,wpack)
 a_ps=pack(ps,wpack)
 a_zmin=pack(zmin,wpack)
 a_zmins=pack(zmins,wpack)
+a_inflow=pack(inflow,wpack)
 where (a_temp.ge.273.16)
   a_rnd=pack(precp,wpack)
   a_snd=0.
@@ -677,9 +679,9 @@ elsewhere
 end where
 
 call fluxcalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,d_taux,d_tauy,diag)                          ! ocean fluxes
-call getrho(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,d_rho,d_nsq,d_rad,d_alpha,d_beta,            &
+call getrho(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow,d_rho,d_nsq,d_rad,d_alpha,d_beta,    &
             d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_taux,d_tauy)                                    ! boundary conditions
-call iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins, &
+call iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,  &
              d_rho,d_ftop,d_bot,d_tb,d_fb,d_timelt,d_salflx,d_nk,d_did,d_tauxice,d_tauyice,diag)   ! ice fluxes
 call mloice(dt,a_rnd,a_snd,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_bot,d_tb,d_fb,            &
             d_timelt,d_salflx,d_tauxice,d_tauyice,d_ustar,d_rho,d_did,d_nk,diag)                   ! update ice
@@ -1112,7 +1114,7 @@ end subroutine getwx
 ! Calculate rho from equation of state
 ! From GFDL (MOM3)
 
-subroutine getrho(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,d_rho,d_nsq,d_rad,d_alpha,d_beta, &
+subroutine getrho(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow,d_rho,d_nsq,d_rad,d_alpha,d_beta, &
                   d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_taux,d_tauy)
 
 implicit none
@@ -1127,7 +1129,7 @@ real, dimension(wfull,wlev) :: rs
 real, parameter :: density = 1035.
 real, dimension(wfull,wlev), intent(inout) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull), intent(inout) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_taux,d_tauy
-real, dimension(wfull), intent(in) :: a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir
+real, dimension(wfull), intent(in) :: a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow
 
 d_rho=density
 
@@ -1258,6 +1260,7 @@ d_wv0=-(1.-i_fracice)*d_tauy/d_rho(:,1)                                         
 d_wt0=-(1.-i_fracice)*(-p_fg-p_eg+a_rg-sbconst*w_temp(:,1)**4)/(d_rho(:,1)*cp0)    ! BC
 d_wt0=d_wt0+(1.-i_fracice)*lf*a_snd/(d_rho(:,1)*cp0) ! melting snow                ! BC
 d_ws0=(1.-i_fracice)*(a_rnd+a_snd-p_eg/lv)*w_sal(:,1)/rs(:,1)                      ! BC
+d_ws0=d_ws0+(a_inflow)*w_sal(:,1)/rs(:,1)                                          ! BC
 
 d_ustar=max(sqrt(sqrt(d_wu0*d_wu0+d_wv0*d_wv0)),5.E-4)
 d_b0=-grav*(d_alpha(:,1)*d_wt0-d_beta(:,1)*d_ws0)
@@ -1810,7 +1813,7 @@ end if
 
 where (ip_dic.gt.icemin)
   xxx=ip_dic+ip_dsn-(rhosn*ip_dsn+rhoic*ip_dic)/rhowt ! white ice formation
-  excess=max(ip_dsn-xxx,0.)*rhosn/rhowt                     ! white ice formation
+  excess=max(ip_dsn-xxx,0.)*rhosn/rhowt               ! white ice formation
 elsewhere
   xxx=0.
   excess=0.

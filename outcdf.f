@@ -281,6 +281,7 @@ c=======================================================================
       use liqwpar_m   ! ifullw
       use map_m
       use mlo, only : wlev,mlosave,mlodiag,mlodwn,micdwn ! MJT mlo
+      use mlodynamics, only : watbdy                     ! MJT mlo
       use morepbl_m
       use nsibd_m     ! rsmin,ivegt,sigmf,tgg,tgf,ssdn,res,rmc,isoilm,ico2em
       use pbl_m
@@ -979,6 +980,11 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           call attrib(idnc,idim,3,'tggsn4',lname,'K',100.,425.,0,itype)
           lname = 'Ice heat store'
           call attrib(idnc,idim,3,'sto',lname,'J/m2',0.,1300.,0,itype)
+          if (abs(nmlo).ge.2) then
+            lname = 'Surface water'
+            call attrib(idnc,idim,3,'swater',lname,'mm',0.,130.,0,
+     &                  itype)
+          end if
         end if
         !--------------------------------------------------------  
         
@@ -1210,6 +1216,9 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         end if
         call histwrt3(micdwn(:,4),'tggsn4',idnc,iarch,local)
         call histwrt3(micdwn(:,8),'sto',idnc,iarch,local)
+        if (abs(nmlo).ge.2) then
+          call histwrt3(watbdy(1:ifull),'swater',idnc,iarch,local)
+        end if
       end if
       if (nmlo.ne.0) then
         deallocate(mlodwn,micdwn)

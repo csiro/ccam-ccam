@@ -165,6 +165,7 @@ c     start of processing loop
       use infile
       use latlong_m
       use mlo, only : wlev,mlodwn,ocndwn,micdwn,sssb ! MJT mlo
+      use mlodynamics, only : watbdy                 ! MJT mlo
       use morepbl_m
       use screen_m
       use sigs_m
@@ -614,7 +615,7 @@ c       incorporate other target land mask effects
         if (.not.allocated(sssb)) then
           allocate(sssb(ifull))
         end if
-	t_a=34.72
+        t_a=34.72
         call histrd1(ncid,iarchi,ier,'sal01',ik,6*ik,
      &               t_a,6*ik*ik)
         if (iotest) then
@@ -963,6 +964,27 @@ c       incorporate other target land mask effects
             end if
             call doints4(zss_a,ocndwn,nface4,xg4,yg4,nord,ik)
           end if ! iotest
+          if (.not.allocated(watbdy)) then
+            allocate(watbdy(ifull+iextra))
+	    watbdy=0.
+          end if
+          if (abs(nmlo).ge.2) then
+            t_a=0.
+            call histrd1(ncid,iarchi,ier,'swater',ik,6*ik,t_a,
+     &                   6*ik*ik)
+            if (iotest) then
+              if (myid==0) then
+                call ccmpi_distribute(watbdy(1:ifull),t_a)
+              else
+                call ccmpi_distribute(watbdy(1:ifull))
+              end if
+            else
+              call doints4(t_a,watbdy(1:ifull),nface4,xg4,yg4,nord,ik)
+            end if
+            where (.not.land)
+              watbdy(1:ifull)=0.
+            end where
+          end if
         end if
         !--------------------------------------------------
 

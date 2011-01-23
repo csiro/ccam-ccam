@@ -345,7 +345,7 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       npan=max(1,(npanels+1)/nproc)
       iextra = 4*(il+jl)+24*npan
 #endif
-      nrows_rad = 8
+      nrows_rad = il_g/6
       do while(mod(jl,nrows_rad).ne.0)
         nrows_rad = nrows_rad-1
       end do

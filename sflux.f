@@ -1,29 +1,30 @@
       subroutine sflux(nalpha)              ! for globpe code
       use arrays_m
-      use ateb       ! MJT urban
+      use ateb        ! MJT urban
       use cable_ccam, only : CABLE,sib4 ! MJT cable
       use cc_mpi
       use diag_m
-      use extraout_m ! ustar
+      use extraout_m  ! ustar
       use gdrag_m
-      use liqwpar_m  ! qfg,qlg
-      use map_m      ! MJT mlo
-      use mlo        ! MJT mlo
-      use morepbl_m  ! condx,fg,eg
-      use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tgf
+      use liqwpar_m   ! qfg,qlg
+      use map_m       ! MJT mlo
+      use mlo         ! MJT mlo
+      use mlodynamics ! MJT mlo
+      use morepbl_m   ! condx,fg,eg
+      use nsibd_m     ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tgf
       use pbl_m
       use permsurf_m
-      use prec_m     ! evap
+      use prec_m      ! evap
       use savuvt_m
-      use screen_m   ! tscrn,qgscrn,uscrn,rhscrn,u10
+      use screen_m    ! tscrn,qgscrn,uscrn,rhscrn,u10
       use sigs_m
-      use soil_m     ! ... zmin zolod zolog sicedep fracice alb
-      use soilsnow_m ! new soil arrays for scam - tgg too
-      use vecsuv_m   ! MJT urban
+      use soil_m      ! ... zmin zolod zolog sicedep fracice alb
+      use soilsnow_m  ! new soil arrays for scam - tgg too
+      use vecsuv_m    ! MJT urban
       use vvel_m
       use work2_m
       use work3_m
-      use xyzinfo_m  ! MJT urban
+      use xyzinfo_m   ! MJT urban
       parameter (nblend=0)  ! 0 for original non-blended, 1 for blended af
       parameter (ntss_sh=0) ! 0 for original, 3 for **3, 4 for **4
 !     parameter (nplens=0)  ! 0 to turn off plens, 10 (e.g.) is on
@@ -497,6 +498,7 @@ c     if(mydiag.and.diag)then
       elseif (abs(nmlo).ge.1) then                                   ! MLO
         if (abs(nmlo).ge.2) then                                     ! MLO
           call mlodiffusion                                          ! MLO
+          call mlorouter                                             ! MLO
         end if                                                       ! MLO
         call mloeval(tss,zo,cduv,fg,eg,wetfac,epot,epan,fracice,     ! MLO
      &               sicedep,snowd,dt,azmin,azmin,sgsave(:)/         ! MLO
@@ -504,7 +506,7 @@ c     if(mydiag.and.diag)then
      &               (1.-swrsave)*albvisnir(:,2))                    ! MLO
      &               ,-rgsave,condx/dt,uav,vav,t(1:ifull,1)          ! MLO
      &               ,qg(1:ifull,1),ps,f,swrsave,fbeamvis,fbeamnir   ! MLO
-     &               ,0)                                             ! MLO
+     &               ,watbdy(1:ifull)/dt,0)                          ! MLO
         call mloscrnout(tscrn,qgscrn,uscrn,u10,0)                    ! MLO
         do k=1,ms                                                    ! MLO
           call mloexport(0,tgg(:,k),k,0)                             ! MLO
@@ -524,6 +526,7 @@ c     if(mydiag.and.diag)then
         end where                                                    ! MLO
                                                                      ! MLO
         where(.not.land)                                             ! MLO
+          watbdy(1:ifull)=0.                                         ! MLO
           snowd=snowd*1000.                                          ! MLO
           ga=0.                                                      ! MLO
           cduv=cduv*vmod                                             ! MLO
@@ -822,7 +825,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          uzon= costh*uav-sinth*vav ! zonal                              ! urban
          vmer= sinth*uav+costh*vav ! meridonal                          ! urban
          ! call aTEB                                                    ! urban
-         call atebcalc(fg(:),eg(:),tss(:),wetfac(:),dt,azmin            ! urban
+         call atebcalc(fg(:),eg(:),tss(:),wetfac(:),runoff(:),dt,azmin  ! urban
      &               ,sgsave(:)/(1.-swrsave*albvisnir(:,1)-             ! urban
      &               (1.-swrsave)*albvisnir(:,2)),-rgsave(:)            ! urban
      &               ,condx(:)/dt,rho(:),t(1:ifull,1),qg(1:ifull,1)     ! urban
@@ -855,6 +858,11 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
       call end_log(sfluxurban_end)
 c ----------------------------------------------------------------------
       evap(:)=evap(:)+dt*eg(:)/hl !time integ value in mm (wrong for snow)
+
+      ! Update runoff for river routing
+      if (abs(nmlo).ge.2) then
+        watbdy(1:ifull)=watbdy(1:ifull)+runoff ! runoff in mm
+      end if
 
       !--------------------------------------------------------------
       ! MJT cable MJT urban - moved above

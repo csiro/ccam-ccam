@@ -866,17 +866,17 @@ end subroutine atebscrnout
 ! owf = Input/Output wetness fraction/surface water (%)
 ! diag = diagnostic message mode (0=off, 1=basic messages, 2=more detailed messages, etc)
 
-subroutine atebcalc(ofg,oeg,ots,owf,dt,zmin,sg,rg,rnd,rho,temp,mixr,ps,uu,vv,umin,diag,raw)
+subroutine atebcalc(ofg,oeg,ots,owf,orn,dt,zmin,sg,rg,rnd,rho,temp,mixr,ps,uu,vv,umin,diag,raw)
 
 implicit none
 
 integer, intent(in) :: diag
 real, intent(in) :: dt,umin
 real, dimension(ifull), intent(in) :: sg,rg,rnd,rho,temp,mixr,ps,uu,vv,zmin
-real, dimension(ifull), intent(inout) :: ofg,oeg,ots,owf
+real, dimension(ifull), intent(inout) :: ofg,oeg,ots,owf,orn
 real, dimension(ufull) :: tmp
 real, dimension(ufull) :: a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin
-real, dimension(ufull) :: u_fg,u_eg,u_ts,u_wf
+real, dimension(ufull) :: u_fg,u_eg,u_ts,u_wf,u_rn
 logical, intent(in), optional :: raw
 logical mode
 
@@ -902,13 +902,14 @@ elsewhere
   a_snd=0.
 end where
 
-call atebeval(u_fg,u_eg,u_ts,u_wf,dt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin,diag)
+call atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,dt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin,diag)
 
 if (mode) then
   ofg=unpack(u_fg,upack,ofg)
   oeg=unpack(u_eg,upack,oeg)
   ots=unpack(u_ts,upack,ots)
   owf=unpack(u_wf,upack,owf)
+  orn=unpack(u_rn,upack,orn)
 else
   tmp=pack(ofg,upack)
   tmp=(1.-sigmau)*tmp+sigmau*u_fg
@@ -921,7 +922,10 @@ else
   ots=unpack(tmp,upack,ots)
   tmp=pack(owf,upack)
   tmp=(1.-sigmau)*tmp+sigmau*u_wf
-  owf=unpack(tmp,upack,owf)      
+  owf=unpack(tmp,upack,owf)
+  tmp=pack(orn,upack)
+  tmp=(1.-sigmau)*tmp+sigmau*u_rn
+  orn=unpack(tmp,upack,orn)
 end if
 
 return
@@ -941,7 +945,7 @@ end subroutine atebcalc
 !      Vegetation canopy temperature
 !      Solve canyon sensible heat budget
 !        Canyon temperature
-!       Solve canyon latent heat budget
+!        Solve canyon latent heat budget
 !          Canyon mixing ratio
 !        End latent heat budget loop
 !      End sensible heat budget loop
@@ -958,7 +962,7 @@ end subroutine atebcalc
 !  Estimate bulk long wave flux and surface temperature
 !  Estimate bulk sensible and latent heat fluxes
 
-subroutine atebeval(u_fg,u_eg,u_ts,u_wf,ddt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin,diag)
+subroutine atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,ddt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin,diag)
 
 implicit none
 
@@ -980,7 +984,7 @@ real, dimension(ufull) :: p_sntemp,p_gasn,p_snmelt
 real, dimension(ufull) :: z_on_l,pa,dts,dtt
 real, dimension(ufull), intent(in) :: a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin
 real, dimension(ufull) :: p_a_umag,p_a_rho,p_a_rg,p_a_rnd,p_a_snd
-real, dimension(ufull), intent(out) :: u_fg,u_eg,u_ts,u_wf
+real, dimension(ufull), intent(out) :: u_fg,u_eg,u_ts,u_wf,u_rn
 real, dimension(ufull) :: sg_roof,sg_road,sg_walle,sg_wallw,sg_veg,sg_rfsn,sg_rdsn
 real, dimension(ufull) :: rg_roof,rg_road,rg_walle,rg_wallw,rg_veg,rg_rfsn,rg_rdsn
 real, dimension(ufull) :: fg_roof,fg_road,fg_walle,fg_wallw,fg_veg,fg_rfsn,fg_rdsn
@@ -1016,7 +1020,7 @@ do ii=1,3
   ww_temp(:,ii)=min(max(ww_temp(:,ii),200.),400.)
   rd_temp(:,ii)=min(max(rd_temp(:,ii),200.),400.)
 end do
-v_moist=min(max(v_moist,swilt),ssat)
+v_moist=max(v_moist,swilt)
 rf_water=min(max(rf_water,0.),maxrfwater)
 rd_water=min(max(rd_water,0.),maxrdwater)
 v_water=min(max(v_water,0.),maxvgwater)
@@ -1060,7 +1064,7 @@ d_mixrr=a_mixr*qsatr/a ! a=qsata
 d_totdepth=sum(f_roaddepth,2)
 
 ! calculate c1 for soil (for in-canyon vegetation)
-n=max(v_moist/ssat,0.218)
+n=min(max(v_moist/ssat,0.218),1.)
 d_c1=(1.78*n+0.253)/(2.96*n-0.581)
 where (n.gt.0.218)
   d_dc1=(1.78*(2.96*n-0.581)+2.96*(1.78*n+0.253))/((2.96*n-0.581)**2*ssat)
@@ -1669,6 +1673,13 @@ elsewhere
   rd_alpha=rd_alpha+(minsnowalpha-rd_alpha)/(0.24/(86400.*ddt)+1.)
 end where
 
+! calculate runoff (v_water runoff already accounted for in precip reaching canyon floor)
+u_rn=0.
+u_rn=u_rn+max(rf_water-maxrfwater,0.)
+u_rn=u_rn+max(rd_water-maxrdwater,0.)
+u_rn=u_rn+max(rf_snow-maxrfsn,0.)
+u_rn=u_rn+max(rd_snow-maxrdsn,0.)
+
 ! limit temperatures to sensible values
 do ii=1,3
   rf_temp(:,ii)=min(max(rf_temp(:,ii),200.),400.)
@@ -1676,7 +1687,7 @@ do ii=1,3
   ww_temp(:,ii)=min(max(ww_temp(:,ii),200.),400.)
   rd_temp(:,ii)=min(max(rd_temp(:,ii),200.),400.)
 end do
-v_moist=min(max(v_moist,swilt),ssat)
+v_moist=max(v_moist,swilt)
 rf_water=min(max(rf_water,0.),maxrfwater)
 rd_water=min(max(rd_water,0.),maxrdwater)
 v_water=min(max(v_water,0.),maxvgwater)

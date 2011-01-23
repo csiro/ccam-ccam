@@ -695,7 +695,7 @@ c     cloud amounts for saving
          sgn_ave(iq)  = sgn_ave(iq)  + sg(i)
          if (sg(i)/ ( 1. - swrsave(iq)*albvisnir(iq,1)
      &            -(1.-swrsave(iq))*albvisnir(iq,2) ).gt.120.) then
-           sunhours(iq)=sunhours(iq)+dt
+           sunhours(iq)=sunhours(iq)+86400.
          end if
        end do
       endif  ! (ktau>1)
