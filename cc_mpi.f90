@@ -897,7 +897,6 @@ contains
       bnds(:)%rlen2_uv = 0
       bnds(:)%slen2_uv = 0
 
-
 !     In the first pass through, set up list of points to be requested from
 !     other processors. These points are placed in the "iextra" region at the
 !     end of arrays. The indirect indices are updated to point into this 

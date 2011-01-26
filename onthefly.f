@@ -6,7 +6,7 @@
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,   ! 0808
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                    iaero)
+     .                    iaero,sssb)
 !     Target points use values interpolated to their 4 grid "corners";
 !     these corner values are then averaged to the grid centres
 !     N.B. this means will get different fields with io_in=-1 from io_in=1
@@ -42,7 +42,8 @@
      & wb(ifull,ms),wbice(ifull,ms),snowd(ifull),sicedep(ifull),
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     & ssdnn(ifull),snage(ifull),qfg(ifull,kl),qlg(ifull,kl)
+     & ssdnn(ifull),snage(ifull),qfg(ifull,kl),qlg(ifull,kl),
+     & sssb(ifull)
       integer isflag(ifull)
       integer ::  kdate_r, ktime_r, nested
       integer idv,mtimer,k ! MJT small otf
@@ -138,14 +139,14 @@ c     start of processing loop
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,  ! 0808
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    ik,iaero) ! this last variable controls automatic array size
+     .                    ik,iaero,sssb) ! this last variable controls automatic array size
       else
         call ontheflyx(nested,land_t,kdate_r,ktime_r,
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,  ! 0808
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    0,iaero) ! this last variable controls automatic array size
+     .                    0,iaero,sssb) ! this last variable controls automatic array size
       end if
 
       return
@@ -155,7 +156,7 @@ c     start of processing loop
 !     following not used or returned if called by nestin (i.e.nested=1)   
      .                    tgg,wb,wbice,snowd,qfg,qlg,
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    dk,iaero)
+     .                    dk,iaero,sssb)
       
       use aerosolldr, only : xtg,ssn,naero
       use ateb, only : atebdwn ! MJT urban
@@ -202,6 +203,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
       real, dimension(ifull) :: psl,zss,tss,fracice,
      &                          snowd,sicedep,ssdnn,snage,dum6 ! MJT small otf
+      real, dimension(ifull) :: sssb
       real, dimension(ifull,ms) :: wb,wbice,tgg
       real, dimension(ifull,3) :: tggsn,smass,ssdn
       real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg
@@ -612,9 +614,6 @@ c       incorporate other target land mask effects
       
       ! surface salinity for MLO
       if (nmlo.ne.0.and.nud_sss.ne.0) then
-        if (.not.allocated(sssb)) then
-          allocate(sssb(ifull))
-        end if
         t_a=34.72
         call histrd1(ncid,iarchi,ier,'sal01',ik,6*ik,
      &               t_a,6*ik*ik)
@@ -966,7 +965,7 @@ c       incorporate other target land mask effects
           end if ! iotest
           if (.not.allocated(watbdy)) then
             allocate(watbdy(ifull+iextra))
-	    watbdy=0.
+            watbdy=0.
           end if
           if (abs(nmlo).ge.2) then
             t_a=0.

@@ -21,7 +21,7 @@
 !     WHY are helm and rhs ifull+iextra?????????
 !     Not just for printa call ?????
       real, intent(in) :: helm(ifull+iextra,kl)      ! Helmholtz coefficients
-      real, intent(inout) :: s(ifull+iextra,kl)         ! Solution
+      real, intent(inout) :: s(ifull+iextra,kl)      ! Solution
       real, intent(in) :: rhs(ifull+iextra,kl)       ! RHS
       real, dimension(ifull,kl) :: fac, invfac, v, sx
       real, dimension(ifull+iextra,kl) :: d, r, h
@@ -86,7 +86,7 @@
          else
             do iq=1,ifull
                r(iq,k) = - ( zze(iq)*s(ie(iq),k) + zzw(iq)*s(iw(iq),k) + &
-                 	     zzn(iq)*s(in(iq),k) + zzs(iq)*s(is(iq),k) - &
+                             zzn(iq)*s(in(iq),k) + zzs(iq)*s(is(iq),k) - &
                              rhs(iq,k) ) * invfac(iq,k) - s(iq,k)
                d(iq,k) = r(iq,k)
 #ifdef sumdd

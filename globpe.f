@@ -207,7 +207,7 @@
       data nsnowout/999999/
 
       ! For linux only
-      call setstacklimit(-1)
+      !call setstacklimit(-1)
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES

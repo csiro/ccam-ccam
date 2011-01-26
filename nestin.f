@@ -7,6 +7,7 @@
       use indices_m
       use latlong_m
       use map_m
+      use mlo
       use pbl_m
       use sigs_m
       use soil_m     ! sicedep fracice
@@ -25,8 +26,9 @@
       real, dimension(:,:), allocatable, save :: tb,ub,vb,qb
       real, dimension(:), allocatable, save :: psla,pslb,tssa,tssb
       real, dimension(:), allocatable, save :: sicedepb,fraciceb
+      real, dimension(:), allocatable, save :: sssa,sssb
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
-      real, dimension(ifull) :: zsb,duma
+      real, dimension(ifull) :: zsb,duma,dumb
       integer, dimension(ifull) :: dumm
       real, dimension(ifull,ms) :: dumg
       real, dimension(ifull,kl) :: dumv
@@ -41,6 +43,7 @@
         allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
         allocate(psla(ifull),pslb(ifull),tssa(ifull),tssb(ifull))
         allocate(sicedepb(ifull),fraciceb(ifull))
+        allocate(sssa(ifull),sssb(ifull))
       end if
       
 !     mtimer, mtimeb are in minutes
@@ -62,6 +65,10 @@
         qb(1:ifull,:)=qg(1:ifull,:)
         ub(1:ifull,:)=u(1:ifull,:)
         vb(1:ifull,:)=v(1:ifull,:)
+        sssb=34.72
+        if (abs(nmlo).gt.0) then
+          call mloexport(1,sssb,1,0)
+        end if
         mtimeb=-2
         return
       endif       ! (mtimeb==-1)
@@ -76,6 +83,7 @@
       qa(1:ifull,:)=qb(1:ifull,:)
       ua(1:ifull,:)=ub(1:ifull,:)
       va(1:ifull,:)=vb(1:ifull,:)
+      sssa(:)=sssb(:)
       
       if(namip.eq.0.and.nmlo.eq.0)then     ! namip SSTs/sea-ice take precedence ! MJT seaice
 !      following sice updating code moved from sflux Jan '06      
@@ -134,7 +142,7 @@
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,
-     &                 duma,duma,dumm,iaero) ! MJT cable
+     &                 duma,duma,dumm,iaero,sssb) ! MJT cable
 !      endif   ! (io_in==1)
       !--------------------------------------------------------------
       tssb(:) = abs(tssb(:))  ! moved here Mar '03
@@ -284,10 +292,11 @@
        else
         ! nudge mlo
         duma=cona*tssa+conb*tssb
+        dumb=cona*sssa+conb*sssb
         where (fraciceb.gt.0.)
           duma=271.2
         end where
-        call mlonudge(duma)
+        call mlonudge(duma,dumb)
        end if
       endif
       
@@ -324,6 +333,7 @@
       real, dimension(:,:), allocatable, save :: tb,ub,vb,qb
       real, dimension(:), allocatable, save :: pslb,tssb,fraciceb
       real, dimension(:), allocatable, save :: sicedepb
+      real, dimension(:), allocatable, save :: sssb
       real, dimension(ifull) :: zsb,duma
       integer, dimension(ifull) :: dumm
       real, dimension(ifull,ms) :: dumg
@@ -337,7 +347,7 @@
       if (.not.allocated(tb)) then
         allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
         allocate(pslb(ifull),tssb(ifull),fraciceb(ifull))
-        allocate(sicedepb(ifull))
+        allocate(sicedepb(ifull),sssb(ifull))
       end if
 
 !     mtimer, mtimeb are in minutes
@@ -367,7 +377,7 @@
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,
-     &                 duma,duma,dumm,iaero)
+     &                 duma,duma,dumm,iaero,sssb)
        endif   ! (abs(io_in)==1)
        !-------------------------------------------------------------
        tssb(:) = abs(tssb(:))  ! moved here Mar '03
@@ -537,20 +547,16 @@
           end where  ! (.not.land(iq))
          else
           ! nudge mlo
+          duma=tssb
+          where (fraciceb.gt.0.)
+            duma=271.2
+          end where            
           if (nud_uv.ne.9) then
             ! replace nud_sst with mbd once horz transport is implemented
-            duma=tssb
-            where (fraciceb.gt.0.)
-              duma=271.2
-            end where
-            call mlofilterfast(duma) ! surface sal saved in mlo
+            call mlofilterfast(duma,sssb)
           else
             ! replace nud_sst with mbd once horz transport is implemented
-            duma=tssb
-            where (fraciceb.gt.0.)
-              duma=271.2
-            end where            
-            call mlofilter(duma)  ! surface sal saved in mlo
+            call mlofilter(duma,sssb)
           end if
          end if ! (nmlo.eq.0)
         end if ! (namip.eq.0.and.ntest.eq.0)
@@ -2344,11 +2350,11 @@
       !---------------------------------------------------------------------------------
 
       ! 2D Filter for MLO 
-      subroutine mlofilter(new) ! MJT mlo
+      subroutine mlofilter(new,sssb) ! MJT mlo
 
       use cc_mpi
       use map_m
-      use mlo, only : mloimport,mloexport,sssb      
+      use mlo, only : mloimport,mloexport
       use soil_m  ! land
       use xyzinfo_m
 
@@ -2362,7 +2368,7 @@
 
       integer :: iqw,itag=0,status,ierr
       integer :: iproc,ns,ne,k
-      real, dimension(ifull), intent(in) :: new
+      real, dimension(ifull), intent(in) :: new,sssb
       real, dimension(ifull) :: diff,old,olds
       real, dimension(ifull_g) :: diff_g,diffs_g
       real :: cq,cqs
@@ -2491,7 +2497,7 @@
           olds=sssb
           call mloexport(1,olds,k,0)
           olds=olds+diff(:)*10./real(mloalpha)
-	  olds=max(olds,0.)
+          olds=max(olds,0.)
           call mloimport(1,olds,k,0)
         end do
       end if
@@ -2504,11 +2510,11 @@
       end subroutine mlofilter
 
       ! 1D filer for mlo
-      subroutine mlofilterfast(new) ! MJT mlo
+      subroutine mlofilterfast(new,sssb) ! MJT mlo
 
       use cc_mpi
       use map_m
-      use mlo, only : mloimport,mloexport,sssb
+      use mlo, only : mloimport,mloexport
       use soil_m  ! land
       use xyzinfo_m
 
@@ -2522,7 +2528,7 @@
 
       integer :: pn,px,hproc,mproc,ns,ne,npta      
       integer :: ierr,k
-      real, dimension(ifull), intent(in) :: new
+      real, dimension(ifull), intent(in) :: new,sssb
       real, dimension(ifull) :: diff,old,olds
       real, dimension(ifull_g) :: diff_g,diffs_g
       real cq,cqs
@@ -2705,14 +2711,12 @@
         nne=ppass*til+til
         if (cq.gt.0.) then
           where (qsum(nns:nne).gt.1.E-8)
-            qp(nns:nne)=qp(nns:nne)/qsum(nns:nne)
-            zp(nns:nne)=qp(nns:nne)
+            zp(nns:nne)=qp(nns:nne)/qsum(nns:nne)
           end where
         end if
         if (cqs.gt.0.) then
           where (qsums(nns:nne).gt.1.E-8)
-            qps(nns:nne)=qps(nns:nne)/qsums(nns:nne)
-            zps(nns:nne)=qps(nns:nne)
+            zps(nns:nne)=qps(nns:nne)/qsums(nns:nne)
           end where
         end if
       end do
@@ -3046,9 +3050,9 @@
       end subroutine mlospeclocal
       
       ! Relaxtion method for mlo
-      subroutine mlonudge(new) ! MJT mlo
+      subroutine mlonudge(new,sssb) ! MJT mlo
 
-      use mlo, only : mloimport,mloexport,sssb
+      use mlo, only : mloimport,mloexport
       use soil_m  ! land
       
       implicit none
@@ -3057,7 +3061,7 @@
       include 'newmpar.h'    ! ifull
 
       integer k
-      real, dimension(ifull), intent(in) :: new
+      real, dimension(ifull), intent(in) :: new,sssb
       real, dimension(ifull) :: old
       real wgt
       

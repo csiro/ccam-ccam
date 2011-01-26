@@ -2,7 +2,7 @@
       use arrays_m    ! ts, t, u, v, psl, ps, zs
       use cc_mpi
       use latlong_m
-      use mlo, only : mloexport,sssb ! MJT mlo
+      use mlo, only : mloexport ! MJT mlo
       use nsibd_m     ! res  for saving SST bias during month
       use pbl_m       ! tss
       use permsurf_m  ! iperm etc
@@ -24,7 +24,7 @@
       real, allocatable, save, dimension(:) :: ssta, sstb, sstc
       real, allocatable, save, dimension(:) :: aice, bice, cice
       real, allocatable, save, dimension(:) :: asal, bsal, csal
-      real, dimension(ifull) :: duma
+      real, dimension(ifull) :: duma,sssb
       real fraciceb(ifull), x, c2, c3, c4
       integer, parameter, dimension(0:13) :: mdays =
      &     (/ 31, 31,28,31,30,31,30,31,31,30,31,30,31, 31 /)
@@ -174,10 +174,6 @@ c       c1=0.
         enddo
       endif  ! (namip==4)
       if(namip==5)then
-        if (.not.allocated(sssb)) then
-          allocate(sssb(ifull))
-        end if
-        sssb=0.
         do iq=1,ifull  
            c2=asal(iq)
            c3=c2+bsal(iq)
@@ -185,7 +181,7 @@ c       c1=0.
            sssb(iq)=.5*c3+(4.*c3-5.*c2-c4)*x
      &              +1.5*(c4+3.*c2-3.*c3)*x*x
         enddo
-	sssb=max(sssb,0.)
+        sssb=max(sssb,0.)
       endif
 !      if(mydiag)print *,'ktau,ssta,sstb,sstc,tgg1: ',
 !     &                 ktau,ssta(idjd),sstb(idjd),sstc(idjd),tgg(idjd,1)
@@ -226,20 +222,16 @@ c       c1=0.
       !--------------------------------------------------------------
       ! MJT mlo
       elseif (ktau.gt.0) then
+        duma=tgg(:,1)
+        where(fraciceb.gt.0.)
+          duma=271.2
+        end where
         select case(mlomode)
           case(0) ! relax
-            duma=tgg(:,1)
-            where(fraciceb.gt.0.)
-              duma=271.2
-            end where
-            call mlonudge(duma)
+            call mlonudge(duma,sssb)
           case(1)
             if (mod(mtimer,mlotime*60).eq.0) then
-              duma=tgg(:,1)
-              where(fraciceb.gt.0.)
-                duma=271.2
-              end where            
-              call mlofilterfast(duma) ! 1D version
+              call mlofilterfast(duma,sssb) ! 1D version
               !call mlofilter(duma) ! 2D version
             end if
           case DEFAULT

@@ -69,7 +69,7 @@
       real rlonx,rlatx,alf
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
       real, dimension(ifull) :: zss, aa, zsmask
-      real, dimension(ifull) :: dep ! MJT mlo
+      real, dimension(ifull) :: dep,sssb ! MJT mlo
       integer, parameter :: klmax=100
       real tbarr(klmax),qgin(klmax),zbub(klmax) ! for tin namelist
       character co2in*80,radonin*80,surfin*80,header*80
@@ -295,7 +295,7 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
      &           fracice,t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
      &           qg(1:ifull,:),tgg,wb,wbice,snowd,qfg(1:ifull,:),
      &           qlg(1:ifull,:),tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &           iaero)
+     &           iaero,sssb)
          endif   ! (abs(io_in)==1)
          !-----------------------------------------------------------
          if( mydiag )then
@@ -883,37 +883,26 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       swrsave=0.5 ! MJT cable
 
 !     read data for biospheric scheme if required
-      if(nsib>=1)then
-        call insoil   !  bundled in with sscam2
-        call rdnsib   !  for usual defn of isoil, iveg etc
         ! nsib options
         ! nsib=3 (original land surface scheme with original 1deg+Dean's datasets)
         ! nsib=4=CABLE (CABLE land surface scheme for Eva - Uniform C48 only)
         ! nsib=5 (original land surface scheme with MODIS datasets)
         ! nsib=6 (CABLE land surface scheme with internal screen diagnostics)
         ! nsib=7 (CABLE land surface scheme with CCAM screen diagnostics)
-        if (nsib.eq.CABLE) then
-          print *,"nsib=CABLE option is not supported in
-     &             this version of CCAM"
-          stop
-          vmodmin=umin
-          !call cbmrdn(nveg) ! MJT cable
-        end if
-        if (nsib.eq.6.or.nsib.eq.7) then  ! MJT cable
-          ! albvisnir at this point holds soil albedo for cable initialisation
-          vmodmin=umin
-          call loadcbmparm(vegfile,vegprev,vegnext)
-          ! albvisnir now is the net albedo
-        end if
+      if(nsib>=1)then
+        call insoil   !  bundled in with sscam2
+        call rdnsib   !  for usual defn of isoil, iveg etc\
       else
         do iq=1,ifull
          ivegt(iq)=1   ! default for h_s etc
          isoilm(iq)=1  ! default for h_s etc
         enddo
-      endif      ! (nsib>=1)
+      end if
 
-!     zap vegetation over SEQ for Andy
-      if(nspecial==41)then
+      if (nsib==3) then 
+      
+!      zap vegetation over SEQ for Andy
+       if(nspecial==41)then
         do iq=1,ifull
          rlongd=rlongg(iq)*180./pi
          rlatd=rlatt(iq)*180./pi
@@ -922,9 +911,8 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
            if(rlongd>152. .and. rlongd< 154.)ivegt(iq)=2 
          endif
         enddo
-      endif  ! (nspecial==41)
+       endif  ! (nspecial==41)
       
-      if (nsib==3) then 
        do iq=1,ifull
 !       check for littoral veg over Oz      
         rlongd=rlongg(iq)*180./pi
@@ -944,11 +932,10 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
          if(zs(iq)>2000.*grav.and.isoilm(iq)<3)isoilm(iq)=3
         endif
        enddo                 
-      !endif ! (nsib==3) ! MJT cable
 
-!     put in Antarctica ice-shelf fixes 5/3/07
-      do iq=1,ifull
-       if(zs(iq)<=0.)then
+!      put in Antarctica ice-shelf fixes 5/3/07
+       do iq=1,ifull
+        if(zs(iq)<=0.)then
          rlongd=rlongg(iq)*180./pi
          rlatd=rlatt(iq)*180./pi
          if((rlongd>165..and.rlongd<195.            
@@ -968,8 +955,9 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
            snowd(iq)=max(snowd(iq),100.)  ! max from Dec 07
            if(mydiag)print *,'setting sea to ice sheet for iq = ',iq
          endif
-       endif  ! (zs(iq)<=0.)
-      enddo
+        endif  ! (zs(iq)<=0.)
+       enddo
+       
       endif ! (nsib==3) ! MJT cable
 
       if (any(wb(:,:).gt.10.)) then
@@ -980,14 +968,19 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
           wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
         end do
         if (mydiag) print *,"giving wb",wb(idjd,:)
-c        if (any(wbice.lt.0.)) then
-c          ! the next lines are taken from onthefly
-c          do k=1,ms
-c!           following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
-c           wbice(:,k)=
-c    &           min(.99,max(0.,.99*(273.1-tgg(:,k))/5.))*wb(:,k) ! jlm
-c          enddo ! ms
-c        end if
+      end if
+
+      if (nsib==CABLE) then
+        print *,"nsib=CABLE option is not supported in
+     &           this version of CCAM"
+        stop
+      end if
+
+      if (nsib==6.or.nsib==7) then  ! MJT cable
+        ! albvisnir at this point holds soil albedo for cable initialisation
+        vmodmin=umin
+        call loadcbmparm(vegfile,vegprev,vegnext)
+        ! albvisnir now is the net albedo
       end if
 
 !     rml 16/02/06 initialise tr, timeseries output and read tracer fluxes
@@ -1008,8 +1001,6 @@ c        end if
 !                    -5  read_in (not wb) |     written  (should be good)
 !                    -6 same as -1 bit tapered wb over dry interio of Aust
 !                    >5 like -1 but sets most wb percentages
-      if(nsib.ne.CABLE.and.(nsib.lt.6.or.nsib.gt.7)) then
-      ! CABLE presets defined in cable_ccam2.f90
       if(nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5.or.nrungcm==-6
      &              .or.nrungcm>5)then
 !        presetting wb when no soil moisture available initially
@@ -1018,6 +1009,9 @@ c        end if
         do iq=1,ifull
          if(land(iq))then
            iveg=ivegt(iq)
+           if (nsib==CABLE.or.nsib==6.or.nsib==7) then
+             iveg=1
+           end if
            isoil=isoilm(iq)
            rlonx=rlongg(iq)*180./pi
            rlatx=rlatt(iq)*180./pi
@@ -1058,14 +1052,7 @@ c        end if
         do k=1,ms-1
          wb(:,k)=wb(:,ms)
         enddo    !  k loop
-c        do k=1,ms  
-c         do iq=1,ifull
-c!         safest to redefine wbice preset here (for nrungcm<0)
-c!         following linearly from 0 to .99 for tgg=tfrz down to tfrz-5
-c          wbice(iq,k)=
-c     .            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
-c         enddo
-c        enddo     !  k=1,ms
+
         if ( mydiag ) then
            iveg=ivegt(idjd)
            isoil=isoilm(idjd)
@@ -1077,7 +1064,6 @@ c        enddo     !  k=1,ms
      &              fracs,fracwet,wb(idjd,ms)
         end if
       endif       !  ((nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)
-      endif ! not CABLE
 
       if(nrungcm<=-3.and.nrungcm>=-5)then
 !       for sequence of runs starting with values saved from last run
@@ -1344,12 +1330,6 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
         endif   ! io_in==5
       endif    ! (nhstest<0)
 
-      !--------------------------------------------------------------
-      ! MJT moved above onthefly call
-!!     zmin here is approx height of the lowest level in the model
-!      zmin=-rdry*280.*log(sig(1))/grav
-!      if (myid==0) print *,'zmin = ',zmin
-      !--------------------------------------------------------------
       gwdfac=.01*lgwd   ! most runs used .02 up to fri  10-10-1997
       helim=800.       ! hal used 800.
       hefact=.1*abs(ngwd)   ! hal used hefact=1. (equiv to ngwd=10)
@@ -1995,7 +1975,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       ! nmlo<0 same as below, but save all data in history file
       ! nmlo=0 no mixed layer ocean
       ! nmlo=1 mixed layer ocean (KPP)
-      ! nmlo=2 same as 1, but with Smag horz diffusion
+      ! nmlo=2 same as 1, but with Smag horz diffusion and river routing
       if (nmlo.ne.0) then
         if (myid==0) print *,"Initialising MLO"
         call readreal(bathfile,dep,ifull)

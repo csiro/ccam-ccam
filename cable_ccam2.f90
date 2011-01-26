@@ -106,20 +106,6 @@ module cable_ccam
   ! abort calculation if no land points on this processor  
   if (mp.le.0) return
 
-  ! Reset averages
-  !if (ktau==1.or.ktau-1==ntau.or.mod(ktau-1,nperavg)==0) then
-  !  do k=1,ms
-  !    wb_ave(:,k)=wb_ave(:,k)+wb(:,k)
-  !    tgg_ave(:,k)=tgg_ave(:,k)+tgg(:,k)
-  !  end do
-  !  theta_ave=0.    
-  !  fpn_ave=0.
-  !  frday_ave=0.
-  !  frp_ave=0.
-  !  tsu_ave=0.
-  !  alb_ave=0.
-  !end if
-    
   ! Set soil moisture to presets when nrungcm.ne.0
   if (ktau==1.and.nrungcm.ne.0) then
     do k=1,ms ! use preset for wb
@@ -186,7 +172,7 @@ module cable_ccam
   x=min(max(real(mtimer+monthstart)/real(1440.*imonth(jmonth)),0.),1.)
   veg%vlai(:)=vl1+vl2*x+vl3*x*x ! LAI as a function of time
   veg%vlai(:)=max(veg%vlai(:),0.1)
-  where (veg%iveg.eq.15.or.veg%iveg.eq.16)
+  where (veg%iveg==15.or.veg%iveg==16)
     veg%vlai=0.001
   endwhere
   sigmf=0.
@@ -511,31 +497,6 @@ module cable_ccam
     end if
   end do
 
-  ! Averages for Yingping's off-line experiments
-  !do k=1,ms
-  !  wb_ave(:,k)=wb_ave(:,k)+wb(:,k)
-  !  tgg_ave(:,k)=tgg_ave(:,k)+tgg(:,k)
-  !end do
-  !theta_ave=theta_ave+theta
-  !fpn_ave  =fpn_ave  +fpn
-  !frday_ave=frday_ave+frd
-  !frp_ave  =frp_ave  +frp
-  !tsu_ave  =tsu_ave  +tss
-  !alb_ave  =alb_ave  +swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
-  !    
-  !if (ktau==ntau.or.mod(ktau,nperavg)==0) then
-  !  do k=1,ms
-  !    wb_ave(:,k)=wb_ave(:,k)/min(ntau,nperavg)
-  !    tgg_ave(:,k)=tgg_ave(:,k)/min(ntau,nperavg)
-  !  end do
-  !  theta_ave=theta_ave/min(ntau,nperavg)
-  !  fpn_ave  =fpn_ave  /min(ntau,nperavg)
-  !  frday_ave=frday_ave/min(ntau,nperavg)
-  !  frp_ave  =frp_ave  /min(ntau,nperavg)
-  !  tsu_ave  =tsu_ave  /min(ntau,nperavg)
-  !  alb_ave  =alb_ave  /min(ntau,nperavg)    
-  !end if
-      
   return
   end subroutine sib4
 
@@ -642,27 +603,13 @@ module cable_ccam
   ratecp(3)=0.14
   ratecs(1)=2.
   ratecs(2)=0.5
-  
-  if (nrungcm.ne.0) then
-    if (myid==0) write(6,*) "Use wb preset for CABLE"
-    wb=20.5 ! dummy for now
-  end if
-
-  if (any(wb(:,:).gt.10.)) then
-    if (myid==0) write(6,*) "Unpacking wetfrac to wb"
-    wb(:,:)=wb(:,:)-20.
-    do iq=1,ifull
-      isoil=isoilm(iq)
-      wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
-    end do
-  end if
-
 
   if (cbm_ms.ne.ms) then
     write(6,*) "ERROR: CABLE and CCAM soil levels do not match"
     stop
   end if
 
+  ! read CABLE biome and LAI data
   if (myid==0) then
     call vegta(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
   else
@@ -672,6 +619,7 @@ module cable_ccam
     svs(:,n)=svs(:,n)/sum(svs,2)
   end do
 
+  ! calculate length of CABLE vectors
   mp=0
   do iq=1,ifull
     if (land(iq)) then
@@ -699,6 +647,7 @@ module cable_ccam
   rsmin = 0.
   pind=ifull+1
   
+  ! if CABLE is present on this processor, then start allocating arrays
   if (mp.gt.0) then
   
     allocate(sv(mp))
@@ -722,7 +671,6 @@ module cable_ccam
     soil%zshh(ms+1) = 0.5 * soil%zse(ms)
     soil%zshh(2:ms) = 0.5 * (soil%zse(1:ms-1) + soil%zse(2:ms))
   
-    ! preferred option
     ! froot is now calculated from soil depth and the new parameter rootbeta 
     ! according to Jackson et al. 1996, Oceologica, 108:389-411
     totdepth = 0.0
@@ -738,7 +686,9 @@ module cable_ccam
     vl1=0.
     vl2=0.
     vl3=0.
-  
+
+    ! pack biome data into CABLE vector
+    ! prepare LAI arrays for temporal interpolation (PWCB)  
     ipos=0
     do n=1,5
       dumr=rlatt(:)*180./pi
@@ -783,6 +733,7 @@ module cable_ccam
       stop
     end if
 
+    ! calculate LAI and veg fraction diagnostics
     sigmf=0.
     do n=1,5
       if (pind(n,1).le.mp) then
@@ -794,7 +745,7 @@ module cable_ccam
     end do
     tsigmf=sigmf
   
-    ! aggregate zom
+    ! calculate zom diagnostics
     do n=1,5
       where (land.and.ivs(:,n).ne.0)
         zolnd=zolnd+svs(:,n)/log(zmin/(0.1*hc(ivs(:,n))))**2
@@ -804,8 +755,8 @@ module cable_ccam
       zolnd=max(zmin*exp(-sqrt(1./zolnd)),zobgin)
     end where
   
-    ! use dominant veg type
-    ivegt=ivs(:,1)
+    ! Load CABLE arrays
+    ivegt=ivs(:,1) ! diagnostic
     veg%hc        = hc(veg%iveg)
     veg%canst1    = canst1(veg%iveg)
     veg%ejmax     = ejmax(veg%iveg)
@@ -830,6 +781,7 @@ module cable_ccam
       veg%froot(:,k)=froot2(veg%iveg,k)
     end do
   
+    ! Initialise carbon pool diagnostics
     if (all(cplant.eq.0.)) then
       if (myid == 0) write(6,*) "Using default carbpools"
       do k=1,ncp
@@ -846,6 +798,7 @@ module cable_ccam
       if (myid == 0) write(6,*) "Loading carbpools from ifile"
     end if
   
+    ! Load CABLE soil data
     soil%bch     = bch(soil%isoilm)
     soil%css     = css(soil%isoilm)
     soil%rhosoil = rhos(soil%isoilm)
@@ -921,6 +874,7 @@ module cable_ccam
     bal%rnoff_tot=0.
   end if
 
+  ! Load CABLE tile data
   call loadtile ! load tgg,wb,wbice,snowd,snage,tggsn,smass,ssdn,isflag,rtsoil,cansto,cplant and csoil
 
   if (mp.gt.0) then
@@ -959,6 +913,8 @@ module cable_ccam
   end subroutine loadcbmparm
 
 ! *************************************************************************************
+  ! define C4 crops.  Since we do not have a high-resolution dataset, instead we
+  ! diagnose C4 crops from biome and location.
   subroutine getc4(ifull,ivegt,rlatt,c4frac)
   
   implicit none
@@ -994,6 +950,8 @@ module cable_ccam
   end subroutine getc4
 
 ! *************************************************************************************
+  ! Load CABLE biome and LAI data
+  ! vegta is for myid==0
   subroutine vegta(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
   
   use cc_mpi
@@ -1057,6 +1015,7 @@ module cable_ccam
   return
   end subroutine vegta
   
+  ! vegtb is for myid != 0
   subroutine vegtb(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
   
   use cc_mpi
@@ -1091,6 +1050,7 @@ module cable_ccam
   end subroutine vegtb
 
 ! *************************************************************************************  
+  ! This subroutine loads CABLE tile data
   subroutine loadtile
 
   use carbpools_m
@@ -1119,6 +1079,7 @@ module cable_ccam
     ierr=1
   end if
   
+  ! Cannot locate tile data, use diagnostic data instead
   if (ierr.ne.0) then
     if (myid==0) write(6,*) "Use gridbox averaged data to initialise CABLE"
     if (mp.gt.0) then
@@ -1145,6 +1106,7 @@ module cable_ccam
       enddo
     end if
   else
+    ! Located CABLE tile data
     if (myid==0) write(6,*) "Use tiled data to initialise CABLE"
     do n=1,5
       do k=1,ms
@@ -1211,6 +1173,7 @@ module cable_ccam
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,albvisnir(:,2),ifull)        
   end if
   
+  ! Some fixes for rounding errors
   if (mp.gt.0) then
     ssoil%wb=max(ssoil%wb,0.)
     ssoil%wbice=max(ssoil%wbice,0.)
@@ -1225,6 +1188,7 @@ module cable_ccam
   end subroutine loadtile
 
  ! *************************************************************************************
+  ! This subroutine saves CABLE tile data
   subroutine savetile(idnc,local,idim,iarch)
 
   use carbpools_m
