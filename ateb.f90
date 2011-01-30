@@ -78,6 +78,7 @@ integer, parameter :: acmeth=1            ! AC heat pump into canyon (0=Off, 1=O
 integer, parameter :: nrefl=3             ! Number of canyon reflections (default=3)
 integer, parameter :: vegmode=2           ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out/in=X/Y)
 integer, parameter :: scrnmeth=1          ! Screen diagnostic method (0=Slab, 1=Hybrid, 2=Canyon)
+integer, parameter :: wbrelax=0           ! Relax soil moisture for irrigation (0=Off, 1=On)
 integer, parameter :: iqt = 314           ! Diagnostic point (in terms of host grid)
 ! sectant solver parameters
 integer, parameter :: nfgits=4            ! Maximum number of iterations for calculating sensible heat flux (default=6)
@@ -1020,7 +1021,7 @@ do ii=1,3
   ww_temp(:,ii)=min(max(ww_temp(:,ii),200.),400.)
   rd_temp(:,ii)=min(max(rd_temp(:,ii),200.),400.)
 end do
-v_moist=max(v_moist,swilt)
+v_moist=min(max(v_moist,swilt),ssat)
 rf_water=min(max(rf_water,0.),maxrfwater)
 rd_water=min(max(rd_water,0.),maxrdwater)
 v_water=min(max(v_water,0.),maxvgwater)
@@ -1622,16 +1623,16 @@ if (any(f_sigmaveg.gt.0.)) then ! in-canyon vegetation
   n=max(a_rnd-max(d_evap/lv,0.)-max(maxvgwater-v_water,0.)/ddt,0.) ! rainfall reaching the soil under vegetation
   ! note that since sigmaf=1, then there is no soil evaporation, only transpiration.  Evaporation only occurs from water on leaves.
   a=n+rdsnmelt*rd_den/waterden-d_tran/lv ! flux
-  if (soillvl.le.3) then
-    v_moist=v_moist+a/(waterden*d_totdepth/(f_sigmaveg*ddt)-(d_dc1*a-d_c1*d_dtran/lv))
-  else
-    v_moist=v_moist+a/(waterden*d_totdepth/ddt-(d_dc1*a-d_c1*d_dtran/lv))
-  end if
+  v_moist=v_moist+a/(waterden*d_totdepth/ddt-(d_dc1*a-d_c1*d_dtran/lv))
   where (v_water.gt.0.)
     v_water=v_water+(a_rnd-d_evap/lv)/(1./ddt+2.*d_evap/(3.*lv*v_water))
   elsewhere
     v_water=v_water+ddt*(a_rnd-d_evap/lv)
   end where
+  if (wbrelax.eq.1) then
+    ! increase soil moisture for irrigation 
+    v_moist=v_moist+max(0.75*swilt+0.25*sfc-v_moist,0.)/(86400./ddt+1.) ! 24h e-fold time
+  end if
 else
   v_moist=swilt
   v_water=0.
@@ -1679,6 +1680,7 @@ u_rn=u_rn+max(rf_water-maxrfwater,0.)
 u_rn=u_rn+max(rd_water-maxrdwater,0.)
 u_rn=u_rn+max(rf_snow-maxrfsn,0.)
 u_rn=u_rn+max(rd_snow-maxrdsn,0.)
+u_rn=u_rn+max(v_moist-ssat,0.)*waterden*d_totdepth
 
 ! limit temperatures to sensible values
 do ii=1,3
@@ -1687,7 +1689,7 @@ do ii=1,3
   ww_temp(:,ii)=min(max(ww_temp(:,ii),200.),400.)
   rd_temp(:,ii)=min(max(rd_temp(:,ii),200.),400.)
 end do
-v_moist=max(v_moist,swilt)
+v_moist=min(max(v_moist,swilt),ssat)
 rf_water=min(max(rf_water,0.),maxrfwater)
 rd_water=min(max(rd_water,0.),maxrdwater)
 v_water=min(max(v_water,0.),maxvgwater)

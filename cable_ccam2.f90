@@ -262,7 +262,7 @@ module cable_ccam
   tprecip(iperm(1:ipland))=0.
   totenbal(iperm(1:ipland))=0.
   trnoff(iperm(1:ipland))=0.
-  rtsoil(iperm(1:ipland))=0.
+  rtsoil=0.
   rnet(iperm(1:ipland))=0.
   fg(iperm(1:ipland))=0.
   eg(iperm(1:ipland))=0.
@@ -270,7 +270,7 @@ module cable_ccam
   epot(iperm(1:ipland))=0.
   tss(iperm(1:ipland))=0.
   tgf(iperm(1:ipland))=0.
-  cansto(iperm(1:ipland))=0.
+  cansto=0.
   gflux(iperm(1:ipland))=0.
   sgflux(iperm(1:ipland))=0.
   fnee(iperm(1:ipland))=0.

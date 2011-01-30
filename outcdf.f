@@ -280,8 +280,8 @@ c=======================================================================
       use latlong_m
       use liqwpar_m   ! ifullw
       use map_m
-      use mlo, only : wlev,mlosave,mlodiag,mlodwn,micdwn ! MJT mlo
-      use mlodynamics, only : watbdy                     ! MJT mlo
+      use mlo, only : wlev,mlosave,mlodiag,micdwn ! MJT mlo
+      use mlodynamics, only : watbdy              ! MJT mlo
       use morepbl_m
       use nsibd_m     ! rsmin,ivegt,sigmf,tgg,tgf,ssdn,res,rmc,isoilm,ico2em
       use pbl_m
@@ -327,6 +327,7 @@ c     this routine creates attributes and writes output
       common/cdfind/ixp,iyp,idlev,idnt,idms
       real aa(ifull),bb(ifull),cc(ifull)                       ! MJT cable
       real tmpry(ifull,kl)
+      real, dimension(:,:,:), allocatable :: mlodwn
 
       integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter,
      &     idv, ier, iq, isoil, j, k, igas, idnc

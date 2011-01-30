@@ -361,7 +361,7 @@ CONTAINS
        ! add if condition here to avoid dividing by zero ie when rad%transd=1.0 Ypw:24-02-2003
        WHERE (canopy%vlaiw > 0.01 .and. rough%hruff > rough%z0soilsn)
           rad%lwabv = capp * rmair * (tlfy-met%tk)* SUM(rad%gradis,2) + &
-                 + canopy%fhvw*SUM(rad%gradis,2)/max(0.001,ghwet)
+                 canopy%fhvw*SUM(rad%gradis,2)/max(0.001,ghwet)
 !          canopy%tv = ( rad%lwabv/(2.0*(1.0-rad%transd)*sboltz*emleaf) + met%tvair**4)**0.25
           canopy%tv = max( rad%lwabv/(2.*(1.-rad%transd)*sboltz*emleaf)  + met%tk**4,0. )**0.25 ! MJT
        ELSEWHERE ! sparse canopy

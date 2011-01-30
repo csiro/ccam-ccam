@@ -2,7 +2,7 @@
 ! This is a 1D, mixed layer ocean model for ensemble regional climate simulations based on Large, et al (1994)
 ! (i.e., adapted from the GFDL code).  This code is also used for modelling lakes in CCAM.
 
-! This version has a relatively thin 1st layer (0.5m) so as to reproduce a diurnal cycle in SST.  It also
+! This version has a relatively thin 1st layer (0.5m) so as to better reproduce a diurnal cycle in SST.  It also
 ! supports sea ice based on O'Farrell's sea ice model from Mk3.5.
 
 ! This version can assimilate SSTs from GCMs, using a convolution based digital filter (see nestin.f),
@@ -31,7 +31,7 @@ implicit none
 
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
-       mloscrnout,mloexpice,wlev,depth,mlodwn,micdwn,ocndwn
+       mloscrnout,mloexpice,wlev,depth,micdwn
 
 ! parameters
 integer, parameter :: wlev = 20
@@ -42,9 +42,7 @@ logical, dimension(:), allocatable, save :: wpack
 real, dimension(:,:), allocatable, save :: depth,dz
 real, dimension(:,:), allocatable, save :: depth_hl
 real, dimension(:,:), allocatable, save :: dz_hl
-real, dimension(:,:,:), allocatable, save :: mlodwn        ! These variables are for CCAM onthefly.f
-real, dimension(:,:), allocatable, save :: micdwn          ! These variables are for CCAM onthefly.f
-real, dimension(:), allocatable, save :: ocndwn            ! These variables are for CCAM onthefly.f
+real, dimension(:,:), allocatable, save :: micdwn          ! This variable is for CCAM onthefly.f
 real, dimension(:,:), allocatable, save :: w_temp,w_sal,w_u,w_v
 real, dimension(:,:), allocatable, save :: i_tn
 real, dimension(:), allocatable, save :: i_dic,i_dsn,i_fracice,i_tsurf,i_sto
@@ -86,7 +84,7 @@ real, parameter :: rvap=461.5             ! Gas constant for water vapor
 real, parameter :: himin=0.1              ! minimum ice thickness for multiple layers (m)
 real, parameter :: icebreak=0.05          ! minimum ice thickness before breakup (1D model)
 real, parameter :: fracbreak=0.05         ! minimum ice fraction (1D model)
-real, parameter :: icemin=0.002           ! minimum ice thickness
+real, parameter :: icemin=0.002           ! minimum ice thickness (m)
 real, parameter :: rhosn=330.             ! density snow
 real, parameter :: rhowt=1025.            ! density water (replace with dg3%rho ?)
 real, parameter :: rhoic=900.             ! density ice
@@ -1328,7 +1326,7 @@ select case(zomode)
         dfm=vmag*2.*bprm*ri*(con*daf+af*cms*bprm*ri*a_zmin/(sqrt(-ri*a_zmin/p_zo)*p_zo*p_zo))/(den*den) ! MJT suggestion
         p_zo=p_zo-(p_zo-consea*af*fm)/(1.-consea*(daf*fm+af*dfm))
       end where
-      p_zo=min(max(p_zo,1.5e-10),0.1)
+      p_zo=min(max(p_zo,1.5e-6),0.1)
     enddo    ! it=1,4
   case(2) ! Beljaars
     p_zo=0.001    ! first guess

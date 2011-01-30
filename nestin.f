@@ -26,15 +26,17 @@
       real, dimension(:,:), allocatable, save :: tb,ub,vb,qb
       real, dimension(:), allocatable, save :: psla,pslb,tssa,tssb
       real, dimension(:), allocatable, save :: sicedepb,fraciceb
-      real, dimension(:), allocatable, save :: sssa,sssb
+      real, dimension(:,:,:), allocatable, save :: sssa,sssb
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
-      real, dimension(ifull) :: zsb,duma,dumb
+      real, dimension(ifull) :: zsb,duma,ocndep
+      real, dimension(ifull,wlev,4) :: dumaa
       integer, dimension(ifull) :: dumm
       real, dimension(ifull,ms) :: dumg
       real, dimension(ifull,kl) :: dumv
       real, dimension(ifull,3) :: dums
       character*12 dimnam
-      integer num,mtimea,mtimeb,iaero
+      integer num,mtimea,mtimeb,iaero,k,i,wl,ierr
+      logical, dimension(ifull) :: smask
       data num/0/,mtimea/0/,mtimeb/-1/
       save num,mtimea,mtimeb
       
@@ -43,7 +45,9 @@
         allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
         allocate(psla(ifull),pslb(ifull),tssa(ifull),tssb(ifull))
         allocate(sicedepb(ifull),fraciceb(ifull))
-        allocate(sssa(ifull),sssb(ifull))
+        if (nmlo.ne.0) then ! for mixed-layer-ocean nudging
+          allocate(sssa(ifull,wlev,4),sssb(ifull,wlev,4))
+        end if
       end if
       
 !     mtimer, mtimeb are in minutes
@@ -58,16 +62,23 @@
         do iq=1,ifull
          pslb(iq)=psl(iq)
          tssb(iq)=tss(iq)
-         sicedepb(iq)=sicedep(iq)  ! maybe not needed
+         sicedepb(iq)=sicedep(iq)
          fraciceb(iq)=fracice(iq)
         enddo
         tb(1:ifull,:)=t(1:ifull,:)
         qb(1:ifull,:)=qg(1:ifull,:)
         ub(1:ifull,:)=u(1:ifull,:)
         vb(1:ifull,:)=v(1:ifull,:)
-        sssb=34.72
-        if (abs(nmlo).gt.0) then
-          call mloexport(1,sssb,1,0)
+        if (nmlo.ne.0) then
+          sssb(:,:,1)=293.16
+          sssb(:,:,2)=34.72
+          sssb(:,:,3)=0.
+          sssb(:,:,4)=0.
+          do i=1,4
+            do k=1,wlev
+              call mloexport(i-1,sssb(:,k,i),k,0)
+            end do
+          end do
         end if
         mtimeb=-2
         return
@@ -83,7 +94,9 @@
       qa(1:ifull,:)=qb(1:ifull,:)
       ua(1:ifull,:)=ub(1:ifull,:)
       va(1:ifull,:)=vb(1:ifull,:)
-      sssa(:)=sssb(:)
+      if (nmlo.ne.0) then
+        sssa(:,:,:)=sssb(:,:,:)
+      end if
       
       if(namip.eq.0.and.nmlo.eq.0)then     ! namip SSTs/sea-ice take precedence ! MJT seaice
 !      following sice updating code moved from sflux Jan '06      
@@ -142,7 +155,7 @@
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,
-     &                 duma,duma,dumm,iaero,sssb) ! MJT cable
+     &                 duma,duma,dumm,iaero,sssb,ocndep) ! MJT cable
 !      endif   ! (io_in==1)
       !--------------------------------------------------------------
       tssb(:) = abs(tssb(:))  ! moved here Mar '03
@@ -253,6 +266,11 @@
           write(6,*) 'after pslb print; num= ',num
         endif
       !endif   !  newtop>=1 ! MJT bugfix
+      
+      if (nmlo.ne.0) then
+        ! interpolate ocean data to nested model grid
+        call mloregrid(ocndep,sssb)
+      end if
 
       if(num==0)then
         num=1
@@ -291,12 +309,26 @@
         enddo   ! iq loop 
        else
         ! nudge mlo
-        duma=cona*tssa+conb*tssb
-        dumb=cona*sssa+conb*sssb
-        where (fraciceb.gt.0.)
-          duma=271.2
-        end where
-        call mlonudge(duma,dumb)
+        dumaa=cona*sssa+conb*sssb
+        wl=1
+        if (any(ocndep.gt.0.5)) wl=wlev
+        smask=.not.land.and..not.fraciceb.gt.0..and..not.fracice.gt.0.
+        if (any(smask)) then
+          rduma=maxval(abs(dumaa(:,1,1)-tssb),smask)
+        else
+          rduma=0.
+        end if
+        call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
+     &                     MPI_COMM_WORLD,ierr)
+        if (rdumg.gt.0.1) wl=1
+        if (wl==1) then
+          dumaa(:,1,1)=cona*tssa+conb*tssb
+          where (fraciceb.gt.0.)
+            dumaa(:,1,1)=271.2
+          end where
+        end if
+        call mlonudge(dumaa(:,1:wl,1),dumaa(:,1:wl,2),
+     &                dumaa(:,1:wl,3:4),wl)
        end if
       endif
       
@@ -310,6 +342,7 @@
       use diag_m
       use indices_m
       use latlong_m
+      use mlo
       use pbl_m
       use sigs_m
       use soil_m     ! sicedep fracice
@@ -326,28 +359,32 @@
       include 'parmgeom.h' ! rlong0,rlat0,schmidt  
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
-      integer mtimeb,kdate_r,ktime_r,iaero
+      integer mtimeb,kdate_r,ktime_r,iaero,wl,ierr
       integer ::  iabsdate,iq,k,kdhour,kdmin
       real :: ds_r,rlong0x,rlat0x
-      real :: schmidtx,timeg_b
+      real :: schmidtx,timeg_b,rduma,rdumg
       real, dimension(:,:), allocatable, save :: tb,ub,vb,qb
       real, dimension(:), allocatable, save :: pslb,tssb,fraciceb
       real, dimension(:), allocatable, save :: sicedepb
-      real, dimension(:), allocatable, save :: sssb
-      real, dimension(ifull) :: zsb,duma
+      real, dimension(:,:,:), allocatable, save :: sssb
+      real, dimension(ifull) :: zsb,duma,ocndep
       integer, dimension(ifull) :: dumm
       real, dimension(ifull,ms) :: dumg
       real, dimension(ifull,kl) :: dumv
       real, dimension(ifull,3) :: dums
       real, dimension(ifull) :: pslc
-      real, dimension(ifull,kl) :: uc,vc,tc,qc      
+      real, dimension(ifull,kl) :: uc,vc,tc,qc
+      logical, dimension(ifull) :: smask
       data mtimeb/-1/
       save mtimeb
       
       if (.not.allocated(tb)) then
         allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
         allocate(pslb(ifull),tssb(ifull),fraciceb(ifull))
-        allocate(sicedepb(ifull),sssb(ifull))
+        allocate(sicedepb(ifull))
+        if (nmlo.ne.0) then
+          allocate(sssb(ifull,wlev,4))
+        end if
       end if
 
 !     mtimer, mtimeb are in minutes
@@ -377,7 +414,7 @@
          call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,
-     &                 duma,duma,dumm,iaero,sssb)
+     &                 duma,duma,dumm,iaero,sssb,ocndep)
        endif   ! (abs(io_in)==1)
        !-------------------------------------------------------------
        tssb(:) = abs(tssb(:))  ! moved here Mar '03
@@ -488,6 +525,10 @@
      &       pslb(iw(idjd)),pslb(ie(idjd)),pslb(is(idjd)),pslb(in(idjd))
          endif
        !endif   !  newtop>=1 ! MJT bugfix
+       
+       if (nmlo.ne.0) then
+         call mloregrid(ocndep,sssb)
+       end if
 
       end if ! ((mtimer>mtimeb).or.firstcall)
 
@@ -547,16 +588,29 @@
           end where  ! (.not.land(iq))
          else
           ! nudge mlo
-          duma=tssb
-          where (fraciceb.gt.0.)
-            duma=271.2
-          end where            
-          if (nud_uv.ne.9) then
-            ! replace nud_sst with mbd once horz transport is implemented
-            call mlofilterfast(duma,sssb)
+          wl=1                            ! single-level nudging
+          if (any(ocndep.gt.0.5)) wl=wlev ! multi-level nudging
+          smask=.not.land.and..not.fraciceb.gt.0..and..not.fracice.gt.0.
+          if (any(smask)) then
+            rduma=maxval(abs(sssb(:,1,1)-tssb),smask)
           else
-            ! replace nud_sst with mbd once horz transport is implemented
-            call mlofilter(duma,sssb)
+            rduma=0.
+          end if
+          call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
+     &                       MPI_COMM_WORLD,ierr)
+          if (rdumg.gt.0.1) wl=1
+          if (wl==1) then
+            sssb(:,1,1)=tssb
+            where (fraciceb.gt.0.)
+              sssb(:,1,1)=271.2
+            end where
+          end if
+          if (nud_uv.ne.9) then
+            call mlofilterfast(sssb(:,1:wl,1),sssb(:,1:wl,2),
+     &                         sssb(:,1:wl,3:4),wl)
+          else
+            call mlofilter(sssb(:,1:wl,1),sssb(:,1:wl,2),
+     &                     sssb(:,1:wl,3:4),wl)
           end if
          end if ! (nmlo.eq.0)
         end if ! (namip.eq.0.and.ntest.eq.0)
@@ -2350,7 +2404,7 @@
       !---------------------------------------------------------------------------------
 
       ! 2D Filter for MLO 
-      subroutine mlofilter(new,sssb) ! MJT mlo
+      subroutine mlofilter(new,sssb,suvb,wl) ! MJT mlo
 
       use cc_mpi
       use map_m
@@ -2366,16 +2420,22 @@
       include 'mpif.h'       ! MPI
       include 'parm.h'
 
+      integer, intent(in) :: wl
       integer :: iqw,itag=0,status,ierr
-      integer :: iproc,ns,ne,k
-      real, dimension(ifull), intent(in) :: new,sssb
-      real, dimension(ifull) :: diff,old,olds
-      real, dimension(ifull_g) :: diff_g,diffs_g
-      real :: cq,cqs
+      integer :: iproc,ns,ne,k,ka,kb,kc,kd
+      real, dimension(ifull,wl), intent(in) :: new,sssb
+      real, dimension(ifull,wl,2), intent(in) :: suvb
+      real, dimension(ifull) :: diff,old
+      real, dimension(ifull_g,wl) :: diff_g,diffs_g
+      real, dimension(ifull_g,wl) :: diffu_g,diffv_g
+      real :: cq,cqs,cqu,nsum
       real, parameter :: miss = 999999.
-      real, dimension(ifull_g) :: r,rr,dd,dds,mm,mms,ff,ffs
+      real, dimension(ifull_g) :: r,rr,mm
+      real, dimension(ifull_g,wl) :: ff,ffs,dd,dds
+      real, dimension(ifull_g,wl) :: ffu,ffv,ddu,ddv
+      logical, dimension(ifull_g) :: landg
 
-      if (nud_sst.eq.0.and.nud_sss.eq.0) return
+      if (nud_sst==0.and.nud_sss==0.and.nud_ouv==0) return
       
       if (myid==0) then
         write(6,*) "Gather data for MLO filter"
@@ -2383,75 +2443,161 @@
       
       cq=sqrt(4.5)*.1*real(nud_sst)/(pi*schmidt)
       cqs=sqrt(4.5)*.1*real(nud_sss)/(pi*schmidt)
+      cqu=sqrt(4.5)*.1*real(nud_ouv)/(pi*schmidt)
       
       diff_g=miss
       diffs_g=miss
+      diffu_g=miss
+      diffv_g=miss
+
+      kc=min(kbotmlo,ktopmlo+wl-1)
+      kd=kc-ktopmlo+1
       
       if (nud_sst.ne.0) then
-        old=new
-        call mloexport(0,old,ktopmlo,0)
-        diff=miss
-        where (.not.land)
-          diff(:)=new-old
-        end where
-        if (myid.eq.0) then
-          call ccmpi_gather(diff, diff_g)
-        else
-          call ccmpi_gather(diff)
-        end if
-        call MPI_Bcast(diff_g,ifull_g,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          old=new(:,ka)
+          call mloexport(0,old,k,0)
+          diff=miss
+          where (.not.land)
+            diff(:)=new(:,ka)-old
+          end where
+          if (myid.eq.0) then
+            call ccmpi_gather(diff, diff_g(:,kb))
+          else
+            call ccmpi_gather(diff)
+          end if
+        end do
+        call MPI_Bcast(diff_g(:,1:kd),ifull_g*kd,MPI_REAL,0,
+     &                 MPI_COMM_WORLD,ierr)
+        landg=abs(diff_g(:,1)-miss).lt.0.1
       end if
 
       if (nud_sss.ne.0) then
-        olds=sssb      
-        call mloexport(1,olds,ktopmlo,0)
-        diff=miss
-        where (.not.land)
-          diff(:)=sssb-olds
-        end where
-        if (myid.eq.0) then
-          call ccmpi_gather(diff, diffs_g)
-        else
-          call ccmpi_gather(diff)
-        end if
-        call MPI_Bcast(diffs_g,ifull_g,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          old=sssb(:,ka)
+          call mloexport(1,old,k,0)
+          diff=miss
+          where (.not.land)
+            diff(:)=sssb(:,ka)-old
+          end where
+          if (myid.eq.0) then
+            call ccmpi_gather(diff, diffs_g(:,kb))
+          else
+            call ccmpi_gather(diff)
+          end if
+        end do
+        call MPI_Bcast(diffs_g(:,1:kd),ifull_g*kd,MPI_REAL,0,
+     &                 MPI_COMM_WORLD,ierr)
+        landg=abs(diffs_g(:,1)-miss).lt.0.1
+      end if
+
+      if (nud_ouv.ne.0) then
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          old=suvb(:,ka,1)
+          call mloexport(2,old,k,0)
+          diff=miss
+          where (.not.land)
+            diff(:)=suvb(:,ka,1)-old
+          end where
+          if (myid.eq.0) then
+            call ccmpi_gather(diff, diffu_g(:,kb))
+          else
+            call ccmpi_gather(diff)
+          end if
+        end do
+        call MPI_Bcast(diffu_g(:,1:kd),ifull_g*kd,MPI_REAL,0,
+     &                 MPI_COMM_WORLD,ierr)
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          old=suvb(:,ka,2)
+          call mloexport(3,old,k,0)
+          diff=miss
+          where (.not.land)
+            diff(:)=suvb(:,ka,2)-old
+          end where
+          if (myid.eq.0) then
+            call ccmpi_gather(diff, diffv_g(:,kb))
+          else
+            call ccmpi_gather(diff)
+          end if
+        end do
+        call MPI_Bcast(diffv_g(:,1:kd),ifull_g*kd,MPI_REAL,0,
+     &                 MPI_COMM_WORLD,ierr)
+        landg=abs(diffv_g(:,1)-miss).lt.0.1
       end if
 
       if (myid==0) then
         write(6,*) "MLO 2D scale-selective filter"
+        if (wl.eq.1) then
+          write(6,*) "Single level filter"
+        else
+          write(6,*) "Multiple level filter"
+        end if
       end if
 
-      where(diff_g.lt.miss)
-        ff=diff_g/(em_g*em_g)
+      where(.not.landg)
         mm=1./(em_g*em_g)
       elsewhere
-        ff=0.
         mm=0.
       end where
-      where(diffs_g.lt.miss)
-        ffs=diffs_g/(em_g*em_g)
-        mms=1./(em_g*em_g)
-      elsewhere
-        ffs=0.
-        mms=0.
-      end where      
+      if (nud_sst.ne.0) then
+        do k=1,kd
+          ff(:,k)=diff_g(:,k)*mm
+        end do
+      end if
+      if (nud_sss.ne.0) then
+        do k=1,kd
+          ffs(:,k)=diffs_g(:,k)*mm
+        end do
+      end if
+      if (nud_ouv.ne.0) then
+        do k=1,kd
+          ffu(:,k)=diffu_g(:,k)*mm
+          ffv(:,k)=diffv_g(:,k)*mm
+        end do
+      end if
       dd=miss
       dds=miss
+      ddu=miss
+      ddv=miss
       call procdiv(ns,ne,ifull_g,nproc,myid)
       do iqw=ns,ne
         r(:)=x_g(iqw)*x_g(:)+y_g(iqw)*y_g(:)+z_g(iqw)*z_g(:)
         r(:)=acos(max(min(r(:),1.),-1.))
         if (nud_sst.ne.0) then
           rr(:)=exp(-(cq*r(:))**2)
-          dd(iqw)=sum(rr(:)*ff(:))/max(sum(rr(:)*mm(:)),1.E-8)
+          nsum=max(sum(rr(:)*mm(:)),1.E-8)
+          do k=1,kd
+            dd(iqw,k)=sum(rr(:)*ff(:,k))/nsum
+          end do
         end if
         if (nud_sss.ne.0) then
-          rr(:)=exp(-(cqs*r(:))**2)/(em_g(:)*em_g(:))*mms 
-          dds(iqw)=sum(rr(:)*ffs(:))/max(sum(rr(:)*mms(:)),1.E-8)
+          rr(:)=exp(-(cqs*r(:))**2)
+          nsum=max(sum(rr(:)*mm(:)),1.E-8)
+          do k=1,kd
+            dds(iqw,k)=sum(rr(:)*ffs(:,k))/nsum
+          end do
+        end if
+        if (nud_ouv.ne.0) then
+          rr(:)=exp(-(cqu*r(:))**2)
+          nsum=max(sum(rr(:)*mm(:)),1.E-8)
+          do k=1,kd
+            ddu(iqw,k)=sum(rr(:)*ffu(:,k))/nsum
+            ddv(iqw,k)=sum(rr(:)*ffv(:,k))/nsum
+          end do
         end if
       end do
-      diff_g=dd
-      diffs_g=dds
+      diff_g(:,1:kd)=dd(:,1:kd)
+      diffs_g(:,1:kd)=dds(:,1:kd)
+      diffu_g(:,1:kd)=ddu(:,1:kd)
+      diffv_g(:,1:kd)=ddv(:,1:kd)
 
       if (myid==0) then
         write(6,*) "Distribute data from MLO filter"
@@ -2462,17 +2608,28 @@
         if (myid == 0) then
           do iproc=1,nproc-1
             call procdiv(ns,ne,ifull_g,nproc,iproc)
-            call MPI_Recv(diff_g(ns:ne),ne-ns+1,MPI_REAL,iproc,itag,
-     &                  MPI_COMM_WORLD,status,ierr)
+            call MPI_Recv(diff_g(ns:ne,1:kd),(ne-ns+1)*kd,MPI_REAL,
+     &                    iproc,itag,MPI_COMM_WORLD,status,ierr)
           end do
-          call ccmpi_distribute(diff, diff_g)
         else
-          call MPI_SSend(diff_g(ns:ne),ne-ns+1,MPI_REAL,0,itag,
-     &                 MPI_COMM_WORLD,ierr)
-          call ccmpi_distribute(diff)
+          call MPI_SSend(diff_g(ns:ne,1:kd),(ne-ns+1)*kd,MPI_REAL,
+     &                   0,itag,MPI_COMM_WORLD,ierr)
         end if
-        do k=ktopmlo,kbotmlo
-          old=new
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          if (myid == 0) then
+            call ccmpi_distribute(diff, diff_g(:,kb))
+          else
+            call ccmpi_distribute(diff)          
+          end if
+          old=new(:,ka)
+          call mloexport(0,old,k,0)
+          old=old+diff(:)*10./real(mloalpha)
+          call mloimport(0,old,k,0)
+        end do
+        do k=kc+1,kbotmlo
+          old=new(:,ka)
           call mloexport(0,old,k,0)
           old=old+diff(:)*10./real(mloalpha)
           call mloimport(0,old,k,0)
@@ -2484,21 +2641,86 @@
         if (myid == 0) then
           do iproc=1,nproc-1
             call procdiv(ns,ne,ifull_g,nproc,iproc)
-            call MPI_Recv(diffs_g(ns:ne),ne-ns+1,MPI_REAL,iproc,itag,
-     &                  MPI_COMM_WORLD,status,ierr)
+            call MPI_Recv(diffs_g(ns:ne,1:kd),(ne-ns+1)*kd,MPI_REAL,
+     &                    iproc,itag,MPI_COMM_WORLD,status,ierr)
           end do
-          call ccmpi_distribute(diff, diffs_g)
         else
-          call MPI_SSend(diffs_g(ns:ne),ne-ns+1,MPI_REAL,0,itag,
-     &                 MPI_COMM_WORLD,ierr)
-          call ccmpi_distribute(diff)
+          call MPI_SSend(diffs_g(ns:ne,1:kd),(ne-ns+1)*kd,MPI_REAL,
+     &                   0,itag,MPI_COMM_WORLD,ierr)
         end if
-        do k=ktopmlo,kbotmlo
-          olds=sssb
-          call mloexport(1,olds,k,0)
-          olds=olds+diff(:)*10./real(mloalpha)
-          olds=max(olds,0.)
-          call mloimport(1,olds,k,0)
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          if (myid == 0) then
+            call ccmpi_distribute(diff, diffs_g(:,kb))
+          else
+            call ccmpi_distribute(diff)          
+          end if
+          old=sssb(:,ka)
+          call mloexport(1,old,k,0)
+          old=old+diff(:)*10./real(mloalpha)
+          old=max(old,0.)
+          call mloimport(1,old,k,0)
+        end do
+        do k=kc+1,kbotmlo
+          old=sssb(:,ka)
+          call mloexport(1,old,k,0)
+          old=old+diff(:)*10./real(mloalpha)
+          call mloimport(1,old,k,0)
+        end do
+      end if
+
+      if (nud_ouv.ne.0) then
+        itag=itag+1
+        if (myid == 0) then
+          do iproc=1,nproc-1
+            call procdiv(ns,ne,ifull_g,nproc,iproc)
+            call MPI_Recv(diffu_g(ns:ne,1:kd),(ne-ns+1)*kd,MPI_REAL,
+     &                    iproc,itag,MPI_COMM_WORLD,status,ierr)
+          end do
+        else
+          call MPI_SSend(diffu_g(ns:ne,1:kd),(ne-ns+1)*kd,MPI_REAL,
+     &                   0,itag,MPI_COMM_WORLD,ierr)
+        end if
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          if (myid == 0) then
+            call ccmpi_distribute(diff, diffu_g(:,kb))
+          else
+            call ccmpi_distribute(diff)          
+          end if
+          old=suvb(:,ka,1)
+          call mloexport(2,old,k,0)
+          old=old+diff(:)*10./real(mloalpha)
+          old=max(old,0.)
+          call mloimport(2,old,k,0)
+        end do
+        do k=kc+1,kbotmlo
+          old=suvb(:,ka,1)
+          call mloexport(2,old,k,0)
+          old=old+diff(:)*10./real(mloalpha)
+          call mloimport(2,old,k,0)
+        end do
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          if (myid == 0) then
+            call ccmpi_distribute(diff, diffv_g(:,kb))
+          else
+            call ccmpi_distribute(diff)          
+          end if
+          old=suvb(:,ka,2)
+          call mloexport(3,old,k,0)
+          old=old+diff(:)*10./real(mloalpha)
+          old=max(old,0.)
+          call mloimport(3,old,k,0)
+        end do
+        do k=kc+1,kbotmlo
+          old=suvb(:,ka,2)
+          call mloexport(3,old,k,0)
+          old=old+diff(:)*10./real(mloalpha)
+          call mloimport(3,old,k,0)
         end do
       end if
 
@@ -2510,7 +2732,7 @@
       end subroutine mlofilter
 
       ! 1D filer for mlo
-      subroutine mlofilterfast(new,sssb) ! MJT mlo
+      subroutine mlofilterfast(new,sssb,suvb,wl) ! MJT mlo
 
       use cc_mpi
       use map_m
@@ -2526,15 +2748,18 @@
       include 'mpif.h'       ! MPI
       include 'parm.h'
 
+      integer, intent(in) :: wl
       integer :: pn,px,hproc,mproc,ns,ne,npta      
-      integer :: ierr,k
-      real, dimension(ifull), intent(in) :: new,sssb
-      real, dimension(ifull) :: diff,old,olds
-      real, dimension(ifull_g) :: diff_g,diffs_g
-      real cq,cqs
+      integer :: ierr,k,ka,kb,kc,kd
+      real, dimension(ifull,wl), intent(in) :: new,sssb
+      real, dimension(ifull,wl,2), intent(in) :: suvb
+      real, dimension(ifull) :: diff,old
+      real, dimension(ifull_g,wl) :: diff_g,diffs_g
+      real, dimension(ifull_g,wl) :: diffu_g,diffv_g
+      real cq,cqs,cqu
       real, parameter :: miss = 999999.
       
-      if (nud_sst.eq.0.and.nud_sss.eq.0) return
+      if (nud_sst==0.and.nud_sss==0.and.nud_ouv==0) return
 
       if (myid==0) then
         write(6,*) "Gather data for MLO filter"
@@ -2542,12 +2767,19 @@
 
       cq=sqrt(4.5)*.1*real(nud_sst)/(pi*schmidt)
       cqs=sqrt(4.5)*.1*real(nud_sss)/(pi*schmidt)
+      cqu=sqrt(4.5)*.1*real(nud_ouv)/(pi*schmidt)
       if (nud_sst.eq.0) cq=-1.
       if (nud_sss.eq.0) cqs=-1.
+      if (nud_ouv.eq.0) cqu=-1.
       
       if((mod(6,nproc)==0).or.(mod(nproc,6)==0))then
         if (myid==0) then
           write(6,*) "MLO 1D scale-selective filter (MPI optimised)"
+          if (wl.eq.1) then
+            write(6,*) "Single level filter"
+          else
+            write(6,*) "Multiple level filter"
+          end if
         end if
         npta=max(6/nproc,1)                       ! number of panels per processor
         mproc=max(nproc/6,1)                      ! number of processors per panel
@@ -2569,50 +2801,105 @@
 
       diff_g=miss
       diffs_g=miss
+      diffu_g=miss
+      diffv_g=miss
+
+      kc=min(kbotmlo,ktopmlo+wl-1)
+      kd=kc-ktopmlo+1
       
       if (nud_sst.ne.0) then
-        old=new
-        call mloexport(0,old,ktopmlo,0)
-        diff=miss
-        where (.not.land)
-          diff(:)=new-old
-        end where
-        if (myid.eq.0) then
-          call ccmpi_gather(diff, diff_g)
-        else
-          call ccmpi_gather(diff)
-        end if
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          old=new(:,ka)
+          call mloexport(0,old,k,0)
+          diff=miss
+          where (.not.land)
+            diff(:)=new(:,ka)-old
+          end where
+          if (myid.eq.0) then
+            call ccmpi_gather(diff, diff_g(:,kb))
+          else
+            call ccmpi_gather(diff)
+          end if
+        end do
       end if
 
       if (nud_sss.ne.0) then
-        olds=sssb
-        call mloexport(1,olds,ktopmlo,0)
-        diff=miss
-        where (.not.land)
-          diff(:)=sssb-olds
-        end where
-        if (myid.eq.0) then
-          call ccmpi_gather(diff, diffs_g)
-        else
-          call ccmpi_gather(diff)
-        end if
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          old=sssb(:,ka)
+          call mloexport(1,old,k,0)
+          diff=miss
+          where (.not.land)
+            diff(:)=sssb(:,ka)-old
+          end where
+          if (myid.eq.0) then
+            call ccmpi_gather(diff, diffs_g(:,kb))
+          else
+            call ccmpi_gather(diff)
+          end if
+        end do
+      end if
+
+      if (nud_ouv.ne.0) then
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          old=suvb(:,ka,1)
+          call mloexport(2,old,k,0)
+          diff=miss
+          where (.not.land)
+            diff(:)=suvb(:,ka,1)-old
+          end where
+          if (myid.eq.0) then
+            call ccmpi_gather(diff, diffu_g(:,kb))
+          else
+            call ccmpi_gather(diff)
+          end if
+        end do
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          old=suvb(:,ka,2)
+          call mloexport(3,old,k,0)
+          diff=miss
+          where (.not.land)
+            diff(:)=suvb(:,ka,2)-old
+          end where
+          if (myid.eq.0) then
+            call ccmpi_gather(diff, diffv_g(:,kb))
+          else
+            call ccmpi_gather(diff)
+          end if
+        end do
       end if
       
-      call mlospechost(myid,mproc,hproc,npta,pn,px,ns,ne,cq,cqs,
-     &                 diff_g,diffs_g,miss)
+      call mlospechost(myid,mproc,hproc,npta,pn,px,ns,ne,cq,cqs,cqu,
+     &                 diff_g(:,1:kd),diffs_g(:,1:kd),diffu_g(:,1:kd),
+     &                 diffv_g(:,1:kd),miss,kd)
 
       if (myid==0) then
         write(6,*) "Distribute data from MLO filter"
       end if
       
       if (nud_sst.ne.0) then
-        if (myid == 0) then
-          call ccmpi_distribute(diff, diff_g)
-        else
-          call ccmpi_distribute(diff)
-        end if
-        do k=ktopmlo,kbotmlo
-          old=new
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          if (myid == 0) then
+            call ccmpi_distribute(diff, diff_g(:,kb))
+          else
+            call ccmpi_distribute(diff)          
+          end if
+          old=new(:,ka)
+          call mloexport(0,old,k,0)
+          old=old+diff(:)*10./real(mloalpha)
+          call mloimport(0,old,k,0)
+        end do
+        do k=kc+1,kbotmlo
+          old=new(:,ka)
           call mloexport(0,old,k,0)
           old=old+diff(:)*10./real(mloalpha)
           call mloimport(0,old,k,0)
@@ -2620,17 +2907,68 @@
       end if
 
       if (nud_sss.ne.0) then
-        if (myid == 0) then
-          call ccmpi_distribute(diff, diffs_g)
-        else
-          call ccmpi_distribute(diff)
-        end if
-        do k=ktopmlo,kbotmlo
-          olds=sssb
-          call mloexport(1,olds,k,0)
-          olds=olds+diff(:)*10./real(mloalpha)
-	  olds=max(olds,0.)
-          call mloimport(1,olds,k,0)
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          if (myid == 0) then
+            call ccmpi_distribute(diff, diffs_g(:,kb))
+          else
+            call ccmpi_distribute(diff)          
+          end if
+          old=sssb(:,ka)
+          call mloexport(1,old,k,0)
+          old=old+diff(:)*10./real(mloalpha)
+          old=max(old,0.)
+          call mloimport(1,old,k,0)
+        end do
+        do k=kc+1,kbotmlo
+          old=sssb(:,ka)
+          call mloexport(1,old,k,0)
+          old=old+diff(:)*10./real(mloalpha)
+          call mloimport(1,old,k,0)
+        end do
+      end if
+
+      if (nud_ouv.ne.0) then
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          if (myid == 0) then
+            call ccmpi_distribute(diff, diffu_g(:,kb))
+          else
+            call ccmpi_distribute(diff)          
+          end if
+          old=suvb(:,ka,1)
+          call mloexport(2,old,k,0)
+          old=old+diff(:)*10./real(mloalpha)
+          old=max(old,0.)
+          call mloimport(2,old,k,0)
+        end do
+        do k=kc+1,kbotmlo
+          old=suvb(:,ka,1)
+          call mloexport(2,old,k,0)
+          old=old+diff(:)*10./real(mloalpha)
+          call mloimport(2,old,k,0)
+        end do
+        do k=ktopmlo,kc
+          ka=min(wl,k)
+          kb=k-ktopmlo+1
+          if (myid == 0) then
+            call ccmpi_distribute(diff, diffv_g(:,kb))
+          else
+            call ccmpi_distribute(diff)          
+          end if
+          old=suvb(:,ka,2)
+          call mloexport(3,old,k,0)
+          old=old+diff(:)*10./real(mloalpha)
+          old=max(old,0.)
+          call mloimport(3,old,k,0)
+        end do
+        do k=kc+1,kbotmlo
+          old=suvb(:,ka,2)
+          call mloexport(3,old,k,0)
+          old=old+diff(:)*10./real(mloalpha)
+          call mloimport(3,old,k,0)
         end do
       end if
 
@@ -2642,7 +2980,8 @@
       end subroutine mlofilterfast
 
       subroutine mlospechost(myid,mproc,hproc,npta,pn,px,ns,ne,cq,cqs,
-     &                       diff_g,diffs_g,miss)
+     &                       cqu,diff_g,diffs_g,diffu_g,diffv_g,miss,
+     &                       kd)
 
       use map_m
       
@@ -2653,26 +2992,38 @@
       include 'mpif.h'       ! MPI
       include 'parm.h'
       
-      integer, intent(in) :: myid,mproc,hproc,npta,pn,px,ns,ne
+      integer, intent(in) :: myid,mproc,hproc,npta,pn,px,ns,ne,kd
       integer :: ppass,iy,ppn,ppx,nne,nns,iproc,itag=0,ierr
-      integer :: n,a,c
+      integer :: n,a,c,k
       integer, dimension(MPI_STATUS_SIZE) :: status
       integer :: til
-      real, intent(in) :: cq,cqs,miss
-      real, dimension(ifull_g), intent(inout) :: diff_g,diffs_g
-      real, dimension(ifull_g) :: zp,zps
-      real, dimension(ifull_g) :: dd
-      real, dimension(ifull_g) :: qp,qps,qsum,qsums
+      real, intent(in) :: cq,cqs,cqu,miss
+      real, dimension(ifull_g,kd), intent(inout) :: diff_g,diffs_g
+      real, dimension(ifull_g,kd), intent(inout) :: diffu_g,diffv_g
+      real, dimension(ifull_g) :: qsum,qsums,qsumu
+      real, dimension(ifull_g,kd) :: zp,zps,zpu,zpv
+      real, dimension(ifull_g,kd) :: qp,qps,qpu,qpv
+      real, dimension(ifull_g,kd) :: dd
+      logical, dimension(ifull_g) :: landg
       
       til=il_g*il_g 
 
       if (cq.gt.0.) then
-        call MPI_Bcast(diff_g,ifull_g,MPI_REAL,0,
+        call MPI_Bcast(diff_g,ifull_g*kd,MPI_REAL,0,
      &           MPI_COMM_WORLD,ierr)
+        landg=abs(diff_g(:,1)-miss).lt.0.1
       end if
       if (cqs.gt.0.) then
-        call MPI_Bcast(diffs_g,ifull_g,MPI_REAL,0,
+        call MPI_Bcast(diffs_g,ifull_g*kd,MPI_REAL,0,
      &           MPI_COMM_WORLD,ierr)
+        landg=abs(diffs_g(:,1)-miss).lt.0.1
+      end if
+      if (cqu.gt.0.) then
+        call MPI_Bcast(diffu_g,ifull_g*kd,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(diffv_g,ifull_g*kd,MPI_REAL,0,
+     &           MPI_COMM_WORLD,ierr)
+        landg=abs(diffv_g(:,1)-miss).lt.0.1
       end if
       
       if (ns.gt.ne) return
@@ -2680,44 +3031,65 @@
 
       zp=0.
       zps=0.
+      zpu=0.
+      zpv=0.
 
       do ppass=pn,px
 
+        where(.not.landg) ! land/sea mask
+          qsum(:)=1./(em_g(:)*em_g(:))
+        elsewhere
+          qsum=0.
+        end where
+        qsums=qsum
+        qsumu=qsum
+
         if (cq.gt.0.) then
-          where(abs(diff_g-miss).gt.0.1) ! land/sea mask
-            qsum(:)=1./(em_g(:)*em_g(:))
-            qp(:)=diff_g(:)/(em_g(:)*em_g(:))
-          elsewhere
-            qsum=0.
-            qp=0.
-          end where
+          do k=1,kd
+            qp(:,k)=diff_g(:,k)*qsum
+          end do
         end if
         
         if (cqs.gt.0.) then
-          where(abs(diffs_g-miss).gt.0.1) ! land/sea mask
-            qsums(:)=1./(em_g(:)*em_g(:))
-            qps(:)=diffs_g(:)/(em_g(:)*em_g(:))
-          elsewhere
-            qsums=0.
-            qps=0.
-          end where
+          do k=1,kd
+            qps(:,k)=diffs_g(:,k)*qsums
+          end do
         end if 
 
+        if (cqu.gt.0.) then
+          do k=1,kd
+            qpu(:,k)=diffu_g(:,k)*qsumu
+            qpv(:,k)=diffv_g(:,k)*qsumu
+          end do
+        end if
+
         ! computations for the local processor group
-        call mlospeclocal(myid,mproc,hproc,ns,ne,cq,cqs,ppass,qsum,qp,
-     &                    qsums,qps)
+        call mlospeclocal(myid,mproc,hproc,ns,ne,cq,cqs,cqu,ppass,qsum,
+     &                    qsums,qsumu,qp,qps,qpu,qpv,kd)
         
         nns=ppass*til+1
         nne=ppass*til+til
         if (cq.gt.0.) then
-          where (qsum(nns:nne).gt.1.E-8)
-            zp(nns:nne)=qp(nns:nne)/qsum(nns:nne)
-          end where
+          do k=1,kd
+            where (qsum(nns:nne).gt.1.E-8)
+              zp(nns:nne,k)=qp(nns:nne,k)/qsum(nns:nne)
+            end where
+          end do
         end if
         if (cqs.gt.0.) then
-          where (qsums(nns:nne).gt.1.E-8)
-            zps(nns:nne)=qps(nns:nne)/qsums(nns:nne)
-          end where
+          do k=1,kd
+            where (qsums(nns:nne).gt.1.E-8)
+              zps(nns:nne,k)=qps(nns:nne,k)/qsums(nns:nne)
+            end where
+          end do
+        end if
+        if (cqu.gt.0.) then
+          do k=1,kd
+            where (qsumu(nns:nne).gt.1.E-8)
+              zpu(nns:nne,k)=qpu(nns:nne,k)/qsumu(nns:nne)
+              zpv(nns:nne,k)=qpv(nns:nne,k)/qsumu(nns:nne)
+            end where
+          end do
         end if
       end do
 
@@ -2733,20 +3105,44 @@
           a=til
           c=-til*ppn
           if (cq.gt.0.) then
-            call MPI_Recv(dd(1:iy),iy,MPI_REAL,
+            call MPI_Recv(dd(1:iy,:),iy*kd,MPI_REAL,
      &           iproc,itag,MPI_COMM_WORLD,status,ierr)
-            do ppass=ppn,ppx
-              do n=1,til
-                zp(n+ppass*til)=dd(n+a*ppass+c)
+            do k=1,kd
+              do ppass=ppn,ppx
+                do n=1,til
+                  zp(n+ppass*til,k)=dd(n+a*ppass+c,k)
+                end do
               end do
             end do
           end if
           if (cqs.gt.0.) then
-            call MPI_Recv(dd(1:iy),iy,MPI_REAL,
+            call MPI_Recv(dd(1:iy,:),iy*kd,MPI_REAL,
      &           iproc,itag,MPI_COMM_WORLD,status,ierr)
-            do ppass=ppn,ppx
-              do n=1,til
-                zps(n+ppass*til)=dd(n+a*ppass+c)
+            do k=1,kd
+              do ppass=ppn,ppx
+                do n=1,til
+                  zps(n+ppass*til,k)=dd(n+a*ppass+c,k)
+                end do
+              end do
+            end do
+          end if
+          if (cqu.gt.0.) then
+            call MPI_Recv(dd(1:iy,:),iy*kd,MPI_REAL,
+     &           iproc,itag,MPI_COMM_WORLD,status,ierr)
+            do k=1,kd
+              do ppass=ppn,ppx
+                do n=1,til
+                  zpu(n+ppass*til,k)=dd(n+a*ppass+c,k)
+                end do
+              end do
+            end do
+            call MPI_Recv(dd(1:iy,:),iy*kd,MPI_REAL,
+     &           iproc,itag,MPI_COMM_WORLD,status,ierr)
+            do k=1,kd
+              do ppass=ppn,ppx
+                do n=1,til
+                  zpv(n+ppass*til,k)=dd(n+a*ppass+c,k)
+                end do
               end do
             end do
           end if
@@ -2756,35 +3152,61 @@
         a=til
         c=-til*pn
         if (cq.gt.0.) then
-          do ppass=pn,px
-            do n=1,til
-              dd(n+a*ppass+c)=zp(n+ppass*til)
+          do k=1,kd
+            do ppass=pn,px
+              do n=1,til
+                dd(n+a*ppass+c,k)=zp(n+ppass*til,k)
+              end do
             end do
           end do
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,
+          call MPI_SSend(dd(1:iy,:),iy*kd,MPI_REAL,0,
      &           itag,MPI_COMM_WORLD,ierr)
         end if
         if (cqs.gt.0.) then
-          do ppass=pn,px
-            do n=1,til
-              dd(n+a*ppass+c)=zps(n+ppass*til)
+          do k=1,kd
+            do ppass=pn,px
+              do n=1,til
+                dd(n+a*ppass+c,k)=zps(n+ppass*til,k)
+              end do
             end do
           end do
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,
+          call MPI_SSend(dd(1:iy,:),iy*kd,MPI_REAL,0,
+     &           itag,MPI_COMM_WORLD,ierr)
+        end if
+        if (cqu.gt.0.) then
+          do k=1,kd
+            do ppass=pn,px
+              do n=1,til
+                dd(n+a*ppass+c,k)=zpu(n+ppass*til,k)
+              end do
+            end do
+          end do
+          call MPI_SSend(dd(1:iy,:),iy*kd,MPI_REAL,0,
+     &           itag,MPI_COMM_WORLD,ierr)
+          do k=1,kd
+            do ppass=pn,px
+              do n=1,til
+                dd(n+a*ppass+c,k)=zpv(n+ppass*til,k)
+              end do
+            end do
+          end do
+          call MPI_SSend(dd(1:iy,:),iy*kd,MPI_REAL,0,
      &           itag,MPI_COMM_WORLD,ierr)
         end if
       end if      
       
-      diff_g(:)=zp(:)
-      diffs_g(:)=zps(:)
+      diff_g(:,:)=zp(:,:)
+      diffs_g(:,:)=zps(:,:)
+      diffu_g(:,:)=zpu(:,:)
+      diffv_g(:,:)=zpv(:,:)
 
       return
       end subroutine mlospechost
       !---------------------------------------------------------------------------------
       
       !---------------------------------------------------------------------------------
-      subroutine mlospeclocal(myid,mproc,hproc,ns,ne,cq,cqs,ppass,qsum,
-     &             qp,qsums,qps)
+      subroutine mlospeclocal(myid,mproc,hproc,ns,ne,cq,cqs,cqu,ppass,
+     &             qsum,qsums,qsumu,qp,qps,qpu,qpv,kd)
 
       use xyzinfo_m
      
@@ -2795,22 +3217,27 @@
       include 'mpif.h'       ! MPI
       include 'parm.h'
       
-      integer, intent(in) :: myid,mproc,hproc,ns,ne,ppass
+      integer, intent(in) :: myid,mproc,hproc,ns,ne,ppass,kd
       integer :: j,n,ipass,kpass,iy
       integer :: iproc,itag=0,ierr
       integer :: nne,nns,me
-      integer :: a,c,d
+      integer :: a,c,d,k
       integer, dimension(MPI_STATUS_SIZE) :: status
       integer, dimension(4*il_g,il_g,0:3) :: igrd
       integer, dimension(0:3) :: maps
       integer, parameter, dimension(2:3) :: kn=(/0,3/)
       integer, parameter, dimension(2:3) :: kx=(/2,3/)
-      real, intent(in) :: cq,cqs
-      real, dimension(ifull_g), intent(inout) :: qp,qsum
-      real, dimension(ifull_g), intent(inout) :: qps,qsums
-      real, dimension(4*il_g) :: pp,ap,psum,asum,ra,xa,ya,za
-      real, dimension(4*il_g) :: pps,aps,psums,asums,rr
-      real, dimension(ifull_g) :: dd
+      real, intent(in) :: cq,cqs,cqu
+      real, dimension(ifull_g,kd), intent(inout) :: qp,qps
+      real, dimension(ifull_g,kd), intent(inout) :: qpu,qpv
+      real, dimension(ifull_g), intent(inout) :: qsum,qsums,qsumu
+      real, dimension(4*il_g) :: rr,ra,xa,ya,za
+      real, dimension(4*il_g) :: psum,asum
+      real, dimension(4*il_g) :: psums,asums
+      real, dimension(4*il_g) :: psumu,asumu
+      real, dimension(4*il_g,kd) :: ap,aps,pp,pps
+      real, dimension(4*il_g,kd) :: apu,apv,ppu,ppv
+      real, dimension(ifull_g,kd) :: dd
       
       maps=(/ il_g, il_g, 4*il_g, 3*il_g /)
       
@@ -2833,33 +3260,64 @@
               if (cq.gt.0.) then
                 do j=nns,nne
                   do n=1,me
-                    dd(n+a*j+d)=qsum(igrd(n,j,ipass))
+                    dd(n+a*j+d,1)=qsum(igrd(n,j,ipass))
                   end do
                 end do
-                call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,
-     &               itag,MPI_COMM_WORLD,ierr)    
-                do j=nns,nne
-                  do n=1,me
-                    dd(n+a*j+d)=qp(igrd(n,j,ipass))
+                call MPI_SSend(dd(1:iy,1),iy,MPI_REAL,iproc,
+     &               itag,MPI_COMM_WORLD,ierr)
+                do k=1,kd
+                  do j=nns,nne
+                    do n=1,me
+                      dd(n+a*j+d,k)=qp(igrd(n,j,ipass),k)
+                    end do
                   end do
                 end do
-                call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,
+                call MPI_SSend(dd(1:iy,:),iy*kd,MPI_REAL,iproc,
      &                 itag,MPI_COMM_WORLD,ierr)
               end if
               if (cqs.gt.0.) then
                 do j=nns,nne
                   do n=1,me
-                    dd(n+a*j+d)=qsums(igrd(n,j,ipass))
+                    dd(n+a*j+d,1)=qsums(igrd(n,j,ipass))
                   end do
                 end do
-                call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,
-     &               itag,MPI_COMM_WORLD,ierr)    
+                call MPI_SSend(dd(1:iy,1),iy,MPI_REAL,iproc,
+     &               itag,MPI_COMM_WORLD,ierr)
+                do k=1,kd
+                  do j=nns,nne
+                    do n=1,me
+                      dd(n+a*j+d,k)=qps(igrd(n,j,ipass),k)
+                    end do
+                  end do
+                end do
+                call MPI_SSend(dd(1:iy,:),iy*kd,MPI_REAL,iproc,
+     &                 itag,MPI_COMM_WORLD,ierr)
+              end if
+              if (cqu.gt.0.) then
                 do j=nns,nne
                   do n=1,me
-                    dd(n+a*j+d)=qps(igrd(n,j,ipass))
+                    dd(n+a*j+d,1)=qsumu(igrd(n,j,ipass))
                   end do
                 end do
-                call MPI_SSend(dd(1:iy),iy,MPI_REAL,iproc,
+                call MPI_SSend(dd(1:iy,1),iy,MPI_REAL,iproc,
+     &               itag,MPI_COMM_WORLD,ierr)
+                do k=1,kd
+                  do j=nns,nne
+                    do n=1,me
+                      dd(n+a*j+d,k)=qpu(igrd(n,j,ipass),k)
+                    end do
+                  end do
+                end do
+                call MPI_SSend(dd(1:iy,:),iy*kd,MPI_REAL,iproc,
+     &                 itag,MPI_COMM_WORLD,ierr)
+                do k=1,kd
+                  do j=nns,nne
+                    do n=1,me
+                      dd(n+a*j+d,k)=qpv(igrd(n,j,ipass),k)
+                    end do
+                  end do
+                end do
+                call MPI_SSend(dd(1:iy,:),iy*kd,MPI_REAL,iproc,
      &                 itag,MPI_COMM_WORLD,ierr)
               end if
             end do
@@ -2868,34 +3326,65 @@
             a=me
             d=-me*ns
             if (cq.gt.0.) then
-              call MPI_Recv(dd(1:iy),iy,MPI_REAL,hproc,
+              call MPI_Recv(dd(1:iy,1),iy,MPI_REAL,hproc,
      &             itag,MPI_COMM_WORLD,status,ierr)
               do j=ns,ne
                 do n=1,me
-                  qsum(igrd(n,j,ipass))=dd(n+a*j+d)
+                  qsum(igrd(n,j,ipass))=dd(n+a*j+d,1)
                 end do
               end do
-              call MPI_Recv(dd(1:iy),iy,MPI_REAL,hproc,
+              call MPI_Recv(dd(1:iy,:),iy*kd,MPI_REAL,hproc,
      &               itag,MPI_COMM_WORLD,status,ierr)
-              do j=ns,ne
-                do n=1,me
-                  qp(igrd(n,j,ipass))=dd(n+a*j+d)
+              do k=1,kd
+                do j=ns,ne
+                  do n=1,me
+                    qp(igrd(n,j,ipass),k)=dd(n+a*j+d,k)
+                  end do
                 end do
               end do
             end if
             if (cqs.gt.0.) then
-              call MPI_Recv(dd(1:iy),iy,MPI_REAL,hproc,
+              call MPI_Recv(dd(1:iy,1),iy,MPI_REAL,hproc,
      &             itag,MPI_COMM_WORLD,status,ierr)
               do j=ns,ne
                 do n=1,me
-                  qsums(igrd(n,j,ipass))=dd(n+a*j+d)
+                  qsums(igrd(n,j,ipass))=dd(n+a*j+d,1)
                 end do
               end do
-              call MPI_Recv(dd(1:iy),iy,MPI_REAL,hproc,
+              call MPI_Recv(dd(1:iy,:),iy*kd,MPI_REAL,hproc,
      &               itag,MPI_COMM_WORLD,status,ierr)
+              do k=1,kd
+                do j=ns,ne
+                  do n=1,me
+                    qps(igrd(n,j,ipass),k)=dd(n+a*j+d,k)
+                  end do
+                end do
+              end do  
+            end if
+            if (cqu.gt.0.) then
+              call MPI_Recv(dd(1:iy,1),iy,MPI_REAL,hproc,
+     &             itag,MPI_COMM_WORLD,status,ierr)
               do j=ns,ne
                 do n=1,me
-                  qps(igrd(n,j,ipass))=dd(n+a*j+d)
+                  qsumu(igrd(n,j,ipass))=dd(n+a*j+d,1)
+                end do
+              end do
+              call MPI_Recv(dd(1:iy,:),iy*kd,MPI_REAL,hproc,
+     &               itag,MPI_COMM_WORLD,status,ierr)
+              do k=1,kd
+                do j=ns,ne
+                  do n=1,me
+                    qpu(igrd(n,j,ipass),k)=dd(n+a*j+d,k)
+                  end do
+                end do
+              end do
+              call MPI_Recv(dd(1:iy,:),iy*kd,MPI_REAL,hproc,
+     &               itag,MPI_COMM_WORLD,status,ierr)
+              do k=1,kd
+                do j=ns,ne
+                  do n=1,me
+                    qpv(igrd(n,j,ipass),k)=dd(n+a*j+d,k)
+                  end do
                 end do
               end do  
             end if          
@@ -2910,11 +3399,22 @@
           za(1:me)=z_g(igrd(1:me,j,ipass))
           if (cq.gt.0.) then
             asum(1:me)=qsum(igrd(1:me,j,ipass))
-            ap(1:me)=qp(igrd(1:me,j,ipass))            
+            do k=1,kd
+              ap(1:me,k)=qp(igrd(1:me,j,ipass),k)
+            end do
           end if
           if (cqs.gt.0.) then
             asums(1:me)=qsums(igrd(1:me,j,ipass))
-            aps(1:me)=qps(igrd(1:me,j,ipass))            
+            do k=1,kd
+              aps(1:me,k)=qps(igrd(1:me,j,ipass),k)
+            end do
+          end if
+          if (cqu.gt.0.) then
+            asumu(1:me)=qsumu(igrd(1:me,j,ipass))
+            do k=1,kd
+              apu(1:me,k)=qpu(igrd(1:me,j,ipass),k)
+              apv(1:me,k)=qpv(igrd(1:me,j,ipass),k)
+            end do
           end if
           do n=1,il_g
             ra(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
@@ -2922,21 +3422,44 @@
             if (cq.gt.0.) then
               rr(1:me)=exp(-(cq*ra(1:me))**2)
               psum(n)=sum(rr(1:me)*asum(1:me))
-              pp(n)=sum(rr(1:me)*ap(1:me))
+              do k=1,kd
+                pp(n,k)=sum(rr(1:me)*ap(1:me,k))
+              end do
             end if
             if (cqs.gt.0.) then
               rr(1:me)=exp(-(cqs*ra(1:me))**2)
               psums(n)=sum(rr(1:me)*asums(1:me))
-              pps(n)=sum(rr(1:me)*aps(1:me))
-            end if            
+              do k=1,kd
+                pps(n,k)=sum(rr(1:me)*aps(1:me,k))
+              end do
+            end if
+            if (cqu.gt.0.) then
+              rr(1:me)=exp(-(cqu*ra(1:me))**2)
+              psumu(n)=sum(rr(1:me)*asumu(1:me))
+              do k=1,kd
+                ppu(n,k)=sum(rr(1:me)*apu(1:me,k))
+                ppv(n,k)=sum(rr(1:me)*apv(1:me,k))
+              end do
+            end if
           end do
           if (cq.gt.0.) then
             qsum(igrd(1:il_g,j,ipass))=psum(1:il_g)
-            qp(igrd(1:il_g,j,ipass))=pp(1:il_g)
+            do k=1,kd
+              qp(igrd(1:il_g,j,ipass),k)=pp(1:il_g,k)
+            end do
           end if
           if (cqs.gt.0.) then
             qsums(igrd(1:il_g,j,ipass))=psums(1:il_g)
-            qps(igrd(1:il_g,j,ipass))=pps(1:il_g)
+            do k=1,kd
+              qps(igrd(1:il_g,j,ipass),k)=pps(1:il_g,k)
+            end do
+          end if
+          if (cqu.gt.0.) then
+            qsumu(igrd(1:il_g,j,ipass))=psumu(1:il_g)
+            do k=1,kd
+              qpu(igrd(1:il_g,j,ipass),k)=ppu(1:il_g,k)
+              qpv(igrd(1:il_g,j,ipass),k)=ppv(1:il_g,k)
+            end do
           end if
         end do
 
@@ -2956,41 +3479,78 @@
               c=il_g*(nne-nns+1)
               d=-il_g*(nns+(nne-nns+1)*kn(ipass))
               if (cq.gt.0.) then
-                call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
+                call MPI_Recv(dd(1:iy,1),iy,MPI_REAL,iproc
      &               ,itag,MPI_COMM_WORLD,status,ierr)
                 do kpass=kn(ipass),kx(ipass)
                   do j=nns,nne
                     do n=1,il_g
-                      qsum(igrd(n,j,kpass))=dd(n+a*j+c*kpass+d)
+                      qsum(igrd(n,j,kpass))=dd(n+a*j+c*kpass+d,1)
                     end do
                   end do
                 end do
-                call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,
+                call MPI_Recv(dd(1:iy,:),iy*kd,MPI_REAL,iproc,
      &                 itag,MPI_COMM_WORLD,status,ierr)
-                do kpass=kn(ipass),kx(ipass)
-                  do j=nns,nne
-                    do n=1,il_g
-                      qp(igrd(n,j,kpass))=dd(n+a*j+c*kpass+d)
+                do k=1,kd
+                  do kpass=kn(ipass),kx(ipass)
+                    do j=nns,nne
+                      do n=1,il_g
+                        qp(igrd(n,j,kpass),k)=dd(n+a*j+c*kpass+d,k)
+                      end do
                     end do
                   end do
                 end do
               end if
               if (cqs.gt.0.) then
-                call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc
+                call MPI_Recv(dd(1:iy,1),iy,MPI_REAL,iproc
      &               ,itag,MPI_COMM_WORLD,status,ierr)
                 do kpass=kn(ipass),kx(ipass)
                   do j=nns,nne
                     do n=1,il_g
-                      qsums(igrd(n,j,kpass))=dd(n+a*j+c*kpass+d)
+                      qsums(igrd(n,j,kpass))=dd(n+a*j+c*kpass+d,1)
                     end do
                   end do
                 end do
-                call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,
+                call MPI_Recv(dd(1:iy,:),iy*kd,MPI_REAL,iproc,
      &                 itag,MPI_COMM_WORLD,status,ierr)
+                do k=1,kd
+                  do kpass=kn(ipass),kx(ipass)
+                    do j=nns,nne
+                      do n=1,il_g
+                        qps(igrd(n,j,kpass),k)=dd(n+a*j+c*kpass+d,k)
+                      end do
+                    end do
+                  end do
+                end do
+              end if
+              if (cqu.gt.0.) then
+                call MPI_Recv(dd(1:iy,1),iy,MPI_REAL,iproc
+     &               ,itag,MPI_COMM_WORLD,status,ierr)
                 do kpass=kn(ipass),kx(ipass)
                   do j=nns,nne
                     do n=1,il_g
-                      qps(igrd(n,j,kpass))=dd(n+a*j+c*kpass+d)
+                      qsumu(igrd(n,j,kpass))=dd(n+a*j+c*kpass+d,1)
+                    end do
+                  end do
+                end do
+                call MPI_Recv(dd(1:iy,:),iy*kd,MPI_REAL,iproc,
+     &                 itag,MPI_COMM_WORLD,status,ierr)
+                do k=1,kd
+                  do kpass=kn(ipass),kx(ipass)
+                    do j=nns,nne
+                      do n=1,il_g
+                        qpu(igrd(n,j,kpass),k)=dd(n+a*j+c*kpass+d,k)
+                      end do
+                    end do
+                  end do
+                end do
+                call MPI_Recv(dd(1:iy,:),iy*kd,MPI_REAL,iproc,
+     &                 itag,MPI_COMM_WORLD,status,ierr)
+                do k=1,kd
+                  do kpass=kn(ipass),kx(ipass)
+                    do j=nns,nne
+                      do n=1,il_g
+                        qpv(igrd(n,j,kpass),k)=dd(n+a*j+c*kpass+d,k)
+                      end do
                     end do
                   end do
                 end do
@@ -3005,40 +3565,77 @@
               do kpass=kn(ipass),kx(ipass)
                 do j=ns,ne
                   do n=1,il_g
-                    dd(n+a*j+c*kpass+d)=qsum(igrd(n,j,kpass))
+                    dd(n+a*j+c*kpass+d,1)=qsum(igrd(n,j,kpass))
                   end do
                 end do
               end do
-              call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,
+              call MPI_SSend(dd(1:iy,1),iy,MPI_REAL,hproc,
      &             itag,MPI_COMM_WORLD,ierr)
-              do kpass=kn(ipass),kx(ipass)
-                do j=ns,ne
-                  do n=1,il_g
-                    dd(n+a*j+c*kpass+d)=qp(igrd(n,j,kpass))
+              do k=1,kd
+                do kpass=kn(ipass),kx(ipass)
+                  do j=ns,ne
+                    do n=1,il_g
+                      dd(n+a*j+c*kpass+d,k)=qp(igrd(n,j,kpass),k)
+                    end do
                   end do
                 end do
               end do
-              call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,
+              call MPI_SSend(dd(1:iy,:),iy*kd,MPI_REAL,hproc,
      &               itag,MPI_COMM_WORLD,ierr)
             end if
             if (cqs.gt.0) then
               do kpass=kn(ipass),kx(ipass)
                 do j=ns,ne
                   do n=1,il_g
-                    dd(n+a*j+c*kpass+d)=qsums(igrd(n,j,kpass))
+                    dd(n+a*j+c*kpass+d,1)=qsums(igrd(n,j,kpass))
                   end do
                 end do
               end do
-              call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,
+              call MPI_SSend(dd(1:iy,1),iy,MPI_REAL,hproc,
      &             itag,MPI_COMM_WORLD,ierr)
+              do k=1,kd
+                do kpass=kn(ipass),kx(ipass)
+                  do j=ns,ne
+                    do n=1,il_g
+                      dd(n+a*j+c*kpass+d,k)=qps(igrd(n,j,kpass),k)
+                    end do
+                  end do
+                end do
+              end do
+              call MPI_SSend(dd(1:iy,:),iy*kd,MPI_REAL,hproc,
+     &               itag,MPI_COMM_WORLD,ierr)
+            end if
+            if (cqu.gt.0) then
               do kpass=kn(ipass),kx(ipass)
                 do j=ns,ne
                   do n=1,il_g
-                    dd(n+a*j+c*kpass+d)=qps(igrd(n,j,kpass))
+                    dd(n+a*j+c*kpass+d,1)=qsumu(igrd(n,j,kpass))
                   end do
                 end do
               end do
-              call MPI_SSend(dd(1:iy),iy,MPI_REAL,hproc,
+              call MPI_SSend(dd(1:iy,1),iy,MPI_REAL,hproc,
+     &             itag,MPI_COMM_WORLD,ierr)
+              do k=1,kd
+                do kpass=kn(ipass),kx(ipass)
+                  do j=ns,ne
+                    do n=1,il_g
+                      dd(n+a*j+c*kpass+d,k)=qpu(igrd(n,j,kpass),k)
+                    end do
+                  end do
+                end do
+              end do
+              call MPI_SSend(dd(1:iy,:),iy*kd,MPI_REAL,hproc,
+     &               itag,MPI_COMM_WORLD,ierr)
+              do k=1,kd
+                do kpass=kn(ipass),kx(ipass)
+                  do j=ns,ne
+                    do n=1,il_g
+                      dd(n+a*j+c*kpass+d,k)=qpv(igrd(n,j,kpass),k)
+                    end do
+                  end do
+                end do
+              end do
+              call MPI_SSend(dd(1:iy,:),iy*kd,MPI_REAL,hproc,
      &               itag,MPI_COMM_WORLD,ierr)
             end if
           end if
@@ -3050,7 +3647,7 @@
       end subroutine mlospeclocal
       
       ! Relaxtion method for mlo
-      subroutine mlonudge(new,sssb) ! MJT mlo
+      subroutine mlonudge(new,sssb,suvb,wl) ! MJT mlo
 
       use mlo, only : mloimport,mloexport
       use soil_m  ! land
@@ -3060,30 +3657,47 @@
       include 'parm.h'       ! nud_hrs,dt
       include 'newmpar.h'    ! ifull
 
-      integer k
-      real, dimension(ifull), intent(in) :: new,sssb
+      integer, intent(in) :: wl
+      integer k,ka,i
+      real, dimension(ifull,wl), intent(in) :: new,sssb
+      real, dimension(ifull,wl,2), intent(in) :: suvb
       real, dimension(ifull) :: old
       real wgt
       
-      if (nud_sst.eq.0.and.nud_sss.eq.0) return
+      if (nud_sst==0.and.nud_sss==0.and.nud_ouv==0) return
 
       wgt=dt/real(nud_hrs*3600)
       if (nud_sst.ne.0) then
         do k=ktopmlo,kbotmlo
-          old=new
+          ka=min(k,wl)
+          old=new(:,ka)
           call mloexport(0,old,k,0)
-          old=old*(1.-wgt)+new*wgt
+          old=old*(1.-wgt)+new(:,ka)*wgt
           call mloimport(0,old,k,0)
         end do
       end if
       
       if (nud_sss.ne.0) then
         do k=ktopmlo,kbotmlo
-          old=sssb
+          ka=min(k,wl)
+          old=sssb(:,ka)
           call mloexport(1,old,k,0)
-          old=old*(1.-wgt)+sssb*wgt
-	  old=max(old,0.)	  
+          old=old*(1.-wgt)+sssb(:,ka)*wgt
+          old=max(old,0.)	  
           call mloimport(1,old,k,0)
+        end do
+      end if
+      
+      if (nud_ouv.ne.0) then
+        do i=2,3
+          do k=ktopmlo,kbotmlo
+            ka=min(k,wl)
+            old=suvb(:,ka,i-1)
+            call mloexport(i,old,k,0)
+            old=old*(1.-wgt)+suvb(:,ka,i-1)*wgt
+            old=max(old,0.)	  
+            call mloimport(i,old,k,0)
+          end do
         end do
       end if
       

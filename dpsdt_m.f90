@@ -17,6 +17,9 @@ implicit none
 integer, intent(in) :: ifull,iextra,kl
 
 allocate(dpsdt(ifull),dpsdtb(ifull),dpsdtbb(ifull))
+dpsdt=0.
+dpsdtb=0.
+dpsdtbb=0.
 
 return
 end subroutine dpsdt_init

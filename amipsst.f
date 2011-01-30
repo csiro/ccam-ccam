@@ -25,6 +25,7 @@
       real, allocatable, save, dimension(:) :: aice, bice, cice
       real, allocatable, save, dimension(:) :: asal, bsal, csal
       real, dimension(ifull) :: duma,sssb
+      real, dimension(ifull,2) :: dumb
       real fraciceb(ifull), x, c2, c3, c4
       integer, parameter, dimension(0:13) :: mdays =
      &     (/ 31, 31,28,31,30,31,30,31,31,30,31,30,31, 31 /)
@@ -222,17 +223,23 @@ c       c1=0.
       !--------------------------------------------------------------
       ! MJT mlo
       elseif (ktau.gt.0) then
+        dumb=0.
+        if (nud_ouv.ne.0) then
+          write(6,*) "ERROR: nud_ouv.ne.0 is not supported for"
+          write(6,*) "       namip.ne.0"
+          stop
+        end if
         duma=tgg(:,1)
         where(fraciceb.gt.0.)
           duma=271.2
         end where
         select case(mlomode)
           case(0) ! relax
-            call mlonudge(duma,sssb)
+            call mlonudge(duma,sssb,dumb,1)
           case(1)
             if (mod(mtimer,mlotime*60).eq.0) then
-              call mlofilterfast(duma,sssb) ! 1D version
-              !call mlofilter(duma) ! 2D version
+              call mlofilterfast(duma,sssb,dumb,1) ! 1D version
+              !call mlofilter(duma,sssb,dumb,1) ! 2D version
             end if
           case DEFAULT
             write(6,*) "ERROR: Unknown mlomode ",mlomode

@@ -69,7 +69,8 @@
       real rlonx,rlatx,alf
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
       real, dimension(ifull) :: zss, aa, zsmask
-      real, dimension(ifull) :: dep,sssb ! MJT mlo
+      real, dimension(ifull) :: dep,ocndwn ! MJT mlo
+      real, dimension(ifull,wlev,4) :: mlodwn
       integer, parameter :: klmax=100
       real tbarr(klmax),qgin(klmax),zbub(klmax) ! for tin namelist
       character co2in*80,radonin*80,surfin*80,header*80
@@ -295,7 +296,7 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
      &           fracice,t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
      &           qg(1:ifull,:),tgg,wb,wbice,snowd,qfg(1:ifull,:),
      &           qlg(1:ifull,:),tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &           iaero,sssb)
+     &           iaero,mlodwn,ocndwn)
          endif   ! (abs(io_in)==1)
          !-----------------------------------------------------------
          if( mydiag )then
@@ -1001,8 +1002,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 !                    -5  read_in (not wb) |     written  (should be good)
 !                    -6 same as -1 bit tapered wb over dry interio of Aust
 !                    >5 like -1 but sets most wb percentages
-      if(nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5.or.nrungcm==-6
-     &              .or.nrungcm>5)then
+      if((nrungcm.le.-1.and.nrungcm.ge.-6).or.nrungcm>5)then
 !        presetting wb when no soil moisture available initially
         iyr=kdate/10000
         imo=(kdate-10000*iyr)/100
@@ -1179,6 +1179,12 @@ c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
             print *,'wb ',(wb(idjd,k),k=1,ms)
          end if
       endif      !  (nrungcm==5)
+
+      if (nrungcm==-7) then
+        do iq=1,ifull
+          wb(iq,:)=ssat(isoilm(iq))
+        end do
+      end if
 
       do iq=1,ifull
        if(.not.land(iq))then
@@ -2019,7 +2025,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           mlodwn(:,1,1)=tss(:)                 ! This has no effect in a climate mode and
         endwhere                               ! ensures SST track analyses in a NWP mode
         call mloload(mlodwn,micdwn,0)
-        deallocate(mlodwn,ocndwn,micdwn)
+        deallocate(micdwn)
       end if
       !-----------------------------------------------------------------
 

@@ -23,6 +23,12 @@ integer, intent(in) :: ifull,iextra,kl
 allocate(dirad(ifull),dfgdt(ifull),degdt(ifull),wetfac(ifull),degdw(ifull),cie(ifull))
 allocate(factch(ifull),qsttg(ifull),rho(ifull),zo(ifull),aft(ifull),fh(ifull),ri(ifull),theta(ifull))
 allocate(gamm(ifull),rg(ifull),vmod(ifull),dgdtg(ifull))
+wetfac=0.
+rho=1.
+zo=0.
+gamm=0.
+rg=0.
+vmod=0.
 
 return
 end subroutine work2_init

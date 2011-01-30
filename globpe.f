@@ -177,7 +177,7 @@
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
      & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss                  ! MJT urban ! MJT nmr ! MJT mlo ! MJT nestin
-     & ,mfix_tr,mfix_ke,mfix_aero,kbotmlo,ktopmlo,mloalpha                      ! MJT tracerfix ! MJT tke
+     & ,mfix_tr,mfix_ke,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv              ! MJT tracerfix ! MJT tke
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -207,7 +207,7 @@
       data nsnowout/999999/
 
       ! For linux only
-      !call setstacklimit(-1)
+      call setstacklimit(-1)
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
@@ -2019,7 +2019,7 @@ c     endif
      &     mbd/0/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/,           
      &     nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/,
      &     ktopdav/-1/,nud_sst/0/,nud_sss/0/,kbotmlo/12/,ktopmlo/1/,
-     &     mloalpha/10/ ! MJT nestin ! MJT mlo
+     &     mloalpha/10/,nud_ouv/0/ ! MJT nestin ! MJT mlo
       
 !     Dynamics options A & B      
       data m/5/,mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/,npex/0/
