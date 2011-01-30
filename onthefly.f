@@ -843,9 +843,6 @@ c       incorporate other target land mask effects
      &                     nord,ik)
           end if ! iotest
         end do
-        where (.not.land)
-          tgg(:,1)=tss
-        end where
 
         ! SNOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         call histrd1(ncid,iarchi,ier,'snd',ik,6*ik,snowd_a,6*ik*ik)
@@ -1391,6 +1388,12 @@ c       incorporate other target land mask effects
         endif                         
         !------------------------------------------------------------
       endif    ! (nested==0)
+
+      if (nmlo.eq.0) then
+        where (.not.land)
+          tgg(:,1)=tss
+        end where
+      end if
 
 !     end of processing loop
 
