@@ -138,7 +138,7 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)	        :: pnt2 
     REAL(r_1), DIMENSION(mp)	        :: zscl 
     REAL(r_1), DIMENSION(mp)	        :: zscl_10m,zscl_scrn
-    REAL(r_1), DIMENSION(mp)	        :: yy1,yy2,yy3,yy4 
+    REAL(r_1), DIMENSION(mp)       :: rghlai    
 
 
     ALLOCATE(cansat(mp),ghwet(mp),gbhu(mp,mf))
@@ -302,7 +302,7 @@ CONTAINS
        !  print *,'rt1usc',rt1usc,rt0,rough%rt0us
        ! Aerodynamic resistance (sum 3 height integrals)/us
        ! See CSIRO SCAM, Raupach et al 1997, eq. 3.50:
-       rough%rt1 = max(5.,(rough%rt1usa + rough%rt1usb + rt1usc) / canopy%us)
+       rough%rt1 = max(1.,(rough%rt1usa + rough%rt1usb + rt1usc) / canopy%us)
 
        WHERE (ssoil%snowd > 0.1)
           ssoil%wetfac = 1.
@@ -612,19 +612,21 @@ CONTAINS
     endwhere 
 !    print *,'canopy%tscrn2',canopy%tscrn2
     ! 3) resistance method by Ian Harman 
+    rghlai = canopy%vlaiw
+    where(ssoil%snowd.lt.0.001) rghlai = min( 3.,canopy%vlaiw)
     term1=0.
     term2=0.
     term5=0.
     zscl = max(rough%z0soilsn,1.8)
     where ( rough%hruff  > 0.0 .and. rough%disp  > 0.0 )
-       term1 = EXP(2*csw*canopy%vlaiw*(1-zscl/rough%hruff))
-       term2 = EXP(2*csw*canopy%vlaiw*(1-rough%disp/rough%hruff))
+       term1 = EXP(2*csw*rghlai*(1-zscl/rough%hruff))
+       term2 = EXP(2*csw*rghlai*(1-rough%disp/rough%hruff))
        term5 = MAX(2./3.*rough%hruff/rough%disp, 1.)
     endwhere
-    term3 = a33**2*ctl*2*csw*canopy%vlaiw
+    term3 = a33**2*ctl*2*csw*rghlai
     pnt1 = 0
     where( zscl < rough%disp ) 
-        r_sc = term5 * LOG(zscl/rough%z0soilsn) * ( exp(2*csw*canopy%vlaiw) - term1 ) / term3
+        r_sc = term5 * LOG(zscl/rough%z0soilsn) * ( exp(2*csw*rghlai) - term1 ) / term3
         pnt1=1
     elsewhere ( rough%disp <= zscl .and. zscl < rough%hruff )
         r_sc = rough%rt0us + term5 * ( term2 - term1 ) / term3

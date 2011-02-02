@@ -872,11 +872,12 @@ ri=0. ! ri(:,1) is not used
 do ii=2,wlev
   ri(:,ii)=d_nsq(:,ii)*dz_hl(:,ii)**2      & 
            /max((w_u(:,ii-1)-w_u(:,ii))**2 &
-               +(w_v(:,ii-1)-w_v(:,ii))**2,1.E-10)
+               +(w_v(:,ii-1)-w_v(:,ii))**2,1.E-20)
 end do
 
 ! diffusion ---------------------------------------------------------
 num=0.
+nus=0.
 do ii=2,wlev
   ! s - shear
   where (ri(:,ii).lt.0.)
@@ -918,8 +919,8 @@ do iqw=1,wfull
   dws1ds(iqw)=-p_mixdepth(iqw)*(ws(iqw,mixind_hl(iqw)+1)-ws(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
 end do
 
-wm1=max(wm1,1.E-10)
-ws1=max(ws1,1.E-10)
+wm1=max(wm1,1.E-20)
+ws1=max(ws1,1.E-20)
   
 g1m=numh/(p_mixdepth*wm1)
 dg1mds=-dnumhdz/wm1-numh*dwm1ds/(p_mixdepth*wm1*wm1)
@@ -952,7 +953,7 @@ cg=10.*vkar*(98.96*vkar*epsilon)**(1./3.)
 gammas=0.
 do ii=2,wlev
   where (p_bf.lt.0..and.ii.le.mixind_hl) ! unstable
-    gammas(:,ii)=cg/max(ws(:,ii)*p_mixdepth,1.E-10)
+    gammas(:,ii)=cg/max(ws(:,ii)*p_mixdepth,1.E-20)
   end where
 end do
 
@@ -996,10 +997,10 @@ do iqw=1,wfull
   do ii=2,wlev
     vtsq=depth(iqw,ii)*ws(iqw,ii)*sqrt(0.5*abs(d_nsq(iqw,ii)+d_nsq(iqw,min(ii+1,wlev))))*vtc
     dvsq=(w_u(iqw,1)-w_u(iqw,ii))**2+(w_v(iqw,1)-w_v(iqw,ii))**2
-    rib(ii)=(depth(iqw,ii)-depth(iqw,1))*(1.-d_rho(iqw,1)/d_rho(iqw,ii))/max(dvsq+vtsq,1.E-10)
+    rib(ii)=(depth(iqw,ii)-depth(iqw,1))*(1.-d_rho(iqw,1)/d_rho(iqw,ii))/max(dvsq+vtsq,1.E-20)
     if (rib(ii).gt.ric) then
       p_mixind(iqw)=ii-1
-      xp=min(max((ric-rib(ii-1))/max(rib(ii)-rib(ii-1),1.E-10),0.),1.)
+      xp=min(max((ric-rib(ii-1))/max(rib(ii)-rib(ii-1),1.E-20),0.),1.)
       p_mixdepth(iqw)=(1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii)
       exit
     end if
@@ -1018,7 +1019,7 @@ where(p_bf.gt.0..and.a_f.gt.0.)
   he=0.7*d_ustar/abs(a_f)
   p_mixdepth=min(p_mixdepth,he)
 end where
-p_mixdepth=max(max(p_mixdepth,depth(:,1)),5.)
+p_mixdepth=max(p_mixdepth,depth(:,1))
 p_mixdepth=min(p_mixdepth,depth(:,wlev))
 
 ! recalculate index for mixdepth
@@ -1084,8 +1085,6 @@ where (bf.le.0..and.sig.gt.epsilon) ! unstable
 end where
 uuu=d_ustar**3
 invl=vkar*bf ! invl = ustar**3/L or L=ustar**3/(vkar*bf)
-invl=max(invl,-10.*uuu/mixdp) ! MJT suggestion
-invl=min(invl,1.*uuu/mixdp)   ! MJT suggestion
 zeta=sig*mixdp*invl
 
 where (zeta.gt.0.)
@@ -1163,7 +1162,7 @@ drho0ds= (0.824493 - 4.0899e-3*t(:) &
 do i=1,nits
   do ii=1,wlev
     t = max(w_temp(:,ii)-273.16,-2.)
-    s = max(w_sal(:,ii),0.01)
+    s = max(w_sal(:,ii),0.)
     p1 = grav*depth(:,ii)*d_rho(:,ii)*1.E-5
     t2 = t*t
     t3 = t2*t
@@ -1259,7 +1258,7 @@ d_wt0=d_wt0+(1.-i_fracice)*lf*a_snd/(d_rho(:,1)*cp0) ! melting snow             
 d_ws0=(1.-i_fracice)*(a_rnd+a_snd-p_eg/lv)*w_sal(:,1)/rs(:,1)                      ! BC
 d_ws0=d_ws0+(a_inflow)*w_sal(:,1)/rs(:,1)                                          ! BC
 
-d_ustar=max(sqrt(sqrt(d_wu0*d_wu0+d_wv0*d_wv0)),5.E-4)
+d_ustar=max(sqrt(sqrt(d_wu0*d_wu0+d_wv0*d_wv0)),1.E-10)
 d_b0=-grav*(d_alpha(:,1)*d_wt0-d_beta(:,1)*d_ws0)
 !d_b0=-grav*(-drho0dt*d_wt0-drho0ds*d_ws0)
 
@@ -1326,7 +1325,7 @@ select case(zomode)
         dfm=vmag*2.*bprm*ri*(con*daf+af*cms*bprm*ri*a_zmin/(sqrt(-ri*a_zmin/p_zo)*p_zo*p_zo))/(den*den) ! MJT suggestion
         p_zo=p_zo-(p_zo-consea*af*fm)/(1.-consea*(daf*fm+af*dfm))
       end where
-      p_zo=min(max(p_zo,1.5e-6),0.1)
+      p_zo=min(max(p_zo,1.5e-6),1.)
     enddo    ! it=1,4
   case(2) ! Beljaars
     p_zo=0.001    ! first guess
@@ -1347,7 +1346,7 @@ select case(zomode)
         dcs=(zcom1*vmag**2/grav-0.5*zcom2*gnu/(max(vmag*sqrt(fm*af),gnu)*fm*af))*(fm*daf+dfm*af)
       end where
       p_zo=p_zo-(p_zo-consea)/(1.-dcs)      
-      p_zo=min(max(p_zo,1.5e-6),0.1)
+      p_zo=min(max(p_zo,1.5e-6),1.)
     enddo    ! it=1,4  
 end select
 afroot=vkar/log(a_zmin/p_zo)
@@ -1366,8 +1365,8 @@ select case(zomode)
     factch=1.
     facqch=1.
   case(2) ! Beljaars
-    aft=max(zcoh1+zcoh2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-6) ! dummy for ztsea
-    afq=max(zcoq1+zcoq2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-6) ! dummy for zqsea
+    aft=max(zcoh1+zcoh2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-7) ! dummy for ztsea
+    afq=max(zcoq1+zcoq2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-7) ! dummy for zqsea
     factch=sqrt(p_zo/aft)
     facqch=sqrt(p_zo/afq)
     aft=vkar**2/(log(a_zmins/p_zo)*log(a_zmins/aft)) ! now true aft

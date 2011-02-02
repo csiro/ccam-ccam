@@ -2328,6 +2328,10 @@ enddo
 !ssm(:,:,2)=9.1e-15*ssn(:,:,2) !number mode radius = 0.5 um, sd=2
 
 ! Using the size distributions as assumed by Herzog in the radiation scheme (dry sea salt)
+!ssm(:,:,1)=2.64e-18*ssn(:,:,1) !number mode radius = 0.035 um, sd=1.92, rho=2.165 g/cm3
+!ssm(:,:,2)=1.38e-15*ssn(:,:,2) !number mode radius = 0.35 um, sd=1.7, rho=2.165
+
+! Using the size distributions as assumed by Herzog in the radiation scheme (dry sea salt)
 ! Use ssn(3) to hold diagnostic of mass conc. for now in kg/m3
 !ssn(:,:,3)=5.3e-17*ssn(:,:,1)+9.1e-15*ssn(:,:,2)
       

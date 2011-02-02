@@ -21,16 +21,23 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)	   :: dh ! d/h where d is zero-plane displacement
     REAL(r_1), DIMENSION(mp)	     :: hmax ! maximum height of canopy from
                                            ! tiles belonging to the same grid
+    REAL(r_1), DIMENSION(mp)       :: rghlai
     ! Set canopy height above snow level:
 !    print *,'ruff_resist 1',veg%hc,ssoil%snowd,ssoil%ssdnn
-    rough%hruff= MAX(0.,veg%hc-1.2*ssoil%snowd/max(ssoil%ssdnn,100.)) 
+    rough%hruff= MAX(0.01,veg%hc-1.2*ssoil%snowd/max(ssoil%ssdnn,100.)) 
     ! maximum height of canopy from tiles belonging to the same grid
     hmax = rough%hruff_grmx
     ! LAI decreases due to snow and vegetation fraction:
     canopy%vlaiw = veg%vlai * rough%hruff/MAX(0.01,veg%hc)
+    rghlai = canopy%vlaiw
+    where(ssoil%snowd.lt.0.001) rghlai = min( 3.,canopy%vlaiw)
     ! Roughness length of bare soil (m):
     rough%z0soil = 1.e-6
+    where(ssoil%snowd.lt.0.001) rough%z0soil = 0.76e-6 + 1.e-4*exp( -(6.-min(canopy%vlaiw, 6.0)) )
+    
     rough%z0soilsn = max(rough%z0soil-0.5e-7*min(ssoil%snowd,20.),0.1e-7)
+    WHERE( soil%isoilm == 9 ) rough%z0soilsn = 1.e-5    
+    
     WHERE (canopy%vlaiw.LT.0.01 .OR. rough%hruff.LT. rough%z0soilsn) ! i.e. BARE SOIL SURFACE
        rough%z0m = rough%z0soilsn
        rough%hruff = 0.0
@@ -60,9 +67,9 @@ CONTAINS
        ! Friction velocity/windspeed at canopy height
        ! eq. 7 Raupach 1994, BLM, vol 71, p211-216
        ! (usuhm set in physical_constants module):
-       rough%usuh = MIN(SQRT(csd+crd*(canopy%vlaiw*0.5)), usuhm)
+       rough%usuh = MIN(SQRT(csd+crd*(rghlai*0.5)), usuhm)
        ! xx is ccd (see physical_constants) by LAI:
-       xx = SQRT(ccd*MAX((canopy%vlaiw*0.5),0.0005))
+       xx = SQRT(ccd*MAX((rghlai*0.5),0.0005))
        ! eq.8 Raupach 1994, BLM, vol 71, p211-216:
        dh = 1.0 - (1.0 - EXP(-xx))/xx
        ! Calculate zero-plane displacement:
@@ -84,13 +91,13 @@ CONTAINS
        !	nb: rough%term5 added 03-oct-96 to account for sparse canopies. Constant
        !	length scale ctl*hruf replaced by ctl*(3/2)*disp, taking effect
        !	when disp<(2/3)*hruf, or total LAI < 1.11. Otherwise, rough%term5=1.
-       rough%term2  = EXP(2*csw*canopy%vlaiw*(1-rough%disp/rough%hruff))
-       rough%term3  = a33**2*ctl*2*csw*canopy%vlaiw
+       rough%term2  = EXP(2*csw*rghlai*(1-rough%disp/rough%hruff))
+       rough%term3  = a33**2*ctl*2*csw*rghlai
        rough%term5  = MAX(2./3.*rough%hruff/rough%disp, 1.)
        rough%term6  = exp(3.*rough%coexp*(rough%disp/rough%hruff -1.))
        ! eq. 3.54, SCAM manual (CSIRO tech report 132)
        rough%rt0us  = rough%term5*(zdlin*LOG(zdlin*rough%disp/rough%z0soilsn) + (1.-zdlin))* &
-                      (EXP(2*csw*canopy%vlaiw) - rough%term2)/rough%term3  
+                      (EXP(2*csw*rghlai) - rough%term2)/rough%term3  
 !              / rough%term6
        !	rt1 = turbulent resistance from canopy (z1 = disp) to
        !	reference level zref (from disp as origin). Normalisation:

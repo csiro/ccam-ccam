@@ -45,9 +45,7 @@
         allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
         allocate(psla(ifull),pslb(ifull),tssa(ifull),tssb(ifull))
         allocate(sicedepb(ifull),fraciceb(ifull))
-        if (nmlo.ne.0) then ! for mixed-layer-ocean nudging
-          allocate(sssa(ifull,wlev,4),sssb(ifull,wlev,4))
-        end if
+        allocate(sssa(ifull,wlev,4),sssb(ifull,wlev,4))
       end if
       
 !     mtimer, mtimeb are in minutes
@@ -382,9 +380,7 @@
         allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
         allocate(pslb(ifull),tssb(ifull),fraciceb(ifull))
         allocate(sicedepb(ifull))
-        if (nmlo.ne.0) then
-          allocate(sssb(ifull,wlev,4))
-        end if
+        allocate(sssb(ifull,wlev,4))
       end if
 
 !     mtimer, mtimeb are in minutes

@@ -581,9 +581,9 @@ do j=1,jl,imax/il
           Aerosol%aerosol(:,1,kr,7) =xtg(istart:iend,k,9)*dprf*1.0/grav  ! dust 1-2
           Aerosol%aerosol(:,1,kr,8) =xtg(istart:iend,k,10)*dprf*1.0/grav ! dust 2-3
           Aerosol%aerosol(:,1,kr,9) =xtg(istart:iend,k,11)*dprf*1.0/grav ! dust 3-6
-          Aerosol%aerosol(:,1,kr,10)=5.3e-17*ssn(istart:iend,k,1) &
+          Aerosol%aerosol(:,1,kr,10)=2.64e-18*ssn(istart:iend,k,1) &
                                      /rhoa(:,k)*dprf*1.0/grav  ! Small sea salt
-          Aerosol%aerosol(:,1,kr,11)=9.1e-15*ssn(istart:iend,k,2) &
+          Aerosol%aerosol(:,1,kr,11)=1.38e-15*ssn(istart:iend,k,2) &
                                      /rhoa(:,k)*dprf*1.0/grav  ! Large sea salt
         end do
         Aerosol%aerosol=max(Aerosol%aerosol,0.)
