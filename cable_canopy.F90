@@ -157,6 +157,7 @@ CONTAINS
     rwater = MAX(1.0e-4_r_2, &
          SUM(veg%froot * MIN(1.0_r_2,ssoil%wb - SPREAD(soil%swilt, 2, ms)),2) &
          /(soil%sfc-soil%swilt))
+    rwater = soil%swilt + rwater * (soil%sfc-soil%swilt)	 
     ! construct function to limit stom cond for soil water availability
     fwsoil = MAX(1.0e-4,MIN(1.0, veg%vbeta * rwater))
     ! BATS-type canopy saturation proportional to LAI:

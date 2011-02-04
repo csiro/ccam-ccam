@@ -24,7 +24,7 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)       :: rghlai
     ! Set canopy height above snow level:
 !    print *,'ruff_resist 1',veg%hc,ssoil%snowd,ssoil%ssdnn
-    rough%hruff= MAX(0.01,veg%hc-1.2*ssoil%snowd/max(ssoil%ssdnn,100.)) 
+    rough%hruff= MAX(0.001,veg%hc-1.2*ssoil%snowd/max(ssoil%ssdnn,100.)) 
     ! maximum height of canopy from tiles belonging to the same grid
     hmax = rough%hruff_grmx
     ! LAI decreases due to snow and vegetation fraction:
@@ -34,9 +34,8 @@ CONTAINS
     ! Roughness length of bare soil (m):
     rough%z0soil = 1.e-6
     where(ssoil%snowd.lt.0.001) rough%z0soil = 0.76e-6 + 1.e-4*exp( -(6.-min(canopy%vlaiw, 6.0)) )
-    
+  
     rough%z0soilsn = max(rough%z0soil-0.5e-7*min(ssoil%snowd,20.),0.1e-7)
-    WHERE( soil%isoilm == 9 ) rough%z0soilsn = 1.e-5    
     
     WHERE (canopy%vlaiw.LT.0.01 .OR. rough%hruff.LT. rough%z0soilsn) ! i.e. BARE SOIL SURFACE
        rough%z0m = rough%z0soilsn
@@ -44,8 +43,10 @@ CONTAINS
        rough%rt0us = 0.0  
        rough%disp  = 0.0
        ! Reference height 
-       rough%zref_uv = max(3.5,rough%za_uv - rough%disp + hmax)
-       rough%zref_tq = max(3.5,rough%za_tq - rough%disp + hmax)
+       rough%zref_uv = max(3.5,rough%za_uv - rough%disp + hmax -  &
+                                             min(1.,ssoil%snowd/max(ssoil%ssdnn,100.)))
+       rough%zref_tq = max(3.5,rough%za_tq - rough%disp + hmax - &
+                                             min(1.,ssoil%snowd/max(ssoil%ssdnn,100.)))
 !       rough%zref_uv = max(3.5,rough%za_uv + rough%hruff)
 !       rough%zref_tq = max(3.5,rough%za_tq + rough%hruff)
        rough%zruffs = 0.0
@@ -75,8 +76,10 @@ CONTAINS
        ! Calculate zero-plane displacement:
        rough%disp = dh*rough%hruff
        ! Reference height zref is height above the displacement height
-       rough%zref_uv = max(3.5,rough%za_uv - rough%disp + hmax)
-       rough%zref_tq = max(3.5,rough%za_tq - rough%disp + hmax)
+       rough%zref_uv = max(3.5,rough%za_uv -  & 
+                       max(rough%disp,min(1.,ssoil%snowd/max(ssoil%ssdnn,100.))) + hmax)
+       rough%zref_tq = max(3.5,rough%za_tq -  &
+                       max(rough%disp,min(1.,ssoil%snowd/max(ssoil%ssdnn,100.))) + hmax)
 !       rough%zref_uv = max(3.5,rough%za_uv + rough%hruff)
 !       rough%zref_tq = max(3.5,rough%za_tq + rough%hruff)
        ! Calcualte roughness length:

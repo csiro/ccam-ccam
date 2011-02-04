@@ -42,7 +42,8 @@ MODULE soil_snow_module
   REAL(r_1), PARAMETER :: rhowat = 1000.0 ! density of water
 !  REAL(r_1), PARAMETER :: snmin = 0.09    ! for 3-layer;
 !  REAL(r_1), PARAMETER :: snmin = 0.11    ! for 3-layer;
-  REAL(r_1), PARAMETER :: snmin =  1000.0 ! for 1-layer;
+!  REAL(r_1), PARAMETER :: snmin =  1000.0 ! for 1-layer;
+  REAL(r_1), PARAMETER :: snmin =  1.0 ! for 3-layer in land-ice areas;
 
   ! This module contains the following subroutines:
   PUBLIC soil_snow ! must be available outside this module
@@ -243,8 +244,8 @@ CONTAINS
       ! calculate drainage (this code replaces the code in the surfb)
       k = ms 
       WHERE( ssoil%wb(:,ms) > soil%sfc(:))
-        wbl_k = MAX(0.01_r_2, ssoil%wb(:,ms) - ssoil%wbice(:,ms) )
-        wbl_kp = MAX(0.01_r_2, soil%ssat(:) - ssoil%wbice(:,ms) )
+        wbl_k = MAX(0.001_r_2, ssoil%wb(:,ms) - ssoil%wbice(:,ms) )
+        wbl_kp = MAX(0.001_r_2, soil%ssat(:) - ssoil%wbice(:,ms) )
         wh = 0.9*wbl_k + 0.1*wbl_kp
         ! Calculate hyd conductivity adjusted for ice:
         hydss = soil%hyds * ( 1. - MIN( 2.0_r_2 * ssoil%wbice(:,ms) &
@@ -252,7 +253,7 @@ CONTAINS
         speed_k = hydss * (wh / soil%ssat ) ** (soil%i2bp3 - 1)
         fluxlo = wbl_k
         ! scale speed to grid lengths per dt & limit speed for stability
-        speed_k = MIN(speed_k, 0.5 * soil%zse(ms) / dels)
+        speed_k = MIN(0.5*speed_k, 0.5 * soil%zse(ms) / dels)
         fluxh(:,ms) = MAX(0.0,speed_k * fluxlo )
       END WHERE
 
@@ -504,17 +505,20 @@ CONTAINS
 !    TYPE(soil_snow_type), INTENT(INOUT) :: ssoil  ! soil+snow variables
 
     WHERE (ssoil%snowd > 0.1 .and. ssoil%isflag == 0)
-      ssoil%ssdn(:,1) = MIN(400.0,MAX(120.0, ssoil%ssdn(:,1) + dels &
+      ssoil%ssdn(:,1) = MIN(750.0,MAX(120.0, ssoil%ssdn(:,1) + dels &
           & * ssoil%ssdn(:,1) * 3.1e-6 * EXP( -0.03 &
           & * (273.15 - MIN(tfrz, ssoil%tgg(:,1) )) &
           & - merge(0.046, 0.0, ssoil%ssdn(:,1) >= 150.0) &
           & * (ssoil%ssdn(:,1) - 150.0) ) ))
-      ssoil%ssdn(:,1) = MIN(400.0,ssoil%ssdn(:,1) + dels * 9.806 &
+      ssoil%ssdn(:,1) = MIN(750.0,ssoil%ssdn(:,1) + dels * 9.806 &
           & * ssoil%ssdn(:,1) * 0.75 * ssoil%snowd &
           & / (3.0e7 * EXP(0.021 * ssoil%ssdn(:,1) + 0.081 &
           & * (273.15 - MIN(tfrz, ssoil%tgg(:,1))))))
+      WHERE (soil%isoilm /= 9) ssoil%ssdn(:,1) = MIN(450.0,ssoil%ssdn(:,1))
       ssoil%sconds(:,1) = MAX(0.2, MIN(2.876e-6 * ssoil%ssdn(:,1) ** 2 &
                                                         & + 0.074, 1.0) )
+      ssoil%sconds(:,2) = ssoil%sconds(:,1) 
+      ssoil%sconds(:,3) = ssoil%sconds(:,1)
       ssoil%ssdnn = ssoil%ssdn(:,1)
       ssoil%ssdn(:,2) = ssoil%ssdn(:,1)
       ssoil%ssdn(:,3) = ssoil%ssdn(:,1)
@@ -532,18 +536,21 @@ CONTAINS
           & * EXP( -0.03 * (273.15 - MIN(tfrz, ssoil%tggsn(:,3))) &
           & - merge(0.046, 0.0, ssoil%ssdn(:,3) >= 150.0) &
           & * (ssoil%ssdn(:,3) - 150.0) )
-      ssoil%ssdn(:,1) = ssoil%ssdn(:,1) + dels * 9.806 * ssoil%ssdn(:,1) &
+      ssoil%ssdn(:,1) = min( ssoil%ssdn(:,1) + dels * 9.806 * ssoil%ssdn(:,1) &
           & * 0.05*ssoil%ssdn(:,1) &
           & / (3.0e7 * EXP(.021 * ssoil%ssdn(:,1) + 0.081 &
-          & * (273.15 - MIN(tfrz, ssoil%tggsn(:,1)))))
-      ssoil%ssdn(:,2) = ssoil%ssdn(:,2) + dels * 9.806 * ssoil%ssdn(:,2) &
+          & * (273.15 - MIN(tfrz, ssoil%tggsn(:,1))))) , 750.)
+      ssoil%ssdn(:,2) = min( ssoil%ssdn(:,2) + dels * 9.806 * ssoil%ssdn(:,2) &
           & * (0.05 * ssoil%ssdn(:,1) + 0.5 * ssoil%smass(:,2) ) &
           & / (3.0e7 * EXP(.021 * ssoil%ssdn(:,2) + 0.081 &
-          & * (273.15 - MIN(tfrz, ssoil%tggsn(:,2)))))
-      ssoil%ssdn(:,3) = ssoil%ssdn(:,3) + dels * 9.806 * ssoil%ssdn(:,3) &
+          & * (273.15 - MIN(tfrz, ssoil%tggsn(:,2))))) , 750.)
+      ssoil%ssdn(:,3) = min( ssoil%ssdn(:,3) + dels * 9.806 * ssoil%ssdn(:,3) &
           & * (0.05*ssoil%ssdn(:,1) + ssoil%smass(:,2) + 0.5*ssoil%smass(:,3)) &
           & / (3.0e7 * EXP(.021 * ssoil%ssdn(:,3) + 0.081 &
-          & * (273.15 - MIN(tfrz, ssoil%tggsn(:,3)))))
+          & * (273.15 - MIN(tfrz, ssoil%tggsn(:,3))))) , 750.)
+      WHERE (soil%isoilm /= 9) ssoil%ssdn(:,1) = MIN(450.0,ssoil%ssdn(:,1))
+      WHERE (soil%isoilm /= 9) ssoil%ssdn(:,2) = MIN(450.0,ssoil%ssdn(:,2))
+      WHERE (soil%isoilm /= 9) ssoil%ssdn(:,3) = MIN(450.0,ssoil%ssdn(:,3))
       ssoil%sdepth(:,1) =  ssoil%smass(:,1) / ssoil%ssdn(:,1) 
       ssoil%sdepth(:,2) =  ssoil%smass(:,2) / ssoil%ssdn(:,2) 
       ssoil%sdepth(:,3) =  ssoil%smass(:,3) / ssoil%ssdn(:,3) 
@@ -551,11 +558,11 @@ CONTAINS
              & * ssoil%smass(:,2) + ssoil%ssdn(:,3) * ssoil%smass(:,3) ) &
              & / ssoil%snowd
       ssoil%sconds(:,1) = MAX(0.2, MIN(2.876e-6 * ssoil%ssdn(:,1) ** 2 &
-                                                        & + 0.074, 1.0) )
+                                                        & + 0.074, 2.51) )
       ssoil%sconds(:,2) = MAX(0.2, MIN(2.876e-6 * ssoil%ssdn(:,2) ** 2 &
-                                                        & + 0.074, 1.0) )
+                                                        & + 0.074, 2.51) )
       ssoil%sconds(:,3) = MAX(0.2, MIN(2.876e-6 * ssoil%ssdn(:,3) ** 2 &
-                                                        & + 0.074, 1.0) )
+                                                        & + 0.074, 2.51) )
     END WHERE
 !    print *,'ssdn & scnd',ssoil%ssdn
 !    print *,'ssdn & scnda',ssoil%ssdnn
@@ -832,6 +839,9 @@ CONTAINS
 !         - ssoil%wbice(:,ms) ) * soil%c3 / 86400., 0.)
 !    ssoil%rnof2 = soil%zse(ms) * 1000. * tmp * dels
 !    ssoil%wb(:,ms) = ssoil%wb(:,ms) - tmp * dels
+!   Scaling  runoff to kg/m^2/s to match rest of the model   
+    ssoil%rnof1 = ssoil%rnof1 / dels
+    ssoil%rnof2 = ssoil%rnof2 / dels
     ssoil%runoff = ssoil%rnof1 + ssoil%rnof2
     ssoil%wbtot = 0.0
     DO k = 1, ms
@@ -840,21 +850,21 @@ CONTAINS
     !
     !---  glacier formation
     IF (nglacier == 2) THEN
-      WHERE (ssoil%snowd > 1000.0)
-        rnof5 = ssoil%snowd - 1000.0
+      WHERE (ssoil%snowd > 50000.0)
+        rnof5 = ssoil%snowd - 50000.0
         ssoil%runoff = ssoil%runoff + rnof5
         !---- change local tg to account for energy - clearly not best method
         WHERE (ssoil%isflag == 0)
           smasstot = 0.0
           ssoil%tgg(:,1) = ssoil%tgg(:,1) - rnof5 * hlf &
                          & / REAL(ssoil%gammzz(:,1),r_1)
-          ssoil%snowd = 1000.0
+          ssoil%snowd = 50000.0
         ELSEWHERE
           smasstot = ssoil%smass(:,1) + ssoil%smass(:,2) + ssoil%smass(:,3)
         END WHERE
       END WHERE
       DO k = 1, 3
-        WHERE (ssoil%snowd > 1000.0  .and.  ssoil%isflag > 0)
+        WHERE (ssoil%snowd > 50000.0  .and.  ssoil%isflag > 0)
           sgamm = ssoil%ssdn(:,k) * cgsnow * ssoil%sdepth(:,k)
           smelt1(:,k) = MIN(rnof5 * ssoil%smass(:,k) / smasstot, &
                           & 0.9 * ssoil%smass(:,k) )
@@ -1002,7 +1012,8 @@ CONTAINS
     coeff = 0.0
     DO k = 1, ms
       WHERE (soil%isoilm == 9)
-        ccnsw(:,k) = 1.5
+!        ccnsw(:,k) = 1.5
+        ccnsw(:,k) = 2.0
       ELSEWHERE
         ew = ssoil%wblf(:,k) * soil%ssat
         ccnsw(:,k) = MIN(soil%cnsd * EXP( ew * LOG(60.0) + ssoil%wbfice(:,k) &
@@ -1071,11 +1082,11 @@ CONTAINS
     ! 3-layer snow points done here
     WHERE (ssoil%isflag /= 0)
       ssoil%sconds(:,1) = MAX(0.2, MIN(2.876e-6 * ssoil%ssdn(:,1)**2 &
-                        & + 0.074, 1.0) )
+                        & + 0.074, 2.51) )
       ssoil%sconds(:,2) = MAX(0.2, MIN(2.876e-6 * ssoil%ssdn(:,2)**2 &
-                        & + 0.074, 1.0) )
+                        & + 0.074, 2.51) )
       ssoil%sconds(:,3) = MAX(0.2, MIN(2.876e-6 * ssoil%ssdn(:,3)**2 &
-                        & + 0.074, 1.0) )
+                        & + 0.074, 2.51) )
       coeff(:,-1) = 2.0 / (ssoil%sdepth(:,1) / ssoil%sconds(:,1) &
                        & + ssoil%sdepth(:,2) / ssoil%sconds(:,2) )
       coeff(:,0) = 2.0 / (ssoil%sdepth(:,2) / ssoil%sconds(:,2) &
@@ -1254,10 +1265,8 @@ CONTAINS
     tmp_mat(:,4:) = REAL(ssoil%tgg,r_2)
     CALL trimb (at, bt, ct, tmp_mat, mssn + 3)
     ssoil%tggsn = REAL(tmp_mat(:,:3),r_1)
-    canopy%sghflux = coefb * (ssoil%tggsn(:,3) - ssoil%tgg(:,1) )
-
-    WHERE ( ssoil%isflag == 1 ) canopy%ga = canopy%sghflux
-
+!    canopy%sghflux = coefb * (ssoil%tggsn(:,3) - ssoil%tgg(:,1) )
+!    WHERE ( ssoil%isflag == 1 ) canopy%ga = canopy%sghflux
 !    print *,'stempvsn ga',canopy%ga
   END SUBROUTINE stempvsn
 
@@ -1281,14 +1290,25 @@ CONTAINS
       PRINT *, 'tggsn ', (ssoil%tggsn(idjd,k),k=1,3)
     END IF
 
-! If no restart file then snow variables need initialisation
-    IF (ktau <= 1) THEN
-      ssoil%ssdn = 120.0
-      ssoil%ssdnn = 120.0
-      ssoil%tggsn = tfrz
-      ssoil%isflag = 0
-!     ssoil%snage = 0.
-    END IF
+!!$    IF (ktau <= 1) THEN
+!!$      ssoil%ssdn = 120.0
+!!$      ssoil%ssdnn = 120.0
+!!$      ssoil%tggsn = tfrz
+!!$      ssoil%isflag = 0
+!!$      ssoil%sdepth(:,1) = ssoil%snowd / ssoil%ssdn(:,1)
+!!$      ssoil%sdepth(:,2) = 0.
+!!$      ssoil%sdepth(:,3) = 0.
+!!$      ssoil%smass(:,1) = ssoil%snowd
+!!$      ssoil%smass(:,2) = 0.0     
+!!$      ssoil%smass(:,3) = 0.0    
+!!$      WHERE( soil%isoilm == 9 )
+!!$        ssoil%ssdn(:,1)  = 200.0
+!!$        ssoil%ssdn(:,2)  = 300.0
+!!$        ssoil%ssdn(:,3)  = 380.0
+!!$        ssoil%ssdnn      = 350.0
+!!$      ENDWHERE
+!!$
+!!$    END IF
 
     WHERE (ssoil%snowd <= 0.0)
       ssoil%isflag = 0
@@ -1310,7 +1330,8 @@ CONTAINS
         ssoil%ssdn(:,1) = ssoil%ssdnn
         ssoil%tgg(:,1) = ssoil%tggsn(:,1)
       END WHERE
-      ssoil%ssdnn = MIN( 400.0, MAX(120.0, ssoil%ssdn(:,1)) )
+!      ssoil%ssdnn = MIN( 400.0, MAX(120.0, ssoil%ssdn(:,1)) )
+      ssoil%ssdnn = MAX(120.0, ssoil%ssdn(:,1)) 
       ssoil%ssdn(:,1) = ssoil%ssdnn
       ssoil%ssdn(:,2) = ssoil%ssdnn
       ssoil%ssdn(:,3) = ssoil%ssdnn
@@ -1326,9 +1347,9 @@ CONTAINS
       ssoil%smass(:,3) = 0.0     ! EK to fix -ve sdepth 21Dec2007
     ELSEWHERE ! sufficient snow now
       WHERE (ssoil%isflag == 0)
-        ssoil%tggsn(:,1) = ssoil%tgg(:,1)
-        ssoil%tggsn(:,2) = ssoil%tgg(:,1)
-        ssoil%tggsn(:,3) = ssoil%tgg(:,1)
+        ssoil%tggsn(:,1) = min(tfrz,ssoil%tgg(:,1))
+        ssoil%tggsn(:,2) = min(tfrz,ssoil%tgg(:,1))
+        ssoil%tggsn(:,3) = min(tfrz,ssoil%tgg(:,1))
         ssoil%ssdn(:,2) = ssoil%ssdn(:,1)
         ssoil%ssdn(:,3) = ssoil%ssdn(:,1)
         ssoil%sdepth(:,1) = 0.05
@@ -1394,7 +1415,7 @@ CONTAINS
 
         osm = ssoil%smass(:,2)
         ssoil%smass(:,2) = MAX(0.01_r_2, ssoil%smass(:,2) + excm)
-        ssoil%ssdn(:,2) = MAX(120.0_r_2, MIN(500.0_r_2, ssoil%ssdn(:,2)* &
+        ssoil%ssdn(:,2) = MAX(120.0_r_2, MIN(750.0_r_2, ssoil%ssdn(:,2)* &
           & osm/ssoil%smass(:,2) + ssoil%ssdn(:,1) * excm / ssoil%smass(:,2)) )
         ssoil%sdepth(:,2) =  ssoil%smass(:,2) / ssoil%ssdn(:,2) 
         ssoil%tggsn(:,2) = ssoil%tggsn(:,2) * osm / ssoil%smass(:,2) + &
@@ -1410,7 +1431,7 @@ CONTAINS
         osm = ssoil%smass(:,1)
         ssoil%smass(:,1) = ssoil%smass(:,1) + excm
         ssoil%sdepth(:,1) = 0.05
-        ssoil%ssdn(:,1) = MAX(120.0_r_2, MIN(500.0_r_2, ssoil%ssdn(:,1)* &
+        ssoil%ssdn(:,1) = MAX(120.0_r_2, MIN(750.0_r_2, ssoil%ssdn(:,1)* &
         & osm/ssoil%smass(:,1) + ssoil%ssdn(:,2) * excm / ssoil%smass(:,1)) )
         ssoil%tggsn(:,1) = ssoil%tggsn(:,1) * osm / ssoil%smass(:,1) +  &
                          & ssoil%tggsn(:,2) * excm/ ssoil%smass(:,1)
@@ -1438,7 +1459,7 @@ CONTAINS
         ssoil%smass(:,2) = MAX(0.01_r_2, ssoil%smass(:,2) + excm)
         ssoil%tggsn(:,2) = ssoil%tggsn(:,2) * osm / ssoil%smass(:,2) +  &
                          & ssoil%tggsn(:,3) * excm/ ssoil%smass(:,2)
-        ssoil%ssdn(:,2) = MAX(120.0_r_2, MIN(500.0_r_2, ssoil%ssdn(:,2)* &
+        ssoil%ssdn(:,2) = MAX(120.0_r_2, MIN(750.0_r_2, ssoil%ssdn(:,2)* &
            & osm/ssoil%smass(:,2) + ssoil%ssdn(:,3) * excm / ssoil%smass(:,2)) )
         ! following line added MAX function to fix -ve sdepth (EK 21Dec2007)
         ssoil%smass(:,3) = MAX(0.01_r_2, &
@@ -1455,7 +1476,7 @@ CONTAINS
                          & ssoil%snowd - ssoil%smass(:,1) - ssoil%smass(:,2))
         ssoil%tggsn(:,3) = ssoil%tggsn(:,3) * osm / ssoil%smass(:,3) +  &
                          & ssoil%tggsn(:,2) * excm/ ssoil%smass(:,3)
-        ssoil%ssdn(:,3) = MAX(120.0_r_2, MIN(500.0_r_2, ssoil%ssdn(:,3)* &
+        ssoil%ssdn(:,3) = MAX(120.0_r_2, MIN(750.0_r_2, ssoil%ssdn(:,3)* &
           & osm/ssoil%smass(:,3) + ssoil%ssdn(:,2) * excm / ssoil%smass(:,3)) )
         ssoil%sdepth(:,3) = ssoil%smass(:,3) /  ssoil%ssdn(:,3)
       END WHERE
@@ -1499,12 +1520,12 @@ CONTAINS
     ! allow for some water (< 2%) to remain unfrozen
     DO k = 1, ms
       WHERE (ssoil%tgg(:,k) < tfrz &
-          & .and. 0.98 * ssoil%wb(:,k) - ssoil%wbice(:,k) > .001)
-        sicefreeze = MIN( MAX(0.0_r_2,(0.98*ssoil%wb(:,k)-ssoil%wbice(:,k))) &
+          & .and. 0.95 * ssoil%wb(:,k) - ssoil%wbice(:,k) > .001)
+        sicefreeze = MIN( MAX(0.0_r_2,(0.95*ssoil%wb(:,k)-ssoil%wbice(:,k))) &
                         & * soil%zse(k) * 1000.0, &
                         & (tfrz - ssoil%tgg(:,k) ) * ssoil%gammzz(:,k) / hlf )
         ssoil%wbice(:,k) = MIN( ssoil%wbice(:,k) + sicefreeze / (soil%zse(k) &
-                         & * 1000.0), 0.98 * ssoil%wb(:,k) )
+                         & * 1000.0), 0.95 * ssoil%wb(:,k) )
         xx=soil%css * soil%rhosoil
         ssoil%gammzz(:,k) = MAX( (1.0 - soil%ssat) * soil%css * soil%rhosoil &
              & + (ssoil%wb(:,k) - ssoil%wbice(:,k)) * cswat * rhowat &
@@ -1563,24 +1584,18 @@ CONTAINS
         WHERE ( diff(:,k) .gt. 0.0 )
           ssoil%wb(:,k) = ssoil%wb(:,k) - xx / (soil%zse(k) * 1000.0)
           diff(:,k) = 0.0
-          evapfbl(:,k) = xx / (soil%zse(k) * 1000.0)
+          evapfbl(:,k) = xx 
         ELSEWHERE
           diff(:,k) = xx
         ENDWHERE
-!        evapfbl(:,k) = (MIN(canopy%fevc * dels / hl * veg%froot(:,k), &
-! MAX(0._r_2, MIN(ssoil%wb(:,k) - soil%swilt,ssoil%wb(:,k)-ssoil%wbice(:,k))) &
-!             * soil%zse(k) * 1000.)) / (soil%zse(k) * 1000.)
-!          ! Remove this amount from  the soil:
-!          ssoil%wb(:,k) = ssoil%wb(:,k) -   evapfbl(:,k)
       END WHERE
     END DO
 
     ! Adjust fevc
-    WHERE (canopy%fevc > 0.) ! convert to mm/dels
-      canopy%fevc = (evapfbl(:,1)*soil%zse(1)+evapfbl(:,2)*soil%zse(2) &
-        & +evapfbl(:,3)*soil%zse(3)+evapfbl(:,4)*soil%zse(4)+evapfbl(:,5) &
-        & *soil%zse(5)+evapfbl(:,6)*soil%zse(6))*1000.*hl/dels
-    END WHERE
+!    WHERE (canopy%fevc > 0.)  
+!      canopy%fevc = (evapfbl(:,1)+evapfbl(:,2)+evapfbl(:,3)+evapfbl(:,4))*hl/dels
+!!        & + evapfbl(:,5)+evapfbl(:,6))*hl/dels
+!    END WHERE
 
   END SUBROUTINE remove_trans 
 
@@ -1717,8 +1732,7 @@ CONTAINS
 
     totwet = canopy%precis + ssoil%smelt
     ! remove an excessive precipitation of more than > 300mm/day
-    ssoil%rnof1 = MAX(0., totwet - 300.0*dels / 86400.0)
-!    ssoil%rnof1 = MAX(0., totwet - dels / 172.8) ! 86400/500 = 172.8
+!    ssoil%rnof1 = MAX(0., totwet - 600.0*dels / 86400.0)
 
     weting = totwet - ssoil%rnof1
     xxx=soil%ssat - ssoil%wb(:,1)

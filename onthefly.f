@@ -846,6 +846,7 @@ c       incorporate other target land mask effects
 
         ! SNOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         call histrd1(ncid,iarchi,ier,'snd',ik,6*ik,snowd_a,6*ik*ik)
+	print *,"myid,snd ier ",ier
         if (ier.ne.0) then
           where (tss_a.lt.270.)
             snowd_a=min(55.,5.*(271.-abs(tss_a)))
@@ -854,6 +855,10 @@ c       incorporate other target land mask effects
             snowd_a=0.
           end where
         end if
+	if (myid==0) then
+	  print *,"snd ",maxval(snowd_a),minval(snowd_a),
+     &                   sum(snowd_a)/real(ik*ik*6)
+	end if
 
         tggsn_a(:,:)= 280.
         call histrd1(ncid,iarchi,ier,'tggsn1',ik,6*ik,tggsn_a(:,1),
@@ -1052,6 +1057,8 @@ c       incorporate other target land mask effects
             tgg(:,1)=min(tgg(:,1),270.1)
           endwhere
         end if ! iotest
+	print *,"snowd ",myid,maxval(snowd),minval(snowd),
+     &                   sum(snowd)/real(ifull)
 
         do k=1,kk ! CLOUD LIQUID AND FROZEN WATER !!!!!!!!!!!!!!!!!!!
          ucc=0. ! dummy for qfg

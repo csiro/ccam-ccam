@@ -110,9 +110,13 @@ module cable_ccam
   if (ktau==1.and.nrungcm.ne.0) then
     do k=1,ms ! use preset for wb
       ssoil%wb(:,k)=wb(cmap,k)
+      ssoil%wbtot = ssoil%wbtot + ssoil%wb(:,k) * 1000.0 * soil%zse(k)
     end do
     ssoil%wetfac = MAX(0., MIN(1., (ssoil%wb(:,1) - soil%swilt) / (soil%sfc - soil%swilt)))
-    ssoil%owetfac = ssoil%wetfac        
+    ssoil%owetfac = ssoil%wetfac
+    ssoil%gammzz(:,1) = MAX( (1.0 - soil%ssat) * soil%css * soil%rhosoil &
+         & + (ssoil%wb(:,1) - ssoil%wbice(:,1) ) * 4.218e3 * 1000.0 &
+         & + ssoil%wbice(:,1) * 2.100e3 * 1000.0 * .9, soil%css * soil%rhosoil ) * soil%zse(1)    
   end if
 
 !
@@ -215,11 +219,11 @@ module cable_ccam
   CALL ruff_resist
   CALL define_air
   CALL init_radiation ! need to be called at every dt
-  CALL cab_albedo(ktau, dt, .true.) ! set L_RADUM=.true. as radriv90.f has been called
-  CALL define_canopy(ktau,dt,.true.)
+  CALL cab_albedo(999, dt, .true.) ! set L_RADUM=.true. as radriv90.f has been called
+  CALL define_canopy(999,dt,.true.)
   ssoil%otss = ssoil%tss                                                     ! MJT from eak energy bal
   ssoil%owetfac = ssoil%wetfac
-  CALL soil_snow(dt, ktau)
+  CALL soil_snow(dt, 999)
   ! adjust for new soil temperature
   deltat = ssoil%tss - ssoil%otss                                            ! MJT from eak energy bal
   canopy%fhs = canopy%fhs + deltat*ssoil%dfh_dtg                             ! MJT from eak energy bal
@@ -907,6 +911,15 @@ module cable_ccam
     ssoil%owetfac = ssoil%wetfac
     ssoil%wbtot=0.
     bal%wbtot0 = ssoil%wbtot
+    
+    canopy%ga = 0.0
+    DO k = 1, ms
+      ssoil%wbtot = ssoil%wbtot + ssoil%wb(:,k) * 1000.0 * soil%zse(k)
+    END DO
+    ssoil%gammzz(:,1) = MAX( (1.0 - soil%ssat) * soil%css * soil%rhosoil &
+         & + (ssoil%wb(:,1) - ssoil%wbice(:,1) ) * 4.218e3 * 1000.0 &
+         & + ssoil%wbice(:,1) * 2.100e3 * 1000.0 * .9, soil%css * soil%rhosoil ) * soil%zse(1)
+
   end if
 
   return

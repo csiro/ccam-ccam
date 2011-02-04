@@ -774,17 +774,17 @@ do j=1,jl,imax/il
     where (sg.gt.0.1)
       swrsave(istart:iend)=sgvis/sg
     elsewhere
-      swrsave(istart:iend)=0.
+      swrsave(istart:iend)=0.5
     end where
     where (sgdnvisdir+sgdnvisdif.gt.0.1)
       fbeamvis(istart:iend)=sgdnvisdir/(sgdnvisdir+sgdnvisdif)
     elsewhere
-      fbeamvis(istart:iend)=0.
+      fbeamvis(istart:iend)=0.5
     end where
     where (sgdnnirdir+sgdnnirdif.gt.0.1)
       fbeamnir(istart:iend)=sgdnnirdir/(sgdnnirdir+sgdnnirdif)
     elsewhere
-      fbeamnir(istart:iend)=0.
+      fbeamnir(istart:iend)=0.5
     end where
     
     ! Store albedo data ---------------------------------------------
