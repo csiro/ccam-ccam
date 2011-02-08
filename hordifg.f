@@ -42,12 +42,8 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
-      real, dimension(ifull+iextra,kl) :: zg           ! MJT smag
-      real, dimension(ifull,kl) :: gg,bb,dd,ppb        ! MJT smag
-      real, dimension(ifull,kl) :: theta,thetav,qs     ! MJT smag
       real, dimension(ifull,kl) :: dudx,dudy,dvdx,dvdy ! MJT smag
-      real, dimension(ifull,kl) :: dwdx,dwdy,dwdz      ! MJT smag
-      real, dimension(ifull,kl) :: dudz,dvdz           ! MJT smag
+      real, dimension(ifull,kl) :: dwdx,dwdy           ! MJT smag
       real, dimension(ifull+iextra,kl) :: ww           ! MJT smag
       real es                                          ! MJT emag
       integer, parameter :: nf=2
@@ -57,7 +53,6 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       integer, save :: kmax=-1 ! MJT smag
       !integer i, j, n, ind
       !ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
-      include 'establ.h'
 
 c     nhorx used in hordif  ! previous code effectively has nhorx=0
 c           = 1 u, v, T, qg  diffusion reduced near mountains
@@ -112,49 +107,10 @@ c     above code independent of k
 
       !--------------------------------------------------------------
       ! MJT tke ! MJT smag
-      if (nhorjlm==0.or.nhorjlm==4.or.nvmix==6) then
-        ! calculate model level heights in meters (zg)
-        ! calculate vertical velocity in m/s (ww)
-        zg(1:ifull,1)=bet(1)*t(1:ifull,1)/grav
-        do k=2,kl
-          zg(1:ifull,k)=zg(1:ifull,k-1)+(bet(k)*t(1:ifull,k)
-     &                      +betm(k)*t(1:ifull,k-1))/grav
-        end do
-        call bounds(zg)
-        do k=1,kl        
-          ! omega=ps*dpsldt
-          ww(1:ifull,k)=(dpsldt(:,k)/sig(k)-dpsdt/(860.*ps(1:ifull)))
-     &           *(-rdry/grav)*t(1:ifull,k)*(1.+0.61*qg(1:ifull,k))
-        end do
-        call bounds(ww)
-        do k=1,kl
-          dwdx(:,k)=(ww(ie,k)-ww(iw,k))*0.5*em(1:ifull)/ds
-          dwdy(:,k)=(ww(in,k)-ww(is,k))*0.5*em(1:ifull)/ds
-        end do
-        dwdz(:,1)=(ww(1:ifull,2)-ww(1:ifull,1))
-     &           /(zg(1:ifull,2)-zg(1:ifull,1))
-        dudz(:,1)=(u(1:ifull,2)-u(1:ifull,1))
-     &           /(zg(1:ifull,2)-zg(1:ifull,1))
-        dvdz(:,1)=(v(1:ifull,2)-v(1:ifull,1))
-     &           /(zg(1:ifull,2)-zg(1:ifull,1))
-        do k=2,kl-1
-          dwdz(:,k)=(ww(1:ifull,k+1)-ww(1:ifull,k-1))
-     &             /(zg(1:ifull,k+1)-zg(1:ifull,k-1))
-          dudz(:,k)=(u(1:ifull,k+1)-u(1:ifull,k-1))
-     &             /(zg(1:ifull,k+1)-zg(1:ifull,k-1))
-          dvdz(:,k)=(v(1:ifull,k+1)-v(1:ifull,k-1))
-     &             /(zg(1:ifull,k+1)-zg(1:ifull,k-1))
-        end do
-        dwdz(:,kl)=(ww(1:ifull,kl)-ww(1:ifull,kl-1))
-     &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
-        dudz(:,kl)=(u(1:ifull,kl)-u(1:ifull,kl-1))
-     &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
-        dvdz(:,kl)=(v(1:ifull,kl)-v(1:ifull,kl-1))
-     &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
-     
-      ! Calculate du/dx,dv/dx,du/dy,dv/dy but use cartesian vectors
-      ! so as to avoid changes in vector direction across panel boundaries.
-      ! Should be compatible with gnomonic grid.
+      if (nhorjlm==0.or.nvmix==6) then
+        ! Calculate du/dx,dv/dx,du/dy,dv/dy but use cartesian vectors
+        ! so as to avoid changes in vector direction across panel boundaries.
+        ! Should be compatible with gnomonic grid.
     
         ! u=ax*uc+ay*vc+az*wc
         ! dudx=u(ie)-u(iw)=ax*(uc(ie)-uc(iw))+ay*(vc(ie)-vc(iw))+az*(wc(ie)-wc(iw))
@@ -170,15 +126,11 @@ c     above code independent of k
         do k=1,kl
           dudx(:,k)=(ax(1:ifull)*(uc(ie,k)-uc(iw,k))
      &              +ay(1:ifull)*(vc(ie,k)-vc(iw,k))
-     &              +az(1:ifull)*(wc(ie,k)-wc(iw,k))
-     &              +(zg(ie,k)+zs(ie)-zg(iw,k)-zs(iw))
-     &               *dudz(:,k))
+     &              +az(1:ifull)*(wc(ie,k)-wc(iw,k)))
      &              *0.5*em(1:ifull)/ds
           dudy(:,k)=(ax(1:ifull)*(uc(in,k)-uc(is,k))
      &              +ay(1:ifull)*(vc(in,k)-vc(is,k))
-     &              +az(1:ifull)*(wc(in,k)-wc(is,k))
-     &              +(zg(in,k)+zs(in)-zg(is,k)-zs(is))
-     &               *dudz(:,k))
+     &              +az(1:ifull)*(wc(in,k)-wc(is,k)))
      &              *0.5*em(1:ifull)/ds
         end do
         ! v=bx*uc+by*vc+bz*wc
@@ -195,77 +147,25 @@ c     above code independent of k
         do k=1,kl
           dvdx(:,k)=(bx(1:ifull)*(uc(ie,k)-uc(iw,k))
      &              +by(1:ifull)*(vc(ie,k)-vc(iw,k))
-     &              +bz(1:ifull)*(wc(ie,k)-wc(iw,k))
-     &              +(zg(ie,k)+zs(ie)-zg(iw,k)-zs(iw))
-     &               *dvdz(:,k))
+     &              +bz(1:ifull)*(wc(ie,k)-wc(iw,k)))
      &              *0.5*em(1:ifull)/ds
           dvdy(:,k)=(bx(1:ifull)*(uc(in,k)-uc(is,k))
      &              +by(1:ifull)*(vc(in,k)-vc(is,k))
-     &              +bz(1:ifull)*(wc(in,k)-wc(is,k))
-     &              +(zg(in,k)+zs(in)-zg(is,k)-zs(is))
-     &               *dvdz(:,k))
+     &              +bz(1:ifull)*(wc(in,k)-wc(is,k)))
      &              *0.5*em(1:ifull)/ds
         end do
-  
-        ! Calculate bouyancy = kh * ppb (ppb=-N^2)
-        ! Based on Durran and Klemp JAS 1982, where
-        ! bb is for dry air and dd is for cloudy/saturated
-        ! air
+
+        do k=1,kl        
+          ! omega=ps*dpsldt
+          ww(1:ifull,k)=(dpsldt(:,k)/sig(k)-dpsdt/(860.*ps(1:ifull)))
+     &           *(-rdry/grav)*t(1:ifull,k)*(1.+0.61*qg(1:ifull,k))
+        end do
+        call bounds(ww)
         do k=1,kl
-          do iq=1,ifull
-            theta(iq,k)=t(iq,k)*sig(k)**(-roncp)
-            thetav(iq,k)=theta(iq,k)*(1.+0.61*qg(iq,k))
-            es = establ(t(iq,k))
-            qs(iq,k)=.622*es/(ps(iq)*sig(k)-es)
-            gg(iq,k)=(1.+hl*qs(iq,k)/(rdry*t(iq,k)))
-     &      /(1.+hl*hl*qs(iq,k)/(cp*rvap*t(iq,k)*t(iq,k)))
-          end do
+          dwdx(:,k)=(ww(ie,k)-ww(iw,k))*0.5*em(1:ifull)/ds
+          dwdy(:,k)=(ww(in,k)-ww(is,k))*0.5*em(1:ifull)/ds
         end do
-        bb(:,1)=-grav/(zg(1:ifull,2)-zg(1:ifull,1))*gg(:,1)
-     &    *((theta(:,2)-theta(:,1))/theta(:,1)
-     &    +hl*qs(:,1)/(cp*t(1:ifull,1))*(qs(:,2)-qs(:,1)))
-     &    +grav/(zg(1:ifull,2)-zg(1:ifull,1))*(qs(:,2)+qlg(1:ifull,2)
-     &    +qfg(1:ifull,2)-qs(:,1)-qlg(1:ifull,1)-qfg(1:ifull,1))
-        dd(:,1)=-grav/(zg(1:ifull,2)-zg(1:ifull,1))
-     &    *(thetav(:,2)-thetav(:,1))/thetav(:,1)
-     &    +grav/(zg(1:ifull,2)-zg(1:ifull,1))
-     &         *(qlg(1:ifull,2)+qfg(1:ifull,2)
-     &    -qlg(1:ifull,1)-qfg(1:ifull,1))
-        do k=2,kl-1
-          bb(:,k)=-grav/(zg(1:ifull,k+1)-zg(1:ifull,k-1))*gg(:,k)
-     &      *((theta(:,k+1)-theta(:,k-1))/theta(:,k)
-     &      +hl*qs(:,k)/(cp*t(1:ifull,k))*(qs(:,k+1)-qs(:,k-1)))
-     &      +grav/(zg(1:ifull,k+1)-zg(1:ifull,k-1))
-     &           *(qs(:,k+1)+qlg(1:ifull,k+1)
-     &      +qfg(1:ifull,k+1)-qs(:,k-1)-qlg(1:ifull,k-1)
-     &      -qfg(1:ifull,k-1))
-          dd(:,k)=-grav/(zg(1:ifull,k+1)-zg(1:ifull,k-1))
-     &      *(thetav(:,k+1)-thetav(:,k-1))/thetav(:,k)
-     &      +grav/(zg(1:ifull,k+1)-zg(1:ifull,k-1))*(qlg(1:ifull,k+1)
-     &      +qfg(1:ifull,k+1)-qlg(1:ifull,k-1)-qfg(1:ifull,k-1))
-        end do
-        bb(:,kl)=-grav/(zg(1:ifull,kl)-zg(1:ifull,kl-1))*gg(:,kl)
-     &    *((theta(:,kl)-theta(:,kl-1))/theta(:,kl)
-     &    +hl*qs(:,kl)/(cp*t(1:ifull,kl))*(qs(:,kl)-qs(:,kl-1)))
-     &    +grav/(zg(1:ifull,kl)-zg(1:ifull,kl-1))
-     &         *(qs(:,kl)+qlg(1:ifull,kl)
-     &    +qfg(1:ifull,kl)-qs(:,kl-1)-qlg(1:ifull,kl-1)
-     &    -qfg(1:ifull,kl-1))
-        dd(:,kl)=-grav/(zg(1:ifull,kl)-zg(1:ifull,kl-1))
-     &    *(thetav(:,kl)-thetav(:,kl-1))/thetav(:,kl)
-     &    +grav/(zg(1:ifull,kl)-zg(1:ifull,kl-1))
-     &         *(qlg(1:ifull,kl)+qfg(1:ifull,kl)
-     &    -qlg(1:ifull,kl-1)-qfg(1:ifull,kl-1))    
-        !if (buoymeth.eq.1) then
-        !  where (cfrac.gt.0.5)
-        !    ppb=bb(:,2:kl)
-        !  elsewhere
-        !    ppb=cc(:,2:kl)
-        !  end where
-        !else
-          ppb=cfrac*bb+(1.-cfrac)*dd
-        !end if
-      end if
+      end if   ! nhorjlm==0.or.nvmix==6
       if (nhorjlm==1.or.nhorjlm==2.or.
      &    nhorps==0.or.nhorps==-2) then ! usual deformation for nhorjlm=1 or nhorjlm=2
         
@@ -285,34 +185,17 @@ c     above code independent of k
 !      !--------------------------------------------------------------
 
       select case(nhorjlm)
-       case(0,4) ! MJT smag
-       !-------------------------------------------------------------
-       ! MJT smag
-       ! Smagorinsky REDUX
-       ! This is based on 3D Smagorinsky closure (see WRF)
-       ! This seems to help when the grid spacing is less than
-       ! the boundary layer height.
+       case(0)   ! MJT smag
+         ! This is based on 2D Smagorinsky closure
          do k=1,kl
            hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
            do iq=1,ifull
-             cc=2.*dudx(iq,k)**2+2.*dvdy(iq,k)**2
-             cc=cc+2.*dwdz(iq,k)**2
-             cc=cc+(dvdx(iq,k)+dudy(iq,k))**2
-             cc=cc+(dwdx(iq,k)+dudz(iq,k))**2
-             cc=cc+(dwdy(iq,k)+dvdz(iq,k))**2
-             cc=cc+3.*ppb(iq,k) ! 3*ppb=-N^2/Pr
-             cc=max(cc,1.E-10)
+             cc=(dudx(iq,k)-dvdy(iq,k))**2
+             cc=cc+(dudy(iq,k)+dvdx(iq,k))**2
              t_kh(iq,k)=sqrt(cc)*hdif/(em(iq)*em(iq))  ! this one with em in D terms
            end do
          end do
-         ! boost diffusion when boundary layer is larger than the grid spacing
-         if (nhorjlm==4) then
-           do k=1,kl
-             t_kh(1:ifull,k)=t_kh(1:ifull,k)*max(1.,
-     &         pblh*pblh*em(1:ifull)*em(1:ifull)/(ds*ds))
-           end do
-         end if
-
+      
        case(1)
 c      jlm deformation scheme using 3D uc, vc, wc
          do k=1,kl
@@ -480,12 +363,6 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
          end do
        end if
        
-       if (nhorjlm==0.or.nhorjlm==4) then
-         ! increase by 1/Prandtl number for scalars
-         xfact=xfact*3.
-         yfact=yfact*3.
-       end if
-
        if(nhorps.ne.-2)then   ! for nhorps=-2 don't diffuse T, qg
 c        do t diffusion based on potential temperature ff
           do k=1,kl

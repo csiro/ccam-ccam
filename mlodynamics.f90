@@ -241,22 +241,28 @@ end subroutine mlodiffusion
 ! to determine the river flow
 subroutine mlorouter
 
-use arrays_m 
+use arrays_m
+use cable_ccam 
 use cc_mpi
 use indices_m
 use map_m
 use mlo
+use nsibd_m
+use soil_m
+use soilsnow_m
 
 implicit none
 
 include 'newmpar.h'
 include 'const_phys.h'
 include 'parm.h'
+include 'soilv.h'
 
-integer i,iq
+integer i,iq,k
 integer, dimension(ifull,4) :: xp
 real, dimension(ifull) :: newwat
 real, dimension(ifull,4) :: dp,slope,mslope,vel,flow
+real :: xx,yy
 
 if (.not.allocated(watbdy)) then
   allocate(watbdy(ifull+iextra))
@@ -302,10 +308,20 @@ do i=1,4
 end do
 newwat=newwat+sum(flow,2)
   
-! basin
+! basin - runoff is inserted into soil moisture since CCAM has discrete land and sea points
 do iq=1,ifull
-  if (all(slope(iq,:).lt.-1.E-10)) then
-    newwat(iq)=newwat(iq)-watbdy(iq) ! sink - assume sub grid scale lake is present
+  if (all(slope(iq,:).lt.-1.E-10).and.land(iq)) then
+    xx=watbdy(iq)
+    if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
+      call cableinflow(iq,xx)
+    else
+      do k=1,ms
+        yy=min(xx,(ssat(isoilm(iq))-wb(iq,k))*1000.*zse(k))
+        wb(iq,k)=wb(iq,k)+yy/(1000.*zse(k))
+        xx=max(xx-yy,0.)
+      end do
+    end if
+    newwat(iq)=newwat(iq)-watbdy(iq)+xx
   end if
 end do
 
@@ -313,6 +329,246 @@ watbdy(1:ifull)=max(newwat,0.)
 
 return
 end subroutine mlorouter
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine implements some basic hydrostatic dynamics
+! (note this is a work in progress)
+!subroutine mlohadv
+!
+!use cc_mpi
+!use mlo
+!
+!implicit none
+!
+!real, dimension(ifull,wlev) :: nu,nv,nw
+!
+!ee=0.
+!where(land)
+!  ee=1.
+!end where
+!call bounds(ee)
+!wtr=ee.lt.0.5
+!
+! Initialise arrays
+!
+!do k=1,wlev
+!  call mloexport(0,nt(:,ii),k,0)
+!  call mloexport(1,ns(:,ii),k,0)
+!  call mloexport(2,nu(:,ii),k,0)
+!  call mloexport(3,nv(:,ii),k,0)
+!end do
+!
+!do l=1,2 ! predictor-corrector loop
+!
+!  ! update bounds
+!  do ii=1,wlev
+!    call bounds(nu(:,ii))
+!    call bounds(nv(:,ii))
+!    call bounds(nt(:,ii))
+!    call bounds(ns(:,ii))
+!  end do
+!
+!  ! Calculate depth gradient
+!  dzdx=0.
+!  dzdy=0.
+!  do ii=1,wlev
+!    call bounds(depth(:,ii))
+!    where(wtr(1:ifull).and.wtr(ie).and.wtr(iw))
+!      dzdx(:,ii)=(depth(ie,ii)-depth(iw,ii))*0.5*em(:)/ds
+!    elsewhere(wtr(1:ifull).and.wtr(ie))
+!      dzdx(:,ii)=(depth(ie,ii)-depth(1:ifull,ii))*em(:)/ds
+!    elsewhere(wtr(1:ifull).and.wtr(iw))
+!      dzdx(:,ii)=(depth(1:ifull,ii)-depth(iw,ii)*em(:)/ds
+!    end where
+!    where(wtr(1:ifull).and.wtr(in).and.wtr(is))
+!      dzdy(:,ii)=(depth(in,ii)-depth(is,ii))*0.5*em(:)/ds
+!    elsewhere(wtr(1:ifull).and.wtr(in))
+!      dzdy(:,ii)=(depth(in,ii)-depth(1:ifull,ii))*em(:)/ds
+!    elsewhere(wtr(1:ifull).and.wtr(is))
+!      dzdy(:,ii)=(depth(1:ifull,ii)-depth(is,ii)*em(:)/ds
+!    end where
+!  end do
+!
+!  ! Calculate pressure and gradient
+!  do ii=1,wlev
+!    rho(:,ii)=
+!    p(:,ii)=grav*depth(1:ifull,ii)*rho(:,ii)
+!    call bounds(p(:,ii))
+!  end do
+!  dpdz(:,1)=
+!  do ii=2,wlev-1
+!    dpdz(:,ii)=
+!  end do
+!  dpdz(:,wlev)=
+!
+!  dpdx=0.
+!  dpdy=0.
+!  do ii=1,wlev
+!    where(wtr(1:ifull).and.wtr(ie).and.wtr(iw))
+!      dpdx(:,ii)=(p(ie,ii)-p(iw,ii))*0.5*em(:)/ds+dzdx(:,ii)*dpdz(:,ii)
+!    elsewhere(wtr(1:ifull).and.wtr(ie))
+!      dpdx(:,ii)=(p(ie,ii)-p(1:ifull,ii))*em(:)/ds+dzdx(:,ii)*dpdz(:,ii)
+!    elsewhere(wtr(1:ifull).and.wtr(iw))
+!      dpdx(:,ii)=(p(1:ifull,ii)-p(iw,ii)*em(:)/ds+dzdx(:,ii)*dpdz(:,ii)
+!    end where
+!    where(wtr(1:ifull).and.wtr(in).and.wtr(is))
+!      dpdy(:,ii)=(p(in,ii)-p(is,ii))*0.5*em(:)/ds+dzdy(:,ii)*dpdz(:,ii)
+!    elsewhere(wtr(1:ifull).and.wtr(in))
+!      dpdy(:,ii)=(p(in,ii)-p(1:ifull,ii))*em(:)/ds+dzdy(:,ii)*dpdz(:,ii)
+!    elsewhere(wtr(1:ifull).and.wtr(is))
+!      dpdy(:,ii)=(p(1:ifull,ii)-p(is,ii)*em(:)/ds+dzdy(:,ii)*dpdz(:,ii)
+!    end where
+!  end do
+!
+!
+!  ! Split U and V coriolis and pressure gradient terms
+!  xp=1.+(dt*a_f)**2
+!  xm=dt*a_f
+!  do ii=1,wlev
+!    ou=(w_u(:,ii)+xm*w_v(:,ii)-dt*(dpdx(:,ii)+xm*dpdy(:,ii))/rho(:,ii))/xp
+!    ov=(w_v(:,ii)-xm*w_u(:,ii)-dt*(dpdy(:,ii)-xm*dpdx(:,ii))/rho(:,ii))/xp
+!  end do
+!
+!  if (l.eq.1) then
+!    nu=ou
+!    nv=ov
+!  end if
+!
+!  ! Convert (u,v) to cartesian coordinates (U,V,W) for advection terms
+!  cou=ax*ou+bx*ov
+!  cov=ay*ou+by*ov
+!  cow=az*ou+bz*ov
+!  cnu=ax*nu+bx*nv
+!  cnv=ay*nu+by*nv
+!  cnw=az*nu+bz*nv
+!
+!  ! Calculate vertical velocity
+!  do ii=1,wlev
+!    dudz(:,ii)=
+!    dvdz(:,ii)=
+!    dwdz(:,ii)=
+!  end do
+!
+!  ! Calculate velocity gradients
+!  dudx=0.
+!  dvdx=0.
+!  dwdx=0.
+!  dudy=0.
+!  dvdy=0.
+!  dwdy=0.
+!  do ii=1,wlev
+!    where(wtr(1:ifull).and.wtr(ie).and.wtr(iw))
+!      dudx(:,ii)=(cnu(ie,ii)-cnu(iw,ii))*0.5*em(:)/ds+dzdx(:,ii)*dudz(:,ii)
+!      dvdx(:,ii)=(cnv(ie,ii)-cnv(iw,ii))*0.5*em(:)/ds+dzdx(:,ii)*dvdz(:,ii)
+!      dwdx(:,ii)=(cnw(ie,ii)-cnw(iw,ii))*0.5*em(:)/ds+dzdx(:,ii)*dwdz(:,ii)
+!    elsewhere(wtr(1:ifull).and.wtr(ie))
+!      dudx(:,ii)=(cnu(ie,ii)-cnu(1:ifull,ii))*em(:)/ds+dzdx(:,ii)*dudz(:,ii)
+!      dvdx(:,ii)=(cnv(ie,ii)-cnv(1:ifull,ii))*em(:)/ds+dzdx(:,ii)*dvdz(:,ii)
+!      dwdx(:,ii)=(cnw(ie,ii)-cnw(1:ifull,ii))*em(:)/ds+dzdx(:,ii)*dwdz(:,ii)
+!    elsewhere(wtr(1:ifull).and.wtr(iw))
+!      dudx(:,ii)=(cnu(1:ifull,ii)-cnu(iw,ii)*em(:)/ds+dzdx(:,ii)*dudz(:,ii)
+!      dvdx(:,ii)=(cnv(1:ifull,ii)-cnv(iw,ii)*em(:)/ds+dzdx(:,ii)*dvdz(:,ii)
+!      dwdx(:,ii)=(cnw(1:ifull,ii)-cnw(iw,ii)*em(:)/ds+dzdx(:,ii)*dwdz(:,ii)
+!    end where
+!    where(wtr(1:ifull).and.wtr(in).and.wtr(is))
+!      dudy(:,ii)=(cnu(in,ii)-cnu(is,ii))*0.5*em(:)/ds+dzdy(:,ii)*dudz(:,ii)
+!      dvdy(:,ii)=(cnv(in,ii)-cnv(is,ii))*0.5*em(:)/ds+dzdy(:,ii)*dvdz(:,ii)
+!      dwdy(:,ii)=(cnw(in,ii)-cnw(is,ii))*0.5*em(:)/ds+dzdy(:,ii)*dwdz(:,ii)
+!    elsewhere(wtr(1:ifull).and.wtr(in))
+!      dudy(:,ii)=(cnu(in,ii)-cnu(1:ifull,ii))*em(:)/ds+dzdy(:,ii)*dudz(:,ii)
+!      dvdy(:,ii)=(cnv(in,ii)-cnv(1:ifull,ii))*em(:)/ds+dzdy(:,ii)*dvdz(:,ii)
+!      dwdy(:,ii)=(cnw(in,ii)-cnw(1:ifull,ii))*em(:)/ds+dzdy(:,ii)*dwdz(:,ii)
+!    elsewhere(wtr(1:ifull).and.wtr(is))
+!      dudy(:,ii)=(cnu(1:ifull,ii)-cnu(is,ii)*em(:)/ds+dzdy(:,ii)*dudz(:,ii)
+!      dvdy(:,ii)=(cnv(1:ifull,ii)-cnv(is,ii)*em(:)/ds+dzdy(:,ii)*dvdz(:,ii)
+!      dwdy(:,ii)=(cnw(1:ifull,ii)-cnw(is,ii)*em(:)/ds+dzdy(:,ii)*dwdz(:,ii)
+!    end where
+!  end do
+!
+!  ! Stagger u and v
+!  do i=1,wlev
+!    snu(:,ii)=
+!    snv(:,ii)=
+!  end do
+!
+!  ! Horizontal terms
+!  do ii=1,wlev
+!    cuu(:)=cou(:,ii)+dt*(snu(:,ii)*dudx(:,ii)+snv(:,ii)*dudy(:,ii))    ! need cartesian version
+!    cvv(:)=cov(:,ii)+dt*(snu(:,ii)*dvdx(:,ii)+snv(:,ii)*dvdy(:,ii))
+!    cww(:)=cow(:,ii)+dt*(snu(:,ii)*dwdx(:,ii)+snv(:,ii)*dwdy(:,ii))
+!    uu(:,ii)=ax*cuu+ay*cvv+az*cww
+!    vv(:,ii)=bx*cuu+by*cvv+bz*cww
+!  end do
+!
+!
+!  ! Vertical terms
+!  w_w(:,ii)=
+!  w_u(:,ii)=w_u(:,ii)+dt*w_w(:,ii)*dudz(:,ii)
+!  w_v(:,ii)=w_v(:,ii)+dt*w_w(:,ii)*dvdz(:,ii)
+!
+!  ! Calculate vertical gradients for temperature and salinity
+!  dtdz(:,1)=
+!  dsdz(:,1)=
+!  do ii=1,wlev
+!    dtdz(:,ii)=
+!    dsdz(:,ii)=
+!  end do
+!  dtdz(:,wlev)=
+!  dsdx(:,wlev)=
+!
+!  ! Calculate temperature and salinity gradients
+!  dtdx=0.
+!  dsdx=0.
+!  dtdy=0.
+!  dsdy=0.
+!  do ii=1,wlev
+!    where(wtr(1:ifull).and.wtr(ie).and.wtr(iw))
+!      dtdx(:,ii)=(nt(ie,ii)-nt(iw,ii))*0.5*em(:)/ds+dzdx(:,ii)*dtdz(:,ii)
+!      dsdx(:,ii)=(ns(ie,ii)-ns(iw,ii))*0.5*em(:)/ds+dzdx(:,ii)*dsdz(:,ii)
+!    elsewhere(wtr(1:ifull).and.wtr(ie))
+!      dtdx(:,ii)=(nt(ie,ii)-nt(1:ifull,ii))*em(:)/ds+dzdx(:,ii)*dtdz(:,ii)
+!      dsdx(:,ii)=(ns(ie,ii)-ns(1:ifull,ii))*em(:)/ds+dzdx(:,ii)*dsdz(:,ii)
+!    elsewhere(wtr(1:ifull).and.wtr(iw))
+!      dtdx(:,ii)=(nt(1:ifull,ii)-nt(iw,ii)*em(:)/ds+dzdx(:,ii)*dtdz(:,ii)
+!      dsdx(:,ii)=(ns(1:ifull,ii)-ns(iw,ii)*em(:)/ds+dzdx(:,ii)*dsdz(:,ii)
+!    end where
+!    where(wtr(1:ifull).and.wtr(in).and.wtr(is))
+!      dtdy(:,ii)=(nt(in,ii)-nt(is,ii))*0.5*em(:)/ds+dzdy(:,ii)*dtdz(:,ii)
+!      dsdy(:,ii)=(ns(in,ii)-ns(is,ii))*0.5*em(:)/ds+dzdy(:,ii)*dsdz(:,ii)
+!    elsewhere(wtr(1:ifull).and.wtr(in))
+!      dtdy(:,ii)=(nt(in,ii)-nt(1:ifull,ii))*em(:)/ds+dzdy(:,ii)*dtdz(:,ii)
+!      dsdy(:,ii)=(ns(in,ii)-ns(1:ifull,ii))*em(:)/ds+dzdy(:,ii)*dsdz(:,ii)
+!    elsewhere(wtr(1:ifull).and.wtr(is))
+!      dtdy(:,ii)=(nt(1:ifull,ii)-nt(is,ii)*em(:)/ds+dzdy(:,ii)*dtdz(:,ii)
+!      dsdy(:,ii)=(ns(1:ifull,ii)-ns(is,ii)*em(:)/ds+dzdy(:,ii)*dsdz(:,ii)
+!    end where
+!  end do
+!
+!  ! Advect temperature and salinity
+!  do ii=1,wlev
+!    tt(:,ii)=w_t(:,ii)+dt*(su(:,ii)*dtdx(:,ii)+sv(:,ii)*dtdy(:,ii))
+!    ss(:,ii)=w_s(:,ii)+dt*(su(:,ii)*dsdx(:,ii)+sv(:,ii)*dsdy(:,ii))
+!  end do
+!
+!  w_t(:,ii)=w_t(:,ii)+dt*w_w(:,ii)*dtdz(:,ii)
+!  w_s(:,ii)=w_s(:,ii)+dt*w_w(:,ii)*dsdz(:,ii)
+!
+!  ! Update rho for corrector step
+!  nu=uu
+!  nv=vv
+!  nt=tt
+!  ns=ss
+!end do
+!
+!do k=1,wlev
+!  call mloimport(0,tt(:,ii),k,0)
+!  call mloimport(1,ss(:,ii),k,0)
+!  call mloimport(2,uu(:,ii),k,0)
+!  call mloimport(3,vv(:,ii),k,0)
+!end do
+!
+!return
+!end subroutine mlohadv
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine fills ocean data over land points

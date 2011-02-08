@@ -145,6 +145,7 @@ c         o3dat are in the order DJF, MAM, JJA, SON
         call MPI_Bcast(ddo3n4,37*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         call MPI_Bcast(dduo3n,37*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         call MPI_Bcast(ddo3n3,37*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
       end if
       !--------------------------------------------------------------
       
@@ -234,8 +235,6 @@ c
         do m=1,kl
           duo3n(:,m)=duo3n(:,m)*1.01325e2/(ps(:)*10.)
         end do
-        
-        call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
         
       end if
       

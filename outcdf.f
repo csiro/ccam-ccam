@@ -983,7 +983,7 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           call attrib(idnc,idim,3,'sto',lname,'J/m2',0.,1300.,0,itype)
           if (abs(nmlo).ge.2) then
             lname = 'Surface water'
-            call attrib(idnc,idim,3,'swater',lname,'mm',0.,130.,0,
+            call attrib(idnc,idim,3,'swater',lname,'mm',0.,260.,0,
      &                  itype)
           end if
         end if

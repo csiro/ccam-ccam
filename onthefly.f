@@ -11,7 +11,8 @@
 !     these corner values are then averaged to the grid centres
 !     N.B. this means will get different fields with io_in=-1 from io_in=1
 !     Called by either indata or nestin
-!     nested=0  for calls from indata; 1  for calls from nestin     
+!     nested=0  for calls from indata; 1  for calls from nestin 
+!     nested=2  is for netcdf surface data read (from indata)    
       use cc_mpi
       use infile
       use mlo
@@ -223,7 +224,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
       real, dimension(dk*dk*6) :: ucc, vcc, wcc              ! MJT small otf
       real uc, vc, wc                                        ! MJT small otf
       real  uct_gg, vct_gg, wct_gg
-      real, dimension(ifull) :: tss_l, tss_s, pmsl,tggsn_s ! MJT small otf
+      real, dimension(ifull) :: tss_l, tss_s, pmsl ! MJT small otf
       real, dimension(dk*dk*6):: axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a
       real, dimension(dk*dk*6):: wts_a  ! not used here or defined in call setxyz
       logical, dimension(dk*dk*6) :: land_a
@@ -279,12 +280,15 @@ c**   onthefly; sometime can get rid of common/bigxy4
       if (myid==0) write(6,*) "iotest,io_in,lev,iarchi =",
      &                         iotest,io_in,lev,iarchi
 
-      psl_a=1.E5
       zss_a=0.
       tss_a=293.
-      call histrd1(ncid,iarchi,ier,'psf',ik,6*ik,psl_a,6*ik*ik)
       call histrd1(ncid,iarchi,ier,'zht',ik,6*ik,zss_a,6*ik*ik)
       call histrd1(ncid,iarchi,ier,'tsu',ik,6*ik,tss_a,6*ik*ik)
+
+      if (nested.ne.2) then ! MJT recycle
+      
+      psl_a=1.E5
+      call histrd1(ncid,iarchi,ier,'psf',ik,6*ik,psl_a,6*ik*ik)
       ! read sea ice here for prescribed SSTs configuration (nmlo.eq.0)
       ! this sea ice is ignored if nmlo.ne.0
       sicedep_a=0.
@@ -320,6 +324,9 @@ c***      but needed here for onthefly (different dims) 28/8/08
           endwhere
         endif  ! (ierr.ne.0)
       endif    ! (ier.ne.0) .. else ..    for sicedep
+      
+      endif ! nested.ne.2 ! MJT recycle
+      
       t_a(:)=-1.
       call histrd1(ncid,iarchi,ier,'soilt',ik,6*ik,t_a,6*ik*ik)
       isoilm_a=nint(t_a)
@@ -401,6 +408,8 @@ c***      but needed here for onthefly (different dims) 28/8/08
           endif  ! (nested==0)
         endif
       end if ! (myid==0)
+      
+      if (nested.ne.2) then ! MJT recycle
       
       !--------------------------------------------------------------
       ! Avoid memory blow out by only having single level global arrays
@@ -492,6 +501,8 @@ c***      but needed here for onthefly (different dims) 28/8/08
       call vertint(u_k ,u(1:ifull,:), 3,kk,sigin)
       call vertint(v_k ,v(1:ifull,:), 4,kk,sigin)
 
+      end if ! nested.ne.2 ! MJT recycle
+
       !--------------------------------------------------------------
 !     below we interpolate quantities which may be affected by land-sea mask
 !     set up land-sea mask from either tss or zss
@@ -521,6 +532,8 @@ c***      but needed here for onthefly (different dims) 28/8/08
        if(nemi==1)then
          land_a(:) = zss_a(:) > 0.
        endif                     !  (nemi==1)
+       
+       if (nested.ne.2) then ! MJT recycle
 
        spval=999.
        do iq=1,ik*ik*6
@@ -553,8 +566,12 @@ c***      but needed here for onthefly (different dims) 28/8/08
         write(6,*)'before ints4 psl_a(idjd2),zss_a(idjd2) ',
      .                        psl_a(idjd),zss_a(idjd2)
        endif  ! (nproc==1.and.nmaxpr==1)
-
+       
+       end if ! nested.ne.2 ! MJT recycle
+       
       endif   ! (myid==0)
+      
+      if (nested.ne.2) then ! MJT recycle
 
       !--------------------------------------------------------------
       ! MJT small otf - moved below
@@ -612,7 +629,10 @@ c       incorporate other target land mask effects
            write(6,*)'after ints4 psl,pmsl ',psl(idjd),pmsl(idjd)
         endif  ! (nproc==1.and.nmaxpr==1)
       end if ! iotest
+      if ( nproc==1 ) write(6,*)'after ints4 sicedep ',sicedep(idjd)
 
+      end if ! nested.ne.2 ! MJT recycle
+      
       !--------------------------------------------------
       ! MJT mlo - read ocean data for nudging (sea ice read below)
       if (nmlo.ne.0) then
@@ -639,7 +659,7 @@ c       incorporate other target land mask effects
           call doints4(zss_a,ocndwn,nface4,xg4,yg4,nord,ik)
         end if ! iotest
         do k=1,wlev
-          t_a=293.16
+          t_a=max(tss_a,271.)
           qg_a=34.72
           ucc=0.
           vcc=0.
@@ -733,13 +753,12 @@ c       incorporate other target land mask effects
       end if
       !--------------------------------------------------
 
-      if ( nproc==1 ) write(6,*)'after ints4 sicedep ',sicedep(idjd)
-      if(nested==0)then
+      if (nested.ne.1) then ! MJT recycle
         !------------------------------------------------------------
         ! MJT small otf
 
         do k=1,ms ! SOIL TEMPERATURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          t_a=293.
+          t_a=tss_a
           write(vname,'("tgg",I1.1)') k
           call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   t_a,6*ik*ik)
@@ -846,7 +865,6 @@ c       incorporate other target land mask effects
 
         ! SNOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         call histrd1(ncid,iarchi,ier,'snd',ik,6*ik,snowd_a,6*ik*ik)
-	print *,"myid,snd ier ",ier
         if (ier.ne.0) then
           where (tss_a.lt.270.)
             snowd_a=min(55.,5.*(271.-abs(tss_a)))
@@ -855,10 +873,6 @@ c       incorporate other target land mask effects
             snowd_a=0.
           end where
         end if
-	if (myid==0) then
-	  print *,"snd ",maxval(snowd_a),minval(snowd_a),
-     &                   sum(snowd_a)/real(ik*ik*6)
-	end if
 
         tggsn_a(:,:)= 280.
         call histrd1(ncid,iarchi,ier,'tggsn1',ik,6*ik,tggsn_a(:,1),
@@ -961,7 +975,7 @@ c       incorporate other target land mask effects
         !--------------------------------------------------
         ! MJT mlo - read remaining sea ice data (must occur after snow data is read, but before snow data is processed)
         if (nmlo.ne.0) then
-          allocate(micdwn(ifull,8))
+          if (.not.allocated(micdwn)) allocate(micdwn(ifull,8))
           do k=1,8
             select case(k)
               case(1,2,3)
@@ -1049,7 +1063,7 @@ c       incorporate other target land mask effects
      &                   ,ik)
           enddo          
           where(.not.land)
-            tggsn(:,1)=tggsn_s
+            tggsn(:,1)=280.
             tggsn(:,2)=280.
             tggsn(:,3)=280.
           end where
@@ -1057,56 +1071,12 @@ c       incorporate other target land mask effects
             tgg(:,1)=min(tgg(:,1),270.1)
           endwhere
         end if ! iotest
-	print *,"snowd ",myid,maxval(snowd),minval(snowd),
-     &                   sum(snowd)/real(ifull)
-
-        do k=1,kk ! CLOUD LIQUID AND FROZEN WATER !!!!!!!!!!!!!!!!!!!
-         ucc=0. ! dummy for qfg
-         vcc=0. ! dummy for qlg
-         call histrd4s(ncid,iarchi,ier,'qfg',ik,6*ik,k,ucc,
-     &                 6*ik*ik)
-         call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,vcc,
-     &                 6*ik*ik)
-         if (iotest) then
-           if (myid==0) then
-             call ccmpi_distribute(u_k(:,k),ucc)
-             call ccmpi_distribute(v_k(:,k),vcc)
-           else
-             call ccmpi_distribute(u_k(:,k))
-             call ccmpi_distribute(v_k(:,k))
-           end if
-         else
-           call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,ik)
-           call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,ik)
-         end if ! iotest
-        enddo  ! k loop
-        call vertint(u_k,qfg,5,kk,sigin)
-        call vertint(v_k,qlg,5,kk,sigin)
         !------------------------------------------------------------
 
         !--------------------------------------------------
-        ! MJT zosea
-        call histrd1(ncid,iarchi,ier,'u10',ik,6*ik,t_a,6*ik*ik)
-        if (ier==0) then
-          if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(u10,t_a)
-            else
-              call ccmpi_distribute(u10)
-            end if
-          else
-            call doints4(t_a,u10,nface4,xg4,yg4,nord,ik)
-          end if ! iotest
-        else
-          u10=sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)*log(10./0.001)
-     &                                            /log(zmin/0.001)
-        end if
-        !--------------------------------------------------
-        
-        !--------------------------------------------------
         ! MJT urban
         if (nurban.ne.0) then
-          allocate(atebdwn(ifull,22))        
+          if (.not.allocated(atebdwn)) allocate(atebdwn(ifull,22))
           do k=1,22
             t_a=999.
             select case(k)
@@ -1394,7 +1364,54 @@ c       incorporate other target land mask effects
           enddo                       
         endif                         
         !------------------------------------------------------------
-      endif    ! (nested==0)
+        
+        if (nested.ne.2) then ! MJT recycle
+
+        do k=1,kk ! CLOUD LIQUID AND FROZEN WATER !!!!!!!!!!!!!!!!!!!
+         ucc=0. ! dummy for qfg
+         vcc=0. ! dummy for qlg
+         call histrd4s(ncid,iarchi,ier,'qfg',ik,6*ik,k,ucc,
+     &                 6*ik*ik)
+         call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,vcc,
+     &                 6*ik*ik)
+         if (iotest) then
+           if (myid==0) then
+             call ccmpi_distribute(u_k(:,k),ucc)
+             call ccmpi_distribute(v_k(:,k),vcc)
+           else
+             call ccmpi_distribute(u_k(:,k))
+             call ccmpi_distribute(v_k(:,k))
+           end if
+         else
+           call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,ik)
+           call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,ik)
+         end if ! iotest
+        enddo  ! k loop
+        call vertint(u_k,qfg,5,kk,sigin)
+        call vertint(v_k,qlg,5,kk,sigin)
+
+        !--------------------------------------------------
+        ! MJT zosea
+        call histrd1(ncid,iarchi,ier,'u10',ik,6*ik,t_a,6*ik*ik)
+        if (ier==0) then
+          if (iotest) then
+            if (myid==0) then
+              call ccmpi_distribute(u10,t_a)
+            else
+              call ccmpi_distribute(u10)
+            end if
+          else
+            call doints4(t_a,u10,nface4,xg4,yg4,nord,ik)
+          end if ! iotest
+        else
+          u10=sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)*log(10./0.001)
+     &                                            /log(zmin/0.001)
+        end if
+        !--------------------------------------------------
+        
+        end if ! nested.ne.2 ! MJT recycle
+
+      endif    ! (nested.ne.1)
 
       if (nmlo.eq.0) then
         where (.not.land)

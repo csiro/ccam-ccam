@@ -63,6 +63,7 @@
       include 'stime.h'
       include 'trcom2.h'    ! trcfil,nstn,slat,slon,istn,jstn
       include 'mpif.h'
+      include 'netcdf.inc'
       real, intent(out) :: hourst
       integer, intent(in) :: newsnow,jalbfix,iaero
       real rlong0x,rlat0x,schmidtx
@@ -71,6 +72,8 @@
       real, dimension(ifull) :: zss, aa, zsmask
       real, dimension(ifull) :: dep,ocndwn ! MJT mlo
       real, dimension(ifull,wlev,4) :: mlodwn
+      real, dimension(ifull) :: duma    ! MJT recycle
+      real, dimension(ifull,kl) :: dumb ! MJT recycle
       integer, parameter :: klmax=100
       real tbarr(klmax),qgin(klmax),zbub(klmax) ! for tin namelist
       character co2in*80,radonin*80,surfin*80,header*80
@@ -137,6 +140,8 @@
       character*3 trnum ! MJT tracerfix
 
       call start_log(indata_begin)
+      
+      ! READ SIGMA LEVELS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       bam(1)=114413.
 !     now always read eig file fri  12-18-1992
 !     All processes read this
@@ -178,6 +183,7 @@ c         print *,'this one uses supplied eigs'
 !  rml 17/02/06 tracini now called after restart read
 !      if(ngas>0)call tracini  ! set up trace gases
 
+      ! READ OROGRAPHY !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     read in fresh zs, land-sea mask (land where +ve), variances
 !     Need to share iostat around here to do it properly?
       if(io_in<=4.and.nhstest>=0)then
@@ -269,7 +275,7 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
       !--------------------------------------------------------------
 
       !-----------------------------------------------------------------
-      ! MJT tke
+      ! MJT tke !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       if (nvmix.eq.6) then
         if (myid==0) print *,"Initialising TKE-eps scheme"
         call tkeinit(ifull,iextra,kl,0)
@@ -277,13 +283,14 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
       !-----------------------------------------------------------------
 
       !-----------------------------------------------------------------
-      ! MJT aerosols
+      ! MJT aerosols !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       if (abs(iaero).ge.2) then
         if (myid==0) print *,"Initialising LDR prognostic aerosols"
         call load_aerosolldr(so4tfile,oxidantfile)
       end if
       !-----------------------------------------------------------------
 
+      ! READ INITIAL CONDITIONS FROM IFILE !!!!!!!!!!!!!!!!!!!!!!!!!!
       hourst = 0. ! Some io_in options don't set it.
       albsav=-1. ! missing value flag ! MJT cable
       if(io_in<4)then  ! ********************************************************
@@ -418,16 +425,13 @@ cJun08         zs(iq)=0.             ! to ensure consistent with zs=0 sea test
 
 !        ensure qg etc big enough, but not too big in top levels (from Sept '04)
          qg (1:ifull,:)=max(qg (1:ifull,:),qgmin)
-c         qlg(1:ifull,:)=max(qlg(1:ifull,:),qgmin)
-c         qfg(1:ifull,:)=max(qfg(1:ifull,:),qgmin)
          do k=kl-2,kl
           qg (1:ifull,k)=min(qg (1:ifull,k),10.*qgmin)
-c          qlg(1:ifull,k)=min(qlg(1:ifull,k),10.*qgmin)
-c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
          enddo
 
       endif   ! (io_in<4) ********************************************************
 
+      ! CALCULATE ARRAYS FOR DYNAMICS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       do k=1,kl-1
        dsig(k)=sigmh(k+1)-sigmh(k)
       enddo
@@ -488,6 +492,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
          print *,'betm ',betm
       end if
 
+      ! SPECIAL INPUT OPTIONS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ps(:)=1.e5*exp(psl(:))
       if(nspecial>100)then ! increase ps globally by nspecial Pa
         ps(:)=ps(:)+nspecial
@@ -708,6 +713,7 @@ c          qfg(1:ifull,k)=min(qfg(1:ifull,k),10.*qgmin)
 
       if ( myid == 0 ) print *,'ps test ',(ps(ii),ii=1,il)
 
+      ! SET-UP DAVIES NUDGING !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     section for setting up davies, defining ps from psl
       if(nbd.ne.0.and.nud_hrs.ne.0)then
          call davset   ! as entry in subr. davies, sets psls,qgg,tt,uu,vv
@@ -872,6 +878,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         enddo   ! iq loop
       endif
 
+      ! PREPARE SURFACE DATA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !     for the moment assume precip read in at end of 24 h period
       do iq=1,ifull
        zolnd(iq)=zoland       ! just a default - usually read in
@@ -880,7 +887,6 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
        fg(iq)=0.
        cduv(iq)=0.
       enddo   ! iq loop
-
       swrsave=0.5 ! MJT cable
 
 !     read data for biospheric scheme if required
@@ -961,48 +967,18 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
        
       endif ! (nsib==3) ! MJT cable
 
-      if (any(wb(:,:).gt.10.)) then
-        if (mydiag) print *,"Unpacking wetfrac to wb",wb(idjd,1)
-        wb(:,:)=wb(:,:)-20.
-        do iq=1,ifull
-          isoil=isoilm(iq)
-          wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
-        end do
-        if (mydiag) print *,"giving wb",wb(idjd,:)
-      end if
-
-      if (nsib==CABLE) then
-        print *,"nsib=CABLE option is not supported in
-     &           this version of CCAM"
-        stop
-      end if
-
-      if (nsib==6.or.nsib==7) then  ! MJT cable
-        ! albvisnir at this point holds soil albedo for cable initialisation
-        vmodmin=umin
-        call loadcbmparm(vegfile,vegprev,vegnext)
-        ! albvisnir now is the net albedo
-      end if
-
-!     rml 16/02/06 initialise tr, timeseries output and read tracer fluxes
-      if (ngas>0) then
-!       tracer initialisation (if start of run) after restart read
-        if (tracvalin.ne.-999) call tracini
-        call init_ts(ngas,dt)
-        call readtracerflux(kdate)
-      endif
-
 !     nrungcm<0 controls presets for snowd, wb, tgg and other soil variables
 !     they can be: preset/read_in_from_previous_run
 !                  written_out/not_written_out    after 24 h as follows:
 !          nrungcm = -1  preset           | not written to separate file
 !                    -2  preset           |     written  
 !                    -3  read_in          |     written  (usual for NWP)
-!                    -4  read_in          | not written
+!                    -4  read_in          | not written  (usual for netCDF input)
 !                    -5  read_in (not wb) |     written  (should be good)
 !                    -6 same as -1 bit tapered wb over dry interio of Aust
 !                    >5 like -1 but sets most wb percentages
-      if((nrungcm.le.-1.and.nrungcm.ge.-6).or.nrungcm>5)then
+      if((nrungcm.le.-1.and.nrungcm.ge.-2).or.nrungcm==-6
+     &   .or.nrungcm>5)then
 !        presetting wb when no soil moisture available initially
         iyr=kdate/10000
         imo=(kdate-10000*iyr)/100
@@ -1010,7 +986,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
          if(land(iq))then
            iveg=ivegt(iq)
            if (nsib==CABLE.or.nsib==6.or.nsib==7) then
-             iveg=1
+             iveg=1 ! CABLE ivegt not defined yet
            end if
            isoil=isoilm(iq)
            rlonx=rlongg(iq)*180./pi
@@ -1046,12 +1022,17 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
                 wb(iq,ms)=swilt(isoilm(iq)) ! dry interior of Australia
               endif
             endif
-         endif    ! (land(iq))
+         endif    ! (land(iq))\
         enddo     ! iq loop
         
         do k=1,ms-1
          wb(:,k)=wb(:,ms)
         enddo    !  k loop
+        do iq=1,ifull
+!        fix for antarctic snow
+         if(land(iq).and.rlatt(iq)*180./pi<-60.)snowd(iq)=
+     &          max(snowd(iq),400.)
+        enddo   ! iq loop
 
         if ( mydiag ) then
            iveg=ivegt(idjd)
@@ -1066,6 +1047,23 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       endif       !  ((nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)
 
       if(nrungcm<=-3.and.nrungcm>=-5)then
+       ncid = ncopn(surf_00,0,ier )                              ! MJT recycle
+       if (ier==0) then                                          ! MJT recycle
+        ! clobber ifile surface data with surfin surface data    ! MJT recycle
+        kdate_s=kdate_sav                                        ! MJT recycle
+        ktime_s=ktime_sav                                        ! MJT recycle
+        write(6,*) "Replacing surface data with input from ",    ! MJT recycle
+     &              trim(surf_00)                                ! MJT recycle
+        call onthefly(2,kdate,ktime,duma,duma,duma,duma,         ! MJT recycle
+     &       duma,dumb,dumb,dumb,                                ! MJT recycle
+     &       dumb,tgg,wb,wbice,snowd,dumb,                       ! MJT recycle
+     &       dumb,tggsn,smass,ssdn,ssdnn,snage,isflag,           ! MJT recycle
+     &       iaero,mlodwn,ocndwn)                                ! MJT recycle
+         if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)then        ! MJT recycle
+           write(6,*) "WARN: Could not locate correct date/time" ! MJT recycle
+           write(6,*) "      Using infile surface data instead"  ! MJT recycle
+         endif                                                   ! MJT recycle
+       else                                                      ! MJT recycle
 !       for sequence of runs starting with values saved from last run
         if(ktime==1200)then
           co2in=co2_12      ! 'co2.12'
@@ -1137,12 +1135,8 @@ c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
         do iq=1,ifull
          if(land(iq))tss(iq)=aa(iq)
         enddo  ! iq loop
+       end if  ! ier==0                                      ! MJT recycle
       endif    !  (nrungcm<=-3.and.nrungcm>=-5)
-
-      if(nrungcm.ne.0)then  ! not for restart 
-        tgg(:,1) = tss(:)   ! often do this:
-        tggsn(:,:)=280.     ! just a default
-      endif   !  (nrungcm.ne.0)
 
       if(nrungcm==4)then !  wb fix for ncep input 
 !       this is related to eak's temporary fix for soil moisture
@@ -1151,7 +1145,10 @@ c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
          do iq=1,ifull     
            isoil=isoilm(iq)
            wb(iq,k)=min( sfc(isoil) ,
-     &              max(.75*swilt(isoil)+.25*sfc(isoil),wb(iq,k)) )  
+     &              max(.75*swilt(isoil)+.25*sfc(isoil),wb(iq,k)) )
+!          fix for antarctic snow
+           if(land(iq).and.rlatt(iq)*180./pi<-60.)snowd(iq)=
+     &          max(snowd(iq),400.)
          enddo   ! iq loop
         enddo    !  k loop
       endif      !  (nrungcm==4)
@@ -1172,6 +1169,9 @@ c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
           tgg(iq,3)=.75*tgg(iq,2)+.25*tgg(iq,6)
           tgg(iq,4)= .5*tgg(iq,2)+ .5*tgg(iq,6)
           tgg(iq,5)=.25*tgg(iq,2)+.75*tgg(iq,6)
+!         fix for antarctic snow
+          if(land(iq).and.rlatt(iq)*180./pi<-60.)snowd(iq)=
+     &          max(snowd(iq),400.)
          enddo   ! iq loop
          if (mydiag) then
             print *,'after nrungcm=5 fixup of mk3 soil variables:'
@@ -1180,33 +1180,52 @@ c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
          end if
       endif      !  (nrungcm==5)
 
-      if (nrungcm==-7) then
-        do iq=1,ifull
-          wb(iq,:)=ssat(isoilm(iq))
-        end do
-      end if
-
-      do iq=1,ifull
-       if(.not.land(iq))then
-         do k=1,ms
-          wb(iq,k)=0.   ! default over ocean (for plotting)
-         enddo    !  k loop
-       endif    !  (.not.land(iq))
-      enddo     ! iq loop
-
       if(newsnow==1)then  ! don't do this for restarts
 !       snowd is read & used in cm (i.e. as mm of water)
         call readreal(snowfile,snowd,ifull)
         if (mydiag) write(6,"('snowd# in',9f8.2)") diagvals(snowd)
 !     &       ((snowd(ii+(jj-1)*il),ii=id-1,id+1),jj=jd+1,jd-1,-1)
-      elseif(nrungcm.ne.0)then     ! 21/12/01
-        do iq=1,ifull
-!        fix for antarctic snow
-         if(land(iq).and.rlatt(iq)*180./pi<-60.)snowd(iq)=
-     &          max(snowd(iq),400.)
-        enddo   ! iq loop
       endif    !  (newsnow==1) .. else ..
 
+      if (any(wb(:,:).gt.10.)) then
+        if (mydiag) print *,"Unpacking wetfrac to wb",wb(idjd,1)
+        wb(:,:)=max(wb(:,:)-20.,0.)
+        do iq=1,ifull
+          isoil=isoilm(iq)
+          wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
+        end do
+        if (mydiag) print *,"giving wb",wb(idjd,:)
+      end if
+
+      do iq=1,ifull
+       if(.not.land(iq))then
+          wb(iq,:)=0.   ! default over ocean (for plotting)
+       endif    !  (.not.land(iq))
+      enddo     ! iq loop
+
+      if (nsib==CABLE) then
+        print *,"nsib=CABLE option is not supported in
+     &           this version of CCAM"
+        stop
+      end if
+
+      if (nsib==6.or.nsib==7) then  ! MJT cable
+        ! albvisnir at this point holds soil albedo for cable initialisation
+        vmodmin=umin
+        call loadcbmparm(vegfile,vegprev,vegnext)
+        ! albvisnir now is the net albedo
+      end if
+
+      ! SET-UP TRACERS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!     rml 16/02/06 initialise tr, timeseries output and read tracer fluxes
+      if (ngas>0) then
+!       tracer initialisation (if start of run) after restart read
+        if (tracvalin.ne.-999) call tracini
+        call init_ts(ngas,dt)
+        call readtracerflux(kdate)
+      endif
+
+      ! SET-UP AMIP SSTs !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       if(namip.ne.0)then
         if(myid==0)print *,'calling amipsst at beginning of run'
         call amipsst
@@ -1362,7 +1381,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
 
       snalb=.8
       do iq=1,ifull
-       if(.not.land(iq))then
+       if(.not.land(iq).and.nmlo.eq.0)then
 !        from June '03 tgg1	holds actual sea temp, tss holds net temp 
          tgg(iq,1)=max(271.3,tss(iq)) 
          tggsn(iq,1)=tss(iq)         ! a default ! MJT seaice
@@ -1374,7 +1393,7 @@ c          qg(:,k)=.01*sig(k)**3  ! Nov 2004
          albvisnir(iq,1)=.8*fracice(iq)+.1*(1.-fracice(iq)) ! MJT CHANGE albedo
          albvisnir(iq,2)=.5*fracice(iq)+.1*(1.-fracice(iq)) ! MJT CHANGE albedo
        endif   ! (sicedep(iq)>0.) 
-       if(isoilm(iq)==9)then
+       if(isoilm(iq)==9.and.(nsib==3.or.nsib==5))then
 !        also at beg. of month ensure cold deep temps over permanent ice
          do k=2,ms
           tgg(iq,k)=min(tgg(iq,k),273.1) ! was 260
@@ -1581,6 +1600,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
         if(mydiag) print*,'after nrungcm=2 fix-up wb(1-ms): ',wb(idjd,:)
       endif          !  (nrungcm==2)
      
+      ! SNOW FIXES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       osnowd(:) = snowd(:)  
 !     general initial checks for wb and wbice
       do k=1,ms
@@ -1602,7 +1622,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
          write(6,"('wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
       end if
 
-      
+      ! FIXES FOR LAND SURFACE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       if(nsib==5)then
         where (land)
           ! here we lump woody (k=0.5) and grassland (k=0.6) types together
@@ -1669,16 +1689,15 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       if(newrough>0)then ! MJT sib
         call calczo ! MJT bug
         if(mydiag)print *,'after calczo zolnd ',zolnd(idjd)
-c       if(newrough>2)then
-c         zolnd=min(.8*zmin , max(zolnd , .01*newrough*he))
-c       endif
         if ( mydiag ) then
           print *,'after calczo with newrough = ',newrough
           write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
         end if
       endif
+
       endif     ! (nsib==5) .. else .. ! MJT sib
 
+      ! GWDRAG ARRAYS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       if(ngwd.ne.0)then
         hemax=0.
         do iq=1,ifull
@@ -1705,6 +1724,8 @@ c       endif
      &                  MPI_COMM_WORLD, ierr )
         if (myid==0) print *,'final hemax = ',hemax_g
       endif     ! (ngwd.ne.0)
+      
+      ! SPECIAL OPTIONS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       if(nspecial==34)then      ! test for Andy Pitman & Faye
         tgg(:,6)=tgg(:,6)+.1
        endif
@@ -1718,8 +1739,30 @@ c       endif
          endif
         enddo
       endif  ! (nspecial==35)
+
+      ! for CAI experiment
+      if (nspecial.eq.42) then
+       call caispecial
+      endif 
+      if (nspecial.eq.43) then
+       call caispecial
+       do iq=1,ifull
+        rlongd=rlongg(iq)*180./pi
+        rlatd=rlatt(iq)*180./pi	
+        if (rlatd.ge.-6..and.rlatd.le.6.) then
+         if (rlongd.ge.180..and.rlongd.le.290.) then
+          if (.not.land(iq)) then
+           tgg(iq,1)=293.16
+           tss(iq)=293.16
+          end if
+         end if
+        end if
+       end do
+      end if
       
 !***  no fiddling with initial tss, snow, sice, w, w2, gases beyond this point
+
+      ! PREP DYNAMICS ARRAYS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       call bounds(zs)
       if(nbd>=3)then   ! separate (global) davu from (f-f) davt
         davu(:) = 1./nudu_hrs    !  e.g. 1/48
@@ -1780,6 +1823,7 @@ c       endif
       if(epsp>1..and.epsp<2.)epst(:)=epsp-1.
       write (6,"('epst0#  ',9f8.2)") diagvals(epst) 
       
+      ! WRITE FORT.22 FILE FOR GRID INFO !!!!!!!!!!!!!!!!!!!!!!!!!!!!
       print *,'at centre of the panels:'
       do n=1,npan
          iq = indp((ipan+1)/2,(jpan+1)/2,n)
@@ -1879,6 +1923,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         enddo    !  iq loop
       endif      ! (nsib>=1)
 
+      ! PREPARE STATION OUTPUT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       if(nstn>0.and.nrotstn(1)>0)then
         print *,'stationb setup of mystn'
         do nn=1,nstn
@@ -2026,6 +2071,12 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         endwhere                               ! ensures SST track analyses in a NWP mode
         call mloload(mlodwn,micdwn,0)
         deallocate(micdwn)
+        do k=1,ms
+          call mloexport(0,tgg(:,k),k,0)
+        end do
+        do k=1,3
+          call mloexpice(tggsn(:,k),k,0)
+        end do 
       end if
       !-----------------------------------------------------------------
 
@@ -2073,34 +2124,12 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       end if
       !-----------------------------------------------------------------
       
-      do iq=1,ifull
-       albsav(iq)=albvisnir(iq,1)    ! MJT albedo
-       albnirsav(iq)=albvisnir(iq,2) ! MJT albedo
-      enddo   ! iq loop
-      
+      ! updates and fixes
+      albsav(:)=albvisnir(:,1)    ! MJT albedo
+      albnirsav(:)=albvisnir(:,2) ! MJT albedo
       do k=1,ms
-        wb(:,k)=max(wb(:,k),swilt(isoilm))
+        wb(:,k)=min(max(wb(:,k),swilt(isoilm)),ssat(isoilm))
       end do
-      
-      ! for CAI experiment
-      if (nspecial.eq.42) then
-       call caispecial
-      endif 
-      if (nspecial.eq.43) then
-       call caispecial
-       do iq=1,ifull
-        rlongd=rlongg(iq)*180./pi
-        rlatd=rlatt(iq)*180./pi	
-        if (rlatd.ge.-6..and.rlatd.le.6.) then
-         if (rlongd.ge.180..and.rlongd.le.290.) then
-          if (.not.land(iq)) then
-           tgg(iq,1)=293.16
-           tss(iq)=293.16
-          end if
-         end if
-        end if
-       end do      
-      end if
       
       call end_log(indata_end)
       return

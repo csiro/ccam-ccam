@@ -896,7 +896,7 @@ c     first do theta (then convert back to t)
        ! increase mixing to replace counter gradient term          ! MJT tke
        at=2.5*at                                                   ! MJT tke
        ct=2.5*ct                                                   ! MJT tke
-      end if 
+      end if                                                       ! MJT tke
       if((diag.or.ntest==2).and.mydiag)then
         print *,'ktau,fg,tss,ps ',ktau,fg(idjd),tss(idjd),ps(idjd)
         print *,'at ',(at(idjd,k),k=1,kl)

@@ -46,7 +46,7 @@ module cable_ccam
   USE soil_snow_module
 
   private
-  public CABLE,sib4,loadcbmparm,savetile
+  public CABLE,sib4,loadcbmparm,savetile,cableinflow
 
   integer, parameter :: CABLE = 4
   integer, parameter :: hruffmethod = 1 ! Method for max hruff
@@ -105,19 +105,6 @@ module cable_ccam
 
   ! abort calculation if no land points on this processor  
   if (mp.le.0) return
-
-  ! Set soil moisture to presets when nrungcm.ne.0
-  if (ktau==1.and.nrungcm.ne.0) then
-    do k=1,ms ! use preset for wb
-      ssoil%wb(:,k)=wb(cmap,k)
-      ssoil%wbtot = ssoil%wbtot + ssoil%wb(:,k) * 1000.0 * soil%zse(k)
-    end do
-    ssoil%wetfac = MAX(0., MIN(1., (ssoil%wb(:,1) - soil%swilt) / (soil%sfc - soil%swilt)))
-    ssoil%owetfac = ssoil%wetfac
-    ssoil%gammzz(:,1) = MAX( (1.0 - soil%ssat) * soil%css * soil%rhosoil &
-         & + (ssoil%wb(:,1) - ssoil%wbice(:,1) ) * 4.218e3 * 1000.0 &
-         & + ssoil%wbice(:,1) * 2.100e3 * 1000.0 * .9, soil%css * soil%rhosoil ) * soil%zse(1)    
-  end if
 
 !
 ! set meteorological forcing
@@ -219,7 +206,7 @@ module cable_ccam
   CALL ruff_resist
   CALL define_air
   CALL init_radiation ! need to be called at every dt
-  CALL cab_albedo(999, dt, .true.) ! set L_RADUM=.true. as radriv90.f has been called
+  CALL cab_albedo(999, dt, .false.) ! set L_RADUM=.false. as we want to update snow age
   CALL define_canopy(999,dt,.true.)
   ssoil%otss = ssoil%tss                                                     ! MJT from eak energy bal
   ssoil%owetfac = ssoil%wetfac
@@ -339,7 +326,6 @@ module cable_ccam
                                         +sv(pind(nb,1):pind(nb,2))*rad%reffdf(pind(nb,1):pind(nb,2),2)
       runoff(cmap(pind(nb,1):pind(nb,2)))=runoff(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*ssoil%runoff(pind(nb,1):pind(nb,2))
-      runoff(cmap(pind(nb,1):pind(nb,2)))=runoff(cmap(pind(nb,1):pind(nb,2)))*dt ! convert back to mm
       rnof1(cmap(pind(nb,1):pind(nb,2)))=rnof1(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*ssoil%rnof1(pind(nb,1):pind(nb,2))
       rnof2(cmap(pind(nb,1):pind(nb,2)))=rnof2(cmap(pind(nb,1):pind(nb,2))) &
@@ -428,6 +414,7 @@ module cable_ccam
     rtsoil=1./rtsoil
     cduv=cduv*vmod ! cduv is Cd * vmod in CCAM
     tscrn=tscrn+273.16
+    runoff=runoff*dt ! convert back to mm
   end where
       
   ! The following lines unpack snow.  This is more complicated as we need to decide
@@ -1383,6 +1370,43 @@ module cable_ccam
   
   return
   end subroutine savetile 
+
+  subroutine cableinflow(iqin,inflow)
+  
+  implicit none
+  
+  integer, intent(in) :: iqin
+  integer k,n,iq,i
+  real, intent(inout) :: inflow
+  real, dimension(5) :: xx
+  real yy
+  
+  xx(:)=inflow
+  inflow=0.
+  do n=1,5
+    iq=-1
+    do i=pind(n,1),pind(n,2)
+      if (cmap(i).eq.iqin) then
+        iq=i
+        exit
+      elseif (cmap(i).gt.iqin) then
+        exit
+      end if
+    end do
+    if (iq.gt.0) then
+      do k=1,ms
+        yy=min(xx(n),(soil%ssat(iq)-ssoil%wb(iq,k))*1000.*soil%zse(k))
+        ssoil%wb(iq,k)=ssoil%wb(iq,k)+yy/(1000.*soil%zse(k))
+        xx(n)=max(xx(n)-yy,0.)
+      end do
+      inflow=inflow+sv(iq)*xx(n)
+    else
+      exit
+    end if
+  end do
+  
+  return
+  end subroutine cableinflow
 
 end module cable_ccam
 
