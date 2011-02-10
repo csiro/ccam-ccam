@@ -1258,7 +1258,7 @@ d_wt0=d_wt0+(1.-i_fracice)*lf*a_snd/(d_rho(:,1)*cp0) ! melting snow             
 d_ws0=(1.-i_fracice)*(a_rnd+a_snd-p_eg/lv)*w_sal(:,1)/rs(:,1)                      ! BC
 d_ws0=d_ws0+(a_inflow)*w_sal(:,1)/rs(:,1)                                          ! BC
 
-d_ustar=max(sqrt(sqrt(d_wu0*d_wu0+d_wv0*d_wv0)),1.E-10)
+d_ustar=max(sqrt(sqrt(d_wu0*d_wu0+d_wv0*d_wv0)),5.E-4)
 d_b0=-grav*(d_alpha(:,1)*d_wt0-d_beta(:,1)*d_ws0)
 !d_b0=-grav*(-drho0dt*d_wt0-drho0ds*d_ws0)
 

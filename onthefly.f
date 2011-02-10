@@ -33,7 +33,7 @@
       include 'darcdf.h'    ! idnc, ncid
       include 'netcdf.inc'
       integer, parameter :: nihead=54,nrhead=14
-      integer nahead(nihead),ier,ilen,itype,iaero
+      integer nahead(nihead),ier,ilen,itype,iaero,maxarchi
       integer, save :: ncidold=-1 !,iarchi ! MJT tracerfix
       real ahead(nrhead) ! MJT small otf
 
@@ -81,9 +81,12 @@
         endif  ! (schmidtx<=0..or.schmidtx>1.)        
         write(6,*) 'in onthefly ktau,ncid,iarchi,ik,jk,kk ',
      &                       ktau,ncid,iarchi,ik,jk,kk
+        idv = ncvid(ncid,'time',ier)
+        maxarchi=0
+        ier = nf_inq_dimlen(ncid,idv,maxarchi)
         ltest=.true.
         iarchi=iarchi-1
-        do while(ltest)
+        do while(ltest.and.iarchi.lt.maxarchi)
           iarchi=iarchi+1
           idv = ncvid(ncid,'kdate',ier)
           call ncvgt1(ncid,idv,iarchi,kdate_r,ier)
@@ -109,8 +112,13 @@
           kdate_r=kdate_s
           ktime_r=ktime_s
         end if
+        if (ltest) then
+          write(6,*) "WARN: Cannot locate date/time in input file"
+          ik=-1
+        end if
       endif  ! ( myid==0 )
       call MPI_Bcast(ik     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+      if (ik.lt.0) return
       call MPI_Bcast(jk     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
       call MPI_Bcast(kk     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
       call MPI_Bcast(kdate_r,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
@@ -284,11 +292,6 @@ c**   onthefly; sometime can get rid of common/bigxy4
       tss_a=293.
       call histrd1(ncid,iarchi,ier,'zht',ik,6*ik,zss_a,6*ik*ik)
       call histrd1(ncid,iarchi,ier,'tsu',ik,6*ik,tss_a,6*ik*ik)
-
-      if (nested.ne.2) then ! MJT recycle
-      
-      psl_a=1.E5
-      call histrd1(ncid,iarchi,ier,'psf',ik,6*ik,psl_a,6*ik*ik)
       ! read sea ice here for prescribed SSTs configuration (nmlo.eq.0)
       ! this sea ice is ignored if nmlo.ne.0
       sicedep_a=0.
@@ -324,12 +327,18 @@ c***      but needed here for onthefly (different dims) 28/8/08
           endwhere
         endif  ! (ierr.ne.0)
       endif    ! (ier.ne.0) .. else ..    for sicedep
-      
-      endif ! nested.ne.2 ! MJT recycle
-      
+
       t_a(:)=-1.
       call histrd1(ncid,iarchi,ier,'soilt',ik,6*ik,t_a,6*ik*ik)
       isoilm_a=nint(t_a)
+
+      if (nested.ne.2) then ! MJT recycle
+      
+      psl_a=1.E5
+      call histrd1(ncid,iarchi,ier,'psf',ik,6*ik,psl_a,6*ik*ik)
+      
+      endif ! nested.ne.2 ! MJT recycle
+      
       
       !--------------------------------------------------------------
       if ( myid==0 ) then
@@ -533,8 +542,6 @@ c***      but needed here for onthefly (different dims) 28/8/08
          land_a(:) = zss_a(:) > 0.
        endif                     !  (nemi==1)
        
-       if (nested.ne.2) then ! MJT recycle
-
        spval=999.
        do iq=1,ik*ik*6
          if(land_a(iq))then       ! over land
@@ -566,8 +573,6 @@ c***      but needed here for onthefly (different dims) 28/8/08
         write(6,*)'before ints4 psl_a(idjd2),zss_a(idjd2) ',
      .                        psl_a(idjd),zss_a(idjd2)
        endif  ! (nproc==1.and.nmaxpr==1)
-       
-       end if ! nested.ne.2 ! MJT recycle
        
       endif   ! (myid==0)
       

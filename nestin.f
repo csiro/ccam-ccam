@@ -25,10 +25,10 @@
       real, dimension(:,:), allocatable, save :: ta,ua,va,qa
       real, dimension(:,:), allocatable, save :: tb,ub,vb,qb
       real, dimension(:), allocatable, save :: psla,pslb,tssa,tssb
-      real, dimension(:), allocatable, save :: sicedepb,fraciceb
+      real, dimension(:), allocatable, save :: sicedepb,fraciceb,ocndep
       real, dimension(:,:,:), allocatable, save :: sssa,sssb
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
-      real, dimension(ifull) :: zsb,duma,ocndep
+      real, dimension(ifull) :: zsb,duma
       real, dimension(ifull,wlev,4) :: dumaa
       integer, dimension(ifull) :: dumm
       real, dimension(ifull,ms) :: dumg
@@ -44,7 +44,7 @@
         allocate(ta(ifull,kl),ua(ifull,kl),va(ifull,kl),qa(ifull,kl))
         allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
         allocate(psla(ifull),pslb(ifull),tssa(ifull),tssb(ifull))
-        allocate(sicedepb(ifull),fraciceb(ifull))
+        allocate(sicedepb(ifull),fraciceb(ifull),ocndep(ifull))
         allocate(sssa(ifull,wlev,4),sssb(ifull,wlev,4))
       end if
       
@@ -68,6 +68,7 @@
         ub(1:ifull,:)=u(1:ifull,:)
         vb(1:ifull,:)=v(1:ifull,:)
         if (nmlo.ne.0) then
+          ocndep=0.
           sssb(:,:,1)=293.16
           sssb(:,:,2)=34.72
           sssb(:,:,3)=0.
@@ -309,7 +310,10 @@
         ! nudge mlo
         dumaa=cona*sssa+conb*sssb
         wl=1
-        if (any(ocndep.gt.0.5)) wl=wlev
+        rduma=maxval(ocndep)
+        call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
+     &                     MPI_COMM_WORLD,ierr)
+        if (rdumg.gt.0.5) wl=wlev
         smask=.not.land.and..not.fraciceb.gt.0..and..not.fracice.gt.0.
         if (any(smask)) then
           rduma=maxval(abs(dumaa(:,1,1)-tssb),smask)
@@ -363,9 +367,9 @@
       real :: schmidtx,timeg_b,rduma,rdumg
       real, dimension(:,:), allocatable, save :: tb,ub,vb,qb
       real, dimension(:), allocatable, save :: pslb,tssb,fraciceb
-      real, dimension(:), allocatable, save :: sicedepb
+      real, dimension(:), allocatable, save :: sicedepb,ocndep
       real, dimension(:,:,:), allocatable, save :: sssb
-      real, dimension(ifull) :: zsb,duma,ocndep
+      real, dimension(ifull) :: zsb,duma
       integer, dimension(ifull) :: dumm
       real, dimension(ifull,ms) :: dumg
       real, dimension(ifull,kl) :: dumv
@@ -379,7 +383,7 @@
       if (.not.allocated(tb)) then
         allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
         allocate(pslb(ifull),tssb(ifull),fraciceb(ifull))
-        allocate(sicedepb(ifull))
+        allocate(sicedepb(ifull),ocndep(ifull))
         allocate(sssb(ifull,wlev,4))
       end if
 
@@ -584,8 +588,11 @@
           end where  ! (.not.land(iq))
          else
           ! nudge mlo
-          wl=1                            ! single-level nudging
-          if (any(ocndep.gt.0.5)) wl=wlev ! multi-level nudging
+          wl=1
+          rduma=maxval(ocndep)
+          call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
+     &                       MPI_COMM_WORLD,ierr)
+          if (rdumg.gt.0.5) wl=wlev
           smask=.not.land.and..not.fraciceb.gt.0..and..not.fracice.gt.0.
           if (any(smask)) then
             rduma=maxval(abs(sssb(:,1,1)-tssb),smask)

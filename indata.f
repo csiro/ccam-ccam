@@ -1052,16 +1052,20 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         ! clobber ifile surface data with surfin surface data    ! MJT recycle
         kdate_s=kdate_sav                                        ! MJT recycle
         ktime_s=ktime_sav                                        ! MJT recycle
-        write(6,*) "Replacing surface data with input from ",    ! MJT recycle
-     &              trim(surf_00)                                ! MJT recycle
+	if (myid==0) then                                        ! MJT recycle
+         write(6,*) "Replacing surface data with input from ",   ! MJT recycle
+     &               trim(surf_00)                               ! MJT recycle
+        end if                                                   ! MJT recycle
         call onthefly(2,kdate,ktime,duma,duma,duma,duma,         ! MJT recycle
      &       duma,dumb,dumb,dumb,                                ! MJT recycle
      &       dumb,tgg,wb,wbice,snowd,dumb,                       ! MJT recycle
      &       dumb,tggsn,smass,ssdn,ssdnn,snage,isflag,           ! MJT recycle
      &       iaero,mlodwn,ocndwn)                                ! MJT recycle
          if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)then        ! MJT recycle
+	  if (myid==0) then                                      ! MJT recycle
            write(6,*) "WARN: Could not locate correct date/time" ! MJT recycle
            write(6,*) "      Using infile surface data instead"  ! MJT recycle
+	  end if                                                 ! MJT recycle
          endif                                                   ! MJT recycle
        else                                                      ! MJT recycle
 !       for sequence of runs starting with values saved from last run
