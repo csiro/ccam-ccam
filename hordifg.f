@@ -13,8 +13,7 @@
       use nlin_m
       use parmhdff_m
       use sigs_m
-      use tkeeps, only : tke,eps,shear,tkeww => ww,tkewx => dwdx,
-     &                   tkewy => dwdy ! MJT tke
+      use tkeeps, only : tke,eps,shear
       use vecsuv_m
       use vvel_m
       implicit none
@@ -42,8 +41,11 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
+      real, dimension(ifull+iextra,kl) :: zg           ! MJT smag
       real, dimension(ifull,kl) :: dudx,dudy,dvdx,dvdy ! MJT smag
-      real, dimension(ifull,kl) :: dwdx,dwdy           ! MJT smag
+      real, dimension(ifull,kl) :: dudz,dvdz           ! MJT smag
+      real, dimension(ifull,kl) :: dwdx,dwdy,dwdz      ! MJT smag
+      real, dimension(ifull,kl) :: dzdx,dzdy           ! MJT smag
       real, dimension(ifull+iextra,kl) :: ww           ! MJT smag
       real es                                          ! MJT emag
       integer, parameter :: nf=2
@@ -165,6 +167,39 @@ c     above code independent of k
           dwdx(:,k)=(ww(ie,k)-ww(iw,k))*0.5*em(1:ifull)/ds
           dwdy(:,k)=(ww(in,k)-ww(is,k))*0.5*em(1:ifull)/ds
         end do
+        dwdz(:,1)=(ww(1:ifull,2)-ww(1:ifull,1))
+     &           /(zg(1:ifull,2)-zg(1:ifull,1))
+        dudz(:,1)=(u(1:ifull,2)-u(1:ifull,1))
+     &           /(zg(1:ifull,2)-zg(1:ifull,1))
+        dvdz(:,1)=(v(1:ifull,2)-v(1:ifull,1))
+     &           /(zg(1:ifull,2)-zg(1:ifull,1))
+        do k=2,kl-1
+          dwdz(:,k)=(ww(1:ifull,k+1)-ww(1:ifull,k-1))
+     &             /(zg(1:ifull,k+1)-zg(1:ifull,k-1))
+          dudz(:,k)=(u(1:ifull,k+1)-u(1:ifull,k-1))
+     &             /(zg(1:ifull,k+1)-zg(1:ifull,k-1))
+          dvdz(:,k)=(v(1:ifull,k+1)-v(1:ifull,k-1))
+     &             /(zg(1:ifull,k+1)-zg(1:ifull,k-1))
+        end do
+        dwdz(:,kl)=(ww(1:ifull,kl)-ww(1:ifull,kl-1))
+     &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
+        dudz(:,kl)=(u(1:ifull,kl)-u(1:ifull,kl-1))
+     &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
+        dvdz(:,kl)=(v(1:ifull,kl)-v(1:ifull,kl-1))
+     &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
+
+        zg(1:ifull,1)=bet(1)*t(1:ifull,1)/grav
+        do k=2,kl
+          zg(1:ifull,k)=zg(1:ifull,k-1)+(bet(k)*t(1:ifull,k)
+     &                      +betm(k)*t(1:ifull,k-1))/grav
+        end do
+        call bounds(zg)
+        do k=1,kl
+          dzdx(:,k)=0.5*(zg(ie,k)+zs(ie)-zg(iw,k)-zs(iw))*em(1:ifull)
+     &              /ds
+          dzdy(:,k)=0.5*(zg(in,k)+zs(in)-zg(is,k)-zs(is))*em(1:ifull)
+     &              /ds
+        end do
       end if   ! nhorjlm==0.or.nvmix==6
       if (nhorjlm==1.or.nhorjlm==2.or.
      &    nhorps==0.or.nhorps==-2) then ! usual deformation for nhorjlm=1 or nhorjlm=2
@@ -233,10 +268,8 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
 
        case(3)
          t_kh=0. ! no diffusion (i.e., for pure nvmix.eq.6)
-                 ! Probably works best for grid scales that
-                 ! are less than 500 m, since that is the
-                 ! maximum length scale allowed by the
-                 ! prognostic eddy diffusivity - MJT
+                 ! Probably works better for grid scales that
+                 ! are less than 500 m
 
         case DEFAULT                                          ! MJT smag
          write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm  ! MJT smag
@@ -244,8 +277,8 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
        end select
        
        ! Calculate horizontal diffusion based on prognostic TKE
-       ! This can be combined with the filters above operate
-       ! over a large range of grid length scales
+       ! This can be combined with the diffusion coefficents above
+       ! so as to operate over a large range of grid length scales
        if (nvmix.eq.6) then                                       ! MJT tke
          tke=max(tke,1.5E-8)                                      ! MJT tke
          eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)                  ! MJT tke
@@ -257,16 +290,15 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
      &     /eps(1:ifull,k),1.E-7)*hdif,t_kh(1:ifull,k))           ! MJT tke
          end do                                                   ! MJT tke
          do k=1,kl                                                ! MJT tke
-           ! vertical component included in tkeeps.f90 and        ! MJT tke
-           ! additional terms for changing orography are          ! MJT tke
-           ! neglected for now                                    ! MJT tke
            shear(:,k)=t_kh(1:ifull,k)*ds*ds/dt*(                  ! MJT tke
-     &       (2.*dudx(:,k))**2+(2.*dvdy(:,k))**2                  ! MJT tke
-     &      +(dudy(:,k)+dvdx(:,k))**2)                            ! MJT tke
+     &       2.*((dudx(:,k)+dzdx(:,k)*dudz(:,k))**2               ! MJT tke
+     &          +(dvdy(:,k)+dzdy(:,k)*dvdz(:,k))**2               ! MJT tke
+     &          +dwdz(:,k)**2)                                    ! MJT tke
+     &       +(dudy(:,k)+dzdy(:,k)*dudz(:,k)                      ! MJT tke
+     &        +dvdx(:,k)+dzdx(:,k)*dvdz(:,k))**2                  ! MJT tke
+     &       +(dudz(:,k)+dwdx(:,k)+dzdx(:,k)*dwdz(:,k))**2        ! MJT tke
+     &       +(dvdz(:,k)+dwdy(:,k)+dzdy(:,k)*dwdz(:,k))**2)       ! MJT tke
          end do                                                   ! MJT tke
-         tkewx=dwdx ! save dwdx for tke                           ! MJT tke
-         tkewy=dwdy ! save dwdy for tke                           ! MJT tke
-         tkeww=ww   ! save ww for tke                             ! MJT tke
        end if                                                     ! MJT tke
 
       call bounds(t_kh)
@@ -400,7 +432,7 @@ c        do t diffusion based on potential temperature ff
      &                       yfact(iq,k)+yfact(isv(iq),k))
              end do              !  iq loop
           end do
-       endif                    ! (nhorps.ge.-1)
+       endif                    ! (nhorps.ne.-2)
        
        ! MJT aerosols
        if (abs(iaero).eq.2) then

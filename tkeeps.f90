@@ -25,13 +25,11 @@ implicit none
 
 private
 public tkeinit,tkemix,tkeend,tke,eps,tkesav,epssav,shear
-public ww,dwdx,dwdy
 
 integer, save :: ifull,iextra,kl
 real, dimension(:,:), allocatable, save :: shear
 real, dimension(:,:), allocatable, save :: tke,eps
 real, dimension(:,:), allocatable, save :: tkesav,epssav
-real, dimension(:,:), allocatable, save :: ww,dwdx,dwdy
 
 ! model constants
 real, parameter :: cm      = 0.09
@@ -100,17 +98,13 @@ kl=klin
 
 allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
 allocate(tkesav(ifull,kl),epssav(ifull,kl))
-allocate(shear(ifull,kl),ww(ifull+iextra,kl))
-allocate(dwdx(ifull,kl),dwdy(ifull,kl))
+allocate(shear(ifull,kl))
 
 tke=1.5E-4
 eps=1.0E-6
 tkesav=tke(1:ifull,:)
 epssav=eps(1:ifull,:)
 shear=0.
-ww=0.
-dwdx=0.
-dwdy=0.
 
 return
 end subroutine tkeinit
@@ -122,7 +116,7 @@ end subroutine tkeinit
 ! mode=1 no mass flux
 ! mode=2 mass flux without moist convection (no counter-gradient for moisture)
 
-subroutine tkemix(kmo,theta,qg,qlg,qfg,u,v,cfrac,zi,land,wtv0,wq0,ps,ustar,zz,sig,sigkap,dt,mode,diag)
+subroutine tkemix(kmo,theta,qg,qlg,qfg,cfrac,zi,land,wtv0,wq0,ps,ustar,zz,sig,sigkap,dt,mode,diag)
 
 implicit none
 
@@ -131,7 +125,7 @@ integer k,i
 integer icount,jcount,ncount
 real, intent(in) :: dt
 real, dimension(ifull,kl), intent(inout) :: theta,qg
-real, dimension(ifull,kl), intent(in) :: u,v,zz,qlg,qfg,cfrac
+real, dimension(ifull,kl), intent(in) :: zz,qlg,qfg,cfrac
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: wtv0,wq0,ps,ustar
@@ -433,12 +427,9 @@ aa(:,2)=max(aa(:,2)*5./500.,1.E-10)
 eps(1:ifull,1)=max(eps(1:ifull,1),aa(:,2))
 
 ! Calculate shear term
-do k=2,kl-1
-  pps(:,k)=((u(:,k+1)-u(:,k-1))/dz_fl(:,k)+dwdx(:,k))**2+((v(:,k+1)-v(:,k-1))/dz_fl(:,k)+dwdy(:,k))**2 &
-          +(2.*(ww(1:ifull,k+1)-ww(1:ifull,k-1))/dz_fl(:,k))**2+shear(:,k)/km(:,k)
+do k=2,kl
+  pps(:,k)=shear(:,k)/km(:,k)
 end do
-pps(:,kl)=((u(:,kl)-u(:,kl-1))/dz_hl(:,kl-1)+dwdx(:,kl))**2+((v(:,kl)-v(:,kl-1))/dz_hl(:,kl-1)+dwdy(:,kl))**2 &
-         +(2.*(ww(1:ifull,kl)-ww(1:ifull,kl-1))/dz_hl(:,kl-1))**2+shear(:,kl)/km(:,kl)
 
 select case(usedt)
   case(1)
@@ -711,8 +702,7 @@ if (diag.gt.0) write(6,*) "Terminate TKE scheme"
 
 deallocate(tke,eps)
 deallocate(tkesav,epssav)
-deallocate(shear,ww)
-deallocate(dwdx,dwdy)
+deallocate(shear)
 
 return
 end subroutine tkeend

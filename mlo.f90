@@ -654,8 +654,8 @@ if (wfull.eq.0) return
 
 a_sg=pack(sg,wpack)
 a_rg=pack(rg,wpack)
-a_f=pack(f,wpack)
-!a_f=0. ! turn off coriolis terms when no geostrophic term
+!a_f=pack(f,wpack)
+a_f=0. ! turn off coriolis terms when no geostrophic term
 a_vnratio=pack(visnirratio,wpack)
 a_fbvis=pack(fbvis,wpack)
 a_fbnir=pack(fbnir,wpack)
@@ -940,7 +940,7 @@ do ii=2,wlev
   where (ii.le.mixind_hl)
     sigma=depth_hl(:,ii)/p_mixdepth
     km(:,ii)=p_mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
-    ks(:,ii)=p_mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
+    ks(:,ii)=p_mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2s+a3s*sigma))
   end where
 end do
 
@@ -1163,7 +1163,7 @@ do i=1,nits
   do ii=1,wlev
     t = max(w_temp(:,ii)-273.16,-2.)
     s = max(w_sal(:,ii),0.)
-    p1 = grav*depth(:,ii)*d_rho(:,ii)*1.E-5
+    p1 = grav*depth(:,ii)*d_rho(:,ii)*1.E-5 ! assume hydrostatic balance
     t2 = t*t
     t3 = t2*t
     t4 = t3*t

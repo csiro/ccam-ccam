@@ -36,7 +36,6 @@
       real, dimension(ifull,3) :: dums
       character*12 dimnam
       integer num,mtimea,mtimeb,iaero,k,i,wl,ierr
-      logical, dimension(ifull) :: smask
       data num/0/,mtimea/0/,mtimeb/-1/
       save num,mtimea,mtimeb
       
@@ -309,20 +308,11 @@
        else
         ! nudge mlo
         dumaa=cona*sssa+conb*sssb
-        wl=1
+        wl=wlev
         rduma=maxval(ocndep)
         call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
      &                     MPI_COMM_WORLD,ierr)
-        if (rdumg.gt.0.5) wl=wlev
-        smask=.not.land.and..not.fraciceb.gt.0..and..not.fracice.gt.0.
-        if (any(smask)) then
-          rduma=maxval(abs(dumaa(:,1,1)-tssb),smask)
-        else
-          rduma=0.
-        end if
-        call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
-     &                     MPI_COMM_WORLD,ierr)
-        if (rdumg.gt.0.1) wl=1
+        if (rdumg.lt.0.5) wl=1
         if (wl==1) then
           dumaa(:,1,1)=cona*tssa+conb*tssb
           where (fraciceb.gt.0.)
@@ -376,7 +366,6 @@
       real, dimension(ifull,3) :: dums
       real, dimension(ifull) :: pslc
       real, dimension(ifull,kl) :: uc,vc,tc,qc
-      logical, dimension(ifull) :: smask
       data mtimeb/-1/
       save mtimeb
       
@@ -588,20 +577,11 @@
           end where  ! (.not.land(iq))
          else
           ! nudge mlo
-          wl=1
+          wl=wlev
           rduma=maxval(ocndep)
           call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
      &                       MPI_COMM_WORLD,ierr)
-          if (rdumg.gt.0.5) wl=wlev
-          smask=.not.land.and..not.fraciceb.gt.0..and..not.fracice.gt.0.
-          if (any(smask)) then
-            rduma=maxval(abs(sssb(:,1,1)-tssb),smask)
-          else
-            rduma=0.
-          end if
-          call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
-     &                       MPI_COMM_WORLD,ierr)
-          if (rdumg.gt.0.1) wl=1
+          if (rdumg.lt.0.5) wl=1
           if (wl==1) then
             sssb(:,1,1)=tssb
             where (fraciceb.gt.0.)
@@ -2793,6 +2773,11 @@
       else
         if (myid==0) then
           write(6,*) "MLO 1D scale-selective filter (MPI)"
+          if (wl.eq.1) then
+            write(6,*) "Single level filter"
+          else
+            write(6,*) "Multiple level filter"
+          end if
         end if        
         npta=1                              ! number of panels per processor
         mproc=nproc                         ! number of processors per panel

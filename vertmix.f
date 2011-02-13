@@ -794,15 +794,13 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        select case(nlocal)                                              ! MJT tke
         case(0) ! no counter gradient                                   ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
-     &             qfg(1:ifull,:),u(1:ifull,:),v(1:ifull,:),cfrac,      ! MJT tke
-     &             pblh,land(1:ifull),wt0,wq0,ps(1:ifull),ustar,zg,     ! MJT tke
-     &             sig,sigkap,dt,1,0)                                   ! MJT tke
+     &             qfg(1:ifull,:),cfrac,pblh,land(1:ifull),wt0,wq0,     ! MJT tke
+     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)              ! MJT tke
          rkh=rkm                                                        ! MJT tke
         case(1,2,3,4,5,6) ! KCN counter gradient method                 ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
-     &             qfg(1:ifull,:),u(1:ifull,:),v(1:ifull,:),cfrac,      ! MJT tke
-     &             pblh,land(1:ifull),wt0,wq0,ps(1:ifull),ustar,zg,     ! MJT tke
-     &             sig,sigkap,dt,1,0)                                   ! MJT tke
+     &             qfg(1:ifull,:),cfrac,pblh,land(1:ifull),wt0,wq0,     ! MJT tke
+     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)              ! MJT tke
          rkh=rkm                                                        ! MJT tke
          uav(1:ifull,:)=av_vmod*u(1:ifull,:)                            ! MJT tke
      &                 +(1.-av_vmod)*savu(1:ifull,:)                    ! MJT tke
@@ -811,15 +809,14 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          call pbldif(rhs,rkh,rkm,uav,vav)                               ! MJT tke
         case(7) ! mass-flux counter gradient                            ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
-     &             qfg(1:ifull,:),u(1:ifull,:),v(1:ifull,:),cfrac,      ! MJT tke
-     &             pblh,land(1:ifull),wt0,wq0,ps(1:ifull),ustar,zg,     ! MJT tke
-     &             sig,sigkap,dt,0,0)                                   ! MJT tke
+     &             qfg(1:ifull,:),cfrac,pblh,land(1:ifull),wt0,wq0,     ! MJT tke
+     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,0,0)              ! MJT tke
          rkh=rkm                                                        ! MJT tke
          case DEFAULT                                                   ! MJT tke
            write(6,*) "ERROR: Unknown nlocal option for nvmix=6"        ! MJT tke
            stop                                                         ! MJT tke
        end select                                                       ! MJT tke
-      end if ! nvmix.ne.6                                               ! MJT tkeuav
+      end if ! nvmix.ne.6                                               ! MJT tke
 
       do k=1,kl-1
         delsig=sig(k+1)-sig(k)

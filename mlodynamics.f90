@@ -332,16 +332,25 @@ end subroutine mlorouter
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine implements some basic hydrostatic dynamics
-! (note this is a work in progress)
+! (note that this subroutine is a work in progress)
 !subroutine mlohadv
 !
 !use cc_mpi
+!use map_m
 !use mlo
 !
 !implicit none
 !
-!real, dimension(ifull,wlev) :: nu,nv,nw
+!include 'newmpar.h'
 !
+!integer l,ii
+!real, dimension(ifull+iextra) :: ee
+!real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns
+!real, dimension(ifull+iextra,wlev) :: p,dep
+!real, dimension(ifull,wlev) :: dzdx,dzdy
+!logical, dimension(ifull) :: wtr
+!
+!Define land/sea mask
 !ee=0.
 !where(land)
 !  ee=1.
@@ -349,13 +358,14 @@ end subroutine mlorouter
 !call bounds(ee)
 !wtr=ee.lt.0.5
 !
-! Initialise arrays
+!dep(1:ifull,:)=depth
 !
-!do k=1,wlev
-!  call mloexport(0,nt(:,ii),k,0)
-!  call mloexport(1,ns(:,ii),k,0)
-!  call mloexport(2,nu(:,ii),k,0)
-!  call mloexport(3,nv(:,ii),k,0)
+! Initialise arrays
+!do ii=1,wlev
+!  call mloexport(0,nt(1:ifull,ii),ii,0)
+!  call mloexport(1,ns(1:ifull,ii),ii,0)
+!  call mloexport(2,nu(1:ifull,ii),ii,0)
+!  call mloexport(3,nv(1:ifull,ii),ii,0)
 !end do
 !
 !do l=1,2 ! predictor-corrector loop
@@ -372,20 +382,20 @@ end subroutine mlorouter
 !  dzdx=0.
 !  dzdy=0.
 !  do ii=1,wlev
-!    call bounds(depth(:,ii))
+!    call bounds(dep(:,ii))
 !    where(wtr(1:ifull).and.wtr(ie).and.wtr(iw))
-!      dzdx(:,ii)=(depth(ie,ii)-depth(iw,ii))*0.5*em(:)/ds
+!      dzdx(:,ii)=(dep(ie,ii)-dep(iw,ii))*0.5*em(:)/ds
 !    elsewhere(wtr(1:ifull).and.wtr(ie))
-!      dzdx(:,ii)=(depth(ie,ii)-depth(1:ifull,ii))*em(:)/ds
+!      dzdx(:,ii)=(dep(ie,ii)-dep(1:ifull,ii))*em(:)/ds
 !    elsewhere(wtr(1:ifull).and.wtr(iw))
-!      dzdx(:,ii)=(depth(1:ifull,ii)-depth(iw,ii)*em(:)/ds
+!      dzdx(:,ii)=(dep(1:ifull,ii)-dep(iw,ii)*em(:)/ds
 !    end where
 !    where(wtr(1:ifull).and.wtr(in).and.wtr(is))
-!      dzdy(:,ii)=(depth(in,ii)-depth(is,ii))*0.5*em(:)/ds
+!      dzdy(:,ii)=(dep(in,ii)-dep(is,ii))*0.5*em(:)/ds
 !    elsewhere(wtr(1:ifull).and.wtr(in))
-!      dzdy(:,ii)=(depth(in,ii)-depth(1:ifull,ii))*em(:)/ds
+!      dzdy(:,ii)=(dep(in,ii)-dep(1:ifull,ii))*em(:)/ds
 !    elsewhere(wtr(1:ifull).and.wtr(is))
-!      dzdy(:,ii)=(depth(1:ifull,ii)-depth(is,ii)*em(:)/ds
+!      dzdy(:,ii)=(dep(1:ifull,ii)-dep(is,ii)*em(:)/ds
 !    end where
 !  end do
 !
