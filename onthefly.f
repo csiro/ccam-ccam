@@ -113,12 +113,18 @@
           ktime_r=ktime_s
         end if
         if (ltest) then
-          write(6,*) "WARN: Cannot locate date/time in input file"
           ik=-1
         end if
       endif  ! ( myid==0 )
       call MPI_Bcast(ik     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
-      if (ik.lt.0) return
+      if (ik.lt.0) then
+        if (nested.eq.2) then
+          write(6,*) "WARN: Cannot locate date/time in input file"	
+          return
+	end if
+	write(6,*) "ERROR: Cannot locate date/time in input file"
+	stop
+      end if
       call MPI_Bcast(jk     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
       call MPI_Bcast(kk     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
       call MPI_Bcast(kdate_r,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)

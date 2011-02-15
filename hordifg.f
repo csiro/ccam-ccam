@@ -157,6 +157,19 @@ c     above code independent of k
      &              *0.5*em(1:ifull)/ds
         end do
 
+        zg(1:ifull,1)=bet(1)*t(1:ifull,1)/grav
+        do k=2,kl
+          zg(1:ifull,k)=zg(1:ifull,k-1)+(bet(k)*t(1:ifull,k)
+     &                      +betm(k)*t(1:ifull,k-1))/grav
+        end do
+        call bounds(zg)
+        do k=1,kl
+          dzdx(:,k)=0.5*(zg(ie,k)+zs(ie)-zg(iw,k)-zs(iw))*em(1:ifull)
+     &              /ds
+          dzdy(:,k)=0.5*(zg(in,k)+zs(in)-zg(is,k)-zs(is))*em(1:ifull)
+     &              /ds
+        end do
+
         do k=1,kl        
           ! omega=ps*dpsldt
           ww(1:ifull,k)=(dpsldt(:,k)/sig(k)-dpsdt/(860.*ps(1:ifull)))
@@ -187,19 +200,6 @@ c     above code independent of k
      &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
         dvdz(:,kl)=(v(1:ifull,kl)-v(1:ifull,kl-1))
      &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
-
-        zg(1:ifull,1)=bet(1)*t(1:ifull,1)/grav
-        do k=2,kl
-          zg(1:ifull,k)=zg(1:ifull,k-1)+(bet(k)*t(1:ifull,k)
-     &                      +betm(k)*t(1:ifull,k-1))/grav
-        end do
-        call bounds(zg)
-        do k=1,kl
-          dzdx(:,k)=0.5*(zg(ie,k)+zs(ie)-zg(iw,k)-zs(iw))*em(1:ifull)
-     &              /ds
-          dzdy(:,k)=0.5*(zg(in,k)+zs(in)-zg(is,k)-zs(is))*em(1:ifull)
-     &              /ds
-        end do
       end if   ! nhorjlm==0.or.nvmix==6
       if (nhorjlm==1.or.nhorjlm==2.or.
      &    nhorps==0.or.nhorps==-2) then ! usual deformation for nhorjlm=1 or nhorjlm=2

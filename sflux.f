@@ -548,7 +548,7 @@ c     if(mydiag.and.diag)then
           if (.not.land(iq)) then                                    ! MLO
             esatf = establ(tss(iq))                                  ! MLO
             qsttg(iq)=.622*esatf/(ps(iq)-esatf)                      ! MLO
-            rhscrn(iq)=100.*qgscrn(iq)/qsttg(iq)                     ! MLO
+            rhscrn(iq)=100.*min(qgscrn(iq)/qsttg(iq),1.)             ! MLO
           end if                                                     ! MLO
         end do                                                       ! MLO
                                                                      ! MLO
