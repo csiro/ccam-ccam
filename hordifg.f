@@ -41,13 +41,11 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
-      real, dimension(ifull+iextra,kl) :: zg           ! MJT smag
+      real, dimension(ifull+iextra,kl) :: zg,ww        ! MJT smag
       real, dimension(ifull,kl) :: dudx,dudy,dvdx,dvdy ! MJT smag
       real, dimension(ifull,kl) :: dudz,dvdz           ! MJT smag
       real, dimension(ifull,kl) :: dwdx,dwdy,dwdz      ! MJT smag
       real, dimension(ifull,kl) :: dzdx,dzdy           ! MJT smag
-      real, dimension(ifull+iextra,kl) :: ww           ! MJT smag
-      real es                                          ! MJT emag
       integer, parameter :: nf=2
 !     Local variables
       integer iq, k, nhora, nhorx, iaero, l
@@ -164,10 +162,10 @@ c     above code independent of k
         end do
         call bounds(zg)
         do k=1,kl
-          dzdx(:,k)=0.5*(zg(ie,k)+zs(ie)-zg(iw,k)-zs(iw))*em(1:ifull)
-     &              /ds
-          dzdy(:,k)=0.5*(zg(in,k)+zs(in)-zg(is,k)-zs(is))*em(1:ifull)
-     &              /ds
+          dzdx(:,k)=0.5*(zg(ie,k)+zs(ie)/grav-zg(iw,k)-zs(iw)/grav)
+     &              *em(1:ifull)/ds
+          dzdy(:,k)=0.5*(zg(in,k)+zs(in)/grav-zg(is,k)-zs(is)/grav)
+     &              *em(1:ifull)/ds
         end do
 
         do k=1,kl        
@@ -200,6 +198,7 @@ c     above code independent of k
      &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
         dvdz(:,kl)=(v(1:ifull,kl)-v(1:ifull,kl-1))
      &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
+
       end if   ! nhorjlm==0.or.nvmix==6
       if (nhorjlm==1.or.nhorjlm==2.or.
      &    nhorps==0.or.nhorps==-2) then ! usual deformation for nhorjlm=1 or nhorjlm=2
@@ -271,35 +270,33 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
                  ! Probably works better for grid scales that
                  ! are less than 500 m
 
-        case DEFAULT                                          ! MJT smag
+       case DEFAULT                                          ! MJT smag
          write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm  ! MJT smag
          stop                                                 ! MJT smag
-       end select
+      end select
        
-       ! Calculate horizontal diffusion based on prognostic TKE
-       ! This can be combined with the diffusion coefficents above
-       ! so as to operate over a large range of grid length scales
-       if (nvmix.eq.6) then                                       ! MJT tke
-         tke=max(tke,1.5E-8)                                      ! MJT tke
-         eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)                  ! MJT tke
-         eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)                ! MJT tke
-         eps=max(eps,1.E-10)                                      ! MJT tke
-         hdif=dt*0.09/(ds*ds)                                     ! MJT tke
-         do k=1,kl                                                ! MJT tke
-           t_kh(1:ifull,k)= max(max(tke(1:ifull,k)*tke(1:ifull,k) ! MJT tke
-     &     /eps(1:ifull,k),1.E-7)*hdif,t_kh(1:ifull,k))           ! MJT tke
-         end do                                                   ! MJT tke
-         do k=1,kl                                                ! MJT tke
-           shear(:,k)=t_kh(1:ifull,k)*ds*ds/dt*(                  ! MJT tke
-     &       2.*((dudx(:,k)+dzdx(:,k)*dudz(:,k))**2               ! MJT tke
-     &          +(dvdy(:,k)+dzdy(:,k)*dvdz(:,k))**2               ! MJT tke
-     &          +dwdz(:,k)**2)                                    ! MJT tke
-     &       +(dudy(:,k)+dzdy(:,k)*dudz(:,k)                      ! MJT tke
-     &        +dvdx(:,k)+dzdx(:,k)*dvdz(:,k))**2                  ! MJT tke
-     &       +(dudz(:,k)+dwdx(:,k)+dzdx(:,k)*dwdz(:,k))**2        ! MJT tke
-     &       +(dvdz(:,k)+dwdy(:,k)+dzdy(:,k)*dwdz(:,k))**2)       ! MJT tke
-         end do                                                   ! MJT tke
-       end if                                                     ! MJT tke
+      ! Calculate horizontal diffusion based on prognostic TKE
+      ! This can be combined with the diffusion coefficents above
+      ! so as to operate over a large range of grid length scales
+      if (nvmix.eq.6) then                                        ! MJT tke
+        tke=max(tke,1.5E-8)                                       ! MJT tke
+        eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)                   ! MJT tke
+        eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)                 ! MJT tke
+        eps=max(eps,1.E-10)                                       ! MJT tke
+        hdif=dt*0.09/(ds*ds)                                      ! MJT tke
+        do k=1,kl                                                 ! MJT tke
+          t_kh(1:ifull,k)= max(max(tke(1:ifull,k)*tke(1:ifull,k)  ! MJT tke
+     &    /eps(1:ifull,k),1.E-7)*hdif,t_kh(1:ifull,k))            ! MJT tke
+                                                                  ! MJT tke
+          shear(:,k)=2.*(dudx(:,k)+dzdx(:,k)*dudz(:,k))**2        ! MJT tke
+     &              +2.*(dvdy(:,k)+dzdy(:,k)*dvdz(:,k))**2        ! MJT tke
+     &              +2.*dwdz(:,k)**2                              ! MJT tke
+     &              +(dudy(:,k)+dzdy(:,k)*dudz(:,k)               ! MJT tke
+     &               +dvdx(:,k)+dzdx(:,k)*dvdz(:,k))**2           ! MJT tke
+     &              +(dudz(:,k)+dwdx(:,k)+dzdx(:,k)*dwdz(:,k))**2 ! MJT tke
+     &              +(dvdz(:,k)+dwdy(:,k)+dzdy(:,k)*dwdz(:,k))**2 ! MJT tke
+        end do                                                    ! MJT tke
+      end if                                                      ! MJT tke
 
       call bounds(t_kh)
       do k=1,kl
@@ -346,9 +343,9 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
                v(iq,k) = bx(iq)*ucc + by(iq)*vcc + bz(iq)*wcc
             enddo   !  iq loop
          end do
-       endif   ! nhorps.ge.0
+      endif   ! nhorps.ge.0
 
-       if(diag.and.mydiag)then
+      if(diag.and.mydiag)then
           do k=1,kl
              print *,'k,id,jd,idjd ',k,id,jd,idjd
              print *,'k, xfact, xfactw ',k,xfact(idjd,k),
@@ -361,10 +358,10 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
              print *,'k,ee,ff,u,v ',
      &            k,ee(idjd,k),ff(idjd,k),u(idjd,k),v(idjd,k)
           end do
-       endif
+      endif
 
-       ! MJT - apply horizontal diffusion to TKE and EPS terms
-       if (nvmix.eq.6) then
+      ! MJT - apply horizontal diffusion to TKE and EPS terms
+      if (nvmix.eq.6) then
          ee(1:ifull,:)=tke(1:ifull,:)
          call bounds(ee)
          do k=1,kl
@@ -393,67 +390,66 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
      &                     yfact(iq,k)+yfact(isv(iq),k))
            end do           !  iq loop
          end do
-       end if
+      end if
        
-       if(nhorps.ne.-2)then   ! for nhorps=-2 don't diffuse T, qg
-c        do t diffusion based on potential temperature ff
+      if(nhorps.ne.-2)then   ! for nhorps=-2 don't diffuse T, qg
+c       do t diffusion based on potential temperature ff
+        do k=1,kl
+          do iq=1,ifull
+            ee(iq,k)=qg(iq,k)
+            ff(iq,k)=t(iq,k)/ptemp(iq) ! watch out for Chen!
+          enddo              !  iq loop
+        end do
+        call bounds(ee)
+        call bounds(ff)
+        if(nhorps.ne.-3)then  ! for nhorps=-3 don't diffuse T; only qg
           do k=1,kl
-             do iq=1,ifull
-                ee(iq,k)=qg(iq,k)
-                ff(iq,k)=t(iq,k)/ptemp(iq) ! watch out for Chen!
-             enddo              !  iq loop
+            do iq=1,ifull
+              emi=1./em(iq)**2
+              t(iq,k)= ptemp(iq) *
+     &                ( ff(iq,k)*emi +
+     &                  xfact(iq,k)*ff(ie(iq),k) +
+     &                  xfact(iwu(iq),k)*ff(iw(iq),k) +
+     &                  yfact(iq,k)*ff(in(iq),k) +
+     &                  yfact(isv(iq),k)*ff(is(iq),k) ) /
+     &                ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
+     &                  yfact(iq,k) + yfact(isv(iq),k) )
+            enddo           !  iq loop
           end do
+        endif                 ! (nhorps.ne.-3)
+        do k=1,kl
+          do iq=1,ifull
+            emi=1./em(iq)**2
+            qg(iq,k) = ( ee(iq,k)*emi +
+     &                   xfact(iq,k)*ee(ie(iq),k) +
+     &                   xfact(iwu(iq),k)*ee(iw(iq),k) +
+     &                   yfact(iq,k)*ee(in(iq),k) +
+     &                   yfact(isv(iq),k)*ee(is(iq),k) ) /
+     &                 ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
+     &                   yfact(iq,k)+yfact(isv(iq),k))
+           end do              !  iq loop
+        end do
+      endif                    ! (nhorps.ne.-2)
+       
+      ! MJT aerosols
+      if (abs(iaero).eq.2) then
+        do l=1,naero
+          ee(1:ifull,:)=xtg(1:ifull,:,l)
           call bounds(ee)
-          call bounds(ff)
-          if(nhorps.ne.-3)then  ! for nhorps=-3 don't diffuse T; only qg
-             do k=1,kl
-                do iq=1,ifull
-                   emi=1./em(iq)**2
-                   t(iq,k)= ptemp(iq) *
-     &                      ( ff(iq,k)*emi +
-     &                        xfact(iq,k)*ff(ie(iq),k) +
-     &                        xfact(iwu(iq),k)*ff(iw(iq),k) +
-     &                        yfact(iq,k)*ff(in(iq),k) +
-     &                        yfact(isv(iq),k)*ff(is(iq),k) ) /
-     &                      ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
-     &                        yfact(iq,k) + yfact(isv(iq),k) )
-                enddo           !  iq loop
-             end do
-          endif                 ! (nhorps.ne.-3)
           do k=1,kl
-             do iq=1,ifull
-                emi=1./em(iq)**2
-                qg(iq,k) = ( ee(iq,k)*emi +
-     &                       xfact(iq,k)*ee(ie(iq),k) +
-     &                       xfact(iwu(iq),k)*ee(iw(iq),k) +
-     &                       yfact(iq,k)*ee(in(iq),k) +
-     &                       yfact(isv(iq),k)*ee(is(iq),k) ) /
-     &                     ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
-     &                       yfact(iq,k)+yfact(isv(iq),k))
-             end do              !  iq loop
+            do iq=1,ifull
+              emi=1./em(iq)**2
+              xtg(iq,k,l) = ( ee(iq,k)*emi +
+     &                    xfact(iq,k)*ee(ie(iq),k) +
+     &                    xfact(iwu(iq),k)*ee(iw(iq),k) +
+     &                    yfact(iq,k)*ee(in(iq),k) +
+     &                    yfact(isv(iq),k)*ee(is(iq),k) ) /
+     &                  ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
+     &                    yfact(iq,k)+yfact(isv(iq),k))
+            enddo           !  iq loop
           end do
-       endif                    ! (nhorps.ne.-2)
-       
-       ! MJT aerosols
-       if (abs(iaero).eq.2) then
-         do l=1,naero
-           ee(1:ifull,:)=xtg(1:ifull,:,l)
-           call bounds(ee)
-           do k=1,kl
-             do iq=1,ifull
-               emi=1./em(iq)**2
-               xtg(iq,k,l) = ( ee(iq,k)*emi +
-     &                     xfact(iq,k)*ee(ie(iq),k) +
-     &                     xfact(iwu(iq),k)*ee(iw(iq),k) +
-     &                     yfact(iq,k)*ee(in(iq),k) +
-     &                     yfact(isv(iq),k)*ee(is(iq),k) ) /
-     &                   ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
-     &                     yfact(iq,k)+yfact(isv(iq),k))
-             enddo           !  iq loop
-           end do
-         end do
-       end if
-
+        end do
+      end if
 
       return
       end

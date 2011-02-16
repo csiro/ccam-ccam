@@ -427,9 +427,7 @@ aa(:,2)=max(aa(:,2)*5./500.,1.E-10)
 eps(1:ifull,1)=max(eps(1:ifull,1),aa(:,2))
 
 ! Calculate shear term
-do k=2,kl
-  pps(:,k)=shear(:,k)/km(:,k)
-end do
+pps(:,2:kl)=shear(:,2:kl)
 
 select case(usedt)
   case(1)
