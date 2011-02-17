@@ -1190,6 +1190,7 @@ c       incorporate other target land mask effects
         ! MJT cable
         if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
           do k=1,ncp
+	    t_a=0.
             write(vname,'("cplant",I1.1)') k
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   t_a,6*ik*ik)
@@ -1211,6 +1212,7 @@ c       incorporate other target land mask effects
             end if ! iotest
           end do
           do k=1,ncs
+	    t_a=0.
             write(vname,'("csoil",I1.1)') k
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   t_a,6*ik*ik)
