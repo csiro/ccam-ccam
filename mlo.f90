@@ -214,14 +214,14 @@ do iqw=1,wfull
   call vgrid(deptmp(iqw),dumdf,dumdh)
   depth(iqw,:)=dumdf
   depth_hl(iqw,:)=dumdh
-  if (smxd.eq.deptmp(iqw)) then
-    write(6,*) "MLO max depth ",depth(iqw,:)
-    smxd=smxd+10.
-  end if
-  if (smnd.eq.deptmp(iqw)) then
-    write (6,*) "MLO min depth ",depth(iqw,:)
-    smnd=smnd-10.
-  end if
+  !if (smxd.eq.deptmp(iqw)) then
+  !  write(6,*) "MLO max depth ",depth(iqw,:)
+  !  smxd=smxd+10.
+  !end if
+  !if (smnd.eq.deptmp(iqw)) then
+  !  write (6,*) "MLO min depth ",depth(iqw,:)
+  !  smnd=smnd-10.
+  !end if
 end do
 do ii=1,wlev
   dz(:,ii)=depth_hl(:,ii+1)-depth_hl(:,ii)
@@ -739,11 +739,11 @@ if (incradgam.gt.0) then
 else
   dumt0=d_wt0
 end if
-rhs(:,1)=km(:,2)*gammas(:,2)/dz(:,1)
+rhs(:,1)=ks(:,2)*gammas(:,2)/dz(:,1)
 do ii=2,wlev-1
-  rhs(:,ii)=(km(:,ii+1)*gammas(:,ii+1)-km(:,ii)*gammas(:,ii))/dz(:,ii)
+  rhs(:,ii)=(ks(:,ii+1)*gammas(:,ii+1)-ks(:,ii)*gammas(:,ii))/dz(:,ii)
 end do
-rhs(:,wlev)=(-km(:,wlev)*gammas(:,wlev))/dz(:,wlev)
+rhs(:,wlev)=(-ks(:,wlev)*gammas(:,wlev))/dz(:,wlev)
 cc(:,1)=-dt*ks(:,2)/(dz_hl(:,2)*dz(:,1))
 bb(:,1)=1.-cc(:,1)
 ! use -ve for BC as depth is down
@@ -902,6 +902,9 @@ do ii=2,wlev
 end do
 !--------------------------------------------------------------------
 
+wm=max(wm,1.E-20)
+ws=max(ws,1.E-20)
+
 ! calculate G profile -----------------------------------------------
 ! -ve as z is down
 do iqw=1,wfull
@@ -910,26 +913,27 @@ do iqw=1,wfull
   xp=(p_mixdepth(iqw)-depth_hl(iqw,mixind_hl(iqw)))/(depth_hl(iqw,mixind_hl(iqw)+1)-depth_hl(iqw,mixind_hl(iqw)))
   xp=max(0.,min(1.,xp))
   numh(iqw)=(1.-xp)*num(iqw,mixind_hl(iqw))+xp*num(iqw,mixind_hl(iqw)+1)
-  wm1(iqw)=(1.-xp)*wm(iqw,mixind_hl(iqw))+xp*wm(iqw,mixind_hl(iqw)+1)
-  dnumhdz(iqw)=-(num(iqw,mixind_hl(iqw)+1)-num(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
-  dwm1ds(iqw)=-p_mixdepth(iqw)*(wm(iqw,mixind_hl(iqw)+1)-wm(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
   nush(iqw)=(1.-xp)*nus(iqw,mixind_hl(iqw))+xp*nus(iqw,mixind_hl(iqw)+1)
+  wm1(iqw)=(1.-xp)*wm(iqw,mixind_hl(iqw))+xp*wm(iqw,mixind_hl(iqw)+1)
   ws1(iqw)=(1.-xp)*ws(iqw,mixind_hl(iqw))+xp*ws(iqw,mixind_hl(iqw)+1)
-  dnushdz(iqw)=-(nus(iqw,mixind_hl(iqw)+1)-nus(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
-  dws1ds(iqw)=-p_mixdepth(iqw)*(ws(iqw,mixind_hl(iqw)+1)-ws(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
+  dnumhdz(iqw)=(num(iqw,mixind_hl(iqw)+1)-num(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
+  dnushdz(iqw)=(nus(iqw,mixind_hl(iqw)+1)-nus(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
+  !method#1
+  !dwm1ds(iqw)=p_mixdepth(iqw)*(wm(iqw,mixind_hl(iqw)+1)-wm(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
+  !dws1ds(iqw)=p_mixdepth(iqw)*(ws(iqw,mixind_hl(iqw)+1)-ws(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
+  !method#2
+  dws1ds(iqw)=-5.*p_mixdepth(iqw)*ws1(iqw)*ws1(iqw)*max(p_bf(iqw),0.)/(d_ustar(iqw)**4)
+  dwm1ds(iqw)=-5.*p_mixdepth(iqw)*wm1(iqw)*wm1(iqw)*max(p_bf(iqw),0.)/(d_ustar(iqw)**4)
 end do
 
-wm1=max(wm1,1.E-20)
-ws1=max(ws1,1.E-20)
-  
 g1m=numh/(p_mixdepth*wm1)
-dg1mds=-dnumhdz/wm1-numh*dwm1ds/(p_mixdepth*wm1*wm1)
 g1s=nush/(p_mixdepth*ws1)
-dg1sds=-dnushdz/ws1-nush*dws1ds/(p_mixdepth*ws1*ws1)
+dg1mds=dnumhdz/wm1-numh*dwm1ds/(p_mixdepth*wm1*wm1)
+dg1sds=dnushdz/ws1-nush*dws1ds/(p_mixdepth*ws1*ws1)
   
 a2m=-2.+3.*g1m-dg1mds
-a3m=1.-2.*g1m+dg1mds
 a2s=-2.+3.*g1s-dg1sds
+a3m=1.-2.*g1m+dg1mds
 a3s=1.-2.*g1s+dg1sds
 
 !--------------------------------------------------------------------
@@ -939,13 +943,10 @@ ks=nus
 do ii=2,wlev
   where (ii.le.mixind_hl)
     sigma=depth_hl(:,ii)/p_mixdepth
-    km(:,ii)=p_mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
-    ks(:,ii)=p_mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2s+a3s*sigma))
+    km(:,ii)=max(p_mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma)),num(:,ii))
+    ks(:,ii)=max(p_mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2s+a3s*sigma)),nus(:,ii))
   end where
 end do
-
-km=max(km,num) ! MJT suggestion
-ks=max(ks,nus) ! MJT suggestion
 
 ! non-local term
 ! gammas is the same for temp and sal when double-diffusion is not employed
@@ -1222,7 +1223,7 @@ end do
 
 ! buoyancy frequency (calculated at half levels)
 do ii=2,wlev
-  d_nsq(:,ii)=-(2.*grav/(d_rho(:,ii-1)+d_rho(:,ii)))*(d_rho(:,ii-1)-d_rho(:,ii))/dz_hl(:,ii)
+  d_nsq(:,ii)=-2.*grav/(d_rho(:,ii-1)+d_rho(:,ii))*(d_rho(:,ii-1)-d_rho(:,ii))/dz_hl(:,ii)
 end do
 d_nsq(:,1)=2.*d_nsq(:,2)-d_nsq(:,3) ! not used
 

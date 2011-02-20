@@ -10,14 +10,14 @@ public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,aldrloadoxidant,cldr
        xtg,xtgsav,xtusav,naero,ssn
 
 integer, save :: ifull,kl
-real, dimension(:,:,:), allocatable, save :: xtg     ! aerosols
+real, dimension(:,:,:), allocatable, save :: xtg     ! prognostic aerosols (see indexing below)
 real, dimension(:,:,:), allocatable, save :: xtgsav  ! save for mass conservation in semi-Lagrangian models
 real, dimension(:,:,:), allocatable, save :: xtusav  ! aerosol mixing ratio in convective cloud
-real, dimension(:,:), allocatable, save :: field     ! emissions
+real, dimension(:,:), allocatable, save :: field     ! non-volcanic emissions
 real, dimension(:), allocatable, save :: vso2        ! volcanic emissions
 real, dimension(:,:,:), allocatable, save :: ssn     ! diagnostic sea salt
-real, dimension(:,:), allocatable, save :: zoxidant
-real, dimension(:,:,:), allocatable, save :: erod
+real, dimension(:,:), allocatable, save :: zoxidant  ! oxidant fields
+real, dimension(:,:,:), allocatable, save :: erod    ! sand, clay and silt fraction that can erode
 
 ! parameters
 integer, parameter :: nsulf = 3
@@ -39,17 +39,16 @@ real, parameter :: rhos     = 100.           ! Assumed density of snow in kg/m^3
 real, parameter :: dyn_visc = 1.5E-5
 
 ! Following array determines for which tracers the XTWETDEP routine is called.
-! Hard coding it for 29 tracers avoids compiler trouble when changing NTRAC.
 ! We now set it to .true. for BCO and OCO, since they do experience below-cloud scavenging.
 ! The efficiency for in-cloud scavenging is still set to zero for these.
-logical, dimension(naero), parameter :: lwetdep = (/.false.,.true.,.true.,       & !DMS, SO2, SO4
-                                                 .true.,.true.,.true.,.true.,    & !BCO, BCI, OCO, OCI
-                                                 .true.,.true.,.true.,.true. /)    !Dust
-real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /)    ! Density of dust (kg/m3)   (Clay, small silt, small slit, small slilt)
-real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 /) ! Main effective radius (m) (Clay, small silt, small slit, small slilt)
-integer, parameter :: ndsrc = 1     !No. of dust source types (1 = natural only)
-integer, parameter :: ndcls = 3     !No. of dust emission classes (sand, silt, clay)
-integer, parameter :: ndsiz = ndust !No. of dust size bins (note that NDUST may be larger than NDSIZ)
+logical, dimension(naero), parameter :: lwetdep = (/.false.,.true.,.true.,       & ! DMS, SO2, SO4
+                                                 .true.,.true.,.true.,.true.,    & ! BCO, BCI, OCO, OCI
+                                                 .true.,.true.,.true.,.true. /)    ! Dust
+real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /)    ! Density of dust (kg/m3)   (Clay, small silt, small slit, small silt)
+real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 /) ! Main effective radius (m) (Clay, small silt, small slit, small silt)
+integer, parameter :: ndsrc = 1     ! No. of dust source types (1 = natural only)
+integer, parameter :: ndcls = 3     ! No. of dust emission classes (sand, silt, clay)
+integer, parameter :: ndsiz = ndust ! No. of dust size bins (note that NDUST may be larger than NDSIZ)
 
 contains
 
@@ -141,7 +140,6 @@ end subroutine aldrloadoxidant
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Load soil data
-!
 
 subroutine aldrloaderod(inda,indb,aa)
 
@@ -161,7 +159,8 @@ end subroutine aldrloaderod
 
 subroutine aldrcalc(dt,sig,sigh,dsig,zz,mc,mcmax,wg,pblh,prf,ts,ttg,rcondx,condc,snowd,sg,fg,eg,v10m, &
                     ustar,zo,land,sicef,tsigmf,qlg,qfg,cfrac,clcon,pccw,dxy,rhoa,vt,ppfprec,ppfmelt,  &
-                    ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed,pprscav)
+                    ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,ppmaccr,ppfstay,ppqfsed,pprscav,  &
+                    zdayfac)
 
 implicit none
 
@@ -188,6 +187,7 @@ real, dimension(ifull), intent(in) :: sicef    ! Sea-ice fraction
 real, dimension(ifull), intent(in) :: tsigmf   ! Vegetation fraction
 real, dimension(ifull), intent(in) :: dxy      ! area of grid box
 real, dimension(ifull), intent(in) :: vt       ! transfer velocity
+real, dimension(ifull), intent(in) :: zdayfac  ! scale factor for day length
 real, dimension(ifull,kl), intent(in) :: zz    ! Height of vertical level (meters)
 real, dimension(ifull,kl), intent(in) :: ttg   ! Air temperature
 real, dimension(ifull,kl), intent(in) :: qlg   ! liquid water mixing ratio
@@ -321,7 +321,7 @@ do k=1,kl
     endif
   enddo
 enddo
-call xtchemie (1, dt,aphp1(:,1:kl), ppmrate, ppfprec,                           & !Inputs
+call xtchemie (1, dt,zdayfac,aphp1(:,1:kl), ppmrate, ppfprec,                   & !Inputs
                pclcover, pmlwc, prhop1, ptp1, sg, pxtm1, ppfevap,               & !Inputs
                ppfsnow,ppfsubl,pcfcover,pmiwc,ppmaccr,ppfmelt,ppfstay,ppqfsed,  & !Inputs
                pplambs,pprscav,pclcon,pccw,ppfconv,xtu,                         & !Input
@@ -662,7 +662,7 @@ JT=ITRACSO2
 DO JL=1,ifull
   do jk=jk2+1,jk3
     gdp1=grav/(aphp1(jl,jk+1)-aphp1(jl,jk))/real(jk2-jk3)
-    XTE(JL,JK,JT)=XTE(JL,JK,JT)+FIELD(JL,iso2a2)*0.97*gdp1 !100% of the "above 100m" SO2 emission
+    XTE(JL,JK,JT)=XTE(JL,JK,JT)+FIELD(JL,iso2a2)*0.97*gdp1     !100% of the "above 100m" SO2 emission
     XTE(JL,JK,JT+1)=XTE(JL,JK,JT+1)+FIELD(JL,iso2a2)*0.03*gdp1 !100% of the "above 100m" SO4 emission
   end do
   do jk=jk4+1,jk3
@@ -909,7 +909,7 @@ END subroutine xtsink
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! xt chemie
 
-SUBROUTINE XTCHEMIE(KTOP, PTMST,PDPP1, PMRATEP, PFPREC,                              & !Inputs
+SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,PDPP1, PMRATEP, PFPREC,                      & !Inputs
                     PCLCOVER, PMLWC, PRHOP1, PTP1, sg, xtm1, pfevap,                 & !Inputs
                     pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,pfstay,pqfsed,plambs, & !Inputs
                     prscav,pclcon,pccw,pfconv,xtu,                                   & !Inputs
@@ -973,8 +973,6 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,PDPP1, PMRATEP, PFPREC,                         
 !      EXTERNALS
 !      ------------
 !          *XTWETDEP*  CALCULATES THE WET DEPOSITION
-
-!use zenith_m
 
 implicit none
 
@@ -1041,8 +1039,7 @@ REAL ZDEP3D(ifull,kl),                               &
 real zrevap(ifull,kl),zso2ev(ifull,kl)
 real xto(ifull,kl,naero)
 integer ZRDAYL(ifull)
-!real, dimension(:), allocatable, save :: zdayfac
-real, dimension(ifull) :: zdayfac
+real, dimension(ifull), intent(in) :: zdayfac
 integer, parameter :: nfastox=0 !1 for "fast" in-cloud oxidation; 0 for "slow"
 real xtoc,ctox,zfarr,x,y,zk,zh,ztpq
 real pcons2,zmin,pdtime,pqtmst
@@ -1063,13 +1060,7 @@ real zhil,zexp,zm,zdms,t,ztk1,tk3,zqt,zqt3
 real zrhoair,zkno2o3,zkn2o5aq,zrx1,zrx2
 real zkno2no3,zeqn2o5,ztk3,ztk2,zkn2o5
 real zno3,zxtp1so2
-real bpyear,dhr,fjd,r1,dlt,alp,slag
-real coszro(ifull),taudar(ifull)
-integer niter,jt,jk,jl,js1,js2,js3,js4
-integer jn,jyear,jmonth,jday,jhour,jmin
-integer mstart,tt,ttx,mins
-integer ndoy(12)   ! days from beginning of year (1st Jan is 0)
-data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
+integer niter,jt,jk,jl,js1,js2,js3,js4,jn
 
 ! Local data, functions etc
 
@@ -1158,12 +1149,12 @@ end where
 
 !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
 DO JK=1,kl
+  JS1=JK
+  JS2=kl+JK
+  JS3=2*kl+JK
+  JS4=3*kl+JK
   DO JL=1,ifull
     ZX=PRHOP1(JL,JK)*1.E-03
-    JS1=JK
-    JS2=kl+JK
-    JS3=2*kl+JK
-    JS4=3*kl+JK
     ZZOH(JL,JK)=ZOXIDANT(JL,JS1)
     ZZH2O2(JL,JK)=ZOXIDANT(JL,JS2)*ZX
     ZZO3(JL,JK)=ZOXIDANT(JL,JS3)*ZX
@@ -1529,28 +1520,6 @@ enddo
 !      ZNLON=FLOAT(lon)
 !      IF(ZDAYL.NE.0.) ZDAYFAC(1)=ZNLON/ZDAYL !NH
 !      IF(ZDAYL.NE.znlon) ZDAYFAC(2)=ZNLON/(znlon-ZDAYL) !SH
-!if (.not.allocated(zdayfac)) then
-!  allocate(zdayfac(ifull))
-!  jyear=kdate/10000
-!  jmonth=(kdate-jyear*10000)/100
-!  jday=kdate-jyear*10000-jmonth*100
-!  jhour=ktime/100
-!  jmin=ktime-jhour*100
-!  mstart=1440*(ndoy(jmonth)+jday-1)+60*jhour+jmin ! mins from start of y
-!  bpyear=0.
-!  dhr=PTMST/3600.
-!  ttx=nint(86400./PTMST)
-!  zdayfac(:)=0.
-!  do tt=1,ttx
-!    mins=real(tt)*PTMST/60.+mstart
-!    fjd=float(mod(mins,525600))/1440.  ! 525600 = 1440*365
-!    call solargh(fjd,bpyear,r1,dlt,alp,slag)
-!    call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
-!    zdayfac(:)=zdayfac(:)+taudar
-!  end do
-!  zdayfac(:)=real(ttx)/zdayfac(:)
-!end if
-zdayfac=2. ! MJT suggestion to account for changing day length
 
 JT=ITRACSO2
 !   DAY-TIME CHEMISTRY

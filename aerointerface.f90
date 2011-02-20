@@ -16,16 +16,16 @@ public ppfprec,ppfmelt,ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate, &
 real, dimension(:,:,:,:), allocatable, save :: oxidantprev
 real, dimension(:,:,:,:), allocatable, save :: oxidantnow
 real, dimension(:,:,:,:), allocatable, save :: oxidantnext
-real, dimension(:), allocatable, save :: rlat,rlev
+real, dimension(:), allocatable, save :: rlat,rlev,zdayfac
 real, dimension(:,:), allocatable, save :: ppfprec,ppfmelt,ppfsnow,ppfconv  ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppfevap,ppfsubl,pplambs,ppmrate  ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppmaccr,ppfstay,ppqfsed,pprscav  ! data saved from LDR cloud scheme
 integer, save :: ilon,ilat,ilev
-
 real, parameter :: wlc      = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
 
 contains
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Load aerosols emissions from netcdf
 subroutine load_aerosolldr(aerofile,oxidantfile)
       
@@ -55,6 +55,7 @@ allocate(ppfevap(ifull,kl),ppfsubl(ifull,kl))
 allocate(pplambs(ifull,kl),ppmrate(ifull,kl))
 allocate(ppmaccr(ifull,kl),ppfstay(ifull,kl))
 allocate(ppqfsed(ifull,kl),pprscav(ifull,kl))
+allocate(zdayfac(ifull))
 ppfprec=0.
 ppfmelt=0.
 ppfsnow=0.
@@ -67,6 +68,7 @@ ppmaccr=0.
 ppfstay=0.
 ppqfsed=0.
 pprscav=0.
+zdayfac=0.
 
 call aldrinit(ifull,iextra,kl)
 
@@ -286,7 +288,9 @@ end if
 return
 end subroutine load_aerosolldr
 
-subroutine aerocalc(odcalc)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Update prognostic aerosols
+subroutine aerocalc
 
 use aerosolldr
 use arrays_m
@@ -306,6 +310,7 @@ use soil_m
 use soilsnow_m
 use vegpar_m
 use work2_m
+use zenith_m
 
 implicit none
 
@@ -317,14 +322,16 @@ include 'parm.h'
 include 'soilv.h'
 
 integer jyear,jmonth,jday,jhour,jmin,mstart,mins
-integer j,k
+integer j,k,tt,ttx
+integer, save :: sday=-1
 integer, dimension(12) :: ndoy
+real bpyear,dhr,fjd,r1,dlt,alp,slag
+real, dimension(ifull) :: coszro,taudar
 real, dimension(ilon) :: rlon
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
 real, dimension(ifull) :: blon,blat,dxy,mcmax,cldcon,wg
 real, dimension(ifull) :: vt
 real, dimension(kl+1) :: sigh
-logical, intent(in) :: odcalc
 data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
 
 ! update oxidant fields
@@ -334,10 +341,9 @@ jday=kdate-jyear*10000-jmonth*100
 jhour=ktime/100
 jmin=ktime-jhour*100
 mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin
-mins = mtimer + mstart
-
-! update oxidant fields when radiation is updated (typically once per hour)
-if (odcalc) then
+if (sday.ne.jday) then
+  ! update oxidant fields
+  mins = mtimer + mstart
   do j=1,ilon
     rlon(j)=real(j-1)*360./real(ilon)
   end do
@@ -346,30 +352,45 @@ if (odcalc) then
     blon=blon+360.
   end where
   blat=rlatt*180./pi
-
   do j=1,4      
-    call fieldinterpolate(oxout(:,:),blon,blat,oxidantprev(:,:,:,j),oxidantnow(:,:,:,j), &
-                          oxidantnext(:,:,:,j),rlon,rlat,rlev,ifull,kl,ilon,ilat,ilev,mins,sig,ps)
+    call fieldinterpolate(oxout(:,:),blon,blat,oxidantprev(:,:,:,j),oxidantnow(:,:,:,j),oxidantnext(:,:,:,j), &
+                          rlon,rlat,rlev,ifull,kl,ilon,ilat,ilev,mins,sig,ps)
     do k=1,kl
       call aldrloadoxidant(k+(j-1)*kl,oxout(:,k))
     end do
   end do
+  ! estimate day length (presumably to preturb day-time OH levels)
+  bpyear=0.
+  dhr=dt/3600.
+  ttx=nint(86400./dt)
+  zdayfac(:)=0.
+  do tt=1,ttx ! we seem to get a different answer if dhr=24. and ttx=1.
+    mins=real(tt-1)*dt/60.+mtimer+mstart
+    fjd=float(mod(mins,525600))/1440.  ! 525600 = 1440*365
+    call solargh(fjd,bpyear,r1,dlt,alp,slag)
+    call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
+    zdayfac(:)=zdayfac(:)+taudar
+  end do
+  where (zdayfac.gt.0.)
+    zdayfac(:)=real(ttx)/zdayfac(:)
+  end where
+  sday=jday
 end if
 
-! set-up half levels ------------------------------------------------
-sigh(1:kl) = sigmh(1:kl)
+! set-up input data fields ------------------------------------------------
+sigh(1:kl) = sigmh(1:kl) ! store half-levels
 sigh(kl+1) = 0.
 zg(:,1)=bet(1)*t(1:ifull,1)/grav
 do k=2,kl
-  zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav
+  zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav ! height above surface in meters
 end do
-dxy=ds*ds/(em*em)
-mcmax=0.1*max(vlai,0.1)
+dxy=ds*ds/(em*em) ! grid spacing in m**2
+mcmax=0.1*max(vlai,0.1) ! maximum water stored in canopy (kg/m**2)
 do k=1,kl
-  rhoa(:,k)=ps*sig(k)/(rdry*t(:,k)) !density of air
+  rhoa(:,k)=ps*sig(k)/(rdry*t(:,k)) !density of air (kg/m**3)
 end do
 where (land)
-  wg=max(min((wb(:,1)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm)),1.),0.)
+  wg=max(min((wb(:,1)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm)),1.),0.) ! soil moisture as a fraction of field capacity
 elsewhere
   wg=1.
 end where
@@ -409,8 +430,9 @@ call aldrcalc(dt,sig,sigh,dsig,zg,cansto,mcmax,wg,pblh,ps,  &
               qlg(1:ifull,:),qfg(1:ifull,:),cfrac,clcon,    &
               pccw,dxy,rhoa,vt,ppfprec,ppfmelt,ppfsnow,     &
               ppfconv,ppfevap,ppfsubl,pplambs,ppmrate,      &
-              ppmaccr,ppfstay,ppqfsed,pprscav)
+              ppmaccr,ppfstay,ppqfsed,pprscav,zdayfac)
 
+! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
 ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
 so4t(:)=0.
 do k=1,kl
@@ -420,6 +442,8 @@ enddo
 return
 end subroutine aerocalc
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Estimate cloud droplet size
 subroutine aerodrop(iaero,istart,imax,kl,cdn,rhoa,land,rlatt)
 
 use aerosolldr
@@ -457,6 +481,7 @@ end select
 return
 end subroutine aerodrop
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine computes the transfer velocity
 subroutine getvt(vt,zmin)
       
@@ -502,7 +527,7 @@ tvs=tss*(1.+0.61*smixr)
 umag=sqrt(u(1:ifull,1)*u(1:ifull,1)+v(1:ifull,1)*v(1:ifull,1))
 umag=max(umag,vmodmin)
 
-! Roughness length for momentum and heat (i.e., log(z0m) and log(z0h))
+! Roughness length for momentum and heat (i.e., log(zmin/z0m) and log(zmin/z0h))
 lzom=log(zmin/zo)
 lzoh=lna+lzom
 
@@ -541,6 +566,9 @@ vt=vkar*ustar/integralh
 return
 end subroutine getvt
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Determine saturated mixing ratio (based on establ.h which is currently not
+! f90 compatible)
 subroutine getqsat(qsat,temp,ps)
 
 implicit none

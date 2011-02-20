@@ -1442,7 +1442,7 @@ c       print*,'Calling prognostic cloud scheme'
 
       ! AEROSOLS --------------------------------------------------------------
       call start_log(aerosol_begin)
-      if (abs(iaero).ge.2) call aerocalc(odcalc)
+      if (abs(iaero).ge.2) call aerocalc
       call end_log(aerosol_end)
 
       ! PHYSICS LOAD BALANCING ------------------------------------------------
