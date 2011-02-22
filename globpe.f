@@ -302,7 +302,8 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
 #ifdef uniform_decomp
       nxp=nint(sqrt(real(nproc)))
       nyp=nproc/nxp
-      do while((mod(il_g,nxp).ne.0.or.mod(nproc,nxp).ne.0.or.
+      do while((mod(il_g,max(nxp,1)).ne.0.or.
+     &         mod(nproc,max(nxp,1)).ne.0.or.
      &         mod(il_g,nyp).ne.0).and.nxp.gt.0)
         nxp=nxp-1
         nyp=nproc/max(nxp,1)
@@ -315,7 +316,8 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       end if
       nxp=max(1,nint(sqrt(real(nproc)/6.)))
       nyp=nproc/nxp
-      do while((mod(il_g,nxp).ne.0.or.mod(nproc/6,nxp).ne.0.or.
+      do while((mod(il_g,max(nxp,1)).ne.0.or.
+     &         mod(nproc/6,max(nxp,1)).ne.0.or.
      &         mod(jl_g,nyp).ne.0).and.nxp.gt.0)
         nxp=nxp-1
         nyp=nproc/max(nxp,1)

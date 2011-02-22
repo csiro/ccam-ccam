@@ -258,7 +258,7 @@ include 'const_phys.h'
 include 'parm.h'
 include 'soilv.h'
 
-integer i,iq,k
+integer i,iq
 integer, dimension(ifull,4) :: xp
 real, dimension(ifull) :: newwat
 real, dimension(ifull,4) :: dp,slope,mslope,vel,flow
@@ -308,20 +308,23 @@ do i=1,4
 end do
 newwat=newwat+sum(flow,2)
   
-! basin - runoff is inserted into soil moisture since CCAM has discrete land and sea points
+! basin 
 do iq=1,ifull
   if (all(slope(iq,:).lt.-1.E-10).and.land(iq)) then
+  
+    ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
     xx=watbdy(iq)
     if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
       call cableinflow(iq,xx)
     else
-      do k=1,ms
-        yy=min(xx,(ssat(isoilm(iq))-wb(iq,k))*1000.*zse(k))
-        wb(iq,k)=wb(iq,k)+yy/(1000.*zse(k))
-        xx=max(xx-yy,0.)
-      end do
+      yy=min(xx,(ssat(isoilm(iq))-wb(iq,ms))*1000.*zse(ms))
+      wb(iq,ms)=wb(iq,ms)+yy/(1000.*zse(ms))
+      xx=max(xx-yy,0.)
     end if
     newwat(iq)=newwat(iq)-watbdy(iq)+xx
+
+    ! runoff is removed (assume some sub-grid scale lake is present)
+    !newwat(iq)=newwat(iq)-watbdy(iq)
   end if
 end do
 

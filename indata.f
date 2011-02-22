@@ -1047,6 +1047,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       endif       !  ((nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)
 
       if(nrungcm<=-3.and.nrungcm>=-5)then
+       call ncpopt(0)                                            ! MJT recycle
        ncid = ncopn(surf_00,0,ier )                              ! MJT recycle
        if (ier==0) then                                          ! MJT recycle
         ! clobber ifile surface data with surfin surface data    ! MJT recycle

@@ -1376,7 +1376,7 @@ module cable_ccam
   implicit none
   
   integer, intent(in) :: iqin
-  integer k,n,iq,i
+  integer n,iq,i
   real, intent(inout) :: inflow
   real, dimension(5) :: xx
   real yy
@@ -1394,11 +1394,9 @@ module cable_ccam
       end if
     end do
     if (iq.gt.0) then
-      do k=1,ms
-        yy=min(xx(n),(soil%ssat(iq)-ssoil%wb(iq,k))*1000.*soil%zse(k))
-        ssoil%wb(iq,k)=ssoil%wb(iq,k)+yy/(1000.*soil%zse(k))
-        xx(n)=max(xx(n)-yy,0.)
-      end do
+      yy=min(xx(n),(soil%ssat(iq)-ssoil%wb(iq,ms))*1000.*soil%zse(ms))
+      ssoil%wb(iq,ms)=ssoil%wb(iq,ms)+yy/(1000.*soil%zse(ms))
+      xx(n)=max(xx(n)-yy,0.)
       inflow=inflow+sv(iq)*xx(n)
     else
       exit

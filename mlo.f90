@@ -918,18 +918,19 @@ do iqw=1,wfull
   ws1(iqw)=(1.-xp)*ws(iqw,mixind_hl(iqw))+xp*ws(iqw,mixind_hl(iqw)+1)
   dnumhdz(iqw)=(num(iqw,mixind_hl(iqw)+1)-num(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
   dnushdz(iqw)=(nus(iqw,mixind_hl(iqw)+1)-nus(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
+  !dwx1ds is now multiplied by 1/(mixdepth*wx1*wx1)
   !method#1
-  !dwm1ds(iqw)=p_mixdepth(iqw)*(wm(iqw,mixind_hl(iqw)+1)-wm(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
-  !dws1ds(iqw)=p_mixdepth(iqw)*(ws(iqw,mixind_hl(iqw)+1)-ws(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
+  !dwm1ds(iqw)=(wm(iqw,mixind_hl(iqw)+1)-wm(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)/(wm1(iqw)*wm1(iqw))
+  !dws1ds(iqw)=(ws(iqw,mixind_hl(iqw)+1)-ws(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)/(ws1(iqw)*ws1(iqw))
   !method#2
-  dws1ds(iqw)=-5.*p_mixdepth(iqw)*ws1(iqw)*ws1(iqw)*max(p_bf(iqw),0.)/(d_ustar(iqw)**4)
-  dwm1ds(iqw)=-5.*p_mixdepth(iqw)*wm1(iqw)*wm1(iqw)*max(p_bf(iqw),0.)/(d_ustar(iqw)**4)
+  dwm1ds(iqw)=-5.*max(p_bf(iqw),0.)/max(d_ustar(iqw)**4,1.E-20)
+  dws1ds(iqw)=dwm1ds(iqw)
 end do
 
 g1m=numh/(p_mixdepth*wm1)
 g1s=nush/(p_mixdepth*ws1)
-dg1mds=dnumhdz/wm1-numh*dwm1ds/(p_mixdepth*wm1*wm1)
-dg1sds=dnushdz/ws1-nush*dws1ds/(p_mixdepth*ws1*ws1)
+dg1mds=dnumhdz/wm1-numh*dwm1ds
+dg1sds=dnushdz/ws1-nush*dws1ds
   
 a2m=-2.+3.*g1m-dg1mds
 a2s=-2.+3.*g1s-dg1sds
