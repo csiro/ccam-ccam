@@ -918,7 +918,7 @@ do iqw=1,wfull
   ws1(iqw)=(1.-xp)*ws(iqw,mixind_hl(iqw))+xp*ws(iqw,mixind_hl(iqw)+1)
   dnumhdz(iqw)=(num(iqw,mixind_hl(iqw)+1)-num(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
   dnushdz(iqw)=(nus(iqw,mixind_hl(iqw)+1)-nus(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
-  !dwx1ds is now multiplied by 1/(mixdepth*wx1*wx1)
+  !dwm1ds and dws1ds are now multipled by 1/(mixdepth*wx1*wx1)
   !method#1
   !dwm1ds(iqw)=(wm(iqw,mixind_hl(iqw)+1)-wm(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)/(wm1(iqw)*wm1(iqw))
   !dws1ds(iqw)=(ws(iqw,mixind_hl(iqw)+1)-ws(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)/(ws1(iqw)*ws1(iqw))
@@ -1298,7 +1298,7 @@ real, parameter :: zcoq2 = 0.62
 
 atu=a_u-w_u(:,1)
 atv=a_v-w_v(:,1)
-vmag=sqrt(atu*atu+atv*atv)
+vmag=max(sqrt(atu*atu+atv*atv),0.1)
 sig=exp(-grav*a_zmins/(rdry*a_temp))
 srcp=sig**(rdry/cp)
 rho=a_ps/(rdry*w_temp(:,1))
@@ -2243,7 +2243,7 @@ real, dimension(wfull) :: den,sig,root
 real, dimension(wfull) :: alb,qmax,eye
 real x,factch,ustar,icemag
 
-vmag=sqrt(a_u*a_u+a_v*a_v)
+vmag=max(sqrt(a_u*a_u+a_v*a_v),0.1)
 sig=exp(-grav*a_zmins/(rdry*a_temp))
 srcp=sig**(rdry/cp)
 rho=a_ps/(rdry*i_tsurf)
@@ -2340,7 +2340,7 @@ implicit none
 integer, intent(in) :: diag
 real, dimension(wfull), intent(in) :: a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
 real, dimension(wfull) :: tscrn,qgscrn,uscrn,u10
-real, dimension(wfull) :: smixr,qsat,dqdt
+real, dimension(wfull) :: smixr,qsat,dqdt,atu,atv
 
 ! water
 call getqsat(qsat,dqdt,w_temp(:,1),a_ps)
@@ -2349,7 +2349,9 @@ if (zomode.eq.0) then
 else
   smixr=qsat
 end if
-call scrntile(tscrn,qgscrn,uscrn,u10,p_zo,w_temp(:,1),smixr,a_u,a_v,a_temp,a_qg,a_zmin,a_zmins,diag)
+atu=a_u-w_u(:,1)
+atv=a_v-w_v(:,1)
+call scrntile(tscrn,qgscrn,uscrn,u10,p_zo,w_temp(:,1),smixr,atu,atv,a_temp,a_qg,a_zmin,a_zmins,diag)
 p_tscrn=tscrn
 p_qgscrn=qgscrn
 p_uscrn=uscrn
@@ -2358,7 +2360,9 @@ p_u10=u10
 ! ice
 call getqsat(qsat,dqdt,i_tsurf,a_ps)
 smixr=p_wetfacice*qsat+(1.-p_wetfacice)*min(qsat,a_qg)
-call scrntile(tscrn,qgscrn,uscrn,u10,p_zoice,i_tsurf,smixr,a_u,a_v,a_temp,a_qg,a_zmin,a_zmins,diag)
+atu=a_u
+atv=a_v
+call scrntile(tscrn,qgscrn,uscrn,u10,p_zoice,i_tsurf,smixr,atu,atv,a_temp,a_qg,a_zmin,a_zmins,diag)
 p_tscrn=(1.-i_fracice)*p_tscrn+i_fracice*tscrn
 p_qgscrn=(1.-i_fracice)*p_qgscrn+i_fracice*qgscrn
 p_uscrn=(1.-i_fracice)*p_uscrn+i_fracice*uscrn
@@ -2395,7 +2399,7 @@ real, parameter    ::  lna    = 2.3
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
 
-umag=sqrt(a_u*a_u+a_v*a_v)
+umag=max(sqrt(a_u*a_u+a_v*a_v),0.1)
 sig=exp(-grav*a_zmins/(rdry*a_temp))
 scrp=sig**(rdry/cp)
 thetav=a_temp*(1.+0.61*a_qg)/scrp
