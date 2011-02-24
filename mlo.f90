@@ -1298,7 +1298,7 @@ real, parameter :: zcoq2 = 0.62
 
 atu=a_u-w_u(:,1)
 atv=a_v-w_v(:,1)
-vmag=max(sqrt(atu*atu+atv*atv),0.3)
+vmag=max(sqrt(atu*atu+atv*atv),0.2)
 sig=exp(-grav*a_zmins/(rdry*a_temp))
 srcp=sig**(rdry/cp)
 rho=a_ps/(rdry*w_temp(:,1))
@@ -2247,7 +2247,7 @@ real, dimension(wfull) :: den,sig,root
 real, dimension(wfull) :: alb,qmax,eye
 real x,factch,ustar,icemag
 
-vmag=max(sqrt(a_u*a_u+a_v*a_v),0.3)
+vmag=max(sqrt(a_u*a_u+a_v*a_v),0.2)
 sig=exp(-grav*a_zmins/(rdry*a_temp))
 srcp=sig**(rdry/cp)
 rho=a_ps/(rdry*i_tsurf)
@@ -2400,7 +2400,7 @@ real, parameter    ::  lna    = 2.3
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
 
-umag=max(sqrt(a_u*a_u+a_v*a_v),0.3)
+umag=max(sqrt(a_u*a_u+a_v*a_v),0.2)
 sig=exp(-grav*a_zmins/(rdry*a_temp))
 scrp=sig**(rdry/cp)
 thetav=a_temp*(1.+0.61*a_qg)/scrp
