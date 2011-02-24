@@ -2066,9 +2066,9 @@ acond_rfsn=acond_rfsn/a_umag
 rfsnmelt=d_rfsndelta*max(0.,rfsntemp-273.16)/(icecp*irf_den*lf*ddt) 
 rg_rfsn=snowemiss*(a_rg-sbconst*rfsntemp**4)
 fg_rfsn=aircp*a_rho*(rfsntemp-d_tempr)*acond_rfsn*a_umag
-eg_rfsn=lv*min(a_rho*d_rfsndelta*max(0.,rfsnqsat-d_mixrr)*acond_rfsn*a_umag,irf_snow/ddt+a_snd-rfsnmelt)
+eg_rfsn=min(lv*a_rho*d_rfsndelta*max(0.,rfsnqsat-d_mixrr)*acond_rfsn*a_umag,ls*(irf_snow/ddt+a_snd-rfsnmelt))
 garfsn=(rfsntemp-irf_temp)/ldratio
-evct=sg_rfsn+rg_rfsn-fg_rfsn-eg_rfsn-garfsn
+evct=sg_rfsn+rg_rfsn-fg_rfsn-(ls/lv)*eg_rfsn-garfsn
 
 return
 end subroutine solverfsn
@@ -2173,7 +2173,7 @@ fgtop=(d_rdsndelta*fg_rdsn+(1.-d_rdsndelta)*((1.-if_sigmaveg)*fg_road &
 d_canyontemp=fgtop/(aircp*a_rho*topinvres)+d_tempc
 
 ! road snow energy balance
-evct=sg_rdsn+rg_rdsn-fg_rdsn-eg_rdsn-gardsn
+evct=sg_rdsn+rg_rdsn-fg_rdsn-(ls/lv)*eg_rdsn-gardsn
 
 return
 end subroutine solverdsn
@@ -2390,8 +2390,8 @@ d_dtran=-lv*(1.-dumvegdelta)*a_rho*(vegqsat-d_canyonmix)*dres/(1./(acond_veg*d_t
 eg_road=lv*min(a_rho*dumroaddelta*(roadqsat-d_canyonmix)*acond_road*d_topu &
              ,ird_water/ddt+a_rnd+(1.-if_sigmaveg)*rdsnmelt)
 where (d_rdsndelta.gt.0.)
-  eg_rdsn=lv*min(a_rho*d_rdsndelta*max(0.,rdsnqsat-d_canyonmix)*acond_rdsn*d_topu &
-                ,ird_snow/ddt+a_snd-rdsnmelt)
+  eg_rdsn=min(lv*a_rho*d_rdsndelta*max(0.,rdsnqsat-d_canyonmix)*acond_rdsn*d_topu &
+                ,ls*(ird_snow/ddt+a_snd-rdsnmelt))
   gardsn=(rdsntemp-ird_temp)/ldratio ! use road temperature to represent canyon bottom surface temperature
                                      ! (i.e., we have ommited soil under vegetation temperature)
 elsewhere

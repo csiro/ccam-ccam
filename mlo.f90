@@ -84,7 +84,7 @@ real, parameter :: rvap=461.5             ! Gas constant for water vapor
 real, parameter :: himin=0.1              ! minimum ice thickness for multiple layers (m)
 real, parameter :: icebreak=0.05          ! minimum ice thickness before breakup (1D model)
 real, parameter :: fracbreak=0.05         ! minimum ice fraction (1D model)
-real, parameter :: icemin=0.002           ! minimum ice thickness (m)
+real, parameter :: icemin=0.01            ! minimum ice thickness (m)
 real, parameter :: rhosn=330.             ! density snow
 real, parameter :: rhowt=1025.            ! density water (replace with dg3%rho ?)
 real, parameter :: rhoic=900.             ! density ice
@@ -678,12 +678,12 @@ end where
 call fluxcalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,d_taux,d_tauy,diag)                          ! ocean fluxes
 call getrho(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow,d_rho,d_nsq,d_rad,d_alpha,d_beta,    &
             d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_taux,d_tauy)                                    ! boundary conditions
+call mlonewice(d_rho,d_timelt,diag)                                                                ! create new ice
 call iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,  &
              d_rho,d_ftop,d_bot,d_tb,d_fb,d_timelt,d_salflx,d_nk,d_did,d_tauxice,d_tauyice,diag)   ! ice fluxes
 call mloice(dt,a_rnd,a_snd,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_bot,d_tb,d_fb,            &
             d_timelt,d_salflx,d_tauxice,d_tauyice,d_ustar,d_rho,d_did,d_nk,diag)                   ! update ice
 call mlocalc(dt,a_f,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,diag)           ! update water
-call mlonewice(d_rho,d_timelt,diag)                                                                ! create new ice
 call scrncalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,diag)                                        ! screen diagnostics
 
 workb=(emisice*i_tsurf**4)**0.25
@@ -1298,7 +1298,7 @@ real, parameter :: zcoq2 = 0.62
 
 atu=a_u-w_u(:,1)
 atv=a_v-w_v(:,1)
-vmag=max(sqrt(atu*atu+atv*atv),0.1)
+vmag=max(sqrt(atu*atu+atv*atv),0.2)
 sig=exp(-grav*a_zmins/(rdry*a_temp))
 srcp=sig**(rdry/cp)
 rho=a_ps/(rdry*w_temp(:,1))
@@ -1327,7 +1327,7 @@ select case(zomode)
         dfm=vmag*2.*bprm*ri*(con*daf+af*cms*bprm*ri*a_zmin/(sqrt(-ri*a_zmin/p_zo)*p_zo*p_zo))/(den*den) ! MJT suggestion
         p_zo=p_zo-(p_zo-consea*af*fm)/(1.-consea*(daf*fm+af*dfm))
       end where
-      p_zo=min(max(p_zo,1.5e-6),1.)
+      p_zo=min(max(p_zo,1.5e-6),10.)
     enddo    ! it=1,4
   case(2) ! Beljaars
     p_zo=0.001    ! first guess
@@ -1348,7 +1348,7 @@ select case(zomode)
         dcs=(zcom1*vmag**2/grav-0.5*zcom2*gnu/(max(vmag*sqrt(fm*af),gnu)*fm*af))*(fm*daf+dfm*af)
       end where
       p_zo=p_zo-(p_zo-consea)/(1.-dcs)      
-      p_zo=min(max(p_zo,1.5e-6),1.)
+      p_zo=min(max(p_zo,1.5e-6),10.)
     enddo    ! it=1,4  
 end select
 afroot=vkar/log(a_zmin/p_zo)
@@ -1583,17 +1583,21 @@ integer, intent(in) :: diag
 integer ii
 real, dimension(wfull) :: newdic,newtn
 real, dimension(wfull,wlev), intent(in) :: d_rho
-real, dimension(wfull), intent(in) :: d_timelt
+real, dimension(wfull), intent(out) :: d_timelt
 real, dimension(wfull) :: worka
+
+! ice melting temperature
+d_timelt=273.16-0.054*w_sal(:,1) ! from CICE
 
 ! formation
 newdic=max(d_timelt-w_temp(:,1),0.)*cp0*d_rho(:,1)/qice
 newdic=min(0.15,newdic)
 newtn=w_temp(:,1)+newdic*qice/(cp0*d_rho(:,1))
+newdic=newdic/fracbreak
 where (newdic.gt.2.*icemin.and.i_fracice.le.0.) ! form new sea-ice
   i_dic=newdic
   i_dsn=0.
-  i_fracice=1.
+  i_fracice=fracbreak
   i_tsurf=newtn
   i_tn(:,0)=newtn
   i_tn(:,1)=newtn
@@ -2243,7 +2247,7 @@ real, dimension(wfull) :: den,sig,root
 real, dimension(wfull) :: alb,qmax,eye
 real x,factch,ustar,icemag
 
-vmag=max(sqrt(a_u*a_u+a_v*a_v),0.1)
+vmag=max(sqrt(a_u*a_u+a_v*a_v),0.2)
 sig=exp(-grav*a_zmins/(rdry*a_temp))
 srcp=sig**(rdry/cp)
 rho=a_ps/(rdry*i_tsurf)
@@ -2272,9 +2276,6 @@ p_wetfacice=max(1.+.008*min(i_tsurf-273.16,0.),0.)
 p_cdice=af*fm
 p_fgice=rho*aft*cp*fh*vmag*(i_tsurf-a_temp/srcp)
 p_egice=p_wetfacice*rho*aft*lv*fh*vmag*(qsat-a_qg)
-
-! ice melting temperature
-d_timelt=273.16-0.054*w_sal(:,1) ! from CICE
 
 ! determine water temperature at bottom of ice
 d_did=0
@@ -2318,8 +2319,8 @@ where (i_dsn.lt.icemin.and.i_sto.le.qmax.and.d_nk.gt.0)
   eye=0.35
 end where
 i_sto=i_sto+dt*a_sg*(1.-alb)*eye
-d_ftop=-p_fgice-p_egice+a_rg-emisice*sbconst*i_tsurf**4+a_sg*(1.-alb)*(1.-eye)
-d_bot=4.*emisice*sbconst*i_tsurf**3+rho*aft*fh*vmag*(cp+p_wetfacice*lv*dqdt)
+d_ftop=-p_fgice-(ls/lv)*p_egice+a_rg-emisice*sbconst*i_tsurf**4+a_sg*(1.-alb)*(1.-eye)
+d_bot=4.*emisice*sbconst*i_tsurf**3+rho*aft*fh*vmag*(cp+(ls/lv)*p_wetfacice*lv*dqdt)
 
 ! Add flux of heat due to converting any rain to snowfall over ice
 d_ftop=d_ftop+lf*a_rnd ! rain (mm) to W/m**2
@@ -2355,7 +2356,7 @@ call scrntile(tscrn,qgscrn,uscrn,u10,p_zo,w_temp(:,1),smixr,atu,atv,a_temp,a_qg,
 p_tscrn=tscrn
 p_qgscrn=qgscrn
 p_uscrn=uscrn
-p_u10=u10
+p_u10=u10+sqrt(w_u(:,1)*w_u(:,1)+w_v(:,1)*w_v(:,1))
 
 ! ice
 call getqsat(qsat,dqdt,i_tsurf,a_ps)
@@ -2399,7 +2400,7 @@ real, parameter    ::  lna    = 2.3
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
 
-umag=max(sqrt(a_u*a_u+a_v*a_v),0.1)
+umag=max(sqrt(a_u*a_u+a_v*a_v),0.2)
 sig=exp(-grav*a_zmins/(rdry*a_temp))
 scrp=sig**(rdry/cp)
 thetav=a_temp*(1.+0.61*a_qg)/scrp
