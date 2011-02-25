@@ -1086,23 +1086,24 @@ where (bf.le.0..and.sig.gt.epsilon) ! unstable
   sig=epsilon
 end where
 uuu=d_ustar**3
-invl=vkar*bf ! invl = ustar**3/L or L=ustar**3/(vkar*bf)
+invl=vkar*bf/uuu ! invl = 1./L or L=ustar**3/(vkar*bf)
 zeta=sig*mixdp*invl
+zeta=min(zeta,1.) ! MJT suggestion
 
 where (zeta.gt.0.)
-  wm=vkar*d_ustar*uuu/(uuu+5.*zeta)
-elsewhere (zeta.gt.zetam*uuu)
-  wm=vkar*d_ustar*(1.-16.*zeta/uuu)**(1./4.)
+  wm=vkar*d_ustar/(1.+5.*zeta)
+elsewhere (zeta.gt.zetam)
+  wm=vkar*d_ustar*(1.-16.*zeta)**(1./4.)
 elsewhere
-  wm=vkar*(am*uuu-cm*zeta)**(1./3.)
+  wm=vkar*d_ustar*(am-cm*zeta)**(1./3.)
 end where
 
 where (zeta.gt.0.)
-  ws=vkar*d_ustar*uuu/(uuu+5.*zeta)
-elsewhere (zeta.gt.zetas*uuu)
-  ws=vkar*d_ustar*(1.-16.*zeta/uuu)**(1./2.)
+  ws=vkar*d_ustar/(1.+5.*zeta)
+elsewhere (zeta.gt.zetas)
+  ws=vkar*d_ustar*(1.-16.*zeta)**(1./2.)
 elsewhere
-  ws=vkar*(as*uuu-cs*zeta)**(1./3.)
+  ws=vkar*d_ustar*(as-cs*zeta)**(1./3.)
 end where
 
 return
@@ -1879,6 +1880,8 @@ real, dimension(nc), intent(inout) :: dt_ftop,dt_bot,dt_tb,dt_fb,dt_timelt,dt_sa
 integer, dimension(nc), intent(inout) :: dt_nk
 real, dimension(nc), intent(in) :: pt_egice
 
+it_dsn=0.
+
 where (dt_nk.eq.1.)
   it_tn(:,2)=dt_tb
 end where
@@ -2125,6 +2128,8 @@ real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_bot,dt_tb,dt_fb,dt_timelt,dt_salflx
 integer, dimension(nc), intent(inout) :: dt_nk
 real, dimension(nc), intent(in) :: pt_egice
+
+it_dsn=0.
 
 ! Update tsurf and ti based on fluxes from above and below
 con=1./(it_dsn/condsnw+max(it_dic,1.E-6)/condice)
