@@ -59,6 +59,7 @@ integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 0 ! include shortwave in non-local term
 integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
 integer, parameter :: zomode    = 0 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
+integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=none, 1=Iterative)
 ! max depth
 real, parameter :: mxd    = 977.6   ! Max depth (m)
 real, parameter :: mindep = 1.      ! Thickness of first layer (m)
@@ -902,9 +903,6 @@ do ii=2,wlev
 end do
 !--------------------------------------------------------------------
 
-wm=max(wm,1.E-20)
-ws=max(ws,1.E-20)
-
 ! calculate G profile -----------------------------------------------
 ! -ve as z is down
 do iqw=1,wfull
@@ -969,14 +967,18 @@ subroutine getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,a_f)
 
 implicit none
 
-integer ii,iqw
+integer ii,jj,kk,iqw
 real vtc,dvsq,vtsq,xp
+real tnsq,tws,twu,twv,tdepth,trho
+real oldxp,oldtrib,trib,newxp
 real, dimension(wfull,wlev) :: ws,wm
 real, dimension(wfull) :: dumbf,l,he
-real, dimension(wlev) :: rib
+real, dimension(wfull,wlev) :: rib
 real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha
 real, dimension(wfull), intent(in) :: d_b0,d_ustar
 real, dimension(wfull), intent(in) :: a_f
+integer, parameter :: maxits = 3
+real, parameter :: alpha = 0.9
 
 vtc=1.8*sqrt(0.2/(98.96*epsilon))/(vkar**2*ric)
 
@@ -995,19 +997,57 @@ end if
 p_mixind=wlev-1
 p_mixdepth=depth(:,wlev)
 do iqw=1,wfull
-  rib(1)=0.
+  rib(iqw,1)=0.
   do ii=2,wlev
-    vtsq=depth(iqw,ii)*ws(iqw,ii)*sqrt(0.5*abs(d_nsq(iqw,ii)+d_nsq(iqw,min(ii+1,wlev))))*vtc
+    jj=min(ii+1,wlev)
+    vtsq=depth(iqw,ii)*ws(iqw,ii)*sqrt(0.5*abs(d_nsq(iqw,ii)+d_nsq(iqw,jj)))*vtc
     dvsq=(w_u(iqw,1)-w_u(iqw,ii))**2+(w_v(iqw,1)-w_v(iqw,ii))**2
-    rib(ii)=(depth(iqw,ii)-depth(iqw,1))*(1.-d_rho(iqw,1)/d_rho(iqw,ii))/max(dvsq+vtsq,1.E-20)
-    if (rib(ii).gt.ric) then
+    rib(iqw,ii)=(depth(iqw,ii)-depth(iqw,1))*(1.-d_rho(iqw,1)/d_rho(iqw,ii))/max(dvsq+vtsq,1.E-20)
+    if (rib(iqw,ii).gt.ric) then
       p_mixind(iqw)=ii-1
-      xp=min(max((ric-rib(ii-1))/max(rib(ii)-rib(ii-1),1.E-20),0.),1.)
+      xp=min(max((ric-rib(iqw,ii-1))/max(rib(iqw,ii)-rib(iqw,ii-1),1.E-20),0.),1.)
       p_mixdepth(iqw)=(1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii)
       exit
     end if
   end do 
 end do
+
+if (mixmeth.eq.1) then
+  ! Refine mixed-layer-depth calculation
+  do iqw=1,wfull
+    ii=p_mixind(iqw)+1
+    jj=min(ii+1,wlev)
+    oldxp=0.
+    oldtrib=rib(iqw,ii-1)
+    xp=(p_mixdepth(iqw)-depth(iqw,ii-1))/(depth(iqw,ii)-depth(iqw,ii-1))
+    xp=max(xp,oldxp+0.1)
+    do kk=1,maxits
+      if (xp.lt.0.5) then
+        tnsq=(1.-2.*xp)*0.5*abs(d_nsq(iqw,ii-1)+d_nsq(iqw,ii))+(2.*xp)*abs(d_nsq(iqw,ii))
+      else
+        tnsq=(2.-2.*xp)*abs(d_nsq(iqw,ii))+(2.*xp-1.)*0.5*abs(d_nsq(iqw,ii)+d_nsq(iqw,jj))
+      end if
+      tws=(1.-xp)*ws(iqw,ii-1)+xp*ws(iqw,ii)
+      twu=(1.-xp)*w_u(iqw,ii-1)+xp*w_u(iqw,ii)
+      twv=(1.-xp)*w_v(iqw,ii-1)+xp*w_v(iqw,ii)
+      tdepth=(1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii)
+      trho=(1.-xp)*d_rho(iqw,ii-1)+xp*d_rho(iqw,ii)
+      vtsq=tdepth*tws*sqrt(tnsq)*vtc
+      dvsq=(w_u(iqw,1)-twu)**2+(w_v(iqw,1)-twv)**2
+      trib=(tdepth-depth(iqw,1))*(1.-d_rho(iqw,1)/trho)/max(dvsq+vtsq,1.E-20)
+      if ((trib-oldtrib).ne.0.) then
+        newxp=xp-alpha*(trib-ric)*(xp-oldxp)/(trib-oldtrib) ! i.e., (trib-ric-oldtrib+ric)
+        oldtrib=trib
+        oldxp=xp
+        xp=newxp
+        xp=min(max(xp,0.),1.)
+      else
+        exit
+      end if
+    end do
+    p_mixdepth(iqw)=(1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii)
+  end do
+end if
 
 ! calculate buoyancy forcing
 call getbf(d_rad,d_alpha,d_b0)
@@ -1085,26 +1125,29 @@ sig=dep/mixdp                       ! stable
 where (bf.le.0..and.sig.gt.epsilon) ! unstable
   sig=epsilon
 end where
-uuu=d_ustar**3
-invl=vkar*bf/uuu ! invl = 1./L or L=ustar**3/(vkar*bf)
+uuu=max(d_ustar**3,1.E-20)
+invl=vkar*bf      ! invl = ustar**3/L or L=ustar**3/(vkar*bf)
 zeta=sig*mixdp*invl
-zeta=min(zeta,1.) ! MJT suggestion
+zeta=min(zeta,uuu) ! MJT suggestion
 
 where (zeta.gt.0.)
-  wm=vkar*d_ustar/(1.+5.*zeta)
-elsewhere (zeta.gt.zetam)
-  wm=vkar*d_ustar*(1.-16.*zeta)**(1./4.)
+  wm=vkar*d_ustar*uuu/(uuu+5.*zeta)
+elsewhere (zeta.gt.zetam*uuu)
+  wm=vkar*(d_ustar*uuu-16.*d_ustar*zeta)**(1./4.)
 elsewhere
-  wm=vkar*d_ustar*(am-cm*zeta)**(1./3.)
+  wm=vkar*(am*uuu-cm*zeta)**(1./3.)
 end where
 
 where (zeta.gt.0.)
-  ws=vkar*d_ustar/(1.+5.*zeta)
-elsewhere (zeta.gt.zetas)
-  ws=vkar*d_ustar*(1.-16.*zeta)**(1./2.)
+  ws=vkar*d_ustar*uuu/(uuu+5.*zeta)
+elsewhere (zeta.gt.zetas*uuu)
+  ws=vkar*(d_ustar*d_ustar-16.*zeta/d_ustar)**(1./2.)
 elsewhere
-  ws=vkar*d_ustar*(as-cs*zeta)**(1./3.)
+  ws=vkar*(as*uuu-cs*zeta)**(1./3.)
 end where
+
+wm=max(wm,1.E-5)
+ws=max(ws,1.E-5)
 
 return
 end subroutine getwx
