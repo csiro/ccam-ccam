@@ -30,7 +30,7 @@ include 'parm.h'
 
 integer k,i
 integer, parameter :: salfilt = 0 ! Additional salinity filter (0=off, 1=Katzfey)
-real, parameter :: k_smag = 2. ! 0.4 in mom3
+real, parameter :: k_smag = 2. ! 0.4 in mom3, 2. in Griffies (2000)
 real hdif
 real, dimension(ifull+iextra) :: uc,vc,wc,ee
 real, dimension(ifull+iextra) :: t_kh,xfact,yfact
@@ -153,7 +153,6 @@ do k=1,wlev
 
   ! Smagorinsky
   cc=(dudx-dvdy)**2+(dudy+dvdx)**2
-  cc=max(cc,1.E-10)
   t_kh(1:ifull)=sqrt(cc)*hdif*emi  ! this one with em in D terms
   call bounds(t_kh)
   xfact=0.

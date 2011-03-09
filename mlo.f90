@@ -31,7 +31,7 @@ implicit none
 
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
-       mloscrnout,mloexpice,wlev,depth,micdwn
+       mloscrnout,mloexpice,mloexpdep,wlev,micdwn
 
 ! parameters
 integer, parameter :: wlev = 20
@@ -56,19 +56,19 @@ integer, dimension(:), allocatable, save :: p_mixind
   
 ! mode
 integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
-integer, parameter :: incradgam = 0 ! include shortwave in non-local term
+integer, parameter :: incradgam = 1 ! include shortwave in non-local term
 integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
 integer, parameter :: zomode    = 0 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=none, 1=Iterative)
 ! max depth
-real, parameter :: mxd    = 977.6   ! Max depth (m)
-real, parameter :: mindep = 1.      ! Thickness of first layer (m)
+real, parameter :: mxd    = 941.0   ! Max depth (m)
+real, parameter :: mindep = 0.5     ! Thickness of first layer (m)
 ! model parameters
 real, parameter :: ric     = 0.3    ! Critical Ri for diagnosing mixed layer depth
 real, parameter :: epsilon = 0.1
 ! radiation parameters
-real, parameter :: mu_1 = 23.       ! VIS depth (m)
-real, parameter :: mu_2 = 0.35      ! NIR depth (m)
+real, parameter :: mu_1 = 23.       ! VIS depth (m) - Type I
+real, parameter :: mu_2 = 0.35      ! NIR depth (m) - Type I
 ! physical parameters
 real, parameter :: vkar=0.4               ! von Karman constant
 real, parameter :: lv=2.501e6             ! Latent heat of vaporisation (J kg^-1)
@@ -631,6 +631,22 @@ return
 end subroutine mloregrid
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Export ocean depth data
+
+subroutine mloexpdep(odep,ii,diag)
+
+implicit none
+
+integer, intent(in) :: ii,diag
+real, dimension(ifull), intent(out) :: odep
+
+odep=0.
+odep=unpack(depth(:,ii),wpack,odep)
+  
+return
+end subroutine mloexpdep
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
 
 subroutine mloeval(sst,zo,cd,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
@@ -853,7 +869,7 @@ subroutine getstab(km,ks,gammas,d_nsq,d_ustar)
 
 implicit none
 
-integer ii,iqw
+integer ii,jj,iqw
 integer, dimension(wfull) :: mixind_hl
 real, dimension(wfull,wlev), intent(out) :: km,ks,gammas
 real, dimension(wfull,wlev) :: num,nus,wm,ws,ri
@@ -893,6 +909,8 @@ end do
 ! w - internal ave
 num=num+numw
 nus=nus+nusw
+num(:,1)=num(:,2) ! to avoid problems with shallow mixed layer
+nus(:,1)=nus(:,2)
 !--------------------------------------------------------------------
 
 ! stability ---------------------------------------------------------
@@ -901,21 +919,24 @@ ws=0.
 do ii=2,wlev
   call getwx(wm(:,ii),ws(:,ii),depth_hl(:,ii),p_bf,d_ustar,p_mixdepth)
 end do
+wm(:,1)=wm(:,2)
+ws(:,1)=ws(:,2)
 !--------------------------------------------------------------------
 
 ! calculate G profile -----------------------------------------------
 ! -ve as z is down
 do iqw=1,wfull
   mixind_hl(iqw)=p_mixind(iqw)
-  if (p_mixdepth(iqw).gt.depth_hl(iqw,mixind_hl(iqw)+1)) mixind_hl(iqw)=min(mixind_hl(iqw)+1,wlev-1)
+  jj=min(mixind_hl(iqw)+1,wlev-1)
+  if (p_mixdepth(iqw).gt.depth_hl(iqw,jj)) mixind_hl(iqw)=jj
   xp=(p_mixdepth(iqw)-depth_hl(iqw,mixind_hl(iqw)))/(depth_hl(iqw,mixind_hl(iqw)+1)-depth_hl(iqw,mixind_hl(iqw)))
   xp=max(0.,min(1.,xp))
   numh(iqw)=(1.-xp)*num(iqw,mixind_hl(iqw))+xp*num(iqw,mixind_hl(iqw)+1)
   nush(iqw)=(1.-xp)*nus(iqw,mixind_hl(iqw))+xp*nus(iqw,mixind_hl(iqw)+1)
   wm1(iqw)=(1.-xp)*wm(iqw,mixind_hl(iqw))+xp*wm(iqw,mixind_hl(iqw)+1)
   ws1(iqw)=(1.-xp)*ws(iqw,mixind_hl(iqw))+xp*ws(iqw,mixind_hl(iqw)+1)
-  dnumhdz(iqw)=(num(iqw,mixind_hl(iqw)+1)-num(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
-  dnushdz(iqw)=(nus(iqw,mixind_hl(iqw)+1)-nus(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)
+  dnumhdz(iqw)=min(num(iqw,mixind_hl(iqw)+1)-num(iqw,mixind_hl(iqw)),0.)/dz_hl(iqw,mixind_hl(iqw)+1)
+  dnushdz(iqw)=min(nus(iqw,mixind_hl(iqw)+1)-nus(iqw,mixind_hl(iqw)),0.)/dz_hl(iqw,mixind_hl(iqw)+1)
   !dwm1ds and dws1ds are now multipled by 1/(mixdepth*wx1*wx1)
   !method#1
   !dwm1ds(iqw)=(wm(iqw,mixind_hl(iqw)+1)-wm(iqw,mixind_hl(iqw)))/dz_hl(iqw,mixind_hl(iqw)+1)/(wm1(iqw)*wm1(iqw))
@@ -942,14 +963,15 @@ ks=nus
 do ii=2,wlev
   where (ii.le.mixind_hl)
     sigma=depth_hl(:,ii)/p_mixdepth
-    km(:,ii)=max(p_mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma)),num(:,ii))
-    ks(:,ii)=max(p_mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2s+a3s*sigma)),nus(:,ii))
+    km(:,ii)=p_mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
+    ks(:,ii)=p_mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2s+a3s*sigma))
   end where
 end do
 
 ! non-local term
 ! gammas is the same for temp and sal when double-diffusion is not employed
-cg=10.*vkar*(98.96*vkar*epsilon)**(1./3.)
+cg=10.*vkar*(98.96*vkar*epsilon)**(1./3.) ! Large (1994)
+!cg=5.*vkar*(98.96*vkar*epsilon)**(1./3.) ! Bernie (2004)
 gammas=0.
 do ii=2,wlev
   where (p_bf.lt.0..and.ii.le.mixind_hl) ! unstable
@@ -996,11 +1018,11 @@ end if
 
 p_mixind=wlev-1
 p_mixdepth=depth(:,wlev)
+rib=0.
 do iqw=1,wfull
-  rib(iqw,1)=0.
   do ii=2,wlev
     jj=min(ii+1,wlev)
-    vtsq=depth(iqw,ii)*ws(iqw,ii)*sqrt(0.5*abs(d_nsq(iqw,ii)+d_nsq(iqw,jj)))*vtc
+    vtsq=depth(iqw,ii)*ws(iqw,ii)*sqrt(0.5*max(d_nsq(iqw,ii)+d_nsq(iqw,jj),0.))*vtc
     dvsq=(w_u(iqw,1)-w_u(iqw,ii))**2+(w_v(iqw,1)-w_v(iqw,ii))**2
     rib(iqw,ii)=(depth(iqw,ii)-depth(iqw,1))*(1.-d_rho(iqw,1)/d_rho(iqw,ii))/max(dvsq+vtsq,1.E-20)
     if (rib(iqw,ii).gt.ric) then
@@ -1023,9 +1045,9 @@ if (mixmeth.eq.1) then
     xp=max(xp,oldxp+0.1)
     do kk=1,maxits
       if (xp.lt.0.5) then
-        tnsq=(1.-2.*xp)*0.5*abs(d_nsq(iqw,ii-1)+d_nsq(iqw,ii))+(2.*xp)*abs(d_nsq(iqw,ii))
+        tnsq=(1.-2.*xp)*0.5*max(d_nsq(iqw,ii-1)+d_nsq(iqw,ii),0.)+(2.*xp)*max(d_nsq(iqw,ii),0.)
       else
-        tnsq=(2.-2.*xp)*abs(d_nsq(iqw,ii))+(2.*xp-1.)*0.5*abs(d_nsq(iqw,ii)+d_nsq(iqw,jj))
+        tnsq=(2.-2.*xp)*max(d_nsq(iqw,ii),0.)+(2.*xp-1.)*0.5*max(d_nsq(iqw,ii)+d_nsq(iqw,jj),0.)
       end if
       tws=(1.-xp)*ws(iqw,ii-1)+xp*ws(iqw,ii)
       twu=(1.-xp)*w_u(iqw,ii-1)+xp*w_u(iqw,ii)
@@ -1053,11 +1075,11 @@ end if
 call getbf(d_rad,d_alpha,d_b0)
 
 ! impose limits for stable conditions
-where(p_bf.gt.0.)
+where(p_bf.gt.1.E-10)
   l=d_ustar*d_ustar*d_ustar/(vkar*p_bf)
   p_mixdepth=min(p_mixdepth,l)
 end where
-where(p_bf.gt.0..and.a_f.gt.0.)
+where(p_bf.gt.1.E-10.and.a_f.gt.1.E-10)
   he=0.7*d_ustar/abs(a_f)
   p_mixdepth=min(p_mixdepth,he)
 end where
@@ -1146,8 +1168,8 @@ elsewhere
   ws=vkar*(as*uuu-cs*zeta)**(1./3.)
 end where
 
-wm=max(wm,1.E-5)
-ws=max(ws,1.E-5)
+wm=max(wm,1.E-20)
+ws=max(ws,1.E-20)
 
 return
 end subroutine getwx
@@ -1304,7 +1326,7 @@ d_wt0=d_wt0+(1.-i_fracice)*lf*a_snd/(d_rho(:,1)*cp0) ! melting snow             
 d_ws0=(1.-i_fracice)*(a_rnd+a_snd-p_eg/lv)*w_sal(:,1)/rs(:,1)                      ! BC
 d_ws0=d_ws0+(a_inflow)*w_sal(:,1)/rs(:,1)                                          ! BC
 
-d_ustar=max(sqrt(sqrt(d_wu0*d_wu0+d_wv0*d_wv0)),5.E-4)
+d_ustar=max(sqrt(sqrt(d_wu0*d_wu0+d_wv0*d_wv0)),1.E-6)
 d_b0=-grav*(d_alpha(:,1)*d_wt0-d_beta(:,1)*d_ws0)
 !d_b0=-grav*(-drho0dt*d_wt0-drho0ds*d_ws0)
 
@@ -1609,7 +1631,7 @@ do iqw=1,wfull
   d_wv0(iqw)=d_wv0(iqw)-i_fracice(iqw)*d_tauyice(iqw)/d_rho(iqw,ii)
   d_wt0(iqw)=d_wt0(iqw)+i_fracice(iqw)*d_fb(iqw)/(d_rho(iqw,ii)*cp0)
   d_ws0(iqw)=d_ws0(iqw)-i_fracice(iqw)*d_salflx(iqw)*w_sal(iqw,1)/d_rho(iqw,1) ! actually salflx*(watersal-icesal)/density(icesal)
-  d_ustar(iqw)=max(sqrt(sqrt(d_wu0(iqw)*d_wu0(iqw)+d_wv0(iqw)*d_wv0(iqw))),5.E-4)
+  d_ustar(iqw)=max(sqrt(sqrt(d_wu0(iqw)*d_wu0(iqw)+d_wv0(iqw)*d_wv0(iqw))),1.E-6)
   d_b0(iqw)=-grav*(d_alpha(iqw,1)*d_wt0(iqw)-d_beta(iqw,1)*d_ws0(iqw))
  end do
 

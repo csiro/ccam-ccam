@@ -70,8 +70,8 @@
       real rlonx,rlatx,alf
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
       real, dimension(ifull) :: zss, aa, zsmask
-      real, dimension(ifull) :: dep,ocndwn ! MJT mlo
-      real, dimension(ifull,wlev,4) :: mlodwn
+      real, dimension(ifull) :: dep,ocndwn,depth ! MJT mlo
+      real, dimension(ifull,wlev,4) :: mlodwn    ! MJT mlo
       real, dimension(ifull) :: duma    ! MJT recycle
       real, dimension(ifull,kl) :: dumb ! MJT recycle
       integer, parameter :: klmax=100
@@ -2047,8 +2047,19 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         else
           if (myid == 0) print *,"Using MLO defaults"
           do k=1,wlev
-            mlodwn(:,k,1)=max(tss(:),272.)
+	    call mloexpdep(depth,k,0)
+	    ! This polynomial fit is from MOM3, based on Levitus
+            mlodwn(:,k,1)=18.4231944-0.43030662E-1*depth(:)
+     &        +0.607121504E-4*depth(:)**2
+     &        -0.523806281E-7*depth(:)**3
+     &        +0.272989082E-10*depth(:)**4
+     &        -0.833224666E-14*depth(:)**5
+     &        +0.136974583E-17*depth(:)**6
+     &        -0.935923382E-22*depth(:)**7
+	    mlodwn(:,k,1)=tss(:)*mlodwn(:,k,1)/18.4231944
+            mlodwn(:,k,1)=max(mlodwn(:,k,1),275.)	    
             mlodwn(:,k,2)=34.72
+	    mlodwn(:,k,2)=max(mlodwn(:,k,2),0.)
             mlodwn(:,k,3:4)=0.
             !where (zs(1:ifull).gt.1.) ! lakes?
             !  mlodwn(:,k,2)=0.
