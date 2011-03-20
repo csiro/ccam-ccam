@@ -34,7 +34,7 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
       !--------------------------------------------------------------
       ! MJT radiation
       if (myid==0) then
-        print *,'Radiative data read from file ',radfile
+        print *,'Radiative data read from file ',trim(radfile)
         open(lu,file=radfile,form='formatted',status='old')
       end if
       if (nrad.eq.5) then

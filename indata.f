@@ -2047,8 +2047,8 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         else
           if (myid == 0) print *,"Using MLO defaults"
           do k=1,wlev
-	    call mloexpdep(depth,k,0)
-	    ! This polynomial fit is from MOM3, based on Levitus
+            call mloexpdep(0,depth,k,0)
+            ! This polynomial fit is from MOM3, based on Levitus
             mlodwn(:,k,1)=18.4231944-0.43030662E-1*depth(:)
      &        +0.607121504E-4*depth(:)**2
      &        -0.523806281E-7*depth(:)**3

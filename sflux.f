@@ -496,8 +496,11 @@ c     if(mydiag.and.diag)then
       endif   ! (mydiag.and.nmaxpr==1)                                    
       
       elseif (abs(nmlo).ge.1) then                                   ! MLO
+        ! abs(mlo) <= 1 Vertical mixing                              ! MLO
+        ! abs(mlo) <= 2 + Horizontal diffusion                       ! MLO
+        ! abs(mlo) <= 3 + Advection                                  ! MLO
         if (abs(nmlo).ge.3) then                                     ! MLO
-          !call mlohadv                                              ! MLO
+          call mlohadv                                               ! MLO
         end if                                                       ! MLO
         if (abs(nmlo).ge.2) then                                     ! MLO
           call mlodiffusion                                          ! MLO

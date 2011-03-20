@@ -31,7 +31,7 @@ implicit none
 
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
-       mloscrnout,mloexpice,mloexpdep,wlev,micdwn
+       mloscrnout,mloexpice,mloexpdep,mloexpdensity,wlev,micdwn
 
 ! parameters
 integer, parameter :: wlev = 20
@@ -59,7 +59,7 @@ integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 1 ! include shortwave in non-local term
 integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
 integer, parameter :: zomode    = 0 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
-integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=none, 1=Iterative)
+integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=None, 1=Iterative)
 ! max depth
 real, parameter :: mxd    = 941.0   ! Max depth (m)
 real, parameter :: mindep = 0.5     ! Thickness of first layer (m)
@@ -87,7 +87,7 @@ real, parameter :: icebreak=0.05          ! minimum ice thickness before breakup
 real, parameter :: fracbreak=0.05         ! minimum ice fraction (1D model)
 real, parameter :: icemin=0.01            ! minimum ice thickness (m)
 real, parameter :: rhosn=330.             ! density snow
-real, parameter :: rhowt=1025.            ! density water (replace with dg3%rho ?)
+real, parameter :: rhowt=1025.            ! density water (replace with d_rho ?)
 real, parameter :: rhoic=900.             ! density ice
 real, parameter :: qice=lf*rhoic          ! latent heat of fusion (J m^-3)
 real, parameter :: qsnow=lf*rhosn
@@ -200,8 +200,8 @@ p_u10=0.
 p_mixind=wlev-1
 
 ! MLO
-!depth = (/   0.5,   1.9,   4.3,   8.5,  15.3,  25.3,  39.3,  57.9,  81.9, 112.1 &
-!           149.1, 193.7, 246.5, 308.3, 379.9, 461.9, 555.1, 660.1, 777.7, 908.7 /)
+!depth = (/  0.25,   1.1,   3.0,   6.7,  12.8,  22.0,  35.1,  52.8,  76.7, 104.5 &
+!           140.0, 182.9, 233.8, 293.4, 362.5, 441.8, 531.9, 633.5, 747.4, 874.3 /)
 ! Mk3.5
 !depth = (/   5.0,  15.0,  28.2,  42.0,  59.7,  78.5, 102.1, 127.9, 159.5, 194.6, &
 !           237.0, 284.7, 341.7, 406.4, 483.2, 570.9, 674.9, 793.8, 934.1 /)
@@ -633,18 +633,44 @@ end subroutine mloregrid
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export ocean depth data
 
-subroutine mloexpdep(odep,ii,diag)
+subroutine mloexpdep(mode,odep,ii,diag)
 
 implicit none
 
-integer, intent(in) :: ii,diag
+integer, intent(in) :: mode,ii,diag
 real, dimension(ifull), intent(out) :: odep
 
 odep=0.
-odep=unpack(depth(:,ii),wpack,odep)
+select case(mode)
+  case(0)
+    odep=unpack(depth(:,ii),wpack,odep)
+  case(1)
+    odep=unpack(dz(:,ii),wpack,odep)
+  case default
+    write(6,*) "ERROR: Unknown mloexpdep mode ",mode
+    stop
+end select
   
 return
 end subroutine mloexpdep
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Extract density
+
+subroutine mloexpdensity(odensity,tt,ss,dep,diag)
+
+implicit none
+
+integer, intent(in) :: diag
+integer ii
+real, dimension(ifull,wlev), intent(in) :: tt,ss,dep
+real, dimension(ifull,wlev), intent(out) :: odensity
+real, dimension(ifull,wlev) :: alpha,beta,rs,rho0
+
+call calcdensity(ifull,odensity,alpha,beta,rs,rho0,tt,ss,dep)
+
+return
+end subroutine mloexpdensity
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
@@ -671,8 +697,8 @@ if (wfull.eq.0) return
 
 a_sg=pack(sg,wpack)
 a_rg=pack(rg,wpack)
-!a_f=pack(f,wpack)
-a_f=0. ! turn off coriolis terms when no geostrophic term
+a_f=pack(f,wpack)
+!a_f=0. ! turn off coriolis terms when no geostrophic term
 a_vnratio=pack(visnirratio,wpack)
 a_fbvis=pack(fbvis,wpack)
 a_fbnir=pack(fbnir,wpack)
@@ -693,12 +719,13 @@ elsewhere
 end where
 
 call fluxcalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,d_taux,d_tauy,diag)                          ! ocean fluxes
-call getrho(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow,d_rho,d_nsq,d_rad,d_alpha,d_beta,    &
-            d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_taux,d_tauy)                                    ! boundary conditions
+call getrho(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow,d_rho,d_nsq,d_rad,d_alpha,  &
+            d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_taux,d_tauy)                             ! boundary conditions
 call mlonewice(d_rho,d_timelt,diag)                                                                ! create new ice
-call iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,  &
-             d_rho,d_ftop,d_bot,d_tb,d_fb,d_timelt,d_salflx,d_nk,d_did,d_tauxice,d_tauyice,diag)   ! ice fluxes
-call mloice(dt,a_rnd,a_snd,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_bot,d_tb,d_fb,            &
+call iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin, &
+             a_zmins,d_rho,d_ftop,d_bot,d_tb,d_fb,d_timelt,d_salflx,d_nk,d_did,d_tauxice,        &
+             d_tauyice,diag)                                                                       ! ice fluxes
+call mloice(dt,a_rnd,a_snd,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_bot,d_tb,d_fb,   &
             d_timelt,d_salflx,d_tauxice,d_tauyice,d_ustar,d_rho,d_did,d_nk,diag)                   ! update ice
 call mlocalc(dt,a_f,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,diag)           ! update water
 call scrncalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,diag)                                        ! screen diagnostics
@@ -815,15 +842,16 @@ end do
 dd(:,1)=dd(:,1)-dt*d_wv0/dz(:,1)
 call thomas(w_v,aa,bb,cc,dd)
 
-! Split U and V coriolis terms
-xp=1.+(0.5*dt*a_f)**2
-xm=1.-(0.5*dt*a_f)**2
-do ii=1,wlev
-  newa=(w_u(:,ii)*xm+w_v(:,ii)*dt*a_f)/xp
-  newb=(w_v(:,ii)*xm-w_u(:,ii)*dt*a_f)/xp
-  w_u(:,ii)=newa
-  w_v(:,ii)=newb
-end do
+! --- Turn off coriolis terms as this is processed in mlodynamics.f90 ---
+!! Split U and V coriolis terms
+!xp=1.+(0.5*dt*a_f)**2
+!xm=1.-(0.5*dt*a_f)**2
+!do ii=1,wlev
+!  newa=(w_u(:,ii)*xm+w_v(:,ii)*dt*a_f)/xp
+!  newb=(w_v(:,ii)*xm-w_u(:,ii)*dt*a_f)/xp
+!  w_u(:,ii)=newa
+!  w_v(:,ii)=newb
+!end do
 w_u=max(-100.,min(w_u,100.)) ! MJT suggestion
 w_v=max(-100.,min(w_v,100.)) ! MJT suggestion
 
@@ -882,7 +910,7 @@ real, dimension(wfull,wlev), intent(in) :: d_nsq
 real, dimension(wfull), intent(in) :: d_ustar
 real, parameter :: ri0 = 0.7
 real, parameter :: nu0 = 50.E-4
-real, parameter :: numw = 1.E-4
+real, parameter :: numw = 1.0E-4
 real, parameter :: nusw = 0.1E-4
 
 ri=0. ! ri(:,1) is not used
@@ -909,7 +937,7 @@ end do
 ! w - internal ave
 num=num+numw
 nus=nus+nusw
-num(:,1)=num(:,2) ! to avoid problems with shallow mixed layer
+num(:,1)=num(:,2) ! to avoid problems calculating shallow mixed layer
 nus(:,1)=nus(:,2)
 !--------------------------------------------------------------------
 
@@ -919,7 +947,7 @@ ws=0.
 do ii=2,wlev
   call getwx(wm(:,ii),ws(:,ii),depth_hl(:,ii),p_bf,d_ustar,p_mixdepth)
 end do
-wm(:,1)=wm(:,2)
+wm(:,1)=wm(:,2) ! to avoid problems calculating shallow mixed layer
 ws(:,1)=ws(:,2)
 !--------------------------------------------------------------------
 
@@ -994,7 +1022,7 @@ real vtc,dvsq,vtsq,xp
 real tnsq,tws,twu,twv,tdepth,trho
 real oldxp,oldtrib,trib,newxp
 real, dimension(wfull,wlev) :: ws,wm
-real, dimension(wfull) :: dumbf,l,he
+real, dimension(wfull) :: dumbf,l
 real, dimension(wfull,wlev) :: rib
 real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha
 real, dimension(wfull), intent(in) :: d_b0,d_ustar
@@ -1002,7 +1030,7 @@ real, dimension(wfull), intent(in) :: a_f
 integer, parameter :: maxits = 3
 real, parameter :: alpha = 0.9
 
-vtc=1.8*sqrt(0.2/(98.96*epsilon))/(vkar**2*ric)
+vtc=1.8*sqrt(0.2/(98.96*epsilon))/(vkar*vkar*ric)
 
 if (incradbf.gt.0) then
   do ii=1,wlev
@@ -1079,9 +1107,9 @@ where(p_bf.gt.1.E-10)
   l=d_ustar*d_ustar*d_ustar/(vkar*p_bf)
   p_mixdepth=min(p_mixdepth,l)
 end where
-where(p_bf.gt.1.E-10.and.a_f.gt.1.E-10)
-  he=0.7*d_ustar/abs(a_f)
-  p_mixdepth=min(p_mixdepth,he)
+where(p_bf.gt.1.E-10.and.abs(a_f).gt.1.E-10)
+  l=0.7*d_ustar/abs(a_f)
+  p_mixdepth=min(p_mixdepth,l)
 end where
 p_mixdepth=max(p_mixdepth,depth(:,1))
 p_mixdepth=min(p_mixdepth,depth(:,wlev))
@@ -1184,109 +1212,14 @@ subroutine getrho(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow,d_rho
 implicit none
 
 integer ii,i
-integer, parameter :: nits=1 ! iterate for density (nits=1 recommended)
-real, dimension(wfull) :: t,s,p1,p2,t2,t3,t4,t5,s2,s3,s32
-real, dimension(wfull) :: drho0dt,drho0ds,dskdt,dskds,sk,sks
-real, dimension(wfull) :: drhodt,drhods,rs0,rho0,hlra,hlrb
+real, dimension(wfull) :: hlra,hlrb,rho0
 real, dimension(wfull) :: visalb,niralb
 real, dimension(wfull,wlev) :: rs
-real, parameter :: density = 1035.
 real, dimension(wfull,wlev), intent(inout) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull), intent(inout) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_taux,d_tauy
 real, dimension(wfull), intent(in) :: a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow
 
-d_rho=density
-
-t = max(w_temp(:,1)-273.16,-2.)
-s = max(w_sal(:,1),0.)
-t2 = t*t
-t3 = t2*t
-t4 = t3*t
-t5 = t4*t
-s2 = s*s
-s3 = s2*s
-s32 = sqrt(s3)
-
-rs0 = 999.842594 + 6.793952e-2*t(:) &
-       - 9.095290e-3*t2(:) + 1.001685e-4*t3(:) &
-       - 1.120083e-6*t4(:) + 6.536332e-9*t5(:) ! density for sal=0.
-rho0 = rs0+ s(:)*(0.824493 - 4.0899e-3*t(:) &
-       + 7.6438e-5*t2(:) &
-       - 8.2467e-7*t3(:) + 5.3875e-9*t4(:)) &
-       + s32(:)*(-5.72466e-3 + 1.0227e-4*t(:) &
-       - 1.6546e-6*t2(:)) + 4.8314e-4*s2(:)     ! + sal terms    
-drho0dt=6.793952e-2 &
-       - 2.*9.095290e-3*t(:) + 3.*1.001685e-4*t2(:) &
-       - 4.*1.120083e-6*t3(:) + 5.*6.536332e-9*t4(:) &
-       + s(:)*( - 4.0899e-3 + 2.*7.6438e-5*t(:) &
-       - 3.*8.2467e-7*t2(:) + 4.*5.3875e-9*t3(:)) &
-       + s32(:)*(1.0227e-4 - 2.*1.6546e-6*t(:))
-drho0ds= (0.824493 - 4.0899e-3*t(:) &
-       + 7.6438e-5*t2(:) &
-       - 8.2467e-7*t3(:) + 5.3875e-9*t4(:)) &
-       + 1.5*sqrt(s(:))*(-5.72466e-3 + 1.0227e-4*t(:) &
-       - 1.6546e-6*t2(:)) + 2.*4.8314e-4*s(:)
-
-do i=1,nits
-  do ii=1,wlev
-    t = max(w_temp(:,ii)-273.16,-2.)
-    s = max(w_sal(:,ii),0.)
-    p1 = grav*depth(:,ii)*d_rho(:,ii)*1.E-5 ! assume hydrostatic balance
-    t2 = t*t
-    t3 = t2*t
-    t4 = t3*t
-    t5 = t4*t
-    s2 = s*s
-    s3 = s2*s
-    p2 = p1*p1
-    s32 = sqrt(s3)
-    
-    sks = 1.965933e4 + 1.444304e2*t(:) - 1.706103*t2(:) &
-                + 9.648704e-3*t3(:)  - 4.190253e-5*t4(:) &
-                + p1(:)*(3.186519 + 2.212276e-2*t(:) &
-                - 2.984642e-4*t2(:) + 1.956415e-6*t3(:))  &
-                + p2(:)*(2.102898e-4 - 1.202016e-5*t(:) &
-                + 1.394680e-7*t2(:)) ! sal=0.
-    sk=sks+ s(:)*(52.84855 - 3.101089e-1*t(:) &
-                + 6.283263e-3*t2(:) -5.084188e-5*t3(:)) &
-                + s32(:)*(3.886640e-1 + 9.085835e-3*t(:) &
-                - 4.619924e-4*t2(:)) &
-                + p1(:)*s(:)*(6.704388e-3  -1.847318e-4*t(:) &
-                + 2.059331e-7*t2(:)) + 1.480266e-4*p1(:)*s32(:) &
-                +p2(:)*s(:)*(-2.040237e-6 &
-                + 6.128773e-8*t(:) + 6.207323e-10*t2(:)) ! + sal terms             
-    dskdt= 1.444304e2 - 2.*1.706103*t(:) &
-                + 3.*9.648704e-3*t2(:)  - 4.*4.190253e-5*t3(:) &
-                + s(:)*( - 3.101089e-1 &
-                + 2.*6.283263e-3*t(:) -3.*5.084188e-5*t2(:)) &
-                + s32(:)*(9.085835e-3 &
-                - 2.*4.619924e-4*t(:)) &
-                + p1(:)*(2.212276e-2 &
-                - 2.*2.984642e-4*t(:) + 3.*1.956415e-6*t2(:))  &
-                + p1(:)*s(:)*(-1.847318e-4 &
-                + 2.*2.059331e-7*t(:)) &
-                + p2(:)*(- 1.202016e-5 &
-                + 2.*1.394680e-7*t(:)) +p2(:)*s(:)*( &
-                + 6.128773e-8 + 2.*6.207323e-10*t(:))
-    dskds=(52.84855 - 3.101089e-1*t(:) &
-                + 6.283263e-3*t2(:) -5.084188e-5*t3(:)) &
-                + 1.5*sqrt(s(:))*(3.886640e-1 + 9.085835e-3*t(:) &
-                - 4.619924e-4*t2(:)) &
-                + p1(:)*(6.704388e-3  -1.847318e-4*t(:) &
-                + 2.059331e-7*t2(:)) + 1.5*1.480266e-4*p1(:)*sqrt(s(:)) &
-                +p2(:)*(-2.040237e-6 &
-                + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
-       
-    d_rho(:,ii)=rho0/(1.-p1/sk)
-    rs(:,ii)=rs0/(1.-p1/sks) ! sal=0.
-  
-    drhodt=drho0dt/(1.-p1/sk)-rho0*p1*dskdt/((sk-p1)**2)
-    drhods=drho0ds/(1.-p1/sk)-rho0*p1*dskds/((sk-p1)**2)
-    d_alpha(:,ii)=-drhodt/d_rho(:,ii) ! MOM convention
-    d_beta(:,ii)=drhods/d_rho(:,ii)   ! MOM convention
-  end do
-
-end do
+call calcdensity(wfull,d_rho,d_alpha,d_beta,rs,rho0,w_temp,w_sal,depth)
 
 ! buoyancy frequency (calculated at half levels)
 do ii=2,wlev
@@ -1334,6 +1267,131 @@ return
 end subroutine getrho
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate density
+
+subroutine calcdensity(full,d_rho,d_alpha,d_beta,rs,rho0,tt,ss,dep)
+
+implicit none
+
+integer, intent(in) :: full
+integer i,ii
+integer, parameter :: nits=1 ! iterate for density (nits=1 recommended)
+real, dimension(full,wlev), intent(in) :: tt,ss,dep
+real, dimension(full,wlev), intent(out) :: d_rho,d_alpha,d_beta,rs
+real, dimension(full), intent(out) :: rho0
+real, dimension(full) :: t,s,p1,p2,t2,t3,t4,t5,s2,s3,s32
+real, dimension(full) :: drho0dt,drho0ds,dskdt,dskds,sk,sks
+real, dimension(full) :: drhodt,drhods,rs0,dskdp
+real, parameter :: density = 1035.
+
+d_rho=density
+
+t = max(tt(:,1)-273.16,-2.)
+s = max(ss(:,1),0.)
+t2 = t*t
+t3 = t2*t
+t4 = t3*t
+t5 = t4*t
+s2 = s*s
+s3 = s2*s
+s32 = sqrt(s3)
+
+rs0 = 999.842594 + 6.793952e-2*t(:)            &
+       - 9.095290e-3*t2(:) + 1.001685e-4*t3(:) &
+       - 1.120083e-6*t4(:) + 6.536332e-9*t5(:) ! density for sal=0.
+rho0 = rs0+ s(:)*(0.824493 - 4.0899e-3*t(:)    &
+       + 7.6438e-5*t2(:)                       &
+       - 8.2467e-7*t3(:) + 5.3875e-9*t4(:))    &
+       + s32(:)*(-5.72466e-3 + 1.0227e-4*t(:)  &
+       - 1.6546e-6*t2(:)) + 4.8314e-4*s2(:)     ! + sal terms    
+drho0dt=6.793952e-2                                  &
+       - 2.*9.095290e-3*t(:) + 3.*1.001685e-4*t2(:)  &
+       - 4.*1.120083e-6*t3(:) + 5.*6.536332e-9*t4(:) &
+       + s(:)*( - 4.0899e-3 + 2.*7.6438e-5*t(:)      &
+       - 3.*8.2467e-7*t2(:) + 4.*5.3875e-9*t3(:))    &
+       + s32(:)*(1.0227e-4 - 2.*1.6546e-6*t(:))
+drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:) &
+       - 8.2467e-7*t3(:) + 5.3875e-9*t4(:))           &
+       + 1.5*sqrt(s(:))*(-5.72466e-3 + 1.0227e-4*t(:) &
+       - 1.6546e-6*t2(:)) + 2.*4.8314e-4*s(:)
+
+do i=1,nits
+  do ii=1,wlev
+    t = max(tt(:,ii)-273.16,-2.)
+    s = max(ss(:,ii),0.)
+    p1 = grav*dep(:,ii)*d_rho(:,ii)*1.E-5 ! assume hydrostatic balance
+    t2 = t*t
+    t3 = t2*t
+    t4 = t3*t
+    t5 = t4*t
+    s2 = s*s
+    s3 = s2*s
+    p2 = p1*p1
+    s32 = sqrt(s3)
+    
+    sks = 1.965933e4 + 1.444304e2*t(:) - 1.706103*t2(:) &
+                + 9.648704e-3*t3(:)  - 4.190253e-5*t4(:) &
+                + p1(:)*(3.186519 + 2.212276e-2*t(:) &
+                - 2.984642e-4*t2(:) + 1.956415e-6*t3(:))  &
+                + p2(:)*(2.102898e-4 - 1.202016e-5*t(:) &
+                + 1.394680e-7*t2(:)) ! sal=0.
+    sk=sks+ s(:)*(52.84855 - 3.101089e-1*t(:) &
+                + 6.283263e-3*t2(:) -5.084188e-5*t3(:)) &
+                + s32(:)*(3.886640e-1 + 9.085835e-3*t(:) &
+                - 4.619924e-4*t2(:)) &
+                + p1(:)*s(:)*(6.704388e-3  -1.847318e-4*t(:) &
+                + 2.059331e-7*t2(:)) + 1.480266e-4*p1(:)*s32(:) &
+                +p2(:)*s(:)*(-2.040237e-6 &
+                + 6.128773e-8*t(:) + 6.207323e-10*t2(:)) ! + sal terms             
+    dskdt= 1.444304e2 - 2.*1.706103*t(:) &
+                + 3.*9.648704e-3*t2(:)  - 4.*4.190253e-5*t3(:) &
+                + s(:)*( - 3.101089e-1 &
+                + 2.*6.283263e-3*t(:) -3.*5.084188e-5*t2(:)) &
+                + s32(:)*(9.085835e-3 &
+                - 2.*4.619924e-4*t(:)) &
+                + p1(:)*(2.212276e-2 &
+                - 2.*2.984642e-4*t(:) + 3.*1.956415e-6*t2(:))  &
+                + p1(:)*s(:)*(-1.847318e-4 &
+                + 2.*2.059331e-7*t(:)) &
+                + p2(:)*(- 1.202016e-5 &
+                + 2.*1.394680e-7*t(:)) +p2(:)*s(:)*( &
+                + 6.128773e-8 + 2.*6.207323e-10*t(:))
+    dskds=(52.84855 - 3.101089e-1*t(:) &
+                + 6.283263e-3*t2(:) -5.084188e-5*t3(:)) &
+                + 1.5*sqrt(s(:))*(3.886640e-1 + 9.085835e-3*t(:) &
+                - 4.619924e-4*t2(:)) &
+                + p1(:)*(6.704388e-3  -1.847318e-4*t(:) &
+                + 2.059331e-7*t2(:)) + 1.5*1.480266e-4*p1(:)*sqrt(s(:)) &
+                +p2(:)*(-2.040237e-6 &
+                + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
+    dskdp=(3.186519 + 2.212276e-2*t(:) &
+                - 2.984642e-4*t2(:) + 1.956415e-6*t3(:)) &
+                + 2.*p1*(2.102898e-4 - 1.202016e-5*t(:) &
+                + 1.394680e-7*t2(:)) &
+                + s(:)*(6.704388e-3  -1.847318e-4*t(:) &
+                + 2.059331e-7*t2(:)) &
+                + 1.480266e-4*s32(:) &
+                + 2.*p1(:)*s(:)*(-2.040237e-6 &
+                + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
+       
+    d_rho(:,ii)=rho0/(1.-p1/sk)
+    rs(:,ii)=rs0/(1.-p1/sks) ! sal=0.
+  
+    drhodt=(drho0dt/(1.-p1/sk)-rho0*p1*dskdt/(sk-p1)**2) &
+          /(1.-rho0*grav*dep(:,ii)*1.E-5*(sk-p1*dskdp)/(sk-p1)**2)
+    drhods=(drho0ds/(1.-p1/sk)-rho0*p1*dskds/(sk-p1)**2) &
+          /(1.-rho0*grav*dep(:,ii)*1.E-5*(sk-p1*dskdp)/(sk-p1)**2)
+    
+    d_alpha(:,ii)=-drhodt/d_rho(:,ii) ! MOM convention
+    d_beta(:,ii)=drhods/d_rho(:,ii)   ! MOM convention
+  end do
+
+end do
+
+return
+end subroutine calcdensity
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate fluxes between MLO and atmosphere (from CCAM sflux.f)
 
 subroutine fluxcalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,d_taux,d_tauy,diag)
@@ -1346,7 +1404,7 @@ real, dimension(wfull), intent(in) :: a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
 real, dimension(wfull), intent(inout) :: d_taux,d_tauy
 real, dimension(wfull) :: qsat,dqdt,ri,vmag,rho,srcp
 real, dimension(wfull) :: fm,fh,con,consea,afroot,af,daf
-real, dimension(wfull) :: den,dfm,sig,factch,root
+real, dimension(wfull) :: den,dfm,dden,dcon,sig,factch,root
 real, dimension(wfull) :: aft,atu,atv,dcs,afq,facqch,fq
 real ztv
 ! momentum flux parameters
@@ -1387,11 +1445,13 @@ select case(zomode)
         con=consea*fm*vmag
         p_zo=p_zo-(p_zo-con*af)/(1.-con*daf)
       elsewhere     ! unstable water points
-        con=cms*2.*bprm*sqrt(-ri*a_zmin/p_zo)
-        den=1.+af*con
-        fm=vmag-vmag*2.*bprm*ri/den
-        dfm=vmag*2.*bprm*ri*(con*daf+af*cms*bprm*ri*a_zmin/(sqrt(-ri*a_zmin/p_zo)*p_zo*p_zo))/(den*den) ! MJT suggestion
-        p_zo=p_zo-(p_zo-consea*af*fm)/(1.-consea*(daf*fm+af*dfm))
+        den=1.+af*cms*2.*bprm*sqrt(-ri*a_zmin/p_zo)
+        fm=1.-2.*bprm*ri/den
+        con=consea*fm*vmag
+        dden=daf*cms*2.*bprm*sqrt(-ri*a_zmin/p_zo)+af*cms*bprm*ri*a_zmin/(sqrt(-ri*a_zmin/p_zo)*p_zo*p_zo)
+        dfm=2.*bprm*ri*dden/(den**2)
+        dcon=consea*dfm*vmag
+        p_zo=p_zo-(p_zo-con*af)/(1.-dcon*af-con*daf)
       end where
       p_zo=min(max(p_zo,1.5e-6),10.)
     enddo    ! it=1,4
@@ -1415,7 +1475,7 @@ select case(zomode)
       end where
       p_zo=p_zo-(p_zo-consea)/(1.-dcs)      
       p_zo=min(max(p_zo,1.5e-6),10.)
-    enddo    ! it=1,4  
+    enddo    ! it=1,4
 end select
 afroot=vkar/log(a_zmin/p_zo)
 af=afroot**2

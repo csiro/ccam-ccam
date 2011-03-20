@@ -5,7 +5,7 @@ module mlodynamics
 implicit none
 
 private
-public mlodiffusion,mlorouter,watbdy
+public mlodiffusion,mlorouter,mlohadv,watbdy
 
 real, dimension(:), allocatable, save :: watbdy
 
@@ -32,17 +32,17 @@ integer k,i
 integer, parameter :: salfilt = 0 ! Additional salinity filter (0=off, 1=Katzfey)
 real, parameter :: k_smag = 2. ! 0.4 in mom3, 2. in Griffies (2000)
 real hdif
-real, dimension(ifull+iextra) :: uc,vc,wc,ee
+real, dimension(ifull+iextra) :: uc,vc,wc,ee,dz
 real, dimension(ifull+iextra) :: t_kh,xfact,yfact
 real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
-real, dimension(ifull) :: u,v
+real, dimension(ifull) :: u,v,base
 real, dimension(ifull) :: cc,ff,emi,ucc,vcc,wcc
 logical, dimension(ifull+iextra) :: wtr
 
 hdif=dt*(k_smag/pi)**2
 ee=0.
-where(land)
-  ee=1.
+where(land(1:ifull))
+  ee(1:ifull)=1.
 end where
 call bounds(ee)
 wtr=ee.lt.0.5
@@ -51,6 +51,10 @@ if (.not.any(wtr(1:ifull))) return
 
 emi=1./em(1:ifull)**2
 do k=1,wlev
+  call mloexpdep(1,dz(1:ifull),k,0)
+  call bounds(dz)
+  dz=max(dz,1.E-3)
+
   ! neglect bathymetry following component for now
   ! u=ax*uc+ay*vc+az*wc
   ! dudx*dx=u(ie)-u(iw)=ax*(uc(ie)-uc(iw))+ay*(vc(ie)-vc(iw))+az*(wc(ie)-wc(iw))
@@ -164,28 +168,28 @@ do k=1,wlev
     yfact(1:ifull) = (t_kh(in)+t_kh)*.5
   end where
   call boundsuv(xfact,yfact)
+  
+  base= ( emi*dz(1:ifull) +                    &
+          xfact(1:ifull)*dz(ie) +              & 
+          xfact(iwu)*dz(iw) +                  &
+          yfact(1:ifull)*dz(in) +              &
+          yfact(isv)*dz(is) )
 
-  ucc = ( uc(1:ifull)*emi +                    &
-          xfact(1:ifull)*uc(ie) +              &
-          xfact(iwu)*uc(iw) +                  &
-          yfact(1:ifull)*uc(in) +              &
-          yfact(isv)*uc(is) ) /                &
-        ( emi + xfact(1:ifull) + xfact(iwu) +  &
-          yfact(1:ifull)+yfact(isv) )
-  vcc = ( vc(1:ifull)*emi +                    &
-          xfact(1:ifull)*vc(ie) +              &
-          xfact(iwu)*vc(iw) +                  &
-          yfact(1:ifull)*vc(in) +              &
-          yfact(isv)*vc(is) ) /                &
-        ( emi + xfact(1:ifull) + xfact(iwu) +  &
-          yfact(1:ifull)+yfact(isv) )
-  wcc = ( wc(1:ifull)*emi +                    &
-          xfact(1:ifull)*wc(ie) +              &
-          xfact(iwu)*wc(iw) +                  &
-          yfact(1:ifull)*wc(in) +              &
-          yfact(isv)*wc(is) ) /                &
-        ( emi + xfact(1:ifull) + xfact(iwu) +  &
-          yfact(1:ifull) + yfact(isv) )
+  ucc = ( uc(1:ifull)*emi*dz(1:ifull) +        &
+          xfact(1:ifull)*uc(ie)*dz(ie) +       &
+          xfact(iwu)*uc(iw)*dz(iw) +           &
+          yfact(1:ifull)*uc(in)*dz(in) +       &
+          yfact(isv)*uc(is)*dz(is) ) / base
+  vcc = ( vc(1:ifull)*emi*dz(1:ifull) +        &
+          xfact(1:ifull)*vc(ie)*dz(ie) +       &
+          xfact(iwu)*vc(iw)*dz(iw) +           &
+          yfact(1:ifull)*vc(in)*dz(in) +       &
+          yfact(isv)*vc(is)*dz(is) ) / base
+  wcc = ( wc(1:ifull)*emi*dz(1:ifull) +        &
+          xfact(1:ifull)*wc(ie)*dz(ie) +       &
+          xfact(iwu)*wc(iw)*dz(iw) +           &
+          yfact(1:ifull)*wc(in)*dz(in) +       &
+          yfact(isv)*wc(is)*dz(is) ) / base
   u = ax(1:ifull)*ucc + ay(1:ifull)*vcc + az(1:ifull)*wcc
   v = bx(1:ifull)*ucc + by(1:ifull)*vcc + bz(1:ifull)*wcc
   
@@ -196,13 +200,11 @@ do k=1,wlev
     ee=0.
     call mloexport(i,ee(1:ifull),k,0)
     call bounds(ee)
-    ff = ( ee(1:ifull)*emi +                    &
-           xfact(1:ifull)*ee(ie) +              &
-           xfact(iwu)*ee(iw) +                  &
-           yfact(1:ifull)*ee(in) +              &
-           yfact(isv)*ee(is) ) /                &
-         ( emi + xfact(1:ifull) + xfact(iwu) +  &
-           yfact(1:ifull)+yfact(isv))
+    ff = ( ee(1:ifull)*emi*dz(1:ifull) +        &
+           xfact(1:ifull)*ee(ie)*dz(ie) +       &
+           xfact(iwu)*ee(iw)*dz(iw) +           &
+           yfact(1:ifull)*ee(in)*dz(in) +       &
+           yfact(isv)*ee(is)*dz(is) ) / base
     call mloimport(i,ff,k,0)
   end do
   
@@ -219,13 +221,11 @@ do k=1,wlev
       yfact(1:ifull)=1.
     end where
     call boundsuv(xfact,yfact)
-    ff = ( ee(1:ifull)*emi +                    &
-           xfact(1:ifull)*ee(ie) +              &
-           xfact(iwu)*ee(iw) +                  &
-           yfact(1:ifull)*ee(in) +              &
-           yfact(isv)*ee(is) ) /                &
-         ( emi + xfact(1:ifull) + xfact(iwu) +  &
-           yfact(1:ifull)+yfact(isv))
+    ff = ( ee(1:ifull)*emi*dz(1:ifull) +        &
+           xfact(1:ifull)*ee(ie)*dz(ie) +       &
+           xfact(iwu)*ee(iw)*dz(iw) +           &
+           yfact(1:ifull)*ee(in)*dz(in) +       &
+           yfact(isv)*ee(is)*dz(is) ) / base
     call mloimport(1,ff,k,0)
   end if
   
@@ -335,252 +335,337 @@ end subroutine mlorouter
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine implements some basic hydrostatic dynamics
 ! (note that this subroutine is a work in progress)
-!subroutine mlohadv
-!
-!use cc_mpi
-!use map_m
-!use mlo
+
+subroutine mlohadv
+
+use arrays_m
+use cc_mpi
+use indices_m
+use map_m
+use mlo
+use soil_m
+
+implicit none
+
+include 'newmpar.h'
+include 'const_phys.h'
+include 'parm.h'
+
+integer l,ii
+real, dimension(ifull+iextra) :: ee
+real, dimension(ifull) :: xp,xm
+real, dimension(ifull) :: dpsdx,dpsdy
+real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns
+real, dimension(ifull+iextra,wlev) :: dep,rho
+real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s
+real, dimension(ifull,wlev) :: nuh,nvh
+real, dimension(ifull,wlev) :: dzdx,dzdy
+real, dimension(ifull,wlev) :: drdx,drdy,drdz
+real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
+real, dimension(:,:), allocatable, save :: oldu1,oldv1
+logical, dimension(ifull+iextra) :: wtr
+integer, parameter :: lmax=0 ! 1=predictor-only, 2=predictor-corrector
+
+!Define land/sea mask
+ee=0.
+where(land(1:ifull))
+  ee(1:ifull)=1.
+end where
+call bounds(ee)
+wtr=ee.lt.0.5
+
+! Initialise arrays
+do ii=1,wlev
+  call mloexpdep(0,dep(1:ifull,ii),ii,0)
+  call bounds(dep(:,ii))
+  call mloexport(0,w_t(:,ii),ii,0)
+  call mloexport(1,w_s(:,ii),ii,0)
+  call mloexport(2,w_u(:,ii),ii,0)
+  call mloexport(3,w_v(:,ii),ii,0)
+end do
+call bounds(ps)
+
+dep=max(dep,1.E-3)
+
+! Calculate depth gradient
+dzdx=0.
+dzdy=0.
+do ii=1,wlev
+  where(wtr(1:ifull).and.wtr(ie).and.wtr(iw))
+    dzdx(:,ii)=(dep(ie,ii)-dep(iw,ii))*0.5*em(1:ifull)/ds
+  elsewhere(wtr(1:ifull).and.wtr(ie))
+    dzdx(:,ii)=(dep(ie,ii)-dep(1:ifull,ii))*em(1:ifull)/ds
+  elsewhere(wtr(1:ifull).and.wtr(iw))
+    dzdx(:,ii)=(dep(1:ifull,ii)-dep(iw,ii))*em(1:ifull)/ds
+  end where
+  where(wtr(1:ifull).and.wtr(in).and.wtr(is))
+    dzdy(:,ii)=(dep(in,ii)-dep(is,ii))*0.5*em(1:ifull)/ds
+  elsewhere(wtr(1:ifull).and.wtr(in))
+    dzdy(:,ii)=(dep(in,ii)-dep(1:ifull,ii))*em(1:ifull)/ds
+  elsewhere(wtr(1:ifull).and.wtr(is))
+    dzdy(:,ii)=(dep(1:ifull,ii)-dep(is,ii))*em(1:ifull)/ds
+  end where
+end do
+
+! Calculate surface pressure gradients
+! (free surface gradients are neglected for now)
+dpsdx=0.
+dpsdy=0.
+where(wtr(1:ifull).and.wtr(ie).and.wtr(iw))
+  dpsdx=(ps(ie)-ps(iw))*0.5*em(1:ifull)/ds
+elsewhere(wtr(1:ifull).and.wtr(ie))
+  dpsdx=(ps(ie)-ps(1:ifull))*em(1:ifull)/ds
+elsewhere(wtr(1:ifull).and.wtr(iw))
+  dpsdx=(ps(1:ifull)-ps(iw))*em(1:ifull)/ds
+end where
+where(wtr(1:ifull).and.wtr(in).and.wtr(is))
+  dpsdy=(ps(in)-ps(is))*0.5*em(1:ifull)/ds
+elsewhere(wtr(1:ifull).and.wtr(in))
+  dpsdy=(ps(in)-ps(1:ifull))*em(1:ifull)/ds
+elsewhere(wtr(1:ifull).and.wtr(is))
+  dpsdy=(ps(1:ifull)-ps(is))*em(1:ifull)/ds
+end where
+
+! Calculate pressure and gradient for slow mode
+call mloexpdensity(rho(1:ifull,:),w_t,w_s,dep(1:ifull,:),0)
+do ii=1,wlev
+  call bounds(rho(:,ii))
+end do
+drdz(:,1)=(rho(1:ifull,2)-rho(1:ifull,1))/max(dep(1:ifull,2)-dep(1:ifull,1),1.E-20)
+do ii=2,wlev-1
+  drdz(:,ii)=(rho(1:ifull,ii+1)-rho(1:ifull,ii-1))/max(dep(1:ifull,ii+1)-dep(1:ifull,ii-1),1.E-20)
+end do
+drdz(:,wlev)=(rho(1:ifull,wlev)-rho(1:ifull,wlev-1))/max(dep(1:ifull,wlev)-dep(1:ifull,wlev-1),1.E-20)
+
+drdx=0.
+drdy=0.
+do ii=1,wlev
+  where(wtr(1:ifull).and.wtr(ie).and.wtr(iw))
+    drdx(:,ii)=(rho(ie,ii)-rho(iw,ii))*0.5*em(1:ifull)/ds-dzdx(:,ii)*drdz(:,ii)
+  elsewhere(wtr(1:ifull).and.wtr(ie))
+    drdx(:,ii)=(rho(ie,ii)-rho(1:ifull,ii))*em(1:ifull)/ds-dzdx(:,ii)*drdz(:,ii)
+  elsewhere(wtr(1:ifull).and.wtr(iw))
+    drdx(:,ii)=(rho(1:ifull,ii)-rho(iw,ii))*em(1:ifull)/ds-dzdx(:,ii)*drdz(:,ii)
+  end where
+  where(wtr(1:ifull).and.wtr(in).and.wtr(is))
+    drdy(:,ii)=(rho(in,ii)-rho(is,ii))*0.5*em(1:ifull)/ds-dzdy(:,ii)*drdz(:,ii)
+  elsewhere(wtr(1:ifull).and.wtr(in))
+    drdy(:,ii)=(rho(in,ii)-rho(1:ifull,ii))*em(1:ifull)/ds-dzdy(:,ii)*drdz(:,ii)
+  elsewhere(wtr(1:ifull).and.wtr(is))
+    drdy(:,ii)=(rho(1:ifull,ii)-rho(is,ii))*em(1:ifull)/ds-dzdy(:,ii)*drdz(:,ii)
+  end where
+end do
+
+xp=1.
+xm=0.
+where (wtr(1:ifull))
+  xp=1.+(dt*f(1:ifull))**2
+  xm=dt*f(1:ifull)
+end where
+
+! Split U and V coriolis and pressure gradient terms
+! (Here we differentiate for horizontal X and Y.  The correction for levels is built into rho, but the varying bottom
+!  depth is then removed)
+do ii=1,wlev
+  nu(1:ifull,ii)=(w_u(:,ii)+xm*w_v(:,ii)-dt*grav*dep(1:ifull,ii)*(drdx(:,ii)+xm*drdy(:,ii))/rho(1:ifull,ii) &
+                                              -dt*(dpsdx+xm*dpsdy)/rho(1:ifull,ii))/xp
+  nv(1:ifull,ii)=(w_v(:,ii)-xm*w_u(:,ii)-dt*grav*dep(1:ifull,ii)*(drdy(:,ii)-xm*drdx(:,ii))/rho(1:ifull,ii) &
+                                              -dt*(dpsdy-xm*dpsdx)/rho(1:ifull,ii))/xp
+end do
+w_u=nu(1:ifull,:)
+w_v=nv(1:ifull,:)
+nt(1:ifull,:)=w_t
+ns(1:ifull,:)=w_s
+
+if (.not.allocated(oldu1)) then
+  allocate(oldu1(ifull,wlev))
+  allocate(oldv1(ifull,wlev))
+  oldu1=w_u
+  oldv1=w_v
+end if
+
+! prep for conservation fix
+! ...
+
+do l=1,lmax ! predictor-corrector loop
+
+  ! update bounds of prognostic variables
+  do ii=1,wlev
+    call bounds(nu(:,ii))
+    call bounds(nv(:,ii))
+    call bounds(nt(:,ii))
+    call bounds(ns(:,ii))
+  end do
+
+  if (l.eq.1) then
+    nuh(1:ifull,:)=1.5*w_u-0.5*oldu1 ! U at t+1/2
+    nvh(1:ifull,:)=1.5*w_v-0.5*oldv1 ! V at t+1/2
+  else
+    nuh(1:ifull,:)=0.5*nu(1:ifull,:)+0.5*w_u ! U at t+1/2
+    nvh(1:ifull,:)=0.5*nv(1:ifull,:)+0.5*w_v ! V at t+1/2
+  end if
+
+  ! Calculate depature points
+  call mlodeps(nuh,nvh,x3d,y3d,z3d)
+
+!  Vertical advection
+!  call mlovadv
+
+!  Convert (u,v) to cartesian coordinates (U,V,W)
+!  do ii=1,wlev
+!    cou(:,ii)=ax*ou(:,ii)+bx*ov(:,ii)
+!    cov(:,ii)=ay*ou(:,ii)+by*ov(:,ii)
+!    cow(:,ii)=az*ou(:,ii)+bz*ov(:,ii)
+!  end do
+
+!  Horizontal advection for U,V,W
+!  call mloints(cou,nface,xg,yg)
+!  call mloints(cov,nface,xg,yg)
+!  call mloints(cow,nface,xg,yg)
+
+!  Rotate vector to arrival point
+!  call mlorot
+
+!  Convert (U,V,W) back to conformal cubic coordinates
+!  do ii=1,wlev
+!    nu(:,ii)=ax*cou(:,ii)+ay*cov(:,ii)+az*cow(:,ii)
+!    nv(:,ii)=bx*cou(:,ii)+by*cov(:,ii)+bz*cow(:,ii)
+!  end do
+
+!  Horizontal advector for T,S
+!  call mloints(nt,nface,xg,yg)
+!  call mloints(ns,nface,xg,yg)
+
+end do
+
+! fix conservation
+! ...
+
+oldu1=w_u
+oldv1=w_v
+
+do ii=1,wlev
+  call mloimport(0,nt(1:ifull,ii),ii,0)
+  call mloimport(1,ns(1:ifull,ii),ii,0)
+  call mloimport(2,nu(1:ifull,ii),ii,0)
+  call mloimport(3,nv(1:ifull,ii),ii,0)
+end do
+
+return
+end subroutine mlohadv
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate depature points for MLO semi-Lagrangian advection
+! (This subroutine is based on depts.f)
+
+subroutine mlodeps(ubar,vbar,x3d,y3d,z3d)
+
+use cc_mpi
+use mlo
+use vecsuv_m
+use xyzinfo_m
+
+implicit none
+
+include 'newmpar.h'
+include 'const_phys.h'
+include 'parm.h'
+
+integer ii
+real, dimension(ifull,wlev), intent(in) :: ubar,vbar
+real*8, dimension(ifull,wlev), intent(out) :: x3d,y3d,z3d
+real, dimension(ifull,wlev) :: uc,vc,wc
+
+! departure point x, y, z is called x3d, y3d, z3d
+! first find corresponding cartesian vels
+do ii=1,wlev
+  uc(:,ii)=(ax*ubar(:,ii)+bx*vbar(:,ii))*dt/rearth ! unit sphere 
+  vc(:,ii)=(ay*ubar(:,ii)+by*vbar(:,ii))*dt/rearth ! unit sphere 
+  wc(:,ii)=(az*ubar(:,ii)+bz*vbar(:,ii))*dt/rearth ! unit sphere 
+  x3d(:,ii)=x-uc(:,ii) ! 1st guess
+  y3d(:,ii)=y-vc(:,ii)
+  z3d(:,ii)=z-wc(:,ii)
+end do
+
+! convert to grid point numbering
+!do ii=1,wlev
+!  call mlotoij5(ii,x3d(:,ii),y3d(:,ii),z3d(:,ii))
+!end do
+! Share off processor departure points.
+!call deptsync(nface,xg,yg)
+
+return
+end subroutine mlodeps
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate indices
+
+subroutine mlotoij5(ii,x3d,y3d,z3d)
+
+implicit none
+
+include 'newmpar.h'
+
+integer, intent(in) :: ii
+real*8, dimension(ifull), intent(inout) :: x3d,y3d,z3d
+
+return
+end subroutine mlotoij5
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Tide
+
+!subroutine tide(eta,lon,lat,mtimer)
 !
 !implicit none
 !
 !include 'newmpar.h'
 !
-!integer l,ii
-!real, dimension(ifull+iextra) :: ee
-!real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns
-!real, dimension(ifull+iextra,wlev) :: p,dep
-!real, dimension(ifull,wlev) :: dzdx,dzdy
-!logical, dimension(ifull) :: wtr
+!integer i
+!real, dimension(ifull), intent(out) :: eta
+!real, dimension(ifull), intent(in) :: lon,lat,mtimer
+!real, dimension(ifull) :: slon,slat,stime
+!real, dimension(4) :: aa,ab,ba,bb,wa,wb
+!real, parameter :: pi = 3.1415927
 !
-!Define land/sea mask
-!ee=0.
-!where(land)
-!  ee=1.
-!end where
-!call bounds(ee)
-!wtr=ee.lt.0.5
+!aa(1)=0.141565
+!aa(2)=0.100661
+!aa(3)=0.046848
+!aa(4)=0.019273
+!ab(1)=0.242334
+!ab(2)=0.112743
+!ab(3)=0.046397
+!ab(4)=0.030684
+!ba(1)=0.736
+!ba(2)=0.695
+!ba(3)=0.706
+!ba(4)=0.695
+!bb(1)=0.693
+!bb(2)=0.693
+!bb(3)=0.693
+!bb(4)=0.693
+!wa(1)=0.7292117
+!wa(2)=0.6750774
+!wa(3)=0.7252295
+!wa(4)=0.6495854
+!wb(1)=1.405189
+!wb(2)=1.454441
+!wb(3)=1.378797
+!wb(4)=1.458423
 !
-!dep(1:ifull,:)=depth
+!slon=pi*lon/180.
+!slat=pi*lat/180.
+!stime=mtimer/1440.
 !
-! Initialise arrays
-!do ii=1,wlev
-!  call mloexport(0,nt(1:ifull,ii),ii,0)
-!  call mloexport(1,ns(1:ifull,ii),ii,0)
-!  call mloexport(2,nu(1:ifull,ii),ii,0)
-!  call mloexport(3,nv(1:ifull,ii),ii,0)
-!end do
-!
-!do l=1,2 ! predictor-corrector loop
-!
-!  ! update bounds
-!  do ii=1,wlev
-!    call bounds(nu(:,ii))
-!    call bounds(nv(:,ii))
-!    call bounds(nt(:,ii))
-!    call bounds(ns(:,ii))
-!  end do
-!
-!  ! Calculate depth gradient
-!  dzdx=0.
-!  dzdy=0.
-!  do ii=1,wlev
-!    call bounds(dep(:,ii))
-!    where(wtr(1:ifull).and.wtr(ie).and.wtr(iw))
-!      dzdx(:,ii)=(dep(ie,ii)-dep(iw,ii))*0.5*em(:)/ds
-!    elsewhere(wtr(1:ifull).and.wtr(ie))
-!      dzdx(:,ii)=(dep(ie,ii)-dep(1:ifull,ii))*em(:)/ds
-!    elsewhere(wtr(1:ifull).and.wtr(iw))
-!      dzdx(:,ii)=(dep(1:ifull,ii)-dep(iw,ii)*em(:)/ds
-!    end where
-!    where(wtr(1:ifull).and.wtr(in).and.wtr(is))
-!      dzdy(:,ii)=(dep(in,ii)-dep(is,ii))*0.5*em(:)/ds
-!    elsewhere(wtr(1:ifull).and.wtr(in))
-!      dzdy(:,ii)=(dep(in,ii)-dep(1:ifull,ii))*em(:)/ds
-!    elsewhere(wtr(1:ifull).and.wtr(is))
-!      dzdy(:,ii)=(dep(1:ifull,ii)-dep(is,ii)*em(:)/ds
-!    end where
-!  end do
-!
-!  ! Calculate pressure and gradient
-!  do ii=1,wlev
-!    rho(:,ii)=
-!    p(:,ii)=grav*depth(1:ifull,ii)*rho(:,ii)
-!    call bounds(p(:,ii))
-!  end do
-!  dpdz(:,1)=
-!  do ii=2,wlev-1
-!    dpdz(:,ii)=
-!  end do
-!  dpdz(:,wlev)=
-!
-!  dpdx=0.
-!  dpdy=0.
-!  do ii=1,wlev
-!    where(wtr(1:ifull).and.wtr(ie).and.wtr(iw))
-!      dpdx(:,ii)=(p(ie,ii)-p(iw,ii))*0.5*em(:)/ds+dzdx(:,ii)*dpdz(:,ii)
-!    elsewhere(wtr(1:ifull).and.wtr(ie))
-!      dpdx(:,ii)=(p(ie,ii)-p(1:ifull,ii))*em(:)/ds+dzdx(:,ii)*dpdz(:,ii)
-!    elsewhere(wtr(1:ifull).and.wtr(iw))
-!      dpdx(:,ii)=(p(1:ifull,ii)-p(iw,ii)*em(:)/ds+dzdx(:,ii)*dpdz(:,ii)
-!    end where
-!    where(wtr(1:ifull).and.wtr(in).and.wtr(is))
-!      dpdy(:,ii)=(p(in,ii)-p(is,ii))*0.5*em(:)/ds+dzdy(:,ii)*dpdz(:,ii)
-!    elsewhere(wtr(1:ifull).and.wtr(in))
-!      dpdy(:,ii)=(p(in,ii)-p(1:ifull,ii))*em(:)/ds+dzdy(:,ii)*dpdz(:,ii)
-!    elsewhere(wtr(1:ifull).and.wtr(is))
-!      dpdy(:,ii)=(p(1:ifull,ii)-p(is,ii)*em(:)/ds+dzdy(:,ii)*dpdz(:,ii)
-!    end where
-!  end do
-!
-!
-!  ! Split U and V coriolis and pressure gradient terms
-!  xp=1.+(dt*a_f)**2
-!  xm=dt*a_f
-!  do ii=1,wlev
-!    ou=(w_u(:,ii)+xm*w_v(:,ii)-dt*(dpdx(:,ii)+xm*dpdy(:,ii))/rho(:,ii))/xp
-!    ov=(w_v(:,ii)-xm*w_u(:,ii)-dt*(dpdy(:,ii)-xm*dpdx(:,ii))/rho(:,ii))/xp
-!  end do
-!
-!  if (l.eq.1) then
-!    nu=ou
-!    nv=ov
-!  end if
-!
-!  ! Convert (u,v) to cartesian coordinates (U,V,W) for advection terms
-!  cou=ax*ou+bx*ov
-!  cov=ay*ou+by*ov
-!  cow=az*ou+bz*ov
-!  cnu=ax*nu+bx*nv
-!  cnv=ay*nu+by*nv
-!  cnw=az*nu+bz*nv
-!
-!  ! Calculate vertical velocity
-!  do ii=1,wlev
-!    dudz(:,ii)=
-!    dvdz(:,ii)=
-!    dwdz(:,ii)=
-!  end do
-!
-!  ! Calculate velocity gradients
-!  dudx=0.
-!  dvdx=0.
-!  dwdx=0.
-!  dudy=0.
-!  dvdy=0.
-!  dwdy=0.
-!  do ii=1,wlev
-!    where(wtr(1:ifull).and.wtr(ie).and.wtr(iw))
-!      dudx(:,ii)=(cnu(ie,ii)-cnu(iw,ii))*0.5*em(:)/ds+dzdx(:,ii)*dudz(:,ii)
-!      dvdx(:,ii)=(cnv(ie,ii)-cnv(iw,ii))*0.5*em(:)/ds+dzdx(:,ii)*dvdz(:,ii)
-!      dwdx(:,ii)=(cnw(ie,ii)-cnw(iw,ii))*0.5*em(:)/ds+dzdx(:,ii)*dwdz(:,ii)
-!    elsewhere(wtr(1:ifull).and.wtr(ie))
-!      dudx(:,ii)=(cnu(ie,ii)-cnu(1:ifull,ii))*em(:)/ds+dzdx(:,ii)*dudz(:,ii)
-!      dvdx(:,ii)=(cnv(ie,ii)-cnv(1:ifull,ii))*em(:)/ds+dzdx(:,ii)*dvdz(:,ii)
-!      dwdx(:,ii)=(cnw(ie,ii)-cnw(1:ifull,ii))*em(:)/ds+dzdx(:,ii)*dwdz(:,ii)
-!    elsewhere(wtr(1:ifull).and.wtr(iw))
-!      dudx(:,ii)=(cnu(1:ifull,ii)-cnu(iw,ii)*em(:)/ds+dzdx(:,ii)*dudz(:,ii)
-!      dvdx(:,ii)=(cnv(1:ifull,ii)-cnv(iw,ii)*em(:)/ds+dzdx(:,ii)*dvdz(:,ii)
-!      dwdx(:,ii)=(cnw(1:ifull,ii)-cnw(iw,ii)*em(:)/ds+dzdx(:,ii)*dwdz(:,ii)
-!    end where
-!    where(wtr(1:ifull).and.wtr(in).and.wtr(is))
-!      dudy(:,ii)=(cnu(in,ii)-cnu(is,ii))*0.5*em(:)/ds+dzdy(:,ii)*dudz(:,ii)
-!      dvdy(:,ii)=(cnv(in,ii)-cnv(is,ii))*0.5*em(:)/ds+dzdy(:,ii)*dvdz(:,ii)
-!      dwdy(:,ii)=(cnw(in,ii)-cnw(is,ii))*0.5*em(:)/ds+dzdy(:,ii)*dwdz(:,ii)
-!    elsewhere(wtr(1:ifull).and.wtr(in))
-!      dudy(:,ii)=(cnu(in,ii)-cnu(1:ifull,ii))*em(:)/ds+dzdy(:,ii)*dudz(:,ii)
-!      dvdy(:,ii)=(cnv(in,ii)-cnv(1:ifull,ii))*em(:)/ds+dzdy(:,ii)*dvdz(:,ii)
-!      dwdy(:,ii)=(cnw(in,ii)-cnw(1:ifull,ii))*em(:)/ds+dzdy(:,ii)*dwdz(:,ii)
-!    elsewhere(wtr(1:ifull).and.wtr(is))
-!      dudy(:,ii)=(cnu(1:ifull,ii)-cnu(is,ii)*em(:)/ds+dzdy(:,ii)*dudz(:,ii)
-!      dvdy(:,ii)=(cnv(1:ifull,ii)-cnv(is,ii)*em(:)/ds+dzdy(:,ii)*dvdz(:,ii)
-!      dwdy(:,ii)=(cnw(1:ifull,ii)-cnw(is,ii)*em(:)/ds+dzdy(:,ii)*dwdz(:,ii)
-!    end where
-!  end do
-!
-!  ! Stagger u and v
-!  do i=1,wlev
-!    snu(:,ii)=
-!    snv(:,ii)=
-!  end do
-!
-!  ! Horizontal terms
-!  do ii=1,wlev
-!    cuu(:)=cou(:,ii)+dt*(snu(:,ii)*dudx(:,ii)+snv(:,ii)*dudy(:,ii))    ! need cartesian version
-!    cvv(:)=cov(:,ii)+dt*(snu(:,ii)*dvdx(:,ii)+snv(:,ii)*dvdy(:,ii))
-!    cww(:)=cow(:,ii)+dt*(snu(:,ii)*dwdx(:,ii)+snv(:,ii)*dwdy(:,ii))
-!    uu(:,ii)=ax*cuu+ay*cvv+az*cww
-!    vv(:,ii)=bx*cuu+by*cvv+bz*cww
-!  end do
-!
-!
-!  ! Vertical terms
-!  w_w(:,ii)=
-!  w_u(:,ii)=w_u(:,ii)+dt*w_w(:,ii)*dudz(:,ii)
-!  w_v(:,ii)=w_v(:,ii)+dt*w_w(:,ii)*dvdz(:,ii)
-!
-!  ! Calculate vertical gradients for temperature and salinity
-!  dtdz(:,1)=
-!  dsdz(:,1)=
-!  do ii=1,wlev
-!    dtdz(:,ii)=
-!    dsdz(:,ii)=
-!  end do
-!  dtdz(:,wlev)=
-!  dsdx(:,wlev)=
-!
-!  ! Calculate temperature and salinity gradients
-!  dtdx=0.
-!  dsdx=0.
-!  dtdy=0.
-!  dsdy=0.
-!  do ii=1,wlev
-!    where(wtr(1:ifull).and.wtr(ie).and.wtr(iw))
-!      dtdx(:,ii)=(nt(ie,ii)-nt(iw,ii))*0.5*em(:)/ds+dzdx(:,ii)*dtdz(:,ii)
-!      dsdx(:,ii)=(ns(ie,ii)-ns(iw,ii))*0.5*em(:)/ds+dzdx(:,ii)*dsdz(:,ii)
-!    elsewhere(wtr(1:ifull).and.wtr(ie))
-!      dtdx(:,ii)=(nt(ie,ii)-nt(1:ifull,ii))*em(:)/ds+dzdx(:,ii)*dtdz(:,ii)
-!      dsdx(:,ii)=(ns(ie,ii)-ns(1:ifull,ii))*em(:)/ds+dzdx(:,ii)*dsdz(:,ii)
-!    elsewhere(wtr(1:ifull).and.wtr(iw))
-!      dtdx(:,ii)=(nt(1:ifull,ii)-nt(iw,ii)*em(:)/ds+dzdx(:,ii)*dtdz(:,ii)
-!      dsdx(:,ii)=(ns(1:ifull,ii)-ns(iw,ii)*em(:)/ds+dzdx(:,ii)*dsdz(:,ii)
-!    end where
-!    where(wtr(1:ifull).and.wtr(in).and.wtr(is))
-!      dtdy(:,ii)=(nt(in,ii)-nt(is,ii))*0.5*em(:)/ds+dzdy(:,ii)*dtdz(:,ii)
-!      dsdy(:,ii)=(ns(in,ii)-ns(is,ii))*0.5*em(:)/ds+dzdy(:,ii)*dsdz(:,ii)
-!    elsewhere(wtr(1:ifull).and.wtr(in))
-!      dtdy(:,ii)=(nt(in,ii)-nt(1:ifull,ii))*em(:)/ds+dzdy(:,ii)*dtdz(:,ii)
-!      dsdy(:,ii)=(ns(in,ii)-ns(1:ifull,ii))*em(:)/ds+dzdy(:,ii)*dsdz(:,ii)
-!    elsewhere(wtr(1:ifull).and.wtr(is))
-!      dtdy(:,ii)=(nt(1:ifull,ii)-nt(is,ii)*em(:)/ds+dzdy(:,ii)*dtdz(:,ii)
-!      dsdy(:,ii)=(ns(1:ifull,ii)-ns(is,ii)*em(:)/ds+dzdy(:,ii)*dsdz(:,ii)
-!    end where
-!  end do
-!
-!  ! Advect temperature and salinity
-!  do ii=1,wlev
-!    tt(:,ii)=w_t(:,ii)+dt*(su(:,ii)*dtdx(:,ii)+sv(:,ii)*dtdy(:,ii))
-!    ss(:,ii)=w_s(:,ii)+dt*(su(:,ii)*dsdx(:,ii)+sv(:,ii)*dsdy(:,ii))
-!  end do
-!
-!  w_t(:,ii)=w_t(:,ii)+dt*w_w(:,ii)*dtdz(:,ii)
-!  w_s(:,ii)=w_s(:,ii)+dt*w_w(:,ii)*dsdz(:,ii)
-!
-!  ! Update rho for corrector step
-!  nu=uu
-!  nv=vv
-!  nt=tt
-!  ns=ss
-!end do
-!
-!do k=1,wlev
-!  call mloimport(0,tt(:,ii),k,0)
-!  call mloimport(1,ss(:,ii),k,0)
-!  call mloimport(2,uu(:,ii),k,0)
-!  call mloimport(3,vv(:,ii),k,0)
+!! Could pre-compute trig terms
+!eta=0.
+!do i=1,4
+!  eta=eta+ba(i)*aa(i)*cos(slat)**2*(cos(wa(i)*stime)*cos(2.*slon)-sin(wa(i)*stime)*sin(2.*slon))
+!  eta=eta+bb(i)*ab(i)*sin(2.*slat)*(cos(wb(i)*stime)*cos(2.*slon)-sin(wb(i)*stime)*sin(2.*slon))
 !end do
 !
 !return
-!end subroutine mlohadv
+!end subroutine tide
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine fills ocean data over land points

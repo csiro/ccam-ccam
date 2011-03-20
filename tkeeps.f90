@@ -41,7 +41,7 @@ real, parameter :: b1      = 1.
 real, parameter :: b2      = 2.
 real, parameter :: entr    = 2.E-3
 real, parameter :: detr    = 3.E-3
-!real, parameter :: cq      = 2.5
+real, parameter :: cq      = 2.5
 real, parameter :: rcrit_l = 0.75
 real, parameter :: rcrit_s = 0.85
 
@@ -66,18 +66,19 @@ real, parameter :: d_1   = 0.35
 !real, parameter :: bb1 = 0.5 ! Luhar low wind
 !real, parameter :: cc1 = 0.3 ! Luhar low wind
 
-integer, parameter :: buoymeth = 3 ! 0=Dry air, 1=Durran (no wgt), 2=Smith, 3=Durran (wgt)
-integer, parameter :: kmlimit  = 0 ! 0=No adjustment, 1=Limit decay in pbl top
-integer, parameter :: usedt    = 0 ! 0=No sub time step, 1=Use dt=100sec time step, 2=Use 2 sub time steps
-integer, parameter :: interpmeth=1 ! 0=linear, 1=quadratic
-integer, parameter :: icm  = 10    ! iterations for pblh
-integer, parameter :: icm2 = 10    ! iterations for tke-eps
-real, parameter :: tol    = 1.E-9  ! tolarance for sectant method
-real, parameter :: dz_ref = 500.   ! dz reference for kmlimit=1
-real, parameter :: alpha  = 0.7    ! weight for updating pblh
-real, parameter :: alpha2 = 0.7    ! weight for updating tke-eps non-linear terms
-real, parameter :: beta1  = 0.7    ! weight for km(t+1) (beta=0.) and km(t) (beta=1.) when calculating eps non-linear terms
-real, parameter :: beta2  = 0.3    ! weight for km(t+1) (beta=0.) and km(t) (beta=1.) when calculating tke non-linear terms
+integer, parameter :: buoymeth   = 3 ! 0=Dry air, 1=Durran (no wgt), 2=Smith, 3=Durran (wgt)
+integer, parameter :: kmlimit    = 0 ! 0=No adjustment, 1=Limit decay in pbl top
+integer, parameter :: usedt      = 0 ! 0=No sub time step, 1=Use dt=100sec time step, 2=Use 2 sub time steps
+integer, parameter :: interpmeth = 1 ! 0=linear, 1=quadratic
+integer, parameter :: cloudmeth  = 0 ! 0=Cuijpers and Bechtold (1995), 1=LDR (1996)
+integer, parameter :: icm  = 10      ! iterations for pblh
+integer, parameter :: icm2 = 10      ! iterations for tke-eps
+real, parameter :: tol    = 1.E-9    ! tolarance for sectant method
+real, parameter :: dz_ref = 500.     ! dz reference for kmlimit=1
+real, parameter :: alpha  = 0.7      ! weight for updating pblh
+real, parameter :: alpha2 = 0.7      ! weight for updating tke-eps non-linear terms
+real, parameter :: beta1  = 0.7      ! weight for km(t+1) (beta=0.) and km(t) (beta=1.) when calculating eps non-linear terms
+real, parameter :: beta2  = 0.3      ! weight for km(t+1) (beta=0.) and km(t) (beta=1.) when calculating tke non-linear terms
 
 contains
 
@@ -142,13 +143,12 @@ real, dimension(ifull) :: dum
 real, dimension(kl-1) :: wpv_flux
 real, dimension(kl-1) :: mflx_hl,tup_hl,qup_hl,w2up_hl
 real xp,wup,qupsat(1),ee
-real cf,qc,rcrit,delq
+real cf,qc,rcrit,delq,sigup,tke_hl,eps_hl
 real cm34,ddt
 real zht,dzht,thetav_hl,qg_hl,sig_hl
 real tup,qup,w2up
 logical, dimension(ifull), intent(in) :: land
 logical sconv
-!real, parameter :: cm34=cm**0.75 ! Crashes the SX6 cross-compiler
 
 cm34=cm**0.75
 
@@ -273,6 +273,8 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         dzht=zht-zz(i,1)
         thetav_hl=0.5*sum(thetav(i,1:2))
         qg_hl=0.5*sum(qg(i,1:2))
+        tke_hl=0.5*sum(tke(i,1:2))
+        eps_hl=0.5*sum(eps(i,1:2))
         ee=0.5*(1./max(zht,10.)+1./max(zi(i)-zht,10.)) ! MJT suggestion
         tup_hl(1)=(tup+dzht*ee*thetav_hl)/(1.+dzht*ee)
         qup_hl(1)=(qup+dzht*ee*qg_hl)/(1.+dzht*ee)             
@@ -284,25 +286,29 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         call getqsat(1,qupsat(1),bb(1,2),aa(1,2))
         if (qup_hl(1).lt.qupsat(1).or.mode.eq.2) then ! dry convection
           mflx_hl(1)=aup*wup
-        else                                       ! moist convection (boundary condition)
+        else                                          ! moist convection (boundary condition)
           sconv=.true.
-          !sigup=max(1.E-6,-1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qup(k)-qup(k-1))/dz_hl(i,k-1))**2
-          !cf=0.5+0.36*arctan(1.55*(qup(k)-qupsat(1))/sqrt(sigup)) ! Cuijpers and Bechtold (1995)
-          qc=qup_hl(1)-qupsat(1) ! cf calculation from LDR (1996)
-          if (land(i)) then
-            rcrit=max(rcrit_l,sig_hl**3)
-          else
-            rcrit=max(rcrit_s,sig_hl**3)
-          end if
-          delq=(1.-rcrit)*qupsat(1)
-          if (qc.ge.delq) then
-            cf=1.
-          else if (qc.gt.0.) then
-            cf=max(1.E-6,1.-0.5*((qc-delq)/delq)**2)
-          else if (qc.gt.-delq) then
-            cf=max(1.E-6,0.5*((qc+delq)/delq)**2)
-          else
-            cf=0.
+          if (cloudmeth.eq.0) then ! Cuijpers and Bechtold (1995)
+            sigup=max(1.E-6,-1.6*tke_hl/eps_hl*cq*kmo(i,1)*((qup_hl(1)-qup)/dzht)**2)
+            cf=0.5+0.36*atan(1.55*(qup_hl(1)-qupsat(1))/sqrt(sigup))
+            cf=min(max(cf,0.),1.)
+          else                     ! cf calculation from LDR (1996)
+            qc=qup_hl(1)-qupsat(1) 
+            if (land(i)) then
+              rcrit=max(rcrit_l,sig_hl**3)
+            else
+              rcrit=max(rcrit_s,sig_hl**3)
+            end if
+            delq=(1.-rcrit)*qupsat(1)
+            if (qc.ge.delq) then
+              cf=1.
+            else if (qc.gt.0.) then
+              cf=max(1.E-6,1.-0.5*((qc-delq)/delq)**2)
+            else if (qc.gt.-delq) then
+              cf=max(1.E-6,0.5*((qc+delq)/delq)**2)
+            else
+              cf=0.
+            end if
           end if
           mflx_hl(1)=cf*aup*wup
         end if
@@ -310,62 +316,68 @@ if (mode.ne.1) then ! mass flux when mode is an even number
           xp=w2up/(w2up-w2up_hl(1))
           xp=min(max(xp,0.),1.)
           zi(i)=(1.-xp)*zz(i,1)+xp*zht
-          exit
-        end if
+        else
 
-        ! half level ----------------
-        do k=2,kl-1
-          zht=0.5*sum(zz(i,k:k+1))
-          thetav_hl=0.5*sum(thetav(i,k:k+1))
-          qg_hl=0.5*sum(qg(i,k:k+1))
-          ee=0.5*(1./max(zht,10.)+1./max(zi(i)-zht,10.)) ! MJT suggestion
-          tup_hl(k)=(tup_hl(k-1)+dz_fl(i,k)*ee*thetav_hl)/(1.+dz_fl(i,k)*ee)
-          qup_hl(k)=(qup_hl(k-1)+dz_fl(i,k)*ee*qg_hl)/(1.+dz_fl(i,k)*ee)             
-          w2up_hl(k)=(w2up_hl(k-1)+2.*dz_fl(i,k)*b2*grav*(tup_hl(k)-thetav_hl)/thetav_hl)/(1.+2.*dz_fl(i,k)*b1*ee)
-          wup=sqrt(max(w2up_hl(k),0.))
-          if (.not.sconv) then
-            sig_hl=0.5*sum(sig(k:k+1))
-            aa(1,2)=ps(i)*sig_hl
-            bb(1,2)=tup_hl(k)/((1.+0.61*qup_hl(k))*0.5*sum(sigkap(k:k+1)))
-            call getqsat(1,qupsat(1),bb(1,2),aa(1,2))
-            if (qup_hl(k).lt.qupsat(1).or.mode.eq.2) then ! dry convection
-              mflx_hl(k)=aup*wup
-            else                                       ! moist convection (boundary condition)
-              sconv=.true.
-              !sigup=max(1.E-6,-1.6*tke(i,k)/eps(i,k)*cq*km(i,k)*((qup(k)-qup(k-1))/dz_hl(i,k-1))**2
-              !cf=0.5+0.36*arctan(1.55*(qup(k)-qupsat(1))/sqrt(sigup)) ! Cuijpers and Bechtold (1995)
-              qc=qup_hl(k)-qupsat(1) ! cf calculation from LDR (1996)
-              if (land(i)) then
-                rcrit=max(rcrit_l,sig_hl**3)
-              else
-                rcrit=max(rcrit_s,sig_hl**3)
+          ! half level ----------------
+          do k=2,kl-1
+            zht=0.5*sum(zz(i,k:k+1))
+            thetav_hl=0.5*sum(thetav(i,k:k+1))
+            qg_hl=0.5*sum(qg(i,k:k+1))
+            tke_hl=0.5*sum(tke(i,k:k+1))
+            eps_hl=0.5*sum(eps(i,k:k+1))
+            ee=0.5*(1./max(zht,10.)+1./max(zi(i)-zht,10.)) ! MJT suggestion
+            tup_hl(k)=(tup_hl(k-1)+dz_fl(i,k)*ee*thetav_hl)/(1.+dz_fl(i,k)*ee)
+            qup_hl(k)=(qup_hl(k-1)+dz_fl(i,k)*ee*qg_hl)/(1.+dz_fl(i,k)*ee)             
+            w2up_hl(k)=(w2up_hl(k-1)+2.*dz_fl(i,k)*b2*grav*(tup_hl(k)-thetav_hl)/thetav_hl)/(1.+2.*dz_fl(i,k)*b1*ee)
+            wup=sqrt(max(w2up_hl(k),0.))
+            if (.not.sconv) then
+              sig_hl=0.5*sum(sig(k:k+1))
+              aa(1,2)=ps(i)*sig_hl
+              bb(1,2)=tup_hl(k)/((1.+0.61*qup_hl(k))*0.5*sum(sigkap(k:k+1)))
+              call getqsat(1,qupsat(1),bb(1,2),aa(1,2))
+              if (qup_hl(k).lt.qupsat(1).or.mode.eq.2) then ! dry convection
+                mflx_hl(k)=aup*wup
+              else                                          ! moist convection (boundary condition)
+                sconv=.true.
+                if (cloudmeth.eq.0) then ! Cuijpers and Bechtold (1995)
+                  sigup=max(1.E-6,-1.6*tke_hl/eps_hl*cq*kmo(i,k)*((qup_hl(k)-qup_hl(k-1))/dz_fl(i,k))**2)
+                  cf=0.5+0.36*atan(1.55*(qup_hl(k)-qupsat(1))/sqrt(sigup))
+                  cf=min(max(cf,0.),1.) 
+                else                     ! cf calculation from LDR (1996)
+                  qc=qup_hl(k)-qupsat(1) 
+                  if (land(i)) then
+                    rcrit=max(rcrit_l,sig_hl**3)
+                  else
+                    rcrit=max(rcrit_s,sig_hl**3)
+                  end if
+                  delq=(1.-rcrit)*qupsat(1)
+                  if (qc.ge.delq) then
+                    cf=1.
+                  else if (qc.gt.0.) then
+                    cf=max(1.E-6,1.-0.5*((qc-delq)/delq)**2)
+                  else if (qc.gt.-delq) then
+                    cf=max(1.E-6,0.5*((qc+delq)/delq)**2)
+                  else
+                    cf=0.
+                  end if
+                end if
+                mflx_hl(k)=cf*aup*wup
               end if
-              delq=(1.-rcrit)*qupsat(1)
-              if (qc.ge.delq) then
-                cf=1.
-              else if (qc.gt.0.) then
-                cf=max(1.E-6,1.-0.5*((qc-delq)/delq)**2)
-              else if (qc.gt.-delq) then
-                cf=max(1.E-6,0.5*((qc+delq)/delq)**2)
-              else
-                cf=0.
-              end if
-              mflx_hl(k)=cf*aup*wup
-            end if
-          else
-            if (w2up_hl(k).gt.0.) then       ! moist convection
-              mflx_hl(k)=mflx_hl(k-1)*exp((entr-detr)*dz_fl(i,k))
             else
-              mflx_hl(k)=0.
+              if (w2up_hl(k).gt.0.) then       ! moist convection
+                mflx_hl(k)=mflx_hl(k-1)*exp((entr-detr)*dz_fl(i,k))
+              else
+                mflx_hl(k)=0.
+              end if
             end if
-          end if
-          if (w2up_hl(k).le.0.) then
-            xp=w2up_hl(k-1)/(w2up_hl(k-1)-w2up_hl(k))
-            xp=min(max(xp,0.),1.)
-            zi(i)=(1.-xp)*0.5*zz(i,k-1)+0.5*zz(i,k)+xp*0.5*zz(i,k+1)
-            exit
-          end if
-        end do
+            if (w2up_hl(k).le.0.) then
+              xp=w2up_hl(k-1)/(w2up_hl(k-1)-w2up_hl(k))
+              xp=min(max(xp,0.),1.)
+              zi(i)=(1.-xp)*0.5*zz(i,k-1)+0.5*zz(i,k)+xp*0.5*zz(i,k+1)
+              exit
+            end if
+          end do
+        end if
         zi(i)=alpha*zi(i)+(1.-alpha)*ziold(i)
         ziold(i)=zi(i)
       end do

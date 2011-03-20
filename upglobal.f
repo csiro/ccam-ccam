@@ -46,10 +46,6 @@
 
       call start_log(upglobal_begin)
       
-      if (.not.allocated(tnsav)) then
-        allocate(tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl))
-      end if
-      
       intsch=mod(ktau,2)
 
       if(m>=5)then
@@ -68,6 +64,9 @@
       if(npex==-1)then   ! extrap. Adams-Bashforth style 
 !       may not be as good as usual jlm method, because 
 !       will not handle residual zs terms as accurately       
+        if (.not.allocated(tnsav)) then
+          allocate(tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl))
+        end if
         if(ktau==1)then
 	  tnsav(:,:) =tn(:,:)
 	  unsav(:,:) =un(:,:)

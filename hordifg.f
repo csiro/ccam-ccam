@@ -270,7 +270,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
                  ! Probably works better for grid scales that
                  ! are less than 500 m
 
-       case DEFAULT                                          ! MJT smag
+       case DEFAULT                                           ! MJT smag
          write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm  ! MJT smag
          stop                                                 ! MJT smag
       end select
@@ -288,13 +288,13 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
           t_kh(1:ifull,k)= max(max(tke(1:ifull,k)*tke(1:ifull,k)  ! MJT tke
      &    /eps(1:ifull,k),1.E-7)*hdif,t_kh(1:ifull,k))            ! MJT tke
                                                                   ! MJT tke
-          shear(:,k)=2.*(dudx(:,k)+dzdx(:,k)*dudz(:,k))**2        ! MJT tke
-     &              +2.*(dvdy(:,k)+dzdy(:,k)*dvdz(:,k))**2        ! MJT tke
+          shear(:,k)=2.*(dudx(:,k)-dzdx(:,k)*dudz(:,k))**2        ! MJT tke
+     &              +2.*(dvdy(:,k)-dzdy(:,k)*dvdz(:,k))**2        ! MJT tke
      &              +2.*dwdz(:,k)**2                              ! MJT tke
-     &              +(dudy(:,k)+dzdy(:,k)*dudz(:,k)               ! MJT tke
-     &               +dvdx(:,k)+dzdx(:,k)*dvdz(:,k))**2           ! MJT tke
-     &              +(dudz(:,k)+dwdx(:,k)+dzdx(:,k)*dwdz(:,k))**2 ! MJT tke
-     &              +(dvdz(:,k)+dwdy(:,k)+dzdy(:,k)*dwdz(:,k))**2 ! MJT tke
+     &              +(dudy(:,k)-dzdy(:,k)*dudz(:,k)               ! MJT tke
+     &               +dvdx(:,k)-dzdx(:,k)*dvdz(:,k))**2           ! MJT tke
+     &              +(dudz(:,k)+dwdx(:,k)-dzdx(:,k)*dwdz(:,k))**2 ! MJT tke
+     &              +(dvdz(:,k)+dwdy(:,k)-dzdy(:,k)*dwdz(:,k))**2 ! MJT tke
         end do                                                    ! MJT tke
       end if                                                      ! MJT tke
 
