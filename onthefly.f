@@ -118,12 +118,12 @@
       endif  ! ( myid==0 )
       call MPI_Bcast(ik     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
       if (ik.lt.0) then
-        if (nested.eq.2) then
-          write(6,*) "WARN: Cannot locate date/time in input file"	
+        if (nested==2) then
+          write(6,*) "WARN: Cannot locate date/time in input file"
           return
-	end if
-	write(6,*) "ERROR: Cannot locate date/time in input file"
-	stop
+        end if
+        write(6,*) "ERROR: Cannot locate date/time in input file"
+        stop
       end if
       call MPI_Bcast(jk     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
       call MPI_Bcast(kk     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
@@ -986,7 +986,7 @@ c       incorporate other target land mask effects
         !--------------------------------------------------
         ! MJT mlo - read remaining sea ice data (must occur after snow data is read, but before snow data is processed)
         if (nmlo.ne.0) then
-          if (.not.allocated(micdwn)) allocate(micdwn(ifull,8))
+          if (.not.allocated(micdwn)) allocate(micdwn(ifull,10))
           do k=1,8
             select case(k)
               case(1,2,3)
@@ -1002,8 +1002,8 @@ c       incorporate other target land mask effects
               case(7)
                 t_a=snowd_a/1000.
               case(8)
-                 t_a=0.
-                 call histrd1(ncid,iarchi,ier,'sto',ik,6*ik,t_a,
+                t_a=0.
+                call histrd1(ncid,iarchi,ier,'sto',ik,6*ik,t_a,
      &                 6*ik*ik)
             end select
             if (iotest) then
@@ -1022,6 +1022,64 @@ c       incorporate other target land mask effects
               call doints4(t_a,micdwn(:,k),nface4,xg4,yg4,nord,ik)
             end if
           end do
+          ucc=0.
+          vcc=0.
+          call histrd1(ncid,iarchi,ier,'uic',ik,6*ik,ucc,6*ik*ik)
+          call histrd1(ncid,iarchi,ier,'vic',ik,6*ik,vcc,6*ik*ik)
+          if (iotest) then
+            if (myid==0) then
+              call ccmpi_distribute(micdwn(:,9),ucc)
+              call ccmpi_distribute(micdwn(:,10),vcc)
+            else
+              call ccmpi_distribute(micdwn(:,9))
+              call ccmpi_distribute(micdwn(:,10))
+            end if
+          else
+            if (myid==0) then
+              where (land_a)
+                ucc=spval
+                vcc=spval
+              end where
+              call fill_cc(ucc,spval,ik,0)
+              call fill_cc(vcc,spval,ik,0)
+              do iq=1,ik*ik*6
+ !              first set up winds in Cartesian "source" coords
+                uc=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
+                vc=ays_a(iq)*ucc(iq) + bys_a(iq)*vcc(iq)
+                wc=azs_a(iq)*ucc(iq) + bzs_a(iq)*vcc(iq)
+!               now convert to winds in "absolute" Cartesian components
+                ucc(iq)=uc*rotpoles(1,1)+vc*rotpoles(1,2)
+     &                 +wc*rotpoles(1,3)
+                vcc(iq)=uc*rotpoles(2,1)+vc*rotpoles(2,2)
+     &                 +wc*rotpoles(2,3)
+                wcc(iq)=uc*rotpoles(3,1)+vc*rotpoles(3,2)
+     &                 +wc*rotpoles(3,3)
+              end do
+!             interpolate all required arrays to new C-C positions
+              call ints4(ucc, uct_g, nface4,xg4,yg4,nord,ik)
+              call ints4(vcc, vct_g, nface4,xg4,yg4,nord,ik)
+              call ints4(wcc, wct_g, nface4,xg4,yg4,nord,ik)
+              do iq=1,ifull_g
+!              now convert to "target" Cartesian components (transpose used)
+               uct_gg=uct_g(iq)*rotpole(1,1)+vct_g(iq)*rotpole(2,1)
+     &                           +wct_g(iq)*rotpole(3,1)
+               vct_gg=uct_g(iq)*rotpole(1,2)+vct_g(iq)*rotpole(2,2)
+     &                           +wct_g(iq)*rotpole(3,2)
+               wct_gg=uct_g(iq)*rotpole(1,3)+vct_g(iq)*rotpole(2,3)
+     &                           +wct_g(iq)*rotpole(3,3)
+!              then finally to "target" local x-y components
+               uct_g(iq) = ax_g(iq)*uct_gg + ay_g(iq)*vct_gg +
+     &                   az_g(iq)*wct_gg
+               vct_g(iq) = bx_g(iq)*uct_gg + by_g(iq)*vct_gg +
+     &                   bz_g(iq)*wct_gg
+              enddo               ! iq loop
+              call ccmpi_distribute(micdwn(:,9), uct_g)
+              call ccmpi_distribute(micdwn(:,10), vct_g)
+            else ! myid /= 0
+              call ccmpi_distribute(micdwn(:,9))
+              call ccmpi_distribute(micdwn(:,10))
+            endif ! myid==0
+          end if ! iotest
           if (.not.allocated(watbdy)) then
             allocate(watbdy(ifull+iextra))
             watbdy=0.
@@ -1190,7 +1248,7 @@ c       incorporate other target land mask effects
         ! MJT cable
         if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
           do k=1,ncp
-	    t_a=0.
+            t_a=0.
             write(vname,'("cplant",I1.1)') k
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   t_a,6*ik*ik)
@@ -1212,7 +1270,7 @@ c       incorporate other target land mask effects
             end if ! iotest
           end do
           do k=1,ncs
-	    t_a=0.
+            t_a=0.
             write(vname,'("csoil",I1.1)') k
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   t_a,6*ik*ik)

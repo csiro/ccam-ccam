@@ -2056,10 +2056,10 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
      &        -0.833224666E-14*depth(:)**5
      &        +0.136974583E-17*depth(:)**6
      &        -0.935923382E-22*depth(:)**7
-	    mlodwn(:,k,1)=tss(:)*mlodwn(:,k,1)/18.4231944
+            mlodwn(:,k,1)=tss(:)*mlodwn(:,k,1)/18.4231944
             mlodwn(:,k,1)=max(mlodwn(:,k,1),275.)	    
             mlodwn(:,k,2)=34.72
-	    mlodwn(:,k,2)=max(mlodwn(:,k,2),0.)
+            mlodwn(:,k,2)=max(mlodwn(:,k,2),0.)
             mlodwn(:,k,3:4)=0.
             !where (zs(1:ifull).gt.1.) ! lakes?
             !  mlodwn(:,k,2)=0.
@@ -2075,7 +2075,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
             micdwn(:,5)=1.
             micdwn(:,6)=1.
           end where
-          micdwn(:,7:8)=0.
+          micdwn(:,7:10)=0.
           where (.not.land)
             fracice=micdwn(:,5)
             sicedep=micdwn(:,6)

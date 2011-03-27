@@ -981,6 +981,10 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           call attrib(idnc,idim,3,'tggsn4',lname,'K',100.,425.,0,itype)
           lname = 'Ice heat store'
           call attrib(idnc,idim,3,'sto',lname,'J/m2',0.,1300.,0,itype)
+          lname = 'x-component ice'
+          call attrib(idnc,idim,3,'uic',lname,'m/s',-130.,130.,0,itype)
+          lname = 'y-component ice'
+          call attrib(idnc,idim,3,'vic',lname,'m/s',-130.,130.,0,itype)
           if (abs(nmlo).ge.2) then
             lname = 'Surface water'
             call attrib(idnc,idim,3,'swater',lname,'mm',0.,260.,0,
@@ -1168,7 +1172,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       !---------------------------------------------------------
       ! MJT mlo
       if (nmlo.ne.0) then
-        allocate(mlodwn(ifull,wlev,4),micdwn(ifull,8))
+        allocate(mlodwn(ifull,wlev,4),micdwn(ifull,10))
         mlodwn(:,:,1:2)=999.
         mlodwn(:,:,3:4)=0.
         micdwn=999.
@@ -1217,6 +1221,8 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         end if
         call histwrt3(micdwn(:,4),'tggsn4',idnc,iarch,local)
         call histwrt3(micdwn(:,8),'sto',idnc,iarch,local)
+        call histwrt3(micdwn(:,9),'uic',idnc,iarch,local)
+        call histwrt3(micdwn(:,10),'vic',idnc,iarch,local)
         if (abs(nmlo).ge.2) then
           call histwrt3(watbdy(1:ifull),'swater',idnc,iarch,local)
         end if

@@ -344,6 +344,7 @@ use indices_m
 use map_m
 use mlo
 use soil_m
+use vecsuv_m
 
 implicit none
 
@@ -351,20 +352,24 @@ include 'newmpar.h'
 include 'const_phys.h'
 include 'parm.h'
 
-integer l,ii
+integer l,ii,intsch
+integer, dimension(ifull,wlev) :: nface
 real, dimension(ifull+iextra) :: ee
 real, dimension(ifull) :: xp,xm
 real, dimension(ifull) :: dpsdx,dpsdy
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns
-real, dimension(ifull+iextra,wlev) :: dep,rho
-real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s
+real, dimension(ifull+iextra,wlev) :: cou,cov,cow
+real, dimension(ifull+iextra,wlev) :: dep,rhobar
+real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,rho,dz,dzbar
 real, dimension(ifull,wlev) :: nuh,nvh
 real, dimension(ifull,wlev) :: dzdx,dzdy
 real, dimension(ifull,wlev) :: drdx,drdy,drdz
-real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
+real, dimension(ifull,wlev) :: xg,yg
 real, dimension(:,:), allocatable, save :: oldu1,oldv1
 logical, dimension(ifull+iextra) :: wtr
-integer, parameter :: lmax=0 ! 1=predictor-only, 2=predictor-corrector
+integer, parameter :: lmax=1 ! 0=no-advection, 1=predictor-only, 2=predictor-corrector
+
+intsch=mod(ktau,2)
 
 !Define land/sea mask
 ee=0.
@@ -374,18 +379,37 @@ end where
 call bounds(ee)
 wtr=ee.lt.0.5
 
+cou=0.
+cov=0.
+cow=0.
+rhobar=1030.
+dep=0.
+dz=0.
+w_t=293.
+w_s=0.
+w_u=0.
+w_v=0.
+nt=293.
+ns=30.
+nu=0.
+nv=0.
+
 ! Initialise arrays
 do ii=1,wlev
   call mloexpdep(0,dep(1:ifull,ii),ii,0)
-  call bounds(dep(:,ii))
+  call mloexpdep(1,dz(:,ii),ii,0)
   call mloexport(0,w_t(:,ii),ii,0)
+  call mlofill(w_t(:,ii))
   call mloexport(1,w_s(:,ii),ii,0)
+  call mlofill(w_s(:,ii))
   call mloexport(2,w_u(:,ii),ii,0)
   call mloexport(3,w_v(:,ii),ii,0)
 end do
+call bounds(dep)
 call bounds(ps)
 
 dep=max(dep,1.E-3)
+dz=max(dz,1.E-3/real(wlev))
 
 ! Calculate depth gradient
 dzdx=0.
@@ -427,35 +451,43 @@ elsewhere(wtr(1:ifull).and.wtr(is))
 end where
 
 ! Calculate pressure and gradient for slow mode
-call mloexpdensity(rho(1:ifull,:),w_t,w_s,dep(1:ifull,:),0)
-do ii=1,wlev
-  call bounds(rho(:,ii))
+call mloexpdensity(rho,w_t,w_s,dep(1:ifull,:),0)
+rhobar(1:ifull,1)=rho(:,1)*dz(:,1)
+dzbar(:,1)=dz(:,1)
+do ii=2,wlev
+  rhobar(1:ifull,ii)=rhobar(1:ifull,ii-1)+rho(:,ii)*dz(:,ii)
+  dzbar(:,ii)=dzbar(:,ii-1)+dz(:,ii)
 end do
-drdz(:,1)=(rho(1:ifull,2)-rho(1:ifull,1))/max(dep(1:ifull,2)-dep(1:ifull,1),1.E-20)
-do ii=2,wlev-1
-  drdz(:,ii)=(rho(1:ifull,ii+1)-rho(1:ifull,ii-1))/max(dep(1:ifull,ii+1)-dep(1:ifull,ii-1),1.E-20)
-end do
-drdz(:,wlev)=(rho(1:ifull,wlev)-rho(1:ifull,wlev-1))/max(dep(1:ifull,wlev)-dep(1:ifull,wlev-1),1.E-20)
+rhobar(1:ifull,:)=rhobar(1:ifull,:)/dzbar
+call bounds(rhobar)
 
+drdz(:,1)=(rhobar(1:ifull,2)-rhobar(1:ifull,1))/max(dep(1:ifull,2)-dep(1:ifull,1),1.E-20)
+do ii=2,wlev-1
+  drdz(:,ii)=(rhobar(1:ifull,ii+1)-rhobar(1:ifull,ii-1))/max(dep(1:ifull,ii+1)-dep(1:ifull,ii-1),1.E-20)
+end do
+drdz(:,wlev)=(rhobar(1:ifull,wlev)-rhobar(1:ifull,wlev-1))/max(dep(1:ifull,wlev)-dep(1:ifull,wlev-1),1.E-20)
+
+! simple treatment of land-sea mask and bathmetry with masking gradients
 drdx=0.
 drdy=0.
-do ii=1,wlev
-  where(wtr(1:ifull).and.wtr(ie).and.wtr(iw))
-    drdx(:,ii)=(rho(ie,ii)-rho(iw,ii))*0.5*em(1:ifull)/ds-dzdx(:,ii)*drdz(:,ii)
-  elsewhere(wtr(1:ifull).and.wtr(ie))
-    drdx(:,ii)=(rho(ie,ii)-rho(1:ifull,ii))*em(1:ifull)/ds-dzdx(:,ii)*drdz(:,ii)
-  elsewhere(wtr(1:ifull).and.wtr(iw))
-    drdx(:,ii)=(rho(1:ifull,ii)-rho(iw,ii))*em(1:ifull)/ds-dzdx(:,ii)*drdz(:,ii)
+do ii=1,wlev-1
+  where(wtr(1:ifull).and.wtr(ie).and.wtr(iw).and.(dep(ie,wlev).le.dep(1:ifull,ii)).and.(dep(iw,wlev).le.dep(1:ifull,ii)))
+    drdx(:,ii)=(rhobar(ie,ii)-rhobar(iw,ii))*0.5*em(1:ifull)/ds-dzdx(:,ii)*drdz(:,ii)
+  elsewhere(wtr(1:ifull).and.wtr(ie).and.(dep(ie,wlev).le.dep(1:ifull,ii)))
+    drdx(:,ii)=(rhobar(ie,ii)-rhobar(1:ifull,ii))*em(1:ifull)/ds-dzdx(:,ii)*drdz(:,ii)
+  elsewhere(wtr(1:ifull).and.wtr(iw).and.(dep(iw,wlev).le.dep(1:ifull,ii)))
+    drdx(:,ii)=(rhobar(1:ifull,ii)-rhobar(iw,ii))*em(1:ifull)/ds-dzdx(:,ii)*drdz(:,ii)
   end where
-  where(wtr(1:ifull).and.wtr(in).and.wtr(is))
-    drdy(:,ii)=(rho(in,ii)-rho(is,ii))*0.5*em(1:ifull)/ds-dzdy(:,ii)*drdz(:,ii)
-  elsewhere(wtr(1:ifull).and.wtr(in))
-    drdy(:,ii)=(rho(in,ii)-rho(1:ifull,ii))*em(1:ifull)/ds-dzdy(:,ii)*drdz(:,ii)
-  elsewhere(wtr(1:ifull).and.wtr(is))
-    drdy(:,ii)=(rho(1:ifull,ii)-rho(is,ii))*em(1:ifull)/ds-dzdy(:,ii)*drdz(:,ii)
+  where(wtr(1:ifull).and.wtr(in).and.wtr(is).and.(dep(in,wlev).le.dep(1:ifull,ii)).and.(dep(is,wlev).le.dep(1:ifull,ii)))
+    drdy(:,ii)=(rhobar(in,ii)-rhobar(is,ii))*0.5*em(1:ifull)/ds-dzdy(:,ii)*drdz(:,ii)
+  elsewhere(wtr(1:ifull).and.wtr(in).and.(dep(in,wlev).le.dep(1:ifull,ii)))
+    drdy(:,ii)=(rhobar(in,ii)-rhobar(1:ifull,ii))*em(1:ifull)/ds-dzdy(:,ii)*drdz(:,ii)
+  elsewhere(wtr(1:ifull).and.wtr(is).and.(dep(is,wlev).le.dep(1:ifull,ii)))
+    drdy(:,ii)=(rhobar(1:ifull,ii)-rhobar(is,ii))*em(1:ifull)/ds-dzdy(:,ii)*drdz(:,ii)
   end where
 end do
 
+! coriolis terms
 xp=1.
 xm=0.
 where (wtr(1:ifull))
@@ -464,18 +496,17 @@ where (wtr(1:ifull))
 end where
 
 ! Split U and V coriolis and pressure gradient terms
-! (Here we differentiate for horizontal X and Y.  The correction for levels is built into rho, but the varying bottom
+! (Here we differentiate for true horizontal X and Y.  The correction for levels is built into rhobar, but the varying bottom
 !  depth is then removed)
+! (Could split this before and after advection terms so that updated value of rho could be used)
 do ii=1,wlev
-  nu(1:ifull,ii)=(w_u(:,ii)+xm*w_v(:,ii)-dt*grav*dep(1:ifull,ii)*(drdx(:,ii)+xm*drdy(:,ii))/rho(1:ifull,ii) &
-                                              -dt*(dpsdx+xm*dpsdy)/rho(1:ifull,ii))/xp
-  nv(1:ifull,ii)=(w_v(:,ii)-xm*w_u(:,ii)-dt*grav*dep(1:ifull,ii)*(drdy(:,ii)-xm*drdx(:,ii))/rho(1:ifull,ii) &
-                                              -dt*(dpsdy-xm*dpsdx)/rho(1:ifull,ii))/xp
+  nu(1:ifull,ii)=(w_u(:,ii)+xm*w_v(:,ii)-dt*grav*dep(1:ifull,ii)*(drdx(:,ii)+xm*drdy(:,ii))/rho(:,ii) &
+                                              -dt*(dpsdx+xm*dpsdy)/rho(:,ii))/xp
+  nv(1:ifull,ii)=(w_v(:,ii)-xm*w_u(:,ii)-dt*grav*dep(1:ifull,ii)*(drdy(:,ii)-xm*drdx(:,ii))/rho(:,ii) &
+                                              -dt*(dpsdy-xm*dpsdx)/rho(:,ii))/xp
 end do
 w_u=nu(1:ifull,:)
 w_v=nv(1:ifull,:)
-nt(1:ifull,:)=w_t
-ns(1:ifull,:)=w_s
 
 if (.not.allocated(oldu1)) then
   allocate(oldu1(ifull,wlev))
@@ -489,14 +520,6 @@ end if
 
 do l=1,lmax ! predictor-corrector loop
 
-  ! update bounds of prognostic variables
-  do ii=1,wlev
-    call bounds(nu(:,ii))
-    call bounds(nv(:,ii))
-    call bounds(nt(:,ii))
-    call bounds(ns(:,ii))
-  end do
-
   if (l.eq.1) then
     nuh(1:ifull,:)=1.5*w_u-0.5*oldu1 ! U at t+1/2
     nvh(1:ifull,:)=1.5*w_v-0.5*oldv1 ! V at t+1/2
@@ -506,35 +529,51 @@ do l=1,lmax ! predictor-corrector loop
   end if
 
   ! Calculate depature points
-  call mlodeps(nuh,nvh,x3d,y3d,z3d)
+  call mlodeps(nuh,nvh,nface,xg,yg)
 
 !  Vertical advection
 !  call mlovadv
 
-!  Convert (u,v) to cartesian coordinates (U,V,W)
-!  do ii=1,wlev
-!    cou(:,ii)=ax*ou(:,ii)+bx*ov(:,ii)
-!    cov(:,ii)=ay*ou(:,ii)+by*ov(:,ii)
-!    cow(:,ii)=az*ou(:,ii)+bz*ov(:,ii)
-!  end do
+! Convert (u,v) to cartesian coordinates (U,V,W)
+  do ii=1,wlev
+    cou(1:ifull,ii)=ax*w_u(:,ii)+bx*w_v(:,ii)
+    cov(1:ifull,ii)=ay*w_u(:,ii)+by*w_v(:,ii)
+    cow(1:ifull,ii)=az*w_u(:,ii)+bz*w_v(:,ii)
+  end do
 
-!  Horizontal advection for U,V,W
-!  call mloints(cou,nface,xg,yg)
-!  call mloints(cov,nface,xg,yg)
-!  call mloints(cow,nface,xg,yg)
+! Horizontal advection for U,V,W (volume integrated)
+  cou(1:ifull,:)=cou(1:ifull,:)*dz
+  cov(1:ifull,:)=cov(1:ifull,:)*dz
+  cow(1:ifull,:)=cow(1:ifull,:)*dz
+  call bounds(cou)
+  call bounds(cov)
+  call bounds(cow)
+  call mloints(cou,intsch,nface,xg,yg,2)
+  call mloints(cov,intsch,nface,xg,yg,2)
+  call mloints(cow,intsch,nface,xg,yg,2)
+  cou(1:ifull,:)=cou(1:ifull,:)/dz
+  cov(1:ifull,:)=cov(1:ifull,:)/dz
+  cow(1:ifull,:)=cow(1:ifull,:)/dz
 
 !  Rotate vector to arrival point
 !  call mlorot
 
-!  Convert (U,V,W) back to conformal cubic coordinates
-!  do ii=1,wlev
-!    nu(:,ii)=ax*cou(:,ii)+ay*cov(:,ii)+az*cow(:,ii)
-!    nv(:,ii)=bx*cou(:,ii)+by*cov(:,ii)+bz*cow(:,ii)
-!  end do
+! Convert (U,V,W) back to conformal cubic coordinates
+  do ii=1,wlev
+    nu(:,ii)=ax*cou(:,ii)+ay*cov(:,ii)+az*cow(:,ii)
+    nv(:,ii)=bx*cou(:,ii)+by*cov(:,ii)+bz*cow(:,ii)
+  end do
 
-!  Horizontal advector for T,S
-!  call mloints(nt,nface,xg,yg)
-!  call mloints(ns,nface,xg,yg)
+! Horizontal advector for T,S (volume integrated)
+  nt(1:ifull,:)=w_t*dz
+  ns(1:ifull,:)=w_s*dz
+  call bounds(nt)
+  call bounds(ns)
+  call mloints(nt,intsch,nface,xg,yg,2)
+  call mloints(ns,intsch,nface,xg,yg,5)
+  nt(1:ifull,:)=nt(1:ifull,:)/dz
+  ns(1:ifull,:)=ns(1:ifull,:)/dz
+  ns=max(ns,0.)
 
 end do
 
@@ -551,6 +590,93 @@ do ii=1,wlev
   call mloimport(3,nv(1:ifull,ii),ii,0)
 end do
 
+! Advect sea-ice
+!do ii=1,wlev
+!  call mloexpice(w_u(:,1),8,0)
+!  call mloexpice(w_v(:,1),9,0)
+!end do
+
+!if (.not.allocated(oldiceu1)) then
+!  allocate(oldiceu1(ifull))
+!  allocate(oldicev1(ifull))
+!  oldiceu1=w_u(:,1)
+!  oldicev1=w_v(:,1)
+!end if
+
+!do l=1,lmax
+!
+!  if (l.eq.1) then
+!    nuh(1:ifull,1)=1.5*w_u(:,1)-0.5*oldiceu1 ! U at t+1/2
+!    nvh(1:ifull,1)=1.5*w_v(:,1)-0.5*oldicev1 ! V at t+1/2
+!  else
+!    nuh(1:ifull,1)=0.5*nu(1:ifull,1)+0.5*w_u(:,1) ! U at t+1/2
+!    nvh(1:ifull,1)=0.5*nv(1:ifull,1)+0.5*w_v(:,1) ! V at t+1/2
+!  end if
+!
+!  ! Calculate depature points
+!  call mlodeps(nuh(:,1),nvh(:,1),nface(:,1),xg(:,1),yg(:,1))
+!
+!! Account for ice deformation
+!!...
+!
+!! Horizontal advector for ice fraction
+!  nt(:,1)=i_fracice
+!  call bounds(nt(:,1))
+!  call mloints(nt(:,1),intsch,nface(:,1),xg(:,1),yg(:,1),2)
+!  nt=max(nt,0.)
+!  newfracice=nt(:,1)
+!
+!! Horizontal advector for ice volume
+!  nt(:,1)=i_dic*i_fracice
+!  call bounds(nt(:,1))
+!  call mloints(nt(:,1),intsch,nface(:,1),xg(:,1),yg(:,1),2)
+!  nt=max(nt,0.)
+!  newdic=nt(:,1)/newfracice
+!
+!! Horizontal advector for snow volume
+!  nt(:,1)=i_dsn*i_fracice
+!  call bounds(nt(:,1))
+!  call mloints(nt(:,1),intsch,nface(:,1),xg(:,1),yg(:,1),2)
+!  nt=max(nt,0.)
+!  newdsn=nt(:,1)/newfracice
+!
+!! Horizontal advector for energy store
+!  nt(:,1)=i_sto*i_fracice
+!  call bounds(nt(:,1))
+!  call mloints(nt(:,1),intsch,nface(:,1),xg(:,1),yg(:,1),2)
+!  nt=max(nt,0.)
+!  newsto=nt(:,1)/newfracice
+!
+!! Horizontal advector for temperatures 
+!  nt(:,1)=i_tsurf*i_fracice
+!  call bounds(nt(:,1))
+!  call mloints(nt(:,1),intsch,nface(:,1),xg(:,1),yg(:,1),2)
+!  nt=max(nt,0.)
+!  newtsurf=nt(:,1)/newfracice
+!  nt(:,1)=i_t0*i_fracice
+!  call bounds(nt(:,1))
+!  call mloints(nt(:,1),intsch,nface(:,1),xg(:,1),yg(:,1),2)
+!  nt=max(nt,0.)
+!  newt0=nt(:,1)/newfracice
+!  nt(:,1)=i_t1*i_fracice
+!  call bounds(nt(:,1))
+!  call mloints(nt(:,1),intsch,nface(:,1),xg(:,1),yg(:,1),2)
+!  nt=max(nt,0.)
+!  newt1=nt(:,1)/newfracice
+!  nt(:,1)=i_t2*i_fracice
+!  call bounds(nt(:,1))
+!  call mloints(nt(:,1),intsch,nface(:,1),xg(:,1),yg(:,1),2)
+!  nt=max(nt,0.)
+!  newt2=nt(:,1)/newfracice
+!  nt(:,1)=i_t3*i_fracice
+!  call bounds(nt(:,1))
+!  call mloints(nt(:,1),intsch,nface(:,1),xg(:,1),yg(:,1),2)
+!  nt=max(nt,0.)
+!  newt3=nt(:,1)/newfracice
+
+!
+!end do
+
 return
 end subroutine mlohadv
 
@@ -558,7 +684,7 @@ end subroutine mlohadv
 ! Calculate depature points for MLO semi-Lagrangian advection
 ! (This subroutine is based on depts.f)
 
-subroutine mlodeps(ubar,vbar,x3d,y3d,z3d)
+subroutine mlodeps(ubar,vbar,nface,xg,yg)
 
 use cc_mpi
 use mlo
@@ -571,10 +697,16 @@ include 'newmpar.h'
 include 'const_phys.h'
 include 'parm.h'
 
-integer ii
+integer ii,intsch,n
+integer, dimension(ifull,wlev), intent(out) :: nface
 real, dimension(ifull,wlev), intent(in) :: ubar,vbar
-real*8, dimension(ifull,wlev), intent(out) :: x3d,y3d,z3d
+real, dimension(ifull,wlev), intent(out) :: xg,yg
+real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
 real, dimension(ifull,wlev) :: uc,vc,wc
+real, dimension(ifull+iextra,wlev) :: temp
+integer, parameter :: nguess = 2
+
+intsch=mod(ktau,2)
 
 ! departure point x, y, z is called x3d, y3d, z3d
 ! first find corresponding cartesian vels
@@ -588,29 +720,773 @@ do ii=1,wlev
 end do
 
 ! convert to grid point numbering
-!do ii=1,wlev
-!  call mlotoij5(ii,x3d(:,ii),y3d(:,ii),z3d(:,ii))
-!end do
+do ii=1,wlev
+  call mlotoij5(x3d(:,ii),y3d(:,ii),z3d(:,ii),nface(:,ii),xg(:,ii),yg(:,ii))
+end do
 ! Share off processor departure points.
-!call deptsync(nface,xg,yg)
+call deptsync(nface,xg,yg)
+
+do n=1,nguess
+  temp(1:ifull,:) = uc(1:ifull,:)
+  call mloints(temp,intsch,nface,xg,yg,2)
+  do ii=1,wlev
+    x3d(1:ifull,ii) = x(1:ifull) - 0.5*(uc(1:ifull,ii)+temp(1:ifull,ii)) ! n+1 guess
+  end do
+  temp(1:ifull,:) = vc(1:ifull,:)
+  call mloints(temp,intsch,nface,xg,yg,2)
+  do ii=1,wlev
+    y3d(1:ifull,ii) = y(1:ifull) - 0.5*(vc(1:ifull,ii)+temp(1:ifull,ii)) ! n+1 guess
+  end do
+  temp(1:ifull,:) = wc(1:ifull,:)
+  call mloints(temp,intsch,nface,xg,yg,2)
+  do ii=1,wlev
+    z3d(1:ifull,ii) = z(1:ifull) - 0.5*(wc(1:ifull,ii)+temp(1:ifull,ii)) ! n+1 guess
+  end do
+
+  do ii=1,wlev
+    call mlotoij5(x3d(:,ii),y3d(:,ii),z3d(:,ii),nface(:,ii),xg(:,ii),yg(:,ii))
+  end do
+  !     Share off processor departure points.
+  call deptsync(nface,xg,yg)
+end do
 
 return
 end subroutine mlodeps
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate indices
+! This code is from depts.f
 
-subroutine mlotoij5(ii,x3d,y3d,z3d)
+subroutine mlotoij5(x3d,y3d,z3d,nface,xg,yg)
+
+use bigxy4_m
+use cc_mpi
+use xyzinfo_m
 
 implicit none
 
 include 'newmpar.h'
+include 'parm.h'
+include 'parmgeom.h'
 
-integer, intent(in) :: ii
+integer loop,iq,i,j,is,js
+integer, dimension(ifull), intent(out) :: nface
+real, dimension(ifull), intent(out) :: xg,yg
+real, dimension(ifull) :: xstr,ystr,zstr
+real, dimension(ifull) :: denxyz,xd,yd,zd
+real, dimension(ifull) :: ri,rj
+real dxx,dxy,dyx,dyy
 real*8, dimension(ifull), intent(inout) :: x3d,y3d,z3d
+real*8, dimension(ifull) :: den
+real*8 alf,alfonsch
+real*8, parameter :: one = 1.
+integer, parameter :: nmaploop = 3
+
+!     if necessary, transform (x3d, y3d, z3d) to equivalent
+!     coordinates (xstr, ystr, zstr) on regular gnomonic panels
+if(schmidt.eq.1.)then
+   xstr=x3d
+   ystr=y3d
+   zstr=z3d
+else      ! (schmidt.ne.1.)
+   alf=(one-schmidt**2)/(one+schmidt**2)
+   alfonsch=2.*schmidt/(one+schmidt**2)  ! same but bit more accurate
+   den=one-alf*z3d ! to force real*8
+   xstr=x3d*(alfonsch/den)
+   ystr=y3d*(alfonsch/den)
+   zstr=    (z3d-alf)/den
+endif     ! (schmidt.ne.1.)
+
+!      first deduce departure faces
+!      instead calculate cubic coordinates
+!      The faces are:
+!      0: X=1   1: Z=1   2: Y=1   3: X=-1   4: Z=-1   5: Y=-1
+denxyz=max( abs(xstr),abs(ystr),abs(zstr) )
+xd=xstr/denxyz
+yd=ystr/denxyz
+zd=zstr/denxyz
+
+where (abs(xstr-denxyz).lt.1.E-6)
+  nface(:)    =0
+  xg(:) =      yd
+  yg(:) =      zd
+elsewhere (abs(xstr+denxyz).lt.1.E-6)
+  nface(:)    =3
+  xg(:) =     -zd
+  yg(:) =     -yd
+elsewhere (abs(zstr-denxyz).lt.1.E-6)
+  nface(:)    =1
+  xg(:) =      yd
+  yg(:) =     -xd
+elsewhere (abs(zstr+denxyz).lt.1.E-6)
+  nface(:)    =4
+  xg(:) =      xd
+  yg(:) =     -yd
+elsewhere (abs(ystr-denxyz).lt.1.E-6)
+  nface(:)    =2
+  xg(:) =     -zd
+  yg(:) =     -xd
+elsewhere
+  nface(:)    =5
+  xg(:) =      xd
+  yg(:) =      zd
+end where
+
+!     use 4* resolution grid il --> 4*il
+xg=min(max(-.99999,xg),.99999)
+yg=min(max(-.99999,yg),.99999)
+!      first guess for ri, rj and nearest i,j
+ri=1.+(1.+xg)*2.*real(il_g)
+rj=1.+(1.+yg)*2.*real(il_g)
+do loop=1,nmaploop
+  do iq=1,ifull
+    i=nint(ri(iq))
+    j=nint(rj(iq))
+    is=nint(sign(1.,ri(iq)-real(i)))
+    js=nint(sign(1.,rj(iq)-real(j)))
+!       predict new value for ri, rj
+    dxx=xx4(i+is,j)-xx4(i,j)
+    dyx=xx4(i,j+js)-xx4(i,j)
+    dxy=yy4(i+is,j)-yy4(i,j)
+    dyy=yy4(i,j+js)-yy4(i,j)       
+    den(iq)=dxx*dyy-dyx*dxy
+    ri(iq)=real(i)+real(is)*((xg(iq)-xx4(i,j))*dyy-(yg(iq)-yy4(i,j))*dyx)/den(iq)
+    rj(iq)=real(j)+real(js)*((yg(iq)-yy4(i,j))*dxx-(xg(iq)-xx4(i,j))*dxy)/den(iq)
+  end do
+enddo  ! loop loop
+!      expect xg, yg to range between .5 and il+.5
+xg=.25*(ri+3.) -.5  ! -.5 for stag; back to normal ri, rj defn
+yg=.25*(rj+3.) -.5  ! -.5 for stag
 
 return
 end subroutine mlotoij5
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Interpolate depature points for semi-Lagrangian advection
+! This code is from ints.f
+
+subroutine mloints(s,intsch,nface,xg,yg,nfield)
+
+use cc_mpi
+use indices_m
+use mlo
+
+implicit none
+
+include 'newmpar.h'
+include 'parm.h'
+include 'parmhor.h'    ! has mh_bs
+include 'mpif.h'
+
+integer, intent(in) :: nfield,intsch
+integer idel,iq,jdel,nn
+integer i,j,k,n,ind,ip,jp,iproc,ierr
+integer, dimension(ifull,wlev), intent(in) :: nface
+real, dimension(ifull,wlev), intent(in) :: xg,yg
+real, dimension(ifull+iextra,wlev), intent(inout) :: s
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev) :: sx
+real, dimension(4) :: r
+real a3,a4,c1,c2,c3,c4,cmax,cmin,sss,xxg,yyg
+ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
+
+call bounds(s,nrows=2)
+
+!======================== start of intsch=1 section ====================
+if(intsch==1)then
+
+  do k=1,wlev
+
+    do n=1,npan         ! first simple copy into larger array
+      do j=1,jpan
+        do i=1,ipan
+          sx(i,j,n,k) = s(ind(i,j,n),k)
+        enddo         ! i loop
+      enddo            ! j loop
+    enddo               ! n loop
+            
+!   this is intsb           EW interps done first
+!   first extend s arrays into sx - this one -1:il+2 & -1:il+2
+    do n=1,npan
+      do j=1,jpan
+        sx(0,j,n,k) = s(iw(ind(1,j,n)),k)
+        sx(-1,j,n,k) = s(iww(ind(1,j,n)),k)
+        sx(ipan+1,j,n,k) = s(ie(ind(ipan,j,n)),k)
+        sx(ipan+2,j,n,k) = s(iee(ind(ipan,j,n)),k)
+      enddo            ! j loop
+      do i=1,ipan
+        sx(i,0,n,k) = s(is(ind(i,1,n)),k)
+        sx(i,-1,n,k) = s(iss(ind(i,1,n)),k)
+        sx(i,jpan+1,n,k) = s(in(ind(i,jpan,n)),k)
+        sx(i,jpan+2,n,k) = s(inn(ind(i,jpan,n)),k)
+      enddo            ! i loop
+!        for ew interpolation, sometimes need (different from ns):
+!            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+      sx(-1,0,n,k) = s(lwws(n),k)
+      sx(0,0,n,k) = s(lws(n),k)
+      sx(0,-1,n,k) = s(lwss(n),k)
+      sx(ipan+1,0,n,k) = s(les(n),k)
+      sx(ipan+2,0,n,k) = s(lees(n),k)
+      sx(ipan+1,-1,n,k) = s(less(n),k)
+      sx(-1,jpan+1,n,k) = s(lwwn(n),k)
+      sx(0,jpan+2,n,k) = s(lwnn(n),k)
+      sx(ipan+2,jpan+1,n,k) = s(leen(n),k)
+      sx(ipan+1,jpan+2,n,k) = s(lenn(n),k)
+      sx(0,jpan+1,n,k)    = s(iwn(ind(1,jpan,n)),k)
+      sx(ipan+1,jpan+1,n,k) = s(ien(ind(ipan,jpan,n)),k)
+    enddo               ! n loop
+
+    if(nfield<mh_bs)then
+      do iq=1,ifull    ! non Berm-Stan option
+!                 Convert face index from 0:npanels to array indices
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+        c1 = sx(idel-1,jdel,n,k) ! manually unrolled loop
+        c2 = sx(idel  ,jdel,n,k)
+        c3 = sx(idel+1,jdel,n,k)
+        c4 = sx(idel+2,jdel,n,k)
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
+        else
+          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+               -xxg*(1.+xxg)*c4/3.)                          &
+               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+        endif         !  (mhint==2)
+        c1 = sx(idel-1,jdel+1,n,k)
+        c2 = sx(idel  ,jdel+1,n,k)
+        c3 = sx(idel+1,jdel+1,n,k)
+        c4 = sx(idel+2,jdel+1,n,k)
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
+        else
+          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+               -xxg*(1.+xxg)*c4/3.)                          &
+               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+        endif         !  (mhint==2)
+        do nn=1,4,3   ! N.B.
+          c2 = sx(idel  ,jdel+nn-2,n,k)
+          c3 = sx(idel+1,jdel+nn-2,n,k)
+          r(nn) = (1.-xxg)*c2 +xxg*c3
+        enddo         ! nn loop
+        if(mhint==2)then ! Bessel interp
+          a4 = r(4)-r(1)+3.*(r(2)-r(3))
+          a3 = r(1)-2.*r(2)+r(3)-a4
+          s(iq,k) = r(2)+.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
+        else
+          s(iq,k) = ((1.-yyg)*((2.-yyg)*        &
+                    ((1.+yyg)*r(2)-yyg*r(1)/3.) &
+                    -yyg*(1.+yyg)*r(4)/3.)      &
+                    +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+        endif         !  (mhint==2)
+      enddo            ! iq loop
+    else                ! (nfield<mh_bs)
+      do iq=1,ifull    ! Berm-Stan option here e.g. qg & gases
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+        c1 = sx(idel-1,jdel,n,k) ! manually unrolled loop
+        c2 = sx(idel  ,jdel,n,k)
+        c3 = sx(idel+1,jdel,n,k)
+        c4 = sx(idel+2,jdel,n,k)
+        cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
+        cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
+        else
+          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+               -xxg*(1.+xxg)*c4/3.)                          &
+               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+        endif         !  (mhint==2)
+        c1 = sx(idel-1,jdel+1,n,k)
+        c2 = sx(idel  ,jdel+1,n,k)
+        c3 = sx(idel+1,jdel+1,n,k)
+        c4 = sx(idel+2,jdel+1,n,k)
+        cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
+        cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
+        else
+          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+               -xxg*(1.+xxg)*c4/3.)                          &
+               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+        endif         !  (mhint==2)
+        do nn=1,4,3   ! N.B.
+          c2 = sx(idel  ,jdel+nn-2,n,k)
+          c3 = sx(idel+1,jdel+nn-2,n,k)
+          r(nn) = (1.-xxg)*c2 +xxg*c3
+        enddo         ! nn loop
+        if(mhint==2)then ! Bessel interp
+          a4 = r(4)-r(1)+3.*(r(2)-r(3))
+          a3 = r(1)-2.*r(2)+r(3)-a4
+          sss = r(2)+.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
+        else
+          sss = ((1.-yyg)*((2.-yyg)*        &
+                ((1.+yyg)*r(2)-yyg*r(1)/3.) &
+                 -yyg*(1.+yyg)*r(4)/3.)     &
+                 +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+        endif         !  (mhint==2)
+        s(iq,k) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth
+      enddo            ! iq loop
+    endif               ! (nfield<mh_bs)  .. else ..
+            
+  end do                 ! k
+
+! Loop over points that need to be calculated for other processes
+
+  if(nfield<mh_bs)then
+    do iproc=0,nproc-1
+      if ( iproc == myid ) then
+        cycle
+      end if
+      do iq=1,drlen(iproc)
+        !  Convert face index from 0:npanels to array indices
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))    ! MJT memory
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))    ! MJT memory
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index ! MJT memory
+        !  Need global face index in fproc call
+        idel = int(dpoints(iproc)%a(2,iq))                    ! MJT memory
+        xxg = dpoints(iproc)%a(2,iq) - idel                   ! MJT memory
+        jdel = int(dpoints(iproc)%a(3,iq))                    ! MJT memory
+        yyg = dpoints(iproc)%a(3,iq) - jdel                   ! MJT memory
+        k = nint(dpoints(iproc)%a(4,iq))                      ! MJT memory
+        idel = idel - ioff(n-noff)
+        jdel = jdel - joff(n-noff)
+        c1 = sx(idel-1,jdel,n,k) ! manually unrolled loop
+        c2 = sx(idel  ,jdel,n,k)
+        c3 = sx(idel+1,jdel,n,k)
+        c4 = sx(idel+2,jdel,n,k)
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
+        else
+          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+               -xxg*(1.+xxg)*c4/3.)                          &
+               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+        endif         !  (mhint==2)
+        c1 = sx(idel-1,jdel+1,n,k)
+        c2 = sx(idel  ,jdel+1,n,k)
+        c3 = sx(idel+1,jdel+1,n,k)
+        c4 = sx(idel+2,jdel+1,n,k)
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
+        else
+          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+               -xxg*(1.+xxg)*c4/3.)                          &
+               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+        endif         !  (mhint==2)
+        do nn=1,4,3   ! N.B.
+          c2 = sx(idel  ,jdel+nn-2,n,k)
+          c3 = sx(idel+1,jdel+nn-2,n,k)
+          r(nn) = (1.-xxg)*c2 +xxg*c3
+        enddo         ! nn loop
+        if(mhint==2)then ! Bessel interp
+          a4 = r(4)-r(1)+3.*(r(2)-r(3))
+          a3 = r(1)-2.*r(2)+r(3)-a4
+          sextra(iproc)%a(iq) = r(2) + 0.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
+        else
+          sextra(iproc)%a(iq) = ((1.-yyg)*((2.-yyg)* &        ! MJT memory
+            ((1.+yyg)*r(2)-yyg*r(1)/3.)              &
+            -yyg*(1.+yyg)*r(4)/3.)                   &
+            +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+        endif         !  (mhint==2)
+      enddo            ! iq loop
+    end do              ! iproc loop
+  else                   ! (nfield<mh_bs)
+    do iproc=0,nproc-1
+      if ( iproc == myid ) then
+        cycle
+      end if
+      do iq=1,drlen(iproc)
+        !  Convert face index from 0:npanels to array indices
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))    ! MJT memory
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))    ! MJT memory
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index ! MJT memory
+        !  Need global face index in fproc call
+        idel = int(dpoints(iproc)%a(2,iq))                    ! MJT memory
+        xxg = dpoints(iproc)%a(2,iq) - idel                   ! MJT memory
+        jdel = int(dpoints(iproc)%a(3,iq))                    ! MJT memory
+        yyg = dpoints(iproc)%a(3,iq) - jdel                   ! MJT memory
+        k = nint(dpoints(iproc)%a(4,iq))                      ! MJT memory
+        idel = idel - ioff(n-noff)
+        jdel = jdel - joff(n-noff)
+        c1 = sx(idel-1,jdel,n,k) ! manually unrolled loop
+        c2 = sx(idel  ,jdel,n,k)
+        c3 = sx(idel+1,jdel,n,k)
+        c4 = sx(idel+2,jdel,n,k)
+        cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
+        cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
+        else
+          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+               -xxg*(1.+xxg)*c4/3.)                          &
+               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+        endif         !  (mhint==2)
+        c1 = sx(idel-1,jdel+1,n,k)
+        c2 = sx(idel  ,jdel+1,n,k)
+        c3 = sx(idel+1,jdel+1,n,k)
+        c4 = sx(idel+2,jdel+1,n,k)
+        cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
+        cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
+        else
+          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+               -xxg*(1.+xxg)*c4/3.)                          &
+               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+        endif         !  (mhint==2)
+        do nn=1,4,3   ! N.B.
+          c2 = sx(idel  ,jdel+nn-2,n,k)
+          c3 = sx(idel+1,jdel+nn-2,n,k)
+          r(nn) = (1.-xxg)*c2 +xxg*c3
+        enddo         ! nn loop
+        if(mhint==2)then ! Bessel interp
+          a4 = r(4)-r(1)+3.*(r(2)-r(3))
+          a3 = r(1)-2.*r(2)+r(3)-a4
+          sss = r(2)+.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
+        else
+          sss = ((1.-yyg)*((2.-yyg)*        &
+                ((1.+yyg)*r(2)-yyg*r(1)/3.) &
+                -yyg*(1.+yyg)*r(4)/3.)      &
+                +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+        endif         !  (mhint==2)
+        sextra(iproc)%a(iq) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth ! MJT memory
+      enddo            ! iq loop
+    end do              ! iproc loop
+  endif                  ! (nfield<mh_bs)  .. else ..
+            
+!========================   end of intsch=1 section ====================
+else     ! if(intsch==1)then
+!======================== start of intsch=2 section ====================
+!       this is intsc           NS interps done first
+!       first extend s arrays into sx - this one -1:il+2 & -1:il+2
+  do k=1,wlev              ! A single main k loop uses cache better
+    do n=1,npan         ! first simple copy into larger array
+      do j=1,jpan
+        do i=1,ipan
+          sx(i,j,n,k)=s(ind(i,j,n),k)
+        enddo         ! i loop
+      enddo            ! j loop
+    enddo               ! n loop
+
+    do n=1,npan
+      do j=1,jpan
+        sx(0,j,n,k) = s(iw(ind(1,j,n)),k)
+        sx(-1,j,n,k) = s(iww(ind(1,j,n)),k)
+        sx(ipan+1,j,n,k) = s(ie(ind(ipan,j,n)),k)
+        sx(ipan+2,j,n,k) = s(iee(ind(ipan,j,n)),k)
+      enddo            ! j loop
+      do i=1,ipan
+        sx(i,0,n,k) = s(is(ind(i,1,n)),k)
+        sx(i,-1,n,k) = s(iss(ind(i,1,n)),k)
+        sx(i,jpan+1,n,k) = s(in(ind(i,jpan,n)),k)
+        sx(i,jpan+2,n,k) = s(inn(ind(i,jpan,n)),k)
+      enddo            ! i loop
+!        for ns interpolation, sometimes need (different from ew):
+!            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+      sx(-1,0,n,k)=s(lsww(n),k)
+      sx(0,0,n,k) = s(lsw(n),k)
+      sx(0,-1,n,k) = s(lssw(n),k)
+      sx(ipan+2,0,n,k) = s(lsee(n),k)
+      sx(ipan+1,-1,n,k) = s(lsse(n),k)
+      sx(-1,jpan+1,n,k) = s(lnww(n),k)
+      sx(0,jpan+1,n,k) = s(lnw(n),k)
+      sx(0,jpan+2,n,k) = s(lnnw(n),k)
+      sx(ipan+2,jpan+1,n,k) = s(lnee(n),k)
+      sx(ipan+1,jpan+2,n,k) = s(lnne(n),k)
+      sx(ipan+1,0,n,k)    = s(ise(ind(ipan,1,n)),k)
+      sx(ipan+1,jpan+1,n,k) = s(ine(ind(ipan,jpan,n)),k)
+    enddo               ! n loop
+
+    if(nfield<mh_bs)then
+      do iq=1,ifull    ! non Berm-Stan option
+!       Convert face index from 0:npanels to array indices
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+        c1 = sx(idel,jdel-1,n,k) ! manually unrolled loop
+        c2 = sx(idel,jdel  ,n,k)
+        c3 = sx(idel,jdel+1,n,k)
+        c4 = sx(idel,jdel+2,n,k)
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
+        else
+          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+               -yyg*(1.+yyg)*c4/3.)                          &
+               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+        endif         !  (mhint==2)
+        c1 = sx(idel+1,jdel-1,n,k)
+        c2 = sx(idel+1,jdel  ,n,k)
+        c3 = sx(idel+1,jdel+1,n,k)
+        c4 = sx(idel+1,jdel+2,n,k)
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
+        else
+          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+               -yyg*(1.+yyg)*c4/3.)                          &
+               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+        endif         !  (mhint==2)
+        do nn=1,4,3   ! N.B.
+          c2 = sx(idel+nn-2,jdel  ,n,k)
+          c3 = sx(idel+nn-2,jdel+1,n,k)
+          r(nn) = (1.-yyg)*c2 +yyg*c3
+        enddo         ! nn loop
+        if(mhint==2)then ! Bessel interp
+          a4 = r(4)-r(1)+3.*(r(2)-r(3))
+          a3 = r(1)-2.*r(2)+r(3)-a4
+          s(iq,k) = r(2)+.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
+        else
+          s(iq,k) = ((1.-xxg)*((2.-xxg)*        &
+                    ((1.+xxg)*r(2)-xxg*r(1)/3.) &
+                   -xxg*(1.+xxg)*r(4)/3.)       &
+                   +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+        endif         !  (mhint==2)
+      enddo            ! iq loop
+    else                ! (nfield<mh_bs)
+      do iq=1,ifull    ! Berm-Stan option here e.g. qg & gases
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+        c1 = sx(idel,jdel-1,n,k) ! manually unrolled loop
+        c2 = sx(idel,jdel  ,n,k)
+        c3 = sx(idel,jdel+1,n,k)
+        c4 = sx(idel,jdel+2,n,k)
+        cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
+        cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
+        else
+          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+               -yyg*(1.+yyg)*c4/3.)                          &
+               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+        endif         !  (mhint==2)
+        c1 = sx(idel+1,jdel-1,n,k)
+        c2 = sx(idel+1,jdel  ,n,k)
+        c3 = sx(idel+1,jdel+1,n,k)
+        c4 = sx(idel+1,jdel+2,n,k)
+        cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
+        cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
+        else
+          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+               -yyg*(1.+yyg)*c4/3.)                          &
+               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+        endif         !  (mhint==2)
+        do nn=1,4,3   ! N.B.
+          c2 = sx(idel+nn-2,jdel  ,n,k)
+          c3 = sx(idel+nn-2,jdel+1,n,k)
+          r(nn) = (1.-yyg)*c2 +yyg*c3
+        enddo         ! nn loop
+        if(mhint==2)then ! Bessel interp
+          a4 = r(4)-r(1)+3.*(r(2)-r(3))
+          a3 = r(1)-2.*r(2)+r(3)-a4
+          sss = r(2)+.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
+        else
+          sss = ((1.-xxg)*((2.-xxg)*        &
+                ((1.+xxg)*r(2)-xxg*r(1)/3.) &
+                -xxg*(1.+xxg)*r(4)/3.)      &
+                +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+        endif         !  (mhint==2)
+        s(iq,k) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth
+      enddo            ! iq loop
+    endif               ! (nfield<mh_bs)  .. else ..
+  end do                 ! k
+
+! For other processes
+  if(nfield<mh_bs)then
+    do iproc=0,nproc-1
+      if ( iproc == myid ) then
+        cycle
+      end if
+      do iq=1,drlen(iproc)
+        !  Convert face index from 0:npanels to array indices
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))    ! MJT memory
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))    ! MJT memory
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index ! MJT memory
+        !  Need global face index in fproc call
+        idel = int(dpoints(iproc)%a(2,iq))                    ! MJT memory
+        xxg = dpoints(iproc)%a(2,iq) - idel                   ! MJT memory
+        jdel = int(dpoints(iproc)%a(3,iq))                    ! MJT memory
+        yyg = dpoints(iproc)%a(3,iq) - jdel                   ! MJT memory
+        k = nint(dpoints(iproc)%a(4,iq))                      ! MJT memory
+        idel = idel - ioff(n-noff)
+        jdel = jdel - joff(n-noff)
+        c1 = sx(idel,jdel-1,n,k) ! manually unrolled loop
+        c2 = sx(idel,jdel  ,n,k)
+        c3 = sx(idel,jdel+1,n,k)
+        c4 = sx(idel,jdel+2,n,k)
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
+        else
+          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+               -yyg*(1.+yyg)*c4/3.)                          &
+               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+        endif         !  (mhint==2)
+        c1 = sx(idel+1,jdel-1,n,k)
+        c2 = sx(idel+1,jdel  ,n,k)
+        c3 = sx(idel+1,jdel+1,n,k)
+        c4 = sx(idel+1,jdel+2,n,k)
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
+        else
+          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+               -yyg*(1.+yyg)*c4/3.)                          &
+               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+        endif         !  (mhint==2)
+        do nn=1,4,3   ! N.B.
+          c2 = sx(idel+nn-2,jdel  ,n,k)
+          c3 = sx(idel+nn-2,jdel+1,n,k)
+          r(nn) = (1.-yyg)*c2 +yyg*c3
+        enddo         ! nn loop
+        if(mhint==2)then ! Bessel interp
+          a4 = r(4)-r(1)+3.*(r(2)-r(3))
+          a3 = r(1)-2.*r(2)+r(3)-a4
+          sextra(iproc)%a(iq) = r(2)+ 0.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
+        else
+          sextra(iproc)%a(iq) = ((1.-xxg)*((2.-xxg)*  & ! MJT memory
+            ((1.+xxg)*r(2)-xxg*r(1)/3.)               &
+            -xxg*(1.+xxg)*r(4)/3.)                    &
+            +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+        endif         !  (mhint==2)
+      enddo            ! iq loop
+    end do              ! iproc
+  else                   ! (nfield<mh_bs)
+    do iproc=0,nproc-1
+      if ( iproc == myid ) then
+        cycle
+      end if
+      do iq=1,drlen(iproc)
+        !  Convert face index from 0:npanels to array indices
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))    ! MJT memory
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))    ! MJT memory
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index ! MJT memory
+        !  Need global face index in fproc call
+        idel = int(dpoints(iproc)%a(2,iq))                    ! MJT memory
+        xxg = dpoints(iproc)%a(2,iq) - idel                   ! MJT memory
+        jdel = int(dpoints(iproc)%a(3,iq))                    ! MJT memory
+        yyg = dpoints(iproc)%a(3,iq) - jdel                   ! MJT memory
+        k = nint(dpoints(iproc)%a(4,iq))                      ! MJT memory
+        idel = idel - ioff(n-noff)
+        jdel = jdel - joff(n-noff)
+        c1 = sx(idel,jdel-1,n,k) ! manually unrolled loop
+        c2 = sx(idel,jdel  ,n,k)
+        c3 = sx(idel,jdel+1,n,k)
+        c4 = sx(idel,jdel+2,n,k)
+        cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
+        cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
+        else
+          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+               -yyg*(1.+yyg)*c4/3.)                          &
+               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+        endif         !  (mhint==2)
+        c1 = sx(idel+1,jdel-1,n,k)
+        c2 = sx(idel+1,jdel  ,n,k)
+        c3 = sx(idel+1,jdel+1,n,k)
+        c4 = sx(idel+1,jdel+2,n,k)
+        cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
+        cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
+        if(mhint==2)then ! Bessel interp
+          a4 = c4-c1+3.*(c2-c3)
+          a3 = c1-2.*c2+c3-a4
+          r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
+        else
+          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+               -yyg*(1.+yyg)*c4/3.)                          &
+               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+        endif         !  (mhint==2)
+        do nn=1,4,3   ! N.B.
+          c2 = sx(idel+nn-2,jdel  ,n,k)
+          c3 = sx(idel+nn-2,jdel+1,n,k)
+          r(nn) = (1.-yyg)*c2 +yyg*c3
+        enddo         ! nn loop
+        if(mhint==2)then ! Bessel interp
+          a4 = r(4)-r(1)+3.*(r(2)-r(3))
+          a3 = r(1)-2.*r(2)+r(3)-a4
+          sss = r(2)+.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
+        else
+          sss = ((1.-xxg)*((2.-xxg)*        &
+                ((1.+xxg)*r(2)-xxg*r(1)/3.) &
+                -xxg*(1.+xxg)*r(4)/3.)      &
+                +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+        endif         !  (mhint==2)
+        sextra(iproc)%a(iq) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth ! MJT memory
+      enddo            ! iq loop
+    end do              ! iproc
+  endif                  ! (nfield<mh_bs)  .. else ..
+
+endif                     ! (intsch==1) .. else ..
+!========================   end of intsch=1 section ====================
+
+call intssync(s)
+
+return
+end subroutine mloints
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tide
@@ -669,68 +1545,71 @@ end subroutine mlotoij5
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine fills ocean data over land points
-!subroutine mlofill(x)
-!
-!use cc_mpi
-!use indices_m
-!use soil_m
-!
-!implicit none
-!
-!include 'newmpar.h'
-!include 'mpif.h'
-!
-!integer globalc,localc,ierr,iq,lnum
-!real miss,lsum
-!real, dimension(ifull), intent(inout) :: x
-!real, dimension(ifull+iextra) :: xx,yy
-!logical, dimension(ifull+iextra) :: smap
-!
-!miss=999999.
-!
-!xx=miss
-!where (.not.land)
-!  xx(1:ifull)=x
-!end where
-!globalc=1
-!
-!! technically we only need 1 pass of this fill to ensure all water points have a non-trival neighbour
-!do while (globalc.gt.0)
-!  call bounds(xx)
-!  smap=abs(xx-miss).lt.0.1
-!  yy=xx
-!  do iq=1,ifull
-!    if (smap(iq)) then
-!      lsum=0.
-!      lnum=0
-!      if (.not.smap(in(iq))) then
-!        lsum=lsum+xx(in(iq))
-!        lnum=lnum+1
-!      end if
-!      if (.not.smap(ie(iq))) then
-!        lsum=lsum+xx(ie(iq))
-!        lnum=lnum+1
-!      end if
-!      if (.not.smap(is(iq))) then
-!        lsum=lsum+xx(is(iq))
-!        lnum=lnum+1
-!      end if
-!      if (.not.smap(iw(iq))) then
-!        lsum=lsum+xx(iw(iq))
-!        lnum=lnum+1
-!      end if
-!      if (lnum.gt.0) then
-!        yy(iq)=lsum/real(lnum)
-!      end if
-!    end if
-!  end do
-!  xx=yy
-!  smap=abs(xx-miss).lt.0.1
-!  localc=count(smap(1:ifull))
-!  call MPI_AllReduce(localc,globalc,1,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,ierr)
-!end do
-!
-!return
-!end subroutine mlofill
+subroutine mlofill(x)
+
+use cc_mpi
+use indices_m
+use soil_m
+
+implicit none
+
+include 'newmpar.h'
+include 'mpif.h'
+
+integer globalc,localc,ierr,iq,lnum
+real miss,lsum
+real, dimension(ifull), intent(inout) :: x
+real, dimension(ifull) :: yy
+real, dimension(ifull+iextra) :: xx
+logical, dimension(ifull+iextra) :: smap
+
+miss=999999.
+
+xx=miss
+where (.not.land)
+  xx(1:ifull)=x
+end where
+globalc=1
+
+! technically we only need 1 pass of this fill to ensure all water points have a non-trival neighbour
+do while (globalc.gt.0)
+  call bounds(xx)
+  smap=abs(xx-miss).lt.0.1
+  yy=xx(1:ifull)
+  do iq=1,ifull
+    if (smap(iq)) then
+      lsum=0.
+      lnum=0
+      if (.not.smap(in(iq))) then
+        lsum=lsum+xx(in(iq))
+        lnum=lnum+1
+      end if
+      if (.not.smap(ie(iq))) then
+        lsum=lsum+xx(ie(iq))
+        lnum=lnum+1
+      end if
+      if (.not.smap(is(iq))) then
+        lsum=lsum+xx(is(iq))
+        lnum=lnum+1
+      end if
+      if (.not.smap(iw(iq))) then
+        lsum=lsum+xx(iw(iq))
+        lnum=lnum+1
+      end if
+      if (lnum.gt.0) then
+        yy(iq)=lsum/real(lnum)
+      end if
+    end if
+  end do
+  xx(1:ifull)=yy
+  smap(1:ifull)=abs(xx(1:ifull)-miss).lt.0.1
+  localc=count(smap(1:ifull))
+  call MPI_AllReduce(localc,globalc,1,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,ierr)
+end do
+
+x=xx(1:ifull)
+
+return
+end subroutine mlofill
 
 end module mlodynamics

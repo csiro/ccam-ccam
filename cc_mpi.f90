@@ -1,4 +1,5 @@
 module cc_mpi
+   use mlo, only : wlev
    implicit none
    private
    include 'newmpar.h'
@@ -30,7 +31,7 @@ module cc_mpi
    public :: dpoints_t,dindex_t,sextra_t
    private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
               ccmpi_distribute2r8,   &
-              ccmpi_gather2, ccmpi_gather3, checksize, get_dims,              &
+              ccmpi_gather2, ccmpi_gather3, checksize,              &
               ccglobal_posneg2, ccglobal_posneg3, ccglobal_sum2, ccglobal_sum3
    interface ccmpi_gather
       module procedure ccmpi_gather2, ccmpi_gather3
@@ -220,23 +221,25 @@ contains
 
 #ifdef uniform_decomp
       ! Faces may not line up properly so need extra factor here
-      maxbuflen = (max(ipan,jpan)+4)*2*kl * 8 * 2
+      maxbuflen = (max(ipan,jpan)+4)*2*max(kl,wlev) * 8 * 2
 #else
       if ( nproc < npanels+1 ) then
          ! This is the maximum size, each face has 4 edges
-         maxbuflen = npan*4*(il_g+4)*2*kl
+         maxbuflen = npan*4*(il_g+4)*2*max(kl,wlev)
       else
-         maxbuflen = (max(ipan,jpan)+4)*2*kl
+         maxbuflen = (max(ipan,jpan)+4)*2*max(kl,wlev)
       end if
 #endif
 
       ! Also do the initialisation for deptsync here
       allocate ( dslen(0:nproc-1), drlen(0:nproc-1) )
+      dslen=0
+      drlen=0
       if ( nproc == 1 ) then
          maxsize = 0 ! Not used in this case
       else
          ! 4 rows should be plenty (size is checked anyway).
-         maxsize = 4*max(ipan,jpan)*npan*kl
+         maxsize = 4*max(ipan,jpan)*npan*max(kl,wlev)
       end if
       
       if ( myid == 0 ) then
@@ -653,11 +656,13 @@ contains
    subroutine ccmpi_gather3(a,ag)
       ! Collect global arrays.
 
-      real, dimension(ifull,kl), intent(in) :: a
-      real, dimension(ifull_g,kl), intent(out), optional :: ag
+      !real, dimension(ifull,kl), intent(in) :: a
+      !real, dimension(ifull_g,kl), intent(out), optional :: ag
+      real, dimension(:,:), intent(in) :: a
+      real, dimension(:,:), intent(out), optional :: ag
       integer :: ierr,ierr2, itag = 0, iproc
       integer, dimension(MPI_STATUS_SIZE) :: status
-      real, dimension(ifull,kl) :: abuf
+      real, dimension(ifull,size(a,2)) :: abuf
       integer :: ipoff, jpoff, npoff
       integer :: i, j, n, iq, iqg
 
@@ -681,7 +686,7 @@ contains
             end do
          end do
          do iproc=1,nproc-1
-            call MPI_Recv( abuf, ipan*jpan*npan*kl, MPI_REAL, iproc, itag, &
+            call MPI_Recv( abuf, ipan*jpan*npan*size(a,2), MPI_REAL, iproc, itag, &
                         MPI_COMM_WORLD, status, ierr )
 #ifdef uniform_decomp
             do n=1,npan
@@ -703,7 +708,7 @@ contains
          end do
       else
          abuf = a
-         call MPI_SSend( abuf, ipan*jpan*npan*kl, MPI_REAL, 0, itag, &
+         call MPI_SSend( abuf, ipan*jpan*npan*size(a,2), MPI_REAL, 0, itag, &
                          MPI_COMM_WORLD, ierr )
       end if
       call end_log(gather_end)
@@ -1804,7 +1809,7 @@ contains
    logical, dimension(maxbuflen) :: ldum
    
    do iproc=0,nproc-1
-     nlen=kl*max(bnds(iproc)%rlen2,bnds(iproc)%rlen2_uv,bnds(iproc)%slen2,bnds(iproc)%slen2_uv)
+     nlen=max(kl,wlev)*max(bnds(iproc)%rlen2,bnds(iproc)%rlen2_uv,bnds(iproc)%slen2,bnds(iproc)%slen2_uv)
      if (nlen.lt.bnds(iproc)%len) then
        !write(6,*) "Reducing array size.  myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
        bnds(iproc)%len=nlen
@@ -1966,7 +1971,8 @@ contains
    subroutine bounds3(t, nrows, klim, corner)
       ! Copy the boundary regions. Only this routine requires the extra klim
       ! argument (for helmsol).
-      real, dimension(ifull+iextra,kl), intent(inout) :: t
+      !real, dimension(ifull+iextra,kl), intent(inout) :: t
+      real, dimension(:,:), intent(inout) :: t
       integer, intent(in), optional :: nrows, klim
       logical, intent(in), optional :: corner
       integer :: iq
@@ -1991,7 +1997,7 @@ contains
       if ( present(klim) ) then
          kx = klim
       else
-         kx = kl
+         kx = size(t,2)
       end if
 
 !     Set up the buffers to send
@@ -2186,7 +2192,8 @@ contains
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
-      real, dimension(ifull+iextra,kl), intent(inout) :: u, v
+      !real, dimension(ifull+iextra,kl), intent(inout) :: u, v
+      real, dimension(:,:), intent(inout) :: u, v
       integer, intent(in), optional :: nrows
       integer :: iq
       logical :: double
@@ -2229,13 +2236,13 @@ contains
                ! Use abs because sign is used as u/v flag
                if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                      bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(1+(iq-1)*kl:iq*kl) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
+                  bnds(sproc)%sbuf(1+(iq-1)*size(u,2):iq*size(u,2)) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
                else
-                  bnds(sproc)%sbuf(1+(iq-1)*kl:iq*kl) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
+                  bnds(sproc)%sbuf(1+(iq-1)*size(u,2):iq*size(u,2)) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
                end if 
             end do
             nreq = nreq + 1
-            call MPI_ISend( bnds(sproc)%sbuf(1), send_len*kl, &
+            call MPI_ISend( bnds(sproc)%sbuf(1), send_len*size(u,2), &
                  MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -2258,9 +2265,9 @@ contains
             do iq=1,recv_len
                ! unpack_list(iq) is index into extended region
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(1+(iq-1)*kl:iq*kl)
+                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(1+(iq-1)*size(u,2):iq*size(u,2))
                else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(1+(iq-1)*kl:iq*kl)
+                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(1+(iq-1)*size(u,2):iq*size(u,2))
                end if
             end do
          end if
@@ -2296,18 +2303,18 @@ contains
             ! request_list is same as send_list in this case
             if ( (bnds(myid)%request_list_uv(iq) > 0) .neqv. &
                      bnds(myid)%uv_swap(iq) ) then  ! haven't copied to send_swap yet
-               tmp(1+(iq-1)*kl:iq*kl) = u(abs(bnds(myid)%request_list_uv(iq)),:)
+               tmp(1+(iq-1)*size(u,2):iq*size(u,2)) = u(abs(bnds(myid)%request_list_uv(iq)),:)
             else
-               tmp(1+(iq-1)*kl:iq*kl) = v(abs(bnds(myid)%request_list_uv(iq)),:)
+               tmp(1+(iq-1)*size(u,2):iq*size(u,2)) = v(abs(bnds(myid)%request_list_uv(iq)),:)
             end if
          end do
 !cdir nodep
          do iq=1,recv_len
             ! unpack_list(iq) is index into extended region
             if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
-               u(ifull+bnds(myid)%unpack_list_uv(iq),:) = tmp(1+(iq-1)*kl:iq*kl)
+               u(ifull+bnds(myid)%unpack_list_uv(iq),:) = tmp(1+(iq-1)*size(u,2):iq*size(u,2))
             else
-               v(ifull-bnds(myid)%unpack_list_uv(iq),:) = tmp(1+(iq-1)*kl:iq*kl)
+               v(ifull-bnds(myid)%unpack_list_uv(iq),:) = tmp(1+(iq-1)*size(u,2):iq*size(u,2))
             end if
          end do
       end if
@@ -2325,8 +2332,10 @@ contains
       ! in case there's an exact edge point.
       ! Because of the boundary region, the range [0:ipan+1) can be handled.
       ! Need floor(xxg) in range [0:ipan]
-      integer, dimension(ifull,kl), intent(in) :: nface
-      real, dimension(ifull,kl), intent(in) :: xg, yg
+      !integer, dimension(ifull,kl), intent(in) :: nface
+      !real, dimension(ifull,kl), intent(in) :: xg, yg
+      integer, dimension(:,:), intent(in) :: nface
+      real, dimension(:,:), intent(in) :: xg, yg      
       integer :: iproc
       !real, dimension(4,maxsize,0:nproc) :: buf ! MJT memory
       integer :: nreq, itag = 99, ierr,ierr2, rproc, sproc
@@ -2342,11 +2351,9 @@ contains
       dslen = 0
       drlen = 0
       do iproc=0,nproc-1            ! MJT memory
-        if (neighbour(iproc)) then  ! MJT memory
-          dindex(iproc)%a = 0       ! MJT memory
-        end if                      ! MJT memory
+        dindex(iproc)%a = 0         ! MJT memory
       end do                        ! MJT memory
-      do k=1,kl
+      do k=1,size(nface,2)
          do iq=1,ifull
             nf = nface(iq,k) + noff ! Make this a local index
             idel = int(xg(iq,k)) - ioff(nface(iq,k))
@@ -2577,9 +2584,9 @@ contains
          bnds(rproc)%len = len
       else
          ! Just check length
-         if ( kl*bnds(rproc)%rlen >=  bnds(rproc)%len ) then
+         if ( max(kl,wlev)*bnds(rproc)%rlen >=  bnds(rproc)%len ) then
             print*, "Error, maximum length error in check_bnds_alloc"
-            print*, myid, rproc, bnds(rproc)%rlen,  bnds(rproc)%len, kl
+            print*, myid, rproc, bnds(rproc)%rlen,  bnds(rproc)%len, max(kl,wlev)
             call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
          end if
          if ( iext >= iextra ) then
@@ -3353,11 +3360,11 @@ contains
 !
 !   end subroutine check_dims
    
-   function get_dims() result(dims)
-      include 'newmpar.h'
-      integer, dimension(2) :: dims
-      dims = (/ il_g, kl /)
-   end function get_dims
+!   function get_dims() result(dims)
+!      include 'newmpar.h'
+!      integer, dimension(2) :: dims
+!      dims = (/ il_g, kl /)
+!   end function get_dims
 
 !   function get_dims_gx() result(dims)
 !      include 'newmpar_gx.h'
