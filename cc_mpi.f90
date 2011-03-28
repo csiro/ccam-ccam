@@ -2346,12 +2346,14 @@ contains
 
       ! This does nothing in the one processor case
       if ( nproc == 1 ) return
-
+      
       call start_log(deptsync_begin)
       dslen = 0
       drlen = 0
       do iproc=0,nproc-1            ! MJT memory
-        dindex(iproc)%a = 0         ! MJT memory
+        if (neighbour(iproc)) then  ! MJT memory
+          dindex(iproc)%a = 0       ! MJT memory
+        end if                      ! MJT memory
       end do                        ! MJT memory
       do k=1,size(nface,2)
          do iq=1,ifull

@@ -169,27 +169,27 @@ do k=1,wlev
   end where
   call boundsuv(xfact,yfact)
   
-  base= ( emi*dz(1:ifull) +                    &
-          xfact(1:ifull)*dz(ie) +              & 
-          xfact(iwu)*dz(iw) +                  &
-          yfact(1:ifull)*dz(in) +              &
-          yfact(isv)*dz(is) )
+  base= ( emi +                         &
+          xfact(1:ifull) +              & 
+          xfact(iwu) +                  &
+          yfact(1:ifull) +              &
+          yfact(isv) )
 
-  ucc = ( uc(1:ifull)*emi*dz(1:ifull) +        &
-          xfact(1:ifull)*uc(ie)*dz(ie) +       &
-          xfact(iwu)*uc(iw)*dz(iw) +           &
-          yfact(1:ifull)*uc(in)*dz(in) +       &
-          yfact(isv)*uc(is)*dz(is) ) / base
-  vcc = ( vc(1:ifull)*emi*dz(1:ifull) +        &
-          xfact(1:ifull)*vc(ie)*dz(ie) +       &
-          xfact(iwu)*vc(iw)*dz(iw) +           &
-          yfact(1:ifull)*vc(in)*dz(in) +       &
-          yfact(isv)*vc(is)*dz(is) ) / base
-  wcc = ( wc(1:ifull)*emi*dz(1:ifull) +        &
-          xfact(1:ifull)*wc(ie)*dz(ie) +       &
-          xfact(iwu)*wc(iw)*dz(iw) +           &
-          yfact(1:ifull)*wc(in)*dz(in) +       &
-          yfact(isv)*wc(is)*dz(is) ) / base
+  ucc = ( uc(1:ifull)*emi +             &
+          xfact(1:ifull)*uc(ie) +       &
+          xfact(iwu)*uc(iw) +           &
+          yfact(1:ifull)*uc(in) +       &
+          yfact(isv)*uc(is) ) / base
+  vcc = ( vc(1:ifull)*emi +             &
+          xfact(1:ifull)*vc(ie) +       &
+          xfact(iwu)*vc(iw) +           &
+          yfact(1:ifull)*vc(in) +       &
+          yfact(isv)*vc(is) ) / base
+  wcc = ( wc(1:ifull)*emi +             &
+          xfact(1:ifull)*wc(ie) +       &
+          xfact(iwu)*wc(iw) +           &
+          yfact(1:ifull)*wc(in) +       &
+          yfact(isv)*wc(is) ) / base
   u = ax(1:ifull)*ucc + ay(1:ifull)*vcc + az(1:ifull)*wcc
   v = bx(1:ifull)*ucc + by(1:ifull)*vcc + bz(1:ifull)*wcc
   
@@ -200,11 +200,11 @@ do k=1,wlev
     ee=0.
     call mloexport(i,ee(1:ifull),k,0)
     call bounds(ee)
-    ff = ( ee(1:ifull)*emi*dz(1:ifull) +        &
-           xfact(1:ifull)*ee(ie)*dz(ie) +       &
-           xfact(iwu)*ee(iw)*dz(iw) +           &
-           yfact(1:ifull)*ee(in)*dz(in) +       &
-           yfact(isv)*ee(is)*dz(is) ) / base
+    ff = ( ee(1:ifull)*emi +             &
+           xfact(1:ifull)*ee(ie) +       &
+           xfact(iwu)*ee(iw) +           &
+           yfact(1:ifull)*ee(in) +       &
+           yfact(isv)*ee(is) ) / base
     call mloimport(i,ff,k,0)
   end do
   
@@ -542,18 +542,18 @@ do l=1,lmax ! predictor-corrector loop
   end do
 
 ! Horizontal advection for U,V,W (volume integrated)
-  cou(1:ifull,:)=cou(1:ifull,:)*dz
-  cov(1:ifull,:)=cov(1:ifull,:)*dz
-  cow(1:ifull,:)=cow(1:ifull,:)*dz
+!  cou(1:ifull,:)=cou(1:ifull,:)*dz
+!  cov(1:ifull,:)=cov(1:ifull,:)*dz
+!  cow(1:ifull,:)=cow(1:ifull,:)*dz
   call bounds(cou)
   call bounds(cov)
   call bounds(cow)
   call mloints(cou,intsch,nface,xg,yg,2)
   call mloints(cov,intsch,nface,xg,yg,2)
   call mloints(cow,intsch,nface,xg,yg,2)
-  cou(1:ifull,:)=cou(1:ifull,:)/dz
-  cov(1:ifull,:)=cov(1:ifull,:)/dz
-  cow(1:ifull,:)=cow(1:ifull,:)/dz
+!  cou(1:ifull,:)=cou(1:ifull,:)/dz
+!  cov(1:ifull,:)=cov(1:ifull,:)/dz
+!  cow(1:ifull,:)=cow(1:ifull,:)/dz
 
 !  Rotate vector to arrival point
 !  call mlorot
@@ -565,14 +565,14 @@ do l=1,lmax ! predictor-corrector loop
   end do
 
 ! Horizontal advector for T,S (volume integrated)
-  nt(1:ifull,:)=w_t*dz
-  ns(1:ifull,:)=w_s*dz
+!  nt(1:ifull,:)=w_t*dz
+!  ns(1:ifull,:)=w_s*dz
   call bounds(nt)
   call bounds(ns)
   call mloints(nt,intsch,nface,xg,yg,2)
   call mloints(ns,intsch,nface,xg,yg,5)
-  nt(1:ifull,:)=nt(1:ifull,:)/dz
-  ns(1:ifull,:)=ns(1:ifull,:)/dz
+!  nt(1:ifull,:)=nt(1:ifull,:)/dz
+!  ns(1:ifull,:)=ns(1:ifull,:)/dz
   ns=max(ns,0.)
 
 end do
