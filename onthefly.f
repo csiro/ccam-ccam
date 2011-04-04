@@ -44,12 +44,12 @@
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      & ssdnn(ifull),snage(ifull),qfg(ifull,kl),qlg(ifull,kl),
-     & mlodwn(ifull,wlev,4),ocndwn(ifull)
+     & mlodwn(ifull,wlev,4),ocndwn(ifull,2)
       integer isflag(ifull)
       integer ::  kdate_r, ktime_r, nested
       integer idv,mtimer,k ! MJT small otf
-      real timer ! MJT small otf
-      logical ltest ! MJT small otf
+      real timer           ! MJT small otf
+      logical ltest        ! MJT small otf
 
       !--------------------------------------------------------------
       ! MJT small otf
@@ -215,7 +215,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
       real, dimension(ifull) :: psl,zss,tss,fracice,
      &                          snowd,sicedep,ssdnn,snage,dum6 ! MJT small otf
-      real, dimension(ifull) :: ocndwn
+      real, dimension(ifull,2) :: ocndwn
       real, dimension(ifull,wlev,4) :: mlodwn
       real, dimension(ifull,ms) :: wb,wbice,tgg
       real, dimension(ifull,3) :: tggsn,smass,ssdn
@@ -233,11 +233,9 @@ c**   onthefly; sometime can get rid of common/bigxy4
       ! Used in the global interpolation
       real, dimension(ifull_g,4) :: xg4, yg4
       integer, dimension(ifull_g,4) :: nface4
-      real, dimension(ifull_g) :: t_g, qg_g,uct_g, vct_g, wct_g ! MJT small otf
+      real, dimension(ifull_g) :: t_g, qg_g,uct_g, vct_g ! MJT small otf
       real rotpoles(3,3),rotpole(3,3)
-      real, dimension(dk*dk*6) :: ucc, vcc, wcc              ! MJT small otf
-      real uc, vc, wc                                        ! MJT small otf
-      real  uct_gg, vct_gg, wct_gg
+      real, dimension(dk*dk*6) :: ucc, vcc              ! MJT small otf
       real, dimension(ifull) :: tss_l, tss_s, pmsl ! MJT small otf
       real, dimension(dk*dk*6):: axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a
       real, dimension(dk*dk*6):: wts_a  ! not used here or defined in call setxyz
@@ -452,53 +450,14 @@ c***      but needed here for onthefly (different dims) 28/8/08
           end if
         else
           if ( myid==0 ) then
-            do iq=1,ik*ik*6
-!             first set up winds in Cartesian "source" coords            
-              uc=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
-              vc=ays_a(iq)*ucc(iq) + bys_a(iq)*vcc(iq)
-              wc=azs_a(iq)*ucc(iq) + bzs_a(iq)*vcc(iq)
-!             now convert to winds in "absolute" Cartesian components
-              ucc(iq)=uc*rotpoles(1,1)+vc*rotpoles(1,2)+wc*rotpoles(1,3)
-              vcc(iq)=uc*rotpoles(2,1)+vc*rotpoles(2,2)+wc*rotpoles(2,3)
-              wcc(iq)=uc*rotpoles(3,1)+vc*rotpoles(3,2)+wc*rotpoles(3,3)
-            end do
-            if(ktau<3.and.k==1.and.nproc==1)then
-              write(6,*)'ucc,vcc,wcc: ',ucc(idjd),vcc(idjd),wcc(idjd)
-              write(6,*)'calling ints4 for k= ',k
-            endif
-
+            call interpwind(ik,uct_g,vct_g,ucc,vcc,axs_a,ays_a,azs_a,
+     &                      bxs_a,bys_a,bzs_a,rotpole,rotpoles,nface4,
+     &                      xg4,yg4,nord)
 !           interpolate all required arrays to new C-C positions
 !           don't need to do map factors and Coriolis on target grid
             np=0                ! controls prints in ints4
             call ints4(t_a,    t_g, nface4,xg4,yg4,nord,ik)  ! ints4 on source grid
             call ints4(qg_a,  qg_g, nface4,xg4,yg4,nord,ik)
-            call ints4(ucc,  uct_g, nface4,xg4,yg4,nord,ik)
-            call ints4(vcc,  vct_g, nface4,xg4,yg4,nord,ik)
-            call ints4(wcc,  wct_g, nface4,xg4,yg4,nord,ik)
-
-            do iq=1,ifull_g
-!             now convert to "target" Cartesian components (transpose used)
-              uct_gg=uct_g(iq)*rotpole(1,1)+vct_g(iq)*rotpole(2,1)
-     &                          +wct_g(iq)*rotpole(3,1)
-              vct_gg=uct_g(iq)*rotpole(1,2)+vct_g(iq)*rotpole(2,2)
-     &                          +wct_g(iq)*rotpole(3,2)
-              wct_gg=uct_g(iq)*rotpole(1,3)+vct_g(iq)*rotpole(2,3)
-     &                          +wct_g(iq)*rotpole(3,3)
-!             then finally to "target" local x-y components
-              uct_g(iq) = ax_g(iq)*uct_gg + ay_g(iq)*vct_gg +
-     &                  az_g(iq)*wct_gg
-              vct_g(iq) = bx_g(iq)*uct_gg + by_g(iq)*vct_gg +
-     &                  bz_g(iq)*wct_gg
-            enddo               ! iq loop
-            if(ktau<3.and.k==1.and.nproc==1)then
-              ! This only works if idjd is on processor 0
-              write(6,*)'interp. ucc,vcc,wcc: ',uct_g(idjd),vct_g(idjd),
-     &                 wct_g(idjd)
-              write(6,*)'uct,vct,wct:',uct_g(idjd),vct_g(idjd),
-     &                 wct_g(idjd)
-              write(6,*)'ax,ay,az ',ax_g(idjd),ay_g(idjd),az_g(idjd)
-              write(6,*)'bx,by,bz ',bx_g(idjd),by_g(idjd),bz_g(idjd)
-            endif
             call ccmpi_distribute(u_k(:,k), uct_g)
             call ccmpi_distribute(v_k(:,k), vct_g)
             call ccmpi_distribute(t_k(:,k), t_g)
@@ -652,9 +611,9 @@ c       incorporate other target land mask effects
      &               6*ik*ik)
         if (iotest) then
           if (myid==0) then
-            call ccmpi_distribute(ocndwn,zss_a)
+            call ccmpi_distribute(ocndwn(:,1),zss_a)
           else
-            call ccmpi_distribute(ocndwn)
+            call ccmpi_distribute(ocndwn(:,1))
           end if
         else
           if (myid==0) then
@@ -667,7 +626,25 @@ c       incorporate other target land mask effects
               zss_a=0.
             end if
           end if
-          call doints4(zss_a,ocndwn,nface4,xg4,yg4,nord,ik)
+          call doints4(zss_a,ocndwn(:,1),nface4,xg4,yg4,nord,ik)
+        end if ! iotest
+        zss_a=0.
+        call histrd1(ncid,iarchi,ier,'ocheight',ik,6*ik,zss_a,
+     &               6*ik*ik)
+        if (iotest) then
+          if (myid==0) then
+            call ccmpi_distribute(ocndwn(:,2),zss_a)
+          else
+            call ccmpi_distribute(ocndwn(:,2))
+          end if
+        else
+          if (myid==0) then
+            where (land_a)
+              zss_a=spval
+            end where
+            call fill_cc(zss_a,spval,ik,0)
+          end if
+          call doints4(zss_a,ocndwn(:,2),nface4,xg4,yg4,nord,ik)
         end if ! iotest
         do k=1,wlev
           t_a=max(tss_a,271.)
@@ -716,39 +693,12 @@ c       incorporate other target land mask effects
               call fill_cc(qg_a,spval,ik,0)
               call fill_cc(ucc,spval,ik,0)
               call fill_cc(vcc,spval,ik,0)
-              do iq=1,ik*ik*6
- !              first set up winds in Cartesian "source" coords
-                uc=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
-                vc=ays_a(iq)*ucc(iq) + bys_a(iq)*vcc(iq)
-                wc=azs_a(iq)*ucc(iq) + bzs_a(iq)*vcc(iq)
-!               now convert to winds in "absolute" Cartesian components
-                ucc(iq)=uc*rotpoles(1,1)+vc*rotpoles(1,2)
-     &                 +wc*rotpoles(1,3)
-                vcc(iq)=uc*rotpoles(2,1)+vc*rotpoles(2,2)
-     &                 +wc*rotpoles(2,3)
-                wcc(iq)=uc*rotpoles(3,1)+vc*rotpoles(3,2)
-     &                 +wc*rotpoles(3,3)
-              end do
+              call interpwind(ik,uct_g,vct_g,ucc,vcc,axs_a,ays_a,azs_a,
+     &                      bxs_a,bys_a,bzs_a,rotpole,rotpoles,nface4,
+     &                      xg4,yg4,nord)
 !             interpolate all required arrays to new C-C positions
               call ints4(t_a,   t_g, nface4,xg4,yg4,nord,ik)
               call ints4(qg_a, qg_g, nface4,xg4,yg4,nord,ik)
-              call ints4(ucc, uct_g, nface4,xg4,yg4,nord,ik)
-              call ints4(vcc, vct_g, nface4,xg4,yg4,nord,ik)
-              call ints4(wcc, wct_g, nface4,xg4,yg4,nord,ik)
-              do iq=1,ifull_g
-!              now convert to "target" Cartesian components (transpose used)
-               uct_gg=uct_g(iq)*rotpole(1,1)+vct_g(iq)*rotpole(2,1)
-     &                           +wct_g(iq)*rotpole(3,1)
-               vct_gg=uct_g(iq)*rotpole(1,2)+vct_g(iq)*rotpole(2,2)
-     &                           +wct_g(iq)*rotpole(3,2)
-               wct_gg=uct_g(iq)*rotpole(1,3)+vct_g(iq)*rotpole(2,3)
-     &                           +wct_g(iq)*rotpole(3,3)
-!              then finally to "target" local x-y components
-               uct_g(iq) = ax_g(iq)*uct_gg + ay_g(iq)*vct_gg +
-     &                   az_g(iq)*wct_gg
-               vct_g(iq) = bx_g(iq)*uct_gg + by_g(iq)*vct_gg +
-     &                   bz_g(iq)*wct_gg
-              enddo               ! iq loop
               call ccmpi_distribute(mlodwn(:,k,1), t_g)
               call ccmpi_distribute(mlodwn(:,k,2),qg_g)              
               call ccmpi_distribute(mlodwn(:,k,3), uct_g)
@@ -1042,37 +992,9 @@ c       incorporate other target land mask effects
               end where
               call fill_cc(ucc,spval,ik,0)
               call fill_cc(vcc,spval,ik,0)
-              do iq=1,ik*ik*6
- !              first set up winds in Cartesian "source" coords
-                uc=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
-                vc=ays_a(iq)*ucc(iq) + bys_a(iq)*vcc(iq)
-                wc=azs_a(iq)*ucc(iq) + bzs_a(iq)*vcc(iq)
-!               now convert to winds in "absolute" Cartesian components
-                ucc(iq)=uc*rotpoles(1,1)+vc*rotpoles(1,2)
-     &                 +wc*rotpoles(1,3)
-                vcc(iq)=uc*rotpoles(2,1)+vc*rotpoles(2,2)
-     &                 +wc*rotpoles(2,3)
-                wcc(iq)=uc*rotpoles(3,1)+vc*rotpoles(3,2)
-     &                 +wc*rotpoles(3,3)
-              end do
-!             interpolate all required arrays to new C-C positions
-              call ints4(ucc, uct_g, nface4,xg4,yg4,nord,ik)
-              call ints4(vcc, vct_g, nface4,xg4,yg4,nord,ik)
-              call ints4(wcc, wct_g, nface4,xg4,yg4,nord,ik)
-              do iq=1,ifull_g
-!              now convert to "target" Cartesian components (transpose used)
-               uct_gg=uct_g(iq)*rotpole(1,1)+vct_g(iq)*rotpole(2,1)
-     &                           +wct_g(iq)*rotpole(3,1)
-               vct_gg=uct_g(iq)*rotpole(1,2)+vct_g(iq)*rotpole(2,2)
-     &                           +wct_g(iq)*rotpole(3,2)
-               wct_gg=uct_g(iq)*rotpole(1,3)+vct_g(iq)*rotpole(2,3)
-     &                           +wct_g(iq)*rotpole(3,3)
-!              then finally to "target" local x-y components
-               uct_g(iq) = ax_g(iq)*uct_gg + ay_g(iq)*vct_gg +
-     &                   az_g(iq)*wct_gg
-               vct_g(iq) = bx_g(iq)*uct_gg + by_g(iq)*vct_gg +
-     &                   bz_g(iq)*wct_gg
-              enddo               ! iq loop
+              call interpwind(ik,uct_g,vct_g,ucc,vcc,axs_a,ays_a,azs_a,
+     &                      bxs_a,bys_a,bzs_a,rotpole,rotpoles,nface4,
+     &                      xg4,yg4,nord)
               call ccmpi_distribute(micdwn(:,9), uct_g)
               call ccmpi_distribute(micdwn(:,10), vct_g)
             else ! myid /= 0
@@ -1519,7 +1441,7 @@ c     integer iq
 
       if ( myid ==0 ) then
 ccc         call ccmpi_gather(s,s_a)
-         call ints4(s_a,s_g,nface4 ,xg4 ,yg4,nord,ik) 
+         call ints4(s_a,s_g,nface4 ,xg4 ,yg4,nord,ik)
          call ccmpi_distribute(sout,s_g)
       else
 ccc         call ccmpi_gather(s)
@@ -1982,3 +1904,60 @@ c     endif  ! (meth.eq.0)
       return
       end
       
+      subroutine interpwind(ik,uct_g,vct_g,ucc,vcc,axs_a,ays_a,azs_a,
+     &                      bxs_a,bys_a,bzs_a,rotpole,rotpoles,nface4,
+     &                      xg4,yg4,nord)
+      
+      use work3f_m
+      use vecsuv_m
+      
+      implicit none
+      
+      include 'newmpar.h'
+      
+      integer, intent(in) :: ik,nord
+      integer, dimension(6*ik*ik), intent(in) :: nface4
+      integer iq,np
+      real, dimension(3,3), intent(in) :: rotpole,rotpoles
+      real, dimension(6*ik*ik), intent(in) :: axs_a,ays_a,azs_a
+      real, dimension(6*ik*ik), intent(in) :: bxs_a,bys_a,bzs_a
+      real, dimension(6*ik*ik), intent(in) :: xg4,yg4
+      real, dimension(6*ik*ik), intent(inout) :: ucc,vcc
+      real, dimension(6*ik*ik) :: wcc
+      real, dimension(ifull_g), intent(out) :: uct_g,vct_g
+      real, dimension(ifull_g) :: wct_g
+      real uc,vc,wc,uct_gg,vct_gg,wct_gg
+      
+      do iq=1,ik*ik*6
+        ! first set up winds in Cartesian "source" coords            
+        uc=axs_a(iq)*ucc(iq) + bxs_a(iq)*vcc(iq)
+        vc=ays_a(iq)*ucc(iq) + bys_a(iq)*vcc(iq)
+        wc=azs_a(iq)*ucc(iq) + bzs_a(iq)*vcc(iq)
+        ! now convert to winds in "absolute" Cartesian components
+        ucc(iq)=uc*rotpoles(1,1)+vc*rotpoles(1,2)+wc*rotpoles(1,3)
+        vcc(iq)=uc*rotpoles(2,1)+vc*rotpoles(2,2)+wc*rotpoles(2,3)
+        wcc(iq)=uc*rotpoles(3,1)+vc*rotpoles(3,2)+wc*rotpoles(3,3)
+      end do
+      ! interpolate all required arrays to new C-C positions
+      ! don't need to do map factors and Coriolis on target grid
+      np=0                ! controls prints in ints4
+      call ints4(ucc,  uct_g, nface4,xg4,yg4,nord,ik)
+      call ints4(vcc,  vct_g, nface4,xg4,yg4,nord,ik)
+      call ints4(wcc,  wct_g, nface4,xg4,yg4,nord,ik)
+      do iq=1,ifull_g
+        ! now convert to "target" Cartesian components (transpose used)
+        uct_gg=uct_g(iq)*rotpole(1,1)+vct_g(iq)*rotpole(2,1)
+     &                          +wct_g(iq)*rotpole(3,1)
+        vct_gg=uct_g(iq)*rotpole(1,2)+vct_g(iq)*rotpole(2,2)
+     &                          +wct_g(iq)*rotpole(3,2)
+        wct_gg=uct_g(iq)*rotpole(1,3)+vct_g(iq)*rotpole(2,3)
+     &                          +wct_g(iq)*rotpole(3,3)
+        ! then finally to "target" local x-y components
+        uct_g(iq) = ax_g(iq)*uct_gg + ay_g(iq)*vct_gg +
+     &                  az_g(iq)*wct_gg
+        vct_g(iq) = bx_g(iq)*uct_gg + by_g(iq)*vct_gg +
+     &                  bz_g(iq)*wct_gg
+      enddo               ! iq loop
+      
+      return
+      end subroutine interpwind

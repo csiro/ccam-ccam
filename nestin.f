@@ -23,9 +23,9 @@
       include 'parmgeom.h' ! rlong0,rlat0,schmidt
       include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
       real, dimension(:,:), allocatable, save :: ta,ua,va,qa
-      real, dimension(:,:), allocatable, save :: tb,ub,vb,qb
+      real, dimension(:,:), allocatable, save :: tb,ub,vb,qb,ocndep
       real, dimension(:), allocatable, save :: psla,pslb,tssa,tssb
-      real, dimension(:), allocatable, save :: sicedepb,fraciceb,ocndep
+      real, dimension(:), allocatable, save :: sicedepb,fraciceb
       real, dimension(:,:,:), allocatable, save :: sssa,sssb
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
       real, dimension(ifull) :: zsb,duma
@@ -43,7 +43,7 @@
         allocate(ta(ifull,kl),ua(ifull,kl),va(ifull,kl),qa(ifull,kl))
         allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
         allocate(psla(ifull),pslb(ifull),tssa(ifull),tssb(ifull))
-        allocate(sicedepb(ifull),fraciceb(ifull),ocndep(ifull))
+        allocate(sicedepb(ifull),fraciceb(ifull),ocndep(ifull,2))
         allocate(sssa(ifull,wlev,4),sssb(ifull,wlev,4))
       end if
       
@@ -267,7 +267,7 @@
       
       if (nmlo.ne.0) then
         ! interpolate ocean data to nested model grid
-        call mloregrid(ocndep,sssb)
+        call mloregrid(ocndep(:,1),sssb)
       end if
 
       if(num==0)then
@@ -309,7 +309,7 @@
         ! nudge mlo
         dumaa=cona*sssa+conb*sssb
         wl=wlev
-        rduma=maxval(ocndep)
+        rduma=maxval(ocndep(:,1))
         call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
      &                     MPI_COMM_WORLD,ierr)
         if (rdumg.lt.0.5) wl=1
@@ -355,9 +355,9 @@
       integer ::  iabsdate,iq,k,kdhour,kdmin
       real :: ds_r,rlong0x,rlat0x
       real :: schmidtx,timeg_b,rduma,rdumg
-      real, dimension(:,:), allocatable, save :: tb,ub,vb,qb
+      real, dimension(:,:), allocatable, save :: tb,ub,vb,qb,ocndep
       real, dimension(:), allocatable, save :: pslb,tssb,fraciceb
-      real, dimension(:), allocatable, save :: sicedepb,ocndep
+      real, dimension(:), allocatable, save :: sicedepb
       real, dimension(:,:,:), allocatable, save :: sssb
       real, dimension(ifull) :: zsb,duma
       integer, dimension(ifull) :: dumm
@@ -372,7 +372,7 @@
       if (.not.allocated(tb)) then
         allocate(tb(ifull,kl),ub(ifull,kl),vb(ifull,kl),qb(ifull,kl))
         allocate(pslb(ifull),tssb(ifull),fraciceb(ifull))
-        allocate(sicedepb(ifull),ocndep(ifull))
+        allocate(sicedepb(ifull),ocndep(ifull,2))
         allocate(sssb(ifull,wlev,4))
       end if
 
@@ -516,7 +516,7 @@
        !endif   !  newtop>=1 ! MJT bugfix
        
        if (nmlo.ne.0) then
-         call mloregrid(ocndep,sssb)
+         call mloregrid(ocndep(:,1),sssb)
        end if
 
       end if ! ((mtimer>mtimeb).or.firstcall)
@@ -578,7 +578,7 @@
          else
           ! nudge mlo
           wl=wlev
-          rduma=maxval(ocndep)
+          rduma=maxval(ocndep(:,1))
           call MPI_AllReduce(rduma,rdumg,1,MPI_REAL,MPI_MAX,
      &                       MPI_COMM_WORLD,ierr)
           if (rdumg.lt.0.5) wl=1
@@ -588,7 +588,7 @@
               sssb(:,1,1)=271.2
             end where
           end if
-          if (nud_uv.ne.9) then
+          if (nud_uv.ne.9.and.abs(nmlo).ne.1) then
             call mlofilterfast(sssb(:,1:wl,1),sssb(:,1:wl,2),
      &                         sssb(:,1:wl,3:4),wl)
           else

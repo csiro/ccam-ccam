@@ -495,7 +495,7 @@ c     if(mydiag.and.diag)then
          print *,'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)          
       endif   ! (mydiag.and.nmaxpr==1)                                    
       
-      elseif (abs(nmlo).ge.1) then                                   ! MLO
+      elseif (abs(nmlo).ge.1.and.abs(nmlo).le.9) then                ! MLO
         ! abs(mlo) <= 1 Vertical mixing                              ! MLO
         ! abs(mlo) <= 2 + Horizontal diffusion                       ! MLO
         ! abs(mlo) <= 3 + Advection                                  ! MLO
@@ -509,10 +509,10 @@ c     if(mydiag.and.diag)then
         call mloeval(tss,zo,cduv,fg,eg,wetfac,epot,epan,fracice,     ! MLO
      &               sicedep,snowd,dt,azmin,azmin,sgsave(:)/         ! MLO
      &               (1.-swrsave*albvisnir(:,1)-                     ! MLO
-     &               (1.-swrsave)*albvisnir(:,2))                    ! MLO
-     &               ,-rgsave,condx/dt,uav,vav,t(1:ifull,1)          ! MLO
-     &               ,qg(1:ifull,1),ps,f,swrsave,fbeamvis,fbeamnir   ! MLO
-     &               ,watbdy(1:ifull)/dt,0)                          ! MLO
+     &               (1.-swrsave)*albvisnir(:,2)),                   ! MLO
+     &               -rgsave,condx/dt,uav,vav,t(1:ifull,1),          ! MLO
+     &               qg(1:ifull,1),ps,f,swrsave,fbeamvis,fbeamnir,   ! MLO
+     &               watbdy(1:ifull)/dt,0,.true.)                    ! MLO
         call mloscrnout(tscrn,qgscrn,uscrn,u10,0)                    ! MLO
         do k=1,ms                                                    ! MLO
           call mloexport(0,tgg(:,k),k,0)                             ! MLO

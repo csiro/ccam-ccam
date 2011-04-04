@@ -70,7 +70,8 @@
       real rlonx,rlatx,alf
       common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
       real, dimension(ifull) :: zss, aa, zsmask
-      real, dimension(ifull) :: dep,ocndwn,depth ! MJT mlo
+      real, dimension(ifull) :: dep,depth        ! MJT mlo
+      real, dimension(ifull,2) :: ocndwn         ! MJT mlo
       real, dimension(ifull,wlev,4) :: mlodwn    ! MJT mlo
       real, dimension(ifull) :: duma    ! MJT recycle
       real, dimension(ifull,kl) :: dumb ! MJT recycle
@@ -1053,7 +1054,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         ! clobber ifile surface data with surfin surface data    ! MJT recycle
         kdate_s=kdate_sav                                        ! MJT recycle
         ktime_s=ktime_sav                                        ! MJT recycle
-	if (myid==0) then                                        ! MJT recycle
+        if (myid==0) then                                        ! MJT recycle
          write(6,*) "Replacing surface data with input from ",   ! MJT recycle
      &               trim(surf_00)                               ! MJT recycle
         end if                                                   ! MJT recycle
@@ -1063,10 +1064,10 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
      &       dumb,tggsn,smass,ssdn,ssdnn,snage,isflag,           ! MJT recycle
      &       iaero,mlodwn,ocndwn)                                ! MJT recycle
          if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)then        ! MJT recycle
-	  if (myid==0) then                                      ! MJT recycle
+          if (myid==0) then                                      ! MJT recycle
            write(6,*) "WARN: Could not locate correct date/time" ! MJT recycle
            write(6,*) "      Using infile surface data instead"  ! MJT recycle
-	  end if                                                 ! MJT recycle
+          end if                                                 ! MJT recycle
          endif                                                   ! MJT recycle
        else                                                      ! MJT recycle
 !       for sequence of runs starting with values saved from last run
@@ -2041,11 +2042,12 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           dep=max(dep,10.)
         end where
         call mloinit(ifull,dep,0)
-        if (any(ocndwn.gt.0.5)) then
+        if (any(ocndwn(:,1).gt.0.5)) then
           if (myid == 0) print *,"Importing MLO data"
-          call mloregrid(ocndwn,mlodwn)
+          call mloregrid(ocndwn(:,1),mlodwn)
         else
           if (myid == 0) print *,"Using MLO defaults"
+          ocndwn(:,2)=0.
           do k=1,wlev
             call mloexpdep(0,depth,k,0)
             ! This polynomial fit is from MOM3, based on Levitus
@@ -2085,7 +2087,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
         where (tss.gt.273.2.and.fracice.le.0.) ! Always use tss for top ocean layer
           mlodwn(:,1,1)=tss(:)                 ! This has no effect in a climate mode and
         endwhere                               ! ensures SST track analyses in a NWP mode
-        call mloload(mlodwn,micdwn,0)
+        call mloload(mlodwn,ocndwn(:,2),micdwn,0)
         deallocate(micdwn)
         do k=1,ms
           call mloexport(0,tgg(:,k),k,0)

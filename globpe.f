@@ -38,7 +38,7 @@
       use liqwpar_m   ! ifullw,qfg,qlg
       use lwout_m, only : lwout_init
       use map_m       ! em, f, dpsldt, fu, fv, etc
-      use mlo, only : mlodiag
+      use mlo, only : mlodiag,wlev
       use morepbl_m
       use neigh_m, only : neigh_init
       use nharrs_m, only : nharrs_init
@@ -229,6 +229,7 @@
       ! READ NAMELISTS AND SET PARAMETER DEFAULTS
       il_g=48
       kl=18
+      ol=0
       ia=-1
       ib=-1
       ntbar=-1      ! just a default 7/3/07
@@ -293,8 +294,9 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       open(28,file=eigenv,status='old',form='formatted')
       read(28,*)kmax,lapsbot,isoth,nsig
       kl=kmax
-      if (myid==0) print*,'kl,lapsbot,isoth,nsig: ',
-     &             kl,lapsbot,isoth,nsig
+      if (abs(nmlo).ge.1.and.abs(nmlo).le.9) ol=wlev
+      if (myid==0) print*,'kl,ol,lapsbot,isoth,nsig: ',
+     &             kl,ol,lapsbot,isoth,nsig
 
       !--------------------------------------------------------------
       ! DEFINE newmpar VARIABLES AND DEFAULTS
@@ -1264,7 +1266,6 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
       ! CLOUD MICROPHYSICS ----------------------------------------------------
       call start_log(cloud_begin)
       if(ldr.ne.0)then
-c       print*,'Calling prognostic cloud scheme'
         call leoncld(cfrac,iaero)  !Output
         do k=1,kl
          riwp_ave(:)=riwp_ave(:)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path

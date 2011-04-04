@@ -115,7 +115,7 @@ cable_physical_constants.o : cable_define_dimensions.o
 cable_radiation.o : cable_define_types.o cable_math_constants.o cable_other_constants.o cable_physical_constants.o
 cable_roughness.o : cable_define_types.o cable_physical_constants.o
 cable_soilsnow.o : cable_define_types.o cable_physical_constants.o
-cc_mpi.o : indices_m.o latlong_m.o map_m.o mlo.o sigs_m.o sumdd_m.o vecsuv_m.o xyzinfo_m.o newmpar.h parm.h 
+cc_mpi.o : indices_m.o latlong_m.o map_m.o sigs_m.o sumdd_m.o vecsuv_m.o xyzinfo_m.o newmpar.h parm.h 
 clddia.o : arrays_m.o cc_mpi.o davb_m.o map_m.o morepbl_m.o pbl_m.o sigs_m.o soil_m.o vvel_m.o const_phys.h kuocom.h newmpar.h parm.h
 cldset.o : const_phys.h 
 clo89.o : cldcom_m.o radisw_m.o rdparm.h newmpar.h parm.h 

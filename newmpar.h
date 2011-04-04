@@ -2,6 +2,7 @@
 !     are truly global, others refer to a processor's own region.
       integer :: nproc            ! Number of processors to use
       integer :: kl               ! Vertical levels
+      integer :: ol               ! Ocean levels
       integer, parameter :: ms=6  ! Levels in surface scheme
       integer, parameter :: npanels = 5
       integer :: il_g
@@ -23,5 +24,5 @@
       integer :: ifull, ijk
       integer :: iextra
 
-      common/newmpar/nproc,kl,il_g,jl_g,ifull_g,nrows_rad,ijk_g,         &
+      common/newmpar/nproc,kl,ol,il_g,jl_g,ifull_g,nrows_rad,ijk_g,       &
      &               iquad,nxp,nyp,il,jl,ifull,npan,ijk,iextra

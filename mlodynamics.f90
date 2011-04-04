@@ -352,11 +352,11 @@ include 'newmpar.h'
 include 'const_phys.h'
 include 'parm.h'
 
-integer l,ii,intsch
+integer l,ll,ii,intsch
 integer, dimension(ifull,wlev) :: nface
-real, dimension(ifull+iextra) :: ee
-real, dimension(ifull) :: xp,xm
-real, dimension(ifull) :: dpsdx,dpsdy
+real, dimension(ifull+iextra) :: ee,neta,suu,svv
+real, dimension(ifull) :: xp,xm,dpsdx,dpsdy,w_e
+real, dimension(ifull) :: div,dedx,dedy
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns
 real, dimension(ifull+iextra,wlev) :: cou,cov,cow
 real, dimension(ifull+iextra,wlev) :: dep,rhobar
@@ -366,8 +366,15 @@ real, dimension(ifull,wlev) :: dzdx,dzdy
 real, dimension(ifull,wlev) :: drdx,drdy,drdz
 real, dimension(ifull,wlev) :: xg,yg
 real, dimension(:,:), allocatable, save :: oldu1,oldv1
+real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
 integer, parameter :: lmax=1 ! 0=no-advection, 1=predictor-only, 2=predictor-corrector
+integer, parameter :: llmax=60 ! iterations for surface height
+real, parameter :: alpha = 0.02
+
+! new z levels for including free surface eta (effectively sigma levels)
+! newz=-eta+oldz*(1+eta/maxdepth)
+! where 0<=oldz<=maxdepth and -eta<=newz<=maxdepth
 
 intsch=mod(ktau,2)
 
@@ -389,12 +396,14 @@ w_t=293.
 w_s=0.
 w_u=0.
 w_v=0.
+w_e=0.
 nt=293.
 ns=30.
 nu=0.
 nv=0.
+neta=0.
 
-! Initialise arrays
+! ADVECT WATER ------------------------------------------------------
 do ii=1,wlev
   call mloexpdep(0,dep(1:ifull,ii),ii,0)
   call mloexpdep(1,dz(:,ii),ii,0)
@@ -405,6 +414,7 @@ do ii=1,wlev
   call mloexport(2,w_u(:,ii),ii,0)
   call mloexport(3,w_v(:,ii),ii,0)
 end do
+call mloexport(4,w_e,0,0)
 call bounds(dep)
 call bounds(ps)
 
@@ -495,10 +505,7 @@ where (wtr(1:ifull))
   xm=dt*f(1:ifull)
 end where
 
-! Split U and V coriolis and pressure gradient terms
-! (Here we differentiate for true horizontal X and Y.  The correction for levels is built into rhobar, but the varying bottom
-!  depth is then removed)
-! (Could split this before and after advection terms so that updated value of rho could be used)
+! Split U and V coriolis and pressure gradient terms (slow terms without free surface)
 do ii=1,wlev
   nu(1:ifull,ii)=(w_u(:,ii)+xm*w_v(:,ii)-dt*grav*dep(1:ifull,ii)*(drdx(:,ii)+xm*drdy(:,ii))/rho(:,ii) &
                                               -dt*(dpsdx+xm*dpsdy)/rho(:,ii))/xp
@@ -529,52 +536,115 @@ do l=1,lmax ! predictor-corrector loop
   end if
 
   ! Calculate depature points
-  call mlodeps(nuh,nvh,nface,xg,yg)
+  call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d)
 
-!  Vertical advection
-!  call mlovadv
+! Vertical advection
+! call mlovadv
 
 ! Convert (u,v) to cartesian coordinates (U,V,W)
   do ii=1,wlev
-    cou(1:ifull,ii)=ax*w_u(:,ii)+bx*w_v(:,ii)
-    cov(1:ifull,ii)=ay*w_u(:,ii)+by*w_v(:,ii)
-    cow(1:ifull,ii)=az*w_u(:,ii)+bz*w_v(:,ii)
+    cou(1:ifull,ii)=ax(1:ifull)*w_u(:,ii)+bx(1:ifull)*w_v(:,ii)
+    cov(1:ifull,ii)=ay(1:ifull)*w_u(:,ii)+by(1:ifull)*w_v(:,ii)
+    cow(1:ifull,ii)=az(1:ifull)*w_u(:,ii)+bz(1:ifull)*w_v(:,ii)
   end do
 
-! Horizontal advection for U,V,W (volume integrated)
-!  cou(1:ifull,:)=cou(1:ifull,:)*dz
-!  cov(1:ifull,:)=cov(1:ifull,:)*dz
-!  cow(1:ifull,:)=cow(1:ifull,:)*dz
+! Horizontal advection for U,V,W
   call bounds(cou)
   call bounds(cov)
   call bounds(cow)
   call mloints(cou,intsch,nface,xg,yg,2)
   call mloints(cov,intsch,nface,xg,yg,2)
   call mloints(cow,intsch,nface,xg,yg,2)
-!  cou(1:ifull,:)=cou(1:ifull,:)/dz
-!  cov(1:ifull,:)=cov(1:ifull,:)/dz
-!  cow(1:ifull,:)=cow(1:ifull,:)/dz
 
-!  Rotate vector to arrival point
-!  call mlorot
+! Rotate vector to arrival point
+  call mlorot(cou,cov,cow,x3d,y3d,z3d)
 
 ! Convert (U,V,W) back to conformal cubic coordinates
   do ii=1,wlev
-    nu(:,ii)=ax*cou(:,ii)+ay*cov(:,ii)+az*cow(:,ii)
-    nv(:,ii)=bx*cou(:,ii)+by*cov(:,ii)+bz*cow(:,ii)
+    where (wtr(1:ifull))
+      nu(1:ifull,ii)=ax(1:ifull)*cou(1:ifull,ii)+ay(1:ifull)*cov(1:ifull,ii)+az(1:ifull)*cow(1:ifull,ii)
+      nv(1:ifull,ii)=bx(1:ifull)*cou(1:ifull,ii)+by(1:ifull)*cov(1:ifull,ii)+bz(1:ifull)*cow(1:ifull,ii)
+    elsewhere
+      nu(1:ifull,ii)=0.
+      nv(1:ifull,ii)=0.
+    end where
   end do
-
-! Horizontal advector for T,S (volume integrated)
-!  nt(1:ifull,:)=w_t*dz
-!  ns(1:ifull,:)=w_s*dz
+  
+  ! Horizontal advection for T,S
+  nt(1:ifull,:)=w_t
+  ns(1:ifull,:)=w_s
   call bounds(nt)
   call bounds(ns)
   call mloints(nt,intsch,nface,xg,yg,2)
   call mloints(ns,intsch,nface,xg,yg,5)
-!  nt(1:ifull,:)=nt(1:ifull,:)/dz
-!  ns(1:ifull,:)=ns(1:ifull,:)/dz
   ns=max(ns,0.)
+  
+  ! fix for sigma levels (need to include map factor...)
+  ! ...
 
+  ! stagger nu and nv
+  call mlostaguv(nu(1:ifull,:),nv(1:ifull,:),nuh(1:ifull,:),nvh(1:ifull,:))
+  nu(1:ifull,:)=nuh(1:ifull,:)
+  nv(1:ifull,:)=nvh(1:ifull,:)
+
+  cou(1:ifull,:)=nu(1:ifull,:)
+  cov(1:ifull,:)=nv(1:ifull,:)
+  neta(1:ifull)=w_e
+  
+  ! Now solve for the coupled eta, nu and nv equations.
+  ! This should be replaced with AB approach and SOR
+  do ll=1,llmax
+
+    ! update free surface height
+    suu=0.
+    svv=0.
+    do ii=1,wlev
+        suu(1:ifull)=suu(1:ifull)+dz(:,ii)*nu(1:ifull,ii)
+        svv(1:ifull)=svv(1:ifull)+dz(:,ii)*nv(1:ifull,ii)
+    end do
+    where (.not.wtr(1:ifull))
+      suu=0.
+      svv=0.
+    end where
+    call boundsuv(suu,svv)
+    div(:)=(suu(1:ifull)-suu(iwu)+svv(1:ifull)-svv(isv))*em(1:ifull)/ds
+    neta(1:ifull)=alpha*(w_e-dt*div)/(1.+dt*div/dzbar(:,wlev))+(1.-alpha)*neta(1:ifull)
+    neta(1:ifull)=max(neta(1:ifull),-dzbar(:,wlev))
+    where (.not.wtr(1:ifull))
+      neta(1:ifull)=0.
+    end where
+    call bounds(neta)
+
+    dedx=0.
+    dedy=0.
+    where(wtr(1:ifull).and.wtr(ie))
+      dedx(:)=(neta(ie)-neta(1:ifull))*em(1:ifull)/ds
+    end where
+    where(wtr(1:ifull).and.wtr(in))
+      dedy(:)=(neta(in)-neta(1:ifull))*em(1:ifull)/ds
+    end where
+
+    ! update fast pressure gradient terms (predictor-corrector)
+    do ii=1,wlev
+      nu(1:ifull,ii)=cou(1:ifull,ii)-dt*grav*dep(1:ifull,ii)*rhobar(:,ii)*dedx/(rho(:,ii)*dzbar(:,wlev))
+      nv(1:ifull,ii)=cov(1:ifull,ii)-dt*grav*dep(1:ifull,ii)*rhobar(:,ii)*dedy/(rho(:,ii)*dzbar(:,wlev))
+      where (.not.wtr(1:ifull))
+        nu(1:ifull,ii)=0.
+        nv(1:ifull,ii)=0.
+      end where
+    end do
+    
+  end do
+
+  ! unstagger nu and nv
+  call mlounstaguv(nu(1:ifull,:),nv(1:ifull,:),nuh(1:ifull,:),nvh(1:ifull,:))
+
+  ! update remaining pressure term
+  do ii=1,wlev
+    nu(1:ifull,ii)=nuh(1:ifull,ii)-dt*grav*dep(1:ifull,ii)*drdx(:,ii)*neta(1:ifull)/(rho(:,ii)*dzbar(:,wlev))
+    nv(1:ifull,ii)=nvh(1:ifull,ii)-dt*grav*dep(1:ifull,ii)*drdy(:,ii)*neta(1:ifull)/(rho(:,ii)*dzbar(:,wlev))
+  end do
+  
 end do
 
 ! fix conservation
@@ -589,8 +659,9 @@ do ii=1,wlev
   call mloimport(2,nu(1:ifull,ii),ii,0)
   call mloimport(3,nv(1:ifull,ii),ii,0)
 end do
+call mloimport(4,neta(1:ifull),0,0)
 
-! Advect sea-ice
+! ADVECT ICE --------------------------------------------------------
 !do ii=1,wlev
 !  call mloexpice(w_u(:,1),8,0)
 !  call mloexpice(w_v(:,1),9,0)
@@ -684,7 +755,7 @@ end subroutine mlohadv
 ! Calculate depature points for MLO semi-Lagrangian advection
 ! (This subroutine is based on depts.f)
 
-subroutine mlodeps(ubar,vbar,nface,xg,yg)
+subroutine mlodeps(ubar,vbar,nface,xg,yg,x3d,y3d,z3d)
 
 use cc_mpi
 use mlo
@@ -701,7 +772,7 @@ integer ii,intsch,n
 integer, dimension(ifull,wlev), intent(out) :: nface
 real, dimension(ifull,wlev), intent(in) :: ubar,vbar
 real, dimension(ifull,wlev), intent(out) :: xg,yg
-real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
+real*8, dimension(ifull,wlev), intent(out) :: x3d,y3d,z3d
 real, dimension(ifull,wlev) :: uc,vc,wc
 real, dimension(ifull+iextra,wlev) :: temp
 integer, parameter :: nguess = 2
@@ -1487,6 +1558,164 @@ call intssync(s)
 
 return
 end subroutine mloints
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Rotate wind vector to arrival point
+
+subroutine mlorot(cou,cov,cow,x3d,y3d,z3d)
+
+use mlo
+use xyzinfo_m
+
+implicit none
+
+include 'newmpar.h'
+
+integer k
+real, dimension(ifull,wlev), intent(inout) :: cou,cov,cow
+real, dimension(ifull) :: vec1x,vec1y,vec1z,denb
+real, dimension(ifull) :: vec2x,vec2y,vec2z,vecdot
+real, dimension(ifull) :: vec3x,vec3y,vec3z,vdot1,vdot2
+real*8, dimension(ifull,wlev), intent(in) :: x3d,y3d,z3d
+
+do k=1,wlev
+!         cross product n1xn2 into vec1
+  vec1x = y3d(:,k)*z - y*z3d(:,k)
+  vec1y = z3d(:,k)*x - z*x3d(:,k)
+  vec1z = x3d(:,k)*y - x*y3d(:,k)
+  denb = vec1x**2 + vec1y**2 + vec1z**2
+!         N.B. rotation formula is singular for small denb,
+!         but the rotation is unnecessary in this case
+  where (denb>1.e-4)
+    vecdot = x3d(:,k)*x + y3d(:,k)*y + z3d(:,k)*z
+    vec2x = x3d(:,k)*vecdot - x
+    vec2y = y3d(:,k)*vecdot - y
+    vec2z = z3d(:,k)*vecdot - z
+    vec3x = x3d(:,k) - vecdot*x
+    vec3y = y3d(:,k) - vecdot*y
+    vec3z = z3d(:,k) - vecdot*z
+    vdot1 = (vec1x*cou(:,k) + vec1y*cov(:,k) + vec1z*cow(:,k))/denb
+    vdot2 = (vec2x*cou(:,k) + vec2y*cov(:,k) + vec2z*cow(:,k))/denb
+    cou(:,k) = vdot1*vec1x + vdot2*vec3x
+    cov(:,k) = vdot1*vec1y + vdot2*vec3y
+    cow(:,k) = vdot1*vec1z + vdot2*vec3z
+  end where
+end do ! k
+
+return
+end subroutine mlorot
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Stagger u and v
+
+subroutine mlostaguv(u,v,uout,vout)
+
+use cc_mpi
+use indices_m
+use mlo
+
+implicit none
+
+include 'newmpar.h'
+
+integer k,itn
+real, dimension(ifull,wlev), intent(in) :: u,v
+real, dimension(ifull,wlev), intent(out) :: uout,vout
+real, dimension(ifull+iextra,wlev) :: uin,vin
+real, dimension(ifull+iextra,wlev) :: ua,va,ud,vd
+integer, parameter :: itnmax=3
+
+uin(1:ifull,:)=u
+vin(1:ifull,:)=v
+call boundsuv(uin,vin)
+
+do k=1,wlev
+  ud(1:ifull,k)= uin(iwu,k)/10.+uin(1:ifull,k)+uin(ieu,k)/2.
+  vd(1:ifull,k)= vin(isv,k)/10.+vin(1:ifull,k)+vin(inv,k)/2.
+enddo
+call boundsuv(ud,vd)
+
+do k=1,wlev
+  ua(1:ifull,k)=ud(1:ifull,k)-ud(iwu,k)/2. ! 1st guess
+  va(1:ifull,k)=vd(1:ifull,k)-vd(isv,k)/2. ! 1st guess
+enddo
+
+do itn=1,itnmax        ! each loop is a double iteration
+  call boundsuv(ua,va,nrows=2)
+
+  do k=1,wlev
+    uin(1:ifull,k)=(ud(1:ifull,k)-.5*ud(iwu,k)-ua(ieu,k)/10. +ua(iwwu,k)/4.)/.95
+    vin(1:ifull,k)=(vd(1:ifull,k)-.5*vd(isv,k)-va(inv,k)/10. +va(issv,k)/4.)/.95
+  enddo
+
+  call boundsuv(uin,vin,nrows=2)
+  do k=1,wlev
+    ua(1:ifull,k)=(ud(1:ifull,k)-.5*ud(iwu,k)-uin(ieu,k)/10. +uin(iwwu,k)/4.)/.95
+    va(1:ifull,k)=(vd(1:ifull,k)-.5*vd(isv,k)-vin(inv,k)/10. +vin(issv,k)/4.)/.95
+  end do
+end do                 ! itn=1,itnmax
+
+uout=ua(1:ifull,:)
+vout=va(1:ifull,:)
+
+return
+end subroutine mlostaguv
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Unstagger u and v
+
+subroutine mlounstaguv(u,v,uout,vout)
+
+use cc_mpi
+use indices_m
+use mlo
+
+implicit none
+
+include 'newmpar.h'
+
+integer k,itn
+real, dimension(ifull,wlev), intent(in) :: u,v
+real, dimension(ifull,wlev), intent(out) :: uout,vout
+real, dimension(ifull+iextra,wlev) :: uin,vin
+real, dimension(ifull+iextra,wlev) :: ua,va,ud,vd
+integer, parameter :: itnmax=3
+
+uin(1:ifull,:)=u
+vin(1:ifull,:)=v
+call boundsuv(uin,vin)
+
+do k=1,wlev
+  ud(1:ifull,k)= uin(ieu,k)/10.+uin(1:ifull,k)+uin(iwu,k)/2.
+  vd(1:ifull,k)= vin(inv,k)/10.+vin(1:ifull,k)+vin(isv,k)/2.
+enddo
+call boundsuv(ud,vd)
+
+do k=1,wlev
+  ua(1:ifull,k)=ud(1:ifull,k)-ud(ieu,k)/2. ! 1st guess
+  va(1:ifull,k)=vd(1:ifull,k)-vd(inv,k)/2. ! 1st guess
+enddo
+
+do itn=1,itnmax        ! each loop is a double iteration
+  call boundsuv(ua,va,nrows=2)
+
+  do k=1,wlev
+    uin(1:ifull,k)=(ud(1:ifull,k)-.5*ud(ieu,k)-ua(iwu,k)/10. +ua(ieeu,k)/4.)/.95
+    vin(1:ifull,k)=(vd(1:ifull,k)-.5*vd(inv,k)-va(isv,k)/10. +va(innv,k)/4.)/.95
+  enddo
+  call boundsuv(uin,vin,nrows=2)
+  do k=1,wlev
+    ua(1:ifull,k)=(ud(1:ifull,k)-.5*ud(ieu,k)-uin(iwu,k)/10. +uin(ieeu,k)/4.)/.95
+    va(1:ifull,k)=(vd(1:ifull,k)-.5*vd(inv,k)-vin(isv,k)/10. +vin(innv,k)/4.)/.95
+  enddo
+enddo                  ! itn=1,itnmax
+      
+uout=ua(1:ifull,:)
+vout=va(1:ifull,:)
+
+return
+end subroutine mlounstaguv
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tide

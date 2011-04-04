@@ -950,6 +950,9 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           lname = 'water depth'
           call attrib(idnc,idim,2,'ocndepth',lname,'m',0.,32500.,0,
      &                itype)
+          lname = 'water surface height'
+          call attrib(idnc,idim,3,'ocheight',lname,'m',-48.,48.,0,
+     &                itype)
           do k=ms+1,wlev
            write(lname,'("soil/ocean temperature lev ",I2)') k
            write(vname,'("tgg",I2.2)') k
@@ -1176,7 +1179,9 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         mlodwn(:,:,1:2)=999.
         mlodwn(:,:,3:4)=0.
         micdwn=999.
-        call mlosave(mlodwn,aa,micdwn,0)
+        aa=0. ! ocean depth
+        bb=0. ! free surface height
+        call mlosave(mlodwn,aa,bb,micdwn,0)
         !do k=1,wlev
         !  where(zs(1:ifull).gt.1.)
         !    mlodwn(:,k,2)=999. ! lakes?
@@ -1202,6 +1207,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         if (ktau==0.or.itype==-1) then
           call histwrt3(aa,'ocndepth',idnc,iarch,local)
         end if
+        call histwrt3(bb,'ocheight',idnc,iarch,local)
         do k=ms+1,wlev
           write(vname,'("tgg",I2.2)') k
           call histwrt3(mlodwn(:,k,1),vname,idnc,iarch,local)

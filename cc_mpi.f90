@@ -1,5 +1,4 @@
 module cc_mpi
-   use mlo, only : wlev
    implicit none
    private
    include 'newmpar.h'
@@ -221,13 +220,13 @@ contains
 
 #ifdef uniform_decomp
       ! Faces may not line up properly so need extra factor here
-      maxbuflen = (max(ipan,jpan)+4)*2*max(kl,wlev) * 8 * 2
+      maxbuflen = (max(ipan,jpan)+4)*2*max(kl,ol) * 8 * 2
 #else
       if ( nproc < npanels+1 ) then
          ! This is the maximum size, each face has 4 edges
-         maxbuflen = npan*4*(il_g+4)*2*max(kl,wlev)
+         maxbuflen = npan*4*(il_g+4)*2*max(kl,ol)
       else
-         maxbuflen = (max(ipan,jpan)+4)*2*max(kl,wlev)
+         maxbuflen = (max(ipan,jpan)+4)*2*max(kl,ol)
       end if
 #endif
 
@@ -239,7 +238,7 @@ contains
          maxsize = 0 ! Not used in this case
       else
          ! 4 rows should be plenty (size is checked anyway).
-         maxsize = 4*max(ipan,jpan)*npan*max(kl,wlev)
+         maxsize = 4*max(ipan,jpan)*npan*max(kl,ol)
       end if
       
       if ( myid == 0 ) then
@@ -1809,7 +1808,7 @@ contains
    logical, dimension(maxbuflen) :: ldum
    
    do iproc=0,nproc-1
-     nlen=max(kl,wlev)*max(bnds(iproc)%rlen2,bnds(iproc)%rlen2_uv,bnds(iproc)%slen2,bnds(iproc)%slen2_uv)
+     nlen=max(kl,ol)*max(bnds(iproc)%rlen2,bnds(iproc)%rlen2_uv,bnds(iproc)%slen2,bnds(iproc)%slen2_uv)
      if (nlen.lt.bnds(iproc)%len) then
        !write(6,*) "Reducing array size.  myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
        bnds(iproc)%len=nlen
@@ -2346,7 +2345,7 @@ contains
 
       ! This does nothing in the one processor case
       if ( nproc == 1 ) return
-      
+
       call start_log(deptsync_begin)
       dslen = 0
       drlen = 0
@@ -2586,9 +2585,9 @@ contains
          bnds(rproc)%len = len
       else
          ! Just check length
-         if ( max(kl,wlev)*bnds(rproc)%rlen >=  bnds(rproc)%len ) then
+         if ( max(kl,ol)*bnds(rproc)%rlen >=  bnds(rproc)%len ) then
             print*, "Error, maximum length error in check_bnds_alloc"
-            print*, myid, rproc, bnds(rproc)%rlen,  bnds(rproc)%len, max(kl,wlev)
+            print*, myid, rproc, bnds(rproc)%rlen,  bnds(rproc)%len, max(kl,ol)
             call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
          end if
          if ( iext >= iextra ) then
