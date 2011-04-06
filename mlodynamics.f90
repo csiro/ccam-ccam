@@ -350,33 +350,40 @@ implicit none
 
 include 'newmpar.h'
 include 'const_phys.h'
+include 'mpif.h'
 include 'parm.h'
 
-integer l,ll,ii,intsch
+integer l,ll,ii,intsch,ierr
 integer, dimension(ifull,wlev) :: nface
-real, dimension(ifull+iextra) :: ee,neta,suu,svv
+real alpha,maxloclseta,maxglobseta
+real, dimension(ifull+iextra) :: neta,suu,svv
+real, dimension(ifull+iextra) :: ee,dd
+real, dimension(ifull) :: seta,div
 real, dimension(ifull) :: xp,xm,dpsdx,dpsdy,w_e
-real, dimension(ifull) :: div,dedx,dedy
+real, dimension(ifull) :: dedx,dedy
+real, dimension(ifull) :: au,av,bu,bv
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns
 real, dimension(ifull+iextra,wlev) :: cou,cov,cow
 real, dimension(ifull+iextra,wlev) :: dep,rhobar
-real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,rho,dz,dzbar
+real, dimension(ifull+iextra,wlev) :: rho,dz
+real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,dzbar
 real, dimension(ifull,wlev) :: nuh,nvh
 real, dimension(ifull,wlev) :: dzdx,dzdy
 real, dimension(ifull,wlev) :: drdx,drdy,drdz
-real, dimension(ifull,wlev) :: xg,yg
+real, dimension(ifull,wlev) :: xg,yg,dum
 real, dimension(:,:), allocatable, save :: oldu1,oldv1
 real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
+logical ctest
 logical, dimension(ifull+iextra) :: wtr
-integer, parameter :: lmax=1 ! 0=no-advection, 1=predictor-only, 2=predictor-corrector
-integer, parameter :: llmax=60 ! iterations for surface height
-real, parameter :: alpha = 0.02
+integer, parameter :: lmax=1       ! 0=no-advection, 1=predictor-only, 2=predictor-corrector
+integer, parameter :: llmax=2000   ! iterations for surface height
 
 ! new z levels for including free surface eta (effectively sigma levels)
 ! newz=-eta+oldz*(1+eta/maxdepth)
 ! where 0<=oldz<=maxdepth and -eta<=newz<=maxdepth
 
 intsch=mod(ktau,2)
+alpha = 1. ! Initial SOR weight
 
 !Define land/sea mask
 ee=0.
@@ -416,6 +423,7 @@ do ii=1,wlev
 end do
 call mloexport(4,w_e,0,0)
 call bounds(dep)
+call bounds(dz)
 call bounds(ps)
 
 dep=max(dep,1.E-3)
@@ -461,12 +469,20 @@ elsewhere(wtr(1:ifull).and.wtr(is))
 end where
 
 ! Calculate pressure and gradient for slow mode
-call mloexpdensity(rho,w_t,w_s,dep(1:ifull,:),0)
-rhobar(1:ifull,1)=rho(:,1)*dz(:,1)
-dzbar(:,1)=dz(:,1)
+dzbar(:,1)=dz(1:ifull,1)
 do ii=2,wlev
-  rhobar(1:ifull,ii)=rhobar(1:ifull,ii-1)+rho(:,ii)*dz(:,ii)
-  dzbar(:,ii)=dzbar(:,ii-1)+dz(:,ii)
+  dzbar(:,ii)=dzbar(:,ii-1)+dz(1:ifull,ii)
+end do
+dd(1:ifull)=dzbar(:,wlev)
+call bounds(dd)
+do ii=1,wlev
+  dum(:,ii)=dep(1:ifull,ii)*max(1.+w_e/dd(1:ifull),0.01)
+end do
+call mloexpdensity(rho(1:ifull,:),w_t,w_s,dum,0)
+call bounds(rho)
+rhobar(1:ifull,1)=rho(1:ifull,1)*dz(1:ifull,1)
+do ii=2,wlev
+  rhobar(1:ifull,ii)=rhobar(1:ifull,ii-1)+rho(1:ifull,ii)*dz(1:ifull,ii)
 end do
 rhobar(1:ifull,:)=rhobar(1:ifull,:)/dzbar
 call bounds(rhobar)
@@ -507,10 +523,10 @@ end where
 
 ! Split U and V coriolis and pressure gradient terms (slow terms without free surface)
 do ii=1,wlev
-  nu(1:ifull,ii)=(w_u(:,ii)+xm*w_v(:,ii)-dt*grav*dep(1:ifull,ii)*(drdx(:,ii)+xm*drdy(:,ii))/rho(:,ii) &
-                                              -dt*(dpsdx+xm*dpsdy)/rho(:,ii))/xp
-  nv(1:ifull,ii)=(w_v(:,ii)-xm*w_u(:,ii)-dt*grav*dep(1:ifull,ii)*(drdy(:,ii)-xm*drdx(:,ii))/rho(:,ii) &
-                                              -dt*(dpsdy-xm*dpsdx)/rho(:,ii))/xp
+  nu(1:ifull,ii)=(w_u(:,ii)+xm*w_v(:,ii)-dt*grav*dep(1:ifull,ii)*(drdx(:,ii)+xm*drdy(:,ii))/rho(1:ifull,ii) &
+                                              -dt*(dpsdx+xm*dpsdy)/rho(1:ifull,ii))/xp
+  nv(1:ifull,ii)=(w_v(:,ii)-xm*w_u(:,ii)-dt*grav*dep(1:ifull,ii)*(drdy(:,ii)-xm*drdx(:,ii))/rho(1:ifull,ii) &
+                                              -dt*(dpsdy-xm*dpsdx)/rho(1:ifull,ii))/xp
 end do
 w_u=nu(1:ifull,:)
 w_v=nv(1:ifull,:)
@@ -565,8 +581,8 @@ do l=1,lmax ! predictor-corrector loop
       nu(1:ifull,ii)=ax(1:ifull)*cou(1:ifull,ii)+ay(1:ifull)*cov(1:ifull,ii)+az(1:ifull)*cow(1:ifull,ii)
       nv(1:ifull,ii)=bx(1:ifull)*cou(1:ifull,ii)+by(1:ifull)*cov(1:ifull,ii)+bz(1:ifull)*cow(1:ifull,ii)
     elsewhere
-      nu(1:ifull,ii)=0.
-      nv(1:ifull,ii)=0.
+      nu(1:ifull,ii)=0. ! need to adjust eta to compensate for this change in gradient
+      nv(1:ifull,ii)=0. ! need to adjust eta to compensate for this change in gradient
     end where
   end do
   
@@ -586,54 +602,90 @@ do l=1,lmax ! predictor-corrector loop
   call mlostaguv(nu(1:ifull,:),nv(1:ifull,:),nuh(1:ifull,:),nvh(1:ifull,:))
   nu(1:ifull,:)=nuh(1:ifull,:)
   nv(1:ifull,:)=nvh(1:ifull,:)
-
-  cou(1:ifull,:)=nu(1:ifull,:)
-  cov(1:ifull,:)=nv(1:ifull,:)
   neta(1:ifull)=w_e
+
+  ! Precompute integral terms (assume density and depth can be interpolated)
+  au=sum(nu(1:ifull,:)*(dz(1:ifull,:)+dz(ie,:)),2)*0.5
+  av=sum(nv(1:ifull,:)*(dz(1:ifull,:)+dz(in,:)),2)*0.5
+  bu=sum((dep(1:ifull,:)+dep(ie,:))*(rhobar(1:ifull,:)+rhobar(ie,:))   &
+        *(dz(1:ifull,:)+dz(ie,:))/(rho(1:ifull,:)+rho(ie,:)),2)*0.5    &
+        /(dd(1:ifull)+dd(ie))
+  bv=sum((dep(1:ifull,:)+dep(in,:))*(rhobar(1:ifull,:)+rhobar(in,:))   &
+        *(dz(1:ifull,:)+dz(in,:))/(rho(1:ifull,:)+rho(in,:)),2)*0.5    &
+        /(dd(1:ifull)+dd(in))
   
   ! Now solve for the coupled eta, nu and nv equations.
-  ! This should be replaced with AB approach and SOR
   do ll=1,llmax
 
+    call bounds(neta)
+    dedx(:)=(neta(ie)/em(ie)-neta(1:ifull)/em(1:ifull)) &
+            *emu(1:ifull)*emu(1:ifull)/ds
+    dedy(:)=(neta(in)/em(in)-neta(1:ifull)/em(1:ifull)) &
+            *emv(1:ifull)*emv(1:ifull)/ds
+
     ! update free surface height
-    suu=0.
-    svv=0.
-    do ii=1,wlev
-        suu(1:ifull)=suu(1:ifull)+dz(:,ii)*nu(1:ifull,ii)
-        svv(1:ifull)=svv(1:ifull)+dz(:,ii)*nv(1:ifull,ii)
-    end do
-    where (.not.wtr(1:ifull))
-      suu=0.
-      svv=0.
+    suu(1:ifull)=au-dt*grav*bu*dedx
+    svv(1:ifull)=av-dt*grav*bv*dedy
+    ! The following fix is important for conserving mass at land boundaries
+    where (.not.wtr(1:ifull).or..not.wtr(ie))
+      suu(1:ifull)=0.
     end where
+    where (.not.wtr(1:ifull).or..not.wtr(in))
+      svv(1:ifull)=0.
+    end where    
     call boundsuv(suu,svv)
-    div(:)=(suu(1:ifull)-suu(iwu)+svv(1:ifull)-svv(isv))*em(1:ifull)/ds
-    neta(1:ifull)=alpha*(w_e-dt*div)/(1.+dt*div/dzbar(:,wlev))+(1.-alpha)*neta(1:ifull)
-    neta(1:ifull)=max(neta(1:ifull),-dzbar(:,wlev))
+    div(:)=(suu(1:ifull)/emu(1:ifull)-suu(iwu)/emu(iwu)  &
+           +svv(1:ifull)/emv(1:ifull)-svv(isv)/emv(isv)) &
+	   *em(1:ifull)*em(1:ifull)/ds
+    !div(:)=div(:)*(1.+neta/dd(1:ifull))
+    !if (ll.eq.1) then
+    !  seta=w_e-dt/24.*(55.*div0-59.*div1+37.*div2-9.*div3)
+    !else
+    !  seta=w_e-dt/24.*(9.*div+19.*div0-5.*div1+div2)
+    !end if
+    seta=-neta(1:ifull)+(w_e-dt*div)/(1.+dt*div/dd(1:ifull))
+    ctest=any(alpha*abs(seta).gt.1.)
+    if (ctest) then ! attempt to bring model into balance
+      alpha=min(0.5/maxval(abs(seta)),alpha)
+      alpha=max(alpha,0.005)
+    end if
+    neta(1:ifull)=alpha*seta+neta(1:ifull)
+    neta(1:ifull)=min(max(neta(1:ifull),-0.9*dd(1:ifull)),0.9*dd(1:ifull))
     where (.not.wtr(1:ifull))
       neta(1:ifull)=0.
     end where
-    call bounds(neta)
-
-    dedx=0.
-    dedy=0.
-    where(wtr(1:ifull).and.wtr(ie))
-      dedx(:)=(neta(ie)-neta(1:ifull))*em(1:ifull)/ds
-    end where
-    where(wtr(1:ifull).and.wtr(in))
-      dedy(:)=(neta(in)-neta(1:ifull))*em(1:ifull)/ds
-    end where
-
-    ! update fast pressure gradient terms (predictor-corrector)
-    do ii=1,wlev
-      nu(1:ifull,ii)=cou(1:ifull,ii)-dt*grav*dep(1:ifull,ii)*rhobar(:,ii)*dedx/(rho(:,ii)*dzbar(:,wlev))
-      nv(1:ifull,ii)=cov(1:ifull,ii)-dt*grav*dep(1:ifull,ii)*rhobar(:,ii)*dedy/(rho(:,ii)*dzbar(:,wlev))
-      where (.not.wtr(1:ifull))
-        nu(1:ifull,ii)=0.
-        nv(1:ifull,ii)=0.
-      end where
-    end do
     
+    maxloclseta=maxval(abs(seta))
+    call MPI_AllReduce(maxloclseta,maxglobseta,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
+    if (maxglobseta.lt.1.E-4.and.ll.gt.2) exit    
+    !print *,"neta ",ll,maxglobseta,ctest,alpha
+
+  end do
+  
+  if (myid==0.and.(ktau.le.100.or.maxglobseta.gt.1.E-4)) then
+    write(6,*) "MLODYNAMICS ",ll,maxglobseta
+  end if
+
+  call bounds(neta)
+  dedx=0.
+  dedy=0.
+  where(wtr(1:ifull).and.wtr(ie))
+    dedx(:)=(neta(ie)/em(ie)-neta(1:ifull)/em(1:ifull)) &
+            *emu(1:ifull)*emu(1:ifull)/ds
+  end where
+  where(wtr(1:ifull).and.wtr(in))
+    dedy(:)=(neta(in)/em(in)-neta(1:ifull)/em(1:ifull)) &
+            *emv(1:ifull)*emv(1:ifull)/ds
+  end where
+
+  ! update fast pressure gradient terms
+  do ii=1,wlev
+    nu(1:ifull,ii)=nu(1:ifull,ii)-dt*grav*(dep(1:ifull,ii)+dep(ie,ii))       &
+      *(rhobar(1:ifull,ii)+rhobar(ie,ii))*dedx/((rho(1:ifull,ii)+rho(ie,ii)) &
+      *(dd(1:ifull)+dd(ie)))
+    nv(1:ifull,ii)=nv(1:ifull,ii)-dt*grav*(dep(1:ifull,ii)+dep(in,ii))       &
+      *(rhobar(1:ifull,ii)+rhobar(in,ii))*dedy/((rho(1:ifull,ii)+rho(in,ii)) &
+      *(dd(1:ifull)+dd(in)))
   end do
 
   ! unstagger nu and nv
@@ -641,8 +693,8 @@ do l=1,lmax ! predictor-corrector loop
 
   ! update remaining pressure term
   do ii=1,wlev
-    nu(1:ifull,ii)=nuh(1:ifull,ii)-dt*grav*dep(1:ifull,ii)*drdx(:,ii)*neta(1:ifull)/(rho(:,ii)*dzbar(:,wlev))
-    nv(1:ifull,ii)=nvh(1:ifull,ii)-dt*grav*dep(1:ifull,ii)*drdy(:,ii)*neta(1:ifull)/(rho(:,ii)*dzbar(:,wlev))
+    nu(1:ifull,ii)=nuh(1:ifull,ii)-dt*grav*dep(1:ifull,ii)*drdx(:,ii)*neta(1:ifull)/(rho(1:ifull,ii)*dd(1:ifull))
+    nv(1:ifull,ii)=nvh(1:ifull,ii)-dt*grav*dep(1:ifull,ii)*drdy(:,ii)*neta(1:ifull)/(rho(1:ifull,ii)*dd(1:ifull))
   end do
   
 end do
