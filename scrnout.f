@@ -348,8 +348,8 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       
       ! MJT cable ---------------------------------------------------
       ! Use TAPM approach to screen diagnostics for ocean and lake points
-      subroutine scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,
-     &                    zo,tsu,temp,qsttg,qg,umag,ps,land,zmin,sig)
+      subroutine scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
+     &                   tsu,temp,qsttg,qg,umag,ps,land,zmin,sig)
      
       implicit none
 
@@ -357,12 +357,12 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       integer pfull
       real, dimension(ifull), intent(inout) :: qgscrn,tscrn,uscrn,u10
       real, dimension(ifull), intent(inout) :: rhscrn
-      real, dimension(ifull), intent(in) :: zo,tsu,temp,qsttg
+      real, dimension(ifull), intent(in) :: zo,zoh,tsu,temp,qsttg
       real, dimension(ifull), intent(in) :: qg,umag,ps
       real, intent(in) :: zmin,sig
       real, dimension(ifull) :: qgscrn_pack,tscrn_pack
       real, dimension(ifull) :: uscrn_pack,u10_pack
-      real, dimension(ifull) :: rhscrn_pack,zo_pack
+      real, dimension(ifull) :: rhscrn_pack,zo_pack,zoh_pack
       real, dimension(ifull) :: stemp_pack,temp_pack
       real, dimension(ifull) :: smixr_pack,mixr_pack
       real, dimension(ifull) :: umag_pack,ps_pack
@@ -373,6 +373,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       if (pfull.eq.0) return
 
       zo_pack(1:pfull)=pack(zo,.not.land)
+      zoh_pack(1:pfull)=pack(zoh,.not.land)
       stemp_pack(1:pfull)=pack(tsu,.not.land)
       temp_pack(1:pfull)=pack(temp,.not.land)
       smixr_pack(1:pfull)=pack(qsttg,.not.land)
@@ -383,9 +384,10 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       call scrncalc(pfull,qgscrn_pack(1:pfull),tscrn_pack(1:pfull),
      &              uscrn_pack(1:pfull),u10_pack(1:pfull),
      &              rhscrn_pack(1:pfull),zo_pack(1:pfull),
-     &              stemp_pack(1:pfull),temp_pack(1:pfull),
-     &              smixr_pack(1:pfull),mixr_pack(1:pfull),
-     &              umag_pack(1:pfull),ps_pack(1:pfull),zmin,sig)
+     &              zoh_pack(1:pfull),stemp_pack(1:pfull),
+     &              temp_pack(1:pfull),smixr_pack(1:pfull),
+     &              mixr_pack(1:pfull),umag_pack(1:pfull),
+     &              ps_pack(1:pfull),zmin,sig)
 
       qgscrn=unpack(qgscrn_pack(1:pfull),.not.land,qgscrn)
       tscrn=unpack(tscrn_pack(1:pfull),.not.land,tscrn)
@@ -396,8 +398,8 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       return
       end subroutine scrnocn
       
-      subroutine scrncalc(pfull,qscrn,tscrn,uscrn,u10,rhscrn,
-     &                    zo,stemp,temp,smixr,mixr,umag,ps,zmin,sig)
+      subroutine scrncalc(pfull,qscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
+     &                    stemp,temp,smixr,mixr,umag,ps,zmin,sig)
       
       implicit none
 
@@ -407,7 +409,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       integer ic
       real, dimension(pfull), intent(out) :: qscrn,tscrn,uscrn,u10
       real, dimension(pfull), intent(out) :: rhscrn
-      real, dimension(pfull), intent(in) :: zo,stemp,temp,umag
+      real, dimension(pfull), intent(in) :: zo,zoh,stemp,temp,umag
       real, dimension(pfull), intent(in) :: smixr,mixr,ps
       real, dimension(pfull) :: lzom,lzoh,thetav,sthetav
       real, dimension(pfull) :: thetavstar,z_on_l,z0_on_l,zt_on_l
@@ -424,7 +426,6 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       real, parameter    ::  b_1    = 2./3.
       real, parameter    ::  c_1    = 5.
       real, parameter    ::  d_1    = 0.35
-      real, parameter    ::  lna    = 2.3
       real, parameter    ::  z0     = 1.5
       real, parameter    ::  z10    = 10.
 
@@ -434,7 +435,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
 
       ! Roughness length for heat
       lzom=log(zmin/zo)
-      lzoh=lna+lzom
+      lzoh=log(zmin/zoh)
 
       ! Dyer and Hicks approach 
       thetavstar=vkar*(thetav-sthetav)/lzoh
@@ -442,8 +443,8 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       do ic=1,nc
         z_on_l=vkar*zmin*grav*thetavstar/(thetav*ustar**2)
         z_on_l=min(z_on_l,10.)
-        z0_on_l  = z_on_l*exp(-lzom)
-        zt_on_l  = z_on_l*exp(-lzoh)
+        z0_on_l  = z_on_l*zo/zmin
+        zt_on_l  = z_on_l*zoh/zmin
         where (z_on_l.lt.0.)
           pm0     = (1.-16.*z0_on_l)**(-0.25)
           ph0     = (1.-16.*zt_on_l)**(-0.5)

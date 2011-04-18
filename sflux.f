@@ -60,6 +60,7 @@ c     cp specific heat at constant pressure joule/kgm/deg
       real zonx(ifull),zony(ifull),zonz(ifull),costh(ifull) ! MJT urban
       real sinth(ifull),uzon(ifull),vmer(ifull),azmin(ifull)! MJT urban
       real uav(ifull),vav(ifull) ! MJT tke
+      real zoh(ifull) ! MJT scrnocn
       real, dimension(:), allocatable, save :: plens
       include 'establ.h'
 
@@ -771,8 +772,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      .              bprm,cms,chs,chnsea,nalpha)                         ! land
            else                                                         ! land
              qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))    ! land
-             call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss,   ! land
-     &                  t(1:ifull,1),qsttg,qg(1:ifull,1),               ! land
+             zoh=zo/factch                                              ! land
+             call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,   ! land
+     &                  tss,t(1:ifull,1),qsttg,qg(1:ifull,1),           ! land
      &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! land
      &                       v(1:ifull,1)*v(1:ifull,1)),                ! land
      &                  ps(1:ifull),.not.land,zmin,sig(1))              ! land
@@ -783,8 +785,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
         case(6,7)                                                       ! cable
          if (nmlo.eq.0) then                                            ! cable
            ! update ocean diagnostics                                   ! cable
-           call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss,     ! cable
-     &                  t(1:ifull,1),qsttg,qg(1:ifull,1),               ! cable
+           zoh=zmin*exp(-vkar/(aft/sqrt(af)))                           ! cable
+           call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,     ! cable
+     &                  tss,t(1:ifull,1),qsttg,qg(1:ifull,1),           ! cable
      &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! cable
      &                       v(1:ifull,1)*v(1:ifull,1)),                ! cable
      &                  ps(1:ifull),land,zmin,sig(1))                   ! cable
@@ -805,8 +808,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          ! The following patch overrides CABLE screen level diagnostics
          if (nsib.eq.7) then                                        ! PATCH
            qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))  ! PATCH
-           call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,tss, ! PATCH
-     &                t(1:ifull,1),qsttg,qg(1:ifull,1),             ! PATCH
+           zoh=zo/7.4                                               ! PATCH
+           call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh, ! PATCH
+     &                tss,t(1:ifull,1),qsttg,qg(1:ifull,1),         ! PATCH
      &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+             ! PATCH
      &                       v(1:ifull,1)*v(1:ifull,1)),            ! PATCH
      &                ps(1:ifull),.not.land,zmin,sig(1))            ! PATCH

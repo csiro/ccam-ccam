@@ -81,7 +81,7 @@
         endif  ! (schmidtx<=0..or.schmidtx>1.)        
         write(6,*) 'in onthefly ktau,ncid,iarchi,ik,jk,kk ',
      &                       ktau,ncid,iarchi,ik,jk,kk
-        idv = ncvid(ncid,'time',ier)
+        idv = ncdid(ncid,'time',ier)
         maxarchi=0
         ier = nf_inq_dimlen(ncid,idv,maxarchi)
         ltest=.true.

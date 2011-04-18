@@ -83,7 +83,7 @@ module cc_mpi
       integer, dimension(:), pointer :: send_list_uv
       integer, dimension(:), pointer :: unpack_list_uv
       ! Flag for whether u and v need to be swapped
-      logical, dimension(:), pointer :: uv_swap, send_swap
+      logical, dimension(:), pointer :: uv_swap, send_swap,uv_neg,send_neg
       ! Number of points for each processor. Also double row versions.
       ! lenx is first row plux corner points.
       integer :: slen, rlen, slenx, rlenx, slen2, rlen2
@@ -220,13 +220,13 @@ contains
 
 #ifdef uniform_decomp
       ! Faces may not line up properly so need extra factor here
-      maxbuflen = (max(ipan,jpan)+4)*2*max(kl,ol) * 8 * 2
+      maxbuflen = (max(ipan,jpan)+4)*3*max(kl,ol) * 8 * 2  !*3 for extra vector row (e.g., inu,isu,iev,iwv)
 #else
       if ( nproc < npanels+1 ) then
          ! This is the maximum size, each face has 4 edges
-         maxbuflen = npan*4*(il_g+4)*2*max(kl,ol)
+         maxbuflen = npan*4*(il_g+4)*3*max(kl,ol) !*3 for extra vector row (e.g., inu,isu,iev,iwv)
       else
-         maxbuflen = (max(ipan,jpan)+4)*2*max(kl,ol)
+         maxbuflen = (max(ipan,jpan)+4)*3*max(kl,ol) !*3 for extra vector row (e.g., inu,isu,iev,iwv)
       end if
 #endif
 
@@ -744,6 +744,10 @@ contains
       iwu = huge(1)
       inv = huge(1)
       isv = huge(1)
+      iev = huge(1)
+      iwv = huge(1)
+      inu = huge(1)
+      isu = huge(1)
       ieeu = huge(1)
       iwwu = huge(1)
       innv = huge(1)
@@ -878,6 +882,10 @@ contains
       iwu = iw
       inv = in
       isv = is
+      iev = ie
+      iwv = iw
+      inu = in
+      isu = is
 
       ! Initialise the edge variables
       edge_w(:) = ioff(:) == 0
@@ -1408,7 +1416,7 @@ contains
          call MPI_Waitall(nreq,ireq,status,ierr)
       end if
 
-      call reducealloc ! MJT memory - resize arrays
+      !call reducealloc ! MJT memory - resize arrays
       
 !     Start of UV section
 
@@ -1423,7 +1431,7 @@ contains
       iext = 0
       do n=1,npan
 
-         !     Start with W edge, U values
+         !     Start with W edge, U,V values
          i = 1
          do j=1,jpan
             iqg = indg(i,j,n)
@@ -1444,9 +1452,19 @@ contains
             iql = indp(i,j,n)  !  Local index
             iwu(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
+            ! to show that this is v rather than u, flip sign
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iext
+            iwv(iql) = ifull+iext
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .true.
          end do
 
-         !     N edge (V)
+         !     N edge (V,U)
          j=jpan
          do i=1,ipan
             iqg = indg(i,j,n)
@@ -1465,9 +1483,18 @@ contains
             iql = indp(i,j,n)  !  Local index
             inv(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iext
+            inu(iql) = ifull+iext
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .true.
          end do
 
-         !     E edge, U
+         !     E edge, U,V
          i = ipan
          do j=1,jpan
             iqg = indg(i,j,n)
@@ -1485,9 +1512,19 @@ contains
             iql = indp(i,j,n)  !  Local index
             ieu(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
+            ! to show that this is v rather than u, flip sign
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iext
+            iev(iql) = ifull+iext
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .true.
          end do
 
-         !     S edge, V
+         !     S edge, V,U
          j=1
          do i=1,ipan
             iqg = indg(i,j,n)
@@ -1504,6 +1541,15 @@ contains
             iql = indp(i,j,n)  !  Local index
             isv(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iext
+            isu(iql) = ifull+iext
+            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .true.
          end do
       end do ! n=1,npan
 
@@ -1702,6 +1748,25 @@ contains
          call MPI_Waitall(nreq,ireq,status,ierr)
       end if
 
+      ! Only send the neg list once
+      nreq = 0
+      do iproc = 1,nproc-1  !
+         sproc = modulo(myid+iproc,nproc)
+         if ( bnds(sproc)%rlen_uv > 0 ) then
+            ! Send list of requests
+            nreq = nreq + 1
+            call MPI_ISend( bnds(sproc)%uv_neg(1), bnds(sproc)%rlen2_uv, &
+                 MPI_LOGICAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            nreq = nreq + 1
+            ! Use the maximum size in the recv call.
+            call MPI_IRecv( bnds(sproc)%send_neg(1), bnds(sproc)%len, &
+                 MPI_LOGICAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+      end do
+      if ( nreq > 0 ) then
+         call MPI_Waitall(nreq,ireq,status,ierr)
+      end if
+
 !     Indices that are missed above (should be a better way to get these)
       do n=1,npan
          do j=1,jpan
@@ -1768,6 +1833,10 @@ contains
                call check_set( iwu(iq), "IWU", i, j, n, iq)
                call check_set( inv(iq), "INV", i, j, n, iq)
                call check_set( isv(iq), "ISV", i, j, n, iq)
+               call check_set( iev(iq), "IEV", i, j, n, iq)
+               call check_set( iwv(iq), "IWV", i, j, n, iq)
+               call check_set( inu(iq), "INU", i, j, n, iq)
+               call check_set( isu(iq), "ISU", i, j, n, iq)
                call check_set( ieeu(iq), "IEEU", i, j, n, iq)
                call check_set( iwwu(iq), "IWWU", i, j, n, iq)
                call check_set( innv(iq), "INNV", i, j, n, iq)
@@ -1850,8 +1919,17 @@ contains
        deallocate ( bnds(iproc)%send_swap )
        allocate ( bnds(iproc)%send_swap(bnds(iproc)%len) )
        bnds(iproc)%send_swap(1:bnds(iproc)%len)=ldum(1:bnds(iproc)%len)
+       ldum(1:bnds(iproc)%len)=bnds(iproc)%uv_neg(1:bnds(iproc)%len)
+       deallocate ( bnds(iproc)%uv_neg )
+       allocate ( bnds(iproc)%uv_neg(bnds(iproc)%len) )
+       bnds(iproc)%uv_neg(1:bnds(iproc)%len)=ldum(1:bnds(iproc)%len)
+       ldum(1:bnds(iproc)%len)=bnds(iproc)%send_neg(1:bnds(iproc)%len)
+       deallocate ( bnds(iproc)%send_neg )
+       allocate ( bnds(iproc)%send_neg(bnds(iproc)%len) )
+       bnds(iproc)%send_neg(1:bnds(iproc)%len)=ldum(1:bnds(iproc)%len)
      elseif (nlen.gt.bnds(iproc)%len) then
        write(6,*) "ERROR: myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
+       write(6,*) "maxbuflen ",maxbuflen
        stop
      end if
    end do
@@ -2120,10 +2198,11 @@ contains
                ! Use abs because sign is used as u/v flag
                if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                      bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(iq) = u(abs(bnds(sproc)%send_list_uv(iq)))
+                 bnds(sproc)%sbuf(iq) = u(abs(bnds(sproc)%send_list_uv(iq)))
                else
-                  bnds(sproc)%sbuf(iq) = v(abs(bnds(sproc)%send_list_uv(iq)))
+                 bnds(sproc)%sbuf(iq) = v(abs(bnds(sproc)%send_list_uv(iq)))
                end if
+               if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(iq)=-bnds(sproc)%sbuf(iq)
             end do
             nreq = nreq + 1
             call MPI_ISend( bnds(sproc)%sbuf(1), send_len, &
@@ -2149,9 +2228,9 @@ contains
             do iq=1,recv_len
                ! unpack_list(iq) is index into extended region
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iq)
+                 u(ifull+bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iq)
                else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iq)
+                 v(ifull-bnds(rproc)%unpack_list_uv(iq)) = bnds(rproc)%rbuf(iq)
                end if
             end do
          end if
@@ -2174,6 +2253,7 @@ contains
             else
                tmp = v(abs(bnds(myid)%request_list_uv(iq)))
             end if
+            if ( bnds(myid)%uv_neg(iq) ) tmp = -tmp
             ! unpack_list(iq) is index into extended region
             if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
                u(ifull+bnds(myid)%unpack_list_uv(iq)) = tmp
@@ -2239,6 +2319,8 @@ contains
                else
                   bnds(sproc)%sbuf(1+(iq-1)*size(u,2):iq*size(u,2)) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
                end if 
+               if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(1+(iq-1)*size(u,2):iq*size(u,2)) = &
+                                              -bnds(sproc)%sbuf(1+(iq-1)*size(u,2):iq*size(u,2)) 
             end do
             nreq = nreq + 1
             call MPI_ISend( bnds(sproc)%sbuf(1), send_len*size(u,2), &
@@ -2264,9 +2346,9 @@ contains
             do iq=1,recv_len
                ! unpack_list(iq) is index into extended region
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(1+(iq-1)*size(u,2):iq*size(u,2))
+                 u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(1+(iq-1)*size(u,2):iq*size(u,2))
                else
-                  v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(1+(iq-1)*size(u,2):iq*size(u,2))
+                 v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(1+(iq-1)*size(u,2):iq*size(u,2))
                end if
             end do
          end if
@@ -2306,6 +2388,8 @@ contains
             else
                tmp(1+(iq-1)*size(u,2):iq*size(u,2)) = v(abs(bnds(myid)%request_list_uv(iq)),:)
             end if
+            if ( bnds(myid)%uv_neg(iq) ) tmp(1+(iq-1)*size(u,2):iq*size(u,2)) = &
+                                        -tmp(1+(iq-1)*size(u,2):iq*size(u,2))
          end do
 !cdir nodep
          do iq=1,recv_len
@@ -2582,6 +2666,9 @@ contains
          allocate ( bnds(rproc)%send_list_uv(len) )
          allocate ( bnds(rproc)%unpack_list_uv(len) )
          allocate ( bnds(rproc)%uv_swap(len), bnds(rproc)%send_swap(len) )
+         allocate ( bnds(rproc)%uv_neg(len), bnds(rproc)%send_neg(len) )
+         bnds(rproc)%uv_neg = .false.
+         bnds(rproc)%send_neg = .false.
          bnds(rproc)%len = len
       else
          ! Just check length

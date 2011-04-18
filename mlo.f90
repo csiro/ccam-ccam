@@ -51,15 +51,15 @@ real, dimension(:), allocatable, save :: i_dic,i_dsn,i_fracice,i_tsurf,i_sto,i_u
 real, dimension(:), allocatable, save :: p_mixdepth,p_bf
 real, dimension(:), allocatable, save :: p_watervisdiralb,p_watervisdifalb,p_waternirdiralb,p_waternirdifalb
 real, dimension(:), allocatable, save :: p_icevisdiralb,p_icevisdifalb,p_icenirdiralb,p_icenirdifalb
-real, dimension(:), allocatable, save :: p_zo,p_cd,p_fg,p_eg
-real, dimension(:), allocatable, save :: p_zoice,p_cdice,p_fgice,p_egice,p_wetfacice
+real, dimension(:), allocatable, save :: p_zo,p_zoh,p_zoq,p_cd,p_fg,p_eg
+real, dimension(:), allocatable, save :: p_zoice,p_zohice,p_zoqice,p_cdice,p_fgice,p_egice,p_wetfacice
 real, dimension(:), allocatable, save :: p_tscrn,p_uscrn,p_qgscrn,p_u10
 integer, dimension(:), allocatable, save :: p_mixind
   
 ! mode
 integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 1 ! include shortwave in non-local term
-integer, parameter :: zomode    = 0 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
+integer, parameter :: zomode    = 2 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=None, 1=Iterative)
 integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
 integer, parameter :: deprelax  = 1 ! surface height (0=vary, 1=relax, 2=set to zero)
@@ -147,8 +147,8 @@ allocate(p_watervisdiralb(wfull),p_watervisdifalb(wfull))
 allocate(p_waternirdiralb(wfull),p_waternirdifalb(wfull))
 allocate(p_icevisdiralb(wfull),p_icevisdifalb(wfull))
 allocate(p_icenirdiralb(wfull),p_icenirdifalb(wfull))
-allocate(p_zo(wfull),p_cd(wfull),p_fg(wfull),p_eg(wfull))
-allocate(p_zoice(wfull),p_cdice(wfull),p_fgice(wfull),p_egice(wfull))
+allocate(p_zo(wfull),p_zoh(wfull),p_zoq(wfull),p_cd(wfull),p_fg(wfull),p_eg(wfull))
+allocate(p_zoice(wfull),p_zohice(wfull),p_zoqice(wfull),p_cdice(wfull),p_fgice(wfull),p_egice(wfull))
 allocate(p_wetfacice(wfull),p_mixind(wfull))
 allocate(p_tscrn(wfull),p_uscrn(wfull),p_qgscrn(wfull),p_u10(wfull))
 allocate(depth(wfull,wlev),dz(wfull,wlev))
@@ -193,10 +193,14 @@ p_icevisdifalb=0.65
 p_icenirdiralb=0.65
 p_icenirdifalb=0.65
 p_zo=0.001
+p_zoh=0.001
+p_zoq=0.001
 p_cd=0.
 p_fg=0.
 p_eg=0.
 p_zoice=0.001
+p_zohice=0.001
+p_zoqice=0.001
 p_cdice=0.
 p_fgice=0.
 p_egice=0.
@@ -299,8 +303,8 @@ deallocate(p_watervisdiralb,p_watervisdifalb)
 deallocate(p_waternirdiralb,p_waternirdifalb)
 deallocate(p_icevisdiralb,p_icevisdifalb)
 deallocate(p_icenirdiralb,p_icenirdifalb)
-deallocate(p_zo,p_cd,p_fg,p_eg)
-deallocate(p_zoice,p_cdice,p_fgice,p_egice)
+deallocate(p_zo,p_zoh,p_cd,p_fg,p_eg)
+deallocate(p_zoice,p_zohice,p_cdice,p_fgice,p_egice)
 deallocate(p_wetfacice,p_mixind)
 deallocate(p_tscrn,p_uscrn,p_qgscrn,p_u10)
 deallocate(depth,dz,depth_hl,dz_hl)
@@ -723,17 +727,18 @@ end subroutine mloexpdep
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Extract density
 
-subroutine mloexpdensity(odensity,tt,ss,dep,diag)
+subroutine mloexpdensity(odensity,tt,ss,dep,pxtr,diag)
 
 implicit none
 
 integer, intent(in) :: diag
 integer ii
+real, dimension(ifull), intent(in) :: pxtr
 real, dimension(ifull,wlev), intent(in) :: tt,ss,dep
 real, dimension(ifull,wlev), intent(out) :: odensity
 real, dimension(ifull,wlev) :: alpha,beta,rs,rho0
 
-call calcdensity(ifull,odensity,alpha,beta,rs,rho0,tt,ss,dep)
+call calcdensity(ifull,odensity,alpha,beta,rs,rho0,tt,ss,dep,pxtr)
 
 return
 end subroutine mloexpdensity
@@ -786,8 +791,8 @@ end where
 
 d_zcr=max((1.+w_eta/depth_hl(:,wlev+1)),0.01) ! adjust levels for free surface
 call fluxcalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,d_taux,d_tauy,diag)                            ! ocean fluxes
-call getrho(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow,d_rho,d_nsq,d_rad,d_alpha,    &
-            d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_taux,d_tauy,d_zcr)                   ! boundary conditions
+call getrho(a_ps,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow,d_rho,d_nsq,d_rad,      &
+            d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_taux,d_tauy,d_zcr)           ! boundary conditions
 d_timelt=273.16-0.054*w_sal(:,1) ! ice melting temperature from CICE
 if (calcprog) then
   call mlonewice(dt,d_rho,d_timelt,d_wm0,diag)                                                       ! create new ice
@@ -1292,23 +1297,24 @@ end subroutine getwx
 ! Calculate rho from equation of state
 ! From GFDL (MOM3)
 
-subroutine getrho(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow,d_rho,d_nsq,d_rad,d_alpha,d_beta, &
-                  d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_taux,d_tauy,d_zcr)
+subroutine getrho(a_ps,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow,d_rho,d_nsq,d_rad,d_alpha, &
+                  d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_taux,d_tauy,d_zcr)
 
 implicit none
 
 integer ii,i
-real, dimension(wfull) :: hlra,hlrb,rho0
+real, dimension(wfull) :: hlra,hlrb,rho0,pxtr
 real, dimension(wfull) :: visalb,niralb
 real, dimension(wfull,wlev) :: rs,d_depth
 real, dimension(wfull,wlev), intent(inout) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull), intent(inout) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_taux,d_tauy,d_zcr
-real, dimension(wfull), intent(in) :: a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow
+real, dimension(wfull), intent(in) :: a_ps,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow
 
+pxtr=a_ps+grav*i_fracice*(i_dic*rhoic+i_dsn*rhosn)
 do ii=1,wlev
   d_depth(:,ii)=depth(:,ii)*d_zcr
 end do
-call calcdensity(wfull,d_rho,d_alpha,d_beta,rs,rho0,w_temp,w_sal,d_depth)
+call calcdensity(wfull,d_rho,d_alpha,d_beta,rs,rho0,w_temp,w_sal,d_depth,pxtr)
 
 ! buoyancy frequency (calculated at half levels)
 do ii=2,wlev
@@ -1358,7 +1364,7 @@ end subroutine getrho
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate density
 
-subroutine calcdensity(full,d_rho,d_alpha,d_beta,rs,rho0,tt,ss,dep)
+subroutine calcdensity(full,d_rho,d_alpha,d_beta,rs,rho0,tt,ss,dep,pxtr)
 
 implicit none
 
@@ -1367,6 +1373,7 @@ integer i,ii
 integer, parameter :: nits=1 ! iterate for density (nits=1 recommended)
 real, dimension(full,wlev), intent(in) :: tt,ss,dep
 real, dimension(full,wlev), intent(out) :: d_rho,d_alpha,d_beta,rs
+real, dimension(full), intent(in) :: pxtr
 real, dimension(full), intent(out) :: rho0
 real, dimension(full) :: t,s,p1,p2,t2,t3,t4,t5,s2,s3,s32
 real, dimension(full) :: drho0dt,drho0ds,dskdt,dskds,sk,sks
@@ -1408,7 +1415,7 @@ do i=1,nits
   do ii=1,wlev
     t = max(tt(:,ii)-273.16,-2.)
     s = max(ss(:,ii),0.)
-    p1 = grav*dep(:,ii)*d_rho(:,ii)*1.E-5 ! assume hydrostatic balance
+    p1 = (grav*dep(:,ii)*d_rho(:,ii)+pxtr)*1.E-5 ! assume hydrostatic balance
     t2 = t*t
     t3 = t2*t
     t4 = t3*t
@@ -1572,22 +1579,26 @@ af=afroot**2
 select case(zomode)
   case(0) ! Charnock CSIRO9
     ztv=exp(vkar/sqrt(chn10))/10.      ! proper inverse of ztsea
-    aft=vkar**2/(log(a_zmins*ztv)*log(a_zmins*ztv))
-    afq=aft    
-    factch=sqrt(p_zo*ztv)
+    aft=vkar**2/(log(a_zmins*ztv)*log(a_zmins*ztv)) ! CCAM style (seems incorrect)
+    afq=aft
+    p_zoh=ztv
+    p_zoq=p_zoh
+    factch=sqrt(p_zo/p_zoh)
     facqch=factch
   case(1) ! Charnock zot=zom
+    p_zoh=p_zo
+    p_zoq=p_zo
     aft=vkar**2/(log(a_zmins/p_zo)*log(a_zmins/p_zo))
     afq=aft
     factch=1.
     facqch=1.
   case(2) ! Beljaars
-    aft=max(zcoh1+zcoh2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-7) ! dummy for ztsea
-    afq=max(zcoq1+zcoq2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-7) ! dummy for zqsea
-    factch=sqrt(p_zo/aft)
-    facqch=sqrt(p_zo/afq)
-    aft=vkar**2/(log(a_zmins/p_zo)*log(a_zmins/aft)) ! now true aft
-    afq=vkar**2/(log(a_zmins/p_zo)*log(a_zmins/afq)) ! now true afq
+    p_zoh=max(zcoh1+zcoh2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-7)
+    p_zoq=max(zcoq1+zcoq2*gnu/max(vmag*sqrt(fm*af),gnu),1.5E-7)
+    factch=sqrt(p_zo/p_zoh)
+    facqch=sqrt(p_zo/p_zoq)
+    aft=vkar**2/(log(a_zmins/p_zo)*log(a_zmins/p_zoh))
+    afq=vkar**2/(log(a_zmins/p_zo)*log(a_zmins/p_zoq))
 end select
 
 where (ri>0.)
@@ -2525,8 +2536,10 @@ srcp=sig**(rdry/cp)
 rho=a_ps/(rdry*i_tsurf)
 
 p_zoice=0.001
+p_zohice=0.001/7.4
+p_zoqice=0.001/7.4
 af=vkar**2/(log(a_zmin/p_zoice)*log(a_zmin/p_zoice))
-aft=vkar**2/(log(a_zmins/p_zoice)*(2.3+log(a_zmins/p_zoice)))
+aft=vkar**2/(log(a_zmins/p_zoice)*log(a_zmins/p_zohice))
 factch=sqrt(7.4)
 
 call getqsat(qsat,dqdt,i_tsurf,a_ps)
@@ -2638,7 +2651,7 @@ else
 end if
 atu=a_u-w_u(:,1)
 atv=a_v-w_v(:,1)
-call scrntile(tscrn,qgscrn,uscrn,u10,p_zo,w_temp(:,1),smixr,atu,atv,a_temp,a_qg,a_zmin,a_zmins,diag)
+call scrntile(tscrn,qgscrn,uscrn,u10,p_zo,p_zoh,p_zoq,w_temp(:,1),smixr,atu,atv,a_temp,a_qg,a_zmin,a_zmins,diag)
 p_tscrn=tscrn
 p_qgscrn=qgscrn
 p_uscrn=uscrn+sqrt(w_u(:,1)*w_u(:,1)+w_v(:,1)*w_v(:,1))
@@ -2649,7 +2662,7 @@ call getqsat(qsat,dqdt,i_tsurf,a_ps)
 smixr=p_wetfacice*qsat+(1.-p_wetfacice)*min(qsat,a_qg)
 atu=a_u-i_u
 atv=a_v-i_v
-call scrntile(tscrn,qgscrn,uscrn,u10,p_zoice,i_tsurf,smixr,atu,atv,a_temp,a_qg,a_zmin,a_zmins,diag)
+call scrntile(tscrn,qgscrn,uscrn,u10,p_zoice,p_zohice,p_zoqice,i_tsurf,smixr,atu,atv,a_temp,a_qg,a_zmin,a_zmins,diag)
 p_tscrn=(1.-i_fracice)*p_tscrn+i_fracice*tscrn
 p_qgscrn=(1.-i_fracice)*p_qgscrn+i_fracice*qgscrn
 p_uscrn=(1.-i_fracice)*p_uscrn+i_fracice*(uscrn+sqrt(i_u*i_u+i_v*i_v))
@@ -2661,19 +2674,19 @@ end subroutine scrncalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! screen diagnostic for individual tile
 
-subroutine scrntile(tscrn,qgscrn,uscrn,u10,zo,stemp,smixr,a_u,a_v,a_temp,a_qg,a_zmin,a_zmins,diag)
+subroutine scrntile(tscrn,qgscrn,uscrn,u10,zo,zoh,zoq,stemp,smixr,a_u,a_v,a_temp,a_qg,a_zmin,a_zmins,diag)
       
 implicit none
 
 integer, intent(in) :: diag
 integer ic
 real, dimension(wfull), intent(in) :: a_u,a_v,a_temp,a_qg,a_zmin,a_zmins
-real, dimension(wfull), intent(in) :: zo,stemp,smixr
+real, dimension(wfull), intent(in) :: zo,zoh,zoq,stemp,smixr
 real, dimension(wfull), intent(out) :: tscrn,qgscrn,uscrn,u10
 real, dimension(wfull) :: umag,sig
-real, dimension(wfull) :: lzom,lzoh,thetav,sthetav
-real, dimension(wfull) :: thetavstar,z_on_l,z0_on_l,z0s_on_l,zt_on_l
-real, dimension(wfull) :: pm0,ph0,pm1,ph1,integralm,integralh
+real, dimension(wfull) :: lzom,lzoh,lzoq,thetav,sthetav
+real, dimension(wfull) :: thetavstar,z_on_l,zs_on_l,z0_on_l,z0s_on_l,zt_on_l,zq_on_l
+real, dimension(wfull) :: pm0,ph0,pq0,pm1,ph1,integralm,integralh,integralq
 real, dimension(wfull) :: ustar,qstar,z10_on_l
 real, dimension(wfull) :: neutrals,neutral,neutral10,pm10
 real, dimension(wfull) :: integralm10,tstar,scrp
@@ -2682,7 +2695,6 @@ real, parameter    ::  a_1    = 1.
 real, parameter    ::  b_1    = 2./3.
 real, parameter    ::  c_1    = 5.
 real, parameter    ::  d_1    = 0.35
-real, parameter    ::  lna    = 2.3
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
 
@@ -2694,25 +2706,30 @@ sthetav=stemp*(1.+0.61*smixr)
 
 ! Roughness length for heat
 lzom=log(a_zmin/zo)
-lzoh=lna+log(a_zmins/zo)
+lzoh=log(a_zmins/zoh)
+lzoq=log(a_zmins/zoq)
 
 ! Dyer and Hicks approach 
 thetavstar=vkar*(thetav-sthetav)/lzoh
 ustar=vkar*umag/lzom
 do ic=1,nc
-  z_on_l=vkar*a_zmins*grav*thetavstar/(thetav*ustar**2)
+  z_on_l=a_zmin*vkar*grav*thetavstar/(thetav*ustar**2)
   z_on_l=min(z_on_l,10.)
-  z0_on_l  = z_on_l*exp(-lzom)
-  zt_on_l  = z_on_l*exp(-lzoh)
+  zs_on_l  = z_on_l*a_zmins/a_zmin  
+  z0_on_l  = z_on_l*zo/a_zmin
+  zt_on_l  = z_on_l*zoh/a_zmin
+  zq_on_l  = z_on_l*zoq/a_zmin
   where (z_on_l.lt.0.)
     pm0     = (1.-16.*z0_on_l)**(-0.25)
     ph0     = (1.-16.*zt_on_l)**(-0.5)
+    pq0     = (1.-16.*zq_on_l)**(-0.5)
     pm1     = (1.-16.*z_on_l)**(-0.25)
-    ph1     = (1.-16.*z_on_l)**(-0.5)
+    ph1     = (1.-16.*zs_on_l)**(-0.5) !=pq1
     integralm = lzom-2.*log((1.+1./pm1)/(1.+1./pm0)) &
                 -log((1.+1./pm1**2)/(1.+1./pm0**2)) &
                 +2.*(atan(1./pm1)-atan(1./pm0))
     integralh = lzoh-2.*log((1.+1./ph1)/(1.+1./ph0))
+    integralq = lzoq-2.*log((1.+1./ph1)/(1.+1./pq0))
   elsewhere
     !--------------Beljaars and Holtslag (1991) momentum & heat            
     pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l) &
@@ -2722,20 +2739,24 @@ do ic=1,nc
     ph0 = -((1.+(2./3.)*a_1*zt_on_l)**1.5 &
            +b_1*(zt_on_l-(c_1/d_1))*exp(-d_1*zt_on_l) &
            +b_1*c_1/d_1-1.)
-    ph1 = -((1.+(2./3.)*a_1*z_on_l)**1.5 &
-           +b_1*(z_on_l-(c_1/d_1))*exp(-d_1*z_on_l) &
+    ph1 = -((1.+(2./3.)*a_1*zs_on_l)**1.5 &
+           +b_1*(zs_on_l-(c_1/d_1))*exp(-d_1*zs_on_l) &
+           +b_1*c_1/d_1-1.) !=pq1
+    pq0 = -((1.+(2./3.)*a_1*zq_on_l)**1.5 &
+           +b_1*(zq_on_l-(c_1/d_1))*exp(-d_1*zq_on_l) &
            +b_1*c_1/d_1-1.)
     integralm = lzom-(pm1-pm0)
     integralh = lzoh-(ph1-ph0)
+    integralq = lzoq-(ph1-pq0)
   endwhere
   thetavstar=vkar*(thetav-sthetav)/integralh
   ustar=vkar*umag/integralm
 end do
 tstar=vkar*(a_temp-stemp)/integralh
-qstar=vkar*(a_qg-smixr)/integralh
+qstar=vkar*(a_qg-smixr)/integralq
       
 ! estimate screen diagnostics
-z0s_on_l=z0*z_on_l/a_zmins
+z0s_on_l=z0*zs_on_l/a_zmins
 z0_on_l=z0*z_on_l/a_zmin
 z10_on_l=z10*z_on_l/a_zmin
 z0s_on_l=min(z0s_on_l,10.)
@@ -2746,7 +2767,7 @@ neutral=log(a_zmin/z0)
 neutral10=log(a_zmin/z10)
 where (z_on_l.lt.0.)
   ph0     = (1.-16.*z0s_on_l)**(-0.50)
-  ph1     = (1.-16.*z_on_l)**(-0.50)
+  ph1     = (1.-16.*zs_on_l)**(-0.50)
   pm0     = (1.-16.*z0_on_l)**(-0.25)
   pm10    = (1.-16.*z10_on_l)**(-0.25)
   pm1     = (1.-16.*z_on_l)**(-0.25)
@@ -2762,9 +2783,9 @@ elsewhere
   ph0  = -((1.+(2./3.)*a_1*z0s_on_l)**1.5 &
          +b_1*(z0s_on_l-(c_1/d_1)) &
          *exp(-d_1*z0s_on_l)+b_1*c_1/d_1-1.)
-  ph1  = -((1.+(2./3.)*a_1*z0s_on_l)**1.5 &
-         +b_1*(z0s_on_l-(c_1/d_1)) &
-         *exp(-d_1*z0s_on_l)+b_1*c_1/d_1-1.)
+  ph1  = -((1.+(2./3.)*a_1*zs_on_l)**1.5 &
+         +b_1*(zs_on_l-(c_1/d_1)) &
+         *exp(-d_1*zs_on_l)+b_1*c_1/d_1-1.)
   pm0 = -(a_1*z0_on_l+b_1*(z0_on_l-(c_1/d_1))*exp(-d_1*z0_on_l) &
          +b_1*c_1/d_1)
   pm10 = -(a_1*z10_on_l+b_1*(z10_on_l-(c_1/d_1)) &

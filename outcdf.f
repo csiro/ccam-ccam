@@ -35,6 +35,9 @@ c=======================================================================
       real hdifmax
       common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
 
+      integer leap        ! MJT bug fix
+      common/leap_yr/leap ! MJT bug fix
+
       integer dim(4),dims(4)
       integer xdim,ydim,zdim,tdim,msdim
       character timorg*20
@@ -144,6 +147,9 @@ ccc     idnt = ncvdef(idnc,'time',NCLONG,1,tdim,ier)
      &       2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
         print *,'grdtim=',grdtim
         call ncaptc(idnc,idnt,'units',NCCHAR,33,grdtim,ier)
+        if (leap.eq.0) then                                       ! MJT bug fix
+          call ncaptc(idnc,idnt,'calendar',NCCHAR,6,'noleap',ier) ! MJT bug fix
+        end if                                                    ! MJT bug fix
 
         dim(1) = xdim
         dim(2) = ydim

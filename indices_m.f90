@@ -10,6 +10,7 @@ public lsw_g,lssw_g,lsee_g,lsse_g,lnww_g,lnw_g,lnnw_g,lnee_g,lnne_g
 public npann_g,npane_g,npanw_g,npans_g
 public iw,isw,is,ise,ie,ine,in,iwn,ien,inn,iss,iww,iee,iwu,isv
 public ieu,inv,iwwu,issv,ieeu,innv
+public iev,iwv,inu,isu
 public lwws,lws,lwss,les,lees,less,lwwn,lwnn,leen,lenn,lsww
 public lsw,lssw,lsee,lsse,lnww,lnw,lnnw,lnee,lnne
 public npann,npane,npanw,npans
@@ -22,6 +23,7 @@ integer, dimension(:), allocatable, save :: lsw_g,lssw_g,lsee_g,lsse_g,lnww_g,ln
 integer, dimension(:), allocatable, save :: npann_g,npane_g,npanw_g,npans_g
 integer, dimension(:), allocatable, save :: iw,isw,is,ise,ie,ine,in,iwn,ien,inn,iss,iww,iee,iwu,isv
 integer, dimension(:), allocatable, save :: ieu,inv,iwwu,issv,ieeu,innv
+integer, dimension(:), allocatable, save :: iev,iwv,inu,isu
 integer, dimension(:), allocatable, save :: lwws,lws,lwss,les,lees,less,lwwn,lwnn,leen,lenn,lsww
 integer, dimension(:), allocatable, save :: lsw,lssw,lsee,lsse,lnww,lnw,lnnw,lnee,lnne
 integer, dimension(:), allocatable, save :: npann,npane,npanw,npans
@@ -53,6 +55,7 @@ allocate(ien(ifull),inn(ifull),iss(ifull),iww(ifull))
 allocate(iee(ifull),iwu(ifull),isv(ifull),ieu(ifull))
 allocate(inv(ifull),iwwu(ifull),issv(ifull),ieeu(ifull))
 allocate(innv(ifull))
+allocate(iev(ifull),iwv(ifull),inu(ifull),isu(ifull))
 allocate(lwws(npan),lws(npan),lwss(npan),les(npan))
 allocate(lees(npan),less(npan),lwwn(npan),lwnn(npan))
 allocate(leen(npan),lenn(npan),lsww(npan),lsw(npan))
@@ -125,6 +128,7 @@ if (allocated(npanw_g)) deallocate(npanw_g)
 if (allocated(npans_g)) deallocate(npans_g)
 deallocate(iw,isw,is,ise,ie,ine,in,iwn,ien,inn,iss,iww,iee,iwu,isv)
 deallocate(ieu,inv,iwwu,issv,ieeu,innv)
+deallocate(iev,iwv,inu,isu)
 deallocate(lwws,lws,lwss,les,lees,less,lwwn,lwnn,leen,lenn,lsww)
 deallocate(lsw,lssw,lsee,lsse,lnww,lnw,lnnw,lnee,lnne)
 deallocate(npann,npane,npanw,npans)

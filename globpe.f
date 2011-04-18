@@ -344,10 +344,10 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
 #ifdef uniform_decomp
       npan=npanels+1
 !     This should use jpan rather than jl. Will be far too big.
-      iextra = (4*(il+jl)+24)*npan
+      iextra = (6*(il+jl)+24)*npan !*6 for extra vector row (e.g., inu,isu,iev,iwv)
 #else      
       npan=max(1,(npanels+1)/nproc)
-      iextra = 4*(il+jl)+24*npan
+      iextra = 6*(il+jl)+24*npan !*6 for extra vector row (e.g., inu,isu,iev,iwv)
 #endif
       nrows_rad = il_g/6
       do while(mod(jl,nrows_rad).ne.0)

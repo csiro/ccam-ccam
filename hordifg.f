@@ -108,51 +108,14 @@ c     above code independent of k
       !--------------------------------------------------------------
       ! MJT tke ! MJT smag
       if (nhorjlm==0.or.nvmix==6) then
-        ! Calculate du/dx,dv/dx,du/dy,dv/dy but use cartesian vectors
-        ! so as to avoid changes in vector direction across panel boundaries.
-        ! Should be compatible with gnomonic grid.
-    
-        ! u=ax*uc+ay*vc+az*wc
-        ! dudx=u(ie)-u(iw)=ax*(uc(ie)-uc(iw))+ay*(vc(ie)-vc(iw))+az*(wc(ie)-wc(iw))
-        ! dudy=u(in)-u(is)=ax*(uc(in)-uc(is))+ay*(vc(in)-vc(is))+az*(wc(in)-wc(is))
+        ! Calculate du/dx,dv/dx,du/dy,dv/dy, etc 
+        
+        call boundsuv(u,v)
         do k=1,kl
-          uc(1:ifull,k)=ax(1:ifull)*u(1:ifull,k)
-          vc(1:ifull,k)=ay(1:ifull)*u(1:ifull,k)
-          wc(1:ifull,k)=az(1:ifull)*u(1:ifull,k)
-        end do
-        call bounds(uc)
-        call bounds(vc)
-        call bounds(wc)
-        do k=1,kl
-          dudx(:,k)=(ax(1:ifull)*(uc(ie,k)-uc(iw,k))
-     &              +ay(1:ifull)*(vc(ie,k)-vc(iw,k))
-     &              +az(1:ifull)*(wc(ie,k)-wc(iw,k)))
-     &              *0.5*em(1:ifull)/ds
-          dudy(:,k)=(ax(1:ifull)*(uc(in,k)-uc(is,k))
-     &              +ay(1:ifull)*(vc(in,k)-vc(is,k))
-     &              +az(1:ifull)*(wc(in,k)-wc(is,k)))
-     &              *0.5*em(1:ifull)/ds
-        end do
-        ! v=bx*uc+by*vc+bz*wc
-        ! dvdx=v(ie)-v(iw)=bx*(uc(ie)-uc(iw))+by*(vc(ie)-vc(iw))+bz*(wc(ie)-wc(iw))
-        ! dvdy=v(in)-v(is)=bx*(uc(in)-uc(is))+by*(vc(in)-vc(is))+bz*(wc(in)-wc(is))
-        do k=1,kl
-          uc(1:ifull,k)=bx(1:ifull)*v(1:ifull,k)
-          vc(1:ifull,k)=by(1:ifull)*v(1:ifull,k)
-          wc(1:ifull,k)=bz(1:ifull)*v(1:ifull,k)
-        end do
-        call bounds(uc)
-        call bounds(vc)
-        call bounds(wc)
-        do k=1,kl
-          dvdx(:,k)=(bx(1:ifull)*(uc(ie,k)-uc(iw,k))
-     &              +by(1:ifull)*(vc(ie,k)-vc(iw,k))
-     &              +bz(1:ifull)*(wc(ie,k)-wc(iw,k)))
-     &              *0.5*em(1:ifull)/ds
-          dvdy(:,k)=(bx(1:ifull)*(uc(in,k)-uc(is,k))
-     &              +by(1:ifull)*(vc(in,k)-vc(is,k))
-     &              +bz(1:ifull)*(wc(in,k)-wc(is,k)))
-     &              *0.5*em(1:ifull)/ds
+          dudx(:,k)=(u(ieu,k)-u(iwu,k))*0.5*em(1:ifull)/ds
+          dudy(:,k)=(u(inu,k)-u(isu,k))*0.5*em(1:ifull)/ds
+          dvdx(:,k)=(v(iev,k)-v(iwv,k))*0.5*em(1:ifull)/ds
+          dvdy(:,k)=(v(inv,k)-v(isv,k))*0.5*em(1:ifull)/ds
         end do
 
         zg(1:ifull,1)=bet(1)*t(1:ifull,1)/grav
