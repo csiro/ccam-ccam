@@ -17,6 +17,7 @@ implicit none
 integer, intent(in) :: ifull,iextra,kl
 
 allocate(cfrac(ifull,kl))
+cfrac=0.
 
 return
 end subroutine cfrac_init

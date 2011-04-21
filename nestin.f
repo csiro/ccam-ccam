@@ -2572,12 +2572,14 @@
           old=new(:,ka)
           call mloexport(0,old,k,0)
           old=old+diff(:)*10./real(mloalpha)
+	  old=max(old,271.)
           call mloimport(0,old,k,0)
         end do
         do k=kc+1,kbotmlo
           old=new(:,ka)
           call mloexport(0,old,k,0)
           old=old+diff(:)*10./real(mloalpha)
+	  old=max(old,271.)	  
           call mloimport(0,old,k,0)
         end do
       end if
@@ -2958,12 +2960,14 @@
           old=new(:,ka)
           call mloexport(0,old,k,0)
           old=old+diff(:)*10./real(mloalpha)
+	  old=max(old,271.)
           call mloimport(0,old,k,0)
         end do
         do k=kc+1,kbotmlo
           old=new(:,ka)
           call mloexport(0,old,k,0)
           old=old+diff(:)*10./real(mloalpha)
+	  old=max(old,271.)
           call mloimport(0,old,k,0)
         end do
       end if
@@ -3821,6 +3825,7 @@
           old=new(:,ka)
           call mloexport(0,old,k,0)
           old=old*(1.-wgt)+new(:,ka)*wgt
+	  old=max(old,271.)
           call mloimport(0,old,k,0)
         end do
       end if
@@ -3843,7 +3848,6 @@
             old=suvb(:,ka,i-1)
             call mloexport(i,old,k,0)
             old=old*(1.-wgt)+suvb(:,ka,i-1)*wgt
-            old=max(old,0.)	  
             call mloimport(i,old,k,0)
           end do
         end do

@@ -312,6 +312,7 @@ real, dimension(ifull) :: dttdxu,dttdyu,dttdxv,dttdyv
 real, dimension(ifull) :: detadxu,detadyu,detadxv,detadyv
 real, dimension(ifull) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull) :: au,bu,cu,av,bv,cv
+real, dimension(ifull,4,4) :: stwgt
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns
 real, dimension(ifull+iextra,wlev) :: cou,cov,cow
 real, dimension(ifull+iextra,wlev) :: dep,rhobar,rho,dz
@@ -323,6 +324,7 @@ real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
 logical lleap
+integer, parameter :: usetide=0    ! tidal forcing (0=Off, 1=Love)
 integer, parameter :: lmax=2       ! 1=predictor-only, 2+=predictor-corrector
 integer, parameter :: llmax=5000   ! iterations for surface height
 real, parameter :: tol = 5.E-4     ! Tolerance for GS solver
@@ -364,6 +366,53 @@ nu=0.
 nv=0.
 neta=0.
 
+! PRECOMPUTE WEIGHTS
+stwgt=0.
+where (wtr(in).and.wtr(ine))
+  stwgt(:,1,2)=0.5 !in
+  stwgt(:,1,3)=0.5 !ine
+else where (wtr(in))
+  stwgt(:,1,2)=1.  !in
+else where (wtr(ine))
+  stwgt(:,1,3)=1.  !ine
+else where
+  stwgt(:,1,1)=0.5 !ifull
+  stwgt(:,1,4)=0.5 !ie
+end where
+where (wtr(is).and.wtr(ise))
+  stwgt(:,2,2)=0.5 !is
+  stwgt(:,2,3)=0.5 !ise
+else where (wtr(is))
+  stwgt(:,2,2)=1.  !is
+else where (wtr(ise))
+  stwgt(:,2,3)=1.  !ise
+else where
+  stwgt(:,2,1)=0.5 !ifull
+  stwgt(:,2,4)=0.5 !ie
+end where
+where (wtr(ie).and.wtr(ien))
+  stwgt(:,3,2)=0.5 !ie
+  stwgt(:,3,3)=0.5 !ien
+else where (wtr(ie))
+  stwgt(:,3,2)=1.  !ie
+else where (wtr(ien))
+  stwgt(:,3,3)=1.  !ien
+else where
+  stwgt(:,3,1)=0.5 !ifull
+  stwgt(:,3,4)=0.5 !in
+end where
+where (wtr(iw).and.wtr(iwn))
+  stwgt(:,4,2)=0.5 !iw
+  stwgt(:,4,3)=0.5 !iwn
+else where (wtr(iw))
+  stwgt(:,4,2)=1.  !iw
+else where (wtr(iwn))
+  stwgt(:,4,3)=1.  !iwn
+else where
+  stwgt(:,4,1)=0.5 !ifull
+  stwgt(:,4,4)=0.5 !in
+end where
+
 ! ADVECT WATER ------------------------------------------------------
 do ii=1,wlev
   call mloexpdep(0,dep(1:ifull,ii),ii,0)
@@ -391,119 +440,60 @@ end do
 dd(1:ifull)=dzbar(:,wlev)
 call bounds(dd)
 
-! ------ NEED TO ADD PRESSURE FROM SEA ICE ------
-pice(1:ifull) = ps(1:ifull) + grav*fracice*(sicedep*rhoic+0.001*snowd*rhosn)
-call bounds(pice,nrows=2)
-
-! estimate tides (need to fix base date !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! )
-jyear=kdate/10000
-jstart=0
-if (jyear.gt.1900) then
-  do tyear=1900,jyear-1
-    call mloleap(tyear,lleap)
-    if (lleap) jstart=jstart+1
-    jstart=jstart+365
-  end do
+if (usetide.eq.1) then
+  ! estimate tides (need to fix base date !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! )
+  jyear=kdate/10000
+  jstart=0
+  if (jyear.gt.1900) then
+    do tyear=1900,jyear-1
+      call mloleap(tyear,lleap)
+      if (lleap) jstart=jstart+1
+      jstart=jstart+365
+    end do
+  else
+    do tyear=1900,jyear,-1
+      call mloleap(tyear,lleap)
+      if (lleap) jstart=jstart-1
+      jstart=jstart-1440
+    end do
+  end if
+  mstart=mstart+720 ! base time is 12Z 31 Dec 1899 (probably should be 12Z 22 May 1966)
+  jmonth=(kdate-jyear*10000)/100
+  jday=kdate-jyear*10000-jmonth*100
+  jhour=ktime/100
+  jmin=ktime-jhour*100
+  mstart=mstart+1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of year
+  if (jmonth.gt.2) then
+    call mloleap(jyear,lleap)
+    if (lleap) mstart=mstart+1440
+  end if
+  mins = mtimer + mstart
+  call mlotide(ntide(1:ifull),rlongg,rlatt,mins,jstart)
+  call bounds(ntide,nrows=2)
+  
+  tnu=stwgt(:,1,1)*ntide(1:ifull)+stwgt(:,1,2)*ntide(in)+stwgt(:,1,3)*ntide(ine)+stwgt(:,1,4)*ntide(ie)
+  tsu=stwgt(:,2,1)*ntide(1:ifull)+stwgt(:,2,2)*ntide(is)+stwgt(:,2,3)*ntide(ise)+stwgt(:,2,4)*ntide(ie)
+  tev=stwgt(:,3,1)*ntide(1:ifull)+stwgt(:,3,2)*ntide(ie)+stwgt(:,3,3)*ntide(ien)+stwgt(:,3,4)*ntide(in)
+  twv=stwgt(:,4,1)*ntide(1:ifull)+stwgt(:,4,2)*ntide(iw)+stwgt(:,4,3)*ntide(iwn)+stwgt(:,4,4)*ntide(in)
+  dttdxu=(ntide(ie)-ntide(1:ifull))*emu(1:ifull)/ds
+  dttdyu=0.5*(tnu-tsu)*emu(1:ifull)/ds
+  dttdxv=0.5*(tev-twv)*emv(1:ifull)/ds
+  dttdyv=(ntide(in)-ntide(1:ifull))*emv(1:ifull)/ds  
 else
-  do tyear=1900,jyear,-1
-    call mloleap(tyear,lleap)
-    if (lleap) jstart=jstart-1
-    jstart=jstart-1440
-  end do
+  ntide=0.
+  dttdxu=0.
+  dttdyu=0.
+  dttdxv=0.
+  dttdyv=0.
 end if
-mstart=mstart+720 ! base time is 12Z 31 Dec 1899
-jmonth=(kdate-jyear*10000)/100
-jday=kdate-jyear*10000-jmonth*100
-jhour=ktime/100
-jmin=ktime-jhour*100
-mstart=mstart+1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of year
-if (jmonth.gt.2) then
-  call mloleap(jyear,lleap)
-  if (lleap) mstart=mstart+1440
-end if
-mins = mtimer + mstart
-call mlotide(ntide(1:ifull),rlongg,rlatt,mins,jstart)
-call bounds(ntide,nrows=2)
-
-! should replace this with pre-computed weights !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-where (wtr(in).and.wtr(ine))
-  tnu=0.5*(ntide(in)+ntide(ine)) 
-else where (wtr(in))
-  tnu=ntide(in)
-else where (wtr(ine))
-  tnu=ntide(ine)
-else where
-  tnu=0.5*(ntide(1:ifull)+ntide(ie))
-end where
-where (wtr(is).and.wtr(ise))
-  tsu=0.5*(ntide(is)+ntide(ise)) 
-else where (wtr(is))
-  tsu=ntide(is)
-else where (wtr(ise))
-  tsu=ntide(ise)
-else where
-  tsu=0.5*(ntide(1:ifull)+ntide(ie))
-end where
-where (wtr(ie).and.wtr(ien))
-  tev=0.5*(ntide(ie)+ntide(ien)) 
-else where (wtr(ie))
-  tev=ntide(ie)
-else where (wtr(ien))
-  tev=ntide(ien)
-else where
-  tev=0.5*(ntide(1:ifull)+ntide(in))
-end where
-where (wtr(iw).and.wtr(iwn))
-  twv=0.5*(ntide(iw)+ntide(iwn)) 
-else where (wtr(iw))
-  twv=ntide(iw)
-else where (wtr(iwn))
-  twv=ntide(iwn)
-else where
-  twv=0.5*(ntide(1:ifull)+ntide(in))
-end where
-dttdxu=(ntide(ie)-ntide(1:ifull))*emu(1:ifull)/ds
-dttdyu=0.5*(tnu-tsu)*emu(1:ifull)/ds
-dttdxv=0.5*(tev-twv)*emv(1:ifull)/ds
-dttdyv=(ntide(in)-ntide(1:ifull))*emv(1:ifull)/ds
 
 ! surface pressure gradients
-where (wtr(in).and.wtr(ine))
-  tnu=0.5*(pice(in)+pice(ine)) 
-else where (wtr(in))
-  tnu=pice(in)
-else where (wtr(ine))
-  tnu=pice(ine)
-else where
-  tnu=0.5*(pice(1:ifull)+pice(ie))
-end where
-where (wtr(is).and.wtr(ise))
-  tsu=0.5*(pice(is)+pice(ise)) 
-else where (wtr(is))
-  tsu=pice(is)
-else where (wtr(ise))
-  tsu=pice(ise)
-else where
-  tsu=0.5*(pice(1:ifull)+pice(ie))
-end where
-where (wtr(ie).and.wtr(ien))
-  tev=0.5*(pice(ie)+pice(ien)) 
-else where (wtr(ie))
-  tev=pice(ie)
-else where (wtr(ien))
-  tev=pice(ien)
-else where
-  tev=0.5*(pice(1:ifull)+pice(in))
-end where
-where (wtr(iw).and.wtr(iwn))
-  twv=0.5*(pice(iw)+pice(iwn)) 
-else where (wtr(iw))
-  twv=pice(iw)
-else where (wtr(iwn))
-  twv=pice(iwn)
-else where
-  twv=0.5*(pice(1:ifull)+pice(in))
-end where
+pice(1:ifull) = ps(1:ifull) + grav*fracice*(sicedep*rhoic+0.001*snowd*rhosn)
+call bounds(pice,nrows=2)
+tnu=stwgt(:,1,1)*pice(1:ifull)+stwgt(:,1,2)*pice(in)+stwgt(:,1,3)*pice(ine)+stwgt(:,1,4)*pice(ie)
+tsu=stwgt(:,2,1)*pice(1:ifull)+stwgt(:,2,2)*pice(is)+stwgt(:,2,3)*pice(ise)+stwgt(:,2,4)*pice(ie)
+tev=stwgt(:,3,1)*pice(1:ifull)+stwgt(:,3,2)*pice(ie)+stwgt(:,3,3)*pice(ien)+stwgt(:,3,4)*pice(in)
+twv=stwgt(:,4,1)*pice(1:ifull)+stwgt(:,4,2)*pice(iw)+stwgt(:,4,3)*pice(iwn)+stwgt(:,4,4)*pice(in)
 dpsdxu=(pice(ie)-pice(1:ifull))*emu(1:ifull)/ds
 dpsdyu=0.5*(tnu-tsu)*emu(1:ifull)/ds
 dpsdxv=0.5*(tev-twv)*emv(1:ifull)/ds
@@ -626,42 +616,10 @@ do l=1,lmax ! predictor-corrector loop
     bv=-dt/(rhov*(1.+dt*dt*fv(1:ifull)*fv(1:ifull)))
     cv=-dt*fv(1:ifull)*bv
 
-    where (wtr(in).and.wtr(ine))
-      tnu=0.5*(rhobar(in,ii)+rhobar(ine,ii)) 
-    else where (wtr(in))
-      tnu=rhobar(in,ii)
-    else where (wtr(ine))
-      tnu=rhobar(ine,ii)
-    else where
-      tnu=0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))
-    end where
-    where (wtr(is).and.wtr(ise))
-      tsu=0.5*(rhobar(is,ii)+rhobar(ise,ii)) 
-    else where (wtr(is))
-      tsu=rhobar(is,ii)
-    else where (wtr(ise))
-      tsu=rhobar(ise,ii)
-    else where
-      tsu=0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))
-    end where
-    where (wtr(ie).and.wtr(ien))
-      tev=0.5*(rhobar(ie,ii)+rhobar(ien,ii)) 
-    else where (wtr(ie))
-      tev=rhobar(ie,ii)
-    else where (wtr(ien))
-      tev=rhobar(ien,ii)
-    else where
-      tev=0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))
-    end where
-    where (wtr(iw).and.wtr(iwn))
-      twv=0.5*(rhobar(iw,ii)+rhobar(iwn,ii)) 
-    else where (wtr(iw))
-      twv=rhobar(iw,ii)
-    else where (wtr(iwn))
-      twv=rhobar(iwn,ii)
-    else where
-      twv=0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))
-    end where
+    tnu=stwgt(:,1,1)*rhobar(1:ifull,ii)+stwgt(:,1,2)*rhobar(in,ii)+stwgt(:,1,3)*rhobar(ine,ii)+stwgt(:,1,4)*rhobar(ie,ii)
+    tsu=stwgt(:,2,1)*rhobar(1:ifull,ii)+stwgt(:,2,2)*rhobar(is,ii)+stwgt(:,2,3)*rhobar(ise,ii)+stwgt(:,2,4)*rhobar(ie,ii)
+    tev=stwgt(:,3,1)*rhobar(1:ifull,ii)+stwgt(:,3,2)*rhobar(ie,ii)+stwgt(:,3,3)*rhobar(ien,ii)+stwgt(:,3,4)*rhobar(in,ii)
+    twv=stwgt(:,4,1)*rhobar(1:ifull,ii)+stwgt(:,4,2)*rhobar(iw,ii)+stwgt(:,4,3)*rhobar(iwn,ii)+stwgt(:,4,4)*rhobar(in,ii)
  
     drhobardxu=(rhobar(ie,ii)-rhobar(1:ifull,ii))*emu(1:ifull)/ds !-dzdx*drhobardz
     drhobardyu=0.5*(tnu-tsu)*emu(1:ifull)/ds                      !-dzdy*drhobardz
@@ -682,15 +640,27 @@ do l=1,lmax ! predictor-corrector loop
     !int nu dz = sou+spu*(1+etau/ddu)+squ*detadxu+sru*detadyu
     !int nv dz = sov+spv*(1+etav/ddv)+sqv*detadyv+srv*detadxv
 
-    kku(:,ii)=au+bu*(dpsdxu+grav*rhou*dttdxu)+cu*(dpsdyu+grav*rhou*dttdyu)
-    llu(:,ii)=(bu*grav*drhobardxu+cu*grav*drhobardyu)*0.5*(dep(1:ifull,ii)+dep(ie,ii))
-    mmu(:,ii)=bu*grav*(rhobaru+rhou*(1.-sal))
-    nnu(:,ii)=cu*grav*(rhobaru+rhou*(1.-sal))
+    if (usetide.eq.1) then
+      kku(:,ii)=au+bu*(dpsdxu+grav*rhou*dttdxu)+cu*(dpsdyu+grav*rhou*dttdyu)
+      llu(:,ii)=(bu*grav*drhobardxu+cu*grav*drhobardyu)*0.5*(dep(1:ifull,ii)+dep(ie,ii))
+      mmu(:,ii)=bu*grav*(rhobaru+rhou*(1.-sal))
+      nnu(:,ii)=cu*grav*(rhobaru+rhou*(1.-sal))
 
-    kkv(:,ii)=av+bv*(dpsdyv+grav*rhov*dttdyv)+cv*(dpsdxv+grav*rhov*dttdxv)
-    llv(:,ii)=(bv*grav*drhobardyv+cv*grav*drhobardxv)*0.5*(dep(1:ifull,ii)+dep(in,ii))
-    mmv(:,ii)=bv*grav*(rhobarv+rhov*(1.-sal))
-    nnv(:,ii)=cv*grav*(rhobarv+rhov*(1.-sal))
+      kkv(:,ii)=av+bv*(dpsdyv+grav*rhov*dttdyv)+cv*(dpsdxv+grav*rhov*dttdxv)
+      llv(:,ii)=(bv*grav*drhobardyv+cv*grav*drhobardxv)*0.5*(dep(1:ifull,ii)+dep(in,ii))
+      mmv(:,ii)=bv*grav*(rhobarv+rhov*(1.-sal))
+      nnv(:,ii)=cv*grav*(rhobarv+rhov*(1.-sal))
+    else
+      kku(:,ii)=au+bu*dpsdxu+cu*dpsdyu
+      llu(:,ii)=(bu*grav*drhobardxu+cu*grav*drhobardyu)*0.5*(dep(1:ifull,ii)+dep(ie,ii))
+      mmu(:,ii)=bu*grav*rhobaru
+      nnu(:,ii)=cu*grav*rhobaru
+
+      kkv(:,ii)=av+bv*dpsdyv+cv*dpsdxv
+      llv(:,ii)=(bv*grav*drhobardyv+cv*grav*drhobardxv)*0.5*(dep(1:ifull,ii)+dep(in,ii))
+      mmv(:,ii)=bv*grav*rhobarv
+      nnv(:,ii)=cv*grav*rhobarv
+    end if
     
     sou=sou+kku(:,ii)*0.5*(dz(1:ifull,ii)+dz(ie,ii))
     spu=spu+llu(:,ii)*0.5*(dz(1:ifull,ii)+dz(ie,ii))
@@ -723,42 +693,10 @@ do l=1,lmax ! predictor-corrector loop
 
     ! calculate neta gradients
     call bounds(neta,nrows=2)
-    where (wtr(in).and.wtr(ine))
-      tnu=0.5*(neta(in)+neta(ine)) 
-    else where (wtr(in))
-      tnu=neta(in)
-    else where (wtr(ine))
-      tnu=neta(ine)
-    else where
-      tnu=0.5*(neta(1:ifull)+neta(ie))
-    end where
-    where (wtr(is).and.wtr(ise))
-      tsu=0.5*(neta(is)+neta(ise)) 
-    else where (wtr(is))
-      tsu=neta(is)
-    else where (wtr(ise))
-      tsu=neta(ise)
-    else where
-      tsu=0.5*(neta(1:ifull)+neta(ie))
-    end where
-    where (wtr(ie).and.wtr(ien))
-      tev=0.5*(neta(ie)+neta(ien)) 
-    else where (wtr(ie))
-      tev=neta(ie)
-    else where (wtr(ien))
-      tev=neta(ien)
-    else where
-      tev=0.5*(neta(1:ifull)+neta(in))
-    end where
-    where (wtr(iw).and.wtr(iwn))
-      twv=0.5*(neta(iw)+neta(iwn)) 
-    else where (wtr(iw))
-      twv=neta(iw)
-    else where (wtr(iwn))
-      twv=neta(iwn)
-    else where
-      twv=0.5*(neta(1:ifull)+neta(in))
-    end where
+    tnu=stwgt(:,1,1)*neta(1:ifull)+stwgt(:,1,2)*neta(in)+stwgt(:,1,3)*neta(ine)+stwgt(:,1,4)*neta(ie)
+    tsu=stwgt(:,2,1)*neta(1:ifull)+stwgt(:,2,2)*neta(is)+stwgt(:,2,3)*neta(ise)+stwgt(:,2,4)*neta(ie)
+    tev=stwgt(:,3,1)*neta(1:ifull)+stwgt(:,3,2)*neta(ie)+stwgt(:,3,3)*neta(ien)+stwgt(:,3,4)*neta(in)
+    twv=stwgt(:,4,1)*neta(1:ifull)+stwgt(:,4,2)*neta(iw)+stwgt(:,4,3)*neta(iwn)+stwgt(:,4,4)*neta(in)
  
     detadxu=(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
     detadyu=0.5*(tnu-tsu)*emu(1:ifull)/ds
@@ -857,6 +795,7 @@ end do
 call mloimport(4,neta(1:ifull),0,0)
 
 ! ADVECT ICE --------------------------------------------------------
+! (should integrate this into the ocean-predictor corrector loop)
 !do ii=1,wlev
 !  call mloexpice(w_u(:,1),8,0)
 !  call mloexpice(w_v(:,1),9,0)
@@ -2268,11 +2207,9 @@ sinlat=sin(2.*slat)
 
 eta=0.
 do i=1,4
-  eta=eta+ba(i)*aa(i)*coslat*(cos(wa(i)*stime)*coslon-sin(wa(i)*stime)*sinlon)
-  eta=eta+bb(i)*ab(i)*sinlat*(cos(wb(i)*stime)*coslon-sin(wb(i)*stime)*sinlon)
+  eta=eta-ba(i)*aa(i)*coslat*(cos(wa(i)*stime)*coslon-sin(wa(i)*stime)*sinlon)
+  eta=eta-bb(i)*ab(i)*sinlat*(cos(wb(i)*stime)*coslon-sin(wb(i)*stime)*sinlon)
 end do
-
-eta=-eta
 
 return
 end subroutine mlotide

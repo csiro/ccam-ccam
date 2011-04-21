@@ -174,6 +174,7 @@ c     start of processing loop
       use ateb, only : atebdwn ! MJT urban
       use carbpools_m
       use cc_mpi
+      use cfrac_m
       use define_dimensions, only : ncs, ncp ! MJT cable
       use infile
       use latlong_m
@@ -1382,6 +1383,22 @@ c       incorporate other target land mask effects
         enddo  ! k loop
         call vertint(u_k,qfg,5,kk,sigin)
         call vertint(v_k,qlg,5,kk,sigin)
+
+        do k=1,kk ! CLOUD FRACTION
+         ucc=0. ! dummy for cfrac
+         call histrd4s(ncid,iarchi,ier,'cfrac',ik,6*ik,k,ucc,
+     &                 6*ik*ik)
+         if (iotest) then
+           if (myid==0) then
+             call ccmpi_distribute(u_k(:,k),ucc)
+           else
+             call ccmpi_distribute(u_k(:,k))
+           end if
+         else
+           call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,ik)
+         end if ! iotest
+        enddo  ! k loop
+        call vertint(u_k,cfrac,5,kk,sigin)
 
         !--------------------------------------------------
         ! MJT zosea
