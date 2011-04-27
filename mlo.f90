@@ -428,17 +428,25 @@ real, dimension(ifull), intent(inout) :: tsn
 if (wfull.eq.0) return
 select case(ilev)
   case(1)
-    tsn=pack(i_tsurf,wpack)
+    i_tsurf=pack(tsn,wpack)
   case(2)
-    tsn=pack(i_tn(:,0),wpack)
+    i_tn(:,0)=pack(tsn,wpack)
   case(3)
-    tsn=pack(i_tn(:,1),wpack)
+    i_tn(:,1)=pack(tsn,wpack)
   case(4)
-    tsn=pack(i_tn(:,2),wpack)
+    i_tn(:,2)=pack(tsn,wpack)
   case(5)
-    tsn=pack(i_u,wpack)
+    i_fracice=pack(tsn,wpack)
   case(6)
-    tsn=pack(i_v,wpack)
+    i_dic=pack(tsn,wpack)
+  case(7)
+    i_dsn=pack(tsn,wpack)
+  case(8)
+    i_sto=pack(tsn,wpack)
+  case(9)
+    i_u=pack(tsn,wpack)
+  case(10)
+    i_v=pack(tsn,wpack)
   case DEFAULT
     write(6,*) "ERROR: Invalid mode ",ilev
     stop
@@ -495,8 +503,16 @@ select case(ilev)
   case(4)
     tsn=unpack(i_tn(:,2),wpack,tsn)
   case(5)
-    tsn=unpack(i_u,wpack,tsn)
+    tsn=unpack(i_fracice,wpack,tsn)
   case(6)
+    tsn=unpack(i_dic,wpack,tsn)
+  case(7)
+    tsn=unpack(i_dsn,wpack,tsn)
+  case(8)
+    tsn=unpack(i_sto,wpack,tsn)
+  case(9)
+    tsn=unpack(i_u,wpack,tsn)
+  case(10)
     tsn=unpack(i_v,wpack,tsn)
   case DEFAULT
     write(6,*) "ERROR: Invalid mode ",ilev
@@ -1845,10 +1861,10 @@ where (newdic.gt.2.*icemin.and.i_fracice.le.0.) ! form new sea-ice
   i_tn(:,1)=newtn
   i_tn(:,2)=newtn
   i_sto=0.
-  i_u=0.
-  i_v=0.
+  !i_u=w_u(:,1)*rhowt/rhoic ! probably should conserve momentum here
+  !i_v=w_v(:,1)*rhowt/rhoic
   w_temp(:,1)=newtn
-  d_wm0=d_wm0-i_dic*i_fracice*rhoic/rhowt/dt ! need to sort out conservation for ice formation and melting
+  d_wm0=d_wm0-i_dic*i_fracice*rhoic/rhowt/dt
 endwhere
 
 ! removal
@@ -2089,9 +2105,9 @@ ip_dsn=min(min(xxx,ip_dsn),0.2)
 ip_dic=ip_dic+rhowt/rhoic*excess
 
 ! Ice depth limitation for poor initial conditions
-xxx=max(ip_dic-2.,0.)
-ip_dic=min(2.,ip_dic)
-!dp_wtrflx=dp_wtrflx+xxx*rhoic/rhowt/dt
+xxx=max(ip_dic-4.,0.)
+ip_dic=min(4.,ip_dic)
+dp_wtrflx=dp_wtrflx+xxx*rhoic/rhowt/dt
 
 return
 end subroutine seaicecalc
@@ -2595,18 +2611,14 @@ do iqw=1,wfull
   d_fb(iqw)=min(max(d_fb(iqw),-1000.),1000.)
 
   ! momentum transfer (semi-implicit)
-  if (i_dic(iqw).gt.0.) then
-    x=max(rhoic*i_dic(iqw)+rhosn*i_dsn(iqw),1.)
-    g=(rho(iqw)*p_cdice(iqw)*vmag(iqw)*uu(iqw)+0.00536*icemag*du(iqw))/x
-    dgdu=(-rho(iqw)*p_cdice(iqw)*(vmag(iqw)+uu(iqw)*uu(iqw)/vmag(iqw))-0.00536*(icemag+du(iqw)*du(iqw)/icemag))/x
-    i_u(iqw)=i_u(iqw)+g/(1./dt-dgdu)
-    g=(rho(iqw)*p_cdice(iqw)*vmag(iqw)*vv(iqw)+0.00536*icemag*dv(iqw))/x
-    dgdu=(-rho(iqw)*p_cdice(iqw)*(vmag(iqw)+vv(iqw)*vv(iqw)/vmag(iqw))-0.00536*(icemag+dv(iqw)*dv(iqw)/icemag))/x
-    i_v(iqw)=i_v(iqw)+g/(1./dt-dgdu)
-  else
-    i_u(iqw)=0.
-    i_v(iqw)=0.
-  end if
+  x=max(rhoic*i_dic(iqw)+rhosn*i_dsn(iqw),1.)
+  g=(rho(iqw)*p_cdice(iqw)*vmag(iqw)*uu(iqw)+0.00536*icemag*du(iqw))/x
+  dgdu=(-rho(iqw)*p_cdice(iqw)*(vmag(iqw)+uu(iqw)*uu(iqw)/vmag(iqw))-0.00536*(icemag+du(iqw)*du(iqw)/icemag))/x
+  i_u(iqw)=i_u(iqw)+g/(1./dt-dgdu)
+  g=(rho(iqw)*p_cdice(iqw)*vmag(iqw)*vv(iqw)+0.00536*icemag*dv(iqw))/x
+  dgdu=(-rho(iqw)*p_cdice(iqw)*(vmag(iqw)+vv(iqw)*vv(iqw)/vmag(iqw))-0.00536*(icemag+dv(iqw)*dv(iqw)/icemag))/x
+  i_v(iqw)=i_v(iqw)+g/(1./dt-dgdu)
+
 end do
 
 ! index of different ice thickness configurations

@@ -2627,9 +2627,15 @@ contains
       ! Calculate global iqg from local iq
 
       ! Calculate local i, j, n
+#ifdef uniform_decomp
       n = 1 + (iq-1)*6 / (il*jl)  ! In range 1 .. npan
-      j = 1 + ( iq - (n-1)*il*jl/6 - 1) / il
-      i = iq - (j-1)*il - (n-1)*il*jl/6
+      j = 1 + ( iq - (n-1)*(il*jl)/6 - 1) / il
+      i = iq - (j-1)*il - (n-1)*(il*jl)/6
+#else
+      n = 1 + (iq-1) / (il*jl)  ! In range 1 .. npan
+      j = 1 + ( iq - (n-1)*(il*jl) - 1) / il
+      i = iq - (j-1)*il - (n-1)*(il*jl)
+#endif
       iqg = indg(i,j,n)
 
    end function iq2iqg

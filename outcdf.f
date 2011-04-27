@@ -1185,6 +1185,8 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         mlodwn(:,:,1:2)=999.
         mlodwn(:,:,3:4)=0.
         micdwn=999.
+        micdwn(:,9)=0.
+        micdwn(:,10)=0.
         aa=0. ! ocean depth
         bb=0. ! free surface height
         call mlosave(mlodwn,aa,bb,micdwn,0)
