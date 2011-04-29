@@ -2458,9 +2458,7 @@ contains
 #endif
                ! Add this point to the list of requests I need to send to iproc
                dslen(iproc) = dslen(iproc) + 1
-#ifdef debug
                call checksize(dslen(iproc),bnds(iproc)%len,"Deptssync")                             ! MJT memory
-#endif
                ! Since nface is a small integer it can be exactly represented by a
                ! real. It's simpler to send like this than use a proper structure.
                dbuf(iproc)%a(:,dslen(iproc)) = (/ real(nface(iq,k)), xg(iq,k), yg(iq,k), real(k) /) ! MJT memory

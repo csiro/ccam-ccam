@@ -80,6 +80,8 @@ onthefly.o: onthefly.f
 	$(FC)  -c -override-limits $(FFLAGS) $<	
 outcdf.o: outcdf.f
 	$(FC)  -c -override-limits $(FFLAGS) $<	
+mlodynamics.o: mlodynamics.f90
+	$(FC)  -c -override-limits $(FFLAGS) $<		
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
 

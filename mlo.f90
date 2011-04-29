@@ -199,8 +199,8 @@ p_cd=0.
 p_fg=0.
 p_eg=0.
 p_zoice=0.001
-p_zohice=0.001
-p_zoqice=0.001
+p_zohice=0.001/7.4
+p_zoqice=0.001/7.4
 p_cdice=0.
 p_fgice=0.
 p_egice=0.
@@ -1595,7 +1595,7 @@ af=afroot**2
 select case(zomode)
   case(0) ! Charnock CSIRO9
     ztv=exp(vkar/sqrt(chn10))/10.      ! proper inverse of ztsea
-    aft=vkar**2/(log(a_zmins*ztv)*log(a_zmins*ztv)) ! CCAM style (seems incorrect)
+    aft=vkar**2/(log(a_zmins/p_zo)*log(a_zmins*ztv))
     afq=aft
     p_zoh=ztv
     p_zoq=p_zoh
@@ -1793,7 +1793,7 @@ dp_tauyicw(1:nice)=pack(d_tauyicw,cice)
 ! update ice prognostic variables
 call seaicecalc(nice,dt,ip_tn(1:nice,:),ip_dic(1:nice),ip_dsn(1:nice),ip_fracice(1:nice),        &
                 ip_tsurf(1:nice),ip_sto(1:nice),ip_u(1:nice),ip_v(1:nice),ap_rnd(1:nice),        &
-                ap_rnd(1:nice),pp_egice(1:nice),dp_ftop(1:nice),dp_bot(1:nice),dp_tb(1:nice),    &
+                ap_snd(1:nice),pp_egice(1:nice),dp_ftop(1:nice),dp_bot(1:nice),dp_tb(1:nice),    &
                 dp_fb(1:nice),dp_timelt(1:nice),dp_salflx(1:nice),dp_wtrflx(1:nice),             &
                 dp_nk(1:nice),dp_tauxica(1:nice),dp_tauyica(1:nice),dp_tauxicw(1:nice),          &
                 dp_tauyicw(1:nice),diag)
@@ -2552,8 +2552,8 @@ srcp=sig**(rdry/cp)
 rho=a_ps/(rdry*i_tsurf)
 
 p_zoice=0.001
-p_zohice=0.001/7.4
-p_zoqice=0.001/7.4
+p_zohice=0.001
+p_zoqice=0.001
 af=vkar**2/(log(a_zmin/p_zoice)*log(a_zmin/p_zoice))
 aft=vkar**2/(log(a_zmins/p_zoice)*log(a_zmins/p_zohice))
 factch=sqrt(7.4)
