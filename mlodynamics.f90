@@ -41,19 +41,19 @@ integer k,i
 integer, parameter :: salfilt = 0 ! Additional salinity filter (0=off, 1=Katzfey)
 real, parameter :: k_smag = 2. ! 0.4 in mom3, 2. in Griffies (2000)
 real hdif
-real, dimension(ifull+iextra) :: uc,vc,wc,ee,dz,u,v
+real, dimension(ifull+iextra) :: uc,vc,wc,ee,dz,u,v,gg
 real, dimension(ifull+iextra) :: t_kh,xfact,yfact
 real, dimension(ifull) :: dudx,dvdx,dudy,dvdy,base
 real, dimension(ifull) :: cc,ff,emi,ucc,vcc,wcc
 logical, dimension(ifull+iextra) :: wtr
 
 hdif=dt*(k_smag/pi)**2
-ee=0.
+ee=1.
 where(land(1:ifull))
-  ee(1:ifull)=1.
+  ee(1:ifull)=0.
 end where
 call bounds(ee)
-wtr=ee.lt.0.5
+wtr=ee.gt.0.5
 
 if (.not.any(wtr(1:ifull))) return
 
@@ -108,14 +108,8 @@ do k=1,wlev
   cc=(dudx-dvdy)**2+(dudy+dvdx)**2
   t_kh(1:ifull)=sqrt(cc)*hdif*emi  ! this one with em in D terms
   call bounds(t_kh)
-  xfact=0.
-  yfact=0.
-  where (wtr(1:ifull).and.wtr(ie))
-    xfact(1:ifull) = (t_kh(ie)+t_kh)*.5
-  end where
-  where (wtr(1:ifull).and.wtr(in))
-    yfact(1:ifull) = (t_kh(in)+t_kh)*.5
-  end where
+  xfact(1:ifull) = (t_kh(ie)+t_kh)*.5*ee(1:ifull)*ee(ie)
+  yfact(1:ifull) = (t_kh(in)+t_kh)*.5*ee(1:ifull)*ee(in)
   call boundsuv(xfact,yfact)
   
   base= ( emi +                         &
@@ -146,35 +140,29 @@ do k=1,wlev
   call mloimport(3,v(1:ifull),k,0)
    
   do i=0,1
-    ee=0.
-    call mloexport(i,ee(1:ifull),k,0)
-    call bounds(ee)
-    ff = ( ee(1:ifull)*emi +             &
-           xfact(1:ifull)*ee(ie) +       &
-           xfact(iwu)*ee(iw) +           &
-           yfact(1:ifull)*ee(in) +       &
-           yfact(isv)*ee(is) ) / base
+    gg=0.
+    call mloexport(i,gg(1:ifull),k,0)
+    call bounds(gg)
+    ff = ( gg(1:ifull)*emi +             &
+           xfact(1:ifull)*gg(ie) +       &
+           xfact(iwu)*gg(iw) +           &
+           yfact(1:ifull)*gg(in) +       &
+           yfact(isv)*gg(is) ) / base
     call mloimport(i,ff,k,0)
   end do
   
   ! Jack Katzfey salinity filter
   if (salfilt.eq.1) then
-    ee(1:ifull)=ff
-    call bounds(ee)
-    xfact=0.
-    yfact=0.
-    where (wtr(1:ifull).and.wtr(ie))
-      xfact(1:ifull)=1.
-    end where
-    where (wtr(1:ifull).and.wtr(in))
-      yfact(1:ifull)=1.
-    end where
+    gg(1:ifull)=ff
+    call bounds(gg)
+    xfact(1:ifull)=ee(1:ifull)*ee(ie)
+    yfact(1:ifull)=ee(1:ifull)*ee(in)
     call boundsuv(xfact,yfact)
-    ff = ( ee(1:ifull)*emi +             &
-           xfact(1:ifull)*ee(ie) +       &
-           xfact(iwu)*ee(iw) +           &
-           yfact(1:ifull)*ee(in) +       &
-           yfact(isv)*ee(is) ) / base
+    ff = ( gg(1:ifull)*emi +             &
+           xfact(1:ifull)*gg(ie) +       &
+           xfact(iwu)*gg(iw) +           &
+           yfact(1:ifull)*gg(in) +       &
+           yfact(isv)*gg(is) ) / base
     call mloimport(1,ff,k,0)
   end if
   
@@ -324,7 +312,7 @@ integer, dimension(ifull,wlev) :: nface
 integer, dimension(12) :: ndoy
 real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
 real delpos,delneg,alph_pm,alph_p
-real, dimension(ifull+iextra) :: neta,dd,snu,snv,ntide,pice
+real, dimension(ifull+iextra) :: ee,neta,dd,snu,snv,ntide,pice
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,ndum
 real, dimension(ifull+iextra) :: imass,ip
 real, dimension(ifull+iextra) :: spu,squ,sru,spv,sqv,srv
@@ -346,7 +334,7 @@ real, dimension(ifull+iextra,wlev) :: cou,cov,cow
 real, dimension(ifull+iextra,wlev) :: dep,rhobar,rho,dz
 real, dimension(ifull,1) :: siu,siv
 real, dimension(ifull,4) :: i_it
-real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,dzbar,dum
+real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,nw,dzbar,dum
 real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav
 real, dimension(ifull,wlev) :: kku,llu,mmu,nnu
 real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv
@@ -378,12 +366,12 @@ data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
 intsch=mod(ktau,2)
 
 !Define land/sea mask
-dd=0.
+ee=1.
 where(land(1:ifull))
-  dd(1:ifull)=1.
+  ee(1:ifull)=0.
 end where
-call bounds(dd,nrows=2)
-wtr=dd.lt.0.5
+call bounds(ee,nrows=2)
+wtr=ee.gt.0.5
 
 cou=0.
 cov=0.
@@ -556,6 +544,8 @@ end if
 
 ! initialise t+1 variables for predictor-corrector loop
 neta(1:ifull)=w_e
+nu(1:ifull,:)=w_u
+nv(1:ifull,:)=w_v
 nt(1:ifull,:)=w_t
 ns(1:ifull,:)=w_s
 where (wtr(1:ifull))
@@ -619,14 +609,29 @@ do l=1,lmax ! predictor-corrector loop
   ! Calculate depature points
   call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d)
 
-  ! Vertical advection
-  ! call mlovadv
+  ! estimate vertical velocity
+  call mlostaguv(w_u,w_v,cou(1:ifull,:),cov(1:ifull,:))
+  do ii=1,wlev
+    cou(1:ifull,ii)=cou(1:ifull,ii)*ee(1:ifull)*ee(ie)
+    cov(1:ifull,ii)=cov(1:ifull,ii)*ee(1:ifull)*ee(in)
+  end do
+  call boundsuv(cou,cov)
+  call getww(cou,cov,w_e,dd(1:ifull),dz(1:ifull,:),ee(1:ifull),nw)
+
+  nu(1:ifull,:)=w_u
+  nv(1:ifull,:)=w_v
+  ns(1:ifull,:)=w_s
+  nt(1:ifull,:)=w_t
+
+  ! Vertical advection (first call)
+  call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),dep(1:ifull,:),dz(1:ifull,:), &
+               w_e,dd(1:ifull),wtr(1:ifull))
 
   ! Convert (u,v) to cartesian coordinates (U,V,W)
   do ii=1,wlev
-    cou(1:ifull,ii)=ax(1:ifull)*w_u(:,ii)+bx(1:ifull)*w_v(:,ii)
-    cov(1:ifull,ii)=ay(1:ifull)*w_u(:,ii)+by(1:ifull)*w_v(:,ii)
-    cow(1:ifull,ii)=az(1:ifull)*w_u(:,ii)+bz(1:ifull)*w_v(:,ii)
+    cou(1:ifull,ii)=ax(1:ifull)*nu(1:ifull,ii)+bx(1:ifull)*nv(1:ifull,ii)
+    cov(1:ifull,ii)=ay(1:ifull)*nu(1:ifull,ii)+by(1:ifull)*nv(1:ifull,ii)
+    cow(1:ifull,ii)=az(1:ifull)*nu(1:ifull,ii)+bz(1:ifull)*nv(1:ifull,ii)
   end do
 
   ! Horizontal advection for U,V,W
@@ -639,18 +644,13 @@ do l=1,lmax ! predictor-corrector loop
 
   ! Convert (U,V,W) back to conformal cubic coordinates
   do ii=1,wlev
-    where (wtr(1:ifull))
-      nu(1:ifull,ii)=ax(1:ifull)*cou(1:ifull,ii)+ay(1:ifull)*cov(1:ifull,ii)+az(1:ifull)*cow(1:ifull,ii)
-      nv(1:ifull,ii)=bx(1:ifull)*cou(1:ifull,ii)+by(1:ifull)*cov(1:ifull,ii)+bz(1:ifull)*cow(1:ifull,ii)
-    elsewhere
-      nu(1:ifull,ii)=0.
-      nv(1:ifull,ii)=0.
-    end where
+    nu(1:ifull,ii)=ax(1:ifull)*cou(1:ifull,ii)+ay(1:ifull)*cov(1:ifull,ii)+az(1:ifull)*cow(1:ifull,ii)
+    nv(1:ifull,ii)=bx(1:ifull)*cou(1:ifull,ii)+by(1:ifull)*cov(1:ifull,ii)+bz(1:ifull)*cow(1:ifull,ii)
+    nu(1:ifull,ii)=nu(1:ifull,ii)*ee(1:ifull)
+    nv(1:ifull,ii)=nv(1:ifull,ii)*ee(1:ifull)
   end do
   
   ! Horizontal advection for T,S
-  nt(1:ifull,:)=w_t  ! probably should use theta for advection
-  ns(1:ifull,:)=w_s
   call mloints(nt,intsch,nface,xg,yg,2)
   call mloints(ns,intsch,nface,xg,yg,5)
   ns=max(ns,0.)
@@ -755,19 +755,15 @@ do l=1,lmax ! predictor-corrector loop
     
   end do
 
-    ! update land boundaries
-  where (.not.wtr(1:ifull).or..not.wtr(ie))
-    sou=0.
-    spu(1:ifull)=0.
-    squ(1:ifull)=0.
-    sru(1:ifull)=0.
-  end where
-  where (.not.wtr(1:ifull).or..not.wtr(in))
-    sov=0.
-    spv(1:ifull)=0.
-    sqv(1:ifull)=0.
-    srv(1:ifull)=0.
-  end where
+  ! update land boundaries
+  sou=sou*ee(1:ifull)*ee(ie)
+  spu(1:ifull)=spu(1:ifull)*ee(1:ifull)*ee(ie)
+  squ(1:ifull)=squ(1:ifull)*ee(1:ifull)*ee(ie)
+  sru(1:ifull)=sru(1:ifull)*ee(1:ifull)*ee(ie)
+  sov=sov*ee(1:ifull)*ee(in)
+  spv(1:ifull)=spv(1:ifull)*ee(1:ifull)*ee(in)
+  sqv(1:ifull)=sqv(1:ifull)*ee(1:ifull)*ee(in)
+  srv(1:ifull)=srv(1:ifull)*ee(1:ifull)*ee(in)
 
   call boundsuv(spu,spv)
   call boundsuv(squ,sqv)
@@ -820,10 +816,8 @@ do l=1,lmax ! predictor-corrector loop
     ! The following expression limits the minimum depth to 5m
     seta=max(seta,(5.-dd(1:ifull)-neta(1:ifull))/alpha) ! this should become a land point
     neta(1:ifull)=alpha*seta+neta(1:ifull)
-    where (.not.wtr(1:ifull))
-      neta(1:ifull)=0.
-      seta=0.
-    end where
+    neta(1:ifull)=neta(1:ifull)*ee(1:ifull)
+    seta=seta*ee(1:ifull)
     
     ! Break iterative loop when maximum error is below tol (expensive)
     maxloclseta=maxval(abs(seta))
@@ -845,17 +839,19 @@ do l=1,lmax ! predictor-corrector loop
     nu(1:ifull,ii)=kku(:,ii)+llu(:,ii)*(1.+(neta(ie)+neta(1:ifull))/(dd(ie)+dd(1:ifull)))+mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
     nv(1:ifull,ii)=kkv(:,ii)+llv(:,ii)*(1.+(neta(in)+neta(1:ifull))/(dd(in)+dd(1:ifull)))+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
     ! update land boundaries
-    where (.not.wtr(1:ifull).or..not.wtr(ie))
-      nu(1:ifull,ii)=0.
-    end where
-    where (.not.wtr(1:ifull).or..not.wtr(in))
-      nv(1:ifull,ii)=0.
-    end where
+    nu(1:ifull,ii)=nu(1:ifull,ii)*ee(1:ifull)*ee(ie)
+    nv(1:ifull,ii)=nv(1:ifull,ii)*ee(1:ifull)*ee(in)
   end do
+  call boundsuv(nu,nv)
+  call getww(nu,nv,neta(1:ifull),dd(1:ifull),dz(1:ifull,:),ee(1:ifull),nw)
   ! unstagger nu and nv
   call mlounstaguv(nu(1:ifull,:),nv(1:ifull,:),nuh,nvh)
   nu(1:ifull,:)=nuh
   nv(1:ifull,:)=nvh
+
+  ! Vertical advection (second call)
+  call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),dep(1:ifull,:),dz(1:ifull,:), &
+               neta(1:ifull),dd(1:ifull),wtr(1:ifull))
 
   ! UPDATE ICE DYNAMICS ---------------------------------------------
   ! Here we start by calculating the ice velocity and then advecting
@@ -865,12 +861,8 @@ do l=1,lmax ! predictor-corrector loop
   ! niu and niv hold the free drift solution
   niu(1:ifull)=(siu(:,1)-dt*grav*(detadxu+dt*fu(1:ifull)*detadyu))/(1.+dt*dt*fu(1:ifull)*fu(1:ifull))
   niv(1:ifull)=(siv(:,1)-dt*grav*(detadyv-dt*fv(1:ifull)*detadxv))/(1.+dt*dt*fv(1:ifull)*fv(1:ifull))
-  where (.not.wtr(1:ifull).or..not.wtr(ie))
-    niu(1:ifull)=0.
-  end where
-  where (.not.wtr(1:ifull).or..not.wtr(in))
-    niv(1:ifull)=0.
-  end where
+  niu(1:ifull)=niu(1:ifull)*ee(1:ifull)*ee(ie)
+  niv(1:ifull)=niv(1:ifull)*ee(1:ifull)*ee(in)
   call boundsuv(niu,niv)
   
   ip=0. ! free drift solution
@@ -957,16 +949,6 @@ do l=1,lmax ! predictor-corrector loop
       
       call MPI_AllReduce(maxloclip,maxglobip,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
       if (maxglobip.lt.itol.and.ll.gt.2) exit
-      !if (myid.eq.0) then
-      !  print *,"ll,maxglobip ",ll,maxglobip
-      !end if
-      !print *,"div ",myid,maxval(div,ip(1:ifull).lt.ipmax),minval(div,ip(1:ifull).lt.ipmax)
-      !print *,"loc ",myid,maxloc(div,ip(1:ifull).lt.ipmax),minloc(div,ip(1:ifull).lt.ipmax)
-      !print *,"wtr ",myid,wtr(121),wtr(in(121)),wtr(ie(121)),wtr(is(121)),wtr(iw(121))
-      !print *,"ewip ",myid,ip(ie(121)),ip(121),ip(iw(121))
-      !print *,"nsip ",myid,ip(in(121)),ip(121),ip(is(121))
-      !print *,"ipmax,div ",myid,ipmax(121),div(121)
-      !print *,"iia ",myid,iia(121)
   
       itotits=itotits+1
     end do
@@ -991,12 +973,8 @@ do l=1,lmax ! predictor-corrector loop
                             /(1.+dt*dt*fu(1:ifull)*fu(1:ifull))
   niv(1:ifull)=niv(1:ifull)-(dt*dipdyv/imass(1:ifull)-dt*dt*fv(1:ifull)*dipdxv/imass(1:ifull)) &
                             /(1.+dt*dt*fv(1:ifull)*fv(1:ifull))
-  where (.not.wtr(1:ifull).or..not.wtr(ie))
-    niu(1:ifull)=0.
-  end where
-  where (.not.wtr(1:ifull).or..not.wtr(in))
-    niv(1:ifull)=0.
-  end where
+  niu(1:ifull)=niu(1:ifull)*ee(1:ifull)*ee(ie)
+  niv(1:ifull)=niv(1:ifull)*ee(1:ifull)*ee(in)
   call boundsuv(niu,niv)
 
   ! ADVECT ICE ------------------------------------------------------
@@ -1006,26 +984,14 @@ do l=1,lmax ! predictor-corrector loop
   ndum(1:ifull)=fracice/(em(1:ifull)*em(1:ifull)) ! ndum is an area
   call bounds(ndum)
   odum=ndum(1:ifull)
-  where (niu(iwu).lt.0.)
-    odum=odum+niu(iwu)*ndum(1:ifull)*emu(iwu)/(ds/dt-niu(iwu)*emu(iwu))
-  else where
-    odum=odum+niu(iwu)*ndum(iw)*emu(iwu)/(ds/dt+niu(iwu)*emu(iwu))
-  end where
-  where (niu(1:ifull).lt.0.)
-    odum=odum-niu(1:ifull)*ndum(ie)*emu(1:ifull)/(ds/dt-niu(1:ifull)*emu(1:ifull))
-  else where
-    odum=odum-niu(1:ifull)*ndum(1:ifull)*emu(1:ifull)/(ds/dt+niu(1:ifull)*emu(1:ifull))
-  end where
-  where (niv(isv).lt.0.)
-    odum=odum+niv(isv)*ndum(1:ifull)*emv(isv)/(ds/dt-niv(isv)*emv(isv))
-  else where
-    odum=odum+niv(isv)*ndum(is)*emv(isv)/(ds/dt+niv(isv)*emv(isv))
-  end where
-  where (niv(1:ifull).lt.0.)
-    odum=odum-niv(1:ifull)*ndum(in)*emv(1:ifull)/(ds/dt-niv(1:ifull)*emv(1:ifull))
-  else where
-    odum=odum-niv(1:ifull)*ndum(1:ifull)*emv(1:ifull)/(ds/dt+niv(1:ifull)*emv(1:ifull))
-  end where
+  odum=odum+0.5*niu(iwu)*(ndum(1:ifull)+ndum(iw))*emu(iwu)/(ds/dt+abs(niu(iwu))*emu(iwu)) &
+      -0.5*abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))*emu(iwu)/(ds/dt+abs(niu(iwu))*emu(iwu))
+  odum=odum-0.5*niu(1:ifull)*(ndum(1:ifull)+ndum(ie))*emu(1:ifull)/(ds/dt+abs(niu(1:ifull))*emu(1:ifull)) &
+      -0.5*abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie))*emu(1:ifull)/(ds/dt+abs(niu(1:ifull))*emu(1:ifull))
+  odum=odum+0.5*niv(isv)*(ndum(1:ifull)+ndum(is))*emv(isv)/(ds/dt+abs(niv(isv))*emu(isv)) &
+      -0.5*abs(niv(isv))*(ndum(1:ifull)-ndum(is))*emv(isv)/(ds/dt+abs(niv(isv))*emu(isv))
+  odum=odum-0.5*niv(1:ifull)*(ndum(1:ifull)+ndum(in))*emv(1:ifull)/(ds/dt+abs(niv(1:ifull))*emv(1:ifull)) &
+      -0.5*abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in))*emv(1:ifull)/(ds/dt+abs(niv(1:ifull))*emv(1:ifull))
   ndum(1:ifull)=odum
   ndum=max(ndum,0.)
   nfracice(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)
@@ -1035,26 +1001,14 @@ do l=1,lmax ! predictor-corrector loop
   ndum(1:ifull)=sicedep*fracice/(em(1:ifull)*em(1:ifull)) ! now ndum is a volume
   call bounds(ndum)
   odum=ndum(1:ifull)
-  where (niu(iwu).lt.0.)
-    odum=odum+niu(iwu)*ndum(1:ifull)*emu(iwu)/(ds/dt-niu(iwu)*emu(iwu))
-  else where
-    odum=odum+niu(iwu)*ndum(iw)*emu(iwu)/(ds/dt+niu(iwu)*emu(iwu))
-  end where
-  where (niu(1:ifull).lt.0.)
-    odum=odum-niu(1:ifull)*ndum(ie)*emu(1:ifull)/(ds/dt-niu(1:ifull)*emu(1:ifull))
-  else where
-    odum=odum-niu(1:ifull)*ndum(1:ifull)*emu(1:ifull)/(ds/dt+niu(1:ifull)*emu(1:ifull))
-  end where
-  where (niv(isv).lt.0.)
-    odum=odum+niv(isv)*ndum(1:ifull)*emv(isv)/(ds/dt-niv(isv)*emv(isv))
-  else where
-    odum=odum+niv(isv)*ndum(is)*emv(isv)/(ds/dt+niv(isv)*emv(isv))
-  end where
-  where (niv(1:ifull).lt.0.)
-    odum=odum-niv(1:ifull)*ndum(in)*emv(1:ifull)/(ds/dt-niv(1:ifull)*emv(1:ifull))
-  else where
-    odum=odum-niv(1:ifull)*ndum(1:ifull)*emv(1:ifull)/(ds/dt+niv(1:ifull)*emv(1:ifull))
-  end where
+  odum=odum+0.5*niu(iwu)*(ndum(1:ifull)+ndum(iw))*emu(iwu)/(ds/dt+abs(niu(iwu))*emu(iwu)) &
+      -0.5*abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))*emu(iwu)/(ds/dt+abs(niu(iwu))*emu(iwu))
+  odum=odum-0.5*niu(1:ifull)*(ndum(1:ifull)+ndum(ie))*emu(1:ifull)/(ds/dt+abs(niu(1:ifull))*emu(1:ifull)) &
+      -0.5*abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie))*emu(1:ifull)/(ds/dt+abs(niu(1:ifull))*emu(1:ifull))
+  odum=odum+0.5*niv(isv)*(ndum(1:ifull)+ndum(is))*emv(isv)/(ds/dt+abs(niv(isv))*emu(isv)) &
+      -0.5*abs(niv(isv))*(ndum(1:ifull)-ndum(is))*emv(isv)/(ds/dt+abs(niv(isv))*emu(isv))
+  odum=odum-0.5*niv(1:ifull)*(ndum(1:ifull)+ndum(in))*emv(1:ifull)/(ds/dt+abs(niv(1:ifull))*emv(1:ifull)) &
+      -0.5*abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in))*emv(1:ifull)/(ds/dt+abs(niv(1:ifull))*emv(1:ifull))
   ndum(1:ifull)=odum
   ndum=max(ndum,0.)
   ndic(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-20)
@@ -1063,26 +1017,14 @@ do l=1,lmax ! predictor-corrector loop
   ndum(1:ifull)=snowd*0.001*fracice/(em(1:ifull)*em(1:ifull)) ! now ndum is a volume
   call bounds(ndum)
   odum=ndum(1:ifull)
-  where (niu(iwu).lt.0.)
-    odum=odum+niu(iwu)*ndum(1:ifull)*emu(iwu)/(ds/dt-niu(iwu)*emu(iwu))
-  else where
-    odum=odum+niu(iwu)*ndum(iw)*emu(iwu)/(ds/dt+niu(iwu)*emu(iwu))
-  end where
-  where (niu(1:ifull).lt.0.)
-    odum=odum-niu(1:ifull)*ndum(ie)*emu(1:ifull)/(ds/dt-niu(1:ifull)*emu(1:ifull))
-  else where
-    odum=odum-niu(1:ifull)*ndum(1:ifull)*emu(1:ifull)/(ds/dt+niu(1:ifull)*emu(1:ifull))
-  end where
-  where (niv(isv).lt.0.)
-    odum=odum+niv(isv)*ndum(1:ifull)*emv(isv)/(ds/dt-niv(isv)*emv(isv))
-  else where
-    odum=odum+niv(isv)*ndum(is)*emv(isv)/(ds/dt+niv(isv)*emv(isv))
-  end where
-  where (niv(1:ifull).lt.0.)
-    odum=odum-niv(1:ifull)*ndum(in)*emv(1:ifull)/(ds/dt-niv(1:ifull)*emv(1:ifull))
-  else where
-    odum=odum-niv(1:ifull)*ndum(1:ifull)*emv(1:ifull)/(ds/dt+niv(1:ifull)*emv(1:ifull))
-  end where
+  odum=odum+0.5*niu(iwu)*(ndum(1:ifull)+ndum(iw))*emu(iwu)/(ds/dt+abs(niu(iwu))*emu(iwu)) &
+      -0.5*abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))*emu(iwu)/(ds/dt+abs(niu(iwu))*emu(iwu))
+  odum=odum-0.5*niu(1:ifull)*(ndum(1:ifull)+ndum(ie))*emu(1:ifull)/(ds/dt+abs(niu(1:ifull))*emu(1:ifull)) &
+      -0.5*abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie))*emu(1:ifull)/(ds/dt+abs(niu(1:ifull))*emu(1:ifull))
+  odum=odum+0.5*niv(isv)*(ndum(1:ifull)+ndum(is))*emv(isv)/(ds/dt+abs(niv(isv))*emu(isv)) &
+      -0.5*abs(niv(isv))*(ndum(1:ifull)-ndum(is))*emv(isv)/(ds/dt+abs(niv(isv))*emu(isv))
+  odum=odum-0.5*niv(1:ifull)*(ndum(1:ifull)+ndum(in))*emv(1:ifull)/(ds/dt+abs(niv(1:ifull))*emv(1:ifull)) &
+      -0.5*abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in))*emv(1:ifull)/(ds/dt+abs(niv(1:ifull))*emv(1:ifull))
   ndum(1:ifull)=odum
   ndum=max(ndum,0.)
   ndsn(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-20)
@@ -1091,26 +1033,14 @@ do l=1,lmax ! predictor-corrector loop
   ndum(1:ifull)=i_sto
   call bounds(ndum)
   odum=ndum(1:ifull)
-  where (niu(iwu).lt.0.)
-    odum=odum+niu(iwu)*ndum(1:ifull)*emu(iwu)/(ds/dt-niu(iwu)*emu(iwu))
-  else where
-    odum=odum+niu(iwu)*ndum(iw)*emu(iwu)/(ds/dt+niu(iwu)*emu(iwu))
-  end where
-  where (niu(1:ifull).lt.0.)
-    odum=odum-niu(1:ifull)*ndum(ie)*emu(1:ifull)/(ds/dt-niu(1:ifull)*emu(1:ifull))
-  else where
-    odum=odum-niu(1:ifull)*ndum(1:ifull)*emu(1:ifull)/(ds/dt+niu(1:ifull)*emu(1:ifull))
-  end where
-  where (niv(isv).lt.0.)
-    odum=odum+niv(isv)*ndum(1:ifull)*emv(isv)/(ds/dt-niv(isv)*emv(isv))
-  else where
-    odum=odum+niv(isv)*ndum(is)*emv(isv)/(ds/dt+niv(isv)*emv(isv))
-  end where
-  where (niv(1:ifull).lt.0.)
-    odum=odum-niv(1:ifull)*ndum(in)*emv(1:ifull)/(ds/dt-niv(1:ifull)*emv(1:ifull))
-  else where
-    odum=odum-niv(1:ifull)*ndum(1:ifull)*emv(1:ifull)/(ds/dt+niv(1:ifull)*emv(1:ifull))
-  end where
+  odum=odum+0.5*niu(iwu)*(ndum(1:ifull)+ndum(iw))*emu(iwu)/(ds/dt+abs(niu(iwu))*emu(iwu)) &
+      -0.5*abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))*emu(iwu)/(ds/dt+abs(niu(iwu))*emu(iwu))
+  odum=odum-0.5*niu(1:ifull)*(ndum(1:ifull)+ndum(ie))*emu(1:ifull)/(ds/dt+abs(niu(1:ifull))*emu(1:ifull)) &
+      -0.5*abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie))*emu(1:ifull)/(ds/dt+abs(niu(1:ifull))*emu(1:ifull))
+  odum=odum+0.5*niv(isv)*(ndum(1:ifull)+ndum(is))*emv(isv)/(ds/dt+abs(niv(isv))*emu(isv)) &
+      -0.5*abs(niv(isv))*(ndum(1:ifull)-ndum(is))*emv(isv)/(ds/dt+abs(niv(isv))*emu(isv))
+  odum=odum-0.5*niv(1:ifull)*(ndum(1:ifull)+ndum(in))*emv(1:ifull)/(ds/dt+abs(niv(1:ifull))*emv(1:ifull)) &
+      -0.5*abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in))*emv(1:ifull)/(ds/dt+abs(niv(1:ifull))*emv(1:ifull))
   ndum(1:ifull)=odum
   ndum=max(ndum,0.)
   nsto(1:ifull)=ndum(1:ifull)
@@ -1119,26 +1049,14 @@ do l=1,lmax ! predictor-corrector loop
   ndum(1:ifull)=i_it(1:ifull,1)*fracice/(em(1:ifull)*em(1:ifull))
   call bounds(ndum)
   odum=ndum(1:ifull)
-  where (niu(iwu).lt.0.)
-    odum=odum+niu(iwu)*ndum(1:ifull)*emu(iwu)/(ds/dt-niu(iwu)*emu(iwu))
-  else where
-    odum=odum+niu(iwu)*ndum(iw)*emu(iwu)/(ds/dt+niu(iwu)*emu(iwu))
-  end where
-  where (niu(1:ifull).lt.0.)
-    odum=odum-niu(1:ifull)*ndum(ie)*emu(1:ifull)/(ds/dt-niu(1:ifull)*emu(1:ifull))
-  else where
-    odum=odum-niu(1:ifull)*ndum(1:ifull)*emu(1:ifull)/(ds/dt+niu(1:ifull)*emu(1:ifull))
-  end where
-  where (niv(isv).lt.0.)
-    odum=odum+niv(isv)*ndum(1:ifull)*emv(isv)/(ds/dt-niv(isv)*emv(isv))
-  else where
-    odum=odum+niv(isv)*ndum(is)*emv(isv)/(ds/dt+niv(isv)*emv(isv))
-  end where
-  where (niv(1:ifull).lt.0.)
-    odum=odum-niv(1:ifull)*ndum(in)*emv(1:ifull)/(ds/dt-niv(1:ifull)*emv(1:ifull))
-  else where
-    odum=odum-niv(1:ifull)*ndum(1:ifull)*emv(1:ifull)/(ds/dt+niv(1:ifull)*emv(1:ifull))
-  end where
+  odum=odum+0.5*niu(iwu)*(ndum(1:ifull)+ndum(iw))*emu(iwu)/(ds/dt+abs(niu(iwu))*emu(iwu)) &
+      -0.5*abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))*emu(iwu)/(ds/dt+abs(niu(iwu))*emu(iwu))
+  odum=odum-0.5*niu(1:ifull)*(ndum(1:ifull)+ndum(ie))*emu(1:ifull)/(ds/dt+abs(niu(1:ifull))*emu(1:ifull)) &
+      -0.5*abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie))*emu(1:ifull)/(ds/dt+abs(niu(1:ifull))*emu(1:ifull))
+  odum=odum+0.5*niv(isv)*(ndum(1:ifull)+ndum(is))*emv(isv)/(ds/dt+abs(niv(isv))*emu(isv)) &
+      -0.5*abs(niv(isv))*(ndum(1:ifull)-ndum(is))*emv(isv)/(ds/dt+abs(niv(isv))*emu(isv))
+  odum=odum-0.5*niv(1:ifull)*(ndum(1:ifull)+ndum(in))*emv(1:ifull)/(ds/dt+abs(niv(1:ifull))*emv(1:ifull)) &
+      -0.5*abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in))*emv(1:ifull)/(ds/dt+abs(niv(1:ifull))*emv(1:ifull))
   ndum(1:ifull)=odum
   ndum=max(ndum,0.)
   nit(1:ifull,1)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-20)
@@ -1147,26 +1065,14 @@ do l=1,lmax ! predictor-corrector loop
   ndum(1:ifull)=i_it(1:ifull,2)*fracice*snowd*0.001/(em(1:ifull)*em(1:ifull))
   call bounds(ndum)
   odum=ndum(1:ifull)
-  where (niu(iwu).lt.0.)
-    odum=odum+niu(iwu)*ndum(1:ifull)*emu(iwu)/(ds/dt-niu(iwu)*emu(iwu))
-  else where
-    odum=odum+niu(iwu)*ndum(iw)*emu(iwu)/(ds/dt+niu(iwu)*emu(iwu))
-  end where
-  where (niu(1:ifull).lt.0.)
-    odum=odum-niu(1:ifull)*ndum(ie)*emu(1:ifull)/(ds/dt-niu(1:ifull)*emu(1:ifull))
-  else where
-    odum=odum-niu(1:ifull)*ndum(1:ifull)*emu(1:ifull)/(ds/dt+niu(1:ifull)*emu(1:ifull))
-  end where
-  where (niv(isv).lt.0.)
-    odum=odum+niv(isv)*ndum(1:ifull)*emv(isv)/(ds/dt-niv(isv)*emv(isv))
-  else where
-    odum=odum+niv(isv)*ndum(is)*emv(isv)/(ds/dt+niv(isv)*emv(isv))
-  end where
-  where (niv(1:ifull).lt.0.)
-    odum=odum-niv(1:ifull)*ndum(in)*emv(1:ifull)/(ds/dt-niv(1:ifull)*emv(1:ifull))
-  else where
-    odum=odum-niv(1:ifull)*ndum(1:ifull)*emv(1:ifull)/(ds/dt+niv(1:ifull)*emv(1:ifull))
-  end where
+  odum=odum+0.5*niu(iwu)*(ndum(1:ifull)+ndum(iw))*emu(iwu)/(ds/dt+abs(niu(iwu))*emu(iwu)) &
+      -0.5*abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))*emu(iwu)/(ds/dt+abs(niu(iwu))*emu(iwu))
+  odum=odum-0.5*niu(1:ifull)*(ndum(1:ifull)+ndum(ie))*emu(1:ifull)/(ds/dt+abs(niu(1:ifull))*emu(1:ifull)) &
+      -0.5*abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie))*emu(1:ifull)/(ds/dt+abs(niu(1:ifull))*emu(1:ifull))
+  odum=odum+0.5*niv(isv)*(ndum(1:ifull)+ndum(is))*emv(isv)/(ds/dt+abs(niv(isv))*emu(isv)) &
+      -0.5*abs(niv(isv))*(ndum(1:ifull)-ndum(is))*emv(isv)/(ds/dt+abs(niv(isv))*emu(isv))
+  odum=odum-0.5*niv(1:ifull)*(ndum(1:ifull)+ndum(in))*emv(1:ifull)/(ds/dt+abs(niv(1:ifull))*emv(1:ifull)) &
+      -0.5*abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in))*emv(1:ifull)/(ds/dt+abs(niv(1:ifull))*emv(1:ifull))
   ndum(1:ifull)=odum
   ndum=max(ndum,0.)
   nit(1:ifull,2)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(ndsn(1:ifull)*nfracice(1:ifull),1.E-20)
@@ -1176,26 +1082,14 @@ do l=1,lmax ! predictor-corrector loop
     ndum(1:ifull)=i_it(1:ifull,ii)*fracice*sicedep/(em(1:ifull)*em(1:ifull))
     call bounds(ndum)
     odum=ndum(1:ifull)
-    where (niu(iwu).lt.0.)
-      odum=odum+niu(iwu)*ndum(1:ifull)*emu(iwu)/(ds/dt-niu(iwu)*emu(iwu))
-    else where
-      odum=odum+niu(iwu)*ndum(iw)*emu(iwu)/(ds/dt+niu(iwu)*emu(iwu))
-    end where
-    where (niu(1:ifull).lt.0.)
-      odum=odum-niu(1:ifull)*ndum(ie)*emu(1:ifull)/(ds/dt-niu(1:ifull)*emu(1:ifull))
-    else where
-      odum=odum-niu(1:ifull)*ndum(1:ifull)*emu(1:ifull)/(ds/dt+niu(1:ifull)*emu(1:ifull))
-    end where
-    where (niv(isv).lt.0.)
-      odum=odum+niv(isv)*ndum(1:ifull)*emv(isv)/(ds/dt-niv(isv)*emv(isv))
-    else where
-      odum=odum+niv(isv)*ndum(is)*emv(isv)/(ds/dt+niv(isv)*emv(isv))
-    end where
-    where (niv(1:ifull).lt.0.)
-      odum=odum-niv(1:ifull)*ndum(in)*emv(1:ifull)/(ds/dt-niv(1:ifull)*emv(1:ifull))
-    else where
-      odum=odum-niv(1:ifull)*ndum(1:ifull)*emv(1:ifull)/(ds/dt+niv(1:ifull)*emv(1:ifull))
-    end where
+    odum=odum+0.5*niu(iwu)*(ndum(1:ifull)+ndum(iw))*emu(iwu)/(ds/dt+abs(niu(iwu))*emu(iwu)) &
+        -0.5*abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))*emu(iwu)/(ds/dt+abs(niu(iwu))*emu(iwu))
+    odum=odum-0.5*niu(1:ifull)*(ndum(1:ifull)+ndum(ie))*emu(1:ifull)/(ds/dt+abs(niu(1:ifull))*emu(1:ifull)) &
+        -0.5*abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie))*emu(1:ifull)/(ds/dt+abs(niu(1:ifull))*emu(1:ifull))
+    odum=odum+0.5*niv(isv)*(ndum(1:ifull)+ndum(is))*emv(isv)/(ds/dt+abs(niv(isv))*emu(isv)) &
+        -0.5*abs(niv(isv))*(ndum(1:ifull)-ndum(is))*emv(isv)/(ds/dt+abs(niv(isv))*emu(isv))
+    odum=odum-0.5*niv(1:ifull)*(ndum(1:ifull)+ndum(in))*emv(1:ifull)/(ds/dt+abs(niv(1:ifull))*emv(1:ifull)) &
+        -0.5*abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in))*emv(1:ifull)/(ds/dt+abs(niv(1:ifull))*emv(1:ifull))
     ndum(1:ifull)=odum
     ndum=max(ndum,0.)
     nit(1:ifull,ii)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-20)
@@ -2242,6 +2136,144 @@ vout=va(1:ifull,:)
 
 return
 end subroutine mlounstaguv
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine estimates vertical velocity
+
+subroutine getww(cou,cov,neta,dd,dz,ee,nw)
+
+use indices_m
+use map_m
+use mlo
+
+implicit none
+
+include 'newmpar.h'
+include 'parm.h'
+
+integer ii
+real, dimension(ifull,wlev), intent(out) :: nw
+real, dimension(ifull,wlev), intent(in) :: dz
+real, dimension(ifull+iextra,wlev), intent(in) :: cou,cov
+real, dimension(ifull,wlev) :: kku,kkv,dzdum
+real, dimension(ifull), intent(in) :: neta,dd,ee
+real, dimension(ifull) :: div
+
+div=0.
+do ii=1,wlev
+  dzdum(:,ii)=dz(:,ii)*max(1.+neta/dd,0.01)
+  kku(:,ii)=(cou(1:ifull,ii)/emu(1:ifull)-cou(iwu,ii)/emu(iwu))*em(1:ifull)*em(1:ifull)/ds
+  kkv(:,ii)=(cov(1:ifull,ii)/emv(1:ifull)-cov(isv,ii)/emv(isv))*em(1:ifull)*em(1:ifull)/ds
+  div=div+(kku(:,ii)+kkv(:,ii))*dzdum(:,ii)
+end do
+div=div/(neta(1:ifull)+dd(1:ifull))
+! nw is at half levels with nw(:,1) at the bottom of level 1
+! positive nw is moving downwards to the ocean bottom
+nw(:,1)=(div-kku(:,1)-kkv(:,1))*dzdum(:,1)
+do ii=2,wlev
+  nw(:,ii)=nw(:,ii-1)+(div-kku(:,ii)-kkv(:,ii))*dzdum(:,ii)
+end do
+do ii=1,wlev
+  nw(:,ii)=nw(:,ii)*ee
+end do
+
+return
+end subroutine getww
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine performs vertical advection
+
+subroutine mlovadv(dtin,ww,uu,vv,ss,tt,dep,dz,neta,dd,wtr)
+
+use mlo
+
+implicit none
+
+include 'mpif.h'
+include 'newmpar.h'
+
+integer its,its_g,ii,l,iq,ierr
+real, intent(in) :: dtin
+real dtnew
+real, dimension(ifull), intent(in) :: neta,dd
+real, dimension(ifull,wlev), intent(in) :: ww,dep,dz
+real, dimension(ifull,wlev), intent(inout) :: uu,vv,ss,tt
+real, dimension(ifull,wlev) :: depdum,dzdum
+logical, dimension(ifull), intent(in) :: wtr
+
+do ii=1,wlev
+  depdum(:,ii)=dep(:,ii)*max(1.+neta/dd,0.01)
+  dzdum(:,ii)=dz(:,ii)*max(1.+neta/dd,0.01)
+end do
+
+! reduce time step to ensure stability
+dtnew=dtin
+do iq=1,ifull
+  if (wtr(iq)) then
+    dtnew=min(dtnew,0.1*dzdum(iq,1)/max(abs(ww(iq,1)),1.E-8))
+    do ii=2,wlev-1
+      dtnew=min(dtnew,0.1*dzdum(iq,ii)/max(abs(ww(iq,ii)),abs(ww(iq,ii-1)),1.E-8))
+    end do
+    dtnew=min(dtnew,0.1*dzdum(iq,wlev)/max(abs(ww(iq,wlev-1)),1.E-8))
+  end if
+end do
+its=int(dtin/dtnew)+1
+call MPI_AllReduce(its, its_g, 1, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr )
+dtnew=dtin/real(its_g)
+
+if (its_g.gt.10) print *,"MLOVERT ",its_g
+
+do l=1,its_g
+  call mlotvd(dtnew,ww,uu,depdum,dzdum)
+  call mlotvd(dtnew,ww,vv,depdum,dzdum)
+  call mlotvd(dtnew,ww,ss,depdum,dzdum)
+  call mlotvd(dtnew,ww,tt,depdum,dzdum)
+end do
+
+return
+end subroutine mlovadv
+
+subroutine mlotvd(dtnew,ww,uu,dep,dz)
+
+use mlo
+
+implicit none
+
+include 'newmpar.h'
+
+integer ii
+real, intent(in) :: dtnew
+real, dimension(ifull,wlev), intent(in) :: ww,dep,dz
+real, dimension(ifull,wlev), intent(inout) :: uu
+real, dimension(ifull,wlev-1) :: ff
+real, dimension(ifull,0:wlev) :: delu
+real, dimension(ifull) :: fl,fh,cc,rr,xx,jj
+
+delu=0.
+do ii=1,wlev-1
+  delu(:,ii)=uu(:,ii+1)-uu(:,ii)
+end do
+
+! TVD part
+do ii=1,wlev-1
+  fl=0.5*ww(:,ii)*(uu(:,ii)+uu(:,ii+1))+0.5*abs(ww(:,ii))*(uu(:,ii)-uu(:,ii+1))
+  fh=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1)) &
+     -0.5*(uu(:,ii+1)-uu(:,ii))*ww(:,ii)**2*dtnew/max(dep(:,ii+1)-dep(:,ii),1.E-10)
+  xx=delu(:,ii)+sign(1.E-10,delu(:,ii))
+  jj=sign(1.,ww(:,ii))
+  rr=0.5*jj*(delu(:,ii+1)-delu(:,ii-1))/xx+0.5*abs(jj)*(delu(:,ii+1)+delu(:,ii-1))/xx
+  cc=max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
+  ff(:,ii)=fl+cc*(fh-fl)
+  !ff(:,ii)=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1)) ! explicit
+end do
+uu(:,1)=uu(:,1)+dtnew*(uu(:,1)*ww(:,1)-ff(:,1))/dz(:,1)
+do ii=2,wlev-1
+  uu(:,ii)=uu(:,ii)+dtnew*(uu(:,ii)*(ww(:,ii)-ww(:,ii-1))-(ff(:,ii)-ff(:,ii-1)))/dz(:,ii)
+end do
+uu(:,wlev)=uu(:,wlev)+dtnew*(-uu(:,wlev)*ww(:,wlev-1)+ff(:,wlev-1))/dz(:,wlev)
+
+return
+end subroutine mlotvd
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine calculates horizontal gradients for z-sigma

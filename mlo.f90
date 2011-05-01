@@ -1594,10 +1594,10 @@ af=afroot**2
 
 select case(zomode)
   case(0) ! Charnock CSIRO9
-    ztv=exp(vkar/sqrt(chn10))/10.      ! proper inverse of ztsea
-    aft=vkar**2/(log(a_zmins/p_zo)*log(a_zmins*ztv))
+    ztv=exp(vkar/sqrt(chn10))/10.
+    aft=vkar**2/(log(a_zmins/ztv)*log(a_zmins*ztv))
     afq=aft
-    p_zoh=ztv
+    p_zoh=a_zmin*exp(-(vkar*sqrt(af))/aft)
     p_zoq=p_zoh
     factch=sqrt(p_zo/p_zoh)
     facqch=factch
