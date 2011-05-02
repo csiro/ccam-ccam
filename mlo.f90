@@ -743,18 +743,18 @@ end subroutine mloexpdep
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Extract density
 
-subroutine mloexpdensity(odensity,tt,ss,dep,pxtr,diag)
+subroutine mloexpdensity(odensity,tt,ss,dep,ddz,pxtr,diag)
 
 implicit none
 
 integer, intent(in) :: diag
 integer ii
 real, dimension(ifull), intent(in) :: pxtr
-real, dimension(ifull,wlev), intent(in) :: tt,ss,dep
+real, dimension(ifull,wlev), intent(in) :: tt,ss,dep,ddz
 real, dimension(ifull,wlev), intent(out) :: odensity
 real, dimension(ifull,wlev) :: alpha,beta,rs,rho0
 
-call calcdensity(ifull,odensity,alpha,beta,rs,rho0,tt,ss,dep,pxtr)
+call calcdensity(ifull,odensity,alpha,beta,rs,rho0,tt,ss,dep,ddz,pxtr)
 
 return
 end subroutine mloexpdensity
@@ -763,8 +763,8 @@ end subroutine mloexpdensity
 ! Pack atmospheric data for MLO eval
 
 subroutine mloeval(sst,zo,cd,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
-                   dt,zmin,zmins,sg,rg,precp,uatm,vatm,temp,qg,ps, &
-                   f,visnirratio,fbvis,fbnir,inflow,diag,calcprog)
+                   dt,zmin,zmins,sg,rg,precp,uatm,vatm,temp,qg,ps,f,     &
+                   visnirratio,fbvis,fbnir,inflow,diag,calcprog)
 
 implicit none
 
@@ -1176,7 +1176,7 @@ if (mixmeth.eq.1) then
     jj=min(ii+1,wlev)
     oldxp=0.
     oldtrib=rib(iqw,ii-1)
-    xp=(p_mixdepth(iqw)-depth(iqw,ii-1))/(depth(iqw,ii)-depth(iqw,ii-1))
+    xp=(p_mixdepth(iqw)-depth(iqw,ii-1)*d_zcr(iqw))/((depth(iqw,ii)-depth(iqw,ii-1))*d_zcr(iqw))
     xp=max(xp,oldxp+0.1)
     do kk=1,maxits
       if (xp.lt.0.5) then
@@ -1321,7 +1321,7 @@ implicit none
 integer ii,i
 real, dimension(wfull) :: hlra,hlrb,rho0,pxtr
 real, dimension(wfull) :: visalb,niralb
-real, dimension(wfull,wlev) :: rs,d_depth
+real, dimension(wfull,wlev) :: rs,d_depth,d_dz
 real, dimension(wfull,wlev), intent(inout) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull), intent(inout) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_taux,d_tauy,d_zcr
 real, dimension(wfull), intent(in) :: a_ps,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow
@@ -1329,8 +1329,9 @@ real, dimension(wfull), intent(in) :: a_ps,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbv
 pxtr=a_ps+grav*i_fracice*(i_dic*rhoic+i_dsn*rhosn)
 do ii=1,wlev
   d_depth(:,ii)=depth(:,ii)*d_zcr
+  d_dz(:,ii)=dz(:,ii)*d_zcr
 end do
-call calcdensity(wfull,d_rho,d_alpha,d_beta,rs,rho0,w_temp,w_sal,d_depth,pxtr)
+call calcdensity(wfull,d_rho,d_alpha,d_beta,rs,rho0,w_temp,w_sal,d_depth,d_dz,pxtr)
 
 ! buoyancy frequency (calculated at half levels)
 do ii=2,wlev
@@ -1380,18 +1381,18 @@ end subroutine getrho
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate density
 
-subroutine calcdensity(full,d_rho,d_alpha,d_beta,rs,rho0,tt,ss,dep,pxtr)
+subroutine calcdensity(full,d_rho,d_alpha,d_beta,rs,rho0,tt,ss,dep,ddz,pxtr)
 
 implicit none
 
 integer, intent(in) :: full
 integer i,ii
 integer, parameter :: nits=1 ! iterate for density (nits=1 recommended)
-real, dimension(full,wlev), intent(in) :: tt,ss,dep
+real, dimension(full,wlev), intent(in) :: tt,ss,dep,ddz
 real, dimension(full,wlev), intent(out) :: d_rho,d_alpha,d_beta,rs
 real, dimension(full), intent(in) :: pxtr
 real, dimension(full), intent(out) :: rho0
-real, dimension(full) :: t,s,p1,p2,t2,t3,t4,t5,s2,s3,s32
+real, dimension(full) :: t,s,p1,p2,t2,t3,t4,t5,s2,s3,s32,ptot
 real, dimension(full) :: drho0dt,drho0ds,dskdt,dskds,sk,sks
 real, dimension(full) :: drhodt,drhods,rs0,dskdp
 real, parameter :: density = 1035.
@@ -1428,10 +1429,12 @@ drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:) &
        - 1.6546e-6*t2(:)) + 2.*4.8314e-4*s(:)
 
 do i=1,nits
+  ptot=pxtr*1.E-5
   do ii=1,wlev
     t = max(tt(:,ii)-273.16,-2.)
     s = max(ss(:,ii),0.)
-    p1 = (grav*dep(:,ii)*d_rho(:,ii)+pxtr)*1.E-5 ! assume hydrostatic balance
+    p1 = ptot+grav*d_rho(:,ii)*0.5*ddz(:,ii)*1.E-5
+    ptot = ptot+grav*d_rho(:,ii)*ddz(:,ii)*1.E-5
     t2 = t*t
     t3 = t2*t
     t4 = t3*t

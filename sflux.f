@@ -288,6 +288,9 @@ c       this is in-line ocenzo using latest coefficient, i.e. .018   ! sea
          endif     ! (charnock<-1.) .. else ..                       ! sea
         endif      ! (land(iq)) .. else ..                           ! sea
         aft(iq)=chnsea                                               ! sea
+        !MJT note - ztv is not the roughness length for heat when zo.ne.ztv
+        !           hence we estimate zoh from af and aft
+        zoh(iq)=zmin*exp(-vkar*sqrt(af(iq))/aft(iq)) ! MJT bug fix
        enddo  ! iq loop
 
        if(newztsea==0)then ! 0 for original, 1 for different zt over sea
@@ -295,7 +298,8 @@ c        enhanced formula used in Feb '92 Air-Sea conference follows:! sea
 c        factch=sqrt(zo*exp(vkar*vkar/(chnsea*log(zmin/zo)))/zmin)   ! sea
          factch(:)=1. ! factch is sqrt(zo/zt) only for use in unstable fh
        else
-         factch(:)=sqrt(zo(:)*ztv) ! for use in unstable fh
+         !factch(:)=sqrt(zo(:)*ztv) ! for use in unstable fh ! MJT bug fix
+         factch(:)=sqrt(zo(:)/zoh) ! for use in unstable fh ! MJT bug fix
        endif  ! (newztsea==0)
 
        do iq=1,ifull ! done for all points; overwritten later for land
@@ -385,12 +389,14 @@ c       iq=iperm(ip)                                                ! sice
        drst=qsttg(iq)*ps(iq)*hlars/(tggsn(iq,1)*tggsn(iq,1)*constz) ! sice ! MJT seaice
        xx=grav*zmin*(1.-tggsn(iq,1)*srcp/t(iq,1)) ! MJT seaice      ! sice
        ri_ice=min(xx/vmag(iq)**2 , ri_max)                          ! sice
-       factch(iq)=sqrt(7.4)  ! same as land from 27/4/99            ! sice
+       !factch(iq)=sqrt(7.4)  ! same as land from 27/4/99           ! sice ! MJT bug fix
+       factch(iq)=sqrt(1.)  ! same as land from 27/4/99             ! sice ! MJT bug fix
 !      factch(iq)=1.   ! factch is sqrt(zo/zt) for use in unstable fh  
        zoice=.001                                                   ! sice
        zologice=zminlog-log(zoice)   !   i.e. log(zmin/zo(iq))      ! sice
        af(iq)=(vkar/zologice)**2                                    ! sice
-       aft(iq)=vkar**2/(zologice*(2.+zologice) )  ! from 27/4/99    ! sice
+       !aft(iq)=vkar**2/(zologice*(2.+zologice) ) ! from 27/4/99    ! sice ! MJT bug fix zo=zoh
+       aft(iq)=vkar**2/(zologice*zologice )       ! from 27/4/99    ! sice ! MJT bug fix zo=zoh
 !      aft(iq)=af                                 ! up till 27/4/99 ! sice
        wetfac(iq)=1+.008*(tggsn(iq,1)-273.16) ! 008*tggsn(iq,1)-1.18528 ! sice ! MJT seaice
                                                                     ! sice
@@ -524,7 +530,7 @@ c     if(mydiag.and.diag)then
                                                                      ! MLO
         ! stuff to keep tpan over land working                       ! MLO
         ri=min(grav*zmin*(1.-tpan*srcp/t(1:ifull,1))/vmag**2,ri_max) ! MLO
-        factch=sqrt(panzo*ztv)                                       ! MLO
+        factch=sqrt(panzo/zoh)                                       ! MLO
         where (ri>0.)                                                ! MLO
           fh=vmod/(1.+bprm*ri)**2                                    ! MLO
         elsewhere                                                    ! MLO
@@ -785,7 +791,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
         case(6,7)                                                       ! cable
          if (nmlo.eq.0) then                                            ! cable
            ! update ocean diagnostics                                   ! cable
-           zoh=zmin*exp(-vkar/(aft/sqrt(af)))                           ! cable
+           zoh=zmin*exp(-vkar*sqrt(af)/aft)                             ! cable
            call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,     ! cable
      &                  tss,t(1:ifull,1),qsttg,qg(1:ifull,1),           ! cable
      &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! cable

@@ -94,7 +94,7 @@ c     t
           fluxhi=rathb(k)*tarr(iq,k)+ratha(k)*tarr(iq,k+1)
         else if(nthub==2)then     ! higher order scheme
           fluxhi=rathb(k)*tarr(iq,k)+ratha(k)*tarr(iq,k+1)
-     .                  -.5*delt(iq,k)*tfact*sdot(iq,k)
+     .                  -.5*delt(iq,k)*tfact*sdot(iq,k+1)
         endif  ! (nthub==2)
         fluxlo=tarr(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
@@ -163,7 +163,7 @@ c     u
          fluxhi=rathb(k)*uarr(iq,k)+ratha(k)*uarr(iq,k+1)
         else if(nthub==2)then     ! higher order scheme
           fluxhi=rathb(k)*uarr(iq,k)+ratha(k)*uarr(iq,k+1)
-     .                  -.5*delt(iq,k)*tfact*sdot(iq,k)
+     .                  -.5*delt(iq,k)*tfact*sdot(iq,k+1)
         endif  ! (nthub==2)
         fluxlo=uarr(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
@@ -222,7 +222,7 @@ c     v
          fluxhi=rathb(k)*varr(iq,k)+ratha(k)*varr(iq,k+1)
         else if(nthub==2)then     ! higher order scheme
           fluxhi=rathb(k)*varr(iq,k)+ratha(k)*varr(iq,k+1)
-     .                  -.5*delt(iq,k)*tfact*sdot(iq,k)
+     .                  -.5*delt(iq,k)*tfact*sdot(iq,k+1)
         endif  ! (nthub==2)
         fluxlo=varr(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
@@ -281,7 +281,7 @@ c     h_nh
          fluxhi=.5*(h_nh(iq,k)+h_nh(iq,k+1))
         else if(nthub==2)then     ! higher order scheme
           fluxhi=.5*(h_nh(iq,k)+h_nh(iq,k+1)
-     .                  -delt(iq,k)*tfact*sdot(iq,k))
+     .                  -delt(iq,k)*tfact*sdot(iq,k+1))
         endif  ! (nthub==2)
         fluxlo=h_nh(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
@@ -327,7 +327,7 @@ c     h_nh
          fluxhi=rathb(k)*pslx(iq,k)+ratha(k)*pslx(iq,k+1)
         else if(nthub==2)then     ! higher order scheme
           fluxhi=rathb(k)*pslx(iq,k)+ratha(k)*pslx(iq,k+1)
-     .                  -.5*delt(iq,k)*tfact*sdot(iq,k)
+     .                  -.5*delt(iq,k)*tfact*sdot(iq,k+1)
         endif  ! (nthub==2)
         fluxlo=pslx(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
@@ -383,7 +383,7 @@ c     qg
          fluxhi=rathb(k)*qg(iq,k)+ratha(k)*qg(iq,k+1)
         else if(nthub==2)then     ! higher order scheme
           fluxhi=rathb(k)*qg(iq,k)+ratha(k)*qg(iq,k+1)
-     .                  -.5*delt(iq,k)*tfact*sdot(iq,k)
+     .                  -.5*delt(iq,k)*tfact*sdot(iq,k+1)
         endif  ! (nthub==2)
         fluxlo=qg(iq,kx)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
@@ -471,7 +471,7 @@ c        enddo   ! iq loop
           fluxhi=rathb(k)*qlg(iq,k)+ratha(k)*qlg(iq,k+1)
          else if(nthub==2)then     ! higher order scheme
            fluxhi=rathb(k)*qlg(iq,k)+ratha(k)*qlg(iq,k+1)
-     .                   -.5*delt(iq,k)*tfact*sdot(iq,k)
+     .                   -.5*delt(iq,k)*tfact*sdot(iq,k+1)
          endif  ! (nthub==2)
          fluxlo=qlg(iq,kx)
          fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
@@ -532,7 +532,7 @@ c        enddo   ! iq loop
           fluxhi=rathb(k)*qfg(iq,k)+ratha(k)*qfg(iq,k+1)
          else if(nthub==2)then     ! higher order scheme
            fluxhi=rathb(k)*qfg(iq,k)+ratha(k)*qfg(iq,k+1)
-     .                   -.5*delt(iq,k)*tfact*sdot(iq,k)
+     .                   -.5*delt(iq,k)*tfact*sdot(iq,k+1)
          endif  ! (nthub==2)
          fluxlo=qfg(iq,kx)
          fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
@@ -597,7 +597,7 @@ c        enddo   ! iq loop
      .                                    ratha(k)*tr(iq,k+1,ntr)
         else if(nthub==2)then     ! higher order scheme
           fluxhi=rathb(k)*tr(iq,k,ntr)+ratha(k)*tr(iq,k+1,ntr)
-     .                  -.5*delt(iq,k)*tfact*sdot(iq,k)
+     .                  -.5*delt(iq,k)*tfact*sdot(iq,k+1)
         endif  ! (nthub==2)
         fluxlo=tr(iq,kx,ntr)
         fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
@@ -647,7 +647,7 @@ c        enddo   ! iq loop
           fluxhi=rathb(k)*eps(iq,k)+ratha(k)*eps(iq,k+1)
          else if(nthub==2)then     ! higher order scheme
            fluxhi=rathb(k)*eps(iq,k)+ratha(k)*eps(iq,k+1)
-     .                   -.5*delt(iq,k)*tfact*sdot(iq,k)
+     .                   -.5*delt(iq,k)*tfact*sdot(iq,k+1)
          endif  ! (nthub==2)
          fluxlo=eps(iq,kx)
          fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
@@ -691,7 +691,7 @@ c        enddo   ! iq loop
           fluxhi=rathb(k)*tke(iq,k)+ratha(k)*tke(iq,k+1)
          else if(nthub==2)then     ! higher order scheme
            fluxhi=rathb(k)*tke(iq,k)+ratha(k)*tke(iq,k+1)
-     .                   -.5*delt(iq,k)*tfact*sdot(iq,k)
+     .                   -.5*delt(iq,k)*tfact*sdot(iq,k+1)
          endif  ! (nthub==2)
          fluxlo=tke(iq,kx)
          fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
@@ -742,7 +742,7 @@ c        enddo   ! iq loop
              fluxhi=rathb(k)*xtg(iq,k,l)+ratha(k)*xtg(iq,k+1,l)
             else if(nthub==2)then     ! higher order scheme
               fluxhi=rathb(k)*xtg(iq,k,l)+ratha(k)*xtg(iq,k+1,l)
-    !                       -.5*delt(iq,k)*tfact*sdot(iq,k)
+     .                      -.5*delt(iq,k)*tfact*sdot(iq,k+1)
             endif  ! (nthub==2)
             fluxlo=xtg(iq,kx,l)
             fluxh(iq,k)=sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
