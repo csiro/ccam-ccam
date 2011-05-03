@@ -817,8 +817,8 @@ do l=1,lmax ! predictor-corrector loop
     ddivdeta=(dsnudeta/emu(1:ifull)-dsnuwdeta/emu(iwu)+dsnvdeta/emv(1:ifull)-dsnvsdeta/emv(isv))*em(1:ifull)*em(1:ifull)/ds
     seta=-neta(1:ifull)+w_e-div/(1./dt+ddivdeta)
 
-    ! The following expression limits the minimum depth to 5m
-    seta=max(seta,(5.-dd(1:ifull)-neta(1:ifull))/alpha) ! this should become a land point
+    ! The following expression limits the minimum depth to 1m
+    seta=max(seta,(1.-dd(1:ifull)-neta(1:ifull))/alpha) ! this should become a land point
     neta(1:ifull)=alpha*seta+neta(1:ifull)
     neta(1:ifull)=neta(1:ifull)*ee(1:ifull)
     seta=seta*ee(1:ifull)

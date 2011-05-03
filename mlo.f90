@@ -824,7 +824,7 @@ if (calcprog) then
 end if 
 call scrncalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,diag)                                          ! screen diagnostics
 
-workb=(emisice*i_tsurf**4)**0.25
+workb=emisice**0.25*i_tsurf
 sst=unpack((1.-i_fracice)*w_temp(:,1)+i_fracice*workb,wpack,sst)
 workb=(1.-i_fracice)/log(a_zmin/p_zo)**2+i_fracice/log(a_zmin/p_zoice)**2
 zo=unpack(a_zmin*exp(-1./sqrt(workb)),wpack,zo)
@@ -953,11 +953,19 @@ w_v=max(-100.,min(w_v,100.)) ! MJT suggestion
 ! adjust surface height
 w_eta=w_eta+dt*d_wm0
 select case(deprelax)
+  case(0) ! free surface height
+    ! do nothing
   case(1) ! relax surface height
     w_eta=w_eta-dt*w_eta/(3600.*24.*365.25)
   case(2) ! fix surface height
     w_eta=0.
+  case DEFAULT
+    write(6,*) "ERROR: Invalid deprelax ",deprelax
+    stop
 end select
+
+! min limit of 1m
+w_eta=max(w_eta,-depth_hl(:,wlev+1)+1.)
 
 return
 end subroutine mlocalc
@@ -1072,8 +1080,8 @@ do iqw=1,wfull
   nush(iqw)=(1.-xp)*nus(iqw,mixind_hl(iqw))+xp*nus(iqw,mixind_hl(iqw)+1)
   wm1(iqw)=(1.-xp)*wm(iqw,mixind_hl(iqw))+xp*wm(iqw,mixind_hl(iqw)+1)
   ws1(iqw)=(1.-xp)*ws(iqw,mixind_hl(iqw))+xp*ws(iqw,mixind_hl(iqw)+1)
-  dnumhdz(iqw)=min(num(iqw,mixind_hl(iqw)+1)-num(iqw,mixind_hl(iqw)),0.)/(dz_hl(iqw,mixind_hl(iqw)+1)*d_zcr(iqw))
-  dnushdz(iqw)=min(nus(iqw,mixind_hl(iqw)+1)-nus(iqw,mixind_hl(iqw)),0.)/(dz_hl(iqw,mixind_hl(iqw)+1)*d_zcr(iqw))
+  dnumhdz(iqw)=min(num(iqw,mixind_hl(iqw)+1)-num(iqw,mixind_hl(iqw)),-1.E-10)/(dz_hl(iqw,mixind_hl(iqw)+1)*d_zcr(iqw))
+  dnushdz(iqw)=min(nus(iqw,mixind_hl(iqw)+1)-nus(iqw,mixind_hl(iqw)),-1.E-10)/(dz_hl(iqw,mixind_hl(iqw)+1)*d_zcr(iqw))
   !dwm1ds and dws1ds are now multipled by 1/(mixdepth*wx1*wx1)
   dwm1ds(iqw)=-5.*max(p_bf(iqw),0.)/max(d_ustar(iqw)**4,1.E-20)
   dws1ds(iqw)=dwm1ds(iqw)
@@ -1096,8 +1104,8 @@ ks=nus
 do ii=2,wlev
   where (ii.le.mixind_hl)
     sigma=depth_hl(:,ii)*d_zcr/p_mixdepth
-    km(:,ii)=p_mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma))
-    ks(:,ii)=p_mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2s+a3s*sigma))
+    km(:,ii)=max(p_mixdepth*wm(:,ii)*sigma*(1.+sigma*(a2m+a3m*sigma)),num(:,ii))
+    ks(:,ii)=max(p_mixdepth*ws(:,ii)*sigma*(1.+sigma*(a2s+a3s*sigma)),nus(:,ii))
   end where
 end do
 
@@ -2559,7 +2567,7 @@ p_zohice=0.001
 p_zoqice=0.001
 af=vkar**2/(log(a_zmin/p_zoice)*log(a_zmin/p_zoice))
 aft=vkar**2/(log(a_zmins/p_zoice)*log(a_zmins/p_zohice))
-factch=sqrt(7.4)
+factch=1.
 
 call getqsat(qsat,dqdt,i_tsurf,a_ps)
 ri=min(grav*(a_zmin**2/a_zmins)*(1.-i_tsurf*srcp/a_temp)/max(vmag,0.1)**2,rimax)

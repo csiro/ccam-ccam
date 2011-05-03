@@ -530,6 +530,7 @@ c     if(mydiag.and.diag)then
                                                                      ! MLO
         ! stuff to keep tpan over land working                       ! MLO
         ri=min(grav*zmin*(1.-tpan*srcp/t(1:ifull,1))/vmag**2,ri_max) ! MLO
+        zoh=zmin*exp(-vkar*vkar/log(zmin/panzo)/chnsea)              ! MLO
         factch=sqrt(panzo/zoh)                                       ! MLO
         where (ri>0.)                                                ! MLO
           fh=vmod/(1.+bprm*ri)**2                                    ! MLO
