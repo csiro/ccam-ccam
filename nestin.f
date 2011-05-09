@@ -2763,15 +2763,20 @@
           end do
         end if
         if (nud_sss.ne.0) then
-          rr(:)=exp(-(cqs*r(:))**2)
-          nsum=max(sum(rr(:)*mm(:)),1.E-8)
+          if (cqs.ne.cq) then
+            rr(:)=exp(-(cqs*r(:))**2)
+            nsum=max(sum(rr(:)*mm(:)),1.E-8)
+          end if
           do k=1,kd
             dds(iqw,k)=sum(rr(:)*ffs(:,k))/nsum
           end do
         end if
         if (nud_ouv.ne.0) then
-          rr(:)=exp(-(cqu*r(:))**2)
-          nsum=max(sum(rr(:)*mm(:)),1.E-8)
+          if ((cqs.ne.0..and.cqu.ne.cqs).or.(cqs.eq.0..and.cqu.ne.cq)) 
+     &      then
+            rr(:)=exp(-(cqu*r(:))**2)
+            nsum=max(sum(rr(:)*mm(:)),1.E-8)
+          end if
           do k=1,kd
             ddu(iqw,k)=sum(rr(:)*ffu(:,k))/nsum
             ddv(iqw,k)=sum(rr(:)*ffv(:,k))/nsum
@@ -2960,14 +2965,14 @@
           old=new(:,ka)
           call mloexport(0,old,k,0)
           old=old+diff(:)*10./real(mloalpha)
-	  old=max(old,271.)
+          old=max(old,271.)
           call mloimport(0,old,k,0)
         end do
         do k=kc+1,kbotmlo
           old=new(:,ka)
           call mloexport(0,old,k,0)
           old=old+diff(:)*10./real(mloalpha)
-	  old=max(old,271.)
+          old=max(old,271.)
           call mloimport(0,old,k,0)
         end do
       end if
@@ -3540,15 +3545,25 @@
               end do
             end if
             if (cqs.gt.0.) then
-              rr(1:me)=exp(-(cqs*ra(1:me))**2)
-              psums(n)=sum(rr(1:me)*asums(1:me))
+              if (cqs.eq.cq) then
+                psums(n)=psum(n)
+              else
+                rr(1:me)=exp(-(cqs*ra(1:me))**2)
+                psums(n)=sum(rr(1:me)*asums(1:me))
+              end if
               do k=1,kd
                 pps(n,k)=sum(rr(1:me)*aps(1:me,k))
               end do
             end if
             if (cqu.gt.0.) then
-              rr(1:me)=exp(-(cqu*ra(1:me))**2)
-              psumu(n)=sum(rr(1:me)*asumu(1:me))
+              if (cqu.eq.cq) then
+                psumu(n)=psum(n)
+              else if (cqu.eq.cqs) then
+                psumu(n)=psums(n)
+              else
+                rr(1:me)=exp(-(cqu*ra(1:me))**2)
+                psumu(n)=sum(rr(1:me)*asumu(1:me))
+              end if
               do k=1,kd
                 ppu(n,k)=sum(rr(1:me)*apu(1:me,k))
                 ppv(n,k)=sum(rr(1:me)*apv(1:me,k))
@@ -3825,7 +3840,7 @@
           old=new(:,ka)
           call mloexport(0,old,k,0)
           old=old*(1.-wgt)+new(:,ka)*wgt
-	  old=max(old,271.)
+          old=max(old,271.)
           call mloimport(0,old,k,0)
         end do
       end if

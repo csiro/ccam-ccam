@@ -66,6 +66,7 @@ integer, parameter :: deprelax  = 1 ! surface height (0=vary, 1=relax, 2=set to 
 ! max depth
 real, parameter :: mxd    = 941.0   ! Max depth (m)
 real, parameter :: mindep = 0.5     ! Thickness of first layer (m)
+real, parameter :: minwater = 1.    ! Minimum water height above bottom (m)
 ! model parameters
 real, parameter :: ric     = 0.3    ! Critical Ri for diagnosing mixed layer depth
 real, parameter :: epsilon = 0.1
@@ -965,7 +966,7 @@ select case(deprelax)
 end select
 
 ! min limit of 1m
-w_eta=max(w_eta,-depth_hl(:,wlev+1)+1.)
+w_eta=max(w_eta,-depth_hl(:,wlev+1)+minwater)
 
 return
 end subroutine mlocalc
@@ -1080,8 +1081,8 @@ do iqw=1,wfull
   nush(iqw)=(1.-xp)*nus(iqw,mixind_hl(iqw))+xp*nus(iqw,mixind_hl(iqw)+1)
   wm1(iqw)=(1.-xp)*wm(iqw,mixind_hl(iqw))+xp*wm(iqw,mixind_hl(iqw)+1)
   ws1(iqw)=(1.-xp)*ws(iqw,mixind_hl(iqw))+xp*ws(iqw,mixind_hl(iqw)+1)
-  dnumhdz(iqw)=min(num(iqw,mixind_hl(iqw)+1)-num(iqw,mixind_hl(iqw)),-1.E-10)/(dz_hl(iqw,mixind_hl(iqw)+1)*d_zcr(iqw))
-  dnushdz(iqw)=min(nus(iqw,mixind_hl(iqw)+1)-nus(iqw,mixind_hl(iqw)),-1.E-10)/(dz_hl(iqw,mixind_hl(iqw)+1)*d_zcr(iqw))
+  dnumhdz(iqw)=min(num(iqw,mixind_hl(iqw)+1)-num(iqw,mixind_hl(iqw)),0.)/(dz_hl(iqw,mixind_hl(iqw)+1)*d_zcr(iqw))
+  dnushdz(iqw)=min(nus(iqw,mixind_hl(iqw)+1)-nus(iqw,mixind_hl(iqw)),0.)/(dz_hl(iqw,mixind_hl(iqw)+1)*d_zcr(iqw))
   !dwm1ds and dws1ds are now multipled by 1/(mixdepth*wx1*wx1)
   dwm1ds(iqw)=-5.*max(p_bf(iqw),0.)/max(d_ustar(iqw)**4,1.E-20)
   dws1ds(iqw)=dwm1ds(iqw)
@@ -1606,7 +1607,7 @@ af=afroot**2
 select case(zomode)
   case(0) ! Charnock CSIRO9
     ztv=exp(vkar/sqrt(chn10))/10.
-    aft=vkar**2/(log(a_zmins/ztv)*log(a_zmins*ztv))
+    aft=vkar**2/(log(a_zmins*ztv)*log(a_zmins*ztv))
     afq=aft
     p_zoh=a_zmin*exp(-(vkar*sqrt(af))/aft)
     p_zoq=p_zoh
@@ -1648,6 +1649,12 @@ p_fg=rho*aft*cp*fh*vmag*(w_temp(:,1)-a_temp/srcp)
 p_eg=rho*afq*lv*fq*vmag*(qsat-a_qg)
 d_taux=rho*p_cd*vmag*atu
 d_tauy=rho*p_cd*vmag*atv
+
+! turn off lake evaporation when minimum depth is reached
+! fg should be replaced with bare ground value
+where (depth_hl(:,wlev+1)+w_eta.le.minwater+1.E-3)
+  p_eg=0.
+end where
 
 return
 end subroutine fluxcalc
@@ -1861,6 +1868,7 @@ real, dimension(wfull) :: worka
 ! formation
 newdic=max(d_timelt-w_temp(:,1),0.)*cp0*d_rho(:,1)/qice
 newdic=min(0.15,newdic)
+newdic=min(depth_hl(:,wlev+1)-minwater+w_eta,newdic)
 newtn=w_temp(:,1)+newdic*qice/(cp0*d_rho(:,1))
 newdic=newdic/fracbreak
 where (newdic.gt.2.*icemin.and.i_fracice.le.0.) ! form new sea-ice

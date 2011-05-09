@@ -790,7 +790,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        end do                                                           ! MJT tke
        rhoa=ps(1:ifull)/(rdry*tss(:))                                   ! MJT tke
        wq0=eg*rhoa/hl                                                   ! MJT tke
-       wt0=fg*rhoa/cp+0.61*rhs(:,1)*wq0                                 ! MJT tke
+       wt0=fg*rhoa/cp                                                   ! MJT tke
        select case(nlocal)                                              ! MJT tke
         case(0) ! no counter gradient                                   ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
@@ -866,29 +866,16 @@ c     first do theta (then convert back to t)
       at(:,1)=0.
       rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/cp)*fg(1:ifull)/ps(1:ifull)
 
-      if(npanels>0)then
-        do k=2,kl
-         do iq=1,ifull
-          at(iq,k) =-gt(iq,k-1)/dsig(k)
-         enddo   ! iq loop
-        enddo    !  k loop
-        do k=1,kl
-         do iq=1,ifull
-          ct(iq,k) =-gt(iq,k)/dsig(k)
-         enddo   ! iq loop
-        enddo    !  k loop
-      else       ! i.e. npanels=0   darlam
-        do k=2,kl
-         do iq=1,ifull
-          at(iq,k) =-gt(iq,k-1)/dsig(k)
-         enddo   ! iq loop
-        enddo    !  k loop
-        do k=1,kl
-         do iq=1,ifull
-          ct(iq,k) =-gt(iq,k)/dsig(k)
-         enddo   ! iq loop
-        enddo    !  k loop
-      endif      !  (npanels>0) .. else ..
+      do k=2,kl
+       do iq=1,ifull
+        at(iq,k) =-gt(iq,k-1)/dsig(k)
+       enddo   ! iq loop
+      enddo    !  k loop
+      do k=1,kl
+       do iq=1,ifull
+        ct(iq,k) =-gt(iq,k)/dsig(k)
+       enddo   ! iq loop
+      enddo    !  k loop
       if (nvmix.eq.6.and.nlocal.eq.0) then
        ! increase mixing to replace counter gradient term          ! MJT tke
        at=2.5*at                                                   ! MJT tke

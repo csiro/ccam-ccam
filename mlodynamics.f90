@@ -39,7 +39,7 @@ include 'parm.h'
 
 integer k,i
 integer, parameter :: salfilt = 0 ! Additional salinity filter (0=off, 1=Katzfey)
-real, parameter :: k_smag = 2. ! 0.4 in mom3, 2. in Griffies (2000)
+real, parameter :: k_smag = 0.4 ! 0.4 in mom3, 2. in Griffies (2000)
 real hdif
 real, dimension(ifull+iextra) :: uc,vc,wc,ee,dz,u,v,gg
 real, dimension(ifull+iextra) :: t_kh,xfact,yfact
@@ -310,11 +310,13 @@ integer jyear,jmonth,jday,jhour,jmin,mstart,mins
 integer tyear,jstart
 integer, dimension(ifull,wlev) :: nface
 integer, dimension(12) :: ndoy
+integer, dimension(ifull) :: wwn,wwe,wws,www
 real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
 real delpos,delneg,alph_pm,alph_p
 real, dimension(ifull+iextra) :: ee,neta,dd,snu,snv,ntide,pice
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,ndum
-real, dimension(ifull+iextra) :: imass,ip,spu,squ,sru,spv,sqv,srv
+real, dimension(ifull+iextra) :: imass,spu,squ,sru,spv,sqv,srv
+real, dimension(:), allocatable, save :: ip
 real, dimension(ifull) :: i_u,i_v,i_sto,rhobaru,rhobarv
 real, dimension(ifull) :: div,seta,w_e,rhobarsav
 real, dimension(ifull) :: tnu,tsu,tev,twv,rhou,rhov,sou,sov
@@ -450,6 +452,18 @@ else where
   stwgt(:,4,4)=0.5 !in
 end where
 
+! precompute ice indices
+wwn=in
+wwe=ie
+wws=is
+www=iw
+do iq=1,ifull
+  if (.not.wtr(wwn(iq))) wwn(iq)=iq
+  if (.not.wtr(wwe(iq))) wwe(iq)=iq
+  if (.not.wtr(wws(iq))) wws(iq)=iq
+  if (.not.wtr(www(iq))) www(iq)=iq
+end do
+
 ! ADVECT WATER AND ICE ----------------------------------------------
 do ii=1,wlev
   call mloexpdep(0,dep(1:ifull,ii),ii,0)
@@ -542,6 +556,10 @@ if (.not.allocated(oldu1)) then
   oldv1=w_v
   oldu2=w_u
   oldv2=w_v
+end if
+if (.not.allocated(ip)) then
+  allocate(ip(ifull+iextra))
+  ip=0. ! free drift solution for ice
 end if
 
 ! initialise t+1 variables for predictor-corrector loop
@@ -863,60 +881,25 @@ do l=1,lmax ! predictor-corrector loop
   niv(1:ifull)=niv(1:ifull)*ee(1:ifull)*ee(in)
   call boundsuv(niu,niv)
   
-  ip=0. ! free drift solution
   imass(1:ifull)=max(imass(1:ifull),1.)
   if (icemode.gt.0) then
     call bounds(imass)
     iia=imass(1:ifull)*(niu(1:ifull)-niu(iwu)+niv(1:ifull)-niv(isv))*0.5*em(1:ifull)/ds
     !iib=dt               !ibu=ibv=iib
     !iic=dt*dt*f(1:ifull) !icu=-icv=iic
-    where (wtr(1:ifull).and.wtr(ie).and.wtr(iw))
-      dibdx=dt*imass(1:ifull)*(1./(imass(ie)*em(ie))-1./(imass(iw)*em(iw)))*0.5*em(1:ifull)**2/ds
-      dicdx=dt*dt*imass(1:ifull)*(f(ie)/(imass(ie)*em(ie))-f(iw)/(imass(iw)*em(iw)))*0.5*em(1:ifull)**2/ds
-    else where (wtr(1:ifull).and.wtr(ie))
-      dibdx=dt*imass(1:ifull)*(em(1:ifull)/(imass(ie)*em(ie))-1./imass(1:ifull))*0.5*em(1:ifull)/ds
-      dicdx=dt*dt*imass(1:ifull)*(f(ie)*em(1:ifull)/(imass(ie)*em(ie))-f(1:ifull)/imass(1:ifull))*0.5*em(1:ifull)/ds
-    else where (wtr(1:ifull))
-      dibdx=dt*imass(1:ifull)*(1./imass(1:ifull)-em(1:ifull)/(imass(iw)*em(iw)))*0.5*em(1:ifull)/ds
-      dicdx=dt*dt*imass(1:ifull)*(f(1:ifull)/imass(1:ifull)-f(iw)*em(1:ifull)/(imass(iw)*em(iw)))*0.5*em(1:ifull)/ds
-    else where
-      dibdx=0.
-      dicdx=0.
-    end where
-    where (wtr(1:ifull).and.wtr(in).and.wtr(is))
-      dibdy=dt*imass(1:ifull)*(1./(imass(in)*em(in))-1./(imass(is)*em(is)))*0.5*em(1:ifull)**2/ds
-      dicdy=dt*dt*imass(1:ifull)*(f(in)/(imass(in)*em(in))-f(is)/(imass(is)*em(is)))*0.5*em(1:ifull)**2/ds
-    else where (wtr(1:ifull).and.wtr(in))
-      dibdy=dt*imass(1:ifull)*(em(1:ifull)/(imass(in)*em(in))-1./imass(1:ifull))*0.5*em(1:ifull)/ds
-      dicdy=dt*dt*imass(1:ifull)*(f(in)*em(1:ifull)/(imass(in)*em(in))-f(1:ifull)/imass(1:ifull))*0.5*em(1:ifull)/ds
-    else where (wtr(1:ifull))
-      dibdy=dt*imass(1:ifull)*(1./imass(1:ifull)-em(1:ifull)/(imass(is)*em(is)))*0.5*em(1:ifull)/ds
-      dicdy=dt*dt*imass(1:ifull)*(f(1:ifull)/imass(1:ifull)-f(is)*em(1:ifull)/(imass(is)*em(is)))*0.5*em(1:ifull)/ds
-    else where
-      dibdy=0.
-      dicdy=0.
-    end where
+    dibdx=dt*imass(1:ifull)*(1./(imass(wwe)*em(wwe))-1./(imass(www)*em(www)))*0.5*em(1:ifull)**2/ds
+    dicdx=dt*dt*imass(1:ifull)*(f(wwe)/(imass(wwe)*em(wwe))-f(www)/(imass(www)*em(www)))*0.5*em(1:ifull)**2/ds
+    dibdy=dt*imass(1:ifull)*(1./(imass(wwn)*em(wwn))-1./(imass(wws)*em(wws)))*0.5*em(1:ifull)**2/ds
+    dicdy=dt*dt*imass(1:ifull)*(f(wwn)/(imass(wwn)*em(wwn))-f(wws)/(imass(wws)*em(wws)))*0.5*em(1:ifull)**2/ds
   
     alpha=0.9
     do ll=1,llmax
   
       call bounds(ip)
-      ipn=ip(in)/em(in)
-      where (.not.wtr(in))
-       ipn=ip(1:ifull)/em(1:ifull)
-      end where  
-      ipe=ip(ie)/em(ie)
-      where (.not.wtr(ie))
-       ipe=ip(1:ifull)/em(1:ifull)
-      end where
-      ips=ip(is)/em(is)
-      where (.not.wtr(is))
-       ips=ip(1:ifull)/em(1:ifull)
-      end where
-      ipw=ip(iw)/em(iw)
-      where (.not.wtr(iw))
-       ipw=ip(1:ifull)/em(1:ifull)
-      end where
+      ipn=ip(wwn)/em(wwn)
+      ipe=ip(wwe)/em(wwe)
+      ips=ip(wws)/em(wws)
+      ipw=ip(www)/em(www)
    
       div=iia-dt*(ipe-2.*ip(1:ifull)+ipw)*em(1:ifull)**3/(ds*ds)                          &
              -dibdx*(ipe-ipw)*0.5*em(1:ifull)**2/ds-dicdx*(ipn-ips)*0.5*em(1:ifull)**2/ds &
