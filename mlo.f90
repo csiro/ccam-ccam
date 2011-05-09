@@ -812,7 +812,7 @@ call getrho(a_ps,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow,d_rho,
             d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_taux,d_tauy,d_zcr)           ! boundary conditions
 d_timelt=273.16-0.054*w_sal(:,1) ! ice melting temperature from CICE
 if (calcprog) then
-  call mlonewice(dt,d_rho,d_timelt,d_wm0,diag)                                                       ! create new ice
+  call mlonewice(dt,d_rho,d_timelt,d_wm0,d_zcr,diag)                                                       ! create new ice
 end if
 call iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,   &
              a_zmins,d_rho,d_ftop,d_bot,d_tb,d_fb,d_timelt,d_nk,d_did,d_tauxica,d_tauyica,         &
@@ -1853,7 +1853,7 @@ end subroutine mloice
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Form seaice before flux calculations
 
-subroutine mlonewice(dt,d_rho,d_timelt,d_wm0,diag)
+subroutine mlonewice(dt,d_rho,d_timelt,d_wm0,d_zcr,diag)
 
 implicit none
 
@@ -1863,13 +1863,14 @@ real, intent(in) :: dt
 real, dimension(wfull) :: newdic,newtn
 real, dimension(wfull,wlev), intent(in) :: d_rho
 real, dimension(wfull), intent(inout) :: d_timelt,d_wm0
+real, dimension(wfull), intent(in) :: d_zcr
 real, dimension(wfull) :: worka
 
 ! formation
-newdic=max(d_timelt-w_temp(:,1),0.)*cp0*d_rho(:,1)/qice
+newdic=max(d_timelt-w_temp(:,1),0.)*cp0*d_rho(:,1)*dz(:,1)*d_zcr/qice
 newdic=min(0.15,newdic)
 newdic=min(depth_hl(:,wlev+1)-minwater+w_eta,newdic)
-newtn=w_temp(:,1)+newdic*qice/(cp0*d_rho(:,1))
+newtn=w_temp(:,1)+newdic*qice/(cp0*d_rho(:,1)*dz(:,1)*d_zcr)
 newdic=newdic/fracbreak
 where (newdic.gt.2.*icemin.and.i_fracice.le.0.) ! form new sea-ice
   i_dic=newdic
