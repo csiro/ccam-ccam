@@ -429,52 +429,65 @@ c***      but needed here for onthefly (different dims) 28/8/08
       ! Avoid memory blow out by only having single level global arrays
       do k=1,kk
         call histrd4s(ncid,iarchi,ier,'temp',ik,6*ik,k,t_a,6*ik*ik) !     temperature
-        call histrd4s(ncid,iarchi,ier,'u',ik,6*ik,k,ucc,6*ik*ik)    !     u wind component
-        call histrd4s(ncid,iarchi,ier,'v',ik,6*ik,k,vcc,6*ik*ik)    !     v wind component
-        call histrd4s(ncid,iarchi,ier,'mixr',ik,6*ik,k,qg_a,6*ik*ik)!     mixing ratio
-        if(ier.ne.0)then                                            !     mixing ratio
-          call histrd4s(ncid,iarchi,ier,'q',ik,6*ik,k,qg_a,6*ik*ik) !     mixing ratio
-        endif  ! (ier.ne.0)                                         !     mixing ratio
         if (k.eq.lev) t_a_lev=t_a ! store for psl calculation below
         !---------------------------------------------------------
-        if (iotest) then
-          if (myid==0) then
+        if (myid==0) then
+          if (iotest) then
+            call ccmpi_distribute(t_k(:,k), t_a)
+          else
+            np=0                ! controls prints in ints4
+            call ints4(t_a,    t_g, nface4,xg4,yg4,nord,ik)  ! ints4 on source grid
+            call ccmpi_distribute(t_k(:,k), t_g)
+          end if ! iotest
+        else ! myid /= 0
+          call ccmpi_distribute(t_k(:,k))
+        endif ! myid==0
+      enddo  ! k loop
+      call vertint(t_k ,t(1:ifull,:), 1,kk,sigin)
+      do k=1,kk
+        call histrd4s(ncid,iarchi,ier,'u',ik,6*ik,k,ucc,6*ik*ik)    !     u wind component
+        call histrd4s(ncid,iarchi,ier,'v',ik,6*ik,k,vcc,6*ik*ik)    !     v wind component
+        !---------------------------------------------------------
+        if (myid==0) then
+          if (iotest) then
             call ccmpi_distribute(u_k(:,k), ucc)
             call ccmpi_distribute(v_k(:,k), vcc)
-            call ccmpi_distribute(t_k(:,k), t_a)
-            call ccmpi_distribute(qg_k(:,k), qg_a)
           else
-            call ccmpi_distribute(u_k(:,k))
-            call ccmpi_distribute(v_k(:,k))
-            call ccmpi_distribute(t_k(:,k))
-            call ccmpi_distribute(qg_k(:,k))         
-          end if
-        else
-          if ( myid==0 ) then
             call interpwind(ik,uct_g,vct_g,ucc,vcc,axs_a,ays_a,azs_a,
      &                      bxs_a,bys_a,bzs_a,rotpole,rotpoles,nface4,
      &                      xg4,yg4,nord)
 !           interpolate all required arrays to new C-C positions
 !           don't need to do map factors and Coriolis on target grid
             np=0                ! controls prints in ints4
-            call ints4(t_a,    t_g, nface4,xg4,yg4,nord,ik)  ! ints4 on source grid
-            call ints4(qg_a,  qg_g, nface4,xg4,yg4,nord,ik)
             call ccmpi_distribute(u_k(:,k), uct_g)
             call ccmpi_distribute(v_k(:,k), vct_g)
-            call ccmpi_distribute(t_k(:,k), t_g)
-            call ccmpi_distribute(qg_k(:,k), qg_g)
-          else ! myid /= 0
-            call ccmpi_distribute(u_k(:,k))
-            call ccmpi_distribute(v_k(:,k))
-            call ccmpi_distribute(t_k(:,k))
-            call ccmpi_distribute(qg_k(:,k))
-          endif ! myid==0
-        end if ! iotest
+          end if ! iotest
+        else
+          call ccmpi_distribute(u_k(:,k))
+          call ccmpi_distribute(v_k(:,k))
+        endif ! myid==0
       enddo  ! k loop
-      call vertint(t_k ,t(1:ifull,:), 1,kk,sigin)
-      call vertint(qg_k,qg(1:ifull,:),2,kk,sigin)
       call vertint(u_k ,u(1:ifull,:), 3,kk,sigin)
       call vertint(v_k ,v(1:ifull,:), 4,kk,sigin)
+      do k=1,kk
+        call histrd4s(ncid,iarchi,ier,'mixr',ik,6*ik,k,qg_a,6*ik*ik)!     mixing ratio
+        if(ier.ne.0)then                                            !     mixing ratio
+          call histrd4s(ncid,iarchi,ier,'q',ik,6*ik,k,qg_a,6*ik*ik) !     mixing ratio
+        endif  ! (ier.ne.0)                                         !     mixing ratio
+        !---------------------------------------------------------
+        if (myid==0) then
+          if (iotest) then
+            call ccmpi_distribute(qg_k(:,k), qg_a)
+          else
+            np=0                ! controls prints in ints4
+            call ints4(qg_a,  qg_g, nface4,xg4,yg4,nord,ik)
+            call ccmpi_distribute(qg_k(:,k), qg_g)
+          end if ! iotest
+        else
+          call ccmpi_distribute(qg_k(:,k))         
+        endif ! myid==0
+      enddo  ! k loop
+      call vertint(qg_k,qg(1:ifull,:),2,kk,sigin)
 
       end if ! nested.ne.2 ! MJT recycle
 
@@ -649,9 +662,6 @@ c       incorporate other target land mask effects
         end if ! iotest
         do k=1,wlev
           t_a=max(tss_a,271.)
-          qg_a=34.72
-          ucc=0.
-          vcc=0.
           if (k.le.ms) then
             write(vname,'("tgg",I1.1)') k
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
@@ -661,9 +671,54 @@ c       incorporate other target land mask effects
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   t_a,6*ik*ik)
           end if
+          if (iotest) then
+            if (myid==0) then
+              call ccmpi_distribute(mlodwn(:,k,1),t_a)
+            else
+              call ccmpi_distribute(mlodwn(:,k,1))
+            end if
+          else
+            if (myid==0) then
+              where (land_a)
+                t_a=spval
+              end where
+              call fill_cc(t_a,spval,ik,0)
+!             interpolate all required arrays to new C-C positions
+              call ints4(t_a,   t_g, nface4,xg4,yg4,nord,ik)
+              call ccmpi_distribute(mlodwn(:,k,1), t_g)
+            else ! myid /= 0
+              call ccmpi_distribute(mlodwn(:,k,1))
+            endif ! myid==0
+          end if ! iotest
+        end do
+        do k=1,wlev
+          qg_a=34.72
           write(vname,'("sal",I2.2)') k
           call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                 qg_a,6*ik*ik)
+          if (iotest) then
+            if (myid==0) then
+              call ccmpi_distribute(mlodwn(:,k,2),qg_a)     
+            else
+              call ccmpi_distribute(mlodwn(:,k,2))
+            end if
+          else
+            if (myid==0) then
+              where (land_a)
+                qg_a=spval
+              end where
+              call fill_cc(qg_a,spval,ik,0)
+!             interpolate all required arrays to new C-C positions
+              call ints4(qg_a, qg_g, nface4,xg4,yg4,nord,ik)
+              call ccmpi_distribute(mlodwn(:,k,2),qg_g)              
+            else ! myid /= 0
+              call ccmpi_distribute(mlodwn(:,k,2))            
+            endif ! myid==0
+          end if ! iotest
+        end do
+        do k=1,wlev
+          ucc=0.
+          vcc=0.
           write(vname,'("uoc",I2.2)') k
           call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                 ucc,6*ik*ik)
@@ -672,41 +727,27 @@ c       incorporate other target land mask effects
      &                 vcc,6*ik*ik)
           if (iotest) then
             if (myid==0) then
-              call ccmpi_distribute(mlodwn(:,k,1),t_a)
-              call ccmpi_distribute(mlodwn(:,k,2),qg_a)     
               call ccmpi_distribute(mlodwn(:,k,3),ucc)
               call ccmpi_distribute(mlodwn(:,k,4),vcc)
             else
-              call ccmpi_distribute(mlodwn(:,k,1))
-              call ccmpi_distribute(mlodwn(:,k,2))
               call ccmpi_distribute(mlodwn(:,k,3))
               call ccmpi_distribute(mlodwn(:,k,4))
             end if
           else
             if (myid==0) then
               where (land_a)
-                t_a=spval
-                qg_a=spval
                 ucc=spval
                 vcc=spval
               end where
-              call fill_cc(t_a,spval,ik,0)
-              call fill_cc(qg_a,spval,ik,0)
               call fill_cc(ucc,spval,ik,0)
               call fill_cc(vcc,spval,ik,0)
               call interpwind(ik,uct_g,vct_g,ucc,vcc,axs_a,ays_a,azs_a,
      &                      bxs_a,bys_a,bzs_a,rotpole,rotpoles,nface4,
      &                      xg4,yg4,nord)
 !             interpolate all required arrays to new C-C positions
-              call ints4(t_a,   t_g, nface4,xg4,yg4,nord,ik)
-              call ints4(qg_a, qg_g, nface4,xg4,yg4,nord,ik)
-              call ccmpi_distribute(mlodwn(:,k,1), t_g)
-              call ccmpi_distribute(mlodwn(:,k,2),qg_g)              
               call ccmpi_distribute(mlodwn(:,k,3), uct_g)
               call ccmpi_distribute(mlodwn(:,k,4), vct_g)
             else ! myid /= 0
-              call ccmpi_distribute(mlodwn(:,k,1))
-              call ccmpi_distribute(mlodwn(:,k,2))            
               call ccmpi_distribute(mlodwn(:,k,3))
               call ccmpi_distribute(mlodwn(:,k,4))
             endif ! myid==0
@@ -757,7 +798,9 @@ c       incorporate other target land mask effects
             call doints4(t_a,tgg(:,k),nface4,xg4,yg4,
      &                     nord,ik)
           end if
-
+        end do
+ 
+        do k=1,ms
           t_a=20.5 ! SOIL MOISTURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           write(vname,'("wetfrac",I1.1)') k
           call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
@@ -802,7 +845,9 @@ c       incorporate other target land mask effects
             call doints4(t_a,wb(:,k),nface4,xg4,yg4,
      &                     nord,ik)
           end if ! iotest
+        end do
 
+        do k=1,ms
           t_a=0. ! SOIL ICE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           write(vname,'("wbice",I1.1)') k
           call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
@@ -906,7 +951,8 @@ c       incorporate other target land mask effects
             call doints4(t_a,smass(:,k),nface4,xg4,yg4,
      &                     nord,ik)
           end if ! iotest
-
+        end do
+        do k=1,3
           where(snowd_a>100.)
             t_a=240.
           elsewhere
@@ -1235,25 +1281,33 @@ c       incorporate other target land mask effects
             ucc=1.5E-4 ! dummy for tke
             call histrd4s(ncid,iarchi,ier,'tke',ik,6*ik,k,
      &                    ucc,6*ik*ik)
+            if (iotest) then
+              if (myid==0) then
+                call ccmpi_distribute(u_k(:,k),ucc)
+              else
+                call ccmpi_distribute(u_k(:,k))
+              end if
+            else
+              call doints4(ucc,u_k(:,k),nface4,xg4,yg4,
+     &                     nord,ik)
+            end if ! iotest
+          end do
+          call vertint(u_k,tke(1:ifull,:),6,kk,sigin)  
+          do k=1,kk
             vcc=1.E-7 ! dummy for eps
             call histrd4s(ncid,iarchi,ier,'eps',ik,6*ik,k,
      &                    vcc,6*ik*ik)
             if (iotest) then
               if (myid==0) then
-                call ccmpi_distribute(u_k(:,k),ucc)
                 call ccmpi_distribute(v_k(:,k),vcc)
               else
-                call ccmpi_distribute(u_k(:,k))
                 call ccmpi_distribute(v_k(:,k))
               end if
             else
-              call doints4(ucc,u_k(:,k),nface4,xg4,yg4,
-     &                     nord,ik)
               call doints4(vcc,v_k(:,k),nface4,xg4,yg4,
      &                     nord,ik)
             end if ! iotest
           end do
-          call vertint(u_k,tke(1:ifull,:),6,kk,sigin)  
           call vertint(v_k,eps(1:ifull,:),6,kk,sigin)
           tke=max(tke,1.5E-8)
           eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)
@@ -1361,27 +1415,35 @@ c       incorporate other target land mask effects
         
         if (nested.ne.2) then ! MJT recycle
 
-        do k=1,kk ! CLOUD LIQUID AND FROZEN WATER !!!!!!!!!!!!!!!!!!!
+        do k=1,kk ! CLOUD FROZEN WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ucc=0. ! dummy for qfg
-         vcc=0. ! dummy for qlg
          call histrd4s(ncid,iarchi,ier,'qfg',ik,6*ik,k,ucc,
-     &                 6*ik*ik)
-         call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,vcc,
      &                 6*ik*ik)
          if (iotest) then
            if (myid==0) then
              call ccmpi_distribute(u_k(:,k),ucc)
-             call ccmpi_distribute(v_k(:,k),vcc)
            else
              call ccmpi_distribute(u_k(:,k))
-             call ccmpi_distribute(v_k(:,k))
            end if
          else
            call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,ik)
-           call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,ik)
          end if ! iotest
         enddo  ! k loop
         call vertint(u_k,qfg,5,kk,sigin)
+        do k=1,kk ! CLOUD LIQUID WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         vcc=0. ! dummy for qlg
+         call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,vcc,
+     &                 6*ik*ik)
+         if (iotest) then
+           if (myid==0) then
+             call ccmpi_distribute(v_k(:,k),vcc)
+           else
+             call ccmpi_distribute(v_k(:,k))
+           end if
+         else
+           call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,ik)
+         end if ! iotest
+        enddo  ! k loop
         call vertint(v_k,qlg,5,kk,sigin)
 
         do k=1,kk ! CLOUD FRACTION

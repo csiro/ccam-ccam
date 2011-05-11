@@ -90,6 +90,7 @@ real, parameter :: himin=0.1              ! minimum ice thickness for multiple l
 real, parameter :: icebreak=0.05          ! minimum ice thickness before breakup (1D model)
 real, parameter :: fracbreak=0.05         ! minimum ice fraction (1D model)
 real, parameter :: icemin=0.01            ! minimum ice thickness (m)
+real, parameter :: icemax=4.              ! maximum ice thickness (m)
 real, parameter :: rhosn=330.             ! density snow
 real, parameter :: rhowt=1025.            ! density water (replace with d_rho ?)
 real, parameter :: rhoic=900.             ! density ice
@@ -571,7 +572,7 @@ integer ifinish,ib,ie
 real, dimension(ifin), intent(in) :: coszro
 real, dimension(ifin), intent(inout) :: ovisalb,oniralb
 real, dimension(wfull) :: watervis,waternir,icevis,icenir
-real, dimension(wfull) :: costmp,d_timelt,pond,snow
+real, dimension(wfull) :: costmp,pond,snow
 
 if (wfull.eq.0) return
 
@@ -582,8 +583,7 @@ if (ie.lt.ib) return
 
 costmp(ib:ie)=pack(coszro,wpack(istart:ifinish))
 
-d_timelt(ib:ie)=273.16-0.054*w_sal(ib:ie,1)
-pond(ib:ie)=1.-min(max(d_timelt(ib:ie)-i_tsurf(ib:ie),0.),1.)
+pond(ib:ie)=max(1.+.008*min(i_tsurf-273.16,0.),0.)
 snow(ib:ie)=min(max(i_dsn(ib:ie)/0.05,0.),1.)
 
 watervis(ib:ie)=.05/(costmp(ib:ie)+0.15)
@@ -619,7 +619,7 @@ real, dimension(ifin), intent(in) :: coszro
 real, dimension(ifin), intent(inout) :: ovisdir,ovisdif,onirdir,onirdif
 real, dimension(wfull) :: watervisdiralb,watervisdifalb,waternirdiralb,waternirdifalb
 real, dimension(wfull) :: icevisdiralb,icevisdifalb,icenirdiralb,icenirdifalb
-real, dimension(wfull) :: costmp,d_timelt,pond,snow
+real, dimension(wfull) :: costmp,pond,snow
 
 if (wfull.eq.0) return
 
@@ -630,8 +630,7 @@ if (ie.lt.ib) return
 
 costmp(ib:ie)=pack(coszro,wpack(istart:ifinish))
 
-d_timelt(ib:ie)=273.16-0.054*w_sal(ib:ie,1)
-pond(ib:ie)=1.-min(max(d_timelt(ib:ie)-i_tsurf(ib:ie),0.),1.)
+pond(ib:ie)=max(1.+.008*min(i_tsurf-273.16,0.),0.)
 snow(ib:ie)=min(max(i_dsn(ib:ie)/0.05,0.),1.)
 
 where (costmp(ib:ie).gt.0.)
@@ -812,7 +811,7 @@ call getrho(a_ps,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow,d_rho,
             d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_taux,d_tauy,d_zcr)           ! boundary conditions
 d_timelt=273.16-0.054*w_sal(:,1) ! ice melting temperature from CICE
 if (calcprog) then
-  call mlonewice(dt,d_rho,d_timelt,d_wm0,d_zcr,diag)                                                       ! create new ice
+  call mlonewice(dt,d_rho,d_timelt,d_wm0,d_zcr,diag)                                                 ! create new ice
 end if
 call iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,   &
              a_zmins,d_rho,d_ftop,d_bot,d_tb,d_fb,d_timelt,d_nk,d_did,d_tauxica,d_tauyica,         &
@@ -2125,8 +2124,8 @@ ip_dsn=min(min(xxx,ip_dsn),0.2)
 ip_dic=ip_dic+rhowt/rhoic*excess
 
 ! Ice depth limitation for poor initial conditions
-xxx=max(ip_dic-4.,0.)
-ip_dic=min(4.,ip_dic)
+xxx=max(ip_dic-icemax,0.)
+ip_dic=min(icemax,ip_dic)
 dp_wtrflx=dp_wtrflx+xxx*rhoic/rhowt/dt
 
 return
@@ -2446,7 +2445,7 @@ it_tsurf=min(it_tsurf,273.16) ! melting condition ts=tsmelt
 subl=dt*pt_egice/(ls*rhosn)
 ssubl=min(subl,it_dsn)           ! snow component of sublimation
 ssnmelt=min(snmelt,it_dsn-ssubl) ! snow component of melt
-dt_salflx=dt_salflx-snmelt*rhosn/dt
+dt_salflx=dt_salflx-ssnmelt*rhosn/dt
 dt_wtrflx=dt_wtrflx+(ssnmelt*rhosn+(snmelt-ssnmelt)*rhoic)/rhowt/dt
 dhs=snmelt+subl ! Change the snow thickness
 it_dic=max(it_dic-(rhosn/rhoic)*max(dhs-it_dsn,0.),0.)
@@ -2653,8 +2652,8 @@ where (i_dsn.lt.icemin.and.i_sto.le.qmax.and.d_nk.gt.0)
   eye=0.35
 end where
 i_sto=i_sto+dt*a_sg*(1.-alb)*eye
-d_ftop=-p_fgice-(ls/lv)*p_egice+a_rg-emisice*sbconst*i_tsurf**4+a_sg*(1.-alb)*(1.-eye)
-d_bot=4.*emisice*sbconst*i_tsurf**3+rho*aft*fh*vmag*(cp+(ls/lv)*p_wetfacice*lv*dqdt)
+d_ftop=-p_fgice-p_egice+a_rg-emisice*sbconst*i_tsurf**4+a_sg*(1.-alb)*(1.-eye)
+d_bot=4.*emisice*sbconst*i_tsurf**3+rho*aft*fh*vmag*(cp+p_wetfacice*lv*dqdt)
 
 ! Add flux of heat due to converting any rain to snowfall over ice
 d_ftop=d_ftop+lf*a_rnd ! rain (mm) to W/m**2
