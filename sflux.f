@@ -178,7 +178,7 @@ c     using av_vmod (1. for no time averaging)
       vmag(:)=max( vmod(:) , vmodmin) ! vmag used to calculate ri
       if(ntsur.ne.7)vmod(:)=vmag(:)	! gives usual way
 
-      call start_log(sfluxwater_begin)                               ! sea
+      call start_log(sfluxwater_begin)
       !--------------------------------------------------------------! sea
       ! MJT mlo                                                      ! sea
       if (nmlo.eq.0) then                                            ! sea
@@ -500,19 +500,27 @@ c     if(mydiag.and.diag)then
          print *,'fg,fgice,factch ',fg(iq),fgf(iq),factch(iq) 
          print *,'cie ',cie(iq)      
          print *,'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)          
-      endif   ! (mydiag.and.nmaxpr==1)                                    
+      endif   ! (mydiag.and.nmaxpr==1)
+      call end_log(watermix_end)
       
       elseif (abs(nmlo).ge.1.and.abs(nmlo).le.9) then                ! MLO
         ! abs(mlo) <= 1 Vertical mixing                              ! MLO
         ! abs(mlo) <= 2 + Horizontal diffusion                       ! MLO
         ! abs(mlo) <= 3 + Advection                                  ! MLO
         if (abs(nmlo).ge.3) then                                     ! MLO
+          call start_log(waterdynamics_begin)                        ! MLO
           call mlohadv                                               ! MLO
+          call end_log(waterdynamics_end)                            ! MLO
         end if                                                       ! MLO
         if (abs(nmlo).ge.2) then                                     ! MLO
+          call start_log(waterdynamics_begin)                        ! MLO
           call mlodiffusion                                          ! MLO
+          call end_log(waterdynamics_end)                            ! MLO
+          call start_log(river_begin)                                ! MLO
           call mlorouter                                             ! MLO
+          call end_log(river_end)                                    ! MLO
         end if                                                       ! MLO
+        call start_log(watermix_begin)                               ! MLO
         call mloeval(tss,zo,cduv,fg,eg,wetfac,epot,epan,fracice,     ! MLO
      &               sicedep,snowd,dt,azmin,azmin,sgsave(:)/         ! MLO
      &               (1.-swrsave*albvisnir(:,1)-                     ! MLO
@@ -562,6 +570,7 @@ c     if(mydiag.and.diag)then
             rhscrn(iq)=100.*min(qgscrn(iq)/qsttg(iq),1.)             ! MLO
           end if                                                     ! MLO
         end do                                                       ! MLO
+        call end_log(watermix_end)                                   ! MLO
                                                                      ! MLO
       else                                                           ! MLO
         write(6,*) "ERROR: this option is for ocean model"           ! MLO

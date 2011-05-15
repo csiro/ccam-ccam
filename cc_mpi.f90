@@ -160,10 +160,13 @@ module cc_mpi
    integer, public, save :: distribute_begin, distribute_end
    integer, public, save :: reduce_begin, reduce_end
    integer, public, save :: precon_begin, precon_end
+   integer, public, save :: waterdynamics_begin, waterdynamics_end
+   integer, public, save :: river_begin, river_end
+   integer, public, save :: watermix_begin, watermix_end
    integer, public, save :: mpiwait_begin, mpiwait_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents=37
+   integer, parameter :: nevents=40
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -1878,6 +1881,7 @@ contains
    
    do iproc=0,nproc-1
      nlen=max(kl,ol)*max(bnds(iproc)%rlen2,bnds(iproc)%rlen2_uv,bnds(iproc)%slen2,bnds(iproc)%slen2_uv)
+     nlen=nlen
      if (nlen.lt.bnds(iproc)%len) then
        !write(6,*) "Reducing array size.  myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
        bnds(iproc)%len=nlen
@@ -2458,7 +2462,9 @@ contains
 #endif
                ! Add this point to the list of requests I need to send to iproc
                dslen(iproc) = dslen(iproc) + 1
+!#ifdef debug
                call checksize(dslen(iproc),bnds(iproc)%len,"Deptssync")                             ! MJT memory
+!#endif
                ! Since nface is a small integer it can be exactly represented by a
                ! real. It's simpler to send like this than use a proper structure.
                dbuf(iproc)%a(:,dslen(iproc)) = (/ real(nface(iq,k)), xg(iq,k), yg(iq,k), real(k) /) ! MJT memory
@@ -3223,6 +3229,15 @@ contains
       nestin_begin = MPE_Log_get_event_number()
       nestin_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(nestin_begin, nestin_end, "Nestin", "Yellow")
+      waterdynamics_begin = MPE_Log_get_event_number()
+      waterdynamics_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(waterdynamics_begin, waterdynamics_end, "Waterdynamics", "blue")
+      river_begin = MPE_Log_get_event_number()
+      river_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(river_begin, river_end, "River", "Yellow")
+      watermix_begin = MPE_Log_get_event_number()
+      watermix_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(watermix_begin, watermix_end, "Watermix", "Yellow")
 #endif
 #ifdef vampir
       call vtfuncdef("Bounds", classhandle, bounds_begin, ierr)
@@ -3285,6 +3300,12 @@ contains
       aerosol_end = aerosol_begin
       call vtfuncdef("Nestin", classhandle, nestin_begin, ierr)
       nestin_end =  nestin_begin
+      call vtfuncdef("Waterdynamics", classhandle, waterdynamics_begin, ierr)
+      waterdynamics_end =  waterdynamics_begin
+      call vtfuncdef("River", classhandle, river_begin, ierr)
+      river_end =  river_begin
+      call vtfuncdef("Watermix", classhandle, watermix_begin, ierr)
+      watermix_end =  watermix_begin
 #endif
 #ifdef simple_timer
 
@@ -3435,6 +3456,18 @@ contains
       nestin_begin = 37
       nestin_end =  nestin_begin
       event_name(nestin_begin) = "Nestin"
+
+      waterdynamics_begin = 38
+      waterdynamics_end =  waterdynamics_begin
+      event_name(waterdynamics_begin) = "Waterdynamics"
+
+      river_begin = 39
+      river_end =  river_begin
+      event_name(river_begin) = "River"
+
+      watermix_begin = 40
+      watermix_end =  watermix_begin
+      event_name(watermix_begin) = "Watermix"
 
 #endif
    end subroutine log_setup

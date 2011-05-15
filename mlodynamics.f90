@@ -315,9 +315,9 @@ real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
 real delpos,delneg,alph_pm,alph_p
 real, dimension(ifull+iextra) :: ee,neta,dd,snu,snv,ntide,pice
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,ndum
-real, dimension(ifull+iextra) :: imass,spu,squ,sru,spv,sqv,srv
+real, dimension(ifull+iextra) :: imass,spu,squ,sru,spv,sqv,srv,dumc
 real, dimension(:), allocatable, save :: ip
-real, dimension(ifull) :: i_u,i_v,i_sto,rhobaru,rhobarv
+real, dimension(ifull) :: i_u,i_v,i_sto,rhobaru,rhobarv,dzdxa,dzdxb,dzdya,dzdyb
 real, dimension(ifull) :: div,seta,w_e,rhobarsav
 real, dimension(ifull) :: tnu,tsu,tev,twv,rhou,rhov,sou,sov
 real, dimension(ifull) :: dpsdxu,dpsdyu,dpsdxv,dpsdyv
@@ -330,7 +330,7 @@ real, dimension(ifull) :: nip,iia,dibdx,dibdy,dicdx,dicdy,ipn,ipe,ips,ipw,ipmax
 real, dimension(ifull) :: dsnudeta,dsnuwdeta,dsnvdeta,dsnvsdeta,ddivdeta
 real, dimension(ifull) :: sssa,sssb,sssc,sssd
 real, dimension(ifull+iextra,4) :: nit
-real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns
+real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,drhobardz
 real, dimension(ifull+iextra,wlev) :: cou,cov,cow
 real, dimension(ifull+iextra,wlev) :: dep,rhobar,rho,dz
 real, dimension(ifull,1) :: siu,siv
@@ -347,15 +347,13 @@ logical, dimension(ifull) :: stest
 logical lleap
 integer, parameter :: usetide=0    ! tidal forcing (0=Off, 1=Love)
 integer, parameter :: icemode=2    ! Ice stress (0=free-drift, 1=incompressible, 2=cavitating)
-integer, parameter :: lmax=2       ! 1=predictor-only, 2+=predictor-corrector
-integer, parameter :: llmax=5000   ! iterations for calculating surface height
+integer, parameter :: lmax=1       ! 1=predictor-only, 2+=predictor-corrector
+integer, parameter :: llmax=500    ! iterations for calculating surface height
 real, parameter :: tol = 5.E-4     ! Tolerance for GS solver (water)
 real, parameter :: itol = 5.E-7    ! Tolerance for GS solver (ice)
 real, parameter :: sal = 0.948     ! SAL parameter
 real, parameter :: rhosn=330.      ! density snow
 real, parameter :: rhoic=900.      ! density ice
-
-if (all(land(1:ifull))) return
 
 data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
 
@@ -379,6 +377,7 @@ cov=0.
 cow=0.
 rho=1030.
 rhobar=1030.
+drhobardz=0.
 pice=0.
 imass=0.
 dep=0.
@@ -611,6 +610,12 @@ do l=1,lmax ! predictor-corrector loop
   rhobar(1:ifull,:)=rhobar(1:ifull,:)/dzbar
   call bounds(rhobar,nrows=2)
   if (l.eq.1) rhobarsav=rhobar(1:ifull,wlev)
+  drhobardz(1:ifull,1)=(rhobar(1:ifull,2)-rhobar(1:ifull,1))/max(dum(1:ifull,2)-dum(1:ifull,1),1.E-3)
+  do ii=2,wlev-1
+    drhobardz(1:ifull,ii)=(rhobar(1:ifull,ii+1)-rhobar(1:ifull,ii-1))/max(dum(1:ifull,ii+1)-dum(1:ifull,ii-1),1.E-3)
+  end do
+  drhobardz(1:ifull,wlev)=(rhobar(1:ifull,wlev)-rhobar(1:ifull,wlev-1))/max(dum(1:ifull,wlev)-dum(1:ifull,wlev-1),1.E-3)
+  call bounds(drhobardz)
 
   ! ADVECT WATER ----------------------------------------------------
   ! Water currents are advected using sem-Lagrangian advection
@@ -719,15 +724,26 @@ do l=1,lmax ! predictor-corrector loop
     bv=-dt/(rhov*(1.+dt*dt*fv(1:ifull)*fv(1:ifull)))
     cv=-dt*fv(1:ifull)*bv
 
+    dumc(1:ifull)=dep(1:ifull,ii)*max(1.+neta(1:ifull)/dd(1:ifull),0.01)-neta(1:ifull)
+    call bounds(dumc,nrows=2)
+    tnu=stwgt(:,1,1)*dumc(1:ifull)+stwgt(:,1,2)*dumc(in)+stwgt(:,1,3)*dumc(ine)+stwgt(:,1,4)*dumc(ie)
+    tsu=stwgt(:,2,1)*dumc(1:ifull)+stwgt(:,2,2)*dumc(is)+stwgt(:,2,3)*dumc(ise)+stwgt(:,2,4)*dumc(ie)
+    tev=stwgt(:,3,1)*dumc(1:ifull)+stwgt(:,3,2)*dumc(ie)+stwgt(:,3,3)*dumc(ien)+stwgt(:,3,4)*dumc(in)
+    twv=stwgt(:,4,1)*dumc(1:ifull)+stwgt(:,4,2)*dumc(iw)+stwgt(:,4,3)*dumc(iwn)+stwgt(:,4,4)*dumc(in)
+    dzdxa=(dumc(ie)-dumc(1:ifull))*emu(1:ifull)/ds
+    dzdya=0.5*(tnu-tsu)*emu(1:ifull)/ds
+    dzdxb=0.5*(tev-twv)*emv(1:ifull)/ds
+    dzdyb=(dumc(in)-dumc(1:ifull))*emv(1:ifull)/ds
+
     tnu=stwgt(:,1,1)*rhobar(1:ifull,ii)+stwgt(:,1,2)*rhobar(in,ii)+stwgt(:,1,3)*rhobar(ine,ii)+stwgt(:,1,4)*rhobar(ie,ii)
     tsu=stwgt(:,2,1)*rhobar(1:ifull,ii)+stwgt(:,2,2)*rhobar(is,ii)+stwgt(:,2,3)*rhobar(ise,ii)+stwgt(:,2,4)*rhobar(ie,ii)
     tev=stwgt(:,3,1)*rhobar(1:ifull,ii)+stwgt(:,3,2)*rhobar(ie,ii)+stwgt(:,3,3)*rhobar(ien,ii)+stwgt(:,3,4)*rhobar(in,ii)
     twv=stwgt(:,4,1)*rhobar(1:ifull,ii)+stwgt(:,4,2)*rhobar(iw,ii)+stwgt(:,4,3)*rhobar(iwn,ii)+stwgt(:,4,4)*rhobar(in,ii)
  
-    drhobardxu=(rhobar(ie,ii)-rhobar(1:ifull,ii))*emu(1:ifull)/ds !-dzdx*drhobardz
-    drhobardyu=0.5*(tnu-tsu)*emu(1:ifull)/ds                      !-dzdy*drhobardz
-    drhobardxv=0.5*(tev-twv)*emv(1:ifull)/ds                      !-dzdx*drhobardz
-    drhobardyv=(rhobar(in,ii)-rhobar(1:ifull,ii))*emv(1:ifull)/ds !-dzdy*drhobardz
+    drhobardxu=(rhobar(ie,ii)-rhobar(1:ifull,ii))*emu(1:ifull)/ds-dzdxa*0.5*(drhobardz(ie,ii)+drhobardz(1:ifull,ii))
+    drhobardyu=0.5*(tnu-tsu)*emu(1:ifull)/ds                     -dzdya*0.5*(drhobardz(ie,ii)+drhobardz(1:ifull,ii))
+    drhobardxv=0.5*(tev-twv)*emv(1:ifull)/ds                     -dzdxb*0.5*(drhobardz(in,ii)+drhobardz(1:ifull,ii))
+    drhobardyv=(rhobar(in,ii)-rhobar(1:ifull,ii))*emv(1:ifull)/ds-dzdyb*0.5*(drhobardz(in,ii)+drhobardz(1:ifull,ii))
 
     !nu=au+bu*dppdxu+cu*dppdyu
     !nv=av+bv*dppdyv+cv*dppdxv
@@ -800,11 +816,12 @@ do l=1,lmax ! predictor-corrector loop
   alpha=0.1
   do ll=1,llmax
 
+    ! 9-point version -----------------------------------------------
     ! would be nice to simplify this down to a 5-point stencil, rather than the effective 9-point used here
     ! However, when this is done (e.g., in unstaggered coordinates), then the non-linear terms arising from
     ! the integration of the column (i.e., the column height is a function of eta), result in a decoupling
-    ! of the solution between adjacent grid points.  This 9-point version avoids this problem, but the
-    ! calculation of detadxv and detadyu are not ideal.
+    ! of the solution between adjacent grid points.  This 9-point version avoids this problem, but the two
+    ! bounds calls and nrows=2 slows things down a little.
 
     ! calculate neta gradients
     call bounds(neta,nrows=2)
@@ -1510,15 +1527,15 @@ if(intsch==1)then
       end if
       do iq=1,drlen(iproc)
         !  Convert face index from 0:npanels to array indices
-        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))    ! MJT memory
-        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))    ! MJT memory
-        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index ! MJT memory
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
-        idel = int(dpoints(iproc)%a(2,iq))                    ! MJT memory
-        xxg = dpoints(iproc)%a(2,iq) - idel                   ! MJT memory
-        jdel = int(dpoints(iproc)%a(3,iq))                    ! MJT memory
-        yyg = dpoints(iproc)%a(3,iq) - jdel                   ! MJT memory
-        k = nint(dpoints(iproc)%a(4,iq))                      ! MJT memory
+        idel = int(dpoints(iproc)%a(2,iq))
+        xxg = dpoints(iproc)%a(2,iq) - idel
+        jdel = int(dpoints(iproc)%a(3,iq))
+        yyg = dpoints(iproc)%a(3,iq) - jdel
+        k = nint(dpoints(iproc)%a(4,iq))
         idel = idel - ioff(n-noff)
         jdel = jdel - joff(n-noff)
         c1 = sx(idel-1,jdel,n,k)
@@ -1557,7 +1574,7 @@ if(intsch==1)then
           a3 = r(1)-2.*r(2)+r(3)-a4
           sextra(iproc)%a(iq) = r(2) + 0.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
         else
-          sextra(iproc)%a(iq) = ((1.-yyg)*((2.-yyg)* &        ! MJT memory
+          sextra(iproc)%a(iq) = ((1.-yyg)*((2.-yyg)* &
             ((1.+yyg)*r(2)-yyg*r(1)/3.)              &
             -yyg*(1.+yyg)*r(4)/3.)                   &
             +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
@@ -1571,15 +1588,15 @@ if(intsch==1)then
       end if
       do iq=1,drlen(iproc)
         !  Convert face index from 0:npanels to array indices
-        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))    ! MJT memory
-        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))    ! MJT memory
-        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index ! MJT memory
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
-        idel = int(dpoints(iproc)%a(2,iq))                    ! MJT memory
-        xxg = dpoints(iproc)%a(2,iq) - idel                   ! MJT memory
-        jdel = int(dpoints(iproc)%a(3,iq))                    ! MJT memory
-        yyg = dpoints(iproc)%a(3,iq) - jdel                   ! MJT memory
-        k = nint(dpoints(iproc)%a(4,iq))                      ! MJT memory
+        idel = int(dpoints(iproc)%a(2,iq))
+        xxg = dpoints(iproc)%a(2,iq) - idel
+        jdel = int(dpoints(iproc)%a(3,iq))
+        yyg = dpoints(iproc)%a(3,iq) - jdel
+        k = nint(dpoints(iproc)%a(4,iq))
         idel = idel - ioff(n-noff)
         jdel = jdel - joff(n-noff)
         c1 = sx(idel-1,jdel,n,k)
@@ -1803,15 +1820,15 @@ else     ! if(intsch==1)then
       end if
       do iq=1,drlen(iproc)
         !  Convert face index from 0:npanels to array indices
-        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))    ! MJT memory
-        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))    ! MJT memory
-        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index ! MJT memory
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
-        idel = int(dpoints(iproc)%a(2,iq))                    ! MJT memory
-        xxg = dpoints(iproc)%a(2,iq) - idel                   ! MJT memory
-        jdel = int(dpoints(iproc)%a(3,iq))                    ! MJT memory
-        yyg = dpoints(iproc)%a(3,iq) - jdel                   ! MJT memory
-        k = nint(dpoints(iproc)%a(4,iq))                      ! MJT memory
+        idel = int(dpoints(iproc)%a(2,iq))
+        xxg = dpoints(iproc)%a(2,iq) - idel
+        jdel = int(dpoints(iproc)%a(3,iq))
+        yyg = dpoints(iproc)%a(3,iq) - jdel
+        k = nint(dpoints(iproc)%a(4,iq))
         idel = idel - ioff(n-noff)
         jdel = jdel - joff(n-noff)
         c1 = sx(idel,jdel-1,n,k)
@@ -1850,7 +1867,7 @@ else     ! if(intsch==1)then
           a3 = r(1)-2.*r(2)+r(3)-a4
           sextra(iproc)%a(iq) = r(2)+ 0.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
         else
-          sextra(iproc)%a(iq) = ((1.-xxg)*((2.-xxg)*  & ! MJT memory
+          sextra(iproc)%a(iq) = ((1.-xxg)*((2.-xxg)*  &
             ((1.+xxg)*r(2)-xxg*r(1)/3.)               &
             -xxg*(1.+xxg)*r(4)/3.)                    &
             +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
@@ -1864,15 +1881,15 @@ else     ! if(intsch==1)then
       end if
       do iq=1,drlen(iproc)
         !  Convert face index from 0:npanels to array indices
-        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))    ! MJT memory
-        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))    ! MJT memory
-        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index ! MJT memory
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
         !  Need global face index in fproc call
-        idel = int(dpoints(iproc)%a(2,iq))                    ! MJT memory
-        xxg = dpoints(iproc)%a(2,iq) - idel                   ! MJT memory
-        jdel = int(dpoints(iproc)%a(3,iq))                    ! MJT memory
-        yyg = dpoints(iproc)%a(3,iq) - jdel                   ! MJT memory
-        k = nint(dpoints(iproc)%a(4,iq))                      ! MJT memory
+        idel = int(dpoints(iproc)%a(2,iq))
+        xxg = dpoints(iproc)%a(2,iq) - idel
+        jdel = int(dpoints(iproc)%a(3,iq))
+        yyg = dpoints(iproc)%a(3,iq) - jdel
+        k = nint(dpoints(iproc)%a(4,iq))
         idel = idel - ioff(n-noff)
         jdel = jdel - joff(n-noff)
         c1 = sx(idel,jdel-1,n,k)
@@ -2009,28 +2026,28 @@ vin(1:ifull,:)=v
 call boundsuv(uin,vin)
 
 do k=1,kx
-  ud(1:ifull,k)= uin(iwu,k)/10.+uin(1:ifull,k)+uin(ieu,k)/2.
-  vd(1:ifull,k)= vin(isv,k)/10.+vin(1:ifull,k)+vin(inv,k)/2.
+  ud(1:ifull,k)= uin(iwu,k)*0.1+uin(1:ifull,k)+uin(ieu,k)*0.5
+  vd(1:ifull,k)= vin(isv,k)*0.1+vin(1:ifull,k)+vin(inv,k)*0.5
 enddo
 call boundsuv(ud,vd)
 
 do k=1,kx
-  ua(1:ifull,k)=ud(1:ifull,k)-ud(iwu,k)/2. ! 1st guess
-  va(1:ifull,k)=vd(1:ifull,k)-vd(isv,k)/2. ! 1st guess
+  ua(1:ifull,k)=ud(1:ifull,k)-ud(iwu,k)*0.5 ! 1st guess
+  va(1:ifull,k)=vd(1:ifull,k)-vd(isv,k)*0.5 ! 1st guess
 enddo
 
 do itn=1,itnmax        ! each loop is a double iteration
   call boundsuv(ua,va,nrows=2)
 
   do k=1,kx
-    uin(1:ifull,k)=(ud(1:ifull,k)-.5*ud(iwu,k)-ua(ieu,k)/10. +ua(iwwu,k)/4.)/.95
-    vin(1:ifull,k)=(vd(1:ifull,k)-.5*vd(isv,k)-va(inv,k)/10. +va(issv,k)/4.)/.95
+    uin(1:ifull,k)=(ud(1:ifull,k)-0.5*ud(iwu,k)-ua(ieu,k)*0.1 +ua(iwwu,k)*0.25)/.95
+    vin(1:ifull,k)=(vd(1:ifull,k)-0.5*vd(isv,k)-va(inv,k)*0.1 +va(issv,k)*0.25)/.95
   enddo
 
   call boundsuv(uin,vin,nrows=2)
   do k=1,kx
-    ua(1:ifull,k)=(ud(1:ifull,k)-.5*ud(iwu,k)-uin(ieu,k)/10. +uin(iwwu,k)/4.)/.95
-    va(1:ifull,k)=(vd(1:ifull,k)-.5*vd(isv,k)-vin(inv,k)/10. +vin(issv,k)/4.)/.95
+    ua(1:ifull,k)=(ud(1:ifull,k)-0.5*ud(iwu,k)-uin(ieu,k)*0.1 +uin(iwwu,k)*0.25)/.95
+    va(1:ifull,k)=(vd(1:ifull,k)-0.5*vd(isv,k)-vin(inv,k)*0.1 +vin(issv,k)*0.25)/.95
   end do
 end do                 ! itn=1,itnmax
 
@@ -2067,27 +2084,27 @@ vin(1:ifull,:)=v
 call boundsuv(uin,vin)
 
 do k=1,kx
-  ud(1:ifull,k)= uin(ieu,k)/10.+uin(1:ifull,k)+uin(iwu,k)/2.
-  vd(1:ifull,k)= vin(inv,k)/10.+vin(1:ifull,k)+vin(isv,k)/2.
+  ud(1:ifull,k)= uin(ieu,k)*0.1+uin(1:ifull,k)+uin(iwu,k)*0.5
+  vd(1:ifull,k)= vin(inv,k)*0.1+vin(1:ifull,k)+vin(isv,k)*0.5
 enddo
 call boundsuv(ud,vd)
 
 do k=1,kx
-  ua(1:ifull,k)=ud(1:ifull,k)-ud(ieu,k)/2. ! 1st guess
-  va(1:ifull,k)=vd(1:ifull,k)-vd(inv,k)/2. ! 1st guess
+  ua(1:ifull,k)=ud(1:ifull,k)-ud(ieu,k)*0.5 ! 1st guess
+  va(1:ifull,k)=vd(1:ifull,k)-vd(inv,k)*0.5 ! 1st guess
 enddo
 
 do itn=1,itnmax        ! each loop is a double iteration
   call boundsuv(ua,va,nrows=2)
 
   do k=1,kx
-    uin(1:ifull,k)=(ud(1:ifull,k)-.5*ud(ieu,k)-ua(iwu,k)/10. +ua(ieeu,k)/4.)/.95
-    vin(1:ifull,k)=(vd(1:ifull,k)-.5*vd(inv,k)-va(isv,k)/10. +va(innv,k)/4.)/.95
+    uin(1:ifull,k)=(ud(1:ifull,k)-0.5*ud(ieu,k)-ua(iwu,k)*0.1 +ua(ieeu,k)*0.25)/.95
+    vin(1:ifull,k)=(vd(1:ifull,k)-0.5*vd(inv,k)-va(isv,k)*0.1 +va(innv,k)*0.25)/.95
   enddo
   call boundsuv(uin,vin,nrows=2)
   do k=1,kx
-    ua(1:ifull,k)=(ud(1:ifull,k)-.5*ud(ieu,k)-uin(iwu,k)/10. +uin(ieeu,k)/4.)/.95
-    va(1:ifull,k)=(vd(1:ifull,k)-.5*vd(inv,k)-vin(isv,k)/10. +vin(innv,k)/4.)/.95
+    ua(1:ifull,k)=(ud(1:ifull,k)-0.5*ud(ieu,k)-uin(iwu,k)*0.1 +uin(ieeu,k)*0.25)/.95
+    va(1:ifull,k)=(vd(1:ifull,k)-0.5*vd(inv,k)-vin(isv,k)*0.1 +vin(innv,k)*0.25)/.95
   enddo
 enddo                  ! itn=1,itnmax
       
@@ -2553,7 +2570,7 @@ integer i
 integer, intent(in) :: mtimer,jstart
 real, dimension(ifull), intent(out) :: eta
 real, dimension(ifull), intent(in) :: slon,slat
-real :: stime
+real :: ttime,stime,ctime,ftime,mn,sn
 real, dimension(ifull) :: sinlon,coslon,sinlat,coslat
 real, dimension(4) :: aa,ab,ba,bb,wa,wb
 real, parameter :: pi = 3.1415927
@@ -2583,7 +2600,16 @@ wb(2)=1.454441
 wb(3)=1.378797
 wb(4)=1.458423
 
-stime=2.*pi*(real(mtimer)/1440.+real(jstart))
+ttime=real(mtimer)/1440.+real(jstart)
+ctime=ttime/36525.
+ftime=ttime-real(int(ttime))
+
+mn=270.43659+481276.89057*ctime+0.00198*ctime*ctime
+mn=mn*pi/180.
+sn=279.69668+36000.76892*ctime+0.00030*ctime*ctime
+sn=sn*pi/180.
+
+stime=2.*pi*(ftime-0.5)+sn-mn
 sinlon=sin(2.*slon)
 coslon=cos(2.*slon)
 coslat=cos(slat)**2
