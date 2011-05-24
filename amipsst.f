@@ -229,17 +229,22 @@ c       c1=0.
           write(6,*) "       namip.ne.0"
           stop
         end if
+        if (nud_sfh.ne.0) then
+          write(6,*) "ERROR: nud_sfh.ne.0 is not supported for"
+          write(6,*) "       namip.ne.0"
+          stop
+        end if
         duma=tgg(:,1)
         where(fraciceb.gt.0.)
           duma=271.2
         end where
         select case(mlomode)
           case(0) ! relax
-            call mlonudge(duma,sssb,dumb,1)
+            call mlonudge(duma,sssb,dumb,dumb(:,1),1)
           case(1)
             if (mod(mtimer,mlotime*60).eq.0) then
-              call mlofilterfast(duma,sssb,dumb,1) ! 1D version
-              !call mlofilter(duma,sssb,dumb,1) ! 2D version
+              call mlofilterfast(duma,sssb,dumb,dumb(:,1),1) ! 1D version
+              !call mlofilter(duma,sssb,dumb,dumb(:,1),1) ! 2D version
             end if
           case DEFAULT
             write(6,*) "ERROR: Unknown mlomode ",mlomode

@@ -39,8 +39,8 @@ real, parameter :: ce2     = 1.83
 real, parameter :: aup     = 0.1
 real, parameter :: b1      = 1.
 real, parameter :: b2      = 2.
-real, parameter :: entr    = 2.E-3
-real, parameter :: detr    = 3.E-3
+real, parameter :: entr    = 2.E-3 ! Soares et al (2004) 2.E-3
+real, parameter :: detr    = 3.E-3 ! Soares et al (2004) 3.E-3
 real, parameter :: cq      = 2.5
 real, parameter :: rcrit_l = 0.75
 real, parameter :: rcrit_s = 0.85
@@ -77,8 +77,8 @@ real, parameter :: tol    = 1.E-9    ! tolarance for sectant method
 real, parameter :: dz_ref = 500.     ! dz reference for kmlimit=1
 real, parameter :: alpha  = 0.7      ! weight for updating pblh
 real, parameter :: alpha2 = 0.7      ! weight for updating tke-eps non-linear terms
-real, parameter :: beta1  = 0.7      ! weight for km(t+1) (beta=0.) and km(t) (beta=1.) when calculating eps non-linear terms
-real, parameter :: beta2  = 0.3      ! weight for km(t+1) (beta=0.) and km(t) (beta=1.) when calculating tke non-linear terms
+real, parameter :: beta1  = 1.0      ! weight for km(t+1) (beta=0.) and km(t) (beta=1.) when calculating eps non-linear terms
+real, parameter :: beta2  = 0.0      ! weight for km(t+1) (beta=0.) and km(t) (beta=1.) when calculating tke non-linear terms
 
 contains
 

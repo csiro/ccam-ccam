@@ -178,6 +178,7 @@
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
      & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss                  ! MJT urban ! MJT nmr ! MJT mlo ! MJT nestin
      & ,mfix_tr,mfix_ke,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv              ! MJT tracerfix ! MJT tke
+     & ,nud_sfh
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -746,16 +747,8 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
          endif
       end if
 
-!     open input file for radiative data.
-!     replaces block data bdata in new Fels-Schwarzkopf radiation code.
-!     All processes read these
-!      if(nrad==4.or.nrad==5)then ! MJT radiation
-!        if (myid==0) then                                     ! MJT read
-!          print *,'Radiative data read from file ',radfile    ! MJT read
-!          open(16,file=o3file,form='formatted',status='old')  ! MJT read
-!          open(15,file=radfile,form='formatted',status='old') ! MJT read
-!        end if                                                ! MJT read
-!      endif
+!     open input file for aerosol data (direct only).
+!     prognostic aerosol emissions (iaero==2) are read in aerointerface.f90
       if(abs(iaero).eq.1)then ! MJT aero
          if (myid==0) print *,'so4total data read from file ',so4tfile
          call readreal(so4tfile,so4t,ifull)
@@ -833,7 +826,6 @@ c     if(ndi2>0)diag=.true.
      &    open(20,file=ofile,form='formatted',status='unknown')
         if(io_out==3)
      &    open(20,file=ofile,form='unformatted',status='unknown')
-c       if(ilt>1)open(37,file='tracers_latest',status='unknown')
       end if ! myid == 0
 
 !     sig(kuocb) occurs for level just BELOW sigcb
@@ -2022,7 +2014,7 @@ c     endif
      &     mbd/0/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/,           
      &     nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/,
      &     ktopdav/-1/,nud_sst/0/,nud_sss/0/,kbotmlo/12/,ktopmlo/1/,
-     &     mloalpha/10/,nud_ouv/0/ ! MJT nestin ! MJT mlo
+     &     mloalpha/10/,nud_ouv/0/,nud_sfh/0/ ! MJT nestin ! MJT mlo
       
 !     Dynamics options A & B      
       data m/5/,mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/,npex/0/
