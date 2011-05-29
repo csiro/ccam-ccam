@@ -13,9 +13,10 @@ module mlodynamics
 implicit none
 
 private
-public mlodiffusion,mlorouter,mlohadv,watbdy
+public mlodiffusion,mlorouter,mlohadv,watbdy,mlosalfix
 
 real, dimension(:), allocatable, save :: watbdy
+integer, parameter :: salfix = 1 ! fix salinity to 35 psu (0=off, 1=on)
 
 contains
 
@@ -315,22 +316,21 @@ real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
 real delpos,delneg,alph_pm,alph_p
 real, dimension(ifull+iextra) :: ee,neta,dd,snu,snv,ntide,pice
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,ndum
-real, dimension(ifull+iextra) :: imass,spu,squ,sru,spv,sqv,srv,dumc
+real, dimension(ifull+iextra) :: imass,spu,squ,sru,spv,sqv,srv
 real, dimension(:), allocatable, save :: ip
-real, dimension(ifull) :: i_u,i_v,i_sto,rhobaru,rhobarv,dzdxa,dzdxb,dzdya,dzdyb
+real, dimension(ifull) :: i_u,i_v,i_sto,rhobaru,rhobarv
 real, dimension(ifull) :: div,seta,w_e,rhobarsav
 real, dimension(ifull) :: tnu,tsu,tev,twv,rhou,rhov,sou,sov
 real, dimension(ifull) :: dpsdxu,dpsdyu,dpsdxv,dpsdyv
 real, dimension(ifull) :: dttdxu,dttdyu,dttdxv,dttdyv
 real, dimension(ifull) :: detadxu,detadyu,detadxv,detadyv
 real, dimension(ifull) :: dipdxu,dipdyu,dipdxv,dipdyv
-real, dimension(ifull) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull) :: au,bu,cu,av,bv,cv,odum
 real, dimension(ifull) :: nip,iia,dibdx,dibdy,dicdx,dicdy,ipn,ipe,ips,ipw,ipmax
 real, dimension(ifull) :: dsnudeta,dsnuwdeta,dsnvdeta,dsnvsdeta,ddivdeta
 real, dimension(ifull) :: sssa,sssb,sssc,sssd
 real, dimension(ifull+iextra,4) :: nit
-real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,drhobardz
+real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns
 real, dimension(ifull+iextra,wlev) :: cou,cov,cow
 real, dimension(ifull+iextra,wlev) :: dep,rhobar,rho,dz
 real, dimension(ifull,1) :: siu,siv
@@ -339,13 +339,14 @@ real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,nw,dzbar,dum,dumb
 real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav
 real, dimension(ifull,wlev) :: kku,llu,mmu,nnu
 real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv
+real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull,4,4) :: stwgt
 real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
 logical, dimension(ifull) :: stest
 logical lleap
-integer, parameter :: usetide=0    ! tidal forcing (0=Off, 1=Love)
+integer, parameter :: usetide=1    ! tidal forcing (0=Off, 1=On)
 integer, parameter :: icemode=2    ! Ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: lmax=1       ! 1=predictor-only, 2+=predictor-corrector
 integer, parameter :: llmax=500    ! iterations for calculating surface height
@@ -377,7 +378,6 @@ cov=0.
 cow=0.
 rho=1030.
 rhobar=1030.
-drhobardz=0.
 pice=0.
 imass=0.
 dep=0.
@@ -501,7 +501,7 @@ dd(1:ifull)=dzbar(:,wlev)
 call bounds(dd)
 
 if (usetide.eq.1) then
-  ! estimate tides (need to fix base date !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! )
+  ! estimate tides
   jyear=kdate/10000
   jstart=0
   if (jyear.gt.1900) then
@@ -510,25 +510,26 @@ if (usetide.eq.1) then
       if (lleap) jstart=jstart+1
       jstart=jstart+365
     end do
-  else
-    do tyear=1900,jyear,-1
+  else if (jyear.lt.1900) then
+    do tyear=1899,jyear,-1
       call mloleap(tyear,lleap)
       if (lleap) jstart=jstart-1
-      jstart=jstart-1440
+      jstart=jstart-365
     end do
   end if
-  mstart=mstart+720 ! base time is 12Z 31 Dec 1899
+  mstart=720 ! base time is 12Z 31 Dec 1899
   jmonth=(kdate-jyear*10000)/100
   jday=kdate-jyear*10000-jmonth*100
   jhour=ktime/100
   jmin=ktime-jhour*100
-  mstart=mstart+1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of year
+  mstart=mstart+1440*(ndoy(jmonth)+jday-1)+60*jhour+jmin ! mins from start of year
   if (jmonth.gt.2) then
     call mloleap(jyear,lleap)
     if (lleap) mstart=mstart+1440
   end if
   mins = mtimer + mstart
   call mlotide(ntide(1:ifull),rlongg,rlatt,mins,jstart)
+  ntide(1:ifull)=ntide(1:ifull)*ee(1:ifull)
   call bounds(ntide,nrows=2)
   
   tnu=stwgt(:,1,1)*ntide(1:ifull)+stwgt(:,1,2)*ntide(in)+stwgt(:,1,3)*ntide(ine)+stwgt(:,1,4)*ntide(ie)
@@ -610,12 +611,6 @@ do l=1,lmax ! predictor-corrector loop
   rhobar(1:ifull,:)=rhobar(1:ifull,:)/dzbar
   call bounds(rhobar,nrows=2)
   if (l.eq.1) rhobarsav=rhobar(1:ifull,wlev)
-  drhobardz(1:ifull,1)=(rhobar(1:ifull,2)-rhobar(1:ifull,1))/max(dum(1:ifull,2)-dum(1:ifull,1),1.E-3)
-  do ii=2,wlev-1
-    drhobardz(1:ifull,ii)=(rhobar(1:ifull,ii+1)-rhobar(1:ifull,ii-1))/max(dum(1:ifull,ii+1)-dum(1:ifull,ii-1),1.E-3)
-  end do
-  drhobardz(1:ifull,wlev)=(rhobar(1:ifull,wlev)-rhobar(1:ifull,wlev-1))/max(dum(1:ifull,wlev)-dum(1:ifull,wlev-1),1.E-3)
-  call bounds(drhobardz)
 
   ! ADVECT WATER ----------------------------------------------------
   ! Water currents are advected using sem-Lagrangian advection
@@ -683,7 +678,7 @@ do l=1,lmax ! predictor-corrector loop
   ns=max(ns,0.)
   
     
-  ! PREP WATER CURRENT AND ICE VELOCITY ARRAYS ----------------------
+  ! PREP WATER ARRAYS -----------------------------------------------
 
   ! stagger the following values for t=tstar
   ! This is the same as eps=1. in JLM's atmosphere semi-Lagrangian dynamics
@@ -695,6 +690,10 @@ do l=1,lmax ! predictor-corrector loop
   uau(:,1)=i_u+dt*f(1:ifull)*i_v
   uav(:,1)=i_v-dt*f(1:ifull)*i_u
   call mlostaguv(uau(:,1:1),uav(:,1:1),siu,siv)
+
+  ! interpolate density gradient to horizontal surfaces
+  ! (note that dep should be -eta+dep*(1+eta/maxdep), so we assume eta is small compared to dep)
+  call stagtruedelta(rhobar,dep,wtr,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
   
   sou=0.
   spu=0.
@@ -724,34 +723,13 @@ do l=1,lmax ! predictor-corrector loop
     bv=-dt/(rhov*(1.+dt*dt*fv(1:ifull)*fv(1:ifull)))
     cv=-dt*fv(1:ifull)*bv
 
-    dumc(1:ifull)=dep(1:ifull,ii)*max(1.+neta(1:ifull)/dd(1:ifull),0.01)-neta(1:ifull)
-    call bounds(dumc,nrows=2)
-    tnu=stwgt(:,1,1)*dumc(1:ifull)+stwgt(:,1,2)*dumc(in)+stwgt(:,1,3)*dumc(ine)+stwgt(:,1,4)*dumc(ie)
-    tsu=stwgt(:,2,1)*dumc(1:ifull)+stwgt(:,2,2)*dumc(is)+stwgt(:,2,3)*dumc(ise)+stwgt(:,2,4)*dumc(ie)
-    tev=stwgt(:,3,1)*dumc(1:ifull)+stwgt(:,3,2)*dumc(ie)+stwgt(:,3,3)*dumc(ien)+stwgt(:,3,4)*dumc(in)
-    twv=stwgt(:,4,1)*dumc(1:ifull)+stwgt(:,4,2)*dumc(iw)+stwgt(:,4,3)*dumc(iwn)+stwgt(:,4,4)*dumc(in)
-    dzdxa=(dumc(ie)-dumc(1:ifull))*emu(1:ifull)/ds
-    dzdya=0.5*(tnu-tsu)*emu(1:ifull)/ds
-    dzdxb=0.5*(tev-twv)*emv(1:ifull)/ds
-    dzdyb=(dumc(in)-dumc(1:ifull))*emv(1:ifull)/ds
-
-    tnu=stwgt(:,1,1)*rhobar(1:ifull,ii)+stwgt(:,1,2)*rhobar(in,ii)+stwgt(:,1,3)*rhobar(ine,ii)+stwgt(:,1,4)*rhobar(ie,ii)
-    tsu=stwgt(:,2,1)*rhobar(1:ifull,ii)+stwgt(:,2,2)*rhobar(is,ii)+stwgt(:,2,3)*rhobar(ise,ii)+stwgt(:,2,4)*rhobar(ie,ii)
-    tev=stwgt(:,3,1)*rhobar(1:ifull,ii)+stwgt(:,3,2)*rhobar(ie,ii)+stwgt(:,3,3)*rhobar(ien,ii)+stwgt(:,3,4)*rhobar(in,ii)
-    twv=stwgt(:,4,1)*rhobar(1:ifull,ii)+stwgt(:,4,2)*rhobar(iw,ii)+stwgt(:,4,3)*rhobar(iwn,ii)+stwgt(:,4,4)*rhobar(in,ii)
- 
-    drhobardxu=(rhobar(ie,ii)-rhobar(1:ifull,ii))*emu(1:ifull)/ds-dzdxa*0.5*(drhobardz(ie,ii)+drhobardz(1:ifull,ii))
-    drhobardyu=0.5*(tnu-tsu)*emu(1:ifull)/ds                     -dzdya*0.5*(drhobardz(ie,ii)+drhobardz(1:ifull,ii))
-    drhobardxv=0.5*(tev-twv)*emv(1:ifull)/ds                     -dzdxb*0.5*(drhobardz(in,ii)+drhobardz(1:ifull,ii))
-    drhobardyv=(rhobar(in,ii)-rhobar(1:ifull,ii))*emv(1:ifull)/ds-dzdyb*0.5*(drhobardz(in,ii)+drhobardz(1:ifull,ii))
-
     !nu=au+bu*dppdxu+cu*dppdyu
     !nv=av+bv*dppdyv+cv*dppdxv
 
-    !dppdxu=dpsdxu+grav*depu*(1+etau/ddu)*drhobardxu+(grav*rhobaru+(1-sal)*grav)*detadxu+grav*dttdxu
-    !dppdyu=dpsdyu+grav*depu*(1+etau/ddu)*drhobardyu+(grav*rhobaru+(1-sal)*grav)*detadyu+grav*dttdyu
-    !dppdxv=dpsdxv+grav*depv*(1+etav/ddv)*drhobardxv+(grav*rhobarv+(1-sal)*grav)*detadxv+grav*dttdxv
-    !dppdyv=dpsdyv+grav*depv*(1+etav/ddv)*drhobardyv+(grav*rhobarv+(1-sal)*grav)*detadyv+grav*dttdyv
+    !dppdxu=dpsdxu+grav*depu*(1+etau/ddu)*drhobardxu+grav*(rhobaru+(1-sal))*detadxu+grav*dttdxu
+    !dppdyu=dpsdyu+grav*depu*(1+etau/ddu)*drhobardyu+grav*(rhobaru+(1-sal))*detadyu+grav*dttdyu
+    !dppdxv=dpsdxv+grav*depv*(1+etav/ddv)*drhobardxv+grav*(rhobarv+(1-sal))*detadxv+grav*dttdxv
+    !dppdyv=dpsdyv+grav*depv*(1+etav/ddv)*drhobardyv+grav*(rhobarv+(1-sal))*detadyv+grav*dttdyv
     
     !nu=kku+llu*(1+etau/ddu)+mmu*detadxu+nnu*detadyu
     !nv=kkv+llv*(1+etav/ddv)+mmv*detadyv+nnv*detadxv
@@ -761,22 +739,22 @@ do l=1,lmax ! predictor-corrector loop
 
     if (usetide.eq.1) then
       kku(:,ii)=au+bu*(dpsdxu+grav*rhou*dttdxu)+cu*(dpsdyu+grav*rhou*dttdyu)
-      llu(:,ii)=(bu*grav*drhobardxu+cu*grav*drhobardyu)*0.5*(dep(1:ifull,ii)+dep(ie,ii))
+      llu(:,ii)=(bu*grav*drhobardxu(:,ii)+cu*grav*drhobardyu(:,ii))*0.5*(dep(1:ifull,ii)+dep(ie,ii))
       mmu(:,ii)=bu*grav*(rhobaru+rhou*(1.-sal))
       nnu(:,ii)=cu*grav*(rhobaru+rhou*(1.-sal))
 
       kkv(:,ii)=av+bv*(dpsdyv+grav*rhov*dttdyv)+cv*(dpsdxv+grav*rhov*dttdxv)
-      llv(:,ii)=(bv*grav*drhobardyv+cv*grav*drhobardxv)*0.5*(dep(1:ifull,ii)+dep(in,ii))
+      llv(:,ii)=(bv*grav*drhobardyv(:,ii)+cv*grav*drhobardxv(:,ii))*0.5*(dep(1:ifull,ii)+dep(in,ii))
       mmv(:,ii)=bv*grav*(rhobarv+rhov*(1.-sal))
       nnv(:,ii)=cv*grav*(rhobarv+rhov*(1.-sal))
     else
       kku(:,ii)=au+bu*dpsdxu+cu*dpsdyu
-      llu(:,ii)=(bu*grav*drhobardxu+cu*grav*drhobardyu)*0.5*(dep(1:ifull,ii)+dep(ie,ii))
+      llu(:,ii)=(bu*grav*drhobardxu(:,ii)+cu*grav*drhobardyu(:,ii))*0.5*(dep(1:ifull,ii)+dep(ie,ii))
       mmu(:,ii)=bu*grav*rhobaru
       nnu(:,ii)=cu*grav*rhobaru
 
       kkv(:,ii)=av+bv*dpsdyv+cv*dpsdxv
-      llv(:,ii)=(bv*grav*drhobardyv+cv*grav*drhobardxv)*0.5*(dep(1:ifull,ii)+dep(in,ii))
+      llv(:,ii)=(bv*grav*drhobardyv(:,ii)+cv*grav*drhobardxv(:,ii))*0.5*(dep(1:ifull,ii)+dep(in,ii))
       mmv(:,ii)=bv*grav*rhobarv
       nnv(:,ii)=cv*grav*rhobarv
     end if
@@ -898,7 +876,7 @@ do l=1,lmax ! predictor-corrector loop
   niv(1:ifull)=niv(1:ifull)*ee(1:ifull)*ee(in)
   call boundsuv(niu,niv)
   
-  imass(1:ifull)=max(imass(1:ifull),1.)
+  imass(1:ifull)=max(imass(1:ifull),10.)
   if (icemode.gt.0) then
     call bounds(imass)
     iia=imass(1:ifull)*(niu(1:ifull)-niu(iwu)+niv(1:ifull)-niv(isv))*0.5*em(1:ifull)/ds
@@ -2253,309 +2231,125 @@ return
 end subroutine mlotvd
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! This subroutine calculates horizontal gradients for z-sigma
-! coordinates
+! This subroutine interpolates to a common horizontal surface
 
-!subroutine truedelta(s,dep,wtr,dsdx,dsdy,d2sdx2,d2sdy2)
-!
-!use map_m
-!use mlo
-!use indices_m
-!
-!implicit none
-!
-!include 'newmpar.h'
-!include 'parm.h'
-!
-!integer iq,ii,iqn,iqe,iqs,iqw
-!integer idn,ide,ids,idw
-!real sx,sn,se,ss,sw,ddx
-!real, dimension(wlev) :: ddn,dde,dds,ddw
-!real, dimension(ifull+iextra,wlev), intent(in) :: s,dep
-!real, dimension(ifull,wlev), intent(out) :: dsdx,dsdy,d2sdx2,d2sdy2
-!logical, dimension(ifull+iextra), intent(in) :: wtr
-!
-!dsdx=0.
-!dsdy=0.
-!d2sdx2=0.
-!d2sdy2=0.
-!
-!do iq=1,ifull
-!  if (wtr(iq)) then
-!    iqn=in(iq)
-!    iqe=ie(iq)
-!    iqs=is(iq)
-!    iqw=iw(iq)
-!  
-!    idn=1
-!    ide=1
-!    ids=1
-!    idw=1
-!    
-!    ! now search for other levels
-!    do ii=1,wlev
-!      sx=s(iq,ii)
-!      ddx=dep(iq,ii)
-!      ddn=dep(iqn,:)
-!      dde=dep(iqe,:)
-!      dds=dep(iqs,:)
-!      ddw=dep(iqw,:)
-!    
-!      call searchdelta(s(iqn,:),ddn,wtr(iqn),ddx,sx,idn,sn)
-!      call searchdelta(s(iqe,:),dde,wtr(iqe),ddx,sx,ide,se)
-!      call searchdelta(s(iqs,:),dds,wtr(iqs),ddx,sx,ids,ss)
-!      call searchdelta(s(iqw,:),ddw,wtr(iqw),ddx,sx,idw,sw)
-!    
-!      dsdx(iq,ii)=0.5*(se-sw)*em(iq)/ds
-!      d2sdx2(iq,ii)=(se-2.*sx+sw)*em(iq)*em(iq)/(ds*ds)
-!      dsdy(iq,ii)=(sn-ss)*em(iq)*em(iq)/(ds*ds)
-!      d2sdy2(iq,ii)=(sn-2.*sx+ss)*em(iq)*em(iq)/(ds*ds)
-!    end do
-!  end if
-!end do
-!
-!return
-!end subroutine truedelta
-!
-!subroutine stagtruedeltau(au,bu,cu,dep,wtr,daudx,dbudx,dcudx)
-!
-!use map_m
-!use mlo
-!use indices_m
-!
-!implicit none
-!
-!include 'newmpar.h'
-!include 'parm.h'
-!
-!integer iq,iqe,iqw,iqwu,ide,idw,ii
-!real sxau,sxbu,sxcu,ddx,seau,sebu,secu,swau,swbu,swcu
-!real, dimension(wlev) :: dde,ddw
-!real, dimension(ifull+iextra,wlev), intent(in) :: au,bu,cu,dep
-!real, dimension(ifull,wlev), intent(out) :: daudx,dbudx,dcudx
-!logical, dimension(ifull+iextra), intent(in) :: wtr
-!
-!daudx=0.
-!dbudx=0.
-!dcudx=0.
-!
-!do iq=1,ifull
-!  if (wtr(iq)) then
-!    iqe=ie(iq)
-!    iqw=iw(iq)
-!    iqwu=iwu(iq)
-!
-!    ide=1  
-!    idw=1
-!    ! now search for other levels
-!    do ii=1,wlev
-!      sxau=au(iq,ii)
-!      sxbu=bu(iq,ii)
-!      sxcu=cu(iq,ii)
-!      
-!      ddx=dep(iq,ii)
-!      dde=0.5*(dep(iqe,:)+ddx)
-!      ddw=0.5*(dep(iqw,:)+ddx)
-!    
-!      call searchdelta(au(iq,:),dde,wtr(iqe),ddx,0.,ide,seau)
-!      call searchdelta(bu(iq,:),dde,wtr(iqe),ddx,0.,ide,sebu)
-!      call searchdelta(cu(iq,:),dde,wtr(iqe),ddx,0.,ide,secu)
-!      call searchdelta(au(iqwu,:),ddw,wtr(iqw),ddx,0.,idw,swau)
-!      call searchdelta(bu(iqwu,:),ddw,wtr(iqw),ddx,0.,idw,swbu)
-!      call searchdelta(cu(iqwu,:),ddw,wtr(iqw),ddx,0.,idw,swcu)
-!    
-!      daudx(iq,ii)=(seau-swau)*em(iq)/ds
-!      dbudx(iq,ii)=(sebu-swbu)*em(iq)/ds
-!      dcudx(iq,ii)=(secu-swcu)*em(iq)/ds
-!    end do
-!  end if
-!end do
-!
-!return
-!end subroutine stagtruedeltau
-!
-!subroutine stagtruedeltav(av,bv,cv,dep,wtr,davdy,dbvdy,dcvdy)
-!
-!use map_m
-!use mlo
-!use indices_m
-!
-!implicit none
-!
-!include 'newmpar.h'
-!include 'parm.h'
-!
-!integer iq,iqn,iqs,iqsv,idn,ids,ii
-!real sxav,sxbv,sxcv,ddx,snav,snbv,sncv,ssav,ssbv,sscv
-!real, dimension(wlev) :: ddn,dds
-!real, dimension(ifull+iextra,wlev), intent(in) :: av,bv,cv,dep
-!real, dimension(ifull,wlev), intent(out) :: davdy,dbvdy,dcvdy
-!logical, dimension(ifull+iextra), intent(in) :: wtr
-!
-!davdy=0.
-!dbvdy=0.
-!dcvdy=0.
-!
-!do iq=1,ifull
-!  if (wtr(iq)) then
-!    iqn=in(iq)
-!    iqs=is(iq)
-!    iqsv=isv(iq)
-!
-!    idn=1  
-!    ids=1
-!    ! now search for other levels
-!    do ii=1,wlev
-!      sxav=av(iq,ii)
-!      sxbv=bv(iq,ii)
-!      sxcv=cv(iq,ii)
-!      
-!      ddx=dep(iq,ii)
-!      ddn=0.5*(dep(iqn,:)+ddx)
-!      dds=0.5*(dep(iqs,:)+ddx)
-!    
-!      call searchdelta(av(iq,:),ddn,wtr(iqn),ddx,0.,idn,snav)
-!      call searchdelta(bv(iq,:),ddn,wtr(iqn),ddx,0.,idn,snbv)
-!      call searchdelta(cv(iq,:),ddn,wtr(iqn),ddx,0.,idn,sncv)
-!      call searchdelta(av(iqsv,:),dds,wtr(iqs),ddx,0.,ids,ssav)
-!      call searchdelta(bv(iqsv,:),dds,wtr(iqs),ddx,0.,ids,ssbv)
-!      call searchdelta(cv(iqsv,:),dds,wtr(iqs),ddx,0.,ids,sscv)
-!    
-!      davdy(iq,ii)=(snav-ssav)*em(iq)/ds
-!      dbvdy(iq,ii)=(snbv-ssbv)*em(iq)/ds
-!      dcvdy(iq,ii)=(sncv-sscv)*em(iq)/ds
-!    end do
-!  end if
-!end do
-!
-!return
-!end subroutine stagtruedeltav
-!
-!subroutine stagtruedelta(s,dep,wtr,dsdxu,dsdyu,dsdxv,dsdyv)
-!
-!use map_m
-!use mlo
-!use indices_m
-!
-!implicit none
-!
-!include 'newmpar.h'
-!include 'parm.h'
-!
-!integer iq,ii
-!integer idn,ide,ids,idw,idne,idse,iden,idwn
-!real sx,sn,se,ss,sw,sne,sse,sen,swn,ddx
-!real, dimension(wlev) :: ddn,dde,dds,ddw,ddne,ddse,dden,ddwn
-!real, dimension(ifull+iextra,wlev), intent(in) :: s,dep
-!real, dimension(ifull,wlev), intent(out) :: dsdxu,dsdyu,dsdxv,dsdyv
-!logical, dimension(ifull+iextra), intent(in) :: wtr
-!
-!dsdxu=0.
-!dsdyu=0.
-!dsdxv=0.
-!dsdyv=0.
-!
-!do iq=1,ifull
-!  if (wtr(iq)) then
-!
-!    idn=1
-!    ide=1
-!    ids=1
-!    idw=1
-!    idne=1
-!    idse=1
-!    iden=1
-!    idwn=1
-!
-!    ! now search for other levels
-!    do ii=1,wlev
-!      sx=s(iq,ii)
-!      ddx=dep(iq,ii)
-!      ddn=dep(in(iq),:)
-!      ddne=dep(ine(iq),:)
-!      dds=dep(is(iq),:)
-!      ddse=dep(ise(iq),:)
-!      dde=dep(ie(iq),:)
-!      dden=dep(ien(iq),:)
-!      ddw=dep(iw(iq),:)
-!      ddwn=dep(iwn(iq),:)
-!
-!    
-!      call searchdelta(s(in(iq),:),ddn,wtr(in(iq)),ddx,sx,idn,sn)
-!      call searchdelta(s(ine(iq),:),ddne,wtr(ine(iq)),ddx,sn,idne,sne)
-!      call searchdelta(s(is(iq),:),dds,wtr(is(iq)),ddx,sx,ids,ss)
-!      call searchdelta(s(ise(iq),:),ddse,wtr(ise(iq)),ddx,ss,idse,sse)
-!      call searchdelta(s(ie(iq),:),dde,wtr(ie(iq)),ddx,sx,ide,se)
-!      call searchdelta(s(ien(iq),:),dden,wtr(ien(iq)),ddx,se,iden,sen)
-!      call searchdelta(s(iw(iq),:),ddw,wtr(iw(iq)),ddx,sx,idw,sw)
-!      call searchdelta(s(iwn(iq),:),ddwn,wtr(iwn(iq)),ddx,sw,idwn,swn)
-!    
-!      call fourpoint(sx,sn,sne,sen,se,sse,ss,sw,swn,emu(iq),emv(iq),ds,dsdxu(iq,ii),dsdxv(iq,ii),dsdyu(iq,ii),dsdyv(iq,ii))
-!    end do
-!  end if
-!end do
-!
-!return
-!end subroutine stagtruedelta
-!
-!subroutine fourpoint(sx,sn,sne,sen,se,sse,ss,sw,swn,emu,emv,ds,dsdxu,dsdxv,dsdyu,dsdyv)
-!
-!implicit none
-!
-!real, intent(in) :: sx,sn,sne,sen,se,sse,ss,sw,swn,emu,emv,ds
-!real, intent(out) :: dsdxu,dsdyu,dsdxv,dsdyv
-!real tnu,tsu,tev,twv
-!
-!tnu=0.5*(sn+sne) 
-!tsu=0.5*(ss+sse) 
-!tev=0.5*(se+sen) 
-!twv=0.5*(sw+swn) 
-! 
-!dsdxu=(se-sx)*emu/ds
-!dsdyu=0.5*(tnu-tsu)*emu/ds
-!dsdxv=0.5*(tev-twv)*emv/ds
-!dsdyv=(sn-sx)*emv/ds
-!
-!return
-!end subroutine fourpoint
-!
-!subroutine searchdelta(s,dep,wtr,dd,sx,id,ss)
-!
-!use mlo
-!
-!implicit none
-!
-!integer, intent(inout) :: id
-!integer jj,fnd
-!real, dimension(wlev), intent(in) :: s,dep
-!real, intent(in) :: dd,sx
-!real, intent(out) :: ss
-!real xp
-!logical, intent(in) :: wtr
-!
-!ss=sx
-!
-!if (.not.wtr) return
-!
-!if (dep(id).gt.dd+0.01) return
-!
-!fnd=-999
-!do jj=id,wlev-1
-!  if (dep(jj+1).gt.dd+0.01) then
-!    fnd=jj
-!    exit
-!  end if
-!end do
-!if (fnd.lt.1) return
-!
-!! located a valid level to interpolate
-!id=fnd
-!xp=(dd-dep(id))/(dep(id+1)-dep(id))
-!xp=max(min(xp,1.),0.)
-!ss=(1.-xp)*s(id)+xp*s(id+1)
-!
-!return
-!end subroutine
+subroutine stagtruedelta(s,dep,wtr,dsdxu,dsdyu,dsdxv,dsdyv)
+
+use map_m
+use mlo
+use indices_m
+
+implicit none
+
+include 'newmpar.h'
+include 'parm.h'
+
+integer iq,ii
+integer idn,ide,ids,idw,idne,idse,iden,idwn
+real sx,sn,se,ss,sw,sne,sse,sen,swn,ddx
+real tnu,tsu,tev,twv
+real, dimension(wlev) :: ddn,dde,dds,ddw,ddne,ddse,dden,ddwn
+real, dimension(wlev) :: isin,isie,isis,isiw,isine,isise,isien,isiwn
+real, dimension(ifull+iextra,wlev), intent(in) :: s,dep
+real, dimension(ifull,wlev), intent(out) :: dsdxu,dsdyu,dsdxv,dsdyv
+logical, dimension(ifull+iextra), intent(in) :: wtr
+
+dsdxu=0.
+dsdyu=0.
+dsdxv=0.
+dsdyv=0.
+
+do iq=1,ifull
+  if (wtr(iq)) then
+
+    idn=1
+    ide=1
+    ids=1
+    idw=1
+    idne=1
+    idse=1
+    iden=1
+    idwn=1
+
+    ddn=dep(in(iq),:)
+    isin=s(in(iq),:)
+    ddne=dep(ine(iq),:)
+    isine=s(ine(iq),:)
+    dds=dep(is(iq),:)
+    isis=s(is(iq),:)
+    ddse=dep(ise(iq),:)
+    isise=s(ise(iq),:)
+    dde=dep(ie(iq),:)
+    isie=s(ie(iq),:)
+    dden=dep(ien(iq),:)
+    isien=s(ien(iq),:)
+    ddw=dep(iw(iq),:)
+    isiw=s(iw(iq),:)
+    ddwn=dep(iwn(iq),:)
+    isiwn=s(iwn(iq),:)
+    
+    ! now search for other levels
+    do ii=1,wlev
+      sx=s(iq,ii)
+      ddx=dep(iq,ii)
+    
+      call searchdelta(isin,ddn,wtr(in(iq)),ddx,sx,idn,sn)
+      call searchdelta(isine,ddne,wtr(ine(iq)),ddx,sn,idne,sne)
+      call searchdelta(isis,dds,wtr(is(iq)),ddx,sx,ids,ss)
+      call searchdelta(isise,ddse,wtr(ise(iq)),ddx,ss,idse,sse)
+      call searchdelta(isie,dde,wtr(ie(iq)),ddx,sx,ide,se)
+      call searchdelta(isien,dden,wtr(ien(iq)),ddx,se,iden,sen)
+      call searchdelta(isiw,ddw,wtr(iw(iq)),ddx,sx,idw,sw)
+      call searchdelta(isiwn,ddwn,wtr(iwn(iq)),ddx,sw,idwn,swn)
+    
+      tnu=0.5*(sn+sne)
+      tsu=0.5*(ss+sse) 
+      tev=0.5*(se+sen) 
+      twv=0.5*(sw+swn) 
+      dsdxu(iq,ii)=(se-sx)*emu(iq)/ds
+      dsdyu(iq,ii)=0.5*(tnu-tsu)*emu(iq)/ds
+      dsdxv(iq,ii)=0.5*(tev-twv)*emv(iq)/ds
+      dsdyv(iq,ii)=(sn-sx)*emv(iq)/ds
+    end do
+  end if
+end do
+
+return
+end subroutine stagtruedelta
+
+subroutine searchdelta(s,dep,wtr,dd,sx,id,ss)
+
+use mlo
+
+implicit none
+
+integer, intent(inout) :: id
+integer jj,fnd
+real, dimension(wlev), intent(in) :: s,dep
+real, intent(in) :: dd,sx
+real, intent(out) :: ss
+real xp
+logical, intent(in) :: wtr
+
+ss=sx
+if (.not.wtr) return
+
+fnd=wlev-1
+do jj=id,wlev-2
+  if (dep(jj+1).gt.dd-0.01) then
+    fnd=jj
+    exit
+  end if
+end do
+
+! located a valid level to interpolate
+id=fnd
+xp=(dd-dep(id))/(dep(id+1)-dep(id))
+xp=max(min(xp,1.),0.)
+ss=(1.-xp)*s(id)+xp*s(id+1)
+
+return
+end subroutine
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tide
@@ -2570,19 +2364,21 @@ integer i
 integer, intent(in) :: mtimer,jstart
 real, dimension(ifull), intent(out) :: eta
 real, dimension(ifull), intent(in) :: slon,slat
-real :: ttime,stime,ctime,ftime,mn,sn
+real :: ltime,stime,ctime,mn,sn,pn
 real, dimension(ifull) :: sinlon,coslon,sinlat,coslat
-real, dimension(4) :: aa,ab,ba,bb,wa,wb
+real, dimension(4) :: aa,ab,ba,bb
 real, parameter :: pi = 3.1415927
 
-aa(1)=0.141565
-aa(2)=0.100661
-aa(3)=0.046848
-aa(4)=0.019273
-ab(1)=0.242334
-ab(2)=0.112743
-ab(3)=0.046397
-ab(4)=0.030684
+! amplitude
+aa(1)=0.141565 ! K1
+aa(2)=0.100661 ! O1
+aa(3)=0.046848 ! P1
+aa(4)=0.019273 ! Q1
+ab(1)=0.242334 ! M2
+ab(2)=0.112743 ! S2
+ab(3)=0.046397 ! N2
+ab(4)=0.030684 ! K2
+! Love number
 ba(1)=0.736
 ba(2)=0.695
 ba(3)=0.706
@@ -2591,35 +2387,50 @@ bb(1)=0.693
 bb(2)=0.693
 bb(3)=0.693
 bb(4)=0.693
-wa(1)=0.7292117
-wa(2)=0.6750774
-wa(3)=0.7252295
-wa(4)=0.6495854
-wb(1)=1.405189
-wb(2)=1.454441
-wb(3)=1.378797
-wb(4)=1.458423
+! Frequency
+!wa(1)=0.7292117
+!wa(2)=0.6750774
+!wa(3)=0.7252295
+!wa(4)=0.6495854
+!wb(1)=1.405189
+!wb(2)=1.454441 ! exactly twice per day solar day for S2
+!wb(3)=1.378797
+!wb(4)=1.458423
 
-ttime=real(mtimer)/1440.+real(jstart)
-ctime=ttime/36525.
-ftime=ttime-real(int(ttime))
+stime=real(mtimer)/1440.+real(jstart) ! solar time
+ctime=stime/36525. ! century
 
-mn=270.43659+481276.89057*ctime+0.00198*ctime*ctime
+! relative to 12Z 31 Dec 1899
+mn=270.43659+481276.89057*ctime+0.00198*ctime*ctime+0.000002*ctime*ctime*ctime ! moon
+sn=279.69668+36000.76892*ctime+0.00030*ctime*ctime                             ! sun
+pn=334.32956+4069.03404*ctime-0.01032*ctime*ctime-0.00001*ctime*ctime*ctime    ! lunar perigee
 mn=mn*pi/180.
-sn=279.69668+36000.76892*ctime+0.00030*ctime*ctime
 sn=sn*pi/180.
+pn=pn*pi/180.
+stime=(stime-real(int(stime)))*2.*pi
+ltime=stime+sn-mn
+! 360*stime=360*ltime-9.3+12.2*day
 
-stime=2.*pi*(ftime-0.5)+sn-mn
-sinlon=sin(2.*slon)
-coslon=cos(2.*slon)
 coslat=cos(slat)**2
 sinlat=sin(2.*slat)
 
 eta=0.
-do i=1,4
-  eta=eta-ba(i)*aa(i)*coslat*(cos(wa(i)*stime)*coslon-sin(wa(i)*stime)*sinlon)
-  eta=eta-bb(i)*ab(i)*sinlat*(cos(wb(i)*stime)*coslon-sin(wb(i)*stime)*sinlon)
-end do
+eta=eta+ab(1)*aa(1)*sinlat*cos(ltime+mn-slon)             ! K1 (note sign change)
+eta=eta-ab(2)*aa(2)*sinlat*cos(ltime-mn-slon)             ! O1
+eta=eta-ab(3)*aa(3)*sinlat*cos(stime-sn-slon)             ! P1
+eta=eta-ab(4)*aa(4)*sinlat*cos(ltime+pn-slon)             ! Q1
+eta=eta-bb(1)*ab(1)*coslat*cos(2.*ltime-2.*slon)          ! M2
+eta=eta-bb(2)*ab(2)*coslat*cos(2.*stime-2.*slon)          ! S2
+eta=eta-bb(3)*ab(3)*coslat*cos(2.*ltime-mn+pn-2.*slon)    ! N2
+eta=eta-bb(4)*ab(4)*coslat*cos(2.*stime+2.*sn-2.*slon)    ! K2
+
+!sinlon=sin(2.*slon)
+!coslon=cos(2.*slon)
+!eta=0.
+!do i=1,4
+!  eta=eta-ba(i)*aa(i)*coslat*(cos(wa(i)*stime)*coslon-sin(wa(i)*stime)*sinlon)
+!  eta=eta-bb(i)*ab(i)*sinlat*(cos(wb(i)*stime)*coslon-sin(wb(i)*stime)*sinlon)
+!end do
 
 return
 end subroutine mlotide
@@ -2711,5 +2522,55 @@ if (mod(tyear,400).eq.0) ttest=.true.
 
 return
 end subroutine mloleap
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine adjusts salinity to maintain a specified average
+
+subroutine mlosalfix
+
+use map_m
+use mlo
+use soil_m
+
+implicit none
+
+include 'mpif.h'
+include 'newmpar.h'
+include 'parm.h'
+
+integer iq,ii,ierr
+real salsuml,salsumg,voll,volg,adj
+real, dimension(ifull,wlev) :: sal,dz
+
+if (salfix.eq.0) return
+if (nud_sss.ne.0) return
+
+do ii=1,wlev
+  call mloexpdep(1,dz(:,ii),ii,0)
+  call mloexport(1,sal(:,ii),ii,0)
+end do
+dz=max(dz,1.E-3/real(wlev))
+
+voll=0.
+salsuml=0.
+do iq=1,ifull
+  if (.not.land(iq)) then
+    voll=voll+sum(dz(iq,:))/(em(iq)*em(iq))
+    salsuml=salsuml+sum(sal(iq,:)*dz(iq,:))/(em(iq)*em(iq))
+  end if
+end do
+
+call MPI_AllReduce(voll,volg,1,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_AllReduce(salsuml,salsumg,1,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+adj=35.-salsumg/volg
+
+do ii=1,wlev
+  sal(:,ii)=max(sal(:,ii)+adj,0.)
+  call mloimport(1,sal(:,ii),ii,0)
+end do
+
+return
+end subroutine
 
 end module mlodynamics

@@ -64,8 +64,10 @@ integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=No
 integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
 integer, parameter :: deprelax  = 1 ! surface height (0=vary, 1=relax, 2=set to zero)
 ! max depth
-real, parameter :: mxd    = 941.0   ! Max depth (m)
-real, parameter :: mindep = 0.5     ! Thickness of first layer (m)
+!real, parameter :: mxd    = 941.0   ! Max depth (m)
+real, parameter :: mxd    = 5004.84   ! Max depth (m)
+!real, parameter :: mindep = 0.5     ! Thickness of first layer (m)
+real, parameter :: mindep = 1.0     ! Thickness of first layer (m)
 real, parameter :: minwater = 1.    ! Minimum water height above bottom (m)
 ! model parameters
 real, parameter :: ric     = 0.3    ! Critical Ri for diagnosing mixed layer depth
@@ -214,8 +216,16 @@ p_u10=0.
 p_mixind=wlev-1
 
 ! MLO
-!depth = (/  0.25,   1.1,   3.0,   6.7,  12.8,  22.0,  35.1,  52.8,  76.7, 104.5 &
+!depth = (/  0.25,   1.1,   3.0,   6.7,  12.8,  22.0,  35.1,  52.8,  76.7, 104.5, &
 !           140.0, 182.9, 233.8, 293.4, 362.5, 441.8, 531.9, 633.5, 747.4, 874.3 /)
+! MLO
+!depth = (/   0.5,   3.4,  11.9,  29.7,  60.7, 108.6, 177.0, 269.9, 390.8, 543.6, &
+!           732.0, 959.7,1230.6,1548.3,1916.6,2339.3,2820.0,3362.6,3970.8,4648.3 /)
+! MLO
+!depth = (/   0.5,   1.7,   3.7,   6.8,  11.5,  18.3,  27.7,  40.1,  56.0,  75.9, &
+!           100.2, 129.4, 164.0, 204.3, 251.0, 304.4, 365.1, 433.4, 509.9, 595.0, &
+!           689.2, 793.0, 906.7,1031.0,1166.2,1312.8,1471.3,1642.2,1825.9,2022.8, &
+!          2233.5,2458.4,2698.0,2952.8,3233.1,3509.5,3812.5,4132.4,4469.9,4825.3 /)
 ! Mk3.5
 !depth = (/   5.0,  15.0,  28.2,  42.0,  59.7,  78.5, 102.1, 127.9, 159.5, 194.6, &
 !           237.0, 284.7, 341.7, 406.4, 483.2, 570.9, 674.9, 793.8, 934.1 /)
@@ -238,6 +248,8 @@ do iqw=1,wfull
   !  smnd=smnd-10.
   !end if
 end do
+depth_hl(:,wlev+1)=deptmp
+depth(:,wlev)=0.5*(depth_hl(:,wlev)+depth_hl(:,wlev+1))
 do ii=1,wlev
   dz(:,ii)=depth_hl(:,ii+1)-depth_hl(:,ii)
 end do
@@ -305,8 +317,8 @@ deallocate(p_watervisdiralb,p_watervisdifalb)
 deallocate(p_waternirdiralb,p_waternirdifalb)
 deallocate(p_icevisdiralb,p_icevisdifalb)
 deallocate(p_icenirdiralb,p_icenirdifalb)
-deallocate(p_zo,p_zoh,p_cd,p_fg,p_eg)
-deallocate(p_zoice,p_zohice,p_cdice,p_fgice,p_egice)
+deallocate(p_zo,p_zoh,p_zoq,p_cd,p_fg,p_eg)
+deallocate(p_zoice,p_zohice,p_zoqice,p_cdice,p_fgice,p_egice)
 deallocate(p_wetfacice,p_mixind)
 deallocate(p_tscrn,p_uscrn,p_qgscrn,p_u10)
 deallocate(depth,dz,depth_hl,dz_hl)
@@ -583,7 +595,8 @@ if (ie.lt.ib) return
 
 costmp(ib:ie)=pack(coszro,wpack(istart:ifinish))
 
-pond(ib:ie)=max(1.+.008*min(i_tsurf-273.16,0.),0.)
+!pond(ib:ie)=max(1.+.008*min(i_tsurf-273.16,0.),0.)
+pond(ib:ie)=0.
 snow(ib:ie)=min(max(i_dsn(ib:ie)/0.05,0.),1.)
 
 watervis(ib:ie)=.05/(costmp(ib:ie)+0.15)
@@ -630,7 +643,8 @@ if (ie.lt.ib) return
 
 costmp(ib:ie)=pack(coszro,wpack(istart:ifinish))
 
-pond(ib:ie)=max(1.+.008*min(i_tsurf-273.16,0.),0.)
+!pond(ib:ie)=max(1.+.008*min(i_tsurf-273.16,0.),0.)
+pond(ib:ie)=0.
 snow(ib:ie)=min(max(i_dsn(ib:ie)/0.05,0.),1.)
 
 where (costmp(ib:ie).gt.0.)
@@ -1352,16 +1366,16 @@ d_nsq(:,1)=2.*d_nsq(:,2)-d_nsq(:,3) ! not used
 visalb=p_watervisdiralb*a_fbvis+p_watervisdifalb*(1.-a_fbvis)
 niralb=p_waternirdiralb*a_fbnir+p_waternirdifalb*(1.-a_fbnir)
 hlrb=0.5*(d_rho(:,1)+d_rho(:,2))
-d_rad(:,1)=-a_sg/cp0*(((1.-visalb)*a_vnratio*exp(-depth_hl(:,2)*d_zcr/mu_1)+ &
+d_rad(:,1)=-a_sg/cp0*(((1.-visalb)*a_vnratio*exp(-depth_hl(:,2)*d_zcr/mu_1)+            &
                        (1.-niralb)*(1.-a_vnratio)*exp(-depth_hl(:,2)*d_zcr/mu_2))/hlrb- &
-                      ((1.-visalb)*a_vnratio*exp(-depth_hl(:,1)*d_zcr/mu_1)+ &
+                      ((1.-visalb)*a_vnratio*exp(-depth_hl(:,1)*d_zcr/mu_1)+            &
                        (1.-niralb)*(1.-a_vnratio)*exp(-depth_hl(:,1)*d_zcr/mu_2))/rho0)
 do ii=2,wlev-1 
   hlra=0.5*(d_rho(:,ii-1)+d_rho(:,ii))
   hlrb=0.5*(d_rho(:,ii)+d_rho(:,ii+1))
-  d_rad(:,ii)=-a_sg/cp0*(((1.-visalb)*a_vnratio*exp(-depth_hl(:,ii+1)*d_zcr/mu_1)+ &
+  d_rad(:,ii)=-a_sg/cp0*(((1.-visalb)*a_vnratio*exp(-depth_hl(:,ii+1)*d_zcr/mu_1)+            &
                           (1.-niralb)*(1.-a_vnratio)*exp(-depth_hl(:,ii+1)*d_zcr/mu_2))/hlrb- &
-                         ((1.-visalb)*a_vnratio*exp(-depth_hl(:,ii)*d_zcr/mu_1)+ &
+                         ((1.-visalb)*a_vnratio*exp(-depth_hl(:,ii)*d_zcr/mu_1)+              &
                           (1.-niralb)*(1.-a_vnratio)*exp(-depth_hl(:,ii)*d_zcr/mu_2))/hlra)
 end do
 hlra=0.5*(d_rho(:,wlev-1)+d_rho(:,wlev))
@@ -2630,7 +2644,7 @@ do iqw=1,wfull
   d_fb(iqw)=min(max(d_fb(iqw),-1000.),1000.)
 
   ! momentum transfer (semi-implicit)
-  x=max(rhoic*i_dic(iqw)+rhosn*i_dsn(iqw),1.)
+  x=max(rhoic*i_dic(iqw)+rhosn*i_dsn(iqw),10.)
   g=(rho(iqw)*p_cdice(iqw)*vmag(iqw)*uu(iqw)+0.00536*icemag*du(iqw))/x
   dgdu=(-rho(iqw)*p_cdice(iqw)*(vmag(iqw)+uu(iqw)*uu(iqw)/vmag(iqw))-0.00536*(icemag+du(iqw)*du(iqw)/icemag))/x
   i_u(iqw)=i_u(iqw)+g/(1./dt-dgdu)

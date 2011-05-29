@@ -503,7 +503,7 @@ c       For time varying surface fields
           call attrib(idnc,idim,2,'ocndepth',lname,'m',0.,32500.,0,
      &                itype)
           lname = 'water surface height'
-          call attrib(idnc,idim,3,'ocheight',lname,'m',-48.,48.,0,
+          call attrib(idnc,idim,3,'ocheight',lname,'m',-65.,65,0,
      &                itype)          
           lname = 'Snow temperature lev 1'
           call attrib(idnc,idim,3,'tggsn1',lname,'K',100.,425.,0,
@@ -1055,7 +1055,6 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          lname = 'Snow flag'
          call attrib(idnc,idim,3,'sflag',lname,'none',0.,4.,0,itype)
         endif  ! (itype==-1)
-
 
         print *,'finished defining attributes'
 c       Leave define mode

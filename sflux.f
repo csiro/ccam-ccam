@@ -521,6 +521,7 @@ c     if(mydiag.and.diag)then
           call end_log(river_end)                                    ! MLO
         end if                                                       ! MLO
         call start_log(watermix_begin)                               ! MLO
+        call mlosalfix
         call mloeval(tss,zo,cduv,fg,eg,wetfac,epot,epan,fracice,     ! MLO
      &               sicedep,snowd,dt,azmin,azmin,sgsave(:)/         ! MLO
      &               (1.-swrsave*albvisnir(:,1)-                     ! MLO

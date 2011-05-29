@@ -111,7 +111,7 @@ real, parameter :: minsnowden=100.        ! min snow density (kg m^-3)
 real, parameter :: refheight=0.6          ! Displacement height as a fraction of building height (Kanda et al 2007)
 real, parameter :: zomratio=0.1           ! Roughness length to building height ratio (default=10%)
 real, parameter :: zocanyon=0.05          ! Roughness length of in-canyon surfaces (m)
-real, parameter :: zoroof=0.05            ! Roughness length of roof surfaces (m)
+real, parameter :: zoroof=0.005           ! Roughness length of roof surfaces (m)
 real, parameter :: maxrfwater=1.          ! Maximum roof water (kg m^-2)
 real, parameter :: maxrdwater=1.          ! Maximum road water (kg m^-2)
 real, parameter :: maxrfsn=1.             ! Maximum roof snow (kg m^-2)
@@ -1083,7 +1083,7 @@ n=ww_temp(:,3)-2.*f_walllambda(:,3)*(ww_temp(:,3)-f_bldtemp)/(f_wallcp(:,3)*f_wa
 gflxwallw=2.*f_walllambda(:,3)*(n-f_bldtemp)/f_walldepth(:,3)
 if (acmeth.eq.1) then
   d_acout=max(0.,gflxroof*f_sigmabld/(1.-f_sigmabld)+f_hwratio*(gflxwalle+gflxwallw))
-  !d_acout=gflxroof+*f_sigmabld/(1.-f_sigmabld)f_hwratio*(gflxwalle+gflxwallw) ! test energy conservation
+  !d_acout=gflxroof*f_sigmabld/(1.-f_sigmabld)+f_hwratio*(gflxwalle+gflxwallw) ! test energy conservation
 else
   d_acout=0.
 end if
@@ -2077,7 +2077,7 @@ rg_rfsn=snowemiss*(a_rg-sbconst*rfsntemp**4)
 fg_rfsn=aircp*a_rho*(rfsntemp-d_tempr)*acond_rfsn*a_umag
 eg_rfsn=min(lv*a_rho*d_rfsndelta*max(0.,rfsnqsat-d_mixrr)*acond_rfsn*a_umag,ls*(irf_snow/ddt+a_snd-rfsnmelt))
 garfsn=(rfsntemp-irf_temp)/ldratio
-evct=sg_rfsn+rg_rfsn-fg_rfsn-(ls/lv)*eg_rfsn-garfsn
+evct=sg_rfsn+rg_rfsn-fg_rfsn-eg_rfsn-garfsn
 
 return
 end subroutine solverfsn
@@ -2180,7 +2180,7 @@ end if
 fg_veg=sg_veg+rg_veg-eg_veg
 
 ! road snow energy balance
-evct=sg_rdsn+rg_rdsn-fg_rdsn-(ls/lv)*eg_rdsn-gardsn
+evct=sg_rdsn+rg_rdsn-fg_rdsn-eg_rdsn-gardsn
 
 return
 end subroutine solverdsn
@@ -2332,11 +2332,11 @@ do ic=1,negits
   f3=max(1.-.00025*(vegqsat-d_canyonmix*d_sigd/0.622),0.05)
   res=max(30.,vegrsmin*f1*f2/(f3*f4))
   ! balance canyon latent heat budget
-  d_canyonmix=(d_rdsndelta*rdsnqsat*ls/lv*acond_rdsn*d_topu &
+  d_canyonmix=(d_rdsndelta*rdsnqsat*acond_rdsn*d_topu &
          +(1.-d_rdsndelta)*((1.-f_sigmaveg)*dumroaddelta*roadqsat*acond_road*d_topu &
          +if_sigmaveg*vegqsat*(dumvegdelta*acond_veg*d_topu &
          +(1.-dumvegdelta)/(1./(acond_veg*d_topu)+res)))+d_mixrc*topinvres)/ &
-         (d_rdsndelta*ls/lv*acond_rdsn*d_topu+(1.-d_rdsndelta)*((1.-f_sigmaveg)*dumroaddelta*acond_road*d_topu &
+         (d_rdsndelta*acond_rdsn*d_topu+(1.-d_rdsndelta)*((1.-f_sigmaveg)*dumroaddelta*acond_road*d_topu &
          +if_sigmaveg*(dumvegdelta*acond_veg*d_topu+(1.-dumvegdelta)/(1./(acond_veg*d_topu)+res)))+topinvres)
 end do
 
