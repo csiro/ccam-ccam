@@ -16,7 +16,7 @@ private
 public mlodiffusion,mlorouter,mlohadv,watbdy,mlosalfix
 
 real, dimension(:), allocatable, save :: watbdy
-integer, parameter :: salfix = 1 ! fix salinity to 35 psu (0=off, 1=on)
+integer, parameter :: salfix = 0 ! fix salinity to 35 psu (0=off, 1=on)
 
 contains
 
@@ -313,13 +313,13 @@ integer, dimension(ifull,wlev) :: nface
 integer, dimension(12) :: ndoy
 integer, dimension(ifull) :: wwn,wwe,wws,www
 real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
-real delpos,delneg,alph_pm,alph_p
+real delpos,delneg,alph_p,dumpp,dumpn
 real, dimension(ifull+iextra) :: ee,neta,dd,snu,snv,ntide,pice
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,ndum
 real, dimension(ifull+iextra) :: imass,spu,squ,sru,spv,sqv,srv
 real, dimension(:), allocatable, save :: ip
 real, dimension(ifull) :: i_u,i_v,i_sto,rhobaru,rhobarv
-real, dimension(ifull) :: div,seta,w_e,rhobarsav
+real, dimension(ifull) :: div,seta,w_e
 real, dimension(ifull) :: tnu,tsu,tev,twv,rhou,rhov,sou,sov
 real, dimension(ifull) :: dpsdxu,dpsdyu,dpsdxv,dpsdyv
 real, dimension(ifull) :: dttdxu,dttdyu,dttdxv,dttdyv
@@ -348,6 +348,7 @@ logical, dimension(ifull) :: stest
 logical lleap
 integer, parameter :: usetide=1    ! tidal forcing (0=Off, 1=On)
 integer, parameter :: icemode=2    ! Ice stress (0=free-drift, 1=incompressible, 2=cavitating)
+integer, parameter :: drmeth=1     ! rho gradient calculation (0=basic, 1=interpolated)
 integer, parameter :: lmax=1       ! 1=predictor-only, 2+=predictor-corrector
 integer, parameter :: llmax=500    ! iterations for calculating surface height
 real, parameter :: tol = 5.E-4     ! Tolerance for GS solver (water)
@@ -604,13 +605,14 @@ do l=1,lmax ! predictor-corrector loop
   end do
   call mloexpdensity(rho(1:ifull,:),nt(1:ifull,:),ns(1:ifull,:),dum,dumb,pice(1:ifull),0)
   call bounds(rho)
-  rhobar(1:ifull,1)=rho(1:ifull,1)*dz(1:ifull,1)
+  rhobar(1:ifull,1)=rho(1:ifull,1)*dumb(:,1)
   do ii=2,wlev
-    rhobar(1:ifull,ii)=rhobar(1:ifull,ii-1)+rho(1:ifull,ii)*dz(1:ifull,ii)
+    rhobar(1:ifull,ii)=rhobar(1:ifull,ii-1)+rho(1:ifull,ii)*dumb(:,ii)
   end do
-  rhobar(1:ifull,:)=rhobar(1:ifull,:)/dzbar
+  do ii=1,wlev
+    rhobar(1:ifull,ii)=rhobar(1:ifull,ii)/(dzbar(:,ii)*max(1.+neta(1:ifull)/dd(1:ifull),0.01))
+  end do
   call bounds(rhobar,nrows=2)
-  if (l.eq.1) rhobarsav=rhobar(1:ifull,wlev)
 
   ! ADVECT WATER ----------------------------------------------------
   ! Water currents are advected using sem-Lagrangian advection
@@ -691,9 +693,26 @@ do l=1,lmax ! predictor-corrector loop
   uav(:,1)=i_v-dt*f(1:ifull)*i_u
   call mlostaguv(uau(:,1:1),uav(:,1:1),siu,siv)
 
-  ! interpolate density gradient to horizontal surfaces
-  ! (note that dep should be -eta+dep*(1+eta/maxdep), so we assume eta is small compared to dep)
-  call stagtruedelta(rhobar,dep,wtr,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+  select case(drmeth)
+    case(0)
+      do ii=1,wlev
+        tnu=stwgt(:,1,1)*rhobar(1:ifull,ii)+stwgt(:,1,2)*rhobar(in,ii)+stwgt(:,1,3)*rhobar(ine,ii)+stwgt(:,1,4)*rhobar(ie,ii)
+        tsu=stwgt(:,2,1)*rhobar(1:ifull,ii)+stwgt(:,2,2)*rhobar(is,ii)+stwgt(:,2,3)*rhobar(ise,ii)+stwgt(:,2,4)*rhobar(ie,ii)
+        tev=stwgt(:,3,1)*rhobar(1:ifull,ii)+stwgt(:,3,2)*rhobar(ie,ii)+stwgt(:,3,3)*rhobar(ien,ii)+stwgt(:,3,4)*rhobar(in,ii)
+        twv=stwgt(:,4,1)*rhobar(1:ifull,ii)+stwgt(:,4,2)*rhobar(iw,ii)+stwgt(:,4,3)*rhobar(iwn,ii)+stwgt(:,4,4)*rhobar(in,ii)
+        drhobardxu(:,ii)=(rhobar(ie,ii)-rhobar(1:ifull,ii))*emu(1:ifull)/ds
+        drhobardyu(:,ii)=0.5*(tnu-tsu)*emu(1:ifull)/ds
+        drhobardxv(:,ii)=0.5*(tev-twv)*emv(1:ifull)/ds
+        drhobardyv(:,ii)=(rhobar(in,ii)-rhobar(1:ifull,ii))*emv(1:ifull)/ds
+      end do
+    case(1)
+      ! interpolate density gradient to horizontal surfaces
+      ! (note that dep should be -eta+dep*(1+eta/maxdep), so we assume eta is small compared to dep)
+      call stagtruedelta(rhobar,dep,wtr,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+    case default
+      write(6,*) "ERROR: Invalid drmeth ",drmeth
+      stop
+  end select
   
   sou=0.
   spu=0.
@@ -797,7 +816,7 @@ do l=1,lmax ! predictor-corrector loop
     ! 9-point version -----------------------------------------------
     ! would be nice to simplify this down to a 5-point stencil, rather than the effective 9-point used here
     ! However, when this is done (e.g., in unstaggered coordinates), then the non-linear terms arising from
-    ! the integration of the column (i.e., the column height is a function of eta), result in a decoupling
+    ! the integration of the column (i.e., the column height is a function of eta), results in a decoupling
     ! of the solution between adjacent grid points.  This 9-point version avoids this problem, but the two
     ! bounds calls and nrows=2 slows things down a little.
 
@@ -832,6 +851,7 @@ do l=1,lmax ! predictor-corrector loop
 
     ! The following expression limits the minimum depth to 1m
     seta=max(seta,(1.-dd(1:ifull)-neta(1:ifull))/alpha) ! this should become a land point
+    seta=min(max(seta,-1.),1.)
     neta(1:ifull)=alpha*seta+neta(1:ifull)
     neta(1:ifull)=neta(1:ifull)*ee(1:ifull)
     seta=seta*ee(1:ifull)
@@ -1070,16 +1090,34 @@ do l=1,lmax ! predictor-corrector loop
   
 end do
 
-! mass conservation for water
-neta(1:ifull)=neta(1:ifull)*rhobar(1:ifull,wlev)
-w_e=w_e*rhobarsav
-dum(:,1)=neta(1:ifull)-w_e
-call ccglobal_posneg(dum(:,1),delpos,delneg)
-alph_p = sqrt( -delneg/max(1.e-20,delpos))
-alph_pm=1./max(1.e-20,alph_p)
-neta(1:ifull) = w_e + alph_p*max(0.,dum(:,1)) + alph_pm*min(0.,dum(:,1))
-neta(1:ifull)=neta(1:ifull)/rhobar(1:ifull,wlev)
-w_e=w_e/rhobarsav
+! salinity conservation
+if (nud_sss.eq.0) then
+  dum=0.
+  delpos=0.
+  delneg=0.
+  do ii=1,wlev
+    where(wtr(1:ifull).and.w_s(1:ifull,ii).gt.1.)
+      dum(:,ii)=ns(1:ifull,ii)-w_s(1:ifull,ii) ! increments
+    end where
+    odum=dz(1:ifull,ii)*dum(:,ii)/dd(1:ifull)
+    ! cannot use 3d version, since it is hardwired to dsig
+    call ccglobal_posneg(odum,dumpp,dumpn)
+    delpos=delpos+dumpp
+    delneg=delneg+dumpn
+  end do
+  alph_p = -delneg/max(delpos,1.e-30)
+  alph_p = min(alph_p,sqrt(alph_p))  ! best option
+  ns(1:ifull,:)=w_s(1:ifull,:)+alph_p*max(0.,dum)+min(0.,dum)/max(1.,alph_p)
+end if
+
+! volume conservation for water ---------------------------------------
+! (include mass conservation in mlo.f90 due to thermal change)
+if (nud_sfh.eq.0) then
+  odum=neta(1:ifull)-w_e
+  call ccglobal_posneg(odum,delpos,delneg)
+  alph_p = sqrt( -delneg/max(1.e-20,delpos) )
+  neta(1:ifull) = w_e + alph_p*max(0.,odum) + min(0.,odum)/max(1.e-20,alph_p)
+end if
 
 call MPI_AllReduce(maxloclseta,maxglobseta,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
 call MPI_AllReduce(maxloclip,maxglobip,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
@@ -2563,7 +2601,7 @@ end do
 call MPI_AllReduce(voll,volg,1,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
 call MPI_AllReduce(salsuml,salsumg,1,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-adj=35.-salsumg/volg
+adj=34.72-salsumg/volg
 
 do ii=1,wlev
   sal(:,ii)=max(sal(:,ii)+adj,0.)

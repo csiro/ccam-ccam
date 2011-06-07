@@ -73,7 +73,7 @@ real, dimension(:), allocatable, save :: p_tscrn,p_qscrn,p_uscrn,p_u10,p_emiss
 
 ! model parameters
 integer, parameter :: resmeth=1           ! Canyon sensible heat transfer (0=Masson, 1=Harman, 2=Kusaka)
-integer, parameter :: zohmeth=2           ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003*zom)
+integer, parameter :: zohmeth=1           ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003*zom)
 integer, parameter :: acmeth=1            ! AC heat pump into canyon (0=Off, 1=On)
 integer, parameter :: nrefl=3             ! Number of canyon reflections (default=3)
 integer, parameter :: vegmode=2           ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out/in=X/Y)
@@ -110,16 +110,16 @@ real, parameter :: minsnowden=100.        ! min snow density (kg m^-3)
 ! generic urban parameters
 real, parameter :: refheight=0.6          ! Displacement height as a fraction of building height (Kanda et al 2007)
 real, parameter :: zomratio=0.1           ! Roughness length to building height ratio (default=10%)
-real, parameter :: zocanyon=0.05          ! Roughness length of in-canyon surfaces (m)
-real, parameter :: zoroof=0.005           ! Roughness length of roof surfaces (m)
+real, parameter :: zocanyon=0.01          ! Roughness length of in-canyon surfaces (m)
+real, parameter :: zoroof=0.01            ! Roughness length of roof surfaces (m)
 real, parameter :: maxrfwater=1.          ! Maximum roof water (kg m^-2)
 real, parameter :: maxrdwater=1.          ! Maximum road water (kg m^-2)
 real, parameter :: maxrfsn=1.             ! Maximum roof snow (kg m^-2)
 real, parameter :: maxrdsn=1.             ! Maximum road snow (kg m^-2)
 ! in-canyon vegetation parameters
-real, parameter :: zoveg=0.2              ! Roughness length of in-canyon vegetation (m)
-real, parameter :: vegrlai=2.             ! In-canyon vegetation LAI
-real, parameter :: vegrsmin=100./vegrlai  ! Unconstrained canopy stomatal resistance
+real, parameter :: zoveg=0.1              ! Roughness length of in-canyon vegetation (m)
+real, parameter :: vegrlai=3.             ! In-canyon vegetation LAI
+real, parameter :: vegrsmin=230./vegrlai  ! Unconstrained canopy stomatal resistance
 real, parameter :: maxvgwater=0.1*vegrlai ! Maximum leaf water (kg m^-2)
 real, parameter :: swilt=0.18             ! In-canyon soil wilting point (m^3 m^-3)
 real, parameter :: sfc  =0.26             ! In-canyon soil field capacity (m^3 m^-3)
@@ -364,7 +364,7 @@ real, dimension(maxtype), parameter ::     csigveg=(/ 0.38, 0.45, 0.38, 0.34, 0.
 ! Area fraction occupied by buildings
 real, dimension(maxtype), parameter ::   csigmabld=(/ 0.45, 0.40, 0.45, 0.46, 0.65, 0.40, 0.45, 0.50 /)
 ! Building height (m)
-real, dimension(maxtype), parameter ::  cbldheight=(/   6.,   4.,   6.,   8.,  20.,   4.,   8.,  12. /)
+real, dimension(maxtype), parameter ::  cbldheight=(/   6.,   4.,   6.,   8.,  18.,   4.,   8.,  12. /)
 ! Building height to width ratio
 real, dimension(maxtype), parameter ::    chwratio=(/  0.4,  0.2,  0.4,  0.6,   2.,  0.5,   1.,  1.5 /)
 ! Industral sensible heat flux (W m^-2)
@@ -390,8 +390,8 @@ real, dimension(maxtype), parameter ::  croademiss=(/ 0.94, 0.94, 0.94, 0.94, 0.
 ! Veg emissitivity
 real, dimension(maxtype), parameter ::   cvegemiss=(/ 0.96, 0.96, 0.96, 0.96, 0.96, 0.96, 0.96, 0.96 /)
 ! Roof depths (m)
-real, dimension(maxtype,3), parameter :: croofdepth=reshape((/ 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, &
-                                                               0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, &
+real, dimension(maxtype,3), parameter :: croofdepth=reshape((/ 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, &
+                                                               0.40, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, &
                                                                0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10 /), &
                                                                (/maxtype,3/))
 ! Wall depths (m)
@@ -406,7 +406,7 @@ real, dimension(maxtype,3), parameter :: croaddepth=reshape((/ 0.05, 0.05, 0.05,
                                                                (/maxtype,3/))
 ! Roof heat capacity (J m^-3 K^-1)
 real, dimension(maxtype,3), parameter :: croofcp=reshape((/ 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, &
-                                                            2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, 2.11E6, &
+                                                            0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, 0.28E6, &
                                                             0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6, 0.29E6 /), &
                                                             (/maxtype,3/))
 ! Wall heat capacity (J m^-3 K^-1)
@@ -420,9 +420,9 @@ real, dimension(maxtype,3), parameter :: croadcp=reshape((/ 1.94E6, 1.94E6, 1.94
                                                             1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6, 1.28E6 /), &
                                                             (/maxtype,3/))
 ! Roof conductance (W m^-1 K^-1)
-real, dimension(maxtype,3), parameter :: crooflambda=reshape((/ 1.51, 1.51, 1.51, 1.51, 1.51, 1.51, 1.51, 1.51, &
-                                                                1.51, 1.51, 1.51, 1.51, 1.51, 1.51, 1.51, 1.51, &
-                                                                0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05 /), &
+real, dimension(maxtype,3), parameter :: crooflambda=reshape((/ 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, 1.5100, &
+                                                                0.0800, 0.0800, 0.0800, 0.0800, 0.0800, 0.0800, 0.0800, 0.0800, &
+                                                                0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500, 0.0500 /), &
                                                                 (/maxtype,3/))
 ! Wall conductance (W m^-1 K^-1)
 real, dimension(maxtype,3), parameter :: cwalllambda=reshape((/ 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, 0.9338, &
@@ -1552,7 +1552,7 @@ do k=1,soillvl-1
 end do
 do k=soillvl,3 ! only levels 2 and 3 are soil
   dmroadlambda(:,k)=f_roadlambda(:,k)*exp(v_moist*log(60.))*sqrt(0.5/min(max(v_moist/ssat,0.25),0.5))
-  dmroadcp(:,k)=(1.-ssat)*f_roadcp(:,k)+v_moist*4.218E6
+  dmroadcp(:,k)=(1.-ssat)*1.28E6+v_moist*4.218E6
 end do
 
 ! tridiagonal solver coefficents for calculating roof, road and wall temperatures
@@ -1905,7 +1905,7 @@ select case(mode) ! roughness length for heat
   case(2) ! Kanda et al 2007
     re=max(sqrt(cd)*umag*zmin*exp(-ilzom)/nu,10.)
     !lna=2.46*re**0.25-2. !(Brutsaet, 1982)
-    lna=1.29*re**0.25-2. !(Kanda et al, 2007)
+    lna=1.29*re**0.25-2.  !(Kanda et al, 2007)
   case(3) ! zot=zom (neglect molecular diffusion)
     lna=0.
   case(4) ! user defined

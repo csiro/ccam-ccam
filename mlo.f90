@@ -59,14 +59,12 @@ integer, dimension(:), allocatable, save :: p_mixind
 ! mode
 integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 1 ! include shortwave in non-local term
-integer, parameter :: zomode    = 2 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
+integer, parameter :: zomode    = 0 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=None, 1=Iterative)
 integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
-integer, parameter :: deprelax  = 1 ! surface height (0=vary, 1=relax, 2=set to zero)
+integer, parameter :: deprelax  = 0 ! surface height (0=vary, 1=relax, 2=set to zero)
 ! max depth
-!real, parameter :: mxd    = 941.0   ! Max depth (m)
-real, parameter :: mxd    = 5004.84   ! Max depth (m)
-!real, parameter :: mindep = 0.5     ! Thickness of first layer (m)
+real, parameter :: mxd    = 5004.84 ! Max depth (m)
 real, parameter :: mindep = 1.0     ! Thickness of first layer (m)
 real, parameter :: minwater = 1.    ! Minimum water height above bottom (m)
 ! model parameters
@@ -228,7 +226,7 @@ p_mixind=wlev-1
 !          2233.5,2458.4,2698.0,2952.8,3233.1,3509.5,3812.5,4132.4,4469.9,4825.3 /)
 ! Mk3.5
 !depth = (/   5.0,  15.0,  28.2,  42.0,  59.7,  78.5, 102.1, 127.9, 159.5, 194.6, &
-!           237.0, 284.7, 341.7, 406.4, 483.2, 570.9, 674.9, 793.8, 934.1 /)
+!           237.0, 284.7, 341.7, 406.4, 483.2, 570.9, 674.9, 793.8, 934.1, ... /)
 
 deptmp(1:wfull)=pack(depin,wpack)
 
@@ -248,8 +246,8 @@ do iqw=1,wfull
   !  smnd=smnd-10.
   !end if
 end do
-depth_hl(:,wlev+1)=deptmp
-depth(:,wlev)=0.5*(depth_hl(:,wlev)+depth_hl(:,wlev+1))
+!depth_hl(:,wlev+1)=deptmp
+!depth(:,wlev)=0.5*(depth_hl(:,wlev)+depth_hl(:,wlev+1))
 do ii=1,wlev
   dz(:,ii)=depth_hl(:,ii+1)-depth_hl(:,ii)
 end do
@@ -595,7 +593,7 @@ if (ie.lt.ib) return
 
 costmp(ib:ie)=pack(coszro,wpack(istart:ifinish))
 
-!pond(ib:ie)=max(1.+.008*min(i_tsurf-273.16,0.),0.)
+!pond(ib:ie)=max(1.+.008*min(i_tsurf(ib:ie)-273.16,0.),0.)
 pond(ib:ie)=0.
 snow(ib:ie)=min(max(i_dsn(ib:ie)/0.05,0.),1.)
 
@@ -630,8 +628,6 @@ integer, intent(in) :: istart,ifin,diag
 integer ifinish,ib,ie
 real, dimension(ifin), intent(in) :: coszro
 real, dimension(ifin), intent(inout) :: ovisdir,ovisdif,onirdir,onirdif
-real, dimension(wfull) :: watervisdiralb,watervisdifalb,waternirdiralb,waternirdifalb
-real, dimension(wfull) :: icevisdiralb,icevisdifalb,icenirdiralb,icenirdifalb
 real, dimension(wfull) :: costmp,pond,snow
 
 if (wfull.eq.0) return
@@ -643,37 +639,28 @@ if (ie.lt.ib) return
 
 costmp(ib:ie)=pack(coszro,wpack(istart:ifinish))
 
-!pond(ib:ie)=max(1.+.008*min(i_tsurf-273.16,0.),0.)
+!pond(ib:ie)=max(1.+.008*min(i_tsurf(ib:ie)-273.16,0.),0.)
 pond(ib:ie)=0.
 snow(ib:ie)=min(max(i_dsn(ib:ie)/0.05,0.),1.)
 
 where (costmp(ib:ie).gt.0.)
-  watervisdiralb(ib:ie)=0.026/(costmp(ib:ie)**1.7+0.065)+0.15*(costmp(ib:ie)-0.1)* &
-                        (costmp(ib:ie)-0.5)*(costmp(ib:ie)-1.)
+  p_watervisdiralb(ib:ie)=0.026/(costmp(ib:ie)**1.7+0.065)+0.15*(costmp(ib:ie)-0.1)* &
+                          (costmp(ib:ie)-0.5)*(costmp(ib:ie)-1.)
 elsewhere
-  watervisdiralb(ib:ie)=0.3925
+  p_watervisdiralb(ib:ie)=0.3925
 end where
-watervisdifalb(ib:ie)=0.06
-waternirdiralb(ib:ie)=watervisdiralb(ib:ie)
-waternirdifalb(ib:ie)=0.06
+p_watervisdifalb(ib:ie)=0.06
+p_waternirdiralb(ib:ie)=p_watervisdiralb(ib:ie)
+p_waternirdifalb(ib:ie)=0.06
 ! need to factor snow age into albedo
-icevisdiralb(ib:ie)=(0.85*(1.-pond(ib:ie))+0.75*pond(ib:ie))*(1.-snow(ib:ie))+(0.95*(1.-pond(ib:ie))+0.85*pond(ib:ie))*snow(ib:ie)
-icevisdifalb(ib:ie)=icevisdiralb(ib:ie)
-icenirdiralb(ib:ie)=(0.45*(1.-pond(ib:ie))+0.35*pond(ib:ie))*(1.-snow(ib:ie))+(0.65*(1.-pond(ib:ie))+0.55*pond(ib:ie))*snow(ib:ie)
-icenirdifalb(ib:ie)=icenirdiralb(ib:ie)
-ovisdir=unpack(i_fracice(ib:ie)*icevisdiralb(ib:ie)+(1.-i_fracice(ib:ie))*watervisdiralb(ib:ie),wpack(istart:ifinish),ovisdir)
-ovisdif=unpack(i_fracice(ib:ie)*icevisdifalb(ib:ie)+(1.-i_fracice(ib:ie))*watervisdifalb(ib:ie),wpack(istart:ifinish),ovisdif)
-onirdir=unpack(i_fracice(ib:ie)*icenirdiralb(ib:ie)+(1.-i_fracice(ib:ie))*waternirdiralb(ib:ie),wpack(istart:ifinish),onirdir)
-onirdif=unpack(i_fracice(ib:ie)*icenirdifalb(ib:ie)+(1.-i_fracice(ib:ie))*waternirdifalb(ib:ie),wpack(istart:ifinish),onirdif)
-
-p_watervisdiralb(ib:ie)=watervisdiralb(ib:ie)
-p_watervisdifalb(ib:ie)=watervisdifalb(ib:ie)
-p_waternirdiralb(ib:ie)=waternirdiralb(ib:ie)
-p_waternirdifalb(ib:ie)=waternirdifalb(ib:ie)
-p_icevisdiralb(ib:ie)=icevisdiralb(ib:ie)
-p_icevisdifalb(ib:ie)=icevisdifalb(ib:ie)
-p_icenirdiralb(ib:ie)=icenirdiralb(ib:ie)
-p_icenirdifalb(ib:ie)=icenirdifalb(ib:ie)
+p_icevisdiralb(ib:ie)=(0.85*(1.-pond(ib:ie))+0.75*pond(ib:ie))*(1.-snow(ib:ie))+(0.95*(1.-pond(ib:ie))+0.85*pond(ib:ie))*snow(ib:ie)
+p_icevisdifalb(ib:ie)=p_icevisdiralb(ib:ie)
+p_icenirdiralb(ib:ie)=(0.45*(1.-pond(ib:ie))+0.35*pond(ib:ie))*(1.-snow(ib:ie))+(0.65*(1.-pond(ib:ie))+0.55*pond(ib:ie))*snow(ib:ie)
+p_icenirdifalb(ib:ie)=p_icenirdiralb(ib:ie)
+ovisdir=unpack(i_fracice(ib:ie)*p_icevisdiralb(ib:ie)+(1.-i_fracice(ib:ie))*p_watervisdiralb(ib:ie),wpack(istart:ifinish),ovisdir)
+ovisdif=unpack(i_fracice(ib:ie)*p_icevisdifalb(ib:ie)+(1.-i_fracice(ib:ie))*p_watervisdifalb(ib:ie),wpack(istart:ifinish),ovisdif)
+onirdir=unpack(i_fracice(ib:ie)*p_icenirdiralb(ib:ie)+(1.-i_fracice(ib:ie))*p_waternirdiralb(ib:ie),wpack(istart:ifinish),onirdir)
+onirdif=unpack(i_fracice(ib:ie)*p_icenirdifalb(ib:ie)+(1.-i_fracice(ib:ie))*p_waternirdifalb(ib:ie),wpack(istart:ifinish),onirdif)
 
 return
 end subroutine mloalb4
@@ -919,7 +906,7 @@ end do
 dd(:,1)=dd(:,1)-dt*d_ws0/(dz(:,1)*d_zcr)
 if (salrelax.eq.1) then ! relax salinity
   where (w_sal.gt.1.E-6)
-    dd=dd+dt*(34.72-w_sal)/(3600.*24.*365.25*10.)
+    dd=dd+dt*(34.72-w_sal)/(3600.*24.*365.25)
   end where
 end if
 call thomas(w_sal,aa,bb,cc,dd)
@@ -1620,9 +1607,9 @@ af=afroot**2
 select case(zomode)
   case(0) ! Charnock CSIRO9
     ztv=exp(vkar/sqrt(chn10))/10.
-    aft=vkar**2/(log(a_zmins*ztv)*log(a_zmins*ztv))
+    aft=(vkar/log(a_zmins*ztv))**2
     afq=aft
-    p_zoh=a_zmin*exp(-(vkar*sqrt(af))/aft)
+    p_zoh=1./ztv
     p_zoq=p_zoh
     factch=sqrt(p_zo/p_zoh)
     facqch=factch
@@ -1903,6 +1890,7 @@ endwhere
 ! removal
 where (i_dic.le.icemin)
   d_wm0=d_wm0+i_dic*i_fracice*rhoic/rhowt/dt
+  w_temp(:,1)=w_temp(:,1)-i_dic*i_fracice*qice/(cp0*d_rho(:,1)*dz(:,1)*d_zcr)
   i_fracice=0.
   i_dic=0.
   i_dsn=0.
@@ -2229,16 +2217,17 @@ subl=dt*pt_egice/(ls*rhosn)      ! m of "snow"
 ssubl=min(subl,it_dsn)           ! snow component of sublimation
 ssnmelt=min(snmelt,it_dsn-ssubl) ! snow component of melt
 dt_salflx=dt_salflx-ssnmelt*rhosn/dt ! melt fresh water snow (no salt from egice when melting snow)
-dt_wtrflx=dt_wtrflx+(ssnmelt*rhosn+(snmelt-ssnmelt)*rhoic)/rhowt/dt
+dt_wtrflx=dt_wtrflx+snmelt*rhosn/rhowt/dt
 ! Change the snow thickness
 dhs=snmelt+subl
-it_dic=max(it_dic-(rhosn/rhoic)*max(dhs-it_dsn,0.),0.)
+dhb=(rhosn/rhoic)*(subl-ssubl+snmelt-ssnmelt)
+it_dic=max(it_dic-dhb,0.)
 it_dsn=max(it_dsn-dhs,0.)
 
 ! Remove very thin snow
 where (it_dsn.gt.0..and.it_dsn.lt.icemin)
-  fsnmelt=it_dsn*lf*rhosn/dt ! J/m2/sec ! heat flux to melt snow
-  it_tn(:,1)=it_tn(:,1)-dt*fsnmelt*rhin/cpi
+  fsnmelt=it_dsn*qsnow
+  it_tn(:,1)=it_tn(:,1)-fsnmelt*rhin/cpi
   dt_wtrflx=dt_wtrflx+it_dsn*rhosn/rhowt/dt
   it_dsn=0.
 end where
@@ -2437,8 +2426,8 @@ implicit none
 integer, intent(in) :: nc,diag
 real, intent(in) :: dt
 real, dimension(nc) :: con,f0
-real, dimension(nc) :: subl,snmelt,dhs,dhb,ssubl,ssnmelt
-real gamms
+real, dimension(nc) :: subl,snmelt,dhs,dhb,ssubl,ssnmelt,gamm
+real gamms,gammi
 real, dimension(nc,0:2), intent(inout) :: it_tn
 real, dimension(nc), intent(inout) :: it_dic,it_dsn,it_fracice,it_tsurf,it_sto
 real, dimension(nc), intent(inout) :: dt_ftop,dt_bot,dt_tb,dt_fb,dt_timelt,dt_salflx,dt_wtrflx
@@ -2450,9 +2439,11 @@ con=1./(it_dsn/condsnw+max(it_dic,1.E-6)/condice)
 f0=con*(dt_tb-it_tsurf) ! flux from below
 f0=min(max(f0,-1000.),1000.)
 gamms=4.857e4                  ! density*specific heat*depth (for snow)
-it_tsurf=it_tsurf+(dt_ftop+f0)/(dt_bot+gamms/dt+con)
+gammi=3.471e5                  ! density*specific heat*depth (for ice)
+gamm=(gammi*it_dic+gamms*it_dsn)/(it_dic+it_dsn) ! for energy conservation
+it_tsurf=it_tsurf+(dt_ftop+f0)/(dt_bot+gamm/dt+con)
 ! Snow melt (snmelt >= 0)
-snmelt=max(0.,it_tsurf-273.16)*gamms/qsnow
+snmelt=max(0.,it_tsurf-273.16)*gamm/qsnow ! note change from gamms to gamm
 it_tsurf=min(it_tsurf,273.16) ! melting condition ts=tsmelt
 
 ! Surface evap/sublimation (can be >0 or <0)
@@ -2460,28 +2451,21 @@ subl=dt*pt_egice/(ls*rhosn)
 ssubl=min(subl,it_dsn)           ! snow component of sublimation
 ssnmelt=min(snmelt,it_dsn-ssubl) ! snow component of melt
 dt_salflx=dt_salflx-ssnmelt*rhosn/dt
-dt_wtrflx=dt_wtrflx+(ssnmelt*rhosn+(snmelt-ssnmelt)*rhoic)/rhowt/dt
-dhs=snmelt+subl ! Change the snow thickness
-it_dic=max(it_dic-(rhosn/rhoic)*max(dhs-it_dsn,0.),0.)
-it_dsn=max(it_dsn-dhs,0.)
+dt_wtrflx=dt_wtrflx+snmelt*rhosn/rhowt/dt
+dhs=ssnmelt+ssubl ! Change the snow thickness
+it_dic=it_dic-(rhosn/rhoic)*(snmelt-ssnmelt+subl-ssubl)
 dhb=dt*(f0-dt_fb)/qice       ! Ice melt
 dt_wtrflx=dt_wtrflx+min(-dhb,it_dic)*rhoic/rhowt/dt
+it_dsn=max(it_dsn-dhs,0.)
 it_dic=max(it_dic+dhb,0.)
-
-where (it_dic.lt.icemin)
-  dt_wtrflx=dt_wtrflx+(it_dsn*rhosn+it_dic*rhoic)/rhowt/dt
-  it_dic=0.
-  it_dsn=0.  
-end where
 
 where (it_dsn.lt.icemin) ! Remove very thin snow
   dt_wtrflx=dt_wtrflx+it_dsn*rhosn/rhowt/dt
-  it_dsn=0.
+  it_tsurf=it_tsurf-it_dsn*qsnow/gammi
 end where
 
 where (it_dic.ge.himin) ! increase ice thickness
   dt_nk=1
-  it_sto=0.
 end where
 
 it_tn(:,0)=it_tsurf
@@ -2537,14 +2521,8 @@ dhb=dt*(f0-dt_fb)/qice ! determine amount of bottom ablation or accretion
 dt_wtrflx=dt_wtrflx+min(-dhi-dhb,it_dic)*rhoic/rhowt/dt
 it_dic=max(it_dic+dhi+dhb,0.)  ! update ice thickness
 
-where (it_dic.lt.icemin)
-  dt_wtrflx=dt_wtrflx+it_dic*rhoic/rhowt/dt
-  it_dic=0.
-end where
-
 where (it_dic.ge.himin) ! increase ice thickness
   dt_nk=1
-  it_sto=0.
 end where
 
 it_tn(:,0)=it_tsurf

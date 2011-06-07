@@ -91,7 +91,7 @@ module cable_ccam
  ! for calculation of zenith angle
   real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull)
   real bpyear,alp,x
-  real tmps(ifull),hruff_grmx(ifull),atmco2(ifull)
+  real tmps(ifull),hruff_grmx(ifull),atmco2(ifull),swnet(mp)
   real deltat(mp)
 
   integer jyear,jmonth,jday,jhour,jmin
@@ -150,13 +150,14 @@ module cable_ccam
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
   ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
-  met%fsd(:,3)=sgsave(cmap)/(1.-swrsave(cmap)*albvisnir(cmap,1) &
+  swnet=sgsave(cmap)/(1.-swrsave(cmap)*albvisnir(cmap,1) &
               -(1.-swrsave(cmap))*albvisnir(cmap,2)) ! short wave down (positive) W/m^2
-  met%fsd(:,1)=swrsave(cmap)*met%fsd(:,3)
-  met%fsd(:,2)=(1.-swrsave(cmap))*met%fsd(:,3)
+  met%fsd(:,1)=swrsave(cmap)*swnet
+  met%fsd(:,2)=(1.-swrsave(cmap))*swnet
+  met%fsd(:,3)=swnet ! dummy for now
   rad%fbeam(:,1)=fbeamvis(cmap)
   rad%fbeam(:,2)=fbeamnir(cmap)
-  rad%fbeam(:,3)=swrsave(cmap)*fbeamvis(cmap)+(1.-swrsave(cmap))*fbeamnir(cmap)
+  rad%fbeam(:,3)=swrsave(cmap)*fbeamvis(cmap)+(1.-swrsave(cmap))*fbeamnir(cmap) ! dummy for now
   met%fld=-rgsave(cmap)        ! long wave down (positive) W/m^2
 
   monthstart=1440*(jday-1) + 60*jhour + jmin ! mins from start of month
@@ -412,9 +413,9 @@ module cable_ccam
   where (land)
     zo=max(zmin*exp(-sqrt(1./zo)),zobgin)
     rtsoil=1./rtsoil
-    cduv=cduv*vmod ! cduv is Cd * vmod in CCAM
-    tscrn=tscrn+273.16
-    runoff=runoff*dt ! convert back to mm
+    cduv=cduv*vmod     ! cduv is Cd * vmod in CCAM
+    tscrn=tscrn+273.16 ! convert from degC to degK
+    runoff=runoff*dt   ! convert from mm/s back to mm
   end where
       
   ! The following lines unpack snow.  This is more complicated as we need to decide
