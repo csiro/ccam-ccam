@@ -316,7 +316,7 @@ real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
 real delpos,delneg,alph_p,dumpp,dumpn
 real, dimension(ifull+iextra) :: ee,neta,dd,snu,snv,ntide,pice
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,ndum
-real, dimension(ifull+iextra) :: imass,spu,squ,sru,spv,sqv,srv
+real, dimension(ifull+iextra) :: imass,spu,squ,sru,spv,sqv,srv,iib,iic
 real, dimension(:), allocatable, save :: ip
 real, dimension(ifull) :: i_u,i_v,i_sto,rhobaru,rhobarv
 real, dimension(ifull) :: div,seta,w_e
@@ -583,7 +583,7 @@ totits=0
 itotits=0
 do l=1,lmax ! predictor-corrector loop
 
-  ! surface pressure gradients
+  ! surface pressure gradients (including ice)
   imass(1:ifull)=ndic(1:ifull)*rhoic+ndsn(1:ifull)*rhosn ! ice mass per unit area (kg/m^2)
   pice(1:ifull) = ps(1:ifull) + grav*nfracice(1:ifull)*imass(1:ifull) ! pressure due to atmosphere and ice at top of water column
   call bounds(pice,nrows=2)
@@ -680,7 +680,7 @@ do l=1,lmax ! predictor-corrector loop
   ns=max(ns,0.)
   
     
-  ! PREP WATER ARRAYS -----------------------------------------------
+  ! FREE SURFACE CALCULATION ----------------------------------------
 
   ! stagger the following values for t=tstar
   ! This is the same as eps=1. in JLM's atmosphere semi-Lagrangian dynamics
@@ -689,9 +689,6 @@ do l=1,lmax ! predictor-corrector loop
     uav(:,ii)=nv(1:ifull,ii)-dt*f(1:ifull)*nu(1:ifull,ii)
   end do
   call mlostaguv(uau,uav,cou(1:ifull,:),cov(1:ifull,:))
-  uau(:,1)=i_u+dt*f(1:ifull)*i_v
-  uav(:,1)=i_v-dt*f(1:ifull)*i_u
-  call mlostaguv(uau(:,1:1),uav(:,1:1),siu,siv)
 
   select case(drmeth)
     case(0)
@@ -804,12 +801,13 @@ do l=1,lmax ! predictor-corrector loop
   call boundsuv(squ,sqv)
   call boundsuv(sru,srv)
 
+  ! prep gradient terms to improve numerical stability
   sssa=spu(1:ifull)/(dd(ie)+dd(1:ifull))-squ(1:ifull)*emu(1:ifull)/ds+sru(1:ifull)*0.5*emu(1:ifull)/ds*(stwgt(:,1,1)-stwgt(:,2,1))
   sssb=spu(iwu)/(dd(iw)+dd(1:ifull))+squ(iwu)*emu(iwu)/ds+sru(iwu)*0.5*emu(iwu)/ds*(stwgt(:,1,4)-stwgt(:,2,4))
   sssc=spv(1:ifull)/(dd(in)+dd(1:ifull))-sqv(1:ifull)*emv(1:ifull)/ds+srv(1:ifull)*0.5*emv(1:ifull)/ds*(stwgt(:,3,1)-stwgt(:,4,1))
   sssd=spv(isv)/(dd(is)+dd(1:ifull))+sqv(isv)*emv(isv)/ds+srv(isv)*0.5*emv(isv)/ds*(stwgt(:,3,4)-stwgt(:,4,4))
 
-  ! Now iteratively solve for eta and ice stress terms
+  ! Iteratively solve for free surface height, eta
   alpha=0.1
   do ll=1,llmax
 
@@ -827,21 +825,24 @@ do l=1,lmax ! predictor-corrector loop
     tev=stwgt(:,3,1)*neta(1:ifull)+stwgt(:,3,2)*neta(ie)+stwgt(:,3,3)*neta(ien)+stwgt(:,3,4)*neta(in)
     twv=stwgt(:,4,1)*neta(1:ifull)+stwgt(:,4,2)*neta(iw)+stwgt(:,4,3)*neta(iwn)+stwgt(:,4,4)*neta(in)
  
+    ! gradient terms for the 9-point version
     detadxu=(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
     detadyu=0.5*(tnu-tsu)*emu(1:ifull)/ds
     detadxv=0.5*(tev-twv)*emv(1:ifull)/ds
     detadyv=(neta(in)-neta(1:ifull))*emv(1:ifull)/ds
 
+    ! column integrated velocity terms
     snu(1:ifull)=sou+spu(1:ifull)*(1.+(neta(ie)+neta(1:ifull))/(dd(ie)+dd(1:ifull)))+squ(1:ifull)*detadxu+sru(1:ifull)*detadyu
     snv(1:ifull)=sov+spv(1:ifull)*(1.+(neta(in)+neta(1:ifull))/(dd(in)+dd(1:ifull)))+sqv(1:ifull)*detadyv+srv(1:ifull)*detadxv
     snu(1:ifull)=snu(1:ifull)*(1.+(neta(ie)+neta(1:ifull))/(dd(ie)+dd(1:ifull))) ! conserve volume
     snv(1:ifull)=snv(1:ifull)*(1.+(neta(in)+neta(1:ifull))/(dd(in)+dd(1:ifull))) ! conserve volume
-
     call boundsuv(snu,snv)
+    
+    ! calculate divergence
     div=(snu(1:ifull)/emu(1:ifull)-snu(iwu)/emu(iwu)+snv(1:ifull)/emv(1:ifull)-snv(isv)/emv(isv)) &
         *em(1:ifull)*em(1:ifull)/ds
 
-    ! Update neta
+    ! Update neta using d(div)/d(neta) to improve stability
     dsnudeta=sssa*(1.+(neta(ie)+neta(1:ifull))/(dd(ie)+dd(1:ifull)))+snu(1:ifull)/(dd(ie)+dd(1:ifull))
     dsnuwdeta=sssb*(1.+(neta(iw)+neta(1:ifull))/(dd(iw)+dd(1:ifull)))+snu(iwu)/(dd(iw)+dd(1:ifull))
     dsnvdeta=sssc*(1.+(neta(in)+neta(1:ifull))/(dd(in)+dd(1:ifull)))+snv(1:ifull)/(dd(in)+dd(1:ifull))
@@ -851,7 +852,6 @@ do l=1,lmax ! predictor-corrector loop
 
     ! The following expression limits the minimum depth to 1m
     seta=max(seta,(1.-dd(1:ifull)-neta(1:ifull))/alpha) ! this should become a land point
-    seta=min(max(seta,-1.),1.)
     neta(1:ifull)=alpha*seta+neta(1:ifull)
     neta(1:ifull)=neta(1:ifull)*ee(1:ifull)
     seta=seta*ee(1:ifull)
@@ -874,6 +874,7 @@ do l=1,lmax ! predictor-corrector loop
     nv(1:ifull,ii)=nv(1:ifull,ii)*ee(1:ifull)*ee(in)
   end do
   call boundsuv(nu,nv)
+  ! update vertical velocity
   call getww(nu,nv,neta(1:ifull),dd(1:ifull),dz(1:ifull,:),ee(1:ifull),nw)
   ! unstagger nu and nv
   call mlounstaguv(nu(1:ifull,:),nv(1:ifull,:),nuh,nvh)
@@ -888,8 +889,13 @@ do l=1,lmax ! predictor-corrector loop
   ! Here we start by calculating the ice velocity and then advecting
   ! the various ice prognostic variables.
 
+  ! convert to staggered coordinates
+  uau(:,1)=i_u+dt*f(1:ifull)*i_v
+  uav(:,1)=i_v-dt*f(1:ifull)*i_u
+  call mlostaguv(uau(:,1:1),uav(:,1:1),siu,siv)
+
   ! Update ice velocities
-  ! niu and niv hold the free drift solution
+  ! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90
   niu(1:ifull)=(siu(:,1)-dt*grav*(detadxu+dt*fu(1:ifull)*detadyu))/(1.+dt*dt*fu(1:ifull)*fu(1:ifull))
   niv(1:ifull)=(siv(:,1)-dt*grav*(detadyv-dt*fv(1:ifull)*detadxv))/(1.+dt*dt*fv(1:ifull)*fv(1:ifull))
   niu(1:ifull)=niu(1:ifull)*ee(1:ifull)*ee(ie)
@@ -898,15 +904,28 @@ do l=1,lmax ! predictor-corrector loop
   
   imass(1:ifull)=max(imass(1:ifull),10.)
   if (icemode.gt.0) then
-    call bounds(imass)
+    ! iau = d(niu)/dx
+    ! iav = d(niv)/dy
+
+    !iia=iau+iav
+    !iib=-dt/(imass*(1+(dt*f)**2)      !ibu=ibv=iib
+    !iic=-dt*dt*f/(imass*(1+(dt*f)**2) !icu=-icv=iic
+   
+    ! div = iau + ibu*d2ipdx2 + dibudx*dipdx + dicudx*dipdy
+    !     + iav + ibv*d2ipdy2 + dibvdy*dipdy + dicvdy*dipdx = 0 (incompressible)
+ 
     iia=imass(1:ifull)*(niu(1:ifull)-niu(iwu)+niv(1:ifull)-niv(isv))*0.5*em(1:ifull)/ds
-    !iib=dt               !ibu=ibv=iib
-    !iic=dt*dt*f(1:ifull) !icu=-icv=iic
-    dibdx=dt*imass(1:ifull)*(1./(imass(wwe)*em(wwe))-1./(imass(www)*em(www)))*0.5*em(1:ifull)**2/ds
-    dicdx=dt*dt*imass(1:ifull)*(f(wwe)/(imass(wwe)*em(wwe))-f(www)/(imass(www)*em(www)))*0.5*em(1:ifull)**2/ds
-    dibdy=dt*imass(1:ifull)*(1./(imass(wwn)*em(wwn))-1./(imass(wws)*em(wws)))*0.5*em(1:ifull)**2/ds
-    dicdy=dt*dt*imass(1:ifull)*(f(wwn)/(imass(wwn)*em(wwn))-f(wws)/(imass(wws)*em(wws)))*0.5*em(1:ifull)**2/ds
+    iib(1:ifull)=-dt/(imass(1:ifull)*(1.+dt*dt*f(1:ifull)*f(1:ifull)))
+    iic(1:ifull)=dt*f(1:ifull)*iib(1:ifull)
+    call bounds(iib)
+    call bounds(iic)    
+    
+    dibdx=0.5*(iib(wwe)/em(wwe)-iib(www)/em(www))*em(1:ifull)**2/ds
+    dibdy=0.5*(iib(wwn)/em(wwn)-iib(wws)/em(wws))*em(1:ifull)**2/ds
+    dicdx=0.5*(iic(wwe)/em(wwe)-iic(www)/em(www))*em(1:ifull)**2/ds
+    dicdy=0.5*(iic(wwn)/em(wwn)-iic(wws)/em(wws))*em(1:ifull)**2/ds
   
+    ! Iterative loop to estimate ice 'pressure'
     alpha=0.9
     do ll=1,llmax
   
@@ -916,17 +935,18 @@ do l=1,lmax ! predictor-corrector loop
       ips=ip(wws)/em(wws)
       ipw=ip(www)/em(www)
    
-      div=iia-dt*(ipe-2.*ip(1:ifull)+ipw)*em(1:ifull)**3/(ds*ds)                          &
-             -dibdx*(ipe-ipw)*0.5*em(1:ifull)**2/ds-dicdx*(ipn-ips)*0.5*em(1:ifull)**2/ds &
-             -dt*(ipn-2.*ip(1:ifull)+ips)*em(1:ifull)**3/(ds*ds)                          &
-             -dibdy*(ipn-ips)*0.5*em(1:ifull)**2/ds+dicdy*(ipe-ipw)*0.5*em(1:ifull)**2/ds
+      div=iia+iib(1:ifull)*(ipe-2.*ip(1:ifull)/em(1:ifull)+ipw)*em(1:ifull)**3/(ds*ds)    &
+             +dibdx*(ipe-ipw)*0.5*em(1:ifull)**2/ds+dicdx*(ipn-ips)*0.5*em(1:ifull)**2/ds &
+             +iib(1:ifull)*(ipn-2.*ip(1:ifull)/em(1:ifull)+ips)*em(1:ifull)**3/(ds*ds)    &
+             +dibdy*(ipn-ips)*0.5*em(1:ifull)**2/ds-dicdy*(ipe-ipw)*0.5*em(1:ifull)**2/ds
       nip=ip(1:ifull)
       where (div.lt.0..and.wtr(1:ifull))
-        nip=(-iia+dibdx*(ipe-ipw)*0.5*em(1:ifull)**2/ds+dt*(ipe+ipw)*em(1:ifull)**3/(ds*ds) &
-                 +dicdx*(ipn-ips)*0.5*em(1:ifull)**2/ds                                     &
-                 +dibdy*(ipn-ips)*0.5*em(1:ifull)**2/ds+dt*(ipn+ips)*em(1:ifull)**3/(ds*ds) &
-                 -dicdy*(ipe-ipw)*0.5*em(1:ifull)**2/ds)                                    &
-            /(4.*dt*em(1:ifull)**3/(ds*ds))
+        nip=(iia+iib(1:ifull)*(ipn+ips+ipe+ipw)*em(1:ifull)**3/(ds*ds) &
+            +dibdx*(ipe-ipw)*0.5*em(1:ifull)**2/ds                     &
+            +dicdx*(ipn-ips)*0.5*em(1:ifull)**2/ds                     &
+            +dibdy*(ipn-ips)*0.5*em(1:ifull)**2/ds                     &
+            -dicdy*(ipe-ipw)*0.5*em(1:ifull)**2/ds)                    &
+            /(4.*iib(1:ifull)*em(1:ifull)**2/(ds*ds))
       end where
       if (icemode.gt.1) then
         ipmax=27500.*ndic(1:ifull)*exp(-20.*(1.-nfracice(1:ifull)))
