@@ -518,8 +518,8 @@ c     if(mydiag.and.diag)then
         end if                                                       ! MLO
         call start_log(watermix_begin)                               ! MLO
         !call mlosalfix ! for shallow MLO only                       ! MLO
-        call mloeval(tss,zo,cduv,fg,eg,wetfac,epot,epan,fracice,     ! MLO
-     &               sicedep,snowd,dt,azmin,azmin,sgsave(:)/         ! MLO
+        call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,        ! MLO
+     &               fracice,sicedep,snowd,dt,azmin,azmin,sgsave(:)/ ! MLO
      &               (1.-swrsave*albvisnir(:,1)-                     ! MLO
      &               (1.-swrsave)*albvisnir(:,2)),                   ! MLO
      &               -rgsave,condx/dt,uav,vav,t(1:ifull,1),          ! MLO

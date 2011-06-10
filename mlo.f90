@@ -51,18 +51,19 @@ real, dimension(:), allocatable, save :: i_dic,i_dsn,i_fracice,i_tsurf,i_sto,i_u
 real, dimension(:), allocatable, save :: p_mixdepth,p_bf
 real, dimension(:), allocatable, save :: p_watervisdiralb,p_watervisdifalb,p_waternirdiralb,p_waternirdifalb
 real, dimension(:), allocatable, save :: p_icevisdiralb,p_icevisdifalb,p_icenirdiralb,p_icenirdifalb
-real, dimension(:), allocatable, save :: p_zo,p_zoh,p_zoq,p_cd,p_fg,p_eg
-real, dimension(:), allocatable, save :: p_zoice,p_zohice,p_zoqice,p_cdice,p_fgice,p_egice,p_wetfacice
+real, dimension(:), allocatable, save :: p_zo,p_zoh,p_zoq,p_cd,p_cds,p_fg,p_eg
+real, dimension(:), allocatable, save :: p_zoice,p_zohice,p_zoqice,p_cdice,p_cdsice,p_fgice,p_egice,p_wetfacice
 real, dimension(:), allocatable, save :: p_tscrn,p_uscrn,p_qgscrn,p_u10
 integer, dimension(:), allocatable, save :: p_mixind
   
 ! mode
 integer, parameter :: incradbf  = 1 ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 1 ! include shortwave in non-local term
-integer, parameter :: zomode    = 0 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
+integer, parameter :: zomode    = 2 ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=None, 1=Iterative)
 integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
 integer, parameter :: deprelax  = 0 ! surface height (0=vary, 1=relax, 2=set to zero)
+integer, parameter :: buoymeth  = 0 ! buoyancy calculation (0=density, 1=alpha/beta)
 ! max depth
 real, parameter :: mxd    = 5004.84 ! Max depth (m)
 real, parameter :: mindep = 1.0     ! Thickness of first layer (m)
@@ -149,8 +150,8 @@ allocate(p_watervisdiralb(wfull),p_watervisdifalb(wfull))
 allocate(p_waternirdiralb(wfull),p_waternirdifalb(wfull))
 allocate(p_icevisdiralb(wfull),p_icevisdifalb(wfull))
 allocate(p_icenirdiralb(wfull),p_icenirdifalb(wfull))
-allocate(p_zo(wfull),p_zoh(wfull),p_zoq(wfull),p_cd(wfull),p_fg(wfull),p_eg(wfull))
-allocate(p_zoice(wfull),p_zohice(wfull),p_zoqice(wfull),p_cdice(wfull),p_fgice(wfull),p_egice(wfull))
+allocate(p_zo(wfull),p_zoh(wfull),p_zoq(wfull),p_cd(wfull),p_cds(wfull),p_fg(wfull),p_eg(wfull))
+allocate(p_zoice(wfull),p_zohice(wfull),p_zoqice(wfull),p_cdice(wfull),p_cdsice(wfull),p_fgice(wfull),p_egice(wfull))
 allocate(p_wetfacice(wfull),p_mixind(wfull))
 allocate(p_tscrn(wfull),p_uscrn(wfull),p_qgscrn(wfull),p_u10(wfull))
 allocate(depth(wfull,wlev),dz(wfull,wlev))
@@ -198,12 +199,14 @@ p_zo=0.001
 p_zoh=0.001
 p_zoq=0.001
 p_cd=0.
+p_cds=0.
 p_fg=0.
 p_eg=0.
 p_zoice=0.001
 p_zohice=0.001/7.4
 p_zoqice=0.001/7.4
 p_cdice=0.
+p_cdsice=0.
 p_fgice=0.
 p_egice=0.
 p_wetfacice=1.
@@ -315,8 +318,8 @@ deallocate(p_watervisdiralb,p_watervisdifalb)
 deallocate(p_waternirdiralb,p_waternirdifalb)
 deallocate(p_icevisdiralb,p_icevisdifalb)
 deallocate(p_icenirdiralb,p_icenirdifalb)
-deallocate(p_zo,p_zoh,p_zoq,p_cd,p_fg,p_eg)
-deallocate(p_zoice,p_zohice,p_zoqice,p_cdice,p_fgice,p_egice)
+deallocate(p_zo,p_zoh,p_zoq,p_cd,p_cds,p_fg,p_eg)
+deallocate(p_zoice,p_zohice,p_zoqice,p_cdice,p_cdsice,p_fgice,p_egice)
 deallocate(p_wetfacice,p_mixind)
 deallocate(p_tscrn,p_uscrn,p_qgscrn,p_u10)
 deallocate(depth,dz,depth_hl,dz_hl)
@@ -763,7 +766,7 @@ end subroutine mloexpdensity
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Pack atmospheric data for MLO eval
 
-subroutine mloeval(sst,zo,cd,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
+subroutine mloeval(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
                    dt,zmin,zmins,sg,rg,precp,uatm,vatm,temp,qg,ps,f,     &
                    visnirratio,fbvis,fbnir,inflow,diag,calcprog)
 
@@ -772,7 +775,7 @@ implicit none
 integer, intent(in) :: diag
 real, intent(in) :: dt
 real, dimension(ifull), intent(in) :: sg,rg,precp,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
-real, dimension(ifull), intent(inout) :: sst,zo,cd,fg,eg,wetfac,fracice,siced,epot,epan,snowd
+real, dimension(ifull), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
 real, dimension(wfull) :: workb
 real, dimension(wfull) :: a_sg,a_rg,a_rnd,a_snd,a_f,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
 real, dimension(wfull) :: a_inflow
@@ -820,8 +823,8 @@ call iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a
 if (calcprog) then
   call mloice(dt,a_rnd,a_snd,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_ftop,d_bot,d_tb,  &
               d_fb,d_timelt,d_tauxica,d_tauyica,d_tauxicw,d_tauyicw,d_ustar,d_rho,d_did,d_nk,diag)   ! update ice
-  call mlocalc(dt,a_f,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_zcr,  &
-               diag)                                                                                 ! update water
+  call mlocalc(dt,a_f,d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0, &
+               d_zcr,diag)                                                                           ! update water
 end if 
 call scrncalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,diag)                                          ! screen diagnostics
 
@@ -830,6 +833,7 @@ sst=unpack((1.-i_fracice)*w_temp(:,1)+i_fracice*workb,wpack,sst)
 workb=(1.-i_fracice)/log(a_zmin/p_zo)**2+i_fracice/log(a_zmin/p_zoice)**2
 zo=unpack(a_zmin*exp(-1./sqrt(workb)),wpack,zo)
 cd=unpack((1.-i_fracice)*p_cd+i_fracice*p_cdice,wpack,cd)
+cds=unpack((1.-i_fracice)*p_cds+i_fracice*p_cdsice,wpack,cds)
 fg=unpack((1.-i_fracice)*p_fg+i_fracice*p_fgice,wpack,fg)
 eg=unpack((1.-i_fracice)*p_eg+i_fracice*p_egice,wpack,eg)
 wetfac=unpack((1.-i_fracice)+i_fracice*p_wetfacice,wpack,wetfac)
@@ -847,8 +851,8 @@ end subroutine mloeval
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! MLO calcs for water (no ice)
 
-subroutine mlocalc(dt,a_f,d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_zcr, &
-                   diag)
+subroutine mlocalc(dt,a_f,d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0, &
+                   d_zcr,diag)
 
 implicit none
 
@@ -860,13 +864,13 @@ real, dimension(wfull,wlev) :: rhs
 double precision, dimension(wfull,2:wlev) :: aa
 double precision, dimension(wfull,wlev) :: bb,dd
 double precision, dimension(wfull,1:wlev-1) :: cc
-real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha
+real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull) :: xp,xm,dumt0,umag
 real, dimension(wfull), intent(in) :: a_f
 real, dimension(wfull), intent(in) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_zcr
 real, dimension(wfull) :: newa,newb
 
-call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,a_f,d_zcr) ! solve for mixed layer depth (calculated at full levels)
+call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,a_f,d_zcr) ! solve for mixed layer depth (calculated at full levels)
 call getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr)                     ! solve for stability functions and non-local term
                                                                    ! (calculated at half levels)
 
@@ -1127,18 +1131,17 @@ end subroutine getstab
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! calculate mixing layer depth
 
-subroutine getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_b0,d_ustar,a_f,d_zcr)
+subroutine getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,a_f,d_zcr)
 
 implicit none
 
 integer ii,jj,kk,iqw
 real vtc,dvsq,vtsq,xp
-real tnsq,tws,twu,twv,tdepth,trho
+real tnsq,tws,twu,twv,tdepth,tbuoy,trho
 real oldxp,oldtrib,trib,newxp
-real, dimension(wfull,wlev) :: ws,wm
+real, dimension(wfull,wlev) :: ws,wm,dumbuoy,rib
 real, dimension(wfull) :: dumbf,l,d_depth
-real, dimension(wfull,wlev) :: rib
-real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha
+real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull), intent(in) :: d_b0,d_ustar,d_zcr
 real, dimension(wfull), intent(in) :: a_f
 integer, parameter :: maxits = 3
@@ -1148,7 +1151,7 @@ vtc=1.8*sqrt(0.2/(98.96*epsilon))/(vkar*vkar*ric)
 
 if (incradbf.gt.0) then
   do ii=1,wlev
-    dumbf=d_b0+grav*sum(d_alpha(:,1:ii)*d_rad(:,1:ii),2)
+    dumbf=d_b0-grav*sum(d_alpha(:,1:ii)*d_rad(:,1:ii),2) ! -ve sign is to account for sign of d_rad
     d_depth=depth(:,ii)*d_zcr
     call getwx(wm(:,ii),ws(:,ii),d_depth,dumbf,d_ustar,d_depth)
   end do
@@ -1160,6 +1163,20 @@ else
   end do
 end if
 
+if (buoymeth.eq.0) then
+  do ii=1,wlev
+    dumbuoy(:,ii)=grav*(d_rho(:,ii)-d_rho(:,1))
+  end do
+else
+  do ii=1,wlev
+    dumbuoy(:,ii)=grav*(d_alpha(:,ii)*w_temp(:,ii)-d_beta(:,ii)*w_sal(:,ii))
+  end do
+  do ii=2,wlev
+    dumbuoy(:,ii)=(dumbuoy(:,ii)-dumbuoy(:,1))
+  end do
+  dumbuoy(:,1)=0.
+end if
+
 p_mixind=wlev-1
 p_mixdepth=depth(:,wlev)*d_zcr
 rib=0.
@@ -1168,8 +1185,8 @@ do iqw=1,wfull
     jj=min(ii+1,wlev)
     vtsq=depth(iqw,ii)*d_zcr(iqw)*ws(iqw,ii)*sqrt(0.5*max(d_nsq(iqw,ii)+d_nsq(iqw,jj),0.))*vtc
     dvsq=(w_u(iqw,1)-w_u(iqw,ii))**2+(w_v(iqw,1)-w_v(iqw,ii))**2
-    rib(iqw,ii)=(depth(iqw,ii)-depth(iqw,1))*d_zcr(iqw)*(1.-d_rho(iqw,1)/d_rho(iqw,ii))/max(dvsq+vtsq,1.E-20)
-    if (rib(iqw,ii).gt.ric) then
+    rib(iqw,ii)=(depth(iqw,ii)-depth(iqw,1))*d_zcr(iqw)*dumbuoy(iqw,ii)/(max(dvsq+vtsq,1.E-20)*d_rho(iqw,ii))
+    if (rib(iqw,ii).gt.ric.or.rib(iqw,ii).lt.rib(iqw,ii-1)) then
       p_mixind(iqw)=ii-1
       xp=min(max((ric-rib(iqw,ii-1))/max(rib(iqw,ii)-rib(iqw,ii-1),1.E-20),0.),1.)
       p_mixdepth(iqw)=((1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii))*d_zcr(iqw)
@@ -1197,11 +1214,12 @@ if (mixmeth.eq.1) then
       twu=(1.-xp)*w_u(iqw,ii-1)+xp*w_u(iqw,ii)
       twv=(1.-xp)*w_v(iqw,ii-1)+xp*w_v(iqw,ii)
       tdepth=((1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii))*d_zcr(iqw)
+      tbuoy=(1.-xp)*dumbuoy(iqw,ii-1)+xp*dumbuoy(iqw,ii)
       trho=(1.-xp)*d_rho(iqw,ii-1)+xp*d_rho(iqw,ii)
       vtsq=tdepth*tws*sqrt(tnsq)*vtc
       dvsq=(w_u(iqw,1)-twu)**2+(w_v(iqw,1)-twv)**2
-      trib=(tdepth-depth(iqw,1)*d_zcr(iqw))*(1.-d_rho(iqw,1)/trho)/max(dvsq+vtsq,1.E-20)
-      if ((trib-oldtrib).ne.0.) then
+      trib=(tdepth-depth(iqw,1)*d_zcr(iqw))*tbuoy/(max(dvsq+vtsq,1.E-20)*trho)
+      if (abs(trib-oldtrib).gt.1.E-5) then
         newxp=xp-alpha*(trib-ric)*(xp-oldxp)/(trib-oldtrib) ! i.e., (trib-ric-oldtrib+ric)
         oldtrib=trib
         oldxp=xp
@@ -1260,7 +1278,7 @@ real, dimension(wfull), intent(in) :: d_b0
 
 if (incradbf.gt.0) then
   do iqw=1,wfull
-    p_bf(iqw)=d_b0(iqw)+grav*sum(d_alpha(iqw,1:p_mixind(iqw))*d_rad(iqw,1:p_mixind(iqw)))
+    p_bf(iqw)=d_b0(iqw)-grav*sum(d_alpha(iqw,1:p_mixind(iqw))*d_rad(iqw,1:p_mixind(iqw))) ! -ve sign is to account for sign of d_rad
   end do
 else
   p_bf=d_b0
@@ -1378,11 +1396,13 @@ d_wv0=-(1.-i_fracice)*d_tauy/d_rho(:,1)                                         
 d_wt0=-(1.-i_fracice)*(-p_fg-p_eg+a_rg-sbconst*w_temp(:,1)**4)/(d_rho(:,1)*cp0)    ! BC
 d_wt0=d_wt0+(1.-i_fracice)*lf*a_snd/(d_rho(:,1)*cp0) ! melting snow                ! BC
 d_ws0=(1.-i_fracice)*(a_rnd+a_snd-p_eg/lv)*w_sal(:,1)/rs(:,1)                      ! BC
-d_ws0=d_ws0+(a_inflow)*w_sal(:,1)/rs(:,1)                                          ! BC
-d_wm0=((1.-i_fracice)*(a_rnd+a_snd-p_eg/lv)+a_inflow)*0.001 ! convert mm to m
+d_ws0=d_ws0+(a_inflow)*w_sal(:,1)/rs(:,1) ! currently salinity transfer between ice and water is neglected
+d_wm0=((1.-i_fracice)*(a_rnd+a_snd-p_eg/lv)+a_inflow)*0.001 ! convert mm to m      ! BC
 
 d_ustar=max(sqrt(sqrt(d_wu0*d_wu0+d_wv0*d_wv0)),1.E-6)
-d_b0=-grav*(d_alpha(:,1)*d_wt0-d_beta(:,1)*d_ws0)
+d_b0=-grav*(d_alpha(:,1)*d_wt0-d_beta(:,1)*d_ws0) ! -ve sign to compensate for sign of wt0 and ws0
+                                                  ! This is the opposite sign used by Large for wb0, but
+                                                  ! is same sign as Large used for Bf
 
 return
 end subroutine getrho
@@ -1501,13 +1521,11 @@ do i=1,nits
     d_rho(:,ii)=rho0/(1.-p1/sk)
     rs(:,ii)=rs0/(1.-p1/sks) ! sal=0.
   
-    drhodt=(drho0dt/(1.-p1/sk)-rho0*p1*dskdt/(sk-p1)**2) &
-          /(1.-rho0*grav*dep(:,ii)*1.E-5*(sk-p1*dskdp)/(sk-p1)**2)
-    drhods=(drho0ds/(1.-p1/sk)-rho0*p1*dskds/(sk-p1)**2) &
-          /(1.-rho0*grav*dep(:,ii)*1.E-5*(sk-p1*dskdp)/(sk-p1)**2)
+    drhodt=drho0dt/(1.-p1/sk)-rho0*p1*dskdt/(sk-p1)**2 ! neglected dp1drho*drhodt terms
+    drhods=drho0ds/(1.-p1/sk)-rho0*p1*dskds/(sk-p1)**2 ! neglected dp1drho*drhods terms
     
-    d_alpha(:,ii)=-drhodt/d_rho(:,ii) ! MOM convention
-    d_beta(:,ii)=drhods/d_rho(:,ii)   ! MOM convention
+    d_alpha(:,ii)=-drhodt              ! Large et al (1993) convention
+    d_beta(:,ii)=drhods                ! Large et al (1993) convention
   end do
 
 end do
@@ -1645,6 +1663,7 @@ elsewhere        ! ri is -ve
 end where
 
 p_cd=af*fm
+p_cds=aft*fh
 p_fg=rho*aft*cp*fh*vmag*(w_temp(:,1)-a_temp/srcp)
 p_eg=rho*afq*lv*fq*vmag*(qsat-a_qg)
 d_taux=rho*p_cd*vmag*atu
@@ -1844,7 +1863,7 @@ do iqw=1,wfull
   d_ws0(iqw)=d_ws0(iqw)-i_fracice(iqw)*d_salflx(iqw)*w_sal(iqw,1)/d_rho(iqw,1) ! actually salflx*(watersal-icesal)/density(icesal)
   d_wm0(iqw)=d_wm0(iqw)+i_fracice(iqw)*d_wtrflx(iqw)
   d_ustar(iqw)=max(sqrt(sqrt(d_wu0(iqw)*d_wu0(iqw)+d_wv0(iqw)*d_wv0(iqw))),1.E-6)
-  d_b0(iqw)=-grav*(d_alpha(iqw,1)*d_wt0(iqw)-d_beta(iqw,1)*d_ws0(iqw))
+  d_b0(iqw)=-grav*(d_alpha(iqw,1)*d_wt0(iqw)-d_beta(iqw,1)*d_ws0(iqw)) ! -ve sign is to account for sign of wt0 and ws0
  end do
 
 return
@@ -1871,20 +1890,17 @@ newdic=max(d_timelt-w_temp(:,1),0.)*cp0*d_rho(:,1)*dz(:,1)*d_zcr/qice
 newdic=min(0.15,newdic)
 newdic=min(depth_hl(:,wlev+1)-minwater+w_eta,newdic)
 newtn=w_temp(:,1)+newdic*qice/(cp0*d_rho(:,1)*dz(:,1)*d_zcr)
-newdic=newdic/fracbreak
-where (newdic.gt.2.*icemin.and.i_fracice.le.0.) ! form new sea-ice
-  i_dic=newdic
-  i_dsn=0.
-  i_fracice=fracbreak
-  i_tsurf=newtn
-  i_tn(:,0)=newtn
-  i_tn(:,1)=newtn
-  i_tn(:,2)=newtn
-  i_sto=0.
-  !i_u=w_u(:,1)*rhowt/rhoic ! probably should conserve momentum here
-  !i_v=w_v(:,1)*rhowt/rhoic
-  w_temp(:,1)=newtn
-  d_wm0=d_wm0-i_dic*i_fracice*rhoic/rhowt/dt
+where (newdic.gt.2.*icemin) ! form new sea-ice
+  i_dic=i_dic*i_fracice+newdic*(1.-i_fracice)
+  i_dsn=i_dsn*i_fracice
+  i_tsurf=i_tsurf*i_fracice+newtn*(1.-i_fracice)
+  !i_tn(:,0)=i_tn(:,0) ! no adjustment to snow layer
+  !i_tn(:,1)=i_tn(:,1) ! no adjustment to deep layers
+  !i_tn(:,2)=i_tn(:,2) ! no adjustment to deep layers
+  i_sto=i_sto*i_fracice
+  w_temp(:,1)=w_temp(:,1)*i_fracice+newtn*(1.-i_fracice)
+  d_wm0=d_wm0-newdic*(1.-i_fracice)*rhoic/rhowt/dt
+  i_fracice=1. ! this will be adjusted for fracbreak below  
 endwhere
 
 ! removal
@@ -2586,6 +2602,7 @@ end where
 
 p_wetfacice=max(1.+.008*min(i_tsurf-273.16,0.),0.)
 p_cdice=af*fm
+p_cdsice=aft*fh
 p_fgice=rho*aft*cp*fh*vmag*(i_tsurf-a_temp/srcp)
 p_egice=p_wetfacice*rho*aft*lv*fh*vmag*(qsat-a_qg)
 d_tauxica=rho*p_cdice*vmag*uu

@@ -311,22 +311,20 @@ integer jyear,jmonth,jday,jhour,jmin,mstart,mins
 integer tyear,jstart
 integer, dimension(ifull,wlev) :: nface
 integer, dimension(12) :: ndoy
-integer, dimension(ifull) :: wwn,wwe,wws,www
 real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
 real delpos,delneg,alph_p,dumpp,dumpn
-real, dimension(ifull+iextra) :: ee,neta,dd,snu,snv,ntide,pice
+real, dimension(ifull+iextra) :: ee,neta,dd,snu,snv,ntide,pice,ip
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,ndum
-real, dimension(ifull+iextra) :: imass,spu,squ,sru,spv,sqv,srv,iib,iic
-real, dimension(:), allocatable, save :: ip
+real, dimension(ifull+iextra) :: imass,spu,squ,sru,spv,sqv,srv,ibu,ibv,icu,icv
 real, dimension(ifull) :: i_u,i_v,i_sto,rhobaru,rhobarv
-real, dimension(ifull) :: div,seta,w_e
+real, dimension(ifull) :: div,seta,w_e,imu,imv
 real, dimension(ifull) :: tnu,tsu,tev,twv,rhou,rhov,sou,sov
 real, dimension(ifull) :: dpsdxu,dpsdyu,dpsdxv,dpsdyv
 real, dimension(ifull) :: dttdxu,dttdyu,dttdxv,dttdyv
 real, dimension(ifull) :: detadxu,detadyu,detadxv,detadyv
 real, dimension(ifull) :: dipdxu,dipdyu,dipdxv,dipdyv
 real, dimension(ifull) :: au,bu,cu,av,bv,cv,odum
-real, dimension(ifull) :: nip,iia,dibdx,dibdy,dicdx,dicdy,ipn,ipe,ips,ipw,ipmax
+real, dimension(ifull) :: nip,ipn,ipe,ips,ipw,ipmax
 real, dimension(ifull) :: dsnudeta,dsnuwdeta,dsnvdeta,dsnvsdeta,ddivdeta
 real, dimension(ifull) :: sssa,sssb,sssc,sssd
 real, dimension(ifull+iextra,4) :: nit
@@ -352,7 +350,7 @@ integer, parameter :: drmeth=1     ! rho gradient calculation (0=basic, 1=interp
 integer, parameter :: lmax=1       ! 1=predictor-only, 2+=predictor-corrector
 integer, parameter :: llmax=500    ! iterations for calculating surface height
 real, parameter :: tol = 5.E-4     ! Tolerance for GS solver (water)
-real, parameter :: itol = 5.E-7    ! Tolerance for GS solver (ice)
+real, parameter :: itol = 5.E-1    ! Tolerance for GS solver (ice)
 real, parameter :: sal = 0.948     ! SAL parameter
 real, parameter :: rhosn=330.      ! density snow
 real, parameter :: rhoic=900.      ! density ice
@@ -452,18 +450,6 @@ else where
   stwgt(:,4,4)=0.5 !in
 end where
 
-! precompute ice indices
-wwn=in
-wwe=ie
-wws=is
-www=iw
-do iq=1,ifull
-  if (.not.wtr(wwn(iq))) wwn(iq)=iq
-  if (.not.wtr(wwe(iq))) wwe(iq)=iq
-  if (.not.wtr(wws(iq))) wws(iq)=iq
-  if (.not.wtr(www(iq))) www(iq)=iq
-end do
-
 ! ADVECT WATER AND ICE ----------------------------------------------
 do ii=1,wlev
   call mloexpdep(0,dep(1:ifull,ii),ii,0)
@@ -557,10 +543,6 @@ if (.not.allocated(oldu1)) then
   oldv1=w_v
   oldu2=w_u
   oldv2=w_v
-end if
-if (.not.allocated(ip)) then
-  allocate(ip(ifull+iextra))
-  ip=0. ! free drift solution for ice
 end if
 
 ! initialise t+1 variables for predictor-corrector loop
@@ -903,69 +885,76 @@ do l=1,lmax ! predictor-corrector loop
   call boundsuv(niu,niv)
   
   imass(1:ifull)=max(imass(1:ifull),10.)
+  call bounds(imass)
   if (icemode.gt.0) then
-    ! iau = d(niu)/dx
-    ! iav = d(niv)/dy
-
-    !iia=iau+iav
-    !iib=-dt/(imass*(1+(dt*f)**2)      !ibu=ibv=iib
-    !iic=-dt*dt*f/(imass*(1+(dt*f)**2) !icu=-icv=iic
-   
-    ! div = iau + ibu*d2ipdx2 + dibudx*dipdx + dicudx*dipdy
-    !     + iav + ibv*d2ipdy2 + dibvdy*dipdy + dicvdy*dipdx = 0 (incompressible)
- 
-    iia=imass(1:ifull)*(niu(1:ifull)-niu(iwu)+niv(1:ifull)-niv(isv))*0.5*em(1:ifull)/ds
-    iib(1:ifull)=-dt/(imass(1:ifull)*(1.+dt*dt*f(1:ifull)*f(1:ifull)))
-    iic(1:ifull)=dt*f(1:ifull)*iib(1:ifull)
-    call bounds(iib)
-    call bounds(iic)    
-    
-    dibdx=0.5*(iib(wwe)/em(wwe)-iib(www)/em(www))*em(1:ifull)**2/ds
-    dibdy=0.5*(iib(wwn)/em(wwn)-iib(wws)/em(wws))*em(1:ifull)**2/ds
-    dicdx=0.5*(iic(wwe)/em(wwe)-iic(www)/em(www))*em(1:ifull)**2/ds
-    dicdy=0.5*(iic(wwn)/em(wwn)-iic(wws)/em(wws))*em(1:ifull)**2/ds
+    ! (staggered)
+    ! niu(t+1) = niu + ibu*dipdx + icu*dipdy
+    ! niv(t+1) = niv + ibv*dipdy + icv*dipdx
   
+    imu=0.5*(imass(1:ifull)+imass(ie))
+    imv=0.5*(imass(1:ifull)+imass(in))
+ 
+    ibu(1:ifull)=-dt/(imu*(1.+dt*dt*fu(1:ifull)*fu(1:ifull)))*ee(1:ifull)*ee(ie)
+    ibv(1:ifull)=-dt/(imv*(1.+dt*dt*fv(1:ifull)*fv(1:ifull)))*ee(1:ifull)*ee(in)
+    icu(1:ifull)=dt*fu(1:ifull)*ibu(1:ifull)*ee(1:ifull)*ee(ie)
+    icv(1:ifull)=-dt*fv(1:ifull)*ibv(1:ifull)*ee(1:ifull)*ee(in)
+    call boundsuv(ibu,ibv)
+
     ! Iterative loop to estimate ice 'pressure'
     alpha=0.9
+    ip=0. ! free drift solution
     do ll=1,llmax
   
-      call bounds(ip)
-      ipn=ip(wwn)/em(wwn)
-      ipe=ip(wwe)/em(wwe)
-      ips=ip(wws)/em(wws)
-      ipw=ip(www)/em(www)
-   
-      div=iia+iib(1:ifull)*(ipe-2.*ip(1:ifull)/em(1:ifull)+ipw)*em(1:ifull)**3/(ds*ds)    &
-             +dibdx*(ipe-ipw)*0.5*em(1:ifull)**2/ds+dicdx*(ipn-ips)*0.5*em(1:ifull)**2/ds &
-             +iib(1:ifull)*(ipn-2.*ip(1:ifull)/em(1:ifull)+ips)*em(1:ifull)**3/(ds*ds)    &
-             +dibdy*(ipn-ips)*0.5*em(1:ifull)**2/ds-dicdy*(ipe-ipw)*0.5*em(1:ifull)**2/ds
+      call bounds(ip,nrows=2)
+      spu(1:ifull)=stwgt(:,1,1)*ip(1:ifull)+stwgt(:,1,2)*ip(in)+stwgt(:,1,3)*ip(ine)+stwgt(:,1,4)*ip(ie)
+      squ(1:ifull)=stwgt(:,2,1)*ip(1:ifull)+stwgt(:,2,2)*ip(is)+stwgt(:,2,3)*ip(ise)+stwgt(:,2,4)*ip(ie)
+      spv(1:ifull)=stwgt(:,3,1)*ip(1:ifull)+stwgt(:,3,2)*ip(ie)+stwgt(:,3,3)*ip(ien)+stwgt(:,3,4)*ip(in)
+      sqv(1:ifull)=stwgt(:,4,1)*ip(1:ifull)+stwgt(:,4,2)*ip(iw)+stwgt(:,4,3)*ip(iwn)+stwgt(:,4,4)*ip(in)
+      spu(1:ifull)=icu(1:ifull)*(spu(1:ifull)-squ(1:ifull))
+      spv(1:ifull)=icv(1:ifull)*(spv(1:ifull)-sqv(1:ifull))
+      call boundsuv(spu,spv)
+
+      !dipdxu=(ip(ie)-ip(1:ifull))*emu(1:ifull)/ds
+      !dipdyu=0.5*spu(1:ifull)*emu(1:ifull)/(ds*icu(1:ifull))
+      !dipdxv=0.5*spv(1:ifull)*emv(1:ifull)/(ds*icv(1:ifull))
+      !dipdyv=(ip(in)-ip(1:ifull))*emv(1:ifull)/ds
+
+      !snu(1:ifull)=niu(1:ifull)+ibu*dipdxu+icu*dipdyu
+      !snv(1:ifull)=niv(1:ifull)+ibv*dipdyv+icv*dipdxv
+      !call boundsuv(snu,snv)
+      !div=(snu(1:ifull)/emu(1:ifull)-snu(iwu)/emu(iwu)+snv(1:ifull)/emv(1:ifull)-snv(isv)/emv(isv)) &
+      !    *em(1:ifull)*em(1:ifull)/ds
+      div=(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu))*em(1:ifull)*em(1:ifull)/ds                          &
+         +(ibu(1:ifull)*(ip(ie)-ip(1:ifull))-ibu(iwu)*(ip(1:ifull)-ip(iw)))*em(1:ifull)*em(1:ifull)/(ds*ds) &
+         +(spu(1:ifull)-spu(iwu))*0.5*em(1:ifull)*em(1:ifull)/(ds*ds)                                       &
+         +(niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv))*em(1:ifull)*em(1:ifull)/ds                          &          
+         +(ibv(1:ifull)*(ip(in)-ip(1:ifull))-ibv(isv)*(ip(1:ifull)-ip(is)))*em(1:ifull)*em(1:ifull)/(ds*ds) &
+         +(spv(1:ifull)-spv(isv))*0.5*em(1:ifull)*em(1:ifull)/(ds*ds)
+
       nip=ip(1:ifull)
       where (div.lt.0..and.wtr(1:ifull))
-        nip=(iia+iib(1:ifull)*(ipn+ips+ipe+ipw)*em(1:ifull)**3/(ds*ds) &
-            +dibdx*(ipe-ipw)*0.5*em(1:ifull)**2/ds                     &
-            +dicdx*(ipn-ips)*0.5*em(1:ifull)**2/ds                     &
-            +dibdy*(ipn-ips)*0.5*em(1:ifull)**2/ds                     &
-            -dicdy*(ipe-ipw)*0.5*em(1:ifull)**2/ds)                    &
-            /(4.*iib(1:ifull)*em(1:ifull)**2/(ds*ds))
+        nip=((niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu))*ds    &
+            +(ibu(1:ifull)*ip(ie)+ibu(iwu)*ip(iw))               &
+            +(spu(1:ifull)-spu(iwu))*0.5                         &
+            +(niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv))*ds    &          
+            +(ibv(1:ifull)*ip(in)+ibv(isv)*ip(is))               &
+            +(spv(1:ifull)-spv(isv))*0.5)                        &
+           /(ibu(1:ifull)+ibu(iwu)+ibv(1:ifull)+ibv(isv))
       end where
       if (icemode.gt.1) then
+        ! cavitating fluid
         ipmax=27500.*ndic(1:ifull)*exp(-20.*(1.-nfracice(1:ifull)))
-        stest=ip(1:ifull).lt.ipmax
-        if (any(stest)) then
-          maxloclip=maxval(-div,stest)
-        else
-          maxloclip=0.
-        end if
-        ip(1:ifull)=max(min(alpha*nip+(1.-alpha)*ip(1:ifull),ipmax),0.)
+        nip=max(min(nip,ipmax),0.)
       else
-        ip(1:ifull)=max(alpha*nip+(1.-alpha)*ip(1:ifull),0.)
-        maxloclip=maxval(-div)
+        ! incompressible fluid
+        nip=max(nip,0.)
       end if
-  
-      
+      maxloclip=maxval(abs(nip-ip(1:ifull)))
+      ip(1:ifull)=alpha*nip+(1.-alpha)*ip(1:ifull)
+
       call MPI_AllReduce(maxloclip,maxglobip,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
       if (maxglobip.lt.itol.and.ll.gt.2) exit
-  
+ 
       itotits=itotits+1
     end do
   else
@@ -983,14 +972,8 @@ do l=1,lmax ! predictor-corrector loop
   dipdyu=0.5*(tnu-tsu)*emu(1:ifull)/ds
   dipdxv=0.5*(tev-twv)*emv(1:ifull)/ds
   dipdyv=(ip(in)-ip(1:ifull))*emv(1:ifull)/ds
-  
-  ! niu and niv hold the corrected solution after the plastic terms are accounted for
-  niu(1:ifull)=niu(1:ifull)-(dt*dipdxu/imass(1:ifull)+dt*dt*fu(1:ifull)*dipdyu/imass(1:ifull)) &
-                            /(1.+dt*dt*fu(1:ifull)*fu(1:ifull))
-  niv(1:ifull)=niv(1:ifull)-(dt*dipdyv/imass(1:ifull)-dt*dt*fv(1:ifull)*dipdxv/imass(1:ifull)) &
-                            /(1.+dt*dt*fv(1:ifull)*fv(1:ifull))
-  niu(1:ifull)=niu(1:ifull)*ee(1:ifull)*ee(ie)
-  niv(1:ifull)=niv(1:ifull)*ee(1:ifull)*ee(in)
+  niu(1:ifull)=(niu(1:ifull)+ibu*dipdxu+icu*dipdyu)*ee(1:ifull)*ee(ie)
+  niv(1:ifull)=(niv(1:ifull)+ibv*dipdyv+icv*dipdxv)*ee(1:ifull)*ee(in)
   call boundsuv(niu,niv)
 
   ! ADVECT ICE ------------------------------------------------------
@@ -1133,14 +1116,15 @@ end if
 ! volume conservation for water ---------------------------------------
 ! (include mass conservation in mlo.f90 due to thermal change)
 if (nud_sfh.eq.0) then
-  odum=neta(1:ifull)-w_e
+  odum=0.
+  where(wtr(1:ifull))
+    odum=neta(1:ifull)-w_e
+  end where
   call ccglobal_posneg(odum,delpos,delneg)
   alph_p = sqrt( -delneg/max(1.e-20,delpos) )
   neta(1:ifull) = w_e + alph_p*max(0.,odum) + min(0.,odum)/max(1.e-20,alph_p)
 end if
 
-call MPI_AllReduce(maxloclseta,maxglobseta,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
-call MPI_AllReduce(maxloclip,maxglobip,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
 if (myid==0.and.(ktau.le.100.or.maxglobseta.gt.tol)) then
   write(6,*) "MLODYNAMICS ",totits,maxglobseta,itotits,maxglobip
 end if
