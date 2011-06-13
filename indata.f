@@ -2067,7 +2067,10 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
             !  mlodwn(:,k,2)=0.
             !end where
           end do
-          micdwn(:,1:4)=271.2
+          micdwn(:,1)=tss
+          micdwn(:,2)=tss
+          micdwn(:,3)=tss
+          micdwn(:,4)=tss
           micdwn(:,5:6)=0.
           where (fracice.gt.0.)
             micdwn(:,1)=tss

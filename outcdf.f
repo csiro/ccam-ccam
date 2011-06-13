@@ -1162,6 +1162,16 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         !--------------------------------------------
       endif ! (ktau==0.or.itype==-1) 
 
+      if(ktau>0.and.nwt.ne.nperday.and.itype.ne.-1)then  ! reinstated July '05
+!       scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
+!       but, don't scale up for restart file as just done in previous write
+!       ktau in next line in case ntau (& thus ktau) < nwt 
+        precip=precip*real(nperday)/min(nwt,max(1,ktau))     
+        precc =precc *real(nperday)/min(nwt,max(1,ktau))     
+        sno   =sno   *real(nperday)/min(nwt,max(1,ktau))     
+        runoff=runoff*real(nperday)/min(nwt,max(1,ktau))    
+      endif   ! (ktau>0.and.nwt.ne.nperday.and.itype.ne.-1)
+
       call histwrt3(psl,'psf',idnc,iarch,local)
       call mslp(aa,psl,zs,t(1:ifull,:)) ! MJT cable
       aa=aa/100.                        ! MJT cable
@@ -1301,16 +1311,6 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       call histwrt3(sicedep,'siced',idnc,iarch,local)
       call histwrt3(fracice,'fracice',idnc,iarch,local)
       call histwrt3(u10,'u10',idnc,iarch,local) ! MJT zosea
-      
-      if(ktau>0.and.nwt.ne.nperday.and.itype.ne.-1)then  ! reinstated July '05
-!       scale up precip,precc,sno,runoff to mm/day (soon reset to 0 in globpe)
-!       but, don't scale up for restart file as just done in previous write
-!       ktau in next line in case ntau (& thus ktau) < nwt 
-        precip=precip*real(nperday)/min(nwt,max(1,ktau))     
-        precc =precc *real(nperday)/min(nwt,max(1,ktau))     
-        sno   =sno   *real(nperday)/min(nwt,max(1,ktau))     
-        runoff=runoff*real(nperday)/min(nwt,max(1,ktau))    
-      endif   ! (ktau>0.and.nwt.ne.nperday.and.itype.ne.-1)
       
       if(ktau>0.and.itype.ne.-1)then  ! these not written to restart file
        if(mod(ktau,nperday)==0.or.ktau==ntau)then  ! only write once per day

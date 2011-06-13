@@ -2778,11 +2778,11 @@
      &   /(pi*schmidt)
 
       mm=0.
-      dd=miss
-      dds=miss
-      ddu=miss
-      ddv=miss
-      ddh=miss
+      dd=0.
+      dds=0.
+      ddu=0.
+      ddv=0.
+      ddh=0.
       where(.not.landg)
         mm=1./(em_g*em_g)
       end where
@@ -2806,28 +2806,30 @@
         ffh=diffh_g(:,1)*mm
       end if
       do iqw=ns,ne
-        r(:)=x_g(iqw)*x_g(:)+y_g(iqw)*y_g(:)+z_g(iqw)*z_g(:)
-        r(:)=acos(max(min(r(:),1.),-1.))
-        rr(:)=exp(-(cq*r(:))**2)
-        nsum=max(sum(rr(:)*mm(:)),1.E-8)
-        if (nud_sst.ne.0) then
-          do k=1,kd
-            dd(iqw,k)=sum(rr(:)*ff(:,k))/nsum
-          end do
-        end if
-        if (nud_sss.ne.0) then
-          do k=1,kd
-            dds(iqw,k)=sum(rr(:)*ffs(:,k))/nsum
-          end do
-        end if
-        if (nud_ouv.ne.0) then
-          do k=1,kd
-            ddu(iqw,k)=sum(rr(:)*ffu(:,k))/nsum
-            ddv(iqw,k)=sum(rr(:)*ffv(:,k))/nsum
-          end do
-        end if
-        if (nud_sfh.ne.0) then
-          ddh(iqw)=sum(rr(:)*ffh(:))/nsum
+        if (.not.landg(iqw)) then
+          r(:)=x_g(iqw)*x_g(:)+y_g(iqw)*y_g(:)+z_g(iqw)*z_g(:)
+          r(:)=acos(max(min(r(:),1.),-1.))
+          rr(:)=exp(-(cq*r(:))**2)
+          nsum=sum(rr(:)*mm(:))
+          if (nud_sst.ne.0) then
+            do k=1,kd
+              dd(iqw,k)=sum(rr(:)*ff(:,k))/nsum
+            end do
+          end if
+          if (nud_sss.ne.0) then
+            do k=1,kd
+              dds(iqw,k)=sum(rr(:)*ffs(:,k))/nsum
+            end do
+          end if
+          if (nud_ouv.ne.0) then
+            do k=1,kd
+              ddu(iqw,k)=sum(rr(:)*ffu(:,k))/nsum
+              ddv(iqw,k)=sum(rr(:)*ffv(:,k))/nsum
+            end do
+          end if
+          if (nud_sfh.ne.0) then
+            ddh(iqw)=sum(rr(:)*ffh(:))/nsum
+          end if
         end if
       end do
       if (nud_sst.ne.0) then

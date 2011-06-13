@@ -13,10 +13,9 @@ module mlodynamics
 implicit none
 
 private
-public mlodiffusion,mlorouter,mlohadv,watbdy,mlosalfix
+public mlodiffusion,mlorouter,mlohadv,watbdy
 
 real, dimension(:), allocatable, save :: watbdy
-integer, parameter :: salfix = 0 ! fix salinity to 35 psu (0=off, 1=on)
 
 contains
 
@@ -239,7 +238,7 @@ elsewhere
   vel=1.E-10
 end where
 do i=1,4
-  flow(:,i)=watbdy(1:ifull)/(dp(:,i)/(-vel(:,i)*dt)-1.) ! (kg/m^2)
+  flow(:,i)=-watbdy(1:ifull)/(dp(:,i)/(vel(:,i)*dt)+1.) ! (kg/m^2)
 end do
 newwat=newwat+sum(flow,2)
   
@@ -351,9 +350,10 @@ integer, parameter :: lmax=1       ! 1=predictor-only, 2+=predictor-corrector
 integer, parameter :: llmax=500    ! iterations for calculating surface height
 real, parameter :: tol = 5.E-4     ! Tolerance for GS solver (water)
 real, parameter :: itol = 5.E-1    ! Tolerance for GS solver (ice)
-real, parameter :: sal = 0.948     ! SAL parameter
-real, parameter :: rhosn=330.      ! density snow
-real, parameter :: rhoic=900.      ! density ice
+real, parameter :: sal = 0.948     ! SAL parameter for tidal forcing
+real, parameter :: rhosn=330.      ! density snow (kg m^-3)
+real, parameter :: rhoic=900.      ! density ice  (kg m^-3)
+real, parameter :: cp0=3990.       ! heat capacity of mixed layer (J kg^-1 K^-1)
 
 data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
 
@@ -660,7 +660,6 @@ do l=1,lmax ! predictor-corrector loop
   call mloints(nt,intsch,nface,xg,yg,2)
   call mloints(ns,intsch,nface,xg,yg,5)
   ns=max(ns,0.)
-  
     
   ! FREE SURFACE CALCULATION ----------------------------------------
 
@@ -841,7 +840,7 @@ do l=1,lmax ! predictor-corrector loop
     ! Break iterative loop when maximum error is below tol (expensive)
     maxloclseta=maxval(abs(seta))
     call MPI_AllReduce(maxloclseta,maxglobseta,1,MPI_REAL,MPI_MAX,MPI_COMM_WORLD,ierr)
-    if (maxglobseta.lt.tol.and.ll.gt.2) exit    
+    if (maxglobseta.lt.tol.and.ll.gt.2) exit
 
     totits=totits+1
   end do
@@ -1093,37 +1092,51 @@ do l=1,lmax ! predictor-corrector loop
   
 end do
 
-! salinity conservation
-if (nud_sss.eq.0) then
-  dum=0.
-  delpos=0.
-  delneg=0.
-  do ii=1,wlev
-    where(wtr(1:ifull).and.w_s(1:ifull,ii).gt.1.)
-      dum(:,ii)=ns(1:ifull,ii)-w_s(1:ifull,ii) ! increments
-    end where
-    odum=dz(1:ifull,ii)*dum(:,ii)/dd(1:ifull)
-    ! cannot use 3d version, since it is hardwired to dsig
-    call ccglobal_posneg(odum,dumpp,dumpn)
-    delpos=delpos+dumpp
-    delneg=delneg+dumpn
-  end do
-  alph_p = -delneg/max(delpos,1.e-30)
-  alph_p = min(alph_p,sqrt(alph_p))  ! best option
-  ns(1:ifull,:)=w_s(1:ifull,:)+alph_p*max(0.,dum)+min(0.,dum)/max(1.,alph_p)
-end if
-
 ! volume conservation for water ---------------------------------------
 ! (include mass conservation in mlo.f90 due to thermal change)
-if (nud_sfh.eq.0) then
-  odum=0.
+odum=0.
+where(wtr(1:ifull))
+  odum=neta(1:ifull)-w_e
+end where
+call ccglobal_posneg(odum,delpos,delneg)
+alph_p = sqrt( -delneg/max(1.e-20,delpos) )
+neta(1:ifull) = w_e + alph_p*max(0.,odum) + min(0.,odum)/max(1.e-20,alph_p)
+
+! temperature conservation
+dum=0.
+delpos=0.
+delneg=0.
+do ii=1,wlev
   where(wtr(1:ifull))
-    odum=neta(1:ifull)-w_e
+    dum(:,ii)=nt(1:ifull,ii)-w_t(1:ifull,ii) ! increments
   end where
-  call ccglobal_posneg(odum,delpos,delneg)
-  alph_p = sqrt( -delneg/max(1.e-20,delpos) )
-  neta(1:ifull) = w_e + alph_p*max(0.,odum) + min(0.,odum)/max(1.e-20,alph_p)
-end if
+  odum=dz(1:ifull,ii)*dum(:,ii)/dd(1:ifull)
+  ! cannot use 3d version, since it is hardwired to dsig
+  call ccglobal_posneg(odum,dumpp,dumpn)
+  delpos=delpos+dumpp
+  delneg=delneg+dumpn
+end do
+alph_p = -delneg/max(delpos,1.e-30)
+alph_p = min(alph_p,sqrt(alph_p))  ! best option
+nt(1:ifull,:)=w_t(1:ifull,:)+alph_p*max(0.,dum)+min(0.,dum)/max(1.,alph_p)
+
+! salinity conservation
+dum=0.
+delpos=0.
+delneg=0.
+do ii=1,wlev
+  where(wtr(1:ifull).and.w_s(1:ifull,ii).gt.1.)
+    dum(:,ii)=ns(1:ifull,ii)-w_s(1:ifull,ii) ! increments
+  end where
+  odum=dz(1:ifull,ii)*dum(:,ii)/dd(1:ifull)
+  ! cannot use 3d version, since it is hardwired to dsig
+  call ccglobal_posneg(odum,dumpp,dumpn)
+  delpos=delpos+dumpp
+  delneg=delneg+dumpn
+end do
+alph_p = -delneg/max(delpos,1.e-30)
+alph_p = min(alph_p,sqrt(alph_p))  ! best option
+ns(1:ifull,:)=w_s(1:ifull,:)+alph_p*max(0.,dum)+min(0.,dum)/max(1.,alph_p)
 
 if (myid==0.and.(ktau.le.100.or.maxglobseta.gt.tol)) then
   write(6,*) "MLODYNAMICS ",totits,maxglobseta,itotits,maxglobip
@@ -2567,52 +2580,52 @@ end subroutine mloleap
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine adjusts salinity to maintain a specified average
-
-subroutine mlosalfix
-
-use map_m
-use mlo
-use soil_m
-
-implicit none
-
-include 'mpif.h'
-include 'newmpar.h'
-include 'parm.h'
-
-integer iq,ii,ierr
-real salsuml,salsumg,voll,volg,adj
-real, dimension(ifull,wlev) :: sal,dz
-
-if (salfix.eq.0) return
-if (nud_sss.ne.0) return
-
-do ii=1,wlev
-  call mloexpdep(1,dz(:,ii),ii,0)
-  call mloexport(1,sal(:,ii),ii,0)
-end do
-dz=max(dz,1.E-3/real(wlev))
-
-voll=0.
-salsuml=0.
-do iq=1,ifull
-  if (.not.land(iq)) then
-    voll=voll+sum(dz(iq,:))/(em(iq)*em(iq))
-    salsuml=salsuml+sum(sal(iq,:)*dz(iq,:))/(em(iq)*em(iq))
-  end if
-end do
-
-call MPI_AllReduce(voll,volg,1,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
-call MPI_AllReduce(salsuml,salsumg,1,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
-
-adj=34.72-salsumg/volg
-
-do ii=1,wlev
-  sal(:,ii)=max(sal(:,ii)+adj,0.)
-  call mloimport(1,sal(:,ii),ii,0)
-end do
-
-return
-end subroutine
+!
+!subroutine mlosalfix
+!
+!use map_m
+!use mlo
+!use soil_m
+!
+!implicit none
+!
+!include 'mpif.h'
+!include 'newmpar.h'
+!include 'parm.h'
+!
+!integer iq,ii,ierr
+!real salsuml,salsumg,voll,volg,adj
+!real, dimension(ifull,wlev) :: sal,dz
+!
+!if (salfix.eq.0) return
+!if (nud_sss.ne.0) return
+!
+!do ii=1,wlev
+!  call mloexpdep(1,dz(:,ii),ii,0)
+!  call mloexport(1,sal(:,ii),ii,0)
+!end do
+!dz=max(dz,1.E-3/real(wlev))
+!
+!voll=0.
+!salsuml=0.
+!do iq=1,ifull
+!  if (.not.land(iq)) then
+!    voll=voll+sum(dz(iq,:))/(em(iq)*em(iq))
+!    salsuml=salsuml+sum(sal(iq,:)*dz(iq,:))/(em(iq)*em(iq))
+!  end if
+!end do
+!
+!call MPI_AllReduce(voll,volg,1,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+!call MPI_AllReduce(salsuml,salsumg,1,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+!
+!adj=34.72-salsumg/volg
+!
+!do ii=1,wlev
+!  sal(:,ii)=max(sal(:,ii)+adj,0.)
+!  call mloimport(1,sal(:,ii),ii,0)
+!end do
+!
+!return
+!end subroutine
 
 end module mlodynamics
