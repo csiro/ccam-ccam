@@ -509,15 +509,14 @@ c     if(mydiag.and.diag)then
           call end_log(waterdynamics_end)                            ! MLO
         end if                                                       ! MLO
         if (abs(nmlo).ge.2) then                                     ! MLO
-          call start_log(waterdynamics_begin)                        ! MLO
+          call start_log(waterdiff_begin)                            ! MLO
           call mlodiffusion                                          ! MLO
-          call end_log(waterdynamics_end)                            ! MLO
+          call end_log(waterdiff_end)                                ! MLO
           call start_log(river_begin)                                ! MLO
           call mlorouter                                             ! MLO
           call end_log(river_end)                                    ! MLO
         end if                                                       ! MLO
         call start_log(watermix_begin)                               ! MLO
-        !call mlosalfix ! for shallow MLO only                       ! MLO
         call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,        ! MLO
      &               fracice,sicedep,snowd,dt,azmin,azmin,sgsave(:)/ ! MLO
      &               (1.-swrsave*albvisnir(:,1)-                     ! MLO

@@ -24,7 +24,7 @@ module cc_mpi
 
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
              ccmpi_distributer8,  &
-             indp, indg, deptsync, intssync, start_log, end_log,        &
+             indp, indg, deptsync, intssync, intssend, start_log, end_log,  &
              log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg, &
              ccglobal_sum, iq2iqg, indv_mpi, indglobal, readglobvar, writeglobvar
    public :: dpoints_t,dindex_t,sextra_t
@@ -105,7 +105,7 @@ module cc_mpi
 
    type(bounds_info), allocatable, dimension(:), save :: bnds
 
-   integer, private, save :: maxbuflen
+   integer, public, save :: maxbuflen
 
    ! Flag whether processor region edge is a face edge.
    logical, dimension(0:npanels), public, save :: edge_w, edge_n, edge_s, edge_e
@@ -161,12 +161,13 @@ module cc_mpi
    integer, public, save :: reduce_begin, reduce_end
    integer, public, save :: precon_begin, precon_end
    integer, public, save :: waterdynamics_begin, waterdynamics_end
+   integer, public, save :: waterdiff_begin, waterdiff_end
    integer, public, save :: river_begin, river_end
    integer, public, save :: watermix_begin, watermix_end
    integer, public, save :: mpiwait_begin, mpiwait_end
 #ifdef simple_timer
    public :: simple_timer_finalize
-   integer, parameter :: nevents=40
+   integer, parameter :: nevents=41
    double precision, dimension(nevents), save :: tot_time = 0., start_time
    character(len=15), dimension(nevents), save :: event_name
 #endif 
@@ -2573,6 +2574,47 @@ contains
 
    end subroutine intssync
 
+   subroutine intssend(s)
+      ! this is the opposite of intssync
+      real, dimension(:,:), intent(in) :: s
+      integer :: iproc
+      integer :: nreq, itag = 0, ierr, rproc, sproc
+      integer :: iq
+      integer, dimension(2*nproc) :: ireq
+      integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
+
+      do iproc=0,nproc-1
+         if ( iproc == myid ) then
+            cycle
+         end if
+         do iq=1,dslen(iproc)
+            dbuf(iproc)%b(iq) = s(dindex(iproc)%a(1,iq),dindex(iproc)%a(2,iq))
+         end do
+      end do
+
+      nreq = 0
+      do iproc = 1,nproc-1  !
+         sproc = modulo(myid+iproc,nproc)  ! Send to
+         rproc = modulo(myid-iproc,nproc)  ! Recv from
+         if ( dslen(sproc) /= 0 ) then
+            nreq = nreq + 1
+            call MPI_ISend( dbuf(sproc)%b, dslen(sproc), &
+                            MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+         if ( drlen(rproc) /= 0 ) then
+            nreq = nreq + 1
+            call MPI_IRecv( sextra(rproc)%a, drlen(rproc), &
+                 MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+      end do
+      if ( nreq > 0 ) then
+         call start_log(mpiwait_begin)
+         call MPI_Waitall(nreq,ireq,status,ierr)
+         call end_log(mpiwait_end)
+      end if
+
+   end subroutine intssend
+
    subroutine indv_mpi(iq, i, j, n)
       integer , intent(in) :: iq
       integer , intent(out) :: i
@@ -3232,6 +3274,9 @@ contains
       waterdynamics_begin = MPE_Log_get_event_number()
       waterdynamics_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(waterdynamics_begin, waterdynamics_end, "Waterdynamics", "blue")
+      waterdiff_begin = MPE_Log_get_event_number()
+      waterdiff_end = MPE_Log_get_event_number()
+      ierr = MPE_Describe_state(waterdiff_begin, waterdiff_end, "Waterdiff", "blue")
       river_begin = MPE_Log_get_event_number()
       river_end = MPE_Log_get_event_number()
       ierr = MPE_Describe_state(river_begin, river_end, "River", "Yellow")
@@ -3302,6 +3347,8 @@ contains
       nestin_end =  nestin_begin
       call vtfuncdef("Waterdynamics", classhandle, waterdynamics_begin, ierr)
       waterdynamics_end =  waterdynamics_begin
+      call vtfuncdef("Waterdiff", classhandle, waterdiff_begin, ierr)
+      waterdiff_end =  waterdiff_begin
       call vtfuncdef("River", classhandle, river_begin, ierr)
       river_end =  river_begin
       call vtfuncdef("Watermix", classhandle, watermix_begin, ierr)
@@ -3461,11 +3508,15 @@ contains
       waterdynamics_end =  waterdynamics_begin
       event_name(waterdynamics_begin) = "Waterdynamics"
 
-      river_begin = 39
+      waterdiff_begin = 39
+      waterdiff_end =  waterdiff_begin
+      event_name(waterdiff_begin) = "Waterdiff"
+
+      river_begin = 40
       river_end =  river_begin
       event_name(river_begin) = "River"
 
-      watermix_begin = 40
+      watermix_begin = 41
       watermix_end =  watermix_begin
       event_name(watermix_begin) = "Watermix"
 

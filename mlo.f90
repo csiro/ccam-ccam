@@ -935,7 +935,7 @@ aa(:,wlev)=-dt*km(:,wlev)/(dz_hl(:,wlev)*dz(:,wlev)*d_zcr*d_zcr)
 bb(:,wlev)=1.-aa(:,wlev)
 dd(:,wlev)=w_u(:,wlev)
 umag=sqrt(w_u(:,wlev)*w_u(:,wlev)+w_v(:,wlev)*w_v(:,wlev))
-where (depth_hl(:,wlev+1).lt.(mxd-0.1)) ! bottom drag
+where (depth_hl(:,wlev+1).lt.mxd) ! bottom drag
   bb(:,wlev)=bb(:,wlev)+dt*cdbot*umag/(dz(:,wlev)*d_zcr)
 end where
 call thomas(w_u,aa,bb,cc,dd)
