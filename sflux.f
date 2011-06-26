@@ -497,7 +497,6 @@ c     if(mydiag.and.diag)then
          print *,'cie ',cie(iq)      
          print *,'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)          
       endif   ! (mydiag.and.nmaxpr==1)
-      call end_log(watermix_end)
       
       elseif (abs(nmlo).ge.1.and.abs(nmlo).le.9) then                ! MLO
         ! abs(mlo) <= 1 Vertical mixing                              ! MLO

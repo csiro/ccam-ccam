@@ -794,12 +794,12 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        select case(nlocal)                                              ! MJT tke
         case(0) ! no counter gradient                                   ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
-     &             qfg(1:ifull,:),cfrac,pblh,land(1:ifull),wt0,wq0,     ! MJT tke
+     &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
      &             ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)              ! MJT tke
          rkh=rkm                                                        ! MJT tke
         case(1,2,3,4,5,6) ! KCN counter gradient method                 ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
-     &             qfg(1:ifull,:),cfrac,pblh,land(1:ifull),wt0,wq0,     ! MJT tke
+     &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
      &             ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)              ! MJT tke
          rkh=rkm                                                        ! MJT tke
          uav(1:ifull,:)=av_vmod*u(1:ifull,:)                            ! MJT tke
@@ -809,7 +809,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          call pbldif(rhs,rkh,rkm,uav,vav)                               ! MJT tke
         case(7) ! mass-flux counter gradient                            ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
-     &             qfg(1:ifull,:),cfrac,pblh,land(1:ifull),wt0,wq0,     ! MJT tke
+     &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
      &             ps(1:ifull),ustar,zg,sig,sigkap,dt,0,0)              ! MJT tke
          rkh=rkm                                                        ! MJT tke
          case DEFAULT                                                   ! MJT tke
@@ -912,7 +912,7 @@ c     now do moisture
 c     could add extra sfce moisture flux term for crank-nicholson
       call trim(at,ct,rhs,0)    ! for qg
       qg(1:ifull,:)=rhs(1:ifull,:)
-      if (nvmix.eq.6.and.nlocal.ne.0) then
+      if (nvmix.eq.6.and.nlocal.gt.0.and.nlocal.le.6) then
        ! increase mixing to replace counter gradient term          ! MJT tke
        at=2.5*at                                                   ! MJT tke
        ct=2.5*ct                                                   ! MJT tke
@@ -934,6 +934,11 @@ c       now do qlg
         call trim(at,ct,rhs,0)    ! for qlg
         qlg(1:ifull,:)=rhs(1:ifull,:)
       endif    ! (ldr.ne.0)
+      if (nvmix.eq.6.and.nlocal.gt.6) then
+       ! increase mixing to replace counter gradient term          ! MJT tke
+       at=2.5*at                                                   ! MJT tke
+       ct=2.5*ct                                                   ! MJT tke
+      end if                                                       ! MJT tke
 
       !--------------------------------------------------------------
       ! MJT aerosol

@@ -135,7 +135,6 @@ c     before calling newcloud
             !ccw=wcon(:)/rhoa(:,k)  !In-cloud l.w. mixing ratio
             qccon(1:ifull,k)=clcon(1:ifull,k)*
      &                 wcon(1:ifull)/rhoa(1:ifull,k)
-            qcl(1:ifull,k)=qsg(1:ifull,k)
             qcl(1:ifull,k)=max(qsg(1:ifull,k),qg(1:ifull,k))  ! jlm
             qenv(1:ifull,k)=max(1.e-8,
      &                 qg(1:ifull,k)-clcon(1:ifull,k)*qcl(1:ifull,k))
@@ -161,7 +160,7 @@ c     before calling newcloud
             ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
 !!27/4/04   qccon(iq,k)=clcon(iq,k)*ccw*0.25 ! 0.25 reduces updraft value to cloud value
             qccon(iq,k)=clcon(iq,k)*ccw
-            qcl(iq,k)=qsg(iq,k)
+            !qcl(iq,k)=qsg(iq,k)
 !           N.B. get silly qenv (becoming >qg) if qg>qsg (jlm)	     
             qcl(iq,k)=max(qsg(iq,k),qg(iq,k))  ! jlm
             qenv(iq,k)=max(1.e-8,

@@ -1654,16 +1654,16 @@ end where
 
 ! calculate snow
 where (rf_snow.gt.0.)
-  rf_snow=rf_snow+(a_snd-eg_rfsn/ls-rfsnmelt)/ &
-    (1./ddt+maxrfsn/((rf_snow+maxrfsn)**2)*(eg_rfsn/ls+rfsnmelt)/d_rfsndelta)
+  rf_snow=rf_snow+(a_snd-eg_rfsn/lv-rfsnmelt)/ &
+    (1./ddt+maxrfsn/((rf_snow+maxrfsn)**2)*(eg_rfsn/lv+rfsnmelt)/d_rfsndelta)
 elsewhere
-  rf_snow=rf_snow+ddt*(a_snd-eg_rfsn/ls-rfsnmelt)
+  rf_snow=rf_snow+ddt*(a_snd-eg_rfsn/lv-rfsnmelt)
 end where
 where (rd_snow.gt.0.)
-  rd_snow=rd_snow+(a_snd-eg_rdsn/ls-rdsnmelt)/ &
-    (1./ddt+maxrdsn/((rd_snow+maxrdsn)**2)*(eg_rdsn/ls+rdsnmelt)/d_rdsndelta)
+  rd_snow=rd_snow+(a_snd-eg_rdsn/lv-rdsnmelt)/ &
+    (1./ddt+maxrdsn/((rd_snow+maxrdsn)**2)*(eg_rdsn/lv+rdsnmelt)/d_rdsndelta)
 elsewhere
-  rd_snow=rd_snow+ddt*(a_snd-eg_rdsn/ls-rdsnmelt)
+  rd_snow=rd_snow+ddt*(a_snd-eg_rdsn/lv-rdsnmelt)
 end where
 rf_den=rf_den+(maxsnowden-rf_den)/(0.24/(86400.*ddt)+1.)
 rd_den=rd_den+(maxsnowden-rd_den)/(0.24/(86400.*ddt)+1.)
@@ -2075,9 +2075,9 @@ acond_rfsn=acond_rfsn/a_umag
 rfsnmelt=d_rfsndelta*max(0.,rfsntemp-273.16)/(icecp*irf_den*lf*ddt) 
 rg_rfsn=snowemiss*(a_rg-sbconst*rfsntemp**4)
 fg_rfsn=aircp*a_rho*(rfsntemp-d_tempr)*acond_rfsn*a_umag
-eg_rfsn=min(lv*a_rho*d_rfsndelta*max(0.,rfsnqsat-d_mixrr)*acond_rfsn*a_umag,ls*(irf_snow/ddt+a_snd-rfsnmelt))
+eg_rfsn=lv*min(a_rho*d_rfsndelta*max(0.,rfsnqsat-d_mixrr)*acond_rfsn*a_umag,irf_snow/ddt+a_snd-rfsnmelt)
 garfsn=(rfsntemp-irf_temp)/ldratio
-evct=sg_rfsn+rg_rfsn-fg_rfsn-eg_rfsn-garfsn
+evct=sg_rfsn+rg_rfsn-fg_rfsn-eg_rfsn*ls/lv-garfsn
 
 return
 end subroutine solverfsn
@@ -2180,7 +2180,7 @@ end if
 fg_veg=sg_veg+rg_veg-eg_veg
 
 ! road snow energy balance
-evct=sg_rdsn+rg_rdsn-fg_rdsn-eg_rdsn-gardsn
+evct=sg_rdsn+rg_rdsn-fg_rdsn-eg_rdsn*ls/lv-gardsn
 
 return
 end subroutine solverdsn
@@ -2401,8 +2401,8 @@ d_dtran=-lv*(1.-dumvegdelta)*a_rho*(vegqsat-d_canyonmix)*dres/(1./(acond_veg*d_t
 eg_road=lv*min(a_rho*dumroaddelta*(roadqsat-d_canyonmix)*acond_road*d_topu &
              ,ird_water/ddt+a_rnd+(1.-if_sigmaveg)*rdsnmelt)
 where (d_rdsndelta.gt.0.)
-  eg_rdsn=min(lv*a_rho*d_rdsndelta*max(0.,rdsnqsat-d_canyonmix)*acond_rdsn*d_topu &
-                ,ls*(ird_snow/ddt+a_snd-rdsnmelt))
+  eg_rdsn=lv*min(a_rho*d_rdsndelta*max(0.,rdsnqsat-d_canyonmix)*acond_rdsn*d_topu &
+                ,ird_snow/ddt+a_snd-rdsnmelt)
   gardsn=(rdsntemp-ird_temp)/ldratio ! use road temperature to represent canyon bottom surface temperature
                                      ! (i.e., we have ommited soil under vegetation temperature)
 elsewhere

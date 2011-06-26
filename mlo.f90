@@ -79,10 +79,10 @@ real, parameter :: vkar=0.4               ! von Karman constant
 real, parameter :: lv=2.501e6             ! Latent heat of vaporisation (J kg^-1)
 real, parameter :: lf=3.337e5             ! Latent heat of fusion (J kg^-1)
 real, parameter :: ls=lv+lf               ! Latent heat of sublimation (J kg^-1)
-real, parameter :: cp0=3990.              ! heat capacity of mixed layer (J kg^-1 K^-1)
 real, parameter :: grav=9.80              ! graviational constant (m/s^2)
 real, parameter :: sbconst=5.67e-8        ! Stefan-Boltzmann constant
 real, parameter :: cdbot=2.4E-3           ! bottom drag coefficent
+real, parameter :: cp0=3990.              ! heat capacity of mixed layer (J kg^-1 K^-1)
 real, parameter :: cp=1004.64             ! Specific heat of dry air at const P
 real, parameter :: rdry=287.04            ! Specific gas const for dry air
 real, parameter :: rvap=461.5             ! Gas constant for water vapor
@@ -92,17 +92,17 @@ real, parameter :: icebreak=0.05          ! minimum ice thickness before breakup
 real, parameter :: fracbreak=0.05         ! minimum ice fraction (1D model)
 real, parameter :: icemin=0.01            ! minimum ice thickness (m)
 real, parameter :: icemax=4.              ! maximum ice thickness (m)
+real, parameter :: rhoic=900.             ! density ice
 real, parameter :: rhosn=330.             ! density snow
 real, parameter :: rhowt=1025.            ! density water (replace with d_rho ?)
-real, parameter :: rhoic=900.             ! density ice
 real, parameter :: qice=lf*rhoic          ! latent heat of fusion (J m^-3)
 real, parameter :: qsnow=lf*rhosn
 real, parameter :: cpi=1.8837e6           ! Sp heat ice  (J/m**3/K)
 real, parameter :: cps=6.9069e5           ! Sp heat snow (J/m**3/K)
-real, parameter :: condsnw=0.30976        ! conductivity snow
 real, parameter :: condice=2.03439        ! conductivity ice
-real, parameter :: gammi=3.471e5          ! specific heat*depth (for ice)  (W m^-2 K^-1)
-real, parameter :: gamms=4.857e4          ! specific heat*depth (for snow) (W m^-2 K^-1)
+real, parameter :: condsnw=0.30976        ! conductivity snow
+real, parameter :: gammi=3.471e5          ! specific heat*depth (for ice)  (J m^-2 K^-1)
+real, parameter :: gamms=4.857e4          ! specific heat*depth (for snow) (J m^-2 K^-1)
 !real, parameter :: emisice=0.95          ! emissivity of ice
 real, parameter :: emisice=1.             ! emissivity of ice
 ! stability function parameters
@@ -1893,7 +1893,7 @@ newdic=max(d_timelt-w_temp(:,1),0.)*cp0*d_rho(:,1)*dz(:,1)*d_zcr/qice
 newdic=min(0.15,newdic)
 newdic=min(depth_hl(:,wlev+1)-minwater+w_eta,newdic)
 newtn=w_temp(:,1)+newdic*qice/(cp0*d_rho(:,1)*dz(:,1)*d_zcr)
-where (newdic.gt.2.*icemin) ! form new sea-ice
+where (newdic.gt.2.*icemin*fracbreak) ! form new sea-ice
   i_dic=i_dic*i_fracice+newdic*(1.-i_fracice)
   i_dsn=i_dsn*i_fracice
   i_tsurf=i_tsurf*i_fracice+newtn*(1.-i_fracice)
@@ -1918,7 +1918,6 @@ where (i_dic.le.icemin)
   i_dic=0.
   i_dsn=0.
   i_sto=0.
-  i_tsurf=w_temp(:,1)
 end where
 
 ! 1D model of ice break-up
@@ -2232,7 +2231,7 @@ end where
 
 ! Surface evap/sublimation (can be >0 or <0)
 ! Note : dt*eg/hl in Kgm/m**2 => mms of water
-subl=dt*pt_egice/(ls*rhosn)      ! m of "snow"
+subl=dt*pt_egice*lf/(lv*qsnow)      ! m of "snow"
 ssubl=min(subl,it_dsn)           ! snow component of sublimation
 ssnmelt=min(snmelt,it_dsn-ssubl) ! snow component of melt
 dt_salflx=dt_salflx-ssnmelt*rhosn/dt ! melt fresh water snow (no salt from egice when melting snow)
@@ -2242,14 +2241,6 @@ dhs=snmelt+subl
 dhb=(rhosn/rhoic)*(subl-ssubl+snmelt-ssnmelt)
 it_dic=max(it_dic-dhb,0.)
 it_dsn=max(it_dsn-dhs,0.)
-
-!! Remove very thin snow
-!where (it_dsn.gt.0..and.it_dsn.lt.icemin)
-!  it_tn(:,1)=(it_tn(:,1)+it_dsn*rhin*it_tn(:,0)*cps/cpi)/(1.+it_dsn*rhin*cps/cpi)
-!  it_tn(:,1)=it_tn(:,1)-it_dsn*qsnow*rhin/cpi
-!  dt_wtrflx=dt_wtrflx+it_dsn*rhosn/rhowt/dt
-!  it_dsn=0.
-!end where
 
 do iqi=1,nc
   if (dt_nk(iqi).eq.2) then
@@ -2368,8 +2359,8 @@ fl(:,0)=ftopadj                              ! Middle of first ice layer to thin
 fl(:,1)=condice*(it_tn(:,2)-it_tn(:,1))*rhin ! Between ice layers 2 and 1
 
 ! Surface evap/sublimation (can be >0 or <0)
-subl=dt*pt_egice/(ls*rhoic)
-dt_salflx=dt_salflx+pt_egice/ls
+subl=dt*pt_egice*lf/(lv*qice)
+dt_salflx=dt_salflx+pt_egice/lv
 dhi=-subl-simelt
 qmax=qice*0.5*(it_dic-himin)
 dhi=dhi-max(it_sto-qmax,0.)/qice
@@ -2483,7 +2474,7 @@ snmelt=max(0.,it_tsurf-273.16)*gamm/qsnow ! note change from gamms to gamm
 it_tsurf=min(it_tsurf,273.16)             ! melting condition ts=tsmelt
 
 ! Surface evap/sublimation (can be >0 or <0)
-subl=dt*pt_egice/(ls*rhosn)
+subl=dt*pt_egice*lf/(lv*qsnow)
 ssubl=min(subl,it_dsn)           ! snow component of sublimation
 ssnmelt=min(snmelt,it_dsn-ssubl) ! snow component of melt
 dt_salflx=dt_salflx-ssnmelt*rhosn/dt
@@ -2494,12 +2485,6 @@ dhb=dt*(f0-dt_fb)/qice       ! Ice melt
 dt_wtrflx=dt_wtrflx+min(-dhb,it_dic)*rhoic/rhowt/dt
 it_dsn=max(it_dsn-dhs,0.)
 it_dic=max(it_dic+dhb,0.)
-
-!where (it_dsn.lt.icemin) ! Remove very thin snow
-!  dt_wtrflx=dt_wtrflx+it_dsn*rhosn/rhowt/dt
-!  it_tsurf=it_tsurf-it_dsn*qsnow/gammi
-!  it_dsn=0.
-!end where
 
 where (it_dic.ge.himin) ! increase ice thickness
   dt_nk=1
@@ -2538,11 +2523,6 @@ real, dimension(nc), intent(inout) :: dt_ftop,dt_bot,dt_tb,dt_fb,dt_timelt,dt_sa
 integer, dimension(nc), intent(inout) :: dt_nk
 real, dimension(nc), intent(in) :: pt_egice
 
-! Remove very thin snow
-!dt_wtrflx=dt_wtrflx+it_dsn*rhosn/rhowt/dt
-!it_tsurf=it_tsurf-it_dsn*qsnow/gammi
-!it_dsn=0.
-
 ! Update tsurf and ti based on fluxes from above and below
 con=condice/max(it_dic,1.E-6)
 f0=con*(dt_tb-it_tsurf) ! flux from below
@@ -2552,8 +2532,8 @@ simelt=max(0.,it_tsurf-dt_timelt)*gammi/qice ! Ice melt (simelt >= 0)
 it_tsurf=min(it_tsurf,dt_timelt)             ! melting condition ti=timelt
 
 ! Surface evap/sublimation (can be >0 or <0)
-subl=dt*pt_egice/(ls*rhoic)
-dt_salflx=dt_salflx+pt_egice/ls
+subl=dt*pt_egice*lf/(lv*qice)
+dt_salflx=dt_salflx+pt_egice/lv
 dhi=-subl-simelt
 dhb=dt*(f0-dt_fb)/qice ! determine amount of bottom ablation or accretion
 dt_wtrflx=dt_wtrflx+min(-dhi-dhb,it_dic)*rhoic/rhowt/dt
@@ -2622,6 +2602,8 @@ elsewhere        ! ri is -ve
   fh=1.-2.*bprm*ri/den
 end where
 
+! egice is for evaporating (lv).  Melting is included above with lf.
+
 p_wetfacice=max(1.+.008*min(i_tsurf-273.16,0.),0.)
 p_cdice=af*fm
 p_cdsice=aft*fh
@@ -2683,8 +2665,8 @@ where (i_dsn.lt.icemin.and.i_sto.le.qmax.and.d_nk.gt.0)
   eye=0.35
 end where
 i_sto=i_sto+dt*a_sg*(1.-alb)*eye
-d_ftop=-p_fgice-p_egice+a_rg-emisice*sbconst*i_tsurf**4+a_sg*(1.-alb)*(1.-eye)
-d_bot=4.*emisice*sbconst*i_tsurf**3+rho*aft*fh*vmag*(cp+p_wetfacice*lv*dqdt)
+d_ftop=-p_fgice-p_egice*ls/lv+a_rg-emisice*sbconst*i_tsurf**4+a_sg*(1.-alb)*(1.-eye)
+d_bot=4.*emisice*sbconst*i_tsurf**3+rho*aft*fh*vmag*(cp+p_wetfacice*ls*dqdt)
 
 ! Add flux of heat due to converting any rain to snowfall over ice
 d_ftop=d_ftop+lf*a_rnd ! rain (mm) to W/m**2
