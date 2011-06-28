@@ -98,8 +98,8 @@ do iq=1,ifull
       call searchdelta(cc2,d2,dxx,cxx,idb,c2)
       call searchdelta(cc3,d1,dxx,cxx,ida,c3)
       call searchdelta(cc4,d2,dxx,cxx,idb,c4)
-      dudx(iq,k)=(c1/em(ie(iq))-c2/em(iw(iq)))*0.5*em(iq)*em(iq)/ds
-      dvdx(iq,k)=(c3/em(ie(iq))-c4/em(iw(iq)))*0.5*em(iq)*em(iq)/ds
+      dudx(iq,k)=(c1-c2)*0.5*em(iq)/ds
+      dvdx(iq,k)=(c3-c4)*0.5*em(iq)/ds
     end do
     ida=1
     idb=1
@@ -116,8 +116,8 @@ do iq=1,ifull
       call searchdelta(cc2,d2,dxx,cxx,idb,c2)
       call searchdelta(cc3,d1,dxx,cxx,ida,c3)
       call searchdelta(cc4,d2,dxx,cxx,idb,c4)
-      dudy(iq,k)=(c1/em(in(iq))-c2/em(is(iq)))*0.5*em(iq)*em(iq)/ds
-      dvdy(iq,k)=(c3/em(in(iq))-c4/em(is(iq)))*0.5*em(iq)*em(iq)/ds
+      dudy(iq,k)=(c1-c2)*0.5*em(iq)/ds
+      dvdy(iq,k)=(c3-c4)*0.5*em(iq)/ds
     end do
   end if
 end do
@@ -164,7 +164,7 @@ do k=1,wlev
   
   call mloimport(2,u(1:ifull,k),k,0)
   call mloimport(3,v(1:ifull,k),k,0)
-   
+
   do i=0,1
     gg=0.
     call mloexport(i,gg(1:ifull),k,0)
@@ -333,7 +333,7 @@ include 'parm.h'
 
 integer iq,l,ll,ii,intsch,ierr,totits,itotits
 integer jyear,jmonth,jday,jhour,jmin,mstart,mins
-integer tyear,jstart
+integer tyear,jstart,pos(1)
 integer, dimension(ifull,wlev) :: nface
 integer, dimension(12) :: ndoy
 real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
@@ -353,7 +353,7 @@ real, dimension(ifull) :: au,bu,cu,av,bv,cv,odum,oeu,oev
 real, dimension(ifull) :: nip,ipn,ipe,ips,ipw,ipmax
 real, dimension(ifull) :: dsnudeta,dsnuwdeta,dsnvdeta,dsnvsdeta,ddivdeta
 real, dimension(ifull) :: sssa,sssb,sssc,sssd
-real, dimension(ifull) :: depu,depv,ddu,ddv,ddddxu,ddddxv,ddddyu,ddddyv
+real, dimension(ifull) :: depu,depv,ddu,ddv
 real, dimension(ifull+iextra,4) :: nit
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns
 real, dimension(ifull+iextra,wlev) :: cou,cov,cow
@@ -470,16 +470,6 @@ do ii=2,wlev
 end do
 dd(1:ifull)=dzbar(:,wlev)
 call bounds(dd,nrows=2)
-
-! calculate bathymetry gradients
-tnu=0.5*(dd(in)+dd(ine))
-tsu=0.5*(dd(is)+dd(ise))
-tev=0.5*(dd(ie)+dd(ien))
-twv=0.5*(dd(iw)+dd(iwn))
-ddddxu=(dd(ie)-dd(1:ifull))*emu(1:ifull)/ds
-ddddyu=stwgt(:,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
-ddddxv=stwgt(:,2)*0.5*(tev-twv)*emv(1:ifull)/ds
-ddddyv=(dd(in)-dd(1:ifull))*emv(1:ifull)/ds
 
 ! estimate tidal forcing
 if (usetide.eq.1) then
@@ -729,33 +719,29 @@ do l=1,lmax ! predictor-corrector loop
     !int nv dz = sov+spv*etav+sqv*detadyv+srv*detadxv
 
     if (usetide.eq.1) then
-      llu(:,ii)=0.5*(bu*(drhobardxu(:,ii)-rhobaru*ddddxu/ddu)+cu*(drhobardyu(:,ii)-rhobaru*ddddyu/ddu)) &
-                *grav*depu/ddu
-      mmu(:,ii)=0.5*bu*grav*(rhobaru*depu/ddu+rhou*(1.-sal))
-      nnu(:,ii)=0.5*cu*grav*(rhobaru*depu/ddu+rhou*(1.-sal))
+      llu(:,ii)=0.5*(bu*drhobardxu(:,ii)+cu*drhobardyu(:,ii))*grav*depu/ddu
+      mmu(:,ii)=0.5*bu*grav*(rhobaru+rhou*(1.-sal))
+      nnu(:,ii)=0.5*cu*grav*(rhobaru+rhou*(1.-sal))
       kku(:,ii)=au+bu*(dpsdxu+grav*rhou*dttdxu+grav*drhobardxu(:,ii)*depu) &
                   +cu*(dpsdyu+grav*rhou*dttdyu+grav*drhobardyu(:,ii)*depu) &
                   +llu(:,ii)*oeu+mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
 
-      llv(:,ii)=0.5*(bv*(drhobardyv(:,ii)-rhobarv*ddddyv/ddv)+cv*(drhobardxv(:,ii)-rhobarv*ddddxv/ddv)) &
-                *grav*depv/ddv
-      mmv(:,ii)=0.5*bv*grav*(rhobarv*depv/ddv+rhov*(1.-sal))
-      nnv(:,ii)=0.5*cv*grav*(rhobarv*depv/ddv+rhov*(1.-sal))
+      llv(:,ii)=0.5*(bv*drhobardyv(:,ii)+cv*drhobardxv(:,ii))*grav*depv/ddv
+      mmv(:,ii)=0.5*bv*grav*(rhobarv+rhov*(1.-sal))
+      nnv(:,ii)=0.5*cv*grav*(rhobarv+rhov*(1.-sal))
       kkv(:,ii)=av+bv*(dpsdyv+grav*rhov*dttdyv+grav*drhobardyv(:,ii)*depv) &
                   +cv*(dpsdxv+grav*rhov*dttdxv+grav*drhobardxv(:,ii)*depv) &
                   +llv(:,ii)*oev+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
     else
-      llu(:,ii)=0.5*(bu*(drhobardxu(:,ii)-rhobaru*ddddxu/ddu)+cu*(drhobardyu(:,ii)-rhobaru*ddddyu/ddu)) &
-                *grav*depu/ddu
-      mmu(:,ii)=0.5*bu*grav*rhobaru*depu/ddu
-      nnu(:,ii)=0.5*cu*grav*rhobaru*depu/ddu
+      llu(:,ii)=0.5*(bu*drhobardxu(:,ii)+cu*drhobardyu(:,ii))*grav*depu/ddu
+      mmu(:,ii)=0.5*bu*grav*rhobaru
+      nnu(:,ii)=0.5*cu*grav*rhobaru
       kku(:,ii)=au+bu*(dpsdxu+grav*drhobardxu(:,ii)*depu)+cu*(dpsdyu+grav*drhobardyu(:,ii)*depu) &
                   +llu(:,ii)*oeu+mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
 
-      llv(:,ii)=0.5*(bv*(drhobardyv(:,ii)-rhobarv*ddddyv/ddv)+cv*(drhobardxv(:,ii)-rhobarv*ddddxv/ddv)) &
-                *grav*depv/ddv
-      mmv(:,ii)=0.5*bv*grav*rhobarv*depv/ddv
-      nnv(:,ii)=0.5*cv*grav*rhobarv*depv/ddv
+      llv(:,ii)=0.5*(bv*drhobardyv(:,ii)+cv*drhobardxv(:,ii))*grav*depv/ddv
+      mmv(:,ii)=0.5*bv*grav*rhobarv
+      nnv(:,ii)=0.5*cv*grav*rhobarv
       kkv(:,ii)=av+bv*(dpsdyv+grav*drhobardyv(:,ii)*depv)+cv*(dpsdxv+grav*drhobardxv(:,ii)*depv) &
                   +llv(:,ii)*oev+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
     end if
@@ -875,10 +861,12 @@ do l=1,lmax ! predictor-corrector loop
   call boundsuv(nu,nv)
   ! update vertical velocity
   call getww(nu,nv,dd(1:ifull),dz(1:ifull,:),ee(1:ifull),nw)
-  ! unstagger nu and nv\
+  ! unstagger nu and nv
   do ii=1,wlev
-    where(.not.wtr(1:ifull))
+    where(.not.wtr(1:ifull).or..not.wtr(ie))
       nu(1:ifull,ii)=stagu(:,ii) ! to help reversible staggering at land boundaries
+    endwhere
+    where(.not.wtr(1:ifull).or..not.wtr(in))
       nv(1:ifull,ii)=stagv(:,ii)
     end where
   end do
