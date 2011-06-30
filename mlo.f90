@@ -828,7 +828,7 @@ if (calcprog) then
   call mloice(dt,a_rnd,a_snd,d_alpha,d_beta,d_b0,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_ftop,d_bot,d_tb,  &
               d_fb,d_timelt,d_tauxica,d_tauyica,d_tauxicw,d_tauyicw,d_ustar,d_rho,d_did,d_nk,diag)   ! update ice
   call mlocalc(dt,a_f,d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0, &
-               d_zcr,diag)                                                                           ! update water
+               d_zcr,d_did,diag)                                                                     ! update water
 end if 
 call scrncalc(a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,diag)                                          ! screen diagnostics
 
@@ -856,11 +856,12 @@ end subroutine mloeval
 ! MLO calcs for water (no ice)
 
 subroutine mlocalc(dt,a_f,d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0, &
-                   d_zcr,diag)
+                   d_zcr,d_did,diag)
 
 implicit none
 
 integer, intent(in) :: diag
+integer, dimension(wfull), intent(in) :: d_did
 integer ii,iqw
 real, intent(in) :: dt
 real, dimension(wfull,wlev) :: km,ks,gammas
@@ -872,7 +873,7 @@ real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull) :: xp,xm,dumt0,umag
 real, dimension(wfull), intent(in) :: a_f
 real, dimension(wfull), intent(inout) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_zcr
-real, dimension(wfull) :: newa,newb
+real, dimension(wfull) :: newa,newb,icemag
 
 call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,a_f,d_zcr) ! solve for mixed layer depth (calculated at full levels)
 call getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr)                     ! solve for stability functions and non-local term
@@ -935,7 +936,14 @@ aa(:,wlev)=-dt*km(:,wlev)/(dz_hl(:,wlev)*dz(:,wlev)*d_zcr*d_zcr)
 bb(:,wlev)=1.-aa(:,wlev)
 dd(:,wlev)=w_u(:,wlev)
 umag=sqrt(w_u(:,wlev)*w_u(:,wlev)+w_v(:,wlev)*w_v(:,wlev))
-where (depth_hl(:,wlev+1).lt.mxd) ! bottom drag
+! ice drag
+do iqw=1,wfull
+  icemag(iqw)=sqrt((w_u(iqw,d_did(iqw))-i_u(iqw))**2+(w_v(iqw,d_did(iqw))-i_v(iqw))**2)
+  bb(iqw,d_did(iqw))=bb(iqw,d_did(iqw))+i_fracice(iqw)*dt*0.00536*icemag(iqw)/(dz(iqw,d_did(iqw))*d_zcr(iqw))
+  dd(iqw,d_did(iqw))=dd(iqw,d_did(iqw))+i_fracice(iqw)*dt*0.00536*icemag(iqw)*i_u(iqw)/(dz(iqw,d_did(iqw))*d_zcr(iqw))
+end do
+! bottom drag
+where (depth_hl(:,wlev+1).lt.mxd)
   bb(:,wlev)=bb(:,wlev)+dt*cdbot*umag/(dz(:,wlev)*d_zcr)
 end where
 call thomas(w_u,aa,bb,cc,dd)
@@ -946,6 +954,10 @@ do ii=1,wlev
   dd(:,ii)=w_v(:,ii)
 end do
 dd(:,1)=dd(:,1)-dt*d_wv0/(dz(:,1)*d_zcr)
+! ice drag
+do iqw=1,wfull
+  dd(iqw,d_did(iqw))=dd(iqw,d_did(iqw))+i_fracice(iqw)*dt*0.00536*icemag(iqw)*i_v(iqw)/(dz(iqw,d_did(iqw))*d_zcr(iqw))
+end do
 call thomas(w_v,aa,bb,cc,dd)
 
 
@@ -970,7 +982,6 @@ select case(deprelax)
     d_wm0=d_wm0-w_eta/(3600.*24.*365.25)
     w_eta=w_eta+dt*d_wm0
   case(2) ! fix surface height
-    d_wm0=0.
     w_eta=0.
   case DEFAULT
     write(6,*) "ERROR: Invalid deprelax ",deprelax
@@ -1795,6 +1806,7 @@ real, dimension(wfull) :: dp_ftop,dp_bot,dp_tb,dp_fb,dp_timelt,dp_salflx,dp_taux
 real, dimension(wfull) :: dp_wtrflx
 real, dimension(wfull) :: d_salflx,d_wtrflx
 integer, dimension(wfull) :: dp_nk,d_did
+real dumwu0,dumwv0
 
 d_salflx=0.
 d_wtrflx=0.
@@ -1860,12 +1872,13 @@ d_nk=unpack(dp_nk(1:nice),cice,d_nk)
 ! update here because d_salflx is updated here
 do iqw=1,wfull
   ii=d_did(iqw)
-  d_wu0(iqw)=d_wu0(iqw)-i_fracice(iqw)*d_tauxicw(iqw)/d_rho(iqw,ii)
-  d_wv0(iqw)=d_wv0(iqw)-i_fracice(iqw)*d_tauyicw(iqw)/d_rho(iqw,ii)
+  ! now ice drag is implicit
+  dumwu0=d_wu0(iqw)-i_fracice(iqw)*d_tauxicw(iqw)/d_rho(iqw,ii)
+  dumwv0=d_wv0(iqw)-i_fracice(iqw)*d_tauyicw(iqw)/d_rho(iqw,ii)
   d_wt0(iqw)=d_wt0(iqw)+i_fracice(iqw)*d_fb(iqw)/(d_rho(iqw,ii)*cp0)
-  d_ws0(iqw)=d_ws0(iqw)-i_fracice(iqw)*d_salflx(iqw)*w_sal(iqw,1)/d_rho(iqw,1) ! actually salflx*(watersal-icesal)/density(icesal)
+  d_ws0(iqw)=d_ws0(iqw)-i_fracice(iqw)*d_salflx(iqw)*w_sal(iqw,1)/d_rho(iqw,ii) ! actually salflx*(watersal-icesal)/density(icesal)
   d_wm0(iqw)=d_wm0(iqw)+i_fracice(iqw)*d_wtrflx(iqw)
-  d_ustar(iqw)=max(sqrt(sqrt(d_wu0(iqw)*d_wu0(iqw)+d_wv0(iqw)*d_wv0(iqw))),1.E-6)
+  d_ustar(iqw)=max(sqrt(sqrt(dumwu0*dumwu0+dumwv0*dumwv0)),1.E-6)
   d_b0(iqw)=-grav*(d_alpha(iqw,1)*d_wt0(iqw)-d_beta(iqw,1)*d_ws0(iqw)) ! -ve sign is to account for sign of wt0 and ws0
 end do
 
@@ -2571,7 +2584,7 @@ real, dimension(wfull) :: fm,fh,af,aft
 real, dimension(wfull) :: den,sig,root
 real, dimension(wfull) :: alb,qmax,eye
 real, dimension(wfull) :: uu,vv,du,dv
-real x,factch,ustar,icemag,g,dgdu
+real x,factch,ustar,icemag,g,h
 
 uu=a_u-i_u
 vv=a_v-i_v
@@ -2614,6 +2627,8 @@ d_tauyica=rho*p_cdice*vmag*vv
 
 ! determine water temperature at bottom of ice
 d_did=0
+d_tauxicw=0.
+d_tauyicw=0.
 do iqw=1,wfull
   !if (i_dic(iqw).gt.depth(iqw,1)) then
   !  d_tb(iqw)=w_temp(iqw,wlev)
@@ -2635,21 +2650,20 @@ do iqw=1,wfull
   du(iqw)=w_u(iqw,d_did(iqw))-i_u(iqw)
   dv(iqw)=w_v(iqw,d_did(iqw))-i_v(iqw)
   icemag=max(sqrt(du(iqw)*du(iqw)+dv(iqw)*dv(iqw)),0.0002)
-  d_tauxicw(iqw)=-0.00536*icemag*du(iqw)
-  d_tauyicw(iqw)=-0.00536*icemag*dv(iqw)
-  ustar=sqrt(d_tauxicw(iqw)*d_tauxicw(iqw)+d_tauyicw(iqw)*d_tauyicw(iqw))
-  ustar=max(ustar,5.E-4)
-  d_fb(iqw)=cp0*d_rho(iqw,d_did(iqw))*0.006*ustar*(d_tb(iqw)-d_timelt(iqw))
-  d_fb(iqw)=min(max(d_fb(iqw),-1000.),1000.)
 
   ! momentum transfer (semi-implicit)
-  x=max(rhoic*i_dic(iqw)+rhosn*i_dsn(iqw),10.)
-  g=(rho(iqw)*p_cdice(iqw)*vmag(iqw)*uu(iqw)+0.00536*icemag*du(iqw))/x
-  dgdu=(-rho(iqw)*p_cdice(iqw)*(vmag(iqw)+uu(iqw)*uu(iqw)/vmag(iqw))-0.00536*(icemag+du(iqw)*du(iqw)/icemag))/x
-  i_u(iqw)=i_u(iqw)+g/(1./dt-dgdu)
-  g=(rho(iqw)*p_cdice(iqw)*vmag(iqw)*vv(iqw)+0.00536*icemag*dv(iqw))/x
-  dgdu=(-rho(iqw)*p_cdice(iqw)*(vmag(iqw)+vv(iqw)*vv(iqw)/vmag(iqw))-0.00536*(icemag+dv(iqw)*dv(iqw)/icemag))/x
-  i_v(iqw)=i_v(iqw)+g/(1./dt-dgdu)
+  x=max(rhoic*i_dic(iqw)+rhosn*i_dsn(iqw),10.) ! ice mass
+  g=dt*rho(iqw)*p_cdice(iqw)*vmag(iqw)/x
+  h=dt*0.00536*d_rho(iqw,d_did(iqw))*icemag/x
+  i_u(iqw)=(i_u(iqw)+g*a_u(iqw)+h*w_u(iqw,d_did(iqw)))/(1.+g+h)
+  i_v(iqw)=(i_v(iqw)+g*a_v(iqw)+h*w_v(iqw,d_did(iqw)))/(1.+g+h)
+
+  d_tauxicw(iqw)=-0.00536*d_rho(iqw,d_did(iqw))*icemag*du(iqw)
+  d_tauyicw(iqw)=-0.00536*d_rho(iqw,d_did(iqw))*icemag*dv(iqw)
+  ustar=sqrt(sqrt(d_tauxicw(iqw)*d_tauxicw(iqw)+d_tauyicw(iqw)*d_tauyicw(iqw))/d_rho(iqw,d_did(iqw)))
+  ustar=max(ustar,5.E-4)
+  d_fb(iqw)=cp0*d_rho(iqw,d_did(iqw))*0.006*ustar*(d_tb(iqw)-d_timelt(iqw))
+  d_fb(iqw)=min(max(d_fb(iqw),-1000.),1000.)  
 
 end do
 

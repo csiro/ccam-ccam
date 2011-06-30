@@ -2033,6 +2033,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
       ! nmlo=0 no mixed layer ocean
       ! nmlo=1 mixed layer ocean (KPP)
       ! nmlo=2 same as 1, but with Smag horz diffusion and river routing
+      ! nmlo=3 same as 2, but with horizontal and vertical advection
       if (nmlo.ne.0) then
         if (myid==0) print *,"Initialising MLO"
         call readreal(bathfile,dep,ifull)
@@ -2051,15 +2052,20 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
           do k=1,wlev
             call mloexpdep(0,depth,k,0)
             ! This polynomial fit is from MOM3, based on Levitus
-            mlodwn(:,k,1)=-0.43030662E-1*depth(:)
+            where (depth.gt.2000.)
+            mlodwn(:,k,1)=18.4231944+273.16
+     &        -0.43030662E-1*depth(:)
      &        +0.607121504E-4*depth(:)**2
      &        -0.523806281E-7*depth(:)**3
      &        +0.272989082E-10*depth(:)**4
      &        -0.833224666E-14*depth(:)**5
      &        +0.136974583E-17*depth(:)**6
      &        -0.935923382E-22*depth(:)**7
-            mlodwn(:,k,1)=mlodwn(:,k,1)+tss
-            mlodwn(:,k,1)=max(mlodwn(:,k,1),275.)	    
+            mlodwn(:,k,1)=mlodwn(:,k,1)*tss/(18.4231944+273.16)     
+            elsewhere
+            mlodwn(:,k,1)=275.16
+            end where
+            mlodwn(:,k,1)=max(mlodwn(:,k,1),275.16)	    
             mlodwn(:,k,2)=34.72
             mlodwn(:,k,2)=max(mlodwn(:,k,2),0.)
             mlodwn(:,k,3:4)=0.

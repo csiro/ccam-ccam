@@ -134,10 +134,11 @@ do k=1,wlev
   cc=(dudx(:,k)-dvdy(:,k))**2+(dudy(:,k)+dvdx(:,k))**2
   t_kh(1:ifull)=sqrt(cc)*hdif*emi  ! this one with em in D terms
   call bounds(t_kh)
-  xfact(1:ifull) = (t_kh(ie)+t_kh)*.5*ee(1:ifull)*ee(ie)
-  yfact(1:ifull) = (t_kh(in)+t_kh)*.5*ee(1:ifull)*ee(in)
-  call boundsuv(xfact,yfact)
   
+  ! diffusion for momentum (diffusion allowed with land points)
+  xfact(1:ifull) = (t_kh(ie)+t_kh)*.5
+  yfact(1:ifull) = (t_kh(in)+t_kh)*.5
+  call boundsuv(xfact,yfact)
   base= ( emi +                         &
           xfact(1:ifull) +              & 
           xfact(iwu) +                  &
@@ -164,6 +165,16 @@ do k=1,wlev
   
   call mloimport(2,u(1:ifull,k),k,0)
   call mloimport(3,v(1:ifull,k),k,0)
+
+  ! diffusion for scalars (no diffusion with land points)
+  xfact(1:ifull) = (t_kh(ie)+t_kh)*.5*ee(1:ifull)*ee(ie)
+  yfact(1:ifull) = (t_kh(in)+t_kh)*.5*ee(1:ifull)*ee(in)
+  call boundsuv(xfact,yfact)
+  base= ( emi +                         &
+          xfact(1:ifull) +              & 
+          xfact(iwu) +                  &
+          yfact(1:ifull) +              &
+          yfact(isv) )
 
   do i=0,1
     gg=0.
@@ -348,6 +359,7 @@ real, dimension(ifull) :: tnu,tsu,tev,twv,rhou,rhov
 real, dimension(ifull) :: dpsdxu,dpsdyu,dpsdxv,dpsdyv
 real, dimension(ifull) :: dttdxu,dttdyu,dttdxv,dttdyv
 real, dimension(ifull) :: detadxu,detadyu,detadxv,detadyv
+real, dimension(ifull) :: doedxu,doedyu,doedxv,doedyv
 real, dimension(ifull) :: dipdxu,dipdyu,dipdxv,dipdyv
 real, dimension(ifull) :: au,bu,cu,av,bv,cv,odum,oeu,oev
 real, dimension(ifull) :: nip,ipn,ipe,ips,ipw,ipmax
@@ -361,7 +373,7 @@ real, dimension(ifull+iextra,wlev) :: dep,rhobar,rho,dz
 real, dimension(ifull,1) :: siu,siv
 real, dimension(ifull,4) :: i_it
 real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,nw,dzbar,dum,dumdep,dumdz
-real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav,stagu,stagv
+real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav
 real, dimension(ifull,wlev) :: kku,llu,mmu,nnu
 real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv
 real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
@@ -383,7 +395,7 @@ data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
 ! newdz=olddz*(1+eta/maxdepth)
 ! where 0<=oldz<=maxdepth and -eta<=newz<=maxdepth
 ! depth below free suface is then newz+eta=oldz*(1+eta/maxdepth)
-! horizontal derivatives are along constant oldz surfaces
+! horizontal derivatives are approximated along constant oldz surfaces
 
 ! initial values for working arrays
 cou=0.
@@ -417,7 +429,7 @@ nsto=0.
 niu=0.
 niv=0.
 
-! alternate semi-lagrangian interpolation
+! alternate direction of semi-lagrangian interpolation
 intsch=mod(ktau,2)
 
 !Define land/sea mask
@@ -580,10 +592,10 @@ do l=1,lmax ! predictor-corrector loop
   call bounds(rhobar,nrows=2)
 
   ! ADVECT WATER ----------------------------------------------------
-  ! Water currents are advected using sem-Lagrangian advection
+  ! Water currents are advected using semi-Lagrangian advection
   ! (i.e., taken from McGregor's CCAM advection routines).
-  ! Velocity is set to zero at ocean boundaries, and changing
-  ! bathymetry is accounted for in the integral of the divergence.
+  ! Velocity is set to zero at ocean boundaries, and bathymetry
+  ! is accounted for in the integral of the divergence.
 
   ! nu,nv,nt,ns are now reset to begin the advection from the current time step
   nu(1:ifull,:)=w_u
@@ -592,7 +604,7 @@ do l=1,lmax ! predictor-corrector loop
   nt(1:ifull,:)=w_t
 
   ! estimate vertical velocity
-  call mlostaguv(w_u,w_v,cou(1:ifull,:),cov(1:ifull,:))
+  call mlostaguv(w_u,w_v,cou(1:ifull,:),cov(1:ifull,:),ee)
   do ii=1,wlev
     cou(1:ifull,ii)=cou(1:ifull,ii)*ee(1:ifull)*ee(ie)
     cov(1:ifull,ii)=cov(1:ifull,ii)*ee(1:ifull)*ee(in)
@@ -652,9 +664,7 @@ do l=1,lmax ! predictor-corrector loop
     uau(:,ii)=nu(1:ifull,ii)*(1.-0.25*dt*dt*f(1:ifull)*f(1:ifull))+dt*f(1:ifull)*nv(1:ifull,ii)
     uav(:,ii)=nv(1:ifull,ii)*(1.-0.25*dt*dt*f(1:ifull)*f(1:ifull))-dt*f(1:ifull)*nu(1:ifull,ii)
   end do
-  call mlostaguv(uau,uav,cou(1:ifull,:),cov(1:ifull,:))
-  stagu=cou(1:ifull,:)
-  stagv=cov(1:ifull,:)
+  call mlostaguv(uau,uav,cou(1:ifull,:),cov(1:ifull,:),ee)
 
   ! interpolate density gradient to horizontal surfaces
   call stagtruedelta(rhobar,dep,wtr,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
@@ -680,10 +690,10 @@ do l=1,lmax ! predictor-corrector loop
   tsu=0.5*(ndum(is)+ndum(ise))
   tev=0.5*(ndum(ie)+ndum(ien))
   twv=0.5*(ndum(iw)+ndum(iwn))
-  detadxu=(ndum(ie)-ndum(1:ifull))*emu(1:ifull)/ds
-  detadyu=stwgt(:,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
-  detadxv=stwgt(:,2)*0.5*(tev-twv)*emv(1:ifull)/ds
-  detadyv=(ndum(in)-ndum(1:ifull))*emv(1:ifull)/ds
+  doedxu=(ndum(ie)-ndum(1:ifull))*emu(1:ifull)/ds
+  doedyu=stwgt(:,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
+  doedxv=stwgt(:,2)*0.5*(tev-twv)*emv(1:ifull)/ds
+  doedyv=(ndum(in)-ndum(1:ifull))*emv(1:ifull)/ds
   oeu=0.5*(ndum(1:ifull)+ndum(ie))
   oev=0.5*(ndum(1:ifull)+ndum(in))
   ddu=0.5*(dd(1:ifull)+dd(ie))
@@ -724,26 +734,26 @@ do l=1,lmax ! predictor-corrector loop
       nnu(:,ii)=0.5*cu*grav*(rhobaru+rhou*(1.-sal))
       kku(:,ii)=au+bu*(dpsdxu+grav*rhou*dttdxu+grav*drhobardxu(:,ii)*depu) &
                   +cu*(dpsdyu+grav*rhou*dttdyu+grav*drhobardyu(:,ii)*depu) &
-                  +llu(:,ii)*oeu+mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
+                  +llu(:,ii)*oeu+mmu(:,ii)*doedxu+nnu(:,ii)*doedyu
 
       llv(:,ii)=0.5*(bv*drhobardyv(:,ii)+cv*drhobardxv(:,ii))*grav*depv/ddv
       mmv(:,ii)=0.5*bv*grav*(rhobarv+rhov*(1.-sal))
       nnv(:,ii)=0.5*cv*grav*(rhobarv+rhov*(1.-sal))
       kkv(:,ii)=av+bv*(dpsdyv+grav*rhov*dttdyv+grav*drhobardyv(:,ii)*depv) &
                   +cv*(dpsdxv+grav*rhov*dttdxv+grav*drhobardxv(:,ii)*depv) &
-                  +llv(:,ii)*oev+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
+                  +llv(:,ii)*oev+mmv(:,ii)*doedyv+nnv(:,ii)*doedxv
     else
       llu(:,ii)=0.5*(bu*drhobardxu(:,ii)+cu*drhobardyu(:,ii))*grav*depu/ddu
       mmu(:,ii)=0.5*bu*grav*rhobaru
       nnu(:,ii)=0.5*cu*grav*rhobaru
       kku(:,ii)=au+bu*(dpsdxu+grav*drhobardxu(:,ii)*depu)+cu*(dpsdyu+grav*drhobardyu(:,ii)*depu) &
-                  +llu(:,ii)*oeu+mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
+                  +llu(:,ii)*oeu+mmu(:,ii)*doedxu+nnu(:,ii)*doedyu
 
       llv(:,ii)=0.5*(bv*drhobardyv(:,ii)+cv*drhobardxv(:,ii))*grav*depv/ddv
       mmv(:,ii)=0.5*bv*grav*rhobarv
       nnv(:,ii)=0.5*cv*grav*rhobarv
       kkv(:,ii)=av+bv*(dpsdyv+grav*drhobardyv(:,ii)*depv)+cv*(dpsdxv+grav*drhobardxv(:,ii)*depv) &
-                  +llv(:,ii)*oev+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
+                  +llv(:,ii)*oev+mmv(:,ii)*doedyv+nnv(:,ii)*doedxv
     end if
 
     sou(1:ifull)=sou(1:ifull)+kku(:,ii)*0.5*(dz(1:ifull,ii)+dz(ie,ii))
@@ -862,15 +872,7 @@ do l=1,lmax ! predictor-corrector loop
   ! update vertical velocity
   call getww(nu,nv,dd(1:ifull),dz(1:ifull,:),ee(1:ifull),nw)
   ! unstagger nu and nv
-  do ii=1,wlev
-    where(.not.wtr(1:ifull).or..not.wtr(ie))
-      nu(1:ifull,ii)=stagu(:,ii) ! to help reversible staggering at land boundaries
-    endwhere
-    where(.not.wtr(1:ifull).or..not.wtr(in))
-      nv(1:ifull,ii)=stagv(:,ii)
-    end where
-  end do
-  call mlounstaguv(nu(1:ifull,:),nv(1:ifull,:),nuh,nvh)
+  call mlounstaguv(nu(1:ifull,:),nv(1:ifull,:),nuh,nvh,ee)
   nu(1:ifull,:)=nuh
   nv(1:ifull,:)=nvh
 
@@ -883,14 +885,14 @@ do l=1,lmax ! predictor-corrector loop
   ! the various ice prognostic variables.
 
   ! convert to staggered coordinates
-  uau(:,1)=i_u+dt*f(1:ifull)*i_v
-  uav(:,1)=i_v-dt*f(1:ifull)*i_u
-  call mlostaguv(uau(:,1:1),uav(:,1:1),siu,siv)
+  uau(:,1)=i_u*(1.-0.25*dt*dt*f(1:ifull)*f(1:ifull))+dt*f(1:ifull)*i_v
+  uav(:,1)=i_v*(1.-0.25*dt*dt*f(1:ifull)*f(1:ifull))-dt*f(1:ifull)*i_u
+  call mlostaguv(uau(:,1:1),uav(:,1:1),siu,siv,ee)
 
   ! Update ice velocities
   ! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90
-  niu(1:ifull)=(siu(:,1)-dt*grav*(detadxu+dt*fu(1:ifull)*detadyu))/(1.+dt*dt*fu(1:ifull)*fu(1:ifull))
-  niv(1:ifull)=(siv(:,1)-dt*grav*(detadyv-dt*fv(1:ifull)*detadxv))/(1.+dt*dt*fv(1:ifull)*fv(1:ifull))
+  niu(1:ifull)=(siu(:,1)-0.5*dt*grav*(detadxu+doedxu+0.5*dt*fu(1:ifull)*(detadyu+doedyu)))/(1.+0.25*dt*dt*fu(1:ifull)*fu(1:ifull))
+  niv(1:ifull)=(siv(:,1)-0.5*dt*grav*(detadyv+doedyv-0.5*dt*fv(1:ifull)*(detadxv+doedxv)))/(1.+0.25*dt*dt*fv(1:ifull)*fv(1:ifull))
   niu(1:ifull)=niu(1:ifull)*ee(1:ifull)*ee(ie)
   niv(1:ifull)=niv(1:ifull)*ee(1:ifull)*ee(in)
   call boundsuv(niu,niv)
@@ -905,10 +907,10 @@ do l=1,lmax ! predictor-corrector loop
     imu=0.5*(imass(1:ifull)+imass(ie))
     imv=0.5*(imass(1:ifull)+imass(in))
  
-    ibu(1:ifull)=-dt/(imu*(1.+dt*dt*fu(1:ifull)*fu(1:ifull)))*ee(1:ifull)*ee(ie)
-    ibv(1:ifull)=-dt/(imv*(1.+dt*dt*fv(1:ifull)*fv(1:ifull)))*ee(1:ifull)*ee(in)
-    icu(1:ifull)=dt*fu(1:ifull)*ibu(1:ifull)*ee(1:ifull)*ee(ie)
-    icv(1:ifull)=-dt*fv(1:ifull)*ibv(1:ifull)*ee(1:ifull)*ee(in)
+    ibu(1:ifull)=-dt/(imu*(1.+0.25*dt*dt*fu(1:ifull)*fu(1:ifull)))*ee(1:ifull)*ee(ie)
+    ibv(1:ifull)=-dt/(imv*(1.+0.25*dt*dt*fv(1:ifull)*fv(1:ifull)))*ee(1:ifull)*ee(in)
+    icu(1:ifull)=0.5*dt*fu(1:ifull)*ibu(1:ifull)
+    icv(1:ifull)=-0.5*dt*fv(1:ifull)*ibv(1:ifull)
     call boundsuv(ibu,ibv)
 
     ! Iterative loop to estimate ice 'pressure'
@@ -959,6 +961,9 @@ do l=1,lmax ! predictor-corrector loop
       else
         ! incompressible fluid
         nip=max(nip,0.)
+        where (ndic(1:ifull).le.0.)
+          nip=0.
+        end where
       end if
       maxloclip=maxval(abs(nip-ip(1:ifull)))
       ip(1:ifull)=alpha*nip+(1.-alpha)*ip(1:ifull)
@@ -1098,7 +1103,7 @@ do l=1,lmax ! predictor-corrector loop
   ! unstagger ice velocities
   siu(:,1)=niu(1:ifull)
   siv(:,1)=niv(1:ifull)
-  call mlounstaguv(siu,siv,nuh(:,1:1),nvh(:,1:1))
+  call mlounstaguv(siu,siv,nuh(:,1:1),nvh(:,1:1),ee)
   niu(1:ifull)=nuh(:,1)
   niv(1:ifull)=nvh(:,1)
   
@@ -3630,7 +3635,7 @@ end subroutine mlorot
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Stagger u and v
 
-subroutine mlostaguv(u,v,uout,vout)
+subroutine mlostaguv(u,v,uout,vout,ee)
 
 use cc_mpi
 use indices_m
@@ -3644,8 +3649,10 @@ integer k,itn,kx
 real, dimension(:,:), intent(in) :: u
 real, dimension(ifull,size(u,2)), intent(in) :: v
 real, dimension(ifull,size(u,2)), intent(out) :: uout,vout
+real, dimension(ifull+iextra), intent(in) :: ee
 real, dimension(ifull+iextra,size(u,2)) :: uin,vin
 real, dimension(ifull+iextra,size(u,2)) :: ua,va,ud,vd
+real, dimension(ifull,size(u,2)) :: ug,vg
 integer, parameter :: itnmax=3
 
 kx=size(u,2)
@@ -3661,20 +3668,28 @@ enddo
 call boundsuv(ud,vd)
 
 do k=1,kx
-  ua(1:ifull,k)=ud(1:ifull,k)-ud(iwu,k)*0.5 ! 1st guess
-  va(1:ifull,k)=vd(1:ifull,k)-vd(isv,k)*0.5 ! 1st guess
+  ug(:,k)=ud(1:ifull,k)-0.5*ud(iwu,k)
+  vg(:,k)=vd(1:ifull,k)-0.5*vd(isv,k)
+  ug(:,k)=ug(:,k)*ee(1:ifull)*ee(ie)
+  vg(:,k)=vg(:,k)*ee(1:ifull)*ee(in)
+  ua(1:ifull,k)=ug(:,k) ! 1st guess
+  va(1:ifull,k)=vg(:,k) ! 1st guess
 enddo
 
 do itn=1,itnmax        ! each loop is a double iteration
   call boundsuv(ua,va,nrows=2)
   do k=1,kx
-    uin(1:ifull,k)=(ud(1:ifull,k)-0.5*ud(iwu,k)-ua(ieu,k)*0.1 +ua(iwwu,k)*0.25)/.95
-    vin(1:ifull,k)=(vd(1:ifull,k)-0.5*vd(isv,k)-va(inv,k)*0.1 +va(issv,k)*0.25)/.95
+    uin(1:ifull,k)=(ug(:,k)-ua(ieu,k)*0.1 +ua(iwwu,k)*0.25)/.95
+    vin(1:ifull,k)=(vg(:,k)-va(inv,k)*0.1 +va(issv,k)*0.25)/.95
+    uin(1:ifull,k)=uin(1:ifull,k)*ee(1:ifull)*ee(ie)
+    vin(1:ifull,k)=vin(1:ifull,k)*ee(1:ifull)*ee(in)
   enddo
   call boundsuv(uin,vin,nrows=2)
   do k=1,kx
-    ua(1:ifull,k)=(ud(1:ifull,k)-0.5*ud(iwu,k)-uin(ieu,k)*0.1 +uin(iwwu,k)*0.25)/.95
-    va(1:ifull,k)=(vd(1:ifull,k)-0.5*vd(isv,k)-vin(inv,k)*0.1 +vin(issv,k)*0.25)/.95
+    ua(1:ifull,k)=(ug(:,k)-uin(ieu,k)*0.1 +uin(iwwu,k)*0.25)/.95
+    va(1:ifull,k)=(vg(:,k)-vin(inv,k)*0.1 +vin(issv,k)*0.25)/.95
+    ua(1:ifull,k)=ua(1:ifull,k)*ee(1:ifull)*ee(ie)
+    va(1:ifull,k)=va(1:ifull,k)*ee(1:ifull)*ee(in)
   end do
 end do                 ! itn=1,itnmax
 
@@ -3687,7 +3702,7 @@ end subroutine mlostaguv
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Unstagger u and v
 
-subroutine mlounstaguv(u,v,uout,vout)
+subroutine mlounstaguv(u,v,uout,vout,ee)
 
 use cc_mpi
 use indices_m
@@ -3701,8 +3716,10 @@ integer k,itn,kx
 real, dimension(:,:), intent(in) :: u
 real, dimension(ifull,size(u,2)), intent(in) :: v
 real, dimension(ifull,size(u,2)), intent(out) :: uout,vout
+real, dimension(ifull+iextra), intent(in) :: ee
 real, dimension(ifull+iextra,size(u,2)) :: uin,vin
 real, dimension(ifull+iextra,size(u,2)) :: ua,va,ud,vd
+real, dimension(ifull,size(u,2)) :: ug,vg
 integer, parameter :: itnmax=3
 
 kx=size(u,2)
@@ -3718,20 +3735,28 @@ enddo
 call boundsuv(ud,vd)
 
 do k=1,kx
-  ua(1:ifull,k)=ud(1:ifull,k)-ud(ieu,k)*0.5 ! 1st guess
-  va(1:ifull,k)=vd(1:ifull,k)-vd(inv,k)*0.5 ! 1st guess
+  ug(:,k)=ud(1:ifull,k)-0.5*ud(ieu,k)
+  vg(:,k)=vd(1:ifull,k)-0.5*vd(inv,k)
+  ug(:,k)=ug(:,k)*ee(1:ifull)
+  vg(:,k)=vg(:,k)*ee(1:ifull)
+  ua(1:ifull,k)=ug(:,k) ! 1st guess
+  va(1:ifull,k)=vg(:,k) ! 1st guess
 enddo
 
 do itn=1,itnmax        ! each loop is a double iteration
   call boundsuv(ua,va,nrows=2)
   do k=1,kx
-    uin(1:ifull,k)=(ud(1:ifull,k)-0.5*ud(ieu,k)-ua(iwu,k)*0.1 +ua(ieeu,k)*0.25)/.95
-    vin(1:ifull,k)=(vd(1:ifull,k)-0.5*vd(inv,k)-va(isv,k)*0.1 +va(innv,k)*0.25)/.95
+    uin(1:ifull,k)=(ug(:,k)-ua(iwu,k)*0.1 +ua(ieeu,k)*0.25)/.95
+    vin(1:ifull,k)=(vg(:,k)-va(isv,k)*0.1 +va(innv,k)*0.25)/.95
+    uin(1:ifull,k)=uin(1:ifull,k)*ee(1:ifull)
+    vin(1:ifull,k)=vin(1:ifull,k)*ee(1:ifull)
   enddo
   call boundsuv(uin,vin,nrows=2)
   do k=1,kx
-    ua(1:ifull,k)=(ud(1:ifull,k)-0.5*ud(ieu,k)-uin(iwu,k)*0.1 +uin(ieeu,k)*0.25)/.95
-    va(1:ifull,k)=(vd(1:ifull,k)-0.5*vd(inv,k)-vin(isv,k)*0.1 +vin(innv,k)*0.25)/.95
+    ua(1:ifull,k)=(ug(:,k)-uin(iwu,k)*0.1 +uin(ieeu,k)*0.25)/.95
+    va(1:ifull,k)=(vg(:,k)-vin(isv,k)*0.1 +vin(innv,k)*0.25)/.95
+    ua(1:ifull,k)=ua(1:ifull,k)*ee(1:ifull)
+    va(1:ifull,k)=va(1:ifull,k)*ee(1:ifull)
   enddo
 enddo                  ! itn=1,itnmax
       
