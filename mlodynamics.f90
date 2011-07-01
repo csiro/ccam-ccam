@@ -19,6 +19,7 @@ real, dimension(:), allocatable, save :: watbdy
 integer, parameter :: salfilt=0    ! Additional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide=1    ! tidal forcing (0=Off, 1=On)
 integer, parameter :: icemode=2    ! Ice stress (0=free-drift, 1=incompressible, 2=cavitating)
+integer, parameter :: difland=1    ! Diffusion (0=internal, 1=coastal)
 integer, parameter :: lmax   =1    ! 1=predictor-only, 2+=predictor-corrector
 real, parameter :: k_smag=0.4      ! horizontal diffusion (0.4 in mom3, 2. in Griffies (2000))
 real, parameter :: rhosn =330.     ! density snow (kg m^-3)
@@ -138,6 +139,10 @@ do k=1,wlev
   ! diffusion for momentum (diffusion allowed with land points)
   xfact(1:ifull) = (t_kh(ie)+t_kh)*.5
   yfact(1:ifull) = (t_kh(in)+t_kh)*.5
+  if (difland.eq.0) then
+    xfact(1:ifull)=xfact(1:ifull)*ee(1:ifull)*ee(ie)
+    yfact(1:ifull)=yfact(1:ifull)*ee(1:ifull)*ee(in)
+  end if
   call boundsuv(xfact,yfact)
   base= ( emi +                         &
           xfact(1:ifull) +              & 
@@ -167,14 +172,16 @@ do k=1,wlev
   call mloimport(3,v(1:ifull,k),k,0)
 
   ! diffusion for scalars (no diffusion with land points)
-  xfact(1:ifull) = (t_kh(ie)+t_kh)*.5*ee(1:ifull)*ee(ie)
-  yfact(1:ifull) = (t_kh(in)+t_kh)*.5*ee(1:ifull)*ee(in)
-  call boundsuv(xfact,yfact)
-  base= ( emi +                         &
-          xfact(1:ifull) +              & 
-          xfact(iwu) +                  &
-          yfact(1:ifull) +              &
-          yfact(isv) )
+  if (difland.gt.0) then
+    xfact(1:ifull) = (t_kh(ie)+t_kh)*.5*ee(1:ifull)*ee(ie)
+    yfact(1:ifull) = (t_kh(in)+t_kh)*.5*ee(1:ifull)*ee(in)
+    call boundsuv(xfact,yfact)
+    base= ( emi +                         &
+            xfact(1:ifull) +              & 
+            xfact(iwu) +                  &
+            yfact(1:ifull) +              &
+            yfact(isv) )
+  end if
 
   do i=0,1
     gg=0.
@@ -1385,16 +1392,15 @@ include 'parmhor.h'
 include 'mpif.h'
 
 integer, intent(in) :: nfield,intsch
-integer idel,iq,jdel,nn,kx
+integer idel,iq,jdel,kx
 integer i,j,k,n,ind,ip,jp,iproc,ierr
 integer, dimension(:,:), intent(in) :: nface
 real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
 real, dimension(ifull+iextra,size(nface,2)), intent(inout) :: s
 real, dimension(ifull+iextra,size(nface,2)), intent(in) :: d
-real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(nface,2)) :: sx,dx
+real, dimension(0:ipan+1,0:jpan+1,1:npan,size(nface,2)) :: sx,dx
 real, dimension(0:nproc-1,maxbuflen) :: sdin,ddin
-real, dimension(4) :: r
-real a3,a4,c1,c2,c3,c4,cmax,cmin,sss,xxg,yyg
+real aab,aac,aad,c1,c2,c3,c4,xxg,yyg
 real dxx,cxx
 real, dimension(size(nface,2)) :: cc1,cc2,cc3,cc4,d1,d2,d3,d4
 logical, dimension(ifull+iextra), intent(in) :: wtr
@@ -1404,8 +1410,6 @@ kx=size(nface,2)
 
 call bounds(s,nrows=2)
 
-!======================== start of intsch=1 section ====================
-if(intsch==1)then
 
     do n=1,npan         ! first simple copy into larger array
       do j=1,jpan
@@ -1421,54 +1425,31 @@ if(intsch==1)then
     do n=1,npan
       do j=1,jpan
         sx(0,j,n,:)      = s(iw(ind(1,j,n)),:)
-        sx(-1,j,n,:)     = s(iww(ind(1,j,n)),:)
         sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
-        sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
         dx(0,j,n,:)      = d(iw(ind(1,j,n)),:)
-        dx(-1,j,n,:)     = d(iww(ind(1,j,n)),:)
         dx(ipan+1,j,n,:) = d(ie(ind(ipan,j,n)),:)
-        dx(ipan+2,j,n,:) = d(iee(ind(ipan,j,n)),:)
       enddo            ! j loop
       do i=1,ipan
         sx(i,0,n,:)      = s(is(ind(i,1,n)),:)
-        sx(i,-1,n,:)     = s(iss(ind(i,1,n)),:)
         sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
-        sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
         dx(i,0,n,:)      = d(is(ind(i,1,n)),:)
-        dx(i,-1,n,:)     = d(iss(ind(i,1,n)),:)
         dx(i,jpan+1,n,:) = d(in(ind(i,jpan,n)),:)
-        dx(i,jpan+2,n,:) = d(inn(ind(i,jpan,n)),:)
       enddo            ! i loop
 !        for ew interpolation, sometimes need (different from ns):
 !            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-      sx(-1,0,n,:)          = s(lwws(n),:)
       sx(0,0,n,:)           = s(lws(n),:)
-      sx(0,-1,n,:)          = s(lwss(n),:)
       sx(ipan+1,0,n,:)      = s(les(n),:)
-      sx(ipan+2,0,n,:)      = s(lees(n),:)
-      sx(ipan+1,-1,n,:)     = s(less(n),:)
-      sx(-1,jpan+1,n,:)     = s(lwwn(n),:)
-      sx(0,jpan+2,n,:)      = s(lwnn(n),:)
-      sx(ipan+2,jpan+1,n,:) = s(leen(n),:)
-      sx(ipan+1,jpan+2,n,:) = s(lenn(n),:)
       sx(0,jpan+1,n,:)      = s(iwn(ind(1,jpan,n)),:)
       sx(ipan+1,jpan+1,n,:) = s(ien(ind(ipan,jpan,n)),:)
-      dx(-1,0,n,:)          = d(lwws(n),:)
       dx(0,0,n,:)           = d(lws(n),:)
-      dx(0,-1,n,:)          = d(lwss(n),:)
       dx(ipan+1,0,n,:)      = d(les(n),:)
-      dx(ipan+2,0,n,:)      = d(lees(n),:)
-      dx(ipan+1,-1,n,:)     = d(less(n),:)
-      dx(-1,jpan+1,n,:)     = d(lwwn(n),:)
-      dx(0,jpan+2,n,:)      = d(lwnn(n),:)
-      dx(ipan+2,jpan+1,n,:) = d(leen(n),:)
-      dx(ipan+1,jpan+2,n,:) = d(lenn(n),:)
       dx(0,jpan+1,n,:)      = d(iwn(ind(1,jpan,n)),:)
       dx(ipan+1,jpan+1,n,:) = d(ien(ind(ipan,jpan,n)),:)
     enddo               ! n loop
+
+    cxx = 0.
   
-    if(nfield<mh_bs)then
      do iq=1,ifull    ! non Berm-Stan option
       if (wtr(iq)) then
        do k=1,kx           
@@ -1484,228 +1465,38 @@ if(intsch==1)then
         if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.jdel > jpan .or. n < 1 .or. n > npan ) then
           cycle      ! Will be calculated on another processor
         end if
-        !if (intmode.eq.1) then
-          cc1 = sx(idel-1,jdel,n,:)
-          cc2 = sx(idel  ,jdel,n,:)
-          cc3 = sx(idel+1,jdel,n,:)
-          cc4 = sx(idel+2,jdel,n,:)
-          d1 = dx(idel-1,jdel,n,:)
-          d2 = dx(idel  ,jdel,n,:)
-          d3 = dx(idel+1,jdel,n,:)
-          d4 = dx(idel+2,jdel,n,:)
-          dxx = d(iq,k)
-            cxx = 0.
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel-1,jdel,n,k)
-        !  c2 = sx(idel  ,jdel,n,k)
-        !  c3 = sx(idel+1,jdel,n,k)
-        !  c4 = sx(idel+2,jdel,n,k)        
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel-1,jdel+1,n,:)
-          cc2 = sx(idel  ,jdel+1,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+2,jdel+1,n,:)
-          d1 = dx(idel-1,jdel+1,n,:)
-          d2 = dx(idel  ,jdel+1,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+2,jdel+1,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel-1,jdel+1,n,k)
-        !  c2 = sx(idel  ,jdel+1,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+2,jdel+1,n,k)
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel  ,jdel-1,n,:)
-            cc2 = sx(idel+1,jdel-1,n,:)
-            cc3 = sx(idel  ,jdel+2,n,:)
-            cc4 = sx(idel+1,jdel+2,n,:)
-            d1 = dx(idel  ,jdel-1,n,:)
-            d2 = dx(idel+1,jdel-1,n,:)
-            d3 = dx(idel  ,jdel+2,n,:)
-            d4 = dx(idel+1,jdel+2,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc2,d2,dxx,cxx,c2)
-              call searchdeltab(cc3,d3,dxx,cxx,c3)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-            r(1) = (1.-xxg)*c1 +xxg*c2
-            r(4) = (1.-xxg)*c3 +xxg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel  ,jdel+nn-2,n,k)
-        !    c3 = sx(idel+1,jdel+nn-2,n,k)
-        !    r(nn) = (1.-xxg)*c2 +xxg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          s(iq,k) = r(2)+.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
-        else
-          s(iq,k) = ((1.-yyg)*((2.-yyg)*        &
-                    ((1.+yyg)*r(2)-yyg*r(1)/3.) &
-                    -yyg*(1.+yyg)*r(4)/3.)      &
-                    +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-        endif         !  (mhint==2)
+        cc1 = sx(idel  ,jdel  ,n,:)
+        cc2 = sx(idel+1,jdel  ,n,:)
+        cc3 = sx(idel  ,jdel+1,n,:)
+        cc4 = sx(idel+1,jdel+1,n,:)
+        d1 = dx(idel  ,jdel  ,n,:)
+        d2 = dx(idel+1,jdel  ,n,:)
+        d3 = dx(idel  ,jdel+1,n,:)
+        d4 = dx(idel+1,jdel+1,n,:)
+        dxx = d(iq,k)
+        call searchdeltab(cc1,d1,dxx,cxx,c1)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        aad=c4-c3-c2+c1
+        aab=c2-c1
+        aac=c3-c1
+        s(iq,k)=aab*xxg+aac*yyg+aad*xxg*yyg+c1
        enddo
       endif           ! if (wtr(iq)) then
      enddo            ! iq loop
-    else                ! (nfield<mh_bs)
-     do iq=1,ifull    ! Berm-Stan option here e.g. qg & gases
-      if (wtr(iq)) then
-       do k=1,kx      
-        idel=int(xg(iq,k))
-        xxg=xg(iq,k)-idel
-        jdel=int(yg(iq,k))
-        yyg=yg(iq,k)-jdel
-        ! Now make them proper indices in this processor's region
-        idel = idel - ioff(nface(iq,k))
-        jdel = jdel - joff(nface(iq,k))
-        n = nface(iq,k) + noff ! Make this a local index
-        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-          cycle      ! Will be calculated on another processor
-        end if
-        !if (intmode.eq.1) then
-          cc1 = sx(idel-1,jdel,n,:)
-          cc2 = sx(idel  ,jdel,n,:)
-          cc3 = sx(idel+1,jdel,n,:)
-          cc4 = sx(idel+2,jdel,n,:)
-          d1 = dx(idel-1,jdel,n,:)
-          d2 = dx(idel  ,jdel,n,:)
-          d3 = dx(idel+1,jdel,n,:)
-          d4 = dx(idel+2,jdel,n,:)
-          dxx = d(iq,k)
-            cxx = 0.
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel-1,jdel,n,k)
-        !  c2 = sx(idel  ,jdel,n,k)
-        !  c3 = sx(idel+1,jdel,n,k)
-        !  c4 = sx(idel+2,jdel,n,k)
-        !end if
-        cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
-        cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel-1,jdel+1,n,:)
-          cc2 = sx(idel  ,jdel+1,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+2,jdel+1,n,:)
-          d1 = dx(idel-1,jdel+1,n,:)
-          d2 = dx(idel  ,jdel+1,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+2,jdel+1,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel-1,jdel+1,n,k)
-        !  c2 = sx(idel  ,jdel+1,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+2,jdel+1,n,k)
-        !end if
-        cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
-        cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel  ,jdel-1,n,:)
-            cc2 = sx(idel+1,jdel-1,n,:)
-            cc3 = sx(idel  ,jdel+2,n,:)
-            cc4 = sx(idel+1,jdel+2,n,:)
-            d1 = dx(idel  ,jdel-1,n,:)
-            d2 = dx(idel+1,jdel-1,n,:)
-            d3 = dx(idel  ,jdel+2,n,:)
-            d4 = dx(idel+1,jdel+2,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc2,d2,dxx,cxx,c2)
-              call searchdeltab(cc3,d3,dxx,cxx,c3)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-            r(1) = (1.-xxg)*c1 +xxg*c2
-            r(4) = (1.-xxg)*c2 +xxg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel  ,jdel+nn-2,n,k)
-        !    c3 = sx(idel+1,jdel+nn-2,n,k)
-        !    r(nn) = (1.-xxg)*c2 +xxg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          sss = r(2)+.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
-        else
-          sss = ((1.-yyg)*((2.-yyg)*        &
-                ((1.+yyg)*r(2)-yyg*r(1)/3.) &
-                 -yyg*(1.+yyg)*r(4)/3.)     &
-                 +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-        endif         !  (mhint==2)
-        s(iq,k) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth
-       enddo
-      endif           ! if (wtr) then
-     enddo            ! iq loop
-    endif               ! (nfield<mh_bs)  .. else ..
             
 ! Loop over points that need to be calculated for other processes
 
-  !if (intmode.eq.1) then
-    call intssend(d)
-    do iproc=0,nproc-1
-      ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
-    end do
-    call intssend(s)
-    do iproc=0,nproc-1
-      sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
-    end do
-  !end if
+  call intssend(d)
+  do iproc=0,nproc-1
+    ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  end do
+  call intssend(s)
+  do iproc=0,nproc-1
+    sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  end do
 
-  if(nfield<mh_bs)then
     do iproc=0,nproc-1
       if ( iproc == myid ) then
         cycle
@@ -1724,753 +1515,26 @@ if(intsch==1)then
         k = nint(dpoints(iproc)%a(4,iq))
         idel = idel - ioff(n-noff)
         jdel = jdel - joff(n-noff)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel-1,jdel,n,:)
-          cc2 = sx(idel  ,jdel,n,:)
-          cc3 = sx(idel+1,jdel,n,:)
-          cc4 = sx(idel+2,jdel,n,:)
-          d1 = dx(idel-1,jdel,n,:)
-          d2 = dx(idel  ,jdel,n,:)
-          d3 = dx(idel+1,jdel,n,:)
-          d4 = dx(idel+2,jdel,n,:)
-          dxx = d(iq,k)
-            cxx = 0.
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel-1,jdel,n,k)
-        !  c2 = sx(idel  ,jdel,n,k)
-        !  c3 = sx(idel+1,jdel,n,k)
-        !  c4 = sx(idel+2,jdel,n,k)
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if(intmode.eq.1) then
-          cc1 = sx(idel-1,jdel+1,n,:)
-          cc2 = sx(idel  ,jdel+1,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+2,jdel+1,n,:)
-          d1 = dx(idel-1,jdel+1,n,:)
-          d2 = dx(idel  ,jdel+1,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+2,jdel+1,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel-1,jdel+1,n,k)
-        !  c2 = sx(idel  ,jdel+1,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+2,jdel+1,n,k)
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel  ,jdel-1,n,:)
-            cc2 = sx(idel+1,jdel-1,n,:)
-            cc3 = sx(idel  ,jdel+2,n,:)
-            cc4 = sx(idel+1,jdel+2,n,:)
-            d1 = dx(idel  ,jdel-1,n,:)
-            d2 = dx(idel+1,jdel-1,n,:)
-            d3 = dx(idel  ,jdel+2,n,:)
-            d4 = dx(idel+1,jdel+2,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc2,d2,dxx,cxx,c2)
-              call searchdeltab(cc3,d3,dxx,cxx,c3)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-            r(1) = (1.-xxg)*c1 +xxg*c2
-            r(4) = (1.-xxg)*c3 +xxg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel  ,jdel+nn-2,n,k)
-        !    c3 = sx(idel+1,jdel+nn-2,n,k)
-        !    r(nn) = (1.-xxg)*c2 +xxg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          sextra(iproc)%a(iq) = r(2) + 0.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
-        else
-          sextra(iproc)%a(iq) = ((1.-yyg)*((2.-yyg)* &
-            ((1.+yyg)*r(2)-yyg*r(1)/3.)              &
-            -yyg*(1.+yyg)*r(4)/3.)                   &
-            +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-        endif         !  (mhint==2)
+        cc1 = sx(idel  ,jdel  ,n,:)
+        cc2 = sx(idel+1,jdel  ,n,:)
+        cc3 = sx(idel  ,jdel+1,n,:)
+        cc4 = sx(idel+1,jdel+1,n,:)
+        d1 = dx(idel  ,jdel  ,n,:)
+        d2 = dx(idel+1,jdel  ,n,:)
+        d3 = dx(idel  ,jdel+1,n,:)
+        d4 = dx(idel+1,jdel+1,n,:)
+        dxx = ddin(iproc,iq)
+        call searchdeltab(cc1,d1,dxx,cxx,c1)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        aad=c4-c3-c2+c1
+        aab=c2-c1
+        aac=c3-c1
+        sextra(iproc)%a(iq)=aab*xxg+aac*yyg+aad*xxg*yyg+c1
        endif           ! if (ddin(iproc,iq).gt.0.1) then
       enddo            ! iq loop
     end do              ! iproc loop
-  else                   ! (nfield<mh_bs)
-    do iproc=0,nproc-1
-      if ( iproc == myid ) then
-        cycle
-      end if
-      do iq=1,drlen(iproc)
-       if (ddin(iproc,iq).gt.0.1) then
-        !  Convert face index from 0:npanels to array indices
-        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
-        !  Need global face index in fproc call
-        idel = int(dpoints(iproc)%a(2,iq))
-        xxg = dpoints(iproc)%a(2,iq) - idel
-        jdel = int(dpoints(iproc)%a(3,iq))
-        yyg = dpoints(iproc)%a(3,iq) - jdel
-        k = nint(dpoints(iproc)%a(4,iq))
-        idel = idel - ioff(n-noff)
-        jdel = jdel - joff(n-noff)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel-1,jdel,n,:)
-          cc2 = sx(idel  ,jdel,n,:)
-          cc3 = sx(idel+1,jdel,n,:)
-          cc4 = sx(idel+2,jdel,n,:)
-          d1 = dx(idel-1,jdel,n,:)
-          d2 = dx(idel  ,jdel,n,:)
-          d3 = dx(idel+1,jdel,n,:)
-          d4 = dx(idel+2,jdel,n,:)
-          dxx = d(iq,k)
-            cxx = 0.
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel-1,jdel,n,k)
-        !  c2 = sx(idel  ,jdel,n,k)
-        !  c3 = sx(idel+1,jdel,n,k)
-        !  c4 = sx(idel+2,jdel,n,k)
-        !end if
-        cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
-        cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel-1,jdel+1,n,:)
-          cc2 = sx(idel  ,jdel+1,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+2,jdel+1,n,:)
-          d1 = dx(idel-1,jdel+1,n,:)
-          d2 = dx(idel  ,jdel+1,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+2,jdel+1,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel-1,jdel+1,n,k)
-        !  c2 = sx(idel  ,jdel+1,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+2,jdel+1,n,k)
-        !end if
-        cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
-        cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel  ,jdel-1,n,:)
-            cc2 = sx(idel+1,jdel-1,n,:)
-            cc3 = sx(idel  ,jdel+2,n,:)
-            cc4 = sx(idel+1,jdel+2,n,:)
-            d1 = dx(idel  ,jdel-1,n,:)
-            d2 = dx(idel+1,jdel-1,n,:)
-            d3 = dx(idel  ,jdel+2,n,:)
-            d4 = dx(idel+1,jdel+2,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc2,d2,dxx,cxx,c2)
-              call searchdeltab(cc3,d3,dxx,cxx,c3)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-            r(1) = (1.-xxg)*c1 +xxg*c2
-            r(4) = (1.-xxg)*c3 +xxg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel  ,jdel+nn-2,n,k)
-        !    c3 = sx(idel+1,jdel+nn-2,n,k)
-        !    r(nn) = (1.-xxg)*c2 +xxg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          sss = r(2)+.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
-        else
-          sss = ((1.-yyg)*((2.-yyg)*        &
-                ((1.+yyg)*r(2)-yyg*r(1)/3.) &
-                -yyg*(1.+yyg)*r(4)/3.)      &
-                +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-        endif         !  (mhint==2)
-        sextra(iproc)%a(iq) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth ! MJT memory
-       endif            ! if (ddin(iproc,iq).gt.0.1) then
-      enddo            ! iq loop
-    end do              ! iproc loop
-  endif                  ! (nfield<mh_bs)  .. else ..
-!========================   end of intsch=1 section ====================
-else     ! if(intsch==1)then
-!======================== start of intsch=2 section ====================
-  
-!       this is intsc           NS interps done first
-!       first extend s arrays into sx - this one -1:il+2 & -1:il+2
-
-    do n=1,npan         ! first simple copy into larger array
-      do j=1,jpan
-        do i=1,ipan
-          sx(i,j,n,:)=s(ind(i,j,n),:)
-          dx(i,j,n,:)=d(ind(i,j,n),:)
-        enddo         ! i loop
-      enddo            ! j loop
-    enddo               ! n loop
-
-    do n=1,npan
-      do j=1,jpan
-        sx(0,j,n,:) = s(iw(ind(1,j,n)),:)
-        sx(-1,j,n,:) = s(iww(ind(1,j,n)),:)
-        sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
-        sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
-        dx(0,j,n,:) = d(iw(ind(1,j,n)),:)
-        dx(-1,j,n,:) = d(iww(ind(1,j,n)),:)
-        dx(ipan+1,j,n,:) = d(ie(ind(ipan,j,n)),:)
-        dx(ipan+2,j,n,:) = d(iee(ind(ipan,j,n)),:)
-      enddo            ! j loop
-      do i=1,ipan
-        sx(i,0,n,:) = s(is(ind(i,1,n)),:)
-        sx(i,-1,n,:) = s(iss(ind(i,1,n)),:)
-        sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
-        sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
-        dx(i,0,n,:) = d(is(ind(i,1,n)),:)
-        dx(i,-1,n,:) = d(iss(ind(i,1,n)),:)
-        dx(i,jpan+1,n,:) = d(in(ind(i,jpan,n)),:)
-        dx(i,jpan+2,n,:) = d(inn(ind(i,jpan,n)),:)
-      enddo            ! i loop
-!        for ns interpolation, sometimes need (different from ew):
-!            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
-!          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-      sx(-1,0,n,:)=s(lsww(n),:)
-      sx(0,0,n,:) = s(lsw(n),:)
-      sx(0,-1,n,:) = s(lssw(n),:)
-      sx(ipan+2,0,n,:) = s(lsee(n),:)
-      sx(ipan+1,-1,n,:) = s(lsse(n),:)
-      sx(-1,jpan+1,n,:) = s(lnww(n),:)
-      sx(0,jpan+1,n,:) = s(lnw(n),:)
-      sx(0,jpan+2,n,:) = s(lnnw(n),:)
-      sx(ipan+2,jpan+1,n,:) = s(lnee(n),:)
-      sx(ipan+1,jpan+2,n,:) = s(lnne(n),:)
-      sx(ipan+1,0,n,:)    = s(ise(ind(ipan,1,n)),:)
-      sx(ipan+1,jpan+1,n,:) = s(ine(ind(ipan,jpan,n)),:)
-      dx(-1,0,n,:)=d(lsww(n),:)
-      dx(0,0,n,:) = d(lsw(n),:)
-      dx(0,-1,n,:) = d(lssw(n),:)
-      dx(ipan+2,0,n,:) = d(lsee(n),:)
-      dx(ipan+1,-1,n,:) = d(lsse(n),:)
-      dx(-1,jpan+1,n,:) = d(lnww(n),:)
-      dx(0,jpan+1,n,:) = d(lnw(n),:)
-      dx(0,jpan+2,n,:) = d(lnnw(n),:)
-      dx(ipan+2,jpan+1,n,:) = d(lnee(n),:)
-      dx(ipan+1,jpan+2,n,:) = d(lnne(n),:)
-      dx(ipan+1,0,n,:)    = d(ise(ind(ipan,1,n)),:)
-      dx(ipan+1,jpan+1,n,:) = d(ine(ind(ipan,jpan,n)),:)
-    enddo               ! n loop
-  
-    if(nfield<mh_bs)then
-     do iq=1,ifull    ! non Berm-Stan option
-      if (wtr(iq)) then
-       do k=1,kx
-!       Convert face index from 0:npanels to array indices
-        idel=int(xg(iq,k))
-        xxg=xg(iq,k)-idel
-        jdel=int(yg(iq,k))
-        yyg=yg(iq,k)-jdel
-        ! Now make them proper indices in this processor's region
-        idel = idel - ioff(nface(iq,k))
-        jdel = jdel - joff(nface(iq,k))
-        n = nface(iq,k) + noff ! Make this a local index
-        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-          cycle      ! Will be calculated on another processor
-        end if
-        !if (intmode.eq.1) then
-          cc1 = sx(idel,jdel-1,n,:)
-          cc2 = sx(idel,jdel  ,n,:)
-          cc3 = sx(idel,jdel+1,n,:)
-          cc4 = sx(idel,jdel+2,n,:)
-          d1 = dx(idel,jdel-1,n,:)
-          d2 = dx(idel,jdel  ,n,:)
-          d3 = dx(idel,jdel+1,n,:)
-          d4 = dx(idel,jdel+2,n,:)
-          dxx = d(iq,k)
-            cxx = 0.
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel,jdel-1,n,k)
-        !  c2 = sx(idel,jdel  ,n,k)
-        !  c3 = sx(idel,jdel+1,n,k)
-        !  c4 = sx(idel,jdel+2,n,k)
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel+1,jdel-1,n,:)
-          cc2 = sx(idel+1,jdel  ,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+1,jdel+2,n,:)
-          d1 = dx(idel+1,jdel-1,n,:)
-          d2 = dx(idel+1,jdel  ,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+1,jdel+2,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel+1,jdel-1,n,k)
-        !  c2 = sx(idel+1,jdel  ,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+1,jdel+2,n,k)
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel-1,jdel  ,n,:)
-            cc2 = sx(idel-1,jdel+1,n,:)
-            cc3 = sx(idel+2,jdel  ,n,:)
-            cc4 = sx(idel+2,jdel+1,n,:)
-            d1 = dx(idel-1,jdel  ,n,:)
-            d2 = dx(idel-1,jdel+1,n,:)
-            d3 = dx(idel+2,jdel  ,n,:)
-            d4 = dx(idel+2,jdel+1,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc2,d2,dxx,cxx,c2)
-              call searchdeltab(cc3,d3,dxx,cxx,c3)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-            r(1) = (1.-yyg)*c1 +yyg*c2
-            r(4) = (1.-yyg)*c3 +yyg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel+nn-2,jdel  ,n,k)
-        !    c3 = sx(idel+nn-2,jdel+1,n,k)
-        !    r(nn) = (1.-yyg)*c2 +yyg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          s(iq,k) = r(2)+.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
-        else
-          s(iq,k) = ((1.-xxg)*((2.-xxg)*        &
-                    ((1.+xxg)*r(2)-xxg*r(1)/3.) &
-                   -xxg*(1.+xxg)*r(4)/3.)       &
-                   +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
-        endif         !  (mhint==2)
-       enddo
-      endif           ! if (wtr) then
-     enddo            ! iq loop
-    else                ! (nfield<mh_bs)
-     do iq=1,ifull    ! Berm-Stan option here e.g. qg & gases
-      if (wtr(iq)) then
-       do k=1,kx
-        idel=int(xg(iq,k))
-        xxg=xg(iq,k)-idel
-        jdel=int(yg(iq,k))
-        yyg=yg(iq,k)-jdel
-        ! Now make them proper indices in this processor's region
-        idel = idel - ioff(nface(iq,k))
-        jdel = jdel - joff(nface(iq,k))
-        n = nface(iq,k) + noff ! Make this a local index
-        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-          cycle      ! Will be calculated on another processor
-        end if
-        !if (intmode.eq.1) then
-          cc1 = sx(idel,jdel-1,n,:)
-          cc2 = sx(idel,jdel  ,n,:)
-          cc3 = sx(idel,jdel+1,n,:)
-          cc4 = sx(idel,jdel+2,n,:)
-          d1 = dx(idel,jdel-1,n,:)
-          d2 = dx(idel,jdel  ,n,:)
-          d3 = dx(idel,jdel+1,n,:)
-          d4 = dx(idel,jdel+2,n,:)
-          dxx = d(iq,k)
-            cxx = 0.
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel,jdel-1,n,k)
-        !  c2 = sx(idel,jdel  ,n,k)
-        !  c3 = sx(idel,jdel+1,n,k)
-        !  c4 = sx(idel,jdel+2,n,k)
-        !end if
-        cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
-        cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel+1,jdel-1,n,:)
-          cc2 = sx(idel+1,jdel  ,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+1,jdel+2,n,:)
-          d1 = dx(idel+1,jdel-1,n,:)
-          d2 = dx(idel+1,jdel  ,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+1,jdel+2,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel+1,jdel-1,n,k)
-        !  c2 = sx(idel+1,jdel  ,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+1,jdel+2,n,k)
-        !end if
-        cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
-        cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel-1,jdel  ,n,:)
-            cc2 = sx(idel-1,jdel+1,n,:)
-            cc3 = sx(idel+2,jdel  ,n,:)
-            cc4 = sx(idel+2,jdel+1,n,:)            
-            d1 = dx(idel-1,jdel  ,n,:)
-            d2 = dx(idel-1,jdel+1,n,:)
-            d3 = dx(idel+2,jdel  ,n,:)
-            d4 = dx(idel+2,jdel+1,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc2,d2,dxx,cxx,c2)
-              call searchdeltab(cc3,d3,dxx,cxx,c3)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-            r(1) = (1.-yyg)*c1 +yyg*c2
-            r(4) = (1.-yyg)*c3 +yyg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel+nn-2,jdel  ,n,k)
-        !    c3 = sx(idel+nn-2,jdel+1,n,k)
-        !    r(nn) = (1.-yyg)*c2 +yyg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          sss = r(2)+.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
-        else
-          sss = ((1.-xxg)*((2.-xxg)*        &
-                ((1.+xxg)*r(2)-xxg*r(1)/3.) &
-                -xxg*(1.+xxg)*r(4)/3.)      &
-                +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
-        endif         !  (mhint==2)
-        s(iq,k) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth
-       end do
-      endif           ! if (wtr) then
-     enddo            ! iq loop
-    endif               ! (nfield<mh_bs)  .. else ..
-
-! For other processes
-
-  !if (intmode.eq.1) then
-    call intssend(d)
-    do iproc=0,nproc-1
-      ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
-    end do
-    call intssend(s)
-    do iproc=0,nproc-1
-      sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
-    end do
-  !end if
-
-  if(nfield<mh_bs)then
-    do iproc=0,nproc-1
-      if ( iproc == myid ) then
-        cycle
-      end if
-      do iq=1,drlen(iproc)
-       if (ddin(iproc,iq).gt.0.1) then
-        !  Convert face index from 0:npanels to array indices
-        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
-        !  Need global face index in fproc call
-        idel = int(dpoints(iproc)%a(2,iq))
-        xxg = dpoints(iproc)%a(2,iq) - idel
-        jdel = int(dpoints(iproc)%a(3,iq))
-        yyg = dpoints(iproc)%a(3,iq) - jdel
-        k = nint(dpoints(iproc)%a(4,iq))
-        idel = idel - ioff(n-noff)
-        jdel = jdel - joff(n-noff)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel,jdel-1,n,:)
-          cc2 = sx(idel,jdel  ,n,:)
-          cc3 = sx(idel,jdel+1,n,:)
-          cc4 = sx(idel,jdel+2,n,:)
-          d1 = dx(idel,jdel-1,n,:)
-          d2 = dx(idel,jdel  ,n,:)
-          d3 = dx(idel,jdel+1,n,:)
-          d4 = dx(idel,jdel+2,n,:)
-          dxx = d(iq,k)
-            cxx = 0.
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel,jdel-1,n,k)
-        !  c2 = sx(idel,jdel  ,n,k)
-        !  c3 = sx(idel,jdel+1,n,k)
-        !  c4 = sx(idel,jdel+2,n,k)
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel+1,jdel-1,n,:)
-          cc2 = sx(idel+1,jdel  ,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+1,jdel+2,n,:)
-          d1 = dx(idel+1,jdel-1,n,:)
-          d2 = dx(idel+1,jdel  ,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+1,jdel+2,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel+1,jdel-1,n,k)
-        !  c2 = sx(idel+1,jdel  ,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+1,jdel+2,n,k)
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel-1,jdel  ,n,:)
-            cc2 = sx(idel-1,jdel+1,n,:)
-            cc3 = sx(idel+2,jdel  ,n,:)
-            cc4 = sx(idel+2,jdel+1,n,:)
-            d1 = dx(idel-1,jdel  ,n,:)
-            d2 = dx(idel-1,jdel+1,n,:)
-            d3 = dx(idel+2,jdel  ,n,:)
-            d4 = dx(idel+2,jdel+1,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc2,d2,dxx,cxx,c2)
-              call searchdeltab(cc3,d3,dxx,cxx,c3)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-            r(1) = (1.-yyg)*c1 +yyg*c2
-            r(4) = (1.-yyg)*c3 +yyg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel+nn-2,jdel  ,n,k)
-        !    c3 = sx(idel+nn-2,jdel+1,n,k)
-        !    r(nn) = (1.-yyg)*c2 +yyg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          sextra(iproc)%a(iq) = r(2)+ 0.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
-        else
-          sextra(iproc)%a(iq) = ((1.-xxg)*((2.-xxg)*  &
-            ((1.+xxg)*r(2)-xxg*r(1)/3.)               &
-            -xxg*(1.+xxg)*r(4)/3.)                    &
-            +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
-        endif         !  (mhint==2)
-       endif           ! if (ddin(iproc,iq).gt.0.1) then
-      enddo            ! iq loop
-    end do              ! iproc
-  else                   ! (nfield<mh_bs)
-    do iproc=0,nproc-1
-      if ( iproc == myid ) then
-        cycle
-      end if
-      do iq=1,drlen(iproc)
-       if (ddin(iproc,iq).gt.0.1) then
-        !  Convert face index from 0:npanels to array indices
-        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
-        !  Need global face index in fproc call
-        idel = int(dpoints(iproc)%a(2,iq))
-        xxg = dpoints(iproc)%a(2,iq) - idel
-        jdel = int(dpoints(iproc)%a(3,iq))
-        yyg = dpoints(iproc)%a(3,iq) - jdel
-        k = nint(dpoints(iproc)%a(4,iq))
-        idel = idel - ioff(n-noff)
-        jdel = jdel - joff(n-noff)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel,jdel-1,n,:)
-          cc2 = sx(idel,jdel  ,n,:)
-          cc3 = sx(idel,jdel+1,n,:)
-          cc4 = sx(idel,jdel+2,n,:)
-          d1 = dx(idel,jdel-1,n,:)
-          d2 = dx(idel,jdel  ,n,:)
-          d3 = dx(idel,jdel+1,n,:)
-          d4 = dx(idel,jdel+2,n,:)
-          dxx = d(iq,k)
-            cxx = 0.
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel,jdel-1,n,k)
-        !  c2 = sx(idel,jdel  ,n,k)
-        !  c3 = sx(idel,jdel+1,n,k)
-        !  c4 = sx(idel,jdel+2,n,k)
-        !end if
-        cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
-        cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel+1,jdel-1,n,:)
-          cc2 = sx(idel+1,jdel  ,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+1,jdel+2,n,:)
-          d1 = dx(idel+1,jdel-1,n,:)
-          d2 = dx(idel+1,jdel  ,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+1,jdel+2,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc2,d2,dxx,cxx,c2)
-            call searchdeltab(cc3,d3,dxx,cxx,c3)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-        !else
-        !  c1 = sx(idel+1,jdel-1,n,k)
-        !  c2 = sx(idel+1,jdel  ,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+1,jdel+2,n,k)
-        !end if
-        cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
-        cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel-1,jdel  ,n,:)
-            cc2 = sx(idel-1,jdel+1,n,:)
-            cc3 = sx(idel+2,jdel  ,n,:)
-            cc4 = sx(idel+2,jdel+1,n,:)
-            d1 = dx(idel-1,jdel  ,n,:)
-            d2 = dx(idel-1,jdel+1,n,:)
-            d3 = dx(idel+2,jdel  ,n,:)
-            d4 = dx(idel+2,jdel+1,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc2,d2,dxx,cxx,c2)
-              call searchdeltab(cc3,d3,dxx,cxx,c3)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-            r(1) = (1.-yyg)*c1 +yyg*c2
-            r(4) = (1.-yyg)*c3 +yyg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel+nn-2,jdel  ,n,k)
-        !    c3 = sx(idel+nn-2,jdel+1,n,k)
-        !    r(nn) = (1.-yyg)*c2 +yyg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          sss = r(2)+.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
-        else
-          sss = ((1.-xxg)*((2.-xxg)*        &
-                ((1.+xxg)*r(2)-xxg*r(1)/3.) &
-                -xxg*(1.+xxg)*r(4)/3.)      &
-                +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
-        endif         !  (mhint==2)
-        sextra(iproc)%a(iq) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth ! MJT memory
-       endif            ! if (ddin(iproc,iq).gt.0.1) then
-      enddo            ! iq loop
-    end do              ! iproc
-  endif                  ! (nfield<mh_bs)  .. else ..
-
-endif                     ! (intsch==1) .. else ..
-!========================   end of intsch=1 section ====================
 
 call intssync(s)
 
@@ -2491,17 +1555,17 @@ include 'parmhor.h'
 include 'mpif.h'
 
 integer, intent(in) :: nfield,intsch
-integer idel,iq,jdel,nn,kx
+integer idel,iq,jdel,kx
 integer i,j,k,n,ind,ip,jp,iproc,ierr
 integer, dimension(:,:), intent(in) :: nface
 real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
 real, dimension(ifull+iextra,size(nface,2)), intent(inout) :: s
 real, dimension(ifull+iextra,size(nface,2)), intent(in) :: d
-real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(nface,2)) :: sx,dx
+real, dimension(0:ipan+1,0:jpan+1,1:npan,size(nface,2)) :: sx,dx
 real, dimension(0:nproc-1,maxbuflen) :: sdin,ddin
-real, dimension(4) :: r
-real a3,a4,c1,c2,c3,c4,cmax,cmin,sss,xxg,yyg
-real dxx,cxx
+real, dimension(0:1,0:1) :: sc
+real c1,c2,c3,c4,xxg,yyg
+real dxx,cxx,aab,aac,aad
 real, dimension(size(nface,2)) :: cc1,cc2,cc3,cc4,d1,d2,d3,d4
 logical, dimension(ifull+iextra), intent(in) :: wtr
 ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
@@ -2510,8 +1574,6 @@ kx=size(nface,2)
 
 call bounds(s,nrows=2)
 
-!======================== start of intsch=1 section ====================
-if(intsch==1)then
 
     do n=1,npan         ! first simple copy into larger array
       do j=1,jpan
@@ -2527,54 +1589,31 @@ if(intsch==1)then
     do n=1,npan
       do j=1,jpan
         sx(0,j,n,:)      = s(iw(ind(1,j,n)),:)
-        sx(-1,j,n,:)     = s(iww(ind(1,j,n)),:)
         sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
-        sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
         dx(0,j,n,:)      = d(iw(ind(1,j,n)),:)
-        dx(-1,j,n,:)     = d(iww(ind(1,j,n)),:)
         dx(ipan+1,j,n,:) = d(ie(ind(ipan,j,n)),:)
-        dx(ipan+2,j,n,:) = d(iee(ind(ipan,j,n)),:)
       enddo            ! j loop
       do i=1,ipan
         sx(i,0,n,:)      = s(is(ind(i,1,n)),:)
-        sx(i,-1,n,:)     = s(iss(ind(i,1,n)),:)
         sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
-        sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
         dx(i,0,n,:)      = d(is(ind(i,1,n)),:)
-        dx(i,-1,n,:)     = d(iss(ind(i,1,n)),:)
         dx(i,jpan+1,n,:) = d(in(ind(i,jpan,n)),:)
-        dx(i,jpan+2,n,:) = d(inn(ind(i,jpan,n)),:)
       enddo            ! i loop
 !        for ew interpolation, sometimes need (different from ns):
 !            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
 !           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-      sx(-1,0,n,:)          = s(lwws(n),:)
       sx(0,0,n,:)           = s(lws(n),:)
-      sx(0,-1,n,:)          = s(lwss(n),:)
       sx(ipan+1,0,n,:)      = s(les(n),:)
-      sx(ipan+2,0,n,:)      = s(lees(n),:)
-      sx(ipan+1,-1,n,:)     = s(less(n),:)
-      sx(-1,jpan+1,n,:)     = s(lwwn(n),:)
-      sx(0,jpan+2,n,:)      = s(lwnn(n),:)
-      sx(ipan+2,jpan+1,n,:) = s(leen(n),:)
-      sx(ipan+1,jpan+2,n,:) = s(lenn(n),:)
       sx(0,jpan+1,n,:)      = s(iwn(ind(1,jpan,n)),:)
       sx(ipan+1,jpan+1,n,:) = s(ien(ind(ipan,jpan,n)),:)
-      dx(-1,0,n,:)          = d(lwws(n),:)
       dx(0,0,n,:)           = d(lws(n),:)
-      dx(0,-1,n,:)          = d(lwss(n),:)
       dx(ipan+1,0,n,:)      = d(les(n),:)
-      dx(ipan+2,0,n,:)      = d(lees(n),:)
-      dx(ipan+1,-1,n,:)     = d(less(n),:)
-      dx(-1,jpan+1,n,:)     = d(lwwn(n),:)
-      dx(0,jpan+2,n,:)      = d(lwnn(n),:)
-      dx(ipan+2,jpan+1,n,:) = d(leen(n),:)
-      dx(ipan+1,jpan+2,n,:) = d(lenn(n),:)
       dx(0,jpan+1,n,:)      = d(iwn(ind(1,jpan,n)),:)
       dx(ipan+1,jpan+1,n,:) = d(ien(ind(ipan,jpan,n)),:)
     enddo               ! n loop
-  
-    if(nfield<mh_bs)then
+
+    cxx = -99.
+ 
      do iq=1,ifull    ! non Berm-Stan option
       if (wtr(iq)) then
        do k=1,kx           
@@ -2590,228 +1629,43 @@ if(intsch==1)then
         if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or.jdel > jpan .or. n < 1 .or. n > npan ) then
           cycle      ! Will be calculated on another processor
         end if
-        !if (intmode.eq.1) then
-          cc1 = sx(idel-1,jdel,n,:)
-          cc2 = sx(idel  ,jdel,n,:)
-          cc3 = sx(idel+1,jdel,n,:)
-          cc4 = sx(idel+2,jdel,n,:)
-          d1 = dx(idel-1,jdel,n,:)
-          d2 = dx(idel  ,jdel,n,:)
-          d3 = dx(idel+1,jdel,n,:)
-          d4 = dx(idel+2,jdel,n,:)
-          dxx = d(iq,k)
-            cxx = s(iq,k)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel-1,jdel,n,k)
-        !  c2 = sx(idel  ,jdel,n,k)
-        !  c3 = sx(idel+1,jdel,n,k)
-        !  c4 = sx(idel+2,jdel,n,k)        
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel-1,jdel+1,n,:)
-          cc2 = sx(idel  ,jdel+1,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+2,jdel+1,n,:)
-          d1 = dx(idel-1,jdel+1,n,:)
-          d2 = dx(idel  ,jdel+1,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+2,jdel+1,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel-1,jdel+1,n,k)
-        !  c2 = sx(idel  ,jdel+1,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+2,jdel+1,n,k)
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel  ,jdel-1,n,:)
-            cc2 = sx(idel+1,jdel-1,n,:)
-            cc3 = sx(idel  ,jdel+2,n,:)
-            cc4 = sx(idel+1,jdel+2,n,:)
-            d1 = dx(idel  ,jdel-1,n,:)
-            d2 = dx(idel+1,jdel-1,n,:)
-            d3 = dx(idel  ,jdel+2,n,:)
-            d4 = dx(idel+1,jdel+2,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-              call searchdeltab(cc2,d2,dxx,c1,c2)
-              call searchdeltab(cc3,d3,dxx,c4,c3)
-            r(1) = (1.-xxg)*c1 +xxg*c2
-            r(4) = (1.-xxg)*c3 +xxg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel  ,jdel+nn-2,n,k)
-        !    c3 = sx(idel+1,jdel+nn-2,n,k)
-        !    r(nn) = (1.-xxg)*c2 +xxg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          s(iq,k) = r(2)+.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
-        else
-          s(iq,k) = ((1.-yyg)*((2.-yyg)*        &
-                    ((1.+yyg)*r(2)-yyg*r(1)/3.) &
-                    -yyg*(1.+yyg)*r(4)/3.)      &
-                    +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-        endif         !  (mhint==2)
+        cc1 = sx(idel  ,jdel  ,n,:)
+        cc2 = sx(idel+1,jdel  ,n,:)
+        cc3 = sx(idel  ,jdel+1,n,:)
+        cc4 = sx(idel+1,jdel+1,n,:)
+        d1 = dx(idel  ,jdel  ,n,:)
+        d2 = dx(idel+1,jdel  ,n,:)
+        d3 = dx(idel  ,jdel+1,n,:)
+        d4 = dx(idel+1,jdel+1,n,:)
+        dxx = d(iq,k)
+        call searchdeltab(cc1,d1,dxx,cxx,c1)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        sc(0,0)=c1
+        sc(1,0)=c2
+        sc(0,1)=c3
+        sc(1,1)=c4
+        call lfill(sc,s(iq,k))
+        aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
+        aab=sc(1,0)-sc(0,0)
+        aac=sc(0,1)-sc(0,0)
+        s(iq,k)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)
        enddo
       endif           ! if (wtr(iq)) then
      enddo            ! iq loop
-    else                ! (nfield<mh_bs)
-     do iq=1,ifull    ! Berm-Stan option here e.g. qg & gases
-      if (wtr(iq)) then
-       do k=1,kx      
-        idel=int(xg(iq,k))
-        xxg=xg(iq,k)-idel
-        jdel=int(yg(iq,k))
-        yyg=yg(iq,k)-jdel
-        ! Now make them proper indices in this processor's region
-        idel = idel - ioff(nface(iq,k))
-        jdel = jdel - joff(nface(iq,k))
-        n = nface(iq,k) + noff ! Make this a local index
-        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-          cycle      ! Will be calculated on another processor
-        end if
-        !if (intmode.eq.1) then
-          cc1 = sx(idel-1,jdel,n,:)
-          cc2 = sx(idel  ,jdel,n,:)
-          cc3 = sx(idel+1,jdel,n,:)
-          cc4 = sx(idel+2,jdel,n,:)
-          d1 = dx(idel-1,jdel,n,:)
-          d2 = dx(idel  ,jdel,n,:)
-          d3 = dx(idel+1,jdel,n,:)
-          d4 = dx(idel+2,jdel,n,:)
-          dxx = d(iq,k)
-            cxx = s(iq,k)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel-1,jdel,n,k)
-        !  c2 = sx(idel  ,jdel,n,k)
-        !  c3 = sx(idel+1,jdel,n,k)
-        !  c4 = sx(idel+2,jdel,n,k)
-        !end if
-        cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
-        cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel-1,jdel+1,n,:)
-          cc2 = sx(idel  ,jdel+1,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+2,jdel+1,n,:)
-          d1 = dx(idel-1,jdel+1,n,:)
-          d2 = dx(idel  ,jdel+1,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+2,jdel+1,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel-1,jdel+1,n,k)
-        !  c2 = sx(idel  ,jdel+1,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+2,jdel+1,n,k)
-        !end if
-        cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
-        cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel  ,jdel-1,n,:)
-            cc2 = sx(idel+1,jdel-1,n,:)
-            cc3 = sx(idel  ,jdel+2,n,:)
-            cc4 = sx(idel+1,jdel+2,n,:)
-            d1 = dx(idel  ,jdel-1,n,:)
-            d2 = dx(idel+1,jdel-1,n,:)
-            d3 = dx(idel  ,jdel+2,n,:)
-            d4 = dx(idel+1,jdel+2,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-              call searchdeltab(cc2,d2,dxx,c1,c2)
-              call searchdeltab(cc3,d3,dxx,c4,c3)
-            r(1) = (1.-xxg)*c1 +xxg*c2
-            r(4) = (1.-xxg)*c2 +xxg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel  ,jdel+nn-2,n,k)
-        !    c3 = sx(idel+1,jdel+nn-2,n,k)
-        !    r(nn) = (1.-xxg)*c2 +xxg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          sss = r(2)+.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
-        else
-          sss = ((1.-yyg)*((2.-yyg)*        &
-                ((1.+yyg)*r(2)-yyg*r(1)/3.) &
-                 -yyg*(1.+yyg)*r(4)/3.)     &
-                 +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-        endif         !  (mhint==2)
-        s(iq,k) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth
-       enddo
-      endif           ! if (wtr) then
-     enddo            ! iq loop
-    endif               ! (nfield<mh_bs)  .. else ..
-            
+
 ! Loop over points that need to be calculated for other processes
 
-  !if (intmode.eq.1) then
-    call intssend(d)
-    do iproc=0,nproc-1
-      ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
-    end do
-    call intssend(s)
-    do iproc=0,nproc-1
-      sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
-    end do
-  !end if
+  call intssend(d)
+  do iproc=0,nproc-1
+    ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  end do
+  call intssend(s)
+  do iproc=0,nproc-1
+    sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  end do
 
-  if(nfield<mh_bs)then
     do iproc=0,nproc-1
       if ( iproc == myid ) then
         cycle
@@ -2830,753 +1684,31 @@ if(intsch==1)then
         k = nint(dpoints(iproc)%a(4,iq))
         idel = idel - ioff(n-noff)
         jdel = jdel - joff(n-noff)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel-1,jdel,n,:)
-          cc2 = sx(idel  ,jdel,n,:)
-          cc3 = sx(idel+1,jdel,n,:)
-          cc4 = sx(idel+2,jdel,n,:)
-          d1 = dx(idel-1,jdel,n,:)
-          d2 = dx(idel  ,jdel,n,:)
-          d3 = dx(idel+1,jdel,n,:)
-          d4 = dx(idel+2,jdel,n,:)
-          dxx = d(iq,k)
-            cxx = s(iq,k)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel-1,jdel,n,k)
-        !  c2 = sx(idel  ,jdel,n,k)
-        !  c3 = sx(idel+1,jdel,n,k)
-        !  c4 = sx(idel+2,jdel,n,k)
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if(intmode.eq.1) then
-          cc1 = sx(idel-1,jdel+1,n,:)
-          cc2 = sx(idel  ,jdel+1,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+2,jdel+1,n,:)
-          d1 = dx(idel-1,jdel+1,n,:)
-          d2 = dx(idel  ,jdel+1,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+2,jdel+1,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel-1,jdel+1,n,k)
-        !  c2 = sx(idel  ,jdel+1,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+2,jdel+1,n,k)
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel  ,jdel-1,n,:)
-            cc2 = sx(idel+1,jdel-1,n,:)
-            cc3 = sx(idel  ,jdel+2,n,:)
-            cc4 = sx(idel+1,jdel+2,n,:)
-            d1 = dx(idel  ,jdel-1,n,:)
-            d2 = dx(idel+1,jdel-1,n,:)
-            d3 = dx(idel  ,jdel+2,n,:)
-            d4 = dx(idel+1,jdel+2,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-              call searchdeltab(cc2,d2,dxx,c1,c2)
-              call searchdeltab(cc3,d3,dxx,c4,c3)
-            r(1) = (1.-xxg)*c1 +xxg*c2
-            r(4) = (1.-xxg)*c3 +xxg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel  ,jdel+nn-2,n,k)
-        !    c3 = sx(idel+1,jdel+nn-2,n,k)
-        !    r(nn) = (1.-xxg)*c2 +xxg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          sextra(iproc)%a(iq) = r(2) + 0.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
-        else
-          sextra(iproc)%a(iq) = ((1.-yyg)*((2.-yyg)* &
-            ((1.+yyg)*r(2)-yyg*r(1)/3.)              &
-            -yyg*(1.+yyg)*r(4)/3.)                   &
-            +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-        endif         !  (mhint==2)
+        cc1 = sx(idel  ,jdel  ,n,:)
+        cc2 = sx(idel+1,jdel  ,n,:)
+        cc3 = sx(idel  ,jdel+1,n,:)
+        cc4 = sx(idel+1,jdel+1,n,:)
+        d1 = dx(idel  ,jdel  ,n,:)
+        d2 = dx(idel+1,jdel  ,n,:)
+        d3 = dx(idel  ,jdel+1,n,:)
+        d4 = dx(idel+1,jdel+1,n,:)
+        dxx = ddin(iproc,iq)
+        call searchdeltab(cc1,d1,dxx,cxx,c1)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        sc(0,0)=c1
+        sc(1,0)=c2
+        sc(0,1)=c3
+        sc(1,1)=c4
+        call lfill(sc,sdin(iproc,iq))
+        aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
+        aab=sc(1,0)-sc(0,0)
+        aac=sc(0,1)-sc(0,0)
+        sextra(iproc)%a(iq)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)
        endif           ! if (ddin(iproc,iq).gt.0.1) then
       enddo            ! iq loop
     end do              ! iproc loop
-  else                   ! (nfield<mh_bs)
-    do iproc=0,nproc-1
-      if ( iproc == myid ) then
-        cycle
-      end if
-      do iq=1,drlen(iproc)
-       if (ddin(iproc,iq).gt.0.1) then
-        !  Convert face index from 0:npanels to array indices
-        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
-        !  Need global face index in fproc call
-        idel = int(dpoints(iproc)%a(2,iq))
-        xxg = dpoints(iproc)%a(2,iq) - idel
-        jdel = int(dpoints(iproc)%a(3,iq))
-        yyg = dpoints(iproc)%a(3,iq) - jdel
-        k = nint(dpoints(iproc)%a(4,iq))
-        idel = idel - ioff(n-noff)
-        jdel = jdel - joff(n-noff)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel-1,jdel,n,:)
-          cc2 = sx(idel  ,jdel,n,:)
-          cc3 = sx(idel+1,jdel,n,:)
-          cc4 = sx(idel+2,jdel,n,:)
-          d1 = dx(idel-1,jdel,n,:)
-          d2 = dx(idel  ,jdel,n,:)
-          d3 = dx(idel+1,jdel,n,:)
-          d4 = dx(idel+2,jdel,n,:)
-          dxx = d(iq,k)
-            cxx = s(iq,k)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel-1,jdel,n,k)
-        !  c2 = sx(idel  ,jdel,n,k)
-        !  c3 = sx(idel+1,jdel,n,k)
-        !  c4 = sx(idel+2,jdel,n,k)
-        !end if
-        cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
-        cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel-1,jdel+1,n,:)
-          cc2 = sx(idel  ,jdel+1,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+2,jdel+1,n,:)
-          d1 = dx(idel-1,jdel+1,n,:)
-          d2 = dx(idel  ,jdel+1,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+2,jdel+1,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel-1,jdel+1,n,k)
-        !  c2 = sx(idel  ,jdel+1,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+2,jdel+1,n,k)
-        !end if
-        cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
-        cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*xxg*(c3-c1 +xxg*(a3+xxg*a4))
-        else
-          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
-               -xxg*(1.+xxg)*c4/3.)                          &
-               +xxg*(1.+xxg)*(2.-xxg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel  ,jdel-1,n,:)
-            cc2 = sx(idel+1,jdel-1,n,:)
-            cc3 = sx(idel  ,jdel+2,n,:)
-            cc4 = sx(idel+1,jdel+2,n,:)
-            d1 = dx(idel  ,jdel-1,n,:)
-            d2 = dx(idel+1,jdel-1,n,:)
-            d3 = dx(idel  ,jdel+2,n,:)
-            d4 = dx(idel+1,jdel+2,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-              call searchdeltab(cc2,d2,dxx,c1,c2)
-              call searchdeltab(cc3,d3,dxx,c4,c3)
-            r(1) = (1.-xxg)*c1 +xxg*c2
-            r(4) = (1.-xxg)*c3 +xxg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel  ,jdel+nn-2,n,k)
-        !    c3 = sx(idel+1,jdel+nn-2,n,k)
-        !    r(nn) = (1.-xxg)*c2 +xxg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          sss = r(2)+.5*yyg*(r(3)-r(1) +yyg*(a3+yyg*a4))
-        else
-          sss = ((1.-yyg)*((2.-yyg)*        &
-                ((1.+yyg)*r(2)-yyg*r(1)/3.) &
-                -yyg*(1.+yyg)*r(4)/3.)      &
-                +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
-        endif         !  (mhint==2)
-        sextra(iproc)%a(iq) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth ! MJT memory
-       endif            ! if (ddin(iproc,iq).gt.0.1) then
-      enddo            ! iq loop
-    end do              ! iproc loop
-  endif                  ! (nfield<mh_bs)  .. else ..
-!========================   end of intsch=1 section ====================
-else     ! if(intsch==1)then
-!======================== start of intsch=2 section ====================
-  
-!       this is intsc           NS interps done first
-!       first extend s arrays into sx - this one -1:il+2 & -1:il+2
-
-    do n=1,npan         ! first simple copy into larger array
-      do j=1,jpan
-        do i=1,ipan
-          sx(i,j,n,:)=s(ind(i,j,n),:)
-          dx(i,j,n,:)=d(ind(i,j,n),:)
-        enddo         ! i loop
-      enddo            ! j loop
-    enddo               ! n loop
-
-    do n=1,npan
-      do j=1,jpan
-        sx(0,j,n,:) = s(iw(ind(1,j,n)),:)
-        sx(-1,j,n,:) = s(iww(ind(1,j,n)),:)
-        sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
-        sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
-        dx(0,j,n,:) = d(iw(ind(1,j,n)),:)
-        dx(-1,j,n,:) = d(iww(ind(1,j,n)),:)
-        dx(ipan+1,j,n,:) = d(ie(ind(ipan,j,n)),:)
-        dx(ipan+2,j,n,:) = d(iee(ind(ipan,j,n)),:)
-      enddo            ! j loop
-      do i=1,ipan
-        sx(i,0,n,:) = s(is(ind(i,1,n)),:)
-        sx(i,-1,n,:) = s(iss(ind(i,1,n)),:)
-        sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
-        sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
-        dx(i,0,n,:) = d(is(ind(i,1,n)),:)
-        dx(i,-1,n,:) = d(iss(ind(i,1,n)),:)
-        dx(i,jpan+1,n,:) = d(in(ind(i,jpan,n)),:)
-        dx(i,jpan+2,n,:) = d(inn(ind(i,jpan,n)),:)
-      enddo            ! i loop
-!        for ns interpolation, sometimes need (different from ew):
-!            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
-!          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-      sx(-1,0,n,:)=s(lsww(n),:)
-      sx(0,0,n,:) = s(lsw(n),:)
-      sx(0,-1,n,:) = s(lssw(n),:)
-      sx(ipan+2,0,n,:) = s(lsee(n),:)
-      sx(ipan+1,-1,n,:) = s(lsse(n),:)
-      sx(-1,jpan+1,n,:) = s(lnww(n),:)
-      sx(0,jpan+1,n,:) = s(lnw(n),:)
-      sx(0,jpan+2,n,:) = s(lnnw(n),:)
-      sx(ipan+2,jpan+1,n,:) = s(lnee(n),:)
-      sx(ipan+1,jpan+2,n,:) = s(lnne(n),:)
-      sx(ipan+1,0,n,:)    = s(ise(ind(ipan,1,n)),:)
-      sx(ipan+1,jpan+1,n,:) = s(ine(ind(ipan,jpan,n)),:)
-      dx(-1,0,n,:)=d(lsww(n),:)
-      dx(0,0,n,:) = d(lsw(n),:)
-      dx(0,-1,n,:) = d(lssw(n),:)
-      dx(ipan+2,0,n,:) = d(lsee(n),:)
-      dx(ipan+1,-1,n,:) = d(lsse(n),:)
-      dx(-1,jpan+1,n,:) = d(lnww(n),:)
-      dx(0,jpan+1,n,:) = d(lnw(n),:)
-      dx(0,jpan+2,n,:) = d(lnnw(n),:)
-      dx(ipan+2,jpan+1,n,:) = d(lnee(n),:)
-      dx(ipan+1,jpan+2,n,:) = d(lnne(n),:)
-      dx(ipan+1,0,n,:)    = d(ise(ind(ipan,1,n)),:)
-      dx(ipan+1,jpan+1,n,:) = d(ine(ind(ipan,jpan,n)),:)
-    enddo               ! n loop
-  
-    if(nfield<mh_bs)then
-     do iq=1,ifull    ! non Berm-Stan option
-      if (wtr(iq)) then
-       do k=1,kx
-!       Convert face index from 0:npanels to array indices
-        idel=int(xg(iq,k))
-        xxg=xg(iq,k)-idel
-        jdel=int(yg(iq,k))
-        yyg=yg(iq,k)-jdel
-        ! Now make them proper indices in this processor's region
-        idel = idel - ioff(nface(iq,k))
-        jdel = jdel - joff(nface(iq,k))
-        n = nface(iq,k) + noff ! Make this a local index
-        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-          cycle      ! Will be calculated on another processor
-        end if
-        !if (intmode.eq.1) then
-          cc1 = sx(idel,jdel-1,n,:)
-          cc2 = sx(idel,jdel  ,n,:)
-          cc3 = sx(idel,jdel+1,n,:)
-          cc4 = sx(idel,jdel+2,n,:)
-          d1 = dx(idel,jdel-1,n,:)
-          d2 = dx(idel,jdel  ,n,:)
-          d3 = dx(idel,jdel+1,n,:)
-          d4 = dx(idel,jdel+2,n,:)
-          dxx = d(iq,k)
-            cxx = s(iq,k)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel,jdel-1,n,k)
-        !  c2 = sx(idel,jdel  ,n,k)
-        !  c3 = sx(idel,jdel+1,n,k)
-        !  c4 = sx(idel,jdel+2,n,k)
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel+1,jdel-1,n,:)
-          cc2 = sx(idel+1,jdel  ,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+1,jdel+2,n,:)
-          d1 = dx(idel+1,jdel-1,n,:)
-          d2 = dx(idel+1,jdel  ,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+1,jdel+2,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel+1,jdel-1,n,k)
-        !  c2 = sx(idel+1,jdel  ,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+1,jdel+2,n,k)
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel-1,jdel  ,n,:)
-            cc2 = sx(idel-1,jdel+1,n,:)
-            cc3 = sx(idel+2,jdel  ,n,:)
-            cc4 = sx(idel+2,jdel+1,n,:)
-            d1 = dx(idel-1,jdel  ,n,:)
-            d2 = dx(idel-1,jdel+1,n,:)
-            d3 = dx(idel+2,jdel  ,n,:)
-            d4 = dx(idel+2,jdel+1,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-              call searchdeltab(cc2,d2,dxx,c1,c2)
-              call searchdeltab(cc3,d3,dxx,c4,c3)
-            r(1) = (1.-yyg)*c1 +yyg*c2
-            r(4) = (1.-yyg)*c3 +yyg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel+nn-2,jdel  ,n,k)
-        !    c3 = sx(idel+nn-2,jdel+1,n,k)
-        !    r(nn) = (1.-yyg)*c2 +yyg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          s(iq,k) = r(2)+.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
-        else
-          s(iq,k) = ((1.-xxg)*((2.-xxg)*        &
-                    ((1.+xxg)*r(2)-xxg*r(1)/3.) &
-                   -xxg*(1.+xxg)*r(4)/3.)       &
-                   +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
-        endif         !  (mhint==2)
-       enddo
-      endif           ! if (wtr) then
-     enddo            ! iq loop
-    else                ! (nfield<mh_bs)
-     do iq=1,ifull    ! Berm-Stan option here e.g. qg & gases
-      if (wtr(iq)) then
-       do k=1,kx
-        idel=int(xg(iq,k))
-        xxg=xg(iq,k)-idel
-        jdel=int(yg(iq,k))
-        yyg=yg(iq,k)-jdel
-        ! Now make them proper indices in this processor's region
-        idel = idel - ioff(nface(iq,k))
-        jdel = jdel - joff(nface(iq,k))
-        n = nface(iq,k) + noff ! Make this a local index
-        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. jdel > jpan .or. n < 1 .or. n > npan ) then
-          cycle      ! Will be calculated on another processor
-        end if
-        !if (intmode.eq.1) then
-          cc1 = sx(idel,jdel-1,n,:)
-          cc2 = sx(idel,jdel  ,n,:)
-          cc3 = sx(idel,jdel+1,n,:)
-          cc4 = sx(idel,jdel+2,n,:)
-          d1 = dx(idel,jdel-1,n,:)
-          d2 = dx(idel,jdel  ,n,:)
-          d3 = dx(idel,jdel+1,n,:)
-          d4 = dx(idel,jdel+2,n,:)
-          dxx = d(iq,k)
-            cxx = s(iq,k)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel,jdel-1,n,k)
-        !  c2 = sx(idel,jdel  ,n,k)
-        !  c3 = sx(idel,jdel+1,n,k)
-        !  c4 = sx(idel,jdel+2,n,k)
-        !end if
-        cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
-        cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel+1,jdel-1,n,:)
-          cc2 = sx(idel+1,jdel  ,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+1,jdel+2,n,:)
-          d1 = dx(idel+1,jdel-1,n,:)
-          d2 = dx(idel+1,jdel  ,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+1,jdel+2,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel+1,jdel-1,n,k)
-        !  c2 = sx(idel+1,jdel  ,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+1,jdel+2,n,k)
-        !end if
-        cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
-        cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel-1,jdel  ,n,:)
-            cc2 = sx(idel-1,jdel+1,n,:)
-            cc3 = sx(idel+2,jdel  ,n,:)
-            cc4 = sx(idel+2,jdel+1,n,:)            
-            d1 = dx(idel-1,jdel  ,n,:)
-            d2 = dx(idel-1,jdel+1,n,:)
-            d3 = dx(idel+2,jdel  ,n,:)
-            d4 = dx(idel+2,jdel+1,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-              call searchdeltab(cc2,d2,dxx,c1,c2)
-              call searchdeltab(cc3,d3,dxx,c4,c3)
-            r(1) = (1.-yyg)*c1 +yyg*c2
-            r(4) = (1.-yyg)*c3 +yyg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel+nn-2,jdel  ,n,k)
-        !    c3 = sx(idel+nn-2,jdel+1,n,k)
-        !    r(nn) = (1.-yyg)*c2 +yyg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          sss = r(2)+.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
-        else
-          sss = ((1.-xxg)*((2.-xxg)*        &
-                ((1.+xxg)*r(2)-xxg*r(1)/3.) &
-                -xxg*(1.+xxg)*r(4)/3.)      &
-                +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
-        endif         !  (mhint==2)
-        s(iq,k) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth
-       end do
-      endif           ! if (wtr) then
-     enddo            ! iq loop
-    endif               ! (nfield<mh_bs)  .. else ..
-
-! For other processes
-
-  !if (intmode.eq.1) then
-    call intssend(d)
-    do iproc=0,nproc-1
-      ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
-    end do
-    call intssend(s)
-    do iproc=0,nproc-1
-      sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
-    end do
-  !end if
-
-  if(nfield<mh_bs)then
-    do iproc=0,nproc-1
-      if ( iproc == myid ) then
-        cycle
-      end if
-      do iq=1,drlen(iproc)
-       if (ddin(iproc,iq).gt.0.1) then
-        !  Convert face index from 0:npanels to array indices
-        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
-        !  Need global face index in fproc call
-        idel = int(dpoints(iproc)%a(2,iq))
-        xxg = dpoints(iproc)%a(2,iq) - idel
-        jdel = int(dpoints(iproc)%a(3,iq))
-        yyg = dpoints(iproc)%a(3,iq) - jdel
-        k = nint(dpoints(iproc)%a(4,iq))
-        idel = idel - ioff(n-noff)
-        jdel = jdel - joff(n-noff)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel,jdel-1,n,:)
-          cc2 = sx(idel,jdel  ,n,:)
-          cc3 = sx(idel,jdel+1,n,:)
-          cc4 = sx(idel,jdel+2,n,:)
-          d1 = dx(idel,jdel-1,n,:)
-          d2 = dx(idel,jdel  ,n,:)
-          d3 = dx(idel,jdel+1,n,:)
-          d4 = dx(idel,jdel+2,n,:)
-          dxx = d(iq,k)
-            cxx = s(iq,k)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel,jdel-1,n,k)
-        !  c2 = sx(idel,jdel  ,n,k)
-        !  c3 = sx(idel,jdel+1,n,k)
-        !  c4 = sx(idel,jdel+2,n,k)
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel+1,jdel-1,n,:)
-          cc2 = sx(idel+1,jdel  ,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+1,jdel+2,n,:)
-          d1 = dx(idel+1,jdel-1,n,:)
-          d2 = dx(idel+1,jdel  ,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+1,jdel+2,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel+1,jdel-1,n,k)
-        !  c2 = sx(idel+1,jdel  ,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+1,jdel+2,n,k)
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel-1,jdel  ,n,:)
-            cc2 = sx(idel-1,jdel+1,n,:)
-            cc3 = sx(idel+2,jdel  ,n,:)
-            cc4 = sx(idel+2,jdel+1,n,:)
-            d1 = dx(idel-1,jdel  ,n,:)
-            d2 = dx(idel-1,jdel+1,n,:)
-            d3 = dx(idel+2,jdel  ,n,:)
-            d4 = dx(idel+2,jdel+1,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-              call searchdeltab(cc2,d2,dxx,c1,c2)
-              call searchdeltab(cc3,d3,dxx,c4,c3)
-            r(1) = (1.-yyg)*c1 +yyg*c2
-            r(4) = (1.-yyg)*c3 +yyg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel+nn-2,jdel  ,n,k)
-        !    c3 = sx(idel+nn-2,jdel+1,n,k)
-        !    r(nn) = (1.-yyg)*c2 +yyg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          sextra(iproc)%a(iq) = r(2)+ 0.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
-        else
-          sextra(iproc)%a(iq) = ((1.-xxg)*((2.-xxg)*  &
-            ((1.+xxg)*r(2)-xxg*r(1)/3.)               &
-            -xxg*(1.+xxg)*r(4)/3.)                    &
-            +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
-        endif         !  (mhint==2)
-       endif           ! if (ddin(iproc,iq).gt.0.1) then
-      enddo            ! iq loop
-    end do              ! iproc
-  else                   ! (nfield<mh_bs)
-    do iproc=0,nproc-1
-      if ( iproc == myid ) then
-        cycle
-      end if
-      do iq=1,drlen(iproc)
-       if (ddin(iproc,iq).gt.0.1) then
-        !  Convert face index from 0:npanels to array indices
-        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
-        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
-        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
-        !  Need global face index in fproc call
-        idel = int(dpoints(iproc)%a(2,iq))
-        xxg = dpoints(iproc)%a(2,iq) - idel
-        jdel = int(dpoints(iproc)%a(3,iq))
-        yyg = dpoints(iproc)%a(3,iq) - jdel
-        k = nint(dpoints(iproc)%a(4,iq))
-        idel = idel - ioff(n-noff)
-        jdel = jdel - joff(n-noff)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel,jdel-1,n,:)
-          cc2 = sx(idel,jdel  ,n,:)
-          cc3 = sx(idel,jdel+1,n,:)
-          cc4 = sx(idel,jdel+2,n,:)
-          d1 = dx(idel,jdel-1,n,:)
-          d2 = dx(idel,jdel  ,n,:)
-          d3 = dx(idel,jdel+1,n,:)
-          d4 = dx(idel,jdel+2,n,:)
-          dxx = d(iq,k)
-            cxx = s(iq,k)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel,jdel-1,n,k)
-        !  c2 = sx(idel,jdel  ,n,k)
-        !  c3 = sx(idel,jdel+1,n,k)
-        !  c4 = sx(idel,jdel+2,n,k)
-        !end if
-        cmin = min( 1.e20,c2,c3) ! Bermejo & Staniforth
-        cmax = max(-1.e20,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(2) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-          cc1 = sx(idel+1,jdel-1,n,:)
-          cc2 = sx(idel+1,jdel  ,n,:)
-          cc3 = sx(idel+1,jdel+1,n,:)
-          cc4 = sx(idel+1,jdel+2,n,:)
-          d1 = dx(idel+1,jdel-1,n,:)
-          d2 = dx(idel+1,jdel  ,n,:)
-          d3 = dx(idel+1,jdel+1,n,:)
-          d4 = dx(idel+1,jdel+2,n,:)
-            call searchdeltab(cc1,d1,dxx,cxx,c1)
-            call searchdeltab(cc4,d4,dxx,cxx,c4)
-            call searchdeltab(cc2,d2,dxx,c1,c2)
-            call searchdeltab(cc3,d3,dxx,c4,c3)
-        !else
-        !  c1 = sx(idel+1,jdel-1,n,k)
-        !  c2 = sx(idel+1,jdel  ,n,k)
-        !  c3 = sx(idel+1,jdel+1,n,k)
-        !  c4 = sx(idel+1,jdel+2,n,k)
-        !end if
-        cmin = min(cmin,c2,c3) ! Bermejo & Staniforth
-        cmax = max(cmax,c2,c3) ! Bermejo & Staniforth
-        if(mhint==2)then ! Bessel interp
-          a4 = c4-c1+3.*(c2-c3)
-          a3 = c1-2.*c2+c3-a4
-          r(3) = c2+.5*yyg*(c3-c1 +yyg*(a3+yyg*a4))
-        else
-          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
-               -yyg*(1.+yyg)*c4/3.)                          &
-               +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
-        endif         !  (mhint==2)
-        !if (intmode.eq.1) then
-            cc1 = sx(idel-1,jdel  ,n,:)
-            cc2 = sx(idel-1,jdel+1,n,:)
-            cc3 = sx(idel+2,jdel  ,n,:)
-            cc4 = sx(idel+2,jdel+1,n,:)
-            d1 = dx(idel-1,jdel  ,n,:)
-            d2 = dx(idel-1,jdel+1,n,:)
-            d3 = dx(idel+2,jdel  ,n,:)
-            d4 = dx(idel+2,jdel+1,n,:)
-              call searchdeltab(cc1,d1,dxx,cxx,c1)
-              call searchdeltab(cc4,d4,dxx,cxx,c4)
-              call searchdeltab(cc2,d2,dxx,c1,c2)
-              call searchdeltab(cc3,d3,dxx,c4,c3)
-            r(1) = (1.-yyg)*c1 +yyg*c2
-            r(4) = (1.-yyg)*c3 +yyg*c4
-        !else
-        !  do nn=1,4,3   ! N.B.
-        !    c2 = sx(idel+nn-2,jdel  ,n,k)
-        !    c3 = sx(idel+nn-2,jdel+1,n,k)
-        !    r(nn) = (1.-yyg)*c2 +yyg*c3
-        !  enddo         ! nn loop
-        !end if
-        if(mhint==2)then ! Bessel interp
-          a4 = r(4)-r(1)+3.*(r(2)-r(3))
-          a3 = r(1)-2.*r(2)+r(3)-a4
-          sss = r(2)+.5*xxg*(r(3)-r(1) +xxg*(a3+xxg*a4))
-        else
-          sss = ((1.-xxg)*((2.-xxg)*        &
-                ((1.+xxg)*r(2)-xxg*r(1)/3.) &
-                -xxg*(1.+xxg)*r(4)/3.)      &
-                +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
-        endif         !  (mhint==2)
-        sextra(iproc)%a(iq) = min(max(cmin,sss),cmax) ! Bermejo & Staniforth ! MJT memory
-       endif            ! if (ddin(iproc,iq).gt.0.1) then
-      enddo            ! iq loop
-    end do              ! iproc
-  endif                  ! (nfield<mh_bs)  .. else ..
-
-endif                     ! (intsch==1) .. else ..
-!========================   end of intsch=1 section ====================
 
 call intssync(s)
 
@@ -4243,6 +2375,85 @@ x=xx(1:ifull)
 
 return
 end subroutine mlofill
+
+subroutine lfill(sc,sx)
+
+implicit none
+
+real, intent(in) :: sx
+real, dimension(0:1,0:1), intent(inout) :: sc
+real, dimension(0:1,0:1) :: nc
+logical globc
+
+if (all(sc.gt.-0.1)) return
+
+if (all(sc.lt.-0.1)) then
+  sc=sx
+  return
+end if
+
+globc=.true.
+nc=sc
+do while(globc)
+  globc=.false.
+  call trial(nc,sc,0,0,.false.,.true.,.true.,.false.,globc)
+  call trial(nc,sc,1,0,.false.,.false.,.true.,.true.,globc)
+  call trial(nc,sc,0,1,.true.,.true.,.false.,.false.,globc)
+  call trial(nc,sc,1,1,.true.,.false.,.false.,.true.,globc)
+  sc=nc
+end do
+
+return
+end subroutine lfill
+
+subroutine trial(nc,sc,i,j,ln,le,ls,lw,globc)
+
+implicit none
+
+integer, intent(in) :: i,j
+integer nec
+real, dimension(0:1,0:1), intent(inout) :: nc
+real, dimension(0:1,0:1), intent(in) :: sc
+real new
+logical, intent(inout) :: globc
+logical, intent(in) :: ln,le,ls,lw
+
+if (nc(i,j).gt.-0.1) return
+
+new=0.
+nec=0
+if (ln) then
+  if (sc(i,j-1).gt.-0.1) then
+    new=new+sc(i,j-1)
+    nec=nec+1
+  end if
+end if
+if (le) then
+  if (sc(i+1,j).gt.-0.1) then
+    new=new+sc(i+1,j)
+    nec=nec+1
+  end if
+end if
+if (ls) then
+  if (sc(i,j+1).gt.-0.1) then
+    new=new+sc(i,j+1)
+    nec=nec+1
+  end if
+end if
+if (lw) then
+  if (sc(i-1,j).gt.-0.1) then
+    new=new+sc(i-1,j)
+    nec=nec+1
+  end if
+end if
+if (nec.gt.0) then
+  nc(i,j)=new/real(nec)
+else
+  globc=.true.
+end if
+  
+return
+end subroutine trial
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! check for leap year
