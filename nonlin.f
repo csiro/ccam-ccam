@@ -267,9 +267,11 @@ cx      enddo      ! k  loop
       if(nh.ne.0)then
         const_nh=2.*rdry/(dt*grav*grav)  
         do k=1,kl
-         h_nh(1:ifull,k)=(1.+epst(:))*tbar(1)*omgf(:,k)/sig(k) 
+         h_nh(1:ifull,k)=(1.+epst(:))*tba r(1)*omgf(:,k)/sig(k)
         enddo
-        if(mydiag)print *,'h_nh.a ',(h_nh(idjd,k),k=1,kl)
+        if (nmaxpr==1) then
+          if(mydiag)print *,'h_nh.a ',(h_nh(idjd,k),k=1,kl)
+        end if
         if(nh==3)then  ! not for k=1 or k=kl
           do k=2,kl-1
            h_nh(1:ifull,k)=h_nh(1:ifull,k)
@@ -286,7 +288,7 @@ cx      enddo      ! k  loop
           enddo
           k=1
            h_nh(1:ifull,k)=h_nh(1:ifull,k)
-     &       -((phi(:,k)-zs(1:ifull))/bet(k)          ! using bet
+     &       -((phi(:,k)-zs(1:ifull))/bet(k)         ! using bet
      &       +t(1:ifull,k))/(const_nh*tbar2d(:))
         endif  ! (nh==2)
         if(nh==4)then  ! was -3 add in other term explicitly, more accurately?
@@ -415,7 +417,7 @@ c       print *,'termx ',(t(iq,k)+contv*tvv)*omgf(iq,k)*roncp/sig(k)
         endif
       endif  ! (nxmap==2)
 
-      tx(1:ifull,:) = tx(1:ifull,:) + .5*dt*tn(1:ifull,:) 
+      tx(1:ifull,:) = tx(1:ifull,:) + .5*dt*tn(1:ifull,:)
       if(nvsplit==3.or.nvsplit==4)then
         ux(1:ifull,:)=ux(1:ifull,:)+.5*dt*unn(1:ifull,:) ! phys contrib
         vx(1:ifull,:)=vx(1:ifull,:)+.5*dt*vnn(1:ifull,:) ! phys contrib

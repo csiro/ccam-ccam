@@ -59,6 +59,7 @@
       real, save :: dtsave = 0.0
       real :: hdt, hdtds, sdmx, sdmx_g, sumx, qgminm, ratio, sumdiffb,
      &        alph_g
+      real dum ! MJT nhs
       integer :: its, k, l, nits, nvadh_pass, iq, ng, ierr, iaero
       integer, save :: precon_in
       real :: sumin, sumout, sumsav
@@ -147,7 +148,8 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       enddo     ! iq loop
       do k=2,kl
        do iq=1,ifull
-        p(iq,k)=p(iq,k-1)+bet(k)*(tx(iq,k)-280)+betm(k)*(tx(iq,k-1)-280)
+        p(iq,k)=p(iq,k-1)+bet(k)*(tx(iq,k)-280.)
+     &                  +betm(k)*(tx(iq,k-1)-280.)
        enddo    ! iq loop
       enddo     ! k loop
 
@@ -373,6 +375,13 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         do k=1,kl
          phi(:,k)=p(1:ifull,k)-rdry*tbar2d(:)*psl(1:ifull)
         enddo
+        ! MJT bug fix
+        dum=bet(1)*280.
+        phi(:,1)=phi(:,1)+dum
+        do k=2,kl
+          dum=dum+(bet(k)+betm(k))*280.
+          phi(:,k)=phi(:,k)+dum
+        end do
         if(nmaxpr==1.and.mydiag)then
           print *,'phi_adj ',(phi(idjd,k),k=1,kl)
         endif

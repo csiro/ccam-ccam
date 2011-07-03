@@ -17,6 +17,7 @@ implicit none
 integer, intent(in) :: ifull,iextra,kl
 
 allocate(epst(ifull))
+epst=0.
 
 return
 end subroutine epst_init

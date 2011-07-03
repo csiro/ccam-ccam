@@ -494,16 +494,16 @@ c       For time varying surface fields
           do k=1,wlev
            write(lname,'("x-component current lev ",I2)') k
            write(vname,'("uoc",I2.2)') k
-           call attrib(idnc,idim,3,vname,lname,'m/s',-130.,130.,0,itype)
+           call attrib(idnc,idim,3,vname,lname,'m/s',-65.,65.,0,itype)
            write(lname,'("y-component current lev ",I2)') k
            write(vname,'("voc",I2.2)') k
-           call attrib(idnc,idim,3,vname,lname,'m/s',-130.,130.,0,itype)
+           call attrib(idnc,idim,3,vname,lname,'m/s',-65.,65.,0,itype)
           end do
           lname = 'water depth'
           call attrib(idnc,idim,2,'ocndepth',lname,'m',0.,32500.,0,
      &                itype)
           lname = 'water surface height'
-          call attrib(idnc,idim,3,'ocheight',lname,'m',-130.,130.,0,
+          call attrib(idnc,idim,3,'ocheight',lname,'m',-65.,65.,0,
      &                itype)          
           lname = 'Snow temperature lev 1'
           call attrib(idnc,idim,3,'tggsn1',lname,'K',100.,425.,0,
@@ -519,9 +519,9 @@ c       For time varying surface fields
           lname = 'Ice heat store'
           call attrib(idnc,idim,3,'sto',lname,'J/m2',0.,1300.,0,itype)
           lname = 'x-component ice'
-          call attrib(idnc,idim,3,'uic',lname,'m/s',-130.,130.,0,itype)
+          call attrib(idnc,idim,3,'uic',lname,'m/s',-65.,65.,0,itype)
           lname = 'y-component ice'
-          call attrib(idnc,idim,3,'vic',lname,'m/s',-130.,130.,0,itype)
+          call attrib(idnc,idim,3,'vic',lname,'m/s',-65.,65.,0,itype)
           if (abs(nmlo).ge.2) then
             lname = 'Surface water'
             call attrib(idnc,idim,3,'swater',lname,'mm',0.,260.,0,

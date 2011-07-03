@@ -143,27 +143,36 @@
       call start_log(indata_begin)
       
       ! READ SIGMA LEVELS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      bam(1)=114413.
-!     now always read eig file fri  12-18-1992
-!     All processes read this
-      read(28,*)(sig(k),k=1,kl),(tbar(k),k=1,kl),(bam(k),k=1,kl)
-     & ,((emat(k,l),k=1,kl),l=1,kl),((einv(k,l),k=1,kl),l=1,kl),
-     & (qvec(k),k=1,kl),((tmat(k,l),k=1,kl),l=1,kl)
-      if (myid==0) print*,'kl,lapsbot,sig from eigenv file: ',
-     &                     kl,lapsbot,sig
-      ! File has an sigmh(kl+1) which isn't required. Causes bounds violation
-      ! to read this.
-      ! read(28,*)(sigmh(k),k=1,kl+1) !runs into dsig, but ok
-      read(28,*)(sigmh(k),k=1,kl) 
+      ! Eventually only read sig and recompute eigenvectors on demand
+      ! Currently eig.f is broken and needs some cleaning
       if (myid==0) then
+        bam(1)=114413.
+!       now always read eig file fri  12-18-1992
+!       All processes read this
+        read(28,*)(sig(k),k=1,kl),(tbar(k),k=1,kl),(bam(k),k=1,kl)
+     &   ,((emat(k,l),k=1,kl),l=1,kl),((einv(k,l),k=1,kl),l=1,kl),
+     &   (qvec(k),k=1,kl),((tmat(k,l),k=1,kl),l=1,kl)
+        print*,'kl,lapsbot,sig from eigenv file: ',
+     &                     kl,lapsbot,sig
+        ! File has an sigmh(kl+1) which isn't required. Causes bounds violation
+        ! to read this.
+        read(28,*)(sigmh(k),k=1,kl) 
         print *,'tbar: ',tbar
         print *,'bam: ',bam
-        if(nh.ne.0)then
-c         print *,'this one uses supplied eigs'
-          if(nh==2.and.lapsbot.ne.3)stop 'nh=2 needs lapsbot=3'
-          call eig(sig,sigmh,tbar(1),lapsbot,isoth,dt,0.,nh)
-        endif  ! (nh.ne.0)
-      end if
+        ! MJT nhs
+        !if (nh.ne.0) then
+        !  if(nh==2.and.lapsbot.ne.3)stop 'nh=2 needs lapsbot=3'
+        !  call eig(sig,sigmh,tbar,lapsbot,isoth,dt,0.,nh)
+        !endif  ! (nh.ne.0)
+      endif !myid==0
+      call MPI_Bcast(sig,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(sigmh,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(tbar,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(bam,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(emat,kl*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(einv,kl*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(qvec,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(tmat,kl*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
 
 !     read in namelist for uin,vin,tbarr etc. for special runs
 !     note that kdate, ktime will be overridden by infile values for io_in<4

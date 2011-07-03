@@ -3,14 +3,14 @@
       use vecs_m
       include 'newmpar.h'
       real sigin(kl),sigmhin(kl)
-      real sig(kl),sigmh(kl+1)
+      real sig(kl),sigmh(kl+1),tbar(kl)
 c     common/new/emat(kl,kl),bam(kl),einv(kl,kl)
       data neig/1/,nsig/5/,nflip/0/
 
 c     lapsbot=1 gives zero lowest t lapse for phi calc
       print *,'this run compiled with kl = ',kl
       print *,'entering eig tbar,lapsbot,isoth,dtin,eps,nh: ',
-     &                      tbar,lapsbot,isoth,dtin,eps,nh
+     &                      tbar(1),lapsbot,isoth,dtin,eps,nh
       dt=dtin
       sig(:)=sigin(:)
       sigmh(1:kl)=sigmhin(:)
@@ -69,7 +69,7 @@ c       write data from bottom up
       do k=1,kl
        print 92,k,(einv(k,l),l=1,kl)
       enddo
-      write(28,945)(sig(k),k=1,kl),(tbar,k=1,kl),(bam(k),k=1,kl)
+      write(28,945)(sig(k),k=1,kl),(tbar(k),k=1,kl),(bam(k),k=1,kl)
      . ,((emat(k,l),k=1,kl),l=1,kl),((einv(k,l),k=1,kl),l=1,kl),
      . (bam(k),k=1,kl),((emat(k,l),k=1,kl),l=1,kl) ! just to fill space
 945   format(9e14.6)
@@ -84,6 +84,7 @@ c     sets up eigenvectors
       real dsig(kl)
       real bet(kl),betm(kl),get(kl),getm(kl),gmat(kl,kl)
       real bmat(kl,kl),evimag(kl),veci(kl,kl),sum1(kl)
+      real tbar(kl)
       dimension indic(kl)
       real aa(kl,kl),ab(kl,kl),ac(kl,kl)
       real aaa(kl,kl),cc(kl,kl)
@@ -146,7 +147,7 @@ c      enddo
       print *,'b'
       factg=2./(dt*(1.+eps))      
       print *,'c'
-      factr=factg*r*r*tbar*tbar/(g*g)
+      factr=factg*r*r*tbar(1)*tbar(1)/(g*g)
       
       bmat(:,:)=0.  ! N.B. bmat includes effect of r/sig weighting
       gmat(:,:)=0.  ! N.B. gmat may include effect of 1/sig**2 weighting
@@ -162,7 +163,7 @@ c      enddo
        gmat(k,k)=factr*get(k)
       enddo
    
-      print *,'dt,eps,factg,tbar,factr ',dt,eps,factg,tbar,factr
+      print *,'dt,eps,factg,tbar,factr ',dt,eps,factg,tbar(1),factr
       print *,'bet ',bet
       print *,'bmat'
       do k=1,kl
@@ -191,11 +192,11 @@ c      enddo
       enddo
       do k=1,kl
        do l=k,kl
-        aa(k,l)=-r*tbar*dsig(l)/(cp*sig(k))
+        aa(k,l)=-r*tbar(1)*dsig(l)/(cp*sig(k))
        enddo
       enddo
       do k=1,kl
-       aa(k,k)=-r*tbar*(sigmh(k+1)-sig(k))/(cp*sig(k))
+       aa(k,k)=-r*tbar(1)*(sigmh(k+1)-sig(k))/(cp*sig(k))
        ac(k,k)=ac(k,k)+1.
       enddo
       print *,'aa'
@@ -207,10 +208,10 @@ c      enddo
        print 905,k,(ac(k,l),l=1,kl)
       enddo
       if(isoth.eq.1)then  !  extra vadv terms added
-        aa(:,:)=aa(:,:)+tbar*ac(:,:)
+        aa(:,:)=aa(:,:)+tbar(1)*ac(:,:)
       endif
       call matm(aaa,bmat,aa)
-      cc(:,:)=aaa(:,:)-r*tbar*ab(:,:)
+      cc(:,:)=aaa(:,:)-r*tbar(1)*ab(:,:)
       print *,'cc'
       do k=1,kl
        print 91,k,(cc(k,l),l=1,kl)
@@ -237,9 +238,9 @@ c        enddo
 c      endif  ! (nh.ne.0)
 
 c      if(nh==2)then  ! use net gmat (June '06) - no eps yet
-        gmat(:,:)=bmat(:,:)*(1.+4.*cp*tbar/(g*dt)**2)
+        gmat(:,:)=bmat(:,:)*(1.+4.*cp*tbar(1)/(g*dt)**2)
         call matm(aaa,gmat,aa)
-        cc(:,:)=aaa(:,:)-r*tbar*ab(:,:)
+        cc(:,:)=aaa(:,:)-r*tbar(1)*ab(:,:)
         print *,'cc with gmat'
         do k=1,kl
          print 91,k,(cc(k,l),l=1,kl)
@@ -291,9 +292,8 @@ c     matrix multiplication      a = b * c
 
       subroutine eigenp(n,nm,a,evr,evi,vecr,veci,indic)
       include 'newmpar.h'
-      integer, dimension(:), allocatable, save :: iwork,local
-      real, dimension(:), allocatable, save :: prfact,subdia,
-     &                                       work
+      integer, dimension(kl*kl) :: iwork,local
+      real, dimension(kl*kl) :: prfact,subdia,work
 c     currently set up for a general number of 10 levels
 c a.c.m. algorithm number 343
 c revised july, 1970 by n.r.pummeroy, dcr, csiro, canberra
@@ -323,7 +323,8 @@ c original matrix is destroyed by the sub.routine.
 c n is the order of the matrix.
 c nm defines the first dimension of the two dimensional
 c arrays a,vecr,veci and the dimension of the one
-      dimension a(kl,1),vecr(kl,1),veci(kl,1),evr(nm),evi(nm),indic(nm)
+      dimension a(kl,kl),vecr(kl,kl),veci(kl,kl),evr(nm),evi(nm),
+     &          indic(nm)
 c the real parts of the n computed eigenvalues will be found
 c in the first n places of the array evr and the imaginary
 c parts in the first n places of the array evi.
@@ -348,10 +349,6 @@ c            1              found          not found
 c            2              found          found
 c
 c
-      if (.not.allocated(iwork)) then
-        allocate(iwork(kl*kl),local(kl*kl),prfact(kl*kl))
-        allocate(subdia(kl*kl),work(kl*kl))
-      end if
 
       if(n.ne.1)go to 1
       evr(1) = a(1,1)
@@ -516,7 +513,7 @@ c
 c
 c the following real variables were initially single prec.-
 c subdia, eps, ex, r, shift
-      dimension a(kl,1),h(kl,1),evr(kl),evi(kl),subdia(kl)
+      dimension a(kl,kl),h(kl,kl),evr(kl),evi(kl),subdia(kl)
       dimension indic(nm)
 c this sub.routine finds all the eigenvalues of a real
 c general matrix. the original matrix a of order n is
@@ -884,7 +881,7 @@ c eps is a small positive number that numerically represents
 c zero in the program. eps = (euclidian norm of a)*ex,where
 c ex = 2**(-t). t is the number of binary digits in the
 c mantissa of a floating point number.
-      dimension a(kl,1),vecr(kl,1),evr(kl)
+      dimension a(kl,kl),vecr(kl,kl),evr(kl)
       dimension evi(nm),iwork(nm),work(nm),indic(nm)
       vecr(1,ivec) = 1.0
       if(m.eq.1)go to 24
@@ -1014,7 +1011,7 @@ c
       include 'newmpar.h'
 c the following real variables were initially single prec.-
 c bound1,bound2,enorm
-      dimension a(kl,1),h(kl,1),prfact(kl)
+      dimension a(kl,kl),h(kl,kl),prfact(kl)
 c this sub.routine stores the matrix of the order n from the
 c array a into the array h. afterward the matrix in the
 c array a is scaled so that the quotient of the absolute sum

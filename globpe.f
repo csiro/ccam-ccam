@@ -291,13 +291,20 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
 
       !--------------------------------------------------------------
       ! READ EIGENV FILE TO DEFINE VERTICAL LEVELS
-!     Note that all processes read the eigenv file
-      open(28,file=eigenv,status='old',form='formatted')
-      read(28,*)kmax,lapsbot,isoth,nsig
-      kl=kmax
-      if (abs(nmlo).ge.1.and.abs(nmlo).le.9) ol=wlev
-      if (myid==0) print*,'kl,ol,lapsbot,isoth,nsig: ',
+      if (myid==0) then
+        open(28,file=eigenv,status='old',form='formatted')
+        read(28,*)kmax,lapsbot,isoth,nsig
+        kl=kmax
+        if (abs(nmlo).ge.1.and.abs(nmlo).le.9) ol=wlev
+        print*,'kl,ol,lapsbot,isoth,nsig: ',
      &             kl,ol,lapsbot,isoth,nsig
+      end if
+      call MPI_Bcast(kl,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(lapsbot,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(isoth,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(lapsbot,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(nsig,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(ol,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
       !--------------------------------------------------------------
       ! DEFINE newmpar VARIABLES AND DEFAULTS
@@ -1055,7 +1062,6 @@ c     if(ndi2>0)diag=.true.
         vbar(:,:)=v(1:ifull,:)*1.5-savv(:,:)*.5
       elseif(mex==3)then
 !       (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
-c       sbar(:,:)=sdot(:,2:kl)+.5*(savs(:,:)-savs1(:,:))
         ubar(:,:)=u(1:ifull,:)+.5*(savu(:,:)-savu1(:,:))
         vbar(:,:)=v(1:ifull,:)+.5*(savv(:,:)-savv1(:,:))
        elseif(mex==30.and.ktau>3)then  ! using tau, tau-1, tau-2, tau-3
@@ -1092,9 +1098,6 @@ c       sbar(:,:)=sdot(:,2:kl)+.5*(savs(:,:)-savs1(:,:))
       endif    ! (ktau==1) .. else ..
       if (mod(ktau,nmaxpr)==0.and.mydiag)then
         nlx=max(2,nlv)  ! as savs not defined for k=1
-c       write (6,"(i4,' savs2,savs1,savs,sdot,sbar',5f8.4)") ktau,
-c    &      savs2(idjd,nlx),savs1(idjd,nlx),savs(idjd,nlx),
-c    &      sdot(idjd,nlx),sbar(idjd,nlx)
         write (6,"(i4,' savu2,savu1,savu,u,ubar',5f8.2)") ktau,
      &      savu2(idjd,nlv),savu1(idjd,nlv),savu(idjd,nlv),
      &      u(idjd,nlv),ubar(idjd,nlv)
@@ -1121,7 +1124,6 @@ c    &      sdot(idjd,nlx),sbar(idjd,nlx)
         u(1:ifull,:)=savu(1:ifull,:)  ! reset u,v to original values
         v(1:ifull,:)=savv(1:ifull,:)
       endif
-c     savs2(1:ifull,:)=savs1(1:ifull,:)  
       savu2(1:ifull,:)=savu1(1:ifull,:)  
       savv2(1:ifull,:)=savv1(1:ifull,:)
       savs1(1:ifull,:)=savs(1:ifull,:)  
@@ -1130,13 +1132,15 @@ c     savs2(1:ifull,:)=savs1(1:ifull,:)
       savs(1:ifull,:) =sdot(1:ifull,2:kl)  
       savu(1:ifull,:) =u(1:ifull,:)  ! before any time-splitting occurs
       savv(1:ifull,:) =v(1:ifull,:)
-c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
 
+      ! set diagnostic printout flag
       diag=.false.
       if(ktau>=abs(ndi).and.ktau<=ndi2)diag=.true.
       if(ndi<0)then
         if(ktau==ktau/ndi*ndi)diag=.true.
       endif
+
+      ! save tracer arrays
       if(ngas>=1)then ! re-set trsav prior to vadv, hadv, hordif
 !       N.B. nllp arrays are after gas arrays
         do igas=1,ngas
@@ -1148,6 +1152,7 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
         enddo
       endif      ! (ngas>=1)
 
+      ! update non-linear dynamic terms
       call nonlin(iaero)
       if (diag)then
          if (mydiag) print *,'before hadv'
@@ -1178,10 +1183,6 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
       if(nonl<0)then
         savt(1:ifull,:)=t(1:ifull,:)  ! can be used in nonlin during next step
       endif
-
-!!      sbar(1:ifull,:) = savs1(1:ifull,:)  ! 3D really saving savs1 in sbar here 
-!!      ubar(1:ifull,:) = savu1(1:ifull,:)  ! 3D really saving savu1 in ubar here 
-!!      vbar(1:ifull,:) = savv1(1:ifull,:)  ! 3D really saving savv1 in vbar here 
 
       if(nstaguin<0.and.ktau>1)then  ! swapping here (lower down) for nstaguin<0
         if(nstagin<0.and.mod(ktau,abs(nstagin))==0)then
@@ -1218,18 +1219,7 @@ c     if(mex.ne.4)sdot(:,2:kl)=sbar(:,:)   ! ready for vertical advection
         vx(1:ifull,:)=v(1:ifull,:)   
       endif
 
-!      pwatr_l=0.   ! in mm
-!      do k=1,kl
-!        do iq=1,ifull
-!	  qtot=qg(iq,k)+qlg(iq,k)+qfg(iq,k)
-!          pwatr_l=pwatr_l-dsig(k)*wts(iq)*qtot*ps(iq)
-!        enddo
-!      enddo
-!      pwatr_l = pwatr_l/grav
-!      call MPI_Reduce ( pwatr_l, pwatr, 1, MPI_REAL, MPI_SUM, 0,
-!     &                  MPI_COMM_WORLD, ierr )
-!      if ( myid == 0 ) print*,'ktau,ave_pwatr ',ktau,pwatr
-
+      ! horizontal diffusion
       if(nhor<0)call hordifgt(iaero)  ! now not tendencies
       if (diag.and.mydiag)print *,'after hordifgt t ',t(idjd,:)
 

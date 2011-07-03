@@ -18,6 +18,7 @@ integer, intent(in) :: ifull,iextra,kl
 
 allocate(sdot(ifull,kl+1),dpsldt(ifull,kl))
 sdot=0.
+dpsldt=0.
 
 return
 end subroutine vvel_init
