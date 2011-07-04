@@ -267,7 +267,7 @@ cx      enddo      ! k  loop
       if(nh.ne.0)then
         const_nh=2.*rdry/(dt*grav*grav)  
         do k=1,kl
-         h_nh(1:ifull,k)=(1.+epst(:))*tba r(1)*omgf(:,k)/sig(k)
+         h_nh(1:ifull,k)=(1.+epst(:))*tbar(1)*omgf(:,k)/sig(k)
         enddo
         if (nmaxpr==1) then
           if(mydiag)print *,'h_nh.a ',(h_nh(idjd,k),k=1,kl)

@@ -65,8 +65,8 @@ integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for sing
 integer, parameter :: deprelax  = 0 ! surface height (0=vary, 1=relax, 2=set to zero)
 integer, parameter :: buoymeth  = 0 ! buoyancy calculation (0=density, 1=alpha/beta)
 ! max depth
-real, parameter :: mxd    = 5004.84 ! Max depth (m)
-real, parameter :: mindep = 1.0     ! Thickness of first layer (m)
+real, parameter :: mxd    = 914.    ! Max depth (m)
+real, parameter :: mindep = 0.5     ! Thickness of first layer (m)
 real, parameter :: minwater = 1.    ! Minimum water height above bottom (m)
 ! model parameters
 real, parameter :: ric     = 0.3    ! Critical Ri for diagnosing mixed layer depth

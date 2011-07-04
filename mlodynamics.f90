@@ -22,7 +22,7 @@ integer, parameter :: icemode=2    ! Ice stress (0=free-drift, 1=incompressible,
 integer, parameter :: lmax   =1    ! 1=predictor-only, 2+=predictor-corrector
 integer, parameter :: nf     =2    ! power for horizontal diffusion reduction factor
 real, parameter :: k_smag=0.4      ! horizontal diffusion (0.4 in mom3, 2. in Griffies (2000))
-real, parameter :: delphi=500.     ! horizontal diffusion reduction factor gradient
+real, parameter :: delphi=200.     ! horizontal diffusion reduction factor gradient
 real, parameter :: rhosn =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic =900.     ! density ice  (kg m^-3)
 
@@ -533,8 +533,8 @@ do l=1,lmax ! predictor-corrector loop
   ! calculate normalised density rhobar (unstaggered)
   odum=(1.+neta(1:ifull)/dd(1:ifull))
   do ii=1,wlev
-    dumdep(:,ii)=dep(1:ifull,ii)*odum
-    dumdz(:,ii)=dz(1:ifull,ii)*odum
+    dumdep(:,ii)=dep(1:ifull,ii) !*odum
+    dumdz(:,ii)=dz(1:ifull,ii)   !*odum
   end do
   call mloexpdensity(rho(1:ifull,:),nt(1:ifull,:),ns(1:ifull,:),dumdep(1:ifull,:),dumdz(1:ifull,:),pice(1:ifull),0)
   call bounds(rho)
@@ -2007,18 +2007,18 @@ sx=1030.
 do iq=1,ifull
   if (wtr(iq)) then
 
-    idu=1
-    idv=1
-    idnu=1
-    idnv=1
-    ideu=1
-    idev=1
-    ids=1
-    idw=1
-    idne=1
-    idse=1
-    iden=1
-    idwn=1
+    idu=2
+    idv=2
+    idnu=2
+    idnv=2
+    ideu=2
+    idev=2
+    ids=2
+    idw=2
+    idne=2
+    idse=2
+    iden=2
+    idwn=2
 
     ddx  =dep(iq,:)
     isx  =s(iq,:)
@@ -2116,14 +2116,14 @@ id=fnd
 
 !select case(vertintp)
 !  case(0)
-    xp=(dd-dep(id))/(dep(id+1)-dep(id))
-    ss=(1.-xp)*s(id)+xp*s(id+1)
+!    xp=(dd-dep(id))/(dep(id+1)-dep(id))
+!    ss=(1.-xp)*s(id)+xp*s(id+1)
 !  case(1)
 !     !id=max(id,2)
-!     ss=s(id)+(dd-dep(id))/(dep(id+1)-dep(id-1))*((dep(id)-dep(id-1))*(s(id+1)-s(id))/(dep(id+1)-dep(id)) &
-!             +(dep(id+1)-dep(id))*(s(id)-s(id-1))/(dep(id)-dep(id-1)))                                    &
-!             +(dd-dep(id))**2/(dep(id+1)-dep(id-1))*((s(id+1)-s(id))/(dep(id+1)-dep(id))                  &
-!             -(s(id)-s(id-1))/(dep(id)-dep(id-1)))
+     ss=s(id)+(dd-dep(id))/(dep(id+1)-dep(id-1))*((dep(id)-dep(id-1))*(s(id+1)-s(id))/(dep(id+1)-dep(id)) &
+             +(dep(id+1)-dep(id))*(s(id)-s(id-1))/(dep(id)-dep(id-1)))                                    &
+             +(dd-dep(id))**2/(dep(id+1)-dep(id-1))*((s(id+1)-s(id))/(dep(id+1)-dep(id))                  &
+             -(s(id)-s(id-1))/(dep(id)-dep(id-1)))
 !  case default
 !    write(6,*) "ERROR: Invalid vertintp ",vertintp
 !    stop
