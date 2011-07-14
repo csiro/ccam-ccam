@@ -246,9 +246,11 @@ c
      &                            mins,sig,ps)
       
       implicit none
+
+      include 'dates.h'
       
       integer, intent(in) :: ipts,ilev,nlon,nlat,nlev,mins
-      integer date,ilon,ilat,j,ip,m,k1
+      integer date,ilon,ilat,j,ip,m,k1,leap,jyear
       real, dimension(ipts,ilev), intent(out) :: out
       real, dimension(ipts), intent(in) :: alon,alat
       real, dimension(nlon,nlat,nlev), intent(in) :: fpre,fmth,fnxt
@@ -260,14 +262,23 @@ c
       real, dimension(ilev) :: prf,o3new
       real, dimension(nlev) :: b,c,d,o3inp,o3sum
       real, dimension(nlev,3) :: o3tmp
-      real rang,serlon,serlat,fp,lonadj,alonx
-      real, parameter, dimension(12) :: monlen =  
-     &  (/ 0.,31.,59.,90.,120.,151.,181.,212.,243.,273.,304.,334. /)
-     
+      real, dimension(12) :: monlen
+      real, dimension(12), parameter :: oldlen=
+     & (/ 0.,31.,59.,90.,120.,151.,181.,212.,243.,273.,304.,334. /)
+      real rang,serlon,serlat,fp,lonadj,alonx,fjd
       integer, parameter :: ozoneintp=1 ! ozone interpolation (0=simple, 1=integrate column)     
+      common/leap_yr/leap  ! 1 to allow leap years
 
-!     Time interpolation factors (assume year of exactly 365 days)
-      date = real(modulo(mins,525600))/1440.
+      monlen=oldlen
+      if (leap.eq.1) then
+        jyear =kdate/10000
+        if (mod(jyear,4)  .eq.0) monlen(3:12)=oldlen(3:12)+1
+        if (mod(jyear,100).eq.0) monlen(3:12)=oldlen(3:12)
+        if (mod(jyear,400).eq.0) monlen(3:12)=oldlen(3:12)+1
+      end if
+
+!     Time interpolation factors
+      date = real(modulo(mins,nint(monlen(12)+31.)*1440))/1440.
       if (date>=monlen(12)) then
         rang=(date-monlen(12))/31.
       else

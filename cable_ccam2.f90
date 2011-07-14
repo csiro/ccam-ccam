@@ -1,7 +1,16 @@
 module cable_ccam
 
   ! CABLE interface originally developed by the CABLE group
-  ! Subsequently modified by MJT for mosaic and new radiation scheme
+  ! Subsequently modified by MJT for 5 tile mosaic and new radiation scheme
+  
+  ! - Currently all tiles have the same soil texture
+  ! - LAI can be interpolated between timesteps using a PWCB fit to the LAI integral
+  !   or LAI can be taken as constant for the month
+  ! - CO2 can be constant or read from the radiation code.  A tracer CO2 is not yet
+  !   fully implemented.
+  ! - The code assumes only one month at a time is integrated in RCM mode.  However,
+  !   since the input files can be modified at runtime (not all months are loaded
+  !   at once), then we can support evolving/dynamic vegetation, etc.
 
   ! ivegt   type
   ! 1       Evergreen Needleleaf Forest
@@ -65,6 +74,7 @@ module cable_ccam
   use arrays_m
   use carbpools_m
   use extraout_m
+  use infile
   use latlong_m
   use morepbl_m
   use nsibd_m
@@ -85,23 +95,16 @@ module cable_ccam
 
   include 'newmpar.h'
   include 'const_phys.h' ! grav
-  include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg
   include 'parm.h'
 
  ! for calculation of zenith angle
-  real fjd, r1, dlt, slag, dhr, coszro2(ifull),taudar2(ifull)
-  real bpyear,alp,x
-  real tmps(ifull),hruff_grmx(ifull),atmco2(ifull),swnet(mp)
-  real deltat(mp)
+  real fjd, r1, dlt, slag, dhr,alp,x
+  real, dimension(ifull) :: coszro2,taudar2,tmps,hruff_grmx,atmco2
+  real, dimension(mp) :: swnet,deltat
 
   integer jyear,jmonth,jday,jhour,jmin
-  integer mstart,ktauplus,k,mins,kstart
-  integer nb,monthstart
-
-  integer imonth(12)
-  data imonth /31,28,31,30,31,30,31,31,30,31,30,31/
-  integer ndoy(12)   ! days from beginning of year (1st Jan is 0)
-  data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
+  integer k,mins
+  integer nb
 
   ! abort calculation if no land points on this processor  
   if (mp.le.0) return
@@ -109,29 +112,13 @@ module cable_ccam
 !
 ! set meteorological forcing
 !
-  jyear=kdate/10000
-  jmonth=(kdate-jyear*10000)/100
-  jday=kdate-jyear*10000-jmonth*100
-  jhour=ktime/100
-  jmin=ktime-jhour*100
-  ! mins from start of year
-  mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin
-  ktauplus=0
-  do k=1,jmonth-1
-   ktauplus = ktauplus + imonth(k)*nperday
-  enddo
-
-  ! mtimer contains number of minutes since the start of the run.
-  mins = mtimer + mstart
-  bpyear = 0.
-  fjd = float(mod(mins,525600))/1440.  ! 525600 = 1440*365
-  call solargh(fjd,bpyear,r1,dlt,alp,slag)
   dhr = dt/3600.
+  call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+  fjd = float(mod(mins,525600))/1440.
+  call solargh(fjd,bpyear,r1,dlt,alp,slag)
   call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
 
   call setco2for(atmco2)
-
-  kstart = 1
 
   met%doy=fjd
   met%tk=theta(cmap)
@@ -139,19 +126,18 @@ module cable_ccam
   met%ca=1.e-6*atmco2(cmap)
   met%coszen=max(1.e-8,coszro2(cmap)) ! use instantaneous value
 
-  met%qv=qg(cmap,1)        ! specific humidity in kg/kg
-  met%pmb=.01*ps(cmap)     ! pressure in mb at ref height
+  met%qv=qg(cmap,1)         ! specific humidity in kg/kg
+  met%pmb=0.01*ps(cmap)     ! pressure in mb at ref height
   met%precip=condx(cmap)
   met%hod=(met%doy-int(met%doy))*24. + rlongg(cmap)*180./(15.*pi)
-  where (met%hod.gt.24.) met%hod=met%hod-24.
+  met%hod=mod(met%hod,24.)
   rough%za_tq=-rdry*t(cmap,1)*log(sig(1))/grav   ! reference height
   rough%za_uv=rough%za_tq
 
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
   ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
-  swnet=sgsave(cmap)/(1.-swrsave(cmap)*albvisnir(cmap,1) &
-              -(1.-swrsave(cmap))*albvisnir(cmap,2)) ! short wave down (positive) W/m^2
+  swnet=sgsave(cmap)/(1.-swrsave(cmap)*albvisnir(cmap,1)-(1.-swrsave(cmap))*albvisnir(cmap,2)) ! short wave down (positive) W/m^2
   met%fsd(:,1)=swrsave(cmap)*swnet
   met%fsd(:,2)=(1.-swrsave(cmap))*swnet
   met%fsd(:,3)=swnet ! dummy for now
@@ -160,21 +146,8 @@ module cable_ccam
   rad%fbeam(:,3)=swrsave(cmap)*fbeamvis(cmap)+(1.-swrsave(cmap))*fbeamnir(cmap) ! dummy for now
   met%fld=-rgsave(cmap)        ! long wave down (positive) W/m^2
 
-  monthstart=1440*(jday-1) + 60*jhour + jmin ! mins from start of month
-  x=min(max(real(mtimer+monthstart)/real(1440.*imonth(jmonth)),0.),1.)
-  veg%vlai(:)=vl1+vl2*x+vl3*x*x ! LAI as a function of time
-  veg%vlai(:)=max(veg%vlai(:),0.1)
-  where (veg%iveg==15.or.veg%iveg==16)
-    veg%vlai=0.001
-  endwhere
-  sigmf=0.
-  do nb=1,5
-    if (pind(nb,1).le.mp) then
-      sigmf(cmap(pind(nb,1):pind(nb,2)))=sigmf(cmap(pind(nb,1):pind(nb,2))) &
-        +sv(pind(nb,1):pind(nb,2))*(1.-exp(-0.7*veg%vlai(pind(nb,1):pind(nb,2))))
-    end if
-  end do
-  tsigmf=sigmf  
+  call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
+  tsigmf=sigmf
 
   met%tc=met%tk-273.16
   met%tvair=met%tk
@@ -513,7 +486,8 @@ module cable_ccam
   real, dimension(ifull), intent(out) :: atmco2
 
   select case (CO2forcingtype)
-    case (constantCO2); atmco2 = 360.
+    case (constantCO2)
+      atmco2 = 360.
     case (hostCO2) 
       atmco2 = rrvco2 * 1.E6
     case (interactiveCO2)
@@ -525,10 +499,50 @@ module cable_ccam
   end subroutine setco2for
 
 ! *************************************************************************************
+  subroutine setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
+  
+  implicit none
+
+  include 'newmpar.h'
+  include 'dates.h'
+  
+  integer, intent(in) :: jyear,jmonth,jday,jhour,jmin
+  integer monthstart,nb,leap
+  integer, dimension(12) :: imonth
+  real, dimension(ifull), intent(out) :: sigmf
+  real x
+  common/leap_yr/leap  ! 1 to allow leap years
+
+  imonth = (/31,28,31,30,31,30,31,31,30,31,30,31/)
+  if (leap.eq.1) then
+    if (mod(jyear,4)  .eq.0) imonth(2)=29
+    if (mod(jyear,100).eq.0) imonth(2)=28
+    if (mod(jyear,400).eq.0) imonth(2)=29
+  end if
+
+  monthstart=1440*(jday-1) + 60*jhour + jmin ! mins from start month
+  x=min(max(real(mtimer+monthstart)/real(1440.*imonth(jmonth)),0.),1.)
+  veg%vlai(:)=vl1+vl2*x+vl3*x*x ! LAI as a function of time
+  veg%vlai(:)=max(veg%vlai(:),0.1)
+  sigmf=0.
+  do nb=1,5
+    if (pind(nb,1).le.mp) then
+      sigmf(cmap(pind(nb,1):pind(nb,2)))=sigmf(cmap(pind(nb,1):pind(nb,2))) &
+        +sv(pind(nb,1):pind(nb,2))*(1.-exp(-rad%extkn(pind(nb,1):pind(nb,2))*veg%vlai(pind(nb,1):pind(nb,2))))
+    end if
+  end do
+  
+  return
+  end subroutine setlai
+  
+  
+
+! *************************************************************************************
   subroutine loadcbmparm(fveg,fvegprev,fvegnext)
 
   use carbpools_m
   use cc_mpi
+  use infile
   use latlong_m
   use nsibd_m
   use pbl_m
@@ -546,6 +560,7 @@ module cable_ccam
 
   integer(i_d), dimension(ifull,5) :: ivs
   integer(i_d) iq,n,k,ipos,isoil
+  integer jyear,jmonth,jday,jhour,jmin,mins
   real(r_1) :: totdepth
   real(r_1), dimension(mxvt,ms) :: froot2
   real(r_1), dimension(ifull,5) :: svs,vlin,vlinprev,vlinnext
@@ -558,7 +573,8 @@ module cable_ccam
   real(r_1), dimension(mxvt)   ::tminvj,tmaxvj,vbeta
   real(r_1), dimension(mxvt)   :: extkn,rootbeta,vegcf
   real(r_1), dimension(mxvt,2) ::taul,refl  
-  real(r_1), dimension(ifull) :: dumr  
+  real(r_1), dimension(ifull) :: dumr
+  real fjd  
   character(len=*), intent(in) :: fveg,fvegprev,fvegnext
 
   if (myid == 0) write(6,*) "Setting CABLE defaults (igbp)"
@@ -621,10 +637,8 @@ module cable_ccam
   end do
 
   ! default values (i.e., no land)  
-  vlai=0.
   zolnd=zobgin
   ivegt=0
-  sigmf=0.
   albsoilsn=0.08  
   albsoil=0.08
   albvisdir=0.08
@@ -659,17 +673,17 @@ module cable_ccam
     call alloc_cbm_var(veg, mp)
 
     ! soil parameters
-    soil%zse = (/.022, .058, .154, .409, 1.085, 2.872/) ! soil layer thickness
-    soil%zshh(1) = 0.5 * soil%zse(1)
+    soil%zse = (/0.022, 0.058, 0.154, 0.409, 1.085, 2.872/) ! soil layer thickness
+    soil%zshh(1)    = 0.5 * soil%zse(1)
     soil%zshh(ms+1) = 0.5 * soil%zse(ms)
     soil%zshh(2:ms) = 0.5 * (soil%zse(1:ms-1) + soil%zse(2:ms))
   
     ! froot is now calculated from soil depth and the new parameter rootbeta 
     ! according to Jackson et al. 1996, Oceologica, 108:389-411
-    totdepth = 0.0
+    totdepth = 0.
     do k=1,ms
-      totdepth = totdepth + soil%zse(k)*100.0
-      froot2(:,k) = min(1.0,1.0-rootbeta(:)**totdepth)
+      totdepth = totdepth + soil%zse(k)*100.
+      froot2(:,k) = min(1.,1.-rootbeta(:)**totdepth)
     enddo
     do k = ms, 2, -1
       froot2(:,k) = froot2(:,k) - froot2(:,k-1)
@@ -715,7 +729,6 @@ module cable_ccam
             vl2(ipos)=0.
             vl3(ipos)=0.
           end if
-          veg%vlai(ipos)=vl1(ipos)
         end if
       end do
       pind(n,2)=ipos
@@ -726,28 +739,6 @@ module cable_ccam
       stop
     end if
 
-    ! calculate LAI and veg fraction diagnostics
-    sigmf=0.
-    do n=1,5
-      if (pind(n,1).le.mp) then
-        vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
-                                        +vl1(pind(n,1):pind(n,2))*sv(pind(n,1):pind(n,2))
-        sigmf(cmap(pind(n,1):pind(n,2)))=sigmf(cmap(pind(n,1):pind(n,2))) &
-          +sv(pind(n,1):pind(n,2))*(1.-exp(-0.7*veg%vlai(pind(n,1):pind(n,2))))
-      end if
-    end do
-    tsigmf=sigmf
-  
-    ! calculate zom diagnostics
-    do n=1,5
-      where (land.and.ivs(:,n).ne.0)
-        zolnd=zolnd+svs(:,n)/log(zmin/(0.1*hc(ivs(:,n))))**2
-      end where
-    end do
-    where (land)
-      zolnd=max(zmin*exp(-sqrt(1./zolnd)),zobgin)
-    end where
-  
     ! Load CABLE arrays
     ivegt=ivs(:,1) ! diagnostic
     veg%hc        = hc(veg%iveg)
@@ -773,6 +764,21 @@ module cable_ccam
     do k=1,ms
       veg%froot(:,k)=froot2(veg%iveg,k)
     end do
+
+    ! calculate LAI and veg fraction diagnostics
+    call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+    call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
+    tsigmf=sigmf
+  
+    ! calculate zom diagnostics
+    do n=1,5
+      where (land.and.ivs(:,n).ne.0)
+        zolnd=zolnd+svs(:,n)/log(zmin/(0.1*hc(ivs(:,n))))**2
+      end where
+    end do
+    where (land)
+      zolnd=max(zmin*exp(-sqrt(1./zolnd)),zobgin)
+    end where
   
     ! Initialise carbon pool diagnostics
     if (all(cplant.eq.0.)) then

@@ -1,5 +1,7 @@
 ! Interface for SEA-ESF radiation scheme from GFDL with CCAM.
 
+! - This routine assumes that only one month at a time is integrated in RCM mode
+
 module seaesfrad_m
 
 use rad_utilities_mod, only: atmos_input_type,surface_type,astronomy_type,aerosol_type, &
@@ -52,6 +54,7 @@ use cable_ccam, only : CABLE
 use cc_mpi
 use cfrac_m
 use extraout_m
+use infile
 use latlong_m
 use liqwpar_m
 use microphys_rad_mod, only: microphys_sw_driver,microphys_lw_driver,lwemiss_calc,microphys_rad_init
@@ -71,14 +74,12 @@ implicit none
 
 include 'parm.h'
 include 'newmpar.h'
-include 'dates.h'
 include 'kuocom.h'
 
 logical, intent(in) :: odcalc  ! True for full radiation calculation
 integer, intent(in) :: imax,iaero
-integer, dimension(12) :: ndoy   ! days from beginning of year (1st Jan is 0)
 integer jyear,jmonth,jday,jhour,jmin
-integer k,ksigtop,mstart,mins
+integer k,ksigtop,mins
 integer i,j,iq,istart,iend,kr
 integer swcount
 integer, save :: nlow,nmid
@@ -95,7 +96,7 @@ real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt
 real, dimension(kl+1) :: sigh
 real(kind=8), dimension(kl+1,2) :: pref
 real r1,dlt,alp,slag
-real dhr,fjd,bpyear
+real dhr,fjd
 real ttbg,ar1,exp_ar1,ar2,exp_ar2,ar3,snr
 real dnsnow,snrat,dtau,alvo,aliro,fage,cczen,fzen,fzenm
 real alvd,alv,alird,alir
@@ -120,8 +121,6 @@ type(aerosol_diagnostics_type), save ::     Aerosol_diags
 type(lw_table_type), save ::                Lw_tables
 real(kind=8), dimension(:,:,:,:), allocatable :: r
 
-data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
-
 call start_log(radmisc_begin)
 
 if (.not.allocated(sgamp)) then
@@ -145,24 +144,8 @@ end do
 
 ! astronomy ---------------------------------------------------------
 ! Set up number of minutes from beginning of year
-! For GCM runs assume year is <1980 (e.g. ~321-460 for 140 year run)
-jyear=kdate/10000
-jmonth=(kdate-jyear*10000)/100
-jday=kdate-jyear*10000-jmonth*100
-jhour=ktime/100
-jmin=ktime-jhour*100
-mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of year
-! mtimer contains number of minutes since the start of the run.
-mins = mtimer + mstart
-
-! Set number of years before present for orbital parameters.
-! Allowed values are 0, 6000 and 21000.
-bpyear = 0.
-if(nhstest<0)then  ! aquaplanet test
-  fjd = 79.+mod(mins,1440)/1440.       ! set to 21 March +frac of day
-else
-  fjd = float(mod(mins,525600))/1440.  ! 525600 = 1440*365
-endif
+call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+fjd = float(mod(mins,525600))/1440. ! restrict to 365 day calendar
 
 ! Calculate sun position
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
@@ -410,8 +393,8 @@ if ( first ) then
 end if  ! (first)
 
 ! Prepare SEA-ESF arrays --------------------------------------------
-Rad_time%days   =fjd
-Rad_time%seconds=60*(60*jhour + jmin)
+Rad_time%days   =int(fjd)
+Rad_time%seconds=mod(mins,1440)
 Rad_time%ticks  =0
 
 if (ldr.eq.0) then
@@ -450,7 +433,6 @@ do j=1,jl,imax/il
       Rad_gases%qo3(:,1,:)=max(1.e-10,Rad_gases%qo3(:,1,:))    ! July 2008
     else
       call o3set(rlatt(istart:iend),rlongg(istart:iend),imax,mins,duo3n,sig,ps(istart:iend))
-      ! Conversion of o3 from units of cm stp to gm/gm
       do k=1,kl
         Rad_gases%qo3(:,1,k) = max(1.e-10,duo3n(1:imax,k))
       end do

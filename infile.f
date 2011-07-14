@@ -1,9 +1,10 @@
       module infile
       
-      ! This module contains routines for reading netcdf files
+      ! This module contains routines for reading netcdf files,
+      ! vertical interpolation and some calendar functions
             
       private
-      public histrd1,histrd4s,vertint,datefix
+      public histrd1,histrd4s,vertint,datefix,getzinp
       
       contains
 
@@ -402,5 +403,49 @@ c     print *,'in vertint t',t(idjd,:)
 
       return
       end subroutine datefix
+
+      ! Set up number of minutes from beginning of year
+      subroutine getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+
+      implicit none
+
+      include 'dates.h'
+      include 'parm.h'
+
+      integer, intent(out) :: jyear,jmonth,jday,jhour,jmin ! start date of run
+      integer, intent(out) :: mins                         ! elapsed time from start of year
+      integer mstart,leap,elp
+      integer, dimension(12) :: ndoy
+      integer, dimension(12), parameter :: odoy=
+     & (/0,31,59,90,120,151,181,212,243,273,304,334/)      ! days from beginning of year (1st Jan is 0)
+      real, intent(out) :: fjd
+      common/leap_yr/leap  ! 1 to allow leap years
+
+      jyear =kdate/10000
+      jmonth=(kdate-jyear*10000)/100
+      jday  =kdate-jyear*10000-jmonth*100
+      jhour =ktime/100
+      jmin  =ktime-jhour*100
+
+      ndoy=odoy
+      if (leap.eq.1) then
+        if (mod(jyear,4)  .eq.0) ndoy(3:12)=odoy(3:12)+1
+        if (mod(jyear,100).eq.0) ndoy(3:12)=odoy(3:12)
+        if (mod(jyear,400).eq.0) ndoy(3:12)=odoy(3:12)+1
+      end if
+
+      mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of year
+      ! mtimer contains number of minutes since the start of the run.
+      mins = mtimer + mstart
+
+      if(nhstest<0)then  ! aquaplanet test
+        fjd = 79.+float(mod(mins,1440))/1440.  ! set to 21 March +frac of day
+        mins=nint(fjd*1440.)
+      else
+        fjd = float(mod(mins,(ndoy(12)+31)*1440))/1440.    ! 525600 = 1440*365
+      endif
+
+      return
+      end subroutine getzinp
 
       end module infile

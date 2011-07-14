@@ -4,6 +4,8 @@
 ! Currently, only LDR aerosols are supported.  However, the xtg arrays should be moved to
 ! here in the future, so that there is a common interface for advection and outcdf.
 
+! - This subroutine assumes only one month at a time is integrated in RCM mode.
+
 module aerointerface
 
 implicit none
@@ -16,7 +18,7 @@ public ppfprec,ppfmelt,ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate, &
 real, dimension(:,:,:,:), allocatable, save :: oxidantprev
 real, dimension(:,:,:,:), allocatable, save :: oxidantnow
 real, dimension(:,:,:,:), allocatable, save :: oxidantnext
-real, dimension(:), allocatable, save :: rlat,rlev,zdayfac
+real, dimension(:), allocatable, save :: rlon,rlat,rlev,zdayfac
 real, dimension(:,:), allocatable, save :: ppfprec,ppfmelt,ppfsnow,ppfconv  ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppfevap,ppfsubl,pplambs,ppmrate  ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppmaccr,ppfstay,ppqfsed,pprscav  ! data saved from LDR cloud scheme
@@ -200,7 +202,7 @@ if (myid==0) then
   allocate(oxidantprev(ilon,ilat,ilev,4))
   allocate(oxidantnow(ilon,ilat,ilev,4))
   allocate(oxidantnext(ilon,ilat,ilev,4))
-  allocate(rlat(ilat),rlev(ilev))
+  allocate(rlon(ilon),rlat(ilat),rlev(ilev))
   sposs=1
   nposs(1)=ilon
   nposs(2)=ilat
@@ -208,10 +210,13 @@ if (myid==0) then
   nposs(4)=1
   jyear=kdate/10000
   jmonth=(kdate-jyear*10000)/100
+  ncstatus = nf_inq_varid(ncid,'lpn',varid)
+  ncstatus = nf_get_vara_real(ncid,varid,sposs(1),nposs(1),rlon)
   ncstatus = nf_inq_varid(ncid,'lat',varid)
-  ncstatus = nf_get_vara_real(ncid,varid,sposs(2),nposs(2),rlat)
+  ncstatus = nf_get_vara_real(ncid,varid,sposs(2),nposs(2),rlat) ! input latitudes (deg)
   ncstatus = nf_inq_varid(ncid,'lev',varid)
-  ncstatus = nf_get_vara_real(ncid,varid,sposs(3),nposs(3),rlev)
+  ncstatus = nf_get_vara_real(ncid,varid,sposs(3),nposs(3),rlev) ! input vertical levels
+  call MPI_Bcast(rlon,ilon,MPI_REAL,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(rlat,ilat,MPI_REAL,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(rlev,ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
   do i=1,3
@@ -268,7 +273,8 @@ else
   allocate(oxidantprev(ilon,ilat,ilev,4))
   allocate(oxidantnow(ilon,ilat,ilev,4))
   allocate(oxidantnext(ilon,ilat,ilev,4))
-  allocate(rlat(ilat),rlev(ilev))
+  allocate(rlon(ilon),rlat(ilat),rlev(ilev))
+  call MPI_Bcast(rlon,ilon,MPI_REAL,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(rlat,ilat,MPI_REAL,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(rlev,ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
   do i=1,3
@@ -296,6 +302,7 @@ use aerosolldr
 use arrays_m
 use cfrac_m
 use extraout_m
+use infile
 use kuocomb_m
 use latlong_m
 use liqwpar_m
@@ -316,42 +323,30 @@ implicit none
 
 include 'newmpar.h'
 include 'const_phys.h'
-include 'dates.h'
 include 'kuocom.h'
 include 'parm.h'
 include 'soilv.h'
 
-integer jyear,jmonth,jday,jhour,jmin,mstart,mins
+integer jyear,jmonth,jday,jhour,jmin,mins,smins
 integer j,k,tt,ttx
-integer, save :: sday=-1
-integer, dimension(12) :: ndoy
-real bpyear,dhr,fjd,r1,dlt,alp,slag
+integer, save :: sday=-9999
+real dhr,fjd,sfjd,r1,dlt,alp,slag
 real, dimension(ifull) :: coszro,taudar
-real, dimension(ilon) :: rlon
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
 real, dimension(ifull) :: blon,blat,dxy,mcmax,cldcon,wg
 real, dimension(ifull) :: vt
 real, dimension(kl+1) :: sigh
-data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
 
-! update oxidant fields
-jyear=kdate/10000
-jmonth=(kdate-jyear*10000)/100
-jday=kdate-jyear*10000-jmonth*100
-jhour=ktime/100
-jmin=ktime-jhour*100
-mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin
-if (sday.ne.jday) then
-  ! update oxidant fields
-  mins = mtimer + mstart
-  do j=1,ilon
-    rlon(j)=real(j-1)*360./real(ilon)
-  end do
-  blon=rlongg*180./pi
+! timer calculations
+call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+! update oxidant fields once per day
+if (sday.le.mins-1440) then
+  sday=mins
+  blon=rlongg*180./pi ! ccam longitudes (deg)
   where (blon.lt.0.)
     blon=blon+360.
   end where
-  blat=rlatt*180./pi
+  blat=rlatt*180./pi ! ccam latitudes (deg)
   do j=1,4      
     call fieldinterpolate(oxout(:,:),blon,blat,oxidantprev(:,:,:,j),oxidantnow(:,:,:,j),oxidantnext(:,:,:,j), &
                           rlon,rlat,rlev,ifull,kl,ilon,ilat,ilev,mins,sig,ps)
@@ -360,21 +355,19 @@ if (sday.ne.jday) then
     end do
   end do
   ! estimate day length (presumably to preturb day-time OH levels)
-  bpyear=0.
   dhr=dt/3600.
   ttx=nint(86400./dt)
   zdayfac(:)=0.
   do tt=1,ttx ! we seem to get a different answer if dhr=24. and ttx=1.
-    mins=real(tt-1)*dt/60.+mtimer+mstart
-    fjd=float(mod(mins,525600))/1440.  ! 525600 = 1440*365
-    call solargh(fjd,bpyear,r1,dlt,alp,slag)
-    call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
+    smins=int(real(tt-1)*dt/60.)+mins
+    sfjd=float(mod(smins,525600))/1440.  ! 525600 = 1440*365
+    call solargh(sfjd,bpyear,r1,dlt,alp,slag)
+    call zenith(sfjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro,taudar)
     zdayfac(:)=zdayfac(:)+taudar
   end do
   where (zdayfac.gt.0.)
     zdayfac(:)=real(ttx)/zdayfac(:)
   end where
-  sday=jday
 end if
 
 ! set-up input data fields ------------------------------------------------
@@ -384,7 +377,7 @@ zg(:,1)=bet(1)*t(1:ifull,1)/grav
 do k=2,kl
   zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav ! height above surface in meters
 end do
-dxy=ds*ds/(em*em) ! grid spacing in m**2
+dxy=ds*ds/(em*em)       ! grid spacing in m**2
 mcmax=0.1*max(vlai,0.1) ! maximum water stored in canopy (kg/m**2)
 do k=1,kl
   rhoa(:,k)=ps*sig(k)/(rdry*t(:,k)) !density of air (kg/m**3)

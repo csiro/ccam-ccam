@@ -1,6 +1,7 @@
 
 ! This module calculates the turblent kinetic energy and mixing for the boundary layer based on
-! Hurley 2009.  Specifically, this version is adapted for CCAM.
+! Hurley 2009.  Specifically, this version is adapted for CCAM with an implicit numerical formulation
+! (i.e., a forward-backward scheme).  We have also modified the buoyancy for saturated air using theta_e.
 
 ! Usual procedure
 
@@ -17,7 +18,6 @@
 !   ...
 ! end do
 ! ...
-
 
 module tkeeps
 
@@ -186,6 +186,7 @@ do k=1,kl
 end do
 
 ! Calculate non-local terms for theta_v,theta,qg,qfg and qlg
+! theta counter gradient term is derived from theta_v
 gamtv=0.
 gamt=0.
 gamq=0.
@@ -212,7 +213,24 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         qlup(1)=qlg(i,1)
         w2up(1)=2.*zz(i,1)*b2*grav*(tvup(1)-thetav(i,1))/thetav(i,1)/(1.+zz(i,1)*b1*ee)
         wup=sqrt(max(w2up(1),0.))
-        mflx(1)=aup*wup
+        aa(1,2)=ps(i)*sig(1)                                          ! pressure
+        bb(1,2)=tvup(1)/((1.+0.61*qvup(1)-qfup(1)-qlup(1))*sigkap(1)) ! tempup
+        call getqsat(1,qupsat(1),bb(1,2),aa(1,2))
+        if (qvup(1).lt.qupsat(1).or.mode.eq.2) then ! dry convection
+          mflx(1)=aup*wup
+        else                                        ! moist convection (boundary condition)
+          sconv=.true.
+          ! Cuijpers and Bechtold (1995)
+          zht=0.5*sum(zz(i,1:2))
+          dzht=dz_hl(i,1)
+          ee=0.5*(1./max(zht,10.)+1./max(zi(i)-zht,10.))
+          qg_hl=0.5*sum(qg(i,1:2))
+          qvup(2)=(qvup(1)*(1.-0.5*dzht*ee)+dzht*ee*qg_hl    )/(1.+0.5*dzht*ee)
+          sigup=max(1.E-6,-1.6*tke(i,1)/eps(i,1)*cq*km(i,1)*((qvup(2)-qvup(1))/dzht)**2)
+          cf=0.5+0.36*atan(1.55*(qvup(1)-qupsat(1))/sqrt(sigup))
+          cf=min(max(cf,0.),1.) 
+          mflx(1)=cf*aup*wup
+        end if
         
         ! integrate over full levels (helps internal consistancy)
         ! (interpolate to half levels later with gamm(0)=0 and gamm(zi)=0)
@@ -315,7 +333,7 @@ select case(buoymeth)
       ppb(:,k)=ppb(:,k)+grav*gamtv(:,k)/(km(:,k)*thetav(:,k))
     end do
 
-  case(1,3) ! saturated conditions from Durran and Klemp JAS 1982
+  case(1,3) ! saturated conditions from Durran and Klemp JAS 1982 (see also WRF)
     do k=2,kl
       gg(:,k)=(1.+lv*qg(:,k)/(rd*temp(:,k))) &
              /(1.+lv*lv*qg(:,k)/(cp*rv*temp(:,k)*temp(:,k)))

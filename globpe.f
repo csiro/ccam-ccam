@@ -127,8 +127,8 @@
       real hdifmax
       common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
 
-      integer, dimension(13), parameter :: mdays =
-     &     (/31,28,31,30,31,30,31,31,30,31,30,31, 31/)
+!      integer, dimension(13), parameter :: mdays =
+!     &     (/31,28,31,30,31,30,31,31,30,31,30,31, 31/)
       logical odcalc
       character comm*60,comment*60,rundate*8,header*47,text*2 ! MJT bug fix
       character(len=10) :: timeval
@@ -178,7 +178,7 @@
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
      & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss                  ! MJT urban ! MJT nmr ! MJT mlo ! MJT nestin
      & ,mfix_tr,mfix_ke,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv              ! MJT tracerfix ! MJT tke
-     & ,nud_sfh
+     & ,nud_sfh,bpyear
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -991,7 +991,6 @@ c     if(ndi2>0)diag=.true.
       ktau=kktau
       timer = timer + hrs_dt      ! timer now only used to give timeg
       timeg=mod(timer+hourst,24.)
-!     mtimer=mtimer+mins_dt
       mtimer=mtimer_in+nint(ktau*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
       mins_gmt=mod(mtimer+60*ktime/100,24*60)
       
@@ -2049,7 +2048,7 @@ c     data nstag/99/,nstagu/99/
      &     vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
       data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
-      data nurban/0/,nmr/0/,nmlo/0/ ! MJT urban ! MJT nmr ! MJT mlo
+      data nurban/0/,nmr/0/,nmlo/0/,bpyear/0./ ! MJT urban ! MJT nmr ! MJT mlo ! MJT rad
 !     Special and test options
       data namip/0/,amipo3/.false./,nhstest/0/,nsemble/0/,nspecial/0/,
      &     panfg/4./,panzo/.001/,nplens/0/

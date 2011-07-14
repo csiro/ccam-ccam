@@ -11,7 +11,7 @@
      &        mloalpha,nud_ouv,nud_sfh ! MJT urban ! MJT mr ! MJT mlo ! MJT nestin
       real qgmin,                                                        &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
-     &     ds,dt,dtin,timea,panfg,panzo
+     &     ds,dt,dtin,timea,panfg,panzo,bpyear ! MJT rad
       logical diag, localhist,amipo3
       common/parm1/meso,nem,ngwd,nrungcm,newtop                          &
      &  ,qgmin        ! min value, esp. for stratosphere           [1.e-6]
@@ -25,7 +25,7 @@
       common/parmsfce/newrough,newsoilm,nsib,nsoil,ntsea,ntsur,ntsur2,   &
      &                lgwd,newztsea,aleadfr,av_vmod,vmodmin,snmin,       &
      &                tss_sh,nglacier,charnock,chn10,zobgin,ntaft,       &
-     &                panfg,panzo,nurban,nmr,nmlo ! MJT urban ! MJT nmr ! MJT mlo
+     &                panfg,panzo,nurban,nmr,nmlo,bpyear ! MJT urban ! MJT nmr ! MJT mlo
 
       common/parmnudg/nbd,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,   &
      &                nud_hrs,nudu_hrs,mbd,ktopdav,nud_sst,nud_sss,      &

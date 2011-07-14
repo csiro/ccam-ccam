@@ -20,6 +20,7 @@
       use cldcom_m
       use diag_m
       use extraout_m ! sintsave, etc
+      use infile
       use kuocomb_m
       use latlong_m
       use liqwpar_m  ! ifullw
@@ -47,7 +48,6 @@
       parameter (nalbwb=0)  ! 0  for original alb not depending on wb
       integer kcl_top       !max level for cloud top (conjob,radrive,vertmix)
       include 'const_phys.h' ! for ldr cloud scheme
-      include 'dates.h'      ! timer,kdate,ktime,dt,mtimer
       include 'kuocom.h'     ! also with kbsav,ktsav
       include 'parm.h'
       include 'soilv.h'
@@ -126,19 +126,8 @@ c     Stuff from cldset
       jdrad=1+(jdrad0-1)*imax/il  ! j increases in increments of imax/il
 
 !     Set up number of minutes from beginning of year
-!     This assumes 4-digit year already incorporated (fix done in infile)
-!     For GCM runs assume year is <1980 (e.g. ~321-460 for 140 year run)
-      jyear=kdate/10000
-      jmonth=(kdate-jyear*10000)/100
-      jday=kdate-jyear*10000-jmonth*100
-      if(kdate.lt.19800000)jyear=1979 ! for gcm runs - but jyear not used
-      jhour=ktime/100
-      jmin=ktime-jhour*100
-      mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of y
-!     timer contains number of hours since the start of the run.
-!     mins = 60 * timer + mstart
-!     mtimer contains number of minutes since the start of the run.
-      mins = mtimer + mstart
+      call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+      fjd = float(mod(mins,525600))/1440. ! restrict to 365 day calendar
 
 !     Initialisation (from initfs)
       if ( first ) then
@@ -165,19 +154,6 @@ c          Define the amplitudes of the mean, annual and semi-annual cycles
 C---------------------------------------------------------------------*
 C START COMPUTATION                                                   *
 C---------------------------------------------------------------------*
-
-c     Set number of years before present for orbital parameters.
-c     Allowed values are 0, 6000 and 21000.
-      bpyear = 0.
-      if(nhstest<0)then  ! aquaplanet test
-        fjd = 79.+mod(mins,1440)/1440.       ! set to 21 March +frac of day
-      else
-        fjd = float(mod(mins,525600))/1440.  ! 525600 = 1440*365
-      endif
-      if(ntest.gt.0)then
-        print *,'kdate,jyear,jmonth,jhour,jmin,mtimer,mstart,mins,fjd ;'
-     .          ,kdate,jyear,jmonth,jhour,jmin,mtimer,mstart,mins,fjd
-      endif
 
       if(ldr==0)then
         do k=1,ksigtop  ! up to top level for RH calc for clouds
@@ -220,8 +196,6 @@ c     Allowed values are 0, 6000 and 21000.
       if ( solarfit ) then
 !        This call averages zenith angle just over this time step.
          dhr = dt/3600.0
-c        call zenith(fjd,r1,dlt,slag,rlatt(1+(j-1)*il),
-c    &               rlongg(1+(j-1)*il),dhr,imax,coszro2,taudar2)
          call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),
      &               rlongg(istart:iend),dhr,imax,coszro2,taudar2)
          call atebccangle(istart,imax,coszro2(1:imax) ! MJT urban
@@ -253,10 +227,8 @@ c     Set up ozone for this time and row
       else
          call o3set(rlatt(1+(j-1)*il),rlongg(1+(j-1)*il),imax,mins,
      &              duo3n,sig,ps(1+(j-1)*il:(j-1)*il+imax))
-c        Conversion of o3 from units of cm stp to gm/gm
          do k=1,kl
             do i=1,imax
-c             qo3(i,k) = duo3n(i,k)*1.01325e+02/press(i,lp1)
               qo3(i,k) = max(1.e-10,duo3n(i,k)) ! MJT radiation
             end do
          end do
@@ -756,7 +728,7 @@ c       endif
       ! MJT CHANGE cable
       sgdn(1:imax)=sgsave(istart:iend)/
      &   (1.-swrsave(istart:iend)*albvisnir(istart:iend,1)
-     & -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2)) ! MJT albedo      
+     & -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2)) ! MJT albedo
       call spitter(imax,fjd,coszro2(1:imax),
      &             sgdn(1:imax),fbeamvis(istart:iend))
       fbeamnir(istart:iend)=fbeamvis(istart:iend)

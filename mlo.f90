@@ -1,12 +1,12 @@
 
-! This is a 1D, mixed layer ocean model for ensemble regional climate simulations based on Large, et al (1994)
-! (i.e., adapted from the GFDL code).  This code is also used for modelling lakes in ACCESS and CCAM.
+! This is a 1D, mixed layer ocean model based on Large, et al (1994), for ensemble regional climate simulations.
+! This code is also used for modelling lakes in ACCESS and CCAM.  In CCAM this module interfaces with
+! mlodynamics.f90 for river routing, diffusion and advection routines.
 
-! This version has a relatively thin 1st layer (0.5m) so as to better reproduce a diurnal cycle in SST.  It also
-! supports sea ice based on O'Farrell's sea ice model from Mk3.5.
+! This version has a relatively thin 1st layer (e.g, 0.5m) so as to better reproduce a diurnal cycle in SST.  It also
+! supports a thermodynamic model of sea ice based on O'Farrell's from Mk3.5.
 
-! We have also included a free surface so that lakes can change depth, etc.  The levels are then effectively sigma levels,
-! but with sigma replaced with the depth without a free surface scaled by the total depth.
+! We have also included a free surface so that lakes can change depth, etc.
 
 ! This version can assimilate SSTs from GCMs, using a convolution based digital filter (see nestin.f),
 ! which avoids problems with complex land-sea boundary conditions.
@@ -205,8 +205,8 @@ p_cds=0.
 p_fg=0.
 p_eg=0.
 p_zoice=0.001
-p_zohice=0.001/7.4
-p_zoqice=0.001/7.4
+p_zohice=0.001
+p_zoqice=0.001
 p_cdice=0.
 p_cdsice=0.
 p_fgice=0.
@@ -218,18 +218,15 @@ p_uscrn=0.
 p_u10=0.
 p_mixind=wlev-1
 
-! MLO
+! MLO - 20 level
 !depth = (/  0.25,   1.1,   3.0,   6.7,  12.8,  22.0,  35.1,  52.8,  76.7, 104.5, &
 !           140.0, 182.9, 233.8, 293.4, 362.5, 441.8, 531.9, 633.5, 747.4, 874.3 /)
-! MLO
-!depth = (/   0.5,   3.4,  11.9,  29.7,  60.7, 108.6, 177.0, 269.9, 390.8, 543.6, &
-!           732.0, 959.7,1230.6,1548.3,1916.6,2339.3,2820.0,3362.6,3970.8,4648.3 /)
-! MLO
+! MLO - 40 level
 !depth = (/   0.5,   1.7,   3.7,   6.8,  11.5,  18.3,  27.7,  40.1,  56.0,  75.9, &
 !           100.2, 129.4, 164.0, 204.3, 251.0, 304.4, 365.1, 433.4, 509.9, 595.0, &
 !           689.2, 793.0, 906.7,1031.0,1166.2,1312.8,1471.3,1642.2,1825.9,2022.8, &
 !          2233.5,2458.4,2698.0,2952.8,3233.1,3509.5,3812.5,4132.4,4469.9,4825.3 /)
-! Mk3.5
+! Mk3.5 - 31 level
 !depth = (/   5.0,  15.0,  28.2,  42.0,  59.7,  78.5, 102.1, 127.9, 159.5, 194.6, &
 !           237.0, 284.7, 341.7, 406.4, 483.2, 570.9, 674.9, 793.8, 934.1,1095.2, &
 !          1284.7,1502.9,1758.8,2054.3,2400.0,2800.0,3200.0,3600.0,4000.0,4400.0, &
@@ -1434,14 +1431,14 @@ implicit none
 
 integer, intent(in) :: full
 integer i,ii
-integer, parameter :: nits=1 ! iterate for density (nits=1 recommended)
+!integer, parameter :: nits=1 ! iterate for density (nits=1 recommended)
 real, dimension(full,wlev), intent(in) :: tt,ss,dep,ddz
 real, dimension(full,wlev), intent(out) :: d_rho,d_alpha,d_beta,rs
 real, dimension(full), intent(in) :: pxtr
 real, dimension(full), intent(out) :: rho0
 real, dimension(full) :: t,s,p1,p2,t2,t3,t4,t5,s2,s3,s32,ptot
 real, dimension(full) :: drho0dt,drho0ds,dskdt,dskds,sk,sks
-real, dimension(full) :: drhodt,drhods,rs0,dskdp
+real, dimension(full) :: drhodt,drhods,rs0
 real, parameter :: density = 1035.
 
 d_rho=density
@@ -1475,12 +1472,12 @@ drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:) &
        + 1.5*sqrt(s(:))*(-5.72466e-3 + 1.0227e-4*t(:) &
        - 1.6546e-6*t2(:)) + 2.*4.8314e-4*s(:)
 
-do i=1,nits
+!do i=1,nits
   ptot=pxtr*1.E-5
   do ii=1,wlev
     t = max(tt(:,ii)-273.16,-2.)
     s = max(ss(:,ii),0.)
-    p1 = ptot+grav*d_rho(:,ii)*0.5*ddz(:,ii)*1.E-5
+    p1   = ptot+grav*d_rho(:,ii)*0.5*ddz(:,ii)*1.E-5 ! hydrostatic approximation
     ptot = ptot+grav*d_rho(:,ii)*ddz(:,ii)*1.E-5
     t2 = t*t
     t3 = t2*t
@@ -1526,15 +1523,15 @@ do i=1,nits
                 + 2.059331e-7*t2(:)) + 1.5*1.480266e-4*p1(:)*sqrt(s(:)) &
                 +p2(:)*(-2.040237e-6 &
                 + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
-    dskdp=(3.186519 + 2.212276e-2*t(:) &
-                - 2.984642e-4*t2(:) + 1.956415e-6*t3(:)) &
-                + 2.*p1*(2.102898e-4 - 1.202016e-5*t(:) &
-                + 1.394680e-7*t2(:)) &
-                + s(:)*(6.704388e-3  -1.847318e-4*t(:) &
-                + 2.059331e-7*t2(:)) &
-                + 1.480266e-4*s32(:) &
-                + 2.*p1(:)*s(:)*(-2.040237e-6 &
-                + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
+!    dskdp=(3.186519 + 2.212276e-2*t(:) &
+!                - 2.984642e-4*t2(:) + 1.956415e-6*t3(:)) &
+!                + 2.*p1*(2.102898e-4 - 1.202016e-5*t(:) &
+!                + 1.394680e-7*t2(:)) &
+!                + s(:)*(6.704388e-3  -1.847318e-4*t(:) &
+!                + 2.059331e-7*t2(:)) &
+!                + 1.480266e-4*s32(:) &
+!                + 2.*p1(:)*s(:)*(-2.040237e-6 &
+!                + 6.128773e-8*t(:) + 6.207323e-10*t2(:))
        
     d_rho(:,ii)=rho0/(1.-p1/sk)
     rs(:,ii)=rs0/(1.-p1/sks) ! sal=0.
@@ -1546,7 +1543,7 @@ do i=1,nits
     d_beta(:,ii)=drhods                ! Large et al (1993) convention
   end do
 
-end do
+!end do
 
 return
 end subroutine calcdensity

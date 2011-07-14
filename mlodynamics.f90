@@ -6,7 +6,8 @@
 ! - Ice dynamics
 
 ! This module also links to mlo.f90 which solves for 1D physics of
-! ocean and ice processes
+! ocean and ice processes.  Currently the code assumes the hydrostatic
+! approximation which is reasonably valid to 1km resolution.
 
 module mlodynamics
 
@@ -16,10 +17,11 @@ private
 public mlodiffusion,mlorouter,mlohadv,watbdy
 
 real, dimension(:), allocatable, save :: watbdy
-integer, parameter :: salfilt=0    ! Additional salinity filter (0=off, 1=Katzfey)
-integer, parameter :: usetide=1    ! tidal forcing (0=Off, 1=On)
-integer, parameter :: icemode=2    ! Ice stress (0=free-drift, 1=incompressible, 2=cavitating)
-integer, parameter :: lmax   =1    ! 1=predictor-only, 2+=predictor-corrector
+integer, parameter :: salfilt=0    ! additional salinity filter (0=off, 1=Katzfey)
+integer, parameter :: usetide=1    ! tidal forcing (0=off, 1=on)
+integer, parameter :: intmode=2    ! horizontal interpolation (0=bi-linear, 1=bi-cubic, 2=bi-cubic+no vert)
+integer, parameter :: icemode=2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
+integer, parameter :: lmax   =1    ! advection loop (1=predictor-only, 2+=predictor-corrector)
 integer, parameter :: nf     =2    ! power for horizontal diffusion reduction factor
 real, parameter :: k_smag=0.4      ! horizontal diffusion (0.4 in mom3, 2. in Griffies (2000))
 real, parameter :: delphi=200.     ! horizontal diffusion reduction factor gradient
@@ -279,12 +281,18 @@ end subroutine mlorouter
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine implements some basic hydrostatic dynamics for the
-! ocean and ice. (note that this subroutine is a work in progress)
+! ocean and ice.  The ocean component employs the R-grid design used
+! in CCAM semi-Lagragain dynamics, but with vertical as well as horizontal
+! interpolation for the depature points.  The grid pivoting has been
+! modified for the land-sea boundary.  Sea-ice is advected using an
+! upwind scheme.  Internal sea-ice pressure follows a cavitating fluid
+! apporximation.
 
 subroutine mlohadv
 
 use arrays_m
 use cc_mpi
+use infile
 use indices_m
 use latlong_m
 use map_m
@@ -297,17 +305,15 @@ implicit none
 
 include 'newmpar.h'
 include 'const_phys.h'
-include 'dates.h'
 include 'mpif.h'
 include 'parm.h'
 
 integer iq,l,ll,ii,ierr,totits,itotits
-integer jyear,jmonth,jday,jhour,jmin,mstart,mins
+integer jyear,jmonth,jday,jhour,jmin,mins,leap
 integer tyear,jstart,pos(1)
 integer, dimension(ifull,wlev) :: nface
-integer, dimension(12) :: ndoy
 real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
-real delpos,delneg,alph_p,dumpp,dumpn
+real delpos,delneg,alph_p,dumpp,dumpn,fjd
 real, dimension(ifull+iextra) :: ee,neta,dd,snu,snv,pice,ip
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,ndum
 real, dimension(ifull+iextra) :: imass,spu,squ,sru,spv,sqv,srv,sou,sov
@@ -342,12 +348,11 @@ real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
 logical, dimension(ifull) :: stest
 logical lleap
-integer, parameter :: llmax=1000   ! iterations for calculating surface height
+integer, parameter :: llmax=400    ! iterations for calculating surface height
 real, parameter :: tol  = 5.E-4    ! Tolerance for GS solver (water)
 real, parameter :: itol = 5.E-1    ! Tolerance for GS solver (ice)
 real, parameter :: sal = 0.948     ! SAL parameter for tidal forcing
-
-data ndoy/0,31,59,90,120,151,181,212,243,273,304,334/
+common/leap_yr/leap  ! 1 to allow leap years
 
 ! new z levels for including free surface eta (effectively sigma-height levels)
 ! newz=-eta+oldz*(1+eta/maxdepth)
@@ -439,9 +444,9 @@ end do
 dd(1:ifull)=dzbar(:,wlev)
 call bounds(dd,nrows=2)
 
-! estimate tidal forcing
+! estimate tidal forcing (assumes leap days)
 if (usetide.eq.1) then
-  jyear=kdate/10000
+  call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
   jstart=0
   if (jyear.gt.1900) then
     do tyear=1900,jyear-1
@@ -456,17 +461,8 @@ if (usetide.eq.1) then
       jstart=jstart-365
     end do
   end if
-  mstart=720 ! base time is 12Z 31 Dec 1899
-  jmonth=(kdate-jyear*10000)/100
-  jday=kdate-jyear*10000-jmonth*100
-  jhour=ktime/100
-  jmin=ktime-jhour*100
-  mstart=mstart+1440*(ndoy(jmonth)+jday-1)+60*jhour+jmin ! mins from start of year
-  if (jmonth.gt.2) then
-    call mloleap(jyear,lleap)
-    if (lleap) mstart=mstart+1440
-  end if
-  mins = mtimer + mstart
+  mins=mins+720 ! base time is 12Z 31 Dec 1899
+  if (leap.eq.0.and.jmonth.gt.2) mins=mins+1440 ! fix for leap==0
   call mlotide(ndum(1:ifull),rlongg,rlatt,mins,jstart)
   ndum(1:ifull)=ndum(1:ifull)*ee(1:ifull)
   call bounds(ndum,nrows=2)
@@ -531,7 +527,10 @@ do l=1,lmax ! predictor-corrector loop
 
 
   ! calculate normalised density rhobar (unstaggered)
-  odum=(1.+neta(1:ifull)/dd(1:ifull))
+  ! (Assume free surface correction is small so that the compression effects due to
+  ! eta can be neglected.  Consequently, the eta dependence is explicit in the
+  ! iterative loop)
+  !odum=(1.+neta(1:ifull)/dd(1:ifull)) ! free surface correction from current time step
   do ii=1,wlev
     dumdep(:,ii)=dep(1:ifull,ii) !*odum
     dumdz(:,ii)=dz(1:ifull,ii)   !*odum
@@ -588,9 +587,20 @@ do l=1,lmax ! predictor-corrector loop
   end do
 
   ! Horizontal advection for U,V,W
-  call mloints(cou,dep,nface,xg,yg,wtr)
-  call mloints(cov,dep,nface,xg,yg,wtr)
-  call mloints(cow,dep,nface,xg,yg,wtr)
+  select case(intmode)
+    case(2) ! bi-cubic with no vertical interpolation
+      call mlob2ints(cou,nface,xg,yg,wtr)
+      call mlob2ints(cov,nface,xg,yg,wtr)
+      call mlob2ints(cow,nface,xg,yg,wtr)
+    case(1) ! bi-cubic with vertical interpolation
+      call mlobcints(cou,dep,nface,xg,yg,wtr)
+      call mlobcints(cov,dep,nface,xg,yg,wtr)
+      call mlobcints(cow,dep,nface,xg,yg,wtr)
+    case DEFAULT ! bi-linear
+      call mloints(cou,dep,nface,xg,yg,wtr)
+      call mloints(cov,dep,nface,xg,yg,wtr)
+      call mloints(cow,dep,nface,xg,yg,wtr)
+  end select
  
   ! Rotate vector to arrival point
   call mlorot(cou(1:ifull,:),cov(1:ifull,:),cow(1:ifull,:),x3d,y3d,z3d)
@@ -602,8 +612,17 @@ do l=1,lmax ! predictor-corrector loop
   end do
 
   ! Horizontal advection for T,S
-  call mlointsb(nt,dep,nface,xg,yg,wtr)
-  call mlointsb(ns,dep,nface,xg,yg,wtr)
+  select case (intmode)
+    case(2) ! bi-cubic without vertical interpolation
+      call mlob2intsb(nt,dep,nface,xg,yg,wtr)
+      call mlob2intsb(ns,dep,nface,xg,yg,wtr)
+    case(1) ! bi-cubic with vertical interpolation
+      call mlobcintsb(nt,dep,nface,xg,yg,wtr)
+      call mlobcintsb(ns,dep,nface,xg,yg,wtr)
+    case DEFAULT ! bi-linear
+      call mlointsb(nt,dep,nface,xg,yg,wtr)
+      call mlointsb(ns,dep,nface,xg,yg,wtr)
+  end select
   ns=max(ns,0.)
 
   ! FREE SURFACE CALCULATION ----------------------------------------
@@ -617,7 +636,7 @@ do l=1,lmax ! predictor-corrector loop
   end do
   call mlostaguv(uau,uav,cou(1:ifull,:),cov(1:ifull,:),ee)
 
-  ! interpolate density gradient to horizontal surfaces
+  ! calculate normalised density gradient along newz coordinates
   call stagtruedelta(rhobar,dep,wtr,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
   sou=0.
@@ -664,6 +683,7 @@ do l=1,lmax ! predictor-corrector loop
     bv=-dt/(rhov*(1.+0.25*dt*dt*fv(1:ifull)*fv(1:ifull)))
     cv=-0.5*dt*fv(1:ifull)*bv
 
+    ! Note pressure gradients are along newz coordinates
     !dppdxu=dpsdxu+grav*depu*(1+etau/ddu)*drhobardxu+grav*rhobaru*detadxu
     !dppdyu=dpsdyu+grav*depu*(1+etau/ddu)*drhobardyu+grav*rhobaru*detadyu
     !dppdxv=dpsdxv+grav*depv*(1+etav/ddv)*drhobardxv+grav*rhobarv*detadxv
@@ -773,9 +793,10 @@ do l=1,lmax ! predictor-corrector loop
     dsnvsdeta=sssd*(1.+0.5*(neta(is)+neta(1:ifull)+ndum(is)+ndum(1:ifull))/(dd(is)+dd(1:ifull))) &
              +0.5*snv(isv)/(dd(is)+dd(1:ifull))
     ddivdeta=(dsnudeta/emu(1:ifull)-dsnuwdeta/emu(iwu)+dsnvdeta/emv(1:ifull)-dsnvsdeta/emv(isv))*em(1:ifull)*em(1:ifull)/ds
-    seta=-neta(1:ifull)+w_e-div/(1./dt+ddivdeta)
+    seta=-neta(1:ifull)+w_e-div/(1./dt+ddivdeta) ! implicit in first term of Taylor expansion
     
     ! The following expression limits the minimum depth to 1m
+    ! (should not occur for typical eta values)
     seta=max(seta,1.-dd(1:ifull)-neta(1:ifull))*ee(1:ifull) ! this should become a land point
     neta(1:ifull)=alpha*seta+neta(1:ifull)
     
@@ -1178,29 +1199,77 @@ end do
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
 
-do n=1,nguess
-  temp(1:ifull,:) = uc
-  call mloints(temp,dep,nface,xg,yg,wtr)
-  do ii=1,kx
-    x3d(:,ii) = x - 0.5*(uc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
-  end do
-  temp(1:ifull,:) = vc
-  call mloints(temp,dep,nface,xg,yg,wtr)
-  do ii=1,kx
-    y3d(:,ii) = y - 0.5*(vc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
-  end do
-  temp(1:ifull,:) = wc
-  call mloints(temp,dep,nface,xg,yg,wtr)
-  do ii=1,kx
-    z3d(:,ii) = z - 0.5*(wc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
-  end do
-
-  do ii=1,kx
-    call mlotoij5(x3d(:,ii),y3d(:,ii),z3d(:,ii),nface(:,ii),xg(:,ii),yg(:,ii))
-  end do
-  !     Share off processor departure points.
-  call deptsync(nface,xg,yg)
-end do
+select case(intmode)
+  case(2) ! bi-cubic without vertical interpolation
+    do n=1,nguess
+      temp(1:ifull,:) = uc
+      call mlob2ints(temp,nface,xg,yg,wtr)
+      do ii=1,kx
+        x3d(:,ii) = x - 0.5*(uc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
+      end do
+      temp(1:ifull,:) = vc
+      call mlob2ints(temp,nface,xg,yg,wtr)
+      do ii=1,kx
+        y3d(:,ii) = y - 0.5*(vc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
+      end do
+      temp(1:ifull,:) = wc
+      call mlob2ints(temp,nface,xg,yg,wtr)
+      do ii=1,kx
+        z3d(:,ii) = z - 0.5*(wc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
+      end do
+      do ii=1,kx
+        call mlotoij5(x3d(:,ii),y3d(:,ii),z3d(:,ii),nface(:,ii),xg(:,ii),yg(:,ii))
+      end do
+      !     Share off processor departure points.
+      call deptsync(nface,xg,yg)
+    end do
+  case(1) ! bi-cubic with vertical interpolation
+    do n=1,nguess
+      temp(1:ifull,:) = uc
+      call mlobcints(temp,dep,nface,xg,yg,wtr)
+      do ii=1,kx
+        x3d(:,ii) = x - 0.5*(uc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
+      end do
+      temp(1:ifull,:) = vc
+      call mlobcints(temp,dep,nface,xg,yg,wtr)
+      do ii=1,kx
+        y3d(:,ii) = y - 0.5*(vc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
+      end do
+      temp(1:ifull,:) = wc
+      call mlobcints(temp,dep,nface,xg,yg,wtr)
+      do ii=1,kx
+        z3d(:,ii) = z - 0.5*(wc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
+      end do
+      do ii=1,kx
+        call mlotoij5(x3d(:,ii),y3d(:,ii),z3d(:,ii),nface(:,ii),xg(:,ii),yg(:,ii))
+      end do
+      !     Share off processor departure points.
+      call deptsync(nface,xg,yg)
+    end do
+  case DEFAULT ! bi-linear
+    do n=1,nguess
+      temp(1:ifull,:) = uc
+      call mloints(temp,dep,nface,xg,yg,wtr)
+      do ii=1,kx
+        x3d(:,ii) = x - 0.5*(uc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
+      end do
+      temp(1:ifull,:) = vc
+      call mloints(temp,dep,nface,xg,yg,wtr)
+      do ii=1,kx
+        y3d(:,ii) = y - 0.5*(vc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
+      end do
+      temp(1:ifull,:) = wc
+      call mloints(temp,dep,nface,xg,yg,wtr)
+      do ii=1,kx
+        z3d(:,ii) = z - 0.5*(wc(:,ii)+temp(1:ifull,ii)) ! n+1 guess
+      end do
+      do ii=1,kx
+        call mlotoij5(x3d(:,ii),y3d(:,ii),z3d(:,ii),nface(:,ii),xg(:,ii),yg(:,ii))
+      end do
+      !     Share off processor departure points.
+      call deptsync(nface,xg,yg)
+    end do
+end select
 
 return
 end subroutine mlodeps
@@ -1318,6 +1387,1889 @@ end subroutine mlotoij5
 ! This code is from ints.f
 
 ! This version is for velocity as the interpolated value is zero over land
+! We use bi-cubic based on JLM's ints.f routines, with no vertical
+! interpolation.
+subroutine mlob2ints(s,nface,xg,yg,wtr)
+
+use cc_mpi
+use indices_m
+use mlo
+
+implicit none
+
+include 'newmpar.h'
+include 'parm.h'
+include 'parmhor.h'
+include 'mpif.h'
+
+integer idel,iq,jdel,kx
+integer i,j,k,n,ind,ip,jp,iproc,ierr,intsch
+integer, dimension(:,:), intent(in) :: nface
+real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
+real, dimension(ifull+iextra,size(nface,2)), intent(inout) :: s
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(nface,2)) :: sx
+real, dimension(4) :: r
+real c1,c2,c3,c4,xxg,yyg
+logical, dimension(ifull+iextra), intent(in) :: wtr
+ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
+
+kx=size(nface,2)
+intsch=mod(ktau,2)
+
+call bounds(s,nrows=2)
+
+!======================== start of intsch=1 section ====================
+if(intsch==1)then
+
+    do n=1,npan         ! first simple copy into larger array
+      do j=1,jpan
+        do i=1,ipan
+          sx(i,j,n,:) = s(ind(i,j,n),:)
+        enddo         ! i loop
+      enddo            ! j loop
+    enddo               ! n loop
+            
+!       this is intsb           EW interps done first
+!       first extend s arrays into sx - this one -1:il+2 & -1:il+2
+    do n=1,npan
+      do j=1,jpan
+        sx(0,j,n,:) = s(iw(ind(1,j,n)),:)
+        sx(-1,j,n,:) = s(iww(ind(1,j,n)),:)
+        sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
+        sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
+      enddo            ! j loop
+      do i=1,ipan
+        sx(i,0,n,:) = s(is(ind(i,1,n)),:)
+        sx(i,-1,n,:) = s(iss(ind(i,1,n)),:)
+        sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
+        sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
+      enddo            ! i loop
+!        for ew interpolation, sometimes need (different from ns):
+!            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+
+      sx(-1,0,n,:) = s(lwws(n),:)
+      sx(0,0,n,:) = s(lws(n),:)
+      sx(0,-1,n,:) = s(lwss(n),:)
+      sx(ipan+1,0,n,:) = s(les(n),:)
+      sx(ipan+2,0,n,:) = s(lees(n),:)
+      sx(ipan+1,-1,n,:) = s(less(n),:)
+      sx(-1,jpan+1,n,:) = s(lwwn(n),:)
+      sx(0,jpan+2,n,:) = s(lwnn(n),:)
+      sx(ipan+2,jpan+1,n,:) = s(leen(n),:)
+      sx(ipan+1,jpan+2,n,:) = s(lenn(n),:)
+      sx(0,jpan+1,n,:)    = s(iwn(ind(1,jpan,n)),:)
+      sx(ipan+1,jpan+1,n,:) = s(ien(ind(ipan,jpan,n)),:)
+    enddo               ! n loop
+
+  do iq=1,ifull
+    if (wtr(iq)) then
+      do k=1,kx
+!       Convert face index from 0:npanels to array indices
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
+             jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+
+        c1 = sx(idel-1,jdel,n,k)
+        c2 = sx(idel  ,jdel,n,k)
+        c3 = sx(idel+1,jdel,n,k)
+        c4 = sx(idel+2,jdel,n,k)
+        r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+             -xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+
+        c1 = sx(idel-1,jdel+1,n,k)
+        c2 = sx(idel  ,jdel+1,n,k)
+        c3 = sx(idel+1,jdel+1,n,k)
+        c4 = sx(idel+2,jdel+1,n,k)
+        r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+             -xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+
+        c2 = sx(idel  ,jdel-1,n,k)
+        c3 = sx(idel+1,jdel-1,n,k)
+        r(1) = (1.-xxg)*c2 +xxg*c3
+
+        c2 = sx(idel  ,jdel+2,n,k)
+        c3 = sx(idel+1,jdel+2,n,k)
+        r(4) = (1.-xxg)*c2 +xxg*c3
+                     
+        s(iq,k) = ((1.-yyg)*((2.-yyg)*       &
+             ((1.+yyg)*r(2)-yyg*r(1)/3.)     &
+             -yyg*(1.+yyg)*r(4)/3.)          &
+             +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+      end do ! k loop
+    end if   ! wtr
+  enddo      ! iq loop
+
+! Loop over points that need to be calculated for other processes
+
+  do iproc=0,nproc-1
+    if ( iproc == myid ) then
+      cycle
+    end if
+    do iq=1,drlen(iproc)
+        !  Convert face index from 0:npanels to array indices
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+        !  Need global face index in fproc call
+        idel = int(dpoints(iproc)%a(2,iq))
+        xxg = dpoints(iproc)%a(2,iq) - idel
+        jdel = int(dpoints(iproc)%a(3,iq))
+        yyg = dpoints(iproc)%a(3,iq) - jdel
+        k = nint(dpoints(iproc)%a(4,iq))
+        idel = idel - ioff(n-noff)
+        jdel = jdel - joff(n-noff)
+
+        c1 = sx(idel-1,jdel,n,k)
+        c2 = sx(idel  ,jdel,n,k)
+        c3 = sx(idel+1,jdel,n,k)
+        c4 = sx(idel+2,jdel,n,k)
+        r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+             -xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+
+        c1 = sx(idel-1,jdel+1,n,k)
+        c2 = sx(idel  ,jdel+1,n,k)
+        c3 = sx(idel+1,jdel+1,n,k)
+        c4 = sx(idel+2,jdel+1,n,k)
+        r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+             -xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+
+        c2 = sx(idel  ,jdel-1,n,k)
+        c3 = sx(idel+1,jdel-1,n,k)
+        r(1) = (1.-xxg)*c2 +xxg*c3
+
+        c2 = sx(idel  ,jdel+2,n,k)
+        c3 = sx(idel+1,jdel+2,n,k)
+        r(4) = (1.-xxg)*c2 +xxg*c3
+
+        sextra(iproc)%a(iq) = ((1.-yyg)*((2.-yyg)* &
+             ((1.+yyg)*r(2)-yyg*r(1)/3.)           &
+             -yyg*(1.+yyg)*r(4)/3.)                &
+             +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+    enddo            ! iq loop
+  end do              ! iproc loop
+            
+!========================   end of intsch=1 section ====================
+else     ! if(intsch==1)then
+!======================== start of intsch=2 section ====================
+!       this is intsc           NS interps done first
+!       first extend s arrays into sx - this one -1:il+2 & -1:il+2
+
+    do n=1,npan         ! first simple copy into larger array
+      do j=1,jpan
+        do i=1,ipan
+          sx(i,j,n,:)=s(ind(i,j,n),:)
+        enddo         ! i loop
+      enddo            ! j loop
+    enddo               ! n loop
+
+    do n=1,npan
+      do j=1,jpan
+        sx(0,j,n,:) = s(iw(ind(1,j,n)),:)
+        sx(-1,j,n,:) = s(iww(ind(1,j,n)),:)
+        sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
+        sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
+      enddo            ! j loop
+      do i=1,ipan
+        sx(i,0,n,:) = s(is(ind(i,1,n)),:)
+        sx(i,-1,n,:) = s(iss(ind(i,1,n)),:)
+        sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
+        sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
+      enddo            ! i loop
+!        for ns interpolation, sometimes need (different from ew):
+!            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+
+      sx(-1,0,n,:)=s(lsww(n),:)
+      sx(0,0,n,:) = s(lsw(n),:)
+      sx(0,-1,n,:) = s(lssw(n),:)
+      sx(ipan+2,0,n,:) = s(lsee(n),:)
+      sx(ipan+1,-1,n,:) = s(lsse(n),:)
+      sx(-1,jpan+1,n,:) = s(lnww(n),:)
+      sx(0,jpan+1,n,:) = s(lnw(n),:)
+      sx(0,jpan+2,n,:) = s(lnnw(n),:)
+      sx(ipan+2,jpan+1,n,:) = s(lnee(n),:)
+      sx(ipan+1,jpan+2,n,:) = s(lnne(n),:)
+      sx(ipan+1,0,n,:)    = s(ise(ind(ipan,1,n)),:)
+      sx(ipan+1,jpan+1,n,:) = s(ine(ind(ipan,jpan,n)),:)
+    enddo               ! n loop
+
+  do iq=1,ifull
+    if (wtr(iq)) then
+      do k=1,kx
+!       Convert face index from 0:npanels to array indices
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
+             jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+
+        c1 = sx(idel,jdel-1,n,k)
+        c2 = sx(idel,jdel  ,n,k)
+        c3 = sx(idel,jdel+1,n,k)
+        c4 = sx(idel,jdel+2,n,k)
+        r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+             -yyg*(1.+yyg)*c4/3.)                          &
+             +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+
+        c1 = sx(idel+1,jdel-1,n,k)
+        c2 = sx(idel+1,jdel  ,n,k)
+        c3 = sx(idel+1,jdel+1,n,k)
+        c4 = sx(idel+1,jdel+2,n,k)
+        r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+             -yyg*(1.+yyg)*c4/3.)                          &
+             +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+
+        c2 = sx(idel-1,jdel  ,n,k)
+        c3 = sx(idel-1,jdel+1,n,k)
+        r(1) = (1.-yyg)*c2 +yyg*c3
+
+        c2 = sx(idel+2,jdel  ,n,k)
+        c3 = sx(idel+2,jdel+1,n,k)
+        r(4) = (1.-yyg)*c2 +yyg*c3
+
+        s(iq,k) = ((1.-xxg)*((2.-xxg)*       &
+             ((1.+xxg)*r(2)-xxg*r(1)/3.)     &
+             -xxg*(1.+xxg)*r(4)/3.)          &
+             +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+      end do
+    end if
+  end do
+
+! For other processes
+
+  do iproc=0,nproc-1
+    if ( iproc == myid ) then
+      cycle
+    end if
+    do iq=1,drlen(iproc)
+        !  Convert face index from 0:npanels to array indices
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+        !  Need global face index in fproc call
+        idel = int(dpoints(iproc)%a(2,iq))
+        xxg = dpoints(iproc)%a(2,iq) - idel
+        jdel = int(dpoints(iproc)%a(3,iq))
+        yyg = dpoints(iproc)%a(3,iq) - jdel
+        k = nint(dpoints(iproc)%a(4,iq))
+        idel = idel - ioff(n-noff)
+        jdel = jdel - joff(n-noff)
+
+        c1 = sx(idel,jdel-1,n,k)
+        c2 = sx(idel,jdel  ,n,k)
+        c3 = sx(idel,jdel+1,n,k)
+        c4 = sx(idel,jdel+2,n,k)
+        r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+             -yyg*(1.+yyg)*c4/3.)                          &
+             +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+
+        c1 = sx(idel+1,jdel-1,n,k)
+        c2 = sx(idel+1,jdel  ,n,k)
+        c3 = sx(idel+1,jdel+1,n,k)
+        c4 = sx(idel+1,jdel+2,n,k)
+        r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+             -yyg*(1.+yyg)*c4/3.)                          &
+             +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+
+        c2 = sx(idel-1,jdel  ,n,k)
+        c3 = sx(idel-1,jdel+1,n,k)
+        r(1) = (1.-yyg)*c2 +yyg*c3
+
+        c2 = sx(idel+2,jdel  ,n,k)
+        c3 = sx(idel+2,jdel+1,n,k)
+        r(4) = (1.-yyg)*c2 +yyg*c3
+
+        sextra(iproc)%a(iq) = ((1.-xxg)*((2.-xxg)* &
+             ((1.+xxg)*r(2)-xxg*r(1)/3.)           &
+             -xxg*(1.+xxg)*r(4)/3.)                &
+             +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+    enddo            ! iq loop
+  end do              ! iproc
+
+endif                     ! (intsch==1) .. else ..
+!========================   end of intsch=1 section ====================
+
+call intssync(s)
+
+return
+end subroutine mlob2ints
+
+! This version is for scalars which is same as above, but
+! missing land values are filled from non-trivial values
+! instead of being set to zero
+subroutine mlob2intsb(s,d,nface,xg,yg,wtr)
+
+use cc_mpi
+use indices_m
+use mlo
+
+implicit none
+
+include 'newmpar.h'
+include 'parm.h'
+include 'parmhor.h'
+include 'mpif.h'
+
+integer idel,iq,jdel,kx
+integer i,j,k,n,ind,ip,jp,iproc,ierr,intsch,ncount
+integer, dimension(:,:), intent(in) :: nface
+real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
+real, dimension(ifull+iextra,size(nface,2)), intent(inout) :: s
+real, dimension(ifull+iextra,size(nface,2)), intent(in) :: d
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(nface,2)) :: sx,dx
+real, dimension(-1:2,-1:2) :: sc
+real, dimension(4) :: r
+real xxg,yyg,aab,aac,aad
+real cmax,cmin,cxx
+real d1,d2,d3,d4
+logical, dimension(ifull+iextra), intent(in) :: wtr
+ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
+
+kx=size(nface,2)
+intsch=mod(ktau,2)
+cxx=-99.
+sc=cxx
+
+call bounds(s,nrows=2)
+
+!======================== start of intsch=1 section ====================
+if(intsch==1)then
+
+    do n=1,npan         ! first simple copy into larger array
+      do j=1,jpan
+        do i=1,ipan
+          sx(i,j,n,:) = s(ind(i,j,n),:)
+          dx(i,j,n,:) = d(ind(i,j,n),:)
+        enddo         ! i loop
+      enddo            ! j loop
+    enddo               ! n loop
+            
+!       this is intsb           EW interps done first
+!       first extend s arrays into sx - this one -1:il+2 & -1:il+2
+    do n=1,npan
+      do j=1,jpan
+        sx(0,j,n,:) = s(iw(ind(1,j,n)),:)
+        sx(-1,j,n,:) = s(iww(ind(1,j,n)),:)
+        sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
+        sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
+        dx(0,j,n,:) = d(iw(ind(1,j,n)),:)
+        dx(-1,j,n,:) = d(iww(ind(1,j,n)),:)
+        dx(ipan+1,j,n,:) = d(ie(ind(ipan,j,n)),:)
+        dx(ipan+2,j,n,:) = d(iee(ind(ipan,j,n)),:)
+      enddo            ! j loop
+      do i=1,ipan
+        sx(i,0,n,:) = s(is(ind(i,1,n)),:)
+        sx(i,-1,n,:) = s(iss(ind(i,1,n)),:)
+        sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
+        sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
+        dx(i,0,n,:) = d(is(ind(i,1,n)),:)
+        dx(i,-1,n,:) = d(iss(ind(i,1,n)),:)
+        dx(i,jpan+1,n,:) = d(in(ind(i,jpan,n)),:)
+        dx(i,jpan+2,n,:) = d(inn(ind(i,jpan,n)),:)
+      enddo            ! i loop
+!        for ew interpolation, sometimes need (different from ns):
+!            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+
+      sx(-1,0,n,:) = s(lwws(n),:)
+      sx(0,0,n,:) = s(lws(n),:)
+      sx(0,-1,n,:) = s(lwss(n),:)
+      sx(ipan+1,0,n,:) = s(les(n),:)
+      sx(ipan+2,0,n,:) = s(lees(n),:)
+      sx(ipan+1,-1,n,:) = s(less(n),:)
+      sx(-1,jpan+1,n,:) = s(lwwn(n),:)
+      sx(0,jpan+2,n,:) = s(lwnn(n),:)
+      sx(ipan+2,jpan+1,n,:) = s(leen(n),:)
+      sx(ipan+1,jpan+2,n,:) = s(lenn(n),:)
+      sx(0,jpan+1,n,:)    = s(iwn(ind(1,jpan,n)),:)
+      sx(ipan+1,jpan+1,n,:) = s(ien(ind(ipan,jpan,n)),:)
+      dx(-1,0,n,:) = d(lwws(n),:)
+      dx(0,0,n,:) = d(lws(n),:)
+      dx(0,-1,n,:) = d(lwss(n),:)
+      dx(ipan+1,0,n,:) = d(les(n),:)
+      dx(ipan+2,0,n,:) = d(lees(n),:)
+      dx(ipan+1,-1,n,:) = d(less(n),:)
+      dx(-1,jpan+1,n,:) = d(lwwn(n),:)
+      dx(0,jpan+2,n,:) = d(lwnn(n),:)
+      dx(ipan+2,jpan+1,n,:) = d(leen(n),:)
+      dx(ipan+1,jpan+2,n,:) = d(lenn(n),:)
+      dx(0,jpan+1,n,:)    = d(iwn(ind(1,jpan,n)),:)
+      dx(ipan+1,jpan+1,n,:) = d(ien(ind(ipan,jpan,n)),:)
+    enddo               ! n loop
+
+  do iq=1,ifull
+    if (wtr(iq)) then
+      do k=1,kx
+!       Convert face index from 0:npanels to array indices
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
+             jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+
+        sc(-1,0) = sx(idel-1,jdel,n,k)
+        sc(0,0)  = sx(idel  ,jdel,n,k)
+        sc(1,0)  = sx(idel+1,jdel,n,k)
+        sc(2,0)  = sx(idel+2,jdel,n,k)
+        d1 = dx(idel-1,jdel,n,k)
+        d2 = dx(idel  ,jdel,n,k)
+        d3 = dx(idel+1,jdel,n,k)
+        d4 = dx(idel+2,jdel,n,k)
+        if (d1.lt.0.1) sc(-1,0)=cxx
+        if (d2.lt.0.1) sc(0,0)=cxx
+        if (d3.lt.0.1) sc(1,0)=cxx
+        if (d4.lt.0.1) sc(2,0)=cxx
+
+        sc(-1,1) = sx(idel-1,jdel+1,n,k)
+        sc(0,1)  = sx(idel  ,jdel+1,n,k)
+        sc(1,1)  = sx(idel+1,jdel+1,n,k)
+        sc(2,1)  = sx(idel+2,jdel+1,n,k)
+        d1 = dx(idel-1,jdel+1,n,k)
+        d2 = dx(idel  ,jdel+1,n,k)
+        d3 = dx(idel+1,jdel+1,n,k)
+        d4 = dx(idel+2,jdel+1,n,k)
+        if (d1.lt.0.1) sc(-1,1)=cxx
+        if (d2.lt.0.1) sc(0,1)=cxx
+        if (d3.lt.0.1) sc(1,1)=cxx
+        if (d4.lt.0.1) sc(2,1)=cxx
+
+        sc(0,-1) = sx(idel  ,jdel-1,n,k)
+        sc(1,-1) = sx(idel+1,jdel-1,n,k)
+        d2 = dx(idel  ,jdel-1,n,k)
+        d3 = dx(idel+1,jdel-1,n,k)
+        if (d2.lt.0.1) sc(0,-1)=cxx
+        if (d3.lt.0.1) sc(1,-1)=cxx
+
+        sc(0,2) = sx(idel  ,jdel+2,n,k)
+        sc(1,2) = sx(idel+1,jdel+2,n,k)
+        d2 = dx(idel  ,jdel+2,n,k)
+        d3 = dx(idel+1,jdel+2,n,k)
+        if (d2.lt.0.1) sc(0,2)=cxx
+        if (d3.lt.0.1) sc(1,2)=cxx
+
+        ncount=count(sc.gt.-0.1)
+        if (ncount.ge.12) then
+          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
+               -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
+          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
+               -xxg*(1.+xxg)*sc(2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,1))/2.
+          r(1) = (1.-xxg)*sc(0,-1) +xxg*sc(1,-1)
+          r(4) = (1.-xxg)*sc(0,2) +xxg*sc(1,2)
+
+          s(iq,k) = ((1.-yyg)*((2.-yyg)* &
+               ((1.+yyg)*r(2)-yyg*r(1)/3.)           &
+               -yyg*(1.+yyg)*r(4)/3.)                &
+               +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+        else
+          call lfill(sc(0:1,0:1),s(iq,k))        
+          aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
+          aab=sc(1,0)-sc(0,0)
+          aac=sc(0,1)-sc(0,0)
+          s(iq,k)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)        
+        end if
+        cmax=maxval(sc(0:1,0:1))
+        cmin=minval(sc(0:1,0:1))
+        s(iq,k)=min(max(s(iq,k),cmin),cmax)
+      end do ! k loop
+    end if   ! wtr
+  enddo      ! iq loop
+
+! Loop over points that need to be calculated for other processes
+
+  call intssend(s)
+
+  do iproc=0,nproc-1
+    if ( iproc == myid ) then
+      cycle
+    end if
+    do iq=1,drlen(iproc)
+        !  Convert face index from 0:npanels to array indices
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+        !  Need global face index in fproc call
+        idel = int(dpoints(iproc)%a(2,iq))
+        xxg = dpoints(iproc)%a(2,iq) - idel
+        jdel = int(dpoints(iproc)%a(3,iq))
+        yyg = dpoints(iproc)%a(3,iq) - jdel
+        k = nint(dpoints(iproc)%a(4,iq))
+        idel = idel - ioff(n-noff)
+        jdel = jdel - joff(n-noff)
+
+        sc(-1,0) = sx(idel-1,jdel,n,k)
+        sc(0,0)  = sx(idel  ,jdel,n,k)
+        sc(1,0)  = sx(idel+1,jdel,n,k)
+        sc(2,0)  = sx(idel+2,jdel,n,k)
+        d1 = dx(idel-1,jdel,n,k)
+        d2 = dx(idel  ,jdel,n,k)
+        d3 = dx(idel+1,jdel,n,k)
+        d4 = dx(idel+2,jdel,n,k)
+        if (d1.lt.0.1) sc(-1,0)=cxx
+        if (d2.lt.0.1) sc(0,0)=cxx
+        if (d3.lt.0.1) sc(1,0)=cxx
+        if (d4.lt.0.1) sc(2,0)=cxx
+
+        sc(-1,1) = sx(idel-1,jdel+1,n,k)
+        sc(0,1)  = sx(idel  ,jdel+1,n,k)
+        sc(1,1)  = sx(idel+1,jdel+1,n,k)
+        sc(2,1)  = sx(idel+2,jdel+1,n,k)
+        d1 = dx(idel-1,jdel+1,n,k)
+        d2 = dx(idel  ,jdel+1,n,k)
+        d3 = dx(idel+1,jdel+1,n,k)
+        d4 = dx(idel+2,jdel+1,n,k)
+        if (d1.lt.0.1) sc(-1,1)=cxx
+        if (d2.lt.0.1) sc(0,1)=cxx
+        if (d3.lt.0.1) sc(1,1)=cxx
+        if (d4.lt.0.1) sc(2,1)=cxx
+
+        sc(0,-1) = sx(idel  ,jdel-1,n,k)
+        sc(1,-1) = sx(idel+1,jdel-1,n,k)
+        d2 = dx(idel  ,jdel-1,n,k)
+        d3 = dx(idel+1,jdel-1,n,k)
+        if (d2.lt.0.1) sc(0,-1)=cxx
+        if (d3.lt.0.1) sc(1,-1)=cxx
+
+        sc(0,2) = sx(idel  ,jdel+2,n,k)
+        sc(1,2) = sx(idel+1,jdel+2,n,k)
+        d2 = dx(idel  ,jdel+2,n,k)
+        d3 = dx(idel+1,jdel+2,n,k)
+        if (d2.lt.0.1) sc(0,2)=cxx
+        if (d3.lt.0.1) sc(1,2)=cxx
+
+        ncount=count(sc.gt.-0.1)
+        if (ncount.ge.12) then
+          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
+               -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
+          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
+               -xxg*(1.+xxg)*sc(2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,1))/2.
+          r(1) = (1.-xxg)*sc(0,-1) +xxg*sc(1,-1)
+          r(4) = (1.-xxg)*sc(0,2) +xxg*sc(1,2)
+
+          sextra(iproc)%a(iq) = ((1.-yyg)*((2.-yyg)* &
+               ((1.+yyg)*r(2)-yyg*r(1)/3.)           &
+               -yyg*(1.+yyg)*r(4)/3.)                &
+               +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+        else
+          call lfill(sc(0:1,0:1),sextra(iproc)%a(iq))        
+          aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
+          aab=sc(1,0)-sc(0,0)
+          aac=sc(0,1)-sc(0,0)
+          sextra(iproc)%a(iq)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)        
+        end if
+      cmax=maxval(sc(0:1,0:1))
+      cmin=minval(sc(0:1,0:1))
+      sextra(iproc)%a(iq)=min(max(sextra(iproc)%a(iq),cmin),cmax)
+    enddo            ! iq loop
+  end do              ! iproc loop
+            
+!========================   end of intsch=1 section ====================
+else     ! if(intsch==1)then
+!======================== start of intsch=2 section ====================
+!       this is intsc           NS interps done first
+!       first extend s arrays into sx - this one -1:il+2 & -1:il+2
+
+    do n=1,npan         ! first simple copy into larger array
+      do j=1,jpan
+        do i=1,ipan
+          sx(i,j,n,:)=s(ind(i,j,n),:)
+          dx(i,j,n,:)=d(ind(i,j,n),:)
+        enddo         ! i loop
+      enddo            ! j loop
+    enddo               ! n loop
+
+    do n=1,npan
+      do j=1,jpan
+        sx(0,j,n,:) = s(iw(ind(1,j,n)),:)
+        sx(-1,j,n,:) = s(iww(ind(1,j,n)),:)
+        sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
+        sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
+        dx(0,j,n,:) = d(iw(ind(1,j,n)),:)
+        dx(-1,j,n,:) = d(iww(ind(1,j,n)),:)
+        dx(ipan+1,j,n,:) = d(ie(ind(ipan,j,n)),:)
+        dx(ipan+2,j,n,:) = d(iee(ind(ipan,j,n)),:)
+      enddo            ! j loop
+      do i=1,ipan
+        sx(i,0,n,:) = s(is(ind(i,1,n)),:)
+        sx(i,-1,n,:) = s(iss(ind(i,1,n)),:)
+        sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
+        sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
+        dx(i,0,n,:) = d(is(ind(i,1,n)),:)
+        dx(i,-1,n,:) = d(iss(ind(i,1,n)),:)
+        dx(i,jpan+1,n,:) = d(in(ind(i,jpan,n)),:)
+        dx(i,jpan+2,n,:) = d(inn(ind(i,jpan,n)),:)
+      enddo            ! i loop
+!        for ns interpolation, sometimes need (different from ew):
+!            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+
+      sx(-1,0,n,:)=s(lsww(n),:)
+      sx(0,0,n,:) = s(lsw(n),:)
+      sx(0,-1,n,:) = s(lssw(n),:)
+      sx(ipan+2,0,n,:) = s(lsee(n),:)
+      sx(ipan+1,-1,n,:) = s(lsse(n),:)
+      sx(-1,jpan+1,n,:) = s(lnww(n),:)
+      sx(0,jpan+1,n,:) = s(lnw(n),:)
+      sx(0,jpan+2,n,:) = s(lnnw(n),:)
+      sx(ipan+2,jpan+1,n,:) = s(lnee(n),:)
+      sx(ipan+1,jpan+2,n,:) = s(lnne(n),:)
+      sx(ipan+1,0,n,:)    = s(ise(ind(ipan,1,n)),:)
+      sx(ipan+1,jpan+1,n,:) = s(ine(ind(ipan,jpan,n)),:)
+      dx(-1,0,n,:)=d(lsww(n),:)
+      dx(0,0,n,:) = d(lsw(n),:)
+      dx(0,-1,n,:) = d(lssw(n),:)
+      dx(ipan+2,0,n,:) = d(lsee(n),:)
+      dx(ipan+1,-1,n,:) = d(lsse(n),:)
+      dx(-1,jpan+1,n,:) = d(lnww(n),:)
+      dx(0,jpan+1,n,:) = d(lnw(n),:)
+      dx(0,jpan+2,n,:) = d(lnnw(n),:)
+      dx(ipan+2,jpan+1,n,:) = d(lnee(n),:)
+      dx(ipan+1,jpan+2,n,:) = d(lnne(n),:)
+      dx(ipan+1,0,n,:)    = d(ise(ind(ipan,1,n)),:)
+      dx(ipan+1,jpan+1,n,:) = d(ine(ind(ipan,jpan,n)),:)
+    enddo               ! n loop
+
+  do iq=1,ifull
+    if (wtr(iq)) then
+      do k=1,kx
+!       Convert face index from 0:npanels to array indices
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
+             jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+
+        sc(0,-1) = sx(idel,jdel-1,n,k)
+        sc(0,0)  = sx(idel,jdel  ,n,k)
+        sc(0,1)  = sx(idel,jdel+1,n,k)
+        sc(0,2)  = sx(idel,jdel+2,n,k)
+        d1 = dx(idel,jdel-1,n,k)
+        d2 = dx(idel,jdel  ,n,k)
+        d3 = dx(idel,jdel+1,n,k)
+        d4 = dx(idel,jdel+2,n,k)
+        if (d1.lt.0.1) sc(0,-1)=cxx
+        if (d2.lt.0.1) sc(0,0)=cxx
+        if (d3.lt.0.1) sc(0,1)=cxx
+        if (d4.lt.0.1) sc(0,2)=cxx
+
+        sc(1,-1) = sx(idel+1,jdel-1,n,k)
+        sc(1,0)  = sx(idel+1,jdel  ,n,k)
+        sc(1,1)  = sx(idel+1,jdel+1,n,k)
+        sc(1,2)  = sx(idel+1,jdel+2,n,k)
+        d1 = dx(idel+1,jdel-1,n,k)
+        d2 = dx(idel+1,jdel  ,n,k)
+        d3 = dx(idel+1,jdel+1,n,k)
+        d4 = dx(idel+1,jdel+2,n,k)
+        if (d1.lt.0.1) sc(1,-1)=cxx
+        if (d2.lt.0.1) sc(1,0)=cxx
+        if (d3.lt.0.1) sc(1,1)=cxx
+        if (d4.lt.0.1) sc(1,2)=cxx
+
+        sc(-1,0) = sx(idel-1,jdel  ,n,k)
+        sc(-1,1) = sx(idel-1,jdel+1,n,k)
+        d2 = dx(idel-1,jdel  ,n,k)
+        d3 = dx(idel-1,jdel+1,n,k)
+        if (d2.lt.0.1) sc(-1,0)=cxx
+        if (d3.lt.0.1) sc(-1,1)=cxx
+        
+        sc(2,0) = sx(idel+2,jdel  ,n,k)
+        sc(2,1) = sx(idel+2,jdel+1,n,k)
+        d2 = dx(idel+2,jdel  ,n,k)
+        d3 = dx(idel+2,jdel+1,n,k)
+        if (d2.lt.0.1) sc(2,0)=cxx
+        if (d3.lt.0.1) sc(2,1)=cxx
+        
+        ncount=count(sc.gt.-0.1)
+        if (ncount.ge.12) then
+          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
+               -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
+          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
+               -yyg*(1.+yyg)*sc(1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(1,1))/2.
+          r(1) = (1.-yyg)*sc(-1,0) +yyg*sc(-1,1)
+          r(4) = (1.-yyg)*sc(2,0) +yyg*sc(2,1)
+
+          s(iq,k) = ((1.-xxg)*((2.-xxg)*       &
+               ((1.+xxg)*r(2)-xxg*r(1)/3.)     &
+               -xxg*(1.+xxg)*r(4)/3.)          &
+               +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+        else
+          call lfill(sc(0:1,0:1),s(iq,k))        
+          aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
+          aab=sc(1,0)-sc(0,0)
+          aac=sc(0,1)-sc(0,0)
+          s(iq,k)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)        
+        end if
+        cmax=maxval(sc(0:1,0:1))
+        cmin=minval(sc(0:1,0:1))
+        s(iq,k)=min(max(s(iq,k),cmin),cmax)
+      end do
+    end if
+  end do
+
+! For other processes
+  call intssend(s)
+
+  do iproc=0,nproc-1
+    if ( iproc == myid ) then
+      cycle
+    end if
+    do iq=1,drlen(iproc)
+        !  Convert face index from 0:npanels to array indices
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+        !  Need global face index in fproc call
+        idel = int(dpoints(iproc)%a(2,iq))
+        xxg = dpoints(iproc)%a(2,iq) - idel
+        jdel = int(dpoints(iproc)%a(3,iq))
+        yyg = dpoints(iproc)%a(3,iq) - jdel
+        k = nint(dpoints(iproc)%a(4,iq))
+        idel = idel - ioff(n-noff)
+        jdel = jdel - joff(n-noff)
+
+        sc(0,-1) = sx(idel,jdel-1,n,k)
+        sc(0,0)  = sx(idel,jdel  ,n,k)
+        sc(0,1)  = sx(idel,jdel+1,n,k)
+        sc(0,2)  = sx(idel,jdel+2,n,k)
+        d1 = dx(idel,jdel-1,n,k)
+        d2 = dx(idel,jdel  ,n,k)
+        d3 = dx(idel,jdel+1,n,k)
+        d4 = dx(idel,jdel+2,n,k)
+        if (d1.lt.0.1) sc(0,-1)=cxx
+        if (d2.lt.0.1) sc(0,0)=cxx
+        if (d3.lt.0.1) sc(0,1)=cxx
+        if (d4.lt.0.1) sc(0,2)=cxx
+
+        sc(1,-1) = sx(idel+1,jdel-1,n,k)
+        sc(1,0)  = sx(idel+1,jdel  ,n,k)
+        sc(1,1)  = sx(idel+1,jdel+1,n,k)
+        sc(1,2)  = sx(idel+1,jdel+2,n,k)
+        d1 = dx(idel+1,jdel-1,n,k)
+        d2 = dx(idel+1,jdel  ,n,k)
+        d3 = dx(idel+1,jdel+1,n,k)
+        d4 = dx(idel+1,jdel+2,n,k)
+        if (d1.lt.0.1) sc(1,-1)=cxx
+        if (d2.lt.0.1) sc(1,0)=cxx
+        if (d3.lt.0.1) sc(1,1)=cxx
+        if (d4.lt.0.1) sc(1,2)=cxx
+
+        sc(-1,0) = sx(idel-1,jdel  ,n,k)
+        sc(-1,1) = sx(idel-1,jdel+1,n,k)
+        d2 = dx(idel-1,jdel  ,n,k)
+        d3 = dx(idel-1,jdel+1,n,k)
+        if (d2.lt.0.1) sc(-1,0)=cxx
+        if (d3.lt.0.1) sc(-1,1)=cxx
+        
+        sc(2,0) = sx(idel+2,jdel  ,n,k)
+        sc(2,1) = sx(idel+2,jdel+1,n,k)
+        d2 = dx(idel+2,jdel  ,n,k)
+        d3 = dx(idel+2,jdel+1,n,k)
+        if (d2.lt.0.1) sc(2,0)=cxx
+        if (d3.lt.0.1) sc(2,1)=cxx
+
+        ncount=count(sc.gt.-0.1)
+        if (ncount.ge.12) then
+          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
+               -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
+          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
+               -yyg*(1.+yyg)*sc(1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(1,1))/2.
+          r(1) = (1.-yyg)*sc(-1,0) +yyg*sc(-1,1)
+          r(4) = (1.-yyg)*sc(2,0) +yyg*sc(2,1)
+          sextra(iproc)%a(iq) = ((1.-xxg)*((2.-xxg)* &
+               ((1.+xxg)*r(2)-xxg*r(1)/3.)           &
+               -xxg*(1.+xxg)*r(4)/3.)                &
+               +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+        else
+          call lfill(sc(0:1,0:1),sextra(iproc)%a(iq))        
+          aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
+          aab=sc(1,0)-sc(0,0)
+          aac=sc(0,1)-sc(0,0)
+          sextra(iproc)%a(iq)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)        
+        end if
+
+      cmax=maxval(sc(0:1,0:1))
+      cmin=minval(sc(0:1,0:1))
+      sextra(iproc)%a(iq)=min(max(sextra(iproc)%a(iq),cmin),cmax)
+    enddo            ! iq loop
+  end do              ! iproc
+
+endif                     ! (intsch==1) .. else ..
+!========================   end of intsch=1 section ====================
+
+call intssync(s)
+
+return
+end subroutine mlob2intsb
+
+! This version is for velocity as the interpolated value is zero over land
+! We use bi-cubic based on JLM's ints.f routines, combined with vertical
+! interpolation.
+subroutine mlobcints(s,d,nface,xg,yg,wtr)
+
+use cc_mpi
+use indices_m
+use mlo
+
+implicit none
+
+include 'newmpar.h'
+include 'parm.h'
+include 'parmhor.h'
+include 'mpif.h'
+
+integer idel,iq,jdel,kx
+integer i,j,k,n,ind,ip,jp,iproc,ierr,intsch
+integer, dimension(:,:), intent(in) :: nface
+real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
+real, dimension(ifull+iextra,size(nface,2)), intent(inout) :: s
+real, dimension(ifull+iextra,size(nface,2)), intent(in) :: d
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(nface,2)) :: sx,dx
+real, dimension(0:nproc-1,maxbuflen) :: ddin
+real, dimension(4) :: r
+real c1,c2,c3,c4,xxg,yyg
+real dxx,cxx
+real, dimension(size(nface,2)) :: cc1,cc2,cc3,cc4,d1,d2,d3,d4
+logical, dimension(ifull+iextra), intent(in) :: wtr
+ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
+
+kx=size(nface,2)
+intsch=mod(ktau,2)
+cxx=0.
+
+call bounds(s,nrows=2)
+
+!======================== start of intsch=1 section ====================
+if(intsch==1)then
+
+    do n=1,npan         ! first simple copy into larger array
+      do j=1,jpan
+        do i=1,ipan
+          sx(i,j,n,:) = s(ind(i,j,n),:)
+          dx(i,j,n,:) = d(ind(i,j,n),:)
+        enddo         ! i loop
+      enddo            ! j loop
+    enddo               ! n loop
+            
+!       this is intsb           EW interps done first
+!       first extend s arrays into sx - this one -1:il+2 & -1:il+2
+    do n=1,npan
+      do j=1,jpan
+        sx(0,j,n,:) = s(iw(ind(1,j,n)),:)
+        sx(-1,j,n,:) = s(iww(ind(1,j,n)),:)
+        sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
+        sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
+        dx(0,j,n,:) = d(iw(ind(1,j,n)),:)
+        dx(-1,j,n,:) = d(iww(ind(1,j,n)),:)
+        dx(ipan+1,j,n,:) = d(ie(ind(ipan,j,n)),:)
+        dx(ipan+2,j,n,:) = d(iee(ind(ipan,j,n)),:)
+      enddo            ! j loop
+      do i=1,ipan
+        sx(i,0,n,:) = s(is(ind(i,1,n)),:)
+        sx(i,-1,n,:) = s(iss(ind(i,1,n)),:)
+        sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
+        sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
+        dx(i,0,n,:) = d(is(ind(i,1,n)),:)
+        dx(i,-1,n,:) = d(iss(ind(i,1,n)),:)
+        dx(i,jpan+1,n,:) = d(in(ind(i,jpan,n)),:)
+        dx(i,jpan+2,n,:) = d(inn(ind(i,jpan,n)),:)
+      enddo            ! i loop
+!        for ew interpolation, sometimes need (different from ns):
+!            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+
+      sx(-1,0,n,:) = s(lwws(n),:)
+      sx(0,0,n,:) = s(lws(n),:)
+      sx(0,-1,n,:) = s(lwss(n),:)
+      sx(ipan+1,0,n,:) = s(les(n),:)
+      sx(ipan+2,0,n,:) = s(lees(n),:)
+      sx(ipan+1,-1,n,:) = s(less(n),:)
+      sx(-1,jpan+1,n,:) = s(lwwn(n),:)
+      sx(0,jpan+2,n,:) = s(lwnn(n),:)
+      sx(ipan+2,jpan+1,n,:) = s(leen(n),:)
+      sx(ipan+1,jpan+2,n,:) = s(lenn(n),:)
+      sx(0,jpan+1,n,:)    = s(iwn(ind(1,jpan,n)),:)
+      sx(ipan+1,jpan+1,n,:) = s(ien(ind(ipan,jpan,n)),:)
+      dx(-1,0,n,:) = d(lwws(n),:)
+      dx(0,0,n,:) = d(lws(n),:)
+      dx(0,-1,n,:) = d(lwss(n),:)
+      dx(ipan+1,0,n,:) = d(les(n),:)
+      dx(ipan+2,0,n,:) = d(lees(n),:)
+      dx(ipan+1,-1,n,:) = d(less(n),:)
+      dx(-1,jpan+1,n,:) = d(lwwn(n),:)
+      dx(0,jpan+2,n,:) = d(lwnn(n),:)
+      dx(ipan+2,jpan+1,n,:) = d(leen(n),:)
+      dx(ipan+1,jpan+2,n,:) = d(lenn(n),:)
+      dx(0,jpan+1,n,:)    = d(iwn(ind(1,jpan,n)),:)
+      dx(ipan+1,jpan+1,n,:) = d(ien(ind(ipan,jpan,n)),:)
+    enddo               ! n loop
+
+  do iq=1,ifull
+    if (wtr(iq)) then
+      do k=1,kx
+!       Convert face index from 0:npanels to array indices
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
+             jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+
+        cc1 = sx(idel-1,jdel,n,:)
+        cc2 = sx(idel  ,jdel,n,:)
+        cc3 = sx(idel+1,jdel,n,:)
+        cc4 = sx(idel+2,jdel,n,:)
+        d1 = dx(idel-1,jdel,n,:)
+        d2 = dx(idel  ,jdel,n,:)
+        d3 = dx(idel+1,jdel,n,:)
+        d4 = dx(idel+2,jdel,n,:)
+        dxx = d(iq,k)
+        call searchdeltab(cc1,d1,dxx,cxx,c1)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+             -xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+
+        cc1 = sx(idel-1,jdel+1,n,:)
+        cc2 = sx(idel  ,jdel+1,n,:)
+        cc3 = sx(idel+1,jdel+1,n,:)
+        cc4 = sx(idel+2,jdel+1,n,:)
+        d1 = dx(idel-1,jdel+1,n,:)
+        d2 = dx(idel  ,jdel+1,n,:)
+        d3 = dx(idel+1,jdel+1,n,:)
+        d4 = dx(idel+2,jdel+1,n,:)
+        call searchdeltab(cc1,d1,dxx,cxx,c1)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+             -xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+
+        cc2 = sx(idel  ,jdel-1,n,:)
+        cc3 = sx(idel+1,jdel-1,n,:)
+        d2 = dx(idel  ,jdel-1,n,:)
+        d3 = dx(idel+1,jdel-1,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        r(1) = (1.-xxg)*c2 +xxg*c3
+
+        cc2 = sx(idel  ,jdel+2,n,:)
+        cc3 = sx(idel+1,jdel+2,n,:)
+        d2 = dx(idel  ,jdel+2,n,:)
+        d3 = dx(idel+1,jdel+2,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        r(4) = (1.-xxg)*c2 +xxg*c3
+                     
+        s(iq,k) = ((1.-yyg)*((2.-yyg)*       &
+             ((1.+yyg)*r(2)-yyg*r(1)/3.)     &
+             -yyg*(1.+yyg)*r(4)/3.)          &
+             +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+      end do ! k loop
+    end if   ! wtr
+  enddo      ! iq loop
+
+! Loop over points that need to be calculated for other processes
+
+  call intssend(d)
+  do iproc=0,nproc-1
+    ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  end do
+
+  do iproc=0,nproc-1
+    if ( iproc == myid ) then
+      cycle
+    end if
+    do iq=1,drlen(iproc)
+      dxx = ddin(iproc,iq)
+      if (dxx.gt.0.1) then
+        !  Convert face index from 0:npanels to array indices
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+        !  Need global face index in fproc call
+        idel = int(dpoints(iproc)%a(2,iq))
+        xxg = dpoints(iproc)%a(2,iq) - idel
+        jdel = int(dpoints(iproc)%a(3,iq))
+        yyg = dpoints(iproc)%a(3,iq) - jdel
+        k = nint(dpoints(iproc)%a(4,iq))
+        idel = idel - ioff(n-noff)
+        jdel = jdel - joff(n-noff)
+
+        cc1 = sx(idel-1,jdel,n,:)
+        cc2 = sx(idel  ,jdel,n,:)
+        cc3 = sx(idel+1,jdel,n,:)
+        cc4 = sx(idel+2,jdel,n,:)
+        d1 = dx(idel-1,jdel,n,:)
+        d2 = dx(idel  ,jdel,n,:)
+        d3 = dx(idel+1,jdel,n,:)
+        d4 = dx(idel+2,jdel,n,:)
+        call searchdeltab(cc1,d1,dxx,cxx,c1)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+             -xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+
+        cc1 = sx(idel-1,jdel+1,n,:)
+        cc2 = sx(idel  ,jdel+1,n,:)
+        cc3 = sx(idel+1,jdel+1,n,:)
+        cc4 = sx(idel+2,jdel+1,n,:)
+        d1 = dx(idel-1,jdel+1,n,:)
+        d2 = dx(idel  ,jdel+1,n,:)
+        d3 = dx(idel+1,jdel+1,n,:)
+        d4 = dx(idel+2,jdel+1,n,:)
+        call searchdeltab(cc1,d1,dxx,cxx,c1)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
+             -xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
+
+        cc2 = sx(idel  ,jdel-1,n,:)
+        cc3 = sx(idel+1,jdel-1,n,:)
+        d2 = dx(idel  ,jdel-1,n,:)
+        d3 = dx(idel+1,jdel-1,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        r(1) = (1.-xxg)*c2 +xxg*c3
+
+        cc2 = sx(idel  ,jdel+2,n,:)
+        cc3 = sx(idel+1,jdel+2,n,:)
+        d2 = dx(idel  ,jdel+2,n,:)
+        d3 = dx(idel+1,jdel+2,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        r(4) = (1.-xxg)*c2 +xxg*c3
+
+        sextra(iproc)%a(iq) = ((1.-yyg)*((2.-yyg)* &
+             ((1.+yyg)*r(2)-yyg*r(1)/3.)           &
+             -yyg*(1.+yyg)*r(4)/3.)                &
+             +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+      else
+        sextra(iproc)%a(iq) = 0.
+      end if
+    enddo            ! iq loop
+  end do              ! iproc loop
+            
+!========================   end of intsch=1 section ====================
+else     ! if(intsch==1)then
+!======================== start of intsch=2 section ====================
+!       this is intsc           NS interps done first
+!       first extend s arrays into sx - this one -1:il+2 & -1:il+2
+
+    do n=1,npan         ! first simple copy into larger array
+      do j=1,jpan
+        do i=1,ipan
+          sx(i,j,n,:)=s(ind(i,j,n),:)
+          dx(i,j,n,:)=d(ind(i,j,n),:)
+        enddo         ! i loop
+      enddo            ! j loop
+    enddo               ! n loop
+
+    do n=1,npan
+      do j=1,jpan
+        sx(0,j,n,:) = s(iw(ind(1,j,n)),:)
+        sx(-1,j,n,:) = s(iww(ind(1,j,n)),:)
+        sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
+        sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
+        dx(0,j,n,:) = d(iw(ind(1,j,n)),:)
+        dx(-1,j,n,:) = d(iww(ind(1,j,n)),:)
+        dx(ipan+1,j,n,:) = d(ie(ind(ipan,j,n)),:)
+        dx(ipan+2,j,n,:) = d(iee(ind(ipan,j,n)),:)
+      enddo            ! j loop
+      do i=1,ipan
+        sx(i,0,n,:) = s(is(ind(i,1,n)),:)
+        sx(i,-1,n,:) = s(iss(ind(i,1,n)),:)
+        sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
+        sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
+        dx(i,0,n,:) = d(is(ind(i,1,n)),:)
+        dx(i,-1,n,:) = d(iss(ind(i,1,n)),:)
+        dx(i,jpan+1,n,:) = d(in(ind(i,jpan,n)),:)
+        dx(i,jpan+2,n,:) = d(inn(ind(i,jpan,n)),:)
+      enddo            ! i loop
+!        for ns interpolation, sometimes need (different from ew):
+!            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+
+      sx(-1,0,n,:)=s(lsww(n),:)
+      sx(0,0,n,:) = s(lsw(n),:)
+      sx(0,-1,n,:) = s(lssw(n),:)
+      sx(ipan+2,0,n,:) = s(lsee(n),:)
+      sx(ipan+1,-1,n,:) = s(lsse(n),:)
+      sx(-1,jpan+1,n,:) = s(lnww(n),:)
+      sx(0,jpan+1,n,:) = s(lnw(n),:)
+      sx(0,jpan+2,n,:) = s(lnnw(n),:)
+      sx(ipan+2,jpan+1,n,:) = s(lnee(n),:)
+      sx(ipan+1,jpan+2,n,:) = s(lnne(n),:)
+      sx(ipan+1,0,n,:)    = s(ise(ind(ipan,1,n)),:)
+      sx(ipan+1,jpan+1,n,:) = s(ine(ind(ipan,jpan,n)),:)
+      dx(-1,0,n,:)=d(lsww(n),:)
+      dx(0,0,n,:) = d(lsw(n),:)
+      dx(0,-1,n,:) = d(lssw(n),:)
+      dx(ipan+2,0,n,:) = d(lsee(n),:)
+      dx(ipan+1,-1,n,:) = d(lsse(n),:)
+      dx(-1,jpan+1,n,:) = d(lnww(n),:)
+      dx(0,jpan+1,n,:) = d(lnw(n),:)
+      dx(0,jpan+2,n,:) = d(lnnw(n),:)
+      dx(ipan+2,jpan+1,n,:) = d(lnee(n),:)
+      dx(ipan+1,jpan+2,n,:) = d(lnne(n),:)
+      dx(ipan+1,0,n,:)    = d(ise(ind(ipan,1,n)),:)
+      dx(ipan+1,jpan+1,n,:) = d(ine(ind(ipan,jpan,n)),:)
+    enddo               ! n loop
+
+  do iq=1,ifull
+    if (wtr(iq)) then
+      do k=1,kx
+!       Convert face index from 0:npanels to array indices
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
+             jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+
+        cc1 = sx(idel,jdel-1,n,:)
+        cc2 = sx(idel,jdel  ,n,:)
+        cc3 = sx(idel,jdel+1,n,:)
+        cc4 = sx(idel,jdel+2,n,:)
+        d1 = dx(idel,jdel-1,n,:)
+        d2 = dx(idel,jdel  ,n,:)
+        d3 = dx(idel,jdel+1,n,:)
+        d4 = dx(idel,jdel+2,n,:)
+        dxx = d(iq,k)
+        call searchdeltab(cc1,d1,dxx,cxx,c1)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+             -yyg*(1.+yyg)*c4/3.)                          &
+             +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+
+        cc1 = sx(idel+1,jdel-1,n,:)
+        cc2 = sx(idel+1,jdel  ,n,:)
+        cc3 = sx(idel+1,jdel+1,n,:)
+        cc4 = sx(idel+1,jdel+2,n,:)
+        d1 = dx(idel+1,jdel-1,n,:)
+        d2 = dx(idel+1,jdel  ,n,:)
+        d3 = dx(idel+1,jdel+1,n,:)
+        d4 = dx(idel+1,jdel+2,n,:)
+        call searchdeltab(cc1,d1,dxx,cxx,c1)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+             -yyg*(1.+yyg)*c4/3.)                          &
+             +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+
+        cc2 = sx(idel-1,jdel  ,n,:)
+        cc3 = sx(idel-1,jdel+1,n,:)
+        d2 = dx(idel-1,jdel  ,n,:)
+        d3 = dx(idel-1,jdel+1,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        r(1) = (1.-yyg)*c2 +yyg*c3
+
+        cc2 = sx(idel+2,jdel  ,n,:)
+        cc3 = sx(idel+2,jdel+1,n,:)
+        d2 = dx(idel+2,jdel  ,n,:)
+        d3 = dx(idel+2,jdel+1,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        r(4) = (1.-yyg)*c2 +yyg*c3
+
+        s(iq,k) = ((1.-xxg)*((2.-xxg)*       &
+             ((1.+xxg)*r(2)-xxg*r(1)/3.)     &
+             -xxg*(1.+xxg)*r(4)/3.)          &
+             +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+      end do
+    end if
+  end do
+
+! For other processes
+  call intssend(d)
+  do iproc=0,nproc-1
+    ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  end do
+
+  do iproc=0,nproc-1
+    if ( iproc == myid ) then
+      cycle
+    end if
+    do iq=1,drlen(iproc)
+      dxx = ddin(iproc,iq)
+      if (dxx.gt.0.1) then
+        !  Convert face index from 0:npanels to array indices
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+        !  Need global face index in fproc call
+        idel = int(dpoints(iproc)%a(2,iq))
+        xxg = dpoints(iproc)%a(2,iq) - idel
+        jdel = int(dpoints(iproc)%a(3,iq))
+        yyg = dpoints(iproc)%a(3,iq) - jdel
+        k = nint(dpoints(iproc)%a(4,iq))
+        idel = idel - ioff(n-noff)
+        jdel = jdel - joff(n-noff)
+
+        cc1 = sx(idel,jdel-1,n,:)
+        cc2 = sx(idel,jdel  ,n,:)
+        cc3 = sx(idel,jdel+1,n,:)
+        cc4 = sx(idel,jdel+2,n,:)
+        d1 = dx(idel,jdel-1,n,:)
+        d2 = dx(idel,jdel  ,n,:)
+        d3 = dx(idel,jdel+1,n,:)
+        d4 = dx(idel,jdel+2,n,:)
+        call searchdeltab(cc1,d1,dxx,cxx,c1)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+             -yyg*(1.+yyg)*c4/3.)                          &
+             +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+
+        cc1 = sx(idel+1,jdel-1,n,:)
+        cc2 = sx(idel+1,jdel  ,n,:)
+        cc3 = sx(idel+1,jdel+1,n,:)
+        cc4 = sx(idel+1,jdel+2,n,:)
+        d1 = dx(idel+1,jdel-1,n,:)
+        d2 = dx(idel+1,jdel  ,n,:)
+        d3 = dx(idel+1,jdel+1,n,:)
+        d4 = dx(idel+1,jdel+2,n,:)
+        call searchdeltab(cc1,d1,dxx,cxx,c1)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
+             -yyg*(1.+yyg)*c4/3.)                          &
+             +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
+
+        cc2 = sx(idel-1,jdel  ,n,:)
+        cc3 = sx(idel-1,jdel+1,n,:)
+        d2 = dx(idel-1,jdel  ,n,:)
+        d3 = dx(idel-1,jdel+1,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        r(1) = (1.-yyg)*c2 +yyg*c3
+
+        cc2 = sx(idel+2,jdel  ,n,:)
+        cc3 = sx(idel+2,jdel+1,n,:)
+        d2 = dx(idel+2,jdel  ,n,:)
+        d3 = dx(idel+2,jdel+1,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,c2)
+        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        r(4) = (1.-yyg)*c2 +yyg*c3
+
+        sextra(iproc)%a(iq) = ((1.-xxg)*((2.-xxg)* &
+             ((1.+xxg)*r(2)-xxg*r(1)/3.)           &
+             -xxg*(1.+xxg)*r(4)/3.)                &
+             +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+      else
+        sextra(iproc)%a(iq) = 0.
+      end if
+    enddo            ! iq loop
+  end do              ! iproc
+
+endif                     ! (intsch==1) .. else ..
+!========================   end of intsch=1 section ====================
+
+call intssync(s)
+
+return
+end subroutine mlobcints
+
+! This version is for scalars which is same as above, but
+! missing land values are filled from non-trivial values
+! instead of being set to zero
+subroutine mlobcintsb(s,d,nface,xg,yg,wtr)
+
+use cc_mpi
+use indices_m
+use mlo
+
+implicit none
+
+include 'newmpar.h'
+include 'parm.h'
+include 'parmhor.h'
+include 'mpif.h'
+
+integer idel,iq,jdel,kx
+integer i,j,k,n,ind,ip,jp,iproc,ierr,intsch,ncount
+integer, dimension(:,:), intent(in) :: nface
+real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
+real, dimension(ifull+iextra,size(nface,2)), intent(inout) :: s
+real, dimension(ifull+iextra,size(nface,2)), intent(in) :: d
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(nface,2)) :: sx,dx
+real, dimension(0:nproc-1,maxbuflen) :: ddin,sdin
+real, dimension(-1:2,-1:2) :: sc
+real, dimension(4) :: r
+real xxg,yyg,aab,aac,aad
+real dxx,cxx,cmax,cmin
+real, dimension(size(nface,2)) :: cc1,cc2,cc3,cc4,d1,d2,d3,d4
+logical, dimension(ifull+iextra), intent(in) :: wtr
+ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
+
+kx=size(nface,2)
+intsch=mod(ktau,2)
+cxx=-99.
+sc=cxx
+
+call bounds(s,nrows=2)
+
+!======================== start of intsch=1 section ====================
+if(intsch==1)then
+
+    do n=1,npan         ! first simple copy into larger array
+      do j=1,jpan
+        do i=1,ipan
+          sx(i,j,n,:) = s(ind(i,j,n),:)
+          dx(i,j,n,:) = d(ind(i,j,n),:)
+        enddo         ! i loop
+      enddo            ! j loop
+    enddo               ! n loop
+            
+!       this is intsb           EW interps done first
+!       first extend s arrays into sx - this one -1:il+2 & -1:il+2
+    do n=1,npan
+      do j=1,jpan
+        sx(0,j,n,:) = s(iw(ind(1,j,n)),:)
+        sx(-1,j,n,:) = s(iww(ind(1,j,n)),:)
+        sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
+        sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
+        dx(0,j,n,:) = d(iw(ind(1,j,n)),:)
+        dx(-1,j,n,:) = d(iww(ind(1,j,n)),:)
+        dx(ipan+1,j,n,:) = d(ie(ind(ipan,j,n)),:)
+        dx(ipan+2,j,n,:) = d(iee(ind(ipan,j,n)),:)
+      enddo            ! j loop
+      do i=1,ipan
+        sx(i,0,n,:) = s(is(ind(i,1,n)),:)
+        sx(i,-1,n,:) = s(iss(ind(i,1,n)),:)
+        sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
+        sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
+        dx(i,0,n,:) = d(is(ind(i,1,n)),:)
+        dx(i,-1,n,:) = d(iss(ind(i,1,n)),:)
+        dx(i,jpan+1,n,:) = d(in(ind(i,jpan,n)),:)
+        dx(i,jpan+2,n,:) = d(inn(ind(i,jpan,n)),:)
+      enddo            ! i loop
+!        for ew interpolation, sometimes need (different from ns):
+!            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+
+      sx(-1,0,n,:) = s(lwws(n),:)
+      sx(0,0,n,:) = s(lws(n),:)
+      sx(0,-1,n,:) = s(lwss(n),:)
+      sx(ipan+1,0,n,:) = s(les(n),:)
+      sx(ipan+2,0,n,:) = s(lees(n),:)
+      sx(ipan+1,-1,n,:) = s(less(n),:)
+      sx(-1,jpan+1,n,:) = s(lwwn(n),:)
+      sx(0,jpan+2,n,:) = s(lwnn(n),:)
+      sx(ipan+2,jpan+1,n,:) = s(leen(n),:)
+      sx(ipan+1,jpan+2,n,:) = s(lenn(n),:)
+      sx(0,jpan+1,n,:)    = s(iwn(ind(1,jpan,n)),:)
+      sx(ipan+1,jpan+1,n,:) = s(ien(ind(ipan,jpan,n)),:)
+      dx(-1,0,n,:) = d(lwws(n),:)
+      dx(0,0,n,:) = d(lws(n),:)
+      dx(0,-1,n,:) = d(lwss(n),:)
+      dx(ipan+1,0,n,:) = d(les(n),:)
+      dx(ipan+2,0,n,:) = d(lees(n),:)
+      dx(ipan+1,-1,n,:) = d(less(n),:)
+      dx(-1,jpan+1,n,:) = d(lwwn(n),:)
+      dx(0,jpan+2,n,:) = d(lwnn(n),:)
+      dx(ipan+2,jpan+1,n,:) = d(leen(n),:)
+      dx(ipan+1,jpan+2,n,:) = d(lenn(n),:)
+      dx(0,jpan+1,n,:)    = d(iwn(ind(1,jpan,n)),:)
+      dx(ipan+1,jpan+1,n,:) = d(ien(ind(ipan,jpan,n)),:)
+    enddo               ! n loop
+
+  do iq=1,ifull
+    if (wtr(iq)) then
+      do k=1,kx
+!       Convert face index from 0:npanels to array indices
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
+             jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+
+        cc1 = sx(idel-1,jdel,n,:)
+        cc2 = sx(idel  ,jdel,n,:)
+        cc3 = sx(idel+1,jdel,n,:)
+        cc4 = sx(idel+2,jdel,n,:)
+        d1 = dx(idel-1,jdel,n,:)
+        d2 = dx(idel  ,jdel,n,:)
+        d3 = dx(idel+1,jdel,n,:)
+        d4 = dx(idel+2,jdel,n,:)
+        dxx = d(iq,k)
+        call searchdeltab(cc1,d1,dxx,cxx,sc(-1,0))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,0))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,0))
+        call searchdeltab(cc4,d4,dxx,cxx,sc(2,0))
+
+        cc1 = sx(idel-1,jdel+1,n,:)
+        cc2 = sx(idel  ,jdel+1,n,:)
+        cc3 = sx(idel+1,jdel+1,n,:)
+        cc4 = sx(idel+2,jdel+1,n,:)
+        d1 = dx(idel-1,jdel+1,n,:)
+        d2 = dx(idel  ,jdel+1,n,:)
+        d3 = dx(idel+1,jdel+1,n,:)
+        d4 = dx(idel+2,jdel+1,n,:)
+        call searchdeltab(cc1,d1,dxx,cxx,sc(-1,1))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,1))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,1))
+        call searchdeltab(cc4,d4,dxx,cxx,sc(2,1))
+
+        cc2 = sx(idel  ,jdel-1,n,:)
+        cc3 = sx(idel+1,jdel-1,n,:)
+        d2 = dx(idel  ,jdel-1,n,:)
+        d3 = dx(idel+1,jdel-1,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,-1))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,-1))
+
+        cc2 = sx(idel  ,jdel+2,n,:)
+        cc3 = sx(idel+1,jdel+2,n,:)
+        d2 = dx(idel  ,jdel+2,n,:)
+        d3 = dx(idel+1,jdel+2,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,2))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,2))
+
+        ncount=count(sc.gt.-0.1)
+        if (ncount.ge.12) then
+          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
+               -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
+          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
+               -xxg*(1.+xxg)*sc(2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,1))/2.
+          r(1) = (1.-xxg)*sc(0,-1) +xxg*sc(1,-1)
+          r(4) = (1.-xxg)*sc(0,2) +xxg*sc(1,2)
+
+          s(iq,k) = ((1.-yyg)*((2.-yyg)* &
+               ((1.+yyg)*r(2)-yyg*r(1)/3.)           &
+               -yyg*(1.+yyg)*r(4)/3.)                &
+               +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+        else
+          call lfill(sc(0:1,0:1),s(iq,k))        
+          aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
+          aab=sc(1,0)-sc(0,0)
+          aac=sc(0,1)-sc(0,0)
+          s(iq,k)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)        
+        end if
+        cmax=maxval(sc(0:1,0:1))
+        cmin=minval(sc(0:1,0:1))
+        s(iq,k)=min(max(s(iq,k),cmin),cmax)
+      end do ! k loop
+    end if   ! wtr
+  enddo      ! iq loop
+
+! Loop over points that need to be calculated for other processes
+
+  call intssend(d)
+  do iproc=0,nproc-1
+    ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  end do
+  call intssend(s)
+  do iproc=0,nproc-1
+    sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  end do  
+
+  do iproc=0,nproc-1
+    if ( iproc == myid ) then
+      cycle
+    end if
+    do iq=1,drlen(iproc)
+      dxx = ddin(iproc,iq)
+      if (dxx.gt.0.1) then
+        !  Convert face index from 0:npanels to array indices
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+        !  Need global face index in fproc call
+        idel = int(dpoints(iproc)%a(2,iq))
+        xxg = dpoints(iproc)%a(2,iq) - idel
+        jdel = int(dpoints(iproc)%a(3,iq))
+        yyg = dpoints(iproc)%a(3,iq) - jdel
+        k = nint(dpoints(iproc)%a(4,iq))
+        idel = idel - ioff(n-noff)
+        jdel = jdel - joff(n-noff)
+
+        cc1 = sx(idel-1,jdel,n,:)
+        cc2 = sx(idel  ,jdel,n,:)
+        cc3 = sx(idel+1,jdel,n,:)
+        cc4 = sx(idel+2,jdel,n,:)
+        d1 = dx(idel-1,jdel,n,:)
+        d2 = dx(idel  ,jdel,n,:)
+        d3 = dx(idel+1,jdel,n,:)
+        d4 = dx(idel+2,jdel,n,:)
+        dxx = d(iq,k)
+        call searchdeltab(cc1,d1,dxx,cxx,sc(-1,0))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,0))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,0))
+        call searchdeltab(cc4,d4,dxx,cxx,sc(2,0))
+
+        cc1 = sx(idel-1,jdel+1,n,:)
+        cc2 = sx(idel  ,jdel+1,n,:)
+        cc3 = sx(idel+1,jdel+1,n,:)
+        cc4 = sx(idel+2,jdel+1,n,:)
+        d1 = dx(idel-1,jdel+1,n,:)
+        d2 = dx(idel  ,jdel+1,n,:)
+        d3 = dx(idel+1,jdel+1,n,:)
+        d4 = dx(idel+2,jdel+1,n,:)
+        call searchdeltab(cc1,d1,dxx,cxx,sc(-1,1))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,1))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,1))
+        call searchdeltab(cc4,d4,dxx,cxx,sc(2,1))
+
+        cc2 = sx(idel  ,jdel-1,n,:)
+        cc3 = sx(idel+1,jdel-1,n,:)
+        d2 = dx(idel  ,jdel-1,n,:)
+        d3 = dx(idel+1,jdel-1,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,-1))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,-1))
+
+        cc2 = sx(idel  ,jdel+2,n,:)
+        cc3 = sx(idel+1,jdel+2,n,:)
+        d2 = dx(idel  ,jdel+2,n,:)
+        d3 = dx(idel+1,jdel+2,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,2))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,2))
+
+        ncount=count(sc.gt.-0.1)
+        if (ncount.ge.12) then
+          r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
+               -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
+          r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,1)-xxg*sc(-1,1)/3.) &
+               -xxg*(1.+xxg)*sc(2,1)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,1))/2.
+          r(1) = (1.-xxg)*sc(0,-1) +xxg*sc(1,-1)
+          r(4) = (1.-xxg)*sc(0,2) +xxg*sc(1,2)
+
+          sextra(iproc)%a(iq) = ((1.-yyg)*((2.-yyg)* &
+               ((1.+yyg)*r(2)-yyg*r(1)/3.)           &
+               -yyg*(1.+yyg)*r(4)/3.)                &
+               +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
+        else
+          call lfill(sc(0:1,0:1),sdin(iproc,iq))        
+          aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
+          aab=sc(1,0)-sc(0,0)
+          aac=sc(0,1)-sc(0,0)
+          sextra(iproc)%a(iq)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)        
+        end if
+
+      else
+        sextra(iproc)%a(iq) = sdin(iproc,iq)
+      end if
+      cmax=maxval(sc(0:1,0:1))
+      cmin=minval(sc(0:1,0:1))
+      sextra(iproc)%a(iq)=min(max(sextra(iproc)%a(iq),cmin),cmax)
+    enddo            ! iq loop
+  end do              ! iproc loop
+            
+!========================   end of intsch=1 section ====================
+else     ! if(intsch==1)then
+!======================== start of intsch=2 section ====================
+!       this is intsc           NS interps done first
+!       first extend s arrays into sx - this one -1:il+2 & -1:il+2
+
+    do n=1,npan         ! first simple copy into larger array
+      do j=1,jpan
+        do i=1,ipan
+          sx(i,j,n,:)=s(ind(i,j,n),:)
+          dx(i,j,n,:)=d(ind(i,j,n),:)
+        enddo         ! i loop
+      enddo            ! j loop
+    enddo               ! n loop
+
+    do n=1,npan
+      do j=1,jpan
+        sx(0,j,n,:) = s(iw(ind(1,j,n)),:)
+        sx(-1,j,n,:) = s(iww(ind(1,j,n)),:)
+        sx(ipan+1,j,n,:) = s(ie(ind(ipan,j,n)),:)
+        sx(ipan+2,j,n,:) = s(iee(ind(ipan,j,n)),:)
+        dx(0,j,n,:) = d(iw(ind(1,j,n)),:)
+        dx(-1,j,n,:) = d(iww(ind(1,j,n)),:)
+        dx(ipan+1,j,n,:) = d(ie(ind(ipan,j,n)),:)
+        dx(ipan+2,j,n,:) = d(iee(ind(ipan,j,n)),:)
+      enddo            ! j loop
+      do i=1,ipan
+        sx(i,0,n,:) = s(is(ind(i,1,n)),:)
+        sx(i,-1,n,:) = s(iss(ind(i,1,n)),:)
+        sx(i,jpan+1,n,:) = s(in(ind(i,jpan,n)),:)
+        sx(i,jpan+2,n,:) = s(inn(ind(i,jpan,n)),:)
+        dx(i,0,n,:) = d(is(ind(i,1,n)),:)
+        dx(i,-1,n,:) = d(iss(ind(i,1,n)),:)
+        dx(i,jpan+1,n,:) = d(in(ind(i,jpan,n)),:)
+        dx(i,jpan+2,n,:) = d(inn(ind(i,jpan,n)),:)
+      enddo            ! i loop
+!        for ns interpolation, sometimes need (different from ew):
+!            (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+
+      sx(-1,0,n,:)=s(lsww(n),:)
+      sx(0,0,n,:) = s(lsw(n),:)
+      sx(0,-1,n,:) = s(lssw(n),:)
+      sx(ipan+2,0,n,:) = s(lsee(n),:)
+      sx(ipan+1,-1,n,:) = s(lsse(n),:)
+      sx(-1,jpan+1,n,:) = s(lnww(n),:)
+      sx(0,jpan+1,n,:) = s(lnw(n),:)
+      sx(0,jpan+2,n,:) = s(lnnw(n),:)
+      sx(ipan+2,jpan+1,n,:) = s(lnee(n),:)
+      sx(ipan+1,jpan+2,n,:) = s(lnne(n),:)
+      sx(ipan+1,0,n,:)    = s(ise(ind(ipan,1,n)),:)
+      sx(ipan+1,jpan+1,n,:) = s(ine(ind(ipan,jpan,n)),:)
+      dx(-1,0,n,:)=d(lsww(n),:)
+      dx(0,0,n,:) = d(lsw(n),:)
+      dx(0,-1,n,:) = d(lssw(n),:)
+      dx(ipan+2,0,n,:) = d(lsee(n),:)
+      dx(ipan+1,-1,n,:) = d(lsse(n),:)
+      dx(-1,jpan+1,n,:) = d(lnww(n),:)
+      dx(0,jpan+1,n,:) = d(lnw(n),:)
+      dx(0,jpan+2,n,:) = d(lnnw(n),:)
+      dx(ipan+2,jpan+1,n,:) = d(lnee(n),:)
+      dx(ipan+1,jpan+2,n,:) = d(lnne(n),:)
+      dx(ipan+1,0,n,:)    = d(ise(ind(ipan,1,n)),:)
+      dx(ipan+1,jpan+1,n,:) = d(ine(ind(ipan,jpan,n)),:)
+    enddo               ! n loop
+
+  do iq=1,ifull
+    if (wtr(iq)) then
+      do k=1,kx
+!       Convert face index from 0:npanels to array indices
+        idel=int(xg(iq,k))
+        xxg=xg(iq,k)-idel
+        jdel=int(yg(iq,k))
+        yyg=yg(iq,k)-jdel
+        ! Now make them proper indices in this processor's region
+        idel = idel - ioff(nface(iq,k))
+        jdel = jdel - joff(nface(iq,k))
+        n = nface(iq,k) + noff ! Make this a local index
+        if ( idel < 0 .or. idel > ipan .or. jdel < 0 .or. &
+             jdel > jpan .or. n < 1 .or. n > npan ) then
+          cycle      ! Will be calculated on another processor
+        end if
+
+        cc1 = sx(idel,jdel-1,n,:)
+        cc2 = sx(idel,jdel  ,n,:)
+        cc3 = sx(idel,jdel+1,n,:)
+        cc4 = sx(idel,jdel+2,n,:)
+        d1 = dx(idel,jdel-1,n,:)
+        d2 = dx(idel,jdel  ,n,:)
+        d3 = dx(idel,jdel+1,n,:)
+        d4 = dx(idel,jdel+2,n,:)
+        dxx = d(iq,k)
+        call searchdeltab(cc1,d1,dxx,cxx,sc(0,-1))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,0))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(0,1))
+        call searchdeltab(cc4,d4,dxx,cxx,sc(0,2))
+
+        cc1 = sx(idel+1,jdel-1,n,:)
+        cc2 = sx(idel+1,jdel  ,n,:)
+        cc3 = sx(idel+1,jdel+1,n,:)
+        cc4 = sx(idel+1,jdel+2,n,:)
+        d1 = dx(idel+1,jdel-1,n,:)
+        d2 = dx(idel+1,jdel  ,n,:)
+        d3 = dx(idel+1,jdel+1,n,:)
+        d4 = dx(idel+1,jdel+2,n,:)
+        call searchdeltab(cc1,d1,dxx,cxx,sc(1,-1))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(1,0))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,1))
+        call searchdeltab(cc4,d4,dxx,cxx,sc(1,2))
+
+        cc2 = sx(idel-1,jdel  ,n,:)
+        cc3 = sx(idel-1,jdel+1,n,:)
+        d2 = dx(idel-1,jdel  ,n,:)
+        d3 = dx(idel-1,jdel+1,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(-1,0))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(-1,1))
+        
+        cc2 = sx(idel+2,jdel  ,n,:)
+        cc3 = sx(idel+2,jdel+1,n,:)
+        d2 = dx(idel+2,jdel  ,n,:)
+        d3 = dx(idel+2,jdel+1,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(2,0))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(2,1))
+        
+        ncount=count(sc.gt.-0.1)
+        if (ncount.ge.12) then
+          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
+               -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
+          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
+               -yyg*(1.+yyg)*sc(1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(1,1))/2.
+          r(1) = (1.-yyg)*sc(-1,0) +yyg*sc(-1,1)
+          r(4) = (1.-yyg)*sc(2,0) +yyg*sc(2,1)
+
+          s(iq,k) = ((1.-xxg)*((2.-xxg)*       &
+               ((1.+xxg)*r(2)-xxg*r(1)/3.)     &
+               -xxg*(1.+xxg)*r(4)/3.)          &
+               +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+        else
+          call lfill(sc(0:1,0:1),s(iq,k))        
+          aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
+          aab=sc(1,0)-sc(0,0)
+          aac=sc(0,1)-sc(0,0)
+          s(iq,k)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)        
+        end if
+        cmax=maxval(sc(0:1,0:1))
+        cmin=minval(sc(0:1,0:1))
+        s(iq,k)=min(max(s(iq,k),cmin),cmax)
+      end do
+    end if
+  end do
+
+! For other processes
+  call intssend(d)
+  do iproc=0,nproc-1
+    ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  end do
+  call intssend(s)
+  do iproc=0,nproc-1
+    sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  end do  
+
+  do iproc=0,nproc-1
+    if ( iproc == myid ) then
+      cycle
+    end if
+    do iq=1,drlen(iproc)
+      dxx = ddin(iproc,iq)
+      if (dxx.gt.0.1) then
+        !  Convert face index from 0:npanels to array indices
+        ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
+        jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
+        n = nint(dpoints(iproc)%a(1,iq)) + noff ! Local index
+        !  Need global face index in fproc call
+        idel = int(dpoints(iproc)%a(2,iq))
+        xxg = dpoints(iproc)%a(2,iq) - idel
+        jdel = int(dpoints(iproc)%a(3,iq))
+        yyg = dpoints(iproc)%a(3,iq) - jdel
+        k = nint(dpoints(iproc)%a(4,iq))
+        idel = idel - ioff(n-noff)
+        jdel = jdel - joff(n-noff)
+
+        cc1 = sx(idel,jdel-1,n,:)
+        cc2 = sx(idel,jdel  ,n,:)
+        cc3 = sx(idel,jdel+1,n,:)
+        cc4 = sx(idel,jdel+2,n,:)
+        d1 = dx(idel,jdel-1,n,:)
+        d2 = dx(idel,jdel  ,n,:)
+        d3 = dx(idel,jdel+1,n,:)
+        d4 = dx(idel,jdel+2,n,:)
+        call searchdeltab(cc1,d1,dxx,cxx,sc(0,-1))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,0))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(0,1))
+        call searchdeltab(cc4,d4,dxx,cxx,sc(0,2))
+
+        cc1 = sx(idel+1,jdel-1,n,:)
+        cc2 = sx(idel+1,jdel  ,n,:)
+        cc3 = sx(idel+1,jdel+1,n,:)
+        cc4 = sx(idel+1,jdel+2,n,:)
+        d1 = dx(idel+1,jdel-1,n,:)
+        d2 = dx(idel+1,jdel  ,n,:)
+        d3 = dx(idel+1,jdel+1,n,:)
+        d4 = dx(idel+1,jdel+2,n,:)
+        call searchdeltab(cc1,d1,dxx,cxx,sc(1,-1))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(1,0))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,1))
+        call searchdeltab(cc4,d4,dxx,cxx,sc(1,2))
+
+        cc2 = sx(idel-1,jdel  ,n,:)
+        cc3 = sx(idel-1,jdel+1,n,:)
+        d2 = dx(idel-1,jdel  ,n,:)
+        d3 = dx(idel-1,jdel+1,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(-1,0))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(-1,1))
+        
+        cc2 = sx(idel+2,jdel  ,n,:)
+        cc3 = sx(idel+2,jdel+1,n,:)
+        d2 = dx(idel+2,jdel  ,n,:)
+        d3 = dx(idel+2,jdel+1,n,:)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(2,0))
+        call searchdeltab(cc3,d3,dxx,cxx,sc(2,1))
+
+        ncount=count(sc.gt.-0.1)
+        if (ncount.ge.12) then
+          r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
+               -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
+          r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(1,0)-yyg*sc(1,-1)/3.) &
+               -yyg*(1.+yyg)*sc(1,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(1,1))/2.
+          r(1) = (1.-yyg)*sc(-1,0) +yyg*sc(-1,1)
+          r(4) = (1.-yyg)*sc(2,0) +yyg*sc(2,1)
+          sextra(iproc)%a(iq) = ((1.-xxg)*((2.-xxg)* &
+               ((1.+xxg)*r(2)-xxg*r(1)/3.)           &
+               -xxg*(1.+xxg)*r(4)/3.)                &
+               +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
+        else
+          call lfill(sc(0:1,0:1),sdin(iproc,iq))        
+          aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
+          aab=sc(1,0)-sc(0,0)
+          aac=sc(0,1)-sc(0,0)
+          sextra(iproc)%a(iq)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)        
+        end if
+
+      else
+        sextra(iproc)%a(iq) = sdin(iproc,iq)
+      end if
+      cmax=maxval(sc(0:1,0:1))
+      cmin=minval(sc(0:1,0:1))
+      sextra(iproc)%a(iq)=min(max(sextra(iproc)%a(iq),cmin),cmax)
+    enddo            ! iq loop
+  end do              ! iproc
+
+endif                     ! (intsch==1) .. else ..
+!========================   end of intsch=1 section ====================
+
+call intssync(s)
+
+return
+end subroutine mlobcintsb
+
+! This version is for velocity as the interpolated value is zero over land
 ! Also, we now use bi-linear interpolation so that there are minimal 'leaks'
 ! over land bridges.
 ! Values are vertically interpolated to arrival point depth
@@ -1340,8 +3292,8 @@ integer, dimension(:,:), intent(in) :: nface
 real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
 real, dimension(ifull+iextra,size(nface,2)), intent(inout) :: s
 real, dimension(ifull+iextra,size(nface,2)), intent(in) :: d
-real, dimension(0:ipan+1,0:jpan+1,1:npan,size(nface,2)) :: sx,dx
-real, dimension(0:nproc-1,maxbuflen) :: sdin,ddin
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(nface,2)) :: sx,dx
+real, dimension(0:nproc-1,maxbuflen) :: ddin
 real aab,aac,aad,c1,c2,c3,c4,xxg,yyg
 real dxx,cxx
 real, dimension(size(nface,2)) :: cc1,cc2,cc3,cc4,d1,d2,d3,d4
@@ -1392,7 +3344,7 @@ enddo               ! n loop
 
 cxx = 0. ! missing value over land
   
-do iq=1,ifull    ! non Berm-Stan option
+do iq=1,ifull
   if (wtr(iq)) then
     do k=1,kx           
 !                 Convert face index from 0:npanels to array indices
@@ -1436,17 +3388,14 @@ call intssend(d)
 do iproc=0,nproc-1
   ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
 end do
-call intssend(s)
-do iproc=0,nproc-1
-  sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
-end do
 
 do iproc=0,nproc-1
   if ( iproc == myid ) then
     cycle
   end if
   do iq=1,drlen(iproc)
-    if (ddin(iproc,iq).gt.0.1) then
+    dxx = ddin(iproc,iq)  
+    if (dxx.gt.0.1) then
       !  Convert face index from 0:npanels to array indices
       ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
       jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
@@ -1467,7 +3416,6 @@ do iproc=0,nproc-1
       d2 = dx(idel+1,jdel  ,n,:)
       d3 = dx(idel  ,jdel+1,n,:)
       d4 = dx(idel+1,jdel+1,n,:)
-      dxx = ddin(iproc,iq)
       call searchdeltab(cc1,d1,dxx,cxx,c1)
       call searchdeltab(cc2,d2,dxx,cxx,c2)
       call searchdeltab(cc3,d3,dxx,cxx,c3)
@@ -1509,7 +3457,7 @@ integer, dimension(:,:), intent(in) :: nface
 real, dimension(ifull,size(nface,2)), intent(in) :: xg,yg
 real, dimension(ifull+iextra,size(nface,2)), intent(inout) :: s
 real, dimension(ifull+iextra,size(nface,2)), intent(in) :: d
-real, dimension(0:ipan+1,0:jpan+1,1:npan,size(nface,2)) :: sx,dx
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(nface,2)) :: sx,dx
 real, dimension(0:nproc-1,maxbuflen) :: sdin,ddin
 real, dimension(0:1,0:1) :: sc
 real c1,c2,c3,c4,xxg,yyg,dxx,cxx,aab,aac,aad
@@ -1617,7 +3565,8 @@ do iproc=0,nproc-1
     cycle
   end if
   do iq=1,drlen(iproc)
-    if (ddin(iproc,iq).gt.0.1) then
+    dxx = ddin(iproc,iq)  
+    if (dxx.gt.0.1) then
       !  Convert face index from 0:npanels to array indices
       ip = min(il_g,max(1,nint(dpoints(iproc)%a(2,iq))))
       jp = min(il_g,max(1,nint(dpoints(iproc)%a(3,iq))))
@@ -1638,7 +3587,6 @@ do iproc=0,nproc-1
       d2 = dx(idel+1,jdel  ,n,:)
       d3 = dx(idel  ,jdel+1,n,:)
       d4 = dx(idel+1,jdel+1,n,:)
-      dxx = ddin(iproc,iq)
       call searchdeltab(cc1,d1,dxx,cxx,c1)
       call searchdeltab(cc2,d2,dxx,cxx,c2)
       call searchdeltab(cc3,d3,dxx,cxx,c3)
@@ -1652,6 +3600,8 @@ do iproc=0,nproc-1
       aab=sc(1,0)-sc(0,0)
       aac=sc(0,1)-sc(0,0)
       sextra(iproc)%a(iq)=aab*xxg+aac*yyg+aad*xxg*yyg+sc(0,0)
+    else
+      sextra(iproc)%a(iq)=sdin(iproc,iq)
     endif           ! if (ddin(iproc,iq).gt.0.1) then
   enddo            ! iq loop
 end do              ! iproc loop
@@ -2083,6 +4033,8 @@ end do
 return
 end subroutine stagtruedelta
 
+! This version uses a quadratic vertical interpolation
+! as it is used to calculate density gradients
 subroutine searchdelta(s,dep,dd,sx,id,ss)
 
 use mlo
@@ -2133,7 +4085,7 @@ return
 end subroutine
 
 ! this version is for depature points where the depth is not
-! monotonically increased
+! monotonically increased and uses linear interpolation
 subroutine searchdeltab(s,dep,dd,sx,ss)
 
 use mlo
@@ -2194,7 +4146,7 @@ return
 end subroutine
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Tide
+! Calculate tidal potential
 
 subroutine mlotide(eta,slon,slat,mtimer,jstart)
 
@@ -2211,7 +4163,7 @@ real, dimension(ifull) :: sinlon,coslon,sinlat,coslat
 real, dimension(4) :: aa,ab,ba,bb
 real, parameter :: pi = 3.1415927
 
-! amplitude
+! amplitude (mom3)
 aa(1)=0.141565 ! K1
 aa(2)=0.100661 ! O1
 aa(3)=0.046848 ! P1
@@ -2220,7 +4172,7 @@ ab(1)=0.242334 ! M2
 ab(2)=0.112743 ! S2
 ab(3)=0.046397 ! N2
 ab(4)=0.030684 ! K2
-! Love number
+! Love number (mom3)
 ba(1)=0.736
 ba(2)=0.695
 ba(3)=0.706
@@ -2229,7 +4181,7 @@ bb(1)=0.693
 bb(2)=0.693
 bb(3)=0.693
 bb(4)=0.693
-! Frequency
+! Frequency (mom3)
 !wa(1)=0.7292117
 !wa(2)=0.6750774
 !wa(3)=0.7252295
@@ -2239,28 +4191,27 @@ bb(4)=0.693
 !wb(3)=1.378797
 !wb(4)=1.458423
 
-stime=real(mtimer)/1440.+real(jstart) ! solar time
-ctime=stime/36525. ! century
+stime=real(mtimer)/1440.+real(jstart) ! solar time (days)
+ctime=stime/36525. ! century (relative to 12Z 31 Dec 1899)
 
-! relative to 12Z 31 Dec 1899
 mn=270.43659+481276.89057*ctime+0.00198*ctime*ctime+0.000002*ctime*ctime*ctime ! moon
 sn=279.69668+36000.76892*ctime+0.00030*ctime*ctime                             ! sun
 pn=334.32956+4069.03404*ctime-0.01032*ctime*ctime-0.00001*ctime*ctime*ctime    ! lunar perigee
 mn=mn*pi/180.
 sn=sn*pi/180.
 pn=pn*pi/180.
-stime=(stime-real(int(stime)))*2.*pi
-ltime=stime+sn-mn
+stime=(stime-real(int(stime)))*2.*pi ! solar time (rad)
+ltime=stime+sn-mn                    ! lunar time (rad)
 ! 360*stime=360*ltime-9.3+12.2*day
 
 coslat=cos(slat)**2
 sinlat=sin(2.*slat)
 
 eta=0.
-eta=eta+ab(1)*aa(1)*sinlat*cos(ltime+mn-slon)             ! K1 (note sign change)
-eta=eta-ab(2)*aa(2)*sinlat*cos(ltime-mn-slon)             ! O1
-eta=eta-ab(3)*aa(3)*sinlat*cos(stime-sn-slon)             ! P1
-eta=eta-ab(4)*aa(4)*sinlat*cos(ltime+pn-slon)             ! Q1
+eta=eta+ba(1)*aa(1)*sinlat*cos(ltime+mn-slon)             ! K1 (note sign change)
+eta=eta-ba(2)*aa(2)*sinlat*cos(ltime-mn-slon)             ! O1
+eta=eta-ba(3)*aa(3)*sinlat*cos(stime-sn-slon)             ! P1
+eta=eta-ba(4)*aa(4)*sinlat*cos(ltime+pn-slon)             ! Q1
 eta=eta-bb(1)*ab(1)*coslat*cos(2.*ltime-2.*slon)          ! M2
 eta=eta-bb(2)*ab(2)*coslat*cos(2.*stime-2.*slon)          ! S2
 eta=eta-bb(3)*ab(3)*coslat*cos(2.*ltime-mn+pn-2.*slon)    ! N2
@@ -2279,87 +4230,90 @@ end subroutine mlotide
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine fills ocean data over land points
-subroutine mlofill(x,tst)
-
-use cc_mpi
-use indices_m
-use soil_m
-
-implicit none
-
-include 'newmpar.h'
-include 'mpif.h'
-
-integer globalc,localc,ierr,iq,lnum
-real miss,lsum
-real, dimension(ifull), intent(inout) :: x
-real, dimension(ifull) :: yy
-real, dimension(ifull+iextra) :: xx
-logical, dimension(ifull+iextra) :: smap
-logical, dimension(ifull), intent(in) :: tst
-
-miss=999999.
-
-xx=miss
-where (tst)
-  xx(1:ifull)=x
-end where
-globalc=1
-
-! technically we only need 1 pass of this fill to ensure all water points have a non-trival neighbour
-do while (globalc.gt.0)
-  call bounds(xx)
-  smap=abs(xx-miss).lt.0.1
-  yy=xx(1:ifull)
-  do iq=1,ifull
-    if (smap(iq)) then
-      lsum=0.
-      lnum=0
-      if (.not.smap(in(iq))) then
-        lsum=lsum+xx(in(iq))
-        lnum=lnum+1
-      end if
-      if (.not.smap(ie(iq))) then
-        lsum=lsum+xx(ie(iq))
-        lnum=lnum+1
-      end if
-      if (.not.smap(is(iq))) then
-        lsum=lsum+xx(is(iq))
-        lnum=lnum+1
-      end if
-      if (.not.smap(iw(iq))) then
-        lsum=lsum+xx(iw(iq))
-        lnum=lnum+1
-      end if
-      if (lnum.gt.0) then
-        yy(iq)=lsum/real(lnum)
-      end if
-    end if
-  end do
-  xx(1:ifull)=yy
-  smap(1:ifull)=abs(xx(1:ifull)-miss).lt.0.1
-  localc=count(smap(1:ifull))
-  call MPI_AllReduce(localc,globalc,1,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,ierr)
-end do
-
-x=xx(1:ifull)
-
-return
-end subroutine mlofill
+!subroutine mlofill(x,tst)
+!
+!use cc_mpi
+!use indices_m
+!use soil_m
+!
+!implicit none
+!
+!include 'newmpar.h'
+!include 'mpif.h'
+!
+!integer globalc,localc,ierr,iq,lnum
+!real miss,lsum
+!real, dimension(ifull), intent(inout) :: x
+!real, dimension(ifull) :: yy
+!real, dimension(ifull+iextra) :: xx
+!logical, dimension(ifull+iextra) :: smap
+!logical, dimension(ifull), intent(in) :: tst
+!
+!miss=999999.
+!
+!xx=miss
+!where (tst)
+!  xx(1:ifull)=x
+!end where
+!globalc=1
+!
+!! technically we only need 1 pass of this fill to ensure all water points have a non-trival neighbour
+!do while (globalc.gt.0)
+!  call bounds(xx)
+!  smap=abs(xx-miss).lt.0.1
+!  yy=xx(1:ifull)
+!  do iq=1,ifull
+!    if (smap(iq)) then
+!      lsum=0.
+!      lnum=0
+!      if (.not.smap(in(iq))) then
+!        lsum=lsum+xx(in(iq))
+!        lnum=lnum+1
+!      end if
+!      if (.not.smap(ie(iq))) then
+!        lsum=lsum+xx(ie(iq))
+!        lnum=lnum+1
+!      end if
+!      if (.not.smap(is(iq))) then
+!        lsum=lsum+xx(is(iq))
+!        lnum=lnum+1
+!      end if
+!      if (.not.smap(iw(iq))) then
+!        lsum=lsum+xx(iw(iq))
+!        lnum=lnum+1
+!      end if
+!      if (lnum.gt.0) then
+!        yy(iq)=lsum/real(lnum)
+!      end if
+!    end if
+!  end do
+!  xx(1:ifull)=yy
+!  smap(1:ifull)=abs(xx(1:ifull)-miss).lt.0.1
+!  localc=count(smap(1:ifull))
+!  call MPI_AllReduce(localc,globalc,1,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,ierr)
+!end do
+!
+!x=xx(1:ifull)
+!
+!return
+!end subroutine mlofill
 
 ! this fill version is for a simply connected 2x2 grid
 subroutine lfill(sc,sx)
 
 implicit none
 
+integer ncount
 real, intent(in) :: sx
 real, dimension(0:1,0:1), intent(inout) :: sc
 real, dimension(0:1,0:1) :: nc
 logical globc
 
-if (all(sc.gt.-0.1)) return
+ncount=count(sc.gt.-0.1)
 
-if (all(sc.lt.-0.1)) then
+if (ncount.ge.4) return
+
+if (ncount.le.0) then
   sc=sx
   return
 end if
@@ -2378,6 +4332,7 @@ end do
 return
 end subroutine lfill
 
+! This routine averages adjacent points for an average fill
 subroutine trial(nc,sc,i,j,ln,le,ls,lw,globc)
 
 implicit none
@@ -2428,7 +4383,7 @@ return
 end subroutine trial
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! check for leap year
+! test for leap year
 
 subroutine mloleap(tyear,ttest)
 
@@ -2438,7 +4393,7 @@ integer, intent(in) :: tyear
 logical, intent(out) :: ttest
 
 ttest=.false.
-if (mod(tyear,4).eq.0) ttest=.true.
+if (mod(tyear,4).eq.0)   ttest=.true.
 if (mod(tyear,100).eq.0) ttest=.false.
 if (mod(tyear,400).eq.0) ttest=.true.
 
