@@ -2767,7 +2767,7 @@
       real, dimension(ifull_g,1), intent(inout) :: diffh_g
       real, dimension(ifull_g,kd), intent(inout) :: diff_g,diffs_g
       real, dimension(ifull_g,kd), intent(inout) :: diffu_g,diffv_g
-      real, dimension(ifull_g) :: r,rr,mm
+      real, dimension(ifull_g) :: r,rr,mm,nn
       real, dimension(ifull_g) :: ffh,ddh
       real, dimension(ifull_g,kd) :: ff,ffs,dd,dds
       real, dimension(ifull_g,kd) :: ffu,ffv,ddu,ddv
@@ -2777,33 +2777,34 @@
       cq=sqrt(4.5)*.1*real(max(nud_sst,nud_sss,nud_ouv,nud_sfh))
      &   /(pi*schmidt)
 
-      mm=0.
+      mm=1./(em_g*em_g)
+      nn=0.
       dd=0.
       dds=0.
       ddu=0.
       ddv=0.
       ddh=0.
       where(.not.landg)
-        mm=1./(em_g*em_g)
+        nn=mm
       end where
       if (nud_sst.ne.0) then
         do k=1,kd
-          ff(:,k)=diff_g(:,k)*mm
+          ff(:,k)=diff_g(:,k)*nn
         end do
       end if
       if (nud_sss.ne.0) then
         do k=1,kd
-          ffs(:,k)=diffs_g(:,k)*mm
+          ffs(:,k)=diffs_g(:,k)*nn
         end do
       end if
       if (nud_ouv.ne.0) then
         do k=1,kd
-          ffu(:,k)=diffu_g(:,k)*mm
-          ffv(:,k)=diffv_g(:,k)*mm
+          ffu(:,k)=diffu_g(:,k)*nn
+          ffv(:,k)=diffv_g(:,k)*nn
         end do
       end if
       if (nud_sfh.ne.0) then
-        ffh=diffh_g(:,1)*mm
+        ffh=diffh_g(:,1)*nn
       end if
       do iqw=ns,ne
         if (.not.landg(iqw)) then
@@ -3150,7 +3151,7 @@
       real, dimension(ifull_g,1), intent(inout) :: diffh_g
       real, dimension(ifull_g,kd), intent(inout) :: diff_g,diffs_g
       real, dimension(ifull_g,kd), intent(inout) :: diffu_g,diffv_g
-      real, dimension(ifull_g) :: qsum,zph,qph
+      real, dimension(ifull_g) :: qsum,rsum,zph,qph
       real, dimension(ifull_g,kd) :: zp,zps,zpu,zpv
       real, dimension(ifull_g,kd) :: qp,qps,qpu,qpv
       real, dimension(ifull_g*kd) :: zz
@@ -3210,30 +3211,30 @@
 
       do ppass=pn,px
 
+        rsum=0.
+        qsum(:)=1./(em_g(:)*em_g(:))
         where(.not.landg) ! land/sea mask
-          qsum(:)=1./(em_g(:)*em_g(:))
-        elsewhere
-          qsum=0.
+          rsum(:)=qsum(:)
         end where
 
         if (nud_sst.ne.0) then
           do k=1,kd
-            qp(:,k)=diff_g(:,k)*qsum
+            qp(:,k)=diff_g(:,k)*rsum
           end do
         end if
         if (nud_sss.ne.0) then
           do k=1,kd
-            qps(:,k)=diffs_g(:,k)*qsum
+            qps(:,k)=diffs_g(:,k)*rsum
           end do
         end if 
         if (nud_ouv.ne.0) then
           do k=1,kd
-            qpu(:,k)=diffu_g(:,k)*qsum
-            qpv(:,k)=diffv_g(:,k)*qsum
+            qpu(:,k)=diffu_g(:,k)*rsum
+            qpv(:,k)=diffv_g(:,k)*rsum
           end do
         end if
         if (nud_sfh.ne.0) then
-          qph=diffh_g(:,1)*qsum
+          qph=diffh_g(:,1)*rsum
         end if
 
         ! computations for the local processor group

@@ -178,10 +178,16 @@ module cable_ccam
   ! CABLE
   veg%meth = 1
   CALL ruff_resist
+  met%tk=met%tk+grav/capp*(rough%zref_tq+0.9*rough%z0m)                      ! MJT from eak energy bal
+  met%tc=met%tk-273.16                                                       ! MJT from eak energy bal
   CALL define_air
   CALL init_radiation ! need to be called at every dt
   CALL cab_albedo(999, dt, .false.) ! set L_RADUM=.false. as we want to update snow age
   CALL define_canopy(999,dt,.true.)
+  bal%owbtot=0.
+  do k=1,ms
+    bal%owbtot=bal%owbtot+ssoil%wb(:,k)*1000.*soil%zse(k)
+  end do
   ssoil%otss = ssoil%tss                                                     ! MJT from eak energy bal
   ssoil%owetfac = ssoil%wetfac
   CALL soil_snow(dt, 999)
