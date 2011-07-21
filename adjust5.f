@@ -44,7 +44,8 @@
       real, dimension(3) :: delarr, delarr_l
       ! Work common here ????
       real p(ifull+iextra,kl),omgfnl(ifull,kl)
-      real wrk1(ifull,kl), wrk2 (ifull,kl) ! just work arrays here
+      real wrk1(ifull,kl), wrk2(ifull,kl) ! just work arrays here
+      real wrk3(ifull,kl) ! MJT suggestion
       real d(ifull,kl)   ! NOT shared updps
       real, dimension(:), allocatable, save :: zz,zzn,zze,zzw,zzs
       real, dimension(:), allocatable, save :: pfact,alff,alf,alfe
@@ -125,10 +126,10 @@
      
 !     redefine ux, vx
       do k=1,kl
-         do iq=1,ifull  ! N.B. alfu is alf/(1+epsu)
-            cc(iq,k)=ux(iq,k)/emu(iq)*alfu(iq)  ! Eq. 136
-            dd(iq,k)=vx(iq,k)/emv(iq)*alfv(iq)  ! Eq. 137
-         enddo
+        do iq=1,ifull  ! N.B. alfu is alf/(1+epsu)
+          cc(iq,k)=ux(iq,k)/emu(iq)*alfu(iq)  ! Eq. 136
+          dd(iq,k)=vx(iq,k)/emv(iq)*alfv(iq)  ! Eq. 137
+        enddo
       enddo
       call boundsuv(cc,dd)
 
@@ -153,12 +154,38 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
        enddo    ! iq loop
       enddo     ! k loop
 
+      ! MJT moved from below
+!     form divergence of rhs (xu & xv) terms
+      do k=1,kl
+!cdir nodep
+        do iq=1,ifull
+!         d is xd in Eq. 157, divided by em**2/ds
+          d(iq,k)=cc(iq,k)-cc(iwu(iq),k)+dd(iq,k)-dd(isv(iq),k)
+        enddo
+      enddo
+
       if(nh>0)then
+        ! MJT suggestion
+        ! fix up missing linear part of omgfnl
+        wrk2(:,kl)=-dsig(kl)*d(:,kl)*em(1:ifull)**2/ds
+        do k=kl-1,1,-1
+          wrk2(:,k)=wrk2(:,k+1)-dsig(k)*d(:,k)*em(1:ifull)**2/ds
+        enddo     ! k  loop
+        do k=1,kl-1
+          wrk3(:,k)=-rata(k)*wrk2(:,k+1)-ratb(k)*wrk2(:,k) ! in Eq. 110
+        enddo     ! k  loop
+        wrk3(:,kl)=-ratb(kl)*wrk2(:,kl)
+
 !       add in departure values of p-related nh terms  & omgfnl terms    
         const_nh=2.*rdry/(dt*grav*grav)  
         do k=1,kl
+         ! MJT suggestion
+         ! omgfnl already includes (1+epst)
          wrk2(:,k)=const_nh*tbar2d(:)*
-     &     ((1.+epst(:))*tbar(1)*omgfnl(:,k)/sig(k) -h_nh(1:ifull,k))
+     &     (tbar(1)*(omgfnl(:,k)+(1.+epst)*wrk3(:,k))/sig(k)
+     &      -h_nh(1:ifull,k))
+!         wrk2(:,k)=const_nh*tbar2d(:)*
+!     &     ((1.+epst(:))*tbar(1)*omgfnl(:,k)/sig(k) -h_nh(1:ifull,k))
         enddo
         wrk1(:,1)=bet(1)*wrk2(:,1)
         do k=2,kl
@@ -173,14 +200,15 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         p(1:ifull,:)=p(1:ifull,:)+wrk1(:,:)  ! nh
       endif     ! (nh>0)
 
+      ! MJT moved above
 !     form divergence of rhs (xu & xv) terms
-      do k=1,kl
-!cdir nodep
-         do iq=1,ifull
-!           d is xd in Eq. 157, divided by em**2/ds
-            d(iq,k)=cc(iq,k)-cc(iwu(iq),k)+dd(iq,k)-dd(isv(iq),k)
-         enddo
-      enddo
+!      do k=1,kl
+!!cdir nodep
+!         do iq=1,ifull
+!!           d is xd in Eq. 157, divided by em**2/ds
+!            d(iq,k)=cc(iq,k)-cc(iwu(iq),k)+dd(iq,k)-dd(isv(iq),k)
+!         enddo
+!      enddo
 
 !     transform p & d to eigenvector space
       do k=1,kl

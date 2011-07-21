@@ -2387,12 +2387,13 @@
       subroutine mlofilter(new,sssb,suvb,sfh,wl) ! MJT mlo
 
       use cc_mpi
-      use mlo, only : mloimport,mloexport
+      use mlo, only : mloimport,mloexport,mloexpdep,wlev
       use soil_m
 
       implicit none
 
       include 'newmpar.h'    ! ifull_g
+      include 'const_phys.h'
       include 'mpif.h'       ! MPI
       include 'parm.h'
 
@@ -2403,14 +2404,18 @@
       real, dimension(ifull), intent(in) :: sfh
       real, dimension(ifull,wl), intent(in) :: new,sssb
       real, dimension(ifull,wl,2), intent(in) :: suvb
-      real, dimension(ifull) :: old
+      real, dimension(ifull) :: old,oldt
       real, dimension(ifull,wl) :: diff
+      real, dimension(ifull,wlev) :: nsq,rho,depth
       real, dimension(ifull_g,1) :: diffh_g
       real, dimension(ifull_g,wl) :: diff_g,diffs_g
       real, dimension(ifull_g,wl) :: diffu_g,diffv_g
-      real, parameter :: miss = 999999.
       real, dimension(ifull_g*wl) :: zz
       logical, dimension(ifull_g) :: landg
+      integer, parameter :: tempfix=1 ! delta temp (0=linear, 1=buoyancy)
+      real, parameter :: rho0=1030.   ! linear density offset
+      real, parameter :: a0=-0.3      ! linear density temp gradient
+      real, parameter :: miss = 999999.
 
       if (max(abs(nud_sst),abs(nud_sss),abs(nud_ouv),abs(nud_sfh))
      &    ==0) return
@@ -2588,22 +2593,50 @@
         else
           call ccmpi_distribute(diff(:,1:kd))
         end if
-        do k=ktopmlo,kc
-          ka=min(wl,k)
-          kb=k-ktopmlo+1
-          old=new(:,ka)
-          call mloexport(0,old,k,0)
-          old=old+diff(:,kb)*10./real(mloalpha)
-          old=max(old,271.)
-          call mloimport(0,old,k,0)
-        end do
-        do k=kc+1,kbotmlo
-          old=new(:,ka)
-          call mloexport(0,old,k,0)
-          old=old+diff(:,kb)*10./real(mloalpha) ! kb saved from above loop
-          old=max(old,271.)	  
-          call mloimport(0,old,k,0)
-        end do
+        ! correct temp pertubation to minimise change in buoyancy
+        if (tempfix.eq.1.and.kd.eq.1) then
+          depth=0.
+          old=293.
+          do k=ktopmlo,kbotmlo
+            call mloexpdep(0,depth(:,k),k,0)
+            call mloexport(0,old,k,0)
+            rho(:,k)=rho0+a0*old ! linear approximation to density
+          end do
+          do k=ktopmlo,kbotmlo-1
+            nsq(:,k)=2.*grav*(rho(:,k)-rho(:,k+1))/
+     &        (max(depth(:,k+1)-depth(:,k),0.1)*(rho(:,k)+rho(:,k+1)))
+          end do
+          call mloexport(0,oldt,1,0)
+          oldt=oldt+diff(:,1)*10./real(mloalpha)
+          oldt=max(oldt,271.)
+          call mloimport(0,oldt,1,0)
+          do k=ktopmlo+1,kbotmlo
+            call mloexport(0,old,k,0)
+            old=(oldt*(2.*grav/max(depth(:,k)-depth(:,k-1),0.1)
+     &      -nsq(:,k-1))-rho0*nsq(:,k-1)/a0)
+     &      /(2.*grav/max(depth(:,k)-depth(:,k-1),0.1)+nsq(:,k-1))
+            old=max(old,271.)	  
+            call mloimport(0,old,k,0)
+            oldt=old
+          end do
+        else
+          do k=ktopmlo,kc
+            ka=min(wl,k)
+            kb=k-ktopmlo+1
+            old=new(:,ka)
+            call mloexport(0,old,k,0)
+            old=old+diff(:,kb)*10./real(mloalpha)
+            old=max(old,271.)
+            call mloimport(0,old,k,0)
+          end do
+          do k=kc+1,kbotmlo
+            old=new(:,ka)
+            call mloexport(0,old,k,0)
+            old=old+diff(:,kb)*10./real(mloalpha) ! kb saved from above loop
+            old=max(old,271.)	  
+            call mloimport(0,old,k,0)
+          end do
+        end if
       end if
 
       if (nud_sss.ne.0) then
@@ -2854,7 +2887,7 @@
       subroutine mlofilterfast(new,sssb,suvb,sfh,wl) ! MJT mlo
 
       use cc_mpi
-      use mlo, only : mloimport,mloexport
+      use mlo, only : mloimport,mloexport,mloexpdep,wlev
       use soil_m
 
       implicit none
@@ -2871,12 +2904,16 @@
       real, dimension(ifull), intent(in) :: sfh
       real, dimension(ifull,wl), intent(in) :: new,sssb
       real, dimension(ifull,wl,2), intent(in) :: suvb
-      real, dimension(ifull) :: old
+      real, dimension(ifull) :: old,oldt
       real, dimension(ifull,wl) :: diff
+      real, dimension(ifull,wlev) :: nsq,rho,depth
       real, dimension(ifull_g,1) :: diffh_g
       real, dimension(ifull_g,wl) :: diff_g,diffs_g
       real, dimension(ifull_g,wl) :: diffu_g,diffv_g
       real cq
+      integer, parameter :: tempfix=1 ! delta temp (0=linear, 1=buoyancy)
+      real, parameter :: rho0=1030.   ! linear density offset
+      real, parameter :: a0=-0.3      ! linear density temp gradient
       real, parameter :: miss = 999999.
       
       if (max(abs(nud_sst),abs(nud_sss),abs(nud_ouv),abs(nud_sfh))
@@ -3028,22 +3065,50 @@
         else
           call ccmpi_distribute(diff(:,1:kd))
         end if
-        do k=ktopmlo,kc
-          ka=min(wl,k)
-          kb=k-ktopmlo+1
-          old=new(:,ka)
-          call mloexport(0,old,k,0)
-          old=old+diff(:,kb)*10./real(mloalpha)
-          old=max(old,271.)
-          call mloimport(0,old,k,0)
-        end do
-        do k=kc+1,kbotmlo
-          old=new(:,ka)
-          call mloexport(0,old,k,0)
-          old=old+diff(:,kb)*10./real(mloalpha) ! kb saved from previous loop
-          old=max(old,271.)
-          call mloimport(0,old,k,0)
-        end do
+        ! correct temp pertubation to minimise change in buoyancy
+        if (tempfix.eq.1.and.kd.eq.1) then
+          depth=0.
+          old=293.
+          do k=ktopmlo,kbotmlo
+            call mloexpdep(0,depth(:,k),k,0)
+            call mloexport(0,old,k,0)
+            rho(:,k)=rho0+a0*old ! linear approximation to density
+          end do
+          do k=ktopmlo,kbotmlo-1
+            nsq(:,k)=2.*grav*(rho(:,k)-rho(:,k+1))/
+     &        (max(depth(:,k+1)-depth(:,k),0.1)*(rho(:,k)+rho(:,k+1)))
+          end do
+          call mloexport(0,oldt,1,0)
+          oldt=oldt+diff(:,1)*10./real(mloalpha)
+          oldt=max(oldt,271.)
+          call mloimport(0,oldt,1,0)
+          do k=ktopmlo+1,kbotmlo
+            call mloexport(0,old,k,0)
+            old=(oldt*(2.*grav/max(depth(:,k)-depth(:,k-1),0.1)
+     &      -nsq(:,k-1))-rho0*nsq(:,k-1)/a0)
+     &      /(2.*grav/max(depth(:,k)-depth(:,k-1),0.1)+nsq(:,k-1))
+            old=max(old,271.)	  
+            call mloimport(0,old,k,0)
+            oldt=old
+          end do
+        else
+          do k=ktopmlo,kc
+            ka=min(wl,k)
+            kb=k-ktopmlo+1
+            old=new(:,ka)
+            call mloexport(0,old,k,0)
+            old=old+diff(:,kb)*10./real(mloalpha)
+            old=max(old,271.)
+            call mloimport(0,old,k,0)
+          end do
+          do k=kc+1,kbotmlo
+            old=new(:,ka)
+            call mloexport(0,old,k,0)
+            old=old+diff(:,kb)*10./real(mloalpha) ! kb saved from previous loop
+            old=max(old,271.)
+            call mloimport(0,old,k,0)
+          end do
+        end if
       end if
 
       if (nud_sss.ne.0) then

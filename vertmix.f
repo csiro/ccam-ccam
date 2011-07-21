@@ -789,8 +789,8 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &                     +betm(k)*t(1:ifull,k-1))/grav                ! MJT tke
        end do                                                           ! MJT tke
        rhoa=ps(1:ifull)/(rdry*tss(:))                                   ! MJT tke
-       wq0=eg*rhoa/hl                                                   ! MJT tke
-       wt0=fg*rhoa/cp                                                   ! MJT tke
+       wq0=eg/(hl*rhoa)                                                 ! MJT tke
+       wt0=fg/(cp*rhoa)                                                 ! MJT tke
        select case(nlocal)                                              ! MJT tke
         case(0) ! no counter gradient                                   ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke

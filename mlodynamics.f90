@@ -19,7 +19,7 @@ public mlodiffusion,mlorouter,mlohadv,watbdy
 real, dimension(:), allocatable, save :: watbdy
 integer, parameter :: salfilt=0    ! additional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide=1    ! tidal forcing (0=off, 1=on)
-integer, parameter :: intmode=2    ! horizontal interpolation (0=bi-linear, 1=bi-cubic, 2=bi-cubic+no vert)
+integer, parameter :: intmode=0    ! horizontal interpolation (0=bi-linear, 1=bi-cubic, 2=bi-cubic+no vert)
 integer, parameter :: icemode=2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: lmax   =1    ! advection loop (1=predictor-only, 2+=predictor-corrector)
 integer, parameter :: nf     =2    ! power for horizontal diffusion reduction factor
@@ -572,18 +572,25 @@ do l=1,lmax ! predictor-corrector loop
     nuh=(15.*w_u-10.*oldu1+3.*oldu2)/8. ! U at t+1/2
     nvh=(15.*w_v-10.*oldv1+3.*oldv2)/8. ! V at t+1/2
   else
-    nuh=0.5*nu(1:ifull,:)+0.5*w_u ! U at t+1/2
-    nvh=0.5*nv(1:ifull,:)+0.5*w_v ! V at t+1/2
+    nuh=0.5*(nu(1:ifull,:)+w_u) ! U at t+1/2
+    nvh=0.5*(nv(1:ifull,:)+w_v) ! V at t+1/2
   end if
 
   ! Calculate depature points along oldz levels
   call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,dep,wtr)
 
+  ! prepare for advection with t=tstar
+  ! This is the same as eps=0.5 in JLM's atmosphere semi-Lagrangian dynamics 
+  do ii=1,wlev
+    uau(:,ii)=nu(1:ifull,ii)*(1.-0.25*dt*dt*f(1:ifull)*f(1:ifull))+dt*f(1:ifull)*nv(1:ifull,ii)
+    uav(:,ii)=nv(1:ifull,ii)*(1.-0.25*dt*dt*f(1:ifull)*f(1:ifull))-dt*f(1:ifull)*nu(1:ifull,ii)
+  end do
+
   ! Convert (u,v) to cartesian coordinates (U,V,W)
   do ii=1,wlev
-    cou(1:ifull,ii)=ax(1:ifull)*nu(1:ifull,ii)+bx(1:ifull)*nv(1:ifull,ii)
-    cov(1:ifull,ii)=ay(1:ifull)*nu(1:ifull,ii)+by(1:ifull)*nv(1:ifull,ii)
-    cow(1:ifull,ii)=az(1:ifull)*nu(1:ifull,ii)+bz(1:ifull)*nv(1:ifull,ii)
+    cou(1:ifull,ii)=ax(1:ifull)*uau(:,ii)+bx(1:ifull)*uav(:,ii)
+    cov(1:ifull,ii)=ay(1:ifull)*uau(:,ii)+by(1:ifull)*uav(:,ii)
+    cow(1:ifull,ii)=az(1:ifull)*uau(:,ii)+bz(1:ifull)*uav(:,ii)
   end do
 
   ! Horizontal advection for U,V,W
@@ -607,8 +614,8 @@ do l=1,lmax ! predictor-corrector loop
 
   ! Convert (U,V,W) back to conformal cubic coordinates
   do ii=1,wlev
-    nu(1:ifull,ii)=ax(1:ifull)*cou(1:ifull,ii)+ay(1:ifull)*cov(1:ifull,ii)+az(1:ifull)*cow(1:ifull,ii)
-    nv(1:ifull,ii)=bx(1:ifull)*cou(1:ifull,ii)+by(1:ifull)*cov(1:ifull,ii)+bz(1:ifull)*cow(1:ifull,ii)
+    uau(:,ii)=ax(1:ifull)*cou(1:ifull,ii)+ay(1:ifull)*cov(1:ifull,ii)+az(1:ifull)*cow(1:ifull,ii)
+    uav(:,ii)=bx(1:ifull)*cou(1:ifull,ii)+by(1:ifull)*cov(1:ifull,ii)+bz(1:ifull)*cow(1:ifull,ii)
   end do
 
   ! Horizontal advection for T,S
@@ -627,16 +634,16 @@ do l=1,lmax ! predictor-corrector loop
 
   ! FREE SURFACE CALCULATION ----------------------------------------
 
-  ! stagger the following values for t=tstar
-  ! This is the same as eps=0.5 in JLM's atmosphere semi-Lagrangian dynamics
+  ! The following lines have been moved above
+  !do ii=1,wlev
+  !  uau(:,ii)=nu(1:ifull,ii)*(1.-0.25*dt*dt*f(1:ifull)*f(1:ifull))+dt*f(1:ifull)*nv(1:ifull,ii)
+  !  uav(:,ii)=nv(1:ifull,ii)*(1.-0.25*dt*dt*f(1:ifull)*f(1:ifull))-dt*f(1:ifull)*nu(1:ifull,ii)
+  !end do
   ! Note that the staggered coordinates have changed depth to ddu and ddv
-  do ii=1,wlev
-    uau(:,ii)=nu(1:ifull,ii)*(1.-0.25*dt*dt*f(1:ifull)*f(1:ifull))+dt*f(1:ifull)*nv(1:ifull,ii)
-    uav(:,ii)=nv(1:ifull,ii)*(1.-0.25*dt*dt*f(1:ifull)*f(1:ifull))-dt*f(1:ifull)*nu(1:ifull,ii)
-  end do
   call mlostaguv(uau,uav,cou(1:ifull,:),cov(1:ifull,:),ee)
 
   ! calculate normalised density gradient along newz coordinates
+  ! horizontal geopotential gradients are zero after interpolating to constant depth surfaces
   call stagtruedelta(rhobar,dep,wtr,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
   sou=0.
@@ -4047,7 +4054,7 @@ real, dimension(wlev), intent(in) :: s,dep
 real, intent(in) :: dd,sx
 real, intent(out) :: ss
 real xp
-!integer, parameter :: vertintp=1 ! vertical interpolation (0=linear, 1=quadratic)
+!integer, parameter :: vertintp=1 ! vertical interpolation (0=linear, 1=quadratic, 2=cubic)
 
 !if (dep(1)-0.01.gt.dd) return
 if (dep(wlev).lt.dd) then
@@ -4067,15 +4074,27 @@ end do
 id=fnd
 
 !select case(vertintp)
-!  case(0)
+!  case(0) ! linear
 !    xp=(dd-dep(id))/(dep(id+1)-dep(id))
 !    ss=(1.-xp)*s(id)+xp*s(id+1)
-!  case(1)
-!     !id=max(id,2)
-     ss=s(id)+(dd-dep(id))/(dep(id+1)-dep(id-1))*((dep(id)-dep(id-1))*(s(id+1)-s(id))/(dep(id+1)-dep(id)) &
-             +(dep(id+1)-dep(id))*(s(id)-s(id-1))/(dep(id)-dep(id-1)))                                    &
-             +(dd-dep(id))**2/(dep(id+1)-dep(id-1))*((s(id+1)-s(id))/(dep(id+1)-dep(id))                  &
-             -(s(id)-s(id-1))/(dep(id)-dep(id-1)))
+!  case(1) ! quadratic
+!    id=max(id,2)
+    ss=s(id)+(dd-dep(id))/(dep(id+1)-dep(id-1))*((dep(id)-dep(id-1))*(s(id+1)-s(id))/(dep(id+1)-dep(id)) &
+            +(dep(id+1)-dep(id))*(s(id)-s(id-1))/(dep(id)-dep(id-1)))                                    &
+            +(dd-dep(id))**2/(dep(id+1)-dep(id-1))*((s(id+1)-s(id))/(dep(id+1)-dep(id))                  &
+            -(s(id)-s(id-1))/(dep(id)-dep(id-1)))
+!  case(2) ! cubic
+!    if (id.gt.1.and.id.lt.wlev-1) then
+!      xp=(dd-dep(id))/(dep(id+1)-dep(id))     
+!      ss=((1.-xp)*((2.-xp)*((1.+xp)*s(id)-xp*s(id-1)/3.) &
+!         -xp*(1.+xp)*s(id+2)/3.)+xp*(1.+xp)*(2.-xp)*s(id+1))/2.
+!    else
+!      id=max(id,2)
+!      ss=s(id)+(dd-dep(id))/(dep(id+1)-dep(id-1))*((dep(id)-dep(id-1))*(s(id+1)-s(id))/(dep(id+1)-dep(id)) &
+!              +(dep(id+1)-dep(id))*(s(id)-s(id-1))/(dep(id)-dep(id-1)))                                    &
+!              +(dd-dep(id))**2/(dep(id+1)-dep(id-1))*((s(id+1)-s(id))/(dep(id+1)-dep(id))                  &
+!              -(s(id)-s(id-1))/(dep(id)-dep(id-1)))    
+!    end if
 !  case default
 !    write(6,*) "ERROR: Invalid vertintp ",vertintp
 !    stop
@@ -4097,7 +4116,7 @@ real, dimension(wlev), intent(in) :: s,dep
 real, intent(in) :: dd,sx
 real, intent(out) :: ss
 real xp
-!integer, parameter :: vertintp=1 ! vertical interpolation (0=linear, 1=quadratic)
+!integer, parameter :: vertintp=1 ! vertical interpolation (0=linear, 1=quadratic, 2=cubic)
 
 !if (dep(1)-0.01.gt.dd) return
 if (dep(wlev).lt.dd) then
@@ -4132,11 +4151,23 @@ id=afnd
     xp=(dd-dep(id))/(dep(id+1)-dep(id))
     ss=(1.-xp)*s(id)+xp*s(id+1)
 !  case(1) ! quadratic
-!     !id=max(id,2)
-!     ss=s(id)+(dd-dep(id))/(dep(id+1)-dep(id-1))*((dep(id)-dep(id-1))*(s(id+1)-s(id))/(dep(id+1)-dep(id)) &
-!             +(dep(id+1)-dep(id))*(s(id)-s(id-1))/(dep(id)-dep(id-1)))                                    &
-!             +(dd-dep(id))**2/(dep(id+1)-dep(id-1))*((s(id+1)-s(id))/(dep(id+1)-dep(id))                  &
-!             -(s(id)-s(id-1))/(dep(id)-dep(id-1)))
+!    !id=max(id,2)
+!    ss=s(id)+(dd-dep(id))/(dep(id+1)-dep(id-1))*((dep(id)-dep(id-1))*(s(id+1)-s(id))/(dep(id+1)-dep(id)) &
+!            +(dep(id+1)-dep(id))*(s(id)-s(id-1))/(dep(id)-dep(id-1)))                                    &
+!            +(dd-dep(id))**2/(dep(id+1)-dep(id-1))*((s(id+1)-s(id))/(dep(id+1)-dep(id))                  &
+!            -(s(id)-s(id-1))/(dep(id)-dep(id-1)))
+!  case(2)
+!    if (id.gt.1.and.id.lt.wlev-1) then
+!      xp=(dd-dep(id))/(dep(id+1)-dep(id))     
+!      ss=((1.-xp)*((2.-xp)*((1.+xp)*s(id)-xp*s(id-1)/3.) &
+!         -xp*(1.+xp)*s(id+2)/3.)+xp*(1.+xp)*(2.-xp)*s(id+1))/2.
+!    else
+!      id=max(id,2)
+!      ss=s(id)+(dd-dep(id))/(dep(id+1)-dep(id-1))*((dep(id)-dep(id-1))*(s(id+1)-s(id))/(dep(id+1)-dep(id)) &
+!              +(dep(id+1)-dep(id))*(s(id)-s(id-1))/(dep(id)-dep(id-1)))                                    &
+!              +(dd-dep(id))**2/(dep(id+1)-dep(id-1))*((s(id+1)-s(id))/(dep(id+1)-dep(id))                  &
+!              -(s(id)-s(id-1))/(dep(id)-dep(id-1)))    
+!    end if
 !  case default
 !    write(6,*) "ERROR: Invalid vertintp ",vertintp
 !    stop

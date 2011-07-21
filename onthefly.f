@@ -575,7 +575,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
         if(ierr.ne.0)then  ! neither sicedep nor fracice read in
           sicedep_a(:)=0.  ! Oct 08
           fracice_a(:)=0.
-	    if(myid==0) write(6,*)'pre-setting siced in infile from tss'
+	    if(myid==0) write(6,*)'pre-setting siced in onthefly from tss'
           where(abs(tss_a) <= 271.2)
             sicedep_a=1.  ! Oct 08
             fracice_a=1.

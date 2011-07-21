@@ -218,10 +218,10 @@ p_uscrn=0.
 p_u10=0.
 p_mixind=wlev-1
 
-! MLO - 20 level
+! MLO - 20 level (shallow)
 !depth = (/  0.25,   1.1,   3.0,   6.7,  12.8,  22.0,  35.1,  52.8,  76.7, 104.5, &
 !           140.0, 182.9, 233.8, 293.4, 362.5, 441.8, 531.9, 633.5, 747.4, 874.3 /)
-! MLO - 40 level
+! MLO - 40 level (deep)
 !depth = (/   0.5,   1.7,   3.7,   6.8,  11.5,  18.3,  27.7,  40.1,  56.0,  75.9, &
 !           100.2, 129.4, 164.0, 204.3, 251.0, 304.4, 365.1, 433.4, 509.9, 595.0, &
 !           689.2, 793.0, 906.7,1031.0,1166.2,1312.8,1471.3,1642.2,1825.9,2022.8, &
@@ -875,7 +875,7 @@ call getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,a_f,d_zcr) ! solv
 call getstab(km,ks,gammas,d_nsq,d_ustar,d_zcr)                     ! solve for stability functions and non-local term
                                                                    ! (calculated at half levels)
 
-! TEMPERATURE
+! POTENTIAL TEMPERATURE
 if (incradgam.gt.0) then
   do iqw=1,wfull
     dumt0(iqw)=d_wt0(iqw)+sum(d_rad(iqw,1:p_mixind(iqw)))
@@ -1547,6 +1547,52 @@ drho0ds= (0.824493 - 4.0899e-3*t(:) + 7.6438e-5*t2(:) &
 
 return
 end subroutine calcdensity
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Convert temp to theta based on MOM3 routine
+subroutine gettheta(theta,tt,ss,pxtr,ddz)
+
+implicit none
+
+integer ii
+real, dimension(wfull,wlev), intent(out) :: theta
+real, dimension(wfull,wlev), intent(in) :: tt,ss,ddz
+real, dimension(wfull), intent(in) :: pxtr
+real, dimension(wfull) :: b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11
+real, dimension(wfull) :: t,t2,t3,s,s2,p,p2,potmp,ptot
+real, dimension(wfull,wlev) :: d_rho
+real, parameter :: density = 1035.
+
+d_rho=density
+
+ptot=pxtr*1.E-5
+do ii=1,wlev
+  t = max(tt(:,ii)-273.16,-2.)
+  s = max(ss(:,ii),0.)
+  p   = ptot+grav*d_rho(:,ii)*0.5*ddz(:,ii)*1.E-5 ! hydrostatic approximation
+  ptot = ptot+grav*d_rho(:,ii)*ddz(:,ii)*1.E-5
+    
+  b1    = -1.60e-5*p
+  b2    = 1.014e-5*p*t
+  t2    = t*t
+  t3    = t2*t
+  b3    = -1.27e-7*p*t2
+  b4    = 2.7e-9*p*t3
+  b5    = 1.322e-6*p*s
+  b6    = -2.62e-8*p*s*t
+  s2    = s*s
+  p2    = p*p
+  b7    = 4.1e-9*p*s2
+  b8    = 9.14e-9*p2
+  b9    = -2.77e-10*p2*t
+  b10   = 9.5e-13*p2*t2
+  b11   = -1.557e-13*p2*p
+  potmp = b1+b2+b3+b4+b5+b6+b7+b8+b9+b10+b11
+  theta(:,ii) = t-potmp+273.16
+end do
+
+return
+end subroutine gettheta
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate fluxes between MLO and atmosphere (from CCAM sflux.f)

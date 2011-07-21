@@ -371,6 +371,7 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       if (ib.lt.0) ib=ia+3
       if (ntbar.lt.0) ntbar=kl/3      ! just a default 7/3/07
       if (ktopdav.lt.0) ktopdav=kl
+      if (kbotmlo.lt.0) kbotmlo=ol
      
       if(ldr==0)mbase=0
       dsig4=max(dsig2+.01,dsig4)
@@ -2002,7 +2003,7 @@ c     endif
      &     kdate_s/-1/,ktime_s/-1/,leap/0/,
      &     mbd/0/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/,           
      &     nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/,
-     &     ktopdav/-1/,nud_sst/0/,nud_sss/0/,kbotmlo/12/,ktopmlo/1/,
+     &     ktopdav/-1/,nud_sst/0/,nud_sss/0/,kbotmlo/-1/,ktopmlo/1/,
      &     mloalpha/10/,nud_ouv/0/,nud_sfh/0/ ! MJT nestin ! MJT mlo
       
 !     Dynamics options A & B      
