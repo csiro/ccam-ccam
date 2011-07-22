@@ -33,8 +33,9 @@ real, dimension(:,:), allocatable, save :: tkesav,epssav
 
 ! model constants
 real, parameter :: aup     = 0.1
-real, parameter :: b1      = 1.    ! Soares et al (2004) 1.
-real, parameter :: b2      = 2.    ! Soares et al (2004) 2.
+real, parameter :: b1      = 1.     ! Soares et al (2004) 1.
+real, parameter :: b2      = 2.     ! Soares et al (2004) 2.
+real, parameter :: be      = 1.     ! Hurley (2007) 1., Soares et al (2004) 0.3
 real, parameter :: cm      = 0.09
 real, parameter :: ce0     = 0.69
 real, parameter :: ce1     = 1.46
@@ -69,7 +70,6 @@ real, parameter :: d_1   = 0.35
 integer, parameter :: buoymeth   = 3 ! 0=Hurley, 1=Durran (no wgt), 2=Smith, 3=Durran (wgt) method for calculating buoyancy
 integer, parameter :: kmlimit    = 0 ! 0=No adjustment, 1=Limit decay in pbl top
 integer, parameter :: usedt      = 0 ! 0=No sub time step, 1=Use dt=100sec time step, 2=Use 2 sub time steps
-integer, parameter :: interpmeth = 1 ! 0=linear, 1=quadratic interpolation of diffusion between levels
 integer, parameter :: icm  = 10      ! iterations for calculating pblh
 integer, parameter :: icm2 = 10      ! iterations for calculating tke-eps
 real, parameter :: tol    = 1.E-9    ! tolarance for sectant method
@@ -142,9 +142,9 @@ real, dimension(ifull) :: wstar,z_on_l,phim,hh,jj,dqsdt,ziold
 real, dimension(ifull) :: dum,wtv0
 real, dimension(kl-1) :: wpv_flux
 real, dimension(kl) :: mflx,tvup,qvup,qfup,qlup,w2up,qupsat
-real xp,wup,ee,nn,ttk,as,bs,cs
+real xp,wup,ee,nn,ttk(2),as,bs,cs
 real cf,sigup,cm34,ddt
-real zht,dzht
+real zht,dzht,thetav_hl,qg_hl,qf_hl,ql_hl
 logical sconv
 
 cm34=cm**0.75
@@ -191,6 +191,8 @@ end do
 
 ! Calculate non-local terms for theta_v,qg,qfg and qlg
 ! theta counter gradient term is derived from theta_v
+! (Here we include qfg and qlg for consistancy with thetav,
+!  although these terms will typically be trivially zero)
 gamtv=0.
 gamq=0.
 gamqf=0.
@@ -210,15 +212,20 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         ! first level ---------------
         zht=zz(i,1)
         dzht=zz(i,1)
-        !ee=ce3*(1./(zht+dzht)+1./(max(zi(i)-zht,0.)+dzht)) ! Soares 2004
-        ee=ce3*(1./max(zht,20.)+1./max(zi(i)-zht,20.)) ! MJT suggestion
-        tvup(1)=thetav(i,1)+wtv0(i)/sqrt(tke(i,1)) !*0.3 in Soares et al (2004)
-        qvup(1)=qg(i,1)    +wq0(i)/sqrt(tke(i,1))  !*0.3 in Soares et al (2004)
+        ! estimate entrainment rate (assume dry air)
+        ee=ce3*(1./(zht+dzht)+1./(max(zi(i)-zht,0.)+dzht)) ! Soares 2004
+        !ee=ce3*(1./max(zht,20.)+1./max(zi(i)-zht,20.)) ! MJT suggestion
+        ! initial thermodynamic state
+        tvup(1)=thetav(i,1)+be*wtv0(i)/sqrt(tke(i,1))
+        qvup(1)=qg(i,1)    +be*wq0(i)/sqrt(tke(i,1))
         qfup(1)=qfg(i,1)
         qlup(1)=qlg(i,1)
+        ! estimate buoyancy (assume dry air)
         nn=grav*(tvup(1)-thetav(i,1))/thetav(i,1)
-        w2up(1)=2.*dzht*b2*nn/(1.+2.*dzht*b1*ee)
+        ! estimate updraft velocity (note that b1 term is averaged between w2up(1) and w2up(0)=0.
+        w2up(1)=2.*dzht*b2*nn/(1.+dzht*b1*ee)
         wup=sqrt(max(w2up(1),0.))
+        ! check for plume saturation and update mass flux
         aa(1,2)=ps(i)*sig(1)                                                  ! pressure
         bb(1,2)=(tvup(1)-theta(i,1)*(0.61*qvup(1)-qfup(1)-qlup(1)))/sigkap(1) ! tempup
         call getqsat(1,qupsat(1),bb(1,2),aa(1,2))
@@ -226,9 +233,12 @@ if (mode.ne.1) then ! mass flux when mode is an even number
           mflx(1)=aup*wup
         else                                        ! moist convection (boundary condition)
           sconv=.true.
+          ! plume is saturated at first model level.  We then need to estimate qvup(2)
+          ! so that we can estimate the cloud fraction at the LCL.
           dzht=dz_hl(i,1)
           ee=entr
-          qvup(2)=(qvup(1)+dzht*ee*qg(i,2))/(1.+dzht*ee)
+          qg_hl=0.5*sum(qg(i,1:2))
+          qvup(2)=(qvup(1)*(1.-0.5*dzht*ee)+dzht*ee*qg_hl)/(1.+0.5*dzht*ee)
           ! Cuijpers and Bechtold (1995)
           sigup=max(1.E-6,-1.6*tke(i,1)/eps(i,1)*cq*km(i,1)*((qvup(2)-qvup(1))/dzht)**2)
           cf=0.5+0.36*atan(1.55*(qvup(1)-qupsat(1))/sqrt(sigup))
@@ -239,32 +249,40 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         ! integrate over full levels (helps internal consistancy)
         ! (interpolate to half levels later with gamm(0)=0 and gamm(zi)=0)
         do k=2,kl
-          zht=zz(i,k)
+          zht=0.5*sum(zz(i,k-1:k)) ! midpoint
           dzht=dz_hl(i,k-1)
+          ! estimate entrainment rate for dry or saturated cases
           if (.not.sconv) then
-            !ee=ce3*(1./(zht+dzht)+1./(max(zi(i)-zht,0.)+dzht)) ! Soares 2004
-            ee=ce3*(1./max(zht,20.)+1./max(zi(i)-zht,20.)) ! MJT suggestion
+            ee=ce3*(1./(zht+dzht)+1./(max(zi(i)-zht,0.)+dzht)) ! Soares 2004
+            !ee=ce3*(1./max(zht,20.)+1./max(zi(i)-zht,20.)) ! MJT suggestion
           else
             ee=entr
           end if
-          tvup(k)=(tvup(k-1)+dzht*ee*thetav(i,k))/(1.+dzht*ee)
-          qvup(k)=(qvup(k-1)+dzht*ee*qg(i,k)    )/(1.+dzht*ee)
-          qfup(k)=(qfup(k-1)+dzht*ee*qfg(i,k)   )/(1.+dzht*ee)
-          qlup(k)=(qlup(k-1)+dzht*ee*qlg(i,k)   )/(1.+dzht*ee)
+          ! update thermodynamics of plume
+          thetav_hl=0.5*sum(thetav(i,k-1:k))
+          qg_hl=0.5*sum(qg(i,k-1:k))
+          qf_hl=0.5*sum(qfg(i,k-1:k))
+          ql_hl=0.5*sum(qlg(i,k-1:k))
+          tvup(k)=(tvup(k-1)*(1.-0.5*dzht*ee)+dzht*ee*thetav_hl)/(1.+0.5*dzht*ee)
+          qvup(k)=(qvup(k-1)*(1.-0.5*dzht*ee)+dzht*ee*qg_hl    )/(1.+0.5*dzht*ee)
+          qfup(k)=(qfup(k-1)*(1.-0.5*dzht*ee)+dzht*ee*qf_hl    )/(1.+0.5*dzht*ee)
+          qlup(k)=(qlup(k-1)*(1.-0.5*dzht*ee)+dzht*ee*ql_hl    )/(1.+0.5*dzht*ee)
           aa(1,2)=ps(i)*sig(k)                                                  ! pressure
           bb(1,2)=(tvup(k)-theta(i,k)*(0.61*qvup(k)-qfup(k)-qlup(k)))/sigkap(k) ! temp,up
           call getqsat(1,qupsat(k),bb(1,2),aa(1,2))
+          ! estimate buoyancy for dry or saturated cases
           if (.not.sconv) then
-            nn=grav*(tvup(k)-thetav(i,k))/thetav(i,k)
+            nn=0.5*grav*sum((tvup(k-1:k)-thetav(i,k-1:k))/thetav(i,k-1:k))
           else
-            ttk=tvup(k)-theta(i,k)*(0.61*qvup(k)-qfup(k)-qlup(k)) ! theta,up
-            nn=grav*(gg(i,k)*((ttk-theta(i,k))/theta(i,k) &
-               +lv/(cp*temp(i,k))*(qupsat(k)-qsat(i,k)))              &
-               -qupsat(k)-qfup(k)-qlup(k)+qsat(i,k)+qfg(i,k)+qlg(i,k))
+            ttk(1:2)=tvup(k-1:k)-theta(i,k-1:k)*(0.61*qvup(k-1:)-qfup(k-1:k)-qlup(k-1:k)) ! theta,up
+            nn=0.5*grav*sum(gg(i,k-1:k)*((ttk(1:2)-theta(i,k-1:k))/theta(i,k-1:k)             &
+               +lv/(cp*temp(i,k-1:k))*(qupsat(k-1:k)-qsat(i,k-1:k)))                   &
+               -qupsat(k-1:k)-qfup(k-1:k)-qlup(k-1:k)+qsat(i,k-1:k)+qfg(i,k-1:k)+qlg(i,k-1:k))
           end if
-          w2up(k)=(w2up(k-1)+2.*dzht*b2*nn)/(1.+2.*dzht*b1*ee)
+          ! update updraft velocitiy
+          w2up(k)=(w2up(k-1)*(1.-dzht*b1*ee)+2.*dzht*b2*nn)/(1.+dzht*b1*ee)
           wup=sqrt(max(w2up(k),0.))
-
+          ! check for plume saturation and update mass flux
           if (.not.sconv) then
             if (qvup(k).lt.qupsat(k).or.mode.eq.2) then ! dry convection
               mflx(k)=aup*wup
@@ -283,6 +301,7 @@ if (mode.ne.1) then ! mass flux when mode is an even number
               mflx(k)=0.
             end if
           end if
+          ! test if maximum plume height is reached
           if (w2up(k).le.0.) then
             if (k.gt.2) then ! quadratic
               bs=1./(zz(i,k)-zz(i,k-2))*                                              &
@@ -305,6 +324,7 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         if (abs(zi(i)-ziold(i)).lt.1.) exit
         ziold(i)=zi(i)
       end do
+      ! update counter gradient terms based on plume
       do k=1,kl-1
         gamtv(i,k)=mflx(k)*(tvup(k)-thetav(i,k))
         gamq(i,k) =mflx(k)*(qvup(k)-qg(i,k))
@@ -335,6 +355,7 @@ if (mode.ne.1) then ! mass flux when mode is an even number
       end if
     end if
   end do
+  ! limits on counter gradient terms
   gamtv=km*min(max(gamtv/km,-2.E-2),2.E-2)
   gamq =km*min(max(gamq/km, -2.E-6),2.E-6)
   gamqf=km*min(max(gamqf/km,-2.E-6),2.E-6)
@@ -674,12 +695,12 @@ real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull) :: zhl
 real xp
 
-select case(interpmeth)
-  case(0) ! linear
-    do k=1,kl-1
-      kmo(:,k)=0.5*sum(km(:,k:k+1),2)
-    end do
-  case(1) ! quadratic
+!select case(interpmeth)
+!  case(0) ! linear
+!    do k=1,kl-1
+!      kmo(:,k)=0.5*sum(km(:,k:k+1),2)
+!    end do
+!  case(1) ! quadratic
     zhl=0.5*sum(zz(:,1:2),2)
     kmo(:,1)=km(:,2)+(zhl-zz(:,2))/(zz(:,3)-zz(:,1))*                    &
                ((zz(:,2)-zz(:,1))*(km(:,3)-km(:,2))/(zz(:,3)-zz(:,2))    &
@@ -716,7 +737,7 @@ select case(interpmeth)
 !             +(zhl-zz(:,kl-1))**2/(zz(:,kl)-zz(:,kl-2))*                               &
 !               ((km(:,kl)-km(:,kl-1))/(zz(:,kl)-zz(:,kl-1))                            &
 !               -(km(:,kl-1)-km(:,kl-2))/(zz(:,kl-1)-zz(:,kl-2)))
-end select
+!end select
 ! These terms are never used
 kmo(:,kl)=2.*kmo(:,kl-1)-kmo(:,kl-2)
 kmo=max(kmo,1.E-10)
@@ -744,7 +765,7 @@ zhl=0.5*sum(zz(:,1:2),2)
 where(zhl.gt.zi)
   gamhl(:,1)=0.
 elsewhere (zz(:,2).gt.zi)
-  gamhl(:,1)=(zhl-zz(:,1))/(zi-zz(:,1))*gamfl(:,1)
+  gamhl(:,1)=gamfl(:,1) ! assume const in this case
 elsewhere
   gamhl(:,1)=gamfl(:,2)+(zhl-zz(:,2))/(zz(:,3)-zz(:,1))*                     &
              ((zz(:,2)-zz(:,1))*(gamfl(:,3)-gamfl(:,2))/(zz(:,3)-zz(:,2))    &
@@ -753,6 +774,18 @@ elsewhere
              ((gamfl(:,3)-gamfl(:,2))/(zz(:,3)-zz(:,2))                      &
              -(gamfl(:,2)-gamfl(:,1))/(zz(:,2)-zz(:,1)))
 end where
+!where(zz(:,1).gt.zi)
+!  gamhl(:,1)=0.
+!elsewhere (zz(:,2).gt.zi)
+!  gamhl(:,1)=gamfl(:,1) ! assume const in this case
+!elsewhere
+!  gamhl(:,1)=gamfl(:,2)+(zhl-zz(:,2))/(zz(:,3)-zz(:,1))*                     &
+!             ((zz(:,2)-zz(:,1))*(gamfl(:,3)-gamfl(:,2))/(zz(:,3)-zz(:,2))    &
+!             +(zz(:,3)-zz(:,2))*(gamfl(:,2)-gamfl(:,1))/(zz(:,2)-zz(:,1)))   &
+!           +(zhl-zz(:,2))**2/(zz(:,3)-zz(:,1))*                              &
+!             ((gamfl(:,3)-gamfl(:,2))/(zz(:,3)-zz(:,2))                      &
+!             -(gamfl(:,2)-gamfl(:,1))/(zz(:,2)-zz(:,1)))
+!end where
 
 do k=2,kl-2
   zhl=0.5*sum(zz(:,k:k+1),2)
@@ -773,6 +806,16 @@ do k=2,kl-2
                  ((gamfl(:,k+1)-gamfl(:,k))/(zz(:,k+1)-zz(:,k))                        &
                  -(gamfl(:,k)-gamfl(:,k-1))/(zz(:,k)-zz(:,k-1)))
   end where
+  !where(zz(:,k).gt.zi)
+  !  gamhl(:,k)=0.
+  !elsewhere
+  !  gamhl(:,k)=gamfl(:,k)+(zhl-zz(:,k))/(zz(:,k+1)-zz(:,k-1))*                         &
+  !               ((zz(:,k)-zz(:,k-1))*(gamfl(:,k+1)-gamfl(:,k))/(zz(:,k+1)-zz(:,k))    &
+  !               +(zz(:,k+1)-zz(:,k))*(gamfl(:,k)-gamfl(:,k-1))/(zz(:,k)-zz(:,k-1)))   &
+  !             +(zhl-zz(:,k))**2/(zz(:,k+1)-zz(:,k-1))*                                &
+  !               ((gamfl(:,k+1)-gamfl(:,k))/(zz(:,k+1)-zz(:,k))                        &
+  !               -(gamfl(:,k)-gamfl(:,k-1))/(zz(:,k)-zz(:,k-1)))
+  !end where  
 end do
 
 return
