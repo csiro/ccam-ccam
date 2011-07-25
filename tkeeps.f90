@@ -78,6 +78,8 @@ real, parameter :: alpha  = 0.7      ! weight for updating pblh
 real, parameter :: alpha2 = 0.7      ! weight for updating tke-eps non-linear terms
 real, parameter :: beta1  = 1.0      ! weight for km(t+1) (beta=0.) and km(t) (beta=1.) when calculating tke non-linear terms
 real, parameter :: beta2  = 0.0      ! weight for km(t+1) (beta=0.) and km(t) (beta=1.) when calculating eps non-linear terms
+real, parameter :: mintke = 1.5E-4
+real, parameter :: mineps = 1.0E-6
 
 contains
 
@@ -100,8 +102,8 @@ allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
 allocate(tkesav(ifull,kl),epssav(ifull,kl))
 allocate(shear(ifull,kl))
 
-tke=1.5E-4
-eps=1.0E-6
+tke=mintke
+eps=mineps
 tkesav=tke(1:ifull,:)
 epssav=eps(1:ifull,:)
 shear=0.
@@ -168,11 +170,10 @@ do k=1,kl-1
 end do
 
 ! impose limits after host advection
-tke(1:ifull,:)=max(tke(1:ifull,:),1.5E-8)
-tke(1:ifull,:)=min(tke(1:ifull,:),65.)
+tke(1:ifull,:)=max(tke(1:ifull,:),mintke)
 ff=cm34*(tke(1:ifull,:)**1.5)/5.
 eps(1:ifull,:)=min(eps(1:ifull,:),ff)
-ff=max(ff*5./500.,1.E-10)
+ff=max(ff*5./500.,mineps)
 eps(1:ifull,:)=max(eps(1:ifull,:),ff)
 
 ! Calculate diffusion coeffs
@@ -210,11 +211,10 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         qlup(:)=qlg(i,:)
         sconv=.false.
         ! first level ---------------
-        zht=zz(i,1)
+        zht=0.5*zz(i,1) ! midpoint
         dzht=zz(i,1)
         ! estimate entrainment rate (assume dry air)
         ee=ce3*(1./(zht+dzht)+1./(max(zi(i)-zht,0.)+dzht)) ! Soares 2004
-        !ee=ce3*(1./max(zht,20.)+1./max(zi(i)-zht,20.)) ! MJT suggestion
         ! initial thermodynamic state
         tvup(1)=thetav(i,1)+be*wtv0(i)/sqrt(tke(i,1))
         qvup(1)=qg(i,1)    +be*wq0(i)/sqrt(tke(i,1))
@@ -254,7 +254,6 @@ if (mode.ne.1) then ! mass flux when mode is an even number
           ! estimate entrainment rate for dry or saturated cases
           if (.not.sconv) then
             ee=ce3*(1./(zht+dzht)+1./(max(zi(i)-zht,0.)+dzht)) ! Soares 2004
-            !ee=ce3*(1./max(zht,20.)+1./max(zi(i)-zht,20.)) ! MJT suggestion
           else
             ee=entr
           end if
@@ -275,7 +274,7 @@ if (mode.ne.1) then ! mass flux when mode is an even number
             nn=0.5*grav*sum((tvup(k-1:k)-thetav(i,k-1:k))/thetav(i,k-1:k))
           else
             ttk(1:2)=tvup(k-1:k)-theta(i,k-1:k)*(0.61*qvup(k-1:)-qfup(k-1:k)-qlup(k-1:k)) ! theta,up
-            nn=0.5*grav*sum(gg(i,k-1:k)*((ttk(1:2)-theta(i,k-1:k))/theta(i,k-1:k)             &
+            nn=0.5*grav*sum(gg(i,k-1:k)*((ttk(1:2)-theta(i,k-1:k))/theta(i,k-1:k)      &
                +lv/(cp*temp(i,k-1:k))*(qupsat(k-1:k)-qsat(i,k-1:k)))                   &
                -qupsat(k-1:k)-qfup(k-1:k)-qlup(k-1:k)+qsat(i,k-1:k)+qfg(i,k-1:k)+qlg(i,k-1:k))
           end if
@@ -323,6 +322,10 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         zi(i)=alpha*zi(i)+(1.-alpha)*ziold(i)
         if (abs(zi(i)-ziold(i)).lt.1.) exit
         ziold(i)=zi(i)
+        
+        wstar(i)=(grav*zi(i)*wtv0(i)/thetav(i,1))**(1./3.)
+        tke(i,1)=ustar(i)*ustar(i)/sqrt(cm)+0.45*wstar(i)*wstar(i)
+        tke(i,1)=max(tke(i,1),mintke)
       end do
       ! update counter gradient terms based on plume
       do k=1,kl-1
@@ -353,6 +356,9 @@ if (mode.ne.1) then ! mass flux when mode is an even number
           end if
         end do
       end if
+      wstar(i)=0.
+      tke(i,1)=ustar(i)*ustar(i)/sqrt(cm)
+      tke(i,1)=max(tke(i,1),mintke)
     end if
   end do
   ! limits on counter gradient terms
@@ -426,10 +432,6 @@ select case(buoymeth)
 end select
 
 ! calculate wstar and phim (from TAPM)
-wstar=0.
-where (wtv0.gt.0.)
-  wstar=(grav*zi*wtv0/thetav(:,1))**(1./3.)
-end where
 z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*ustar*ustar*ustar)
 z_on_l=min(z_on_l,10.)
 where (z_on_l.lt.0.)
@@ -441,13 +443,10 @@ elsewhere !(z_on_l.le.0.4)
 end where
 
 ! boundary condition
-tke(1:ifull,1)=ustar*ustar/sqrt(cm)+0.45*wstar*wstar
 eps(1:ifull,1)=ustar*ustar*ustar*(phim-z_on_l)/(vkar*zz(:,1))
-tke(1:ifull,1)=max(tke(1:ifull,1),1.5E-8)
-tke(1:ifull,1)=min(tke(1:ifull,1),65.)
 aa(:,2)=cm34*(tke(1:ifull,1)**1.5)/5.
 eps(1:ifull,1)=min(eps(1:ifull,1),aa(:,2))
-aa(:,2)=max(aa(:,2)*5./500.,1.E-10)
+aa(:,2)=max(aa(:,2)*5./500.,mineps)
 eps(1:ifull,1)=max(eps(1:ifull,1),aa(:,2))
 
 ! Calculate shear term
@@ -494,11 +493,10 @@ do jcount=1,ncount
     end where
   end do
   
-  tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-8)
-  tkenew(:,2:kl)=min(tkenew(:,2:kl),65.)
+  tkenew(:,2:kl)=max(tkenew(:,2:kl),mintke)
   aa(:,2:kl)=cm34*(tkenew(:,2:kl)**1.5)/5.
   epsnew(:,2:kl)=min(epsnew(:,2:kl),aa(:,2:kl))
-  aa(:,2:kl)=max(aa(:,2:kl)*5./500.,1.E-10)
+  aa(:,2:kl)=max(aa(:,2:kl)*5./500.,mineps)
   epsnew(:,2:kl)=max(epsnew(:,2:kl),aa(:,2:kl))
 
   tke(1:ifull,2:kl)=tkenew(:,2:kl)
@@ -545,11 +543,10 @@ do jcount=1,ncount
       end where
     end do
   end if
-  tkenew(:,2:kl)=max(tkenew(:,2:kl),1.5E-8)
-  tkenew(:,2:kl)=min(tkenew(:,2:kl),65.)
+  tkenew(:,2:kl)=max(tkenew(:,2:kl),mintke)
   aa(:,2:kl)=cm34*(tkenew(:,2:kl)**1.5)/5.
   epsnew(:,2:kl)=min(epsnew(:,2:kl),aa(:,2:kl))
-  aa(:,2:kl)=max(aa(:,2:kl)*5./500.,1.E-10)
+  aa(:,2:kl)=max(aa(:,2:kl)*5./500.,mineps)
   epsnew(:,2:kl)=max(epsnew(:,2:kl),aa(:,2:kl))
   tke(1:ifull,2:kl)=tkenew(:,2:kl)
   eps(1:ifull,2:kl)=epsnew(:,2:kl)

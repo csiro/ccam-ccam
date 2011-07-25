@@ -4,9 +4,8 @@
 ! mlodynamics.f90 for river routing, diffusion and advection routines.
 
 ! This version has a relatively thin 1st layer (e.g, 0.5m) so as to better reproduce a diurnal cycle in SST.  It also
-! supports a thermodynamic model of sea ice based on O'Farrell's from Mk3.5.
-
-! We have also included a free surface so that lakes can change depth, etc.
+! supports a thermodynamic model of sea ice based on O'Farrell's from Mk3.5.  We have included a free surface so that
+! lakes can change depth, etc.
 
 ! This version can assimilate SSTs from GCMs, using a convolution based digital filter (see nestin.f),
 ! which avoids problems with complex land-sea boundary conditions.
@@ -811,14 +810,13 @@ elsewhere
 end where
 
 d_zcr=max((1.+w_eta/depth_hl(:,wlev+1)),0.01) ! adjust levels for free surface
-call getrho(a_ps,d_rho,d_rs,d_alpha,d_beta,d_zcr)
-call fluxcalc(dt,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,d_rho,d_taux,d_tauy,d_zcr,diag)             ! ocean fluxes
+call getrho(a_ps,d_rho,d_rs,d_alpha,d_beta,d_zcr)                                                    ! equation of state
+call fluxcalc(dt,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins,d_rho,d_taux,d_tauy,d_zcr,diag)             ! water fluxes
 call getwflux(a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_inflow,d_rho,d_rs,d_nsq,d_rad,     &
               d_alpha,d_beta,d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_wm0,d_taux,d_tauy,d_zcr)         ! boundary conditions
 d_timelt=273.16-0.054*w_sal(:,1) ! ice melting temperature from CICE
-if (calcprog) then
-  call mlonewice(dt,d_rho,d_timelt,d_wm0,d_zcr,diag)                                                 ! create new ice
-end if
+! ice formation is called for both calcprog=.true. and .false
+call mlonewice(dt,d_rho,d_timelt,d_wm0,d_zcr,diag)                                                   ! create new ice
 call iceflux(dt,a_sg,a_rg,a_rnd,a_snd,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,   &
              a_zmins,d_rho,d_ftop,d_bot,d_tb,d_fb,d_timelt,d_nk,d_tauxica,d_tauyica,d_tauxicw,     &
              d_tauyicw,d_zcr,diag)                                                                   ! ice fluxes
@@ -1723,7 +1721,7 @@ elsewhere        ! ri is -ve
   den=1.+chs*2.*bprm*factch*aft*root
   fh=1.-2.*bprm*ri/den
   den=1.+chs*2.*bprm*facqch*afq*root
-  fq=1.-2.*bprm*ri/den  
+  fq=1.-2.*bprm*ri/den
 end where
 
 ! estimate current at t+1

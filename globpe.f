@@ -127,8 +127,6 @@
       real hdifmax
       common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
 
-!      integer, dimension(13), parameter :: mdays =
-!     &     (/31,28,31,30,31,30,31,31,30,31,30,31, 31/)
       logical odcalc
       character comm*60,comment*60,rundate*8,header*47,text*2 ! MJT bug fix
       character(len=10) :: timeval
@@ -141,7 +139,7 @@
      &     nalpha, newsnow, ng, nlx, nmaxprsav,
      &     nmi, npa, npb, npc, n3hr,      ! can remove npa,npb,npc
      &     nsnowout, nstagin, nstaguin, nwrite, nwtsav,
-     &     mins_rad, mtimer_sav, nn, i, j
+     &     mins_rad, mtimer_sav, nn, i, j, itrace
      &     ,mstn  ! not used in 2006
       integer, dimension(8) :: nper3hr
       real clhav, cllav, clmav, cltav, con, 
@@ -178,8 +176,9 @@
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
      & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss                  ! MJT urban ! MJT nmr ! MJT mlo ! MJT nestin
      & ,mfix_tr,mfix_ke,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv              ! MJT tracerfix ! MJT tke
-     & ,nud_sfh,bpyear
-      data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/ 
+     & ,nud_sfh,bpyear,itrace
+      data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/
+      data itrace/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -253,7 +252,6 @@
       do n3hr=1,8
        nper3hr(n3hr)=nint(n3hr*3*3600/dt)
       enddo
-c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
       if(nwt==-99)nwt=nperday          ! set default nwt to 24 hours
       if(nperavg==-99)nperavg=nwt      ! set default nperavg to nwt
       if(nwrite==0)nwrite=nperday  ! only used for outfile IEEE
@@ -263,9 +261,12 @@ c     if(nstag==99)nstag=-nper3hr(2)   ! i.e. 6-hourly value
       mins_rad=nint(kountr*dt/60.)  ! redefine to actual value
       read (99, datafile)
       read (99, kuonml)
-!     rml 16/02/06 read trfiles namelist and call init_tracer
-      if(ngas>0) then
+!     rml 16/02/06 read trfiles namelist
+      if(itrace>0) then
         read(99, trfiles)
+        call init_tracer
+      else
+        ngas=0
       endif
 
       !--------------------------------------------------------------
@@ -481,8 +482,8 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
      &        m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg,nscrn
       if(ntrac.ne.0)then
         print *,'Trace gas options:'
-        print *,' iradon  ico2  ngas   nllp   ntrac'
-        write (6,'(i5,5i7)') iradon,ico2,ngas,nllp,ntrac
+        print *,' ngas   nllp   ntrac'
+        write (6,'(i5,3i7)') ngas,nllp,ntrac
       endif
 
       write (6, cardin)
@@ -723,8 +724,11 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
         call carbpools_init(ifull,iextra,kl,ncp,ncs)
       end if
       if (ngas.gt.0) then
-        call tracers_init(il,jl,kl)
-        call init_tracer
+        call tracers_init(il,jl,kl,iextra)
+      else
+        ilt=1
+        jlt=1
+        klt=1
       end if
       call work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
       
@@ -2204,7 +2208,7 @@ c      data npans/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/
       include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
       common/leap_yr/leap  ! 1 to allow leap years
 
-      integer i,j,iq,ico2x,iqt,iradonx,isoil,k2,leap,nn
+      integer i,j,iq,iqt,isoil,k2,leap,nn
       real coslong, sinlong, coslat, sinlat, polenx, poleny, polenz,
      &     zonx, zony, zonz, den, costh, sinth, uzon, vmer, rh1, rh2,
      &     es,wbav, rh_s
@@ -2239,25 +2243,25 @@ c      data npans/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/
              rh_s=100.*qgscrn(iq)*(ps(iq)-es)/(.622*es)
              wbav=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)
      &        +zse(4)*wb(iq,4))/(zse(1)+zse(2)+zse(3)+zse(4))
-             ico2x=max(1,ico2)
-             iradonx=max(1,iradon)
+             !ico2x=max(1,ico2)
+             !iradonx=max(1,iradon)
              iqt = min(iq,ilt*jlt) ! Avoid bounds problems if there are no tracers
              k2=min(2,klt)
-             if (ngas>0) then
-             write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
-     &         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
-     &         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
-     &         wb(iq,1),wb(iq,2),
-     &         cloudlo(iq),cloudmi(iq)+1.,cloudhi(iq)+2.,
-     &         cloudtot(iq)+3.,
-     &         fg(iq),eg(iq),(1.-tsigmf(iq))*fgg(iq),
-     &         (1.-tsigmf(iq))*egg(iq),rnet(iq),sgsave(iq),
-     &         qg(iq,1)*1.e3,uzon,vmer,precc(iq),
-     &         qg(iq,2)*1.e3,rh1,rh2,tr(iqt,1,ico2x),tr(iqt,k2,ico2x),
-     &         tr(iqt,1,iradonx),tr(iqt,k2,iradonx) ,.01*ps(iq),wbav,
-     &         epot(iq),qgscrn(iq)*1.e3,rh_s,u10(iq),uscrn(iq),
-     &         condx(iq)
-             else
+!             if (ngas>0) then
+!             write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
+!     &         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
+!     &         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
+!     &         wb(iq,1),wb(iq,2),
+!     &         cloudlo(iq),cloudmi(iq)+1.,cloudhi(iq)+2.,
+!     &         cloudtot(iq)+3.,
+!     &         fg(iq),eg(iq),(1.-tsigmf(iq))*fgg(iq),
+!     &         (1.-tsigmf(iq))*egg(iq),rnet(iq),sgsave(iq),
+!     &         qg(iq,1)*1.e3,uzon,vmer,precc(iq),
+!     &         qg(iq,2)*1.e3,rh1,rh2,tr(iqt,1,ico2x),tr(iqt,k2,ico2x),
+!     &         tr(iqt,1,iradonx),tr(iqt,k2,iradonx) ,.01*ps(iq),wbav,
+!     &         epot(iq),qgscrn(iq)*1.e3,rh_s,u10(iq),uscrn(iq),
+!     &         condx(iq)
+!             else
              write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
      &         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
      &         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
@@ -2271,7 +2275,7 @@ c      data npans/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/
      &         0.,0.,.01*ps(iq),wbav,
      &         epot(iq),qgscrn(iq)*1.e3,rh_s,u10(iq),uscrn(iq),
      &         condx(iq)              
-             end if
+!             end if
 !              N.B. qgscrn formula needs to be greatly improved
 951          format(i4,6f7.2, 
      &              2f7.2, 2f6.3, 4f5.2,                ! t1 ... cld
@@ -2295,12 +2299,12 @@ c      data npans/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/
      &                              ssat(isoil),albvisnir(iq,1) ! MJT albedo
 954            format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
 !              rml 16/02/06 removed ico2em
-               if (ngas>0) then
-                 write (iunp(nn),955) i,j,radonem(iqt)
-               else
-                 write (iunp(nn),955) i,j,0.
-               end if
-955            format("#i,j,radonem: ",2i4,f7.3)
+!               if (ngas>0) then
+!                 write (iunp(nn),955) i,j,radonem(iqt)
+!               else
+!                 write (iunp(nn),955) i,j,0.
+!               end if
+!955            format("#i,j,radonem: ",2i4,f7.3)
              endif
            enddo
       return	    

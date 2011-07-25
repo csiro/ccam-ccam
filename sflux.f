@@ -60,7 +60,7 @@ c     cp specific heat at constant pressure joule/kgm/deg
       real zonx(ifull),zony(ifull),zonz(ifull),costh(ifull) ! MJT urban
       real sinth(ifull),uzon(ifull),vmer(ifull),azmin(ifull)! MJT urban
       real uav(ifull),vav(ifull) ! MJT tke
-      real zoh(ifull) ! MJT scrnocn
+      real zoh(ifull),neta(ifull) ! MJT scrnocn ! MJT mlo
       real, dimension(:), allocatable, save :: plens
       include 'establ.h'
 
@@ -481,13 +481,12 @@ c      Surface stresses taux, tauy: diagnostic only - unstag now    ! sice
        tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! sice
       endif  ! (sicedep(iq)>0.)
       enddo       ! iq loop                           
-c     if(mydiag.and.diag)then                                           
       if(mydiag.and.nmaxpr==1)then 
          print *,'after sice loop'
          iq=idjd
          b1=dirad(iq)+degdt(iq)+dfgdt(iq)+cie(iq)   
          gbot=(gamm(iq)/dt)+b1                           
-         deltat=ga(iq)/gbot                                               
+         deltat=ga(iq)/gbot
          print *,'ri,vmag,vmod,cduv ',ri(iq),vmag(iq),vmod(iq),cduv(iq) 
          print *,'fh,tss,tpan,tggsn1 ',fh(iq),tss(iq),tpan(iq)
      &                                ,tggsn(iq,1) ! MJT seaice
@@ -495,7 +494,7 @@ c     if(mydiag.and.diag)then
          print *,'b1,ga,gbot,af,aft ',b1,ga(iq),gbot,af(iq),aft(iq) 
          print *,'fg,fgice,factch ',fg(iq),fgf(iq),factch(iq) 
          print *,'cie ',cie(iq)      
-         print *,'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)          
+         print *,'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)
       endif   ! (mydiag.and.nmaxpr==1)
       
       elseif (abs(nmlo).ge.1.and.abs(nmlo).le.9) then                ! MLO
@@ -514,6 +513,11 @@ c     if(mydiag.and.diag)then
           call start_log(river_begin)                                ! MLO
           call mlorouter                                             ! MLO
           call end_log(river_end)                                    ! MLO
+        end if                                                       ! MLO
+        if (abs(nmlo).eq.1) then                                     ! MLO
+          ! set free surface to zero when water is not conserved     ! MLO
+          neta=0.                                                    ! MLO
+          call mloimport(4,neta,0,0)                                 ! MLO
         end if                                                       ! MLO
         call start_log(watermix_begin)                               ! MLO
         call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,        ! MLO

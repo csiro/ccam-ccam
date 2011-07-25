@@ -62,6 +62,7 @@ c rml 08/11/04 add decay flag
 
 c ***************************************************************************
       subroutine trgassflux(igas,trsrc)
+      use cable_ccam, only : cbmemiss
       use carbpools_m ! online co2 fluxes
       use define_dimensions, only : ncs, ncp ! Used in carbpool.h
       use nsibd_m     !ivegt (vegetation type)
@@ -102,11 +103,11 @@ c         write(131,*) 'tracer test: ',mveg
      &      'tracer selection: veg type out of range'
           select case (tracname(igas)(1:nchar-2))
             case('gpp')
-              where(ivegt==mveg) trsrc(:,1)=fpn-frd
+              call cbmemiss(trsrc(:,1),mveg,1)
             case('plresp')
-              where(ivegt==mveg) trsrc(:,1)=frp+frd
+              call cbmemiss(trsrc(:,1),mveg,2)
             case('slresp')
-              where(ivegt==mveg) trsrc(:,1)=frs
+              call cbmemiss(trsrc(:,1),mveg,3)
             case default 
               stop 'unknown online tracer name'
           end select

@@ -110,7 +110,7 @@ cable_air.o : cable_define_types.o cable_physical_constants.o
 cable_albedo.o : cable_define_types.o cable_math_constants.o cable_other_constants.o cable_physical_constants.o
 cable_canopy.o : cable_air.o cable_define_types.o cable_photosynthetic_constants.o cable_physical_constants.o cable_radiation.o cable_roughness.o
 cable_carbon.o : cable_define_types.o
-cable_ccam2.o : arrays_m.o cable_air.o cable_albedo.o cable_canopy.o cable_carbon.o cable_define_dimensions.o cable_define_types.o cable_physical_constants.o cable_radiation.o cable_roughness.o cable_soilsnow.o carbpools_m.o cc_mpi.o extraout_m.o infile.o latlong_m.o morepbl_m.o nsibd_m.o pbl_m.o permsurf_m.o prec_m.o radisw_m.o screen_m.o sigs_m.o soil_m.o soilbal_m.o soilsnow_m.o tracers_m.o vegpar_m.o work2_m.o work3_m.o zenith.o const_phys.h darcdf.h dates.h newmpar.h parm.h soilv.h
+cable_ccam2.o : arrays_m.o cable_air.o cable_albedo.o cable_canopy.o cable_carbon.o cable_define_dimensions.o cable_define_types.o cable_physical_constants.o cable_radiation.o cable_roughness.o cable_soilsnow.o carbpools_m.o cc_mpi.o extraout_m.o infile.o latlong_m.o morepbl_m.o nsibd_m.o pbl_m.o permsurf_m.o prec_m.o radisw_m.o screen_m.o sigs_m.o soil_m.o soilbal_m.o soilsnow_m.o tracermodule.o tracers_m.o vegpar_m.o work2_m.o work3_m.o zenith.o const_phys.h darcdf.h dates.h newmpar.h parm.h soilv.h
 cable_define_types.o : cable_define_dimensions.o
 cable_math_constants.o : cable_define_dimensions.o
 cable_other_constants.o : cable_define_dimensions.o
@@ -188,7 +188,7 @@ table.o : radisw_m.o tabcom_m.o hcon.h newmpar.h rdparm.h rnddta.h
 timeseries.o : arrays_m.o cable_define_dimensions.o carbpools_m.o cc_mpi.o extraout_m.o morepbl_m.o pbl_m.o prec_m.o sigs_m.o soil_m.o soilsnow_m.o tracermodule.o tracers_m.o vecsuv_m.o vegpar_m.o vvel_m.o xyzinfo_m.o const_phys.h dates.h newmpar.h parmgeom.h
 tracermodule.o : arrays_m.o cc_mpi.o sigs_m.o sumdd_m.o tracers_m.o xyzinfo_m.o const_phys.h newmpar.h parm.h
 trim.o : newmpar.h 
-trvmix.o : arrays_m.o cable_define_dimensions.o carbpools_m.o cc_mpi.o diag_m.o nsibd_m.o sigs_m.o tracermodule.o tracers_m.o const_phys.h dates.h newmpar.h parm.h
+trvmix.o : arrays_m.o cable_ccam2.o cable_define_dimensions.o carbpools_m.o cc_mpi.o diag_m.o nsibd_m.o sigs_m.o tracermodule.o tracers_m.o const_phys.h dates.h newmpar.h parm.h
 updps.o : arrays_m.o cc_mpi.o diag_m.o indices_m.o map_m.o nlin_m.o savuvt_m.o savuv1_m.o sbar_m.o sigs_m.o vecsuv_m.o vvel_m.o xarrs_m.o xyzinfo_m.o const_phys.h newmpar.h parm.h parmdyn.h parmhor.h
 upglobal.o : aerosolldr.o arrays_m.o cc_mpi.o diag_m.o epst_m.o indices_m.o liqwpar_m.o map_m.o nharrs_m.o nlin_m.o sbar_m.o sigs_m.o tkeeps.o tracers_m.o unn_m.o vecsuv_m.o vvel_m.o work3f_m.o xarrs_m.o xyzinfo_m.o const_phys.h kuocom.h newmpar.h parm.h parmdyn.h parmhor.h parmvert.h
 utilities.o : const_phys.h 

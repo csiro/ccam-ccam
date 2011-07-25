@@ -1251,6 +1251,7 @@ c       incorporate other target land mask effects
           do igas=1,ngas              
             write(trnum,'(i3.3)') igas
             do k=1,kk
+              t_a=0.
               call histrd4s(ncid,iarchi,ier,'tr'//trnum,ik,6*ik,k,
      &                 t_a,6*ik*ik)
               if (iotest) then

@@ -3,43 +3,47 @@ module tracers_m
 implicit none
 
 private
-public iradon,ico2,ngas,nllp,ntrac,ntracmax
+public ngas,ntrac,ntracmax,nllp
 public ilt,jlt,klt,ngasmax
-public tr,traver,radonem,trback_g,acloss_g,gasmin
+public tr,traver,trback_g,acloss_g,gasmin
 public tracers_init,tracers_end
 
-! Remove this line when all common blocks are gone
-include 'newmpar.h'
-
 ! These parameters should be controlled from namelist
-integer, parameter :: iradon=0
-integer, parameter :: ico2=0
-integer, parameter :: ngas=0
+integer, save :: ngas=0
 integer, parameter :: nllp=0
-integer, parameter :: ntrac=ngas+nllp
-integer, parameter :: ntracmax=max(ntrac,1) ! ntracmax >= 1
-integer, parameter :: ngasmax=max(ngas,1)   ! ngasmax >= 1
-integer, parameter :: npwr=min(ntrac,1)     ! i.e. 0 or 1 for no_gas/gas
+integer, save :: ntrac
+integer, save :: ntracmax
+integer, save :: ngasmax
 integer, save :: ilt
 integer, save :: jlt
 integer, save :: klt
 real, dimension(:,:,:), allocatable, save :: tr,traver
-real, dimension(:), allocatable, save :: radonem,trback_g,acloss_g,gasmin
+real, dimension(:), allocatable, save :: trback_g,acloss_g,gasmin
 
 contains
 
-subroutine tracers_init(il,jl,kl)
+subroutine tracers_init(il,jl,kl,iextra)
 
 implicit none
 
-integer, intent(in) :: il,jl,kl
+integer, intent(in) :: il,jl,kl,iextra
 
-ilt=il**npwr
-jlt=jl**npwr
-klt=kl**npwr
+ntrac=ngas+nllp
+ntracmax=max(ntrac,1) ! ntracmax >= 1
+ngasmax=max(ngas,1)   ! ngasmax >= 1
+
+! old trick for common blocks
+! now just set ilt to il or 1, etc
+!ilt=il**npwr
+!jlt=jl**npwr
+!klt=kl**npwr
+
+ilt=il
+jlt=jl
+klt=kl
 
 allocate(tr(ilt*jlt+iextra,klt,ntracmax),traver(ilt*jlt,klt,ntrac))
-allocate(radonem(ilt*jlt),trback_g(ntrac),acloss_g(ntrac),gasmin(ngasmax))
+allocate(trback_g(ntrac),acloss_g(ntrac),gasmin(ngasmax))
 
 gasmin=-1000.
 
@@ -51,7 +55,7 @@ subroutine tracers_end
 implicit none
 
 deallocate(tr,traver)
-deallocate(radonem,trback_g,acloss_g,gasmin)
+deallocate(trback_g,acloss_g,gasmin)
 
 return
 end subroutine tracers_end

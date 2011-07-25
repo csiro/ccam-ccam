@@ -93,7 +93,7 @@
       integer i1, ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth,
      &     iveg, iyr, j1, jj, k, kdate_sav, ktime_sav, l,
      &     nface, nn, npgb, nsig, i, j, n,
-     &     ix, jx, ixjx, ierr, ico2x, iradonx, ic, jc, iqg, ig, jg,
+     &     ix, jx, ixjx, ierr, ic, jc, iqg, ig, jg,
      &     isav, jsav
       real aamax, aamax_g, c, cent, 
      &     coslat, coslong, costh, den, diffb, diffg, dist,
@@ -185,8 +185,6 @@
       enddo   ! iq loop
 
       if (myid==0) then
-         print *,'iradon,ico2 ',
-     &            iradon,ico2
          print *,'nllp,ngas,ntrac,ilt,jlt,klt ',
      &            nllp,ngas,ntrac,ilt,jlt,klt
       end if
@@ -1107,46 +1105,47 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         call readglobvar(87, snowd, fmt="*")
 c       call readglobvar(87, sicedep, fmt="*") ! not read from 15/6/06
         if ( myid == 0 ) close(87)
-        if(ico2.ne.0)then
-          ico2x=max(1,ico2)
-          if ( myid == 0 ) then
-             print *,'reading previously saved co2 from ',co2in
-             open(unit=87,file=co2in,form='formatted',status='old')
-             read(87,'(a80)') header
-             print *,'header: ',header
-          end if
-          call readglobvar(87, tr(:,:,ico2x), fmt='(12f7.2)') 
-          rmin = minval(tr(:,:,ico2x))
-          rmax = maxval(tr(:,:,ico2x))
-          call MPI_Reduce(rmin, rmin_g, 1, MPI_REAL, MPI_MIN, 0,
-     &                    MPI_COMM_WORLD, ierr )
-          call MPI_Reduce(rmax, rmax_g, 1, MPI_REAL, MPI_MAX, 0,
-     &                    MPI_COMM_WORLD, ierr )
-          if ( myid == 0 ) then
-             print *,'min,max for co2 ',rmin,rmax
-             close(87)
-          end if
-        endif
-        if(iradon.ne.0)then
-          iradonx=max(1,iradon)
-          if ( myid == 0 ) then
-             print *,'reading previously saved radon from ',radonin
-             open(unit=87,file=radonin,form='formatted',status='old')
-             read(87,'(a80)') header
-             print *,'header: ',header
-          end if
-          call readglobvar(87, tr(:,:,iradonx), fmt="*")
-          rmin = minval(tr(:,:,iradonx))
-          rmax = maxval(tr(:,:,iradonx))
-          call MPI_Reduce(rmin, rmin_g, 1, MPI_REAL, MPI_MIN, 0,
-     &                    MPI_COMM_WORLD, ierr )
-          call MPI_Reduce(rmax, rmax_g, 1, MPI_REAL, MPI_MAX, 0,
-     &                    MPI_COMM_WORLD, ierr )
-          if ( myid == 0 ) then
-             print *,'min,max for radon ',rmin,rmax
-             close(87)
-          end if
-        endif
+        ! MJT - Tracers are now read by onthefly.f
+!        if(ico2.ne.0)then
+!          ico2x=max(1,ico2)
+!          if ( myid == 0 ) then
+!             print *,'reading previously saved co2 from ',co2in
+!             open(unit=87,file=co2in,form='formatted',status='old')
+!             read(87,'(a80)') header
+!             print *,'header: ',header
+!          end if
+!          call readglobvar(87, tr(:,:,ico2x), fmt='(12f7.2)') 
+!          rmin = minval(tr(:,:,ico2x))
+!          rmax = maxval(tr(:,:,ico2x))
+!          call MPI_Reduce(rmin, rmin_g, 1, MPI_REAL, MPI_MIN, 0,
+!     &                    MPI_COMM_WORLD, ierr )
+!          call MPI_Reduce(rmax, rmax_g, 1, MPI_REAL, MPI_MAX, 0,
+!     &                    MPI_COMM_WORLD, ierr )
+!          if ( myid == 0 ) then
+!             print *,'min,max for co2 ',rmin,rmax
+!             close(87)
+!          end if
+!        endif
+!        if(iradon.ne.0)then
+!          iradonx=max(1,iradon)
+!          if ( myid == 0 ) then
+!             print *,'reading previously saved radon from ',radonin
+!             open(unit=87,file=radonin,form='formatted',status='old')
+!             read(87,'(a80)') header
+!             print *,'header: ',header
+!          end if
+!          call readglobvar(87, tr(:,:,iradonx), fmt="*")
+!          rmin = minval(tr(:,:,iradonx))
+!          rmax = maxval(tr(:,:,iradonx))
+!          call MPI_Reduce(rmin, rmin_g, 1, MPI_REAL, MPI_MIN, 0,
+!     &                    MPI_COMM_WORLD, ierr )
+!          call MPI_Reduce(rmax, rmax_g, 1, MPI_REAL, MPI_MAX, 0,
+!     &                    MPI_COMM_WORLD, ierr )
+!          if ( myid == 0 ) then
+!             print *,'min,max for radon ',rmin,rmax
+!             close(87)
+!          end if
+!        endif
         do iq=1,ifull
          if(land(iq))tss(iq)=aa(iq)
         enddo  ! iq loop
@@ -1876,16 +1875,16 @@ c        sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
          if(thet<0.)thet=thet+360.
 c        uzon= costh*u(iq,1)-sinth*v(iq,1)
 c        vmer= sinth*u(iq,1)+costh*v(iq,1)
-         if (ngas>0) then	  
-         write(22,922) iq,i,j,rlongg(iq)*180./pi,rlatt(iq)*180./pi,
-     &          thet,em(iq),land(iq),sicedep(iq),zs(iq)/grav,
-     &              albvisnir(iq,1), ! MJT albedo
-     &              isoilm(iq),ivegt(iq),
-     &              tss(iq),t(iq,1),tgg(iq,2),tgg(iq,ms),
-     &              wb(iq,1),wb(iq,ms),
-! rml 16/02/06 removed ico2em
-     &              radonem(min(iq,ilt*jlt))
-         else
+!         if (ngas>0) then	  
+!         write(22,922) iq,i,j,rlongg(iq)*180./pi,rlatt(iq)*180./pi,
+!     &          thet,em(iq),land(iq),sicedep(iq),zs(iq)/grav,
+!     &              albvisnir(iq,1), ! MJT albedo
+!     &              isoilm(iq),ivegt(iq),
+!     &              tss(iq),t(iq,1),tgg(iq,2),tgg(iq,ms),
+!     &              wb(iq,1),wb(iq,ms),
+!! rml 16/02/06 removed ico2em
+!     &              radonem(min(iq,ilt*jlt))
+!         else
          write(22,922) iq,i,j,rlongg(iq)*180./pi,rlatt(iq)*180./pi,
      &          thet,em(iq),land(iq),sicedep(iq),zs(iq)/grav,
      &              albvisnir(iq,1), ! MJT albedo
@@ -1894,7 +1893,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
      &              wb(iq,1),wb(iq,ms),
 ! rml 16/02/06 removed ico2em
      &              0.
-         end if
+!         end if
 922      format(i6,2i5,3f8.3,f8.4,l2,f4.1,f7.1,f5.2,2i3,
      &          4f7.1,2f6.2,f5.2)
         enddo
@@ -2212,7 +2211,8 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
        else
          zolnd=zobgin ! updated in cable_ccam2.f90
        end if
-       if(iradon.ne.0)call readreal(radonemfile,radonem,ifull)
+       ! MJT - emissions are now read through tracermodule.f
+       !if(iradon.ne.0)call readreal(radonemfile,radonem,ifull)
        if (nsib.le.3) then
          call readint(vegfile,ivegt,ifull)
        else

@@ -8,7 +8,7 @@
       include 'newmpar.h'
       integer mev1,mev2,nwrite0
       integer nspare,io_outt
-      integer iradonx,ico2x,ms_out
+      integer ms_out
       integer iout,nmi,nwrite,iaero
       real ndt
 c     mev1 = 1 for il even (2 for il odd)
@@ -94,26 +94,27 @@ c     reincorporate land mask into surface temperature
             call writeglobvar(77, snowd, fmt='(12f7.1)')
             call writeglobvar(77, sicedep, fmt='(12f7.1)')
             if ( myid == 0 ) close (77)
-            if(ico2.gt.0)then
-               ico2x=max(1,ico2)
-               if ( myid == 0 ) then
-                  open(unit=77,file=co2out,form='formatted',
-     &                 status='unknown')
-                  write (77,*) kdate,ktime,' ktau = ',ktau
-               end if
-               call writeglobvar(77, tr(:,:,ico2x), fmt='(12f7.2)')
-               if ( myid==0 ) close (77)
-            endif               ! (ico2.gt.0)
-            if(iradon.gt.0)then
-               iradonx=max(1,iradon)
-               if ( myid == 0 ) then
-                  open(unit=77,file=radonout,form='formatted',
-     &                 status='unknown')
-                  write (77,*) kdate,ktime,' ktau = ',ktau
-               end if
-               call writeglobvar (77, tr(:,:,iradonx), fmt='(12f7.1)')
-               if ( myid == 0 ) close (77)
-            endif               ! (ico2.gt.0)
+            ! MJT tracer data saved in onthefly
+!            if(ico2.gt.0)then
+!               ico2x=max(1,ico2)
+!               if ( myid == 0 ) then
+!                  open(unit=77,file=co2out,form='formatted',
+!     &                 status='unknown')
+!                  write (77,*) kdate,ktime,' ktau = ',ktau
+!               end if
+!               call writeglobvar(77, tr(:,:,ico2x), fmt='(12f7.2)')
+!               if ( myid==0 ) close (77)
+!            endif               ! (ico2.gt.0)
+!            if(iradon.gt.0)then
+!               iradonx=max(1,iradon)
+!               if ( myid == 0 ) then
+!                  open(unit=77,file=radonout,form='formatted',
+!     &                 status='unknown')
+!                  write (77,*) kdate,ktime,' ktau = ',ktau
+!               end if
+!               call writeglobvar (77, tr(:,:,iradonx), fmt='(12f7.1)')
+!               if ( myid == 0 ) close (77)
+!            endif               ! (ico2.gt.0)
             if(nrungcm.eq.-2.or.nrungcm.eq.-5)then
                if ( myid == 0 ) then
                   print *,'writing special qgout file: ',qgout

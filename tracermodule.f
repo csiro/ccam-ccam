@@ -62,8 +62,9 @@ c     first read in a list of tracers, then determine what emission data is requ
       open(unit=130,file=tracerlist,form='formatted')
       read(130,*) header
       read(130,*) numtracer
-      if (numtracer.ne.ngas) 
-     & stop 'wrong number of tracers in tracer.dat file'
+!      if (numtracer.ne.ngas) 
+!     & stop 'wrong number of tracers in tracer.dat file'
+      ngas=numtracer
       allocate(tracname(numtracer),tractype(numtracer))
       allocate(tracinterp(numtracer),tracunit(numtracer))
       allocate(tracfile(numtracer),igashr(numtracer))
@@ -119,6 +120,7 @@ c     initial value now read from tracerlist
       include 'newmpar.h'
       include 'netcdf.inc'
       include 'mpif.h'
+      include 'filnames.h'
       integer i,ierr
 ! rml 19/04/10 variables for methane initial condition 
       integer ok,ncid,ch4id,mcfid
@@ -174,9 +176,9 @@ c i.e. some read from restart, others initialised here
 !       write(unit_trout,*) myid,'tracini1: ',tr(1,:,1)
 !     end if
 
-      if( iradon.ne.0.) then
-        tr(:,:,max(1,iradon))=0.
-      end if
+!      if( iradon.ne.0.) then
+!        tr(:,:,max(1,iradon))=0.
+!      end if
 
       return
       end subroutine
@@ -228,27 +230,6 @@ c     list file
       real ajunk(3)
       integer nt,jyear,jmonth,kdate
       character filename*50,varname*13
-c
-c     set up and read surface flux data
-      allocate(co2em123(ilt*jlt,3,numtracer))
-      allocate(co2emhr(ilt*jlt,31*24+2,nhr))
-      allocate(co2hr(31*24+2,nhr))
-      allocate(co2em(ilt*jlt,numtracer))
-
-! rml 16/2/10 addition for TC methane, assume monthly OH and strat loss
-      if (methane) then
-        allocate(oh123(ilt*jlt,klt,3))
-        allocate(strloss123(ilt*jlt,klt,3))
-        allocate(oh(ilt*jlt,klt))
-        allocate(strloss(ilt*jlt,klt))
-      endif
-! rml 30/4/10 addition for TC mcf, deposition rates
-      if (mcf) then
-        allocate(mcfdep123(ilt*jlt,3))
-        allocate(mcfdep(ilt*jlt))
-        allocate(jmcf123(ilt*jlt,klt,3))
-        allocate(jmcf(ilt*jlt,klt))
-      endif
 
       jyear=kdate/10000
       jmonth=(kdate-jyear*10000)/100
@@ -257,9 +238,22 @@ c     set up and read surface flux data
         select case(tracinterp(nt))
           case (0:1)
 c           monthly data
+            if (.not.allocated(co2em123)) then
+              allocate(co2em123(ilt*jlt,3,numtracer))
+            end if
+            if (.not.allocated(co2em)) then
+              allocate(co2em(ilt*jlt,numtracer))
+            end if
             call readrco2(nt,jyear,jmonth,3,co2em123(:,:,nt),ajunk)
           case (2)
 c           daily, 3 hourly, hourly
+            if (.not.allocated(co2emhr)) then
+              allocate(co2emhr(ilt*jlt,31*24+2,nhr))
+              allocate(co2hr(31*24+2,nhr))
+            end if
+            if (.not.allocated(co2em)) then
+              allocate(co2em(ilt*jlt,numtracer))
+            end if
             call readrco2(nt,jyear,jmonth,31*24+2,
      &                 co2emhr(:,:,igashr(nt)),co2hr(:,igashr(nt)))
         end select
@@ -268,6 +262,10 @@ c           daily, 3 hourly, hourly
 !     just read OH, strat loss once regardless of how many methane tracers
 !     filename set here at compile time
       if (methane) then
+        allocate(oh123(ilt*jlt,klt,3))
+        allocate(strloss123(ilt*jlt,klt,3))
+        allocate(oh(ilt*jlt,klt))
+        allocate(strloss(ilt*jlt,klt))
         filename = '/short/r39/TCinput/oh_c48.nc'
         varname = 'oh'
         call readoh(jmonth,3,filename,varname,oh123)
@@ -276,6 +274,10 @@ c           daily, 3 hourly, hourly
         call readoh(jmonth,3,filename,varname,strloss123)
       endif
       if (mcf) then
+        allocate(mcfdep123(ilt*jlt,3))
+        allocate(mcfdep(ilt*jlt))
+        allocate(jmcf123(ilt*jlt,klt,3))
+        allocate(jmcf(ilt*jlt,klt))
 !       use standard tracer flux file read call but pass through 
 !       with tracer 'ngas+1' - this will trigger MCF_loss as filename
         call readrco2(ngas+1,jyear,jmonth,3,mcfdep123,ajunk)

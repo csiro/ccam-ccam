@@ -6,8 +6,8 @@ module cable_ccam
   ! - Currently all tiles have the same soil texture
   ! - LAI can be interpolated between timesteps using a PWCB fit to the LAI integral
   !   or LAI can be taken as constant for the month
-  ! - CO2 can be constant or read from the radiation code.  A tracer CO2 is not yet
-  !   fully implemented.
+  ! - CO2 can be constant or read from the radiation code.  A tracer CO2 is avaliable
+  !   when tracers are active
   ! - The code assumes only one month at a time is integrated in RCM mode.  However,
   !   since the input files can be modified at runtime (not all months are loaded
   !   at once), then we can support evolving/dynamic vegetation, etc.
@@ -55,12 +55,11 @@ module cable_ccam
   USE soil_snow_module
 
   private
-  public CABLE,sib4,loadcbmparm,savetile,cableinflow
+  public CABLE,sib4,loadcbmparm,savetile,cableinflow,cbmemiss
 
   integer, parameter :: CABLE = 4
   integer, parameter :: hruffmethod = 1 ! Method for max hruff
-  integer, parameter :: CO2forcingtype=2   ! 1 constant, 2 time-varying,
-                                           ! 3 interactive  
+  integer, parameter :: CO2forcingtype=2   ! CO2 input source (1 constant, 2 use radiation CO2 forcing, 3 interactive tracer)
   integer, dimension(:), allocatable, save :: cmap
   integer, dimension(5,2), save :: pind  
   real, dimension(:), allocatable, save :: sv,vl1,vl2,vl3
@@ -480,6 +479,7 @@ module cable_ccam
 ! interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
 
   use radisw_m, only : rrco2,ssolar,rrvco2
+  use tracermodule, only : tractype,tracname
   use tracers_m
 
   implicit none
@@ -489,20 +489,86 @@ module cable_ccam
   integer, parameter :: constantCO2 = 1
   integer, parameter :: hostCO2 = 2
   integer, parameter :: interactiveCO2 = 3
+  integer ico2,igas
   real, dimension(ifull), intent(out) :: atmco2
 
   select case (CO2forcingtype)
-    case (constantCO2)
+    case (constantCO2)    ! constant
       atmco2 = 360.
-    case (hostCO2) 
+    case (hostCO2)        ! from radiative CO2 forcings
       atmco2 = rrvco2 * 1.E6
-    case (interactiveCO2)
-      !write(6,*) 'need to replace with tracer sum'
-      atmco2 = tr(1:ifull,1,1)
+    case (interactiveCO2) ! use interactive tracers
+      ico2=0
+      do igas=1,ngas
+        if (trim(tractype(igas)).eq.'online') then
+          if (trim(tracname(igas)).eq.'cbmnep') then
+            ico2=igas
+            exit
+          end if
+        end if
+      end do
+      if (ico2.le.0) then
+        write(6,*) "ERROR: Cannot locate co2 in tracers"
+        stop
+      end if
+      atmco2 = tr(1:ifull,1,ico2)
   end select
 
   return
   end subroutine setco2for
+
+! *************************************************************************************
+  subroutine cbmemiss(trsrc,mvegt,mode)
+  
+  implicit none
+  
+  include 'newmpar.h'
+  include 'parm.h'
+  
+  integer, intent(in) :: mvegt,mode
+  integer nb
+  real, dimension(ifull), intent(out) :: trsrc
+  real, dimension(ifull) :: fpn,frd,frp,frs
+  
+  if (nsib.ne.6.and.nsib.ne.7) then
+    write(6,*) "ERROR: Attempted to read CABLE emissions with CABLE disabled"
+    stop
+  end if
+  
+  fpn=0.
+  frd=0.
+  frp=0.
+  frs=0.
+  
+  do nb=1,5
+    if (pind(nb,1).le.mp) then
+      where (veg%iveg(pind(nb,1):pind(nb,2)).eq.mvegt)
+        fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2))) &
+                                        +sv(pind(nb,1):pind(nb,2))*canopy%fpn(pind(nb,1):pind(nb,2))
+        frd(cmap(pind(nb,1):pind(nb,2)))=frd(cmap(pind(nb,1):pind(nb,2))) &
+                                        +sv(pind(nb,1):pind(nb,2))*canopy%frday(pind(nb,1):pind(nb,2))
+        frp(cmap(pind(nb,1):pind(nb,2)))=frp(cmap(pind(nb,1):pind(nb,2))) &
+                                        +sv(pind(nb,1):pind(nb,2))*canopy%frp(pind(nb,1):pind(nb,2))
+        frs(cmap(pind(nb,1):pind(nb,2)))=frs(cmap(pind(nb,1):pind(nb,2))) &
+                                        +sv(pind(nb,1):pind(nb,2))*canopy%frs(pind(nb,1):pind(nb,2))
+      end where
+    end if
+  end do
+  
+  select case(mode)
+    case(1)
+      trsrc=fpn-frd
+    case(2)
+      trsrc=frp+frd
+    case(3)
+      trsrc=frs
+    case default
+      write(6,*) "ERROR: Unknown mode for cbmemiss ",mode
+      stop
+  end select
+  
+  return
+  end subroutine cbmemiss
 
 ! *************************************************************************************
   subroutine setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
@@ -802,6 +868,16 @@ module cable_ccam
     else
       if (myid == 0) write(6,*) "Loading carbpools from ifile"
     end if
+    do k=1,ncp
+      where (.not.land)
+        cplant(:,k)=0.
+      end where
+    end do
+    do k=1,ncs
+      where (.not.land)
+        csoil(:,k)=0.
+      end where
+    end do
   
     ! Load CABLE soil data
     soil%bch     = bch(soil%isoilm)
