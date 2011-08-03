@@ -478,9 +478,9 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       ! estimate screen diagnostics
       z0_on_l   = z0*z_on_l/zmin
       z10_on_l  = z10*z_on_l/zmin
-      z0_on_l=min(z0_on_l,10.)
-      z10_on_l=min(z10_on_l,10.)
-      neutral = log(zmin/z0)
+      z0_on_l   = min(z0_on_l,10.)
+      z10_on_l  = min(z10_on_l,10.)
+      neutral   = log(zmin/z0)
       neutral10 = log(zmin/z10)
       where (z_on_l.lt.0.)
         ph0     = (1.-16.*z0_on_l)**(-0.50)

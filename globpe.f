@@ -70,7 +70,7 @@
 !     rml 21/02/06 removed redundant tracer code (so2/o2 etc)
 !     rml 16/02/06 use tracermodule, timeseries
       use tracermodule, only :init_tracer,trfiles,tracer_mass,unit_trout
-     &                        ,interp_tracerflux
+     &                        ,interp_tracerflux,tracerlist
       use tracers_m   ! ngas, nllp, ntrac, tr
       use unn_m
       use uvbar_m
@@ -139,7 +139,7 @@
      &     nalpha, newsnow, ng, nlx, nmaxprsav,
      &     nmi, npa, npb, npc, n3hr,      ! can remove npa,npb,npc
      &     nsnowout, nstagin, nstaguin, nwrite, nwtsav,
-     &     mins_rad, mtimer_sav, nn, i, j, itrace
+     &     mins_rad, mtimer_sav, nn, i, j
      &     ,mstn  ! not used in 2006
       integer, dimension(8) :: nper3hr
       real clhav, cllav, clmav, cltav, con, 
@@ -176,9 +176,8 @@
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
      & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss                  ! MJT urban ! MJT nmr ! MJT mlo ! MJT nestin
      & ,mfix_tr,mfix_ke,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv              ! MJT tracerfix ! MJT tke
-     & ,nud_sfh,bpyear,itrace
+     & ,nud_sfh,bpyear
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/
-      data itrace/0/ 
       namelist/skyin/mins_rad,ndiur  ! kountr removed from here
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -262,11 +261,11 @@
       read (99, datafile)
       read (99, kuonml)
 !     rml 16/02/06 read trfiles namelist
-      if(itrace>0) then
-        read(99, trfiles)
+      ngas=0
+      read(99, trfiles, iostat=ierr)
+      if (ierr.ne.0) rewind(99)
+      if(tracerlist.ne.'') then
         call init_tracer
-      else
-        ngas=0
       endif
 
       !--------------------------------------------------------------

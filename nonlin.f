@@ -261,6 +261,7 @@ cx      enddo      ! k  loop
         phi(:,1)=zs(1:ifull)+bet(1)*t(1:ifull,1) 
         do k=2,kl
          phi(:,k)=phi(:,k-1)+bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1)
+
         enddo    ! k  loop
       endif     ! (ktau==1.or.nh==0)
 

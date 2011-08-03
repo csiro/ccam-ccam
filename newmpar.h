@@ -15,14 +15,15 @@
 !                  jl:   -         6*il     14*il
 !                quad:   1         4*il+1   6*il+1
 
-! eak addition 16/03/06  ! MJT cable
-      integer, parameter :: mxst=13       ! max_no_of_soil_types
-      integer, parameter :: mxvt=17       ! max_no_of_vegetation_types
       integer :: nxp,nyp
       integer :: il, jl
       integer :: npan
       integer :: ifull, ijk
       integer :: iextra
+
+! eak addition 16/03/06  ! MJT cable
+      integer, parameter :: mxst=13       ! max_no_of_soil_types
+      integer, parameter :: mxvt=17       ! max_no_of_vegetation_types
 
       common/newmpar/nproc,kl,ol,il_g,jl_g,ifull_g,nrows_rad,ijk_g,       &
      &               iquad,nxp,nyp,il,jl,ifull,npan,ijk,iextra

@@ -45,6 +45,7 @@ klt=kl
 allocate(tr(ilt*jlt+iextra,klt,ntracmax),traver(ilt*jlt,klt,ntrac))
 allocate(trback_g(ntrac),acloss_g(ntrac),gasmin(ngasmax))
 
+trback_g=0.
 gasmin=-1000.
 
 return

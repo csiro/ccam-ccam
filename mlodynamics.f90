@@ -19,7 +19,7 @@ public mlodiffusion,mlorouter,mlohadv,watbdy
 real, dimension(:), allocatable, save :: watbdy
 integer, parameter :: salfilt=0    ! additional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide=1    ! tidal forcing (0=off, 1=on)
-integer, parameter :: intmode=0    ! horizontal interpolation (0=bi-linear, 1=bi-cubic, 2=bi-cubic+no vert)
+integer, parameter :: intmode=2    ! horizontal interpolation (0=bi-linear, 1=bi-cubic, 2=bi-cubic+no vert)
 integer, parameter :: icemode=2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: lmax   =1    ! advection loop (1=predictor-only, 2+=predictor-corrector)
 integer, parameter :: nf     =2    ! power for horizontal diffusion reduction factor
@@ -59,7 +59,7 @@ real, dimension(ifull) :: cc,ff,emi,ucc,vcc,wcc
 logical, dimension(ifull+iextra) :: wtr
 
 hdif=dt*(k_smag/pi)**2
-ee=1.
+ee=1. ! prep land-sea mask
 where(land(1:ifull))
   ee(1:ifull)=0.
 end where
@@ -83,14 +83,17 @@ dep=max(dep,1.E-3)
 ! gradients need to be calculated along bathymetry following coordinates
 ! For steep bathymetry gradients, use JLM's reduction factors
 do k=1,wlev
+  ! gradient reduction factors
   tx_fact=1./(1.+(abs(dep(ie,k)-dep(1:ifull,k))/delphi)**nf)
   ty_fact=1./(1.+(abs(dep(in,k)-dep(1:ifull,k))/delphi)**nf)
 
+  ! velocity gradients
   dudx=(u(ieu,k)-u(iwu,k))*0.5*em(1:ifull)/ds
   dvdx=(v(iev,k)-v(iwv,k))*0.5*em(1:ifull)/ds
   dudy=(u(inu,k)-u(isu,k))*0.5*em(1:ifull)/ds
   dvdy=(v(inv,k)-v(isv,k))*0.5*em(1:ifull)/ds
 
+  ! transform to cartesian coordinates
   uc(1:ifull) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
   vc(1:ifull) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
   wc(1:ifull) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
@@ -104,8 +107,8 @@ do k=1,wlev
   call bounds(t_kh)
   
   ! diffusion for momentum (diffusion not allowed with land points)
-  xfact(1:ifull) = (t_kh(ie)+t_kh)*.5 ! staggered
-  yfact(1:ifull) = (t_kh(in)+t_kh)*.5 ! staggered
+  xfact(1:ifull)=(t_kh(ie)+t_kh)*0.5 ! staggered
+  yfact(1:ifull)=(t_kh(in)+t_kh)*0.5 ! staggered
   xfact(1:ifull)=xfact(1:ifull)*tx_fact ! reduction factor
   yfact(1:ifull)=yfact(1:ifull)*ty_fact ! reduction factor
   xfact(1:ifull)=xfact(1:ifull)*ee(1:ifull)*ee(ie) ! land boundary

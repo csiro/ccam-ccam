@@ -95,7 +95,7 @@ contains
       real, dimension(:,:), intent(in) :: u
       real, dimension(2,kup) :: umin, umax
       integer, dimension(2,kup) :: ijumax,ijumin
-      integer, dimension(2) :: imax,imin
+      integer, dimension(1) :: imax,imin
       integer :: iqg
       integer :: i, j, k, ierr
       ! gumax(1,:) is true maximum, gumax(2,:) used for the location
@@ -115,7 +115,7 @@ contains
          imax=maxloc(u(1:ifull,k),dim=1)
          imin=minloc(u(1:ifull,k),dim=1)
          umax(2,k)=real(iq2iqg(imax(1)))
-         umin(2,k)=real(iq2iqg(imin(1)))
+         umin(2,k)=real(iq2iqg(imin(1)))         
          !-----------------------------------------------------------  
       end do
 
@@ -226,21 +226,17 @@ contains
       imin=minloc(u(1:ifull),dim=1)
       umax(2)=real(iq2iqg(imax(1)))
       umin(2)=real(iq2iqg(imin(1)))
-
       !-----------------------------------------------------------
-      
       call MPI_Reduce ( umax, gumax, 1, MPI_2REAL, MPI_MAXLOC, 0,         &
      &                  MPI_COMM_WORLD, ierr )
       call MPI_Reduce ( umin, gumin, 1, MPI_2REAL, MPI_MINLOC, 0,         &
      &                  MPI_COMM_WORLD, ierr )
-     
       if ( myid == 0 ) then
         iqg = gumax(2)
         ! Convert to global i, j indices
         j = 1 + (iqg-1)/il_g
         i = iqg - (j-1)*il_g
         ijumax(:) = (/ i, j /)
-	
         iqg = gumin(2)
         j = 1 + (iqg-1)/il_g
         i = iqg - (j-1)*il_g

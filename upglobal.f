@@ -77,7 +77,7 @@
         ux(1:ifull,:)=ux(1:ifull,:)
      &                +dt*(un(1:ifull,:)-.5*unsav(1:ifull,:))           
         vx(1:ifull,:)=vx(1:ifull,:)
-     &                +dt*(vn(1:ifull,:)-.5*vnsav(1:ifull,:))            
+     &                +dt*(vn(1:ifull,:)-.5*vnsav(1:ifull,:))
 !       convert un, vn to cartesian velocity components (for next step)
         do k=1,kl
          do iq=1,ifull

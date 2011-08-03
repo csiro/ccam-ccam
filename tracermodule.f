@@ -31,7 +31,7 @@ c     in outcdf.f (current setting of trmax unreliable)
       character(len=80), save :: sitefile=''
       character(len=80), save :: shipfile=''
       character(len=80), save :: trout='tracer.stdout'
-      real,save :: tracvalin=-999  !default to initialise from restart
+      real,save :: tracvalin=-999.  !default to initialise from restart
 
       namelist/trfiles/tracerlist,sitefile,shipfile,trout,tracvalin
 
@@ -48,10 +48,10 @@ c ***************************************************************************
       include 'newmpar.h'
       character(len=80) :: tempname  ! Temp file name
 
-!     if ( myid == 0 ) then
-!     Allow any processor to write to this file (for testing purposes)
-      open(unit=unit_trout,file=trout,form='formatted')
-!     end if
+      if ( myid == 0 ) then
+       open(unit=unit_trout,file=trout,form='formatted',
+     &      status='replace')
+      end if
 c     first read in a list of tracers, then determine what emission data is required
 !     Each processor read this, perhaps not necessary?
 
@@ -64,6 +64,12 @@ c     first read in a list of tracers, then determine what emission data is requ
       read(130,*) numtracer
 !      if (numtracer.ne.ngas) 
 !     & stop 'wrong number of tracers in tracer.dat file'
+      if (numtracer.lt.1.or.numtracer.gt.999) then
+        write(6,*) "ERROR: Invalid number of tracers"
+        write(6,*) "numtracer should be between 1-999"
+        write(6,*) "numtracer = ",numtracer
+        stop
+      end if
       ngas=numtracer
       allocate(tracname(numtracer),tractype(numtracer))
       allocate(tracinterp(numtracer),tracunit(numtracer))
@@ -88,6 +94,10 @@ c     first read in a list of tracers, then determine what emission data is requ
         elseif (tractype(nt).eq.'online') then
           tracunit(nt) = 'gC/m2/s'
           tracinterp(nt) = -1
+        elseif (tractype(nt).eq.'monpwcb') then
+          tracinterp(nt)=3
+        elseif (tractype(nt).eq.'mon1st') then
+          tracinterp(nt)=4          
         else
           tracinterp(nt)=0
         endif
@@ -707,38 +717,49 @@ c     co2em123(:,3,:) next month
       include 'newmpar.h' !kl needed for parm.h
       include 'parm.h' !ktau,nperday
       integer mdays(0:13)
-      data mdays/31,31,28,31,30,31,30,31,31,30,31,30,31,31/
       integer iyr,month,m1,m2,igas,igh,kdate
+      integer leap
       real a1,a2,a3,ratlm,ratlm2,hrmodel,hrs_dt
+      real c2(ifull),c3(ifull),c4(ifull)
       logical found
+      common/leap_yr/leap  ! 1 to allow leap years
    
 c     this could go in the case section but then we'd do it for
 c     every monthly tracer.  This way we do it once but may not
 c     need it.
       iyr=kdate/10000
       month=(kdate-10000*iyr)/100
-      a1 = float(nperday*mdays(month-1))/2.
-      a2 = float(nperday*mdays(month))/2.
-      a3 = float(nperday*mdays(month+1))/2.
-      if (ktau.lt.a2) then
-c       first half of month
-        ratlm = (a1+float(ktau))/(a1+a2)
-        m1 = 1; m2 = 2
-      else
-c       second half of month
-        ratlm = (float(ktau)-a2)/(a2+a3)
-        m1 = 2; m2 = 3
-      endif
+      mdays=(/31,31,28,31,30,31,30,31,31,30,31,30,31,31/)
+      if (leap.ge.1) then
+        if (mod(iyr,4).eq.0) mdays(2)=29
+        if (mod(iyr,100).eq.0) mdays(2)=28
+        if (mod(iyr,400).eq.0) mdays(2)=29
+      end if
 
       do igas=1,numtracer
         select case(tracinterp(igas))
 
+         ! constant
          case(0) ; co2em(:,igas)=co2em123(:,2,igas)
 
+         ! monthly linear interpolation
          case(1)
-             co2em(:,igas) = (1.0-ratlm)*co2em123(:,m1,igas) +
-     .                          ratlm*co2em123(:,m2,igas)
+           a1 = float(nperday*mdays(month-1))/2.
+           a2 = float(nperday*mdays(month))/2.
+           a3 = float(nperday*mdays(month+1))/2.
+           if (ktau.lt.a2) then
+c            first half of month
+             ratlm = (a1+float(ktau))/(a1+a2)
+             m1 = 1; m2 = 2
+           else
+c            second half of month
+             ratlm = (float(ktau)-a2)/(a2+a3)
+             m1 = 2; m2 = 3
+           endif
+           co2em(:,igas) = (1.0-ratlm)*co2em123(:,m1,igas) +
+     .                        ratlm*co2em123(:,m2,igas)
 
+         ! daily or hourly linear interpolation
          case(2)
              hrmodel = (ktau-1)*hrs_dt
              igh=igashr(igas)
@@ -766,6 +787,23 @@ c                this error check only useful for hourly resolution
                  if (nghr(igh).eq.(31*24+2)) stop 'hr flux error'
                endif
              enddo
+
+          ! monthly PWCB interpolation
+          case(3)
+           a2 = float(nperday*mdays(month))
+           ratlm=a2/float(ktau)
+           c2=co2em123(:,1,igas)
+           c3=c2+co2em123(:,2,igas)
+           c4=c3+co2em123(:,3,igas)
+           co2em(:,igas)=.5*c3+(4.*c3-5.*c2-c4)*ratlm
+     &              +1.5*(c4+3.*c2-3.*c3)*ratlm*ratlm
+
+          ! same as case(1), but interpolate from start of month
+          case(4)
+           a2 = float(nperday*mdays(month))
+           ratlm = float(ktau)/a2
+           co2em(:,igas) = (1.-ratlm)*co2em123(:,2,igas) +
+     .                     ratlm*co2em123(:,3,igas)
         end select
       enddo
 

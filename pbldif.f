@@ -165,7 +165,7 @@ C Compute kinematic surface fluxes
            rrho = rdry*t(iq,1)/pmid
            ustar(iq) = max(ustar(iq),0.01)
            rkhfs(iq) = fg(iq)*rrho/cp           !khfs=w'theta'
-           rkqfs(iq) = eg(iq)*rrho/hl              !kqfs=w'q'
+           rkqfs(iq) = eg(iq)*rrho/hl           !kqfs=w'q'
 
 C Compute various arrays for use later:
 

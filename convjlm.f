@@ -13,7 +13,6 @@
       use liqwpar_m  ! ifullw
       use map_m
       use morepbl_m
-      use nlin_m
       use prec_m
       use sigs_m
       use soil_m
@@ -65,6 +64,7 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       include 'parm.h'
       integer ktmax(ifull),kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
       integer kmin(ifull),iaero
+      real, allocatable, save, dimension(:) :: alfqarr
       real, dimension(ifull) :: conrev
       real, dimension(ifull,kl,naero) :: fscav
       real, dimension(ifull) :: rho
@@ -84,8 +84,7 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       real entr(ifull),qentr(ifull),sentr(ifull),factr(ifull)
       real fluxqs,fluxt_k(kl)
       real cfraclim(ifull),convtim(ifull)    
-      real, save :: detrainin
-      real, allocatable, dimension(:), save :: alfqarr
+      real, save:: detrainin
       real, allocatable, dimension(:), save:: timeconv
       real, allocatable, dimension(:), save :: factnb
       integer, save:: klon2,klon3

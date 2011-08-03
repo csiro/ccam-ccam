@@ -3,7 +3,8 @@ module liqwpar_m
 implicit none
 
 private
-public ifullw,qlg,qfg
+public ifullw,qlg,qfg ! liquid water, ice water
+!public qrg,qsg,qgg ! rain, snow, graupel
 public liqwpar_init,liqwpar_end
 
 integer, save :: ifullw
@@ -18,6 +19,8 @@ implicit none
 integer, intent(in) :: ifull,iextra,kl
 
 allocate(qlg(ifull+iextra,kl),qfg(ifull+iextra,kl))
+!allocate(qrg(ifull+iextra,kl),qsg(ifull+iextra,kl))
+!allocate(qgg(ifull+iextra,kl))
 ifullw=ifull
 
 return
@@ -28,6 +31,8 @@ subroutine liqwpar_end
 implicit none
 
 deallocate(qlg,qfg)
+!deallocate(qrg,qsg)
+!deallocate(qgg)
 
 return
 end subroutine liqwpar_end

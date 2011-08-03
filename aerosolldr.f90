@@ -2302,7 +2302,7 @@ enddo
 
 ! Using the size distributions as assumed by Herzog in the radiation scheme (dry sea salt)
 ! Use ssn(3) to hold diagnostic of mass conc. for now in kg/m3
-!ssn(:,:,3)=5.3e-17*ssn(:,:,1)+9.1e-15*ssn(:,:,2)
+!ssn(:,:,3)=2.64e-18*ssn(:,:,1)+1.38e-15*ssn(:,:,2)
       
 return
 end subroutine seasalt

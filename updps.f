@@ -48,10 +48,10 @@
       if(mup>=5)then
         call staguv(u(1:ifull,:),v(1:ifull,:),
      &             cc(1:ifull,:),dd(1:ifull,:)) 
-	do k=1,kl
-	 cc(1:ifull,k)=cc(1:ifull,k)/emu(1:ifull)
-	 dd(1:ifull,k)=dd(1:ifull,k)/emv(1:ifull)
-	enddo
+        do k=1,kl
+          cc(1:ifull,k)=cc(1:ifull,k)/emu(1:ifull)
+          dd(1:ifull,k)=dd(1:ifull,k)/emv(1:ifull)
+        enddo
         call boundsuv(cc,dd)
         do k=1,kl
 !cdir nodep

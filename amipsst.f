@@ -27,14 +27,15 @@
       real, dimension(ifull) :: duma,sssb
       real, dimension(ifull,2) :: dumb
       real fraciceb(ifull), x, c2, c3, c4
-      integer, parameter, dimension(0:13) :: mdays =
-     &     (/ 31, 31,28,31,30,31,30,31,31,30,31,30,31, 31 /)
+      integer, dimension(0:13) :: mdays
       integer iyr, imo, iday, iyr_m, imo_m, idjd_g, iq
+      integer leap
       save iyr,imo,iday,iyr_m,imo_m
       real rat1, rat2
       integer k
       integer, parameter :: mlomode = 1 ! (0=relax, 1=scale-select)    ! MJT mlo
       integer, parameter :: mlotime = 6 ! scale-select period in hours ! MJT mlo
+      common/leap_yr/leap  ! 1 to allow leap years
 
       if (.not.allocated(ssta)) then
         allocate(ssta(ifull),sstb(ifull),sstc(ifull))
@@ -49,6 +50,12 @@
         imo=(kdate-10000*iyr)/100
         iday=kdate-10000*iyr-100*imo  +mtimer/(60*24)
         !print *,'at start of amipsst for iyr,imo,iday ',iyr,imo,iday
+        mdays = (/ 31, 31,28,31,30,31,30,31,31,30,31,30,31, 31 /)
+        if (leap.ge.1) then
+          if (mod(iyr,4).eq.0) mdays(2)=29
+          if (mod(iyr,100).eq.0) mdays(2)=28
+          if (mod(iyr,400).eq.0) mdays(2)=29
+        end if
         do while (iday>mdays(imo))
          iday=iday-mdays(imo)
          imo=imo+1
