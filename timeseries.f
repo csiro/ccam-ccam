@@ -234,93 +234,100 @@ c     open netcdf file for writing output
         write(outfile,'(a,a,a,a,a, i2.2,a)') 'ts.', chtemp(1:4), '.',
      &     chtemp(5:6), '.p', myid, '.nc'
       end if
-      ierr = nf_create(outfile,0,tsid(1))
-      if (ierr.ne.nf_noerr) stop 'create ts file failed'
-c     define dimensions
-      ierr=nf_def_dim(tsid(1),'gridpts',ngrdpts,griddim)
-      if (ierr.ne.nf_noerr) stop 'timeseries: grid dimension error'
-      ierr=nf_def_dim(tsid(1),'surfpts',ngrdpts1,surfdim)
-      if (ierr.ne.nf_noerr) stop 'timeseries: grid dimension error'
-      ierr=nf_def_dim(tsid(1),'ijk',3,ijkdim)
-      ierr=nf_def_dim(tsid(1),'tracers',ntrac,tracdim)
-      if (ierr.ne.nf_noerr) stop 'timeseries: tracer dimension error'
-      ierr=nf_def_dim(tsid(1),'time',nf_unlimited,timedim)
-      if (ierr.ne.nf_noerr) stop 'timeseries: time dimension error'
+!
+!     when multiprocessor, possible to have no grid points in an output file
+!     in that case, don't write the file
+      if (ngrdpts.gt.0) then
+        ierr = nf_create(outfile,0,tsid(1))
+        if (ierr.ne.nf_noerr) stop 'create ts file failed'
+c       define dimensions
+        ierr=nf_def_dim(tsid(1),'gridpts',ngrdpts,griddim)
+        if (ierr.ne.nf_noerr) stop 'timeseries: grid dimension error'
+        ierr=nf_def_dim(tsid(1),'surfpts',ngrdpts1,surfdim)
+        if (ierr.ne.nf_noerr) stop 'timeseries: grid dimension error'
+        ierr=nf_def_dim(tsid(1),'ijk',3,ijkdim)
+        ierr=nf_def_dim(tsid(1),'tracers',ntrac,tracdim)
+        if (ierr.ne.nf_noerr) stop 'timeseries: tracer dimension error'
+        ierr=nf_def_dim(tsid(1),'time',nf_unlimited,timedim)
+        if (ierr.ne.nf_noerr) stop 'timeseries: time dimension error'
 !     rml 19/09/07 add length dimension for tracname character array
-      ierr = nf_def_dim(tsid(1),'len',13,lendim)
-      if (ierr.ne.nf_noerr) stop 'timeseries: length dimension error'
+        ierr = nf_def_dim(tsid(1),'len',13,lendim)
+        if (ierr.ne.nf_noerr) stop 'timeseries: length dimension error'
 
-c     define variables
-!     rml 19/09/07 add tracer name variable
-      dims(1)=lendim; dims(2)=tracdim
-      ierr = nf_def_var(tsid(1),'tracer_name',nf_char,2,dims,tracnamid)
-      if (ierr.ne.nf_noerr) stop 'timeseries: tracer name var error'
+c       define variables
+!       rml 19/09/07 add tracer name variable
+        dims(1)=lendim; dims(2)=tracdim
+        ierr = nf_def_var(tsid(1),'tracer_name',nf_char,2,dims,
+     &tracnamid)
+        if (ierr.ne.nf_noerr) stop 'timeseries: tracer name var error'
 
-      dims(1)=griddim; dims(2)=ijkdim
-      ierr = nf_def_var(tsid(1),'grid',nf_int,2,dims,gridid)
-      if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
-      dims(1)=surfdim; dims(2)=ijkdim
-      ierr = nf_def_var(tsid(1),'gridsurf',nf_int,2,dims,gridsurfid)
-      if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
+        dims(1)=griddim; dims(2)=ijkdim
+        ierr = nf_def_var(tsid(1),'grid',nf_int,2,dims,gridid)
+        if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
+        dims(1)=surfdim; dims(2)=ijkdim
+        ierr = nf_def_var(tsid(1),'gridsurf',nf_int,2,dims,gridsurfid)
+        if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
 
-      if ( nproc > 1 ) then
-        dims(1)=griddim
-        ierr = nf_def_var(tsid(1),'gridorder',nf_int,1,dims,
+        if ( nproc > 1 ) then
+          dims(1)=griddim
+          ierr = nf_def_var(tsid(1),'gridorder',nf_int,1,dims,
      &                    gridorderid)
-        if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
-        dims(1)=surfdim
-        ierr = nf_def_var(tsid(1),'surforder',nf_int,1,dims,surforderid)
-        if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
-      end if
+          if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
+          dims(1)=surfdim
+          ierr = nf_def_var(tsid(1),'surforder',nf_int,1,dims,
+     & surforderid)
+          if (ierr.ne.nf_noerr) stop 'timeseries: grid var error'
+        end if
 
-      ierr = nf_def_var(tsid(1),'time',nf_double,1,timedim,tsid(2))
-      if (ierr.ne.nf_noerr) stop 'timeseries: tstime var error'
-      dims(1)=griddim; dims(2)=tracdim; dims(3)=timedim
-      ierr = nf_def_var(tsid(1),'concts',nf_float,3,dims,tsid(3))
-      if (ierr.ne.nf_noerr) stop 'timeseries: concts var error'
-      do n=1,n3d
-        dims(1)=griddim; dims(2)=timedim
-        ierr = nf_def_var(tsid(1),varname3(n),nf_float,2,dims(1:2),
+        ierr = nf_def_var(tsid(1),'time',nf_double,1,timedim,tsid(2))
+        if (ierr.ne.nf_noerr) stop 'timeseries: tstime var error'
+        dims(1)=griddim; dims(2)=tracdim; dims(3)=timedim
+        ierr = nf_def_var(tsid(1),'concts',nf_float,3,dims,tsid(3))
+        if (ierr.ne.nf_noerr) stop 'timeseries: concts var error'
+        do n=1,n3d
+          dims(1)=griddim; dims(2)=timedim
+          ierr = nf_def_var(tsid(1),varname3(n),nf_float,2,dims(1:2),
      & tsid(3+n))
-        if (ierr.ne.nf_noerr) stop 'timeseries: 3d var error'
-      enddo
-      do n=1,n2d
-        if (trim(varname2(n)).eq.'flux') then
-          dims(1)=surfdim; dims(2)=tracdim; dims(3)=timedim
-          ierr = nf_def_var(tsid(1),varname2(n),nf_float,3,dims,
+          if (ierr.ne.nf_noerr) stop 'timeseries: 3d var error'
+        enddo
+        do n=1,n2d
+          if (trim(varname2(n)).eq.'flux') then
+            dims(1)=surfdim; dims(2)=tracdim; dims(3)=timedim
+            ierr = nf_def_var(tsid(1),varname2(n),nf_float,3,dims,
      & tsid(3+n3d+n))
-          if (ierr.ne.nf_noerr) stop 'timeseries: 2d var error'
-        else
-          dims(1)=surfdim; dims(2)=timedim
-          ierr = nf_def_var(tsid(1),varname2(n),nf_float,2,dims(1:2),
-     & tsid(3+n3d+n))
-          if (ierr.ne.nf_noerr) stop 'timeseries: 2d var error'
-        endif
-      enddo
+            if (ierr.ne.nf_noerr) stop 'timeseries: 2d var error'
+          else
+            dims(1)=surfdim; dims(2)=timedim
+            ierr = nf_def_var(tsid(1),varname2(n),nf_float,2,dims(1:2),
+     &   tsid(3+n3d+n))
+            if (ierr.ne.nf_noerr) stop 'timeseries: 2d var error'
+          endif
+        enddo
 c
 c     leave define mode
-      ierr = nf_enddef(tsid(1))
-      if (ierr.ne.nf_noerr) stop 'timeseries: end define error'
+        ierr = nf_enddef(tsid(1))
+        if (ierr.ne.nf_noerr) stop 'timeseries: end define error'
 c
 !     rml 19/09/07 write tracer name array
-      ierr = nf_put_var_text(tsid(1),tracnamid,tracname)
-      if (ierr.ne.nf_noerr) stop 'timeseries: error writing tracname'
+        ierr = nf_put_var_text(tsid(1),tracnamid,tracname)
+        if (ierr.ne.nf_noerr) stop 'timeseries: error writing tracname'
 
 c     write grid point arrays
-      ierr = nf_put_var_int(tsid(1),gridid,listijk)
-      if (ierr.ne.nf_noerr) stop 'error writing grid'
+        ierr = nf_put_var_int(tsid(1),gridid,listijk)
+        if (ierr.ne.nf_noerr) stop 'error writing grid'
       ! Need explicit section of templist here, because array may have
       ! been allocated larger
-      ierr = nf_put_var_int(tsid(1),gridsurfid,templist(:ngrdpts1,:))
-      if (ierr.ne.nf_noerr) stop 'error writing gridsurf'
-      if ( nproc > 1 ) then
-        ierr = nf_put_var_int(tsid(1),gridorderid,gridorder(1:ngrdpts))
-        if (ierr.ne.nf_noerr) stop 'error writing gridorder'
+        ierr = nf_put_var_int(tsid(1),gridsurfid,templist(:ngrdpts1,:))
+        if (ierr.ne.nf_noerr) stop 'error writing gridsurf'
+        if ( nproc > 1 ) then
+         ierr = nf_put_var_int(tsid(1),gridorderid,gridorder(1:ngrdpts))
+          if (ierr.ne.nf_noerr) stop 'error writing gridorder'
         ierr = nf_put_var_int(tsid(1),surforderid,surforder(1:ngrdpts1))
-        if (ierr.ne.nf_noerr) stop 'error writing surforder'
-      end if
-      ierr = nf_sync(tsid(1))
-      deallocate(templist)
+          if (ierr.ne.nf_noerr) stop 'error writing surforder'
+        end if
+        ierr = nf_sync(tsid(1))
+        deallocate(templist)
+      endif
 c
       indextime=1
       return
@@ -357,9 +364,11 @@ c
       include 'netcdf.inc'
 !!!      include 'cbmdim.h'
       include 'newmpar.h'    ! dimensions for tr array
+      include 'const_phys.h' ! grav (for height calc)
 
       real temparr2(il*jl,kl),temparr(il*jl)
 
+      if (ngrdpts.eq.0) return
       if (mod(ktau,ntsfreq).eq.0) then
         tstime = dble(jyear) + dble(mins)/dble(365.*24.*60.)
         ierr = nf_put_var1_double(tsid(1),tsid(2),indextime,tstime)
@@ -367,12 +376,16 @@ c
         allocate(cts(ngrdpts,ntrac))
         do n=1,ngrdpts
           iq = listijk(n,1) + (listijk(n,2)-1)*il
-          cts(n,:)=tr(iq,listijk(n,3),:)
+! rml 23/2/10 add in background that removed at start of run
+          cts(n,:)=trback_g(:)+tr(iq,listijk(n,3),:)
         enddo
         start(1)=1; start(2)=1; start(3)=indextime
         count(1)=ngrdpts; count(2)=ntrac; count(3)=1
         ierr=nf_put_vara_real(tsid(1),tsid(3),start,count,cts)
-        if (ierr.ne.nf_noerr) stop 'error writing cts'
+        if (ierr.ne.nf_noerr) then
+          write(6,*) nf_strerror(ierr)
+          stop 'error writing cts - tr array'
+        endif
         deallocate(cts)
 c
         do m=1,n3d
@@ -387,6 +400,16 @@ c
             do k=1,kl
               temparr2(:,k) = sinth*u(1:ifull,k) + costh*v(1:ifull,k)
             enddo
+! rml 16/7/10 add output of height of levels for TC-methane
+          case ('zg')
+            temparr2(:,1)= bet(1)*t(1:ifull,1)/grav        
+            do k=2,kl                                                   
+              temparr2(:,k)=temparr2(:,k-1)+(bet(k)*t(1:ifull,k)
+     &                     +betm(k)*t(1:ifull,k-1))/grav               
+            enddo                                                       
+            do k=1,kl
+              temparr2(:,k) = temparr2(:,k) + zs(1:ifull)/grav
+            enddo
           case ('qg') ; temparr2=qg(1:ifull,:)
           case ('sdotm') ; temparr2=sdot(:,1:kl)
           case ('sdotp') ; temparr2=sdot(:,2:kl+1)
@@ -395,8 +418,7 @@ c
               temparr2(:,k)=ps(1:ifull)*sig(k)
             enddo
           case default 
-            !write(unit_trout,*) varname3(m),' not found'
-            write(6,*) varname3(m),' not found'
+            write(unit_trout,*) varname3(m),' not found'
             stop
           end select
           allocate(vts(ngrdpts))
@@ -438,7 +460,7 @@ c
           case ('pfpn')    ; temparr=fpn
           case ('pfrp')    ; temparr=frp
           case ('pfrs')    ; temparr=frs
-          case ('pblh')    ; temparr=pblh
+          case ('pblh') ; temparr=pblh
           case ('flux')  
             allocate(cts(ngrdpts1,ntrac))
             kount=0
@@ -452,12 +474,14 @@ c
             start(1)=1; start(2)=1; start(3)=indextime
             count(1)=ngrdpts1; count(2)=ntrac; count(3)=1
             ierr=nf_put_vara_real(tsid(1),tsid(3+n3d+m),start,count,cts)
-            if (ierr.ne.nf_noerr) stop 'error writing cts'
+            if (ierr.ne.nf_noerr) then
+              write(6,*) nf_strerror(ierr)
+              stop 'error writing cts - fluxes'
+            endif
             deallocate(cts)
             surfflux=.true.
           case default
-            !write(unit_trout,*) trim(varname2(m)),' not found'
-            write(6,*) trim(varname2(m)),' not found'
+            write(unit_trout,*) trim(varname2(m)),' not found'
             stop
           end select
           

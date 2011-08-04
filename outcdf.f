@@ -299,7 +299,7 @@ c=======================================================================
       use soilsnow_m
       use tkeeps, only : tke,eps ! MJT tke      
 c     rml 18/09/07 pass through tracmax,tracmin; 19/09/07 add tracname
-      use tracermodule, only : tracmax,tracmin,tracname
+      use tracermodule, only : tracmax,tracmin,tracname,writetrpm
       use tracers_m
       use vegpar_m
       use vvel_m      ! sdot, dpsldt
@@ -976,10 +976,14 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
 !          rml 19/09/07 use tracname as part of tracer long name
            lname = 'Tracer (inst.) '//trim(tracname(igas))
            call attrib(idnc,dim,4,'tr'//trnum,lname,'ppm',trmin,trmax,
-     &                 0,itype)
+     &                 0,-1) ! -1 = long
            lname = 'Tracer (average) '//trim(tracname(igas))
            call attrib(idnc,dim,4,'trav'//trnum,lname,'ppm',trmin,trmax
-     &                 ,0,itype)
+     &                 ,0,-1) ! -1 = long
+!          rml 14/5/10 option to write out local time afternoon averages
+           if (writetrpm)
+     &     call attrib(idnc,dim,4,'trpm'//trnum,lname,'ppm',trmin,trmax
+     &                 ,0,-1) ! -1 = long
          enddo ! igas loop
         endif  ! (ntrac.gt.0)
 
@@ -1541,9 +1545,25 @@ c      "extra" outputs
       if(ngas>0)then 
        do igas=1,ngas
         write(trnum,'(i3.3)') igas
-        call histwrt4(tr(1:ilt*jlt,:,igas),'tr'//trnum,idnc,iarch,local)
-        call histwrt4(traver(:,:,igas),'trav'//trnum,idnc,iarch,local)
+        call histwrt4(tr(1:ilt*jlt,:,igas)+trback_g(igas),'tr'//trnum,
+     &idnc,iarch,local)
+        call histwrt4(traver(:,:,igas)+trback_g(igas),'trav'//trnum,
+     &idnc,iarch,local)
+! rml 14/5/10 option to write out local time afternoon average
+        if (writetrpm) then
+!             first divide by number of contributions to average
+          do k=1,klt
+            trpm(:,k,igas) = trpm(:,k,igas)/float(npm)
+          enddo
+          call histwrt4(trpm(:,:,igas)+trback_g(igas),'trpm'//trnum,
+     &idnc,iarch,local)
+        endif
        enddo ! igas loop
+!      reset arrays
+       if (writetrpm) then
+         trpm = 0.
+         npm = 0.
+       endif
       endif  ! (ngasc>0)
 
       !--------------------------------------------------------

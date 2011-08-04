@@ -31,9 +31,11 @@ c     in outcdf.f (current setting of trmax unreliable)
       character(len=80), save :: sitefile=''
       character(len=80), save :: shipfile=''
       character(len=80), save :: trout='tracer.stdout'
-      real,save :: tracvalin=-999.  !default to initialise from restart
+      real,save :: tracvalin=-999  !default to initialise from restart
+      logical, save :: writetrpm=.false.
 
-      namelist/trfiles/tracerlist,sitefile,shipfile,trout,tracvalin
+      namelist/trfiles/tracerlist,sitefile,shipfile,trout,tracvalin,
+     & writetrpm
 
 
       contains
@@ -48,6 +50,10 @@ c ***************************************************************************
       include 'newmpar.h'
       character(len=80) :: tempname  ! Temp file name
 
+      ! Unfortuately, this only works for myid==0 now, as it killed the
+      ! windows version of CCAM (multiple processor writes are not allowed)
+      ! Error messages from other processors have been moved to the standard
+      ! CCAM log output
       if ( myid == 0 ) then
        open(unit=unit_trout,file=trout,form='formatted',
      &      status='replace')
@@ -115,6 +121,8 @@ c
 
 c     initialise array for monthly average tracer
       traver = 0.
+!     if writing afternoon averages, initialise here
+      if (writetrpm) trpm = 0.
 !     initialise accumulated loss (for methane cases)
       acloss_g = 0.
 
@@ -830,6 +838,7 @@ c ***************************************************************************
 c     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
       use arrays_m   ! ps
       use cc_mpi
+      use latlong_m
       use sigs_m     ! dsig
       use sumdd_m
       use tracers_m  ! tr
@@ -837,9 +846,11 @@ c     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
       implicit none
       include 'newmpar.h'
       include 'const_phys.h' ! rearth,fc_molm,fair_molm
+      include 'dates.h'    !timeg
       include 'mpif.h'
       integer it,iq,k,ktau,ntau,igas,ierr
 
+      real ltime
       real trmin,trmax
       real ::trmass_l(ngas)
       real checkwts,checkwts_g,checkdsig,checkdsig_g
@@ -894,7 +905,7 @@ c     rml 16/10/03 check tracer mass - just write out for <= 6 tracers
 
 c     scaling assumes CO2 with output in GtC?
       if ( myid == 0 ) then
-         if (ngas.gt.6) then
+         if (ngas.gt.11) then
             write(unit_trout,*) 'Trmass: ',ktau,
      &        -1*trmass(1:6)*4.*3.14159*(rearth**2)*fC_MolM/
      &          (grav*1e18*fAIR_MolM)
@@ -907,10 +918,22 @@ c     scaling assumes CO2 with output in GtC?
 !           write(unit_trout,*) 'Trmass ppb*Pa: ',trmass(:)
 !           write(unit_trout,*) checkwts_g,checkdsig_g
             write(unit_trout,*) 'Trmass (Tg CH4): ',ktau,
-     &        -1*trmass(:)*4.*pi*eradsq*fCH4_MolM/
+     &        -1*trmass(1:6)*4.*pi*eradsq*fCH4_MolM/
      &         (grav*1.e18*fAIR_MolM)
          endif
       end if
+
+!     rml 14/5/10 code to create daily averages of afternoon concentrations
+      if (writetrpm) then
+        do iq=1,ilt*jlt
+          ltime = timeg + rlongg(iq)*12./pi
+          if (ltime.gt.24) ltime = ltime - 24.
+          if (ltime.ge.12.and.ltime.le.15) then
+            trpm(iq,1:klt,:) = trpm(iq,1:klt,:) + tr(iq,1:klt,:)
+            npm(iq) = npm(iq) + 1
+          endif
+        enddo
+      endif
 
 c     also update tracer average array here
       do igas=1,ngas

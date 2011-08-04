@@ -6,6 +6,7 @@ private
 public ngas,ntrac,ntracmax,nllp
 public ilt,jlt,klt,ngasmax
 public tr,traver,trback_g,acloss_g,gasmin
+public trpm,npm
 public tracers_init,tracers_end
 
 ! These parameters should be controlled from namelist
@@ -18,7 +19,9 @@ integer, save :: ilt
 integer, save :: jlt
 integer, save :: klt
 real, dimension(:,:,:), allocatable, save :: tr,traver
+real, dimension(:,:,:), allocatable, save :: trpm
 real, dimension(:), allocatable, save :: trback_g,acloss_g,gasmin
+integer, dimension(:), allocatable, save :: npm
 
 contains
 
@@ -44,6 +47,7 @@ klt=kl
 
 allocate(tr(ilt*jlt+iextra,klt,ntracmax),traver(ilt*jlt,klt,ntrac))
 allocate(trback_g(ntrac),acloss_g(ntrac),gasmin(ngasmax))
+allocate(trpm(ilt*jlt,klt,ntrac),npm(ilt*jlt))
 
 trback_g=0.
 gasmin=-1000.
@@ -57,6 +61,7 @@ implicit none
 
 deallocate(tr,traver)
 deallocate(trback_g,acloss_g,gasmin)
+deallocate(trpm,npm)
 
 return
 end subroutine tracers_end
