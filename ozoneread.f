@@ -8,11 +8,11 @@
       implicit none
 
       private      
-      public o3_read,o3set,fieldinterpolate
+      public o3_read,o3set,fieldinterpolate,o3regrid
       
       integer, save :: ii,jj,kk
-      real, dimension(:,:,:), allocatable, save :: o3pre,o3mth,o3nxt
-      real, dimension(:), allocatable, save :: pres
+      real, dimension(:,:), allocatable, save :: o3pre,o3mth,o3nxt
+      real, dimension(:), allocatable, save :: o3pres
       real, dimension(:,:), allocatable, save :: dduo3n,ddo3n2
       real, dimension(:,:), allocatable, save :: ddo3n3,ddo3n4
       
@@ -36,10 +36,10 @@ c
       integer ncstatus,ncid,tt
       integer valident,yy,mm,iti,nn
       integer, dimension(4) :: spos,npos
+      real, dimension(:,:,:,:), allocatable :: o3dum
+      real, dimension(:), allocatable :: o3lon,o3lat
       character*32 cdate
-
       real, parameter :: sigtol=1.e-3
-      real rv
       real sigma(kl), sigin(kl)
 
       !--------------------------------------------------------------
@@ -47,49 +47,74 @@ c
       if (myid==0) then
         ncstatus=nf_open(o3file,nf_nowrite,ncid)
         if (ncstatus.eq.0) then
+          allocate(o3pre(ifull,kl),o3mth(ifull,kl),o3nxt(ifull,kl))
           write(6,*) "Ozone in NetCDF format (CMIP5)"
+          ncstatus=nf_inq_dimid(ncid,'time',valident)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          ncstatus=nf_inq_dimlen(ncid,valident,tt)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
           ncstatus=nf_inq_dimid(ncid,'lon',valident)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
           ncstatus=nf_inq_dimlen(ncid,valident,ii)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          allocate(o3lon(ii))
           ncstatus=nf_inq_varid(ncid,'lon',valident)
-          ncstatus=nf_get_vara_real(ncid,valident,1,1,rv)
-          if (rv.ne.0.) then
-            write(6,*) "ERROR: Need to translate lon"
-            stop
-          end if          
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          ncstatus=nf_get_vara_real(ncid,valident,1,ii,o3lon)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
           ncstatus=nf_inq_dimid(ncid,'lat',valident)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
           ncstatus=nf_inq_dimlen(ncid,valident,jj)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          allocate(o3lat(jj))
           ncstatus=nf_inq_varid(ncid,'lat',valident)
-          ncstatus=nf_get_vara_real(ncid,valident,1,1,rv)
-          if (rv.ne.-90.) then
-            write(6,*) "ERROR: Need to invert lat"
-            stop
-          end if
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          ncstatus=nf_get_vara_real(ncid,valident,1,jj,o3lat)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
           ncstatus=nf_inq_dimid(ncid,'plev',valident)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
           ncstatus=nf_inq_dimlen(ncid,valident,kk)
-          allocate(pres(kk))
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          allocate(o3pres(kk))
           ncstatus=nf_inq_varid(ncid,'plev',valident)
-          ncstatus=nf_get_vara_real(ncid,valident,1,kk,pres)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          ncstatus=nf_get_vara_real(ncid,valident,1,kk,o3pres)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
           ncstatus=nf_inq_varid(ncid,'time',valident)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
           ncstatus=nf_get_att_text(ncid,valident,'units',cdate)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
           ncstatus=nf_get_vara_int(ncid,valident,1,1,iti)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
           ncstatus=nf_inq_varid(ncid,'O3',valident)
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
           read(cdate(14:17),*) yy
           read(cdate(19:20),*) mm
           yy=yy+iti/12
           mm=mm+mod(iti,12)
           nn=(jyear-yy)*12+(jmonth-mm)+1
+          if (nn.lt.1.or.nn.gt.tt) then
+            write(6,*) "ERROR: Cannot find date in ozone data"
+            stop
+          end if
           spos=1
           npos(1)=ii
           npos(2)=jj
           npos(3)=kk
           npos(4)=1
-          allocate(o3pre(ii,jj,kk),o3mth(ii,jj,kk),o3nxt(ii,jj,kk))
-          spos(4)=nn-1
-          ncstatus=nf_get_vara_real(ncid,valident,spos,npos,o3pre)
+          allocate(o3dum(ii,jj,kk,3))
+          spos(4)=max(nn-1,1)
+          ncstatus=nf_get_vara_real(ncid,valident,spos,npos,
+     &                              o3dum(:,:,:,1))
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
           spos(4)=nn
-          ncstatus=nf_get_vara_real(ncid,valident,spos,npos,o3mth)
-          spos(4)=nn+1
-          ncstatus=nf_get_vara_real(ncid,valident,spos,npos,o3nxt)
+          ncstatus=nf_get_vara_real(ncid,valident,spos,npos,
+     &                              o3dum(:,:,:,2))
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          spos(4)=min(nn+1,tt)
+          ncstatus=nf_get_vara_real(ncid,valident,spos,npos,
+     &                              o3dum(:,:,:,3))
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
         else
           write(6,*) "Ozone in ASCII format (CMIP3)"
           ii=0
@@ -129,13 +154,17 @@ c         o3dat are in the order DJF, MAM, JJA, SON
         call MPI_Bcast(jj,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
         call MPI_Bcast(kk,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
         if (myid.ne.0) then
-          allocate(o3pre(ii,jj,kk),o3mth(ii,jj,kk),o3nxt(ii,jj,kk))
-          allocate(pres(kk))
+          allocate(o3pre(ifull,kk),o3mth(ifull,kk),o3nxt(ifull,kk))
+          allocate(o3lon(ii),o3lat(jj),o3pres(kk))
+          allocate(o3dum(ii,jj,kk,3))
         end if
-        call MPI_Bcast(o3pre,ii*jj*kk,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(o3mth,ii*jj*kk,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(o3nxt,ii*jj*kk,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        call MPI_Bcast(pres,kk,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(o3dum,ii*jj*kk*3,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(o3lon,ii,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(o3lat,jj,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call MPI_Bcast(o3pres,kk,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        call o3regrid(o3pre,o3mth,o3nxt,o3dum,o3lon,o3lat,
+     &                ii,jj,kk)
+        deallocate(o3dum,o3lat,o3lon)
       else
         if (myid.ne.0) then
           allocate(dduo3n(37,kl),ddo3n2(37,kl))
@@ -181,31 +210,19 @@ c
       real, parameter :: amo=48.
       real, parameter :: dobson=6.022e3/2.69/48.e-3
       real rlon(ii),rlat(jj)
-      real blon(npts),blat(npts)
-      real duo3n(npts,kl), alat(npts),alon(npts)
+      real duo3n(npts,kl), alat(npts),alon(npts) ! alat and alon are only needed for CMIP3 ozone
 
-      if (allocated(o3mth)) then
-        do j=1,ii
-          rlon(j)=real(j-1)*360./real(ii)
-        end do
-        do j=1,jj
-          rlat(j)=-90.+real(j-1)*180./real(jj-1)
-        end do
-        blon=alon*180./pi
-        where (blon.lt.0.)
-          blon=blon+360.
-        end where
-        blat=alat*180./pi
+      if (allocated(o3mth)) then ! CMIP5 ozone
       
-        call fieldinterpolate(duo3n,blon,blat,o3pre,o3mth,o3nxt,rlon,
-     &                        rlat,pres,npts,kl,ii,jj,kk,mins,sig,ps)
-      
+        call fieldinterpolate(duo3n,o3pre,o3mth,o3nxt,o3pres,npts,kl,
+     &                        ii,jj,kk,mins,sig,ps)
+
         ! convert units
         where (duo3n.lt.1.)
           duo3n=duo3n*amo/amd
         end where
          
-      else
+      else ! CMIP3 ozone
 c       This moved to initfs
 c
 c       Convert time to day number
@@ -241,141 +258,66 @@ c
       return
       end subroutine o3set
 
-      subroutine fieldinterpolate(out,alon,alat,fpre,fmth,fnxt,rlon,
-     &                            rlat,fpres,ipts,ilev,nlon,nlat,nlev,
-     &                            mins,sig,ps)
+      subroutine fieldinterpolate(out,fpre,fmth,fnxt,fpres,ipts,ilev,
+     &                            nlon,nlat,nlev,mins,sig,ps)
       
       implicit none
 
       include 'dates.h'
       
       integer, intent(in) :: ipts,ilev,nlon,nlat,nlev,mins
-      integer date,ilon,ilat,j,ip,m,k1,leap,jyear
+      integer date,j,ip,m,k1,leap,jyear,jmonth
       real, dimension(ipts,ilev), intent(out) :: out
-      real, dimension(ipts), intent(in) :: alon,alat
-      real, dimension(nlon,nlat,nlev), intent(in) :: fpre,fmth,fnxt
-      real, dimension(nlon), intent(in) :: rlon
-      real, dimension(nlat), intent(in) :: rlat
+      real, dimension(ipts,nlev), intent(in) :: fpre,fmth,fnxt
       real, dimension(nlev), intent(in) :: fpres
       real, dimension(ipts), intent(in) :: ps
       real, dimension(ilev), intent(in) :: sig
       real, dimension(ilev) :: prf,o3new
-      real, dimension(nlev) :: b,c,d,o3inp,o3sum
+      real, dimension(nlev) :: o3inp,o3sum,b,c,d
       real, dimension(nlev,3) :: o3tmp
       real, dimension(12) :: monlen
       real, dimension(12), parameter :: oldlen=
      & (/ 0.,31.,59.,90.,120.,151.,181.,212.,243.,273.,304.,334. /)
-      real rang,serlon,serlat,fp,lonadj,alonx,fjd
-      integer, parameter :: ozoneintp=1 ! ozone interpolation (0=simple, 1=integrate column)     
+      real rang,fp,fjd
+      integer, parameter :: ozoneintp=1 ! ozone interpolation (0=simple, 1=integrate column)
       common/leap_yr/leap  ! 1 to allow leap years
 
       monlen=oldlen
+      jyear =kdate/10000
+      jmonth=(kdate-jyear*10000)/100
       if (leap.eq.1) then
-        jyear =kdate/10000
         if (mod(jyear,4)  .eq.0) monlen(3:12)=oldlen(3:12)+1
         if (mod(jyear,100).eq.0) monlen(3:12)=oldlen(3:12)
         if (mod(jyear,400).eq.0) monlen(3:12)=oldlen(3:12)+1
       end if
 
 !     Time interpolation factors
-      date = real(modulo(mins,nint(monlen(12)+31.)*1440))/1440.
-      if (date>=monlen(12)) then
+      date = mins/1440.
+      if (jmonth.eq.12) then
         rang=(date-monlen(12))/31.
       else
-!       Search for bracketing dates, i such that monmid(i) >= date
-        do j=2,12
-          if (monlen(j)>=date) exit
-        end do
-        rang=(date-monlen(j-1))/(monlen(j)-monlen(j-1))
+        rang=(date-monlen(jmonth))/(monlen(jmonth+1)-monlen(jmonth))
       end if
-      rang=min(max(rang,0.),1.)
+      if (rang.gt.1.1) then ! use 1.1 to give 10% tolerance
+        write(6,*) "WARN: fieldinterpolation is outside input range"
+      end if
       
       do j=1,ipts
 
-        alonx=alon(j)
-        if (alonx.lt.rlon(1)) then
-          alonx=alonx+360.
-          ilon=nlon
+        if (rang.le.1.) then
+          ! temporal interpolation (PWCB)
+          o3tmp(:,1)=fpre(j,:)
+          o3tmp(:,2)=fmth(j,:)+o3tmp(:,1)
+          o3tmp(:,3)=fnxt(j,:)+o3tmp(:,2)
+          b=0.5*o3tmp(:,2)
+          c=4.*o3tmp(:,2)-5.*o3tmp(:,1)-o3tmp(:,3)
+          d=1.5*o3tmp(:,3)+4.5*o3tmp(:,1)-4.5*o3tmp(:,2)
+          o3inp=b+c*rang+d*rang*rang
         else
-          do ilon=1,nlon-1
-            if (rlon(ilon+1).gt.alonx) exit
-          end do
+          ! linear interpolation when rang is out-of-range
+          o3inp=max(3.-2.*rang,0.)*0.5*(fmth(j,:)+fnxt(j,:))
+     &         +min(2.*rang-2.,1.)*fnxt(j,:)
         end if
-        ip=ilon+1
-        lonadj=0.
-        if (ip.gt.nlon) then
-          ip=1
-          lonadj=360.
-        end if
-        serlon=(alonx-rlon(ilon))/(rlon(ip)+lonadj-rlon(ilon))
-
-        if (alat(j).lt.rlat(1)) then
-          ilat=1
-          serlat=0.
-        else if (alat(j).gt.rlat(nlat)) then
-          ilat=nlat-1
-          serlat=1.
-        else
-          do ilat=1,nlat-1
-            if (rlat(ilat+1).gt.alat(j)) exit
-          end do
-          serlat=(alat(j)-rlat(ilat))/(rlat(ilat+1)-rlat(ilat))  
-        end if
-
-        ! spatial interpolation (previous month)
-        d=fpre(ip,ilat+1,:)-fpre(ilon,ilat+1,:)
-     &   -fpre(ip,ilat,:)+fpre(ilon,ilat,:)
-        b=fpre(ip,ilat,:)-fpre(ilon,ilat,:)
-        c=fpre(ilon,ilat+1,:)-fpre(ilon,ilat,:)
-        o3tmp(:,1)=b*serlon+c*serlat+d*serlon*serlat+fpre(ilon,ilat,:)
-        where (fpre(ilon,ilat,:).gt.1.E34
-     &     .or.fpre(ip,ilat,:).gt.1.E34
-     &     .or.fpre(ilon,ilat+1,:).gt.1.E34
-     &     .or.fpre(ip,ilat+1,:).gt.1.E34)
-          o3tmp(:,1)=1.E35
-        end where
-         
-        ! spatial interpolation (current month)
-        d=fmth(ip,ilat+1,:)-fmth(ilon,ilat+1,:)
-     &   -fmth(ip,ilat,:)+fmth(ilon,ilat,:)
-        b=fmth(ip,ilat,:)-fmth(ilon,ilat,:)
-        c=fmth(ilon,ilat+1,:)-fmth(ilon,ilat,:)
-        o3tmp(:,2)=b*serlon+c*serlat+d*serlon*serlat+fmth(ilon,ilat,:)
-        where (fmth(ilon,ilat,:).gt.1.E34
-     &     .or.fmth(ip,ilat,:).gt.1.E34
-     &     .or.fmth(ilon,ilat+1,:).gt.1.E34
-     &     .or.fmth(ip,ilat+1,:).gt.1.E34)
-          o3tmp(:,2)=1.E35
-        end where         
-
-        ! spatial interpolation (next month)
-        d=fnxt(ip,ilat+1,:)-fnxt(ilon,ilat+1,:)
-     &   -fnxt(ip,ilat,:)+fnxt(ilon,ilat,:)
-        b=fnxt(ip,ilat,:)-fnxt(ilon,ilat,:)
-        c=fnxt(ilon,ilat+1,:)-fnxt(ilon,ilat,:)
-        o3tmp(:,3)=b*serlon+c*serlat+d*serlon*serlat+fnxt(ilon,ilat,:)
-        where (fnxt(ilon,ilat,:).gt.1.E34
-     &     .or.fnxt(ip,ilat,:).gt.1.E34
-     &     .or.fnxt(ilon,ilat+1,:).gt.1.E34
-     &     .or.fnxt(ip,ilat+1,:).gt.1.E34)
-          o3tmp(:,3)=1.E35
-        end where
-         
-        ! avoid interpolating missing values
-        where (o3tmp(:,1).gt.1.E34.or.o3tmp(:,2).gt.1.E34
-     &     .or.o3tmp(:,3).gt.1.E34)
-          o3tmp(:,1)=1.E35
-          o3tmp(:,2)=1.E35
-          o3tmp(:,3)=1.E35
-        end where
-
-        ! temporal interpolation (PWCB)
-        o3tmp(:,2)=o3tmp(:,2)+o3tmp(:,1)
-        o3tmp(:,3)=o3tmp(:,3)+o3tmp(:,2)
-        b=0.5*o3tmp(:,2)
-        c=4.*o3tmp(:,2)-5.*o3tmp(:,1)-o3tmp(:,3)
-        d=1.5*(o3tmp(:,3)+3.*o3tmp(:,1)-3.*o3tmp(:,2))
-        o3inp=b+c*rang+d*rang*rang
          
         !-----------------------------------------------------------
         ! Simple interpolation on pressure levels
@@ -453,5 +395,102 @@ c
       
       return
       end subroutine fieldinterpolate
+
+      subroutine o3regrid(o3pre,o3mth,o3nxt,o3dum,o3lon,o3lat,
+     &                    nlon,nlat,nlev)
+      
+      use latlong_m
+
+      implicit none
+
+      include 'newmpar.h'
+      include 'const_phys.h'
+
+      integer, intent(in) :: nlon,nlat,nlev
+      real, dimension(ifull,nlev), intent(out) :: o3pre,o3mth,o3nxt
+      real, dimension(nlon,nlat,nlev,3), intent(in) :: o3dum
+      real, dimension(nlon), intent(in) :: o3lon
+      real, dimension(nlat), intent(in) :: o3lat
+      real, dimension(nlev) :: o3tmp,b,c,d
+      real, dimension(ifull) :: blon,blat
+      real alonx,lonadj,serlon,serlat
+      integer j,l,ilon,ilat,ip
+
+      blon=rlongg*180./pi
+      where (blon.lt.0.)
+        blon=blon+360.
+      end where
+      blat=rlatt*180./pi
+
+      do j=1,ifull
+        
+        alonx=blon(j)
+        if (alonx.lt.o3lon(1)) then
+          alonx=alonx+360.
+          ilon=nlon
+        else
+          do ilon=1,nlon-1
+            if (o3lon(ilon+1).gt.alonx) exit
+          end do
+        end if
+        ip=ilon+1
+        lonadj=0.
+        if (ip.gt.nlon) then
+          ip=1
+          lonadj=360.
+        end if
+        serlon=(alonx-o3lon(ilon))/(o3lon(ip)+lonadj-o3lon(ilon))
+
+        if (blat(j).lt.o3lat(1)) then
+          ilat=1
+          serlat=0.
+        else if (blat(j).gt.o3lat(nlat)) then
+          ilat=nlat-1
+          serlat=1.
+        else
+          do ilat=1,nlat-1
+            if (o3lat(ilat+1).gt.blat(j)) exit
+          end do
+          serlat=(blat(j)-o3lat(ilat))/(o3lat(ilat+1)-o3lat(ilat))  
+        end if
+
+        ! spatial interpolation
+        do l=1,3
+          d=o3dum(ip,ilat+1,:,l)-o3dum(ilon,ilat+1,:,l)
+     &     -o3dum(ip,ilat,:,l)+o3dum(ilon,ilat,:,l)
+          b=o3dum(ip,ilat,:,l)-o3dum(ilon,ilat,:,l)
+          c=o3dum(ilon,ilat+1,:,l)-o3dum(ilon,ilat,:,l)
+          o3tmp(:)=b*serlon+c*serlat+d*serlon*serlat
+     &              +o3dum(ilon,ilat,:,l)
+          where (o3dum(ilon,ilat,:,l).gt.1.E34
+     &      .or.o3dum(ip,ilat,:,l).gt.1.E34
+     &      .or.o3dum(ilon,ilat+1,:,l).gt.1.E34
+     &      .or.o3dum(ip,ilat+1,:,l).gt.1.E34)
+           o3tmp(:)=1.E35
+          end where
+             
+          select case(l)
+            case(1)
+              o3pre(j,:)=o3tmp(:)
+            case(2)
+              o3mth(j,:)=o3tmp(:)
+            case(3)
+              o3nxt(j,:)=o3tmp(:)
+          end select
+        
+        end do
+
+        ! avoid interpolating missing values
+        where (o3pre(j,:).gt.1.E34.or.o3mth(j,:).gt.1.E34
+     &     .or.o3nxt(j,:).gt.1.E34)
+          o3pre(j,:)=1.E35
+          o3mth(j,:)=1.E35
+          o3nxt(j,:)=1.E35
+        end where
+
+      end do
+
+      return
+      end subroutine o3regrid
 
       end module ozoneread

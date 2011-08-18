@@ -417,7 +417,8 @@ c
             do k=1,kl
               temparr2(:,k)=ps(1:ifull)*sig(k)
             enddo
-          case default 
+          case default
+            write(6,*) varname3(m),' not found'
             write(unit_trout,*) varname3(m),' not found'
             stop
           end select
@@ -481,6 +482,7 @@ c
             deallocate(cts)
             surfflux=.true.
           case default
+            write(6,*) trim(varname2(m)),' not found'
             write(unit_trout,*) trim(varname2(m)),' not found'
             stop
           end select

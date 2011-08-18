@@ -66,6 +66,9 @@
       real :: sumin, sumout, sumsav
       real :: delpos_l, delneg_l, const_nh
 
+      sumsav=0.
+      sumin=0.
+
       call start_log(adjust_begin)
       hdt=dt/2.
       hdtds=hdt/ds

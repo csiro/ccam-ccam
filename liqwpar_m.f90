@@ -22,6 +22,8 @@ allocate(qlg(ifull+iextra,kl),qfg(ifull+iextra,kl))
 !allocate(qrg(ifull+iextra,kl),qsg(ifull+iextra,kl))
 !allocate(qgg(ifull+iextra,kl))
 ifullw=ifull
+qlg=0.
+qfg=0.
 
 return
 end subroutine liqwpar_init

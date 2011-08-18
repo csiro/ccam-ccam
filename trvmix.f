@@ -201,6 +201,7 @@ c
         if (myid == 0) then
           totloss = -1.*totloss*4*pi*eradsq*fCH4_MolM/
      &                 (grav*fAIR_MolM*1.e18)
+          write(6,*) 'Total loss',ktau,totloss
           write(unit_trout,*) 'Total loss',ktau,totloss
 !         accumulate loss over month
           acloss_g(igas) = acloss_g(igas) + totloss

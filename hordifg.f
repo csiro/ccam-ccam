@@ -134,32 +134,33 @@ c     above code independent of k
         do k=1,kl        
           ! omega=ps*dpsldt
           ww(1:ifull,k)=(dpsldt(:,k)/sig(k)-dpsdt/(860.*ps(1:ifull)))
-     &           *(-rdry/grav)*t(1:ifull,k)*(1.+0.61*qg(1:ifull,k))
+     &        *(-rdry/grav)*t(1:ifull,k)*(1.+0.61*qg(1:ifull,k)
+     &        -qlg(1:ifull,k)-qfg(1:ifull,k))
         end do
         call bounds(ww)
         do k=1,kl
           dwdx(:,k)=(ww(ie,k)-ww(iw,k))*0.5*em(1:ifull)/ds
           dwdy(:,k)=(ww(in,k)-ww(is,k))*0.5*em(1:ifull)/ds
         end do
-        dwdz(:,1)=(ww(1:ifull,2)-ww(1:ifull,1))
-     &           /(zg(1:ifull,2)-zg(1:ifull,1))
         dudz(:,1)=(u(1:ifull,2)-u(1:ifull,1))
      &           /(zg(1:ifull,2)-zg(1:ifull,1))
         dvdz(:,1)=(v(1:ifull,2)-v(1:ifull,1))
      &           /(zg(1:ifull,2)-zg(1:ifull,1))
+        dwdz(:,1)=(ww(1:ifull,2)-ww(1:ifull,1))
+     &           /(zg(1:ifull,2)-zg(1:ifull,1))
         do k=2,kl-1
-          dwdz(:,k)=(ww(1:ifull,k+1)-ww(1:ifull,k-1))
-     &             /(zg(1:ifull,k+1)-zg(1:ifull,k-1))
           dudz(:,k)=(u(1:ifull,k+1)-u(1:ifull,k-1))
      &             /(zg(1:ifull,k+1)-zg(1:ifull,k-1))
           dvdz(:,k)=(v(1:ifull,k+1)-v(1:ifull,k-1))
      &             /(zg(1:ifull,k+1)-zg(1:ifull,k-1))
+          dwdz(:,k)=(ww(1:ifull,k+1)-ww(1:ifull,k-1))
+     &             /(zg(1:ifull,k+1)-zg(1:ifull,k-1))
         end do
-        dwdz(:,kl)=(ww(1:ifull,kl)-ww(1:ifull,kl-1))
-     &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
         dudz(:,kl)=(u(1:ifull,kl)-u(1:ifull,kl-1))
      &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
         dvdz(:,kl)=(v(1:ifull,kl)-v(1:ifull,kl-1))
+     &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
+        dwdz(:,kl)=(ww(1:ifull,kl)-ww(1:ifull,kl-1))
      &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
 
       end if   ! nhorjlm==0.or.nvmix==6

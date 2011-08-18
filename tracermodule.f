@@ -22,9 +22,9 @@ c     in outcdf.f (current setting of trmax unreliable)
       real, dimension(:,:,:), save, allocatable :: oh123,strloss123
       real, dimension(:,:), save, allocatable :: oh,strloss
 ! rml 30/04/10 additions for Transcom MCF
+      real, dimension(:,:,:), save, allocatable :: jmcf123
       real, dimension(:,:), save, allocatable :: mcfdep123,jmcf
       real, dimension(:), save, allocatable :: mcfdep
-      real, dimension(:,:,:), save, allocatable :: jmcf123
       logical methane,mcf
 
       character(len=80), save :: tracerlist=''
@@ -89,25 +89,26 @@ c     first read in a list of tracers, then determine what emission data is requ
 !       rml 18/09/07 added tracmin,tracmax
         read(130,*) tracname(nt),tracival(nt),tracmin(nt),tracmax(nt),
      &              tractype(nt),tracfile(nt)
-        if (tractype(nt).eq.'monrep'.or.tractype(nt).eq.'month') then
+        select case(tractype(nt))
+         case ('monrep','month')
           tracinterp(nt)=1
-        elseif (tractype(nt).eq.'hourly'.or.
-     &          tractype(nt).eq.'3hourly'.or.
-     &          tractype(nt).eq.'daily') then
+         case ('hourly','3hourly','daily')
           tracinterp(nt)=2
           nhr = nhr+1
           igashr(nt) = nhr
-        elseif (tractype(nt).eq.'online') then
+         case ('online')
           tracunit(nt) = 'gC/m2/s'
           tracinterp(nt) = -1
-        elseif (tractype(nt).eq.'monpwcb') then
+         case ('monpwcb')
           tracinterp(nt)=3
-        elseif (tractype(nt).eq.'mon1st') then
-          tracinterp(nt)=4          
-        else
+         case ('mon1st')
+          tracinterp(nt)=4
+         case default
           tracinterp(nt)=0
-        endif
+        end select
          if ( myid == 0 ) then
+          write(6,999) 'Tracer ',nt,tracname(nt),tractype(nt),
+     &                           tracfile(nt),tracinterp(nt)
           write(unit_trout,999) 'Tracer ',nt,tracname(nt),tractype(nt),
      &                           tracfile(nt),tracinterp(nt)
         end if
@@ -117,14 +118,28 @@ c     first read in a list of tracers, then determine what emission data is requ
         if (tracname(nt)(1:3).eq.'mcf') mcf = .true.
 c
       enddo
-      allocate(nghr(nhr))
+      if (nhr.gt.0) then
+        allocate(nghr(nhr))
+      else
+        deallocate(igashr)
+      end if
+      if (methane) then
+        allocate(acloss_g(ntrac))
+!       initialise accumulated loss (for methane cases)
+        acloss_g = 0.
+      end if
 
-c     initialise array for monthly average tracer
-      traver = 0.
+!     MJT - averages are managed in globpe.f
+!     initialise array for monthly average tracer
+!      traver = 0.
 !     if writing afternoon averages, initialise here
-      if (writetrpm) trpm = 0.
-!     initialise accumulated loss (for methane cases)
-      acloss_g = 0.
+      if (writetrpm) then
+        allocate(trpm(ilt*jlt,klt,ntrac),npm(ilt*jlt))
+        trpm = 0.
+        npm = 0
+      end if
+
+      close(130)
 
       return
       end subroutine
@@ -142,16 +157,14 @@ c     initial value now read from tracerlist
       integer i,ierr
 ! rml 19/04/10 variables for methane initial condition 
       integer ok,ncid,ch4id,mcfid
-      real ch4in_g(ifull_g,kl)
-      real ch4in(ilt*jlt,klt)
-      real mcfin_g(ifull_g,kl)
-      real mcfin(ilt*jlt,klt)
+      real in_g(ifull_g,kl)
+      real in(ilt*jlt,klt)
 
       do i=1,ngas
 c rml 15/11/06 facility to introduce new tracers to simulation
 c i.e. some read from restart, others initialised here
         if (tracival(i).ne.-999) then
-! rml 16/2/10 addition for TC methane to get 2d initial condition
+! rml 16/2/10 addition for TC methane to get 3d initial condition
             if (tracname(i)(1:7).eq.'methane') then
 !             read  initial condition
               if (myid == 0) then
@@ -159,14 +172,14 @@ c i.e. some read from restart, others initialised here
                 if (ok.ne.0) write(6,*) nf_strerror(ok)
                 ok = nf_inq_varid(ncid,'ch4in',ch4id)
                 if (ok.ne.0) write(6,*) nf_strerror(ok)
-                ok = nf_get_var_real(ncid,ch4id,ch4in_g)
+                ok = nf_get_var_real(ncid,ch4id,in_g)
                 if (ok.ne.0) write(6,*) nf_strerror(ok)
                 ok = nf_close(ncid)
-                call ccmpi_distribute(ch4in,ch4in_g)
+                call ccmpi_distribute(in,in_g)
               else
-                call ccmpi_distribute(ch4in)
+                call ccmpi_distribute(in)
               endif
-              tr(1:ilt*jlt,1:klt,i)=ch4in
+              tr(1:ilt*jlt,1:klt,i)=in
             elseif (tracname(i)(1:3).eq.'mcf') then
 !             read  mcf initial condition
               if (myid == 0) then
@@ -174,29 +187,19 @@ c i.e. some read from restart, others initialised here
                 if (ok.ne.0) write(6,*) nf_strerror(ok)
                 ok = nf_inq_varid(ncid,'mcfin',mcfid)
                 if (ok.ne.0) write(6,*) nf_strerror(ok)
-                ok = nf_get_var_real(ncid,mcfid,mcfin_g)
+                ok = nf_get_var_real(ncid,mcfid,in_g)
                 if (ok.ne.0) write(6,*) nf_strerror(ok)
                 ok = nf_close(ncid)
-                call ccmpi_distribute(mcfin,mcfin_g)
+                call ccmpi_distribute(in,in_g)
               else
-                call ccmpi_distribute(mcfin)
+                call ccmpi_distribute(in)
               endif
-              tr(1:ilt*jlt,1:klt,i)=mcfin
+              tr(1:ilt*jlt,1:klt,i)=in
             else
               tr(:,:,i)=tracival(i)
             endif
         endif
       enddo
-!
-!     if ( myid == 0 ) then
-!       write(unit_trout,*) myid,'tracini: ',tracival
-!       write(unit_trout,*) myid,'tracini: ',tr(1,1,:)
-!       write(unit_trout,*) myid,'tracini1: ',tr(1,:,1)
-!     end if
-
-!      if( iradon.ne.0.) then
-!        tr(:,:,max(1,iradon))=0.
-!      end if
 
       return
       end subroutine
@@ -213,8 +216,10 @@ c     remove a background value for tracer fields for more accurate transport
       real trmin,trmin_g
       
 
-      if ( myid == 0 ) write(unit_trout,*) 'Background tracer concentrat
-     &ion removed:'
+      if ( myid == 0 ) then
+        write(6,*) 'Background tracer concentration removed:'
+        write(unit_trout,*) 'Background tracer concentration removed:'
+      end if
 
       do i=1,ngas
 !       use minimum concentration from level in middle of atmosphere as background
@@ -228,8 +233,10 @@ c     remove a background value for tracer fields for more accurate transport
         trback_g(i) = trmin_g
         tr(:,:,i) = tr(:,:,i) - trback_g(i)
 !
-        if ( myid == 0 ) 
-     &    write(unit_trout,*) 'Tracer ',i,' : ',trback_g(i)
+        if ( myid == 0 ) then
+          write(6,*) 'Tracer ',i,' : ',trback_g(i)
+          write(unit_trout,*) 'Tracer ',i,' : ',trback_g(i)
+        end if
 
       enddo
 
@@ -303,7 +310,10 @@ c           daily, 3 hourly, hourly
         varname = 'jmcf'
         call readoh(jmonth,3,filename,varname,jmcf123)
       endif
-      if (myid==0) write(unit_trout,*) 'Read input fluxes/rates etc OK'
+      if (myid==0) then
+        write(6,*) 'Read input fluxes/rates etc OK'
+        write(unit_trout,*) 'Read input fluxes/rates etc OK'
+      end if
 
       return
       end subroutine
@@ -321,7 +331,7 @@ c     include 'trcom2.h'
 c     rml 25/08/04 added fluxunit variable
       character*13 fluxtype,fluxname,fluxunit
       integer nflux,iyr,imon,igas,ntime,lc,regnum,kount
-      integer nprev,nnext,ncur,n1,n2,ntot,n
+      integer nprev,nnext,ncur,n1,n2,ntot,n,timx,ndim
       real timeinc
 c     nflux =3 for month interp case - last month, this month, next month
 c     nflux=31*24+2 for daily, hourly, 3 hourly case
@@ -332,6 +342,7 @@ c     nflux=31*24+2 for daily, hourly, 3 hourly case
       real, dimension(:), allocatable :: fluxhr
       integer start(3),count(3)
       real fluxin_g(ifull_g,nflux)
+      logical gridpts
       include 'netcdf.inc'
       include 'mpif.h'
 
@@ -355,14 +366,21 @@ c       no surface fluxes to read
       end if
 
       if ( myid == 0 ) then ! Read on this processor and then distribute
+        write(6,*)'reading ',trim(fluxname), ' with type ', 
+     &  trim(fluxtype),' for ',iyr,imon,' from ',filename
         write(unit_trout,*)'reading ',trim(fluxname), ' with type ', 
      &  trim(fluxtype),' for ',iyr,imon,' from ',filename
         ierr = nf_open(filename,0,ncidfl)
         if (ierr.ne.nf_noerr) then
+          write(6,*) ierr,igas,filename
+          write(6,*) nf_strerror(ierr)
           write(unit_trout,*) ierr,igas,filename
           write(unit_trout,*) nf_strerror(ierr)
           stop 'flux file not found'
         endif
+        ! check for 1D or 2D formatted input
+        ierr=nf_inq_ndims(ncidfl,ndim)
+        gridpts=ndim.eq.2 ! true when 1D formatted input is detected
         ierr=nf_inq_dimid(ncidfl,'time',timedim)
         if (ierr.ne.nf_noerr) stop 'time dimension error'
         ierr=nf_inq_dimlen(ncidfl,timedim,ntime)
@@ -400,6 +418,10 @@ c rml 08/11/04 added radon units
           if (trim(fluxunit).ne.'gC/m2/s'.and.
      &      trim(fluxunit).ne.'Bq/m2/s'.and.
      &      trim(fluxunit).ne.'mol/m2/s') then
+            write(6,*) 'Units for ',trim(fluxname),
+     &                        ' are ',trim(fluxunit)
+            write(6,*) 'Code not set up for units other than gC/m
+     &2/s or mol/m2/s or Bq/m2/s'
             write(unit_trout,*) 'Units for ',trim(fluxname),
      &                        ' are ',trim(fluxunit)
           write(unit_trout,*) 'Code not set up for units other than gC/m
@@ -413,7 +435,6 @@ c         need to read sunset/sunrise times
           if (ierr.ne.nf_noerr) stop 'nregion dimension error'
           ierr=nf_inq_dimlen(ncidfl,nregdim,nregion)
           if (ierr.ne.nf_noerr) stop 'nregion dimension length error'
-c         if (nregion.gt.ngasmax) stop 'tracdaytime array too small'
           ierr=nf_inq_varid(ncidfl,'daylight',dayid)
           if (ierr.ne.nf_noerr) stop 'daylight variable not found'
         endif
@@ -459,31 +480,37 @@ c               keep flux constant at ends of data
             enddo
           endif
 c
+          if (ncur.eq.0) stop 'current year/month not in flux file'
           if ( myid == 0 ) then
+           write(6,*)'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
            write(unit_trout,*)'reading ',ncur,fluxyr(ncur),fluxmon(ncur)
           end if
-          if (ncur.eq.0) stop 'current year/month not in flux file'
 c    
           fluxin_g=0.
-          start(1)=1
-          count(1)=ifull_g; count(2)=1
+          if (gridpts) then
+            start(1)=1
+            count(1)=ifull_g; count(2)=1
+            timx=2
+          else
+            start(1:2)=1
+            count(1)=il_g; count(2)=jl_g; count(3)=1
+            timx=3
+          end if
 c         read preceeding month if needed
           if (nprev.ne.0) then
-            start(2)=nprev
-!           if (igas==7)print*, "Reading prev", start(:2), count(2)
+            start(timx)=nprev
             ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
      &                            fluxin_g(:,1))
             if (ierr.ne.nf_noerr) stop 'error reading fluxin prev'
           endif
 c         read current month/year
-          start(2)=ncur
-!         if (igas==7)print*, "Reading curr", start(:2), count(2)
-          ierr=nf_get_vara_real(ncidfl,fluxid,start,count,fluxin_g(:,2))
+          start(timx)=ncur
+          ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
+     &                          fluxin_g(:,2))
           if (ierr.ne.nf_noerr) stop 'error reading fluxin cur'
 c         read next month
           if (nnext.ne.0) then
-            start(2)=nnext
-!         if (igas==7)print*, "Reading next", start(:2), count(2)
+            start(timx)=nnext
             ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
      &                            fluxin_g(:,3))
             if (ierr.ne.nf_noerr) stop 'error reading fluxin next'
@@ -509,9 +536,17 @@ c         find last time in month
             endif
           enddo
 c         read fluxes
-          start(1)=1; count(1)=ifull_g
           ntot=n2-n1+1
-          start(2)=n1; count(2)=ntot
+          if (gridpts) then
+            start(1)=1; count(1)=ifull_g
+            start(2)=n1; count(2)=ntot
+            timx=2
+          else
+            start(1)=1; count(1)=il_g
+            start(2)=1; count(2)=jl_g
+            start(3)=1; count(3)=ntot
+            timx=3
+          end if
           ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
      &                                fluxin_g(:,2:ntot+1))
           if (ierr.ne.nf_noerr) stop 'error reading fluxin '
@@ -525,7 +560,7 @@ c           keep constant
           else
             nprev=n1-1
           endif
-          start(2)=nprev; count(2)=1
+          start(timx)=nprev; count(timx)=1
           ierr=nf_get_vara_real(ncidfl,fluxid,start,count,fluxin_g(:,1))
           if (ierr.ne.nf_noerr) stop 'error reading fluxin '
           if ((n2.eq.ntime).and.(fluxyr(n2).eq.0)) then
@@ -535,7 +570,7 @@ c           keep constant
           else
             nnext=n2+1
           endif
-          start(2)=nnext; count(2)=1
+          start(timx)=nnext; count(timx)=1
           ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
      &                                      fluxin_g(:,ntot+2))
           if (ierr.ne.nf_noerr) stop 'error reading fluxin '
@@ -617,26 +652,33 @@ c *************************************************************************
       character*50 ohfile
       character*13 varname
       integer nfield,imon,ntime
-      integer nprev,nnext,ncur,n
+      integer nprev,nnext,ncur,n,timx,ndim
 c     nflux =3 for month interp case - last month, this month, next month
       real ohin(il*jl,kl,nfield)
       integer ncidfl,timedim,monthid,fluxid,ierr
       integer, dimension(:), allocatable :: ohmon
-      integer start(3),count(3)
+      integer start(4),count(4)
       real ohin_g(ifull_g,kl,nfield)
+      logical gridpts
       include 'netcdf.inc'
       include 'mpif.h'
 
 c
 
       if ( myid == 0 ) then ! Read on this processor and then distribute
+        write(6,*)'reading for ',imon,' from ',ohfile
         write(unit_trout,*)'reading for ',imon,' from ',ohfile
         ierr = nf_open(trim(ohfile),0,ncidfl)
         if (ierr.ne.nf_noerr) then
+          write(6,*) ierr,ohfile
+          write(6,*) nf_strerror(ierr)
           write(unit_trout,*) ierr,ohfile
           write(unit_trout,*) nf_strerror(ierr)
           stop 'methane oh/loss file not found'
         endif
+        ! check for 1D or 2D formatted input
+        ierr=nf_inq_ndims(ncidfl,ndim)
+        gridpts=ndim.eq.3 ! true when 1D formatted input is detected
         ierr=nf_inq_dimid(ncidfl,'time',timedim)
         if (ierr.ne.nf_noerr) stop 'time dimension error'
         ierr=nf_inq_dimlen(ncidfl,timedim,ntime)
@@ -668,28 +710,36 @@ c         monthly case
           enddo
 c
           if ( myid == 0 ) then
+           write(6,*)'reading ',ncur,ohmon(ncur)
            write(unit_trout,*)'reading ',ncur,ohmon(ncur)
           end if
           if (ncur.eq.0) stop 'current month not in flux file'
 c    
           ohin_g=0.
-          start(1)=1 ; start(2)=1
-          count(1)=ifull_g; count(2)=kl ; count(3)=1 ! CHECK
+          if (gridpts) then
+            start(1)=1 ; start(2)=1 ; start(3)=1
+            count(1)=ifull_g; count(2)=kl ; count(3)=1 ! CHECK
+            timx=3
+          else
+            start(1)=1 ; start(2)=1 ; start(3)=1 ; start(4)=1
+            count(1)=il_g; count(2)=jl_g; count(3)=kl; count(4)=1
+            timx=4
+          end if
 c         read preceeding month if needed
           if (nprev.ne.0) then
-            start(3)=nprev
+            start(timx)=nprev
             ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
      &                            ohin_g(:,:,1))
             if (ierr.ne.nf_noerr) stop 'error reading ohin prev'
           endif
 c         read current month/year
-          start(3)=ncur
+          start(timx)=ncur
           ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
      &                            ohin_g(:,:,2))
           if (ierr.ne.nf_noerr) stop 'error reading ohin cur'
 c         read next month
           if (nnext.ne.0) then
-            start(3)=nnext
+            start(timx)=nnext
             ierr=nf_get_vara_real(ncidfl,fluxid,start,count,
      &                            ohin_g(:,:,3))
             if (ierr.ne.nf_noerr) stop 'error reading ohin next'
@@ -774,11 +824,15 @@ c            second half of month
              if (ktau.eq.1) nghr(igh)=1
              found=.false.
              if ( myid==0 ) then
+               write(6,*) 'igas: ',igas,'igashr: ',igh
+               write(6,*) 'hrmodel: ',hrmodel
                write(unit_trout,*) 'igas: ',igas,'igashr: ',igh
                write(unit_trout,*) 'hrmodel: ',hrmodel
              end if
              do while (.not.found)
                if ( myid==0 ) then
+                 write(6,*) nghr(igh),co2hr(nghr(igh),igh),
+     &                    co2hr(nghr(igh)+1,igh)
                  write(unit_trout,*) nghr(igh),co2hr(nghr(igh),igh),
      &                    co2hr(nghr(igh)+1,igh)
                end if
@@ -938,7 +992,7 @@ c     scaling assumes CO2 with output in GtC?
 c     also update tracer average array here
       do igas=1,ngas
 
-        traver(:,:,igas)=traver(:,:,igas)+tr(1:ilt*jlt,1:klt,igas)/ntau
+        traver(:,:,igas)=traver(:,:,igas)+tr(1:ilt*jlt,1:klt,igas)
 
 !       rml 18/09/07 check that tr and traver stay within defined range
 !       stop job if they don't
@@ -959,22 +1013,6 @@ c     also update tracer average array here
      &   maxloc(tr(1:ilt*jlt,1:klt,igas))
           write(6,*) 'Error: tracer out of range.  See tracer.stdout'
           stop
-        endif
-        if (ktau.eq.ntau) then
-          trmin = minval(traver(1:ilt*jlt,1:klt,igas))+trback_g(igas)
-          trmax = maxval(traver(1:ilt*jlt,1:klt,igas))+trback_g(igas)
-          if (trmin.lt.tracmin(igas)) then
-            write(6,*) 'Error: tracer out of range.  See tracer.stdout'
-            write(6,*) 'WARNING: trav below minimum, tracer ',
-     & igas, ' processor ',myid,tracmin(igas),trmin
-          stop
-          endif
-          if (trmax.gt.tracmax(igas)) then
-            write(6,*) 'Error: tracer out of range.  See tracer.stdout'
-            write(6,*) 'WARNING: trav above maximum, tracer ',
-     & igas, ' processor ',myid, tracmax(igas),trmax
-          stop
-          endif
         endif
 
       enddo

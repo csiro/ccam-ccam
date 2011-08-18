@@ -171,7 +171,7 @@ onthefly.o : aerosolldr.o ateb.o carbpools_m.o cc_mpi.o cable_define_dimensions.
 optical_path.o : longwave_params.o lw_gases_stdtf.o rad_utilities.o
 outcdf.o : aerosolldr.o arrays_m.o ateb.o cable_ccam2.o cable_define_dimensions.o carbpools_m.o cc_mpi.o cfrac_m.o dpsdt_m.o extraout_m.o histave_m.o latlong_m.o liqwpar_m.o map_m.o mlo.o mlodynamics.o morepbl_m.o nsibd_m.o pbl_m.o prec_m.o raddiag_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o tkeeps.o tracermodule.o tracers_m.o vegpar_m.o vvel_m.o work2_m.o const_phys.h dates.h filnames.h kuocom.h mapproj.h newmpar.h parm.h parmdyn.h parmgeom.h parmhor.h parmvert.h soilv.h trcom2.h version.h
 outfile.o : arrays_m.o cc_mpi.o pbl_m.o soilsnow_m.o tracers_m.o dates.h filnames.h newmpar.h parm.h
-ozoneread.o : cc_mpi.o const_phys.h dates.h filnames.h newmpar.h
+ozoneread.o : cc_mpi.o latlong_m.o const_phys.h dates.h filnames.h newmpar.h
 pbldif.o : arrays_m.o cc_mpi.o cfrac_m.o diag_m.o extraout_m.o map_m.o morepbl_m.o sigs_m.o soil_m.o newmpar.h
 radriv90.o : aerointerface.o arrays_m.o ateb.o cable_ccam2.o cc_mpi.o cfrac_m.o cldcom_m.o diag_m.o extraout_m.o infile.o kuocomb_m.o latlong_m.o liqwpar_m.o lwout_m.o mlo.o nsibd_m.o ozoneread.o pbl_m.o raddiag_m.o radisw_m.o rdflux_m.o sigs_m.o soil_m.o soilsnow_m.o srccom_m.o swocom_m.o swr99.o tfcom_m.o work3f_m.o zenith.o const_phys.h establ.h kuocom.h newmpar.h parm.h soilv.h rdparm.h hcon.h
 retopo.o : cc_mpi.o diag_m.o sigs_m.o const_phys.h newmpar.h parm.h

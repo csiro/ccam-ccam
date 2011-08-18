@@ -15,15 +15,15 @@ public load_aerosolldr,aerocalc,aerodrop
 public ppfprec,ppfmelt,ppfsnow,ppfconv,ppfevap,ppfsubl,pplambs,ppmrate, &
        ppmaccr,ppfstay,ppqfsed,pprscav
 
-real, dimension(:,:,:,:), allocatable, save :: oxidantprev
-real, dimension(:,:,:,:), allocatable, save :: oxidantnow
-real, dimension(:,:,:,:), allocatable, save :: oxidantnext
-real, dimension(:), allocatable, save :: rlon,rlat,rlev,zdayfac
+real, dimension(:,:,:), allocatable, save :: oxidantprev
+real, dimension(:,:,:), allocatable, save :: oxidantnow
+real, dimension(:,:,:), allocatable, save :: oxidantnext
+real, dimension(:), allocatable, save :: rlev,zdayfac
 real, dimension(:,:), allocatable, save :: ppfprec,ppfmelt,ppfsnow,ppfconv  ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppfevap,ppfsubl,pplambs,ppmrate  ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppmaccr,ppfstay,ppqfsed,pprscav  ! data saved from LDR cloud scheme
 integer, save :: ilon,ilat,ilev
-real, parameter :: wlc      = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
+real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
 
 contains
 
@@ -33,6 +33,7 @@ subroutine load_aerosolldr(aerofile,oxidantfile)
       
 use aerosolldr
 use cc_mpi
+use ozoneread
       
 implicit none
 
@@ -48,6 +49,8 @@ integer, dimension(2) :: spos,npos
 integer, dimension(4) :: sposs,nposs
 real, dimension(:), allocatable :: dumg
 real, dimension(ifull) :: duma
+real, dimension(:,:,:,:), allocatable :: oxidantdum
+real, dimension(:), allocatable :: rlon,rlat
 real tlat,tlon,tschmidt
 character(len=*), intent(in) :: aerofile,oxidantfile
 
@@ -84,8 +87,11 @@ if (myid==0) then
   write(6,*) "Reading ",trim(aerofile)
   ! check dimensions and location
   ncstatus=nf_get_att_real(ncid,nf_global,'lat0',tlat)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus=nf_get_att_real(ncid,nf_global,'lon0',tlon)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus=nf_get_att_real(ncid,nf_global,'schmidt0',tschmidt)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   if (rlong0.ne.tlon.or.rlat0.ne.tlat.or.schmidt.ne.tschmidt) then
     write(6,*) "ERROR: Grid mismatch for ",trim(aerofile)
     write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
@@ -93,7 +99,9 @@ if (myid==0) then
     stop
   end if
   ncstatus = nf_inq_dimid(ncid,'longitude',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_inq_dimlen(ncid,varid,tilg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   if (tilg.ne.il_g) then
     write (6,*) "ERROR: Grid mismatch for ",trim(aerofile)
     write (6,*) "il_g,tilg ",il_g,tilg
@@ -104,83 +112,122 @@ if (myid==0) then
   npos(1)=il_g
   npos(2)=il_g*6
   ncstatus = nf_inq_varid(ncid,'so2a1',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(1,duma)
   ncstatus = nf_inq_varid(ncid,'so2a2',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(2,duma)
   ncstatus = nf_inq_varid(ncid,'bca1',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(3,duma)
   ncstatus = nf_inq_varid(ncid,'bca2',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(4,duma)
   ncstatus = nf_inq_varid(ncid,'oca1',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(5,duma)
   ncstatus = nf_inq_varid(ncid,'oca2',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(6,duma)
   ncstatus = nf_inq_varid(ncid,'so2b1',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(7,duma)
   ncstatus = nf_inq_varid(ncid,'so2b2',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(8,duma)
   ncstatus = nf_inq_varid(ncid,'bcb1',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(9,duma)
   ncstatus = nf_inq_varid(ncid,'bcb2',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(10,duma)
   ncstatus = nf_inq_varid(ncid,'ocb1',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(11,duma)
   ncstatus = nf_inq_varid(ncid,'ocb2',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(12,duma)
   ncstatus = nf_inq_varid(ncid,'dmso',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(13,duma)
   ncstatus = nf_inq_varid(ncid,'dmst',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(14,duma)
   ncstatus = nf_inq_varid(ncid,'ocna',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(15,duma)
   ncstatus = nf_inq_varid(ncid,'vso2',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(16,duma)
   ! load dust fields
   ncstatus = nf_inq_varid(ncid,'sandem',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloaderod(1,1,duma)
   ncstatus = nf_inq_varid(ncid,'siltem',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloaderod(2,1,duma)
   ncstatus = nf_inq_varid(ncid,'clayem',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloaderod(3,1,duma)
   ncstatus=nf_close(ncid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   deallocate(dumg)
   ! load oxidant fields
   ncstatus=nf_open(oxidantfile,nf_nowrite,ncid)
@@ -191,18 +238,25 @@ if (myid==0) then
   write(6,*) "Reading ",trim(oxidantfile)
   ! check dimensions and location
   ncstatus = nf_inq_dimid(ncid,'lon',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_inq_dimlen(ncid,varid,ilon)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_inq_dimid(ncid,'lat',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_inq_dimlen(ncid,varid,ilat)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_inq_dimid(ncid,'lev',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_inq_dimlen(ncid,varid,ilev)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call MPI_Bcast(ilon,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(ilat,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(ilev,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-  allocate(oxidantprev(ilon,ilat,ilev,4))
-  allocate(oxidantnow(ilon,ilat,ilev,4))
-  allocate(oxidantnext(ilon,ilat,ilev,4))
+  allocate(oxidantprev(ifull,ilev,4))
+  allocate(oxidantnow(ifull,ilev,4))
+  allocate(oxidantnext(ifull,ilev,4))
   allocate(rlon(ilon),rlat(ilat),rlev(ilev))
+  allocate(oxidantdum(ilon,ilat,ilev,3))
   sposs=1
   nposs(1)=ilon
   nposs(2)=ilat
@@ -211,50 +265,58 @@ if (myid==0) then
   jyear=kdate/10000
   jmonth=(kdate-jyear*10000)/100
   ncstatus = nf_inq_varid(ncid,'lpn',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,sposs(1),nposs(1),rlon)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_inq_varid(ncid,'lat',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,sposs(2),nposs(2),rlat) ! input latitudes (deg)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_inq_varid(ncid,'lev',varid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,sposs(3),nposs(3),rlev) ! input vertical levels
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
   call MPI_Bcast(rlon,ilon,MPI_REAL,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(rlat,ilat,MPI_REAL,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(rlev,ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-  do i=1,3
-    select case(i)
+  do j=1,4
+    select case(j)
       case(1)
-        sposs(4)=jmonth-1
+        ncstatus = nf_inq_varid(ncid,'OH',varid)
       case(2)
-        sposs(4)=jmonth
+        ncstatus = nf_inq_varid(ncid,'H2O2',varid)
       case(3)
-        sposs(4)=jmonth+1
+        ncstatus = nf_inq_varid(ncid,'O3',varid)
+      case(4)
+        ncstatus = nf_inq_varid(ncid,'NO2',varid)
     end select
-    if (sposs(4).lt.1) sposs(4)=12
-    if (sposs(4).gt.12) sposs(4)=1
-    do j=1,4
-      select case(j)
-        case(1)
-          ncstatus = nf_inq_varid(ncid,'OH',varid)
-        case(2)
-          ncstatus = nf_inq_varid(ncid,'H2O2',varid)
-        case(3)
-          ncstatus = nf_inq_varid(ncid,'O3',varid)
-        case(4)
-          ncstatus = nf_inq_varid(ncid,'NO2',varid)
-      end select
+    if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+    do i=1,3
       select case(i)
         case(1)
-          ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantprev(:,:,:,j))
-          call MPI_Bcast(oxidantprev(:,:,:,j),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+          sposs(4)=jmonth-1
+          if (sposs(4).lt.1) sposs(4)=12
+          ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call MPI_Bcast(oxidantdum(:,:,:,1),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         case(2)
-          ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantnow(:,:,:,j))
-          call MPI_Bcast(oxidantnow(:,:,:,j),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+          sposs(4)=jmonth
+          ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call MPI_Bcast(oxidantdum(:,:,:,2),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         case(3)
-          ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantnext(:,:,:,j))
-          call MPI_Bcast(oxidantnext(:,:,:,j),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+          sposs(4)=jmonth+1
+          if (sposs(4).gt.12) sposs(4)=1
+          ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
+          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call MPI_Bcast(oxidantdum(:,:,:,3),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       end select
     end do
+    call o3regrid(oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j),oxidantdum,rlon,rlat,ilon,ilat,ilev)
   end do
   ncstatus=nf_close(ncid)
+  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  deallocate(oxidantdum,rlat,rlon)
 else
   ! load emission fields
   do i=1,16
@@ -270,25 +332,21 @@ else
   call MPI_Bcast(ilon,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(ilat,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(ilev,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-  allocate(oxidantprev(ilon,ilat,ilev,4))
-  allocate(oxidantnow(ilon,ilat,ilev,4))
-  allocate(oxidantnext(ilon,ilat,ilev,4))
+  allocate(oxidantprev(ifull,ilev,4))
+  allocate(oxidantnow(ifull,ilev,4))
+  allocate(oxidantnext(ifull,ilev,4))
   allocate(rlon(ilon),rlat(ilat),rlev(ilev))
+  allocate(oxidantdum(ilon,ilat,ilev,3))
   call MPI_Bcast(rlon,ilon,MPI_REAL,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(rlat,ilat,MPI_REAL,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(rlev,ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-  do i=1,3
-    do j=1,4
-      select case(i)
-        case(1)
-          call MPI_Bcast(oxidantprev(:,:,:,j),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        case(2)
-          call MPI_Bcast(oxidantnow(:,:,:,j),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-        case(3)
-          call MPI_Bcast(oxidantnext(:,:,:,j),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      end select
+  do j=1,4
+    do i=1,3
+      call MPI_Bcast(oxidantdum(:,:,:,i),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
     end do
+    call o3regrid(oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j),oxidantdum,rlon,rlat,ilon,ilat,ilev)    
   end do
+  deallocate(oxidantdum,rlat,rlon)
 end if
 
 return
@@ -333,7 +391,7 @@ integer, save :: sday=-9999
 real dhr,fjd,sfjd,r1,dlt,alp,slag
 real, dimension(ifull) :: coszro,taudar
 real, dimension(ifull,kl) :: oxout,zg,clcon,pccw,rhoa
-real, dimension(ifull) :: blon,blat,dxy,mcmax,cldcon,wg
+real, dimension(ifull) :: dxy,mcmax,cldcon,wg
 real, dimension(ifull) :: vt
 real, dimension(kl+1) :: sigh
 
@@ -342,14 +400,9 @@ call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
 ! update oxidant fields once per day
 if (sday.le.mins-1440) then
   sday=mins
-  blon=rlongg*180./pi ! ccam longitudes (deg)
-  where (blon.lt.0.)
-    blon=blon+360.
-  end where
-  blat=rlatt*180./pi ! ccam latitudes (deg)
   do j=1,4      
-    call fieldinterpolate(oxout(:,:),blon,blat,oxidantprev(:,:,:,j),oxidantnow(:,:,:,j),oxidantnext(:,:,:,j), &
-                          rlon,rlat,rlev,ifull,kl,ilon,ilat,ilev,mins,sig,ps)
+    call fieldinterpolate(oxout(:,:),oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
+                          rlev,ifull,kl,ilon,ilat,ilev,mins,sig,ps)
     do k=1,kl
       call aldrloadoxidant(k+(j-1)*kl,oxout(:,k))
     end do

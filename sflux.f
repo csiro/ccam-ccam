@@ -252,7 +252,7 @@ c       this is in-line ocenzo using latest coefficient, i.e. .018   ! sea
           af(iq)=afrootpan**2                                        ! sea
         else                                                         ! sea
          if(charnock<0.)then  ! Moon (2004) over sea                 ! sea
-          zo(iq)=min(max(charnck(iq),1.5e-10),13.) ! MJT bug fix     ! sea
+          zo(iq)=charnck(iq)                                         ! sea
           afroot=vkar/log(zmin/zo(iq))                               ! sea
           af(iq)=afroot**2                                           ! sea
          else            ! usual charnock method over sea            ! sea
@@ -264,7 +264,7 @@ c       this is in-line ocenzo using latest coefficient, i.e. .018   ! sea
              afroot=vkar/log(zmin/zo(iq))                            ! sea
              af(iq)=afroot**2                                        ! sea
              daf=2.*af(iq)*afroot/(vkar*zo(iq))                      ! sea
-             zo(iq)=max(1.5e-6,zo(iq)-(zo(iq)-con*af(iq))/           ! sea
+             zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-con*af(iq))/           ! sea
      &                 (1.-con*daf))                                 ! sea
              zo(iq)=min(zo(iq),13.) ! JLM fix                        ! sea
             enddo    ! it=1,3                                        ! sea
@@ -280,7 +280,7 @@ c       this is in-line ocenzo using latest coefficient, i.e. .018   ! sea
              dden=con1*(daf-.5*af(iq)/zo(iq))                        ! sea
              fm=vmod(iq)-vmod(iq)*2.*bprm *ri(iq)/den                ! sea
              dfm=2.*bprm*ri(iq)*dden/den**2                          ! sea
-             zo(iq)=max(1.5e-6,zo(iq)-(zo(iq)-consea*af(iq)*fm)/     ! sea
+             zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-consea*af(iq)*fm)/     ! sea
      .                        (1.-consea*(daf*fm+af(iq)*dfm))) ! MJT zosea
              zo(iq)=min(zo(iq),13.) ! JLM fix                        ! sea
             enddo  ! it=1,3                                          ! sea

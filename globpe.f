@@ -943,10 +943,15 @@ c     if(ndi2>0)diag=.true.
       cll_ave(:)  = 0.
       clm_ave(:)  = 0.
       clh_ave(:)  = 0.
+      if (ngas.gt.0) then
+        traver=0.
+      end if
  
       if(nmi==0.and.nwt>0)then
 !       write out the first ofile data set 
-        print *,'calling outfile myid= ',myid
+        if (myid==0) then
+          print *,'calling outfile'
+	end if
         call outfile(20,rundate,nmi,nwrite,iaero)  ! which calls outcdf
         if(newtop<0)stop  ! just for outcdf to plot zs  & write fort.22
       endif    ! (nmi==0.and.nwt.ne.0)
@@ -1674,6 +1679,9 @@ c     if(ndi2>0)diag=.true.
         clh_ave(:)  =  clh_ave(:)/max(koundiag,1)
         cbas_ave(:) = 1.1-cbas_ave(:)/max(1.e-4,precc(:))  ! 1.1 for no precc
         ctop_ave(:) = 1.1-ctop_ave(:)/max(1.e-4,precc(:))  ! 1.1 for no precc
+        if (ngas.gt.0) then
+          traver=traver/min(ntau,nperavg)
+        end if
       endif    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
       
       if(nscrn==1.and.mod(ktau,nperhr)==0)then
@@ -1772,6 +1780,9 @@ c     if(ndi2>0)diag=.true.
         precc(:)=0.   ! converted to mm/day in outcdf
         sno(:)=0.     ! converted to mm/day in outcdf
         runoff(:)=0.  ! converted to mm/day in outcdf
+        if (ngas.gt.0) then
+          traver=0.
+        end if
       endif  ! (mod(ktau,nperavg)==0)
 
       if(mod(ktau,nperday)==0)then   ! re-set at the end of each 24 hours

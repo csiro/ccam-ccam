@@ -407,10 +407,10 @@ c**   onthefly; sometime can get rid of common/bigxy4
           write(6,*)'xg4(1-4) ',(xg4(idjd,m),m=1,4)
           write(6,*)'yg4(1-4) ',(yg4(idjd,m),m=1,4)
           if(nested==0)then
-             write(6,"('wb_s(1)#  ',9f7.3)") 
-     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
-             write(6,"('wb_s(ms)# ',9f7.3)") 
-     .           ((wb(ii+(jj-1)*il,ms),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
+!             write(6,"('wb_s(1)#  ',9f7.3)") 
+!     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
+!             write(6,"('wb_s(ms)# ',9f7.3)") 
+!     .           ((wb(ii+(jj-1)*il,ms),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
           endif  ! (nested==0)
         endif
       end if ! (myid==0)
@@ -1609,11 +1609,11 @@ c     doing x-interpolation before y-interpolation
       include 'parm.h'
       real, dimension(ik*ik*6), intent(in) :: s
       real, dimension(ifull_g), intent(inout) :: sout
-      integer, intent(in), dimension(ik*ik*6) :: nface
+      integer, intent(in), dimension(ifull_g) :: nface
       integer idel, jdel, ik, nn
       integer :: ind, i, j, n, iq, n_n, n_e, n_w, n_s
       real aaa, c1, c2, c3, c4, xxg, yyg
-      real, intent(in), dimension(ik*ik*6) :: xg, yg
+      real, intent(in), dimension(ifull_g) :: xg, yg
       real sx(-1:ik+2,-1:ik+2,0:npanels)
       real r(4)
 
@@ -1738,8 +1738,8 @@ c     this one does bi-linear interpolation only
       include 'parm.h'
       real, dimension(ik*ik*6), intent(inout) :: s
       real, dimension(ifull_g), intent(inout) :: sout
-      integer, intent(in), dimension(ik*ik*6) :: nface
-      real, intent(in), dimension(ik*ik*6) :: xg, yg
+      integer, intent(in), dimension(ifull_g) :: nface
+      real, intent(in), dimension(ifull_g) :: xg, yg
       real sx(-1:ik+2,-1:ik+2,0:npanels)
 c     include 'indices_g.h' ! in,is,iw,ie,inn,iss,iww,iee
       integer :: ind, i, j, n, iq, idel, jdel, ik
@@ -2020,12 +2020,12 @@ c     endif  ! (meth.eq.0)
       include 'newmpar.h'
       
       integer, intent(in) :: ik,nord
-      integer, dimension(6*ik*ik), intent(in) :: nface4
+      integer, dimension(ifull_g), intent(in) :: nface4
       integer iq,np
       real, dimension(3,3), intent(in) :: rotpole,rotpoles
+      real, dimension(ifull_g), intent(in) :: xg4,yg4
       real, dimension(6*ik*ik), intent(in) :: axs_a,ays_a,azs_a
       real, dimension(6*ik*ik), intent(in) :: bxs_a,bys_a,bzs_a
-      real, dimension(6*ik*ik), intent(in) :: xg4,yg4
       real, dimension(6*ik*ik), intent(inout) :: ucc,vcc
       real, dimension(6*ik*ik) :: wcc
       real, dimension(ifull_g), intent(out) :: uct_g,vct_g
