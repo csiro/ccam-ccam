@@ -204,8 +204,8 @@ c     enddo
        do iq=1,ifull
         pk=ps(iq)*sig(k)
 c       qs(iq,k)=max(.622*es(iq,k)/(pk-es(iq,k)),1.5e-6)  
-        qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),1.)  
-        dqsdt(iq,k)=qs(iq,k)*pk*hlars/(tt(iq,k)**2*max(pk-es(iq,k),1.))
+        qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),.1)  ! MJT bug fix
+        dqsdt(iq,k)=qs(iq,k)*pk*hlars/(tt(iq,k)**2*max(pk-es(iq,k),.1)) ! MJT bug fix
         s(iq,k)=cp*tt(iq,k)+phi(iq,k)  ! dry static energy
 c       calculate hs
         hs(iq,k)=s(iq,k)+hl*qs(iq,k)   ! saturated moist static energy
