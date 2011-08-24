@@ -52,12 +52,12 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       real gt(ifull,kl),guv(ifull,kl),ri(ifull,kl)
       real rkm(ifull,kl),rkh(ifull,kl),rk_shal(ifull,kl)
       real condrag
+      real zg(ifull,kl),rhoa(ifull),wt0(ifull),wq0(ifull) ! MJT tke
 c     set coefficients for Louis scheme
       data bprm/4.7/,cm/7.4/,ch/5.3/,amxlsq/100./,vkar3/.35/,vkar4/.4/
       data bprmj/5./,cmj/5./,chj/2.6/
       save kscbase,ksctop
       include 'establ.h'
-      real zg(ifull,kl),rhoa(ifull),wt0(ifull),wq0(ifull) ! MJT tke
 
       kcl_top=kl-2
       if (.not.allocated(prcpv)) allocate(prcpv(kl))

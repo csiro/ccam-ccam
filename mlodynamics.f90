@@ -19,7 +19,7 @@ public mlodiffusion,mlorouter,mlohadv,watbdy
 real, dimension(:), allocatable, save :: watbdy
 integer, parameter :: salfilt=0    ! additional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide=1    ! tidal forcing (0=off, 1=on)
-integer, parameter :: intmode=2    ! horizontal interpolation (0=bi-linear, 1=bi-cubic, 2=bi-cubic+no vert)
+integer, parameter :: intmode=0    ! horizontal interpolation (0=bi-linear, 1=bi-cubic, 2=bi-cubic+no vert)
 integer, parameter :: icemode=2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: lmax   =1    ! advection loop (1=predictor-only, 2+=predictor-corrector)
 integer, parameter :: nf     =2    ! power for horizontal diffusion reduction factor
@@ -313,7 +313,7 @@ include 'parm.h'
 
 integer iq,l,ll,ii,ierr,totits,itotits
 integer jyear,jmonth,jday,jhour,jmin,mins,leap
-integer tyear,jstart,pos(1)
+integer tyear,jstart
 integer, dimension(ifull,wlev) :: nface
 real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
 real delpos,delneg,alph_p,dumpp,dumpn,fjd
@@ -697,7 +697,7 @@ do l=1,lmax ! predictor-corrector loop
     !dppdxu=dpsdxu+grav*depu*(1+etau/ddu)*drhobardxu+grav*rhobaru*detadxu
     !dppdyu=dpsdyu+grav*depu*(1+etau/ddu)*drhobardyu+grav*rhobaru*detadyu
     !dppdxv=dpsdxv+grav*depv*(1+etav/ddv)*drhobardxv+grav*rhobarv*detadxv
-    !dppdyv=dpsdyv+grav*depv*(1+etav/ddu)*drhobardyv+grav*rhobarv*detadyv
+    !dppdyv=dpsdyv+grav*depv*(1+etav/ddv)*drhobardyv+grav*rhobarv*detadyv
     
     !nu=kku+llu*etau+mmu*detadxu+nnu*detadyu (staggered)
     !nv=kkv+llv*etav+mmv*detadyv+nnv*detadxv (staggered)
@@ -1745,6 +1745,7 @@ real, dimension(ifull+iextra,size(nface,2)), intent(inout) :: s
 real, dimension(ifull+iextra,size(nface,2)), intent(in) :: d
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(nface,2)) :: sx,dx
 real, dimension(-1:2,-1:2) :: sc
+real, dimension(0:1,0:1) :: scb
 real, dimension(4) :: r
 real xxg,yyg,aab,aac,aad
 real cmax,cmin,cxx
@@ -1895,7 +1896,8 @@ if(intsch==1)then
                -yyg*(1.+yyg)*r(4)/3.)                &
                +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
         else
-          call lfill(sc(0:1,0:1),s(iq,k))        
+          scb=sc(0:1,0:1)
+          call lfill(scb,s(iq,k))        
           aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
           aab=sc(1,0)-sc(0,0)
           aac=sc(0,1)-sc(0,0)
@@ -1984,7 +1986,8 @@ if(intsch==1)then
                -yyg*(1.+yyg)*r(4)/3.)                &
                +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
         else
-          call lfill(sc(0:1,0:1),sextra(iproc)%a(iq))        
+          scb=sc(0:1,0:1)
+          call lfill(scb,sextra(iproc)%a(iq))        
           aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
           aab=sc(1,0)-sc(0,0)
           aac=sc(0,1)-sc(0,0)
@@ -2133,7 +2136,8 @@ else     ! if(intsch==1)then
                -xxg*(1.+xxg)*r(4)/3.)          &
                +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
         else
-          call lfill(sc(0:1,0:1),s(iq,k))        
+          scb=sc(0:1,0:1)
+          call lfill(scb,s(iq,k))        
           aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
           aab=sc(1,0)-sc(0,0)
           aac=sc(0,1)-sc(0,0)
@@ -2220,7 +2224,8 @@ else     ! if(intsch==1)then
                -xxg*(1.+xxg)*r(4)/3.)                &
                +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
         else
-          call lfill(sc(0:1,0:1),sextra(iproc)%a(iq))        
+          scb=sc(0:1,0:1)
+          call lfill(scb,sextra(iproc)%a(iq))        
           aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
           aab=sc(1,0)-sc(0,0)
           aac=sc(0,1)-sc(0,0)
@@ -2369,10 +2374,10 @@ if(intsch==1)then
         d3 = dx(idel+1,jdel,n,:)
         d4 = dx(idel+2,jdel,n,:)
         dxx = d(iq,k)
-        call searchdeltab(cc1,d1,dxx,cxx,c1)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
-        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        call searchdeltab(cc1,d1,dxx,cxx,c1,k)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
+        call searchdeltab(cc4,d4,dxx,cxx,c4,k)
         r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
              -xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
 
@@ -2384,10 +2389,10 @@ if(intsch==1)then
         d2 = dx(idel  ,jdel+1,n,:)
         d3 = dx(idel+1,jdel+1,n,:)
         d4 = dx(idel+2,jdel+1,n,:)
-        call searchdeltab(cc1,d1,dxx,cxx,c1)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
-        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        call searchdeltab(cc1,d1,dxx,cxx,c1,k)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
+        call searchdeltab(cc4,d4,dxx,cxx,c4,k)
         r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
              -xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
 
@@ -2395,16 +2400,16 @@ if(intsch==1)then
         cc3 = sx(idel+1,jdel-1,n,:)
         d2 = dx(idel  ,jdel-1,n,:)
         d3 = dx(idel+1,jdel-1,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
         r(1) = (1.-xxg)*c2 +xxg*c3
 
         cc2 = sx(idel  ,jdel+2,n,:)
         cc3 = sx(idel+1,jdel+2,n,:)
         d2 = dx(idel  ,jdel+2,n,:)
         d3 = dx(idel+1,jdel+2,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
         r(4) = (1.-xxg)*c2 +xxg*c3
                      
         s(iq,k) = ((1.-yyg)*((2.-yyg)*       &
@@ -2450,10 +2455,10 @@ if(intsch==1)then
         d2 = dx(idel  ,jdel,n,:)
         d3 = dx(idel+1,jdel,n,:)
         d4 = dx(idel+2,jdel,n,:)
-        call searchdeltab(cc1,d1,dxx,cxx,c1)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
-        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        call searchdeltab(cc1,d1,dxx,cxx,c1,k)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
+        call searchdeltab(cc4,d4,dxx,cxx,c4,k)
         r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
              -xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
 
@@ -2465,10 +2470,10 @@ if(intsch==1)then
         d2 = dx(idel  ,jdel+1,n,:)
         d3 = dx(idel+1,jdel+1,n,:)
         d4 = dx(idel+2,jdel+1,n,:)
-        call searchdeltab(cc1,d1,dxx,cxx,c1)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
-        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        call searchdeltab(cc1,d1,dxx,cxx,c1,k)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
+        call searchdeltab(cc4,d4,dxx,cxx,c4,k)
         r(3) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*c2-xxg*c1/3.) &
              -xxg*(1.+xxg)*c4/3.)+xxg*(1.+xxg)*(2.-xxg)*c3)/2.
 
@@ -2476,16 +2481,16 @@ if(intsch==1)then
         cc3 = sx(idel+1,jdel-1,n,:)
         d2 = dx(idel  ,jdel-1,n,:)
         d3 = dx(idel+1,jdel-1,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
         r(1) = (1.-xxg)*c2 +xxg*c3
 
         cc2 = sx(idel  ,jdel+2,n,:)
         cc3 = sx(idel+1,jdel+2,n,:)
         d2 = dx(idel  ,jdel+2,n,:)
         d3 = dx(idel+1,jdel+2,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
         r(4) = (1.-xxg)*c2 +xxg*c3
 
         sextra(iproc)%a(iq) = ((1.-yyg)*((2.-yyg)* &
@@ -2590,10 +2595,10 @@ else     ! if(intsch==1)then
         d3 = dx(idel,jdel+1,n,:)
         d4 = dx(idel,jdel+2,n,:)
         dxx = d(iq,k)
-        call searchdeltab(cc1,d1,dxx,cxx,c1)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
-        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        call searchdeltab(cc1,d1,dxx,cxx,c1,k)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
+        call searchdeltab(cc4,d4,dxx,cxx,c4,k)
         r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
              -yyg*(1.+yyg)*c4/3.)                          &
              +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
@@ -2606,10 +2611,10 @@ else     ! if(intsch==1)then
         d2 = dx(idel+1,jdel  ,n,:)
         d3 = dx(idel+1,jdel+1,n,:)
         d4 = dx(idel+1,jdel+2,n,:)
-        call searchdeltab(cc1,d1,dxx,cxx,c1)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
-        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        call searchdeltab(cc1,d1,dxx,cxx,c1,k)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
+        call searchdeltab(cc4,d4,dxx,cxx,c4,k)
         r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
              -yyg*(1.+yyg)*c4/3.)                          &
              +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
@@ -2618,16 +2623,16 @@ else     ! if(intsch==1)then
         cc3 = sx(idel-1,jdel+1,n,:)
         d2 = dx(idel-1,jdel  ,n,:)
         d3 = dx(idel-1,jdel+1,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
         r(1) = (1.-yyg)*c2 +yyg*c3
 
         cc2 = sx(idel+2,jdel  ,n,:)
         cc3 = sx(idel+2,jdel+1,n,:)
         d2 = dx(idel+2,jdel  ,n,:)
         d3 = dx(idel+2,jdel+1,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
         r(4) = (1.-yyg)*c2 +yyg*c3
 
         s(iq,k) = ((1.-xxg)*((2.-xxg)*       &
@@ -2672,10 +2677,10 @@ else     ! if(intsch==1)then
         d2 = dx(idel,jdel  ,n,:)
         d3 = dx(idel,jdel+1,n,:)
         d4 = dx(idel,jdel+2,n,:)
-        call searchdeltab(cc1,d1,dxx,cxx,c1)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
-        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        call searchdeltab(cc1,d1,dxx,cxx,c1,k)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
+        call searchdeltab(cc4,d4,dxx,cxx,c4,k)
         r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
              -yyg*(1.+yyg)*c4/3.)                          &
              +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
@@ -2688,10 +2693,10 @@ else     ! if(intsch==1)then
         d2 = dx(idel+1,jdel  ,n,:)
         d3 = dx(idel+1,jdel+1,n,:)
         d4 = dx(idel+1,jdel+2,n,:)
-        call searchdeltab(cc1,d1,dxx,cxx,c1)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
-        call searchdeltab(cc4,d4,dxx,cxx,c4)
+        call searchdeltab(cc1,d1,dxx,cxx,c1,k)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
+        call searchdeltab(cc4,d4,dxx,cxx,c4,k)
         r(3) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*c2-yyg*c1/3.) &
              -yyg*(1.+yyg)*c4/3.)                          &
              +yyg*(1.+yyg)*(2.-yyg)*c3)/2.
@@ -2700,16 +2705,16 @@ else     ! if(intsch==1)then
         cc3 = sx(idel-1,jdel+1,n,:)
         d2 = dx(idel-1,jdel  ,n,:)
         d3 = dx(idel-1,jdel+1,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
         r(1) = (1.-yyg)*c2 +yyg*c3
 
         cc2 = sx(idel+2,jdel  ,n,:)
         cc3 = sx(idel+2,jdel+1,n,:)
         d2 = dx(idel+2,jdel  ,n,:)
         d3 = dx(idel+2,jdel+1,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,c2)
-        call searchdeltab(cc3,d3,dxx,cxx,c3)
+        call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+        call searchdeltab(cc3,d3,dxx,cxx,c3,k)
         r(4) = (1.-yyg)*c2 +yyg*c3
 
         sextra(iproc)%a(iq) = ((1.-xxg)*((2.-xxg)* &
@@ -2755,6 +2760,7 @@ real, dimension(ifull+iextra,size(nface,2)), intent(in) :: d
 real, dimension(-1:ipan+2,-1:jpan+2,1:npan,size(nface,2)) :: sx,dx
 real, dimension(0:nproc-1,maxbuflen) :: ddin,sdin
 real, dimension(-1:2,-1:2) :: sc
+real, dimension(0:1,0:1) :: scb
 real, dimension(4) :: r
 real xxg,yyg,aab,aac,aad
 real dxx,cxx,cmax,cmin
@@ -2860,10 +2866,10 @@ if(intsch==1)then
         d3 = dx(idel+1,jdel,n,:)
         d4 = dx(idel+2,jdel,n,:)
         dxx = d(iq,k)
-        call searchdeltab(cc1,d1,dxx,cxx,sc(-1,0))
-        call searchdeltab(cc2,d2,dxx,cxx,sc(0,0))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(1,0))
-        call searchdeltab(cc4,d4,dxx,cxx,sc(2,0))
+        call searchdeltab(cc1,d1,dxx,cxx,sc(-1,0),k)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,0),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,0),k)
+        call searchdeltab(cc4,d4,dxx,cxx,sc(2,0),k)
 
         cc1 = sx(idel-1,jdel+1,n,:)
         cc2 = sx(idel  ,jdel+1,n,:)
@@ -2873,24 +2879,24 @@ if(intsch==1)then
         d2 = dx(idel  ,jdel+1,n,:)
         d3 = dx(idel+1,jdel+1,n,:)
         d4 = dx(idel+2,jdel+1,n,:)
-        call searchdeltab(cc1,d1,dxx,cxx,sc(-1,1))
-        call searchdeltab(cc2,d2,dxx,cxx,sc(0,1))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(1,1))
-        call searchdeltab(cc4,d4,dxx,cxx,sc(2,1))
+        call searchdeltab(cc1,d1,dxx,cxx,sc(-1,1),k)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,1),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,1),k)
+        call searchdeltab(cc4,d4,dxx,cxx,sc(2,1),k)
 
         cc2 = sx(idel  ,jdel-1,n,:)
         cc3 = sx(idel+1,jdel-1,n,:)
         d2 = dx(idel  ,jdel-1,n,:)
         d3 = dx(idel+1,jdel-1,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,sc(0,-1))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(1,-1))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,-1),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,-1),k)
 
         cc2 = sx(idel  ,jdel+2,n,:)
         cc3 = sx(idel+1,jdel+2,n,:)
         d2 = dx(idel  ,jdel+2,n,:)
         d3 = dx(idel+1,jdel+2,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,sc(0,2))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(1,2))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,2),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,2),k)
 
         ncount=count(sc.gt.-0.1)
         if (ncount.ge.12) then
@@ -2906,7 +2912,8 @@ if(intsch==1)then
                -yyg*(1.+yyg)*r(4)/3.)                &
                +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
         else
-          call lfill(sc(0:1,0:1),s(iq,k))        
+          scb=sc(0:1,0:1)
+          call lfill(scb,s(iq,k))        
           aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
           aab=sc(1,0)-sc(0,0)
           aac=sc(0,1)-sc(0,0)
@@ -2959,10 +2966,10 @@ if(intsch==1)then
         d3 = dx(idel+1,jdel,n,:)
         d4 = dx(idel+2,jdel,n,:)
         dxx = d(iq,k)
-        call searchdeltab(cc1,d1,dxx,cxx,sc(-1,0))
-        call searchdeltab(cc2,d2,dxx,cxx,sc(0,0))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(1,0))
-        call searchdeltab(cc4,d4,dxx,cxx,sc(2,0))
+        call searchdeltab(cc1,d1,dxx,cxx,sc(-1,0),k)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,0),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,0),k)
+        call searchdeltab(cc4,d4,dxx,cxx,sc(2,0),k)
 
         cc1 = sx(idel-1,jdel+1,n,:)
         cc2 = sx(idel  ,jdel+1,n,:)
@@ -2972,24 +2979,24 @@ if(intsch==1)then
         d2 = dx(idel  ,jdel+1,n,:)
         d3 = dx(idel+1,jdel+1,n,:)
         d4 = dx(idel+2,jdel+1,n,:)
-        call searchdeltab(cc1,d1,dxx,cxx,sc(-1,1))
-        call searchdeltab(cc2,d2,dxx,cxx,sc(0,1))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(1,1))
-        call searchdeltab(cc4,d4,dxx,cxx,sc(2,1))
+        call searchdeltab(cc1,d1,dxx,cxx,sc(-1,1),k)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,1),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,1),k)
+        call searchdeltab(cc4,d4,dxx,cxx,sc(2,1),k)
 
         cc2 = sx(idel  ,jdel-1,n,:)
         cc3 = sx(idel+1,jdel-1,n,:)
         d2 = dx(idel  ,jdel-1,n,:)
         d3 = dx(idel+1,jdel-1,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,sc(0,-1))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(1,-1))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,-1),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,-1),k)
 
         cc2 = sx(idel  ,jdel+2,n,:)
         cc3 = sx(idel+1,jdel+2,n,:)
         d2 = dx(idel  ,jdel+2,n,:)
         d3 = dx(idel+1,jdel+2,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,sc(0,2))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(1,2))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,2),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,2),k)
 
         ncount=count(sc.gt.-0.1)
         if (ncount.ge.12) then
@@ -3005,7 +3012,8 @@ if(intsch==1)then
                -yyg*(1.+yyg)*r(4)/3.)                &
                +yyg*(1.+yyg)*(2.-yyg)*r(3))/2.
         else
-          call lfill(sc(0:1,0:1),sdin(iproc,iq))        
+          scb=sc(0:1,0:1)
+          call lfill(scb,sdin(iproc,iq))        
           aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
           aab=sc(1,0)-sc(0,0)
           aac=sc(0,1)-sc(0,0)
@@ -3113,10 +3121,10 @@ else     ! if(intsch==1)then
         d3 = dx(idel,jdel+1,n,:)
         d4 = dx(idel,jdel+2,n,:)
         dxx = d(iq,k)
-        call searchdeltab(cc1,d1,dxx,cxx,sc(0,-1))
-        call searchdeltab(cc2,d2,dxx,cxx,sc(0,0))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(0,1))
-        call searchdeltab(cc4,d4,dxx,cxx,sc(0,2))
+        call searchdeltab(cc1,d1,dxx,cxx,sc(0,-1),k)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,0),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(0,1),k)
+        call searchdeltab(cc4,d4,dxx,cxx,sc(0,2),k)
 
         cc1 = sx(idel+1,jdel-1,n,:)
         cc2 = sx(idel+1,jdel  ,n,:)
@@ -3126,24 +3134,24 @@ else     ! if(intsch==1)then
         d2 = dx(idel+1,jdel  ,n,:)
         d3 = dx(idel+1,jdel+1,n,:)
         d4 = dx(idel+1,jdel+2,n,:)
-        call searchdeltab(cc1,d1,dxx,cxx,sc(1,-1))
-        call searchdeltab(cc2,d2,dxx,cxx,sc(1,0))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(1,1))
-        call searchdeltab(cc4,d4,dxx,cxx,sc(1,2))
+        call searchdeltab(cc1,d1,dxx,cxx,sc(1,-1),k)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(1,0),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,1),k)
+        call searchdeltab(cc4,d4,dxx,cxx,sc(1,2),k)
 
         cc2 = sx(idel-1,jdel  ,n,:)
         cc3 = sx(idel-1,jdel+1,n,:)
         d2 = dx(idel-1,jdel  ,n,:)
         d3 = dx(idel-1,jdel+1,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,sc(-1,0))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(-1,1))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(-1,0),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(-1,1),k)
         
         cc2 = sx(idel+2,jdel  ,n,:)
         cc3 = sx(idel+2,jdel+1,n,:)
         d2 = dx(idel+2,jdel  ,n,:)
         d3 = dx(idel+2,jdel+1,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,sc(2,0))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(2,1))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(2,0),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(2,1),k)
         
         ncount=count(sc.gt.-0.1)
         if (ncount.ge.12) then
@@ -3159,7 +3167,8 @@ else     ! if(intsch==1)then
                -xxg*(1.+xxg)*r(4)/3.)          &
                +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
         else
-          call lfill(sc(0:1,0:1),s(iq,k))        
+          scb=sc(0:1,0:1)
+          call lfill(scb,s(iq,k))        
           aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
           aab=sc(1,0)-sc(0,0)
           aac=sc(0,1)-sc(0,0)
@@ -3210,10 +3219,10 @@ else     ! if(intsch==1)then
         d2 = dx(idel,jdel  ,n,:)
         d3 = dx(idel,jdel+1,n,:)
         d4 = dx(idel,jdel+2,n,:)
-        call searchdeltab(cc1,d1,dxx,cxx,sc(0,-1))
-        call searchdeltab(cc2,d2,dxx,cxx,sc(0,0))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(0,1))
-        call searchdeltab(cc4,d4,dxx,cxx,sc(0,2))
+        call searchdeltab(cc1,d1,dxx,cxx,sc(0,-1),k)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(0,0),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(0,1),k)
+        call searchdeltab(cc4,d4,dxx,cxx,sc(0,2),k)
 
         cc1 = sx(idel+1,jdel-1,n,:)
         cc2 = sx(idel+1,jdel  ,n,:)
@@ -3223,24 +3232,24 @@ else     ! if(intsch==1)then
         d2 = dx(idel+1,jdel  ,n,:)
         d3 = dx(idel+1,jdel+1,n,:)
         d4 = dx(idel+1,jdel+2,n,:)
-        call searchdeltab(cc1,d1,dxx,cxx,sc(1,-1))
-        call searchdeltab(cc2,d2,dxx,cxx,sc(1,0))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(1,1))
-        call searchdeltab(cc4,d4,dxx,cxx,sc(1,2))
+        call searchdeltab(cc1,d1,dxx,cxx,sc(1,-1),k)
+        call searchdeltab(cc2,d2,dxx,cxx,sc(1,0),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(1,1),k)
+        call searchdeltab(cc4,d4,dxx,cxx,sc(1,2),k)
 
         cc2 = sx(idel-1,jdel  ,n,:)
         cc3 = sx(idel-1,jdel+1,n,:)
         d2 = dx(idel-1,jdel  ,n,:)
         d3 = dx(idel-1,jdel+1,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,sc(-1,0))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(-1,1))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(-1,0),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(-1,1),k)
         
         cc2 = sx(idel+2,jdel  ,n,:)
         cc3 = sx(idel+2,jdel+1,n,:)
         d2 = dx(idel+2,jdel  ,n,:)
         d3 = dx(idel+2,jdel+1,n,:)
-        call searchdeltab(cc2,d2,dxx,cxx,sc(2,0))
-        call searchdeltab(cc3,d3,dxx,cxx,sc(2,1))
+        call searchdeltab(cc2,d2,dxx,cxx,sc(2,0),k)
+        call searchdeltab(cc3,d3,dxx,cxx,sc(2,1),k)
 
         ncount=count(sc.gt.-0.1)
         if (ncount.ge.12) then
@@ -3255,7 +3264,8 @@ else     ! if(intsch==1)then
                -xxg*(1.+xxg)*r(4)/3.)                &
                +xxg*(1.+xxg)*(2.-xxg)*r(3))/2.
         else
-          call lfill(sc(0:1,0:1),sdin(iproc,iq))        
+          scb=sc(0:1,0:1)
+          call lfill(scb,sdin(iproc,iq))        
           aad=sc(1,1)-sc(0,1)-sc(1,0)+sc(0,0)
           aab=sc(1,0)-sc(0,0)
           aac=sc(0,1)-sc(0,0)
@@ -3378,10 +3388,10 @@ do iq=1,ifull
       d3 = dx(idel  ,jdel+1,n,:)
       d4 = dx(idel+1,jdel+1,n,:)
       dxx = d(iq,k)
-      call searchdeltab(cc1,d1,dxx,cxx,c1)
-      call searchdeltab(cc2,d2,dxx,cxx,c2)
-      call searchdeltab(cc3,d3,dxx,cxx,c3)
-      call searchdeltab(cc4,d4,dxx,cxx,c4)
+      call searchdeltab(cc1,d1,dxx,cxx,c1,k)
+      call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+      call searchdeltab(cc3,d3,dxx,cxx,c3,k)
+      call searchdeltab(cc4,d4,dxx,cxx,c4,k)
       aad=c4-c3-c2+c1
       aab=c2-c1
       aac=c3-c1
@@ -3426,10 +3436,10 @@ do iproc=0,nproc-1
       d2 = dx(idel+1,jdel  ,n,:)
       d3 = dx(idel  ,jdel+1,n,:)
       d4 = dx(idel+1,jdel+1,n,:)
-      call searchdeltab(cc1,d1,dxx,cxx,c1)
-      call searchdeltab(cc2,d2,dxx,cxx,c2)
-      call searchdeltab(cc3,d3,dxx,cxx,c3)
-      call searchdeltab(cc4,d4,dxx,cxx,c4)
+      call searchdeltab(cc1,d1,dxx,cxx,c1,k)
+      call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+      call searchdeltab(cc3,d3,dxx,cxx,c3,k)
+      call searchdeltab(cc4,d4,dxx,cxx,c4,k)
       aad=c4-c3-c2+c1
       aab=c2-c1
       aac=c3-c1
@@ -3542,10 +3552,10 @@ do iq=1,ifull    ! non Berm-Stan option
       d3 = dx(idel  ,jdel+1,n,:)
       d4 = dx(idel+1,jdel+1,n,:)
       dxx = d(iq,k)
-      call searchdeltab(cc1,d1,dxx,cxx,c1)
-      call searchdeltab(cc2,d2,dxx,cxx,c2)
-      call searchdeltab(cc3,d3,dxx,cxx,c3)
-      call searchdeltab(cc4,d4,dxx,cxx,c4)
+      call searchdeltab(cc1,d1,dxx,cxx,c1,k)
+      call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+      call searchdeltab(cc3,d3,dxx,cxx,c3,k)
+      call searchdeltab(cc4,d4,dxx,cxx,c4,k)
       sc(0,0)=c1
       sc(1,0)=c2
       sc(0,1)=c3
@@ -3597,10 +3607,10 @@ do iproc=0,nproc-1
       d2 = dx(idel+1,jdel  ,n,:)
       d3 = dx(idel  ,jdel+1,n,:)
       d4 = dx(idel+1,jdel+1,n,:)
-      call searchdeltab(cc1,d1,dxx,cxx,c1)
-      call searchdeltab(cc2,d2,dxx,cxx,c2)
-      call searchdeltab(cc3,d3,dxx,cxx,c3)
-      call searchdeltab(cc4,d4,dxx,cxx,c4)
+      call searchdeltab(cc1,d1,dxx,cxx,c1,k)
+      call searchdeltab(cc2,d2,dxx,cxx,c2,k)
+      call searchdeltab(cc3,d3,dxx,cxx,c3,k)
+      call searchdeltab(cc4,d4,dxx,cxx,c4,k)
       sc(0,0)=c1
       sc(1,0)=c2
       sc(0,1)=c3
@@ -3908,6 +3918,9 @@ real, dimension(ifull,wlev-1) :: ff
 real, dimension(ifull,0:wlev) :: delu
 real, dimension(ifull) :: fl,fh,cc,rr,xx,jj
 
+! f=(w*u) at half levels
+! du/dt = u*dw/dz-df/dz = -w*du/dz
+
 delu=0.
 do ii=1,wlev-1
   delu(:,ii)=uu(:,ii+1)-uu(:,ii)
@@ -4108,13 +4121,14 @@ end subroutine
 
 ! this version is for depature points where the depth is not
 ! monotonically increased and uses linear interpolation
-subroutine searchdeltab(s,dep,dd,sx,ss)
+subroutine searchdeltab(s,dep,dd,sx,ss,kk)
 
 use mlo
 
 implicit none
 
 integer id,afnd,bfnd
+integer, intent(in) :: kk
 real, dimension(wlev), intent(in) :: s,dep
 real, intent(in) :: dd,sx
 real, intent(out) :: ss
@@ -4128,17 +4142,23 @@ if (dep(wlev).lt.dd) then
 end if
 
 ! use bisection to find correct depth faster
-afnd=1
-bfnd=wlev
-do while (afnd.lt.bfnd-1)
-  id=0.5*(afnd+bfnd)
-  if (dep(id).le.dd) then
-    afnd=id
-  else
-    bfnd=id
+id=min(kk,wlev-1)
+if ((dep(id)-0.1).gt.dd.or.(dep(id+1)+0.1).lt.dd) then
+  id=max(kk-1,1)
+  if ((dep(id)-0.1).gt.dd.or.(dep(id+1)+0.1).lt.dd) then  
+    afnd=1
+    bfnd=wlev
+    do while (afnd.lt.bfnd-1)
+      id=0.5*(afnd+bfnd)
+      if (dep(id).le.dd) then
+        afnd=id
+      else
+        bfnd=id
+     end if
+    end do
+    id=afnd
   end if
-end do
-id=afnd
+end if
 
 !afnd=wlev-1
 !do id=1,wlev-2
@@ -4154,7 +4174,7 @@ id=afnd
     xp=(dd-dep(id))/(dep(id+1)-dep(id))
     ss=(1.-xp)*s(id)+xp*s(id+1)
 !  case(1) ! quadratic
-!    !id=max(id,2)
+!    id=max(id,2)
 !    ss=s(id)+(dd-dep(id))/(dep(id+1)-dep(id-1))*((dep(id)-dep(id-1))*(s(id+1)-s(id))/(dep(id+1)-dep(id)) &
 !            +(dep(id+1)-dep(id))*(s(id)-s(id-1))/(dep(id)-dep(id-1)))                                    &
 !            +(dd-dep(id))**2/(dep(id+1)-dep(id-1))*((s(id+1)-s(id))/(dep(id+1)-dep(id))                  &

@@ -860,7 +860,7 @@ integer, intent(in) :: diag
 integer ii,iqw
 real, intent(in) :: dt
 real, dimension(wfull,wlev) :: km,ks,gammas
-double precision, dimension(wfull,wlev) :: rhs
+real, dimension(wfull,wlev) :: rhs
 double precision, dimension(wfull,2:wlev) :: aa
 double precision, dimension(wfull,wlev) :: bb,dd
 double precision, dimension(wfull,1:wlev-1) :: cc
@@ -1609,7 +1609,7 @@ real, dimension(wfull) :: qsat,dqdt,ri,vmag,rho,srcp
 real, dimension(wfull) :: fm,fh,con,consea,afroot,af,daf
 real, dimension(wfull) :: den,dfm,dden,dcon,sig,factch,root
 real, dimension(wfull) :: aft,atu,atv,dcs,afq,facqch,fq
-real, dimension(wfull) :: newwu,newwv,a
+real, dimension(wfull) :: newwu,newwv,a,vmagn
 real ztv
 ! momentum flux parameters
 real, parameter :: charnck=0.018
@@ -1626,7 +1626,8 @@ real, parameter :: zcoq2 = 0.62
 
 atu=a_u-w_u(:,1)
 atv=a_v-w_v(:,1)
-vmag=max(sqrt(atu*atu+atv*atv),0.2)
+vmag=sqrt(atu*atu+atv*atv)
+vmagn=max(vmag,0.2)
 sig=exp(-grav*a_zmins/(rdry*a_temp))
 srcp=sig**(rdry/cp)
 rho=a_ps/(rdry*w_temp(:,1))
@@ -1635,7 +1636,7 @@ call getqsat(qsat,dqdt,w_temp(:,1),a_ps)
 if (zomode.eq.0) then ! CSIRO9
   qsat=0.98*qsat ! with Zeng 1998 for sea water
 end if
-ri=min(grav*(a_zmin**2/a_zmins)*(1.-w_temp(:,1)*srcp/a_temp)/max(vmag,0.1)**2,rimax)
+ri=min(grav*(a_zmin**2/a_zmins)*(1.-w_temp(:,1)*srcp/a_temp)/vmagn**2,rimax)
 select case(zomode)
   case(0,1) ! Charnock
     consea=vmag*charnck/grav
@@ -1657,7 +1658,7 @@ select case(zomode)
         dcon=consea*dfm*vmag
         p_zo=p_zo-(p_zo-con*af)/(1.-dcon*af-con*daf)
       end where
-      p_zo=min(max(p_zo,1.5e-6),10.)
+      p_zo=min(max(p_zo,1.5e-5),13.)
     enddo    ! it=1,4
   case(2) ! Beljaars
     p_zo=0.001    ! first guess
@@ -1678,7 +1679,7 @@ select case(zomode)
         dcs=(zcom1*vmag**2/grav-0.5*zcom2*gnu/(max(vmag*sqrt(fm*af),gnu)*fm*af))*(fm*daf+dfm*af)
       end where
       p_zo=p_zo-(p_zo-consea)/(1.-dcs)      
-      p_zo=min(max(p_zo,1.5e-6),10.)
+      p_zo=min(max(p_zo,1.5e-5),13.)
     enddo    ! it=1,4
 end select
 afroot=vkar/log(a_zmin/p_zo)
@@ -2629,14 +2630,15 @@ real, dimension(wfull) :: qsat,dqdt,ri,vmag,rho,srcp
 real, dimension(wfull) :: fm,fh,af,aft
 real, dimension(wfull) :: den,sig,root
 real, dimension(wfull) :: alb,qmax,eye
-real, dimension(wfull) :: uu,vv,du,dv
+real, dimension(wfull) :: uu,vv,du,dv,vmagn,icemagn
 real, dimension(wfull) :: x,ustar,icemag,g,h,p
 real, dimension(wfull) :: newwu,newwv,newiu,newiv
 real factch
 
 uu=a_u-i_u
 vv=a_v-i_v
-vmag=max(sqrt(uu*uu+vv*vv),0.2)
+vmag=sqrt(uu*uu+vv*vv)
+vmagn=max(vmag,0.2)
 sig=exp(-grav*a_zmins/(rdry*a_temp))
 srcp=sig**(rdry/cp)
 rho=a_ps/(rdry*i_tsurf)
@@ -2649,7 +2651,7 @@ aft=vkar**2/(log(a_zmins/p_zoice)*log(a_zmins/p_zohice))
 factch=1.
 
 call getqsat(qsat,dqdt,i_tsurf,a_ps)
-ri=min(grav*(a_zmin**2/a_zmins)*(1.-i_tsurf*srcp/a_temp)/max(vmag,0.1)**2,rimax)
+ri=min(grav*(a_zmin**2/a_zmins)*(1.-i_tsurf*srcp/a_temp)/vmagn**2,rimax)
 
 where (ri>0.)
   fm=1./(1.+bprm*ri)**2  ! no zo contrib for stable
@@ -2697,7 +2699,8 @@ d_tb=w_temp(:,1)
 ! flux from water to ice (from CICE)
 du=w_u(:,1)-i_u
 dv=w_v(:,1)-i_v
-icemag=max(sqrt(du*du+dv*dv),0.0002)
+icemag=sqrt(du*du+dv*dv)
+icemagn=max(icemag,0.0002)
 
 ! estimate velocities at t+1
 x=max(rhoic*i_dic+rhosn*i_dsn,10.) ! ice mass

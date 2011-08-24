@@ -251,6 +251,8 @@ c**   onthefly; sometime can get rid of common/bigxy4
         stop
       end if
       
+      spval=999.
+      
       !--------------------------------------------------------------
       ! read host sigma levels
       if (myid==0) then
@@ -666,7 +668,6 @@ c***      but needed here for onthefly (different dims) 28/8/08
 !     below we interpolate quantities which may be affected by land-sea mask
       if(myid==0)then
        
-       spval=999.
        do iq=1,ik*ik*6
          if(land_a(iq))then       ! over land
             tss_l_a(iq)=tss_a(iq)
