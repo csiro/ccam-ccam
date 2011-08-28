@@ -27,6 +27,7 @@ real, parameter :: k_smag=0.4      ! horizontal diffusion (0.4 in mom3, 2. in Gr
 real, parameter :: delphi=200.     ! horizontal diffusion reduction factor gradient
 real, parameter :: rhosn =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic =900.     ! density ice  (kg m^-3)
+real, parameter :: grav  =9.80616
 
 contains
 
@@ -229,7 +230,7 @@ xp(:,3)=is
 xp(:,4)=iw
 do i=1,4
   dp(:,i)=0.5*(ds/em(1:ifull)+ds/em(xp(:,i)))
-  slope(:,i)=(zs(1:ifull)-zs(xp(:,i)))/dp(:,i)
+  slope(:,i)=(zs(1:ifull)-zs(xp(:,i)))/(grav*dp(:,i))
 end do
 
 ! outflow

@@ -261,7 +261,6 @@ cx      enddo      ! k  loop
         phi(:,1)=zs(1:ifull)+bet(1)*t(1:ifull,1) 
         do k=2,kl
          phi(:,k)=phi(:,k-1)+bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1)
-
         enddo    ! k  loop
       endif     ! (ktau==1.or.nh==0)
 
@@ -278,7 +277,12 @@ cx      enddo      ! k  loop
            h_nh(1:ifull,k)=h_nh(1:ifull,k)
      &       -(sig(k)*(phi(:,k+1)-phi(:,k-1))/(rdry*(sig(k+1)-sig(k-1)))
      &       +t(1:ifull,k))/(const_nh*tbar2d(:))
-         enddo
+          enddo
+          ! MJT suggestion
+          k=1
+          h_nh(1:ifull,k)=h_nh(1:ifull,k)
+     &      -(sig(k)*(phi(:,k+1)-zs(1:ifull))/(rdry*(sig(k+1)-1.))
+     &      +t(1:ifull,k))/(const_nh*tbar2d(:))         
         endif  ! (nh==3)
         if(nh==2)then  ! was -2 add in other term explicitly, more consistently
 !         N.B. nh=2 needs lapsbot=3        
@@ -300,6 +304,13 @@ cx      enddo      ! k  loop
      &      *sig(k)/(rdry*(sig(k+1)-sig(k-1)))  
      &       +t(1:ifull,k))/(const_nh*tbar2d(:))
           enddo
+          ! MJT suggestion
+          k=1
+          h_nh(1:ifull,k)=h_nh(1:ifull,k)
+     &    -(((sig(k)-1.)*(phi(:,k+1)-phi(:,k))/(sig(k+1)-sig(k))+
+     &    ((sig(k+1)-sig(k))*(phi(:,k)-zs(1:ifull))/(sig(k)-1.)))
+     &     *sig(k)/(rdry*(sig(k+1)-1.))  
+     &      +t(1:ifull,k))/(const_nh*tbar2d(:))
         endif  ! (nh==4)
         if (nmaxpr==1) then
           if (mydiag)then

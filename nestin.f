@@ -644,7 +644,7 @@
       endif
 
       if (myid == 0) then     
-        write(6,*) "Gather data for spectral downscale"
+        write(6,*) "Gather data for spectral filter"
         if(nud_p>0)call ccmpi_gather(pslb(:), psld(:))
         if(nud_uv==3)then
           do k=1,kl
@@ -696,7 +696,7 @@
       !-----------------------------------------------------------------------
 !      if(nud_uv<0)then 
 !        if (myid == 0) then
-!          write(6,*) "Fast spectral downscale"
+!          write(6,*) "Fast spectral filter"
 !          call fastspec((.1*real(mbd)/(pi*schmidt))**2
 !     &       ,psld(:),ud(:,kbotdav:ktopdav),vd(:,kbotdav:ktopdav)
 !     &       ,wd(:,kbotdav:ktopdav),td(:,kbotdav:ktopdav)
@@ -704,20 +704,20 @@
 !        end if
 !      elseif(nud_uv==9)then 
       if(nud_uv==9)then
-        if (myid == 0) write(6,*) "Two dimensional spectral downscale"
+        if (myid == 0) write(6,*) "Two dimensional spectral filter"
         call slowspecmpi(myid,.1*real(mbd)/(pi*schmidt)
      &                ,psld(:),ud(:,kbotdav:ktopdav)
      &                ,vd(:,kbotdav:ktopdav),wd(:,kbotdav:ktopdav)
      &                ,td(:,kbotdav:ktopdav),qd(:,kbotdav:ktopdav)) ! MJT nestin
       elseif((mod(6,nproc)==0).or.(mod(nproc,6)==0))then
         if (myid == 0) write(6,*) 
-     &    "Separable 1D downscale (MPI optimised)"
+     &    "Separable 1D filter (MPI optimised)"
         call specfastmpi(myid,.1*real(mbd)/(pi*schmidt)
      &                ,psld(:),ud(:,kbotdav:ktopdav)
      &                ,vd(:,kbotdav:ktopdav),wd(:,kbotdav:ktopdav)
      &                ,td(:,kbotdav:ktopdav),qd(:,kbotdav:ktopdav)) ! MJT nestin
       else          !  usual choice e.g. for nud_uv=1 or 2
-        if (myid == 0) write(6,*) "Separable 1D downscale (MPI)"
+        if (myid == 0) write(6,*) "Separable 1D filter (MPI)"
         call fourspecmpi(myid,.1*real(mbd)/(pi*schmidt)
      &                ,psld(:),ud(:,kbotdav:ktopdav)
      &                ,vd(:,kbotdav:ktopdav),wd(:,kbotdav:ktopdav)
@@ -726,7 +726,7 @@
       !-----------------------------------------------------------------------
 
       if (myid == 0) then
-        write(6,*) "Distribute data from spectral downscale"
+        write(6,*) "Distribute data from spectral filter"
         if (nud_p.gt.0) then
           call ccmpi_distribute(x_g(1:ifull,1), psld(:))
           psl(1:ifull)=psl(1:ifull)+x_g(1:ifull,1)

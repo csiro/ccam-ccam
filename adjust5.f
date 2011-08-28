@@ -66,9 +66,6 @@
       real :: sumin, sumout, sumsav
       real :: delpos_l, delneg_l, const_nh
 
-      sumsav=0.
-      sumin=0.
-
       call start_log(adjust_begin)
       hdt=dt/2.
       hdtds=hdt/ds
@@ -157,22 +154,18 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
        enddo    ! iq loop
       enddo     ! k loop
 
-      ! MJT moved from below
-!     form divergence of rhs (xu & xv) terms
-      do k=1,kl
-!cdir nodep
-        do iq=1,ifull
-!         d is xd in Eq. 157, divided by em**2/ds
-          d(iq,k)=cc(iq,k)-cc(iwu(iq),k)+dd(iq,k)-dd(isv(iq),k)
-        enddo
-      enddo
-
       if(nh>0)then
         ! MJT suggestion
         ! fix up missing linear part of omgfnl
+        d(:,kl)=(cc(1:ifull,kl)/emu(1:ifull)-cc(iwu,kl)/emu(iwu) ! Eq. 101
+     &          +dd(1:ifull,kl)/emv(1:ifull)-dd(isv,kl)/emv(isv))    
+     &         *em(1:ifull)**2/ds
         wrk2(:,kl)=-dsig(kl)*d(:,kl)*em(1:ifull)**2/ds
         do k=kl-1,1,-1
-          wrk2(:,k)=wrk2(:,k+1)-dsig(k)*d(:,k)*em(1:ifull)**2/ds
+          d(:,k)=(cc(1:ifull,k)/emu(1:ifull)-cc(iwu,k)/emu(iwu) ! Eq. 101
+     &           +dd(1:ifull,k)/emv(1:ifull)-dd(isv,k)/emv(isv))    
+     &          *em(1:ifull)**2/ds
+          wrk2(:,k)=wrk2(:,k+1)-dsig(k)*d(:,k)
         enddo     ! k  loop
         do k=1,kl-1
           wrk3(:,k)=-rata(k)*wrk2(:,k+1)-ratb(k)*wrk2(:,k) ! in Eq. 110
@@ -203,15 +196,14 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
         p(1:ifull,:)=p(1:ifull,:)+wrk1(:,:)  ! nh
       endif     ! (nh>0)
 
-      ! MJT moved above
 !     form divergence of rhs (xu & xv) terms
-!      do k=1,kl
-!!cdir nodep
-!         do iq=1,ifull
-!!           d is xd in Eq. 157, divided by em**2/ds
-!            d(iq,k)=cc(iq,k)-cc(iwu(iq),k)+dd(iq,k)-dd(isv(iq),k)
-!         enddo
-!      enddo
+      do k=1,kl
+!cdir nodep
+         do iq=1,ifull
+!           d is xd in Eq. 157, divided by em**2/ds
+            d(iq,k)=cc(iq,k)-cc(iwu(iq),k)+dd(iq,k)-dd(isv(iq),k)
+         enddo
+      enddo
 
 !     transform p & d to eigenvector space
       do k=1,kl
