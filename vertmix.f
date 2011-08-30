@@ -53,6 +53,7 @@ c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
       real rkm(ifull,kl),rkh(ifull,kl),rk_shal(ifull,kl)
       real condrag
       real zg(ifull,kl),rhoa(ifull),wt0(ifull),wq0(ifull) ! MJT tke
+      real zgh(ifull,kl-1)                                ! MJT tke
 c     set coefficients for Louis scheme
       data bprm/4.7/,cm/7.4/,ch/5.3/,amxlsq/100./,vkar3/.35/,vkar4/.4/
       data bprmj/5./,cmj/5./,chj/2.6/
@@ -788,6 +789,9 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
          zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)                         ! MJT tke
      &                     +betm(k)*t(1:ifull,k-1))/grav                ! MJT tke
        end do                                                           ! MJT tke
+       do k=1,kl-1                                                      ! MJT tke
+         zgh(:,k)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k)                   ! MJT tke
+       end do                                                           ! MJT tke
        rhoa=ps(1:ifull)/(rdry*tss(:))                                   ! MJT tke
        wq0=eg/(hl*rhoa)                                                 ! MJT tke
        wt0=fg/(cp*rhoa)                                                 ! MJT tke
@@ -795,12 +799,12 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         case(0) ! no counter gradient                                   ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
-     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)              ! MJT tke
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,1,0)          ! MJT tke
          rkh=rkm                                                        ! MJT tke
         case(1,2,3,4,5,6) ! KCN counter gradient method                 ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
-     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,1,0)              ! MJT tke
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,1,0)          ! MJT tke
          rkh=rkm                                                        ! MJT tke
          uav(1:ifull,:)=av_vmod*u(1:ifull,:)                            ! MJT tke
      &                 +(1.-av_vmod)*savu(1:ifull,:)                    ! MJT tke
@@ -810,7 +814,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         case(7) ! mass-flux counter gradient                            ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
-     &             ps(1:ifull),ustar,zg,sig,sigkap,dt,0,0)              ! MJT tke
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,0,0)          ! MJT tke
          rkh=rkm                                                        ! MJT tke
          case DEFAULT                                                   ! MJT tke
            write(6,*) "ERROR: Unknown nlocal option for nvmix=6"        ! MJT tke
@@ -864,6 +868,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
       condrag=grav*dt/(dsig(1)*rdry)
 c     first do theta (then convert back to t)
       at(:,1)=0.
+      rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/cp)*fg(1:ifull)/ps(1:ifull)
 
       do k=2,kl
        do iq=1,ifull
@@ -887,15 +892,11 @@ c     first do theta (then convert back to t)
         print *,'rhs ',(rhs(idjd,k),k=1,kl)
       endif      ! (ntest==2)
 
-      if (nvmix.ne.6) then
-       if(nmaxpr==1.and.mydiag)
+      if(nmaxpr==1.and.mydiag)
      &  write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
-        rhs(1:ifull,1)=rhs(1:ifull,1)
-     &    -(conflux/cp)*fg(1:ifull)/ps(1:ifull)
-        call trim(at,ct,rhs,0)   ! for t
-       if(nmaxpr==1.and.mydiag)
+      call trim(at,ct,rhs,0)   ! for t
+      if(nmaxpr==1.and.mydiag)
      &  write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
-      end if     
       do k=1,kl
         do iq=1,ifull
          t(iq,k)=rhs(iq,k)/sigkap(k)
@@ -910,14 +911,11 @@ c     first do theta (then convert back to t)
       endif
 
 c     now do moisture
-      if (nvmix.ne.6) then
-        rhs(1:ifull,:)=qg(1:ifull,:)
-        rhs(1:ifull,1)=rhs(1:ifull,1) 
-     &    -(conflux/hl)*eg(1:ifull)/ps(1:ifull)
-c       could add extra sfce moisture flux term for crank-nicholson
-        call trim(at,ct,rhs,0)    ! for qg
-        qg(1:ifull,:)=rhs(1:ifull,:)
-      end if
+      rhs(1:ifull,:)=qg(1:ifull,:)
+      rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/hl)*eg(1:ifull)/ps(1:ifull)
+c     could add extra sfce moisture flux term for crank-nicholson
+      call trim(at,ct,rhs,0)    ! for qg
+      qg(1:ifull,:)=rhs(1:ifull,:)
       if (nvmix.eq.6.and.nlocal.gt.0) then
        ! increase mixing to replace counter gradient term          ! MJT tke
        at=2.5*at                                                   ! MJT tke

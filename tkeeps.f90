@@ -115,7 +115,7 @@ end subroutine tkeinit
 ! mode=0 mass flux with moist convection
 ! mode=1 no mass flux
 
-subroutine tkemix(kmo,theta,qg,qlg,qfg,cfrac,zi,wt0,wq0,ps,ustar,zz,sig,sigkap,dt,mode,diag)
+subroutine tkemix(kmo,theta,qg,qlg,qfg,cfrac,zi,wt0,wq0,ps,ustar,zz,zzh,sig,sigkap,dt,mode,diag)
 
 implicit none
 
@@ -125,6 +125,7 @@ real, intent(in) :: dt
 real, dimension(ifull,kl), intent(inout) :: theta,qg
 real, dimension(ifull,kl), intent(in) :: zz,cfrac,qlg,qfg
 real, dimension(ifull,kl), intent(out) :: kmo
+real, dimension(ifull,kl-1), intent(in) :: zzh
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: wt0,wq0,ps,ustar
 real, dimension(kl), intent(in) :: sigkap,sig
@@ -135,7 +136,7 @@ real, dimension(ifull,kl) :: mflx,tlup,qtup
 real, dimension(ifull,2:kl) :: aa,pps,ppt,ppb
 real, dimension(ifull,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl ! dz_hl(k)=zz(k+1)-zz(k)
-real, dimension(ifull,kl-1) :: gamt_hl,gamq_hl
+real, dimension(ifull,kl-1) :: gam_hl,zzm
 real, dimension(ifull) :: wstar,z_on_l,phim,hh,jj,dqsdt
 real, dimension(ifull) :: dum,wtv0
 real, dimension(kl-1) :: wpv_flux
@@ -193,11 +194,12 @@ dz_fl(:,kl)=zz(:,kl)-zz(:,kl-1)
 ! Calculate dz at half levels
 do k=1,kl-1
   dz_hl(:,k)=zz(:,k+1)-zz(:,k)
+  zzm(:,k)=0.5*(zz(:,k+1)+zz(:,k))
 end do
 
 ! Calculate first approximation to diffusion coeffs
 km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-10)
-call updatekmo(kmo,km,zz) ! interpolate diffusion coeffs to half levels
+call updatekmo(kmo,km,zz,zzm) ! interpolate diffusion coeffs to internal half levels (zzm)
 
 ! Calculate transport term
 do k=2,kl-1
@@ -271,7 +273,8 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         end if
         
         ! dry convection case
-        do k=2,kl
+        zidry=zz(i,kl)
+        do k=2,kl-1
           dzht=dz_hl(i,k-1)
           zht=zz(i,k)
           ! update detrainment rate
@@ -329,7 +332,8 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         end do
 
         ! shallow convection case
-        do k=klcl,kl
+        zi(i)=zz(i,kl)
+        do k=klcl,kl-1
           qupsat(k)=newsat(k)
           dzht=dz_hl(i,k-1)
           zht=zz(i,k)
@@ -384,26 +388,26 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         if (.not.sconv) zi(i)=zidry
 
         !! update environment thetal
-        !cc(i,1)=-dt*0.5*mflx(i,2)/dz_fl(i,1)
-        !bb(i,1)=1.
-        !dd(i,1)=thetalold(i,1)-dt*0.5*(mflx(i,2)*tlup(i,2)+mflx(i,1)*(tlup(i,1)-thetal(i,1)))/dz_fl(i,1)
+        !cc(i,1)=-dt*mflx(i,2)/dz_hl(i,1)
+        !bb(i,1)=1.+dt*mflx(i,1)/dz_hl(i,1)
+        !dd(i,1)=thetalold(i,1)-dt*(mflx(i,2)*tlup(i,2)-mflx(i,1)*tlup(i,1))/dz_hl(i,1)
         !do k=2,kl-1
-        !  cc(i,k)=-dt*0.5*mflx(i,k+1)/dz_fl(i,k)
-        !  bb(i,k)=1.
-        !  aa(i,k)=dt*0.5*mflx(i,k-1)/dz_fl(i,k)
-        !  dd(i,k)=thetalold(i,k)-dt*0.5*(mflx(i,k+1)*tlup(i,k+1)-mflx(i,k-1)*tlup(i,k-1))/dz_fl(i,k)    
+        !  cc(i,k)=-dt*mflx(i,k+1)/dz_hl(i,k)
+        !  bb(i,k)=1.+dt*mflx(i,k)/dz_hl(i,k)
+        !  aa(i,k)=0.
+        !  dd(i,k)=thetalold(i,k)-dt*(mflx(i,k+1)*tlup(i,k+1)-mflx(i,k)*tlup(i,k))/dz_hl(i,k)    
         !end do
-        !bb(i,kl)=1.+dt*0.5*mflx(i,kl)/dz_fl(i,kl)
-        !aa(i,kl)=dt*0.5*mflx(i,kl-1)/dz_fl(i,kl)
-        !dd(i,kl)=thetalold(i,kl)+dt*0.5*(mflx(i,kl)*tlup(i,kl)+mflx(i,kl-1)*tlup(i,kl-1))/dz_fl(i,kl)
+        !bb(i,kl)=1.+dt*mflx(i,kl)/dz_hl(i,kl)
+        !aa(i,kl)=0.
+        !dd(i,kl)=thetalold(i,kl)+dt*mflx(i,kl)*tlup(i,kl)/dz_hl(i,kl)
         !call thomas1(thetal(i,:),aa(i,2:kl),bb(i,:),cc(i,1:kl-1),dd(i,:))
 
         !! update environment qtot
-        !dd(i,1)=qtotold(i,1)-dt*0.5*(mflx(i,2)*qtup(i,2)+mflx(i,1)*(qtup(i,1)-qtot(i,1)))/dz_fl(i,1)
+        !dd(i,1)=qtotold(i,1)-dt*(mflx(i,2)*qtup(i,2)-mflx(i,1)*qtup(i,1))/dz_hl(i,1)
         !do k=2,kl-1
-        !  dd(i,k)=qtotold(i,k)-dt*0.5*(mflx(i,k+1)*qtup(i,k+1)-mflx(i,k-1)*qtup(i,k-1))/dz_fl(i,k)    
+        !  dd(i,k)=qtotold(i,k)-dt*(mflx(i,k+1)*qtup(i,k+1)-mflx(i,k)*qtup(i,k))/dz_hl(i,k)    
         !end do
-        !dd(i,kl)=qtotold(i,kl)+dt*0.5*(mflx(i,kl)*qtup(i,kl)+mflx(i,kl-1)*qtup(i,kl-1))/dz_fl(i,kl)
+        !dd(i,kl)=qtotold(i,kl)+dt*mflx(i,kl)*qtup(i,kl)/dz_hl(i,kl)
         !call thomas1(qtot(i,:),aa(i,2:kl),bb(i,:),cc(i,1:kl-1),dd(i,:))        
 
         !! update environment thermodynamic variables
@@ -425,8 +429,6 @@ if (mode.ne.1) then ! mass flux when mode is an even number
       ! update explicit counter gradient terms
       gamtl(i,:)=mflx(i,:)*(tlup(i,:)-thetal(i,:))
       gamqt(i,:)=mflx(i,:)*(qtup(i,:)-qtot(i,:))
-      gamtl(i,:)=max(min(gamtl(i,:),5.E-1),-5.E-1)
-      gamqt(i,:)=max(min(gamqt(i,:),5.E-4),-5.E-4)
       !gamql(i,:)=0.
       gamqv(i,:)=gamqt(i,:) !-gamql(i,:)
       gamth(i,:)=gamtl(i,:) !+lv*sigkap(:)*gamql(i,:)/cp
@@ -601,28 +603,19 @@ eps(1:ifull,2:kl)=epsnew(:,2:kl)
 
 ! Update diffusion coeffs
 km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-10)
-call updatekmo(kmo,km,zz) ! interpolate diffusion coeffs to half levels
+call updatekmo(kmo,km,zz,zzh) ! interpolate diffusion coeffs to output half levels (zzh)
 
-! Update theta and qg due to non-local term
-bb(:,1)=1.+dt*kmo(:,1)/(dz_hl(:,1)*dz_fl(:,1))
-cc(:,1)=-dt*(0.5*mflx(:,2)+kmo(:,1)/dz_hl(:,1))/dz_fl(:,1)
-dd(:,1)=thetal(:,1)-dt*0.5*(mflx(:,2)*tlup(:,2)+mflx(:,1)*(tlup(:,1)-thetal(:,1)))/dz_fl(:,1)+dt*wt0/dz_fl(:,1)
-do k=2,kl-2
-  aa(:,k)=dt*(0.5*mflx(:,k-1)-kmo(:,k-1)/dz_hl(:,k-1))/dz_fl(:,k)
-  cc(:,k)=-dt*(0.5*mflx(:,k+1)+kmo(:,k)/dz_hl(:,k))/dz_fl(:,k)
-  bb(:,k)=1.+dt*(kmo(:,k-1)/dz_hl(:,k-1)+kmo(:,k)/dz_hl(:,k))/dz_fl(:,k)
-  dd(:,k)=thetal(:,k)-dt*0.5*(mflx(:,k+1)*tlup(:,k+1)-mflx(:,k-1)*tlup(:,k-1))/dz_fl(:,k)
+! Update thetal and qtot due to non-local term
+do k=kl-1,2,-1
+  thetal(:,k)=(thetal(:,k)-dt*(mflx(:,k+1)*tlup(:,k+1)-mflx(:,k)*tlup(:,k)-mflx(:,k+1)*thetal(:,k+1))/dz_hl(:,k)) &
+             /(1.+dt*mflx(:,k)/dz_hl(:,k))
 end do
-bb(:,kl-1)=1.+dt*(0.5*mflx(:,kl-1)+kmo(:,kl-2)/dz_hl(:,kl-2))/dz_fl(:,kl-1)
-aa(:,kl-1)=dt*(0.5*mflx(:,kl-2)-kmo(:,kl-2)/dz_hl(:,kl-2))/dz_fl(:,kl-1)
-dd(:,kl-1)=thetal(:,kl-1)+dt*0.5*(mflx(:,kl-1)*tlup(:,kl-1)+mflx(:,kl-2)*tlup(:,kl-2))/dz_fl(:,kl-1) 
-call thomas(thetal(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
-dd(:,1)=qtot(:,1)-dt*0.5*(mflx(:,2)*qtup(:,2)+mflx(:,1)*(qtup(:,1)-qtot(:,1)))/dz_fl(:,1)+dt*wq0/dz_fl(:,1)
-do k=2,kl-2
-  dd(:,k)=qtot(:,k)-dt*0.5*(mflx(:,k+1)*qtup(:,k+1)-mflx(:,k-1)*qtup(:,k-1))/dz_fl(:,k)
+thetal(:,1)=thetal(:,1)-dt*(mflx(:,2)*tlup(:,2)-mflx(:,2)*thetal(:,2))/zz(:,2)
+do k=kl-1,2,-1
+  qtot(:,k)=(qtot(:,k)-dt*(mflx(:,k+1)*qtup(:,k+1)-mflx(:,k)*qtup(:,k)-mflx(:,k+1)*qtot(:,k+1))/dz_hl(:,k)) &
+             /(1.+dt*mflx(:,k)/dz_hl(:,k))
 end do
-dd(:,kl-1)=qtot(:,kl-1)+dt*0.5*(mflx(:,kl-1)*qtup(:,kl-1)+mflx(:,kl-2)*qtup(:,kl-2))/dz_fl(:,kl-1) 
-call thomas(qtot(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
+qtot(:,1)=qtot(:,1)-dt*(mflx(:,2)*qtup(:,2)-mflx(:,2)*qtot(:,2))/zz(:,2)
 
 qg=max(qtot-qlg-qfg,1.E-6)
 do k=1,kl
@@ -756,32 +749,30 @@ end subroutine getqsat
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update diffusion coeffs at half levels
 
-subroutine updatekmo(kmo,km,zz)
+subroutine updatekmo(kmo,km,zz,zhl)
 
 implicit none
 
 integer k
 real, dimension(ifull,kl), intent(in) :: km,zz
 real, dimension(ifull,kl), intent(out) :: kmo
-real, dimension(ifull) :: zhl
+real, dimension(ifull,kl-1), intent(in) :: zhl
 real xp
 
-zhl=0.5*sum(zz(:,1:2),2)
-kmo(:,1)=km(:,2)+(zhl-zz(:,2))/(zz(:,3)-zz(:,1))*                    &
+kmo(:,1)=km(:,2)+(zhl(:,1)-zz(:,2))/(zz(:,3)-zz(:,1))*               &
            ((zz(:,2)-zz(:,1))*(km(:,3)-km(:,2))/(zz(:,3)-zz(:,2))    &
            +(zz(:,3)-zz(:,2))*(km(:,2)-km(:,1))/(zz(:,2)-zz(:,1)))   &
-         +(zhl-zz(:,2))**2/(zz(:,3)-zz(:,1))*                        &
+         +(zhl(:,1)-zz(:,2))**2/(zz(:,3)-zz(:,1))*                   &
            ((km(:,3)-km(:,2))/(zz(:,3)-zz(:,2))                      &
            -(km(:,2)-km(:,1))/(zz(:,2)-zz(:,1)))
 where (kmo(:,1).lt.2.E-7)
   kmo(:,1)=0.5*(km(:,1)+km(:,2))
 end where
 do k=2,kl-1
-  zhl=0.5*sum(zz(:,k:k+1),2)
-  kmo(:,k)=km(:,k)+(zhl-zz(:,k))/(zz(:,k+1)-zz(:,k-1))*                      &
+  kmo(:,k)=km(:,k)+(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k-1))*                 &
              ((zz(:,k)-zz(:,k-1))*(km(:,k+1)-km(:,k))/(zz(:,k+1)-zz(:,k))    &
              +(zz(:,k+1)-zz(:,k))*(km(:,k)-km(:,k-1))/(zz(:,k)-zz(:,k-1)))   &
-           +(zhl-zz(:,k))**2/(zz(:,k+1)-zz(:,k-1))*                          &
+           +(zhl(:,k)-zz(:,k))**2/(zz(:,k+1)-zz(:,k-1))*                     &
              ((km(:,k+1)-km(:,k))/(zz(:,k+1)-zz(:,k))                        &
              -(km(:,k)-km(:,k-1))/(zz(:,k)-zz(:,k-1)))
   where (kmo(:,k).lt.2.E-7)
