@@ -603,25 +603,37 @@ eps(1:ifull,2:kl)=epsnew(:,2:kl)
 
 ! Update diffusion coeffs
 km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-10)
-call updatekmo(kmo,km,zz,zzh) ! interpolate diffusion coeffs to output half levels (zzh)
+call updatekmo(kmo,km,zz,zzm) ! internal mid point levels
 
-! Update thetal and qtot due to non-local term
-do k=kl-1,2,-1
-  thetal(:,k)=(thetal(:,k)-dt*(mflx(:,k+1)*tlup(:,k+1)-mflx(:,k)*tlup(:,k)-mflx(:,k+1)*thetal(:,k+1))/dz_hl(:,k)) &
-             /(1.+dt*mflx(:,k)/dz_hl(:,k))
+! Update thetal and qtot due to non-local and diffusion terms
+cc(:,1)=-dt*(0.5*mflx(:,2)+kmo(:,1)/dz_hl(:,1))/dz_fl(:,1)
+bb(:,1)=1.-dt*(0.5*mflx(:,1)-kmo(:,1)/dz_hl(:,1))/dz_fl(:,1)
+dd(:,1)=thetal(:,1)-dt*0.5*(mflx(:,1)*tlup(:,1)+mflx(:,2)*tlup(:,2))/dz_fl(:,1)+dt*wt0/dz_fl(:,1)
+do k=2,kl-2
+  aa(:,k)=dt*(0.5*mflx(:,k-1)-kmo(:,k-1)/dz_hl(:,k-1))/dz_fl(:,k)
+  cc(:,k)=-dt*(0.5*mflx(:,k+1)+kmo(:,k)/dz_hl(:,k))/dz_fl(:,k)
+  bb(:,k)=1.+dt*(kmo(:,k-1)/dz_hl(:,k-1)+kmo(:,k)/dz_hl(:,k))/dz_fl(:,k)
+  dd(:,k)=thetal(:,k)+dt*0.5*(mflx(:,k-1)*tlup(:,k-1)-mflx(:,k+1)*tlup(:,k+1))/dz_fl(:,k)
 end do
-thetal(:,1)=thetal(:,1)-dt*(mflx(:,2)*tlup(:,2)-mflx(:,2)*thetal(:,2))/zz(:,2)
-do k=kl-1,2,-1
-  qtot(:,k)=(qtot(:,k)-dt*(mflx(:,k+1)*qtup(:,k+1)-mflx(:,k)*qtup(:,k)-mflx(:,k+1)*qtot(:,k+1))/dz_hl(:,k)) &
-             /(1.+dt*mflx(:,k)/dz_hl(:,k))
+aa(:,kl-1)=dt*(0.5*mflx(:,kl-2)-kmo(:,kl-2)/dz_hl(:,kl-2))/dz_fl(:,kl-1)
+bb(:,kl-1)=1.+dt*(0.5*mflx(:,kl-1)+kmo(:,kl-2)/dz_hl(:,kl-2))/dz_fl(:,kl-1)
+dd(:,kl-1)=thetal(:,kl-1)+dt*0.5*(mflx(:,kl-2)*tlup(:,kl-2)+mflx(:,kl-1)*tlup(:,kl-1))/dz_fl(:,kl-1)
+call thomas(thetal(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
+dd(:,1)=qtot(:,1)-dt*0.5*(mflx(:,1)*qtup(:,1)+mflx(:,2)*qtup(:,2))/dz_fl(:,1)+dt*wq0/dz_fl(:,1)
+do k=2,kl-2
+  dd(:,k)=qtot(:,k)+dt*0.5*(mflx(:,k-1)*qtup(:,k-1)-mflx(:,k+1)*qtup(:,k+1))/dz_fl(:,k)
 end do
-qtot(:,1)=qtot(:,1)-dt*(mflx(:,2)*qtup(:,2)-mflx(:,2)*qtot(:,2))/zz(:,2)
+dd(:,kl-1)=qtot(:,kl-1)+dt*0.5*(mflx(:,kl-2)*qtup(:,kl-2)+mflx(:,kl-1)*qtup(:,kl-1))/dz_fl(:,kl-1)
+call thomas(qtot(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 
 qg=max(qtot-qlg-qfg,1.E-6)
 do k=1,kl
   theta(:,k)=thetal(:,k)+sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
 end do
 
+! Update diffusion coeffs
+km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-10)
+call updatekmo(kmo,km,zz,zzh) ! output sigmh levels
 
 tkesav=tke(1:ifull,:) ! Not needed, but for consistancy when not using CCAM
 epssav=eps(1:ifull,:) ! Not needed, but for consistancy when not using CCAM

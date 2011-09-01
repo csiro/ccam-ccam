@@ -868,7 +868,6 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
       condrag=grav*dt/(dsig(1)*rdry)
 c     first do theta (then convert back to t)
       at(:,1)=0.
-      rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/cp)*fg(1:ifull)/ps(1:ifull)
 
       do k=2,kl
        do iq=1,ifull
@@ -880,7 +879,7 @@ c     first do theta (then convert back to t)
         ct(iq,k) =-gt(iq,k)/dsig(k)
        enddo   ! iq loop
       enddo    !  k loop
-      if (nvmix.eq.6.and.nlocal.eq.0) then
+      if (nvmix.eq.6.and.nlocal.eq.0) then                         ! MJT tke
        ! increase mixing to replace counter gradient term          ! MJT tke
        at=2.5*at                                                   ! MJT tke
        ct=2.5*ct                                                   ! MJT tke
@@ -892,11 +891,15 @@ c     first do theta (then convert back to t)
         print *,'rhs ',(rhs(idjd,k),k=1,kl)
       endif      ! (ntest==2)
 
-      if(nmaxpr==1.and.mydiag)
-     &  write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
-      call trim(at,ct,rhs,0)   ! for t
-      if(nmaxpr==1.and.mydiag)
-     &  write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
+      if (nvmix.ne.6) then                                         ! MJT tke
+       if(nmaxpr==1.and.mydiag)
+     &   write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
+       rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/cp)*fg(1:ifull)
+     &               /ps(1:ifull)
+       call trim(at,ct,rhs,0)   ! for t
+       if(nmaxpr==1.and.mydiag)
+     &   write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
+      end if                                                       ! MJT tke
       do k=1,kl
         do iq=1,ifull
          t(iq,k)=rhs(iq,k)/sigkap(k)
@@ -911,12 +914,15 @@ c     first do theta (then convert back to t)
       endif
 
 c     now do moisture
-      rhs(1:ifull,:)=qg(1:ifull,:)
-      rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/hl)*eg(1:ifull)/ps(1:ifull)
-c     could add extra sfce moisture flux term for crank-nicholson
-      call trim(at,ct,rhs,0)    ! for qg
-      qg(1:ifull,:)=rhs(1:ifull,:)
-      if (nvmix.eq.6.and.nlocal.gt.0) then
+      if (nvmix.ne.6) then                                         ! MJT tke
+       rhs(1:ifull,:)=qg(1:ifull,:)
+       rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/hl)*eg(1:ifull)
+     &               /ps(1:ifull)
+c      could add extra sfce moisture flux term for crank-nicholson
+       call trim(at,ct,rhs,0)    ! for qg
+       qg(1:ifull,:)=rhs(1:ifull,:)
+      end if                                                       ! MJT tke
+      if (nvmix.eq.6.and.nlocal.gt.0) then                         ! MJT tke
        ! increase mixing to replace counter gradient term          ! MJT tke
        at=2.5*at                                                   ! MJT tke
        ct=2.5*ct                                                   ! MJT tke
