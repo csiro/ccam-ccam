@@ -1,13 +1,19 @@
+!     Last change:  AKL   1 Apr 2009   12:28 pm
 ! cable_carbon.f90
 !
 ! Carbon store routines source file for CABLE, CSIRO land surface model
 !
 ! The flow of carbon between the vegetation compartments and soil is described
-! by a simple carbon pool model of Dickinson et al 1998, J. Climate, 11, 2823-2836.
+! by a simple carbon pool model of Dickinson et al 1998, J. Climate, 11,
+! 2823-2836.
 ! Model implementation by Eva Kowalczyk, CSIRO Marine and Atmospheric Research.
 ! 
 ! Fortran-95 coding by Harvey Davies, Gab Abramowitz and Martin Dix
 ! bugs to gabsun@gmail.com.
+!
+! This file contains the carbon_module only, which consists of 2 subroutines:
+!   carbon_pl, and
+!   soilcarb
 
 MODULE carbon_module
   USE define_types
@@ -16,14 +22,22 @@ MODULE carbon_module
   PUBLIC carbon_pl, soilcarb
 CONTAINS
 
-  SUBROUTINE carbon_pl(dels)
+  SUBROUTINE carbon_pl(dt)
 !  SUBROUTINE carbon_pl(dels, soil, ssoil, veg, canopy, bgc)
 !    TYPE (soil_parameter_type), INTENT(IN)		:: soil  ! soil parameters
 !    TYPE (soil_snow_type), INTENT(IN)	                :: ssoil   ! soil/snow variables
 !    TYPE (veg_parameter_type), INTENT(IN)		:: veg     ! vegetation parameters
 !    TYPE (canopy_type), INTENT(INOUT)	         	:: canopy ! canopy/veg variables
 !    TYPE (bgc_pool_type), INTENT(INOUT)	                :: bgc     ! biogeochemistry variables
-    REAL(r_1), INTENT(IN)			        :: dels    ! integration time step (s)
+    ! BP added nvegt to the list (dec 2007)
+    REAL(r_1), INTENT(IN)                 :: dt     ! integration time step (s)
+!    TYPE (soil_parameter_type), INTENT(IN):: soil   ! soil parameters
+!    TYPE (soil_snow_type), INTENT(IN)     :: ssoil  ! soil/snow variables
+!    TYPE (veg_parameter_type), INTENT(IN) :: veg    ! vegetation parameters
+!    TYPE (canopy_type), INTENT(IN)        :: canopy ! canopy/veg variables
+!    TYPE (bgc_pool_type), INTENT(INOUT)   :: bgc    ! biogeochemistry variables
+!    INTEGER(i_d), INTENT(IN)              :: nvegt  ! Number of vegetation types
+    INTEGER, PARAMETER                    :: nvegt=17
     REAL(r_1), PARAMETER        :: beta = 0.9
     REAL(r_1), DIMENSION(mp)	:: cfsf     ! fast soil carbon turnover
     REAL(r_1), DIMENSION(mp)	:: cfrts    ! roots turnover
@@ -35,83 +49,131 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)    :: coef_cd ! total stress coeff. for vegetation (eq. 6)
     REAL(r_1), DIMENSION(mp)    :: coef_cold  ! coeff. for the cold stress (eq. 7)
     REAL(r_1), DIMENSION(mp)    :: coef_drght ! coeff. for the drought stress (eq. 8)
-    REAL(r_1), PARAMETER, DIMENSION(13) :: rw = (/16., 8.7, 12.5, 16., 18., 7.5, 6.1, .84, &
-                 10.4, 15.1, 9., 5.8, 0.001 /) ! approximate ratio of wood to nonwood carbon
+! ##############################################################################
+! Removing the hard-wired declarations (BP Oct 2007)
+!   REAL(r_1), PARAMETER, DIMENSION(13) :: rw = (/16., 8.7, 12.5, 16., 18., 7.5, 6.1, .84, &
+!                10.4, 15.1, 9., 5.8, 0.001 /) ! approximate ratio of wood to nonwood carbon
     !	         				 inferred from observations 
-    REAL(r_1), PARAMETER, DIMENSION(13) :: tfcl = (/0.248, 0.345, 0.31, 0.42, 0.38, 0.35, &
-         0.997,	0.95, 2.4, 0.73, 2.4, 0.55, 0.9500/)         ! leaf allocation factor
-    REAL(r_1), PARAMETER, DIMENSION(13) :: trnl = 3.17e-8    ! leaf turnover rate 1 year
-    REAL(r_1), PARAMETER, DIMENSION(13) :: trnr = 4.53e-9    ! root turnover rate 7 years
-    REAL(r_1), PARAMETER, DIMENSION(13) :: trnsf = 1.057e-10 ! soil transfer rate coef. 30 years
-    REAL(r_1), PARAMETER, DIMENSION(13) :: trnw = 6.342e-10  ! wood turnover 50  years
-    REAL(r_1), PARAMETER, DIMENSION(13) :: tvclst = (/ 283., 278., 278., 235., 268., &
-                                           278.0, 278.0, 278.0, 278.0, 235., 278., &
-                                           278., 268. /) ! cold stress temp. below which 
+!   REAL(r_1), PARAMETER, DIMENSION(13) :: tfcl = (/0.248, 0.345, 0.31, 0.42, 0.38, 0.35, &
+!        0.997,	0.95, 2.4, 0.73, 2.4, 0.55, 0.9500/)         ! leaf allocation factor
+!   REAL(r_1), PARAMETER, DIMENSION(13) :: trnl = 3.17e-8    ! leaf turnover rate 1 year
+!   REAL(r_1), PARAMETER, DIMENSION(13) :: trnr = 4.53e-9    ! root turnover rate 7 years
+!   REAL(r_1), PARAMETER, DIMENSION(13) :: trnsf = 1.057e-10 ! soil transfer rate coef. 30 years
+!   REAL(r_1), PARAMETER, DIMENSION(13) :: trnw = 6.342e-10  ! wood turnover 50  years
+!   REAL(r_1), PARAMETER, DIMENSION(13) :: tvclst = (/ 283., 278., 278., 235., 268., &
+!                                          278.0, 278.0, 278.0, 278.0, 235., 278., &
+!                                          278., 268. /) ! cold stress temp. below which 
 !                                                         leaf loss is rapid
+    REAL(r_1), DIMENSION(:), ALLOCATABLE :: rw, tfcl, tvclst
+    REAL(r_1), DIMENSION(:), ALLOCATABLE :: trnl, trnr, trnsf, trnw
+
     REAL(r_1), DIMENSION(mp)	:: wbav ! water stress index
 
-    !
-    ! coef_cold = EXP(-(canopy%tv - tvclst(veg%iveg)))   ! cold stress
+    ALLOCATE( rw(nvegt), tfcl(nvegt), tvclst(nvegt) )
+    ALLOCATE( trnl(nvegt), trnr(nvegt), trnsf(nvegt), trnw(nvegt) )
+
+    SELECT CASE (nvegt)
+      CASE (13)     ! CASA vegetation types
+        rw   = (/ 16., 8.7, 12.5, 16., 18., 7.5, &
+                & 6.1, .84, 10.4, 15.1, 9., 5.8, 0.001 /)
+        tfcl = (/ 0.248, 0.345, 0.31, 0.42, 0.38, 0.35, &
+                & 0.997, 0.95, 2.4, 0.73, 2.4, 0.55, 0.9500 /)
+        tvclst = (/ 283., 278., 278., 235., 268., 278.0, &
+                  & 278.0, 278.0, 278.0, 235., 278., 278., 268. /)
+      CASE (16)     ! IGBP vegetation types without water bodies
+        rw   = (/ 16., 16., 18., 8.7, 12.5, 15.1, 10.4, 7.5, &
+                & 6.1, 6.1, 0.001, 5.8, 0.001, 5.8, 0.001, 9.0 /)
+        tfcl = (/ 0.42, 0.248, 0.38, 0.345, 0.31, 0.73, 2.4, 0.35, &
+                & 0.997, 0.997, 0.9500, 0.55, 0.9500, 0.55, 0.9500, 2.4 /)
+        tvclst = (/ 235., 283., 268., 278., 278., 235., 278.0, 278.0, &
+                  & 278.0, 278.0, 278.0, 278., 278., 278., 268., 278. /)
+      CASE (17)     ! IGBP vegetation types with water bodies
+        rw   = (/ 16., 16., 18., 8.7, 12.5, 15.1, 10.4, 7.5, &
+                & 6.1, 6.1, 0.001, 5.8, 0.001, 5.8, 0.001, 9.0, 0.001 /)
+        tfcl = (/ 0.42, 0.248, 0.38, 0.345, 0.31, 0.73, 2.4, 0.35, 0.997, &
+                & 0.997, 0.9500, 0.55, 0.9500, 0.55, 0.9500, 2.4, 0.9500 /)
+        tvclst = (/ 235., 283., 268., 278., 278., 235., 278.0, 278.0, &
+                  & 278.0, 278.0, 278.0, 278., 278., 278., 268., 278., 278. /)
+      CASE DEFAULT
+        PRINT *, 'Error! Dimension not compatible with CASA or IGBP types!'
+        PRINT *, 'Dimension =', nvegt
+        PRINT *, 'At the rw section.'
+        STOP
+    END SELECT
+    trnl = 3.17e-8
+    trnr = 4.53e-9
+    trnsf = 1.057e-10
+    trnw = 6.342e-10
+! ##############################################################################
+
+    ! cold stress
+!     coef_cold = EXP(-(canopy%tv - tvclst(veg%iveg))) 
     ! Limit size of exponent to avoif overflow when tv is very cold
-!    coef_cold = EXP(MIN(50., -(canopy%tv - tvclst(veg%iveg))))   ! cold stress
-    coef_cold = EXP(MIN(1., -(canopy%tv - tvclst(veg%iveg))))   ! cold stress
-!les
+!    coef_cold = EXP(MIN(50., -(canopy%tv - tvclst(veg%iveg)))) 
+    coef_cold = EXP(MIN(1., -(canopy%tv - tvclst(veg%iveg)))) 
     wbav = REAL(SUM(veg%froot * ssoil%wb, 2),r_1)
-!    wbav = SUM(veg%froot * ssoil%wb, 2)
-!    coef_drght = EXP(10.*( MIN(1., MAX(1.,wbav**(2-soil%ibp2)-1.) / & ! drought stress
-    coef_drght = EXP(5.*( MIN(1., MAX(1.,wbav**(2-soil%ibp2)-1.) / & ! drought stress
+    ! drought stress
+!    coef_drght = EXP(10.*( MIN(1., MAX(1.,wbav**(2-soil%ibp2)-1.) / & 
+    coef_drght = EXP(5.*( MIN(1., MAX(1.,wbav**(2-soil%ibp2)-1.) / & 
          (soil%swilt**(2-soil%ibp2) - 1.)) - 1.))
     coef_cd = ( coef_cold + coef_drght ) * 2.0e-7
     !
     ! CARBON POOLS
     !
-    fcl = EXP(-tfcl(veg%iveg) * veg%vlai)  ! fraction of assimilated carbon that goes
-    !                                         to the construction of leaves  (eq. 5)
+    fcl = EXP(-tfcl(veg%iveg) * veg%vlai)  ! fraction of assimilated carbon that
+                                    ! goes to the construction of leaves (eq. 5)
 
     !							 LEAF
-    ! resp_lfrate is omitted below as fpn represents photosythesis - leaf transpiration
-    ! calculated by the CBM 
+    ! resp_lfrate is omitted below as fpn represents photosythesis - leaf
+    ! transpiration calculated by the CBM 
     !
     clitt = (coef_cd + trnl(veg%iveg)) * bgc%cplant(:,1)
-    bgc%cplant(:,1) = bgc%cplant(:,1) - dels * (canopy%fpn * fcl + clitt)
+    bgc%cplant(:,1) = bgc%cplant(:,1) - dt * (canopy%fpn * fcl + clitt)
     !
     !							 WOOD
-    !	                           fraction of photosynthate going to roots, (1-fr) to wood, eq. 9
-    fr = MIN(1., EXP(- rw(veg%iveg) * beta * bgc%cplant(:,3) / MAX(bgc%cplant(:,2), 0.01)) / beta)
+    ! fraction of photosynthate going to roots, (1-fr) to wood, eq. 9
+    fr = MIN(1., EXP(- rw(veg%iveg) * beta * bgc%cplant(:,3) &
+       & / MAX(bgc%cplant(:,2), 0.01)) / beta)
     !
     !                                            
     cfwd = trnw(veg%iveg) * bgc%cplant(:,2)
-    bgc%cplant(:,2) = bgc%cplant(:,2) - dels * (canopy%fpn * (1.-fcl) * (1.-fr) + canopy%frpw + cfwd )
+    bgc%cplant(:,2) = bgc%cplant(:,2) - dt * (canopy%fpn * (1.-fcl) * (1.-fr) &
+                    & + canopy%frpw + cfwd )
 
     !							 ROOTS
     !				
     cfrts = trnr(veg%iveg) * bgc%cplant(:,3)
-    bgc%cplant(:,3) = bgc%cplant(:,3) - dels * (canopy%fpn * (1. - fcl) * fr + cfrts + canopy%frpr )
+    bgc%cplant(:,3) = bgc%cplant(:,3) - dt * (canopy%fpn * (1. - fcl) * fr &
+                    & + cfrts + canopy%frpr )
     !
     !							 SOIL
     !			                                	fast carbon 
     cfsf = trnsf(veg%iveg) * bgc%csoil(:,1)
-    bgc%csoil(:,1) = bgc%csoil(:,1) + dels * (0.98 * clitt + 0.9 * cfrts + cfwd  - cfsf &
-         - 0.98 * canopy%frs)
+    bgc%csoil(:,1) = bgc%csoil(:,1) + dt * (0.98 * clitt + 0.9 * cfrts + cfwd &
+                   & - cfsf - 0.98 * canopy%frs)
     !			                                	slow carbon 
-    bgc%csoil(:,2) = bgc%csoil(:,2) + dels * (0.02 * clitt  + 0.1 * cfrts + cfsf &
-         - 0.02 * canopy%frs)
+    bgc%csoil(:,2) = bgc%csoil(:,2) + dt * (0.02 * clitt  + 0.1 * cfrts + cfsf &
+                   & - 0.02 * canopy%frs)
 
     bgc%cplant(:,1)  = MAX(0.001, bgc%cplant(:,1))
     bgc%cplant(:,2)  = MAX(0.001, bgc%cplant(:,2))
     bgc%cplant(:,3) = MAX(0.001, bgc%cplant(:,3))
     bgc%csoil(:,1) = MAX(0.001, bgc%csoil(:,1))
     bgc%csoil(:,2) = MAX(0.001, bgc%csoil(:,2))
+
+    DEALLOCATE( rw, tfcl, tvclst )
+    DEALLOCATE( trnl, trnr, trnsf, trnw )
+
   END SUBROUTINE carbon_pl
 
-  SUBROUTINE soilcarb
-!  SUBROUTINE soilcarb(soil, ssoil, veg, bgc, met, canopy)
-!    TYPE (soil_parameter_type), INTENT(IN) :: soil
-!    TYPE (soil_snow_type), INTENT(IN)	:: ssoil
-!    TYPE (veg_parameter_type), INTENT(IN)  :: veg
-!    TYPE (bgc_pool_type), INTENT(IN)	:: bgc
-!    TYPE (met_type), INTENT(IN)		:: met	
-!    TYPE (canopy_type), INTENT(INOUT)	:: canopy
+  SUBROUTINE soilcarb(soil, ssoil, veg, bgc, met, canopy, nsoilt)
+    TYPE (soil_parameter_type), INTENT(IN) :: soil
+    TYPE (soil_snow_type), INTENT(IN)	:: ssoil
+    TYPE (veg_parameter_type), INTENT(IN)  :: veg
+    TYPE (bgc_pool_type), INTENT(IN)	:: bgc
+    TYPE (met_type), INTENT(IN)		:: met	
+    TYPE (canopy_type), INTENT(OUT)	:: canopy
+    INTEGER(i_d), INTENT(IN)            :: nsoilt ! Number of soil types
     REAL(r_1), DIMENSION(mp)		:: den ! sib3
     INTEGER(i_d)			:: k
     REAL(r_1), DIMENSION(mp)		:: rswc
@@ -119,53 +181,134 @@ CONTAINS
     REAL(r_1), DIMENSION(mp)		:: e0rswc
     REAL(r_1), DIMENSION(mp)		:: ftsoil
     REAL(r_1), DIMENSION(mp)		:: ftsrs
-    REAL(r_1), PARAMETER, DIMENSION(13)	:: rswch = 0.16
-    REAL(r_1), PARAMETER, DIMENSION(13)	:: soilcf = 1.0
-    REAL(r_1), PARAMETER		:: t0 = -46.0
-    REAL(r_1), DIMENSION(mp)		:: tref
-    REAL(r_1), DIMENSION(mp)		:: tsoil
-!    REAL(r_1), PARAMETER, DIMENSION(13)	:: vegcf = &
-!         (/ 1.95, 1.5, 1.55, 0.91, 0.73, 2.8, 2.75, 0.0, 2.05, 0.6, 0.4, 2.8, 0.0 /)
+! ##############################################################################
+! Removing the hard-wired declarations (BP Oct 2007)
+!   REAL(r_1), PARAMETER, DIMENSION(13)	:: rswch = 0.16
+!   REAL(r_1), PARAMETER, DIMENSION(13)	:: soilcf = 1.0
+!   REAL(r_1), PARAMETER		:: t0 = -46.0
+!   REAL(r_1), DIMENSION(mp)		:: tref
+!   REAL(r_1), DIMENSION(mp)		:: tsoil
+!   REAL(r_1), PARAMETER, DIMENSION(13)	:: vegcf = &
+!        (/ 1.95, 1.5, 1.55, 0.91, 0.73, 2.8, 2.75, 0.0, 2.05, 0.6, 0.4, 2.8, 0.0 /)
+    REAL(r_1), PARAMETER                :: t0 = -46.0
+    REAL(r_1), DIMENSION(mp)            :: tref
+    REAL(r_1), DIMENSION(mp)            :: tsoil
+    REAL(r_1), DIMENSION(nsoilt) :: rswch
+    REAL(r_1), DIMENSION(nsoilt) :: soilcf
 
-!      print *,'soilcarb1'
+!  For the method suggested by Ying-Ping Wang, Mar 09,
+!  Modified by Ashok Luhar
+!&&&&&&&&&&&&&
+  real, parameter :: wfpscoefa=0.55            ! Coarse textured soil, Kelly et al. (2000), JGR, Figure 2b), optimal wfps
+  real, parameter :: wfpscoefb=1.70            ! Kelly et al. (2000), JGR, Figure 2b)
+  real, parameter :: wfpscoefc=-0.007          ! Kelly et al. (2000), JGR, Figure 2b)
+  real, parameter :: wfpscoefd=3.22            ! Kelly et al. (2000), JGR, Figure 2b)
+  real, parameter :: wfpscoefe=6.6481          ! =wfpscoefd*(wfpscoefb-wfpscoefa)/(wfpscoefa-wfpscoefc)
+
+  real, parameter :: xkbeta=0.11  !based on Jackson's work
+  real, parameter :: xktoptc=25.0  !reference temperature (C)
+
+  real, parameter :: xktcoeff=0.25
+
+  real, dimension(mp) :: xkwater,xktemp,wfps
+  integer, parameter :: soil_c_method = 1   ! (0 = original method, 1 = Ying Ping, included by ashok)
+
+!&&&&&&&&&&&&&&
+
+! constant values of rswch and soilcf taken
+
+    rswch = 0.16
+!    soilcf = 1.0 !original value
+    soilcf = 3.0        !ashok
+
+!   INTEGER(i_d)                        :: dumDIM
+
+!   dumDIM = MAXVAL(veg%iveg)
+! rml move this to where old format veg_parm is read in
+!   SELECT CASE (dumDIM)
+!     CASE (13)     ! CASA vegetation types
+!       ALLOCATE( rswch(13), soilcf(13), vegcf(13) )
+!       vegcf = (/ 1.95, 1.5, 1.55, 0.91, 0.73, 2.8, &
+!                & 2.75, 0.0, 2.05, 0.6, 0.4, 2.8, 0.0 /)
+!     CASE (16)     ! IGBP vegetation types
+!       ALLOCATE( rswch(16), soilcf(16), vegcf(16) )
+!        vegcf = (/ 0.91, 1.95, 0.73, 1.5, 1.55, 0.6, 2.05, 2.8, &
+!                 & 2.75, 2.75, 0.0, 2.8, 0.0, 2.8, 0.0, 0.4 /)
+!       vegcf = (/ 11.82, 13.06, 6.71, 11.34, 8.59, 0.6, 2.46, 10., &
+!                & 15.93, 3.77, 0.0, 11.76, 0.0, 2.8, 10., 10. /)
+!     CASE DEFAULT
+!       PRINT *, 'Error! Dimension not compatible with CASA or IGBP types!'
+!       PRINT *, 'Dimension = ', dumDIM
+!       PRINT *, 'At the vegcf section.'
+!       STOP
+!   END SELECT
+! ##############################################################################
+
+
     den = max(0.07,soil%sfc - soil%swilt)
-    rswc =  MAX(0.0001_r_2, veg%froot(:,1)*(ssoil%wb(:,2) - soil%swilt)) / den
-!    rswc = veg%froot(:, 1) * max(0.0001, ssoil%wb(:,2) - soil%swilt) / den
-    tsoil = veg%froot(:,1) * ssoil%tgg(:,2) - 273.15
+
+   ! start from 2nd layer wb for less dependency on the surface condition (original)
+   ! rswc = MAX(0.0001, veg%froot(:,1)*(REAL(ssoil%wb(:,2),r_1) - soil%swilt)) &
+   !      & / den
+
+    rswc = MAX(0.0001, veg%froot(:,1)*(REAL(ssoil%wb(:,1),r_1) - soil%swilt)) &
+         & / den     !ashok (try dependence starting from the first layer wb)
+
+   ! A different method from Ying Ping (due to Kelly et al., 2000) involving water-filled pore space (fraction)
+
+    wfps = veg%froot(:,1)*ssoil%wb(:,1)/soil%ssat(:)  !First layer
+
+
+!!!    rswc = veg%froot(:, 1) * max(0.0001, ssoil%wb(:,2) - soil%swilt) / den
+
+    !tsoil = veg%froot(:,1) * ssoil%tgg(:,2) - 273.15 !start temp from 2nd layer (original)
+    tsoil = veg%froot(:,1) * ssoil%tgg(:,1) - 273.15  !ashok (first layer)
+
 !    tref = MAX(t0 + 1.,ssoil%tgg(:,ms) - 273.1)
+
     tref = MAX(0.,ssoil%tgg(:,ms) - 273.1)
 
+    ! calculate froot-weighted values averaged over all layers
+    DO k = 2,ms
+      rswc = rswc + MAX(0.0001, veg%froot(:,k) &
+           & * (REAL(ssoil%wb(:,k),r_1) - soil%swilt)) / den
 
-!      print *,'soilcarb2'
-    DO k = 2,ms  ! start from 2nd index for less dependency on the surface condition
-       rswc = rswc +  &
-            MAX(0.0001_r_2, veg%froot(:,k) * (ssoil%wb(:,k) - soil%swilt)) / den
-       tsoil = tsoil + veg%froot(:,k) * ssoil%tgg(:,k)
+      wfps = wfps + veg%froot(:,k)* ssoil%wb(:,k)/soil%ssat(:) !ashok
+
+      tsoil = tsoil + veg%froot(:,k) * ssoil%tgg(:,k) !tsoil comes out to be in C, tgg is in K
     ENDDO
-!      print *,'soilcarb3'
-    rswc = MIN(1.,rswc)
-    tsoil = MAX(t0 + 2., tsoil)
+
+!   the following are froot-weighted values
+    rswc = MIN(1.,rswc)             !soil water content
+    tsoil = MAX(t0 + 2., tsoil)     !soil temperature
+    wfps = MIN(1.,wfps)             !average water-filled pore space (fraction) !ashok
+!
+
     e0rswc = 52.4 + 285. * rswc
     ftsoil=min(0.0015,1./(tref - t0) - 1./(tsoil - t0))
     sss = MAX(-15.,MIN(1.,e0rswc * ftsoil))
     ftsrs=EXP(sss)
-    !    ftsrs=exp(e0rswc * ftsoil)
-    !        soilref=soilcf(soil%isoilm)*min(1.,1.4*max(.3,.0278*tsoil+.5))
-    !        rpsoil=vegcf(veg%iveg)*soilref* ftsrs * frswc
-    !     &              * 12./44.*12./1.e6 * 
 
-!      print *,'soilcarb4'
-!      print *,'soilcarb41',veg%iveg,vegcf(veg%iveg),soil%isoilm, &
-!               soilcf(soil%isoilm),ftsrs,rswc,rswch(soil%isoilm)
+!!        ftsrs=exp(e0rswc * ftsoil)
+!!            soiltref=soilcf(soil%isoilm)*min(1.,1.4*max(.3,.0278*tsoil+.5))
+!!            rpsoil=vegcf(veg%iveg)*soiltref* ftsrs * frswc
+!!         &              * 12./44.*12./1.e6 *
 
-! rml vegcf(veg%iveg) replaced with veg%vegcf
-!    canopy%frs = vegcf(veg%iveg) * (144.0 / 44.0e6)  &
+    if (soil_c_method.ne.1)then !original method (rswch and soilcf specified above as constants can be tuned)
      canopy%frs = veg%vegcf * (144.0 / 44.0e6)  &
-         * soilcf(soil%isoilm) * MIN(1.,1.4 * MAX(.3,.0278 * tsoil + .5)) &
-         * ftsrs &
-         * rswc / (rswch(soil%isoilm) + rswc)
+          & * soilcf(soil%isoilm) * MIN(1.,1.4 * MAX(.3,.0278 * tsoil + .5)) &
+          & * ftsrs * rswc / (rswch(soil%isoilm) + rswc)
+          !PRINT*,"mp ftsrs,rswc,frs ",mp,ftsrs,rswc,canopy%frs
+    else
+!!! Another method (from Ying Ping Wang 26 Mar 09), included by Ashok Luhar
+     xktemp(:)   = xktcoeff*exp(xkbeta*(tsoil(:)-xktoptc))
+     xkwater(:)  = ((wfps(:)-wfpscoefb)/(wfpscoefa-wfpscoefb))**wfpscoefe    &
+               * ((wfps(:)-wfpscoefc)/(wfpscoefa-wfpscoefc))**wfpscoefd
+     canopy%frs = xktemp(:) * xkwater(:)*(130.0*144.0/44.0e6) ! what should be this const factor?
+!    PRINT*,"xkwater,xktemp,wfps,frs ",xkwater,xktemp,wfps,canopy%frs
+!!!
+    endif
 
-!      print *,'soilcarb5'
   END SUBROUTINE soilcarb
 
 END MODULE carbon_module
