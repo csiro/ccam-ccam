@@ -274,18 +274,14 @@ cx      enddo      ! k  loop
         end if
         if(nh==3)then  ! not for k=1 or k=kl
           do k=2,kl-1
-!           h_nh(1:ifull,k)=h_nh(1:ifull,k)
-!     &       -(sig(k)*(phi(:,k+1)-phi(:,k-1))/(rdry*(sig(k+1)-sig(k-1)))
-!     &       +t(1:ifull,k))/(const_nh*tbar2d(:))
-           ! MJT suggestion
            h_nh(1:ifull,k)=h_nh(1:ifull,k)
-     &       +(sig(k)*(phi(:,k+1)-phi(:,k-1))/(rdry*(sig(k+1)-sig(k-1)))
+     &       -(sig(k)*(phi(:,k+1)-phi(:,k-1))/(rdry*(sig(k+1)-sig(k-1)))
      &       +t(1:ifull,k))/(const_nh*tbar2d(:))
           enddo
           ! MJT suggestion
           k=1
           h_nh(1:ifull,k)=h_nh(1:ifull,k)
-     &      +(sig(k)*(phi(:,k+1)-zs(1:ifull))/(rdry*(sig(k+1)-1.))
+     &      -(sig(k)*(phi(:,k+1)-zs(1:ifull))/(rdry*(sig(k+1)-1.))
      &      +t(1:ifull,k))/(const_nh*tbar2d(:))         
         endif  ! (nh==3)
         if(nh==2)then  ! was -2 add in other term explicitly, more consistently

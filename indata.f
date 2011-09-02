@@ -159,11 +159,10 @@
         read(28,*)(sigmh(k),k=1,kl) 
         print *,'tbar: ',tbar
         print *,'bam: ',bam
-        ! MJT nhs
-        !if (nh.ne.0) then
-        !  if(nh==2.and.lapsbot.ne.3)stop 'nh=2 needs lapsbot=3'
-        !  call eig(sig,sigmh,tbar,lapsbot,isoth,dt,0.,nh)
-        !endif  ! (nh.ne.0)
+        if (nh.ne.0) then
+          if(nh==2.and.lapsbot.ne.3)stop 'nh=2 needs lapsbot=3'
+          call eig(sig,sigmh,tbar,lapsbot,isoth,dt,0.,nh)
+        endif  ! (nh.ne.0)
       endif !myid==0
       call MPI_Bcast(sig,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(sigmh,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)

@@ -218,7 +218,8 @@ c      enddo
       enddo
 91    format(i3,15f8.1/3x,15f8.1/3x,15f8.1)
 
-      if(nh>-2)then  ! use gmat instead of bmat to derive aaa      
+      if(nh>0)then  ! use gmat instead of bmat to derive aaa ! MJT suggestion
+!     if(nh>-2)then  ! use gmat instead of bmat to derive aaa            
 C     if(nh>-2.and.nh.ne.2)then  ! use gmat instead of bmat to derive aaa term
 !       use nh=-2 to see old eigs, -1 to do hydr. run with NH eigs      
 c        do k=1,kl
