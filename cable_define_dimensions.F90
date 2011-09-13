@@ -1,3 +1,6 @@
+!jhan:this file needs to be in path
+#include "cable_directives.h"
+
 !!$ cable_variables.f90
 !!$
 !!$ This file declares all non-local variables for CABLE, 
@@ -11,12 +14,18 @@
 
 !=========================================================================
 MODULE define_dimensions
-!les  INTEGER 	        :: mg      ! # no of grid land points
+  INTEGER 	        :: mg      ! # no of grid land points
   INTEGER 	        :: mp      ! # total no of patches/tiles 
   INTEGER, PARAMETER	:: mf = 2  ! # leaves (sunlit, shaded)
   INTEGER, PARAMETER	:: nrb = 3 ! # radiation bands
-!  INTEGER, PARAMETER	:: ms = 4  ! # soil layers
-  INTEGER, PARAMETER	:: ms = 6  ! # soil layers
+   !--- define number of soil layers here
+!jhan{ this should be made to trigger off sm_levels
+#  ifdef six_soil_layers
+   INTEGER, PARAMETER	:: ms = 6  ! # soil layers
+#  else
+   INTEGER, PARAMETER	:: ms = 4  ! # soil layers
+#  endif
+!}jhan
   INTEGER, PARAMETER	:: ncp = 3 ! # vegetation carbon stores
   INTEGER, PARAMETER	:: ncs = 2 ! # soil carbon stores
   INTEGER, PARAMETER	:: niter = 4 ! # soil carbon stores

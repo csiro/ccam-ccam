@@ -362,7 +362,7 @@ common/leap_yr/leap  ! 1 to allow leap years
 ! newz=-eta+oldz*(1+eta/maxdepth)
 ! newdz=olddz*(1+eta/maxdepth)
 ! where 0<=oldz<=maxdepth and -eta<=newz<=maxdepth
-! depth below free suface is then newz+eta=oldz*(1+eta/maxdepth)
+! depth below free suface is newz+eta=oldz*(1+eta/maxdepth)
 ! horizontal derivatives are approximated along constant oldz surfaces
 
 ! initial values for working arrays
@@ -529,10 +529,9 @@ do l=1,lmax ! predictor-corrector loop
   dpsdxv=stwgt(:,2)*0.5*(tev-twv)*emv(1:ifull)/ds
   dpsdyv=(pice(in)-pice(1:ifull))*emv(1:ifull)/ds
 
-
   ! calculate normalised density rhobar (unstaggered)
   ! (Assume free surface correction is small so that the compression effects due to
-  ! eta can be neglected.  Consequently, the eta dependence is explicit in the
+  ! eta can be neglected.  Consequently, the eta dependence is separable in the
   ! iterative loop)
   !odum=(1.+neta(1:ifull)/dd(1:ifull)) ! free surface correction from current time step
   do ii=1,wlev
@@ -584,7 +583,7 @@ do l=1,lmax ! predictor-corrector loop
   call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,dep,wtr)
 
   ! prepare for advection with t=tstar
-  ! This is the same as eps=0.5 in JLM's atmosphere semi-Lagrangian dynamics 
+  ! This is the same as eps=0. in JLM's atmosphere semi-Lagrangian dynamics 
   do ii=1,wlev
     uau(:,ii)=nu(1:ifull,ii)*(1.-0.25*dt*dt*f(1:ifull)*f(1:ifull))+dt*f(1:ifull)*nv(1:ifull,ii)
     uav(:,ii)=nv(1:ifull,ii)*(1.-0.25*dt*dt*f(1:ifull)*f(1:ifull))-dt*f(1:ifull)*nu(1:ifull,ii)
@@ -638,11 +637,6 @@ do l=1,lmax ! predictor-corrector loop
 
   ! FREE SURFACE CALCULATION ----------------------------------------
 
-  ! The following lines have been moved above
-  !do ii=1,wlev
-  !  uau(:,ii)=nu(1:ifull,ii)*(1.-0.25*dt*dt*f(1:ifull)*f(1:ifull))+dt*f(1:ifull)*nv(1:ifull,ii)
-  !  uav(:,ii)=nv(1:ifull,ii)*(1.-0.25*dt*dt*f(1:ifull)*f(1:ifull))-dt*f(1:ifull)*nu(1:ifull,ii)
-  !end do
   ! Note that the staggered coordinates have changed depth to ddu and ddv
   call mlostaguv(uau,uav,cou(1:ifull,:),cov(1:ifull,:),ee)
 
@@ -2425,7 +2419,9 @@ if(intsch==1)then
 
   call intssend(d)
   do iproc=0,nproc-1
-    ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+    if (neighbour(iproc)) then
+      ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+    end if
   end do
 
   do iproc=0,nproc-1
@@ -2647,7 +2643,9 @@ else     ! if(intsch==1)then
 ! For other processes
   call intssend(d)
   do iproc=0,nproc-1
-    ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+    if (neighbour(iproc)) then
+      ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+    end if
   end do
 
   do iproc=0,nproc-1
@@ -2931,11 +2929,15 @@ if(intsch==1)then
 
   call intssend(d)
   do iproc=0,nproc-1
-    ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+    if (neighbour(iproc)) then
+      ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+    end if
   end do
   call intssend(s)
   do iproc=0,nproc-1
-    sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+    if (neighbour(iproc)) then
+      sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+    end if
   end do  
 
   do iproc=0,nproc-1
@@ -3185,11 +3187,15 @@ else     ! if(intsch==1)then
 ! For other processes
   call intssend(d)
   do iproc=0,nproc-1
-    ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+    if (neighbour(iproc)) then
+      ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+    end if
   end do
   call intssend(s)
   do iproc=0,nproc-1
-    sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+    if (neighbour(iproc)) then
+      sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+    end if
   end do  
 
   do iproc=0,nproc-1
@@ -3407,7 +3413,9 @@ enddo            ! iq loop
 
 call intssend(d)
 do iproc=0,nproc-1
-  ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  if (neighbour(iproc)) then
+    ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  end if
 end do
 
 do iproc=0,nproc-1
@@ -3574,11 +3582,15 @@ enddo            ! iq loop
 
 call intssend(d)
 do iproc=0,nproc-1
-  ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  if (neighbour(iproc)) then
+    ddin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  end if
 end do
 call intssend(s)
 do iproc=0,nproc-1
-  sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  if (neighbour(iproc)) then
+    sdin(iproc,1:drlen(iproc))=sextra(iproc)%a(1:drlen(iproc))
+  end if
 end do
 
 do iproc=0,nproc-1
@@ -4096,9 +4108,10 @@ id=fnd
 !    ss=(1.-xp)*s(id)+xp*s(id+1)
 !  case(1) ! quadratic
 !    id=max(id,2)
-    ss=s(id)+(dd-dep(id))/(dep(id+1)-dep(id-1))*((dep(id)-dep(id-1))*(s(id+1)-s(id))/(dep(id+1)-dep(id)) &
-            +(dep(id+1)-dep(id))*(s(id)-s(id-1))/(dep(id)-dep(id-1)))                                    &
-            +(dd-dep(id))**2/(dep(id+1)-dep(id-1))*((s(id+1)-s(id))/(dep(id+1)-dep(id))                  &
+    xp=max(dd-dep(id),0.)
+    ss=s(id)+xp/(dep(id+1)-dep(id-1))*((dep(id)-dep(id-1))*(s(id+1)-s(id))/(dep(id+1)-dep(id)) &
+            +(dep(id+1)-dep(id))*(s(id)-s(id-1))/(dep(id)-dep(id-1)))                          &
+            +xp**2/(dep(id+1)-dep(id-1))*((s(id+1)-s(id))/(dep(id+1)-dep(id))                  &
             -(s(id)-s(id-1))/(dep(id)-dep(id-1)))
 !  case(2) ! cubic
 !    if (id.gt.1.and.id.lt.wlev-1) then
@@ -4172,7 +4185,7 @@ end if
 
 !select case(vertintp)
 !  case(0) ! linear
-    xp=(dd-dep(id))/(dep(id+1)-dep(id))
+    xp=max(dd-dep(id),0.)/(dep(id+1)-dep(id))
     ss=(1.-xp)*s(id)+xp*s(id+1)
 !  case(1) ! quadratic
 !    id=max(id,2)

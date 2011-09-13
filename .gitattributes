@@ -50,7 +50,6 @@
 /mlo.f90 -text
 /mlodynamics.f90 -text
 /morepbl_m.f90 -text
-/neigh_m.f90 -text
 /nharrs_m.f90 -text
 /nlin_m.f90 -text
 /nsibd_m.f90 -text
@@ -75,7 +74,6 @@
 /sealw99.f90 -text
 /sigs_m.f90 -text
 /soil_m.f90 -text
-/soilbal_m.f90 -text
 /soilsnow_m.f90 -text
 /srccom_m.f90 -text
 /stacklimit.c -text

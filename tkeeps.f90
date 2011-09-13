@@ -245,6 +245,7 @@ if (mode.ne.1) then ! mass flux when mode is an even number
       ziold=zi(i)
       do icount=1,icm1
         klcl=kl+1
+        zilcl=zidry
         mflx(i,:)=0.
         ! entrainment rate
         ee=2./max(100.,zidry)
@@ -323,9 +324,11 @@ if (mode.ne.1) then ! mass flux when mode is an even number
             end if
             zidry=xp+zz(i,k-1)
             mflx(i,k)=0.
-            if (zidry.lt.zilcl) then
-              sconv=.false.
-              klcl=kl+1
+            if (sconv) then
+              if (zidry.lt.zilcl) then
+                sconv=.false.
+                klcl=kl+1
+              end if
             end if
             exit
           end if
@@ -606,6 +609,8 @@ km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-10)
 call updatekmo(kmo,km,zz,zzm) ! internal mid point levels
 
 ! Update thetal and qtot due to non-local and diffusion terms
+! (Here we use linear interpolation to determine the implicit counter gradient
+!  terms at half levels)
 cc(:,1)=-dt*(0.5*mflx(:,2)+kmo(:,1)/dz_hl(:,1))/dz_fl(:,1)
 bb(:,1)=1.-dt*(0.5*mflx(:,1)-kmo(:,1)/dz_hl(:,1))/dz_fl(:,1)
 dd(:,1)=thetal(:,1)-dt*0.5*(mflx(:,1)*tlup(:,1)+mflx(:,2)*tlup(:,2))/dz_fl(:,1)+dt*wt0/dz_fl(:,1)

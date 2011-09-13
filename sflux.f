@@ -501,15 +501,7 @@ c      Surface stresses taux, tauy: diagnostic only - unstag now    ! sice
         ! abs(mlo) <= 1 Vertical mixing                              ! MLO
         ! abs(mlo) <= 2 + Horizontal diffusion                       ! MLO
         ! abs(mlo) <= 3 + Advection                                  ! MLO
-        if (abs(nmlo).ge.3) then                                     ! MLO
-          call start_log(waterdynamics_begin)                        ! MLO
-          call mlohadv                                               ! MLO
-          call end_log(waterdynamics_end)                            ! MLO
-        end if                                                       ! MLO
         if (abs(nmlo).ge.2) then                                     ! MLO
-          call start_log(waterdiff_begin)                            ! MLO
-          call mlodiffusion                                          ! MLO
-          call end_log(waterdiff_end)                                ! MLO
           call start_log(river_begin)                                ! MLO
           call mlorouter                                             ! MLO
           call end_log(river_end)                                    ! MLO

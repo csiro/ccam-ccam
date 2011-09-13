@@ -20,7 +20,6 @@
       use map_m
       use mlo ! MJT mlo
       use morepbl_m
-      use neigh_m
       use nsibd_m   ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       use pbl_m
       use physical_constants, only : umin ! MJT cable      
@@ -141,28 +140,44 @@
       character*3 trnum ! MJT tracerfix
 
       call start_log(indata_begin)
+
+!     open input file for aerosol data (direct only).
+!     prognostic aerosol emissions (iaero==2) are read in aerointerface.f90
+      if(abs(iaero).eq.1)then ! MJT aero
+        if(myid==0)write(6,*)'so4total data read from file ',so4tfile
+        call readreal(so4tfile,so4t,ifull)
+      endif
+
+!     set some 2D/3D default values
+      wb(:,:)=.15
+      snowd(:)=0.
+      condx(:)=0.
       
       ! READ SIGMA LEVELS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Eventually only read sig and recompute eigenvectors on demand
       ! Currently eig.f is broken and needs some cleaning
       if (myid==0) then
-        bam(1)=114413.
-!       now always read eig file fri  12-18-1992
-!       All processes read this
-        read(28,*)(sig(k),k=1,kl),(tbar(k),k=1,kl),(bam(k),k=1,kl)
-     &   ,((emat(k,l),k=1,kl),l=1,kl),((einv(k,l),k=1,kl),l=1,kl),
-     &   (qvec(k),k=1,kl),((tmat(k,l),k=1,kl),l=1,kl)
-        print*,'kl,lapsbot,sig from eigenv file: ',
-     &                     kl,lapsbot,sig
-        ! File has an sigmh(kl+1) which isn't required. Causes bounds violation
-        ! to read this.
-        read(28,*)(sigmh(k),k=1,kl) 
-        print *,'tbar: ',tbar
-        print *,'bam: ',bam
-        if (nh.ne.0) then
-          if(nh==2.and.lapsbot.ne.3)stop 'nh=2 needs lapsbot=3'
-          call eig(sig,sigmh,tbar,lapsbot,isoth,dt,0.,nh)
-        endif  ! (nh.ne.0)
+       bam(1)=114413.
+!      now always read eig file fri  12-18-1992
+!      All processes read this
+       read(28,*)(sig(k),k=1,kl),(tbar(k),k=1,kl),(bam(k),k=1,kl)
+     &  ,((emat(k,l),k=1,kl),l=1,kl),((einv(k,l),k=1,kl),l=1,kl),
+     &  (qvec(k),k=1,kl),((tmat(k,l),k=1,kl),l=1,kl)
+       print*,'kl,lapsbot,sig from eigenv file: ',
+     &                    kl,lapsbot,sig
+       ! File has an sigmh(kl+1) which isn't required. Causes bounds violation
+       ! to read this.
+       read(28,*)(sigmh(k),k=1,kl) 
+       print *,'tbar: ',tbar
+       print *,'bam: ',bam
+       if (nh.ne.0) then
+        if(nh==2.and.lapsbot.ne.3)stop 'nh=2 needs lapsbot=3'
+        if (abs(epsp).le.1.) then
+         call eig(sig,sigmh,tbar,lapsbot,isoth,dt,abs(epsp),nsig,nh)
+        else
+         call eig(sig,sigmh,tbar,lapsbot,isoth,dt,0.,nsig,nh)
+        end if
+       endif  ! (nh.ne.0)
       endif !myid==0
       call MPI_Bcast(sig,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(sigmh,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
@@ -1785,27 +1800,10 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       endif
       do iq=1,ifull
        zolog(iq)=log(zmin/zolnd(iq))   ! for land use in sflux
-       neigh(iq)=iq  ! default value
-       zsmin=zs(iq)
-       if(zs(ie(iq))<zsmin)then
-         zsmin=zs(ie(iq))
-         neigh(iq)=ie(iq)
-       endif
-       if(zs(iw(iq))<zsmin)then
-         zsmin=zs(iw(iq))
-         neigh(iq)=iw(iq)
-       endif
-       if(zs(in(iq))<zsmin)then
-         zsmin=zs(in(iq))
-         neigh(iq)=in(iq)
-       endif
-       if(zs(is(iq))<zsmin)then
-         neigh(iq)=is(iq)
-       endif
       enddo
       if ( mydiag ) then
-         print *,'for idjd get neigh = ',neigh(idjd),
-     &                 idjd,ie(idjd),iw(idjd),in(idjd),is(idjd)
+         print *,'for idjd get = ',idjd,
+     &                 ie(idjd),iw(idjd),in(idjd),is(idjd)
          print *,'with zs: ',zs(idjd),
      &       zs(ie(idjd)),zs(iw(idjd)),zs(in(idjd)),zs(is(idjd))
       end if
@@ -2017,7 +2015,7 @@ c        vmer= sinth*u(iq,1)+costh*v(iq,1)
                end if
              endif              ! (.not.land(iq))
              istn(nn) = ii
-             jstn(nn) = jj+(n-1)*ipan
+             jstn(nn) = jj+(n-1)*jpan
              iq = istn(nn) + (jstn(nn)-1)*ipan
              iveg=ivegt(iq)
              isoil = isoilm(iq)

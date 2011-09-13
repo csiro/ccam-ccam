@@ -7,15 +7,15 @@ MODULE photosynthetic_constants
   REAL(r_1), PARAMETER :: alpha4  = 0.05
   REAL(r_1), PARAMETER :: cfrd3  = 0.015
   REAL(r_1), PARAMETER :: cfrd4  = 0.025
-  REAL(r_1), PARAMETER :: conkc0 = 302.e-6	!mol mol^-1
-  REAL(r_1), PARAMETER :: conko0 = 256.e-3	!mol mol^-1
+  REAL(r_1), PARAMETER :: conkc0 = 302.e-6      !mol mol^-1
+  REAL(r_1), PARAMETER :: conko0 = 256.e-3      !mol mol^-1
   REAL(r_1), PARAMETER :: convx3 = 1.0E-2
   REAL(r_1), PARAMETER :: convx4 = 0.8
   REAL(r_1), PARAMETER :: d0c3 = 1500.0
   REAL(r_1), PARAMETER :: d0c4 = 1500.0
-  REAL(r_1), PARAMETER :: ekc = 59430.0	!J mol^-1
-  REAL(r_1), PARAMETER :: eko = 36000.0	!J mol^-1
-  REAL(r_1), PARAMETER :: gam0 = 28.0E-6	!mol mol^-1 @ 20C = 36.9 @ 25C
+  REAL(r_1), PARAMETER :: ekc = 59430.0 !J mol^-1
+  REAL(r_1), PARAMETER :: eko = 36000.0 !J mol^-1
+  REAL(r_1), PARAMETER :: gam0 = 28.0E-6        !mol mol^-1 @ 20C = 36.9 @ 25C
   REAL(r_1), PARAMETER :: gam1 = 0.0509
   REAL(r_1), PARAMETER :: gam2 = 0.0010
   REAL(r_1), PARAMETER :: gsw03  = 0.01
@@ -28,5 +28,5 @@ MODULE photosynthetic_constants
   REAL(r_1), PARAMETER :: tminv  = -5.0
   REAL(r_1), PARAMETER :: toptj  = 20.0
   REAL(r_1), PARAMETER :: toptv  = 20.0
-  REAL(r_1), PARAMETER :: trefk= 298.2	!reference temperature K
+  REAL(r_1), PARAMETER :: trefk= 298.2  !reference temperature K
 END MODULE photosynthetic_constants

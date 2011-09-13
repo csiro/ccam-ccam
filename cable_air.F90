@@ -25,13 +25,12 @@ MODULE air_module
   PUBLIC define_air
 CONTAINS
   !-----------------------------------------------------------------------
-  SUBROUTINE define_air
-!  SUBROUTINE define_air(met,air)
-!    TYPE (air_type), INTENT(INOUT) :: air ! air_type variables
-!    TYPE (met_type), INTENT(IN)	 :: met ! meteorological variables
-    REAL(r_1), DIMENSION(mp)	 :: es	! sat vapour pressure (mb)
+  SUBROUTINE define_air(met,air)
+    TYPE (air_type), INTENT(INOUT) :: air ! air_type variables
+    TYPE (met_type), INTENT(IN)  :: met ! meteorological variables
+    REAL(r_1), DIMENSION(mp)     :: es  ! sat vapour pressure (mb)
 !    print *,'air 1',met%tvair,tfrz
-    es	 = tetena * EXP(tetenb * (met%tvair-tfrz)/(tetenc + (met%tvair-tfrz)))
+    es   = tetena * EXP(tetenb * (met%tvair-tfrz)/(tetenc + (met%tvair-tfrz)))
     ! Calculate conversion factor from from m/s to mol/m2/s
 !    print *,'air 2',es
     air%cmolar = met%pmb * 100.0 / (rgas * (met%tvair))

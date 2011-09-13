@@ -1,10 +1,6 @@
-#ifdef scyld
-      subroutine globpe 
-#else
-      Program globpe  
-#endif
+      program globpe  
+
 !      PE model on conformal-cubic grid
-!      N.B. on a Cray, set ncray=1 in depts.f, latltoij
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !      input files are :namelist (via file called "input")
 !                       "nrun.dat"
@@ -13,144 +9,147 @@
 !     sign convention:
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
-      use aerointerface
-      use arrays_m    ! ts, t, u, v, psl, ps, zs
-      use betts1_m, only : betts1_init
-      use bigxy4_m
-      use carbpools_m, only : carbpools_init
-      use cc_mpi
-      use cldcom_m, only : cldcom_init
-      use co2dta_m, only : co2dta_init
-      use cfrac_m
-      use dava_m
-      use davb_m
-      use diag_m
-      use define_dimensions, only : ncs,ncp
-      use dpsdt_m
-      use epst_m
-      use extraout_m
-      use gdrag_m, only : gdrag_init
-      use histave_m
-      use indices_m
-      use kdacom_m, only : kdacom_init
-      use kuocomb_m
-      use latlong_m
-      use liqwpar_m   ! ifullw,qfg,qlg
-      use lwout_m, only : lwout_init
-      use map_m       ! em, f, dpsldt, fu, fv, etc
-      use mlo, only : mlodiag,wlev
-      use morepbl_m
-      use neigh_m, only : neigh_init
-      use nharrs_m, only : nharrs_init
-      use nlin_m
-      use nsibd_m     ! sib, tsigmf, isoilm
-      use o3amip_m, only : o3amip_init
-      use parmhdff_m
-      use pbl_m       ! cduv, cdtq, tss, qg
-      use permsurf_m, only : permsurf_init
-      use prec_m
-      use raddiag_m
-      use radisw_m, only : radisw_init
-      use rdflux_m, only : rdflux_init
-      use savuvt_m
-      use savuv1_m
-      use sbar_m
-      use screen_m    ! tscrn etc
-      use seaesfrad_m ! MJT radiation
-      use sigs_m
-      use soil_m      ! fracice
-      use soilbal_m, only : soilbal_init
-      use soilsnow_m
-      use srccom_m, only : srccom_init
-      use swocom_m, only : swocom_init
-      use tabcom_m, only : tabcom_init
-      use tbar2d_m, only : tbar2d_init
-      use tfcom_m, only : tfcom_init
-      use timeseries, only : write_ts      
-!     rml 21/02/06 removed redundant tracer code (so2/o2 etc)
-!     rml 16/02/06 use tracermodule, timeseries
-      use tracermodule, only :init_tracer,trfiles,tracer_mass,unit_trout
-     &                        ,interp_tracerflux,tracerlist
-      use tracers_m   ! ngas, nllp, ntrac, tr
-      use unn_m
-      use uvbar_m
-      use vecs_m, only : vecs_init
-      use vecsuv_m
-      use vegpar_m
-      use vvel_m      ! sdot
-      use workglob_m
-      use work2_m
-      use work3_m
-      use work3b_m, only : work3b_init
-      use work3f_m
-      use work3lwr_m, only : work3lwr_init
-      use work3sav_m
-      use xarrs_m
-      use xyzinfo_m   ! x,y,z,wts,x_g,y_g,z_g,wts_g     
-      implicit none
-      include 'newmpar.h'
-      include 'const_phys.h'
-      include 'darcdf.h'   ! idnc,ncid  - stuff for reading netcdf
-      include 'dates.h'    ! dtin,mtimer
-      include 'establ.h'
-      include 'filnames.h' ! list of files, read in once only
-      include 'kuocom.h'
-      include 'mpif.h'
-      include 'netcdf.inc' ! stuff for writing netcdf
-      include 'params.h'
-      include 'parm.h'
-      include 'parmdyn.h'  
-      include 'parmgeom.h' ! rlong0,rlat0,schmidt
-      include 'parmhor.h'  ! mhint, mh_bs, nt_adv, ndept
-      include 'parmsurf.h' ! nplens
-      include 'parmvert.h'
-      include 'rdparm.h'
-      include 'soilv.h'
-      include 'stime.h'    ! kdate_s,ktime_s  sought values for data read
-      include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
-      include 'version.h'
-      
-      integer leap,nbarewet,nsigmf
-      integer nnrad,idcld
-      real alph_p,alph_pm,delneg,delpos,alph_q
-      common/leap_yr/leap  ! 1 to allow leap years
-      common/mfixdiag/alph_p,alph_pm,delneg,delpos,alph_q
-      common/nsib/nbarewet,nsigmf
-      common/radnml/nnrad,idcld
 
+      ! common arrays
+      use aerointerface                       ! Aerosol interface
+      use arrays_m                            ! Main atmosphere prognostic arrays
+      use betts1_m, only : betts1_init        ! Betts convection
+      use bigxy4_m                            ! Grid interpolation
+      use carbpools_m, only : carbpools_init  ! Carbon pools
+      use cc_mpi                              ! CC MPI routines
+      use cldcom_m, only : cldcom_init        ! LH/SF radiation
+      use co2dta_m, only : co2dta_init        ! LH/SF radiation
+      use cfrac_m                             ! Cloud fraction
+      use dava_m                              ! Davies nudging
+      use davb_m                              ! Davies nudging
+      use diag_m                              ! Diagnostic routines
+      use define_dimensions, only : ncs,ncp   ! CABLE dimensions
+      use dpsdt_m                             ! Vertical velocity
+      use epst_m                              ! Off-centre terms
+      use extraout_m                          ! Additional diagnostics
+      use gdrag_m, only : gdrag_init          ! Gravity wave drag
+      use histave_m                           ! Time average arrays
+      use indices_m                           ! Grid index arrays
+      use kdacom_m, only : kdacom_init        ! LH/SF radiation
+      use kuocomb_m                           ! JLM convection
+      use latlong_m                           ! Lat/lon coordinates
+      use liqwpar_m                           ! Cloud
+      use lwout_m, only : lwout_init          ! LH/SF radiation
+      use map_m                               ! Grid map arrays
+      use mlo, only : mlodiag,wlev            ! Ocean physics and prognostic arrays
+      use mlodynamics                         ! Ocean dynamics
+      use morepbl_m                           ! Boundary layer diagnostics
+      use nharrs_m, only : nharrs_init        ! Non-hydrostatic arrays
+      use nlin_m                              ! Atmosphere non-linear dynamics
+      use nsibd_m                             ! Land-surface arrays
+      use o3amip_m, only : o3amip_init        ! O3 AMIP arrays
+      use parmhdff_m                          ! Horizontal diffusion
+      use pbl_m                               ! Boundary layer arrays
+      use permsurf_m, only : permsurf_init    ! Fixed surface arrays
+      use prec_m                              ! Precipitation
+      use raddiag_m                           ! Radiation diagnostic
+      use radisw_m, only : radisw_init        ! LH/SF radiation
+      use rdflux_m, only : rdflux_init        ! LH/SF radiation
+      use savuvt_m                            ! Saved dynamic arrays
+      use savuv1_m                            ! Saved dynamic arrays
+      use sbar_m                              ! Saved dynamic arrays
+      use screen_m                            ! Screen level diagnostics
+      use seaesfrad_m                         ! SEA-ESF radiation
+      use sigs_m                              ! Atmosphere sigma levels
+      use soil_m                              ! Soil and ice data
+      use soilsnow_m                          ! Soil and snow data
+      use srccom_m, only : srccom_init        ! LH/SF radiation
+      use swocom_m, only : swocom_init        ! LH/SF radiation
+      use tabcom_m, only : tabcom_init        ! LH/SF radiation
+      use tbar2d_m, only : tbar2d_init        ! Atmosphere dynamics reference temperature
+      use tfcom_m, only : tfcom_init          ! LH/SF radiation
+      use timeseries, only : write_ts         ! Tracers
+      use tracermodule, only :init_tracer     ! Tracers
+     &   ,trfiles,tracer_mass,unit_trout
+     &   ,interp_tracerflux,tracerlist
+      use tracers_m                           ! Tracers
+      use unn_m                               ! Saved dynamic arrays
+      use uvbar_m                             ! Saved dynamic arrays
+      use vecs_m, only : vecs_init            ! Eigenvectors for atmosphere dynamics
+      use vecsuv_m                            ! Cartesian coordinates
+      use vegpar_m                            ! Vegetation arrays
+      use vvel_m                              ! Vertical atmosphere velocity
+      use workglob_m                          ! Diagnostic arrays
+      use work2_m                             ! Diagnostic arrays
+      use work3_m                             ! Diagnostic arrays
+      use work3b_m, only : work3b_init        ! Diagnostic arrays
+      use work3f_m                            ! Diagnostic arrays
+      use work3lwr_m, only : work3lwr_init    ! Diagnostic arrays
+      use work3sav_m                          ! Diagnostic arrays
+      use xarrs_m                             ! Saved dynamic arrays
+      use xyzinfo_m                           ! Grid coordinate arrays
+
+      implicit none
+
+      include 'newmpar.h'                     ! Grid parameters
+      include 'const_phys.h'                  ! Physical constants
+      include 'darcdf.h'                      ! Netcdf data
+      include 'dates.h'                       ! Date data
+      include 'establ.h'                      ! Saturation function
+      include 'filnames.h'                    ! Filenames
+      include 'kuocom.h'                      ! Convection parameters
+      include 'mpif.h'                        ! MPI parameters
+      include 'netcdf.inc'                    ! Netcdf parameters
+      include 'params.h'                      ! Model configuration
+      include 'parm.h'                        ! Model configuration
+      include 'parmdyn.h'                     ! Dynamics parmaters
+      include 'parmgeom.h'                    ! Coordinate data
+      include 'parmhor.h'                     ! Horizontal advection parameters
+      include 'parmsurf.h'                    ! Surface parameters
+      include 'parmvert.h'                    ! Vertical advection parameters
+      include 'rdparm.h'                      ! Radiation parameters
+      include 'soilv.h'                       ! Soil parameters
+      include 'stime.h'                       ! Date data
+      include 'trcom2.h'                      ! Station data
+      include 'version.h'                     ! Model version data
+      
+      integer leap
+      common/leap_yr/leap                     ! Leap year (1 to allow leap years)
+      real alph_p,alph_pm,delneg,delpos
+      real alph_q
+      common/mfixdiag/alph_p,alph_pm,delneg,
+     &                delpos,alph_q           ! Mass conservation
+      integer nbarewet,nsigmf
+      common/nsib/nbarewet,nsigmf             ! Land-surface options
+      integer nnrad,idcld
+      common/radnml/nnrad,idcld               ! Radiation options
+      integer nhor,nhorps,khor,khdif,nhorjlm
+      real hdifmax
+      common/parmhdff/nhor,nhorps,khor,khdif,
+     &                hdifmax,nhorjlm         ! Horizontal diffusion
+
+!     Local variables
       real, dimension(:,:), allocatable :: savu2,savv2
       real, dimension(:,:), allocatable :: speed
       real, dimension(:), allocatable :: spare1,spare2
       real, dimension(:), allocatable :: spmean,div
- 
-      integer nhor,nhorps,khor,khdif,nhorjlm
-      real hdifmax
-      common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
 
       logical odcalc
-      character comm*60,comment*60,rundate*8,header*47,text*2 ! MJT bug fix
+      character comm*60,comment*60,rundate*8,header*47,text*2
       character(len=10) :: timeval
       integer, dimension(8) :: tvals1, tvals2
-
-!     Local variables
+      integer, dimension(8) :: nper3hr
       integer iaero, ier, igas, ilx, io_nest, iq, irest, isoil, itr1,
      &     itr2, jalbfix, jlx, jtr1, jtr2, k,k2, kktau, 
      &     mexrest, mins_dt, mins_gmt, mspeca, mtimer_in,
      &     nalpha, newsnow, ng, nlx, nmaxprsav,
-     &     nmi, npa, npb, npc, n3hr,      ! can remove npa,npb,npc
+     &     nmi, npa, npb, npc, n3hr,
      &     nsnowout, nstagin, nstaguin, nwrite, nwtsav,
-     &     mins_rad, mtimer_sav, nn, i, j
-     &     ,mstn  ! not used in 2006
-      integer, dimension(8) :: nper3hr
+     &     mins_rad, mtimer_sav, nn, i, j, mstn
+      integer nproc_in, ierr, nperhr, nscrn, nversion, ierr2
+      integer kmax, isoth, nsig, lapsbot
+      real, dimension(9) :: temparray, gtemparray
       real clhav, cllav, clmav, cltav, con, 
      &     div_int, dsx, dtds, es, gke, hourst, hrs_dt,
      &     evapavge, precavge, preccavge, psavge,
      &     pslavge, pwater, rel_lat, rel_long, rlwup, spavge,
      &     pwatr, pwatr_l, qtot, aa,bb,cc,bb_2,cc_2,rat
-      real, dimension(9) :: temparray, gtemparray ! For global sums
-      integer :: nproc_in, ierr, nperhr, nscrn=0,nversion=0, ierr2 ! MJT mpi
-      integer :: kmax,isoth,nsig
-      integer :: lapsbot=0
+
       namelist/defaults/nversion
       namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps,nperavg
      & ,ia,ib,ja,jb,itr1,jtr1,itr2,jtr2,id,jd,iaero,khdif,khor,nhorjlm
@@ -170,15 +169,14 @@
      & ,newsnow,nsnowout,newrough,newsoilm,nglacier,newztsea
      & ,epsp,epsu,epsf
      & ,av_vmod,charnock,chn10,snmin,tss_sh,vmodmin,zobgin
-     & ,rlong0,rlat0,schmidt   ! usually come in with topofile
+     & ,rlong0,rlat0,schmidt
      & ,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
-     & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss                  ! MJT urban ! MJT nmr ! MJT mlo ! MJT nestin
-     & ,mfix_tr,mfix_ke,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv              ! MJT tracerfix ! MJT tke
+     & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss
+     & ,mfix_tr,mfix_ke,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv
      & ,nud_sfh,bpyear
-      data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/
-      namelist/skyin/mins_rad,ndiur  ! kountr removed from here
+      namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
      &    rsmfile,scamfile,scrnfile,snowfile,so4tfile,soilfile,sstfile,
@@ -186,7 +184,7 @@
      &    smoistfile,soil2file,radonemfile,
      &    co2_00,radon_00,surf_00,co2_12,radon_12,surf_12,
      &    laifile,albnirfile,urbanfile,bathfile,vegprev,vegnext,
-     &    cnsdir,salfile,oxidantfile ! MJT sib ! MJT urban ! MJT mlo ! MJT cable ! MJT radiation
+     &    cnsdir,salfile,oxidantfile
       namelist/kuonml/alflnd,alfsea
      &        ,cldh_lnd,cldm_lnd,cldl_lnd
      &        ,cldh_sea,cldm_sea,cldl_sea
@@ -198,7 +196,10 @@
      &        ,nuvconv,rhcv,rhmois,rhsat
      &        ,sigcb,sigcll,sig_ct,sigkscb,sigksct
      &        ,tied_con,tied_over,tied_rh,comm
-     &        ,acon,bcon,rcm,rcrit_l,rcrit_s   ! ldr stuff
+     &        ,acon,bcon,rcm,rcrit_l,rcrit_s
+
+      data nscrn/0/,nversion/0/,lapsbot/0/
+      data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/      
       data itr1/23/,jtr1/13/,itr2/25/,jtr2/11/
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
       data mexrest/6/,mins_rad/60/
@@ -210,11 +211,10 @@
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
-#ifndef scyld
-      call MPI_Init(ierr)       ! Start
-#endif
-      call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierr) ! Find # of processes
-      call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr) ! Find my id
+      call MPI_Init(ierr)
+      call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierr) ! Find number of processes
+      call MPI_Comm_rank(MPI_COMM_WORLD, myid, ierr)  ! Find local processor id
+
 
       !--------------------------------------------------------------
       ! INITALISE LOGS
@@ -224,70 +224,64 @@
       call start_log(model_begin)
 #endif
 
+
       !--------------------------------------------------------------
       ! READ NAMELISTS AND SET PARAMETER DEFAULTS
-      il_g=48
-      kl=18
-      ol=0
-      ia=-1
-      ib=-1
-      ntbar=-1      ! just a default 7/3/07
+      ia=-1   ! diagnostic index
+      ib=-1   ! diagnostic index
+      ntbar=-1
+      rel_lat=0.
+      rel_long=0.
+      ktau=0
 
-      ! Some extra default values
-      rel_lat = 0.
-      rel_long = 0.
-      ! All processors read the namelist, standard input doesn't work properly
+      ! All processors read the namelist, so no MPI comms are needed
       open(99,file="input",form="formatted",status="old")
-      if (myid==0)
-     &  write(6,'(a10," running for nproc =",i7)')
-     &                       version,nproc 
       read (99, defaults)
-      if(myid==0)print *,'Using defaults for nversion = ',nversion
+      if (myid==0) then
+        write(6,'(a10," running for nproc =",i7)')
+     &                       version,nproc 
+        write(6,*) 'Using defaults for nversion = ',nversion
+      end if
       if(nversion.ne.0)call change_defaults(nversion)
       read (99, cardin)
+      npc     =max(npc,1)
       nperday =nint(24.*3600./dt)
       nperhr  =nint(3600./dt)
-      if(nmaxpr==99)nmaxpr=nperday/4
       do n3hr=1,8
        nper3hr(n3hr)=nint(n3hr*3*3600/dt)
       enddo
-      if(nwt==-99)nwt=nperday          ! set default nwt to 24 hours
-      if(nperavg==-99)nperavg=nwt      ! set default nperavg to nwt
-      if(nwrite==0)nwrite=nperday  ! only used for outfile IEEE
+      if (nwt==-99) nwt=nperday          ! set default nwt to 24 hours
+      if (nperavg==-99) nperavg=nwt      ! set default nperavg to nwt
+      if (nwrite==0) nwrite=nperday      ! only used for outfile IEEE
       read (99, skyin)
-      if(nperday==80.and.mins_rad==60)mins_rad=72
       kountr=nint(mins_rad*60./dt)  ! set default radiation to ~mins_rad m
       mins_rad=nint(kountr*dt/60.)  ! redefine to actual value
       read (99, datafile)
       read (99, kuonml)
-!     rml 16/02/06 read trfiles namelist
       ngas=0
-      read(99, trfiles, iostat=ierr)
-      if (ierr.ne.0) rewind(99)
-      if(tracerlist.ne.'') then
-        call init_tracer
-      endif
+      read(99, trfiles, iostat=ierr)         ! try reading tracer namelist.  If no
+      if (ierr.ne.0) rewind(99)              ! namelist is found, then disable
+      if (tracerlist.ne.'') call init_tracer ! tracers and rewind namelist.
+
 
       !--------------------------------------------------------------
       ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
-      ktau=0
-      if(io_in<=5.and.myid==0)then
+      if (myid==0) then
 !       open new topo file and check its dimensions
 !       here used to supply rlong0,rlat0,schmidt
+!       Remanded of file is read in indata.f
         open(66,file=topofile,recl=2000,status='old')
-        print *,'reading topofile header'
-c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
-        read(66,*)
-     &           ilx,jlx,rlong0,rlat0,schmidt,dsx,header
-        print *,'ilx,jlx,rlong0,rlat0,schmidt,dsx ',
+        write(6,*) 'reading topofile header'
+        read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
+        write(6,*) 'ilx,jlx,rlong0,rlat0,schmidt,dsx ',
      &           ilx,jlx,rlong0,rlat0,schmidt,dsx,header
         il_g=ilx
-      endif      ! (io_in<=4)
+      end if      ! (io_in<=4)
       call MPI_Bcast(il_g,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(rlong0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(rlat0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(schmidt,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-!     N.B. to display orog alone, run with io_in=4, nbd=0, nsib=0  
+
 
       !--------------------------------------------------------------
       ! READ EIGENV FILE TO DEFINE VERTICAL LEVELS
@@ -296,7 +290,7 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
         read(28,*)kmax,lapsbot,isoth,nsig
         kl=kmax
         if (abs(nmlo).ge.1.and.abs(nmlo).le.9) ol=wlev
-        print*,'kl,ol,lapsbot,isoth,nsig: ',
+        write(6,*)'kl,ol,lapsbot,isoth,nsig: ',
      &             kl,ol,lapsbot,isoth,nsig
       end if
       call MPI_Bcast(kl,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -306,9 +300,10 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       call MPI_Bcast(nsig,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(ol,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
+
       !--------------------------------------------------------------
       ! DEFINE newmpar VARIABLES AND DEFAULTS
-      jl_g = il_g + npanels*il_g      
+      jl_g=il_g+npanels*il_g      
 #ifdef uniform_decomp
       nxp=nint(sqrt(real(nproc)))
       nyp=nproc/nxp
@@ -338,13 +333,13 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
         write(6,*) "Try increasing or decreasing nproc"
         stop
       end if
-      ifull_g = il_g*jl_g
-      ijk_g = il_g*jl_g*kl
+      ifull_g=il_g*jl_g
+      ijk_g=il_g*jl_g*kl
       iquad=1+il_g*((8*npanels)/(npanels+4))
       il=il_g/nxp
       jl=jl_g/nyp
-      ifull = il*jl
-      ijk = il*jl*kl
+      ifull=il*jl
+      ijk=il*jl*kl
 !     The perimeter of the processor region has length 2*(il+jl).
 !     The first row has 8 possible corner points per panel and the 
 !     second has 16. In practice these are not all distinct so there could
@@ -352,14 +347,15 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
 #ifdef uniform_decomp
       npan=npanels+1
 !     This should use jpan rather than jl. Will be far too big.
-      iextra = (6*(il+jl)+24)*npan !*6 for extra vector row (e.g., inu,isu,iev,iwv)
+      iextra=(6*(il+jl)+24)*npan !*6 for extra vector row (e.g., inu,isu,iev,iwv)
 #else      
       npan=max(1,(npanels+1)/nproc)
-      iextra = 6*(il+jl)+24*npan !*6 for extra vector row (e.g., inu,isu,iev,iwv)
+      iextra=6*(il+jl)+24*npan !*6 for extra vector row (e.g., inu,isu,iev,iwv)
 #endif
-      nrows_rad = il_g/6
+      ! nrows_rad is a subgrid step for radiation routines
+      nrows_rad=il_g/6
       do while(mod(jl,nrows_rad).ne.0)
-        nrows_rad = nrows_rad-1
+        nrows_rad=nrows_rad-1
       end do
       if (myid.eq.0) then
         write(6,*) "il_g,jl_g,il,jl ",il_g,jl_g,il,jl
@@ -367,134 +363,135 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
         write(6,*) "nrows_rad     = ",nrows_rad
       end if
       
+      ! some default values for unspecified parameters
       if (ia.lt.0) ia=il/2
       if (ib.lt.0) ib=ia+3
-      if (ntbar.lt.0) ntbar=kl/3      ! just a default 7/3/07
+      if (ntbar.lt.0) ntbar=kl/3
       if (ktopdav.lt.0) ktopdav=kl
       if (kbotmlo.lt.0) kbotmlo=ol
-     
-      if(ldr==0)mbase=0
+      if (ldr==0) mbase=0
       dsig4=max(dsig2+.01,dsig4)
-      if(kbotu==0)kbotu=kbotdav
+      if(kbotu==0) kbotu=kbotdav
       if(mbd.ne.0.and.nbd.ne.0)then
-        print *,'setting nbd=0 because mbd.ne.0'
+        write(6,*) 'setting nbd=0 because mbd.ne.0'
         nbd=0
-        kbotu=kbotdav      
       endif
       nud_hrs=abs(nud_hrs)  ! just for people with old -ves in namelist
-      if(nudu_hrs==0)nudu_hrs=nud_hrs
+      if (nudu_hrs==0) nudu_hrs=nud_hrs
+!     for 6-hourly output of sint_ave etc, want 6*60 = N*mins_rad      
+      if ((nrad==4.or.nrad==5).and.mod(6*60,mins_rad).ne.0)
+     &  stop 'prefer 6*60 = N*mins_rad '                    ! MJT radiation
+
 
       !--------------------------------------------------------------
       ! DISPLAY NAMELIST
       if ( myid == 0 ) then   ! **** do namelist fixes above this ***
-      print *,'Dynamics options A:'
-      print *,'   m    mex   mfix  mfix_qg   mup    nh    nonl',    
-     &          '   npex  precon' 
-      write(6,'(i5,9i7)')m,mex,mfix,mfix_qg,mup,nh,nonl,npex,precon
-      print *,'Dynamics options B:'
-      print *,'nritch_t nrot  ntbar  nxmap   epsp    epsu   epsf',
-     &        '   restol'
-      write (6,'(i5,3i7,1x,3f8.3,g9.2)')nritch_t,nrot,ntbar,nxmap,
-     &          epsp,epsu,epsf,restol
-      print *,'Horizontal advection/interpolation options:'
-      print *,' ndept  nt_adv mh_bs  mhint '
-      write (6,'(i5,11i7)') ndept,nt_adv,mh_bs,mhint
-      print *,'Horizontal wind staggering options:'
-      print *,'mstagpt nstag nstagu'
-      write (6,'(i5,11i7)') mstagpt,nstag,nstagu
-      print *,'Vertical advection options:'
-      print *,'  nvad  nvadh  '
-      write (6,'(i5,11i7)') nvad,nvadh
-      if(nvad==4.or.nvad==-4)then
-        print *,'Vertical advection options for TVD:'
-        print *,' nimp   nthub  ntvd   ntvdr'
-        write (6,'(i5,11i7)') nimp,nthub,ntvd,ntvdr
-      endif
-      print *,'Horizontal mixing options:'
-      print *,' khdif  khor   nhor   nhorps nhorjlm'
-      write (6,'(i5,11i7)') khdif,khor,nhor,nhorps,nhorjlm
-      print *,'Vertical mixing/physics options:'
-      print *,' nvmix nlocal nvsplit ncvmix lgwd   ngwd   '
-      write (6,'(i5,6i7)') nvmix,nlocal,nvsplit,ncvmix,lgwd,ngwd
-      print *,'Cumulus convection options A:'
-      print *,' nkuo  sigcb sig_ct  rhcv  rhmois rhsat',
-     &        ' convfact convtime shaltime'
-      write (6,'(i5,6f7.2,9f8.2)')
+        write(6,*)'Dynamics options A:'
+        write(6,*)'   m    mex   mfix  mfix_qg   mup    nh    nonl',    
+     &            '   npex  precon' 
+        write(6,'(i5,9i7)')m,mex,mfix,mfix_qg,mup,nh,nonl,npex,precon
+        write(6,*)'Dynamics options B:'
+        write(6,*)'nritch_t nrot  ntbar  nxmap   epsp    epsu   epsf',
+     &            '   restol'
+        write (6,'(i5,3i7,1x,3f8.3,g9.2)')nritch_t,nrot,ntbar,nxmap,
+     &                                    epsp,epsu,epsf,restol
+        write(6,*)'Horizontal advection/interpolation options:'
+        write(6,*)' ndept  nt_adv mh_bs  mhint '
+        write (6,'(i5,11i7)') ndept,nt_adv,mh_bs,mhint
+        write(6,*)'Horizontal wind staggering options:'
+        write(6,*)'mstagpt nstag nstagu'
+        write (6,'(i5,11i7)') mstagpt,nstag,nstagu
+        write(6,*)'Vertical advection options:'
+        write(6,*)'  nvad  nvadh  '
+        write (6,'(i5,11i7)') nvad,nvadh
+        if(nvad==4.or.nvad==-4)then
+          write(6,*)'Vertical advection options for TVD:'
+          write(6,*)' nimp   nthub  ntvd   ntvdr'
+          write (6,'(i5,11i7)') nimp,nthub,ntvd,ntvdr
+        endif
+        write(6,*)'Horizontal mixing options:'
+        write(6,*)' khdif  khor   nhor   nhorps nhorjlm'
+        write (6,'(i5,11i7)') khdif,khor,nhor,nhorps,nhorjlm
+        write(6,*)'Vertical mixing/physics options:'
+        write(6,*)' nvmix nlocal nvsplit ncvmix lgwd   ngwd   '
+        write (6,'(i5,6i7)') nvmix,nlocal,nvsplit,ncvmix,lgwd,ngwd
+        write(6,*)'Cumulus convection options A:'
+        write(6,*)' nkuo  sigcb sig_ct  rhcv  rhmois rhsat',
+     &            ' convfact convtime shaltime'
+        write (6,'(i5,6f7.2,9f8.2)')
      &    nkuo,sigcb,sig_ct,rhcv,rhmois,rhsat,
      &    convfact,convtime,shaltime
-      print *,'Cumulus convection options B:'
-      print *,' alflnd alfsea fldown iterconv',
-     &        ' ncvcloud nevapcc nevapls nuvconv'
-      write (6,'(3f7.2,i6,i10,4i8)') alflnd,alfsea,fldown,iterconv,
-     &    ncvcloud,nevapcc,nevapls,nuvconv
-      print *,'Cumulus convection options C:'
-      print *,' mbase mdelay methprec nbase detrain',
-     &        ' entrain methdetr detrainx dsig2  dsig4'
-      write (6,'(3i6,i9,f8.2,f9.2,i8,4f8.2)') mbase,mdelay,methprec,
+        write(6,*)'Cumulus convection options B:'
+        write(6,*)' alflnd alfsea fldown iterconv',
+     &            ' ncvcloud nevapcc nevapls nuvconv'
+        write (6,'(3f7.2,i6,i10,4i8)') alflnd,alfsea,fldown,iterconv,
+     &                              ncvcloud,nevapcc,nevapls,nuvconv
+        write(6,*)'Cumulus convection options C:'
+        write(6,*)' mbase mdelay methprec nbase detrain',
+     &            ' entrain methdetr detrainx dsig2  dsig4'
+        write (6,'(3i6,i9,f8.2,f9.2,i8,4f8.2)') mbase,mdelay,methprec,
      &              nbase,detrain,entrain,methdetr,detrainx,dsig2,dsig4
-      print *,'Shallow convection options:'
-      print *,'  ksc  kscsea kscmom sigkscb sigksct ',
-     &        'tied_con tied_over tied_rh '
-      write (6,'(i5,2i7,1x,3f8.3,2f10.3)') ksc,kscsea,kscmom,
-     &    sigkscb,sigksct,tied_con,tied_over,tied_rh
-      print *,'Other moist physics options:'
-      print *,'  acon   bcon   qgmin      rcm    rcrit_l rcrit_s'
-      write (6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,
-     &                                 rcrit_l,rcrit_s
-      print *,'Radiation options:'
-      print *,' nrad  ndiur mins_rad kountr iaero  dt'
-      write (6,'(i5,4i7,f10.2)') nrad,ndiur,mins_rad,kountr,iaero,dt
-!     for 6-hourly output of sint_ave etc, want 6*60 = N*mins_rad      
-      if((nrad==4.or.nrad==5).and.mod(6*60,mins_rad).ne.0) ! MJT radiation
-     &                              stop 'prefer 6*60 = N*mins_rad '
-      print *,'Diagnostic cloud options:'
-      print *,'  ldr nclddia nstab_cld nrhcrit sigcll '
-      write (6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,
-     &                                sigcll
-      print *,'Soil, canopy and PBL options A:'
-      print *,' jalbfix nalpha nbarewet newrough nglacier nrungcm',
-     &        ' nsib  nsigmf'
-      write (6,'(i5,9i8)')
+        write(6,*)'Shallow convection options:'
+        write(6,*)'  ksc  kscsea kscmom sigkscb sigksct ',
+     &            'tied_con tied_over tied_rh '
+        write (6,'(i5,2i7,1x,3f8.3,2f10.3)') ksc,kscsea,kscmom,
+     &              sigkscb,sigksct,tied_con,tied_over,tied_rh
+        write(6,*)'Other moist physics options:'
+        write(6,*)'  acon   bcon   qgmin      rcm    rcrit_l rcrit_s'
+        write (6,'(2f7.2,2e10.2,2f7.2)') acon,bcon,qgmin,rcm,
+     &                                   rcrit_l,rcrit_s
+        write(6,*)'Radiation options:'
+        write(6,*)' nrad  ndiur mins_rad kountr iaero  dt'
+        write (6,'(i5,4i7,f10.2)') nrad,ndiur,mins_rad,kountr,iaero,dt
+        write(6,*)'Diagnostic cloud options:'
+        write(6,*)'  ldr nclddia nstab_cld nrhcrit sigcll '
+        write (6,'(i5,i6,2i9,1x,f8.2)') ldr,nclddia,nstab_cld,nrhcrit,
+     &                                  sigcll
+        write(6,*)'Soil, canopy and PBL options A:'
+        write(6,*)' jalbfix nalpha nbarewet newrough nglacier nrungcm',
+     &            ' nsib  nsigmf'
+        write (6,'(i5,9i8)')
      &          jalbfix,nalpha,nbarewet,newrough,nglacier,nrungcm,nsib,
      &          nsigmf
-      print *,'Soil, canopy and PBL options B:'
-      print *,' ntaft ntsea ntsur av_vmod tss_sh vmodmin  zobgin',
-     &        ' charnock chn10'
-      write (6,'(i5,2i6,4f8.2,f8.3,f9.5)') ntaft,ntsea,ntsur,
-     &          av_vmod,tss_sh,vmodmin,zobgin,charnock,chn10    
-      if(mbd.ne.0.or.nbd.ne.0)then
-        print *,'Nudging options:'
-        print *,' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs',
-     &          ' kbotdav  kbotu'
-        write (6,'(i5,3i7,7i8)') 
-     &    nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
-      endif
-      print *,'Special and test options:'
-      print *,' mbd namip amipo3 newtop nhstest nplens nsemble',
-     &        ' nspecial panfg panzo'
-      write (6,'(2i5,L7,4i7,i8,f9.1,f8.4)') mbd,namip,amipo3,
+        write(6,*)'Soil, canopy and PBL options B:'
+        write(6,*)' ntaft ntsea ntsur av_vmod tss_sh vmodmin  zobgin',
+     &            ' charnock chn10'
+        write (6,'(i5,2i6,4f8.2,f8.3,f9.5)') ntaft,ntsea,ntsur,
+     &            av_vmod,tss_sh,vmodmin,zobgin,charnock,chn10    
+        if(mbd.ne.0.or.nbd.ne.0)then
+          write(6,*)'Nudging options:'
+          write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs',
+     &              ' nudu_hrs kbotdav  kbotu'
+          write (6,'(i5,3i7,7i8)') 
+     &      nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
+        endif
+        write(6,*)'Special and test options:'
+        write(6,*)' mbd namip amipo3 newtop nhstest nplens nsemble',
+     &            ' nspecial panfg panzo'
+        write (6,'(2i5,L7,4i7,i8,f9.1,f8.4)') mbd,namip,amipo3,
      &          newtop,nhstest,nplens,nsemble,nspecial,panfg,panzo
-      print *,'I/O options:'
-      print *,' m_fly  io_in io_nest io_out io_rest  nwt',
-     &       '  nperavg   nscrn'
-      write (6,'(i5,4i7,3i8)') 
+        write(6,*)'I/O options:'
+        write(6,*)' m_fly  io_in io_nest io_out io_rest  nwt',
+     &            '  nperavg   nscrn'
+        write (6,'(i5,4i7,3i8)') 
      &        m_fly,io_in,io_nest,io_out,io_rest,nwt,nperavg,nscrn
-      if(ntrac.ne.0)then
-        print *,'Trace gas options:'
-        print *,' ngas   nllp   ntrac'
-        write (6,'(i5,3i7)') ngas,nllp,ntrac
-      endif
+        if(ntrac.ne.0)then
+          write(6,*)'Trace gas options:'
+          write(6,*)' ngas   nllp   ntrac'
+          write (6,'(i5,3i7)') ngas,nllp,ntrac
+        endif
 
-      write (6, cardin)
-      if(nllp==0.and.nextout>=4)stop 'need nllp=3 for nextout>=4'
-      write (6, skyin)
-      write (6, datafile)
-      write(6, kuonml)
+        write (6, cardin)
+        if(nllp==0.and.nextout>=4)stop 'need nllp=3 for nextout>=4'
+        write (6, skyin)
+        write (6, datafile)
+        write(6, kuonml)
       end if ! myid=0
-      if(newtop>2)stop 'newtop>2 no longer allowed'
-      if(mfix_qg>0.and.(nkuo==4.or.nvad==44))
+      if (newtop>2) stop 'newtop>2 no longer allowed'
+      if (mfix_qg>0.and.(nkuo==4.or.nvad==44))
      &        stop 'nkuo=4,nvad=44: mfix_qg>0 not allowed'
-      if(mfix>3)stop 'mfix >3 not allowed now'
+      if (mfix>3) stop 'mfix >3 not allowed now'
+
 
       !--------------------------------------------------------------
       ! INITIALISE ifull_g ALLOCATALE ARRAYS
@@ -505,15 +502,16 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       call latlong_init(ifull_g,ifull,iextra)      
       call vecsuv_init(ifull_g,ifull,iextra)
 
+
       !--------------------------------------------------------------
       ! SET UP CC GEOMETRY
 !     Only one processor calls setxyz to save memory with large grids
-      if (myid==0) then ! MJT memory
+      if (myid==0) then
         call workglob_init(ifull_g)
         call setxyz(il_g,rlong0,rlat0,schmidt,
      &     x_g,y_g,z_g,wts_g, ax_g,ay_g,az_g,bx_g,by_g,bz_g, xx4,yy4,
      &     myid)
-      end if            ! MJT memory
+      end if
       call MPI_Bcast(ds,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(xx4,iquad*iquad,MPI_DOUBLE_PRECISION,0,
      &               MPI_COMM_WORLD,ierr)
@@ -602,6 +600,7 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       call MPI_Bcast(npans_g,14,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(em_g,ifull_g,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call ccmpi_setup()
+
       
       !--------------------------------------------------------------
       ! RELEASE ifull_g ARRAYS WHERE POSSIBLE
@@ -620,6 +619,7 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
         deallocate(lnee_g,lnne_g)
         deallocate(npann_g,npane_g,npanw_g,npans_g)
       end if
+
       
       !--------------------------------------------------------------
       ! INITIALISE ifull ARRAYS
@@ -638,7 +638,6 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       call liqwpar_init(ifull,iextra,kl)
       call nlin_init(ifull,iextra,kl)
       call morepbl_init(ifull,iextra,kl)
-      call neigh_init(ifull,iextra,kl)
       call nharrs_init(ifull,iextra,kl)
       call nsibd_init(ifull,iextra,kl)
       call parmhdff_init(ifull,iextra,kl)
@@ -652,7 +651,6 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
       call screen_init(ifull,iextra,kl)
       call sigs_init(ifull,iextra,kl)
       call soil_init(ifull,iextra,kl)
-      call soilbal_init(ifull,iextra,kl)
       call soilsnow_init(ifull,iextra,kl,ms)
       call tbar2d_init(ifull,iextra,kl)
       call unn_init(ifull,iextra,kl)
@@ -730,56 +728,38 @@ c       read(66,'(i3,i4,2f6.1,f6.3,f8.0,a47)')
         klt=1
       end if
       call work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
+
       
       !--------------------------------------------------------------
-      ! READ INPUT FILES
+      ! DISPLAY STATION AND TIMER DATA
       con=180./pi
       if ( mydiag ) then
-         print *,'id,jd,rlongg,rlatt in degrees: ',
+         write(6,*)'id,jd,rlongg,rlatt in degrees: ',
      &         id,jd,con*rlongg(idjd),con*rlatt(idjd)
       end if
 
-      if ( myid == 0 ) then
-         call date_and_time(rundate)
-         print *,'RUNDATE IS ',rundate
-         call date_and_time(time=timeval)
-         print*, "Starting time ", timeval
+      if (myid == 0) then
+        call date_and_time(rundate)
+        write(6,*)'RUNDATE IS ',rundate
+        call date_and_time(time=timeval)
+        write(6,*)'Starting time ',timeval
       end if
 
-!     open input files
+
+      !--------------------------------------------------------------
+      ! READ INITIAL CONDITIONS
       if (myid==0) then
-         if(io_in==2)
-     &       open(10,file=ifile,form='formatted',status='old')
-         if(abs(io_in)==3)
-     &       open(10,file=ifile,form='unformatted',status='old')
-         if(abs(io_in)==1)then ! netcdf input
-            ncid = ncopn ( ifile,0,ier ) ! 0 denotes read-only
-            print *,'ncid,ier,ifile ',ncid,ier,ifile
-         endif
+        ncid = ncopn ( ifile,0,ier ) ! 0 denotes read-only
+        write(6,*)'ncid,ier,ifile ',ncid,ier,ifile
+        write(6,*)'calling indata; will read from file ',ifile
       end if
-
-!     open input file for aerosol data (direct only).
-!     prognostic aerosol emissions (iaero==2) are read in aerointerface.f90
-      if(abs(iaero).eq.1)then ! MJT aero
-         if (myid==0) print *,'so4total data read from file ',so4tfile
-         call readreal(so4tfile,so4t,ifull)
-      endif
-
-!     set some 2D/3D default values
-      wb(:,:)=.15
-      snowd(:)=0.
-      condx(:)=0.
-      npc=max(npc,1)
-c     if(ndi2>0)diag=.true.
-
-!     indata for initial conditions
-      if (myid==0) print *,'calling indata; will read from file ',ifile
 !     N.B. first call to amipsst now done within indata
       call indata(hourst,newsnow,jalbfix,iaero,lapsbot,isoth,nsig)
-      
+      if (myid==0) ierr2=nf_close(ncid)
+
+      ! max/min diagnostics      
       call maxmin(u,' u',ktau,1.,kl)
       call maxmin(v,' v',ktau,1.,kl)
-      ! Note that u and v are extended.
       speed(:,:)=sqrt(u(1:ifull,:)**2+v(1:ifull,:)**2)  ! 3D 
       call maxmin(speed,'sp',ktau,1.,kl)
       call maxmin(t,' t',ktau,1.,kl)
@@ -787,9 +767,6 @@ c     if(ndi2>0)diag=.true.
       call maxmin(qfg,'qf',ktau,1.e3,kl)
       call maxmin(qlg,'ql',ktau,1.e3,kl)
       call maxmin(wb,'wb',ktau,1.,ms)
-      ! These were overlapped in a single call which doesn't work in the MPI
-      ! version.
-!      call maxmin(tggsn,'tgg',ktau,1.,ms+3)
       call maxmin(tggsn,'tggsn',ktau,1.,3)
       call maxmin(tgg,'tgg',ktau,1.,ms)
       pwatr_l=0.   ! in mm
@@ -799,57 +776,47 @@ c     if(ndi2>0)diag=.true.
          pwatr_l=pwatr_l-dsig(k)*wts(iq)*qtot*ps(iq)
         enddo
       enddo
-      pwatr_l = pwatr_l/grav
+      pwatr_l=pwatr_l/grav
       call MPI_Reduce ( pwatr_l, pwatr, 1, MPI_REAL, MPI_SUM, 0,
      &                  MPI_COMM_WORLD, ierr )
-      if ( myid == 0 ) write (6,"('pwatr0 ',12f7.3)") pwatr
-      if(nextout>=4)call setllp
-      if(ntrac>0)then
+      if (myid==0) write (6,"('pwatr0 ',12f7.3)") pwatr
+      if (nextout>=4) call setllp
+      if (ntrac>0) then
         do ng=1,ntrac
          write (text,'("g",i1)')ng
          call maxmin(tr(:,:,ng),text,ktau,1.,kl)
-        enddo
-      endif   ! (ntrac>0)
+        end do
+      end if   ! (ntrac>0)
 
-      if (myid == 0 ) then
-        close(10)
-      end if
+
+      !--------------------------------------------------------------
+      ! OPEN MESONEST FILE
       if(mbd.ne.0.or.nbd.ne.0)then
          io_in=io_nest ! Needs to be seen by all processors
          if ( myid == 0 ) then
-           if(abs(io_in)==1)then
-             ncid = ncopn(mesonest,0,ier )  ! 0 denotes read-only
-             print *,'ncid,ier,mesonest ',ncid,ier,mesonest
-             if(ier.ne.0)then
-               print *,'cannot open netcdf mesofile ',nf_strerror(ier)
-               stop
-             endif
-           endif  ! (abs(io_in)==1)
-           if(io_in==2)
-     &       open(10,file=mesonest,form='FORMATTED',status='OLD')
-           if(abs(io_in)==3)
-     &       open(10,file=mesonest,form='UNFORMATTED',status='OLD')
+           ncid = ncopn(mesonest,0,ier )  ! 0 denotes read-only
+           write(6,*)'ncid,ier,mesonest ',ncid,ier,mesonest
+           if(ier.ne.0)then
+             write(6,*)'cannot open netcdf mesofile ',nf_strerror(ier)
+             stop
+           endif
          endif ! myid == 0
       endif    ! (mbd.ne.0.or.nbd.ne.0)
-!     open output files; name is stored in namelist file
-      if ( myid == 0 ) then
-        if(io_out==2)
-     &    open(20,file=ofile,form='formatted',status='unknown')
-        if(io_out==3)
-     &    open(20,file=ofile,form='unformatted',status='unknown')
-      end if ! myid == 0
 
+
+      !--------------------------------------------------------------
+      ! SETUP REMAINING PARAMETERS
 !     sig(kuocb) occurs for level just BELOW sigcb
       kuocb=1
       do while(sig(kuocb+1)>=sigcb)
        kuocb=kuocb+1
       enddo
       if (myid==0)
-     &   print *,'convective cumulus scheme: kuocb,sigcb = ',kuocb,sigcb
+     & write(6,*)'convective cumulus scheme: kuocb,sigcb = ',kuocb,sigcb
 
       if(khdif==-99)then   ! set default khdif appropriate to resolution
         khdif=5
-        if (myid==0) print *,'Model has chosen khdif =',khdif
+        if(myid==0)write(6,*)'Model has chosen khdif =',khdif
       endif
       do k=1,kl
        hdiff(k)=khdif*.1
@@ -863,32 +830,36 @@ c     if(ndi2>0)diag=.true.
 !!       increase hdiff between sigma=.15  and sigma=0., 0 to khor
          if(sig(k)<0.15)hdiff(k)=.1*max(1.,(1.-sig(k)/.15)*abs(khor))
         enddo
-        if (myid==0) print *,'khor,hdiff: ',khor,hdiff
+        if(myid==0)write(6,*)'khor,hdiff: ',khor,hdiff
       endif
 
 !     *** be careful not to choose ia,ib,ja,jb to cover more than
 !         one processor, or myid=0 may stop here!!!
       call printa('zs  ',zs,0,0,ia,ib,ja,jb,0.,.01)
       call printa('tss ',tss,0,0,ia,ib,ja,jb,200.,1.)
-      if (mydiag) print *,'wb(idjd) ',(wb(idjd,k),k=1,6)
+      if(mydiag)write(6,*)'wb(idjd) ',(wb(idjd,k),k=1,6)
       call printa('wb1   ',wb ,0,1,ia,ib,ja,jb,0.,100.)
       call printa('wb6  ',wb,0,ms,ia,ib,ja,jb,0.,100.)
 
+      !--------------------------------------------------------------
+      ! NRUN COUNTER
       if (myid==0) then
          open(11, file='nrun.dat',status='unknown')
          if(nrun==0)then
-            read(11,*,end=227) nrun
- 227        nrun=nrun+1
+            read(11,*,iostat=ierr2) nrun
+            nrun=nrun+1
          endif                  ! nrun==0
-         print *,'this is run ',nrun
+         write(6,*)'this is run ',nrun
          rewind 11
          write(11,*) nrun
          write(11,cardin)
          write(11,datafile)
          close(11)
       end if
-      
-!     Zero/set the diagnostic arrays
+
+
+      !-------------------------------------------------------------
+      ! SETUP DIAGNOSTIC ARRAYS
       rndmax(:)=0.
       tmaxscr(:)=0.
       tminscr(:)=400.
@@ -946,20 +917,27 @@ c     if(ndi2>0)diag=.true.
       if (ngas.gt.0) then
         traver=0.
       end if
- 
+
+
+      !--------------------------------------------------------------
+      ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
       if(nmi==0.and.nwt>0)then
-!       write out the first ofile data set 
-        if (myid==0) then
-          print *,'calling outfile'
-	end if
+!       write out the first ofile data set
+        if (myid==0) then 
+          write(6,*)'calling outfile'
+        end if
         call outfile(20,rundate,nmi,nwrite,iaero)  ! which calls outcdf
         if(newtop<0)stop  ! just for outcdf to plot zs  & write fort.22
       endif    ! (nmi==0.and.nwt.ne.0)
+
+
+      !--------------------------------------------------------------
+      ! INITIALISE DYNAMICS AND NUDGING
       dtin=dt
       n3hr=1   ! initial value at start of run
       if (myid==0) then
-         print *,'number of time steps per day = ',nperday
-         print *,'nper3hr,nper6hr .. ',nper3hr(:)
+        write(6,*)'number of time steps per day = ',nperday
+        write(6,*)'nper3hr,nper6hr .. ',nper3hr(:)
       end if
       mspeca=1
       if(mex.ne.1)then
@@ -968,7 +946,7 @@ c     if(ndi2>0)diag=.true.
       endif
       call gettin(0)             ! preserve initial mass & T fields; nmi too
 
-      if(nbd.ne.0)call nestin(iaero)
+      if (nbd.ne.0) call nestin(iaero)
       nmaxprsav=nmaxpr
       nwtsav=nwt
       hrs_dt = dtin/3600.      ! time step in hours
@@ -984,6 +962,7 @@ c     if(ndi2>0)diag=.true.
           nstaguin=5  
         endif
       endif
+ 
  
       !--------------------------------------------------------------
       ! BEGIN MAIN TIME LOOP
@@ -1002,12 +981,20 @@ c     if(ndi2>0)diag=.true.
       timeg=mod(timer+hourst,24.)
       mtimer=mtimer_in+nint(ktau*dtin/60.)     ! 15/6/01 to allow dt < 1 minute
       mins_gmt=mod(mtimer+60*ktime/100,24*60)
-      
+
+      ! ***********************************************************************
+      ! START DYNAMICS AND NUDGING
+      ! ***********************************************************************
+
       ! NESTING ---------------------------------------------------------------
       call start_log(nestin_begin)
-      if(nbd.ne.0)call nestin(iaero)
+      if (nbd.ne.0) call nestin(iaero)
       call end_log(nestin_end)
       
+      ! TRACERS ---------------------------------------------------------------
+!     rml 17/02/06 interpolate tracer fluxes to current timestep
+      if(ngas>0) call interp_tracerflux(kdate,hrs_dt)
+
       ! DYNAMICS --------------------------------------------------------------
       if(nstaguin>0.and.ktau>1)then   ! swapping here for nstaguin>0
         if(nstagin<0.and.mod(ktau,abs(nstagin))==0)then
@@ -1015,9 +1002,6 @@ c     if(ndi2>0)diag=.true.
           nstagu=nstag
         endif
       endif
-
-!     rml 17/02/06 interpolate tracer fluxes to current timestep
-      if(ngas>0) call interp_tracerflux(kdate,hrs_dt)
 
       do 79 mspec=mspeca,1,-1    ! start of introductory time loop
       dtds=dt/ds
@@ -1142,8 +1126,7 @@ c     if(ndi2>0)diag=.true.
       savv(1:ifull,:) =v(1:ifull,:)
 
       ! set diagnostic printout flag
-      diag=.false.
-      if(ktau>=abs(ndi).and.ktau<=ndi2)diag=.true.
+      diag=(ktau>=abs(ndi).and.ktau<=ndi2)
       if(ndi<0)then
         if(ktau==ktau/ndi*ndi)diag=.true.
       endif
@@ -1202,8 +1185,13 @@ c     if(ndi2>0)diag=.true.
       
       ! NESTING ---------------------------------------------------------------
       call start_log(nestin_begin)
-      if(mspec==1.and.nbd.ne.0)call davies  ! nesting now after mass fixers
-      if(mspec==1.and.mbd.ne.0)call nestinb(iaero)
+      if (mspec==1) then
+        if (mbd.ne.0) then
+          call nestinb(iaero)
+        else if (nbd.ne.0) then
+          call davies  ! nesting now after mass fixers
+        end if
+      end if
       call end_log(nestin_end)
 
       ! DYNAMICS --------------------------------------------------------------
@@ -1227,9 +1215,23 @@ c     if(ndi2>0)diag=.true.
         vx(1:ifull,:)=v(1:ifull,:)   
       endif
 
+      ! Ocean dynamics
+      if (abs(nmlo).ge.3.and.abs(nmlo).le.9) then
+        call start_log(waterdynamics_begin)
+        call mlohadv
+        call end_log(waterdynamics_end)
+      end if
+
       ! horizontal diffusion
-      if(nhor<0)call hordifgt(iaero)  ! now not tendencies
-      if (diag.and.mydiag)print *,'after hordifgt t ',t(idjd,:)
+      if (nhor<0) call hordifgt(iaero)  ! now not tendencies
+      if (diag.and.mydiag) write(6,*) 'after hordifgt t ',t(idjd,:)
+      
+      ! Ocean diffusion
+      if (abs(nmlo).ge.2.and.abs(nmlo).le.9) then
+        call start_log(waterdiff_begin)
+        call mlodiffusion
+        call end_log(waterdiff_end)
+      end if
 
       ! ***********************************************************************
       ! START PHYSICS 
@@ -1238,24 +1240,24 @@ c     if(ndi2>0)diag=.true.
 
       ! GWDRAG ----------------------------------------------------------------
       call start_log(gwdrag_begin)
-      if(ngwd<0)call gwdrag  ! <0 for split - only one now allowed
+      if (ngwd<0) call gwdrag  ! <0 for split - only one now allowed
       call end_log(gwdrag_end)
 
       ! CONVECTION ------------------------------------------------------------
       call start_log(convection_begin)
-      if(nkuo==23.or.nkuo==24)call convjlm(iaero)     ! split convjlm 
-      if( nkuo /= 0 ) then
-         ! Not set in HS tests.
-         cbas_ave(:)=cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:))) ! diagnostic
-         ctop_ave(:)=ctop_ave(:)+condc(:)*(1.1-sig(abs(ktsav(:)))) ! diagnostic
+      if (nkuo==23.or.nkuo==24) call convjlm(iaero)     ! split convjlm 
+      if (nkuo/=0) then
+        ! Not set in HS tests.
+        cbas_ave(:)=cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:))) ! diagnostic
+        ctop_ave(:)=ctop_ave(:)+condc(:)*(1.1-sig(abs(ktsav(:)))) ! diagnostic
       end if
-      if(nkuo==46)call conjob(iaero)    ! split Arakawa-Gordon scheme
-      if(nkuo==5)call betts(t,qg,tn,land,ps) ! not called these days
+      if (nkuo==46) call conjob(iaero)    ! split Arakawa-Gordon scheme
+      if (nkuo==5) call betts(t,qg,tn,land,ps) ! not called these days
       call end_log(convection_end)
 
       ! CLOUD MICROPHYSICS ----------------------------------------------------
       call start_log(cloud_begin)
-      if(ldr.ne.0)then
+      if (ldr.ne.0) then
         call leoncld(cfrac,iaero)  !Output
         do k=1,kl
          riwp_ave(:)=riwp_ave(:)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
@@ -1271,83 +1273,86 @@ c     if(ndi2>0)diag=.true.
       call end_log(cloud_end)
 
       ! RADIATION -------------------------------------------------------------
-      if(nrad==4) then
+      select case(nrad)
+       case(4)
 !       Fels-Schwarzkopf radiation
         odcalc=mod(ktau,kountr)==0 .or. ktau==1 ! ktau-1 better
         nnrad=kountr
-        if(nhstest<0)then ! aquaplanet test -1 to -8  
+        if (nhstest<0) then ! aquaplanet test -1 to -8  
          mtimer_sav=mtimer
          mtimer=mins_gmt     ! so radn scheme repeatedly works thru same day
-        endif    ! (nhstest<0)
+        end if    ! (nhstest<0)
         call radrive (odcalc,iaero)
-        if(nhstest<0)then ! aquaplanet test -1 to -8  
+        if (nhstest<0) then ! aquaplanet test -1 to -8  
           mtimer=mtimer_sav
-        endif    ! (nhstest<0)
-        !t(1:ifull,:)=t(1:ifull,:)-dt*rtt(1:ifull,:)  ! MJT moved to radriv90.f
+        end if    ! (nhstest<0)
         if (nmaxpr==1) then
           ! Account for load bal explicitly rather than implicitly in
           ! the reduce in maxmin.
           call phys_loadbal
-          !call maxmin(rtt,'rt',ktau,1.e4,kl)
           call maxmin(slwa,'sl',ktau,.1,1)
         end if
-      else if (nrad==5) then                        ! MJT radiation
-        ! GFDL SEA-EFS radiation                    ! MJT radiation
-        odcalc=mod(ktau,kountr)==0.or.ktau==1       ! MJT radiation
-        nnrad=kountr                                ! MJT radiation
-        if(nhstest<0)then                           ! MJT radiation
-         mtimer_sav=mtimer                          ! MJT radiation
-         mtimer=mins_gmt                            ! MJT radiation
-        endif                                       ! MJT radiation
-        call seaesfrad(il*nrows_rad,odcalc,iaero)   ! MJT radiation
-        if(nhstest<0)then                           ! MJT radiation
-          mtimer=mtimer_sav                         ! MJT radiation
-        endif                                       ! MJT radiation
-      else
+       case(5)
+        ! GFDL SEA-EFS radiation
+        odcalc=mod(ktau,kountr)==0.or.ktau==1
+        nnrad=kountr
+        if (nhstest<0) then
+         mtimer_sav=mtimer
+         mtimer=mins_gmt
+        end if
+        call seaesfrad(il*nrows_rad,odcalc,iaero)
+        if (nhstest<0) then
+          mtimer=mtimer_sav
+        end if
+       case DEFAULT
 !       use preset slwa array (use +ve nrad)
         slwa(:)=-10*nrad  
 !       N.B. no rtt array for this nrad option
-      endif  !  (nrad==4)
+      end select
 
       ! HELD & SUAREZ ---------------------------------------------------------
       egg(:)=0.   ! reset for fort.60 files
       fgg(:)=0.   ! reset for fort.60 files
-      if(ntsur<=1.or.nhstest==2)then ! Held & Suarez or no surf fluxes
+      if (ntsur<=1.or.nhstest==2) then ! Held & Suarez or no surf fluxes
        eg(:)=0.
        fg(:)=0.
        cdtq(:)=0.
        cduv(:)=0.
-      endif     ! (ntsur<=1.or.nhstest==2) 
-      if(nhstest==2)call hs_phys
-      if(ntsur>1)then  ! should be better after convjlm
-       if(diag)then
+      end if     ! (ntsur<=1.or.nhstest==2) 
+      if(nhstest==2) call hs_phys
+      
+      if (ntsur>1) then  ! should be better after convjlm
+       if (diag) then
          call maxmin(u,'#u',ktau,1.,kl)
          call maxmin(v,'#v',ktau,1.,kl)
          call maxmin(t,'#t',ktau,1.,kl)
          call maxmin(qg,'qg',ktau,1.e3,kl)     
          call MPI_Barrier( MPI_COMM_WORLD, ierr ) ! stop others going past
-       endif
+       end if
          
        ! SURFACE FLUXES ---------------------------------------------
+       ! (Includes ocean mixing and sea-ice thermodynamics)
        call sflux(nalpha)
-       epan_ave = epan_ave+epan  ! 2D 
-       epot_ave = epot_ave+epot  ! 2D 
-       ga_ave = ga_ave+ga        ! 2D 
+       epan_ave=epan_ave+epan  ! 2D 
+       epot_ave=epot_ave+epot  ! 2D 
+       ga_ave=ga_ave+ga        ! 2D 
        
        ! STATION OUTPUT ---------------------------------------------
-       if(nstn>0.and.nrotstn(1)==0)call stationa ! write every time step
-       if(mod(ktau,nmaxpr)==0.and.mydiag)then
-         print *
+       if (nstn>0.and.nrotstn(1)==0) call stationa ! write every time step
+       
+       ! DIAGNOSTICS ------------------------------------------------
+       if (mod(ktau,nmaxpr)==0.and.mydiag) then
+         write(6,*)
          write (6,
      .	  "('ktau =',i5,' gmt(h,m):',f6.2,i5,' runtime(h,m):',f7.2,i6)")
      .      ktau,timeg,mins_gmt,timer,mtimer
 !        some surface (or point) diagnostics
          isoil = isoilm(idjd)
-         print *,'land,isoil,ivegt,isflag ',
+         write(6,*) 'land,isoil,ivegt,isflag ',
      &          land(idjd),isoil,ivegt(idjd),isflag(idjd)
          write (6,"('snage,snowd,osnowd,alb,tsigmf   ',f8.4,4f8.2)")
      &      snage(idjd),snowd(idjd),osnowd(idjd),albvisnir(idjd,1),
-     &      tsigmf(idjd) ! MJT albedo
+     &      tsigmf(idjd)
          write (6,"('sicedep,fracice,runoff ',3f8.2)")
      &            sicedep(idjd),fracice(idjd),runoff(idjd)
          write (6,"('t1,otgsoil,theta,fev,fgf   ',9f8.2)") 
@@ -1423,15 +1428,15 @@ c     if(ndi2>0)diag=.true.
       endif   ! (ntsur>1)
 
       ! VERTICAL MIXING ------------------------------------------------------
-      call start_log(vertmix_begin)
-      if(ntsur>=1)then ! calls vertmix but not sflux for ntsur=1
+      if (ntsur>=1) then ! calls vertmix but not sflux for ntsur=1
+        call start_log(vertmix_begin)
         if(nmaxpr==1.and.mydiag)
      &    write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
         call vertmix(iaero) 
         if(nmaxpr==1.and.mydiag)
      &    write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+        call end_log(vertmix_end)
       endif  ! (ntsur>=1)
-      call end_log(vertmix_end)
 
       ! AEROSOLS --------------------------------------------------------------
       call start_log(aerosol_begin)
@@ -1444,10 +1449,10 @@ c     if(ndi2>0)diag=.true.
 !     calls.
       call phys_loadbal
       call end_log(phys_end)
-      ! ***********************************************************************
-      ! END PHYSICS
-      ! ***********************************************************************
 
+      ! ***********************************************************************
+      ! TRACERS
+      ! ***********************************************************************
 !     rml 16/02/06 call tracer_mass, write_ts
       if(ngas>0) then
         call tracer_mass(ktau,ntau) !also updates average tracer array
@@ -1461,15 +1466,16 @@ c     if(ndi2>0)diag=.true.
         endif
       endif
 
+      ! ***********************************************************************
+      ! DIAGNOSTICS AND OUTPUT
+      ! ***********************************************************************
       if(ndi==-ktau)then
         nmaxpr=1         ! diagnostic prints; reset 6 lines on
         if(ndi2==0)ndi2=ktau+40
-!       nwt=1
       endif
       if(ktau==ndi2)then
-         if(mydiag)print *,'reset nmaxpr'
+         if(mydiag)write(6,*)'reset nmaxpr'
          nmaxpr=nmaxprsav
-!        nwt=nwtsav
       endif
       if (mod(ktau,nmaxpr)==0.or.ktau==ntau)then
         call maxmin(u,' u',ktau,1.,kl)
@@ -1509,7 +1515,6 @@ c     if(ndi2>0)diag=.true.
           write(6,'("g2avge ",f8.3)') spavge
         endif   ! (ngas>0)
         call maxmin(wb,'wb',ktau,1.,ms)
-!       call maxmin(tggsn,'tgg',ktau,1.,ms+3)
         call maxmin(tggsn,'tggsn',ktau,1.,3)
         call maxmin(tgg,'tg',ktau,1.,ms)
         call maxmin(tgf,'tf',ktau,1.,ms)
@@ -1535,92 +1540,92 @@ c     if(ndi2>0)diag=.true.
 !       KE calculation, not taking into account pressure weighting
         gke = 0.
         do k=1,kl
-           do iq=1,ifull
-              gke = gke - 0.5 * wts(iq) * dsig(k) *
-     &             ( u(iq,k)**2 + v(iq,k)**2 )
-           enddo
-        enddo
+          do iq=1,ifull
+            gke = gke - 0.5 * wts(iq) * dsig(k) *
+     &           ( u(iq,k)**2 + v(iq,k)**2 )
+          end do
+        end do
         cllav=0.
         clmav=0.
         clhav=0.
         cltav=0.
         do iq=1,ifull
-         cllav=cllav+wts(iq)*cloudlo(iq)
-         clmav=clmav+wts(iq)*cloudmi(iq)
-         clhav=clhav+wts(iq)*cloudhi(iq)
-         cltav=cltav+wts(iq)*cloudtot(iq)   
-        enddo
+          cllav=cllav+wts(iq)*cloudlo(iq)
+          clmav=clmav+wts(iq)*cloudmi(iq)
+          clhav=clhav+wts(iq)*cloudhi(iq)
+          cltav=cltav+wts(iq)*cloudtot(iq)   
+        end do
 
         ! All this combined into a single reduction
         temparray = (/ psavge, pslavge, preccavge, precavge, gke,
      &                 cllav, clmav,clhav, cltav /)
         call MPI_Reduce ( temparray, gtemparray, 9, MPI_REAL, MPI_SUM,0,
      &                  MPI_COMM_WORLD, ierr )
-        if ( myid == 0 ) then
-           print 97, gtemparray(1:5) ! psavge,pslavge,preccavge,precavge,gke
- 97        format(' average ps, psl, precc, prec, gke: ',
+        if (myid==0) then
+          write(6,97) gtemparray(1:5) ! psavge,pslavge,preccavge,precavge,gke
+ 97       format(' average ps, psl, precc, prec, gke: ',
      &           f10.2,f10.6,2f6.2,f7.2)
-           print 971, gtemparray(6:9) ! cllav,clmav,clhav,cltav
- 971       format(' global_average cll, clm, clh, clt: ',4f6.2)
-           print 972,alph_p,alph_pm,delneg,delpos,alph_q
- 972       format(' alph_p,alph_pm,delneg,delpos,alph_q: ',5f8.4)
+          write(6,971) gtemparray(6:9) ! cllav,clmav,clhav,cltav
+ 971      format(' global_average cll, clm, clh, clt: ',4f6.2)
+          write(6,972) alph_p,alph_pm,delneg,delpos,alph_q
+ 972      format(' alph_p,alph_pm,delneg,delpos,alph_q: ',5f8.4)
         end if
-        if ( mydiag ) then
-           print 98,ktau, diagvals(ps)
-!     &          ((ps(ii+(jj-1)*il),ii=id-4,id+4,4),jj=jd-4,jd+4,4)
- 98        format(i7,' ps diag:',-2p9f7.1)
-           if(t(idjd,kl)>258.)then
-              print *,'t(idjd,kl) > 258. for idjd = ',idjd
-              print 91,ktau,(t(idjd,k),k=kl-8,kl)
- 91           format(i7,'    t',9f7.2)
-              print 92,ktau,(sdot(idjd,k),k=kl-8,kl)
- 92           format(i7,' sdot',9f7.3)
-           endif                ! (t(idjd,kl)>258.)
+        if (mydiag) then
+          write(6,98) ktau,diagvals(ps)
+ 98       format(i7,' ps diag:',-2p9f7.1)
+          if(t(idjd,kl)>258.)then
+            write(6,*) 't(idjd,kl) > 258. for idjd = ',idjd
+            write(6,91) ktau,(t(idjd,k),k=kl-8,kl)
+ 91         format(i7,'    t',9f7.2)
+            write(6,92) ktau,(sdot(idjd,k),k=kl-8,kl)
+ 92         format(i7,' sdot',9f7.3)
+          endif                ! (t(idjd,kl)>258.)
         end if                  ! myid==0
       endif      ! (mod(ktau,nmaxpr)==0)
 
 !     update diag_averages and daily max and min screen temps 
 !     N.B. runoff is accumulated in sflux
-      tmaxscr = max(tmaxscr,tscrn)
-      tminscr = min(tminscr,tscrn)
+      tmaxscr  = max(tmaxscr,tscrn)
+      tminscr  = min(tminscr,tscrn)
       rhmaxscr = max(rhmaxscr,rhscrn)
       rhminscr = min(rhminscr,rhscrn)
       rndmax   = max(rndmax,condx)
-      capemax   = max(capemax,cape)
+      capemax  = max(capemax,cape)
       u10mx    = max(u10mx,u10)  ! for hourly scrnfile
       dew_ave  = dew_ave-min(0.,eg)    
-      eg_ave = eg_ave+eg    
-      fg_ave = fg_ave+fg
-      rnet_ave=rnet_ave+rnet
+      eg_ave   = eg_ave+eg    
+      fg_ave   = fg_ave+fg
+      rnet_ave = rnet_ave+rnet
       tscr_ave = tscr_ave+tscrn 
       qscrn_ave = qscrn_ave+qgscrn 
-      wb_ave=wb_ave+wb
-      tsu_ave=tsu_ave+tss
-      alb_ave=alb_ave+swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
+      wb_ave   = wb_ave+wb
+      tsu_ave  = tsu_ave+tss
+      alb_ave  = alb_ave+swrsave*albvisnir(:,1)
+     &             +(1.-swrsave)*albvisnir(:,2)
       fbeam_ave=fbeam_ave+fbeamvis*swrsave+fbeamnir*(1.-swrsave)
-      psl_ave=psl_ave+psl
+      psl_ave  = psl_ave+psl
       call mlodiag(spare1,0)
       mixdep_ave=mixdep_ave+spare1
       spare1(:)=u(1:ifull,1)**2+v(1:ifull,1)**2
       spare2(:)=u(1:ifull,2)**2+v(1:ifull,2)**2
       do iq=1,ifull
-       if(u10(iq)**2>u10max(iq)**2+v10max(iq)**2)then
+       if (u10(iq)**2>u10max(iq)**2+v10max(iq)**2) then
          u10max(iq)=u10(iq)*u(iq,1)/max(.001,sqrt(spare1(iq)))
          v10max(iq)=u10(iq)*v(iq,1)/max(.001,sqrt(spare1(iq)))
-       endif
-       if(spare1(iq)>u1max(iq)**2+v1max(iq)**2)then
+       end if
+       if (spare1(iq)>u1max(iq)**2+v1max(iq)**2) then
          u1max(iq)=u(iq,1)
          v1max(iq)=v(iq,1)
-       endif
-       if(spare2(iq)>u2max(iq)**2+v2max(iq)**2)then
+       end if
+       if (spare2(iq)>u2max(iq)**2+v2max(iq)**2) then
          u2max(iq)=u(iq,2)
          v2max(iq)=v(iq,2)
-       endif
-      enddo
+       end if
+      end do
 
 !     rnd03 to rnd21 are accumulated in mm     
       if (myid==0) then
-         print *,'ktau,mod,nper3hr ',
+        write(6,*) 'ktau,mod,nper3hr ',
      &            ktau,mod(ktau-1,nperday)+1,nper3hr(n3hr)
       end if
       if(mod(ktau-1,nperday)+1==nper3hr(n3hr))then
@@ -1656,14 +1661,14 @@ c     if(ndi2>0)diag=.true.
         do k=1,ms
           wb_ave(:,k)=wb_ave(:,k)/min(ntau,nperavg)
         end do
-        tsu_ave(:)=tsu_ave(:)/min(ntau,nperavg)
-        alb_ave(:)=alb_ave(:)/min(ntau,nperavg)
-        fbeam_ave(:)=fbeam_ave(:)/min(ntau,nperavg)
-        psl_ave(:)=psl_ave(:)/min(ntau,nperavg)
+        tsu_ave(:)  = tsu_ave(:)/min(ntau,nperavg)
+        alb_ave(:)  = alb_ave(:)/min(ntau,nperavg)
+        fbeam_ave(:)= fbeam_ave(:)/min(ntau,nperavg)
+        psl_ave(:)  = psl_ave(:)/min(ntau,nperavg)
         mixdep_ave(:)=mixdep_ave(:)/min(ntau,nperavg)
         sgn_ave(:)  =  sgn_ave(:)/min(ntau,nperavg)  ! Dec07 because of solar fit
         if(myid==0)
-     &       print *,'ktau,koundiag,nperavg =',ktau,koundiag,nperavg
+     &    write(6,*) 'ktau,koundiag,nperavg =',ktau,koundiag,nperavg
         sint_ave(:) = sint_ave(:)/max(koundiag,1)
         sot_ave(:)  =  sot_ave(:)/max(koundiag,1)
         soc_ave(:)  =  soc_ave(:)/max(koundiag,1)
@@ -1682,7 +1687,7 @@ c     if(ndi2>0)diag=.true.
         if (ngas.gt.0) then
           traver=traver/min(ntau,nperavg)
         end if
-      endif    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
+      end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
       
       if(nscrn==1.and.mod(ktau,nperhr)==0)then
         call outcdfs(rundate)  ! for scrnfile
@@ -1698,13 +1703,8 @@ c     if(ndi2>0)diag=.true.
           call end_log(maincalc_end)
 #endif
 !         write restart file
-          if(io_rest==2)open
-     &      (19,file=restfile,form='formatted',status='unknown')
-          if(io_rest==3)open
-     &      (19,file=restfile,form='unformatted',status='unknown')
           call outfile(19,rundate,nmi,nwrite,iaero)
           if(myid==0)print *,'finished writing restart file in outfile'
-          close(19)
 #ifdef simple_timer
           call start_log(maincalc_begin)
 #endif
@@ -1835,14 +1835,15 @@ c     if(ndi2>0)diag=.true.
       call log_off()
       if (myid==0) then
          call date_and_time(time=timeval,values=tvals2)
-         print*, "End of time loop ", timeval
+         write(6,*) "End of time loop ", timeval
       end if
 
       if(myid==0) then
-         print *,'normal termination of run'
+         write(6,*)'normal termination of run'
          call date_and_time(time=timeval)
-         print*, "End time ", timeval
-         print*, "Model time in main loop", 3600*(tvals2(5)-tvals1(5)) + 
+         write(6,*) "End time ", timeval
+         write(6,*) "Model time in main loop",
+     &      3600*(tvals2(5)-tvals1(5)) + 
      &      60*(tvals2(6)-tvals1(6)) + (tvals2(7)-tvals1(7)) + 
      &      0.001 * (tvals2(8)-tvals1(8))
       end if
@@ -1857,6 +1858,8 @@ c     if(ndi2>0)diag=.true.
  
       end
 
+      !--------------------------------------------------------------
+      ! READ INTEGER TEXT FILES
       subroutine readint(filename,itss,ifullx)
       use cc_mpi
       include 'newmpar.h'
@@ -1868,18 +1871,18 @@ c     if(ndi2>0)diag=.true.
       integer glob2d(ifull_g)
 
       if( ifullx /= ifull ) then
-         print*, "Error, readint only works with ifull"
-         print*, "called with", ifullx
+         write(6,*) "Error, readint only works with ifull"
+         write(6,*) "called with", ifullx
          stop
       end if
       if ( myid == 0 ) then
-         print *,'reading data via readint from ',filename
+         write(6,*) 'reading data via readint from ',filename
          open(87,file=filename,status='old')
 !        read(87,'(i3,i4,2f6.1,f6.3,f8.0,a47)',iostat=ierr)
          read(87,*,iostat=ierr)
      &          ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
          if ( ierr == 0 ) then
-            print *,ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+            write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
             if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.
      &           or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt)
      &           stop 'wrong data file supplied'
@@ -1887,7 +1890,7 @@ c     if(ndi2>0)diag=.true.
             close(87)
          else if ( ierr < 0 ) then ! Error, so really unformatted file
             close(87)
-            print *,'now doing unformatted read'
+            write(6,*) 'now doing unformatted read'
             open(87,file=filename,status='old',form='unformatted')
             read(87) glob2d
             close(87)
@@ -1895,12 +1898,14 @@ c     if(ndi2>0)diag=.true.
             stop 'End of file occurred in readint'
          end if
          call ccmpi_distribute(itss, glob2d)
-         print*, trim(header), glob2d(id+(jd-1)*il_g)
+         write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
       else
          call ccmpi_distribute(itss)
       end if
       end subroutine readint
 
+      !--------------------------------------------------------------
+      ! READ REAL TEXT FILES
       subroutine readreal(filename,tss,ifullx)
       use cc_mpi
       include 'newmpar.h'
@@ -1913,39 +1918,41 @@ c     if(ndi2>0)diag=.true.
       integer ierr
 
       if( ifullx /= ifull ) then
-         print*, "Error, readreal only works with ifull"
-         print*, "called with", ifullx
+         write(6,*) "Error, readreal only works with ifull"
+         write(6,*) "called with", ifullx
          stop
       end if
       if ( myid == 0 ) then
-         print *,'reading data via readreal from ',trim(filename)
+         write(6,*) 'reading data via readreal from ',trim(filename)
          open(87,file=filename,status='old')
          read(87,*,iostat=ierr)
      &          ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
          if ( ierr == 0 ) then
-            print *,ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-            if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.
-     &           or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt)
-     &           stop 'wrong data file supplied'
-            read(87,*) glob2d
-            close(87)
+           write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+           if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.
+     &          or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt)
+     &          stop 'wrong data file supplied'
+           read(87,*) glob2d
+           close(87)
          else if ( ierr < 0 ) then ! Error, so really unformatted file
-            close(87)
-            print *,'now doing unformatted read'
-            open(87,file=filename,status='old',form='unformatted')
-            read(87) glob2d
-            close(87)
+           close(87)
+           write(6,*) 'now doing unformatted read'
+           open(87,file=filename,status='old',form='unformatted')
+           read(87) glob2d
+           close(87)
          else
-           write(0,*) "error in readreal",trim(filename),ierr
+           write(6,*) "error in readreal",trim(filename),ierr
            stop
          end if
          call ccmpi_distribute(tss, glob2d)
-         print*, trim(header), glob2d(id+(jd-1)*il_g)
+         write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
       else
          call ccmpi_distribute(tss)
       end if
       end subroutine readreal
 
+      !--------------------------------------------------------------
+      ! PREPARE SPECIAL TRACER ARRAYS
       subroutine setllp
       use arrays_m   ! ts, t, u, v, psl, ps, zs
       use cc_mpi
@@ -1962,10 +1969,6 @@ c     if(ndi2>0)diag=.true.
         tr(iq,k,min(ntracmax,ngas+3))=.01*ps(iq)*sig(k)  ! in HPa
        enddo
       enddo
-c     if(nmaxpr==1.and.mydiag)then
-c        print *,'in setllp; alat,along,tr1-3 ',alat(idjd),along(idjd),
-c    &    	tr(idjd,k,ngas+1),tr(idjd,k,ngas+2),tr(idjd,k,ngas+3)
-c     endif
       if(nllp>=4)then   ! theta
         do k=1,klt
          do iq=1,ilt*jlt       
@@ -1984,6 +1987,8 @@ c     endif
       return
       end subroutine setllp
 
+      !--------------------------------------------------------------
+      ! INTIAL PARAMETERS
       blockdata main_blockdata
       implicit none
       include 'newmpar.h'
@@ -2188,6 +2193,9 @@ c      data npans/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/
 !c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
 
       end
+      
+      !--------------------------------------------------------------
+      ! WRITE STATION DATA
       subroutine stationa
       use arrays_m  ! ts, t, u, v, psl, ps, zs
       use cc_mpi
@@ -2257,21 +2265,6 @@ c      data npans/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/
              !iradonx=max(1,iradon)
              iqt = min(iq,ilt*jlt) ! Avoid bounds problems if there are no tracers
              k2=min(2,klt)
-!             if (ngas>0) then
-!             write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
-!     &         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
-!     &         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
-!     &         wb(iq,1),wb(iq,2),
-!     &         cloudlo(iq),cloudmi(iq)+1.,cloudhi(iq)+2.,
-!     &         cloudtot(iq)+3.,
-!     &         fg(iq),eg(iq),(1.-tsigmf(iq))*fgg(iq),
-!     &         (1.-tsigmf(iq))*egg(iq),rnet(iq),sgsave(iq),
-!     &         qg(iq,1)*1.e3,uzon,vmer,precc(iq),
-!     &         qg(iq,2)*1.e3,rh1,rh2,tr(iqt,1,ico2x),tr(iqt,k2,ico2x),
-!     &         tr(iqt,1,iradonx),tr(iqt,k2,iradonx) ,.01*ps(iq),wbav,
-!     &         epot(iq),qgscrn(iq)*1.e3,rh_s,u10(iq),uscrn(iq),
-!     &         condx(iq)
-!             else
              write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
      &         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
      &         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
@@ -2319,6 +2312,9 @@ c      data npans/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/
            enddo
       return	    
       end               
+
+      !--------------------------------------------------------------
+      ! WRITE STATION DATA
       subroutine stationb  ! primarily for ICTS
       use arrays_m
       use cc_mpi
@@ -2591,20 +2587,6 @@ c     &	         rh_s(:)
      &	         iyr,imo,iday,itim,off,sca,u10(iqq(:))
          write (iunp(nn),"('W_SNOW    ',i6,3i3,'   1',f8.0,g8.1,9f8.3)") 
      &	         iyr,imo,iday,itim,off,sca,snowd(iqq(:))*.001  ! converts mm to m
-!         write (iunp(nn),"('SWUP_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
-!     &	         iyr,imo,iday,itim,off,sca,sgdnx(iqq(:))-sgx(iqq(:)) 
-!         write (iunp(nn),"('SWDOWN_S  ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
-!     &	         iyr,imo,iday,itim,off,sca,sgdnx(iqq(:))
-!         write (iunp(nn),"('LWUP_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
-!     &	         iyr,imo,iday,itim,off,sca,rgdnx(iqq(:))+rgx(iqq(:))
-!         write (iunp(nn),"('LWDOWN_S  ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
-!     &	         iyr,imo,iday,itim,off,sca,rgdnx(iqq(:))
-!         write (iunp(nn),"('SWUP_T    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)") 
-!     &	         iyr,imo,iday,itim,off,sca,soutx(iqq(:))  
-!         write (iunp(nn),"('SWDOWN_T  ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
-!     &	         iyr,imo,iday,itim,off,sca,sintx(iqq(:))
-!         write (iunp(nn),"('LWUP_T    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
-!     &	         iyr,imo,iday,itim,off,sca,rtx(iqq(:))  
          write (iunp(nn),"('SHFL_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
      &	         iyr,imo,iday,itim,off,sca,fg(iqq(:))
          write (iunp(nn),"('LHFL_S    ',i6,3i3,'   1',f8.0,g8.1,9f8.2)")
@@ -2613,7 +2595,10 @@ c     &	         rh_s(:)
      &	         iyr,imo,iday,itim,off,sca,snowflx(iqq(:))
       enddo   ! nn=1,nstn
       return    
-      end               
+      end
+      
+      !--------------------------------------------------------------
+      ! PREVIOUS VERSION DEFAULT PARAMETERS
       subroutine change_defaults(nversion)
       implicit none
       include 'newmpar.h'

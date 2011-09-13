@@ -143,7 +143,7 @@
 !     calculate hydrostatic heights from the tx array
       do iq=1,ifull
 c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
-       p(iq,1)=zs(iq)+bet(1)*(tx(iq,1)-280)
+       p(iq,1)=zs(iq)+bet(1)*(tx(iq,1)-280.)
      &         +rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       enddo     ! iq loop
       do k=2,kl
@@ -155,20 +155,22 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
 
       if(nh>0)then
 !       add in departure values of p-related nh terms  & omgfnl terms    
-        const_nh=2.*rdry/(dt*grav*grav)  
+        if (abs(epsp).le.1.) then
+          const_nh=2.*rdry/(dt*grav*grav*(1.+abs(epsp)))
+        else
+          const_nh=2.*rdry/(dt*grav*grav)
+        end if
         do k=1,kl
          ! MJT suggestion
          ! omgfnl already includes (1+epst)
          wrk2(:,k)=const_nh*tbar2d(:)*
      &     (tbar(1)*omgfnl(:,k)/sig(k)-h_nh(1:ifull,k))
-!         wrk2(:,k)=const_nh*tbar2d(:)*
-!     &     ((1.+epst(:))*tbar(1)*omgfnl(:,k)/sig(k) -h_nh(1:ifull,k))
         enddo
         wrk1(:,1)=bet(1)*wrk2(:,1)
         do k=2,kl
          wrk1(:,k)=wrk1(:,k-1)+bet(k)*wrk2(:,k)+betm(k)*wrk2(:,k-1)
         enddo   ! k loop
-        if (diag.and.mydiag)then   
+        if (diag.and.mydiag)then
           print *,'adjust5 omgfnl ',(omgfnl(idjd,k),k=1,kl)
           print *,'adjust5 h_nh ',(h_nh(idjd,k),k=1,kl)
           print *,'adjust5 pa ',(p(idjd,k),k=1,kl)
@@ -375,7 +377,7 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
       enddo     ! iq loop
 
       if(nh.ne.0)then
-!       update phi for use in next time step; check tbar or tbar2d ***    
+!       update phi for use in next time step
         do k=1,kl
          phi(:,k)=p(1:ifull,k)-rdry*tbar2d(:)*psl(1:ifull)
         enddo

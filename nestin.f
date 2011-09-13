@@ -3453,7 +3453,7 @@
         end if
         iy=npta*til
         a=til
-        c=-til*ppn
+        c=-til*pn
         if (nud_sfh.ne.0) then
           do ppass=pn,px
             do n=1,til

@@ -1,14 +1,16 @@
 !  this is eig derived from eignew, but used in-line in C-CAM
-      subroutine eig(sigin,sigmhin,tbar,lapsbot,isoth,dtin,eps,nh)
+      subroutine eig(sigin,sigmhin,tbar,lapsbot,isoth,dtin,eps,nsig,nh)
       use vecs_m
       include 'newmpar.h'
+      integer nh,nsig,lapsbot,isoth
+      integer nchng,k
+      integer, parameter :: neig = 1
+      real eps,dtin,dt
       real sigin(kl),sigmhin(kl)
       real sig(kl),sigmh(kl+1),tbar(kl)
-c     common/new/emat(kl,kl),bam(kl),einv(kl,kl)
-      data neig/1/,nsig/5/,nflip/0/
 
 c     lapsbot=1 gives zero lowest t lapse for phi calc
-      print *,'this run compiled with kl = ',kl
+      print *,'this run configured with kl = ',kl
       print *,'entering eig tbar,lapsbot,isoth,dtin,eps,nh: ',
      &                      tbar(1),lapsbot,isoth,dtin,eps,nh
       dt=dtin
@@ -49,7 +51,6 @@ c     re-order the eigenvectors if necessary
       if(nchng.ne.0)go to 112
       print *,'eigenvectors re-ordered'
       print *,'bam',(bam(k),k=1,kl)
-c     print 90,(bam(k),k=1,kl)
 90    format('  bam',15f8.0/4x,15f8.0/4x,15f8.0)
       if(neig.eq.1)then
 c       write data from bottom up
@@ -79,23 +80,25 @@ c       write data from bottom up
       subroutine eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh)
       use vecs_m
       include 'newmpar.h'
+      integer lapsbot,isoth,nh
+      real dt,eps
+c     units here are SI, but final output is dimensionless
+      real, parameter :: g=9.806
+      real, parameter :: cp=1004.64
+      real, parameter :: r=287.
 c     sets up eigenvectors
       real sig(kl),sigmh(kl+1)
       real dsig(kl)
       real bet(kl),betm(kl),get(kl),getm(kl),gmat(kl,kl)
       real bmat(kl,kl),evimag(kl),veci(kl,kl),sum1(kl)
       real tbar(kl)
-      dimension indic(kl)
+      integer indic(kl)
       real aa(kl,kl),ab(kl,kl),ac(kl,kl)
       real aaa(kl,kl),cc(kl,kl)
       
       aa=0.
       bmat=0.
 
-c     units here are SI, but final output is dimensionless
-      g=9.806
-      cp=1.00464e3
-      r=287.
       do k=1,kl
        dsig(k)=sigmh(k+1)-sigmh(k)
       enddo
@@ -110,7 +113,7 @@ c     constants for semi-implicit scheme
       print *,'some bets done'
       print *,'some bets done'
       c=g/65.e-4
-      bet(1)=c *(sig(1)**(-r/c)-1)
+      bet(1)=c *(sig(1)**(-r/c)-1.)
       if(lapsbot.eq.1)bet(1)=-r*log(sig(1))
       do k=1,kl
        betm(k)=bet(k)
@@ -132,21 +135,12 @@ c     constants for semi-implicit scheme
         bet(1)=-r*log(sig(1))
       endif  ! (lapsbot.eq.3)
       
-c      get(1)=1.-1./sig(1)
-c      do k=2,kl
-c        tlog=log(sig(k)/sig(k-1))/(sig(k)-sig(k-1))
-c        get(k)=tlog-1./sig(k)
-c        getm(k)=1./sig(k-1)-tlog
-c      enddo
-
       get(1)=bet(1)/(r*sig(1))
       do k=2,kl
         get(k)=bet(k)/(r*sig(k))
         getm(k)=betm(k)/(r*sig(k-1))
       enddo      
-      print *,'b'
       factg=2./(dt*(1.+eps))      
-      print *,'c'
       factr=factg*r*r*tbar(1)*tbar(1)/(g*g)
       
       bmat(:,:)=0.  ! N.B. bmat includes effect of r/sig weighting
@@ -157,7 +151,6 @@ c      enddo
         gmat(k,l)=factr*(get(l)+getm(l+1))
        enddo ! l loop
       enddo  ! k loop
-      print *,'d'
       do k=1,kl
        bmat(k,k)=bet(k)
        gmat(k,k)=factr*get(k)
@@ -181,8 +174,6 @@ c      enddo
 
 !     even newer derivation section
       print *,'even newer derivation section'
-      cp=1.00464e3
-      r=287.
 
       do k=1,kl
        do l=1,kl
@@ -219,7 +210,7 @@ c      enddo
 91    format(i3,15f8.1/3x,15f8.1/3x,15f8.1)
 
       if(nh>0)then  ! use gmat instead of bmat to derive aaa ! MJT suggestion
-!     if(nh>-2)then  ! use gmat instead of bmat to derive aaa            
+!     if(nh>-2)then  ! use gmat instead of bmat to derive aaa      
 C     if(nh>-2.and.nh.ne.2)then  ! use gmat instead of bmat to derive aaa term
 !       use nh=-2 to see old eigs, -1 to do hydr. run with NH eigs      
 c        do k=1,kl
@@ -238,8 +229,8 @@ c         print 91,k,(cc(k,l),l=1,kl)
 c        enddo
 c      endif  ! (nh.ne.0)
 
-c      if(nh==2)then  ! use net gmat (June '06) - no eps yet
-        gmat(:,:)=bmat(:,:)*(1.+4.*cp*tbar(1)/(g*dt)**2)
+c      if(nh==2)then  ! use net gmat (June '06)
+        gmat(:,:)=bmat(:,:)*(1.+4.*cp*tbar(1)/((g*dt)**2*(1.+eps)))
         call matm(aaa,gmat,aa)
         cc(:,:)=aaa(:,:)-r*tbar(1)*ab(:,:)
         print *,'cc with gmat'
@@ -250,7 +241,9 @@ c      if(nh==2)then  ! use net gmat (June '06) - no eps yet
       
       aaa(:,:)=cc(:,:)
       call eigenp(kl,kl,aaa,bam,evimag,emat,veci,indic)
+      !print *,'indic',(indic(k),k=1,kl) ! 2 = sucessfull
       print *,'bam',(bam(k),k=1,kl)
+      !print *,'evimag',(evimag(k),k=1,kl) ! should be zero
       print *,'eig '
       do k=1,kl
        print 92,k,(emat(k,l),l=1,kl)

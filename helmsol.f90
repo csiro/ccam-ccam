@@ -15,7 +15,7 @@
       include 'parm.h'
       include 'parmdyn.h'
       include 'mpif.h'
-      integer, parameter :: itmax=100 ! maximum number of iterations allowed
+      integer, parameter :: itmax=200 ! maximum number of iterations allowed
 !     Arguments
       real, intent(in), dimension(ifull) :: zz,zzn,zze,zzw,zzs
 !     WHY are helm and rhs ifull+iextra?????????

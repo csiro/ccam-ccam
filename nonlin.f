@@ -35,6 +35,7 @@
       include 'mpif.h'
       real aa(ifull,kl),bb(ifull,kl)
       real p(ifull+iextra,kl),phiv(ifull+iextra,kl),tv(ifull+iextra,kl)
+      real ddpds(ifull,kl) ! MJT nh
       integer iq, k, ng, ii, jj, its, nits, nvadh_pass, iaero
       real const_nh, contv, delneg, delpos, ratio
       real sumdiffb, sdmx, sdmx_g, spmax2,termlin
@@ -265,15 +266,21 @@ cx      enddo      ! k  loop
       endif     ! (ktau==1.or.nh==0)
 
       if(nh.ne.0)then
-        const_nh=2.*rdry/(dt*grav*grav)  
+        if (abs(epsp).le.1.) then
+          const_nh=2.*rdry/(dt*grav*grav*(1.+abs(epsp)))  
+        else
+          const_nh=2.*rdry/(dt*grav*grav)  
+        end if
         do k=1,kl
          h_nh(1:ifull,k)=(1.+epst(:))*tbar(1)*omgf(:,k)/sig(k)
         enddo
         if (nmaxpr==1) then
           if(mydiag)print *,'h_nh.a ',(h_nh(idjd,k),k=1,kl)
         end if
-        if(nh==3)then  ! not for k=1 or k=kl
+        select case(nh)
+         case(3)
           do k=2,kl-1
+           ! now includes epst
            h_nh(1:ifull,k)=h_nh(1:ifull,k)
      &       -(sig(k)*(phi(:,k+1)-phi(:,k-1))/(rdry*(sig(k+1)-sig(k-1)))
      &       +t(1:ifull,k))/(const_nh*tbar2d(:))
@@ -282,9 +289,12 @@ cx      enddo      ! k  loop
           k=1
           h_nh(1:ifull,k)=h_nh(1:ifull,k)
      &      -(sig(k)*(phi(:,k+1)-zs(1:ifull))/(rdry*(sig(k+1)-1.))
-     &      +t(1:ifull,k))/(const_nh*tbar2d(:))         
-        endif  ! (nh==3)
-        if(nh==2)then  ! was -2 add in other term explicitly, more consistently
+     &      +t(1:ifull,k))/(const_nh*tbar2d(:))
+          k=kl
+          h_nh(1:ifull,k)=h_nh(1:ifull,k)
+     &      -(sig(k)*(phi(:,k)-phi(:,k-1))/(rdry*(sig(k)-sig(k-1)))
+     &      +t(1:ifull,k))/(const_nh*tbar2d(:))
+         case(2) ! was -2 add in other term explicitly, more consistently
 !         N.B. nh=2 needs lapsbot=3        
           do k=2,kl
            h_nh(1:ifull,k)=h_nh(1:ifull,k)
@@ -295,8 +305,7 @@ cx      enddo      ! k  loop
            h_nh(1:ifull,k)=h_nh(1:ifull,k)
      &       -((phi(:,k)-zs(1:ifull))/bet(k)         ! using bet
      &       +t(1:ifull,k))/(const_nh*tbar2d(:))
-        endif  ! (nh==2)
-        if(nh==4)then  ! was -3 add in other term explicitly, more accurately?
+         case(4) ! was -3 add in other term explicitly, more accurately?
           do k=2,kl-1
            h_nh(1:ifull,k)=h_nh(1:ifull,k)
      &     -(((sig(k)-sig(k-1))*(phi(:,k+1)-phi(:,k))/(sig(k+1)-sig(k))+
@@ -311,7 +320,21 @@ cx      enddo      ! k  loop
      &    ((sig(k+1)-sig(k))*(phi(:,k)-zs(1:ifull))/(sig(k)-1.)))
      &     *sig(k)/(rdry*(sig(k+1)-1.))  
      &      +t(1:ifull,k))/(const_nh*tbar2d(:))
-        endif  ! (nh==4)
+         case(5)
+          ! MJT - This method is compatible with bet(k) and betm(k)
+          ! For hydrostatic case, ddpsds exactly cancels with t.
+          ! This is the same as nh==2, but works for all lapsbot
+          ! ddpds is (sig/rdry)*d(phi)/d(sig)
+          ddpds(:,1)=-(phi(:,1)-zs(1:ifull))/bet(1)
+          do k=2,kl
+            ddpds(:,k)=-(phi(:,k)-phi(:,k-1))/bet(k)
+     &        -betm(k)*ddpds(:,k-1)/bet(k)
+          end do
+          do k=1,kl
+            h_nh(1:ifull,k)=h_nh(1:ifull,k)
+     &        -(ddpds(:,k)+t(1:ifull,k))/(const_nh*tbar2d(:))
+          end do
+        end select
         if (nmaxpr==1) then
           if (mydiag)then
             print *,'h_nh.b ',(h_nh(idjd,k),k=1,kl)
