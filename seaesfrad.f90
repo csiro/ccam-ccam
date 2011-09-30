@@ -1,4 +1,6 @@
-! Interface for SEA-ESF radiation scheme from GFDL with CCAM.
+! Interface for SEA-ESF radiation scheme (from GFDL AM2.1) with CCAM.
+
+! Interface developed by M Thatcher and M Golebiewski
 
 ! - This routine assumes that only one month at a time is integrated in RCM mode
 
@@ -89,7 +91,7 @@ real, dimension(imax) :: qsat,coszro2,taudar2,coszro,taudar
 real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn
 real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr,sga
 real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
-real, dimension(imax) :: dprf
+real, dimension(imax) :: dprf,dumfbeam
 real, dimension(imax,kl) :: duo3n,rhoa
 real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
 real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt
@@ -123,10 +125,6 @@ real(kind=8), dimension(:,:,:,:), allocatable :: r
 
 call start_log(radmisc_begin)
 
-if (.not.allocated(sgamp)) then
-  allocate(sgamp(ifull),rtt(ifull,kl))
-end if
-
 ! Aerosol flag
 do_aerosol_forcing=abs(iaero).ge.2
 
@@ -155,13 +153,16 @@ ssolar = csolar / (r1*r1)
 if ( first ) then
   first = .false.
 
+  if (myid==0) write(6,*) "Initalising SEA-ESF radiation"
+  allocate(sgamp(ifull),rtt(ifull,kl))
+
   ! initialise co2
   call co2_read(sig,jyear)
   rrco2=rrvco2*ratco2mw
 
   ! initialise ozone
   if(amipo3)then
-    write(6,*) 'AMIP2 ozone input'
+    if (myid==0) write(6,*) 'AMIP2 ozone input'
     call o3read_amip
   else
     call o3_read(sig,jyear,jmonth)
@@ -505,7 +506,7 @@ do j=1,jl,imax/il
 
     ! Water/Ice albedo --------------------------------------------
     ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
-    ! J. Clim. and Appl. Met., v. 27, 214-226)     ! 
+    ! J. Clim. and Appl. Met., v. 27, 214-226)
     where (.not.land(istart:iend).and.coszro(1:imax).ge.0.)
       cuvrf_dir(1:imax)=0.026/(coszro(1:imax)**1.7+0.065)                  &
         +0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
@@ -526,10 +527,10 @@ do j=1,jl,imax/il
     call mloalb4(istart,imax,coszro,cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)    
 
     ! Urban albedo --------------------------------------------------
-    call atebalb1(istart,imax,cuvrf_dir(1:imax),0)
-    call atebalb1(istart,imax,cirrf_dir(1:imax),0)
-    call atebalb1(istart,imax,cuvrf_dif(1:imax),0)
-    call atebalb1(istart,imax,cirrf_dif(1:imax),0)
+    call atebalb1(istart,imax,cuvrf_dir(1:imax),0,split=1)
+    call atebalb1(istart,imax,cirrf_dir(1:imax),0,split=1)
+    call atebalb1(istart,imax,cuvrf_dif(1:imax),0,split=2)
+    call atebalb1(istart,imax,cirrf_dif(1:imax),0,split=2)
 
     ! Aerosols -------------------------------------------------------
     do k=1,kl
@@ -848,6 +849,10 @@ do j=1,jl,imax/il
       clm_ave(istart:iend)  = clm_ave(istart:iend)  + cloudmi(istart:iend)
       clh_ave(istart:iend)  = clh_ave(istart:iend)  + cloudhi(istart:iend)
     endif   ! (ktau>1)
+    
+    ! Store fraction of direct radiation in urban scheme
+    dumfbeam=fbeamvis(istart:iend)*swrsave(istart:iend)+fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
+    call atebfbeam(istart,imax,dumfbeam,0)
 
   end if  ! odcalc
       
@@ -896,17 +901,17 @@ implicit none
 !    sea_esf_rad_mod.
 !--------------------------------------------------------------------
 
-integer,                      intent(in)     :: is, ie, js, je
-type(time_type),              intent(in)     :: Rad_time
-type(atmos_input_type),       intent(in)     :: Atmos_input  
-type(radiative_gases_type),   intent(inout)  :: Rad_gases   
-type(aerosol_type),           intent(in)     :: Aerosol     
-type(aerosol_properties_type),intent(inout)  :: Aerosol_props
-type(aerosol_diagnostics_type),intent(inout)  :: Aerosol_diags
-type(cldrad_properties_type), intent(in)     :: Cldrad_props
-type(cld_specification_type), intent(in)     :: Cld_spec     
-type(lw_output_type), dimension(:),  intent(inout)  :: Lw_output
-type(lw_diagnostics_type)  :: Lw_diagnostics
+integer,                            intent(in)     :: is, ie, js, je
+type(time_type),                    intent(in)     :: Rad_time
+type(atmos_input_type),             intent(in)     :: Atmos_input  
+type(radiative_gases_type),         intent(inout)  :: Rad_gases   
+type(aerosol_type),                 intent(in)     :: Aerosol     
+type(aerosol_properties_type),      intent(inout)  :: Aerosol_props
+type(aerosol_diagnostics_type),     intent(inout)  :: Aerosol_diags
+type(cldrad_properties_type),       intent(in)     :: Cldrad_props
+type(cld_specification_type),       intent(in)     :: Cld_spec     
+type(lw_output_type), dimension(:), intent(inout)  :: Lw_output
+type(lw_diagnostics_type), save                    :: Lw_diagnostics
 
 !--------------------------------------------------------------------
 !   intent(in) variables:
@@ -953,22 +958,6 @@ type(lw_diagnostics_type)  :: Lw_diagnostics
                       Rad_gases, Aerosol, Aerosol_props, Cldrad_props, &
                       Cld_spec, Aerosol_diags, Lw_output(1),           &
                       Lw_diagnostics, do_aerosol_forcing)
-
-!--------------------------------------------------------------------
-!    deallocate the components of Lw_diagnostics.
-!--------------------------------------------------------------------
-      deallocate (Lw_diagnostics%flx1e1)
-      deallocate (Lw_diagnostics%fluxn )
-      deallocate (Lw_diagnostics%cts_out)
-      deallocate (Lw_diagnostics%cts_outcf)
-      deallocate (Lw_diagnostics%gxcts )
-      deallocate (Lw_diagnostics%excts )
-      deallocate (Lw_diagnostics%exctsn)
-      deallocate (Lw_diagnostics%fctsg )
-      deallocate (Lw_diagnostics%flx1e1f)
-      if (Rad_control%do_totcld_forcing) then
-        deallocate (Lw_diagnostics%fluxncf)
-      endif        
 
 !---------------------------------------------------------------------
 

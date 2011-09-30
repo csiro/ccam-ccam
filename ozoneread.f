@@ -24,6 +24,7 @@ c
 c     Reads the ozone data from the o3_datafile (filename set in namelist)
 c
       use cc_mpi, only : myid ! MJT read
+      use infile, only : ncmsg
 
       implicit none
 
@@ -45,76 +46,83 @@ c
       !--------------------------------------------------------------
       ! MJT read
       if (myid==0) then
+        write(6,*) "Reading ",trim(o3file)
         ncstatus=nf_open(o3file,nf_nowrite,ncid)
         if (ncstatus.eq.0) then
-          allocate(o3pre(ifull,kl),o3mth(ifull,kl),o3nxt(ifull,kl))
           write(6,*) "Ozone in NetCDF format (CMIP5)"
-          ncstatus=nf_inq_dimid(ncid,'time',valident)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
-          ncstatus=nf_inq_dimlen(ncid,valident,tt)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
           ncstatus=nf_inq_dimid(ncid,'lon',valident)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('lon',ncstatus)
           ncstatus=nf_inq_dimlen(ncid,valident,ii)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('lon',ncstatus)
           allocate(o3lon(ii))
           ncstatus=nf_inq_varid(ncid,'lon',valident)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('lon',ncstatus)
           ncstatus=nf_get_vara_real(ncid,valident,1,ii,o3lon)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('lon',ncstatus)
           ncstatus=nf_inq_dimid(ncid,'lat',valident)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('lat',ncstatus)
           ncstatus=nf_inq_dimlen(ncid,valident,jj)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('lat',ncstatus)
           allocate(o3lat(jj))
           ncstatus=nf_inq_varid(ncid,'lat',valident)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('lat',ncstatus)
           ncstatus=nf_get_vara_real(ncid,valident,1,jj,o3lat)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('lat',ncstatus)
           ncstatus=nf_inq_dimid(ncid,'plev',valident)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('plev',ncstatus)
           ncstatus=nf_inq_dimlen(ncid,valident,kk)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('plev',ncstatus)
           allocate(o3pres(kk))
           ncstatus=nf_inq_varid(ncid,'plev',valident)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('plev',ncstatus)
           ncstatus=nf_get_vara_real(ncid,valident,1,kk,o3pres)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('plev',ncstatus)
+          ncstatus=nf_inq_dimid(ncid,'time',valident)
+          call ncmsg('time',ncstatus)
+          ncstatus=nf_inq_dimlen(ncid,valident,tt)
+          call ncmsg('time',ncstatus)
           ncstatus=nf_inq_varid(ncid,'time',valident)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('time',ncstatus)
           ncstatus=nf_get_att_text(ncid,valident,'units',cdate)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('time',ncstatus)
           ncstatus=nf_get_vara_int(ncid,valident,1,1,iti)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
-          ncstatus=nf_inq_varid(ncid,'O3',valident)
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('time',ncstatus)
+          write(6,*) "Found ozone dimensions ",ii,jj,kk,tt
+          allocate(o3dum(ii,jj,kk,3))
           read(cdate(14:17),*) yy
           read(cdate(19:20),*) mm
           yy=yy+iti/12
           mm=mm+mod(iti,12)
+          write(6,*) "Requested date ",jyear,jmonth
+          write(6,*) "Initial ozone date ",yy,mm
           nn=(jyear-yy)*12+(jmonth-mm)+1
           if (nn.lt.1.or.nn.gt.tt) then
             write(6,*) "ERROR: Cannot find date in ozone data"
             stop
           end if
+          write(6,*) "Found ozone data at index ",nn
           spos=1
           npos(1)=ii
           npos(2)=jj
           npos(3)=kk
           npos(4)=1
-          allocate(o3dum(ii,jj,kk,3))
+          write(6,*) "Reading O3"
+          ncstatus=nf_inq_varid(ncid,'O3',valident)
+          call ncmsg('O3',ncstatus)
           spos(4)=max(nn-1,1)
           ncstatus=nf_get_vara_real(ncid,valident,spos,npos,
      &                              o3dum(:,:,:,1))
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('prev',ncstatus)
           spos(4)=nn
           ncstatus=nf_get_vara_real(ncid,valident,spos,npos,
      &                              o3dum(:,:,:,2))
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('curr',ncstatus)
           spos(4)=min(nn+1,tt)
           ncstatus=nf_get_vara_real(ncid,valident,spos,npos,
      &                              o3dum(:,:,:,3))
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('next',ncstatus)
+          ncstatus=nf_close(ncid)
+          call ncmsg('ozone file',ncstatus)
         else
           write(6,*) "Ozone in ASCII format (CMIP3)"
           ii=0
@@ -123,7 +131,7 @@ c
           open(16,file=o3file,form='formatted',status='old')
           read(16,*) nlev
           if ( nlev.ne.kl ) then
-            print*, ' ERROR - Number of levels wrong in o3_data file'
+            write(6,*) ' ERROR - Number of levels wrong in o3_data file'
 	      stop
           end if
 c         Check that the sigma levels are the same
@@ -131,8 +139,8 @@ c         Note that the radiation data has the levels in the reverse order
           read(16,*) (sigin(i),i=kl,1,-1)
           do k=1,kl
 	      if ( abs(sigma(k)-sigin(k)) .gt. sigtol ) then
-	        print*, ' ERROR - sigma level wrong in o3_data file'
-	        print*, k, sigma(k), sigin(k)
+	        write(6,*) ' ERROR - sigma level wrong in o3_data file'
+	        write(6,*) k, sigma(k), sigin(k)
 	        stop
             end if
           end do
@@ -148,13 +156,14 @@ c         o3dat are in the order DJF, MAM, JJA, SON
           close(16)
  1000     format(9f8.5)
         end if
+        write(6,*) "Finished reading ozone data"
       end if
       call MPI_Bcast(ii,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       if (ii.gt.0) then
         call MPI_Bcast(jj,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
         call MPI_Bcast(kk,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+        allocate(o3pre(ifull,kk),o3mth(ifull,kk),o3nxt(ifull,kk))
         if (myid.ne.0) then
-          allocate(o3pre(ifull,kk),o3mth(ifull,kk),o3nxt(ifull,kk))
           allocate(o3lon(ii),o3lat(jj),o3pres(kk))
           allocate(o3dum(ii,jj,kk,3))
         end if
@@ -162,6 +171,7 @@ c         o3dat are in the order DJF, MAM, JJA, SON
         call MPI_Bcast(o3lon,ii,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         call MPI_Bcast(o3lat,jj,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         call MPI_Bcast(o3pres,kk,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+        if (myid==0) write(6,*) "Interpolate ozone data to CC grid"
         call o3regrid(o3pre,o3mth,o3nxt,o3dum,o3lon,o3lat,
      &                ii,jj,kk)
         deallocate(o3dum,o3lat,o3lon)
@@ -176,6 +186,8 @@ c         o3dat are in the order DJF, MAM, JJA, SON
         call MPI_Bcast(ddo3n3,37*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
       end if
+      
+      if (myid==0) write(6,*) "Finished processing ozone data"
       !--------------------------------------------------------------
       
       return

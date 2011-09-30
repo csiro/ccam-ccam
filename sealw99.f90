@@ -2586,6 +2586,23 @@ logical,                   intent(in)            :: including_aerosols
       
 !--------------------------------------------------------------------
 
+! gol124: deallocation of Lw_diagnostics, moved here from longwave_driver
+! gol124: deallocation commented out, to re-use arrays on the next call
+!--------------------------------------------------------------------
+!    deallocate the components of Lw_diagnostics.
+!--------------------------------------------------------------------
+!      deallocate (Lw_diagnostics%flx1e1)
+!      deallocate (Lw_diagnostics%fluxn )
+!      deallocate (Lw_diagnostics%cts_out)
+!      deallocate (Lw_diagnostics%cts_outcf)
+!      deallocate (Lw_diagnostics%gxcts )
+!      deallocate (Lw_diagnostics%excts )
+!      deallocate (Lw_diagnostics%exctsn)
+!      deallocate (Lw_diagnostics%fctsg )
+!      deallocate (Lw_diagnostics%flx1e1f)
+!      if (Rad_control%do_totcld_forcing) then
+!        deallocate (Lw_diagnostics%fluxncf)
+!      endif        
 
 end subroutine sealw99 
 
@@ -3292,7 +3309,9 @@ type(lw_diagnostics_type), intent(inout) :: Lw_diagnostics
 !   local variables:
 
       integer ::  NBTRGE, NBLY
-    
+
+      ! gol124: allocate only if not done previously!
+      IF (.NOT. associated(Lw_diagnostics%flx1e1)) THEN
 !---------------------------------------------------------------------
 !    allocate (and initialize where necessary) lw_diagnostics_type 
 !    component arrays.
@@ -3309,23 +3328,32 @@ type(lw_diagnostics_type), intent(inout) :: Lw_diagnostics
       allocate (Lw_diagnostics%exctsn    (ix, jx, kx,   NBLY    ) )
       allocate (Lw_diagnostics%fctsg     (ix, jx,       NBLY    ) )
 
-      Lw_diagnostics%flx1e1   = 0.
-      Lw_diagnostics%cts_out    = 0.
-      Lw_diagnostics%cts_outcf = 0.
-      Lw_diagnostics%gxcts    = 0.
-      Lw_diagnostics%excts  = 0.
-      Lw_diagnostics%exctsn   = 0.
-      Lw_diagnostics%fctsg   = 0.
+      allocate( Lw_diagnostics%flx1e1f  (ix, jx,       NBTRGE  ) )
 
-      Lw_diagnostics%fluxn  (:,:,:,:) = 0.0
+      ! gol124: end if not allocated
+      END IF
 
-      if (Rad_control%do_totcld_forcing) then
+      ! gol124: skip init as it is always done before 1st use
+!      Lw_diagnostics%flx1e1   = 0.
+!      Lw_diagnostics%cts_out    = 0.
+!      Lw_diagnostics%cts_outcf = 0.
+!      Lw_diagnostics%gxcts    = 0.
+!      Lw_diagnostics%excts  = 0.
+!      Lw_diagnostics%exctsn   = 0.
+!      Lw_diagnostics%fctsg   = 0.
+
+!      Lw_diagnostics%fluxn  (:,:,:,:) = 0.0
+
+!      if (Rad_control%do_totcld_forcing) then
+      if (Rad_control%do_totcld_forcing .AND. &
+         .NOT. associated(Lw_diagnostics%fluxncf )) then
         allocate ( Lw_diagnostics%fluxncf (ix, jx, kx+1, 6+NBTRGE) )
-        Lw_diagnostics%fluxncf(:,:,:,:) = 0.0
+!        Lw_diagnostics%fluxncf(:,:,:,:) = 0.0
       endif
 
-        allocate( Lw_diagnostics%flx1e1f  (ix, jx,       NBTRGE  ) )
-         Lw_diagnostics%flx1e1f  = 0.
+      ! gol124: moved above inside if not allocated
+!      allocate( Lw_diagnostics%flx1e1f  (ix, jx,       NBTRGE  ) )
+!       Lw_diagnostics%flx1e1f  = 0.
 
 !--------------------------------------------------------------------
 

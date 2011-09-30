@@ -4,7 +4,7 @@
       ! vertical interpolation and some calendar functions
             
       private
-      public histrd1,histrd4s,vertint,datefix,getzinp
+      public histrd1,histrd4s,vertint,datefix,getzinp,ncmsg
       
       contains
 
@@ -15,6 +15,8 @@ c*************************************************************************
       integer ncid,iarchi,ier,ik,jk,ifull
       character name*(*)
       real, dimension(:), intent(inout) :: var ! may be dummy argument from myid.ne.0
+      ! split up processors to save memory.  No need to allocate global
+      ! arrays on myid.ne.0.
       if (myid==0) then
         if (size(var).ne.ifull) then
           write(6,*) "ERROR: Incorrect use of dummy var in histrd1"
@@ -144,8 +146,10 @@ c      unpack data
       count = (/   ik,   jk, 1, 1 /)
       idv = ncvid(ncid,name,ier)
       if(ier.ne.0)then
-       write(6,*) '***absent hist4 field for ncid,name,idv,ier: ',
+       if(kk.eq.1)then
+        write(6,*) '***absent hist4 field for ncid,name,idv,ier: ',
      &                                         ncid,name,idv,ier
+       endif
       else
 c      read in all data
        ier=nf_inq_vartype(ncid,idv,nctype)
@@ -222,6 +226,7 @@ c      unpack data
 !     N.B. this ia called just from indata or nestin      
 !     transforms 3d array from dimension kk in vertical to kl   jlm
 !     jlm vector special, just with linear new=1 option
+      use cc_mpi, only : myid
       use sigs_m
       include 'newmpar.h'
       include 'parm.h'
@@ -267,17 +272,19 @@ c      unpack data
            wtb(k)=(sig(k)-sigin(kin)  )/(sigin(kin-1)-sigin(kin))
          endif  !  (sig(k)>=sigin(1)) ... ...
         enddo   !  k loop
-        write(6,*) 'in vertint kk,kl ',kk,kl
-        write(6,91) (sigin(k),k=1,kk)
-91      format('sigin',10f7.4)
-        write(6,92) sig
-92      format('sig  ',10f7.4)
-        write(6,*) 'ka ',ka
-        write(6,*) 'kb ',kb
-        write(6,93) wta
-93      format('wta',10f7.4)
-        write(6,94) wtb
-94      format('wtb',10f7.4)
+        if (myid==0) then
+          write(6,*) 'in vertint kk,kl ',kk,kl
+          write(6,91) (sigin(k),k=1,kk)
+91        format('sigin',10f7.4)
+          write(6,92) sig
+92        format('sig  ',10f7.4)
+          write(6,*) 'ka ',ka
+          write(6,*) 'kb ',kb
+          write(6,93) wta
+93        format('wta',10f7.4)
+          write(6,94) wtb
+94        format('wtb',10f7.4)
+        endif   !  (myid==0)
       endif     !  (num==0)
 
       !told(:,:)=t(:,:) ! MJT vertint
@@ -447,5 +454,28 @@ c     print *,'in vertint t',t(idjd,:)
 
       return
       end subroutine getzinp
+
+      !--------------------------------------------------------------
+      ! Trap netcdf error messages
+      subroutine ncmsg(txt,ncstatus)
+
+      use cc_mpi
+
+      implicit none
+
+      include 'mpif.h'
+      include 'netcdf.inc'
+
+      character(len=*), intent(in) :: txt
+      integer, intent(in) :: ncstatus
+      integer ierr2,ierr
+
+      if (ncstatus.ne.0) then
+        write(6,*) txt," ",nf_strerror(ncstatus)
+        call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
+      end if
+
+      return
+      end subroutine ncmsg
 
       end module infile

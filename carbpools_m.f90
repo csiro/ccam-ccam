@@ -1,5 +1,7 @@
 module carbpools_m
 
+use define_dimensions, only : ncs,ncp   ! CABLE dimensions
+
 implicit none
 
 private
@@ -14,11 +16,11 @@ real, dimension(:,:), allocatable, save :: cplant,csoil
 
 contains
 
-subroutine carbpools_init(ifull,iextra,kl,ncp,ncs)
+subroutine carbpools_init(ifull,iextra,kl)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,ncp,ncs
+integer, intent(in) :: ifull,iextra,kl
 
 allocate(fnee(ifull),fpn(ifull),frd(ifull),frp(ifull))
 allocate(frpw(ifull),frpr(ifull),frs(ifull))

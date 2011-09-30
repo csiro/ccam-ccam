@@ -23,6 +23,7 @@
       include 'cparams.h'    !Input cloud scheme parameters
       include 'kuocom.h'  ! acon,bcon,Rcm
       include 'parm.h'
+      include 'params.h'
 
 c for cfrp
       real taul(icfrp,kl)
@@ -75,6 +76,13 @@ c These outputs are not used in this model at present
 
       integer kbase(ifullw),ktop(ifullw) !Bottom and top of convective cloud 
       include 'establ.h' ! provides qsat formula
+
+      ! set-up params.h
+      ln2=ifull
+      lon=ln2/2
+      nl=kl
+      nlp=nl+1
+      nlm=nl-1
 
       do k=1,kl   
          do iq=1,ifull

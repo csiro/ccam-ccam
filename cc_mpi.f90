@@ -211,25 +211,21 @@ contains
       
 #ifdef uniform_decomp
       call proc_setup_uniform(npanels,ifull)
-#else
-      call proc_setup(npanels,ifull)
-#endif
-
-#ifdef DEBUG
-      write(6,*) "Grid", npan, ipan, jpan
-      write(6,*) "Offsets", myid, ioff(:), joff(:), noff
-#endif
-
-#ifdef uniform_decomp
       ! Faces may not line up properly so need extra factor here
       maxbuflen = (max(ipan,jpan)+4)*3*max(kl,ol) * 8 * 2  !*3 for extra vector row (e.g., inu,isu,iev,iwv)
 #else
+      call proc_setup(npanels,ifull)
       if ( nproc < npanels+1 ) then
          ! This is the maximum size, each face has 4 edges
          maxbuflen = npan*4*(il_g+4)*3*max(kl,ol) !*3 for extra vector row (e.g., inu,isu,iev,iwv)
       else
          maxbuflen = (max(ipan,jpan)+4)*3*max(kl,ol) !*3 for extra vector row (e.g., inu,isu,iev,iwv)
       end if
+#endif
+
+#ifdef DEBUG
+      write(6,*) "Grid", npan, ipan, jpan
+      write(6,*) "Offsets", myid, ioff(:), joff(:), noff
 #endif
 
       ! Also do the initialisation for deptsync here
@@ -2276,7 +2272,6 @@ contains
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
-      !real, dimension(ifull+iextra,kl), intent(inout) :: u, v
       real, dimension(:,:), intent(inout) :: u, v
       integer, intent(in), optional :: nrows
       integer :: iq
@@ -2370,22 +2365,6 @@ contains
          else
             recv_len = bnds(myid)%rlen_uv
          end if
-!!$!cdir nodep
-!!$         do iq=1,recv_len
-!!$            ! request_list is same as send_list in this case
-!!$            if ( (bnds(myid)%request_list_uv(iq) > 0) .neqv. &
-!!$                     bnds(myid)%uv_swap(iq) ) then  ! haven't copied to send_swap yet
-!!$               tmp = u(abs(bnds(myid)%request_list_uv(iq)),:)
-!!$            else
-!!$               tmp = v(abs(bnds(myid)%request_list_uv(iq)),:)
-!!$            end if
-!!$            ! unpack_list(iq) is index into extended region
-!!$            if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
-!!$               u(ifull+bnds(myid)%unpack_list_uv(iq),:) = tmp
-!!$            else
-!!$               v(ifull-bnds(myid)%unpack_list_uv(iq),:) = tmp
-!!$            end if
-!!$         end do
 !        Split this in two for better vectorisation
 !cdir nodep
          do iq=1,recv_len
@@ -2671,16 +2650,11 @@ contains
 
       ! Calculate global iqg from local iq
 
+      ! MJT bug fix (should be ipan and jpan, not il and jl)
       ! Calculate local i, j, n
-#ifdef uniform_decomp
-      n = 1 + (iq-1)*6 / (il*jl)  ! In range 1 .. npan
-      j = 1 + ( iq - (n-1)*(il*jl)/6 - 1) / il
-      i = iq - (j-1)*il - (n-1)*(il*jl)/6
-#else
-      n = 1 + (iq-1) / (il*jl)  ! In range 1 .. npan
-      j = 1 + ( iq - (n-1)*(il*jl) - 1) / il
-      i = iq - (j-1)*il - (n-1)*(il*jl)
-#endif
+      n = 1 + (iq-1)/(ipan*jpan)  ! In range 1 .. npan
+      j = 1 + ( iq - (n-1)*(ipan*jpan) - 1) / ipan
+      i = iq - (j-1)*ipan - (n-1)*(ipan*jpan)
       iqg = indg(i,j,n)
 
    end function iq2iqg
@@ -3024,6 +2998,11 @@ contains
             end do
          end do
       end do
+      
+      if (any(qproc.lt.0)) then
+        write(6,*) "Error, incorrect assignment of processors to qproc"
+        call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
+      end if
 
       ! Set offsets for this processor
       do n=0,npanels

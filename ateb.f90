@@ -18,11 +18,15 @@
 !   ...
 !   do t=1,tmax
 !     ...
-!     call atebnewangle ! store current solar zenith and azimuthal angle (use tebccangle for CCAM or
-!                       ! use tebnewangle1 for a single grid point)
-!     call atebcalc     ! calculates urban temperatures, fluxes, etc and blends with input
-!     call atebalb      ! blends input and urban albedo (use tebalb1 for a single grid point)
-!     call atebcd       ! blends input and urban drag coefficent (use tebzo for blending momentum and heat roughness lengths)
+!     call atebnewangle1     ! store current solar zenith and azimuthal angle (use atebccangle for CCAM)
+!     call atebalb1(split=1) ! returns urban albedo for direct component of shortwave radiation
+!     call atebalb1(split=2) ! returns urban albedo for diffuse component of shortwave radiation
+!     ...
+!     call atebfbeam         ! store fraction of direct shortwave radiation
+!     call atebalb1          ! returns net urban albedo
+!     ...
+!     call atebcalc          ! calculates urban temperatures, fluxes, etc and blends with input
+!     call atebcd            ! returns urban drag coefficent (use atebzo for roughness length)
 !     ...
 !   end do
 !   ...
@@ -49,7 +53,7 @@ implicit none
 private
 public atebinit,atebcalc,atebend,atebzo,atebload,atebsave,atebtype,atebfndef,atebalb1, &
        atebnewangle1,atebccangle,atebdisable,atebloadm,atebsavem,atebcd,vegmode,       &
-       atebdwn,atebscrnout
+       atebdwn,atebscrnout,atebfbeam,atebspitter
 
 ! state arrays
 integer, save :: ufull,ifull,iqut
@@ -65,7 +69,7 @@ real, dimension(:), allocatable, save :: v_water,v_moist
 real, dimension(:,:), allocatable, save :: f_roofdepth,f_walldepth,f_roaddepth,f_vegdepth
 real, dimension(:,:), allocatable, save :: f_roofcp,f_wallcp,f_roadcp,f_vegcp
 real, dimension(:,:), allocatable, save :: f_rooflambda,f_walllambda,f_roadlambda,f_veglambda
-real, dimension(:), allocatable, save :: f_hwratio,f_sigmabld,f_industryfg,f_trafficfg,f_bldheight,f_vangle,f_hangle
+real, dimension(:), allocatable, save :: f_hwratio,f_sigmabld,f_industryfg,f_trafficfg,f_bldheight,f_vangle,f_hangle,f_fbeam
 real, dimension(:), allocatable, save :: f_roofalpha,f_wallalpha,f_roadalpha,f_ctime,f_roofemiss,f_wallemiss,f_roademiss
 real, dimension(:), allocatable, save :: f_bldtemp,f_sigmaveg,f_vegalpha,f_vegemiss
 real, dimension(:), allocatable, save :: p_lzom,p_lzoh,p_cndzmin,p_cduv,p_vegtemp
@@ -164,8 +168,9 @@ allocate(f_roofdepth(ufull,3),f_walldepth(ufull,3),f_roaddepth(ufull,3),f_vegdep
 allocate(f_roofcp(ufull,3),f_wallcp(ufull,3),f_roadcp(ufull,3),f_vegcp(ufull,3))
 allocate(f_rooflambda(ufull,3),f_walllambda(ufull,3),f_roadlambda(ufull,3),f_veglambda(ufull,3))
 allocate(f_hwratio(ufull),f_sigmabld(ufull),f_industryfg(ufull),f_trafficfg(ufull),f_bldheight(ufull),f_vangle(ufull))
-allocate(f_hangle(ufull),f_roofalpha(ufull),f_wallalpha(ufull),f_roadalpha(ufull),f_ctime(ufull),f_roofemiss(ufull))
-allocate(f_wallemiss(ufull),f_roademiss(ufull),f_bldtemp(ufull),f_sigmaveg(ufull),f_vegalpha(ufull),f_vegemiss(ufull))
+allocate(f_hangle(ufull),f_fbeam(ufull),f_roofalpha(ufull),f_wallalpha(ufull),f_roadalpha(ufull),f_ctime(ufull))
+allocate(f_roofemiss(ufull),f_wallemiss(ufull),f_roademiss(ufull),f_bldtemp(ufull),f_sigmaveg(ufull),f_vegalpha(ufull))
+allocate(f_vegemiss(ufull))
 allocate(p_lzom(ufull),p_lzoh(ufull),p_cndzmin(ufull),p_cduv(ufull),p_vegtemp(ufull))
 allocate(p_tscrn(ufull),p_qscrn(ufull),p_uscrn(ufull),p_u10(ufull),p_emiss(ufull))
 allocate(rf_temp(ufull,3),rf_water(ufull),rf_snow(ufull))
@@ -237,6 +242,7 @@ f_bldtemp=291.
 f_vangle=0.
 f_hangle=0.
 f_ctime=0.
+f_fbeam=1.
 
 utype=1 ! default urban
 call atebtype(utype,diag)
@@ -272,8 +278,9 @@ deallocate(f_roofdepth,f_walldepth,f_roaddepth,f_vegdepth)
 deallocate(f_roofcp,f_wallcp,f_roadcp,f_vegcp)
 deallocate(f_rooflambda,f_walllambda,f_roadlambda,f_veglambda)
 deallocate(f_hwratio,f_sigmabld,f_industryfg,f_trafficfg,f_bldheight,f_vangle)
-deallocate(f_hangle,f_roofalpha,f_wallalpha,f_roadalpha,f_ctime,f_roofemiss)
-deallocate(f_wallemiss,f_roademiss,f_bldtemp,f_sigmaveg,f_vegalpha,f_vegemiss)
+deallocate(f_hangle,f_fbeam,f_roofalpha,f_wallalpha,f_roadalpha,f_ctime)
+deallocate(f_roofemiss,f_wallemiss,f_roademiss,f_bldtemp,f_sigmaveg,f_vegalpha)
+deallocate(f_vegemiss)
 deallocate(p_lzom,p_lzoh,p_cndzmin,p_cduv,p_vegtemp)
 deallocate(p_tscrn,p_qscrn,p_uscrn,p_u10,p_emiss)
 deallocate(rf_temp,rf_water,rf_snow)
@@ -657,15 +664,92 @@ return
 end subroutine atebcd
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! This subroutine calculates the urban contrabution to albedo.
-! (selected grid points only)
+! Store fraction of direct radiation
+!
 
-subroutine atebalb1(is,ifin,alb,diag,raw)
+subroutine atebfbeam(is,ifin,fbeam,diag)
 
 implicit none
 
 integer, intent(in) :: is,ifin,diag
-integer i,ucount,ib,ie,ifinish
+integer ifinish,ib,ie,ucount
+real, dimension(ifin), intent(in) :: fbeam
+
+if (ufull.eq.0) return
+
+ifinish=is+ifin-1
+ucount=count(upack(is:ifinish))
+if (ucount.eq.0) return
+
+ib=count(upack(1:is-1))+1
+ie=ucount+ib-1
+f_fbeam(ib:ie)=pack(fbeam,upack(is:ifinish))
+
+return
+end subroutine atebfbeam
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Use Spitter et al (1986) method to estimate fraction of direct
+! shortwave radiation.
+! (from CABLE v1.4)
+!
+
+subroutine atebspitter(is,ifin,fjd,sg,cosin,diag)
+
+implicit none
+
+integer, intent(in) :: is,ifin,diag
+integer ib,ie,ucount,ifinish
+real, dimension(ifin), intent(in) :: sg,cosin
+real, dimension(ufull) :: tmpr,tmpk,tmprat
+real, dimension(ufull) :: lsg,lcosin
+real, intent(in) :: fjd
+real, parameter :: solcon = 1370.
+
+if (ufull.eq.0) return
+
+ifinish=is+ifin-1
+ucount=count(upack(is:ifinish))
+if (ucount.eq.0) return
+
+ib=count(upack(1:is-1))+1
+ie=ucount+ib-1
+
+f_fbeam(ib:ie)=0.
+lsg(ib:ie)=pack(sg,upack(is:ifinish))
+lcosin(ib:ie)=pack(cosin,upack(is:ifinish))
+
+tmpr(ib:ie)=0.847+lcosin(ib:ie)*(1.04*lcosin(ib:ie)-1.61)
+tmpk(ib:ie)=(1.47-tmpr(ib:ie))/1.66
+tmprat(ib:ie)=0.
+where (lcosin(ib:ie).gt.1.0e-10 .and. lsg(ib:ie).gt.10.)
+  tmprat(ib:ie)=lsg(ib:ie)/(solcon*(1.+0.033*cos(2.*pi*(fjd-10.)/365.))*lcosin(ib:ie))
+end where
+where (tmprat(ib:ie).gt.0.22)
+  f_fbeam(ib:ie)=6.4*(tmprat(ib:ie)-0.22)**2
+elsewhere (tmprat(ib:ie).gt.0.35)
+  f_fbeam(ib:ie)=min(1.66*tmprat(ib:ie)-0.4728,1.)
+elsewhere (tmprat(ib:ie).gt.tmpk(ib:ie))
+  f_fbeam(ib:ie)=max(1.-tmpr(ib:ie),0.)
+end where
+
+return
+end subroutine atebspitter
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine calculates the urban contrabution to albedo.
+! (selected grid points only)
+
+! raw   (.false.=blend, .true.=output only)
+! split (0=net albedo, 1=direct albedo, 2=diffuse albedo)
+
+subroutine atebalb1(is,ifin,alb,diag,raw,split)
+
+implicit none
+
+integer, intent(in) :: is,ifin,diag
+integer i,ucount,ib,ie,ifinish,albmode
+integer, intent(in), optional :: split
 real, dimension(ifin), intent(inout) :: alb
 real, dimension(ufull) :: ualb,utmp
 logical, intent(in), optional :: raw
@@ -676,13 +760,16 @@ if (ufull.eq.0) return
 mode=.false.
 if (present(raw)) mode=raw
 
+albmode=0
+if (present(split)) albmode=split
+
 ifinish=is+ifin-1
 ucount=count(upack(is:ifinish))
 if (ucount.eq.0) return
 
 ib=count(upack(1:is-1))+1
 ie=ucount+ib-1
-call atebalbcalc(ib,ucount,ualb(ib:ie),diag)
+call atebalbcalc(ib,ucount,ualb(ib:ie),albmode,diag)
 
 if (mode) then
   alb=unpack(ualb(ib:ie),upack(is:ifinish),alb)
@@ -698,23 +785,33 @@ end subroutine atebalb1
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Albedo calculations
 
-subroutine atebalbcalc(is,ifin,alb,diag)
+subroutine atebalbcalc(is,ifin,alb,albmode,diag)
 
 implicit none
 
-integer, intent(in) :: is,ifin,diag
+integer, intent(in) :: is,ifin,diag,albmode
 integer ie
 real, dimension(ifin), intent(out) :: alb
 real, dimension(ifin) :: albu,albr,snowdelta
 real, dimension(ifin) :: wallpsi,roadpsi
 real, dimension(ifin) :: sg_roof,sg_road,sg_walle,sg_wallw,sg_veg,sg_rfsn,sg_rdsn
+real, dimension(ifin) :: dumfbeam
 
 ie=ifin+is-1
 
+select case(albmode)
+  case default ! net albedo
+    dumfbeam=f_fbeam(is:ie)
+  case(1)      ! direct albedo
+    dumfbeam=1.
+  case(2)      ! diffuse albedo
+    dumfbeam=0.
+end select
+
 snowdelta=rd_snow(is:ie)/(rd_snow(is:ie)+maxrdsn)
 call getswcoeff(ifin,sg_roof,sg_road,sg_walle,sg_wallw,sg_veg,sg_rfsn,sg_rdsn,wallpsi,roadpsi,f_hwratio(is:ie),f_vangle(is:ie), &
-                f_hangle(is:ie),f_sigmaveg(is:ie),f_roadalpha(is:ie),f_vegalpha(is:ie),f_wallalpha(is:ie),rd_alpha(is:ie),      &
-                snowdelta)
+                f_hangle(is:ie),dumfbeam,f_sigmaveg(is:ie),f_roadalpha(is:ie),f_vegalpha(is:ie),f_wallalpha(is:ie),             &
+                rd_alpha(is:ie),snowdelta)
 albu=1.-(f_hwratio(is:ie)*(sg_walle+sg_wallw)*(1.-f_wallalpha(is:ie))+snowdelta*sg_rdsn*(1.-rd_alpha(is:ie)) &
     +(1.-snowdelta)*((1.-f_sigmaveg(is:ie))*sg_road*(1.-f_roadalpha(is:ie))+f_sigmaveg(is:ie)*sg_veg*(1.-f_vegalpha(is:ie))))
 snowdelta=rf_snow(is:ie)/(rf_snow(is:ie)+maxrfsn)
@@ -1090,7 +1187,7 @@ end if
 
 ! calculate shortwave radiation
 call getswcoeff(ufull,sg_roof,sg_road,sg_walle,sg_wallw,sg_veg,sg_rfsn,sg_rdsn,wallpsi,roadpsi,f_hwratio,f_vangle,f_hangle, &
-                f_sigmaveg,f_roadalpha,f_vegalpha,f_wallalpha,rd_alpha,d_rdsndelta)
+                f_fbeam,f_sigmaveg,f_roadalpha,f_vegalpha,f_wallalpha,rd_alpha,d_rdsndelta)
 sg_roof =(1.-f_roofalpha)*sg_roof*a_sg
 sg_walle=(1.-f_wallalpha)*sg_walle*a_sg
 sg_wallw=(1.-f_wallalpha)*sg_wallw*a_sg
@@ -1922,7 +2019,7 @@ end subroutine getlna
 ! calculate shortwave radiation coefficents (modified to include 2nd wall)
 
 subroutine getswcoeff(cn,sg_roof,sg_road,sg_walle,sg_wallw,sg_veg,sg_rfsn,sg_rdsn,wallpsi,roadpsi,if_hwratio,if_vangle,if_hangle, &
-                      if_sigmaveg,if_roadalpha,if_vegalpha,if_wallalpha,ird_alpha,rdsndelta)
+                      if_fbeam,if_sigmaveg,if_roadalpha,if_vegalpha,if_wallalpha,ird_alpha,rdsndelta)
 
 implicit none
 
@@ -1932,7 +2029,7 @@ real, dimension(cn), intent(in) :: rdsndelta,ird_alpha
 real, dimension(cn), intent(out) :: wallpsi,roadpsi
 real, dimension(cn) :: thetazero,walles,wallws,roads,ta,tc,xa,ya,roadnetalpha
 real, dimension(cn) :: nwalles,nwallws,nroads
-real, dimension(cn), intent(in) :: if_hwratio,if_vangle,if_hangle,if_sigmaveg,if_roadalpha,if_vegalpha,if_wallalpha
+real, dimension(cn), intent(in) :: if_hwratio,if_vangle,if_hangle,if_fbeam,if_sigmaveg,if_roadalpha,if_vegalpha,if_wallalpha
 real, dimension(cn), intent(out) :: sg_roof,sg_road,sg_walle,sg_wallw,sg_veg,sg_rfsn,sg_rdsn
 
 wallpsi=0.5*(if_hwratio+1.-sqrt(if_hwratio*if_hwratio+1.))/if_hwratio
@@ -1952,9 +2049,9 @@ elsewhere
     +cos(min(0.,-if_hangle))-cos(min(thetazero,-if_hangle)) &
     +cos(max(0.,pi-if_hangle))-cos(max(thetazero,pi-if_hangle))
   ! note that these terms now include the azimuth angle
-  walles=(xa/if_hwratio+ta*ya)/pi
-  wallws=((pi-2.*thetazero-xa)/if_hwratio+ta*(tc-ya))/pi
-  roads=(2.*thetazero-if_hwratio*ta*tc)/pi
+  walles=if_fbeam*(xa/if_hwratio+ta*ya)/pi+(1.-if_fbeam)*wallpsi
+  wallws=if_fbeam*((pi-2.*thetazero-xa)/if_hwratio+ta*(tc-ya))/pi+(1.-if_fbeam)*wallpsi
+  roads=if_fbeam*(2.*thetazero-if_hwratio*ta*tc)/pi+(1.-if_fbeam)*roadpsi
 end where
 
 ! Calculate short wave reflections to nrefl order

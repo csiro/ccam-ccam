@@ -92,9 +92,11 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       include 'establ.h'
 
       kcl_top=kl-2
-      if (.not.allocated(alfqarr)) allocate(alfqarr(ifull))
-      if (.not.allocated(timeconv)) allocate(timeconv(ifull))
-      if (.not.allocated(factnb)) allocate(factnb(kl))
+      if (.not.allocated(alfqarr)) then
+        allocate(alfqarr(ifull))
+        allocate(timeconv(ifull))
+        allocate(factnb(kl))
+       end if
 
       do k=1,kl
        dsk(k)=-dsig(k)    !   dsk = delta sigma (positive)
@@ -107,7 +109,9 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
          if(sig(k)>.75)klon3=k
          if(sig(k)> .5)klon2=k
         enddo
-        print *,'in convjlm klon3,klon2 = ',klon3,klon2
+        if (myid == 0) then
+          write(6,*)'in convjlm klon3,klon2 = ',klon3,klon2
+        end if
         do iq=1,ifull
           if(land(iq))then
             alfqarr(iq)=abs(alflnd)

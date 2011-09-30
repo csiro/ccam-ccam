@@ -9,15 +9,15 @@ public tr,traver,trback_g,acloss_g !,gasmin
 public trpm,npm
 public tracers_init,tracers_end
 
-! These parameters should be controlled from namelist
-integer, save :: ngas=0
+! parameters should be controlled from namelist
 integer, parameter :: nllp=0
-integer, save :: ntrac
-integer, save :: ntracmax
-integer, save :: ngasmax
-integer, save :: ilt
-integer, save :: jlt
-integer, save :: klt
+integer, save :: ngas=0
+integer, save :: ntrac=0
+integer, save :: ntracmax=1
+integer, save :: ngasmax=1
+integer, save :: ilt=1
+integer, save :: jlt=1
+integer, save :: klt=1
 real, dimension(:,:,:), allocatable, save :: tr,traver
 real, dimension(:,:,:), allocatable, save :: trpm
 real, dimension(:), allocatable, save :: trback_g,acloss_g !,gasmin

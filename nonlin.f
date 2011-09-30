@@ -9,7 +9,6 @@
       use liqwpar_m  ! qfg,qlg
       use map_m
       use morepbl_m  ! condx
-      use neigh_m
       use nharrs_m
       use nlin_m
       use savuvt_m

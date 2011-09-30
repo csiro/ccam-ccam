@@ -34,7 +34,7 @@
       include 'darcdf.h'    ! idnc, ncid
       include 'netcdf.inc'
       integer, parameter :: nihead=54,nrhead=14
-      integer nahead(nihead),ier,ilen,itype,iaero,maxarchi
+      integer nahead(nihead),ier,ier2,ilen,itype,iaero,maxarchi
       integer, save :: ncidold=-1 !,iarchi ! MJT tracerfix
       real ahead(nrhead) ! MJT small otf
 
@@ -75,7 +75,6 @@
         rlat0x  =ahead(6)
         schmidtx=ahead(7)
         if(schmidtx<=0..or.schmidtx>1.)then
-          ! read it where Jack put it
           rlong0x =ahead(6)
           rlat0x  =ahead(7)
           schmidtx=ahead(8)
@@ -124,7 +123,7 @@
           return
         end if
         write(6,*) "ERROR: Cannot locate date/time in input file"
-        stop
+        call MPI_Abort(MPI_COMM_WORLD,ier2,ier)
       end if
       call MPI_Bcast(jk     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
       call MPI_Bcast(kk     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
@@ -180,6 +179,7 @@ c     start of processing loop
       use mlo, only : wlev,micdwn    ! MJT mlo
       use mlodynamics, only : watbdy ! MJT mlo
       use morepbl_m
+      use nsibd_m, only : isoilm
       use screen_m
       use sigs_m
       use soil_m
@@ -195,12 +195,13 @@ c     start of processing loop
       include 'darcdf.h' ! MJT small otf
       include 'netcdf.inc' ! MJT vertint
       include 'parm.h'
-      include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
+      include 'parmgeom.h'  ! rlong0,rlat0,schmidt 
+      include 'soilv.h' 
       include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
       include 'mpif.h'
       integer, parameter :: ntest=0
       integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
-      integer ik, kk, idv, iaero
+      integer ik, kk, idv, iaero, isoil
       integer dk ! controls automatic array size
       integer lev,levkk,ier,ierr,igas ! MJT small otf
       integer ::  kdate_r, ktime_r, nemi, id2,jd2,idjd2,
@@ -409,10 +410,10 @@ c**   onthefly; sometime can get rid of common/bigxy4
           write(6,*)'xg4(1-4) ',(xg4(idjd,m),m=1,4)
           write(6,*)'yg4(1-4) ',(yg4(idjd,m),m=1,4)
           if(nested==0)then
-!             write(6,"('wb_s(1)#  ',9f7.3)") 
-!     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
-!             write(6,"('wb_s(ms)# ',9f7.3)") 
-!     .           ((wb(ii+(jj-1)*il,ms),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
+             write(6,"('wb_s(1)#  ',9f7.3)") 
+     .           ((wb(ii+(jj-1)*il,1),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
+             write(6,"('wb_s(ms)# ',9f7.3)") 
+     .           ((wb(ii+(jj-1)*il,ms),ii=id2-1,id2+1),jj=jd2-1,jd2+1)
           endif  ! (nested==0)
         endif
       end if ! (myid==0)
@@ -964,6 +965,16 @@ c       incorporate other target land mask effects
             call doints4(t_a,wb(:,k),nface4,xg4,yg4,
      &                     nord,ik)
           end if ! iotest
+          !unpack field capacity into volumetric soil moisture
+          if (any(wb(:,:).gt.10.)) then
+            if (mydiag) write(6,*) "Unpacking wetfrac to wb",wb(idjd,1)
+            wb(:,:)=max(wb(:,:)-20.,0.)
+            do iq=1,ifull
+              isoil=isoilm(iq)
+              wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
+            end do
+            if (mydiag) write(6,*) "giving wb",wb(idjd,:)
+          end if  
         end do
 
         !--------------------------------------------------

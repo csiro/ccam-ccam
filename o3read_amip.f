@@ -4,12 +4,12 @@
 !  Based on the supplied example program to read the data.
 !  This routine is fixed format f90
 
-      use cc_mpi, only : myid ! MJT read
+      use cc_mpi, only : myid
       use o3amip_m
 
       implicit none
-      include 'mpif.h'       ! MJT read
-      include 'filnames.h'   ! MJT read
+      include 'mpif.h'
+      include 'filnames.h'
 
       character(len=80)  :: finame
       character(len=120) :: label
@@ -26,6 +26,7 @@
       real :: prsubc  ! =     upper boundary pressure (mb)
       real :: altubc  ! =     upper boundary altitude (km)
 
+      call o3amip_init
 
       !--------------------------------------------------------------
       ! MJT read

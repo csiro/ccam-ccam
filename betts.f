@@ -30,6 +30,8 @@ c-----------------------------------------------------------------------
 
       if ( ofirst ) then
 
+         call betts1_init(ifull,iextra,kl)
+
 c setup eta fields
 
          do 30 l=1,kl

@@ -12,75 +12,60 @@
 
       ! common arrays
       use aerointerface                       ! Aerosol interface
-      use arrays_m                            ! Main atmosphere prognostic arrays
-      use betts1_m, only : betts1_init        ! Betts convection
+      use arrays_m                            ! Atmosphere dyamics prognostic arrays
       use bigxy4_m                            ! Grid interpolation
       use carbpools_m, only : carbpools_init  ! Carbon pools
       use cc_mpi                              ! CC MPI routines
-      use cldcom_m, only : cldcom_init        ! LH/SF radiation
-      use co2dta_m, only : co2dta_init        ! LH/SF radiation
       use cfrac_m                             ! Cloud fraction
-      use dava_m                              ! Davies nudging
-      use davb_m                              ! Davies nudging
+      use dava_m                              ! Far-field nudging (weights)
+      use davb_m                              ! Far-field nudging (host store)
       use diag_m                              ! Diagnostic routines
-      use define_dimensions, only : ncs,ncp   ! CABLE dimensions
       use dpsdt_m                             ! Vertical velocity
       use epst_m                              ! Off-centre terms
       use extraout_m                          ! Additional diagnostics
       use gdrag_m, only : gdrag_init          ! Gravity wave drag
       use histave_m                           ! Time average arrays
       use indices_m                           ! Grid index arrays
-      use kdacom_m, only : kdacom_init        ! LH/SF radiation
       use kuocomb_m                           ! JLM convection
       use latlong_m                           ! Lat/lon coordinates
-      use liqwpar_m                           ! Cloud
-      use lwout_m, only : lwout_init          ! LH/SF radiation
+      use liqwpar_m                           ! Cloud water mixing ratios
       use map_m                               ! Grid map arrays
       use mlo, only : mlodiag,wlev            ! Ocean physics and prognostic arrays
-      use mlodynamics                         ! Ocean dynamics
-      use morepbl_m                           ! Boundary layer diagnostics
-      use nharrs_m, only : nharrs_init        ! Non-hydrostatic arrays
+      use morepbl_m                           ! Additional boundary layer diagnostics
+      use nharrs_m, only : nharrs_init        ! Non-hydrostatic atmosphere arrays
       use nlin_m                              ! Atmosphere non-linear dynamics
       use nsibd_m                             ! Land-surface arrays
-      use o3amip_m, only : o3amip_init        ! O3 AMIP arrays
-      use parmhdff_m                          ! Horizontal diffusion
+      use parmhdff_m                          ! Horizontal diffusion parameters
       use pbl_m                               ! Boundary layer arrays
       use permsurf_m, only : permsurf_init    ! Fixed surface arrays
       use prec_m                              ! Precipitation
       use raddiag_m                           ! Radiation diagnostic
-      use radisw_m, only : radisw_init        ! LH/SF radiation
-      use rdflux_m, only : rdflux_init        ! LH/SF radiation
       use savuvt_m                            ! Saved dynamic arrays
       use savuv1_m                            ! Saved dynamic arrays
       use sbar_m                              ! Saved dynamic arrays
       use screen_m                            ! Screen level diagnostics
       use seaesfrad_m                         ! SEA-ESF radiation
       use sigs_m                              ! Atmosphere sigma levels
-      use soil_m                              ! Soil and ice data
-      use soilsnow_m                          ! Soil and snow data
-      use srccom_m, only : srccom_init        ! LH/SF radiation
-      use swocom_m, only : swocom_init        ! LH/SF radiation
-      use tabcom_m, only : tabcom_init        ! LH/SF radiation
+      use soil_m                              ! Soil and surface data
+      use soilsnow_m                          ! Soil, snow and surface data
       use tbar2d_m, only : tbar2d_init        ! Atmosphere dynamics reference temperature
-      use tfcom_m, only : tfcom_init          ! LH/SF radiation
-      use timeseries, only : write_ts         ! Tracers
-      use tracermodule, only :init_tracer     ! Tracers
+      use timeseries, only : write_ts         ! Tracer time series
+      use tkeeps, only : tkeinit              ! TKE-EPS boundary layer
+      use tracermodule, only :init_tracer     ! Tracer routines
      &   ,trfiles,tracer_mass,unit_trout
      &   ,interp_tracerflux,tracerlist
-      use tracers_m                           ! Tracers
+      use tracers_m                           ! Tracer data
       use unn_m                               ! Saved dynamic arrays
       use uvbar_m                             ! Saved dynamic arrays
       use vecs_m, only : vecs_init            ! Eigenvectors for atmosphere dynamics
-      use vecsuv_m                            ! Cartesian coordinates
+      use vecsuv_m                            ! Map to cartesian coordinates
       use vegpar_m                            ! Vegetation arrays
-      use vvel_m                              ! Vertical atmosphere velocity
-      use workglob_m                          ! Diagnostic arrays
+      use vvel_m                              ! Additional vertical velocity
       use work2_m                             ! Diagnostic arrays
-      use work3_m                             ! Diagnostic arrays
-      use work3b_m, only : work3b_init        ! Diagnostic arrays
-      use work3f_m                            ! Diagnostic arrays
-      use work3lwr_m, only : work3lwr_init    ! Diagnostic arrays
-      use work3sav_m                          ! Diagnostic arrays
+      use work3_m                             ! Mk3 land-surface diagnostic arrays
+      use work3f_m                            ! Grid work arrays
+      use work3sav_m                          ! Water and tracer saved arrays
+      use workglob_m                          ! Additional grid interpolation
       use xarrs_m                             ! Saved dynamic arrays
       use xyzinfo_m                           ! Grid coordinate arrays
 
@@ -90,38 +75,28 @@
       include 'const_phys.h'                  ! Physical constants
       include 'darcdf.h'                      ! Netcdf data
       include 'dates.h'                       ! Date data
-      include 'establ.h'                      ! Saturation function
+      include 'establ.h'                      ! Liquid saturation function
       include 'filnames.h'                    ! Filenames
       include 'kuocom.h'                      ! Convection parameters
       include 'mpif.h'                        ! MPI parameters
       include 'netcdf.inc'                    ! Netcdf parameters
-      include 'params.h'                      ! Model configuration
       include 'parm.h'                        ! Model configuration
       include 'parmdyn.h'                     ! Dynamics parmaters
       include 'parmgeom.h'                    ! Coordinate data
       include 'parmhor.h'                     ! Horizontal advection parameters
       include 'parmsurf.h'                    ! Surface parameters
       include 'parmvert.h'                    ! Vertical advection parameters
-      include 'rdparm.h'                      ! Radiation parameters
       include 'soilv.h'                       ! Soil parameters
-      include 'stime.h'                       ! Date data
+      include 'stime.h'                       ! File date data
       include 'trcom2.h'                      ! Station data
       include 'version.h'                     ! Model version data
       
       integer leap
       common/leap_yr/leap                     ! Leap year (1 to allow leap years)
-      real alph_p,alph_pm,delneg,delpos
-      real alph_q
-      common/mfixdiag/alph_p,alph_pm,delneg,
-     &                delpos,alph_q           ! Mass conservation
       integer nbarewet,nsigmf
       common/nsib/nbarewet,nsigmf             ! Land-surface options
       integer nnrad,idcld
       common/radnml/nnrad,idcld               ! Radiation options
-      integer nhor,nhorps,khor,khdif,nhorjlm
-      real hdifmax
-      common/parmhdff/nhor,nhorps,khor,khdif,
-     &                hdifmax,nhorjlm         ! Horizontal diffusion
 
 !     Local variables
       real, dimension(:,:), allocatable :: savu2,savv2
@@ -266,7 +241,11 @@
 
       !--------------------------------------------------------------
       ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
-      if (myid==0) then
+      il_g=48
+      rlong0=0.
+      rlat0=0.
+      schmidt=1.
+      if (myid==0.and.io_in<=4) then
 !       open new topo file and check its dimensions
 !       here used to supply rlong0,rlat0,schmidt
 !       Remanded of file is read in indata.f
@@ -305,6 +284,9 @@
       ! DEFINE newmpar VARIABLES AND DEFAULTS
       jl_g=il_g+npanels*il_g      
 #ifdef uniform_decomp
+      if (myid==0) then
+        write(6,*) "Using uniform grid decomposition"
+      end if
       nxp=nint(sqrt(real(nproc)))
       nyp=nproc/nxp
       do while((mod(il_g,max(nxp,1)).ne.0.or.
@@ -314,6 +296,9 @@
         nyp=nproc/max(nxp,1)
       end do
 #else
+      if (myid==0) then
+        write(6,*) "Using face grid decomposition"
+      end if
       if (mod(nproc,6).ne.0.and.mod(6,nproc).ne.0) then
         write(6,*) "ERROR: nproc must be a multiple of 6 or"
         write(6,*) "a factor of 6"
@@ -505,13 +490,14 @@
 
       !--------------------------------------------------------------
       ! SET UP CC GEOMETRY
-!     Only one processor calls setxyz to save memory with large grids
+      ! Only one processor calls setxyz to save memory with large grids
       if (myid==0) then
         call workglob_init(ifull_g)
-        call setxyz(il_g,rlong0,rlat0,schmidt,
-     &     x_g,y_g,z_g,wts_g, ax_g,ay_g,az_g,bx_g,by_g,bz_g, xx4,yy4,
-     &     myid)
+        call setxyz(il_g,rlong0,rlat0,schmidt,x_g,y_g,z_g,wts_g,ax_g,
+     &     ay_g,az_g,bx_g,by_g,bz_g,xx4,yy4,myid)
       end if
+      ! Broadcast the following global arrays so that they can be
+      ! decomposed into local arrays with ccmpi_setup
       call MPI_Bcast(ds,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(xx4,iquad*iquad,MPI_DOUBLE_PRECISION,0,
      &               MPI_COMM_WORLD,ierr)
@@ -622,12 +608,13 @@
 
       
       !--------------------------------------------------------------
-      ! INITIALISE ifull ARRAYS
+      ! INITIALISE LOCAL ARRAYS
       allocate(savu2(ifull,kl),savv2(ifull,kl))
       allocate(spare1(ifull),spare2(ifull))
       allocate(speed(ifull,kl))
       allocate(spmean(kl),div(kl))
       call arrays_init(ifull,iextra,kl)
+      call carbpools_init(ifull,iextra,kl)
       call cfrac_init(ifull,iextra,kl)
       call dpsdt_init(ifull,iextra,kl)
       call epst_init(ifull,iextra,kl)
@@ -662,72 +649,19 @@
       call work3_init(ifull,iextra,kl)
       call work3f_init(ifull,iextra,kl)
       call xarrs_init(ifull,iextra,kl)
-      if (ldr.ne.0) then
-        ln2=ifull
-        lon=ln2/2
-        nl=kl
-        nlp=nl+1
-        nlm=nl-1
-      end if
-      if (nbd.ne.0) then ! nudging arrays
-        call dava_init(ifull,iextra,kl)
-        call davb_init(ifull,iextra,kl)
-      end if
-      if (nkuo==5) then ! convection arrays
-        call betts1_init(ifull,iextra,kl)
-      end if
-      if (amipo3) then
-        call o3amip_init(ifull,iextra,kl)
-      end if
-      if (nrad==4) then ! radiation arrays
-        l=kl
-        imax=il*nrows_rad
-        lp1=l+1
-        lp2=l+2
-        lp3=l+3
-        lm1=l-1
-        lm2=l-2
-        lm3=l-3
-        ll=2*l
-        llp1=ll+1
-        llp2=ll+2
-        llp3=ll+3
-        llm1=ll-1
-        llm2=ll-2
-        llm3=ll-3
-        lp1m=lp1*lp1
-        lp1m1=lp1m-1
-        lp1v=lp1*(1+2*l/2)
-        lp121=lp1*nbly
-        ll3p=3*l+2
-        lp1i=imax*lp1
-        llp1i=imax*llp1
-        ll3pi=imax*ll3p
-        call cldcom_init(ifull,iextra,kl,imax)
-        call co2dta_init(ifull,iextra,kl)
-        call kdacom_init(ifull,iextra,kl,imax)
-        call lwout_init(ifull,iextra,kl,imax)
-        call radisw_init(ifull,iextra,kl,imax)
-        call rdflux_init(ifull,iextra,kl,imax,nbly)
-        call srccom_init(ifull,iextra,kl,imax,nbly)
-        call swocom_init(ifull,iextra,kl,imax)
-        call tabcom_init(ifull,iextra,kl,imax,nbly)
-        call tfcom_init(ifull,iextra,kl,imax,nbly)
-        call work3lwr_init(ifull,iextra,kl,imax)
-      end if
-      if (nsib<=3.or.nsib==5) then ! land-surface arrays
-        call work3b_init(ifull,iextra,kl,ms)
-      else
-        call carbpools_init(ifull,iextra,kl,ncp,ncs)
+      if (nvmix.eq.6) then
+        call tkeinit(ifull,iextra,kl,0)
       end if
       if (ngas.gt.0) then
         call tracers_init(il,jl,kl,iextra)
-      else
-        ilt=1
-        jlt=1
-        klt=1
       end if
       call work3sav_init(ifull,iextra,kl,ilt,jlt,klt,ngasmax) ! must occur after tracers_init
+      if (nbd.ne.0.and.nud_hrs.ne.0) then
+        call dava_init(ifull,iextra,kl)
+        call davb_init(ifull,iextra,kl)
+      end if
+      ! Remaining arrays are allocated in indata.f, since their
+      ! definition requires additional input data (e.g, land-surface)
 
       
       !--------------------------------------------------------------
@@ -753,9 +687,9 @@
         write(6,*)'ncid,ier,ifile ',ncid,ier,ifile
         write(6,*)'calling indata; will read from file ',ifile
       end if
-!     N.B. first call to amipsst now done within indata
       call indata(hourst,newsnow,jalbfix,iaero,lapsbot,isoth,nsig)
-      if (myid==0) ierr2=nf_close(ncid)
+      ! do not close ncid as onthefly.f expects each file to have
+      ! separate ncid numbers.
 
       ! max/min diagnostics      
       call maxmin(u,' u',ktau,1.,kl)
@@ -806,6 +740,8 @@
 
       !--------------------------------------------------------------
       ! SETUP REMAINING PARAMETERS
+
+      ! convection
 !     sig(kuocb) occurs for level just BELOW sigcb
       kuocb=1
       do while(sig(kuocb+1)>=sigcb)
@@ -814,6 +750,7 @@
       if (myid==0)
      & write(6,*)'convective cumulus scheme: kuocb,sigcb = ',kuocb,sigcb
 
+      ! horizontal diffusion 
       if(khdif==-99)then   ! set default khdif appropriate to resolution
         khdif=5
         if(myid==0)write(6,*)'Model has chosen khdif =',khdif
@@ -1215,23 +1152,9 @@
         vx(1:ifull,:)=v(1:ifull,:)   
       endif
 
-      ! Ocean dynamics
-      if (abs(nmlo).ge.3.and.abs(nmlo).le.9) then
-        call start_log(waterdynamics_begin)
-        call mlohadv
-        call end_log(waterdynamics_end)
-      end if
-
       ! horizontal diffusion
       if (nhor<0) call hordifgt(iaero)  ! now not tendencies
       if (diag.and.mydiag) write(6,*) 'after hordifgt t ',t(idjd,:)
-      
-      ! Ocean diffusion
-      if (abs(nmlo).ge.2.and.abs(nmlo).le.9) then
-        call start_log(waterdiff_begin)
-        call mlodiffusion
-        call end_log(waterdiff_end)
-      end if
 
       ! ***********************************************************************
       ! START PHYSICS 
@@ -1282,7 +1205,7 @@
          mtimer_sav=mtimer
          mtimer=mins_gmt     ! so radn scheme repeatedly works thru same day
         end if    ! (nhstest<0)
-        call radrive (odcalc,iaero)
+        call radrive (il*nrows_rad,odcalc,iaero)
         if (nhstest<0) then ! aquaplanet test -1 to -8  
           mtimer=mtimer_sav
         end if    ! (nhstest<0)
@@ -1567,8 +1490,6 @@
      &           f10.2,f10.6,2f6.2,f7.2)
           write(6,971) gtemparray(6:9) ! cllav,clmav,clhav,cltav
  971      format(' global_average cll, clm, clh, clt: ',4f6.2)
-          write(6,972) alph_p,alph_pm,delneg,delpos,alph_q
- 972      format(' alph_p,alph_pm,delneg,delpos,alph_q: ',5f8.4)
         end if
         if (mydiag) then
           write(6,98) ktau,diagvals(ps)

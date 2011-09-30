@@ -39,7 +39,6 @@
       include 'parmvert.h'  
       include 'mpif.h'
       real alph_p, alph_pm, delneg, delpos, delnegk, delposk, alph_q
-      common/mfixdiag/alph_p,alph_pm,delneg,delpos,alph_q
       real :: sumdiffb_l  ! Local versions
       real, dimension(3) :: delarr, delarr_l
       ! Work common here ????
@@ -605,12 +604,12 @@ c    &                               (grav*dt*dt)
         psl(1:ifull)=pslsav(1:ifull)+
      &               delps(1:ifull)*(1.-.5*delps(1:ifull))
         ps(1:ifull)=1.e5*exp(psl(1:ifull))     
-	if(ntest==1)then
+	  if(ntest==1)then
           if(myid==0)print *,'alph_p,alph_pm ',alph_p,alph_pm
           call ccglobal_sum(ps,sumout)
           if(myid==0)
      &       print *,'ps_sumsav,sumin,sumout ',sumsav,sumin,sumout
-	endif  ! (ntest==1)
+	  endif  ! (ntest==1)
       endif                   !  (mfix==3)
       
 !     following dpsdt diagnostic is in hPa/day  
@@ -619,268 +618,57 @@ c    &                               (grav*dt*dt)
       dpsdt(1:ifull)=(ps(1:ifull)-ps_sav(1:ifull))*24.*3600./(100.*dt)
       if(nmaxpr==1)call maxmin(dpsdt,'dp',ktau,.01,1)
 
-      if(mfix_qg.ne.0.and.mspec==1)then
-!       qgmin=1.e-6   !  in parm.h 
-        qgminm=qgmin
-!          default is moistfix=2 now, with ps weighting
+      !--------------------------------------------------------------
+      ! Moisture conservation
+      if (mfix_qg.ne.0.and.mspec==1) then
         do k=1,kl
-         qg(1:ifull,k)=qg(1:ifull,k)*ps(1:ifull)
-         qgsav(1:ifull,k)=qgsav(1:ifull,k)*ps_sav(1:ifull)
-        enddo    ! k  loop
-        if(ntest==1)then
-          call ccglobal_sum(qgsav,sumsav)
-          call ccglobal_sum(qg,sumin)
-        endif  ! (ntest==1)
-!       perform conservation fix on qg, as affected by vadv, hadv, hordif
-!       N.B. won't cope with any -ves from conjob
-!       delpos is the sum of all positive changes over globe
-!       delneg is the sum of all negative changes over globe
-        do k=1,kl
-         wrk1(1:ifull,k)=max( qg(1:ifull,k),0.,               ! increments  
-     &              (qgminm-qfg(1:ifull,k)-qlg(1:ifull,k))*ps(1:ifull) ) 
-     &                                       -qgsav(1:ifull,k)   
-        enddo                 ! k loop
-        if(ntest==2.and.nproc==1)then
-          delpos=0.
-          delneg=0.
-          do k=1,kl
-           delposk=0.
-           delnegk=0.
-           do iq=1,ifull
-            delpos=delpos+max(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
-            delneg=delneg+min(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
-            delposk=delposk+max(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
-            delnegk=delnegk+min(0.,-dsig(k)*wrk1(iq,k)/em(iq)**2)
-           enddo   ! iq loop
-           if (mod(ktau,nmaxpr)==0.or.nmaxpr==1) ! for nproc=1
-     &                   print *,'delposk delnegk ',k,delposk,delnegk
-          enddo    ! k loop
-        else
-          call ccglobal_posneg(wrk1,delpos,delneg)  ! usual
-        endif
-        ratio = -delneg/delpos
-        if(mfix_qg==1)alph_q = min(ratio,sqrt(ratio))  ! best option
-        if(mfix_qg==2)alph_q = sqrt(ratio)
-        do k=1,kl        ! this is cunning 2-sided scheme
-         do iq=1,ifull
-           qg(iq,k)=qgsav(iq,k)+
-     &       alph_q*max(0.,wrk1(iq,k))+min(0.,wrk1(iq,k))/max(1.,alph_q)
-         enddo   ! iq loop
-        enddo    ! k  loop
-        if (ntest==1.or.nmaxpr==1)then  ! has mydiag on prints
-         if (mydiag) print *,'qg_delpos,delneg,ratio,alph_q,wrk1 ',
-     &                       delpos,delneg,ratio,alph_q,wrk1(idjd,nlv)
-          call ccglobal_sum(qg,sumout)
-         if(mydiag)print *,'qg_sumsav,sumin,sumout ',sumsav,sumin,sumout
-        endif  ! (ntest==1.or.nmaxpr==1)
+          qg(:,k)=max(qg(:,k),qgmin-qfg(:,k)-qlg(:,k))
+        end do
+        call massfix(mfix_qg,qg(1:ifull,:),qgsav(1:ifull,:),
+     &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
+      endif       !  (mfix_qg.ne.0.and.mspec==1)
 
-!       undo ps weighting
-        do k=1,kl
-         if(mfix_qg>0)then
-           qg(1:ifull,k)=qg(1:ifull,k)/ps(1:ifull)
-         else
-           qg(1:ifull,k)=qg(1:ifull,k)/(ps(1:ifull)*wts(1:ifull))
-         endif
-        enddo    ! k  loop
-        delpos=delpos/1.e5
-        delneg=delneg/1.e5  ! for diag print in globpe
-      endif        !  (mfix_qg.ne.0.and.mspec==1)
-
+      !------------------------------------------------------------------------
+      ! Cloud water conservation
       if(mfix_qg.ne.0.and.mspec==1.and.ldr.ne.0)then
-        do k=1,kl
-         if(mfix_qg>0)then
-          qfg(1:ifull,k)=qfg(1:ifull,k)*ps(1:ifull)
-          qfgsav(1:ifull,k)=qfgsav(1:ifull,k)*ps_sav(1:ifull)
-          qlg(1:ifull,k)=qlg(1:ifull,k)*ps(1:ifull)
-          qlgsav(1:ifull,k)=qlgsav(1:ifull,k)*ps_sav(1:ifull)
-         else
-          qfg(1:ifull,k)=qfg(1:ifull,k)*ps(1:ifull)*wts(1:ifull)
-          qfgsav(1:ifull,k)=
-     &            qfgsav(1:ifull,k)*ps_sav(1:ifull)*wts(1:ifull)
-          qlg(1:ifull,k)=qlg(1:ifull,k)*ps(1:ifull)*wts(1:ifull)
-          qlgsav(1:ifull,k)=
-     &            qlgsav(1:ifull,k)*ps_sav(1:ifull)*wts(1:ifull)
-         endif
-        enddo    ! k  loop
-!       perform conservation fix on qfg, qlg as affected by vadv, hadv, hordif
-!       N.B. won't cope with any -ves from conjob
-!       delpos is the sum of all positive changes over globe
-!       delneg is the sum of all negative changes over globe
-        do k=1,kl
-         do iq=1,ifull
-          wrk1(iq,k)=max(qfg(iq,k),0.)-qfgsav(iq,k) ! increments
-         enddo   ! iq loop
-        enddo    ! k loop
-        call ccglobal_posneg(wrk1,delpos,delneg)
-        ratio = -delneg/max(delpos,1.e-30)
-        if(mfix_qg==1)alph_q = min(ratio,sqrt(ratio))  ! best option
-        if(mfix_qg==2)alph_q = sqrt(ratio)
-!       this is cunning 2-sided scheme
-        qfg(1:ifull,:)=qfgsav(:,:)+
-     &     alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
-        do k=1,kl
-         do iq=1,ifull
-          wrk1(iq,k)=max(qlg(iq,k),0.)-qlgsav(iq,k)  ! increments
-         enddo   ! iq loop
-        enddo    ! k loop
-        call ccglobal_posneg(wrk1,delpos,delneg)
-        ratio = -delneg/max(delpos,1.e-30)
-        if(mfix_qg==1)alph_q = min(ratio,sqrt(ratio))  ! best option
-        if(mfix_qg==2)alph_q = sqrt(ratio)
-!       this is cunning 2-sided scheme
-        qlg(1:ifull,:)=qlgsav(:,:)+
-     &     alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
-!          undo ps weighting
-        do k=1,kl
-         qfg(1:ifull,k)=qfg(1:ifull,k)/ps(1:ifull)
-         qlg(1:ifull,k)=qlg(1:ifull,k)/ps(1:ifull)
-        enddo    ! k  loop
+        qfg=max(qfg,0.)
+        qlg=max(qlg,0.)
+        call massfix(mfix_qg,qfg(1:ifull,:),qfgsav(1:ifull,:),
+     &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
+        call massfix(mfix_qg,qlg(1:ifull,:),qlgsav(1:ifull,:),
+     &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
       endif      !  (mfix_qg.ne0.and.mspec==1.and.ldr.ne.0)
 
-!      if(mfix_qg.ne.0.and.mspec==1.and.ngas>=1)then
-      if(mfix_tr.ne.0.and.mspec==1.and.ngas>=1)then ! MJT tracerfix
-!       perform conservation fix on tr1,tr2 as affected by vadv, hadv, hordif
+      !------------------------------------------------------------------------
+      ! Tracer conservation
+      if(mfix_tr.ne.0.and.mspec==1.and.ngas>0)then
         do ng=1,ngas
-!          default now with ps weighting
-         if(mfix_tr>0)then
-          do k=1,kl         
-           tr(1:ifull,k,ng)=tr(1:ifull,k,ng)*ps(1:ifull)
-           trsav(1:ifull,k,ng)=trsav(1:ifull,k,ng)*ps_sav(1:ifull)
-          enddo    ! k  loop           
-         else
-          do k=1,kl         
-           tr(1:ifull,k,ng)=tr(1:ifull,k,ng)*ps(1:ifull)*wts(1:ifull)
-           trsav(1:ifull,k,ng)=trsav(1:ifull,k,ng)*ps_sav(1:ifull)
-     &                                                  *wts(1:ifull)
-          enddo    ! k  loop     
-         endif
-          do k=1,kl
-!          rml 19/09/07 replace gasmin with tracmin
-           wrk1(1:ifull,k)=max(tr(1:ifull,k,ng),     ! has increments
-     &           tracmin(ng)*ps(1:ifull))         -trsav(1:ifull,k,ng) 
-!    &            gasmin(ng)*ps(1:ifull))         -trsav(1:ifull,k,ng) 
-          enddo   ! k loop
-         call ccglobal_posneg(wrk1,delpos,delneg)
-! rml 17/02/06 suspect divide by zero error because tr=0 at start run
-! rml 17/02/06 copied line from qlg section as solution
-!         ratio = -delneg/delpos
-         ratio = -delneg/max(delpos,1.e-30)
-         if(mfix_tr==1)alph_g = min(ratio,sqrt(ratio))  
-         if(mfix_tr==2)alph_g = sqrt(ratio)
-         do k=1,kl   ! this is cunning 2-sided scheme
-          do iq=1,ifull
-          tr(iq,k,ng)=trsav(iq,k,ng)+
-     &     alph_g*max(0.,wrk1(iq,k)) + min(0.,wrk1(iq,k))/max(1.,alph_g)
-          enddo   ! iq loop
-         enddo    ! k  loop
-          if(mfix_qg>0)then
-           do k=1,kl          
-            tr(1:ifull,k,ng)=tr(1:ifull,k,ng)/ps(1:ifull)
-           enddo    ! k  loop
-          else
-           do k=1,kl          
-            tr(1:ifull,k,ng)=tr(1:ifull,k,ng)/(ps(1:ifull)*wts(1:ifull))
-           enddo    ! k  loop            
-          endif
-        enddo    ! ng loop
-        if(mfix_rad>0)then  ! to make gases 2 to ng add up to gas 1
-         do k=1,kl
-          do iq=1,ifull
-           sumdiffb_l = 0.
-           delpos_l = 0.
-           delneg_l = 0.
-           trsav(iq,k,1)=trsav(iq,k,1)/ps(iq)
-           do ng=2,ngas        
-            trsav(iq,k,ng)=trsav(iq,k,ng)/ps(iq)
-            sumdiffb_l = sumdiffb_l + tr(iq,k,ng)
-            delpos_l = delpos_l+max( 1.e-20,tr(iq,k,ng)-trsav(iq,k,ng))
-            delneg_l = delneg_l+min(-1.e-20,tr(iq,k,ng)-trsav(iq,k,ng))
-           enddo   ! ng loop
-           delarr_l = (/ delpos_l, delneg_l, sumdiffb_l /)
-           call MPI_Allreduce ( delarr_l, delarr, 3, MPI_REAL, MPI_SUM,
-     &                          MPI_COMM_WORLD, ierr )
-           delpos = delarr(1)
-           delneg = delarr(2)
-           sumdiffb = delarr(3)
-           ratio=(tr(iq,k,1)-sumdiffb)/(delpos-delneg)
-           do ng=2,ngas        
-            tr(iq,k,ng)=max(0.,trsav(iq,k,ng)
-     &         +(1.+ratio)*max(0.,tr(iq,k,ng)-trsav(iq,k,ng))
-     &         +(1.-ratio)*min(0.,tr(iq,k,ng)-trsav(iq,k,ng)) )
-           enddo   ! ng loop
-          enddo   ! iq loop
-         enddo    ! k  loop
-        endif     ! (mfix_rad>0)
-      endif       !  mfix_qg.ne.0
+!         rml 19/09/07 replace gasmin with tracmin
+          tr(:,:,ng)=max(tr(:,:,ng),tracmin(ng))
+          call massfix(mfix_tr,tr(1:ifull,:,ng),trsav(1:ifull,:,ng),
+     &                 ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
+        end do
+      endif       !  (mfix_tr.ne.0.and.mspec==1.and.ngas>0)
 
       !--------------------------------------------------------------
-      ! MJT tke
+      ! TKE and EPS conservation
       if (mfix_ke.ne.0.and.mspec==1.and.nvmix==6) then
-        do k=1,kl
-          tke(1:ifull,k)=tke(1:ifull,k)*ps(1:ifull)
-          tkesav(1:ifull,k)=tkesav(1:ifull,k)*ps_sav(1:ifull)
-          eps(1:ifull,k)=eps(1:ifull,k)*ps(1:ifull)
-          epssav(1:ifull,k)=epssav(1:ifull,k)*ps_sav(1:ifull)
-        end do
-!!      perform conservation fix on tke, eps as affected by vadv, hadv, hordif
-!!      N.B. won't cope with any -ves from conjob
-!!      delpos is the sum of all positive changes over globe
-!!      delneg is the sum of all negative changes over globe
-        wrk1(1:ifull,1:kl)=max(tke(1:ifull,1:kl),0.)
-     &                    -tkesav(1:ifull,1:kl) ! increments
-        call ccglobal_posneg(wrk1,delpos,delneg)
-        ratio = -delneg/max(delpos,1.e-30)
-        alph_q = min(ratio,sqrt(ratio))  ! best option
-!       this is cunning 2-sided scheme
-        tke(1:ifull,:)=tkesav(:,:)+
-     &     alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
-        wrk1(1:ifull,1:kl)=max(eps(1:ifull,1:kl),0.)
-     &                        -epssav(1:ifull,1:kl)  ! increments
-        call ccglobal_posneg(wrk1,delpos,delneg)
-        ratio = -delneg/max(delpos,1.e-30)
-        alph_q = min(ratio,sqrt(ratio))  ! best option
-!       this is cunning 2-sided scheme
-        eps(1:ifull,:)=epssav(:,:)+
-     &     alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
-!          undo ps weighting
-        do k=1,kl
-          tke(1:ifull,k)=tke(1:ifull,k)/ps(1:ifull)
-          eps(1:ifull,k)=eps(1:ifull,k)/ps(1:ifull)
-        enddo    ! k  loop
-        do k=1,kl
-          tkesav(1:ifull,k)=tkesav(1:ifull,k)/ps_sav(1:ifull)
-          epssav(1:ifull,k)=epssav(1:ifull,k)/ps_sav(1:ifull)
-        end do
+        tke=max(tke,0.)
+        eps=max(eps,0.)
+        call massfix(mfix_ke,tke(1:ifull,:),tkesav(1:ifull,:),
+     &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
+        call massfix(mfix_ke,eps(1:ifull,:),epssav(1:ifull,:),
+     &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
       end if
-      !--------------------------------------------------------------
       
       !--------------------------------------------------------------
-      ! MJT aerosols
+      ! Aerosol conservation
       if (mfix_aero.ne.0.and.mspec==1.and.abs(iaero)==2) then
-        do l=1,naero
-          do k=1,kl
-            xtg(1:ifull,k,l)=xtg(1:ifull,k,l)*ps(1:ifull)
-            xtgsav(1:ifull,k,l)=xtgsav(1:ifull,k,l)*ps_sav(1:ifull)
-          end do
-!!        perform conservation fix on aerosol as affected by vadv, hadv, hordif
-!!        N.B. won't cope with any -ves from conjob
-!!        delpos is the sum of all positive changes over globe
-!!        delneg is the sum of all negative changes over globe
-          wrk1(1:ifull,1:kl)=max(xtg(1:ifull,1:kl,l),0.)
-     &                    -xtgsav(1:ifull,1:kl,l) ! increments
-          call ccglobal_posneg(wrk1,delpos,delneg)
-          ratio = -delneg/max(delpos,1.e-30)
-          alph_q = min(ratio,sqrt(ratio))  ! best option
-!         this is cunning 2-sided scheme
-          xtg(1:ifull,:,l)=xtgsav(:,:,l)+
-     &       alph_q*max(0.,wrk1(:,:)) + min(0.,wrk1(:,:))/max(1.,alph_q)
-!            undo ps weighting
-          do k=1,kl
-            xtg(1:ifull,k,l)=xtg(1:ifull,k,l)/ps(1:ifull)
-          enddo    ! k  loop
-          do k=1,kl
-            xtgsav(1:ifull,k,l)=xtgsav(1:ifull,k,l)/ps_sav(1:ifull)
-          end do
+        xtg=max(xtg,0.)
+        do ng=1,naero
+          call massfix(mfix_aero,xtg(1:ifull,:,ng),
+     &                 xtgsav(1:ifull,:,ng),ps(1:ifull),
+     &                 ps_sav(1:ifull),wts(1:ifull))
         end do
       end if
       !--------------------------------------------------------------
@@ -1015,3 +803,62 @@ c              print *,'iq,iw,iwn ',iq,iw(iq),iwn(iq)
             end if
         enddo   ! n loop
       end subroutine adjust_init
+
+      subroutine massfix(mfix,s,ssav,ps,pssav,wts)
+      
+      use cc_mpi
+      
+      implicit none
+      
+      include 'newmpar.h'
+      
+      integer, intent(in) :: mfix
+      integer k
+      real, dimension(ifull,kl), intent(inout) :: s,ssav
+      real, dimension(ifull), intent(in) :: ps,pssav,wts
+      real, dimension(ifull,kl) :: wrk1
+      real delpos,delneg,ratio,alph_g
+
+      if (mfix>0) then
+        do k=1,kl         
+          s(:,k)=s(:,k)*ps
+          ssav(:,k)=ssav(:,k)*pssav
+        enddo    ! k  loop           
+      else
+        do k=1,kl         
+          s(:,k)=s(:,k)*ps*wts
+          ssav(:,k)=ssav(:,k)*pssav*wts
+        enddo    ! k  loop     
+      endif ! (mfix>0) .. else ..
+      do k=1,kl
+        wrk1(:,k)=s(:,k)-ssav(:,k) 
+      enddo   ! k loop
+      call ccglobal_posneg(wrk1,delpos,delneg)
+      ratio = -delneg/max(delpos,1.e-30)
+      if (mfix==1) then
+        alph_g = min(ratio,sqrt(ratio))
+        do k=1,kl
+          s(1:ifull,k)=ssav(1:ifull,k)+
+     &      alph_g*max(0.,wrk1(:,k))+min(0.,wrk1(:,k))/max(1.,alph_g)
+        enddo    ! k  loop
+      elseif (mfix==2) then
+        alph_g = max(sqrt(ratio),1.e-30)
+        do k=1,kl
+          s(1:ifull,k)=ssav(1:ifull,k)+
+     &      alph_g*max(0.,wrk1(:,k))+min(0.,wrk1(:,k))/alph_g
+        enddo    ! k  loop
+      end if ! (mfix==1) .. else ..
+      if (mfix>0) then
+        do k=1,kl          
+          s(1:ifull,k)=s(1:ifull,k)/ps
+          ssav(1:ifull,k)=ssav(1:ifull,k)/pssav
+        enddo    ! k  loop
+      else
+        do k=1,kl          
+          s(1:ifull,k)=s(1:ifull,k)/(ps*wts)
+          ssav(1:ifull,k)=ssav(1:ifull,k)/(pssav*wts)
+        enddo   ! k  loop            
+      endif ! (mfix>0) .. else ..
+
+      return
+      end subroutine massfix

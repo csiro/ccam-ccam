@@ -16,11 +16,9 @@ real, dimension(:,:,:), allocatable, save :: gdat
 
 contains
 
-subroutine o3amip_init(ifull,iextra,kl)
+subroutine o3amip_init
 
 implicit none
-
-integer, intent(in) :: ifull,iextra,kl
 
 allocate(glat(jg),dp(kg),gpri(lg),gdat(jg,kg,mo))
 

@@ -34,10 +34,6 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       include 'const_phys.h'
       include 'parm.h'
  
-      integer nhor,nhorps,khor,khdif,nhorjlm
-      real hdifmax
-      common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
-     
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
@@ -73,6 +69,13 @@ c     in namelist khdif is fujio's a**2, e.g. 4.
 
 c     set up topography reduction factors for each type of location
 c     expect power nf to be about 1 or 2 (see data statement)
+
+      if (kmax.lt.0) then
+        do k=1,kl
+          if (sig(k).ge.0.2) kmax=k
+        end do
+      end if
+
       delphi=1.e6  ! turns off reduction (can also use nhorx=4)
       if(abs(nhor).ge.50)then
          nhora=10*(abs(nhor)/10)    ! e.g. 150  for nhor=-157
@@ -93,17 +96,6 @@ c     above code independent of k
          print *,'ax,ay,az ',ax(idjd),ay(idjd),az(idjd)
          print *,'bx,by,bz ',bx(idjd),by(idjd),bz(idjd)
       endif
-
-      !--------------------------------------------------------------
-      ! MJT smag
-      ! replace kmax=2*kl/3 with sig(kmax)=0.2, no impact for 18 level
-      ! version
-      if (kmax.lt.0) then
-        do k=1,kl
-          if (sig(k).ge.0.2) kmax=k
-        end do
-      end if
-      !--------------------------------------------------------------
 
       !--------------------------------------------------------------
       ! MJT tke ! MJT smag

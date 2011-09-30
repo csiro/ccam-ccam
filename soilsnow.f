@@ -42,6 +42,7 @@ c----------------------------------------------------------------------
 
 c     update land points.
       if(ktau==1)then
+        call work3b_init(ifull,iextra,kl,ms)
         if(ntest==3)snmin=.11   ! to force 3-layer snow for testing
 !       N.B. snmin should exceed sum of layer depths, i.e. .11 m	 
         do k=1,ms

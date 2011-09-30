@@ -1,4 +1,4 @@
-      subroutine radrive (odcalc,iaero)
+      subroutine radrive (ixin,odcalc,iaero)
 ! Radiation driver routine for the conformal cubic model.
 ! This calls the GFDL radiation routines for each row of each face.
 ! At the moment it does not support the new liquid water cloud scheme
@@ -13,14 +13,16 @@
 
       use aerointerface
       use arrays_m
-      use ateb       ! MJT urban 
-      use cable_ccam, only : CABLE ! MJT cable
+      use ateb
+      use cable_ccam, only : CABLE
       use cc_mpi
       use cfrac_m
       use cldcom_m
+      use co2dta_m, only : co2dta_init
       use diag_m
       use extraout_m ! sintsave, etc
       use infile
+      use kdacom_m, only : kdacom_init
       use kuocomb_m
       use latlong_m
       use liqwpar_m  ! ifullw
@@ -38,14 +40,17 @@
       use srccom_m
       use swocom_m
       use swr99_m
+      use tabcom_m, only : tabcom_init
       use tfcom_m
       use work3f_m
+      use work3lwr_m, only : work3lwr_init
       use zenith_m
       include 'newmpar.h'
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
 !        for diag prints set ntest=1
 !        or, usefully can edit 'ntest.gt.0' to 'ktau.gt.nnn'
       parameter (nalbwb=0)  ! 0  for original alb not depending on wb
+      integer ixin
       integer kcl_top       !max level for cloud top (conjob,radrive,vertmix)
       include 'const_phys.h' ! for ldr cloud scheme
       include 'kuocom.h'     ! also with kbsav,ktsav
@@ -69,20 +74,20 @@ c     parameters for the aerosol calculation
       real sigh(kl+1)
 
 !     Radiation fields (CSIRO GCM names)
-      real sg(imax), sgclr(imax), sint(imax), sout(imax), soutclr(imax)
-      real rg(imax), rgclr(imax), rt(imax), rtclr(imax)
-      real sga(imax)
-      real sgdn(imax), rgdn(imax)
+      real sg(ixin), sgclr(ixin), sint(ixin), sout(ixin), soutclr(ixin)
+      real rg(ixin), rgclr(ixin), rt(ixin), rtclr(ixin)
+      real sga(ixin)
+      real sgdn(ixin), rgdn(ixin)
       real, dimension(:,:), allocatable, save :: hlwsav,hswsav
       real, dimension(:), allocatable, save :: sgamp
       real sgx(ifull),sgdnx(ifull),rgx(ifull),rgdnx(ifull),
      &             soutx(ifull),sintx(ifull),rtx(ifull)
       
 c     Following are for cloud2 routine
-      real t2(imax,kl),ql2(imax,kl),qf2(imax,kl),cf2(imax,kl),
-     &     qc2(imax,kl),cd2(imax,kl),p2(imax,kl),
-     &     dp2(imax,kl),cll(imax),clm(imax),clh(imax)
-      logical land2(imax)
+      real t2(ixin,kl),ql2(ixin,kl),qf2(ixin,kl),cf2(ixin,kl),
+     &     qc2(ixin,kl),cd2(ixin,kl),p2(ixin,kl),
+     &     dp2(ixin,kl),cll(ixin),clm(ixin),clh(ixin)
+      logical land2(ixin)
 
 
 c     Stuff from cldset
@@ -90,13 +95,13 @@ c     Stuff from cldset
      &                kkth(37,5),kkbh(37,5)
 
 !     For the zenith angle calculation
-      real coszro2(imax), taudar2(imax)
+      real coszro2(ixin), taudar2(ixin)
       real fjd, r1, dlt, slag, dhr
 
 !     Ozone returned by o3set
-      real duo3n(imax,kl)
+      real duo3n(ixin,kl)
       
-      real rhoa(imax,kl)
+      real rhoa(ixin,kl)
 
       logical clforflag, solarfit
       parameter (clforflag = .true., solarfit=.true.)
@@ -111,10 +116,7 @@ c     Stuff from cldset
       call start_log(radmisc_begin)
 
       kcl_top=kl-2
-      if (.not.allocated(sgamp)) then
-        allocate(hlwsav(ifull,kl),hswsav(ifull,kl))
-        allocate(sgamp(ifull))
-      end if
+      imax=ixin
 
       do k=kl,1,-1
          if(sig(k).le. .15)ksigtop=k  ! top level for RH calc for clouds
@@ -131,6 +133,44 @@ c     Stuff from cldset
 
 !     Initialisation (from initfs)
       if ( first ) then
+   
+         l=kl
+         lp1=l+1
+         lp2=l+2
+         lp3=l+3
+         lm1=l-1
+         lm2=l-2
+         lm3=l-3
+         ll=2*l
+         llp1=ll+1
+         llp2=ll+2
+         llp3=ll+3
+         llm1=ll-1
+         llm2=ll-2
+         llm3=ll-3
+         lp1m=lp1*lp1
+         lp1m1=lp1m-1
+         lp1v=lp1*(1+2*l/2)
+         lp121=lp1*nbly
+         ll3p=3*l+2
+         lp1i=imax*lp1
+         llp1i=imax*llp1
+         ll3pi=imax*ll3p
+         call cldcom_init(ifull,iextra,kl,imax)
+         call co2dta_init(ifull,iextra,kl)
+         call kdacom_init(ifull,iextra,kl,imax)
+         call lwout_init(ifull,iextra,kl,imax)
+         call radisw_init(ifull,iextra,kl,imax)
+         call rdflux_init(ifull,iextra,kl,imax,nbly)
+         call srccom_init(ifull,iextra,kl,imax,nbly)
+         call swocom_init(ifull,iextra,kl,imax)
+         call tabcom_init(ifull,iextra,kl,imax,nbly)
+         call tfcom_init(ifull,iextra,kl,imax,nbly)
+         call work3lwr_init(ifull,iextra,kl,imax)      
+
+         allocate(hlwsav(ifull,kl),hswsav(ifull,kl))
+         allocate(sgamp(ifull))
+      
          if(ntest.eq.1)print *,'id,jd,imax,idrad,jdrad0,jdrad ',
      .                          id,jd,imax,idrad,jdrad0,jdrad
          first = .false.
@@ -345,22 +385,12 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
 
             !alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
             if(nsib.ge.3)then 
-              !cuvrf(i,1)=alss
-              cuvrf(i,1)=(1.-snrat)*cuvrf(i,1) + snrat*alv ! MJT CHANGE albedo
-              cirrf(i,1)=(1.-snrat)*cirrf(i,1) + snrat*alir ! MJT CHANGE albedo
+              cuvrf(i,1)=(1.-snrat)*cuvrf(i,1) + snrat*alv
+              cirrf(i,1)=(1.-snrat)*cirrf(i,1) + snrat*alir
             else
-              !cuvrf(i,1)=min(.8,(1.-tsigmfx)*alss+tsigmfx*albsav(iq))
-              cuvrf(i,1)=min(.8,(1.-tsigmfx)*alv+tsigmfx*cuvrf(i,1)) ! MJT CHANGE albedo
-              cirrf(i,1)=min(.8,(1.-tsigmfx)*alir+tsigmfx*cirrf(i,1)) ! MJT CHANGE albedo
+              cuvrf(i,1)=min(.8,(1.-tsigmfx)*alv+tsigmfx*cuvrf(i,1))
+              cirrf(i,1)=min(.8,(1.-tsigmfx)*alir+tsigmfx*cirrf(i,1))
             endif
-c           old stuff before snage follows:
-c           if(tss(iq) .ge. 273.09 ) then
-c             snalb = 0.6   ! changed from .5 to .6 on 31/8/00
-c           else
-c             snalb = 0.8
-c           endif
-c           cuvrf(i,1)=min(snalb ,
-c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
             if(ntest.gt.0.and.i.eq.idrad.and.j.eq.jdrad)then
               print *,'i,j,land,sicedep,snowd,snrat ',
      .                 i,j,land(iq),sicedep(iq),snowd(iq),snrat
@@ -368,34 +398,26 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
      .                 albsav(iq),dnsnow,talb,cuvrf(i,1)
             endif
            endif          !  snowd(iq).gt.0.
-!         else             !  over the ocean or sea ice      ! MJT CHANGE sib
-!!          following for CCAM from 11/6/03                  ! MJT CHANGE sib
-!    !       cuvrf(i,1)=.65*fracice(iq)+
-!    ! .                (1.-fracice(iq))*.05/(coszro(i)+0.15)! MJT CHANGE sib
-!           cuvrf(i,1)=.85*fracice(iq)+
-!     .                (1.-fracice(iq))*.05/(coszro(i)+0.15) ! MJT CHANGE sib
-!           cirrf(i,1)=.45*fracice(iq)+
-!     .                (1.-fracice(iq))*.05/(coszro(i)+0.15) ! MJT CHANGE sib
           endif       ! if( land(iq)) .. else..
         end do ! i=1,imax
-      end if ! else nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7      ! MJT CHANGE sib
+      end if ! else nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7
 
       ! OCEAN/WATER -------------------------------------------------
-      where (.not.land(istart:iend))                           ! MJT CHANGE sib
+      where (.not.land(istart:iend))
         cuvrf(1:imax,1)=.85*fracice(istart:iend)+
-     .     (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15) ! MJT CHANGE sib
+     .     (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
         cirrf(1:imax,1)=.45*fracice(istart:iend)+
-     .     (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15) ! MJT CHANGE sib
+     .     (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
       end where
       
-      !--------------------------------------------------------------
-      ! MJT albedo
       ! MLO ---------------------------------------------------------
-      call mloalb2(istart,imax,coszro,cuvrf(:,1),cirrf(:,1),0) ! MJT mlo
+      call mloalb2(istart,imax,coszro,cuvrf(:,1),cirrf(:,1),0)
 
       ! URBAN -------------------------------------------------------
-      call atebalb1(istart,imax,cuvrf(1:imax,1),0) ! MJT CHANGE - urban
-      call atebalb1(istart,imax,cirrf(1:imax,1),0) ! MJT CHANGE - urban
+      ! The direct beam fraction is effectively 1 in this case to
+      ! ensure energy conservation (i.e., no cloud)
+      call atebalb1(istart,imax,cuvrf(1:imax,1),0)
+      call atebalb1(istart,imax,cirrf(1:imax,1),0)
       
       ! AEROSOLS ----------------------------------------------------
       select case(abs(iaero))

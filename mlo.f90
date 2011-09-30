@@ -276,21 +276,23 @@ real dd,x,al,bt
 
 dd=min(mxd,max(mindep,depin))
 x=real(wlev)
-if (dd.gt.x) then
-  al=(mindep*x-dd)/(x-x*x*x)
-  bt=(mindep*x*x*x-dd)/(x*x*x-x)
+!if (dd.gt.x) then
+!  al=(mindep*x-dd)/(x-x*x*x)           ! hybrid levels
+!  bt=(mindep*x*x*x-dd)/(x*x*x-x)       ! hybrid levels
+  al=dd*(mindep*x/mxd-1.)/(x-x*x*x)     ! sigma levels
+  bt=dd*(mindep*x*x*x/mxd-1.)/(x*x*x-x) ! sigma levels 
   do ii=1,wlev+1
     x=real(ii-1)
     depth_hlout(ii)=al*x*x*x+bt*x ! ii is for half level ii-0.5
   end do
-else
-  depth_hlout(1)=0.
-  depth_hlout(2)=mindep
-  do ii=3,wlev+1
-    x=(dd-mindep)*real(ii-2)/real(wlev-1)+mindep
-    depth_hlout(ii)=x
-  end do
-end if
+!else
+!  depth_hlout(1)=0.
+!  depth_hlout(2)=mindep       ! hybrid levels
+!  do ii=3,wlev+1
+!    x=(dd-mindep)*real(ii-2)/real(wlev-1)+mindep             ! hybrid levels
+!    depth_hlout(ii)=x
+!  end do
+!end if
 do ii=1,wlev
   depthout(ii)=0.5*(depth_hlout(ii)+depth_hlout(ii+1))
 end do

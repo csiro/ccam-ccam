@@ -165,7 +165,7 @@ c     using av_vmod (1. for no time averaging)
 !      *****  check next comment
 !       sflux called at beginning of time loop, hence savu, savv
 
-      azmin=-rdry*t(1:ifull,1)*log(sig(1))/grav             ! MJT mlo ! MJT ateb
+      azmin=-rdry*t(1:ifull,1)*log(sig(1))/grav
       srcp =sig(1)**(rdry/cp)
       ga(:)=0.              !  for ocean points in ga_ave diagnostic
       theta(:)=t(1:ifull,1)/srcp
@@ -489,7 +489,7 @@ c      Surface stresses taux, tauy: diagnostic only - unstag now    ! sice
          deltat=ga(iq)/gbot
          print *,'ri,vmag,vmod,cduv ',ri(iq),vmag(iq),vmod(iq),cduv(iq) 
          print *,'fh,tss,tpan,tggsn1 ',fh(iq),tss(iq),tpan(iq)
-     &                                ,tggsn(iq,1) ! MJT seaice
+     &                                ,tggsn(iq,1)
          print *,'theta,t1,deltat ',theta(iq),t(iq,1),deltat           
          print *,'b1,ga,gbot,af,aft ',b1,ga(iq),gbot,af(iq),aft(iq) 
          print *,'fg,fgice,factch ',fg(iq),fgf(iq),factch(iq) 
@@ -501,16 +501,34 @@ c      Surface stresses taux, tauy: diagnostic only - unstag now    ! sice
         ! abs(mlo) <= 1 Vertical mixing                              ! MLO
         ! abs(mlo) <= 2 + Horizontal diffusion                       ! MLO
         ! abs(mlo) <= 3 + Advection                                  ! MLO
+                                                                     ! MLO
+        if (abs(nmlo).ge.3) then                                     ! MLO
+          ! Ocean dynamics                                           ! MLO
+          call start_log(waterdynamics_begin)                        ! MLO
+          call mlohadv                                               ! MLO
+          call end_log(waterdynamics_end)                            ! MLO
+        end if                                                       ! MLO
+                                                                     ! MLO
         if (abs(nmlo).ge.2) then                                     ! MLO
+          ! Ocean diffusion                                          ! MLO
+          call start_log(waterdiff_begin)                            ! MLO
+          call mlodiffusion                                          ! MLO
+          call end_log(waterdiff_end)                                ! MLO
+                                                                     ! MLO
+          ! River routing                                            ! MLO
           call start_log(river_begin)                                ! MLO
           call mlorouter                                             ! MLO
           call end_log(river_end)                                    ! MLO
         end if                                                       ! MLO
+                                                                     ! MLO
         if (abs(nmlo).eq.1) then                                     ! MLO
+          ! Single column                                            ! MLO
           ! set free surface to zero when water is not conserved     ! MLO
           neta=0.                                                    ! MLO
           call mloimport(4,neta,0,0)                                 ! MLO
         end if                                                       ! MLO
+                                                                     ! MLO
+        ! Ocean mixing                                               ! MLO
         call start_log(watermix_begin)                               ! MLO
         call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,        ! MLO
      &               fracice,sicedep,snowd,dt,azmin,azmin,sgsave(:)/ ! MLO
@@ -838,8 +856,8 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )             ! urban
          sinth=-(zonx*bx(1:ifull)+zony*by(1:ifull)+zonz*bz(1:ifull))    ! urban
      &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )             ! urban
-         uzon= costh*uav-sinth*vav ! zonal                              ! urban
-         vmer= sinth*uav+costh*vav ! meridonal                          ! urban
+         uzon= costh*uav-sinth*vav ! zonal wind                         ! urban
+         vmer= sinth*uav+costh*vav ! meridonal wind                     ! urban
          ! call aTEB                                                    ! urban
          call atebcalc(fg(:),eg(:),tss(:),wetfac(:),runoff(:),dt,azmin  ! urban
      &               ,sgsave(:)/(1.-swrsave*albvisnir(:,1)-             ! urban

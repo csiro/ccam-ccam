@@ -60,7 +60,7 @@ module cable_ccam
   implicit none
 
   private
-  public CABLE,sib4,loadcbmparm,savetile,cableinflow,cbmemiss
+  public CABLE,sib4,loadcbmparm,loadtile,savetile,cableinflow,cbmemiss
 
   integer, parameter :: CABLE          = 4
   integer, parameter :: hruffmethod    = 1 ! Method for max hruff
@@ -655,9 +655,7 @@ module cable_ccam
   real fjd  
   character(len=*), intent(in) :: fveg,fvegprev,fvegnext
 
-  if (myid == 0) write(6,*) "Setting CABLE defaults (igbp)"
-  
-  zmin=-rdry*280.*log(sig(1))/grav ! not yet defined in indata.f
+  if (myid==0) write(6,*) "Setting CABLE defaults (igbp)"
 
   hc=(/ 17.,35.,15.5,20.,19.25,0.6,0.6,7.0426,14.3379,0.567,0.5,0.55,6.017,0.55,0.2,0.2,0.2 /)
   xfang=(/ 0.01,0.1,0.01,0.25,0.125,-0.3,0.01,-0.3,-0.3,-0.3,0.,-0.3,0.,-0.3,0.,0.1,0. /)
@@ -723,8 +721,8 @@ module cable_ccam
   albvisdif=0.08
   albnirdir=0.08
   albnirdif=0.08
-  gflux=0. ! MJT suggestion
-  sgflux=0. ! MJT suggestion
+  gflux=0.
+  sgflux=0.
   sumpn = 0.
   sumrp = 0.
   sumrs = 0.
@@ -847,6 +845,13 @@ module cable_ccam
     call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
     call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
     tsigmf=sigmf
+    vlai=0.
+    do n=1,5
+      if (pind(n,1).le.mp) then
+        vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
+                                        +sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2))
+      end if
+    end do
   
     ! calculate zom diagnostics
     do n=1,5
@@ -967,53 +972,6 @@ module cable_ccam
     bal%precip_tot=0.
     bal%ebal_tot=0.
     bal%rnoff_tot=0.
-  end if
-
-  ! Load CABLE tile data
-  call loadtile ! load tgg,wb,wbice,snowd,snage,tggsn,smass,ssdn,isflag,rtsoil,cansto,cplant and csoil
-
-  if (mp.gt.0) then
-    ! fixes
-    do k=1,ms
-      ssoil%wb(:,k)=max(ssoil%wb(:,k),0.)
-      ssoil%wbice(:,k)=max(ssoil%wbice(:,k),0.)
-    end do
-    ssoil%snowd=max(ssoil%snowd,0.)
-
-    canopy%oldcansto=canopy%cansto
-
-    ! overwritten by CABLE
-    ssoil%osnowd=ssoil%snowd                                ! overwritten by CABLE
-    bal%osnowd0=ssoil%snowd                                 ! overwritten by CABLE
-    where (ssoil%isflag.gt.0)
-      ssoil%sdepth(:,1)=ssoil%smass(:,1)/ssoil%ssdn(:,1)    ! overwritten by CABLE
-      ssoil%ssdnn=(ssoil%ssdn(:,1)*ssoil%smass(:,1)+ssoil%ssdn(:,2) &
-           & *ssoil%smass(:,2)+ssoil%ssdn(:,3)*ssoil%smass(:,3))    &
-           & /ssoil%snowd
-    elsewhere
-      ssoil%sdepth(:,1)=ssoil%snowd/ssoil%ssdn(:,1)         ! overwritten by CABLE
-      ssoil%ssdnn=max(120.,ssoil%ssdn(:,1))                 ! overwritten by CABLE
-    end where
-    do k=2,3
-      where (ssoil%isflag.gt.0)
-        ssoil%sdepth(:,k)=ssoil%smass(:,k)/ssoil%ssdn(:,k)  ! overwritten by CABLE
-      elsewhere
-        ssoil%sdepth(:,k)=ssoil%sconds(:,1)                 ! overwritten by CABLE
-      end where
-    end do  
-    ssoil%wetfac=max(0.,min(1.,(ssoil%wb(:,1)-soil%swilt)/(soil%sfc-soil%swilt)))
-    ssoil%owetfac=ssoil%wetfac
-    ssoil%wbtot=0.
-    ssoil%tggav=0.
-    do k = 1,ms
-      ssoil%wbtot=ssoil%wbtot+ssoil%wb(:,k)*1000.0*soil%zse(k)
-      ssoil%tggav=ssoil%tggav+soil%zse(k)*ssoil%tgg(:,k)/(totdepth/100.)
-      ssoil%gammzz(:,k)=max((1.-soil%ssat)*soil%css* soil%rhosoil &
-         & +(ssoil%wb(:,k)-ssoil%wbice(:,k))*4.218e3* 1000.       &
-         & +ssoil%wbice(:,k)*2.100e3*1000.*0.9,soil%css*soil%rhosoil)*soil%zse(k)
-    end do
-    bal%wbtot0=ssoil%wbtot
-
   end if
 
   return
@@ -1177,6 +1135,7 @@ module cable_ccam
   
   integer k,n,ierr,ierr2,idv
   real, dimension(ifull) :: dat
+  real totdepth
   character(len=9) vname
   
   if (io_in.eq.1) then
@@ -1286,6 +1245,12 @@ module cable_ccam
   
   ! Some fixes for rounding errors
   if (mp.gt.0) then
+
+    totdepth = 0.
+    do k=1,ms
+      totdepth = totdepth + soil%zse(k)*100.
+    enddo
+
     ssoil%wb=max(ssoil%wb,0.)
     ssoil%wbice=max(ssoil%wbice,0.)
     ssoil%smass=max(ssoil%smass,0.)
@@ -1293,6 +1258,40 @@ module cable_ccam
     canopy%cansto=max(canopy%cansto,0.)
     bgc%cplant=max(bgc%cplant,0.)
     bgc%csoil=max(bgc%csoil,0.)
+    ssoil%snowd=max(ssoil%snowd,0.)
+
+    ! overwritten by CABLE
+    ssoil%osnowd=ssoil%snowd                                ! overwritten by CABLE
+    bal%osnowd0=ssoil%snowd                                 ! overwritten by CABLE
+    where (ssoil%isflag.gt.0)
+      ssoil%sdepth(:,1)=ssoil%smass(:,1)/ssoil%ssdn(:,1)    ! overwritten by CABLE
+      ssoil%ssdnn=(ssoil%ssdn(:,1)*ssoil%smass(:,1)+ssoil%ssdn(:,2) &
+           & *ssoil%smass(:,2)+ssoil%ssdn(:,3)*ssoil%smass(:,3))    &
+           & /ssoil%snowd
+    elsewhere
+      ssoil%sdepth(:,1)=ssoil%snowd/ssoil%ssdn(:,1)         ! overwritten by CABLE
+      ssoil%ssdnn=max(120.,ssoil%ssdn(:,1))                 ! overwritten by CABLE
+    end where
+    do k=2,3
+      where (ssoil%isflag.gt.0)
+        ssoil%sdepth(:,k)=ssoil%smass(:,k)/ssoil%ssdn(:,k)  ! overwritten by CABLE
+      elsewhere
+        ssoil%sdepth(:,k)=ssoil%sconds(:,1)                 ! overwritten by CABLE
+      end where
+    end do  
+    ssoil%wetfac=max(0.,min(1.,(ssoil%wb(:,1)-soil%swilt)/(soil%sfc-soil%swilt)))
+    ssoil%owetfac=ssoil%wetfac
+    ssoil%wbtot=0.
+    ssoil%tggav=0.
+    do k = 1,ms
+      ssoil%wbtot=ssoil%wbtot+ssoil%wb(:,k)*1000.0*soil%zse(k)
+      ssoil%tggav=ssoil%tggav+soil%zse(k)*ssoil%tgg(:,k)/(totdepth/100.)
+      ssoil%gammzz(:,k)=max((1.-soil%ssat)*soil%css* soil%rhosoil &
+         & +(ssoil%wb(:,k)-ssoil%wbice(:,k))*4.218e3* 1000.       &
+         & +ssoil%wbice(:,k)*2.100e3*1000.*0.9,soil%css*soil%rhosoil)*soil%zse(k)
+    end do
+    bal%wbtot0=ssoil%wbtot
+
   end if
   
   return

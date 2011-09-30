@@ -1,5 +1,6 @@
 !  this is eig derived from eignew, but used in-line in C-CAM
-      subroutine eig(sigin,sigmhin,tbar,lapsbot,isoth,dtin,eps,nsig,nh)
+      subroutine eig(sigin,sigmhin,tbar,lapsbot,isoth,dtin,eps,nsig,
+     &               bet,betm,nh)
       use vecs_m
       include 'newmpar.h'
       integer nh,nsig,lapsbot,isoth
@@ -8,6 +9,7 @@
       real eps,dtin,dt
       real sigin(kl),sigmhin(kl)
       real sig(kl),sigmh(kl+1),tbar(kl)
+      real bet(kl),betm(kl)
 
 c     lapsbot=1 gives zero lowest t lapse for phi calc
       print *,'this run configured with kl = ',kl
@@ -28,7 +30,8 @@ c     expect data from bottom up
       print *,'final sig values: ',sig
       print *,'final sigmh values: ',sigmh
       open(28,file='eigenv.out')
-      call eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh)   !------------------------
+      call eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh,
+     &          bet,betm)   !------------------------
       print *,'about to write to 28 '
       write(28,*)kl,lapsbot,isoth,nsig,
      .       '   kl,lapsbot,isoth,nsig'
@@ -77,7 +80,8 @@ c       write data from bottom up
       write(28,945)(sigmh(k),k=1,kl+1)
       end
 
-      subroutine eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh)
+      subroutine eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh,
+     &                bet,betm)
       use vecs_m
       include 'newmpar.h'
       integer lapsbot,isoth,nh
@@ -105,36 +109,6 @@ c     sets up eigenvectors
       print *,'sigmh ',(sigmh(k),k=1,kl)
       print *,'dsig ',(dsig(k),k=1,kl)
 
-c     constants for semi-implicit scheme
-      do k=1,kl-1
-       bet(k+1)=r*log(sig(k)/sig(k+1))*.5
-       print *,'k,sig(k),sig(k+1):',k,sig(k),sig(k+1)
-      enddo
-      print *,'some bets done'
-      print *,'some bets done'
-      c=g/65.e-4
-      bet(1)=c *(sig(1)**(-r/c)-1.)
-      if(lapsbot.eq.1)bet(1)=-r*log(sig(1))
-      do k=1,kl
-       betm(k)=bet(k)
-      enddo
-
-      if(lapsbot.eq.2)then   ! may need refinement for non-equal spacing
-        do k=2,kl
-         bet(k)=.5*r*(sig(k-1)-sig(k))/sig(k)
-         betm(k)=.5*r*(sig(k-1)-sig(k))/sig(k-1)
-        enddo
-        bet(1)=r*(1.-sig(1))/sig(1)
-      endif  ! (lapsbot.eq.2)
-
-      if(lapsbot.eq.3)then   ! possibly suits nh  4/2/04
-        betm(:)=0.
-        do k=2,kl
-         bet(k)=r*log(sig(k-1)/sig(k))
-        enddo
-        bet(1)=-r*log(sig(1))
-      endif  ! (lapsbot.eq.3)
-      
       get(1)=bet(1)/(r*sig(1))
       do k=2,kl
         get(k)=bet(k)/(r*sig(k))

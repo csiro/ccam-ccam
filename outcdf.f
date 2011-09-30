@@ -503,7 +503,7 @@ c       For time varying surface fields
           call attrib(idnc,idim,2,'ocndepth',lname,'m',0.,32500.,0,
      &                itype)
           lname = 'water surface height'
-          call attrib(idnc,idim,3,'ocheight',lname,'m',-65.,65.,0,
+          call attrib(idnc,idim,3,'ocheight',lname,'m',-32.5,32.5,0,
      &                itype)          
           lname = 'Snow temperature lev 1'
           call attrib(idnc,idim,3,'tggsn1',lname,'K',100.,425.,0,
@@ -524,7 +524,7 @@ c       For time varying surface fields
           call attrib(idnc,idim,3,'vic',lname,'m/s',-65.,65.,0,itype)
           if (abs(nmlo).ge.2) then
             lname = 'Surface water'
-            call attrib(idnc,idim,3,'swater',lname,'mm',0.,260.,0,
+            call attrib(idnc,idim,3,'swater',lname,'mm',0.,26.,0,
      &                  itype)
           end if
         end if

@@ -29,20 +29,21 @@ contains
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Load aerosols emissions from netcdf
-subroutine load_aerosolldr(aerofile,oxidantfile)
+subroutine load_aerosolldr(aerofile,oxidantfile,kdatein)
       
 use aerosolldr
 use cc_mpi
+use infile, only : ncmsg
 use ozoneread
       
 implicit none
 
-include 'dates.h'      
 include 'netcdf.inc'
 include 'newmpar.h'
 include 'mpif.h'
 include 'parmgeom.h'
       
+integer, intent(in) :: kdatein
 integer ncstatus,ncid,i,j,varid,tilg
 integer ierr,jyear,jmonth
 integer, dimension(2) :: spos,npos
@@ -79,19 +80,16 @@ call aldrinit(ifull,iextra,kl)
 
 if (myid==0) then
   allocate(dumg(ifull_g))
-  ncstatus=nf_open(aerofile,nf_nowrite,ncid)
-  if (ncstatus.ne.nf_noerr) then
-    write(6,*) "ERROR: Cannot open ",trim(aerofile)
-    stop
-  end if
   write(6,*) "Reading ",trim(aerofile)
+  ncstatus=nf_open(aerofile,nf_nowrite,ncid)
+  call ncmsg('Aerosol emissions',ncstatus)
   ! check dimensions and location
   ncstatus=nf_get_att_real(ncid,nf_global,'lat0',tlat)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('lat0',ncstatus)
   ncstatus=nf_get_att_real(ncid,nf_global,'lon0',tlon)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('lon0',ncstatus)
   ncstatus=nf_get_att_real(ncid,nf_global,'schmidt0',tschmidt)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('schmidt0',ncstatus)
   if (rlong0.ne.tlon.or.rlat0.ne.tlat.or.schmidt.ne.tschmidt) then
     write(6,*) "ERROR: Grid mismatch for ",trim(aerofile)
     write(6,*) "rlong0,rlat0,schmidt ",rlong0,rlat0,schmidt
@@ -99,9 +97,9 @@ if (myid==0) then
     stop
   end if
   ncstatus = nf_inq_dimid(ncid,'longitude',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('longitude',ncstatus)
   ncstatus = nf_inq_dimlen(ncid,varid,tilg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('longitude',ncstatus)
   if (tilg.ne.il_g) then
     write (6,*) "ERROR: Grid mismatch for ",trim(aerofile)
     write (6,*) "il_g,tilg ",il_g,tilg
@@ -111,144 +109,161 @@ if (myid==0) then
   spos=1
   npos(1)=il_g
   npos(2)=il_g*6
+  write(6,*) "Loading emissions for SO2 anth l1"
   ncstatus = nf_inq_varid(ncid,'so2a1',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('so2a1',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('so2a1',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(1,duma)
+  write(6,*) "Loading emissions for SO2 anth l2"
   ncstatus = nf_inq_varid(ncid,'so2a2',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('so2a2',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('so2a2',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(2,duma)
+  write(6,*) "Loading emissions for BC anth l1"
   ncstatus = nf_inq_varid(ncid,'bca1',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('bca1',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('bca1',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(3,duma)
+  write(6,*) "Loading emissions for BC anth l2"
   ncstatus = nf_inq_varid(ncid,'bca2',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('bca2',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('bca2',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(4,duma)
+  write(6,*) "Loading emissions for OC anth l1"
   ncstatus = nf_inq_varid(ncid,'oca1',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('oca1',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('oca1',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(5,duma)
+  write(6,*) "Loading emissions for OC anth l2"
   ncstatus = nf_inq_varid(ncid,'oca2',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('oca2',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('oca2',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(6,duma)
+  write(6,*) "Loading emissions for SO2 bio l1"
   ncstatus = nf_inq_varid(ncid,'so2b1',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('so2b1',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('so2b1',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(7,duma)
+  write(6,*) "Loading emissions for SO2 bio l2"
   ncstatus = nf_inq_varid(ncid,'so2b2',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('so2b2',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('so2b2',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(8,duma)
+  write(6,*) "Loading emissions for BC bio l1"
   ncstatus = nf_inq_varid(ncid,'bcb1',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('bcb1',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('bcb1',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(9,duma)
+  write(6,*) "Loading emissions for BC bio l2"
   ncstatus = nf_inq_varid(ncid,'bcb2',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('bcb2',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('bcb2',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(10,duma)
+  write(6,*) "Loading emissions for OC bio l1"
   ncstatus = nf_inq_varid(ncid,'ocb1',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('ocb1',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('ocb1',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(11,duma)
+  write(6,*) "Loading emissions for OC bio l2"
   ncstatus = nf_inq_varid(ncid,'ocb2',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('ocb2',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('ocb2',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(12,duma)
+  write(6,*) "Loading emissions for DMS ocean"
   ncstatus = nf_inq_varid(ncid,'dmso',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('dmso',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('dmso',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(13,duma)
+  write(6,*) "Loading emissions for DMS land"
   ncstatus = nf_inq_varid(ncid,'dmst',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('dmst',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('dmst',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(14,duma)
+  write(6,*) "Loading emissions for natural organic"
   ncstatus = nf_inq_varid(ncid,'ocna',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('ocna',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('ocna',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(15,duma)
+  write(6,*) "Loading emissions for Volcanic SO2"
   ncstatus = nf_inq_varid(ncid,'vso2',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('vso2',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('vso2',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloademiss(16,duma)
   ! load dust fields
+  write(6,*) "Loading emissions for dust (sand)"
   ncstatus = nf_inq_varid(ncid,'sandem',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('sandem',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('sandem',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloaderod(1,1,duma)
+  write(6,*) "Loading emissions for dust (slit)"
   ncstatus = nf_inq_varid(ncid,'siltem',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('siltem',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('siltem',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloaderod(2,1,duma)
+  write(6,*) "Loading emissions for dust (clay)"
   ncstatus = nf_inq_varid(ncid,'clayem',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('clayem',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,spos,npos,dumg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('clayem',ncstatus)
   call ccmpi_distribute(duma,dumg)
   call aldrloaderod(3,1,duma)
   ncstatus=nf_close(ncid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('Aerosol emissions',ncstatus)
   deallocate(dumg)
   ! load oxidant fields
-  ncstatus=nf_open(oxidantfile,nf_nowrite,ncid)
-  if (ncstatus.ne.nf_noerr) then
-    write(6,*) "ERROR: Cannot open ",trim(oxidantfile)
-    stop
-  end if
   write(6,*) "Reading ",trim(oxidantfile)
+  ncstatus=nf_open(oxidantfile,nf_nowrite,ncid)
+  call ncmsg('Oxidants',ncstatus)
   ! check dimensions and location
   ncstatus = nf_inq_dimid(ncid,'lon',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('lon',ncstatus)
   ncstatus = nf_inq_dimlen(ncid,varid,ilon)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('lon',ncstatus)
   ncstatus = nf_inq_dimid(ncid,'lat',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('lat',ncstatus)
   ncstatus = nf_inq_dimlen(ncid,varid,ilat)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('lat',ncstatus)
   ncstatus = nf_inq_dimid(ncid,'lev',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('lev',ncstatus)
   ncstatus = nf_inq_dimlen(ncid,varid,ilev)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('lev',ncstatus)
+  write(6,*) "Found oxidant dimensions ",ilon,ilat,ilev
   call MPI_Bcast(ilon,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(ilat,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(ilev,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -262,60 +277,66 @@ if (myid==0) then
   nposs(2)=ilat
   nposs(3)=ilev
   nposs(4)=1
-  jyear=kdate/10000
-  jmonth=(kdate-jyear*10000)/100
-  ncstatus = nf_inq_varid(ncid,'lpn',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  ! use kdate_s as kdate has not yet been defined
+  jyear=kdatein/10000
+  jmonth=(kdatein-jyear*10000)/100
+  write(6,*) "Processing oxidant file for month ",jmonth
+  ncstatus = nf_inq_varid(ncid,'lon',varid)
+  call ncmsg('lon',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,sposs(1),nposs(1),rlon)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('lon',ncstatus)
   ncstatus = nf_inq_varid(ncid,'lat',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('lat',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,sposs(2),nposs(2),rlat) ! input latitudes (deg)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('lat',ncstatus)
   ncstatus = nf_inq_varid(ncid,'lev',varid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('lev',ncstatus)
   ncstatus = nf_get_vara_real(ncid,varid,sposs(3),nposs(3),rlev) ! input vertical levels
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('lev',ncstatus)
   call MPI_Bcast(rlon,ilon,MPI_REAL,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(rlat,ilat,MPI_REAL,0,MPI_COMM_WORLD,ierr)
   call MPI_Bcast(rlev,ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
   do j=1,4
     select case(j)
       case(1)
+        write(6,*) "Reading OH"
         ncstatus = nf_inq_varid(ncid,'OH',varid)
       case(2)
+        write(6,*) "Reading H2O2"
         ncstatus = nf_inq_varid(ncid,'H2O2',varid)
       case(3)
+        write(6,*) "Reading O3"
         ncstatus = nf_inq_varid(ncid,'O3',varid)
       case(4)
+        write(6,*) "Reading NO2"
         ncstatus = nf_inq_varid(ncid,'NO2',varid)
     end select
-    if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+    call ncmsg('Oxidants',ncstatus)
     do i=1,3
       select case(i)
         case(1)
           sposs(4)=jmonth-1
           if (sposs(4).lt.1) sposs(4)=12
           ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,1))
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('prev',ncstatus)
           call MPI_Bcast(oxidantdum(:,:,:,1),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         case(2)
           sposs(4)=jmonth
           ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,2))
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('curr',ncstatus)
           call MPI_Bcast(oxidantdum(:,:,:,2),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         case(3)
           sposs(4)=jmonth+1
           if (sposs(4).gt.12) sposs(4)=1
           ncstatus = nf_get_vara_real(ncid,varid,sposs,nposs,oxidantdum(:,:,:,3))
-          if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+          call ncmsg('next',ncstatus)
           call MPI_Bcast(oxidantdum(:,:,:,3),ilon*ilat*ilev,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       end select
     end do
     call o3regrid(oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j),oxidantdum,rlon,rlat,ilon,ilat,ilev)
   end do
   ncstatus=nf_close(ncid)
-  if (ncstatus.ne.0) write(6,*) nf_strerror(ncstatus)
+  call ncmsg('Oxidants',ncstatus)
   deallocate(oxidantdum,rlat,rlon)
 else
   ! load emission fields
