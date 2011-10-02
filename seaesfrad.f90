@@ -1,6 +1,6 @@
 ! Interface for SEA-ESF radiation scheme (from GFDL AM2.1) with CCAM.
 
-! Interface developed by M Thatcher and M Golebiewski
+! Interface developed by Marcus Thatcher and Maciej Golebiewski
 
 ! - This routine assumes that only one month at a time is integrated in RCM mode
 

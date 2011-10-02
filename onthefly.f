@@ -123,7 +123,7 @@
           return
         end if
         write(6,*) "ERROR: Cannot locate date/time in input file"
-        call MPI_Abort(MPI_COMM_WORLD,ier2,ier)
+        call MPI_Abort(MPI_COMM_WORLD,-1,ier)
       end if
       call MPI_Bcast(jk     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
       call MPI_Bcast(kk     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)

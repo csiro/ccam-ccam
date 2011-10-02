@@ -76,13 +76,13 @@ c     eg is latent heat flux (was wv)
 c     dfgdt is dfgdt (was csen in surfupa/b)
 c     degdt is degdt (was ceva in surfupa/b)
 
-      if (.not.allocated(plens).and.nmlo.eq.0) then
+      if (.not.allocated(plens).and.nmlo==0) then
         allocate(plens(ifull))
         plens=0.
-        if (nsib==3.or.nsib==5) then
-          allocate(taftfh(ifull))
-          allocate(taftfhg(ifull))
-        end if
+      end if
+      if (.not.allocated(taftfh).and.(nsib==3.or.nsib==5)) then
+        allocate(taftfh(ifull))
+        allocate(taftfhg(ifull))
       end if
       
       ri_max=(1./fmroot -1.)/bprm  ! i.e. .14641

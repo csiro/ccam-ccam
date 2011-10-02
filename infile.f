@@ -414,14 +414,17 @@ c     print *,'in vertint t',t(idjd,:)
       ! Set up number of minutes from beginning of year
       subroutine getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
 
+      use cc_mpi
+
       implicit none
 
       include 'dates.h'
+      include 'mpif.h'
       include 'parm.h'
 
       integer, intent(out) :: jyear,jmonth,jday,jhour,jmin ! start date of run
       integer, intent(out) :: mins                         ! elapsed time from start of year
-      integer mstart,leap,elp
+      integer mstart,leap,elp,ierr
       integer, dimension(12) :: ndoy
       integer, dimension(12), parameter :: odoy=
      & (/0,31,59,90,120,151,181,212,243,273,304,334/)      ! days from beginning of year (1st Jan is 0)
@@ -433,6 +436,11 @@ c     print *,'in vertint t',t(idjd,:)
       jday  =kdate-jyear*10000-jmonth*100
       jhour =ktime/100
       jmin  =ktime-jhour*100
+      
+      if (jmonth.lt.1.or.jmonth.gt.12) then
+        write(6,*) "ERROR: Invalid month ",jmonth
+        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end if 
 
       ndoy=odoy
       if (leap.eq.1) then
@@ -468,11 +476,11 @@ c     print *,'in vertint t',t(idjd,:)
 
       character(len=*), intent(in) :: txt
       integer, intent(in) :: ncstatus
-      integer ierr2,ierr
+      integer ierr
 
       if (ncstatus.ne.0) then
         write(6,*) txt," ",nf_strerror(ncstatus)
-        call MPI_Abort(MPI_COMM_WORLD,ierr2,ierr)
+        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
 
       return

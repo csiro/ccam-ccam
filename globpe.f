@@ -181,10 +181,8 @@
       data nwrite/0/
       data nsnowout/999999/
 
-!#ifdef stacklimit
       ! For linux only
       call setstacklimit(-1)
-!#endif
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
@@ -210,6 +208,7 @@
       rel_lat=0.
       rel_long=0.
       ktau=0
+      call initialparm
 
       ! All processors read the namelist, so no MPI comms are needed
       open(99,file="input",form="formatted",status="old")
@@ -1783,6 +1782,8 @@
       call simple_timer_finalize
 #endif
 
+      call MPI_Barrier( MPI_COMM_WORLD, ierr )
+
       end
 
       !--------------------------------------------------------------
@@ -1986,7 +1987,7 @@ c     data nstag/99/,nstagu/99/
       data nstag/-10/,nstagu/-1/
 !     Vertical advection options
       data nvad/-4/,nvadh/2/,ntvdr/1/
-!     Horizontal mixing options (now in parmhdff_m.f90)
+!     Horizontal mixing options (now in initialparm)
       !data khdif/2/,khor/-8/,nhor/-157/,nhorps/-1/,nhorjlm/1/
 !     Vertical mixing options
       data nvmix/3/,nlocal/6/,nvsplit/2/,ncvmix/0/,lgwd/0/,ngwd/-5/
@@ -2101,6 +2102,24 @@ c     stuff from insoil  for soilv.h
 !     with base at 4.6     
 
       end
+      
+      ! Initialise initial values that cannot be definined in main_blockdata
+      subroutine initialparm
+      
+      use parmhdff_m ! Horizontal diffusion parameters
+      
+      implicit none
+      
+      ! Horizontal diffusion parameters
+      nhor=-157
+      nhorps=-1
+      khor=-8
+      khdif=2
+      nhorjlm=1
+      hdifmax=0.
+      
+      return
+      end subroutine initialparm
       
       !--------------------------------------------------------------
       ! WRITE STATION DATA

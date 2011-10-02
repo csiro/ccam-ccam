@@ -21,13 +21,6 @@ implicit none
 integer, intent(in) :: ifull,iextra,kl
 
 allocate(hdiff(kl))
-! Horizontal mixing options
-nhor=-157
-nhorps=-1
-khor=-8
-khdif=2
-nhorjlm=1
-hdifmax=0.
 hdiff=0.1*khdif
 
 return

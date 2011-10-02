@@ -150,6 +150,8 @@
       zsmask(:)=0.
       he(:)=0.         
       land(:)=.false.
+      kdate=kdate_s
+      ktime=ktime_s
 
 
       !--------------------------------------------------------------
@@ -508,7 +510,7 @@
         if(myid==0)write(6,*)'so4total data read from file ',so4tfile
         call readreal(so4tfile,so4t,ifull)
        case(2)
-        call load_aerosolldr(so4tfile,oxidantfile,kdate_s)
+        call load_aerosolldr(so4tfile,oxidantfile,kdate)
       end select
 
 
