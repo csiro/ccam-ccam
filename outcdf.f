@@ -5,6 +5,7 @@ c=======================================================================
 !     N.B. subr outcdfs is down the bottom (for nscrn=1)
       use cc_mpi
       use liqwpar_m  ! ifullw
+      use parmhdff_m
       use tracers_m  ! ngas, nllp, ntrac, tr
       implicit none
       include 'newmpar.h'
@@ -31,10 +32,6 @@ c=======================================================================
       integer ixp,iyp,idlev,idnt,idms
       common/cdfind/ixp,iyp,idlev,idnt,idms
  
-      integer nhor,nhorps,khor,khdif,nhorjlm
-      real hdifmax
-      common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
-
       integer leap        ! MJT bug fix
       common/leap_yr/leap ! MJT bug fix
 
@@ -241,16 +238,6 @@ c       create the attributes of the header record of the file
 
         idv=ncvdef(idnc,'ds',ncfloat,0,1,ier)
         if(ier.ne.0)write(6,*)"ncvdef ds idnc,ier=",idnc,ier
-        idv=ncvdef(idnc,'du',ncfloat,0,1,ier)
-        if(ier.ne.0)write(6,*)"ncvdef du idnc,ier=",idnc,ier
-        idv=ncvdef(idnc,'rnml',ncfloat,0,1,ier)
-        if(ier.ne.0)write(6,*)"ncvdef rnml idnc,ier=",idnc,ier
-        idv=ncvdef(idnc,'tanl',ncfloat,0,1,ier)
-        if(ier.ne.0)write(6,*)"ncvdef tanl idnc,ier=",idnc,ier
-        idv=ncvdef(idnc,'stl1',ncfloat,0,1,ier)
-        if(ier.ne.0)write(6,*)"ncvdef stl1 idnc,ier=",idnc,ier
-        idv=ncvdef(idnc,'stl2',ncfloat,0,1,ier)
-        if(ier.ne.0)write(6,*)"ncvdef stl2 idnc,ier=",idnc,ier
         idv=ncvdef(idnc,'dt',ncfloat,0,1,ier)
         if(ier.ne.0)write(6,*)"ncvdef dt idnc,ier=",idnc,ier
        endif ! ( iarch=1)then
@@ -313,7 +300,6 @@ c     this routine creates attributes and writes output
       include 'dates.h'    ! ktime,kdate,timer,timeg,xg,yg,mtimer
       include 'filnames.h' ! list of files, read in once only
       include 'kuocom.h'
-      include 'mapproj.h'
       include 'netcdf.inc'
       include 'parm.h'
       include 'parmdyn.h'
@@ -1104,16 +1090,6 @@ c       Leave define mode
 
         idv = ncvid(idnc,'ds',ier)
         call ncvpt1(idnc,idv,1,ds,ier)
-        idv = ncvid(idnc,'tanl',ier)
-        call ncvpt1(idnc,idv,1,tanl,ier)
-        idv = ncvid(idnc,'rnml',ier)
-        call ncvpt1(idnc,idv,1,rnml,ier)
-        idv = ncvid(idnc,'du',ier)
-        call ncvpt1(idnc,idv,1,du,ier)
-        idv = ncvid(idnc,'stl1',ier)
-        call ncvpt1(idnc,idv,1,stl1,ier)
-        idv = ncvid(idnc,'stl2',ier)
-        call ncvpt1(idnc,idv,1,stl2,ier)
         idv = ncvid(idnc,'dt',ier)
         call ncvpt1(idnc,idv,1,dt,ier)
        endif ! iarch==1
@@ -2191,16 +2167,6 @@ c       create the attributes of the header record of the file
 
         idv=ncvdef(idnc,'ds',ncfloat,0,1,ier)
         if(ier.ne.0)write(6,*)"ncvdef ds idnc,ier=",idnc,ier
-        idv=ncvdef(idnc,'du',ncfloat,0,1,ier)
-        if(ier.ne.0)write(6,*)"ncvdef du idnc,ier=",idnc,ier
-        idv=ncvdef(idnc,'rnml',ncfloat,0,1,ier)
-        if(ier.ne.0)write(6,*)"ncvdef rnml idnc,ier=",idnc,ier
-        idv=ncvdef(idnc,'tanl',ncfloat,0,1,ier)
-        if(ier.ne.0)write(6,*)"ncvdef tanl idnc,ier=",idnc,ier
-        idv=ncvdef(idnc,'stl1',ncfloat,0,1,ier)
-        if(ier.ne.0)write(6,*)"ncvdef stl1 idnc,ier=",idnc,ier
-        idv=ncvdef(idnc,'stl2',ncfloat,0,1,ier)
-        if(ier.ne.0)write(6,*)"ncvdef stl2 idnc,ier=",idnc,ier
         idv=ncvdef(idnc,'dt',ncfloat,0,1,ier)
         if(ier.ne.0)write(6,*)"ncvdef dt idnc,ier=",idnc,ier
        endif ! ( iarch=1)then
@@ -2245,7 +2211,6 @@ c     this routine creates attributes and writes output
       include 'dates.h'    ! ktime,kdate,timer,timeg,xg,yg,mtimer
       include 'filnames.h' ! list of files, read in once only
       include 'kuocom.h'
-      include 'mapproj.h'
       include 'netcdf.inc'
       include 'parm.h'
       include 'parmdyn.h'
@@ -2401,7 +2366,6 @@ c       Leave define mode
 
         idv = ncvid(idnc,'ds',ier)
         call ncvpt1(idnc,idv,1,ds,ier)
-        call ncvpt1(idnc,idv,1,stl2,ier)
         idv = ncvid(idnc,'dt',ier)
         call ncvpt1(idnc,idv,1,dt,ier)
        endif ! iarch==1

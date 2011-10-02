@@ -1019,44 +1019,48 @@ c       incorporate other target land mask effects
             write(vname,'("cplant",I1.1)') k
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   t_a,6*ik*ik)
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(cplant(:,k),t_a)
+            if (ier.eq.0) then
+              if (iotest) then
+                if (myid==0) then
+                  call ccmpi_distribute(cplant(:,k),t_a)
+                else
+                  call ccmpi_distribute(cplant(:,k))
+                end if
               else
-                call ccmpi_distribute(cplant(:,k))
-              end if
-            else
-              if (myid==0) then
-                where (.not.land_a(:))
-                  t_a=spval
-                end where
-                call fill_cc(t_a,spval,ik,0)
-              end if
-              call doints4(t_a,cplant(:,k),nface4,xg4,yg4,
+                if (myid==0) then
+                  where (.not.land_a(:))
+                    t_a=spval
+                  end where
+                  call fill_cc(t_a,spval,ik,0)
+                end if
+                call doints4(t_a,cplant(:,k),nface4,xg4,yg4,
      &                     nord,ik)
-            end if ! iotest
+              end if ! iotest
+            end if
           end do
           do k=1,ncs
             t_a=0.
             write(vname,'("csoil",I1.1)') k
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   t_a,6*ik*ik)
-            if (iotest) then
-              if (myid==0) then
-                call ccmpi_distribute(csoil(:,k),t_a)
+            if (ier.eq.0) then
+              if (iotest) then
+                if (myid==0) then
+                  call ccmpi_distribute(csoil(:,k),t_a)
+                else
+                  call ccmpi_distribute(csoil(:,k))
+                end if
               else
-                call ccmpi_distribute(csoil(:,k))
-              end if
-            else
-              if (myid==0) then
-                where (.not.land_a(:))
-                  t_a=spval
-                end where
-                call fill_cc(t_a,spval,ik,0)
-              end if
-              call doints4(t_a,csoil(:,k),nface4,xg4,yg4,
-     &                     nord,ik)
-            end if ! iotest
+                if (myid==0) then
+                  where (.not.land_a(:))
+                    t_a=spval
+                  end where
+                  call fill_cc(t_a,spval,ik,0)
+                end if
+                call doints4(t_a,csoil(:,k),nface4,xg4,yg4,
+     &                       nord,ik)
+              end if ! iotest
+            end if
           end do
         end if
 

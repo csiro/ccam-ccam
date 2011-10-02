@@ -655,7 +655,12 @@ module cable_ccam
   real fjd  
   character(len=*), intent(in) :: fveg,fvegprev,fvegnext
 
-  if (myid==0) write(6,*) "Setting CABLE defaults (igbp)"
+  if (myid==0) write(6,*) "Initialising CABLE"
+
+  if (cbm_ms.ne.ms) then
+    write(6,*) "ERROR: CABLE and CCAM soil levels do not match"
+    stop
+  end if
 
   hc=(/ 17.,35.,15.5,20.,19.25,0.6,0.6,7.0426,14.3379,0.567,0.5,0.55,6.017,0.55,0.2,0.2,0.2 /)
   xfang=(/ 0.01,0.1,0.01,0.25,0.125,-0.3,0.01,-0.3,-0.3,-0.3,0.,-0.3,0.,-0.3,0.,0.1,0. /)
@@ -689,13 +694,9 @@ module cable_ccam
   ratecs(1)=2.
   ratecs(2)=0.5
 
-  if (cbm_ms.ne.ms) then
-    write(6,*) "ERROR: CABLE and CCAM soil levels do not match"
-    stop
-  end if
-
   ! read CABLE biome and LAI data
   if (myid==0) then
+    write(6,*) "Reading tiled surface data for CABLE"
     call vegta(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
   else
     call vegtb(ivs,svs,vlinprev,vlin,vlinnext,fvegprev,fveg,fvegnext)
@@ -704,16 +705,9 @@ module cable_ccam
     svs(:,n)=svs(:,n)/sum(svs,2)
   end do
 
-  ! calculate length of CABLE vectors
-  mp=0
-  do iq=1,ifull
-    if (land(iq)) then
-      mp=mp+count(svs(iq,:).gt.0.)
-    end if
-  end do
+  if (myid==0) write(6,*) "Define CABLE arrays"
 
   ! default values (i.e., no land)  
-  zolnd=zobgin
   ivegt=0
   albsoilsn=0.08  
   albsoil=0.08
@@ -728,7 +722,21 @@ module cable_ccam
   sumrs = 0.
   sumrd = 0.
   rsmin = 0.
+  zolnd=0.
+  vlai=0.
+  sigmf=0.
+  tsigmf=0.
+  cplant=0.
+  csoil=0.
   pind=ifull+1
+
+  ! calculate length of CABLE vectors
+  mp=0
+  do iq=1,ifull
+    if (land(iq)) then
+      mp=mp+count(svs(iq,:).gt.0.)
+    end if
+  end do
   
   ! if CABLE is present on this processor, then start allocating arrays
   if (mp.gt.0) then
@@ -781,7 +789,7 @@ module cable_ccam
         if (land(iq).and.(svs(iq,n).gt.0.)) then
           ipos=ipos+1
           if (ivs(iq,n).lt.1) then
-            write(6,*) "ERROR: Land-type/lsmask mismatch at iq=",iq
+            write(6,*) "ERROR: Land-type/lsmask mismatch at myid,iq=",myid,iq
             stop
           end if
           cmap(ipos)=iq
@@ -841,52 +849,27 @@ module cable_ccam
       soil%froot(:,k)=froot2(veg%iveg,k)
     end do
 
-    ! calculate LAI and veg fraction diagnostics
+    ! Calculate LAI and veg fraction diagnostics
     call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
     call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
     tsigmf=sigmf
-    vlai=0.
     do n=1,5
       if (pind(n,1).le.mp) then
         vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
                                         +sv(pind(n,1):pind(n,2))*veg%vlai(pind(n,1):pind(n,2))
       end if
     end do
-  
-    ! calculate zom diagnostics
-    do n=1,5
-      where (land.and.ivs(:,n).ne.0)
-        zolnd=zolnd+svs(:,n)/log(zmin/(0.1*hc(ivs(:,n))))**2
-      end where
-    end do
-    where (land)
-      zolnd=max(zmin*exp(-sqrt(1./zolnd)),zobgin)
-    end where
-  
+
     ! Initialise carbon pool diagnostics
-    if (all(cplant.eq.0.)) then
-      if (myid == 0) write(6,*) "Using default carbpools"
-      do k=1,ncp
-        where (land)
-          cplant(:,k)=tcplant(ivegt,k)
-        end where
-      end do
-      do k=1,ncs
-        where (land)        
-          csoil(:,k)=tcsoil(ivegt,k)
-        end where
-      end do
-    else
-      if (myid == 0) write(6,*) "Loading carbpools from ifile"
-    end if
+    ! Maybe overwritten in onthefly.f
     do k=1,ncp
-      where (.not.land)
-        cplant(:,k)=0.
+      where (land)
+        cplant(:,k)=tcplant(ivegt,k)
       end where
     end do
     do k=1,ncs
-      where (.not.land)
-        csoil(:,k)=0.
+      where (land)        
+        csoil(:,k)=tcsoil(ivegt,k)
       end where
     end do
   
@@ -929,7 +912,6 @@ module cable_ccam
       albvisnir(:,1)=albsoilsn(:,1)*(1.-sigmf)+0.1*sigmf
       albvisnir(:,2)=albsoilsn(:,2)*(1.-sigmf)+0.3*sigmf
     end where
-  
     albvisdir=albvisnir(:,1) ! To be updated by CABLE
     albvisdif=albvisnir(:,1) ! To be updated by CABLE
     albnirdir=albvisnir(:,2) ! To be updated by CABLE

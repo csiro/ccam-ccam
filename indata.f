@@ -68,7 +68,7 @@
      &     ix, jx, ixjx, ierr, ic, jc, iqg, ig, jg,
      &     isav, jsav, ier, lapsbot
 
-      character co2in*80,radonin*80,surfin*80,header*80
+      character(len=80) :: co2in,radonin,surfin,header
 
       real, intent(out) :: hourst
       real, dimension(ifull) :: zss, aa, zsmask
@@ -202,10 +202,10 @@
        rathb(k)=(sig(k+1)-sigmh(k+1))/(sig(k+1)-sig(k))
       enddo
       if (myid==0) then
-         write(6,*)'rata ',rata
-         write(6,*)'ratb ',ratb
-         write(6,*)'ratha ',ratha
-         write(6,*)'rathb ',rathb
+        write(6,*)'rata ',rata
+        write(6,*)'ratb ',ratb
+        write(6,*)'ratha ',ratha
+        write(6,*)'rathb ',rathb
       end if
    
       c=grav/stdlapse
@@ -334,9 +334,9 @@
       endif  ! (io_in<=4.and.nhstest>=0)  ..else..
 
       if ( mydiag ) then
-         write(6,"('zs#_topof ',9f8.1)") diagvals(zs)
-         write(6,"('he#_topof ',9f8.1)") diagvals(he)
-         write(6,"('zs#_mask ',9f8.2)") diagvals(zsmask)
+        write(6,"('zs#_topof ',9f8.1)") diagvals(zs)
+        write(6,"('he#_topof ',9f8.1)") diagvals(he)
+        write(6,"('zs#_mask ',9f8.2)") diagvals(zsmask)
       end if
 
 
@@ -469,13 +469,13 @@
       ! nmlo=2 same as 1, but with Smag horz diffusion and river routing
       ! nmlo=3 same as 2, but with horizontal and vertical advection
       if (nmlo.ne.0) then
-        if (myid==0) write(6,*) 'Initialising MLO'
         call readreal(bathfile,dep,ifull)
         where (land)
           dep=0.
         else where
           dep=max(dep,10.)
         end where
+        if (myid==0) write(6,*) 'Initialising MLO'
         call mloinit(ifull,dep,0)
       end if
 
@@ -486,12 +486,12 @@
       ! nurban=1 urban (save in restart file)
       ! nurban=-1 urban (save in history and restart files)
       if (nurban.ne.0) then
-        if (myid==0) write(6,*) 'Initialising ateb urban scheme'
         call readreal(urbanfile,sigmu,ifull)
         sigmu(:)=0.01*sigmu(:)
         where (.not.land(:))
           sigmu(:)=0.
         end where
+        if (myid==0) write(6,*) 'Initialising ateb urban scheme'
         call atebinit(ifull,sigmu(:),0)
       else
         sigmu(:)=0.
@@ -508,7 +508,6 @@
         if(myid==0)write(6,*)'so4total data read from file ',so4tfile
         call readreal(so4tfile,so4t,ifull)
        case(2)
-        if(myid==0)write(6,*)'Initialising LDR prognostic aerosols'
         call load_aerosolldr(so4tfile,oxidantfile,kdate_s)
       end select
 
@@ -521,6 +520,7 @@
      &              nllp,ngas,ntrac,ilt,jlt,klt
       end if
       if (ngas>0) then
+        if(myid==0)write(6,*)'Initialising tracers'
 !       tracer initialisation (if start of run)
         if (tracvalin.ne.-999) call tracini
         call init_ts(ngas,dt)
@@ -550,12 +550,13 @@
         endif  ! (sicedep(iq)>0.)
       enddo   ! iq loop
       ipsice=indexi
-      if (mydiag) write(6,*)'ipland,ipsice,ipsea: ',ipland,ipsice,ipsea
+      if (mydiag) write(6,*)'ipland,ipsea: ',ipland,ipsea
 
 
       !-----------------------------------------------------------------
       ! READ INITIAL CONDITIONS FROM IFILE (io_in)
       if(io_in<4)then
+        if (myid==0) write(6,*) 'Read initial conditions from ifile'
         kdate_sav=kdate_s
         ktime_sav=ktime_s
         zss=zs
@@ -653,7 +654,7 @@
       else
 
         ! read in namelist for uin,vin,tbarr etc. for special runs
-        if (myid==0) write(6,*)'now read namelist tinit'
+        if (myid==0) write(6,*)'Read IC from namelist tinit'
         read (99, tin)
         if (myid==0) write(6, tin)
 
@@ -1695,6 +1696,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       ! UPDATE BIOSPHERE DATA (nsib)
       if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
         ! Load CABLE data
+        if (myid==0) write(6,*) 'Importing CABLE data'
         call loadtile
       elseif (nsib==5) then
         ! MODIS input with standard surface scheme
@@ -1771,10 +1773,10 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       ! UPDATE MIXED LAYER OCEAN DATA (nmlo)
       if (nmlo.ne.0) then
         if (any(ocndwn(:,1).gt.0.5)) then
-          if (myid == 0) print *,"Importing MLO data"
+          if (myid==0) write(6,*) 'Importing MLO data'
           call mloregrid(ocndwn(:,1),mlodwn)
         else
-          if (myid == 0) print *,"Using MLO defaults"
+          if (myid==0) write(6,*) 'Using MLO defaults'
           ocndwn(:,2)=0.
           do k=1,wlev
             call mloexpdep(0,depth,k,0)
@@ -1836,6 +1838,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       !-----------------------------------------------------------------
       ! UPDATE URBAN DATA (nurban)
       if (nurban.ne.0) then
+        if (myid==0) write(6,*) 'Importing ateb urban data'
         where(atebdwn(:,1).ge.399.) ! must be the same as spval in onthefly.f
           atebdwn(:,1)=tgg(:,1)
           atebdwn(:,2)=0.5*(tgg(:,1)+291.16)
@@ -2189,7 +2192,6 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       implicit none
 
       include 'newmpar.h'      ! Grid parameters      
-      include 'const_phys.h'   ! Grid parameters
       
       real from,to,val
       real fld(ifull)
@@ -2264,7 +2266,6 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       implicit none
 
       include 'newmpar.h'      ! Grid parameters      
-      include 'const_phys.h'   ! Grid parameters
       
       integer iq,idfix,ifrom,ito
       integer ifld(ifull)

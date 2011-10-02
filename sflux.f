@@ -79,10 +79,10 @@ c     degdt is degdt (was ceva in surfupa/b)
       if (.not.allocated(plens).and.nmlo.eq.0) then
         allocate(plens(ifull))
         plens=0.
-      end if
-      if (.not.allocated(taftfh).and.(nsib==3.or.nsib==5)) then
-        allocate(taftfh(ifull))
-        allocate(taftfhg(ifull))
+        if (nsib==3.or.nsib==5) then
+          allocate(taftfh(ifull))
+          allocate(taftfhg(ifull))
+        end if
       end if
       
       ri_max=(1./fmroot -1.)/bprm  ! i.e. .14641
@@ -178,10 +178,10 @@ c     using av_vmod (1. for no time averaging)
       vmag(:)=max( vmod(:) , vmodmin) ! vmag used to calculate ri
       if(ntsur.ne.7)vmod(:)=vmag(:)	! gives usual way
 
-      call start_log(sfluxwater_begin)
       !--------------------------------------------------------------! sea
       ! MJT mlo                                                      ! sea
       if (nmlo.eq.0) then                                            ! sea
+       call start_log(sfluxwater_begin)                              ! sea
        if(ntest==2.and.mydiag)print *,'before sea loop'              ! sea
 !       from June '03 use basic sea temp from tgg1 (so leads is sensible)      
 !       all sea points in this loop; also open water of leads        ! sea
@@ -371,132 +371,134 @@ c      section to update pan temperatures                            ! sea
         endif             
         write (6,"('after sea loop af,aft,factch,root,denha,denma,fm',
      &    9f9.4)") af(iq),aft(iq),factch(iq),root,denha,denma,fm
-      endif                       
-      zminlog=log(zmin)
+       endif                       
+       zminlog=log(zmin)
 
-      do iq=1,ifull
-       if(sicedep(iq)>0.)then
-!      non-leads for sea ice points                                 ! sice
-!      N.B. tggsn( ,3) holds tice                                   ! sice
-c       iq=iperm(ip)                                                ! sice
-       es = establ(tggsn(iq,1)) ! MJT seaice                        ! sice
-       constz=ps(iq)-es                                             ! sice
-       qsttg(iq)= .622*es/constz                                    ! sice
-       drst=qsttg(iq)*ps(iq)*hlars/(tggsn(iq,1)*tggsn(iq,1)*constz) ! sice ! MJT seaice
-       xx=grav*zmin*(1.-tggsn(iq,1)*srcp/t(iq,1)) ! MJT seaice      ! sice
-       ri_ice=min(xx/vmag(iq)**2 , ri_max)                          ! sice
-       !factch(iq)=sqrt(7.4)  ! same as land from 27/4/99           ! sice ! MJT bug fix
-       factch(iq)=sqrt(1.)                                          ! sice ! MJT bug fix
-!      factch(iq)=1.   ! factch is sqrt(zo/zt) for use in unstable fh  
-       zoice=.001                                                   ! sice
-       zologice=zminlog-log(zoice)   !   i.e. log(zmin/zo(iq))      ! sice
-       af(iq)=(vkar/zologice)**2                                    ! sice
-       !aft(iq)=vkar**2/(zologice*(2.+zologice) ) ! from 27/4/99    ! sice ! MJT bug fix zo=zoh
-       aft(iq)=vkar**2/(zologice*zologice )                         ! sice ! MJT bug fix zo=zoh
-!      aft(iq)=af                                 ! up till 27/4/99 ! sice
-       wetfac(iq)=1+.008*(tggsn(iq,1)-273.16) ! 008*tggsn(iq,1)-1.18528 ! sice ! MJT seaice
+       do iq=1,ifull
+        if(sicedep(iq)>0.)then
+!       non-leads for sea ice points                                 ! sice
+!       N.B. tggsn( ,3) holds tice                                   ! sice
+c        iq=iperm(ip)                                                ! sice
+        es = establ(tggsn(iq,1)) ! MJT seaice                        ! sice
+        constz=ps(iq)-es                                             ! sice
+        qsttg(iq)= .622*es/constz                                    ! sice
+        drst=qsttg(iq)*ps(iq)*hlars/(tggsn(iq,1)*tggsn(iq,1)*constz) ! sice ! MJT seaice
+        xx=grav*zmin*(1.-tggsn(iq,1)*srcp/t(iq,1)) ! MJT seaice      ! sice
+        ri_ice=min(xx/vmag(iq)**2 , ri_max)                          ! sice
+        !factch(iq)=sqrt(7.4)  ! same as land from 27/4/99           ! sice ! MJT bug fix
+        factch(iq)=sqrt(1.)                                          ! sice ! MJT bug fix
+!       factch(iq)=1.   ! factch is sqrt(zo/zt) for use in unstable fh  
+        zoice=.001                                                   ! sice
+        zologice=zminlog-log(zoice)   !   i.e. log(zmin/zo(iq))      ! sice
+        af(iq)=(vkar/zologice)**2                                    ! sice
+        !aft(iq)=vkar**2/(zologice*(2.+zologice) ) ! from 27/4/99    ! sice ! MJT bug fix zo=zoh
+        aft(iq)=vkar**2/(zologice*zologice )                         ! sice ! MJT bug fix zo=zoh
+!       aft(iq)=af                                 ! up till 27/4/99 ! sice
+        wetfac(iq)=1+.008*(tggsn(iq,1)-273.16) ! 008*tggsn(iq,1)-1.18528 ! sice ! MJT seaice
+                                                                     ! sice
+c       now do fh and fm calcs for sice                              ! sice
+        if(ri_ice>0.)then                                            ! sice
+          fm=vmod(iq)/(1.+bprm*ri_ice)**2                            ! sice
+          fh(iq)=fm                                                  ! sice
+        else                                                         ! sice
+          root=sqrt(-ri_ice*zmin/zoice)                              ! sice
+c         First do momentum                                          ! sice
+          denma=1.+cms*2.*bprm*af(iq)*root                           ! sice
+          fm=vmod(iq)-vmod(iq)*2.*bprm *ri_ice/denma                 ! sice
+c         n.b. fm denotes ustar**2/(vmod(iq)*af)                     ! sice
+c         Now heat ; allow for smaller zo via aft and factch         ! sice
+          denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root               ! sice
+          fh(iq)=vmod(iq)-(2.*bprm *ri_ice)/denha                    ! sice
+        endif                                                        ! sice
                                                                     ! sice
-c      now do fh and fm calcs for sice                              ! sice
-       if(ri_ice>0.)then                                            ! sice
-         fm=vmod(iq)/(1.+bprm*ri_ice)**2                            ! sice
-         fh(iq)=fm                                                  ! sice
-       else                                                         ! sice
-         root=sqrt(-ri_ice*zmin/zoice)                              ! sice
-c        First do momentum                                          ! sice
-         denma=1.+cms*2.*bprm*af(iq)*root                           ! sice
-         fm=vmod(iq)-vmod(iq)*2.*bprm *ri_ice/denma                 ! sice
-c        n.b. fm denotes ustar**2/(vmod(iq)*af)                     ! sice
-c        Now heat ; allow for smaller zo via aft and factch         ! sice
-         denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root               ! sice
-         fh(iq)=vmod(iq)-(2.*bprm *ri_ice)/denha                    ! sice
-       endif                                                        ! sice
-                                                                    ! sice
-       conh=rho(iq)*aft(iq)*cp                                      ! sice
-       conw=rho(iq)*aft(iq)*hl                                      ! sice
-!      fgice & egice renamed as fgf and fev from Aug 05 to aid diags	
-       fgf(iq)=conh*fh(iq)*(tggsn(iq,1)-theta(iq)) ! MJT seaice     ! sice
-       dfgdt(iq)=conh*fh(iq)                                        ! sice
-       if(ntest==1.and.iq==idjd.and.mydiag)then                     ! sice
-         print *,'in sice loop'                                     ! sice
-         print *,'zmin,zo,wetfac ',zmin,zoice,wetfac(iq)            ! sice
-         print *,'ri_ice,es ',ri_ice,es                             ! sice
-         print *,'af,aft,ustar ',af(iq),aft(iq),ustar(iq)           ! sice
-         print *,'chnsea,rho ',chnsea,rho(iq)                       ! sice
-         print *,'fm,fh,conh ',fm,fh(iq),conh                       ! sice
-       endif                                                        ! sice
-                                                                    ! sice
-       if(nalpha==1)then    ! beta scheme         sice here         ! sice
-         epotice=conw*fh(iq)*(qsttg(iq)-qg(iq,1))                   ! sice
-         fev(iq)=wetfac(iq)*epotice                                 ! sice
-         degdt(iq)=wetfac(iq)*conw*fh(iq)*drst                      ! sice
-       else                   ! alpha scheme                        ! sice
-c        following trick reduces -ve evap (dew) to 1/10th value     ! sice
-         qtgnet=qsttg(iq)*wetfac(iq) -qg(iq,1)                      ! sice
-         qtgair=qsttg(iq)*wetfac(iq)-max(qtgnet,.1*qtgnet)          ! sice
-         eg2=-conw*fh(iq)*qtgair                                    ! sice
-         eg1=conw*fh(iq)*qsttg(iq)                                  ! sice
-         fev(iq) =eg1*wetfac(iq) +eg2                               ! sice
-         epotice    = conw*fh(iq)*(qsttg(iq)-qg(iq,1))              ! sice
-         deg=wetfac(iq)*conw*fh(iq)*drst                            ! sice
-c        following reduces degdt by factor of 10 for dew            ! sice
-         degdt(iq)=.55*deg+sign(.45*deg,qtgnet)                     ! sice
-       endif                                                        ! sice
-                                                                    ! sice
-c      section to update sea ice surface temperature;               ! sice
-c      specified sea-ice thickness                                  ! sice
-c      over sea ice, set a minimum depth for this experiment of .1  ! sice
-!      sicedep(iq) = max(sicedep(iq) , 0.1)  fixed in indata/nestin from Jan 06
-c      no snow on the ice assumed for now                           ! sice
-       gamm(iq) = 3.471e+05                                         ! sice
-       cie(iq) = 2.04/sicedep(iq)                                   ! sice
-       rgg(iq)=5.67e-8*tggsn(iq,1)**4 ! MJT seaice                  ! sice
-!      gflux here is	flux from ice to water, +ve downwards       ! sice
-       gflux(iq)=cie(iq)*(tggsn(iq,1)-271.2) ! MJT seaice           ! sice
-       ga(iq)=-slwa(iq)-rgg(iq)-fev(iq)-fgf(iq)-gflux(iq)           ! sice
-       dirad(iq)=4.*5.67e-8*tggsn(iq,1)**3 ! MJT seaice             ! sice
-       b1=dirad(iq)+degdt(iq)+dfgdt(iq)+cie(iq)                     ! sice
-       gbot=(gamm(iq)/dt)+b1                                        ! sice
-       deltat=ga(iq)/gbot                                           ! sice
-       tggsn(iq,1)=tggsn(iq,1)+deltat ! MJT seaice                  ! sice
-       tggsn(iq,1)=min(tggsn(iq,1),271.2)   ! jlm fix Tue  05-30-2000 ! MJT seaice
-       fgf(iq) =fgf(iq) +deltat*dfgdt(iq)                           ! sice
-       fev(iq) =fev(iq) +deltat*degdt(iq)                           ! sice
-       es = establ(tggsn(iq,1)) ! MJT seaice                        ! sice
-       constz=ps(iq)-es                                             ! sice
-       qsttg(iq)=.622*es/constz                                     ! sice
-                                                                    ! sice
-!      combine ice and leads contributions here                     ! sice
-       eg(iq) =fracice(iq)*fev(iq) + (1.-fracice(iq))*eg(iq)        ! sice
-       fg(iq) = fracice(iq)*fgf(iq)+ (1.-fracice(iq))*fg(iq)        ! sice
-       ri(iq) =fracice(iq)*ri_ice + (1.-fracice(iq))*ri(iq)  ! for scrnout
-       zo(iq) =fracice(iq)*zoice  + (1.-fracice(iq))*zo(iq)  ! for scrnout
-       cduv(iq) =fracice(iq)*af(iq)*fm + (1.-fracice(iq))*cduv(iq)  ! sice
-       ustar(iq) = sqrt(vmod(iq)*cduv(iq))                          ! sice
-c      N.B. potential evaporation is now eg+eg2                     ! sice
-       epot(iq) =fracice(iq)*epotice + (1.-fracice(iq))*epot(iq)    ! sice
-       tss(iq) = fracice(iq)*tggsn(iq,1)+(1.-fracice(iq))*tpan(iq)  ! 2004 ! MJT seaice
-       rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4                    ! MJT seaice
-c      Surface stresses taux, tauy: diagnostic only - unstag now    ! sice
-       taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                            ! sice
-       tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! sice
-      endif  ! (sicedep(iq)>0.)
-      enddo       ! iq loop                           
-      if(mydiag.and.nmaxpr==1)then 
-         print *,'after sice loop'
-         iq=idjd
-         b1=dirad(iq)+degdt(iq)+dfgdt(iq)+cie(iq)   
-         gbot=(gamm(iq)/dt)+b1                           
-         deltat=ga(iq)/gbot
-         print *,'ri,vmag,vmod,cduv ',ri(iq),vmag(iq),vmod(iq),cduv(iq) 
-         print *,'fh,tss,tpan,tggsn1 ',fh(iq),tss(iq),tpan(iq)
-     &                                ,tggsn(iq,1)
-         print *,'theta,t1,deltat ',theta(iq),t(iq,1),deltat           
-         print *,'b1,ga,gbot,af,aft ',b1,ga(iq),gbot,af(iq),aft(iq) 
-         print *,'fg,fgice,factch ',fg(iq),fgf(iq),factch(iq) 
-         print *,'cie ',cie(iq)      
-         print *,'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)
-      endif   ! (mydiag.and.nmaxpr==1)
-      
+        conh=rho(iq)*aft(iq)*cp                                      ! sice
+        conw=rho(iq)*aft(iq)*hl                                      ! sice
+!       fgice & egice renamed as fgf and fev from Aug 05 to aid diags	
+        fgf(iq)=conh*fh(iq)*(tggsn(iq,1)-theta(iq)) ! MJT seaice     ! sice
+        dfgdt(iq)=conh*fh(iq)                                        ! sice
+        if(ntest==1.and.iq==idjd.and.mydiag)then                     ! sice
+          print *,'in sice loop'                                     ! sice
+          print *,'zmin,zo,wetfac ',zmin,zoice,wetfac(iq)            ! sice
+          print *,'ri_ice,es ',ri_ice,es                             ! sice
+          print *,'af,aft,ustar ',af(iq),aft(iq),ustar(iq)           ! sice
+          print *,'chnsea,rho ',chnsea,rho(iq)                       ! sice
+          print *,'fm,fh,conh ',fm,fh(iq),conh                       ! sice
+        endif                                                        ! sice
+                                                                     ! sice
+        if(nalpha==1)then    ! beta scheme         sice here         ! sice
+          epotice=conw*fh(iq)*(qsttg(iq)-qg(iq,1))                   ! sice
+          fev(iq)=wetfac(iq)*epotice                                 ! sice
+          degdt(iq)=wetfac(iq)*conw*fh(iq)*drst                      ! sice
+        else                   ! alpha scheme                        ! sice
+c         following trick reduces -ve evap (dew) to 1/10th value     ! sice
+          qtgnet=qsttg(iq)*wetfac(iq) -qg(iq,1)                      ! sice
+          qtgair=qsttg(iq)*wetfac(iq)-max(qtgnet,.1*qtgnet)          ! sice
+          eg2=-conw*fh(iq)*qtgair                                    ! sice
+          eg1=conw*fh(iq)*qsttg(iq)                                  ! sice
+          fev(iq) =eg1*wetfac(iq) +eg2                               ! sice
+          epotice    = conw*fh(iq)*(qsttg(iq)-qg(iq,1))              ! sice
+          deg=wetfac(iq)*conw*fh(iq)*drst                            ! sice
+c         following reduces degdt by factor of 10 for dew            ! sice
+          degdt(iq)=.55*deg+sign(.45*deg,qtgnet)                     ! sice
+        endif                                                        ! sice
+                                                                     ! sice
+c       section to update sea ice surface temperature;               ! sice
+c       specified sea-ice thickness                                  ! sice
+c       over sea ice, set a minimum depth for this experiment of .1  ! sice
+!       sicedep(iq) = max(sicedep(iq) , 0.1)  fixed in indata/nestin from Jan 06
+c       no snow on the ice assumed for now                           ! sice
+        gamm(iq) = 3.471e+05                                         ! sice
+        cie(iq) = 2.04/sicedep(iq)                                   ! sice
+        rgg(iq)=5.67e-8*tggsn(iq,1)**4 ! MJT seaice                  ! sice
+!       gflux here is	flux from ice to water, +ve downwards        ! sice
+        gflux(iq)=cie(iq)*(tggsn(iq,1)-271.2) ! MJT seaice           ! sice
+        ga(iq)=-slwa(iq)-rgg(iq)-fev(iq)-fgf(iq)-gflux(iq)           ! sice
+        dirad(iq)=4.*5.67e-8*tggsn(iq,1)**3 ! MJT seaice             ! sice
+        b1=dirad(iq)+degdt(iq)+dfgdt(iq)+cie(iq)                     ! sice
+        gbot=(gamm(iq)/dt)+b1                                        ! sice
+        deltat=ga(iq)/gbot                                           ! sice
+        tggsn(iq,1)=tggsn(iq,1)+deltat ! MJT seaice                  ! sice
+        tggsn(iq,1)=min(tggsn(iq,1),271.2)   ! jlm fix Tue  05-30-2000 ! MJT seaice
+        fgf(iq) =fgf(iq) +deltat*dfgdt(iq)                           ! sice
+        fev(iq) =fev(iq) +deltat*degdt(iq)                           ! sice
+        es = establ(tggsn(iq,1)) ! MJT seaice                        ! sice
+        constz=ps(iq)-es                                             ! sice
+        qsttg(iq)=.622*es/constz                                     ! sice
+                                                                     ! sice
+!       combine ice and leads contributions here                     ! sice
+        eg(iq) =fracice(iq)*fev(iq) + (1.-fracice(iq))*eg(iq)        ! sice
+        fg(iq) = fracice(iq)*fgf(iq)+ (1.-fracice(iq))*fg(iq)        ! sice
+        ri(iq) =fracice(iq)*ri_ice + (1.-fracice(iq))*ri(iq)  ! for scrnout
+        zo(iq) =fracice(iq)*zoice  + (1.-fracice(iq))*zo(iq)  ! for scrnout
+        cduv(iq) =fracice(iq)*af(iq)*fm + (1.-fracice(iq))*cduv(iq)  ! sice
+        ustar(iq) = sqrt(vmod(iq)*cduv(iq))                          ! sice
+c       N.B. potential evaporation is now eg+eg2                     ! sice
+        epot(iq) =fracice(iq)*epotice + (1.-fracice(iq))*epot(iq)    ! sice
+        tss(iq) = fracice(iq)*tggsn(iq,1)+(1.-fracice(iq))*tpan(iq)  ! 2004 ! MJT seaice
+        rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tss(iq)**4                    ! MJT seaice
+c       Surface stresses taux, tauy: diagnostic only - unstag now    ! sice
+        taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                            ! sice
+        tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! sice
+       endif  ! (sicedep(iq)>0.)
+       enddo       ! iq loop                           
+       if(mydiag.and.nmaxpr==1)then 
+          print *,'after sice loop'
+          iq=idjd
+          b1=dirad(iq)+degdt(iq)+dfgdt(iq)+cie(iq)   
+          gbot=(gamm(iq)/dt)+b1                           
+          deltat=ga(iq)/gbot
+          print *,'ri,vmag,vmod,cduv ',ri(iq),vmag(iq),vmod(iq),cduv(iq) 
+          print *,'fh,tss,tpan,tggsn1 ',fh(iq),tss(iq),tpan(iq)
+     &                                 ,tggsn(iq,1)
+          print *,'theta,t1,deltat ',theta(iq),t(iq,1),deltat           
+          print *,'b1,ga,gbot,af,aft ',b1,ga(iq),gbot,af(iq),aft(iq) 
+          print *,'fg,fgice,factch ',fg(iq),fgf(iq),factch(iq) 
+          print *,'cie ',cie(iq)      
+          print *,'eg,egice(fev),ustar ',eg(iq),fev(iq),ustar(iq)
+       endif   ! (mydiag.and.nmaxpr==1)
+
+       call end_log(sfluxwater_end)      
+
       elseif (abs(nmlo).ge.1.and.abs(nmlo).le.9) then                ! MLO
         ! abs(mlo) <= 1 Vertical mixing                              ! MLO
         ! abs(mlo) <= 2 + Horizontal diffusion                       ! MLO
@@ -521,6 +523,7 @@ c      Surface stresses taux, tauy: diagnostic only - unstag now    ! sice
           call end_log(river_end)                                    ! MLO
         end if                                                       ! MLO
                                                                      ! MLO
+        call start_log(watermix_begin)                               ! MLO
         if (abs(nmlo).eq.1) then                                     ! MLO
           ! Single column                                            ! MLO
           ! set free surface to zero when water is not conserved     ! MLO
@@ -529,7 +532,6 @@ c      Surface stresses taux, tauy: diagnostic only - unstag now    ! sice
         end if                                                       ! MLO
                                                                      ! MLO
         ! Ocean mixing                                               ! MLO
-        call start_log(watermix_begin)                               ! MLO
         call mloeval(tss,zo,cduv,cdtq,fg,eg,wetfac,epot,epan,        ! MLO
      &               fracice,sicedep,snowd,dt,azmin,azmin,sgsave(:)/ ! MLO
      &               (1.-swrsave*albvisnir(:,1)-                     ! MLO
@@ -586,7 +588,6 @@ c      Surface stresses taux, tauy: diagnostic only - unstag now    ! sice
       end if                                                         ! MLO
       !--------------------------------------------------------------      
 c----------------------------------------------------------------------
-      call end_log(sfluxwater_end)
       call start_log(sfluxland_begin)
       !----------------------------------------------------------
       select case(nsib) ! MJT cable

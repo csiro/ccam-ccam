@@ -1,4 +1,4 @@
-      program globpe  
+      program globpe
 
 !      PE model on conformal-cubic grid
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -10,7 +10,6 @@
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
 
-      ! common arrays
       use aerointerface                       ! Aerosol interface
       use arrays_m                            ! Atmosphere dyamics prognostic arrays
       use bigxy4_m                            ! Grid interpolation
@@ -98,15 +97,6 @@
       integer nnrad,idcld
       common/radnml/nnrad,idcld               ! Radiation options
 
-!     Local variables
-      real, dimension(:,:), allocatable :: savu2,savv2
-      real, dimension(:,:), allocatable :: speed
-      real, dimension(:), allocatable :: spare1,spare2
-      real, dimension(:), allocatable :: spmean,div
-
-      logical odcalc
-      character comm*60,comment*60,rundate*8,header*47,text*2
-      character(len=10) :: timeval
       integer, dimension(8) :: tvals1, tvals2
       integer, dimension(8) :: nper3hr
       integer iaero, ier, igas, ilx, io_nest, iq, irest, isoil, itr1,
@@ -118,12 +108,22 @@
      &     mins_rad, mtimer_sav, nn, i, j, mstn
       integer nproc_in, ierr, nperhr, nscrn, nversion, ierr2
       integer kmax, isoth, nsig, lapsbot
+      real, dimension(:,:), allocatable :: savu2,savv2
+      real, dimension(:,:), allocatable :: speed
+      real, dimension(:), allocatable :: spare1,spare2
+      real, dimension(:), allocatable :: spmean,div
       real, dimension(9) :: temparray, gtemparray
       real clhav, cllav, clmav, cltav, con, 
      &     div_int, dsx, dtds, es, gke, hourst, hrs_dt,
      &     evapavge, precavge, preccavge, psavge,
      &     pslavge, pwater, rel_lat, rel_long, rlwup, spavge,
      &     pwatr, pwatr_l, qtot, aa,bb,cc,bb_2,cc_2,rat
+      character(len=60) comm,comment
+      character(len=47) header
+      character(len=10) timeval
+      character(len=8) rundate
+      character(len=2) text
+      logical odcalc
 
       namelist/defaults/nversion
       namelist/cardin/comment,dt,ntau,nwt,npa,npb,npc,nhorps,nperavg
@@ -181,8 +181,10 @@
       data nwrite/0/
       data nsnowout/999999/
 
+!#ifdef stacklimit
       ! For linux only
       call setstacklimit(-1)
+!#endif
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
@@ -265,6 +267,7 @@
       !--------------------------------------------------------------
       ! READ EIGENV FILE TO DEFINE VERTICAL LEVELS
       if (myid==0) then
+!       Remanded of file is read in indata.f
         open(28,file=eigenv,status='old',form='formatted')
         read(28,*)kmax,lapsbot,isoth,nsig
         kl=kmax
@@ -332,10 +335,10 @@
 #ifdef uniform_decomp
       npan=npanels+1
 !     This should use jpan rather than jl. Will be far too big.
-      iextra=(6*(il+jl)+24)*npan !*6 for extra vector row (e.g., inu,isu,iev,iwv)
+      iextra=(6*(il+jl)+24)*npan ! the *6 term is for extra vector row (e.g., inu,isu,iev,iwv)
 #else      
       npan=max(1,(npanels+1)/nproc)
-      iextra=6*(il+jl)+24*npan !*6 for extra vector row (e.g., inu,isu,iev,iwv)
+      iextra=6*(il+jl)+24*npan ! the *6 term is for extra vector row (e.g., inu,isu,iev,iwv)
 #endif
       ! nrows_rad is a subgrid step for radiation routines
       nrows_rad=il_g/6
@@ -365,12 +368,15 @@
       if (nudu_hrs==0) nudu_hrs=nud_hrs
 !     for 6-hourly output of sint_ave etc, want 6*60 = N*mins_rad      
       if ((nrad==4.or.nrad==5).and.mod(6*60,mins_rad).ne.0)
-     &  stop 'prefer 6*60 = N*mins_rad '                    ! MJT radiation
+     &  stop 'prefer 6*60 = N*mins_rad '
 
+
+      ! **** do namelist fixes above this ***
+      
 
       !--------------------------------------------------------------
       ! DISPLAY NAMELIST
-      if ( myid == 0 ) then   ! **** do namelist fixes above this ***
+      if ( myid == 0 ) then   
         write(6,*)'Dynamics options A:'
         write(6,*)'   m    mex   mfix  mfix_qg   mup    nh    nonl',    
      &            '   npex  precon' 
@@ -479,7 +485,7 @@
 
 
       !--------------------------------------------------------------
-      ! INITIALISE ifull_g ALLOCATALE ARRAYS
+      ! INITIALISE ifull_g ALLOCATABLE ARRAYS
       call bigxy4_init(iquad)
       call xyzinfo_init(ifull_g,ifull,iextra)
       call indices_init(ifull_g,ifull,iextra,npanels,npan)
@@ -589,7 +595,7 @@
 
       
       !--------------------------------------------------------------
-      ! RELEASE ifull_g ARRAYS WHERE POSSIBLE
+      ! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE
       if (myid.ne.0) then
         deallocate(wts_g)
         deallocate(ax_g,bx_g,ay_g,by_g,az_g,bz_g)
@@ -665,7 +671,7 @@
 
       
       !--------------------------------------------------------------
-      ! DISPLAY STATION AND TIMER DATA
+      ! DISPLAY DIAGNOSTIC INDEX AND TIMER DATA
       con=180./pi
       if ( mydiag ) then
          write(6,*)'id,jd,rlongg,rlatt in degrees: ',
@@ -717,8 +723,8 @@
       if (nextout>=4) call setllp
       if (ntrac>0) then
         do ng=1,ntrac
-         write (text,'("g",i1)')ng
-         call maxmin(tr(:,:,ng),text,ktau,1.,kl)
+          write (text,'("g",i1)')ng
+          call maxmin(tr(:,:,ng),text,ktau,1.,kl)
         end do
       end if   ! (ntrac>0)
 
@@ -781,17 +787,17 @@
       !--------------------------------------------------------------
       ! NRUN COUNTER
       if (myid==0) then
-         open(11, file='nrun.dat',status='unknown')
-         if(nrun==0)then
-            read(11,*,iostat=ierr2) nrun
-            nrun=nrun+1
-         endif                  ! nrun==0
-         write(6,*)'this is run ',nrun
-         rewind 11
-         write(11,*) nrun
-         write(11,cardin)
-         write(11,datafile)
-         close(11)
+        open(11, file='nrun.dat',status='unknown')
+        if(nrun==0)then
+          read(11,*,iostat=ierr2) nrun
+          nrun=nrun+1
+        endif                  ! nrun==0
+        write(6,*)'this is run ',nrun
+        rewind 11
+        write(11,*) nrun
+        write(11,cardin)
+        write(11,datafile)
+        close(11)
       end if
 
 
@@ -860,11 +866,12 @@
       ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
       if(nmi==0.and.nwt>0)then
 !       write out the first ofile data set
-        if (myid==0) then 
-          write(6,*)'calling outfile'
-        end if
+        if (myid==0) write(6,*)'calling outfile'
         call outfile(20,rundate,nmi,nwrite,iaero)  ! which calls outcdf
-        if(newtop<0)stop  ! just for outcdf to plot zs  & write fort.22
+        if(newtop<0) then
+          if (myid==0) write(6,*) 'newtop<0 requires a stop here'
+          stop  ! just for outcdf to plot zs  & write fort.22
+        end if
       endif    ! (nmi==0.and.nwt.ne.0)
 
 
@@ -905,7 +912,7 @@
       ! BEGIN MAIN TIME LOOP
        if ( myid == 0 ) then
          call date_and_time(time=timeval,values=tvals1)
-         print*, "Start of loop time ", timeval
+         write(6,*) "Start of loop time ", timeval
       end if
       call log_on()
 #ifdef simple_timer
@@ -975,7 +982,7 @@
 
 !     set up tau +.5 velocities in ubar, vbar
       if(ktau<10.and.mydiag)then
-       print*,'ktau,mex,mspec,mspeca:',ktau,mex,mspec,mspeca
+        write(6,*) 'ktau,mex,mspec,mspeca:',ktau,mex,mspec,mspeca
       endif
       sbar(:,2:kl)=sdot(:,2:kl)
       if(ktau==1)then
@@ -1035,7 +1042,7 @@
      &      v(idjd,nlv),vbar(idjd,nlv)
       endif
       if(ktau>2.and.epsp>1..and.epsp<2.)then ! 
-        if (mydiag.and.ktau==3)print *,'using epsp= ',epsp
+        if (mydiag.and.ktau==3)write(6,*)'using epsp= ',epsp
         do iq=1,ifull
          if((sign(1.,dpsdt(iq)).ne.sign(1.,dpsdtb(iq))).and.
      &      (sign(1.,dpsdtbb(iq)).ne.sign(1.,dpsdtb(iq))))then
@@ -1047,7 +1054,8 @@
       endif ! (ktau>2.and.epsp>1..and.epsp<2.)
 
       if (ktau<10.and.mydiag)then
-       print *,'savu,u,ubar ',ktau,savu(idjd,1),u(idjd,1),ubar(idjd,1)
+        write(6,*)'savu,u,ubar ',ktau,savu(idjd,1),u(idjd,1),
+     &                           ubar(idjd,1)
       endif
       if(ktau==1.and.mspec==1.and.mex.ne.1)then
         u(1:ifull,:)=savu(1:ifull,:)  ! reset u,v to original values
@@ -1087,11 +1095,11 @@
          call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,0.,1.)
          if (mydiag) then
             nlx=min(nlv,kl-8)
-            write (6,"('tx  ',9f8.2)") (tx(idjd,k),k=nlx,nlx+8)
-            write (6,"('txe ',9f8.2)") (tx(ie(idjd),k),k=nlx,nlx+8)
-            write (6,"('txw ',9f8.2)") (tx(iw(idjd),k),k=nlx,nlx+8)
-            write (6,"('txn ',9f8.2)") (tx(in(idjd),k),k=nlx,nlx+8)
-            write (6,"('txs ',9f8.2)") (tx(is(idjd),k),k=nlx,nlx+8)
+            write(6,"('tx  ',9f8.2)") (tx(idjd,k),k=nlx,nlx+8)
+            write(6,"('txe ',9f8.2)") (tx(ie(idjd),k),k=nlx,nlx+8)
+            write(6,"('txw ',9f8.2)") (tx(iw(idjd),k),k=nlx,nlx+8)
+            write(6,"('txn ',9f8.2)") (tx(in(idjd),k),k=nlx,nlx+8)
+            write(6,"('txs ',9f8.2)") (tx(is(idjd),k),k=nlx,nlx+8)
             write(6,'(i2," qgv ",18f7.4)')ktau,(1000.*qg(idjd,k),k=1,kl)
          end if
          call printa('qgv ',qg,ktau,nlv,ia,ib,ja,jb,0.,1.e3)
@@ -1100,33 +1108,34 @@
 !     evaluate horizontal advection for combined quantities
       call upglobal(iaero)
       if (diag)then
-         if (mydiag) then
-            print *,'after hadv'
-            write (6,"('tx  ',9f8.2)") (tx(idjd,k),k=nlx,nlx+8)
-         end if
-         call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,200.,1.)
-         if (mydiag)write(6,'(i2," qgh ",18f7.4)')ktau,1000.*qg(idjd,:)
-      endif
+        if (mydiag) then
+          write(6,*) 'after hadv'
+          write (6,"('tx  ',9f8.2)") (tx(idjd,k),k=nlx,nlx+8)
+        end if
+        call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,200.,1.)
+        if (mydiag)write(6,'(i2," qgh ",18f7.4)')ktau,1000.*qg(idjd,:)
+      end if
 
       if(nonl<0)then
         savt(1:ifull,:)=t(1:ifull,:)  ! can be used in nonlin during next step
-      endif
+      end if
 
       if(nstaguin<0.and.ktau>1)then  ! swapping here (lower down) for nstaguin<0
         if(nstagin<0.and.mod(ktau,abs(nstagin))==0)then
           nstag=7-nstag  ! swap between 3 & 4
           nstagu=nstag
-        endif
-      endif
+        end if
+      end if
       call adjust5(iaero)
       
       ! NESTING ---------------------------------------------------------------
+      ! nesting now after mass fixers
       call start_log(nestin_begin)
       if (mspec==1) then
         if (mbd.ne.0) then
           call nestinb(iaero)
         else if (nbd.ne.0) then
-          call davies  ! nesting now after mass fixers
+          call davies
         end if
       end if
       call end_log(nestin_end)
@@ -1254,7 +1263,7 @@
        end if
          
        ! SURFACE FLUXES ---------------------------------------------
-       ! (Includes ocean mixing and sea-ice thermodynamics)
+       ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
        call sflux(nalpha)
        epan_ave=epan_ave+epan  ! 2D 
        epot_ave=epot_ave+epot  ! 2D 
@@ -1625,7 +1634,8 @@
 #endif
 !         write restart file
           call outfile(19,rundate,nmi,nwrite,iaero)
-          if(myid==0)print *,'finished writing restart file in outfile'
+          if(myid==0)
+     &      write(6,*)'finished writing restart file in outfile'
 #ifdef simple_timer
           call start_log(maincalc_begin)
 #endif
@@ -1773,116 +1783,133 @@
       call simple_timer_finalize
 #endif
 
-#ifndef scyld
-      call MPI_Finalize(ierr)
-#endif
- 
       end
 
       !--------------------------------------------------------------
       ! READ INTEGER TEXT FILES
       subroutine readint(filename,itss,ifullx)
-      use cc_mpi
-      include 'newmpar.h'
-      include 'parm.h'
-      include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
+      
+      use cc_mpi            ! CC MPI routines
+ 
+      implicit none
+      
+      include 'newmpar.h'   ! Grid parameters
+      include 'parm.h'      ! Model configuration
+      include 'parmgeom.h'  ! Coordinate data
+            
       character *(*) filename
       character header*47
+      integer ifullx,ilx,jlx,ierr
       integer itss(ifullx)
       integer glob2d(ifull_g)
+      real rlong0x,rlat0x,schmidtx,dsx
 
       if( ifullx /= ifull ) then
-         write(6,*) "Error, readint only works with ifull"
-         write(6,*) "called with", ifullx
-         stop
+        write(6,*) "Error, readint only works with ifull"
+        write(6,*) "called with", ifullx
+        stop
       end if
       if ( myid == 0 ) then
-         write(6,*) 'reading data via readint from ',filename
-         open(87,file=filename,status='old')
-!        read(87,'(i3,i4,2f6.1,f6.3,f8.0,a47)',iostat=ierr)
-         read(87,*,iostat=ierr)
-     &          ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-         if ( ierr == 0 ) then
-            write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-            if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.
-     &           or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt)
-     &           stop 'wrong data file supplied'
-            read(87,*) glob2d
-            close(87)
-         else if ( ierr < 0 ) then ! Error, so really unformatted file
-            close(87)
-            write(6,*) 'now doing unformatted read'
-            open(87,file=filename,status='old',form='unformatted')
-            read(87) glob2d
-            close(87)
-         else ! ierr > 0
-            stop 'End of file occurred in readint'
-         end if
-         call ccmpi_distribute(itss, glob2d)
-         write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
+        write(6,*) 'reading data via readint from ',filename
+        open(87,file=filename,status='old')
+        read(87,*,iostat=ierr)
+     &         ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+        if ( ierr == 0 ) then
+          write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+          if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.
+     &         or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt)
+     &         stop 'wrong data file supplied'
+          read(87,*) glob2d
+          close(87)
+        else if ( ierr < 0 ) then ! Error, so really unformatted file
+          close(87)
+          write(6,*) 'now doing unformatted read'
+          open(87,file=filename,status='old',form='unformatted')
+          read(87) glob2d
+          close(87)
+        else ! ierr > 0
+          stop 'End of file occurred in readint'
+        end if
+        call ccmpi_distribute(itss, glob2d)
+        write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
       else
-         call ccmpi_distribute(itss)
+        call ccmpi_distribute(itss)
       end if
       end subroutine readint
 
       !--------------------------------------------------------------
       ! READ REAL TEXT FILES
       subroutine readreal(filename,tss,ifullx)
-      use cc_mpi
-      include 'newmpar.h'
-      include 'parm.h'
-      include 'parmgeom.h'  ! rlong0,rlat0,schmidt  
+ 
+      use cc_mpi            ! CC MPI routines
+ 
+      implicit none
+      
+      include 'newmpar.h'   ! Grid parameters
+      include 'parm.h'      ! Model configuration
+      include 'parmgeom.h'  ! Coordinate data
+
       character *(*) filename
       character header*47
       real tss(ifullx)
       real glob2d(ifull_g)
+      real rlong0x,rlat0x,schmidtx,dsx
       integer ierr
+      integer ilx,jlx,ifullx
 
       if( ifullx /= ifull ) then
-         write(6,*) "Error, readreal only works with ifull"
-         write(6,*) "called with", ifullx
-         stop
+        write(6,*) "Error, readreal only works with ifull"
+        write(6,*) "called with", ifullx
+        stop
       end if
       if ( myid == 0 ) then
-         write(6,*) 'reading data via readreal from ',trim(filename)
-         open(87,file=filename,status='old')
-         read(87,*,iostat=ierr)
-     &          ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-         if ( ierr == 0 ) then
-           write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
-           if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.
-     &          or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt)
-     &          stop 'wrong data file supplied'
-           read(87,*) glob2d
-           close(87)
-         else if ( ierr < 0 ) then ! Error, so really unformatted file
-           close(87)
-           write(6,*) 'now doing unformatted read'
-           open(87,file=filename,status='old',form='unformatted')
-           read(87) glob2d
-           close(87)
-         else
-           write(6,*) "error in readreal",trim(filename),ierr
-           stop
-         end if
-         call ccmpi_distribute(tss, glob2d)
-         write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
+        write(6,*) 'reading data via readreal from ',trim(filename)
+        open(87,file=filename,status='old')
+        read(87,*,iostat=ierr)
+     &         ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+        if ( ierr == 0 ) then
+          write(6,*) ilx,jlx,rlong0x,rlat0x,schmidtx,dsx,header
+          if(ilx.ne.il_g.or.jlx.ne.jl_g.or.rlong0x.ne.rlong0.
+     &         or.rlat0x.ne.rlat0.or.schmidtx.ne.schmidt)
+     &         stop 'wrong data file supplied'
+          read(87,*) glob2d
+          close(87)
+        else if ( ierr < 0 ) then ! Error, so really unformatted file
+          close(87)
+          write(6,*) 'now doing unformatted read'
+          open(87,file=filename,status='old',form='unformatted')
+          read(87) glob2d
+          close(87)
+        else
+          write(6,*) "error in readreal",trim(filename),ierr
+          stop
+        end if
+        call ccmpi_distribute(tss, glob2d)
+        write(6,*) trim(header), glob2d(id+(jd-1)*il_g)
       else
-         call ccmpi_distribute(tss)
+        call ccmpi_distribute(tss)
       end if
       end subroutine readreal
 
+
       !--------------------------------------------------------------
       ! PREPARE SPECIAL TRACER ARRAYS
+      ! sets tr arrays for lat, long, pressure if nextout>=4 &(nllp>=3)
       subroutine setllp
-      use arrays_m   ! ts, t, u, v, psl, ps, zs
-      use cc_mpi
-      use latlong_m
-      use sigs_m
-      use tracers_m  ! ngas, nllp, ntrac
-!     sets tr arrays for lat, long, pressure if nextout>=4 &(nllp>=3)
-      include 'newmpar.h'
-      include 'const_phys.h'
+      
+      use arrays_m           ! Atmosphere dyamics prognostic arrays
+      use cc_mpi             ! CC MPI routines
+      use latlong_m          ! Lat/lon coordinates
+      use sigs_m             ! Atmosphere sigma levels
+      use tracers_m          ! Tracer data
+      
+      implicit none
+      
+      include 'newmpar.h'    ! Grid parameters
+      include 'const_phys.h' ! Physical constants
+      
+      integer iq,k
+      
       do k=1,klt
        do iq=1,ilt*jlt        
         tr(iq,k,min(ntracmax,ngas+1))=rlatt(iq)*180./pi
@@ -1905,37 +1932,37 @@
          enddo
         enddo
       endif   ! (nllp>=5)
+      
       return
       end subroutine setllp
+
 
       !--------------------------------------------------------------
       ! INTIAL PARAMETERS
       blockdata main_blockdata
-      implicit none
-      include 'newmpar.h'
-      include 'dates.h' ! ktime,kdate,timer,timeg,mtimer
-      include 'filnames.h'  ! list of files, read in once only
-      include 'kuocom.h'
-      include 'mapproj.h'
-      include 'parm.h'
-      include 'parmdyn.h'  ! nstag,epsp,epsu
-      include 'parmgeom.h' ! rlong0,rlat0,schmidt
-      include 'parmhor.h'  ! mhint, m_bs
-      include 'parmsurf.h' ! nplens
-      include 'parmvert.h'
-      include 'soilv.h'
-      include 'stime.h'
-      include 'trcom2.h'  ! nstn,slat,slon,istn,jstn etc.
 
-      integer leap,nbarewet,nsigmf
+      implicit none
+
+      include 'newmpar.h'          ! Grid parameters
+      include 'dates.h'            ! Date data
+      include 'filnames.h'         ! Filenames
+      include 'kuocom.h'           ! Convection parameters
+      include 'parm.h'             ! Model configuration
+      include 'parmdyn.h'          ! Dynamics parmaters
+      include 'parmgeom.h'         ! Coordinate data
+      include 'parmhor.h'          ! Horizontal advection parameters
+      include 'parmsurf.h'         ! Surface parameters
+      include 'parmvert.h'         ! Vertical advection parameters
+      include 'soilv.h'            ! Soil parameters
+      include 'stime.h'            ! File date data
+      include 'trcom2.h'           ! Station data
+
+      integer leap
+      common/leap_yr/leap          ! Leap year (1 to allow leap years)
+      integer nbarewet,nsigmf
+      common/nsib/nbarewet,nsigmf  ! Land-surface options
       integer nnrad,idcld
-      common/leap_yr/leap  ! 1 to allow leap years
-      common/nsib/nbarewet,nsigmf
-      common/radnml/nnrad,idcld   ! darlam, clddia
- 
-      integer nhor,nhorps,khor,khdif,nhorjlm
-      real hdifmax
-      common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
+      common/radnml/nnrad,idcld    ! Radiation options
 
 !     for cardin
       data ia/1/,ib/3/,id/2/,ja/1/,jb/10/,jd/5/,nlv/1/,
@@ -1944,13 +1971,13 @@
      &     mbd/0/,nbd/0/,nbox/1/,kbotdav/4/,kbotu/0/,           
      &     nud_p/0/,nud_q/0/,nud_t/0/,nud_uv/1/,nud_hrs/24/,nudu_hrs/0/,
      &     ktopdav/-1/,nud_sst/0/,nud_sss/0/,kbotmlo/-1/,ktopmlo/1/,
-     &     mloalpha/10/,nud_ouv/0/,nud_sfh/0/ ! MJT nestin ! MJT mlo
+     &     mloalpha/10/,nud_ouv/0/,nud_sfh/0/
       
 !     Dynamics options A & B      
       data m/5/,mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/,npex/0/
       data nritch_t/300/,nrot/1/,nxmap/0/,
      &     epsp/-15./,epsu/0./,epsf/0./,precon/-2900/,restol/4.e-7/
-      data mfix_tr/0/,mfix_ke/0/,mfix_aero/0/ ! MJT tracerfix ! MJT tke
+      data mfix_tr/0/,mfix_ke/0/,mfix_aero/0/
       data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/,nrunx/0/
 !     Horiz advection options
       data ndept/1/,nt_adv/7/,mh_bs/4/
@@ -1959,8 +1986,8 @@ c     data nstag/99/,nstagu/99/
       data nstag/-10/,nstagu/-1/
 !     Vertical advection options
       data nvad/-4/,nvadh/2/,ntvdr/1/
-!     Horizontal mixing options
-      data khdif/2/,khor/-8/,nhor/-157/,nhorps/-1/,nhorjlm/1/
+!     Horizontal mixing options (now in parmhdff_m.f90)
+      !data khdif/2/,khor/-8/,nhor/-157/,nhorps/-1/,nhorjlm/1/
 !     Vertical mixing options
       data nvmix/3/,nlocal/6/,nvsplit/2/,ncvmix/0/,lgwd/0/,ngwd/-5/
 !     Cumulus convection options
@@ -1980,8 +2007,8 @@ c     data nstag/99/,nstagu/99/
       data nrad/4/,ndiur/1/,idcld/1/
 !     Diagnostic cloud options
       data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
-      data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./  ! not used for ldr
-      data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./  ! not used for ldr
+      data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
+      data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
 !     Soil, canopy, PBL options
       data nbarewet/0/,newrough/0/,nglacier/1/,
      &     nrungcm/-1/,nsib/3/,nsigmf/1/,
@@ -1989,7 +2016,7 @@ c     data nstag/99/,nstagu/99/
      &     vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
       data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
-      data nurban/0/,nmr/0/,nmlo/0/,bpyear/0./ ! MJT urban ! MJT nmr ! MJT mlo ! MJT rad
+      data nurban/0/,nmr/0/,nmlo/0/,bpyear/0./
 !     Special and test options
       data namip/0/,amipo3/.false./,nhstest/0/,nsemble/0/,nspecial/0/,
      &     panfg/4./,panzo/.001/,nplens/0/
@@ -2015,35 +2042,26 @@ c     initialize file names to something
      &          ,scrnfile/' '/,tmaxfile/' '/,tminfile/' '/,trcfil/' '/
      &    ,laifile/' '/,albnirfile/' '/,urbanfile/' '/,bathfile/' '/
      &    ,vegprev/' '/,vegnext/' '/,cnsdir/' '/,salfile/' '/
-     &    ,oxidantfile/' '/ ! MJT sib ! MJT urban ! MJT mlo ! MJT cable ! MJT radiation
+     &    ,oxidantfile/' '/
       data climcdf/'clim.cdf'/
       data monfil/'monthly.cdf'/,scrfcdf/'scrave.cdf'/
 c     floating point:
       data timer/0./,mtimer/0/
-      data du/19.76/,tanl/60.2/,rnml/130./,stl1/40./,stl2/10./
-
-c     stuff from indata in soil.h
-      !data zoland/.16/
 
 c     stuff from insoil  for soilv.h
       data rlaim44/4.8, 6.3, 5., 3.75, 2.78, 2.5, 3.9, 2.77, 2.04, 2.6,  ! 1-10
      &          1.69, 1.9, 1.37, 1.5, 1.21, 1.58, 1.41, 2.3, 1.2, 1.71,  ! 11-20
      &          1.21, 2.3, 2.3, 1.2, 1.2, 1.87, 1., 3., .01, .01, 1.2,   ! 21-31
      &          6., 5.5, 5., 4.5, 5., 4., 3., 3.5, 1., 4., .5, 4., 0./   ! 32-44
-c    &          1.21, 2.3, 2.3, 1.2, 1.2, 1.87, 1., 3., .01, .01, .01,   ! 21-31
-c    &          6., 6., 6., 6., 6., 4., 4., 4., 1., 4., .5, 4., 0./      ! 32-44
       data rlais44/1., 1., 1., 1., 1., 1., 1., 1., 1., 1.,              ! 1-10
      &           1., 1., 1., 1., 1., 1., 1., 1., 1., 1.,                ! 11-20
      &           1., 1., 1., 1., .6, .6, .5, 1., 0., 0., 1.,            ! 21-31
      &           2., 2., 2., 2., 2., 1.5, 1.5, 1.5, 1., .5, .5, .5, 0./ ! 32-44
-c    &           1., 1., 1., 1., .6, .6, .5, 1., 0., 0., 0.,            ! 21-31
       data rsunc44/
      &      370., 330., 260., 200., 150., 130., 200., 150., 110., 160.,  ! 1-10
      &      100., 120.,  90.,  90.,  80.,  90.,  90., 150.,  80., 100.,  ! 11-20
      &       80.,  80.,  80.,  60.,  60., 120.,  80., 180., 2*995., 80., ! 21-31
      &      350., 4*300., 3*230., 150., 230., 995., 150., 9900./         ! 32-44
-c    &       80.,  80.,  80.,  60.,  60., 120.,  80., 180., 3*995.,      ! 21-31
-c    &      350., 4*300., 5*230., 995., 150., 9900./    ! eak: 8/12/98
       data scveg44/0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,              ! 1-10
      &             0., 0., 0., 0., 0., .1, .1, .1, .1, .1,              ! 11-20
      &             .1, .2, .4, .2, .1, .1, .1, 0., 0., 0., 0.,          ! 21-31
@@ -2053,7 +2071,6 @@ c    &      350., 4*300., 5*230., 995., 150., 9900./    ! eak: 8/12/98
      &             .1, .2, .4, .2, .1, .1, .1, 0., 0., 0., 0.,       ! 21-31
      &     1., 5.5, 3., 1., 3., 3., 3.5, 3., .5, 3.5, .1, 3.5, 0./   ! 32-44
       data froot/.05, .10, .35, .40, .10/       ! 10/02/99 veg. root distr.
-c     data froot/.20, .45, .20, .10, .05/
 
       data silt/.08, .33, .17, .2, .06, .25, .15, .70, .33
      &          , .2, .33, .33, .17/                        ! with mxst=13
@@ -2062,13 +2079,10 @@ c     data froot/.20, .45, .20, .10, .05/
       data sand/.83, .37, .17, .6, .52, .27, .58, .13, .37
      &          , .6, .37, .37, .17/                        ! with mxst=13
       data swilt/0., .072, .216, .286, .135, .219, .283, .175, .395  !eak
-!     data swilt/0., .010, .1  , .138, .135, .219, .283, .175, .395  !mm5
      &             , .216, .1142, .1547, .2864, .2498/
       data sfc/1.,  .143, .301, .367, .218, .31 , .37 , .255, .45 
      &            , .301, .22 , .25 , .367, .294/
       data ssat/2., .398, .479, .482, .443, .426, .482, .420, .451  !jlm
-!     data ssat/2., .398, .479, .482, .443, .426, .482, .420, .450  !eak
-!     data ssat/2., .339, .470, .468, .443, .426, .482, .420, .450  !mm5
      &          , .479, .435, .451, .482, .476/
       data bch/4.2, 7.1, 11.4, 5.15, 10.4, 10.4, 7.12, 5.83, 7.1, 4.9
      &          , 5.39, 11.4, 8.52/      ! bch for gravity term
@@ -2080,113 +2094,90 @@ c     data froot/.20, .45, .20, .10, .05/
      &          1455., 4*2600. / ! MJT cable
       ! soil density changed to the line above by YP using the relationship
       ! rho = (1  - ssat) * 2650  ----- (3Nov2007)
-!      data rhos/7*1600., 1300.,  910., 4*2600./      ! soil density 
       data  css/7* 850., 1920., 2100., 4*850./       ! heat capacity
 
       data zse/.022, .058, .154, .409, 1.085, 2.872/ ! layer thickness
 !     so depths of centre of layers: .011, .051, .157, .4385, 1.1855, 3.164
 !     with base at 4.6     
-!     data zse/.05, .15, .33, 1.05, 1.25, 1.35/      ! layer thickness <10/2/99
-!     data zse/.05, .15, .30, 0.50, 1.0 , 1.5 /      ! was in indata
-
-c!     following was set in setxyz -  now in blockdata at end of setxyz
-c      data npann/  1, 2,107,  4,106,  6,  7,109,  9,112, 11, 12,102,101/
-c      data npane/103, 3,  4,105,  5,110,108,  8, 10, 11,100,113, 13,  0/
-c      data npanw/13,113,112,  1,  2,  4,104,102,  7,107,  8,  9,109, 12/
-c      data npans/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/
-!c Leaf gsmax for forest (0.006), grass (0.008) and crop (0.012)
-!c littoral is regarded as forest, dense pasture between grass and crop
-!      data xgsmax  / 0.0,
-!     &     0.006,0.006,0.006,0.006,0.006,0.006,0.006,0.006,0.006,0.006,
-!     &     0.006,0.006,0.006,0.006,0.006,0.008,0.008,0.008,0.008,0.008,
-!     &     0.008,0.010,0.010,0.012,0.012,0.008,0.008,0.006,0.000,0.000,
-!     &     0.000,
-!     &  .006,.006,.006,.006,.006,.006,.008,.008,.006,.006,.0,0.010,0.0/
-!c littoral is regarded as forest, dense pasture between grass and crop
-!      data xjmax0 / 0.0,
-!     &     5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,5e-5,
-!     &     5e-5,5e-5,5e-5,5e-5,5e-5,10e-5,10e-5,10e-5,10e-5,10e-5,
-!     &     10e-5,15e-5,15e-5,15e-5,15e-5,10e-5,10e-5,5e-5,1e-5,1e-5,
-!     &     1e-5,
-!     &     5e-5,5e-5,5e-5,5e-5,5e-5,10e-5,10e-5,10e-5,5e-5,10e-5,
-!     &     1e-5,15e-5,1e-5/
-!c     &     25e-5,25e-5,20e-5,15e-5,25e-5,7e-5,7e-5,7e-5,15e-5,15e-5,
-!c     &     7e-5,25e-5,1e-5/ !Sellers 1996 J.Climate, I think they are too high
 
       end
       
       !--------------------------------------------------------------
       ! WRITE STATION DATA
       subroutine stationa
-      use arrays_m  ! ts, t, u, v, psl, ps, zs
-      use cc_mpi
-      use diag_m
-      use extraout_m
-      use map_m
-      use morepbl_m
-      use nsibd_m    ! sib, tsigmf, isoilm
-      use pbl_m      ! cduv, cdtq, tss, qg
-      use prec_m
-      use screen_m
-      use sigs_m
-      use soil_m
-      use soilsnow_m
-      use tracers_m  ! ngas, nllp, ntrac, tr
-      use vecsuv_m
-      use work2_m
-      use work3_m
-      use xyzinfo_m
-      implicit none
-      include 'newmpar.h'
-      include 'const_phys.h'
-      include 'dates.h'    ! dtin,mtimer
-      include 'establ.h'
-      include 'parm.h'
-      include 'parmgeom.h' ! rlong0,rlat0,schmidt
-      include 'soilv.h'
-      include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
-      common/leap_yr/leap  ! 1 to allow leap years
 
-      integer i,j,iq,iqt,isoil,k2,leap,nn
+      use arrays_m           ! Atmosphere dyamics prognostic arrays
+      use cc_mpi             ! CC MPI routines
+      use diag_m             ! Diagnostic routines
+      use extraout_m         ! Additional diagnostics
+      use map_m              ! Grid map arrays
+      use morepbl_m          ! Additional boundary layer diagnostics
+      use nsibd_m            ! Land-surface arrays
+      use pbl_m              ! Boundary layer arrays
+      use prec_m             ! Precipitation
+      use screen_m           ! Screen level diagnostics
+      use sigs_m             ! Atmosphere sigma levels
+      use soil_m             ! Soil and surface data
+      use soilsnow_m         ! Soil, snow and surface data
+      use tracers_m          ! Tracer data
+      use vecsuv_m           ! Map to cartesian coordinates
+      use work2_m            ! Diagnostic arrays
+      use work3_m            ! Mk3 land-surface diagnostic arrays
+      use xyzinfo_m          ! Grid coordinate arrays
+
+      implicit none
+
+      include 'newmpar.h'    ! Grid parameters
+      include 'const_phys.h' ! Physical constants
+      include 'dates.h'      ! Date data
+      include 'establ.h'     ! Liquid saturation function
+      include 'parm.h'       ! Model configuration
+      include 'parmgeom.h'   ! Coordinate data
+      include 'soilv.h'      ! Soil parameters
+      include 'trcom2.h'     ! Station data
+
+      integer leap
+      common/leap_yr/leap    ! Leap year (1 to allow leap years)
+
+      integer i,j,iq,iqt,isoil,k2,nn
       real coslong, sinlong, coslat, sinlat, polenx, poleny, polenz,
      &     zonx, zony, zonz, den, costh, sinth, uzon, vmer, rh1, rh2,
      &     es,wbav, rh_s
-           coslong=cos(rlong0*pi/180.)   ! done here, where work2 has arrays
-           sinlong=sin(rlong0*pi/180.)
-           coslat=cos(rlat0*pi/180.)
-           sinlat=sin(rlat0*pi/180.)
-           polenx=-coslat
-           poleny=0.
-           polenz=sinlat
-           do nn=1,nstn
-!            Check if this station is in this processors region
-             if ( .not. mystn(nn) ) cycle 
-             if(ktau==1)write (iunp(nn),950) kdate,ktime,leap
-950          format("#",i9,2i5)
-             i=istn(nn)
-             j=jstn(nn)
-             iq=i+(j-1)*il
-             zonx=            -polenz*y(iq)
-             zony=polenz*x(iq)-polenx*z(iq)
-             zonz=polenx*y(iq)
-             den=sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) ) 
-             costh= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
-             sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
-             uzon= costh*u(iq,1)-sinth*v(iq,1)
-             vmer= sinth*u(iq,1)+costh*v(iq,1)
-             es=establ(t(iq,1))
-             rh1=100.*qg(iq,1)*(ps(iq)*sig(1)-es)/(.622*es)
-             es=establ(t(iq,2))
-             rh2=100.*qg(iq,2)*(ps(iq)*sig(2)-es)/(.622*es)
-             es=establ(tscrn(iq))
-             rh_s=100.*qgscrn(iq)*(ps(iq)-es)/(.622*es)
-             wbav=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)
-     &        +zse(4)*wb(iq,4))/(zse(1)+zse(2)+zse(3)+zse(4))
-             !ico2x=max(1,ico2)
-             !iradonx=max(1,iradon)
-             iqt = min(iq,ilt*jlt) ! Avoid bounds problems if there are no tracers
-             k2=min(2,klt)
-             write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
+
+      coslong=cos(rlong0*pi/180.)   ! done here, where work2 has arrays
+      sinlong=sin(rlong0*pi/180.)
+      coslat=cos(rlat0*pi/180.)
+      sinlat=sin(rlat0*pi/180.)
+      polenx=-coslat
+      poleny=0.
+      polenz=sinlat
+      do nn=1,nstn
+!       Check if this station is in this processors region
+        if ( .not. mystn(nn) ) cycle 
+        if(ktau==1)write (iunp(nn),950) kdate,ktime,leap
+950     format("#",i9,2i5)
+        i=istn(nn)
+        j=jstn(nn)
+        iq=i+(j-1)*il
+        zonx=            -polenz*y(iq)
+        zony=polenz*x(iq)-polenx*z(iq)
+        zonz=polenx*y(iq)
+        den=sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) ) 
+        costh= (zonx*ax(iq)+zony*ay(iq)+zonz*az(iq))/den
+        sinth=-(zonx*bx(iq)+zony*by(iq)+zonz*bz(iq))/den
+        uzon= costh*u(iq,1)-sinth*v(iq,1)
+        vmer= sinth*u(iq,1)+costh*v(iq,1)
+        es=establ(t(iq,1))
+        rh1=100.*qg(iq,1)*(ps(iq)*sig(1)-es)/(.622*es)
+        es=establ(t(iq,2))
+        rh2=100.*qg(iq,2)*(ps(iq)*sig(2)-es)/(.622*es)
+        es=establ(tscrn(iq))
+        rh_s=100.*qgscrn(iq)*(ps(iq)-es)/(.622*es)
+        wbav=(zse(1)*wb(iq,1)+zse(2)*wb(iq,2)+zse(3)*wb(iq,3)
+     &       +zse(4)*wb(iq,4))/(zse(1)+zse(2)+zse(3)+zse(4))
+        iqt = min(iq,ilt*jlt) ! Avoid bounds problems if there are no tracers
+        k2=min(2,klt)
+        write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
      &         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
      &         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
      &         wb(iq,1),wb(iq,2),
@@ -2199,74 +2190,70 @@ c      data npans/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/
      &         0.,0.,.01*ps(iq),wbav,
      &         epot(iq),qgscrn(iq)*1.e3,rh_s,u10(iq),uscrn(iq),
      &         condx(iq)              
-!             end if
-!              N.B. qgscrn formula needs to be greatly improved
-951          format(i4,6f7.2, 
-     &              2f7.2, 2f6.3, 4f5.2,                ! t1 ... cld
-     &              5f7.1,f6.1,f5.1,                    ! fg ... qg1
-     &              2f6.1,f7.2, f5.1,2f6.1, 2(1x,f5.1), ! uu ... co2_2
-     &              2(1x,f5.1) ,f7.1,f6.3,f7.1,5f6.1,   ! rad_1 ... rh_s
-     &              f7.2)                               ! condx
-             if(ktau==ntau)then
-               write (iunp(nn),952)
-952            format("#   2tscrn 3precip 4tss  5tgg1  6tgg2  7tgg3",
+!       N.B. qgscrn formula needs to be greatly improved
+951     format(i4,6f7.2, 
+     &         2f7.2, 2f6.3, 4f5.2,                ! t1 ... cld
+     &         5f7.1,f6.1,f5.1,                    ! fg ... qg1
+     &         2f6.1,f7.2, f5.1,2f6.1, 2(1x,f5.1), ! uu ... co2_2
+     &         2(1x,f5.1) ,f7.1,f6.3,f7.1,5f6.1,   ! rad_1 ... rh_s
+     &         f7.2)                               ! condx
+        if(ktau==ntau)then
+          write (iunp(nn),952)
+952       format("#   2tscrn 3precip 4tss  5tgg1  6tgg2  7tgg3",
      &       "   8t1    9tgf  10wb1 11wb2 cldl cldm cldh  cld",
      &       "   16fg   17eg  18fgg  19egg  20rnet 21sg 22qg1",
      &       " 23uu   24vv 25precc qg2  rh1 28rh2 29co2_1 co2_2",
      &       " rad_1 rad_2  ps 34wbav 35epot qgscrn 37rh_s 38u10 uscrn",
      &       " 40condx")
-              write (iunp(nn),953) land(iq),isoilm(iq),ivegt(iq),zo(iq),
-     &                              zs(iq)/grav
-953           format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
-              isoil=max(1,isoilm(iq))
-               write (iunp(nn),954) sigmf(iq),swilt(isoil),sfc(isoil),
-     &                              ssat(isoil),albvisnir(iq,1) ! MJT albedo
-954            format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
-!              rml 16/02/06 removed ico2em
-!               if (ngas>0) then
-!                 write (iunp(nn),955) i,j,radonem(iqt)
-!               else
-!                 write (iunp(nn),955) i,j,0.
-!               end if
-!955            format("#i,j,radonem: ",2i4,f7.3)
-             endif
-           enddo
+          write (iunp(nn),953) land(iq),isoilm(iq),ivegt(iq),zo(iq),
+     &                         zs(iq)/grav
+953       format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
+          isoil=max(1,isoilm(iq))
+          write (iunp(nn),954) sigmf(iq),swilt(isoil),sfc(isoil),
+     &                         ssat(isoil),albvisnir(iq,1) ! MJT albedo
+954       format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
+        endif
+      enddo
       return	    
       end               
 
       !--------------------------------------------------------------
       ! WRITE STATION DATA
       subroutine stationb  ! primarily for ICTS
-      use arrays_m
-      use cc_mpi
-      use cfrac_m
-      use diag_m
-      use extraout_m
-      use histave_m
-      use infile
-      use liqwpar_m  ! ifullw,qfg,qlg
-      use map_m
-      use morepbl_m
-      use nsibd_m
-      use pbl_m      ! cduv, cdtq, tss, qg
-      use prec_m
-      use raddiag_m
-      use screen_m   ! tscrn etc
-      use sigs_m
-      use soil_m
-      use soilsnow_m
-      use tracers_m  ! ngas, nllp, ntrac, tr
-      use vecsuv_m
-      use xyzinfo_m
+
+      use arrays_m            ! Atmosphere dyamics prognostic arrays
+      use cc_mpi              ! CC MPI routines
+      use cfrac_m             ! Cloud fraction
+      use diag_m              ! Diagnostic routines
+      use extraout_m          ! Additional diagnostics
+      use histave_m           ! Time average arrays
+      use infile              ! Input file routines
+      use liqwpar_m           ! Cloud water mixing ratios
+      use map_m               ! Grid map arrays
+      use morepbl_m           ! Additional boundary layer diagnostics
+      use nsibd_m             ! Land-surface arrays
+      use pbl_m               ! Boundary layer arrays
+      use prec_m              ! Precipitation
+      use raddiag_m           ! Radiation diagnostic
+      use screen_m            ! Screen level diagnostics
+      use sigs_m              ! Atmosphere sigma levels
+      use soil_m              ! Soil and surface data
+      use soilsnow_m          ! Soil, snow and surface data
+      use tracers_m           ! Tracer data
+      use vecsuv_m            ! Map to cartesian coordinates
+      use xyzinfo_m           ! Grid coordinate arrays
+
       implicit none
-      include 'newmpar.h'
-      include 'const_phys.h'
-      include 'dates.h'    ! dtin,mtimer
-      include 'establ.h'
-      include 'parm.h'
-      include 'parmgeom.h' ! rlong0,rlat0,schmidt
-      include 'soilv.h'
-      include 'trcom2.h'   ! nstn,slat,slon,istn,jstn etc.
+
+      include 'newmpar.h'     ! Grid parameters
+      include 'const_phys.h'  ! Physical constants
+      include 'dates.h'       ! Date data
+      include 'establ.h'      ! Liquid saturation function
+      include 'parm.h'        ! Model configuration
+      include 'parmgeom.h'    ! Coordinate data
+      include 'soilv.h'       ! Soil parameters
+      include 'trcom2.h'      ! Station data
+
       real p(ifull,kl),tv(ifull,kl),energy(ifull,kl)
       real pmsl(ifull)
       integer i,j,iq,k,nn,kdateb,ktimeb,mtimerb,npres,iyr,imo,iday,itim
@@ -2282,6 +2269,7 @@ c      data npans/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/
       integer ix(15),jx(15)
       data ix/-1,0,1,1,1,0,-1,-1, -1,0,1,1,1,0,-1/  ! clockwise from NW
       data jx/1,1,1,0,-1,-1,-1,0, 1,1,1,0,-1,-1,-1/ ! clockwise from NW
+
       call mslp(pmsl,psl,zs,t(1:ifull,:))
       off=0.
       sca=1.
@@ -2289,7 +2277,7 @@ c      data npans/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/
      &                             -qlg(1:ifull,:))*t(1:ifull,:)  
       p(1:ifull,1)=zs(1:ifull)+bet(1)*tv(1:ifull,1)
       do k=2,kl
-      p(1:ifull,k)=p(1:ifull,k-1)
+        p(1:ifull,k)=p(1:ifull,k-1)
      &            +bet(k)*tv(1:ifull,k)+betm(k)*tv(1:ifull,k-1)
       enddo    ! k  loop
       energy(:,:)=(cp-rdry)*t(1:ifull,:)+p(:,:)+
@@ -2310,10 +2298,10 @@ c      data npans/110, 0,  1,100,  3,103,  5,  6,106,  8,105, 10, 11,111/
       imo=(kdateb-iyr*10000)/100
       iday=kdateb-iyr*10000-imo*100
       itim=ktimeb/100
-      print *,'new kdateb,ktimeb,mtimerb ',kdateb,ktimeb,mtimerb
-      print *,'new iyr,imo,iday,itim,off,sca ',iyr,imo,iday,itim,off,sca
+      write(6,*) 'new kdateb,ktimeb,mtimerb ',kdateb,ktimeb,mtimerb
+      write(6,*) 'new iyr,imo,iday,itim,off,sca ',iyr,imo,iday,itim,
+     &                                            off,sca
       do nn=1,nstn
-c      print *,'nn,iunp,mystn ',nn,iunp(nn),mystn(nn)
 !      Check if this station is in this processors region
        if ( .not. mystn(nn) ) cycle 
          i=istn(nn)
@@ -2340,7 +2328,6 @@ c      print *,'nn,iunp,mystn ',nn,iunp(nn),mystn(nn)
            uzon(niq,k)=costh(niq)*u(iq,k)-sinth(niq)*v(iq,k)    
            vmer(niq,k)=sinth(niq)*u(iq,k)+costh(niq)*v(iq,k)    
           enddo
-c 	   print *,'nn,niq,costh,sinth ',nn,niq,costh(niq),sinth(niq)
          enddo     ! niq=1,9
          do k=1,kl
           write (iunp(nn),"('T         ',i6,3i3,i4,f8.0,g8.1,9f8.3)") 
@@ -2383,11 +2370,6 @@ c 	   print *,'nn,niq,costh,sinth ',nn,niq,costh(niq),sinth(niq)
             vv(niq,npres)=fa*vmer(niq,k)+fb*vmer(niq,k-1)
             pp(niq,npres)=fa*p(iq,k)+fb*p(iq,k-1)
             qgg(niq,npres)=fa*qg(iq,k)+fb*qg(iq,k-1)
-c	    if(nn<3.and.niq==1)then
-c             print *,'k,npres,pres,press ',k,npres,pres(npres),press(k)
-c             print *,'fa,fb,pp,pk,pk-1 ',
-c    &          fa,fb,pp(niq,npres),p(niq,k),p(niq,k-1)
-c           endif
             npres=npres-1
           endif
           if(k>2.and.npres>0)go to 22  
@@ -2475,7 +2457,6 @@ c           endif
          write(iunp(nn),"('IENERGY ',i8,3i3,'   1',f8.0,g8.1,-9p9f8.5)")
      &	         iyr,imo,iday,itim,off,sca,energint(:)
          sca=1.
-c        if(nn<6)print *,'energint ',energint
          write (iunp(nn),"('ISOILW    ',i6,3i3,'   1',f8.0,g8.1,9f8.3)")
      &	   iyr,imo,iday,itim,off,sca,
      &                  wb(iqq(:),1)*zse(1)+wb(iqq(:),2)*zse(2)+
@@ -2521,20 +2502,24 @@ c     &	         rh_s(:)
       !--------------------------------------------------------------
       ! PREVIOUS VERSION DEFAULT PARAMETERS
       subroutine change_defaults(nversion)
-      implicit none
-      include 'newmpar.h'
-      include 'kuocom.h'
-      include 'parm.h'
-      include 'parmdyn.h'  
-      include 'parmhor.h'  ! mhint, mh_bs, nt_adv, ndept
-      include 'parmsurf.h' ! nplens
-      include 'parmvert.h'
 
-      integer nhor,nhorps,khor,khdif,nhorjlm
-      real hdifmax
-      common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
-      integer nversion,nbarewet,nsigmf
-      common/nsib/nbarewet,nsigmf
+      use parmhdff_m              ! Horizontal diffusion parameters
+
+      implicit none
+
+      include 'newmpar.h'         ! Grid parameters
+      include 'kuocom.h'          ! Convection parameters
+      include 'parm.h'            ! Model configuration
+      include 'parmdyn.h'         ! Dynamics parmaters
+      include 'parmhor.h'         ! Horizontal advection parameters
+      include 'parmsurf.h'        ! Surface parameters
+      include 'parmvert.h'        ! Vertical advection parameters
+
+      integer nbarewet,nsigmf
+      common/nsib/nbarewet,nsigmf ! Land-surface options
+
+      integer nversion
+
       if(nversion<907)then
         mfix=1         ! new is 3
         newrough=2     ! new is 0
