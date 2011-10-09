@@ -87,6 +87,7 @@ module cc_mpi
       integer :: slen, rlen, slenx, rlenx, slen2, rlen2
       ! Number of points for each processor.
       integer :: slen_uv, rlen_uv, slen2_uv, rlen2_uv
+      integer :: slenx_uv, rlenx_uv
       integer :: len
    end type bounds_info
    
@@ -900,6 +901,8 @@ contains
       bnds(:)%slenx = 0
       bnds(:)%rlen2 = 0
       bnds(:)%slen2 = 0
+      bnds(:)%rlenx = 0
+      bnds(:)%slenx = 0
       bnds(:)%rlen2_uv = 0
       bnds(:)%slen2_uv = 0
 
@@ -1444,16 +1447,6 @@ contains
             iql = indp(i,j,n)  !  Local index
             iwu(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqx
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iext
-            iwv(iql) = ifull+iext
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .true.
          end do
 
          !     N edge (V,U)
@@ -1475,15 +1468,6 @@ contains
             iql = indp(i,j,n)  !  Local index
             inv(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqx
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iext
-            inu(iql) = ifull+iext
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .true.
          end do
 
          !     E edge, U,V
@@ -1504,16 +1488,6 @@ contains
             iql = indp(i,j,n)  !  Local index
             ieu(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            ! to show that this is v rather than u, flip sign
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = -iqx
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = -iext
-            iev(iql) = ifull+iext
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .true.
          end do
 
          !     S edge, V,U
@@ -1533,21 +1507,107 @@ contains
             iql = indp(i,j,n)  !  Local index
             isv(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlen_uv = bnds(rproc)%rlen_uv + 1
-            bnds(rproc)%request_list_uv(bnds(rproc)%rlen_uv) = iqx
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlen_uv) = iext
-            isu(iql) = ifull+iext
-            bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .true.
          end do
       end do ! n=1,npan
 
-!     Second pass
-      bnds(:)%rlen2_uv = bnds(:)%rlen_uv
-      bnds(:)%slen2_uv = bnds(:)%slen_uv
+      ! Second pass
+      bnds(:)%rlenx_uv = bnds(:)%rlen_uv
+      bnds(:)%slenx_uv = bnds(:)%slen_uv
+
+      do n=1,npan
+
+         !     Start with W edge, U,V values
+         i = 1
+         do j=1,jpan
+            iqg = indg(i,j,n)
+            iqx = iw_g(iqg)
+            ! Which processor has this point
+            rproc = qproc(iqx)
+            ! Only need to add to bounds region if it's on another processor
+            ! or if it's on this processor and needs to be swapped.
+            ! Decide if u/v need to be swapped. My face is n-noff
+            swap = edge_w(n-noff) .and. swap_w(n-noff)
+            if ( rproc == myid .and. .not. swap ) cycle
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+            ! to show that this is v rather than u, flip sign
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iext
+            iql = indp(i,j,n)  !  Local index
+            iwv(iql) = ifull+iext
+            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = .true.
+         end do
+
+         !     N edge (V,U)
+         j=jpan
+         do i=1,ipan
+            iqg = indg(i,j,n)
+            iqx = in_g(iqg)
+            rproc = qproc(iqx)
+            swap = edge_n(n-noff) .and. swap_n(n-noff)
+            if ( rproc == myid .and. .not. swap ) cycle
+            ! Add this point to request list
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iext
+            iql = indp(i,j,n)  !  Local index
+            inu(iql) = ifull+iext
+            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = .true.
+         end do
+
+         !     E edge, U,V
+         i = ipan
+         do j=1,jpan
+            iqg = indg(i,j,n)
+            iqx = ie_g(iqg)
+            rproc = qproc(iqx)
+            swap = edge_e(n-noff) .and. swap_e(n-noff)
+            if ( rproc == myid .and. .not. swap ) cycle
+            ! Add this point to request list
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+            ! to show that this is v rather than u, flip sign
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = -iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = -iext
+            iql = indp(i,j,n)  !  Local index
+            iev(iql) = ifull+iext
+            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = .true.
+         end do
+
+         !     S edge, V,U
+         j=1
+         do i=1,ipan
+            iqg = indg(i,j,n)
+            iqx = is_g(iqg)
+            rproc = qproc(iqx)
+            swap = edge_s(n-noff) .and. swap_s(n-noff)
+            if ( rproc == myid .and. .not. swap ) cycle
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%rlenx_uv = bnds(rproc)%rlenx_uv + 1
+            bnds(rproc)%request_list_uv(bnds(rproc)%rlenx_uv) = iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list_uv(bnds(rproc)%rlenx_uv) = iext
+            iql = indp(i,j,n)  !  Local index
+            isu(iql) = ifull+iext
+            bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = .true.
+         end do
+      end do ! n=1,npan
+
+!     Third pass
+      bnds(:)%rlen2_uv = bnds(:)%rlenx_uv
+      bnds(:)%slen2_uv = bnds(:)%slenx_uv
       ieeu = iee
       iwwu = iww
       innv = inn
@@ -1661,10 +1721,10 @@ contains
       nreq = 0
       do iproc = 1,nproc-1  !
          sproc = modulo(myid+iproc,nproc)
-         if ( bnds(sproc)%rlen_uv > 0 ) then
+         if ( bnds(sproc)%rlen2_uv > 0 ) then
             ! Send list of requests
             nreq = nreq + 1
-            call MPI_ISend( bnds(sproc)%request_list_uv(1), bnds(sproc)%rlen_uv, &
+            call MPI_ISend( bnds(sproc)%request_list_uv(1), bnds(sproc)%rlen2_uv, &
                  MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
             nreq = nreq + 1
             ! Use the maximum size in the recv call.
@@ -1680,39 +1740,7 @@ contains
       nreq = 0
       do iproc = 1,nproc-1  !
          sproc = modulo(myid+iproc,nproc)
-         if ( bnds(sproc)%rlen_uv > 0 ) then
-            ! To get recv status, advance nreq by 2
-            nreq = nreq + 2
-            call MPI_Get_count(status(1,nreq), MPI_INTEGER, count, ierr)
-            ! This the number of points I have to send to rproc.
-            bnds(sproc)%slen_uv = count
-         end if
-      end do
-
-      ! Now send the second set
-      nreq = 0
-      do iproc = 1,nproc-1  !
-         sproc = modulo(myid+iproc,nproc)
-         if ( bnds(sproc)%rlen_uv > 0 ) then
-            ! Send list of requests
-            nreq = nreq + 1
-            call MPI_ISend( bnds(sproc)%request_list_uv(1), bnds(sproc)%rlen2_uv, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-            nreq = nreq + 1
-            ! Use the maximum size in the recv call.
-            call MPI_IRecv( bnds(sproc)%send_list_uv(1), bnds(sproc)%len, &
-                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
-         end if
-      end do
-      if ( nreq > 0 ) then
-         call MPI_Waitall(nreq,ireq,status,ierr)
-      end if
-
-!     Now get the actual sizes from the status
-      nreq = 0
-      do iproc = 1,nproc-1  !
-         sproc = modulo(myid+iproc,nproc)
-         if ( bnds(sproc)%rlen_uv > 0 ) then
+         if ( bnds(sproc)%rlen2_uv > 0 ) then
             ! To get recv status, advance nreq by 2
             nreq = nreq + 2
             call MPI_Get_count(status(1,nreq), MPI_INTEGER, count, ierr)
@@ -1720,6 +1748,42 @@ contains
             bnds(sproc)%slen2_uv = count
          end if
       end do
+
+!     For rlen_uv and rlenx_uv, just communicate the lengths. The indices have 
+!     already been taken care of.
+      nreq = 0
+      do iproc = 1,nproc-1  !
+         ! Send and recv from same proc
+         sproc = modulo(myid+iproc,nproc)  ! Send to
+         if (bnds(sproc)%rlen_uv > 0 ) then
+            nreq = nreq + 1
+            call MPI_ISend( bnds(sproc)%rlen_uv, 1, &
+                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            nreq = nreq + 1
+            call MPI_IRecv( bnds(sproc)%slen_uv, 1, &
+                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+      end do
+      if ( nreq > 0 ) then
+         call MPI_Waitall(nreq,ireq,status,ierr)
+      end if
+
+      nreq = 0
+      do iproc = 1,nproc-1  !
+         ! Send and recv from same proc
+         sproc = modulo(myid+iproc,nproc)  ! Send to
+         if (bnds(sproc)%rlenx_uv > 0 ) then
+            nreq = nreq + 1
+            call MPI_ISend( bnds(sproc)%rlenx_uv, 1, &
+                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+            nreq = nreq + 1
+            call MPI_IRecv( bnds(sproc)%slenx_uv, 1, &
+                 MPI_INTEGER, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
+         end if
+      end do
+      if ( nreq > 0 ) then
+         call MPI_Waitall(nreq,ireq,status,ierr)
+      end if
 
       ! Only send the swap list once
       nreq = 0
@@ -1802,7 +1866,7 @@ contains
          bnds(myid)%request_list_uv(iq) = sign(indp(i,j,n),bnds(myid)%request_list_uv(iq))
       end do
 
-      call reducealloc ! MJT memory - resize arrays
+      call reducealloc ! resize arrays
 
 !  Final check for values that haven't been set properly
       do n=1,npan
@@ -2150,14 +2214,15 @@ contains
 
    end subroutine bounds3
 
-   subroutine boundsuv2(u, v, nrows)
+   subroutine boundsuv2(u, v, nrows, allvec)
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
       real, dimension(ifull+iextra), intent(inout) :: u, v
       integer, intent(in), optional :: nrows
+      logical, intent(in), optional :: allvec
       integer :: iq
-      logical :: double
+      logical :: double, extra
       integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       real :: tmp
@@ -2169,12 +2234,17 @@ contains
       v(ifull+1:iextra)=9.E9 ! MJT test for bad bounds call
 
       double = .false.
+      extra = .false.
       if (present(nrows)) then
          if ( nrows == 2 ) then
             double = .true.
          end if
       end if
-
+      ! allvec is irrelevant in double case
+      if ( .not. double .and. present(allvec) ) then
+         extra = allvec
+      end if
+      
 !     Set up the buffers to send
       nreq = 0
       do iproc = 1,nproc-1  !
@@ -2183,6 +2253,9 @@ contains
          if ( double ) then
             recv_len = bnds(rproc)%rlen2_uv
             send_len = bnds(sproc)%slen2_uv
+         else if ( extra ) then
+            recv_len = bnds(rproc)%rlenx_uv
+            send_len = bnds(sproc)%slenx_uv
          else
             recv_len = bnds(rproc)%rlen_uv
             send_len = bnds(sproc)%slen_uv
@@ -2221,6 +2294,8 @@ contains
          rproc = modulo(myid-iproc,nproc)  ! Recv from
          if ( double ) then
             recv_len = bnds(rproc)%rlen2_uv
+         else if ( extra ) then
+            recv_len = bnds(rproc)%rlenx_uv
          else
             recv_len = bnds(rproc)%rlen_uv
          end if
@@ -2242,6 +2317,8 @@ contains
       if ( bnds(myid)%rlen_uv > 0 ) then
          if ( double ) then
             recv_len = bnds(myid)%rlen2_uv
+         else if ( extra ) then
+            recv_len = bnds(myid)%rlenx_uv
          else
             recv_len = bnds(myid)%rlen_uv
          end if
@@ -2268,14 +2345,15 @@ contains
 
    end subroutine boundsuv2
 
-   subroutine boundsuv3(u, v, nrows)
+   subroutine boundsuv3(u, v, nrows, allvec)
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
       real, dimension(:,:), intent(inout) :: u, v
       integer, intent(in), optional :: nrows
+      logical, intent(in), optional :: allvec
       integer :: iq
-      logical :: double
+      logical :: double, extra
       integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       real, dimension(maxbuflen) :: tmp
@@ -2287,10 +2365,15 @@ contains
       v(ifull+1:iextra,:)=9.E9 ! MJT test for bad bounds call
 
       double = .false.
+      extra = .false.
       if (present(nrows)) then
          if ( nrows == 2 ) then
             double = .true.
          end if
+      end if
+      ! allvec is irrelevant in double case
+      if ( .not. double .and. present(allvec) ) then
+         extra = allvec
       end if
 
 !     Set up the buffers to send
@@ -2301,6 +2384,9 @@ contains
          if ( double ) then
             recv_len = bnds(rproc)%rlen2_uv
             send_len = bnds(sproc)%slen2_uv
+         else if ( extra ) then
+            recv_len = bnds(rproc)%rlenx_uv
+            send_len = bnds(sproc)%slenx_uv
          else
             recv_len = bnds(rproc)%rlen_uv
             send_len = bnds(sproc)%slen_uv
@@ -2341,6 +2427,8 @@ contains
          rproc = modulo(myid-iproc,nproc)  ! Recv from
          if ( double ) then
             recv_len = bnds(rproc)%rlen2_uv
+         else if ( extra ) then
+            recv_len = bnds(rproc)%rlenx_uv
          else
             recv_len = bnds(rproc)%rlen_uv
          end if
@@ -2362,6 +2450,8 @@ contains
       if ( bnds(myid)%rlen_uv > 0 ) then
          if ( double ) then
             recv_len = bnds(myid)%rlen2_uv
+         else if ( extra ) then
+           recv_len = bnds(myid)%rlenx_uv
          else
             recv_len = bnds(myid)%rlen_uv
          end if

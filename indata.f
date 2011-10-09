@@ -1776,7 +1776,6 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       if (nmlo.ne.0) then
         if (any(ocndwn(:,1).gt.0.5)) then
           if (myid==0) write(6,*) 'Importing MLO data'
-          call mloregrid(ocndwn(:,1),mlodwn)
         else
           if (myid==0) write(6,*) 'Using MLO defaults'
           ocndwn(:,2)=0.

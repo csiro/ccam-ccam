@@ -1,43 +1,42 @@
-      ! MJT - modified to use less memory when interpolating from large host (e.g., C160)
-      !       Now always use onthefly.f for reading host data.
-      
+      ! Main netcdf input routines.  Host grid is automatically
+      ! interpolated to nested model grid.  Three options are
+      !   nested=0  Initial conditions
+      !   nested=1  Nudging fields
+      !   nested=2  Surface data recycling
+       
       subroutine onthefly(nested,kdate_r,ktime_r,
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-!     following not used or returned if called by nestin (i.e.nested=1)   
-     .                    tgg,wb,wbice,snowd,qfg,qlg,   ! 0808
+     .                    tgg,wb,wbice,snowd,qfg,qlg,
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
      .                    iaero,mlodwn,ocndwn)
-!     Target points use values interpolated to their 4 grid "corners";
-!     these corner values are then averaged to the grid centres
-!     N.B. this means will get different fields with io_in=-1 from io_in=1
-!     Called by either indata or nestin
-!     nested=0  for calls from indata (initial conditions)
-!     nested=1  for calls from nestin (nudging)
-!     nested=2  is for netcdf surface data read (recycle data from previous forecast)    
-      use cc_mpi
-      use infile
-      use mlo
-      use soil_m
+
+      use cc_mpi           ! CC MPI routines
+      use infile           ! Input file routines
+      use mlo              ! Ocean physics and prognostic arrays
+      use soil_m           ! Soil and surface data
+
       implicit none
+
+      include 'newmpar.h'  ! Grid parameters
+      include 'darcdf.h'   ! Netcdf data
+      include 'mpif.h'     ! MPI parameters
+      include 'netcdf.inc' ! Netcdf parameters
+      include 'parm.h'     ! Model configuration
+      include 'stime.h'    ! File date data
+
       integer, parameter :: ntest=0
-      integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
+      integer, parameter :: nord=3    ! 1 for bilinear, 3 for bicubic
+      integer, parameter :: nihead=54
+      integer, parameter :: nrhead=14
 
-!     Note: The arrays are replaced in place
-      include 'newmpar.h'
-      include 'parm.h'
-      include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
-      include 'mpif.h'
-      integer ik,jk,kk
-      real ::  rlong0x, rlat0x, schmidtx      ! MJT small otf
-      common/schmidtx/rlong0x,rlat0x,schmidtx ! MJT small otf
-
-      include 'darcdf.h'    ! idnc, ncid
-      include 'netcdf.inc'
-      integer, parameter :: nihead=54,nrhead=14
-      integer nahead(nihead),ier,ier2,ilen,itype,iaero,maxarchi
-      integer, save :: ncidold=-1 !,iarchi ! MJT tracerfix
-      real ahead(nrhead) ! MJT small otf
-
+      integer, save :: ik,jk,kk,maxarchi
+      integer, save :: ncidold=-1
+      integer, dimension(nihead) :: nahead
+      integer, dimension(ifull) :: isflag
+      integer kdate_r,ktime_r,nested,ier,ier2,ilen,itype,iaero
+      integer idv,mtimer,k
+      real, dimension(nrhead) :: ahead
+      real, save :: rlong0x, rlat0x, schmidtx
 !     These are local arrays, not the versions in arrays.h
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
       real psl(ifull),zss(ifull),tss(ifull),fracice(ifull),
@@ -46,62 +45,60 @@
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      & ssdnn(ifull),snage(ifull),qfg(ifull,kl),qlg(ifull,kl),
      & mlodwn(ifull,wlev,4),ocndwn(ifull,2)
-      integer isflag(ifull)
-      integer ::  kdate_r, ktime_r, nested
-      integer idv,mtimer,k ! MJT small otf
-      real timer           ! MJT small otf
-      logical ltest        ! MJT small otf
+      real timer
+      logical ltest,newfile
 
       !--------------------------------------------------------------
-      ! MJT small otf
       if ( myid==0 )then
-        write(6,*) 'entering onthefly for nested = ',nested
+        write(6,*) 'Entering onthefly for nested,ktau = ',
+     &                                    nested,ktau
         ! turn OFF fatal netcdf errors; from here on
         call ncpopt(0)
         if(ncid.ne.ncidold)then
+          write(6,*) 'Reading new file metadata'
           iarchi=1
-          ncidold=ncid
+          call ncainq(ncid,ncglobal,'int_header',itype,ilen,ier)
+          call ncagt(ncid,ncglobal,'int_header',nahead,ier)
+          call ncainq(ncid,ncglobal,'real_header',itype,ilen,ier)
+          call ncagt(ncid,ncglobal,'real_header',ahead,ier)
+          ik=nahead(1)
+          jk=nahead(2)
+          kk=nahead(3)
+          rlong0x =ahead(5)
+          rlat0x  =ahead(6)
+          schmidtx=ahead(7)
+          if(schmidtx<=0..or.schmidtx>1.)then
+            rlong0x =ahead(6)
+            rlat0x  =ahead(7)
+            schmidtx=ahead(8)
+          endif  ! (schmidtx<=0..or.schmidtx>1.)        
+          maxarchi=0
+          idv = ncdid(ncid,'time',ier)
+          ier = nf_inq_dimlen(ncid,idv,maxarchi)
+          write(6,*) "Found ik,jk,kk,maxarchi = ",ik,jk,kk,maxarchi
+          write(6,*) "      rlong0x,rlat0x,schmidtx ",
+     &                      rlong0x,rlat0x,schmidtx
         end if
-        ! read the following every call since rlong0x and rlat0x are
-        ! modified in other parts of the code
-        call ncainq(ncid,ncglobal,'int_header',itype,ilen,ier)
-        call ncagt(ncid,ncglobal,'int_header',nahead,ier)
-        call ncainq(ncid,ncglobal,'real_header',itype,ilen,ier)
-        call ncagt(ncid,ncglobal,'real_header',ahead,ier)
-        ik=nahead(1)
-        jk=nahead(2)
-        kk=nahead(3)
-        rlong0x =ahead(5)
-        rlat0x  =ahead(6)
-        schmidtx=ahead(7)
-        if(schmidtx<=0..or.schmidtx>1.)then
-          rlong0x =ahead(6)
-          rlat0x  =ahead(7)
-          schmidtx=ahead(8)
-        endif  ! (schmidtx<=0..or.schmidtx>1.)        
-        write(6,*) 'in onthefly ktau,ncid,iarchi,ik,jk,kk ',
-     &                       ktau,ncid,iarchi,ik,jk,kk
-        idv = ncdid(ncid,'time',ier)
-        maxarchi=0
-        ier = nf_inq_dimlen(ncid,idv,maxarchi)
+        write(6,*)'Search for kdate_s,ktime_s >= ',
+     &                        kdate_s,ktime_s
         ltest=.true.
         iarchi=iarchi-1
         do while(ltest.and.iarchi.lt.maxarchi)
           iarchi=iarchi+1
           idv = ncvid(ncid,'kdate',ier)
           call ncvgt1(ncid,idv,iarchi,kdate_r,ier)
-          idv = ncvid(ncid,'timer',ier)
-          timer=0.
-          call ncvgt1(ncid,idv,iarchi,timer,ier)
+          idv = ncvid(ncid,'ktime',ier)
+          call ncvgt1(ncid,idv,iarchi,ktime_r,ier)
           idv = ncvid(ncid,'mtimer',ier)
           if (ier.eq.0) then
             call ncvgt1(ncid,idv,iarchi,mtimer,ier)
             timer=mtimer/60.
           else
+            timer=0.
+            idv = ncvid(ncid,'timer',ier)
+            call ncvgt1(ncid,idv,iarchi,timer,ier)
             mtimer=nint(timer*60.)
           endif
-          idv = ncvid(ncid,'ktime',ier)
-          call ncvgt1(ncid,idv,iarchi,ktime_r,ier)
           if (mtimer>0) then
             call datefix(kdate_r,ktime_r,mtimer)
           end if
@@ -113,11 +110,27 @@
           ktime_r=ktime_s
         end if
         if (ltest) then
-          ik=-1
+          ktime_r=-1
         end if
+        write(6,*) 'After search ltest,iarchi =',ltest,iarchi
+        write(6,*) '             kdate_r,ktime_r =',kdate_r,ktime_r
       endif  ! ( myid==0 )
-      call MPI_Bcast(ik     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
-      if (ik.lt.0) then
+
+      call MPI_Bcast(kdate_r,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+      call MPI_Bcast(ktime_r,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+      call MPI_Bcast(ncid   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+      newfile=ncid.ne.ncidold
+      if (newfile) then
+        call MPI_Bcast(ik   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+        call MPI_Bcast(jk   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+        call MPI_Bcast(kk   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
+        call MPI_Bcast(rlong0x ,1,MPI_REAL,0,MPI_COMM_WORLD,ier)
+        call MPI_Bcast(rlat0x  ,1,MPI_REAL,0,MPI_COMM_WORLD,ier)
+        call MPI_Bcast(schmidtx,1,MPI_REAL,0,MPI_COMM_WORLD,ier)
+        ncidold=ncid
+      end if
+
+      if (ktime_r.lt.0) then
         if (nested==2) then
           write(6,*) "WARN: Cannot locate date/time in input file"
           return
@@ -125,223 +138,149 @@
         write(6,*) "ERROR: Cannot locate date/time in input file"
         call MPI_Abort(MPI_COMM_WORLD,-1,ier)
       end if
-      call MPI_Bcast(jk     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
-      call MPI_Bcast(kk     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
-      call MPI_Bcast(kdate_r,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
-      call MPI_Bcast(ktime_r,1,MPI_INTEGER,0,MPI_COMM_WORLD,ier)
-      call MPI_Bcast(rlong0x ,1,MPI_REAL,0,MPI_COMM_WORLD,ier)
-      call MPI_Bcast(rlat0x  ,1,MPI_REAL,0,MPI_COMM_WORLD,ier)
-      call MPI_Bcast(schmidtx,1,MPI_REAL,0,MPI_COMM_WORLD,ier)
       !--------------------------------------------------------------
       
-c     start of processing loop 
-      if(ktau<3.and.myid==0)write(6,*)'search for kdate_s,ktime_s >= ',
-     &                                          kdate_s,ktime_s
-
-      !--------------------------------------------------------------
-      ! MJT memory
-      ! The following calls ontheflyx with different automatic array
+      ! Here we call ontheflyx with different automatic array
       ! sizes.  This means the arrays are correct for interpolation
       ! and file i/o on myid==0, as well as the arrays are smaller
       ! on myid.ne.0 when they are not needed.  The code is still
-      ! human readable since there is only one subroutine.
+      ! human readable since there is only one ontheflyx subroutine.
       if (myid==0) then
         call ontheflyx(nested,kdate_r,ktime_r,
-     .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     .                    tgg,wb,wbice,snowd,qfg,qlg,  ! 0808
-     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    ik,iaero,mlodwn,ocndwn) ! ik controls automatic array size
+     &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
+     &                    tgg,wb,wbice,snowd,qfg,qlg,
+     &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
+     &                    ik,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
+     &                    schmidtx,newfile) ! ik controls automatic array size
+        write(6,*) "Leaving onthefly"
       else
         call ontheflyx(nested,kdate_r,ktime_r,
-     .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     .                    tgg,wb,wbice,snowd,qfg,qlg,  ! 0808
-     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    0,iaero,mlodwn,ocndwn) ! 0 controls automatic array size
+     &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
+     &                    tgg,wb,wbice,snowd,qfg,qlg,
+     &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
+     &                    0,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
+     &                    schmidtx,newfile) ! 0 controls automatic array size
       end if
 
       return
       end
-      subroutine ontheflyx(nested,kdate_r,ktime_r,
-     .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-!     following not used or returned if called by nestin (i.e.nested=1)   
-     .                    tgg,wb,wbice,snowd,qfg,qlg,
-     .                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     .                    dk,iaero,mlodwn,ocndwn)
       
-      use aerosolldr, only : xtg,ssn,naero
-      use ateb, only : atebdwn ! MJT urban
-      use carbpools_m
-      use cc_mpi
-      use cfrac_m
-      use define_dimensions, only : ncs, ncp ! MJT cable
-      use infile
-      use latlong_m
-      use mlo, only : wlev,micdwn    ! MJT mlo
-      use mlodynamics, only : watbdy ! MJT mlo
-      use morepbl_m
-      use nsibd_m, only : isoilm
-      use screen_m
-      use sigs_m
-      use soil_m
-      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
-      use tracers_m
-      use utilities
-      use vecsuv_m
-      use vvel_m
-      use workglob_m
+      ! Read data from netcdf file
+      subroutine ontheflyx(nested,kdate_r,ktime_r,
+     &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
+     &                    tgg,wb,wbice,snowd,qfg,qlg,
+     &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
+     &                    dk,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
+     &                    schmidtx,newfile)
+      
+      use aerosolldr, only : xtg,ssn,naero      ! LDR aerosol scheme
+      use ateb, only : atebdwn                  ! Urban
+      use carbpools_m                           ! Carbon pools
+      use cc_mpi                                ! CC MPI routines
+      use cfrac_m                               ! Cloud fraction
+      use define_dimensions, only : ncs, ncp    ! CABLE dimensions
+      use infile                                ! Input file routines
+      use latlong_m                             ! Lat/lon coordinates
+      use mlo, only : wlev,micdwn,mloregrid     ! Ocean physics and prognostic arrays
+      use mlodynamics, only : watbdy            ! Ocean dynamics
+      use morepbl_m                             ! Additional boundary layer diagnostics
+      use nsibd_m, only : isoilm                ! Land-surface arrays
+      use screen_m                              ! Screen level diagnostics
+      use sigs_m                                ! Atmosphere sigma levels
+      use soil_m                                ! Soil and surface data
+      use tkeeps, only : tke,eps,tkesav,epssav  ! TKE-EPS boundary layer
+      use tracers_m                             ! Tracer data
+      use utilities                             ! Grid utilities
+      use vecsuv_m                              ! Map to cartesian coordinates
+      use vvel_m                                ! Additional vertical velocity
+      use workglob_m                            ! Additional grid interpolation
+
       implicit none
-      include 'newmpar.h'
-      include 'const_phys.h'
-      include 'darcdf.h' ! MJT small otf
-      include 'netcdf.inc' ! MJT vertint
-      include 'parm.h'
-      include 'parmgeom.h'  ! rlong0,rlat0,schmidt 
-      include 'soilv.h' 
-      include 'stime.h'   ! kdate_s,ktime_s  sought values for data read
-      include 'mpif.h'
+
+      include 'newmpar.h'                       ! Grid parameters
+      include 'const_phys.h'                    ! Physical constants
+      include 'darcdf.h'                        ! Netcdf data
+      include 'mpif.h'                          ! MPI parameters
+      include 'netcdf.inc'                      ! Netcdf parameters
+      include 'parm.h'                          ! Model configuration
+      include 'parmgeom.h'                      ! Coordinate data
+      include 'soilv.h'                         ! Soil parameters
+      include 'stime.h'                         ! File date data
+
       integer, parameter :: ntest=0
       integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
+      
       integer ik, kk, idv, iaero, isoil
       integer dk ! controls automatic array size
-      integer lev,levkk,ier,ierr,igas ! MJT small otf
-      integer ::  kdate_r, ktime_r, nemi, id2,jd2,idjd2,
-     &            nested, i, j, k, m, iq, ii, jj, np, numneg
+      integer lev,levkk,ier,ierr,igas
+      integer kdate_r, ktime_r, nemi, id2,jd2,idjd2,
+     &        nested, i, j, k, m, iq, ii, jj, np, numneg
 
 c**   xx4 & yy4 only used in indata & here, so no need to redefine after
 c**   onthefly; sometime can get rid of common/bigxy4
+      real, dimension(:), allocatable, save :: sigin,zss_a,ocndep_l
       real*8 xx4(1+4*dk,1+4*dk),yy4(1+4*dk,1+4*dk)
       real*8, dimension(dk*dk*6):: z_a,x_a,y_a
 
 !     These are local arrays, not the versions in arrays.h
 !     Use in call to infile, so are dimensioned ifull rather than ifull_g
       real, dimension(ifull) :: psl,zss,tss,fracice,
-     &                          snowd,sicedep,ssdnn,snage,dum6 ! MJT small otf
+     &                          snowd,sicedep,ssdnn,snage,dum6
       real, dimension(ifull,2) :: ocndwn
       real, dimension(ifull,wlev,4) :: mlodwn
       real, dimension(ifull,ms) :: wb,wbice,tgg
       real, dimension(ifull,3) :: tggsn,smass,ssdn
       real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg
-      real, dimension(ifull,kk) :: t_k,u_k,v_k,qg_k ! MJT vertint
+      real, dimension(ifull,kk) :: t_k,u_k,v_k,qg_k
       integer, dimension(ifull) :: isflag
-      real, dimension(dk*dk*6) :: psl_a,zss_a,tss_a,fracice_a,
+      real, dimension(dk*dk*6) :: psl_a,tss_a,fracice_a,
      &      snowd_a,sicedep_a,pmsl_a,  tss_l_a,tss_s_a
-      real, dimension(dk*dk*6,3) :: tggsn_a                 ! MJT small otf
-      real, dimension(dk*dk*6) :: t_a,qg_a ! MJT small otf
-      real, dimension(dk*dk*6) :: t_a_lev  ! MJT small otf
-      real ::  rlong0x, rlat0x, schmidtx, spval
-      common/schmidtx/rlong0x,rlat0x,schmidtx ! infile, newin, nestin, indata
+      real, dimension(dk*dk*6,3) :: tggsn_a
+      real, dimension(dk*dk*6) :: t_a,qg_a
+      real, dimension(dk*dk*6) :: t_a_lev
+      real, parameter :: spval=999. ! missing value flag
+      real, intent(in) ::  rlong0x, rlat0x, schmidtx
 
       ! Used in the global interpolation
       real, dimension(ifull_g,4) :: xg4, yg4
       integer, dimension(ifull_g,4) :: nface4
-      real, dimension(ifull_g) :: t_g, qg_g,uct_g, vct_g ! MJT small otf
+      real, dimension(ifull_g) :: t_g, qg_g,uct_g, vct_g
       real rotpoles(3,3),rotpole(3,3)
-      real, dimension(dk*dk*6) :: ucc, vcc              ! MJT small otf
-      real, dimension(ifull) :: tss_l, tss_s, pmsl ! MJT small otf
+      real, dimension(dk*dk*6) :: ucc, vcc
+      real, dimension(ifull) :: tss_l, tss_s, pmsl
       real, dimension(dk*dk*6):: axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a
       real, dimension(dk*dk*6):: wts_a  ! not used here or defined in call setxyz
       logical, dimension(dk*dk*6) :: land_a
-      integer, dimension(dk*dk*6) :: isoilm_a ! MJT lsmask
-      character*8 vname ! MJT small otf
-      character*3 trnum ! MJT small otf
-      logical iotest ! MJT small otf
-      real, dimension(kk) :: sigin ! MJT vertint
+      integer, dimension(:), allocatable, save :: isoilm_a
+      character*8 vname
+      character*3 trnum
+      logical iotest,newfile
 
+      ! internal check (should not occur if code is written correctly)
       if (myid==0.and.ik.ne.dk) then
         write(6,*) "ERROR: Incorrect automatic array size in onthefly"
         stop
       end if
-      
-      spval=999.
-      
-      !--------------------------------------------------------------
-      ! read host sigma levels
-      if (myid==0) then
-        call ncagt(ncid,ncglobal,'sigma',sigin,ier)
-        if (ier.ne.0) then
-          call ncagt(ncid,ncglobal,'sigma_lev',sigin,ier)
-        end if
-        if (ier.ne.0) then
-          idv = ncvid(ncid,'lev',ier)
-          if (ier.eq.0) call ncvgt(ncid,idv,1,kk,sigin,ier)
-        end if
-        if (ier.ne.0) then
-          idv = ncvid(ncid,'layer',ier)
-          if (ier.eq.0) call ncvgt(ncid,idv,1,kk,sigin,ier)
-        end if
-        if(ktau<=1)write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
-      endif
-      call MPI_Bcast(sigin  ,kk,MPI_REAL,0,MPI_COMM_WORLD,ier)
+
+      ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
+      nemi=3
       
       ! Determine if interpolation is required
       iotest=6*ik*ik.eq.ifull_g.and.abs(rlong0x-rlong0).lt.1.E-5.and.
      &       abs(rlat0x-rlat0).lt.1.E-5.and.
      &       abs(schmidtx-schmidt).lt.1.E-5
-      ! update io_in for compatibility with CABLE loadtile
       if (iotest) then
-        io_in=1
+        io_in=1   ! no interpolation
       else
-        io_in=-1
+        io_in=-1  ! interpolation
       end if
-
-      nemi=3   !  MJT lsmask
-
-      !--------------------------------------------------------------
-      ! detemine the level below sig=0.9 (used to calculate psl)
-      lev=0
-      do while(sig(lev+1).gt.0.9) ! nested grid
-        lev=lev+1
-      end do
-      levkk=0
-      do while(sigin(levkk+1).gt.0.9) ! host grid
-        levkk=levkk+1
-      end do      
-      if (myid==0) write(6,*) "iotest,io_in,lev,iarchi =",
-     &                         iotest,io_in,lev,iarchi
-
-      !--------------------------------------------------------------
-      ! Read in data that may be used to determine land-sea mask
-      zss_a=0.
-      tss_a=293.
-      t_a(:)=-1.
-      call histrd1(ncid,iarchi,ier,'zht',ik,6*ik,zss_a,6*ik*ik)
-      call histrd1(ncid,iarchi,ier,'soilt',ik,6*ik,t_a,6*ik*ik)
-      isoilm_a=nint(t_a)
-      if (nested.ne.2) then ! MJT recycle
-        psl_a=1.E5
-        call histrd1(ncid,iarchi,ier,'psf',ik,6*ik,psl_a,6*ik*ik)
-      endif ! nested.ne.2 ! MJT recycle
-      call histrd1(ncid,iarchi,ier,'tsu',ik,6*ik,tss_a,6*ik*ik)
-      
-      !     set up land-sea mask from either tss or zss
-      if(myid==0)then
-       if(nemi==3)then 
-         land_a(:)=isoilm_a(:).gt.0
-         numneg=count(.not.land_a)
-         if (any(isoilm_a(:).lt.0)) nemi=2
-       end if
-       if(nemi==2)then
-         numneg=0
-         do iq=1,ik*ik*6
-            if(tss_a(iq)>0)then ! over land
-               land_a(iq)=.true.
-            else                ! over sea
-               land_a(iq)=.false.
-               numneg=numneg+1
-            endif               ! (tss(iq)>0) .. else ..
-         enddo
-         if(numneg==0)nemi=1  ! should be using zss in that case
-       endif                     !  (nemi==2)
-       write(6,*)'using nemi = ',nemi
-       tss_a=abs(tss_a) ! MJT bug fix
-       if(nemi==1)then
-         land_a(:) = zss_a(:) > 0.
-       endif
-      end if       
+      if (myid==0) write(6,*) "Interpolation iotest,io_in =",
+     &                                       iotest,io_in
 
       !--------------------------------------------------------------
       ! Determine input grid coordinates and interpolation arrays
       if ( myid==0 ) then
+        write(6,*) "Defining input file grid"
         if(m_fly==1)then
           rlong4(:,1)=rlongg_g(:)*180./pi
           rlat4(:,1)=rlatt_g(:)*180./pi
@@ -361,7 +300,6 @@ c**   onthefly; sometime can get rid of common/bigxy4
            write(6,*)'m_fly,nord ',m_fly,nord
            write(6,*)'kdate_r,ktime_r,ktau,ds',
      &              kdate_r,ktime_r,ktau,ds
-           if ( nproc==1 ) write(6,*)'a zss(idjd) ',zss(idjd)
            write(6,*)'rotpoles:'
            do i=1,3
               write(6,9)(i,j,j=1,3),(rotpoles(i,j),j=1,3)
@@ -379,9 +317,6 @@ c**   onthefly; sometime can get rid of common/bigxy4
  9            format(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)
            enddo
            write(6,*)'xx4,yy4 ',xx4(id,jd),yy4(id,jd)
-        endif                  ! (nmaxpr==1)
-
-        if(nmaxpr==1)then  ! already in myid==0 loop
            write(6,*)'before latltoij for id,jd: ',id,jd
            if ( nproc==1 ) then
               ! Diagnostics will only be correct if nproc==1
@@ -418,25 +353,278 @@ c**   onthefly; sometime can get rid of common/bigxy4
         endif
       end if ! (myid==0)
 
+      
+      ! special data read for new file
+      ! read once when file is first opened
+      ! need global zss_a for (potentially) landsea mask and psl interpolation
+      ! need global isoilm_a for (potentially) landsea mask
+      if (newfile) then
+        if (allocated(sigin)) deallocate(sigin)
+        allocate(sigin(kk))
+        if (myid==0) then
+          write(6,*) "Reading fixed fields"
+          idv = ncvid(ncid,'lev',ier)
+          if (ier.eq.0) call ncvgt(ncid,idv,1,kk,sigin,ier)
+          if (ier.ne.0) then
+            call ncagt(ncid,ncglobal,'sigma',sigin,ier)
+          end if
+          if (ier.ne.0) then
+            call ncagt(ncid,ncglobal,'sigma_lev',sigin,ier)
+          end if
+          if (ier.ne.0) then
+            idv = ncvid(ncid,'layer',ier)
+            if (ier.eq.0) call ncvgt(ncid,idv,1,kk,sigin,ier)
+          end if
+          write(6,'("sigin=",(9f7.4))') (sigin(k),k=1,kk)
+        end if
+        call MPI_Bcast(sigin  ,kk,MPI_REAL,0,MPI_COMM_WORLD,ier)
+        if (myid==0) then
+          if (allocated(zss_a)) deallocate(zss_a)
+          if (allocated(isoilm_a)) deallocate(isoilm_a)
+          allocate(zss_a(6*ik*ik))
+          allocate(isoilm_a(6*ik*ik))
+          zss_a=0.
+          t_a=-1.
+        end if
+        call histrd1(ncid,iarchi,ier,'zht',ik,6*ik,zss_a,6*ik*ik)
+        call histrd1(ncid,iarchi,ier,'soilt',ik,6*ik,t_a,6*ik*ik)
+        if (myid==0) then
+          isoilm_a=nint(t_a)
+        end if
+        if (nmlo.ne.0) then
+          if (.not.allocated(ocndep_l)) allocate(ocndep_l(ifull))
+          t_a=0.
+          call histrd1(ncid,iarchi,ier,'ocndepth',ik,6*ik,t_a,
+     &                 6*ik*ik)
+          if (iotest) then
+            if (myid==0) then
+              call ccmpi_distribute(ocndep_l,t_a)
+            else
+              call ccmpi_distribute(ocndep_l)
+            end if
+          else
+            call doints4(t_a,ocndep_l,nface4,xg4,yg4,nord,ik)
+          end if ! iotest
+        end if
+        if (myid==0) then
+          write(6,*) "Finished reading fixed fields"
+        end if
+      else
+        if (myid==0) then
+          write(6,*) "Using saved fixed fields"
+        end if
+      endif
+
+      ! interal errors which should not occur if code is written correctly
+      if (.not.allocated(sigin)) then
+        write(6,*) "ERROR: sigin is undefined in onthefly"
+        stop
+      end if
+      if (.not.allocated(ocndep_l)) then
+        write(6,*) "ERROR: ocndep_l is undefined in onthefly"
+        stop
+      end if
+      if (myid==0) then
+        if (.not.allocated(zss_a)) then
+          write(6,*) "ERROR: zss_a is undefined in onthefly"
+          stop
+        end if
+        if (.not.allocated(isoilm_a)) then
+          write(6,*) "ERROR: isoilm_a is undefined in onthefly"
+          stop
+        end if
+      end if
+
+      ! detemine the level below sig=0.9 (used to calculate psl)
+      lev=0
+      do while(sig(lev+1).gt.0.9) ! nested grid
+        lev=lev+1
+      end do
+      levkk=0
+      do while(sigin(levkk+1).gt.0.9) ! host grid
+        levkk=levkk+1
+      end do      
+      if (myid==0) write(6,*) "Ref height lev,levkk =",
+     &                                    lev,levkk
+
+      ! could slightly speed up code by also saving zss arrays
+      if (iotest) then
+        if (myid==0) then
+          call ccmpi_distribute(zss,zss_a)
+        else
+          call ccmpi_distribute(zss)
+        end if
+      else
+        if ( myid==0 ) then
+          call ints4(zss_a,  t_g, nface4,xg4,yg4,nord,ik)
+          call ccmpi_distribute(zss,t_g)
+        else
+          call ccmpi_distribute(zss)
+        end if ! myid==0
+      end if ! iotest
+
       !--------------------------------------------------------------
-      ! MJT mlo - read ocean data for nudging (seaice is read below)
+      ! Begin reading host data for current time step
+      ! psf read when nested=0 or nested=1.and.nud_p.ne.0
+      psl_a=0.
+      if (nested==0.or.(nested==1.and.nud_p.ne.0)) then
+        call histrd1(ncid,iarchi,ier,'psf',ik,6*ik,psl_a,6*ik*ik)
+      endif ! nested.ne.2.and.(nested.ne.1.or.nud_p.ne.0)
+      ! tsu always read
+      tss_a=293.
+      call histrd1(ncid,iarchi,ier,'tsu',ik,6*ik,tss_a,6*ik*ik)
+      
+      ! set up land-sea mask from either soilt, tss or zss
+      if(myid==0)then
+        if(nemi==3)then 
+          land_a(:)=isoilm_a(:).gt.0
+          numneg=count(.not.land_a)
+          if (any(isoilm_a(:).lt.0)) nemi=2
+        end if
+        if(nemi==2)then
+          numneg=0
+          do iq=1,ik*ik*6
+            if(tss_a(iq)>0)then ! over land
+              land_a(iq)=.true.
+            else                ! over sea
+              land_a(iq)=.false.
+              numneg=numneg+1
+            endif               ! (tss(iq)>0) .. else ..
+          enddo
+          if(numneg==0)nemi=1  ! should be using zss in that case
+        endif                     !  (nemi==2)
+        tss_a=abs(tss_a)
+        if(nemi==1)then
+          land_a(:) = zss_a(:) > 0.
+          numneg=count(.not.land_a)
+        endif
+        write(6,*)'Land-sea mask using nemi = ',nemi
+      end if       
+
+      !--------------------------------------------------------------
+      ! Read ocean data for nudging (sea-ice is read below)
+      ! read when nested=0 or nested==1.and.nud.ne.0 or nested=2
       if (nmlo.ne.0) then
-        do k=1,wlev
-          t_a=max(tss_a,271.)
-          if (k.le.ms) then
-            write(vname,'("tgg",I1.1)') k
+        ! fixed ocean depth
+        ocndwn(:,1)=ocndep_l
+        ! ocean potential temperature
+        if (nested.ne.1.or.nud_sst.ne.0) then
+          do k=1,wlev
+            t_a=max(tss_a,271.)
+            if (k.le.ms) then
+              write(vname,'("tgg",I1.1)') k
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     t_a,6*ik*ik)
+            else
+              write(vname,'("tgg",I2.2)') k
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     t_a,6*ik*ik)
+            end if
+            if (iotest) then
+              if (myid==0) then
+                call ccmpi_distribute(mlodwn(:,k,1),t_a)
+              else
+                call ccmpi_distribute(mlodwn(:,k,1))
+              end if
+            else
+              if (myid==0) then
+                where (land_a)
+                  t_a=spval
+                end where
+                call fill_cc(t_a,spval,ik,0)
+!               interpolate all required arrays to new C-C positions
+                call ints4(t_a,   t_g, nface4,xg4,yg4,nord,ik)
+                call ccmpi_distribute(mlodwn(:,k,1), t_g)
+              else ! myid /= 0
+                call ccmpi_distribute(mlodwn(:,k,1))
+              endif ! myid==0
+            end if ! iotest
+          end do
+        else
+          mlodwn(:,:,1)=293.
+        end if ! (nestesd.ne.1.or.nud_sst.ne.0) ..else..
+        ! ocean salinity
+        if (nested.ne.1.or.nud_sss.ne.0) then
+          do k=1,wlev
+            qg_a=34.72
+            write(vname,'("sal",I2.2)') k
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   t_a,6*ik*ik)
-          else
-            write(vname,'("tgg",I2.2)') k
+     &                   qg_a,6*ik*ik)
+            if (iotest) then
+              if (myid==0) then
+                call ccmpi_distribute(mlodwn(:,k,2),qg_a)     
+              else
+                call ccmpi_distribute(mlodwn(:,k,2))
+              end if
+            else
+              if (myid==0) then
+                where (land_a)
+                  qg_a=spval
+                end where
+                call fill_cc(qg_a,spval,ik,0)
+!               interpolate all required arrays to new C-C positions
+                call ints4(qg_a, qg_g, nface4,xg4,yg4,nord,ik)
+                call ccmpi_distribute(mlodwn(:,k,2),qg_g)              
+              else ! myid /= 0
+                call ccmpi_distribute(mlodwn(:,k,2))            
+              endif ! myid==0
+            end if ! iotest
+          end do
+        else
+          mlodwn(:,:,2)=34.72
+        end if ! (nestesd.ne.1.or.nud_sss.ne.0) ..else..
+        ! ocean currents
+        if (nested.ne.1.or.nud_ouv.ne.0) then
+          do k=1,wlev
+            ucc=0.
+            vcc=0.
+            write(vname,'("uoc",I2.2)') k
             call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                   t_a,6*ik*ik)
-          end if
+     &                   ucc,6*ik*ik)
+            write(vname,'("voc",I2.2)') k
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   vcc,6*ik*ik)
+            if (iotest) then
+              if (myid==0) then
+                call ccmpi_distribute(mlodwn(:,k,3),ucc)
+                call ccmpi_distribute(mlodwn(:,k,4),vcc)
+              else
+                call ccmpi_distribute(mlodwn(:,k,3))
+                call ccmpi_distribute(mlodwn(:,k,4))
+              end if
+            else
+              if (myid==0) then
+                where (land_a)
+                  ucc=spval
+                  vcc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+                call fill_cc(vcc,spval,ik,0)
+                call interpwind(ik,uct_g,vct_g,ucc,vcc,axs_a,ays_a,
+     &                          azs_a,bxs_a,bys_a,bzs_a,rotpole,
+     &                          rotpoles,nface4,xg4,yg4,nord)
+!               interpolate all required arrays to new C-C positions
+                call ccmpi_distribute(mlodwn(:,k,3), uct_g)
+                call ccmpi_distribute(mlodwn(:,k,4), vct_g)
+              else ! myid /= 0
+                call ccmpi_distribute(mlodwn(:,k,3))
+                call ccmpi_distribute(mlodwn(:,k,4))
+              endif ! myid==0
+            end if ! iotest
+          end do
+        else
+          mlodwn(:,:,3:4)=0.
+        end if ! (nestesd.ne.1.or.nud_ouv.ne.0) ..else..
+        ! water surface height
+        if (nested.ne.1.or.nud_sfh.ne.0) then
+          t_a=0.
+          call histrd1(ncid,iarchi,ier,'ocheight',ik,6*ik,t_a,
+     &                 6*ik*ik)
           if (iotest) then
             if (myid==0) then
-              call ccmpi_distribute(mlodwn(:,k,1),t_a)
+              call ccmpi_distribute(ocndwn(:,2),t_a)
             else
-              call ccmpi_distribute(mlodwn(:,k,1))
+              call ccmpi_distribute(ocndwn(:,2))
             end if
           else
             if (myid==0) then
@@ -444,298 +632,103 @@ c**   onthefly; sometime can get rid of common/bigxy4
                 t_a=spval
               end where
               call fill_cc(t_a,spval,ik,0)
-!             interpolate all required arrays to new C-C positions
-              call ints4(t_a,   t_g, nface4,xg4,yg4,nord,ik)
-              call ccmpi_distribute(mlodwn(:,k,1), t_g)
-            else ! myid /= 0
-              call ccmpi_distribute(mlodwn(:,k,1))
-            endif ! myid==0
-          end if ! iotest
-        end do
-        do k=1,wlev
-          qg_a=34.72
-          write(vname,'("sal",I2.2)') k
-          call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                 qg_a,6*ik*ik)
-          if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(mlodwn(:,k,2),qg_a)     
-            else
-              call ccmpi_distribute(mlodwn(:,k,2))
             end if
-          else
-            if (myid==0) then
-              where (land_a)
-                qg_a=spval
-              end where
-              call fill_cc(qg_a,spval,ik,0)
-!             interpolate all required arrays to new C-C positions
-              call ints4(qg_a, qg_g, nface4,xg4,yg4,nord,ik)
-              call ccmpi_distribute(mlodwn(:,k,2),qg_g)              
-            else ! myid /= 0
-              call ccmpi_distribute(mlodwn(:,k,2))            
-            endif ! myid==0
+            call doints4(t_a,ocndwn(:,2),nface4,xg4,yg4,nord,ik)
           end if ! iotest
-        end do
-        do k=1,wlev
-          ucc=0.
-          vcc=0.
-          write(vname,'("uoc",I2.2)') k
-          call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                 ucc,6*ik*ik)
-          write(vname,'("voc",I2.2)') k
-          call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
-     &                 vcc,6*ik*ik)
-          if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(mlodwn(:,k,3),ucc)
-              call ccmpi_distribute(mlodwn(:,k,4),vcc)
-            else
-              call ccmpi_distribute(mlodwn(:,k,3))
-              call ccmpi_distribute(mlodwn(:,k,4))
-            end if
-          else
-            if (myid==0) then
-              where (land_a)
-                ucc=spval
-                vcc=spval
-              end where
-              call fill_cc(ucc,spval,ik,0)
-              call fill_cc(vcc,spval,ik,0)
-              call interpwind(ik,uct_g,vct_g,ucc,vcc,axs_a,ays_a,azs_a,
-     &                      bxs_a,bys_a,bzs_a,rotpole,rotpoles,nface4,
-     &                      xg4,yg4,nord)
-!             interpolate all required arrays to new C-C positions
-              call ccmpi_distribute(mlodwn(:,k,3), uct_g)
-              call ccmpi_distribute(mlodwn(:,k,4), vct_g)
-            else ! myid /= 0
-              call ccmpi_distribute(mlodwn(:,k,3))
-              call ccmpi_distribute(mlodwn(:,k,4))
-            endif ! myid==0
-          end if ! iotest
-        end do
-        t_a=0.
-        call histrd1(ncid,iarchi,ier,'ocndepth',ik,6*ik,t_a,
-     &               6*ik*ik)
-        if (iotest) then
-          if (myid==0) then
-            call ccmpi_distribute(ocndwn(:,1),t_a)
-          else
-            call ccmpi_distribute(ocndwn(:,1))
-          end if
         else
-          if (myid==0) then
-            if (any(t_a.ge.0.5)) then
-              where (land_a)
-                t_a=spval
-              end where
-              call fill_cc(t_a,spval,ik,0)
-            else
-              t_a=0.
-            end if
-          end if
-          call doints4(t_a,ocndwn(:,1),nface4,xg4,yg4,nord,ik)
-        end if ! iotest
-        t_a=0.
-        call histrd1(ncid,iarchi,ier,'ocheight',ik,6*ik,t_a,
-     &               6*ik*ik)
-        if (iotest) then
-          if (myid==0) then
-            call ccmpi_distribute(ocndwn(:,2),t_a)
-          else
-            call ccmpi_distribute(ocndwn(:,2))
-          end if
-        else
-          if (myid==0) then
-            where (land_a)
-              t_a=spval
-            end where
-            call fill_cc(t_a,spval,ik,0)
-          end if
-          call doints4(t_a,ocndwn(:,2),nface4,xg4,yg4,nord,ik)
-        end if ! iotest
+          ocndwn(:,2)=0
+        end if ! (nested.ne.1.or.nud_sfh.ne.0) ..else..
+        ! vertically interpolate to new grid
+        if (nested.ne.1.or.nud_sst.ne.0.or.nud_sss.ne.0.or.
+     &      nud_ouv.ne.0) then
+          call mloregrid(ocndwn(:,1),mlodwn)
+        end if
       end if
       !--------------------------------------------------------------
 
       !--------------------------------------------------------------
       ! read sea ice here for prescribed SSTs configuration and for
       ! mixed-layer-ocean
+      ! sea-ice is always read
       sicedep_a=0.
       fracice_a=0.
       call histrd1(ncid,iarchi,ier,'siced',ik,6*ik,sicedep_a,6*ik*ik)
       call histrd1(ncid,iarchi,ierr,'fracice',ik,6*ik,fracice_a,6*ik*ik)
-      if(ier==0)then  ! i.e. sicedep read in 
-        !where (sicedep_a<.05)
-        !  sicedep_a=0.
-        !  fracice_a=0.
-        !end where
-        if(ierr.ne.0)then ! i.e. sicedep read in; fracice not read in
-          where(sicedep_a>0.)
-            fracice_a=1.
-          endwhere
-        endif  ! (ierr.ne.0)  fracice
-      else     ! sicedep not read in
-        if(ierr.ne.0)then  ! neither sicedep nor fracice read in
-          sicedep_a(:)=0.  ! Oct 08
-          fracice_a(:)=0.
-	    if(myid==0) write(6,*)'pre-setting siced in onthefly from tss'
-          where(abs(tss_a) <= 271.2)
-            sicedep_a=1.  ! Oct 08
-            fracice_a=1.
-          endwhere
-        else  ! i.e. only fracice read in;  done in indata, nestin
-c***      but needed here for onthefly (different dims) 28/8/08        
-          where (fracice_a>.01)
-             sicedep_a=2.
-          elsewhere
-             sicedep_a=0.
-             fracice_a=0.
-          endwhere
-        endif  ! (ierr.ne.0)
-      endif    ! (ier.ne.0) .. else ..    for sicedep
-
-      if (nested.ne.2) then ! MJT recycle
-      
-      !--------------------------------------------------------------
-      ! Avoid memory blow out by only having single level global arrays
-      do k=1,kk
-        call histrd4s(ncid,iarchi,ier,'temp',ik,6*ik,k,t_a,6*ik*ik) !     temperature
-        if (k.eq.levkk) t_a_lev=t_a ! store for psl calculation below
-        !---------------------------------------------------------
-        if (myid==0) then
-          if (iotest) then
-            call ccmpi_distribute(t_k(:,k), t_a)
-          else
-            np=0                ! controls prints in ints4
-            call ints4(t_a,    t_g, nface4,xg4,yg4,nord,ik)  ! ints4 on source grid
-            call ccmpi_distribute(t_k(:,k), t_g)
-          end if ! iotest
-        else ! myid /= 0
-          call ccmpi_distribute(t_k(:,k))
-        endif ! myid==0
-      enddo  ! k loop
-      call vertint(t_k ,t(1:ifull,:), 1,kk,sigin)
-      do k=1,kk
-        ! to reduce memory footprint, we now have to alternatively read
-        ! u and v.  This is a bit inefficent for disk accessing,
-        ! but makes it possible to downscale large grids (e.g., C160)
-        call histrd4s(ncid,iarchi,ier,'u',ik,6*ik,k,ucc,6*ik*ik)    !     u wind component
-        call histrd4s(ncid,iarchi,ier,'v',ik,6*ik,k,vcc,6*ik*ik)    !     v wind component
-        !---------------------------------------------------------
-        if (myid==0) then
-          if (iotest) then
-            call ccmpi_distribute(u_k(:,k), ucc)
-            call ccmpi_distribute(v_k(:,k), vcc)
-          else
-            call interpwind(ik,uct_g,vct_g,ucc,vcc,axs_a,ays_a,azs_a,
-     &                      bxs_a,bys_a,bzs_a,rotpole,rotpoles,nface4,
-     &                      xg4,yg4,nord)
-!           interpolate all required arrays to new C-C positions
-!           don't need to do map factors and Coriolis on target grid
-            np=0                ! controls prints in ints4
-            call ccmpi_distribute(u_k(:,k), uct_g)
-            call ccmpi_distribute(v_k(:,k), vct_g)
-          end if ! iotest
-        else
-          call ccmpi_distribute(u_k(:,k))
-          call ccmpi_distribute(v_k(:,k))
-        endif ! myid==0
-      enddo  ! k loop
-      call vertint(u_k ,u(1:ifull,:), 3,kk,sigin)
-      call vertint(v_k ,v(1:ifull,:), 4,kk,sigin)
-      do k=1,kk
-        call histrd4s(ncid,iarchi,ier,'mixr',ik,6*ik,k,qg_a,6*ik*ik)!     mixing ratio
-        if(ier.ne.0)then                                            !     mixing ratio
-          call histrd4s(ncid,iarchi,ier,'q',ik,6*ik,k,qg_a,6*ik*ik) !     mixing ratio
-        endif  ! (ier.ne.0)                                         !     mixing ratio
-        !---------------------------------------------------------
-        if (myid==0) then
-          if (iotest) then
-            call ccmpi_distribute(qg_k(:,k), qg_a)
-          else
-            np=0                ! controls prints in ints4
-            call ints4(qg_a,  qg_g, nface4,xg4,yg4,nord,ik)
-            call ccmpi_distribute(qg_k(:,k), qg_g)
-          end if ! iotest
-        else
-          call ccmpi_distribute(qg_k(:,k))         
-        endif ! myid==0
-      enddo  ! k loop
-      call vertint(qg_k,qg(1:ifull,:),2,kk,sigin)
-
-      end if ! nested.ne.2 ! MJT recycle
-
-      !--------------------------------------------------------------
-!     below we interpolate quantities which may be affected by land-sea mask
-      if(myid==0)then
-       
-       do iq=1,ik*ik*6
-         if(land_a(iq))then       ! over land
+      if (myid==0) then
+        if(ier==0)then  ! i.e. sicedep read in 
+          if(ierr.ne.0)then ! i.e. sicedep read in; fracice not read in
+            where(sicedep_a>0.)
+              fracice_a=1.
+            endwhere
+          endif  ! (ierr.ne.0)  fracice
+        else     ! sicedep not read in
+          if(ierr.ne.0)then  ! neither sicedep nor fracice read in
+            sicedep_a(:)=0.  ! Oct 08
+            fracice_a(:)=0.
+	      write(6,*)'pre-setting siced in onthefly from tss'
+            where(abs(tss_a) <= 271.2)
+              sicedep_a=1.  ! Oct 08
+              fracice_a=1.
+            endwhere
+          else  ! i.e. only fracice read in;  done in indata, nestin
+c***        but needed here for onthefly (different dims) 28/8/08        
+            where (fracice_a>.01)
+              sicedep_a=2.
+            elsewhere
+              sicedep_a=0.
+              fracice_a=0.
+            endwhere
+          endif  ! (ierr.ne.0)
+        endif    ! (ier.ne.0) .. else ..    for sicedep
+  
+        ! interpolate surface temperature and sea-ice
+        do iq=1,ik*ik*6
+          if(land_a(iq))then       ! over land
             tss_l_a(iq)=tss_a(iq)
             tss_s_a(iq)=spval
             sicedep_a(iq)=spval
             fracice_a(iq)=spval
-         else                   ! over sea
-            numneg=numneg+1
+          else                   ! over sea
             tss_s_a(iq)=abs(tss_a(iq))
             tss_l_a(iq)=spval
-         endif  !   (land_a(iq)) .. else ..
-       enddo     ! iq loop
-      
-       if(nproc==1.and.nmaxpr==1)then
-        write(6,*)'before fill tss ',tss_a(idjd2)
-        write(6,*)'before fill tss_l_a, tss_s_a ',
+          endif  !   (land_a(iq)) .. else ..
+        enddo     ! iq loop
+        if(nproc==1.and.nmaxpr==1)then
+          write(6,*)'before fill tss ',tss_a(idjd2)
+          write(6,*)'before fill tss_l_a, tss_s_a ',
      &                       tss_l_a(idjd2),tss_s_a(idjd2)
-        write(6,*)'before fill/ints4 sicedep ',sicedep_a(idjd2)
-       endif  ! (nproc==1.and.nmaxpr==1)
-       call fill_cc(tss_l_a,spval,ik,0)
-       call fill_cc(tss_s_a,spval,ik,0)
-       call fill_cc(sicedep_a,spval,ik,0)
-       call fill_cc(fracice_a,spval,ik,0)
-       if(nproc==1.and.nmaxpr==1)then
-        write(6,*)'after fill tss_l, tss_s ',tss_l_a(idjd2),
+          write(6,*)'before fill/ints4 sicedep ',sicedep_a(idjd2)
+        endif  ! (nproc==1.and.nmaxpr==1)
+        call fill_cc(tss_l_a,spval,ik,0)
+        call fill_cc(tss_s_a,spval,ik,0)
+        call fill_cc(sicedep_a,spval,ik,0)
+        call fill_cc(fracice_a,spval,ik,0)
+        if(nproc==1.and.nmaxpr==1)then
+          write(6,*)'after fill tss_l, tss_s ',tss_l_a(idjd2),
      &            tss_s_a(idjd2)
-        write(6,*)'after fill sicedep ',sicedep_a(idjd2)
-        write(6,*)'before ints4 psl_a(idjd2),zss_a(idjd2) ',
+          write(6,*)'after fill sicedep ',sicedep_a(idjd2)
+          write(6,*)'before ints4 psl_a(idjd2),zss_a(idjd2) ',
      .                        psl_a(idjd),zss_a(idjd2)
-       endif  ! (nproc==1.and.nmaxpr==1)
-       
+        endif  ! (nproc==1.and.nmaxpr==1)
       endif   ! (myid==0)
-      
-      if (nested.ne.2) then ! MJT recycle
 
-      !--------------------------------------------------------------
-      ! MJT small otf - moved below
       if (iotest) then
         if (myid==0) then
-          call ccmpi_distribute(zss,zss_a)
-          call ccmpi_distribute(psl,psl_a)
           call ccmpi_distribute(tss,tss_a)
           call ccmpi_distribute(sicedep,sicedep_a)
           call ccmpi_distribute(fracice,fracice_a)
         else
-          call ccmpi_distribute(zss)
-          call ccmpi_distribute(psl)
           call ccmpi_distribute(tss)
           call ccmpi_distribute(sicedep)
           call ccmpi_distribute(fracice)
         end if
 c       incorporate other target land mask effects
-        do iq=1,ifull
-          if(land(iq))then
-            sicedep(iq)=0.
-            fracice(iq)=0.
-          endif
-        enddo  ! iq loop
+        where (land)
+          sicedep=0.
+          fracice=0.
+        end where
       else
 !       The routine doints4 does the gather, calls ints4 and redistributes
-        call doints4(zss_a ,zss , nface4,xg4,yg4,1,ik)       ! bilinear for zss
-        if ( myid==0 ) then
-          call mslpx(pmsl_a,psl_a,zss_a,t_a_lev,ik*ik*6,lev)  ! needs pmsl (preferred)
-        end if ! myid==0
-        call doints4(pmsl_a,pmsl, nface4,xg4,yg4,nord,ik)
-!       invert pmsl to get psl
-        call to_pslx(pmsl,psl,zss,t(:,lev),ifull,lev)  ! on target grid
         call doints4(tss_l_a , tss_l,  nface4,xg4,yg4,nord,ik)
         call doints4(tss_s_a , tss_s,  nface4,xg4,yg4,nord,ik)
         call doints4(fracice_a , fracice,  nface4,xg4,yg4,nord,ik)
@@ -762,18 +755,113 @@ c       incorporate other target land mask effects
       end if ! iotest
       if ( nproc==1 ) write(6,*)'after ints4 sicedep ',sicedep(idjd)
 
-      end if ! nested.ne.2 ! MJT recycle
+
+      ! read atmospheric fields for nested=0 or nested=1.and.nud.ne.0
+
+      ! air temperature
+      ! read for nested=0 or nested=1.and.(nud_t.ne.0.or.nud_p.ne.0)
+      if (nested==0.or.(nested==1.and.(nud_t.ne.0.or.nud_p.ne.0)))
+     &  then
+        do k=1,kk
+          call histrd4s(ncid,iarchi,ier,'temp',ik,6*ik,k,t_a,6*ik*ik) !     temperature
+          if (k.eq.levkk) t_a_lev=t_a ! store for psl calculation below
+          if (myid==0) then
+            if (iotest) then
+              call ccmpi_distribute(t_k(:,k), t_a)
+            else
+              call ints4(t_a,    t_g, nface4,xg4,yg4,nord,ik)  ! ints4 on source grid
+              call ccmpi_distribute(t_k(:,k), t_g)
+            end if ! iotest
+          else ! myid /= 0
+            call ccmpi_distribute(t_k(:,k))
+          endif ! myid==0
+        enddo  ! k loop
+        call vertint(t_k ,t(1:ifull,:), 1,kk,sigin)
+      end if ! (nested==0.or.(nested==1.and.(nud_t.ne.0.or.nud_p.ne.0)))
+      ! winds
+      ! read for nested=0 or nested=1.and.nud_uv.ne.0
+      if (nested==0.or.(nested==1.and.nud_uv.ne.0)) then
+        do k=1,kk
+          ! to reduce memory footprint, we now have to alternatively read
+          ! u and v.  This is a bit inefficent for disk accessing,
+          ! but makes it possible to downscale large grids (e.g., C160)
+          call histrd4s(ncid,iarchi,ier,'u',ik,6*ik,k,ucc,6*ik*ik)    !     u wind component
+          call histrd4s(ncid,iarchi,ier,'v',ik,6*ik,k,vcc,6*ik*ik)    !     v wind component
+          if (myid==0) then
+            if (iotest) then
+              call ccmpi_distribute(u_k(:,k), ucc)
+              call ccmpi_distribute(v_k(:,k), vcc)
+            else
+              call interpwind(ik,uct_g,vct_g,ucc,vcc,axs_a,ays_a,
+     &                        azs_a,bxs_a,bys_a,bzs_a,rotpole,
+     &                        rotpoles,nface4,xg4,yg4,nord)
+!             interpolate all required arrays to new C-C positions
+!             don't need to do map factors and Coriolis on target grid
+              call ccmpi_distribute(u_k(:,k), uct_g)
+              call ccmpi_distribute(v_k(:,k), vct_g)
+            end if ! iotest
+          else
+            call ccmpi_distribute(u_k(:,k))
+            call ccmpi_distribute(v_k(:,k))
+          endif ! myid==0
+        enddo  ! k loop
+        call vertint(u_k ,u(1:ifull,:), 3,kk,sigin)
+        call vertint(v_k ,v(1:ifull,:), 4,kk,sigin)
+      end if ! (nested==0.or.(nested==1.and.nud_uv.ne.0))
+      ! mixing ratio
+      ! read for nested=0 or nested=1.and.nud_q.ne.0
+      if (nested==0.or.(nested==1.and.nud_q.ne.0)) then
+        do k=1,kk
+          call histrd4s(ncid,iarchi,ier,'mixr',ik,6*ik,k,qg_a,6*ik*ik)!     mixing ratio
+          if(ier.ne.0)then                                            !     mixing ratio
+            call histrd4s(ncid,iarchi,ier,'q',ik,6*ik,k,qg_a,6*ik*ik) !     mixing ratio
+          endif  ! (ier.ne.0)                                         !     mixing ratio
+          if (myid==0) then
+            if (iotest) then
+              call ccmpi_distribute(qg_k(:,k), qg_a)
+            else
+              call ints4(qg_a,  qg_g, nface4,xg4,yg4,nord,ik)
+              call ccmpi_distribute(qg_k(:,k), qg_g)
+            end if ! iotest
+          else
+            call ccmpi_distribute(qg_k(:,k))         
+          endif ! myid==0
+        enddo  ! k loop
+        call vertint(qg_k,qg(1:ifull,:),2,kk,sigin)
+      end if ! (nested==0.or.(nested==1.and.nud_q.ne.0))
+
+      ! re-grid surface pressure by mapping to MSLP, interpolating and then map to surface pressure
+      ! requires psl_a, zss, zss_a, t and t_a_lev
+      if (nested==0.or.(nested==1.and.nud_p.ne.0)) then
+        if (iotest) then
+          if (myid==0) then
+            call ccmpi_distribute(psl,psl_a)
+          else
+            call ccmpi_distribute(psl)
+          end if
+        else
+!         The routine doints4 does the gather, calls ints4 and redistributes
+          if ( myid==0 ) then
+            call mslpx(pmsl_a,psl_a,zss_a,t_a_lev,ik*ik*6,sigin(levkk))  ! needs pmsl (preferred)
+            call ints4(pmsl_a, t_g, nface4,xg4,yg4,nord,ik)
+            call ccmpi_distribute(pmsl,t_g)
+          else
+            call ccmpi_distribute(pmsl)
+          end if ! myid==0
+!         invert pmsl to get psl
+          call to_pslx(pmsl,psl,zss,t(:,lev),ifull,lev)  ! on target grid
+        end if ! iotest
+      end if
 
 
       !**************************************************************
       ! This is the end of reading the nudging arrays
       !**************************************************************
-       
+
+
       !--------------------------------------------------------------
       ! The following data is only read for initial conditions
-      if (nested.ne.1) then ! MJT recycle
-        !------------------------------------------------------------
-        ! MJT small otf
+      if (nested.ne.1) then
 
         ! SNOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         call histrd1(ncid,iarchi,ier,'snd',ik,6*ik,snowd_a,6*ik*ik)
@@ -786,7 +874,8 @@ c       incorporate other target land mask effects
           end where
         end if
 
-        do k=1,ms ! SOIL TEMPERATURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ! SOIL TEMPERATURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        do k=1,ms 
           t_a=tss_a
           write(vname,'("tgg",I1.1)') k
           call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
@@ -827,7 +916,7 @@ c       incorporate other target land mask effects
         end do
 
         !--------------------------------------------------
-        ! MJT mlo - read remaining sea ice data (must occur after snow data is read, but before snow data is processed)
+        ! Read MLO sea-ice data
         if (nmlo.ne.0) then
           if (.not.allocated(micdwn)) allocate(micdwn(ifull,10))
           do k=1,8
@@ -920,8 +1009,9 @@ c       incorporate other target land mask effects
         end if
         !--------------------------------------------------
 
-         do k=1,ms
-          t_a=20.5 ! SOIL MOISTURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ! SOIL MOISTURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        do k=1,ms
+          t_a=20.5 
           write(vname,'("wetfrac",I1.1)') k
           call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   t_a,6*ik*ik)
@@ -965,20 +1055,20 @@ c       incorporate other target land mask effects
             call doints4(t_a,wb(:,k),nface4,xg4,yg4,
      &                     nord,ik)
           end if ! iotest
-          !unpack field capacity into volumetric soil moisture
-          if (any(wb(:,:).gt.10.)) then
-            if (mydiag) write(6,*) "Unpacking wetfrac to wb",wb(idjd,1)
-            wb(:,:)=max(wb(:,:)-20.,0.)
-            do iq=1,ifull
-              isoil=isoilm(iq)
-              wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
-            end do
-            if (mydiag) write(6,*) "giving wb",wb(idjd,:)
-          end if  
         end do
+        !unpack field capacity into volumetric soil moisture
+        if (any(wb(:,:).gt.10.)) then
+          if (mydiag) write(6,*) "Unpacking wetfrac to wb",wb(idjd,1)
+          wb(:,:)=max(wb(:,:)-20.,0.)
+          do iq=1,ifull
+            isoil=isoilm(iq)
+            wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
+          end do
+          if (mydiag) write(6,*) "giving wb",wb(idjd,1)
+        end if  
 
         !--------------------------------------------------
-        ! MJT zosea
+        ! Read 10m wind speeds for special sea roughness length calculations
         call histrd1(ncid,iarchi,ier,'u10',ik,6*ik,t_a,6*ik*ik)
         if (ier==0) then
           if (iotest) then
@@ -994,8 +1084,9 @@ c       incorporate other target land mask effects
           u10=sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)*log(10./0.001)
      &                                            /log(zmin/0.001)
         end if
-        !--------------------------------------------------
 
+        !--------------------------------------------------
+        ! Read boundary layer height for TKE-eps mixing
         if (nvmix.eq.6) then
           t_a=1000. ! dummy for pbl
           call histrd1(ncid,iarchi,ier,'pblh',ik,6*ik,t_a,6*ik*ik)
@@ -1012,7 +1103,7 @@ c       incorporate other target land mask effects
         end if
 
         !--------------------------------------------------
-        ! MJT cable
+        ! Read CABLE aggregate carbon pools
         if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
           do k=1,ncp
             t_a=0.
@@ -1065,7 +1156,7 @@ c       incorporate other target land mask effects
         end if
 
         !--------------------------------------------------
-        ! MJT urban
+        ! Read urban data
         if (nurban.ne.0) then
           if (.not.allocated(atebdwn)) allocate(atebdwn(ifull,22))
           do k=1,22
@@ -1167,9 +1258,8 @@ c       incorporate other target land mask effects
         end if
         !--------------------------------------------------
         
-        if (nested.ne.2) then ! MJT recycle
-
-        do k=1,kk ! CLOUD FROZEN WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ! CLOUD FROZEN WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        do k=1,kk 
          ucc=0. ! dummy for qfg
          call histrd4s(ncid,iarchi,ier,'qfg',ik,6*ik,k,ucc,
      &                 6*ik*ik)
@@ -1184,7 +1274,8 @@ c       incorporate other target land mask effects
          end if ! iotest
         enddo  ! k loop
         call vertint(u_k,qfg,5,kk,sigin)
-        do k=1,kk ! CLOUD LIQUID WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ! CLOUD LIQUID WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        do k=1,kk 
          vcc=0. ! dummy for qlg
          call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,vcc,
      &                 6*ik*ik)
@@ -1200,7 +1291,8 @@ c       incorporate other target land mask effects
         enddo  ! k loop
         call vertint(v_k,qlg,5,kk,sigin)
 
-        do k=1,kk ! CLOUD FRACTION
+        ! CLOUD FRACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        do k=1,kk 
          ucc=0. ! dummy for cfrac
          call histrd4s(ncid,iarchi,ier,'cfrac',ik,6*ik,k,ucc,
      &                 6*ik*ik)
@@ -1216,10 +1308,8 @@ c       incorporate other target land mask effects
         enddo  ! k loop
         call vertint(u_k,cfrac,5,kk,sigin)
 
-        end if ! nested.ne.2 ! MJT recycle
-
         !--------------------------------------------------
-        ! MJT tke
+        ! TKE-eps data
         if (nvmix.eq.6) then
           do k=1,kk
             ucc=1.5E-4 ! dummy for tke
@@ -1262,7 +1352,7 @@ c       incorporate other target land mask effects
         end if
 
         !------------------------------------------------------------
-        ! MJT tracerfix
+        ! Tracer data
         if (ngas>0) then              
           do igas=1,ngas              
             write(trnum,'(i3.3)') igas
@@ -1284,10 +1374,9 @@ c       incorporate other target land mask effects
             call vertint(t_k,tr(1:ifull,:,igas),7,kk,sigin)
           enddo                       
         endif                         
-        !------------------------------------------------------------
 
         !------------------------------------------------------------
-        ! MJT aerosol
+        ! Aerosol data
         if (abs(iaero).ge.2) then
           do i=1,naero+2
             do k=1,kk
@@ -1360,8 +1449,9 @@ c       incorporate other target land mask effects
           enddo
         end if
 
+        ! SOIL ICE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         do k=1,ms
-          t_a=0. ! SOIL ICE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          t_a=0. 
           write(vname,'("wbice",I1.1)') k
           call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   t_a,6*ik*ik)
@@ -1526,18 +1616,14 @@ c       incorporate other target land mask effects
         
       endif    ! (nested.ne.1)
 
-      if (nmlo.eq.0) then
+      ! tgg holds file surface temperature when no MLO
+      if (nmlo==0) then
         where (.not.land)
           tgg(:,1)=tss
         end where
       end if
 
-!     end of processing loop
-
-      rlong0x=rlong0  ! just for indata cross-check
-      rlat0x=rlat0
-      schmidtx=schmidt
-
+      ! set-up for next read of file
       iarchi=iarchi+1
       kdate_s=kdate_r
       ktime_s=ktime_r+1
@@ -1547,9 +1633,13 @@ c       incorporate other target land mask effects
       end subroutine ontheflyx
 
       subroutine doints4(s_a,sout,nface4 ,xg4 ,yg4,nord,ik)  ! does calls to intsb
-      use cc_mpi
+      
+      use cc_mpi           ! CC MPI routines
+      
       implicit none
-      include 'newmpar.h'
+      
+      include 'newmpar.h'  ! Grid parameters
+      
 ccc      real, dimension(ik*ik*6), intent(inout) :: s
       real, dimension(ifull), intent(inout) :: sout
       integer, intent(in), dimension(ifull_g,4) :: nface4
@@ -1570,10 +1660,14 @@ ccc         call ccmpi_gather(s)
       end subroutine doints4
 
       subroutine ints4(s,sout,nface4 ,xg4 ,yg4,nord,ik)  ! does calls to intsb
-      use cc_mpi, only : mydiag
+      
+      use cc_mpi, only : mydiag  ! CC MPI routines
+      
       implicit none
-      include 'newmpar.h'
-      include 'parm.h'
+      
+      include 'newmpar.h'        ! Grid parameters
+      include 'parm.h'           ! Model configuration
+      
       integer, parameter :: ntest=0
       real, dimension(ik*ik*6), intent(inout) :: s
       real, dimension(ifull_g), intent(inout) :: sout
@@ -1614,15 +1708,19 @@ ccc         call ccmpi_gather(s)
       end subroutine ints4
 
       subroutine intsb(s,sout,nface,xg,yg,ik)   ! N.B. sout here
+      
 !     same as subr ints, but with sout passed back and no B-S      
 !     s is input; sout is output array
 c     later may wish to save idel etc between array calls
 c     this one does linear interp in x on outer y sides
 c     doing x-interpolation before y-interpolation
 !     This is a global routine 
+
       implicit none
-      include 'newmpar.h'
-      include 'parm.h'
+      
+      include 'newmpar.h'  ! Grid parameters
+      include 'parm.h'     ! Model configuration
+      
       real, dimension(ik*ik*6), intent(in) :: s
       real, dimension(ifull_g), intent(inout) :: sout
       integer, intent(in), dimension(ifull_g) :: nface
@@ -1748,10 +1846,14 @@ c      following does Bermejo Staniforth
       end subroutine intsb
 
       subroutine ints_blb(s,sout,nface,xg,yg,ik) 
+      
 c     this one does bi-linear interpolation only
+
       implicit none
-      include 'newmpar.h'
-      include 'parm.h'
+      
+      include 'newmpar.h'  ! Grid parameters
+      include 'parm.h'     ! Model configuration
+      
       real, dimension(ik*ik*6), intent(inout) :: s
       real, dimension(ifull_g), intent(inout) :: sout
       integer, intent(in), dimension(ifull_g) :: nface
@@ -1824,13 +1926,17 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
       end subroutine ints_blb
 
       subroutine fill_cc(a_io,value,ik,ndiag)
+      
 !     this version holds whole array in memory      
 c     routine fills in interior of an array which has undefined points
-      use cc_mpi
+
+      use cc_mpi          ! CC MPI routines
+      
       implicit none
-      include 'newmpar.h'
-c     include 'indices.h'
-      include 'mpif.h'
+      
+      include 'newmpar.h' ! Grid parameters
+      include 'mpif.h'    ! MPI parameters
+
       real a_io(ik*ik*6)         ! input and output array
       real value            ! array value denoting undefined
 c     real b(ik*ik*6), a(ik*ik*6+iextra)
@@ -1843,7 +1949,7 @@ c     real b(ik*ik*6), a(ik*ik*6+iextra)
       data npanw/5,105,1,101,3,103/,npans/104,0,100,2,102,4/
       ind(i,j,n)=i+(j-1)*ik+n*ik*ik  ! *** for n=0,npanels
       
-      if (all(a_io.eq.value)) return ! MJT urban ! MJT mlo
+      if (all(a_io.eq.value)) return
       
        do iq=1,ik*ik*6
        in(iq)=iq+ik
@@ -1930,88 +2036,69 @@ c808         call bounds(a)
          do iq=1,ik*ik*6
             a(iq)=b(iq)
          enddo
-c         call MPI_AllReduce(nrem, nrem_g, 1, MPI_INTEGER, MPI_MAX, 
-c     &                      MPI_COMM_WORLD, ierr )
-c         call MPI_AllReduce(nrem, nrem_gmin, 1, MPI_INTEGER, MPI_MIN, 
-c     &                      MPI_COMM_WORLD, ierr )
-c        if(nrem_g>0.and.myid==0)then
-c         endif                  ! (nrem>0)
       end do
       a_io(1:ik*ik*6) = a(1:ik*ik*6)
       return
       end
 
-      subroutine mslpx(pmsl,psl,zs,t,ifullx,lev) ! MJT small otf
+      subroutine mslpx(pmsl,psl,zs,t,ifullx,siglev)
+      
 !     generalized from ifull to allow new onthefly    0808
 !     can replace usual mslp sometime
-      use cc_mpi, only : mydiag
-      use sigs_m
+
+      use cc_mpi, only : mydiag ! CC MPI routines
+      use sigs_m                ! Atmosphere sigma levels
+      
 !     this one will ignore negative zs (i.e. over the ocean)
       implicit none
-      integer, parameter :: meth=1 ! 0 for original, 1 for other jlm - always now
-      include 'newmpar.h'
-      include 'const_phys.h'
-      include 'parm.h'
+      
+      include 'newmpar.h'       ! Grid parameters
+      include 'const_phys.h'    ! Physical constants
+      include 'parm.h'          ! Model configuration
+
       integer ifullx,iq
-      real pmsl(ifullx),psl(ifullx),zs(ifullx),t(ifullx) ! MJT small otf
-      integer :: lev
+      real siglev
+      real pmsl(ifullx),psl(ifullx),zs(ifullx),t(ifullx)
       real c, con, conr, dlnps, phi1, tav, tsurf
       c=grav/stdlapse
       conr=c/rdry
-      !--------------------------------------------------------------
-      ! MJT small otf - moved above
-!      lev=0
-!14    lev=lev+1
-!c     find level just below sig=.9
-!      if (sig(lev+1).gt..9)go to 14
-      !--------------------------------------------------------------
-      con=sig(lev)**(rdry/c)/c
-c     if(meth.eq.0)then
-c       do iq=1,ifullx
-c        pmsl(iq)=ps(iq)*(1.+con*zs(iq)/t(iq,lev))**conr
-c       enddo
-c     endif  ! (meth.eq.0)
-      if(meth.eq.1)then
+      con=siglev**(rdry/c)/c
         do iq=1,ifullx
-         phi1=t(iq)*rdry*(1.-sig(lev))/sig(lev) ! phi of sig(lev) above sfce ! MJT small otf
-         tsurf=t(iq)+phi1*stdlapse/grav ! MJT small otf
+         phi1=t(iq)*rdry*(1.-siglev)/siglev ! phi of sig(lev) above sfce
+         tsurf=t(iq)+phi1*stdlapse/grav
          tav=tsurf+max(0.,zs(iq))*.5*stdlapse/grav
          dlnps=max(0.,zs(iq))/(rdry*tav)
          pmsl(iq)=1.e5*exp(psl(iq)+dlnps)
         enddo
-      endif  ! (meth.eq.1)
       if(nmaxpr==1.and.mydiag)then
-        write(6,*)'meth,lev,sig(lev) ',meth,lev,sig(lev)
+        write(6,*)'sig(lev) ',siglev
         write(6,*)'zs,t_lev,psl,pmsl ',
-     .           zs(idjd),t(idjd),psl(idjd),pmsl(idjd) ! MJT small otf
+     .           zs(idjd),t(idjd),psl(idjd),pmsl(idjd)
       endif
       return
       end
-      subroutine to_pslx(pmsl,psl,zs,t,ifullx,lev) ! MJT small otf
+      
+      subroutine to_pslx(pmsl,psl,zs,t,ifullx,lev)
 !     generalized from ifull to allow new onthefly    0808
 !     can replace usual mslp sometime
-      use cc_mpi, only : mydiag
-      use sigs_m
+
+      use cc_mpi, only : mydiag  ! CC MPI routines
+      use sigs_m                 ! Atmosphere sigma levels
+      
 !     this one will ignore negative zs (i.e. over the ocean)
       implicit none
-      integer, parameter :: meth=1 ! 0 for original, 1 for other jlm - always now
-      include 'newmpar.h'
-      include 'const_phys.h'
-      include 'parm.h'
+      
+      include 'newmpar.h'        ! Grid parameters
+      include 'const_phys.h'     ! Physical constants
+      include 'parm.h'           ! Model configuration
+      
       integer ifullx,iq
-      real pmsl(ifullx),psl(ifullx),zs(ifullx),t(ifullx) ! MJT small otf
+      real pmsl(ifullx),psl(ifullx),zs(ifullx),t(ifullx)
       integer :: lev
       real dlnps, phi1, tav, tsurf
-      !--------------------------------------------------------------
-      ! MJT small otf
-!      lev=0
-!14    lev=lev+1
-!c     find level just below sig=.9
-!      if (sig(lev+1).gt..9)go to 14
-      !--------------------------------------------------------------
       do iq=1,ifullx
-       phi1=t(iq)*rdry*(1.-sig(lev))/sig(lev) ! phi of sig(lev) above sfce ! MJT small otf
-       tsurf=t(iq)+phi1*stdlapse/grav                                      ! MJT small otf
+       phi1=t(iq)*rdry*(1.-sig(lev))/sig(lev) ! phi of sig(lev) above sfce
+       tsurf=t(iq)+phi1*stdlapse/grav
        tav=tsurf+max(0.,zs(iq))*.5*stdlapse/grav
        dlnps=max(0.,zs(iq))/(rdry*tav)
        psl(iq)=log(1.e-5*pmsl(iq)) -dlnps
@@ -2019,7 +2106,7 @@ c     endif  ! (meth.eq.0)
       if(nmaxpr==1.and.mydiag)then
         write(6,*)'to_psl lev,sig(lev) ',lev,sig(lev)
         write(6,*)'zs,t_lev,psl,pmsl ',
-     .           zs(idjd),t(idjd),psl(idjd),pmsl(idjd) ! MJT small otf
+     .           zs(idjd),t(idjd),psl(idjd),pmsl(idjd)
       endif
       return
       end
@@ -2028,16 +2115,15 @@ c     endif  ! (meth.eq.0)
      &                      bxs_a,bys_a,bzs_a,rotpole,rotpoles,nface4,
      &                      xg4,yg4,nord)
       
-      use work3f_m
-      use vecsuv_m
+      use vecsuv_m         ! Map to cartesian coordinates
       
       implicit none
       
-      include 'newmpar.h'
+      include 'newmpar.h'  ! Grid parameters
       
       integer, intent(in) :: ik,nord
       integer, dimension(ifull_g), intent(in) :: nface4
-      integer iq,np
+      integer iq
       real, dimension(3,3), intent(in) :: rotpole,rotpoles
       real, dimension(ifull_g), intent(in) :: xg4,yg4
       real, dimension(6*ik*ik), intent(in) :: axs_a,ays_a,azs_a
@@ -2060,7 +2146,6 @@ c     endif  ! (meth.eq.0)
       end do
       ! interpolate all required arrays to new C-C positions
       ! don't need to do map factors and Coriolis on target grid
-      np=0                ! controls prints in ints4
       call ints4(ucc,  uct_g, nface4,xg4,yg4,nord,ik)
       call ints4(vcc,  vct_g, nface4,xg4,yg4,nord,ik)
       call ints4(wcc,  wct_g, nface4,xg4,yg4,nord,ik)

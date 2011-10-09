@@ -99,25 +99,22 @@
 
       integer, dimension(8) :: tvals1, tvals2
       integer, dimension(8) :: nper3hr
-      integer iaero, ier, igas, ilx, io_nest, iq, irest, isoil, itr1,
-     &     itr2, jalbfix, jlx, jtr1, jtr2, k,k2, kktau, 
-     &     mexrest, mins_dt, mins_gmt, mspeca, mtimer_in,
-     &     nalpha, newsnow, ng, nlx, nmaxprsav,
-     &     nmi, npa, npb, npc, n3hr,
-     &     nsnowout, nstagin, nstaguin, nwrite, nwtsav,
-     &     mins_rad, mtimer_sav, nn, i, j, mstn
-      integer nproc_in, ierr, nperhr, nscrn, nversion, ierr2
-      integer kmax, isoth, nsig, lapsbot
-      real, dimension(:,:), allocatable :: savu2,savv2
-      real, dimension(:,:), allocatable :: speed
-      real, dimension(:), allocatable :: spare1,spare2
-      real, dimension(:), allocatable :: spmean,div
+      integer iaero, ier, igas, ilx, io_nest, iq, irest, isoil, itr1
+      integer itr2, jalbfix, jlx, jtr1, jtr2, k,k2, kktau, mexrest
+      integer mins_dt, mins_gmt, mspeca, mtimer_in, nalpha, newsnow
+      integer ng, nlx, nmaxprsav, nmi, npa, npb, npc, n3hr, nsnowout
+      integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, mtimer_sav
+      integer nn, i, j, mstn, nproc_in, ierr, nperhr, nscrn, nversion
+      integer ierr2, kmax, isoth, nsig, lapsbot
+      real, dimension(:,:), allocatable, save :: savu2,savv2
+      real, dimension(:,:), allocatable, save :: speed
+      real, dimension(:), allocatable, save :: spare1,spare2
+      real, dimension(:), allocatable, save :: spmean,div
       real, dimension(9) :: temparray, gtemparray
-      real clhav, cllav, clmav, cltav, con, 
-     &     div_int, dsx, dtds, es, gke, hourst, hrs_dt,
-     &     evapavge, precavge, preccavge, psavge,
-     &     pslavge, pwater, rel_lat, rel_long, rlwup, spavge,
-     &     pwatr, pwatr_l, qtot, aa,bb,cc,bb_2,cc_2,rat
+      real clhav, cllav, clmav, cltav, con, div_int, dsx, dtds, es
+      real gke, hourst, hrs_dt, evapavge, precavge, preccavge, psavge
+      real pslavge, pwater, rel_lat, rel_long, rlwup, spavge, pwatr
+      real pwatr_l, qtot, aa, bb, cc, bb_2, cc_2, rat
       character(len=60) comm,comment
       character(len=47) header
       character(len=10) timeval
@@ -177,12 +174,12 @@
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/      
       data itr1/23/,jtr1/13/,itr2/25/,jtr2/11/
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
-      data mexrest/6/,mins_rad/60/
-      data nwrite/0/
-      data nsnowout/999999/
+      data mexrest/6/,mins_rad/60/,nwrite/0/,nsnowout/999999/
 
+!#ifdef stacklimit
       ! For linux only
       call setstacklimit(-1)
+!#endif
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
@@ -215,7 +212,7 @@
       read (99, defaults)
       if (myid==0) then
         write(6,'(a10," running for nproc =",i7)')
-     &                       version,nproc 
+     &                      version,nproc 
         write(6,*) 'Using defaults for nversion = ',nversion
       end if
       if(nversion.ne.0)call change_defaults(nversion)
@@ -889,7 +886,6 @@
       endif
       call gettin(0)             ! preserve initial mass & T fields; nmi too
 
-      if (nbd.ne.0) call nestin(iaero)
       nmaxprsav=nmaxpr
       nwtsav=nwt
       hrs_dt = dtin/3600.      ! time step in hours
@@ -1782,7 +1778,7 @@
       call simple_timer_finalize
 #endif
 
-      call MPI_Barrier( MPI_COMM_WORLD, ierr )
+      call MPI_Finalize(ierr)
 
       end
 

@@ -365,6 +365,16 @@ c       Sigma levels
         print *,'sig=',sig
         call ncapt(idnc,ncglobal,'sigma',ncfloat,kl,sig,ier)
 
+        lname = 'year-month-day at start of run'
+        idkdate = ncvdef(idnc,'kdate',nclong,1,dim(4),ier)
+        call ncaptc(idnc,idkdate,'long_name',ncchar
+     &             ,len_trim(lname),lname,ier)
+
+        lname = 'hour-minute at start of run'
+        idktime = ncvdef(idnc,'ktime',nclong,1,dim(4),ier)
+        call ncaptc(idnc,idktime,'long_name',ncchar
+     &             ,len_trim(lname),lname,ier)
+
         lname = 'timer (hrs)'
         idnter = ncvdef(idnc,'timer',ncfloat,1,dim(4),ier)
         call ncaptc(idnc,idnter,'long_name',ncchar
@@ -383,16 +393,6 @@ c       Sigma levels
         lname = 'number of time steps from start'
         idktau = ncvdef(idnc,'ktau',nclong,1,dim(4),ier)
         call ncaptc(idnc,idktau,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
-
-        lname = 'year-month-day at start of run'
-        idkdate = ncvdef(idnc,'kdate',nclong,1,dim(4),ier)
-        call ncaptc(idnc,idkdate,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
-
-        lname = 'hour-minute at start of run'
-        idktime = ncvdef(idnc,'ktime',nclong,1,dim(4),ier)
-        call ncaptc(idnc,idktime,'long_name',ncchar
      &             ,len_trim(lname),lname,ier)
 
         idv = ncvdef(idnc,'sigma', ncfloat, 1, dim(3),ier)
@@ -510,7 +510,7 @@ c       For time varying surface fields
           call attrib(idnc,idim,3,'vic',lname,'m/s',-65.,65.,0,itype)
           if (abs(nmlo).ge.2) then
             lname = 'Surface water'
-            call attrib(idnc,idim,3,'swater',lname,'mm',0.,26.,0,
+            call attrib(idnc,idim,3,'swater',lname,'mm',0.,65.,0,
      &                  itype)
           end if
         end if
@@ -1447,7 +1447,6 @@ c      "extra" outputs
            call histwrt3(fbeam_ave,'fbeam_ave',idnc,iarch,local)
          endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
          call histwrt3(dpsdt,'dpsdt',idnc,iarch,local)
-         !call histwrt3(pblh,'pblh',idnc,iarch,local) ! MJT tke
          call histwrt3(ustar,'ustar',idnc,iarch,local)
        endif   ! nextout>=1
       endif    ! (ktau>0.and.itype.ne.-1)
@@ -1636,30 +1635,6 @@ c=======================================================================
       endif
       return
       end
-c=======================================================================
-!      subroutine attrl(cdfid,dim,ndim,name,lname,units,xmin,xmax,daily)
-!!     this one for long variables, e.g. snd
-!      include 'netcdf.inc'
-!      integer cdfid, idv, dim(3), daily
-!      character name*(*), lname*(*), units*(*)
-!
-!      idv = ncvdef(cdfid, name,NCFLOAT, ndim, dim, ier)
-!      if(ier.ne.0)then
-!        write(0,*) ier,' Error in variable declaration ', name
-!        stop
-!      endif
-!
-!      call ncaptc(cdfid,idv,'long_name',ncchar,len_trim(lname),lname,
-!     &            ier)
-!      if(len_trim(units).ne.0)then
-!        call ncaptc(cdfid,idv,'units',ncchar,len_trim(units),units,ier)
-!      endif
-!      call ncaptc(cdfid,idv,'FORTRAN_format',ncchar,5,'G11.4',ier)
-!      if(daily>0)then
-!        call ncaptc(cdfid,idv,'valid_time',ncchar,5,'daily',ier) 
-!      endif
-!      return
-!      end
 c=======================================================================
       subroutine histwrt3(var,sname,idnc,iarch,local)
 c Write 2d+t fields from the savegrid array.

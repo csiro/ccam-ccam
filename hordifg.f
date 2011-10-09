@@ -102,7 +102,7 @@ c     above code independent of k
       if (nhorjlm==0.or.nvmix==6) then
         ! Calculate du/dx,dv/dx,du/dy,dv/dy, etc 
         
-        call boundsuv(u,v)
+        call boundsuv(u,v,allvec=.true.)
         do k=1,kl
           dudx(:,k)=(u(ieu,k)-u(iwu,k))*0.5*em(1:ifull)/ds
           dudy(:,k)=(u(inu,k)-u(isu,k))*0.5*em(1:ifull)/ds
