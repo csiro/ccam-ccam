@@ -418,20 +418,20 @@ c**   onthefly; sometime can get rid of common/bigxy4
       ! interal errors which should not occur if code is written correctly
       if (.not.allocated(sigin)) then
         write(6,*) "ERROR: sigin is undefined in onthefly"
-        stop
+        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
-      if (.not.allocated(ocndep_l)) then
+      if (nmlo.ne.0.and..not.allocated(ocndep_l)) then
         write(6,*) "ERROR: ocndep_l is undefined in onthefly"
-        stop
+        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
       if (myid==0) then
         if (.not.allocated(zss_a)) then
           write(6,*) "ERROR: zss_a is undefined in onthefly"
-          stop
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         end if
         if (.not.allocated(isoilm_a)) then
           write(6,*) "ERROR: isoilm_a is undefined in onthefly"
-          stop
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         end if
       end if
 
