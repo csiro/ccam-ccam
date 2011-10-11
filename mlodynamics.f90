@@ -256,10 +256,8 @@ end if
 slope=0.
 do i=1,4
   dp(:,i)=0.5*(ds/em(1:ifull)+ds/em(xp(:,i)))
-  where (land.or.land(xp(:,i)))
-    !slope(:,i)=(zs(1:ifull)-zs(xp(:,i)))/(grav*dp(:,i))                                               ! basic
-    slope(:,i)=(zs(1:ifull)/grav+0.001*watbdy(1:ifull)-zs(xp(:,i))/grav-0.001*watbdy(xp(:,i)))/dp(:,i) ! flood
-  end where
+  !slope(:,i)=(zs(1:ifull)-zs(xp(:,i)))/(grav*dp(:,i))                                               ! basic
+  slope(:,i)=(zs(1:ifull)/grav+0.001*watbdy(1:ifull)-zs(xp(:,i))/grav-0.001*watbdy(xp(:,i)))/dp(:,i) ! flood
 end do
 
 ! Basic expression
@@ -306,6 +304,7 @@ newwat=newwat+sum(flow,2)
 
 ! convert back to depth
 newwat=newwat*em(1:ifull)*em(1:ifull)
+watbdy(1:ifull)=watbdy(1:ifull)*em(1:ifull)*em(1:ifull)
   
 ! basin 
 do iq=1,ifull

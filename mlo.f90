@@ -2229,7 +2229,7 @@ real, dimension(nc), intent(in) :: pt_egice
 
 ! update surface temperature
 rhin=real(dt_nk)/it_dic
-con=2.*condsnw/max(it_dsn,1.E-6)
+con=2.*condsnw/max(it_dsn,icemin)
 ! Ammendments if surface layer < 5cms
 where (it_dsn.lt.0.05)
   con=1./(it_dsn/condsnw+0.5/(condice*rhin))
@@ -2385,7 +2385,7 @@ fl(:,1)=condice*(it_tn(:,2)-it_tn(:,1))*rhin ! Between ice layers 2 and 1
 subl=dt*pt_egice*lf/(lv*qice)
 dt_salflx=dt_salflx+pt_egice/lv
 dhi=-subl-simelt
-qmax=qice*0.5*(it_dic-himin)
+qmax=qice*0.5*max(it_dic-himin,0.)
 dhi=dhi-max(it_sto-qmax,0.)/qice
 it_sto=min(qmax,it_sto)
 where (dhi.lt.0..and.dt_nk.lt.2)
@@ -2393,7 +2393,7 @@ where (dhi.lt.0..and.dt_nk.lt.2)
   dt_wtrflx=dt_wtrflx+min(-dhi,it_dic)*rhoic/rhowt/dt
   it_dic=max(0.,it_dic+dhi)
   dhi=0.
-  rhin=1./it_dic
+  rhin=1./max(it_dic,icemin)
 end where
 
 do iqi=1,nc
@@ -2487,7 +2487,7 @@ integer, dimension(nc), intent(inout) :: dt_nk
 real, dimension(nc), intent(in) :: pt_egice
 
 ! Update tsurf and ti based on fluxes from above and below
-con=1./(it_dsn/condsnw+max(it_dic,1.E-6)/condice)
+con=1./(it_dsn/condsnw+max(it_dic,icemin)/condice)
 f0=con*(dt_tb-it_tsurf) ! flux from below
 f0=min(max(f0,-1000.),1000.)
 gamm=(gammi*it_dic+gamms*it_dsn)/(it_dic+it_dsn) ! for energy conservation
@@ -2547,7 +2547,7 @@ integer, dimension(nc), intent(inout) :: dt_nk
 real, dimension(nc), intent(in) :: pt_egice
 
 ! Update tsurf and ti based on fluxes from above and below
-con=condice/max(it_dic,1.E-6)
+con=condice/max(it_dic,icemin)
 f0=con*(dt_tb-it_tsurf) ! flux from below
 f0=min(max(f0,-1000.),1000.)
 it_tsurf=it_tsurf+(dt_ftop+f0)/(dt_bot+gammi/dt+con)
@@ -2691,9 +2691,9 @@ d_nk=min(int(i_dic/himin),2)
 ! radiation
 alb=     a_vnratio*(p_icevisdiralb*a_fbvis+p_icevisdifalb*(1.-a_fbvis))+ &
     (1.-a_vnratio)*(p_icevisdifalb*a_fbvis+p_icevisdifalb*(1.-a_fbvis))
-qmax=qice*0.5*(i_dic-himin)
+qmax=qice*0.5*max(i_dic-himin,0.)
 eye=0.
-where (i_dsn.lt.icemin.and.i_sto.le.qmax.and.d_nk.gt.0)
+where (i_dsn.lt.icemin.and.i_sto.lt.qmax.and.d_nk.gt.0)
   eye=0.35
 end where
 i_sto=i_sto+dt*a_sg*(1.-alb)*eye

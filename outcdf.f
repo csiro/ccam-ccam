@@ -12,6 +12,7 @@ c=======================================================================
       include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg,mtimer
       include 'filnames.h'  ! list of files, read in once only
       include 'kuocom.h'
+      include 'netcdf.inc'
       include 'parm.h'
       include 'parmdyn.h'  
       include 'parmgeom.h' ! rlong0,rlat0,schmidt  
@@ -26,7 +27,6 @@ c=======================================================================
       integer, parameter :: nrhead=14
       real ahead(nrhead)
 
-      include 'netcdf.inc'
       character cdffile*80
 
       integer ixp,iyp,idlev,idnt,idms
@@ -80,7 +80,14 @@ c       itype=-1 restfile
 
        if(iarch==1)then
         print *,'nccre of ',cdffile
+#ifdef usenc3
         idnc = nccre(cdffile, ncclob, ier)
+#else
+	!ier=nf_create(cdffile,NF_NOCLOBBER,idnc)
+	!ier=nf_create(cdffile,NF_64BIT_OFFSET,idnc)
+	!ier=nf_create(cdffile,NF_NETCDF4.or.NF90_CLASSIC_MODEL,idnc)
+	ier=nf_create(cdffile,NF_NETCDF4,idnc)
+#endif
         print *,'idnc,ier=',idnc,ier
 c       Turn off the data filling
         imode = ncsfil(idnc,ncnofill,ier)
@@ -510,7 +517,7 @@ c       For time varying surface fields
           call attrib(idnc,idim,3,'vic',lname,'m/s',-65.,65.,0,itype)
           if (abs(nmlo).ge.2) then
             lname = 'Surface water'
-            call attrib(idnc,idim,3,'swater',lname,'mm',0.,65.,0,
+            call attrib(idnc,idim,3,'swater',lname,'mm',0.,650.,0,
      &                  itype)
           end if
         end if
@@ -1940,6 +1947,7 @@ ce=======================================================================
       include 'newmpar.h'
       include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg,mtimer
       include 'filnames.h'  ! list of files, read in once only
+      include 'netcdf.inc'
       include 'kuocom.h'
       include 'parm.h'
       include 'parmdyn.h'  
@@ -1957,7 +1965,6 @@ ce=======================================================================
       integer, parameter :: nrhead=14
       real ahead(nrhead)
 
-      include 'netcdf.inc'
       character cdffile*80
 
       integer ixp,iyp,idlev,idnt,idms
@@ -1987,7 +1994,14 @@ ce=======================================================================
 
        if(iarch==1)then
         print *,'nccre of ',cdffile
+#ifdef usenc3
         idnc = nccre(cdffile, ncclob, ier)
+#else
+	!ier=nf_create(cdffile,NF_NOCLOBBER,idnc)
+	!ier=nf_create(cdffile,NF_64BIT_OFFSET,idnc)
+	!ier=nf_create(cdffile,NF_NETCDF4.or.NF90_CLASSIC_MODEL,idnc)
+	ier=nf_create(cdffile,NF_NETCDF4,idnc)
+#endif
         print *,'idnc,ier=',idnc,ier
 c       Turn off the data filling
         imode = ncsfil(idnc,ncnofill,ier)
