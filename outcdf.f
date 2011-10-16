@@ -283,6 +283,7 @@ c=======================================================================
       use mlo, only : wlev,mlosave,mlodiag,micdwn ! MJT mlo
       use mlodynamics, only : watbdy              ! MJT mlo
       use morepbl_m
+      use nharrs_m
       use nsibd_m     ! rsmin,ivegt,sigmf,tgg,tgf,ssdn,res,rmc,isoilm,ico2em
       use pbl_m
       use prec_m
@@ -517,7 +518,7 @@ c       For time varying surface fields
           call attrib(idnc,idim,3,'vic',lname,'m/s',-65.,65.,0,itype)
           if (abs(nmlo).ge.2) then
             lname = 'Surface water'
-            call attrib(idnc,idim,3,'swater',lname,'mm',0.,650.,0,
+            call attrib(idnc,idim,3,'swater',lname,'mm',0.,6500.,0,
      &                  itype)
           end if
         end if
@@ -941,6 +942,11 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         call attrib(idnc,dim,4,'omega',lname,'Pa/s',-50.,50.,0,itype)
         lname= 'Water mixing ratio'
         call attrib(idnc,dim,4,'mixr',lname,'kg/kg',0.,.05,0,itype)
+        if (nh.ne.0.and.itype==-1) then
+          lname= 'Geopotential height'
+          call attrib(idnc,dim,4,'zg',lname,'m**2/s**2',-5.E3,6.0E4,
+     &                0,itype)
+        end if
         if(ldr.ne.0)then
          call attrib(idnc,dim,4,'qfg','Frozen water','kg/kg',0.,.02,
      &               0,itype)
@@ -1513,15 +1519,18 @@ c      "extra" outputs
       enddo
       call histwrt4(tmpry,'omega',idnc,iarch,local)  ! 3d variable
       call histwrt4(qg(1:ifull,:),'mixr',idnc,iarch,local)
+      if(nh.ne.0.and.itype==-1)then
+        call histwrt4(phi,'zg',idnc,iarch,local)
+      endif
       if(ldr.ne.0)then
         call histwrt4(qfg(1:ifullw,:),'qfg',idnc,iarch,local)
         call histwrt4(qlg(1:ifullw,:),'qlg',idnc,iarch,local)
         call histwrt4(cfrac,'cfrac',idnc,iarch,local)
       endif
-      if (nvmix.eq.6.and.(nextout>=1.or.itype.eq.-1))then    ! MJT tke
-        call histwrt4(tke(1:ifull,:),'tke',idnc,iarch,local) ! MJT tke
-        call histwrt4(eps(1:ifull,:),'eps',idnc,iarch,local) ! MJT tke
-      end if                                                 ! MJT tke
+      if (nvmix.eq.6.and.(nextout>=1.or.itype==-1))then
+        call histwrt4(tke(1:ifull,:),'tke',idnc,iarch,local)
+        call histwrt4(eps(1:ifull,:),'eps',idnc,iarch,local)
+      end if
 
 !     rml 16/02/06 histwrt4 for trNNN and travNNN
       if(ngas>0)then 

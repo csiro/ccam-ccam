@@ -14,7 +14,7 @@ module mlodynamics
 implicit none
 
 private
-public mlodiffusion,mlorouter,mlohadv,watbdy
+public mlodiffusion,mlorouter,mlohadv,mloflood,watbdy
 
 real, dimension(:), allocatable, save :: watbdy
 integer, parameter :: salfilt=0    ! additional salinity filter (0=off, 1=Katzfey)
@@ -64,7 +64,7 @@ logical, dimension(ifull+iextra) :: wtr
 
 hdif=dt*(k_smag/pi)**2
 ee=0. ! prep land-sea mask
-where(.not.land(1:ifull))
+where(.not.land)
   ee(1:ifull)=1.
 end where
 call bounds(ee)
@@ -228,8 +228,9 @@ include 'soilv.h'
 
 integer i,iq
 integer, dimension(ifull,4) :: xp
+real, dimension(ifull+iextra) :: neta
 real, dimension(ifull) :: newwat
-real, dimension(ifull,4) :: dp,slope,mslope,vel,flow
+real, dimension(ifull,4) :: idp,slope,mslope,vel,flow
 real :: xx,yy
 
 ! To speed up the code, we use a (semi-)implicit solution rather than an iterative approach
@@ -247,17 +248,27 @@ xp(:,1)=in
 xp(:,2)=ie
 xp(:,3)=is
 xp(:,4)=iw
+idp(:,1)=emv(1:ifull)/ds
+idp(:,2)=emu(1:ifull)/ds
+idp(:,3)=emv(isv)/ds
+idp(:,4)=emu(iwu)/ds
+
+neta=0.
+call mloexport(4,neta(1:ifull),0,0)
+call bounds(neta)
 
 if (.not.allocated(watbdy)) then
   allocate(watbdy(ifull+iextra))
   watbdy=0.
 end if
+call bounds(watbdy)
+newwat=watbdy(1:ifull)
 
 slope=0.
 do i=1,4
-  dp(:,i)=0.5*(ds/em(1:ifull)+ds/em(xp(:,i)))
-  !slope(:,i)=(zs(1:ifull)-zs(xp(:,i)))/(grav*dp(:,i))                                               ! basic
-  slope(:,i)=(zs(1:ifull)/grav+0.001*watbdy(1:ifull)-zs(xp(:,i))/grav-0.001*watbdy(xp(:,i)))/dp(:,i) ! flood
+  !slope(:,i)=(zs(1:ifull)-zs(xp(:,i)))/(grav*dp(:,i))                       ! basic
+  slope(:,i)=(zs(1:ifull)/grav+0.001*watbdy(1:ifull)+neta(1:ifull) &
+             -zs(xp(:,i))/grav-0.001*watbdy(xp(:,i))-neta(xp(:,i)))*idp(:,i) ! flood
 end do
 
 ! Basic expression
@@ -265,69 +276,204 @@ end do
 ! flow = m * vel / dx
 ! m(t+1)-m(t) = dt*sum(inflow)-dt*sum(outflow)
 
-! convert to volume for conservation
-watbdy(1:ifull)=watbdy(1:ifull)/(em(1:ifull)*em(1:ifull))
-call bounds(watbdy)
-newwat=watbdy(1:ifull)
-
 ! outflow
 mslope=max(slope,0.)
 vel=0.35*sqrt(mslope/0.00005) ! from Miller et al (1994)
 where (mslope.gt.1.E-10)
   vel=min(max(vel,0.15),5.)
 elsewhere
-  vel=1.E-10
+  vel=0.
 end where
-flow=0.
 do i=1,4
-  where (land)
-    flow(:,i)=max(-dt*vel(:,i)*watbdy(1:ifull)/dp(:,i),-watbdy(1:ifull)) ! (kg/m^2)
-  end where
+  flow(:,i)=max(-dt*vel(:,i)*watbdy(1:ifull)*idp(:,i),-watbdy(1:ifull)) ! (kg/m^2)
 end do
 newwat=newwat+sum(flow,2)
-  
+
 ! inflow
 mslope=max(-slope,0.)
 vel=0.35*sqrt(mslope/0.00005) ! from Miller et al (1994)
 where (mslope.gt.1.E-10)
   vel=min(max(vel,0.15),5.)
 elsewhere
-  vel=1.E-10
+  vel=0.
 end where
-flow=0.
 do i=1,4
-  where (land(xp(:,i)))
-    flow(:,i)=min(dt*vel(:,i)*watbdy(xp(:,i))/dp(:,i),watbdy(xp(:,i))) ! (kg/m^2)
-  end where
+  flow(:,i)=min(dt*vel(:,i)*watbdy(xp(:,i))*idp(:,i),watbdy(xp(:,i))) ! (kg/m^2)
+  flow(:,i)=flow(:,i)*em(1:ifull)*em(1:ifull)/(em(xp(:,i))*em(xp(:,i)))
 end do
 newwat=newwat+sum(flow,2)
 
-! convert back to depth
-newwat=newwat*em(1:ifull)*em(1:ifull)
-watbdy(1:ifull)=watbdy(1:ifull)*em(1:ifull)*em(1:ifull)
+watbdy(1:ifull)=max(newwat,0.)
   
 ! basin 
-do iq=1,ifull
-  if (all(slope(iq,:).lt.-1.E-10).and.land(iq)) then
-  
-    ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
-    xx=watbdy(iq)
-    if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
+if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
+  do iq=1,ifull
+    if (all(slope(iq,:).lt.-1.E-10).and.land(iq)) then
+      ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
+      xx=watbdy(iq)
       call cableinflow(iq,xx)
-    else
+      newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
+    end if
+  end do
+else
+  do iq=1,ifull
+    if (all(slope(iq,:).lt.-1.E-10).and.land(iq)) then
+      ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
+      xx=watbdy(iq)
       yy=min(xx,(ssat(isoilm(iq))-wb(iq,ms))*1000.*zse(ms))
       wb(iq,ms)=wb(iq,ms)+yy/(1000.*zse(ms))
       xx=max(xx-yy,0.)
+      newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
     end if
-    newwat(iq)=newwat(iq)-watbdy(iq)+xx
-
-  end if
-end do
+  end do
+end if
 
 watbdy(1:ifull)=max(newwat,0.)
 
 return
 end subroutine mlorouter
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine spills water from ocean back onto land
+subroutine mloflood
+
+use arrays_m
+use cc_mpi
+use indices_m
+use map_m
+use mlo
+use soil_m
+use soilsnow_m
+
+implicit none
+
+include 'newmpar.h'
+include 'const_phys.h'
+include 'parm.h'
+
+integer iq,ii,ncount
+real newh,oldh,delwat,saltflx
+real, dimension(0:4) :: sarea,hgt,excess,tt
+real, dimension(ifull) :: w_e,dd,imass,pice
+real, dimension(ifull+iextra) :: ee
+real, dimension(ifull,wlev) :: w_t,w_s,dep,dz,rhos,sdum
+logical, dimension(ifull+iextra) :: wtr
+
+ee=0. ! prep land-sea mask
+where(.not.land)
+  ee(1:ifull)=1.
+end where
+call bounds(ee)
+wtr=ee.gt.0.5
+
+! Extract ocean data
+w_e=0.
+w_s=0.
+w_t=300.
+dep=0.
+dz=0.
+call mloexport(4,w_e,0,0)
+do ii=1,wlev
+  call mloexpdep(0,dep(:,ii),ii,0)
+  call mloexpdep(1,dz(:,ii),ii,0)
+  call mloexport(0,w_t(:,ii),ii,0)
+  call mloexport(1,w_s(:,ii),ii,0)
+end do
+call mloexpice(fracice,5,0)
+call mloexpice(sicedep,6,0)
+call mloexpice(snowd,7,0)
+
+dep=max(dep,1.E-8)
+dz=max(dz,1.E-8/real(wlev))
+dd=0.
+do ii=1,wlev
+  dd=dd+dz(:,ii)
+end do
+ps(1:ifull)=1.e5*exp(psl(1:ifull))
+sdum=0. ! dummy zero salinity
+ 
+! Calculate density
+imass=sicedep*rhoic+snowd*0.001*rhosn
+pice=ps(1:ifull)+grav*fracice*imass
+call mloexpdensity(rhos,w_t,sdum,dep,dz,pice,0) ! rhos is density with sal=0.
+ 
+! Update surface water (rivers) boundaries
+if (.not.allocated(watbdy)) then
+  allocate(watbdy(ifull+iextra))
+  watbdy=0.
+end if
+call bounds(watbdy)
+
+! count number of surrounding land points
+
+do iq=1,ifull
+  if (wtr(iq)) then
+    ncount=0
+    sarea=0.
+    tt=0.
+    tt(0)=1.
+    sarea(0)=1./(em(iq)*em(iq))
+    hgt(0)=zs(iq)/grav ! watbdy should be zero over water
+    hgt(1)=zs(in(iq))/grav+0.001*watbdy(in(iq))
+    hgt(2)=zs(ie(iq))/grav+0.001*watbdy(ie(iq))
+    hgt(3)=zs(is(iq))/grav+0.001*watbdy(is(iq))
+    hgt(4)=zs(iw(iq))/grav+0.001*watbdy(iw(iq))
+    oldh=w_e(iq)+hgt(0)
+    
+    if (.not.wtr(in(iq)).and.(hgt(1).lt.oldh)) then
+      ncount=ncount+1
+      sarea(1)=1./(em(in(iq))*em(in(iq)))
+      tt(1)=1.
+    end if
+    if (.not.wtr(ie(iq)).and.(hgt(2).lt.oldh)) then
+      ncount=ncount+1
+      sarea(2)=1./(em(ie(iq))*em(ie(iq)))
+      tt(2)=1.
+    end if
+    if (.not.wtr(is(iq)).and.(hgt(3).lt.oldh)) then
+      ncount=ncount+1
+      sarea(3)=1./(em(is(iq))*em(is(iq)))
+      tt(3)=1.
+    end if
+    if (.not.wtr(iw(iq)).and.(hgt(4).lt.oldh)) then
+      ncount=ncount+1
+      sarea(4)=1./(em(iw(iq))*em(iw(iq)))
+      tt(4)=1.
+    end if
+    
+    ! found land
+    if (ncount.gt.0) then
+    
+      newh=((w_e(iq)-hgt(0))*sarea(0)+sum(hgt*sarea))/sum(sarea)
+      
+      excess(1:4)=max(newh-hgt(1:4),0.)*tt(1:4)
+      excess(0)=w_e(iq)-sum(excess(1:4)*sarea(1:4))/sarea(0)
+
+      ! update new water levels
+      delwat=w_e(iq)-excess(0)
+      w_e(iq)=excess(0)
+      watbdy(in(iq))=watbdy(in(iq))+1000.*excess(1)
+      watbdy(ie(iq))=watbdy(ie(iq))+1000.*excess(2)
+      watbdy(is(iq))=watbdy(is(iq))+1000.*excess(3)
+      watbdy(iw(iq))=watbdy(iw(iq))+1000.*excess(4)
+
+      ! leave salt behind
+      do ii=1,wlev
+        saltflx=-1000.*delwat*w_s(iq,ii)/(rhos(iq,ii)*dd(iq))
+        w_s(iq,ii)=w_s(iq,ii)-saltflx
+      end do
+    
+    end if
+  end if
+end do
+
+call mloimport(4,w_e,0,0)
+do ii=1,wlev
+  call mloimport(1,w_s(:,ii),ii,0)
+end do
+
+return
+end subroutine mloflood
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine implements some basic hydrostatic dynamics for the
@@ -366,8 +512,8 @@ integer iq,ll,ii,ierr,totits,itotits
 integer jyear,jmonth,jday,jhour,jmin,mins,leap
 integer tyear,jstart
 integer, dimension(ifull,wlev) :: nface
-real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
-real delpos,delneg,alph_p,dumpp,dumpn,fjd
+real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip,netagsum,netalsum
+real delpos,delneg,alph_p,dumpp,dumpn,fjd,areagsum,arealsum
 real, dimension(:), allocatable, save :: ipice
 real, dimension(ifull+iextra) :: ee,neta,dd,pice,imass
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,ndum
@@ -398,6 +544,7 @@ real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav,tau,tav,dou,dov
 real, dimension(ifull,wlev) :: kku,llu,mmu,nnu
 real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv
 real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull,wlev) :: depdum,dzdum
 real, dimension(ifull,0:wlev) :: nw
 real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
@@ -405,7 +552,7 @@ logical, dimension(ifull+iextra) :: wtr
 
 integer, parameter :: llmax=400    ! iterations for calculating surface height
 real, parameter :: tol  = 5.E-4    ! Tolerance for GS solver (water)
-real, parameter :: itol = 0.5      ! Tolerance for GS solver (ice)
+real, parameter :: itol = 10.      ! Tolerance for GS solver (ice)
 real, parameter :: sal  = 0.948    ! SAL parameter for tidal forcing
 real, parameter :: rho0 = 1030.    ! reference density
 real, parameter :: eps  = 0.1      ! Off-centring term
@@ -680,8 +827,13 @@ do ii=1,wlev-1
 end do
 
 ! Vertical advection (first call for 0.5*dt)
-call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),dep(1:ifull,:), &
-             dz,wtr(1:ifull))
+odum=1.+neta(1:ifull)/dd(1:ifull)
+do ii=1,wlev
+  depdum(:,ii)=dep(1:ifull,ii)*odum
+  dzdum(:,ii)=dz(:,ii)*odum
+end do
+call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),depdum, &
+             dzdum,wtr(1:ifull))
 
 ! Estimate currents at t+1/2 for semi-Lagrangian advection
 nuh=(15.*w_u-10.*oldu1+3.*oldu2)/8. ! U at t+1/2
@@ -979,9 +1131,6 @@ do ll=1,llmax
 end do
 
 ! volume conservation for water ---------------------------------------
-if (limitsf.gt.0) then
-  neta=max(min(neta,20.),-20.)
-end if
 odum=0.
 where (wtr(1:ifull))
   odum=neta(1:ifull)-w_e
@@ -990,6 +1139,15 @@ call ccglobal_posneg(odum,delpos,delneg)
 alph_p = -delneg/max(delpos,1.E-20)
 alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
 neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
+if (limitsf.gt.0) then
+  !netalsum=sum(neta(1:ifull)/(em(1:ifull)*em(1:ifull)))
+  !arealsum=sum(1./(em(1:ifull)*em(1:ifull)))
+  !call MPI_AllReduce(netalsum,netagsum,1,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+  !call MPI_AllReduce(arealsum,areagsum,1,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+  !neta(1:ifull)=neta(1:ifull)-netagsum/areagsum
+  !neta(1:ifull)=max(neta(1:ifull),1.-dd(1:ifull))
+  neta=max(min(neta,20.),-20.)
+end if
 
 call bounds(neta,corner=.true.)
 oeu=0.5*(neta(1:ifull)+neta(ie))
@@ -1040,8 +1198,13 @@ nu(1:ifull,:)=uau
 nv(1:ifull,:)=uav
 
 ! Vertical advection (second call)
-call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),dep(1:ifull,:), &
-             dz,wtr(1:ifull))
+odum=1.+neta(1:ifull)/dd(1:ifull)
+do ii=1,wlev
+  depdum(:,ii)=dep(1:ifull,ii)*odum
+  dzdum(:,ii)=dz(:,ii)*odum
+end do
+call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),depdum, &
+             dzdum,wtr(1:ifull))
 
 ! UPDATE ICE DYNAMICS ---------------------------------------------
 ! Here we start by calculating the ice velocity and then advecting

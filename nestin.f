@@ -156,8 +156,8 @@
         if(io_in==-1)then
           call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
-     &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,
-     &                 duma,duma,dumm,iaero,sssb,ocndep) ! MJT cable
+     &                 dumg,dumg,dumg,duma,dumv,dumv,dumv,dums,dums,
+     &                 dums,duma,duma,dumm,iaero,sssb,ocndep)
         else
           write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
           call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
@@ -352,8 +352,8 @@
         if (abs(io_in)==1) then
           call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
-     &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,dums,
-     &                 duma,duma,dumm,iaero,sssb,ocndep)
+     &                 dumg,dumg,dumg,duma,dumv,dumv,dumv,dums,dums,
+     &                 dums,duma,duma,dumm,iaero,sssb,ocndep)
         else
           write(6,*) 'ERROR: Scale-selective filter requires ',
      &               'abs(io_in)=1'

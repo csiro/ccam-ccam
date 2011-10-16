@@ -6,7 +6,7 @@
        
       subroutine onthefly(nested,kdate_r,ktime_r,
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     .                    tgg,wb,wbice,snowd,qfg,qlg,
+     .                    tgg,wb,wbice,snowd,phi,qfg,qlg,
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
      .                    iaero,mlodwn,ocndwn)
 
@@ -43,8 +43,8 @@
      & wb(ifull,ms),wbice(ifull,ms),snowd(ifull),sicedep(ifull),
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     & ssdnn(ifull),snage(ifull),qfg(ifull,kl),qlg(ifull,kl),
-     & mlodwn(ifull,wlev,4),ocndwn(ifull,2)
+     & ssdnn(ifull),snage(ifull),phi(ifull,kl),qfg(ifull,kl),
+     & qlg(ifull,kl),mlodwn(ifull,wlev,4),ocndwn(ifull,2)
       real timer
       logical ltest,newfile
 
@@ -148,7 +148,7 @@
       if (myid==0) then
         call ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     &                    tgg,wb,wbice,snowd,qfg,qlg,
+     &                    tgg,wb,wbice,snowd,phi,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
      &                    ik,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
      &                    schmidtx,newfile) ! ik controls automatic array size
@@ -156,7 +156,7 @@
       else
         call ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     &                    tgg,wb,wbice,snowd,qfg,qlg,
+     &                    tgg,wb,wbice,snowd,phi,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
      &                    0,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
      &                    schmidtx,newfile) ! 0 controls automatic array size
@@ -168,7 +168,7 @@
       ! Read data from netcdf file
       subroutine ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     &                    tgg,wb,wbice,snowd,qfg,qlg,
+     &                    tgg,wb,wbice,snowd,phi,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
      &                    dk,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
      &                    schmidtx,newfile)
@@ -210,7 +210,7 @@
       integer, parameter :: ntest=0
       integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
       
-      integer ik, kk, idv, iaero, isoil
+      integer ik, kk, idv, iaero, isoil, nud_test
       integer dk ! controls automatic array size
       integer lev,levkk,ier,ierr,igas
       integer kdate_r, ktime_r, nemi, id2,jd2,idjd2,
@@ -230,7 +230,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
       real, dimension(ifull,wlev,4) :: mlodwn
       real, dimension(ifull,ms) :: wb,wbice,tgg
       real, dimension(ifull,3) :: tggsn,smass,ssdn
-      real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg
+      real, dimension(ifull,kl) :: t,u,v,qg,phi,qfg,qlg
       real, dimension(ifull,kk) :: t_k,u_k,v_k,qg_k
       integer, dimension(ifull) :: isflag
       real, dimension(dk*dk*6) :: psl_a,tss_a,fracice_a,
@@ -264,6 +264,10 @@ c**   onthefly; sometime can get rid of common/bigxy4
 
       ! land-sea mask method (nemi=3 use soilt, nemi=2 use tgg, nemi=1 use zs)
       nemi=3
+      
+      ! are retopo fields required
+      nud_test=1
+      if (nud_p==0.and.nud_t==0.and.nud_q==0) nud_test=0
       
       ! Determine if interpolation is required
       iotest=6*ik*ik.eq.ifull_g.and.abs(rlong0x-rlong0).lt.1.E-5.and.
@@ -467,7 +471,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
       ! Begin reading host data for current time step
       ! psf read when nested=0 or nested=1.and.nud_p.ne.0
       psl_a=0.
-      if (nested==0.or.(nested==1.and.nud_p.ne.0)) then
+      if (nested==0.or.(nested==1.and.nud_test.ne.0)) then
         call histrd1(ncid,iarchi,ier,'psf',ik,6*ik,psl_a,6*ik*ik)
       endif ! nested.ne.2.and.(nested.ne.1.or.nud_p.ne.0)
       ! tsu always read
@@ -760,8 +764,7 @@ c       incorporate other target land mask effects
 
       ! air temperature
       ! read for nested=0 or nested=1.and.(nud_t.ne.0.or.nud_p.ne.0)
-      if (nested==0.or.(nested==1.and.(nud_t.ne.0.or.nud_p.ne.0)))
-     &  then
+      if (nested==0.or.(nested==1.and.nud_test.ne.0)) then
         do k=1,kk
           call histrd4s(ncid,iarchi,ier,'temp',ik,6*ik,k,t_a,6*ik*ik) !     temperature
           if (k.eq.levkk) t_a_lev=t_a ! store for psl calculation below
@@ -777,6 +780,8 @@ c       incorporate other target land mask effects
           endif ! myid==0
         enddo  ! k loop
         call vertint(t_k ,t(1:ifull,:), 1,kk,sigin)
+      else
+        t=300.
       end if ! (nested==0.or.(nested==1.and.(nud_t.ne.0.or.nud_p.ne.0)))
       ! winds
       ! read for nested=0 or nested=1.and.nud_uv.ne.0
@@ -807,6 +812,9 @@ c       incorporate other target land mask effects
         enddo  ! k loop
         call vertint(u_k ,u(1:ifull,:), 3,kk,sigin)
         call vertint(v_k ,v(1:ifull,:), 4,kk,sigin)
+      else
+        u=0.
+	v=0.
       end if ! (nested==0.or.(nested==1.and.nud_uv.ne.0))
       ! mixing ratio
       ! read for nested=0 or nested=1.and.nud_q.ne.0
@@ -828,11 +836,13 @@ c       incorporate other target land mask effects
           endif ! myid==0
         enddo  ! k loop
         call vertint(qg_k,qg(1:ifull,:),2,kk,sigin)
+      else
+        qg=qgmin
       end if ! (nested==0.or.(nested==1.and.nud_q.ne.0))
 
       ! re-grid surface pressure by mapping to MSLP, interpolating and then map to surface pressure
       ! requires psl_a, zss, zss_a, t and t_a_lev
-      if (nested==0.or.(nested==1.and.nud_p.ne.0)) then
+      if (nested==0.or.(nested==1.and.nud_test.ne.0)) then
         if (iotest) then
           if (myid==0) then
             call ccmpi_distribute(psl,psl_a)
@@ -851,6 +861,8 @@ c       incorporate other target land mask effects
 !         invert pmsl to get psl
           call to_pslx(pmsl,psl,zss,t(:,lev),ifull,lev)  ! on target grid
         end if ! iotest
+      else
+        psl=0.
       end if
 
 
@@ -1257,6 +1269,22 @@ c       incorporate other target land mask effects
           end do
         end if
         !--------------------------------------------------
+
+        ! GEOPOTENTIAL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ! only for restart - no interpolation
+        do k=1,kk 
+         ucc=-999. ! dummy for qp
+         call histrd4s(ncid,iarchi,ier,'zg',ik,6*ik,k,ucc,
+     &                 6*ik*ik)
+         if (iotest) then
+           if (myid==0) then
+             call ccmpi_distribute(u_k(:,k),ucc)
+           else
+             call ccmpi_distribute(u_k(:,k))
+           end if
+         end if ! iotest
+        enddo  ! k loop
+        if (kk.eq.kl) phi=u_k
         
         ! CLOUD FROZEN WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         do k=1,kk 

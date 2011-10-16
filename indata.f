@@ -19,6 +19,7 @@
       use map_m                                ! Grid map arrays
       use mlo                                  ! Ocean physics and prognostic arrays
       use morepbl_m                            ! Additional boundary layer diagnostics
+      use nharrs_m                             ! Non-hydrostatic atmosphere arrays
       use nsibd_m                              ! Land-surface arrays
       use pbl_m                                ! Boundary layer arrays
       use physical_constants, only : umin      ! CABLE physical constants
@@ -152,6 +153,7 @@
       land(:)=.false.
       kdate=kdate_s
       ktime=ktime_s
+      phi=-999.
 
 
       !--------------------------------------------------------------
@@ -565,7 +567,7 @@
         if (abs(io_in)==1) then
           call onthefly(0,kdate,ktime,psl(1:ifull),zss,tss,sicedep,
      &         fracice,t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
-     &         qg(1:ifull,:),tgg,wb,wbice,snowd,qfg(1:ifull,:),
+     &         qg(1:ifull,:),tgg,wb,wbice,snowd,phi,qfg(1:ifull,:),
      &         qlg(1:ifull,:),tggsn,smass,ssdn,ssdnn,snage,isflag,
      &         iaero,mlodwn,ocndwn)
         endif   ! (abs(io_in)==1)
@@ -1089,7 +1091,7 @@
         end if
         call onthefly(2,kdate,ktime,duma,duma,duma,duma,
      &       duma,dumb,dumb,dumb,
-     &       dumb,tgg,wb,wbice,snowd,dumb,
+     &       dumb,tgg,wb,wbice,snowd,dumb,dumb,
      &       dumb,tggsn,smass,ssdn,ssdnn,snage,isflag,
      &       iaero,mlodwn,ocndwn)
          if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)then
@@ -1435,6 +1437,15 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
 
       !-----------------------------------------------------------------
       ! UPDATE GENERAL MODEL VARIABLES
+
+      ! geopotential
+      if (all(phi.lt.0.)) then
+        phi(:,1)=zs(:)+bet(1)*t(:,1) 
+        do k=2,kl
+          phi(:,k)=phi(:,k-1)+bet(k)*t(:,k)
+     &                    +betm(k)*t(:,k-1)
+        enddo
+      end if
 
       ! snow, orography and roughness length
       osnowd(:) = snowd(:)

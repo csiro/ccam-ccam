@@ -1684,7 +1684,7 @@
         fbeam_ave(:)=0.
         psl_ave(:)=0.
         mixdep_ave(:)=0.
-        if (myid==0) print *,'resetting tscr_ave for ktau = ',ktau
+        if (myid==0) write(6,*) 'resetting tscr_ave for ktau = ',ktau
         koundiag=0
         sint_ave(:) = 0.
         sot_ave(:)  = 0.
@@ -1706,9 +1706,7 @@
         precc(:)=0.   ! converted to mm/day in outcdf
         sno(:)=0.     ! converted to mm/day in outcdf
         runoff(:)=0.  ! converted to mm/day in outcdf
-        if (ngas.gt.0) then
-          traver=0.
-        end if
+        if (ngas.gt.0) traver=0.
       endif  ! (mod(ktau,nperavg)==0)
 
       if(mod(ktau,nperday)==0)then   ! re-set at the end of each 24 hours
@@ -1718,7 +1716,7 @@
            i=istn(nn)
            j=jstn(nn)
            iq=i+(j-1)*il
-           print 956,ktau,iunp(nn),name_stn(nn),
+           write(6,956) ktau,iunp(nn),name_stn(nn),
      &      rnd_3hr(iq,4),rnd_3hr(iq,8),                  ! 12 hr & 24 hr
      &      tmaxscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,
      &      tminscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,

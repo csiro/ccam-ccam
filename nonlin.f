@@ -14,7 +14,7 @@
       use savuvt_m
       use sigs_m
       use tbar2d_m
-      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
+      use tkeeps, only : tke,eps,tkesav,epssav
       use tracers_m
       use unn_m
       use vecsuv_m
@@ -34,7 +34,7 @@
       include 'mpif.h'
       real aa(ifull,kl),bb(ifull,kl)
       real p(ifull+iextra,kl),phiv(ifull+iextra,kl),tv(ifull+iextra,kl)
-      real ddpds(ifull,kl) ! MJT nh
+      real ddpds(ifull,kl)
       integer iq, k, ng, ii, jj, its, nits, nvadh_pass, iaero
       real const_nh, contv, delneg, delpos, ratio
       real sumdiffb, sdmx, sdmx_g, spmax2,termlin
@@ -257,7 +257,8 @@ cx      enddo      ! k  loop
         enddo   ! iq loop
       endif     ! (ntbar==-4)
       
-      if(ktau==1.or.nh==0)then
+      ! now phi is loaded in onthefly.f for nh.ne.0
+      if(nh==0)then
         phi(:,1)=zs(1:ifull)+bet(1)*t(1:ifull,1) 
         do k=2,kl
          phi(:,k)=phi(:,k-1)+bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1)

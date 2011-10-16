@@ -33,7 +33,7 @@ c
       include 'netcdf.inc'   ! MJT radiation
       include 'mpif.h'       ! MJT read
       integer, intent(in) :: jyear,jmonth
-      integer nlev,i,k,ierr
+      integer nlev,i,l,k,ierr
       integer ncstatus,ncid,tt
       integer valident,yy,mm,iti,nn
       integer, dimension(4) :: spos,npos
@@ -123,6 +123,18 @@ c
           call ncmsg('next',ncstatus)
           ncstatus=nf_close(ncid)
           call ncmsg('ozone file',ncstatus)
+          ! Here we fix missing values by filling down
+          ! If we try to neglect these values in the
+          ! vertical column integration, then block
+          ! artifacts are apparent
+          write(6,*) "Fix missing values in ozone"
+          do l=1,3
+            do k=kk-1,1,-1
+              where (o3dum(:,:,k,l).gt.1.E34)
+                o3dum(:,:,k,l)=o3dum(:,:,k+1,l)
+              end where
+            end do
+          end do
         else
           write(6,*) "Ozone in ASCII format (CMIP3)"
           ii=0
@@ -162,11 +174,11 @@ c         o3dat are in the order DJF, MAM, JJA, SON
       if (ii.gt.0) then
         call MPI_Bcast(jj,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
         call MPI_Bcast(kk,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-        allocate(o3pre(ifull,kk),o3mth(ifull,kk),o3nxt(ifull,kk))
         if (myid.ne.0) then
           allocate(o3lon(ii),o3lat(jj),o3pres(kk))
           allocate(o3dum(ii,jj,kk,3))
         end if
+        allocate(o3pre(ifull,kk),o3mth(ifull,kk),o3nxt(ifull,kk))
         call MPI_Bcast(o3dum,ii*jj*kk*3,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         call MPI_Bcast(o3lon,ii,MPI_REAL,0,MPI_COMM_WORLD,ierr)
         call MPI_Bcast(o3lat,jj,MPI_REAL,0,MPI_COMM_WORLD,ierr)
@@ -278,7 +290,7 @@ c
       include 'dates.h'
       
       integer, intent(in) :: ipts,ilev,nlon,nlat,nlev,mins
-      integer date,j,ip,m,k1,leap,jyear,jmonth
+      integer date,iq,ip,m,k1,leap,jyear,jmonth
       real, dimension(ipts,ilev), intent(out) :: out
       real, dimension(ipts,nlev), intent(in) :: fpre,fmth,fnxt
       real, dimension(nlev), intent(in) :: fpres
@@ -314,21 +326,21 @@ c
         write(6,*) "WARN: fieldinterpolation is outside input range"
       end if
       
-      do j=1,ipts
+      do iq=1,ipts
 
         if (rang.le.1.) then
           ! temporal interpolation (PWCB)
-          o3tmp(:,1)=fpre(j,:)
-          o3tmp(:,2)=fmth(j,:)+o3tmp(:,1)
-          o3tmp(:,3)=fnxt(j,:)+o3tmp(:,2)
+          o3tmp(:,1)=fpre(iq,:)
+          o3tmp(:,2)=fmth(iq,:)+o3tmp(:,1)
+          o3tmp(:,3)=fnxt(iq,:)+o3tmp(:,2)
           b=0.5*o3tmp(:,2)
           c=4.*o3tmp(:,2)-5.*o3tmp(:,1)-o3tmp(:,3)
           d=1.5*o3tmp(:,3)+4.5*o3tmp(:,1)-4.5*o3tmp(:,2)
           o3inp=b+c*rang+d*rang*rang
         else
           ! linear interpolation when rang is out-of-range
-          o3inp=max(3.-2.*rang,0.)*0.5*(fmth(j,:)+fnxt(j,:))
-     &         +min(2.*rang-2.,1.)*fnxt(j,:)
+          o3inp=max(3.-2.*rang,0.)*0.5*(fmth(iq,:)+fnxt(iq,:))
+     &         +min(2.*rang-2.,1.)*fnxt(iq,:)
         end if
          
         !-----------------------------------------------------------
@@ -339,24 +351,27 @@ c
           do m=nlev-1,1,-1
             if (o3inp(m).gt.1.E34) o3inp(m)=o3inp(m+1)
           end do
-          prf=0.01*ps(j)*sig
+          prf=0.01*ps(iq)*sig
           do m=1,ilev
             if (prf(m).gt.fpres(1)) then
-              out(j,ilev-m+1)=o3inp(1)
+              out(iq,ilev-m+1)=o3inp(1)
             elseif (prf(m).lt.fpres(nlev)) then
-              out(j,ilev-m+1)=o3inp(nlev)
+              out(iq,ilev-m+1)=o3inp(nlev)
             else
               do k1=2,nlev
                 if (prf(m).gt.fpres(k1)) exit
               end do
               fp=(prf(m)-fpres(k1))/(fpres(k1-1)-fpres(k1))
-              out(j,ilev-m+1)=(1.-fp)*o3inp(k1)+fp*o3inp(k1-1)
+              out(iq,ilev-m+1)=(1.-fp)*o3inp(k1)+fp*o3inp(k1-1)
             end if
           end do
         !-----------------------------------------------------------
         else
         !-----------------------------------------------------------
         ! Approximate integral of ozone column
+
+          ! pressure levels on CCAM grid
+          prf=0.01*ps(iq)*sig
          
           ! calculate total column of ozone
           o3sum=0.
@@ -371,12 +386,11 @@ c
           if (o3inp(1).gt.1.E34) then
             o3sum(1)=o3sum(2)
           else
-            o3sum(1)=o3sum(2)+o3inp(1)*(max(fpres(1),ps(j))
+            o3sum(1)=o3sum(2)+o3inp(1)*(fpres(1)+ps(iq)-prf(1)
      &               -0.5*sum(fpres(1:2)))
           end if
         
          ! vertical interpolation
-          prf=0.01*ps(j)*sig
           o3new=0.
           do m=1,ilev
             if (prf(m).gt.fpres(1)) then
@@ -393,14 +407,13 @@ c
           end do        
          
           ! output ozone (invert levels)
-          out(j,ilev)=(o3sum(1)-o3new(2))/(max(fpres(1),ps(j))
-     &                 -0.5*sum(prf(1:2)))
+          out(iq,ilev)=(o3sum(1)-o3new(2))/(ps(iq)-0.5*sum(prf(1:2)))
           do m=2,ilev-1
-            out(j,ilev-m+1)=2.*(o3new(m)-o3new(m+1))
+            out(iq,ilev-m+1)=2.*(o3new(m)-o3new(m+1))
      &                        /(prf(m-1)-prf(m+1))
           end do
-          out(j,1)=2.*o3new(ilev)/sum(prf(ilev-1:ilev))
-          out(j,:)=max(out(j,:),0.)
+          out(iq,1)=2.*o3new(ilev)/sum(prf(ilev-1:ilev))
+          out(iq,:)=max(out(iq,:),0.)
         end if
         !-----------------------------------------------------------
       end do
@@ -426,7 +439,7 @@ c
       real, dimension(nlev) :: o3tmp,b,c,d
       real, dimension(ifull) :: blon,blat
       real alonx,lonadj,serlon,serlat
-      integer j,l,ilon,ilat,ip
+      integer iq,l,ilon,ilat,ip
 
       blon=rlongg*180./pi
       where (blon.lt.0.)
@@ -434,9 +447,9 @@ c
       end where
       blat=rlatt*180./pi
 
-      do j=1,ifull
+      do iq=1,ifull
         
-        alonx=blon(j)
+        alonx=blon(iq)
         if (alonx.lt.o3lon(1)) then
           alonx=alonx+360.
           ilon=nlon
@@ -453,17 +466,17 @@ c
         end if
         serlon=(alonx-o3lon(ilon))/(o3lon(ip)+lonadj-o3lon(ilon))
 
-        if (blat(j).lt.o3lat(1)) then
+        if (blat(iq).lt.o3lat(1)) then
           ilat=1
           serlat=0.
-        else if (blat(j).gt.o3lat(nlat)) then
+        else if (blat(iq).gt.o3lat(nlat)) then
           ilat=nlat-1
           serlat=1.
         else
           do ilat=1,nlat-1
-            if (o3lat(ilat+1).gt.blat(j)) exit
+            if (o3lat(ilat+1).gt.blat(iq)) exit
           end do
-          serlat=(blat(j)-o3lat(ilat))/(o3lat(ilat+1)-o3lat(ilat))  
+          serlat=(blat(iq)-o3lat(ilat))/(o3lat(ilat+1)-o3lat(ilat))  
         end if
 
         ! spatial interpolation
@@ -483,21 +496,21 @@ c
              
           select case(l)
             case(1)
-              o3pre(j,:)=o3tmp(:)
+              o3pre(iq,:)=o3tmp(:)
             case(2)
-              o3mth(j,:)=o3tmp(:)
+              o3mth(iq,:)=o3tmp(:)
             case(3)
-              o3nxt(j,:)=o3tmp(:)
+              o3nxt(iq,:)=o3tmp(:)
           end select
         
         end do
 
         ! avoid interpolating missing values
-        where (o3pre(j,:).gt.1.E34.or.o3mth(j,:).gt.1.E34
-     &     .or.o3nxt(j,:).gt.1.E34)
-          o3pre(j,:)=1.E35
-          o3mth(j,:)=1.E35
-          o3nxt(j,:)=1.E35
+        where (o3pre(iq,:).gt.1.E34.or.o3mth(iq,:).gt.1.E34
+     &     .or.o3nxt(iq,:).gt.1.E34)
+          o3pre(iq,:)=1.E35
+          o3mth(iq,:)=1.E35
+          o3nxt(iq,:)=1.E35
         end where
 
       end do

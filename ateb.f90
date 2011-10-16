@@ -22,11 +22,12 @@
 !     call atebalb1(split=1) ! returns urban albedo for direct component of shortwave radiation
 !     call atebalb1(split=2) ! returns urban albedo for diffuse component of shortwave radiation
 !     ...
-!     call atebfbeam         ! store fraction of direct shortwave radiation
-!     call atebalb1          ! returns net urban albedo
+!     call atebfbeam         ! store fraction of direct shortwave radiation (or use atebspitter to estimate fraction)
+!     call atebalb1          ! returns net urban albedo (i.e., default split=0)
 !     ...
 !     call atebcalc          ! calculates urban temperatures, fluxes, etc and blends with input
-!     call atebcd            ! returns urban drag coefficent (use atebzo for roughness length)
+!     call atebcd            ! returns urban drag coefficent (or use atebzo for roughness length)
+!     call atebscrnout       ! returns screen level diagnostics
 !     ...
 !   end do
 !   ...
@@ -34,6 +35,17 @@
 !   call atebend      ! to deallocate memory before quiting
 
 ! only atebinit and atebcalc are manditory.  All other subroutine calls are optional.
+
+
+! DEPENDICES:
+
+! atebalb1(split=1)                   depends on     atebnewangle1 (or atebccangle)
+! atebalb1(split=2)                   depends on     atebnewangle1 (or atebccangle)
+! atebalb1 (i.e., default split=0)    depends on     atebnewangle1 (or atebccangle) and atebfbeam (or atebspitter)
+! atebcalc                            depends on     atebnewangle1 (or atebccangle) and atebfbeam (or atebspitter)  
+! atebcd (or atebzo)                  depends on     atebcalc
+! atebscrnout                         depends on     atebcalc
+
 
 ! URBAN TYPES:
  
@@ -690,8 +702,7 @@ end subroutine atebfbeam
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Use Spitter et al (1986) method to estimate fraction of direct
-! shortwave radiation.
-! (from CABLE v1.4)
+! shortwave radiation (from CABLE v1.4)
 !
 
 subroutine atebspitter(is,ifin,fjd,sg,cosin,diag)
@@ -753,12 +764,12 @@ integer, intent(in), optional :: split
 real, dimension(ifin), intent(inout) :: alb
 real, dimension(ufull) :: ualb,utmp
 logical, intent(in), optional :: raw
-logical mode
+logical outmode
 
 if (ufull.eq.0) return
 
-mode=.false.
-if (present(raw)) mode=raw
+outmode=.false.
+if (present(raw)) outmode=raw
 
 albmode=0
 if (present(split)) albmode=split
@@ -771,7 +782,7 @@ ib=count(upack(1:is-1))+1
 ie=ucount+ib-1
 call atebalbcalc(ib,ucount,ualb(ib:ie),albmode,diag)
 
-if (mode) then
+if (outmode) then
   alb=unpack(ualb(ib:ie),upack(is:ifinish),alb)
 else
   utmp(ib:ie)=pack(alb,upack(is:ifinish))
@@ -1721,15 +1732,11 @@ end do
 
 if (any(f_sigmaveg.gt.0.)) then ! in-canyon vegetation
   ! calculate water for canyon surfaces
-  n=max(a_rnd-max(d_evap/lv,0.)-max(maxvgwater-v_water,0.)/ddt,0.) ! rainfall reaching the soil under vegetation
-  ! note that since sigmaf=1, then there is no soil evaporation, only transpiration.  Evaporation only occurs from water on leaves.
-  a=n+rdsnmelt*rd_den/waterden-d_tran/lv ! flux
-  v_moist=v_moist+a/(waterden*d_totdepth/ddt-(d_dc1*a-d_c1*d_dtran/lv))
-  where (v_water.gt.0.)
-    v_water=v_water+(a_rnd-d_evap/lv)/(1./ddt+2.*d_evap/(3.*lv*v_water))
-  elsewhere
-    v_water=v_water+ddt*(a_rnd-d_evap/lv)
-  end where
+  n=max(a_rnd-d_evap/lv-max(maxvgwater-v_water,0.)/ddt,0.) ! rainfall reaching the soil under vegetation
+  ! note that since sigmaf=1, then there is no soil evaporation, only transpiration.  Evaporation only occurs from water on leafs.
+  v_moist=v_moist+ddt*(n+rdsnmelt*rd_den/waterden-d_tran/lv)/(waterden*d_totdepth) ! soil
+  v_water=v_water+ddt*(a_rnd-d_evap/lv)                                            ! leafs
+  v_water=min(max(v_water,0.),maxvgwater)
   if (wbrelax.eq.1) then
     ! increase soil moisture for irrigation 
     v_moist=v_moist+max(0.75*swilt+0.25*sfc-v_moist,0.)/(86400./ddt+1.) ! 24h e-fold time
@@ -1738,42 +1745,16 @@ else
   v_moist=swilt
   v_water=0.
 end if
-where (rf_water.gt.0.)
-  rf_water=rf_water+(a_rnd-eg_roof/lv+rfsnmelt)/(1./ddt+2.*eg_roof/(3.*lv*rf_water))
-elsewhere
-  rf_water=rf_water+ddt*(a_rnd-eg_roof/lv+rfsnmelt)
-end where
-where (rd_water.gt.0.)
-  rd_water=rd_water+(a_rnd-eg_road/lv+rdsnmelt)/(1./ddt+2.*eg_road/(3.*lv*rd_water))
-elsewhere
-  rd_water=rd_water+ddt*(a_rnd-eg_road/lv+rdsnmelt)
-end where
+rf_water=rf_water+ddt*(a_rnd-eg_roof/lv+rfsnmelt)
+rd_water=rd_water+ddt*(a_rnd-eg_road/lv+rdsnmelt)
 
 ! calculate snow
-where (rf_snow.gt.0.)
-  rf_snow=rf_snow+(a_snd-eg_rfsn/lv-rfsnmelt)/ &
-    (1./ddt+maxrfsn/((rf_snow+maxrfsn)**2)*(eg_rfsn/lv+rfsnmelt)/d_rfsndelta)
-elsewhere
-  rf_snow=rf_snow+ddt*(a_snd-eg_rfsn/lv-rfsnmelt)
-end where
-where (rd_snow.gt.0.)
-  rd_snow=rd_snow+(a_snd-eg_rdsn/lv-rdsnmelt)/ &
-    (1./ddt+maxrdsn/((rd_snow+maxrdsn)**2)*(eg_rdsn/lv+rdsnmelt)/d_rdsndelta)
-elsewhere
-  rd_snow=rd_snow+ddt*(a_snd-eg_rdsn/lv-rdsnmelt)
-end where
+rf_snow=rf_snow+ddt*(a_snd-eg_rfsn/lv-rfsnmelt)
+rd_snow=rd_snow+ddt*(a_snd-eg_rdsn/lv-rdsnmelt)
 rf_den=rf_den+(maxsnowden-rf_den)/(0.24/(86400.*ddt)+1.)
 rd_den=rd_den+(maxsnowden-rd_den)/(0.24/(86400.*ddt)+1.)
-where (rfsntemp.lt.273.16)
-  rf_alpha=rf_alpha+ddt*(-0.008/86400.)
-elsewhere
-  rf_alpha=rf_alpha+(minsnowalpha-rf_alpha)/(0.24/(86400.*ddt)+1.)
-end where
-where (rdsntemp.lt.273.16)
-  rd_alpha=rd_alpha+ddt*(-0.008/86400.)
-elsewhere
-  rd_alpha=rd_alpha+(minsnowalpha-rd_alpha)/(0.24/(86400.*ddt)+1.)
-end where
+rf_alpha=rf_alpha+(minsnowalpha-rf_alpha)/(0.24/(86400.*ddt)+1.)
+rd_alpha=rd_alpha+(minsnowalpha-rd_alpha)/(0.24/(86400.*ddt)+1.)
 
 ! calculate runoff (v_water runoff already accounted for in precip reaching canyon floor)
 u_rn=0.
@@ -1793,7 +1774,6 @@ end do
 v_moist=min(max(v_moist,swilt),ssat)
 rf_water=min(max(rf_water,0.),maxrfwater)
 rd_water=min(max(rd_water,0.),maxrdwater)
-v_water=min(max(v_water,0.),maxvgwater)
 rf_snow=min(max(rf_snow,0.),maxrfsn)
 rd_snow=min(max(rd_snow,0.),maxrdsn)
 rf_den=min(max(rf_den,minsnowden),maxsnowden)
