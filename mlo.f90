@@ -1756,7 +1756,7 @@ niralb=p_waternirdiralb*a_fbnir+p_waternirdifalb*(1.-a_fbnir)
 alb=a_vnratio*visalb+(1.-a_vnratio)*niralb
 flux=-p_fg-p_eg+a_rg-sbconst*w_temp(:,1)**4+(1.-alb)*a_sg
 bot=4.*sbconst*w_temp(:,1)**3+rho*vmag*(aft*fh*cp+afq*fq*lv*dqdt)
-newt=w_temp(:,1)+dt*flux/(d_rho(:,1)*cp0*depth_hl(:,wlev+1)*d_zcr/dt+bot) ! replace dz with full depth for this approximation
+newt=w_temp(:,1)+flux/(d_rho(:,1)*cp0*depth_hl(:,wlev+1)*d_zcr/dt+bot) ! replace dz with full depth for this approximation
 call getqsat(newqsat,dqdt,newt,a_ps)
 if (zomode.eq.0) newqsat=0.98*newqsat ! with Zeng 1998 for sea water
 rho=a_ps/(rdry*newt)
@@ -1799,8 +1799,8 @@ vmag=sqrt(atu*atu+atv*atv)
 vmagn=max(vmag,0.2)
 p_fg=rho*aft*cp*fh*vmag*(newt-a_temp/srcp)
 p_eg=rho*afq*lv*fq*vmag*(newqsat-a_qg)
-d_taux=rho*p_cd*vmag*atu
-d_tauy=rho*p_cd*vmag*atv
+d_taux=rho*p_cd*vmagn*atu
+d_tauy=rho*p_cd*vmagn*atv
 
 ! turn off lake evaporation when minimum depth is reached
 ! fg should be replaced with bare ground value

@@ -1440,6 +1440,9 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
 
       ! geopotential
       if (all(phi.lt.0.)) then
+        if (myid==0) then
+          write(6,*) "Use HS approximation to initalise geopotential"
+        end if
         phi(:,1)=zs(:)+bet(1)*t(:,1) 
         do k=2,kl
           phi(:,k)=phi(:,k-1)+bet(k)*t(:,k)
@@ -1713,12 +1716,15 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         call loadtile
       elseif (nsib==5) then
         ! MODIS input with standard surface scheme
+	if (myid==0) write(6,*) 'Update biosphere data for nsib=5'
+	sigmf=0.
         where (land)
           sigmf(:)=max(0.01,min(0.98,1.-exp(-0.4*vlai(:))))
-          tsigmf(:)=sigmf(:)
         end where
+        tsigmf(:)=sigmf(:)
       else
         ! usual input with standard surface scheme
+	if (myid==0) write(6,*) 'Update biosphere data for nsib=3'
         do iq=1,ifull
          if(land(iq))then
            isoil = isoilm(iq)

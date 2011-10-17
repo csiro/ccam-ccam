@@ -19,6 +19,7 @@ integer, intent(in) :: ifull,iextra,kl
 allocate(condx(ifull),fg(ifull),eg(ifull),epot(ifull))
 allocate(condc(ifull),rnet(ifull),pblh(ifull),epan(ifull))
 allocate(tpan(ifull))
+pblh=1000.
 
 return
 end subroutine morepbl_init
