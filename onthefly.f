@@ -395,7 +395,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
         if (myid==0) then
           isoilm_a=nint(t_a)
         end if
-        if (nmlo.ne.0) then
+        if (nmlo.ne.0.and.abs(nmlo).le.9) then
           if (.not.allocated(ocndep_l)) allocate(ocndep_l(ifull))
           t_a=0.
           call histrd1(ncid,iarchi,ier,'ocndepth',ik,6*ik,t_a,
@@ -424,7 +424,8 @@ c**   onthefly; sometime can get rid of common/bigxy4
         write(6,*) "ERROR: sigin is undefined in onthefly"
         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
-      if (nmlo.ne.0.and..not.allocated(ocndep_l)) then
+      if (nmlo.ne.0.and.abs(nmlo).le.9
+     &    .and..not.allocated(ocndep_l)) then
         write(6,*) "ERROR: ocndep_l is undefined in onthefly"
         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
       end if
@@ -508,13 +509,13 @@ c**   onthefly; sometime can get rid of common/bigxy4
       !--------------------------------------------------------------
       ! Read ocean data for nudging (sea-ice is read below)
       ! read when nested=0 or nested==1.and.nud.ne.0 or nested=2
-      if (nmlo.ne.0) then
+      if (nmlo.ne.0.and.abs(nmlo).le.9) then
         ! fixed ocean depth
         ocndwn(:,1)=ocndep_l
         ! ocean potential temperature
         if (nested.ne.1.or.nud_sst.ne.0) then
           do k=1,wlev
-            t_a=max(tss_a,271.)
+            t_a=max(abs(tss_a),271.)
             if (k.le.ms) then
               write(vname,'("tgg",I1.1)') k
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
@@ -929,7 +930,7 @@ c       incorporate other target land mask effects
 
         !--------------------------------------------------
         ! Read MLO sea-ice data
-        if (nmlo.ne.0) then
+        if (nmlo.ne.0.and.abs(nmlo).le.9) then
           if (.not.allocated(micdwn)) allocate(micdwn(ifull,10))
           do k=1,8
             select case(k)
@@ -1004,7 +1005,7 @@ c       incorporate other target land mask effects
             allocate(watbdy(ifull+iextra))
             watbdy=0.
           end if
-          if (abs(nmlo).ge.2) then
+          if (abs(nmlo).ge.2.and.abs(nmlo).le.9) then
             t_a=0.
             call histrd1(ncid,iarchi,ier,'swater',ik,6*ik,t_a,
      &                   6*ik*ik)
@@ -1077,7 +1078,12 @@ c       incorporate other target land mask effects
             wb(iq,:)=(1.-wb(iq,:))*swilt(isoil)+wb(iq,:)*sfc(isoil)
           end do
           if (mydiag) write(6,*) "giving wb",wb(idjd,1)
-        end if  
+	else
+	  do k=1,ms
+	    wb(:,k)=max(wb(:,k),swilt(isoilm))
+	    wb(:,k)=min(wb(:,k),ssat(isoilm))
+	  end do
+        end if
 
         !--------------------------------------------------
         ! Read 10m wind speeds for special sea roughness length calculations
@@ -1272,6 +1278,8 @@ c       incorporate other target land mask effects
 
         ! GEOPOTENTIAL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ! only for restart - no interpolation
+        phi=-999.
+        u_k=-999.
         do k=1,kk 
          ucc=-999. ! dummy for qp
          call histrd4s(ncid,iarchi,ier,'zg',ik,6*ik,k,ucc,
@@ -1501,7 +1509,7 @@ c       incorporate other target land mask effects
           end if ! iotest
         end do
 
-        if (nmlo.eq.0.) then ! otherwise already read above
+        if (nmlo==0..and.abs(nmlo).le.9) then ! otherwise already read above
           tggsn_a(:,:)= 280.
           call histrd1(ncid,iarchi,ier,'tggsn1',ik,6*ik,tggsn_a(:,1),
      &                 6*ik*ik)
@@ -1645,7 +1653,7 @@ c       incorporate other target land mask effects
       endif    ! (nested.ne.1)
 
       ! tgg holds file surface temperature when no MLO
-      if (nmlo==0) then
+      if (nmlo==0.or.abs(nmlo).gt.9) then
         where (.not.land)
           tgg(:,1)=tss
         end where

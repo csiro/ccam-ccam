@@ -30,6 +30,7 @@ real, parameter :: csolar   = 1365        ! Solar constant in W/m^2
 real, parameter :: siglow   = 0.68        ! sigma level for top of low cloud (diagnostic)
 real, parameter :: sigmid   = 0.44        ! sigma level for top of medium cloud (diagnostic)
 real, parameter :: ratco2mw = 1.519449738 ! conversion factor for CO2 diagnostic
+integer, parameter :: fbeamcalc          = 0 ! (0=prognostic, 1=spitter)
 integer, parameter :: naermodels         = 37
 integer, parameter :: N_AEROSOL_BANDS_FR = 8
 integer, parameter :: N_AEROSOL_BANDS_CO = 1
@@ -76,6 +77,7 @@ implicit none
 
 include 'parm.h'
 include 'newmpar.h'
+include 'mpif.h'
 include 'kuocom.h'
 
 logical, intent(in) :: odcalc  ! True for full radiation calculation
@@ -83,12 +85,12 @@ integer, intent(in) :: imax,iaero
 integer jyear,jmonth,jday,jhour,jmin
 integer k,ksigtop,mins
 integer i,j,iq,istart,iend,kr
-integer swcount
+integer swcount,ierr
 integer, save :: nlow,nmid
 real, dimension(:), allocatable, save :: sgamp
 real, dimension(:,:), allocatable, save :: rtt
 real, dimension(imax) :: qsat,coszro2,taudar2,coszro,taudar
-real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn
+real, dimension(imax) :: sg,sint,sout,sgdn,rg,rt,rgdn,sgdnvis,sgdnnir
 real, dimension(imax) :: soutclr,sgclr,rtclr,rgclr,sga
 real, dimension(imax) :: sgvis,sgdnvisdir,sgdnvisdif,sgdnnirdir,sgdnnirdif
 real, dimension(imax) :: dprf,dumfbeam
@@ -134,7 +136,7 @@ sigh(kl+1) = 0.
 
 ! set-up standard pressure levels -----------------------------------
 pref(kl+1,1)=101325.
-pref(kl+1,2)=81060.
+pref(kl+1,2)=81060. !=0.8*pref(kl+1,1)
 do k=1,kl
   kr=kl+1-k
   pref(kr,:)=sig(k)*pref(kl+1,:)
@@ -369,7 +371,7 @@ if ( first ) then
       !allocate(Aerosol_diags%lw_absopdep_vlcno(imax,1,kl+1,2))
       write(6,*) "ERROR: Prescribed aerosol properties for"
       write(6,*) "volcanoes is currently unsupported"
-      stop
+      call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
     end if
 
   end if
@@ -400,13 +402,16 @@ Rad_time%ticks  =0
 
 if (ldr.eq.0) then
   write(6,*) "ERROR: SEA-ESF radiation requires ldr.ne.0"
-  stop
+  call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
 end if
 
 ! main loop ---------------------------------------------------------
 if(mod(ifull,imax).ne.0)then
+  ! imax should be automatically set-up in globpe.f
+  ! So an error here should indicate a bug in globpe.f
   write(6,*) 'nproc,il,jl,ifull,imax ',nproc,il,jl,ifull,imax
-  stop 'illegal setting of imax in rdparm'
+  write(6,*) 'illegal setting of imax in rdparm'
+  call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
 endif
 
 swcount=0
@@ -431,11 +436,11 @@ do j=1,jl,imax/il
     ! Set up ozone for this time and row
     if (amipo3) then
       call o3set_amip ( rlatt(istart:iend), imax, mins,sigh, ps(istart:iend), Rad_gases%qo3(:,1,:) )
-      Rad_gases%qo3(:,1,:)=max(1.e-10,Rad_gases%qo3(:,1,:))    ! July 2008
+      Rad_gases%qo3(:,1,:)=max(1.e-10,Rad_gases%qo3(:,1,:))
     else
       call o3set(rlatt(istart:iend),rlongg(istart:iend),imax,mins,duo3n,sig,ps(istart:iend))
       do k=1,kl
-        Rad_gases%qo3(:,1,k) = max(1.e-10,duo3n(1:imax,k))
+        Rad_gases%qo3(:,1,k) = duo3n(1:imax,k)
       end do
     end if
 
@@ -572,7 +577,7 @@ do j=1,jl,imax/il
         Aerosol%aerosol=max(Aerosol%aerosol,0.)
       case DEFAULT
         write(6,*) "ERROR: unknown iaero option ",iaero
-        stop
+        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
     end select
 
     ! define droplet size -------------------------------------------
@@ -613,16 +618,17 @@ do j=1,jl,imax/il
       Atmos_input%pflux(:,1,k) = 0.5*(Atmos_input%press(:,1,k-1)+Atmos_input%press(:,1,k))
       Atmos_input%tflux(:,1,k) = 0.5*(Atmos_input%temp (:,1,k-1)+Atmos_input%temp (:,1,k))
     end do
-    Atmos_input%pflux(:,1,kl+1) = Atmos_input%press(:,1,kl+1)
-    Atmos_input%tflux(:,1,kl+1) = Atmos_input%temp (:,1,kl+1)
+    Atmos_input%pflux(:,1,kl+1) = ps(istart:iend)
+    Atmos_input%tflux(:,1,kl+1) = tss(istart:iend)
     Atmos_input%clouddeltaz     = Atmos_input%deltaz        
 
     Atmos_input%psfc(:,1)    =ps(istart:iend)
     Atmos_input%tsfc(:,1)    =tss(istart:iend)
-    do k=1,kl+1
-      kr=kl+2-k
-      Atmos_input%phalf(:,1,kr)=ps(istart:iend)*sigh(k)
+    Atmos_input%phalf(:,1,1) =0.
+    do k=2,kl
+      Atmos_input%phalf(:,1,k)=0.5*(Atmos_input%press(:,1,k-1)+Atmos_input%press(:,1,k))
     end do
+    Atmos_input%phalf(:,1,kl+1)=ps(istart:iend)
 
     if (do_aerosol_forcing) then
       Atmos_input%aerosolrelhum=Atmos_input%rel_hum
@@ -741,8 +747,11 @@ do j=1,jl,imax/il
     call start_log(radmisc_begin)
 
     ! store shortwave and fbeam data --------------------------------
-    sg=Sw_output(1)%dfsw(:,1,kl+1)-Sw_output(1)%ufsw(:,1,kl+1)
-    sgvis=Sw_output(1)%dfsw_vis_sfc(:,1)-Sw_output(1)%ufsw_vis_sfc(:,1)
+    sgdn=Sw_output(1)%dfsw(:,1,kl+1)
+    sgdnvis=Sw_output(1)%dfsw_vis_sfc(:,1)
+    sgdnnir=sgdn-sgdnvis
+    sg=sgdn-Sw_output(1)%ufsw(:,1,kl+1)
+    sgvis=sgdnvis-Sw_output(1)%ufsw_vis_sfc(:,1)
     !sgvisdir=Sw_output(1)%dfsw_vis_sfc_dir(:,1)
     !sgvisdif=Sw_output(1)%dfsw_vis_sfc_dif(:,1)-Sw_output(1)%ufsw_vis_sfc_dif(:,1)
     !sgnirdir=Sw_output(1)%dfsw_dir_sfc(:,1)-sgvisdir
@@ -754,25 +763,30 @@ do j=1,jl,imax/il
     sgdnnirdir=Sw_output(1)%dfsw_dir_sfc(:,1)-sgdnvisdir
     sgdnnirdif=Sw_output(1)%dfsw_dif_sfc(:,1)-sgdnvisdif
     
-    where (sg.gt.0.1)
-      swrsave(istart:iend)=sgvis/sg
+    where (sgdn.gt.0.1)
+      swrsave(istart:iend)=sgdnvis/sgdn
     elsewhere
       swrsave(istart:iend)=0.5
     end where
-    where (sgdnvisdir+sgdnvisdif.gt.0.1)
-      fbeamvis(istart:iend)=sgdnvisdir/(sgdnvisdir+sgdnvisdif)
-    elsewhere
-      fbeamvis(istart:iend)=0.5
-    end where
-    where (sgdnnirdir+sgdnnirdif.gt.0.1)
-      fbeamnir(istart:iend)=sgdnnirdir/(sgdnnirdir+sgdnnirdif)
-    elsewhere
-      fbeamnir(istart:iend)=0.5
-    end where
+    if (fbeamcalc.eq.0) then
+      where (sgdnvis.gt.0.1)
+        fbeamvis(istart:iend)=sgdnvisdir/sgdnvis
+      elsewhere
+        fbeamvis(istart:iend)=0.5
+      end where
+      where (sgdnnir.gt.0.1)
+        fbeamnir(istart:iend)=sgdnnirdir/sgdnnir
+      elsewhere
+        fbeamnir(istart:iend)=0.5
+      end where
+    else
+      call spitter(imax,fjd,coszro,sgdn,fbeamvis(istart:iend))
+      fbeamnir(istart:iend)=fbeamvis(istart:iend)
+    end if
     
     ! Store albedo data ---------------------------------------------
-    albvisnir(istart:iend,1)=cuvrf_dir(1:imax)*fbeamvis(istart:iend)+cuvrf_dif(1:imax)*(1.-fbeamvis(istart:iend))
-    albvisnir(istart:iend,2)=cirrf_dir(1:imax)*fbeamnir(istart:iend)+cirrf_dif(1:imax)*(1.-fbeamnir(istart:iend))
+    albvisnir(istart:iend,1)=Surface%asfc_vis_dir(:,1)*fbeamvis(istart:iend)+Surface%asfc_vis_dif(:,1)*(1.-fbeamvis(istart:iend))
+    albvisnir(istart:iend,2)=Surface%asfc_nir_dir(:,1)*fbeamnir(istart:iend)+Surface%asfc_nir_dif(:,1)*(1.-fbeamnir(istart:iend))
     
     ! longwave output -----------------------------------------------
     rg(1:imax) = Lw_output(1)%flxnet(:,1,kl+1)          ! longwave at surface
@@ -783,8 +797,8 @@ do j=1,jl,imax/il
     ! shortwave output ----------------------------------------------
     sint(1:imax) = Sw_output(1)%dfsw(:,1,1)   ! solar in top
     sout(1:imax) = Sw_output(1)%ufsw(:,1,1)   ! solar out top
-    sgdn(1:imax) = sg(1:imax) / ( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
-                  -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) ) ! MJT albedo
+    !sgdn(1:imax) = sg(1:imax) / ( 1. - swrsave(istart:iend)*albvisnir(istart:iend,1) &
+    !              -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2) )
 
     ! Clear sky calculation -----------------------------------------
     if (do_totcld_forcing) then
@@ -1256,7 +1270,7 @@ if (myid==0) then
   open(unit,file=filename,iostat=ierr,status='old')
   if (ierr.ne.0) then
     write(6,*) "ERROR: Cannot open ",trim(filename)
-    stop
+    call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
   end if
   write(6,*) "Loading aerosol optical properties"
 

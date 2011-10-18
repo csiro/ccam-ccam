@@ -1743,25 +1743,18 @@ p_cdq=afq*fq
 ! first estimate of fluxes
 p_fg=rho*aft*cp*fh*vmag*(w_temp(:,1)-a_temp/srcp)
 p_eg=rho*afq*lv*fq*vmag*(qsat-a_qg)
-d_taux=rho*p_cd*vmag*atu
-d_tauy=rho*p_cd*vmag*atv
-
-! simple estimate of t at tau+1
-! here we probably should use the mixing depth to estimate the state
-! varibles at tau+1.  However, mixing depth is not defined at this
-! point and the overestimate with total depth just makes the scheme
-! more explicit.
 visalb=p_watervisdiralb*a_fbvis+p_watervisdifalb*(1.-a_fbvis)
 niralb=p_waternirdiralb*a_fbnir+p_waternirdifalb*(1.-a_fbnir)
 alb=a_vnratio*visalb+(1.-a_vnratio)*niralb
 flux=-p_fg-p_eg+a_rg-sbconst*w_temp(:,1)**4+(1.-alb)*a_sg
 bot=4.*sbconst*w_temp(:,1)**3+rho*vmag*(aft*fh*cp+afq*fq*lv*dqdt)
-newt=w_temp(:,1)+flux/(d_rho(:,1)*cp0*depth_hl(:,wlev+1)*d_zcr/dt+bot) ! replace dz with full depth for this approximation
-call getqsat(newqsat,dqdt,newt,a_ps)
-if (zomode.eq.0) newqsat=0.98*newqsat ! with Zeng 1998 for sea water
-rho=a_ps/(rdry*newt)
 
 ! simple estimate of u and v at tau+1
+! here we probably should use the mixing depth to estimate the state
+! varibles at tau+1.  However, mixing depth is not defined at this
+! point and the overestimate with total depth just makes the scheme
+! more explicit.
+
 ! iterative method to estimate water current after stress tensors are applied
 newu=w_u(:,1)
 newv=w_v(:,1)
@@ -1797,10 +1790,15 @@ atu=a_u-newu
 atv=a_v-newv
 vmag=sqrt(atu*atu+atv*atv)
 vmagn=max(vmag,0.2)
-p_fg=rho*aft*cp*fh*vmag*(newt-a_temp/srcp)
-p_eg=rho*afq*lv*fq*vmag*(newqsat-a_qg)
 d_taux=rho*p_cd*vmagn*atu
 d_tauy=rho*p_cd*vmagn*atv
+
+! simple estimate of t at tau+1
+newt=w_temp(:,1)+flux/(d_rho(:,1)*cp0*depth_hl(:,wlev+1)*d_zcr/dt+bot) ! replace dz with full depth for this approximation
+call getqsat(newqsat,dqdt,newt,a_ps)
+if (zomode.eq.0) newqsat=0.98*newqsat ! with Zeng 1998 for sea water
+p_fg=rho*aft*cp*fh*vmag*(newt-a_temp/srcp)
+p_eg=rho*afq*lv*fq*vmag*(newqsat-a_qg)
 
 ! turn off lake evaporation when minimum depth is reached
 ! fg should be replaced with bare ground value
@@ -2772,6 +2770,24 @@ p_cdqice=afq*fq
 p_fgice=rho*aft*cp*fh*vmag*(i_tsurf-a_temp/srcp)
 p_egice=p_wetfacice*rho*afq*lv*fq*vmag*(qsat-a_qg)
 
+! index of different ice thickness configurations
+d_nk=min(int(i_dic/himin),2)
+
+! radiation
+alb=     a_vnratio*(p_icevisdiralb*a_fbvis+p_icevisdifalb*(1.-a_fbvis))+ &
+    (1.-a_vnratio)*(p_icevisdifalb*a_fbvis+p_icevisdifalb*(1.-a_fbvis))
+qmax=qice*0.5*max(i_dic-himin,0.)
+eye=0.
+where (i_dsn.lt.icemin.and.i_sto.lt.qmax.and.d_nk.gt.0)
+  eye=0.35
+end where
+i_sto=i_sto+dt*a_sg*(1.-alb)*eye
+
+! Explicit estimate of fluxes
+d_ftop=-p_fgice-p_egice*ls/lv+a_rg-emisice*sbconst*i_tsurf**4+a_sg*(1.-alb)*(1.-eye) ! first guess
+bot=4.*emisice*sbconst*i_tsurf**3+rho*vmag*(aft*fh*cp+afq*fq*p_wetfacice*lv*dqdt)
+gamm=(gammi*max(i_dic,icemin)+gamms*i_dsn)/(max(i_dic,icemin)+i_dsn)
+
 ! water temperature at bottom of ice
 d_tb=w_temp(:,1)
 
@@ -2827,23 +2843,7 @@ d_fb=min(max(d_fb,-1000.),1000.)
 i_u=newiu !=i_u+dt*(d_tauxica-d_tauxicw)/imass
 i_v=newiv !=i_v+dt*(d_tauyica-d_tauyicw)/imass
 
-! index of different ice thickness configurations
-d_nk=min(int(i_dic/himin),2)
-
-! radiation
-alb=     a_vnratio*(p_icevisdiralb*a_fbvis+p_icevisdifalb*(1.-a_fbvis))+ &
-    (1.-a_vnratio)*(p_icevisdifalb*a_fbvis+p_icevisdifalb*(1.-a_fbvis))
-qmax=qice*0.5*max(i_dic-himin,0.)
-eye=0.
-where (i_dsn.lt.icemin.and.i_sto.lt.qmax.and.d_nk.gt.0)
-  eye=0.35
-end where
-i_sto=i_sto+dt*a_sg*(1.-alb)*eye
-
-! Calculate fluxes to prevent overshoot
-d_ftop=-p_fgice-p_egice*ls/lv+a_rg-emisice*sbconst*i_tsurf**4+a_sg*(1.-alb)*(1.-eye) ! first guess
-bot=4.*emisice*sbconst*i_tsurf**3+rho*vmag*(aft*fh*cp+afq*fq*p_wetfacice*lv*dqdt)
-gamm=(gammi*max(i_dic,icemin)+gamms*i_dsn)/(max(i_dic,icemin)+i_dsn)
+! Estimate fluxes to prevent overshoot
 tnew=i_tsurf+d_ftop/(gamm/dt+bot)
 call getqsat(qsatnew,dqdt,tnew,a_ps)
 p_fgice=rho*aft*cp*fh*vmag*(tnew-a_temp/srcp)

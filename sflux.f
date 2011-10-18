@@ -90,11 +90,11 @@
 c     with leads option via fracice (using tgg1 and tggsn1)
 c     now in parm.h with zero as default and used in rdnsib/rdnscam
 c     cp specific heat at constant pressure joule/kgm/deg
-      integer, parameter :: bprm=5.,cms=5.,chs=2.6,vkar=.4
-      integer, parameter :: d3=2.5
-      integer, parameter :: cgsoil=1000.,gksoil=.300e-6,rhog=1600.
-      integer, parameter :: d1land=.03
-      integer, parameter :: fmroot=.57735     ! was .4 till 7 Feb 1996
+      real, parameter :: bprm=5.,cms=5.,chs=2.6,vkar=.4
+      real, parameter :: d3=2.5
+      real, parameter :: cgsoil=1000.,gksoil=.300e-6,rhog=1600.
+      real, parameter :: d1land=.03
+      real, parameter :: fmroot=.57735     ! was .4 till 7 Feb 1996
 
 c     stability dependent drag coefficients using Louis (1979,blm) f'
 c     n.b. cduv, cdtq are returned as drag coeffs mult by vmod

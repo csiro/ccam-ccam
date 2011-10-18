@@ -440,8 +440,8 @@ c       For time varying surface fields
         call attrib(idnc,idim,3,'pmsl',lname,'hPa',800.,1200.,0,itype)
         lname = 'Surface roughness'
         call attrib(idnc,idim,3,'zolnd',lname,'m',0.,65.,0,itype)
-        lname = 'Leaf area index'                                   ! MJT cable
-        call attrib(idnc,idim,3,'lai',lname,'none',0.,32.5,0,itype) ! MJT cable
+        lname = 'Leaf area index'
+        call attrib(idnc,idim,3,'lai',lname,'none',0.,32.5,0,itype)
         lname = 'Surface temperature'
         call attrib(idnc,idim,3,'tsu',lname,'K',100.,425.,0,itype)
         lname = 'Pan temperature'
@@ -773,7 +773,7 @@ c       For time varying surface fields
      &              itype)
         if (nmlo.ne.0) then
           lname = 'Avg mixed layer depth'
-          call attrib(idnc,idim,3,'mixdepth',lname,'m',0.,1300.,0,
+          call attrib(idnc,idim,3,'mixd_ave',lname,'m',0.,1300.,0,
      &              itype)
         end if
 
@@ -1428,7 +1428,7 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
          call histwrt3(alb_ave,'alb_ave',idnc,iarch,local)
          call histwrt3(psl_ave,'pmsl_ave',idnc,iarch,local)
          if (nmlo.ne.0) then
-           call histwrt3(mixdep_ave,'mixdepth',idnc,iarch,local)
+           call histwrt3(mixdep_ave,'mixd_ave',idnc,iarch,local)
          end if
          !end if
        endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)

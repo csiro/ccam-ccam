@@ -222,20 +222,21 @@ c
 
       include 'newmpar.h'
       include 'const_phys.h'
+      
       integer, intent(in) :: npts,mins
       integer j,ilat,m
-      real, parameter :: rlag=14.8125
-      real, parameter :: year=365
       real date,rang,rsin1,rcos1,rcos2,theta,angle,than
       real do3,do3p
-      real, intent(in),  dimension(npts) :: ps
+      real, dimension(npts), intent(in) :: ps
       real, dimension(kl), intent(in) :: sig
+      real duo3n(npts,kl), alat(npts),alon(npts) ! alat and alon are only needed for CMIP3 ozone
+
+      real, parameter :: rlag=14.8125
+      real, parameter :: year=365
       real, parameter :: amd=28.9644
       real, parameter :: amo=48.
       real, parameter :: dobson=6.022e3/2.69/48.e-3
-      real rlon(ii),rlat(jj)
-      real duo3n(npts,kl), alat(npts),alon(npts) ! alat and alon are only needed for CMIP3 ozone
-
+      
       if (allocated(o3mth)) then ! CMIP5 ozone
       
         call fieldinterpolate(duo3n,o3pre,o3mth,o3nxt,o3pres,npts,kl,
@@ -278,6 +279,7 @@ c
         end do
         
       end if
+      duo3n=max(1.e-10,duo3n)
       
       return
       end subroutine o3set

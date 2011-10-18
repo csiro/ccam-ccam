@@ -153,7 +153,8 @@
       land(:)=.false.
       kdate=kdate_s
       ktime=ktime_s
-      phi=-999.
+      phi(:,:)=-999.
+      sigmf(:)=0.
 
 
       !--------------------------------------------------------------
@@ -367,7 +368,7 @@
         elseif (nsib==CABLE) then
           write(6,*) "nsib=CABLE option is not supported in "
      &              ,"this version of CCAM"
-          stop
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         elseif (nsib==3) then
          ! special options for standard land surface scheme
          if(nspecial==35)then      ! test for Andy Cottrill
@@ -472,7 +473,7 @@
       ! nmlo=1 mixed layer ocean (KPP)
       ! nmlo=2 same as 1, but with Smag horz diffusion and river routing
       ! nmlo=3 same as 2, but with horizontal and vertical advection
-      if (nmlo.ne.0) then
+      if (nmlo.ne.0.and.abs(nmlo).le.9) then
         call readreal(bathfile,dep,ifull)
         where (land)
           dep=0.
@@ -1361,7 +1362,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       ! snow and ice fixes
       snalb=.8
       do iq=1,ifull
-       if (nmlo.eq.0) then
+       if (nmlo.eq.0.or.abs(nmlo).gt.9) then
         if(.not.land(iq))then
 !        from June '03 tgg1	holds actual sea temp, tss holds net temp 
          tgg(iq,1)=max(271.3,tss(iq)) 
@@ -1448,6 +1449,10 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
           phi(:,k)=phi(:,k-1)+bet(k)*t(:,k)
      &                    +betm(k)*t(:,k-1)
         enddo
+      else
+        if (myid==0) then
+          write(6,*) "Geopotential is read from ifile"
+        end if
       end if
 
       ! snow, orography and roughness length
@@ -1494,6 +1499,9 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       ! saved albedo
       albsav(:)=albvisnir(:,1)    ! VIS
       albnirsav(:)=albvisnir(:,2) ! NIR
+      
+      ! surface pressure
+      ps(1:ifull)=1.e5*exp(psl(1:ifull))
 
 
       !--------------------------------------------------------------
@@ -1716,15 +1724,13 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         call loadtile
       elseif (nsib==5) then
         ! MODIS input with standard surface scheme
-	if (myid==0) write(6,*) 'Update biosphere data for nsib=5'
-	sigmf=0.
+        sigmf=0.
         where (land)
           sigmf(:)=max(0.01,min(0.98,1.-exp(-0.4*vlai(:))))
         end where
         tsigmf(:)=sigmf(:)
       else
         ! usual input with standard surface scheme
-	if (myid==0) write(6,*) 'Update biosphere data for nsib=3'
         do iq=1,ifull
          if(land(iq))then
            isoil = isoilm(iq)
@@ -1790,7 +1796,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       !-----------------------------------------------------------------
       ! UPDATE MIXED LAYER OCEAN DATA (nmlo)
-      if (nmlo.ne.0) then
+      if (nmlo.ne.0.and.abs(nmlo).le.9) then
         if (any(ocndwn(:,1).gt.0.5)) then
           if (myid==0) write(6,*) 'Importing MLO data'
         else
@@ -1799,7 +1805,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
           do k=1,wlev
             call mloexpdep(0,depth,k,0)
             ! This polynomial fit is from MOM3, based on Levitus
-            where (depth.gt.2000.)
+            where (depth.lt.2000.)
             mlodwn(:,k,1)=18.4231944+273.16
      &        -0.43030662E-1*depth(:)
      &        +0.607121504E-4*depth(:)**2
@@ -2345,12 +2351,6 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       enddo
       cnsd(9)=2.51
 
-!     zse(1)=0.05
-!     zse(2)=0.15
-!     zse(3)=0.30
-!     zse(4)=0.50
-!     zse(5)=1.0
-!     zse(6)=1.5                    ! was over-riding data statement (jlm)
       zshh(1) = .5*zse(1)           ! not used (jlm)
       zshh(ms+1) = .5*zse(ms)       ! not used (jlm)
       ww(1) = 1.

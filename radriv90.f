@@ -269,7 +269,7 @@ c     Set up ozone for this time and row
      &              duo3n,sig,ps(1+(j-1)*il:(j-1)*il+imax))
          do k=1,kl
             do i=1,imax
-              qo3(i,k) = max(1.e-10,duo3n(i,k)) ! MJT radiation
+              qo3(i,k) = duo3n(i,k)
             end do
          end do
       end if
@@ -277,18 +277,18 @@ c     Set up ozone for this time and row
 !     Set up surface albedo. The input value is > 1 over ocean points where
 !     the zenith angle dependent formula should be used.
       ! LAND --------------------------------------------------------
-      if (nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7) then ! MJT CHANGE cable
-        where(land(istart:iend))                        ! MJT CHANGE cable
-          cuvrf(1:imax,1)=albsav(istart:iend)           ! MJT CHANGE cable
-          cirrf(1:imax,1)=albnirsav(istart:iend)        ! MJT CHANGE cable
-        end where                                       ! MJT CHANGE cable
-      else                                              ! MJT CHANGE cable
+      if (nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7) then ! cable
+        where(land(istart:iend))                        ! cable
+          cuvrf(1:imax,1)=albsav(istart:iend)           ! cable
+          cirrf(1:imax,1)=albnirsav(istart:iend)        ! cable
+        end where                                       ! cable
+      else                                              ! cable
         do i=1,imax
           iq=i+(j-1)*il
           if( land(iq) )then
            if(nalbwb.eq.0)then
              cuvrf(i,1) = albsav(iq)    ! use surface albedo from indata
-             cirrf(i,1) = albnirsav(iq) ! MJT CHANGE albedo
+             cirrf(i,1) = albnirsav(iq)
            else    ! soil albedo adjusted according to wetness of top layer
 !            can do quadratic fit [ 0 to wbav to ssat]
 !            wbs=sfc(isoilm(iq))         ! or consider using wbs=ssat()
@@ -553,15 +553,18 @@ c       write(24,*)coszro2
       call swr99(fsw,hsw,sg,ufsw,dfsw,press,press2,coszro,
      &           taudar,rh2o,rrco2,ssolar,qo3,nclds,
      &           ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt,
-     &           swrsave(istart:iend)) ! MJT cable
+     &           swrsave(istart:iend))
       do i=1,imax
           sint(i) = dfsw(i,1)*h1m3   ! solar in top
           sout(i) = ufsw(i,1)*h1m3   ! solar out top
           sg(i)   = sg(i)*h1m3       ! solar absorbed at the surface
           iq=i+(j-1)*il              ! fixed Mar '05
           sgdn(i) = sg(i) / ( 1. - swrsave(iq)*albvisnir(iq,1)
-     &            -(1.-swrsave(iq))*albvisnir(iq,2) ) ! MJT albedo
+     &            -(1.-swrsave(iq))*albvisnir(iq,2) )
       end do
+      call spitter(imax,fjd,coszro,sgdn,fbeamvis(istart:iend))
+      fbeamnir(istart:iend)=fbeamvis(istart:iend)
+      
       if(ntest.gt.0.and.j.eq.jdrad)then
         print *,'idrad,j,sint,sout,soutclr,sg,cuvrf1 ',
      .           idrad,j,sint(idrad),sout(idrad),soutclr(idrad),
@@ -746,16 +749,6 @@ c       endif
       sintx(istart:iend)=sint(:)
       rtx(istart:iend)=rt(:)
       
-      !--------------------------------------------------------------
-      ! MJT CHANGE cable
-      sgdn(1:imax)=sgsave(istart:iend)/
-     &   (1.-swrsave(istart:iend)*albvisnir(istart:iend,1)
-     & -(1.-swrsave(istart:iend))*albvisnir(istart:iend,2)) ! MJT albedo
-      call spitter(imax,fjd,coszro2(1:imax),
-     &             sgdn(1:imax),fbeamvis(istart:iend))
-      fbeamnir(istart:iend)=fbeamvis(istart:iend)
-      !--------------------------------------------------------------
-
  100  continue  ! Row loop (j)  j=1,jl,imax/il
       if(ntest>0.and.mydiag)then
         print *,'rgsave,rtsave,sintsave ',
@@ -776,7 +769,6 @@ c       endif
       end
 
       !--------------------------------------------------------------
-      ! MJT change cable
       ! from CABLE code 1.4
       subroutine spitter(mp,doy, coszen, fsd,fbeam)
       ! Calculate beam fraction

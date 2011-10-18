@@ -3333,27 +3333,24 @@ type(lw_diagnostics_type), intent(inout) :: Lw_diagnostics
       ! gol124: end if not allocated
       END IF
 
-      ! gol124: skip init as it is always done before 1st use
-!      Lw_diagnostics%flx1e1   = 0.
-!      Lw_diagnostics%cts_out    = 0.
-!      Lw_diagnostics%cts_outcf = 0.
-!      Lw_diagnostics%gxcts    = 0.
-!      Lw_diagnostics%excts  = 0.
-!      Lw_diagnostics%exctsn   = 0.
-!      Lw_diagnostics%fctsg   = 0.
+      Lw_diagnostics%flx1e1    = 0.
+      Lw_diagnostics%fluxn     = 0.
+      Lw_diagnostics%cts_out   = 0.
+      Lw_diagnostics%cts_outcf = 0.
+      Lw_diagnostics%gxcts     = 0.
+      Lw_diagnostics%excts     = 0.
+      Lw_diagnostics%exctsn    = 0.
+      Lw_diagnostics%fctsg     = 0.
 
-!      Lw_diagnostics%fluxn  (:,:,:,:) = 0.0
+      Lw_diagnostics%flx1e1f   = 0.
 
-!      if (Rad_control%do_totcld_forcing) then
-      if (Rad_control%do_totcld_forcing .AND. &
-         .NOT. associated(Lw_diagnostics%fluxncf )) then
-        allocate ( Lw_diagnostics%fluxncf (ix, jx, kx+1, 6+NBTRGE) )
-!        Lw_diagnostics%fluxncf(:,:,:,:) = 0.0
+      if (Rad_control%do_totcld_forcing) then
+        if (.NOT. associated(Lw_diagnostics%fluxncf )) then
+          allocate ( Lw_diagnostics%fluxncf (ix, jx, kx+1, 6+NBTRGE) )
+        endif
+        Lw_diagnostics%fluxncf = 0.
       endif
 
-      ! gol124: moved above inside if not allocated
-!      allocate( Lw_diagnostics%flx1e1f  (ix, jx,       NBTRGE  ) )
-!       Lw_diagnostics%flx1e1f  = 0.
 
 !--------------------------------------------------------------------
 

@@ -793,7 +793,7 @@ c
 
       !--------------------------------------------------------------
       ! MJT cable
-      if (nx.eq.1) swr=dfsw(:,lp1) - ufsw(:,lp1) ! store VIS
+      if (nx.eq.1) swr=dfsw(:,lp1) ! store VIS
       !--------------------------------------------------------------
 
 
@@ -810,7 +810,7 @@ c
 
       !--------------------------------------------------------------
       ! MJT cable
-      swr=swr/grdflx ! calculate ratio of VIS to NIR
+      swr=swr/dfsw(:,lp1) ! calculate ratio of VIS to TOTAL
       !--------------------------------------------------------------
 
       return

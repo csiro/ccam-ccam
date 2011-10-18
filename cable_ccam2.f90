@@ -97,7 +97,7 @@ module cable_ccam
   implicit none
 
   include 'newmpar.h'
-  include 'const_phys.h' ! grav
+  include 'const_phys.h'
   include 'parm.h'
 
  ! for calculation of zenith angle
@@ -606,7 +606,7 @@ module cable_ccam
   do nb=1,5
     if (pind(nb,1).le.mp) then
       sigmf(cmap(pind(nb,1):pind(nb,2)))=sigmf(cmap(pind(nb,1):pind(nb,2))) &
-        +sv(pind(nb,1):pind(nb,2))*(1.-exp(-rad%extkn(pind(nb,1):pind(nb,2))*veg%vlai(pind(nb,1):pind(nb,2))))
+        +sv(pind(nb,1):pind(nb,2))*(1.-exp(-veg%extkn(pind(nb,1):pind(nb,2))*veg%vlai(pind(nb,1):pind(nb,2))))
     end if
   end do
   
@@ -955,6 +955,8 @@ module cable_ccam
     bal%ebal_tot=0.
     bal%rnoff_tot=0.
   end if
+  
+  if (myid==0) write(6,*) "Finished defining CABLE arrays"
 
   return
   end subroutine loadcbmparm
