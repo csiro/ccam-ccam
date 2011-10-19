@@ -2528,7 +2528,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             call mloexport(0,old,k,0)
             ddep=max(depth(:,k)-depth(:,k-1),0.01)
             old=(oldt*(1.-nsq(:,k-1)*ddep/(2.*grav))
-     &        -nsq(:,k-1)*ddep*rho0/(2.*grav*a0))
+     &        -nsq(:,k-1)*ddep*rho0/(grav*a0))
      &        /(1.+nsq(:,k-1)*ddep/(2.*grav))
             old=max(old,271.)	  
             call mloimport(0,old,k,0)
@@ -2988,7 +2988,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             rho(:,k)=rho0+a0*old ! linear approximation to density
           end do
           do k=ktopmlo,kbotmlo-1
-            ddep=max(depth(:,k)-depth(:,k-1),0.01)
+            ddep=max(depth(:,k+1)-depth(:,k),0.01)
             nsq(:,k)=2.*grav*(rho(:,k)-rho(:,k+1))/
      &        (ddep*(rho(:,k)+rho(:,k+1)))
           end do
@@ -3000,7 +3000,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             call mloexport(0,old,k,0)
             ddep=max(depth(:,k)-depth(:,k-1),0.01)
             old=(oldt*(1.-nsq(:,k-1)*ddep/(2.*grav))
-     &        -nsq(:,k-1)*ddep*rho0/(2.*grav*a0))
+     &        -nsq(:,k-1)*ddep*rho0/(grav*a0))
      &        /(1.+nsq(:,k-1)*ddep/(2.*grav))
             old=max(old,271.)	  
             call mloimport(0,old,k,0)
