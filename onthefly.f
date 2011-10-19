@@ -55,6 +55,11 @@
         ! turn OFF fatal netcdf errors; from here on
         call ncpopt(0)
         if(ncid.ne.ncidold)then
+          if (ncidold.ne.-1) then
+            write(6,*) 'Closing old input file'
+            ier = nf_close(ncidold)
+            call ncmsg("Close input",ier)
+          end if
           write(6,*) 'Reading new file metadata'
           iarchi=1
           call ncainq(ncid,ncglobal,'int_header',itype,ilen,ier)

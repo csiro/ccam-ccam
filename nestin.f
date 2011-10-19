@@ -2320,7 +2320,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull), intent(in) :: sfh
       real, dimension(ifull,wl), intent(in) :: new,sssb
       real, dimension(ifull,wl,2), intent(in) :: suvb
-      real, dimension(ifull) :: old,oldt
+      real, dimension(ifull) :: old,oldt,ddep
       real, dimension(ifull,wl) :: diff
       real, dimension(ifull,wlev) :: nsq,rho,depth
       real, dimension(ifull_g,1) :: diffh_g
@@ -2516,18 +2516,20 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             rho(:,k)=rho0+a0*old ! linear approximation to density
           end do
           do k=ktopmlo,kbotmlo-1
+            ddep=max(depth(:,k+1)-depth(:,k),0.01)
             nsq(:,k)=2.*grav*(rho(:,k)-rho(:,k+1))/
-     &        (max(depth(:,k+1)-depth(:,k),0.1)*(rho(:,k)+rho(:,k+1)))
+     &        (ddep*(rho(:,k)+rho(:,k+1)))
           end do
           call mloexport(0,oldt,1,0)
           oldt=oldt+diff(:,1)*10./real(mloalpha)
           oldt=max(oldt,271.)
-          call mloimport(0,oldt,1,0)
+          call mloimport(0,oldt,ktopmlo,0)
           do k=ktopmlo+1,kbotmlo
             call mloexport(0,old,k,0)
-            old=(oldt*(2.*grav/max(depth(:,k)-depth(:,k-1),0.1)
-     &      -nsq(:,k-1))-rho0*nsq(:,k-1)/a0)
-     &      /(2.*grav/max(depth(:,k)-depth(:,k-1),0.1)+nsq(:,k-1))
+            ddep=max(depth(:,k)-depth(:,k-1),0.01)
+            old=(oldt*(1.-nsq(:,k-1)*ddep/(2.*grav))
+     &        -nsq(:,k-1)*ddep*rho0/(2.*grav*a0))
+     &        /(1.+nsq(:,k-1)*ddep/(2.*grav))
             old=max(old,271.)	  
             call mloimport(0,old,k,0)
             oldt=old
@@ -2818,7 +2820,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull), intent(in) :: sfh
       real, dimension(ifull,wl), intent(in) :: new,sssb
       real, dimension(ifull,wl,2), intent(in) :: suvb
-      real, dimension(ifull) :: old,oldt
+      real, dimension(ifull) :: old,oldt,ddep
       real, dimension(ifull,wl) :: diff
       real, dimension(ifull,wlev) :: nsq,rho,depth
       real, dimension(ifull_g,1) :: diffh_g
@@ -2986,18 +2988,20 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             rho(:,k)=rho0+a0*old ! linear approximation to density
           end do
           do k=ktopmlo,kbotmlo-1
+            ddep=max(depth(:,k)-depth(:,k-1),0.01)
             nsq(:,k)=2.*grav*(rho(:,k)-rho(:,k+1))/
-     &        (max(depth(:,k+1)-depth(:,k),0.1)*(rho(:,k)+rho(:,k+1)))
+     &        (ddep*(rho(:,k)+rho(:,k+1)))
           end do
           call mloexport(0,oldt,1,0)
           oldt=oldt+diff(:,1)*10./real(mloalpha)
           oldt=max(oldt,271.)
-          call mloimport(0,oldt,1,0)
+          call mloimport(0,oldt,ktopmlo,0)
           do k=ktopmlo+1,kbotmlo
             call mloexport(0,old,k,0)
-            old=(oldt*(2.*grav/max(depth(:,k)-depth(:,k-1),0.1)
-     &      -nsq(:,k-1))-rho0*nsq(:,k-1)/a0)
-     &      /(2.*grav/max(depth(:,k)-depth(:,k-1),0.1)+nsq(:,k-1))
+            ddep=max(depth(:,k)-depth(:,k-1),0.01)
+            old=(oldt*(1.-nsq(:,k-1)*ddep/(2.*grav))
+     &        -nsq(:,k-1)*ddep*rho0/(2.*grav*a0))
+     &        /(1.+nsq(:,k-1)*ddep/(2.*grav))
             old=max(old,271.)	  
             call mloimport(0,old,k,0)
             oldt=old
