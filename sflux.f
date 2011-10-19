@@ -74,7 +74,7 @@
       real zonx(ifull),zony(ifull),zonz(ifull),costh(ifull)
       real sinth(ifull),uzon(ifull),vmer(ifull),azmin(ifull)
       real uav(ifull),vav(ifull)
-      real zoh(ifull),neta(ifull)
+      real zoh(ifull),neta(ifull),oldrunoff(ifull),newrunoff(ifull)
 
       integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af
       integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
@@ -124,6 +124,7 @@ c     degdt is degdt (was ceva in surfupa/b)
       ztv=exp(vkar/sqrt(chn10))/10.  ! proper inverse of ztsea
       z1onzt=300.*rdry*(1.-sig(1))*ztv/grav
       chnsea=(vkar/log(z1onzt))**2   ! should give .00085 for csiro9
+      oldrunoff(:)=runoff(:)
 
       if (diag.or.ntest==1) then
         if (mydiag) then
@@ -832,12 +833,18 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      &          /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )             ! urban
          uzon= costh*uav-sinth*vav ! zonal wind                         ! urban
          vmer= sinth*uav+costh*vav ! meridonal wind                     ! urban
+         newrunoff=runoff-oldrunoff ! new runoff since entering sflux   ! urban
+         ! since ateb will blend non-urban and urban runoff, it is      ! urban
+         ! easier to remove the new runoff and add it again after the   ! urban
+         ! urban scheme has been updated                                ! urban
+         runoff=runoff-newrunoff ! remove new runoff                    ! urban
          ! call aTEB                                                    ! urban
-         call atebcalc(fg(:),eg(:),tss(:),wetfac(:),runoff(:),dt,azmin  ! urban
-     &               ,sgsave(:)/(1.-swrsave*albvisnir(:,1)-             ! urban
+         call atebcalc(fg(:),eg(:),tss(:),wetfac(:),newrunoff(:),dt     ! urban
+     &               ,azmin,sgsave(:)/(1.-swrsave*albvisnir(:,1)-       ! urban
      &               (1.-swrsave)*albvisnir(:,2)),-rgsave(:)            ! urban
      &               ,condx(:)/dt,rho(:),t(1:ifull,1),qg(1:ifull,1)     ! urban
      &               ,ps(1:ifull),uzon,vmer,vmodmin,0)                  ! urban
+        runoff=runoff+newrunoff ! add new runoff after including urban  ! urban
         ! here we blend zo with the urban part                          ! urban
         factch(iperm)=zo(iperm)/factch(iperm)**2                        ! urban
         call atebzo(zo,factch,0)                                        ! urban
@@ -868,7 +875,8 @@ c ----------------------------------------------------------------------
 
       ! Update runoff for river routing
       if (abs(nmlo).ge.2) then
-        watbdy(1:ifull)=watbdy(1:ifull)+runoff ! runoff in mm
+        newrunoff=runoff-oldrunoff
+        watbdy(1:ifull)=watbdy(1:ifull)+newrunoff ! runoff in mm
       end if
 
 c***  end of surface updating loop

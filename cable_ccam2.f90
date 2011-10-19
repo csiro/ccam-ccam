@@ -150,7 +150,7 @@ module cable_ccam
   met%fld=-rgsave(cmap)        ! long wave down (positive) W/m^2
 
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
-  tsigmf=sigmf
+  tsigmf=sigmf ! greeness fraction sigmf is just a diagnostic for CABLE
 
   met%tc=met%tk-273.16
   met%tvair=met%tk
@@ -242,7 +242,7 @@ module cable_ccam
   albvisdif(iperm(1:ipland))=0.
   albnirdir(iperm(1:ipland))=0.
   albnirdif(iperm(1:ipland))=0.
-  runoff=0.
+  ! From 11/8/98 runoff() is accumulated & zeroed with precip
   rnof1=0.
   rnof2=0.
   wbtot(iperm(1:ipland))=0.
@@ -318,7 +318,7 @@ module cable_ccam
       albnirdif(cmap(pind(nb,1):pind(nb,2)))=albnirdif(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*rad%reffdf(pind(nb,1):pind(nb,2),2)
       runoff(cmap(pind(nb,1):pind(nb,2)))=runoff(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*ssoil%runoff(pind(nb,1):pind(nb,2))
+                                        +sv(pind(nb,1):pind(nb,2))*ssoil%runoff(pind(nb,1):pind(nb,2))*dt ! convert mm/s to mm
       rnof1(cmap(pind(nb,1):pind(nb,2)))=rnof1(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*ssoil%rnof1(pind(nb,1):pind(nb,2))
       rnof2(cmap(pind(nb,1):pind(nb,2)))=rnof2(cmap(pind(nb,1):pind(nb,2))) &
@@ -399,7 +399,6 @@ module cable_ccam
     rtsoil=1./rtsoil
     cduv=cduv*vmod     ! cduv is Cd * vmod in CCAM
     tscrn=tscrn+273.16 ! convert from degC to degK
-    runoff=runoff*dt   ! convert from mm/s back to mm
   end where
       
   ! The following lines unpack snow.  This is more complicated as we need to decide

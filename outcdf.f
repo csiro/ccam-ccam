@@ -4,6 +4,7 @@ c=======================================================================
 !            1  for outfile
 !     N.B. subr outcdfs is down the bottom (for nscrn=1)
       use cc_mpi
+      use infile, only : ncmsg
       use liqwpar_m  ! ifullw
       use parmhdff_m
       use tracers_m  ! ngas, nllp, ntrac, tr
@@ -89,6 +90,10 @@ c       itype=-1 restfile
 	ier=nf_create(cdffile,NF_NETCDF4,idnc)
 #endif
         print *,'idnc,ier=',idnc,ier
+        if (ier.ne.0) then
+          write(6,*) "Error opening output file"
+          call ncmsg("Outcdf",ier)
+        end if
 c       Turn off the data filling
         imode = ncsfil(idnc,ncnofill,ier)
         print *,'imode=',imode
@@ -518,7 +523,7 @@ c       For time varying surface fields
           call attrib(idnc,idim,3,'vic',lname,'m/s',-65.,65.,0,itype)
           if (abs(nmlo).ge.2) then
             lname = 'Surface water'
-            call attrib(idnc,idim,3,'swater',lname,'mm',0.,6500.,0,
+            call attrib(idnc,idim,3,'swater',lname,'mm',0.,6.5E3,0,
      &                  itype)
           end if
         end if
@@ -781,12 +786,12 @@ c       For time varying surface fields
         call attrib(idnc,idim,3,'tscrn',lname,'K',100.,425.,0,itype)
         lname = 'Screen mixing ratio'
         call attrib(idnc,idim,3,'qgscrn',lname,'kg/kg',0.,.06,0,itype)
-        lname = 'Screen relative humidity' ! MJT rh
-        call attrib(idnc,idim,3,'rhscrn',lname,'%',0.,200.,0,itype) ! MJT rh
+        lname = 'Screen relative humidity'
+        call attrib(idnc,idim,3,'rhscrn',lname,'%',0.,200.,0,itype)
 c       lname = '3m wind speed'
 c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         lname = 'Screen level wind speed'
-        call attrib(idnc,idim,3,'uscrn',lname,'m/s',0.,65.,0,itype) ! MJT bug fix
+        call attrib(idnc,idim,3,'uscrn',lname,'m/s',0.,65.,0,itype)
         lname = 'Net radiation'
         call attrib(idnc,idim,3,'rnet',lname,'W/m2',-3000.,3000.,0,
      &              itype)
@@ -944,7 +949,7 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         call attrib(idnc,dim,4,'mixr',lname,'kg/kg',0.,.05,0,itype)
         if (nh.ne.0.and.itype==-1) then
           lname= 'Geopotential height'
-          call attrib(idnc,dim,4,'zg',lname,'m**2/s**2',-5.E3,6.0E4,
+          call attrib(idnc,dim,4,'zg',lname,'m2/s2',-5.E4,6.0E5,
      &                0,itype)
         end if
         if(ldr.ne.0)then

@@ -449,19 +449,19 @@ do iq=1,ifull
       excess(1:4)=max(newh-hgt(1:4),0.)*tt(1:4)
       excess(0)=w_e(iq)-sum(excess(1:4)*sarea(1:4))/sarea(0)
 
-      ! update new water levels
+      ! leave salt behind      
       delwat=w_e(iq)-excess(0)
+      do ii=1,wlev
+        saltflx=-1000.*delwat*w_s(iq,ii)/(rhos(iq,ii)*(dd(iq)+w_e(iq)))
+        w_s(iq,ii)=w_s(iq,ii)-saltflx
+      end do
+      
+      ! update new water levels
       w_e(iq)=excess(0)
       watbdy(in(iq))=watbdy(in(iq))+1000.*excess(1)
       watbdy(ie(iq))=watbdy(ie(iq))+1000.*excess(2)
       watbdy(is(iq))=watbdy(is(iq))+1000.*excess(3)
       watbdy(iw(iq))=watbdy(iw(iq))+1000.*excess(4)
-
-      ! leave salt behind
-      do ii=1,wlev
-        saltflx=-1000.*delwat*w_s(iq,ii)/(rhos(iq,ii)*dd(iq))
-        w_s(iq,ii)=w_s(iq,ii)-saltflx
-      end do
     
     end if
   end if
@@ -512,8 +512,8 @@ integer iq,ll,ii,ierr,totits,itotits
 integer jyear,jmonth,jday,jhour,jmin,mins,leap
 integer tyear,jstart
 integer, dimension(ifull,wlev) :: nface
-real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip,netagsum,netalsum
-real delpos,delneg,alph_p,dumpp,dumpn,fjd,areagsum,arealsum
+real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
+real delpos,delneg,alph_p,dumpp,dumpn,fjd
 real, dimension(:), allocatable, save :: ipice
 real, dimension(ifull+iextra) :: ee,neta,dd,pice,imass
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,ndum
@@ -1140,12 +1140,6 @@ alph_p = -delneg/max(delpos,1.E-20)
 alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
 neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
 if (limitsf.gt.0) then
-  !netalsum=sum(neta(1:ifull)/(em(1:ifull)*em(1:ifull)))
-  !arealsum=sum(1./(em(1:ifull)*em(1:ifull)))
-  !call MPI_AllReduce(netalsum,netagsum,1,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
-  !call MPI_AllReduce(arealsum,areagsum,1,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
-  !neta(1:ifull)=neta(1:ifull)-netagsum/areagsum
-  !neta(1:ifull)=max(neta(1:ifull),1.-dd(1:ifull))
   neta=max(min(neta,20.),-20.)
 end if
 
