@@ -173,12 +173,14 @@ do k=1,wlev
   do i=0,1
     gg=0.
     call mloexport(i,gg(1:ifull),k,0)
+    if (i.eq.1) gg=gg-290.
     call bounds(gg)
     ff = ( gg(1:ifull)*emi +             &
            xfact(1:ifull)*gg(ie) +       &
            xfact(iwu)*gg(iw) +           &
            yfact(1:ifull)*gg(in) +       &
            yfact(isv)*gg(is) ) / base
+    if (i.eq.1) ff=ff+290.
     call mloimport(i,ff,k,0)
   end do
   
@@ -912,6 +914,7 @@ do ii=1,wlev
 end do
 
 ! Horizontal advection for T,S to tstar
+nt=nt-290.
 select case(intmeth)
   case(1)
     call mlob2intsb(nt,nface,xg,yg,wtr)
@@ -920,6 +923,7 @@ select case(intmeth)
     call mloblintsb(nt,nface,xg,yg,wtr)
     call mloblintsb(ns,nface,xg,yg,wtr)
 end select
+nt=nt+290.
 ns=max(ns,0.)
 
 ! update normalised density rhobar (unstaggered at tstar)
@@ -1319,7 +1323,7 @@ spv(1:ifull)=0.5*(niv(1:ifull)+i_v)
 call boundsuv(spu,spv)
 
 ! ADVECT ICE ------------------------------------------------------
-! use simple upwind scheme, but is implicit to first order in time to improve stability
+! use simple upwind scheme
 
 ! Horizontal advection for ice area
 ndum(1:ifull)=fracice/(em(1:ifull)*em(1:ifull)) ! ndum is an area
@@ -1745,7 +1749,7 @@ ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
 kx=size(nface,2)
 intsch=mod(ktau,2)
-cxx=-99.
+cxx=-999.
 sx=cxx
 sc=cxx
 
@@ -1826,7 +1830,7 @@ if(intsch==1)then
         sc(0,2) = sx(idel  ,jdel+2,n,k)
         sc(1,2) = sx(idel+1,jdel+2,n,k)
 
-        ncount=count(sc.gt.-0.1)
+        ncount=count(sc.gt.-990.)
         if (ncount.ge.12) then
           r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
                -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
@@ -1890,7 +1894,7 @@ if(intsch==1)then
       sc(0,2) = sx(idel  ,jdel+2,n,k)
       sc(1,2) = sx(idel+1,jdel+2,n,k)
 
-      ncount=count(sc.gt.-0.1)
+      ncount=count(sc.gt.-990.)
       if (ncount.ge.12) then
         r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
              -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
@@ -1988,7 +1992,7 @@ else     ! if(intsch==1)then
         sc(2,0) = sx(idel+2,jdel  ,n,k)
         sc(2,1) = sx(idel+2,jdel+1,n,k)
         
-        ncount=count(sc.gt.-0.1)
+        ncount=count(sc.gt.-990.)
         if (ncount.ge.12) then
           r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
                -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
@@ -2051,7 +2055,7 @@ else     ! if(intsch==1)then
       sc(2,0) = sx(idel+2,jdel  ,n,k)
       sc(2,1) = sx(idel+2,jdel+1,n,k)
 
-      ncount=count(sc.gt.-0.1)
+      ncount=count(sc.gt.-990.)
       if (ncount.ge.12) then
         r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
              -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
@@ -2122,7 +2126,7 @@ ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
 kx=size(nface,2)
 intsch=mod(ktau,2)
-cxx=-99.
+cxx=-999.
 sx=cxx
 sc=cxx
 ssav=s(1:ifull,:)
@@ -2204,7 +2208,7 @@ if(intsch==1)then
         sc(0,2) = sx(idel  ,jdel+2,n,k)
         sc(1,2) = sx(idel+1,jdel+2,n,k)
 
-        ncount=count(sc.gt.-0.1)
+        ncount=count(sc.gt.-990.)
         if (ncount.ge.12) then
           r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
                -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
@@ -2271,7 +2275,7 @@ if(intsch==1)then
       sc(0,2) = sx(idel  ,jdel+2,n,k)
       sc(1,2) = sx(idel+1,jdel+2,n,k)
 
-      ncount=count(sc.gt.-0.1)
+      ncount=count(sc.gt.-990.)
       if (ncount.ge.12) then
         r(2) = ((1.-xxg)*((2.-xxg)*((1.+xxg)*sc(0,0)-xxg*sc(-1,0)/3.) &
              -xxg*(1.+xxg)*sc(2,0)/3.)+xxg*(1.+xxg)*(2.-xxg)*sc(1,0))/2.
@@ -2372,7 +2376,7 @@ else     ! if(intsch==1)then
         sc(2,0) = sx(idel+2,jdel  ,n,k)
         sc(2,1) = sx(idel+2,jdel+1,n,k)
         
-        ncount=count(sc.gt.-0.1)
+        ncount=count(sc.gt.-990.)
         if (ncount.ge.12) then
           r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
                -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
@@ -2438,7 +2442,7 @@ else     ! if(intsch==1)then
       sc(2,0) = sx(idel+2,jdel  ,n,k)
       sc(2,1) = sx(idel+2,jdel+1,n,k)
 
-      ncount=count(sc.gt.-0.1)
+      ncount=count(sc.gt.-990.)
       if (ncount.ge.12) then
         r(2) = ((1.-yyg)*((2.-yyg)*((1.+yyg)*sc(0,0)-yyg*sc(0,-1)/3.) &
              -yyg*(1.+yyg)*sc(0,2)/3.)+yyg*(1.+yyg)*(2.-yyg)*sc(0,1))/2.
@@ -2629,7 +2633,7 @@ logical, dimension(ifull+iextra), intent(in) :: wtr
 ind(i,j,n)=i+(j-1)*ipan+(n-1)*ipan*jpan  ! *** for n=1,npan
 
 kx=size(nface,2)
-cxx=-99.
+cxx=-990.
 sx=cxx
 sc=cxx
 ssav=s(1:ifull,:)
@@ -2948,11 +2952,11 @@ logical, dimension(ifull), intent(in) :: wtr
 dtnew=dtin
 do iq=1,ifull
   if (wtr(iq)) then
-    dtnew=min(dtnew,0.1*dzdum(iq,1)/max(abs(ww(iq,1)),1.E-8))
+    dtnew=min(dtnew,0.3*dzdum(iq,1)/max(abs(ww(iq,1)),1.E-12))
     do ii=2,wlev-1
-      dtnew=min(dtnew,0.1*dzdum(iq,ii)/max(abs(ww(iq,ii)),abs(ww(iq,ii-1)),1.E-8))
+      dtnew=min(dtnew,0.3*dzdum(iq,ii)/max(abs(ww(iq,ii)),abs(ww(iq,ii-1)),1.E-12))
     end do
-    dtnew=min(dtnew,0.1*dzdum(iq,wlev)/max(abs(ww(iq,wlev-1)),1.E-8))
+    dtnew=min(dtnew,0.3*dzdum(iq,wlev)/max(abs(ww(iq,wlev-1)),1.E-12))
   end if
 end do
 its=int(dtin/dtnew)+1
@@ -2961,12 +2965,14 @@ dtnew=dtin/real(its_g)
 
 !if (its_g.gt.10) write(6,*) "MLOVERT ",its_g
 
+tt=tt-290.
 do l=1,its_g
   call mlotvd(dtnew,ww,uu,depdum,dzdum)
   call mlotvd(dtnew,ww,vv,depdum,dzdum)
   call mlotvd(dtnew,ww,ss,depdum,dzdum)
   call mlotvd(dtnew,ww,tt,depdum,dzdum)
 end do
+tt=tt+290.
 
 return
 end subroutine mlovadv
@@ -3050,7 +3056,7 @@ dsdyv=0.
 invdx=emu(1:ifull)/ds
 invdy=emv(1:ifull)/ds
 
-sx=-99.
+sx=-999.
 do iq=1,ifull
   if (wtr(iq)) then
 
@@ -3105,22 +3111,22 @@ do iq=1,ifull
       call searchdelta(isiw ,ddw ,ddv,sx ,idw ,sw)
       call searchdelta(isiwn,ddwn,ddv,sx ,idwn,swn)
 
-      if (seu.lt.0..or.su.lt.0.) then
+      if (seu.lt.-990..or.su.lt.-990.) then
         dsdxu(iq,ii)=0.
       else 
         dsdxu(iq,ii)=(seu-su)*invdx(iq)
       end if    
-      if (snu.lt.0..or.sne.lt.0..or.ss.lt.0..or.sse.lt.0.) then
+      if (snu.lt.-990..or.sne.lt.-990..or.ss.lt.-990..or.sse.lt.-990.) then
         dsdyu(iq,ii)=0.
       else
         dsdyu(iq,ii)=0.25*(snu+sne-ss-sse)*invdx(iq)
       end if
-      if (sev.lt.0..or.sen.lt.0..or.sw.lt.0..or.swn.lt.0.) then
+      if (sev.lt.-990..or.sen.lt.-990..or.sw.lt.-990..or.swn.lt.-990.) then
         dsdxv(iq,ii)=0.
       else 
         dsdxv(iq,ii)=0.25*(sev+sen-sw-swn)*invdy(iq)
       end if
-      if (snv.lt.0..or.sv.lt.0.) then
+      if (snv.lt.-990..or.sv.lt.-990.) then
         dsdyv(iq,ii)=0.
       else
         dsdyv(iq,ii)=(snv-sv)*invdy(iq)
@@ -3298,7 +3304,7 @@ real, dimension(0:1,0:1), intent(inout) :: sc
 real, dimension(0:1,0:1) :: nc
 logical globc
 
-ncount=count(sc.gt.-0.1)
+ncount=count(sc.gt.-990.)
 
 if (ncount.ge.4) return
 
@@ -3334,30 +3340,30 @@ real new
 logical, intent(inout) :: globc
 logical, intent(in) :: ln,le,ls,lw
 
-if (nc(i,j).gt.-0.1) return
+if (nc(i,j).gt.-990.) return
 
 new=0.
 nec=0
 if (ln) then
-  if (sc(i,j-1).gt.-0.1) then
+  if (sc(i,j-1).gt.-990.) then
     new=new+sc(i,j-1)
     nec=nec+1
   end if
 end if
 if (le) then
-  if (sc(i+1,j).gt.-0.1) then
+  if (sc(i+1,j).gt.-990.) then
     new=new+sc(i+1,j)
     nec=nec+1
   end if
 end if
 if (ls) then
-  if (sc(i,j+1).gt.-0.1) then
+  if (sc(i,j+1).gt.-990.) then
     new=new+sc(i,j+1)
     nec=nec+1
   end if
 end if
 if (lw) then
-  if (sc(i-1,j).gt.-0.1) then
+  if (sc(i-1,j).gt.-990.) then
     new=new+sc(i-1,j)
     nec=nec+1
   end if

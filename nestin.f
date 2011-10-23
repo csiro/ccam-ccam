@@ -2320,7 +2320,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull), intent(in) :: sfh
       real, dimension(ifull,wl), intent(in) :: new,sssb
       real, dimension(ifull,wl,2), intent(in) :: suvb
-      real, dimension(ifull) :: old,oldt,ddep
+      real, dimension(ifull) :: old,oldt,olds
       real, dimension(ifull,wl) :: diff
       real, dimension(ifull,wlev) :: nsq,rho,depth
       real, dimension(ifull_g,1) :: diffh_g
@@ -2508,6 +2508,11 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
         ! correct temp pertubation to minimise change in buoyancy
         if (tempfix.eq.1.and.kd.eq.1) then
+          if (ktopmlo.ne.1) then
+            write(6,*) "ERROR: nud_sst with SST input"
+            write(6,*) "requires ktopmlo=1"
+            stop
+          end if
           depth=0.
           old=293.
           do k=ktopmlo,kbotmlo
@@ -2516,21 +2521,19 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             rho(:,k)=rho0+a0*old ! linear approximation to density
           end do
           do k=ktopmlo,kbotmlo-1
-            ddep=max(depth(:,k+1)-depth(:,k),0.01)
-            nsq(:,k)=2.*grav*(rho(:,k)-rho(:,k+1))/
-     &        (ddep*(rho(:,k)+rho(:,k+1)))
+            !nsq=-2.*grav*(rho(:,k)-rho(:,k+1))/((dep(:,k+1)-dep(:,k))*(rho(:,k)+rho(:,k+1)))
+            nsq(:,k)=-(rho(:,k)-rho(:,k+1))/(rho(:,k)+rho(:,k+1))
           end do
-          call mloexport(0,oldt,1,0)
-          oldt=oldt+diff(:,1)*10./real(mloalpha)
-          oldt=max(oldt,271.)
-          call mloimport(0,oldt,ktopmlo,0)
+          call mloexport(0,olds,ktopmlo,0)
+          olds=olds+diff(:,1)*10./real(mloalpha)
+          olds=max(olds,271.)
+          call mloimport(0,olds,ktopmlo,0)
+          oldt=olds
           do k=ktopmlo+1,kbotmlo
-            call mloexport(0,old,k,0)
-            ddep=max(depth(:,k)-depth(:,k-1),0.01)
-            old=(oldt*(1.-nsq(:,k-1)*ddep/(2.*grav))
-     &        -nsq(:,k-1)*ddep*rho0/(grav*a0))
-     &        /(1.+nsq(:,k-1)*ddep/(2.*grav))
-            old=max(old,271.)	  
+            old=(oldt*(1.+nsq(:,k-1))
+     &        +2.*nsq(:,k-1)*rho0/a0)
+     &        /(1.-nsq(:,k-1))
+            old=min(max(old,271.),olds+1.)	  
             call mloimport(0,old,k,0)
             oldt=old
           end do
@@ -2820,7 +2823,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull), intent(in) :: sfh
       real, dimension(ifull,wl), intent(in) :: new,sssb
       real, dimension(ifull,wl,2), intent(in) :: suvb
-      real, dimension(ifull) :: old,oldt,ddep
+      real, dimension(ifull) :: old,oldt,olds
       real, dimension(ifull,wl) :: diff
       real, dimension(ifull,wlev) :: nsq,rho,depth
       real, dimension(ifull_g,1) :: diffh_g
@@ -2980,6 +2983,11 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
         ! correct temp pertubation to minimise change in buoyancy
         if (tempfix.eq.1.and.kd.eq.1) then
+          if (ktopmlo.ne.1) then
+            write(6,*) "ERROR: nud_sst with SST input"
+            write(6,*) "requires ktopmlo=1"
+            stop
+          end if
           depth=0.
           old=293.
           do k=ktopmlo,kbotmlo
@@ -2988,21 +2996,19 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             rho(:,k)=rho0+a0*old ! linear approximation to density
           end do
           do k=ktopmlo,kbotmlo-1
-            ddep=max(depth(:,k+1)-depth(:,k),0.01)
-            nsq(:,k)=2.*grav*(rho(:,k)-rho(:,k+1))/
-     &        (ddep*(rho(:,k)+rho(:,k+1)))
+            !nsq=-2.*grav*(rho(:,k)-rho(:,k+1))/((dep(:,k+1)-dep(:,k))*(rho(:,k)+rho(:,k+1)))
+            nsq(:,k)=-(rho(:,k)-rho(:,k+1))/(rho(:,k)+rho(:,k+1))
           end do
-          call mloexport(0,oldt,1,0)
-          oldt=oldt+diff(:,1)*10./real(mloalpha)
-          oldt=max(oldt,271.)
-          call mloimport(0,oldt,ktopmlo,0)
+          call mloexport(0,olds,ktopmlo,0)
+          olds=olds+diff(:,1)*10./real(mloalpha)
+          olds=max(olds,271.)
+          call mloimport(0,olds,ktopmlo,0)
+          oldt=olds
           do k=ktopmlo+1,kbotmlo
-            call mloexport(0,old,k,0)
-            ddep=max(depth(:,k)-depth(:,k-1),0.01)
-            old=(oldt*(1.-nsq(:,k-1)*ddep/(2.*grav))
-     &        -nsq(:,k-1)*ddep*rho0/(grav*a0))
-     &        /(1.+nsq(:,k-1)*ddep/(2.*grav))
-            old=max(old,271.)	  
+            old=(oldt*(1.+nsq(:,k-1))
+     &        +2.*nsq(:,k-1)*rho0/a0)
+     &        /(1.-nsq(:,k-1))
+            old=min(max(old,271.),olds+1.)
             call mloimport(0,old,k,0)
             oldt=old
           end do

@@ -147,7 +147,7 @@
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
      & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss
      & ,mfix_tr,mfix_ke,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv
-     & ,nud_sfh,bpyear
+     & ,nud_sfh,bpyear,rescrn
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -1614,6 +1614,11 @@
         end if
       end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
       
+      ! Update diagnostics for consistancy
+      if (rescrn.gt.0) then
+        call autoscrn
+      end if
+      
       if(nscrn==1.and.mod(ktau,nperhr)==0)then
         call outcdfs(rundate)  ! for scrnfile
         u10mx(:)=0.
@@ -2011,7 +2016,7 @@ c     data nstag/99/,nstagu/99/
      &     vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
       data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
-      data nurban/0/,nmr/0/,nmlo/0/,bpyear/0./
+      data nurban/0/,nmr/0/,nmlo/0/,bpyear/0./,rescrn/0/
 !     Special and test options
       data namip/0/,amipo3/.false./,nhstest/0/,nsemble/0/,nspecial/0/,
      &     panfg/4./,panzo/.001/,nplens/0/
@@ -2086,7 +2091,7 @@ c     stuff from insoil  for soilv.h
       data sucs/-.106, -.591, -.405, -.348, -.153, -.49, -.299,
      &          -.356, -.153, -.218, -.478, -.405, -.63/           ! phisat (m)
       data rhos/1600., 1595., 1381., 1373., 1476., 1521., 1373., 1537.,
-     &          1455., 4*2600. / ! MJT cable
+     &          1455., 4*2600. /
       ! soil density changed to the line above by YP using the relationship
       ! rho = (1  - ssat) * 2650  ----- (3Nov2007)
       data  css/7* 850., 1920., 2100., 4*850./       ! heat capacity

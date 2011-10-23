@@ -66,7 +66,7 @@
       real afland,aftlandg,fhbg,rootbg,denhabg
       real thnew,thgnew,thnewa,qtgair,aftland
       real thgnewa,ri_tmp,fh_tmp,taftfhmin
-      real taftfhmax,taftfhgmin,taftfhgmax
+      real taftfhmax,taftfhgmin,taftfhgmax,factchice
       real, dimension(:), allocatable, save :: taftfh,taftfhg
       real, dimension(:), allocatable, save :: plens
       real taftfhg_temp(ifull)
@@ -125,6 +125,8 @@ c     degdt is degdt (was ceva in surfupa/b)
       z1onzt=300.*rdry*(1.-sig(1))*ztv/grav
       chnsea=(vkar/log(z1onzt))**2   ! should give .00085 for csiro9
       oldrunoff(:)=runoff(:)
+      zo=999.        ! dummy values
+      factch=999.    ! dummy values
 
       if (diag.or.ntest==1) then
         if (mydiag) then
@@ -266,9 +268,13 @@ c       this is in-line ocenzo using latest coefficient, i.e. .018      ! sea
        if(newztsea==0)then ! 0 for original, 1 for different zt over sea! sea
 c        enhanced formula used in Feb '92 Air-Sea conference follows:   ! sea
 c        factch=sqrt(zo*exp(vkar*vkar/(chnsea*log(zmin/zo)))/zmin)      ! sea
-         factch(:)=1. ! factch is sqrt(zo/zt) only for use in unstable fh
+         where (.not.land)                                              ! sea
+           factch(:)=1. ! factch is sqrt(zo/zt) only for use in unstable fh
+         end where                                                      ! sea
        else                                                             ! sea
-         factch(:)=sqrt(zo(:)*ztv) ! for use in unstable fh             ! sea
+         where (.not.land)                                              ! sea
+           factch(:)=sqrt(zo(:)*ztv) ! for use in unstable fh           ! sea
+         end where                                                      ! sea
        endif  ! (newztsea==0)                                           ! sea
                                                                         ! sea
        do iq=1,ifull ! done for all points; overwritten later for land  ! sea
@@ -357,7 +363,7 @@ c      section to update pan temperatures                               ! sea
         drst=qsttg(iq)*ps(iq)*hlars/(tggsn(iq,1)*tggsn(iq,1)*constz)    ! sice
         xx=grav*zmin*(1.-tggsn(iq,1)*srcp/t(iq,1))                      ! sice
         ri_ice=min(xx/vmag(iq)**2 , ri_max)                             ! sice
-        factch(iq)=1.                                                   ! sice
+        factchice=1.                                                    ! sice
         zoice=.001                                                      ! sice
         zologice=zminlog-log(zoice)   !   i.e. log(zmin/zo(iq))         ! sice
         af(iq)=(vkar/zologice)**2                                       ! sice
@@ -375,7 +381,7 @@ c         First do momentum                                             ! sice
           fm=vmod(iq)-vmod(iq)*2.*bprm *ri_ice/denma                    ! sice
 c         n.b. fm denotes ustar**2/(vmod(iq)*af)                        ! sice
 c         Now heat ; allow for smaller zo via aft and factch            ! sice
-          denha=1.+chs*2.*bprm*factch(iq)*aft(iq)*root                  ! sice
+          denha=1.+chs*2.*bprm*factchice*aft(iq)*root                   ! sice
           fh(iq)=vmod(iq)-(2.*bprm *ri_ice)/denha                       ! sice
         endif                                                           ! sice
                                                                         ! sice
@@ -425,11 +431,11 @@ c       no snow on the ice assumed for now                              ! sice
         b1=dirad(iq)+degdt(iq)+dfgdt(iq)+cie(iq)                        ! sice
         gbot=(gamm(iq)/dt)+b1                                           ! sice
         deltat=ga(iq)/gbot                                              ! sice
-        tggsn(iq,1)=tggsn(iq,1)+deltat ! MJT seaice                     ! sice
+        tggsn(iq,1)=tggsn(iq,1)+deltat                                  ! sice
         tggsn(iq,1)=min(tggsn(iq,1),271.2)   ! jlm fix Tue  05-30-2000  ! sice
         fgf(iq) =fgf(iq) +deltat*dfgdt(iq)                              ! sice
         fev(iq) =fev(iq) +deltat*degdt(iq)                              ! sice
-        es = establ(tggsn(iq,1)) ! MJT seaice                           ! sice
+        es = establ(tggsn(iq,1))                                        ! sice
         constz=ps(iq)-es                                                ! sice
         qsttg(iq)=.622*es/constz                                        ! sice
                                                                         ! sice
@@ -438,6 +444,7 @@ c       no snow on the ice assumed for now                              ! sice
         fg(iq) = fracice(iq)*fgf(iq)+ (1.-fracice(iq))*fg(iq)           ! sice
         ri(iq) =fracice(iq)*ri_ice + (1.-fracice(iq))*ri(iq)            ! sice
         zo(iq) =fracice(iq)*zoice  + (1.-fracice(iq))*zo(iq)            ! sice
+        factch(iq)=fracice(iq)*factchice + (1.-fracice(iq))*factch(iq)  ! sice
         cduv(iq) =fracice(iq)*af(iq)*fm + (1.-fracice(iq))*cduv(iq)     ! sice
         ustar(iq) = sqrt(vmod(iq)*cduv(iq))                             ! sice
 c       N.B. potential evaporation is now eg+eg2                        ! sice
@@ -509,6 +516,7 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
      &               qg(1:ifull,1),ps,f,swrsave,fbeamvis,fbeamnir,      ! MLO
      &               watbdy(1:ifull)/dt,0,.true.)                       ! MLO
         call mloscrnout(tscrn,qgscrn,uscrn,u10,0)                       ! MLO
+        call mloextra(0,zoh,azmin,0)                                    ! MLO
         do k=1,ms                                                       ! MLO
           call mloexport(0,tgg(:,k),k,0)                                ! MLO
         end do                                                          ! MLO
@@ -518,12 +526,11 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
                                                                         ! MLO
         ! stuff to keep tpan over land working                          ! MLO
         ri=min(grav*zmin*(1.-tpan*srcp/t(1:ifull,1))/vmag**2,ri_max)    ! MLO
-        factch=sqrt(panzo*ztv)                                          ! MLO
         where (ri>0.)                                                   ! MLO
           fh=vmod/(1.+bprm*ri)**2                                       ! MLO
         elsewhere                                                       ! MLO
-          fh=vmod-vmod*2.*bprm*ri/(1.+chs*2.*bprm*factch*chnsea         ! MLO
-     &       *sqrt(-ri*zmin/panzo))                                     ! MLO
+          fh=vmod-vmod*2.*bprm*ri/(1.+chs*2.*bprm*sqrt(panzo*ztv)       ! MLO
+     &       *chnsea*sqrt(-ri*zmin/panzo))                              ! MLO
         end where                                                       ! MLO
                                                                         ! MLO
         where(.not.land)                                                ! MLO
@@ -536,6 +543,7 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
           tauy=rho*cduv*v(1:ifull,1)                                    ! MLO
           tpan=tgg(:,1)                                                 ! MLO
           rnet=sgsave-rgsave-stefbo*tss**4                              ! MLO
+          factch=sqrt(zo/zoh)                                           ! MLO
         elsewhere                                                       ! MLO
           rgg=5.67e-8*tpan**4                                           ! MLO
           fg=rho*chnsea*cp*fh*(tpan-theta)                              ! MLO
@@ -785,14 +793,14 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
         case(6,7)                                                       ! cable
          if (nmlo.eq.0) then                                            ! cable
            ! update ocean diagnostics                                   ! cable
-           zoh=1./ztv                                                   ! cable
+           zoh=zo/(factch*factch)                                       ! cable
            call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,     ! cable
      &                  tss,t(1:ifull,1),qsttg,qg(1:ifull,1),           ! cable
      &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! cable
      &                       v(1:ifull,1)*v(1:ifull,1)),                ! cable
      &                  ps(1:ifull),land,zmin,sig(1))                   ! cable
          end if                                                         ! cable
-         factch(iperm)=sqrt(7.4)                                        ! cable
+         factch(iperm(1:ipland))=sqrt(7.4)                              ! cable
          ! call cable                                                   ! cable
          call sib4                                                      ! cable
          ! update remaining diagnostic arrays                           ! cable
@@ -808,7 +816,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          ! The following patch overrides CABLE screen level diagnostics ! cable
          if (nsib.eq.7) then                                            ! cable
            qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))      ! cable
-           zoh=zo/7.4                                                   ! cable
+           zoh=zo/(factch*factch)                                       ! cable
            call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,     ! cable
      &                tss,t(1:ifull,1),qsttg,qg(1:ifull,1),             ! cable
      &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! cable
@@ -846,14 +854,19 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      &               ,ps(1:ifull),uzon,vmer,vmodmin,0)                  ! urban
         runoff=runoff+newrunoff ! add new runoff after including urban  ! urban
         ! here we blend zo with the urban part                          ! urban
-        factch(iperm)=zo(iperm)/factch(iperm)**2                        ! urban
-        call atebzo(zo,factch,0)                                        ! urban
-        factch(iperm)=sqrt(zo(iperm)/factch(iperm))                     ! urban
+        zoh(iperm(1:ipland))=zo(iperm(1:ipland))                        ! urban
+     &                      /factch(iperm(1:ipland))**2                 ! urban
+        call atebzo(zo,zoh,0)                                           ! urban
+        factch(iperm(1:ipland))=sqrt(zo(iperm(1:ipland))                ! urban
+     &                      /zoh(iperm(1:ipland)))                      ! urban
         ! calculate ustar                                               ! urban
-        cduv(iperm)=cduv(iperm)/vmod(iperm)                             ! urban
+        cduv(iperm(1:ipland))=cduv(iperm(1:ipland))                     ! urban
+     &                       /vmod(iperm(1:ipland))                     ! urban
         call atebcd(cduv,0)                                             ! urban
-        cduv(iperm)=cduv(iperm)*vmod(iperm)                             ! urban
-        ustar(iperm)=sqrt(vmod(iperm)*cduv(iperm))                      ! urban
+        cduv(iperm(1:ipland))=cduv(iperm(1:ipland))                     ! urban
+     &                       *vmod(iperm(1:ipland))                     ! urban
+        ustar(iperm(1:ipland))=sqrt(vmod(iperm(1:ipland))               ! urban
+     &                       *cduv(iperm(1:ipland)))                    ! urban
         ! calculate screen level diagnostics                            ! urban
         call atebscrnout(tscrn,qgscrn,uscrn,u10,0)                      ! urban
         do ip=1,ipland ! assumes all urban points are land points       ! urban

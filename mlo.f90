@@ -33,7 +33,7 @@ implicit none
 
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
-       mloscrnout,mloimpice,mloexpice,mloexpdep,mloexpdensity,wlev,micdwn
+       mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,wlev,micdwn
 
 ! parameters
 integer, parameter :: wlev = 20
@@ -62,14 +62,14 @@ integer, parameter :: zomode    = 2 ! roughness calculation (0=Charnock (CSIRO9)
 integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=None, 1=Iterative)
 integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
 integer, parameter :: deprelax  = 0 ! surface height (0=vary, 1=relax, 2=set to zero)
-integer, parameter :: buoymeth  = 0 ! buoyancy calculation (0=density, 1=alpha/beta)
 ! max depth
 real, parameter :: mxd    = 914.    ! Max depth (m)
 real, parameter :: mindep = 0.5     ! Thickness of first layer (m)
 real, parameter :: minwater = 1.    ! Minimum water height above bottom (m)
 ! model parameters
 real, parameter :: ric     = 0.3    ! Critical Ri for diagnosing mixed layer depth
-real, parameter :: epsilon = 0.1
+real, parameter :: epsilon = 0.1    ! Ratio of surface layer and mixed layer thickness
+real, parameter :: minsfc  = 0.5    ! Minimum thickness to average surface layer properties (m)
 ! radiation parameters
 real, parameter :: mu_1 = 23.       ! VIS depth (m) - Type I
 real, parameter :: mu_2 = 0.35      ! NIR depth (m) - Type I
@@ -78,7 +78,7 @@ real, parameter :: vkar=0.4               ! von Karman constant
 real, parameter :: lv=2.501e6             ! Latent heat of vaporisation (J kg^-1)
 real, parameter :: lf=3.337e5             ! Latent heat of fusion (J kg^-1)
 real, parameter :: ls=lv+lf               ! Latent heat of sublimation (J kg^-1)
-real, parameter :: grav=9.80              ! graviational constant (m/s^2)
+real, parameter :: grav=9.80              ! graviational constant (m s^-2)
 real, parameter :: sbconst=5.67e-8        ! Stefan-Boltzmann constant
 real, parameter :: cdbot=2.4E-3           ! bottom drag coefficent
 real, parameter :: cp0=3990.              ! heat capacity of mixed layer (J kg^-1 K^-1)
@@ -559,6 +559,34 @@ mld=unpack(p_mixdepth,wpack,mld)
 
 return
 end subroutine mlodiag
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Return roughness length for heat
+
+subroutine mloextra(mode,zoh,zmin,diag)
+
+implicit none
+
+integer, intent(in) :: mode,diag
+real, dimension(ifull), intent(out) :: zoh
+real, dimension(ifull), intent(in) :: zmin
+real, dimension(wfull) :: a_zmin
+real, dimension(wfull) :: workb
+
+zoh=0.
+if (wfull.eq.0) return
+select case(mode)
+  case(0)
+    a_zmin=pack(zmin,wpack)
+    workb=(1.-i_fracice)/log(a_zmin/p_zoh)**2+i_fracice/log(a_zmin/p_zohice)**2
+    zoh=unpack(a_zmin*exp(-1./sqrt(workb)),wpack,zoh)
+  case default
+    write(6,*) "ERROR: Invalid mode ",mode
+    stop
+end select
+
+return
+end subroutine mloextra
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate screen diagnostics
@@ -1147,11 +1175,12 @@ subroutine getmixdepth(d_rho,d_nsq,d_rad,d_alpha,d_beta,d_b0,d_ustar,a_f,d_zcr)
 implicit none
 
 integer ii,jj,kk,iqw
+integer, dimension(wfull) :: isf
 real vtc,dvsq,vtsq,xp
 real tnsq,tws,twu,twv,tdepth,tbuoy,trho
 real oldxp,oldtrib,trib,newxp
 real, dimension(wfull,wlev) :: ws,wm,dumbuoy,rib
-real, dimension(wfull) :: dumbf,l,d_depth
+real, dimension(wfull) :: dumbf,l,d_depth,usf,vsf,rsf,dsf
 real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull), intent(in) :: d_b0,d_ustar,d_zcr
 real, dimension(wfull), intent(in) :: a_f
@@ -1160,6 +1189,7 @@ real, parameter :: alpha = 0.9
 
 vtc=1.8*sqrt(0.2/(98.96*epsilon))/(vkar*vkar*ric)
 
+! Modify buoyancy forcing with solar radiation
 if (incradbf.gt.0) then
   do ii=1,wlev
     dumbf=d_b0-grav*sum(d_alpha(:,1:ii)*d_rad(:,1:ii),2) ! -ve sign is to account for sign of d_rad
@@ -1174,30 +1204,47 @@ else
   end do
 end if
 
-if (buoymeth.eq.0) then
-  do ii=1,wlev
-    dumbuoy(:,ii)=grav*(d_rho(:,ii)-d_rho(:,1))
+! Estimate surface layer values
+usf=0.
+vsf=0.
+rsf=0.
+dsf=0.
+isf=wlev-1
+do iqw=1,wfull
+  do ii=1,wlev-1
+    usf(iqw)=usf(iqw)+w_u(iqw,ii)*dz(iqw,ii)
+    vsf(iqw)=vsf(iqw)+w_v(iqw,ii)*dz(iqw,ii)
+    rsf(iqw)=rsf(iqw)+d_rho(iqw,ii)*dz(iqw,ii)
+    dsf(iqw)=dsf(iqw)+dz(iqw,ii)
+    isf(iqw)=ii+1
+    if (depth(iqw,isf(iqw))*d_zcr(iqw).gt.minsfc) exit
   end do
-else
-  do ii=1,wlev
-    dumbuoy(:,ii)=grav*(d_alpha(:,ii)*w_temp(:,ii)-d_beta(:,ii)*w_sal(:,ii))
-  end do
-  do ii=2,wlev
-    dumbuoy(:,ii)=(dumbuoy(:,ii)-dumbuoy(:,1))
-  end do
-  dumbuoy(:,1)=0.
-end if
+  usf(iqw)=usf(iqw)/dsf(iqw)
+  vsf(iqw)=vsf(iqw)/dsf(iqw)
+  rsf(iqw)=rsf(iqw)/dsf(iqw)
+end do
 
+! Calculate local buoyancy
+dumbuoy=0.
+do iqw=1,wfull
+  do ii=isf(iqw),wlev
+    dumbuoy(iqw,ii)=grav*(d_rho(iqw,ii)-rsf(iqw))
+  end do
+end do
+
+! Calculate mixed layer depth from critical Ri
 p_mixind=wlev-1
 p_mixdepth=depth(:,wlev)*d_zcr
 rib=0.
 do iqw=1,wfull
-  do ii=2,wlev
+  do ii=isf(iqw),wlev
     jj=min(ii+1,wlev)
     vtsq=depth(iqw,ii)*d_zcr(iqw)*ws(iqw,ii)*sqrt(0.5*max(d_nsq(iqw,ii)+d_nsq(iqw,jj),0.))*vtc
-    dvsq=(w_u(iqw,1)-w_u(iqw,ii))**2+(w_v(iqw,1)-w_v(iqw,ii))**2
-    rib(iqw,ii)=(depth(iqw,ii)-depth(iqw,1))*d_zcr(iqw)*dumbuoy(iqw,ii)/(max(dvsq+vtsq,1.E-20)*d_rho(iqw,ii))
-    if (rib(iqw,ii).gt.ric.or.abs(rib(iqw,ii)).lt.rib(iqw,ii-1)) then
+    dvsq=(usf(iqw)-w_u(iqw,ii))**2+(vsf(iqw)-w_v(iqw,ii))**2
+    rib(iqw,ii)=(depth(iqw,ii)-dsf(iqw))*d_zcr(iqw)*dumbuoy(iqw,ii)/(max(dvsq+vtsq,1.E-20)*d_rho(iqw,ii))
+  end do
+  do ii=wlev,isf(iqw),-1
+    if (rib(iqw,ii-1).lt.ric) then
       p_mixind(iqw)=ii-1
       xp=min(max((ric-rib(iqw,ii-1))/max(rib(iqw,ii)-rib(iqw,ii-1),1.E-20),0.),1.)
       p_mixdepth(iqw)=((1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii))*d_zcr(iqw)
@@ -1206,8 +1253,8 @@ do iqw=1,wfull
   end do 
 end do
 
+! Refine mixed-layer-depth calculation by improving vertical profile of buoyancy
 if (mixmeth.eq.1) then
-  ! Refine mixed-layer-depth calculation
   do iqw=1,wfull
     ii=p_mixind(iqw)+1
     jj=min(ii+1,wlev)
@@ -1228,8 +1275,8 @@ if (mixmeth.eq.1) then
       tbuoy=(1.-xp)*dumbuoy(iqw,ii-1)+xp*dumbuoy(iqw,ii)
       trho=(1.-xp)*d_rho(iqw,ii-1)+xp*d_rho(iqw,ii)
       vtsq=tdepth*tws*sqrt(tnsq)*vtc
-      dvsq=(w_u(iqw,1)-twu)**2+(w_v(iqw,1)-twv)**2
-      trib=(tdepth-depth(iqw,1)*d_zcr(iqw))*tbuoy/(max(dvsq+vtsq,1.E-20)*trho)
+      dvsq=(usf(iqw)-twu)**2+(vsf(iqw)-twv)**2
+      trib=(tdepth-dsf(iqw)*d_zcr(iqw))*tbuoy/(max(dvsq+vtsq,1.E-20)*trho)
       if (abs(trib-oldtrib).gt.1.E-5) then
         newxp=xp-alpha*(trib-ric)*(xp-oldxp)/(trib-oldtrib) ! i.e., (trib-ric-oldtrib+ric)
         oldtrib=trib

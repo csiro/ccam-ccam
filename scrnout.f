@@ -417,7 +417,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       real, dimension(pfull) :: ustar,qstar,z10_on_l
       real, dimension(pfull) :: neutral,neutral10,pm10
       real, dimension(pfull) :: integralm10
-      real, dimension(pfull) :: esat,qsat,tstar
+      real, dimension(pfull) :: esat,qsat,tstar,umagn
       real, intent(in) :: zmin,sig
       real scrp
       integer, parameter ::  nc     = 5
@@ -432,6 +432,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       scrp=(sig)**(rdry/cp)
       thetav=temp*(1.+0.61*mixr)/scrp
       sthetav=stemp*(1.+0.61*smixr)
+      umagn=max(umag,0.2)
 
       ! Roughness length for heat
       lzom=log(zmin/zo)
@@ -439,7 +440,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
 
       ! Dyer and Hicks approach 
       thetavstar=vkar*(thetav-sthetav)/lzoh
-      ustar     =vkar*umag/lzom
+      ustar     =vkar*umagn/lzom
       do ic=1,nc
         z_on_l=vkar*zmin*grav*thetavstar/(thetav*ustar**2)
         z_on_l=min(z_on_l,10.)
@@ -470,12 +471,14 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
           integralh = lzoh-(ph1-ph0)         
         endwhere
         thetavstar=vkar*(thetav-sthetav)/integralh
-        ustar     =vkar*umag/integralm
+        ustar     =vkar*umagn/integralm
       end do
       tstar=vkar*(temp-stemp)/integralh
       qstar=vkar*(mixr-smixr)/integralh
       
       ! estimate screen diagnostics
+      z_on_l=vkar*zmin*grav*thetavstar/(thetav*ustar**2)
+      z_on_l=min(z_on_l,10.)
       z0_on_l   = z0*z_on_l/zmin
       z10_on_l  = z10*z_on_l/zmin
       z0_on_l   = min(z0_on_l,10.)
@@ -525,9 +528,50 @@ c-------Beljaars and Holtslag (1991) heat function
       qsat = 0.622*esat/(ps-0.378*esat)
       rhscrn = 100.*min(qscrn/qsat,1.)
       
-      uscrn=max(umag-ustar*integralm/vkar,0.)
-      u10  =max(umag-ustar*integralm10/vkar,0.)
+      uscrn=max(umagn-ustar*integralm/vkar,0.)
+      u10  =max(umagn-ustar*integralm10/vkar,0.)
       
       return
       end subroutine scrncalc
+      
+      subroutine autoscrn
+      
+      use arrays_m
+      use pbl_m
+      use permsurf_m
+      use screen_m
+      use sigs_m
+      use soil_m
+      use soilsnow_m
+      use work2_m
+      
+      implicit none
+      
+      include 'newmpar.h'
+      include 'const_phys.h'
+      include 'establ.h'
+      include 'parm.h'
+      
+      integer iq
+      real es,ztv
+      real, dimension(ifull) :: zoh,umag
+      real, parameter :: vkar = 0.4
+      
+      ztv=exp(vkar/sqrt(chn10))/10.
+      ps(1:ifull)=1.E5*exp(psl(1:ifull))
+      zoh=zo/(factch*factch)
+      umag=sqrt(u(1:ifull,1)*u(1:ifull,1)
+     &         +v(1:ifull,1)*v(1:ifull,1))
+      do iq=1,ifull
+        es = establ(tss(iq))
+        qsttg(iq)= .622*es/(ps(iq)-es)
+      enddo
+      
+      call scrncalc(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
+     &              tss,t(1:ifull,1),qsttg,qg(1:ifull,1),umag,
+     &              ps(1:ifull),zmin,sig(1))
+     
+      return
+      end subroutine autoscrn
+      
       !--------------------------------------------------------------

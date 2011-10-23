@@ -265,8 +265,7 @@ c     Set up ozone for this time and row
      &                     sigh, ps(1+(j-1)*il:(j-1)*il+imax), qo3 )
          qo3(:,:)=max(1.e-10,qo3(:,:))    ! July 2008
       else
-         call o3set(rlatt(1+(j-1)*il),rlongg(1+(j-1)*il),imax,mins,
-     &              duo3n,sig,ps(1+(j-1)*il:(j-1)*il+imax))
+         call o3set(imax,istart,mins,duo3n,sig,ps(1+(j-1)*il))
          do k=1,kl
             do i=1,imax
               qo3(i,k) = duo3n(i,k)

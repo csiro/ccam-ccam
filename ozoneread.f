@@ -23,15 +23,16 @@
 c
 c     Reads the ozone data from the o3_datafile (filename set in namelist)
 c
-      use cc_mpi, only : myid ! MJT read
+      use cc_mpi, only : myid
       use infile, only : ncmsg
 
       implicit none
 
       include 'newmpar.h'
-      include 'filnames.h'   ! MJT radiation
-      include 'netcdf.inc'   ! MJT radiation
-      include 'mpif.h'       ! MJT read
+      include 'filnames.h'
+      include 'netcdf.inc'
+      include 'mpif.h'
+      
       integer, intent(in) :: jyear,jmonth
       integer nlev,i,l,k,ierr
       integer ncstatus,ncid,tt
@@ -39,12 +40,12 @@ c
       integer, dimension(4) :: spos,npos
       real, dimension(:,:,:,:), allocatable :: o3dum
       real, dimension(:), allocatable :: o3lon,o3lat
+      real, dimension(kl) :: sigma,sigin
       character*32 cdate
       real, parameter :: sigtol=1.e-3
-      real sigma(kl), sigin(kl)
-
+      
       !--------------------------------------------------------------
-      ! MJT read
+      ! Read montly ozone data for interpolation
       if (myid==0) then
         write(6,*) "Reading ",trim(o3file)
         ncstatus=nf_open(o3file,nf_nowrite,ncid)
@@ -98,7 +99,7 @@ c
           nn=(jyear-yy)*12+(jmonth-mm)+1
           if (nn.lt.1.or.nn.gt.tt) then
             write(6,*) "ERROR: Cannot find date in ozone data"
-            stop
+            call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
           end if
           write(6,*) "Found ozone data at index ",nn
           spos=1
@@ -144,7 +145,7 @@ c
           read(16,*) nlev
           if ( nlev.ne.kl ) then
             write(6,*) ' ERROR - Number of levels wrong in o3_data file'
-	      stop
+	      call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
           end if
 c         Check that the sigma levels are the same
 c         Note that the radiation data has the levels in the reverse order
@@ -153,7 +154,7 @@ c         Note that the radiation data has the levels in the reverse order
 	      if ( abs(sigma(k)-sigin(k)) .gt. sigtol ) then
 	        write(6,*) ' ERROR - sigma level wrong in o3_data file'
 	        write(6,*) k, sigma(k), sigin(k)
-	        stop
+	        call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
             end if
           end do
           
@@ -208,7 +209,7 @@ c         o3dat are in the order DJF, MAM, JJA, SON
 ! Version of o3set for global CC model. Based on GCM o3set.f, Revision 1.7 
 
 ! In this version the latitude may be different for each point
-      subroutine o3set(alat,alon,npts,mins,duo3n,sig,ps)
+      subroutine o3set(npts,istart,mins,duo3n,sig,ps)
 c
 c  This routine interpolates in latitude and time to set the ozone 
 c  amounts.
@@ -218,37 +219,40 @@ c    MINS    current model time in mins (from start of year)
 c  OUTPUT
 c    DUO3N   ozone mixing ratio
 c
+      use latlong_m
+
       implicit none
 
       include 'newmpar.h'
       include 'const_phys.h'
       
-      integer, intent(in) :: npts,mins
-      integer j,ilat,m
+      integer, intent(in) :: npts,mins,istart
+      integer j,ilat,m,iend
       real date,rang,rsin1,rcos1,rcos2,theta,angle,than
       real do3,do3p
       real, dimension(npts), intent(in) :: ps
       real, dimension(kl), intent(in) :: sig
-      real duo3n(npts,kl), alat(npts),alon(npts) ! alat and alon are only needed for CMIP3 ozone
+      real duo3n(npts,kl)
 
       real, parameter :: rlag=14.8125
-      real, parameter :: year=365
-      real, parameter :: amd=28.9644
-      real, parameter :: amo=48.
+      real, parameter :: year=365.
+      real, parameter :: amd=28.9644 ! molecular mass of air g/mol
+      real, parameter :: amo=47.9982 ! molecular mass of o3 g/mol
       real, parameter :: dobson=6.022e3/2.69/48.e-3
       
       if (allocated(o3mth)) then ! CMIP5 ozone
       
-        call fieldinterpolate(duo3n,o3pre,o3mth,o3nxt,o3pres,npts,kl,
-     &                        ii,jj,kk,mins,sig,ps)
+        iend=istart+npts-1
+        call fieldinterpolate(duo3n,o3pre(istart:iend,:),
+     &         o3mth(istart:iend,:),o3nxt(istart:iend,:),o3pres,npts,
+     &         kl,ii,jj,kk,mins,sig,ps)
 
-        ! convert units
+        ! convert units from mol/mol to g/g
         where (duo3n.lt.1.)
           duo3n=duo3n*amo/amd
         end where
          
       else ! CMIP3 ozone
-c       This moved to initfs
 c
 c       Convert time to day number
 c       date = amod( float(mins)/1440., year)
@@ -260,7 +264,7 @@ c       Use year of exactly 365 days
         rcos2 = cos(2.0*rang)
 c
         do j=1,npts
-           theta=90.-alat(j)*180./pi
+           theta=90.-rlatt(j)*180./pi
            ilat = theta/5.
            angle = 5 * ilat
            than = (theta-angle)/5.

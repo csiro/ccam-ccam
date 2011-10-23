@@ -30,7 +30,7 @@ real, parameter :: csolar   = 1365        ! Solar constant in W/m^2
 real, parameter :: siglow   = 0.68        ! sigma level for top of low cloud (diagnostic)
 real, parameter :: sigmid   = 0.44        ! sigma level for top of medium cloud (diagnostic)
 real, parameter :: ratco2mw = 1.519449738 ! conversion factor for CO2 diagnostic
-integer, parameter :: fbeamcalc          = 0 ! (0=prognostic, 1=spitter)
+integer, parameter :: fbeamcalc          = 0 ! Method for calculating fraction of direct radiation (0=prognostic, 1=spitter)
 integer, parameter :: naermodels         = 37
 integer, parameter :: N_AEROSOL_BANDS_FR = 8
 integer, parameter :: N_AEROSOL_BANDS_CO = 1
@@ -44,7 +44,7 @@ logical, save :: do_aerosol_forcing
 contains
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! CCAM interface
+! CCAM interface with GFDL SEA-ESF radiation
 !
 
 subroutine seaesfrad(imax,odcalc,iaero)
@@ -99,8 +99,7 @@ real, dimension(imax) :: cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif
 real, dimension(imax,kl) :: p2,cd2,dumcf,dumql,dumqf,dumt
 real, dimension(kl+1) :: sigh
 real(kind=8), dimension(kl+1,2) :: pref
-real r1,dlt,alp,slag
-real dhr,fjd
+real r1,dlt,alp,slag,dhr,fjd
 real ttbg,ar1,exp_ar1,ar2,exp_ar2,ar3,snr
 real dnsnow,snrat,dtau,alvo,aliro,fage,cczen,fzen,fzenm
 real alvd,alv,alird,alir
@@ -141,6 +140,8 @@ do k=1,kl
   kr=kl+1-k
   pref(kr,:)=sig(k)*pref(kl+1,:)
 end do
+
+ps(1:ifull)=1.E5*exp(psl(1:ifull))
 
 ! astronomy ---------------------------------------------------------
 ! Set up number of minutes from beginning of year
@@ -208,15 +209,15 @@ if ( first ) then
 
   allocate ( Atmos_input%press(imax, 1, kl+1) )
   allocate ( Atmos_input%phalf(imax, 1, kl+1) )
-  allocate ( Atmos_input%temp (imax, 1, kl+1) )
-  allocate ( Atmos_input%rh2o (imax, 1, kl  ) )
+  allocate ( Atmos_input%temp(imax, 1, kl+1) )
+  allocate ( Atmos_input%rh2o(imax, 1, kl  ) )
   allocate ( Atmos_input%rel_hum(imax, 1, kl  ) )
   allocate ( Atmos_input%clouddeltaz(imax, 1,kl  ) )
   allocate ( Atmos_input%deltaz(imax, 1, kl ) )
-  allocate ( Atmos_input%pflux (imax, 1, kl+1) )
-  allocate ( Atmos_input%tflux (imax, 1, kl+1) )
-  allocate ( Atmos_input%psfc (imax, 1 ) )
-  allocate ( Atmos_input%tsfc (imax, 1 ) )
+  allocate ( Atmos_input%pflux(imax, 1, kl+1) )
+  allocate ( Atmos_input%tflux(imax, 1, kl+1) )
+  allocate ( Atmos_input%psfc(imax, 1 ) )
+  allocate ( Atmos_input%tsfc(imax, 1 ) )
   !if (use_co2_tracer_field) then
   !  allocate ( Atmos_input%tracer_co2(imax, 1, kl ) )
   !endif
@@ -225,36 +226,36 @@ if ( first ) then
 
   allocate(Cloud_microphysics%size_rain(imax, 1, kl))
   allocate(Cloud_microphysics%size_drop(imax, 1, kl))
-  allocate(Cloud_microphysics%size_ice (imax, 1, kl))
-  allocate(Cloud_microphysics%size_snow (imax, 1, kl))
+  allocate(Cloud_microphysics%size_ice(imax, 1, kl))
+  allocate(Cloud_microphysics%size_snow(imax, 1, kl))
   allocate(Cloud_microphysics%conc_drop(imax, 1, kl))
-  allocate(Cloud_microphysics%conc_ice (imax, 1, kl))
+  allocate(Cloud_microphysics%conc_ice(imax, 1, kl))
   allocate(Cloud_microphysics%conc_rain(imax, 1, kl))
   allocate(Cloud_microphysics%conc_snow(imax, 1, kl))
 
-  allocate (Cldrad_props%cldext  (imax, 1, kl, Solar_spect%nbands, 1))
-  allocate (Cldrad_props%cldsct  (imax, 1, kl, Solar_spect%nbands, 1))
+  allocate (Cldrad_props%cldext(imax, 1, kl, Solar_spect%nbands, 1))
+  allocate (Cldrad_props%cldsct(imax, 1, kl, Solar_spect%nbands, 1))
   allocate (Cldrad_props%cldasymm(imax, 1, kl, Solar_spect%nbands, 1))
   allocate (Cldrad_props%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb,1))
   allocate (Cldrad_props%cldemiss(imax, 1, kl, Cldrad_control%nlwcldb,1))
-  allocate (Cldrad_props%emmxolw (imax, 1, kl, Cldrad_control%nlwcldb,1))
-  allocate (Cldrad_props%emrndlw (imax, 1, kl, Cldrad_control%nlwcldb,1))
+  allocate (Cldrad_props%emmxolw(imax, 1, kl, Cldrad_control%nlwcldb,1))
+  allocate (Cldrad_props%emrndlw(imax, 1, kl, Cldrad_control%nlwcldb,1))
 
   allocate (Lscrad_props%cldext(imax, 1, kl, Solar_spect%nbands) )
   allocate (Lscrad_props%cldsct(imax, 1, kl, Solar_spect%nbands) )
   allocate (Lscrad_props%cldasymm(imax, 1, kl, Solar_spect%nbands) )
   allocate (Lscrad_props%abscoeff(imax, 1, kl, Cldrad_control%nlwcldb) )
 
-  allocate ( Cld_spec%camtsw (imax, 1, kl ) )
-  allocate ( Cld_spec%cmxolw (imax, 1, kl ) )
-  allocate ( Cld_spec%crndlw (imax, 1, kl ) )
+  allocate ( Cld_spec%camtsw(imax, 1, kl ) )
+  allocate ( Cld_spec%cmxolw(imax, 1, kl ) )
+  allocate ( Cld_spec%crndlw(imax, 1, kl ) )
   
-  allocate (Surface%asfc_vis_dir (imax, 1 ) )
-  allocate (Surface%asfc_nir_dir (imax, 1 ) )
-  allocate (Surface%asfc_vis_dif (imax, 1 ) )
-  allocate (Surface%asfc_nir_dif (imax, 1 ) )
+  allocate (Surface%asfc_vis_dir(imax, 1 ) )
+  allocate (Surface%asfc_nir_dir(imax, 1 ) )
+  allocate (Surface%asfc_vis_dif(imax, 1 ) )
+  allocate (Surface%asfc_nir_dif(imax, 1 ) )
 
-  allocate ( Astro%cosz   (imax, 1 ) )
+  allocate ( Astro%cosz(imax, 1 ) )
   allocate ( Astro%fracday(imax, 1 ) )
 
   allocate (Lw_output(1)%heatra(imax,1,kl)  )
@@ -271,19 +272,19 @@ if ( first ) then
   allocate (Sw_output(1)%dfsw_dir_sfc(imax,1) )
   allocate (Sw_output(1)%dfsw_dif_sfc(imax,1) )
   allocate (Sw_output(1)%ufsw_dif_sfc(imax,1) )
-  allocate (Sw_output(1)%fsw(imax,1,kl+1)     )
-  allocate (Sw_output(1)%hsw(imax,1,kl)     )
-  allocate (Sw_output(1)%dfsw_vis_sfc(imax,1)    )
-  allocate (Sw_output(1)%ufsw_vis_sfc(imax,1)    )
-  allocate (Sw_output(1)%dfsw_vis_sfc_dir(imax,1)    )
-  allocate (Sw_output(1)%dfsw_vis_sfc_dif(imax,1)    )
-  allocate (Sw_output(1)%ufsw_vis_sfc_dif(imax,1)    )
+  allocate (Sw_output(1)%fsw(imax,1,kl+1))
+  allocate (Sw_output(1)%hsw(imax,1,kl))
+  allocate (Sw_output(1)%dfsw_vis_sfc(imax,1) )
+  allocate (Sw_output(1)%ufsw_vis_sfc(imax,1) )
+  allocate (Sw_output(1)%dfsw_vis_sfc_dir(imax,1) )
+  allocate (Sw_output(1)%dfsw_vis_sfc_dif(imax,1) )
+  allocate (Sw_output(1)%ufsw_vis_sfc_dif(imax,1) )
   allocate (Sw_output(1)%bdy_flx(imax,1,4))
   if (do_totcld_forcing) then
-    allocate (Sw_output(1)%dfswcf(imax,1,kl+1)   )
-    allocate (Sw_output(1)%ufswcf(imax,1,kl+1)   )
-    allocate (Sw_output(1)%fswcf(imax,1,kl+1)   )
-    allocate (Sw_output(1)%hswcf(imax,1,kl)   )
+    allocate (Sw_output(1)%dfswcf(imax,1,kl+1))
+    allocate (Sw_output(1)%ufswcf(imax,1,kl+1))
+    allocate (Sw_output(1)%fswcf(imax,1,kl+1))
+    allocate (Sw_output(1)%hswcf(imax,1,kl))
     allocate (Sw_output(1)%dfsw_dir_sfc_clr(imax,1))
     allocate (Sw_output(1)%dfsw_dif_sfc_clr(imax,1))
     allocate (Sw_output(1)%bdy_flx_clr(imax,1,4))
@@ -405,15 +406,15 @@ if (ldr.eq.0) then
   call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
 end if
 
-! main loop ---------------------------------------------------------
 if(mod(ifull,imax).ne.0)then
   ! imax should be automatically set-up in globpe.f
-  ! So an error here should indicate a bug in globpe.f
+  ! so an error here should indicate a bug in globpe.f
   write(6,*) 'nproc,il,jl,ifull,imax ',nproc,il,jl,ifull,imax
   write(6,*) 'illegal setting of imax in rdparm'
   call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
 endif
 
+! main loop ---------------------------------------------------------
 swcount=0
 do j=1,jl,imax/il
   istart=1+(j-1)*il
@@ -438,10 +439,8 @@ do j=1,jl,imax/il
       call o3set_amip ( rlatt(istart:iend), imax, mins,sigh, ps(istart:iend), Rad_gases%qo3(:,1,:) )
       Rad_gases%qo3(:,1,:)=max(1.e-10,Rad_gases%qo3(:,1,:))
     else
-      call o3set(rlatt(istart:iend),rlongg(istart:iend),imax,mins,duo3n,sig,ps(istart:iend))
-      do k=1,kl
-        Rad_gases%qo3(:,1,k) = duo3n(1:imax,k)
-      end do
+      call o3set(imax,istart,mins,duo3n,sig,ps(istart:iend))
+      Rad_gases%qo3(:,1,:) = max(1.e-10,duo3n)
     end if
 
     ! Set-up albedo
@@ -510,26 +509,32 @@ do j=1,jl,imax/il
     end if
 
     ! Water/Ice albedo --------------------------------------------
-    ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
-    ! J. Clim. and Appl. Met., v. 27, 214-226)
-    where (.not.land(istart:iend).and.coszro(1:imax).ge.0.)
-      cuvrf_dir(1:imax)=0.026/(coszro(1:imax)**1.7+0.065)                  &
-        +0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
-    elsewhere (.not.land(istart:iend))
-      cuvrf_dir(1:imax)=0.3925 ! coszen=0 value of above expression
-    end where
-    where (.not.land(istart:iend))
-      cuvrf_dif(1:imax)=0.06
-      cirrf_dir(1:imax)=cuvrf_dir(1:imax)
-      cirrf_dif(1:imax)=0.06
-      cuvrf_dir(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dir(1:imax)
-      cuvrf_dif(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dif(1:imax)
-      cirrf_dir(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
-      cirrf_dif(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
-    end where      
-    
-    ! MLO albedo ----------------------------------------------------
-    call mloalb4(istart,imax,coszro,cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)    
+    if (nmlo.eq.0) then
+      ! NCAR CCMS3.0 scheme (Briegleb et al, 1986,
+      ! J. Clim. and Appl. Met., v. 27, 214-226)
+      where (.not.land(istart:iend).and.coszro(1:imax).ge.0.)
+        cuvrf_dir(1:imax)=0.026/(coszro(1:imax)**1.7+0.065)                  &
+          +0.15*(coszro(1:imax)-0.1)*(coszro(1:imax)-0.5)*(coszro(1:imax)-1.)
+      elsewhere (.not.land(istart:iend))
+        cuvrf_dir(1:imax)=0.3925 ! coszen=0 value of above expression
+      end where
+      where (.not.land(istart:iend))
+        cuvrf_dif(1:imax)=0.06
+        cirrf_dir(1:imax)=cuvrf_dir(1:imax)
+        cirrf_dif(1:imax)=0.06
+        cuvrf_dir(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dir(1:imax)
+        cuvrf_dif(1:imax)=0.85*fracice(istart:iend)+(1.-fracice(istart:iend))*cuvrf_dif(1:imax)
+        cirrf_dir(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dir(1:imax)
+        cirrf_dif(1:imax)=0.45*fracice(istart:iend)+(1.-fracice(istart:iend))*cirrf_dif(1:imax)
+      end where
+    elseif (abs(nmlo).le.9) then
+      ! MLO albedo ----------------------------------------------------
+      call mloalb4(istart,imax,coszro,cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)
+    else
+      ! PCOM
+      write(6,*) "ERROR: This option for nmlo is not currently supported"
+      call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+    end if
 
     ! Urban albedo --------------------------------------------------
     call atebalb1(istart,imax,cuvrf_dir(1:imax),0,split=1)
@@ -649,7 +654,7 @@ do j=1,jl,imax/il
     !Cld_spec%nrndlw=0
     !Cld_spec%nmxolw=0
     if (nmr.eq.0) then
-      do i=1,imax
+      do i=1,imax ! random overlap
         iq=i+istart-1
         newcld=.true.
         do k=1,kl
@@ -663,7 +668,7 @@ do j=1,jl,imax/il
         end do
       end do
     else
-      do i=1,imax
+      do i=1,imax ! maximum-random overlap
         iq=i+istart-1
         newcld=.true.
         do k=1,kl
@@ -1156,41 +1161,25 @@ subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlg,qfg,prf,ttg,cdrop,imax,kl)
 
 implicit none
 
+include 'parm.h'
+
 integer, intent(in) :: imax,kl
-integer k,kr,mg
+integer k,kr
 real, dimension(imax,kl), intent(in) :: cfrac,qlg,qfg,prf,ttg
 real, dimension(imax,kl), intent(in) :: cdrop
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop,Rice,conl,coni
 real, dimension(imax,kl) :: reffl,reffi,fice,cfl,Wliq,rhoa
 real, dimension(imax,kl) :: eps,rk,Wice
+real, parameter :: scale_factor = 0.85 ! account for the plane-parallel homo-
+                                       ! genous cloud bias  (e.g. Cahalan effect)
 
-!--------------------------------------------------------------------
-!    if liquid is present in the layer, compute the effective drop
-!    radius. the following formula, recommended by (Martin et al., 
-!    J. Atmos. Sci, vol 51, pp. 1823-1842) is used for liquid droplets:
-!    reff (in microns) =  k * 1.E+06 *
-!                    (3*airdens*(ql/qa)/(4*pi*Dens_h2o*N_liq))**(1/3)
-!
-!    where airdens = density of air in kg air/m3
-!               ql = liquid condensate in kg cond/kg air
-!               qa = cloud fraction
-!               pi = 3.14159
-!         Dens_h2o = density of pure liquid water (kg liq/m3) 
-!            N_liq = density of cloud droplets (number per cubic meter)
-!                k = factor to account for difference between 
-!                    mean volume radius and effective radius
-!--------------------------------------------------------------------
+fice=qfg/max(qfg+qlg,1.e-12)
+cfl=cfrac*(1.-fice)
+rhoa=prf/(rdry*ttg)
 
 ! Reffl is the effective radius at the top of the cloud (calculated following
 ! Martin etal 1994, JAS 51, 1823-1842) due to the extra factor of 2 in the
 ! formula for reffl. Use mid cloud value of Reff for emissivity.
-
-fice=0.
-where (cfrac.gt.0.)
-  fice= qfg/max(qfg+qlg,1.e-12)
-end where
-cfl=cfrac*(1.-fice)
-rhoa=prf/(rdry*ttg)
 
 reffl=0.
 Wliq=0.
@@ -1200,21 +1189,84 @@ where (qlg.gt.1.E-8.and.cfrac.gt.0.)
   eps = 1. - 0.7 * exp(-0.003e-6*cdrop) !mid range
   rk  = (1.+eps**2)/(1.+2.*eps**2)**2
   ! Martin et al 1994
-  reffl=(3.*2.*Wliq/(4.*pi*rhow*rk*cdrop))**(1./3.)
+  reffl=(3.*Wliq/(4.*pi*rhow*rk*cdrop))**(1./3.)
 end where
+
+!    for single layer liquid or mixed phase clouds it is assumed that
+!    cloud liquid is vertically stratified within the cloud.  under
+!    such situations for observed stratocumulus clouds it is found
+!    that the cloud mean effective radius is between 80 and 100% of
+!    the cloud top effective radius. (Brenguier et al., Journal of
+!    Atmospheric Sciences, vol. 57, pp. 803-821 (2000))  for linearly 
+!    stratified cloud in liquid specific humidity, the cloud top 
+!    effective radius is greater than the effective radius of the 
+!    cloud mean specific humidity by a factor of 2**(1./3.).
+!    this correction, 0.9*(2**(1./3.)) = 1.134, is applied only to 
+!    single layer liquid or mixed phase clouds.
+if (nmr.eq.0) then
+  reffl=reffl*1.134
+else
+  do k=1,kl
+    if (k.eq.1) then
+      where (cfrac(:,2).eq.0.)
+        reffl(:,k)=reffl(:,k)*1.134
+      end where
+    elseif (k.eq.kl) then
+      where (cfrac(:,kl-1).eq.0.)
+        reffl(:,k)=reffl(:,k)*1.134
+      end where  
+    else
+      where (cfrac(:,k-1).eq.0..and.cfrac(:,k+1).eq.0.)
+        reffl(:,k)=reffl(:,k)*1.134
+      end where
+    end if
+  end do
+end if
+
+!Lohmann et al.(1999)
+
 reffi=0.
 Wice=0.
 where (qfg.gt.1.E-8.and.cfrac.gt.0.)
   Wice=rhoa*qfg/(cfrac*fice) !kg/m**3
-  reffi=min(150.e-6,3.73e-4*Wice**0.216) !Lohmann et al.(1999)
+  reffi=min(150.e-6,3.73e-4*Wice**0.216)
 end where
+
+!Donner et al (1997)
+
+!deffi=0.
+!do k=1,kl
+!  do iq=1,imax
+!    if (qfg(iq,k).gt.1.E-8.and.cfrac(iq,k).gt.0.) then
+!      if (ttg(iq,k).gt.248.16) then
+!        deffi(iq,k)=100.6
+!      elseif (ttg(iq,k).gt.243.16) then
+!        deffi(iq,k)=80.8
+!      elseif (ttg(iq,k).gt.238.16) then
+!        deffi(iq,k)=93.5
+!      elseif (ttg(iq,k).gt.233.16) then
+!        deffi(iq,k)=63.9
+!      elseif (ttg(iq,k).gt.228.16) then
+!        deffi(iq,k)=42.5
+!      elseif (ttg(iq,k).gt.223.16) then
+!        deffi(iq,k)=39.9
+!      elseif (ttg(iq,k).gt.218.16) then
+!        deffi(iq,k)=21.6
+!      else
+!        deffi(iq,k)=20.2
+!      end if
+!    end if
+!  end do
+!end do
+!
+!deffi=min(max(deffi,18.6),130.2)
 
 do k=1,kl
   kr=kl+1-k
   Rdrop(:,kr)=2.*reffl(:,k)*1.E6 ! convert to diameter and microns
   Rice(:,kr)=2.*reffi(:,k)*1.E6
-  conl(:,kr)=1000.*Wliq(:,k)
-  coni(:,kr)=1000.*Wice(:,k)
+  conl(:,kr)=scale_factor*1000.*Wliq(:,k) !g/m^3
+  coni(:,kr)=scale_factor*1000.*Wice(:,k)
 end do
 
 where (Rdrop.gt.0.)
