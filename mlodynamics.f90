@@ -1135,16 +1135,18 @@ do ll=1,llmax
 end do
 
 ! volume conservation for water ---------------------------------------
-odum=0.
-where (wtr(1:ifull))
-  odum=neta(1:ifull)-w_e
-end where
-call ccglobal_posneg(odum,delpos,delneg)
-alph_p = -delneg/max(delpos,1.E-20)
-alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
 if (limitsf.gt.0) then
-  neta=max(min(neta,20.),-20.)
+  neta(1:ifull)=neta(1:ifull)*(1.-dt/(3600.*24.*30.)) ! 30 day efolding time
+  neta(1:ifull)=max(min(neta(1:ifull),20.),-20.)
+else
+  odum=0.
+  where (wtr(1:ifull))
+    odum=neta(1:ifull)-w_e
+  end where
+  call ccglobal_posneg(odum,delpos,delneg)
+  alph_p = -delneg/max(delpos,1.E-20)
+  alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
+  neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
 end if
 
 call bounds(neta,corner=.true.)
@@ -3009,7 +3011,7 @@ do ii=1,wlev-1
      -0.5*(uu(:,ii+1)-uu(:,ii))*ww(:,ii)**2*dtnew/max(dep(:,ii+1)-dep(:,ii),1.E-10)
   xx=delu(:,ii)+sign(1.E-20,delu(:,ii))
   jj=sign(1.,ww(:,ii))
-  rr=0.5*(jj*(delu(:,ii+1)-delu(:,ii-1))+abs(jj)*(delu(:,ii+1)+delu(:,ii-1)))/xx
+  rr=0.5*(-jj*(delu(:,ii+1)-delu(:,ii-1))+abs(jj)*(delu(:,ii+1)+delu(:,ii-1)))/xx
   cc=max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
   ff(:,ii)=fl+cc*(fh-fl)
   !ff(:,ii)=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1)) ! explicit
@@ -3154,12 +3156,8 @@ real, intent(out) :: ss
 real xp
 !integer, parameter :: vertintp=1 ! vertical interpolation (0=linear, 1=quadratic, 2=cubic)
 
-if (dep(1).lt.5.E-8) then
-  ss=sx
-  return
-end if
 if (dep(1)-1.E-10.gt.dd) then
-  ss=sx   ! missing
+  ss=s(1)
   return
 end if
 if ((dep(wlev)+1.E-10).lt.dd) then

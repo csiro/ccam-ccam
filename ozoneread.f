@@ -308,7 +308,7 @@ c
       real, dimension(12) :: monlen
       real, dimension(12), parameter :: oldlen=
      & (/ 0.,31.,59.,90.,120.,151.,181.,212.,243.,273.,304.,334. /)
-      real rang,fp,fjd
+      real rang,fp,fjd,mino3
       integer, parameter :: ozoneintp=1 ! ozone interpolation (0=simple, 1=integrate column)
       common/leap_yr/leap  ! 1 to allow leap years
 
@@ -379,6 +379,8 @@ c
           ! pressure levels on CCAM grid
           prf=0.01*ps(iq)*sig
          
+          mino3=minval(o3inp)
+         
           ! calculate total column of ozone
           o3sum=0.
           o3sum(nlev)=o3inp(nlev)*0.5*sum(fpres(nlev-1:nlev))
@@ -392,7 +394,7 @@ c
           if (o3inp(1).gt.1.E34) then
             o3sum(1)=o3sum(2)
           else
-            o3sum(1)=o3sum(2)+o3inp(1)*(fpres(1)+ps(iq)-prf(1)
+            o3sum(1)=o3sum(2)+o3inp(1)*(fpres(1)+0.01*ps(iq)-prf(1)
      &               -0.5*sum(fpres(1:2)))
           end if
         
@@ -413,13 +415,14 @@ c
           end do        
          
           ! output ozone (invert levels)
-          out(iq,ilev)=(o3sum(1)-o3new(2))/(ps(iq)-0.5*sum(prf(1:2)))
+          out(iq,ilev)=(o3sum(1)-o3new(2))
+     &                /(0.01*ps(iq)-0.5*sum(prf(1:2)))
           do m=2,ilev-1
             out(iq,ilev-m+1)=2.*(o3new(m)-o3new(m+1))
      &                        /(prf(m-1)-prf(m+1))
           end do
           out(iq,1)=2.*o3new(ilev)/sum(prf(ilev-1:ilev))
-          out(iq,:)=max(out(iq,:),0.)
+          out(iq,:)=max(out(iq,:),mino3)
         end if
         !-----------------------------------------------------------
       end do
