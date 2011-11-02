@@ -518,6 +518,8 @@ c**   onthefly; sometime can get rid of common/bigxy4
         ! fixed ocean depth
         ocndwn(:,1)=ocndep_l
         ! ocean potential temperature
+        ! ocean temperature and soil temperature use the same arrays
+        ! as no fractional land or sea cover is allowed in CCAM
         if (nested.ne.1.or.nud_sst.ne.0) then
           do k=1,wlev
             t_a=max(abs(tss_a),271.)

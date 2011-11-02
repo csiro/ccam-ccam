@@ -10,8 +10,13 @@
 
 c*************************************************************************
       subroutine histrd1(ncid,iarchi,ier,name,ik,jk,var,ifull)
+      
       use cc_mpi
+      
       implicit none
+      
+      include 'mpif.h'
+      
       integer ncid,iarchi,ier,ik,jk,ifull
       character name*(*)
       real, dimension(:), intent(inout) :: var ! may be dummy argument from myid.ne.0
@@ -20,7 +25,7 @@ c*************************************************************************
       if (myid==0) then
         if (size(var).ne.ifull) then
           write(6,*) "ERROR: Incorrect use of dummy var in histrd1"
-          stop
+          call MPI_Abort(MPI_COMM_WORLD,-1,ier)
         end if
         call hr1a(ncid,iarchi,ier,name,ik,jk,var,ifull)
       else
@@ -29,20 +34,24 @@ c*************************************************************************
       return
       end subroutine histrd1    
 
-      subroutine hr1a(ncid,iarchi,ier,name,ik,jk,var,ifull)  ! 0808
+      subroutine hr1a(ncid,iarchi,ier,name,ik,jk,var,ifull)
+      
       use cc_mpi
+      
       implicit none
+      
       include 'parm.h'
       include 'netcdf.inc'
       include 'mpif.h'
-      integer ncid, iarchi, ier, ik, jk, nctype, ierb ! MJT CHANGE - bug fix
+      
+      integer ncid, iarchi, ier, ik, jk, nctype, ierb
       integer*2 ivar(ik*jk)
       logical odiag
       parameter(odiag=.false. )
       character name*(*)
       integer start(3),count(3),ifull
       real  var(ifull)
-      real globvar(ik*jk), vmax, vmin, addoff, sf  ! 0808
+      real globvar(ik*jk), vmax, vmin, addoff, sf
       integer ierr, idv
 
       start = (/ 1, 1, iarchi /)
@@ -71,22 +80,22 @@ c      read in all data
          globvar(:)=real(ivar(:))
         case DEFAULT
          write(6,*) "ERROR: Unknown NetCDF format"
-         stop
+         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
        end select
 
 c      obtain scaling factors and offsets from attributes
        call ncagt(ncid,idv,'add_offset',addoff,ierb)
-       if (ierb.ne.0) addoff=0.        ! MJT CHANGE - bug fix
+       if (ierb.ne.0) addoff=0.
        if(odiag)write(6,*)'addoff,ier=',addoff,ier
        call ncagt(ncid,idv,'scale_factor',sf,ierb)
-       if (ierb.ne.0) sf=1.            ! MJT CHANGE - bug fix
+       if (ierb.ne.0) sf=1.
        if(odiag)write(6,*)'sf,ier=',sf,ier
 
 c      unpack data
-       globvar = globvar*sf+addoff ! MJT CHANGE
+       globvar = globvar*sf+addoff
        if(mod(ktau,nmaxpr)==0.or.odiag)then
-        vmax = maxval(globvar*sf+addoff) ! MJT CHANGE
-        vmin = minval(globvar*sf+addoff) ! MJT CHANGE
+        vmax = maxval(globvar)
+        vmin = minval(globvar)
         write(6,'("done histrd1 ",a8,i4,i3,3e14.6)')
      &   name,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*ik)
        endif
@@ -95,9 +104,9 @@ c      unpack data
       ! Have to return correct value of ier on all processes because it's 
       ! used for initialisation in calling routine
       call MPI_Bcast(ier,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      if(ifull==ik*jk)then  !  808
+      if(ifull==ik*jk)then
        if(ier==0)then
-        var(:)=globvar(:) ! MJT bug
+        var(:)=globvar(:)
        endif
       else
        if(ier==0)then
@@ -108,17 +117,22 @@ c      unpack data
       end subroutine hr1a  
 
       !--------------------------------------------------------------
-      ! MJT otf small - this version reads a single kk level of a 3d field
+      ! Vertical interpolation - this version reads a single kk level of a 3d field
       subroutine histrd4s(ncid,iarchi,ier,name,ik,jk,kk,var,ifull)
+      
       use cc_mpi
+      
       implicit none
+      
+      include 'mpif.h'
+      
       integer ncid,iarchi,ier,ik,jk,kk,ifull
       character name*(*)
       real, dimension(:), intent(inout) :: var ! may be dummy argument from myid.ne.0
       if (myid==0) then
         if (size(var).ne.ifull) then
           write(6,*) "ERROR: Incorrect use of dummy var in histrd4s"
-          stop
+          call MPI_Abort(MPI_COMM_WORLD,-1,ier)
         end if
         call hr4sa(ncid,iarchi,ier,name,ik,jk,kk,var,ifull)
       else
@@ -128,11 +142,15 @@ c      unpack data
       end subroutine histrd4s      
 
       subroutine hr4sa(ncid,iarchi,ier,name,ik,jk,kk,var,ifull)
+      
       use cc_mpi
+      
       implicit none
+      
       include 'netcdf.inc'
       include 'parm.h'
       include 'mpif.h'
+      
       integer ncid,iarchi,ier,ik,jk,kk,ifull
       integer idv,ierb,nctype
       integer start(4),count(4)      
@@ -161,7 +179,7 @@ c      read in all data
          globvar(:)=real(ivar(:))
         case DEFAULT
          write(6,*) "ERROR: Unknown NetCDF format"
-         stop
+         call MPI_Abort(MPI_COMM_WORLD,-1,ier)
        end select
 
 c      obtain scaling factors and offsets from attributes
@@ -198,9 +216,13 @@ c      unpack data
       end subroutine hr4sa      
       
       subroutine hr4sb(ier,ik,jk,var,ifull)
+      
       use cc_mpi
+      
       implicit none
+      
       include 'mpif.h'
+      
       integer ier,ik,jk,ifull
       integer ierb
       real, dimension(:), intent(inout) :: var ! may be dummy argument from myid.ne.0
@@ -211,7 +233,7 @@ c      unpack data
        if(ier==0)then
         if (size(var).ne.ifull) then
           write(6,*) "ERROR: Incorrect use of dummy var in histrd"
-          stop
+          call MPI_Abort(MPI_COMM_WORLD,-1,ier)
         end if
         call ccmpi_distribute(var)
        endif
@@ -287,15 +309,12 @@ c      unpack data
         endif   !  (myid==0)
       endif     !  (num==0)
 
-      !told(:,:)=t(:,:) ! MJT vertint
       do k=1,kl
        do iq=1,ifull
 !        N.B. "a" denotes "above", "b" denotes "below"
          t(iq,k)=wta(k)*told(iq,ka(k))+wtb(k)*told(iq,kb(k))
        enddo   ! iq loop
       enddo    ! k loop
-c     print *,'in vertint told',told(idjd,:)
-c     print *,'in vertint t',t(idjd,:)
 
       if(n==1.and.klapse.ne.0)then  ! for T lapse correction
         do k=1,klapse
@@ -333,14 +352,8 @@ c     print *,'in vertint t',t(idjd,:)
       imins=ktime_r-100*ihr
       write(6,*) 'entering datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
      .                          iyr,imo,iday,ihr,imins,mtimer_r
-   !   do while (mtimer_r>minsyr) ! MJT bug fix
-   !    iyr=iyr+1
-   !    mtimer_r=mtimer_r-minsyr
-   !   enddo
-   !   if(diag)print *,'a datefix iyr,imo,iday,ihr,imins,mtimer_r: ',
-   !  .                   iyr,imo,iday,ihr,imins,mtimer_r
 
-      mdays(2)=28 ! MJT bug fix
+      mdays(2)=28
       if (leap==1) then
         if(mod(iyr,4)==0)mdays(2)=29
         if(mod(iyr,100)==0)mdays(2)=28
@@ -353,7 +366,7 @@ c     print *,'in vertint t',t(idjd,:)
          imo=1
          iyr=iyr+1
          if (leap==1) then
-           mdays(2)=28 ! MJT bug fix         
+           mdays(2)=28      
            if(mod(iyr,4)==0)mdays(2)=29
            if(mod(iyr,100)==0)mdays(2)=28
            if(mod(iyr,400)==0)mdays(2)=29

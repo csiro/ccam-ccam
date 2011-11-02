@@ -226,33 +226,33 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
                  ! Probably works better for grid scales that
                  ! are less than 500 m
 
-       case DEFAULT                                           ! MJT smag
-         write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm  ! MJT smag
-         stop                                                 ! MJT smag
+       case DEFAULT
+         write(6,*) "ERROR: Unknown option nhorjlm=",nhorjlm
+         stop
       end select
        
       ! Calculate horizontal diffusion based on prognostic TKE
       ! This can be combined with the diffusion coefficents above
       ! so as to operate over a large range of grid length scales
-      if (nvmix.eq.6) then                                        ! MJT tke
-        tke=max(tke,1.5E-8)                                       ! MJT tke
-        eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)                   ! MJT tke
-        eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)                 ! MJT tke
-        eps=max(eps,1.E-10)                                       ! MJT tke
-        hdif=dt*0.09/(ds*ds)                                      ! MJT tke
-        do k=1,kl                                                 ! MJT tke
-          t_kh(1:ifull,k)= max(max(tke(1:ifull,k)*tke(1:ifull,k)  ! MJT tke
-     &    /eps(1:ifull,k),1.E-7)*hdif,t_kh(1:ifull,k))            ! MJT tke
-                                                                  ! MJT tke
-          shear(:,k)=2.*(dudx(:,k)-dzdx(:,k)*dudz(:,k))**2        ! MJT tke
-     &              +2.*(dvdy(:,k)-dzdy(:,k)*dvdz(:,k))**2        ! MJT tke
-     &              +2.*dwdz(:,k)**2                              ! MJT tke
-     &              +(dudy(:,k)-dzdy(:,k)*dudz(:,k)               ! MJT tke
-     &               +dvdx(:,k)-dzdx(:,k)*dvdz(:,k))**2           ! MJT tke
-     &              +(dudz(:,k)+dwdx(:,k)-dzdx(:,k)*dwdz(:,k))**2 ! MJT tke
-     &              +(dvdz(:,k)+dwdy(:,k)-dzdy(:,k)*dwdz(:,k))**2 ! MJT tke
-        end do                                                    ! MJT tke
-      end if                                                      ! MJT tke
+      if (nvmix.eq.6) then
+        tke=max(tke,1.5E-8)
+        eps=min(eps,(0.03**0.75)*(tke**1.5)/5.)
+        eps=max(eps,(0.03**0.75)*(tke**1.5)/500.)
+        eps=max(eps,1.E-10)
+        hdif=dt*0.03/(ds*ds)
+        do k=1,kl
+          t_kh(1:ifull,k)=max(max(tke(1:ifull,k)*tke(1:ifull,k)
+     &    /eps(1:ifull,k),1.E-7)*hdif,t_kh(1:ifull,k))
+
+          shear(:,k)=2.*(dudx(:,k)-dzdx(:,k)*dudz(:,k))**2
+     &              +2.*(dvdy(:,k)-dzdy(:,k)*dvdz(:,k))**2
+     &              +2.*dwdz(:,k)**2
+     &              +(dudy(:,k)-dzdy(:,k)*dudz(:,k)
+     &               +dvdx(:,k)-dzdx(:,k)*dvdz(:,k))**2
+     &              +(dudz(:,k)+dwdx(:,k)-dzdx(:,k)*dwdz(:,k))**2
+     &              +(dvdz(:,k)+dwdy(:,k)-dzdy(:,k)*dwdz(:,k))**2
+        end do
+      end if
 
       call bounds(t_kh)
       do k=1,kl

@@ -35,7 +35,7 @@ real, dimension(:,:), allocatable, save :: tkesav,epssav
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
 real, parameter :: be      = 1.     ! Hurley (2007) 1., Soares et al (2004) 0.3
-real, parameter :: cm      = 0.09
+real, parameter :: cm      = 0.03   ! Hurley (2007) 0.09
 real, parameter :: ce0     = 0.69
 real, parameter :: ce1     = 1.46
 real, parameter :: ce2     = 1.83
@@ -224,8 +224,6 @@ gamqt=0.
 gamqv=0.
 tlup=thetal
 qtup=qtot
-! estimate wstar for Angevine et al 2010 boundary conditions or when mode.eq.1.
-! otherwise wstar is updated later
 wstar=0.
 where (wtv0.gt.0.)
   wstar=(grav*zi*wtv0/thetav(:,1))**(1./3.)
@@ -267,7 +265,7 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         mflx(i,1)=0.08*sqrt(w2up(1))                     ! Angevine et al 2010
         ! check for lcl
         sconv=.false.
-        if (qtup(i,1).ge.qupsat(1)) then ! LCL
+        if (qtup(i,1).ge.qupsat(1)) then
           sconv=.true.
           zilcl=zz(i,1)
           klcl=2

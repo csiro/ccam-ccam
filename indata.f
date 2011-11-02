@@ -473,6 +473,7 @@
       ! nmlo=1 mixed layer ocean (KPP)
       ! nmlo=2 same as 1, but with Smag horz diffusion and river routing
       ! nmlo=3 same as 2, but with horizontal and vertical advection
+      ! nmlo=4 same as 3, but with coastal flooding
       if (nmlo.ne.0.and.abs(nmlo).le.9) then
         call readreal(bathfile,dep,ifull)
         where (land)
@@ -582,7 +583,9 @@
         if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)then
           write(6,*) 'stopping in indata, not finding correct ',
      &               'kdate/ktime'
-          stop
+          write(6,*) "kdate,    ktime     ",kdate,ktime
+          write(6,*) "kdate_sav,ktime_sav ",kdate_sav,ktime_sav
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         endif
  
         ! adjust input for differences in orography
@@ -1845,7 +1848,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
             snowd=micdwn(:,7)*1000.
           end where          
         end if
-        where (tss.gt.273.2.and.fracice.le.0.) ! Always use tss for top ocean layer
+        where (tss.gt.271.2.and.fracice.le.0.) ! Always use tss for top ocean layer
           mlodwn(:,1,1)=tss(:)                 ! This has no effect in a climate mode and
         endwhere                               ! ensures SST track analyses in a NWP mode
         call mloload(mlodwn,ocndwn(:,2),micdwn,0)
