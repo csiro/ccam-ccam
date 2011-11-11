@@ -244,7 +244,7 @@ c      unpack data
 
       ! This version of vertint can interpolate from host models with
       ! a greater number of vertical levels than the nested model.
-      subroutine vertint(told,t,n,kk,sigin) ! MJT vertint
+      subroutine vertint(told,t,n,kk,sigin)
 !     N.B. this ia called just from indata or nestin      
 !     transforms 3d array from dimension kk in vertical to kl   jlm
 !     jlm vector special, just with linear new=1 option
@@ -252,62 +252,57 @@ c      unpack data
       use sigs_m
       include 'newmpar.h'
       include 'parm.h'
-      integer, intent(in) :: kk ! MJT vertint
-      real, dimension(kk), intent(in) :: sigin ! MJT vertint
+      integer, intent(in) :: kk,n
+      integer klapse
+      real, dimension(kk), intent(in) :: sigin
       dimension t(ifull,kl)  ! for mpi
-      real, dimension(:), allocatable, save :: ka,kb,wta,wtb
-      real told(ifull,kk) ! MJT vertint
-      save num,klapse
-      data num/0/,klapse/0/
+      real, dimension(kl) :: ka,kb,wta,wtb
+      real told(ifull,kk)
       
-      if (.not.allocated(ka)) then
-        allocate(ka(kl),kb(kl),wta(kl),wtb(kl))
+      if (kk.eq.kl) then
+        if (all(abs(sig-sigin)<0.0001)) then
+          t=told
+          return
+        end if
       end if
       
-      if (abs(sig(2)-sigin(2))<0.0001.and.kk.eq.kl) then ! MJT vertint
-        t=told                                           ! MJT vertint
-        return                                           ! MJT vertint
-      end if                                             ! MJT vertint
-      
-      if(num==0)then
-        num=1
-        do k=1,kl
-         if(sig(k)>=sigin(1))then
-           ka(k)=2
-           kb(k)=1
-           wta(k)=0.
-           wtb(k)=1.
-           klapse=k   ! i.e. T lapse correction for k<=klapse
-         elseif(sig(k)<=sigin(kk))then   ! at top
-           ka(k)=kk
-           kb(k)=kk-1
-           wta(k)=1.
-           wtb(k)=0.
-         else
-           kin=2
-           do kin=2,kk
-            if(sig(k)>sigin(kin)) exit ! MJT
-           enddo     ! kin loop
-           ka(k)=kin
-           kb(k)=kin-1
-           wta(k)=(sigin(kin-1)-sig(k))/(sigin(kin-1)-sigin(kin))
-           wtb(k)=(sig(k)-sigin(kin)  )/(sigin(kin-1)-sigin(kin))
-         endif  !  (sig(k)>=sigin(1)) ... ...
-        enddo   !  k loop
-        if (myid==0) then
-          write(6,*) 'in vertint kk,kl ',kk,kl
-          write(6,91) (sigin(k),k=1,kk)
-91        format('sigin',10f7.4)
-          write(6,92) sig
-92        format('sig  ',10f7.4)
-          write(6,*) 'ka ',ka
-          write(6,*) 'kb ',kb
-          write(6,93) wta
-93        format('wta',10f7.4)
-          write(6,94) wtb
-94        format('wtb',10f7.4)
-        endif   !  (myid==0)
-      endif     !  (num==0)
+      klapse=0
+      do k=1,kl
+       if(sig(k)>=sigin(1))then
+         ka(k)=2
+         kb(k)=1
+         wta(k)=0.
+         wtb(k)=1.
+         klapse=k   ! i.e. T lapse correction for k<=klapse
+       elseif(sig(k)<=sigin(kk))then   ! at top
+         ka(k)=kk
+         kb(k)=kk-1
+         wta(k)=1.
+         wtb(k)=0.
+       else
+         kin=2
+         do kin=2,kk
+          if(sig(k)>sigin(kin)) exit ! MJT
+         enddo     ! kin loop
+         ka(k)=kin
+         kb(k)=kin-1
+         wta(k)=(sigin(kin-1)-sig(k))/(sigin(kin-1)-sigin(kin))
+         wtb(k)=(sig(k)-sigin(kin)  )/(sigin(kin-1)-sigin(kin))
+       endif  !  (sig(k)>=sigin(1)) ... ...
+      enddo   !  k loop
+      if (myid==0) then
+        write(6,*) 'in vertint kk,kl ',kk,kl
+        write(6,91) (sigin(k),k=1,kk)
+91      format('sigin',10f7.4)
+        write(6,92) sig
+92      format('sig  ',10f7.4)
+        write(6,*) 'ka ',ka
+        write(6,*) 'kb ',kb
+        write(6,93) wta
+93      format('wta',10f7.4)
+        write(6,94) wtb
+94      format('wtb',10f7.4)
+      endif   !  (myid==0)
 
       do k=1,kl
        do iq=1,ifull
@@ -323,14 +318,12 @@ c      unpack data
            t(iq,k)=t(iq,k)+(sig(k)-sigin(1))*6.5/.1
          enddo   ! iq loop
         enddo    ! k loop
-      endif
-
-      if(n==2)then  ! for qg do a -ve fix
+      else if (n==2)then  ! for qg do a -ve fix
         t(:,:)=max(t(:,:),1.e-6)
-      endif
-      if(n==5)then  ! for qfg, qlg do a -ve fix
+      else if (n==5)then  ! for qfg, qlg do a -ve fix
         t(:,:)=max(t(:,:),0.)
       endif
+      
       return
       end subroutine vertint
 

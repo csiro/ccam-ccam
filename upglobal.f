@@ -66,12 +66,10 @@
 !       will not handle residual zs terms as accurately       
         if (.not.allocated(tnsav)) then
           allocate(tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl))
-        end if
-        if(ktau==1)then
 	  tnsav(:,:) =tn(:,:)
 	  unsav(:,:) =un(:,:)
 	  vnsav(:,:) =vn(:,:)
-        endif
+        end if
         tx(1:ifull,:)=tx(1:ifull,:)
      &                +dt*(tn(1:ifull,:)-.5*tnsav(1:ifull,:))            
         ux(1:ifull,:)=ux(1:ifull,:)

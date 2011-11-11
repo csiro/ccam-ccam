@@ -1525,9 +1525,6 @@
       qscrn_ave = qscrn_ave+qgscrn 
       wb_ave   = wb_ave+wb
       tsu_ave  = tsu_ave+tss
-      alb_ave  = alb_ave+swrsave*albvisnir(:,1)
-     &             +(1.-swrsave)*albvisnir(:,2)
-      fbeam_ave=fbeam_ave+fbeamvis*swrsave+fbeamnir*(1.-swrsave)
       psl_ave  = psl_ave+psl
       call mlodiag(spare1,0)
       mixdep_ave=mixdep_ave+spare1
@@ -1587,8 +1584,6 @@
           wb_ave(:,k)=wb_ave(:,k)/min(ntau,nperavg)
         end do
         tsu_ave(:)  = tsu_ave(:)/min(ntau,nperavg)
-        alb_ave(:)  = alb_ave(:)/min(ntau,nperavg)
-        fbeam_ave(:)= fbeam_ave(:)/min(ntau,nperavg)
         psl_ave(:)  = psl_ave(:)/min(ntau,nperavg)
         mixdep_ave(:)=mixdep_ave(:)/min(ntau,nperavg)
         sgn_ave(:)  =  sgn_ave(:)/min(ntau,nperavg)  ! Dec07 because of solar fit
@@ -1607,6 +1602,8 @@
         cll_ave(:)  =  cll_ave(:)/max(koundiag,1)
         clm_ave(:)  =  clm_ave(:)/max(koundiag,1)
         clh_ave(:)  =  clh_ave(:)/max(koundiag,1)
+        alb_ave(:)  =  alb_ave(:)/max(koundiag,1)
+        fbeam_ave(:)=  fbeam_ave(:)/max(koundiag,1)
         cbas_ave(:) = 1.1-cbas_ave(:)/max(1.e-4,precc(:))  ! 1.1 for no precc
         ctop_ave(:) = 1.1-ctop_ave(:)/max(1.e-4,precc(:))  ! 1.1 for no precc
         if (ngas.gt.0) then

@@ -597,7 +597,7 @@ c----      change local tg to account for energy - clearly not best method
 c***********************************************************************
 
       subroutine smoisturev
-      use cc_mpi, only : mydiag
+      use cc_mpi, only : mydiag,myid
       use nsibd_m
       use permsurf_m
       use soil_m           ! land
@@ -636,7 +636,9 @@ c
         do isoil=1,mxst
          pwb_min(isoil)=(swilt(isoil)/ssat(isoil))**ibp2(isoil)
         enddo
+	if (myid==0) then
         print *,'in smoisturev; nmeth,ntest = ',nmeth,ntest  
+	end if
       endif  ! (ktau==1)
       if((ntest>0.or.diag).and.mydiag)then
        if(land(idjd))then !MJT bugfix

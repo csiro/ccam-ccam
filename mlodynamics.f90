@@ -22,6 +22,7 @@ integer, parameter :: usetide=1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode=2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: limitsf=1    ! limit max/min values of surface height
 integer, parameter :: nf     =2    ! power for horizontal diffusion reduction factor
+integer, parameter :: basinmd=1    ! basin mode (0=soil, 1=global)
 real, parameter :: k_smag=0.4      ! horizontal diffusion (0.4 in mom3, 2. in Griffies (2000))
 real, parameter :: delphi=200.     ! horizontal diffusion reduction factor gradient
 real, parameter :: rhosn =330.     ! density snow (kg m^-3)
@@ -237,15 +238,16 @@ implicit none
 
 include 'newmpar.h'
 include 'const_phys.h'
+include 'mpif.h'
 include 'parm.h'
 include 'soilv.h'
 
-integer i,iq
+integer i,iq,ierr
 integer, dimension(ifull,4) :: xp
 real, dimension(ifull+iextra) :: neta
 real, dimension(ifull) :: newwat
 real, dimension(ifull,4) :: idp,slope,mslope,vel,flow
-real :: xx,yy
+real :: xx,yy,lssum,gssum,lwsum,gwsum
 
 ! To speed up the code, we use a (semi-)implicit solution rather than an iterative approach
 ! This avoids additional MPI calls.  Also, mass is conserved since abs(flow).le.watbdy/10.
@@ -319,28 +321,58 @@ newwat=newwat+sum(flow,2)
 
 watbdy(1:ifull)=max(newwat,0.)
   
-! basin 
-if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
-  do iq=1,ifull
-    if (all(slope(iq,:).lt.-1.E-10).and.land(iq)) then
-      ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
-      xx=watbdy(iq)
-      call cableinflow(iq,xx)
-      newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
+! basin
+select case(basinmd)
+  case(0) 
+    if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
+      do iq=1,ifull
+        if (all(slope(iq,:).lt.-1.E-10).and.land(iq)) then
+          ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
+          xx=watbdy(iq)
+          call cableinflow(iq,xx)
+          newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
+        end if
+      end do
+    else
+      do iq=1,ifull
+        if (all(slope(iq,:).lt.-1.E-10).and.land(iq)) then
+          ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
+          xx=watbdy(iq)
+          yy=min(xx,(ssat(isoilm(iq))-wb(iq,ms))*1000.*zse(ms))
+          wb(iq,ms)=wb(iq,ms)+yy/(1000.*zse(ms))
+          xx=max(xx-yy,0.)
+          newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
+        end if
+      end do
     end if
-  end do
-else
-  do iq=1,ifull
-    if (all(slope(iq,:).lt.-1.E-10).and.land(iq)) then
-      ! runoff is inserted into soil moisture since CCAM has discrete land and sea points
-      xx=watbdy(iq)
-      yy=min(xx,(ssat(isoilm(iq))-wb(iq,ms))*1000.*zse(ms))
-      wb(iq,ms)=wb(iq,ms)+yy/(1000.*zse(ms))
-      xx=max(xx-yy,0.)
-      newwat(iq)=newwat(iq)+(xx-watbdy(iq))*(1.-sigmu(iq))
-    end if
-  end do
-end if
+  case(1)
+    lssum=0.
+    lwsum=0.
+    do iq=1,ifull
+      if (all(slope(iq,:).lt.-1.E-10).and.land(iq)) then
+        lssum=lssum+newwat(iq)/(em(iq)*em(iq)) ! kg of water / (ds*ds)
+        newwat(iq)=0.
+      elseif (.not.land(iq)) then
+        lwsum=lwsum+1./(em(iq)*em(iq))   
+      end if
+    end do
+    call MPI_AllReduce(lssum,gssum,1,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+    call MPI_AllReduce(lwsum,gwsum,1,MPI_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+    xx=gssum/max(gwsum,0.1)
+    where (.not.land)
+      neta(1:ifull)=neta(1:ifull)+xx*0.001
+    end where
+    call mloimport(4,neta(1:ifull),0,0)
+  case(2)
+    do iq=1,ifull
+      if (all(slope(iq,:).lt.-1.E-10).and.land(iq)) then
+        newwat(iq)=0.
+      end if
+    end do
+  case default
+    write(6,*) "ERROR: Unsupported basinmd ",basinmd
+    stop
+end select
 
 watbdy(1:ifull)=max(newwat,0.)
 
@@ -564,7 +596,7 @@ real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
 
-integer, parameter :: llmax=400    ! iterations for calculating surface height
+integer, parameter :: llmax=200    ! iterations for calculating surface height
 real, parameter :: tol  = 5.E-4    ! Tolerance for GS solver (water)
 real, parameter :: itol = 10.      ! Tolerance for GS solver (ice)
 real, parameter :: sal  = 0.948    ! SAL parameter for tidal forcing

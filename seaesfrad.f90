@@ -57,16 +57,16 @@ use cable_ccam, only : CABLE
 use cc_mpi
 use cfrac_m
 use extraout_m
+use histave_m, only : alb_ave,fbeam_ave
 use infile
 use latlong_m
-use liqwpar_m
 use microphys_rad_mod, only: microphys_sw_driver,microphys_lw_driver,lwemiss_calc,microphys_rad_init
 use mlo
 use nsibd_m
 use ozoneread
 use pbl_m
 use raddiag_m
-use radisw_m, only : rrco2,ssolar,rrvco2,rrvch4,rrvn2o,rrvf11,rrvf12,rrvf113,rrvf22
+use radisw_m, only : rrco2,rrvco2,rrvch4,rrvn2o,rrvf11,rrvf12,rrvf113,rrvf22
 use sigs_m
 use soil_m
 use soilsnow_m
@@ -150,7 +150,6 @@ fjd = float(mod(mins,525600))/1440. ! restrict to 365 day calendar
 
 ! Calculate sun position
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
-ssolar = csolar / (r1*r1)
 
 ! Initialisation ----------------------------------------------------
 if ( first ) then
@@ -594,25 +593,25 @@ do j=1,jl,imax/il
     cloudhi(istart:iend)=0.
     ! Diagnose low, middle and high clouds
     do k=1,nlow
-      cloudlo(istart:iend)=cloudlo(istart:iend)+cfrac(istart:iend,k)-cloudlo(istart:iend)*cfrac(istart:iend,k)
+      cloudlo(istart:iend)=cloudlo(istart:iend)*(1.-cfrac(istart:iend,k))+cfrac(istart:iend,k)
     enddo
     do k=nlow+1,nmid
-      cloudmi(istart:iend)=cloudmi(istart:iend)+cfrac(istart:iend,k)-cloudmi(istart:iend)*cfrac(istart:iend,k)
+      cloudmi(istart:iend)=cloudmi(istart:iend)*(1.-cfrac(istart:iend,k))+cfrac(istart:iend,k)
     enddo
     do k=nmid+1,kl-1
-      cloudhi(istart:iend)=cloudhi(istart:iend)+cfrac(istart:iend,k)-cloudhi(istart:iend)*cfrac(istart:iend,k)
+      cloudhi(istart:iend)=cloudhi(istart:iend)*(1.-cfrac(istart:iend,k))+cfrac(istart:iend,k)
     enddo
 
     ! Prepare SEA-ESF arrays ----------------------------------------
     do k=1,kl
       kr=kl+1-k
-      Atmos_input%deltaz(:,1,kr) =(-dsig(k)/sig(k))*rdry*t(istart:iend,k)/grav
-      Atmos_input%rh2o(:,1,kr)   =max(qg(istart:iend,k) ,2.e-7)
-      Atmos_input%temp(:,1,kr)   =t(istart:iend,k)      
-      Atmos_input%press(:,1,kr)  =ps(istart:iend)*sig(k)
       dumt(:,k)=t(istart:iend,k)
       p2(:,k)=ps(istart:iend)*sig(k)
       call getqsat(imax,qsat,dumt(:,k),p2(:,k))
+      Atmos_input%deltaz(:,1,kr) =(-dsig(k)/sig(k))*rdry*dumt(:,k)/grav
+      Atmos_input%rh2o(:,1,kr)   =max(qg(istart:iend,k),qgmin)
+      Atmos_input%temp(:,1,kr)   =dumt(:,k)      
+      Atmos_input%press(:,1,kr)  =p2(:,k)
       Atmos_input%rel_hum(:,1,kr)=min(qg(istart:iend,k)/qsat,1.)
     end do
     Atmos_input%temp(:,1,kl+1)  = tss(istart:iend)
@@ -698,6 +697,7 @@ do j=1,jl,imax/il
       end do
     end if
 
+    ! cfrac, qlrad and qfrad also include convective cloud as well as qfg and qlg
     dumcf=cfrac(istart:iend,:)
     dumql=qlrad(istart:iend,:)
     dumqf=qfrad(istart:iend,:)
@@ -813,9 +813,9 @@ do j=1,jl,imax/il
       rgclr(1:imax)   = Lw_output(1)%flxnetcf(:,1,kl+1) ! clear sky longwave at surface
     else
       soutclr(1:imax) = 0.
-      sgclr(1:imax) = 0.
-      rtclr(1:imax) = 0.
-      rgclr(1:imax) = 0.
+      sgclr(1:imax)   = 0.
+      rtclr(1:imax)   = 0.
+      rgclr(1:imax)   = 0.
     end if
 
     ! heating rate --------------------------------------------------
@@ -867,6 +867,10 @@ do j=1,jl,imax/il
       cll_ave(istart:iend)  = cll_ave(istart:iend)  + cloudlo(istart:iend)
       clm_ave(istart:iend)  = clm_ave(istart:iend)  + cloudmi(istart:iend)
       clh_ave(istart:iend)  = clh_ave(istart:iend)  + cloudhi(istart:iend)
+      alb_ave(istart:iend)  = alb_ave(istart:iend)+swrsave(istart:iend)*albvisnir(istart:iend,1) &
+                             +(1.-swrsave(istart:iend))*albvisnir(istart:iend,2)
+      fbeam_ave(istart:iend)= fbeam_ave(istart:iend)+fbeamvis(istart:iend)*swrsave(istart:iend) &
+                             +fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
     endif   ! (ktau>1)
     
     ! Store fraction of direct radiation in urban scheme
@@ -1164,29 +1168,34 @@ implicit none
 include 'parm.h'
 
 integer, intent(in) :: imax,kl
-integer k,kr
+integer iq,k,kr
 real, dimension(imax,kl), intent(in) :: cfrac,qlg,qfg,prf,ttg
 real, dimension(imax,kl), intent(in) :: cdrop
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop,Rice,conl,coni
-real, dimension(imax,kl) :: reffl,reffi,fice,cfl,Wliq,rhoa
+real, dimension(imax,kl) :: reffl,reffi,fice,cfl,cfi,Wliq,rhoa
 real, dimension(imax,kl) :: eps,rk,Wice
 real, parameter :: scale_factor = 0.85 ! account for the plane-parallel homo-
                                        ! genous cloud bias  (e.g. Cahalan effect)
+logical, parameter :: do_brenguier = .false. ! Adjust effective radius for vertically
+                                             ! stratified cloud
 
 fice=qfg/max(qfg+qlg,1.e-12)
 cfl=cfrac*(1.-fice)
+cfi=cfrac*fice
 rhoa=prf/(rdry*ttg)
 
-! Reffl is the effective radius at the top of the cloud (calculated following
-! Martin etal 1994, JAS 51, 1823-1842) due to the extra factor of 2 in the
-! formula for reffl. Use mid cloud value of Reff for emissivity.
+! Reffl is the effective radius calculated following
+! Martin etal 1994, JAS 51, 1823-1842
 
 reffl=0.
 Wliq=0.
 where (qlg.gt.1.E-8.and.cfrac.gt.0.)
-  Wliq=rhoa*qlg/cfl     !kg/m^3
+  !Wliq=rhoa*qlg/cfl     !kg/m^3
+  Wliq=rhoa*qlg/cfrac  !kg/m^3
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
-  eps = 1. - 0.7 * exp(-0.003e-6*cdrop) !mid range
+  !eps = 1. - 0.7 * exp(-0.008e-6*cdrop) !upper bound
+  eps = 1. - 0.7 * exp(-0.003e-6*cdrop)  !mid range
+  !eps = 1. - 0.7 * exp(-0.001e-6*cdrop) !lower bound
   rk  = (1.+eps**2)/(1.+2.*eps**2)**2
   ! Martin et al 1994
   reffl=(3.*Wliq/(4.*pi*rhow*rk*cdrop))**(1./3.)
@@ -1203,63 +1212,64 @@ end where
 !    cloud mean specific humidity by a factor of 2**(1./3.).
 !    this correction, 0.9*(2**(1./3.)) = 1.134, is applied only to 
 !    single layer liquid or mixed phase clouds.
-if (nmr.eq.0) then
-  reffl=reffl*1.134
-else
-  do k=1,kl
-    if (k.eq.1) then
-      where (cfrac(:,2).eq.0.)
-        reffl(:,k)=reffl(:,k)*1.134
-      end where
-    elseif (k.eq.kl) then
-      where (cfrac(:,kl-1).eq.0.)
-        reffl(:,k)=reffl(:,k)*1.134
-      end where  
-    else
-      where (cfrac(:,k-1).eq.0..and.cfrac(:,k+1).eq.0.)
-        reffl(:,k)=reffl(:,k)*1.134
-      end where
-    end if
-  end do
+if (do_brenguier) then
+  if (nmr.eq.0) then
+    reffl=reffl*1.134
+    !reffl=reffl*1.2599
+  else
+    do k=1,kl
+      if (k.eq.1) then
+        where (cfrac(:,2).eq.0.)
+          reffl(:,k)=reffl(:,k)*1.134
+          !reffl(:,k)=reffl(:,k)*1.2599
+        end where
+      elseif (k.eq.kl) then
+        where (cfrac(:,kl-1).eq.0.)
+          reffl(:,k)=reffl(:,k)*1.134
+          !reffl(:,k)=reffl(:,k)*1.2599
+        end where  
+      else
+        where (cfrac(:,k-1).eq.0..and.cfrac(:,k+1).eq.0.)
+          reffl(:,k)=reffl(:,k)*1.134
+          !reffl(:,k)=reffl(:,k)*1.2599
+        end where
+      end if
+    end do
+  end if
 end if
-
-!Lohmann et al.(1999)
 
 reffi=0.
 Wice=0.
 where (qfg.gt.1.E-8.and.cfrac.gt.0.)
-  Wice=rhoa*qfg/(cfrac*fice) !kg/m**3
-  reffi=min(150.e-6,3.73e-4*Wice**0.216)
+  !Wice=rhoa*qfg/cfi          !kg/m**3
+  Wice=rhoa*qfg/cfrac       !kg/m**3
+  reffi=min(150.e-6,3.73e-4*Wice**0.216) !Lohmann et al.(1999)
 end where
 
 !Donner et al (1997)
-
-!deffi=0.
 !do k=1,kl
 !  do iq=1,imax
 !    if (qfg(iq,k).gt.1.E-8.and.cfrac(iq,k).gt.0.) then
 !      if (ttg(iq,k).gt.248.16) then
-!        deffi(iq,k)=100.6
+!        reffi(iq,k)=5.E-7*100.6
 !      elseif (ttg(iq,k).gt.243.16) then
-!        deffi(iq,k)=80.8
+!        reffi(iq,k)=5.E-7*80.8
 !      elseif (ttg(iq,k).gt.238.16) then
-!        deffi(iq,k)=93.5
+!        reffi(iq,k)=5.E-7*93.5
 !      elseif (ttg(iq,k).gt.233.16) then
-!        deffi(iq,k)=63.9
+!        reffi(iq,k)=5.E-7*63.9
 !      elseif (ttg(iq,k).gt.228.16) then
-!        deffi(iq,k)=42.5
+!        reffi(iq,k)=5.E-7*42.5
 !      elseif (ttg(iq,k).gt.223.16) then
-!        deffi(iq,k)=39.9
+!        reffi(iq,k)=5.E-7*39.9
 !      elseif (ttg(iq,k).gt.218.16) then
-!        deffi(iq,k)=21.6
+!        reffi(iq,k)=5.E-7*21.6
 !      else
-!        deffi(iq,k)=20.2
+!        reffi(iq,k)=5.E-7*20.2
 !      end if
 !    end if
 !  end do
 !end do
-!
-!deffi=min(max(deffi,18.6),130.2)
 
 do k=1,kl
   kr=kl+1-k

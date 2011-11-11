@@ -88,7 +88,8 @@ real, dimension(:), allocatable, save :: p_lzom,p_lzoh,p_cndzmin,p_cduv,p_vegtem
 real, dimension(:), allocatable, save :: p_tscrn,p_qscrn,p_uscrn,p_u10,p_emiss
 
 ! model parameters
-integer, parameter :: resmeth=1           ! Canyon sensible heat transfer (0=Masson, 1=Harman, 2=Kusaka)
+integer, parameter :: resmeth=1           ! Canyon sensible heat transfer (0=Masson, 1=Harman (varying width), 2=Kusaka, 3=Harman (fixed width))
+integer, parameter :: useonewall=0        ! Option to combine both wall energy budgets into a single wall (0=two walls, 1=single wall) 
 integer, parameter :: zohmeth=1           ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003*zom)
 integer, parameter :: acmeth=1            ! AC heat pump into canyon (0=Off, 1=On)
 integer, parameter :: nrefl=3             ! Number of canyon reflections (default=3)
@@ -1196,7 +1197,7 @@ else
   d_acout=0.
 end if
 
-! calculate shortwave radiation
+! calculate shortwave reflections
 call getswcoeff(ufull,sg_roof,sg_road,sg_walle,sg_wallw,sg_veg,sg_rfsn,sg_rdsn,wallpsi,roadpsi,f_hwratio,f_vangle,f_hangle, &
                 f_fbeam,f_sigmaveg,f_roadalpha,f_vegalpha,f_wallalpha,rd_alpha,d_rdsndelta)
 sg_roof =(1.-f_roofalpha)*sg_roof*a_sg
@@ -1232,6 +1233,7 @@ end where
 p_cndzmin=zom*exp(p_lzom)                        ! distance to canyon displacement height
 
 ! calculate canyon wind speed and bulk transfer coefficents
+! (i.e., acond = 1/(aerodynamic resistance) )
 select case(resmeth)
   case(0) ! Masson (2000)
     cu=exp(-0.25*f_hwratio)
@@ -1240,8 +1242,12 @@ select case(resmeth)
     acond_wallw=cu
     acond_rdsn=cu
     acond_veg=cu
-  case(1) ! Harman et al (2004) - modified to include 2nd wall
-    call getincanwind(we,ww,wr,a_udir,zonet)
+  case(1,3) ! Harman et al (2004)
+    if (resmeth.eq.1) then
+      call getincanwind(we,ww,wr,a_udir,zonet)
+    else
+      call getincanwindb(we,ww,wr,a_udir,zonet)
+    end if
     dis=max(max(max(0.1*f_bldheight,zocanyon+0.1),zoveg+0.1),zosnow+0.1)
     zolog=log(dis/zocanyon)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
@@ -1268,7 +1274,7 @@ select case(resmeth)
 end select
 
 ! join two walls into a single wall (testing only)
-if (resmeth.eq.0.or.resmeth.eq.2) then
+if (useonewall.eq.1) then
   do k=1,3
     we_temp(:,k)=0.5*(we_temp(:,k)+ww_temp(:,k))
     ww_temp(:,k)=we_temp(:,k)
@@ -2526,6 +2532,8 @@ end subroutine gettraffic
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate in-canyon wind speed for walls and road
+! This version allows the eddy size to change with canyon orientation
+! which requires a numerical solution to the integral
 
 subroutine getincanwind(ueast,uwest,ufloor,a_udir,z0)
 
@@ -2537,6 +2545,8 @@ real, dimension(ufull) :: a,b,wsuma,wsumb,fsum
 real, dimension(ufull) :: theta1,wdir,h,w
 real, dimension(ufull), intent(in) :: a_udir
 
+! rotate wind direction so that all cases are between 0 and pi
+! walls are fliped at the end of the subroutine to account for additional pi rotation
 where (a_udir.ge.0.)
   wdir=a_udir
 elsewhere
@@ -2549,9 +2559,9 @@ w=f_bldheight/f_hwratio
 theta1=acos(min(w/(3.*h),1.))
 wsuma=0.
 wsumb=0.
-fsum=0.
+fsum=0.  ! floor
 
-! integrate jet on road, venting side
+! integrate jet on road, venting side (A)
 a=0.
 b=max(0.,wdir-pi+theta1)
 call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,0)
@@ -2561,7 +2571,7 @@ a=max(0.,wdir-pi+theta1)
 b=max(0.,wdir-theta1)
 call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,1)
 
-! integrate jet on road, venting side
+! integrate jet on road, venting side (B)
 a=max(0.,wdir-theta1)
 b=wdir
 call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,0)
@@ -2581,7 +2591,8 @@ a=min(pi,wdir+pi-theta1)
 b=pi
 call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,0)
 
-! Determine orientation
+! Correct for rotation of winds at start of subroutine
+! 0.5 to adjust for factor of 2 in getopu
 where (a_udir.ge.0.)
   ueast=0.5*wsuma
   uwest=0.5*wsumb
@@ -2589,10 +2600,67 @@ elsewhere
   ueast=0.5*wsumb
   uwest=0.5*wsuma
 end where
-ufloor=0.5*fsum
+ufloor=0.5*fsum      ! floor
 
 return
 end subroutine getincanwind
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Calculate in-canyon wind speed for walls and road
+! This version fixes the eddy size to the canyon width which allows
+! for an analytic solution to the integral
+
+subroutine getincanwindb(ueast,uwest,ufloor,a_udir,z0)
+
+implicit none
+
+real, dimension(ufull), intent(out) :: ueast,uwest,ufloor
+real, dimension(ufull), intent(in) :: z0
+real, dimension(ufull) :: a,b,wsuma,wsumb,fsum
+real, dimension(ufull) :: theta1,wdir,h,w
+real, dimension(ufull) :: dufa,dura,duva,ntheta
+real, dimension(ufull) :: dufb,durb,duvb
+real, dimension(ufull), intent(in) :: a_udir
+
+! rotate wind direction so that all cases are between 0 and pi
+! walls are fliped at the end of the subroutine to account for additional pi rotation
+where (a_udir.ge.0.)
+  wdir=a_udir
+elsewhere
+  wdir=a_udir+pi
+endwhere
+
+h=f_bldheight
+w=f_bldheight/f_hwratio
+
+theta1=acos(min(w/(3.*h),1.))
+
+call winda(dufa,dura,duva,h,w,z0) ! jet on road
+call windb(dufb,durb,duvb,h,w,z0) ! jet on wall
+ntheta=2. ! i.e., int_0^pi sin(theta) dtheta = 2.)
+where (wdir.lt.theta1.or.wdir.gt.pi-theta1) ! jet on wall
+  wsuma=duvb*ntheta
+  wsumb=durb*ntheta
+  fsum=dufb*ntheta
+elsewhere                                   ! jet on road
+  wsuma=dura*ntheta
+  wsumb=duva*ntheta
+  fsum=dufa*ntheta
+end where
+
+! Correct for rotation of winds at start of subroutine
+! 0.5 to adjust for factor of 2 in getopu
+where (a_udir.ge.0.)
+  ueast=0.5*wsuma
+  uwest=0.5*wsumb
+elsewhere
+  ueast=0.5*wsumb
+  uwest=0.5*wsuma
+end where
+ufloor=0.5*fsum      ! floor
+
+return
+end subroutine getincanwindb
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! integrate winds
@@ -2632,7 +2700,7 @@ select case(mode)
       fsum=fsum+duf*st*dtheta
     end do
   case DEFAULT
-    write(6,*) "ERROR: Unknown mode ",mode
+    write(6,*) "ERROR: Unknown ateb.f90 integratewind mode ",mode
     stop
 end select
 
@@ -2640,7 +2708,7 @@ return
 end subroutine integratewind
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate wind speed, jet on road
+! Calculate canyon wind speeds, jet on road
 
 subroutine winda(uf,ur,uv,h,w,z0)
 
@@ -2669,7 +2737,7 @@ return
 end subroutine winda
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate wind speed, jet on wall
+! Calculate canyon wind speeds, jet on wall
 
 subroutine windb(uf,ur,uv,h,win,z0)
 

@@ -1447,6 +1447,7 @@ contains
             iql = indp(i,j,n)  !  Local index
             iwu(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
          end do
 
          !     N edge (V,U)
@@ -1468,6 +1469,7 @@ contains
             iql = indp(i,j,n)  !  Local index
             inv(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
          end do
 
          !     E edge, U,V
@@ -1488,6 +1490,7 @@ contains
             iql = indp(i,j,n)  !  Local index
             ieu(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
          end do
 
          !     S edge, V,U
@@ -1507,6 +1510,7 @@ contains
             iql = indp(i,j,n)  !  Local index
             isv(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlen_uv) = .false.
          end do
       end do ! n=1,npan
 
@@ -1516,7 +1520,7 @@ contains
 
       do n=1,npan
 
-         !     Start with W edge, U,V values
+         !     Start with W edge, V values
          i = 1
          do j=1,jpan
             iqg = indg(i,j,n)
@@ -1538,10 +1542,10 @@ contains
             iql = indp(i,j,n)  !  Local index
             iwv(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = .true.
+            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
          end do
 
-         !     N edge (V,U)
+         !     N edge (U)
          j=jpan
          do i=1,ipan
             iqg = indg(i,j,n)
@@ -1559,10 +1563,10 @@ contains
             iql = indp(i,j,n)  !  Local index
             inu(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = .true.
+            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
          end do
 
-         !     E edge, U,V
+         !     E edge, V
          i = ipan
          do j=1,jpan
             iqg = indg(i,j,n)
@@ -1581,10 +1585,10 @@ contains
             iql = indp(i,j,n)  !  Local index
             iev(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = .true.
+            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
          end do
 
-         !     S edge, V,U
+         !     S edge, U
          j=1
          do i=1,ipan
             iqg = indg(i,j,n)
@@ -1601,7 +1605,7 @@ contains
             iql = indp(i,j,n)  !  Local index
             isu(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlenx_uv) = swap
-            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = .true.
+            bnds(rproc)%uv_neg(bnds(rproc)%rlenx_uv) = swap
          end do
       end do ! n=1,npan
 
@@ -1635,6 +1639,7 @@ contains
             iwwu(iql) = ifull+iext
             ! Decide if u/v need to be swapped. My face is n-noff
             bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
          end do
 
          !     N edge (V)
@@ -1656,6 +1661,7 @@ contains
             iql = indp(i,j,n)  !  Local index
             innv(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
          end do
 
          !     E edge, U
@@ -1676,6 +1682,7 @@ contains
             iql = indp(i,j,n)  !  Local index
             ieeu(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
          end do
 
          !     S edge, V
@@ -1695,6 +1702,7 @@ contains
             iql = indp(i,j,n)  !  Local index
             issv(iql) = ifull+iext
             bnds(rproc)%uv_swap(bnds(rproc)%rlen2_uv) = swap
+            bnds(rproc)%uv_neg(bnds(rproc)%rlen2_uv) = .false.
          end do
       end do ! n=1,npan
 
