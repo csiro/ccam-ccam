@@ -34,6 +34,7 @@
       use vecs_m                               ! Eigenvectors for atmosphere dynamics
       use vecsuv_m                             ! Map to cartesian coordinates
       use vegpar_m                             ! Vegetation arrays
+      use vvel_m, only : dpsldt                ! Additional vertical velocity
       use xyzinfo_m                            ! Grid coordinate arrays
       
       implicit none
@@ -154,6 +155,7 @@
       kdate=kdate_s
       ktime=ktime_s
       phi(:,:)=-999.
+      dpsldt(:,:)=0.
       sigmf(:)=0.
 
 
@@ -571,7 +573,7 @@
      &         fracice,t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
      &         qg(1:ifull,:),tgg,wb,wbice,snowd,phi,qfg(1:ifull,:),
      &         qlg(1:ifull,:),tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &         iaero,mlodwn,ocndwn)
+     &         iaero,mlodwn,ocndwn,dpsldt)
         endif   ! (abs(io_in)==1)
         if(mydiag)then
           write(6,*)'ds,zss',ds,zss(idjd)
@@ -1097,7 +1099,7 @@
      &       duma,dumb,dumb,dumb,
      &       dumb,tgg,wb,wbice,snowd,dumb,dumb,
      &       dumb,tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &       iaero,mlodwn,ocndwn)
+     &       iaero,mlodwn,ocndwn,dumb)
          if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)then
           if (myid==0) then
            write(6,*) 'WARN: Could not locate correct date/time'
@@ -1882,15 +1884,17 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
           atebdwn(:,13)=(wb(:,ms)-swilt(isoilm))
      &                 /(sfc(isoilm)-swilt(isoilm))
           atebdwn(:,13)=atebdwn(:,13)*0.26+(1.-atebdwn(:,13))*0.18
-          atebdwn(:,14)=0.   ! roof water
-          atebdwn(:,15)=0.   ! road water
-          atebdwn(:,16)=0.   ! leaf water
-          atebdwn(:,17)=0.   ! roof snow
-          atebdwn(:,18)=0.   ! road snow
-          atebdwn(:,19)=100. ! roof snow density
-          atebdwn(:,20)=100. ! road snow density
-          atebdwn(:,21)=0.85 ! roof snow albedo
-          atebdwn(:,22)=0.85 ! road snow albedo
+          atebdwn(:,14)=0.18
+          atebdwn(:,15)=0.   ! roof water
+          atebdwn(:,16)=0.   ! road water
+          atebdwn(:,17)=0.   ! canyon leaf water
+          atebdwn(:,18)=0.   ! roof leaf water
+          atebdwn(:,19)=0.   ! roof snow
+          atebdwn(:,20)=0.   ! road snow
+          atebdwn(:,21)=100. ! roof snow density
+          atebdwn(:,22)=100. ! road snow density
+          atebdwn(:,23)=0.85 ! roof snow albedo
+          atebdwn(:,24)=0.85 ! road snow albedo
         end where
         call atebload(atebdwn,0)	
         deallocate(atebdwn)

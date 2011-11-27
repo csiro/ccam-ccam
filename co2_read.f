@@ -11,7 +11,7 @@
 
 c******************************************************************************
 
-      subroutine co2_read(sigma,jyear) ! MJT radiation
+      subroutine co2_read(sigma,jyear)
 c  This routine reads the CO2 transmission coefficients from the
 c  co2_datafile (filename set in namelist)
 c  was unit 15 for DARLAM, unit 17 for conformal-cubic
@@ -19,17 +19,21 @@ c  was unit 15 for DARLAM, unit 17 for conformal-cubic
       use cc_mpi, only : myid
       use co2dta_m
       use radisw_m           ! passes rrvco2 to radrive for use in swr89
-      include 'parm.h'       ! MJT radiation
-      include 'filnames.h'   ! MJT radiation
+      
+      implicit none
+      
+      include 'parm.h'
+      include 'filnames.h'
       include 'newmpar.h'
-      include 'mpif.h'       ! MJT read
+      include 'mpif.h'
       include 'rdparm.h'  ! needed before other radiation common blocks
-      parameter(sigtol=1e-3)
+      
+      real, parameter :: sigtol=1e-3
       real sigma(kl), sigin(kl)
-      real rcn(35)                 ! MJT radiation
-      integer, intent(in) :: jyear ! MJT radiation
-      integer i,ierr               ! MJT radiation
-      data lu/15/
+      real rcn(35)
+      integer, intent(in) :: jyear
+      integer k,i,ierr,nlev,iyr
+      integer, parameter :: lu=15
       
       !--------------------------------------------------------------
       ! MJT radiation

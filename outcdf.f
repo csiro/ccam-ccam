@@ -133,7 +133,6 @@ c       define coords.
         print *,'idms=',idms
 
         print *,'tdim,idnc=',tdim,idnc
-ccc     idnt = ncvdef(idnc,'time',NCLONG,1,tdim,ier)
         idnt = ncvdef(idnc,'time',NCFLOAT,1,tdim,ier)  ! Sept 2006
         print *,'idnt=',idnt
         call ncaptc(idnc,idnt,'point_spacing',NCCHAR,4,'even',ier)
@@ -330,7 +329,7 @@ c     this routine creates attributes and writes output
 
       integer ixp,iyp,idlev,idnt,idms
       common/cdfind/ixp,iyp,idlev,idnt,idms
-      real aa(ifull),bb(ifull),cc(ifull)                       ! MJT cable
+      real aa(ifull),bb(ifull),cc(ifull)
       real tmpry(ifull,kl)
       real, dimension(:,:,:), allocatable :: mlodwn
 
@@ -416,7 +415,7 @@ c       Sigma levels
 
 c       For time invariant surface fields
         lname = 'Surface geopotential'
-        call attrib(idnc,idim,2,'zht',lname,'m2/s2',-1000.,90.e3,0,-1) ! MJT bug fix
+        call attrib(idnc,idim,2,'zht',lname,'m2/s2',-1000.,90.e3,0,-1)
         lname = 'Map factor'
         call attrib(idnc,idim,2,'map',lname,'none',.001,1500.,0,itype)
         lname = 'Coriolis factor'
@@ -570,7 +569,7 @@ c       For time varying surface fields
         call attrib(idnc,idim,3,'wbftot',lname,'frac',0.,4.,0,itype)  
 
         lname = 'Sea ice depth'
-        call attrib(idnc,idim,3,'siced',lname,'m',0.,65.,0,-1) ! MJT seaice
+        call attrib(idnc,idim,3,'siced',lname,'m',0.,65.,0,-1)
         lname = 'Sea ice fraction'
         call attrib(idnc,idim,3,'fracice',lname,'none',0.,6.5,0,itype)
         lname = '10m wind speed'
@@ -847,15 +846,13 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           lname = 'Surface pressure tendency'
           call attrib(idnc,idim,3,'dpsdt',lname,'hPa/day',-400.,400.,0,
      &                itype)
-          !lname = 'PBL depth'                                   ! MJT tke
-          !call attrib(idnc,idim,3,'pblh',lname,'m',0.,6000.,0)  ! MJT tke
           lname = 'friction velocity'
           call attrib(idnc,idim,3,'ustar',lname,'m/s',0.,10.,0,itype)
         endif     ! (nextout>=1)
-        if (nextout>=1.or.(nvmix.eq.6.and.itype==-1)) then            ! MJT tke
-          lname = 'PBL depth'                                         ! MJT tke
-          call attrib(idnc,idim,3,'pblh',lname,'m',0.,6500.,0,itype)  ! MJT tke
-        end if                                                        ! MJT tke
+        if (nextout>=1.or.(nvmix.eq.6.and.itype==-1)) then
+          lname = 'PBL depth'
+          call attrib(idnc,idim,3,'pblh',lname,'m',0.,6500.,0,itype)
+        end if
 
         if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then  ! MJT cable
           lname = 'Carbon leaf pool'
@@ -902,14 +899,18 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          call attrib(idnc,idim,3,'roadtgg2',lname,'K',100.,425.,0,itype)
          lname = 'road temperature lev 3'
          call attrib(idnc,idim,3,'roadtgg3',lname,'K',100.,425.,0,itype)
-         lname = 'urban soil moisture'
-         call attrib(idnc,idim,3,'urbansm',lname,'m3/m3',0.,1.3,0,itype)
+         lname = 'urban canyon soil moisture'
+         call attrib(idnc,idim,3,'urbnsmc',lname,'m3/m3',0.,1.3,0,itype)
+         lname = 'urban roof soil moisture'
+         call attrib(idnc,idim,3,'urbnsmr',lname,'m3/m3',0.,1.3,0,itype)
          lname = 'urban roof water'
          call attrib(idnc,idim,3,'roofwtr',lname,'mm',0.,1.3,0,itype)
          lname = 'urban road water'
          call attrib(idnc,idim,3,'roadwtr',lname,'mm',0.,1.3,0,itype)
-         lname = 'urban leaf water'
-         call attrib(idnc,idim,3,'urblwtr',lname,'mm',0.,1.3,0,itype)
+         lname = 'urban canyon leaf water'
+         call attrib(idnc,idim,3,'urbwtrc',lname,'mm',0.,1.3,0,itype)
+         lname = 'urban roof leaf water'
+         call attrib(idnc,idim,3,'urbwtrr',lname,'mm',0.,1.3,0,itype)
          lname = 'urban roof snow'
          call attrib(idnc,idim,3,'roofsnd',lname,'mm',0.,1.3,0,itype)
          lname = 'urban road snow'
@@ -960,12 +961,12 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          call attrib(idnc,dim,4,'cfrac','Cloud fraction','none',0.,1.,
      &               0,itype)
         endif
-        if (nvmix.eq.6.and.(nextout>=1.or.itype==-1))then         ! MJT tke
+        if (nvmix.eq.6.and.(nextout>=1.or.itype==-1))then
          call attrib(idnc,dim,4,'tke','Turbulent Kinetic Energy'
-     &              ,'m2/s2',0.,65.,0,itype)                      ! MJT tke
+     &              ,'m2/s2',0.,65.,0,itype)
          call attrib(idnc,dim,4,'eps','Eddy dissipation rate'
-     &              ,'m2/s3',0.,6.5,0,itype)                      ! MJT tke
-        end if                                                    ! MJT tke
+     &              ,'m2/s3',0.,6.5,0,itype)
+        end if
 
 !       rml 16/02/06 set attributes for trNNN and travNNN
         if (ngas>0) then 
@@ -1484,7 +1485,7 @@ c      "extra" outputs
       !---------------------------------------------------------
       ! MJT urban
       if (nurban.le.-1.or.(nurban.ge.1.and.itype==-1)) then
-       allocate(atebdwn(ifull,22))
+       allocate(atebdwn(ifull,24))
        atebdwn(:,:)=999. ! must be the same as spval in onthefly.f
        call atebsave(atebdwn,0)
        call histwrt3(atebdwn(:,1),'rooftgg1',idnc,iarch,local)
@@ -1499,16 +1500,18 @@ c      "extra" outputs
        call histwrt3(atebdwn(:,10),'roadtgg1',idnc,iarch,local)
        call histwrt3(atebdwn(:,11),'roadtgg2',idnc,iarch,local)
        call histwrt3(atebdwn(:,12),'roadtgg3',idnc,iarch,local)
-       call histwrt3(atebdwn(:,13),'urbansm',idnc,iarch,local)
-       call histwrt3(atebdwn(:,14),'roofwtr',idnc,iarch,local)
-       call histwrt3(atebdwn(:,15),'roadwtr',idnc,iarch,local)
-       call histwrt3(atebdwn(:,16),'urblwtr',idnc,iarch,local)
-       call histwrt3(atebdwn(:,17),'roofsnd',idnc,iarch,local)
-       call histwrt3(atebdwn(:,18),'roadsnd',idnc,iarch,local)
-       call histwrt3(atebdwn(:,19),'roofden',idnc,iarch,local)
-       call histwrt3(atebdwn(:,20),'roadden',idnc,iarch,local)
-       call histwrt3(atebdwn(:,21),'roofsna',idnc,iarch,local)
-       call histwrt3(atebdwn(:,22),'roadsna',idnc,iarch,local)
+       call histwrt3(atebdwn(:,13),'urbnsmc',idnc,iarch,local)
+       call histwrt3(atebdwn(:,14),'urbnsmr',idnc,iarch,local)
+       call histwrt3(atebdwn(:,15),'roofwtr',idnc,iarch,local)
+       call histwrt3(atebdwn(:,16),'roadwtr',idnc,iarch,local)
+       call histwrt3(atebdwn(:,17),'urbwtrc',idnc,iarch,local)
+       call histwrt3(atebdwn(:,18),'urbwtrr',idnc,iarch,local)
+       call histwrt3(atebdwn(:,19),'roofsnd',idnc,iarch,local)
+       call histwrt3(atebdwn(:,20),'roadsnd',idnc,iarch,local)
+       call histwrt3(atebdwn(:,21),'roofden',idnc,iarch,local)
+       call histwrt3(atebdwn(:,22),'roadden',idnc,iarch,local)
+       call histwrt3(atebdwn(:,23),'roofsna',idnc,iarch,local)
+       call histwrt3(atebdwn(:,24),'roadsna',idnc,iarch,local)
        deallocate(atebdwn)
       end if
       !---------------------------------------------------------   

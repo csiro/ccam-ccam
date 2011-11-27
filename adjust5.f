@@ -155,7 +155,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       if(nh>0)then
 !       add in departure values of p-related nh terms  & omgfnl terms    
         if (abs(epsp).le.1.) then
-          const_nh=2.*rdry/(dt*grav*grav*(1.+abs(epsp)))
+          const_nh=2.*rdry/(dt*grav*grav*(1.+abs(epsp))*(1.+abs(epsp)))
         else
           const_nh=2.*rdry/(dt*grav*grav)
         end if

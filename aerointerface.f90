@@ -424,7 +424,7 @@ call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
 if (sday.le.mins-1440) then
   sday=mins
   do j=1,4      
-    call fieldinterpolate(oxout(:,:),oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
+    call fieldinterpolate(oxout,oxidantprev(:,:,j),oxidantnow(:,:,j),oxidantnext(:,:,j), &
                           rlev,ifull,kl,ilon,ilat,ilev,mins,sig,ps)
     do k=1,kl
       call aldrloadoxidant(k+(j-1)*kl,oxout(:,k))
@@ -654,7 +654,7 @@ real, dimension(ifull) :: esatf
 do iq=1,ifull
   esatf(iq) = establ(temp(iq))
 end do
-qsatout=0.622*esatf/(psin-esatf)
+qsatout=0.622*esatf/max(psin-esatf,0.1)
 
 return
 end subroutine getqsat

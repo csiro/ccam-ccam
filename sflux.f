@@ -48,13 +48,14 @@
       include 'newmpar.h'                ! Grid parameters
       include 'const_phys.h'             ! Physical constants
       include 'establ.h'                 ! Liquid saturation function
+      include 'mpif.h'
       include 'parm.h'                   ! Model configuration
       include 'parmgeom.h'               ! Coordinate data
       include 'parmsurf.h'               ! Surface parameters
       include 'soilv.h'                  ! Soil parameters
       include 'trcom2.h'                 ! Station data
 
-      integer iq,k,it,ip,iqmin1,iqmax1,iqmin2,iqmax2
+      integer iq,k,it,ip,iqmin1,iqmax1,iqmin2,iqmax2,ierr
       real, intent(in) :: nalpha
       real ri_max,zologbgin,ztv,z1onzt,chnsea
       real srcp,dtsoil,afrootpan,es,constz,drst

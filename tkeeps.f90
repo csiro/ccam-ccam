@@ -257,12 +257,12 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         ttup(1)=thup(1)/sigkap(1)                             ! temp,up
         call getqsat(1,qupsat(1),ttup(1),pres(1))             ! estimate of saturated mixing ratio in plume
         ! update updraft velocity
-        !nn=grav*(tvup(1)-thetav(i,1))/thetav(i,1)
-        !w2up(1)=2.*zz(i,1)*b2*nn/(1.+2.*zz(i,1)*b1*ee)  ! Hurley 2007
-        w2up(1)=0.25*wstar(i)**2                         ! Angevine et al 2010
+        nn=grav*wtv0(i)/thetav(i,1)
+        w2up(1)=2.*zz(i,1)*b2*nn/(1.+2.*zz(i,1)*b1*ee)  ! Hurley 2007
+        !w2up(1)=0.25*wstar(i)**2                       ! Angevine et al 2010
         ! update mass flux
-        !mflx(i,1)=0.1*sqrt(w2up(1))                     ! Hurley 2007
-        mflx(i,1)=0.08*sqrt(w2up(1))                     ! Angevine et al 2010
+        mflx(i,1)=0.1*sqrt(w2up(1))                     ! Hurley 2007
+        !mflx(i,1)=0.08*sqrt(w2up(1))                   ! Angevine et al 2010
         ! check for lcl
         sconv=.false.
         if (qtup(i,1).ge.qupsat(1)) then
@@ -534,8 +534,8 @@ do icount=1,icm2
              +beta1*km(:,2:kl))*(pps+ppb(:,2:kl))-epsnew(:,2:kl)) ! error function
   ff(:,2:kl)=-1.+dt*2.*(1.-beta1)*cm*tkenew(:,2:kl)/epsnew(:,2:kl)*(pps+ppb(:,2:kl))                                &
              -dt*(1.+(1.-beta1)*cm*tkenew(:,2:kl)*tkenew(:,2:kl)*(pps+ppb(:,2:kl))/(epsnew(:,2:kl)*epsnew(:,2:kl))) &
-                *(epsnew(:,2:kl)/tkenew(:,2:kl)-0.5*(1.-bb(:,2:kl))/(aa(:,2:kl)*tkenew(:,2:kl))                      &
-                 +(0.5*bb(:,2:kl)*(1.-bb(:,2:kl))/tkenew(:,2:kl)+aa(:,2:kl)*cc(:,2:kl)/tkenew(:,2:kl)                &
+                *(epsnew(:,2:kl)/tkenew(:,2:kl)-0.5*(1.-bb(:,2:kl))/(aa(:,2:kl)*tkenew(:,2:kl))                     &
+                 +(0.5*bb(:,2:kl)*(1.-bb(:,2:kl))/tkenew(:,2:kl)+aa(:,2:kl)*cc(:,2:kl)/tkenew(:,2:kl)               &
                  +aa(:,2:kl)*dt*ce1*(1.-beta2)*cm*(pps+max(ppb(:,2:kl),0.)+max(ppt,0.)))/(aa(:,2:kl)*gg(:,2:kl)))
   where (abs(ff(:,2:kl)).gt.tol) ! sectant method 
     tkenew(:,2:kl)=tkenew(:,2:kl)-alpha2*dd(:,2:kl)/ff(:,2:kl)
@@ -756,7 +756,7 @@ tdiff=min(max( temp-123.16, 0.), 219.)
 rx=tdiff-aint(tdiff)
 ix=int(tdiff)
 esatf=(1.-rx)*table(ix)+ rx*table(ix+1)
-qsat=0.622*esatf/(ps-esatf)
+qsat=0.622*esatf/max(ps-esatf,0.1)
 
 return
 end subroutine getqsat

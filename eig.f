@@ -204,7 +204,8 @@ c        enddo
 c      endif  ! (nh.ne.0)
 
 c      if(nh==2)then  ! use net gmat (June '06)
-        gmat(:,:)=bmat(:,:)*(1.+4.*cp*tbar(1)/((g*dt)**2*(1.+eps)))
+        gmat(:,:)=bmat(:,:)*(1.+4.*cp*tbar(1)/
+     &           ((g*dt)**2*(1.+eps)*(1.+eps)))
         call matm(aaa,gmat,aa)
         cc(:,:)=aaa(:,:)-r*tbar(1)*ab(:,:)
         print *,'cc with gmat'

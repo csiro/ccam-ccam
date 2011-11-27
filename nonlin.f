@@ -257,17 +257,16 @@ cx      enddo      ! k  loop
         enddo   ! iq loop
       endif     ! (ntbar==-4)
       
-      ! now phi is loaded in onthefly.f for nh.ne.0
-      if(nh==0)then
+      ! now phi and omgf are loaded in onthefly.f for nh.ne.0
+      if(nh==0.or.all(abs(omgf).lt.1.E-10))then
         phi(:,1)=zs(1:ifull)+bet(1)*t(1:ifull,1) 
         do k=2,kl
          phi(:,k)=phi(:,k-1)+bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1)
         enddo    ! k  loop
-      endif     ! (ktau==1.or.nh==0)
-
-      if(nh.ne.0)then
+      end if
+      if (nh.ne.0) then
         if (abs(epsp).le.1.) then
-          const_nh=2.*rdry/(dt*grav*grav*(1.+abs(epsp)))  
+          const_nh=2.*rdry/(dt*grav*grav*(1.+abs(epsp))*(1.-abs(epsp)))
         else
           const_nh=2.*rdry/(dt*grav*grav)  
         end if
@@ -322,7 +321,7 @@ cx      enddo      ! k  loop
      &      +t(1:ifull,k))/(const_nh*tbar2d(:))
          case(5)
           ! MJT - This method is compatible with bet(k) and betm(k)
-          ! For hydrostatic case, ddpsds exactly cancels with t.
+          ! For hydrostatic case, ddpds exactly cancels with t.
           ! This is the same as nh==2, but works for all lapsbot
           ! ddpds is (sig/rdry)*d(phi)/d(sig)
           ddpds(:,1)=-(phi(:,1)-zs(1:ifull))/bet(1)
@@ -342,7 +341,7 @@ cx      enddo      ! k  loop
           endif
           call maxmin(h_nh,'h_',ktau,1.,kl)
         endif
-      endif      ! (nh.ne.0)
+      endif      ! (nh==0 ..else..)
 
       do k=1,kl
        do iq=1,ifull

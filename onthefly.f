@@ -8,7 +8,7 @@
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      .                    tgg,wb,wbice,snowd,phi,qfg,qlg,
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                    iaero,mlodwn,ocndwn)
+     .                    iaero,mlodwn,ocndwn,dpsldtx)
 
       use cc_mpi           ! CC MPI routines
       use infile           ! Input file routines
@@ -44,7 +44,8 @@
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      & ssdnn(ifull),snage(ifull),phi(ifull,kl),qfg(ifull,kl),
-     & qlg(ifull,kl),mlodwn(ifull,wlev,4),ocndwn(ifull,2)
+     & qlg(ifull,kl),mlodwn(ifull,wlev,4),ocndwn(ifull,2),
+     & dpsldtx(ifull,kl)
       real timer
       logical ltest,newfile
 
@@ -155,16 +156,16 @@
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,phi,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     &                    ik,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
-     &                    schmidtx,newfile) ! ik controls automatic array size
+     &                    ik,iaero,mlodwn,ocndwn,dpsldtx,rlong0x,
+     &                    rlat0x,schmidtx,newfile) ! ik controls automatic array size
         write(6,*) "Leaving onthefly"
       else
         call ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,phi,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     &                    0,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
-     &                    schmidtx,newfile) ! 0 controls automatic array size
+     &                    0,iaero,mlodwn,ocndwn,dpsldtx,rlong0x,
+     &                    rlat0x,schmidtx,newfile) ! 0 controls automatic array size
       end if
 
       return
@@ -175,8 +176,8 @@
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,phi,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     &                    dk,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
-     &                    schmidtx,newfile)
+     &                    dk,iaero,mlodwn,ocndwn,dpsldtx,rlong0x,
+     &                    rlat0x,schmidtx,newfile)
       
       use aerosolldr, only : xtg,ssn,naero      ! LDR aerosol scheme
       use ateb, only : atebdwn                  ! Urban
@@ -197,7 +198,6 @@
       use tracers_m                             ! Tracer data
       use utilities                             ! Grid utilities
       use vecsuv_m                              ! Map to cartesian coordinates
-      use vvel_m                                ! Additional vertical velocity
       use workglob_m                            ! Additional grid interpolation
 
       implicit none
@@ -236,6 +236,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
       real, dimension(ifull,ms) :: wb,wbice,tgg
       real, dimension(ifull,3) :: tggsn,smass,ssdn
       real, dimension(ifull,kl) :: t,u,v,qg,phi,qfg,qlg
+      real, dimension(ifull,kl) :: dpsldtx
       real, dimension(ifull,kk) :: t_k,u_k,v_k,qg_k
       integer, dimension(ifull) :: isflag
       real, dimension(dk*dk*6) :: psl_a,tss_a,fracice_a,
@@ -479,7 +480,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
       psl_a=0.
       if (nested==0.or.(nested==1.and.nud_test.ne.0)) then
         call histrd1(ncid,iarchi,ier,'psf',ik,6*ik,psl_a,6*ik*ik)
-      endif ! nested.ne.2.and.(nested.ne.1.or.nud_p.ne.0)
+      endif 
       ! tsu always read
       tss_a=293.
       call histrd1(ncid,iarchi,ier,'tsu',ik,6*ik,tss_a,6*ik*ik)
@@ -822,7 +823,7 @@ c       incorporate other target land mask effects
         call vertint(v_k ,v(1:ifull,:), 4,kk,sigin)
       else
         u=0.
-	v=0.
+        v=0.
       end if ! (nested==0.or.(nested==1.and.nud_uv.ne.0))
       ! mixing ratio
       ! read for nested=0 or nested=1.and.nud_q.ne.0
@@ -1183,8 +1184,8 @@ c       incorporate other target land mask effects
         !--------------------------------------------------
         ! Read urban data
         if (nurban.ne.0) then
-          if (.not.allocated(atebdwn)) allocate(atebdwn(ifull,22))
-          do k=1,22
+          if (.not.allocated(atebdwn)) allocate(atebdwn(ifull,24))
+          do k=1,24
             t_a=999.
             select case(k)
               case(1)
@@ -1224,44 +1225,51 @@ c       incorporate other target land mask effects
                 call histrd1(ncid,iarchi,ier,'roadtgg3',ik,6*ik,
      &                       t_a,6*ik*ik)
               case(13)
-                call histrd1(ncid,iarchi,ier,'urbansm',ik,6*ik,
+                call histrd1(ncid,iarchi,ier,'urbnsmc',ik,6*ik,
      &                       t_a,6*ik*ik)
               case(14)
+                call histrd1(ncid,iarchi,ier,'urbnsmr',ik,6*ik,
+     &                       t_a,6*ik*ik)
+              case(15)
+                 t_a=0.
                 call histrd1(ncid,iarchi,ier,'roofwtr',ik,6*ik,
      &                       t_a,6*ik*ik)
-                if (ier.ne.0) t_a=0.
-              case(15)
+              case(16)
+                t_a=0.
                 call histrd1(ncid,iarchi,ier,'roadwtr',ik,6*ik,
      &                       t_a,6*ik*ik)
-                if (ier.ne.0) t_a=0.
-              case(16)
-                call histrd1(ncid,iarchi,ier,'urblwtr',ik,6*ik,
-     &                       t_a,6*ik*ik)
-                if (ier.ne.0) t_a=0.
               case(17)
+                t_a=0.
+                call histrd1(ncid,iarchi,ier,'urbwtrc',ik,6*ik,
+     &                       t_a,6*ik*ik)
+              case(18)
+                t_a=0.
+                call histrd1(ncid,iarchi,ier,'urbwtrr',ik,6*ik,
+     &                       t_a,6*ik*ik)
+              case(19)
+                t_a=0.
                 call histrd1(ncid,iarchi,ier,'roofsnd',ik,6*ik,
      &                       t_a,6*ik*ik)
-                if (ier.ne.0) t_a=0.
-              case(18)
+              case(20)
+                t_a=0.
                 call histrd1(ncid,iarchi,ier,'roadsnd',ik,6*ik,
      &                       t_a,6*ik*ik)
-                if (ier.ne.0) t_a=0.
-              case(19)
+              case(21)
+                t_a=100.
                 call histrd1(ncid,iarchi,ier,'roofden',ik,6*ik,
      &                       t_a,6*ik*ik)
-                if (ier.ne.0) t_a=100.
-              case(20)
+              case(22)
+                t_a=100.
                 call histrd1(ncid,iarchi,ier,'roadden',ik,6*ik,
      &                       t_a,6*ik*ik)
-                if (ier.ne.0) t_a=100.
-              case(21)
+              case(23)
+                t_a=0.85
                 call histrd1(ncid,iarchi,ier,'roofsna',ik,6*ik,
      &                       t_a,6*ik*ik)
-                if (ier.ne.0) t_a=0.85
-              case(22)
+              case(24)
+                t_a=0.85
                 call histrd1(ncid,iarchi,ier,'roadsna',ik,6*ik,
      &                       t_a,6*ik*ik)
-                if (ier.ne.0) t_a=0.85
             end select
             if (iotest) then
               if (myid==0) then
@@ -1282,6 +1290,29 @@ c       incorporate other target land mask effects
           end do
         end if
         !--------------------------------------------------
+
+        ! OMEGA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ! only for restart - no interpolation
+        dpsldtx=0.
+        u_k=0.
+        do k=1,kk 
+         ucc=0.
+         call histrd4s(ncid,iarchi,ier,'omega',ik,6*ik,k,ucc,
+     &                 6*ik*ik)
+         if (iotest) then
+           if (myid==0) then
+             call ccmpi_distribute(u_k(:,k),ucc)
+           else
+             call ccmpi_distribute(u_k(:,k))
+           end if
+         end if ! iotest
+        enddo  ! k loop
+        if (kk.eq.kl) dpsldtx=u_k
+        pmsl=1.E5*exp(psl) ! really surface presure
+        do k=1,kl
+          dpsldtx(:,k)=dpsldtx(:,k)/max(pmsl,1.)
+        end do
+        
 
         ! GEOPOTENTIAL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ! only for restart - no interpolation
@@ -1369,7 +1400,7 @@ c       incorporate other target land mask effects
      &                     nord,ik)
             end if ! iotest
           end do
-          call vertint(u_k,tke(1:ifull,:),6,kk,sigin)  
+          call vertint(u_k,tke(1:ifull,:),5,kk,sigin)  
           do k=1,kk
             vcc=1.E-7 ! dummy for eps
             call histrd4s(ncid,iarchi,ier,'eps',ik,6*ik,k,
@@ -1385,7 +1416,7 @@ c       incorporate other target land mask effects
      &                     nord,ik)
             end if ! iotest
           end do
-          call vertint(v_k,eps(1:ifull,:),6,kk,sigin)
+          call vertint(v_k,eps(1:ifull,:),5,kk,sigin)
           tke=max(tke,1.5E-8)
           eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)
           eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)          
@@ -1480,9 +1511,9 @@ c       incorporate other target land mask effects
               end if ! iotest
             end do
             if (i.le.naero) then
-              call vertint(u_k,xtg(1:ifull,:,i),6,kk,sigin)
+              call vertint(u_k,xtg(1:ifull,:,i),5,kk,sigin)
             else
-              call vertint(u_k,ssn(1:ifull,:,i-naero),6,kk,sigin)
+              call vertint(u_k,ssn(1:ifull,:,i-naero),5,kk,sigin)
             end if
           end do
           ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
