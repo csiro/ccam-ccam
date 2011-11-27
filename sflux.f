@@ -48,14 +48,13 @@
       include 'newmpar.h'                ! Grid parameters
       include 'const_phys.h'             ! Physical constants
       include 'establ.h'                 ! Liquid saturation function
-      include 'mpif.h'
       include 'parm.h'                   ! Model configuration
       include 'parmgeom.h'               ! Coordinate data
       include 'parmsurf.h'               ! Surface parameters
       include 'soilv.h'                  ! Soil parameters
       include 'trcom2.h'                 ! Station data
 
-      integer iq,k,it,ip,iqmin1,iqmax1,iqmin2,iqmax2,ierr
+      integer iq,k,it,ip,iqmin1,iqmax1,iqmin2,iqmax2
       real, intent(in) :: nalpha
       real ri_max,zologbgin,ztv,z1onzt,chnsea
       real srcp,dtsoil,afrootpan,es,constz,drst
@@ -128,6 +127,8 @@ c     degdt is degdt (was ceva in surfupa/b)
       oldrunoff(:)=runoff(:)
       zo=999.        ! dummy values
       factch=999.    ! dummy values
+      taux=0.        ! dummy values
+      tauy=0.        ! dummy values
 
       if (diag.or.ntest==1) then
         if (mydiag) then
@@ -518,6 +519,8 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
      &               watbdy(1:ifull)/dt,0,.true.)                       ! MLO
         call mloscrnout(tscrn,qgscrn,uscrn,u10,0)                       ! MLO
         call mloextra(0,zoh,azmin,0)                                    ! MLO
+        call mloextra(1,taux,azmin,0)                                   ! MLO
+        call mloextra(2,tauy,azmin,0)                                   ! MLO
         do k=1,ms                                                       ! MLO
           call mloexport(0,tgg(:,k),k,0)                                ! MLO
         end do                                                          ! MLO
@@ -538,10 +541,7 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
           watbdy(1:ifull)=0.                                            ! MLO
           snowd=snowd*1000.                                             ! MLO
           ga=0.                                                         ! MLO
-          cduv=cduv*vmod                                                ! MLO
-          ustar=sqrt(vmod*cduv)                                         ! MLO
-          taux=rho*cduv*u(1:ifull,1)                                    ! MLO
-          tauy=rho*cduv*v(1:ifull,1)                                    ! MLO
+          ustar=sqrt(sqrt(taux*taux+tauy*tauy)/rho)                     ! MLO
           tpan=tgg(:,1)                                                 ! MLO
           rnet=sgsave-rgsave-stefbo*tss**4                              ! MLO
           factch=sqrt(zo/zoh)                                           ! MLO
@@ -551,6 +551,9 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
           ga=-slwa-rgg-panfg*fg                                         ! MLO
           tpan=tpan+ga*dt/(4186.*.254*1000.)                            ! MLO
         endwhere                                                        ! MLO
+        where (.not.land.and.vmod.gt.0.)                                ! MLO
+          cduv=ustar*ustar/vmod                                         ! MLO
+        end where                                                       ! MLO
         do iq=1,ifull                                                   ! MLO
           if (.not.land(iq)) then                                       ! MLO
             esatf = establ(tss(iq))                                     ! MLO
@@ -862,10 +865,10 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      &                      /zoh(iperm(1:ipland)))                      ! urban
         ! calculate ustar                                               ! urban
         cduv(iperm(1:ipland))=cduv(iperm(1:ipland))                     ! urban
-     &                       /vmod(iperm(1:ipland))                     ! urban
+     &                       /vmag(iperm(1:ipland))                     ! urban
         call atebcd(cduv,0)                                             ! urban
         cduv(iperm(1:ipland))=cduv(iperm(1:ipland))                     ! urban
-     &                       *vmod(iperm(1:ipland))                     ! urban
+     &                       *vmag(iperm(1:ipland))                     ! urban
         ustar(iperm(1:ipland))=sqrt(vmod(iperm(1:ipland))               ! urban
      &                       *cduv(iperm(1:ipland)))                    ! urban
         ! calculate screen level diagnostics                            ! urban
