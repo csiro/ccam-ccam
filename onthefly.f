@@ -8,7 +8,7 @@
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      .                    tgg,wb,wbice,snowd,phi,qfg,qlg,
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
-     .                    iaero,mlodwn,ocndwn,dpsldtx)
+     .                    iaero,mlodwn,ocndwn)
 
       use cc_mpi           ! CC MPI routines
       use infile           ! Input file routines
@@ -44,8 +44,7 @@
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      & ssdnn(ifull),snage(ifull),phi(ifull,kl),qfg(ifull,kl),
-     & qlg(ifull,kl),mlodwn(ifull,wlev,4),ocndwn(ifull,2),
-     & dpsldtx(ifull,kl)
+     & qlg(ifull,kl),mlodwn(ifull,wlev,4),ocndwn(ifull,2)
       real timer
       logical ltest,newfile
 
@@ -156,16 +155,16 @@
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,phi,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     &                    ik,iaero,mlodwn,ocndwn,dpsldtx,rlong0x,
-     &                    rlat0x,schmidtx,newfile) ! ik controls automatic array size
+     &                    ik,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
+     &                    schmidtx,newfile) ! ik controls automatic array size
         write(6,*) "Leaving onthefly"
       else
         call ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,phi,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     &                    0,iaero,mlodwn,ocndwn,dpsldtx,rlong0x,
-     &                    rlat0x,schmidtx,newfile) ! 0 controls automatic array size
+     &                    0,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
+     &                    schmidtx,newfile) ! 0 controls automatic array size
       end if
 
       return
@@ -176,8 +175,8 @@
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,phi,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     &                    dk,iaero,mlodwn,ocndwn,dpsldtx,rlong0x,
-     &                    rlat0x,schmidtx,newfile)
+     &                    dk,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
+     &                    schmidtx,newfile)
       
       use aerosolldr, only : xtg,ssn,naero      ! LDR aerosol scheme
       use ateb, only : atebdwn                  ! Urban
@@ -236,7 +235,6 @@ c**   onthefly; sometime can get rid of common/bigxy4
       real, dimension(ifull,ms) :: wb,wbice,tgg
       real, dimension(ifull,3) :: tggsn,smass,ssdn
       real, dimension(ifull,kl) :: t,u,v,qg,phi,qfg,qlg
-      real, dimension(ifull,kl) :: dpsldtx
       real, dimension(ifull,kk) :: t_k,u_k,v_k,qg_k
       integer, dimension(ifull) :: isflag
       real, dimension(dk*dk*6) :: psl_a,tss_a,fracice_a,
@@ -1290,29 +1288,6 @@ c       incorporate other target land mask effects
           end do
         end if
         !--------------------------------------------------
-
-        ! OMEGA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        ! only for restart - no interpolation
-        dpsldtx=0.
-        u_k=0.
-        do k=1,kk 
-         ucc=0.
-         call histrd4s(ncid,iarchi,ier,'omega',ik,6*ik,k,ucc,
-     &                 6*ik*ik)
-         if (iotest) then
-           if (myid==0) then
-             call ccmpi_distribute(u_k(:,k),ucc)
-           else
-             call ccmpi_distribute(u_k(:,k))
-           end if
-         end if ! iotest
-        enddo  ! k loop
-        if (kk.eq.kl) dpsldtx=u_k
-        pmsl=1.E5*exp(psl) ! really surface presure
-        do k=1,kl
-          dpsldtx(:,k)=dpsldtx(:,k)/max(pmsl,1.)
-        end do
-        
 
         ! GEOPOTENTIAL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ! only for restart - no interpolation

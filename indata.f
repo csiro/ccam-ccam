@@ -573,7 +573,7 @@
      &         fracice,t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
      &         qg(1:ifull,:),tgg,wb,wbice,snowd,phi,qfg(1:ifull,:),
      &         qlg(1:ifull,:),tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &         iaero,mlodwn,ocndwn,dpsldt)
+     &         iaero,mlodwn,ocndwn)
         endif   ! (abs(io_in)==1)
         if(mydiag)then
           write(6,*)'ds,zss',ds,zss(idjd)
@@ -1099,7 +1099,7 @@
      &       duma,dumb,dumb,dumb,
      &       dumb,tgg,wb,wbice,snowd,dumb,dumb,
      &       dumb,tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &       iaero,mlodwn,ocndwn,dumb)
+     &       iaero,mlodwn,ocndwn)
          if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)then
           if (myid==0) then
            write(6,*) 'WARN: Could not locate correct date/time'

@@ -13,7 +13,6 @@
       ! nmlo=1   1D mixed-layer-ocean model
       ! nmlo=2   nmlo=1 plus river-routing and horiontal diffusion
       ! nmlo=3   nmlo=2 plus 3D dynamics
-      ! nmlo=4   nmlo=3 plus flood option along coastlines
       ! nmlo>9   Use external PCOM ocean model
       
       use arrays_m                       ! Atmosphere dyamics prognostic arrays
@@ -480,8 +479,7 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         ! abs(mlo) <= 1 Vertical mixing                                 ! MLO
         ! abs(mlo) <= 2 + Horizontal diffusion                          ! MLO
         ! abs(mlo) <= 3 + Advection                                     ! MLO
-        ! abs(mlo) <= 4 + Flooding                                      ! MLO
-                                                                        ! MLO
+                                                                         ! MLO
         if (abs(nmlo).ge.3) then                                        ! MLO
           ! Ocean dynamics                                              ! MLO
           call start_log(waterdynamics_begin)                           ! MLO
@@ -563,13 +561,6 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         end do                                                          ! MLO
         call end_log(watermix_end)                                      ! MLO
                                                                         ! MLO
-        if (abs(nmlo).ge.4) then                                        ! MLO
-          ! Flooding                                                    ! MLO
-          call start_log(river_begin)                                   ! MLO
-          call mloflood                                                 ! MLO
-          call end_log(river_end)                                       ! MLO
-        end if                                                          ! MLO
-
       else                                                              ! PCOM
         write(6,*) "ERROR: this option is for ocean model"              ! PCOM
         stop                                                            ! PCOM

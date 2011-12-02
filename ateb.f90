@@ -96,7 +96,8 @@ integer, parameter :: acmeth=1             ! AC heat pump into canyon (0=Off, 1=
 integer, parameter :: nrefl=3              ! Number of canyon reflections (default=3)
 integer, parameter :: vegmode=2            ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out/in=X/Y)
 integer, parameter :: scrnmeth=1           ! Screen diagnostic method (0=Slab, 1=Hybrid, 2=Canyon)
-integer, parameter :: wbrelax=0            ! Relax soil moisture for irrigation (0=Off, 1=On)
+integer, parameter :: wbrelaxc=0           ! Relax canyon soil moisture for irrigation (0=Off, 1=On)
+integer, parameter :: wbrelaxr=0           ! Relax roof soil moisture for irrigation (0=Off, 1=On)
 integer, parameter :: iqt = 314            ! Diagnostic point (in terms of host grid)
 ! sectant solver parameters
 integer, parameter :: nfgits=4             ! Maximum number of iterations for calculating sensible heat flux (default=4)
@@ -1771,9 +1772,9 @@ if (any(f_sigmavegc.gt.0.)) then ! in-canyon vegetation
   n=max(a_rnd-d_evapc/lv-max(maxvwatf*vegrlaic-v_watrc,0.)/ddt,0.) ! rainfall reaching the soil under vegetation
   ! note that since sigmaf=1, then there is no soil evaporation, only transpiration.  Evaporation only occurs from water on leafs.
   v_moistc=v_moistc+ddt*(n+rdsnmelt*rd_den/waterden-d_tranc/lv)/(waterden*d_totdepth) ! soil
-  v_watrc=v_watrc+ddt*(a_rnd-d_evapc/lv)                                              ! leafs
+  v_watrc=v_watrc+ddt*(a_rnd-d_evapc/lv)                                              ! leaf
   v_watrc=min(max(v_watrc,0.),maxvwatf*vegrlaic)
-  if (wbrelax.eq.1) then
+  if (wbrelaxc.eq.1) then
     ! increase soil moisture for irrigation 
     v_moistc=v_moistc+max(0.75*swilt+0.25*sfc-v_moistc,0.)/(86400./ddt+1.) ! 24h e-fold time
   end if
@@ -1786,12 +1787,12 @@ if (any(f_sigmavegr.gt.0.)) then ! green roof
   n=max(a_rnd-d_evapr/lv-max(maxvwatf*vegrlair-v_watrr,0.)/ddt,0.) ! rainfall reaching the soil under vegetation
   ! note that since sigmaf=1, then there is no soil evaporation, only transpiration.  Evaporation only occurs from water on leafs.
   v_moistr=v_moistr+ddt*(n+rfsnmelt*rf_den/waterden-d_tranr/lv)/(waterden*f_vegdepthr) ! soil
-  v_watrr=v_watrr+ddt*(a_rnd-d_evapr/lv)                                               ! leafs
+  v_watrr=v_watrr+ddt*(a_rnd-d_evapr/lv)                                               ! leaf
   v_watrr=min(max(v_watrr,0.),maxvwatf*vegrlair)
-  !if (wbrelax.eq.1) then
-  !  ! increase soil moisture for irrigation 
-  !  v_moistr=v_moistr+max(0.75*swilt+0.25*sfc-v_moistr,0.)/(86400./ddt+1.) ! 24h e-fold time
-  !end if
+  if (wbrelaxr.eq.1) then
+    ! increase soil moisture for irrigation 
+    v_moistr=v_moistr+max(0.75*swilt+0.25*sfc-v_moistr,0.)/(86400./ddt+1.) ! 24h e-fold time
+  end if
 else
   v_moistr=swilt
   v_watrr=0.
@@ -2666,13 +2667,16 @@ f3=max(1.-.00025*(vegqsat-d_mixrr)*d_sigr/0.622,0.05)
 f4=max(1.-0.0016*(298.-d_tempr)**2,0.05)
 res=max(30.,vegrsminr*f1*f2/(f3*f4))
 
+n=max(min((v_moistr-swilt)/(sfc-swilt),1.),0.) ! veg wetfac (see sflux.f or cable_canopy.f90)
+xw=(1.-dumvegdelta)*n+dumvegdelta
+
 ! calculate green roof sensible and latent heat fluxes
 rg_vegr=f_vegemissr*(a_rg-sbconst*p_vegtempr**4)
 ! a is a dummy variable for lzomvegr
 a=log(d_rfdzmin/zovegr)
 ! xe is a dummy variable for lzohvegr
 xe=2.3+a
-xw=vegqsat ! green roof surface mixing ratio
+xw=vegqsat*xw ! green roof surface mixing ratio
 dts=p_vegtempr*(1.+0.61*xw)
 dtt=d_tempr*(1.+0.61*d_mixrr)
 ! Assume zot=0.1*zom (i.e., Kanda et al 2007, small experiment)
