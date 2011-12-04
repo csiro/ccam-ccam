@@ -156,7 +156,7 @@
         if(io_in==-1)then
           call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
-     &                 dumg,dumg,dumg,duma,dumv,dumv,dumv,dums,dums,
+     &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,
      &                 dums,duma,duma,dumm,iaero,sssb,ocndep)
         else
           write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
@@ -354,7 +354,7 @@
         if (abs(io_in)==1) then
           call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
-     &                 dumg,dumg,dumg,duma,dumv,dumv,dumv,dums,dums,
+     &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,
      &                 dums,duma,duma,dumm,iaero,sssb,ocndep)
         else
           write(6,*) 'ERROR: Scale-selective filter requires ',

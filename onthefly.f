@@ -6,7 +6,7 @@
        
       subroutine onthefly(nested,kdate_r,ktime_r,
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     .                    tgg,wb,wbice,snowd,phi,qfg,qlg,
+     .                    tgg,wb,wbice,snowd,qfg,qlg,
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
      .                    iaero,mlodwn,ocndwn)
 
@@ -43,7 +43,7 @@
      & wb(ifull,ms),wbice(ifull,ms),snowd(ifull),sicedep(ifull),
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
-     & ssdnn(ifull),snage(ifull),phi(ifull,kl),qfg(ifull,kl),
+     & ssdnn(ifull),snage(ifull),qfg(ifull,kl),
      & qlg(ifull,kl),mlodwn(ifull,wlev,4),ocndwn(ifull,2)
       real timer
       logical ltest,newfile
@@ -153,7 +153,7 @@
       if (myid==0) then
         call ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     &                    tgg,wb,wbice,snowd,phi,qfg,qlg,
+     &                    tgg,wb,wbice,snowd,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
      &                    ik,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
      &                    schmidtx,newfile) ! ik controls automatic array size
@@ -161,7 +161,7 @@
       else
         call ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     &                    tgg,wb,wbice,snowd,phi,qfg,qlg,
+     &                    tgg,wb,wbice,snowd,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
      &                    0,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
      &                    schmidtx,newfile) ! 0 controls automatic array size
@@ -173,7 +173,7 @@
       ! Read data from netcdf file
       subroutine ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     &                    tgg,wb,wbice,snowd,phi,qfg,qlg,
+     &                    tgg,wb,wbice,snowd,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
      &                    dk,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
      &                    schmidtx,newfile)
@@ -187,9 +187,12 @@
       use infile                                ! Input file routines
       use latlong_m                             ! Lat/lon coordinates
       use mlo, only : wlev,micdwn,mloregrid     ! Ocean physics and prognostic arrays
-      use mlodynamics, only : watbdy            ! Ocean dynamics
+      use mlodynamics                           ! Ocean dynamics
       use morepbl_m                             ! Additional boundary layer diagnostics
+      use nharrs_m, only : phi,lrestart         ! Non-hydrostatic atmosphere arrays
       use nsibd_m, only : isoilm                ! Land-surface arrays
+      use savuvt_m                              ! Saved dynamic arrays
+      use savuv1_m                              ! Saved dynamic arrays
       use screen_m                              ! Screen level diagnostics
       use sigs_m                                ! Atmosphere sigma levels
       use soil_m                                ! Soil and surface data
@@ -197,6 +200,8 @@
       use tracers_m                             ! Tracer data
       use utilities                             ! Grid utilities
       use vecsuv_m                              ! Map to cartesian coordinates
+      use vvel_m, only : dpsldt,sdot            ! Additional vertical velocity
+      use xarrs_m, only : pslx                  ! Saved dynamic arrays
       use workglob_m                            ! Additional grid interpolation
 
       implicit none
@@ -234,7 +239,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
       real, dimension(ifull,wlev,4) :: mlodwn
       real, dimension(ifull,ms) :: wb,wbice,tgg
       real, dimension(ifull,3) :: tggsn,smass,ssdn
-      real, dimension(ifull,kl) :: t,u,v,qg,phi,qfg,qlg
+      real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg
       real, dimension(ifull,kk) :: t_k,u_k,v_k,qg_k
       integer, dimension(ifull) :: isflag
       real, dimension(dk*dk*6) :: psl_a,tss_a,fracice_a,
@@ -1093,25 +1098,27 @@ c       incorporate other target land mask effects
 
         !--------------------------------------------------
         ! Read 10m wind speeds for special sea roughness length calculations
-        call histrd1(ncid,iarchi,ier,'u10',ik,6*ik,t_a,6*ik*ik)
-        if (ier==0) then
-          if (iotest) then
-            if (myid==0) then
-              call ccmpi_distribute(u10,t_a)
+        if (nested.eq.0) then
+          call histrd1(ncid,iarchi,ier,'u10',ik,6*ik,t_a,6*ik*ik)
+          if (ier==0) then
+            if (iotest) then
+              if (myid==0) then
+                call ccmpi_distribute(u10,t_a)
+              else
+                call ccmpi_distribute(u10)
+              end if
             else
-              call ccmpi_distribute(u10)
-            end if
+              call doints4(t_a,u10,nface4,xg4,yg4,nord,ik)
+            end if ! iotest
           else
-            call doints4(t_a,u10,nface4,xg4,yg4,nord,ik)
-          end if ! iotest
-        else
-          u10=sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)*log(10./0.001)
-     &                                            /log(zmin/0.001)
+            u10=sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)*log(10./0.001)
+     &                                              /log(zmin/0.001)
+          end if
         end if
 
         !--------------------------------------------------
         ! Read boundary layer height for TKE-eps mixing
-        if (nvmix.eq.6) then
+        if (nvmix.eq.6.and.nested.eq.0) then
           t_a=1000. ! dummy for pbl
           call histrd1(ncid,iarchi,ier,'pblh',ik,6*ik,t_a,6*ik*ik)
           if (iotest) then
@@ -1289,77 +1296,84 @@ c       incorporate other target land mask effects
         end if
         !--------------------------------------------------
 
-        ! GEOPOTENTIAL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        ! only for restart - no interpolation
-        phi=-999.
-        u_k=-999.
-        do k=1,kk 
-         ucc=-999. ! dummy for qp
-         call histrd4s(ncid,iarchi,ier,'zg',ik,6*ik,k,ucc,
-     &                 6*ik*ik)
-         if (iotest) then
-           if (myid==0) then
-             call ccmpi_distribute(u_k(:,k),ucc)
-           else
-             call ccmpi_distribute(u_k(:,k))
-           end if
-         end if ! iotest
-        enddo  ! k loop
-        if (kk.eq.kl) phi=u_k
-        
-        ! CLOUD FROZEN WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        do k=1,kk 
-         ucc=0. ! dummy for qfg
-         call histrd4s(ncid,iarchi,ier,'qfg',ik,6*ik,k,ucc,
-     &                 6*ik*ik)
-         if (iotest) then
-           if (myid==0) then
-             call ccmpi_distribute(u_k(:,k),ucc)
-           else
-             call ccmpi_distribute(u_k(:,k))
-           end if
-         else
-           call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,ik)
-         end if ! iotest
-        enddo  ! k loop
-        call vertint(u_k,qfg,5,kk,sigin)
-        ! CLOUD LIQUID WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        do k=1,kk 
-         vcc=0. ! dummy for qlg
-         call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,vcc,
-     &                 6*ik*ik)
-         if (iotest) then
-           if (myid==0) then
-             call ccmpi_distribute(v_k(:,k),vcc)
-           else
-             call ccmpi_distribute(v_k(:,k))
-           end if
-         else
-           call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,ik)
-         end if ! iotest
-        enddo  ! k loop
-        call vertint(v_k,qlg,5,kk,sigin)
+        if (nested.eq.0) then
+          lrestart=.true.
+          ! OMEGA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          ! only for restart - no interpolation
+          dpsldt=-999.
+          if (kk.eq.kl.and.iotest) then
+            do k=1,kk 
+             ucc=-999. ! dummy
+             call histrd4s(ncid,iarchi,ier,'omega',ik,6*ik,k,ucc,
+     &                     6*ik*ik)
+             if (ier.ne.0) lrestart=.false.
+             if (myid==0) then
+               call ccmpi_distribute(dpsldt(:,k),ucc)
+             else
+               call ccmpi_distribute(dpsldt(:,k))
+             end if
+             dpsldt(:,k)=dpsldt(:,k)/(1.e5*exp(psl(1:ifull)))
+            enddo  ! k loop
+          else
+            lrestart=.false.
+          end if
+        end if
 
-        ! CLOUD FRACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        do k=1,kk 
-         ucc=0. ! dummy for cfrac
-         call histrd4s(ncid,iarchi,ier,'cfrac',ik,6*ik,k,ucc,
-     &                 6*ik*ik)
-         if (iotest) then
-           if (myid==0) then
-             call ccmpi_distribute(u_k(:,k),ucc)
+        if (nested.eq.0) then
+          ! CLOUD FROZEN WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          do k=1,kk 
+           ucc=0. ! dummy for qfg
+           call histrd4s(ncid,iarchi,ier,'qfg',ik,6*ik,k,ucc,
+     &                   6*ik*ik)
+           if (iotest) then
+             if (myid==0) then
+               call ccmpi_distribute(u_k(:,k),ucc)
+             else
+               call ccmpi_distribute(u_k(:,k))
+             end if
            else
-             call ccmpi_distribute(u_k(:,k))
-           end if
-         else
-           call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,ik)
-         end if ! iotest
-        enddo  ! k loop
-        call vertint(u_k,cfrac,5,kk,sigin)
+             call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,ik)
+           end if ! iotest
+          enddo  ! k loop
+          call vertint(u_k,qfg,5,kk,sigin)
+          ! CLOUD LIQUID WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          do k=1,kk 
+           vcc=0. ! dummy for qlg
+           call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,vcc,
+     &                   6*ik*ik)
+           if (iotest) then
+             if (myid==0) then
+               call ccmpi_distribute(v_k(:,k),vcc)
+             else
+               call ccmpi_distribute(v_k(:,k))
+             end if
+           else
+             call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,ik)
+           end if ! iotest
+          enddo  ! k loop
+          call vertint(v_k,qlg,5,kk,sigin)
+
+          ! CLOUD FRACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          do k=1,kk 
+           ucc=0. ! dummy for cfrac
+           call histrd4s(ncid,iarchi,ier,'cfrac',ik,6*ik,k,ucc,
+     &                   6*ik*ik)
+           if (iotest) then
+             if (myid==0) then
+               call ccmpi_distribute(u_k(:,k),ucc)
+             else
+               call ccmpi_distribute(u_k(:,k))
+             end if
+           else
+             call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,ik)
+           end if ! iotest
+          enddo  ! k loop
+          call vertint(u_k,cfrac,5,kk,sigin)
+        end if ! (nested.eq.0)
 
         !--------------------------------------------------
         ! TKE-eps data
-        if (nvmix.eq.6) then
+        if (nvmix.eq.6.and.nested.eq.0) then
           do k=1,kk
             ucc=1.5E-4 ! dummy for tke
             call histrd4s(ncid,iarchi,ier,'tke',ik,6*ik,k,
@@ -1497,6 +1511,247 @@ c       incorporate other target land mask effects
             so4t(:)=so4t(:)+3.e3*xtg(:,k,3)*(-psl(:)*dsig(k))/grav
           enddo
         end if
+
+        if (nested.eq.0) then
+          ! GEOPOTENTIAL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          ! only for restart - no interpolation
+          phi=-999.
+          if (kk.eq.kl.and.iotest) then
+            do k=1,kk 
+             ucc=-999. ! dummy for qp
+             call histrd4s(ncid,iarchi,ier,'zg',ik,6*ik,k,ucc,
+     &                     6*ik*ik)
+             if (ier.ne.0) lrestart=.false.
+             if (myid==0) then
+               call ccmpi_distribute(phi(:,k),ucc)
+             else
+               call ccmpi_distribute(phi(:,k))
+             end if
+            enddo  ! k loop
+          else
+            lrestart=.false.
+          end if
+
+          ! SDOT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          ! only for restart - no interpolation
+          sdot=-999.
+          if (kk.eq.kl.and.iotest) then
+            sdot(:,1)=0.
+            do k=1,kk 
+             ucc=-999. ! dummy
+             call histrd4s(ncid,iarchi,ier,'sdot',ik,6*ik,k,ucc,
+     &                     6*ik*ik)
+             if (ier.ne.0) lrestart=.false.
+             if (myid==0) then
+               call ccmpi_distribute(sdot(:,k+1),ucc)
+             else
+               call ccmpi_distribute(sdot(:,k+1))
+             end if
+            enddo  ! k loop
+          else
+            lrestart=.false.
+          end if
+
+          ! PSLX !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          ! only for restart - no interpolation
+          pslx=-999.
+          if (kk.eq.kl.and.iotest) then
+            do k=1,kk 
+             ucc=-999. ! dummy
+             call histrd4s(ncid,iarchi,ier,'pslx',ik,6*ik,k,ucc,
+     &                     6*ik*ik)
+             if (ier.ne.0) lrestart=.false.
+             if (myid==0) then
+               call ccmpi_distribute(pslx(1:ifull,k),ucc)
+             else
+               call ccmpi_distribute(pslx(1:ifull,k))
+             end if
+            enddo  ! k loop
+          else
+            lrestart=.false.
+          end if
+          
+          ! SAVU !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          ! only for restart - no interpolation
+          savu=-999.
+          if (kk.eq.kl.and.iotest) then
+            do k=1,kk 
+             ucc=-999. ! dummy
+             call histrd4s(ncid,iarchi,ier,'savu',ik,6*ik,k,ucc,
+     &                     6*ik*ik)
+             if (ier.ne.0) lrestart=.false.
+             if (myid==0) then
+               call ccmpi_distribute(savu(:,k),ucc)
+             else
+               call ccmpi_distribute(savu(:,k))
+             end if
+            enddo  ! k loop
+          else
+            lrestart=.false.
+          end if
+          
+          ! SAVV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          ! only for restart - no interpolation
+          savv=-999.
+          if (kk.eq.kl.and.iotest) then
+            do k=1,kk 
+             ucc=-999. ! dummy
+             call histrd4s(ncid,iarchi,ier,'savv',ik,6*ik,k,ucc,
+     &                     6*ik*ik)
+             if (ier.ne.0) lrestart=.false.
+             if (myid==0) then
+               call ccmpi_distribute(savv(:,k),ucc)
+             else
+               call ccmpi_distribute(savv(:,k))
+             end if
+            enddo  ! k loop
+          else
+            lrestart=.false.
+          end if
+
+          ! SAVU1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          ! only for restart - no interpolation
+          savu1=-999.
+          if (kk.eq.kl.and.iotest) then
+            do k=1,kk 
+             ucc=-999. ! dummy
+             call histrd4s(ncid,iarchi,ier,'savu1',ik,6*ik,k,ucc,
+     &                     6*ik*ik)
+             if (ier.ne.0) lrestart=.false.
+             if (myid==0) then
+               call ccmpi_distribute(savu1(:,k),ucc)
+             else
+               call ccmpi_distribute(savu1(:,k))
+             end if
+            enddo  ! k loop
+          else
+            lrestart=.false.
+          end if
+          
+          ! SAVV1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          ! only for restart - no interpolation
+          savv1=-999.
+          if (kk.eq.kl.and.iotest) then
+            do k=1,kk 
+             ucc=-999. ! dummy
+             call histrd4s(ncid,iarchi,ier,'savv1',ik,6*ik,k,ucc,
+     &                     6*ik*ik)
+             if (ier.ne.0) lrestart=.false.
+             if (myid==0) then
+               call ccmpi_distribute(savv1(:,k),ucc)
+             else
+               call ccmpi_distribute(savv1(:,k))
+             end if
+            enddo  ! k loop
+          else
+            lrestart=.false.
+          end if
+
+          ! SAVU2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          ! only for restart - no interpolation
+          savu2=-999.
+          if (kk.eq.kl.and.iotest) then
+            do k=1,kk 
+             ucc=-999. ! dummy
+             call histrd4s(ncid,iarchi,ier,'savu2',ik,6*ik,k,ucc,
+     &                     6*ik*ik)
+             if (ier.ne.0) lrestart=.false.
+             if (myid==0) then
+               call ccmpi_distribute(savu2(:,k),ucc)
+             else
+               call ccmpi_distribute(savu2(:,k))
+             end if
+            enddo  ! k loop
+          else
+            lrestart=.false.
+          end if
+          
+          ! SAVV2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          ! only for restart - no interpolation
+          savv2=-999.
+          if (kk.eq.kl.and.iotest) then
+            do k=1,kk 
+             ucc=-999. ! dummy
+             call histrd4s(ncid,iarchi,ier,'savv2',ik,6*ik,k,ucc,
+     &                     6*ik*ik)
+             if (ier.ne.0) lrestart=.false.
+             if (myid==0) then
+               call ccmpi_distribute(savv2(:,k),ucc)
+             else
+               call ccmpi_distribute(savv2(:,k))
+             end if
+            enddo  ! k loop
+          else
+            lrestart=.false.
+          end if
+          
+          if (kk.eq.kl.and.iotest) then
+            if (.not.allocated(oldu1)) then
+              allocate(oldu1(ifull,wlev),oldv1(ifull,wlev))
+              allocate(oldu2(ifull,wlev),oldv2(ifull,wlev))
+              allocate(ipice(ifull+iextra))
+            end if
+            do k=1,wlev
+              ucc=0.
+              write(vname,'("oldu1",I2.2)') k
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (ier.ne.0) lrestart=.false.
+              if (myid==0) then
+                call ccmpi_distribute(oldu1(:,k),ucc)
+              else
+                call ccmpi_distribute(oldu1(:,k))
+              end if
+              ucc=0.
+              write(vname,'("oldv1",I2.2)') k
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (ier.ne.0) lrestart=.false.
+              if (myid==0) then
+                call ccmpi_distribute(oldv1(:,k),ucc)
+              else
+                call ccmpi_distribute(oldv1(:,k))
+              end if
+              ucc=0.
+              write(vname,'("oldu2",I2.2)') k
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (ier.ne.0) lrestart=.false.
+              if (myid==0) then
+                call ccmpi_distribute(oldu2(:,k),ucc)
+              else
+                call ccmpi_distribute(oldu2(:,k))
+              end if
+              ucc=0.
+              write(vname,'("oldv2",I2.2)') k
+              call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                     ucc,6*ik*ik)
+              if (ier.ne.0) lrestart=.false.
+              if (myid==0) then
+                call ccmpi_distribute(oldv2(:,k),ucc)
+              else
+                call ccmpi_distribute(oldv2(:,k))
+              end if
+            end do
+            ucc=0.
+            call histrd1(ncid,iarchi,ier,'ipice',ik,6*ik,
+     &                   ucc,6*ik*ik)
+            if (ier.ne.0) lrestart=.false.
+            if (myid==0) then
+              call ccmpi_distribute(ipice,ucc)
+            else
+              call ccmpi_distribute(ipice)
+            end if
+            if (.not.lrestart) then
+              deallocate(oldu1,oldv1,oldu2,oldv2)
+              deallocate(ipice)
+            end if
+          end if
+          
+          if (myid==0) then
+            write(6,*) "Final lrestart ",lrestart
+          end if
+        end if ! (nested.eq.0)
 
         ! SOIL ICE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         do k=1,ms

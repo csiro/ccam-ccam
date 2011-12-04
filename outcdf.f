@@ -33,8 +33,8 @@ c=======================================================================
       integer ixp,iyp,idlev,idnt,idms
       common/cdfind/ixp,iyp,idlev,idnt,idms
  
-      integer leap        ! MJT bug fix
-      common/leap_yr/leap ! MJT bug fix
+      integer leap
+      common/leap_yr/leap
 
       integer dim(4),dims(4)
       integer xdim,ydim,zdim,tdim,msdim
@@ -155,9 +155,9 @@ c       define coords.
      &       2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
         print *,'grdtim=',grdtim
         call ncaptc(idnc,idnt,'units',NCCHAR,33,grdtim,ier)
-        if (leap.eq.0) then                                       ! MJT bug fix
-          call ncaptc(idnc,idnt,'calendar',NCCHAR,6,'noleap',ier) ! MJT bug fix
-        end if                                                    ! MJT bug fix
+        if (leap.eq.0) then
+          call ncaptc(idnc,idnt,'calendar',NCCHAR,6,'noleap',ier)
+        end if
 
         dim(1) = xdim
         dim(2) = ydim
@@ -285,13 +285,15 @@ c=======================================================================
       use liqwpar_m   ! ifullw
       use map_m
       use mlo, only : wlev,mlosave,mlodiag,micdwn ! MJT mlo
-      use mlodynamics, only : watbdy              ! MJT mlo
+      use mlodynamics
       use morepbl_m
       use nharrs_m
       use nsibd_m     ! rsmin,ivegt,sigmf,tgg,tgf,ssdn,res,rmc,isoilm,ico2em
       use pbl_m
       use prec_m
       use raddiag_m
+      use savuvt_m
+      use savuv1_m
       use screen_m
       use sigs_m
       use soil_m
@@ -303,6 +305,7 @@ c     rml 18/09/07 pass through tracmax,tracmin; 19/09/07 add tracname
       use vegpar_m
       use vvel_m      ! sdot, dpsldt
       use work2_m
+      use xarrs_m, only : pslx
       implicit none
 
 c     this routine creates attributes and writes output
@@ -429,13 +432,10 @@ c       For time invariant surface fields
         call attrib(idnc,idim,2,'soilt',lname,'none',0.,65.,0,itype)
         lname = 'Vegetation type'
         call attrib(idnc,idim,2,'vegt',lname,'none',0.,65.,0,itype)
-        !--------------------------------------------
-        ! MJT urban
         if (nurban.lt.0) then
           lname = 'Urban fraction'
           call attrib(idnc,idim,2,'sigmu',lname,'none',0.,3.25,0,itype)
         end if
-        !--------------------------------------------
 
 c       For time varying surface fields
         lname ='Scaled Log Surface pressure'
@@ -476,8 +476,6 @@ c       For time varying surface fields
         lname = 'Soil temperature lev 6'
         call attrib(idnc,idim,3,'tgg6',lname,'K',100.,425.,0,itype)
  
-        !--------------------------------------------------------  
-        ! MJT mlo
         if (nmlo.lt.0.or.(nmlo.gt.0.and.itype==-1)) then
           do k=ms+1,wlev
            write(lname,'("soil/ocean temperature lev ",I2)') k
@@ -526,7 +524,6 @@ c       For time varying surface fields
      &                  itype)
           end if
         end if
-        !-------------------------------------------------------- 
 
        ! lname = 'Soil moisture lev 1' ! MJT delete
        ! call attrib(idnc,idim,3,'wb1',lname,'m3/m3',0.,1.,0)
@@ -540,8 +537,6 @@ c       For time varying surface fields
        ! call attrib(idnc,idim,3,'wb5',lname,'m3/m3',0.,1.,0)
        ! lname = 'Soil moisture lev 6'
        ! call attrib(idnc,idim,3,'wb6',lname,'m3/m3',0.,1.,0)
-        !-------------------------------------------------------
-        ! MJT CHANGE - add wetfrac1-6 and possibly delete wb1-6 above
         lname = 'Wetness fraction layer 1' ! 5. for frozen sand
         call attrib(idnc,idim,3,'wetfrac1',lname,'none',-6.5,6.5,0,
      &              itype)
@@ -560,7 +555,6 @@ c       For time varying surface fields
         lname = 'Wetness fraction layer 6'
         call attrib(idnc,idim,3,'wetfrac6',lname,'none',-6.5,6.5,0,
      &              itype)
-        !-------------------------------------------------------    
         lname = 'Soil moisture as frac FC levels 1-2'
         call attrib(idnc,idim,3,'wbfshal',lname,'frac',0.,4.,0,itype)
         lname = 'Soil moisture as frac FC levels 3-4'
@@ -872,8 +866,6 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
      &                itype)
         endif
 
-        !--------------------------------------------------------
-        ! MJT urban
         if (nurban.le.-1.or.(nurban.ge.1.and.itype==-1)) then
          lname = 'roof temperature lev 1'
          call attrib(idnc,idim,3,'rooftgg1',lname,'K',100.,425.,0,itype)
@@ -926,7 +918,6 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          lname = 'urban road snow albedo'
          call attrib(idnc,idim,3,'roadsna',lname,'none',0.,1.3,0,itype)
         end if
-        !--------------------------------------------------------  
         
         print *,'3d variables'
         if(nextout>=4.and.nllp==3)then   ! N.B. use nscrn=1 for hourly output
@@ -948,11 +939,6 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         call attrib(idnc,dim,4,'omega',lname,'Pa/s',-50.,50.,0,itype)
         lname= 'Water mixing ratio'
         call attrib(idnc,dim,4,'mixr',lname,'kg/kg',0.,.05,0,itype)
-        if (nh.ne.0.and.itype==-1) then
-          lname= 'Geopotential height'
-          call attrib(idnc,dim,4,'zg',lname,'m2/s2',-5.E4,6.0E5,
-     &                0,itype)
-        end if
         if(ldr.ne.0)then
          call attrib(idnc,dim,4,'qfg','Frozen water','kg/kg',0.,.02,
      &               0,itype)
@@ -1025,8 +1011,55 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         !--------------------------------------------------------  
 
         if(itype==-1)then   ! extra stuff just written for restart file
+         lname= 'Geopotential height'
+         call attrib(idnc,dim,4,'zg',lname,'m2/s2',-5.E4,6.0E5,
+     &               0,itype)
          lname= 'sdot: change in grid spacing per time step +.5'
          call attrib(idnc,dim,4,'sdot',lname,'1/ts',-3.,3.,0,itype) 
+         lname= 'pslx: advective time rate of change of psl'
+         call attrib(idnc,dim,4,'pslx',lname,'1/s',-1.E-3,1.E-3,0,
+     &               itype)
+         lname= 'savu'
+         call attrib(idnc,dim,4,'savu',lname,'m/s',-1.E2,1.E2,0,
+     &               itype)
+         lname= 'savv'
+         call attrib(idnc,dim,4,'savv',lname,'m/s',-1.E2,1.E2,0,
+     &               itype)
+         lname= 'savu1'
+         call attrib(idnc,dim,4,'savu1',lname,'m/s',-1.E2,1.E2,0,
+     &               itype)
+         lname= 'savv1'
+         call attrib(idnc,dim,4,'savv1',lname,'m/s',-1.E2,1.E2,0,
+     &               itype)
+         lname= 'savu2'
+         call attrib(idnc,dim,4,'savu2',lname,'m/s',-1.E2,1.E2,0,
+     &               itype)
+         lname= 'savv2'
+         call attrib(idnc,dim,4,'savv2',lname,'m/s',-1.E2,1.E2,0,
+     &               itype)
+         if (allocated(oldu1)) then
+           do k=1,wlev
+             write(lname,'("oldu1 ",I2)') k
+             write(vname,'("oldu1",I2.2)') k
+             call attrib(idnc,idim,3,vname,lname,'m/s',-100.,100.,0,
+     &                   itype)
+             write(lname,'("oldv1 ",I2)') k
+             write(vname,'("oldv1",I2.2)') k
+             call attrib(idnc,idim,3,vname,lname,'m/s',-100.,100.,0,
+     &                   itype)
+             write(lname,'("oldu2 ",I2)') k
+             write(vname,'("oldu2",I2.2)') k
+             call attrib(idnc,idim,3,vname,lname,'m/s',-100.,100.,0,
+     &                   itype)
+             write(lname,'("oldv2 ",I2)') k
+             write(vname,'("oldv2",I2.2)') k
+             call attrib(idnc,idim,3,vname,lname,'m/s',-100.,100.,0,
+     &                   itype)
+           end do
+           lname= 'ipice'
+           call attrib(idnc,idim,3,'ipice',lname,'Pa',0.,1.E6,0,
+     &                 itype)
+         end if
          lname = 'Soil ice lev 1'
          call attrib(idnc,idim,3,'wbice1',lname,'m3/m3',0.,1.,0,itype)
          lname = 'Soil ice lev 2'
@@ -1527,9 +1560,6 @@ c      "extra" outputs
       enddo
       call histwrt4(tmpry,'omega',idnc,iarch,local)  ! 3d variable
       call histwrt4(qg(1:ifull,:),'mixr',idnc,iarch,local)
-      if(nh.ne.0.and.itype==-1)then
-        call histwrt4(phi,'zg',idnc,iarch,local)
-      endif
       if(ldr.ne.0)then
         call histwrt4(qfg(1:ifullw,:),'qfg',idnc,iarch,local)
         call histwrt4(qlg(1:ifullw,:),'qlg',idnc,iarch,local)
@@ -1585,7 +1615,28 @@ c      "extra" outputs
       !--------------------------------------------------------
 
       if(itype==-1)then   ! extra stuff just needed for restart file
+       call histwrt4(phi,'zg',idnc,iarch,local)
        call histwrt4(sdot(1,2),'sdot',idnc,iarch,local)
+       call histwrt4(pslx(1:ifull,:),'pslx',idnc,iarch,local)
+       call histwrt4(savu,'savu',idnc,iarch,local)
+       call histwrt4(savv,'savv',idnc,iarch,local)
+       call histwrt4(savu1,'savu1',idnc,iarch,local)
+       call histwrt4(savv1,'savv1',idnc,iarch,local)
+       call histwrt4(savu2,'savu2',idnc,iarch,local)
+       call histwrt4(savv2,'savv2',idnc,iarch,local)
+       if (allocated(oldu1)) then
+         do k=1,wlev
+           write(vname,'("oldu1",I2.2)') k
+           call histwrt3(oldu1(:,k),vname,idnc,iarch,local)
+           write(vname,'("oldv1",I2.2)') k
+           call histwrt3(oldv1(:,k),vname,idnc,iarch,local)
+           write(vname,'("oldu2",I2.2)') k
+           call histwrt3(oldu2(:,k),vname,idnc,iarch,local)
+           write(vname,'("oldv2",I2.2)') k
+           call histwrt3(oldv2(:,k),vname,idnc,iarch,local)
+         end do
+         call histwrt3(ipice,'ipice',idnc,iarch,local)
+       end if
        call histwrt3(wbice(1,1),'wbice1',idnc,iarch,local)
        call histwrt3(wbice(1,2),'wbice2',idnc,iarch,local)
        call histwrt3(wbice(1,3),'wbice3',idnc,iarch,local)
@@ -1606,7 +1657,7 @@ c      "extra" outputs
        call histwrt3(snage,'snage',idnc,iarch,local)
        aa(:)=isflag(:)
        call histwrt3(aa,'sflag',idnc,iarch,local)
-       if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then ! MJT cable       
+       if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
          call savetile(idnc,local,idim,iarch)
        end if
       endif  ! (itype==-1)

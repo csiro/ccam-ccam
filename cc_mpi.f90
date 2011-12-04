@@ -2989,7 +2989,10 @@ contains
       do nxproc = nint(sqrt(real(nproc))), 1, -1
          ! This will always exit eventually because it's trivially true 
          ! for nxproc=1
-         if ( modulo(nproc,nxproc) == 0 ) exit
+         nyproc = nproc / nxproc
+         if ( modulo(nproc,nxproc) == 0 .and. &
+              modulo(il_g,nxproc) == 0  .and. &
+              modulo(il_g,nyproc) == 0 ) exit
       end do
       nyproc = nproc / nxproc
       if ( myid == 0 ) then

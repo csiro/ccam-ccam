@@ -32,6 +32,7 @@
       use mlo, only : mlodiag,wlev            ! Ocean physics and prognostic arrays
       use morepbl_m                           ! Additional boundary layer diagnostics
       use nharrs_m, only : nharrs_init        ! Non-hydrostatic atmosphere arrays
+     &   ,lrestart
       use nlin_m                              ! Atmosphere non-linear dynamics
       use nsibd_m                             ! Land-surface arrays
       use parmhdff_m                          ! Horizontal diffusion parameters
@@ -106,7 +107,6 @@
       integer nstagin, nstaguin, nwrite, nwtsav, mins_rad, mtimer_sav
       integer nn, i, j, mstn, nproc_in, ierr, nperhr, nscrn, nversion
       integer ierr2, kmax, isoth, nsig, lapsbot
-      real, dimension(:,:), allocatable, save :: savu2,savv2
       real, dimension(:,:), allocatable, save :: speed
       real, dimension(:), allocatable, save :: spare1,spare2
       real, dimension(:), allocatable, save :: spmean,div
@@ -611,7 +611,6 @@
       
       !--------------------------------------------------------------
       ! INITIALISE LOCAL ARRAYS
-      allocate(savu2(ifull,kl),savv2(ifull,kl))
       allocate(spare1(ifull),spare2(ifull))
       allocate(speed(ifull,kl))
       allocate(spmean(kl),div(kl))
@@ -880,7 +879,7 @@
         write(6,*)'nper3hr,nper6hr .. ',nper3hr(:)
       end if
       mspeca=1
-      if(mex.ne.1)then
+      if(mex.ne.1.and..not.lrestart)then
         mspeca=2
         dt=dtin*.5
       endif
@@ -970,7 +969,8 @@
 
       call bounds(qg)
       call bounds(psl)
-      if(mup.ne.1.or.(ktau==1.and.mspec==mspeca))then
+      if(mup.ne.1.or.(ktau==1.and.mspec==mspeca.and..not.lrestart))
+     &    then
 !       updps called first step or to permit clean restart option      
         call updps(0) 
       endif
@@ -980,14 +980,14 @@
         write(6,*) 'ktau,mex,mspec,mspeca:',ktau,mex,mspec,mspeca
       endif
       sbar(:,2:kl)=sdot(:,2:kl)
-      if(ktau==1)then
+      if(ktau==1.and..not.lrestart)then
 !       this sets (ubar,vbar) to ktau=1.5 values on 2nd time through
         ubar(:,:)=u(1:ifull,:)
         vbar(:,:)=v(1:ifull,:)
       elseif(mex==1)then
         ubar(:,:)=u(1:ifull,:)
         vbar(:,:)=v(1:ifull,:)
-      elseif(ktau==2.or.mex==2)then        
+      elseif((ktau==2.and..not.lrestart).or.mex==2)then        
 !       (tau+.5) from tau, tau-1
         ubar(:,:)=u(1:ifull,:)*1.5-savu(:,:)*.5
         vbar(:,:)=v(1:ifull,:)*1.5-savv(:,:)*.5
@@ -995,7 +995,7 @@
 !       (tau+.5) from tau, tau-1, tau-2   ! ubar is savu1 here
         ubar(:,:)=u(1:ifull,:)+.5*(savu(:,:)-savu1(:,:))
         vbar(:,:)=v(1:ifull,:)+.5*(savv(:,:)-savv1(:,:))
-       elseif(mex==30.and.ktau>3)then  ! using tau, tau-1, tau-2, tau-3
+       elseif(mex==30.and.(ktau>3.or.lrestart))then  ! using tau, tau-1, tau-2, tau-3
         do k=1,kl
          do iq=1,ifull
           bb=1.5*u(iq,k)-2.*savu(iq,k)+.5*savu1(iq,k)    ! simple b
@@ -1052,7 +1052,7 @@
         write(6,*)'savu,u,ubar ',ktau,savu(idjd,1),u(idjd,1),
      &                           ubar(idjd,1)
       endif
-      if(ktau==1.and.mspec==1.and.mex.ne.1)then
+      if(ktau==1.and..not.lrestart.and.mspec==1.and.mex.ne.1)then
         u(1:ifull,:)=savu(1:ifull,:)  ! reset u,v to original values
         v(1:ifull,:)=savv(1:ifull,:)
       endif

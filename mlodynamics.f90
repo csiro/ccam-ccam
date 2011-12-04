@@ -14,9 +14,11 @@ module mlodynamics
 implicit none
 
 private
-public mlodiffusion,mlorouter,mlohadv,watbdy
+public mlodiffusion,mlorouter,mlohadv,watbdy,ipice,oldu1,oldv1,oldu2,oldv2
 
 real, dimension(:), allocatable, save :: watbdy
+real, dimension(:), allocatable, save :: ipice
+real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 integer, parameter :: salfilt=0    ! additional salinity filter (0=off, 1=Katzfey)
 integer, parameter :: usetide=1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode=2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
@@ -422,7 +424,6 @@ integer tyear,jstart,iip,iim
 integer, dimension(ifull,wlev) :: nface
 real alpha,maxloclseta,maxglobseta,maxloclip,maxglobip
 real delpos,delneg,alph_p,dumpp,dumpn,fjd
-real, dimension(:), allocatable, save :: ipice
 real, dimension(ifull+iextra) :: ee,neta,dd,pice,imass
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,ndum
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,sru,snv,sov,spv,sqv,srv
@@ -454,7 +455,6 @@ real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv
 real, dimension(ifull,wlev) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull,wlev) :: depdum,dzdum
 real, dimension(ifull,0:wlev) :: nw
-real, dimension(:,:), allocatable, save :: oldu1,oldu2,oldv1,oldv2
 real*8, dimension(ifull,wlev) :: x3d,y3d,z3d
 logical, dimension(ifull+iextra) :: wtr
 
@@ -463,7 +463,7 @@ real, parameter :: tol  = 5.E-4    ! Tolerance for GS solver (water)
 real, parameter :: itol = 10.      ! Tolerance for GS solver (ice)
 real, parameter :: sal  = 0.948    ! SAL parameter for tidal forcing
 real, parameter :: rho0 = 1030.    ! reference density
-real, parameter :: eps  = 0.1      ! Off-centring term
+real, parameter :: eps  = 0.       ! Off-centring term
 
 ! new z levels for including free surface eta (effectively sigma-depth levels)
 ! newz=-eta+oldz*(1+eta/maxdepth)
@@ -627,6 +627,9 @@ end if
 
 ! save arrays
 if (.not.allocated(oldu1)) then
+  if (myid==0) then
+    write(6,*) "Initialise MLO dynamics save arrays"
+  end if
   allocate(oldu1(ifull,wlev),oldv1(ifull,wlev))
   allocate(oldu2(ifull,wlev),oldv2(ifull,wlev))
   allocate(ipice(ifull+iextra))
@@ -1061,16 +1064,18 @@ if (limitsf.gt.0) then
   neta(1:ifull)=neta(1:ifull)*(1.-dt/(3600.*24.))
   neta(1:ifull)=max(min(neta(1:ifull),20.),-20.)
 else
-  odum=0.
-  where (wtr(1:ifull))
-    odum=neta(1:ifull)-w_e
-  end where
-  call ccglobal_posneg(odum,delpos,delneg)
-  alph_p = -delneg/max(delpos,1.E-20)
-  alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
-  neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
+  if (nud_sfh.eq.0.) then
+    odum=0.
+    where (wtr(1:ifull))
+      odum=neta(1:ifull)-w_e
+    end where
+    call ccglobal_posneg(odum,delpos,delneg)
+    alph_p = -delneg/max(delpos,1.E-20)
+    alph_p = min(max(sqrt(alph_p),1.E-20),1.E20)
+    neta(1:ifull)=w_e+max(0.,odum)*alph_p+min(0.,odum)/alph_p
+  end if
 end if
-neta(1:ifull)=max(neta(1:ifull),1.-dd(1:ifull))
+neta(1:ifull)=max(neta(1:ifull),mindep-dd(1:ifull))
 
 call bounds(neta,corner=.true.)
 oeu=0.5*(neta(1:ifull)+neta(ie))
@@ -1422,22 +1427,24 @@ if (limitsf.gt.0) then
   end where
   ns(1:ifull,:)=max(min(ns(1:ifull,:),50.),0.)
 else
-  delpos=0.
-  delneg=0.
-  do ii=1,wlev
-    dum=0.
-    where(wtr(1:ifull).and.w_s(1:ifull,ii).gt.1.)
-      dum(:,ii)=ns(1:ifull,ii)-w_s(1:ifull,ii) ! increments
-    end where
-    odum=dum(:,ii)
-    ! cannot use 3d version, since it is hardwired to atmosphere dsig
-    call ccglobal_posneg(odum,dumpp,dumpn)
-    delpos=delpos+dumpp*dsig(ii)
-    delneg=delneg+dumpn*dsig(ii)
-  end do
-  alph_p = -delneg/max(delpos,1.E-20)
-  alph_p = min(sqrt(alph_p),alph_p)
-  ns(1:ifull,:)=w_s(1:ifull,:)+max(0.,dum)*alph_p+min(0.,dum)/max(1.,alph_p)
+  if (nud_sss.eq.0) then
+    delpos=0.
+    delneg=0.
+    do ii=1,wlev
+      dum=0.
+      where(wtr(1:ifull).and.w_s(1:ifull,ii).gt.1.)
+        dum(:,ii)=ns(1:ifull,ii)-w_s(1:ifull,ii) ! increments
+      end where
+      odum=dum(:,ii)
+      ! cannot use 3d version, since it is hardwired to atmosphere dsig
+      call ccglobal_posneg(odum,dumpp,dumpn)
+      delpos=delpos+dumpp*dsig(ii)
+      delneg=delneg+dumpn*dsig(ii)
+    end do
+    alph_p = -delneg/max(delpos,1.E-20)
+    alph_p = min(sqrt(alph_p),alph_p)
+    ns(1:ifull,:)=w_s(1:ifull,:)+max(0.,dum)*alph_p+min(0.,dum)/max(1.,alph_p)
+  end if
 end if
 
 if (myid==0.and.(ktau.le.100.or.maxglobseta.gt.tol.or.maxglobip.gt.itol)) then
