@@ -1376,7 +1376,7 @@ do ii=3,4
 end do
 
 ! repair problems found after advection of ice
-where (nfracice(1:ifull).lt.1.E-8)
+where (nfracice(1:ifull).lt.1.E-6)
   nfracice(1:ifull)=0.
   ndic(1:ifull)=0.
   ndsn(1:ifull)=0.
@@ -1386,14 +1386,11 @@ where (nfracice(1:ifull).lt.1.E-8)
   nit(1:ifull,3)=w_t(:,1)
   nit(1:ifull,4)=w_t(:,1)
 end where
-  
-where (nit(1:ifull,1).lt.100.)
-  nit(1:ifull,1)=i_it(:,1)
-  nit(1:ifull,2)=i_it(:,2)
-  nit(1:ifull,3)=i_it(:,3)
-  nit(1:ifull,4)=i_it(:,4)
-end where
 
+where (ndsn(1:ifull).lt.1.E-3)
+  nit(1:ifull,2)=nit(1:ifull,3)
+end where
+  
 ! unstagger ice velocities
 siu(:,1)=niu(1:ifull)
 siv(:,1)=niv(1:ifull)

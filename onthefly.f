@@ -1748,9 +1748,6 @@ c       incorporate other target land mask effects
             end if
           end if
           
-          if (myid==0) then
-            write(6,*) "Final lrestart ",lrestart
-          end if
         end if ! (nested.eq.0)
 
         ! SOIL ICE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1932,6 +1929,10 @@ c       incorporate other target land mask effects
       kdate_s=kdate_r
       ktime_s=ktime_r+1
       qg(1:ifull,1:kl) = max(qg(1:ifull,1:kl),1.e-6)
+
+      if (myid==0.and.nested.eq.0) then
+        write(6,*) "Final lrestart ",lrestart
+      end if
 
       return
       end subroutine ontheflyx

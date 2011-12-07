@@ -1992,10 +1992,12 @@ implicit none
 integer, intent(in) :: diag
 integer ii
 real, intent(in) :: dt
-real, dimension(wfull) :: newdic,newtn,gamm
+real, dimension(wfull,wlev) :: sdic
+real, dimension(wfull) :: newdic,newtn,gamm,cdic
 real, dimension(wfull,wlev), intent(in) :: d_rho
 real, dimension(wfull), intent(inout) :: d_timelt,d_zcr
 real, dimension(wfull) :: worka,maxnewice,d_wavail
+logical, dimension(wfull) :: lnewice
 
 ! limits on ice formation
 d_wavail=depth_hl(:,wlev+1)+w_eta-minwater
@@ -2006,10 +2008,23 @@ end where
 maxnewice=max(min(maxnewice,0.15),0.)
 
 ! formation
-newdic=max(d_timelt-w_temp(:,1),0.)*cp0*d_rho(:,1)*dz(:,1)*d_zcr/qice
+! Search over all levels to avoid problems with thin surface layers
+do ii=1,wlev
+  sdic(:,ii)=max(d_timelt-w_temp(:,ii),0.)*cp0*d_rho(:,ii)*dz(:,ii)*d_zcr/qice
+end do
+newdic=sum(sdic,2)
 newdic=min(maxnewice,newdic)
-newtn=w_temp(:,1)+newdic*qice/(cp0*d_rho(:,1)*dz(:,1)*d_zcr)
-where (newdic.gt.1.1*icemin*fracbreak) ! form new sea-ice
+lnewice=newdic.gt.1.1*icemin*fracbreak
+cdic=0.
+do ii=1,wlev
+  cdic=cdic+sdic(:,ii)
+  sdic(:,ii)=max(min(sdic(:,ii),newdic-cdic),0.)
+  newtn=w_temp(:,1)+sdic(:,ii)*qice/(cp0*d_rho(:,ii)*dz(:,ii)*d_zcr)
+  where (lnewice)
+    w_temp(:,ii)=w_temp(:,ii)*i_fracice+newtn*(1.-i_fracice)
+  end where
+end do
+where (lnewice) ! form new sea-ice
   i_dic=i_dic*i_fracice+newdic*(1.-i_fracice)
   i_dsn=i_dsn*i_fracice
   i_tsurf=i_tsurf*i_fracice+w_temp(:,1)*(1.-i_fracice)
@@ -2017,24 +2032,9 @@ where (newdic.gt.1.1*icemin*fracbreak) ! form new sea-ice
   i_tn(:,1)=i_tn(:,1)*i_fracice+i_tsurf*(1.-i_fracice)
   i_tn(:,2)=i_tn(:,2)*i_fracice+i_tsurf*(1.-i_fracice)
   i_sto=i_sto*i_fracice
-  w_temp(:,1)=w_temp(:,1)*i_fracice+newtn*(1.-i_fracice)
   w_eta=w_eta-newdic*(1.-i_fracice)*rhoic/rhowt
   i_fracice=1. ! this will be adjusted for fracbreak below  
 endwhere
-
-! removal
-gamm=(gammi*i_dic+gamms*i_dsn)/max(i_dic+i_dsn,1.E-6) ! for energy conservation
-where (i_dic.le.icemin.and.i_fracice.gt.0.)
-  w_eta=w_eta+i_dic*i_fracice*rhoic/rhowt
-  w_temp(:,1)=(w_temp(:,1)+i_fracice*gamm*i_tsurf/(cp0*d_rho(:,1)*dz(:,1)*d_zcr))/(1.+i_fracice*gamm/(cp0*d_rho(:,1)*dz(:,1)*d_zcr))
-  w_temp(:,1)=w_temp(:,1)-i_fracice*i_dic*qice/(cp0*d_rho(:,1)*dz(:,1)*d_zcr)
-  w_temp(:,1)=w_temp(:,1)-i_fracice*i_dsn*qsnow/(cp0*d_rho(:,1)*dz(:,1)*d_zcr)  
-  w_temp(:,1)=w_temp(:,1)+i_fracice*i_sto/(cp0*d_rho(:,1)*dz(:,1)*d_zcr)
-  i_fracice=0.
-  i_dic=0.
-  i_dsn=0.
-  i_sto=0.
-end where
 
 ! 1D model of ice break-up
 where (i_dic.lt.icebreak.and.i_fracice.gt.fracbreak)
@@ -2048,6 +2048,21 @@ where (i_fracice.lt.1..and.i_dic.gt.icebreak)
    i_dic=i_dic/worka
 end where
 i_fracice=min(max(i_fracice,0.),1.)
+
+! removal
+gamm=(gammi*i_dic+gamms*i_dsn)/max(i_dic+i_dsn,1.E-6) ! for energy conservation
+where (i_dic.le.icemin.and.i_fracice.gt.0.)
+  w_eta=w_eta+i_dic*i_fracice*rhoic/rhowt+i_dsn*i_fracice*rhosn/rhowt
+  w_sal(:,1)=w_sal(:,1)-w_sal(:,1)*rhowt*i_dsn/(d_rho(:,1)*dz(:,1)*d_zcr)
+  w_temp(:,1)=(w_temp(:,1)+i_fracice*gamm*i_tsurf/(cp0*d_rho(:,1)*dz(:,1)*d_zcr))/(1.+i_fracice*gamm/(cp0*d_rho(:,1)*dz(:,1)*d_zcr))
+  w_temp(:,1)=w_temp(:,1)-i_fracice*i_dic*qice/(cp0*d_rho(:,1)*dz(:,1)*d_zcr)
+  w_temp(:,1)=w_temp(:,1)-i_fracice*i_dsn*qsnow/(cp0*d_rho(:,1)*dz(:,1)*d_zcr)  
+  w_temp(:,1)=w_temp(:,1)+i_fracice*i_sto/(cp0*d_rho(:,1)*dz(:,1)*d_zcr)
+  i_fracice=0.
+  i_dic=0.
+  i_dsn=0.
+  i_sto=0.
+end where
 
 return
 end subroutine mlonewice
@@ -2224,17 +2239,18 @@ if (nc3.gt.0) then
 end if
 
 ! the following are snow to ice processes
+xxx=0.
+excess=0.
 where (ip_dic.gt.icemin)
   xxx=ip_dic+ip_dsn-(rhosn*ip_dsn+rhoic*ip_dic)/rhowt ! white ice formation
   excess=max(ip_dsn-xxx,0.)*rhosn/rhowt               ! white ice formation
-elsewhere
-  xxx=0.
-  excess=0.
 end where
 where (excess.gt.0.and.dp_nk.eq.2)
   ip_tn(:,1)=(0.5*ip_dic*ip_tn(:,1)+rhowt/rhoic*excess*ip_tn(:,0)*cps/cpi)/(0.5*ip_dic+rhowt/rhoic*excess) ! Assume 2 levels of ice, hence 0.5*hi
 elsewhere (excess.gt.0..and.dp_nk.eq.1)
   ip_tn(:,1)=(ip_dic*ip_tn(:,1)+rhowt/rhoic*excess*ip_tn(:,0)*cps/cpi)/(ip_dic+rhowt/rhoic*excess)         ! Assume 1 level of ice
+elsewhere (excess.gt.0.)
+  ip_tsurf=ip_tsurf*(max(it_dic,icemin)+rhowt/rhoic*excess*gamms/gammi)/(max(it_dic,icemin)+rhowt/rhoic*excess)
 end where
 excess=excess+max(ip_dsn-0.2,0.)*rhosn/rhowt        ! Snow depth limitation and conversion to ice
 dp_salflx=dp_salflx-rhowt*excess/dt
@@ -2607,7 +2623,7 @@ real, dimension(nc), intent(in) :: pt_egice
 
 ! Update tsurf and ti based on fluxes from above and below
 con=1./(it_dsn/condsnw+max(it_dic,icemin)/condice)
-gamm=(gammi*it_dic+gamms*it_dsn)/(it_dic+it_dsn) ! for energy conservation
+gamm=(gammi*max(it_dic,icemin)+gamms*it_dsn)/(max(it_dic,icemin)+it_dsn) ! for energy conservation
 tnew=it_tsurf+con*(dt_tb-it_tsurf)/(gamm/dt+con)
 f0=con*(dt_tb-tnew) ! flux from below
 f0=min(max(f0,-1000.),1000.)
@@ -2917,7 +2933,7 @@ implicit none
 integer, intent(in) :: diag
 real, dimension(wfull), intent(in) :: a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
 real, dimension(wfull) :: tscrn,qgscrn,uscrn,u10
-real, dimension(wfull) :: smixr,qsat,dqdt,atu,atv
+real, dimension(wfull) :: smixr,qsat,dqdt,atu,atv,dmag
 
 ! water
 call getqsat(qsat,dqdt,w_temp(:,1),a_ps)
@@ -2931,8 +2947,9 @@ atv=a_v-w_v(:,1)
 call scrntile(tscrn,qgscrn,uscrn,u10,p_zo,p_zoh,p_zoq,w_temp(:,1),smixr,atu,atv,a_temp,a_qg,a_zmin,a_zmins,diag)
 p_tscrn=tscrn
 p_qgscrn=qgscrn
-p_uscrn=uscrn+sqrt(w_u(:,1)*w_u(:,1)+w_v(:,1)*w_v(:,1))
-p_u10=u10+sqrt(w_u(:,1)*w_u(:,1)+w_v(:,1)*w_v(:,1))
+dmag=sqrt(w_u(:,1)*w_u(:,1)+w_v(:,1)*w_v(:,1))
+p_uscrn=uscrn+dmag
+p_u10=u10+dmag
 
 ! ice
 call getqsat(qsat,dqdt,i_tsurf,a_ps)
@@ -2942,8 +2959,9 @@ atv=a_v-i_v
 call scrntile(tscrn,qgscrn,uscrn,u10,p_zoice,p_zohice,p_zoqice,i_tsurf,smixr,atu,atv,a_temp,a_qg,a_zmin,a_zmins,diag)
 p_tscrn=(1.-i_fracice)*p_tscrn+i_fracice*tscrn
 p_qgscrn=(1.-i_fracice)*p_qgscrn+i_fracice*qgscrn
-p_uscrn=(1.-i_fracice)*p_uscrn+i_fracice*(uscrn+sqrt(i_u*i_u+i_v*i_v))
-p_u10=(1.-i_fracice)*p_u10+i_fracice*(u10+sqrt(i_u*i_u+i_v*i_v))
+dmag=sqrt(i_u*i_u+i_v*i_v)
+p_uscrn=(1.-i_fracice)*p_uscrn+i_fracice*(uscrn+dmag)
+p_u10=(1.-i_fracice)*p_u10+i_fracice*(u10+dmag)
 
 return
 end subroutine scrncalc

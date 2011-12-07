@@ -537,6 +537,7 @@ c-------Beljaars and Holtslag (1991) heat function
       subroutine autoscrn
       
       use arrays_m
+      use mlo
       use pbl_m
       use permsurf_m
       use screen_m
@@ -555,13 +556,20 @@ c-------Beljaars and Holtslag (1991) heat function
       integer iq
       real es,ztv
       real, dimension(ifull) :: zoh,umag
+      real, dimension(ifull) :: ou,ov,om
       real, parameter :: vkar = 0.4
       
       ztv=exp(vkar/sqrt(chn10))/10.
       ps(1:ifull)=1.E5*exp(psl(1:ifull))
       zoh=zo/(factch*factch)
-      umag=sqrt(u(1:ifull,1)*u(1:ifull,1)
-     &         +v(1:ifull,1)*v(1:ifull,1))
+      ou=0.
+      ov=0.
+      if (nmlo.ne.0) then
+        call mloexport(2,ou,1,0)
+        call mloexport(3,ov,1,0)
+      end if
+      umag=sqrt((u(1:ifull,1)-ou)**2
+     &         +(v(1:ifull,1)-ov)**2)
       do iq=1,ifull
         es = establ(tss(iq))
         qsttg(iq)= .622*es/(ps(iq)-es)
@@ -570,6 +578,10 @@ c-------Beljaars and Holtslag (1991) heat function
       call scrncalc(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
      &              tss,t(1:ifull,1),qsttg,qg(1:ifull,1),umag,
      &              ps(1:ifull),zmin,sig(1))
+     
+      om=sqrt(ou*ou+ov*ov)
+      uscrn=uscrn+om
+      u10=u10+om
      
       return
       end subroutine autoscrn

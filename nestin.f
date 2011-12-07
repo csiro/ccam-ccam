@@ -275,11 +275,9 @@
      &                         MPI_COMM_WORLD,ierr)
             if (rdumg.lt.0.5) wl=1
             if (wl==1) then ! switch to 2D if 3D data is missing
-              duma=271.2
-              call mloexport(0,duma,1,0)
               dumaa(:,1,1)=cona*tssa+conb*tssb
               where (fraciceb.gt.0.)
-                dumaa(:,1,1)=duma
+                dumaa(:,1,1)=271.2
               end where
             end if
             call mlonudge(dumaa(:,1:wl,1),dumaa(:,1:wl,2),
@@ -490,11 +488,9 @@
      &                           MPI_COMM_WORLD,ierr)
               if (rdumg.lt.0.5) wl=1
               if (wl==1) then ! switch to 2D data if 3D is missing
-                duma=271.2
-                call mloexport(0,duma,1,0)
                 sssb(:,1,1)=tssb
                 where (fraciceb.gt.0.)
-                  sssb(:,1,1)=duma
+                  sssb(:,1,1)=271.2
                 end where
               end if
               if (nud_uv.ne.9.and.abs(nmlo).ne.1) then
