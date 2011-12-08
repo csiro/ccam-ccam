@@ -2250,7 +2250,7 @@ where (excess.gt.0.and.dp_nk.eq.2)
 elsewhere (excess.gt.0..and.dp_nk.eq.1)
   ip_tn(:,1)=(ip_dic*ip_tn(:,1)+rhowt/rhoic*excess*ip_tn(:,0)*cps/cpi)/(ip_dic+rhowt/rhoic*excess)         ! Assume 1 level of ice
 elsewhere (excess.gt.0.)
-  ip_tsurf=ip_tsurf*(max(it_dic,icemin)+rhowt/rhoic*excess*gamms/gammi)/(max(it_dic,icemin)+rhowt/rhoic*excess)
+  ip_tsurf=ip_tsurf*(max(ip_dic,icemin)+rhowt/rhoic*excess*gamms/gammi)/(max(ip_dic,icemin)+rhowt/rhoic*excess)
 end where
 excess=excess+max(ip_dsn-0.2,0.)*rhosn/rhowt        ! Snow depth limitation and conversion to ice
 dp_salflx=dp_salflx-rhowt*excess/dt
