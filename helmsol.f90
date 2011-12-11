@@ -15,7 +15,7 @@
       include 'parm.h'
       include 'parmdyn.h'
       include 'mpif.h'
-      integer, parameter :: itmax=400 ! maximum number of iterations allowed
+      integer, parameter :: itmax=600 ! maximum number of iterations allowed
 !     Arguments
       real, intent(in), dimension(ifull) :: zz,zzn,zze,zzw,zzs
 !     WHY are helm and rhs ifull+iextra?????????
@@ -224,7 +224,7 @@
          gsmag(1:klim) = garr(2*klim+1:3*klim)
 #endif
          call end_log(reduce_end)
-         if ( (diag .or. ktau<6) .and. myid == 0 ) then
+         if ( (diag .or. ktau<6 .or. itmax-iter.lt.50) .and. myid == 0 ) then
             write(6,'("Iterations",i4,i3,6g13.6/(10x,6g13.6))')   &
      &                 iter, klim, sqrt(abs(ggamma_1(1:klim)))
          end if

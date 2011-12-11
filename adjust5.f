@@ -44,6 +44,7 @@
       ! Work common here ????
       real p(ifull+iextra,kl),omgfnl(ifull,kl)
       real wrk1(ifull,kl), wrk2(ifull,kl) ! just work arrays here
+      real wrk3(ifull,kl)
       real d(ifull,kl)   ! NOT shared updps
       real, dimension(:), allocatable, save :: zz,zzn,zze,zzw,zzs
       real, dimension(:), allocatable, save :: pfact,alff,alf,alfe
@@ -110,17 +111,17 @@
        pslx(1:ifull,k)=pslx(1:ifull,k)*2./dt  ! i.e. [RHS of Eq. 115]*2/dt, i.e. M
       enddo    ! k  loop
       e(:,kl)=dsig(kl)*pslx(1:ifull,kl)
+      wrk3(:,kl)=-sig(kl)*pslx(1:ifull,kl) ! integration following eig.f
       do k=kl-1,1,-1
        e(:,k)=e(:,k+1)+dsig(k)*pslx(1:ifull,k)  ! i.e. -M_bar_(sig-.5)
+       wrk3(:,k)=e(:,k+1)+(sigmh(k+1)-sig(k))*pslx(1:ifull,k) ! integration following eig.f
       enddo     ! k loop
       pslxint(:)=-e(:,1)*dt/2. ! pslxint holds integrated pslx, Eq. 116
 
 !     full-level (1.+epsp)*omega/ps into omgfnl (nonlin. part only), Eq. 118
-      do k=1,kl-1
-       omgfnl(1:ifull,k)=-rata(k)*e(:,k+1)-ratb(k)*e(:,k)
-     &                   -sig(k)*pslx(1:ifull,k)
+      do k=1,kl
+       omgfnl(1:ifull,k)=-wrk3(:,k)-sig(k)*pslx(1:ifull,k)
       enddo     ! k loop
-      omgfnl(1:ifull,kl)=-ratb(kl)*e(:,kl)-sig(kl)*pslx(1:ifull,kl)
      
 !     redefine ux, vx
       do k=1,kl
@@ -155,7 +156,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
       if(nh>0)then
 !       add in departure values of p-related nh terms  & omgfnl terms    
         if (abs(epsp).le.1.) then
-          const_nh=2.*rdry/(dt*grav*grav*(1.+abs(epsp))*(1.+abs(epsp)))
+          const_nh=2.*rdry/(dt*grav*grav*(1.+abs(epsp))**2)
         else
           const_nh=2.*rdry/(dt*grav*grav)
         end if
@@ -353,34 +354,27 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
       endif
 
 !     vert. integ. div into e
-      do iq=1,ifull
-       wrk2(iq,kl)=-dsig(kl)*d(iq,kl)  
-      enddo     ! iq loop
+      wrk2(:,kl)=-dsig(kl)*d(:,kl)
+      wrk3(:,kl)=sig(kl)*d(:,kl)
       do k=kl-1,1,-1
-       do iq=1,ifull
-        wrk2(iq,k)=wrk2(iq,k+1)-dsig(k)*d(iq,k)
-       enddo    ! iq loop
+        wrk2(:,k)=wrk2(:,k+1)-dsig(k)*d(:,k)
+        wrk3(:,k)=wrk2(:,k+1)-(sigmh(k+1)-sig(k))*d(:,k)
       enddo     ! k  loop
 
 !     full-level omega/ps into omgf (linear part only)
       do k=1,kl-1
-       do iq=1,ifull
-        omgf(iq,k)=-rata(k)*wrk2(iq,k+1)-ratb(k)*wrk2(iq,k) ! in Eq. 110
-       enddo    ! iq loop
+        omgf(:,k)=-wrk3(:,k) ! in Eq. 110
       enddo     ! k  loop
+      omgf(:,kl)=-wrk3(:,kl)
+      psl(1:ifull)=pslxint(:)-hdt*wrk2(:,1)  *(1.+epst(:))  ! Eq. 116
       ps_sav(1:ifull)=ps(1:ifull)  ! saved for gas fixers below, and diags
       if(mfix==-1.or.mfix==3)pslsav(1:ifull)=psl(1:ifull) 
-      do iq=1,ifull
-       omgf(iq,kl)=-ratb(kl)*wrk2(iq,kl)
-       psl(iq)=pslxint(iq)-hdt*wrk2(iq,1)  *(1.+epst(iq))  ! Eq. 116
-      enddo     ! iq loop
 
       if(nh.ne.0)then
 !       update phi for use in next time step
         do k=1,kl
          phi(:,k)=p(1:ifull,k)-rdry*tbar2d(:)*psl(1:ifull)
         enddo
-        ! MJT bug fix
         dum=bet(1)*280.
         phi(:,1)=phi(:,1)+dum
         do k=2,kl

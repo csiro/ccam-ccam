@@ -141,8 +141,6 @@ do k=1,kl
   pref(kr,:)=sig(k)*pref(kl+1,:)
 end do
 
-ps(1:ifull)=1.E5*exp(psl(1:ifull))
-
 ! astronomy ---------------------------------------------------------
 ! Set up number of minutes from beginning of year
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
@@ -705,7 +703,7 @@ do j=1,jl,imax/il
                 Cloud_microphysics%conc_drop,Cloud_microphysics%conc_ice,       &
                 dumcf,dumql,dumqf,p2,dumt,cd2,imax,kl)
     Cloud_microphysics%size_drop=max(Cloud_microphysics%size_drop,1.e-20)
-    Cloud_microphysics%size_ice =max(Cloud_microphysics%size_ice ,1.e-20)                
+    Cloud_microphysics%size_ice =max(Cloud_microphysics%size_ice,1.e-20)                
     Cloud_microphysics%size_rain=1.e-20
     Cloud_microphysics%conc_rain=0.
     Cloud_microphysics%size_snow=1.e-20
@@ -737,9 +735,9 @@ do j=1,jl,imax/il
 
     call end_log(radmisc_end)
     call start_log(radlw_begin)
-    call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input,      &
-                          Rad_gases, Aerosol, Aerosol_props,         &
-                          Cldrad_props, Cld_spec, Aerosol_diags,     &
+    call longwave_driver (1, imax, 1, 1, Rad_time, Atmos_input,  &
+                          Rad_gases, Aerosol, Aerosol_props,     &
+                          Cldrad_props, Cld_spec, Aerosol_diags, &
                           Lw_output)
     call end_log(radlw_end)
 

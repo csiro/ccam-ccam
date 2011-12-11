@@ -153,7 +153,7 @@
         endif ! (namip.eq.0)
 
         ! Read host atmospheric and ocean data for nudging      
-        if(io_in==-1)then
+        if(abs(io_in)==1)then
           call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
      &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,
@@ -401,7 +401,7 @@
 !       in these cases redefine pslb, tb and (effectively) zsb using zs
 !       this keeps fine-mesh land mask & zs
 !       presently simplest to do whole pslb, tb (& qb) arrays
-        if(mydiag)then
+        if(nmaxpr==1.and.mydiag)then
           write(6,*) 'zs (idjd) :',zs(idjd)
           write(6,*) 'zsb (idjd) :',zsb(idjd)
           write (6,"('100*psl.wesn ',2p5f8.3)") psl(idjd),
@@ -413,7 +413,7 @@
      &     'call retopo from nestin; psl# prints refer to pslb'
         endif
         call retopo(pslb,zsb,zs(1:ifull),tb,qb)
-        if(mydiag)then
+        if(nmaxpr==1.and.mydiag)then
            write (6,"('100*pslb.wesn ',2p5f8.3)") pslb(idjd),
      &       pslb(iw(idjd)),pslb(ie(idjd)),pslb(is(idjd)),pslb(in(idjd))
         endif
@@ -515,9 +515,12 @@
 
       use arrays_m                     ! Atmosphere dyamics prognostic arrays
       use cc_mpi                       ! CC MPI routines
+      use nharrs_m                     ! Non-hydrostatic atmosphere arrays
       use savuvt_m                     ! Saved dynamic arrays
       use savuv1_m                     ! Saved dynamic arrays
+      use sigs_m                       ! Atmosphere sigma levels
       use vecsuv_m                     ! Map to cartesian coordinates
+      use work3sav_m                   ! Water and tracer saved arrays
       use xyzinfo_m, only : x,y,z,wts  ! Grid coordinate arrays
       
       implicit none
@@ -644,10 +647,11 @@
         if (nud_p.gt.0) then
           call ccmpi_distribute(x_g(1:ifull,1), psld(:))
           psl(1:ifull)=psl(1:ifull)+x_g(1:ifull,1)
+          ps=1.e5*exp(psl(1:ifull))
         end if
         if(nud_uv==3)then
           call ccmpi_distribute(x_g(1:ifull,:), wd(:,:))
-          do k=kbotdav,ktopdav ! MJT nestin 
+          do k=kbotdav,ktopdav
             u(1:ifull,k)=u(1:ifull,k)+costh(:)*x_g(1:ifull,k)
             v(1:ifull,k)=v(1:ifull,k)-sinth(:)*x_g(1:ifull,k)	  
           end do
@@ -663,27 +667,44 @@
           v(1:ifull,kbotdav:ktopdav)=v(1:ifull,kbotdav:ktopdav)
      &     +vd(1:ifull,kbotdav:ktopdav)
           savu(1:ifull,kbotdav:ktopdav)=savu(1:ifull,kbotdav:ktopdav)
+     &     +ud(1:ifull,kbotdav:ktopdav)
           savu1(1:ifull,kbotdav:ktopdav)=savu1(1:ifull,kbotdav:ktopdav)
+     &     +ud(1:ifull,kbotdav:ktopdav)
+          savu2(1:ifull,kbotdav:ktopdav)=savu2(1:ifull,kbotdav:ktopdav)
      &     +ud(1:ifull,kbotdav:ktopdav)
           savv(1:ifull,kbotdav:ktopdav)=savv(1:ifull,kbotdav:ktopdav)
      &     +vd(1:ifull,kbotdav:ktopdav)
           savv1(1:ifull,kbotdav:ktopdav)=savv1(1:ifull,kbotdav:ktopdav)
+     &     +vd(1:ifull,kbotdav:ktopdav)
+          savv2(1:ifull,kbotdav:ktopdav)=savv2(1:ifull,kbotdav:ktopdav)
      &     +vd(1:ifull,kbotdav:ktopdav)
         end if
         if (nud_t.gt.0) then
           call ccmpi_distribute(x_g(1:ifull,:), td(:,:))
           t(1:ifull,kbotdav:ktopdav)=t(1:ifull,kbotdav:ktopdav)
      &     +x_g(1:ifull,kbotdav:ktopdav)
+          xx_g(:,kbotdav)=bet(kbotdav)*x_g(1:ifull,kbotdav)
+          phi(:,kbotdav)=phi(:,kbotdav)+xx_g(:,kbotdav)
+          do k=kbotdav+1,ktopdav
+            xx_g(:,k)=xx_g(:,k-1)+bet(k)*x_g(1:ifull,k)
+     &        +betm(k)*x_g(1:ifull,k-1)
+            phi(:,k)=phi(:,k)+xx_g(:,k)
+          end do
+          do k=ktopdav+1,kl
+            phi(:,k)=phi(:,k)+xx_g(:,ktopdav)
+          end do
         end if
         if (nud_q.gt.0) then
           call ccmpi_distribute(x_g(1:ifull,:), qd(:,:))
           qg(1:ifull,kbotdav:ktopdav)=max(qg(1:ifull,kbotdav:ktopdav)
      &     +x_g(1:ifull,kbotdav:ktopdav),qgmin)
+          qgsav=qg(1:ifull,:)
         end if
       else
         if (nud_p.gt.0) then
           call ccmpi_distribute(x_g(1:ifull,1))
-          psl(1:ifull)=psl(1:ifull)+x_g(1:ifull,1)	  
+          psl(1:ifull)=psl(1:ifull)+x_g(1:ifull,1)
+          ps=1.e5*exp(psl(1:ifull))
         end if
         if(nud_uv==3)then
           call ccmpi_distribute(x_g(1:ifull,:))
@@ -702,25 +723,38 @@
      &     +ud(1:ifull,kbotdav:ktopdav)
           savu1(1:ifull,kbotdav:ktopdav)=savu1(1:ifull,kbotdav:ktopdav)
      &     +ud(1:ifull,kbotdav:ktopdav)
+          savu2(1:ifull,kbotdav:ktopdav)=savu2(1:ifull,kbotdav:ktopdav)
+     &     +ud(1:ifull,kbotdav:ktopdav)
           savv(1:ifull,kbotdav:ktopdav)=savv(1:ifull,kbotdav:ktopdav)
      &     +vd(1:ifull,kbotdav:ktopdav)
           savv1(1:ifull,kbotdav:ktopdav)=savv1(1:ifull,kbotdav:ktopdav)
+     &     +vd(1:ifull,kbotdav:ktopdav)
+          savv2(1:ifull,kbotdav:ktopdav)=savv2(1:ifull,kbotdav:ktopdav)
      &     +vd(1:ifull,kbotdav:ktopdav)
         end if
         if (nud_t.gt.0) then
           call ccmpi_distribute(x_g(1:ifull,:))
           t(1:ifull,kbotdav:ktopdav)=t(1:ifull,kbotdav:ktopdav)
      &     +x_g(1:ifull,kbotdav:ktopdav)
+          xx_g(:,kbotdav)=bet(kbotdav)*x_g(1:ifull,kbotdav)
+          phi(:,kbotdav)=phi(:,kbotdav)+xx_g(:,kbotdav)
+          do k=kbotdav+1,ktopdav
+            xx_g(:,k)=xx_g(:,k-1)+bet(k)*x_g(1:ifull,k)
+     &        +betm(k)*x_g(1:ifull,k-1)
+            phi(:,k)=phi(:,k)+xx_g(:,k)
+          end do
+          do k=ktopdav+1,kl
+            phi(:,k)=phi(:,k)+xx_g(:,ktopdav)
+          end do
         end if
         if (nud_q.gt.0) then
           call ccmpi_distribute(x_g(1:ifull,:))
           qg(1:ifull,kbotdav:ktopdav)=max(qg(1:ifull,kbotdav:ktopdav)
      &     +x_g(1:ifull,kbotdav:ktopdav),qgmin)
+          qgsav=qg(1:ifull,:)
         end if
       end if
-      
-      ps(1:ifull)=1.e5*exp(psl(1:ifull))
-      
+
       return
       end subroutine getspecdata
 
@@ -2303,6 +2337,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       use cc_mpi                  ! CC MPI routines
       use mlo, only : mloimport,  ! Ocean physics and prognostic arrays
      &  mloexport,mloexpdep,wlev
+      use mlodynamics             ! Ocean dynamics routines
       use soil_m                  ! Soil and surface data
 
       implicit none
@@ -2623,12 +2658,16 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           old=suvb(:,ka,1)
           call mloexport(2,old,k,0)
           old=old+diff(:,kb)*10./real(mloalpha)
+          oldu1(:,k)=oldu1(:,k)+diff(:,kb)*10./real(mloalpha)
+          oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
           call mloimport(2,old,k,0)
         end do
         do k=kc+1,kbotmlo
           old=suvb(:,ka,1)
           call mloexport(2,old,k,0)
           old=old+diff(:,kb)*10./real(mloalpha) ! kb saved from above loop
+          oldu1(:,k)=oldu1(:,k)+diff(:,kb)*10./real(mloalpha)
+          oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
           call mloimport(2,old,k,0)
         end do
         if (myid == 0) then
@@ -2656,12 +2695,16 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           old=suvb(:,ka,2)
           call mloexport(3,old,k,0)
           old=old+diff(:,kb)*10./real(mloalpha)
+          oldv1(:,k)=oldv1(:,k)+diff(:,kb)*10./real(mloalpha)
+          oldv2(:,k)=oldv2(:,k)+diff(:,kb)*10./real(mloalpha)
           call mloimport(3,old,k,0)
         end do
         do k=kc+1,kbotmlo
           old=suvb(:,ka,2)
           call mloexport(3,old,k,0)
           old=old+diff(:,kb)*10./real(mloalpha)
+          oldv1(:,k)=oldv1(:,k)+diff(:,kb)*10./real(mloalpha)
+          oldv2(:,k)=oldv2(:,k)+diff(:,kb)*10./real(mloalpha)
           call mloimport(3,old,k,0)
         end do
       end if
@@ -2807,6 +2850,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       use cc_mpi                  ! CC MPI routines
       use mlo, only : mloimport,  ! Ocean physics and prognostic arrays
      &  mloexport,mloexpdep,wlev
+      use mlodynamics             ! Ocean dynamics routines
       use soil_m                  ! Soil and surface data
 
       implicit none
@@ -3068,12 +3112,16 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           old=suvb(:,ka,1)
           call mloexport(2,old,k,0)
           old=old+diff(:,kb)*10./real(mloalpha)
+          oldu1(:,k)=oldu1(:,k)+diff(:,kb)*10./real(mloalpha)
+          oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
           call mloimport(2,old,k,0)
         end do
         do k=kc+1,kbotmlo
           old=suvb(:,ka,1)
           call mloexport(2,old,k,0)
           old=old+diff(:,kb)*10./real(mloalpha) ! kb saved from previous loop
+          oldu1(:,k)=oldu1(:,k)+diff(:,kb)*10./real(mloalpha)
+          oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
           call mloimport(2,old,k,0)
         end do
         if (myid == 0) then
@@ -3087,12 +3135,16 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           old=suvb(:,ka,2)
           call mloexport(3,old,k,0)
           old=old+diff(:,kb)*10./real(mloalpha)
+          oldv1(:,k)=oldv1(:,k)+diff(:,kb)*10./real(mloalpha)
+          oldv2(:,k)=oldv2(:,k)+diff(:,kb)*10./real(mloalpha)
           call mloimport(3,old,k,0)
         end do
         do k=kc+1,kbotmlo
           old=suvb(:,ka,2)
           call mloexport(3,old,k,0)
           old=old+diff(:,kb)*10./real(mloalpha) ! kb saved from previous loop
+          oldv1(:,k)=oldv1(:,k)+diff(:,kb)*10./real(mloalpha)
+          oldv2(:,k)=oldv2(:,k)+diff(:,kb)*10./real(mloalpha)
           call mloimport(3,old,k,0)
         end do
       end if
