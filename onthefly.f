@@ -189,7 +189,7 @@
       use mlo, only : wlev,micdwn,mloregrid     ! Ocean physics and prognostic arrays
       use mlodynamics                           ! Ocean dynamics
       use morepbl_m                             ! Additional boundary layer diagnostics
-      use nharrs_m, only : phi,lrestart         ! Non-hydrostatic atmosphere arrays
+      use nharrs_m, only : phi_nh,lrestart      ! Non-hydrostatic atmosphere arrays
       use nsibd_m, only : isoilm                ! Land-surface arrays
       use savuvt_m                              ! Saved dynamic arrays
       use savuv1_m                              ! Saved dynamic arrays
@@ -1515,17 +1515,17 @@ c       incorporate other target land mask effects
         if (nested.eq.0) then
           ! GEOPOTENTIAL !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           ! only for restart - no interpolation
-          phi=-999.
+          phi_nh=0.
           if (kk.eq.kl.and.iotest) then
             do k=1,kk 
-             ucc=-999. ! dummy for qp
-             call histrd4s(ncid,iarchi,ier,'zg',ik,6*ik,k,ucc,
+             ucc=0. ! dummy for gp NHS
+             call histrd4s(ncid,iarchi,ier,'zgnhs',ik,6*ik,k,ucc,
      &                     6*ik*ik)
              if (ier.ne.0) lrestart=.false.
              if (myid==0) then
-               call ccmpi_distribute(phi(:,k),ucc)
+               call ccmpi_distribute(phi_nh(:,k),ucc)
              else
-               call ccmpi_distribute(phi(:,k))
+               call ccmpi_distribute(phi_nh(:,k))
              end if
             enddo  ! k loop
           else

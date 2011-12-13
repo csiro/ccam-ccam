@@ -257,16 +257,20 @@ cx      enddo      ! k  loop
         enddo   ! iq loop
       endif     ! (ntbar==-4)
       
-      ! now phi and omgf are loaded in onthefly.f for nh.ne.0
+      ! update hydrostatic phi and add non-hydrostatic component
       if(nh==0.or.(ktau.le.1.and..not.lrestart))then
-        phi(:,1)=zs(1:ifull)+bet(1)*t(1:ifull,1) 
-        do k=2,kl
-         phi(:,k)=phi(:,k-1)+bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1)
-        enddo    ! k  loop
+        phi_nh=0. ! set to hydrostatic approximation
       end if
+      phi(:,1)=zs(1:ifull)+bet(1)*t(1:ifull,1) 
+      do k=2,kl
+       phi(:,k)=phi(:,k-1)+bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1)
+      enddo    ! k  loop
+      phi=phi+phi_nh
       
+      ! update non-hydrostatic terms from Miller-White height equation
       if (nh.gt.0) then
         if (abs(epsp).le.1.) then
+          ! MJT exact treatment of constant epsp terms
           const_nh=2.*rdry/(dt*grav*grav*(1.+abs(epsp))*(1.-abs(epsp)))
         else
           const_nh=2.*rdry/(dt*grav*grav)  
@@ -285,7 +289,6 @@ cx      enddo      ! k  loop
      &       -(sig(k)*(phi(:,k+1)-phi(:,k-1))/(rdry*(sig(k+1)-sig(k-1)))
      &       +t(1:ifull,k))/(const_nh*tbar2d(:))
           enddo
-          ! MJT suggestion
           k=1
           h_nh(1:ifull,k)=h_nh(1:ifull,k)
      &      -(sig(k)*(phi(:,k+1)-zs(1:ifull))/(rdry*(sig(k+1)-1.))
@@ -313,7 +316,6 @@ cx      enddo      ! k  loop
      &      *sig(k)/(rdry*(sig(k+1)-sig(k-1)))  
      &       +t(1:ifull,k))/(const_nh*tbar2d(:))
           enddo
-          ! MJT suggestion
           k=1
           h_nh(1:ifull,k)=h_nh(1:ifull,k)
      &    -(((sig(k)-1.)*(phi(:,k+1)-phi(:,k))/(sig(k+1)-sig(k))+
@@ -322,17 +324,18 @@ cx      enddo      ! k  loop
      &      +t(1:ifull,k))/(const_nh*tbar2d(:))
          case(5)
           ! MJT - This method is compatible with bet(k) and betm(k)
-          ! For hydrostatic case, ddpds exactly cancels with t.
-          ! This is the same as nh==2, but works for all lapsbot
-          ! ddpds is (sig/rdry)*d(phi)/d(sig)
-          ddpds(:,1)=-(phi(:,1)-zs(1:ifull))/bet(1)
+          ! This is the similar to nh==2, but works for all lapsbot
+          ! and only involves phi_nh as the hydrostatic component
+          ! is eliminated.
+          ! ddpds is (sig/rdry)*d(phi_nh)/d(sig) or -delta T_nh
+          ddpds(:,1)=-phi_nh(:,1)/bet(1)
           do k=2,kl
-            ddpds(:,k)=-(phi(:,k)-phi(:,k-1))/bet(k)
+            ddpds(:,k)=-(phi_nh(:,k)-phi_nh(:,k-1))/bet(k)
      &        -betm(k)*ddpds(:,k-1)/bet(k)
           end do
           do k=1,kl
             h_nh(1:ifull,k)=h_nh(1:ifull,k)
-     &        -(ddpds(:,k)+t(1:ifull,k))/(const_nh*tbar2d(:))
+     &        -ddpds(:,k)/(const_nh*tbar2d(:))
           end do
         end select
         if (nmaxpr==1) then

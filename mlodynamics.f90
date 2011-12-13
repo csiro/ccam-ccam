@@ -547,7 +547,6 @@ call mloexpice(snowd,7,0)
 call mloexpice(i_sto,8,0)
 call mloexpice(i_u,9,0)
 call mloexpice(i_v,10,0)
-ps(1:ifull)=1.E5*exp(psl(1:ifull))
 
 do ii=1,wlev
   dep(1:ifull,ii)=max(dep(1:ifull,ii),1.E-8*(real(ii)/real(wlev)-0.5))
@@ -607,7 +606,6 @@ if (usetide.eq.1) then
   mins=mins+720 ! base time is 12Z 31 Dec 1899
   if (leap.eq.0.and.jmonth.gt.2) mins=mins+1440 ! fix for leap==0
   call mlotide(ndum(1:ifull),rlongg,rlatt,mins,jstart)
-  ndum(1:ifull)=ndum(1:ifull)*ee(1:ifull)
   call bounds(ndum,corner=.true.)
   
   tnu=0.5*(ndum(in)+ndum(ine))
@@ -726,10 +724,12 @@ do ii=1,wlev
           +rhobar(iwn,ii)+drhobardzv*((1.-sig(ii))*neta(iwn)-sig(ii)*dd(iwn)))
   drhobardxu(:,ii)=(rhobar(ie,ii)-rhobar(1:ifull,ii)+drhobardzu*((1.-sig(ii))*(neta(ie)-neta(1:ifull)) &
                                                      -sig(ii)*(dd(ie)-dd(1:ifull))))*emu(1:ifull)/ds
+  drhobardxu(:,ii)=drhobardxu(:,ii)*ee(1:ifull)*ee(ie)                                                   
   drhobardyu(:,ii)=stwgt(:,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
   drhobardxv(:,ii)=stwgt(:,2)*0.5*(tev-twv)*emv(1:ifull)/ds
   drhobardyv(:,ii)=(rhobar(in,ii)-rhobar(1:ifull,ii)+drhobardzv*((1.-sig(ii))*(neta(in)-neta(1:ifull)) &
                                                      -sig(ii)*(dd(in)-dd(1:ifull))))*emv(1:ifull)/ds
+  drhobardyv(:,ii)=drhobardyv(:,ii)*ee(1:ifull)*ee(in)
 end do
 
 ! Estimate vertical velocity at time t
@@ -880,10 +880,12 @@ do ii=1,wlev
           +rhobar(iwn,ii)+drhobardzv*((1.-sig(ii))*neta(iwn)-sig(ii)*dd(iwn)))
   drhobardxu(:,ii)=(rhobar(ie,ii)-rhobar(1:ifull,ii)+drhobardzu*((1.-sig(ii))*(neta(ie)-neta(1:ifull)) &
                                                      -sig(ii)*(dd(ie)-dd(1:ifull))))*emu(1:ifull)/ds
+  drhobardxu(:,ii)=drhobardxu(:,ii)*ee(1:ifull)*ee(ie)
   drhobardyu(:,ii)=stwgt(:,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
   drhobardxv(:,ii)=stwgt(:,2)*0.5*(tev-twv)*emv(1:ifull)/ds
   drhobardyv(:,ii)=(rhobar(in,ii)-rhobar(1:ifull,ii)+drhobardzv*((1.-sig(ii))*(neta(in)-neta(1:ifull)) &
                                                      -sig(ii)*(dd(in)-dd(1:ifull))))*emv(1:ifull)/ds
+  drhobardyv(:,ii)=drhobardyv(:,ii)*ee(1:ifull)*ee(in)
 end do
 
 ! FREE SURFACE CALCULATION ----------------------------------------
@@ -1049,6 +1051,9 @@ do ll=1,llmax
   ! The following expression limits the minimum depth to 1m
   ! (should not occur for typical eta values)
   seta=max(seta,min(mindep-dd(1:ifull)-neta(1:ifull),0.)) ! this should become a land point
+  where (.not.wtr(1:ifull))
+    seta=0.
+  end where
   neta(1:ifull)=alpha*seta+neta(1:ifull)
   
   ! Break iterative loop when maximum error is below tol (expensive)
@@ -1076,6 +1081,9 @@ else
   end if
 end if
 neta(1:ifull)=max(neta(1:ifull),mindep-dd(1:ifull))
+where (.not.wtr(1:ifull))
+  neta(1:ifull)=0.
+end where
 
 call bounds(neta,corner=.true.)
 oeu=0.5*(neta(1:ifull)+neta(ie))
@@ -1386,11 +1394,11 @@ where (nfracice(1:ifull).lt.1.E-6)
   nit(1:ifull,3)=w_t(:,1)
   nit(1:ifull,4)=w_t(:,1)
 end where
-
+  
 where (ndsn(1:ifull).lt.1.E-3)
   nit(1:ifull,2)=nit(1:ifull,3)
 end where
-  
+
 ! unstagger ice velocities
 siu(:,1)=niu(1:ifull)
 siv(:,1)=niv(1:ifull)

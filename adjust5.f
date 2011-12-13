@@ -370,22 +370,6 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
       ps_sav(1:ifull)=ps(1:ifull)  ! saved for gas fixers below, and diags
       if(mfix==-1.or.mfix==3)pslsav(1:ifull)=psl(1:ifull) 
 
-      if(nh.ne.0)then
-!       update phi for use in next time step
-        do k=1,kl
-         phi(:,k)=p(1:ifull,k)-rdry*tbar2d(:)*psl(1:ifull)
-        enddo
-        dum=bet(1)*280.
-        phi(:,1)=phi(:,1)+dum
-        do k=2,kl
-          dum=dum+(bet(k)+betm(k))*280.
-          phi(:,k)=phi(:,k)+dum
-        end do
-        if(nmaxpr==1.and.mydiag)then
-          print *,'phi_adj ',(phi(idjd,k),k=1,kl)
-        endif
-      endif  ! (nh.ne.0)
-
       if (mod(ktau,nmaxpr)==0)vx(1:ifull,:)=sdot(1:ifull,1:kl) ! for accln
 
       if(m<=6)then
@@ -417,8 +401,6 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         do k=2,kl
          vx(1:ifull,k)=vx(1:ifull,k)*rdry*(sig(k-1)-sig(k))*
      &      .5*(t(1:ifull,k)+t(1:ifull,k-1))/(sigmh(k)*grav*dtin*dt)        
-c        vx(1:ifull,k)=vx(1:ifull,k)*(phi(1:ifull,k)-phi(1:ifull,k-1))/
-c    &                               (grav*dt*dt)        
         enddo
         call maxmin(vx,'ac',ktau,100.,kl)  ! max min of accln * 100
       endif
@@ -447,6 +429,31 @@ c    &                               (grav*dt*dt)
       if ((diag.or.nmaxpr==1).and.mydiag)then
         write(6,"('omgf_a2',10f8.3)") ps(idjd)*dpsldt(idjd,1:kl)
       endif
+
+      if(nh.ne.0)then
+!       update phi for use in next time step
+        do k=1,kl
+         phi(:,k)=p(1:ifull,k)-rdry*tbar2d(:)*psl(1:ifull)
+        enddo
+       
+        wrk3(:,1)=zs(1:ifull)-bet(1)*(t(1:ifull,1)-280.)
+        phi_nh(:,1)=phi(:,1)-wrk3(:,1)
+        do k=2,kl
+          wrk3(:,k)=wrk3(:,k-1)+bet(k)*(t(1:ifull,k)-280.)
+     &                         +betm(k)*(t(1:ifull,k-1)-280.)
+          phi_nh(:,k)=phi(:,k)-wrk3(:,k)
+        end do
+
+        dum=bet(1)*280.
+        phi(:,1)=phi(:,1)+dum
+        do k=2,kl
+          dum=dum+(bet(k)+betm(k))*280.
+          phi(:,k)=phi(:,k)+dum
+        end do
+        if(nmaxpr==1.and.mydiag)then
+          print *,'phi_adj ',(phi(idjd,k),k=1,kl)
+        endif
+      endif  ! (nh.ne.0)
 
       if(nvadh==2.and.nvad>0)then                 ! final dt/2 's worth
         if ((diag.or.nmaxpr==1) .and. mydiag ) then

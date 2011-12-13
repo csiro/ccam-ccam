@@ -1011,8 +1011,8 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         !--------------------------------------------------------  
 
         if(itype==-1)then   ! extra stuff just written for restart file
-         lname= 'Geopotential height'
-         call attrib(idnc,dim,4,'zg',lname,'m2/s2',-5.E4,6.0E5,
+         lname= 'NHS adjustment to geopotential height'
+         call attrib(idnc,dim,4,'zgnhs',lname,'m2/s2',-6.E5,6.E5,
      &               0,itype)
          lname= 'sdot: change in grid spacing per time step +.5'
          call attrib(idnc,dim,4,'sdot',lname,'1/ts',-3.,3.,0,itype) 
@@ -1615,7 +1615,7 @@ c      "extra" outputs
       !--------------------------------------------------------
 
       if(itype==-1)then   ! extra stuff just needed for restart file
-       call histwrt4(phi,'zg',idnc,iarch,local)
+       call histwrt4(phi_nh,'zgnhs',idnc,iarch,local)
        call histwrt4(sdot(1,2),'sdot',idnc,iarch,local)
        call histwrt4(pslx(1:ifull,:),'pslx',idnc,iarch,local)
        call histwrt4(savu,'savu',idnc,iarch,local)

@@ -3,10 +3,10 @@ module nharrs_m
 implicit none
 
 private
-public phi,h_nh,lrestart
+public phi,phi_nh,h_nh,lrestart
 public nharrs_init,nharrs_end
 
-real, dimension(:,:), allocatable, save :: phi,h_nh
+real, dimension(:,:), allocatable, save :: phi,phi_nh,h_nh
 logical, save :: lrestart
 
 contains
@@ -17,7 +17,9 @@ implicit none
 
 integer, intent(in) :: ifull,iextra,kl
 
-allocate(phi(ifull,kl),h_nh(ifull+iextra,kl))
+allocate(phi(ifull,kl),phi_nh(ifull,kl),h_nh(ifull+iextra,kl))
+phi=-999.
+phi_nh=0.
 lrestart=.false.
 
 return
@@ -27,7 +29,7 @@ subroutine nharrs_end
 
 implicit none
 
-deallocate(phi,h_nh)
+deallocate(phi,phi_nh,h_nh)
 
 return
 end subroutine nharrs_end
