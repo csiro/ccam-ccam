@@ -7,14 +7,15 @@ module ilu_m
    private
    include 'newmpar.h'
    public :: iludecomp, ilusolve! , ilumul
-   integer, dimension(ifull,4), private, save :: ileft
-   integer, dimension(ifull), private, save   :: nleft, nright
-   real, dimension(ifull,4,kl), private, save :: pleft
-   real, dimension(ifull,kl), private, save   :: ppinv
+   integer, dimension(:,:), allocatable, private, save :: ileft
+   integer, dimension(:), allocatable, private, save   :: nleft, nright
+   real, dimension(:,:,:), allocatable, private, save  :: pleft
+   real, dimension(:,:), allocatable, private, save    :: ppinv
+
 contains
    subroutine iludecomp(ilumax,fac,zzn,zze,zzs,zzw)
       use cc_mpi
-      include 'indices.h'
+      use indices_m
       integer, intent(in) :: ilumax
       real, dimension(ifull), intent(in)  :: zzn, zze, zzs, zzw
       real, dimension(ifull,ilumax), intent(in)  :: fac
@@ -24,6 +25,13 @@ contains
       integer :: i, j, k, ir, itmp, jtmp, idir, jdir, ni, nj
       real, dimension(ilumax) :: e, dval
       integer, dimension(4) :: rlist, list2
+      
+      if (.not.allocated(ileft)) then
+        allocate(ileft(ifull,4))
+        allocate(nleft(ifull),nright(ifull))
+        allocate(pleft(ifull,4,kl))
+        allocate(ppinv(ifull,kl))
+      end if
 
       
       ! Need thse arrays so can index over the various cases
@@ -106,7 +114,7 @@ contains
    
    subroutine ilusolve(x,rhs,k)
       use cc_mpi
-      include 'indices.h'
+      use indices_m
       real, dimension(:,:), intent(in)  :: rhs
       real, dimension(:,:), intent(out) :: x
       integer, intent(in) :: k

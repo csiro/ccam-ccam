@@ -5,14 +5,13 @@ c     *                                                                *
 c     * setup betts scheme for csiro model                             *
 c     *                                                                *
 c     ******************************************************************
-
+      use betts1_m !  includes work3a
+      use morepbl_m
+      use prec_m
+      use sigs_m
       include 'newmpar.h'
-      include 'betts1.h'   !  includes work3a
-      include 'morepbl.h'
       include 'parm.h'
-      include 'prec.h'
-      include 'sigs.h'
-      common/work3/tnew(ifull,kl),dum3(ifull,kl,4)
+      real tnew(ifull,kl)
 
       dimension tin(ifull,kl), qg(ifull,kl), tn(ifull,kl)
       dimension land(ifull), ps(ifull)
@@ -30,6 +29,8 @@ c-----------------------------------------------------------------------
 !     kpnt=ipnt+(jpnt-1)*il
 
       if ( ofirst ) then
+
+         call betts1_init(ifull,iextra,kl)
 
 c setup eta fields
 

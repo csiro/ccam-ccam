@@ -14,10 +14,11 @@ c
 c 
 c CDIR$ TASK COMMON VTEMP
 
+      use tabcom_m
+
       include 'newmpar.h'
       include 'hcon.h'
       include 'rdparm.h'
-      include 'tabcom.h'
       integer it(imax,llp1)
       real fyo(imax,llp1),
      &     ww1(imax,llp1),
@@ -26,7 +27,11 @@ c CDIR$ TASK COMMON VTEMP
      &     fxo(imax,llp1),tmp3(imax,llp1)
       dimension emv(imax,llp1),tv(imax,llp1),av(imax,llp1)
       dimension em3v(5040)
-      equivalence (em3v(1),em3(1,1))
+      !equivalence (em3v(1),em3(1,1))
+      
+      ! MJT reshape arrays to replace equivalence statement
+      em3v=reshape(em3, (/ size(em3) /))
+      
 c---the following loop replaces a double loop over i (1-imax) and
 c   k (1-llp1)
       do 203 i=1,imax*llp1

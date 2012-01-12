@@ -3,10 +3,8 @@ c     u initially now contains rhs; leaves with answer u (jlm)
 c     n.b. we now always assume b = 1-a-c
       include 'newmpar.h'
 !     N.B.  e, g, temp are just work arrays (not passed through at all)     
-      common/work3b/e(ifull,kl),g(ifull,kl)
-      common/work3d/temp(ifull,kl)
       real a(ifull,kl),c(ifull,kl),rhs(ifull,kl)
-c     real e(ifull,kl),g(ifull,kl),temp(ifull,kl)
+      real e(ifull,kl),g(ifull,kl),temp(ifull,kl)
 
 c     this routine solves the system
 c       a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1

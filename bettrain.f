@@ -1,4 +1,5 @@
       subroutine bettrain (  pt, kpnt )  ! was rain
+      use betts1_m
       parameter (ntest=0)  ! replaces debug; set to 1 for degugging
 !     just returns prec, t, q (all in betts1.h)     jlm
 c     this is part of the Betts-Miller parameterization
@@ -27,11 +28,10 @@ c
      &, pq0c=pq0*tresh,rrog=1./(row*g))
 c
       include 'newmpar.h'
-      include 'betts1.h'
       parameter (ltop=1)
 !     all work2 variables are just local
-      common/work2/pdsl(ifull),tl(ifull),ql(ifull),precl(ifull), 
-     .  aprec(ifull),elv(ifull),qc(ifull),dum(ifull,11)
+      real pdsl(ifull),tl(ifull),ql(ifull),precl(ifull), 
+     .  aprec(ifull),elv(ifull),qc(ifull)
 
 c--------------preparatory calculations---------------------------------
 c
@@ -65,9 +65,9 @@ c-        ------l, saturation spec. humidity & cond./evap.---------------
      2         *exp(htm(iq,l)*a2*(tl(iq)-a3)/(tl(iq)-a4))
           precl(iq)=(ql(iq)-qc(iq))*hbm2(iq)*deta(l)
      2            /(elv(iq)*qc(iq)*arcp/((tl(iq)-a4)*(tl(iq)-a4))+1.)
-          if ( ntest.eq.1 .and. iq.eq.kpnt ) then
-             print*,l,elv(iq),ql(iq),qc(iq),precl(iq)
-          endif
+c         if ( ntest.eq.1 .and. iq.eq.kpnt ) then
+c            print*,l,elv(iq),ql(iq),qc(iq),precl(iq)
+c         endif
 
 c--------------is there enough water to evaporate ?---------------------
 c

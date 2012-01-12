@@ -1,4 +1,4 @@
-      subroutine radrive (odcalc,iaero)
+      subroutine radrive (ixin,odcalc,iaero)
 ! Radiation driver routine for the conformal cubic model.
 ! This calls the GFDL radiation routines for each row of each face.
 ! At the moment it does not support the new liquid water cloud scheme
@@ -11,48 +11,57 @@
 ! N.B. (iq) indexing is still OK whether arrays have i dimension
 !       of il or imax, because j advances sensibly
 
-      use swr99_m
-      use zenith_m
+      use aerointerface
+      use arrays_m
+      use ateb
+      use cable_ccam, only : CABLE
       use cc_mpi
+      use cfrac_m
+      use cldcom_m
+      use co2dta_m, only : co2dta_init
       use diag_m
+      use extraout_m ! sintsave, etc
+      use histave_m, only : alb_ave,fbeam_ave
+      use infile
+      use kdacom_m, only : kdacom_init
+      use kuocomb_m
+      use latlong_m
+      use liqwpar_m  ! ifullw
+      use lwout_m
+      use mlo        ! MJT mlo
+      use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
+      use ozoneread  ! MJT radiation
+      use pbl_m
+      use raddiag_m
+      use radisw_m
+      use rdflux_m
+      use sigs_m
+      use soil_m     ! land, rhgdum ... zmin  alb
+      use soilsnow_m ! sicedep tgg,wb,snowd
+      use srccom_m
+      use swocom_m
+      use swr99_m
+      use tabcom_m, only : tabcom_init
+      use tfcom_m
+      use work3f_m
+      use work3lwr_m, only : work3lwr_init
+      use zenith_m
       include 'newmpar.h'
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
 !        for diag prints set ntest=1
 !        or, usefully can edit 'ntest.gt.0' to 'ktau.gt.nnn'
       parameter (nalbwb=0)  ! 0  for original alb not depending on wb
-      parameter (kcl_top=kl-2) !max level for cloud top (conjob,radrive,vertmix)
-      include 'aalat.h'    ! alat, along
-      include 'arrays.h'      
+      integer ixin
+      integer kcl_top       !max level for cloud top (conjob,radrive,vertmix)
       include 'const_phys.h' ! for ldr cloud scheme
-      include 'cparams.h'    ! for ldr cloud scheme
-      include 'dates.h'      ! timer,kdate,ktime,dt,mtimer
-      include 'extraout.h'   ! sintsave, etc
       include 'kuocom.h'     ! also with kbsav,ktsav
-      include 'latlong.h'    ! rlatt,rlongg
-      include 'liqwpar.h'    ! ifullw
-      include 'nsibd.h'      ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
       include 'parm.h'
-      include 'pbl.h'
-      include 'scamdim.h'
-      include 'sigs.h'
-      include 'soil.h'      ! land, rhgdum ... zmin  alb
-      include 'soilsnow.h'  ! sicedep tgg,wb,snowd
       include 'soilv.h'
 !     For the radiation code
       include 'rdparm.h'   ! imax
-      include 'cldcom.h'
       include 'hcon.h'
-      include 'lwout.h'
-      include 'radisw.h'
-      include 'raddiag.h'
-      include 'rdflux.h'
-      include 'srccom.h'
-      include 'swocom.h'
-      include 'tfcom.h'
-      common/cfrac/cfrac(ifull,kl)
-      common/work3c/rhg(ifull,kl) ! shared between cloud &radriv90
-      common/work3d/rtt(ifull,kl) ! just to pass between radriv90 & globpe
-      common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! ditto
+      real rhg(ifull,kl) ! shared between cloud &radriv90
+      real rtt(ifull,kl)
 
       parameter(cong = cp/grav)
       parameter(csolar=1.96)
@@ -66,36 +75,34 @@ c     parameters for the aerosol calculation
       real sigh(kl+1)
 
 !     Radiation fields (CSIRO GCM names)
-      real sg(imax), sgclr(imax), sint(imax), sout(imax), soutclr(imax)
-      real rg(imax), rgclr(imax), rt(imax), rtclr(imax)
-      real sga(imax),sgamp(ifull)
-      real sgdn(imax), rgdn(imax)
-      real hlwsav(ifull,kl),hswsav(ifull,kl)
-      save hlwsav, hswsav, sgamp
-!     when there is time incorporate properly here      
-      common/radstuff/sgx(ifull),sgdnx(ifull),rgx(ifull),rgdnx(ifull),
+      real sg(ixin), sgclr(ixin), sint(ixin), sout(ixin), soutclr(ixin)
+      real rg(ixin), rgclr(ixin), rt(ixin), rtclr(ixin)
+      real sga(ixin)
+      real sgdn(ixin), rgdn(ixin)
+      real, dimension(:,:), allocatable, save :: hlwsav,hswsav
+      real, dimension(:), allocatable, save :: sgamp
+      real sgx(ifull),sgdnx(ifull),rgx(ifull),rgdnx(ifull),
      &             soutx(ifull),sintx(ifull),rtx(ifull)
       
 c     Following are for cloud2 routine
-      real t2(imax,kl),ql2(imax,kl),qf2(imax,kl),cf2(imax,kl),
-     &     qc2(imax,kl),cd2(imax,kl),p2(imax,kl),
-     &     dp2(imax,kl),cll(imax),clm(imax),clh(imax)
-      logical land2(imax)
+      real t2(ixin,kl),ql2(ixin,kl),qf2(ixin,kl),cf2(ixin,kl),
+     &     qc2(ixin,kl),cd2(ixin,kl),p2(ixin,kl),
+     &     dp2(ixin,kl),cll(ixin),clm(ixin),clh(ixin)
+      logical land2(ixin)
 
-!     From initfs
-c     Stuff from o3set
-      common /o3dat/ dduo3n(37,kl),ddo3n2(37,kl),ddo3n3(37,kl),
-     &               ddo3n4(37,kl)
+
 c     Stuff from cldset
       common /clddat/ ccd(37,5),ccd2(37,5),ccd3(37,5),ccd4(37,5),
      &                kkth(37,5),kkbh(37,5)
 
 !     For the zenith angle calculation
-      real coszro2(imax), taudar2(imax)
+      real coszro2(ixin), taudar2(ixin)
       real fjd, r1, dlt, slag, dhr
 
 !     Ozone returned by o3set
-      real duo3n(imax,kl)
+      real duo3n(ixin,kl)
+      
+      real rhoa(ixin,kl)
 
       logical clforflag, solarfit
       parameter (clforflag = .true., solarfit=.true.)
@@ -107,6 +114,11 @@ c     Stuff from cldset
       data first /.true./
       include 'establ.h'
 
+      call start_log(radmisc_begin)
+
+      kcl_top=kl-2
+      imax=ixin
+
       do k=kl,1,-1
          if(sig(k).le. .15)ksigtop=k  ! top level for RH calc for clouds
          sigh(k) = sigmh(k)
@@ -116,13 +128,55 @@ c     Stuff from cldset
       idrad=idjd-(jdrad0-1)*imax
       jdrad=1+(jdrad0-1)*imax/il  ! j increases in increments of imax/il
 
+!     Set up number of minutes from beginning of year
+      call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
+      fjd = float(mod(mins,525600))/1440. ! restrict to 365 day calendar
+
 !     Initialisation (from initfs)
       if ( first ) then
+   
+         l=kl
+         lp1=l+1
+         lp2=l+2
+         lp3=l+3
+         lm1=l-1
+         lm2=l-2
+         lm3=l-3
+         ll=2*l
+         llp1=ll+1
+         llp2=ll+2
+         llp3=ll+3
+         llm1=ll-1
+         llm2=ll-2
+         llm3=ll-3
+         lp1m=lp1*lp1
+         lp1m1=lp1m-1
+         lp1v=lp1*(1+2*l/2)
+         lp121=lp1*nbly
+         ll3p=3*l+2
+         lp1i=imax*lp1
+         llp1i=imax*llp1
+         ll3pi=imax*ll3p
+         call cldcom_init(ifull,iextra,kl,imax)
+         call co2dta_init(ifull,iextra,kl)
+         call kdacom_init(ifull,iextra,kl,imax)
+         call lwout_init(ifull,iextra,kl,imax)
+         call radisw_init(ifull,iextra,kl,imax)
+         call rdflux_init(ifull,iextra,kl,imax,nbly)
+         call srccom_init(ifull,iextra,kl,imax,nbly)
+         call swocom_init(ifull,iextra,kl,imax)
+         call tabcom_init(ifull,iextra,kl,imax,nbly)
+         call tfcom_init(ifull,iextra,kl,imax,nbly)
+         call work3lwr_init(ifull,iextra,kl,imax)      
+
+         allocate(hlwsav(ifull,kl),hswsav(ifull,kl))
+         allocate(sgamp(ifull))
+      
          if(ntest.eq.1)print *,'id,jd,imax,idrad,jdrad0,jdrad ',
      .                          id,jd,imax,idrad,jdrad0,jdrad
          first = .false.
          call hconst
-         call co2_read(sig)
+         call co2_read(sig,jyear) ! MJT radiation
          call radtable
          rrco2=rrvco2*ratco2mw
          if(amipo3)then
@@ -133,42 +187,14 @@ c           AMIP2 ozone
 c          Stuff from o3set
 c          Rearrange the seasonal mean O3 data to allow interpolation
 c          Define the amplitudes of the mean, annual and semi-annual cycles
-           call o3_read(sig)
-           call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
+           call o3_read(sig,jyear,jmonth)
         end if
+        swrsave=0.5 ! MJT cable
       end if  ! (first)
 
 C---------------------------------------------------------------------*
 C START COMPUTATION                                                   *
 C---------------------------------------------------------------------*
-
-!     Set up number of minutes from beginning of year
-!     This assumes 4-digit year already incorporated (fix done in infile)
-!     For GCM runs assume year is <1980 (e.g. ~321-460 for 140 year run)
-      jyear=kdate/10000
-      jmonth=(kdate-jyear*10000)/100
-      jday=kdate-jyear*10000-jmonth*100
-      if(kdate.lt.19800000)jyear=1979 ! for gcm runs - but jyear not used
-      jhour=ktime/100
-      jmin=ktime-jhour*100
-      mstart=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of y
-!     timer contains number of hours since the start of the run.
-!     mins = 60 * timer + mstart
-!     mtimer contains number of minutes since the start of the run.
-      mins = mtimer + mstart
-
-c     Set number of years before present for orbital parameters.
-c     Allowed values are 0, 6000 and 21000.
-      bpyear = 0.
-      if(nhstest<0)then  ! aquaplanet test
-        fjd = 79.+mod(mins,1440)/1440.       ! set to 21 March +frac of day
-      else
-        fjd = float(mod(mins,525600))/1440.  ! 525600 = 1440*365
-      endif
-      if(ntest.gt.0)then
-        print *,'kdate,jyear,jmonth,jhour,jmin,mtimer,mstart,mins,fjd ;'
-     .          ,kdate,jyear,jmonth,jhour,jmin,mtimer,mstart,mins,fjd
-      endif
 
       if(ldr==0)then
         do k=1,ksigtop  ! up to top level for RH calc for clouds
@@ -211,10 +237,11 @@ c     Allowed values are 0, 6000 and 21000.
       if ( solarfit ) then
 !        This call averages zenith angle just over this time step.
          dhr = dt/3600.0
-c        call zenith(fjd,r1,dlt,slag,rlatt(1+(j-1)*il),
-c    &               rlongg(1+(j-1)*il),dhr,imax,coszro2,taudar2)
          call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),
      &               rlongg(istart:iend),dhr,imax,coszro2,taudar2)
+         call atebccangle(istart,imax,coszro2(1:imax) ! MJT urban
+     &    ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt
+     &    ,sin(dlt)) 
       end if    !  ( solarfit )
 
       if ( odcalc ) then     ! Do the calculation
@@ -237,23 +264,31 @@ c     Set up ozone for this time and row
       if (amipo3) then
          call o3set_amip ( rlatt(1+(j-1)*il:(j-1)*il+imax), imax, mins,
      &                     sigh, ps(1+(j-1)*il:(j-1)*il+imax), qo3 )
+         qo3(:,:)=max(1.e-10,qo3(:,:))    ! July 2008
       else
-         call o3set(rlatt(1+(j-1)*il),imax,mins,duo3n,sig)
-c        Conversion of o3 from units of cm stp to gm/gm
+         call o3set(imax,istart,mins,duo3n,sig,ps(1+(j-1)*il))
          do k=1,kl
             do i=1,imax
-               qo3(i,k) = duo3n(i,k)*1.01325e+02/press(i,lp1)
+              qo3(i,k) = duo3n(i,k)
             end do
          end do
       end if
 
 !     Set up surface albedo. The input value is > 1 over ocean points where
 !     the zenith angle dependent formula should be used.
-      do i=1,imax
+      ! LAND --------------------------------------------------------
+      if (nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7) then ! cable
+        where(land(istart:iend))                        ! cable
+          cuvrf(1:imax,1)=albsav(istart:iend)           ! cable
+          cirrf(1:imax,1)=albnirsav(istart:iend)        ! cable
+        end where                                       ! cable
+      else                                              ! cable
+        do i=1,imax
           iq=i+(j-1)*il
           if( land(iq) )then
            if(nalbwb.eq.0)then
-             cuvrf(i,1) = albsav(iq) ! use surface albedo from indata
+             cuvrf(i,1) = albsav(iq)    ! use surface albedo from indata
+             cirrf(i,1) = albnirsav(iq)
            else    ! soil albedo adjusted according to wetness of top layer
 !            can do quadratic fit [ 0 to wbav to ssat]
 !            wbs=sfc(isoilm(iq))         ! or consider using wbs=ssat()
@@ -277,6 +312,7 @@ c        Conversion of o3 from units of cm stp to gm/gm
 
              albs=max(min(albs,.38),.11)
              cuvrf(i,1) = tsigmf(iq)*albsav(iq) + (1.-tsigmf(iq))*albs
+             cirrf(i,1)=cuvrf(i,1) ! MJT CHANGE albedo
              if(ntest.gt.0.and.i.eq.idrad.and.j.eq.jdrad)then
                print *,'iq,land,sicedep,wbw,wbs,snowd ',
      .                  iq,land(iq),sicedep(iq),wbw,wbs,snowd(iq)
@@ -322,7 +358,7 @@ c	     Snow albedo is dependent on zenith angle and  snow age.
             aliro = 0.65        !alb. for near-infr. on a new snow
             fage = 1.-1./(1.+snage(iq))	 !age factor
 
-            if(ntest.eq.1.and.iq.eq.idjd)then
+            if(ntest.eq.1.and.iq.eq.idjd.and.mydiag)then
               print *,'ar1,ar2,snowd,ssdnn ',
      .                 ar1,ar2,snowd(iq),ssdnn(iq)
               print *,'exp_ar1,exp_ar2,ar3 ',
@@ -347,20 +383,14 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
              cc=min(1.,snr/max(snr+zolnd(iq),0.02))
              tsigmfx=(1.-cc)*tsigmf(iq)      ! mult by snow free veg. fraction
 
-            alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
+            !alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
             if(nsib.ge.3)then 
-              cuvrf(i,1)=alss
+              cuvrf(i,1)=(1.-snrat)*cuvrf(i,1) + snrat*alv
+              cirrf(i,1)=(1.-snrat)*cirrf(i,1) + snrat*alir
             else
-              cuvrf(i,1)=min(.8,(1.-tsigmfx)*alss+tsigmfx*albsav(iq))
+              cuvrf(i,1)=min(.8,(1.-tsigmfx)*alv+tsigmfx*cuvrf(i,1))
+              cirrf(i,1)=min(.8,(1.-tsigmfx)*alir+tsigmfx*cirrf(i,1))
             endif
-c           old stuff before snage follows:
-c           if(tss(iq) .ge. 273.09 ) then
-c             snalb = 0.6   ! changed from .5 to .6 on 31/8/00
-c           else
-c             snalb = 0.8
-c           endif
-c           cuvrf(i,1)=min(snalb ,
-c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
             if(ntest.gt.0.and.i.eq.idrad.and.j.eq.jdrad)then
               print *,'i,j,land,sicedep,snowd,snrat ',
      .                 i,j,land(iq),sicedep(iq),snowd(iq),snrat
@@ -368,24 +398,48 @@ c    .           albsav(iq)+(snalb-albsav(iq))*sqrt(snowd(iq)*.1))
      .                 albsav(iq),dnsnow,talb,cuvrf(i,1)
             endif
            endif          !  snowd(iq).gt.0.
-         else             !  over the ocean or sea ice
-!          following for CCAM from 11/6/03
-           cuvrf(i,1)=.65*fracice(iq)+
-     .                (1.-fracice(iq))*.05/(coszro(i)+0.15)
-        endif       ! if( land(iq)) .. else..
+          endif       ! if( land(iq)) .. else..
+        end do ! i=1,imax
+      end if ! else nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7
 
-         alb(iq) = cuvrf(i,1)   ! save current albedo in alb array for outfile
-         if(iaero.ne.0)then
+      ! OCEAN/WATER -------------------------------------------------
+      where (.not.land(istart:iend))
+        cuvrf(1:imax,1)=.85*fracice(istart:iend)+
+     .     (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
+        cirrf(1:imax,1)=.45*fracice(istart:iend)+
+     .     (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
+      end where
+      
+      ! MLO ---------------------------------------------------------
+      call mloalb2(istart,imax,coszro,cuvrf(:,1),cirrf(:,1),0)
+
+      ! URBAN -------------------------------------------------------
+      ! The direct beam fraction is effectively 1 in this case to
+      ! ensure energy conservation (i.e., no cloud)
+      call atebalb1(istart,imax,cuvrf(1:imax,1),0)
+      call atebalb1(istart,imax,cirrf(1:imax,1),0)
+      
+      ! AEROSOLS ----------------------------------------------------
+      select case(abs(iaero))
+       case(0)
+         ! do nothing
+       case(1,2) ! prognostic aerosols are included as direct effect only
+                 ! with this radiation code
+        do i=1,imax
+          iq=i+(j-1)*il
            cosz = max ( coszro(i), 1.e-4)
-           delta =  coszro(i)*beta_ave*alpha*so4t(iq)*
-     &	                    ((1.-cuvrf(i,1))/cosz)**2
-!          above formula equiv. to next lines, but avoids dark-area problems
-c          delta =   beta_ave*alpha*so4t(iq)*
-c    &			          (1.-cuvrf(i,1))**2/cosz
-           cuvrf(i,1)=min(1., delta+cuvrf(i,1)) ! surface albedo
-         endif!(iaero.ne.0)then
-         cirrf(i,1)  = cuvrf(i,1)
-      end do ! i=1,imax
+           delta =  coszro(i)*beta_ave*alpha*so4t(iq)* ! still broadband
+     &	            ((1.-0.5*(cuvrf(i,1)+cirrf(i,1)))/cosz)**2
+           cuvrf(i,1)=min(0.99, delta+cuvrf(i,1)) ! surface albedo
+           cirrf(i,1)=min(0.99, delta+cirrf(i,1)) ! still broadband
+        end do ! i=1,imax
+       case default
+        write(6,*) "ERROR: Unknown aerosol option ",iaero
+        stop       
+      end select
+      albvisnir(istart:iend,1)=cuvrf(1:imax,1)
+      albvisnir(istart:iend,2)=cirrf(1:imax,1)
+      !--------------------------------------------------------------
 
       do k=1,kl
          kr = kl+1-k
@@ -434,43 +488,38 @@ c       Stuff needed for cloud2 routine...
             qf2(i,k)=qfrad(iq,k)
             cf2(i,k)=cfrac(iq,k) ! called cfrad till Oct '05
             qc2(i,k)=qccon(iq,k)
-!           will need this test eventually: if(naerosol_i(1).gt.0)then .. else
-            if(land(iq))then
-              if(rlatt(iq)>0.)then     
-                cd2(i,k)=cdropl_nh
-              else
-                cd2(i,k)=cdropl_sh
-              endif
-            else
-              if(rlatt(iq)>0.)then     
-                cd2(i,k)=cdrops_nh
-              else
-                cd2(i,k)=cdrops_sh
-              endif
-            endif  ! (land(iq)) .. else ..
             land2(i)=land(iq)
             p2(i,k)=0.01*ps(iq)*sig(k) !Looks like ps is SI units
             dp2(i,k)=-0.01*ps(iq)*dsig(k) !dsig is -ve
           enddo
         enddo
+        do k=1,kl
+          rhoa(:,k)=ps(istart:iend)*sig(k)/(rdry*t(istart:iend,k)) !density of air
+        end do
+        call aerodrop(iaero,istart,imax,kl,cd2,rhoa,
+     &                land(istart:iend),rlatt(istart:iend))
       endif  ! (ldr.ne.0)
-
+      
 c  Clear sky calculation
       if (clforflag) then
         cldoff=.true.
 c       set up cloud for this time and latitude
         if(ldr.ne.0)then  !Call LDR cloud scheme
 c         write(24,*)coszro2
-c         call cloud2(cldoff,1,t2,ql2,qf2,cf2,qccon,
           call cloud2(cldoff,1,t2,ql2,qf2,cf2,qc2,
      &                cd2,land2,sigh,p2,dp2,coszro,      !Inputs
      &                cll,clm,clh)                       !Outputs
         else
-          call cloud(cldoff,sig,j) ! jlm
+          call cloud(cldoff,sig,j,rhg) ! jlm
         endif  ! (ldr.ne.0)
+        if(ndi<0.and.nmaxpr==1)
+     &     print *,'before swr99 ktau,j,myid ',ktau,j,myid
         call swr99(fsw,hsw,sg,ufsw,dfsw,press,press2,coszro,
      &             taudar,rh2o,rrco2,ssolar,qo3,nclds,
-     &             ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt)
+     &             ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt,
+     &             swrsave(istart:iend)) ! MJT cable
+        if(ndi<0.and.nmaxpr==1)
+     &     print *,'after  swr99 ktau,j,myid ',ktau,j,myid
         do i=1,imax
           soutclr(i) = ufsw(i,1)*h1m3 ! solar out top
           sgclr(i)   = -fsw(i,lp1)*h1m3  ! solar absorbed at the surface
@@ -482,6 +531,8 @@ c         call cloud2(cldoff,1,t2,ql2,qf2,cf2,qccon,
         end do
       endif
 
+      call end_log(radmisc_end)
+      call start_log(radsw_begin)
 c     Cloudy sky calculation
       cldoff=.false.
       if(ldr.ne.0)then  !Call LDR cloud scheme
@@ -501,14 +552,19 @@ c       write(24,*)coszro2
       endif  ! (ldr.ne.0)
       call swr99(fsw,hsw,sg,ufsw,dfsw,press,press2,coszro,
      &           taudar,rh2o,rrco2,ssolar,qo3,nclds,
-     &           ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt)
+     &           ktopsw,kbtmsw,cirab,cirrf,cuvrf,camt,
+     &           swrsave(istart:iend))
       do i=1,imax
           sint(i) = dfsw(i,1)*h1m3   ! solar in top
           sout(i) = ufsw(i,1)*h1m3   ! solar out top
           sg(i)   = sg(i)*h1m3       ! solar absorbed at the surface
           iq=i+(j-1)*il              ! fixed Mar '05
-          sgdn(i) = sg(i) / ( 1. - alb(iq) )
+          sgdn(i) = sg(i) / ( 1. - swrsave(iq)*albvisnir(iq,1)
+     &            -(1.-swrsave(iq))*albvisnir(iq,2) )
       end do
+      call spitter(imax,fjd,coszro,sgdn,fbeamvis(istart:iend))
+      fbeamnir(istart:iend)=fbeamvis(istart:iend)
+      
       if(ntest.gt.0.and.j.eq.jdrad)then
         print *,'idrad,j,sint,sout,soutclr,sg,cuvrf1 ',
      .           idrad,j,sint(idrad),sout(idrad),soutclr(idrad),
@@ -519,9 +575,15 @@ c       print *,'soutclr ',(soutclr(i),i=1,imax)
 c       print *,'sg ',(sg(i),i=1,imax)
 c       print *,'cuvrf ',(cuvrf(i),i=1,imax)
       endif
+      call end_log(radsw_end)      
+
+      call start_log(radlw_begin)
       call clo89
-      if(ntest.gt.0)print *,'calling lwr88 for j = ',j
+      if(ndi<0.and.nmaxpr==1)
+     &     print *,'before lwr88 ktau,j,myid ',ktau,j,myid
       call lwr88
+      call end_log(radlw_end)
+      call start_log(radmisc_begin)
 
       do i=1,imax
          rt(i) = ( gxcts(i)+flx1e1(i) ) * h1m3          ! longwave at top
@@ -607,6 +669,10 @@ c     cloud amounts for saving
          cll_ave(iq)  = cll_ave(iq)  + cloudlo(iq)
          clm_ave(iq)  = clm_ave(iq)  + cloudmi(iq)
          clh_ave(iq)  = clh_ave(iq)  + cloudhi(iq)
+         alb_ave(iq)  = alb_ave(iq)  + swrsave(iq)*albvisnir(iq,1)
+     &                               +(1.-swrsave(iq))*albvisnir(iq,2)
+         fbeam_ave(iq)= fbeam_ave(iq)+fbeamvis(iq)*swrsave(iq)
+     &                               +fbeamnir(iq)*(1.-swrsave(iq))
         end do
       endif   ! (ktau>1)
       
@@ -628,6 +694,10 @@ c     cloud amounts for saving
        do i=1,imax
          iq=i+(j-1)*il
          sgn_ave(iq)  = sgn_ave(iq)  + sg(i)
+         if (sg(i)/ ( 1. - swrsave(iq)*albvisnir(iq,1)
+     &            -(1.-swrsave(iq))*albvisnir(iq,2) ).gt.120.) then
+           sunhours(iq)=sunhours(iq)+86400.
+         end if
        end do
       endif  ! (ktau>1)
       
@@ -640,6 +710,12 @@ c slwa is negative net radiational htg at ground
          slwa(iq) = -sg(i)+rgsave(iq)
          sgsave(iq) = sg(i)   ! this is the repeat after solarfit 26/7/02
       end do
+      if(odcalc.and.ndi<0.and.nmaxpr==1.and.idjd<=imax.and.mydiag)then
+        print *,'bit after  lwr88 ktau,j,myid ',ktau,j,myid  
+        print *,'sum_rg ',sum(rg(:))     
+        print *,'slwa,sg,rgsave,rg,tss,grnflx ',slwa(idjd),sg(idjd),
+     &           rgsave(idjd),rg(idjd),tss(idjd),grnflx(idjd)
+      endif
 
 ! Calculate rtt, the net radiational cooling of atmosphere (K/s) from htk (in
 ! W/m^2 for the layer). Note that dsig is negative which does the conversion
@@ -647,8 +723,8 @@ c slwa is negative net radiational htg at ground
       do k=1,kl
          do i=1,imax
             iq=i+(j-1)*il
-            rtt(iq,k) = (hswsav(iq,k)+hlwsav(iq,k)) /
-     &                   (cong*ps(iq)*dsig(k))
+            t(iq,k)=t(iq,k)-dt*(hswsav(iq,k)+hlwsav(iq,k)) /
+     &                   (cong*ps(iq)*dsig(k)) ! MJT
          end do
       end do
 !     k = 1  ! these 6 lines removed 18/6/03
@@ -676,19 +752,52 @@ c       endif
       soutx(istart:iend)=sout(:)
       sintx(istart:iend)=sint(:)
       rtx(istart:iend)=rt(:)
-
+      
  100  continue  ! Row loop (j)  j=1,jl,imax/il
-      if(ntest.gt.0)then
+      if(ntest>0.and.mydiag)then
         print *,'rgsave,rtsave,sintsave ',
      .           rgsave(idjd),rtsave(idjd),sintsave(idjd)
         print *,'sgsave,rtclsave,sgclsave ',
      .           sgsave(idjd),rtclsave(idjd),sgclsave(idjd)
-        print *,'alb ',alb(idjd)
+        print *,'alb ',albvisnir(idjd,1)
       endif
       if(nmaxpr==1.and.mydiag)then
         write (6,"('cfracr',9f8.3/6x,9f8.3)") cfrac(idjd,:)
         write (6,"('cloudlo,cloudmi,cloudhi,cloudtot',4f8.3)")
      .          cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
       endif
+      
+      call end_log(radmisc_end)
+      
       return
       end
+
+      !--------------------------------------------------------------
+      ! from CABLE code 1.4
+      subroutine spitter(mp,doy, coszen, fsd,fbeam)
+      ! Calculate beam fraction
+      ! See spitters et al. 1986, agric. for meteorol., 38:217-229
+      integer, intent(in) :: mp
+      REAL, INTENT(IN) :: doy	! day of year
+      REAL, DIMENSION(mp), INTENT(IN) :: coszen ! cos(zenith angle of sun)
+      REAL, DIMENSION(mp), INTENT(IN) :: fsd	! short wave down (positive) w/m^2
+      REAL, DIMENSION(mp), intent(out) :: fbeam	! beam fraction (result)
+      REAL, PARAMETER :: solcon = 1370.0
+      REAL, DIMENSION(mp) :: tmpr !
+      REAL, DIMENSION(mp) :: tmpk !
+      REAL, DIMENSION(mp) :: tmprat !
+      real, parameter :: two_pi = 2. * 3.1415927
+      fbeam = 0.0
+      tmpr = 0.847 + coszen * (1.04 * coszen - 1.61)
+      tmpk = (1.47 - tmpr) / 1.66
+      WHERE (coszen > 1.0e-10 .AND. fsd > 10.0)
+       tmprat = fsd / (solcon * (1.0 + 0.033 * 
+     &          COS(two_pi * (doy-10.0) / 365.0)) * coszen)
+      ELSEWHERE
+       tmprat = 0.0
+      END WHERE
+      WHERE (tmprat > 0.22) fbeam = 6.4 * (tmprat - 0.22) ** 2
+      WHERE (tmprat > 0.35) fbeam = MIN(1.66 * tmprat - 0.4728, 1.0)
+      WHERE (tmprat > tmpk) fbeam = MAX(1.0 - tmpr, 0.0)
+      END subroutine spitter
+      !--------------------------------------------------------------

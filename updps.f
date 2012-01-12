@@ -1,37 +1,39 @@
       subroutine updps(iadj)    
+      use arrays_m
       use cc_mpi
       use diag_m             ! for calls to maxmin
+      use indices_m
+      use map_m
+      use nlin_m             ! savs
+      use savuvt_m
+      use savuv1_m
+      use sbar_m
+      use sigs_m
+      use vecsuv_m
+      use vvel_m, omgf => dpsldt
+      use xarrs_m
+      use xyzinfo_m
       include 'newmpar.h'
-      include 'arrays.h'
       include 'const_phys.h'
-      include 'indices.h'
-      include 'map.h'
-      include 'nlin.h'  ! savs
-      include 'savuvt.h'
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmhor.h'
-      include 'sigs.h'
-      include 'vecsuv.h'   ! ax,bx etc
-      include 'vvel.h'     ! sdot
-      include 'xarrs.h'
-      include 'xyzinfo.h'  ! x,y,z,wts
       real derpsl(ifull),cc(ifull+iextra,kl),dd(ifull+iextra,kl)
       real d(ifull,kl)   ! NOT shared adjust5 or nonlin
-      real savs1(ifull,2:kl),savu1(ifull,kl),savv1(ifull,kl)
-      real sbar(ifull,2:kl)
-      common/savuv1/savs1,savu1,savv1,sbar 
-      real omgf(ifull,kl),e(ifull,kl)
-      equivalence (omgf,dpsldt)
+      real e(ifull,kl)
       real sdotin(ifull,kl),pslxin(ifull,kl),omgfin(ifull,kl)
       real pse(ifull+iextra),psn(ifull+iextra),psz(ifull+iextra)
       real, dimension(ifull+iextra,kl) :: uc, vc, wc
       real pslx_k(kl)
       save num
       data num/0/
-!     called for mup.ne.1, but always called for first time step
-!     usual is mup=1, using simple centred. 
-!              mup=2 to force it every step; 4 to use prior pslx
+!     Always called for first time step
+!     Called every step for mup.ne.1
+!     Usual is mup=1, using simple centred (only first step)
+!              mup=2, using simple centred (every time step)
+!              mup=4 to use prior pslx (no longer here)
+!              mup=5 (somewhat similar to 1) & 6 calc via staguv
+!              mup<0 various others
       
       if(mup<=-4)then
         if(ktau<3)then
@@ -46,10 +48,10 @@
       if(mup>=5)then
         call staguv(u(1:ifull,:),v(1:ifull,:),
      &             cc(1:ifull,:),dd(1:ifull,:)) 
-	 do k=1,kl
-	  cc(1:ifull,k)=cc(1:ifull,k)/emu(1:ifull)
-	  dd(1:ifull,k)=dd(1:ifull,k)/emv(1:ifull)
-	 enddo
+        do k=1,kl
+          cc(1:ifull,k)=cc(1:ifull,k)/emu(1:ifull)
+          dd(1:ifull,k)=dd(1:ifull,k)/emv(1:ifull)
+        enddo
         call boundsuv(cc,dd)
         do k=1,kl
 !cdir nodep
@@ -231,6 +233,8 @@
           print *,'v_iq,inv,isv ',v(iq,k),v(inv(iq),k),v(isv(iq),k)
         endif
         call printa('div5',d,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
+        call printa('u',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
+        call printa('v',u,ktau,nlv,ia,ib,ja,jb,0.,1.)
       endif
       return
       end

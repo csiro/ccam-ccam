@@ -5,6 +5,7 @@ c     including calls to table lookup subroutines. also,after calling
 c     subroutine "spa88", final combined heating rates and ground 
 c     flux are obtained.
 c     ***************************************************************** 
+c     jlm: renamed dt() to dtemp() & removed unused arrays on 18/7/08
 c              inputs:  
 c        betinw,betawd,ab15wd              bdwide 
 c        betad,bo3rnd,ao3rnd               bandta 
@@ -44,12 +45,13 @@ c                   the top of the atmosphere. computed over the freq.
 c                   range 0-560,1200-2200 cm-1. used for q(approx) term.
 c                   (in common block tfcom) 
 c        e1ctw1  =  like e1cts1,but computed over the 160-560 cm-1 range
+
 c                   and used for q(approx,cts) calculation
 c        e1ctw2  =  like e1cts2,but computed over the 160-560 cm-1 range
 c                   and used for q(approx,cts) calculation
 c        fxo     =  temperature index used for e1 function and also 
 c                   used for source function calc. in fst88.
-c        dt      =  temp. diff.between model temps. and temps. at 
+c        dtemp   =  temp. diff.between model temps. and temps. at 
 c                   tabular values of e1 and source fctns. used in
 c                   fst88 and in e1 function calc.
 *VOCL TOTAL,REPEAT(999999)
@@ -65,37 +67,40 @@ CDIR$ TASK COMMON SRCCOM
 CDIR$ TASK COMMON TFCOM
 c CDIR$ TASK COMMON VTEMP
 
+      use cc_mpi, only : mydiag,myid
+      use cldcom_m
+      use diag_m
+      use kdacom_m
+      use lwout_m
+      use radisw_m
+      use rdflux_m
+      use srccom_m
+      use tabcom_m
+      use tfcom_m
+      implicit none
       include 'newmpar.h'
       include 'hcon.h'
-c     include 'parm.h'
+      include 'parm.h'
       include 'rdparm.h'
-      include 'radisw.h'
       include 'rnddta.h'
-      include 'tabcom.h'
-      include 'rdflux.h'
-      include 'lwout.h'
-      include 'kdacom.h'
-      include 'srccom.h'
-      include 'tfcom.h'
-      include 'cldcom.h'
-      integer ixo(imax,lp1),itop(imax),ibot(imax),indtc(imax)
+      integer ixo(imax,lp1)  !itop(imax),ibot(imax),indtc(imax)
       real vtmp1(imax,lp1),vtmp2(imax,lp1),
-     & vtmp3(imax,lp1),c(imax,llp1),alp(imax,llp1),dsorc(imax,lp1),
+     & vtmp3(imax,lp1),c(imax,llp1),alp(imax,llp1), !dsorc(imax,lp1),
      & totphi(imax,lp1),toto3(imax,lp1),tphio3(imax,lp1),rlog(imax,l),
      & delptc(imax),ptop(imax),pbot(imax),ftop(imax),
      & fbot(imax)
-      real  over1d(imax,lp1m)
+c     real  over1d(imax,lp1m)
       dimension vtmp3x(imax+1,lp1),dsorcx(imax+1,lp1)
 c---dimension of variables equivalenced to those in vtemp---
-      dimension tval(imax,lp1),vsum1(imax,lp1),heatem(imax,lp1) 
+      dimension vsum1(imax,lp1),heatem(imax,lp1) !tval(imax,lp1),
       dimension emxx(imax,l)
       dimension csub(imax,llp1) ,csub2(imax,llp1),c2(imax,llp1)
-      dimension flx(imax,lp1),sum(imax,lp1) 
+      dimension flx(imax,lp1) !sum(imax,lp1) 
       dimension oss(imax,lp1),css(imax,lp1),ss2(imax,lp1),tc(imax,lp1), 
      & dtc(imax,lp1)
       dimension alpsq1(imax,lp1),alpsq2(imax,lp1) 
       dimension delpr1(imax,lp1),delpr2(imax,lp1) 
-      dimension flxnet(imax,lp1),flxthk(imax,lp1) 
+      dimension flxnet(imax,lp1) ! flxthk(imax,lp1) 
       dimension z1(imax,lp1),ceval(imax,lp1)
       dimension cevalclr(imax,lp1)
       dimension totevv(imax,lp1)
@@ -104,30 +109,33 @@ c---dimension of variables equivalenced to those in vtemp---
       dimension over(imax,lp1,lp1)
       dimension emisst(imax,lp1,lp1)
 c---dimension of variables equivalenced to those in other common blks-- 
-      dimension to31d(imax,lp1m),emi21d(imax,lp1m)
-      dimension co21d(imax,lp1m),emis1d(imax,lp1m)
-      dimension avep1d(imax,lp1m),avep1(imax*lp1m)
+c     dimension to31d(imax,lp1m),emi21d(imax,lp1m)
+c     dimension co21d(imax,lp1m),emis1d(imax,lp1m)
+c     dimension avep1d(imax,lp1m),avep1(imax*lp1m)
 c---dimension of variables passed to other subroutines--- 
       dimension e1cts1(imax,lp1),e1cts2(imax,l) 
       dimension e1ctw1(imax,lp1),e1ctw2(imax,l) 
-      dimension fxo(imax,lp1),dt(imax,lp1)
+      dimension fxo(imax,lp1),dtemp(imax,lp1)
       dimension emd(imax,llp1),tpl(imax,llp1),empl(imax,llp1) 
 c---emx1 is a local variable used as input and output to e1e288--
       dimension emx1(imax)
-      equivalence (vtmp3,tval,vsum1,emxx,tc,heatem) 
-      equivalence (dsorc,totevv,delpr1,oss,sum,flxnet)
-      equivalence (totphi,delpr2,css,flx,z1)
-      equivalence (toto3,alpsq1,dtc,flxthk) 
-      equivalence (tphio3,alpsq2,ss2,ceval) 
-      equivalence (avephi,avep1d,avep1),(emi21d,emiss2) 
-      equivalence (over1d,over),(to31d,to3),(emis1d,emiss)
-      equivalence (co21d,co21)
-      equivalence (alp,csub)
+cx      equivalence (vtmp3,vsum1,emxx,tc,heatem) 
+cx      equivalence (totevv,delpr1,oss,flxnet)
+cx      equivalence (totphi,delpr2,css,flx,z1)
+cx      equivalence (toto3,alpsq1,dtc) 
+cx      equivalence (tphio3,alpsq2,ss2,ceval) 
+cx      equivalence (alp,csub)
       real flxclr(imax,lp1),vsum1clr(imax,lp1),vtmp1clr(imax,lp1)
       real ctsclr(imax,l)
       real heatemclr(imax,lp1),heatraclr(imax,lp1)
-c
-c 
+      integer i,icnt,j1,j3,k,kclds,kk,kp,kx
+      real alpsq1,alpsq2,avephj,avmo3,avpho3,avvo2
+      real c2,ceval,cevalclr,css,csub,csub2,delpr1,delpr2
+      real dsorcx,dtc,dtemp,e1cts1,e1cts2,e1ctw1,e1ctw2
+      real emd,emisst,empl
+      real emx1,emxx,fac1,flx,flxnet,fxo,heatem,oss,over
+      real ss2,tc,totevv,tpl,vsum1,vtmp3x,z1
+ 
 c          first section is table lookup for source function and
 c     derivative (b and db/dt).also,the nlte co2 source function
 c     is obtained 
@@ -136,12 +144,13 @@ c---decrementing the index by 9 accounts for the tables beginning
 c   at t=100k.
 
 !!!      print*, ' In fst88 '
-      do 101 i=1,imax*lp1
-      vtmp2(i,1)=aint(temp(i,1)*hp1)
-      fxo(i,1)=vtmp2(i,1)-9.
-      dt(i,1)=temp(i,1)-ten*vtmp2(i,1)
-      ixo(i,1)=fxo(i,1)
-101   continue
+      do 101 k=1,lp1                      ! MJT bug fix
+      do 101 i=1,imax                     ! MJT bug fix
+      vtmp2(i,k)=aint(temp(i,l)*hp1)      ! MJT bug fix
+      fxo(i,k)=vtmp2(i,k)-9.              ! MJT bug fix
+      dtemp(i,k)=temp(i,k)-ten*vtmp2(i,k) ! MJT bug fix
+      ixo(i,k)=fxo(i,k)                   ! MJT bug fix
+101   continue                            ! MJT bug fix
 c 
 c---source function for combined band 1
       do 4114 i=1,imax 
@@ -151,7 +160,7 @@ c---source function for combined band 1
 4114   continue
       do 4112 k=1,lp1
       do 4112 i=1,imax
-      sorc(i,k,1)=vtmp3x(i,k)+dt(i,k)*dsorcx(i,k)
+      sorc(i,k,1)=vtmp3x(i,k)+dtemp(i,k)*dsorcx(i,k)
 4112   continue
 c---source function for combined band 2
       do 4214 i=1,imax 
@@ -161,7 +170,7 @@ c---source function for combined band 2
 4214   continue
       do 4212 k=1,lp1
       do 4212 i=1,imax
-      sorc(i,k,2)=vtmp3x(i,k)+dt(i,k)*dsorcx(i,k)
+      sorc(i,k,2)=vtmp3x(i,k)+dtemp(i,k)*dsorcx(i,k)
 4212   continue
 !!!       print*, ' 4212 '
 c---source function for combined band 3
@@ -172,7 +181,7 @@ c---source function for combined band 3
 4314   continue
       do 4312 k=1,lp1
       do 4312 i=1,imax
-      sorc(i,k,3)=vtmp3x(i,k)+dt(i,k)*dsorcx(i,k)
+      sorc(i,k,3)=vtmp3x(i,k)+dtemp(i,k)*dsorcx(i,k)
 4312   continue
 c---source function for combined band 4
       do 4414 i=1,imax 
@@ -182,7 +191,7 @@ c---source function for combined band 4
 4414   continue
       do 4412 k=1,lp1
       do 4412 i=1,imax
-      sorc(i,k,4)=vtmp3x(i,k)+dt(i,k)*dsorcx(i,k)
+      sorc(i,k,4)=vtmp3x(i,k)+dtemp(i,k)*dsorcx(i,k)
 4412   continue
 c---source function for combined band 5
       do 4514 i=1,imax 
@@ -192,7 +201,7 @@ c---source function for combined band 5
 4514   continue
       do 4512 k=1,lp1
       do 4512 i=1,imax
-      sorc(i,k,5)=vtmp3x(i,k)+dt(i,k)*dsorcx(i,k)
+      sorc(i,k,5)=vtmp3x(i,k)+dtemp(i,k)*dsorcx(i,k)
 4512   continue
 c---source function for combined band 6
       do 4614 i=1,imax 
@@ -202,7 +211,7 @@ c---source function for combined band 6
 4614   continue
       do 4612 k=1,lp1
       do 4612 i=1,imax
-      sorc(i,k,6)=vtmp3x(i,k)+dt(i,k)*dsorcx(i,k)
+      sorc(i,k,6)=vtmp3x(i,k)+dtemp(i,k)*dsorcx(i,k)
 4612   continue
 c---source function for combined band 7
       do 4714 i=1,imax 
@@ -212,7 +221,7 @@ c---source function for combined band 7
 4714   continue
       do 4712 k=1,lp1
       do 4712 i=1,imax
-      sorc(i,k,7)=vtmp3x(i,k)+dt(i,k)*dsorcx(i,k)
+      sorc(i,k,7)=vtmp3x(i,k)+dtemp(i,k)*dsorcx(i,k)
 4712   continue
 c---source function for combined band 8
       do 4814 i=1,imax 
@@ -222,7 +231,7 @@ c---source function for combined band 8
 4814   continue
       do 4812 k=1,lp1
       do 4812 i=1,imax
-      sorc(i,k,8)=vtmp3x(i,k)+dt(i,k)*dsorcx(i,k)
+      sorc(i,k,8)=vtmp3x(i,k)+dtemp(i,k)*dsorcx(i,k)
 4812   continue
 c---source function for band 9 (560-670 cm-1)
       do 4914 i=1,imax 
@@ -232,7 +241,7 @@ c---source function for band 9 (560-670 cm-1)
 4914   continue
       do 4912 k=1,lp1
       do 4912 i=1,imax
-      sorc(i,k,9)=vtmp3x(i,k)+dt(i,k)*dsorcx(i,k)
+      sorc(i,k,9)=vtmp3x(i,k)+dtemp(i,k)*dsorcx(i,k)
 4912   continue
 c---source function for band 10 (670-800 cm-1)
       do 5014 i=1,imax 
@@ -242,7 +251,7 @@ c---source function for band 10 (670-800 cm-1)
 5014  continue
       do 5012 k=1,lp1
       do 5012 i=1,imax
-      sorc(i,k,10)=vtmp3x(i,k)+dt(i,k)*dsorcx(i,k)
+      sorc(i,k,10)=vtmp3x(i,k)+dtemp(i,k)*dsorcx(i,k)
 5012   continue
 c---source function for band 11 (800-900 cm-1)
       do 5114 i=1,imax 
@@ -252,7 +261,7 @@ c---source function for band 11 (800-900 cm-1)
 5114   continue
       do 5112 k=1,lp1
       do 5112 i=1,imax
-      sorc(i,k,11)=vtmp3x(i,k)+dt(i,k)*dsorcx(i,k)
+      sorc(i,k,11)=vtmp3x(i,k)+dtemp(i,k)*dsorcx(i,k)
 5112   continue
 c---source function for band 12 (900-990 cm-1)
       do 5214 i=1,imax 
@@ -262,7 +271,7 @@ c---source function for band 12 (900-990 cm-1)
 5214   continue
       do 5212 k=1,lp1
       do 5212 i=1,imax
-      sorc(i,k,12)=vtmp3x(i,k)+dt(i,k)*dsorcx(i,k)
+      sorc(i,k,12)=vtmp3x(i,k)+dtemp(i,k)*dsorcx(i,k)
 5212   continue
 c---source function for band 13 (990-1070 cm-1)
       do 5314 i=1,imax 
@@ -272,7 +281,7 @@ c---source function for band 13 (990-1070 cm-1)
 5314   continue
       do 5312 k=1,lp1
       do 5312 i=1,imax
-      sorc(i,k,13)=vtmp3x(i,k)+dt(i,k)*dsorcx(i,k)
+      sorc(i,k,13)=vtmp3x(i,k)+dtemp(i,k)*dsorcx(i,k)
 5312   continue
 c---source function for band 14 (1070-1200 cm-1)
       do 5414 i=1,imax 
@@ -282,7 +291,7 @@ c---source function for band 14 (1070-1200 cm-1)
 5414   continue
       do 5412 k=1,lp1
       do 5412 i=1,imax
-      sorc(i,k,14)=vtmp3x(i,k)+dt(i,k)*dsorcx(i,k)
+      sorc(i,k,14)=vtmp3x(i,k)+dtemp(i,k)*dsorcx(i,k)
 5412   continue
 !!!       print*, ' 5412 '
 c 
@@ -292,13 +301,15 @@ c
 c 
 c---obtain special source functions for the 15 um band (csour),the
 c   9.6 um band (osour) and the window region (ss1)
-      do 131 i=1,imax*lp1
-      ss1(i,1)=sorc(i,1,11)+sorc(i,1,12)+sorc(i,1,14)
-131   continue
-      do 143 i=1,imax*lp1
-      csour(i,1)=sorc(i,1,9)+sorc(i,1,10)
-      osour(i,1)=sorc(i,1,13) 
-143   continue
+      do 131 k=1,lp1                                   ! MJT bug fix
+      do 131 i=1,imax                                  ! MJT bug fix
+      ss1(i,k)=sorc(i,k,11)+sorc(i,k,12)+sorc(i,k,14)  ! MJT bug fix
+131   continue                                         ! MJT bug fix
+      do 143 k=1,lp1                                   ! MJT bug fix
+      do 143 i=1,imax                                  ! MJT bug fix
+      csour(i,k)=sorc(i,k,9)+sorc(i,k,10)              ! MJT bug fix
+      osour(i,k)=sorc(i,k,13)                          ! MJT bug fix
+143   continue                                         ! MJT bug fix
 c 
 c 
 c     second section produces 4 matrices for later use in program:  
@@ -324,11 +335,21 @@ c
       tphio3(i,k)=tphio3(i,k-1)+var4(i,k-1) 
       totvo2(i,k)=totvo2(i,k-1)+cntval(i,k-1) 
 203   continue
-!      print*, ' TOTO3 1 ', (toto3(1,k),k=1,lp1)
-!      print*, ' TOTO3 2 ', (toto3(2,k),k=1,lp1)
-!      print*, ' VAR3 1', (var3(1,k),k=1,l)
-!      print*, ' VAR3 2', (var3(2,k),k=1,l)
-c 
+
+        if(ndi<0.and.nmaxpr==1.and.idjd<=imax.and.mydiag)then
+         print *,'during fst88 myid',myid
+         write(6,"('totphi ',10g10.3)")(totphi(idjd,k),k=1,kl+1)
+         write(6,"('var2 ',10g10.3)")(var2(idjd,k),k=1,kl+1)
+         write(6,"('toto3 ',10g10.3)")(toto3(idjd,k),k=1,kl+1)
+         write(6,"('tphio3 ',10g10.3)")(tphio3(idjd,k),k=1,kl+1)
+         write(6,"('totvo2 ',10g10.3)")(totvo2(idjd,k),k=1,kl)
+         write(6,"('var1 ',10g10.3)")(var1(idjd,k),k=1,kl)
+         write(6,"('var3 ',10g10.3)")(var3(idjd,k),k=1,kl)
+         write(6,"('var4 ',10g10.3)")(var4(idjd,k),k=1,kl)
+         write(6,"('delp2 ',10g10.3)")(delp2(idjd,k),k=1,kl)
+         write(6,"('qh2o ',10g10.3)")(qh2o(idjd,k),k=1,kl)
+        endif
+ 
 c     the calculational procedure used here is: 
 c       1) from the 1-d vectors (totphi,toto3,etc) construct a 1-d
 c  arrays including all information for the upper (i>j) triangle
@@ -355,61 +376,122 @@ c      stage 1....compute o3 ,over transmission fctns and avephi
 c---do k=1 calculation (from flux layer kk to the top) separately
 c   as vectorization is improved,and ozone cts transmissivity
 c   may be extracted here.
-      do 302 i=1,imax*l
-      avmo3(i,1)=toto3(i,2)
-      avpho3(i,1)=tphio3(i,2)
-      avephj(i,1)=totphi(i,2)
-      avvo2(i,1)=totvo2(i,2)
-      fac1(i,1)=bo3rnd(2)*avpho3(i,1)/avmo3(i,1)
-      vtmp2(i,1)=haf*(fac1(i,1)*
-     &    (sqrt(one+(four*ao3rnd(2)*avmo3(i,1))/fac1(i,1))-one))
-      vtmp1(i,1)=exp(hm1ez*(vtmp2(i,1)+sko3r*avvo2(i,1)))
-      vtmp3(i,1)=exp(hm1ez*(sqrt(ab15wd*avephj(i,1))+    
-     &            skc1r*avvo2(i,1)))
+      do 302 k=1,l                                               ! MJT bug fix
+      do 302 i=1,imax                                            ! MJT bug fix
+      avmo3(i,k)=toto3(i,k+1)                                    ! MJT bug fix
+      avpho3(i,k)=tphio3(i,k+1)                                  ! MJT bug fix
+      avephj(i,k)=totphi(i,k+1)                                  ! MJT bug fix
+      avvo2(i,k)=totvo2(i,k+1)                                   ! MJT bug fix
+      fac1(i,k)=bo3rnd(2)*avpho3(i,k)/avmo3(i,k)                 ! MJT bug fix
+      vtmp2(i,k)=haf*(fac1(i,k)*
+     &    (sqrt(one+(four*ao3rnd(2)*avmo3(i,k))/fac1(i,k))-one)) ! MJT bug fix
+      vtmp1(i,k)=exp(hm1ez*(vtmp2(i,k)+sko3r*avvo2(i,k)))        ! MJT bug fix
+      vtmp3(i,k)=exp(hm1ez*(sqrt(ab15wd*avephj(i,k))+    
+     &            skc1r*avvo2(i,k)))                             ! MJT bug fix
 c---the next 4 lines fill up the upper triangle of the to3,avephi
 c   and over matrices, and all of the to3spc array. the notation
 c   is obscure; note that an equivalent statement for line 1 would be:
 c   for i=1 to imax and kp=k+1(=2) to lp1:  to3(i,kp,1)=vtmp1(i,kp)
-      to3(i,2,1)=vtmp1(i,1)
-      avephi(i,2,1)=avephj(i,1)
-      over(i,2,1)=vtmp3(i,1)
-      to3spc(i,1)=vtmp2(i,1)
-302   continue
+      to3(i,k+1,1)=vtmp1(i,k)                                    ! MJT bug fix
+      avephi(i,k+1,1)=avephj(i,k)                                ! MJT bug fix
+      over(i,k+1,1)=vtmp3(i,k)                                   ! MJT bug fix
+      to3spc(i,k)=vtmp2(i,k)                                     ! MJT bug fix
+302   continue                                                   ! MJT bug fix
+
+        if(ndi<0.and.nmaxpr==1.and.idjd<=imax.and.mydiag)then
+         print *,'during_b fst88 myid',myid
+         write(6,"('vtmp1 ',10g10.3)")(vtmp1(idjd,k),k=1,kl+1)
+         do kk=1,kl+1
+          print *,'kk = ',kk
+          write(6,"('to3 ',10g10.3)") (to3(idjd,k,kk),k=1,kl+1)
+         enddo
+        endif
+
 c---fill in lower triangle of to3,over arrays. it is unnecessary to
 c   fill in avephi array at this time.
-      do 307 kp=2,lp1
-      do 307 i=1,imax
-      to3(i,1,kp)=vtmp1(i,kp-1)
-      over(i,1,kp)=vtmp3(i,kp-1)
-307   continue
+c      do 307 kp=2,lp1
+c      do 307 i=1,imax
+c      to3(i,1,kp)=vtmp1(i,kp-1)
+c      over(i,1,kp)=vtmp3(i,kp-1)
+c307   continue
+cc---now repeat for the k=2..l cases. 
+c      do 321 k=2,l
+c      do 322 kk=1,lp1-k
+c      do 322 i=1,imax 
+c      avmo3(i,kk)=toto3(i,kk+k)-toto3(i,k)
+c      avpho3(i,kk)=tphio3(i,kk+k)-tphio3(i,k) 
+c      avephj(i,kk)=totphi(i,kk+k)-totphi(i,k) 
+c      avvo2(i,kk)=totvo2(i,kk+k)-totvo2(i,k)
+c322   continue
+c      do 3221 i=1,imax*(lp1-k)
+c      fac1(i,1)=bo3rnd(2)*avpho3(i,1)/avmo3(i,1)
+c      vtmp2(i,1)=haf*(fac1(i,1)*
+c     &    (sqrt(one+(four*ao3rnd(2)*avmo3(i,1))/fac1(i,1))-one))
+c      vtmp1(i,1)=exp(hm1ez*(vtmp2(i,1)+sko3r*avvo2(i,1)))
+c      vtmp3(i,1)=exp(hm1ez*(sqrt(ab15wd*avephj(i,1))+    
+c     &            skc1r*avvo2(i,1)))
+c      to3(i,k+1,k)=vtmp1(i,1)
+c      avephi(i,k+1,k)=avephj(i,1)
+c      over(i,k+1,k)=vtmp3(i,1)
+c3221  continue
+c      do 327 kp=k+1,lp1
+c      do 327 i=1,imax
+c      to3(i,k,kp)=vtmp1(i,kp-k)
+c      over(i,k,kp)=vtmp3(i,kp-k)
+c327   continue
+c321   continue
+
+c---fill in lower triangle of to3,over arrays. it is unnecessary to
+c   fill in avephi array at this time.  Following is jlm re-doing of loops
+      do kp=2,lp1
+      do i=1,imax
+        to3(i,1,kp)=vtmp1(i,kp-1)
+        over(i,1,kp)=vtmp3(i,kp-1)
+       enddo
+      enddo
 c---now repeat for the k=2..l cases. 
-      do 321 k=2,l
-      do 322 kk=1,lp1-k
-      do 322 i=1,imax 
-      avmo3(i,kk)=toto3(i,kk+k)-toto3(i,k)
-      avpho3(i,kk)=tphio3(i,kk+k)-tphio3(i,k) 
-      avephj(i,kk)=totphi(i,kk+k)-totphi(i,k) 
-      avvo2(i,kk)=totvo2(i,kk+k)-totvo2(i,k)
-322   continue
-      do 3221 i=1,imax*(lp1-k)
-      fac1(i,1)=bo3rnd(2)*avpho3(i,1)/avmo3(i,1)
-      vtmp2(i,1)=haf*(fac1(i,1)*
-     &    (sqrt(one+(four*ao3rnd(2)*avmo3(i,1))/fac1(i,1))-one))
-      vtmp1(i,1)=exp(hm1ez*(vtmp2(i,1)+sko3r*avvo2(i,1)))
-      vtmp3(i,1)=exp(hm1ez*(sqrt(ab15wd*avephj(i,1))+    
-     &            skc1r*avvo2(i,1)))
-      to3(i,k+1,k)=vtmp1(i,1)
-      avephi(i,k+1,k)=avephj(i,1)
-      over(i,k+1,k)=vtmp3(i,1)
-3221  continue
-!      print*, ' 3221 '
-      do 327 kp=k+1,lp1
-      do 327 i=1,imax
-      to3(i,k,kp)=vtmp1(i,kp-k)
-      over(i,k,kp)=vtmp3(i,kp-k)
-327   continue
-321   continue
-!!!      print*, ' 321 '
+      do k=2,l
+       do kk=1,lp1-k
+        do i=1,imax 
+         avmo3(i,kk)=toto3(i,kk+k)-toto3(i,k)
+         avpho3(i,kk)=tphio3(i,kk+k)-tphio3(i,k) 
+         avephj(i,kk)=totphi(i,kk+k)-totphi(i,k) 
+         avvo2(i,kk)=totvo2(i,kk+k)-totvo2(i,k)
+        enddo
+       enddo
+       do kx=1,lp1-k
+        do i=1,imax
+         fac1(i,kx)=bo3rnd(2)*avpho3(i,kx)/avmo3(i,kx)
+         vtmp2(i,kx)=haf*(fac1(i,kx)*
+     &          (sqrt(one+(four*ao3rnd(2)*avmo3(i,kx))/fac1(i,kx))-one))
+         vtmp1(i,kx)=exp(hm1ez*(vtmp2(i,kx)+sko3r*avvo2(i,kx)))
+         vtmp3(i,kx)=exp(hm1ez*(sqrt(ab15wd*avephj(i,kx))+    
+     &               skc1r*avvo2(i,kx)))
+         avephi(i,k+kx,k)=avephj(i,kx)
+         to3(i,k+kx,k)=vtmp1(i,kx)
+         over(i,k+kx,k)=vtmp3(i,kx)
+         to3(i,k,k+kx)=vtmp1(i,kx)
+         over(i,k,k+kx)=vtmp3(i,kx)
+        enddo
+       enddo  ! kx loop
+c       do kp=k+1,lp1
+c        do i=1,imax
+c         to3(i,k,kp)=vtmp1(i,kp-k)
+c         over(i,k,kp)=vtmp3(i,kp-k)
+c        enddo
+c       enddo
+       if(ndi<0.and.nmaxpr==1.and.idjd<=imax.and.mydiag)then
+        print *,'during_c fst88 k,myid',k,myid
+        write(6,"('fac1 ',10g10.3)")(fac1(idjd,kx),kx=1,kl+1-k)
+        write(6,"('avpho3 ',10g10.3)")(avpho3(idjd,kx),kx=1,kl+1-k)
+        write(6,"('avmo3 ',10g10.3)")(avmo3(idjd,kx),kx=1,kl+1-k)
+        write(6,"('avvo2 ',10g10.3)")(avvo2(idjd,kx),kx=1,kl+1-k)
+        write(6,"('vtmp1 ',10g10.3)")(vtmp1(idjd,kx),kx=1,kl+1-k)
+        write(6,"('vtmp2 ',10g10.3)")(vtmp2(idjd,kx),kx=1,kl+1-k)
+        write(6,"('to3 ',10g10.3)") (to3(idjd,kx,k),kx=1,kl+1)
+       endif
+      enddo  ! k loop     
+
 c---initialize diagonal elements of to3,over (not needed for avephi)
       do 309 k=1,lp1
       do 309 i=1,imax
@@ -609,7 +691,7 @@ c---now fill in the lower triangle elements of avephi
 c
 c     call e1e288 for emissivity transmission fctns for h2o 
 !!!      print*, ' Calling e1e288 '
-           call e1e288(e1cts1,e1cts2,e1flx,e1ctw1,e1ctw2,fxo,dt)
+           call e1e288(e1cts1,e1cts2,e1flx,e1ctw1,e1ctw2,fxo,dtemp)
 !!!      print*, ' Done e1e288 '
 c 
       do 853 k=1,lm1
@@ -827,5 +909,51 @@ c     heatra(i,1)=radcon*(flxnet(i,2)-flxnet(i,1))*delp(i,1)
       heatra(i,1)=(flxnet(i,2)-flxnet(i,1))
 6101  continue
 c     the thick cloud section ends here.
+
+        if(ndi<0.and.nmaxpr==1.and.idjd<=imax.and.mydiag)then
+         print *,'At end of fst88 myid',myid
+         write(6,"('grnflx ',g10.3)") grnflx(idjd)
+         write(6,"('rlog ',10g10.3)")(rlog(idjd,k),k=1,kl)
+         write(6,"('emxx ',10g10.3)")(emxx(idjd,k),k=1,kl)
+         write(6,"('heatra ',10g10.3)")(heatra(idjd,k),k=1,kl)
+         write(6,"('heatem ',10g10.3)")(heatem(idjd,k),k=1,kl+1)
+         write(6,"('flxnet ',10g10.3)")(flxnet(idjd,k),k=1,kl+1)
+         write(6,"('vsum1 ',10g10.3)")(vsum1(idjd,k),k=1,kl+1)
+         write(6,"('z1 ',10g10.3)")(z1(idjd,k),k=1,kl+1)
+         write(6,"('flxclr ',10g10.3)")(flxclr(idjd,k),k=1,kl+1)
+         write(6,"('flx ',10g10.3)")(flx(idjd,k),k=1,kl+1)
+         write(6,"('tpl ',10g10.3)")(tpl(idjd,k),k=1,2*kl+1)
+         write(6,"('empl ',10g10.3)")(empl(idjd,k),k=1,2*kl+1)
+         write(6,"('csub ',10g10.3)")(csub(idjd,k),k=1,2*kl+1)
+         write(6,"('c ',10g10.3)")(c(idjd,k),k=1,2*kl+1)
+         write(6,"('c2 ',10g10.3)")(c2(idjd,k),k=1,2*kl+1)
+         write(6,"('alp ',10g10.3)")(alp(idjd,k),k=1,2*kl+1)
+         write(6,"('co2sp ',10g10.3)")(co2sp(idjd,k),k=1,kl+1)
+         write(6,"('totevv ',10g10.3)")(totevv(idjd,k),k=1,kl+1)
+         write(6,"('vtmp1 ',10g10.3)")(vtmp1(idjd,k),k=1,kl+1)
+         write(6,"('vtmp2 ',10g10.3)")(vtmp2(idjd,k),k=1,kl+1)
+         write(6,"('vtmp3 ',10g10.3)")(vtmp3(idjd,k),k=1,kl+1)
+         write(6,"('fac1 ',10g10.3)")(fac1(idjd,k),k=1,kl+1)
+         write(6,"('avmo3 ',10g10.3)")(avmo3(idjd,k),k=1,kl+1)
+         write(6,"('avpho3 ',10g10.3)")(avpho3(idjd,k),k=1,kl+1)
+         write(6,"('avvo2 ',10g10.3)")(avvo2(idjd,k),k=1,kl+1)
+         write(6,"('csour ',10g10.3)")(csour(idjd,k),k=1,kl+1)
+         write(6,"('osour ',10g10.3)")(osour(idjd,k),k=1,kl+1)
+         write(6,"('ss1 ',10g10.3)")(ss1(idjd,k),k=1,kl+1)
+         write(6,"('ss2 ',10g10.3)")(ss2(idjd,k),k=1,kl+1)
+         write(6,"('totevv ',10g10.3)")(totevv(idjd,k),k=1,kl+1)
+         write(6,"('dtemp ',10g10.3)")(dtemp(idjd,k),k=1,kl+1)
+         write(6,"('dtc ',10g10.3)")(dtc(idjd,k),k=1,kl+1)
+         write(6,"('oss ',10g10.3)")(oss(idjd,k),k=1,kl+1)
+         write(6,"('css ',10g10.3)")(css(idjd,k),k=1,kl+1)
+         do kk=1,kl+1
+          print *,'kk = ',kk
+          write(6,"('emiss ',10g10.3)") (emiss(idjd,k,kk),k=1,kl+1)
+          write(6,"('emiss2 ',10g10.3)") (emiss2(idjd,k,kk),k=1,kl+1)
+          write(6,"('emisst ',10g10.3)") (emisst(idjd,k,kk),k=1,kl+1)
+          write(6,"('to3 ',10g10.3)") (to3(idjd,k,kk),k=1,kl+1)
+          write(6,"('co21 ',10g10.3)") (co21(idjd,k,kk),k=1,kl+1)
+         enddo
+        endif
       return
       end 

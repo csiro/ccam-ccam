@@ -6,32 +6,49 @@
 !     In CCAM version latitude may be different for every point.
 
 !     Fixed format f90
-
+      use o3amip_m
       implicit none
       include 'newmpar.h'
-      integer, parameter :: klp = kl+1
-      include 'o3amip.h'
       include 'const_phys.h'
+      include 'dates.h'
       integer, intent(in) :: npts
       real, dimension(npts), intent(in) :: alat     ! Latitude
       integer, intent(in) :: mins  ! Time
-      real, intent(in),  dimension(klp) :: sigh ! Half level sigma
+      real, intent(in),  dimension(kl+1) :: sigh ! Half level sigma
       real, intent(in),  dimension(npts) :: ps  ! Surface pressure
       real, intent(out), dimension(npts,kl) :: qo3  ! Ozone mixing ratio
 !     Day no of middle of month
-      real, parameter, dimension(12) :: monmid =  
+      real, dimension(12) :: monmid
+      real, parameter, dimension(12) :: oldmid =  
      &  (/ 15.5, 45.0, 74.5, 105.0, 135.5, 166.0, 196.5, 227.5, 258.0, 
      &     288.5, 319.0, 349.5 /)
       real, dimension(kg) :: oz    ! Column for this date and lat.
       real, dimension(lg) :: ozcol ! Integrated column
-      real, dimension(klp) :: qo3p
-      integer :: k1
+      real, dimension(kl+1) :: qo3p
+      integer :: k1, leap, jyear
       integer :: j, m1, m2, j1, j2, k, kk, k1min
-      real, dimension(klp) :: prh ! Half level pressure
+      real, dimension(kl+1) :: prh ! Half level pressure
       real :: fac1, fac2, tfac1, tfac2, date, theta
+      common/leap_yr/leap  ! 1 to allow leap years
 
-!     Time interpolation factors (assume year of exactly 365 days)
-      date = real(modulo(mins,525600)) / 1440.0
+      monmid=oldmid
+      if (leap.eq.1) then
+        jyear =kdate/10000
+        if (mod(jyear,4)  .eq.0) then
+          monmid(2)=oldmid(2)+0.5
+          monmid(3:12)=oldmid(3:12)+1.
+        end if
+        if (mod(jyear,100).eq.0) then
+          monmid(2:12)=oldmid(2:12)
+        end if
+        if (mod(jyear,400).eq.0) then
+          monmid(2)=oldmid(2)+0.5
+          monmid(3:12)=oldmid(3:12)+1.
+        end if
+      end if
+
+!     Time interpolation factors
+      date = real(modulo(mins,nint(monmid(12)+15.5)*1440)) / 1440.0
       if ( date <= monmid(1) ) then ! First half of Jan
          m1 = 12
          m2 = 1
@@ -100,7 +117,7 @@
          prh = sigh * ps(j)*0.01 ! Input PS in Pa
 
          qo3p = 0.
-         qo3p(klp) = 0.0      ! TOA
+         qo3p(kl+1) = 0.0      ! TOA
          do k=kl,1,-1           ! Start at the top model level
 
 !        Find largest k1 such that gpri(k1) <= prh(k)

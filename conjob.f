@@ -1,10 +1,22 @@
-      subroutine conjob      ! globpea & rcsb (non-chen); nkuo=46 only
-      include 'newmpar.h'
+      subroutine conjob(iaero)      ! globpea & rcsb (non-chen); nkuo=46 only
+      use aerosolldr
+      use arrays_m
+      use cc_mpi, only : mydiag
+      use epst_m
+      use kuocomb_m  ! also with kbsav,ktsav,convpsav,ndavconv
+      use morepbl_m
+      use nlin_m
+      use prec_m
+      use sigs_m
+      use soil_m
+      use tkeeps, only : tke, eps
+      use tracers_m  ! ngas, nllp, ntrac
+      include 'newmpar.h' 
       parameter (itermax=1)  ! originally 2 - not available in vect. version
       parameter (ntest=0)    ! 1 or 2 to turn on; for 3 uncomment !!! lines
       parameter (nrenorm=1)  ! usually 1
       parameter (no2layer=0) ! usually 0, 1 to suppress 2-layer clouds (no good)
-      parameter (kcl_top=kl-2) !max level for cloud top (conjob,radrive,vertmix)
+      integer kcl_top        !max level for cloud top (conjob,radrive,vertmix)
 !     N.B. usually set nkuo=44, rhcv=.75, rhmois=.6, sigcb=.9      
 c     this one has safer code for nevapls=5
 c     this one vectorized by jlm Tue  04-07-1998 (N.B. won't do chen)
@@ -13,30 +25,19 @@ c        0 off, 1 for Hal's evap, 2 for jlm, 3 for UK (ls only), 4 & 5 newer UK
 c     Has dq(1) fix for cloud base drying
 c     For 32-bit machine need real*8  cam()
 c     Hal's ds() renamed dsh()
-      include 'arrays.h'
       include 'const_phys.h'
-      include 'dava.h' ! davt
-      include 'kuocom.h'   ! also with kbsav,ktsav,convpsav,ndavconv
-      include 'morepbl.h'
-      include 'nlin.h'
       include 'parm.h'
-      include 'prec.h'
-      include 'sigs.h'
-      include 'soil.h'
-      include 'tracers.h'  ! ngas, nllp, ntrac
-      common/epst/epst(ifull)
-      common/work2/alphac(ifull),conrev(ifull),fluxr(ifull)
+      real alphac(ifull),conrev(ifull),fluxr(ifull)
      .  ,heatpc(ifull),rhmx(ifull),smin(ifull),sumd(ifull)
      .  ,rnrt(ifull),rnrtc(ifull),sumqs(ifull),sumqt(ifull)
-     .  ,sumss(ifull),factdav(ifull),kbsav_ls(ifull),dum2(ifull,4)
-      common/work3/tt(ifull,kl),qq(ifull,kl),qsg(ifull,kl),gam(ifull,kl)
-     .  ,spare(ifull,kl)
-      common/work3b/ss(ifull,kl),uh(ifull,kl)
-      common/work3c/dsh(ifull,kl)
+     .  ,sumss(ifull),factdav(ifull),kbsav_ls(ifull)
+      real tt(ifull,kl),qq(ifull,kl),qsg(ifull,kl),gam(ifull,kl)
+      real ss(ifull,kl),uh(ifull,kl)
+      real dsh(ifull,kl)
       real dq(ifull,kl)
-      equivalence (dq,ss)
       real*8 cam(kl-1,kl)
       real algf(kl),delt(kl),dsk(kl),rhs(kl),sigadd(kl),s(kl)
+      integer iaero
 !     set convective relaxation time (convtime [was btcnv], usually 1 hour)
 !     data convtime/1./,rhcv/.75/,rhmois/.6/ ! usually 1., .75, .6 now in kuocom
       data epsconv/0./
@@ -45,6 +46,8 @@ c     Hal's ds() renamed dsh()
       Aev(tm) = 2.008e-9*tm**2 - 1.385e-6*tm + 2.424e-4  !For UKMO evap scheme
       Asb(tm) = max (-5.2e-9*tm**2+2.5332e-6*tm-2.9111e-4,1.e-5) !For UKMO subl
 !!!   ntest=3   !!!
+
+      kcl_top=kl-2
 
       do k=1,kl
        dsk(k)=-dsig(k)    !   dsk = delta sigma (positive)
@@ -84,7 +87,7 @@ c     loop over all points : L/S rainfall, then conv
        enddo  ! iq loop
       enddo   ! k=1,kl
 
-      if(ntest.ne.0.or.diag)then
+      if(diag.and.mydiag)then
         print *,'near beginning of conjob; idjd = ',idjd
         print *,'itermax,nrenorm,no2layer ',itermax,nrenorm,no2layer
         write (6,"('rh  ',12f7.2/(8x,12f7.2))") 
@@ -121,7 +124,7 @@ c      Here rnrt is the rainfall rate in gm/m**2/sec
        fluxr(iq)=rnrt(iq)*1.e-3*dt ! kg/m2
       enddo  ! iq loop
 
-      if(ntest.ne.0.or.diag)then
+      if(diag.and.mydiag)then
         print *,'before evap of large scale rain: kbsav_ls,rnrt ',
      .                                   kbsav_ls(idjd),rnrt(idjd)
         write (6,"('qg ',12f7.3/(8x,12f7.3))") 
@@ -275,7 +278,7 @@ c           if(evapls.gt.0.)print *,'iq,k,evapls ',iq,k,evapls
        enddo  ! iq loop
       enddo   ! k=1,kl
 
-      if(ntest.ne.0.or.diag)then
+      if(diag.and.mydiag)then
         print *,'before convection: rnrt,rnrtc ',
      .                                rnrt(idjd),rnrtc(idjd)
         write (6,"('rh   ',12f7.2/(8x,12f7.2))") 
@@ -359,7 +362,7 @@ c       if(.not.land(iq).and.kbsav(iq).gt.0)
 c     .           kbsav(iq)=max(kbsav(iq),kuocb+1)
 c      enddo
 
-      if(ntest.ne.0.or.diag)then
+      if(diag.and.mydiag)then
         phi=bet(1)*tt(idjd,1)
         do k=2,kuocb
          phi=phi+bet(k)*tt(idjd,k)+betm(k)*tt(idjd,k-1)
@@ -402,7 +405,7 @@ c         run up the levels stopping when no instability
         endif   ! (k.gt.kbsav(iq).and.k.le.ktsav(iq))
        enddo    ! iq loop
       enddo     ! k loop
-      if(ntest.ne.0.or.diag)then
+      if(diag.and.mydiag)then
         print *,"after stab test: kbsav,ktsav,sumss ",
      .                            kbsav(idjd),ktsav(idjd),sumss(idjd)
         write (6,"('uh b ',12f7.2/(8x,12f7.2))") (uh(idjd,k),k=1,kl)
@@ -415,8 +418,8 @@ c         run up the levels stopping when no instability
         if(k.ge.kbsav(iq).and.k.le.ktsav(iq))then
           sumqt(iq)=sumqt(iq)+qq(iq,k)*dsk(k)
           sumqs(iq)=sumqs(iq)+qsg(iq,k)*dsk(k)
-          if(ntest.ne.0.and.iq.eq.idjd)print *,'k,sumqs,sumqt ',
-     .                                 k,sumqs(idjd),sumqt(idjd)
+          if(ntest.ne.0.and.iq.eq.idjd.and.mydiag)          
+     .       print *,'k,sumqs,sumqt ',k,sumqs(idjd),sumqt(idjd)
         endif   ! (k.ge.kbsav(iq).and.k.le.ktsav(iq))
        enddo    ! iq loop
       enddo     ! k loop
@@ -443,7 +446,7 @@ c      general moistening of driest levels : cutoff at rhmois
 !       endif  ! (k.ge.kbsav(iq))then   ! can omit this "if"
        enddo   ! iq loop
       enddo    ! k loop
-      if(ntest.ne.0.or.diag)then
+      if(diag.and.mydiag)then
 !       N.B. heatpc diag only meaningful if kbsav(iq)>0
 !       dq & dq_eff are +ve for drying of environment
         print *,'rhmx,alphac,heatpc ',
@@ -466,7 +469,14 @@ c        recompute with ds1'' which is less than the ds2' .
          if(mc.eq.2)then
 c          special case for mc=2 (no iterations)
 c          mc=2 : convection from 1 level to next only - special coding
+           dsh(iq,kbase)=0.   ! re-applied Apr 08
            dsh(iq,kbase+1)=heatpc(iq)/dsk(ktop)
+           if(ntest>=3.and.iq==idjd)then
+             print *,'conjob iq,kbase,ktop,mc,heatpc,dsk: ',
+     &                       iq,kbase,ktop,mc,heatpc(iq),dsk(ktop)
+             print *,'conjob dsh_out (kbase value not used??)'
+             print 93,(dsh(iq,k),k=kbase,ktop)
+           endif
          else
 c          mc>=3 : convection for 3 or more levels
 c          the scheme requires cam(kbase to ktop-1, kbase to ktop)
@@ -497,13 +507,14 @@ c          energy conservation terms
             cam(ktop-1,k-1)=dsk(k)
            enddo   ! k loop
            rhs(ktop-1)=heatpc(iq)
-           if(ntest.ge.3.and.ntest.eq.mc)then
+           if(ntest>=3.and.iq==idjd)then
 c            do k=kbase+2,ktop-1   ! N.B. mc=ktop+1-kbase
 c             do kic=kbase,k-2     ! not needed in newest code - diag here
 c              cam(kic,k)=0.       ! not needed in newest code - diag here
 c             enddo  ! kic loop    ! not needed in newest code - diag here
 c            enddo  ! k loop
-             print *,'conjob cam_in for iq,kbase,ktop: ',iq,kbase,ktop
+             print *,'conjob cam_in for iq,kbase,ktop,mc: ',
+     &                                  iq,kbase,ktop,mc
              print 93,(rhs(kic),kic=kbase,ktop-1)
              do k=ktop-1,kbase,-1
              print 93,(cam(kic,k),kic=kbase,ktop-1)
@@ -523,6 +534,8 @@ c          solve this matrix set of equations; rhs is in cam(...,ktop)
 
 c          now substitute into the triangular cam
            dsh(iq,kbase+1)=rhs(kbase)/cam(kbase,kbase)
+!          dsh(iq,kbase)=3.*dsh(iq,kbase+1)  ! Apr 08 to resemble conjob.fa
+           dsh(iq,kbase)=0.   ! Apr 08 not used in renorm
            do kic=kbase+1,ktop-1
             sum=rhs(kic)
             do k=kbase,kic-1
@@ -530,15 +543,14 @@ c          now substitute into the triangular cam
             enddo  ! k loop
             dsh(iq,kic+1)=sum/cam(kic,kic)
            enddo   ! kic loop
-           if(ntest.ge.3.and.ntest.eq.mc)then
+           if(ntest>=3.and.iq==idjd)then
              print *,'conjob cam_out for iq: ',iq
              print 93,(rhs(kic),kic=kbase,ktop-1)
              do k=ktop-1,kbase,-1
              print 93,(cam(kic,k),kic=kbase,ktop-1)
              enddo
-             print *,'conjob dsh_out (kbase value not used)'
+             print *,'conjob dsh_out (kbase value not used??)'
              print 93,(dsh(iq,k),k=kbase,ktop)
-!!!          ntest=ntest+1     !!!
            endif
          endif   ! (mc.eq.2)  ... else ...
        endif  ! (kbase.gt.0)
@@ -558,18 +570,20 @@ c          now substitute into the triangular cam
           endif   !  (k.gt.kbsav(iq).and.k.le.ktsav(iq))
          enddo   ! iq loop
         enddo    ! k loop
-        if(diag.or.ntest.ne.0)print *,
-     .            'renorm smin,heatpc,sumd,alxx: ',
+        if(diag.and.mydiag)then
+          print *,'renorm smin,heatpc,sumd,alxx: ',
      .                    smin(idjd),heatpc(idjd),sumd(idjd),
      .             heatpc(idjd)/(heatpc(idjd)-smin(idjd)*sumd(idjd))
+          print *,'dsh ',dsh(idjd,:)
+        endif
         do k=kuocb+1,kcl_top
          do iq=1,ifull
           if(smin(iq).lt.0..and.kbsav(iq).gt.0.and.k.gt.kbsav(iq))then
             alxx=heatpc(iq)/(heatpc(iq)-smin(iq)*sumd(iq))
-            if(ntest.ne.0.and.iq.eq.idjd)print *,
+            if(ntest.ne.0.and.iq.eq.idjd.and.mydiag)print *,
      .            'renorm k,dsh_in,dsh_out: ',
      .                    k,dsh(iq,k),alxx*(dsh(idjd,k)-smin(idjd))
-           dsh(iq,k)=alxx*(dsh(iq,k)-smin(iq))
+            dsh(iq,k)=alxx*(dsh(iq,k)-smin(iq))
           endif  ! (smin(iq).lt.0..and.kbsav(iq).gt.0.and.k.gt.kbsav(iq))
          enddo   ! iq loop
         enddo    ! k loop
@@ -605,7 +619,7 @@ c         rnrtc(iq)=1000.*rnrtc(iq)                           !  gm/m**2/sec
        enddo    ! iq loop
       enddo     ! k loop
 
-      if(ntest.ne.0.or.diag)then
+      if(diag.and.mydiag)then
         print *,"after Hal's convection: ktau,kbsav,ktsav,convpsav ",
      .                       ktau,kbsav(idjd),ktsav(idjd),convpsav(idjd)
         print *,'rhmx,sumss ',rhmx(idjd),sumss(idjd)
@@ -730,7 +744,7 @@ c       reaching the next level (or the surface).
       if(rhcv.lt.0.)go to 4
 !__________________________end of convective calculations_____________________
 
-8     if(ntest.ne.0.or.diag)then
+8     if(diag.and.mydiag)then
         print *,'near end of conjob: rnrt,rnrtc ',
      .                                  rnrt(idjd),rnrtc(idjd)
         write (6,"('qg ',12f7.3/(8x,12f7.3))") 
@@ -765,6 +779,74 @@ c       reaching the next level (or the surface).
          enddo   ! iq loop
         enddo    ! ntr loop    
       endif      ! ilt.gt.1
+      
+      !--------------------------------------------------------------
+      ! MJT tke
+      if(nvmix.eq.6)then
+        ss(:,:)=tke(1:ifull,:)
+        do iq=1,ifull
+         if(kbsav(iq).gt.0)then
+           kb=kbsav(iq)
+           kt=ktsav(iq)
+           veldt=convpsav(iq)
+           fluxup=veldt*ss(iq,kb)
+!          remove tke from cloud base layer
+           tke(iq,kb)=tke(iq,kb)-fluxup/dsk(kb)
+!          put flux of tke into top convective layer
+           tke(iq,kt)=tke(iq,kt)+fluxup/dsk(kt)
+           do k=kb+1,kt
+            tke(iq,k)=tke(iq,k)-ss(iq,k)*veldt/dsk(k)
+            tke(iq,k-1)=tke(iq,k-1)+ss(iq,k)*veldt/dsk(k-1)
+           enddo
+         endif
+        enddo   ! iq loop
+        ss(:,:)=eps(1:ifull,:)
+        do iq=1,ifull
+         if(kbsav(iq).gt.0)then
+           kb=kbsav(iq)
+           kt=ktsav(iq)
+           veldt=convpsav(iq)
+           fluxup=veldt*ss(iq,kb)
+!          remove eps from cloud base layer
+           eps(iq,kb)=eps(iq,kb)-fluxup/dsk(kb)
+!          put flux of eps into top convective layer
+           eps(iq,kt)=eps(iq,kt)+fluxup/dsk(kt)
+           do k=kb+1,kt
+            eps(iq,k)=eps(iq,k)-ss(iq,k)*veldt/dsk(k)
+            eps(iq,k-1)=eps(iq,k-1)+ss(iq,k)*veldt/dsk(k-1)
+           enddo
+         endif
+        enddo   ! iq loop
+      endif      ! nvmix.eq.6
+      !--------------------------------------------------------------
+      
+      !--------------------------------------------------------------
+      ! MJT aerosols
+      if (abs(iaero)==2) then
+        xtusav=0.
+        ! fscav=0. because there is no qlg in this convection scheme
+        do ntr=1,naero
+          ss(:,:)=xtg(1:ifull,:,ntr)
+          do iq=1,ifull
+           if(kbsav(iq).gt.0)then
+             kb=kbsav(iq)
+             kt=ktsav(iq)
+             veldt=convpsav(iq)
+             fluxup=veldt*ss(iq,kb)
+!            remove aerosol from cloud base layer
+             xtg(iq,kb,ntr)=xtg(iq,kb,ntr)-fluxup/dsk(kb)
+!            put flux of tke into top convective layer
+             xtg(iq,kt,ntr)=xtg(iq,kt,ntr)+fluxup/dsk(kt)
+             xtusav(iq,:,ntr)=xtg(iq,:,ntr) ! MJT suggestion
+             do k=kb+1,kt
+              xtg(iq,k,ntr)=xtg(iq,k,ntr)-ss(iq,k)*veldt/dsk(k)
+              xtg(iq,k-1,ntr)=xtg(iq,k-1,ntr)+ss(iq,k)*veldt/dsk(k-1)
+             enddo
+           endif
+          enddo   ! iq loop
+        end do
+      end if
+      !--------------------------------------------------------------
 
 !     usual conformal-cubic (DARLAM option removed)
         qg(1:ifull,:)=qq(:,:)
@@ -780,7 +862,7 @@ c    .             rnrt(idjd),rnrtc(idjd),condx(idjd)
         enddo
         t(1:ifull,:)=tt(:,:)           ! usually split from June '03
 
-      if(ntest.eq.1)then
+      if(ntest.eq.1.and.mydiag)then
         print *,'D rnrt,rnrtc,condx ',
      .             rnrt(idjd),rnrtc(idjd),condx(idjd)
         print *,'precc,precip ',

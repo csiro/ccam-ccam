@@ -4,6 +4,13 @@ c************************* soilsnowv follows  ****some to be vectorized*****
       subroutine soilsnowv
       use cc_mpi, only : mydiag, myid
       use diag_m
+      use morepbl_m  ! need runoff
+      use nsibd_m    ! soilm
+      use permsurf_m
+      use soil_m     ! land
+      use soilsnow_m
+      use work3_m
+      use work3b_m
       parameter (ntest=0)   ! 3: forces 3-layer snow, 1: for snow diag prints
 !        for snow diag prints set ntest to 1 throughout
 !        or, usefully can edit 'ntest>0' to 'ktau>nnn'
@@ -21,25 +28,11 @@ c Output
 c     runoff - total runoff
 c----------------------------------------------------------------------
       include 'newmpar.h'   
-c     include 'arrays.h'    ! t
       include 'const_phys.h'  ! cp
       include 'parm.h'      ! ktau,dt
-      include 'permsurf.h'
-      include 'soilsnow.h'
-      include 'soil.h'      ! land
       include 'soilv.h'
-      include 'nsibd.h'     ! soilm
-      include 'morepbl.h'   ! need runoff
 
-c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
-      common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
-     . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
-     . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull),
-     . dum3(5*ijk-16*ifull)
-      common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
-     .              dum3b(ijk*2-2*ifull*ms-3*ifull)
-      common/work3c/gammzz(ifull,ms),dum3c(ijk-ifull*ms)
+      real gammzz(ifull,ms)
       common/soilzs/zshh(ms+1),ww(ms)
       dimension  etac(3)
 
@@ -49,6 +42,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
 
 c     update land points.
       if(ktau==1)then
+        call work3b_init(ifull,iextra,kl,ms)
         if(ntest==3)snmin=.11   ! to force 3-layer snow for testing
 !       N.B. snmin should exceed sum of layer depths, i.e. .11 m	 
         do k=1,ms
@@ -125,7 +119,7 @@ c     update land points.
          endif
 
          ossdn2 = ssdn(iq,2)
-	  if(ntest>0.and.iq==idjd)then
+	  if(ntest>0.and.iq==idjd.and.mydiag)then
    	    print *,'soilsnow  snowd,osnowd ',snowd(iq),osnowd(iq)
 	    print *,'ssdn a ',(ssdn(iq,k),k=1,3)
 	    print *,'smass a ',(smass(iq,k),k=1,3)
@@ -150,7 +144,7 @@ c     update land points.
          tr1  =  snowd(iq)-osnowd(iq)
          xx=max(0. , .07-smass(iq,1)/ssdn(iq,1))
          pr=min(smass(iq,2)/(smass(iq,3)+smass(iq,2)) , .9)
-	  if(ntest>0.and.iq==idjd)then
+	  if(ntest>0.and.iq==idjd.and.mydiag)then
 	    print *,'ssdn b ',(ssdn(iq,k),k=1,3)
 	  endif
          if(tr1>=0.) then
@@ -202,7 +196,7 @@ c            smass(iq,2)=max(0.,.45*(snowd(iq)-smass(iq,1)))  ! jlm fix
            smass(iq,3)  = max(.01 , snowd(iq)-smass(iq,1)-smass(iq,2))
            sdepth(iq,3) = max(.02 , smass(iq,3)/ssdn(iq,3))
          endif   ! (tr1>=0.) .. else ..
-	  if(ntest>0.and.iq==idjd)then
+	  if(ntest>0.and.iq==idjd.and.mydiag)then
 	    print *,'ssdn c ',(ssdn(iq,k),k=1,3)
   	    print *,'smass c ',(smass(iq,k),k=1,3)
 	    print *,'sdepth c ',(sdepth(iq,k),k=1,3)
@@ -216,23 +210,25 @@ c            smass(iq,2)=max(0.,.45*(snowd(iq)-smass(iq,1)))  ! jlm fix
        endif
       enddo   ! land points
 
-      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
+      if((ntest>0.or.diag).and.mydiag) then
+       if (land(idjd))then  !MJT bugfix
         print *,'in soilsnowv before stempv,  ktau= ',ktau
         print *,'ga,dt,ssdn ',ga(idjd),dt,(ssdn(idjd,k),k=1,3)
         print *,'osnowd,snowd,isflag',
      .           osnowd(idjd),snowd(idjd),isflag(idjd)
-        print *,'tgg ',(tgg(idjd,k),k=1,ms)
         print *,'tggsn ',(tggsn(idjd,k),k=1,3)
+        print *,'tgg ',(tgg(idjd,k),k=1,ms)
         print *,'wb ',(wb(idjd,k),k=1,ms)
-	 print *,'wbice ',(wbice(idjd,k),k=1,ms)
+        print *,'wbice ',(wbice(idjd,k),k=1,ms)
         print *,'wblf ',(wblf(idjd,k),k=1,ms)
         print *,'wbfice ',(wbfice(idjd,k),k=1,ms)
 c       print *,'in soilsnow printing wbfice_max'
 c       call maxmin(wbfice,'ic',ktau,1.,6)
         print *,'sdepth c2 ',(sdepth(idjd,k),k=1,3)
+       endif
       endif
 
-      call stempv 
+      call stempv(gammzz) 
 
 *cdir nodep
       do ip=1,ipland  ! all land points in this nsib=1 or 3 loop
@@ -259,6 +255,10 @@ c         wbice(iq,k)=max(wbice(iq,k),0.)  ! superfluous
      &                                    cgsnow*snowd(iq)  ! changed back 21/5/01
 c    &                                    cgsnow*snowd(iq)/ssdnn(iq)
           tgg(iq,k)=tgg(iq,k)+sicefreeze*hlf/gammzz(iq,k)
+	  if(ntest>0.and.iq==idjd.and.mydiag)then
+            print *,'D k,tgg,sicefreeze,wbice,gammzz ',
+     &                 k,tgg(iq,k),sicefreeze,wbice(iq,k),gammzz(iq,k)
+          endif
 
         elseif( tgg(iq,k)>tfrz.and.wbice(iq,k)>0.) then
           sfl=(tgg(iq,k)-tfrz)*gammzz(iq,k)
@@ -266,13 +266,15 @@ c    &                                    cgsnow*snowd(iq)/ssdnn(iq)
           wbice(iq,k)=max(0.,wbice(iq,k)-sicemelt/(zse(k)*1000.))
 c         if(wbice(iq,k)<.001) wbice(iq,k)=0.
 !         gammzz(iq,k)=calgammv(iq,isoil,k,wb(iq,k)-wbice(iq,k),wbice(iq,k))
-          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil)
+          gammzz(iq,k)=max( (1.-ssat(isoil))*css(isoil)*rhos(isoil) 
      &     +(wb(iq,k)-wbice(iq,k))*cswat*rhowat + wbice(iq,k)*csice*
      &      rhowat*.9 , css(isoil)*rhos(isoil)  ) * zse(k)
           if(k==1.and.isflag(iq)==0)gammzz(iq,k)=gammzz(iq,k) +
      &                                    cgsnow*snowd(iq)  ! changed back 21/5/01
 c    &                                    cgsnow*snowd(iq)/ssdnn(iq)
           tgg(iq,k)=tgg(iq,k)-sicemelt*hlf/gammzz(iq,k)
+	  if(ntest>0.and.iq==idjd.
+     &               and.mydiag)print *,'E tgg k',k,tgg(iq,k)
         endif
        enddo   ! k=1,ms
        if(isoil==9)then
@@ -299,14 +301,16 @@ c         wb(iq,5)=wb(iq,5)-evapfb5/(zse(5)*1000.)
 c       endif
       enddo   ! ip loop for land points
 
-      call surfbv
+      call surfbv(gammzz)
 
-      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
+      if((ntest>0.or.diag).and.mydiag) then
+       if(land(idjd))then ! MJT bugfix
         print *,'after surfbv,isflag ',isflag(idjd)
         print *,'tgg ',(tgg(idjd,k),k=1,ms)
         print *,'wb ',(wb(idjd,k),k=1,ms)
         print *,'wblf ',(wblf(idjd,k),k=1,ms)
         print *,'wbfice ',(wbfice(idjd,k),k=1,ms)
+       endif
       endif
 
       return 
@@ -314,35 +318,29 @@ c       endif
 
 c***********************************************************************
 
-      subroutine surfbv
+      subroutine surfbv(gammzz)
+      use arrays_m
       use cc_mpi, only : mydiag
+      use morepbl_m  ! need runoff
+      use nsibd_m
+      use permsurf_m
+      use sigs_m
+      use soil_m     ! land,sice,sicedep,alb
+      use soilsnow_m
+      use work3_m
+      use work3b_m
       parameter (ntest=0)    ! 3: forces 3-layer snow, 1: for snow diag prints
       parameter (ncondxpr=1) ! 0: old sfce scheme, 1: jlm mid-level suggestion
       parameter (newsmelt=1) ! 0: old, 1: new from Aug 2003
 !     parameter (nglacier=1)  ! 0 original, 1 off, 2 new from Eva; to parm.h
       include 'newmpar.h'   
-      include 'arrays.h'
       include 'const_phys.h'  ! cp
       include 'parm.h'      ! ktau,dt
-      include 'permsurf.h'
-      include 'sigs.h'
-      include 'soil.h'      ! land,sice,sicedep,alb
-      include 'soilsnow.h'
       include 'soilv.h'
-      include 'morepbl.h'        ! need runoff
-      include 'nsibd.h'
 
-c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
-      common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
-     . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
-     . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull),
-     . dum3(5*ijk-16*ifull)
-      common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
-     .              dum3b(ijk*2-2*ifull*ms-3*ifull)
-      common/work3c/gammzz(ifull,ms),dum3c(ijk-ifull*ms)
+      real gammzz(ifull,ms)
       common/soilzs/zshh(ms+1),ww(ms)
-      dimension rnof1(ifull)
+      !dimension rnof1(ifull) ! MJT cable
 
       dimension smelt1(3)
       dimension c3(9)
@@ -351,7 +349,8 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
       if(ktau==1.and.mydiag)then
         print *,'ncondxpr,nglacier ',ncondxpr,nglacier
       endif
-      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
+      if((ntest>0.or.diag).and.mydiag)then
+       if(land(idjd))then !MJT bugfix
         print *,'entering surfbv  condxpr',condxpr(idjd)
         print *,'osnowd,snowd,isflag',
      .           osnowd(idjd),snowd(idjd),isflag(idjd)
@@ -361,6 +360,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
         print *,'wb ',(wb(idjd,k),k=1,ms)
         print *,'wbice ',(wbice(idjd,k),k=1,ms)
         print *,'gammzz ',(gammzz(idjd,k),k=1,ms)
+       endif
       endif
       
 *cdir nodep
@@ -390,24 +390,24 @@ c      runoff(iq)=0.  ! already re-set in globpe.f
 	    endif   ! (t(iq,2)<tfrz.and.tgg(iq,1)<tfrz ) 
          else  ! i.e. isflag(iq)=1
 	    if(t(iq,2)<tfrz)then
-             snowd(iq)=max(snowd(iq) + condxpr(iq), 0.)
+              snowd(iq)=max(snowd(iq) + condxpr(iq), 0.)
 	      sno(iq)=sno(iq)+condxpr(iq)  ! snow precip accum in mm
-!            update air temperatures to allow for freezing of rain
-             dtemp=hlf*grav*condxpr(iq)/
+!             update air temperatures to allow for freezing of rain
+              dtemp=hlf*grav*condxpr(iq)/
      .                (cp*(sigmh(kl/3)-sigmh(kl/2+1))*ps(iq))
-             do k=kl/3,kl/2    ! 6,9 for 18 level
-              t(iq,k)=t(iq,k)+dtemp    ! jlm suggestion
-             enddo ! k loop
-             condxpr(iq)=0.
+              do k=kl/3,kl/2    ! 6,9 for 18 level
+               t(iq,k)=t(iq,k)+dtemp    ! jlm suggestion
+              enddo ! k loop
+              condxpr(iq)=0.
 	    elseif(t(iq,2)>=tfrz)then
-             snowd(iq)=max(snowd(iq) + condxpr(iq), 0.)
+              snowd(iq)=max(snowd(iq) + condxpr(iq), 0.)
 	      sno(iq)=sno(iq)+condxpr(iq)  ! snow precip accum in mm
 	      do k=1,3
-              sgamm  = ssdn(iq,k)*2105. * sdepth(iq,k)
-              tggsn(iq,k)=tggsn(iq,k)+condxpr(iq)*hlf*smass(iq,k)/
+               sgamm  = ssdn(iq,k)*2105. * sdepth(iq,k)
+               tggsn(iq,k)=tggsn(iq,k)+condxpr(iq)*hlf*smass(iq,k)/
      &                                           (sgamm*osnowd(iq))
-             enddo
-             condxpr(iq)=0.
+              enddo
+              condxpr(iq)=0.
 	    endif   ! (t(iq,2)<tfrz) 
          endif     ! (isflag(iq)==0) ... else ...
        endif       ! (condxpr(iq)>0.)
@@ -417,7 +417,7 @@ c      snow evaporation and melting
        if(snowd(iq)>.1)then
          evapsn=min(snowd(iq),dt*fes(iq)/(hl+hlf))
          snowd(iq)=snowd(iq)-evapsn
-	  segg=0.
+	 segg=0.
 	endif
 	
        if(snowd(iq)>0.)then
@@ -432,12 +432,12 @@ c            prevent snow depth going negative
              smelt= min(snowflx0/hlf ,snowd(iq))
              snowd(iq)=snowd(iq)-smelt
              tgg(iq,1)= tgg(iq,1)-smelt*hlf/gammzz(iq,1)
-	      snowflx(iq)=smelt*hlf/dt
-             if(ntest>0.and.iq==idjd)then
+	     snowflx(iq)=smelt*hlf/dt
+             if(ntest>0.and.iq==idjd.and.mydiag)then
                print *,'in surfbv b'
                print *,'tgg ',(tgg(idjd,k),k=1,ms)
-		 print *,'snowflx0,snowflx,gammzz,smelt,snowd ',
-     &               snowflx0,snowflx(iq),gammzz(iq,1),smelt,snowd(iq) 
+	       print *,'snowflx0,snowflx,gammzz,smelt,snowd ',
+     &                snowflx0,snowflx(iq),gammzz(iq,1),smelt,snowd(iq) 
              endif
            endif  ! (tgg(iq,1)>=tfrz)then
          else     ! 3-layer scheme,  isflag=1
@@ -504,22 +504,26 @@ c            prevent snow depth going negative
        fwtop(iq)=weting/dt-segg
       enddo               ! ip loop
 
-      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
+      if((ntest>0.or.diag).and.mydiag)then
+       if(land(idjd))then !MJT bugfix
         print *,'in surfbv before smoisturev  condxpr',condxpr(idjd)
         print *,'osnowd,snowd,isflag',
      .           osnowd(idjd),snowd(idjd),isflag(idjd)
         print *,'tggsn_c ',(tggsn(idjd,k),k=1,3)
         print *,'tgg ',(tgg(idjd,k),k=1,ms)
+       endif
       endif
 
       call smoisturev
 
-      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
+      if((ntest>0.or.diag).and.mydiag)then
+       if(land(idjd))then !MJT bugfix
         print *,'in surfbv after smoisturev '
         print *,'osnowd,snowd,isflag,ssat,runoff',
      .    osnowd(idjd),snowd(idjd),isflag(idjd),
      .    ssat(isoilm(idjd)),runoff(idjd)
         print *,'tggsn_d ',(tggsn(idjd,k),k=1,3)
+       endif
       endif
 
 *cdir nodep
@@ -534,9 +538,9 @@ c            prevent snow depth going negative
 !      for deep runoff use wb-sfc, but this value not to exceed .99*wb-wbice
        dwb=max(min(wb(iq,ms)-sfc(isoil),.99*wb(iq,ms)-wbice(iq,ms))
      .                                 *c3(isoil)/86400. , 0.)     ! 1/9/00
-       rnof2=zse(ms)*1000.*dwb*dt
+       rnof2(iq)=zse(ms)*1000.*dwb*dt                              ! MJT cable
        wb(iq,ms)=wb(iq,ms)-dwb*dt
-       runoff(iq)=runoff(iq)+rnof1(iq)+rnof2  ! accumulated mm
+       runoff(iq)=runoff(iq)+rnof1(iq)+rnof2(iq)  ! accumulated mm ! MJT cable
       enddo               ! ip loop
 
 c---  glacier formation
@@ -575,7 +579,8 @@ c----      change local tg to account for energy - clearly not best method
 	 enddo    ! iq loop
       endif     ! (nglacier==2)
 
-      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
+      if((ntest>0.or.diag).and.mydiag)then
+       if(land(idjd))then !MJT bugfix
         iq=idjd
         print *,'end surfbv  rnof1,runoff ',rnof1(idjd),runoff(idjd)
         sgamm   = ssdn(iq,1)*2105. * sdepth(iq,1)
@@ -584,6 +589,7 @@ c----      change local tg to account for energy - clearly not best method
         print *,'tggsn_d ',(tggsn(idjd,k),k=1,3)
         print *,'tgg ',(tgg(idjd,k),k=1,ms)
         print *,'wb ',(wb(idjd,k),k=1,ms)
+       endif
       endif
       return
       end
@@ -591,7 +597,13 @@ c----      change local tg to account for energy - clearly not best method
 c***********************************************************************
 
       subroutine smoisturev
-      use cc_mpi, only : mydiag
+      use cc_mpi, only : mydiag,myid
+      use nsibd_m
+      use permsurf_m
+      use soil_m           ! land
+      use soilsnow_m
+      use work3_m
+      use work3b_m
       parameter (ntest=0)  ! 2 for funny pre-set for idjd
       parameter (nmeth=-1) ! 1 for full implicit, 2 for simpler implicit
 !                            3 for simple implicit D, explicit K jlm pref
@@ -599,15 +611,9 @@ c***********************************************************************
 !                            0 for simple implicit D, new jlm TVD K  
 !                           -1 for simple implicit D, new jlm TVD K constrained 
       include 'newmpar.h'
-      include 'nlin.h'
-      include 'nsibd.h'
       include 'parm.h'      ! ktau,dt
-      include 'permsurf.h'
-      include 'soilsnow.h'
-      include 'soil.h'      ! land
       include 'soilv.h'
-      real at(ifull,kl),ct(ifull,kl)   ! assume kl >= ms+3
-      equivalence (at,un),(ct,vn)
+      real at(ifull,ms+3),bt(ifull,ms+3),ct(ifull,ms+3)
 c
 c     solves implicit soil moisture equation
 c
@@ -618,17 +624,7 @@ c     ism    - 0 if all soil layers frozen, otherwise set to 1
 c
 
       dimension wbh(ms+1),z1(ms+1),z2(ms+1),z3(ms+1)
-c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
-      common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
-     . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
-     . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull),
-     . dum3(5*ijk-16*ifull)
-      common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
-     .              dum3b(ijk*2-2*ifull*ms-3*ifull)
-      common/work3d/bt(ifull,kl)  ! assume kl >= ms+3; work area only
-      common/work3f/fluxh(ifull,0:ms),delt(ifull,0:ms),dtt(ifull,ms),
-     .              dum3f(3*ijk-3*ifull*ms-2*ifull)
+      real fluxh(ifull,0:ms),delt(ifull,0:ms),dtt(ifull,ms)
       common/soilzs/zshh(ms+1),ww(ms)
       real pwb_min(mxst),ssatcurr(ms)
       real z1mult(ms+1)
@@ -640,9 +636,12 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
         do isoil=1,mxst
          pwb_min(isoil)=(swilt(isoil)/ssat(isoil))**ibp2(isoil)
         enddo
+	if (myid==0) then
         print *,'in smoisturev; nmeth,ntest = ',nmeth,ntest  
+	end if
       endif  ! (ktau==1)
-      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
+      if((ntest>0.or.diag).and.mydiag)then
+       if(land(idjd))then !MJT bugfix
         isoil=isoilm(idjd)
         print *,'entering smoisturev i2bp3,swilt,sfc,ssat: ',
      .                i2bp3(isoil),swilt(isoil),sfc(isoil),ssat(isoil)
@@ -656,6 +655,7 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
         do k=1,ms
          totwba=totwba+zse(k)*wb(idjd,k)      ! diagnostic
         enddo
+       endif
       endif
 
       do k=1,ms ! preset to allow for non-land & snow points in trimb
@@ -699,12 +699,12 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
          phi=max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
          fluxhi=wh
          fluxlo=wbl_k
-	  if(ntest>0.and.iq==idjd)then
+         if(ntest>0.and.iq==idjd.and.mydiag)then
   	   print *,'in TVD for k= ',k
 	   print *,'wbl,wh,hydss ',wbl_k,wh,hydss
 	   print *,'speeda,speedb,fluxhi,fluxlo,delt,rat,phi ',
      .             speed_k,.5*zse(k)/dt,fluxhi,fluxlo,delt(iq,k),rat,phi
- 	  endif
+ 	 endif
 !        scale speed to grid lengths per dt & limit speed for stability
          speed_k=min(speed_k,.5*zse(k)/dt)  !  1. OK too for stability
          fluxh(iq,k)=speed_k*(fluxlo+phi*(fluxhi-fluxlo))
@@ -770,7 +770,8 @@ c             iqmn=iq
 c           endif
 c          enddo
 c        endif
-        if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
+        if((ntest>0.or.diag).and.mydiag)then
+	 if(land(idjd))then !MJT bugfix
 	   print *,'midway through nmeth<=0'
 	   print *,'fluxh ',(fluxh(iq,k),k=1,ms)
           write (6,"('wb   ',6f8.3)") (wb(idjd,k),k=1,ms)
@@ -799,6 +800,7 @@ c          print *,'zshh ',zshh
           print *,'at ',(at(idjd,k),k=1,ms)
           print *,'bt ',(bt(idjd,k),k=1,ms)
           print *,'ct ',(ct(idjd,k),k=1,ms)
+	 endif
         endif  ! (ntest>0)
 
 !  xcdir nodep
@@ -942,7 +944,7 @@ c            rhs(k) = wblf(iq,k)      ! for A
            endif
           enddo
         endif
-        if(ntest>0.and.iq==idjd)then
+        if(ntest>0.and.iq==idjd.and.mydiag)then
           totwbb=0.
           totwblb=0.
           do k=1,ms
@@ -991,7 +993,8 @@ c       rhs(1) = wblf(iq,1)      ! for A
         wbice(iq,k)=min(wbice(iq,k),.99*wb(iq,k))
        enddo
       enddo
-      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
+      if((ntest>0.or.diag).and.mydiag)then
+       if(land(idjd))then !MJT bugfix
         print *,'at end of smoisturev,fwtop ',fwtop(idjd)
         print *,'tgg ',(tgg(idjd,k),k=1,ms)
         write (6,"('wb   ',6f8.3)") (wb(idjd,k),k=1,ms)
@@ -1008,25 +1011,28 @@ c       rhs(1) = wblf(iq,1)      ! for A
         print *,'totwba,totwbb,totwbc ',totwba,totwbb,totwbc
         print *,'totwblb,totwblc ',totwblb,totwblc
         print *,'with totwbc/zsetot: ',totwbc/zsetot
+       endif
       endif
       return
       end
 
 c***********************************************************************
 
-      subroutine stempv
+      subroutine stempv(gammzz)
       use cc_mpi, only : mydiag, myid
+      use nsibd_m
+      use permsurf_m
+      use soil_m     ! land
+      use soilsnow_m
+      use work2_m
+      use work3_m
+      use work3b_m
       parameter (ntest=0)
       include 'newmpar.h'
-      include 'nlin.h'
       include 'parm.h'      ! ktau,dt
-      include 'permsurf.h'
-      include 'soil.h'      ! land
-      include 'soilsnow.h'
       include 'soilv.h'
-      include 'nsibd.h'
-      real at(ifull,-2:kl-3),ct(ifull,-2:kl-3)   ! assume kl >= ms+3
-      equivalence (at,un),(ct,vn)
+      real at(ifull,-2:ms),bt(ifull,-2:ms),ct(ifull,-2:ms)
+      real tggdm(ifull,-2:ms) ! MJT bugfix
 
 c     calculates temperatures of the soil 
 c     tgsoil - new soil/ice temperature
@@ -1034,23 +1040,9 @@ c     ga - heat flux from the atmosphere (ground heat flux)
 c     ccnsw - soil conductivity
 c     dt  - time step 
 
-      common/work2/dirad(ifull),dfgdt(ifull),degdt(ifull)
-     . ,wetfac(ifull),degdw(ifull),cie(ifull)
-     . ,factch(ifull),qsttg(ifull),rho(ifull),zo(ifull)
-     . ,aft(ifull),fh(ifull),spare1(ifull),theta(ifull)
-     . ,gamm(ifull),rg(ifull),vmod(ifull),dgdtg(ifull)
-c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
-      common/work3/egg(ifull),evapxf(ifull),Ewww(ifull),fgf(ifull),
-     . fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull),
-     . ga(ifull),condxpr(ifull),fev(ifull),fes(ifull),
-     . ism(ifull),fwtop(ifull),spare2(ifull), coefa(ifull),coefb(ifull),
-     . dum3(5*ijk-18*ifull)
-      common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
-     .              dum3b(ijk*2-2*ifull*ms-3*ifull)
-      common/work3c/gammzz(ifull,ms),dum3c(ijk-ifull*ms)
+      real coefa(ifull),coefb(ifull)
+      real gammzz(ifull,ms)
       real ccnsw(ifull,ms)
-      equivalence (gammzz,ccnsw)
-      common/work3d/bt(ifull,-2:kl-3)  ! assume kl >= ms+3; work area only
       common/soilzs/zshh(ms+1),ww(ms)
 
       dimension rhs(-2:ms),coeff(-2:ms+1),sconds(3)
@@ -1125,23 +1117,21 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
          bt(iq,1)=bt(iq,1)-dgdtg(iq)*dt/gammzz(iq,1)             ! 9/3/99
          tgg(iq,1)=tgg(iq,1)+
      .             (ga(iq)-tgg(iq,1)*dgdtg(iq))*dt/gammzz(iq,1)  ! 9/3/99
-         if(ntest>0.and.iq==idjd)then
-           print *,'tgg1,ga,gammzz ',
-     .              tgg(iq,1),ga(iq),gammzz(iq,1)
-           print *,'dgdtg,degdt,dfgdt ',
-     .              dgdtg(iq),degdt(iq),dfgdt(iq)
-           print *,'ssat,css,rhos,cswat,rhowat,csice ',
-     .            ssat(isoil),css(isoil),rhos(isoil),cswat,rhowat,csice
-           print *,'wblf1,wbfice1,zse1,cgsnow ',
-     .              wblf(iq,1),wbfice(iq,1),zse(1),cgsnow
-           print *,'at ',(at(iq,k),k=1,ms)
-           print *,'bt ',(bt(iq,k),k=1,ms)
-           print *,'ct ',(ct(iq,k),k=1,ms)
-           print *,'rhs ',(tgg(iq,k),k=1,ms)
-         endif  ! (ntest>0.and.iq==idjd)
-
        endif  ! ( isflag(iq)== 0 )
       enddo   ! ip=1,ipland           land points
+      if(ntest>0.and.mydiag)then
+        iq=idjd
+        print *,'ga,gammzz ',ga(iq),gammzz(iq,1)
+        print *,'rhs_tgg ',(tgg(iq,k),k=1,ms)
+        print *,'dgdtg,degdt,dfgdt ',dgdtg(iq),degdt(iq),dfgdt(iq)
+        print *,'ssat,css,rhos,cswat,rhowat,csice ',
+     .            ssat(isoil),css(isoil),rhos(isoil),cswat,rhowat,csice
+        print *,'wblf1,wbfice1,zse1,cgsnow ',
+     .              wblf(iq,1),wbfice(iq,1),zse(1),cgsnow
+        print *,'at ',(at(iq,k),k=1,ms)
+        print *,'bt ',(bt(iq,k),k=1,ms)
+        print *,'ct ',(ct(iq,k),k=1,ms)
+      endif  ! (ntest>0)
 
       coeff(1-3)=0.
 ! ****** next cdir nodep does not work on SX5 ****************      
@@ -1200,19 +1190,18 @@ c     work3 is shared between soilsnowv routines and sib3 (in sflux.f)
      .             (ga(iq)-tggsn(iq,1)*dgdtg(iq))*dt/sgamm ! 9/5/-2
 
          rhs(1-3)=tggsn(iq,1)    ! A
-         if(ntest>0.and.iq==idjd)then
+         if(ntest>0.and.iq==idjd.and.mydiag)then
            print *,'in stempv 3-layer snow code '
            print *,'ccnsw ',(ccnsw(iq,k),k=1,ms)
-	    print *,'sdepth d ',(sdepth(iq,k),k=1,3)
-	    print *,'sconds ',sconds
+	   print *,'sdepth d ',(sdepth(iq,k),k=1,3)
+	   print *,'sconds ',sconds
            print *,'coeff ',coeff
            print *,'at ',(at(iq,k),k=-2,ms)
            print *,'bt ',(bt(iq,k),k=-2,ms)
            print *,'ct ',(ct(iq,k),k=-2,ms)
-           print *,'rhs(tggsn,tgg) ',
+           print *,'rhs:tggsn,tgg ',
      .                 (tggsn(iq,k),k=1,3),(tgg(iq,k),k=1,ms)
          endif  ! (ntest>0.and.iq==idjd)
-
        endif  ! ( isflag(iq).ne. 0 )
       enddo   ! ip=1,ipland           land points
 
@@ -1229,7 +1218,11 @@ c        print *,'ktau,iq,snowdmin ',ktau,iqsnowd,snowdmin
 c      endif ! (myid==0.and.nmaxpr==1)
 
 !     note in the following that tgg and tggsn are stacked together
-      call trimb(at(1,-2),bt(1,-2),ct(1,-2),tggsn,ms+3)           ! B
+      tggdm(:,-2:0)=tggsn ! MJT bugfix
+      tggdm(:,1:ms)=tgg   ! MJT bugfix
+      call trimb(at(1,-2),bt(1,-2),ct(1,-2),tggdm,ms+3)           ! B
+      tggsn=tggdm(:,-2:0) ! MJT bugfix
+      tgg=tggdm(:,1:ms)   ! MJT bugfix
 
       do k=2,ms
        do iq=1,ifull
@@ -1246,13 +1239,15 @@ c      endif ! (myid==0.and.nmaxpr==1)
        sgflux(iq)=coefa(iq)*(tggsn(iq,1)-tggsn(iq,2))
        gflux(iq) =coefb(iq)*(  tgg(iq,1)-  tgg(iq,2))  ! +ve downwards
       enddo   ! ip=1,ipland           land points
-      if((ntest>0.or.diag).and.mydiag.and.land(idjd))then 
+      if((ntest>0.or.diag).and.mydiag)then
+       if(land(idjd))then !MJT bugfix
         print *,'at end of stempv '
 	 write (6,"('wb   ',6f8.3)") (wb(idjd,k),k=1,ms)
 	 write (6,"('wbice',6f8.3)") (wbice(idjd,k),k=1,ms)
 	 write (6,"('wblf ',6f8.3)") (wblf(idjd,k),k=1,ms)
         print *,'tggsn ',(tggsn(idjd,k),k=1,3)
         print *,'tgg ',(tgg(idjd,k),k=1,ms)
+       endif
       endif  ! (ntest>0)
 
       return
@@ -1261,17 +1256,16 @@ c      endif ! (myid==0.and.nmaxpr==1)
 c***********************************************************************
 
       subroutine snowprv(iq)    ! N.B. this one is not vectorized
+      use nsibd_m
+      use soil_m  ! land
+      use soilsnow_m
+      use work3b_m
       parameter (newsmlt=1) ! 0: old, 1: new from Aug 2003
       include 'newmpar.h'   
       include 'const_phys.h'
       include 'parm.h'      ! ktau,dt
-      include 'soil.h'      ! land
-      include 'soilsnow.h'
       include 'soilv.h'
-      include 'nsibd.h'
 
-      common/work3b/wblf(ifull,ms),wbfice(ifull,ms),sdepth(ifull,3),
-     .              dum3b(ijk*2-2*ifull*ms-3*ifull)
       dimension  etac(3)
 
       if( isflag(iq)==0) then
@@ -1393,10 +1387,8 @@ c***********************************************************************
 c     rhs initially contains rhs; leaves with answer (jlm)
 c     n.b. this one does not assume b = 1-a-c
       include 'newmpar.h'
-      common/work3f/wrk1(ijk),wrk2(ijk),wrk3(ijk) 
       dimension a(ifull,kl),b(ifull,kl),c(ifull,kl)
       real e(ifull,kl),g(ifull,kl),temp(ifull,kl)
-      equivalence (e,wrk1),(g,wrk2),(temp,wrk3)
       real rhs(ifull,kl)
 
 c     this routine solves the system

@@ -57,13 +57,14 @@ c
      &                  fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
 
       use cc_mpi, only : mydiag
+      use kuocomb_m
+      use morepbl_m  !condx        
       implicit none
 C Global parameters
       include 'newmpar.h'
       include 'const_phys.h' !Input physical constants
       include 'cparams.h'    !Input cloud scheme parameters
       include 'kuocom.h'     !acon,bcon,Rcm,ktsav,nevapls
-      include 'morepbl.h'    !condx        
       include 'params.h'     !Input model grid dimensions (modified PARAMS.f for CCAM)
       include 'parm.h'
 
@@ -180,14 +181,14 @@ c TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
 c These give the ice values needed for the qcloud scheme
       estabi(t) = (1.-(tdiff(t)-aint(tdiff(t))))*tablei(int(tdiff(t)))
      &           + (tdiff(t)-aint(tdiff(t)))*tablei(int(tdiff(t))+1)
-      qsati(pp,t) = epsil*estabi(t)/(pp-estabi(t)) !Usual formula
+      qsati(pp,t) = epsil*estabi(t)/max(.1,pp-estabi(t)) !Usual formula
 
       real pow75,x
       pow75(x)=sqrt(x*sqrt(x))
 
 C Start code : ----------------------------------------------------------
 
-        if(ntest>0)then
+        if(ntest>0.and.mydiag)then
           mg=idjd
           write(25,'(a,3i3)')'IPASS=1, Before newrain ktau= ',ktau
           write(25,91)'rhoa',(rhoa(mg,k),k=1,nl)
@@ -530,7 +531,7 @@ c      enddo
 
 c Diagnostics for debugging
 
-        if(ntest>0)then
+        if(ntest>0.and.mydiag)then
           mg=idjd
           write(25,'(a,3i3)')'IPASS=1, after newrain  ktau= ',ktau
           write(25,91)'ttg ',(ttg(mg,k),k=1,nl)

@@ -1,6 +1,6 @@
 c This routine is part of the prognostic cloud scheme. It calculates the
-c formation and dissipation of cloud, and the liquid fraction in mixed-phase
-c clouds. It is called by progcld.
+c formation and dissipation of cloud, and the liquid fraction in
+c mixed-phase clouds. It is called by leoncld.
 c
 c INPUT/OUTPUT
 c
@@ -53,6 +53,7 @@ c This routine is part of the prognostic cloud water scheme
 
       use diag_m
       use cc_mpi, only : mydiag
+      use sigs_m
       implicit none
 C Global parameters
       include 'newmpar.h'
@@ -61,7 +62,6 @@ C Global parameters
       include 'kuocom.h'     !Input cloud scheme parameters rcrit_l & rcrit_s
       include 'params.h'     !Input model grid dimensions (modified params.h for CCAM)
       include 'parm.h'
-      include 'sigs.h'
 
 C Argument list
       real tdt,den1
@@ -100,7 +100,6 @@ C Local work arrays and variables
 
       integer k
       integer mg
-      integer ns
 
       real al
       real alf
@@ -114,9 +113,7 @@ C Local work arrays and variables
       real delq
       real dqsdt
       real es
-      real esl
       real fd
-      real fi
       real fl
       real hlrvap
       real pk
@@ -135,9 +132,9 @@ C Local data, functions etc
       integer naerosol_i(2)
       data  ukconv, naerosol_i / .false., 2*0 /
       logical debug
-      integer lgdebug,mgdebug,insdebug   ! 1,idjd
+      integer lgdebug,insdebug   ! 1,idjd
       data debug,lgdebug,insdebug /.false.,1,1/
-      save ukconv,naerosol_i,debug,lgdebug,mgdebug,insdebug
+      save ukconv,naerosol_i,debug,lgdebug,insdebug
 
       real esdiff(-40:1)  !Table of es(liq) - es(ice) (MKS), -40 <= t <= 0 C
       data esdiff / 
@@ -160,14 +157,14 @@ c TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
 c These give the ice values needed for the qcloud scheme
       estabi(t) = (1.-(tdiff(t)-aint(tdiff(t))))*tablei(int(tdiff(t)))
      &           + (tdiff(t)-aint(tdiff(t)))*tablei(int(tdiff(t))+1)
-      qsati(pp,t) = epsil*estabi(t)/(pp-estabi(t)) !Usual formula
+      qsati(pp,t) = epsil*estabi(t)/max(.1,pp-estabi(t)) 
 
 C Start code : ----------------------------------------------------------
 
       root6=sqrt(6.)
       root6i=1./root6
 
-      if(diag)then
+      if(diag.and.mydiag)then
           print *,'entering newcloud IPASS=1'
 !	   qtg(idjd,kl)=2.e-6
 !	   qfg(idjd,kl)=10.e-6
@@ -208,34 +205,104 @@ c Note that qcg is the total cloud water (liquid+frozen)
       enddo
 
 c Precompute the array of critical relative humidities 
-
-      do k=1,nl
-        do mg=1,ln2
+      if(nclddia==-3)then
+        do k=1,nl
+         do mg=1,ln2
           if(land(mg))then
-c           rcrit(mg,k)=max(0.75,sig(k)**2)
-!           rcrit(mg,k)=max(0.75,sig(k))
-!           rcrit(mg,k)=max(0.75,min(.99,sig(k)))    ! same as T63
+            rcrit(mg,k)=max( rcrit_l , (1.-16.*(1.-sig(k))**3) ) 
+          else
+            rcrit(mg,k)=max( rcrit_s , (1.-16.*(1.-sig(k))**3) ) 
+          endif 
+         enddo
+        enddo
+      elseif(nclddia<0)then
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
+            rcrit(mg,k)=max( rcrit_l , (1.-4.*(1.-sig(k))**2) ) 
+          else
+            rcrit(mg,k)=max( rcrit_s , (1.-4.*(1.-sig(k))**2) ) 
+          endif 
+         enddo
+        enddo
+       elseif(nclddia==1)then
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
+            rcrit(mg,k)=max(rcrit_l,sig(k)**3)          ! .75 for R21 Mk2
+          else
+            rcrit(mg,k)=max(rcrit_s,sig(k)**3)          ! .85 for R21 Mk2
+          endif
+         enddo
+        enddo
+      elseif(nclddia==2)then
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
+            rcrit(mg,k)=rcrit_l
+          else
+            rcrit(mg,k)=rcrit_s
+          endif
+         enddo
+        enddo
+       elseif(nclddia==3)then
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
+            rcrit(mg,k)=max(rcrit_l,sig(k)**2)          ! .75 for R21 Mk2
+          else
+            rcrit(mg,k)=max(rcrit_s,sig(k)**2)          ! .85 for R21 Mk2
+          endif
+         enddo
+        enddo
+      elseif(nclddia==4)then
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
+            rcrit(mg,k)=max(rcrit_l,sig(k))          ! .75 for test Mk2/3
+          else
+            rcrit(mg,k)=max(rcrit_s,sig(k))          ! .9  for test Mk2/3
+          endif
+         enddo
+        enddo
+      elseif(nclddia==5)then  ! default till May 08
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
             rcrit(mg,k)=max(rcrit_l,min(.99,sig(k))) ! .75 for same as T63
           else
-!           rcrit(mg,k)=max(0.85,sig(k)**2)
-c           rcrit(mg,k)=max(0.9,sig(k))
-!           rcrit(mg,k)=max(0.85,min(.99,sig(k)))    ! same as T63
             rcrit(mg,k)=max(rcrit_s,min(.99,sig(k))) ! .85 for same as T63
           endif
-C***          if(k.eq.1)rcrit(mg,k)=0.999
-C***          if(k.eq.2)rcrit(mg,k)=0.99
-C***          if(k.eq.3)rcrit(mg,k)=0.95
+         enddo
         enddo
-      enddo
-
+       elseif(nclddia==6)then
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
+            rcrit(mg,k)=max(rcrit_l*(1.-.15*sig(k)),sig(k)**4)         
+          else
+            rcrit(mg,k)=max(rcrit_s*(1.-.15*sig(k)),sig(k)**4)          
+          endif
+         enddo
+        enddo
+       elseif(nclddia==7)then
+        do k=1,nl
+         do mg=1,ln2
+          if(land(mg))then
+            rcrit(mg,k)=max(rcrit_l*(1.-.2*sig(k)),sig(k)**4)         
+          else
+            rcrit(mg,k)=max(rcrit_s*(1.-.2*sig(k)),sig(k)**4)          
+          endif
+         enddo
+        enddo
+      endif  ! (nclddia<0)  .. else ..
 
 c Calculate cloudy fraction of grid box (cfrac) and gridbox-mean cloud water
 c using the triangular PDF of Smith (1990)
 
       do k=1,nl
         do mg=1,ln2
-          fi=fice(mg,k)
-          hlrvap=(hl+fi*hlf)/rvap
+          hlrvap=(hl+fice(mg,k)*hlf)/rvap
           qtot(mg,k)=qtg(mg,k)+qcg(mg,k)
           tliq(mg,k)=ttg(mg,k)-hlcp*qcg(mg,k)-hlfcp*qfg(mg,k)
 
@@ -244,26 +311,26 @@ c Calculate qs and gam=(L/cp)*dqsdt,  at temperature tliq
           qsi=qsati(pk,tliq(mg,k))           !Ice value
           deles=esdiff(min(max(-40,(nint(tliq(mg,k)-tfrz))),1))
           qsl(mg,k)=qsi+epsil*deles/pk       !qs over liquid
-          qsw(mg,k)=fi*qsi+(1.-fi)*qsl(mg,k) !Weighted qs at temperature Tliq
+          qsw(mg,k)=fice(mg,k)*qsi+(1.-fice(mg,k))*qsl(mg,k) !Weighted qs at temperature Tliq
           qs=qsw(mg,k)
           dqsdt=qs*hlrvap/tliq(mg,k)**2
 c         qvc(mg,k)=qs !Vapour mixing ratio in cloud
 
-          al=1/(1+(hlcp+fi*hlfcp)*dqsdt)    !Smith's notation
+          al=1/(1+(hlcp+fice(mg,k)*hlfcp)*dqsdt)    !Smith's notation
           qc=qtot(mg,k)-qs
 
           delq=(1-rcrit(mg,k))*qs      !UKMO style (equivalent to above)
           cfrac(mg,k)=1.
           qcg(mg,k)=al*qc
-          if(qc.lt.delq)then
-            cfrac(mg,k)=1-0.5*((qc-delq)/delq)**2
+          if(qc<delq)then
+            cfrac(mg,k)=max(1.e-6 , 1.-.5*((qc-delq)/delq)**2) ! for roundoff
             qcg(mg,k)=al*(qc-(qc-delq)**3/(6*delq**2))
           endif
-          if(qc.le.0.)then
-            cfrac(mg,k)=0.5*((qc+delq)/delq)**2
+          if(qc<=0.)then
+            cfrac(mg,k)=max(1.e-6 , .5*((qc+delq)/delq)**2)    ! for roundoff
             qcg(mg,k)=al*(qc+delq)**3/(6*delq**2)
           endif
-          if(qc.le.-delq)then
+          if(qc<=-delq)then
             cfrac(mg,k)=0.
             qcg(mg,k)=0.
           endif
@@ -271,6 +338,7 @@ c         qvc(mg,k)=qs !Vapour mixing ratio in cloud
           ! Roundoff check
           if ( qcg(mg,k) <= 0. ) then
              cfrac(mg,k) = 0.
+             qcg  (mg,k) = 0.  ! added Oct '06
           end if
 
 c Calculate the cloud fraction (cfa) in which ql exceeds qcrit, and
@@ -303,10 +371,10 @@ C***          endif
         enddo
       enddo
 
-      if(diag)then
+      if(diag.and.mydiag)then
           write(6,9)'qc  ',  qtot(idjd,:)-qsg(idjd,:)
           write(6,9)'delq ', (1.-rcrit(idjd,:))*qsg(idjd,:)
-          write(6,9)'al ',   1./(  1.+(hlcp+fi*hlfcp)*
+          write(6,9)'al ',   1./(  1.+(hlcp+fice(idjd,:)*hlfcp)*
      &                         qsg(idjd,:)*hlrvap/tliq(idjd,:)**2  )
           write(6,9)'qcg ',  qcg(idjd,:)
       endif
@@ -332,7 +400,7 @@ c            decayfac = 0.                         ! Instant adjustment (old sch
         enddo
       enddo
 
-      if(diag)then
+      if(diag.and.mydiag)then
           write(6,9)'qcg2 ',  qcg(idjd,:)
       endif
 
@@ -385,11 +453,12 @@ c Also need this line for fully-mixed option...
         enddo
       enddo  
 
-      if(diag)then
+      if(diag.and.mydiag)then
           write(6,9)'qsw ',  qsw(idjd,:)
           write(6,9)'qcold', qcold(idjd,:)
           write(6,9)'delq3 ',(1.-rcrit(idjd,:))*qsw(idjd,:)
-          write(6,9)'al3 ',  1/(1+(hlcp+fi*hlfcp)*
+          write(6,9)'fice', fice(idjd,:)
+          write(6,9)'al3 ',  1/(1+(hlcp+fice(idjd,:)*hlfcp)*
      &                          qsw(idjd,:)*hlrvap/tliq(idjd,:)**2  )
           write(6,9)'qcg3 ',  qcg(idjd,:)
       endif
@@ -443,7 +512,7 @@ c            ccov(mg,k)=cfrac(mg,k)**(2./3)
       if(nmaxpr==1.and.mydiag)then
         write (6,"('qs_ice ',3p9f8.3/7x,9f8.3)") qsg(idjd,:)
       end if
-      if(diag)then
+      if(diag.and.mydiag)then
           print *,'IPASS=1 at end of newcloud'
           write(6,91)'ttg ', ttg(idjd,:)
           write(6,91)'tliq ',tliq(idjd,:)

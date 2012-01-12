@@ -1,34 +1,32 @@
-      subroutine jimcc(em4,ax4,ay4,az4,myid)
+      subroutine jimcc(em4,ax4,ay4,az4,xx4,yy4,il,myid)
 c     like jim6.f but without stretch option
 c     hedra1 data is hardwired
 c     xx-->xx4, yy-->yy4, fm-->em4, dxa-->ax4, dxb-->ay4, dxc-->az4
-c     dya, dyb, dyc commented out (not needed)
-      include 'newmpar_gx.h'
-      include 'parm.h'    ! ktau
-      parameter(n=4*il ,np=n+1,non2=n/2)    !jlm for quad res. grid
+c     include 'newmpar_gx.h'
+c     include 'parm.h'    ! ktau
+c      parameter(n=4*il ,np=n+1,non2=n/2)    !jlm for quad res. grid
       parameter(ipanel=2,ngrmax=1,ndiagj=0)
-      include 'bigxy4.h' ! common/bigxy4/xx4(iquad,iquad),yy4(iquad,iquad)
-c     common/work2/em4(iquad,iquad)     ! to agree with call jim
-c    .    ,ax4(iquad,iquad),ay4(iquad,iquad),az4(iquad,iquad)
-c    .    ,xa(np,np)
-c    .    ,dum2(18*il*jl - 4*(iquad)*(iquad) -np*np )
-      integer :: myid
-      real em4(iquad,iquad)
-     .    ,ax4(iquad,iquad),ay4(iquad,iquad),az4(iquad,iquad)
-      real xa(np,np),xb(np,np),xc(np,np)
-      equivalence (xb,xx4),(xc,yy4)  ! just to save on storage  jlm
+      integer :: myid,num
+      real em4(4*il+1,4*il+1),
+     .     ax4(4*il+1,4*il+1),ay4(4*il+1,4*il+1),az4(4*il+1,4*il+1)
+      real xa(4*il+1,4*il+1),xb(4*il+1,4*il+1),xc(4*il+1,4*il+1)
+      real*8 xx4(4*il+1,4*il+1),yy4(4*il+1,4*il+1)
+c     equivalence (xb,xx4),(xc,yy4)  ! just to save on storage  jlm
+      save num
+      data num/0/
 c     real dya(np,np),dyb(np,np),dyc(np,np)
 c     ngr = 1  at unstaggered positions
 c         = 2  at i+.5,j      positions
 c         = 3  at i,j+.5      positions
 c         = 4  at i+.5,j+.5   positions
+      np=4*il+1
       CALL INROT
 
       do ngr=1,ngrmax
        call rgrid(xa,xb,xc,ax4,ay4,az4,            em4,np,ipanel,ngr)
 c      these are values on the sphere
 
-      if(ktau.eq.0.and.myid==0)then
+      if(num.eq.0.and.myid==0)then
        do j=1,np,np-1
         do i=1,np,np-1
          print *,'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)
@@ -39,9 +37,9 @@ c      these are values on the sphere
          print *,'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)
         enddo
        enddo
-       print *,'in jimcc xa,xb,xc: ',1,5,xa(1,5),xb(1,5),xc(1,5)
+       print *,'in jimcc xa,xb,xc: ',1,5,xa(1,5),(1,5),xc(1,5)
        print *,'now imposing 8-fold symmetry (jlm)'
-      endif  ! (ktau.eq.0)
+      endif  ! (num.eq.0)
 
        do i=1,(np+1)/2
          xc(i,1)=max(-1.,xc(i,1)) ! for rounding errors
@@ -64,7 +62,8 @@ c      these are values on the sphere
         enddo
        enddo
 
-      if(ktau.eq.0.and.myid==0)then
+      if(num.eq.0.and.myid==0)then
+       num=1
        do j=1,np,np-1
         do i=1,np,np-1
          print *,'in jimcc xa,xb,xc: ',i,j,xa(i,j),xb(i,j),xc(i,j)
@@ -76,13 +75,13 @@ c      these are values on the sphere
         enddo
        enddo
        print *,'in jimcc xa,xb,xc: ',1,5,xa(1,5),xb(1,5),xc(1,5)
-      endif  ! (ktau.eq.0)
+      endif  ! (num.eq.0)
 
 c      now convert these to just x,y values on the cube
        do j=1,np
         do i=1,np
-         xx4(i,j)=xb(i,j)/xa(i,j)
-         yy4(i,j)=xc(i,j)/xa(i,j)
+         xx4(i,j)=real(xb(i,j),8)/real(xa(i,j),8)
+         yy4(i,j)=real(xc(i,j),8)/real(xa(i,j),8)
         enddo
        enddo
 
@@ -130,7 +129,7 @@ c    .         +(xc(i+1,j)-xc(i,j))**2)
 c        print *,'edge,cent,rat ',edge,cent,edge/cent
 c      endif  ! ngr.eq.1
       enddo  ! ngr loop
-
+      return
       END
 
 C------------------------------------------------------------------------------C

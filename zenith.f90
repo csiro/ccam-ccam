@@ -64,6 +64,7 @@ contains
          oblqty  = 22.949
       else
          print *,'bad year for astronomy' ,bpyear
+         print *,'valid years are 0, 6000 and 21000'
          stop
       endif
       ecsq = ec**2

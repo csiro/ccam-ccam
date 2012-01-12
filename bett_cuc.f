@@ -1,5 +1,6 @@
       subroutine bett_cuc ( dt, pt, kpnt, oshal )  ! was called cucnvc
 c***  efiln was undefined  - changed to efimn 28/9/00
+      use betts1_m
       parameter (ntest=0)  ! replaces debug; set to 1 or 2 for degugging
 c     with constants altered by bfr
 c     this is part of the Betts-Miller parameterization
@@ -56,13 +57,12 @@ c
      &, elocp=elivw/cp, cprlg=cp/(row*g*elwv), rcp=1./cp )
 c
       include 'newmpar.h'
-      include 'betts1.h'
 c     include 'imjmkl.h'     ! now in betts1.h
 c
       parameter ( ksmud=0 )  ! this option actually removed by jlm
       parameter ( lsh=4, kbm=3 )
-      parameter ( lscrch=4*kl+1+la
-     &, l1=la+1, l2=la+kl+1, l3=la+2*kl+1, l4=la+3*kl+1)
+!      parameter ( lscrch=4*kl+1+la
+!     &, l1=la+1, l2=la+kl+1, l3=la+2*kl+1, l4=la+3*kl+1)
 c
 c-----------------------------------------------------------------------
 c     include 'eta.h'        ! now in betts1.h
@@ -80,16 +80,16 @@ c     include 'scrch.h'    !  uses common/work2/   now
 
 c     real htop(ifull),hbot(ifull) not used
 
-      common/work2/ltop(ifull),lbot(ifull),ittb(ifull),iqtb(ifull),
+      real ltop(ifull),lbot(ifull),ittb(ifull),iqtb(ifull),
      . pdsl(ifull),tbt(ifull),qbt(ifull),apebt(ifull),tth(ifull),
      . pp(ifull),bqs00(ifull),sqs00(ifull),bqs10(ifull),sqs10(ifull),
      . bq(ifull),sq(ifull),qq(ifull),psp(ifull)
 
       real thbt(ifull),thesp(ifull),tdif(ifull)
 
-      common/work3b/ape(ifull,kl),tref(ifull,kl)  ! 28/9/00
-      common/work3c/qmod(ifull,kl)                ! 28/9/00
-      common/work3d/tmod(ifull,kl)                ! 28/9/00
+      real ape(ifull,kl),tref(ifull,kl)  ! 28/9/00
+      real qmod(ifull,kl)                ! 28/9/00
+      real tmod(ifull,kl)                ! 28/9/00
 
       logical ofirst,oshal
 
@@ -101,23 +101,23 @@ c     real htop(ifull),hbot(ifull) not used
      . sthe00(ifull),t10(ifull),p01(ifull),bthe10(ifull),t01(ifull),
      . p11(ifull),sthe10(ifull),t11(ifull),bth(ifull),sth(ifull)
 
-      equivalence (ittb  ,iptb  ,ql)
-      equivalence (iqtb  ,ithtb ,tl   )
-      equivalence (tdif  ,tne   )
-      equivalence (thbt  ,qne    )
-      equivalence (tbt   ,p     ,tse  )
-      equivalence (psp   ,qse)
-      equivalence (qbt   ,botchk)
-      equivalence (apebt ,tthbt)
-      equivalence (pp    ,tpsp)
-      equivalence (cqq   ,apesp ,tthes )
-      equivalence (tth   ,tq    ,tp )
-      equivalence (bqs00 ,p00   ,bthe00,t00)
-      equivalence (sqs00 ,p10   ,sthe00,t10  )
-      equivalence (bqs10 ,p01   ,bthe10,t01)
-      equivalence (sqs10 ,p11   ,sthe10,t11  )
-      equivalence (bq    ,bth )
-      equivalence (sq    ,sth  )
+!      equivalence (ittb  ,iptb  ,ql)
+!      equivalence (iqtb  ,ithtb ,tl   )
+!      equivalence (tdif  ,tne   )
+!      equivalence (thbt  ,qne    )
+!      equivalence (tbt   ,p     ,tse  )
+!      equivalence (psp   ,qse)
+!      equivalence (qbt   ,botchk)
+!      equivalence (apebt ,tthbt)
+!      equivalence (pp    ,tpsp)
+!      equivalence (cqq   ,apesp ,tthes )
+!      equivalence (tth   ,tq    ,tp )
+!      equivalence (bqs00 ,p00   ,bthe00,t00)
+!      equivalence (sqs00 ,p10   ,sthe00,t10  )
+!      equivalence (bqs10 ,p01   ,bthe10,t01)
+!      equivalence (sqs10 ,p11   ,sthe10,t11  )
+!      equivalence (bq    ,bth )
+!      equivalence (sq    ,sth  )
 
 
       data ofirst/.true./
@@ -187,7 +187,7 @@ c
  120    continue
         play=avps*aeta(l)+pt
         if ( play.lt.100.e2 ) lqm=l
-        if ( ntest.gt.0 ) print *,l,ape(kpnt,l),apest,aeta(l),pdsl(kpnt)
+c       if ( ntest.gt.0 ) print *,l,ape(kpnt,l),apest,aeta(l),pdsl(kpnt)
  110  continue
       if ( ntest.gt.0 ) print *,'cucnvc:avps,kbm,lqm,lsh ',
      .   avps,kbm,lqm,lsh
@@ -207,11 +207,11 @@ c
           qbt(iq)  =q(iq,lbtm)
           apebt(iq)=ape(iq,lbtm)
         enddo
-c
-        if ( ntest.gt.0 ) then
-           print *,'cucnvc:130 ',lbtm,tbt(kpnt),qbt(kpnt),apebt(kpnt)
-        endif
-c
+
+c      if ( ntest.gt.0 ) then
+c          print *,'cucnvc:130 ',lbtm,tbt(kpnt),qbt(kpnt),apebt(kpnt)
+c       endif
+
 c--------------scaling potential temperature & table index--------------
 c
 !       do iq=2*il+1,ifull-2*il-2  ! DARLAM
@@ -227,26 +227,26 @@ c
 !       do iq=2*il+1,ifull-2*il-2  ! DARLAM
          do iq=1,ifull
          if ( ittb(iq).lt.1 ) then
-           if ( ntest.gt.0 .and. iq.eq.kpnt ) then
-              print *,'cucnvc:a 145 ittb,qq',ittb(iq),qq(iq)
-           endif
+c          if ( ntest.gt.0 .and. iq.eq.kpnt ) then
+c             print *,'cucnvc:a 145 ittb,qq',ittb(iq),qq(iq)
+c          endif
            ittb(iq)=1
            qq  (iq)=0.
          endif
          if ( ittb(iq).ge.jtb ) then
-           if ( ntest.gt.0 .and. iq.eq.kpnt ) then
-              print *,'cucnvc:b 145 ittb,qq ',ittb(iq),qq(iq)
-           endif
+c          if ( ntest.gt.0 .and. iq.eq.kpnt ) then
+c             print *,'cucnvc:b 145 ittb,qq ',ittb(iq),qq(iq)
+c          endif
            ittb(iq)=jtb-1
            qq  (iq)=0.
          endif
         enddo  ! 145
-c
-        if ( ntest.gt.0 ) then
-           print *,'cucnvc:145 tthbt,tth,qq,ittb',
-     .     tthbt(kpnt),tth(kpnt),qq(kpnt),ittb(kpnt)
-        endif
-c
+
+c       if ( ntest.gt.0 ) then
+c          print *,'cucnvc:145 tthbt,tth,qq,ittb',
+c    .     tthbt(kpnt),tth(kpnt),qq(kpnt),ittb(kpnt)
+c       endif
+
 c--------------base and scaling factor for spec. humidity---------------
 c
 !      do iq=2*il+1,ifull-2*il-2  ! DARLAM
@@ -272,16 +272,16 @@ c--------------keeping indices within the table-------------------------
 !      do iq=2*il+1,ifull-2*il-2  ! DARLAM
        do iq=1,ifull
         if ( iqtb(iq).lt.1 ) then
-           if ( ntest.gt.0 .and. iq.eq.kpnt ) then
-              print *,'cucnvc: a 165 iqtb,pp',iqtb(iq),pp(iq)
-           endif
+c          if ( ntest.gt.0 .and. iq.eq.kpnt ) then
+c             print *,'cucnvc: a 165 iqtb,pp',iqtb(iq),pp(iq)
+c          endif
            iqtb(iq)=1
            pp  (iq)=0.
         end if
         if ( iqtb(iq).ge.itb ) then
-           if ( ntest.gt.0 .and. iq.eq.kpnt ) then
-              print *,'cucnvc: b 165 iqtb,pp',iqtb(iq),pp(iq)
-           endif
+c          if ( ntest.gt.0 .and. iq.eq.kpnt ) then
+c             print *,'cucnvc: b 165 iqtb,pp',iqtb(iq),pp(iq)
+c          endif
            iqtb(iq)=itb-1
            pp  (iq)=0.
         end if
@@ -308,11 +308,11 @@ c
         apesp(iq)=(tpsp(iq)/100000.)**dm2859
         tthes(iq)=tthbt(iq)*exp(elocp*qbt(iq)*apesp(iq)/tthbt(iq))
        enddo  !  180
-c
-        if ( ntest.gt.0 ) then
-           print *,'cucnvc: 180 ',tpsp(kpnt),apesp(kpnt),tthes(kpnt)
-        endif
-c
+
+c       if ( ntest.gt.0 ) then
+c          print *,'cucnvc: 180 ',tpsp(kpnt),apesp(kpnt),tthes(kpnt)
+c       endif
+
 c--------------check for maxilum buoyancy-------------------------------
 c
 !      do iq=2*il+1,ifull-2*il-2  ! DARLAM
@@ -323,11 +323,11 @@ c
            thesp(iq)=tthes(iq)
         end if
        enddo  !
-c
-        if ( ntest.gt.0 ) then
-           print *,'cucnvc: 185 ',psp(kpnt),thbt(kpnt),thesp(kpnt)
-        endif
-c
+
+c       if ( ntest.gt.0 ) then
+c          print *,'cucnvc: 185 ',psp(kpnt),thbt(kpnt),thesp(kpnt)
+c       endif
+
 c-----------------------------------------------------------------------
 c
 c---------end search for maxilum buoyancy level-------------------------
@@ -353,12 +353,12 @@ c
              botchk(iq)=1.
           endif
        enddo  !
-c
-        if ( ntest.gt.0 ) then
-           print *,'cucnvc: 196 ',l,lbot(kpnt),
-     .     botchk(kpnt),p(kpnt),psp(kpnt)
-        endif
-c
+
+c       if ( ntest.gt.0 ) then
+c          print *,'cucnvc: 196 ',l,lbot(kpnt),
+c    .     botchk(kpnt),p(kpnt),psp(kpnt)
+c       endif
+
  196  continue
 c
 c--------------cloud top computation------------------------------------
@@ -393,16 +393,16 @@ c
 !      do iq=2*il+1,ifull-2*il-2  ! DARLAM
        do iq=1,ifull
         if ( iptb(iq).lt.1 ) then
-           if ( ntest.gt.0 .and.iq.eq.kpnt ) then
-              print *,'cucnvc: a 215 ',iptb(iq),qq(iq)
-           endif
+c          if ( ntest.gt.0 .and.iq.eq.kpnt ) then
+c             print *,'cucnvc: a 215 ',iptb(iq),qq(iq)
+c          endif
            iptb(iq)=1
            qq  (iq)=0.
         end if
         if ( iptb(iq).ge.itb ) then
-           if ( ntest.gt.0 .and. iq.eq.kpnt ) then
-              print *,'cucnvc: b 215 ',iptb(iq),qq(iq)
-           endif
+c          if ( ntest.gt.0 .and. iq.eq.kpnt ) then
+c             print *,'cucnvc: b 215 ',iptb(iq),qq(iq)
+c          endif
            iptb(iq)=itb-1
            qq  (iq)=0.
         end if
@@ -432,16 +432,16 @@ c--------------keeping indices within the table-------------------------
 !      do iq=2*il+1,ifull-2*il-2  ! DARLAM
        do iq=1,ifull
         if ( ithtb(iq).lt.1 ) then
-           if ( ntest.gt.0.and.iq.eq.kpnt) then
-              print *,'cucnvc: a 235 ',ithtb(iq),pp(iq)
-           endif
+c          if ( ntest.gt.0.and.iq.eq.kpnt) then
+c             print *,'cucnvc: a 235 ',ithtb(iq),pp(iq)
+c          endif
            ithtb(iq)=1
            pp  (iq)=0.
         end if
         if ( ithtb(iq).ge.jtb ) then
-           if ( ntest.gt.0.and.iq.eq.kpnt) then
-              print *,'cucnvc: b 235 ',ithtb(iq),pp(iq)
-           endif
+c          if ( ntest.gt.0.and.iq.eq.kpnt) then
+c             print *,'cucnvc: b 235 ',ithtb(iq),pp(iq)
+c          endif
            ithtb(iq)=jtb-1
            pp  (iq)=0.
         end if
@@ -489,14 +489,14 @@ c          qmod(iq,1)=1.
 c       endif
 c
        enddo  ! 260
-c
-        if ( ntest.gt.0 ) then
-          print *,'cucnvc: 260a: ',
-     .    tref(kpnt,l)-t0,t(kpnt,l)-t0,ltop(kpnt),p(kpnt)
-          print *,'cucnvc: 260b: ',
-     .    tmod(kpnt,l),tdif(kpnt),qmod(kpnt,1)
-        endif
-c
+
+c       if ( ntest.gt.0 ) then
+c         print *,'cucnvc: 260a: ',
+c    .    tref(kpnt,l)-t0,t(kpnt,l)-t0,ltop(kpnt),p(kpnt)
+c         print *,'cucnvc: 260b: ',
+c    .    tmod(kpnt,l),tdif(kpnt),qmod(kpnt,1)
+c       endif
+
 c-----------------------------------------------------------------------
 c end of level loop
 c
@@ -589,16 +589,16 @@ c--------------scaling potential temperature & table index at top-------
       qqk  =tthk-aint(tthk)
       it   =int(tthk)+1
       if ( it.lt.1 ) then
-         if ( ntest.gt.1 ) then      !.and. iq.eq.kpnt ) then
-            print *,'600 it,qqk ',it,qqk
-         endif
+c        if ( ntest.gt.1 ) then      !.and. iq.eq.kpnt ) then
+c           print *,'600 it,qqk ',it,qqk
+c        endif
          it=1
          qqk=0.
       end if
       if ( it.ge.jtb ) then
-         if ( ntest.gt.1 .and. iq.eq.kpnt ) then
-            print *,'600 it,qqk ',it,qqk
-         endif
+c        if ( ntest.gt.1 .and. iq.eq.kpnt ) then
+c           print *,'600 it,qqk ',it,qqk
+c        endif
          it=jtb-1
          qqk=0.
       end if
@@ -616,16 +616,16 @@ c--------------scaling spec. humidity & table index at top--------------
       ppk  =tqk-aint(tqk)
       iqbetts   =int(tqk)+1
       if ( iqbetts.lt.1 ) then
-         if ( ntest.gt.1 .and. iq.eq.kpnt ) then
-            print *,'600 iqbetts,ppk ',iqbetts,ppk
-         endif
+c        if ( ntest.gt.1 .and. iq.eq.kpnt ) then
+c           print *,'600 iqbetts,ppk ',iqbetts,ppk
+c        endif
          iqbetts=1
          ppk=0.
       end if
       if ( iqbetts.ge.itb)  then
-         if ( ntest.gt.1 .and. iq.eq.kpnt ) then
-            print *,'600 iqbetts,ppk ',iqbetts,ppk
-         endif
+c        if ( ntest.gt.1 .and. iq.eq.kpnt ) then
+c           print *,'600 iqbetts,ppk ',iqbetts,ppk
+c        endif
          iqbetts=itb-1
          ppk=0.
       end if
@@ -641,10 +641,10 @@ c-----------------------------------------------------------------------
       dpmix=ptpk-psp(iq)
       if ( abs(dpmix).lt.3000.)  dpmix=-3000.
       smix=stabs*(thtpk-thbt(iq))/dpmix
-c
-        if ( ntest.gt.1 .and. iq.eq.kpnt ) then
-           print *,'smix ',smix,dpmix,ptpk,psp(iq),thtpk,thbt(iq)
-        endif
+
+c       if ( ntest.gt.1 .and. iq.eq.kpnt ) then
+c          print *,'smix ',smix,dpmix,ptpk,psp(iq),thtpk,thbt(iq)
+c       endif
 
 c--------------shallow reference profiles (first guess)-----------------
       do 320 l=1,kl
@@ -652,10 +652,10 @@ c--------------shallow reference profiles (first guess)-----------------
         qrefk(l)=q  (iq,l)
         pk   (l)=aeta(l)*pdsl(iq)+pt
         apek (l)=ape(iq,l)
-c
-        if ( ntest.gt.1 .and. iq.eq.kpnt ) then
-           print *,'320 ',l,trefk(l)-t0,qrefk(l),pk(l),apek(l)
-        endif
+
+c       if ( ntest.gt.1 .and. iq.eq.kpnt ) then
+c          print *,'320 ',l,trefk(l)-t0,qrefk(l),pk(l),apek(l)
+c       endif
 
  320  continue
 c
@@ -670,11 +670,11 @@ c
 c
       trefk(ivi)=((pk(ivi)-pk(ivi+1))*smix
      2            +trefk(ivi+1)*apek(ivi+1))/apek(ivi)
-c
-        if ( ntest.gt.1 .and. iq.eq.kpnt ) then
-           print *,'330 ',ivi,trefk(ivi)-t0
-        endif
-c
+
+c       if ( ntest.gt.1 .and. iq.eq.kpnt ) then
+c          print *,'330 ',ivi,trefk(ivi)-t0
+c       endif
+
       if ( ivi.gt.ltp1 ) go to 330
 c
 c--------------reference spec. humidity (first guess)-------------------
@@ -687,11 +687,11 @@ c
       apeskl=(pskl/100000.)**dm2859
       qrefk(ivi)=pq0/pskl*exp(a2*(thskl-t0*apeskl)
      2                          /(thskl-a4*apeskl))
-c
-        if ( ntest.gt.1 .and. iq.eq.kpnt ) then
-           print *,'340 ',ivi,pskl,thskl,apeskl,qrefk(ivi)
-        endif
-c
+
+c       if ( ntest.gt.1 .and. iq.eq.kpnt ) then
+c          print *,'340 ',ivi,pskl,thskl,apeskl,qrefk(ivi)
+c       endif
+
       if ( ivi.gt.ltp1 ) go to 340
 c
 c--------------reference profiles corrections---------------------------
@@ -707,22 +707,22 @@ c
       sumdt=(t(iq,l)-trefk(l))*deta(l)+sumdt
       sumdq=(q(iq,l)-qrefk(l))*deta(l)+sumdq
       sumdp=sumdp+deta(l)
-c
-        if ( ntest.gt.1 .and. iq.eq.kpnt ) then
-           print *,'350 ',sumdt,sumdq,sumdp
-        endif
-c
+
+c       if ( ntest.gt.1 .and. iq.eq.kpnt ) then
+c          print *,'350 ',sumdt,sumdq,sumdp
+c       endif
+
       if ( l.lt.lbotk ) go to 350
 c
 caaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 c
       tcorr=sumdt/sumdp
       qcorr=sumdq/sumdp
-c
-        if ( ntest.gt.1 .and. iq.eq.kpnt ) then
-           print *,'tqcorr ',tcorr,qcorr
-        endif
-c
+
+c       if ( ntest.gt.1 .and. iq.eq.kpnt ) then
+c          print *,'tqcorr ',tcorr,qcorr
+c       endif
+
       l=ltpk
 c
  370  continue
@@ -730,11 +730,11 @@ c
       l=l+1
       trefk(l)=trefk(l)+tcorr
       qrefk(l)=qrefk(l)+qcorr
-c
-        if ( ntest.gt.1 .and. iq.eq.kpnt ) then
-           print *,'370  ',l,trefk(l)-t0,qrefk(l)
-        endif
-c
+
+c       if ( ntest.gt.1 .and. iq.eq.kpnt ) then
+c          print *,'370  ',l,trefk(l)-t0,qrefk(l)
+c       endif
+
       if ( l.lt.lbotk ) go to 370
 c
 c------------- entropy check -------------------------------------------
@@ -748,11 +748,11 @@ c
       l=l+1
       dentpy=((trefk(l)-t(iq,l))*cp+(qrefk(l)-q(iq,l))*elwv)
      .       / (t(iq,l)+trefk(l))*deta(l)+dentpy
-c
-        if ( ntest.gt.0 .and. iq.eq.kpnt ) then
-           print *,'359 ',l,dentpy
-        endif
-c
+
+c       if ( ntest.gt.0 .and. iq.eq.kpnt ) then
+c          print *,'359 ',l,dentpy
+c       endif
+
       if ( l.lt.lbotk ) go to 359
 c
  358  continue
@@ -777,11 +777,11 @@ c
       sumdse=sumdse+tmod(iq,l)*deta(l)
       summse=summse+qmod(iq,l)*deta(l)
       sumdpp=sumdpp+deta(l)
-c
-      if ( ntest.gt.1 .and. iq.eq.kpnt ) then
-         print *,'360 ',l,tmod(kpnt,l),qmod(kpnt,l),sumdse,summse,sumdpp
-      endif
-c
+
+c     if ( ntest.gt.1 .and. iq.eq.kpnt ) then
+c        print *,'360 ',l,tmod(kpnt,l),qmod(kpnt,l),sumdse,summse,sumdpp
+c     endif
+
       if ( l.lt.lbotk ) go to 360
 c
 c-----------------------------------------------------------------------
@@ -790,12 +790,12 @@ c-----------------------------------------------------------------------
       nbots(lbotk)=nbots(lbotk)+1
       ndepth=lbotk-ltpk
       ndpths(ndepth)=ndpths(ndepth)+1
-c
-      if ( ntest.gt.1 .and. iq.eq.kpnt ) then
-         print *,'ends ',ltpk,lbotk,nshal,ntops(ltpk),nbots(lbotk)
-     .                 ,ndepth,ndpths(ndepth)
-      endif
-c
+
+c     if ( ntest.gt.1 .and. iq.eq.kpnt ) then
+c        print *,'ends ',ltpk,lbotk,nshal,ntops(ltpk),nbots(lbotk)
+c    .                 ,ndepth,ndpths(ndepth)
+c     endif
+
 caaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 cscscscscscscscscscscscscscscscscscscscscscscscscscscscscscscscscscscscs
 cscscscscscsc  end of shallow convection   scscscscscscscscscscscscscscs
@@ -1195,19 +1195,19 @@ c         print *,'htop/bot= ',htop(kpnt),hbot(kpnt)
 c      endif
 c
 c-----------------------------------------------------------------------
-c
-      if ( ntest.gt.0 ) then
-        print *,'nshal,nneg,ndeep=',nshal,nneg,ndeep
-        print *,'        shallow        middle          deep      '
-        print *,' lev,bot ,top ,dpth,bot ,top ,dpth,bot ,top ,dpth'
-        do l=1,kl
-         write(6,886) l,nbots(l),ntops(l),ndpths(l)
-     .                 ,nbotn(l),ntopn(l),ndpthn(l)
-     .                 ,nbotd(l),ntopd(l),ndpthd(l)
- 886     format(1x,10(i3,2x))
-        enddo
-      endif
-c
+
+c     if ( ntest.gt.0 ) then
+c       print *,'nshal,nneg,ndeep=',nshal,nneg,ndeep
+c       print *,'        shallow        middle          deep      '
+c       print *,' lev,bot ,top ,dpth,bot ,top ,dpth,bot ,top ,dpth'
+c       do l=1,kl
+c        write(6,886) l,nbots(l),ntops(l),ndpths(l)
+c    .                 ,nbotn(l),ntopn(l),ndpthn(l)
+c    .                 ,nbotd(l),ntopd(l),ndpthd(l)
+c886     format(1x,10(i3,2x))
+c       enddo
+c     endif
+
 c-----------------------------------------------------------------------
 c
       return

@@ -1,61 +1,67 @@
-      subroutine vertmix
+      subroutine vertmix(iaero)
 !     inputs & outputs: t,u,v,qg
+      use aerosolldr
+      use arrays_m
       use cc_mpi, only : mydiag, myid
+      use cfrac_m
       use diag_m
+      use extraout_m
+      use indices_m
+      use kuocomb_m
+      use liqwpar_m  ! ifullw, qfg, qlg
+      use map_m
+      use morepbl_m
+      use nlin_m, tmnht => un, at => un
+      use pbl_m
+      use permsurf_m
+      use savuvt_m
+      use screen_m   ! tscrn
+      use sigs_m
+      use soil_m
+      use tkeeps     ! MJT tke
+      use tracers_m  ! ngas, nllp, ntrac
 !     rml 16/02/06 use trvmix module
       use trvmix, only : tracervmix
       include 'newmpar.h'
       parameter (ntest=0)
 c     parameter (ipwr=1)       ! really can use (ipwr=min(1,nlocal))
 c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
-      parameter (kcl_top=kl-2) ! maximum level for cloud top (conjob & vertmix)
-!     parameter (kscmom=0)     ! 0 usual, 1 turns on shal_conv momentum
+      integer kcl_top          ! maximum level for cloud top (conjob & vertmix)
+!     parameter (kscmom=0)     ! 0 off, 1 turns on shal_conv momentum (usual)
       parameter (ndvmod=0)     ! 0 default, 1+ for dvmod tests
 !     typically tied_con=6., tied_over=2., tied_rh=.75
 !     nlocal in parm.h         ! 0 local scheme, 1 or 2 non-local scheme
 !     real t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),ps(ifull)
-      include 'arrays.h'
       include 'const_phys.h'
       include 'dates.h'
-      include 'indices.h'
       include 'kuocom.h'   ! also with kbsav,ktsav,convpsav,kscsea,sigksct
-      include 'liqwpar.h'  ! ifullw, qfg, qlg
-      include 'map.h'      ! em, f, fu, fv, etc  not needed here?
-      include 'nlin.h'
-      include 'morepbl.h'
+      include 'mpif.h'
       include 'parm.h'
-      include 'pbl.h'
-      include 'screen.h'   ! tscrn
-      include 'permsurf.h'
-      include 'savuvt.h'
-      include 'sigs.h'
-      include 'soil.h'
-      include 'tracers.h'  ! ngas, nllp, ntrac
-      common/cfrac/cfrac(ifull,kl)
       real betatt(ifull,kl),betaqt(ifull,kl),rhs(ifull,kl),dqtot(ifull)
-      common/work3/delthet(ifull,kl),
+      real delthet(ifull,kl),
      &    thebas(ifull,kl),cu(ifull,kl),thee(ifull,kl),qs(ifull,kl)
-      common/work3b/uav(ifull,kl),vav(ifull,kl)   
-!     n.b. uav & vav also used by pbldif; all of work3 used by tracervmix
-      common/work3f/wrk1(ijk),wrk2(ijk),wrk3(ijk) 
+      real uav(ifull,kl),vav(ifull,kl)   
       real csq(ifull),dvmod(ifull),dz(ifull),dzr(ifull),
      &     fm(ifull),fh(ifull),sqmxl(ifull),
      &     x(ifull),zhv(ifull),theeb(ifull),sigsp(ifull)
-      integer kbase(ifull),ktop(ifull)
-      real sighkap(kl),sigkap(kl),delons(kl),delh(kl),prcpv(kl)
-      real at(ifull,kl),au(ifull,kl),ct(ifull,kl)
-      real zh(ifull,kl),tmnht(ifull,kl)
+      integer kbase(ifull),ktop(ifull),iaero,l
+      real sighkap(kl),sigkap(kl),delons(kl),delh(kl)
+      real, dimension(:), allocatable, save :: prcpv
+      real au(ifull,kl),ct(ifull,kl)
+      real zh(ifull,kl)
       real gt(ifull,kl),guv(ifull,kl),ri(ifull,kl)
       real rkm(ifull,kl),rkh(ifull,kl),rk_shal(ifull,kl)
       real condrag
-      equivalence (rkh,wrk1),(rkm,wrk2),(rk_shal,uav)
-      equivalence (tmnht,at,un),(zh,au,wrk3)
-!     equivalence (gamat,ct)
+      real zg(ifull,kl),rhoa(ifull),wt0(ifull),wq0(ifull) ! MJT tke
+      real zgh(ifull,kl-1)                                ! MJT tke
 c     set coefficients for Louis scheme
       data bprm/4.7/,cm/7.4/,ch/5.3/,amxlsq/100./,vkar3/.35/,vkar4/.4/
       data bprmj/5./,cmj/5./,chj/2.6/
-      save kscbase,ksctop,prcpv
+      save kscbase,ksctop
       include 'establ.h'
+
+      kcl_top=kl-2
+      if (.not.allocated(prcpv)) allocate(prcpv(kl))
 
       rong=rdry/grav
       do k=1,kl-1
@@ -66,13 +72,20 @@ c     set coefficients for Louis scheme
        delh(k)=-rong *dsig(k)/sig(k)  ! sign of delh defined so always +ve
        sigkap(k)=sig(k)**(-roncp)
       enddo      ! k loop
-      if( (diag.or.ntest>=1).and.mydiag)then
-        print *,'sig ',sig
-        print *,'dsig ',dsig
-        print *,'delh ',delh
-        print *,'in vertmix'
-        write (6,"('uin ',9f8.3/4x,9f8.3)") u(idjd,:) 
-        write (6,"('vin ',9f8.3/4x,9f8.3)") v(idjd,:) 
+      if(diag.or.ntest>=1)then
+        call maxmin(u,'%u',ktau,1.,kl)
+        call maxmin(v,'%v',ktau,1.,kl)
+        call maxmin(t,'%t',ktau,1.,kl)
+        call maxmin(qg,'qg',ktau,1.e3,kl)     
+        call MPI_Barrier( MPI_COMM_WORLD, ierr ) ! stop others going past
+      if(mydiag)then
+          print *,'sig ',sig
+          print *,'dsig ',dsig
+          print *,'delh ',delh
+          print *,'in vertmix'
+          write (6,"('uin ',9f8.3/4x,9f8.3)") u(idjd,:) 
+          write (6,"('vin ',9f8.3/4x,9f8.3)") v(idjd,:) 
+        endif
       endif
       rlogs1=log(sig(1))
       rlogs2=log(sig(2))
@@ -80,7 +93,7 @@ c     set coefficients for Louis scheme
       rlog12=1./(rlogs1-rlogs2)
       tmnht(1:ifull,1)=(t(1:ifull,2)*rlogs1-t(1:ifull,1)*rlogs2+
      &           (t(1:ifull,1)-t(1:ifull,2))*rlogh1)*rlog12
-!     n.b. an approximate zh is quite adequate for this routine
+!     n.b. an approximate zh (in m) is quite adequate for this routine
       zh(1:ifull,1)=t(1:ifull,1)*delh(1)
       do k=2,kl-1
        do iq=1,ifull
@@ -91,6 +104,11 @@ c     set coefficients for Louis scheme
       do k=1,kl
         rhs(:,k)=t(1:ifull,k)*sigkap(k)  ! rhs is theta here
       enddo      !  k loop
+      if(nmaxpr==1.and.mydiag)
+     &  write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
+
+
+      if (nvmix.ne.6) then ! usual ! MJT tke
 
 c Pre-calculate the buoyancy parameters if using qcloud scheme.
 c Follow Smith's (1990) notation; gam() is HBG's notation for (L/cp)dqsdt.
@@ -121,7 +139,7 @@ c because we use theta derivative rather than (dry static energy)/cp.
            do iq=1,ifull
             es=establ(t(iq,k))
             pk=ps(iq)*sig(k)
-            qs(iq,k)=.622*es/(pk-es)  ! still need qs()
+            qs(iq,k)=.622*es/max(1.,pk-es)  ! still need qs(); max for k=kl
             betat=1./t(iq,k)
 c           qc=qlg(iq,k)+qfg(iq,k)
 c           betaq=delta/(1.+delta*qg(iq,k)-qc)
@@ -132,7 +150,7 @@ c           betaq=delta/(1.+delta*qg(iq,k)-qc)
          endif  ! (sig(k)>.8)
          if(diag.and.mydiag)then
             iq=idjd
-            dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*(pk-es))
+            dqsdt=qs(iq,k)*pk*(hl/rvap)/(t(iq,k)**2*max(pk-es,1.))
             betat=1./t(iq,k)
             qc=qlg(iq,k)+qfg(iq,k)
             fice=qfg(iq,k)/max(qc,1.e-12)
@@ -150,27 +168,25 @@ c           betaq=delta/(1.+delta*qg(iq,k)-qc)
      &               betat,betatt(iq,k),betaqt(iq,k)
          endif   ! (ntest==2)
         enddo    !  k loop
-      else       ! other nvmix values still need qs()
+      else       ! other nvmix values (0 or 4+) still need qs()
         do k=1,kl
          do iq=1,ifull
           es=establ(t(iq,k))
-          qs(iq,k)=.622*es/(ps(iq)*sig(k)-es)
+          qs(iq,k)=.622*es/max(1.,ps(iq)*sig(k)-es)  ! max for k=kl
          enddo   ! iq loop
         enddo    !  k loop
       endif      ! (nvmix>0.and.nvmix<4)
 
       do k=1,kl-1
-       delthet(:,k)=rhs(:,k+1)-rhs(:,k)  ! rhs is theta here
+       delthet(:,k)=rhs(:,k+1)-rhs(:,k)  ! rhs is theta or thetal here
       enddo      !  k loop
 
       if(ktau==1.and.ksc.ne.0)then
 !       set ksctop for shallow convection
         ksctop=1    ! ksctop will be first level below sigkcst
-c       if(abs(ksc)>92)then  !  abs from 16/3/04
-          do while(sig(ksctop+1)>sigksct)  !  e.g. sigksct=.75
-           ksctop=ksctop+1
-          enddo
-c	 endif  !(abs(ksc)>92)
+        do while(sig(ksctop+1)>sigksct)  !  e.g. sigksct=.75
+         ksctop=ksctop+1
+        enddo
         kscbase=1  ! kscbase will be first level above sigkcsb
         do while(sig(kscbase)>sigkscb.and.sigkscb>0.) ! e.g. sigkscb=.99
          kscbase=kscbase+1
@@ -196,6 +212,97 @@ c     ****** section for Geleyn shallow convection; others moved lower****
          enddo  ! iq loop
         enddo   !  k loop
       endif     ! (ksc==-99)
+      if(ksc==-98)then    ! modified Geleyn Jan '08
+        do k=kscbase,ksctop    ! new usage of ksc thu  02-17-2000
+         do iq=1,ifull
+          if(qg(iq,k)>tied_rh*qs(iq,k).or.
+     &       qg(iq,k+1)>tied_rh*qs(iq,k+1))then
+             delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,
+     &                     qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
+          endif
+         enddo  ! iq loop
+        enddo   !  k loop
+      endif     ! (ksc==-98)
+      if(ksc==-97)then    ! modified Geleyn Jan '08
+        do k=kscbase,ksctop    ! new usage of ksc thu  02-17-2000
+         do iq=1,ifull
+          if(qg(iq,k)>tied_rh*qs(iq,k))then
+            delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,
+     &                    qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
+          endif
+         enddo  ! iq loop
+        enddo   !  k loop
+      endif     ! (ksc==-97)
+      if(ksc==-96)then   ! combination of Geleyn and jlm 83 (Feb 08)
+        do k=1,ksctop    
+         do iq=1,ifull
+          if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)==0.)then  
+            delthet(iq,k)=delthet(iq,k)-hlcp*max(0.,
+     &                 qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k) )
+            print *,'-96 iq,k,kbsav,ktsav ',iq,k,kbsav(iq),ktsav(iq),
+     &      hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)),delthet(iq,k)
+          endif 
+         enddo  ! iq loop
+        enddo   !  k loop
+      endif     ! (ksc==-96)
+      if(ksc==-95)then ! same as -99 but has tied_rh (e.g. .75) factor
+c       kshal(:)=0
+        do k=kscbase,ksctop     
+         do iq=1,ifull
+          delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,
+     &                 (qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
+c         if(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)>0.)kshal(iq)=k+1
+c         if(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)>0.)
+c    &      print*,'ktau,iq,k,diff ',
+c    &        ktau,iq,k,hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k))
+         enddo  ! iq loop
+        enddo   !  k loop
+      endif     ! (ksc==-95)
+      if(ksc==-94)then   ! combination of Geleyn and jlm 83 (Feb 08)
+        do k=1,ksctop    
+         do iq=1,ifull
+          if(k<ktsav(iq).and.k>=kbsav(iq).and.condc(iq)==0.)then  
+            delthet(iq,k)=0.
+            print *,'-94 iq,k,kbsav,ktsav ',iq,k,kbsav(iq),ktsav(iq),
+     &      hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)),delthet(iq,k)
+          endif 
+         enddo  ! iq loop
+        enddo   !  k loop
+      endif     ! (ksc==-94)
+      if(ksc==-93)then ! single-layer (pblh) version of -95
+        do iq=1,ifull
+         do k=kscbase,kl/2
+          if(zh(iq,k)<pblh(iq).and.zh(iq,k+1)>pblh(iq))then
+c           aa=hlcp*(qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k))
+c           if(aa>0.)
+c    &        print *,'iq,k,zh,pblh,rh ',iq,k,zh(iq,k),pblh(iq),
+c~`    &                qg(iq,k)/qs(iq,k),delthet(iq,k),aa 
+            delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,
+     &                   (qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
+           endif
+         enddo  ! k loop 
+        enddo   ! iq loop
+      endif     ! (ksc==-93)
+      if(ksc==-92)then ! capped-by-pblh version of -95
+        do iq=1,ifull
+         do k=kscbase,kl/2
+          if(zh(iq,k)<pblh(iq))then
+            delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,
+     &                   (qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
+           endif
+         enddo  ! k loop 
+        enddo   ! iq loop
+      endif     ! (ksc==-92)
+      if(ksc==-91)then ! capped-by-pblh (anywhere in layer) version of -95
+        do iq=1,ifull
+         do k=2,kl/2
+          if(zh(iq,k-1)<pblh(iq))then
+            delthet(iq,k)=delthet(iq,k)-tied_rh*hlcp*max(0.,
+     &                   (qs(iq,k+1)-qg(iq,k+1)-qs(iq,k)+qg(iq,k)) )
+           endif
+         enddo  ! k loop 
+        enddo   ! iq loop
+      endif     ! (ksc==-91)
 c     ********* end of Geleyn shallow convection section ****************
 
 !     following now defined in vertmix (don't need to pass from sflux)
@@ -216,6 +323,7 @@ c     ********* end of Geleyn shallow convection section ****************
 
 c      x is bulk ri *(dvmod **2); used to calc ri(k), rkh(k) etc
        if(nvmix>0.and.nvmix<4)then  ! new one allowing for cloudy air
+!        usually nvmix=3       
          if(sig(k)>.8)then ! change made 17/1/06
            dqtot(:)=qg(1:ifull,k+1)+qlg(1:ifull,k+1)+qfg(1:ifull,k+1)
      &            -(qg(1:ifull,k)  +qlg(1:ifull,k)  +qfg(1:ifull,k))
@@ -228,7 +336,7 @@ c      x is bulk ri *(dvmod **2); used to calc ri(k), rkh(k) etc
      &         (min(betatt(iq,k),betatt(iq,k+1)))*delthet(iq,k) +
      &         (max(betaqt(iq,k),betaqt(iq,k+1)))*dqtot(iq) )
            enddo ! iq loop	
-         else 
+         else    ! i.e. nvmix=1 or 3
            if(nvmix==1)w1=dsig(k+1)/(dsig(k)+dsig(k+1)) 
            if(nvmix==3)w1=1.    !weight for lower level  usual           
            w2=1.-w1             !weight for upper level
@@ -240,21 +348,21 @@ c      x is bulk ri *(dvmod **2); used to calc ri(k), rkh(k) etc
          endif  !  (nvmix==2) .. else ..
          if(ntest==4.and.k<=9.and.ktau==ntau)then
            diffmax=0.
-         do iq=1,ifull
-          rhsk=t(iq,k)*sigkap(k)
-          rhskp=t(iq,k+1)*sigkap(k+1)
-          delthet_old=rhs(iq,k+1)-rhs(iq,k)
-          xold=grav*dz(iq)*(delthet_old/(tmnht(iq,k)*sighkap(k))
-     &          +.61*(qg(iq,k+1)-qg(iq,k)))
-          diff=abs(xold-x(iq))
-          if(diff>diffmax)then
-            diffmax=diff
-            iqmax=iq
-          endif
-          write(47,'(3g13.4,i7,i4)') xold,x(iq),diff,iq,k
-         enddo
-         print *,'k,iqmax,diffmax ',k,iqmax,diffmax
-         endif   
+           do iq=1,ifull
+            rhsk=t(iq,k)*sigkap(k)
+            rhskp=t(iq,k+1)*sigkap(k+1)
+            delthet_old=rhs(iq,k+1)-rhs(iq,k)
+            xold=grav*dz(iq)*(delthet_old/(tmnht(iq,k)*sighkap(k))
+     &           +.61*(qg(iq,k+1)-qg(iq,k)))
+            diff=abs(xold-x(iq))
+            if(diff>diffmax)then
+              diffmax=diff
+              iqmax=iq
+            endif
+            write(47,'(3g13.4,i7,i4)') xold,x(iq),diff,iq,k
+           enddo
+           print *,'k,iqmax,diffmax ',k,iqmax,diffmax
+         endif   ! (ntest==4.and.k<=9.and.ktau==ntau)
          rhs(:,k)=t(1:ifull,k)*sigkap(k)   !need to re-set theta for nvmix=1-3
        elseif(nvmix==5)then        ! non-cloudy x with qfg, qlg
           x(:)=grav*dz(:)*(delthet(:,k)/(tmnht(:,k)*sighkap(k))
@@ -345,7 +453,6 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
         print *,'before possible call to pbldif in vertmix'
         write (6,"('uav ',9f8.3/4x,9f8.3)") uav(idjd,:) 
         write (6,"('vav ',9f8.3/4x,9f8.3)") vav(idjd,:)
-        write (6,"('thet',9f8.3/4x,9f8.3)") rhs(idjd,:)
         write (6,"('t   ',9f8.3/4x,9f8.3)") t(idjd,:)
         write (6,"('qg ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
         write (6,"('qs ',3p9f8.3/4x,9f8.3)") qs(idjd,:)
@@ -363,19 +470,18 @@ c      (i.e. local scheme is applied to momentum for nlocal=0,1)
       endif
 
       if(nlocal.ne.0)then
-        call pbldif(rhs,rkh,rkm,uav,vav)
+        call pbldif(rhs,rkh,rkm,uav,vav)  ! rhs is theta or thetal
 !       n.b. *** pbldif partially updates qg and theta (t done during trim)	 
 !       and updates rkh and rkm arrays
         if(nmaxpr==1.and.mydiag)then
+          write (6,"('pblh ',f8.2)") pblh(idjd)
           write (6,"('rkh1 ',9f9.3/5x,9f9.3)") rkh(idjd,1:kl-2)
           write (6,"('rkm1 ',9f9.3/5x,9f9.3)") rkm(idjd,1:kl-2)
         endif
-        if( (diag.or.ntest>=1) .and. mydiag )then
-          print *,'after pbldif in vertmix'
-          write (6,"('thet',9f8.3/4x,9f8.3)") rhs(idjd,:)
-          write (6,"('qg ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
-     &              
-        endif
+        if(nmaxpr==1.and.mydiag)
+     &    write (6,"('thet_pbl',9f8.3/8x,9f8.3)") rhs(idjd,:)
+        if( (diag.or.ntest>=1) .and. mydiag )
+     &    write (6,"('qg ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
         if(diag)then
           call printa('rkh ',rkh,ktau,nlv,ia,ib,ja,jb,0.,1.)
           call printa('cond',condx,ktau,1,ia,ib,ja,jb,0.,1.)
@@ -407,11 +513,21 @@ c     ***** ***** section for jlm shallow convection v4 *****************
          enddo  ! iq loop
         enddo   !  k loop
       endif     ! (ksc==82)
-      if(ksc==91)then
-        do k=1,ksctop-1   ! or ksctop?  
+      if(ksc==83)then
+        do k=1,ksctop-1    
          do iq=1,ifull
-c**       if(ktsav(iq)<0.and.k<abs(ktsav(iq)))then
-          if(ktsav(iq)<kl.and.k<ktsav(iq))then  ! April 04
+          if(sig(k)>sig_ct.and.k<ktsav(iq).
+     &                and.k>=kbsav(iq).and.condc(iq)==0.)then  
+            rk_shal(iq,k)=tied_con
+            rk_shal(iq,k+1)=tied_over
+          endif ! (sig(ktsav(iq))>sig_ct.and.k<ktsav(iq).and....)
+         enddo  ! iq loop
+        enddo   !  k loop
+      endif     ! (ksc==83)
+      if(ksc==91)then
+        do k=1,ksctop ! May 08
+         do iq=1,ifull
+          if(ktsav(iq)<kl-1.and.k<ktsav(iq))then  ! April 04
             rk_shal(iq,k)=tied_con
             rk_shal(iq,k+1)=tied_over
           endif ! (ktsav(iq)<0.and.k<abs(ktsav(iq)))
@@ -419,20 +535,12 @@ c**       if(ktsav(iq)<0.and.k<abs(ktsav(iq)))then
         enddo   !  k loop
       endif     ! (ksc==91)
       if(ksc==92)then
-        if(nlocal.ne.0.and.sigkscb<-1.)then
-          do iq=1,ifull
-           if(zh(iq,kbsav(iq))>pblh(iq))then 
-             kbsav(iq)=kl
-           endif
-          enddo
-        endif  ! (nlocal.ne.0.and.sigkscb<-1.)
-        do k=1,ksctop-1    
+        do k=1,ksctop ! May 08
          do iq=1,ifull
-c**       if(ktsav(iq)<0.and.k<abs(ktsav(iq)).and.k>=kbsav(iq))then
-          if(ktsav(iq)<kl.and.k<ktsav(iq).and.k>=kbsav(iq))then  ! April 04
+          if(k>=kbsav(iq).and.k<ktsav(iq).and.condc(iq)==0.)then  ! May 08
             rk_shal(iq,k)=tied_con
             rk_shal(iq,k+1)=tied_over
-          endif ! (ktsav(iq)<0.and.k<abs(ktsav(iq)).and....)
+          endif ! (ktsav(iq)<0.and.k<abs(ktsav(iq)))
          enddo  ! iq loop
         enddo   !  k loop
       endif     ! (ksc==92)
@@ -479,7 +587,7 @@ c     ************ section for Tiedtke shallow convection *******************
       endif       ! (ksc==99)
 c     *********** end of Tiedtke shallow convection section **************
 
-c     *********** Tiedtke_ldr-style shallow convection 93-96 ************
+c     *********** Tiedtke_ldr-style shallow convection 93 ************
       if(ksc>=93.and.ksc<=96)then   
 c       Calculate LCL for near surface air
 c       Assume qstar=qtg(iq,1) but allow some sub-grid variability
@@ -509,7 +617,7 @@ c       and call that layer the cloud base.
         enddo
         if(nlocal.ne.0)then  ! like old ksc=95, but ensures LCL within PBL
           do iq=1,ifull
-           if(zh(iq,kbase(iq))>pblh(iq))then ! had missing iq
+           if(zh(iq,kbase(iq))>pblh(iq))then 
               kbase(iq)=kl
            endif
           enddo  ! iq loop
@@ -639,7 +747,7 @@ c     add in effects of shallow convection
         enddo   !  k loop
       endif     ! (kscmom==1)
       
-      if(ksc.ne.0.and.(ntest.ne.0.or.diag))then
+      if(ksc.ne.0.and.(ntest.ne.0.or.diag).and.nproc==1.)then
         do iq=1,ifull
          if(rk_shal(iq,1)>rk_shal(iq,2))then
            print *,'iq,rk_shal1,rk_shal2',iq,rk_shal(iq,1),rk_shal(iq,2)
@@ -671,6 +779,48 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &             (thee(idjd,k),k=1,kl)
         endif ! mydiag
       endif
+      
+      else ! tke-eps closure scheme
+       ! note ksc.ne.0 options are clobbered when nvmix=6               ! MJT tke
+       ! However, nvmix=6 with nlocal=7 supports its own shallow        ! MJT tke
+       ! convection options                                             ! MJT tke
+       zg(:,1)=bet(1)*t(1:ifull,1)/grav                                 ! MJT tke
+       do k=2,kl                                                        ! MJT tke
+         zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)                         ! MJT tke
+     &                     +betm(k)*t(1:ifull,k-1))/grav                ! MJT tke
+       end do                                                           ! MJT tke
+       do k=1,kl-1                                                      ! MJT tke
+         zgh(:,k)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k)                   ! MJT tke
+       end do                                                           ! MJT tke
+       rhoa=ps(1:ifull)/(rdry*tss(:))                                   ! MJT tke
+       wq0=eg/(hl*rhoa)                                                 ! MJT tke
+       wt0=fg/(cp*rhoa)                                                 ! MJT tke
+       select case(nlocal)                                              ! MJT tke
+        case(0) ! no counter gradient                                   ! MJT tke
+         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
+     &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,1,0)          ! MJT tke
+         rkh=rkm                                                        ! MJT tke
+        case(1,2,3,4,5,6) ! KCN counter gradient method                 ! MJT tke
+         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
+     &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,1,0)          ! MJT tke
+         rkh=rkm                                                        ! MJT tke
+         uav(1:ifull,:)=av_vmod*u(1:ifull,:)                            ! MJT tke
+     &                 +(1.-av_vmod)*savu(1:ifull,:)                    ! MJT tke
+         vav(1:ifull,:)=av_vmod*v(1:ifull,:)                            ! MJT tke
+     &                 +(1.-av_vmod)*savv(1:ifull,:)                    ! MJT tke
+         call pbldif(rhs,rkh,rkm,uav,vav)                               ! MJT tke
+        case(7) ! mass-flux counter gradient                            ! MJT tke
+         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
+     &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,0,0)          ! MJT tke
+         rkh=rkm                                                        ! MJT tke
+         case DEFAULT                                                   ! MJT tke
+           write(6,*) "ERROR: Unknown nlocal option for nvmix=6"        ! MJT tke
+           stop                                                         ! MJT tke
+       end select                                                       ! MJT tke
+      end if ! nvmix.ne.6                                               ! MJT tke
 
       do k=1,kl-1
         delsig=sig(k+1)-sig(k)
@@ -718,31 +868,22 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
       condrag=grav*dt/(dsig(1)*rdry)
 c     first do theta (then convert back to t)
       at(:,1)=0.
-      rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/cp)*fg(1:ifull)/ps(1:ifull)
 
-      if(npanels>0)then
-        do k=2,kl
-         do iq=1,ifull
-          at(iq,k) =-gt(iq,k-1)/dsig(k)
-         enddo   ! iq loop
-        enddo    !  k loop
-        do k=1,kl
-         do iq=1,ifull
-          ct(iq,k) =-gt(iq,k)/dsig(k)
-         enddo   ! iq loop
-        enddo    !  k loop
-      else       ! i.e. npanels=0   darlam
-        do k=2,kl
-         do iq=1,ifull
-          at(iq,k) =-gt(iq,k-1)/dsig(k)
-         enddo   ! iq loop
-        enddo    !  k loop
-        do k=1,kl
-         do iq=1,ifull
-          ct(iq,k) =-gt(iq,k)/dsig(k)
-         enddo   ! iq loop
-        enddo    !  k loop
-      endif      !  (npanels>0) .. else ..
+      do k=2,kl
+       do iq=1,ifull
+        at(iq,k) =-gt(iq,k-1)/dsig(k)
+       enddo   ! iq loop
+      enddo    !  k loop
+      do k=1,kl
+       do iq=1,ifull
+        ct(iq,k) =-gt(iq,k)/dsig(k)
+       enddo   ! iq loop
+      enddo    !  k loop
+      if (nvmix.eq.6.and.nlocal.eq.0) then                         ! MJT tke
+       ! increase mixing to replace counter gradient term          ! MJT tke
+       at=2.5*at                                                   ! MJT tke
+       ct=2.5*ct                                                   ! MJT tke
+      end if                                                       ! MJT tke
       if((diag.or.ntest==2).and.mydiag)then
         print *,'ktau,fg,tss,ps ',ktau,fg(idjd),tss(idjd),ps(idjd)
         print *,'at ',(at(idjd,k),k=1,kl)
@@ -750,7 +891,15 @@ c     first do theta (then convert back to t)
         print *,'rhs ',(rhs(idjd,k),k=1,kl)
       endif      ! (ntest==2)
 
-      call trim(at,ct,rhs,0)   ! for t
+      if (nvmix.ne.6) then                                         ! MJT tke
+       if(nmaxpr==1.and.mydiag)
+     &   write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
+       rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/cp)*fg(1:ifull)
+     &               /ps(1:ifull)
+       call trim(at,ct,rhs,0)   ! for t
+       if(nmaxpr==1.and.mydiag)
+     &   write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
+      end if                                                       ! MJT tke
       do k=1,kl
         do iq=1,ifull
          t(iq,k)=rhs(iq,k)/sigkap(k)
@@ -760,21 +909,29 @@ c     first do theta (then convert back to t)
          if (mydiag) then
             print *,'vertmix eg,fg,cdtq,land '
      &                  ,eg(idjd),fg(idjd),cdtq(idjd),land(idjd)
-            print *,'vertmix theta after trim ',(rhs(idjd,k),k=1,kl)
          end if
         call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
       endif
 
 c     now do moisture
-      rhs(1:ifull,:)=qg(1:ifull,:)
-      rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/hl)*eg(1:ifull)/ps(1:ifull)
-c     could add extra sfce moisture flux term for crank-nicholson
-      call trim(at,ct,rhs,0)    ! for qg
-      qg(1:ifull,:)=rhs(1:ifull,:)
+      if (nvmix.ne.6) then                                         ! MJT tke
+       rhs(1:ifull,:)=qg(1:ifull,:)
+       rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/hl)*eg(1:ifull)
+     &               /ps(1:ifull)
+c      could add extra sfce moisture flux term for crank-nicholson
+       call trim(at,ct,rhs,0)    ! for qg
+       qg(1:ifull,:)=rhs(1:ifull,:)
+      end if                                                       ! MJT tke
+      if (nvmix.eq.6.and.nlocal.gt.0) then                         ! MJT tke
+       ! increase mixing to replace counter gradient term          ! MJT tke
+       at=2.5*at                                                   ! MJT tke
+       ct=2.5*ct                                                   ! MJT tke
+      end if                                                       ! MJT tke
+
       if(diag.and.mydiag)then
-        print *,'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
-        write (6,"('qg ',9f7.3/(8x,9f7.3))") 
-     &             (1000.*qg(idjd,k),k=1,kl)
+       print *,'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
+       write (6,"('qg ',9f7.3/(8x,9f7.3))")
+     &            (1000.*qg(idjd,k),k=1,kl)
       endif
 
       if(ldr.ne.0)then
@@ -788,9 +945,20 @@ c       now do qlg
         qlg(1:ifull,:)=rhs(1:ifull,:)
       endif    ! (ldr.ne.0)
 
+      !--------------------------------------------------------------
+      ! MJT aerosol
+      if (abs(iaero)==2) then
+        do l=1,naero
+          rhs(1:ifull,:)=xtg(1:ifull,:,l)
+          call trim(at,ct,rhs,0)
+          xtg(1:ifull,:,l)=rhs(1:ifull,:)
+        end do
+      end if
+      !--------------------------------------------------------------
+
 c     now do trace gases rml 16/02/06 changed call
       if (ngas>0) call tracervmix(at,ct)
-
+      
 !     from here on just u and v stuff
       au(:,1)=cduv(:)*condrag/tss(:)   ! globpea
       do k=2,kl

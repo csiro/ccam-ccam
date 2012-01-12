@@ -1,143 +1,338 @@
-      subroutine helmsor(accel,zz,zzn,zze,zzw,zzs,helm,s,rhs)
-!     this is SOR version, with zz etc passed through arguments
-!     NOT YET working for nproc>1 (needs common number of itns)
+      subroutine helmsor(zz,zzn,zze,zzw,zzs,helm,s,rhs)
+!     Solve Helmholtz equation - experimental jlm version
+!     e.g. use  -2540, -2335, -2635, -2425 (in decr. order)
 
-!     Solve Helmholtz equation.
-!     For conformal-cubic this requires a 3 phase scheme
-!     while for conformal-octagon it requires a 4 phase scheme
-!     rather than simple red-black
-      use cc_mpi   ! for call bounds
-
+      use cc_mpi
+      use diag_m
+      use ilu_m
+      use indices_m
+      use sumdd_m
+      use vecs_m
+      implicit none
       include 'newmpar.h'
-      include 'indices.h' ! in,is,iw,ie,inn,iss,iww,iee
       include 'parm.h'
       include 'parmdyn.h'
-!     itmax is maximum number of iterations allowed
-      parameter(itmax=200,mev1=il+1-il/2*2,mev2=3-mev1)
-c     mev1 = 1 for il even (2 for il odd)
-c     mev2 = 2 for il even (1 for il odd)
+      include 'parmgeom.h'  ! rlong0,rlat0,schmidt  - briefly
+      include 'mpif.h'
+!     integer, parameter :: meth=3      ! 3b, 5c1 good
+      integer, parameter :: ntest=0 
+      integer, parameter :: itmax=300 ! maximum number of iterations allowed
 !     Arguments
-      real accel            ! SOR acceleration factor 
-      real helm(ifull)      ! Helmholtz coefficients
-      real s(ifull+iextra)         ! Solution
-      real rhs(ifull)       ! RHS
-      real zz(ifull),zzn(ifull),zze(ifull),zzw(ifull),zzs(ifull)
-!     real z(ifull,5)       ! Point coefficients, approx 1,1,1,1,-4.
-      logical close_enough
-      integer ip(2*il*il,3)! Cube only
+      real, intent(in), dimension(ifull) :: zz,zzn,zze,zzw,zzs
+!     WHY are helm and rhs ifull+iextra?????????
+!     Not just for printa call ?????
+      real, intent(in) :: helm(ifull+iextra,kl)      ! Helmholtz coefficients
+      real, intent(inout) :: s(ifull+iextra,kl)      ! Solution
+      real, intent(in) :: rhs(ifull+iextra,kl)       ! RHS
+      real, dimension(ifull,kl) :: sb, sa, snew, dsol
+      integer, allocatable, save, dimension(:) :: mask
+      integer, dimension(kl) :: iters
+      integer, dimension(3),save :: ifullx    ! MJT pack
+      integer, dimension(:,:), allocatable, save :: iqx,iqn,iqe ! MJT pack
+      integer, dimension(:,:), allocatable, save :: iqw,iqs     ! MJT pack
+      real, dimension(kl) ::  dsolmax, dsolmax_g, smax, smax_g
+      real, dimension(kl) ::  smin, smin_g
+      real, dimension(:), allocatable, save :: accel ! MJT pack
+      real aa(ifull), bb(ifull), cc(ifull), axel
+      integer iq, iter, k, nx, j, jx, i,klim,klimnew, ierr, meth, nx_max
       logical first
-      save ip, first
-      real, dimension(ifull) :: accfactor
-
-      integer nface6(4,3)   ! Faces to use in each phase    (c-cub)
-      integer ioff6(4,3)    ! Starting offset for each face (c-cub)
-      integer nface14(8,4)  ! Faces to use in each phase    (c-oct)
-      integer ioff14(8,4)   ! Starting offset for each face (c-oct)
-      data nface6 / 0, 1, 3, 4,   0, 2, 3, 5,   1, 2, 4, 5 /
-!     data ioff6 / 1, 1, 1, 1,   2, 1, 2, 1,   2, 2, 2, 2 /    ! up till 27/4/97
-      data ioff6 / 1,mev1,mev2,2,  2,1,mev1,mev2,  mev2,2,1,mev1 / ! jlm general
-!     data ioff6 / 1, 1, 2, 2,   2, 1, 1, 2,   2, 2, 1, 1 /        ! jlm even il
-!     data ioff6 / 1, 2, 1, 2,   2, 1, 2, 1,   1, 2, 1, 2 /        ! jlm odd il
-
-      data nface14/ 2, 4, 5,10,11,12,-1,-1,   2, 7, 8,10, 0, 1,-1,-1,
-     .       1, 3, 5, 6, 7, 9,11,13,   4, 6, 8, 9,12,13, 0, 3/
-      data ioff14 /1,mev1,1,2,mev2,2,-1,-1,   2,1,mev1,1,2,mev2,-1,-1, ! general
-     .       mev1,1,2,mev2,2,1,mev1,mev2, mev2,mev1,mev2,2,1,mev1,1,2/ ! general
-!     data ioff14 / 1, 1, 1, 2, 2, 2,-1,-1,   2, 1, 1, 1, 2, 2,-1,-1,  ! even il
-!    .       1, 1, 2, 2, 2, 1, 1, 2,      2, 1, 2, 2, 1, 1, 1, 2/      ! even il
-!     data ioff14 / 1, 2, 1, 2, 1, 2,-1,-1,   2, 1, 2, 1, 2, 1,-1,-1,  ! odd il
-!    .       2, 1, 2, 1, 2, 1, 2, 1,      1, 2, 1, 2, 1, 2, 1, 2/      ! odd il
+      save  first, meth, nx_max, axel
       data first /.true./
 
-      ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,npanels
-
-      if ( first ) then
-         do iphase = 1,3         !  mrd code to run fast on NEC
-            np = 0
-            do iface=1,4
-               if = nface6(iface,iphase)
-               istart = ioff6(iface,iphase) ! 1 or 2
-               do j=1,il
-                  istart = 3 - istart ! 1 or 2 alternately
-                  do i=istart,il,2
-                     iq=ind(i,j,if)
-                     np = np + 1
-                     ip(np,iphase) = iq
-                  end do
-               end do
-            end do
-         end do
-         first = .false.
+      call start_log(helm_begin) ! MJT
+      
+      if (.not.allocated(mask)) then
+        allocate(mask(ifull))
+        allocate(iqx(ifull,3),iqn(ifull,3),iqe(ifull,3))
+        allocate(iqw(ifull,3),iqs(ifull,3))
+        allocate(accel(kl))
       end if
 
-      close_enough = .false.
-      iter = 0
+      if(first)then
+        if(precon==-1)precon=-2325  ! i.e. 2, 3, .25
+        nx_max=abs(precon)/1000
+        meth=abs(precon)/100-10*nx_max
+        axel=-.01*real(precon)-10*nx_max-meth
+        if(myid==0)print *,'in helmsor nx_max,meth,axel: ',
+     &                                 nx_max,meth,axel
+        print *,'kind precon, axel ',kind(precon),kind(axel)
+        mask(:)=1
+        do j=1,jl
+         do i=1,il,2
+          jx=mod(i+j,2)    ! 0 or 1  starting (1,1) on panel
+          iq=i+jx+(j-1)*il
+          if(nx_max==2)then
+            mask(iq)=2
+          else
+            if(j>il.and.j<=3*il)mask(iq)=3
+            if(j>3*il.and.j<=5*il)mask(iq)=2
+            jx=mod(i+j+1,2)  ! 0 or 1  starting (2,1) on panel
+            iq=i+jx+(j-1)*il
+            if(j<=2*il)mask(iq)=2
+            if(j>4*il)mask(iq)=3
+          endif 
+         enddo
+c       print *,'j ',j,(mask(iq),iq=1+(j-1)*il,6+(j-1)*il)
+       enddo
+       ifullx=0                                ! MJT pack
+       iqx=0                                   ! MJT pack
+       iqn=0                                   ! MJT pack
+       iqe=0                                   ! MJT pack
+       iqw=0                                   ! MJT pack
+       iqs=0                                   ! MJT pack
+       do iq=1,ifull                           ! MJT pack
+         ifullx(mask(iq))=ifullx(mask(iq))+1   ! MJT pack
+         iqx(ifullx(mask(iq)),mask(iq))=iq     ! MJT pack
+         iqn(ifullx(mask(iq)),mask(iq))=in(iq) ! MJT pack
+         iqe(ifullx(mask(iq)),mask(iq))=ie(iq) ! MJT pack
+         iqw(ifullx(mask(iq)),mask(iq))=iw(iq) ! MJT pack
+         iqs(ifullx(mask(iq)),mask(iq))=is(iq) ! MJT pack
+       end do                                  ! MJT pack
+       first=.false.
+      endif  ! (first)
+      if(ktau==1)then
+       do k=1,kl
+        call optmx(il_g,schmidt,dt,bam(k),accel(k))
+	if(il_g>il)accel(k)=1.+.55*(accel(k)-1.)  ! for uniform-dec 22/4/08
+c       if(il_g==il)accel(k)=1.+.55*(accel(k)-1.) ! just a test
+        if(myid==0)print *,'k,accel ',k,accel(k)
+       enddo
+       print *,'myid,il,il_g,jl_g,dt ',myid,il,il_g,jl_g,dt
+      endif
+c$      print *,'myid,ktau,precon ',myid,ktau,precon
+ 
+      if(precon<-2899)go to 5  ! e.g. -2900 or -3900
+      klim=kl
+      iter = 1
+      do while ( iter<itmax .and. klim>1)
+       call bounds(s, klim=klim)
+       do k=1,klim        
+        do nx=1,nx_max
+!         do iq=1,ifull
+!          if(mask(iq)==nx)then
+           dsol(iqx(1:ifullx(nx),nx),k)=
+     &        ( zzn(iqx(1:ifullx(nx),nx))*s(iqn(1:ifullx(nx),nx),k)
+     &        + zzw(iqx(1:ifullx(nx),nx))*s(iqw(1:ifullx(nx),nx),k)
+     &        + zze(iqx(1:ifullx(nx),nx))*s(iqe(1:ifullx(nx),nx),k)
+     &        + zzs(iqx(1:ifullx(nx),nx))*s(iqs(1:ifullx(nx),nx),k)
+     &        +(zz(iqx(1:ifullx(nx),nx))
+     &        -helm(iqx(1:ifullx(nx),nx),k))*s(iqx(1:ifullx(nx),nx),k)
+     &        - rhs(iqx(1:ifullx(nx),nx),k))      
+     &        /(helm(iqx(1:ifullx(nx),nx),k)-zz(iqx(1:ifullx(nx),nx)))
+           snew(iqx(1:ifullx(nx),nx),k) = s(iqx(1:ifullx(nx),nx),k)
+     &        + dsol(iqx(1:ifullx(nx),nx),k)
+c            snew(iq,k) = s(iq,k) + dsol(iq,k)*accel(k)  ! no help
+!          endif
+!         enddo
 
-      accfactor(:) = accel/(helm(:)-zz(:))
-      if(npanels.eq.5)then
-        do while ( iter.lt.itmax .and. .not.close_enough )
-           dsolmax=0.
-           smax=0.
-           close_enough=.true.
-           ! Using acceleration of 1.0 on the first iteration improves 
-           ! convergence when there's a good initial guess.
-           if ( iter == 0 ) then
-              accfactor(:) = 1.0/(helm(:)-zz(:))
-           else
-              accfactor(:) = accel/(helm(:)-zz(:))
-           end if
-           do iphase = 1,3
-*cdir nodep
-              do i=1,2*il*il
-                 iq=ip(i,iphase)
-                 dsol= ( zzn(iq)*s(in(iq)) + zzw(iq)*s(iw(iq)) +
-     &                         zze(iq)*s(ie(iq)) + zzs(iq)*s(is(iq)) +
-     &                      ( zz(iq)-helm(iq) )*s(iq) - rhs(iq) )
-     &                      * accfactor(iq)
-                 s(iq) = s(iq) + dsol
-                 dsolmax=max(dsolmax,abs(dsol))
-                 smax=max(smax,abs(s(iq)))
-              end do
-           end do
-           if (dsolmax.gt.restol*smax)then
-	      close_enough=.false.
-	      call bounds(s)
-	    endif
-	    if(accel<0.)close_enough=.true.
-           iter = iter + 1
-        end do
-      elseif(npanels.eq.13)then
-        do while ( iter.lt.itmax .and. .not.close_enough )
-           dsolmax=0.
-           smax=0.
-           close_enough=.true.
-           do iphase = 1,4
-              do iface=1,6+(iphase-1)/2*2   ! to 6 for 1 & 2; to 8 for 3 & 4
-                 if = nface14(iface,iphase)
-                 istart = ioff14(iface,iphase)  ! 1 or 2
-                 do j=1,il
-                    istart = 3 - istart ! 1 or 2 alternately
-                    do i=istart,il,2
-                       iq=ind(i,j,if)
-                       dsol= ( zzn(iq)*s(in(iq)) + zzw(iq)*s(iw(iq)) +
-     &                         zze(iq)*s(ie(iq)) + zzs(iq)*s(is(iq)) +
-     &                      ( zz(iq)-helm(iq) )*s(iq) - rhs(iq) )
-     &                      * accfactor(iq)
-                       s(iq) = s(iq) + dsol
-                       dsolmax=max(dsolmax,abs(dsol))
-                       smax=max(smax,abs(s(iq)))
-c                      if ( abs(dsol) .gt. abs(restol*s(iq)) )
-c    &                      close_enough=.false.
-                    end do
-                 end do
-              end do
-           end do
-           if (dsolmax.gt.restol*smax)close_enough=.false.
-           iter = iter + 1
-        end do
-      endif    !  (npanels.eq.5)elseif(npanels.eq.13)
+!        following are jlm methods for improving guess
+         if(iter>=3)then
+         select case(meth)
+          case(3)
+!         if(iter>=3.and.meth==3)then   ! qls
+!          do iq=1,ifull
+!           if(mask(iq)==nx)then
+            aa(iqx(1:ifullx(nx),nx))=
+     &       (sb(iqx(1:ifullx(nx),nx),k)
+     &       -3*sa(iqx(1:ifullx(nx),nx),k)
+     &       +3*s(iqx(1:ifullx(nx),nx),k)
+     &       +19*snew(iqx(1:ifullx(nx),nx),k))/20.  
+            bb(iqx(1:ifullx(nx),nx))=(9*sb(iqx(1:ifullx(nx),nx),k)
+     &       -17*sa(iqx(1:ifullx(nx),nx),k)
+     &       -13*s(iqx(1:ifullx(nx),nx),k)
+     &       +21*snew(iqx(1:ifullx(nx),nx),k))/20.  
+c           snew(iq,k)=aa+.25*bb+.0625*cc !3c
+            snew(iqx(1:ifullx(nx),nx),k)=aa(iqx(1:ifullx(nx),nx))
+     &       +axel*bb(iqx(1:ifullx(nx),nx))
+!           endif
+!          enddo
+!         endif  ! meth=3
+          case(4)
+!         if(iter>=3.and.meth==4)then   ! oscill
+!          do iq=1,ifull
+!           if(mask(iq)==nx)then
+            aa(iqx(1:ifullx(nx),nx))=(7.*snew(iqx(1:ifullx(nx),nx),k)
+     &       +3.*s(iqx(1:ifullx(nx),nx),k)
+     &       -3.*sa(iqx(1:ifullx(nx),nx),k)
+     &       +sb(iqx(1:ifullx(nx),nx),k))/8. ! oscill
+            bb(iqx(1:ifullx(nx),nx))=snew(iqx(1:ifullx(nx),nx),k)
+     &       -.5*s(iqx(1:ifullx(nx),nx),k)
+     &       -sa(iqx(1:ifullx(nx),nx),k)
+     &       +.5*sb(iqx(1:ifullx(nx),nx),k)         ! oscill
+c           cc=.25*(snew(iq,k)-s(iq,k)-sa(iq,k)+sb(iq,k))         !             aa=(sb(iq,k)-3*sa(iq,k)+3*s(iq,k)+19*snew(iq,k))/20.  
+            snew(iqx(1:ifullx(nx),nx),k)=aa(iqx(1:ifullx(nx),nx))
+     &       +axel*bb(iqx(1:ifullx(nx),nx))
+!           endif
+!          enddo
+!         endif  ! meth=4
+          case(5)
+!         if(iter>=3.and.meth==5)then   ! wqls
+!          do iq=1,ifull
+!           if(mask(iq)==nx)then
+            aa(iqx(1:ifullx(nx),nx))=(2*sb(iqx(1:ifullx(nx),nx),k)
+     &       -6*sa(iqx(1:ifullx(nx),nx),k)+6*s(iqx(1:ifullx(nx),nx),k)
+     &       +68*snew(iqx(1:ifullx(nx),nx),k))/70.  
+            bb(iqx(1:ifullx(nx),nx))=(5*sb(iqx(1:ifullx(nx),nx),k)
+     &       -8*sa(iqx(1:ifullx(nx),nx),k)
+     &       -13*s(iqx(1:ifullx(nx),nx),k)
+     &       +16*snew(iqx(1:ifullx(nx),nx),k))/14.  
+c           cc=(3*sb(iq,k)-2*sa(iq,k)-5*s(iq,k)+4*snew(iq,k))/14.  
+            snew(iqx(1:ifullx(nx),nx),k)=aa(iqx(1:ifullx(nx),nx))
+     &       +axel*bb(iqx(1:ifullx(nx),nx))          
+!          endif
+!          enddo
+!         endif  ! meth=5
+          case(6)
+!         if(iter>=3.and.meth==6)then   ! wqls again
+!          do iq=1,ifull
+!           if(mask(iq)==nx)then
+            aa(iqx(1:ifullx(nx),nx))=(2*sb(iqx(1:ifullx(nx),nx),k)
+     &       -6*sa(iqx(1:ifullx(nx),nx),k)+6*s(iqx(1:ifullx(nx),nx),k)
+     &       +68*snew(iqx(1:ifullx(nx),nx),k))/70.  
+            bb(iqx(1:ifullx(nx),nx))=(5*sb(iqx(1:ifullx(nx),nx),k)
+     &       -8*sa(iqx(1:ifullx(nx),nx),k)-13*s(iqx(1:ifullx(nx),nx),k)
+     &       +16*snew(iqx(1:ifullx(nx),nx),k))/14.  
+            cc(iqx(1:ifullx(nx),nx))=(3*sb(iqx(1:ifullx(nx),nx),k)
+     &       -2*sa(iqx(1:ifullx(nx),nx),k)-5*s(iqx(1:ifullx(nx),nx),k)
+     &       +4*snew(iqx(1:ifullx(nx),nx),k))/14.  
+            snew(iqx(1:ifullx(nx),nx),k)=aa(iqx(1:ifullx(nx),nx))
+     &       +axel*(bb(iqx(1:ifullx(nx),nx))
+     &       +axel*cc(iqx(1:ifullx(nx),nx)))          
+!          endif
+!          enddo
+!         endif  ! meth=5
+         end select
+         end if
 
-      if (diag.or.ktau.lt.6.or..not.close_enough)    
-     .   print*,'helmsol Iterations dsolmax ',iter,dsolmax
+!         do iq=1,ifull
+!          if(mask(iq)==nx)then
+c           rotate s files
+            sb(iqx(1:ifullx(nx),nx),k)=sa(iqx(1:ifullx(nx),nx),k)
+            sa(iqx(1:ifullx(nx),nx),k)=s(iqx(1:ifullx(nx),nx),k)
+            s(iqx(1:ifullx(nx),nx),k)=snew(iqx(1:ifullx(nx),nx),k)
+!          endif
+!         enddo
+        enddo  ! nx loop
+        iters(k)=iter
+      enddo ! k loop   
+      if(ntest>0.and.meth>=1.and.mydiag)
+     &  write (6,"('Iter ,s',i4,4f14.5)") iter,(s(iq,1),iq=1,4)
+      if(iter==1)then
+       do k=1,klim
+         smax(k) = maxval(s(1:ifull,k))
+         smin(k) = minval(s(1:ifull,k))
+       end do
+        call MPI_Reduce( smax, smax_g, klim, MPI_REAL, MPI_MAX, 0,
+     &                    MPI_COMM_WORLD, ierr )
+        call MPI_Reduce( smin, smin_g, klim, MPI_REAL, MPI_MIN, 0,
+     &                    MPI_COMM_WORLD, ierr )
+      endif
+      do k=1,klim
+       dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
+      enddo
+      call MPI_Reduce( dsolmax, dsolmax_g, klim, MPI_REAL, MPI_MAX, 0,
+     &                    MPI_COMM_WORLD, ierr )
+      if(myid==0.and.ntest>0)then
+        print *,'smin_g ',smin_g(:)
+        print *,'smax_g ',smax_g(:)
+        print *,'dsolmax_g ',dsolmax_g(:)
+      endif  ! (myid==0)
+      klimnew=klim
+      do k=klim,1,-1
+       if(dsolmax_g(k)<restol*(smax_g(k)-smin_g(k)))then
+c        print *,'k,klim,iter,restol ',k,klim,iter,restol
+         klimnew=k
+       endif
+      enddo
+      klim=klimnew
+      call MPI_Bcast(klim,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)  ! MJT why is this needed?
+      iter = iter + 1
+      enddo   ! while( iter<itmax .and. klim>1)
+
+      if(myid==0.and.(diag.or.ktau<6))then
+        do k=1,kl
+         print*,'helmjlm ktau,k,Iterations ',ktau,k,iters(k)
+        enddo
+      endif
+      call end_log(helm_end) ! MJT
+      return
+
+5     continue  
+      klim=kl
+      iter = 1
+      do while ( iter<itmax .and. klim>1)
+       if(ntest==1.and.diag)print *,'myid,iter a ',myid,iter
+       call bounds(s, klim=klim)
+       if(ntest==1.and.diag)print *,'myid,iter b ',myid,iter
+       do k=1,klim        
+        do nx=1,nx_max
+        !------------------------------------------------------------
+        ! MJT pack
+          dsol(iqx(1:ifullx(nx),nx),k)=
+     &       ( zzn(iqx(1:ifullx(nx),nx))*s(iqn(1:ifullx(nx),nx),k)
+     &       + zzw(iqx(1:ifullx(nx),nx))*s(iqw(1:ifullx(nx),nx),k)
+     &       + zze(iqx(1:ifullx(nx),nx))*s(iqe(1:ifullx(nx),nx),k)
+     &       + zzs(iqx(1:ifullx(nx),nx))*s(iqs(1:ifullx(nx),nx),k)
+     &       +(zz(iqx(1:ifullx(nx),nx))
+     &       -helm(iqx(1:ifullx(nx),nx),k))*s(iqx(1:ifullx(nx),nx),k)
+     &       - rhs(iqx(1:ifullx(nx),nx),k))      
+     &       /(helm(iqx(1:ifullx(nx),nx),k)-zz(iqx(1:ifullx(nx),nx)))
+          snew(iqx(1:ifullx(nx),nx),k) = s(iqx(1:ifullx(nx),nx),k)
+     &       + accel(k)*dsol(iqx(1:ifullx(nx),nx),k)
+          s(iqx(1:ifullx(nx),nx),k)=snew(iqx(1:ifullx(nx),nx),k)
+         !------------------------------------------------------------
+        enddo  ! nx loop
+        iters(k)=iter
+      enddo ! k loop   
+      if(ntest>0.and.diag)
+     &  write (6,"('myid,Iter ,s',i4,4f14.5)")myid,iter,(s(iq,1),iq=1,4)
+      if(iter==1)then
+        do k=1,klim
+         smax(k) = maxval(s(1:ifull,k))
+         smin(k) = minval(s(1:ifull,k))
+!         if(ntest>0.and.diag)print *,'myid,k,smax,smin ',
+!     &                                myid,k,smax(k),smin(k)
+        enddo
+        if(ntest>0.and.diag)print *,' before smax call myid ', myid
+        call MPI_AllReduce( smax, smax_g, klim, MPI_REAL, MPI_MAX,
+     &                      MPI_COMM_WORLD, ierr )
+        if(ntest>0.and.diag)print *,' before smin call myid ', myid
+        call MPI_AllReduce( smin, smin_g, klim, MPI_REAL, MPI_MIN,
+     &                      MPI_COMM_WORLD, ierr )
+        if(ntest>0.and.myid==0)then
+          print *,'ktau,myid,smin_g ',ktau,myid,smin_g(:)
+          print *,'ktau,myid,smax_g ',ktau,myid,smax_g(:)
+        endif  ! (myid==0)
+      end if
+      do k=1,klim
+c      write (6,"('iter,k ,s',2i4,4f14.5)") iter,k,(s(iq,k),iq=1,4)
+       dsolmax(k) = maxval(abs(dsol(1:ifull,k)))
+      enddo  ! k loop
+      if(ntest>0)then
+        print *,'ktau,myid,iter,dsolmax ',ktau,myid,iter,dsolmax(:)
+      endif  ! (myid==0)
+      klimnew=klim
+      do k=klim,1,-1
+       if(dsolmax(k)<restol*(smax_g(k)-smin_g(k)))then
+         klimnew=k
+       endif
+      enddo
+      if(ntest>0)print *,'ktau,myid,klim,klimnew ',
+     &                    ktau,myid,klim,klimnew
+      call MPI_AllReduce( klimnew, klim, 1, MPI_INTEGER, MPI_MAX,
+     &                    MPI_COMM_WORLD, ierr )
+      iter = iter + 1
+      enddo   ! while( iter<itmax .and. klim>1)
+
+      if(myid==0)then
+        if(nmaxpr==1)print*,'helmjlm ktau,k,Iterations ',ktau,1,iters(1)
+        if(diag.or.ktau<6)then
+         do k=2,kl
+          print*,'helmjlm ktau,k,Iterations ',ktau,k,iters(k)
+         enddo
+        endif
+      endif
+      
+      call end_log(helm_end) ! MJT
       return
       end

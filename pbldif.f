@@ -1,14 +1,20 @@
       subroutine pbldif(theta,rkh,rkm,uav,vav)
 !     vectorized version      
+      use arrays_m   !t
       use cc_mpi, only : mydiag, myid
+      use cfrac_m
       use diag_m
+      use extraout_m !ustar
+      use map_m
+      use morepbl_m  !fg,eg
+      use sigs_m     !sig,sigmh
+      use soil_m     !land
       implicit none
       integer ntest,nrkmin,npblmin,kmax
       parameter (ntest=0)
       parameter (nrkmin=1)  ! 1 original (& from 0510); 2 new; 3 newer
       parameter (npblmin=4) ! 1 original (best for Oz); 2 new ; 3,4 newer
       include 'newmpar.h'
-      parameter (kmax=3*kl/4)  ! changed from kl/2 on 30/1/06
 C------------------------------------------------------------------------
 C 
 C Atmospheric boundary layer computation.
@@ -44,15 +50,9 @@ C Modified for boundary layer height diagnosis: Bert Holtslag, june 1994
 C >>>>>>>>>  (Use ricr = 0.3 in this formulation)
 C
 C-----------------------------------------------------------------------
-      include 'arrays.h'       !t
       include 'const_phys.h'
-      include 'extraout.h'     !ustar
       include 'kuocom.h'
-      include 'map.h'          !f (coriolis)
-      include 'morepbl.h'      !fg,eg
       include 'parm.h'         !dtin
-      include 'sigs.h'         !sig,sigmh
-      include 'soil.h'         !land
 C------------------------------Arguments--------------------------------
 C
 C Input arguments:u,v,fg,eg,theta,ustar,uav,vav
@@ -63,15 +63,11 @@ C Input & Output arguments
       real theta(ifull,kl)         ! potential temperature [K]
 C     also qg                      ! mixing ratio [kg/kg}
 
-      real cfrac
-      common/cfrac/cfrac(ifull,kl)     ! globpe,radriv90,vertmix,convjlm
-      common/work3/cgh(ifull,kl), ! counter-gradient term for heat [K/m]
-     .             cgq(ifull,kl), ! counter-gradient term for constituents
-     .             rino(ifull,kl),dum3(ifull,2*kl)
-      common/work3d/zg(ifull,kl)
-      integer iq,iflag
-      real c1,zg,cgh,cgq,ztodtgor,delsig,tmp1,sigotbk,sigotbkm1
-      real dum2,dum3
+      real cgh(ifull,kl), ! counter-gradient term for heat [K/m]
+     .     cgq(ifull,kl)  ! counter-gradient term for constituents
+      integer iq,iflag(ifull)
+      real c1,zg(ifull,kl),ztodtgor,delsig,tmp1,sigotbk,sigotbkm1
+      real dum3
       real cgs                     ! counter-gradient star (cg/flux)
 !     real pblh(ifull)             ! boundary-layer height [m] - in morepbl.h
 C     Not used at the moment
@@ -87,20 +83,20 @@ C---------------------------Local workspace-----------------------------
 C
       integer k                 ! level index
 
-      real heatv                ! surface virtual heat flux
-      real thvref               ! reference level virtual temperature
+      real heatv(ifull)         ! surface virtual heat flux
+      real thvref(ifull)        ! reference level virtual temperature
       real tkv                  ! model level potential temperature
       real therm                ! thermal virtual temperature excess
       real pmid                 ! midpoint pressures
-      real phiminv              ! inverse phi function for momentum
-      real phihinv              ! inverse phi function for heat 
-      real wm                   ! turbulent velocity scale for momentum
+      real phiminv(ifull)       ! inverse phi function for momentum
+      real phihinv(ifull)       ! inverse phi function for heat 
+      real wm(ifull)            ! turbulent velocity scale for momentum
       real vvk                  ! velocity magnitude squared
-      real rkhfs                ! surface kinematic heat flux [mK/s]
-      real rkqfs                ! sfc kinematic constituent flux [m/s]
+      real rkhfs(ifull)         ! surface kinematic heat flux [mK/s]
+      real rkqfs(ifull)         ! sfc kinematic constituent flux [m/s]
       real zmzp                 ! level height halfway between zm and zp
-      real rino                 ! bulk Richardson no. from level to ref lev
-      real tlv                  ! ref. level pot tmp + tmp excess
+      real rino(ifull,kl)       ! bulk Richardson no. from level to ref lev
+      real tlv(ifull)           ! ref. level pot tmp + tmp excess
       real fak1                 ! k*ustar*pblh
       real fak2                 ! k*wm*pblh
       real fak3                 ! fakn*wstr/wm 
@@ -111,9 +107,9 @@ C
       real zl                   ! zmzp / Obukhov length
       real zh                   ! zmzp / pblh      at half levels
       real zzh                  ! (1-(zmzp/pblh))**2      at half levels
-      real wstr                 ! w*, convective velocity scale
+      real wstr(ifull)          ! w*, convective velocity scale
       real rrho                 ! 1./bottom level density (temporary)
-      real obklen               ! Obukhov length
+      real obklen(ifull)        ! Obukhov length
       real term                 ! intermediate calculation
       real fac                  ! interpolation factor
 c     real pblmin               ! min pbl height due to mechanical mixing
@@ -121,9 +117,6 @@ c     real pblmin               ! min pbl height due to mechanical mixing
 c     logical unstbl(il)        ! pts w/unstbl pbl (positive virtual ht flx)
 C------------------------------Commons----------------------------------
       real uav(ifull,kl),vav(ifull,kl)
-      common/work2/heatv(ifull),rkhfs(ifull),rkqfs(ifull),thvref(ifull),
-     .       phihinv(ifull),phiminv(ifull),tlv(ifull),wm(ifull),
-     .       wstr(ifull),obklen(ifull),iflag(ifull),dum2(7*ifull)
 
       real betam   ! Constant in wind gradient expression
       real betas   ! Constant in surface layer gradient expression
@@ -146,6 +139,7 @@ C Initialize COMCON
       data fakn,fak,vk,zkmin,c1/7.2, 8.5, 0.4, 0.01, 0.61/
       data ricr /0.25/
       
+      kmax=3*kl/4
       fac=100.
       if(nlocal==6)fac=10.
       binh   = betah*sffrac
@@ -163,7 +157,8 @@ C****************************************************************
       enddo         ! k  loop
       cgh(:,:)=0.   ! 3D
       cgq(:,:)=0.   ! 3D
-      if(ktau==1)print *,'in pbldif nrkmin,npblmin: ',nrkmin,npblmin 
+      if(ktau==1.and.myid==0)
+     &  print *,'in pbldif nrkmin,npblmin: ',nrkmin,npblmin 
 
 C Compute kinematic surface fluxes
          do iq=1,ifull
@@ -171,7 +166,7 @@ C Compute kinematic surface fluxes
            rrho = rdry*t(iq,1)/pmid
            ustar(iq) = max(ustar(iq),0.01)
            rkhfs(iq) = fg(iq)*rrho/cp           !khfs=w'theta'
-           rkqfs(iq) = eg(iq)*rrho/hl              !kqfs=w'q'
+           rkqfs(iq) = eg(iq)*rrho/hl           !kqfs=w'q'
 
 C Compute various arrays for use later:
 
@@ -398,7 +393,7 @@ c but reverts to Louis stable treatment for nlocal=-1
                 if(nrkmin==2)rkmin=vk*ustar(iq)*zmzp*zzh
                 if(nrkmin==3)rkmin=max(rkh(iq,k),vk*ustar(iq)*zmzp*zzh)
                 if(nrkmin==1.or.nlocal==6)rkmin=rkh(iq,k)
-                if(ntest==1)then
+                if(ntest==1.and.mydiag)then
                   if(iq==idjd)then
                     print *,'in pbldif k,ustar,zmzp,zh,zl,zzh ',
      .                                 k,ustar(iq),zmzp,zh,zl,zzh
@@ -448,7 +443,7 @@ C     update theta and qtg due to counter gradient
      $        sigotbk*rkh(iq,k)*cgq(iq,k)
       end do
 
-      if (ntest>0) then
+      if (ntest>0.and.mydiag) then
          print *,'pbldif'
          print *,'rkh= ',(rkh(idjd,k),k=1,kl)
          print *,'theta= ',(theta(idjd,k),k=1,kl)

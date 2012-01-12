@@ -517,12 +517,13 @@ c       kmaxvm,                                 tabcom
 c       ao3rnd,bo3rnd,ab15                      bandta
 c       ab15wd,skc1r,sko3r,sko2d                bdwide
 c 
+      use radisw_m
+      use tabcom_m
+
       include 'hcon.h'
       include 'newmpar.h'
       include 'rdparm.h'
-      include 'radisw.h'
       include 'rnddta.h'
-      include 'tabcom.h'
 c 
       dimension sum(28,180),pertsm(28,180),sum3(28,180), 
      & sumwde(28,180),srcwd(28,nblx),src1nb(28,nblw),dbdtnb(28,nblw)

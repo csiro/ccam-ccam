@@ -1,15 +1,20 @@
 !  this is eig derived from eignew, but used in-line in C-CAM
-      subroutine eig(sigin,sigmhin,tbar,lapsbot,isoth,dtin,eps,nh)
+      subroutine eig(sigin,sigmhin,tbar,lapsbot,isoth,dtin,eps,nsig,
+     &               bet,betm,nh)
+      use vecs_m
       include 'newmpar.h'
+      integer nh,nsig,lapsbot,isoth
+      integer nchng,k
+      integer, parameter :: neig = 1
+      real eps,dtin,dt
       real sigin(kl),sigmhin(kl)
-      common/simpl/sig(kl),sigmh(kl+1)
-      common/new/emat(kl,kl),bam(kl),einv(kl,kl)
-      data neig/1/,nsig/5/,nflip/0/
+      real sig(kl),sigmh(kl+1),tbar(kl)
+      real bet(kl),betm(kl)
 
 c     lapsbot=1 gives zero lowest t lapse for phi calc
-      print *,'this run compiled with kl = ',kl
+      print *,'this run configured with kl = ',kl
       print *,'entering eig tbar,lapsbot,isoth,dtin,eps,nh: ',
-     &                      tbar,lapsbot,isoth,dtin,eps,nh
+     &                      tbar(1),lapsbot,isoth,dtin,eps,nh
       dt=dtin
       sig(:)=sigin(:)
       sigmh(1:kl)=sigmhin(:)
@@ -25,7 +30,8 @@ c     expect data from bottom up
       print *,'final sig values: ',sig
       print *,'final sigmh values: ',sigmh
       open(28,file='eigenv.out')
-      call eigs(lapsbot,isoth,tbar,dt,eps,nh)   !------------------------
+      call eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh,
+     &          bet,betm)   !------------------------
       print *,'about to write to 28 '
       write(28,*)kl,lapsbot,isoth,nsig,
      .       '   kl,lapsbot,isoth,nsig'
@@ -48,7 +54,6 @@ c     re-order the eigenvectors if necessary
       if(nchng.ne.0)go to 112
       print *,'eigenvectors re-ordered'
       print *,'bam',(bam(k),k=1,kl)
-c     print 90,(bam(k),k=1,kl)
 90    format('  bam',15f8.0/4x,15f8.0/4x,15f8.0)
       if(neig.eq.1)then
 c       write data from bottom up
@@ -68,99 +73,64 @@ c       write data from bottom up
       do k=1,kl
        print 92,k,(einv(k,l),l=1,kl)
       enddo
-      write(28,945)(sig(k),k=1,kl),(tbar,k=1,kl),(bam(k),k=1,kl)
+      write(28,945)(sig(k),k=1,kl),(tbar(k),k=1,kl),(bam(k),k=1,kl)
      . ,((emat(k,l),k=1,kl),l=1,kl),((einv(k,l),k=1,kl),l=1,kl),
      . (bam(k),k=1,kl),((emat(k,l),k=1,kl),l=1,kl) ! just to fill space
 945   format(9e14.6)
       write(28,945)(sigmh(k),k=1,kl+1)
       end
 
-      subroutine eigs(lapsbot,isoth,tbar,dt,eps,nh)
+      subroutine eigs(lapsbot,isoth,tbar,dt,eps,nh,sig,sigmh,
+     &                bet,betm)
+      use vecs_m
       include 'newmpar.h'
-      parameter (klkl=kl*kl)
+      integer lapsbot,isoth,nh
+      real dt,eps
+c     units here are SI, but final output is dimensionless
+      real, parameter :: g=9.806
+      real, parameter :: cp=1004.64
+      real, parameter :: r=287.
 c     sets up eigenvectors
-      common/simpl/sig(kl),sigmh(kl+1)
+      real sig(kl),sigmh(kl+1)
       real dsig(kl)
       real bet(kl),betm(kl),get(kl),getm(kl),gmat(kl,kl)
       real bmat(kl,kl),evimag(kl),veci(kl,kl),sum1(kl)
-      dimension indic(kl)
-      common/new/emat(kl,kl),bam(kl),einv(kl,kl)
+      real tbar(kl)
+      integer indic(kl)
       real aa(kl,kl),ab(kl,kl),ac(kl,kl)
       real aaa(kl,kl),cc(kl,kl)
-      data aa/klkl*0./,bmat/klkl*0./
+      
+      aa=0.
+      bmat=0.
 
-c     units here are SI, but final output is dimensionless
-      g=9.806
-      cp=1.00464e3
-      r=287.
       do k=1,kl
        dsig(k)=sigmh(k+1)-sigmh(k)
       enddo
       print *,'sigmh ',(sigmh(k),k=1,kl)
       print *,'dsig ',(dsig(k),k=1,kl)
 
-c     constants for semi-implicit scheme
-      do k=1,kl-1
-       bet(k+1)=r*log(sig(k)/sig(k+1))*.5
-       print *,'k,sig(k),sig(k+1):',k,sig(k),sig(k+1)
-      enddo
-      print *,'some bets done'
-      print *,'some bets done'
-      c=g/65.e-4
-      bet(1)=c *(sig(1)**(-r/c)-1)
-      if(lapsbot.eq.1)bet(1)=-r*log(sig(1))
-      do k=1,kl
-       betm(k)=bet(k)
-      enddo
-
-      if(lapsbot.eq.2)then   ! may need refinement for non-equal spacing
-        do k=2,kl
-         bet(k)=.5*r*(sig(k-1)-sig(k))/sig(k)
-         betm(k)=.5*r*(sig(k-1)-sig(k))/sig(k-1)
-        enddo
-        bet(1)=r*(1.-sig(1))/sig(1)
-      endif  ! (lapsbot.eq.2)
-
-      if(lapsbot.eq.3)then   ! possibly suits nh  4/2/04
-        betm(:)=0.
-        do k=2,kl
-         bet(k)=r*log(sig(k-1)/sig(k))
-        enddo
-        bet(1)=-r*log(sig(1))
-      endif  ! (lapsbot.eq.3)
-      
-c      get(1)=1.-1./sig(1)
-c      do k=2,kl
-c        tlog=log(sig(k)/sig(k-1))/(sig(k)-sig(k-1))
-c        get(k)=tlog-1./sig(k)
-c        getm(k)=1./sig(k-1)-tlog
-c      enddo
-
       get(1)=bet(1)/(r*sig(1))
       do k=2,kl
         get(k)=bet(k)/(r*sig(k))
         getm(k)=betm(k)/(r*sig(k-1))
       enddo      
-      print *,'b'
       factg=2./(dt*(1.+eps))      
-      print *,'c'
-      factr=factg*r*r*tbar*tbar/(g*g)
+      factr=factg*r*r*tbar(1)*tbar(1)/(g*g)
       
       bmat(:,:)=0.  ! N.B. bmat includes effect of r/sig weighting
-      gmat(:,:)=0.  ! N.B. gmat includes effect of 1/sig**2 weighting
+      gmat(:,:)=0.  ! N.B. gmat may include effect of 1/sig**2 weighting
       do k=2,kl
        do l=1,k-1
         bmat(k,l)=bet(l)+betm(l+1)
         gmat(k,l)=factr*(get(l)+getm(l+1))
        enddo ! l loop
       enddo  ! k loop
-      print *,'d'
       do k=1,kl
        bmat(k,k)=bet(k)
        gmat(k,k)=factr*get(k)
       enddo
    
-      print *,'dt,eps,factg,tbar,factr ',dt,eps,factg,tbar,factr
+      print *,'dt,eps,factg,tbar,factr ',dt,eps,factg,tbar(1),factr
       print *,'bet ',bet
       print *,'bmat'
       do k=1,kl
@@ -178,8 +148,6 @@ c      enddo
 
 !     even newer derivation section
       print *,'even newer derivation section'
-      cp=1.00464e3
-      r=287.
 
       do k=1,kl
        do l=1,kl
@@ -189,11 +157,11 @@ c      enddo
       enddo
       do k=1,kl
        do l=k,kl
-        aa(k,l)=-r*tbar*dsig(l)/(cp*sig(k))
+        aa(k,l)=-r*tbar(1)*dsig(l)/(cp*sig(k))
        enddo
       enddo
       do k=1,kl
-       aa(k,k)=-r*tbar*(sigmh(k+1)-sig(k))/(cp*sig(k))
+       aa(k,k)=-r*tbar(1)*(sigmh(k+1)-sig(k))/(cp*sig(k))
        ac(k,k)=ac(k,k)+1.
       enddo
       print *,'aa'
@@ -205,37 +173,41 @@ c      enddo
        print 905,k,(ac(k,l),l=1,kl)
       enddo
       if(isoth.eq.1)then  !  extra vadv terms added
-        aa(:,:)=aa(:,:)+tbar*ac(:,:)
+        aa(:,:)=aa(:,:)+tbar(1)*ac(:,:)
       endif
       call matm(aaa,bmat,aa)
-      cc(:,:)=aaa(:,:)-r*tbar*ab(:,:)
+      cc(:,:)=aaa(:,:)-r*tbar(1)*ab(:,:)
       print *,'cc'
       do k=1,kl
        print 91,k,(cc(k,l),l=1,kl)
       enddo
 91    format(i3,15f8.1/3x,15f8.1/3x,15f8.1)
 
-      if(nh.ne.0.and.nh.ne.2)then  ! use gmat instead of bmat to derive aaa term
-        do k=1,kl
-         do l=k,kl
-          aa(k,l)=dsig(l)
-         enddo
-        enddo
-        do k=1,kl
-         aa(k,k)=sigmh(k+1)-sig(k)
-        enddo
-        call matm(aaa,gmat,aa)
-        cc(:,:)=cc(:,:)-aaa(:,:)*2./(dt*(1.+eps))
-        print *,'cc with gmat terms'
-        do k=1,kl
-         print 91,k,(cc(k,l),l=1,kl)
-        enddo
-      endif  ! (nh.ne.0)
+      if(nh>0)then  ! use gmat instead of bmat to derive aaa ! MJT suggestion
+!     if(nh>-2)then  ! use gmat instead of bmat to derive aaa      
+C     if(nh>-2.and.nh.ne.2)then  ! use gmat instead of bmat to derive aaa term
+!       use nh=-2 to see old eigs, -1 to do hydr. run with NH eigs      
+c        do k=1,kl
+c         do l=k,kl
+c          aa(k,l)=dsig(l)
+c         enddo
+c        enddo
+c        do k=1,kl
+c         aa(k,k)=sigmh(k+1)-sig(k)
+c        enddo
+c        call matm(aaa,gmat,aa)
+c        cc(:,:)=cc(:,:)-aaa(:,:)*2./(dt*(1.+eps))
+c        print *,'cc with gmat terms'
+c        do k=1,kl
+c         print 91,k,(cc(k,l),l=1,kl)
+c        enddo
+c      endif  ! (nh.ne.0)
 
-      if(nh==2)then  ! use net gmat (June '06) - no eps yet
-        gmat(:,:)=bmat(:,:)*(1.+4.*cp*tbar/(g*dt)**2)
-        call matm(aaa,bmat,aa)
-        cc(:,:)=aaa(:,:)-r*tbar*ab(:,:)
+c      if(nh==2)then  ! use net gmat (June '06)
+        gmat(:,:)=bmat(:,:)*(1.+4.*cp*tbar(1)/
+     &           ((g*dt)**2*(1.+eps)*(1.+eps)))
+        call matm(aaa,gmat,aa)
+        cc(:,:)=aaa(:,:)-r*tbar(1)*ab(:,:)
         print *,'cc with gmat'
         do k=1,kl
          print 91,k,(cc(k,l),l=1,kl)
@@ -244,7 +216,9 @@ c      enddo
       
       aaa(:,:)=cc(:,:)
       call eigenp(kl,kl,aaa,bam,evimag,emat,veci,indic)
+      !print *,'indic',(indic(k),k=1,kl) ! 2 = sucessfull
       print *,'bam',(bam(k),k=1,kl)
+      !print *,'evimag',(evimag(k),k=1,kl) ! should be zero
       print *,'eig '
       do k=1,kl
        print 92,k,(emat(k,l),l=1,kl)
@@ -287,8 +261,8 @@ c     matrix multiplication      a = b * c
 
       subroutine eigenp(n,nm,a,evr,evi,vecr,veci,indic)
       include 'newmpar.h'
-      common/large/ iwork(kl*kl),local(kl*kl),prfact(kl*kl)
-     1,subdia(kl*kl),work1(kl*kl),work2(kl*kl),work(kl*kl)
+      integer, dimension(kl*kl) :: iwork,local
+      real, dimension(kl*kl) :: prfact,subdia,work
 c     currently set up for a general number of 10 levels
 c a.c.m. algorithm number 343
 c revised july, 1970 by n.r.pummeroy, dcr, csiro, canberra
@@ -318,7 +292,8 @@ c original matrix is destroyed by the sub.routine.
 c n is the order of the matrix.
 c nm defines the first dimension of the two dimensional
 c arrays a,vecr,veci and the dimension of the one
-      dimension a(kl,1),vecr(kl,1),veci(kl,1),evr(nm),evi(nm),indic(nm)
+      dimension a(kl,kl),vecr(kl,kl),veci(kl,kl),evr(nm),evi(nm),
+     &          indic(nm)
 c the real parts of the n computed eigenvalues will be found
 c in the first n places of the array evr and the imaginary
 c parts in the first n places of the array evi.
@@ -343,6 +318,7 @@ c            1              found          not found
 c            2              found          found
 c
 c
+
       if(n.ne.1)go to 1
       evr(1) = a(1,1)
       evi(1) = 0.0
@@ -506,7 +482,7 @@ c
 c
 c the following real variables were initially single prec.-
 c subdia, eps, ex, r, shift
-      dimension a(kl,1),h(kl,1),evr(kl),evi(kl),subdia(kl)
+      dimension a(kl,kl),h(kl,kl),evr(kl),evi(kl),subdia(kl)
       dimension indic(nm)
 c this sub.routine finds all the eigenvalues of a real
 c general matrix. the original matrix a of order n is
@@ -874,7 +850,7 @@ c eps is a small positive number that numerically represents
 c zero in the program. eps = (euclidian norm of a)*ex,where
 c ex = 2**(-t). t is the number of binary digits in the
 c mantissa of a floating point number.
-      dimension a(kl,1),vecr(kl,1),evr(kl)
+      dimension a(kl,kl),vecr(kl,kl),evr(kl)
       dimension evi(nm),iwork(nm),work(nm),indic(nm)
       vecr(1,ivec) = 1.0
       if(m.eq.1)go to 24
@@ -1004,7 +980,7 @@ c
       include 'newmpar.h'
 c the following real variables were initially single prec.-
 c bound1,bound2,enorm
-      dimension a(kl,1),h(kl,1),prfact(kl)
+      dimension a(kl,kl),h(kl,kl),prfact(kl)
 c this sub.routine stores the matrix of the order n from the
 c array a into the array h. afterward the matrix in the
 c array a is scaled so that the quotient of the absolute sum

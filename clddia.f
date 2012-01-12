@@ -1,5 +1,13 @@
       subroutine clddia(rhum,sigf,cf,ktd,kbd,icld,i,j) ! jlm
+      use arrays_m  ! for t
       use cc_mpi, only : myid
+      use davb_m    ! for qgg
+      use map_m
+      use morepbl_m ! for condc
+      use pbl_m     ! for tss
+      use sigs_m    ! for sig
+      use soil_m    ! provides land()
+      use vvel_m    ! sdot
       parameter (maprhcrt=0)  ! 1 for grid size dependent rhcrit
       parameter (nconv_cld=0) ! 1,2,3 for convective enhancement of clouds
       parameter (ntest=0)     ! 0 to turn off test prints   jd ~ every 6th j
@@ -11,17 +19,9 @@
 !     N.B. C-C uses imax loop, so may not have every diag. jd value here
 
       include 'newmpar.h'
-      include 'arrays.h'    ! for t
       include 'const_phys.h'
-      include 'davb.h'      ! for qgg
       include 'kuocom.h'    ! for sigcll,nclddia,nstab_cld,nrhcrit
-      include 'map.h'       ! em
-      include 'morepbl.h'   ! for condc
       include 'parm.h'      ! ds,id,jd
-      include 'pbl.h'       ! for tss
-      include 'sigs.h'      ! for sig
-      include 'soil.h'      ! provides land()
-      include 'vvel.h'      ! sdot
 c     parameter (nclddia=0)   ! conversion of cld to cloudiness, 0 for original
 c     parameter (nclddia=5)   ! conversion of cld to cloudiness, 0 for original
 c     parameter (nstab_cld=0) ! 0 for original; 3 for stability-enhanced cll

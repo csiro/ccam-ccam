@@ -1,27 +1,29 @@
-      subroutine leoncld(cfrac)
+      subroutine leoncld(cfrac,iaero)
+      use aerointerface
+      use arrays_m
+      use cc_mpi, only : mydiag, myid
       use diag_m
-      use cc_mpi, only : mydiag
+      use kuocomb_m
+      use latlong_m
+      use liqwpar_m  ! ifullw
+      use morepbl_m
+      use nlin_m
+      use prec_m
+      use sigs_m
+      use soil_m     ! land
+      use tracers_m  ! ngas, nllp, ntrac
+      use vvel_m
+      use work3f_m
       implicit none
       include 'newmpar.h'
-      include 'liqwpar.h' ! ifullw
-      integer  ncfrp,icfrp
+      integer  ncfrp,icfrp,iaero
       parameter (ncfrp=0,icfrp=1)        ! cfrp diags off      
 !     parameter (ncfrp=1,icfrp=ifullw)   ! cfrp diags on     
       include 'const_phys.h' !Input physical constants
       include 'cparams.h'    !Input cloud scheme parameters
-
-      include 'arrays.h'
-      include 'dava.h'    ! davt
       include 'kuocom.h'  ! acon,bcon,Rcm
-      include 'latlong.h' ! rlatt,rlongg
-      include 'morepbl.h'
-      include 'nlin.h'
       include 'parm.h'
-      include 'prec.h'
-      include 'sigs.h'
-      include 'soil.h'    ! land
-      include 'tracers.h'  ! ngas, nllp, ntrac
-      include 'vvel.h'
+      include 'params.h'
 
 c for cfrp
       real taul(icfrp,kl)
@@ -32,8 +34,6 @@ c for cfrp
       real reffl,tau_sfac,wliq,rk,qlpath,wice,sigmai,cfd,fcf
       common/leoncfrp/tautot(icfrp),cldmax(icfrp)
      &               ,ctoptmp(icfrp),ctoppre(icfrp)
-      common/work3f/qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl) ! ditto
-      real qccon,qlrad,qfrad
 
 c Local variables
       integer iq,k,ncl
@@ -75,7 +75,14 @@ c These outputs are not used in this model at present
       real prscav(ifullw,kl)
 
       integer kbase(ifullw),ktop(ifullw) !Bottom and top of convective cloud 
-      include 'establ.h'
+      include 'establ.h' ! provides qsat formula
+
+      ! set-up params.h
+      ln2=ifull
+      lon=ln2/2
+      nl=kl
+      nlp=nl+1
+      nlm=nl-1
 
       do k=1,kl   
          do iq=1,ifull
@@ -83,21 +90,14 @@ c These outputs are not used in this model at present
           dprf(iq,k)=-0.01*ps(iq)*dsig(k) !dsig is -ve
           rhoa(iq,k)=100.*prf(iq,k)/(rdry*t(iq,k))
           qsg(iq,k)=qsat(100.*prf(iq,k),t(iq,k))
-          if(land(iq))then
-            if(rlatt(iq)>0.)then     
-              cdso4(iq,k)=cdropl_nh
-            else
-              cdso4(iq,k)=cdropl_sh
-            endif
-          else
-            if(rlatt(iq)>0.)then     
-              cdso4(iq,k)=cdrops_nh
-            else
-              cdso4(iq,k)=cdrops_sh
-            endif
-          endif  ! (land(iq)) .. else ..
         enddo
       enddo
+      
+      !--------------------------------------------------------------
+      ! MJT aerosols
+      ! Calculate droplet concentration from aerosols
+      call aerodrop(iaero,1,ifull,kl,cdso4,rhoa,land,rlatt)
+      !--------------------------------------------------------------
 
       kbase(:)=0  ! default
       ktop(:) =0  ! default
@@ -111,7 +111,7 @@ c     Set up convective cloud column
 !     acon=0.2    !Cloud fraction for non-precipitating convection  kuocom.h
 !     bcon=0.07   !Rate at which conv cloud frac increases with R   kuocom.h
       do iq=1,ifull
-        if(ktsav(iq).lt.kl)then
+        if(ktsav(iq)<kl-1)then
           ktop(iq)=ktsav(iq)
           kbase(iq)=kbsav(iq)+1
           rainx=condc(iq)*86400./dt !mm/day
@@ -134,6 +134,32 @@ c     Set up convective cloud column
 
 c     Calculate convective cloud fraction and adjust moisture variables 
 c     before calling newcloud
+      !------------------------------------------------------------------------
+      ! MJT CHANGE - mr
+      if (nmr.ge.1) then 
+        do k=1,kl
+          where (k.le.ktop(1:ifull).and.k.ge.kbase(1:ifull))
+            clcon(1:ifull,k)=cldcon(1:ifull) ! maximum overlap
+            !ccw=wcon(:)/rhoa(:,k)  !In-cloud l.w. mixing ratio
+            qccon(1:ifull,k)=clcon(1:ifull,k)*
+     &                 wcon(1:ifull)/rhoa(1:ifull,k)
+            qcl(1:ifull,k)=max(qsg(1:ifull,k),qg(1:ifull,k))  ! jlm
+            qenv(1:ifull,k)=max(1.e-8,
+     &                 qg(1:ifull,k)-clcon(1:ifull,k)*qcl(1:ifull,k))
+     &                 /(1-clcon(1:ifull,k))
+            qcl(1:ifull,k)=(qg(1:ifull,k)-(1-clcon(1:ifull,k))
+     &                *qenv(1:ifull,k))/clcon(1:ifull,k)
+            qlg(1:ifull,k)=qlg(1:ifull,k)/(1-clcon(1:ifull,k))
+            qfg(1:ifull,k)=qfg(1:ifull,k)/(1-clcon(1:ifull,k))
+          elsewhere
+            clcon(1:ifull,k)=0.
+            qccon(1:ifull,k)=0.
+            qcl(1:ifull,k)=0.
+            qenv(1:ifull,k)=qg(1:ifull,k)
+          endwhere
+        enddo
+      else ! usual
+      
       do k=1,kl
         do iq=1,ifull
           if(k.le.ktop(iq).and.k.ge.kbase(iq))then
@@ -142,7 +168,7 @@ c     before calling newcloud
             ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
 !!27/4/04   qccon(iq,k)=clcon(iq,k)*ccw*0.25 ! 0.25 reduces updraft value to cloud value
             qccon(iq,k)=clcon(iq,k)*ccw
-            qcl(iq,k)=qsg(iq,k)
+            !qcl(iq,k)=qsg(iq,k)
 !           N.B. get silly qenv (becoming >qg) if qg>qsg (jlm)	     
             qcl(iq,k)=max(qsg(iq,k),qg(iq,k))  ! jlm
             qenv(iq,k)=max(1.e-8,
@@ -158,6 +184,9 @@ c     before calling newcloud
           endif
         enddo
       enddo
+      
+      end if
+      !------------------------------------------------------------------------
       tenv(:,:)=t(1:ifull,:) !Assume T is the same in and out of convective cloud
 !     if(diag.and.mydiag)then
       if(nmaxpr==1.and.mydiag)then
@@ -250,6 +279,37 @@ c     Calculate precipitation and related processes
         call maxmin(qfg,'qf',ktau,1.e3,kl)
         call maxmin(qlg,'ql',ktau,1.e3,kl)
       endif
+
+      !--------------------------------------------------------------
+      ! MJT aerosols - store data needed by prognostic aerosol scheme
+      if (abs(iaero).ge.2) then
+        ppfprec(:,1)=0. !At TOA
+        ppfmelt(:,1)=0. !At TOA
+        ppfsnow(:,1)=0. !At TOA
+        ppfconv(:,1)=0. !At TOA
+        do k=1,kl-1
+          ppfprec(:,kl+1-k)=(fluxr(:,k+1)+fluxm(:,k))/dt !flux *entering* layer k
+          ppfmelt(:,kl+1-k)=fluxm(:,k)/dt                !flux melting in layer k
+          ppfsnow(:,kl+1-k)=(fluxi(:,k+1)-fluxm(:,k))/dt !flux *entering* layer k
+          ppfconv(:,kl+1-k)=fluxc(:,k)/dt                !flux *leaving* layer k
+        enddo
+        do k=1,kl
+          ppfevap(:,kl+1-k)=qevap(:,k)*rhoa(:,k)*dz(:,k)/dt
+          ppfsubl(:,kl+1-k)=qsubl(:,k)*rhoa(:,k)*dz(:,k)/dt !flux sublimating or staying in k
+          pplambs(:,kl+1-k)=slopes(:,k)
+          where (qlg(:,k)+qfg(:,k).gt.1.e-8)
+            ppmrate(:,kl+1-k)=(qauto(:,k)+qcoll(:,k))/dt
+            ppmaccr(:,kl+1-k)=qaccr(:,k)/dt
+          elsewhere
+            ppmrate(:,kl+1-k)=0.
+            ppmaccr(:,kl+1-k)=0.
+          end where
+        enddo
+        ppfstay=pfstay
+        ppqfsed=pqfsed
+        pprscav=prscav
+      end if
+      !--------------------------------------------------------------
 
 !     Add convective cloud water into fields for radiation
 !     cfrad replaced by updating cfrac Oct 2005

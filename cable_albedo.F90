@@ -1,0 +1,234 @@
+MODULE cab_albedo_module
+  ! use Goudriaan's radiation scheme for calculate radiation absorbed by canopy 
+  ! and soil, treat diffuse, direct separately for three wavebands (nrb),
+  ! nrb=1, visible; =2 for nir and  3 for thermal
+  ! input variables
+  !  fsd: incoming shortwave (0.5 visible, 0.5 nir)
+  !  veg%vlai: canopy LAI
+  !  veg%xfang: leaf inclination angle distrbution parameter (<0 more vertical)
+  !                                                          =0 spherical
+  !                                                          >0 more horizontal)
+  !  ssoil%albsoilsn: soil+snow albedo 
+  !  taul: leaf transmittance
+  !  rhol: leaf reflectance
+  ! output varibales
+  ! rad%albedo
+  ! rad%reffdf
+  ! rad%reffbm
+  ! rad%extkdm,rad%extkbm,rad%cexpkdm,rad%cexpkbm,rad%rhocbm,
+  USE math_constants
+  USE other_constants
+  USE define_types
+  USE physical_constants
+  USE cable_variables
+
+  IMPLICIT NONE
+  ! This module contains the following subroutines:
+  PUBLIC cab_albedo
+CONTAINS
+  !-------------------------------------------------------------------------------
+  SUBROUTINE cab_albedo(istep_cur,dels,ssoil, veg, air, met, rad,  &
+                        soil, L_RADUM)
+    TYPE (soil_snow_type),INTENT(INOUT) :: ssoil
+    TYPE (veg_parameter_type),INTENT(IN):: veg
+    TYPE (air_type),INTENT(IN)          :: air
+    TYPE (met_type),INTENT(INOUT)       :: met
+    TYPE (radiation_type),INTENT(INOUT) :: rad
+    TYPE(soil_parameter_type), INTENT(INOUT) :: soil   
+
+    REAL(r_1), INTENT(IN)           :: dels      !integration time step (s)
+    INTEGER(i_d), INTENT(IN)        :: istep_cur ! current dt
+    LOGICAL, INTENT(IN)             :: L_RADUM   ! true if called from HADGEM
+    REAL(r_1), DIMENSION(mp,nrb) :: c1  ! sqrt(1. - taul - refl)
+    REAL(r_1), DIMENSION(mp,nrb) :: rhoch  ! canopy reflection black horizontal leaves(6.19)
+    REAL(r_1), DIMENSION(mp)    :: alv ! Snow albedo for visible
+    REAL(r_1), DIMENSION(mp)    :: alir ! Snow albedo for near infra-red
+    REAL(r_1), PARAMETER        :: alvo  = 0.95 ! albedo for vis. on a new snow
+    REAL(r_1), PARAMETER        :: aliro = 0.70 ! albedo for near-infr. on a new snow
+!    REAL(r_1), PARAMETER        :: aliro = 0.65 ! albedo for near-infr. on a new snow
+!    REAL(r_1), PARAMETER        :: alvo  = 0.95 ! albedo for vis. on a new snow
+!    REAL(r_1), PARAMETER        :: aliro = 0.65 ! albedo for near-infr. on a new snow
+    REAL(r_1), DIMENSION(mp)    :: ar1 ! crystal growth  (-ve)
+    REAL(r_1), DIMENSION(mp)    :: ar2 ! freezing of melt water
+    REAL(r_1), DIMENSION(mp)    :: ar3
+    REAL(r_1), DIMENSION(mp)    :: dnsnow ! new snow albedo
+    REAL(r_1), DIMENSION(mp)    :: dtau
+    REAL(r_1), DIMENSION(mp)    :: fage !age factor
+    REAL(r_1), DIMENSION(mp)    :: fzenm
+    REAL(r_1), DIMENSION(mp)    :: sfact
+    REAL(r_1), DIMENSION(mp)    :: snr
+    REAL(r_1), DIMENSION(mp)    :: snrat
+    REAL(r_1), DIMENSION(mp)    :: talb ! snow albedo
+    REAL(r_1), DIMENSION(mp)    :: tmp ! temporary value
+
+    INTEGER(i_d)            :: b    !rad. band 1=visible, 2=near-infrared, 3=long-wave
+    LOGICAL, DIMENSION(mp)  :: mask ! select points for calculation
+    INTEGER(i_d)            :: k,i,j,l,l1,l2
+   
+    ! coszen is set during met data read in.
+    !    calculate soil/snow albedo
+!   inland lake albedo
+    soil%albsoilf = soil%albsoil
+!    where( veg%iveg == 16 )
+!      soil%albsoilf = -0.022*( min(275., max(260.,met%tk) ) - 260.) + 0.45
+!    end where
+!    where(ssoil%snowd > 1. .and. veg%iveg == 16 ) soil%albsoilf = 0.8
+    sfact = 0.68
+    WHERE (soil%albsoilf <= 0.14)
+       sfact = 0.5
+    ELSEWHERE (soil%albsoilf > 0.14 .and. soil%albsoilf <= 0.20)
+       sfact = 0.62
+    END WHERE
+    ssoil%albsoilsn(:,2) = 2. * soil%albsoilf / (1. + sfact)
+    ssoil%albsoilsn(:,1) = sfact * ssoil%albsoilsn(:,2)
+    snrat=0.
+    alir =0.0
+    alv  =0.0
+
+    WHERE (ssoil%snowd > 1.0 .and. .NOT. L_RADUM ) 
+       dnsnow = min (1., .1 * max (0., ssoil%snowd - ssoil%osnowd ) ) ! new snow (cm H2O)
+       !         Snow age depends on snow crystal growth, freezing of melt water,
+       !         accumulation of dirt and amount of new snow.
+       tmp = ssoil%isflag * ssoil%tggsn(:,1) + (1 - ssoil%isflag ) * ssoil%tgg(:,1)
+       tmp = min (tmp, 273.15)
+       ar1 = 5000. * (1. / 273.15 - 1. / tmp) ! crystal growth  (-ve)
+       ar2 = 10. * ar1 ! freezing of melt water
+!       snr = ssoil%snowd / max (ssoil%ssdnn, 200.)
+       snr = ssoil%snowd / max (ssoil%ssdnn, 200.)
+!       WHERE (ssoil%snowd < 10. ) snr = ssoil%snowd / max (ssoil%ssdnn, 400.)
+          ! fixes for Arctic & Antarctic
+       WHERE (soil%isoilm == 9)
+          ar3 = .0000001
+!          dnsnow = max (dnsnow, .005) !increase refreshing of snow in Antarctic
+          dnsnow = max (dnsnow, .5) !increase refreshing of snow in Antarctic
+          dnsnow = 1.0              !increase refreshing of snow in Antarctic
+!          snrat = min (1., snr / (snr + .001) )
+          snrat = 1.
+       ELSEWHERE
+          ! accumulation of dirt
+!          ar3 = .1
+          ar3 = .1
+!          snrat = min (1., snr / (snr + .01) )   ! 20/10/2009
+          snrat = min (1., snr / (snr + .1) )    ! snow covered fraction of the grid
+       END WHERE
+       dtau = 1.e-6 * (exp(ar1) + exp(ar2) + ar3) * dels 
+       WHERE (ssoil%snowd <= 1.0)
+          ssoil%snage = 0.
+       ELSEWHERE
+          ssoil%snage = max (0.,(ssoil%snage+dtau)*(1.-dnsnow))
+       END WHERE
+       fage = 1. - 1. / (1. + ssoil%snage ) !age factor
+       !
+       !       Snow albedo is dependent on zenith angle and  snow age.
+       !       albedo zenith dependence
+       !       alvd = alvo * (1.0-cs*fage); alird = aliro * (1.-cn*fage)
+       !               where cs = 0.2, cn = 0.5, b = 2.0
+       tmp = max (.17365, met%coszen )
+       fzenm = max(merge(0.0, (1. + 1./2.)/(1. + 2.*2.*tmp) - 1./2., tmp > 0.5), 0.)
+       tmp = alvo * (1.0 - 0.2 * fage)
+       alv = .4 * fzenm * (1. - tmp) + tmp
+       tmp = aliro * (1. - .5 * fage)
+       WHERE (soil%isoilm == 9)             ! use dry snow albedo for pernament land ice
+         tmp = 0.95 * (1.0 - 0.2 * fage)
+         alv = .4 * fzenm * (1. - tmp) + tmp
+         tmp = 0.75 * (1. - .5 * fage)
+       END WHERE
+       alir = .4 * fzenm * (1.0 - tmp) + tmp
+       talb = .5 * (alv + alir) ! snow albedo
+    ENDWHERE        ! snowd > 0
+!   wnhen it is called from  cable_RADum no need to recalculate snage 
+    WHERE (ssoil%snowd > 1.0 .and.  L_RADUM )
+       snr = ssoil%snowd / max (ssoil%ssdnn, 200.)
+!       snr = ssoil%snowd / max (ssoil%ssdnn, 200.)
+!       WHERE (ssoil%snowd < 10. ) snr = ssoil%snowd / max (ssoil%ssdnn, 400.)
+          ! fixes for Arctic & Antarctic
+       WHERE (soil%isoilm == 9)
+!          snrat = min (1., snr / (snr + .001) )
+          snrat = 1.
+       ELSEWHERE
+!          snrat = min (1., snr / (snr + .01) )
+!          snrat = min (1., snr / (snr + .02) )
+          snrat = min (1., snr / (snr + .1) )
+       END WHERE
+!       snrat = snrat * sqrt(rad%transd)
+       fage = 1. - 1. / (1. + ssoil%snage ) !age factor
+       !
+       !       Snow albedo is dependent on zenith angle and  snow age.
+       !       albedo zenith dependence
+       !       alvd = alvo * (1.0-cs*fage); alird = aliro * (1.-cn*fage)
+       !               where cs = 0.2, cn = 0.5, b = 2.0
+       tmp = max (.17365, met%coszen )
+       fzenm = max(merge(0.0, (1. + 1./2.)/(1. + 2.*2.*tmp) - 1./2., tmp > 0.5), 0.)
+       tmp = alvo * (1.0 - 0.2 * fage)
+       alv = .4 * fzenm * (1. - tmp) + tmp
+       tmp = aliro * (1. - .5 * fage)
+       WHERE (soil%isoilm == 9)          ! use dry snow albedo
+         tmp = 0.95 * (1.0 - 0.2 * fage)
+         alv = .4 * fzenm * (1. - tmp) + tmp
+         tmp = 0.75 * (1. - .5 * fage)
+       END WHERE
+       alir = .4 * fzenm * (1.0 - tmp) + tmp
+       talb = .5 * (alv + alir) ! snow albedo
+    ENDWHERE        ! snowd > 0
+    ssoil%albsoilsn(:,2) = min(aliro,(1. - snrat) * ssoil%albsoilsn(:,2) + snrat * alir)
+    ssoil%albsoilsn(:,1) = min(alvo,(1. - snrat) * ssoil%albsoilsn(:,1) + snrat * alv)
+    !     update for Himalays
+    WHERE (soil%isoilm == 9)          ! use dry snow albedo
+       ssoil%albsoilsn(:,2) = (1.-min(1.,ssoil%snowd/10.0))*ssoil%albsoilsn(:,2) + min(1.,ssoil%snowd/10.0)*0.82
+       ssoil%albsoilsn(:,1) = (1.-min(1.,ssoil%snowd/10.0))*ssoil%albsoilsn(:,1) + min(1.,ssoil%snowd/10.0)*0.82
+!       ssoil%albsoilsn(:,2) = 0.82
+!       ssoil%albsoilsn(:,1) = 0.82
+    END WHERE
+!
+
+    
+    rad%reffdf(:,1) = ssoil%albsoilsn(:,1)  ! initialise effective conopy beam reflectance
+    rad%reffdf(:,2) = ssoil%albsoilsn(:,2)  ! initialise effective conopy beam reflectance
+    rad%reffbm(:,1) = ssoil%albsoilsn(:,1)  ! initialise effective conopy beam reflectance
+    rad%reffbm(:,2) = ssoil%albsoilsn(:,2)  ! initialise effective conopy beam reflectance
+    rad%albedo = ssoil%albsoilsn
+
+    ! Define vegetation mask:
+    mask = veg%vlaiw > 1e-2 .AND. met%fsd(:,3) > 1.0e-2
+!    mask = veg%vlaiw > 1e-2 .AND. met%coszen > 1.0e-2
+
+!    c1 = SQRT(1. - taul - refl)
+    c1(:,1) = SQRT(1. - veg%taul(:,1) - veg%refl(:,1))
+    c1(:,2) = SQRT(1. - veg%taul(:,2) - veg%refl(:,2))
+    c1(:,3) = 1.
+    ! Define canopy reflection black horizontal leaves(6.19)
+    rhoch = (1.0 - c1) / (1.0 + c1)
+    ! Update extinction coefficients and fractional transmittance for 
+    ! leaf transmittance and reflection (ie. NOT black leaves):
+    DO b = 1, 2 ! 1 = visible, 2 = nir radiaition
+       rad%extkdm(:,b) = rad%extkd * c1(:,b)
+       ! Define canopy diffuse transmittance (fraction):
+       rad%cexpkdm(:,b) = EXP(-rad%extkdm(:,b) * veg%vlaiw)
+       ! Calculate effective diffuse reflectance (fraction):
+       where( veg%vlaiw > 1e-2 ) rad%reffdf(:,b) = rad%rhocdf(:,b) + &
+            (ssoil%albsoilsn(:,b) - rad%rhocdf(:,b)) * rad%cexpkdm(:,b)**2
+
+       WHERE (mask) ! i.e. vegetation and sunlight are present
+          rad%extkbm(:,b) = rad%extkb * c1(:,b)
+          ! Canopy reflection (6.21) beam:
+          rad%rhocbm(:,b) = 2.*rad%extkb/(rad%extkb+rad%extkd)*rhoch(:,b)
+          ! Canopy beam transmittance (fraction):
+          rad%cexpkbm(:,b) = EXP(-rad%extkbm(:,b)*veg%vlaiw)
+          ! Calculate effective beam reflectance (fraction):
+          rad%reffbm(:,b) = rad%rhocbm(:,b) + (ssoil%albsoilsn(:,b) - rad%rhocbm(:,b))*rad%cexpkbm(:,b)**2
+       END WHERE
+       ! Define albedo:
+       where( veg%vlaiw > 1e-2 ) rad%albedo(:,b) = (1.-rad%fbeam(:,b))*rad%reffdf(:,b) + &
+                                                    rad%fbeam(:,b)*rad%reffbm(:,b)
+    END DO
+!    WHERE (mask) rad%reffbm(:,2)=rad%reffbm(:,2)*veg%xalbnir(:)
+!    WHERE ( veg%vlaiw > 1e-2)
+!      rad%reffdf(:,2) = rad%reffdf(:,2)* veg%xalbnir(:)
+!      rad%albedo(:,2) = rad%albedo(:,2)* veg%xalbnir(:)
+!      rad%reffdf(:,2) = rad%reffdf(:,2)
+!      rad%albedo(:,2) = rad%albedo(:,2)
+!    END WHERE
+!    rad%albedo(:,:) = (1.0-rad%fbeam(:,:))*rad%reffdf(:,:)+rad%fbeam(:,b)*rad%reffbm(:,:)
+
+  END SUBROUTINE cab_albedo 
+END MODULE cab_albedo_module

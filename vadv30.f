@@ -1,6 +1,16 @@
-      subroutine vadv30(tarr,uarr,varr)   
-!     only calls vadvbess or vadvbess8 (nvad=7,8) from Aug 2003      
+      subroutine vadv30(tarr,uarr,varr,iaero)   
+!     only calls vadvbess or vadvbess8 (nvad=7,8) from Aug 2003
+      use aerosolldr      
+      use arrays_m
       use cc_mpi, only : mydiag
+      use indices_m
+      use liqwpar_m  ! ifullw,qfg,qlg
+      use map_m
+      use sigs_m
+      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
+      use tracers_m
+      use vvel_m
+      use xarrs_m
       parameter (ntest=0) !  0: usual   1: for diagnostic prints
       parameter (nvdep=7) !  0  for original;
 !                            1  for newer average vels
@@ -15,28 +25,23 @@
 c     does t, u,v then qg, [q1, q2,]
 
       include 'newmpar.h'
-      parameter (kl1=kl+1,kl2=kl+2)
-      include 'arrays.h'
-      include 'indices.h'
+      integer kl1,kl2
       include 'kuocom.h'    ! ldr
-      include 'liqwpar.h'   ! ifullw,qfg,qlg
-      include 'map.h'
       include 'parm.h'
       include 'parmdyn.h'
       include 'parmvert.h'
-      include 'sigs.h'
-      include 'tracers.h'
-      include 'vvel.h'
-      include 'xarrs.h'
       real wrk1(ifull,kl),ders(ifull,kl)   ! just work arrays here
-      integer kdel(ifull,kl)
+      integer kdel(ifull,kl),iaero,l
       real sd(ifull,kl)
-      common/work3f/st(ifull,kl),anew(ifull,kl),gwrk(ifull,kl)
+      real st(ifull,kl),anew(ifull,kl),gwrk(ifull,kl)
       real tarr(ifull,kl),uarr(ifull,kl),varr(ifull,kl)
       real bb(kl),sddk(0:kl+1)
       real dersh(ifull,kl),sdotder(ifull,kl+1)
-      equivalence (dersh,gwrk),(sdotder,wrk1)
-      data sddk/kl2*0./
+
+      kl1=kl+1
+      kl2=kl+2
+      sddk=0.
+      
       tfact=1./nvadh   ! simpler alternative
       if(ktau==1.and.mydiag)then
         print *,'in vadv30 ktau,nvad,nvdep,nvint:',ktau,nvad,nvdep,nvint
@@ -364,6 +369,15 @@ c       interpolate sdot to full-level sd with cubic polynomials
                call vadvbess(tr(1:ilt*jlt,:,ntr),st,kdel,3)    ! tr next
               enddo
             endif   ! (ilt>1)
+	     if(nvmix.eq.6)then                                                 ! MJT tke
+	       call vadvbess8(tke(1:ifull,:),st,kdel,3) ! bess8 as no consv yet ! MJT tke
+	       call vadvbess8(eps(1:ifull,:),st,kdel,3) ! bess8 as no consv yet ! MJT tke
+	     endif  ! (nvmix.eq.6)                                              ! MJT tke
+	     if(abs(iaero)==2)then                                                  ! MJT aerosol
+	       do l=1,naero                                                         ! MJT aerosol
+	         call vadvbess8(xtg(1:ifull,:,l),st,kdel,3) ! bess8 as no consv yet ! MJT aerosol
+	       end do                                                               ! MJT aerosol
+	     endif  ! (iaero==2)                                                    ! MJT aerosol
           endif     ! (mspec==1)
          elseif(abs(nvad)==8)then 
           call vadvbess8(tarr,st,kdel,1)                          
@@ -380,6 +394,15 @@ c       interpolate sdot to full-level sd with cubic polynomials
                call vadvbess8(tr(1:ilt*jlt,:,ntr),st,kdel,3)    ! tr next
               enddo
             endif   ! (ilt>1)
+	     if(nvmix.eq.6)then                          ! MJT tke
+	       call vadvbess8(tke(1:ifull,:),st,kdel,3)  ! MJT tke
+	       call vadvbess8(eps(1:ifull,:),st,kdel,3)  ! MJT tke
+	     endif  ! (nvmix.eq.6)                       ! MJT tke
+	     if(abs(iaero)==2)then                                                  ! MJT aerosol
+	       do l=1,naero                                                         ! MJT aerosol
+	         call vadvbess8(xtg(1:ifull,:,l),st,kdel,3) ! bess8 as no consv yet ! MJT aerosol
+	       end do                                                               ! MJT aerosol
+	     endif  ! (iaero==2)                                                    ! MJT aerosol
           endif     ! (mspec==1)
          elseif(abs(nvad)==9)then   !  just qg and gases  
           if(mspec==1)then
@@ -393,6 +416,15 @@ c       interpolate sdot to full-level sd with cubic polynomials
                call vadvbess(tr(1:ilt*jlt,:,ntr),st,kdel,3)    ! tr next
               enddo
             endif   ! (ilt>1)
+             if(nvmix.eq.6)then                                                   ! MJT tke
+               call vadvbess8(tke(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet  ! MJT tke
+               call vadvbess8(eps(1:ifullw,:),st,kdel,3) ! bess8 as no consv yet  ! MJT tke
+             endif  ! (nvmix.eq.6)                                                ! MJT tke
+             if(abs(iaero)==2)then                                                  ! MJT aerosol
+               do l=1,naero                                                         ! MJT aerosol
+                 call vadvbess8(xtg(1:ifull,:,l),st,kdel,3) ! bess8 as no consv yet ! MJT aerosol 
+               end do                                                               ! MJT aerosol
+             endif  ! (iaero==2)                                                    ! MJT aerosol
           endif     ! (mspec==1)
          endif     ! (abs(nvad)==7)  .. else .. ..
 	 return
@@ -401,16 +433,16 @@ c       interpolate sdot to full-level sd with cubic polynomials
       subroutine vadvbess(t,st,kdel,ifield)
 !     returns t, u, v, q -  but tendencies formed in nonlin/adjust5
       use cc_mpi, only : mydiag
+      use sigs_m
 
       parameter (ntopp=1)  ! 1 for 1-sided gradient at top & bottom full-levels
 c                          ! 2 for zero gradient at top & bottom full-levels
       include 'newmpar.h'
       include 'parm.h'
       include 'parmvert.h'
-      include 'sigs.h'
       real t(ifull,kl),st(ifull,kl)
       dimension kdel(ifull,kl)
-      common/work3/tgrad(ifull,kl),toutt(ifull,kl),dum(3*ijk)
+      real tgrad(ifull,kl),toutt(ifull,kl)
 c     st() is the sigma displacement array
 c     if(ktau==1)then
 c       print *,'in vadvbess with ntopp = ',ntopp
@@ -479,15 +511,15 @@ c     .                                 +tgrad(iq,kk)+tgrad(iq,kk+1) )))
 !     returns t, u, v, q -  but tendencies formed in nonlin/adjust5
 !     watch out for replacing qg in place!
       use cc_mpi, only : mydiag
+      use sigs_m
       parameter (ntopp=1)  ! 1 for 1-sided gradient at top & bottom full-levels
 c                          ! 2 for zero gradient at top & bottom full-levels
       include 'newmpar.h'
       include 'parm.h'
       include 'parmvert.h'
-      include 'sigs.h'
       real t(ifull,kl),st(ifull,kl)
       dimension kdel(ifull,kl)
-      common/work3/tgrad(ifull,kl),toutt(ifull,kl),dum(3*ijk)
+      real tgrad(ifull,kl),toutt(ifull,kl)
 c     st() is the sigma displacement array
 c     if(ktau==1)then
 c       print *,'in vadvbess8 with ntopp = ',ntopp

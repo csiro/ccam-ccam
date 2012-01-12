@@ -7,7 +7,8 @@
      &                   dfsw_out, press_in, press2_in, coszro_in,
      &                   taudar_in, rh2o_in, rrco2, ssolar,
      &                   qo3_in, nclds_in, ktopsw_in, kbtmsw_in,
-     &                   cirab_in, cirrf_in, cuvrf_in, camt_in )
+     &                   cirab_in, cirrf_in, cuvrf_in, camt_in,
+     &                   swr_out ) ! MJT cable
 
 
 !     This driver routine just calculates the size and passes it to 
@@ -30,16 +31,18 @@
       real, intent(out), dimension(imax,lp1) :: fsw_out,  
      &                                          ufsw_out, dfsw_out
       real, intent(out), dimension(imax,l)   :: hsw_out 
-      real, intent(out), dimension(imax)     :: grdflx_out
+      real, intent(out), dimension(imax)     :: grdflx_out,swr_out ! MJT cable
       
       integer  :: ipts
       ipts = count ( coszro_in > zero )
+      if (any(nclds_in>0)) ipts=count(coszro_in>0..and.nclds_in>0) ! MJT rad
 
       call swr99p      ( fsw_out, hsw_out, grdflx_out, ufsw_out, 
      &                   dfsw_out, press_in, press2_in, coszro_in,
      &                   taudar_in, rh2o_in, rrco2, ssolar,
      &                   qo3_in, nclds_in, ktopsw_in, kbtmsw_in,
-     &                   cirab_in, cirrf_in, cuvrf_in, camt_in, ipts )
+     &                   cirab_in, cirrf_in, cuvrf_in, camt_in, ipts,
+     &                   swr_out ) ! MJT cable
 
       end subroutine swr99
 
@@ -47,7 +50,8 @@
      &                   dfsw_out, press_in, press2_in, coszro_in,
      &                   taudar_in, rh2o_in, rrco2, ssolar,
      &                   qo3_in, nclds_in, ktopsw_in, kbtmsw_in,
-     &                   cirab_in, cirrf_in, cuvrf_in, camt_in, ipts )
+     &                   cirab_in, cirrf_in, cuvrf_in, camt_in, ipts,
+     &                   swr_out ) ! MJT cable
 
 
 cfpp$ noconcur r
@@ -75,7 +79,12 @@ c
       real, intent(out), dimension(imax,lp1) :: fsw_out,  
      &                                          ufsw_out, dfsw_out
       real, intent(out), dimension(imax,l)   :: hsw_out 
-      real, intent(out), dimension(imax)     :: grdflx_out
+      real, intent(out), dimension(imax)     :: grdflx_out,swr_out ! MJT cable
+
+      real, dimension(:,:),allocatable,save :: fsw_sav,  
+     &                                  ufsw_sav, dfsw_sav ! MJT rad
+      real, dimension(:,:),allocatable,save :: hsw_sav     ! MJT rad
+      real, dimension(:),allocatable,save   :: grdflx_sav,swr_sav ! MJT rad
 
       real, dimension(ipts,lp1)      :: press, press2
       real,  dimension(ipts)         :: coszro, taudar
@@ -85,22 +94,44 @@ c
       real,  dimension(ipts,lp1)     :: cirab, cirrf, cuvrf, camt
       real,  dimension(ipts,lp1)     :: fsw, ufsw, dfsw
       real,  dimension(ipts,l)       :: hsw
-      real, dimension(ipts)          :: grdflx
+      real, dimension(ipts)          :: grdflx,swr ! MJT cable
 
-      integer :: k
+      integer :: k,kclds ! MJT rad
       logical, dimension(imax) :: lcoszn
       integer, dimension(ipts) :: pindex
+      
+      if (.not.allocated(fsw_sav)) then
+        allocate(fsw_sav(imax,lp1),ufsw_sav(imax,lp1))
+        allocate(dfsw_sav(imax,lp1),hsw_sav(imax,l))
+        allocate(grdflx_sav(imax),swr_sav(imax))
+      end if
 
+      kclds=maxval(nclds_in) ! MJT rad
       lcoszn = coszro_in > zero
+      if (kclds>0) then              ! MJT rad
+        lcoszn=lcoszn.and.nclds_in>0 ! MJT rad
+        grdflx_out=grdflx_sav        ! MJT rad
+        ufsw_out=ufsw_sav            ! MJT rad
+        dfsw_out=dfsw_sav            ! MJT rad
+        fsw_out=fsw_sav              ! MJT rad
+        hsw_out=hsw_sav              ! MJT rad
+      end if                         ! MJT rad
 
 !     If there are no sunlit points set everything to zero and return 
 !     immediately
       if ( ipts == 0 ) then
-	 grdflx_out = zero
-	 ufsw_out   = zero
-	 dfsw_out   = zero
-	 fsw_out    = zero
-	 hsw_out    = zero
+       if (kclds==0) then ! MJT rad
+	  grdflx_out = zero
+	  ufsw_out   = zero
+	  dfsw_out   = zero
+	  fsw_out    = zero
+	  hsw_out    = zero
+	  grdflx_sav = zero ! MJT rad
+	  ufsw_sav   = zero ! MJT rad
+	  dfsw_sav   = zero ! MJT rad
+	  fsw_sav    = zero ! MJT rad
+	  hsw_sav    = zero ! MJT rad
+	 end if ! MJT rad
 	 return
       endif
 
@@ -128,15 +159,20 @@ c
       call swr99_work (  fsw, hsw, grdflx, ufsw, dfsw, press, press2,
      &                   coszro, taudar, rh2o, rrco2, ssolar,
      &                   qo3, nclds, ktopsw, kbtmsw, cirab,
-     &                   cirrf, cuvrf, camt, ipts )
+     &                   cirrf, cuvrf, camt, ipts,
+     &                   swr ) ! MJT cable
 
 !     Unpack results  ( Use my version to get around NEC compiler error )
-      grdflx_out = 0.0
-      fsw_out = 0.0
-      hsw_out = 0.0
-      ufsw_out = 0.0
-      dfsw_out = 0.0
+      if (kclds==0) then ! MJT rad
+       grdflx_out = 0.0
+       swr_out = 0.5 ! MJT cable
+       fsw_out = 0.0
+       hsw_out = 0.0
+       ufsw_out = 0.0
+       dfsw_out = 0.0
+      end if ! MJT rad
       grdflx_out(pindex) = grdflx
+      swr_out(pindex) = swr ! MJT cable
       do k=1,l
 	 hsw_out(pindex,k)  = hsw(:,k)
       end do
@@ -145,6 +181,14 @@ c
 	 ufsw_out(pindex,k) = ufsw(:,k)
 	 dfsw_out(pindex,k) = dfsw(:,k)
       end do
+      
+      if (kclds==0) then             ! MJT rad
+        grdflx_sav=grdflx_out        ! MJT rad
+        ufsw_sav=ufsw_out            ! MJT rad
+        dfsw_sav=dfsw_out            ! MJT rad
+        fsw_sav=fsw_out              ! MJT rad
+        hsw_sav=hsw_out              ! MJT rad
+      end if                         ! MJT rad
 
       end subroutine swr99p
 
@@ -178,12 +222,14 @@ c
       subroutine swr99_work(fsw, hsw, grdflx, ufsw, dfsw, press,press2,
      &                   coszro, taudar, rh2o, rrco2, ssolar,
      &                   qo3, nclds, ktopsw, kbtmsw, cirab,
-     &                   cirrf, cuvrf, camt, ipts )
+     &                   cirrf, cuvrf, camt, ipts,
+     &                   swr ) ! MJT cable
 
 
       include 'newmpar.h'
       include 'hcon.h'
       include 'rdparm.h'
+      include 'parm.h' ! MJT CHANGE - mr
 
       integer, intent(in) :: ipts
       real, intent(in), dimension(ipts,lp1)  :: press, press2
@@ -197,7 +243,7 @@ c
 
       real, intent(out), dimension(ipts,lp1) :: fsw, ufsw, dfsw
       real, intent(out), dimension(ipts,l)   :: hsw
-      real, intent(out), dimension(ipts)     :: grdflx
+      real, intent(out), dimension(ipts)     :: grdflx,swr ! MJT cable
 
       real dfn(ipts,lp1),ufn(ipts,lp1),
      &  ttd(ipts,lp1),ttu(ipts,lp1),ttdb1(ipts,lp1),ttub1(ipts,lp1),
@@ -215,6 +261,11 @@ c
      &  tclu(ipts,lp1),tcld(ipts,lp1),
      &  tdcl1(ipts,lp1),tdcl2(ipts,lp1),
      &  ufnclu(ipts,lp1),dfnclu(ipts,lp1)
+      double precision alfa1(lp1),alfau1(lp1) ! MJT CHANGE - mr
+      double precision lrd,ltdc               ! MJT CHANGE - mr
+      real ctemp                              ! MJT CHANGE - mr
+      logical ctest(lp1)                      ! MJT CHANGE - mr
+      integer pos(1),k1,k2                    ! MJT CHANGE - mr
 
       real, dimension(ipts,l)    :: du, duco2, duo3
       real, dimension(ipts,llp2) :: uco2, ao3
@@ -302,7 +353,7 @@ c
 
 !     obtain the optical path from the top of the atmosphere to the
 !     flux pressure. angular factors are now included. ud=downward
-!     path for h2o,wigth ur the upward path for h2o. corresponding
+!     path for h2o,with ur the upward path for h2o. corresponding
 !     quantities for co2,o3 are udco2/urco2 and udo3/uro3.
 
       ud(:,1)   = zero
@@ -385,6 +436,19 @@ c
       refl = rray + (one-rray)*(one-rrayav)*cuvrf(:,1)/
      &              (one-cuvrf(:,1)*rrayav)
 
+!   MJT CHANGE - mr (move this outside nx loop)
+!---obtain the pressure at the top,bottom and the thickness of
+!   "thick" clouds (those at least 2 layers thick). this is used
+!   later is obtaining fluxes inside the thick clouds, for all
+!   frequency bands.
+      do kk=1,kclds
+	 do i=1,ipts
+	    if ( (kbtmsw(i,kk+1)-1) > ktopsw(i,kk+1) ) then
+	       pptop(i,kk) = pp(i,ktopsw(i,kk+1))
+	       dpcld(i,kk) = one/(pptop(i,kk)-pp(i,kbtmsw(i,kk+1)))
+	    endif
+	 end do
+      end do
 !
       dfsw = 0.0
       ufsw = 0.0
@@ -445,44 +509,23 @@ c
 !
 !***compute normal case: at least 1 pt has a cloud.
 !
-      if ( kclds /= 0 ) then
+
 !
 !---the following calculation is done for nl=1 case only
 !
+!   MJT CHANGE - mr (moved outside nx loop)
 !---obtain the pressure at the top,bottom and the thickness of
 !   "thick" clouds (those at least 2 layers thick). this is used
 !   later is obtaining fluxes inside the thick clouds, for all
 !   frequency bands.
-      do kk=1,kclds
-	 do i=1,ipts
-	    if ( (kbtmsw(i,kk+1)-1) > ktopsw(i,kk+1) ) then
-	       pptop(i,kk) = pp(i,ktopsw(i,kk+1))
-	       dpcld(i,kk) = one/(pptop(i,kk)-pp(i,kbtmsw(i,kk+1)))
-	    endif
-	 end do
-      end do
-!
-      if ( nx == 1 ) then
-!---the first cloud is the ground; its properties are given
-!   by refl (the transmission (0) is irrelevant for now!).
-	 cr(:,1) = refl
-
-!***obtain cloud reflection and transmission coefficients for
-!   remaining clouds (if any) in the visible band
-!---the maximum no of clouds in the row (kclds) is used. this creates
-!   extra work (may be removed in a subsequent update).
-         do k=2,kclds+1
-	    cr(:,k) = cuvrf(:,k)*camt(:,k)
-	    ct(:,k) = one-cr(:,k)
-	 end do
-
-      else  !  IR, no Rayleigh scattering
-         do k=1,kclds+1
-	    cr(:,k) = cirrf(:,k)*camt(:,k)
-	    ct(:,k) = one-camt(:,k)*(cirrf(:,k)+cirab(:,k))
-	 end do
-      end if
-!
+!      do kk=1,kclds
+!	 do i=1,ipts
+!	    if ( (kbtmsw(i,kk+1)-1) > ktopsw(i,kk+1) ) then
+!	       pptop(i,kk) = pp(i,ktopsw(i,kk+1))
+!	       dpcld(i,kk) = one/(pptop(i,kk)-pp(i,kbtmsw(i,kk+1)))
+!	    endif
+!	 end do
+!      end do
 !
 !***for execution of the cloud loop, it is necessary to separate out
 !   transmission fctns at the top and bottom of the clouds, for
@@ -514,6 +557,143 @@ c
          tdcl1i(:,k) = one/tdcl1(:,k)
          tucl1i(:,k) = one/tucl1(:,k)
       end do
+
+
+      if ( kclds /= 0 ) then
+      
+      if ( nmr.eq.2 ) then ! MJT CHANGE - mr
+      ! modified M/R overlap
+
+      if ( nx == 1 ) then
+!---the first cloud is the ground; its properties are given
+!   by refl (the transmission (0) is irrelevant for now!).
+	 cr(:,1) = refl
+
+!***obtain cloud reflection and transmission coefficients for
+!   remaining clouds (if any) in the visible band
+!---the maximum no of clouds in the row (kclds) is used. this creates
+!   extra work (may be removed in a subsequent update).
+
+!   note 100% cloud cover (removed camt term)
+       cr(:,2:kclds+1)=cuvrf(:,2:kclds+1)
+       ct(:,2:kclds+1)=one-cr(:,2:kclds+1)
+  
+      else  !  IR, no Rayleigh scattering
+
+!   note 100% cloud cover (removed camt term)
+	 cr(:,1:kclds+1)=cirrf(:,1:kclds+1)
+	 ct(:,1:kclds+1)=one-(cirrf(:,1:kclds+1)+cirab(:,1:kclds+1))
+
+      end if
+
+      ! calculate transmission through clouds
+      alfa(:,1) = cr(:,1)
+      alfau(:,1) = zero
+      do k=2,kclds+1
+        alfa(:,k) = cr(:,1)*(tdcl1(:,1)*tdcl1i(:,k))**2 ! clear sky
+        alfau(:,k) = tdcl1(:,k-1)*tdcl1i(:,k)
+      end do
+      do i=1,ipts
+        k=2 
+        do while (k.le.nclds(i)+1)
+          kk=k ! k=bottom of cloud block
+          do while (kbtmsw(i,kk+1).eq.ktopsw(i,kk).and.kk.lt.lp1
+     &              .and.kbtmsw(i,kk+1).gt.1) ! find top of cloud block
+            kk=kk+1 ! kk=top of cloud block
+          end do
+          ctest=.false.
+          ctest(k:kk)=.true. ! cloud layers in current path through cloud block
+          ctemp=zero
+          alfa(i,k:kk)=zero  ! initalise weighted sum at zero
+          alfau(i,k:kk)=zero
+          alfa1(k-1)=alfa(i,k-1)
+          ! loop over possible paths through cloud block (maximum overlap levels within cloud block)
+          do while (any(ctest(k:kk)))
+            pos=minloc(camt(i,k:kk),ctest(k:kk))
+            k1=pos(1)-1+k ! level of smallest cloud fraction from remaning levels
+            ctemp=camt(i,k1)-ctemp ! overlap fraction for current path
+            lrd=alfa1(k-1)    ! last non-trivial reflection
+            ltdc=tdcl1(i,k-1) ! tdcl1 at last non-trivial reflection
+            do k2=k,kk
+              if (ctest(k2)) then !cloud
+                ! transmissivity from top of cloud layer k2 to top of cloud layer k2-1
+                tclu(i,k2-1)=ltdc*tdcl1i(i,k2)*ct(i,k2)
+                ! transmissivity from bottom of cloud layer k2 to top of cloud layer k2-1
+                tcld(i,k2-1)=ltdc/tdcl2(i,k2)
+                ! recursion relation for reflection of the current cloud layer
+                ! and all clouds below
+	          alfa1(k2)=tclu(i,k2-1)*tclu(i,k2-1)*lrd
+     &            /(1.-tcld(i,k2-1)*tcld(i,k2-1)*lrd*cr(i,k2))
+     &            +cr(i,k2)
+                ! ratio of downwards flux between level k2 and k2-1 (for calculating dfncld)
+                alfau1(k2)=tdcl1(i,k2-1)*tdcl1i(i,k2)*ct(i,k2)
+     &            /(1.-tcld(i,k2-1)*tcld(i,k2-1)*lrd*cr(i,k2))
+                lrd=alfa1(k2) 
+                ltdc=tdcl1(i,k2)
+              else !clear sky
+                tclu(i,k2-1)=tdcl1(i,k2-1)*tdcl1i(i,k2)
+                alfa1(k2)=tclu(i,k2-1)*tclu(i,k2-1)*alfa1(k2-1)
+                alfau1(k2)=tclu(i,k2-1)
+              end if
+            end do
+            alfa(i,k:kk)=alfa(i,k:kk)+ctemp*alfa1(k:kk) ! sum of reflections over all paths
+            alfau(i,k:kk)=alfau(i,k:kk)+ctemp*alfau1(k:kk)
+            ctemp=camt(i,k1)
+            ctest(k1)=.false.
+          end do
+          alfa(i,k:kk)=alfa(i,k:kk)
+     &      +(1.-ctemp)*alfa(i,k-1)*(tdcl1(i,k-1)*tdcl1i(i,k:kk))**2
+          alfau(i,k:kk)=alfau(i,k:kk)
+     &      +(1.-ctemp)*tdcl1(i,k-1)*tdcl1i(i,k:kk)
+          k=kk+1
+        end do
+        alfa(i,k:kclds+1)=alfa(i,k-1)
+     &    *(tdcl1(i,k-1)*tdcl1i(i,k:kclds+1))**2 ! clear sky
+        ! alfau is already calculated for the clear sky
+      end do
+
+!     calculate ufn at cloud tops and dfn at cloud bottoms
+!---note that ufnclu(i,kclds+1) gives the upward flux at the top
+!   of the highest real cloud (if nclds(i)=kclds). it gives the flux
+!   at the top of the atmosphere if nclds(i) < kclds. in the first
+!   case, tdcl1 equals the transmission fctn to the top of the
+!   highest cloud, as we want. in the second case, tdcl1=1, so ufnclu
+!   equals alfa. this is also correct.
+      ufnclu(:,kclds+1) = alfa(:,kclds+1)*tdcl1(:,kclds+1)
+      dfnclu(:,kclds+1) = tdcl1(:,kclds+1)
+
+!---this calculation is the reverse of the recursion relation used
+!  above
+      do kk=kclds,1,-1
+	 dfnclu(:,kk) = dfnclu(:,kk+1)*alfau(:,kk+1)
+       ufnclu(:,kk) = dfnclu(:,kk)*alfa(:,kk)
+      end do
+      
+      else ! usual
+
+      if ( nx == 1 ) then
+!---the first cloud is the ground; its properties are given
+!   by refl (the transmission (0) is irrelevant for now!).
+	 cr(:,1) = refl
+
+!***obtain cloud reflection and transmission coefficients for
+!   remaining clouds (if any) in the visible band
+!---the maximum no of clouds in the row (kclds) is used. this creates
+!   extra work (may be removed in a subsequent update).
+       do k=2,kclds+1
+        cr(:,k) = cuvrf(:,k)*camt(:,k)
+        ct(:,k) = one-cr(:,k)
+       end do
+
+      else  !  IR, no Rayleigh scattering
+
+       do k=1,kclds+1
+	  cr(:,k) = cirrf(:,k)*camt(:,k)
+	  ct(:,k) = one-camt(:,k)*(cirrf(:,k)+cirab(:,k))
+	 end do
+
+      end if
+
 !---compute the transmissivity from the top of cloud (k+1) to the
 !   top of cloud (k). the cloud transmission (ct) is included. this
 !   quantity is called tclu (index k). also, obtain the transmissivity
@@ -555,6 +735,9 @@ c
      &                  (alfa(:,kk+1)*tclu(:,kk))
          dfnclu(:,kk) = ufnclu(:,kk)/alfa(:,kk)
       end do
+      
+      end if
+      
 !     now obtain dfn and ufn for levels between the clouds
       do k=1,kclds+1
 	 ufntrn(:,k) = ufnclu(:,k)*tucl1i(:,k)
@@ -608,9 +791,14 @@ c
 	 ufsw(:,k) = ufsw(:,k) + ufn(:,k)*dfntop
       end do
 
+      !--------------------------------------------------------------
+      ! MJT cable
+      if (nx.eq.1) swr=dfsw(:,lp1) ! store VIS
+      !--------------------------------------------------------------
+
+
       end do BAND ! end of frequency loop (over nx)
 !
-
       grdflx = dfsw(:,lp1) - ufsw(:,lp1)
 !
 !---obtain the net flux and the shortwave heating rate
@@ -619,6 +807,11 @@ c
       do k=1,l
 	 hsw(:,k) = fsw(:,k+1) - fsw(:,k)
       end do
+
+      !--------------------------------------------------------------
+      ! MJT cable
+      swr=swr/dfsw(:,lp1) ! calculate ratio of VIS to TOTAL
+      !--------------------------------------------------------------
 
       return
       end subroutine swr99_work

@@ -29,17 +29,18 @@ CDIR$ TASK COMMON SRCCOM
 CDIR$ TASK COMMON TFCOM
 c CDIR$ TASK COMMON VTEMP
 
+      use cldcom_m
+      use kdacom_m
+      use lwout_m
+      use radisw_m
+      use rdflux_m
+      use srccom_m
+      use tfcom_m
+
       include 'newmpar.h'
       include 'hcon.h'
       include 'rdparm.h'
-      include 'radisw.h'
       include 'rnddta.h'
-      include 'rdflux.h'
-      include 'srccom.h'
-      include 'kdacom.h'
-      include 'tfcom.h'
-      include 'cldcom.h'
-      include 'lwout.h'
 c 
       real      phitmp(imax,l),psitmp(imax,l),
      .          fac2(imax,l),
@@ -48,8 +49,6 @@ c
      &          ctmp3(imax,lp1),ctmp2(imax,lp1)
       double precision tt(imax,l),fac1(imax,l) ! double precision
       dimension f(imax,l),ff(imax,l),ag(imax,l),agg(imax,l)
-      equivalence (f,ag,phitmp) 
-      equivalence (ff,agg,psitmp)
 c---compute temperature quantities for use in program
       do 101 k=1,l
       do 101 i=1,imax 
