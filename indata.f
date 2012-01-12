@@ -1016,12 +1016,14 @@
 !        presetting wb when no soil moisture available initially
         iyr=kdate/10000
         imo=(kdate-10000*iyr)/100
-        do iq=1,ifull
-         if(land(iq))then
+	if (nsib==CABLE.or.nsib==6.or.nsib==7) then
+	 where (land)
+	  wb(:,ms)=0.5*(swilt(isoilm)+sfc(isoilm))
+	 end where
+	else
+         do iq=1,ifull
+          if(land(iq))then
            iveg=ivegt(iq)
-           if (nsib==CABLE.or.nsib==6.or.nsib==7) then
-             iveg=1 ! CABLE uses different iveg definitions
-           end if
            isoil=isoilm(iq)
            rlonx=rlongg(iq)*180./pi
            rlatx=rlatt(iq)*180./pi
@@ -1055,9 +1057,9 @@
                 wb(iq,ms)=swilt(isoilm(iq)) ! dry interior of Australia
               endif
             endif
-         endif    ! (land(iq))\
-        enddo     ! iq loop
-        
+          endif    ! (land(iq))\
+         enddo     ! iq loop
+        end if ! (nsib==CABLE.or.nsib==6.or.nsib==7)
         do k=1,ms-1
          wb(:,k)=wb(:,ms)
         enddo    !  k loop

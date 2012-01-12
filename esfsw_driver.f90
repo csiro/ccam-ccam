@@ -113,9 +113,9 @@ logical      ::  do_quench = .false.            ! include the quenching
                                                 ! effect of non-LTE 
                                                 ! processes on the co2 
                                                 ! optical depth ?
-logical      ::  do_ch4_sw_effects = .false.    ! the shortwave effects
+logical      ::  do_ch4_sw_effects = .true.     ! the shortwave effects
                                                 ! of ch4 are included ?
-logical      ::  do_n2o_sw_effects = .false.    ! the shortwave effects
+logical      ::  do_n2o_sw_effects = .true.     ! the shortwave effects
                                                 ! of n2o are included ?
 logical      ::  do_coupled_stratozone = .false. ! include the coupled
                                                  ! stratospheric ozone effects?

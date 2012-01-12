@@ -1160,27 +1160,22 @@ integer iq,k,kr
 real, dimension(imax,kl), intent(in) :: cfrac,qlg,qfg,prf,ttg
 real, dimension(imax,kl), intent(in) :: cdrop
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop,Rice,conl,coni
-real, dimension(imax,kl) :: reffl,reffi,fice,cfl,cfi,Wliq,rhoa
+real, dimension(imax,kl) :: reffl,reffi,fice,Wliq,rhoa
 real, dimension(imax,kl) :: eps,rk,Wice
-!real, parameter :: scale_factor = 0.85 ! account for the plane-parallel homo-
-!                                       ! genous cloud bias  (e.g. Cahalan effect)
-real, parameter :: scale_factor = 1.
-logical, parameter :: do_brenguier = .true. ! Adjust effective radius for vertically
-                                            ! stratified cloud
+real, parameter :: scale_factor = 1. ! account for the plane-parallel homo-
+                                     ! genous cloud bias  (e.g. Cahalan effect)
+logical, parameter :: do_brenguier = .false. ! Adjust effective radius for vertically
+                                             ! stratified cloud
 
 fice=qfg/max(qfg+qlg,1.e-12)
-cfl=cfrac*(1.-fice)
-cfi=cfrac*fice
 rhoa=prf/(rdry*ttg)
 
 ! Reffl is the effective radius calculated following
 ! Martin etal 1994, JAS 51, 1823-1842
-
 reffl=0.
 Wliq=0.
 where (qlg.gt.1.E-8.and.cfrac.gt.0.)
-  Wliq=rhoa*qlg/cfl     !kg/m^3
-  !Wliq=rhoa*qlg/cfrac  !kg/m^3  
+  Wliq=rhoa*qlg/cfrac !kg/m^3
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
   !eps = 1. - 0.7 * exp(-0.008e-6*cdrop) !upper bound
   eps = 1. - 0.7 * exp(-0.003e-6*cdrop)  !mid range
@@ -1190,6 +1185,7 @@ where (qlg.gt.1.E-8.and.cfrac.gt.0.)
   reffl=(3.*Wliq/(4.*pi*rhow*rk*cdrop))**(1./3.)
 end where
 
+! (GFDL NOTES)
 !    for single layer liquid or mixed phase clouds it is assumed that
 !    cloud liquid is vertically stratified within the cloud.  under
 !    such situations for observed stratocumulus clouds it is found
@@ -1206,59 +1202,55 @@ if (do_brenguier) then
     !reffl=reffl*1.134
     reffl=reffl*1.2599
   else
-    do k=1,kl
-      if (k.eq.1) then
-        where (cfrac(:,2).eq.0.)
-          !reffl(:,k)=reffl(:,k)*1.134
-          reffl(:,k)=reffl(:,k)*1.2599
-        end where
-      elseif (k.eq.kl) then
-        where (cfrac(:,kl-1).eq.0.)
-          !reffl(:,k)=reffl(:,k)*1.134
-          reffl(:,k)=reffl(:,k)*1.2599
-        end where  
-      else
-        where (cfrac(:,k-1).eq.0..and.cfrac(:,k+1).eq.0.)
-          !reffl(:,k)=reffl(:,k)*1.134
-          reffl(:,k)=reffl(:,k)*1.2599
-        end where
-      end if
+    where (cfrac(:,2).eq.0.)
+      !reffl(:,1)=reffl(:,1)*1.134
+      reffl(:,1)=reffl(:,1)*1.2599
+    end where
+    do k=2,kl-1
+      where (cfrac(:,k-1).eq.0..and.cfrac(:,k+1).eq.0.)
+        !reffl(:,k)=reffl(:,k)*1.134
+        reffl(:,k)=reffl(:,k)*1.2599
+      end where
     end do
+    where (cfrac(:,kl-1).eq.0.)
+      !reffl(:,kl)=reffl(:,kl)*1.134
+      reffl(:,kl)=reffl(:,kl)*1.2599
+    end where  
   end if
 end if
 
 reffi=0.
 Wice=0.
 where (qfg.gt.1.E-8.and.cfrac.gt.0.)
-  Wice=rhoa*qfg/cfi      !kg/m**3
-  !Wice=rhoa*qfg/cfrac   !kg/m**3  
-  reffi=min(150.e-6,3.73e-4*Wice**0.216) !Lohmann et al.(1999)
+  Wice=rhoa*qfg/cfrac !kg/m**3
+!Lohmann et al.(1999)
+!  reffi=min(150.e-6,3.73e-4*Wice**0.216) 
 end where
 
 !Donner et al (1997)
-!do k=1,kl
-!  do iq=1,imax
-!    if (qfg(iq,k).gt.1.E-8.and.cfrac(iq,k).gt.0.) then
-!      if (ttg(iq,k).gt.248.16) then
-!        reffi(iq,k)=5.E-7*100.6
-!      elseif (ttg(iq,k).gt.243.16) then
-!        reffi(iq,k)=5.E-7*80.8
-!      elseif (ttg(iq,k).gt.238.16) then
-!        reffi(iq,k)=5.E-7*93.5
-!      elseif (ttg(iq,k).gt.233.16) then
-!        reffi(iq,k)=5.E-7*63.9
-!      elseif (ttg(iq,k).gt.228.16) then
-!        reffi(iq,k)=5.E-7*42.5
-!      elseif (ttg(iq,k).gt.223.16) then
-!        reffi(iq,k)=5.E-7*39.9
-!      elseif (ttg(iq,k).gt.218.16) then
-!        reffi(iq,k)=5.E-7*21.6
-!      else
-!        reffi(iq,k)=5.E-7*20.2
-!      end if
-!    end if
-!  end do
-!end do
+do k=1,kl
+  do iq=1,imax
+    if (qfg(iq,k).gt.1.E-8.and.cfrac(iq,k).gt.0.) then
+      if (ttg(iq,k).gt.248.16) then
+        reffi(iq,k)=5.E-7*100.6
+      elseif (ttg(iq,k).gt.243.16) then
+        reffi(iq,k)=5.E-7*80.8
+      elseif (ttg(iq,k).gt.238.16) then
+        reffi(iq,k)=5.E-7*93.5
+      elseif (ttg(iq,k).gt.233.16) then
+        reffi(iq,k)=5.E-7*63.9
+      elseif (ttg(iq,k).gt.228.16) then
+        reffi(iq,k)=5.E-7*42.5
+      elseif (ttg(iq,k).gt.223.16) then
+        reffi(iq,k)=5.E-7*39.9
+      elseif (ttg(iq,k).gt.218.16) then
+        reffi(iq,k)=5.E-7*21.6
+      else
+        reffi(iq,k)=5.E-7*20.2
+      end if
+    end if
+  end do
+end do
 
 do k=1,kl
   kr=kl+1-k

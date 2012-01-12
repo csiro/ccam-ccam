@@ -112,31 +112,31 @@ module cable_ccam
   ! abort calculation if no land points on this processor  
   if (mp.le.0) return
 
-!
 ! set meteorological forcing
-!
   dhr = dt/3600.
   call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
   fjd = float(mod(mins,525600))/1440.
   call solargh(fjd,bpyear,r1,dlt,alp,slag)
   call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
-
-  call setco2for(atmco2)
-
   met%doy=fjd
   met%tk=theta(cmap)
+  met%tc=met%tk-273.16
+  met%tvair=met%tk
+  met%tvrad=met%tk
   met%ua=vmod(cmap)
+  met%ua=max(met%ua,umin)
+  call setco2for(atmco2)
   met%ca=1.e-6*atmco2(cmap)
   met%coszen=max(1.e-8,coszro2(cmap)) ! use instantaneous value
-
   met%qv=qg(cmap,1)         ! specific humidity in kg/kg
   met%pmb=0.01*ps(cmap)     ! pressure in mb at ref height
   met%precip=condx(cmap)
-  met%hod=(met%doy-int(met%doy))*24. + rlongg(cmap)*180./(15.*pi)
+  met%precip_sn=0. ! in mm not mm/sec
+  where (met%tc<0.) met%precip_sn=met%precip
+  met%hod=(met%doy-int(met%doy))*24. + rlongg(cmap)*12./pi
   met%hod=mod(met%hod,24.)
   rough%za_tq=-rdry*t(cmap,1)*log(sig(1))/grav   ! reference height
   rough%za_uv=rough%za_tq
-
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
   ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
@@ -148,16 +148,8 @@ module cable_ccam
   rad%fbeam(:,2)=fbeamnir(cmap)
   rad%fbeam(:,3)=swrsave(cmap)*fbeamvis(cmap)+(1.-swrsave(cmap))*fbeamnir(cmap) ! dummy for now
   met%fld=-rgsave(cmap)        ! long wave down (positive) W/m^2
-
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
   tsigmf=sigmf ! greeness fraction sigmf is just a diagnostic for CABLE
-
-  met%tc=met%tk-273.16
-  met%tvair=met%tk
-  met%tvrad=met%tk
-  met%ua=max(met%ua,umin)
-  met%precip_sn=0. ! in mm not mm/sec
-  where (met%tc<0.) met%precip_sn=met%precip
 
   rough%hruff=max(0.01,veg%hc-1.2*ssoil%snowd/max(ssoil%ssdnn,100.))
   select case(hruffmethod)
@@ -181,8 +173,6 @@ module cable_ccam
   ! CABLE
   veg%meth = 1
   CALL ruff_resist(veg,rough,ssoil,soil,met)
-  !met%tk=met%tk+grav/capp*(rough%zref_tq+0.9*rough%z0m)
-  !met%tc=met%tk-273.16
   CALL define_air(met,air)
   CALL init_radiation(met,rad,veg) ! need to be called at every dt
   CALL cab_albedo(999,dt,ssoil,veg,air,met,rad,soil,.false.) ! set L_RADUM=.false. as we want to update snow age
@@ -217,7 +207,7 @@ module cable_ccam
     sum_flux%dsumrp = sum_flux%dsumrp+canopy%frp*dt
     sum_flux%dsumrd = sum_flux%dsumrd+canopy%frday*dt
     CALL plantcarb(veg,bgc,met,canopy)
-    CALL soilcarb(soil, ssoil, veg, bgc, met, canopy)
+    CALL soilcarb(soil,ssoil,veg,bgc,met,canopy)
     CALL carbon_pl(dt,soil,ssoil,veg,canopy,bgc)
     sum_flux%sumrs = sum_flux%sumrs+canopy%frs*dt
   endif  
