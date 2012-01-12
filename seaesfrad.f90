@@ -1178,9 +1178,15 @@ where (qlg.gt.1.E-8.and.cfrac.gt.0.)
   Wliq=rhoa*qlg/cfrac !kg/m^3
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
   !eps = 1. - 0.7 * exp(-0.008e-6*cdrop) !upper bound
-  eps = 1. - 0.7 * exp(-0.003e-6*cdrop)  !mid range
-  !eps = 1. - 0.7 * exp(-0.001e-6*cdrop) !lower bound
+  !eps = 1. - 0.7 * exp(-0.003e-6*cdrop) !mid range
+  eps = 1. - 0.7 * exp(-0.001e-6*cdrop)  !lower bound
   rk  = (1.+eps**2)/(1.+2.*eps**2)**2
+  
+  ! k_ratio = rk**(-1./3.)  
+  ! GFDL        k_ratio (land) 1.143 (water) 1.077
+  ! mid range   k_ratio (land) 1.393 (water) 1.203
+  ! lower bound k_ratio (land) 1.203 (water) 1.050
+
   ! Martin et al 1994
   reffl=(3.*Wliq/(4.*pi*rhow*rk*cdrop))**(1./3.)
 end where
@@ -1219,7 +1225,8 @@ if (do_brenguier) then
   end if
 end if
 
-reffi=0.
+
+!reffi=0.
 Wice=0.
 where (qfg.gt.1.E-8.and.cfrac.gt.0.)
   Wice=rhoa*qfg/cfrac !kg/m**3
