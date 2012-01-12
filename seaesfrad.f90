@@ -6,12 +6,12 @@
 
 module seaesfrad_m
 
-use rad_utilities_mod, only: atmos_input_type,surface_type,astronomy_type,aerosol_type, &
+use rad_utilities_mod, only: atmos_input_type,surface_type,astronomy_type,aerosol_type,           &
                              aerosol_properties_type,radiative_gases_type,cldrad_properties_type, &
-                             cld_specification_type,lw_output_type,sw_output_type, &
-                             aerosol_diagnostics_type,time_type,microphysics_type, &
-                             microrad_properties_type,lw_diagnostics_type,lw_table_type, &
-                             Sw_control,Lw_control, Rad_control,Cldrad_control,Lw_parameters, &
+                             cld_specification_type,lw_output_type,sw_output_type,                &
+                             aerosol_diagnostics_type,time_type,microphysics_type,                &
+                             microrad_properties_type,lw_diagnostics_type,lw_table_type,          &
+                             Sw_control,Lw_control, Rad_control,Cldrad_control,Lw_parameters,     &
                              thickavg
 use esfsw_driver_mod, only : swresf,esfsw_driver_init
 use sealw99_mod, only : sealw99,sealw99_init
@@ -30,14 +30,13 @@ real, parameter :: csolar   = 1365        ! Solar constant in W/m^2
 real, parameter :: siglow   = 0.68        ! sigma level for top of low cloud (diagnostic)
 real, parameter :: sigmid   = 0.44        ! sigma level for top of medium cloud (diagnostic)
 real, parameter :: ratco2mw = 1.519449738 ! conversion factor for CO2 diagnostic
-integer, parameter :: fbeamcalc          = 0 ! Method for calculating fraction of direct radiation (0=prognostic, 1=spitter)
 integer, parameter :: naermodels         = 37
 integer, parameter :: N_AEROSOL_BANDS_FR = 8
 integer, parameter :: N_AEROSOL_BANDS_CO = 1
 integer, parameter :: N_AEROSOL_BANDS_CN = 1
 integer, parameter :: N_AEROSOL_BANDS    = N_AEROSOL_BANDS_FR+N_AEROSOL_BANDS_CO
 integer, parameter :: nfields            = 11
-logical, parameter :: do_totcld_forcing  = .false.
+logical, parameter :: do_totcld_forcing  = .true.
 logical, parameter :: include_volcanoes  = .false.
 logical, save :: do_aerosol_forcing
 
@@ -104,7 +103,7 @@ real ttbg,ar1,exp_ar1,ar2,exp_ar2,ar3,snr
 real dnsnow,snrat,dtau,alvo,aliro,fage,cczen,fzen,fzenm
 real alvd,alv,alird,alir
 real f1,f2,cosz,delta
-logical maxover,newcld
+logical maxover
 logical, save :: first = .true.
 
 type(time_type), save ::                    Rad_time
@@ -125,6 +124,12 @@ type(lw_table_type), save ::                Lw_tables
 real(kind=8), dimension(:,:,:,:), allocatable :: r
 
 call start_log(radmisc_begin)
+
+! Fix qgmin
+if (qgmin.gt.2.E-7) then
+  if (myid==0) write(6,*) "WARN: Adjust qgmin to 2.E-7 for nrad=5"
+  qgmin=2.E-7
+end if
 
 ! Aerosol flag
 do_aerosol_forcing=abs(iaero).ge.2
@@ -319,16 +324,16 @@ if ( first ) then
     Aerosol_props%seasalt5_flag=-7
     Lw_parameters%n_lwaerosol_bands=N_AEROSOL_BANDS
     Aerosol_props%optical_index(1)=Aerosol_props%sulfate_flag ! so4
-    Aerosol_props%optical_index(2)=28   ! soot
-    Aerosol_props%optical_index(3)=28   ! soot
-    Aerosol_props%optical_index(4)=27   ! organic carbon
-    Aerosol_props%optical_index(5)=27   ! organic carbon
-    Aerosol_props%optical_index(6)=33   ! dust 0.1-1 (using 0.8)
-    Aerosol_props%optical_index(7)=34   ! dust 1-2   (using 1)
-    Aerosol_props%optical_index(8)=35   ! dust 2-3   (using 2)
-    Aerosol_props%optical_index(9)=36   ! dust 3-6   (using 4)
-    Aerosol_props%optical_index(10)=29  ! sea-salt
-    Aerosol_props%optical_index(11)=29  ! sea-salt
+    Aerosol_props%optical_index(2)=28                         ! black carbon (using soot)
+    Aerosol_props%optical_index(3)=28                         ! black carbon (using soot)
+    Aerosol_props%optical_index(4)=27                         ! organic carbon
+    Aerosol_props%optical_index(5)=27                         ! organic carbon
+    Aerosol_props%optical_index(6)=33                         ! dust 0.1-1 (using 0.8)
+    Aerosol_props%optical_index(7)=34                         ! dust 1-2   (using 1)
+    Aerosol_props%optical_index(8)=35                         ! dust 2-3   (using 2)
+    Aerosol_props%optical_index(9)=36                         ! dust 3-6   (using 4)
+    Aerosol_props%optical_index(10)=29                        ! sea-salt
+    Aerosol_props%optical_index(11)=29                        ! sea-salt
     !aerosol_optical_names = "sulfate_30%", "sulfate_35%", "sulfate_40%", "sulfate_45%",
     !                        "sulfate_50%", "sulfate_55%", "sulfate_60%", "sulfate_65%",
     !                        "sulfate_70%", "sulfate_75%", "sulfate_80%", "sulfate_82%",
@@ -398,6 +403,7 @@ Rad_time%days   =int(fjd)
 Rad_time%seconds=mod(mins,1440)
 Rad_time%ticks  =0
 
+! error checking
 if (ldr.eq.0) then
   write(6,*) "ERROR: SEA-ESF radiation requires ldr.ne.0"
   call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
@@ -582,7 +588,7 @@ do j=1,jl,imax/il
         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
     end select
 
-    ! define droplet size -------------------------------------------
+    ! define droplet size distribution ------------------------------
     call aerodrop(iaero,istart,imax,kl,cd2,rhoa,land(istart:iend),rlatt(istart:iend))
     
     ! Cloud fraction diagnostics ------------------------------------
@@ -608,27 +614,29 @@ do j=1,jl,imax/il
       call getqsat(imax,qsat,dumt(:,k),p2(:,k))
       Atmos_input%deltaz(:,1,kr) =(-dsig(k)/sig(k))*rdry*dumt(:,k)/grav
       Atmos_input%rh2o(:,1,kr)   =max(qg(istart:iend,k),qgmin)
-      Atmos_input%temp(:,1,kr)   =dumt(:,k)      
+      Atmos_input%temp(:,1,kr)   =min(max(dumt(:,k),100.),370.)      
       Atmos_input%press(:,1,kr)  =p2(:,k)
       Atmos_input%rel_hum(:,1,kr)=min(qg(istart:iend,k)/qsat,1.)
     end do
-    Atmos_input%temp(:,1,kl+1)  = tss(istart:iend)
+    Atmos_input%temp(:,1,kl+1)  = min(max(tss(istart:iend),100.),370.)
     Atmos_input%press(:,1,kl+1) = ps(istart:iend)
     Atmos_input%pflux(:,1,1  )  = 0.
     Atmos_input%tflux(:,1,1  )  = Atmos_input%temp (:,1,1  )
-    do k=2,kl
-      Atmos_input%pflux(:,1,k) = 0.5*(Atmos_input%press(:,1,k-1)+Atmos_input%press(:,1,k))
-      Atmos_input%tflux(:,1,k) = 0.5*(Atmos_input%temp (:,1,k-1)+Atmos_input%temp (:,1,k))
+    do k=1,kl-1
+      kr=kl+1-k
+      Atmos_input%pflux(:,1,kr) = rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1)
+      Atmos_input%tflux(:,1,kr) = min(max(rathb(k)*dumt(:,k)+ratha(k)*dumt(:,k+1),100.),370.)
     end do
     Atmos_input%pflux(:,1,kl+1) = ps(istart:iend)
-    Atmos_input%tflux(:,1,kl+1) = tss(istart:iend)
+    Atmos_input%tflux(:,1,kl+1) = min(max(tss(istart:iend),100.),370.)
     Atmos_input%clouddeltaz     = Atmos_input%deltaz        
 
     Atmos_input%psfc(:,1)    =ps(istart:iend)
-    Atmos_input%tsfc(:,1)    =tss(istart:iend)
+    Atmos_input%tsfc(:,1)    =min(max(tss(istart:iend),100.),370.)
     Atmos_input%phalf(:,1,1) =0.
-    do k=2,kl
-      Atmos_input%phalf(:,1,k)=0.5*(Atmos_input%press(:,1,k-1)+Atmos_input%press(:,1,k))
+    do k=1,kl-1
+      kr=kl+1-k
+      Atmos_input%phalf(:,1,kr)=rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1)
     end do
     Atmos_input%phalf(:,1,kl+1)=ps(istart:iend)
 
@@ -647,32 +655,24 @@ do j=1,jl,imax/il
     Cld_spec%camtsw=0.
     Cld_spec%crndlw=0.
     Cld_spec%cmxolw=0.
-    !Cld_spec%ncldsw=0
-    !Cld_spec%nrndlw=0
-    !Cld_spec%nmxolw=0
     if (nmr.eq.0) then
       do i=1,imax ! random overlap
         iq=i+istart-1
-        newcld=.true.
         do k=1,kl
           kr=kl+1-k
           if (cfrac(iq,k).gt.0.) then
             Cld_spec%camtsw(i,1,kr)=cfrac(iq,k) ! Max+Rnd overlap clouds for SW
-            !Cld_spec%ncldsw=Cld_spec%ncldsw+1
             Cld_spec%crndlw(i,1,kr)=cfrac(iq,k) ! Rnd overlap for LW
-            !Cld_spec%nrndlw=Cld_spec%nrndlw+1
           end if
         end do
       end do
     else
       do i=1,imax ! maximum-random overlap
         iq=i+istart-1
-        newcld=.true.
         do k=1,kl
           kr=kl+1-k
           if (cfrac(iq,k).gt.0.) then
             Cld_spec%camtsw(i,1,kr)=cfrac(iq,k) ! Max+Rnd overlap clouds for SW
-            !Cld_spec%ncldsw=Cld_spec%ncldsw+1
             maxover=.false.
             if (k.gt.1) then
               if (cfrac(iq,k-1).gt.0.) maxover=.true.
@@ -682,14 +682,9 @@ do j=1,jl,imax/il
             end if
             if (maxover) then
               Cld_spec%cmxolw(i,1,kr)=cfrac(iq,k) ! Max overlap for LW
-              !if (newcld) Cld_spec%nmxolw=Cld_spec%nmxolw+1
-              newcld=.false.
             else
               Cld_spec%crndlw(i,1,kr)=cfrac(iq,k) ! Rnd overlap for LW
-              !Cld_spec%nrndlw=Cld_spec%nrndlw+1
             end if
-          else
-            newcld=.true.
           end if
         end do
       end do
@@ -719,11 +714,11 @@ do j=1,jl,imax/il
     Cldrad_props%cldext(:,:,:,:,1)  =Lscrad_props%cldext(:,:,:,:)   ! Large scale cloud properties only
     Cldrad_props%cldasymm(:,:,:,:,1)=Lscrad_props%cldasymm(:,:,:,:) ! Large scale cloud properties only
     Cldrad_props%abscoeff(:,:,:,:,1)=Lscrad_props%abscoeff(:,:,:,:) ! Large scale cloud properties only
-    
+
     call lwemiss_calc(Atmos_input%clouddeltaz,Cldrad_props%abscoeff,Cldrad_props%cldemiss)
     Cldrad_props%emmxolw = Cldrad_props%cldemiss
     Cldrad_props%emrndlw = Cldrad_props%cldemiss
-    
+
     Surface%asfc_vis_dir(:,1)=cuvrf_dir(:)
     Surface%asfc_nir_dir(:,1)=cirrf_dir(:)
     Surface%asfc_vis_dif(:,1)=cuvrf_dif(:)
@@ -771,21 +766,16 @@ do j=1,jl,imax/il
     elsewhere
       swrsave(istart:iend)=0.5
     end where
-    if (fbeamcalc.eq.0) then
-      where (sgdnvis.gt.0.1)
-        fbeamvis(istart:iend)=sgdnvisdir/sgdnvis
-      elsewhere
-        fbeamvis(istart:iend)=0.5
-      end where
-      where (sgdnnir.gt.0.1)
-        fbeamnir(istart:iend)=sgdnnirdir/sgdnnir
-      elsewhere
-        fbeamnir(istart:iend)=0.5
-      end where
-    else
-      call spitter(imax,fjd,coszro,sgdn,fbeamvis(istart:iend))
-      fbeamnir(istart:iend)=fbeamvis(istart:iend)
-    end if
+    where (sgdnvis.gt.0.1)
+      fbeamvis(istart:iend)=sgdnvisdir/sgdnvis
+    elsewhere
+      fbeamvis(istart:iend)=0.5
+    end where
+    where (sgdnnir.gt.0.1)
+      fbeamnir(istart:iend)=sgdnnirdir/sgdnnir
+    elsewhere
+      fbeamnir(istart:iend)=0.5
+    end where
     
     ! Store albedo data ---------------------------------------------
     albvisnir(istart:iend,1)=Surface%asfc_vis_dir(:,1)*fbeamvis(istart:iend)+Surface%asfc_vis_dif(:,1)*(1.-fbeamvis(istart:iend))
@@ -1172,10 +1162,11 @@ real, dimension(imax,kl), intent(in) :: cdrop
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop,Rice,conl,coni
 real, dimension(imax,kl) :: reffl,reffi,fice,cfl,cfi,Wliq,rhoa
 real, dimension(imax,kl) :: eps,rk,Wice
-real, parameter :: scale_factor = 0.85 ! account for the plane-parallel homo-
-                                       ! genous cloud bias  (e.g. Cahalan effect)
-logical, parameter :: do_brenguier = .false. ! Adjust effective radius for vertically
-                                             ! stratified cloud
+!real, parameter :: scale_factor = 0.85 ! account for the plane-parallel homo-
+!                                       ! genous cloud bias  (e.g. Cahalan effect)
+real, parameter :: scale_factor = 1.
+logical, parameter :: do_brenguier = .true. ! Adjust effective radius for vertically
+                                            ! stratified cloud
 
 fice=qfg/max(qfg+qlg,1.e-12)
 cfl=cfrac*(1.-fice)
@@ -1188,8 +1179,8 @@ rhoa=prf/(rdry*ttg)
 reffl=0.
 Wliq=0.
 where (qlg.gt.1.E-8.and.cfrac.gt.0.)
-  !Wliq=rhoa*qlg/cfl     !kg/m^3
-  Wliq=rhoa*qlg/cfrac  !kg/m^3
+  Wliq=rhoa*qlg/cfl     !kg/m^3
+  !Wliq=rhoa*qlg/cfrac  !kg/m^3  
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
   !eps = 1. - 0.7 * exp(-0.008e-6*cdrop) !upper bound
   eps = 1. - 0.7 * exp(-0.003e-6*cdrop)  !mid range
@@ -1212,24 +1203,24 @@ end where
 !    single layer liquid or mixed phase clouds.
 if (do_brenguier) then
   if (nmr.eq.0) then
-    reffl=reffl*1.134
-    !reffl=reffl*1.2599
+    !reffl=reffl*1.134
+    reffl=reffl*1.2599
   else
     do k=1,kl
       if (k.eq.1) then
         where (cfrac(:,2).eq.0.)
-          reffl(:,k)=reffl(:,k)*1.134
-          !reffl(:,k)=reffl(:,k)*1.2599
+          !reffl(:,k)=reffl(:,k)*1.134
+          reffl(:,k)=reffl(:,k)*1.2599
         end where
       elseif (k.eq.kl) then
         where (cfrac(:,kl-1).eq.0.)
-          reffl(:,k)=reffl(:,k)*1.134
-          !reffl(:,k)=reffl(:,k)*1.2599
+          !reffl(:,k)=reffl(:,k)*1.134
+          reffl(:,k)=reffl(:,k)*1.2599
         end where  
       else
         where (cfrac(:,k-1).eq.0..and.cfrac(:,k+1).eq.0.)
-          reffl(:,k)=reffl(:,k)*1.134
-          !reffl(:,k)=reffl(:,k)*1.2599
+          !reffl(:,k)=reffl(:,k)*1.134
+          reffl(:,k)=reffl(:,k)*1.2599
         end where
       end if
     end do
@@ -1239,8 +1230,8 @@ end if
 reffi=0.
 Wice=0.
 where (qfg.gt.1.E-8.and.cfrac.gt.0.)
-  !Wice=rhoa*qfg/cfi          !kg/m**3
-  Wice=rhoa*qfg/cfrac       !kg/m**3
+  Wice=rhoa*qfg/cfi      !kg/m**3
+  !Wice=rhoa*qfg/cfrac   !kg/m**3  
   reffi=min(150.e-6,3.73e-4*Wice**0.216) !Lohmann et al.(1999)
 end where
 
@@ -1271,10 +1262,10 @@ end where
 
 do k=1,kl
   kr=kl+1-k
-  Rdrop(:,kr)=2.*reffl(:,k)*1.E6 ! convert to diameter and microns
-  Rice(:,kr)=2.*reffi(:,k)*1.E6
-  conl(:,kr)=scale_factor*1000.*Wliq(:,k) !g/m^3
-  coni(:,kr)=scale_factor*1000.*Wice(:,k)
+  Rdrop(:,kr)=2.E6*reffl(:,k) ! convert to diameter and microns
+  Rice(:,kr) =2.E6*reffi(:,k)
+  conl(:,kr) =scale_factor*1000.*Wliq(:,k) !g/m^3
+  coni(:,kr) =scale_factor*1000.*Wice(:,k)
 end do
 
 where (Rdrop.gt.0.)

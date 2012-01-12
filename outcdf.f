@@ -1,59 +1,59 @@
+! Main netcdf output routines.  Two optons are
+!   itype=1  write outfile history file (compressed)
+!   itype=-1 write restart file (uncompressed)
+
 c=======================================================================
       subroutine outcdf(rundate,nmi,itype,ms_out,iaero)
-!     itype=-1  for restart file
-!            1  for outfile
-!     N.B. subr outcdfs is down the bottom (for nscrn=1)
-      use cc_mpi
-      use infile, only : ncmsg
-      use liqwpar_m  ! ifullw
-      use parmhdff_m
-      use tracers_m  ! ngas, nllp, ntrac, tr
+
+      use cc_mpi                            ! CC MPI routines
+      use infile, only : ncmsg              ! Input file routines
+      use liqwpar_m                         ! Cloud water mixing ratios
+      use mlo, only : wlev                  ! Ocean physics and prognostic arrays
+      use parmhdff_m                        ! Horizontal diffusion parameters
+      use tracers_m                         ! Tracer data
+
       implicit none
-      include 'newmpar.h'
-      include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg,mtimer
-      include 'filnames.h'  ! list of files, read in once only
-      include 'kuocom.h'
-      include 'netcdf.inc'
-      include 'parm.h'
-      include 'parmdyn.h'  
-      include 'parmgeom.h' ! rlong0,rlat0,schmidt  
-      include 'parmhor.h'  ! mhint, m_bs, nt_adv, ndept
-      include 'parmvert.h'
-      character rundate*8
-      integer nmi, itype, ms_out, iaero
+
+      include 'newmpar.h'                   ! Grid parameters
+      include 'dates.h'                     ! Date data
+      include 'filnames.h'                  ! Filenames
+      include 'kuocom.h'                    ! Convection parameters
+      include 'netcdf.inc'                  ! Netcdf parameters
+      include 'parm.h'                      ! Model configuration
+      include 'parmdyn.h'                   ! Dynamics parmaters
+      include 'parmgeom.h'                  ! Coordinate data
+      include 'parmhor.h'                   ! Horizontal advection parameters
+      include 'parmvert.h'                  ! Vertical advection parameters
+
+      integer ixp,iyp,idlev,idnt,idms,idoc
+      common/cdfind/ixp,iyp,idlev,idnt,
+     &  idms,idoc                           ! Output file dimension data
+      integer leap
+      common/leap_yr/leap                   ! Leap year (1 to allow leap years)
 
       integer, parameter :: nihead=54
-      integer nahead(nihead)
-
       integer, parameter :: nrhead=14
-      real ahead(nrhead)
+      integer, dimension(nihead) :: nahead
+      integer, dimension(4) :: dim,dims,dimo
+      integer nmi, itype, ms_out, iaero
+      integer xdim,ydim,zdim,tdim,msdim,ocdim
+      integer icy, icm, icd, ich, icmi, ics, idv, ier, imode
+      integer, save :: idnc=0, iarch=0, idnc0=0
+      real, dimension(nrhead) :: ahead
+      character(len=80) cdffile
+      character(len=33) grdtim
+      character(len=20) timorg
+      character(len=8) rundate
+      character(len=3), dimension(12) :: month
+      logical local
 
-      character cdffile*80
-
-      integer ixp,iyp,idlev,idnt,idms
-      common/cdfind/ixp,iyp,idlev,idnt,idms
- 
-      integer leap
-      common/leap_yr/leap
-
-      integer dim(4),dims(4)
-      integer xdim,ydim,zdim,tdim,msdim
-      character timorg*20
-      character grdtim*33
-      character*3 month(12)
       data month/'jan','feb','mar','apr','may','jun'
      &          ,'jul','aug','sep','oct','nov','dec'/
 
-      integer :: ndt, icy, icm, icd, ich, icmi, ics, idv, ier, imode
-      integer, save :: idnc
-      integer, save :: iarch=0, idnc0=0
-      logical :: local ! Each processor writes its local region
 
-      ndt=dt
       ! The localhist variable controls whether the local file option
-      !  is used at all. In any case it's only used for the restfile.
+      !  is used at all. In any case it's only used for the outfile.
       local = localhist .and. itype == 1 ! Only for outfile
-c     print *,'entering outcdf for myid,local ',myid,local
 
       if(myid==0 .or. local)then !  #########################
 !      File setup follows
@@ -80,23 +80,20 @@ c       itype=-1 restfile
      &                   itype,idnc,iarch,cdffile
 
        if(iarch==1)then
-        print *,'nccre of ',cdffile
+        write(6,*) 'nccre of ',cdffile
 #ifdef usenc3
         idnc = nccre(cdffile, ncclob, ier)
 #else
-	!ier=nf_create(cdffile,NF_NOCLOBBER,idnc)
-	!ier=nf_create(cdffile,NF_64BIT_OFFSET,idnc)
-	!ier=nf_create(cdffile,NF_NETCDF4.or.NF90_CLASSIC_MODEL,idnc)
-	ier=nf_create(cdffile,NF_NETCDF4,idnc)
+        ier=nf_create(cdffile,NF_NETCDF4,idnc)
 #endif
-        print *,'idnc,ier=',idnc,ier
+        write(6,*) 'idnc,ier=',idnc,ier
         if (ier.ne.0) then
-          write(6,*) "Error opening output file"
+          write(6,*) "Error creating outfile"
           call ncmsg("Outcdf",ier)
         end if
 c       Turn off the data filling
         imode = ncsfil(idnc,ncnofill,ier)
-        print *,'imode=',imode
+        write(6,*) 'imode=',imode
 c       Create dimensions, lon, runtopo.shlat
         if(local)then
            xdim = ncddef(idnc, 'longitude', il, ier)
@@ -107,9 +104,12 @@ c       Create dimensions, lon, runtopo.shlat
         endif
         zdim= ncddef(idnc, 'lev', kl, ier)
         msdim= ncddef(idnc, 'zsoil', ms, ier)
+        if (abs(nmlo).gt.0..and.abs(nmlo).le.9) then
+          ocdim= ncddef(idnc, 'olev', wlev, ier)
+        end if
         tdim= ncddef(idnc, 'time',ncunlim,ier)
-        print *,"xdim,ydim,zdim,tdim"
-        print *, xdim,ydim,zdim,tdim
+        write(6,*) "xdim,ydim,zdim,tdim"
+        write(6,*)  xdim,ydim,zdim,tdim
 
 c       define coords.
         ixp = ncvdef(idnc,'longitude',NCFLOAT,1,xdim,ier)
@@ -118,26 +118,33 @@ c       define coords.
         iyp = ncvdef(idnc,'latitude',NCFLOAT,1,ydim,ier)
         call ncaptc(idnc,iyp,'point_spacing',NCCHAR,4,'even',ier)
         call ncaptc(idnc,iyp,'units',NCCHAR,13,'degrees_north',ier)
-        print *,'ixp,iyp=',ixp,iyp
+        write(6,*) 'ixp,iyp=',ixp,iyp
 
         idlev = ncvdef(idnc,'lev',NCFLOAT,1,zdim,ier)
         call ncaptc(idnc,idlev,'positive',NCCHAR,4,'down',ier)
         call ncaptc(idnc,idlev,'point_spacing',NCCHAR,6,'uneven',ier)
         call ncaptc(idnc,idlev,'units',NCCHAR,11,'sigma_level',ier)
         call ncaptc(idnc,idlev,'long_name',NCCHAR,11,'sigma_level',ier)
-        print *,'idlev=',idlev
+        write(6,*) 'idlev=',idlev
 
         idms = ncvdef(idnc,'zsoil',NCFLOAT,1,msdim,ier)
         call ncaptc(idnc,idms,'point_spacing',NCCHAR,6,'uneven',ier)
         call ncaptc(idnc,idms,'units',NCCHAR,1,'m',ier)
-        print *,'idms=',idms
+        write(6,*) 'idms=',idms
+        
+        if (abs(nmlo).gt.0.and.abs(nmlo).le.9) then
+          idoc = ncvdef(idnc,'olev',NCFLOAT,1,ocdim,ier)
+          call ncaptc(idnc,idoc,'point_spacing',NCCHAR,6,'uneven',ier)
+          call ncaptc(idnc,idoc,'units',NCCHAR,11,'sigma_level',ier)
+          write(6,*) 'idoc=',idoc
+        end if
 
-        print *,'tdim,idnc=',tdim,idnc
-        idnt = ncvdef(idnc,'time',NCFLOAT,1,tdim,ier)  ! Sept 2006
-        print *,'idnt=',idnt
+        write(6,*) 'tdim,idnc=',tdim,idnc
+        idnt = ncvdef(idnc,'time',NCFLOAT,1,tdim,ier)
+        write(6,*) 'idnt=',idnt
         call ncaptc(idnc,idnt,'point_spacing',NCCHAR,4,'even',ier)
 
-        print *,'kdate,ktime,ktau=',kdate,ktime,ktau
+        write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
         icy=kdate/10000
         icm=max(1,min(12,(kdate-icy*10000)/100))
         icd=max(1,min(31,(kdate-icy*10000-icm*100)))
@@ -148,26 +155,34 @@ c       define coords.
         write(6,*) icy,icm,icd,ich,icmi,ics
         write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))')
      &               icd,month(icm),icy,ich,icmi,ics
-        print *,'timorg=',timorg
+        write(6,*) 'timorg=',timorg
         call ncaptc(idnc,idnt,'time_origin',NCCHAR,20,timorg,ier)
 
         write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",
      &       2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
-        print *,'grdtim=',grdtim
+        write(6,*) 'grdtim=',grdtim
         call ncaptc(idnc,idnt,'units',NCCHAR,33,grdtim,ier)
         if (leap.eq.0) then
           call ncaptc(idnc,idnt,'calendar',NCCHAR,6,'noleap',ier)
         end if
 
+        ! atmosphere dimensions
         dim(1) = xdim
         dim(2) = ydim
         dim(3) = zdim
         dim(4) = tdim
 
+        ! soil dimensions
         dims(1) = xdim
         dims(2) = ydim
         dims(3) = msdim
         dims(4) = tdim
+
+        ! ocean dimensions
+        dimo(1) = xdim
+        dimo(2) = ydim
+        dimo(3) = ocdim
+        dimo(4) = tdim
 
 c       create the attributes of the header record of the file
         nahead(1)=il_g       ! needed by cc2hist
@@ -183,7 +198,7 @@ c       create the attributes of the header record of the file
         nahead(11)=nem
         nahead(12)=mtimer
         nahead(13)=nmi
-        nahead(14)=ndt       ! needed by cc2hist
+        nahead(14)=nint(dt)  ! needed by cc2hist
         nahead(15)=0         ! not needed now 
         nahead(16)=nhor
         nahead(17)=nkuo
@@ -241,125 +256,137 @@ c       create the attributes of the header record of the file
         ahead(14)=epsp
         write(6,*) "ahead=",ahead
         call ncapt(idnc,ncglobal,'int_header',nclong,nihead,nahead,ier)
-        if(ier.ne.0)write(6,*)"ncapt int idnc,ier=",idnc,ier
+        call ncmsg("int_header",ier)
         call ncapt(idnc,ncglobal,'real_header',ncfloat,nrhead,ahead,ier)
-        if(ier.ne.0)write(6,*)"ncapt real idnc,ier=",idnc,ier
+        call ncmsg("real_header",ier)
         call ncaptc(idnc,ncglobal,'date_header',ncchar,10,rundate,ier)
-        if(ier.ne.0)write(6,*)"ncaptc date idnc,ier=",idnc,ier
+        call ncmsg("date_header",ier)
 
         idv=ncvdef(idnc,'ds',ncfloat,0,1,ier)
-        if(ier.ne.0)write(6,*)"ncvdef ds idnc,ier=",idnc,ier
+        call ncmsg("ds",ier)
         idv=ncvdef(idnc,'dt',ncfloat,0,1,ier)
-        if(ier.ne.0)write(6,*)"ncvdef dt idnc,ier=",idnc,ier
+        call ncmsg("dt",ier)
        endif ! ( iarch=1)then
 
       endif ! (myid==0.or.local) #########################
+      
       ! openhist writes some fields so needs to be called by all processes
       call openhist(iarch,itype,dim,local,idnc,iaero)
 
       if(myid==0.or.local)then
         call ncsnc(idnc,ier)
-        if(ier.ne.0)write(6,*)"ncsnc idnc,ier=",idnc,ier
+        call ncmsg("ncsnc",ier)
+        if(ktau.eq.ntau)then
+          call ncclos(idnc,ier)
+          write(6,*) "calling ncclos(idnc,ier) ",idnc,ier
+        endif
       endif    ! (myid==0.or.local)
-      !if(ktau.eq.ntau.and.(myid==0.or.localhist))then
-      if(ktau.eq.ntau.and.(myid==0.or.local))then ! MJT bug fix
-        call ncclos(idnc,ier)
-        write(6,*) "calling ncclos(idnc,ier) ",idnc,ier
-      endif
+
       return   ! outcdf  
       end
+      
 c=======================================================================
-      subroutine openhist(iarch,itype,dim,local,idnc,iaero)
-      use aerosolldr
-      use arrays_m
-      use ateb ! MJT urban
-      use cable_ccam, only : savetile ! MJT cable
-      use carbpools_m
-      use cc_mpi
-      use cfrac_m
-      use define_dimensions, only : ncs, ncp ! MJT cable
-      use dpsdt_m
-      use extraout_m  ! u10_3hr,v10_3hr
-      use histave_m
-      use latlong_m
-      use liqwpar_m   ! ifullw
-      use map_m
-      use mlo, only : wlev,mlosave,mlodiag,micdwn ! MJT mlo
-      use mlodynamics
-      use morepbl_m
-      use nharrs_m
-      use nsibd_m     ! rsmin,ivegt,sigmf,tgg,tgf,ssdn,res,rmc,isoilm,ico2em
-      use pbl_m
-      use prec_m
-      use raddiag_m
-      use savuvt_m
-      use savuv1_m
-      use screen_m
-      use sigs_m
-      use soil_m
-      use soilsnow_m
-      use tkeeps, only : tke,eps ! MJT tke      
-c     rml 18/09/07 pass through tracmax,tracmin; 19/09/07 add tracname
-      use tracermodule, only : tracmax,tracmin,tracname,writetrpm
-      use tracers_m
-      use vegpar_m
-      use vvel_m      ! sdot, dpsldt
-      use work2_m
-      use xarrs_m, only : pslx
-      implicit none
 
 c     this routine creates attributes and writes output
 
-      include 'newmpar.h'
-      include 'const_phys.h'
-      include 'dates.h'    ! ktime,kdate,timer,timeg,xg,yg,mtimer
-      include 'filnames.h' ! list of files, read in once only
-      include 'kuocom.h'
-      include 'netcdf.inc'
-      include 'parm.h'
-      include 'parmdyn.h'
-      include 'parmvert.h'
-      include 'soilv.h'   ! sfc,zse
-      include 'trcom2.h'
-      include 'version.h'
+      subroutine openhist(iarch,itype,dim,local,idnc,iaero)
 
+      use aerosolldr                            ! LDR prognostic aerosols
+      use arrays_m                              ! Atmosphere dyamics prognostic arrays
+      use ateb                                  ! Urban
+      use cable_ccam, only : savetile           ! CABLE interface
+      use carbpools_m                           ! Carbon pools
+      use cc_mpi                                ! CC MPI routines
+      use cfrac_m                               ! Cloud fraction
+      use define_dimensions, only : ncs, ncp    ! CABLE dimensions
+      use dpsdt_m                               ! Vertical velocity
+      use extraout_m                            ! Additional diagnostics
+      use histave_m                             ! Time average arrays
+      use latlong_m                             ! Lat/lon coordinates
+      use liqwpar_m                             ! Cloud water mixing ratios
+      use map_m                                 ! Grid map arrays
+      use mlo, only : wlev,mlosave,mlodiag,     ! Ocean physics and prognostic arrays
+     &      micdwn,mloexpdep
+      use mlodynamics                           ! Ocean dynamics
+      use morepbl_m                             ! Additional boundary layer diagnostics
+      use nharrs_m                              ! Non-hydrostatic atmosphere arrays
+      use nsibd_m                               ! Land-surface arrays
+      use pbl_m                                 ! Boundary layer arrays
+      use prec_m                                ! Precipitation
+      use raddiag_m                             ! Radiation diagnostic
+      use savuvt_m                              ! Saved dynamic arrays
+      use savuv1_m                              ! Saved dynamic arrays
+      use screen_m                              ! Screen level diagnostics
+      use sigs_m                                ! Atmosphere sigma levels
+      use soil_m                                ! Soil and surface data
+      use soilsnow_m                            ! Soil, snow and surface data
+      use tkeeps, only : tke,eps                ! TKE-EPS boundary layer
+      use tracermodule, only : tracmax,tracmin, ! Tracer routines
+     &      tracname,writetrpm
+      use tracers_m                             ! Tracer data
+      use vegpar_m                              ! Vegetation arrays
+      use vvel_m                                ! Additional vertical velocity
+      use work2_m                               ! Diagnostic arrays
+      use xarrs_m, only : pslx                  ! Saved dynamic arrays
+
+      implicit none
+
+      include 'newmpar.h'                       ! Grid parameters
+      include 'const_phys.h'                    ! Physical constants
+      include 'dates.h'                         ! Date data
+      include 'filnames.h'                      ! Filenames
+      include 'kuocom.h'                        ! Convection parameters
+      include 'netcdf.inc'                      ! Netcdf parameters
+      include 'parm.h'                          ! Model configuration
+      include 'parmdyn.h'                       ! Dynamics parameters
+      include 'parmvert.h'                      ! Vertical advection parameters
+      include 'soilv.h'                         ! Soil parameters
+      include 'trcom2.h'                        ! Station data
+      include 'version.h'                       ! Model version data
+
+      integer ixp,iyp,idlev,idnt,idms,idoc
+      common/cdfind/ixp,iyp,idlev,idnt,idms,
+     &  idoc                                    ! Output file dimension data
+
+      integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
+      integer idv, ier, iq, isoil, j, k, igas, idnc
       integer iarch, itype, iaero
-      logical, intent(in) :: local
-      character lname*40,mnam*21,nnam*21,expdesc*50,vname*8 ! MJT mlo
-      integer dim(4)
-      integer idim(3)
-      real xpnt(il_g),ypnt(jl_g)
-
-      integer ixp,iyp,idlev,idnt,idms
-      common/cdfind/ixp,iyp,idlev,idnt,idms
-      real aa(ifull),bb(ifull),cc(ifull)
-      real tmpry(ifull,kl)
-      real, dimension(:,:,:), allocatable :: mlodwn
-
-      integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter,
-     &     idv, ier, iq, isoil, j, k, igas, idnc
+      integer, dimension(4), intent(in) :: dim
+      integer, dimension(3) :: idim
       real trmax, trmin
-      character*3 mon(12),trnum
-      real zsoil(ms)
+      real, dimension(ms) :: zsoil
+      real, dimension(il_g) :: xpnt
+      real, dimension(jl_g) :: ypnt
+      real, dimension(ifull) :: aa,bb,cc
+      real, dimension(ifull,kl) :: tmpry
+      real, dimension(ifull,wlev,4) :: mlodwn
+      character(len=50) expdesc
+      character(len=40) lname
+      character(len=21) mnam,nnam
+      character(len=8) vname
+      character(len=3) trnum
+      character(len=3), dimension(12) :: mon
+      logical, intent(in) :: local
+
       data mon/'JAN','FEB','MAR','APR','MAY','JUN'
      &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
 
       if(myid == 0 .or. local)then  !#########################
-       print *,'openhist itype,iarch,idnc=',itype,iarch,idnc
+       write(6,*) 'openhist itype,iarch,idnc=',itype,iarch,idnc
 
 c      if this is the first archive, set up some global attributes
        if(iarch==1) then
-        print *,'dim=',dim
+        write(6,*) 'dim=',dim
         idim(1)=dim(1)
         idim(2)=dim(2)
         idim(3)=dim(4)
-        print *,'idim=',idim
+        write(6,*) 'idim=',idim
 
 c       Create global attributes
 c       Model run number
-        print *,'nrun=',nrun
+        write(6,*) 'nrun=',nrun
         call ncapt(idnc,ncglobal,'nrun',nclong,1,nrun,ier)
-        write(6,*)"nrun ier=",ier
+        write(6,*) "nrun ier=",ier
 
 c       Experiment description
         expdesc = 'CCAM model run'
@@ -374,10 +401,15 @@ c       Model version
         if(local)then
            ier = nf_put_att_int(idnc,nf_global,"processor_num",nf_int,
      &                          1,myid)
+#ifdef uniform_decomp
+           ier = nf_put_att_text(idnc,nf_global,"decomp",7,"uniform")
+#else
+           ier = nf_put_att_text(idnc,nf_global,"decomp",4,"face")
+#endif
         endif           
 
 c       Sigma levels
-        print *,'sig=',sig
+        write(6,*) 'sig=',sig
         call ncapt(idnc,ncglobal,'sigma',ncfloat,kl,sig,ier)
 
         lname = 'year-month-day at start of run'
@@ -414,7 +446,7 @@ c       Sigma levels
         call ncaptc(idnc,idv,'positive',ncchar
      &             ,len_trim('down'),'down',ier)
 
-        print *,'define attributes of variables'
+        write(6,*) 'define attributes of variables'
 
 c       For time invariant surface fields
         lname = 'Surface geopotential'
@@ -476,7 +508,8 @@ c       For time varying surface fields
         lname = 'Soil temperature lev 6'
         call attrib(idnc,idim,3,'tgg6',lname,'K',100.,425.,0,itype)
  
-        if (nmlo.lt.0.or.(nmlo.gt.0.and.itype==-1)) then
+        if ((nmlo.lt.0.and.nmlo.ge.-9).or.
+     &      (nmlo.gt.0.and.nmlo.le.9.and.itype==-1)) then
           do k=ms+1,wlev
            write(lname,'("soil/ocean temperature lev ",I2)') k
            write(vname,'("tgg",I2.2)') k
@@ -800,7 +833,7 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
         lname = 'y-component wind stress'
         call attrib(idnc,idim,3,'tauy',lname,'N/m2',-50.,50.,0,itype)
         if(nextout>=1) then
-          print *,'nextout=',nextout
+          write(6,*) 'nextout=',nextout
           lname = 'LW at TOA'
           call attrib(idnc,idim,3,'rtu_ave',lname,'W/m2',0.,800.,0,
      &                itype)
@@ -832,7 +865,7 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
           call attrib(idnc,idim,3,'sgn_ave',lname,'W/m2',-500.,2000.,0,
      &                itype)
           lname = 'Sunshine hours'
-          call attrib(idnc,idim,3,'sunhours',lname,'s',0.,130000.,0,
+          call attrib(idnc,idim,3,'sunhours',lname,'hrs',0.,64.5,0,
      &                itype)
           lname = 'Fraction of direct radiation'
           call attrib(idnc,idim,3,'fbeam_ave',lname,'none',-3.25,3.25,0,
@@ -919,7 +952,7 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          call attrib(idnc,idim,3,'roadsna',lname,'none',0.,1.3,0,itype)
         end if
         
-        print *,'3d variables'
+        write(6,*) '3d variables'
         if(nextout>=4.and.nllp==3)then   ! N.B. use nscrn=1 for hourly output
           lname = 'Delta latitude'
           call attrib(idnc,dim,4,'del_lat',lname,'deg',-60.,60.,1,itype)
@@ -1037,7 +1070,7 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          lname= 'savv2'
          call attrib(idnc,dim,4,'savv2',lname,'m/s',-1.E2,1.E2,0,
      &               itype)
-         if (allocated(oldu1)) then
+         if (abs(nmlo).ge.3.and.abs(nmlo).le.9) then
            do k=1,wlev
              write(lname,'("oldu1 ",I2)') k
              write(vname,'("oldu1",I2.2)') k
@@ -1098,22 +1131,22 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
          call attrib(idnc,idim,3,'sflag',lname,'none',0.,4.,0,itype)
         endif  ! (itype==-1)
 
-        print *,'finished defining attributes'
+        write(6,*) 'finished defining attributes'
 c       Leave define mode
         call ncendf(idnc,ier)
-        print *,'leave define mode: ier=',ier
+        write(6,*) 'leave define mode: ier=',ier
 
         if(local)then
-           ! Set these to global indices (currently broken for uniform_decomp)
+           ! Set these to global indices (relative to panel 0 in uniform decomp)
            do i=1,ipan
               xpnt(i) = float(i) + ioff(0)
            end do
            call ncvpt(idnc,ixp,1,il,xpnt,ier)
            do j=1,jl
-              ypnt(j) = float(j) + jl*((myid*il)/il_g)
+              ypnt(j) = float(j) + joff(0)
            end do
            call ncvpt(idnc,iyp,1,jl,ypnt,ier)
-        else
+	else
            do i=1,il_g
               xpnt(i) = float(i)
            end do
@@ -1139,6 +1172,10 @@ c       Leave define mode
         zsoil(5)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)*.5
         zsoil(6)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6)*.5
         call ncvpt(idnc,idms,1,ms,zsoil,ier)
+        
+        if (nmlo.ne.0.and.abs(nmlo).le.9) then
+          call ncvpt(idnc,idoc,1,wlev,gosig,ier)
+        end if
 
         idv = ncvid(idnc,'ds',ier)
         call ncvpt1(idnc,idv,1,ds,ier)
@@ -1146,12 +1183,11 @@ c       Leave define mode
         call ncvpt1(idnc,idv,1,dt,ier)
        endif ! iarch==1
 !      -----------------------------------------------------------      
-       print *,'outcdf processing kdate,ktime,ktau,mtimer: ',
-     .                            kdate,ktime,ktau,mtimer
+       write(6,*) 'outcdf processing kdate,ktime,ktau,mtimer: ',
+     &                               kdate,ktime,ktau,mtimer
 c      set time to number of minutes since start 
        idv = ncvid(idnc,'time',ier)
-ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
-       call ncvpt1(idnc,idv,iarch,real(mtimer),ier)  ! Sept 2006
+       call ncvpt1(idnc,idv,iarch,real(mtimer),ier)
 
        idv = ncvid(idnc,'timer',ier)
        call ncvpt1(idnc,idv,iarch,timer,ier)
@@ -1165,14 +1201,14 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
        call ncvpt1(idnc,idv,iarch,kdate,ier)
        idv = ncvid(idnc,'ktime',ier)
        call ncvpt1(idnc,idv,iarch,ktime,ier)
-       print *,'kdate,ktime,ktau=',kdate,ktime,ktau
-       print *,'timer,timeg=',timer,timeg
-       print *,'now write out variables'
+       write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
+       write(6,*) 'timer,timeg=',timer,timeg
+       write(6,*) 'now write out variables'
       endif ! myid == 0 .or. local
 
       if(ktau==0.or.itype==-1)then  ! also for restart file
 !       write time-invariant fields
-        call histwrt3(zs,'zht',idnc,iarch,local)   ! always from 13/9/02 ! MJT bug fix	
+        call histwrt3(zs,'zht',idnc,iarch,local)
         call histwrt3(em,'map',idnc,iarch,local)
         call histwrt3(f,'cor',idnc,iarch,local)
         call histwrt3(rsmin,'rsmin',idnc,iarch,local)
@@ -1222,7 +1258,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
       !---------------------------------------------------------
       ! MJT mlo
       if (nmlo.ne.0) then
-        allocate(mlodwn(ifull,wlev,4),micdwn(ifull,10))
+        allocate(micdwn(ifull,10))
         mlodwn(:,:,1:2)=999.
         mlodwn(:,:,3:4)=0.
         micdwn=999.
@@ -1295,7 +1331,7 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
         end if
       end if
       if (nmlo.ne.0) then
-        deallocate(mlodwn,micdwn)
+        deallocate(micdwn)
       end if      
       !---------------------------------------------------------
 
@@ -1408,7 +1444,6 @@ ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
            call histwrt3( v10_3hr(1,7), 'v10_21',idnc,iarch,local)
          endif  ! nextout>=3
          if(nextout>=4.and.nllp==3) then  
-c         print *,'before corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
           do k=1,klt
            do iq=1,ilt*jlt        
             tr(iq,k,ngas+1)=tr(iq,k,ngas+1)-rlatt(iq)*180./pi
@@ -1420,8 +1455,6 @@ c         print *,'before corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
             tr(iq,k,ngas+3)=tr(iq,k,ngas+3)-.01*ps(iq)*sig(k)  ! in hPa
            enddo
           enddo
-c	   print *,'in outcdf ps, sig ',ps(idjd),sig(nlv)
-c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
 !         N.B. does not yet properly handle across Grenwich Meridion	   
           call histwrt4(tr(1:ifull,:,ngas+1),'del_lat',idnc,iarch,local)
           call histwrt4(tr(1:ifull,:,ngas+2),'del_lon',idnc,iarch,local)
@@ -1483,7 +1516,7 @@ c	   print *,'after corrn ',(tr(idjd,nlv,ngas+k),k=1,3)
        call histwrt3(tauy,'tauy',idnc,iarch,local)
 c      "extra" outputs
        if(nextout>=1) then
-         if(myid == 0 ) print *,'nextout, idnc: ',nextout,idnc
+         if(myid == 0 ) write(6,*) 'nextout, idnc: ',nextout,idnc
          if(mod(ktau,nperavg)==0.or.ktau==ntau)then
            call histwrt3(rtu_ave,'rtu_ave',idnc,iarch,local)
            call histwrt3(rtc_ave,'rtc_ave',idnc,iarch,local)
@@ -1495,7 +1528,8 @@ c      "extra" outputs
            call histwrt3(soc_ave,'soc_ave',idnc,iarch,local)
            call histwrt3(sgdn_ave,'sgdn_ave',idnc,iarch,local)
            call histwrt3(sgn_ave,'sgn_ave',idnc,iarch,local)
-           call histwrt3(sunhours,'sunhours',idnc,iarch,local)
+           aa=sunhours/3600.
+           call histwrt3(aa,'sunhours',idnc,iarch,local)
            call histwrt3(fbeam_ave,'fbeam_ave',idnc,iarch,local)
          endif   ! (mod(ktau,nperavg)==0.or.ktau==ntau)
          call histwrt3(dpsdt,'dpsdt',idnc,iarch,local)
@@ -1549,7 +1583,7 @@ c      "extra" outputs
       end if
       !---------------------------------------------------------   
 
-      if(myid == 0 ) print *,'netcdf save of 3d variables'
+      if(myid == 0 ) write(6,*) 'netcdf save of 3d variables'
       call histwrt4(t(1:ifull,:),'temp',idnc,iarch,local)
       call histwrt4(u(1:ifull,:),'u',idnc,iarch,local)
       call histwrt4(v(1:ifull,:),'v',idnc,iarch,local)
@@ -1624,7 +1658,7 @@ c      "extra" outputs
        call histwrt4(savv1,'savv1',idnc,iarch,local)
        call histwrt4(savu2,'savu2',idnc,iarch,local)
        call histwrt4(savv2,'savv2',idnc,iarch,local)
-       if (allocated(oldu1)) then
+       if (abs(nmlo).ge.3.and.abs(nmlo).le.9) then
          do k=1,wlev
            write(vname,'("oldu1",I2.2)') k
            call histwrt3(oldu1(:,k),vname,idnc,iarch,local)
@@ -1668,14 +1702,19 @@ c=======================================================================
       subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,
      &                  daily,itype)
 
-      include 'netcdf.inc'
+      implicit none
 
-      integer, intent(in) :: itype
-      integer*2 minv, maxv, missval   ! was integer*2
-      parameter(minv = -32500, maxv = 32500, missval = -32501)
+      include 'netcdf.inc'  ! Netcdf parameters
+
+      integer*2, parameter :: minv = -32500
+      integer*2, parameter :: maxv = 32500
+      integer*2, parameter :: missval = -32501
+
+      integer, intent(in) :: itype,ndim
+      integer ier
       integer cdfid, idv, dim(3), daily, vtype
       character name*(*), lname*(*), units*(*)
-      real xmin, xmax
+      real xmin, xmax, scalef, addoff
       
       if (itype==1) then
         vtype = ncshort
@@ -1822,7 +1861,6 @@ c     find variable index
        stop
       endif
 
-c     print *,'myid,ktau,nmaxpr,sname ',myid,ktau,nmaxpr,sname
       if(mod(ktau,nmaxpr)==0)then
        varn = minval(globvar)
        varx = maxval(globvar)
@@ -1971,497 +2009,3 @@ c     find variable index
 
       return
       end subroutine hw4a      
-
-
-! ______________________________________________________________________
-     
-
-     
-      subroutine mtimerget(mtimer,kdate1,ktime1,kdate2,ktime2) ! jlm
-!     returns mtimer in minutes, corr. to (kdate2,ktime2) -  (kdate1,ktime1)    
-      dimension ndoy(12)   ! days from beginning of year (1st Jan is 0)
-      data ndoy/ 0,31,59,90,120,151,181,212,243,273,304,334/
-      common/leap_yr/leap  ! 1 to allow leap years
- 
-      if(leap.ne.0)then     
-        write(0,*) 'leap years not catered for in mtimerget'
-        stop
-      endif
-!     Set up number of minutes from beginning of year
-!     For GCM runs assume year is <1980 (e.g. ~321-460 for 140 year run)
-      jyear1=kdate1/10000
-      jmonth=(kdate1-jyear1*10000)/100
-      jday=kdate1-jyear1*10000-jmonth*100
-      jhour=ktime1/100
-      jmin=ktime1-jhour*100
-      mstart1=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of y
-
-      jyear2=kdate2/10000
-      jmonth=(kdate2-jyear2*10000)/100
-      jday=kdate2-jyear2*10000-jmonth*100
-      jhour=ktime2/100
-      jmin=ktime2-jhour*100
-      mstart2=1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of y
-
-      mtimer=mstart2-mstart1+(jyear2-jyear1)*365*24*60
-      return
-      end
-ce=======================================================================
-      subroutine outcdfs(rundate)  ! for (hourly) scrnfile
-      use cc_mpi
-      use liqwpar_m  ! ifullw
-      use tracers_m  ! ngas, nllp, ntrac, tr
-      implicit none
-      include 'newmpar.h'
-      include 'dates.h' ! ktime,kdate,timer,timeg,xg,yg,mtimer
-      include 'filnames.h'  ! list of files, read in once only
-      include 'netcdf.inc'
-      include 'kuocom.h'
-      include 'parm.h'
-      include 'parmdyn.h'  
-      include 'parmgeom.h' ! rlong0,rlat0,schmidt  
-      include 'parmhor.h'  ! mhint, m_bs, nt_adv, ndept
-      include 'parmvert.h'
-      character rundate*10
- 
-      integer nhor,nhorps,khor,khdif,nhorjlm
-      real hdifmax
-      common/parmhdff/nhor,nhorps,khor,khdif,hdifmax,nhorjlm
-      integer, parameter :: nihead=54
-      integer nahead(nihead)
-
-      integer, parameter :: nrhead=14
-      real ahead(nrhead)
-
-      character cdffile*80
-
-      integer ixp,iyp,idlev,idnt,idms
-      common/cdfind/ixp,iyp,idlev,idnt,idms
-
-      integer dim(4),dims(4)
-      integer xdim,ydim,zdim,tdim,msdim
-      character timorg*20
-      character grdtim*33
-      character*3 month(12)
-      data month/'jan','feb','mar','apr','may','jun'
-     &          ,'jul','aug','sep','oct','nov','dec'/
-
-      integer :: ndt, icy, icm, icd, ich, icmi, ics, idv, ier, imode
-      integer, save :: idnc
-      integer, save :: iarch=0, idnc0=0
-      logical :: local ! Each processor writes its local region
-
-      ndt=dt
-      local = localhist 
-      if(myid==0.or. local)then !  #########################
-!      File setup follows
-       iarch=iarch+1
-       cdffile=scrnfile
-       write(6,'("outcdfs idnc,iarch,cdffile=",2i5," ",a80)')
-     &                    idnc,iarch,cdffile
-
-       if(iarch==1)then
-        print *,'nccre of ',cdffile
-#ifdef usenc3
-        idnc = nccre(cdffile, ncclob, ier)
-#else
-	!ier=nf_create(cdffile,NF_NOCLOBBER,idnc)
-	!ier=nf_create(cdffile,NF_64BIT_OFFSET,idnc)
-	!ier=nf_create(cdffile,NF_NETCDF4.or.NF90_CLASSIC_MODEL,idnc)
-	ier=nf_create(cdffile,NF_NETCDF4,idnc)
-#endif
-        print *,'idnc,ier=',idnc,ier
-c       Turn off the data filling
-        imode = ncsfil(idnc,ncnofill,ier)
-        print *,'imode=',imode
-c       Create dimensions, lon, lat
-        if(local)then
-           xdim = ncddef(idnc, 'longitude', il, ier)
-           ydim = ncddef(idnc, 'latitude', jl, ier)
-        else
-           xdim = ncddef(idnc, 'longitude', il_g, ier)
-           ydim = ncddef(idnc, 'latitude', jl_g, ier)
-        endif
-        zdim= ncddef(idnc, 'lev', kl, ier)
-        msdim= ncddef(idnc, 'zsoil', ms, ier)
-        tdim= ncddef(idnc, 'time',ncunlim,ier)
-        print *,"xdim,ydim,zdim,tdim"
-        print *,xdim,ydim,zdim,tdim
-
-c       define coords.
-        ixp = ncvdef(idnc,'longitude',NCFLOAT,1,xdim,ier)
-        call ncaptc(idnc,ixp,'point_spacing',NCCHAR,4,'even',ier)
-        call ncaptc(idnc,ixp,'units',NCCHAR,12,'degrees_east',ier)
-        iyp = ncvdef(idnc,'latitude',NCFLOAT,1,ydim,ier)
-        call ncaptc(idnc,iyp,'point_spacing',NCCHAR,4,'even',ier)
-        call ncaptc(idnc,iyp,'units',NCCHAR,13,'degrees_north',ier)
-        print *,'ixp,iyp=',ixp,iyp
-
-        idlev = ncvdef(idnc,'lev',NCFLOAT,1,zdim,ier)
-        call ncaptc(idnc,idlev,'positive',NCCHAR,4,'down',ier)
-        call ncaptc(idnc,idlev,'point_spacing',NCCHAR,6,'uneven',ier)
-        call ncaptc(idnc,idlev,'units',NCCHAR,11,'sigma_level',ier)
-        call ncaptc(idnc,idlev,'long_name',NCCHAR,11,'sigma_level',ier)
-        print *,'idlev=',idlev
-
-        idms = ncvdef(idnc,'zsoil',NCFLOAT,1,msdim,ier)
-        call ncaptc(idnc,idms,'point_spacing',NCCHAR,6,'uneven',ier)
-        call ncaptc(idnc,idms,'units',NCCHAR,1,'m',ier)
-        print *,'idms=',idms
-
-        print *,'tdim,idnc=',tdim,idnc
-ccc     idnt = ncvdef(idnc,'time',NCLONG,1,tdim,ier)
-        idnt = ncvdef(idnc,'time',NCFLOAT,1,tdim,ier)  ! Sept 2006
-        print *,'idnt=',idnt
-        call ncaptc(idnc,idnt,'point_spacing',NCCHAR,4,'even',ier)
-
-        print *,'kdate,ktime,ktau=',kdate,ktime,ktau
-        icy=kdate/10000
-        icm=max(1,min(12,(kdate-icy*10000)/100))
-        icd=max(1,min(31,(kdate-icy*10000-icm*100)))
-        if(icy<100)icy=icy+1900
-        ich=ktime/100
-        icmi=(ktime-ich*100)
-        ics=0
-        write(6,*) icy,icm,icd,ich,icmi,ics
-        write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))')
-     &               icd,month(icm),icy,ich,icmi,ics
-        print *,'timorg=',timorg
-        call ncaptc(idnc,idnt,'time_origin',NCCHAR,20,timorg,ier)
-
-        write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",
-     &       2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
-        print *,'grdtim=',grdtim
-        call ncaptc(idnc,idnt,'units',NCCHAR,33,grdtim,ier)
-
-        dim(1) = xdim
-        dim(2) = ydim
-        dim(3) = zdim
-        dim(4) = tdim
-
-        dims(1) = xdim
-        dims(2) = ydim
-        dims(3) = msdim
-        dims(4) = tdim
-
-c       create the attributes of the header record of the file
-        nahead(1)=il_g       ! needed by cc2hist
-        nahead(2)=jl_g       ! needed by cc2hist
-        nahead(3)=kl         ! needed by cc2hist
-        nahead(4)=m
-        nahead(5)=0          ! nsd not used now
-        nahead(6)=io_in
-        nahead(7)=nbd
-        nahead(8)=0          ! not needed now  
-        nahead(9)=mex
-        nahead(10)=mup
-        nahead(11)=nem
-        nahead(12)=mtimer
-        nahead(13)=0
-        nahead(14)=ndt       ! needed by cc2hist
-        nahead(15)=0         ! not needed now 
-        nahead(16)=nhor
-        nahead(17)=nkuo
-        nahead(18)=khdif
-        nahead(19)=kl        ! needed by cc2hist (was kwt)
-        nahead(20)=0  !iaa
-        nahead(21)=0  !jaa
-        nahead(22)=nvad
-        nahead(23)=0       ! not needed now      
-        nahead(24)=0  !lbd
-        nahead(25)=nrun
-        nahead(26)=nrunx
-        nahead(27)=khor
-        nahead(28)=ksc
-        nahead(29)=kountr
-        nahead(30)=ndiur
-        nahead(31)=0  ! spare
-        nahead(32)=nhorps
-        nahead(33)=nsoil
-        nahead(34)=ms        ! needed by cc2hist
-        nahead(35)=ntsur
-        nahead(36)=nrad
-        nahead(37)=kuocb
-        nahead(38)=nvmix
-        nahead(39)=ntsea
-        nahead(40)=0    
-        nahead(41)=nextout
-        nahead(42)=ilt
-        nahead(43)=ntrac     ! needed by cc2hist
-        nahead(44)=nsib
-        nahead(45)=nrungcm
-        nahead(46)=ncvmix
-        nahead(47)=ngwd
-        nahead(48)=lgwd
-        nahead(49)=mup
-        nahead(50)=nritch_t
-        nahead(51)=ldr
-        nahead(52)=nevapls
-        nahead(53)=nevapcc
-        nahead(54)=nt_adv
-        write(6,'("nahead=",(20i4))') nahead
-        ahead(1)=ds
-        ahead(2)=0.  !difknbd
-        ahead(3)=0.  ! was rhkuo for kuo scheme
-        ahead(4)=0.  !du
-        ahead(5)=rlong0     ! needed by cc2hist
-        ahead(6)=rlat0      ! needed by cc2hist
-        ahead(7)=schmidt    ! needed by cc2hist
-        ahead(8)=0.  !stl2
-        ahead(9)=0.  !relaxt
-        ahead(10)=0.  !hourbd
-        ahead(11)=tss_sh
-        ahead(12)=vmodmin
-        ahead(13)=av_vmod
-        ahead(14)=epsp
-        write(6,*) "ahead=",ahead
-        call ncapt(idnc,ncglobal,'int_header',nclong,nihead,nahead,ier)
-        if(ier.ne.0)write(6,*)"ncapt int idnc,ier=",idnc,ier
-        call ncapt(idnc,ncglobal,'real_header',ncfloat,nrhead,ahead,ier)
-        if(ier.ne.0)write(6,*)"ncapt real idnc,ier=",idnc,ier
-        call ncaptc(idnc,ncglobal,'date_header',ncchar,10,rundate,ier)
-        if(ier.ne.0)write(6,*)"ncaptc date idnc,ier=",idnc,ier
-
-        idv=ncvdef(idnc,'ds',ncfloat,0,1,ier)
-        if(ier.ne.0)write(6,*)"ncvdef ds idnc,ier=",idnc,ier
-        idv=ncvdef(idnc,'dt',ncfloat,0,1,ier)
-        if(ier.ne.0)write(6,*)"ncvdef dt idnc,ier=",idnc,ier
-       endif ! ( iarch=1)then
-
-      endif ! (myid==0.or.local) #########################
-      ! openhist writes some fields so needs to be called by all processes
-      call openhists(iarch,dim,local,idnc)
-c     print *,'after openhists for myid = ',myid
-
-      if(myid==0.or.local)then
-        call ncsnc(idnc,ier)
-        if(ier.ne.0)write(6,*)"ncsnc idnc,ier=",idnc,ier
-      endif    ! (myid==0.or.local)
-      if(ktau.eq.ntau.and.(myid==0.or.localhist))then
-        call ncclos(idnc,ier)
-        write(6,*) "calling ncclos(idnc,ier) ",idnc,ier
-      endif
-      return   ! outcdfs
-      end
-c=======================================================================
-      subroutine openhists(iarch,dim,local,idnc)
-      use arrays_m
-      use cc_mpi
-      use extraout_m ! u10_3hr,v10_3hr
-      use histave_m
-      use liqwpar_m  ! ifullw
-      use map_m
-      use morepbl_m
-      use nsibd_m    ! rsmin,ivegt,sigmf,tgg,tgf,ssdn,res,rmc,isoilm,ico2em
-      use pbl_m
-      use prec_m
-      use raddiag_m
-      use screen_m
-      use sigs_m
-      use soil_m
-      use soilsnow_m
-      use tracers_m
-      use vvel_m     ! sdot, dpsldt
-      implicit none
-c     this routine creates attributes and writes output
-      include 'newmpar.h'
-      include 'dates.h'    ! ktime,kdate,timer,timeg,xg,yg,mtimer
-      include 'filnames.h' ! list of files, read in once only
-      include 'kuocom.h'
-      include 'netcdf.inc'
-      include 'parm.h'
-      include 'parmdyn.h'
-      include 'parmvert.h'
-      include 'soilv.h'   ! sfc,zse
-      include 'trcom2.h'
-      include 'version.h'
-
-      integer iarch
-      logical, intent(in) :: local
-      character lname*40,expdesc*50
-      integer dim(4)
-      integer idim(3)
-      real xpnt(il_g),ypnt(jl_g)
-
-      integer ixp,iyp,idlev,idnt,idms
-      common/cdfind/ixp,iyp,idlev,idnt,idms
-
-      integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter,
-     &     idv, ier, j, idnc
-      character*3 mon(12)
-      data mon/'JAN','FEB','MAR','APR','MAY','JUN'
-     &        ,'JUL','AUG','SEP','OCT','NOV','DEC'/
-
-      if(myid == 0 .or. local)then  !#########################
-       print *,'openhists iarch,idnc=',iarch,idnc
-
-c      if this is the first archive, set up some global attributes
-       if(iarch==1) then
-        print *,'dim=',dim
-        idim(1)=dim(1)
-        idim(2)=dim(2)
-        idim(3)=dim(4)
-        print *,'idim=',idim
-
-c       Create global attributes
-c       Model run number
-        print *,'nrun=',nrun
-        call ncapt(idnc,ncglobal,'nrun',nclong,1,nrun,ier)
-        write(6,*)"nrun ier=",ier,idnc
-
-c       Experiment description
-        expdesc = 'CCAM model run'
-        call ncaptc(idnc,ncglobal,'expdesc',ncchar,len_trim(expdesc),
-     &              expdesc,ier)
-        write(6,*)"expdesc ier=",ier,idnc
-
-c       Model version
-        call ncaptc(idnc,ncglobal,'version',ncchar,len_trim(version),
-     &              version,ier)
-
-        if(local)then
-           ier = nf_put_att_int(idnc,nf_global,"processor_num",nf_int,
-     &                          1,myid)
-        endif     
-
-c       Sigma levels
-        print *,'sig=',sig
-        call ncapt(idnc,ncglobal,'sigma',ncfloat,kl,sig,ier)
-
-        lname = 'timer (hrs)'
-        idnter = ncvdef(idnc,'timer',ncfloat,1,dim(4),ier)
-        call ncaptc(idnc,idnter,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
-
-        lname = 'mtimer (mins)'
-        idmtimer = ncvdef(idnc,'mtimer',nclong,1,dim(4),ier)
-        call ncaptc(idnc,idmtimer,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
-
-        lname = 'timeg (UTC)'
-        idnteg = ncvdef(idnc,'timeg',ncfloat,1,dim(4),ier)
-        call ncaptc(idnc,idnteg,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
-
-        lname = 'number of time steps from start'
-        idktau = ncvdef(idnc,'ktau',nclong,1,dim(4),ier)
-        call ncaptc(idnc,idktau,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
-
-        lname = 'year-month-day at start of run'
-        idkdate = ncvdef(idnc,'kdate',nclong,1,dim(4),ier)
-        call ncaptc(idnc,idkdate,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
-
-        lname = 'hour-minute at start of run'
-        idktime = ncvdef(idnc,'ktime',nclong,1,dim(4),ier)
-        call ncaptc(idnc,idktime,'long_name',ncchar
-     &             ,len_trim(lname),lname,ier)
-
-        idv = ncvdef(idnc,'sigma', ncfloat, 1, dim(3),ier)
-        call ncaptc(idnc,idv,'positive',ncchar
-     &             ,len_trim('down'),'down',ier)
-
-        print *,'define attributes of variables for scrnfile'
-c       For time varying surface fields
-        lname = 'Screen temperature'
-        call attrib(idnc,idim,3,'tscrn',lname,'K',100.,400.,0,1)
-        lname = 'Screen mixing ratio'
-        call attrib(idnc,idim,3,'qgscrn',lname,'kg/kg',0.,.06,0,1)
-        lname = 'Cape'
-        call attrib(idnc,idim,3,'cape',lname,'J/kg',0.,20000.,0,1) ! 1 was daily
-        lname = 'max 10m wind'
-        call attrib(idnc,idim,3,'u10mx',lname,'m/s',0.,99.,0,1) ! 1 was daily attr
-        lname = '10m wind speed'
-        call attrib(idnc,idim,3,'u10',lname,'m/s',0.,60.,0,1)
-        lname = 'u level 1'
-        call attrib(idnc,idim,3,'u1',lname,'m/s',-60.,60.,0,1)
-        lname = 'v level 1'
-        call attrib(idnc,idim,3,'v1',lname,'m/s',-60.,60.,0,1)
-        lname = 'u level 2'
-        call attrib(idnc,idim,3,'u2',lname,'m/s',-60.,60.,0,1)
-        lname = 'v level 2'
-        call attrib(idnc,idim,3,'v2',lname,'m/s',-60.,60.,0,1)
-        lname = 'v level 3'
-        call attrib(idnc,idim,3,'u3',lname,'m/s',-60.,60.,0,1)
-        lname = 'u level 3'
-        call attrib(idnc,idim,3,'v3',lname,'m/s',-60.,60.,0,1)
-
-        print *,'finished defining attributes'
-c       Leave define mode
-        call ncendf(idnc,ier)
-        print *,'leave define mode: ier=',ier
-
-        if(local)then
-           ! Set these to global indices (currently broken for uniform_decomp)
-           do i=1,ipan
-              xpnt(i) = float(i) + ioff(0)
-           end do
-           call ncvpt(idnc,ixp,1,il,xpnt,ier)
-           do j=1,jl
-              ypnt(j) = float(j) + jl*((myid*il)/il_g)
-           end do
-           call ncvpt(idnc,iyp,1,jl,ypnt,ier)
-        else
-           do i=1,il_g
-              xpnt(i) = float(i)
-           end do
-           call ncvpt(idnc,ixp,1,il_g,xpnt,ier)
-           do j=1,jl_g
-              ypnt(j) = float(j)
-           end do
-           call ncvpt(idnc,iyp,1,jl_g,ypnt,ier)
-        endif
-
-        call ncvpt(idnc,idlev,1,kl,sig,ier)
-
-        idv = ncvid(idnc,'sigma',ier)
-        call ncvpt(idnc,idv,1,kl,sig,ier)
-
-        idv = ncvid(idnc,'lev',ier)
-        call ncvpt(idnc,idv,1,kl,sig,ier)
-
-        idv = ncvid(idnc,'ds',ier)
-        call ncvpt1(idnc,idv,1,ds,ier)
-        idv = ncvid(idnc,'dt',ier)
-        call ncvpt1(idnc,idv,1,dt,ier)
-       endif ! iarch==1
-!      -----------------------------------------------------------      
-       print *,'outcdfs processing kdate,ktime,ktau,mtimer: ',
-     .                            kdate,ktime,ktau,mtimer
-c      set time to number of minutes since start 
-       idv = ncvid(idnc,'time',ier)
-ccc    call ncvpt1(idnc,idv,iarch,mtimer,ier)
-       call ncvpt1(idnc,idv,iarch,real(mtimer),ier)  ! Sept 2006
-       
-       idv = ncvid(idnc,'timer',ier)
-       call ncvpt1(idnc,idv,iarch,timer,ier)
-       idv = ncvid(idnc,'mtimer',ier)
-       call ncvpt1(idnc,idv,iarch,mtimer,ier)
-       idv = ncvid(idnc,'timeg',ier)
-       call ncvpt1(idnc,idv,iarch,timeg,ier)
-       idv = ncvid(idnc,'ktau',ier)
-       call ncvpt1(idnc,idv,iarch,ktau,ier)
-       idv = ncvid(idnc,'kdate',ier)
-       call ncvpt1(idnc,idv,iarch,kdate,ier)
-       idv = ncvid(idnc,'ktime',ier)
-       call ncvpt1(idnc,idv,iarch,ktime,ier)
-       print *,'kdate,ktime,ktau=',kdate,ktime,ktau
-       print *,'timer,timeg=',timer,timeg
-       print *,'now write out variables'
-      endif ! (myid == 0 .or. local)
-
-      call histwrt3(tscrn,'tscrn',idnc,iarch,local)
-      call histwrt3(qgscrn,'qgscrn',idnc,iarch,local)
-      call histwrt3(cape,'cape',idnc,iarch,local)
-      call histwrt3(u10,'u10',idnc,iarch,local)
-      call histwrt3(u10mx,'u10mx',idnc,iarch,local)
-      call histwrt3(u(1:ifull,1),'u1',idnc,iarch,local)
-      call histwrt3(v(1:ifull,1),'v1',idnc,iarch,local)
-      call histwrt3(u(1:ifull,2),'u2',idnc,iarch,local)
-      call histwrt3(v(1:ifull,2),'v2',idnc,iarch,local)
-      call histwrt3(u(1:ifull,3),'u3',idnc,iarch,local)
-      call histwrt3(v(1:ifull,3),'v3',idnc,iarch,local)
-
-      return   ! openhists
-      end

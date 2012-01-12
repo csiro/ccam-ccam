@@ -1,7 +1,8 @@
 
 ! This module calculates the turblent kinetic energy and mixing for the boundary layer based on Hurley 2009
 ! (eddy dissipation) and Angevine et al 2010 (mass flux).  Specifically, this version is adapted for CCAM
-! with an implicit numerical formulation (i.e., a forward-backward scheme).
+! with an implicit numerical formulation (i.e., a forward-backward scheme), as well as modifications for
+! buoyancy within clouds.
 
 ! Usual procedure
 
@@ -388,35 +389,6 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         
         if (.not.sconv) zi(i)=zidry
 
-        !! update environment thetal
-        !cc(i,1)=-dt*mflx(i,2)/dz_hl(i,1)
-        !bb(i,1)=1.+dt*mflx(i,1)/dz_hl(i,1)
-        !dd(i,1)=thetalold(i,1)-dt*(mflx(i,2)*tlup(i,2)-mflx(i,1)*tlup(i,1))/dz_hl(i,1)
-        !do k=2,kl-1
-        !  cc(i,k)=-dt*mflx(i,k+1)/dz_hl(i,k)
-        !  bb(i,k)=1.+dt*mflx(i,k)/dz_hl(i,k)
-        !  aa(i,k)=0.
-        !  dd(i,k)=thetalold(i,k)-dt*(mflx(i,k+1)*tlup(i,k+1)-mflx(i,k)*tlup(i,k))/dz_hl(i,k)    
-        !end do
-        !bb(i,kl)=1.+dt*mflx(i,kl)/dz_hl(i,kl)
-        !aa(i,kl)=0.
-        !dd(i,kl)=thetalold(i,kl)+dt*mflx(i,kl)*tlup(i,kl)/dz_hl(i,kl)
-        !call thomas1(thetal(i,:),aa(i,2:kl),bb(i,:),cc(i,1:kl-1),dd(i,:))
-
-        !! update environment qtot
-        !dd(i,1)=qtotold(i,1)-dt*(mflx(i,2)*qtup(i,2)-mflx(i,1)*qtup(i,1))/dz_hl(i,1)
-        !do k=2,kl-1
-        !  dd(i,k)=qtotold(i,k)-dt*(mflx(i,k+1)*qtup(i,k+1)-mflx(i,k)*qtup(i,k))/dz_hl(i,k)    
-        !end do
-        !dd(i,kl)=qtotold(i,kl)+dt*mflx(i,kl)*qtup(i,kl)/dz_hl(i,kl)
-        !call thomas1(qtot(i,:),aa(i,2:kl),bb(i,:),cc(i,1:kl-1),dd(i,:))        
-
-        !! update environment thermodynamic variables
-        !qg(i,:)=max(qtot(i,:)-qlg(i,:)-qfg(i,:),1.E-6)
-        !theta(i,:)=thetal(i,:)+sigkap(:)*(lv*qlg(i,:)+ls*qfg(i,:))/cp
-        !thetav(i,:)=theta(i,:)*(1.+0.61*qg(i,:)-qlg(i,:)-qfg(i,:))
-        !wtv0(i)=wt0(i)+theta(i,1)*0.61*wq0(i)
-        
         ! update boundary layer height
         zi(i)=alpha*zi(i)+(1.-alpha)*ziold
         if (abs(zi(i)-ziold).lt.1.) exit

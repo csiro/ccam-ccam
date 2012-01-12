@@ -63,8 +63,8 @@ integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=No
 integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
 integer, parameter :: deprelax  = 0 ! surface height (0=vary, 1=relax, 2=set to zero)
 ! max depth
-real, parameter :: mxd    = 914.    ! Max depth (m)
-real, parameter :: mindep = 0.5     ! Thickness of first layer (m)
+real, parameter :: mxd    = 5002.18 ! Max depth (m)
+real, parameter :: mindep = 1.0     ! Thickness of first layer (m)
 real, parameter :: minwater = 1.    ! Minimum water depth (m)
 ! model parameters
 real, parameter :: ric     = 0.3    ! Critical Ri for diagnosing mixed layer depth
@@ -230,6 +230,9 @@ p_tauyica=0.
 ! MLO - 20 level (shallow)
 !depth = (/  0.25,   1.1,   3.0,   6.7,  12.8,  22.0,  35.1,  52.8,  76.7, 104.5, &
 !           140.0, 182.9, 233.8, 293.4, 362.5, 441.8, 531.9, 633.5, 747.4, 874.3 /)
+! MLO - 20 level (deep)
+!depth = (/   0.5,   3.4,  11.9,  29.7,  60.7, 108.5, 176.9, 269.7, 390.6, 543.3, &
+!           731.6, 959.2,1230.0,1547.5,1915.6,2338.0,2818.5,3360.8,3968.7,4645.8 /)
 ! MLO - 40 level (deep)
 !depth = (/   0.5,   1.7,   3.7,   6.8,  11.5,  18.3,  27.7,  40.1,  56.0,  75.9, &
 !           100.2, 129.4, 164.0, 204.3, 251.0, 304.4, 365.1, 433.4, 509.9, 595.0, &
@@ -779,6 +782,7 @@ integer, intent(in) :: mode,ii,diag
 real, dimension(ifull), intent(out) :: odep
 
 odep=0.
+if (wfull.eq.0) return
 select case(mode)
   case(0)
     odep=unpack(depth(:,ii),wpack,odep)
@@ -1198,12 +1202,13 @@ integer ii,jj,kk,iqw
 integer, dimension(wfull) :: isf
 real vtc,dvsq,vtsq,xp
 real tnsq,tws,twu,twv,tdepth,tbuoy,trho
-real oldxp,oldtrib,trib,newxp
+real oldxp,oldtrib,trib,newxp,deldz,aa,bb
 real, dimension(wfull,wlev) :: ws,wm,dumbuoy,rib
 real, dimension(wfull) :: dumbf,l,d_depth,usf,vsf,rsf,dsf
 real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull), intent(in) :: d_b0,d_ustar,d_zcr
 real, dimension(wfull), intent(in) :: a_f
+logical lflag
 integer, parameter :: maxits = 3
 real, parameter :: alpha = 0.9
 
@@ -1232,13 +1237,21 @@ dsf=0.
 isf=wlev-1
 do iqw=1,wfull
   do ii=1,wlev-1
-    usf(iqw)=usf(iqw)+w_u(iqw,ii)*dz(iqw,ii)
-    vsf(iqw)=vsf(iqw)+w_v(iqw,ii)*dz(iqw,ii)
-    rsf(iqw)=rsf(iqw)+d_rho(iqw,ii)*dz(iqw,ii)
-    dsf(iqw)=dsf(iqw)+dz(iqw,ii)
-    isf(iqw)=ii+1
-    if (depth(iqw,isf(iqw))*d_zcr(iqw).gt.minsfc) exit
+    aa=dz(iqw,ii)*d_zcr(iqw)
+    bb=minsfc-dsf(iqw)
+    lflag=aa.ge.bb
+    deldz=min(aa,bb)
+    usf(iqw)=usf(iqw)+w_u(iqw,ii)*deldz
+    vsf(iqw)=vsf(iqw)+w_v(iqw,ii)*deldz
+    rsf(iqw)=rsf(iqw)+d_rho(iqw,ii)*deldz
+    dsf(iqw)=dsf(iqw)+deldz
+    if (lflag) exit
   end do
+  if (depth(iqw,ii)*d_zcr(iqw).gt.minsfc) then
+    isf(iqw)=ii
+  else
+    isf(iqw)=ii+1
+  end if
   usf(iqw)=usf(iqw)/dsf(iqw)
   vsf(iqw)=vsf(iqw)/dsf(iqw)
   rsf(iqw)=rsf(iqw)/dsf(iqw)
@@ -1261,13 +1274,12 @@ do iqw=1,wfull
     jj=min(ii+1,wlev)
     vtsq=depth(iqw,ii)*d_zcr(iqw)*ws(iqw,ii)*sqrt(0.5*max(d_nsq(iqw,ii)+d_nsq(iqw,jj),0.))*vtc
     dvsq=(usf(iqw)-w_u(iqw,ii))**2+(vsf(iqw)-w_v(iqw,ii))**2
-    rib(iqw,ii)=(depth(iqw,ii)-dsf(iqw))*d_zcr(iqw)*dumbuoy(iqw,ii)/(max(dvsq+vtsq,1.E-20)*d_rho(iqw,ii))
-  end do
-  do ii=wlev,isf(iqw),-1
-    if (rib(iqw,ii-1).lt.ric) then
-      p_mixind(iqw)=ii-1
-      xp=min(max((ric-rib(iqw,ii-1))/max(rib(iqw,ii)-rib(iqw,ii-1),1.E-20),0.),1.)
-      p_mixdepth(iqw)=((1.-xp)*depth(iqw,ii-1)+xp*depth(iqw,ii))*d_zcr(iqw)
+    rib(iqw,ii)=(depth(iqw,ii)*d_zcr(iqw)-dsf(iqw))*dumbuoy(iqw,ii)/(max(dvsq+vtsq,1.E-20)*d_rho(iqw,ii))
+    if (rib(iqw,ii).gt.ric) then
+      jj=max(ii-1,1)
+      p_mixind(iqw)=jj
+      xp=min(max((ric-rib(iqw,jj))/max(rib(iqw,ii)-rib(iqw,jj),1.E-20),0.),1.)
+      p_mixdepth(iqw)=((1.-xp)*depth(iqw,jj)+xp*depth(iqw,ii))*d_zcr(iqw)
       exit
     end if
   end do 
@@ -1296,7 +1308,7 @@ if (mixmeth.eq.1) then
       trho=(1.-xp)*d_rho(iqw,ii-1)+xp*d_rho(iqw,ii)
       vtsq=tdepth*tws*sqrt(tnsq)*vtc
       dvsq=(usf(iqw)-twu)**2+(vsf(iqw)-twv)**2
-      trib=(tdepth-dsf(iqw)*d_zcr(iqw))*tbuoy/(max(dvsq+vtsq,1.E-20)*trho)
+      trib=(tdepth-dsf(iqw))*tbuoy/(max(dvsq+vtsq,1.E-20)*trho)
       if (abs(trib-oldtrib).gt.1.E-5) then
         newxp=xp-alpha*(trib-ric)*(xp-oldxp)/(trib-oldtrib) ! i.e., (trib-ric-oldtrib+ric)
         oldtrib=trib
@@ -1811,6 +1823,7 @@ d_wavail=depth_hl(:,wlev+1)+d_neta-minwater
 egmax=max(1000.*lv*d_wavail/(dt*max(i_fracice,fracbreak)),0.)
 
 ! explicit estimate of fluxes
+! (replace with implicit scheme if water becomes too shallow)
 p_fg=rho*p_cds*cp*vmag*(w_temp(:,1)-a_temp/srcp)
 p_eg=min(rho*p_cdq*lv*vmag*(qsat-a_qg),egmax)
 p_taux=rho*p_cd*vmagn*atu

@@ -420,7 +420,7 @@ real, dimension(kl+1) :: sigh
 
 ! timer calculations
 call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
-! update oxidant fields once per day
+! update prescribed oxidant fields once per day
 if (sday.le.mins-1440) then
   sday=mins
   do j=1,4      

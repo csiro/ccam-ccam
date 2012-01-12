@@ -81,7 +81,7 @@
       include 'mpif.h'                        ! MPI parameters
       include 'netcdf.inc'                    ! Netcdf parameters
       include 'parm.h'                        ! Model configuration
-      include 'parmdyn.h'                     ! Dynamics parmaters
+      include 'parmdyn.h'                     ! Dynamics parameters
       include 'parmgeom.h'                    ! Coordinate data
       include 'parmhor.h'                     ! Horizontal advection parameters
       include 'parmsurf.h'                    ! Surface parameters
@@ -147,7 +147,7 @@
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
      & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss
      & ,mfix_tr,mfix_ke,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv
-     & ,nud_sfh,bpyear,rescrn
+     & ,nud_sfh,bpyear,rescrn,helmmeth
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -1616,10 +1616,6 @@
         call autoscrn
       end if
       
-      if(nscrn==1.and.mod(ktau,nperhr)==0)then
-        call outcdfs(rundate)  ! for scrnfile
-        u10mx(:)=0.
-      endif
       if(ktau==ntau.or.mod(ktau,nwt)==0)then
         call log_off()
         call outfile(20,rundate,nmi,nwrite,iaero)  ! which calls outcdf
@@ -1974,6 +1970,7 @@
       data m/5/,mex/30/,mfix/3/,mfix_qg/1/,mup/1/,nh/0/,nonl/0/,npex/0/
       data nritch_t/300/,nrot/1/,nxmap/0/,
      &     epsp/-15./,epsu/0./,epsf/0./,precon/-2900/,restol/4.e-7/
+      data helmmeth/0/
       data mfix_tr/0/,mfix_ke/0/,mfix_aero/0/
       data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/,nrunx/0/
 !     Horiz advection options

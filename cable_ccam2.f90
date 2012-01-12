@@ -181,8 +181,8 @@ module cable_ccam
   ! CABLE
   veg%meth = 1
   CALL ruff_resist(veg,rough,ssoil,soil,met)
-  met%tk=met%tk+grav/capp*(rough%zref_tq+0.9*rough%z0m)
-  met%tc=met%tk-273.16
+  !met%tk=met%tk+grav/capp*(rough%zref_tq+0.9*rough%z0m)
+  !met%tc=met%tk-273.16
   CALL define_air(met,air)
   CALL init_radiation(met,rad,veg) ! need to be called at every dt
   CALL cab_albedo(999,dt,ssoil,veg,air,met,rad,soil,.false.) ! set L_RADUM=.false. as we want to update snow age
@@ -756,7 +756,7 @@ module cable_ccam
     call alloc_cbm_var(veg, mp)
 
     ! soil parameters
-    soil%zse = (/0.022, 0.058, 0.154, 0.409, 1.085, 2.872/) ! soil layer thickness
+    soil%zse = zse ! soil layer thickness
     soil%zshh(1)    = 0.5 * soil%zse(1)
     soil%zshh(ms+1) = 0.5 * soil%zse(ms)
     soil%zshh(2:ms) = 0.5 * (soil%zse(1:ms-1) + soil%zse(2:ms))

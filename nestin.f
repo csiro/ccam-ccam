@@ -1,7 +1,15 @@
       ! CCAM nudging/assimilation routines
+      
+      ! These routines preturb the regional model with the large scale circulation of the host model.
+      ! Currently, relaxiation, far-field and scale-selective filter options are supported for both
+      ! the atmosphere and ocean.
+      
+      ! We support both 1D and 2D versions of the scale-selective filter.  2D is exact, but expensive.
+      ! Current tests suggest the 1D is a good approximation of the 2D filter where the grid stretching
+      ! is not too large.
 
       ! nbd.ne.0     Far-field or relaxation nudging
-      ! mbd.ne.0     Spectral filter
+      ! mbd.ne.0     Spectral filter (1D and 2D versions, see nud_uv)
       ! nud_uv =1    Nudge winds (=9 for 2D filter)
       ! nud_t  =1    Nudge air temperature
       ! nud_qg =1    Nudge mixing ratio

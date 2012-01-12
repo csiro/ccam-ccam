@@ -25,7 +25,6 @@
       include 'stime.h'    ! File date data
 
       integer, parameter :: ntest=0
-      integer, parameter :: nord=3    ! 1 for bilinear, 3 for bicubic
       integer, parameter :: nihead=54
       integer, parameter :: nrhead=14
 
@@ -137,7 +136,9 @@
 
       if (ktime_r.lt.0) then
         if (nested==2) then
-          write(6,*) "WARN: Cannot locate date/time in input file"
+	  if (myid==0) then
+            write(6,*) "WARN: Cannot locate date/time in input file"
+	  end if
           return
         end if
         write(6,*) "ERROR: Cannot locate date/time in input file"
@@ -1012,10 +1013,6 @@ c       incorporate other target land mask effects
               call ccmpi_distribute(micdwn(:,10))
             endif ! myid==0
           end if ! iotest
-          if (.not.allocated(watbdy)) then
-            allocate(watbdy(ifull+iextra))
-            watbdy=0.
-          end if
           if (abs(nmlo).ge.2.and.abs(nmlo).le.9) then
             t_a=0.
             call histrd1(ncid,iarchi,ier,'swater',ik,6*ik,t_a,
@@ -1685,12 +1682,8 @@ c       incorporate other target land mask effects
             lrestart=.false.
           end if
           
-          if (kk.eq.kl.and.iotest) then
-            if (.not.allocated(oldu1)) then
-              allocate(oldu1(ifull,wlev),oldv1(ifull,wlev))
-              allocate(oldu2(ifull,wlev),oldv2(ifull,wlev))
-              allocate(ipice(ifull+iextra))
-            end if
+          if (kk.eq.kl.and.iotest.and.abs(nmlo).ge.3.and.
+     &        abs(nmlo).le.9) then
             do k=1,wlev
               ucc=0.
               write(vname,'("oldu1",I2.2)') k
@@ -1741,10 +1734,6 @@ c       incorporate other target land mask effects
               call ccmpi_distribute(ipice,ucc)
             else
               call ccmpi_distribute(ipice)
-            end if
-            if (.not.lrestart) then
-              deallocate(oldu1,oldv1,oldu2,oldv2)
-              deallocate(ipice)
             end if
           end if
           

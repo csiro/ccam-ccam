@@ -18,6 +18,7 @@
       use liqwpar_m                            ! Cloud water mixing ratios
       use map_m                                ! Grid map arrays
       use mlo                                  ! Ocean physics and prognostic arrays
+      use mlodynamics                          ! Ocean dynamics
       use morepbl_m                            ! Additional boundary layer diagnostics
       use nsibd_m                              ! Land-surface arrays
       use pbl_m                                ! Boundary layer arrays
@@ -250,8 +251,8 @@
       call MPI_Bcast(bam,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(emat,kl*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(einv,kl*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(qvec,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(tmat,kl*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      !call MPI_Bcast(qvec,kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      !call MPI_Bcast(tmat,kl*kl,MPI_REAL,0,MPI_COMM_WORLD,ierr)
 
 !     zmin here is approx height of the lowest level in the model
       zmin=-rdry*280.*log(sig(1))/grav
@@ -471,7 +472,6 @@
       ! nmlo=1 mixed layer ocean (KPP)
       ! nmlo=2 same as 1, but with Smag horz diffusion and river routing
       ! nmlo=3 same as 2, but with horizontal and vertical advection
-      ! nmlo=4 same as 3, but with coastal flooding
       if (nmlo.ne.0.and.abs(nmlo).le.9) then
         call readreal(bathfile,dep,ifull)
         where (land)
@@ -481,6 +481,7 @@
         end where
         if (myid==0) write(6,*) 'Initialising MLO'
         call mloinit(ifull,dep,0)
+        call mlodyninit
       end if
 
 
@@ -655,7 +656,7 @@
         do k=kl-2,kl
          qg(1:ifull,k)=min(qg(1:ifull,k),10.*qgmin)
         enddo
-        ps(:)=1.e5*exp(psl(:))
+        ps(1:ifull)=1.e5*exp(psl(1:ifull))
 
       else
 
@@ -1101,6 +1102,8 @@
            write(6,*) 'WARN: Could not locate correct date/time'
            write(6,*) '      Using infile surface data instead'
           end if
+	  kdate=kdate_sav
+	  ktime=ktime_sav
          endif
        else
 !       for sequence of runs starting with values saved from last run

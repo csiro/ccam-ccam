@@ -479,7 +479,14 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         ! abs(mlo) <= 1 Vertical mixing                                 ! MLO
         ! abs(mlo) <= 2 + Horizontal diffusion                          ! MLO
         ! abs(mlo) <= 3 + Advection                                     ! MLO
-                                                                         ! MLO
+                                                                        ! MLO
+        if (abs(nmlo).ge.2) then                                        ! MLO
+          ! make physic load balance explicit before MLO                ! MLO
+          ! dynamics or diffusion                                       ! MLO
+          call phys_loadbal                                             ! MLO
+          call end_log(phys_end)                                        ! MLO
+        end if                                                          ! MLO
+                                                                        ! MLO
         if (abs(nmlo).ge.3) then                                        ! MLO
           ! Ocean dynamics                                              ! MLO
           call start_log(waterdynamics_begin)                           ! MLO
@@ -497,6 +504,7 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
           call start_log(river_begin)                                   ! MLO
           call mlorouter                                                ! MLO
           call end_log(river_end)                                       ! MLO
+          call start_log(phys_begin)                                    ! MLO
         end if                                                          ! MLO
                                                                         ! MLO
         call start_log(watermix_begin)                                  ! MLO

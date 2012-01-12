@@ -901,8 +901,10 @@ contains
       bnds(:)%slenx = 0
       bnds(:)%rlen2 = 0
       bnds(:)%slen2 = 0
-      bnds(:)%rlenx = 0
-      bnds(:)%slenx = 0
+      bnds(:)%rlen_uv = 0
+      bnds(:)%slen_uv = 0
+      bnds(:)%rlenx_uv = 0
+      bnds(:)%slenx_uv = 0
       bnds(:)%rlen2_uv = 0
       bnds(:)%slen2_uv = 0
 
@@ -1414,9 +1416,6 @@ contains
       end if
 
 !     Start of UV section
-
-      bnds(:)%rlen_uv = 0
-      bnds(:)%slen_uv = 0
 
 !     In the first pass through, set up list of points to be requested from
 !     other processors. In the 1D code values on the same processor are
@@ -1942,7 +1941,6 @@ contains
    
    do iproc=0,nproc-1
      nlen=max(kl,ol)*max(bnds(iproc)%rlen2,bnds(iproc)%rlen2_uv,bnds(iproc)%slen2,bnds(iproc)%slen2_uv)
-     nlen=nlen
      if (nlen.lt.bnds(iproc)%len) then
        !write(6,*) "Reducing array size.  myid,iproc,nlen,len ",myid,iproc,nlen,bnds(iproc)%len
        bnds(iproc)%len=nlen
@@ -2057,7 +2055,7 @@ contains
          end if
          if ( recv_len /= 0 ) then
             nreq = nreq + 1
-            call MPI_IRecv( bnds(rproc)%rbuf(1),  bnds(rproc)%len, &
+            call MPI_IRecv( bnds(rproc)%rbuf(1),  recv_len, &
                  MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
          if ( send_len > 0 ) then
@@ -2164,7 +2162,7 @@ contains
          end if
          if ( recv_len /= 0 ) then
             nreq = nreq + 1
-            call MPI_IRecv( bnds(rproc)%rbuf(1), bnds(rproc)%len, &
+            call MPI_IRecv( bnds(rproc)%rbuf(1), recv_len*kx, &
                  MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
          if ( send_len > 0 ) then
@@ -2270,7 +2268,7 @@ contains
          end if
          if ( recv_len /= 0 ) then
             nreq = nreq + 1
-            call MPI_IRecv( bnds(rproc)%rbuf(1), bnds(rproc)%len, &
+            call MPI_IRecv( bnds(rproc)%rbuf(1), recv_len, &
                  MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
          if ( send_len > 0 ) then
@@ -2365,7 +2363,7 @@ contains
       integer :: ierr, itag = 0, iproc, rproc, sproc
       integer, dimension(MPI_STATUS_SIZE,2*nproc) :: status
       real, dimension(maxbuflen) :: tmp
-      integer :: send_len, recv_len
+      integer :: send_len, recv_len, kx
 
       call start_log(boundsuv_begin)
 
@@ -2383,6 +2381,7 @@ contains
       if ( .not. double .and. present(allvec) ) then
          extra = allvec
       end if
+      kx=size(u,2)
 
 !     Set up the buffers to send
       nreq = 0
@@ -2401,7 +2400,7 @@ contains
          end if
          if ( recv_len /= 0 ) then
             nreq = nreq + 1
-            call MPI_IRecv( bnds(rproc)%rbuf(1), bnds(rproc)%len, &
+            call MPI_IRecv( bnds(rproc)%rbuf(1), recv_len*kx, &
                  MPI_REAL, rproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
          if ( send_len > 0 ) then
@@ -2412,15 +2411,15 @@ contains
                ! Use abs because sign is used as u/v flag
                if ( (bnds(sproc)%send_list_uv(iq) > 0) .neqv. &
                      bnds(sproc)%send_swap(iq) ) then
-                  bnds(sproc)%sbuf(1+(iq-1)*size(u,2):iq*size(u,2)) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
+                  bnds(sproc)%sbuf(1+(iq-1)*kx:iq*kx) = u(abs(bnds(sproc)%send_list_uv(iq)),:)
                else
-                  bnds(sproc)%sbuf(1+(iq-1)*size(u,2):iq*size(u,2)) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
+                  bnds(sproc)%sbuf(1+(iq-1)*kx:iq*kx) = v(abs(bnds(sproc)%send_list_uv(iq)),:)
                end if 
-               if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(1+(iq-1)*size(u,2):iq*size(u,2)) = &
-                                              -bnds(sproc)%sbuf(1+(iq-1)*size(u,2):iq*size(u,2)) 
+               if ( bnds(sproc)%send_neg(iq) ) bnds(sproc)%sbuf(1+(iq-1)*kx:iq*kx) = &
+                                              -bnds(sproc)%sbuf(1+(iq-1)*kx:iq*kx) 
             end do
             nreq = nreq + 1
-            call MPI_ISend( bnds(sproc)%sbuf(1), send_len*size(u,2), &
+            call MPI_ISend( bnds(sproc)%sbuf(1), send_len*kx, &
                  MPI_REAL, sproc, itag, MPI_COMM_WORLD, ireq(nreq), ierr )
          end if
       end do
@@ -2445,9 +2444,9 @@ contains
             do iq=1,recv_len
                ! unpack_list(iq) is index into extended region
                if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                 u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(1+(iq-1)*size(u,2):iq*size(u,2))
+                 u(ifull+bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(1+(iq-1)*kx:iq*kx)
                else
-                 v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(1+(iq-1)*size(u,2):iq*size(u,2))
+                 v(ifull-bnds(rproc)%unpack_list_uv(iq),:) = bnds(rproc)%rbuf(1+(iq-1)*kx:iq*kx)
                end if
             end do
          end if
@@ -2459,7 +2458,7 @@ contains
          if ( double ) then
             recv_len = bnds(myid)%rlen2_uv
          else if ( extra ) then
-           recv_len = bnds(myid)%rlenx_uv
+            recv_len = bnds(myid)%rlenx_uv
          else
             recv_len = bnds(myid)%rlen_uv
          end if
@@ -2469,20 +2468,20 @@ contains
             ! request_list is same as send_list in this case
             if ( (bnds(myid)%request_list_uv(iq) > 0) .neqv. &
                      bnds(myid)%uv_swap(iq) ) then  ! haven't copied to send_swap yet
-               tmp(1+(iq-1)*size(u,2):iq*size(u,2)) = u(abs(bnds(myid)%request_list_uv(iq)),:)
+               tmp(1+(iq-1)*kx:iq*kx) = u(abs(bnds(myid)%request_list_uv(iq)),:)
             else
-               tmp(1+(iq-1)*size(u,2):iq*size(u,2)) = v(abs(bnds(myid)%request_list_uv(iq)),:)
+               tmp(1+(iq-1)*kx:iq*kx) = v(abs(bnds(myid)%request_list_uv(iq)),:)
             end if
-            if ( bnds(myid)%uv_neg(iq) ) tmp(1+(iq-1)*size(u,2):iq*size(u,2)) = &
-                                        -tmp(1+(iq-1)*size(u,2):iq*size(u,2))
+            if ( bnds(myid)%uv_neg(iq) ) tmp(1+(iq-1)*kx:iq*kx) = &
+                                        -tmp(1+(iq-1)*kx:iq*kx)
          end do
 !cdir nodep
          do iq=1,recv_len
             ! unpack_list(iq) is index into extended region
             if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
-               u(ifull+bnds(myid)%unpack_list_uv(iq),:) = tmp(1+(iq-1)*size(u,2):iq*size(u,2))
+               u(ifull+bnds(myid)%unpack_list_uv(iq),:) = tmp(1+(iq-1)*kx:iq*kx)
             else
-               v(ifull-bnds(myid)%unpack_list_uv(iq),:) = tmp(1+(iq-1)*size(u,2):iq*size(u,2))
+               v(ifull-bnds(myid)%unpack_list_uv(iq),:) = tmp(1+(iq-1)*kx:iq*kx)
             end if
          end do
       end if
