@@ -331,7 +331,7 @@ c     include 'trcom2.h'
 c     rml 25/08/04 added fluxunit variable
       character*13 fluxtype,fluxname,fluxunit
       integer nflux,iyr,imon,igas,ntime,lc,regnum,kount
-      integer nprev,nnext,ncur,n1,n2,ntot,n,timx,ndim
+      integer nprev,nnext,ncur,n1,n2,ntot,n,timx,gridid
       real timeinc
 c     nflux =3 for month interp case - last month, this month, next month
 c     nflux=31*24+2 for daily, hourly, 3 hourly case
@@ -379,8 +379,8 @@ c       no surface fluxes to read
           stop 'flux file not found'
         endif
         ! check for 1D or 2D formatted input
-        ierr=nf_inq_ndims(ncidfl,ndim)
-        gridpts=ndim.eq.2 ! true when 1D formatted input is detected
+        ierr=nf_inq_dimid(ncidfl,'gridpts',gridid)
+        gridpts=ierr.eq.0 ! true when 1D formatted input is detected
         ierr=nf_inq_dimid(ncidfl,'time',timedim)
         if (ierr.ne.nf_noerr) stop 'time dimension error'
         ierr=nf_inq_dimlen(ncidfl,timedim,ntime)
@@ -652,7 +652,7 @@ c *************************************************************************
       character*50 ohfile
       character*13 varname
       integer nfield,imon,ntime
-      integer nprev,nnext,ncur,n,timx,ndim
+      integer nprev,nnext,ncur,n,timx,gridid
 c     nflux =3 for month interp case - last month, this month, next month
       real ohin(il*jl,kl,nfield)
       integer ncidfl,timedim,monthid,fluxid,ierr
@@ -677,8 +677,8 @@ c
           stop 'methane oh/loss file not found'
         endif
         ! check for 1D or 2D formatted input
-        ierr=nf_inq_ndims(ncidfl,ndim)
-        gridpts=ndim.eq.3 ! true when 1D formatted input is detected
+        ierr=nf_inq_dimid(ncidfl,'gridpts',gridid)
+        gridpts=ierr.eq.0 ! true when 1D formatted input is detected
         ierr=nf_inq_dimid(ncidfl,'time',timedim)
         if (ierr.ne.nf_noerr) stop 'time dimension error'
         ierr=nf_inq_dimlen(ncidfl,timedim,ntime)
