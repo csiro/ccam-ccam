@@ -457,6 +457,9 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                               ! sice
        endif  ! (sicedep(iq)>0.)                                        ! sice
        enddo       ! iq loop                                            ! sice
+       where (.not.land)                                                ! sice
+         snowd=0.                                                       ! sice
+       end where                                                        ! sice
        if(mydiag.and.nmaxpr==1)then                                     ! sice
           write(6,*) 'after sice loop'                                  ! sice
           iq=idjd                                                       ! sice
