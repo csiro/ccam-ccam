@@ -883,20 +883,32 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
 
         if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then  ! MJT cable
           lname = 'Carbon leaf pool'
-          call attrib(idnc,idim,3,'cplant1',lname,'none',0.,65000.,0,
+          call attrib(idnc,idim,3,'cplant1',lname,'none',0.,6500.,0,
      &                itype)
           lname = 'Carbon wood pool'
           call attrib(idnc,idim,3,'cplant2',lname,'none',0.,65000.,0,
      &                itype)
           lname = 'Carbon root pool'
-          call attrib(idnc,idim,3,'cplant3',lname,'none',0.,65000.,0,
+          call attrib(idnc,idim,3,'cplant3',lname,'none',0.,6500.,0,
      &                itype)
           lname = 'Carbon soil fast pool'
-          call attrib(idnc,idim,3,'csoil1',lname,'none',0.,65000.,0,
+          call attrib(idnc,idim,3,'csoil1',lname,'none',0.,6500.,0,
      &                itype)
           lname = 'Carbon soil slow pool'
-          call attrib(idnc,idim,3,'csoil2',lname,'none',0.,650000.,0,
+          call attrib(idnc,idim,3,'csoil2',lname,'none',0.,6500.,0,
      &                itype)
+          lname = 'Net CO2 flux'
+          call attrib(idnc,idim,3,'fnee',lname,'gC/m2/s',-3.25E-3,
+     &                3.25E-3,0,itype)
+          lname = 'Photosynthesis CO2 flux'
+          call attrib(idnc,idim,3,'fpn',lname,'gC/m2/s',-3.25E-3,
+     &                3.25E-3,0,itype)
+          lname = 'Plant respiration CO2 flux'
+          call attrib(idnc,idim,3,'frp',lname,'gC/m2/s',-3.25E-3,
+     &                3.25E-3,0,itype)
+          lname = 'Soil respiration CO2 flux'
+          call attrib(idnc,idim,3,'frs',lname,'gC/m2/s',-3.25E-3,
+     &                3.25E-3,0,itype)
         endif
 
         if (nurban.le.-1.or.(nurban.ge.1.and.itype==-1)) then
@@ -1146,7 +1158,7 @@ c       Leave define mode
               ypnt(j) = float(j) + joff(0)
            end do
            call ncvpt(idnc,iyp,1,jl,ypnt,ier)
-	else
+        else
            do i=1,il_g
               xpnt(i) = float(i)
            end do
@@ -1173,7 +1185,7 @@ c       Leave define mode
         zsoil(6)=zse(1)+zse(2)+zse(3)+zse(4)+zse(5)+zse(6)*.5
         call ncvpt(idnc,idms,1,ms,zsoil,ier)
         
-        if (nmlo.ne.0.and.abs(nmlo).le.9) then
+        if (abs(nmlo).gt.0.and.abs(nmlo).le.9) then
           call ncvpt(idnc,idoc,1,wlev,gosig,ier)
         end if
 
@@ -1547,6 +1559,10 @@ c      "extra" outputs
         call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local)
         call histwrt3(csoil(:,1),'csoil1',idnc,iarch,local)
         call histwrt3(csoil(:,2),'csoil2',idnc,iarch,local)
+        call histwrt3(fnee,'fnee',idnc,iarch,local)
+        call histwrt3(fnee,'fpn',idnc,iarch,local)
+        call histwrt3(fnee,'frp',idnc,iarch,local)
+        call histwrt3(fnee,'frs',idnc,iarch,local)
       endif   
 
       !---------------------------------------------------------
