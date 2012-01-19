@@ -749,16 +749,17 @@ do iqw=1,wfull
   call vgrid(deptmp(iqw),dpin,dp_hlin)
   do ii=1,wlev
     if (depth(iqw,ii).ge.dpin(wlev)) then
-      newdatb(iqw,ii,:)=newdata(iqw,wlev,:)
+      newdatb(iqw,ii,1:2)=newdata(iqw,wlev,1:2)
     else if (depth(iqw,ii).le.dpin(1)) then
-      newdatb(iqw,ii,:)=newdata(iqw,1,:)
+      newdatb(iqw,ii,1:2)=newdata(iqw,1,1:2)
     else
       pos=maxloc(dpin,dpin.lt.depth(iqw,ii))
       pos(1)=max(1,min(wlev-1,pos(1)))
       x=(depth(iqw,ii)-dpin(pos(1)))/(dpin(pos(1)+1)-dpin(pos(1)))
       x=max(0.,min(1.,x))
-      newdatb(iqw,ii,:)=newdata(iqw,pos(1)+1,:)*x+newdata(iqw,pos(1),:)*(1.-x)
+      newdatb(iqw,ii,1:2)=newdata(iqw,pos(1)+1,1:2)*x+newdata(iqw,pos(1),1:2)*(1.-x)
     end if
+    newdatb(iqw,ii,3:4)=newdata(iqw,ii,3:4)
   end do  
 end do
 

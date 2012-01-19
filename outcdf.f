@@ -883,19 +883,19 @@ c       call attrib(idnc,idim,3,'u3',lname,'K',0.,60.,0)
 
         if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then  ! MJT cable
           lname = 'Carbon leaf pool'
-          call attrib(idnc,idim,3,'cplant1',lname,'none',0.,6500.,0,
+          call attrib(idnc,idim,3,'cplant1',lname,'gC/m2',0.,6500.,0,
      &                itype)
           lname = 'Carbon wood pool'
-          call attrib(idnc,idim,3,'cplant2',lname,'none',0.,65000.,0,
+          call attrib(idnc,idim,3,'cplant2',lname,'gC/m2',0.,65000.,0,
      &                itype)
           lname = 'Carbon root pool'
-          call attrib(idnc,idim,3,'cplant3',lname,'none',0.,6500.,0,
+          call attrib(idnc,idim,3,'cplant3',lname,'gC/m2',0.,6500.,0,
      &                itype)
           lname = 'Carbon soil fast pool'
-          call attrib(idnc,idim,3,'csoil1',lname,'none',0.,6500.,0,
+          call attrib(idnc,idim,3,'csoil1',lname,'gC/m2',0.,6500.,0,
      &                itype)
           lname = 'Carbon soil slow pool'
-          call attrib(idnc,idim,3,'csoil2',lname,'none',0.,6500.,0,
+          call attrib(idnc,idim,3,'csoil2',lname,'gC/m2',0.,6500.,0,
      &                itype)
           lname = 'Net CO2 flux'
           call attrib(idnc,idim,3,'fnee',lname,'gC/m2/s',-3.25E-3,
