@@ -257,13 +257,12 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         tvup(1)=thup(1)+theta(i,1)*0.61*qtup(i,1)             ! thetav,up
         ttup(1)=thup(1)/sigkap(1)                             ! temp,up
         call getqsat(1,qupsat(1),ttup(1),pres(1))             ! estimate of saturated mixing ratio in plume
-        ! update updraft velocity
-        nn=grav*wtv0(i)/thetav(i,1)
-        w2up(1)=2.*zz(i,1)*b2*nn/(1.+2.*zz(i,1)*b1*ee)  ! Hurley 2007
-        !w2up(1)=0.25*wstar(i)**2                       ! Angevine et al 2010
-        ! update mass flux
-        mflx(i,1)=0.1*sqrt(w2up(1))                     ! Hurley 2007
-        !mflx(i,1)=0.08*sqrt(w2up(1))                   ! Angevine et al 2010
+        ! update updraft velocity and mass flux
+        !nn=grav*wtv0(i)/thetav(i,1)
+        !w2up(1)=2.*zz(i,1)*b2*nn/(1.+2.*zz(i,1)*b1*ee)  ! Hurley 2007
+        !mflx(i,1)=0.1*sqrt(w2up(1))                     ! Hurley 2007
+        w2up(1)=0.25*wstar(i)**2                         ! Angevine et al 2010
+        mflx(i,1)=0.03*wstar(i)                          ! Angevine et al 2010
         ! check for lcl
         sconv=.false.
         if (qtup(i,1).ge.qupsat(1)) then
