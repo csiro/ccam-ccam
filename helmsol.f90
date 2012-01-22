@@ -352,7 +352,16 @@
                  do iq=1,ifull
                     d(iq,k) = h(iq,k) + beta(k) * d(iq,k)
                  end do
-                 call bounds(d, klim=klim)
+              else
+                 do iq=1,ifull
+                    ! Use h in place of r
+                    d(iq,k) = h(iq,k) + beta(k) * d(iq,k)
+                 end do
+              end if
+           end do
+           call bounds(d, klim=klim)
+           do k=1,klim
+              if ( k <= precon) then
                  do iq=1,ifull
                     v(iq,k) = zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) + &
                       zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) + &
@@ -364,11 +373,6 @@
 #endif 
                  end do
               else
-                 do iq=1,ifull
-                    ! Use h in place of r
-                    d(iq,k) = h(iq,k) + beta(k) * d(iq,k)
-                 end do
-                 call bounds(d, klim=klim)
                  do iq=1,ifull
                     v(iq,k) = ( zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) + &
                              zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) ) *  &

@@ -2666,17 +2666,21 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           old=suvb(:,ka,1)
           call mloexport(2,old,k,0)
           old=old+diff(:,kb)*10./real(mloalpha)
-          oldu1(:,k)=oldu1(:,k)+diff(:,kb)*10./real(mloalpha)
-          oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
           call mloimport(2,old,k,0)
+          if (allocated(oldu1)) then
+            oldu1(:,k)=oldu1(:,k)+diff(:,kb)*10./real(mloalpha)
+            oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
+          end if
         end do
         do k=kc+1,kbotmlo
           old=suvb(:,ka,1)
           call mloexport(2,old,k,0)
           old=old+diff(:,kb)*10./real(mloalpha) ! kb saved from above loop
-          oldu1(:,k)=oldu1(:,k)+diff(:,kb)*10./real(mloalpha)
-          oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
           call mloimport(2,old,k,0)
+          if (allocated(oldu1)) then
+            oldu1(:,k)=oldu1(:,k)+diff(:,kb)*10./real(mloalpha)
+            oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
+          end if
         end do
         if (myid == 0) then
           do iproc=1,nproc-1
@@ -3120,17 +3124,21 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
           old=suvb(:,ka,1)
           call mloexport(2,old,k,0)
           old=old+diff(:,kb)*10./real(mloalpha)
-          oldu1(:,k)=oldu1(:,k)+diff(:,kb)*10./real(mloalpha)
-          oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
           call mloimport(2,old,k,0)
+          if (allocated(oldu1)) then
+            oldu1(:,k)=oldu1(:,k)+diff(:,kb)*10./real(mloalpha)
+            oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
+          end if
         end do
         do k=kc+1,kbotmlo
           old=suvb(:,ka,1)
           call mloexport(2,old,k,0)
           old=old+diff(:,kb)*10./real(mloalpha) ! kb saved from previous loop
-          oldu1(:,k)=oldu1(:,k)+diff(:,kb)*10./real(mloalpha)
-          oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
           call mloimport(2,old,k,0)
+          if (allocated(oldu1)) then
+            oldu1(:,k)=oldu1(:,k)+diff(:,kb)*10./real(mloalpha)
+            oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
+          end if
         end do
         if (myid == 0) then
           call ccmpi_distribute(diff(:,1:kd),diffv_g(:,1:kd))
