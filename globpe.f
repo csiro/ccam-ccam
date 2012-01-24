@@ -29,7 +29,8 @@
       use latlong_m                           ! Lat/lon coordinates
       use liqwpar_m                           ! Cloud water mixing ratios
       use map_m                               ! Grid map arrays
-      use mlo, only : mlodiag,wlev            ! Ocean physics and prognostic arrays
+      use mlo, only : mlodiag,wlev,mxd        ! Ocean physics and prognostic arrays
+     &   ,mindep,minwater
       use morepbl_m                           ! Additional boundary layer diagnostics
       use nharrs_m, only : nharrs_init        ! Non-hydrostatic atmosphere arrays
      &   ,lrestart
@@ -145,9 +146,9 @@
      & ,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
-     & ,m_fly,mstn,nqg,nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss
+     & ,m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss
      & ,mfix_tr,mfix_ke,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv
-     & ,nud_sfh,bpyear,rescrn,helmmeth
+     & ,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -176,10 +177,10 @@
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
       data mexrest/6/,mins_rad/60/,nwrite/0/,nsnowout/999999/
 
-!#ifdef stacklimit
+#ifdef stacklimit
       ! For linux only
       call setstacklimit(-1)
-!#endif
+#endif
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
@@ -226,6 +227,14 @@
       if (nwt==-99) nwt=nperday          ! set default nwt to 24 hours
       if (nperavg==-99) nperavg=nwt      ! set default nperavg to nwt
       if (nwrite==0) nwrite=nperday      ! only used for outfile IEEE
+      if (nmlo.ne.0.and.abs(nmlo).le.9) then
+        ol=max(ol,1)
+      else
+        ol=0
+      end if
+      wlev=ol
+      mindep=max(0.,mindep)
+      minwater=max(0.,minwater)
       read (99, skyin)
       kountr=nint(mins_rad*60./dt)  ! set default radiation to ~mins_rad m
       mins_rad=nint(kountr*dt/60.)  ! redefine to actual value
@@ -235,7 +244,6 @@
       read(99, trfiles, iostat=ierr)         ! try reading tracer namelist.  If no
       if (ierr.ne.0) rewind(99)              ! namelist is found, then disable
       if (tracerlist.ne.'') call init_tracer ! tracers and rewind namelist.
-
 
       !--------------------------------------------------------------
       ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
@@ -267,7 +275,6 @@
         open(28,file=eigenv,status='old',form='formatted')
         read(28,*)kmax,lapsbot,isoth,nsig
         kl=kmax
-        if (abs(nmlo).ge.1.and.abs(nmlo).le.9) ol=wlev
         write(6,*)'kl,ol,lapsbot,isoth,nsig: ',
      &             kl,ol,lapsbot,isoth,nsig
       end if
@@ -276,7 +283,6 @@
       call MPI_Bcast(isoth,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(lapsbot,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call MPI_Bcast(nsig,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(ol,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
 
       !--------------------------------------------------------------
@@ -1366,9 +1372,11 @@
       endif  ! (ntsur>=1)
 
       ! AEROSOLS --------------------------------------------------------------
-      call start_log(aerosol_begin)
-      if (abs(iaero).ge.2) call aerocalc
-      call end_log(aerosol_end)
+      if (abs(iaero).ge.2) then
+        call start_log(aerosol_begin)
+        call aerocalc
+        call end_log(aerosol_end)
+      end if
 
       ! PHYSICS LOAD BALANCING ------------------------------------------------
 !     This is the end of the physics. The next routine makes the load imbalance
@@ -1758,16 +1766,14 @@
       if (myid==0) then
          call date_and_time(time=timeval,values=tvals2)
          write(6,*) "End of time loop ", timeval
-      end if
-
-      if(myid==0) then
          write(6,*)'normal termination of run'
          call date_and_time(time=timeval)
          write(6,*) "End time ", timeval
-         write(6,*) "Model time in main loop",
-     &      3600*(tvals2(5)-tvals1(5)) + 
+         aa=3600*(tvals2(5)-tvals1(5)) + 
      &      60*(tvals2(6)-tvals1(6)) + (tvals2(7)-tvals1(7)) + 
      &      0.001 * (tvals2(8)-tvals1(8))
+         if (aa.le.0.) aa=aa+86400.
+         write(6,*) "Model time in main loop",aa
       end if
 #ifdef simple_timer
       call end_log(model_end)
@@ -2010,7 +2016,7 @@ c     data nstag/99/,nstagu/99/
      &     vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
       data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
-      data nurban/0/,nmr/0/,nmlo/0/,bpyear/0./,rescrn/0/
+      data nurban/0/,nmr/0/,bpyear/0./,rescrn/0/
 !     Special and test options
       data namip/0/,amipo3/.false./,nhstest/0/,nsemble/0/,nspecial/0/,
      &     panfg/4./,panzo/.001/,nplens/0/
@@ -2018,10 +2024,11 @@ c     data nstag/99/,nstagu/99/
       data m_fly/4/,io_in/1/,io_out/1/,io_rest/1/
       data nperavg/-99/,nwt/-99/
       data io_clim/1/,io_spec/0/,nextout/3/,localhist/.false./
-      
       data nstn/0/  
       data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/,
      &     zstn/nstnmax*0./,name_stn/nstnmax*'   '/,nrotstn/nstnmax*0/  
+!     Ocean options
+      data nmlo/0/,ol/20/
 
 c     initialize file names to something
       data albfile/' '/,icefile/' '/,maskfile/' '/

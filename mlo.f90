@@ -33,10 +33,11 @@ implicit none
 
 private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
-       mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,wlev,micdwn
+       mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,wlev,micdwn,mxd,mindep,       &
+       minwater
 
 ! parameters
-integer, parameter :: wlev = 20
+integer, save :: wlev = 20
 integer, parameter :: iqx = 4148
 ! model arrays
 integer, save :: wfull,ifull,iqwt
@@ -63,9 +64,9 @@ integer, parameter :: mixmeth   = 1 ! Refine mixed layer depth calculation (0=No
 integer, parameter :: salrelax  = 0 ! relax salinity to 34.72 PSU (used for single column mode)
 integer, parameter :: deprelax  = 0 ! surface height (0=vary, 1=relax, 2=set to zero)
 ! max depth
-real, parameter :: mxd    = 5002.18 ! Max depth (m)
-real, parameter :: mindep = 1.0     ! Thickness of first layer (m)
-real, parameter :: minwater = 1.    ! Minimum water depth (m)
+real, save :: mxd    = 5002.18 ! Max depth (m)
+real, save :: mindep = 1.0     ! Thickness of first layer (m)
+real, save :: minwater = 1.    ! Minimum water depth (m)
 ! model parameters
 real, parameter :: ric     = 0.3    ! Critical Ri for diagnosing mixed layer depth
 real, parameter :: epsilon = 0.1    ! Ratio of surface layer and mixed layer thickness
@@ -250,7 +251,7 @@ smxd=maxval(deptmp(1:wfull))
 smnd=minval(deptmp(1:wfull))
 
 do iqw=1,wfull
-  call vgrid(deptmp(iqw),dumdf,dumdh)
+  call vgrid(wlev,deptmp(iqw),dumdf,dumdh)
   depth(iqw,:)=dumdf
   depth_hl(iqw,:)=dumdh
   !if (smxd.eq.deptmp(iqw)) then
@@ -277,24 +278,25 @@ end subroutine mloinit
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Define vertical grid
 
-subroutine vgrid(depin,depthout,depth_hlout)
+subroutine vgrid(wlin,depin,depthout,depth_hlout)
 
 implicit none
 
+integer, intent(in) :: wlin
 integer ii
 real, intent(in) :: depin
-real, dimension(wlev), intent(out) :: depthout
-real, dimension(wlev+1), intent(out) :: depth_hlout
+real, dimension(wlin), intent(out) :: depthout
+real, dimension(wlin+1), intent(out) :: depth_hlout
 real dd,x,al,bt
 
 dd=min(mxd,max(mindep,depin))
-x=real(wlev)
+x=real(wlin)
 !if (dd.gt.x) then
 !  al=(mindep*x-dd)/(x-x*x*x)           ! hybrid levels
 !  bt=(mindep*x*x*x-dd)/(x*x*x-x)       ! hybrid levels
   al=dd*(mindep*x/mxd-1.)/(x-x*x*x)     ! sigma levels
   bt=dd*(mindep*x*x*x/mxd-1.)/(x*x*x-x) ! sigma levels 
-  do ii=1,wlev+1
+  do ii=1,wlin+1
     x=real(ii-1)
     depth_hlout(ii)=al*x*x*x+bt*x ! ii is for half level ii-0.5
   end do
@@ -306,7 +308,7 @@ x=real(wlev)
 !    depth_hlout(ii)=x
 !  end do
 !end if
-do ii=1,wlev
+do ii=1,wlin
   depthout(ii)=0.5*(depth_hlout(ii)+depth_hlout(ii+1))
 end do
 
@@ -722,51 +724,74 @@ end subroutine mloalb4
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Regrid MLO data
 
-subroutine mloregrid(depin,mlodat)
+subroutine mloregrid(wlin,depin,mloin,mlodat,mode)
 
 implicit none
 
+integer, intent(in) :: wlin,mode
 integer iq,iqw,ii,pos(1),nn
 real, dimension(ifull), intent(in) :: depin
-real, dimension(ifull,wlev,4), intent(inout) :: mlodat
-real, dimension(wfull,wlev,4) :: newdata,newdatb
+real, dimension(ifull,wlin), intent(in) :: mloin
+real, dimension(ifull,wlev), intent(inout) :: mlodat
+real, dimension(wfull,wlin) :: newdata
+real, dimension(wfull,wlev) :: newdatb
 real, dimension(wfull) :: deptmp
-real, dimension(wlev) :: dpin
-real, dimension(wlev+1) :: dp_hlin
+real, dimension(wlin) :: dpin,sgin
+real, dimension(wlin+1) :: dp_hlin
+real, dimension(wlev) :: sig
 real x
 
 if (wfull.eq.0) return
+
 deptmp=pack(depin,wpack)
-if (all(abs(deptmp-depth(:,wlev)).lt.0.01)) return
-
-do nn=1,4
-  do ii=1,wlev
-    newdata(:,ii,nn)=pack(mlodat(:,ii,nn),wpack)
-  end do
+do ii=1,wlin
+  newdata(:,ii)=pack(mloin(:,ii),wpack)
 end do
 
-do iqw=1,wfull
-  call vgrid(deptmp(iqw),dpin,dp_hlin)
-  do ii=1,wlev
-    if (depth(iqw,ii).ge.dpin(wlev)) then
-      newdatb(iqw,ii,1:2)=newdata(iqw,wlev,1:2)
-    else if (depth(iqw,ii).le.dpin(1)) then
-      newdatb(iqw,ii,1:2)=newdata(iqw,1,1:2)
-    else
-      pos=maxloc(dpin,dpin.lt.depth(iqw,ii))
-      pos(1)=max(1,min(wlev-1,pos(1)))
-      x=(depth(iqw,ii)-dpin(pos(1)))/(dpin(pos(1)+1)-dpin(pos(1)))
-      x=max(0.,min(1.,x))
-      newdatb(iqw,ii,1:2)=newdata(iqw,pos(1)+1,1:2)*x+newdata(iqw,pos(1),1:2)*(1.-x)
-    end if
-    newdatb(iqw,ii,3:4)=newdata(iqw,ii,3:4)
-  end do  
-end do
+select case(mode)
+  case(0,1)
+    do iqw=1,wfull
+      call vgrid(wlin,deptmp(iqw),dpin,dp_hlin)
+      do ii=1,wlev
+        if (depth(iqw,ii).ge.dpin(wlin)) then
+          newdatb(iqw,ii)=newdata(iqw,wlin)
+        else if (depth(iqw,ii).le.dpin(1)) then
+          newdatb(iqw,ii)=newdata(iqw,1)
+        else
+          pos=maxloc(dpin,dpin.lt.depth(iqw,ii))
+          pos(1)=max(1,min(wlin-1,pos(1)))
+          x=(depth(iqw,ii)-dpin(pos(1)))/(dpin(pos(1)+1)-dpin(pos(1)))
+          x=max(0.,min(1.,x))
+          newdatb(iqw,ii)=newdata(iqw,pos(1)+1)*x+newdata(iqw,pos(1))*(1.-x)
+        end if
+      end do
+    end do
+  case(2,3)
+    do iqw=1,wfull
+      sig=depth(iqw,:)/depth_hl(iqw,wlev)
+      call vgrid(wlin,deptmp(iqw),dpin,dp_hlin)
+      sgin=dpin/dp_hlin(wlin)
+      do ii=1,wlev
+        if (sig(ii).ge.sgin(wlin)) then
+          newdatb(iqw,ii)=newdata(iqw,wlin)
+        else if (sig(ii).le.sgin(1)) then
+          newdatb(iqw,ii)=newdata(iqw,1)
+        else
+          pos=maxloc(sgin,sgin.lt.sig(ii))
+          pos(1)=max(1,min(wlin-1,pos(1)))
+          x=(sig(ii)-sgin(pos(1)))/(sgin(pos(1)+1)-sgin(pos(1)))
+          x=max(0.,min(1.,x))
+          newdatb(iqw,ii)=newdata(iqw,pos(1)+1)*x+newdata(iqw,pos(1))*(1.-x)
+        end if
+      end do
+    end do
+  case default
+    write(6,*) "ERROR: Unknown mode for mloregrid ",mode
+    stop
+end select
 
-do nn=1,4
-  do ii=1,wlev
-    mlodat(:,ii,nn)=unpack(newdatb(:,ii,nn),wpack,mlodat(:,ii,nn))
-  end do
+do ii=1,wlev
+  mlodat(:,ii)=unpack(newdatb(:,ii),wpack,mlodat(:,ii))
 end do
 
 return
