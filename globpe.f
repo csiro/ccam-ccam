@@ -177,10 +177,10 @@
       data comment/' '/,comm/' '/,irest/1/,jalbfix/1/,nalpha/1/
       data mexrest/6/,mins_rad/60/,nwrite/0/,nsnowout/999999/
 
-#ifdef stacklimit
+!#ifdef stacklimit
       ! For linux only
       call setstacklimit(-1)
-#endif
+!#endif
 
       !--------------------------------------------------------------
       ! INITALISE MPI ROUTINES
@@ -206,6 +206,7 @@
       rel_lat=0.
       rel_long=0.
       ktau=0
+      ol=20
       call initialparm
 
       ! All processors read the namelist, so no MPI comms are needed
@@ -1092,7 +1093,7 @@
       ! update non-linear dynamic terms
       call nonlin(iaero)
       if (diag)then
-         if (mydiag) print *,'before hadv'
+         if (mydiag) write(6,*) 'before hadv'
          call printa('tx  ',tx,ktau,nlv,ia,ib,ja,jb,0.,1.)
          if (mydiag) then
             nlx=min(nlv,kl-8)
@@ -1667,7 +1668,7 @@
            precavge = gtemparray(1)
            evapavge  = gtemparray(2)
            pwatr    = gtemparray(3)
-           print 985,pwatr,precavge,evapavge ! MJT bug fix
+           write(6,985) pwatr,precavge,evapavge ! MJT bug fix
         end if
 985     format(' average pwatr,precc,prec,evap: ',4f7.3)
 !       also zero most averaged fields every nperavg
@@ -1746,8 +1747,9 @@
         if(nextout>=4)call setllp ! from Nov 11, reset once per day
         if(namip.ne.0)then ! not for last day, as day 1 of next month
           if (myid==0)
-     &    print *,'amipsst called at end of day for ktau,mtimer,namip ',
-     &                                              ktau,mtimer,namip
+     &     write(6,*)
+     &    'amipsst called at end of day for ktau,mtimer,namip ',
+     &                                      ktau,mtimer,namip
           call amipsst
         endif ! (namip>0)
       elseif (namip.ne.0.and.nmlo.ne.0) then
@@ -2028,7 +2030,7 @@ c     data nstag/99/,nstagu/99/
       data slat/nstnmax*-89./,slon/nstnmax*0./,iunp/nstnmax*6/,
      &     zstn/nstnmax*0./,name_stn/nstnmax*'   '/,nrotstn/nstnmax*0/  
 !     Ocean options
-      data nmlo/0/,ol/20/
+      data nmlo/0/
 
 c     initialize file names to something
       data albfile/' '/,icefile/' '/,maskfile/' '/

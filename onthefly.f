@@ -80,7 +80,11 @@
           ok=0
           if (nmlo.ne.0.and.abs(nmlo).le.9) then
             idv = ncdid(ncid,'olev',ier)
-            ier = nf_inq_dimlen(ncid,idv,ok)          
+            if (ier.eq.0) then
+              ier = nf_inq_dimlen(ncid,idv,ok)
+            else
+              ok=0
+            end if
           end if
           write(6,*) "Found ik,jk,kk,ok ",ik,jk,kk,ok
           write(6,*) "      maxarchi ",maxarchi
@@ -530,6 +534,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
         ! ocean potential temperature
         ! ocean temperature and soil temperature use the same arrays
         ! as no fractional land or sea cover is allowed in CCAM
+        mlodwn(:,:,1)=293.
         if (nested.ne.1.or.nud_sst.ne.0) then
           do k=1,ok
             ucc=max(abs(tss_a),271.)
@@ -563,10 +568,9 @@ c**   onthefly; sometime can get rid of common/bigxy4
             end if ! iotest
           end do
           call mloregrid(ok,ocndwn(:,1),mloin(:,:,1),mlodwn(:,:,1),0)
-        else
-          mlodwn(:,:,1)=293.
         end if ! (nestesd.ne.1.or.nud_sst.ne.0) ..else..
         ! ocean salinity
+        mlodwn(:,:,2)=34.72
         if (nested.ne.1.or.nud_sss.ne.0) then
           do k=1,ok
             ucc=34.72
@@ -594,10 +598,9 @@ c**   onthefly; sometime can get rid of common/bigxy4
             end if ! iotest
           end do
           call mloregrid(ok,ocndwn(:,1),mloin(:,:,1),mlodwn(:,:,2),1)
-        else
-          mlodwn(:,:,2)=34.72
         end if ! (nestesd.ne.1.or.nud_sss.ne.0) ..else..
         ! ocean currents
+        mlodwn(:,:,3:4)=0.
         if (nested.ne.1.or.nud_ouv.ne.0) then
           do k=1,ok
             ucc=0.
@@ -638,10 +641,9 @@ c**   onthefly; sometime can get rid of common/bigxy4
           end do
           call mloregrid(ok,ocndwn(:,1),mloin(:,:,1),mlodwn(:,:,3),2)
           call mloregrid(ok,ocndwn(:,1),mloin(:,:,2),mlodwn(:,:,4),3)
-        else
-          mlodwn(:,:,3:4)=0.
         end if ! (nestesd.ne.1.or.nud_ouv.ne.0) ..else..
         ! water surface height
+        ocndwn(:,2)=0
         if (nested.ne.1.or.nud_sfh.ne.0) then
           ucc=0.
           call histrd1(ncid,iarchi,ier,'ocheight',ik,6*ik,ucc,
@@ -661,8 +663,6 @@ c**   onthefly; sometime can get rid of common/bigxy4
             end if
             call doints4(ucc,ocndwn(:,2),nface4,xg4,yg4,nord,ik)
           end if ! iotest
-        else
-          ocndwn(:,2)=0
         end if ! (nested.ne.1.or.nud_sfh.ne.0) ..else..
       end if
       !--------------------------------------------------------------
@@ -1686,9 +1686,9 @@ c       incorporate other target land mask effects
             lrestart=.false.
           end if
           
-          if (kk.eq.kl.and.iotest.and.abs(nmlo).ge.3.and.
-     &        abs(nmlo).le.9) then
-            do k=1,wlev
+          if (abs(nmlo).ge.3.and.abs(nmlo).le.9) then
+          if (ok.eq.wlev.and.iotest) then
+            do k=1,ok
               ucc=0.
               write(vname,'("oldu1",I2.2)') k
               call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
@@ -1739,6 +1739,9 @@ c       incorporate other target land mask effects
             else
               call ccmpi_distribute(ipice)
             end if
+          else
+            lrestart=.false.
+          end if
           end if
           
         end if ! (nested.eq.0)

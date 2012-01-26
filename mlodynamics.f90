@@ -28,7 +28,6 @@ real, parameter :: k_smag=0.4      ! horizontal diffusion (0.4 in mom3, 2. in Gr
 real, parameter :: rhosn =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic =900.     ! density ice  (kg m^-3)
 real, parameter :: grav  =9.80616  ! gravitational constant (m s^-2)
-real, parameter :: mindep=1.       ! Minimum water depth (m)
 
 contains
 
@@ -611,11 +610,11 @@ logical, dimension(ifull+iextra) :: wtr
 logical lleap
 
 integer, parameter :: llmax=300    ! iterations for calculating surface height
-real, parameter :: tol  = 1.E-3    ! Tolerance for GS solver (water)
-real, parameter :: itol = 1.       ! Tolerance for GS solver (ice)
+real, parameter :: tol  = 2.E-3    ! Tolerance for GS solver (water)
+real, parameter :: itol = 2.       ! Tolerance for GS solver (ice)
 real, parameter :: sal  = 0.948    ! SAL parameter for tidal forcing
 real, parameter :: rho0 = 1030.    ! reference density
-real, parameter :: eps  = 0.1      ! Off-centring term
+real, parameter :: eps  = 0.       ! Off-centring term
 
 ! new z levels for including free surface eta (effectively sigma-depth levels)
 ! newz=-eta+oldz*(1+eta/maxdepth)
@@ -2802,11 +2801,9 @@ logical, dimension(ifull), intent(in) :: wtr
 dtnew=dtin
 do iq=1,ifull
   if (wtr(iq)) then
-    dtnew=min(dtnew,0.3*dzdum(iq,1)/max(abs(ww(iq,1)),1.E-12))
-    do ii=2,wlev-1
+    do ii=1,wlev
       dtnew=min(dtnew,0.3*dzdum(iq,ii)/max(abs(ww(iq,ii)),1.E-12))
     end do
-    dtnew=min(dtnew,0.3*dzdum(iq,wlev)/max(abs(ww(iq,wlev)),1.E-12))
   end if
 end do
 its=int(dtin/dtnew)+1
@@ -2864,14 +2861,14 @@ do ii=1,wlev-1
      -0.5*(uu(:,ii+1)-uu(:,ii))*ww(:,ii)**2*dtnew/max(depadj(:,ii+1)-depadj(:,ii),1.E-10)
   xx=delu(:,ii)+sign(1.E-20,delu(:,ii))
   jj=sign(1.,ww(:,ii))
-  rr=0.5*(-jj*(delu(:,ii+1)-delu(:,ii-1))+abs(jj)*(delu(:,ii+1)+delu(:,ii-1)))/xx
+  rr=0.5*((1.-jj)*delu(:,ii+1)+(1.+jj)*delu(:,ii-1))/xx
   cc=max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
   ff(:,ii)=fl+cc*(fh-fl)
   !ff(:,ii)=ww(:,ii)*0.5*(uu(:,ii)+uu(:,ii+1)) ! explicit
 end do
 uu(:,1)=uu(:,1)+dtnew*(uu(:,1)*ww(:,1)-ff(:,1))/dzadj(:,1)
 do ii=2,wlev-1
-  uu(:,ii)=uu(:,ii)+dtnew*(uu(:,ii)*(ww(:,ii)-ww(:,ii-1))-(ff(:,ii)-ff(:,ii-1)))/dzadj(:,ii)
+  uu(:,ii)=uu(:,ii)+dtnew*(uu(:,ii)*(ww(:,ii)-ww(:,ii-1))-ff(:,ii)+ff(:,ii-1))/dzadj(:,ii)
 end do
 uu(:,wlev)=uu(:,wlev)+dtnew*(-uu(:,wlev)*ww(:,wlev-1)+ff(:,wlev-1))/dzadj(:,wlev)
 

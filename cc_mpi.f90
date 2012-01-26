@@ -299,6 +299,12 @@ contains
           allocate(dbuf(iproc)%b(bnds(iproc)%len))
           allocate(sextra(iproc)%a(bnds(iproc)%len))
           allocate(dindex(iproc)%a(2,bnds(iproc)%len))
+	else
+          allocate(dpoints(iproc)%a(4,1))
+          allocate(dbuf(iproc)%a(4,1))
+          allocate(dbuf(iproc)%b(1))
+          allocate(sextra(iproc)%a(1))
+          allocate(dindex(iproc)%a(2,1))
         end if
       end do
 
@@ -2541,7 +2547,7 @@ contains
 #endif
                ! Since nface is a small integer it can be exactly represented by a
                ! real. It's simpler to send like this than use a proper structure.
-               xn=min(dslen(iproc),bnds(iproc)%len)
+               xn=max(min(dslen(iproc),bnds(iproc)%len),1)
                dbuf(iproc)%a(:,xn) = (/ real(nface(iq,k)), xg(iq,k), yg(iq,k), real(k) /)
                dindex(iproc)%a(:,xn) = (/ iq,k /)
             end if
@@ -2550,9 +2556,7 @@ contains
       
       ! MJT error check
       do iproc=0,nproc-1
-        if (neighbour(iproc)) then
-          call checksize(dslen(iproc),bnds(iproc)%len,"Deptssync")
-        end if
+        call checksize(dslen(iproc),bnds(iproc)%len,"Deptssync")
       end do
 
 !     In this case the length of each buffer is unknown and will not
@@ -2573,6 +2577,7 @@ contains
             if ( dslen(sproc) > 0 ) then
                write(6,*) "Error, dslen > 0 for non neighbour",      &
                     myid, sproc, dslen(sproc)
+	       write(6,*) "bnds(sproc)%len ",bnds(sproc)%len
                call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
             end if
          end if
