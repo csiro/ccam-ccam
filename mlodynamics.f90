@@ -1284,11 +1284,11 @@ call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),d
 ! the various ice prognostic variables.
 
 ! Update ice velocities
-tau(:,1)=grav*0.5*(oeta(ie)+neta(ie)-oeta(1:ifull)-neta(1:ifull))*emu(1:ifull)/ds ! staggered
-tav(:,1)=grav*0.5*(oeta(in)+neta(in)-oeta(1:ifull)-neta(1:ifull))*emv(1:ifull)/ds
+tau(:,1)=grav*0.5*((1.-eps)*(oeta(ie)-oeta(1:ifull))+(1.+eps)*(neta(ie)-neta(1:ifull)))*emu(1:ifull)/ds ! staggered
+tav(:,1)=grav*0.5*((1.-eps)*(oeta(in)-oeta(1:ifull))+(1.+eps)*(neta(in)-neta(1:ifull)))*emv(1:ifull)/ds
 call mlounstaguv(tau(:,1:1),tav(:,1:1),siu,siv) ! trick from JLM
-snu(1:ifull)=i_u+(1.-eps)*0.5*dt*( f(1:ifull)*i_v-siu(:,1))
-snv(1:ifull)=i_v+(1.-eps)*0.5*dt*(-f(1:ifull)*i_u-siv(:,1))
+snu(1:ifull)=i_u+(1.-eps)*0.5*dt*f(1:ifull)*i_v-dt*siu(:,1)
+snv(1:ifull)=i_v-(1.-eps)*0.5*dt*f(1:ifull)*i_u-dt*siv(:,1)
 uiu(:,1)=snu(1:ifull)+(1.+eps)*0.5*dt*f(1:ifull)*snv(1:ifull) ! unstaggered
 uiv(:,1)=snv(1:ifull)-(1.+eps)*0.5*dt*f(1:ifull)*snu(1:ifull)
 call mlostaguv(uiu,uiv,siu,siv)
