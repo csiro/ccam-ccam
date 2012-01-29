@@ -592,13 +592,13 @@ real, dimension(ifull) :: nip,ipmax,imu,imv
 real, dimension(ifull) :: sue,suw,svn,svs
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,qps
 real, dimension(ifull+iextra,wlev) :: cou,cov,cow
-real, dimension(ifull+iextra,wlev) :: rhobar,rho
+real, dimension(ifull+iextra,wlev) :: rhobar,rho,alphabar,betabar
 real, dimension(ifull+iextra,4) :: nit
 real, dimension(ifull+iextra,1) :: sku,skv
 real, dimension(ifull,1) :: uiu,uiv,siu,siv,sju,sjv
 real, dimension(ifull,2) :: stwgt
 real, dimension(ifull,4) :: i_it
-real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,dum,dz
+real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,dum,dz,dalpha,dbeta
 real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav,dou,dov,tau,tav
 real, dimension(ifull,wlev) :: kku,llu,mmu,nnu
 real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv
@@ -613,7 +613,6 @@ integer, parameter :: llmax=300    ! iterations for calculating surface height
 real, parameter :: tol  = 2.E-3    ! Tolerance for GS solver (water)
 real, parameter :: itol = 2.       ! Tolerance for GS solver (ice)
 real, parameter :: sal  = 0.948    ! SAL parameter for tidal forcing
-real, parameter :: rho0 = 1030.    ! reference density
 real, parameter :: eps  = 0.       ! Off-centring term
 
 ! new z levels for including free surface eta (effectively sigma-depth levels)
@@ -758,6 +757,7 @@ dpsdyv=(pice(in)-pice(1:ifull))*emv(1:ifull)/ds
 
 ! Calculate adjusted depths
 ndum=max(1.+neta/dd,mindep/dd)
+call bounds(ndum,corner=.true.)
 do ii=1,wlev
   depdum(:,ii)=gosig(ii)*dd(1:ifull)*ndum(1:ifull)
   dzdum(:,ii)=gosigh(ii)*dd(1:ifull)*ndum(1:ifull)
@@ -825,20 +825,18 @@ oldv1=nv(1:ifull,:)
 ! (Assume free surface correction is small so that changes in the compression 
 ! effect due to neta can be neglected.  Consequently, the neta dependence is 
 ! separable in the iterative loop)
-call mloexpdensity(rho(1:ifull,:),nt(1:ifull,:),ns(1:ifull,:),depdum,dzdum,pice(1:ifull),0)
-rho=rho-rho0 ! adjust for reference density
-call bounds(rho,corner=.true.)
-rhobar(:,1)=rho(:,1)*godsig(1)
+call mloexpdensity(rho(1:ifull,:),dalpha,dbeta,nt(1:ifull,:),ns(1:ifull,:),depdum,dzdum,pice(1:ifull),0)
+call bounds(rho)
+rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
 do ii=2,wlev
-  rhobar(:,ii)=rhobar(:,ii-1)+rho(:,ii)*godsig(ii)
+  rhobar(:,ii)=rhobar(:,ii-1)+(rho(:,ii)-1030.)*godsig(ii)
 end do
 do ii=1,wlev
-  rhobar(:,ii)=rhobar(:,ii)/gosigh(ii)
+  rhobar(:,ii)=rhobar(:,ii)/gosigh(ii)+1030.
 end do
 
 ! Calculate normalised density gradients
-! method 1: calculate along sigma levels.  This method could benefit from a higher order expression
-! for the derivative
+! method 1: calculate along sigma levels.
 !do ii=1,wlev
 !  iip=min(ii+1,wlev)
 !  iim=max(ii-1,1)
@@ -863,8 +861,37 @@ end do
 !                                                     -gosig(ii)*(dd(in)-dd(1:ifull))))*emv(1:ifull)/ds
 !  drhobardyv(:,ii)=drhobardyv(:,ii)*eev(1:ifull)
 !end do
-! method 2: Use POM stencil (see Shehepetkin and McWilliams 2003)
-call pomdelta(rhobar,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+! method 2: Use POM stencil with background profile removed (see Shchepetkin and McWilliams 2003)
+! Compute reference density which is only a function of depth
+!tau=273.16
+!tav=0.
+!call mloexpdensity(rhobak,alphadum,betadum,tau,tav,depdum,dzdum,pice(1:ifull),0)
+!rhobarm(1:ifull,1)=(rho(1:ifull,1)-rhobak(:,1))*godsig(1)
+!do ii=2,wlev
+!  rhobarm(1:ifull,ii)=rhobarm(1:ifull,ii-1)+(rho(1:ifull,ii)-rhobak(:,ii))*godsig(ii)
+!end do
+!do ii=1,wlev
+!  rhobarm(1:ifull,ii)=rhobarm(1:ifull,ii)/gosigh(ii)
+!end do
+!call bounds(rhobarm,corner=.true.)
+!call pomdelta(rhobarm,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+! method 3: Use POM stencil with potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
+alphabar(1:ifull,1)=dalpha(:,1)*godsig(1)
+betabar(1:ifull,1)=dbeta(:,1)*godsig(1)
+do ii=2,wlev
+  alphabar(1:ifull,ii)=alphabar(1:ifull,ii-1)+dalpha(:,ii)*godsig(ii)
+  betabar(1:ifull,ii)=betabar(1:ifull,ii-1)+dbeta(:,ii)*godsig(ii)
+end do
+do ii=1,wlev
+  alphabar(1:ifull,ii)=alphabar(1:ifull,ii)/gosigh(ii)
+  betabar(1:ifull,ii)=betabar(1:ifull,ii)/gosigh(ii)
+end do
+call bounds(alphabar)
+call bounds(betabar)
+call bounds(nt,corner=.true.)
+call bounds(ns,corner=.true.)
+call tsjacobi(nt,ns,alphabar,betabar,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+
 
 ! Advect continuity equation to tstar
 ! Calculate velocity on C-grid for consistancy with iterative free surface calculation
@@ -893,19 +920,17 @@ yps=yps*ee(1:ifull)
 
 ! Prepare pressure gradient terms at t=t and incorporate into velocity field
 do ii=1,wlev
-  rhou=0.5*(rho(1:ifull,ii)+rho(ie,ii))+rho0
-  rhov=0.5*(rho(1:ifull,ii)+rho(in,ii))+rho0
-  rhobaru=0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))+rho0
-  rhobarv=0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))+rho0
+  rhou=0.5*(rho(1:ifull,ii)+rho(ie,ii))
+  rhov=0.5*(rho(1:ifull,ii)+rho(in,ii))
+  rhobaru=0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))
+  rhobarv=0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))
   uau(:,ii)=grav*(gosig(ii)*(oeu+ddu(1:ifull))*drhobardxu(:,ii)+rhobaru*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds)/rhou ! staggered
   uav(:,ii)=grav*(gosig(ii)*(oev+ddv(1:ifull))*drhobardyv(:,ii)+rhobarv*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds)/rhov
 end do
 call mlounstaguv(uau,uav,tau,tav) ! trick from JLM
 do ii=1,wlev
-  snu(1:ifull)=nu(1:ifull,ii)+(1.-eps)*0.5*dt*(f(1:ifull)*nv(1:ifull,ii)-tau(:,ii))
-  snv(1:ifull)=nv(1:ifull,ii)-(1.-eps)*0.5*dt*(f(1:ifull)*nu(1:ifull,ii)+tav(:,ii))
-  uau(:,ii)=snu(1:ifull)+(1.+eps)*0.5*dt*f(1:ifull)*snv(1:ifull) ! unstaggered
-  uav(:,ii)=snv(1:ifull)-(1.+eps)*0.5*dt*f(1:ifull)*snu(1:ifull)
+  uau(:,ii)=nu(1:ifull,ii)+(1.-eps)*0.5*dt*( f(1:ifull)*nv(1:ifull,ii)-tau(:,ii)) ! unstaggered
+  uav(:,ii)=nv(1:ifull,ii)+(1.-eps)*0.5*dt*(-f(1:ifull)*nu(1:ifull,ii)-tav(:,ii))
   uau(:,ii)=uau(:,ii)*ee(1:ifull)
   uav(:,ii)=uav(:,ii)*ee(1:ifull)
 end do
@@ -952,46 +977,33 @@ do ii=1,wlev
   depdum(:,ii)=gosig(ii)*dd(1:ifull)*ndum(1:ifull)
   dzdum(:,ii)=gosigh(ii)*dd(1:ifull)*ndum(1:ifull)
 end do
-call mloexpdensity(rho(1:ifull,:),nt(1:ifull,:),ns(1:ifull,:),depdum,dzdum,pice(1:ifull),0)
-rho=rho-rho0
-call bounds(rho,corner=.true.)
-rhobar(:,1)=rho(:,1)*godsig(1)
+call mloexpdensity(rho(1:ifull,:),dalpha,dbeta,nt(1:ifull,:),ns(1:ifull,:),depdum,dzdum,pice(1:ifull),0)
+call bounds(rho)
+rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
 do ii=2,wlev
-  rhobar(:,ii)=rhobar(:,ii-1)+rho(:,ii)*godsig(ii)
+  rhobar(:,ii)=rhobar(:,ii-1)+(rho(:,ii)-1030.)*godsig(ii)
 end do
 do ii=1,wlev
-  rhobar(:,ii)=rhobar(:,ii)/gosigh(ii)
+  rhobar(:,ii)=rhobar(:,ii)/gosigh(ii)+1030.
 end do
 
 ! update normalised density gradients
-!ndum(1:ifull)=yps ! neta at tstar
-!call bounds(ndum,corner=.true.)
-!do ii=1,wlev
-!  iip=min(ii+1,wlev)
-!  iim=max(ii-1,1)
-!  drhobardzu=(rhobar(1:ifull,iip)+rhobar(ie,iip)-rhobar(1:ifull,iim)-rhobar(ie,iim))          &
-!            /max(dep(1:ifull,iip)+dep(ie,iip)-dep(1:ifull,iim)-dep(ie,iim),1.E-8)
-!  drhobardzv=(rhobar(1:ifull,iip)+rhobar(in,iip)-rhobar(1:ifull,iim)-rhobar(in,iim))          &
-!            /max(dep(1:ifull,iip)+dep(in,iip)-dep(1:ifull,iim)-dep(in,iim),1.E-8)
-!  tnu=0.5*( rhobar(in,ii)+drhobardzu*((1.-gosig(ii))*ndum(in) -gosig(ii)*dd(in) ) &
-!          +rhobar(ine,ii)+drhobardzu*((1.-gosig(ii))*ndum(ine)-gosig(ii)*dd(ine)))
-!  tsu=0.5*( rhobar(is,ii)+drhobardzu*((1.-gosig(ii))*ndum(is) -gosig(ii)*dd(is) ) &
-!          +rhobar(ise,ii)+drhobardzu*((1.-gosig(ii))*ndum(ise)-gosig(ii)*dd(ise)))
-!  tev=0.5*( rhobar(ie,ii)+drhobardzv*((1.-gosig(ii))*ndum(ie) -gosig(ii)*dd(ie) ) &
-!          +rhobar(ien,ii)+drhobardzv*((1.-gosig(ii))*ndum(ien)-gosig(ii)*dd(ien)))
-!  twv=0.5*( rhobar(iw,ii)+drhobardzv*((1.-gosig(ii))*ndum(iw) -gosig(ii)*dd(iw) ) &
-!          +rhobar(iwn,ii)+drhobardzv*((1.-gosig(ii))*ndum(iwn)-gosig(ii)*dd(iwn)))
-!  drhobardxu(:,ii)=(rhobar(ie,ii)-rhobar(1:ifull,ii)+drhobardzu*((1.-gosig(ii))*(ndum(ie)-ndum(1:ifull)) &
-!                                                     -gosig(ii)*(dd(ie)-dd(1:ifull))))*emu(1:ifull)/ds
-!  drhobardxu(:,ii)=drhobardxu(:,ii)*eeu(1:ifull)
-!  drhobardyu(:,ii)=stwgt(:,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
-!  drhobardxv(:,ii)=stwgt(:,2)*0.5*(tev-twv)*emv(1:ifull)/ds
-!  drhobardyv(:,ii)=(rhobar(in,ii)-rhobar(1:ifull,ii)+drhobardzv*((1.-gosig(ii))*(ndum(in)-ndum(1:ifull)) &
-!                                                     -gosig(ii)*(dd(in)-dd(1:ifull))))*emv(1:ifull)/ds
-!  drhobardyv(:,ii)=drhobardyv(:,ii)*eev(1:ifull)
-!end do
-call pomdelta(rhobar,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
-
+! method 3
+alphabar(1:ifull,1)=dalpha(:,1)*godsig(1)
+betabar(1:ifull,1)=dbeta(:,1)*godsig(1)
+do ii=2,wlev
+  alphabar(1:ifull,ii)=alphabar(1:ifull,ii-1)+dalpha(:,ii)*godsig(ii)
+  betabar(1:ifull,ii)=betabar(1:ifull,ii-1)+dbeta(:,ii)*godsig(ii)
+end do
+do ii=1,wlev
+  alphabar(1:ifull,ii)=alphabar(1:ifull,ii)/gosigh(ii)
+  betabar(1:ifull,ii)=betabar(1:ifull,ii)/gosigh(ii)
+end do
+call bounds(alphabar)
+call bounds(betabar)
+call bounds(nt,corner=.true.)
+call bounds(ns,corner=.true.)
+call tsjacobi(nt,ns,alphabar,betabar,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 ! FREE SURFACE CALCULATION ----------------------------------------
 
@@ -1006,22 +1018,28 @@ sqv=0.
 srv=0.
 
 ! Precompute U,V current and integral terms at t+1
+do ii=1,wlev
+  snu(1:ifull)=uau(:,ii)
+  snv(1:ifull)=uav(:,ii)
+  uau(:,ii)=uau(:,ii)+0.5*dt*(1.+eps)*f(1:ifull)*snv(1:ifull)
+  uav(:,ii)=uav(:,ii)-0.5*dt*(1.+eps)*f(1:ifull)*snu(1:ifull)
+end do
 call mlostaguv(uau,uav,cou(1:ifull,:),cov(1:ifull,:))
 odum=1./(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull))
+siu(:,1)=-(1.+eps)*0.5*dt*odum
 do ii=1,wlev
   cou(1:ifull,ii)=cou(1:ifull,ii)*odum ! staggered
 end do
 odum=1./(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull))
+siv(:,1)=-(1.+eps)*0.5*dt*odum
 do ii=1,wlev
   cov(1:ifull,ii)=cov(1:ifull,ii)*odum ! staggered
 end do
-siu(:,1)=-(1.+eps)*0.5*dt/(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull))
-siv(:,1)=-(1.+eps)*0.5*dt/(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull))
 do ii=1,wlev
-  rhou=0.5*(rho(1:ifull,ii)+rho(ie,ii))+rho0
-  rhov=0.5*(rho(1:ifull,ii)+rho(in,ii))+rho0
-  rhobaru=0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))+rho0
-  rhobarv=0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))+rho0
+  rhou=0.5*(rho(1:ifull,ii)+rho(ie,ii))
+  rhov=0.5*(rho(1:ifull,ii)+rho(in,ii))
+  rhobaru=0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))
+  rhobarv=0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))
 
   ! Create arrays to calcuate u and v at t+1, based on pressure gradient at t+1
 
@@ -1266,18 +1284,13 @@ call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),d
 ! the various ice prognostic variables.
 
 ! Update ice velocities
-tau(:,1)=grav*(oeta(ie)+neta(ie)-oeta(1:ifull)-oeta(1:ifull))*emu(1:ifull)/ds ! staggered
-tav(:,1)=grav*(oeta(in)+neta(in)-oeta(1:ifull)-oeta(1:ifull))*emv(1:ifull)/ds
+tau(:,1)=grav*0.5*(oeta(ie)+neta(ie)-oeta(1:ifull)-neta(1:ifull))*emu(1:ifull)/ds ! staggered
+tav(:,1)=grav*0.5*(oeta(in)+neta(in)-oeta(1:ifull)-neta(1:ifull))*emv(1:ifull)/ds
 call mlounstaguv(tau(:,1:1),tav(:,1:1),siu,siv) ! trick from JLM
-snu(1:ifull)=i_u+(1.-eps)*0.5*dt*(f(1:ifull)*i_v-siu(:,1))
-snv(1:ifull)=i_v-(1.-eps)*0.5*dt*(f(1:ifull)*i_u+siv(:,1))
+snu(1:ifull)=i_u+(1.-eps)*0.5*dt*( f(1:ifull)*i_v-siu(:,1))
+snv(1:ifull)=i_v+(1.-eps)*0.5*dt*(-f(1:ifull)*i_u-siv(:,1))
 uiu(:,1)=snu(1:ifull)+(1.+eps)*0.5*dt*f(1:ifull)*snv(1:ifull) ! unstaggered
 uiv(:,1)=snv(1:ifull)-(1.+eps)*0.5*dt*f(1:ifull)*snu(1:ifull)
-! fill unstaggered land velocities to improve reversible staggering
-where (.not.wtr(1:ifull))
-  uiu(:,1)=i_u
-  uiv(:,1)=i_v
-end where
 call mlostaguv(uiu,uiv,siu,siv)
 ! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90
 niu(1:ifull)=siu(:,1)/(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull)) ! staggered
@@ -2876,11 +2889,50 @@ return
 end subroutine mlotvd
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Use potential temperature and salinity Jacobians to calculate
+! density Jacobian
+
+subroutine tsjacobi(nt,ns,alphabar,betabar,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+
+use indices_m
+use mlo, only : wlev
+
+implicit none
+
+include 'newmpar.h'
+
+integer ii
+real, dimension(ifull+iextra,wlev), intent(in) :: nt,ns,alphabar,betabar
+real, dimension(ifull,2), intent(in) :: stwgt
+real, dimension(ifull+iextra), intent(in) :: ndum
+real, dimension(ifull,wlev), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull,wlev) :: absu,bbsu,absv,bbsv
+real, dimension(ifull,wlev) :: dntdxu,dntdxv,dntdyu,dntdyv
+real, dimension(ifull,wlev) :: dnsdxu,dnsdxv,dnsdyu,dnsdyv
+
+do ii=1,wlev
+  absu(:,ii)=0.5*(alphabar(1:ifull,ii)+alphabar(ie,ii))
+  bbsu(:,ii)=0.5*(betabar(1:ifull,ii)+betabar(ie,ii))
+  absv(:,ii)=0.5*(alphabar(1:ifull,ii)+alphabar(in,ii))
+  bbsv(:,ii)=0.5*(betabar(1:ifull,ii)+betabar(in,ii))
+end do
+
+call pomdelta(nt,ndum,stwgt,dntdxu,dntdyu,dntdxv,dntdyv)
+call pomdelta(ns,ndum,stwgt,dnsdxu,dnsdyu,dnsdxv,dnsdyv)
+
+drhobardxu=-absu*dntdxu+bbsu*dnsdxu
+drhobardxv=-absv*dntdxv+bbsv*dnsdxv
+drhobardyu=-absu*dntdyu+bbsu*dnsdyu
+drhobardyv=-absv*dntdyv+bbsv*dnsdyv
+
+return
+end subroutine tsjacobi
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! POM style stencile for density gradient
 
 subroutine pomdelta(rhobar,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
-use cc_mpi
 use indices_m
 use map_m
 use mlo, only : wlev
@@ -2927,15 +2979,15 @@ rhobarhl(:,wlev)=rhobar(:,wlev)
 
 ! calculate gradients
 do ii=1,wlev
-  rho1=rhobarhl(1:ifull,ii-1)
-  rho2=rhobarhl(1:ifull,ii)
-  rho3=rhobarhl(ie,ii-1)
-  rho4=rhobarhl(ie,ii)
-  z1=dephladj(1:ifull,ii-1)
-  z2=dephladj(1:ifull,ii)
-  z3=dephladj(ie,ii-1)
-  z4=dephladj(ie,ii)
-  drhobardxu(:,ii)=-0.5*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*emu(1:ifull)/ds
+  rho1=rhobarhl(ie,ii-1)
+  rho2=rhobarhl(ie,ii)
+  rho3=rhobarhl(1:ifull,ii-1)
+  rho4=rhobarhl(1:ifull,ii)
+  z1=dephladj(ie,ii-1)
+  z2=dephladj(ie,ii)
+  z3=dephladj(1:ifull,ii-1)
+  z4=dephladj(1:ifull,ii)
+  drhobardxu(:,ii)=0.5*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*emu(1:ifull)/ds
   drhobardxu(:,ii)=drhobardxu(:,ii)*eeu(1:ifull) 
   rho1=0.5*(rhobarhl(in,ii-1)+rhobarhl(ine,ii-1))
   rho2=0.5*(rhobarhl(in,ii)+rhobarhl(ine,ii))
@@ -2945,7 +2997,7 @@ do ii=1,wlev
   z2=0.5*(dephladj(in,ii)+dephladj(ine,ii))
   z3=0.5*(dephladj(is,ii-1)+dephladj(ise,ii-1))
   z4=0.5*(dephladj(is,ii)+dephladj(ise,ii))
-  drhobardyu(:,ii)=-stwgt(:,1)*0.25*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*emu(1:ifull)/ds
+  drhobardyu(:,ii)=stwgt(:,1)*0.25*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*emu(1:ifull)/ds
   rho1=0.5*(rhobarhl(ie,ii-1)+rhobarhl(ien,ii-1))
   rho2=0.5*(rhobarhl(ie,ii)+rhobarhl(ien,ii))
   rho3=0.5*(rhobarhl(iw,ii-1)+rhobarhl(iwn,ii-1))
@@ -2954,16 +3006,16 @@ do ii=1,wlev
   z2=0.5*(dephladj(ie,ii)+dephladj(ien,ii))
   z3=0.5*(dephladj(iw,ii-1)+dephladj(iwn,ii-1))
   z4=0.5*(dephladj(iw,ii)+dephladj(iwn,ii))
-  drhobardxv(:,ii)=-stwgt(:,2)*0.25*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*emv(1:ifull)/ds
-  rho1=rhobarhl(1:ifull,ii-1)
-  rho2=rhobarhl(1:ifull,ii)
-  rho3=rhobarhl(in,ii-1)
-  rho4=rhobarhl(in,ii)
-  z1=dephladj(1:ifull,ii-1)
-  z2=dephladj(1:ifull,ii)
-  z3=dephladj(in,ii-1)
-  z4=dephladj(in,ii)
-  drhobardyv(:,ii)=-0.5*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*emv(1:ifull)/ds
+  drhobardxv(:,ii)=stwgt(:,2)*0.25*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*emv(1:ifull)/ds
+  rho1=rhobarhl(in,ii-1)
+  rho2=rhobarhl(in,ii)
+  rho3=rhobarhl(1:ifull,ii-1)
+  rho4=rhobarhl(1:ifull,ii)
+  z1=dephladj(in,ii-1)
+  z2=dephladj(in,ii)
+  z3=dephladj(1:ifull,ii-1)
+  z4=dephladj(1:ifull,ii)
+  drhobardyv(:,ii)=0.5*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*emv(1:ifull)/ds
   drhobardyv(:,ii)=drhobardyv(:,ii)*eev(1:ifull) 
 end do
 
