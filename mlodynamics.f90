@@ -1402,7 +1402,7 @@ call boundsuv(spu,spv)
 
 ! Normalisation factor for conserving ice flow in and out of gridbox
 spnet(1:ifull)=-min(spu(iwu),0.)+max(spu(1:ifull),0.)-min(spv(isv),0.)+max(spv(1:ifull),0.)
-spnet(1:ifull)=max(sqrt(spnet(1:ifull)),0.0002)
+spnet(1:ifull)=max(spnet(1:ifull),0.0002)
 call bounds(spnet)
 
 ! ADVECT ICE ------------------------------------------------------

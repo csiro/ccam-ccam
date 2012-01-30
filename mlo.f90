@@ -851,7 +851,9 @@ subroutine mloeval(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
 implicit none
 
 integer, intent(in) :: diag
+integer iqw,ii
 real, intent(in) :: dt
+real aa,bb,deldz,dsf
 real, dimension(ifull), intent(in) :: sg,rg,precp,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
 real, dimension(ifull), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
 real, dimension(wfull) :: workb
@@ -860,9 +862,10 @@ real, dimension(wfull) :: a_inflow
 real, dimension(wfull,wlev) :: d_rho,d_rs,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull) :: d_b0,d_ustar,d_wu0,d_wv0,d_wt0,d_ws0,d_ftop,d_tb,d_zcr
 real, dimension(wfull) :: d_fb,d_timelt,d_tauxicw,d_tauyicw,d_neta,d_ndsn
-real, dimension(wfull) :: d_ndic,d_nsto
+real, dimension(wfull) :: d_ndic,d_nsto,ssf
 integer, dimension(wfull) :: d_nk
 logical, intent(in) :: calcprog
+logical lflag
 
 if (wfull.eq.0) return
 
@@ -892,7 +895,21 @@ end where
 ! adjust levels for free surface
 d_zcr=max(1.+w_eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
 
-d_timelt=273.16-0.054*min(max(w_sal(:,1),0.),maxsal) ! ice melting temperature from CICE
+do iqw=1,wfull
+  dsf=0.
+  do ii=1,wlev-1
+    aa=dz(iqw,ii)*d_zcr(iqw)
+    bb=minsfc-dsf
+    lflag=aa.ge.bb
+    deldz=min(aa,bb)
+    ssf(iqw)=ssf(iqw)+w_sal(iqw,ii)*deldz
+    dsf=dsf+deldz
+    if (lflag) exit
+  end do
+  ssf(iqw)=ssf(iqw)/dsf
+end do
+d_timelt=273.16-0.054*min(max(ssf,0.),maxsal) ! ice melting temperature from CICE
+
 call getrho(a_ps,d_rho,d_rs,d_alpha,d_beta,d_zcr)                                                    ! equation of state
 ! ice formation is called for both calcprog=.true. and .false.
 call mlonewice(dt,d_rho,d_timelt,d_zcr,diag)                                                         ! create new ice
@@ -1228,9 +1245,9 @@ integer ii,jj,kk,iqw
 integer, dimension(wfull) :: isf
 real vtc,dvsq,vtsq,xp
 real tnsq,tws,twu,twv,tdepth,tbuoy,trho
-real oldxp,oldtrib,trib,newxp,deldz,aa,bb
+real oldxp,oldtrib,trib,newxp,deldz,aa,bb,dsf
 real, dimension(wfull,wlev) :: ws,wm,dumbuoy,rib
-real, dimension(wfull) :: dumbf,l,d_depth,usf,vsf,rsf,dsf
+real, dimension(wfull) :: dumbf,l,d_depth,usf,vsf,rsf
 real, dimension(wfull,wlev), intent(in) :: d_rho,d_nsq,d_rad,d_alpha,d_beta
 real, dimension(wfull), intent(in) :: d_b0,d_ustar,d_zcr
 real, dimension(wfull), intent(in) :: a_f
@@ -1262,15 +1279,16 @@ rsf=0.
 dsf=0.
 isf=wlev-1
 do iqw=1,wfull
+  dsf=0.
   do ii=1,wlev-1
     aa=dz(iqw,ii)*d_zcr(iqw)
-    bb=minsfc-dsf(iqw)
+    bb=minsfc-dsf
     lflag=aa.ge.bb
     deldz=min(aa,bb)
     usf(iqw)=usf(iqw)+w_u(iqw,ii)*deldz
     vsf(iqw)=vsf(iqw)+w_v(iqw,ii)*deldz
     rsf(iqw)=rsf(iqw)+d_rho(iqw,ii)*deldz
-    dsf(iqw)=dsf(iqw)+deldz
+    dsf=dsf+deldz
     if (lflag) exit
   end do
   if (depth(iqw,ii)*d_zcr(iqw).gt.minsfc) then
@@ -1278,9 +1296,9 @@ do iqw=1,wfull
   else
     isf(iqw)=ii+1
   end if
-  usf(iqw)=usf(iqw)/dsf(iqw)
-  vsf(iqw)=vsf(iqw)/dsf(iqw)
-  rsf(iqw)=rsf(iqw)/dsf(iqw)
+  usf(iqw)=usf(iqw)/dsf
+  vsf(iqw)=vsf(iqw)/dsf
+  rsf(iqw)=rsf(iqw)/dsf
 end do
 
 ! Calculate local buoyancy
@@ -1300,7 +1318,7 @@ do iqw=1,wfull
     jj=min(ii+1,wlev)
     vtsq=depth(iqw,ii)*d_zcr(iqw)*ws(iqw,ii)*sqrt(0.5*max(d_nsq(iqw,ii)+d_nsq(iqw,jj),0.))*vtc
     dvsq=(usf(iqw)-w_u(iqw,ii))**2+(vsf(iqw)-w_v(iqw,ii))**2
-    rib(iqw,ii)=(depth(iqw,ii)*d_zcr(iqw)-dsf(iqw))*dumbuoy(iqw,ii)/(max(dvsq+vtsq,1.E-20)*d_rho(iqw,ii))
+    rib(iqw,ii)=(depth(iqw,ii)*d_zcr(iqw)-minsfc)*dumbuoy(iqw,ii)/(max(dvsq+vtsq,1.E-20)*d_rho(iqw,ii))
     if (rib(iqw,ii).gt.ric) then
       jj=max(ii-1,1)
       p_mixind(iqw)=jj
@@ -1334,7 +1352,7 @@ if (mixmeth.eq.1) then
       trho=(1.-xp)*d_rho(iqw,ii-1)+xp*d_rho(iqw,ii)
       vtsq=tdepth*tws*sqrt(tnsq)*vtc
       dvsq=(usf(iqw)-twu)**2+(vsf(iqw)-twv)**2
-      trib=(tdepth-dsf(iqw))*tbuoy/(max(dvsq+vtsq,1.E-20)*trho)
+      trib=(tdepth-minsfc)*tbuoy/(max(dvsq+vtsq,1.E-20)*trho)
       if (abs(trib-oldtrib).gt.1.E-5) then
         newxp=xp-alpha*(trib-ric)*(xp-oldxp)/(trib-oldtrib) ! i.e., (trib-ric-oldtrib+ric)
         oldtrib=trib
@@ -2030,14 +2048,16 @@ subroutine mlonewice(dt,d_rho,d_timelt,d_zcr,diag)
 implicit none
 
 integer, intent(in) :: diag
-integer ii
+integer iqw,ii
 real, intent(in) :: dt
+real aa,bb,dsf,deldz
 real, dimension(wfull,wlev) :: sdic
 real, dimension(wfull) :: newdic,newtn,gamm,cdic
 real, dimension(wfull,wlev), intent(in) :: d_rho
 real, dimension(wfull), intent(inout) :: d_timelt,d_zcr
 real, dimension(wfull) :: worka,maxnewice,d_wavail
 logical, dimension(wfull) :: lnewice
+logical lflag
 
 ! limits on ice formation
 d_wavail=depth_hl(:,wlev+1)+w_eta-minwater
@@ -2049,8 +2069,18 @@ maxnewice=max(min(maxnewice,0.15),0.)
 
 ! formation
 ! Search over all levels to avoid problems with thin surface layers
-do ii=1,wlev
-  sdic(:,ii)=max(d_timelt-w_temp(:,ii),0.)*cp0*d_rho(:,ii)*dz(:,ii)*d_zcr/qice
+sdic=0.
+do iqw=1,wfull
+  dsf=0.
+  do ii=1,wlev-1
+    aa=dz(iqw,ii)*d_zcr(iqw)
+    bb=minsfc-dsf
+    lflag=aa.ge.bb
+    deldz=min(aa,bb)
+    sdic(iqw,ii)=max(d_timelt(iqw)-w_temp(iqw,ii),0.)*cp0*d_rho(iqw,ii)*deldz/qice
+    dsf=dsf+deldz
+    if (lflag) exit
+  end do
 end do
 newdic=sum(sdic,2)
 newdic=min(maxnewice,newdic)
