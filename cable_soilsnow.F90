@@ -582,16 +582,13 @@ CONTAINS
           & * (ssoil%ssdn(:,3) - 150.0) )
       ssoil%ssdn(:,1) = min( ssoil%ssdn(:,1) + dels * 9.806 * ssoil%ssdn(:,1) &
           & * ssoil%t_snwlr(:)*ssoil%ssdn(:,1) &
-!          & * 0.05*ssoil%ssdn(:,1) &
           & / (3.0e7 * EXP(.021 * ssoil%ssdn(:,1) + 0.081 &
           & * (tfrz - MIN(tfrz, ssoil%tggsn(:,1))))) , 750.)
       ssoil%ssdn(:,2) = min( ssoil%ssdn(:,2) + dels * 9.806 * ssoil%ssdn(:,2) &
-!          & * (0.05 * ssoil%ssdn(:,1) + 0.5 * ssoil%smass(:,2) ) &
           & * (ssoil%t_snwlr * ssoil%ssdn(:,1) + 0.5 * ssoil%smass(:,2) ) &
           & / (3.0e7 * EXP(.021 * ssoil%ssdn(:,2) + 0.081 &
           & * (tfrz - MIN(tfrz, ssoil%tggsn(:,2))))) , 750.)
       ssoil%ssdn(:,3) = min( ssoil%ssdn(:,3) + dels * 9.806 * ssoil%ssdn(:,3) &
-!          & * (0.05*ssoil%ssdn(:,1) + ssoil%smass(:,2) + 0.5*ssoil%smass(:,3)) &
           & * (ssoil%t_snwlr*ssoil%ssdn(:,1) + ssoil%smass(:,2) + 0.5*ssoil%smass(:,3)) &
           & / (3.0e7 * EXP(.021 * ssoil%ssdn(:,3) + 0.081 &
           & * (tfrz - MIN(tfrz, ssoil%tggsn(:,3))))) , 750.)
@@ -638,15 +635,18 @@ CONTAINS
     snowmlt= 0.0
     smelt1 = 0.0
 
+!    ssoil%dtmlt = 0.0
     WHERE (ssoil%snowd > 0.0 .and. ssoil%isflag == 0 &
                        & .and. ssoil%tgg(:,1) >= tfrz )
       ! snow covered land
       ! following done in sflux  via  ga= ... +cls*egg + ...
       ! ** land,snow,melting
       snowflx = (ssoil%tgg(:,1) - tfrz) * ssoil%gammzz(:,1)
+!      ssoil%dtmlt(:,1) =ssoil%dtmlt(:,1) + max(0.,ssoil%tgg(:,1) - tfrz)
       ! prevent snow depth going negative
       snowmlt = MIN(snowflx / hlf, ssoil%snowd )
       ssoil%dtmlt(:,1) = ssoil%dtmlt(:,1) + snowmlt * hlf / ssoil%gammzz(:,1)
+!      ssoil%qfsrf = ssoil%qfsrf + snowmlt*hlf/dels
       ssoil%snowd = ssoil%snowd - snowmlt
       ssoil%tgg(:,1) = ssoil%tgg(:,1) - snowmlt * hlf / ssoil%gammzz(:,1)
     END WHERE
@@ -656,9 +656,26 @@ CONTAINS
       WHERE (ssoil%snowd > 0.0 .and. ssoil%isflag > 0)
         sgamm = ssoil%ssdn(:,k) * cgsnow * ssoil%sdepth(:,k)
         ! snow melt refreezing
+!        snowflx = smelt1(:,k-1) * hlf / dels
+!!        ssoil%tggsn(:,k) = ssoil%tggsn(:,k) + snowflx * dels / sgamm
+!        ssoil%tggsn(:,k) = ssoil%tggsn(:,k) + ( snowflx * dels +  &
+!                         & smelt1(:,k-1)*cswat*(tfrz-ssoil%tggsn(:,k)) ) / &
+!                         & ( sgamm + cswat*smelt1(:,k-1) )
+!        ! increase density due to snowmelt
+!        osm = ssoil%smass(:,k)
+!        ssoil%smass(:,k) = ssoil%smass(:,k) + smelt1(:,k-1)
+!        ssoil%ssdn(:,k) = MAX(120.0,MIN(ssoil%ssdn(:,k) * osm/ssoil%smass(:,k) &
+!                        & + rhowat*(1.0-osm/ssoil%smass(:,k)), 750.0))
+!        WHERE (soil%isoilm /= 9) ssoil%ssdn(:,k) = MIN(450.0,ssoil%ssdn(:,k))
+!        ssoil%sdepth(:,k) = ssoil%smass(:,k) / ssoil%ssdn(:,k)
+!        sgamm = ssoil%smass(:,k) * cgsnow
+!        smelt1(:,k-1) = 0.0
         smelt1(:,k) = 0.0
+!        ! snow melting
+!        ssoil%dtmlt(:,k) = 0.0
         WHERE (ssoil%tggsn(:,k) > tfrz)
           snowflx = (ssoil%tggsn(:,k) - tfrz) * sgamm
+!          ssoil%dtmlt(:,k) = ssoil%dtmlt(:,k)+ max(0.,ssoil%tggsn(:,k) - tfrz)
           smelt1(:,k) = MIN(snowflx / hlf, 0.6 * ssoil%smass(:,k) )
           ssoil%dtmlt(:,k) = ssoil%dtmlt(:,k) + smelt1(:,k) * hlf / sgamm
           osm = ssoil%smass(:,k)
@@ -909,7 +926,8 @@ CONTAINS
 
 ! correct for water imbalance in the lakes
     ssoil%sinfil = 0.0
-    where  ( veg%iveg == 16 )
+    !where  ( veg%iveg == 16 )
+    where  ( veg%iveg == 17 ) ! MJT fix
       ssoil%sinfil = min( ssoil%rnof1, ssoil%wb_lake + max(0.,canopy%segg)) 
       ssoil%rnof1 = max( 0.0, ssoil%rnof1 - ssoil%sinfil ) 
       ssoil%wb_lake = ssoil%wb_lake - ssoil%sinfil
@@ -955,6 +973,8 @@ CONTAINS
                           & 0.2 * ssoil%smass(:,k) )
           ssoil%smass(:,k) = ssoil%smass(:,k) - smelt1(:,k)
           ssoil%snowd = ssoil%snowd - smelt1(:,k)
+          !ssoil%tggsn(:,k) = ssoil%tggsn(:,k) - smelt1(:,k) * hlf / sgamm
+          !ssoil%dtmlt(:,k) = ssoil%dtmlt(:,k) + smelt1(:,k)*hlf/sgamm
         END WHERE
       END DO
       WHERE (ssoil%isflag > 0 ) rnof5 = smelt1(:,1)+smelt1(:,2)+smelt1(:,3)
@@ -1840,6 +1860,9 @@ CONTAINS
     ssoil%smelt = 0.0 ! initialise snowmelt
     ssoil%osnowd = ssoil%snowd
     ssoil%dtmlt = 0.0
+!    ssoil%qasrf =  0.0
+!    ssoil%qfsrf =  0.0
+!    ssoil%qssrf =  0.0
 
     IF (ktau_gl .eq. 1) THEN
 !      canopy%ga = 0.0
@@ -1903,6 +1926,7 @@ CONTAINS
     END DO
 
     CALL snowcheck (dels, ktau, ssoil, soil, met , ktau_gl)
+!    CALL snowcheck (dels, ktau_gl, ssoil, soil, met )
 
     CALL snowdensity (dels, ssoil, soil)
 
@@ -1957,10 +1981,9 @@ CONTAINS
     ssoil%rnof1 = max(0.,ssoil%pudsto - ssoil%pudsmx)
     ssoil%pudsto = ssoil%pudsto - ssoil%rnof1
 
-
     CALL surfbv(dels, ktau,  met, ssoil, soil, veg, canopy )
 
-    where(  ssoil%dtmlt(:,1) > 0.0001) canopy%fhs = canopy%fhs+ssoil%dtmlt(:,1)*ssoil%dfh_dtg
+    where( ssoil%dtmlt(:,1) > 0.0001) canopy%fhs = canopy%fhs+ssoil%dtmlt(:,1)*ssoil%dfh_dtg
     where( ssoil%dtmlt(:,1) > 0.0001) canopy%fes = canopy%fes+ssoil%dtmlt(:,1)* &
                                              (ssoil%cls*ssoil%dfe_ddq * ssoil%ddq_dtg)
 

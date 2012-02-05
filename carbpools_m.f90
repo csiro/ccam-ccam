@@ -25,6 +25,15 @@ integer, intent(in) :: ifull,iextra,kl
 allocate(fnee(ifull),fpn(ifull),frd(ifull),frp(ifull))
 allocate(frpw(ifull),frpr(ifull),frs(ifull))
 allocate(cplant(ifull,ncp),csoil(ifull,ncs))
+fnee=0.
+fpn=0.
+frd=0.
+frp=0.
+frpw=0.
+frpr=0.
+frs=0.
+cplant=0.
+csoil=0.
 
 return
 end subroutine carbpools_init

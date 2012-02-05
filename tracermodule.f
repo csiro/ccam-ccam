@@ -992,7 +992,8 @@ c     scaling assumes CO2 with output in GtC?
 c     also update tracer average array here
       do igas=1,ngas
 
-        traver(:,:,igas)=traver(:,:,igas)+tr(1:ilt*jlt,1:klt,igas)
+        ! Moved to globpe.f by MJT
+        !traver(:,:,igas)=traver(:,:,igas)+tr(1:ilt*jlt,1:klt,igas)
 
 !       rml 18/09/07 check that tr and traver stay within defined range
 !       stop job if they don't

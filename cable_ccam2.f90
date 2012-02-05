@@ -3,7 +3,7 @@
 module cable_ccam
 
   ! CABLE interface originally developed by the CABLE group
-  ! Subsequently modified by MJT for 5 tile mosaic and new radiation scheme
+  ! Subsequently modified by MJT for 5 tile mosaic and SEAESF radiation scheme
   
   ! - Currently all tiles have the same soil texture
   ! - LAI can be interpolated between timesteps using a PWCB fit to the LAI integral
@@ -105,8 +105,7 @@ module cable_ccam
   real, dimension(ifull) :: coszro2,taudar2,tmps,hruff_grmx,atmco2
   real, dimension(mp) :: swnet,deltat
   integer jyear,jmonth,jday,jhour,jmin
-  integer k,mins
-  integer nb
+  integer k,mins,nb
   character(len=3) :: DIAG_SOIL_RESP = FDIAG_SOIL_RESP
 
   ! abort calculation if no land points on this processor  
@@ -133,7 +132,7 @@ module cable_ccam
   met%precip=condx(cmap)
   met%precip_sn=0. ! in mm not mm/sec
   where (met%tc<0.) met%precip_sn=met%precip
-  met%hod=(met%doy-int(met%doy))*24. + rlongg(cmap)*12./pi
+  met%hod=(met%doy-int(met%doy))*24. + rlongg(cmap)*180./(15.*pi)
   met%hod=mod(met%hod,24.)
   rough%za_tq=-rdry*t(cmap,1)*log(sig(1))/grav   ! reference height
   rough%za_uv=rough%za_tq
@@ -172,22 +171,22 @@ module cable_ccam
   !--------------------------------------------------------------
   ! CABLE
   veg%meth = 1
-  CALL ruff_resist(veg,rough,ssoil,soil,met)
-  CALL define_air(met,air)
-  CALL init_radiation(met,rad,veg) ! need to be called at every dt
-  CALL cab_albedo(999,dt,ssoil,veg,air,met,rad,soil,.false.) ! set L_RADUM=.false. as we want to update snow age
-  CALL define_canopy(999,bal,rad,rough,air,met,dt,ssoil,soil,veg,bgc,canopy,.true.)
+  call ruff_resist(veg,rough,ssoil,soil,met)
+  call define_air(met,air)
+  call init_radiation(met,rad,veg) ! need to be called at every dt
+  call cab_albedo(999,dt,ssoil,veg,air,met,rad,soil,.false.) ! set L_RADUM=.false. as we want to update snow age
+  call define_canopy(999,bal,rad,rough,air,met,dt,ssoil,soil,veg,bgc,canopy,.true.)
   bal%owbtot=0.
   do k=1,ms
     bal%owbtot=bal%owbtot+ssoil%wb(:,k)*1000.*soil%zse(k)
   end do
   ssoil%otss = ssoil%tss
   ssoil%owetfac = ssoil%wetfac
-  CALL soil_snow(dt,999,soil,ssoil,canopy,met,bal,veg,999)
+  call soil_snow(dt,999,soil,ssoil,canopy,met,bal,veg,999)
   ! adjust for new soil temperature
   deltat = ssoil%tss - ssoil%otss
   canopy%fhs = canopy%fhs + deltat*ssoil%dfh_dtg
-  canopy%fes = canopy%fes + deltat*(ssoil%cls*ssoil%dfe_ddq * ssoil%ddq_dtg)
+  canopy%fes = canopy%fes + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
   canopy%fh  = canopy%fhv + canopy%fhs
   ! need to adjust fe after soilsnow
   canopy%fev = canopy%fevc + canopy%fevw
@@ -197,7 +196,7 @@ module cable_ccam
   canopy%rnet = canopy%fns + canopy%fnv
   ! Calculate radiative/skin temperature:
   rad%trad = ( (1.-rad%transd)*canopy%tv**4 + rad%transd * ssoil%tss**4 )**0.25
-  if(DIAG_SOIL_RESP == 'on')  then 
+  if (DIAG_SOIL_RESP == 'on')  then 
     sum_flux%sumpn = sum_flux%sumpn+canopy%fpn*dt
     sum_flux%sumrp = sum_flux%sumrp+canopy%frp*dt
     sum_flux%sumrpw = sum_flux%sumrpw+canopy%frpw*dt
@@ -206,9 +205,9 @@ module cable_ccam
     sum_flux%dsumpn = sum_flux%dsumpn+canopy%fpn*dt
     sum_flux%dsumrp = sum_flux%dsumrp+canopy%frp*dt
     sum_flux%dsumrd = sum_flux%dsumrd+canopy%frday*dt
-    CALL plantcarb(veg,bgc,met,canopy)
-    CALL soilcarb(soil,ssoil,veg,bgc,met,canopy)
-    CALL carbon_pl(dt,soil,ssoil,veg,canopy,bgc)
+    call plantcarb(veg,bgc,met,canopy)
+    call soilcarb(soil,ssoil,veg,bgc,met,canopy)
+    call carbon_pl(dt,soil,ssoil,veg,canopy,bgc)
     sum_flux%sumrs = sum_flux%sumrs+canopy%frs*dt
   endif  
   canopy%fnpp = -1.0* canopy%fpn - canopy%frp
@@ -730,9 +729,8 @@ module cable_ccam
   ! if CABLE is present on this processor, then start allocating arrays
   if (mp.gt.0) then
   
-    allocate(sv(mp))
+    allocate(sv(mp),cmap(mp))
     allocate(vl1(mp),vl2(mp),vl3(mp))
-    allocate(cmap(mp))
     call alloc_cbm_var(air, mp)
     call alloc_cbm_var(bgc, mp)
     call alloc_cbm_var(canopy, mp)
@@ -826,7 +824,7 @@ module cable_ccam
     veg%vcmax     = vcmax(veg%iveg)
     veg%xfang     = xfang(veg%iveg)
     veg%dleaf     = dleaf(veg%iveg)
-    veg%xalbnir   = 1.
+    veg%xalbnir   = 1. ! not used
     veg%taul(:,1) = taul(veg%iveg,1)
     veg%taul(:,2) = taul(veg%iveg,2)  
     veg%refl(:,1) = refl(veg%iveg,1)
@@ -875,7 +873,7 @@ module cable_ccam
     soil%swilt   = swilt(soil%isoilm)
     soil%ibp2    = ibp2(soil%isoilm)
     soil%i2bp3   = i2bp3(soil%isoilm)
-    soil%pwb_min = (soil%swilt / soil%ssat )**soil%ibp2
+    soil%pwb_min = (soil%swilt/soil%ssat)**soil%ibp2
     bgc%ratecp(:) = ratecp(:)
     bgc%ratecs(:) = ratecs(:)
 
@@ -1379,83 +1377,83 @@ module cable_ccam
         dat(cmap(pind(n,1):pind(n,2)))=ssoil%tgg(pind(n,1):pind(n,2),k)
       end if
       write(vname,'("tgg",I1.1,"_",I1.1)') k,n
-      call histwrt3(dat,vname,idnc,iarch,local)
+      call histwrt3(dat,vname,idnc,iarch,local,.true.)
       dat=wb(:,k)
       if (pind(n,1).le.mp) then  
         dat(cmap(pind(n,1):pind(n,2)))=ssoil%wb(pind(n,1):pind(n,2),k)
       end if
       write(vname,'("wb",I1.1,"_",I1.1)') k,n
-      call histwrt3(dat,vname,idnc,iarch,local)
+      call histwrt3(dat,vname,idnc,iarch,local,.true.)
       dat=wbice(:,k)
       if (pind(n,1).le.mp) then  
         dat(cmap(pind(n,1):pind(n,2)))=ssoil%wbice(pind(n,1):pind(n,2),k)
       end if
       write(vname,'("wbice",I1.1,"_",I1.1)') k,n
-      call histwrt3(dat,vname,idnc,iarch,local)
+      call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     do k=1,3
       dat=tggsn(:,k)
       if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%tggsn(pind(n,1):pind(n,2),k)
       write(vname,'("tggsn",I1.1,"_",I1.1)') k,n
-      call histwrt3(dat,vname,idnc,iarch,local)
+      call histwrt3(dat,vname,idnc,iarch,local,.true.)
       dat=smass(:,k)
       if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%smass(pind(n,1):pind(n,2),k)
       write(vname,'("smass",I1.1,"_",I1.1)') k,n
-      call histwrt3(dat,vname,idnc,iarch,local)
+      call histwrt3(dat,vname,idnc,iarch,local,.true.)
       dat=ssdn(:,k)
       if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%ssdn(pind(n,1):pind(n,2),k)
       write(vname,'("ssdn",I1.1,"_",I1.1)') k,n
-      call histwrt3(dat,vname,idnc,iarch,local)
+      call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
     dat=real(isflag)
     if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=real(ssoil%isflag(pind(n,1):pind(n,2)))
     write(vname,'("sflag_",I1.1)') n
-    call histwrt3(dat,vname,idnc,iarch,local)
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=snowd
     if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%snowd(pind(n,1):pind(n,2))
     write(vname,'("snd_",I1.1)') n
-    call histwrt3(dat,vname,idnc,iarch,local)  ! long write    
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)  ! long write    
     dat=snage
     if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%snage(pind(n,1):pind(n,2))
     write(vname,'("snage_",I1.1)') n
-    call histwrt3(dat,vname,idnc,iarch,local)
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=rtsoil
     if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%rtsoil(pind(n,1):pind(n,2))
     write(vname,'("rtsoil_",I1.1)') n
-    call histwrt3(dat,vname,idnc,iarch,local)   
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)   
     dat=cansto
     if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=canopy%cansto(pind(n,1):pind(n,2))
     write(vname,'("cansto_",I1.1)') n
-    call histwrt3(dat,vname,idnc,iarch,local)
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
     dat=0.
     if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%pudsto(pind(n,1):pind(n,2))
     write(vname,'("pudsto_",I1.1)') n
-    call histwrt3(dat,vname,idnc,iarch,local)
+    call histwrt3(dat,vname,idnc,iarch,local,.true.)
     do k=1,ncp
       dat=cplant(:,k)
       if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=bgc%cplant(pind(n,1):pind(n,2),k)
       write(vname,'("cplant",I1.1,"_",I1.1)') k,n
-      call histwrt3(dat,vname,idnc,iarch,local)    
+      call histwrt3(dat,vname,idnc,iarch,local,.true.)    
     end do
     do k=1,ncs
       dat=csoil(:,k)
       if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=bgc%csoil(pind(n,1):pind(n,2),k)
       write(vname,'("csoil",I1.1,"_",I1.1)') k,n
-      call histwrt3(dat,vname,idnc,iarch,local)
+      call histwrt3(dat,vname,idnc,iarch,local,.true.)
     end do
   end do
   vname='albvisdir'
-  call histwrt3(albvisdir,vname,idnc,iarch,local)
+  call histwrt3(albvisdir,vname,idnc,iarch,local,.true.)
   vname='albvisdif'
-  call histwrt3(albvisdif,vname,idnc,iarch,local)
+  call histwrt3(albvisdif,vname,idnc,iarch,local,.true.)
   vname='albnirdir'
-  call histwrt3(albnirdir,vname,idnc,iarch,local)
+  call histwrt3(albnirdir,vname,idnc,iarch,local,.true.)
   vname='albnirdif'
-  call histwrt3(albnirdif,vname,idnc,iarch,local)
+  call histwrt3(albnirdif,vname,idnc,iarch,local,.true.)
   vname='albvis'
-  call histwrt3(albvisnir(:,1),vname,idnc,iarch,local)
+  call histwrt3(albvisnir(:,1),vname,idnc,iarch,local,.true.)
   vname='albnir'
-  call histwrt3(albvisnir(:,2),vname,idnc,iarch,local)
+  call histwrt3(albvisnir(:,2),vname,idnc,iarch,local,.true.)
   
   return
   end subroutine savetile 

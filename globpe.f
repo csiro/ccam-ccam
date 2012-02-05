@@ -14,6 +14,7 @@
       use arrays_m                            ! Atmosphere dyamics prognostic arrays
       use bigxy4_m                            ! Grid interpolation
       use carbpools_m, only : carbpools_init  ! Carbon pools
+     &    ,fpn,frs,frp
       use cc_mpi                              ! CC MPI routines
       use cfrac_m                             ! Cloud fraction
       use dava_m                              ! Far-field nudging (weights)
@@ -859,9 +860,12 @@
       cll_ave(:)  = 0.
       clm_ave(:)  = 0.
       clh_ave(:)  = 0.
-      if (ngas.gt.0) then
+      if (ngas>0) then
         traver=0.
       end if
+      fpn_ave=0.
+      frs_ave=0.
+      frp_ave=0.
 
 
       !--------------------------------------------------------------
@@ -955,7 +959,7 @@
         vn(1:ifull,:)=0.
         tn(1:ifull,:)=0.
       elseif(nvsplit==3)then
-        tn(1:ifull,:)=(t(1:ifull,:)-tx(1:ifull,:))/dt ! tend. from phys. at end of previous step
+        tn(1:ifull,:)=(t(1:ifull,:)-tx(1:ifull,:))/dt  ! tend. from phys. at end of previous step
         unn(1:ifull,:)=(u(1:ifull,:)-ux(1:ifull,:))/dt ! used in nonlin,upglobal
         vnn(1:ifull,:)=(v(1:ifull,:)-vx(1:ifull,:))/dt ! used in nonlin,upglobal
         t(1:ifull,:)=tx(1:ifull,:)   
@@ -1179,30 +1183,36 @@
 
       ! CONVECTION ------------------------------------------------------------
       call start_log(convection_begin)
-      if (nkuo==23.or.nkuo==24) call convjlm(iaero)     ! split convjlm 
+      select case(nkuo)
+        case(5)
+          call betts(t,qg,tn,land,ps) ! not called these days
+        case(23,24)
+          call convjlm(iaero)         ! split convjlm 
+        case(46)
+          call conjob(iaero)          ! split Arakawa-Gordon scheme
+      end select
       if (nkuo/=0) then
         ! Not set in HS tests.
         cbas_ave(:)=cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:))) ! diagnostic
         ctop_ave(:)=ctop_ave(:)+condc(:)*(1.1-sig(abs(ktsav(:)))) ! diagnostic
       end if
-      if (nkuo==46) call conjob(iaero)    ! split Arakawa-Gordon scheme
-      if (nkuo==5) call betts(t,qg,tn,land,ps) ! not called these days
       call end_log(convection_end)
 
       ! CLOUD MICROPHYSICS ----------------------------------------------------
       call start_log(cloud_begin)
-      if (ldr.ne.0) then
-        call leoncld(cfrac,iaero)  !Output
-        do k=1,kl
-         riwp_ave(:)=riwp_ave(:)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
-         rlwp_ave(:)=rlwp_ave(:)-qlrad(:,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
-        enddo
-        if(nmaxpr==1.and.mydiag)then
-          write (6,"('qfrad',3p9f8.3/5x,9f8.3)") qfrad(idjd,:)
-          write (6,"('qlrad',3p9f8.3/5x,9f8.3)") qlrad(idjd,:)
-          write (6,"('qf   ',3p9f8.3/5x,9f8.3)") qfg(idjd,:)
-        endif
-      endif  ! (ldr.ne.0)
+      select case(ldr)
+        case(-2,-1,1,2)
+          call leoncld(cfrac,iaero) ! LDR microphysics scheme
+      end select
+      do k=1,kl
+       riwp_ave(:)=riwp_ave(:)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
+       rlwp_ave(:)=rlwp_ave(:)-qlrad(:,k)*dsig(k)*ps(1:ifull)/grav ! liq water path
+      enddo
+      if(nmaxpr==1.and.mydiag)then
+        write (6,"('qfrad',3p9f8.3/5x,9f8.3)") qfrad(idjd,:)
+        write (6,"('qlrad',3p9f8.3/5x,9f8.3)") qlrad(idjd,:)
+        write (6,"('qf   ',3p9f8.3/5x,9f8.3)") qfg(idjd,:)
+      endif
       rnd_3hr(:,8)=rnd_3hr(:,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
       call end_log(cloud_end)
 
@@ -1553,6 +1563,14 @@
          v2max(iq)=v(iq,2)
        end if
       end do
+      if (ngas>0) then
+        do igas=1,ngas
+          traver(:,:,igas)=traver(:,:,igas)+tr(1:ilt*jlt,:,igas)
+        end do
+      end if
+      fpn_ave=fpn_ave+fpn
+      frs_ave=frs_ave+frs
+      frp_ave=frp_ave+frp
 
 !     rnd03 to rnd21 are accumulated in mm     
       if (myid==0) then
@@ -1615,9 +1633,12 @@
         fbeam_ave(:)=  fbeam_ave(:)/max(koundiag,1)
         cbas_ave(:) = 1.1-cbas_ave(:)/max(1.e-4,precc(:))  ! 1.1 for no precc
         ctop_ave(:) = 1.1-ctop_ave(:)/max(1.e-4,precc(:))  ! 1.1 for no precc
-        if (ngas.gt.0) then
+        if (ngas>0) then
           traver=traver/min(ntau,nperavg)
         end if
+        fpn_ave=fpn_ave/min(ntau,nperavg)
+        frs_ave=frs_ave/min(ntau,nperavg)
+        frp_ave=frp_ave/min(ntau,nperavg)
       end if    ! (ktau==ntau.or.mod(ktau,nperavg)==0)
       
       ! Update diagnostics for consistancy
@@ -1713,7 +1734,10 @@
         precc(:)=0.   ! converted to mm/day in outcdf
         sno(:)=0.     ! converted to mm/day in outcdf
         runoff(:)=0.  ! converted to mm/day in outcdf
-        if (ngas.gt.0) traver=0.
+        if (ngas>0) traver=0.
+        fpn_ave=0.
+        frs_ave=0.
+        frp_ave=0.
       endif  ! (mod(ktau,nperavg)==0)
 
       if(mod(ktau,nperday)==0)then   ! re-set at the end of each 24 hours
