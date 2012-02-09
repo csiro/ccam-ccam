@@ -2892,7 +2892,7 @@ end subroutine mlotvd
 ! Use potential temperature and salinity Jacobians to calculate
 ! density Jacobian
 
-subroutine tsjacobi(nt,ns,alphabar,betabar,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+subroutine tsjacobi(nti,nsi,alphabar,betabar,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 use indices_m
 use mlo, only : wlev
@@ -2902,13 +2902,17 @@ implicit none
 include 'newmpar.h'
 
 integer ii
-real, dimension(ifull+iextra,wlev), intent(in) :: nt,ns,alphabar,betabar
+real, dimension(ifull+iextra,wlev), intent(in) :: nti,nsi,alphabar,betabar
 real, dimension(ifull,2), intent(in) :: stwgt
 real, dimension(ifull+iextra), intent(in) :: ndum
 real, dimension(ifull,wlev), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
+real, dimension(ifull+iextra,wlev) :: nt,ns
 real, dimension(ifull,wlev) :: absu,bbsu,absv,bbsv
 real, dimension(ifull,wlev) :: dntdxu,dntdxv,dntdyu,dntdyv
 real, dimension(ifull,wlev) :: dnsdxu,dnsdxv,dnsdyu,dnsdyv
+
+nt=min(max(273.1,nti),373.)
+ns=min(max(0.,nsi),50.)
 
 do ii=1,wlev
   absu(:,ii)=0.5*(alphabar(1:ifull,ii)+alphabar(ie,ii))
