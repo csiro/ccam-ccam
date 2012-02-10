@@ -525,7 +525,7 @@ if ((minval(itmp).lt.1).or.(maxval(itmp).gt.maxtype)) then
 end if
 
 if (nmlfile.ne.0) then
-  open(unit=nmlfile,file='ateb.nml',iostat=ierr)
+  open(unit=nmlfile,file='ateb.nml',action="read",iostat=ierr)
   if (ierr.eq.0) then
     write(6,*) "Reading ateb.nml"
     read(nmlfile,nml=atebnml)
