@@ -35,8 +35,8 @@ real, dimension(:,:), allocatable, save :: tkesav,epssav
 ! model constants
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
-real, parameter :: be      = 1.     ! Hurley (2007) 1., Soares et al (2004) 0.3
-real, parameter :: cm      = 0.03   ! Hurley (2007) 0.09
+real, parameter :: be      = 0.3    ! Hurley (2007) 1., Soares et al (2004) 0.3
+real, parameter :: cm      = 0.03   ! Hurley (2007) 0.09 (0.03 recommended by Ashok Luhar)
 real, parameter :: ce0     = 0.69
 real, parameter :: ce1     = 1.46
 real, parameter :: ce2     = 1.83
@@ -67,16 +67,16 @@ real, parameter :: d_1   = 0.35
 
 integer, parameter :: buoymeth   = 3 ! 0=Hurley (dry), 2=Smith, 3=Durran et al (cld wgt) method for calculating TKE buoyancy source
 integer, parameter :: kmlimit    = 0 ! 0=No adjustment, 1=Limit decay in pbl top
-integer, parameter :: icm1 = 20      ! iterations for calculating pblh
-integer, parameter :: icm2 = 5       ! iterations for calculating tke-eps
+integer, parameter :: icm1 = 40      ! iterations for calculating pblh
+integer, parameter :: icm2 = 10      ! iterations for calculating tke-eps
 integer, parameter :: icm3 = 5       ! iterations for calculating qupsat
 real, parameter :: tol    = 1.E-9    ! tolarance for sectant method
 real, parameter :: dz_ref = 500.     ! dz reference for kmlimit=1
 real, parameter :: alpha  = 0.3      ! weight for updating pblh
 real, parameter :: alpha2 = 0.7      ! weight for updating tke-eps non-linear terms
 real, parameter :: alpha3 = 0.7      ! weight for updating qupsat
-real, parameter :: beta1  = 1.0      ! weight for km(t+1) (beta=0.) and km(t) (beta=1.) when calculating tke non-linear terms
-real, parameter :: beta2  = 0.0      ! weight for km(t+1) (beta=0.) and km(t) (beta=1.) when calculating eps non-linear terms
+real, parameter :: beta1  = 1.0      ! weight for km(t+1) (beta1=0.) and km(t) (beta1=1.) when calculating tke non-linear terms
+real, parameter :: beta2  = 0.0      ! weight for km(t+1) (beta2=0.) and km(t) (beta2=1.) when calculating eps non-linear terms
 real, parameter :: mintke = 1.5E-8
 real, parameter :: mineps = 1.0E-10
 
@@ -150,7 +150,7 @@ logical sconv
 
 cm34=cm**0.75
 
-if (diag.gt.0) write(6,*) "Update PBL mixing with TKE"
+if (diag.gt.0) write(6,*) "Update PBL mixing with TKE-eps turbulence closure"
 
 ! Here TKE and eps are on full levels to use CCAM advection routines
 ! Idealy we would reversibly stagger to vertical half-levels for this
@@ -175,7 +175,6 @@ do k=1,kl
 end do
 
 ! Set-up thermodynamic variables theta_l,theta_v,qtot and surface fluxes
-! Note that qlg and qfg are treated as passive
 qtot=qg+qlg+qfg
 thetav=theta*(1.+0.61*qg-qlg-qfg)
 do k=1,kl
@@ -199,10 +198,10 @@ do k=1,kl-1
 end do
 
 ! Calculate first approximation to diffusion coeffs
-km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-10)
+km=cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
 call updatekmo(kmo,km,zz,zzm) ! interpolate diffusion coeffs to internal half levels (zzm)
 
-! Calculate transport term
+! Calculate transport term on full levels
 do k=2,kl-1
   ppt(:,k)=(kmo(:,k)*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k) &
            -kmo(:,k-1)*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1))/dz_fl(:,k)
@@ -210,7 +209,7 @@ end do
 ppt(:,kl)=0.
 ppt=ppt/km(:,2:kl)
 
-! Calculate shear term
+! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
 pps(:,2:kl-1)=shear(:,2:kl-1)
 pps(:,kl)=0.
 
@@ -225,11 +224,8 @@ gamqt=0.
 gamqv=0.
 tlup=thetal
 qtup=qtot
-wstar=0.
-where (wtv0.gt.0.)
-  wstar=(grav*zi*wtv0/thetav(:,1))**(1./3.)
-end where
-if (mode.ne.1) then ! mass flux when mode is an even number
+wstar=(grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)
+if (mode.ne.1) then ! mass flux
   do i=1,ifull
     if (wtv0(i).gt.0.) then ! unstable
       pres(:)=ps(i)*sig(:) ! pressure
@@ -246,17 +242,17 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         klcl=kl+1
         zilcl=zidry
         mflx(i,:)=0.
-        ! entrainment rate
+        ! entrainment rate from Angevine et al 2010
         ee=2./max(100.,zidry)
         ! first level -----------------
         ! initial thermodynamic state
         tlup(i,1)=thetal(i,1)+be*wt0(i)/sqrt(tke(i,1)) ! Hurley 2007
         qtup(i,1)=qtot(i,1)  +be*wq0(i)/sqrt(tke(i,1)) ! Hurley 2007
         ! diagnose thermodynamic variables assuming no condensation
-        thup(1)=tlup(i,1)                                     ! theta,up
-        tvup(1)=thup(1)+theta(i,1)*0.61*qtup(i,1)             ! thetav,up
-        ttup(1)=thup(1)/sigkap(1)                             ! temp,up
-        call getqsat(1,qupsat(1),ttup(1),pres(1))             ! estimate of saturated mixing ratio in plume
+        thup(1)=tlup(i,1)                                ! theta,up
+        tvup(1)=thup(1)+theta(i,1)*0.61*qtup(i,1)        ! thetav,up
+        ttup(1)=thup(1)/sigkap(1)                        ! temp,up
+        call getqsat(1,qupsat(1),ttup(1),pres(1))        ! estimate of saturated mixing ratio in plume
         ! update updraft velocity and mass flux
         !nn=grav*wtv0(i)/thetav(i,1)
         !w2up(1)=2.*zz(i,1)*b2*nn/(1.+2.*zz(i,1)*b1*ee)  ! Hurley 2007
@@ -272,12 +268,11 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         end if
         
         ! dry convection case
-        zidry=zz(i,kl)
         do k=2,kl-1
           dzht=dz_hl(i,k-1)
           zht=zz(i,k)
-          ! update detrainment rate
-          dtr=ee+0.05/max(zidry-zht,0.1)
+          ! update detrainment rate from Angevine et al 2010
+          dtr=ee+0.05/max(zidry-zht,0.001)
           ! update thermodynamics of plume
           ! (use upwind as centred scheme requires vertical spacing less than 250m)
           tlup(i,k)=(tlup(i,k-1)+dzht*ee*thetal(i,k))/(1.+dzht*ee)
@@ -305,11 +300,11 @@ if (mode.ne.1) then ! mass flux when mode is an even number
           ! test if maximum plume height is reached
           if (w2up(k).le.0.) then
             if (k.gt.2) then ! use quadratic interpolation
-              bs=1./(zz(i,k)-zz(i,k-2))*                                              &
-                  ((zz(i,k-1)-zz(i,k-2))*(w2up(k)-w2up(k-1))/(zz(i,k)-zz(i,k-1))      &
+              bs=1./(zz(i,k)-zz(i,k-2))*                                            &
+                  ((zz(i,k-1)-zz(i,k-2))*(w2up(k)-w2up(k-1))/(zz(i,k)-zz(i,k-1))    &
                   +(zz(i,k)-zz(i,k-1))*(w2up(k-1)-w2up(k-2))/(zz(i,k-1)-zz(i,k-2)))
-              as=1./(zz(i,k)-zz(i,k-2))*                           &
-                  ((w2up(k)-w2up(k-1))/(zz(i,k)-zz(i,k-1))         &
+              as=1./(zz(i,k)-zz(i,k-2))*                        &
+                  ((w2up(k)-w2up(k-1))/(zz(i,k)-zz(i,k-1))      &
                   -(w2up(k-1)-w2up(k-2))/(zz(i,k-1)-zz(i,k-2)))            
               cs=w2up(k-1)
               if (as.eq.0.) then
@@ -333,12 +328,11 @@ if (mode.ne.1) then ! mass flux when mode is an even number
         end do
 
         ! shallow convection case
-        zi(i)=zz(i,kl)
         do k=klcl,kl-1
           qupsat(k)=newsat(k)
           dzht=dz_hl(i,k-1)
           zht=zz(i,k)
-          ! update detrainment rate
+          ! update detrainment rate for cloudly air from Angevine et al 2010
           xp=max(zi(i)-zilcl,0.1)
           xp=8.*min(zht-zilcl,xp)/xp-16./3.
           dtr=max(0.9*ee+0.006/pi*(atan(xp)+0.5*pi),ee)
@@ -355,7 +349,7 @@ if (mode.ne.1) then ! mass flux when mode is an even number
             call getqsat(1,newsat(k),ttup(k),pres(k))            ! estimate of saturated mixing ratio in plume
             qupsat(k)=alpha3*newsat(k)+(1.-alpha3)*qupsat(k)
           end do
-          tvup(k)=thup(k)+theta(i,k)*(1.61*qvup(k)-qtup(i,k))  ! thetav,up
+          tvup(k)=thup(k)+theta(i,k)*(1.61*qvup(k)-qtup(i,k))    ! thetav,up
           ! calculate buoyancy
           nn=grav*(tvup(k)-thetav(i,k))/thetav(i,k)
           ! update updraft velocity

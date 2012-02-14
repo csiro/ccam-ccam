@@ -24,7 +24,7 @@ integer, parameter :: salfilt=0    ! additional salinity filter (0=off, 1=Katzfe
 integer, parameter :: usetide=1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode=2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: basinmd=1    ! basin mode (0=soil, 1=global)
-real, parameter :: k_smag=0.4      ! horizontal diffusion (0.4 in mom3, 2. in Griffies (2000))
+real, parameter :: k_smag=1.       ! horizontal diffusion (2. in Griffies (2000), 0.7-1. in POM (Mellor 2004))
 real, parameter :: rhosn =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic =900.     ! density ice  (kg m^-3)
 real, parameter :: grav  =9.80616  ! gravitational constant (m s^-2)
@@ -592,13 +592,13 @@ real, dimension(ifull) :: nip,ipmax,imu,imv
 real, dimension(ifull) :: sue,suw,svn,svs
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,qps
 real, dimension(ifull+iextra,wlev) :: cou,cov,cow
-real, dimension(ifull+iextra,wlev) :: rhobar,rho,alphabar,betabar
+real, dimension(ifull+iextra,wlev) :: rhobar,rho,dalpha,dbeta
 real, dimension(ifull+iextra,4) :: nit
 real, dimension(ifull+iextra,1) :: sku,skv
 real, dimension(ifull,1) :: uiu,uiv,siu,siv,sju,sjv
 real, dimension(ifull,2) :: stwgt
 real, dimension(ifull,4) :: i_it
-real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,dum,dz,dalpha,dbeta
+real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,dum,dz
 real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav,dou,dov,tau,tav
 real, dimension(ifull,wlev) :: kku,llu,mmu,nnu
 real, dimension(ifull,wlev) :: kkv,llv,mmv,nnv
@@ -825,7 +825,7 @@ oldv1=nv(1:ifull,:)
 ! (Assume free surface correction is small so that changes in the compression 
 ! effect due to neta can be neglected.  Consequently, the neta dependence is 
 ! separable in the iterative loop)
-call mloexpdensity(rho(1:ifull,:),dalpha,dbeta,nt(1:ifull,:),ns(1:ifull,:),depdum,dzdum,pice(1:ifull),0)
+call mloexpdensity(rho(1:ifull,:),dalpha(1:ifull,:),dbeta(1:ifull,:),nt(1:ifull,:),ns(1:ifull,:),depdum,dzdum,pice(1:ifull),0)
 call bounds(rho)
 rhobar(:,1)=(rho(:,1)-1030.)*godsig(1)
 do ii=2,wlev
@@ -876,21 +876,27 @@ end do
 !call bounds(rhobarm,corner=.true.)
 !call pomdelta(rhobarm,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 ! method 3: Use POM stencil with potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
-alphabar(1:ifull,1)=dalpha(:,1)*godsig(1)
-betabar(1:ifull,1)=dbeta(:,1)*godsig(1)
-do ii=2,wlev
-  alphabar(1:ifull,ii)=alphabar(1:ifull,ii-1)+dalpha(:,ii)*godsig(ii)
-  betabar(1:ifull,ii)=betabar(1:ifull,ii-1)+dbeta(:,ii)*godsig(ii)
-end do
-do ii=1,wlev
-  alphabar(1:ifull,ii)=alphabar(1:ifull,ii)/gosigh(ii)
-  betabar(1:ifull,ii)=betabar(1:ifull,ii)/gosigh(ii)
-end do
-call bounds(alphabar)
-call bounds(betabar)
+call bounds(dalpha)
+call bounds(dbeta)
 call bounds(nt,corner=.true.)
 call bounds(ns,corner=.true.)
-call tsjacobi(nt,ns,alphabar,betabar,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+call tsjacobi(nt,ns,dalpha,dbeta,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+drhobardxu(:,1)=drhobardxu(:,1)*godsig(1)
+drhobardxv(:,1)=drhobardxv(:,1)*godsig(1)
+drhobardyu(:,1)=drhobardyu(:,1)*godsig(1)
+drhobardyv(:,1)=drhobardyv(:,1)*godsig(1)
+do ii=2,wlev
+  drhobardxu(:,ii)=drhobardxu(:,ii-1)+drhobardxu(:,ii)*godsig(ii)
+  drhobardxv(:,ii)=drhobardxv(:,ii-1)+drhobardxv(:,ii)*godsig(ii)
+  drhobardyu(:,ii)=drhobardyu(:,ii-1)+drhobardyu(:,ii)*godsig(ii)
+  drhobardyv(:,ii)=drhobardyv(:,ii-1)+drhobardyv(:,ii)*godsig(ii)
+end do
+do ii=1,wlev
+  drhobardxu(:,ii)=drhobardxu(:,ii)/gosigh(ii)
+  drhobardxv(:,ii)=drhobardxv(:,ii)/gosigh(ii)
+  drhobardyu(:,ii)=drhobardyu(:,ii)/gosigh(ii)
+  drhobardyv(:,ii)=drhobardyv(:,ii)/gosigh(ii)
+end do
 
 
 ! Advect continuity equation to tstar
@@ -989,21 +995,27 @@ end do
 
 ! update normalised density gradients
 ! method 3
-alphabar(1:ifull,1)=dalpha(:,1)*godsig(1)
-betabar(1:ifull,1)=dbeta(:,1)*godsig(1)
-do ii=2,wlev
-  alphabar(1:ifull,ii)=alphabar(1:ifull,ii-1)+dalpha(:,ii)*godsig(ii)
-  betabar(1:ifull,ii)=betabar(1:ifull,ii-1)+dbeta(:,ii)*godsig(ii)
-end do
-do ii=1,wlev
-  alphabar(1:ifull,ii)=alphabar(1:ifull,ii)/gosigh(ii)
-  betabar(1:ifull,ii)=betabar(1:ifull,ii)/gosigh(ii)
-end do
-call bounds(alphabar)
-call bounds(betabar)
+call bounds(dalpha)
+call bounds(dbeta)
 call bounds(nt,corner=.true.)
 call bounds(ns,corner=.true.)
-call tsjacobi(nt,ns,alphabar,betabar,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+call tsjacobi(nt,ns,dalpha,dbeta,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+drhobardxu(:,1)=drhobardxu(:,1)*godsig(1)
+drhobardxv(:,1)=drhobardxv(:,1)*godsig(1)
+drhobardyu(:,1)=drhobardyu(:,1)*godsig(1)
+drhobardyv(:,1)=drhobardyv(:,1)*godsig(1)
+do ii=2,wlev
+  drhobardxu(:,ii)=drhobardxu(:,ii-1)+drhobardxu(:,ii)*godsig(ii)
+  drhobardxv(:,ii)=drhobardxv(:,ii-1)+drhobardxv(:,ii)*godsig(ii)
+  drhobardyu(:,ii)=drhobardyu(:,ii-1)+drhobardyu(:,ii)*godsig(ii)
+  drhobardyv(:,ii)=drhobardyv(:,ii-1)+drhobardyv(:,ii)*godsig(ii)
+end do
+do ii=1,wlev
+  drhobardxu(:,ii)=drhobardxu(:,ii)/gosigh(ii)
+  drhobardxv(:,ii)=drhobardxv(:,ii)/gosigh(ii)
+  drhobardyu(:,ii)=drhobardyu(:,ii)/gosigh(ii)
+  drhobardyv(:,ii)=drhobardyv(:,ii)/gosigh(ii)
+end do
 
 ! FREE SURFACE CALCULATION ----------------------------------------
 
