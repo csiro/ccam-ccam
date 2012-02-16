@@ -92,7 +92,6 @@ real, dimension(:), allocatable, save :: p_tscrn,p_qscrn,p_uscrn,p_u10,p_emiss
 
 ! model parameters
 integer, parameter :: nmlfile=0       ! Read configuration from nml file (0=off, >0 unit number (default=11))
-integer, save :: surffile=0           ! Write surface data to file (0=off, >0 unit number (default=11))
 integer, save :: resmeth=1            ! Canyon sensible heat transfer (0=Masson, 1=Harman (varying width), 2=Kusaka, 3=Harman (fixed width))
 integer, save :: useonewall=0         ! Combine both wall energy budgets into a single wall (0=two walls, 1=single wall) 
 integer, save :: zohmeth=1            ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003*zom)
@@ -104,25 +103,25 @@ integer, save :: wbrelaxc=0           ! Relax canyon soil moisture for irrigatio
 integer, save :: wbrelaxr=0           ! Relax roof soil moisture for irrigation (0=Off, 1=On)
 integer, save :: iqt=314              ! Diagnostic point (in terms of host grid)
 ! sectant solver parameters
-integer, save :: nfgits=4             ! Maximum number of iterations for calculating sensible heat flux (default=4)
-integer, save :: negits=2             ! Maximum number of iterations for calculating latent heat flux (default=2)
+integer, save :: nfgits=6             ! Maximum number of iterations for calculating sensible heat flux (default=4)
+integer, save :: negits=3             ! Maximum number of iterations for calculating latent heat flux (default=2)
 real, save    :: tol=0.001            ! Sectant method tolarance for sensible heat flux
 real, save    :: tolqg=1.E-8          ! Sectant method tolarance for latent heat flux
 real, save    :: alpha=0.7            ! Weighting for determining the rate of convergence when calculating canyon temperatures
 ! physical parameters
-real, save :: waterden=1000.          ! water density (kg m^-3)
-real, save :: icelambda=2.22          ! conductance of ice (W m^-1 K^-1)
-real, save :: aircp=1004.64           ! Heat capapcity of dry air (J kg^-1 K^-1)
-real, save :: icecp=2100.             ! Heat capacity of ice (J kg^-1 K^-1)
-real, save :: grav=9.80616            ! gravity (m s^-2)
-real, save :: vkar=0.4                ! von Karman constant
-real, save :: lv=2.501e6              ! Latent heat of vaporisation (J kg^-1)
-real, save :: lf=3.337e5              ! Latent heat of fusion (J kg^-1)
-real, save :: ls=2.8347e6             ! Latent heat of sublimation (J kg^-1)
-real, save :: pi=3.1415927            ! pi
-real, save :: rd=287.04               ! Gas constant for dry air
-real, save :: rv=461.5                ! Gas constant for water vapor
-real, save :: sbconst=5.67e-8         ! Stefan-Boltzmann constant
+real, parameter :: waterden=1000.     ! water density (kg m^-3)
+real, parameter :: icelambda=2.22     ! conductance of ice (W m^-1 K^-1)
+real, parameter :: aircp=1004.64      ! Heat capapcity of dry air (J kg^-1 K^-1)
+real, parameter :: icecp=2100.        ! Heat capacity of ice (J kg^-1 K^-1)
+real, parameter :: grav=9.80616       ! gravity (m s^-2)
+real, parameter :: vkar=0.4           ! von Karman constant
+real, parameter :: lv=2.501e6         ! Latent heat of vaporisation (J kg^-1)
+real, parameter :: lf=3.337e5         ! Latent heat of fusion (J kg^-1)
+real, parameter :: ls=lv+lf           ! Latent heat of sublimation (J kg^-1)
+real, parameter :: pi=3.1415927       ! pi
+real, parameter :: rd=287.04          ! Gas constant for dry air
+real, parameter :: rv=461.5           ! Gas constant for water vapor
+real, parameter :: sbconst=5.67e-8    ! Stefan-Boltzmann constant
 ! snow parameters
 real, save :: zosnow=0.001            ! Roughness length for snow (m)
 real, save :: snowemiss=1.            ! snow emissitivity
@@ -287,9 +286,6 @@ v_moistc=0.5*(f_ssat+f_swilt)
 v_watrc=0.
 v_moistr=f_swilt
 v_watrr=0.
-
-! set-up relationships
-ls=lf+lv
 
 return
 end subroutine atebinit
@@ -490,15 +486,15 @@ real, dimension(maxtype,3) :: croadlambda=reshape((/ 0.7454, 0.7454, 0.7454, 0.7
 ! Roughness length of in-canyon vegetation (m)
 real, dimension(maxtype) ::    czovegc=(/   0.1,   0.1,   0.1,   0.1,   0.1,   0.1,   0.1,   0.1 /)
 ! In-canyon vegetation LAI
-real, dimension(maxtype) ::  cvegrlaic=(/   3.0,   3.0,   3.0,   3.0,   3.0,   3.0,   3.0,   3.0 /)
+real, dimension(maxtype) ::  cvegrlaic=(/   2.0,   2.0,   2.0,   2.0,   2.0,   2.0,   2.0,   2.0 /)
 ! Unconstrained canopy stomatal resistance
-real, dimension(maxtype) :: cvegrsminc=(/ 230.0, 230.0, 230.0, 230.0, 230.0, 230.0, 230.0, 230.0 /)
+real, dimension(maxtype) :: cvegrsminc=(/ 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0 /)
 ! Roughness length of green roof vegetation (m)
 real, dimension(maxtype) ::    czovegr=(/   0.1,   0.1,   0.1,   0.1,   0.1,   0.1,   0.1,   0.1 /)
 ! Green roof vegetation LAI
-real, dimension(maxtype) ::  cvegrlair=(/   1.2,   1.2,   1.2,   1.2,   1.2,   1.2,   1.2,   1.2 /)
+real, dimension(maxtype) ::  cvegrlair=(/   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0,   1.0 /)
 ! Unconstrained canopy stomatal resistance
-real, dimension(maxtype) :: cvegrsminr=(/ 230.0, 230.0, 230.0, 230.0, 230.0, 230.0, 230.0, 230.0 /)
+real, dimension(maxtype) :: cvegrsminr=(/ 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0 /)
 ! Soil wilting point (m^3 m^-3)
 real, dimension(maxtype) ::     cswilt=(/  0.18,  0.18,  0.18,  0.18,  0.18,  0.18,  0.18,  0.18 /)
 ! Soil field capacity (m^3 m^-3)
@@ -506,7 +502,7 @@ real, dimension(maxtype) ::       csfc=(/  0.26,  0.26,  0.26,  0.26,  0.26,  0.
 ! Soil saturation point (m^3 m^-3)
 real, dimension(maxtype) ::      cssat=(/  0.42,  0.42,  0.42,  0.42,  0.42,  0.42,  0.42,  0.42 /)
                                                      
-namelist /atebnml/  surffile,resmeth,useonewall,zohmeth,acmeth,nrefl,vegmode,scrnmeth,wbrelaxc,wbrelaxr,iqt
+namelist /atebnml/  resmeth,useonewall,zohmeth,acmeth,nrefl,vegmode,scrnmeth,wbrelaxc,wbrelaxr,iqt
 namelist /atebsnow/ zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden
 namelist /atebgen/  refheight,zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf
 namelist /atebtile/ czovegc,cvegrlaic,cvegrsminc,czovegr,cvegrlair,cvegrsminr,cswilt,csfc,cssat,       &
@@ -1263,8 +1259,8 @@ end where
 ! water and snow cover fractions
 d_roofdelta=(rf_water/maxrfwater)**(2./3.)
 d_roaddelta=(rd_water/maxrdwater)**(2./3.)
-d_vegdeltac=(v_watrc/maxvwatf*f_vegrlaic)**(2./3.)
-d_vegdeltar=(v_watrr/maxvwatf*f_vegrlair)**(2./3.)
+d_vegdeltac=(v_watrc/(maxvwatf*f_vegrlaic))**(2./3.)
+d_vegdeltar=(v_watrr/(maxvwatf*f_vegrlair))**(2./3.)
 d_rfsndelta=rf_snow/(rf_snow+maxrfsn)
 d_rdsndelta=rd_snow/(rd_snow+maxrdsn)
 
@@ -1326,7 +1322,7 @@ p_emiss=f_sigmabld*n+(1.-f_sigmabld)*(2.*f_wallemiss*f_hwratio*d_cwa+d_netemiss*
 
 ! estimate in-canyon surface roughness length
 dis=max(max(max(0.1*f_bldheight,zocanyon+0.1),f_zovegc+0.1),zosnow+0.1)
-zolog=1./sqrt(d_rdsndelta/log(dis/zosnow)**2           &
+zolog=1./sqrt(d_rdsndelta/log(dis/zosnow)**2             &
      +(1.-d_rdsndelta)*(f_sigmavegc/log(dis/f_zovegc)**2 &
      +(1.-f_sigmavegc)/log(dis/zocanyon)**2))
 zonet=dis*exp(-zolog)
@@ -1376,15 +1372,11 @@ select case(resmeth)
     acond_rdsn=a*wr                  ! road snow bulk transfer
   case(2) ! Kusaka et al (2001)
     cu=exp(-0.25*f_hwratio)
-    where (cu.le.5.)
-      acond_road=6.15+4.18*cu
-    elsewhere
-      acond_road=7.51*cu**0.78
-    end where
-    acond_walle=acond_road
-    acond_wallw=acond_road
-    acond_rdsn=acond_road
-    acond_vegc=acond_road
+    acond_road=cu ! bulk transfer coefficents are updated in solvecanyon
+    acond_walle=cu
+    acond_wallw=cu
+    acond_rdsn=cu
+    acond_vegc=cu
 end select
 
 ! join two walls into a single wall (testing only)
@@ -2547,7 +2539,7 @@ real, dimension(cn), intent(out) :: evct
 real, dimension(cn), intent(in) :: rdsntemp,wallpsi,roadpsi,ldratio
 real, dimension(cn) :: roadqsat,rdsnqsat,fgtop
 real, dimension(cn) :: vegqsat,res,f1,f2,f3,f4,ff
-real, dimension(cn) :: dumroaddelta,dumvegdelta
+real, dimension(cn) :: dumroaddelta,dumvegdelta,cu
 real, dimension(cn) :: newcanyonmix,oldcanyonmix,evctmx,evctmxdif
 real, dimension(cn) :: z_on_l,dts,dtt,effbldheight,effhwratio,effwalle,effwallw,effvegc,effroad,effrdsn
 real, dimension(cn), intent(in) :: sg_vegc
@@ -2600,6 +2592,17 @@ do ic=1,negits
     acond_wallw=acond_road
     acond_rdsn=acond_road
     acond_vegc=acond_road
+  else if (resmeth.eq.2) then
+    cu=acond_road*d_topu
+    where (cu.le.5.)
+      acond_road=(6.15+4.18*cu)/(aircp*a_rho)
+    elsewhere
+      acond_road=(7.51*cu**0.78)/(aircp*a_rho)
+    end where
+    acond_walle=acond_road
+    acond_wallw=acond_road
+    acond_rdsn=acond_road
+    acond_vegc=acond_road
   end if
 
   ! correction for dew
@@ -2615,7 +2618,7 @@ do ic=1,negits
   endwhere
   ! remaining transpiration terms
   f3=max(1.-.00025*(vegqsat-d_canyonmix)*d_sigd/0.622,0.05)
-  res=max(30.,if_vegrsminc*f1/(f2*f3*f4))
+  res=max(30.,if_vegrsminc*f1*f2/(f3*f4))
   ! balance canyon latent heat budget
   d_canyonmix=(d_rdsndelta*rdsnqsat*acond_rdsn*d_topu                                                          &
          +(1.-d_rdsndelta)*((1.-f_sigmavegc)*dumroaddelta*roadqsat*acond_road*d_topu                           &
@@ -2650,16 +2653,16 @@ rg_wallw=effwallw*effbldheight+sbconst*(d_netrad-if_wallemiss*iww_temp**4)*(1.-e
 effroad=if_roademiss*(a_rg*d_cra+sbconst*(d_netrad*d_crr-ird_temp**4) &
                   +sbconst*if_wallemiss*(iwe_temp**4+iww_temp**4)*d_crw)
 rg_road=effroad+sbconst*(if_wallemiss*(iwe_temp**4+iww_temp**4) &
-                  -if_roademiss*ird_temp**4)*if_hwratio*(1.-effbldheight)
+                  -2.*if_roademiss*ird_temp**4)*if_hwratio*(1.-effbldheight)
 effvegc=if_vegemissc*(a_rg*d_cra+sbconst*(d_netrad*d_crr-ip_vegtempc**4) &
                   +sbconst*if_wallemiss*(iwe_temp**4+iww_temp**4)*d_crw)
 rg_vegc=effvegc+sbconst*(if_wallemiss*(iwe_temp**4+iww_temp**4) &
-                  -if_vegemissc*ip_vegtempc**4)*if_hwratio*(1.-effbldheight)
+                  -2.*if_vegemissc*ip_vegtempc**4)*if_hwratio*(1.-effbldheight)
 where (d_rdsndelta.gt.0.)
   effrdsn=snowemiss*(a_rg*d_cra+sbconst*(-rdsntemp**4+d_netrad*d_crr) &
                     +sbconst*if_wallemiss*(iwe_temp**4+iww_temp**4)*d_crw)
   rg_rdsn=effrdsn+sbconst*(if_wallemiss*(iwe_temp**4+iww_temp**4) &
-                    -snowemiss*rdsntemp**4)*if_hwratio*(1.-effbldheight)
+                    -2.*snowemiss*rdsntemp**4)*if_hwratio*(1.-effbldheight)
 elsewhere
   effrdsn=0.
   rg_rdsn=0.

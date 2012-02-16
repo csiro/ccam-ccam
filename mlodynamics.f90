@@ -24,7 +24,7 @@ integer, parameter :: salfilt=0    ! additional salinity filter (0=off, 1=Katzfe
 integer, parameter :: usetide=1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode=2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: basinmd=1    ! basin mode (0=soil, 1=global)
-real, parameter :: k_smag=1.       ! horizontal diffusion (2. in Griffies (2000), 0.7-1. in POM (Mellor 2004))
+real, parameter :: k_smag=0.7      ! horizontal diffusion (2. in Griffies (2000), 0.7-1. in POM (Mellor 2004))
 real, parameter :: rhosn =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic =900.     ! density ice  (kg m^-3)
 real, parameter :: grav  =9.80616  ! gravitational constant (m s^-2)
@@ -163,14 +163,12 @@ integer k,i,iq
 real hdif,xp
 real, dimension(ifull+iextra,0:wlev) :: uhl,vhl,dephladj
 real, dimension(ifull+iextra,wlev) :: u,v
-real, dimension(ifull+iextra,wlev) :: t_kh,xfact,yfact
-real, dimension(ifull+iextra,wlev) :: uc,vc,wc,gg
+real, dimension(ifull+iextra,wlev) :: t_kh,xfact,yfact,gg
 real, dimension(ifull,wlev) :: ff,base
 real, dimension(ifull+iextra) :: odum
 real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
-real, dimension(ifull) :: eta,cc
+real, dimension(ifull) :: eta,cc,emi,nu,nv
 real, dimension(ifull) :: s1,s2,s3,s4,z1,z2,z3,z4
-real, dimension(ifull) :: emi,ucc,vcc,wcc
 logical, dimension(ifull+iextra) :: wtr
 
 hdif=dt*(k_smag/pi)**2
@@ -228,7 +226,7 @@ end do
 uhl(:,wlev)=0.
 vhl(:,wlev)=0.
 
-! calculate diffusion
+! calculate Smagorinsky diffusion
 do k=1,wlev
 
   ! estimate velocity gradients using POM stencile
@@ -264,19 +262,11 @@ do k=1,wlev
   s4=vhl(isv,k)
   dvdy=0.25*((s1+s2-s3-s4)-(s2-s1+s4-s3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
 
-  ! transform to cartesian coordinates
-  uc(1:ifull,k) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
-  vc(1:ifull,k) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
-  wc(1:ifull,k) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
-
   ! Smagorinsky
   cc=(dudx-dvdy)**2+(dudy+dvdx)**2
   t_kh(1:ifull,k)=sqrt(cc)*hdif*emi  ! this one with em in D terms
 
 end do
-call bounds(uc)
-call bounds(vc)
-call bounds(wc)
 call bounds(t_kh)
   
 ! convert to staggered coordinates
@@ -288,35 +278,25 @@ do k=1,wlev
 end do
 call boundsuv(xfact,yfact)
 
-! update momentum variables
+! viscosity terms
 do k=1,wlev
-  
-  base(:,k) = ( emi +                &
-                xfact(1:ifull,k) +   & 
-                xfact(iwu,k) +       &
-                yfact(1:ifull,k) +   &
-                yfact(isv,k) )
 
-  ucc = ( uc(1:ifull,k)*emi +                 &
-          xfact(1:ifull,k)*uc(ie,k) +         &
-          xfact(iwu,k)*uc(iw,k) +             &
-          yfact(1:ifull,k)*uc(in,k) +         &
-          yfact(isv,k)*uc(is,k) ) / base(:,k)
-  vcc = ( vc(1:ifull,k)*emi +                 &
-          xfact(1:ifull,k)*vc(ie,k) +         &
-          xfact(iwu,k)*vc(iw,k) +             &
-          yfact(1:ifull,k)*vc(in,k) +         &
-          yfact(isv,k)*vc(is,k) ) / base(:,k)
-  wcc = ( wc(1:ifull,k)*emi +                 &
-          xfact(1:ifull,k)*wc(ie,k) +         &
-          xfact(iwu,k)*wc(iw,k) +             &
-          yfact(1:ifull,k)*wc(in,k) +         &
-          yfact(isv,k)*wc(is,k) ) / base(:,k)
-  u(1:ifull,k) = ax(1:ifull)*ucc + ay(1:ifull)*vcc + az(1:ifull)*wcc
-  v(1:ifull,k) = bx(1:ifull)*ucc + by(1:ifull)*vcc + bz(1:ifull)*wcc
-  
-  call mloimport(2,u(1:ifull,k),k,0)
-  call mloimport(3,v(1:ifull,k),k,0)
+  base(:,k)=(emi+xfact(1:ifull,k)+xfact(iwu,k) &
+                +yfact(1:ifull,k)+yfact(isv,k))
+
+  nu=(u(1:ifull,k)*emi+2.*xfact(1:ifull,k)*u(ieu,k)+2.*xfact(iwu,k)*u(iwu,k) &
+    +yfact(1:ifull,k)*u(inu,k)+yfact(isv,k)*u(isu,k)                         &
+    +(yfact(1:ifull,k)-yfact(isv,k))*0.5*(v(iev,k)-v(iwv,k))                 &
+    +t_kh(1:ifull,k)*0.5*(v(inv,k)+v(iev,k)-v(isv,k)-v(iwv,k)))              &
+    /(emi+2.*xfact(1:ifull,k)+2.*xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k))
+  nv=(v(1:ifull,k)*emi+2.*yfact(1:ifull,k)*v(inv,k)+2.*yfact(isv,k)*v(isv,k) &
+    +xfact(1:ifull,k)*v(iev,k)+xfact(iwu,k)*v(iwv,k)                         &
+    +(xfact(1:ifull,k)-xfact(iwu,k))*0.5*(u(inu,k)-u(isu,k))                 &
+    +t_kh(1:ifull,k)*0.5*(u(inu,k)+u(ieu,k)-u(isu,k)-u(iwu,k)))              &
+    /(emi+2.*yfact(1:ifull,k)+2.*yfact(isv,k)+xfact(1:ifull,k)+xfact(iwu,k))
+
+  call mloimport(2,nu,k,0)
+  call mloimport(3,nv,k,0)
 
 end do
 
