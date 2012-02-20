@@ -18,7 +18,7 @@
       use tracers_m
       use unn_m
       use vecsuv_m
-      use vvel_m, omgf => dpsldt
+      use vvel_m
       use work3sav_m
       use xarrs_m
       use xyzinfo_m
@@ -142,8 +142,8 @@
         write (6,"('sdot#  ',9f8.3)") diagvals(sdot(:,nlv)) 
         write (6,"('sdotn  ',9f8.3/7x,9f8.3)") sdot(idjd,1:kl)
         write (6,"('omgf#  ',9f8.3)") ((ps(ii+jj*il)*
-     &              omgf(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=-1,1)
-        write (6,"('omgfn  ',9f8.3/7x,9f8.3)") ps(idjd)*omgf(idjd,:)
+     &              dpsldt(ii+jj*il,nlv),ii=idjd-1,idjd+1),jj=-1,1)
+        write (6,"('omgfn  ',9f8.3/7x,9f8.3)") ps(idjd)*dpsldt(idjd,:)
         write (6,"('t   ',9f8.3/4x,9f8.3)")     t(idjd,:)
         write (6,"('u   ',9f8.3/4x,9f8.3)")     u(idjd,:)
         write (6,"('v   ',9f8.3/4x,9f8.3)")     v(idjd,:)
@@ -218,7 +218,7 @@ cx      enddo      ! k  loop
 
       if (diag)then
          call printa('sdot',sdot,ktau,nlv+1,ia,ib,ja,jb,0.,10.)
-         call printa('omgf',omgf,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
+         call printa('omgf',dpsldt,ktau,nlv,ia,ib,ja,jb,0.,1.e5)
          do iq=1,ifull
             aa(iq,1)=rata(nlv)*sdot(iq,nlv+1)+ratb(nlv)*sdot(iq,nlv)
          enddo
@@ -271,12 +271,12 @@ cx      enddo      ! k  loop
       if (nh.gt.0) then
         if (abs(epsp).le.1.) then
           ! MJT exact treatment of constant epsp terms
-          const_nh=2.*rdry/(dt*grav*grav*(1.+abs(epsp))*(1.-abs(epsp)))
+          const_nh=2.*rdry/(dt*grav*grav*(1.-epsp*epsp))
         else
           const_nh=2.*rdry/(dt*grav*grav)  
         end if
         do k=1,kl
-         h_nh(1:ifull,k)=(1.+epst(:))*tbar(1)*omgf(:,k)/sig(k)
+         h_nh(1:ifull,k)=(1.+epst(:))*tbar(1)*dpsldt(:,k)/sig(k)
         enddo
         if (nmaxpr==1) then
           if(mydiag)print *,'h_nh.a ',(h_nh(idjd,k),k=1,kl)
@@ -349,9 +349,9 @@ cx      enddo      ! k  loop
 
       do k=1,kl
        do iq=1,ifull
-        termlin=tbar2d(iq)*omgf(iq,k)*roncp/sig(k) ! full omgf used here
+        termlin=tbar2d(iq)*dpsldt(iq,k)*roncp/sig(k) ! full dpsldt used here
         tn(iq,k)=tn(iq,k)+(t(iq,k)+contv*tv(iq,k)-tbar2d(iq))
-     &           *omgf(iq,k)*roncp/sig(k) 
+     &           *dpsldt(iq,k)*roncp/sig(k) 
 !       add in  cnon*dt*tn(iq,k)  term at bottom
         tx(iq,k)=t(iq,k) +.5*dt*(1.-epst(iq))*termlin  
 cy      tx(iq,k)=.5*dt*termlin  ! t and epst later  cy
@@ -361,9 +361,9 @@ cy      tx(iq,k)=.5*dt*termlin  ! t and epst later  cy
         iq=idjd
         k=nlv
         print *,'contv,tbar2d,termlin_nlv ',
-     &           contv,tbar2d(iq),tbar2d(iq)*omgf(iq,k)*roncp/sig(k)
+     &           contv,tbar2d(iq),tbar2d(iq)*dpsldt(iq,k)*roncp/sig(k)
         print *,'tv,tn ',tv(iq,k),tn(iq,k)
-c       print *,'termx ',(t(iq,k)+contv*tvv)*omgf(iq,k)*roncp/sig(k)
+c       print *,'termx ',(t(iq,k)+contv*tvv)*dpsldt(iq,k)*roncp/sig(k)
       endif
                
 !     calculate augmented geopotential height terms and save in p

@@ -47,7 +47,6 @@ c     &    ,az4(1+4*abs(ik),1+4*abs(ik))
      &    ,az4(1+4*ik,1+4*ik)
      .    ,axx(ik*ik*6),ayy(ik*ik*6),azz(ik*ik*6)
      .    ,bxx(ik*ik*6),byy(ik*ik*6),bzz(ik*ik*6)
-      integer inw_g(ifull_g),ies_g(ifull_g),iws_g(ifull_g)  ! just for bdys
       real rlong0,rlat0,schmidt,schmidtin
       real rotpole(3,3)
       real*8 alf,den1,one,xx,yy,zz,x4_iq_m,y4_iq_m,z4_iq_m
@@ -166,10 +165,10 @@ c     print *,'isb ikk/2,n ',is_g(ind(ikk/2,1,n)),n
        ieu_g(iq)=ie_g(iq)     ! N.B. use for staguv3
        inv_g(iq)=in_g(iq)     ! N.B. use for staguv3
 !      following are extras not needed in model, just here for bdy values
-       inw_g(iq)=in_g(iw_g(iq)) ! in temporary arrays
-       isw_g(iq)=is_g(iw_g(iq)) ! in temporary arrays
-       ies_g(iq)=ie_g(is_g(iq)) ! in temporary arrays
-       iws_g(iq)=iw_g(is_g(iq)) ! in temporary arrays
+       inw_g(iq)=in_g(iw_g(iq))
+       isw_g(iq)=is_g(iw_g(iq))
+       ies_g(iq)=ie_g(is_g(iq))
+       iws_g(iq)=iw_g(is_g(iq))
       enddo    ! iq loop
 
       do n=0,npanels
@@ -209,8 +208,8 @@ c     print *,'iwa ikk/2,n ',iw_g(ind(1,ikk/2,n)),n
         do j=1,ikk
          iq=ind(1,j,n)
          iww_g(iq)=is_g(iw_g(iq))
-         inw_g(iq)=iw_g(iw_g(iq)) ! in temporary arrays
-         isw_g(iq)=ie_g(iw_g(iq)) ! in temporary arrays
+         inw_g(iq)=iw_g(iw_g(iq))
+         isw_g(iq)=ie_g(iw_g(iq))
          iwu2_g(iq)=iw_g(iq) + ifull_g   ! converts 2D u array into v array
          iwu_g(iq)=iw_g(iq) + ijk_g      ! converts 3D u array into v array
          iwwu2_g(iq)=iww_g(iq) + ifull_g ! converts 2D u array into v array
@@ -224,8 +223,8 @@ c     print *,'isa ikk/2,n ',is_g(ind(ikk/2,1,n)),n
         do i=1,ikk
          iq=ind(i,1,n)
          iss_g(iq)=iw_g(is_g(iq))
-         ies_g(iq)=is_g(is_g(iq)) ! in temporary arrays
-         iws_g(iq)=in_g(is_g(iq)) ! in temporary arrays
+         ies_g(iq)=is_g(is_g(iq))
+         iws_g(iq)=in_g(is_g(iq))
          isv2_g(iq)=is_g(iq) - ifull_g   ! converts 2D v array into u array
          isv_g(iq)=is_g(iq) - ijk_g      ! converts 3D v array into u array
          issv2_g(iq)=iss_g(iq) - ifull_g ! converts 2D v array into u array

@@ -35,7 +35,7 @@ real, dimension(:,:), allocatable, save :: tkesav,epssav
 ! model constants
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
-real, parameter :: be      = 0.3    ! Hurley (2007) 1., Soares et al (2004) 0.3
+real, parameter :: be      = 1.0    ! Hurley (2007) 1., Soares et al (2004) 0.3, Angevine (2005) 7.
 real, parameter :: cm      = 0.03   ! Hurley (2007) 0.09 (0.03 recommended by Ashok Luhar)
 real, parameter :: ce0     = 0.69
 real, parameter :: ce1     = 1.46
@@ -131,7 +131,7 @@ real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: wt0,wq0,ps,ustar
 real, dimension(kl), intent(in) :: sigkap,sig
 real, dimension(ifull,kl) :: km,ff,gg,templ,thetav,thetal,temp,qtot
-real, dimension(ifull,kl) :: gamtt,gamtl,gamtv,gamth,gamqt,gamqv
+real, dimension(ifull,kl) :: gamtt,gamtl,gamtv,gamth,gamqt,gamqv,gamhl
 real, dimension(ifull,kl) :: tkenew,epsnew,qsat,bb,cc,dd
 real, dimension(ifull,kl) :: mflx,tlup,qtup
 real, dimension(ifull,2:kl) :: aa,pps,ppt,ppb
@@ -572,26 +572,29 @@ km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-10)
 call updatekmo(kmo,km,zz,zzm) ! internal mid point levels
 
 ! Update thetal and qtot due to non-local and diffusion terms
-! (Here we use linear interpolation to determine the implicit counter gradient
-!  terms at half levels)
-cc(:,1)=-dt*(0.5*mflx(:,2)+kmo(:,1)/dz_hl(:,1))/dz_fl(:,1)
-bb(:,1)=1.-dt*(0.5*mflx(:,1)-kmo(:,1)/dz_hl(:,1))/dz_fl(:,1)
-dd(:,1)=thetal(:,1)-dt*0.5*(mflx(:,1)*tlup(:,1)+mflx(:,2)*tlup(:,2))/dz_fl(:,1)+dt*wt0/dz_fl(:,1)
+! (Here we use quadratic interpolation to determine the explicit
+! counter gradient terms)
+call updategam(gamhl,gamtl,zz,zzm,zi)
+cc(:,1)=-dt*kmo(:,1)/dz_hl(:,1)/dz_fl(:,1)
+bb(:,1)=1.+dt*kmo(:,1)/dz_hl(:,1)/dz_fl(:,1)
+dd(:,1)=thetal(:,1)-dt*gamhl(:,1)/dz_fl(:,1)+dt*wt0/dz_fl(:,1)
 do k=2,kl-2
-  aa(:,k)=dt*(0.5*mflx(:,k-1)-kmo(:,k-1)/dz_hl(:,k-1))/dz_fl(:,k)
-  cc(:,k)=-dt*(0.5*mflx(:,k+1)+kmo(:,k)/dz_hl(:,k))/dz_fl(:,k)
+  aa(:,k)=-dt*kmo(:,k-1)/dz_hl(:,k-1)/dz_fl(:,k)
+  cc(:,k)=-dt*kmo(:,k)/dz_hl(:,k)/dz_fl(:,k)
   bb(:,k)=1.+dt*(kmo(:,k-1)/dz_hl(:,k-1)+kmo(:,k)/dz_hl(:,k))/dz_fl(:,k)
-  dd(:,k)=thetal(:,k)+dt*0.5*(mflx(:,k-1)*tlup(:,k-1)-mflx(:,k+1)*tlup(:,k+1))/dz_fl(:,k)
+  dd(:,k)=thetal(:,k)+dt*(gamhl(:,k-1)-gamtl(:,k))/dz_fl(:,k)
 end do
-aa(:,kl-1)=dt*(0.5*mflx(:,kl-2)-kmo(:,kl-2)/dz_hl(:,kl-2))/dz_fl(:,kl-1)
-bb(:,kl-1)=1.+dt*(0.5*mflx(:,kl-1)+kmo(:,kl-2)/dz_hl(:,kl-2))/dz_fl(:,kl-1)
-dd(:,kl-1)=thetal(:,kl-1)+dt*0.5*(mflx(:,kl-2)*tlup(:,kl-2)+mflx(:,kl-1)*tlup(:,kl-1))/dz_fl(:,kl-1)
+aa(:,kl-1)=-dt*kmo(:,kl-2)/dz_hl(:,kl-2)/dz_fl(:,kl-1)
+bb(:,kl-1)=1.+dt*kmo(:,kl-2)/dz_hl(:,kl-2)/dz_fl(:,kl-1)
+dd(:,kl-1)=thetal(:,kl-1)+dt*gamhl(:,kl-2)/dz_fl(:,kl-1)
 call thomas(thetal(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
-dd(:,1)=qtot(:,1)-dt*0.5*(mflx(:,1)*qtup(:,1)+mflx(:,2)*qtup(:,2))/dz_fl(:,1)+dt*wq0/dz_fl(:,1)
+
+call updategam(gamhl,gamqt,zz,zzm,zi)
+dd(:,1)=qtot(:,1)-dt*gamhl(:,1)/dz_fl(:,1)+dt*wq0/dz_fl(:,1)
 do k=2,kl-2
-  dd(:,k)=qtot(:,k)+dt*0.5*(mflx(:,k-1)*qtup(:,k-1)-mflx(:,k+1)*qtup(:,k+1))/dz_fl(:,k)
+  dd(:,k)=qtot(:,k)+dt*(gamhl(:,k-1)-gamhl(:,k))/dz_fl(:,k)
 end do
-dd(:,kl-1)=qtot(:,kl-1)+dt*0.5*(mflx(:,kl-2)*qtup(:,kl-2)+mflx(:,kl-1)*qtup(:,kl-1))/dz_fl(:,kl-1)
+dd(:,kl-1)=qtot(:,kl-1)+dt*gamhl(:,kl-2)/dz_fl(:,kl-1)
 call thomas(qtot(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 
 qg=max(qtot-qlg-qfg,1.E-6)
@@ -764,6 +767,46 @@ kmo(:,kl)=2.E-7
 
 return
 end subroutine updatekmo
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Update mass flux coeffs at half levels
+
+subroutine updategam(gamhl,gamin,zz,zhl,zi)
+
+implicit none
+
+integer k
+real, dimension(ifull), intent(in) :: zi
+real, dimension(ifull,kl), intent(in) :: gamin,zz
+real, dimension(ifull,kl), intent(out) :: gamhl
+real, dimension(ifull,kl-1), intent(in) :: zhl
+real xp
+
+gamhl=0.
+gamhl(:,1)=gamin(:,2)+(zhl(:,1)-zz(:,2))/(zz(:,3)-zz(:,1))*                &
+           ((zz(:,2)-zz(:,1))*(gamin(:,3)-gamin(:,2))/(zz(:,3)-zz(:,2))    &
+           +(zz(:,3)-zz(:,2))*(gamin(:,2)-gamin(:,1))/(zz(:,2)-zz(:,1)))   &
+         +(zhl(:,1)-zz(:,2))**2/(zz(:,3)-zz(:,1))*                         &
+           ((gamin(:,3)-gamin(:,2))/(zz(:,3)-zz(:,2))                      &
+           -(gamin(:,2)-gamin(:,1))/(zz(:,2)-zz(:,1)))
+where (zhl(:,1).gt.zi)
+  gamhl(:,1)=0.
+end where
+do k=2,kl-1
+  gamhl(:,k)=gamin(:,k)+(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k-1))*                  &
+             ((zz(:,k)-zz(:,k-1))*(gamin(:,k+1)-gamin(:,k))/(zz(:,k+1)-zz(:,k))    &
+             +(zz(:,k+1)-zz(:,k))*(gamin(:,k)-gamin(:,k-1))/(zz(:,k)-zz(:,k-1)))   &
+           +(zhl(:,k)-zz(:,k))**2/(zz(:,k+1)-zz(:,k-1))*                           &
+             ((gamin(:,k+1)-gamin(:,k))/(zz(:,k+1)-zz(:,k))                        &
+             -(gamin(:,k)-gamin(:,k-1))/(zz(:,k)-zz(:,k-1)))
+  where (zhl(:,k).gt.zi)
+    gamhl(:,k)=0.
+  end where
+end do
+gamhl=max(gamhl,0.)
+
+return
+end subroutine updategam
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! End TKE-eps

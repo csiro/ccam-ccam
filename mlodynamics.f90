@@ -281,8 +281,7 @@ call boundsuv(xfact,yfact)
 ! viscosity terms
 do k=1,wlev
 
-  base(:,k)=(emi+xfact(1:ifull,k)+xfact(iwu,k) &
-                +yfact(1:ifull,k)+yfact(isv,k))
+  base(:,k)=emi+xfact(1:ifull,k)+xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k)
 
   nu=(u(1:ifull,k)*emi+2.*xfact(1:ifull,k)*u(ieu,k)+2.*xfact(iwu,k)*u(iwu,k) &
     +yfact(1:ifull,k)*u(inu,k)+yfact(isv,k)*u(isu,k)                         &
@@ -569,14 +568,14 @@ real, dimension(ifull) :: detadxu,detadyu,detadxv,detadyv
 real, dimension(ifull) :: dipdxu,dipdyu,dipdxv,dipdyv
 real, dimension(ifull) :: au,bu,cu,av,bv,cv,odum,oeu,oev
 real, dimension(ifull) :: nip,ipmax,imu,imv
-real, dimension(ifull) :: sue,suw,svn,svs
+real, dimension(ifull) :: sue,suw,svn,svs,snuw,snvs
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,qps
 real, dimension(ifull+iextra,wlev) :: cou,cov,cow
 real, dimension(ifull+iextra,wlev) :: rhobar,rho,dalpha,dbeta
 real, dimension(ifull+iextra,4) :: nit
+real, dimension(ifull+iextra,2) :: stwgt
 real, dimension(ifull+iextra,1) :: sku,skv
 real, dimension(ifull,1) :: uiu,uiv,siu,siv,sju,sjv
-real, dimension(ifull,2) :: stwgt
 real, dimension(ifull,4) :: i_it
 real, dimension(ifull,wlev) :: w_u,w_v,w_t,w_s,dum,dz
 real, dimension(ifull,wlev) :: nuh,nvh,xg,yg,uau,uav,dou,dov,tau,tav
@@ -612,11 +611,12 @@ wtr=ee.gt.0.5
 ! Precompute weights for calculating staggered gradients
 stwgt=0.
 where (wtr(in).and.wtr(ine).and.wtr(is).and.wtr(ise).and.wtr(ie))
-  stwgt(:,1)=1.
+  stwgt(1:ifull,1)=1.
 end where
 where (wtr(ie).and.wtr(ien).and.wtr(iw).and.wtr(iwn).and.wtr(in))
-  stwgt(:,2)=1.
+  stwgt(1:ifull,2)=1.
 end where
+call boundsuv(stwgt(:,1:1),stwgt(:,2:2))
 
 w_t=273.16
 w_s=34.72
@@ -680,8 +680,8 @@ if (usetide.eq.1) then
   tev=0.5*(ndum(ie)+ndum(ien))
   twv=0.5*(ndum(iw)+ndum(iwn))
   dttdxu=(ndum(ie)-ndum(1:ifull))*emu(1:ifull)/ds ! staggered
-  dttdyu=stwgt(:,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
-  dttdxv=stwgt(:,2)*0.5*(tev-twv)*emv(1:ifull)/ds
+  dttdyu=stwgt(1:ifull,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
+  dttdxv=stwgt(1:ifull,2)*0.5*(tev-twv)*emv(1:ifull)/ds
   dttdyv=(ndum(in)-ndum(1:ifull))*emv(1:ifull)/ds  
 else
   dttdxu=0.
@@ -726,8 +726,8 @@ tsu=0.5*(pice(is)+pice(ise))
 tev=0.5*(pice(ie)+pice(ien))
 twv=0.5*(pice(iw)+pice(iwn))
 dpsdxu=(pice(ie)-pice(1:ifull))*emu(1:ifull)/ds ! staggered at time t
-dpsdyu=stwgt(:,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
-dpsdxv=stwgt(:,2)*0.5*(tev-twv)*emv(1:ifull)/ds
+dpsdyu=stwgt(1:ifull,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
+dpsdxv=stwgt(1:ifull,2)*0.5*(tev-twv)*emv(1:ifull)/ds
 dpsdyv=(pice(in)-pice(1:ifull))*emv(1:ifull)/ds
 
 ! ADVECT WATER ----------------------------------------------------
@@ -835,8 +835,8 @@ end do
 !  drhobardxu(:,ii)=(rhobar(ie,ii)-rhobar(1:ifull,ii)+drhobardzu*((1.-gosig(ii))*(neta(ie)-neta(1:ifull)) &
 !                                                     -gosig(ii)*(dd(ie)-dd(1:ifull))))*emu(1:ifull)/ds
 !  drhobardxu(:,ii)=drhobardxu(:,ii)*eeu(1:ifull)                                                   
-!  drhobardyu(:,ii)=stwgt(:,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
-!  drhobardxv(:,ii)=stwgt(:,2)*0.5*(tev-twv)*emv(1:ifull)/ds
+!  drhobardyu(:,ii)=stwgt(1:ifull,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
+!  drhobardxv(:,ii)=stwgt(1:ifull,2)*0.5*(tev-twv)*emv(1:ifull)/ds
 !  drhobardyv(:,ii)=(rhobar(in,ii)-rhobar(1:ifull,ii)+drhobardzv*((1.-gosig(ii))*(neta(in)-neta(1:ifull)) &
 !                                                     -gosig(ii)*(dd(in)-dd(1:ifull))))*emv(1:ifull)/ds
 !  drhobardyv(:,ii)=drhobardyv(:,ii)*eev(1:ifull)
@@ -860,7 +860,7 @@ call bounds(dalpha)
 call bounds(dbeta)
 call bounds(nt,corner=.true.)
 call bounds(ns,corner=.true.)
-call tsjacobi(nt,ns,dalpha,dbeta,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+call tsjacobi(nt,ns,dalpha,dbeta,ndum,stwgt(1:ifull,:),drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 drhobardxu(:,1)=drhobardxu(:,1)*godsig(1)
 drhobardxv(:,1)=drhobardxv(:,1)*godsig(1)
 drhobardyu(:,1)=drhobardyu(:,1)*godsig(1)
@@ -979,7 +979,7 @@ call bounds(dalpha)
 call bounds(dbeta)
 call bounds(nt,corner=.true.)
 call bounds(ns,corner=.true.)
-call tsjacobi(nt,ns,dalpha,dbeta,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+call tsjacobi(nt,ns,dalpha,dbeta,ndum,stwgt(1:ifull,:),drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 drhobardxu(:,1)=drhobardxu(:,1)*godsig(1)
 drhobardxv(:,1)=drhobardxv(:,1)*godsig(1)
 drhobardyu(:,1)=drhobardyu(:,1)*godsig(1)
@@ -1113,6 +1113,7 @@ end do
 call boundsuv(sou,sov)
 call boundsuv(spu,spv)
 call boundsuv(squ,sqv)
+call boundsuv(sru,srv)
 
 ! prep gradient terms
 odiv=(sou(1:ifull)/emu(1:ifull)-sou(iwu)/emu(iwu)  &
@@ -1148,21 +1149,16 @@ do ll=1,llmax
   ! 9-point version -----------------------------------------------
 
   call bounds(neta,corner=.true.)
-  tnu=0.5*(neta(in)+neta(ine))
-  tsu=0.5*(neta(is)+neta(ise))
-  tev=0.5*(neta(ie)+neta(ien))
-  twv=0.5*(neta(iw)+neta(iwn))
-  detadyu=stwgt(:,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
-  detadxv=stwgt(:,2)*0.5*(tev-twv)*emv(1:ifull)/ds
-  snu(1:ifull)=sru(1:ifull)*detadyu/emu(1:ifull)
-  snv(1:ifull)=srv(1:ifull)*detadxv/emv(1:ifull)
-  call boundsuv(snu,snv)
+  snu(1:ifull)=sru(1:ifull)*stwgt(1:ifull,1)*0.25*(neta(in)+neta(ine)-neta(is)-neta(ise))/ds
+  snv(1:ifull)=srv(1:ifull)*stwgt(1:ifull,2)*0.25*(neta(ie)+neta(ien)-neta(iw)-neta(iwn))/ds
+  snuw=sru(iwu)*stwgt(iwu,1)*0.25*(neta(inw)+neta(in)-neta(isw)-neta(is))/ds
+  snvs=srv(isv)*stwgt(isv,2)*0.25*(neta(ies)+neta(ie)-neta(iws)-neta(iw))/ds
   ! For now, assume Boussinesq fluid and treat density in continuity equation as constant
-  div=(snu(1:ifull)+sue*neta(ie)-snu(iwu)-suw*neta(iw)  &
-      +snv(1:ifull)+svn*neta(in)-snv(isv)-svs*neta(is)) &
+  div=(snu(1:ifull)+sue*neta(ie)-snuw-suw*neta(iw)  &
+      +snv(1:ifull)+svn*neta(in)-snvs-svs*neta(is)) &
       *em(1:ifull)*em(1:ifull)/ds
-  divb=((snu(1:ifull)+sue*neta(ie))*ddu(1:ifull)-(snu(iwu)+suw*neta(iw))*ddu(iwu)  &
-       +(snv(1:ifull)+svn*neta(in))*ddv(1:ifull)-(snv(isv)+svs*neta(is))*ddv(isv)) &
+  divb=((snu(1:ifull)+sue*neta(ie))*ddu(1:ifull)-(snuw+suw*neta(iw))*ddu(iwu)  &
+       +(snv(1:ifull)+svn*neta(in))*ddv(1:ifull)-(snvs+svs*neta(is))*ddv(isv)) &
        *em(1:ifull)*em(1:ifull)/ds
 
   ! solve for quadratic expression of neta^(t+1)
@@ -1216,8 +1212,8 @@ tsu=0.5*(neta(is)+neta(ise))
 tev=0.5*(neta(ie)+neta(ien))
 twv=0.5*(neta(iw)+neta(iwn))
 detadxu=(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
-detadyu=stwgt(:,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
-detadxv=stwgt(:,2)*0.5*(tev-twv)*emv(1:ifull)/ds
+detadyu=stwgt(1:ifull,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
+detadxv=stwgt(1:ifull,2)*0.5*(tev-twv)*emv(1:ifull)/ds
 detadyv=(neta(in)-neta(1:ifull))*emv(1:ifull)/ds
 
 ! Update currents once neta is calculated
@@ -1306,6 +1302,7 @@ ibv(1:ifull)=-dt/(imv*(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull)))
 icu(1:ifull)= dt*fu(1:ifull)*ibu(1:ifull)
 icv(1:ifull)=-dt*fv(1:ifull)*ibv(1:ifull)
 call boundsuv(ibu,ibv)
+call boundsuv(icu,icv)
 
 ! maximum pressure for cavitating fluid
 ipmax=27500.*ndic(1:ifull)*exp(-20.*(1.-nfracice(1:ifull)))
@@ -1332,23 +1329,20 @@ do ll=1,llmax
   ! 9-point version -------------------------------------------------
   
   call bounds(ipice,corner=.true.)
-  tnu=0.5*(ipice(in)+ipice(ine))
-  tsu=0.5*(ipice(is)+ipice(ise))
-  tev=0.5*(ipice(ie)+ipice(ien))
-  twv=0.5*(ipice(iw)+ipice(iwn))
-  spu(1:ifull)=0.5*stwgt(:,1)*icu(1:ifull)*(tnu-tsu)
-  spv(1:ifull)=0.5*stwgt(:,2)*icv(1:ifull)*(tev-twv)
-  call boundsuv(spu,spv)
+  snu(1:ifull)=0.25*stwgt(1:ifull,1)*icu(1:ifull)*(ipice(in)+ipice(ine)-ipice(is)-ipice(ise))
+  snv(1:ifull)=0.25*stwgt(1:ifull,2)*icv(1:ifull)*(ipice(ie)+ipice(ien)-ipice(iw)-ipice(iwn))
+  snuw=0.25*stwgt(iwu,1)*icu(iwu)*(ipice(inw)+ipice(in)-ipice(isw)-ipice(is))
+  snvs=0.25*stwgt(isv,2)*icv(isv)*(ipice(ies)+ipice(ie)-ipice(iws)-ipice(iw))
 
   ! update ice pressure to remove negative divergence
   ! (assume change in imass is small)
   where (abs(odum).gt.1.E-20.and.sicedep.gt.0.01)
     nip=((niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu))*ds    &
         +ibu(1:ifull)*ipice(ie)+ibu(iwu)*ipice(iw)           &
-        +spu(1:ifull)-spu(iwu)                               &
+        +snu(1:ifull)-snuw                                   &
         +(niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv))*ds    &          
         +ibv(1:ifull)*ipice(in)+ibv(isv)*ipice(is)           &
-        +spv(1:ifull)-spv(isv))                              &
+        +snv(1:ifull)-snvs)                                  &
        /odum
   elsewhere
     nip=0.
@@ -1381,8 +1375,8 @@ tsu=0.5*(ipice(is)+ipice(ise))
 tev=0.5*(ipice(ie)+ipice(ien))
 twv=0.5*(ipice(iw)+ipice(iwn))
 dipdxu=(ipice(ie)-ipice(1:ifull))*emu(1:ifull)/ds
-dipdyu=stwgt(:,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
-dipdxv=stwgt(:,2)*0.5*(tev-twv)*emv(1:ifull)/ds
+dipdyu=stwgt(1:ifull,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
+dipdxv=stwgt(1:ifull,2)*0.5*(tev-twv)*emv(1:ifull)/ds
 dipdyv=(ipice(in)-ipice(1:ifull))*emv(1:ifull)/ds
 niu(1:ifull)=niu(1:ifull)+ibu(1:ifull)*dipdxu+icu(1:ifull)*dipdyu
 niv(1:ifull)=niv(1:ifull)+ibv(1:ifull)*dipdyv+icv(1:ifull)*dipdxv

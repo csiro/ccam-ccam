@@ -921,8 +921,7 @@ c     now do moisture
 c      could add extra sfce moisture flux term for crank-nicholson
        call trim(at,ct,rhs,0)    ! for qg
        qg(1:ifull,:)=rhs(1:ifull,:)
-      end if                                                       ! MJT tke
-      if (nvmix.eq.6.and.nlocal.gt.0) then                         ! MJT tke
+      else if (nlocal.gt.0) then                                   ! MJT tke
        ! increase mixing to replace counter gradient term          ! MJT tke
        at=2.5*at                                                   ! MJT tke
        ct=2.5*ct                                                   ! MJT tke

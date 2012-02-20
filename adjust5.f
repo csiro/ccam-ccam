@@ -436,7 +436,7 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
          phi(:,k)=p(1:ifull,k)-rdry*tbar2d(:)*psl(1:ifull)
         enddo
        
-        wrk3(:,1)=zs(1:ifull)-bet(1)*(t(1:ifull,1)-280.)
+        wrk3(:,1)=zs(1:ifull)+bet(1)*(t(1:ifull,1)-280.)
         phi_nh(:,1)=phi(:,1)-wrk3(:,1)
         do k=2,kl
           wrk3(:,k)=wrk3(:,k-1)+bet(k)*(t(1:ifull,k)-280.)

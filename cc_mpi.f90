@@ -299,7 +299,7 @@ contains
           allocate(dbuf(iproc)%b(bnds(iproc)%len))
           allocate(sextra(iproc)%a(bnds(iproc)%len))
           allocate(dindex(iproc)%a(2,bnds(iproc)%len))
-	else
+        else
           allocate(dpoints(iproc)%a(4,1))
           allocate(dbuf(iproc)%a(4,1))
           allocate(dbuf(iproc)%b(1))
@@ -741,6 +741,10 @@ contains
       ine = huge(1)
       ise = huge(1)
       iwn = huge(1)
+      inw = huge(1)
+      isw = huge(1)
+      ies = huge(1)
+      iws = huge(1)
       ieu = huge(1)
       iwu = huge(1)
       inv = huge(1)
@@ -871,6 +875,38 @@ contains
                   ! Convert global iqx to local value
                   call indv_mpi(iqx,iloc,jloc,nloc)
                   iwn(iq) = indp(iloc,jloc,nloc)
+               end if
+
+               iqx = inw_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqx) ! Processor that has this point
+               if ( rproc == myid ) then ! Just copy the value
+                  ! Convert global iqx to local value
+                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  inw(iq) = indp(iloc,jloc,nloc)
+               end if
+
+               iqx = isw_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqx) ! Processor that has this point
+               if ( rproc == myid ) then ! Just copy the value
+                  ! Convert global iqx to local value
+                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  isw(iq) = indp(iloc,jloc,nloc)
+               end if
+
+               iqx = ies_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqx) ! Processor that has this point
+               if ( rproc == myid ) then ! Just copy the value
+                  ! Convert global iqx to local value
+                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  ies(iq) = indp(iloc,jloc,nloc)
+               end if
+
+               iqx = iws_g(iqg)    ! Global neighbour index
+               rproc = qproc(iqx) ! Processor that has this point
+               if ( rproc == myid ) then ! Just copy the value
+                  ! Convert global iqx to local value
+                  call indv_mpi(iqx,iloc,jloc,nloc)
+                  iws(iq) = indp(iloc,jloc,nloc)
                end if
 
             end do
@@ -1071,6 +1107,66 @@ contains
             iext = iext + 1
             bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
             iwn(iq) = ifull+iext
+         end if
+
+         iq = indp(1,jpan,n)
+         iqg = indg(1,jpan,n)
+         iqx = inw_g(iqg)
+         ! Which processor has this point
+         rproc = qproc(iqx)
+         if ( rproc /= myid ) then ! Add to list
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+            inw(iq) = ifull+iext
+         end if
+
+         iq = indp(1,1,n)
+         iqg = indg(1,1,n)
+         iqx = isw_g(iqg)
+         ! Which processor has this point
+         rproc = qproc(iqx)
+         if ( rproc /= myid ) then ! Add to list
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+            isw(iq) = ifull+iext
+         end if
+
+         iq = indp(ipan,1,n)
+         iqg = indg(ipan,1,n)
+         iqx = ies_g(iqg)
+         ! Which processor has this point
+         rproc = qproc(iqx)
+         if ( rproc /= myid ) then ! Add to list
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+            ies(iq) = ifull+iext
+         end if
+
+         iq = indp(1,1,n)
+         iqg = indg(1,1,n)
+         iqx = iws_g(iqg)
+         ! Which processor has this point
+         rproc = qproc(iqx)
+         if ( rproc /= myid ) then ! Add to list
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+            iws(iq) = ifull+iext
          end if
 
 !        Special vertex arrays.
@@ -1322,6 +1418,13 @@ contains
             do i=1,ipan
                iq = indp(i,j,n)   ! Local
                ! Except at corners, ien = ine etc.
+               if ( i > 1 ) then
+                 inw(iq) = in(iw(iq))
+                 isw(iq) = is(iw(iq))
+               else
+                 if ( j < jpan ) inw(iq) = iw(in(iq))
+                 if ( j > 1 )    isw(iq) = iw(is(iq))
+               end if
                if ( i < ipan ) then
                   ! ie will be defined
                   ine(iq) = in(ie(iq))
@@ -1330,6 +1433,13 @@ contains
                   ! i = ipan, ie will have been remapped
                   if ( j > 1 )    ise(iq) = ie(is(iq))
                   if ( j < jpan ) ine(iq) = ie(in(iq))
+               end if
+               if ( j > 1 ) then
+                 ies(iq) = ie(is(iq))
+                 iws(iq) = iw(is(iq))
+               else
+                 if ( i > 1 )    ies(iq)=is(ie(iq))
+                 if ( i < ipan ) iws(iq)=is(iw(iq))
                end if
                if ( j < jpan ) then
                   ien(iq) = ie(in(iq))
@@ -2577,7 +2687,6 @@ contains
             if ( dslen(sproc) > 0 ) then
                write(6,*) "Error, dslen > 0 for non neighbour",      &
                     myid, sproc, dslen(sproc)
-	       write(6,*) "bnds(sproc)%len ",bnds(sproc)%len
                call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
             end if
          end if
