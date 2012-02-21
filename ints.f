@@ -76,9 +76,9 @@ c           (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 !        sx(il+1,il+1,n)=sx(il+1,il,n)   !  s(ien6(il,il,n))  **
 
                sx(-1,0,n,k) = s(lwws(n),k)
-               sx(0,0,n,k) = s(lws(n),k)
+               sx(0,0,n,k) = s(iws(ind(1,1,n)),k)
                sx(0,-1,n,k) = s(lwss(n),k)
-               sx(ipan+1,0,n,k) = s(les(n),k)
+               sx(ipan+1,0,n,k) = s(ies(ind(ipan,1,n)),k)
                sx(ipan+2,0,n,k) = s(lees(n),k)
                sx(ipan+1,-1,n,k) = s(less(n),k)
                sx(-1,jpan+1,n,k) = s(lwwn(n),k)
@@ -450,12 +450,12 @@ c          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 !        sx(il+1,il+1,n)=sx(il,il+1,n)   !  s(ine6(il,il,n))   **
 
                sx(-1,0,n,k)=s(lsww(n),k)
-               sx(0,0,n,k) = s(lsw(n),k)
+               sx(0,0,n,k) = s(isw(ind(1,1,n)),k)
                sx(0,-1,n,k) = s(lssw(n),k)
                sx(ipan+2,0,n,k) = s(lsee(n),k)
                sx(ipan+1,-1,n,k) = s(lsse(n),k)
                sx(-1,jpan+1,n,k) = s(lnww(n),k)
-               sx(0,jpan+1,n,k) = s(lnw(n),k)
+               sx(0,jpan+1,n,k) = s(inw(ind(1,jpan,n)),k)
                sx(0,jpan+2,n,k) = s(lnnw(n),k)
                sx(ipan+2,jpan+1,n,k) = s(lnee(n),k)
                sx(ipan+1,jpan+2,n,k) = s(lnne(n),k)
@@ -785,8 +785,8 @@ c                    but for bi-linear only need 0:il+1 &  0:il+1
                sx(i,jpan+1,n,k) = s(in(ind(i,jpan,n)),k)
             enddo               ! i loop
 
-            sx(0,0,n,k) = s(lws(n),k)
-            sx(ipan+1,0,n,k) = s(les(n),k)
+            sx(0,0,n,k) = s(iws(ind(1,1,n)),k)
+            sx(ipan+1,0,n,k) = s(ies(ind(ipan,1,n)),k)
             sx(0,jpan+1,n,k)    = s(iwn(ind(1,jpan,n)),k)
             sx(ipan+1,jpan+1,n,k) = s(ien(ind(ipan,jpan,n)),k)
          enddo                  ! n loop

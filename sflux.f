@@ -493,24 +493,45 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         if (abs(nmlo).ge.3) then                                        ! MLO
           ! Ocean dynamics                                              ! MLO
           call start_log(waterdynamics_begin)                           ! MLO
+	  if (myid==0.and.nmaxpr==1) then                               ! MLO
+	    write(6,*) "Before MLO dynamics"                            ! MLO
+	  end if                                                        ! MLO
           call mlohadv                                                  ! MLO
+	  if (myid==0.and.nmaxpr==1) then                               ! MLO
+	    write(6,*) "After MLO dynamics"                             ! MLO
+	  end if                                                        ! MLO
           call end_log(waterdynamics_end)                               ! MLO
         end if                                                          ! MLO
                                                                         ! MLO
         if (abs(nmlo).ge.2) then                                        ! MLO
           ! Ocean diffusion                                             ! MLO
           call start_log(waterdiff_begin)                               ! MLO
+	  if (myid==0.and.nmaxpr==1) then                               ! MLO
+	    write(6,*) "Before MLO diffusion"                           ! MLO
+	  end if                                                        ! MLO
           call mlodiffusion                                             ! MLO
+	  if (myid==0.and.nmaxpr==1) then                               ! MLO
+	    write(6,*) "After MLO diffusion"                            ! MLO
+	  end if                                                        ! MLO
           call end_log(waterdiff_end)                                   ! MLO
                                                                         ! MLO
           ! River routing                                               ! MLO
           call start_log(river_begin)                                   ! MLO
+	  if (myid==0.and.nmaxpr==1) then                               ! MLO
+	    write(6,*) "Before river"                                   ! MLO
+	  end if                                                        ! MLO
           call mlorouter                                                ! MLO
+	  if (myid==0.and.nmaxpr==1) then                               ! MLO
+	    write(6,*) "After river"                                    ! MLO
+	  end if                                                        ! MLO
           call end_log(river_end)                                       ! MLO
           call start_log(phys_begin)                                    ! MLO
         end if                                                          ! MLO
                                                                         ! MLO
         call start_log(watermix_begin)                                  ! MLO
+        if (myid==0.and.nmaxpr==1) then                                 ! MLO
+	  write(6,*) "Before MLO mixing"                                ! MLO
+	end if                                                          ! MLO
         if (abs(nmlo).eq.1) then                                        ! MLO
           ! Single column                                               ! MLO
           ! set free surface to zero when water is not conserved        ! MLO
@@ -570,6 +591,9 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
             rhscrn(iq)=100.*min(qgscrn(iq)/qsttg(iq),1.)                ! MLO
           end if                                                        ! MLO
         end do                                                          ! MLO
+        if (myid==0.and.nmaxpr==1) then                                 ! MLO
+	  write(6,*) "After MLO mixing"                                 ! MLO
+	end if                                                          ! MLO
         call end_log(watermix_end)                                      ! MLO
                                                                         ! MLO
       else                                                              ! PCOM
@@ -797,6 +821,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          write(6,*) "nsib==CABLE option not avaliable"                  ! cable
          stop                                                           ! cable
         case(6,7)                                                       ! cable
+         if (myid==0.and.nmaxpr==1) then                                ! cable
+  	   write(6,*) "Before CABLE"                                    ! cable
+         end if                                                         ! cable
          if (nmlo.eq.0) then                                            ! cable
            ! update ocean diagnostics                                   ! cable
            zoh=zo/(factch*factch)                                       ! cable
@@ -829,6 +856,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      &                       v(1:ifull,1)*v(1:ifull,1)),                ! cable
      &                ps(1:ifull),.not.land,zmin,sig(1))                ! cable
          end if                                                         ! cable
+         if (myid==0.and.nmaxpr==1) then                                ! cable
+  	   write(6,*) "After CABLE"                                     ! cable
+         end if                                                         ! cable
         case DEFAULT                                                    ! land
           write(6,*) "ERROR: Unknown land-use option nsib=",nsib        ! land
           stop                                                          ! land
@@ -836,6 +866,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
       call end_log(sfluxland_end)                                       ! land
       !----------------------------------------------------------
       call start_log(sfluxurban_begin)                                  ! urban
+      if (myid==0.and.nmaxpr==1) then                                   ! urban
+        write(6,*) "Before urban"                                       ! urban
+      end if                                                            ! urban
       if (nurban.ne.0) then                                             ! urban
          ! calculate zonal and meridonal winds                          ! urban
          zonx=                       -sin(rlat0*pi/180.)*y(:)           ! urban
@@ -887,6 +920,9 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
             tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                           ! urban
           end if                                                        ! urban
         end do                                                          ! urban
+      end if                                                            ! urban
+      if (myid==0.and.nmaxpr==1) then                                   ! urban
+        write(6,*) "After urban"                                        ! urban
       end if                                                            ! urban
       call end_log(sfluxurban_end)                                      ! urban
 c ----------------------------------------------------------------------

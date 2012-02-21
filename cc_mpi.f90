@@ -23,12 +23,11 @@ module cc_mpi
    public :: bounds, boundsuv, ccmpi_setup, ccmpi_distribute, ccmpi_gather, &
              ccmpi_distributer8,  &
              indp, indg, deptsync, intssync, intssend, start_log, end_log,  &
-             log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg, &
+             log_on, log_off, log_setup, phys_loadbal, ccglobal_posneg,     &
              ccglobal_sum, iq2iqg, indv_mpi, indglobal, readglobvar, writeglobvar
    public :: dpoints_t,dindex_t,sextra_t
-   private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3, &
-              ccmpi_distribute2r8,   &
-              ccmpi_gather2, ccmpi_gather3, checksize,              &
+   private :: ccmpi_distribute2, ccmpi_distribute2i, ccmpi_distribute3,        &
+              ccmpi_distribute2r8, ccmpi_gather2, ccmpi_gather3, checksize,    &
               ccglobal_posneg2, ccglobal_posneg3, ccglobal_sum2, ccglobal_sum3
    interface ccmpi_gather
       module procedure ccmpi_gather2, ccmpi_gather3
@@ -758,9 +757,7 @@ contains
       innv = huge(1)
       issv = huge(1)
       lwws = huge(1)
-      lws = huge(1)
       lwss = huge(1)
-      les = huge(1)
       lees = huge(1)
       less = huge(1)
       lwwn = huge(1)
@@ -768,12 +765,10 @@ contains
       leen = huge(1)
       lenn = huge(1)
       lsww = huge(1)
-      lsw = huge(1)
       lssw = huge(1)
       lsee = huge(1)
       lsse = huge(1)
       lnww = huge(1)
-      lnw = huge(1)
       lnnw = huge(1)
       lnee = huge(1)
       lnne = huge(1)
@@ -1066,17 +1061,21 @@ contains
             ine(iq) = ifull+iext
          end if
 
-         iqx = ien_g(iqg)
-         ! Which processor has this point
-         rproc = qproc(iqx)
-         if ( rproc /= myid ) then ! Add to list
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
-            ien(iq) = ifull+iext
+         if (ien_g(iqg)==ine_g(iqg)) then
+            ien(iq)=ine(iq)
+         else
+            iqx = ien_g(iqg)
+            ! Which processor has this point
+            rproc = qproc(iqx)
+            if ( rproc /= myid ) then ! Add to list
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+               ien(iq) = ifull+iext
+            end if
          end if
 
          iq = indp(ipan,1,n)
@@ -1094,6 +1093,23 @@ contains
             ise(iq) = ifull+iext
          end if
 
+         if (ies_g(iqg)==ise_g(iqg)) then
+            ies(iq)=ise(iq)
+         else
+            iqx = ies_g(iqg)
+            ! Which processor has this point
+            rproc = qproc(iqx)
+            if ( rproc /= myid ) then ! Add to list
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+               ies(iq) = ifull+iext
+            end if
+         end if
+
          iq = indp(1,jpan,n)
          iqg = indg(1,jpan,n)
          iqx = iwn_g(iqg)
@@ -1109,19 +1125,21 @@ contains
             iwn(iq) = ifull+iext
          end if
 
-         iq = indp(1,jpan,n)
-         iqg = indg(1,jpan,n)
-         iqx = inw_g(iqg)
-         ! Which processor has this point
-         rproc = qproc(iqx)
-         if ( rproc /= myid ) then ! Add to list
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
-            inw(iq) = ifull+iext
+         if (inw_g(iqg)==iwn_g(iqg)) then
+            inw(iq)=iwn(iq)
+         else
+            iqx = inw_g(iqg)
+            ! Which processor has this point
+            rproc = qproc(iqx)
+            if ( rproc /= myid ) then ! Add to list
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+               inw(iq) = ifull+iext
+            end if
          end if
 
          iq = indp(1,1,n)
@@ -1139,88 +1157,22 @@ contains
             isw(iq) = ifull+iext
          end if
 
-         iq = indp(ipan,1,n)
-         iqg = indg(ipan,1,n)
-         iqx = ies_g(iqg)
-         ! Which processor has this point
-         rproc = qproc(iqx)
-         if ( rproc /= myid ) then ! Add to list
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
-            ies(iq) = ifull+iext
-         end if
-
-         iq = indp(1,1,n)
-         iqg = indg(1,1,n)
-         iqx = iws_g(iqg)
-         ! Which processor has this point
-         rproc = qproc(iqx)
-         if ( rproc /= myid ) then ! Add to list
-            call check_bnds_alloc(rproc, iext)
-            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
-            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
-            ! Increment extended region index
-            iext = iext + 1
-            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
-            iws(iq) = ifull+iext
-         end if
-
-!        Special vertex arrays.
-!        First order ws, es, sw, nw
-
-         iq = indp(1,1,n)
-         iqg = indg(1,1,n)
-         if ( edge_w(n-noff) .and. edge_s(n-noff) ) then
-            iqx = lws_g(n-noff)  ! This is the true face index
-         else if ( edge_w(n-noff) ) then
-            ! Middle of W edge, use is first because this is on the same
-            ! face
-            iqx = iw_g(is_g(iqg))
+         if (iws_g(iqg)==isw_g(iqg)) then
+            iws(iq)=isw(iq)
          else
-            iqx = is_g(iw_g(iqg))
+            iqx = iws_g(iqg)
+            ! Which processor has this point
+            rproc = qproc(iqx)
+            if ( rproc /= myid ) then ! Add to list
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqx
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+               iws(iq) = ifull+iext
+            end if
          end if
-         call fix_index(iqx,lws,n,bnds,iext)
-
-         if ( edge_w(n-noff) .and. edge_s(n-noff) ) then
-            iqx = lsw_g(n-noff)  ! This is the true face index
-         else if ( edge_w(n-noff) ) then
-            ! Middle of W edge, use is first because this is on the same
-            ! face
-            iqx = iw_g(is_g(iqg))
-         else
-            iqx = is_g(iw_g(iqg))
-         end if
-         call fix_index(iqx,lsw,n,bnds,iext)
-
-         iq = indp(ipan,1,n)
-         iqg = indg(ipan,1,n)
-         if ( edge_e(n-noff) .and. edge_s(n-noff) ) then
-            iqx = les_g(n-noff)  ! This is the true face index
-         else if ( edge_e(n-noff) ) then
-            ! Middle of E edge, use is first because this is on the same
-            ! face
-            iqx = ie_g(is_g(iqg))
-         else
-            iqx = is_g(ie_g(iqg))
-         end if
-         call fix_index(iqx,les,n,bnds,iext)
-
-         iq = indp(1,jpan,n)
-         iqg = indg(1,jpan,n)
-         if ( edge_w(n-noff) .and. edge_n(n-noff) ) then
-            iqx = lnw_g(n-noff)  ! This is the true face index
-         else if ( edge_w(n-noff) ) then
-            ! Middle of W edge, use in first because this is on the same
-            ! face
-            iqx = iw_g(in_g(iqg))
-         else
-            iqx = in_g(iw_g(iqg))
-         end if
-         call fix_index(iqx,lnw,n,bnds,iext)
 
       end do
 
@@ -1438,8 +1390,8 @@ contains
                  ies(iq) = ie(is(iq))
                  iws(iq) = iw(is(iq))
                else
-                 if ( i > 1 )    ies(iq)=is(ie(iq))
-                 if ( i < ipan ) iws(iq)=is(iw(iq))
+                 if ( i < ipan ) ies(iq)=is(ie(iq))
+                 if ( i > 1 )    iws(iq)=is(iw(iq))
                end if
                if ( j < jpan ) then
                   ien(iq) = ie(in(iq))
@@ -1821,6 +1773,11 @@ contains
          end do
       end do ! n=1,npan
 
+      if ( iext > iextra ) then
+         write(6,*) "IEXT too large", iext, iextra
+         call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+      end if
+
 !     Nearest neighbours are defined as those points which send/recv 
 !     boundary information.
       neighbour = bnds(:)%rlen2 > 0
@@ -2008,6 +1965,10 @@ contains
                call check_set( ine(iq), "INE", i, j, n, iq)
                call check_set( ise(iq), "ISE", i, j, n, iq)
                call check_set( iwn(iq), "IWN", i, j, n, iq)
+               call check_set( inw(iq), "INW", i, j, n, iq)
+               call check_set( isw(iq), "ISW", i, j, n, iq)
+               call check_set( ies(iq), "IES", i, j, n, iq)
+               call check_set( iws(iq), "IWS", i, j, n, iq)
                call check_set( ieu(iq), "IEU", i, j, n, iq)
                call check_set( iwu(iq), "IWU", i, j, n, iq)
                call check_set( inv(iq), "INV", i, j, n, iq)
@@ -2023,9 +1984,7 @@ contains
             end do
          end do
          call check_set( lwws(n), "LWWS", 1, 1, n, 1)
-         call check_set( lws(n),  "LWS",  1, 1, n, 1)
          call check_set( lwss(n), "LWSS", 1, 1, n, 1)
-         call check_set( les(n),  "LES",  1, 1, n, 1)
          call check_set( lees(n), "LEES", 1, 1, n, 1)
          call check_set( less(n), "LESS", 1, 1, n, 1)
          call check_set( lwwn(n), "LWWN", 1, 1, n, 1)
@@ -2033,12 +1992,10 @@ contains
          call check_set( leen(n), "LEEN", 1, 1, n, 1)
          call check_set( lenn(n), "LENN", 1, 1, n, 1)
          call check_set( lsww(n), "LSWW", 1, 1, n, 1)
-         call check_set( lsw(n),  "LSW",  1, 1, n, 1)
          call check_set( lssw(n), "LSSW", 1, 1, n, 1)
          call check_set( lsee(n), "LSEE", 1, 1, n, 1)
          call check_set( lsse(n), "LSSE", 1, 1, n, 1)
          call check_set( lnww(n), "LNWW", 1, 1, n, 1)
-         call check_set( lnw(n),  "LNW",  1, 1, n, 1)
          call check_set( lnnw(n), "LNNW", 1, 1, n, 1)
          call check_set( lnee(n), "LNEE", 1, 1, n, 1)
          call check_set( lnne(n), "LNNE", 1, 1, n, 1)

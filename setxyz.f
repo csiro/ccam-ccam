@@ -236,10 +236,6 @@ c     print *,'isb ikk/2,n ',is_g(ind(ikk/2,1,n)),n
       enddo      ! n loop
 
       do n=0,npanels
-       lsw_g(n)=isw_g( ind( 1, 1,n) )
-       lnw_g(n)=inw_g( ind( 1,ikk,n) )
-       lws_g(n)=iws_g( ind( 1, 1,n) )
-       les_g(n)=ies_g( ind(ikk, 1,n) )
        leen_g(n)=iee_g(in_g( ind(ikk,ikk,n) ))
        lenn_g(n)=ien_g(in_g( ind(ikk,ikk,n) ))
        lwnn_g(n)=iwn_g(in_g( ind( 1,ikk,n) ))

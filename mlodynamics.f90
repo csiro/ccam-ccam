@@ -605,6 +605,10 @@ real, parameter :: eps  = 0.       ! Off-centring term
 ! use the same index and map factor arrays from the
 ! atmospheric dynamical core.
 
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: Start"
+end if
+
 ! Define land/sea mask
 wtr=ee.gt.0.5
 
@@ -631,6 +635,9 @@ rho=0.
 nw=0.
 
 ! IMPORT WATER AND ICE DATA -----------------------------------------
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: Import"
+end if
 do ii=1,wlev
   call mloexport(0,w_t(:,ii),ii,0)
   call mloexport(1,w_s(:,ii),ii,0)
@@ -654,6 +661,9 @@ do ii=1,wlev
 end do
 
 ! estimate tidal forcing (assumes leap days)
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: Tides"
+end if
 if (usetide.eq.1) then
   call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
   jstart=0
@@ -735,6 +745,10 @@ dpsdyv=(pice(in)-pice(1:ifull))*emv(1:ifull)/ds
 ! based on McGregor's CCAM advection routines.
 ! Velocity is set to zero at ocean boundaries.
 
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: water vertical advection 1"
+end if
+
 ! Calculate adjusted depths
 ndum=max(1.+neta/dd,mindep/dd)
 call bounds(ndum,corner=.true.)
@@ -787,6 +801,10 @@ if (ktau.eq.1.and..not.lrestart) then
   ipice=0. ! ice free drift solution
 end if
 
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: Departure points"
+end if
+
 ! Estimate currents at t+1/2 for semi-Lagrangian advection
 do ii=1,wlev
   nuh(:,ii)=(15.*nu(1:ifull,ii)-10.*oldu1(:,ii)+3.*oldu2(:,ii))/8.*ee(1:ifull) ! U at t+1/2
@@ -800,6 +818,10 @@ oldu2=oldu1
 oldv2=oldv1
 oldu1=nu(1:ifull,:)
 oldv1=nv(1:ifull,:)
+
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: density EOS 1"
+end if
 
 ! Calculate normalised density rhobar (unstaggered at time t)
 ! (Assume free surface correction is small so that changes in the compression 
@@ -878,6 +900,9 @@ do ii=1,wlev
   drhobardyv(:,ii)=drhobardyv(:,ii)/gosigh(ii)
 end do
 
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: Advect contunity"
+end if
 
 ! Advect continuity equation to tstar
 ! Calculate velocity on C-grid for consistancy with iterative free surface calculation
@@ -903,6 +928,10 @@ do ii=2,wlev
 end do
 xps=xps*ee(1:ifull)
 yps=yps*ee(1:ifull)
+
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: advect currents"
+end if
 
 ! Prepare pressure gradient terms at t=t and incorporate into velocity field
 do ii=1,wlev
@@ -944,6 +973,10 @@ do ii=1,wlev
   uav(:,ii)=uav(:,ii)*ee(1:ifull)
 end do
 
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: Advect theta and S"
+end if
+
 ! Horizontal advection for T,S to tstar
 nt(1:ifull,:)=nt(1:ifull,:)-290.
 ns(1:ifull,:)=ns(1:ifull,:)-34.72
@@ -954,6 +987,10 @@ ns(1:ifull,:)=ns(1:ifull,:)+34.72
 where (ns(1:ifull,:).lt.0.1)
   ns(1:ifull,:)=0.
 end where
+
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: density EOS 2"
+end if
 
 ! Update normalised density rhobar (unstaggered at tstar)
 odum=max(1.+yps/dd(1:ifull),mindep/dd(1:ifull))
@@ -998,6 +1035,10 @@ do ii=1,wlev
 end do
 
 ! FREE SURFACE CALCULATION ----------------------------------------
+
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: free surface"
+end if
 
 ! Prepare integral terms
 sou=0.
@@ -1188,6 +1229,10 @@ do ll=1,llmax
   totits=totits+1
 end do
 
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: free surface conservation"
+end if
+
 ! volume conservation for water ---------------------------------------
 if (nud_sfh.eq.0.) then
   odum=0.
@@ -1222,6 +1267,10 @@ do ii=1,wlev
   nu(1:ifull,ii)=kku(:,ii)+llu(:,ii)*oeu+mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
   nv(1:ifull,ii)=kkv(:,ii)+llv(:,ii)*oev+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
 end do
+
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: water vertical velocity 2"
+end if
 
 ! Update vertical velocity at t+1
 cou(1:ifull,1)=nu(1:ifull,1)*godsig(1) ! staggered
@@ -1270,6 +1319,10 @@ call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),d
 ! UPDATE ICE DYNAMICS ---------------------------------------------
 ! Here we start by calculating the ice velocity and then advecting
 ! the various ice prognostic variables.
+
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: Ice fluid properties"
+end if
 
 ! Update ice velocities
 tau(:,1)=grav*0.5*((1.-eps)*(oeta(ie)-oeta(1:ifull))+(1.+eps)*(neta(ie)-neta(1:ifull)))*emu(1:ifull)/ds ! staggered
@@ -1393,6 +1446,10 @@ call bounds(spnet)
 
 ! ADVECT ICE ------------------------------------------------------
 ! use simple upwind scheme
+
+if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: Ice advection"
+end if
 
 ! Horizontal advection for ice area
 ndum(1:ifull)=fracice/(em(1:ifull)*em(1:ifull)) ! ndum is an area
@@ -1812,10 +1869,10 @@ cxx=-999.
 sx=cxx
 sc=cxx
 
-do k=1,kx
-  where (.not.wtr(1:ifull))
-    s(1:ifull,k)=cxx
-  end where
+do iq=1,ifull
+  if(.not.wtr(iq)) then
+    s(iq,:)=cxx
+  end if
 end do
 call bounds(s,nrows=2)
 
@@ -1843,9 +1900,9 @@ if(intsch==1)then
 !     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
     sx(-1,0,n,:)          = s(lwws(n),:)
-    sx(0,0,n,:)           = s(lws(n),:)
+    sx(0,0,n,:)           = s(iws(ind(1,1,n)),:)
     sx(0,-1,n,:)          = s(lwss(n),:)
-    sx(ipan+1,0,n,:)      = s(les(n),:)
+    sx(ipan+1,0,n,:)      = s(ies(ind(ipan,1,n)),:)
     sx(ipan+2,0,n,:)      = s(lees(n),:)
     sx(ipan+1,-1,n,:)     = s(less(n),:)
     sx(-1,jpan+1,n,:)     = s(lwwn(n),:)
@@ -2017,12 +2074,12 @@ else     ! if(intsch==1)then
 !          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
     sx(-1,0,n,:)          = s(lsww(n),:)
-    sx(0,0,n,:)           = s(lsw(n),:)
+    sx(0,0,n,:)           = s(isw(ind(1,1,n)),:)
     sx(0,-1,n,:)          = s(lssw(n),:)
     sx(ipan+2,0,n,:)      = s(lsee(n),:)
     sx(ipan+1,-1,n,:)     = s(lsse(n),:)
     sx(-1,jpan+1,n,:)     = s(lnww(n),:)
-    sx(0,jpan+1,n,:)      = s(lnw(n),:)
+    sx(0,jpan+1,n,:)      = s(inw(ind(1,jpan,n)),:)
     sx(0,jpan+2,n,:)      = s(lnnw(n),:)
     sx(ipan+2,jpan+1,n,:) = s(lnee(n),:)
     sx(ipan+1,jpan+2,n,:) = s(lnne(n),:)
@@ -2155,10 +2212,10 @@ endif                     ! (intsch==1) .. else ..
 
 call intssync(s)
 
-do k=1,kx
-  where(.not.wtr(1:ifull))
-    s(1:ifull,k)=0.
-  end where
+do iq=1,ifull
+  if (.not.wtr(iq)) then
+    s(iq,:)=0.
+  end if
 end do
 
 return
@@ -2200,12 +2257,16 @@ intsch=mod(ktau,2)
 cxx=-999.
 sx=cxx
 sc=cxx
-ssav=s(1:ifull,:)
-
 do k=1,kx
-  where (.not.wtr(1:ifull))
-    s(1:ifull,k)=cxx
-  end where
+  do iq=1,ifull
+    ssav(iq,k)=s(iq,k)
+  end do
+end do
+
+do iq=1,ifull
+  if (.not.wtr(iq)) then
+    s(iq,:)=cxx
+  end if
 end do
 call bounds(s,nrows=2)
 
@@ -2233,9 +2294,9 @@ if(intsch==1)then
 !     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
     sx(-1,0,n,:)          = s(lwws(n),:)
-    sx(0,0,n,:)           = s(lws(n),:)
+    sx(0,0,n,:)           = s(iws(ind(1,1,n)),:)
     sx(0,-1,n,:)          = s(lwss(n),:)
-    sx(ipan+1,0,n,:)      = s(les(n),:)
+    sx(ipan+1,0,n,:)      = s(ies(ind(ipan,1,n)),:)
     sx(ipan+2,0,n,:)      = s(lees(n),:)
     sx(ipan+1,-1,n,:)     = s(less(n),:)
     sx(-1,jpan+1,n,:)     = s(lwwn(n),:)
@@ -2373,7 +2434,7 @@ if(intsch==1)then
       sextra(iproc)%a(iq)=min(max(sextra(iproc)%a(iq),cmin),cmax)
     end do            ! iq loop
   end do              ! iproc loop
-            
+       
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
@@ -2401,12 +2462,12 @@ else     ! if(intsch==1)then
 !          (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
 
     sx(-1,0,n,:)          = s(lsww(n),:)
-    sx(0,0,n,:)           = s(lsw(n),:)
+    sx(0,0,n,:)           = s(isw(ind(1,1,n)),:)
     sx(0,-1,n,:)          = s(lssw(n),:)
     sx(ipan+2,0,n,:)      = s(lsee(n),:)
     sx(ipan+1,-1,n,:)     = s(lsse(n),:)
     sx(-1,jpan+1,n,:)     = s(lnww(n),:)
-    sx(0,jpan+1,n,:)      = s(lnw(n),:)
+    sx(0,jpan+1,n,:)      = s(inw(ind(1,jpan,n)),:)
     sx(0,jpan+2,n,:)      = s(lnnw(n),:)
     sx(ipan+2,jpan+1,n,:) = s(lnee(n),:)
     sx(ipan+1,jpan+2,n,:) = s(lnne(n),:)
@@ -2545,10 +2606,10 @@ endif                     ! (intsch==1) .. else ..
 
 call intssync(s)
 
-do k=1,kx
-  where(.not.wtr(1:ifull))
-    s(1:ifull,k)=ssav(:,k)
-  end where
+do iq=1,ifull
+  if (.not.wtr(iq)) then
+    s(iq,:)=ssav(iq,:)
+  end if
 end do
 
 return

@@ -555,11 +555,7 @@
      &               ierr)
       call MPI_Bcast(lwws_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
      &               ierr)
-      call MPI_Bcast(lws_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
       call MPI_Bcast(lwss_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(les_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
      &               ierr)
       call MPI_Bcast(lees_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
      &               ierr)
@@ -575,8 +571,6 @@
      &               ierr)
       call MPI_Bcast(lsww_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
      &               ierr)
-      call MPI_Bcast(lsw_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
       call MPI_Bcast(lssw_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
      &               ierr)
       call MPI_Bcast(lsee_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
@@ -584,8 +578,6 @@
       call MPI_Bcast(lsse_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
      &               ierr)
       call MPI_Bcast(lnww_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
-     &               ierr)
-      call MPI_Bcast(lnw_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
      &               ierr)
       call MPI_Bcast(lnnw_g,npanels+1,MPI_INTEGER,0,MPI_COMM_WORLD,
      &               ierr)
@@ -613,9 +605,9 @@
         deallocate(inn_g,iss_g,iww_g,iee_g,iwu_g,isv_g)
         deallocate(iwu2_g,isv2_g,ieu2_g,inv2_g,iev2_g,inu2_g,ieu_g)
         deallocate(inv_g,iwwu2_g,issv2_g,ieeu2_g,innv2_g)
-        deallocate(lwws_g,lws_g,lwss_g,les_g,lees_g,less_g,lwwn_g)
+        deallocate(lwws_g,lwss_g,lees_g,less_g,lwwn_g)
         deallocate(lwnn_g,leen_g,lenn_g,lsww_g)
-        deallocate(lsw_g,lssw_g,lsee_g,lsse_g,lnww_g,lnw_g,lnnw_g)
+        deallocate(lssw_g,lsee_g,lsse_g,lnww_g,lnnw_g)
         deallocate(lnee_g,lnne_g)
         deallocate(npann_g,npane_g,npanw_g,npans_g)
       end if
@@ -1182,11 +1174,20 @@
 
       ! GWDRAG ----------------------------------------------------------------
       call start_log(gwdrag_begin)
+      if (myid==0.and.nmaxpr==1) then
+        write(6,*) "Before gwdrag"
+      end if
       if (ngwd<0) call gwdrag  ! <0 for split - only one now allowed
+      if (myid==0.and.nmaxpr==1) then
+        write(6,*) "After gwdrag"
+      end if
       call end_log(gwdrag_end)
 
       ! CONVECTION ------------------------------------------------------------
       call start_log(convection_begin)
+      if (myid==0.and.nmaxpr==1) then
+        write(6,*) "Before convection"
+      end if
       select case(nkuo)
         case(5)
           call betts(t,qg,tn,land,ps) ! not called these days
@@ -1200,10 +1201,16 @@
         cbas_ave(:)=cbas_ave(:)+condc(:)*(1.1-sig(kbsav(:))) ! diagnostic
         ctop_ave(:)=ctop_ave(:)+condc(:)*(1.1-sig(abs(ktsav(:)))) ! diagnostic
       end if
+      if (myid==0.and.nmaxpr==1) then
+        write(6,*) "After convection"
+      end if
       call end_log(convection_end)
 
       ! CLOUD MICROPHYSICS ----------------------------------------------------
       call start_log(cloud_begin)
+      if (myid==0.and.nmaxpr==1) then
+        write(6,*) "Before cloud microphysics"
+      end if
       select case(ldr)
         case(-2,-1,1,2)
           call leoncld(cfrac,iaero) ! LDR microphysics scheme
@@ -1218,9 +1225,15 @@
         write (6,"('qf   ',3p9f8.3/5x,9f8.3)") qfg(idjd,:)
       endif
       rnd_3hr(:,8)=rnd_3hr(:,8)+condx(:)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+      if (myid==0.and.nmaxpr==1) then
+        write(6,*) "After cloud microphysics"
+      end if
       call end_log(cloud_end)
 
       ! RADIATION -------------------------------------------------------------
+      if (myid==0.and.nmaxpr==1) then
+        write(6,*) "Before radiation"
+      end if
       select case(nrad)
        case(4)
 !       Fels-Schwarzkopf radiation
@@ -1257,6 +1270,9 @@
         slwa(:)=-10*nrad  
 !       N.B. no rtt array for this nrad option
       end select
+      if (myid==0.and.nmaxpr==1) then
+        write(6,*) "After radiation"
+      end if
 
       ! HELD & SUAREZ ---------------------------------------------------------
       egg(:)=0.   ! reset for fort.60 files
@@ -1280,10 +1296,16 @@
          
        ! SURFACE FLUXES ---------------------------------------------
        ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
+       if (myid==0.and.nmaxpr==1) then
+        write(6,*) "Before surface fluxes"
+       end if
        call sflux(nalpha)
        epan_ave=epan_ave+epan  ! 2D 
        epot_ave=epot_ave+epot  ! 2D 
        ga_ave=ga_ave+ga        ! 2D 
+       if (myid==0.and.nmaxpr==1) then
+        write(6,*) "After surface fluxes"
+       end if
        
        ! STATION OUTPUT ---------------------------------------------
        if (nstn>0.and.nrotstn(1)==0) call stationa ! write every time step
@@ -1376,6 +1398,9 @@
       endif   ! (ntsur>1)
 
       ! VERTICAL MIXING ------------------------------------------------------
+      if (myid==0.and.nmaxpr==1) then
+       write(6,*) "Before PBL mixing"
+      end if
       if (ntsur>=1) then ! calls vertmix but not sflux for ntsur=1
         call start_log(vertmix_begin)
         if(nmaxpr==1.and.mydiag)
@@ -1385,11 +1410,20 @@
      &    write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
         call end_log(vertmix_end)
       endif  ! (ntsur>=1)
+      if (myid==0.and.nmaxpr==1) then
+       write(6,*) "After PBL mixing"
+      end if
 
       ! AEROSOLS --------------------------------------------------------------
       if (abs(iaero).ge.2) then
         call start_log(aerosol_begin)
+         if (myid==0.and.nmaxpr==1) then
+         write(6,*) "Before aerosols"
+        end if
         call aerocalc
+        if (myid==0.and.nmaxpr==1) then
+         write(6,*) "After aerosols"
+        end if
         call end_log(aerosol_end)
       end if
 
