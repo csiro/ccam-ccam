@@ -556,7 +556,7 @@ c-------Beljaars and Holtslag (1991) heat function
       integer iq
       real es,ztv
       real, dimension(ifull) :: zoh,umag
-      real, dimension(ifull) :: ou,ov,om
+      real, dimension(ifull) :: ou,ov,atu,atv
       real, parameter :: vkar = 0.4
       
       ztv=exp(vkar/sqrt(chn10))/10.
@@ -579,9 +579,12 @@ c-------Beljaars and Holtslag (1991) heat function
      &              tss,t(1:ifull,1),qsttg,qg(1:ifull,1),umag,
      &              ps(1:ifull),zmin,sig(1))
      
-      om=sqrt(ou*ou+ov*ov)
-      uscrn=uscrn+om
-      u10=u10+om
+      atu=(u(1:ifull,1)-ou)*uscrn/max(umag,0.2)+ou
+      atv=(v(1:ifull,1)-ov)*uscrn/max(umag,0.2)+ov
+      uscrn=sqrt(atu*atu+atv*atv)
+      atu=(u(1:ifull,1)-ou)*u10/max(umag,0.2)+ou
+      atv=(v(1:ifull,1)-ov)*u10/max(umag,0.2)+ov      
+      u10=sqrt(atu*atu+atv*atv)
      
       return
       end subroutine autoscrn

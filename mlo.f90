@@ -3017,9 +3017,13 @@ atv=a_v-w_v(:,1)
 call scrntile(tscrn,qgscrn,uscrn,u10,p_zo,p_zoh,p_zoq,w_temp(:,1),smixr,atu,atv,a_temp,a_qg,a_zmin,a_zmins,diag)
 p_tscrn=tscrn
 p_qgscrn=qgscrn
-dmag=sqrt(w_u(:,1)*w_u(:,1)+w_v(:,1)*w_v(:,1))
-p_uscrn=uscrn+dmag
-p_u10=u10+dmag
+dmag=max(sqrt(atu*atu+atv*atv),0.2)
+atu=(a_u-w_u(:,1))*uscrn/dmag+w_u(:,1)
+atv=(a_v-w_v(:,1))*uscrn/dmag+w_v(:,1)
+p_uscrn=sqrt(atu*atu+atv*atv)
+atu=(a_u-w_u(:,1))*u10/dmag+w_u(:,1)
+atv=(a_v-w_v(:,1))*u10/dmag+w_v(:,1)
+p_u10=sqrt(atu*atu+atv*atv)
 
 ! ice
 call getqsat(qsat,dqdt,i_tsurf,a_ps)
@@ -3029,9 +3033,13 @@ atv=a_v-i_v
 call scrntile(tscrn,qgscrn,uscrn,u10,p_zoice,p_zohice,p_zoqice,i_tsurf,smixr,atu,atv,a_temp,a_qg,a_zmin,a_zmins,diag)
 p_tscrn=(1.-i_fracice)*p_tscrn+i_fracice*tscrn
 p_qgscrn=(1.-i_fracice)*p_qgscrn+i_fracice*qgscrn
-dmag=sqrt(i_u*i_u+i_v*i_v)
-p_uscrn=(1.-i_fracice)*p_uscrn+i_fracice*(uscrn+dmag)
-p_u10=(1.-i_fracice)*p_u10+i_fracice*(u10+dmag)
+dmag=max(sqrt(atu*atu+atv*atv),0.2)
+atu=(a_u-w_u(:,1))*uscrn/dmag+w_u(:,1)
+atv=(a_v-w_v(:,1))*uscrn/dmag+w_v(:,1)
+p_uscrn=(1.-i_fracice)*p_uscrn+i_fracice*sqrt(atu*atu+atv*atv)
+atu=(a_u-w_u(:,1))*u10/dmag+w_u(:,1)
+atv=(a_v-w_v(:,1))*u10/dmag+w_v(:,1)
+p_u10=(1.-i_fracice)*p_u10+i_fracice*sqrt(atu*atu+atv*atv)
 
 return
 end subroutine scrncalc

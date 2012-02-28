@@ -24,7 +24,7 @@ integer, parameter :: salfilt=0    ! additional salinity filter (0=off, 1=Katzfe
 integer, parameter :: usetide=1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode=2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: basinmd=1    ! basin mode (0=soil, 1=global)
-real, parameter :: k_smag=0.7      ! horizontal diffusion (2. in Griffies (2000), 0.7-1. in POM (Mellor 2004))
+real, parameter :: k_smag=0.4      ! horizontal diffusion (2. in Griffies (2000), 0.7-1. in POM (Mellor 2004))
 real, parameter :: rhosn =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic =900.     ! density ice  (kg m^-3)
 real, parameter :: grav  =9.80616  ! gravitational constant (m s^-2)
