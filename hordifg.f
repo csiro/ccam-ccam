@@ -10,6 +10,7 @@
       use liqwpar_m
       use map_m
       use morepbl_m
+      use nharrs_m
       use nlin_m
       use parmhdff_m
       use sigs_m
@@ -37,16 +38,18 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
-      real, dimension(ifull+iextra,kl) :: zg,ww        ! MJT smag
-      real, dimension(ifull,kl) :: dudx,dudy,dvdx,dvdy ! MJT smag
-      real, dimension(ifull,kl) :: dudz,dvdz           ! MJT smag
-      real, dimension(ifull,kl) :: dwdx,dwdy,dwdz      ! MJT smag
-      real, dimension(ifull,kl) :: dzdx,dzdy           ! MJT smag
+      real, dimension(ifull) :: r1,r2,r3,r4
+      real, dimension(ifull) :: z1,z2,z3,z4
+      real, dimension(ifull+iextra,kl) :: ww
+      real, dimension(ifull+iextra,0:kl-1) :: zgh
+      real, dimension(ifull,kl) :: dudx,dudy,dvdx,dvdy
+      real, dimension(ifull,kl) :: dudz,dvdz
+      real, dimension(ifull,kl) :: dwdx,dwdy,dwdz
       integer, parameter :: nf=2
 !     Local variables
       integer iq, k, nhora, nhorx, iaero, l
       real cc, delphi, emi, hdif, ucc, vcc, wcc
-      integer, save :: kmax=-1 ! MJT smag
+      integer, save :: kmax=-1
       !integer i, j, n, ind
       !ind(i,j,n)=i+(j-1)*il+n*il*il  ! *** for n=0,5
 
@@ -71,8 +74,13 @@ c     set up topography reduction factors for each type of location
 c     expect power nf to be about 1 or 2 (see data statement)
 
       if (kmax.lt.0) then
-        do k=1,kl
-          if (sig(k).ge.0.2) kmax=k
+        kmax=1
+        do k=2,kl
+          if (sig(k).ge.0.2) then
+            kmax=k
+          else
+            exit
+          end if
         end do
       end if
 
@@ -98,31 +106,85 @@ c     above code independent of k
       endif
 
       !--------------------------------------------------------------
-      ! MJT tke ! MJT smag
+      ! This option is for prognostic TKE
       if (nhorjlm==0.or.nvmix==6) then
         ! Calculate du/dx,dv/dx,du/dy,dv/dy, etc 
-        
+
+        ! estimate height from geopotential at half levels
+        zgh(:,0)=zs(1:ifull)/grav
+        do k=1,kl-1
+          zgh(:,k)=(ratha(k)*phi(:,k+1)+rathb(k)*phi(:,k))/grav
+        end do
+        call bounds(zgh)
+       
+        ! calculate horizontal gradients using POM stencil (see Shchepetkin and McWilliams 2003)
         call boundsuv(u,v,allvec=.true.)
-        do k=1,kl
-          dudx(:,k)=(u(ieu,k)-u(iwu,k))*0.5*em(1:ifull)/ds
-          dudy(:,k)=(u(inu,k)-u(isu,k))*0.5*em(1:ifull)/ds
-          dvdx(:,k)=(v(iev,k)-v(iwv,k))*0.5*em(1:ifull)/ds
-          dvdy(:,k)=(v(inv,k)-v(isv,k))*0.5*em(1:ifull)/ds
+        r1=0.
+        r2=ratha(1)*u(ieu,2)+rathb(1)*u(ieu,1)
+        r3=0.
+        r4=ratha(1)*u(iwu,2)+rathb(1)*u(iwu,1)
+        z1=zgh(ie,0)
+        z2=zgh(ie,1)
+        z3=zgh(iw,0)
+        z4=zgh(iw,1)
+        dudx(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
+     &            /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds      
+        r2=ratha(1)*v(iev,2)+rathb(1)*v(iev,1)
+        r4=ratha(1)*v(iwv,2)+rathb(1)*v(iwv,1)
+        dvdx(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
+     &            /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds 
+        r2=ratha(1)*u(inu,2)+rathb(1)*u(inu,1)
+        r4=ratha(1)*u(isu,2)+rathb(1)*u(isu,1)
+        z1=zgh(in,0)
+        z2=zgh(in,1)
+        z3=zgh(is,0)
+        z4=zgh(is,1)
+        dudy(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
+     &            /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds 
+        r2=ratha(1)*v(inv,2)+rathb(1)*v(inv,1)
+        r4=ratha(1)*v(isv,2)+rathb(1)*v(isv,1)
+        dvdy(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
+     &            /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds 
+        do k=2,kl-1
+          r1=ratha(k-1)*u(ieu,k)+rathb(k-1)*u(ieu,k-1)
+          r2=ratha(k)*u(ieu,k+1)+rathb(k)*u(ieu,k)
+          r3=ratha(k-1)*u(iwu,k)+rathb(k-1)*u(iwu,k-1)
+          r4=ratha(k)*u(iwu,k+1)+rathb(k)*u(iwu,k)
+          z1=zgh(ie,k-1)
+          z2=zgh(ie,k)
+          z3=zgh(iw,k-1)
+          z4=zgh(iw,k)
+          dudx(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
+     &              /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+          r1=ratha(k-1)*v(iev,k)+rathb(k-1)*v(iev,k-1)
+          r2=ratha(k)*v(iev,k+1)+rathb(k)*v(iev,k)
+          r3=ratha(k-1)*v(iwv,k)+rathb(k-1)*v(iwv,k-1)
+          r4=ratha(k)*v(iwv,k+1)+rathb(k)*v(iwv,k)
+          dvdx(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
+     &              /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+          r1=ratha(k-1)*u(inu,k)+rathb(k-1)*u(inu,k-1)
+          r2=ratha(k)*u(inu,k+1)+rathb(k)*u(inu,k)
+          r3=ratha(k-1)*u(isu,k)+rathb(k-1)*u(isu,k-1)
+          r4=ratha(k)*u(isu,k+1)+rathb(k)*u(isu,k)
+          z1=zgh(in,k-1)
+          z2=zgh(in,k)
+          z3=zgh(is,k-1)
+          z4=zgh(is,k)
+          dudy(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
+     &              /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+          r1=ratha(k-1)*v(inv,k)+rathb(k-1)*v(inv,k-1)
+          r2=ratha(k)*v(inv,k+1)+rathb(k)*v(inv,k)
+          r3=ratha(k-1)*v(isv,k)+rathb(k-1)*v(isv,k-1)
+          r4=ratha(k)*v(isv,k+1)+rathb(k)*v(isv,k)
+          dvdy(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
+     &              /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
         end do
+        dudx(:,kl)=dudx(:,kl-1) ! just a simple approximiation
+        dvdx(:,kl)=dvdx(:,kl-1)
+        dudy(:,kl)=dudy(:,kl-1)
+        dvdy(:,kl)=dvdy(:,kl-1)
 
-        zg(1:ifull,1)=bet(1)*t(1:ifull,1)/grav
-        do k=2,kl
-          zg(1:ifull,k)=zg(1:ifull,k-1)+(bet(k)*t(1:ifull,k)
-     &                      +betm(k)*t(1:ifull,k-1))/grav
-        end do
-        call bounds(zg)
-        do k=1,kl
-          dzdx(:,k)=0.5*(zg(ie,k)+zs(ie)/grav-zg(iw,k)-zs(iw)/grav)
-     &              *em(1:ifull)/ds
-          dzdy(:,k)=0.5*(zg(in,k)+zs(in)/grav-zg(is,k)-zs(is)/grav)
-     &              *em(1:ifull)/ds
-        end do
-
+        ! calculate vertical velocity in m/s
         do k=1,kl        
           ! omega=ps*dpsldt
           ww(1:ifull,k)=(dpsldt(:,k)/sig(k)-dpsdt/(860.*ps(1:ifull)))
@@ -130,30 +192,72 @@ c     above code independent of k
      &        -qlg(1:ifull,k)-qfg(1:ifull,k))
         end do
         call bounds(ww)
-        do k=1,kl
-          dwdx(:,k)=(ww(ie,k)-ww(iw,k))*0.5*em(1:ifull)/ds
-          dwdy(:,k)=(ww(in,k)-ww(is,k))*0.5*em(1:ifull)/ds
-        end do
-        dudz(:,1)=(u(1:ifull,2)-u(1:ifull,1))
-     &           /(zg(1:ifull,2)-zg(1:ifull,1))
-        dvdz(:,1)=(v(1:ifull,2)-v(1:ifull,1))
-     &           /(zg(1:ifull,2)-zg(1:ifull,1))
-        dwdz(:,1)=(ww(1:ifull,2)-ww(1:ifull,1))
-     &           /(zg(1:ifull,2)-zg(1:ifull,1))
+        r1=0.
+        r2=ratha(1)*ww(ie,2)+rathb(1)*ww(ie,1)
+        r3=0.
+        r4=ratha(1)*ww(iw,2)+rathb(1)*ww(iw,1)
+        z1=zgh(ie,0)
+        z2=zgh(ie,1)
+        z3=zgh(iw,0)
+        z4=zgh(iw,1)
+        dwdx(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
+     &            /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+        r2=ratha(1)*ww(in,2)+rathb(1)*ww(in,1)
+        r4=ratha(1)*ww(is,2)+rathb(1)*ww(is,1)
+        z1=zgh(in,0)
+        z2=zgh(in,1)
+        z3=zgh(is,0)
+        z4=zgh(is,1)
+        dwdy(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
+     &            /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
         do k=2,kl-1
-          dudz(:,k)=(u(1:ifull,k+1)-u(1:ifull,k-1))
-     &             /(zg(1:ifull,k+1)-zg(1:ifull,k-1))
-          dvdz(:,k)=(v(1:ifull,k+1)-v(1:ifull,k-1))
-     &             /(zg(1:ifull,k+1)-zg(1:ifull,k-1))
-          dwdz(:,k)=(ww(1:ifull,k+1)-ww(1:ifull,k-1))
-     &             /(zg(1:ifull,k+1)-zg(1:ifull,k-1))
+          r1=ratha(k-1)*ww(ie,k)+rathb(k-1)*ww(ie,k-1)
+          r2=ratha(k)*ww(ie,k+1)+rathb(k)*ww(ie,k)
+          r3=ratha(k-1)*ww(iw,k)+rathb(k-1)*ww(iw,k-1)
+          r4=ratha(k)*ww(iw,k+1)+rathb(k)*ww(iw,k)
+          z1=zgh(ie,k-1)
+          z2=zgh(ie,k)
+          z3=zgh(iw,k-1)
+          z4=zgh(iw,k)
+          dwdx(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
+     &              /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+        
+          r1=ratha(k-1)*ww(in,k)+rathb(k-1)*ww(in,k-1)
+          r2=ratha(k)*ww(in,k+1)+rathb(k)*ww(in,k)
+          r3=ratha(k-1)*ww(is,k)+rathb(k-1)*ww(is,k-1)
+          r4=ratha(k)*ww(is,k+1)+rathb(k)*ww(is,k)
+          z1=zgh(in,k-1)
+          z2=zgh(in,k)
+          z3=zgh(is,k-1)
+          z4=zgh(is,k)
+          dwdy(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
+     &              /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
         end do
-        dudz(:,kl)=(u(1:ifull,kl)-u(1:ifull,kl-1))
-     &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
-        dvdz(:,kl)=(v(1:ifull,kl)-v(1:ifull,kl-1))
-     &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
-        dwdz(:,kl)=(ww(1:ifull,kl)-ww(1:ifull,kl-1))
-     &            /(zg(1:ifull,kl)-zg(1:ifull,kl-1))
+        dwdx(:,kl)=dwdx(:,kl-1)
+        dwdy(:,kl)=dwdy(:,kl-1)
+        
+        ! calculate vertical gradients
+        r1=0.
+        r2=ratha(1)*u(1:ifull,2)+rathb(1)*u(1:ifull,1)          
+        dudz(:,1)=(r2-r1)/(zgh(1:ifull,1)-zgh(1:ifull,0))
+        r2=ratha(1)*v(1:ifull,2)+rathb(1)*v(1:ifull,1)          
+        dvdz(:,1)=(r2-r1)/(zgh(1:ifull,1)-zgh(1:ifull,0))          
+        r2=ratha(1)*ww(1:ifull,2)+rathb(1)*ww(1:ifull,1)          
+        dwdz(:,1)=(r2-r1)/(zgh(1:ifull,1)-zgh(1:ifull,0))
+        do k=2,kl-1
+          r1=ratha(k-1)*u(1:ifull,k)+rathb(k-1)*u(1:ifull,k-1)
+          r2=ratha(k)*u(1:ifull,k+1)+rathb(k)*u(1:ifull,k)          
+          dudz(:,k)=(r2-r1)/(zgh(1:ifull,k)-zgh(1:ifull,k-1))
+          r1=ratha(k-1)*v(1:ifull,k)+rathb(k-1)*v(1:ifull,k-1)
+          r2=ratha(k)*v(1:ifull,k+1)+rathb(k)*v(1:ifull,k)          
+          dvdz(:,k)=(r2-r1)/(zgh(1:ifull,k)-zgh(1:ifull,k-1))          
+          r1=ratha(k-1)*ww(1:ifull,k)+rathb(k-1)*ww(1:ifull,k-1)
+          r2=ratha(k)*ww(1:ifull,k+1)+rathb(k)*ww(1:ifull,k)          
+          dwdz(:,k)=(r2-r1)/(zgh(1:ifull,k)-zgh(1:ifull,k-1))
+        end do
+        dudz(:,kl)=0.
+        dvdz(:,kl)=0.
+        dudz(:,kl)=0.
 
       end if   ! nhorjlm==0.or.nvmix==6
       if (nhorjlm==1.or.nhorjlm==2.or.
@@ -175,7 +279,7 @@ c     above code independent of k
 !      !--------------------------------------------------------------
 
       select case(nhorjlm)
-       case(0)   ! MJT smag
+       case(0)
          ! This is based on 2D Smagorinsky closure
          do k=1,kl
            hdif=dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
@@ -189,7 +293,7 @@ c     above code independent of k
        case(1)
 c      jlm deformation scheme using 3D uc, vc, wc
          do k=1,kl
-            hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1  ! MJT bug fix
+            hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
             do iq=1,ifull
                cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 +
      &              (uc(in(iq),k)-uc(is(iq),k))**2 +
@@ -205,7 +309,7 @@ c      jlm deformation scheme using 3D uc, vc, wc
        case(2)
 c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
          do k=1,kl
-            hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1  ! MJT bug fix
+            hdif=dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
             do iq=1,ifull
                cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 +
      &              (uc(in(iq),k)-uc(is(iq),k))**2 +
@@ -244,13 +348,10 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
           t_kh(1:ifull,k)=max(max(tke(1:ifull,k)*tke(1:ifull,k)
      &    /eps(1:ifull,k),1.E-7)*hdif,t_kh(1:ifull,k))
 
-          shear(:,k)=2.*(dudx(:,k)-dzdx(:,k)*dudz(:,k))**2
-     &              +2.*(dvdy(:,k)-dzdy(:,k)*dvdz(:,k))**2
-     &              +2.*dwdz(:,k)**2
-     &              +(dudy(:,k)-dzdy(:,k)*dudz(:,k)
-     &               +dvdx(:,k)-dzdx(:,k)*dvdz(:,k))**2
-     &              +(dudz(:,k)+dwdx(:,k)-dzdx(:,k)*dwdz(:,k))**2
-     &              +(dvdz(:,k)+dwdy(:,k)-dzdy(:,k)*dwdz(:,k))**2
+          shear(:,k)=2.*(dudx(:,k)**2+dvdy(:,k)**2+dwdz(:,k)**2)
+     &              +(dudy(:,k)+dvdx(:,k))**2
+     &              +(dudz(:,k)+dwdx(:,k))**2
+     &              +(dvdz(:,k)+dwdy(:,k))**2
         end do
       end if
 

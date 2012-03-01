@@ -1,10 +1,8 @@
 FC = ifort
 
-#FFLAGS = -O -ftz -fpp -I /tools/netcdf/3.6.0-p1/include -assume buffered_io -Dsimple_timer -Duniform_decomp -Dusenc3
-FFLAGS = -O -ftz -fpp -I /tools/netcdf/4.1.1/include -assume buffered_io -Dsimple_timer -Duniform_decomp
-#FFLAGS = -O -ftz -fpp -I /tools/netcdf/4.1.1/include -assume buffered_io -Dsimple_timer
-#LIBS = -L /tools/netcdf/3.6.0-p1/lib -lnetcdf -lmpi
-LIBS = -L /tools/netcdf/4.1.1/lib -lnetcdf -lnetcdff -lmpi -lhdf5 -lhdf5_hl
+FFLAGS = -O -xHost -ftz -fpp -I /apps/netcdf/4.1.3/include -assume buffered_io -Dsimple_timer -Duniform_decomp
+#FFLAGS = -O -xHost -ftz -fpp -I /apps/netcdf/4.1.3/include -assume buffered_io -Dsimple_timer
+LIBS = -L /apps/netcdf/4.1.3/lib -L /apps/hdf5/1.8.8/lib -lmpi -lnetcdf -lnetcdff -lhdf5 -lhdf5_hl
 
 LDFLAGS = 
 
@@ -49,7 +47,7 @@ clean:
 .SUFFIXES:.f90 .F90
 
 esfsw_driver.o: esfsw_driver.f90
-	$(FC)  -c -r8 -override-limits $(FFLAGS) $<
+	$(FC)  -c -r8  $(FFLAGS) $<
 esfsw_parameters.o: esfsw_parameters.f90
 	$(FC)  -c -r8 $(FFLAGS) $<
 gas_tf.o: gas_tf.f90
@@ -72,18 +70,6 @@ rad_utilities.o: rad_utilities.f90
 	$(FC)  -c -r8 $(FFLAGS) $<
 sealw99.o: sealw99.f90
 	$(FC)  -c -r8 $(FFLAGS) $<
-ateb.o: ateb.f90
-	$(FC)  -c -override-limits $(FFLAGS) $<
-cable_canopy.o: cable_canopy.F90
-	$(FC)  -c -override-limits $(FFLAGS) $<
-globpe.o: globpe.f
-	$(FC)  -c -override-limits $(FFLAGS) $<	
-onthefly.o: onthefly.f
-	$(FC)  -c -override-limits $(FFLAGS) $<	
-outcdf.o: outcdf.f
-	$(FC)  -c -override-limits $(FFLAGS) $<	
-mlodynamics.o: mlodynamics.f90
-	$(FC)  -c -override-limits $(FFLAGS) $<		
 stacklimit.o: stacklimit.c
 	cc -c stacklimit.c
 
@@ -147,7 +133,7 @@ gwdrag.o : arrays_m.o gdrag_m.o morepbl_m.o nlin_m.o pbl_m.o sigs_m.o soil_m.o c
 hconst.o : hcon.h 
 helmsol.o : cc_mpi.o ilu_m.o indices_m.o sumdd_m.o newmpar.h parm.h parmdyn.h
 helmsor.o : cc_mpi.o diag_m.o ilu_m.o indices_m.o sumdd_m.o vecs_m.o newmpar.h parm.h parmdyn.h parmgeom.h
-hordifg.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o diag_m.o dpsdt_m.o indices_m.o liqwpar_m.o map_m.o morepbl_m.o nlin_m.o parmhdff_m.o sigs_m.o tkeeps.o vecsuv_m.o vvel_m.o const_phys.h newmpar.h parm.h
+hordifg.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o diag_m.o dpsdt_m.o indices_m.o liqwpar_m.o map_m.o morepbl_m.o nharrs_m.o nlin_m.o parmhdff_m.o sigs_m.o tkeeps.o vecsuv_m.o vvel_m.o const_phys.h newmpar.h parm.h
 hs_phys.o : arrays_m.o latlong_m.o nlin_m.o sigs_m.o newmpar.h parm.h 
 icefall.o : cc_mpi.o kuocomb_m.o morepbl_m.o const_phys.h cparams.h kuocom.h newmpar.h parm.h params.h
 ilu_m.o : cc_mpi.o indices_m.o newmpar.h
@@ -197,5 +183,5 @@ upglobal.o : aerosolldr.o arrays_m.o cc_mpi.o diag_m.o epst_m.o indices_m.o liqw
 utilities.o : const_phys.h 
 vadv30.o : aerosolldr.o arrays_m.o cc_mpi.o indices_m.o liqwpar_m.o map_m.o sigs_m.o tkeeps.o tracers_m.o vvel_m.o xarrs_m.o kuocom.h newmpar.h parm.h parmdyn.h parmvert.h
 vadvtvd.o : aerosolldr.o arrays_m.o cc_mpi.o diag_m.o liqwpar_m.o map_m.o nharrs_m.o sigs_m.o tkeeps.o tracers_m.o vvel_m.o xarrs_m.o kuocom.h newmpar.h parm.h parmdyn.h parmvert.h
-vertmix.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o diag_m.o extraout_m.o indices_m.o kuocomb_m.o liqwpar_m.o map_m.o morepbl_m.o nlin_m.o pbl_m.o permsurf_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o tkeeps.o tracers_m.o trvmix.o const_phys.h dates.h establ.h kuocom.h newmpar.h parm.h
+vertmix.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o diag_m.o extraout_m.o indices_m.o kuocomb_m.o liqwpar_m.o map_m.o morepbl_m.o nharrs_m.o nlin_m.o pbl_m.o permsurf_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o tkeeps.o tracers_m.o trvmix.o const_phys.h dates.h establ.h kuocom.h newmpar.h parm.h
 

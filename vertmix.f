@@ -12,6 +12,7 @@
       use map_m
       use morepbl_m
       use nlin_m, tmnht => un, at => un
+      use nharrs_m
       use pbl_m
       use permsurf_m
       use savuvt_m
@@ -784,10 +785,8 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        ! note ksc.ne.0 options are clobbered when nvmix=6               ! MJT tke
        ! However, nvmix=6 with nlocal=7 supports its own shallow        ! MJT tke
        ! convection options                                             ! MJT tke
-       zg(:,1)=bet(1)*t(1:ifull,1)/grav                                 ! MJT tke
-       do k=2,kl                                                        ! MJT tke
-         zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)                         ! MJT tke
-     &                     +betm(k)*t(1:ifull,k-1))/grav                ! MJT tke
+       do k=1,kl                                                        ! MJT tke
+         zg(:,k)=phi(:,k)/grav                                          ! MJT tke
        end do                                                           ! MJT tke
        do k=1,kl-1                                                      ! MJT tke
          zgh(:,k)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k)                   ! MJT tke
