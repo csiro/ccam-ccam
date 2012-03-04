@@ -70,13 +70,12 @@ integer, parameter :: kmlimit    = 0 ! 0=No adjustment, 1=Limit decay in pbl top
 integer, parameter :: icm1 = 40      ! iterations for calculating pblh
 integer, parameter :: icm2 = 10      ! iterations for calculating tke-eps
 integer, parameter :: icm3 = 5       ! iterations for calculating qupsat
-real, parameter :: tol    = 1.E-9    ! tolarance for sectant method
 real, parameter :: dz_ref = 500.     ! dz reference for kmlimit=1
 real, parameter :: alpha  = 0.3      ! weight for updating pblh
-real, parameter :: alpha2 = 0.7      ! weight for updating tke-eps non-linear terms
 real, parameter :: alpha3 = 0.7      ! weight for updating qupsat
-real, parameter :: beta1  = 1.0      ! weight for km(t+1) (beta1=0.) and km(t) (beta1=1.) when calculating tke non-linear terms
-real, parameter :: beta2  = 0.0      ! weight for km(t+1) (beta2=0.) and km(t) (beta2=1.) when calculating eps non-linear terms
+real, parameter :: beta3  = 0.5      ! weight for explicit tke(t) (beta3=0.) or implicit tke(t+1) (beta3=1.) non-linear terms
+real, parameter :: beta4  = 0.5      ! weight for explicit eps(t) (beta4=0.) or implicit eps(t+1) (beta4=1.) non-linear terms
+real, parameter :: tol    = 2.E-4    ! tolerance for tke-eps non-linear solver
 real, parameter :: mintke = 1.5E-8
 real, parameter :: mineps = 1.0E-10
 
@@ -444,6 +443,7 @@ aa(:,2)=max(aa(:,2)*5./500.,mineps)
 eps(1:ifull,1)=max(eps(1:ifull,1),aa(:,2))
 
 
+
 ! Calculate buoyancy term
 select case(buoymeth)
   case(0) ! Hurley 2007 (dry-PBL with counter gradient term)
@@ -485,36 +485,39 @@ select case(buoymeth)
     stop
 end select
 
+
+
 ! update tke-eps non-linear terms
-! implicit approach (split form - helps with numerical stability)
-tkenew(:,2:kl)=tke(1:ifull,2:kl) ! 1st guess
+! False position method (robust with highly non-linear error function for small tke,
+! whereas the Newton-Raphson method was found to be unstable)
+aa(:,2:kl)=-200.  ! lower tke limit
+cc(:,2:kl)=200.   ! upper tke limit
+call eenonlin(bb(:,2:kl),aa(:,2:kl),epsnew(:,2:kl),km(:,2:kl),pps,ppb,ppt,dt)
+call eenonlin(ff(:,2:kl),cc(:,2:kl),epsnew(:,2:kl),km(:,2:kl),pps,ppb,ppt,dt)
+!tkenew(:,2:kl)=0.5*(aa(:,2:kl)+cc(:,2:kl))
+tkenew(:,2:kl)=(ff(:,2:kl)*aa(:,2:kl)-bb(:,2:kl)*cc(:,2:kl))/(ff(:,2:kl)-bb(:,2:kl))
 do icount=1,icm2
-  tkenew(:,2:kl)=max(tkenew(:,2:kl),mintke)
-  aa(:,2:kl)=dt*ce2/tkenew(:,2:kl)
-  bb(:,2:kl)=1.-dt*ce1*beta2*km(:,2:kl)*(pps+max(ppb(:,2:kl),0.)+max(ppt,0.))/tkenew(:,2:kl)
-  cc(:,2:kl)=-eps(1:ifull,2:kl)-dt*ce1*(1.-beta2)*cm*tkenew(:,2:kl)*(pps+max(ppb(:,2:kl),0.)+max(ppt,0.))
-  gg(:,2:kl)=sqrt(bb(:,2:kl)*bb(:,2:kl)-4.*aa(:,2:kl)*cc(:,2:kl))
-  epsnew(:,2:kl)=(gg(:,2:kl)-bb(:,2:kl))/(2.*aa(:,2:kl))
-  dd(:,2:kl)=-tkenew(:,2:kl)+tke(1:ifull,2:kl)+dt*(((1.-beta1)*cm*tkenew(:,2:kl)*tkenew(:,2:kl)/epsnew(:,2:kl) &
-             +beta1*km(:,2:kl))*(pps+ppb(:,2:kl))-epsnew(:,2:kl)) ! error function
-  ff(:,2:kl)=-1.+dt*2.*(1.-beta1)*cm*tkenew(:,2:kl)/epsnew(:,2:kl)*(pps+ppb(:,2:kl))                                &
-             -dt*(1.+(1.-beta1)*cm*tkenew(:,2:kl)*tkenew(:,2:kl)*(pps+ppb(:,2:kl))/(epsnew(:,2:kl)*epsnew(:,2:kl))) &
-                *(epsnew(:,2:kl)/tkenew(:,2:kl)-0.5*(1.-bb(:,2:kl))/(aa(:,2:kl)*tkenew(:,2:kl))                     &
-                 +(0.5*bb(:,2:kl)*(1.-bb(:,2:kl))/tkenew(:,2:kl)+aa(:,2:kl)*cc(:,2:kl)/tkenew(:,2:kl)               &
-                 +aa(:,2:kl)*dt*ce1*(1.-beta2)*cm*(pps+max(ppb(:,2:kl),0.)+max(ppt,0.)))/(aa(:,2:kl)*gg(:,2:kl)))
-  where (abs(ff(:,2:kl)).gt.tol) ! sectant method 
-    tkenew(:,2:kl)=tkenew(:,2:kl)-alpha2*dd(:,2:kl)/ff(:,2:kl)
+  call eenonlin(dd(:,2:kl),tkenew(:,2:kl),epsnew(:,2:kl),km(:,2:kl),pps,ppb,ppt,dt)
+  where (bb(:,2:kl)*dd(:,2:kl).le.0.)
+    cc(:,2:kl)=tkenew(:,2:kl)
+    ff(:,2:kl)=dd(:,2:kl)
+  elsewhere
+    aa(:,2:kl)=tkenew(:,2:kl)
+    bb(:,2:kl)=dd(:,2:kl)
   end where
+  !tkenew(:,2:kl)=0.5*(aa(:,2:kl)+cc(:,2:kl))
+  tkenew(:,2:kl)=(ff(:,2:kl)*aa(:,2:kl)-bb(:,2:kl)*cc(:,2:kl))/(ff(:,2:kl)-bb(:,2:kl))
 end do
-  
+
 tkenew(:,2:kl)=max(tkenew(:,2:kl),mintke)
 aa(:,2:kl)=cm34*(tkenew(:,2:kl)**1.5)/5.
 epsnew(:,2:kl)=min(epsnew(:,2:kl),aa(:,2:kl))
-aa(:,2:kl)=max(aa(:,2:kl)*5./500.,mineps)
+aa(:,2:kl)=max(aa(:,2:kl)/100.,mineps)
 epsnew(:,2:kl)=max(epsnew(:,2:kl),aa(:,2:kl))
 
 tke(1:ifull,2:kl)=tkenew(:,2:kl)
 eps(1:ifull,2:kl)=epsnew(:,2:kl)
+
 
 
 ! eps vertical mixing (done here as we skip level 1, instead of using trim)
@@ -567,6 +570,7 @@ tke(1:ifull,2:kl)=tkenew(:,2:kl)
 eps(1:ifull,2:kl)=epsnew(:,2:kl)
 
 
+
 ! Update diffusion coeffs
 km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-10)
 call updatekmo(kmo,km,zz,zzm) ! internal mid point levels
@@ -602,6 +606,8 @@ do k=1,kl
   theta(:,k)=thetal(:,k)+sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
 end do
 
+
+
 ! Update diffusion coeffs
 km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-10)
 call updatekmo(kmo,km,zz,zzh) ! output sigmh levels
@@ -611,6 +617,33 @@ epssav=eps(1:ifull,:) ! Not needed, but for consistancy when not using CCAM
 
 return
 end subroutine tkemix
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Error function for tke-eps non-linear terms
+
+subroutine eenonlin(dd,tkenew,epsnew,km,pps,ppb,ppt,dt)
+
+implicit none
+
+real, intent(in) :: dt
+real, dimension(ifull,2:kl), intent(in) :: tkenew,km,pps,ppb,ppt
+real, dimension(ifull,2:kl), intent(out) :: dd,epsnew
+real, dimension(ifull,2:kl) :: aa,bb,cc,gg
+real, dimension(ifull,2:kl) :: efftke,effeps
+
+efftke=beta4*max(tkenew,mintke)+(1.-beta4)*tke(1:ifull,2:kl)
+aa=(1.-beta3)**2*dt*ce2/efftke
+bb=1.-(1.-beta3)*dt*ce1*km*(pps+max(ppb,0.)+max(ppt,0.))/efftke &
+   +2.*(1.-beta3)*beta3*dt*ce2*eps(1:ifull,2:kl)/efftke
+cc=-eps(1:ifull,2:kl)-eps(1:ifull,2:kl)*beta3*dt*ce1*km*(pps+max(ppb,0.)+max(ppt,0.))/efftke  &
+   +beta3*beta3*dt*ce2*eps(1:ifull,2:kl)*eps(1:ifull,2:kl)/efftke
+gg=sqrt(max(bb*bb-4.*aa*cc,0.))
+epsnew=0.5*(gg-bb)/aa
+effeps=beta3*epsnew+(1.-beta3)*eps(1:ifull,2:kl)
+dd=-tkenew+tke(1:ifull,2:kl)+dt*(km*(pps+ppb)-effeps) ! error function
+
+return
+end subroutine eenonlin
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tri-diagonal solver (array version)

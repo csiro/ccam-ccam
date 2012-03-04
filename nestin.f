@@ -547,6 +547,7 @@
       real, dimension(ifull_g,kl) :: ud,vd,wd,td,qd
       real, dimension(ifull_g,kl) :: x_g,xx_g
       real den,polenx,poleny,polenz,zonx,zony,zonz
+      logical disflag
 
       ! nud_uv<0 (JLM 3-pass filter)
       ! nud_uv=0 (no preturbing of winds)
@@ -615,6 +616,7 @@
 
 
       !-----------------------------------------------------------------------
+      disflag=.true.
       if(nud_uv<0)then 
         if (myid == 0) then
           write(6,*) "JLM Fast spectral filter"
@@ -630,10 +632,11 @@
         end if
       elseif(nud_uv==9)then 
         if (myid == 0) write(6,*) "Two dimensional spectral filter"
-        call slowspecmpi(myid,.1*real(mbd)/(pi*schmidt)
+        call slowspecmpi(.1*real(mbd)/(pi*schmidt)
      &                ,psld(:),ud(:,kbotdav:ktopdav)
      &                ,vd(:,kbotdav:ktopdav),wd(:,kbotdav:ktopdav)
      &                ,td(:,kbotdav:ktopdav),qd(:,kbotdav:ktopdav))
+        disflag=.false.
       elseif((mod(6,nproc)==0).or.(mod(nproc,6)==0))then !  usual choice e.g. for nud_uv=1 or 2
         if (myid == 0) write(6,*) 
      &    "Separable 1D filter (MPI optimised)"
@@ -650,116 +653,128 @@
       endif  ! (nud_uv<0) .. else ..
       !-----------------------------------------------------------------------
 
-      if (myid == 0) then
-        write(6,*) "Distribute data from spectral filter"
-        if (nud_p.gt.0) then
-          call ccmpi_distribute(x_g(1:ifull,1), psld(:))
-          psl(1:ifull)=psl(1:ifull)+x_g(1:ifull,1)
-          ps=1.e5*exp(psl(1:ifull))
-        end if
-        if(nud_uv==3)then
-          call ccmpi_distribute(x_g(1:ifull,:), wd(:,:))
-          do k=kbotdav,ktopdav
-            u(1:ifull,k)=u(1:ifull,k)+costh(:)*x_g(1:ifull,k)
-            v(1:ifull,k)=v(1:ifull,k)-sinth(:)*x_g(1:ifull,k)	  
-          end do
-        elseif(nud_uv.ne.0) then
-          do k=1,kl        
-            x_g(:,k)=ax_g(:)*ud(:,k)+ay_g(:)*vd(:,k)+az_g(:)*wd(:,k)
-            xx_g(:,k)=bx_g(:)*ud(:,k)+by_g(:)*vd(:,k)+bz_g(:)*wd(:,k)
-          end do
-          call ccmpi_distribute(ud(1:ifull,:), x_g(:,:))
-          call ccmpi_distribute(vd(1:ifull,:), xx_g(:,:))
-          u(1:ifull,kbotdav:ktopdav)=u(1:ifull,kbotdav:ktopdav)
-     &     +ud(1:ifull,kbotdav:ktopdav)
-          v(1:ifull,kbotdav:ktopdav)=v(1:ifull,kbotdav:ktopdav)
-     &     +vd(1:ifull,kbotdav:ktopdav)
-          savu(1:ifull,kbotdav:ktopdav)=savu(1:ifull,kbotdav:ktopdav)
-     &     +ud(1:ifull,kbotdav:ktopdav)
-          savu1(1:ifull,kbotdav:ktopdav)=savu1(1:ifull,kbotdav:ktopdav)
-     &     +ud(1:ifull,kbotdav:ktopdav)
-          savu2(1:ifull,kbotdav:ktopdav)=savu2(1:ifull,kbotdav:ktopdav)
-     &     +ud(1:ifull,kbotdav:ktopdav)
-          savv(1:ifull,kbotdav:ktopdav)=savv(1:ifull,kbotdav:ktopdav)
-     &     +vd(1:ifull,kbotdav:ktopdav)
-          savv1(1:ifull,kbotdav:ktopdav)=savv1(1:ifull,kbotdav:ktopdav)
-     &     +vd(1:ifull,kbotdav:ktopdav)
-          savv2(1:ifull,kbotdav:ktopdav)=savv2(1:ifull,kbotdav:ktopdav)
-     &     +vd(1:ifull,kbotdav:ktopdav)
-        end if
-        if (nud_t.gt.0) then
-          call ccmpi_distribute(x_g(1:ifull,:), td(:,:))
-          t(1:ifull,kbotdav:ktopdav)=t(1:ifull,kbotdav:ktopdav)
-     &     +x_g(1:ifull,kbotdav:ktopdav)
-          xx_g(:,kbotdav)=bet(kbotdav)*x_g(1:ifull,kbotdav)
-          phi(:,kbotdav)=phi(:,kbotdav)+xx_g(:,kbotdav)
-          do k=kbotdav+1,ktopdav
-            xx_g(:,k)=xx_g(:,k-1)+bet(k)*x_g(1:ifull,k)
-     &        +betm(k)*x_g(1:ifull,k-1)
-            phi(:,k)=phi(:,k)+xx_g(:,k)
-          end do
-          do k=ktopdav+1,kl
-            phi(:,k)=phi(:,k)+xx_g(:,ktopdav)
-          end do
-        end if
-        if (nud_q.gt.0) then
-          call ccmpi_distribute(x_g(1:ifull,:), qd(:,:))
-          qg(1:ifull,kbotdav:ktopdav)=max(qg(1:ifull,kbotdav:ktopdav)
-     &     +x_g(1:ifull,kbotdav:ktopdav),qgmin)
-          qgsav=qg(1:ifull,:)
-        end if
-      else
-        if (nud_p.gt.0) then
-          call ccmpi_distribute(x_g(1:ifull,1))
-          psl(1:ifull)=psl(1:ifull)+x_g(1:ifull,1)
-          ps=1.e5*exp(psl(1:ifull))
-        end if
-        if(nud_uv==3)then
-          call ccmpi_distribute(x_g(1:ifull,:))
-          do k=kbotdav,ktopdav
-            u(1:ifull,k)=u(1:ifull,k)+costh(:)*x_g(1:ifull,k)
-            v(1:ifull,k)=v(1:ifull,k)-sinth(:)*x_g(1:ifull,k)
-          end do
-        elseif (nud_uv.ne.0) then
-          call ccmpi_distribute(ud(1:ifull,:))
-          call ccmpi_distribute(vd(1:ifull,:))
-          u(1:ifull,kbotdav:ktopdav)=u(1:ifull,kbotdav:ktopdav)
-     &     +ud(1:ifull,kbotdav:ktopdav)
-          v(1:ifull,kbotdav:ktopdav)=v(1:ifull,kbotdav:ktopdav)
-     &     +vd(1:ifull,kbotdav:ktopdav)
-          savu(1:ifull,kbotdav:ktopdav)=savu(1:ifull,kbotdav:ktopdav)
-     &     +ud(1:ifull,kbotdav:ktopdav)
-          savu1(1:ifull,kbotdav:ktopdav)=savu1(1:ifull,kbotdav:ktopdav)
-     &     +ud(1:ifull,kbotdav:ktopdav)
-          savu2(1:ifull,kbotdav:ktopdav)=savu2(1:ifull,kbotdav:ktopdav)
-     &     +ud(1:ifull,kbotdav:ktopdav)
-          savv(1:ifull,kbotdav:ktopdav)=savv(1:ifull,kbotdav:ktopdav)
-     &     +vd(1:ifull,kbotdav:ktopdav)
-          savv1(1:ifull,kbotdav:ktopdav)=savv1(1:ifull,kbotdav:ktopdav)
-     &     +vd(1:ifull,kbotdav:ktopdav)
-          savv2(1:ifull,kbotdav:ktopdav)=savv2(1:ifull,kbotdav:ktopdav)
-     &     +vd(1:ifull,kbotdav:ktopdav)
-        end if
-        if (nud_t.gt.0) then
-          call ccmpi_distribute(x_g(1:ifull,:))
-          t(1:ifull,kbotdav:ktopdav)=t(1:ifull,kbotdav:ktopdav)
-     &     +x_g(1:ifull,kbotdav:ktopdav)
-          xx_g(:,kbotdav)=bet(kbotdav)*x_g(1:ifull,kbotdav)
-          phi(:,kbotdav)=phi(:,kbotdav)+xx_g(:,kbotdav)
-          do k=kbotdav+1,ktopdav
-            xx_g(:,k)=xx_g(:,k-1)+bet(k)*x_g(1:ifull,k)
-     &        +betm(k)*x_g(1:ifull,k-1)
-            phi(:,k)=phi(:,k)+xx_g(:,k)
-          end do
-          do k=ktopdav+1,kl
-            phi(:,k)=phi(:,k)+xx_g(:,ktopdav)
-          end do
-        end if
-        if (nud_q.gt.0) then
-          call ccmpi_distribute(x_g(1:ifull,:))
-          qg(1:ifull,kbotdav:ktopdav)=max(qg(1:ifull,kbotdav:ktopdav)
-     &     +x_g(1:ifull,kbotdav:ktopdav),qgmin)
-          qgsav=qg(1:ifull,:)
+      if (disflag) then
+        if (myid == 0) then
+          write(6,*) "Distribute data from spectral filter"
+          if (nud_p.gt.0) then
+            call ccmpi_distribute(x_g(1:ifull,1), psld(:))
+            psl(1:ifull)=psl(1:ifull)+x_g(1:ifull,1)
+            ps=1.e5*exp(psl(1:ifull))
+          end if
+          if(nud_uv==3)then
+            call ccmpi_distribute(x_g(1:ifull,:), wd(:,:))
+            do k=kbotdav,ktopdav
+              u(1:ifull,k)=u(1:ifull,k)+costh(:)*x_g(1:ifull,k)
+              v(1:ifull,k)=v(1:ifull,k)-sinth(:)*x_g(1:ifull,k)	  
+            end do
+          elseif(nud_uv.ne.0) then
+            do k=1,kl        
+              x_g(:,k)=ax_g(:)*ud(:,k)+ay_g(:)*vd(:,k)+az_g(:)*wd(:,k)
+              xx_g(:,k)=bx_g(:)*ud(:,k)+by_g(:)*vd(:,k)+bz_g(:)*wd(:,k)
+            end do
+            call ccmpi_distribute(ud(1:ifull,:), x_g(:,:))
+            call ccmpi_distribute(vd(1:ifull,:), xx_g(:,:))
+            u(1:ifull,kbotdav:ktopdav)=u(1:ifull,kbotdav:ktopdav)
+     &       +ud(1:ifull,kbotdav:ktopdav)
+            v(1:ifull,kbotdav:ktopdav)=v(1:ifull,kbotdav:ktopdav)
+     &       +vd(1:ifull,kbotdav:ktopdav)
+            savu(1:ifull,kbotdav:ktopdav)=savu(1:ifull,kbotdav:ktopdav)
+     &       +ud(1:ifull,kbotdav:ktopdav)
+            savu1(1:ifull,kbotdav:ktopdav)=
+     &       savu1(1:ifull,kbotdav:ktopdav)
+     &       +ud(1:ifull,kbotdav:ktopdav)
+            savu2(1:ifull,kbotdav:ktopdav)=
+     &       savu2(1:ifull,kbotdav:ktopdav)
+     &       +ud(1:ifull,kbotdav:ktopdav)
+            savv(1:ifull,kbotdav:ktopdav)=savv(1:ifull,kbotdav:ktopdav)
+     &       +vd(1:ifull,kbotdav:ktopdav)
+            savv1(1:ifull,kbotdav:ktopdav)=
+     &       savv1(1:ifull,kbotdav:ktopdav)
+     &       +vd(1:ifull,kbotdav:ktopdav)
+            savv2(1:ifull,kbotdav:ktopdav)=
+     &       savv2(1:ifull,kbotdav:ktopdav)
+     &       +vd(1:ifull,kbotdav:ktopdav)
+          end if
+          if (nud_t.gt.0) then
+            call ccmpi_distribute(x_g(1:ifull,:), td(:,:))
+            t(1:ifull,kbotdav:ktopdav)=t(1:ifull,kbotdav:ktopdav)
+     &       +x_g(1:ifull,kbotdav:ktopdav)
+            xx_g(1:ifull,kbotdav)=bet(kbotdav)*x_g(1:ifull,kbotdav)
+            phi(:,kbotdav)=phi(:,kbotdav)+xx_g(1:ifull,kbotdav)
+            do k=kbotdav+1,ktopdav
+              xx_g(1:ifull,k)=xx_g(1:ifull,k-1)+bet(k)*x_g(1:ifull,k)
+     &          +betm(k)*x_g(1:ifull,k-1)
+              phi(:,k)=phi(:,k)+xx_g(1:ifull,k)
+            end do
+            do k=ktopdav+1,kl
+              phi(:,k)=phi(:,k)+xx_g(1:ifull,ktopdav)
+            end do
+          end if
+          if (nud_q.gt.0) then
+            call ccmpi_distribute(x_g(1:ifull,:), qd(:,:))
+            qg(1:ifull,kbotdav:ktopdav)=max(qg(1:ifull,kbotdav:ktopdav)
+     &       +x_g(1:ifull,kbotdav:ktopdav),qgmin)
+            qgsav(:,kbotdav:ktopdav)=max(qgsav(:,kbotdav:ktopdav)
+     &       +x_g(1:ifull,kbotdav:ktopdav),qgmin)
+          end if
+        else
+          if (nud_p.gt.0) then
+            call ccmpi_distribute(x_g(1:ifull,1))
+            psl(1:ifull)=psl(1:ifull)+x_g(1:ifull,1)
+            ps=1.e5*exp(psl(1:ifull))
+          end if
+          if(nud_uv==3)then
+            call ccmpi_distribute(x_g(1:ifull,:))
+            do k=kbotdav,ktopdav
+              u(1:ifull,k)=u(1:ifull,k)+costh(:)*x_g(1:ifull,k)
+              v(1:ifull,k)=v(1:ifull,k)-sinth(:)*x_g(1:ifull,k)
+            end do
+          elseif (nud_uv.ne.0) then
+            call ccmpi_distribute(ud(1:ifull,:))
+            call ccmpi_distribute(vd(1:ifull,:))
+            u(1:ifull,kbotdav:ktopdav)=u(1:ifull,kbotdav:ktopdav)
+     &       +ud(1:ifull,kbotdav:ktopdav)
+            v(1:ifull,kbotdav:ktopdav)=v(1:ifull,kbotdav:ktopdav)
+     &       +vd(1:ifull,kbotdav:ktopdav)
+            savu(1:ifull,kbotdav:ktopdav)=savu(1:ifull,kbotdav:ktopdav)
+     &       +ud(1:ifull,kbotdav:ktopdav)
+            savu1(1:ifull,kbotdav:ktopdav)=
+     &       savu1(1:ifull,kbotdav:ktopdav)
+     &       +ud(1:ifull,kbotdav:ktopdav)
+            savu2(1:ifull,kbotdav:ktopdav)=
+     &       savu2(1:ifull,kbotdav:ktopdav)
+     &       +ud(1:ifull,kbotdav:ktopdav)
+            savv(1:ifull,kbotdav:ktopdav)=savv(1:ifull,kbotdav:ktopdav)
+     &       +vd(1:ifull,kbotdav:ktopdav)
+            savv1(1:ifull,kbotdav:ktopdav)=
+     &       savv1(1:ifull,kbotdav:ktopdav)
+     &       +vd(1:ifull,kbotdav:ktopdav)
+            savv2(1:ifull,kbotdav:ktopdav)=
+     &       savv2(1:ifull,kbotdav:ktopdav)
+     &       +vd(1:ifull,kbotdav:ktopdav)
+          end if
+          if (nud_t.gt.0) then
+            call ccmpi_distribute(x_g(1:ifull,:))
+            t(1:ifull,kbotdav:ktopdav)=t(1:ifull,kbotdav:ktopdav)
+     &       +x_g(1:ifull,kbotdav:ktopdav)
+            xx_g(1:ifull,kbotdav)=bet(kbotdav)*x_g(1:ifull,kbotdav)
+            phi(:,kbotdav)=phi(:,kbotdav)+xx_g(1:ifull,kbotdav)
+            do k=kbotdav+1,ktopdav
+              xx_g(1:ifull,k)=xx_g(1:ifull,k-1)+bet(k)*x_g(1:ifull,k)
+     &          +betm(k)*x_g(1:ifull,k-1)
+              phi(:,k)=phi(:,k)+xx_g(1:ifull,k)
+            end do
+            do k=ktopdav+1,kl
+              phi(:,k)=phi(:,k)+xx_g(1:ifull,ktopdav)
+            end do
+          end if
+          if (nud_q.gt.0) then
+            call ccmpi_distribute(x_g(1:ifull,:))
+            qg(1:ifull,kbotdav:ktopdav)=max(qg(1:ifull,kbotdav:ktopdav)
+     &       +x_g(1:ifull,kbotdav:ktopdav),qgmin)
+            qgsav(:,kbotdav:ktopdav)=max(qgsav(:,kbotdav:ktopdav)
+     &       +x_g(1:ifull,kbotdav:ktopdav),qgmin)
+          end if
         end if
       end if
 
@@ -1147,9 +1162,17 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       !---------------------------------------------------------------------------------
       ! Slow 2D spectral downscaling - MPI version
-      subroutine slowspecmpi(myid,cin,psls,uu,vv,ww,tt,qgg)
+      subroutine slowspecmpi(cin,psls,uu,vv,ww,tt,qgg)
 
+      use arrays_m          ! Atmosphere dyamics prognostic arrays
+      use cc_mpi            ! CC MPI routines
+      use nharrs_m          ! Non-hydrostatic atmosphere arrays
       use map_m             ! Grid map arrays
+      use savuvt_m          ! Saved dynamic arrays
+      use savuv1_m          ! Saved dynamic arrays
+      use sigs_m            ! Atmosphere sigma levels
+      use vecsuv_m          ! Map to cartesian coordinates
+      use work3sav_m        ! Water and tracer saved arrays
       use xyzinfo_m         ! Grid coordinate arrays
       
       implicit none
@@ -1158,19 +1181,18 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       include 'mpif.h'      ! MPI parameters
       include 'parm.h'      ! Model configuration
 
-      integer, intent(in) :: myid
-      integer iq,ns,ne,k,ierr,iproc,iy
+      integer i,j,n,iq,iqg,k,ierr,iy
       integer :: itag=0
       integer, dimension(MPI_STATUS_SIZE) :: status
       real, intent(in) :: cin
-      real, dimension(ifull_g), intent(inout) :: psls
+      real, dimension(ifull_g), intent(in) :: psls
       real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: uu,vv
       real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: ww
       real, dimension(ifull_g,kbotdav:ktopdav), intent(inout) :: tt,qgg
-      real, dimension(ifull_g) :: pp,r
-      real, dimension(ifull_g,kbotdav:ktopdav) :: pu,pv,pw,pt,pq
+      real, dimension(ifull_g) :: r
       real, dimension(ifull_g*(ktopdav-kbotdav+1)) :: dd
-      real cq,psum
+      real, dimension(ifull,kbotdav:ktopdav) :: ud,vd,td,qd,xx
+      real cq,psum,ub,vb,wb
 
       cq=sqrt(4.5)*cin
 
@@ -1231,109 +1253,86 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
       end if
     
-      call procdiv(ns,ne,ifull_g,nproc,myid)
-      if ((myid == 0).and.(nmaxpr==1)) write(6,*) "Start 2D filter"
+      if (myid==0.and.nmaxpr==1) write(6,*) "Start 2D filter"
       
-      do iq=ns,ne
-        r(:)=x_g(iq)*x_g(:)+y_g(iq)*y_g(:)+z_g(iq)*z_g(:)
-        r(:)=acos(max(min(r(:),1.),-1.))
-        r(:)=exp(-(cq*r(:))**2)/(em_g(:)**2)
-        psum=sum(r(:))
-        if (nud_p>0) then
-          pp(iq)=sum(r(:)*psls(:))/psum
-        end if
-        if (nud_uv>0) then
-          do k=kbotdav,ktopdav
-            pu(iq,k)=sum(r(:)*uu(:,k))/psum
-            pv(iq,k)=sum(r(:)*vv(:,k))/psum
-            pw(iq,k)=sum(r(:)*ww(:,k))/psum
-          end do        
-        end if
-        if (nud_t>0) then
-          do k=kbotdav,ktopdav
-            pt(iq,k)=sum(r(:)*tt(:,k))/psum
+      do n=1,npan
+        do j=1,jpan
+          do i=1,ipan
+            iqg=indg(i,j,n)
+            iq=indp(i,j,n)
+            r(:)=x_g(iqg)*x_g(:)+y_g(iqg)*y_g(:)+z_g(iqg)*z_g(:)
+            r(:)=acos(max(min(r(:),1.),-1.))
+            r(:)=exp(-(cq*r(:))**2)/(em_g(:)**2)
+            psum=sum(r(:))
+            if (nud_p>0) then
+              psl(iq)=psl(iq)+sum(r(:)*psls(:))/psum
+            end if
+            if (nud_uv>0) then
+              do k=kbotdav,ktopdav
+                ub=sum(r(:)*uu(:,k))/psum
+                vb=sum(r(:)*vv(:,k))/psum
+                wb=sum(r(:)*ww(:,k))/psum
+                ud(iq,k)=ax(iq)*ub+ay(iq)*vb+az(iq)*wb
+                vd(iq,k)=bx(iq)*ub+by(iq)*vb+bz(iq)*wb
+              end do        
+            end if
+            if (nud_t>0) then
+              do k=kbotdav,ktopdav
+                td(iq,k)=sum(r(:)*tt(:,k))/psum
+              end do
+            end if
+            if (nud_q>0) then
+              do k=kbotdav,ktopdav
+                qd(iq,k)=sum(r(:)*qgg(:,k))/psum
+              end do
+            end if
           end do
-        end if
-        if (nud_q>0) then
-          do k=kbotdav,ktopdav
-            pq(iq,k)=sum(r(:)*qgg(:,k))/psum
-          end do
-        end if
+        end do
       end do
  
       if (nud_p>0) then
-        psls(ns:ne)=pp(ns:ne)
+        ps=1.e5*exp(psl(1:ifull))
       end if
       if (nud_uv>0) then
-        uu(ns:ne,:)=pu(ns:ne,:)
-        vv(ns:ne,:)=pv(ns:ne,:)
-        ww(ns:ne,:)=pw(ns:ne,:)
+        u(1:ifull,kbotdav:ktopdav)=u(1:ifull,kbotdav:ktopdav)
+     &   +ud(:,kbotdav:ktopdav)
+        v(1:ifull,kbotdav:ktopdav)=v(1:ifull,kbotdav:ktopdav)
+     &   +vd(:,kbotdav:ktopdav)
+        savu(1:ifull,kbotdav:ktopdav)=savu(1:ifull,kbotdav:ktopdav)
+     &   +ud(:,kbotdav:ktopdav)
+        savu1(1:ifull,kbotdav:ktopdav)=savu1(1:ifull,kbotdav:ktopdav)
+     &   +ud(:,kbotdav:ktopdav)
+        savu2(1:ifull,kbotdav:ktopdav)=savu2(1:ifull,kbotdav:ktopdav)
+     &   +ud(:,kbotdav:ktopdav)
+        savv(1:ifull,kbotdav:ktopdav)=savv(1:ifull,kbotdav:ktopdav)
+     &   +vd(:,kbotdav:ktopdav)
+        savv1(1:ifull,kbotdav:ktopdav)=savv1(1:ifull,kbotdav:ktopdav)
+     &   +vd(:,kbotdav:ktopdav)
+        savv2(1:ifull,kbotdav:ktopdav)=savv2(1:ifull,kbotdav:ktopdav)
+     &   +vd(:,kbotdav:ktopdav)
       end if
       if (nud_t>0) then
-        tt(ns:ne,:)=pt(ns:ne,:)
+        t(1:ifull,kbotdav:ktopdav)=t(1:ifull,kbotdav:ktopdav)
+     &   +td(:,kbotdav:ktopdav)
+        xx(:,kbotdav)=bet(kbotdav)*td(:,kbotdav)
+        phi(:,kbotdav)=phi(:,kbotdav)+xx(:,kbotdav)
+        do k=kbotdav+1,ktopdav
+          xx(:,k)=xx(:,k-1)+bet(k)*td(:,k)
+     &     +betm(k)*td(:,k-1)
+          phi(:,k)=phi(:,k)+xx(:,k)
+        end do
+        do k=ktopdav+1,kl
+          phi(:,k)=phi(:,k)+xx(:,ktopdav)
+        end do
       end if
       if (nud_q>0) then
-        qgg(ns:ne,:)=pq(ns:ne,:)
+        qg(1:ifull,kbotdav:ktopdav)=max(qg(1:ifull,kbotdav:ktopdav)
+     &   +qd(:,kbotdav:ktopdav),qgmin)
+        qgsav(:,kbotdav:ktopdav)=max(qgsav(:,kbotdav:ktopdav)
+     &   +qd(1:ifull,kbotdav:ktopdav),qgmin)
       end if
-          
-      if ((myid == 0).and.(nmaxpr==1)) write(6,*) "End 2D filter"
-
-      itag=itag+1
-      if (myid == 0) then
-        if (nmaxpr==1) write(6,*) "Receive arrays from all processors"
-        do iproc=1,nproc-1
-          call procdiv(ns,ne,ifull_g,nproc,iproc)
-          if(nud_p>0)call MPI_Recv(psls(ns:ne),ne-ns+1,MPI_REAL,iproc
-     &                      ,itag,MPI_COMM_WORLD,status,ierr)
-          iy=(ne-ns+1)*(ktopdav-kbotdav+1)
-          if(nud_uv>0)then
-            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,status,ierr)
-            uu(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,ktopdav-kbotdav+1/))
-            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,status,ierr)
-            vv(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,ktopdav-kbotdav+1/))
-            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,status,ierr)
-            ww(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,ktopdav-kbotdav+1/))
-          end if
-          if(nud_t>0)then
-            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,status,ierr)
-            tt(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,ktopdav-kbotdav+1/))
-          end if
-          if(nud_q>0)then
-            call MPI_Recv(dd(1:iy),iy,MPI_REAL,iproc,itag,
-     &             MPI_COMM_WORLD,status,ierr)
-            qgg(ns:ne,:)=reshape(dd(1:iy),(/ne-ns+1,ktopdav-kbotdav+1/))
-          end if
-        end do
-      else
-        if(nud_p>0) call MPI_SSend(psls(ns:ne),ne-ns+1,MPI_REAL,0,
-     &                     itag,MPI_COMM_WORLD,ierr)
-        iy=(ne-ns+1)*(ktopdav-kbotdav+1)
-        if(nud_uv>0)then
-          dd(1:iy)=reshape(uu(ns:ne,:),(/iy/))
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,ierr)
-          dd(1:iy)=reshape(vv(ns:ne,:),(/iy/))
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,ierr)
-          dd(1:iy)=reshape(ww(ns:ne,:),(/iy/))
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,ierr)
-        end if
-        if(nud_t>0)then
-          dd(1:iy)=reshape(tt(ns:ne,:),(/iy/))
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,ierr)
-        end if
-        if(nud_q>0)then
-          dd(1:iy)=reshape(qgg(ns:ne,:),(/iy/))
-          call MPI_SSend(dd(1:iy),iy,MPI_REAL,0,itag,
-     &           MPI_COMM_WORLD,ierr)
-        end if
-      end if
+ 
+      if (myid == 0.and.nmaxpr==1) write(6,*) "End 2D filter"
 
       return
       end subroutine slowspecmpi
@@ -2357,7 +2356,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
 
       integer, intent(in) :: wl
       integer ierr,nns,nne
-      integer iproc,ns,ne,k,ka,kb,kc,kd,iy
+      integer iproc,k,ka,kb,kc,kd,iy
       integer :: itag=0
       integer, dimension(MPI_STATUS_SIZE) :: status
       real, dimension(ifull), intent(in) :: sfh
@@ -2519,36 +2518,12 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end if
       end if
 
-      call procdiv(ns,ne,ifull_g,nproc,myid)
       call mlofilterhost(diff_g(:,1:kd),diffs_g(:,1:kd),
      &                   diffu_g(:,1:kd),diffv_g(:,1:kd),
-     &                   diffh_g,kd,miss,landg,ns,ne)
-
-      if (myid==0) then
-        write(6,*) "Distribute data from MLO filter"
-      end if
+     &                   diffh_g,kd,miss,landg)
 
       if (nud_sst.ne.0) then
-        itag=itag+1
-        if (myid == 0) then
-          do iproc=1,nproc-1
-            call procdiv(nns,nne,ifull_g,nproc,iproc)
-            iy=(nne-nns+1)*kd
-            call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,itag,
-     &                    MPI_COMM_WORLD,status,ierr)
-            diff_g(nns:nne,1:kd)=reshape(zz(1:iy),(/nne-nns+1,kd/))
-          end do
-        else
-          iy=(ne-ns+1)*kd
-          zz(1:iy)=reshape(diff_g(ns:ne,1:kd),(/iy/))
-          call MPI_SSend(zz(1:iy),iy,MPI_REAL,0,itag,MPI_COMM_WORLD,
-     &                   ierr)
-        end if
-        if (myid == 0) then
-          call ccmpi_distribute(diff(:,1:kd),diff_g(:,1:kd))
-        else
-          call ccmpi_distribute(diff(:,1:kd))
-        end if
+        diff(:,1:kd)=diff_g(1:ifull,1:kd)
         ! correct temp pertubation to minimise change in buoyancy
         if (tempfix.eq.1.and.kd.eq.1) then
           if (ktopmlo.ne.1) then
@@ -2601,26 +2576,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       end if
 
       if (nud_sss.ne.0) then
-        itag=itag+1
-        if (myid == 0) then
-          do iproc=1,nproc-1
-            call procdiv(nns,nne,ifull_g,nproc,iproc)
-            iy=(nne-nns+1)*kd
-            call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,itag,
-     &                    MPI_COMM_WORLD,status,ierr)
-            diffs_g(nns:nne,1:kd)=reshape(zz(1:iy),(/nne-nns+1,kd/))
-          end do
-        else
-          iy=(ne-ns+1)*kd
-          zz(1:iy)=reshape(diffs_g(ns:ne,1:kd),(/iy/))
-          call MPI_SSend(zz(1:iy),iy,MPI_REAL,0,itag,MPI_COMM_WORLD,
-     &                   ierr)
-        end if
-        if (myid == 0) then
-          call ccmpi_distribute(diff(:,1:kd),diffs_g(:,1:kd))
-        else
-          call ccmpi_distribute(diff(:,1:kd))
-        end if
+        diff(:,1:kd)=diffs_g(1:ifull,1:kd)
         do k=ktopmlo,kc
           ka=min(wl,k)
           kb=k-ktopmlo+1
@@ -2640,26 +2596,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       end if
 
       if (nud_ouv.ne.0) then
-        itag=itag+1
-        if (myid == 0) then
-          do iproc=1,nproc-1
-            call procdiv(nns,nne,ifull_g,nproc,iproc)
-            iy=(nne-nns+1)*kd
-            call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,itag,
-     &                    MPI_COMM_WORLD,status,ierr)
-            diffu_g(nns:nne,1:kd)=reshape(zz(1:iy),(/nne-nns+1,kd/))
-          end do
-        else
-          iy=(ne-ns+1)*kd
-          zz(1:iy)=reshape(diffu_g(ns:ne,1:kd),(/iy/))
-          call MPI_SSend(zz(1:iy),iy,MPI_REAL,0,itag,MPI_COMM_WORLD,
-     &                   ierr)
-        end if
-        if (myid == 0) then
-          call ccmpi_distribute(diff(:,1:kd),diffu_g(:,1:kd))
-        else
-          call ccmpi_distribute(diff(:,1:kd))
-        end if
+        diff(:,1:kd)=diffu_g(1:ifull,1:kd)
         do k=ktopmlo,kc
           ka=min(wl,k)
           kb=k-ktopmlo+1
@@ -2682,25 +2619,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             oldu2(:,k)=oldu2(:,k)+diff(:,kb)*10./real(mloalpha)
           end if
         end do
-        if (myid == 0) then
-          do iproc=1,nproc-1
-            call procdiv(nns,nne,ifull_g,nproc,iproc)
-            iy=(nne-nns+1)*kd
-            call MPI_Recv(zz(1:iy),iy,MPI_REAL,iproc,itag,
-     &                    MPI_COMM_WORLD,status,ierr)
-            diffv_g(nns:nne,1:kd)=reshape(zz(1:iy),(/nne-nns+1,kd/))
-          end do
-        else
-          iy=(ne-ns+1)*kd
-          zz(1:iy)=reshape(diffv_g(ns:ne,1:kd),(/iy/))
-          call MPI_SSend(zz(1:iy),iy,MPI_REAL,0,itag,MPI_COMM_WORLD,
-     &                   ierr)
-        end if
-        if (myid == 0) then
-          call ccmpi_distribute(diff(:,1:kd),diffv_g(:,1:kd))
-        else
-          call ccmpi_distribute(diff(:,1:kd))
-        end if
+        diff(:,1:kd)=diffv_g(1:ifull,1:kd)
         do k=ktopmlo,kc
           ka=min(wl,k)
           kb=k-ktopmlo+1
@@ -2722,24 +2641,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       end if
 
       if (nud_sfh.ne.0) then
-        itag=itag+1
-        if (myid == 0) then
-          do iproc=1,nproc-1
-            call procdiv(nns,nne,ifull_g,nproc,iproc)
-            iy=(nne-nns+1)
-            call MPI_Recv(diffh_g(nns:nne,1),iy,MPI_REAL,iproc,itag,
-     &                    MPI_COMM_WORLD,status,ierr)
-          end do
-        else
-          iy=(ne-ns+1)
-          call MPI_SSend(diffh_g(ns:ne,1),iy,MPI_REAL,0,itag,
-     &                   MPI_COMM_WORLD,ierr)
-        end if
-        if (myid == 0) then
-          call ccmpi_distribute(diff(:,1),diffh_g(:,1))
-        else
-          call ccmpi_distribute(diff(:,1))
-        end if
+        diff(:,1:kd)=diffh_g(1:ifull,1:kd)
         old=sfh
         call mloexport(4,old,0,0)
         old=old+diff(:,1)*10./real(mloalpha)
@@ -2754,8 +2656,9 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       end subroutine mlofilter
 
       subroutine mlofilterhost(diff_g,diffs_g,diffu_g,diffv_g,diffh_g,
-     &                         kd,miss,landg,ns,ne)
+     &                         kd,miss,landg)
 
+      use cc_mpi             ! CC MPI routines
       use map_m              ! Grid map arrays
       use xyzinfo_m          ! Grid coordinate arrays
 
@@ -2766,17 +2669,18 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       include 'parm.h'       ! Model configuration
       include 'parmgeom.h'   ! Coordinate data
 
-      integer, intent(in) :: kd,ns,ne
-      integer iqw,k
+      integer, intent(in) :: kd
+      integer i,j,n,iqw,iqwg,k
       real, intent(in) :: miss
       real nsum,cq
       real, dimension(ifull_g,1), intent(inout) :: diffh_g
       real, dimension(ifull_g,kd), intent(inout) :: diff_g,diffs_g
       real, dimension(ifull_g,kd), intent(inout) :: diffu_g,diffv_g
       real, dimension(ifull_g) :: r,rr,mm,nn
-      real, dimension(ifull_g) :: ffh,ddh
-      real, dimension(ifull_g,kd) :: ff,ffs,dd,dds
-      real, dimension(ifull_g,kd) :: ffu,ffv,ddu,ddv
+      real, dimension(ifull_g) :: ffh
+      real, dimension(ifull_g,kd) :: ff,ffs,ffu,ffv
+      real, dimension(ifull) :: ddh
+      real, dimension(ifull,kd) :: dd,dds,ddu,ddv
       logical, dimension(ifull_g), intent(in) :: landg
 
       ! eventually will be replaced with mbd once full ocean coupling is complete
@@ -2812,45 +2716,51 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       if (nud_sfh.ne.0) then
         ffh=diffh_g(:,1)*nn
       end if
-      do iqw=ns,ne
-        if (.not.landg(iqw)) then
-          r(:)=x_g(iqw)*x_g(:)+y_g(iqw)*y_g(:)+z_g(iqw)*z_g(:)
-          r(:)=acos(max(min(r(:),1.),-1.))
-          rr(:)=exp(-(cq*r(:))**2)
-          nsum=sum(rr(:)*mm(:))
-          if (nud_sst.ne.0) then
-            do k=1,kd
-              dd(iqw,k)=sum(rr(:)*ff(:,k))/nsum
-            end do
-          end if
-          if (nud_sss.ne.0) then
-            do k=1,kd
-              dds(iqw,k)=sum(rr(:)*ffs(:,k))/nsum
-            end do
-          end if
-          if (nud_ouv.ne.0) then
-            do k=1,kd
-              ddu(iqw,k)=sum(rr(:)*ffu(:,k))/nsum
-              ddv(iqw,k)=sum(rr(:)*ffv(:,k))/nsum
-            end do
-          end if
-          if (nud_sfh.ne.0) then
-            ddh(iqw)=sum(rr(:)*ffh(:))/nsum
-          end if
-        end if
+      do n=1,npan
+        do j=1,jpan
+          do i=1,ipan
+            iqwg=indg(i,j,n)
+            iqw=indp(i,j,n)
+            if (.not.landg(iqwg)) then
+              r(:)=x_g(iqwg)*x_g(:)+y_g(iqwg)*y_g(:)+z_g(iqwg)*z_g(:)
+              r(:)=acos(max(min(r(:),1.),-1.))
+              rr(:)=exp(-(cq*r(:))**2)
+              nsum=sum(rr(:)*mm(:))
+              if (nud_sst.ne.0) then
+                do k=1,kd
+                  dd(iqw,k)=sum(rr(:)*ff(:,k))/nsum
+                end do
+              end if
+              if (nud_sss.ne.0) then
+                do k=1,kd
+                  dds(iqw,k)=sum(rr(:)*ffs(:,k))/nsum
+                end do
+              end if
+              if (nud_ouv.ne.0) then
+                do k=1,kd
+                  ddu(iqw,k)=sum(rr(:)*ffu(:,k))/nsum
+                  ddv(iqw,k)=sum(rr(:)*ffv(:,k))/nsum
+                end do
+              end if
+              if (nud_sfh.ne.0) then
+                ddh(iqw)=sum(rr(:)*ffh(:))/nsum
+              end if
+            end if
+          end do
+        end do
       end do
       if (nud_sst.ne.0) then
-        diff_g(ns:ne,:)=dd(ns:ne,:)
+        diff_g(1:ifull,:)=dd(:,:)
       end if
       if (nud_sss.ne.0) then
-        diffs_g(ns:ne,:)=dds(ns:ne,:)
+        diffs_g(1:ifull,:)=dds(:,:)
       end if
       if (nud_ouv.ne.0) then
-        diffu_g(ns:ne,:)=ddu(ns:ne,:)
-        diffv_g(ns:ne,:)=ddv(ns:ne,:)
+        diffu_g(1:ifull,:)=ddu(:,:)
+        diffv_g(1:ifull,:)=ddv(:,:)
       end if
       if (nud_sfh.ne.0) then
-        diffh_g(ns:ne,1)=ddh(ns:ne)
+        diffh_g(1:ifull,1)=ddh(:)
       end if
 
       return

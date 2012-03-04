@@ -111,9 +111,9 @@ c     above code independent of k
         ! Calculate du/dx,dv/dx,du/dy,dv/dy, etc 
 
         ! estimate height from geopotential at half levels
-        zgh(:,0)=zs(1:ifull)/grav
+        zgh(1:ifull,0)=zs(1:ifull)/grav
         do k=1,kl-1
-          zgh(:,k)=(ratha(k)*phi(:,k+1)+rathb(k)*phi(:,k))/grav
+          zgh(1:ifull,k)=(ratha(k)*phi(:,k+1)+rathb(k)*phi(:,k))/grav
         end do
         call bounds(zgh)
        

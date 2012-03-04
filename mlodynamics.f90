@@ -557,20 +557,20 @@ real delpos,delneg,alph_p,dumpp,dumpn,fjd
 real, dimension(ifull+iextra) :: neta,pice,imass
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv,ndum
 real, dimension(ifull+iextra) :: snu,sou,spu,squ,sru,snv,sov,spv,sqv,srv
-real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,spnet,oeta
+real, dimension(ifull+iextra) :: ibu,ibv,icu,icv,spnet,oeta,oeu,oev
 real, dimension(ifull) :: i_u,i_v,i_sto,rhobaru,rhobarv
-real, dimension(ifull) :: sdiv,sinp,div,odiv,inp,seta,w_e
+real, dimension(ifull) :: sdiv,sinp,div,inp,odiv,seta,w_e
 real, dimension(ifull) :: sdivb,divb,odivb,xps,yps
 real, dimension(ifull) :: tnu,tsu,tev,twv,rhou,rhov
 real, dimension(ifull) :: dpsdxu,dpsdyu,dpsdxv,dpsdyv
 real, dimension(ifull) :: dttdxu,dttdyu,dttdxv,dttdyv
 real, dimension(ifull) :: detadxu,detadyu,detadxv,detadyv
 real, dimension(ifull) :: dipdxu,dipdyu,dipdxv,dipdyv
-real, dimension(ifull) :: au,bu,cu,av,bv,cv,odum,oeu,oev
+real, dimension(ifull) :: au,bu,cu,av,bv,cv,odum
 real, dimension(ifull) :: nip,ipmax,imu,imv
 real, dimension(ifull) :: sue,suw,svn,svs,snuw,snvs
 real, dimension(ifull+iextra,wlev) :: nu,nv,nt,ns,mps,qps
-real, dimension(ifull+iextra,wlev) :: cou,cov,cow
+real, dimension(ifull+iextra,wlev) :: cou,cov,cow,eou,eov
 real, dimension(ifull+iextra,wlev) :: rhobar,rho,dalpha,dbeta
 real, dimension(ifull+iextra,4) :: nit
 real, dimension(ifull+iextra,2) :: stwgt
@@ -720,8 +720,9 @@ niu(1:ifull)=i_u
 niv(1:ifull)=i_v
 call bounds(neta,corner=.true.)
 oeta=neta
-oeu=0.5*(neta(1:ifull)+neta(ie)) ! depth at staggered coordinate
-oev=0.5*(neta(1:ifull)+neta(in)) ! depth at staggered coordinate
+oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie)) ! depth at staggered coordinate
+oev(1:ifull)=0.5*(neta(1:ifull)+neta(in)) ! depth at staggered coordinate
+call boundsuv(oeu,oev)
 
 totits=0
 itotits=0
@@ -746,12 +747,38 @@ dpsdyv=(pice(in)-pice(1:ifull))*emv(1:ifull)/ds
 ! Velocity is set to zero at ocean boundaries.
 
 if (myid==0.and.nmaxpr==1) then
+  write(6,*) "mlohadv: Departure points"
+end if
+
+! save arrays
+if (ktau.eq.1.and..not.lrestart) then
+  oldu1=nu(1:ifull,:)
+  oldv1=nv(1:ifull,:)
+  oldu2=nu(1:ifull,:)
+  oldv2=nv(1:ifull,:)
+  ipice=0. ! ice free drift solution
+end if
+
+! Estimate currents at t+1/2 for semi-Lagrangian advection
+do ii=1,wlev
+  nuh(:,ii)=(15.*nu(1:ifull,ii)-10.*oldu1(:,ii)+3.*oldu2(:,ii))/8.*ee(1:ifull) ! U at t+1/2
+  nvh(:,ii)=(15.*nv(1:ifull,ii)-10.*oldv1(:,ii)+3.*oldv2(:,ii))/8.*ee(1:ifull) ! V at t+1/2
+end do
+
+! Calculate depature points
+call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
+
+oldu2=oldu1
+oldv2=oldv1
+oldu1=nu(1:ifull,:)
+oldv1=nv(1:ifull,:)
+
+if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: water vertical advection 1"
 end if
 
 ! Calculate adjusted depths
 ndum=max(1.+neta/dd,mindep/dd)
-call bounds(ndum,corner=.true.)
 do ii=1,wlev
   depdum(:,ii)=gosig(ii)*dd(1:ifull)*ndum(1:ifull)
   dzdum(:,ii)=gosigh(ii)*dd(1:ifull)*ndum(1:ifull)
@@ -770,12 +797,8 @@ do ii=2,wlev
 end do
 call mlostaguv(dou,dov,cou(1:ifull,:),cov(1:ifull,:))
 call boundsuv(cou,cov)
-! Calculate gradients in free surface and bathymetry on C-grid and unstagger to A-grid
-! The staggering approach is consistent with external changes to neta due to net changes
-! in volume (i.e., runoff, rainfall, ice formation, ice melt and evaporation)
-siu(:,1)=(neta(ie)/em(ie)-neta(1:ifull)/em(1:ifull))*emu(1:ifull)*emu(1:ifull)/ds ! staggered
-siv(:,1)=(neta(in)/em(in)-neta(1:ifull)/em(1:ifull))*emv(1:ifull)*emv(1:ifull)/ds
-call mlounstaguv(siu,siv,sju,sjv)
+sju(:,1)=(oeu(1:ifull)/emu(1:ifull)-oeu(iwu)/emu(iwu))*em(1:ifull)*em(1:ifull)/ds ! unstaggered
+sjv(:,1)=(oev(1:ifull)/emv(1:ifull)-oev(isv)/emv(isv))*em(1:ifull)*em(1:ifull)/ds
 sdiv=(cou(1:ifull,wlev)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,wlev)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
      +cov(1:ifull,wlev)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,wlev)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
      *em(1:ifull)*em(1:ifull)/ds
@@ -791,33 +814,6 @@ end do
 ! Vertical advection (first call for 0.5*dt)
 call mlovadv(0.5*dt,nw,nu(1:ifull,:),nv(1:ifull,:),ns(1:ifull,:),nt(1:ifull,:),depdum, &
              dzdum,wtr(1:ifull),1)
-
-! save arrays
-if (ktau.eq.1.and..not.lrestart) then
-  oldu1=nu(1:ifull,:)
-  oldv1=nv(1:ifull,:)
-  oldu2=nu(1:ifull,:)
-  oldv2=nv(1:ifull,:)
-  ipice=0. ! ice free drift solution
-end if
-
-if (myid==0.and.nmaxpr==1) then
-  write(6,*) "mlohadv: Departure points"
-end if
-
-! Estimate currents at t+1/2 for semi-Lagrangian advection
-do ii=1,wlev
-  nuh(:,ii)=(15.*nu(1:ifull,ii)-10.*oldu1(:,ii)+3.*oldu2(:,ii))/8.*ee(1:ifull) ! U at t+1/2
-  nvh(:,ii)=(15.*nv(1:ifull,ii)-10.*oldv1(:,ii)+3.*oldv2(:,ii))/8.*ee(1:ifull) ! V at t+1/2
-end do
-
-! Calculate depature points
-call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
-
-oldu2=oldu1
-oldv2=oldv1
-oldu1=nu(1:ifull,:)
-oldv1=nv(1:ifull,:)
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: density EOS 1"
@@ -906,11 +902,34 @@ end if
 
 ! Advect continuity equation to tstar
 ! Calculate velocity on C-grid for consistancy with iterative free surface calculation
-call mlostaguv(nu(1:ifull,:),nv(1:ifull,:),cou(1:ifull,:),cov(1:ifull,:))
-call boundsuv(cou,cov)
-do ii=1,wlev
+call mlostaguv(nu(1:ifull,:),nv(1:ifull,:),eou(1:ifull,:),eov(1:ifull,:))
+call boundsuv(eou,eov)
+dou(:,1)=nu(1:ifull,1)*godsig(1)*ee(1:ifull) ! unstaggered at time t
+dov(:,1)=nv(1:ifull,1)*godsig(1)*ee(1:ifull)
+cou(:,1)=eou(:,1)*godsig(1)*eeu
+cov(:,1)=eov(:,1)*godsig(1)*eev
+do ii=2,wlev
+  dou(:,ii)=(dou(:,ii-1)+nu(1:ifull,ii)*godsig(ii))*ee(1:ifull)
+  dov(:,ii)=(dov(:,ii-1)+nv(1:ifull,ii)*godsig(ii))*ee(1:ifull)
+  cou(:,ii)=(cou(:,ii-1)+eou(:,ii)*godsig(ii))*eeu
+  cov(:,ii)=(cov(:,ii-1)+eov(:,ii)*godsig(ii))*eev
+end do
+! sju and sjv have been previously calculated
+sdiv=(cou(1:ifull,wlev)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,wlev)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
+     +cov(1:ifull,wlev)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,wlev)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
+     *em(1:ifull)*em(1:ifull)/ds
+sinp=-(dou(:,wlev)*sju(:,1)+dov(:,wlev)*sjv(:,1))
+do ii=1,wlev-1
   div=(cou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
       +cov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
+      *em(1:ifull)*em(1:ifull)/ds
+  inp=-(dou(:,ii)*sju(:,1)+dov(:,ii)*sjv(:,1))
+  nw(:,ii)=((sdiv-sinp/(1.-eps))*gosigh(ii)-div+inp/(1.-eps))*ee(1:ifull)
+end do
+! compute contunity equation horizontal transport terms
+do ii=1,wlev
+  div=(eou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-eou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
+      +eov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-eov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
       *em(1:ifull)*em(1:ifull)/ds
   div=div+(nw(:,ii)-nw(:,ii-1))/godsig(ii) ! nw is at half levels
   mps(1:ifull,ii)=neta(1:ifull)-(1.-eps)*0.5*dt*div
@@ -939,8 +958,8 @@ do ii=1,wlev
   rhov=0.5*(rho(1:ifull,ii)+rho(in,ii))
   rhobaru=0.5*(rhobar(1:ifull,ii)+rhobar(ie,ii))
   rhobarv=0.5*(rhobar(1:ifull,ii)+rhobar(in,ii))
-  uau(:,ii)=grav*(gosig(ii)*(oeu+ddu(1:ifull))*drhobardxu(:,ii)+rhobaru*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds)/rhou ! staggered
-  uav(:,ii)=grav*(gosig(ii)*(oev+ddv(1:ifull))*drhobardyv(:,ii)+rhobarv*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds)/rhov
+  uau(:,ii)=grav*(gosig(ii)*(oeu(1:ifull)+ddu(1:ifull))*drhobardxu(:,ii)+rhobaru*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds)/rhou ! staggered
+  uav(:,ii)=grav*(gosig(ii)*(oev(1:ifull)+ddv(1:ifull))*drhobardyv(:,ii)+rhobarv*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds)/rhov
 end do
 call mlounstaguv(uau,uav,tau,tav) ! trick from JLM
 do ii=1,wlev
@@ -1250,8 +1269,9 @@ where (.not.wtr(1:ifull))
 end where
 
 call bounds(neta,corner=.true.)
-oeu=0.5*(neta(1:ifull)+neta(ie))
-oev=0.5*(neta(1:ifull)+neta(in))
+oeu(1:ifull)=0.5*(neta(1:ifull)+neta(ie))
+oev(1:ifull)=0.5*(neta(1:ifull)+neta(in))
+call boundsuv(oeu,oev)
 tnu=0.5*(neta(in)+neta(ine))
 tsu=0.5*(neta(is)+neta(ise))
 tev=0.5*(neta(ie)+neta(ien))
@@ -1264,15 +1284,15 @@ detadyv=(neta(in)-neta(1:ifull))*emv(1:ifull)/ds
 ! Update currents once neta is calculated
 do ii=1,wlev
   ! update currents (staggered)
-  nu(1:ifull,ii)=kku(:,ii)+llu(:,ii)*oeu+mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
-  nv(1:ifull,ii)=kkv(:,ii)+llv(:,ii)*oev+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
+  nu(1:ifull,ii)=kku(:,ii)+llu(:,ii)*oeu(1:ifull)+mmu(:,ii)*detadxu+nnu(:,ii)*detadyu
+  nv(1:ifull,ii)=kkv(:,ii)+llv(:,ii)*oev(1:ifull)+mmv(:,ii)*detadyv+nnv(:,ii)*detadxv
 end do
 
 if (myid==0.and.nmaxpr==1) then
   write(6,*) "mlohadv: water vertical velocity 2"
 end if
 
-! Update vertical velocity at t+1
+! Update vertical velocity at (approximately) t+1
 cou(1:ifull,1)=nu(1:ifull,1)*godsig(1) ! staggered
 cov(1:ifull,1)=nv(1:ifull,1)*godsig(1)
 do ii=2,wlev
@@ -1290,9 +1310,8 @@ do ii=2,wlev
   dou(:,ii)=(dou(:,ii-1)+nu(1:ifull,ii)*godsig(ii))*ee(1:ifull)
   dov(:,ii)=(dov(:,ii-1)+nv(1:ifull,ii)*godsig(ii))*ee(1:ifull)
 end do
-siu(:,1)=(neta(ie)/em(ie)-neta(1:ifull)/em(1:ifull))*emu(1:ifull)*emu(1:ifull)/ds ! staggered
-siv(:,1)=(neta(in)/em(in)-neta(1:ifull)/em(1:ifull))*emv(1:ifull)*emv(1:ifull)/ds
-call mlounstaguv(siu,siv,sju,sjv) ! unstaggered
+sju(:,1)=(oeu(1:ifull)/emu(1:ifull)-oeu(iwu)/emu(iwu))*em(1:ifull)*em(1:ifull)/ds ! unstaggered
+sjv(:,1)=(oev(1:ifull)/emv(1:ifull)-oev(isv)/emv(isv))*em(1:ifull)*em(1:ifull)/ds
 sdiv=(cou(1:ifull,wlev)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)-cou(iwu,wlev)*(ddu(iwu)+neta(1:ifull))/emu(iwu)  &
      +cov(1:ifull,wlev)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,wlev)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
      *em(1:ifull)*em(1:ifull)/ds
@@ -1302,8 +1321,7 @@ do ii=1,wlev-1
       +cov(1:ifull,ii)*(ddv(1:ifull)+neta(1:ifull))/emv(1:ifull)-cov(isv,ii)*(ddv(isv)+neta(1:ifull))/emv(isv)) &
       *em(1:ifull)*em(1:ifull)/ds
   inp=-(dou(:,ii)*sju(:,1)+dov(:,ii)*sjv(:,1))
-  nw(:,ii)=((sdiv-sinp/(1.+eps))*gosigh(ii)-div+inp/(1.+eps))
-  nw(:,ii)=nw(:,ii)*ee(1:ifull)
+  nw(:,ii)=((sdiv-sinp/(1.+eps))*gosigh(ii)-div+inp/(1.+eps))*ee(1:ifull)
 end do
 
 ! Vertical advection (second call)
