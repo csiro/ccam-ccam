@@ -133,6 +133,7 @@ real, dimension(ifull,kl) :: km,ff,gg,templ,thetav,thetal,temp,qtot
 real, dimension(ifull,kl) :: gamtt,gamtl,gamtv,gamth,gamqt,gamqv,gamhl
 real, dimension(ifull,kl) :: tkenew,epsnew,qsat,bb,cc,dd
 real, dimension(ifull,kl) :: mflx,tlup,qtup
+real, dimension(ifull,kl) :: thetavhl,thetahl,qsathl,qlghl,qfghl
 real, dimension(ifull,2:kl) :: aa,pps,ppt,ppb
 real, dimension(ifull,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl ! dz_hl(k)=zz(k+1)-zz(k)
@@ -253,11 +254,11 @@ if (mode.ne.1) then ! mass flux
         ttup(1)=thup(1)/sigkap(1)                        ! temp,up
         call getqsat(1,qupsat(1),ttup(1),pres(1))        ! estimate of saturated mixing ratio in plume
         ! update updraft velocity and mass flux
-        !nn=grav*wtv0(i)/thetav(i,1)
-        !w2up(1)=2.*zz(i,1)*b2*nn/(1.+2.*zz(i,1)*b1*ee)  ! Hurley 2007
-        !mflx(i,1)=0.1*sqrt(w2up(1))                     ! Hurley 2007
-        w2up(1)=0.25*wstar(i)**2                         ! Angevine et al 2010
-        mflx(i,1)=0.03*wstar(i)                          ! Angevine et al 2010
+        nn=grav*wtv0(i)/thetav(i,1)
+        w2up(1)=2.*zz(i,1)*b2*nn/(1.+2.*zz(i,1)*b1*ee)  ! Hurley 2007
+        mflx(i,1)=0.1*sqrt(w2up(1))                     ! Hurley 2007
+        !w2up(1)=0.25*wstar(i)**2                       ! Angevine et al 2010
+        !mflx(i,1)=0.03*wstar(i)                        ! Angevine et al 2010
         ! check for lcl
         sconv=.false.
         if (qtup(i,1).ge.qupsat(1)) then
@@ -439,7 +440,7 @@ eps(1:ifull,1)=ustar*ustar*ustar*(phim-z_on_l)/(vkar*zz(:,1))
 tke(1:ifull,1)=max(tke(1:ifull,1),mintke)
 aa(:,2)=cm34*(tke(1:ifull,1)**1.5)/5.
 eps(1:ifull,1)=min(eps(1:ifull,1),aa(:,2))
-aa(:,2)=max(aa(:,2)*5./500.,mineps)
+aa(:,2)=max(aa(:,2)/100.,mineps)
 eps(1:ifull,1)=max(eps(1:ifull,1),aa(:,2))
 
 
@@ -447,20 +448,26 @@ eps(1:ifull,1)=max(eps(1:ifull,1),aa(:,2))
 ! Calculate buoyancy term
 select case(buoymeth)
   case(0) ! Hurley 2007 (dry-PBL with counter gradient term)
+    call updatekmo(thetavhl,thetav,zz,zzm)
     do k=2,kl-1
-      ppb(:,k)=-grav*0.5*(thetav(:,k+1)-thetav(:,k-1))/(thetav(:,k)*dz_fl(:,k))
+      ppb(:,k)=-grav*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
       ppb(:,k)=ppb(:,k)+grav*gamtv(:,k)/(km(:,k)*thetav(:,k))
     end do
     ppb(:,kl)=0.
   case(3) ! saturated conditions from Durran and Klemp JAS 1982 (see also WRF)
+    call updatekmo(thetahl,theta,zz,zzm)
+    call updatekmo(thetavhl,thetav,zz,zzm)
+    call updatekmo(qsathl,qsat,zz,zzm)
+    call updatekmo(qlghl,qlg,zz,zzm)
+    call updatekmo(qfghl,qfg,zz,zzm)
     do k=2,kl-1
       ! saturated
-      bb(:,k)=-grav*0.5/dz_fl(:,k)*(gg(:,k)*((theta(:,k+1)-theta(:,k-1))/theta(:,k)              &
-                 +lv*(qsat(:,k+1)-qsat(:,k-1))/(cp*temp(:,k)))-qsat(:,k+1)-qlg(:,k+1)-qfg(:,k+1) &
-                 +qsat(:,k-1)+qlg(:,k-1)+qfg(:,k-1))
+      bb(:,k)=-grav/dz_fl(:,k)*(gg(:,k)*((thetahl(:,k)-thetahl(:,k-1))/theta(:,k)                  &
+                 +lv*(qsathl(:,k)-qsathl(:,k-1))/(cp*temp(:,k)))-qsathl(:,k)-qlghl(:,k)-qfghl(:,k) &
+                 +qsathl(:,k-1)+qlghl(:,k-1)+qfghl(:,k-1))
       bb(:,k)=bb(:,k)+grav/km(:,k)*(gg(:,k)*(gamth(:,k)/theta(:,k)+lv*gamqv(:,k)/(cp*temp(:,k)))-gamqt(:,k))
       ! unsaturated
-      cc(:,k)=-grav*0.5*(thetav(:,k+1)-thetav(:,k-1))/(thetav(:,k)*dz_fl(:,k))
+      cc(:,k)=-grav*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
       cc(:,k)=cc(:,k)+grav*gamtv(:,k)/(km(:,k)*thetav(:,k))
     end do
     bb(:,kl)=0.
@@ -474,7 +481,7 @@ select case(buoymeth)
       hh(:)=cfrac(:,k)*(jj/cp/temp(:,k)-delta/(1.-epsl)/(1.+delta*qg(:,k)-qlg(:,k)-qfg(:,k)))/(1.+jj/cp*dqsdt) ! betac
       ff(:,k)=1./temp(:,k)-dqsdt*hh(:)                         ! betatt
       gg(:,k)=delta/(1.+delta*qg(:,k)-qlg(:,k)-qfg(:,k))+hh(:) ! betaqt
-    end do    
+    end do
     do k=2,kl-1
       ppb(:,k)=-grav*ff(:,k)*0.5*((templ(:,k+1)-templ(:,k-1))/dz_fl(:,k)+grav/cp) &
                -grav*gg(:,k)*0.5*(qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-qg(:,k-1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k)
@@ -586,7 +593,7 @@ do k=2,kl-2
   aa(:,k)=-dt*kmo(:,k-1)/dz_hl(:,k-1)/dz_fl(:,k)
   cc(:,k)=-dt*kmo(:,k)/dz_hl(:,k)/dz_fl(:,k)
   bb(:,k)=1.+dt*(kmo(:,k-1)/dz_hl(:,k-1)+kmo(:,k)/dz_hl(:,k))/dz_fl(:,k)
-  dd(:,k)=thetal(:,k)+dt*(gamhl(:,k-1)-gamtl(:,k))/dz_fl(:,k)
+  dd(:,k)=thetal(:,k)+dt*(gamhl(:,k-1)-gamhl(:,k))/dz_fl(:,k)
 end do
 aa(:,kl-1)=-dt*kmo(:,kl-2)/dz_hl(:,kl-2)/dz_fl(:,kl-1)
 bb(:,kl-1)=1.+dt*kmo(:,kl-2)/dz_hl(:,kl-2)/dz_fl(:,kl-1)
@@ -781,7 +788,7 @@ kmo(:,1)=km(:,2)+(zhl(:,1)-zz(:,2))/(zz(:,3)-zz(:,1))*               &
          +(zhl(:,1)-zz(:,2))**2/(zz(:,3)-zz(:,1))*                   &
            ((km(:,3)-km(:,2))/(zz(:,3)-zz(:,2))                      &
            -(km(:,2)-km(:,1))/(zz(:,2)-zz(:,1)))
-where (kmo(:,1).lt.2.E-7)
+where (kmo(:,1).lt.0.)
   kmo(:,1)=0.5*(km(:,1)+km(:,2))
 end where
 do k=2,kl-1
@@ -791,12 +798,12 @@ do k=2,kl-1
            +(zhl(:,k)-zz(:,k))**2/(zz(:,k+1)-zz(:,k-1))*                     &
              ((km(:,k+1)-km(:,k))/(zz(:,k+1)-zz(:,k))                        &
              -(km(:,k)-km(:,k-1))/(zz(:,k)-zz(:,k-1)))
-  where (kmo(:,k).lt.2.E-7)
+  where (kmo(:,k).lt.0.)
     kmo(:,k)=0.5*(km(:,k)+km(:,k+1))
   end where
 end do
 ! These terms are never used
-kmo(:,kl)=2.E-7
+kmo(:,kl)=0.
 
 return
 end subroutine updatekmo
