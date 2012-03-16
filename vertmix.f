@@ -109,7 +109,7 @@ c     set coefficients for Louis scheme
      &  write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
 
 
-      if (nvmix.ne.6) then ! usual ! MJT tke
+      if (nvmix.ne.6) then ! usual
 
 c Pre-calculate the buoyancy parameters if using qcloud scheme.
 c Follow Smith's (1990) notation; gam() is HBG's notation for (L/cp)dqsdt.
@@ -798,12 +798,12 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         case(0) ! no counter gradient                                   ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
-     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,1,0)          ! MJT tke
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,qgmin,1,0)    ! MJT tke
          rkh=rkm                                                        ! MJT tke
         case(1,2,3,4,5,6) ! KCN counter gradient method                 ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
-     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,1,0)          ! MJT tke
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,qgmin,1,0)    ! MJT tke
          rkh=rkm                                                        ! MJT tke
          uav(1:ifull,:)=av_vmod*u(1:ifull,:)                            ! MJT tke
      &                 +(1.-av_vmod)*savu(1:ifull,:)                    ! MJT tke
@@ -813,7 +813,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         case(7) ! mass-flux counter gradient                            ! MJT tke
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
-     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,0,0)          ! MJT tke
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,gqmin,0,0)    ! MJT tke
          rkh=rkm                                                        ! MJT tke
          case DEFAULT                                                   ! MJT tke
            write(6,*) "ERROR: Unknown nlocal option for nvmix=6"        ! MJT tke
@@ -880,8 +880,8 @@ c     first do theta (then convert back to t)
       enddo    !  k loop
       if (nvmix.eq.6.and.nlocal.eq.0) then                         ! MJT tke
        ! increase mixing to replace counter gradient term          ! MJT tke
-       at=2.5*at                                                   ! MJT tke
-       ct=2.5*ct                                                   ! MJT tke
+       at=cq*at                                                    ! MJT tke
+       ct=cq*ct                                                    ! MJT tke
       end if                                                       ! MJT tke
       if((diag.or.ntest==2).and.mydiag)then
         print *,'ktau,fg,tss,ps ',ktau,fg(idjd),tss(idjd),ps(idjd)

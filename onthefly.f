@@ -1407,10 +1407,6 @@ c       incorporate other target land mask effects
             end if ! iotest
           end do
           call vertint(v_k,eps(1:ifull,:),5,kk,sigin)
-          tke=max(tke,1.5E-8)
-          eps=min(eps,(0.09**0.75)*(tke**1.5)/5.)
-          eps=max(eps,(0.09**0.75)*(tke**1.5)/500.)          
-          eps=max(eps,1.E-10)       
           tkesav=tke(1:ifull,:)
           epssav=eps(1:ifull,:)
         end if

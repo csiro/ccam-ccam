@@ -421,10 +421,6 @@
      &     'call retopo from nestin; psl# prints refer to pslb'
         endif
         call retopo(pslb,zsb,zs(1:ifull),tb,qb)
-        if(nmaxpr==1.and.mydiag)then
-           write (6,"('100*pslb.wesn ',2p5f8.3)") pslb(idjd),
-     &       pslb(iw(idjd)),pslb(ie(idjd)),pslb(is(idjd)),pslb(in(idjd))
-        endif
 
 !       ensure qb big enough, but not too big in top levels (from Sept '04)
         qb(1:ifull,:)=max(qb(1:ifull,:),qgmin)

@@ -59,6 +59,8 @@
       !  is used at all. In any case it's only used for the outfile.
       local = localhist .and. itype == 1 ! Only for outfile
 
+      ocdim=0
+
       ! Determine file names depending on output
       if(myid==0 .or. local)then
        ! File setup follows

@@ -1,7 +1,6 @@
 
 ! This module calculates the turblent kinetic energy and mixing for the boundary layer based on Hurley 2009
-! (eddy dissipation) and Angevine et al 2010 (mass flux).  Specifically, this version is adapted for CCAM
-! with an implicit numerical formulation (i.e., a forward-backward scheme), as well as modifications for
+! (eddy dissipation) and Angevine et al 2010 (mass flux).  Specifically, this version is modified for
 ! buoyancy within clouds.
 
 ! Usual procedure
@@ -26,6 +25,7 @@ implicit none
 
 private
 public tkeinit,tkemix,tkeend,tke,eps,tkesav,epssav,shear
+public mintke,cm0,cq,minl,maxl
 
 integer, save :: ifull,iextra,kl
 real, dimension(:,:), allocatable, save :: shear
@@ -35,12 +35,12 @@ real, dimension(:,:), allocatable, save :: tkesav,epssav
 ! model constants
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
-real, parameter :: be      = 1.0    ! Hurley (2007) 1., Soares et al (2004) 0.3, Angevine (2005) 7.
-real, parameter :: cm      = 0.03   ! Hurley (2007) 0.09 (0.03 recommended by Ashok Luhar)
-real, parameter :: ce0     = 0.69
+real, parameter :: be      = 1.0    ! Hurley (2007) 1., Soares et al (2004) 0.3
+real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
+real, parameter :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke 1988 0.42
 real, parameter :: ce1     = 1.46
 real, parameter :: ce2     = 1.83
-real, parameter :: ce3     = 0.45
+real, parameter :: ce3     = 0.45   ! Hurley (2007) 0.45, Dynkerke et al 1987 0.35
 real, parameter :: cq      = 2.5
 
 ! physical constants
@@ -65,19 +65,17 @@ real, parameter :: d_1   = 0.35
 !real, parameter :: bb1 = 0.5 ! Luhar low wind
 !real, parameter :: cc1 = 0.3 ! Luhar low wind
 
-integer, parameter :: buoymeth   = 3 ! 0=Hurley (dry), 2=Smith, 3=Durran et al (cld wgt) method for calculating TKE buoyancy source
-integer, parameter :: kmlimit    = 0 ! 0=No adjustment, 1=Limit decay in pbl top
-integer, parameter :: icm1 = 40      ! iterations for calculating pblh
-integer, parameter :: icm2 = 10      ! iterations for calculating tke-eps
-integer, parameter :: icm3 = 5       ! iterations for calculating qupsat
-real, parameter :: dz_ref = 500.     ! dz reference for kmlimit=1
-real, parameter :: alpha  = 0.3      ! weight for updating pblh
-real, parameter :: alpha3 = 0.7      ! weight for updating qupsat
-real, parameter :: beta3  = 0.5      ! weight for explicit tke(t) (beta3=0.) or implicit tke(t+1) (beta3=1.) non-linear terms
-real, parameter :: beta4  = 0.5      ! weight for explicit eps(t) (beta4=0.) or implicit eps(t+1) (beta4=1.) non-linear terms
-real, parameter :: tol    = 2.E-4    ! tolerance for tke-eps non-linear solver
-real, parameter :: mintke = 1.5E-8
-real, parameter :: mineps = 1.0E-10
+integer, parameter :: buoymeth = 3     ! 0=Hurley (dry), 2=Smith, 3=Durran et al (cld wgt) method for calculating TKE buoyancy source
+integer, parameter :: kmlimit  = 0     ! 0=No adjustment, 1=Limit decay in pbl top
+integer, parameter :: icm1     = 40    ! iterations for calculating pblh
+integer, parameter :: icm3     = 5     ! iterations for calculating qupsat
+real, parameter :: dz_ref   = 500.     ! dz reference for kmlimit=1
+real, parameter :: alpha    = 0.3      ! weight for updating pblh
+real, parameter :: alpha3   = 0.7      ! weight for updating qupsat
+real, parameter :: maxdt    = 100.01   ! sub timestep for tke-eps
+real, parameter :: mintke   = 1.5E-9   ! min value for tke
+real, parameter :: minl     = 5.E-8    ! min value for L (constraint on eps)
+real, parameter :: maxl     = 5.E8     ! max value for L (constraint on eps)
 
 contains
 
@@ -89,6 +87,7 @@ subroutine tkeinit(ifullin,iextrain,klin,diag)
 implicit none
 
 integer, intent(in) :: ifullin,iextrain,klin,diag
+real cm34
 
 if (diag.gt.0) write(6,*) "Initialise TKE scheme"
 
@@ -100,8 +99,9 @@ allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
 allocate(tkesav(ifull,kl),epssav(ifull,kl))
 allocate(shear(ifull,kl))
 
+cm34=cm0**0.75
 tke=mintke
-eps=mineps
+eps=cm34*(mintke**1.5)/maxl
 tkesav=tke(1:ifull,:)
 epssav=eps(1:ifull,:)
 shear=0.
@@ -115,13 +115,13 @@ end subroutine tkeinit
 ! mode=0 mass flux with moist convection
 ! mode=1 no mass flux
 
-subroutine tkemix(kmo,theta,qg,qlg,qfg,cfrac,zi,wt0,wq0,ps,ustar,zz,zzh,sig,sigkap,dt,mode,diag)
+subroutine tkemix(kmo,theta,qg,qlg,qfg,cfrac,zi,wt0,wq0,ps,ustar,zz,zzh,sig,sigkap,dt,qgmin,mode,diag)
 
 implicit none
 
 integer, intent(in) :: diag,mode
-integer k,i,klcl,icount,jcount
-real, intent(in) :: dt
+integer k,i,klcl,icount,jcount,ncount,pos(2)
+real, intent(in) :: dt,qgmin
 real, dimension(ifull,kl), intent(inout) :: theta,qg
 real, dimension(ifull,kl), intent(in) :: zz,cfrac,qlg,qfg
 real, dimension(ifull,kl), intent(out) :: kmo
@@ -131,10 +131,10 @@ real, dimension(ifull), intent(in) :: wt0,wq0,ps,ustar
 real, dimension(kl), intent(in) :: sigkap,sig
 real, dimension(ifull,kl) :: km,ff,gg,templ,thetav,thetal,temp,qtot
 real, dimension(ifull,kl) :: gamtt,gamtl,gamtv,gamth,gamqt,gamqv,gamhl
-real, dimension(ifull,kl) :: tkenew,epsnew,qsat,bb,cc,dd
+real, dimension(ifull,kl) :: tkenew,epsnew,qsat,bb,cc,dd,rr,kmave
 real, dimension(ifull,kl) :: mflx,tlup,qtup
 real, dimension(ifull,kl) :: thetavhl,thetahl,qsathl,qlghl,qfghl
-real, dimension(ifull,2:kl) :: aa,pps,ppt,ppb
+real, dimension(ifull,2:kl) :: aa,qq,pps,ppt,ppb
 real, dimension(ifull,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(ifull,kl-1) :: gam_hl,zzm
@@ -143,12 +143,13 @@ real, dimension(ifull) :: dum,wtv0
 real, dimension(kl-1) :: wpv_flux
 real, dimension(kl) :: w2up,ttup,tvup,thup,qvup
 real, dimension(kl) :: qupsat,newsat,pres
-real xp,ee,dtr,nn,as,bs,cs,cm34,qlup
+real xp,ee,dtr,nn,as,bs,cs,cm12,cm34,qlup
 real zht,dzht,zidry,zilcl,oldqupsat
-real ziold
+real ziold,ddt,srcp
 logical sconv
 
-cm34=cm**0.75
+cm12=1./sqrt(cm0)
+cm34=cm0**0.75
 
 if (diag.gt.0) write(6,*) "Update PBL mixing with TKE-eps turbulence closure"
 
@@ -158,9 +159,9 @@ if (diag.gt.0) write(6,*) "Update PBL mixing with TKE-eps turbulence closure"
 
 ! impose limits after host advection
 tke(1:ifull,:)=max(tke(1:ifull,:),mintke)
-ff=cm34*(tke(1:ifull,:)**1.5)/5.
+ff=cm34*(tke(1:ifull,:)**1.5)/minl
 eps(1:ifull,:)=min(eps(1:ifull,:),ff)
-ff=max(ff*5./500.,mineps)
+ff=ff*minl/maxl
 eps(1:ifull,:)=max(eps(1:ifull,:),ff)
 
 
@@ -198,20 +199,12 @@ do k=1,kl-1
 end do
 
 ! Calculate first approximation to diffusion coeffs
-km=cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
+km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
 call updatekmo(kmo,km,zz,zzm) ! interpolate diffusion coeffs to internal half levels (zzm)
 
-! Calculate transport term on full levels
-do k=2,kl-1
-  ppt(:,k)=(kmo(:,k)*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k) &
-           -kmo(:,k-1)*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1))/dz_fl(:,k)
-end do
-ppt(:,kl)=0.
-ppt=ppt/km(:,2:kl)
-
 ! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
-pps(:,2:kl-1)=shear(:,2:kl-1)
-pps(:,kl)=0.
+pps(:,2:kl-1)=km(:,2:kl-1)*shear(:,2:kl-1)
+pps(:,kl)=pps(:,kl-1)
 
 
 
@@ -225,6 +218,7 @@ gamqv=0.
 tlup=thetal
 qtup=qtot
 wstar=(grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)
+srcp=sig(1)**(rd/cp)
 if (mode.ne.1) then ! mass flux
   do i=1,ifull
     if (wtv0(i).gt.0.) then ! unstable
@@ -242,23 +236,24 @@ if (mode.ne.1) then ! mass flux
         klcl=kl+1
         zilcl=zidry
         mflx(i,:)=0.
-        ! entrainment rate from Angevine et al 2010
+        zht=zz(i,1)
+        dzht=zht
+        ! Entrainment and detrainment rates (Angevine et al (2010))
         ee=2./max(100.,zidry)
+        dtr=ee+0.05/max(zidry-zht,0.001)
         ! first level -----------------
         ! initial thermodynamic state
-        tlup(i,1)=thetal(i,1)+be*wt0(i)/sqrt(tke(i,1)) ! Hurley 2007
-        qtup(i,1)=qtot(i,1)  +be*wq0(i)/sqrt(tke(i,1)) ! Hurley 2007
+        tlup(i,1)=(thetal(i,1)/srcp+dzht*ee*thetal(i,1))/(1.+dzht*ee)
+        qtup(i,1)=qtot(i,1)
         ! diagnose thermodynamic variables assuming no condensation
         thup(1)=tlup(i,1)                                ! theta,up
         tvup(1)=thup(1)+theta(i,1)*0.61*qtup(i,1)        ! thetav,up
         ttup(1)=thup(1)/sigkap(1)                        ! temp,up
         call getqsat(1,qupsat(1),ttup(1),pres(1))        ! estimate of saturated mixing ratio in plume
         ! update updraft velocity and mass flux
-        nn=grav*wtv0(i)/thetav(i,1)
-        w2up(1)=2.*zz(i,1)*b2*nn/(1.+2.*zz(i,1)*b1*ee)  ! Hurley 2007
-        mflx(i,1)=0.1*sqrt(w2up(1))                     ! Hurley 2007
-        !w2up(1)=0.25*wstar(i)**2                       ! Angevine et al 2010
-        !mflx(i,1)=0.03*wstar(i)                        ! Angevine et al 2010
+        nn=grav*(tvup(1)-thetav(i,1))/thetav(i,1)
+        w2up(1)=(0.25*wstar(i)**2+2.*dzht*b2*nn)/(1.+2.*dzht*b1*ee)
+        mflx(i,1)=0.03*wstar(i)/(1.+dzht*(dtr-ee))
         ! check for lcl
         sconv=.false.
         if (qtup(i,1).ge.qupsat(1)) then
@@ -271,7 +266,7 @@ if (mode.ne.1) then ! mass flux
         do k=2,kl-1
           dzht=dz_hl(i,k-1)
           zht=zz(i,k)
-          ! update detrainment rate from Angevine et al 2010
+          ! update detrainment (Angevine et al 2010)
           dtr=ee+0.05/max(zidry-zht,0.001)
           ! update thermodynamics of plume
           ! (use upwind as centred scheme requires vertical spacing less than 250m)
@@ -389,7 +384,7 @@ if (mode.ne.1) then ! mass flux
        
         ! update surface boundary conditions
         wstar(i)=(grav*zi(i)*wtv0(i)/thetav(i,1))**(1./3.)
-        tke(i,1)=ustar(i)*ustar(i)/sqrt(cm)+ce3*wstar(i)*wstar(i)
+        tke(i,1)=cm12*ustar(i)*ustar(i)+ce3*wstar(i)*wstar(i)
         tke(i,1)=max(tke(i,1),mintke)
       end do
       ! update explicit counter gradient terms
@@ -426,7 +421,7 @@ if (mode.ne.1) then ! mass flux
 end if
 
 ! calculate tke and eps at 1st level
-z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-3))
+z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
 z_on_l=min(z_on_l,10.)
 where (z_on_l.lt.0.)
   phim=(1.-16.*z_on_l)**(-0.25)
@@ -435,13 +430,13 @@ elsewhere !(z_on_l.le.0.4)
 !elsewhere
 !  phim=aa1*bb1*(z_on_l**bb1)*(1.+cc1/bb1*z_on_l**(1.-bb1)) ! Luhar (2007)
 end where
-tke(1:ifull,1)=ustar*ustar/sqrt(cm)+ce3*wstar*wstar
-eps(1:ifull,1)=ustar*ustar*ustar*(phim-z_on_l)/(vkar*zz(:,1))
+tke(1:ifull,1)=cm12*ustar*ustar+ce3*wstar*wstar
+eps(1:ifull,1)=ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wtv0/thetav(:,1)
 tke(1:ifull,1)=max(tke(1:ifull,1),mintke)
-aa(:,2)=cm34*(tke(1:ifull,1)**1.5)/5.
-eps(1:ifull,1)=min(eps(1:ifull,1),aa(:,2))
-aa(:,2)=max(aa(:,2)/100.,mineps)
-eps(1:ifull,1)=max(eps(1:ifull,1),aa(:,2))
+ff(:,2)=cm34*(tke(1:ifull,1)**1.5)/minl
+eps(1:ifull,1)=min(eps(1:ifull,1),ff(:,2))
+ff(:,2)=ff(:,2)*minl/maxl
+eps(1:ifull,1)=max(eps(1:ifull,1),ff(:,2))
 
 
 
@@ -453,7 +448,6 @@ select case(buoymeth)
       ppb(:,k)=-grav*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
       ppb(:,k)=ppb(:,k)+grav*gamtv(:,k)/(km(:,k)*thetav(:,k))
     end do
-    ppb(:,kl)=0.
   case(3) ! saturated conditions from Durran and Klemp JAS 1982 (see also WRF)
     call updatekmo(thetahl,theta,zz,zzm)
     call updatekmo(thetavhl,thetav,zz,zzm)
@@ -470,8 +464,6 @@ select case(buoymeth)
       cc(:,k)=-grav*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
       cc(:,k)=cc(:,k)+grav*gamtv(:,k)/(km(:,k)*thetav(:,k))
     end do
-    bb(:,kl)=0.
-    cc(:,kl)=0.
     ppb=(1.-cfrac(:,2:kl))*cc(:,2:kl)+cfrac(:,2:kl)*bb(:,2:kl) ! cloud fraction weighted (e.g., Smith 1990)
   case(2) ! Smith (1990)
     do k=2,kl
@@ -486,117 +478,111 @@ select case(buoymeth)
       ppb(:,k)=-grav*ff(:,k)*0.5*((templ(:,k+1)-templ(:,k-1))/dz_fl(:,k)+grav/cp) &
                -grav*gg(:,k)*0.5*(qg(:,k+1)+qlg(:,k+1)+qfg(:,k+1)-qg(:,k-1)-qlg(:,k-1)-qfg(:,k-1))/dz_fl(:,k)
     end do
-    ppb(:,kl)=0.
   case DEFAULT
     write(6,*) "ERROR: Unsupported buoyancy option ",buoymeth
     stop
 end select
+ppb(:,2:kl-1)=km(:,2:kl-1)*ppb(:,2:kl-1)
+ppb(:,kl)=ppb(:,kl-1)
 
 
 
-! update tke-eps non-linear terms
-! False position method (robust with highly non-linear error function for small tke,
-! whereas the Newton-Raphson method was found to be unstable)
-aa(:,2:kl)=-200.  ! lower tke limit
-cc(:,2:kl)=200.   ! upper tke limit
-call eenonlin(bb(:,2:kl),aa(:,2:kl),epsnew(:,2:kl),km(:,2:kl),pps,ppb,ppt,dt)
-call eenonlin(ff(:,2:kl),cc(:,2:kl),epsnew(:,2:kl),km(:,2:kl),pps,ppb,ppt,dt)
-!tkenew(:,2:kl)=0.5*(aa(:,2:kl)+cc(:,2:kl))
-tkenew(:,2:kl)=(ff(:,2:kl)*aa(:,2:kl)-bb(:,2:kl)*cc(:,2:kl))/(ff(:,2:kl)-bb(:,2:kl))
-do icount=1,icm2
-  call eenonlin(dd(:,2:kl),tkenew(:,2:kl),epsnew(:,2:kl),km(:,2:kl),pps,ppb,ppt,dt)
-  where (bb(:,2:kl)*dd(:,2:kl).le.0.)
-    cc(:,2:kl)=tkenew(:,2:kl)
-    ff(:,2:kl)=dd(:,2:kl)
-  elsewhere
-    aa(:,2:kl)=tkenew(:,2:kl)
-    bb(:,2:kl)=dd(:,2:kl)
-  end where
-  !tkenew(:,2:kl)=0.5*(aa(:,2:kl)+cc(:,2:kl))
-  tkenew(:,2:kl)=(ff(:,2:kl)*aa(:,2:kl)-bb(:,2:kl)*cc(:,2:kl))/(ff(:,2:kl)-bb(:,2:kl))
+! Update TKE and eps terms
+! It takes roughly the same computational time to split the non-linear and vertical mixing terms (using a
+! false position method), as it does to solve the coupled equations explicitly.
+ncount=int(dt/maxdt)+1
+ddt=dt/real(ncount)
+kmave=0.
+do icount=1,ncount
+
+  ! Calculate transport term on full levels
+  do k=2,kl-1
+    ppt(:,k)=(kmo(:,k)*(tke(:,k+1)-tke(:,k))/dz_hl(:,k) &
+             -kmo(:,k-1)*(tke(:,k)-tke(:,k-1))/dz_hl(:,k-1))/dz_fl(:,k)
+  end do
+  ppt(:,kl)=ppt(:,kl-1)
+
+  qq(:,2)=-ddt*kmo(:,1)/(dz_fl(:,2)*dz_hl(:,1))
+  rr(:,2)=-ddt*kmo(:,2)/(dz_fl(:,2)*dz_hl(:,2))
+  do k=3,kl-1
+    qq(:,k)=-ddt*kmo(:,k-1)/(dz_fl(:,k)*dz_hl(:,k-1))
+    rr(:,k)=-ddt*kmo(:,k)/(dz_fl(:,k)*dz_hl(:,k))
+  end do
+  qq(:,kl)=-ddt*kmo(:,kl-1)/(dz_fl(:,kl)*dz_hl(:,kl-1))
+
+  ! eps vertical mixing (done here as we skip level 1, instead of using trim)
+  aa(:,2)=ce0*qq(:,2)
+  cc(:,2)=ce0*rr(:,2)
+  bb(:,2)=1.-aa(:,2)-cc(:,2)+ddt*ce2*(eps(1:ifull,2)/tke(1:ifull,2))
+  dd(:,2)=eps(1:ifull,2)-aa(:,2)*eps(1:ifull,1)+ddt*(eps(1:ifull,2)/tke(1:ifull,2))*ce1*(pps(:,2)+max(ppb(:,2),0.)+max(ppt(:,2),0.))
+  do k=3,kl-1
+    aa(:,k)=ce0*qq(:,k)
+    cc(:,k)=ce0*rr(:,k)
+    bb(:,k)=1.-aa(:,k)-cc(:,k)+ddt*ce2*(eps(1:ifull,k)/tke(1:ifull,k))
+    dd(:,k)=eps(1:ifull,k)+ddt*(eps(1:ifull,k)/tke(1:ifull,k))*ce1*(pps(:,k)+max(ppb(:,k),0.)+max(ppt(:,k),0.))
+  end do
+  aa(:,kl)=ce0*qq(:,kl)
+  bb(:,kl)=1.-aa(:,kl)+ddt*ce2*(eps(1:ifull,kl)/tke(1:ifull,kl))
+  dd(:,kl)=eps(1:ifull,kl)+ddt*(eps(1:ifull,kl)/tke(1:ifull,kl))*ce1*(pps(:,kl)+max(ppb(:,kl),0.)+max(ppt(:,kl),0.))
+  call thomas(epsnew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
+
+  ! TKE vertical mixing (done here as we skip level 1, instead of using trim)
+  bb(:,2)=1.-qq(:,2)-rr(:,2)
+  dd(:,2)=tke(1:ifull,2)-qq(:,2)*tke(1:ifull,1)+ddt*(pps(:,2)+ppb(:,2)-eps(1:ifull,2))
+  do k=3,kl-1
+    bb(:,k)=1.-qq(:,k)-rr(:,k)
+    dd(:,k)=tke(1:ifull,k)+ddt*(pps(:,k)+ppb(:,k)-eps(1:ifull,k))
+  end do
+  bb(:,kl)=1.-qq(:,k)
+  dd(:,kl)=tke(1:ifull,kl)+ddt*(pps(:,kl)+ppb(:,kl)-eps(1:ifull,kl))
+  call thomas(tkenew(:,2:kl),qq(:,3:kl),bb(:,2:kl),rr(:,2:kl-1),dd(:,2:kl))
+
+  tkenew(:,kl)=0.
+  epsnew(:,kl)=0.
+
+  tke(1:ifull,2:kl)=max(tkenew(:,2:kl),mintke)
+  ff(:,2:kl)=cm34*(tke(1:ifull,2:kl)**1.5)/minl
+  eps(1:ifull,2:kl)=min(epsnew(:,2:kl),ff(:,2:kl))
+  ff(:,2:kl)=ff(:,2:kl)*minl/maxl
+  eps(1:ifull,2:kl)=max(eps(1:ifull,2:kl),ff(:,2:kl))
+
+  km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
+  call updatekmo(kmo,km,zz,zzm) ! interpolate diffusion coeffs to internal half levels (zzm)
+
+  kmave=kmave+km
+
 end do
-
-tkenew(:,2:kl)=max(tkenew(:,2:kl),mintke)
-aa(:,2:kl)=cm34*(tkenew(:,2:kl)**1.5)/5.
-epsnew(:,2:kl)=min(epsnew(:,2:kl),aa(:,2:kl))
-aa(:,2:kl)=max(aa(:,2:kl)/100.,mineps)
-epsnew(:,2:kl)=max(epsnew(:,2:kl),aa(:,2:kl))
-
-tke(1:ifull,2:kl)=tkenew(:,2:kl)
-eps(1:ifull,2:kl)=epsnew(:,2:kl)
-
-
-
-! eps vertical mixing (done here as we skip level 1, instead of using trim)
-aa(:,2)=-dt*ce0*kmo(:,1)/(dz_fl(:,2)*dz_hl(:,1))
-cc(:,2)=-dt*ce0*kmo(:,2)/(dz_fl(:,2)*dz_hl(:,2))
-bb(:,2)=1.-aa(:,2)-cc(:,2)
-dd(:,2)=eps(1:ifull,2)-aa(:,2)*eps(1:ifull,1)
-do k=3,kl-1
-  aa(:,k)=-dt*ce0*kmo(:,k-1)/(dz_fl(:,k)*dz_hl(:,k-1))
-  cc(:,k)=-dt*ce0*kmo(:,k)/(dz_fl(:,k)*dz_hl(:,k))
-  bb(:,k)=1.-aa(:,k)-cc(:,k)
-  dd(:,k)=eps(1:ifull,k)
-end do
-aa(:,kl)=-dt*ce0*kmo(:,kl-1)/(dz_fl(:,kl)*dz_hl(:,kl-1))
-bb(:,kl)=1.-aa(:,kl)
-dd(:,kl)=eps(1:ifull,kl)
-call thomas(epsnew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
-
-! TKE vertical mixing (done here as we skip level 1, instead of using trim)
-aa(:,2)=-dt*kmo(:,1)/(dz_fl(:,2)*dz_hl(:,1))
-cc(:,2)=-dt*kmo(:,2)/(dz_fl(:,2)*dz_hl(:,2))
-bb(:,2)=1.-aa(:,2)-cc(:,2)
-dd(:,2)=tke(1:ifull,2)-aa(:,2)*tke(1:ifull,1)
-do k=3,kl-1
-  aa(:,k)=-dt*kmo(:,k-1)/(dz_fl(:,k)*dz_hl(:,k-1))
-  cc(:,k)=-dt*kmo(:,k)/(dz_fl(:,k)*dz_hl(:,k))
-  bb(:,k)=1.-aa(:,k)-cc(:,k)
-  dd(:,k)=tke(1:ifull,k)
-end do
-aa(:,kl)=-dt*kmo(:,kl-1)/(dz_fl(:,kl)*dz_hl(:,kl-1))
-bb(:,kl)=1.-aa(:,kl)
-dd(:,kl)=tke(1:ifull,kl)
-call thomas(tkenew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
 
 ! Limits
 if (kmlimit.eq.1) then
   do k=2,kl
     where (zz(:,k).ge.0.55*zi.and.zz(:,k).le.0.95*zi.and.wstar.gt.0.5)
-      tkenew(1:ifull,k)=max(tkenew(1:ifull,k),tkenew(1:ifull,k-1)*(1.-0.05*dz_hl(:,k-1)/dz_ref))
-      epsnew(1:ifull,k)=max(epsnew(1:ifull,k),epsnew(1:ifull,k-1)*(1.-0.05*dz_hl(:,k-1)/dz_ref))
+      tke(1:ifull,k)=max(tke(1:ifull,k),tke(1:ifull,k-1)*(1.-0.05*dz_hl(:,k-1)/dz_ref))
+      eps(1:ifull,k)=max(eps(1:ifull,k),eps(1:ifull,k-1)*(1.-0.05*dz_hl(:,k-1)/dz_ref))
     end where
   end do
 end if
-tkenew(:,2:kl)=max(tkenew(:,2:kl),mintke)
-aa(:,2:kl)=cm34*(tkenew(:,2:kl)**1.5)/5.
-epsnew(:,2:kl)=min(epsnew(:,2:kl),aa(:,2:kl))
-aa(:,2:kl)=max(aa(:,2:kl)*5./500.,mineps)
-epsnew(:,2:kl)=max(epsnew(:,2:kl),aa(:,2:kl))
-tke(1:ifull,2:kl)=tkenew(:,2:kl)
-eps(1:ifull,2:kl)=epsnew(:,2:kl)
+
+km=kmave/real(ncount)
+call updatekmo(kmo,km,zz,zzm)
 
 
-
-! Update diffusion coeffs
-km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-10)
-call updatekmo(kmo,km,zz,zzm) ! internal mid point levels
 
 ! Update thetal and qtot due to non-local and diffusion terms
 ! (Here we use quadratic interpolation to determine the explicit
 ! counter gradient terms)
 call updategam(gamhl,gamtl,zz,zzm,zi)
 cc(:,1)=-dt*kmo(:,1)/dz_hl(:,1)/dz_fl(:,1)
-bb(:,1)=1.+dt*kmo(:,1)/dz_hl(:,1)/dz_fl(:,1)
+bb(:,1)=1.-cc(:,1)
 dd(:,1)=thetal(:,1)-dt*gamhl(:,1)/dz_fl(:,1)+dt*wt0/dz_fl(:,1)
 do k=2,kl-2
   aa(:,k)=-dt*kmo(:,k-1)/dz_hl(:,k-1)/dz_fl(:,k)
   cc(:,k)=-dt*kmo(:,k)/dz_hl(:,k)/dz_fl(:,k)
-  bb(:,k)=1.+dt*(kmo(:,k-1)/dz_hl(:,k-1)+kmo(:,k)/dz_hl(:,k))/dz_fl(:,k)
+  bb(:,k)=1.-aa(:,k)-cc(:,k)
   dd(:,k)=thetal(:,k)+dt*(gamhl(:,k-1)-gamhl(:,k))/dz_fl(:,k)
 end do
 aa(:,kl-1)=-dt*kmo(:,kl-2)/dz_hl(:,kl-2)/dz_fl(:,kl-1)
-bb(:,kl-1)=1.+dt*kmo(:,kl-2)/dz_hl(:,kl-2)/dz_fl(:,kl-1)
+bb(:,kl-1)=1.-aa(:,kl-1)
 dd(:,kl-1)=thetal(:,kl-1)+dt*gamhl(:,kl-2)/dz_fl(:,kl-1)
 call thomas(thetal(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 
@@ -608,15 +594,14 @@ end do
 dd(:,kl-1)=qtot(:,kl-1)+dt*gamhl(:,kl-2)/dz_fl(:,kl-1)
 call thomas(qtot(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 
-qg=max(qtot-qlg-qfg,1.E-6)
+
+
+qg=max(qtot-qlg-qfg,qgmin)
 do k=1,kl
   theta(:,k)=thetal(:,k)+sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
 end do
 
-
-
 ! Update diffusion coeffs
-km=max(cm*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:),1.E-10)
 call updatekmo(kmo,km,zz,zzh) ! output sigmh levels
 
 tkesav=tke(1:ifull,:) ! Not needed, but for consistancy when not using CCAM
@@ -624,33 +609,6 @@ epssav=eps(1:ifull,:) ! Not needed, but for consistancy when not using CCAM
 
 return
 end subroutine tkemix
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Error function for tke-eps non-linear terms
-
-subroutine eenonlin(dd,tkenew,epsnew,km,pps,ppb,ppt,dt)
-
-implicit none
-
-real, intent(in) :: dt
-real, dimension(ifull,2:kl), intent(in) :: tkenew,km,pps,ppb,ppt
-real, dimension(ifull,2:kl), intent(out) :: dd,epsnew
-real, dimension(ifull,2:kl) :: aa,bb,cc,gg
-real, dimension(ifull,2:kl) :: efftke,effeps
-
-efftke=beta4*max(tkenew,mintke)+(1.-beta4)*tke(1:ifull,2:kl)
-aa=(1.-beta3)**2*dt*ce2/efftke
-bb=1.-(1.-beta3)*dt*ce1*km*(pps+max(ppb,0.)+max(ppt,0.))/efftke &
-   +2.*(1.-beta3)*beta3*dt*ce2*eps(1:ifull,2:kl)/efftke
-cc=-eps(1:ifull,2:kl)-eps(1:ifull,2:kl)*beta3*dt*ce1*km*(pps+max(ppb,0.)+max(ppt,0.))/efftke  &
-   +beta3*beta3*dt*ce2*eps(1:ifull,2:kl)*eps(1:ifull,2:kl)/efftke
-gg=sqrt(max(bb*bb-4.*aa*cc,0.))
-epsnew=0.5*(gg-bb)/aa
-effeps=beta3*epsnew+(1.-beta3)*eps(1:ifull,2:kl)
-dd=-tkenew+tke(1:ifull,2:kl)+dt*(km*(pps+ppb)-effeps) ! error function
-
-return
-end subroutine eenonlin
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tri-diagonal solver (array version)
@@ -682,36 +640,6 @@ end do
 
 return
 end subroutine thomas
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!! Tri-diagonal solver (single point version)
-!subroutine thomas1(out,aa,bbi,cc,ddi)
-!
-!implicit none
-!
-!real, dimension(2:kl), intent(in) :: aa
-!real, dimension(kl), intent(in) :: bbi,ddi
-!real, dimension(kl-1), intent(in) :: cc
-!real, dimension(kl), intent(out) :: out
-!real, dimension(kl) :: bb,dd
-!real n
-!integer k
-!
-!bb=bbi
-!dd=ddi
-!
-!do k=2,kl
-!  n=aa(k)/bb(k-1)
-!  bb(k)=bb(k)-n*cc(k-1)
-!  dd(k)=dd(k)-n*dd(k-1)
-!end do
-!out(kl)=dd(kl)/bb(kl)
-!do k=kl-1,1,-1
-!  out(k)=(dd(k)-cc(k)*out(k+1))/bb(k)
-!end do
-!
-!return
-!end subroutine thomas1
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio
@@ -843,7 +771,6 @@ do k=2,kl-1
     gamhl(:,k)=0.
   end where
 end do
-gamhl=max(gamhl,0.)
 
 return
 end subroutine updategam

@@ -14,7 +14,7 @@
       use nlin_m
       use parmhdff_m
       use sigs_m
-      use tkeeps, only : tke,eps,shear
+      use tkeeps, only : tke,eps,shear,mintke,cm0,minl,maxl
       use vecsuv_m
       use vvel_m
       implicit none
@@ -339,14 +339,13 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
       ! This can be combined with the diffusion coefficents above
       ! so as to operate over a large range of grid length scales
       if (nvmix.eq.6) then
-        tke=max(tke,1.5E-8)
-        eps=min(eps,(0.03**0.75)*(tke**1.5)/5.)
-        eps=max(eps,(0.03**0.75)*(tke**1.5)/500.)
-        eps=max(eps,1.E-10)
-        hdif=dt*0.03/(ds*ds)
+        tke=max(tke,mintke)
+        eps=min(eps,(cm0**0.75)*(tke**1.5)/minl)
+        eps=max(eps,(cm0**0.75)*(tke**1.5)/maxl)
+        hdif=dt*cm0/(ds*ds)
         do k=1,kl
-          t_kh(1:ifull,k)=max(max(tke(1:ifull,k)*tke(1:ifull,k)
-     &    /eps(1:ifull,k),1.E-7)*hdif,t_kh(1:ifull,k))
+          t_kh(1:ifull,k)=max(tke(1:ifull,k)*tke(1:ifull,k)
+     &    /eps(1:ifull,k)*hdif,t_kh(1:ifull,k))
 
           shear(:,k)=2.*(dudx(:,k)**2+dvdy(:,k)**2+dwdz(:,k)**2)
      &              +(dudy(:,k)+dvdx(:,k))**2

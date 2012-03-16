@@ -917,7 +917,7 @@ select case(albmode)
 end select
 
 ! canyon
-effbldheight=max(f_bldheight(is:ie)-10.*f_zovegc(is:ie),0.1)/f_bldheight(is:ie) ! MJT suggestion for tall vegetation
+effbldheight=max(f_bldheight(is:ie)-6.*f_zovegc(is:ie),0.1)/f_bldheight(is:ie)  ! MJT suggestion for tall vegetation
 effhwratio=f_hwratio(is:ie)*effbldheight                                        ! MJT suggestion for tall vegetation
 snowdelta=rd_snow(is:ie)/(rd_snow(is:ie)+maxrdsn)
 call getswcoeff(ifin,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,effhwratio, &
@@ -1301,7 +1301,7 @@ else
 end if
 
 ! calculate shortwave reflections
-effbldheight=max(f_bldheight-10.*f_zovegc,0.1)/f_bldheight ! MJT suggestion for tall vegetation
+effbldheight=max(f_bldheight-6.*f_zovegc,0.1)/f_bldheight  ! MJT suggestion for tall vegetation
 effhwratio=f_hwratio*effbldheight                          ! MJT suggestion for tall vegetation
 call getswcoeff(ufull,sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn,wallpsi,roadpsi,effhwratio, &
                 f_vangle,f_hangle,f_fbeam,f_sigmavegc,f_roadalpha,f_vegalphac,f_wallalpha,rd_alpha,d_rdsndelta)
@@ -2558,7 +2558,7 @@ real, dimension(cn), intent(in) :: if_bldheight,if_hwratio,if_sigmavegc,if_roade
 real, dimension(cn), intent(in) :: if_zovegc,if_vegrlaic,if_vegrsminc,if_swilt,if_sfc
 real, dimension(cn), intent(inout) :: ip_vegtempc,ip_lzom,ip_lzoh,ip_cduv,ip_cndzmin
 
-effbldheight=max(if_bldheight-10.*if_zovegc,0.1)/if_bldheight ! MJT suggestion for tall vegetation
+effbldheight=max(if_bldheight-6.*if_zovegc,0.1)/if_bldheight  ! MJT suggestion for tall vegetation
 effhwratio=if_hwratio*effbldheight                            ! MJT suggestion for tall vegetation
 
 ! transpiration terms (developed by Eva in CCAM sflux.f and CSIRO9)
