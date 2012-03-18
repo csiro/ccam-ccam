@@ -786,7 +786,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
        ! However, nvmix=6 with nlocal=7 supports its own shallow        ! MJT tke
        ! convection options                                             ! MJT tke
        do k=1,kl                                                        ! MJT tke
-         zg(:,k)=phi(:,k)/grav                                          ! MJT tke
+         zg(:,k)=(phi(:,k)-zs(1:ifull))/grav                            ! MJT tke
        end do                                                           ! MJT tke
        do k=1,kl-1                                                      ! MJT tke
          zgh(:,k)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k)                   ! MJT tke

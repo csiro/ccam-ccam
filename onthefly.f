@@ -535,7 +535,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
         ! ocean temperature and soil temperature use the same arrays
         ! as no fractional land or sea cover is allowed in CCAM
         mlodwn(:,:,1)=293.
-        if (nested.ne.1.or.nud_sst.ne.0) then
+        if ((nested.ne.1.or.nud_sst.ne.0).and.ok.gt.0) then
           do k=1,ok
             ucc=max(abs(tss_a),271.)
             if (k.le.ms) then
@@ -571,7 +571,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
         end if ! (nestesd.ne.1.or.nud_sst.ne.0) ..else..
         ! ocean salinity
         mlodwn(:,:,2)=34.72
-        if (nested.ne.1.or.nud_sss.ne.0) then
+        if ((nested.ne.1.or.nud_sss.ne.0).and.ok.gt.0) then
           do k=1,ok
             ucc=34.72
             write(vname,'("sal",I2.2)') k
@@ -601,7 +601,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
         end if ! (nestesd.ne.1.or.nud_sss.ne.0) ..else..
         ! ocean currents
         mlodwn(:,:,3:4)=0.
-        if (nested.ne.1.or.nud_ouv.ne.0) then
+        if ((nested.ne.1.or.nud_ouv.ne.0).and.ok.gt.0) then
           do k=1,ok
             ucc=0.
             vcc=0.
@@ -1683,7 +1683,7 @@ c       incorporate other target land mask effects
           end if
           
           if (abs(nmlo).ge.3.and.abs(nmlo).le.9) then
-          if (ok.eq.wlev.and.iotest) then
+           if (ok.eq.wlev.and.iotest) then
             do k=1,ok
               ucc=0.
               write(vname,'("oldu1",I2.2)') k
@@ -1735,9 +1735,9 @@ c       incorporate other target land mask effects
             else
               call ccmpi_distribute(ipice)
             end if
-          else
+           else
             lrestart=.false.
-          end if
+           end if
           end if
           
         end if ! (nested.eq.0)
