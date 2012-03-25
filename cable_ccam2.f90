@@ -5,7 +5,8 @@ module cable_ccam
   ! CABLE interface originally developed by the CABLE group
   ! Subsequently modified by MJT for 5 tile mosaic and SEAESF radiation scheme
   
-  ! - Currently all tiles have the same soil texture
+  ! - Currently all tiles have the same soil texture, but independent soil temperatures,
+  !   moisture, etc.
   ! - LAI can be interpolated between timesteps using a PWCB fit to the LAI integral
   !   or LAI can be taken as constant for the month
   ! - CO2 can be constant or read from the radiation code.  A tracer CO2 is avaliable
@@ -142,10 +143,10 @@ module cable_ccam
   swnet=sgsave(cmap)/(1.-swrsave(cmap)*albvisnir(cmap,1)-(1.-swrsave(cmap))*albvisnir(cmap,2)) ! short wave down (positive) W/m^2
   met%fsd(:,1)=swrsave(cmap)*swnet
   met%fsd(:,2)=(1.-swrsave(cmap))*swnet
-  met%fsd(:,3)=swnet ! dummy for now
+  met%fsd(:,3)=0. ! dummy for now
   rad%fbeam(:,1)=fbeamvis(cmap)
   rad%fbeam(:,2)=fbeamnir(cmap)
-  rad%fbeam(:,3)=swrsave(cmap)*fbeamvis(cmap)+(1.-swrsave(cmap))*fbeamnir(cmap) ! dummy for now
+  rad%fbeam(:,3)=0. ! dummy for now
   met%fld=-rgsave(cmap)        ! long wave down (positive) W/m^2
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
   tsigmf=sigmf ! greeness fraction sigmf is just a diagnostic for CABLE
@@ -210,7 +211,7 @@ module cable_ccam
     call carbon_pl(dt,soil,ssoil,veg,canopy,bgc)
     sum_flux%sumrs = sum_flux%sumrs+canopy%frs*dt
   endif  
-  canopy%fnpp = -1.0* canopy%fpn - canopy%frp
+  canopy%fnpp = -canopy%fpn - canopy%frp
   canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
   !--------------------------------------------------------------
       

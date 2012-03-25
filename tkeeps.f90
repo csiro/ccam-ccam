@@ -70,10 +70,10 @@ integer, parameter :: icm1     = 40    ! iterations for calculating pblh
 integer, parameter :: icm3     = 5     ! iterations for calculating qupsat
 real, parameter :: alpha    = 0.3      ! weight for updating pblh
 real, parameter :: alpha3   = 0.7      ! weight for updating qupsat
-real, parameter :: maxdt    = 120.01   ! sub timestep for tke-eps
+real, parameter :: maxdt    = 90.      ! sub timestep for tke-eps
 real, parameter :: mintke   = 1.E-8    ! min value for tke
-real, parameter :: minl     = 5.       ! min value for L (constraint on eps)
-real, parameter :: maxl     = 500.     ! max value for L (constraint on eps)
+real, parameter :: minl     = 1.       ! min value for L (constraint on eps)
+real, parameter :: maxl     = 1000.    ! max value for L (constraint on eps)
 
 contains
 
@@ -87,7 +87,7 @@ implicit none
 integer, intent(in) :: ifullin,iextrain,klin,diag
 real cm34
 
-if (diag.gt.0) write(6,*) "Initialise TKE scheme"
+if (diag.gt.0) write(6,*) "Initialise TKE-eps scheme"
 
 ifull=ifullin
 iextra=iextrain
@@ -99,7 +99,7 @@ allocate(shear(ifull,kl))
 
 cm34=cm0**0.75
 tke=mintke
-eps=cm34*(mintke**1.5)/minl
+eps=cm34*mintke*sqrt(mintke)/minl
 tkesav=tke(1:ifull,:)
 epssav=eps(1:ifull,:)
 shear=0.
@@ -127,9 +127,9 @@ real, dimension(ifull,kl-1), intent(in) :: zzh
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: wt0,wq0,ps,ustar
 real, dimension(kl), intent(in) :: sigkap,sig
-real, dimension(ifull,kl) :: km,ff,gg,templ,thetav,thetal,temp,qtot
-real, dimension(ifull,kl) :: gamtt,gamtl,gamtv,gamth,gamqt,gamqv,gamhl
-real, dimension(ifull,kl) :: tkenew,epsnew,qsat,bb,cc,dd,rr
+real, dimension(ifull,kl) :: km,templ,thetav,thetal,temp,qtot
+real, dimension(ifull,kl) :: gamtl,gamtv,gamth,gamqt,gamqv,gamhl
+real, dimension(ifull,kl) :: tkenew,epsnew,qsat,bb,cc,dd,ff,gg,rr
 real, dimension(ifull,kl) :: mflx,tlup,qtup
 real, dimension(ifull,kl) :: thetavhl,thetahl,qsathl,qlghl,qfghl
 real, dimension(ifull,2:kl) :: aa,qq,pps,ppt,ppb
@@ -183,18 +183,19 @@ wtv0=wt0+theta(:,1)*0.61*wq0
 !wtl0=wt0
 !wqt0=wq0
 
-! Calculate dz at full levels
-dz_fl(:,1)=0.5*(zz(:,2)+zz(:,1))
-do k=2,kl-1
-  dz_fl(:,k)=0.5*(zz(:,k+1)-zz(:,k-1))
-end do
-dz_fl(:,kl)=zz(:,kl)-zz(:,kl-1)
-
 ! Calculate dz at half levels
 do k=1,kl-1
   dz_hl(:,k)=zz(:,k+1)-zz(:,k)
   zzm(:,k)=0.5*(zz(:,k+1)+zz(:,k))
 end do
+
+! Calculate dz at full levels
+dz_fl(:,1)=zzm(:,1)
+do k=2,kl-1
+  dz_fl(:,k)=zzm(:,k)-zzm(:,k-1)
+end do
+dz_fl(:,kl)=zz(:,kl)-zz(:,kl-1)
+
 
 ! Calculate first approximation to diffusion coeffs
 km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
@@ -219,19 +220,19 @@ wstar=(grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)
 if (mode.ne.1) then ! mass flux
   do i=1,ifull
     if (wtv0(i).gt.0.) then ! unstable
-      pres(:)=ps(i)*sig(:) ! pressure
+      pres=ps(i)*sig ! pressure
       ! initial guess for plume state
       tvup=thetav(i,:)
       thup=theta(i,:)
       ttup=temp(i,:)
       qvup=qg(i,:)
-      qupsat(:)=qsat(i,:)
-      newsat(:)=qsat(i,:)
+      qupsat=qsat(i,:)
+      newsat=qsat(i,:)
       zidry=zi(i)
       ziold=zi(i)
+      zilcl=zz(i,kl)
       do icount=1,icm1
         klcl=kl+1
-        zilcl=zidry
         mflx(i,:)=0.
         w2up=0.
         zht=zz(i,1)
@@ -249,7 +250,7 @@ if (mode.ne.1) then ! mass flux
         ttup(1)=thup(1)/sigkap(1)                        ! temp,up
         call getqsat(1,qupsat(1),ttup(1),pres(1))        ! estimate of saturated mixing ratio in plume
         ! update updraft velocity and mass flux
-        nn=grav*(tvup(1)-thetav(i,1))/thetav(i,1)
+        nn=grav*be*wtv0(i)/(thetav(i,1)*sqrt(tke(i,1)))  ! Hurley 2007
         w2up(1)=2.*dzht*b2*nn/(1.+2.*dzht*b1*ee)         ! Hurley 2007
         mflx(i,1)=0.1*w2up(1)                            ! Hurley 2007
         ! check for lcl
@@ -405,10 +406,10 @@ if (mode.ne.1) then ! mass flux
             xp=min(max(xp,0.),1.)
             if (xp.lt.0.5) then
               xp=xp/0.5
-              zi(i)=(1.-xp)*0.5*(zz(i,k-1)+zz(i,k))+xp*zz(i,k)
+              zi(i)=(1.-xp)*zzm(i,k-1)+xp*zz(i,k)
             else
               xp=(xp-0.5)/0.5
-              zi(i)=(1.-xp)*zz(i,k)+xp*0.5*(zz(i,k)+zz(i,k+1))
+              zi(i)=(1.-xp)*zz(i,k)+xp*zzm(i,k)
             end if
             exit
           end if
@@ -420,6 +421,7 @@ end if
 
 ! calculate tke and eps at 1st level
 z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
+z_on_l=min(z_on_l,10.)
 where (z_on_l.lt.0.)
   phim=(1.-16.*z_on_l)**(-0.25)
 elsewhere !(z_on_l.le.0.4)
@@ -460,8 +462,8 @@ select case(buoymeth)
       ! unsaturated
       cc(:,k)=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
       cc(:,k)=cc(:,k)+grav*gamtv(:,k)/thetav(:,k)
+      ppb(:,k)=(1.-cfrac(:,k))*cc(:,k)+cfrac(:,k)*bb(:,k) ! cloud fraction weighted (e.g., Smith 1990)
     end do
-    ppb=(1.-cfrac(:,2:kl))*cc(:,2:kl)+cfrac(:,2:kl)*bb(:,2:kl) ! cloud fraction weighted (e.g., Smith 1990)
   case(2) ! Smith (1990)
     do k=2,kl
       templ(:,k)=temp(:,k)-(lv/cp*qlg(:,k)+ls/cp*qfg(:,k))
@@ -487,7 +489,7 @@ ppb(:,kl)=ppb(:,kl-1)
 ! Update TKE and eps terms
 ! It takes roughly the same computational time to split the non-linear and vertical mixing terms (using a
 ! false position method), as it does to solve the coupled equations explicitly.
-ncount=int(dt/maxdt)+1
+ncount=max(nint(dt/maxdt),1)
 ddt=dt/real(ncount)
 do icount=1,ncount
 
@@ -525,17 +527,17 @@ do icount=1,ncount
 
   ! TKE vertical mixing (done here as we skip level 1, instead of using trim)
   bb(:,2)=1.-qq(:,2)-rr(:,2)
-  dd(:,2)=tke(1:ifull,2)-qq(:,2)*tke(1:ifull,1)+ddt*(pps(:,2)+ppb(:,2)-epsnew(:,2))
+  dd(:,2)=tke(1:ifull,2)-qq(:,2)*tke(1:ifull,1)+ddt*(pps(:,2)+ppb(:,2)-eps(1:ifull,2))
   do k=3,kl-1
     bb(:,k)=1.-qq(:,k)-rr(:,k)
-    dd(:,k)=tke(1:ifull,k)+ddt*(pps(:,k)+ppb(:,k)-epsnew(:,k))
+    dd(:,k)=tke(1:ifull,k)+ddt*(pps(:,k)+ppb(:,k)-eps(1:ifull,k))
   end do
-  bb(:,kl)=1.-qq(:,k)
-  dd(:,kl)=tke(1:ifull,kl)+ddt*(pps(:,kl)+ppb(:,kl)-epsnew(:,kl))
+  bb(:,kl)=1.-qq(:,kl)
+  dd(:,kl)=tke(1:ifull,kl)+ddt*(pps(:,kl)+ppb(:,kl)-eps(1:ifull,kl))
   call thomas(tkenew(:,2:kl),qq(:,3:kl),bb(:,2:kl),rr(:,2:kl-1),dd(:,2:kl))
 
   tkenew(:,kl)=mintke
-  epsnew(:,kl)=cm34*tkenew(:,kl)*sqrt(tkenew(:,kl))/minl
+  epsnew(:,kl)=cm34*mintke*sqrt(mintke)/minl
 
   tke(1:ifull,2:kl)=max(tkenew(:,2:kl),mintke)
   ff(:,2:kl)=cm34*tke(1:ifull,2:kl)*sqrt(tke(1:ifull,2:kl))/minl
@@ -578,6 +580,7 @@ call thomas(qtot(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 
 
 
+! Convert back to theta and qg
 qg=max(qtot-qlg-qfg,qgmin)
 do k=1,kl
   theta(:,k)=thetal(:,k)+sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
@@ -690,7 +693,6 @@ integer k
 real, dimension(ifull,kl), intent(in) :: km,zz
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull,kl-1), intent(in) :: zhl
-real xp
 
 kmo(:,1)=km(:,2)+(zhl(:,1)-zz(:,2))/(zz(:,3)-zz(:,1))*               &
            ((zz(:,2)-zz(:,1))*(km(:,3)-km(:,2))/(zz(:,3)-zz(:,2))    &
@@ -730,7 +732,6 @@ real, dimension(ifull), intent(in) :: zi
 real, dimension(ifull,kl), intent(in) :: gamin,zz
 real, dimension(ifull,kl), intent(out) :: gamhl
 real, dimension(ifull,kl-1), intent(in) :: zhl
-real xp
 
 gamhl=0.
 gamhl(:,1)=gamin(:,2)+(zhl(:,1)-zz(:,2))/(zz(:,3)-zz(:,1))*                &
@@ -766,7 +767,7 @@ implicit none
 
 integer, intent(in) :: diag
 
-if (diag.gt.0) write(6,*) "Terminate TKE scheme"
+if (diag.gt.0) write(6,*) "Terminate TKE-eps scheme"
 
 deallocate(tke,eps)
 deallocate(tkesav,epssav)

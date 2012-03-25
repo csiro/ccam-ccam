@@ -3034,11 +3034,11 @@ call scrntile(tscrn,qgscrn,uscrn,u10,p_zoice,p_zohice,p_zoqice,i_tsurf,smixr,atu
 p_tscrn=(1.-i_fracice)*p_tscrn+i_fracice*tscrn
 p_qgscrn=(1.-i_fracice)*p_qgscrn+i_fracice*qgscrn
 dmag=max(sqrt(atu*atu+atv*atv),0.2)
-atu=(a_u-w_u(:,1))*uscrn/dmag+w_u(:,1)
-atv=(a_v-w_v(:,1))*uscrn/dmag+w_v(:,1)
+atu=(a_u-i_u)*uscrn/dmag+i_u
+atv=(a_v-i_v)*uscrn/dmag+i_v
 p_uscrn=(1.-i_fracice)*p_uscrn+i_fracice*sqrt(atu*atu+atv*atv)
-atu=(a_u-w_u(:,1))*u10/dmag+w_u(:,1)
-atv=(a_v-w_v(:,1))*u10/dmag+w_v(:,1)
+atu=(a_u-i_u)*u10/dmag+i_u
+atv=(a_v-i_v)*u10/dmag+i_v
 p_u10=(1.-i_fracice)*p_u10+i_fracice*sqrt(atu*atu+atv*atv)
 
 return

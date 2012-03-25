@@ -165,16 +165,16 @@
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     &                    ok,ik,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
-     &                    schmidtx,newfile) ! ik controls automatic array size
+     &                    ok,ik,ifull_g,iaero,mlodwn,ocndwn,rlong0x,
+     &                    rlat0x,schmidtx,newfile)
         write(6,*) "Leaving onthefly"
       else
         call ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     &                    ok,0,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
-     &                    schmidtx,newfile) ! 0 controls automatic array size
+     &                    ok,0,0,iaero,mlodwn,ocndwn,rlong0x,
+     &                    rlat0x,schmidtx,newfile)
       end if
 
       return
@@ -185,7 +185,7 @@
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
      &                    tgg,wb,wbice,snowd,qfg,qlg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     &                    ok,dk,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
+     &                    ok,dk,ifg,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
      &                    schmidtx,newfile)
       
       use aerosolldr, only : xtg,ssn,naero      ! LDR aerosol scheme
@@ -230,7 +230,7 @@
       integer, parameter :: nord=3        ! 1 for bilinear, 3 for bicubic
       
       integer ik, kk, ok, idv, iaero, isoil, nud_test
-      integer dk ! controls automatic array size
+      integer dk, ifg ! controls automatic array size
       integer lev,levkk,ier,ierr,igas
       integer kdate_r, ktime_r, nemi, id2,jd2,idjd2,
      &        nested, i, j, k, m, iq, ii, jj, np, numneg
@@ -261,9 +261,9 @@ c**   onthefly; sometime can get rid of common/bigxy4
       real, intent(in) ::  rlong0x, rlat0x, schmidtx
 
       ! Used in the global interpolation
-      real, dimension(ifull_g,4) :: xg4, yg4
-      integer, dimension(ifull_g,4) :: nface4
-      real, dimension(ifull_g) :: uct_g, vct_g
+      real, dimension(ifg,4) :: xg4, yg4
+      integer, dimension(ifg,4) :: nface4
+      real, dimension(ifg) :: uct_g, vct_g
       real rotpoles(3,3),rotpole(3,3)
       real, dimension(dk*dk*6) :: ucc, vcc
       real, dimension(ifull) :: tss_l, tss_s, pmsl
@@ -304,6 +304,10 @@ c**   onthefly; sometime can get rid of common/bigxy4
       ! Determine input grid coordinates and interpolation arrays
       if ( myid==0 ) then
         write(6,*) "Defining input file grid"
+        if (ifg.ne.ifull_g) then
+          write(6,*) "ERROR: Internal array allocation error"
+          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
+        end if
         if(m_fly==1)then
           rlong4(:,1)=rlongg_g(:)*180./pi
           rlat4(:,1)=rlatt_g(:)*180./pi
@@ -426,7 +430,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
               call ccmpi_distribute(ocndep_l)
             end if
           else
-            call doints4(ucc,ocndep_l,nface4,xg4,yg4,nord,ik)
+            call doints4(ucc,ocndep_l,nface4,xg4,yg4,nord,dk,ifg)
           end if ! iotest
         end if
         if (myid==0) then
@@ -661,7 +665,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
               end where
               call fill_cc(ucc,spval,ik,0)
             end if
-            call doints4(ucc,ocndwn(:,2),nface4,xg4,yg4,nord,ik)
+            call doints4(ucc,ocndwn(:,2),nface4,xg4,yg4,nord,dk,ifg)
           end if ! iotest
         end if ! (nested.ne.1.or.nud_sfh.ne.0) ..else..
       end if
@@ -750,10 +754,10 @@ c       incorporate other target land mask effects
         end where
       else
 !       The routine doints4 does the gather, calls ints4 and redistributes
-        call doints4(tss_l_a , tss_l,  nface4,xg4,yg4,nord,ik)
-        call doints4(tss_s_a , tss_s,  nface4,xg4,yg4,nord,ik)
-        call doints4(fracice_a , fracice,  nface4,xg4,yg4,nord,ik)
-        call doints4(sicedep_a , sicedep,  nface4,xg4,yg4,nord,ik)
+        call doints4(tss_l_a , tss_l,  nface4,xg4,yg4,nord,dk,ifg)
+        call doints4(tss_s_a , tss_s,  nface4,xg4,yg4,nord,dk,ifg)
+        call doints4(fracice_a , fracice,  nface4,xg4,yg4,nord,dk,ifg)
+        call doints4(sicedep_a , sicedep,  nface4,xg4,yg4,nord,dk,ifg)
 c       incorporate other target land mask effects
         do iq=1,ifull
           if(land(iq))then
@@ -940,7 +944,7 @@ c       incorporate other target land mask effects
               call fill_cc(ucc,spval,ik,0)
             end if
             call doints4(ucc,tgg(:,k),nface4,xg4,yg4,
-     &                     nord,ik)
+     &                     nord,dk,ifg)
           end if
         end do
 
@@ -984,7 +988,8 @@ c       incorporate other target land mask effects
                 end where
                 call fill_cc(ucc,spval,ik,0)
               end if
-              call doints4(ucc,micdwn(:,k),nface4,xg4,yg4,nord,ik)
+              call doints4(ucc,micdwn(:,k),nface4,xg4,yg4,nord,dk,
+     &               ifg)
             end if
           end do
           ucc=0.
@@ -1028,7 +1033,8 @@ c       incorporate other target land mask effects
                 call ccmpi_distribute(watbdy(1:ifull))
               end if
             else
-              call doints4(ucc,watbdy(1:ifull),nface4,xg4,yg4,nord,ik)
+              call doints4(ucc,watbdy(1:ifull),nface4,xg4,yg4,nord,dk,
+     &               ifg)
             end if
           end if
         end if
@@ -1078,7 +1084,7 @@ c       incorporate other target land mask effects
               call fill_cc(ucc,spval,ik,0)
             end if
             call doints4(ucc,wb(:,k),nface4,xg4,yg4,
-     &                     nord,ik)
+     &                     nord,dk,ifg)
           end if ! iotest
         end do
         !unpack field capacity into volumetric soil moisture
@@ -1109,7 +1115,7 @@ c       incorporate other target land mask effects
                 call ccmpi_distribute(u10)
               end if
             else
-              call doints4(ucc,u10,nface4,xg4,yg4,nord,ik)
+              call doints4(ucc,u10,nface4,xg4,yg4,nord,dk,ifg)
             end if ! iotest
           else
             u10=sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)*log(10./0.001)
@@ -1130,7 +1136,7 @@ c       incorporate other target land mask effects
             end if
           else
             call doints4(ucc,pblh,nface4,xg4,yg4,
-     &                     nord,ik)
+     &                     nord,dk,ifg)
           end if ! iotest
         end if
 
@@ -1157,7 +1163,7 @@ c       incorporate other target land mask effects
                   call fill_cc(ucc,spval,ik,0)
                 end if
                 call doints4(ucc,cplant(:,k),nface4,xg4,yg4,
-     &                     nord,ik)
+     &                     nord,dk,ifg)
               end if ! iotest
             end if
           end do
@@ -1181,7 +1187,7 @@ c       incorporate other target land mask effects
                   call fill_cc(ucc,spval,ik,0)
                 end if
                 call doints4(ucc,csoil(:,k),nface4,xg4,yg4,
-     &                       nord,ik)
+     &                       nord,dk,ifg)
               end if ! iotest
             end if
           end do
@@ -1291,7 +1297,7 @@ c       incorporate other target land mask effects
                 call fill_cc(ucc,spval,ik,0)
               end if
               call doints4(ucc,atebdwn(:,k),nface4,xg4,yg4,nord
-     &                     ,ik)
+     &                     ,dk,ifg)
             end if ! iotest
           end do
         end if
@@ -1333,7 +1339,7 @@ c       incorporate other target land mask effects
                call ccmpi_distribute(u_k(:,k))
              end if
            else
-             call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,ik)
+             call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
            end if ! iotest
           enddo  ! k loop
           call vertint(u_k,qfg,5,kk,sigin)
@@ -1349,7 +1355,7 @@ c       incorporate other target land mask effects
                call ccmpi_distribute(v_k(:,k))
              end if
            else
-             call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,ik)
+             call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
            end if ! iotest
           enddo  ! k loop
           call vertint(v_k,qlg,5,kk,sigin)
@@ -1366,7 +1372,7 @@ c       incorporate other target land mask effects
                call ccmpi_distribute(u_k(:,k))
              end if
            else
-             call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,ik)
+             call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
            end if ! iotest
           enddo  ! k loop
           call vertint(u_k,cfrac,5,kk,sigin)
@@ -1387,7 +1393,7 @@ c       incorporate other target land mask effects
               end if
             else
               call doints4(ucc,u_k(:,k),nface4,xg4,yg4,
-     &                     nord,ik)
+     &                     nord,dk,ifg)
             end if ! iotest
           end do
           call vertint(u_k,tke(1:ifull,:),5,kk,sigin)  
@@ -1403,7 +1409,7 @@ c       incorporate other target land mask effects
               end if
             else
               call doints4(vcc,v_k(:,k),nface4,xg4,yg4,
-     &                     nord,ik)
+     &                     nord,dk,ifg)
             end if ! iotest
           end do
           call vertint(v_k,eps(1:ifull,:),5,kk,sigin)
@@ -1428,7 +1434,7 @@ c       incorporate other target land mask effects
                 end if
               else
                 call doints4(ucc,u_k(:,k),nface4,xg4,yg4,
-     &                       nord,ik)              
+     &                       nord,dk,ifg)              
               end if ! iotest
             end do
             call vertint(u_k,tr(1:ifull,:,igas),7,kk,sigin)
@@ -1493,7 +1499,7 @@ c       incorporate other target land mask effects
                 end if
               else
                 call doints4(ucc,u_k(:,k),nface4,xg4,yg4,
-     &                       nord,ik)
+     &                       nord,dk,ifg)
               end if ! iotest
             end do
             if (i.le.naero) then
@@ -1762,7 +1768,7 @@ c       incorporate other target land mask effects
               call fill_cc(ucc,spval,ik,0)
             end if
             call doints4(ucc,wbice(:,k),nface4,xg4,yg4,
-     &                     nord,ik)
+     &                     nord,dk,ifg)
           end if ! iotest
         end do
 
@@ -1801,10 +1807,10 @@ c       incorporate other target land mask effects
               call fill_cc(tggsn_a(:,k),spval,ik,0)
             enddo
           endif  ! (myid==0)
-          call doints4(snowd_a,  snowd,nface4,xg4,yg4,nord,ik)
+          call doints4(snowd_a,  snowd,nface4,xg4,yg4,nord,dk,ifg)
           do k=1,3
             call doints4(tggsn_a(:,k),tggsn(:,k),nface4,xg4,yg4,nord
-     &                   ,ik)
+     &                   ,dk,ifg)
           enddo          
           where(.not.land)
             tggsn(:,1)=280.
@@ -1835,7 +1841,7 @@ c       incorporate other target land mask effects
               call fill_cc(ucc,spval,ik,0)
             end if
             call doints4(ucc,smass(:,k),nface4,xg4,yg4,
-     &                     nord,ik)
+     &                     nord,dk,ifg)
           end if ! iotest
         end do
         do k=1,3
@@ -1861,7 +1867,7 @@ c       incorporate other target land mask effects
               call fill_cc(ucc,spval,ik,0)
             end if
             call doints4(ucc,ssdn(:,k),nface4,xg4,yg4,
-     &                     nord,ik)
+     &                     nord,dk,ifg)
           end if ! iotest
         end do
         ssdnn=ssdn(:,1)
@@ -1883,7 +1889,7 @@ c       incorporate other target land mask effects
             call fill_cc(ucc,spval,ik,0)
           end if
           call doints4(ucc,snage,nface4,xg4,yg4,
-     &                   nord,ik)
+     &                   nord,dk,ifg)
         end if ! iotest
 
         ucc=0.
@@ -1903,7 +1909,7 @@ c       incorporate other target land mask effects
             call fill_cc(ucc,spval,ik,0)
           end if
           call doints4(ucc,dum6,nface4,xg4,yg4,
-     &                   nord,ik)
+     &                   nord,dk,ifg)
         end if ! iotest
         isflag=nint(dum6)
         
@@ -1929,7 +1935,7 @@ c       incorporate other target land mask effects
       return
       end subroutine ontheflyx
 
-      subroutine doints4(s_a,sout,nface4 ,xg4 ,yg4,nord,ik)  ! does calls to intsb
+      subroutine doints4(s_a,sout,nface4 ,xg4 ,yg4,nord,ik,ifg)  ! does calls to intsb
       
       use cc_mpi           ! CC MPI routines
       
@@ -1937,21 +1943,17 @@ c       incorporate other target land mask effects
       
       include 'newmpar.h'  ! Grid parameters
       
-ccc      real, dimension(ik*ik*6), intent(inout) :: s
       real, dimension(ifull), intent(inout) :: sout
-      integer, intent(in), dimension(ifull_g,4) :: nface4
-      real, intent(in), dimension(ifull_g,4) :: xg4, yg4
-      integer, intent(in) :: ik, nord
+      integer, intent(in), dimension(ifg,4) :: nface4
+      real, intent(in), dimension(ifg,4) :: xg4, yg4
+      integer, intent(in) :: ik, nord, ifg
       real, dimension(ik*ik*6) :: s_a
-      real, dimension(ifull_g) :: s_g
-c     integer iq
+      real, dimension(ifg) :: s_g
 
       if ( myid ==0 ) then
-ccc         call ccmpi_gather(s,s_a)
          call ints4(s_a,s_g,nface4 ,xg4 ,yg4,nord,ik)
          call ccmpi_distribute(sout,s_g)
       else
-ccc         call ccmpi_gather(s)
          call ccmpi_distribute(sout)
       endif
       end subroutine doints4

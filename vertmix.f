@@ -1,67 +1,79 @@
-      subroutine vertmix(iaero)
-!     inputs & outputs: t,u,v,qg
-      use aerosolldr
-      use arrays_m
-      use cc_mpi, only : mydiag, myid
-      use cfrac_m
-      use diag_m
-      use extraout_m
-      use indices_m
-      use kuocomb_m
-      use liqwpar_m  ! ifullw, qfg, qlg
-      use map_m
-      use morepbl_m
-      use nlin_m, tmnht => un, at => un
-      use nharrs_m
-      use pbl_m
-      use permsurf_m
-      use savuvt_m
-      use screen_m   ! tscrn
-      use sigs_m
-      use soil_m
-      use tkeeps     ! MJT tke
-      use tracers_m  ! ngas, nllp, ntrac
-!     rml 16/02/06 use trvmix module
-      use trvmix, only : tracervmix
-      include 'newmpar.h'
-      parameter (ntest=0)
-c     parameter (ipwr=1)       ! really can use (ipwr=min(1,nlocal))
-c     parameter (ilnl=il**ipwr,jlnl=jl**ipwr)
-      integer kcl_top          ! maximum level for cloud top (conjob & vertmix)
-!     parameter (kscmom=0)     ! 0 off, 1 turns on shal_conv momentum (usual)
-      parameter (ndvmod=0)     ! 0 default, 1+ for dvmod tests
-!     typically tied_con=6., tied_over=2., tied_rh=.75
-!     nlocal in parm.h         ! 0 local scheme, 1 or 2 non-local scheme
-!     real t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),ps(ifull)
-      include 'const_phys.h'
-      include 'dates.h'
-      include 'kuocom.h'   ! also with kbsav,ktsav,convpsav,kscsea,sigksct
-      include 'mpif.h'
-      include 'parm.h'
-      real betatt(ifull,kl),betaqt(ifull,kl),rhs(ifull,kl),dqtot(ifull)
-      real delthet(ifull,kl),
-     &    thebas(ifull,kl),cu(ifull,kl),thee(ifull,kl),qs(ifull,kl)
-      real uav(ifull,kl),vav(ifull,kl)   
-      real csq(ifull),dvmod(ifull),dz(ifull),dzr(ifull),
-     &     fm(ifull),fh(ifull),sqmxl(ifull),
-     &     x(ifull),zhv(ifull),theeb(ifull),sigsp(ifull)
-      integer kbase(ifull),ktop(ifull),iaero,l
-      real sighkap(kl),sigkap(kl),delons(kl),delh(kl)
-      real, dimension(:), allocatable, save :: prcpv
-      real au(ifull,kl),ct(ifull,kl)
-      real zh(ifull,kl)
-      real gt(ifull,kl),guv(ifull,kl),ri(ifull,kl)
-      real rkm(ifull,kl),rkh(ifull,kl),rk_shal(ifull,kl)
-      real condrag
-      real zg(ifull,kl),rhoa(ifull),wt0(ifull),wq0(ifull) ! MJT tke
-      real zgh(ifull,kl-1)                                ! MJT tke
-c     set coefficients for Louis scheme
-      data bprm/4.7/,cm/7.4/,ch/5.3/,amxlsq/100./,vkar3/.35/,vkar4/.4/
-      data bprmj/5./,cmj/5./,chj/2.6/
-      save kscbase,ksctop
-      include 'establ.h'
+      ! CCAM boundary layer turbulent mixing routines
 
-      kcl_top=kl-2
+      ! Currently local Ri and prognostic TKE-eps schemes are supported.
+      ! Also, options for non-local counter gradient terms are included.
+      ! Local Ri supports Gelyen and Tiedtke schemes for shallow
+      ! convection, whereas the TKE-eps follows the EDMF approach where
+      ! shallow convection is represented in the mass flux terms.
+
+      ! nvmix=3  Local Ri mixing
+      ! nvmix=6  Prognostic TKE-eps tubulence closure
+
+      ! nlocal=0 No counter gradient term
+      ! nlocal=6 Holtslag and Boville non-local term
+      ! nlocal=7 Mass flux based counter gradient
+      
+      ! kscmom   0 off, 1 turns on shal_conv momentum (usual)
+
+      !--------------------------------------------------------------
+      ! Control subroutine for vertical mixing
+      subroutine vertmix(iaero)
+
+      use aerosolldr                      ! LDR prognostic aerosols
+      use arrays_m                        ! Atmosphere dyamics prognostic arrays
+      use cc_mpi, only : mydiag, myid     ! CC MPI routines
+      use cfrac_m                         ! Cloud fraction
+      use diag_m                          ! Diagnostic routines
+      use extraout_m                      ! Additional diagnostics
+      use indices_m                       ! Grid index arrays
+      use kuocomb_m                       ! JLM convection
+      use liqwpar_m                       ! Cloud water mixing ratios
+      use map_m                           ! Grid map arrays
+      use morepbl_m                       ! Additional boundary layer diagnostics
+      use nharrs_m                        ! Non-hydrostatic atmosphere arrays
+      use nlin_m, tmnht => un, at => un   ! Atmosphere non-linear dynamics
+      use pbl_m                           ! Boundary layer arrays
+      use permsurf_m                      ! Fixed surface arrays
+      use savuvt_m                        ! Saved dynamic arrays
+      use screen_m                        ! Screen level diagnostics
+      use sigs_m                          ! Atmosphere sigma levels
+      use soil_m                          ! Soil and surface data
+      use tkeeps                          ! TKE-EPS boundary layer
+      use tracers_m                       ! Tracer data
+      use trvmix, only : tracervmix       ! Tracer mixing routines
+      
+      implicit none
+      
+      include 'newmpar.h'                 ! Grid parameters
+      include 'const_phys.h'              ! Physical constants
+      include 'dates.h'                   ! Date data
+      include 'establ.h'                  ! Liquid saturation function
+      include 'kuocom.h'                  ! Convection parameters
+      include 'mpif.h'                    ! MPI parameters
+      include 'parm.h'                    ! Model configuration
+
+      integer, parameter :: ntest=0
+      integer, parameter :: ndvmod=0    ! 0 default, 1+ for dvmod tests
+      integer kcl_top,iaero,l,iq,k,iqmax,ierr                  
+      integer, save :: kscbase,ksctop
+      integer, dimension(ifull) :: kbase,ktop
+      real, parameter :: bprm=4.7,cm=7.4,ch=5.3,amxlsq=100.   ! coefficients for Louis scheme
+      real, parameter :: vkar3=0.35,vkar4=0.4,bprmj=5.,cmj=5. ! coefficients for Louis scheme
+      real, parameter :: chj=2.6                              ! coefficients for Louis scheme
+      real condrag,rong,diff,denma,denha,tsp,epart,esp,delsig
+      real conflux,qbas,xold,delthet_old,rhskp,rhsk,diffmax
+      real w1,w2,al,betaq,betac,betat,pk,qc,dqsdt,fice,es,delta
+      real rlog12,rlogh1,rlogs1,rlogs2
+      real, dimension(ifull,kl) :: betatt,betaqt,rhs,delthet,thebas
+      real, dimension(ifull,kl) :: cu,thee,qs,uav,vav,au,ct,zh,gt
+      real, dimension(ifull,kl) :: guv,ri,rkm,rkh,rk_shal,zg
+      real, dimension(ifull,kl-1) :: zgh
+      real, dimension(ifull) :: dqtot,csq,dvmod,dz,dzr,fm,fh,sqmxl
+      real, dimension(ifull) :: x,zhv,theeb,sigsp,rhoa,wt0,wq0
+      real, dimension(kl) :: sighkap,sigkap,delons,delh
+      real, dimension(:), allocatable, save :: prcpv
+
+      kcl_top=kl-2 ! maximum level for cloud top (conjob & vertmix)
       if (.not.allocated(prcpv)) allocate(prcpv(kl))
 
       rong=rdry/grav
@@ -109,7 +121,10 @@ c     set coefficients for Louis scheme
      &  write (6,"('thet_in',9f8.3/7x,9f8.3)") rhs(idjd,:)
 
 
-      if (nvmix.ne.6) then ! usual
+      if (nvmix.ne.6) then
+
+      !--------------------------------------------------------------
+      ! JLM's local Ri scheme
 
 c Pre-calculate the buoyancy parameters if using qcloud scheme.
 c Follow Smith's (1990) notation; gam() is HBG's notation for (L/cp)dqsdt.
@@ -781,45 +796,53 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         endif ! mydiag
       endif
       
-      else ! tke-eps closure scheme
-       ! note ksc.ne.0 options are clobbered when nvmix=6               ! MJT tke
-       ! However, nvmix=6 with nlocal=7 supports its own shallow        ! MJT tke
-       ! convection options                                             ! MJT tke
-       do k=1,kl                                                        ! MJT tke
-         zg(:,k)=(phi(:,k)-zs(1:ifull))/grav                            ! MJT tke
-       end do                                                           ! MJT tke
-       do k=1,kl-1                                                      ! MJT tke
-         zgh(:,k)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k)                   ! MJT tke
-       end do                                                           ! MJT tke
-       rhoa=ps(1:ifull)/(rdry*tss(:))                                   ! MJT tke
-       wq0=eg/(hl*rhoa)                                                 ! MJT tke
-       wt0=fg/(cp*rhoa)                                                 ! MJT tke
-       select case(nlocal)                                              ! MJT tke
-        case(0) ! no counter gradient                                   ! MJT tke
-         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
-     &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
-     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,qgmin,1,0)    ! MJT tke
-         rkh=rkm                                                        ! MJT tke
-        case(1,2,3,4,5,6) ! KCN counter gradient method                 ! MJT tke
-         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
-     &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
-     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,qgmin,1,0)    ! MJT tke
-         rkh=rkm                                                        ! MJT tke
-         uav(1:ifull,:)=av_vmod*u(1:ifull,:)                            ! MJT tke
-     &                 +(1.-av_vmod)*savu(1:ifull,:)                    ! MJT tke
-         vav(1:ifull,:)=av_vmod*v(1:ifull,:)                            ! MJT tke
-     &                 +(1.-av_vmod)*savv(1:ifull,:)                    ! MJT tke
-         call pbldif(rhs,rkh,rkm,uav,vav)                               ! MJT tke
-        case(7) ! mass-flux counter gradient                            ! MJT tke
-         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),              ! MJT tke
-     &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,                   ! MJT tke
-     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,gqmin,0,0)    ! MJT tke
-         rkh=rkm                                                        ! MJT tke
-         case DEFAULT                                                   ! MJT tke
-           write(6,*) "ERROR: Unknown nlocal option for nvmix=6"        ! MJT tke
-           stop                                                         ! MJT tke
-       end select                                                       ! MJT tke
-      end if ! nvmix.ne.6                                               ! MJT tke
+      else
+      
+       !-------------------------------------------------------------
+       ! TKE-eps closure scheme
+      
+       ! note ksc.ne.0 options are clobbered when nvmix=6
+       ! However, nvmix=6 with nlocal=7 supports its own shallow
+       ! convection options
+       do k=1,kl
+         zg(:,k)=(phi(:,k)-zs(1:ifull))/grav
+       end do
+       do k=1,kl-1
+         zgh(:,k)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k)
+       end do
+       rhoa=ps(1:ifull)/(rdry*tss)
+       wq0=eg/(hl*rhoa)
+       wt0=fg/(cp*rhoa)
+       select case(nlocal)
+        case(0) ! no counter gradient
+         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
+     &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,qgmin,1,0)
+         rkh=rkm
+        case(1,2,3,4,5,6) ! KCN counter gradient method
+         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
+     &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,qgmin,1,0)
+         rkh=rkm
+         uav(1:ifull,:)=av_vmod*u(1:ifull,:)
+     &                 +(1.-av_vmod)*savu(1:ifull,:)
+         vav(1:ifull,:)=av_vmod*v(1:ifull,:)
+     &                 +(1.-av_vmod)*savv(1:ifull,:)
+         call pbldif(rhs,rkh,rkm,uav,vav)
+        case(7) ! mass-flux counter gradient
+         call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
+     &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,qgmin,0,0)
+         rkh=rkm
+        case DEFAULT
+          write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
+          stop
+       end select 
+      end if ! nvmix.ne.6
+
+
+      !--------------------------------------------------------------
+      ! Perform mixing on prognstic arrays
 
       do k=1,kl-1
         delsig=sig(k+1)-sig(k)
@@ -878,11 +901,6 @@ c     first do theta (then convert back to t)
         ct(iq,k) =-gt(iq,k)/dsig(k)
        enddo   ! iq loop
       enddo    !  k loop
-      if (nvmix.eq.6.and.nlocal.eq.0) then                         ! MJT tke
-       ! increase mixing to replace counter gradient term          ! MJT tke
-       at=cq*at                                                    ! MJT tke
-       ct=cq*ct                                                    ! MJT tke
-      end if                                                       ! MJT tke
       if((diag.or.ntest==2).and.mydiag)then
         print *,'ktau,fg,tss,ps ',ktau,fg(idjd),tss(idjd),ps(idjd)
         print *,'at ',(at(idjd,k),k=1,kl)
@@ -890,7 +908,9 @@ c     first do theta (then convert back to t)
         print *,'rhs ',(rhs(idjd,k),k=1,kl)
       endif      ! (ntest==2)
 
-      if (nvmix.ne.6) then                                         ! MJT tke
+      !--------------------------------------------------------------
+      ! Temperature
+      if (nvmix.ne.6) then
        if(nmaxpr==1.and.mydiag)
      &   write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
        rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/cp)*fg(1:ifull)
@@ -898,12 +918,12 @@ c     first do theta (then convert back to t)
        call trim(at,ct,rhs,0)   ! for t
        if(nmaxpr==1.and.mydiag)
      &   write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
-      end if                                                       ! MJT tke
+      end if
       do k=1,kl
         do iq=1,ifull
          t(iq,k)=rhs(iq,k)/sigkap(k)
         enddo  ! iq loop
-      enddo      !  k loop
+      enddo    !  k loop
       if(diag)then
          if (mydiag) then
             print *,'vertmix eg,fg,cdtq,land '
@@ -912,19 +932,20 @@ c     first do theta (then convert back to t)
         call printa('thet',rhs,ktau,nlv,ia,ib,ja,jb,200.,1.)
       endif
 
-c     now do moisture
-      if (nvmix.ne.6) then                                         ! MJT tke
+      !--------------------------------------------------------------
+      ! Moisture
+      if (nvmix.ne.6) then
        rhs(1:ifull,:)=qg(1:ifull,:)
        rhs(1:ifull,1)=rhs(1:ifull,1)-(conflux/hl)*eg(1:ifull)
      &               /ps(1:ifull)
 c      could add extra sfce moisture flux term for crank-nicholson
        call trim(at,ct,rhs,0)    ! for qg
        qg(1:ifull,:)=rhs(1:ifull,:)
-      else if (nlocal.gt.0) then                                   ! MJT tke
-       ! increase mixing to replace counter gradient term          ! MJT tke
-       at=2.5*at                                                   ! MJT tke
-       ct=2.5*ct                                                   ! MJT tke
-      end if                                                       ! MJT tke
+      else if (nlocal.gt.0) then
+       ! increase mixing to replace counter gradient term
+       at=cq*at
+       ct=cq*ct
+      end if
 
       if(diag.and.mydiag)then
        print *,'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
@@ -932,6 +953,8 @@ c      could add extra sfce moisture flux term for crank-nicholson
      &            (1000.*qg(idjd,k),k=1,kl)
       endif
 
+      !--------------------------------------------------------------
+      ! Cloud microphysics terms
       if(ldr.ne.0)then
 c       now do qfg
         rhs(1:ifull,:)=qfg(1:ifull,:)
@@ -944,7 +967,7 @@ c       now do qlg
       endif    ! (ldr.ne.0)
 
       !--------------------------------------------------------------
-      ! MJT aerosol
+      ! Aerosols
       if (abs(iaero)==2) then
         do l=1,naero
           rhs(1:ifull,:)=xtg(1:ifull,:,l)
@@ -952,21 +975,22 @@ c       now do qlg
           xtg(1:ifull,:,l)=rhs(1:ifull,:)
         end do
       end if
-      !--------------------------------------------------------------
 
-c     now do trace gases rml 16/02/06 changed call
+      !--------------------------------------------------------------
+      ! Tracers
       if (ngas>0) call tracervmix(at,ct)
-      
-!     from here on just u and v stuff
-      au(:,1)=cduv(:)*condrag/tss(:)   ! globpea
+
+      !--------------------------------------------------------------
+      ! Momentum terms
+      au(:,1)=cduv(:)*condrag/tss(:)
       do k=2,kl
        do iq=1,ifull
-        au(iq,k) =-guv(iq,k-1)/dsig(k)  ! globpea
+        au(iq,k) =-guv(iq,k-1)/dsig(k)
        enddo   ! iq loop
       enddo    !  k loop
       do k=1,kl
        do iq=1,ifull
-        cu(iq,k) =-guv(iq,k)/dsig(k)    ! globpea
+        cu(iq,k) =-guv(iq,k)/dsig(k)
        enddo   ! iq loop
       enddo    !  k loop
       if((diag.or.ntest==2).and.mydiag)then
@@ -1003,7 +1027,6 @@ c     now do v; with properly unstaggered au,cu
         write (6,"('qg_vm ',9f7.3/(6x,9f7.3))") 
      &             (1000.*qg(idjd,k),k=1,kl)
       endif
+      
       return
       end
-
-!     rml delted tracervmix as modified version in trvmix.f

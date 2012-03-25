@@ -191,8 +191,6 @@ c       c1=0.
         enddo
         sssb=max(sssb,0.)
       endif
-!      if(mydiag)print *,'ktau,ssta,sstb,sstc,tgg1: ',
-!     &                 ktau,ssta(idjd),sstb(idjd),sstc(idjd),tgg(idjd,1)
       do iq=1,ifull
         if(fraciceb(iq)<=.02)fraciceb(iq)=0.
       enddo
@@ -250,8 +248,7 @@ c       c1=0.
             call mlonudge(duma,sssb,dumb,dumb(:,1),1)
           case(1)
             if (mod(mtimer,mlotime*60).eq.0) then
-              call mlofilterfast(duma,sssb,dumb,dumb(:,1),1) ! 1D version
-              !call mlofilter(duma,sssb,dumb,dumb(:,1),1) ! 2D version
+              call mlofilterhub(duma,sssb,dumb,dumb(:,1),1)
             end if
           case DEFAULT
             write(6,*) "ERROR: Unknown mlomode ",mlomode

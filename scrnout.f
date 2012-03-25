@@ -346,8 +346,8 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       return
       end
       
-      ! MJT cable ---------------------------------------------------
-      ! Use TAPM approach to screen diagnostics for ocean and lake points
+      ! -------------------------------------------------------------
+      ! Use TAPM approach to screen diagnostics
       subroutine scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
      &                   tsu,temp,qsttg,qg,umag,ps,land,zmin,sig)
      
@@ -556,7 +556,7 @@ c-------Beljaars and Holtslag (1991) heat function
       integer iq
       real es,ztv
       real, dimension(ifull) :: zoh,umag
-      real, dimension(ifull) :: ou,ov,atu,atv
+      real, dimension(ifull) :: ou,ov,atu,atv,iu,iv
       real, parameter :: vkar = 0.4
       
       ztv=exp(vkar/sqrt(chn10))/10.
@@ -567,6 +567,10 @@ c-------Beljaars and Holtslag (1991) heat function
       if (nmlo.ne.0) then
         call mloexport(2,ou,1,0)
         call mloexport(3,ov,1,0)
+        call mloexpice(iu,9,0)
+        call mloexpice(iv,10,0)
+        ou=(1.-fracice)*ou+fracice*iu
+        ov=(1.-fracice)*ov+fracice*iv
       end if
       umag=sqrt((u(1:ifull,1)-ou)**2
      &         +(v(1:ifull,1)-ov)**2)

@@ -1624,9 +1624,9 @@ niv(1:ifull)=sjv(:,1)
 if (nud_sss.eq.0) then
   delpos=0.
   delneg=0.
+  dum=0.
   do ii=1,wlev
-    dum=0.
-    where(wtr(1:ifull).and.w_s(1:ifull,ii).gt.1.)
+    where(wtr(1:ifull).and.w_s(1:ifull,ii).gt.0.1)
       dum(:,ii)=ns(1:ifull,ii)-w_s(1:ifull,ii) ! increments
     end where
     odum=dum(:,ii)
