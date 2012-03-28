@@ -2326,8 +2326,8 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g,wl) :: diffu_g,diffv_g,diffw_g
       real, dimension(ifull,wl) :: diff
       real, dimension(ifull_g) :: x_g,xx_g
-      real, dimension(ifull) :: old,oldt,olds
-      real, dimension(ifull,wlev) :: rho,nsq
+      real, dimension(ifull) :: old,oldt
+      real, dimension(ifull,ktopmlo:kbotmlo) :: rho,nsq
       logical disflag
       integer, parameter :: tempfix=1 ! delta temp (0=linear, 1=buoyancy)
       real, parameter :: rho0=1030.   ! linear density offset
@@ -2482,16 +2482,15 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             !nsq=-2.*grav*(rho(:,k)-rho(:,k+1))/((dep(:,k+1)-dep(:,k))*(rho(:,k)+rho(:,k+1)))
             nsq(:,k)=-(rho(:,k)-rho(:,k+1))/(rho(:,k)+rho(:,k+1))
           end do
-          call mloexport(0,olds,ktopmlo,0)
-          olds=olds+diff(:,1)*10./real(mloalpha)
-          olds=max(olds,271.)
-          call mloimport(0,olds,ktopmlo,0)
-          oldt=olds
+          call mloexport(0,old,ktopmlo,0)
+          old=old+diff(:,1)*10./real(mloalpha)
+          old=max(old,271.)
+          call mloimport(0,old,ktopmlo,0)
+          oldt=old
           do k=ktopmlo+1,kbotmlo
-            old=(oldt*(1.+nsq(:,k-1))
-     &        +2.*nsq(:,k-1)*rho0/a0)
+            old=(oldt*(1.+nsq(:,k-1))+2.*nsq(:,k-1)*rho0/a0)
      &        /(1.-nsq(:,k-1))
-            old=min(max(old,271.),olds+1.)	  
+            old=max(old,271.)  
             call mloimport(0,old,k,0)
             oldt=old
           end do
@@ -2632,7 +2631,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             call ccmpi_distribute(diff(:,1:1))
           end if
         else
-          diff(:,1:1)=diffh_g(1:ifull,1:1)
+          diff(:,1)=diffh_g(1:ifull,1)
         end if
         old=sfh
         call mloexport(4,old,0,0)
@@ -2952,8 +2951,8 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       
       til=il_g*il_g 
 
+      iy=ifull_g*kd
       if (nud_sst.ne.0) then
-        iy=ifull_g*kd
         if (myid.eq.0) then
           zz(1:iy)=reshape(diff_g,(/iy/))
           call MPI_Bcast(zz(1:iy),iy,MPI_REAL,0,MPI_COMM_WORLD,ierr)
@@ -3258,7 +3257,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
       real, dimension(ifull_g,kd), intent(inout) :: qpu,qpv
       real, dimension(ifull_g,kd), intent(inout) :: qpw
       real, dimension(ifull_g), intent(inout) :: qsum
-      real, dimension(4*il_g) :: rr,ra,xa,ya,za
+      real, dimension(4*il_g) :: rr,xa,ya,za
       real, dimension(4*il_g) :: asum,psum
       real, dimension(4*il_g) :: aph,pph
       real, dimension(4*il_g,kd) :: ap,aps,pp,pps
@@ -3459,9 +3458,9 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
             aph(1:me)=qph(igrd(1:me,j,ipass))
           end if
           do n=1,il_g
-            ra(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
-            ra(1:me)=acos(max(min(ra(1:me),1.),-1.))
-            rr(1:me)=exp(-(cq*ra(1:me))**2)
+            rr(1:me)=xa(n)*xa(1:me)+ya(n)*ya(1:me)+za(n)*za(1:me)
+            rr(1:me)=acos(max(min(rr(1:me),1.),-1.))
+            rr(1:me)=exp(-(cq*rr(1:me))**2)
             psum(n)=sum(rr(1:me)*asum(1:me))
             if (nud_sst.ne.0) then
               do k=1,kd

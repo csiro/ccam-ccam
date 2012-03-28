@@ -26,6 +26,7 @@
       use gdrag_m, only : gdrag_init          ! Gravity wave drag
       use histave_m                           ! Time average arrays
       use indices_m                           ! Grid index arrays
+      use infile                              ! Input file routines
       use kuocomb_m                           ! JLM convection
       use latlong_m                           ! Lat/lon coordinates
       use liqwpar_m                           ! Cloud water mixing ratios
@@ -735,10 +736,7 @@
          if ( myid == 0 ) then
            ncid = ncopn(mesonest,0,ier )  ! 0 denotes read-only
            write(6,*)'ncid,ier,mesonest ',ncid,ier,mesonest
-           if(ier.ne.0)then
-             write(6,*)'cannot open netcdf mesofile ',nf_strerror(ier)
-             stop
-           endif
+           call ncmsg("Reading infile",ier)
          endif ! myid == 0
       endif    ! (mbd.ne.0.or.nbd.ne.0)
 
