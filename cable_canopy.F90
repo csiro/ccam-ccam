@@ -623,8 +623,8 @@ CONTAINS
 
    ! screen temp., windspeed and relative humidity at 1.5m
    ! screen temp., windspeed and relative humidity at 2.0m
-    tstar = - canopy%fh / ( air%rho*capp*canopy%us)
-    qstar = - canopy%fe / ( air%rho*air%rlam *canopy%us)
+    tstar = - canopy%fh / (air%rho*capp*canopy%us)
+    qstar = - canopy%fe / (air%rho*air%rlam*canopy%us)
     zscrn = max(rough%z0m,2.0-rough%disp)
     denom = ( log(rough%zref_tq/zscrn)- psis(canopy%zetar(:,iterplus)) + &
          psis(canopy%zetar(:,iterplus) * zscrn / rough%zref_tq) ) /vonk

@@ -305,6 +305,7 @@ c     h_nh
       endif   ! (nimp==1)
       endif     ! (nh.ne.0)
 
+      ! pslx
       if(npslx==1.and.nvad<=-4)then  ! handles -9 too
       do k=1,kl-1
        do iq=1,ifull

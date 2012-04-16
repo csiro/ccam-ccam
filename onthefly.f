@@ -6,7 +6,7 @@
        
       subroutine onthefly(nested,kdate_r,ktime_r,
      .                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     .                    tgg,wb,wbice,snowd,qfg,qlg,
+     .                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
      .                    tggsn,smass,ssdn,ssdnn,snage,isflag,
      .                    iaero,mlodwn,ocndwn)
 
@@ -43,7 +43,8 @@
      & t(ifull,kl),u(ifull,kl),v(ifull,kl),qg(ifull,kl),
      & tgg(ifull,ms),tggsn(ifull,3),smass(ifull,3),ssdn(ifull,3),
      & ssdnn(ifull),snage(ifull),qfg(ifull,kl),
-     & qlg(ifull,kl),mlodwn(ifull,wlev,4),ocndwn(ifull,2)
+     & qlg(ifull,kl),qrg(1:ifull,kl),mlodwn(ifull,wlev,4),
+     & ocndwn(ifull,2)
       real timer
       logical ltest,newfile
 
@@ -163,7 +164,7 @@
       if (myid==0) then
         call ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     &                    tgg,wb,wbice,snowd,qfg,qlg,
+     &                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
      &                    ok,ik,ifull_g,iaero,mlodwn,ocndwn,rlong0x,
      &                    rlat0x,schmidtx,newfile)
@@ -171,7 +172,7 @@
       else
         call ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     &                    tgg,wb,wbice,snowd,qfg,qlg,
+     &                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
      &                    ok,0,0,iaero,mlodwn,ocndwn,rlong0x,
      &                    rlat0x,schmidtx,newfile)
@@ -183,10 +184,10 @@
       ! Read data from netcdf file
       subroutine ontheflyx(nested,kdate_r,ktime_r,
      &                    psl,zss,tss,sicedep,fracice,t,u,v,qg,
-     &                    tgg,wb,wbice,snowd,qfg,qlg,
+     &                    tgg,wb,wbice,snowd,qfg,qlg,qrg,
      &                    tggsn,smass,ssdn,ssdnn,snage,isflag,ik,kk,
-     &                    ok,dk,ifg,iaero,mlodwn,ocndwn,rlong0x,rlat0x,
-     &                    schmidtx,newfile)
+     &                    ok,dk,ifg,iaero,mlodwn,ocndwn,rlong0x,
+     &                    rlat0x,schmidtx,newfile)
       
       use aerosolldr, only : xtg,ssn,naero      ! LDR aerosol scheme
       use ateb, only : atebdwn                  ! Urban
@@ -250,7 +251,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
       real, dimension(ifull,ok,2) :: mloin
       real, dimension(ifull,ms) :: wb,wbice,tgg
       real, dimension(ifull,3) :: tggsn,smass,ssdn
-      real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg
+      real, dimension(ifull,kl) :: t,u,v,qg,qfg,qlg,qrg
       real, dimension(ifull,kk) :: u_k,v_k
       integer, dimension(ifull) :: isflag
       real, dimension(dk*dk*6) :: psl_a,tss_a,fracice_a,
@@ -647,7 +648,7 @@ c**   onthefly; sometime can get rid of common/bigxy4
           call mloregrid(ok,ocndwn(:,1),mloin(:,:,2),mlodwn(:,:,4),3)
         end if ! (nestesd.ne.1.or.nud_ouv.ne.0) ..else..
         ! water surface height
-        ocndwn(:,2)=0
+        ocndwn(:,2)=0.
         if (nested.ne.1.or.nud_sfh.ne.0) then
           ucc=0.
           call histrd1(ncid,iarchi,ier,'ocheight',ik,6*ik,ucc,
@@ -1142,7 +1143,7 @@ c       incorporate other target land mask effects
 
         !--------------------------------------------------
         ! Read CABLE aggregate carbon pools
-        if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
+        if (nsib.eq.4.or.nsib.ge.6) then
           do k=1,ncp
             ucc=0.
             write(vname,'("cplant",I1.1)') k
@@ -1345,8 +1346,24 @@ c       incorporate other target land mask effects
           call vertint(u_k,qfg,5,kk,sigin)
           ! CLOUD LIQUID WATER !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           do k=1,kk 
-           vcc=0. ! dummy for qlg
-           call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,vcc,
+           ucc=0. ! dummy for qlg
+           call histrd4s(ncid,iarchi,ier,'qlg',ik,6*ik,k,ucc,
+     &                   6*ik*ik)
+           if (iotest) then
+             if (myid==0) then
+               call ccmpi_distribute(u_k(:,k),ucc)
+             else
+               call ccmpi_distribute(u_k(:,k))
+             end if
+           else
+             call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
+           end if ! iotest
+          enddo  ! k loop
+          call vertint(u_k,qlg,5,kk,sigin)
+          ! RAIN !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          do k=1,kk 
+           vcc=0. ! dummy for qrg
+           call histrd4s(ncid,iarchi,ier,'qrg',ik,6*ik,k,vcc,
      &                   6*ik*ik)
            if (iotest) then
              if (myid==0) then
@@ -1358,8 +1375,39 @@ c       incorporate other target land mask effects
              call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
            end if ! iotest
           enddo  ! k loop
-          call vertint(v_k,qlg,5,kk,sigin)
-
+          call vertint(v_k,qrg,5,kk,sigin)
+    !      ! SNOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !      do k=1,kk 
+    !       vcc=0. ! dummy for qsg
+    !       call histrd4s(ncid,iarchi,ier,'qsg',ik,6*ik,k,vcc,
+    ! &                   6*ik*ik)
+    !       if (iotest) then
+    !         if (myid==0) then
+    !           call ccmpi_distribute(v_k(:,k),vcc)
+    !         else
+    !           call ccmpi_distribute(v_k(:,k))
+    !         end if
+    !       else
+    !         call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
+    !       end if ! iotest
+    !      enddo  ! k loop
+    !      call vertint(v_k,qsg,5,kk,sigin)
+    !      ! GRAUPLE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !      do k=1,kk 
+    !       vcc=0. ! dummy for qgrau
+    !       call histrd4s(ncid,iarchi,ier,'qgrau',ik,6*ik,k,vcc,
+    ! &                   6*ik*ik)
+    !       if (iotest) then
+    !         if (myid==0) then
+    !           call ccmpi_distribute(v_k(:,k),vcc)
+    !         else
+    !           call ccmpi_distribute(v_k(:,k))
+    !         end if
+    !       else
+    !         call doints4(vcc,v_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
+    !       end if ! iotest
+    !      enddo  ! k loop
+    !      call vertint(v_k,qgrau,5,kk,sigin)
           ! CLOUD FRACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           do k=1,kk 
            ucc=0. ! dummy for cfrac
@@ -1376,6 +1424,22 @@ c       incorporate other target land mask effects
            end if ! iotest
           enddo  ! k loop
           call vertint(u_k,cfrac,5,kk,sigin)
+          ! RAIN FRACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          do k=1,kk 
+           ucc=0. ! dummy for cffall
+           call histrd4s(ncid,iarchi,ier,'cfrain',ik,6*ik,k,ucc,
+     &                   6*ik*ik)
+           if (iotest) then
+             if (myid==0) then
+               call ccmpi_distribute(u_k(:,k),ucc)
+             else
+               call ccmpi_distribute(u_k(:,k))
+             end if
+           else
+             call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
+           end if ! iotest
+          enddo  ! k loop
+          call vertint(u_k,cffall,5,kk,sigin)
         end if ! (nested.eq.0)
 
         !--------------------------------------------------
@@ -1508,11 +1572,13 @@ c       incorporate other target land mask effects
               call vertint(u_k,ssn(1:ifull,:,i-naero),5,kk,sigin)
             end if
           end do
-          ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
-          so4t(:)=0.
-          do k=1,kl
-            so4t(:)=so4t(:)+3.e3*xtg(:,k,3)*(-psl(:)*dsig(k))/grav
-          enddo
+          if (nrad.eq.4) then
+            ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
+            so4t(:)=0.
+            do k=1,kl
+              so4t(:)=so4t(:)+3.e3*xtg(:,k,3)*(-psl(:)*dsig(k))/grav
+            enddo
+          end if
         end if
 
         if (nested.eq.0) then
@@ -1942,15 +2008,23 @@ c       incorporate other target land mask effects
       implicit none
       
       include 'newmpar.h'  ! Grid parameters
-      
-      real, dimension(ifull), intent(inout) :: sout
+
+      integer, intent(in) :: ik, nord, ifg      
       integer, intent(in), dimension(ifg,4) :: nface4
+      real, dimension(ifull), intent(inout) :: sout
+      real, dimension(ik*ik*6), intent(in) :: s_a
       real, intent(in), dimension(ifg,4) :: xg4, yg4
-      integer, intent(in) :: ik, nord, ifg
-      real, dimension(ik*ik*6) :: s_a
       real, dimension(ifg) :: s_g
 
       if ( myid ==0 ) then
+         if (ifg.ne.ifull_g) then
+           write(6,*) "ERROR: Incorrect ifg in doints4"
+           stop
+         end if
+         if (ik.eq.0) then
+           write(6,*) "ERROR: Incorrect ik in doints4"
+           stop
+         end if
          call ints4(s_a,s_g,nface4 ,xg4 ,yg4,nord,ik)
          call ccmpi_distribute(sout,s_g)
       else

@@ -73,7 +73,7 @@
 
       real, intent(out) :: hourst
       real, dimension(ifull) :: zss, aa, zsmask
-      real, dimension(ifull) :: dep, depth, duma
+      real, dimension(ifull) :: dep, depth, duma, rlai
       real, dimension(ifull,2) :: ocndwn
       real, dimension(ifull,wlev,4) :: mlodwn
       real, dimension(ifull,kl) :: dumb
@@ -139,11 +139,11 @@
       eg(:)=0.
       fg(:)=0.
       cduv(:)=0.
+      cdtq(:)=0.
       swrsave(:)=0.5
       hourst=0.
       albsav(:)=-1.
       albvisnir(:,:)=0.3
-      rsmin(:)=0.
       vlai(:)=0.
       ivegt(:)=1
       isoilm(:)=1
@@ -153,8 +153,6 @@
       land(:)=.false.
       kdate=kdate_s
       ktime=ktime_s
-      sigmf(:)=0.
-
 
       !--------------------------------------------------------------
       ! READ AND PROCESS ATMOSPHERE SIGMA LEVELS
@@ -569,8 +567,8 @@
           call onthefly(0,kdate,ktime,psl(1:ifull),zss,tss,sicedep,
      &         fracice,t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),
      &         qg(1:ifull,:),tgg,wb,wbice,snowd,qfg(1:ifull,:),
-     &         qlg(1:ifull,:),tggsn,smass,ssdn,ssdnn,snage,isflag,
-     &         iaero,mlodwn,ocndwn)
+     &         qlg(1:ifull,:),qrg(1:ifull,:),tggsn,smass,ssdn,ssdnn,
+     &         snage,isflag,iaero,mlodwn,ocndwn)
         endif   ! (abs(io_in)==1)
         if(mydiag)then
           write(6,*)'ds,zss',ds,zss(idjd)
@@ -1073,12 +1071,14 @@
         if ( mydiag ) then
            iveg=ivegt(idjd)
            isoil=isoilm(idjd)
+	 if (isoil.gt.0) then
            write(6,*)'isoil,iveg,month,fracsum,rlatt: ',
      &                isoil,iveg,imo,fracsum(imo),rlatt(idjd)
            fracs=sign(1.,rlatt(idjd))*fracsum(imo) ! +ve for local summer
            fracwet=(.5+fracs)*fracwets(iveg)+(.5-fracs)*fracwetw(iveg)
            write(6,*)'fracs,fracwet,initial_wb: ',
      &                fracs,fracwet,wb(idjd,ms)
+         end if
         end if
       endif       !  ((nrungcm==-1.or.nrungcm==-2.or.nrungcm==-5)
 
@@ -1097,15 +1097,15 @@
         call onthefly(2,kdate,ktime,duma,duma,duma,duma,
      &       duma,dumb,dumb,dumb,
      &       dumb,tgg,wb,wbice,snowd,dumb,
-     &       dumb,tggsn,smass,ssdn,ssdnn,snage,isflag,
+     &       dumb,dumb,tggsn,smass,ssdn,ssdnn,snage,isflag,
      &       iaero,mlodwn,ocndwn)
          if(kdate.ne.kdate_sav.or.ktime.ne.ktime_sav)then
           if (myid==0) then
            write(6,*) 'WARN: Could not locate correct date/time'
            write(6,*) '      Using infile surface data instead'
           end if
-	  kdate=kdate_sav
-	  ktime=ktime_sav
+          kdate=kdate_sav
+          ktime=ktime_sav
          endif
        else
 !       for sequence of runs starting with values saved from last run
@@ -1184,14 +1184,14 @@
       endif      !  (nrungcm==5)
 
       if(nrungcm==1)then  ! jlm alternative wb fix for nsib runs off early mark 2 gcm
-         if (mydiag ) then
-            isoil = isoilm(idjd)
-            write(6,"('before nrungcm=1 fix-up wb(1-ms)',9f7.3)") 
-     &                   (wb(idjd,k),k=1,ms)
-            write(6,*)'nfixwb,isoil,swilt,sfc,ssat,alb ',
-     &        nfixwb,isoil,swilt(isoil),sfc(isoil),ssat(isoil),
-     &        albvisnir(idjd,1) ! MJT albedo
-         end if
+        if (mydiag ) then
+          isoil = isoilm(idjd)
+          write(6,"('before nrungcm=1 fix-up wb(1-ms)',9f7.3)") 
+     &                 (wb(idjd,k),k=1,ms)
+          write(6,*)'nfixwb,isoil,swilt,sfc,ssat,alb ',
+     &      nfixwb,isoil,swilt(isoil),sfc(isoil),ssat(isoil),
+     &      albvisnir(idjd,1)
+        end if
         do ip=1,ipland  ! all land points in this nsib=1+ loop
          iq=iperm(ip)
          isoil = isoilm(iq)
@@ -1273,27 +1273,27 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       endif          !  (nrungcm==1)
 
       if(nrungcm==2)then  ! for nsib runs off early mark 2 gcm
-         if (mydiag) then
-            isoil = isoilm(idjd)
-            write(6,*)'before nrungcm=2 fix-up wb(1-ms): ',wb(idjd,:)
-            write(6,*)'isoil,swilt,ssat,alb ',
-     &           isoil,swilt(isoil),ssat(isoil),albvisnir(idjd,1)
-         end if
+        if (mydiag) then
+          isoil = isoilm(idjd)
+          write(6,*)'before nrungcm=2 fix-up wb(1-ms): ',wb(idjd,:)
+          write(6,*)'isoil,swilt,ssat,alb ',
+     &         isoil,swilt(isoil),ssat(isoil),albvisnir(idjd,1)
+        end if
         do ip=1,ipland  ! all land points in this nsib=1+ loop
          iq=iperm(ip)
          isoil = isoilm(iq)
-         if( albvisnir(iq,1) >= 0.25 ) then ! MJT albedo
+         if( albvisnir(iq,1) >= 0.25 ) then
            diffg=max(0. , wb(iq,1)-0.068)*ssat(isoil)/0.395   ! for sib3
-           diffb=max(0. , wb(iq,ms)-0.068)*ssat(isoil)/0.395   ! for sib3
+           diffb=max(0. , wb(iq,ms)-0.068)*ssat(isoil)/0.395  ! for sib3
          else
            diffg=max(0. , wb(iq,1)-0.175)*ssat(isoil)/0.42    ! for sib3
-           diffb=max(0. , wb(iq,ms)-0.175)*ssat(isoil)/0.42    ! for sib3
+           diffb=max(0. , wb(iq,ms)-0.175)*ssat(isoil)/0.42   ! for sib3
          endif
          wb(iq,1)=swilt(isoil)+diffg          ! for sib3
          do k=2,ms                            ! for sib3
           wb(iq,k)=swilt(isoil)+diffb         ! for sib3
          enddo     !  k=2,ms
-        enddo        !  ip=1,ipland
+        enddo      !  ip=1,ipland
         if(mydiag) write(6,*)'after nrungcm=2 fix-up wb(1-ms): ',
      &                        wb(idjd,:)
       endif          !  (nrungcm==2)
@@ -1381,7 +1381,7 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
          albvisnir(iq,1)=.8*fracice(iq)+.1*(1.-fracice(iq))
          albvisnir(iq,2)=.5*fracice(iq)+.1*(1.-fracice(iq))
         endif   ! (sicedep(iq)>0.)
-       endif    ! (nmlo.eq.0) 
+       endif    ! (nmlo.eq.0.or.abs(nmlo).gt.9) 
        if(isoilm(iq)==9.and.(nsib==3.or.nsib==5))then
 !        also at beg. of month ensure cold deep temps over permanent ice
          do k=2,ms
@@ -1427,10 +1427,10 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       enddo   ! ms
 
       if ( mydiag ) then
-         write(6,*)'nearer end of indata id+-1, jd+-1'
-         write(6,"('tgg(2)# ',9f8.2)")  diagvals(tgg(:,2))
-         write(6,"('tgg(ms)#',9f8.2)")  diagvals(tgg(:,ms))
-         write(6,"('wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
+        write(6,*)'nearer end of indata id+-1, jd+-1'
+        write(6,"('tgg(2)# ',9f8.2)")  diagvals(tgg(:,2))
+        write(6,"('tgg(ms)#',9f8.2)")  diagvals(tgg(:,ms))
+        write(6,"('wbice(1-ms)',9f7.3)")(wbice(idjd,k),k=1,ms)
       end if
 
 
@@ -1445,12 +1445,8 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       !-----------------------------------------------------------------
       ! UPDATE GENERAL MODEL VARIABLES
 
-      ! snow, orography and roughness length
-      osnowd(:) = snowd(:)
+      ! orography
       call bounds(zs)
-      do iq=1,ifull
-       zolog(iq)=log(zmin/zolnd(iq))   ! for land use in sflux
-      enddo
 
       if ( mydiag ) then
          write(6,*)'for idjd get = ',idjd,
@@ -1708,25 +1704,29 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       !--------------------------------------------------------------
       ! UPDATE BIOSPHERE DATA (nsib)
-      if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
+      select case(nsib)
+       case(4,6,7)
         ! Load CABLE data
         if (myid==0) write(6,*) 'Importing CABLE data'
         call loadtile
-      elseif (nsib==5) then
+       case(5)
         ! MODIS input with standard surface scheme
+        osnowd = snowd
+        zolog=log(zmin/zolnd)   ! for land use in sflux
         sigmf=0.
         where (land)
           sigmf(:)=max(0.01,min(0.98,1.-exp(-0.4*vlai(:))))
         end where
-        tsigmf(:)=sigmf(:)
-      else
+       case(3)
         ! usual input with standard surface scheme
+        osnowd = snowd
+        zolog=log(zmin/zolnd)   ! for land use in sflux
+        sigmf=0.
         do iq=1,ifull
          if(land(iq))then
            isoil = isoilm(iq)
            iveg  = ivegt(iq)
            sigmf(iq)=min(.8,.95*vegpsig(ivegt(iq)))  ! moved from rdnsib
-           tsigmf(iq)=sigmf(iq)                      ! moved from rdnsib
            if(jlmsigmf==1)then  ! fix-up for dean's veg-fraction
              sigmf(iq)=((sfc(isoil)-wb(iq,3))*vegpmin(iveg)
      &                 +(wb(iq,3)-swilt(isoil))*vegpmax(iveg))/
@@ -1781,7 +1781,10 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
             write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
           end if
         endif ! (newrough>0)
-      endif     ! (nsib==5) .. else .. ! MJT sib
+       case DEFAULT
+        write(6,*) "ERROR: Unknown nsib option ",nsib
+        stop
+      end select
 
 
       !-----------------------------------------------------------------
@@ -1793,22 +1796,23 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
           if (myid==0) write(6,*) 'Using MLO defaults'
           ocndwn(:,2)=0.
           do k=1,wlev
-            call mloexpdep(0,depth,k,0)
-            ! This polynomial fit is from MOM3, based on Levitus
-            where (depth.lt.2000.)
-            mlodwn(:,k,1)=18.4231944+273.16
-     &        -0.43030662E-1*depth(:)
-     &        +0.607121504E-4*depth(:)**2
-     &        -0.523806281E-7*depth(:)**3
-     &        +0.272989082E-10*depth(:)**4
-     &        -0.833224666E-14*depth(:)**5
-     &        +0.136974583E-17*depth(:)**6
-     &        -0.935923382E-22*depth(:)**7
-            mlodwn(:,k,1)=mlodwn(:,k,1)*tss/(18.4231944+273.16)     
-            elsewhere
-            mlodwn(:,k,1)=275.16
-            end where
-            mlodwn(:,k,1)=max(mlodwn(:,k,1),275.16)	    
+    !        call mloexpdep(0,depth,k,0)
+    !        ! This polynomial fit is from MOM3, based on Levitus
+    !        where (depth.lt.2000.)
+    !        mlodwn(:,k,1)=18.4231944+273.16
+    ! &        -0.43030662E-1*depth(:)
+    ! &        +0.607121504E-4*depth(:)**2
+    ! &        -0.523806281E-7*depth(:)**3
+    ! &        +0.272989082E-10*depth(:)**4
+    ! &        -0.833224666E-14*depth(:)**5
+    ! &        +0.136974583E-17*depth(:)**6
+    ! &        -0.935923382E-22*depth(:)**7
+    !        mlodwn(:,k,1)=mlodwn(:,k,1)*tss/(18.4231944+273.16)     
+    !        elsewhere
+    !        mlodwn(:,k,1)=275.16
+    !        end where
+    !        mlodwn(:,k,1)=max(mlodwn(:,k,1),271.2)	    
+            mlodwn(:,k,1)=max(tss,271.2)
             mlodwn(:,k,2)=34.72
             mlodwn(:,k,3:4)=0.
             !where (zs(1:ifull).gt.1.) ! lakes?
@@ -1976,7 +1980,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         write(6,*) 'land stations'
         write(*,"(a)")
      &       ' lu istn jstn  iq   slon   slat land rlong  rlat'
-     &    // ' isoil iveg zs(m) alb  wb3  wet3 sigmf zo   rsm   he'
+     &    // ' isoil iveg zs(m) alb  wb3  wet3 vlai  zo   he'
         do nn=1,nstn
            call latltoij(slon(nn),slat(nn),rlong0,rlat0,schmidt,
      &                   ri,rj,nface,xx4,yy4,il_g)
@@ -2032,15 +2036,15 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
              iq = istn(nn) + (jstn(nn)-1)*ipan
              iveg=ivegt(iq)
              isoil = isoilm(iq)
-             wet3=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil)) 
+             wet3=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
              write(6,98)iunp(nn),istn(nn),jstn(nn),iq,slon(nn),slat(nn),
      &          land(iq),rlongg(iq)*180/pi,rlatt(iq)*180/pi,
      &          isoilm(iq),ivegt(iq),zs(iq)/grav,albvisnir(iq,1),
-     &          wb(iq,3),wet3,sigmf(iq),zolnd(iq),rsmin(iq),he(iq),
-     &          myid
+     &          wb(iq,3),wet3,vlai(iq),zolnd(iq),he(iq),
+     &          myid             
            end if               ! mystn
 98        format(i3,i4,i5,i6,2f7.2 ,l3,2f7.2, i3,i6,f7.1,f5.2,
-     &           4f5.2,f5.1,f7.1,i4)
+     &           4f5.2,f7.1,i4)
              ! Put a barrier here to force stations to be printed in the right order
           call MPI_Barrier( MPI_COMM_WORLD, ierr )
         enddo  ! nn=1,nstn

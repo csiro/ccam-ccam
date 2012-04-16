@@ -447,7 +447,6 @@ c
           case ('rnet')    ; temparr=rnet
           case ('eg')      ; temparr=eg
           case ('fg')      ; temparr=fg
-!         case ('alb')     ; temparr=alb
           case ('alb')     ; temparr=swrsave*albvisnir(:,1)+
      &                               (1.-swrsave)*albvisnir(:,2) ! MJT cable
           case ('sgsave')  ; temparr=sgsave
@@ -456,12 +455,12 @@ c
           case ('tgg4')    ; temparr=tgg(:,4)
           case ('tgg5')    ; temparr=tgg(:,5)
           case ('tgg6')    ; temparr=tgg(:,6)
-          case ('rlai')    ; temparr=rlai
+          case ('rlai')    ; temparr=vlai
           case ('pfnee')   ; temparr=fnee
           case ('pfpn')    ; temparr=fpn
           case ('pfrp')    ; temparr=frp
           case ('pfrs')    ; temparr=frs
-          case ('pblh') ; temparr=pblh
+          case ('pblh')    ; temparr=pblh
           case ('flux')  
             allocate(cts(ngrdpts1,ntrac))
             kount=0

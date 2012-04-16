@@ -845,7 +845,7 @@ end subroutine mloexpdensity
 ! Pack atmospheric data for MLO eval
 
 subroutine mloeval(sst,zo,cd,cds,fg,eg,wetfac,epot,epan,fracice,siced,snowd, &
-                   dt,zmin,zmins,sg,rg,precp,uatm,vatm,temp,qg,ps,f,         &
+                   dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,f,   &
                    visnirratio,fbvis,fbnir,inflow,diag,calcprog)
 
 implicit none
@@ -854,7 +854,7 @@ integer, intent(in) :: diag
 integer iqw,ii
 real, intent(in) :: dt
 real aa,bb,deldz,dsf
-real, dimension(ifull), intent(in) :: sg,rg,precp,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
+real, dimension(ifull), intent(in) :: sg,rg,precp,precs,f,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
 real, dimension(ifull), intent(inout) :: sst,zo,cd,cds,fg,eg,wetfac,fracice,siced,epot,epan,snowd
 real, dimension(wfull) :: workb
 real, dimension(wfull) :: a_sg,a_rg,a_rnd,a_snd,a_f,a_vnratio,a_fbvis,a_fbnir,a_u,a_v,a_temp,a_qg,a_ps,a_zmin,a_zmins
@@ -883,14 +883,8 @@ a_ps=pack(ps,wpack)
 a_zmin=pack(zmin,wpack)
 a_zmins=pack(zmins,wpack)
 a_inflow=pack(inflow,wpack)
-workb=pack(precp,wpack)
-where (a_temp.ge.273.16)
-  a_rnd=workb
-  a_snd=0.
-elsewhere
-  a_rnd=0.
-  a_snd=workb
-end where
+a_rnd=pack(precp-precs,wpack)
+a_snd=pack(precs,wpack)
 
 ! adjust levels for free surface
 d_zcr=max(1.+w_eta/depth_hl(:,wlev+1),minwater/depth_hl(:,wlev+1))
@@ -1869,8 +1863,8 @@ egmax=max(1000.*lv*d_wavail/(dt*max(i_fracice,fracbreak)),0.)
 
 ! explicit estimate of fluxes
 ! (replace with implicit scheme if water becomes too shallow)
-p_fg=rho*p_cds*cp*vmag*(w_temp(:,1)-a_temp/srcp)
-p_eg=min(rho*p_cdq*lv*vmag*(qsat-a_qg),egmax)
+p_fg=rho*p_cds*cp*vmagn*(w_temp(:,1)-a_temp/srcp)
+p_eg=min(rho*p_cdq*lv*vmagn*(qsat-a_qg),egmax)
 p_taux=rho*p_cd*vmagn*atu
 p_tauy=rho*p_cd*vmagn*atv
 

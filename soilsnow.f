@@ -22,7 +22,6 @@ c     dt    - time step
 c     timi  - start time step
 c     ga    - ground heat flux W/m^2
 c     condxpr - precip (liquid and solid) 
-c     fev   - transpiration (W/m2)
 c     fes   - soil evaporation (W/m2)
 c Output
 c     runoff - total runoff
@@ -35,6 +34,7 @@ c----------------------------------------------------------------------
       real gammzz(ifull,ms)
       common/soilzs/zshh(ms+1),ww(ms)
       dimension  etac(3)
+      real, dimension(ifull) :: ggflux
 
       data csice /2.100e3/, cswat /4.218e3/, rhowat /1000./  ! for calgammv
       data cgsnow/2090./,rhosnow/200./                       ! for calgammv
@@ -283,22 +283,6 @@ c    &                                    cgsnow*snowd(iq)/ssdnn(iq)
          enddo
        endif
 
-!      following lines moved from soilsnow to sflux  23/5/01
-c       if(fev(iq)>0.) then
-c         evapfb  = fev(iq) * dt/hl             ! convert to mm/dt
-c         evapfb1 = min(evapfb*froot(1),wb(iq,1)*zse(1)*1000.)
-c         evapfb2 = min(evapfb*froot(2),wb(iq,2)*zse(2)*1000.)
-c         evapfb3 = min(evapfb*froot(3),wb(iq,3)*zse(3)*1000.)
-c         evapfb4 = min(evapfb*froot(4),wb(iq,4)*zse(4)*1000.)
-c         evapfb5 = min(evapfb*froot(5),wb(iq,5)*zse(5)*1000.)
-c         fev(iq)= (evapfb1+evapfb2+evapfb3+evapfb4+evapfb5)*hl/dt
-
-c         wb(iq,1)=wb(iq,1)-evapfb1/(zse(1)*1000.)
-c         wb(iq,2)=wb(iq,2)-evapfb2/(zse(2)*1000.)
-c         wb(iq,3)=wb(iq,3)-evapfb3/(zse(3)*1000.)
-c         wb(iq,4)=wb(iq,4)-evapfb4/(zse(4)*1000.)
-c         wb(iq,5)=wb(iq,5)-evapfb5/(zse(5)*1000.)
-c       endif
       enddo   ! ip loop for land points
 
       call surfbv(gammzz)
@@ -340,7 +324,7 @@ c***********************************************************************
 
       real gammzz(ifull,ms)
       common/soilzs/zshh(ms+1),ww(ms)
-      !dimension rnof1(ifull) ! MJT cable
+      dimension rnof1(ifull),rnof2(ifull)
 
       dimension smelt1(3)
       dimension c3(9)
@@ -597,7 +581,7 @@ c----      change local tg to account for energy - clearly not best method
 c***********************************************************************
 
       subroutine smoisturev
-      use cc_mpi, only : mydiag,myid
+      use cc_mpi, only : mydiag
       use nsibd_m
       use permsurf_m
       use soil_m           ! land
@@ -620,7 +604,6 @@ c
 c     fwtop  - water flux into the surface (precip-evap)
 c     dt   - time step
 c     isoil - soil type
-c     ism    - 0 if all soil layers frozen, otherwise set to 1
 c
 
       dimension wbh(ms+1),z1(ms+1),z2(ms+1),z3(ms+1)
@@ -636,9 +619,7 @@ c
         do isoil=1,mxst
          pwb_min(isoil)=(swilt(isoil)/ssat(isoil))**ibp2(isoil)
         enddo
-	if (myid==0) then
         print *,'in smoisturev; nmeth,ntest = ',nmeth,ntest  
-	end if
       endif  ! (ktau==1)
       if((ntest>0.or.diag).and.mydiag)then
        if(land(idjd))then !MJT bugfix
@@ -1032,7 +1013,7 @@ c***********************************************************************
       include 'parm.h'      ! ktau,dt
       include 'soilv.h'
       real at(ifull,-2:ms),bt(ifull,-2:ms),ct(ifull,-2:ms)
-      real tggdm(ifull,-2:ms) ! MJT bugfix
+      real tggdm(ifull,-2:ms)
 
 c     calculates temperatures of the soil 
 c     tgsoil - new soil/ice temperature
@@ -1123,7 +1104,6 @@ c     dt  - time step
         iq=idjd
         print *,'ga,gammzz ',ga(iq),gammzz(iq,1)
         print *,'rhs_tgg ',(tgg(iq,k),k=1,ms)
-        print *,'dgdtg,degdt,dfgdt ',dgdtg(iq),degdt(iq),dfgdt(iq)
         print *,'ssat,css,rhos,cswat,rhowat,csice ',
      .            ssat(isoil),css(isoil),rhos(isoil),cswat,rhowat,csice
         print *,'wblf1,wbfice1,zse1,cgsnow ',

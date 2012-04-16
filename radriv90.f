@@ -29,7 +29,7 @@
       use liqwpar_m  ! ifullw
       use lwout_m
       use mlo        ! MJT mlo
-      use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
+      use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,rmc
       use ozoneread  ! MJT radiation
       use pbl_m
       use raddiag_m
@@ -50,7 +50,6 @@
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
 !        for diag prints set ntest=1
 !        or, usefully can edit 'ntest.gt.0' to 'ktau.gt.nnn'
-      parameter (nalbwb=0)  ! 0  for original alb not depending on wb
       integer ixin
       integer kcl_top       !max level for cloud top (conjob,radrive,vertmix)
       include 'const_phys.h' ! for ldr cloud scheme
@@ -286,41 +285,8 @@ c     Set up ozone for this time and row
         do i=1,imax
           iq=i+(j-1)*il
           if( land(iq) )then
-           if(nalbwb.eq.0)then
-             cuvrf(i,1) = albsav(iq)    ! use surface albedo from indata
-             cirrf(i,1) = albnirsav(iq)
-           else    ! soil albedo adjusted according to wetness of top layer
-!            can do quadratic fit [ 0 to wbav to ssat]
-!            wbs=sfc(isoilm(iq))         ! or consider using wbs=ssat()
-             wbs=ssat(isoilm(iq))        ! or consider using wbs=ssat()
-             wbw=swilt(isoilm(iq))       ! or consider using wbw=0.
-             wbav=.5*(wbw+wbs)
-             wbdp=min(max(wb(iq,5),wbw+.01) , wbs-.01)
-!            assume albsav(iq) corresponds to value for wb=wbav
-             albav=albsav(iq)/ (1.333*(wbdp-wbav)*(wbdp-wbs)
-     .                           /((wbav-wbw)*(wbs-wbw))
-     .          + (wbdp-wbw)*(wbdp-wbs)
-     .                          /((wbav-wbw)*(wbav-wbs))
-     .          + .666*(wbdp-wbw)*(wbdp-wbav)
-     .                          /((wbs-wbw)*(wbs-wbav)))
-             albs=(1.333*(wb(iq,1)-wbav)*(wb(iq,1)-wbs)
-     .                           /((wbav-wbw)*(wbs-wbw))
-     .          + (wb(iq,1)-wbw)*(wb(iq,1)-wbs)
-     .                          /((wbav-wbw)*(wbav-wbs))
-     .          + .666*(wb(iq,1)-wbw)*(wb(iq,1)-wbav)
-     .                          /((wbs-wbw)*(wbs-wbav))) * albav
-
-             albs=max(min(albs,.38),.11)
-             cuvrf(i,1) = tsigmf(iq)*albsav(iq) + (1.-tsigmf(iq))*albs
-             cirrf(i,1)=cuvrf(i,1) ! MJT CHANGE albedo
-             if(ntest.gt.0.and.i.eq.idrad.and.j.eq.jdrad)then
-               print *,'iq,land,sicedep,wbw,wbs,snowd ',
-     .                  iq,land(iq),sicedep(iq),wbw,wbs,snowd(iq)
-               print *,'wbdp,wpav,wb ',wbdp,wbav,wb(iq,1)
-               print *,'albsav,albav,albs ',albsav(iq),albav,albs
-               print *,'cuvrf1 ',cuvrf(i,1)
-             endif
-           endif    ! (nalbwb.eq.0)
+           cuvrf(i,1) = albsav(iq)    ! use surface albedo from indata
+           cirrf(i,1) = albnirsav(iq)
            if(snowd(iq).gt.0.)then
 c            new snow albedo (needs osnowd from the previous dt)
              dnsnow=min(1.,.1*max(0.,snowd(iq)-osnowd(iq)))  ! new snow (cm H2O)
@@ -381,16 +347,10 @@ c                   where cs = 0.2, cn = 0.5, b = 2.0
              talb = .5 * ( alv + alir )        ! snow albedo
 c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
              cc=min(1.,snr/max(snr+zolnd(iq),0.02))
-             tsigmfx=(1.-cc)*tsigmf(iq)      ! mult by snow free veg. fraction
 
             !alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
-            if(nsib.ge.3)then 
-              cuvrf(i,1)=(1.-snrat)*cuvrf(i,1) + snrat*alv
-              cirrf(i,1)=(1.-snrat)*cirrf(i,1) + snrat*alir
-            else
-              cuvrf(i,1)=min(.8,(1.-tsigmfx)*alv+tsigmfx*cuvrf(i,1))
-              cirrf(i,1)=min(.8,(1.-tsigmfx)*alir+tsigmfx*cirrf(i,1))
-            endif
+            cuvrf(i,1)=(1.-snrat)*cuvrf(i,1) + snrat*alv
+            cirrf(i,1)=(1.-snrat)*cirrf(i,1) + snrat*alir
             if(ntest.gt.0.and.i.eq.idrad.and.j.eq.jdrad)then
               print *,'i,j,land,sicedep,snowd,snrat ',
      .                 i,j,land(iq),sicedep(iq),snowd(iq),snrat

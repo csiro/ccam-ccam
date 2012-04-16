@@ -91,22 +91,24 @@ module cable_ccam
   use soil_m
   use soilsnow_m
   use vegpar_m
-  use work2_m
-  use work3_m
+  use work2_m, only : qsttg,zo,theta,vmod
+  use work3_m, only : ga
   use zenith_m
   
   implicit none
 
   include 'newmpar.h'
   include 'const_phys.h'
+  include 'establ.h'
   include 'parm.h'
 
  ! for calculation of zenith angle
-  real fjd, r1, dlt, slag, dhr,alp,x
+  real fjd,r1,dlt,slag,dhr,alp,x,esatf
   real, dimension(ifull) :: coszro2,taudar2,tmps,hruff_grmx,atmco2
+  real, dimension(ifull) :: wetfac
   real, dimension(mp) :: swnet,deltat
   integer jyear,jmonth,jday,jhour,jmin
-  integer k,mins,nb
+  integer k,mins,nb,iq
   character(len=3) :: DIAG_SOIL_RESP = FDIAG_SOIL_RESP
 
   ! abort calculation if no land points on this processor  
@@ -130,9 +132,8 @@ module cable_ccam
   met%coszen=max(1.e-8,coszro2(cmap)) ! use instantaneous value
   met%qv=qg(cmap,1)         ! specific humidity in kg/kg
   met%pmb=0.01*ps(cmap)     ! pressure in mb at ref height
-  met%precip=condx(cmap)
-  met%precip_sn=0. ! in mm not mm/sec
-  where (met%tc<0.) met%precip_sn=met%precip
+  met%precip=condx(cmap)    ! in mm not mm/sec
+  met%precip_sn=conds(cmap) ! in mm not mm/sec
   met%hod=(met%doy-int(met%doy))*24. + rlongg(cmap)*180./(15.*pi)
   met%hod=mod(met%hod,24.)
   rough%za_tq=-rdry*t(cmap,1)*log(sig(1))/grav   ! reference height
@@ -147,9 +148,9 @@ module cable_ccam
   rad%fbeam(:,1)=fbeamvis(cmap)
   rad%fbeam(:,2)=fbeamnir(cmap)
   rad%fbeam(:,3)=0. ! dummy for now
-  met%fld=-rgsave(cmap)        ! long wave down (positive) W/m^2
+  met%fld=-rgsave(cmap) ! long wave down (positive) W/m^2
+  ! Interpolate lai.  Also need sigmf for LDR prognostic aerosols.
   call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
-  tsigmf=sigmf ! greeness fraction sigmf is just a diagnostic for CABLE
 
   rough%hruff=max(0.01,veg%hc-1.2*ssoil%snowd/max(ssoil%ssdnn,100.))
   select case(hruffmethod)
@@ -196,7 +197,7 @@ module cable_ccam
   ! Calculate net radiation absorbed by soil + veg
   canopy%rnet = canopy%fns + canopy%fnv
   ! Calculate radiative/skin temperature:
-  rad%trad = ( (1.-rad%transd)*canopy%tv**4 + rad%transd * ssoil%tss**4 )**0.25
+  rad%trad = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssoil%tss**4 )**0.25
   if (DIAG_SOIL_RESP == 'on')  then 
     sum_flux%sumpn = sum_flux%sumpn+canopy%fpn*dt
     sum_flux%sumrp = sum_flux%sumrp+canopy%frp*dt
@@ -216,7 +217,7 @@ module cable_ccam
   !--------------------------------------------------------------
       
   ! Unpack tiles into grid point averages.
-  ! Note that albsav and albnirsave are the VIS and NIR albedo output from CABLE to
+  ! Note that albsav and albnirsav are the VIS and NIR albedo output from CABLE to
   ! be used by the radiadiation scheme at the next time step.  albvisnir(:,1) and
   ! albvisnir(:,2) are the VIS and NIR albedo used by the radiation scheme for the
   ! current time step.
@@ -225,7 +226,6 @@ module cable_ccam
   wbice(iperm(1:ipland),:)=0.
   cplant(iperm(1:ipland),:)=0.
   csoil(iperm(1:ipland),:)=0.
-  albsoilsn(iperm(1:ipland),:)=0.
   albsav(iperm(1:ipland))=0.
   albnirsav(iperm(1:ipland))=0.
   albvisdir(iperm(1:ipland))=0.
@@ -233,20 +233,13 @@ module cable_ccam
   albnirdir(iperm(1:ipland))=0.
   albnirdif(iperm(1:ipland))=0.
   ! From 11/8/98 runoff() is accumulated & zeroed with precip
-  rnof1=0.
-  rnof2=0.
-  wbtot(iperm(1:ipland))=0.
-  rtsoil=0.
   rnet(iperm(1:ipland))=0.
   fg(iperm(1:ipland))=0.
   eg(iperm(1:ipland))=0.
   ga(iperm(1:ipland))=0.
   epot(iperm(1:ipland))=0.
   tss(iperm(1:ipland))=0.
-  tgf=0.
   cansto=0.
-  gflux(iperm(1:ipland))=0.
-  sgflux(iperm(1:ipland))=0.
   fnee=0.
   fpn=0.
   frd=0.
@@ -254,14 +247,9 @@ module cable_ccam
   frpw=0.
   frpr=0.
   frs=0.
-  sumpn=0.
-  sumrp=0.
-  sumrpw=0.
-  sumrpr=0.
-  sumrs=0.
-  sumrd=0.
   zo(iperm(1:ipland))=0.
   cduv(iperm(1:ipland))=0.
+  cdtq(iperm(1:ipland))=0.
   ustar(iperm(1:ipland))=0.
   wetfac(iperm(1:ipland))=0.
   tmps=0. ! average isflag
@@ -291,10 +279,6 @@ module cable_ccam
         csoil(cmap(pind(nb,1):pind(nb,2)),k)=csoil(cmap(pind(nb,1):pind(nb,2)),k) &
                                         +sv(pind(nb,1):pind(nb,2))*bgc%csoil(pind(nb,1):pind(nb,2),k)
       enddo
-      albsoilsn(cmap(pind(nb,1):pind(nb,2)),1)=albsoilsn(cmap(pind(nb,1):pind(nb,2)),1) &
-                                        +sv(pind(nb,1):pind(nb,2))*ssoil%albsoilsn(pind(nb,1):pind(nb,2),1)
-      albsoilsn(cmap(pind(nb,1):pind(nb,2)),2)=albsoilsn(cmap(pind(nb,1):pind(nb,2)),2) &
-                                        +sv(pind(nb,1):pind(nb,2))*ssoil%albsoilsn(pind(nb,1):pind(nb,2),2)
       albsav(cmap(pind(nb,1):pind(nb,2)))=albsav(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*rad%albedo(pind(nb,1):pind(nb,2),1)
       albnirsav(cmap(pind(nb,1):pind(nb,2)))=albnirsav(cmap(pind(nb,1):pind(nb,2))) &
@@ -309,14 +293,6 @@ module cable_ccam
                                         +sv(pind(nb,1):pind(nb,2))*rad%reffdf(pind(nb,1):pind(nb,2),2)
       runoff(cmap(pind(nb,1):pind(nb,2)))=runoff(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*ssoil%runoff(pind(nb,1):pind(nb,2))*dt ! convert mm/s to mm
-      rnof1(cmap(pind(nb,1):pind(nb,2)))=rnof1(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*ssoil%rnof1(pind(nb,1):pind(nb,2))
-      rnof2(cmap(pind(nb,1):pind(nb,2)))=rnof2(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*ssoil%rnof2(pind(nb,1):pind(nb,2))
-      wbtot(cmap(pind(nb,1):pind(nb,2)))=wbtot(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*ssoil%wbtot(pind(nb,1):pind(nb,2))
-      rtsoil(cmap(pind(nb,1):pind(nb,2)))=rtsoil(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))/ssoil%rtsoil(pind(nb,1):pind(nb,2))
       rnet(cmap(pind(nb,1):pind(nb,2)))=rnet(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*canopy%rnet(pind(nb,1):pind(nb,2))
       fg(cmap(pind(nb,1):pind(nb,2)))=fg(cmap(pind(nb,1):pind(nb,2))) &
@@ -328,15 +304,9 @@ module cable_ccam
       epot(cmap(pind(nb,1):pind(nb,2)))=epot(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*ssoil%potev(pind(nb,1):pind(nb,2))
       tss(cmap(pind(nb,1):pind(nb,2)))=tss(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*rad%trad(pind(nb,1):pind(nb,2))
-      tgf(cmap(pind(nb,1):pind(nb,2)))=tgf(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*canopy%tv(pind(nb,1):pind(nb,2))
+                                        +sv(pind(nb,1):pind(nb,2))*rad%trad(pind(nb,1):pind(nb,2))**4 ! ave longwave radiation
       cansto(cmap(pind(nb,1):pind(nb,2)))=cansto(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*canopy%cansto(pind(nb,1):pind(nb,2))
-      gflux(cmap(pind(nb,1):pind(nb,2)))=gflux(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*canopy%ghflux(pind(nb,1):pind(nb,2))
-      sgflux(cmap(pind(nb,1):pind(nb,2)))=sgflux(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*canopy%sghflux(pind(nb,1):pind(nb,2))
       fnee(cmap(pind(nb,1):pind(nb,2)))=fnee(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*canopy%fnee(pind(nb,1):pind(nb,2))
       fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2))) &
@@ -349,22 +319,12 @@ module cable_ccam
                                         +sv(pind(nb,1):pind(nb,2))*canopy%frpw(pind(nb,1):pind(nb,2))
       frs(cmap(pind(nb,1):pind(nb,2)))=frs(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*canopy%frs(pind(nb,1):pind(nb,2))
-      sumpn(cmap(pind(nb,1):pind(nb,2)))=sumpn(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*sum_flux%sumpn(pind(nb,1):pind(nb,2))
-      sumrp(cmap(pind(nb,1):pind(nb,2)))=sumrp(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrp(pind(nb,1):pind(nb,2))
-      sumrpw(cmap(pind(nb,1):pind(nb,2)))=sumrpw(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrpw(pind(nb,1):pind(nb,2))
-      sumrpr(cmap(pind(nb,1):pind(nb,2)))=sumrpr(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrpr(pind(nb,1):pind(nb,2))
-      sumrs(cmap(pind(nb,1):pind(nb,2)))=sumrs(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrs(pind(nb,1):pind(nb,2))
-      sumrd(cmap(pind(nb,1):pind(nb,2)))=sumrd(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*sum_flux%sumrd(pind(nb,1):pind(nb,2))
       zo(cmap(pind(nb,1):pind(nb,2)))=zo(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))/log(zmin/max(rough%z0m(pind(nb,1):pind(nb,2)),zobgin))**2
       cduv(cmap(pind(nb,1):pind(nb,2)))=cduv(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*canopy%cduv(pind(nb,1):pind(nb,2))
+      cdtq(cmap(pind(nb,1):pind(nb,2)))=cdtq(cmap(pind(nb,1):pind(nb,2))) &
+                                        +sv(pind(nb,1):pind(nb,2))*canopy%cdtq(pind(nb,1):pind(nb,2))
       ustar(cmap(pind(nb,1):pind(nb,2)))=ustar(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*canopy%us(pind(nb,1):pind(nb,2))
       wetfac(cmap(pind(nb,1):pind(nb,2)))=wetfac(cmap(pind(nb,1):pind(nb,2))) &
@@ -386,10 +346,16 @@ module cable_ccam
   end do
   where (land)
     zo=max(zmin*exp(-sqrt(1./zo)),zobgin)
-    rtsoil=1./rtsoil
-    cduv=cduv*vmod     ! cduv is Cd * vmod in CCAM
+    cduv=cduv*vmod     ! cduv is Cd*vmod in CCAM
     tscrn=tscrn+273.16 ! convert from degC to degK
+    tss=tss**0.25
   end where
+  do iq=1,ifull
+    if (land(iq)) then
+      esatf=establ(tss(iq))
+      qsttg(iq)=.622*esatf/(ps(iq)-esatf)
+    end if
+  end do
       
   ! The following lines unpack snow.  This is more complicated as we need to decide
   ! how to unpack tiles with 1 layer or 3 layers of snow in the same grid point.
@@ -641,6 +607,8 @@ module cable_ccam
   real(r_1), dimension(mxvt)   :: extkn,rootbeta,vegcf
   real(r_1), dimension(mxvt,2) :: taul,refl  
   real(r_1), dimension(ifull) :: dumr
+  real, dimension(ifull) :: albsoil,c4frac
+  real, dimension(ifull,2) :: albsoilsn
   real fjd  
   character(len=*), intent(in) :: fveg,fvegprev,fvegnext
 
@@ -704,17 +672,8 @@ module cable_ccam
   albvisdif=0.08
   albnirdir=0.08
   albnirdif=0.08
-  gflux=0.
-  sgflux=0.
-  sumpn = 0.
-  sumrp = 0.
-  sumrs = 0.
-  sumrd = 0.
-  rsmin = 0.
   zolnd=0.
   vlai=0.
-  sigmf=0.
-  tsigmf=0.
   cplant=0.
   csoil=0.
   pind=ifull+1
@@ -840,7 +799,6 @@ module cable_ccam
     ! Calculate LAI and veg fraction diagnostics
     call getzinp(fjd,jyear,jmonth,jday,jhour,jmin,mins)
     call setlai(sigmf,jyear,jmonth,jday,jhour,jmin)
-    tsigmf=sigmf
     do n=1,5
       if (pind(n,1).le.mp) then
         vlai(cmap(pind(n,1):pind(n,2)))=vlai(cmap(pind(n,1):pind(n,2))) &
@@ -1418,7 +1376,7 @@ module cable_ccam
     if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%snage(pind(n,1):pind(n,2))
     write(vname,'("snage_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)
-    dat=rtsoil
+    dat=100.
     if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%rtsoil(pind(n,1):pind(n,2))
     write(vname,'("rtsoil_",I1.1)') n
     call histwrt3(dat,vname,idnc,iarch,local,.true.)   

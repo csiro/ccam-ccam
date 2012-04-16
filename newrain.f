@@ -52,7 +52,7 @@ c
 
       subroutine newrain(land,lg,tdt,fluxc,rhoa,dz,ccrain,prf,cdrop,!Inputs
      &                  cfa,qca,
-     &                  ttg,qlg,qfg,precs,qtg,cfrac,ccov,   !In and Out
+     &                  ttg,qlg,qfg,qrg,precs,qtg,cfrac,cffall,ccov,   !In and Out
      &                  preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,
      &                  fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
 
@@ -80,9 +80,11 @@ C Argument list
       real ttg(ln2,nl)
       real qlg(ln2,nl)
       real qfg(ln2,nl)
+      real qrg(ln2,nl)
       real precs(ln2)
       real qtg(ln2,nl)
       real cfrac(ln2,nl)
+      real cffall(ln2,nl)
       real ccov(ln2,nl)
       real preci(ln2)
       real qevap(ln2,nl)
@@ -96,12 +98,6 @@ C Argument list
       real pfstay(ln2,nl)
       real slopes(ln2,nl)
       real prscav(ln2,nl)
-
-C Local shared common blocks (see TASK COMMON/TASKLOCAL above)
-
-C Global data blocks
-c      include 'PRINTT.f'
-c      include 'TIMEX.f'
 
 C Local work arrays and variables
       real clfr(ln2,nl)
@@ -118,7 +114,12 @@ C Local work arrays and variables
       real fluxrain(ln2)
       real cdrop(ln2,nl)
       real fracr(ln2,nl)
-c     double precision Frpr, Frprb, Frprc
+      real mxclfr(ln2)
+      real rdclfr(ln2)
+      real vr(ln2,nl-1)
+      real rhor(ln2,nl-1)
+      real fout(ln2,nl-1)
+      real fthru(ln2,nl-1)
 
       integer k,mb,mg,njumps,ns,nt,ntest
 
@@ -127,7 +128,6 @@ c     double precision Frpr, Frprb, Frprc
       real bl
       real cdt
       real cev
-c     real cftemp
       real clrevap
       real coll
       real crate
@@ -137,7 +137,7 @@ c     real cftemp
       real dqsdt
       real es
       real evap
-c      real fcol
+      real fcol
       real fr
       real frb
       real frc
@@ -148,15 +148,20 @@ c      real fcol
       real ql1
       real ql2
       real qpf
+      real R6c,R3c,beta6,eps
       real rhodz
       real satevap
       real selfcoll
       real tk
+      real Wliq
+      real cfla,dqla,qla
+      real cftemp,qrgtemp,mixrain,alph
+      real rhorin,rhorout
+      real cffluxin,cffluxout
 
 C Local data, functions etc
-      integer naerosol_i(2)
-      data naerosol_i / 2*0 /
       parameter (ntest=0)  ! 0=off, 1=on
+      integer, parameter :: autoconvmeth=1 ! Autoconv scheme (0=Old, 1=New)
 
       real esdiff(-40:0)  !Table of es(liq) - es(ice) (MKS), -40 <= t <= 0 C
       data esdiff / 
@@ -165,9 +170,6 @@ C Local data, functions etc
      & 22.55,23.45,24.30,25.08,25.78,26.38,26.86,27.18,27.33,27.27,
      & 26.96,26.38,25.47,24.20,22.51,20.34,17.64,14.34,10.37, 5.65,
      & 0.08 /
-      character*1 cont(8)
-      data cont/' ','L','M','4','H','5','6','7'/
-!     include 'ESTABL.f'
       real tablei
       common /esitable/ tablei(0:220) !Table of es values wrt ice
 
@@ -210,7 +212,7 @@ C Start code : ----------------------------------------------------------
 
       delt=tdt
       njumps=nint(tdt/delt)
-      delt=tdt/njumps !To make sure tdt it a multiple of delt
+      delt=tdt/real(njumps) !To make sure tdt it a multiple of delt
 
       do k=1,nl
         do mg=1,ln2
@@ -244,47 +246,71 @@ c Previous line not good for roundoff; next few lines are better
 c Define cdrop  - passed through as cdso4, defined in leoncld.f
 
 ***************** Cut here to insert new auto scheme ********************            
-
-      do k=nl-1,1,-1
-        do mg=1,ln2
+      select case(autoconvmeth)
+c Using new (subgrid) autoconv scheme... 
+       case(1)
+        do k=nl-1,1,-1
+          do mg=1,ln2
             cfrain(mg,k)=0.0
             rhodz=rhoa(mg,k)*dz(mg,k)
 
             if(clfr(mg,k).gt.0.)then
 
-c Using new autoconv scheme...            
+              ql=qlg(mg,k)
+              cfla=0.
+              dqla=0.
+              if(cfa(mg,k).gt.0.)then
+                cfla=cfa(mg,k)*clfr(mg,k)/(clfr(mg,k)+cifr(mg,k))
+                qla=qca(mg,k)/cfa(mg,k)
 
-C***              ql=qlg(mg,k)
-C***              cfla=0.
-C***              dqla=0.
-C***              if(cfa(mg,k).gt.0.)then
-C***                qcrit=(4*pi/3)*rhow*Rcm**3*cdrop(mg,k)/rhoa(mg,k)
-C***                cfla=cfa(mg,k)*clfr(mg,k)/(clfr(mg,k)+cifr(mg,k))
-C***                qla=qca(mg,k)/cfa(mg,k)
-C***                if(qla.gt.qcrit)then
-C***                  Crate=Aurate*
-C***     &                rhoa(mg,k)*(rhoa(mg,k)/(cdrop(mg,k)*rhow))**(1./3)
-C***c                  Crate=0.1818*Crate !TEMPORARY
-C***                  ql1=1/pow75(qla**(-4./3)+(4./3)*Crate*delt)
-C***c                  ql1=qla-crate*delt !Simple explicit
-C***                  ql1=max(ql1, qcrit) !Intermediate qlg after auto
-C***                  Frb=dz(mg,k)*rhoa(mg,k)*(qla-ql1)/delt
-C***                  cdt=delt*0.5*Ecol*0.24*pow75(Frb)
-C***                  selfcoll=min(ql1,ql1*cdt)
-C***c                  selfcoll=min(ql1,ql1*cdt/(1+0.5*cdt))
-C***                  ql2=ql1-selfcoll
-C***                  cfrain(mg,k)=cfla
-C***                else
-C***                  ql2=qla
-C***                endif
-C***                dqla=cfla*(qla-ql2)
-C***                ql=qlg(mg,k)-dqla
-C***                dqla=cfla*(qla-ql1)
-C***              endif
-C***              dql=qlg(mg,k)-ql
+c Following few lines are for Yangang Liu's new scheme (2004: JAS, GRL)
+
+                Wliq = 1000. * qla * rhoa(mg,k) !g/m3
+                R6c = 4.09e-4
+     &               * ( 1.15e23*1.e-6*cdrop(mg,k) / Wliq**2 ) ** (1./6)
+                eps = 1. - 0.7 * exp(-0.003e-6*cdrop(mg,k)) !mid range
+                beta6 = ((1.+3*eps**2)*(1.+4*eps**2)*(1.+5*eps**2)
+     &               / ((1.+eps**2)*(1.+2*eps**2)) )**(1./6)
+                R3c = 1.e-6*R6c/beta6 !in metres
+                qcrit=(4*pi/3)*rhow*R3c**3*Cdrop(mg,k)/rhoa(mg,k) !New qcrit
+
+                if(qla.le.qcrit)then
+                  ql2=qla
+                else
+
+c Following is Liu & Daum (JAS, 2004)
+                  Crate=1.9e17*
+     &               (0.75*rhoa(mg,k)/(pi*rhow))**2*beta6**6/cdrop(mg,k)
+                  ql1=qla/sqrt(1.+2*crate*qla**2*delt)
+
+                  ql1=max(ql1, qcrit) !Intermediate qlg after auto
+                  Frb=dz(mg,k)*rhoa(mg,k)*(qla-ql1)/delt
+                  cdt=delt*0.5*Ecol*0.24*pow75(Frb)
+                  selfcoll=min(ql1,ql1*cdt)
+                  ql2=ql1-selfcoll
+                  cfrain(mg,k)=cfla
+                endif
+                dqla=cfla*(qla-ql2)
+                ql=max(1.e-8,qlg(mg,k)-dqla)
+              endif
+              dql=qlg(mg,k)-ql
+
+              qauto(mg,k)=qauto(mg,k)+dql
+              qlg(mg,k)=qlg(mg,k)-dql
+              fluxa(mg,k)=dql*rhodz
+            endif
+          enddo
+        enddo
 
 c Or, using old autoconv scheme...
+       case(0)
+        do k=nl-1,1,-1
+          do mg=1,ln2
+            cfrain(mg,k)=0.0
+            rhodz=rhoa(mg,k)*dz(mg,k)
 
+            if(clfr(mg,k).gt.0.)then
+       
               qcrit=(4*pi/3)*rhow*Rcm**3*cdrop(mg,k)/rhoa(mg,k)
               qcic=qlg(mg,k)/clfr(mg,k) !In cloud value
 
@@ -298,8 +324,8 @@ c Or, using old autoconv scheme...
                 ql1=max(ql1, qcrit) !Intermediate qlg after auto
                 Frb=dz(mg,k)*rhoa(mg,k)*(qcic-ql1)/delt
                 cdt=delt*0.5*Ecol*0.24*pow75(Frb) !old
-                  selfcoll=min(ql1,ql1*cdt)
-c                selfcoll=min(ql1,ql1*cdt/(1+0.5*cdt))
+                selfcoll=min(ql1,ql1*cdt)
+c               selfcoll=min(ql1,ql1*cdt/(1+0.5*cdt))
                 ql2=ql1-selfcoll
                 ql=clfr(mg,k)*ql2
                 cfrain(mg,k)=clfr(mg,k)
@@ -312,25 +338,62 @@ c                selfcoll=min(ql1,ql1*cdt/(1+0.5*cdt))
             endif
           enddo
         enddo
-
+       case default
+        write(6,*) "ERROR: Unknown autoconvmeth ",autoconvmeth
+        stop
+      end select
 
 c Call frozen precipitation routine
 
-      call icefall (lg,tdt,rhoa,dz,prf, !Inputs
-     &              ttg,qsg,qlg,qfg,qtg,cfrac,cfmelt,            !In and Out
-     &              fluxi,fluxm,clfr,cifr,qsubl,qaccr,pfstay,pqfsed,
-     &              slopes)            !Outputs
+      call icefall(lg,tdt,rhoa,dz,prf, !Inputs
+     &             ttg,qsg,qlg,qfg,qtg,cfrac,cfmelt,            !In and Out
+     &             fluxi,fluxm,clfr,cifr,qsubl,qaccr,pfstay,pqfsed,
+     &             slopes)            !Outputs
 
+      ! Set up prognostic rain - MJT
+      ! The following is based on LDR flux divergence calculation
+      ! (see icefall.f).  LDR's original scheme can be recovered
+      ! by setting fout=1 and fthru=1.
 
+      vr=0.1
+      do k=nl-1,1,-1
+        do mg=1,ln2
+          rhodz=rhoa(mg,k)*dz(mg,k)
+c Add flux of rain due to autoconversion to qrg
+          qrg(mg,k)=qrg(mg,k)+fluxa(mg,k)/rhodz
+          rhor(mg,k)=qrg(mg,k)*rhoa(mg,k)
+          cfrain(mg,k)=min(1.,
+     &           cfrain(mg,k)+cffall(mg,k)-cfrain(mg,k)*cffall(mg,k))
+          cftemp=cfrain(mg,k)+cfmelt(mg,k)-cfrain(mg,k)*cfmelt(mg,k)
+          qrgtemp=qrg(mg,k)+fluxm(mg,k)/rhodz/real(njumps)
+          vr(mg,k)=vr(mg,k+1)
+          if (cftemp>0.) then
+            mixrain=qrgtemp/max(cftemp,1.e-6)
+            !Vr=11.3*Fr**(1./9.)/sqrt(rhoa(mg,k))  !Actual fall speed
+            !vr(mg,k)=max(15.3*mixrain**0.125/(rhoa(mg,k)**0.4375), ! This version is equal to the above line from LDR
+            vr(mg,k)=max(15.3*mixrain**0.125/sqrt(rhoa(mg,k)),
+     &                   0.1)
+          end if
+          ! Set up the parameters for the flux-divergence calculation
+          alph=delt*vr(mg,k)/dz(mg,k)
+          fout(mg,k)=1.-exp(-alph) !analytical
+          fthru(mg,k)=1.-fout(mg,k)/alph !analytical
+        end do
+      end do
 
+      ! The following has been modified to track the random overlap rain fraction (rdclfr)
+      ! and the max overlap rain fraction (mxclfr) so than both random overlaped and
+      ! max/random overlaped clouds are supported - MJT
 
-      do nt=1,njumps
-        
+c      do nt=1,njumps
+
         do mg=1,ln2
           clfra(mg)=1.e-6
           ccra(mg)=0.
           fluxrain(mg)=0.
           prscav(mg,1)=0.
+          mxclfr(mg)=0. ! max overlap rain fraction
+          rdclfr(mg)=0. ! rnd overlap rain fraction
         enddo
         
 c Now work down through the levels...
@@ -340,12 +403,22 @@ c Now work down through the levels...
             rhodz=rhoa(mg,k)*dz(mg,k)
             evap=0.
 
-c Add flux of melted snow and flux of rain due to autoconversion to fluxrain
+            ! The following flag detects max/random overlap clouds
+            ! that are separated by a clear layer
+            if (clfr(mg,k).eq.0..or.nmr.eq.0) then
+              ! combine max overlap from last cloud with net random overlap
+              rdclfr(mg)=rdclfr(mg)+mxclfr(mg)-rdclfr(mg)*mxclfr(mg)
+              mxclfr(mg)=0.
+            end if
 
-            fluxrain(mg)=fluxrain(mg)+(fluxm(mg,k)+fluxa(mg,k+1))/njumps
+c Add flux of melted snow to fluxrain
+
+            fluxrain(mg)=fluxrain(mg)+fluxm(mg,k)/real(njumps)
             
 c Evaporation of rain
-            
+
+            qpf=fluxrain(mg)/rhodz !Mix ratio of rain which falls into layer
+            clrevap=(1.-clfr(mg,k))*qpf
             if(fluxrain(mg).gt.0.and.cfrac(mg,k).lt.1.0)then
               pk=100.0*prf(mg,k)
               qsg(mg,k)=qsati(pk,ttg(mg,k))
@@ -355,7 +428,6 @@ c Evaporation of rain
               else
                 qsl(mg,k)=qsg(mg,k)
               endif             !qsl is qs value over liquid surface
-              qpf=fluxrain(mg)/rhodz !Mix ratio of rain which falls into layer
               Tk=ttg(mg,k)
               es=qsl(mg,k)*pk/epsil 
               Apr=(hl/(rKa*Tk))*(hl/(rvap*Tk)-1)
@@ -370,7 +442,6 @@ c Evaporation of rain
 c              Vr=11.3*Fr**(1./9.)/sqrt(rhoa(mg,k))  !Actual fall speed
 c              Vr=5./sqrt(rhoa(mg,k))                !Nominal fall speed
 
-              clrevap=(1-clfr(mg,k))*qpf
               evap=max(0., min(evap,satevap,qpf,clrevap))
               if(nevapls==-1)evap=0.
               if(nevapls==-2.and.k<=ktsav(mg).
@@ -378,11 +449,11 @@ c              Vr=5./sqrt(rhoa(mg,k))                !Nominal fall speed
               if(nevapls==-3)evap=.5*evap
               if(nevapls==-4.and.k<=ktsav(mg).
      &                       and.condx(mg)>0.)evap=.5*evap ! usual
-              frclr(mg,k)=rhodz*(clrevap-evap)             !over delt
               qevap(mg,k)=qevap(mg,k)+evap
               qtg(mg,k)=qtg(mg,k)+evap
-              ttg(mg,k)=ttg(mg,k) - hlcp*evap
+              ttg(mg,k)=ttg(mg,k)-hlcp*evap
             endif
+            frclr(mg,k)=rhodz*(clrevap-evap)             !over delt
             
 
 c Now do the collection term.
@@ -390,16 +461,17 @@ c Now do the collection term.
 c            if(qlg(mg,k).gt.1.e-10)then
               if(fluxrain(mg).gt.0.)then
                 Fr=fluxrain(mg)/clfra(mg)/delt
-                cfrain(mg,k)= min(1.,cfrain(mg,k)+clfr(mg,k)*clfra(mg))
-c                cfrain(mg,k)= min(clfra(mg),clfr(mg,k)) !max overlap
+                cfrain(mg,k)=max(cfrain(mg,k),
+     &                       min(mxclfr(mg),clfr(mg,k))                ! max overlap
+     &                      +rdclfr(mg)*max(clfr(mg,k)-mxclfr(mg),0.)) ! rnd overlap
               else
                 Fr=0.
               endif
 
-
               if(fluxc(mg,k+1).gt.0.)then
                 Frc=max(0.,fluxc(mg,k+1)/max(ccra(mg),0.01)/tdt) ! over tdt
-                cfrain(mg,k)= min(1.,cfrain(mg,k)+clfr(mg,k)*ccra(mg))
+                cfrain(mg,k)=max(cfrain(mg,k),clfr(mg,k)*ccra(mg))       ! rnd overlap
+                !cfrain(mg,k)=max(cfrain(mg,k),min(clfr(mg,k),ccra(mg))) ! max overlap
               else
                 Frc=0.
               endif
@@ -409,14 +481,14 @@ c above (Fr), stratiform rain released in this grid box (Frb), and
 c convective rain (Frc).
 c Frb term now done above.
 
-c              fcol=min(1.,clfra(mg)/(1.e-20+clfr(mg,k)))
-c              cdt=delt*Ecol*0.24*(fcol*pow75(Fr)       !Max o'lap
-              cdt=delt*Ecol*0.24*(clfra(mg)*pow75(Fr) !Random o'lap
+              fcol=min(1.,mxclfr(mg)/(1.e-20+clfr(mg,k))) !max overlap
+              fcol=fcol+rdclfr(mg)-fcol*rdclfr(mg)        !rnd overlap
+              cdt=delt*Ecol*0.24*(fcol*pow75(Fr)
      &                           +ccra(mg)*pow75(Frc))
 c              prscav(mg,nlp-k)=cdt/Ecol !Inc conv part
-              prscav(mg,nlp-k)=delt*0.24*clfra(mg)*pow75(Fr) !Strat only
+              prscav(mg,nlp-k)=delt*0.24*fcol*pow75(Fr) !Strat only
 
-              coll=min(qlg(mg,k),qlg(mg,k)*cdt/(1+0.5*cdt))
+              coll=min(qlg(mg,k),qlg(mg,k)*cdt/(1.+0.5*cdt))
               qcoll(mg,k)=qcoll(mg,k)+coll
               qlg(mg,k)=qlg(mg,k)-coll
               fluxrain(mg)=fluxrain(mg)+coll*rhodz
@@ -432,28 +504,56 @@ c and convective (ccra).
 
             cfrain(mg,k)=min(1.,
      &             cfrain(mg,k)+cfmelt(mg,k)-cfrain(mg,k)*cfmelt(mg,k))
-            if(frclr(mg,k).lt.1.e-15)then
-              clfra(mg)=max(1.e-15,cfrain(mg,k))
-            else
-              clfra(mg)=max(1.e-15,
-     &                  clfra(mg)+cfrain(mg,k)-clfra(mg)*cfrain(mg,k))
-c              clfra(mg)=max(clfra(mg),cfrain(mg,k)) !max overlap
-            endif
-            ccra(mg)=ccra(mg)+ccrain(mg,k)-ccra(mg)*ccrain(mg,k)
+            if (frclr(mg,k).lt.1.e-15) then
+              rdclfr(mg)=0.
+              mxclfr(mg)=0.
+            end if
+            mxclfr(mg)=max(mxclfr(mg),cfrain(mg,k)) !max overlap
+            clfra(mg)=max(1.e-15,
+     &                rdclfr(mg)+mxclfr(mg)-rdclfr(mg)*mxclfr(mg)) !rnd overlap the mx and rd rain fractions
+            ccra(mg)=max(ccra(mg),ccrain(mg,k)) !always max overlap for convective rainfall - MJT
             fracr(mg,k)=clfra(mg)
-            fluxr(mg,k)=fluxa(mg,k)+fluxrain(mg) !Flux leaving layer k
+
+c Compute fluxes into the box
+            cffluxin=clfra(mg)-cfrain(mg,k)
+            rhorin=fluxrain(mg)/dz(mg,k)
+
+c Compute the fluxes of rain leaving the box
+c Use the flux-divergent form as in Rotstayn (QJRMS, 1997)
+            cffluxout=cfrain(mg,k)*fout(mg,k)
+            rhorout=rhor(mg,k)*fout(mg,k)
+            
+c Update the rhor and cffall fields
+            cffall(mg,k)=cfrain(mg,k)-cffluxout
+     &                  +cffluxin*(1.-fthru(mg,k))
+            rhor(mg,k)=rhor(mg,k)-rhorout+rhorin*(1.-fthru(mg,k))
+            fluxrain(mg)=rhorout*dz(mg,k)+fluxrain(mg)*fthru(mg,k) 
+c Now fluxrain is flux leaving layer k
+            fluxr(mg,k)=fluxr(mg,k)+fluxrain(mg)
+            
           enddo
         enddo
+
+c      enddo ! njumps
         
+c Re-create qrg field
+
+      qrg(1:ifull,nl)=0.
+      do k=1,nl-1
+        do mg=1,ln2
+          qrg(mg,k)=rhor(mg,k)/rhoa(mg,k)
+          if(qrg(mg,k)<0.)then
+            print *,'k,mg,lg,qrg_rhor ',k,mg,qrg(mg,k)
+            stop
+          endif
+        enddo
       enddo
 
 c Factor 0.5 here accounts for leapfrog scheme
 
       do mg=1,ln2
         precs(mg)=precs(mg)+0.5*(fluxr(mg,1)+fluxi(mg,1))
-c In Mk3 preci() may already have contribution from ukconv, but not here
-c        preci(mg)=preci(mg)+0.5*fluxi(mg,1)
-        preci(mg)=0.5*fluxi(mg,1)
+        preci(mg)=preci(mg)+0.5*fluxi(mg,1)
       enddo
 
 c Remove small amounts of cloud

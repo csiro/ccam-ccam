@@ -339,9 +339,11 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
       ! This can be combined with the diffusion coefficents above
       ! so as to operate over a large range of grid length scales
       if (nvmix.eq.6) then
-        tke=max(tke,mintke)
-        eps=min(eps,(cm0**0.75)*(tke**1.5)/minl)
-        eps=max(eps,(cm0**0.75)*(tke**1.5)/maxl)
+        tke(1:ifull,:)=max(tke(1:ifull,:),mintke)
+        eps(1:ifull,:)=min(eps(1:ifull,:),
+     &                 (cm0**0.75)*(tke(1:ifull,:)**1.5)/minl)
+        eps(1:ifull,:)=max(eps(1:ifull,:),
+     &                 (cm0**0.75)*(tke(1:ifull,:)**1.5)/maxl)
         hdif=dt*cm0/(ds*ds)
         do k=1,kl
           t_kh(1:ifull,k)=max(tke(1:ifull,k)*tke(1:ifull,k)

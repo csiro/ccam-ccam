@@ -463,22 +463,20 @@ c       For time invariant surface fields
         lname = 'Coriolis factor'
         call attrib(idnc,idim,2,'cor',lname,'1/sec',-1.5e-4,1.5e-4,0,
      &              itype)
+        lname = 'Urban fraction'
+        call attrib(idnc,idim,2,'sigmu',lname,'none',0.,3.25,0,itype)
         if (nsib.le.3.or.nsib.eq.5) then
           lname = 'Rsmin'
           call attrib(idnc,idim,2,'rsmin',lname,'none',0.,200.,0,itype)
-          lname = 'Vegetation fraction'
-          call attrib(idnc,idim,2,'sigmf',lname,'none',0.,3.25,0,itype)
         end if
         lname = 'Soil type'
         call attrib(idnc,idim,2,'soilt',lname,'none',0.,65.,0,itype)
         lname = 'Vegetation type'
         call attrib(idnc,idim,2,'vegt',lname,'none',0.,65.,0,itype)
-        if (nurban.lt.0) then
-          lname = 'Urban fraction'
-          call attrib(idnc,idim,2,'sigmu',lname,'none',0.,3.25,0,itype)
-        end if
 
 c       For time varying surface fields
+        lname = 'Vegetation fraction'
+        call attrib(idnc,idim,3,'sigmf',lname,'none',0.,3.25,0,itype)
         lname ='Scaled Log Surface pressure'
         call attrib(idnc,idim,3,'psf',lname,'none',-1.3,0.2,0,itype)
         lname ='Mean sea level pressure'
@@ -872,7 +870,7 @@ c       For time varying surface fields
         end if
 
         ! CABLE -----------------------------------------------------
-        if (nsib.eq.4.or.nsib.ge.6.or.nsib.eq.7) then
+        if (nsib.eq.4.or.nsib.ge.6) then
           if (nextout>=1.or.itype==-1) then
             lname = 'Carbon leaf pool'
             call attrib(idnc,idim,3,'cplant1',lname,'gC/m2',0.,6500.,
@@ -988,8 +986,16 @@ c       For time varying surface fields
      &               0,itype)
          call attrib(idnc,dim,4,'qlg','Liquid water','kg/kg',0.,.02,
      &               0,itype)
+         call attrib(idnc,dim,4,'qrg','Rain','kg/kg',0.,.02,
+     &               0,itype)
+    !     call attrib(idnc,dim,4,'qsg','Snow','kg/kg',0.,.02,
+    ! &               0,itype)
+    !     call attrib(idnc,dim,4,'qgrau','Grauple','kg/kg',0.,.02,
+    ! &               0,itype)
          call attrib(idnc,dim,4,'cfrac','Cloud fraction','none',0.,1.,
      &               0,itype)
+         call attrib(idnc,dim,4,'cfrain','Rain fraction','none',0.,
+     &               1.,0,itype)          
         endif
         
         ! TURBULENT MIXING ------------------------------------------
@@ -1217,33 +1223,25 @@ c      set time to number of minutes since start
       endif ! myid == 0 .or. local
 
       !**************************************************************
-      ! WRITE TIME-INVARIENT VARIABLES
+      ! WRITE TIME-INVARIANT VARIABLES
       !**************************************************************
 
       if(ktau==0.or.itype==-1)then  ! also for restart file
         call histwrt3(zs,'zht',idnc,iarch,local,.true.)
         call histwrt3(em,'map',idnc,iarch,local,.true.)
         call histwrt3(f,'cor',idnc,iarch,local,.true.)
-        if (nsib.ne.4.and.nsib.lt.6) then
+        call histwrt3(sigmu,'sigmu',idnc,iarch,local,.true.)
+        if (nsib.eq.3.or.nsib.eq.5) then
           call histwrt3(rsmin,'rsmin',idnc,iarch,local,.true.)
-          call histwrt3(sigmf,'sigmf',idnc,iarch,local,.true.)
         end if
-        do iq=1,ifull
-         aa(iq)=isoilm(iq)
-        enddo
+        aa(:)=isoilm(:)
         call histwrt3(aa,'soilt',idnc,iarch,local,.true.)
-        do iq=1,ifull
-!        N.B. subtract 31 to get sib values
-         aa(iq)=ivegt(iq)
-        enddo
+        aa(:)=ivegt(:)
         call histwrt3(aa,'vegt',idnc,iarch,local,.true.)
-        if (nurban.lt.0) then
-          call histwrt3(sigmu,'sigmu',idnc,iarch,local,.true.)
-        end if
       endif ! (ktau==0.or.itype==-1) 
 
       !**************************************************************
-      ! WRITE 3D VARIABLES
+      ! WRITE 3D VARIABLES (2D + Time)
       !**************************************************************
 
       if(ktau>0.and.nwt.ne.nperday.and.itype.ne.-1)then
@@ -1257,6 +1255,7 @@ c      set time to number of minutes since start
       endif   ! (ktau>0.and.nwt.ne.nperday.and.itype.ne.-1)
 
       ! BASIC -------------------------------------------------------
+      call histwrt3(sigmf,'sigmf',idnc,iarch,local,.true.)
       call histwrt3(psl,'psf',idnc,iarch,local,.true.)
       call mslp(aa,psl,zs,t(1:ifull,:))
       aa=aa/100.
@@ -1624,7 +1623,7 @@ c      "extra" outputs
       end if
 
       ! **************************************************************
-      ! WRITE 4D VARIABLES
+      ! WRITE 4D VARIABLES (3D + Time)
       ! **************************************************************
 
       ! ATMOSPHERE DYNAMICS ------------------------------------------
@@ -1644,7 +1643,11 @@ c      "extra" outputs
       if(ldr.ne.0)then
         call histwrt4(qfg(1:ifullw,:),'qfg',idnc,iarch,local,.true.)
         call histwrt4(qlg(1:ifullw,:),'qlg',idnc,iarch,local,.true.)
+        call histwrt4(qrg(1:ifullw,:),'qrg',idnc,iarch,local,.true.)
+        !call histwrt4(qsg(1:ifullw,:),'qsg',idnc,iarch,local,.true.)
+        !call histwrt4(qgrau(1:ifullw,:),'qgrau',idnc,iarch,local,.true.)
         call histwrt4(cfrac,'cfrac',idnc,iarch,local,.true.)
+        call histwrt4(cffall,'cfrain',idnc,iarch,local,.true.)
       endif
       
       ! TURBULENT MIXING --------------------------------------------
@@ -1946,21 +1949,26 @@ c     find variable index
       call ncmsg("histwrt3",ier)
 
       if(mod(ktau,nmaxpr)==0)then
-       varn = minval(globvar)
-       varx = maxval(globvar)
-       ! This should work ???? but sum trick is more portable???
-       ! iq = minloc(globvar,dim=1)
-       iq = sum(minloc(globvar))
-       ! Convert this 1D index to 2D
-       imn = 1 + modulo(iq-1,il_g)
-       jmn = 1 + (iq-1)/il_g
-       iq = sum(maxloc(globvar))
-       ! Convert this 1D index to 2D
-       imx = 1 + modulo(iq-1,il_g)
-       jmx = 1 + (iq-1)/il_g
-       write(6,'("histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)')
-     &           sname,iarch,varn,imn,jmn,varx,imx,jmx,
-     &           globvar(id+(jd-1)*il_g)
+       if (any(globvar.eq.nf_fill_float)) then
+         write(6,'("histwrt3 ",a7,i4,a7)')
+     &              sname,iarch,"missing"
+       else
+         varn = minval(globvar)
+         varx = maxval(globvar)
+         ! This should work ???? but sum trick is more portable???
+         ! iq = minloc(globvar,dim=1)
+         iq = sum(minloc(globvar))
+         ! Convert this 1D index to 2D
+         imn = 1 + modulo(iq-1,il_g)
+         jmn = 1 + (iq-1)/il_g
+         iq = sum(maxloc(globvar))
+         ! Convert this 1D index to 2D
+         imx = 1 + modulo(iq-1,il_g)
+         jmx = 1 + (iq-1)/il_g
+         write(6,'("histwrt3 ",a7,i4,f12.4,2i4,f12.4,2i4,f12.4)')
+     &             sname,iarch,varn,imn,jmn,varx,imx,jmx,
+     &             globvar(id+(jd-1)*il_g)
+        end if
       endif
 
       return

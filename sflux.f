@@ -73,7 +73,9 @@
       real zonx(ifull),zony(ifull),zonz(ifull),costh(ifull)
       real sinth(ifull),uzon(ifull),vmer(ifull),azmin(ifull)
       real uav(ifull),vav(ifull)
-      real zoh(ifull),neta(ifull),oldrunoff(ifull),newrunoff(ifull)
+      real, dimension(ifull) :: neta,oldrunoff,newrunoff,rid,fhd
+      real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
+      real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,smixr
 
       integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af
       integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
@@ -131,7 +133,7 @@ c     degdt is degdt (was ceva in surfupa/b)
 
       if (diag.or.ntest==1) then
         if (mydiag) then
-         if (land(idjd)) then ! MJT bugfix
+         if (land(idjd)) then
           write(6,*) 'entering sflux ktau,nsib,ivegt,isoilm,land '
      .         ,ktau,nsib,ivegt(idjd),isoilm(idjd),land(idjd)
           write(6,*) 'idjd,id,jd,slwa,sgsave ',
@@ -301,6 +303,7 @@ c         so eg (& epan) and fg  (also aft) then indept of zo           ! sea
         fg(iq)=conh*fh(iq)*(tpan(iq)-theta(iq))                         ! sea
         eg(iq)=conw*fh(iq)*(qsttg(iq)-qg(iq,1))                         ! sea
         rnet(iq)=sgsave(iq)-rgsave(iq)-stefbo*tpan(iq)**4               ! sea
+        zoh(iq)=zo(iq)/(factch(iq)*factch(iq))                          ! sea
 c       cduv is now drag coeff *vmod                                    ! sea
         cduv(iq) =af(iq)*fm                                             ! sea
         ustar(iq) = sqrt(vmod(iq)*cduv(iq))                             ! sea
@@ -330,6 +333,8 @@ c      section to update pan temperatures                               ! sea
 !         and change in heat supplied=spec_heatxmassxdelta_T            ! sea
           ga(iq)=-slwa(iq)-rgg(iq)-panfg*fg(iq)                         ! sea
           tpan(iq)=tpan(iq)+ga(iq)*dt/(4186.*.254*1000.)                ! sea
+        else                                                            ! sea
+          sno(iq)=sno(iq)+conds(iq)                                     ! sea
         endif  ! (land(iq))                                             ! sea
        enddo   ! iq loop                                                ! sea
                                                                         ! sea
@@ -446,6 +451,7 @@ c       no snow on the ice assumed for now                              ! sice
         ri(iq) =fracice(iq)*ri_ice + (1.-fracice(iq))*ri(iq)            ! sice
         zo(iq) =fracice(iq)*zoice  + (1.-fracice(iq))*zo(iq)            ! sice
         factch(iq)=fracice(iq)*factchice + (1.-fracice(iq))*factch(iq)  ! sice
+        zoh(iq)=zo(iq)/(factch(iq)*factch(iq))                          ! sice
         cduv(iq) =fracice(iq)*af(iq)*fm + (1.-fracice(iq))*cduv(iq)     ! sice
         ustar(iq) = sqrt(vmod(iq)*cduv(iq))                             ! sice
 c       N.B. potential evaporation is now eg+eg2                        ! sice
@@ -493,45 +499,45 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         if (abs(nmlo).ge.3) then                                        ! MLO
           ! Ocean dynamics                                              ! MLO
           call start_log(waterdynamics_begin)                           ! MLO
-	  if (myid==0.and.nmaxpr==1) then                               ! MLO
-	    write(6,*) "Before MLO dynamics"                            ! MLO
-	  end if                                                        ! MLO
+          if (myid==0.and.nmaxpr==1) then                               ! MLO
+            write(6,*) "Before MLO dynamics"                            ! MLO
+          end if                                                        ! MLO
           call mlohadv                                                  ! MLO
-	  if (myid==0.and.nmaxpr==1) then                               ! MLO
-	    write(6,*) "After MLO dynamics"                             ! MLO
-	  end if                                                        ! MLO
+          if (myid==0.and.nmaxpr==1) then                               ! MLO
+            write(6,*) "After MLO dynamics"                             ! MLO
+          end if                                                        ! MLO
           call end_log(waterdynamics_end)                               ! MLO
         end if                                                          ! MLO
                                                                         ! MLO
         if (abs(nmlo).ge.2) then                                        ! MLO
           ! Ocean diffusion                                             ! MLO
           call start_log(waterdiff_begin)                               ! MLO
-	  if (myid==0.and.nmaxpr==1) then                               ! MLO
-	    write(6,*) "Before MLO diffusion"                           ! MLO
-	  end if                                                        ! MLO
+          if (myid==0.and.nmaxpr==1) then                               ! MLO
+            write(6,*) "Before MLO diffusion"                           ! MLO
+          end if                                                        ! MLO
           call mlodiffusion                                             ! MLO
-	  if (myid==0.and.nmaxpr==1) then                               ! MLO
-	    write(6,*) "After MLO diffusion"                            ! MLO
-	  end if                                                        ! MLO
+          if (myid==0.and.nmaxpr==1) then                               ! MLO
+            write(6,*) "After MLO diffusion"                            ! MLO
+          end if                                                        ! MLO
           call end_log(waterdiff_end)                                   ! MLO
                                                                         ! MLO
           ! River routing                                               ! MLO
           call start_log(river_begin)                                   ! MLO
-	  if (myid==0.and.nmaxpr==1) then                               ! MLO
-	    write(6,*) "Before river"                                   ! MLO
-	  end if                                                        ! MLO
+          if (myid==0.and.nmaxpr==1) then                               ! MLO
+            write(6,*) "Before river"                                   ! MLO
+          end if                                                        ! MLO
           call mlorouter                                                ! MLO
-	  if (myid==0.and.nmaxpr==1) then                               ! MLO
-	    write(6,*) "After river"                                    ! MLO
-	  end if                                                        ! MLO
+          if (myid==0.and.nmaxpr==1) then                               ! MLO
+            write(6,*) "After river"                                    ! MLO
+          end if                                                        ! MLO
           call end_log(river_end)                                       ! MLO
           call start_log(phys_begin)                                    ! MLO
         end if                                                          ! MLO
                                                                         ! MLO
         call start_log(watermix_begin)                                  ! MLO
         if (myid==0.and.nmaxpr==1) then                                 ! MLO
-	  write(6,*) "Before MLO mixing"                                ! MLO
-	end if                                                          ! MLO
+          write(6,*) "Before MLO mixing"                                ! MLO
+        end if                                                          ! MLO
         if (abs(nmlo).eq.1) then                                        ! MLO
           ! Single column                                               ! MLO
           ! set free surface to zero when water is not conserved        ! MLO
@@ -544,7 +550,7 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
      &               fracice,sicedep,snowd,dt,azmin,azmin,sgsave(:)/    ! MLO
      &               (1.-swrsave*albvisnir(:,1)-                        ! MLO
      &               (1.-swrsave)*albvisnir(:,2)),                      ! MLO
-     &               -rgsave,condx/dt,uav,vav,t(1:ifull,1),             ! MLO
+     &               -rgsave,condx/dt,conds/dt,uav,vav,t(1:ifull,1),    ! MLO
      &               qg(1:ifull,1),ps,f,swrsave,fbeamvis,fbeamnir,      ! MLO
      &               watbdy(1:ifull)/dt,0,.true.)                       ! MLO
         call mloscrnout(tscrn,qgscrn,uscrn,u10,0)                       ! MLO
@@ -559,12 +565,12 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
         end do                                                          ! MLO
                                                                         ! MLO
         ! stuff to keep tpan over land working                          ! MLO
-        ri=min(grav*zmin*(1.-tpan*srcp/t(1:ifull,1))/vmag**2,ri_max)    ! MLO
-        where (ri>0.)                                                   ! MLO
-          fh=vmod/(1.+bprm*ri)**2                                       ! MLO
+        rid=min(grav*zmin*(1.-tpan*srcp/t(1:ifull,1))/vmag**2,ri_max)   ! MLO
+        where (rid>0.)                                                  ! MLO
+          fhd=vmod/(1.+bprm*rid)**2                                     ! MLO
         elsewhere                                                       ! MLO
-          fh=vmod-vmod*2.*bprm*ri/(1.+chs*2.*bprm*sqrt(panzo*ztv)       ! MLO
-     &       *chnsea*sqrt(-ri*zmin/panzo))                              ! MLO
+          fhd=vmod-vmod*2.*bprm*rid/(1.+chs*2.*bprm*sqrt(panzo*ztv)     ! MLO
+     &       *chnsea*sqrt(-rid*zmin/panzo))                             ! MLO
         end where                                                       ! MLO
                                                                         ! MLO
         where(.not.land)                                                ! MLO
@@ -575,10 +581,10 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
           tpan=tgg(:,1)                                                 ! MLO
           rnet=sgsave-rgsave-stefbo*tss**4                              ! MLO
           factch=sqrt(zo/zoh)                                           ! MLO
+          sno=sno+conds                                                 ! MLO
         elsewhere                                                       ! MLO
-          rgg=5.67e-8*tpan**4                                           ! MLO
-          fg=rho*chnsea*cp*fh*(tpan-theta)                              ! MLO
-          ga=-slwa-rgg-panfg*fg                                         ! MLO
+          fg=rho*chnsea*cp*fhd*(tpan-theta)                             ! MLO
+          ga=sgsave-rgsave-5.67e-8*tpan**4-panfg*fg                     ! MLO
           tpan=tpan+ga*dt/(4186.*.254*1000.)                            ! MLO
         endwhere                                                        ! MLO
         where (.not.land.and.vmod.gt.0.)                                ! MLO
@@ -592,8 +598,8 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
           end if                                                        ! MLO
         end do                                                          ! MLO
         if (myid==0.and.nmaxpr==1) then                                 ! MLO
-	  write(6,*) "After MLO mixing"                                 ! MLO
-	end if                                                          ! MLO
+          write(6,*) "After MLO mixing"                                 ! MLO
+        end if                                                          ! MLO
         call end_log(watermix_end)                                      ! MLO
                                                                         ! MLO
       else                                                              ! PCOM
@@ -661,6 +667,7 @@ c            Now heat ; allow for smaller zo via aft and factch         ! land
            taftfhg_temp(iq)=aftlandg*fhbg ! uses fmroot above, for sib3 ! land
            taftfhg(iq)=aftlandg*fhbg ! value used for ntaft=3 (may need improving)
                                                                         ! land
+           zoh(iq)=zo(iq)/(factch(iq)*factch(iq))                       ! land
 c          cduv is now drag coeff *vmod                                 ! land
            cduv(iq) =af(iq)*fm                                          ! land
            ustar(iq) = sqrt(vmod(iq)*cduv(iq))                          ! land
@@ -743,7 +750,7 @@ c                Now heat ; allow for smaller zo via aft and factch     ! land
             write(6,*) 'before sib3 zo,zolnd,af ',zo(idjd),zolnd(idjd)  ! land
      &                                        ,af(idjd)                 ! land
           endif                                                         ! land
-          call sib3(nalpha,taftfh,taftfhg)  ! for nsib=3, 5             ! land
+          call sib3(nalpha,taftfh,taftfhg,aft) ! for nsib=3, 5          ! land
           if(diag.or.ntest>0)then                                       ! land
             if (mydiag) write(6,*) 'before call scrnout'                ! land
             call maxmin(t,' t',ktau,1.,kl)                              ! land
@@ -805,12 +812,11 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
            ! Therefore, we use scrnocn which can calculate screen       ! land
            ! level diagnostics for just ocean or just land points       ! land
            if (nmlo.eq.0) then                                          ! land
-             call scrnout(zo,ustar,factch,wetfac,qsttg,                 ! land
+             smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))    ! land
+             call scrnout(zo,ustar,factch,wetfac,smixr,                 ! land
      .              qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod,       ! land
      .              bprm,cms,chs,chnsea,nalpha)                         ! land
            else                                                         ! land
-             qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))    ! land
-             zoh=zo/(factch*factch)                                     ! land
              call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,   ! land
      &                  tss,t(1:ifull,1),qsttg,qg(1:ifull,1),           ! land
      &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! land
@@ -822,42 +828,43 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          stop                                                           ! cable
         case(6,7)                                                       ! cable
          if (myid==0.and.nmaxpr==1) then                                ! cable
-  	   write(6,*) "Before CABLE"                                    ! cable
+           write(6,*) "Before CABLE"                                    ! cable
          end if                                                         ! cable
-         if (nmlo.eq.0) then                                            ! cable
-           ! update ocean diagnostics                                   ! cable
-           zoh=zo/(factch*factch)                                       ! cable
-           call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,     ! cable
-     &                  tss,t(1:ifull,1),qsttg,qg(1:ifull,1),           ! cable
-     &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! cable
-     &                       v(1:ifull,1)*v(1:ifull,1)),                ! cable
-     &                  ps(1:ifull),land,zmin,sig(1))                   ! cable
-         end if                                                         ! cable
-         factch(iperm(1:ipland))=sqrt(7.4)                              ! cable
          ! call cable                                                   ! cable
          call sib4                                                      ! cable
          ! update remaining diagnostic arrays                           ! cable
          do ip=1,ipland                                                 ! cable
            iq=iperm(ip)                                                 ! cable
+           factch(iq)=sqrt(7.4)                                         ! cable
+           zoh(iq)=zo(iq)/(factch(iq)*factch(iq))                       ! cable
            es = establ(tss(iq))                                         ! cable
            qsttg(iq)= .622*es/(ps(iq)-es)                               ! cable
            rhscrn(iq)=100.*qgscrn(iq)/qsttg(iq)                         ! cable
            rhscrn(iq)=min(max(rhscrn(iq),0.),100.)                      ! cable
            taux(iq)=rho(iq)*cduv(iq)*u(iq,1)                            ! cable
            tauy(iq)=rho(iq)*cduv(iq)*v(iq,1)                            ! cable
+           sno(iq)=sno(iq)+conds(iq)                                    ! cable
          enddo   ! ip=1,ipland                                          ! cable
-         ! The following patch overrides CABLE screen level diagnostics ! cable
-         if (nsib.eq.7) then                                            ! cable
-           qsttg=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))      ! cable
-           zoh=zo/(factch*factch)                                       ! cable
+         if (nmlo.eq.0) then                                            ! cable
+           ! update ocean diagnostics                                   ! cable
+           smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))      ! cable
            call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,     ! cable
-     &                tss,t(1:ifull,1),qsttg,qg(1:ifull,1),             ! cable
+     &                  tss,t(1:ifull,1),smixr,qg(1:ifull,1),           ! cable
      &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! cable
      &                       v(1:ifull,1)*v(1:ifull,1)),                ! cable
+     &                  ps(1:ifull),land,zmin,sig(1))                   ! cable
+         end if                                                         ! cable
+         smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))        ! cable
+         ! The following patch overrides CABLE screen level diagnostics ! cable
+         if (nsib.eq.7) then                                            ! cable
+           call scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,     ! cable
+     &                tss,t(1:ifull,1),smixr,qg(1:ifull,1),             ! cable
+     &                sqrt(u(1:ifull,1)*u(1:ifull,1)+                   ! cable
+     &                     v(1:ifull,1)*v(1:ifull,1)),                  ! cable
      &                ps(1:ifull),.not.land,zmin,sig(1))                ! cable
          end if                                                         ! cable
          if (myid==0.and.nmaxpr==1) then                                ! cable
-  	   write(6,*) "After CABLE"                                     ! cable
+           write(6,*) "After CABLE"                                     ! cable
          end if                                                         ! cable
         case DEFAULT                                                    ! land
           write(6,*) "ERROR: Unknown land-use option nsib=",nsib        ! land
@@ -886,10 +893,10 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
          ! urban scheme has been updated                                ! urban
          runoff=runoff-newrunoff ! remove new runoff                    ! urban
          ! call aTEB                                                    ! urban
-         call atebcalc(fg(:),eg(:),tss(:),wetfac(:),newrunoff(:),dt     ! urban
-     &               ,azmin,sgsave(:)/(1.-swrsave*albvisnir(:,1)-       ! urban
-     &               (1.-swrsave)*albvisnir(:,2)),-rgsave(:)            ! urban
-     &               ,condx(:)/dt,rho(:),t(1:ifull,1),qg(1:ifull,1)     ! urban
+         call atebcalc(fg,eg,tss,wetfac,newrunoff,dt,azmin              ! urban
+     &               ,sgsave/(1.-swrsave*albvisnir(:,1)-                ! urban
+     &               (1.-swrsave)*albvisnir(:,2)),-rgsave               ! urban
+     &               ,condx/dt,conds/dt,rho,t(1:ifull,1),qg(1:ifull,1)  ! urban
      &               ,ps(1:ifull),uzon,vmer,vmodmin,0)                  ! urban
         runoff=runoff+newrunoff ! add new runoff after including urban  ! urban
         ! here we blend zo with the urban part                          ! urban
@@ -901,8 +908,12 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
         ! calculate ustar                                               ! urban
         cduv(iperm(1:ipland))=cduv(iperm(1:ipland))                     ! urban
      &                       /vmag(iperm(1:ipland))                     ! urban
-        call atebcd(cduv,0)                                             ! urban
+        cdtq(iperm(1:ipland))=cdtq(iperm(1:ipland))                     ! urban
+     &                       /vmag(iperm(1:ipland))                     ! urban
+        call atebcd(cduv,cdtq,0)                                        ! urban
         cduv(iperm(1:ipland))=cduv(iperm(1:ipland))                     ! urban
+     &                       *vmag(iperm(1:ipland))                     ! urban
+        cdtq(iperm(1:ipland))=cdtq(iperm(1:ipland))                     ! urban
      &                       *vmag(iperm(1:ipland))                     ! urban
         ustar(iperm(1:ipland))=sqrt(vmod(iperm(1:ipland))               ! urban
      &                       *cduv(iperm(1:ipland)))                    ! urban
@@ -938,13 +949,13 @@ c***  end of surface updating loop
 
       if(diag.or.ntest==1)then
          if ( mydiag ) then
-           write(6,*) 'at end of sflux, after call scrnout'
-           write(6,*) 'slwa,rdg,eg,fg ',
-     &               slwa(idjd),rdg(idjd),eg(idjd),fg(idjd)
+           write(6,*) 'at end of sflux'
+           write(6,*) 'eg,fg ',
+     &               eg(idjd),fg(idjd)
            write(6,*) 'tscrn,cduv,zolnd ',
      &               tscrn(idjd),cduv(idjd),zolnd(idjd)
-           write(6,*) 'degdt,dfgdt,snowd,sicedep ',
-     &               degdt(idjd),dfgdt(idjd),snowd(idjd),sicedep(idjd)
+           write(6,*) 'snowd,sicedep ',
+     &               snowd(idjd),sicedep(idjd)
            write(6,*) 'u1,v1,qg1 ',u(idjd,1),v(idjd,1),qg(idjd,1)
            write(6,*) 'w,w2,condx ',
      &               wb(idjd,1),wb(idjd,ms),condx(idjd)
@@ -966,7 +977,7 @@ c***  end of surface updating loop
       end
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine sib3(nalpha,taftfh,taftfhg)
+      subroutine sib3(nalpha,taftfh,taftfhg,aft)
 
       ! This is the standard land-surface scheme
       
@@ -1008,13 +1019,16 @@ c***  end of surface updating loop
       real prz,dirad1,dqg,devf,residp,sstgf,ewwwa,delta_t0
       real delta_t,deltat,es
       real, dimension(ifull), intent(in) :: taftfh,taftfhg
+      real, dimension(ifull), intent(inout) :: aft
       real airr(ifull),cc(ifull),condxg(ifull),delta_tx(ifull),
      . evapfb1(ifull),evapfb2(ifull),evapfb3(ifull),evapfb4(ifull),
      . evapfb5(ifull),evapfb1a(ifull),evapfb2a(ifull),evapfb3a(ifull),
      . evapfb4a(ifull),evapfb5a(ifull),otgf(ifull),rmcmax(ifull),
      . tgfnew(ifull),evapfb(ifull)
       real dqsttg(ifull),tstom(ifull),cls(ifull),omc(ifull)
-      real, dimension(ifull) :: ftsoil, srlai
+      real, dimension(ifull) :: ftsoil,rlai,srlai,res,tsigmf,fgf,egg
+      real, dimension(ifull) :: evapxf,ewww,fgg,rdg,rgg,residf,fev
+      real, dimension(ifull) :: extin,dirad,dfgdt,degdt
 
       integer, parameter :: ntest=0 ! ntest= 0 for diags off; ntest= 1 for diags on
 !                                            2 for ewww diags      

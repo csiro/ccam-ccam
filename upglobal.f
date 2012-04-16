@@ -66,10 +66,12 @@
 !       will not handle residual zs terms as accurately       
         if (.not.allocated(tnsav)) then
           allocate(tnsav(ifull,kl),unsav(ifull,kl),vnsav(ifull,kl))
+        end if
+        if(ktau==1)then
 	  tnsav(:,:) =tn(:,:)
 	  unsav(:,:) =un(:,:)
 	  vnsav(:,:) =vn(:,:)
-        end if
+        endif
         tx(1:ifull,:)=tx(1:ifull,:)
      &                +dt*(tn(1:ifull,:)-.5*tnsav(1:ifull,:))            
         ux(1:ifull,:)=ux(1:ifull,:)
@@ -195,10 +197,10 @@
       pslx(:,:)=pslx(:,:)+dd(:,:)
       if(nmaxpr==1.and.nproc==1)then
 	print *,'pslx_3p before advection'
-       ! write (6,"('pslx_b',3p9f8.4)") pslx(idjd,:)
-       ! write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
-       ! write (6,"(3p9f8.4)") 
-    ! &        ((pslx(ii+jj*il,nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
+        write (6,"('pslx_b',3p9f8.4)") pslx(idjd,:)
+        write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+        write (6,"(3p9f8.4)") 
+     &        ((pslx(ii+jj*il,nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
       endif
       if(mup.ne.0)then
         call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
@@ -216,31 +218,31 @@
 !------------------------------------------------------------------
 	if(nmaxpr==1.and.nproc==1)then
          print *,'pslx_3p & dd after advection'
-    !     write (6,"('pslx_a',3p9f8.4)") pslx(idjd,:)
-    !     write (6,"('aa#',3p9f8.4)") 
-    ! &             ((aa(ii+jj*il),ii=idjd-1,idjd+1),jj=-1,1)
-    !     write (6,"('dd1#',3p9f8.4)") 
-    ! &             ((dd(ii+jj*il,1),ii=idjd-1,idjd+1),jj=-1,1)
-    !     write (6,"('dd_a',3p9f8.4)") dd(idjd,:)
-    !     write (6,"('nface',18i4)") nface(idjd,:)
-    !     write (6,"('xg',9f8.4)") xg(idjd,:)
-    !     write (6,"('yg',9f8.4)") yg(idjd,:)
-    !     write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
-!	  idjdd=max(5+2*il,min(idjd,ifull-4-2*il))  ! for following prints
-!         write (6,"(3p9f8.4)") 
-!     &            ((pslx(ii+jj*il,nlv),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
-!         uc(1:ifull,1)=-pslx(1:ifull,1)*dsig(1) 
-!	  do k=2,kl
-!          uc(1:ifull,1)=uc(1:ifull,1)-pslx(1:ifull,k)*dsig(k)
-!         enddo
-!	 print *,'integ pslx after advection'
-!         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
-!         write (6,"(3p9f8.4)") 
-!     &            ((uc(ii+jj*il,1),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
-!         print *,'corresp integ ps after advection'
-!         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
-!         write (6,"(-2p9f8.2)") 
-!     &        ((1.e5*exp(uc(ii+jj*il,1)),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
+         write (6,"('pslx_a',3p9f8.4)") pslx(idjd,:)
+         write (6,"('aa#',3p9f8.4)") 
+     &             ((aa(ii+jj*il),ii=idjd-1,idjd+1),jj=-1,1)
+         write (6,"('dd1#',3p9f8.4)") 
+     &             ((dd(ii+jj*il,1),ii=idjd-1,idjd+1),jj=-1,1)
+         write (6,"('dd_a',3p9f8.4)") dd(idjd,:)
+         write (6,"('nface',18i4)") nface(idjd,:)
+         write (6,"('xg',9f8.4)") xg(idjd,:)
+         write (6,"('yg',9f8.4)") yg(idjd,:)
+         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+	  idjdd=max(5+2*il,min(idjd,ifull-4-2*il))  ! for following prints
+         write (6,"(3p9f8.4)") 
+     &            ((pslx(ii+jj*il,nlv),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
+         uc(1:ifull,1)=-pslx(1:ifull,1)*dsig(1) 
+	  do k=2,kl
+          uc(1:ifull,1)=uc(1:ifull,1)-pslx(1:ifull,k)*dsig(k)
+         enddo
+	 print *,'integ pslx after advection'
+         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+         write (6,"(3p9f8.4)") 
+     &            ((uc(ii+jj*il,1),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
+         print *,'corresp integ ps after advection'
+         write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+         write (6,"(-2p9f8.2)") 
+     &        ((1.e5*exp(uc(ii+jj*il,1)),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
 	endif
 
 !      now comes ux & vx section

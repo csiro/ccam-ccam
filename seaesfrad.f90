@@ -448,7 +448,7 @@ do j=1,jl,imax/il
 
     ! Set-up albedo
     ! Land albedo ---------------------------------------------------
-    if (nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7) then
+    if (nsib.eq.CABLE.or.nsib.ge.6) then
       ! CABLE version
       where (land(istart:iend))
         cuvrf_dir(1:imax) = albvisdir(istart:iend) ! from cable (inc snow)
@@ -1177,9 +1177,9 @@ Wliq=0.
 where (qlg.gt.1.E-8.and.cfrac.gt.0.)
   Wliq=rhoa*qlg/cfrac !kg/m^3
   ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
-  !eps = 1. - 0.7 * exp(-0.008e-6*cdrop) !upper bound
-  !eps = 1. - 0.7 * exp(-0.003e-6*cdrop) !mid range
-  eps = 1. - 0.7 * exp(-0.001e-6*cdrop)  !lower bound
+  !eps = 1.-0.7*exp(-0.008e-6*cdrop) !upper bound
+  !eps = 1.-0.7*exp(-0.003e-6*cdrop) !mid range
+  eps = 1.-0.7*exp(-0.001e-6*cdrop)  !lower bound
   rk  = (1.+eps**2)/(1.+2.*eps**2)**2
   
   ! k_ratio = rk**(-1./3.)  

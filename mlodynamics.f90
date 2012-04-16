@@ -66,7 +66,6 @@ where(.not.land)
   ee(1:ifull)=1.
 end where
 call bounds(ee,corner=.true.)
-
 eeu(1:ifull)=ee(1:ifull)*ee(ie)
 eev(1:ifull)=ee(1:ifull)*ee(in)
 call boundsuv(eeu,eev)
@@ -83,7 +82,6 @@ do ii=1,wlev
   call mloexpdep(0,dep(:,ii),ii,0)
   call mloexpdep(1,dz(:,ii),ii,0)
 end do
-
 dephl(:,0)=0.
 dephl(:,1)=dz(:,1)
 do ii=2,wlev
@@ -92,7 +90,6 @@ end do
 dd(1:ifull)=dephl(:,wlev)
 call bounds(dd,corner=.true.)
 dd=max(dd,1.E-8)
-
 ddu(1:ifull)=0.5*(dd(1:ifull)+dd(ie))
 ddv(1:ifull)=0.5*(dd(1:ifull)+dd(in))
 ddu=max(ddu,1.E-8)
@@ -130,7 +127,6 @@ if (abs(nmlo).ge.3) then
   allocate(oldu1(ifull,wlev),oldv1(ifull,wlev))
   allocate(oldu2(ifull,wlev),oldv2(ifull,wlev))
   allocate(ipice(ifull+iextra))
-
   oldu1=0.
   oldv1=0.
   oldu2=oldu1
@@ -1203,7 +1199,7 @@ svs=spv(isv)*0.5/emv(isv)        -sqv(isv)/ds
 
 ! Iteratively solve for free surface height, eta
 ! Here we use SOR due to the non-linear equation for eta.
-alpha=0.5
+alpha=0.9
 do ll=1,llmax
 
   ! 9-point version -----------------------------------------------
@@ -1226,10 +1222,12 @@ do ll=1,llmax
   au=-(1.+eps)*0.5*dt*sdiv
   bu=-(1.+(1.+eps)*0.5*dt*(div+odiv+sdivb))
   cu=xps-(1.+eps)*0.5*dt*(divb+odivb)
-  where (au.ne.0.)
-    seta=-neta(1:ifull)+(-bu-sqrt(max(bu*bu-4.*au*cu,0.)))/(2.*au)
+  where (abs(au).gt.1.E-4)
+    seta=-neta(1:ifull)+0.5*(-bu-sqrt(bu*bu-4.*au*cu))/au
   elsewhere
-    seta=-neta(1:ifull)-cu/bu
+    ! the following is a Talyor expansion of the above expression
+    ! and should be valid for au<1.E-3
+    seta=-neta(1:ifull)-cu/bu-au*cu*cu/(bu**3) !-2.*au**2*cu**3/(bu**5)+...
   end where
 
   ! The following expression limits the minimum depth to 1m
@@ -1343,6 +1341,7 @@ if (myid==0.and.nmaxpr==1) then
 end if
 
 ! Update ice velocities
+! Average free surface over t and t+1
 tau(:,1)=grav*0.5*((1.-eps)*(oeta(ie)-oeta(1:ifull))+(1.+eps)*(neta(ie)-neta(1:ifull)))*emu(1:ifull)/ds ! staggered
 tav(:,1)=grav*0.5*((1.-eps)*(oeta(in)-oeta(1:ifull))+(1.+eps)*(neta(in)-neta(1:ifull)))*emv(1:ifull)/ds
 call mlounstaguv(tau(:,1:1),tav(:,1:1),siu,siv) ! trick from JLM
@@ -1352,11 +1351,11 @@ uiu(:,1)=snu(1:ifull)+(1.+eps)*0.5*dt*f(1:ifull)*snv(1:ifull) ! unstaggered
 uiv(:,1)=snv(1:ifull)-(1.+eps)*0.5*dt*f(1:ifull)*snu(1:ifull)
 call mlostaguv(uiu,uiv,siu,siv)
 ! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90
-niu(1:ifull)=siu(:,1)/(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull)) ! staggered
-niv(1:ifull)=siv(:,1)/(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull))
+niu(1:ifull)=siu(:,1)/(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fu(1:ifull)*fu(1:ifull))*eeu(1:ifull) ! staggered
+niv(1:ifull)=siv(:,1)/(1.+(1.+eps)*(1.+eps)*0.25*dt*dt*fv(1:ifull)*fv(1:ifull))*eev(1:ifull)
 call boundsuv(niu,niv)
 
-! Limit ice mass for ice velocity calculation.  Hence we can estimate the ice velocity at
+! Limit minimum ice mass for ice velocity calculation.  Hence we can estimate the ice velocity at
 ! grid points where the ice is not yet present.  
 imass(1:ifull)=max(imass(1:ifull),10.)
 call bounds(imass)
@@ -1449,16 +1448,12 @@ dipdxu=(ipice(ie)-ipice(1:ifull))*emu(1:ifull)/ds
 dipdyu=stwgt(1:ifull,1)*0.5*(tnu-tsu)*emu(1:ifull)/ds
 dipdxv=stwgt(1:ifull,2)*0.5*(tev-twv)*emv(1:ifull)/ds
 dipdyv=(ipice(in)-ipice(1:ifull))*emv(1:ifull)/ds
-niu(1:ifull)=niu(1:ifull)+ibu(1:ifull)*dipdxu+icu(1:ifull)*dipdyu
-niv(1:ifull)=niv(1:ifull)+ibv(1:ifull)*dipdyv+icv(1:ifull)*dipdxv
-
-! average ice velocity between t and t+1 for advection
-spu(1:ifull)=0.5*(niu(1:ifull)+i_u)*ee(1:ifull)
-spv(1:ifull)=0.5*(niv(1:ifull)+i_v)*ee(1:ifull)
-call boundsuv(spu,spv)
+niu(1:ifull)=(niu(1:ifull)+ibu(1:ifull)*dipdxu+icu(1:ifull)*dipdyu)*eeu(1:ifull)
+niv(1:ifull)=(niv(1:ifull)+ibv(1:ifull)*dipdyv+icv(1:ifull)*dipdxv)*eev(1:ifull)
+call boundsuv(niu,niv)
 
 ! Normalisation factor for conserving ice flow in and out of gridbox
-spnet(1:ifull)=-min(spu(iwu),0.)+max(spu(1:ifull),0.)-min(spv(isv),0.)+max(spv(1:ifull),0.)
+spnet(1:ifull)=-min(niu(iwu),0.)+max(niu(1:ifull),0.)-min(niv(isv),0.)+max(niv(1:ifull),0.)
 spnet(1:ifull)=max(spnet(1:ifull),0.0002)
 call bounds(spnet)
 
@@ -1473,14 +1468,14 @@ end if
 ndum(1:ifull)=fracice/(em(1:ifull)*em(1:ifull)) ! ndum is an area
 call bounds(ndum)
 odum=ndum(1:ifull)
-odum=odum+max(min( 0.5*dt*(spu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(spu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
-          ndum(iw)*max(spu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(spu(iwu),0.)/spnet(1:ifull))
-odum=odum+max(min(-0.5*dt*(spu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(spu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
-         -ndum(ie)*min(spu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(spu(1:ifull),0.)/spnet(1:ifull))
-odum=odum+max(min( 0.5*dt*(spv(isv)*(ndum(1:ifull)+ndum(is))    -abs(spv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
-          ndum(is)*max(spv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(spv(isv),0.)/spnet(1:ifull))
-odum=odum+max(min(-0.5*dt*(spv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(spv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
-         -ndum(in)*min(spv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(spv(1:ifull),0.)/spnet(1:ifull))
+odum=odum+max(min( 0.5*dt*(niu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
+          ndum(iw)*max(niu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(niu(iwu),0.)/spnet(1:ifull))
+odum=odum+max(min(-0.5*dt*(niu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
+         -ndum(ie)*min(niu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(niu(1:ifull),0.)/spnet(1:ifull))
+odum=odum+max(min( 0.5*dt*(niv(isv)*(ndum(1:ifull)+ndum(is))    -abs(niv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
+          ndum(is)*max(niv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(niv(isv),0.)/spnet(1:ifull))
+odum=odum+max(min(-0.5*dt*(niv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
+         -ndum(in)*min(niv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(niv(1:ifull),0.)/spnet(1:ifull))
 ndum(1:ifull)=odum
 ndum=max(ndum,0.)
 nfracice(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)
@@ -1490,14 +1485,14 @@ nfracice(1:ifull)=min(max(nfracice(1:ifull),0.),1.)
 ndum(1:ifull)=sicedep*fracice/(em(1:ifull)*em(1:ifull)) ! now ndum is a volume
 call bounds(ndum)
 odum=ndum(1:ifull)
-odum=odum+max(min( 0.5*dt*(spu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(spu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
-          ndum(iw)*max(spu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(spu(iwu),0.)/spnet(1:ifull))
-odum=odum+max(min(-0.5*dt*(spu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(spu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
-         -ndum(ie)*min(spu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(spu(1:ifull),0.)/spnet(1:ifull))
-odum=odum+max(min( 0.5*dt*(spv(isv)*(ndum(1:ifull)+ndum(is))    -abs(spv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
-          ndum(is)*max(spv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(spv(isv),0.)/spnet(1:ifull))
-odum=odum+max(min(-0.5*dt*(spv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(spv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
-         -ndum(in)*min(spv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(spv(1:ifull),0.)/spnet(1:ifull))
+odum=odum+max(min( 0.5*dt*(niu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
+          ndum(iw)*max(niu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(niu(iwu),0.)/spnet(1:ifull))
+odum=odum+max(min(-0.5*dt*(niu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
+         -ndum(ie)*min(niu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(niu(1:ifull),0.)/spnet(1:ifull))
+odum=odum+max(min( 0.5*dt*(niv(isv)*(ndum(1:ifull)+ndum(is))    -abs(niv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
+          ndum(is)*max(niv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(niv(isv),0.)/spnet(1:ifull))
+odum=odum+max(min(-0.5*dt*(niv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
+         -ndum(in)*min(niv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(niv(1:ifull),0.)/spnet(1:ifull))
 ndum(1:ifull)=odum
 ndum=max(ndum,0.)
 ndic(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
@@ -1506,14 +1501,14 @@ ndic(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10
 ndum(1:ifull)=snowd*0.001*fracice/(em(1:ifull)*em(1:ifull)) ! now ndum is a volume
 call bounds(ndum)
 odum=ndum(1:ifull)
-odum=odum+max(min( 0.5*dt*(spu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(spu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
-          ndum(iw)*max(spu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(spu(iwu),0.)/spnet(1:ifull))
-odum=odum+max(min(-0.5*dt*(spu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(spu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
-         -ndum(ie)*min(spu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(spu(1:ifull),0.)/spnet(1:ifull))
-odum=odum+max(min( 0.5*dt*(spv(isv)*(ndum(1:ifull)+ndum(is))    -abs(spv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
-          ndum(is)*max(spv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(spv(isv),0.)/spnet(1:ifull))
-odum=odum+max(min(-0.5*dt*(spv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(spv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
-         -ndum(in)*min(spv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(spv(1:ifull),0.)/spnet(1:ifull))
+odum=odum+max(min( 0.5*dt*(niu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
+          ndum(iw)*max(niu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(niu(iwu),0.)/spnet(1:ifull))
+odum=odum+max(min(-0.5*dt*(niu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
+         -ndum(ie)*min(niu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(niu(1:ifull),0.)/spnet(1:ifull))
+odum=odum+max(min( 0.5*dt*(niv(isv)*(ndum(1:ifull)+ndum(is))    -abs(niv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
+          ndum(is)*max(niv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(niv(isv),0.)/spnet(1:ifull))
+odum=odum+max(min(-0.5*dt*(niv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
+         -ndum(in)*min(niv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(niv(1:ifull),0.)/spnet(1:ifull))
 ndum(1:ifull)=odum
 ndum=max(ndum,0.)
 ndsn(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
@@ -1522,14 +1517,14 @@ ndsn(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10
 ndum(1:ifull)=i_sto*fracice/(em(1:ifull)*em(1:ifull))
 call bounds(ndum)
 odum=ndum(1:ifull)
-odum=odum+max(min( 0.5*dt*(spu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(spu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
-          ndum(iw)*max(spu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(spu(iwu),0.)/spnet(1:ifull))
-odum=odum+max(min(-0.5*dt*(spu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(spu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
-         -ndum(ie)*min(spu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(spu(1:ifull),0.)/spnet(1:ifull))
-odum=odum+max(min( 0.5*dt*(spv(isv)*(ndum(1:ifull)+ndum(is))    -abs(spv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
-          ndum(is)*max(spv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(spv(isv),0.)/spnet(1:ifull))
-odum=odum+max(min(-0.5*dt*(spv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(spv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
-         -ndum(in)*min(spv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(spv(1:ifull),0.)/spnet(1:ifull))
+odum=odum+max(min( 0.5*dt*(niu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
+          ndum(iw)*max(niu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(niu(iwu),0.)/spnet(1:ifull))
+odum=odum+max(min(-0.5*dt*(niu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
+         -ndum(ie)*min(niu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(niu(1:ifull),0.)/spnet(1:ifull))
+odum=odum+max(min( 0.5*dt*(niv(isv)*(ndum(1:ifull)+ndum(is))    -abs(niv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
+          ndum(is)*max(niv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(niv(isv),0.)/spnet(1:ifull))
+odum=odum+max(min(-0.5*dt*(niv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
+         -ndum(in)*min(niv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(niv(1:ifull),0.)/spnet(1:ifull))
 ndum(1:ifull)=odum
 ndum=max(ndum,0.)
 nsto(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
@@ -1538,14 +1533,14 @@ nsto(1:ifull)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10
 ndum(1:ifull)=i_it(1:ifull,1)*fracice/(em(1:ifull)*em(1:ifull))
 call bounds(ndum)
 odum=ndum(1:ifull)
-odum=odum+max(min( 0.5*dt*(spu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(spu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
-          ndum(iw)*max(spu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(spu(iwu),0.)/spnet(1:ifull))
-odum=odum+max(min(-0.5*dt*(spu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(spu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
-         -ndum(ie)*min(spu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(spu(1:ifull),0.)/spnet(1:ifull))
-odum=odum+max(min( 0.5*dt*(spv(isv)*(ndum(1:ifull)+ndum(is))    -abs(spv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
-          ndum(is)*max(spv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(spv(isv),0.)/spnet(1:ifull))
-odum=odum+max(min(-0.5*dt*(spv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(spv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
-         -ndum(in)*min(spv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(spv(1:ifull),0.)/spnet(1:ifull))
+odum=odum+max(min( 0.5*dt*(niu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
+          ndum(iw)*max(niu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(niu(iwu),0.)/spnet(1:ifull))
+odum=odum+max(min(-0.5*dt*(niu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
+         -ndum(ie)*min(niu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(niu(1:ifull),0.)/spnet(1:ifull))
+odum=odum+max(min( 0.5*dt*(niv(isv)*(ndum(1:ifull)+ndum(is))    -abs(niv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
+          ndum(is)*max(niv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(niv(isv),0.)/spnet(1:ifull))
+odum=odum+max(min(-0.5*dt*(niv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
+         -ndum(in)*min(niv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(niv(1:ifull),0.)/spnet(1:ifull))
 ndum(1:ifull)=odum
 ndum=max(ndum,0.)
 nit(1:ifull,1)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-10)
@@ -1554,14 +1549,14 @@ nit(1:ifull,1)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(nfracice(1:ifull),1.E-1
 ndum(1:ifull)=i_it(1:ifull,2)*fracice*snowd*0.001/(em(1:ifull)*em(1:ifull))
 call bounds(ndum)
 odum=ndum(1:ifull)
-odum=odum+max(min( 0.5*dt*(spu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(spu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
-          ndum(iw)*max(spu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(spu(iwu),0.)/spnet(1:ifull))
-odum=odum+max(min(-0.5*dt*(spu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(spu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
-         -ndum(ie)*min(spu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(spu(1:ifull),0.)/spnet(1:ifull))
-odum=odum+max(min( 0.5*dt*(spv(isv)*(ndum(1:ifull)+ndum(is))    -abs(spv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
-          ndum(is)*max(spv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(spv(isv),0.)/spnet(1:ifull))
-odum=odum+max(min(-0.5*dt*(spv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(spv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
-         -ndum(in)*min(spv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(spv(1:ifull),0.)/spnet(1:ifull))
+odum=odum+max(min( 0.5*dt*(niu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
+          ndum(iw)*max(niu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(niu(iwu),0.)/spnet(1:ifull))
+odum=odum+max(min(-0.5*dt*(niu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
+         -ndum(ie)*min(niu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(niu(1:ifull),0.)/spnet(1:ifull))
+odum=odum+max(min( 0.5*dt*(niv(isv)*(ndum(1:ifull)+ndum(is))    -abs(niv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
+          ndum(is)*max(niv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(niv(isv),0.)/spnet(1:ifull))
+odum=odum+max(min(-0.5*dt*(niv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
+         -ndum(in)*min(niv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(niv(1:ifull),0.)/spnet(1:ifull))
 ndum(1:ifull)=odum
 ndum=max(ndum,0.)
 nit(1:ifull,2)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(ndsn(1:ifull)*nfracice(1:ifull),1.E-10)
@@ -1571,14 +1566,14 @@ do ii=3,4
   ndum(1:ifull)=i_it(1:ifull,ii)*fracice*sicedep/(em(1:ifull)*em(1:ifull))
   call bounds(ndum)
   odum=ndum(1:ifull)
-  odum=odum+max(min( 0.5*dt*(spu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(spu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
-            ndum(iw)*max(spu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(spu(iwu),0.)/spnet(1:ifull))
-  odum=odum+max(min(-0.5*dt*(spu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(spu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
-           -ndum(ie)*min(spu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(spu(1:ifull),0.)/spnet(1:ifull))
-  odum=odum+max(min( 0.5*dt*(spv(isv)*(ndum(1:ifull)+ndum(is))    -abs(spv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
-            ndum(is)*max(spv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(spv(isv),0.)/spnet(1:ifull))
-  odum=odum+max(min(-0.5*dt*(spv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(spv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
-           -ndum(in)*min(spv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(spv(1:ifull),0.)/spnet(1:ifull))
+  odum=odum+max(min( 0.5*dt*(niu(iwu)*(ndum(1:ifull)+ndum(iw))    -abs(niu(iwu))*(ndum(1:ifull)-ndum(iw))    )*emu(iwu)/ds    , &
+            ndum(iw)*max(niu(iwu),0.)/spnet(iw))    ,ndum(1:ifull)*min(niu(iwu),0.)/spnet(1:ifull))
+  odum=odum+max(min(-0.5*dt*(niu(1:ifull)*(ndum(1:ifull)+ndum(ie))+abs(niu(1:ifull))*(ndum(1:ifull)-ndum(ie)))*emu(1:ifull)/ds, &
+           -ndum(ie)*min(niu(1:ifull),0.)/spnet(ie)),-ndum(1:ifull)*max(niu(1:ifull),0.)/spnet(1:ifull))
+  odum=odum+max(min( 0.5*dt*(niv(isv)*(ndum(1:ifull)+ndum(is))    -abs(niv(isv))*(ndum(1:ifull)-ndum(is))    )*emv(isv)/ds    , &
+            ndum(is)*max(niv(isv),0.)/spnet(is))    ,ndum(1:ifull)*min(niv(isv),0.)/spnet(1:ifull))
+  odum=odum+max(min(-0.5*dt*(niv(1:ifull)*(ndum(1:ifull)+ndum(in))+abs(niv(1:ifull))*(ndum(1:ifull)-ndum(in)))*emv(1:ifull)/ds, &
+           -ndum(in)*min(niv(1:ifull),0.)/spnet(in)),-ndum(1:ifull)*max(niv(1:ifull),0.)/spnet(1:ifull))
   ndum(1:ifull)=odum
   ndum=max(ndum,0.)
   nit(1:ifull,ii)=ndum(1:ifull)*em(1:ifull)*em(1:ifull)/max(ndic(1:ifull)*nfracice(1:ifull),1.E-10)

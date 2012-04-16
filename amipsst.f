@@ -2,8 +2,7 @@
       use arrays_m    ! ts, t, u, v, psl, ps, zs
       use cc_mpi
       use latlong_m
-      use mlo, only : mloexport ! MJT mlo
-      use nsibd_m     ! res  for saving SST bias during month
+      use mlo, only : mloexport
       use pbl_m       ! tss
       use permsurf_m  ! iperm etc
       use soil_m      ! ,tice, alb
@@ -24,7 +23,7 @@
       real, allocatable, save, dimension(:) :: ssta, sstb, sstc
       real, allocatable, save, dimension(:) :: aice, bice, cice
       real, allocatable, save, dimension(:) :: asal, bsal, csal
-      real, dimension(ifull) :: duma,sssb
+      real, dimension(ifull) :: duma,sssb,res
       real, dimension(ifull,2) :: dumb
       real fraciceb(ifull), x, c2, c3, c4
       integer, dimension(0:13) :: mdays
@@ -33,8 +32,8 @@
       save iyr,imo,iday,iyr_m,imo_m
       real rat1, rat2
       integer k
-      integer, parameter :: mlomode = 1 ! (0=relax, 1=scale-select)    ! MJT mlo
-      integer, parameter :: mlotime = 6 ! scale-select period in hours ! MJT mlo
+      integer, parameter :: mlomode = 1 ! (0=relax, 1=scale-select)
+      integer, parameter :: mlotime = 6 ! scale-select period in hours
       common/leap_yr/leap  ! 1 to allow leap years
 
       if (.not.allocated(ssta)) then

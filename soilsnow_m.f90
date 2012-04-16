@@ -3,37 +3,39 @@ module soilsnow_m
 implicit none
 
 private
-public tggsn,tgg,wb,wbice,wbtot,smass,ssdn,ssdnn,snowd 
+public tggsn,tgg,wb,wbice,smass,ssdn,ssdnn,snowd 
 public osnowd,snage,sno,gflux,sgflux,snowflx,otgsoil 
-public runoff,rnof1,rnof2,rtsoil,albvisnir,albsoil,albsoilsn
+public runoff,albvisnir
 public fracice,sicedep
 public isflag
 public soilsnow_init,soilsnow_end
 
 integer, dimension(:), allocatable, save :: isflag
-real, dimension(:), allocatable, save :: wbtot,ssdnn,snowd
+real, dimension(:), allocatable, save :: ssdnn,snowd
 real, dimension(:), allocatable, save :: osnowd,snage,sno,gflux,sgflux,snowflx,otgsoil
-real, dimension(:), allocatable, save :: runoff,rnof1,rnof2,rtsoil,albsoil
+real, dimension(:), allocatable, save :: runoff
 real, dimension(:), allocatable, save :: fracice,sicedep
 real, dimension(:,:), allocatable, save :: tggsn,tgg,wb,wbice,smass,ssdn
-real, dimension(:,:), allocatable, save :: albvisnir,albsoilsn
+real, dimension(:,:), allocatable, save :: albvisnir
 
 contains
 
-subroutine soilsnow_init(ifull,iextra,kl,ms)
+subroutine soilsnow_init(ifull,iextra,kl,ms,nsib)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,ms
+integer, intent(in) :: ifull,iextra,kl,ms,nsib
 
-allocate(tggsn(ifull,3),tgg(ifull,ms),wb(ifull,ms),wbice(ifull,ms),wbtot(ifull))
+allocate(tggsn(ifull,3),tgg(ifull,ms),wb(ifull,ms),wbice(ifull,ms))
 allocate(smass(ifull,3),ssdn(ifull,3),ssdnn(ifull),snowd(ifull))
-allocate(osnowd(ifull),snage(ifull),sno(ifull),gflux(ifull))
-allocate(sgflux(ifull),snowflx(ifull),otgsoil(ifull))
-allocate(runoff(ifull),rnof1(ifull),rnof2(ifull),rtsoil(ifull))
-allocate(albvisnir(ifull,2),albsoil(ifull),albsoilsn(ifull,2))
+allocate(snage(ifull),sno(ifull),gflux(ifull))
+allocate(runoff(ifull),albvisnir(ifull,2))
 allocate(fracice(ifull),sicedep(ifull))
 allocate(isflag(ifull))
+if (nsib.eq.3.or.nsib.eq.5) then
+  allocate(sgflux(ifull))
+  allocate(osnowd(ifull),otgsoil(ifull),snowflx(ifull))
+end if
 
 return
 end subroutine soilsnow_init
@@ -42,11 +44,15 @@ subroutine soilsnow_end
 
 implicit none
 
-deallocate(tggsn,tgg,wb,wbice,wbtot,smass,ssdn,ssdnn,snowd)
-deallocate(osnowd,snage,sno,gflux,sgflux,snowflx,otgsoil)
-deallocate(runoff,rnof1,rnof2,rtsoil,albvisnir,albsoil,albsoilsn)
+deallocate(tggsn,tgg,wb,wbice,smass,ssdn,ssdnn,snowd)
+deallocate(snage,sno,gflux)
+deallocate(runoff,albvisnir)
 deallocate(fracice,sicedep)
 deallocate(isflag)
+if (allocated(sgflux)) then
+  deallocate(sgflux)
+  deallocate(osnowd,otgsoil,snowflx)
+end if
 
 return
 end subroutine soilsnow_end

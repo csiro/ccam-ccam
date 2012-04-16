@@ -503,10 +503,12 @@ call aldrcalc(dt,sig,sigh,dsig,zg,cansto,mcmax,wg,pblh,ps,  &
 
 ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
 ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
-so4t(:)=0.
-do k=1,kl
-  so4t(:)=so4t(:)+3.e3*xtg(:,k,3)*(-ps(:)*dsig(k))/grav
-enddo
+if (nrad.eq.4) then
+  so4t(:)=0.
+  do k=1,kl
+    so4t(:)=so4t(:)+3.e3*xtg(:,k,3)*(-ps(:)*dsig(k))/grav
+  enddo
+end if
 
 return
 end subroutine aerocalc
@@ -569,7 +571,7 @@ integer ic,iq
 real, dimension(ifull), intent(out) :: vt
 real, dimension(ifull), intent(in) :: zmin
 real, dimension(ifull) :: smixr,thetav,thetavstar,tvs
-real, dimension(ifull) :: integralh,lzom,lzoh,qsats
+real, dimension(ifull) :: integralh,lzom,lzoh
 real, dimension(ifull) :: z_on_l,zt_on_l,ph0,ph1
 real, dimension(ifull) :: integralm,z0_on_l,pm0,pm1,ustar,umag
 real scrp
@@ -579,13 +581,11 @@ real, parameter    ::  a_1    = 1.
 real, parameter    ::  b_1    = 2./3.
 real, parameter    ::  c_1    = 5.
 real, parameter    ::  d_1    = 0.35
-real, parameter    ::  lna    = 2.3
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
 
 ! calculate qsat at surface
-call getqsat(qsats,tss,ps(1:ifull))
-smixr=wetfac*qsats+(1.-wetfac)*min(qsats,qg(:,1))
+smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(:,1))
 
 ! calculate thetav at surface and 1st model level
 scrp=sig(1)**(rdry/cp)
@@ -598,7 +598,7 @@ umag=max(umag,vmodmin)
 
 ! Roughness length for momentum and heat (i.e., log(zmin/z0m) and log(zmin/z0h))
 lzom=log(zmin/zo)
-lzoh=lna+lzom
+lzoh=log(zmin/zoh)
 
 ! Dyer and Hicks approach 
 thetavstar=vkar*(thetav-tvs)/lzoh ! 1st guess
@@ -634,29 +634,5 @@ vt=vkar*ustar/integralh
       
 return
 end subroutine getvt
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Determine saturated mixing ratio (based on establ.h which is currently not
-! f90 compatible)
-subroutine getqsat(qsatout,temp,psin)
-
-implicit none
-
-include 'newmpar.h'
-include 'const_phys.h'
-include 'establ.h'
-
-integer iq
-real, dimension(ifull), intent(in) :: temp,psin
-real, dimension(ifull), intent(out) :: qsatout
-real, dimension(ifull) :: esatf
-
-do iq=1,ifull
-  esatf(iq) = establ(temp(iq))
-end do
-qsatout=0.622*esatf/max(psin-esatf,0.1)
-
-return
-end subroutine getqsat
 
 end module aerointerface

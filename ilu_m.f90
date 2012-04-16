@@ -6,7 +6,7 @@ module ilu_m
    implicit none
    private
    include 'newmpar.h'
-   public :: iludecomp, ilusolve! , ilumul
+   public :: iludecomp, ilusolve
    integer, dimension(:,:), allocatable, private, save :: ileft
    integer, dimension(:), allocatable, private, save   :: nleft, nright
    real, dimension(:,:,:), allocatable, private, save  :: pleft

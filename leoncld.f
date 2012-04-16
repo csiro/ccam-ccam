@@ -1,4 +1,4 @@
-      subroutine leoncld(cfrac,iaero)
+      subroutine leoncld(cfrac,cffall,iaero)
       use aerointerface
       use arrays_m
       use cc_mpi, only : mydiag, myid
@@ -7,6 +7,7 @@
       use latlong_m
       use liqwpar_m  ! ifullw
       use morepbl_m
+      use nharrs_m
       use nlin_m
       use prec_m
       use sigs_m
@@ -45,6 +46,7 @@ c Local variables
       real dz(ifullw,kl)      !Layer thickness (m)
       real cdso4(ifullw,kl)   !Cloud droplet conc (#/m3)
       real cfrac(ifullw,kl)   !Cloud fraction (passed back to globpe)
+      real cffall(ifullw,kl)  !Rain fraction (passed back to globpe)
       real ccov(ifullw,kl)    !Cloud cover (may differ from cloud frac if vertically subgrid)
       real cfa(ifullw,kl)     !Cloud fraction in which autoconv occurs (option in newrain.f)
       real qca(ifullw,kl)     !Cloud water mixing ratio in cfa(:,:)    (  "    "     "     )
@@ -93,19 +95,27 @@ c These outputs are not used in this model at present
         enddo
       enddo
       
-      !--------------------------------------------------------------
-      ! MJT aerosols
       ! Calculate droplet concentration from aerosols
       call aerodrop(iaero,1,ifull,kl,cdso4,rhoa,land,rlatt)
-      !--------------------------------------------------------------
 
       kbase(:)=0  ! default
       ktop(:) =0  ! default
       dz(:,:)=100.*dprf(:,:)/(rhoa(:,:)*grav)
+      ! add non-hydrostatic component to dz - MJT
+      dz(:,1)=dz(:,1)+(ratha(1)*phi_nh(:,2)+rathb(1)*phi_nh(:,1))/grav
+      do k=2,kl-1
+        dz(:,k)=dz(:,k)+(ratha(k)*phi_nh(:,k+1)
+     &    +(rathb(k)-ratha(k-1))*phi_nh(:,k)
+     &    -rathb(k-1)*phi_nh(:,k-1))/grav
+      end do
+      dz(:,kl)=dz(:,kl)-(ratha(kl-1)*phi_nh(:,kl)
+     &                  +rathb(kl-1)*phi_nh(:,kl-1))/grav
+      dz=max(dz,0.01)
 c     fluxc(:,:)=rnrt3d(:,:)*1.e-3*dt ! kg/m2 (should be same level as rnrt3d)
       fluxc(:,:)=0. !For now... above line may be wrong
       ccrain(:,:)=0.1  !Assume this for now
       precs(:)=0.
+      preci(:)=0.
 
 c     Set up convective cloud column
 !     acon=0.2    !Cloud fraction for non-precipitating convection  kuocom.h
@@ -146,11 +156,11 @@ c     before calling newcloud
             qcl(1:ifull,k)=max(qsg(1:ifull,k),qg(1:ifull,k))  ! jlm
             qenv(1:ifull,k)=max(1.e-8,
      &                 qg(1:ifull,k)-clcon(1:ifull,k)*qcl(1:ifull,k))
-     &                 /(1-clcon(1:ifull,k))
-            qcl(1:ifull,k)=(qg(1:ifull,k)-(1-clcon(1:ifull,k))
+     &                 /(1.-clcon(1:ifull,k))
+            qcl(1:ifull,k)=(qg(1:ifull,k)-(1.-clcon(1:ifull,k))
      &                *qenv(1:ifull,k))/clcon(1:ifull,k)
-            qlg(1:ifull,k)=qlg(1:ifull,k)/(1-clcon(1:ifull,k))
-            qfg(1:ifull,k)=qfg(1:ifull,k)/(1-clcon(1:ifull,k))
+            qlg(1:ifull,k)=qlg(1:ifull,k)/(1.-clcon(1:ifull,k))
+            qfg(1:ifull,k)=qfg(1:ifull,k)/(1.-clcon(1:ifull,k))
           elsewhere
             clcon(1:ifull,k)=0.
             qccon(1:ifull,k)=0.
@@ -262,8 +272,8 @@ c         cfrac(iq,k)=min(1.,ccov(iq,k)+clcon(iq,k))
 c     Calculate precipitation and related processes      
       call newrain(land,1,dt,fluxc,rhoa,dz,ccrain,prf,cdso4,  !Inputs
      &    cfa,qca,                                            !Inputs
-     &    t(1:ifull,:),qlg(1:ifull,:),qfg(1:ifull,:),
-     &    precs,qg(1:ifull,:),cfrac,ccov, !In and Out
+     &    t(1:ifull,:),qlg(1:ifull,:),qfg(1:ifull,:),qrg(1:ifull,:),
+     &    precs,qg(1:ifull,:),cfrac,cffall,ccov, !In and Out
      &    preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,  !Outputs
      &    fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
       if(nmaxpr==1.and.mydiag)then
@@ -281,7 +291,7 @@ c     Calculate precipitation and related processes
       endif
 
       !--------------------------------------------------------------
-      ! MJT aerosols - store data needed by prognostic aerosol scheme
+      ! Store data needed by prognostic aerosol scheme
       if (abs(iaero).ge.2) then
         ppfprec(:,1)=0. !At TOA
         ppfmelt(:,1)=0. !At TOA
@@ -408,6 +418,7 @@ c top down to get highest level with cfrac=cldmax (kcldfmax)
 !     factor of 2 is because used .5 in newrain.f (24-mar-2000, jjk)
       do iq=1,ifullw        
         condx(iq)=condx(iq)+precs(iq)*2.
+        conds(iq)=conds(iq)+preci(iq)*2.
         precip(iq)=precip(iq)+precs(iq)*2.
       enddo
 

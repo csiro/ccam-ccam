@@ -6,7 +6,7 @@
       use diag_m
       use liqwpar_m  ! ifullw,qfg,qlg  just for diags
       use morepbl_m  ! condx,fg,eg
-      use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,res,rmc,tsigmf
+      use nsibd_m    ! rsmin,ivegt,sigmf,ssdn,rmc
       use pbl_m
       use permsurf_m
       use prec_m     ! just for diags
@@ -263,21 +263,20 @@ c      screen wind speeds
            write (6,"('strange u iq,land,uscrn,u10,vmag,vmod,'
      .     'tstarx ',i5,l2,6f7.3)") iq,land(iq),
      .     uscrn(iq),u10(iq),vmag,vmod(iq),tstarx(iq)
-           write (6,"('more u isoil,iveg,snowd,tsigmf,fg',	     
-     .     2i3,6f8.2)") isoilm(iq),ivegt(iq),snowd(iq),tsigmf(iq),fg(iq)
+           write (6,"('more u isoil,iveg,snowd,fg',	     
+     .     2i3,6f8.2)") isoilm(iq),ivegt(iq),snowd(iq),fg(iq)
            print *,'tgg1,tggsn1,tss,theta ',
      .              tgg(iq,1),tggsn(iq,1),tss(iq),theta(iq)
          endif
          if(tscrn(iq)<min(theta(iq),tsurf(iq)).or.
      .      tscrn(iq)>max(theta(iq),tsurf(iq)).or.iq==idjd )then
-c        if(tsurf(iq)<theta(iq))then
             numt=numt+1
             write (6,"('checking T iq,land,sicedep,tsurf,tscrn,theta,'
      .       'tstarx ',i5,l2,4f7.2,f7.3)") iq,land(iq),sicedep(iq), 
      .        tsurf(iq),tscrn(iq),theta(iq),tstarx(iq)
             write (6,"('tss,tgg1,tpan,tgg3,t1,fracice ',6f7.2)")
      .         tss(iq),tgg(iq,1),tpan,tgg(iq,3),t(iq,1),fracice(iq)
-            print *,'tgf,tsigmf,zo ',tgf(iq),tsigmf(iq),zo(iq)
+            print *,'zo ',zo(iq)
             print *,'ri2,ri10,ri38 ',rich2(iq),rich10(iq),ri(iq)
             print *,'cm2,ch2,cm10,ch10 ',
      .               cms*2.*bprm*af2(iq)*sqrt(zscrr/zo(iq)),
@@ -349,7 +348,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       ! -------------------------------------------------------------
       ! Use TAPM approach to screen diagnostics
       subroutine scrnocn(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
-     &                   tsu,temp,qsttg,qg,umag,ps,land,zmin,sig)
+     &                   tsu,temp,smixr,qg,umag,ps,land,zmin,sig)
      
       implicit none
 
@@ -357,7 +356,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       integer pfull
       real, dimension(ifull), intent(inout) :: qgscrn,tscrn,uscrn,u10
       real, dimension(ifull), intent(inout) :: rhscrn
-      real, dimension(ifull), intent(in) :: zo,zoh,tsu,temp,qsttg
+      real, dimension(ifull), intent(in) :: zo,zoh,tsu,temp,smixr
       real, dimension(ifull), intent(in) :: qg,umag,ps
       real, intent(in) :: zmin,sig
       real, dimension(ifull) :: qgscrn_pack,tscrn_pack
@@ -376,7 +375,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       zoh_pack(1:pfull)=pack(zoh,.not.land)
       stemp_pack(1:pfull)=pack(tsu,.not.land)
       temp_pack(1:pfull)=pack(temp,.not.land)
-      smixr_pack(1:pfull)=pack(qsttg,.not.land)
+      smixr_pack(1:pfull)=pack(smixr,.not.land)
       mixr_pack(1:pfull)=pack(qg,.not.land)
       umag_pack(1:pfull)=pack(umag,.not.land)
       ps_pack(1:pfull)=pack(ps,.not.land)
@@ -404,9 +403,11 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       implicit none
 
       include 'const_phys.h'
+      include 'establ.h'
+      include 'parm.h'
 
       integer, intent(in) :: pfull
-      integer ic
+      integer ic,iq
       real, dimension(pfull), intent(out) :: qscrn,tscrn,uscrn,u10
       real, dimension(pfull), intent(out) :: rhscrn
       real, dimension(pfull), intent(in) :: zo,zoh,stemp,temp,umag
@@ -417,7 +418,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       real, dimension(pfull) :: ustar,qstar,z10_on_l
       real, dimension(pfull) :: neutral,neutral10,pm10
       real, dimension(pfull) :: integralm10
-      real, dimension(pfull) :: esat,qsat,tstar,umagn
+      real, dimension(pfull) :: esatb,qsatb,tstar,umagn
       real, intent(in) :: zmin,sig
       real scrp
       integer, parameter ::  nc     = 5
@@ -519,14 +520,12 @@ c-------Beljaars and Holtslag (1991) heat function
       endwhere
       tscrn = temp-tstar*integralh/vkar
       qscrn = mixr-qstar*integralh/vkar
-      qscrn = max(qscrn,1.E-4)
-      where (tscrn.ge.273.15)
-        esat = 610.*exp(hl/rvap*(1./273.15-1./tscrn))
-      elsewhere
-        esat = 610.*exp(hls/rvap*(1./273.15-1./tscrn))
-      endwhere
-      qsat = 0.622*esat/(ps-0.378*esat)
-      rhscrn = 100.*min(qscrn/qsat,1.)
+      qscrn = max(qscrn,qgmin)
+      do iq=1,pfull
+        esatb(iq) = establ(tscrn(iq))
+      end do
+      qsatb= .622*esatb/(ps-esatb)
+      rhscrn = 100.*min(qscrn/qsatb,1.)
       
       uscrn=max(umagn-ustar*integralm/vkar,0.)
       u10  =max(umagn-ustar*integralm10/vkar,0.)
@@ -554,14 +553,12 @@ c-------Beljaars and Holtslag (1991) heat function
       include 'parm.h'
       
       integer iq
-      real es,ztv
-      real, dimension(ifull) :: zoh,umag
+      real es
+      real, dimension(ifull) :: umag
       real, dimension(ifull) :: ou,ov,atu,atv,iu,iv
       real, parameter :: vkar = 0.4
       
-      ztv=exp(vkar/sqrt(chn10))/10.
       ps(1:ifull)=1.E5*exp(psl(1:ifull))
-      zoh=zo/(factch*factch)
       ou=0.
       ov=0.
       if (nmlo.ne.0) then

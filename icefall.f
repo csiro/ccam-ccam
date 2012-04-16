@@ -108,6 +108,8 @@ c     real qaggi(ln2,nl)
       real rica(ln2)
       real slopes(ln2,nl)
       real vi2(ln2,nl)
+      real mxclfr(ln2)
+      real rdclfr(ln2)
 
       integer k,mg,ntest
 
@@ -313,8 +315,8 @@ c Define the rate constant for sublimation of snow, omitting factor rhoi
 c Set up the parameters for the flux-divergence calculation
 
           alph=delt*vi2(mg,k)/dz(mg,k)
-          fout(mg,k)=1-exp(-alph) !analytical
-          fthru(mg,k)=1-fout(mg,k)/alph !analytical
+          fout(mg,k)=1.-exp(-alph) !analytical
+          fthru(mg,k)=1.-fout(mg,k)/alph !analytical
 c         alpha1(mg,k)=1.e-3*exp(0.025*(ttg(mg,k)-tfrz))
         enddo
       enddo
@@ -331,6 +333,9 @@ c         pqfsed(mg,nlp-k)=fout(mg,k)*qfg(mg,k)/tdt
         pqfsed(mg,1)=0.
       enddo
 
+      ! The following has been modified to track the random overlap rain fraction (rdclfr)
+      ! and the max overlap rain fraction (mxclfr) so than both random overlaped and
+      ! max/random overlaped clouds are supported - MJT
 
 c      do nt=1,njumps !Need njumps=1 for new code
 
@@ -341,6 +346,8 @@ c Assume no cloud at top level
           cifra(mg)=0.
           rica(mg)=0.
           pfstay(mg,1)=0.
+          mxclfr(mg)=0. ! max overlap rain fraction
+          rdclfr(mg)=0. ! rnd overlap rain fraction
         enddo
 
 c Now work down through the levels...
@@ -353,30 +360,40 @@ c Now work down through the levels...
             caccr=0.
             dqf=0.
 
+            ! The following flag detects max/random overlap clouds
+            ! that are separated by a clear layer
+            if (cifr(mg,k).eq.0..or.nmr.eq.0) then
+              ! combine max overlap from last cloud with net random overlap
+              rdclfr(mg)=rdclfr(mg)+mxclfr(mg)-rdclfr(mg)*mxclfr(mg)
+              mxclfr(mg)=0.
+            end if
+
 c Melt falling ice if > 0 deg C
 
             if(ttg(mg,k)>tfrz.and.fluxice(mg)>0.)then
               qif=fluxice(mg)/(dz(mg,k)*rhoa(mg,k))      !Mixing ratio of ice
               dttg=-hlfcp*qif
               ttg(mg,k)=ttg(mg,k)+dttg
-              qsg(mg,k)=qsg(mg,k) + gam(mg,k)*dttg/hlscp
+              qsg(mg,k)=qsg(mg,k)+gam(mg,k)*dttg/hlscp
               fluxm(mg,k)=fluxm(mg,k)+fluxice(mg)
               cfmelt(mg,k)=cifra(mg)
               fluxice(mg)=0.
               cifra(mg)=0.
+              rdclfr(mg)=0.
+              mxclfr(mg)=0.
             endif
 
 
 c Compute the sublimation of ice falling from level k+1 into level k
 
+            fsclr=(1.-cifr(mg,k)-clfr(mg,k))*fluxice(mg)
             if(fluxice(mg)>0.and.qtg(mg,k)<qsg(mg,k))then ! sublime snow
 
               Csb=Csbsav(mg,k)*fluxice(mg)/delt !LDR
-              bf=1+0.5*Csb*delt*(1+gam(mg,k))
+              bf=1.+0.5*Csb*delt*(1.+gam(mg,k))
               dqs=max(0.,delt*(Csb/bf)*(qsg(mg,k)-qtg(mg,k)))
-              dqs=min(dqs,(qsg(mg,k)-qtg(mg,k))/(1+gam(mg,k))) !Don't supersat.
+              dqs=min(dqs,(qsg(mg,k)-qtg(mg,k))/(1.+gam(mg,k))) !Don't supersat.
 
-              fsclr=(1-cifr(mg,k)-clfr(mg,k))*fluxice(mg)
               sublflux=min(dqs*rhoa(mg,k)*dz(mg,k),fsclr)
               fluxice(mg)=fluxice(mg)-sublflux
               fsclr=fsclr-sublflux
@@ -385,12 +402,12 @@ c Compute the sublimation of ice falling from level k+1 into level k
               qtg(mg,k)=qtg(mg,k)+dqs
               dttg=-hlscp*dqs
               ttg(mg,k)=ttg(mg,k)+dttg
-              qsg(mg,k)=qsg(mg,k) + gam(mg,k)*dttg/hlscp
+              qsg(mg,k)=qsg(mg,k)+gam(mg,k)*dttg/hlscp
             endif
 
 c Save this for the wet deposition scheme.
 
-            pfstay(mg,nlp-k)=fluxice(mg)*(1-fthru(mg,k))/tdt !Flux staying in layer k
+            pfstay(mg,nlp-k)=fluxice(mg)*(1.-fthru(mg,k))/tdt !Flux staying in layer k
 
 c Accretion of cloud water by falling ice
 c This calculation uses the incoming fluxice without subtracting sublimation
@@ -398,8 +415,8 @@ c (since subl occurs only outside cloud), so add sublflux back to fluxice.
             
             if(fluxice(mg)+sublflux>0.and.qlg(mg,k)>0.)then
               ql=qlg(mg,k)
-              cdt=Eac*slopes(mg,k)*(fluxice(mg)+sublflux)/(2*rhosno)
-              dqf=min(ql,cifra(mg)*ql,ql*cdt/(1+0.5*cdt))
+              cdt=Eac*slopes(mg,k)*(fluxice(mg)+sublflux)/(2.*rhosno)
+              dqf=min(ql,cifra(mg)*ql,ql*cdt/(1.+0.5*cdt))
 
               clfr(mg,k)=clfr(mg,k)*(1.-dqf/qlg(mg,k))
               caccr=clfr(mg,k)*dqf/qlg(mg,k)
@@ -408,17 +425,18 @@ c (since subl occurs only outside cloud), so add sublflux back to fluxice.
               fluxice(mg)=fluxice(mg)+rhoa(mg,k)*dz(mg,k)*dqf
               dttg=hlfcp*dqf
               ttg(mg,k)=ttg(mg,k)+dttg
-              qsg(mg,k)=qsg(mg,k) + gam(mg,k)*dttg/hlscp
-
+              qsg(mg,k)=qsg(mg,k)+gam(mg,k)*dttg/hlscp
             endif
 
 
-            if(fsclr==0.)then
-              cifra(mg)=max(0.01,cifr(mg,k)+caccr)
-            else
-              ci=cifr(mg,k)+caccr
-              cifra(mg)=max(0.01,ci+cifra(mg)-ci*cifra(mg))
-            endif
+            if(fsclr.lt.1.E-15)then
+              rdclfr(mg)=0.
+              mxclfr(mg)=0.
+            end if
+            ci=cifr(mg,k)+caccr
+            mxclfr(mg)=max(mxclfr(mg),ci) !max overlap
+            cifra(mg)=max(0.01,
+     &        mxclfr(mg)+rdclfr(mg)-mxclfr(mg)*rdclfr(mg)) !rnd overlap the mx and rd ice fractions
 
 
 c Compute fluxes into the box
@@ -479,8 +497,8 @@ c End of Kessler-type formulation
 c Update the rhoi and cifr fields
 
             cifr(mg,k)=min(1.-clfr(mg,k),
-     &                (cifr(mg,k)-cffluxout) + cffluxin*(1-fthru(mg,k)))
-            rhoi(mg,k)=(rhoi(mg,k)-rhoiout) + rhoiin*(1-fthru(mg,k))
+     &                (cifr(mg,k)-cffluxout)+cffluxin*(1-fthru(mg,k)))
+            rhoi(mg,k)=(rhoi(mg,k)-rhoiout)+rhoiin*(1-fthru(mg,k))
             fluxice(mg)=rhoiout*dz(mg,k)+fluxice(mg)*fthru(mg,k) 
 c Now fluxice is flux leaving layer k
             fluxi(mg,k)=fluxi(mg,k)+fluxice(mg)

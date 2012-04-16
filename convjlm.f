@@ -13,6 +13,7 @@
       use liqwpar_m  ! ifullw
       use map_m
       use morepbl_m
+      use nharrs_m, only : phi_nh
       use prec_m
       use sigs_m
       use soil_m
@@ -64,10 +65,9 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       include 'parm.h'
       integer ktmax(ifull),kbsav_ls(ifull),kb_sav(ifull),kt_sav(ifull)
       integer kmin(ifull),iaero
-      real, allocatable, save, dimension(:) :: alfqarr
-      real, dimension(ifull) :: conrev
-      real, dimension(ifull,kl,naero) :: fscav
-      real, dimension(ifull) :: rho
+      real, dimension(:), allocatable, save :: alfqarr
+      real, dimension(ifull) :: conrev,rho,xtgsto,ttsto,qqsto,qqrain
+      real, dimension(ifull,naero) :: fscav
       logical, dimension(ifull) :: bliqu
       real delq(ifull,kl),dels(ifull,kl),delu(ifull,kl)
       real delv(ifull,kl),dqsdt(ifull,kl),es(ifull,kl) 
@@ -85,8 +85,8 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       real fluxqs,fluxt_k(kl)
       real cfraclim(ifull),convtim(ifull)    
       real, save:: detrainin
-      real, allocatable, dimension(:), save:: timeconv
-      real, allocatable, dimension(:), save :: factnb
+      real, dimension(:), allocatable, save :: timeconv
+      real, dimension(:), allocatable, save :: factnb
       integer, save:: klon2,klon3
       data nuv/0/
       include 'establ.h'
@@ -96,7 +96,7 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
         allocate(alfqarr(ifull))
         allocate(timeconv(ifull))
         allocate(factnb(kl))
-       end if
+      end if
 
       do k=1,kl
        dsk(k)=-dsig(k)    !   dsk = delta sigma (positive)
@@ -182,7 +182,6 @@ c     enddo
       kt_sav(:)=kl-1   ! preset value for no convection
       rnrtcn(:)=0.     ! initialize convective rainfall array (pre convpsav)
       convpsav(:)=0.
-      phi(:,1)=bet(1)*tt(:,1)
       dels(:,:)=1.e-20
       delq(:,:)=0.
       if(nuvconv.ne.0)then 
@@ -192,12 +191,12 @@ c     enddo
         facuv=.1*abs(nuvconv) ! full effect for nuvconv=10
       endif
 
+      phi(:,1)=bet(1)*tt(:,1)
       do k=2,kl
-       do iq=1,ifull
-        phi(iq,k)=phi(iq,k-1)+bet(k)*tt(iq,k)
-     &                      +betm(k)*tt(iq,k-1)
-       enddo     ! iq loop
+        phi(:,k)=phi(:,k-1)+bet(k)*tt(:,k)
+     &                      +betm(k)*tt(:,k-1)
       enddo      ! k  loop
+      phi=phi+phi_nh  ! add non-hydrostatic component - MJT
 
       do k=1,kl   
        do iq=1,ifull
@@ -439,7 +438,6 @@ c      if((ntest>0.or.diag).and.mydiag)then
       qentr(:)=0.
       sentr(:)=0.
       if(entrain>=0.)then
-c       do k=kuocb+2,kl   ! upwards to find cloud top
         do k=kuocb+1,kl   ! upwards to find cloud top
          do iq=1,ifull
           if((kt_sav(iq)==k-1.or.kt_sav(iq)==k).and.k<ktmax(iq))then ! ktmax allows for itn
@@ -513,7 +511,7 @@ c       do k=kuocb+2,kl   ! upwards to find cloud top
          delu(iq,kt_sav(iq))=u(iq,kb_sav(iq))
          delv(iq,kt_sav(iq))=v(iq,kb_sav(iq))
        endif  ! (nuv>0)
-       delq(iq,kt_sav(iq))=entrradd*qsk  
+       delq(iq,kt_sav(iq))=entrradd*qsk
        dels(iq,kt_sav(iq))=dels(iq,kt_sav(iq))+hl*qprec    ! precip. heating
        kdown(iq)=min(kl,kb_sav(iq)+nint(.6+.75*(kt_sav(iq)-kb_sav(iq))))
        if(nkuo>23)then 
@@ -1399,7 +1397,6 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
 
 !     section for convective transport of trace gases (jlm 22/2/01)
       if(ngas>0)then
-!       if(iterconv.ne.1)stop 'need 1 for trace gases' ! should be OK now
         do ntr=1,ngas
          do k=1,kl-2
           do iq=1,ifull
@@ -1426,7 +1423,7 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
       endif      ! (ngas>0)
 
       !--------------------------------------------------------------
-      ! MJT tke
+      ! Convective transport of TKE and eps
       if (nvmix.eq.6) then
         s(:,1:kl-2)=tke(1:ifull,1:kl-2)
         do iq=1,ifull
@@ -1464,6 +1461,46 @@ c          if(iq==idjd)print *,'k,frac ',k,frac
         enddo   ! iq loop        
       end if
       !--------------------------------------------------------------
+
+      !--------------------------------------------------------------
+      ! Convective transport of aerosols
+      if (abs(iaero)==2) then
+        ! This is a simple approximation where all rain is attributed to
+        ! kt_save.  However, rain is actually attributed to kt_save (qprec)
+        ! kdown (fldow(iq)*qsk) and kb_sav (-fldow(iq)*qdown(iq)).
+        do iq=1,ifull
+          kt=min(kt_sav(iq),kl-1)
+          ttsto(iq)=tt(iq,kt)
+          qqsto(iq)=qq(iq,kt)
+          rho(iq)=ps(iq)*sig(kt)/(rdry*ttsto(iq))
+          bliqu(iq)=ttsto(iq).ge.253.16
+          qqrain(iq)=qqsto(iq)+convpsav(iq)*rnrtcn(iq)
+          xtgsto(iq)=xtg(iq,kt,3)
+        end do
+        call convscav(fscav,qqsto,qqrain,bliqu,ttsto,xtgsto,rho)
+        do ntr=1,naero
+          s(:,1:kl-2)=xtg(1:ifull,1:kl-2,ntr)
+          do iq=1,ifull
+           if(kt_sav(iq)<kl-1)then
+             kb=kb_sav(iq)
+             kt=kt_sav(iq)
+             veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
+             fluxup=veldt*s(iq,kb)
+!            remove aerosol from lower layer
+             xtg(iq,kb,ntr)=xtg(iq,kb,ntr)-fluxup/dsk(kb)
+!            put flux of aerosol into upper layer
+             xtg(iq,kt,ntr)=xtg(iq,kt,ntr)+fluxup* 
+     &                       (1.-fscav(iq,ntr))/dsk(kt)
+             do k=kb+1,kt
+              xtg(iq,k,ntr)=xtg(iq,k,ntr)-s(iq,k)*veldt/dsk(k)
+              xtg(iq,k-1,ntr)=xtg(iq,k-1,ntr)+s(iq,k)*veldt/dsk(k-1)
+             enddo
+           endif
+          enddo   ! iq loop
+        end do
+      end if
+      !--------------------------------------------------------------
+
       
       if((ntest>0.or.diag).and.mydiag)then
         iq=idjd
@@ -1518,45 +1555,6 @@ c     if(ktau<=3.and.nmaxpr==1.and.mydiag)then
       qliqw(1:ifull,k)=factr(:)*qliqw(1:ifull,k)      
       tt(1:ifull,k)= t(1:ifull,k)+factr(:)*(tt(1:ifull,k)- t(1:ifull,k))
       enddo
-
-      !--------------------------------------------------------------
-      ! MJT aerosols
-      if (abs(iaero)==2) then
-        xtusav=0.
-        ! currently fscav is 0. because only qg is converted to qliqw.
-        ! qlg can only increase.
-        do k=1,kl
-          rho=ps(1:ifull)*sig(k)/(rdry*tt(:,k))
-          bliqu=tt(:,k).ge.253.16
-          call convscav(fscav(:,k,:),qlg(1:ifull,k)+qliqw(:,k),
-     &                  qlg(1:ifull,k),bliqu,tt(:,k),xtg(1:ifull,k,3),
-     &                  rho)
-        end do
-        do ntr=1,naero
-          s(:,1:kl-2)=xtg(1:ifull,1:kl-2,ntr)
-          do iq=1,ifull
-           if(kt_sav(iq)<kl-1)then
-             kb=kb_sav(iq)
-             kt=kt_sav(iq)
-             veldt=factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
-             fluxup=veldt*s(iq,kb)
-             do k=kb,kt-1                                          ! MJT suggestion
-!              remove aerosol from lower layer
-               xtg(iq,k,ntr)=xtg(iq,k,ntr)-fluxup/dsk(k)
-!              put flux of aerosol into upper layer
-               xtg(iq,k+1,ntr)=xtg(iq,k+1,ntr)+fluxup* 
-     &                       (1.-fscav(iq,k,ntr))/dsk(k+1)         ! MJT suggestion
-             end do
-             xtusav(iq,:,ntr)=xtg(iq,:,ntr) ! MJT suggestion
-             do k=kb+1,kt
-              xtg(iq,k,ntr)=xtg(iq,k,ntr)-s(iq,k)*veldt/dsk(k)
-              xtg(iq,k-1,ntr)=xtg(iq,k-1,ntr)+s(iq,k)*veldt/dsk(k-1)
-             enddo
-           endif
-          enddo   ! iq loop
-        end do
-      end if
-      !--------------------------------------------------------------
 
 !     update qq, tt for evap of qliqw (qliqw arose from moistening)
       if(ldr.ne.0)then
@@ -1696,6 +1694,7 @@ c           if(evapls>0.)print *,'iq,k,evapls ',iq,k,evapls
       condc(:)=.001*dt*rnrtc(:)      ! convective precip for this timestep
       precc(:)=precc(:)+condc(:)        
       condx(:)=condc(:)+.001*dt*rnrt(:) ! total precip for this timestep
+      conds(:)=0.
       precip(:)=precip(:)+condx(:)      
       t(1:ifull,:)=tt(1:ifull,:)             
 

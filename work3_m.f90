@@ -3,30 +3,26 @@ module work3_m
 implicit none
 
 private
-public egg,evapxf,ewww,fgf
-public fgg,ggflux,rdg,rgg,residf
-public ga,condxpr,fev,fes
-public ism,fwtop,af,extin
+public ga,condxpr,fes
+public fwtop
 public work3_init,work3_end
 
-real, dimension(:), allocatable, save :: egg,evapxf,ewww,fgf
-real, dimension(:), allocatable, save :: fgg,ggflux,rdg,rgg,residf
-real, dimension(:), allocatable, save :: ga,condxpr,fev,fes
-real, dimension(:), allocatable, save :: fwtop,af,extin
-integer, dimension(:), allocatable, save :: ism
+real, dimension(:), allocatable, save :: ga,condxpr,fes
+real, dimension(:), allocatable, save :: fwtop
 
 contains
 
-subroutine work3_init(ifull,iextra,kl)
+subroutine work3_init(ifull,iextra,kl,nsib)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull,iextra,kl,nsib
 
-allocate(egg(ifull),evapxf(ifull),ewww(ifull),fgf(ifull))
-allocate(fgg(ifull),ggflux(ifull),rdg(ifull),rgg(ifull),residf(ifull))
-allocate(ga(ifull),condxpr(ifull),fev(ifull),fes(ifull))
-allocate(ism(ifull),fwtop(ifull),af(ifull),extin(ifull))
+allocate(ga(ifull))
+if (nsib.eq.3.or.nsib.eq.5) then
+  allocate(condxpr(ifull),fes(ifull))
+  allocate(fwtop(ifull))
+end if
 
 return
 end subroutine work3_init
@@ -35,10 +31,11 @@ subroutine work3_end
 
 implicit none
 
-deallocate(egg,evapxf,ewww,fgf)
-deallocate(fgg,ggflux,rdg,rgg,residf)
-deallocate(ga,condxpr,fev,fes)
-deallocate(ism,fwtop,af,extin)
+deallocate(ga)
+if (allocated(condxpr)) then
+  deallocate(condxpr,fes)
+  deallocate(fwtop)
+end if
 
 return
 end subroutine work3_end

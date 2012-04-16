@@ -3,32 +3,36 @@ module work2_m
 implicit none
 
 private
-public dirad,dfgdt,degdt,wetfac,degdw,cie
-public factch,qsttg,rho,zo,aft,fh,ri,theta
-public gamm,rg,vmod,dgdtg
+public zoh,qsttg,wetfac
+public rho,zo,theta
+public vmod,dgdtg
 public work2_init,work2_end
 
-real, dimension(:), allocatable, save :: dirad,dfgdt,degdt,wetfac,degdw,cie
-real, dimension(:), allocatable, save :: factch,qsttg,rho,zo,aft,fh,ri,theta
-real, dimension(:), allocatable, save :: gamm,rg,vmod,dgdtg
+real, dimension(:), allocatable, save :: zoh,qsttg,wetfac
+real, dimension(:), allocatable, save :: rho,zo,theta
+real, dimension(:), allocatable, save :: vmod,dgdtg
 
 contains
 
-subroutine work2_init(ifull,iextra,kl)
+subroutine work2_init(ifull,iextra,kl,nsib)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull,iextra,kl,nsib
 
-allocate(dirad(ifull),dfgdt(ifull),degdt(ifull),wetfac(ifull),degdw(ifull),cie(ifull))
-allocate(factch(ifull),qsttg(ifull),rho(ifull),zo(ifull),aft(ifull),fh(ifull),ri(ifull),theta(ifull))
-allocate(gamm(ifull),rg(ifull),vmod(ifull),dgdtg(ifull))
-wetfac=0.
+allocate(zoh(ifull),qsttg(ifull),wetfac(ifull))
+allocate(rho(ifull),zo(ifull),theta(ifull))
+allocate(vmod(ifull))
 rho=1.
 zo=0.
-gamm=0.
-rg=0.
+zoh=0.
 vmod=0.
+qsttg=0.
+wetfac=0.
+if (nsib.eq.3.or.nsib.eq.5) then
+  allocate(dgdtg(ifull))
+  dgdtg=0.
+end if
 
 return
 end subroutine work2_init
@@ -37,9 +41,12 @@ subroutine work2_end
 
 implicit none
 
-deallocate(dirad,dfgdt,degdt,wetfac,degdw,cie)
-deallocate(factch,qsttg,rho,zo,aft,fh,ri,theta)
-deallocate(gamm,rg,vmod,dgdtg)
+deallocate(zoh,qsttg,wetfac)
+deallocate(rho,zo,theta)
+deallocate(vmod)
+if (allocated(dgdtg)) then
+  deallocate(dgdtg)
+end if
 
 return
 end subroutine work2_end

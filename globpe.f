@@ -620,7 +620,7 @@
       allocate(speed(ifull,kl))
       allocate(spmean(kl),div(kl))
       call arrays_init(ifull,iextra,kl)
-      call carbpools_init(ifull,iextra,kl)
+      call carbpools_init(ifull,iextra,kl,nsib)
       call cfrac_init(ifull,iextra,kl)
       call dpsdt_init(ifull,iextra,kl)
       call epst_init(ifull,iextra,kl)
@@ -632,7 +632,7 @@
       call nlin_init(ifull,iextra,kl)
       call morepbl_init(ifull,iextra,kl)
       call nharrs_init(ifull,iextra,kl)
-      call nsibd_init(ifull,iextra,kl)
+      call nsibd_init(ifull,iextra,kl,nsib,nurban)
       call parmhdff_init(ifull,iextra,kl)
       call pbl_init(ifull,iextra,kl)
       call permsurf_init(ifull,iextra,kl)
@@ -643,16 +643,16 @@
       call sbar_init(ifull,iextra,kl)
       call screen_init(ifull,iextra,kl)
       call sigs_init(ifull,iextra,kl)
-      call soil_init(ifull,iextra,kl)
-      call soilsnow_init(ifull,iextra,kl,ms)
+      call soil_init(ifull,iextra,kl,nrad,nsib)
+      call soilsnow_init(ifull,iextra,kl,ms,nsib)
       call tbar2d_init(ifull,iextra,kl)
       call unn_init(ifull,iextra,kl)
       call uvbar_init(ifull,iextra,kl)
       call vecs_init(ifull,iextra,kl)
       call vegpar_init(ifull,iextra,kl)
       call vvel_init(ifull,iextra,kl)
-      call work2_init(ifull,iextra,kl)
-      call work3_init(ifull,iextra,kl)
+      call work2_init(ifull,iextra,kl,nsib)
+      call work3_init(ifull,iextra,kl,nsib)
       call work3f_init(ifull,iextra,kl)
       call xarrs_init(ifull,iextra,kl)
       if (nvmix.eq.6) then
@@ -1211,7 +1211,7 @@
       end if
       select case(ldr)
         case(-2,-1,1,2)
-          call leoncld(cfrac,iaero) ! LDR microphysics scheme
+          call leoncld(cfrac,cffall,iaero) ! LDR microphysics scheme
       end select
       do k=1,kl
        riwp_ave(:)=riwp_ave(:)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path
@@ -1273,8 +1273,6 @@
       end if
 
       ! HELD & SUAREZ ---------------------------------------------------------
-      egg(:)=0.   ! reset for fort.60 files
-      fgg(:)=0.   ! reset for fort.60 files
       if (ntsur<=1.or.nhstest==2) then ! Held & Suarez or no surf fluxes
        eg(:)=0.
        fg(:)=0.
@@ -1318,13 +1316,10 @@
          isoil = isoilm(idjd)
          write(6,*) 'land,isoil,ivegt,isflag ',
      &          land(idjd),isoil,ivegt(idjd),isflag(idjd)
-         write (6,"('snage,snowd,osnowd,alb,tsigmf   ',f8.4,4f8.2)")
-     &      snage(idjd),snowd(idjd),osnowd(idjd),albvisnir(idjd,1),
-     &      tsigmf(idjd)
+         write (6,"('snage,snowd,alb   ',f8.4,2f8.2)")
+     &      snage(idjd),snowd(idjd),albvisnir(idjd,1)
          write (6,"('sicedep,fracice,runoff ',3f8.2)")
      &            sicedep(idjd),fracice(idjd),runoff(idjd)
-         write (6,"('t1,otgsoil,theta,fev,fgf   ',9f8.2)") 
-     &        t(idjd,1),otgsoil(idjd),theta(idjd),fev(idjd),fgf(idjd)
          write (6,"('tgg(1-6)   ',9f8.2)") (tgg(idjd,k),k=1,6)
          write (6,"('tggsn(1-3) ',9f8.2)") (tggsn(idjd,k),k=1,3)
          write (6,"('wb(1-6)    ',9f8.3)") (wb(idjd,k),k=1,6)
@@ -1349,23 +1344,20 @@
          write (6,"('wetfac,sno,evap,precc,precip',
      &      6f8.2)") wetfac(idjd),sno(idjd),evap(idjd),precc(idjd),
      &      precip(idjd)
-         write (6,"('tmin,tmax,tscr,tss,tgf,tpan',9f8.2)")
+         write (6,"('tmin,tmax,tscr,tss,tpan',9f8.2)")
      &      tminscr(idjd),tmaxscr(idjd),tscrn(idjd),tss(idjd),
-     &      tgf(idjd),tpan(idjd)
+     &      tpan(idjd)
          write (6,"('u10,ustar,pblh',9f8.2)")
      &      u10(idjd),ustar(idjd),pblh(idjd)
-         write (6,"('rgg,rdg,sgflux,div_int,ps,qgscrn',5f8.2,f8.3)")
-     &      rgg(idjd),rdg(idjd),sgflux(idjd),
+         write (6,"('div_int,ps,qgscrn',5f8.2,f8.3)")
      &      div_int,.01*ps(idjd),1000.*qgscrn(idjd)
          write (6,"('dew_,eg_,epot,epan,eg,fg,ga',9f8.2)") 
      &      dew_ave(idjd),eg_ave(idjd),epot(idjd),epan(idjd),eg(idjd),
      &      fg(idjd),ga(idjd)
-         write (6,"('degdt,gflux,dgdtg,zo,cduv', 
-     &      f7.2,2f8.2,2f8.5)") degdt(idjd),
-     &      gflux(idjd),dgdtg(idjd),zo(idjd),cduv(idjd)/vmod(idjd)
-         rlwup=(1.-tsigmf(idjd))*rgg(idjd)+tsigmf(idjd)*rdg(idjd)
-         write (6,"('slwa,rlwup,sint,sg,rt,rg    ',9f8.2)") 
-     &      slwa(idjd),rlwup,sintsave(idjd),sgsave(idjd),
+         write (6,"('zo,cduv', 
+     &      2f8.5)") zo(idjd),cduv(idjd)/vmod(idjd)
+         write (6,"('slwa,sint,sg,rt,rg    ',9f8.2)") 
+     &      slwa(idjd),sintsave(idjd),sgsave(idjd),
      &      rtsave(idjd),rgsave(idjd)
          write (6,"('cll,clm,clh,clt ',9f8.2)") 
      &      cloudlo(idjd),cloudmi(idjd),cloudhi(idjd),cloudtot(idjd)
@@ -1499,14 +1491,12 @@
         call maxmin(wb,'wb',ktau,1.,ms)
         call maxmin(tggsn,'tggsn',ktau,1.,3)
         call maxmin(tgg,'tg',ktau,1.,ms)
-        call maxmin(tgf,'tf',ktau,1.,ms)
         call maxmin(tss,'ts',ktau,1.,1)
         call maxmin(pblh,'pb',ktau,1.,1)
         call maxmin(precip,'pr',ktau,1.,1)
         call maxmin(precc,'pc',ktau,1.,1)
         call maxmin(convpsav,'co',ktau,1.,1)
         call maxmin(sno,'sn',ktau,1.,1)        ! as mm during timestep
-        call maxmin(snowflx,'sm',ktau,1.,1)    ! snow melt flux
         call maxmin(rhscrn,'rh',ktau,1.,1)
         call maxmin(ps,'ps',ktau,.01,1)
         psavge=0.
@@ -1560,7 +1550,7 @@
             write(6,92) ktau,(sdot(idjd,k),k=kl-8,kl)
  92         format(i7,' sdot',9f7.3)
           endif                ! (t(idjd,kl)>258.)
-        end if                  ! myid==0
+        end if                 ! myid==0
       endif      ! (mod(ktau,nmaxpr)==0)
 
 !     update diag_averages and daily max and min screen temps 
@@ -2202,6 +2192,7 @@ c     stuff from insoil  for soilv.h
       use soilsnow_m         ! Soil, snow and surface data
       use tracers_m          ! Tracer data
       use vecsuv_m           ! Map to cartesian coordinates
+      use vegpar_m           ! Vegetation arrays
       use work2_m            ! Diagnostic arrays
       use work3_m            ! Mk3 land-surface diagnostic arrays
       use xyzinfo_m          ! Grid coordinate arrays
@@ -2260,12 +2251,11 @@ c     stuff from insoil  for soilv.h
         k2=min(2,klt)
         write (iunp(nn),951) ktau,tscrn(iq)-273.16,rnd_3hr(iq,8),
      &         tss(iq)-273.16,tgg(iq,1)-273.16,tgg(iq,2)-273.16,
-     &         tgg(iq,3)-273.16,t(iq,1)-273.16,tgf(iq)-273.16,
+     &         tgg(iq,3)-273.16,t(iq,1)-273.16,0.,
      &         wb(iq,1),wb(iq,2),
      &         cloudlo(iq),cloudmi(iq)+1.,cloudhi(iq)+2.,
      &         cloudtot(iq)+3.,
-     &         fg(iq),eg(iq),(1.-tsigmf(iq))*fgg(iq),
-     &         (1.-tsigmf(iq))*egg(iq),rnet(iq),sgsave(iq),
+     &         fg(iq),eg(iq),0.,rnet(iq),sgsave(iq),
      &         qg(iq,1)*1.e3,uzon,vmer,precc(iq),
      &         qg(iq,2)*1.e3,rh1,rh2,0.,0.,
      &         0.,0.,.01*ps(iq),wbav,
@@ -2291,7 +2281,7 @@ c     stuff from insoil  for soilv.h
 953       format("# land,isoilm,ivegt,zo,zs/g: ",l2,2i3,2f9.3)
           isoil=max(1,isoilm(iq))
           write (iunp(nn),954) sigmf(iq),swilt(isoil),sfc(isoil),
-     &                         ssat(isoil),albvisnir(iq,1) ! MJT albedo
+     &                         ssat(isoil),0.5*sum(albvisnir(iq,:))
 954       format("#sigmf,swilt,sfc,ssat,alb: ",5f7.3)
         endif
       enddo

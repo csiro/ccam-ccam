@@ -164,7 +164,7 @@
         if(abs(io_in)==1)then
           call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
-     &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,
+     &                 dumg,dumg,dumg,duma,dumv,dumv,dumv,dums,dums,
      &                 dums,duma,duma,dumm,iaero,sssb,ocndep)
         else
           write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
@@ -360,7 +360,7 @@
         if (abs(io_in)==1) then
           call onthefly(1,kdate_r,ktime_r,
      &                 pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb, 
-     &                 dumg,dumg,dumg,duma,dumv,dumv,dums,dums,
+     &                 dumg,dumg,dumg,duma,dumv,dumv,dumv,dums,dums,
      &                 dums,duma,duma,dumm,iaero,sssb,ocndep)
         else
           write(6,*) 'ERROR: Scale-selective filter requires ',
@@ -412,19 +412,19 @@
         if(nmaxpr==1.and.mydiag)then
           write(6,*) 'zs (idjd) :',zs(idjd)
           write(6,*) 'zsb (idjd) :',zsb(idjd)
-          write (6,"('100*psl.wesn ',2p5f8.3)") psl(idjd),
-     &           psl(iw(idjd)),psl(ie(idjd)),psl(is(idjd)),psl(in(idjd))
-          write (6,"('ps.wesn ',-2p5f9.3)") ps(idjd),
-     &          ps(iw(idjd)),ps(ie(idjd)),ps(is(idjd)),ps(in(idjd))
+!          write (6,"('100*psl.wesn ',2p5f8.3)") psl(idjd),
+!     &           psl(iw(idjd)),psl(ie(idjd)),psl(is(idjd)),psl(in(idjd))
+!          write (6,"('ps.wesn ',-2p5f9.3)") ps(idjd),
+!     &          ps(iw(idjd)),ps(ie(idjd)),ps(is(idjd)),ps(in(idjd))
           write(6,*) 'pslb in(idjd) :',pslb(idjd)
           write(6,*) 
      &     'call retopo from nestin; psl# prints refer to pslb'
         endif
         call retopo(pslb,zsb,zs(1:ifull),tb,qb)
-        if(nmaxpr==1.and.mydiag)then
-           write (6,"('100*pslb.wesn ',2p5f8.3)") pslb(idjd),
-     &       pslb(iw(idjd)),pslb(ie(idjd)),pslb(is(idjd)),pslb(in(idjd))
-        endif
+!        if(nmaxpr==1.and.mydiag)then
+!           write (6,"('100*pslb.wesn ',2p5f8.3)") pslb(idjd),
+!     &       pslb(iw(idjd)),pslb(ie(idjd)),pslb(is(idjd)),pslb(in(idjd))
+!        endif
 
 !       ensure qb big enough, but not too big in top levels (from Sept '04)
         qb(1:ifull,:)=max(qb(1:ifull,:),qgmin)

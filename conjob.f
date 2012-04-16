@@ -858,6 +858,7 @@ c    .             rnrt(idjd),rnrtc(idjd),condx(idjd)
          precc(iq)=precc(iq)+prcon
          prl_s= .001*dt*rnrt(iq)
          condx(iq)=prcon+prl_s        ! total precip for this timestep
+         conds(iq)=0.
          precip(iq)=precip(iq)+prcon+prl_s
         enddo
         t(1:ifull,:)=tt(:,:)           ! usually split from June '03
