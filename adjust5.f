@@ -634,9 +634,12 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
       if(mfix_qg.ne.0.and.mspec==1.and.ldr.ne.0)then
         qfg=max(qfg,0.)
         qlg=max(qlg,0.)
+        qrg=max(qrg,0.)
         call massfix(mfix_qg,qfg(1:ifull,:),qfgsav(1:ifull,:),
      &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
         call massfix(mfix_qg,qlg(1:ifull,:),qlgsav(1:ifull,:),
+     &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
+        call massfix(mfix_qg,qrg(1:ifull,:),qrgsav(1:ifull,:),
      &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
       endif      !  (mfix_qg.ne0.and.mspec==1.and.ldr.ne.0)
 

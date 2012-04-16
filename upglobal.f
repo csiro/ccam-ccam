@@ -2,6 +2,7 @@
       use aerosolldr
       use arrays_m
       use cc_mpi
+      use cfrac_m
       use diag_m
       use epst_m
       use indices_m
@@ -372,6 +373,8 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
           if(ldr.ne.0)then
              call ints(qlg,intsch,nface,xg,yg,4)
              call ints(qfg,intsch,nface,xg,yg,4)
+             call ints(qrg,intsch,nface,xg,yg,4)
+             call ints(cffall,intsch,nface,xg,yg,4)
           endif                 ! ldr.ne.0
           if(ngas>0.or.nextout>=4)then
 	     if(nmaxpr==1.and.mydiag)then

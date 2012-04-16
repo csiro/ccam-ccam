@@ -947,6 +947,14 @@ c       now do qlg
         rhs(1:ifull,:)=qlg(1:ifull,:)
         call trim(at,ct,rhs,0)    ! for qlg
         qlg(1:ifull,:)=rhs(1:ifull,:)
+c       now do qrg
+        rhs(1:ifull,:)=qrg(1:ifull,:)
+        call trim(at,ct,rhs,0)    ! for qrg
+        qrg(1:ifull,:)=rhs(1:ifull,:)
+c       now do cffall
+        rhs(1:ifull,:)=cffall(1:ifull,:)
+        call trim(at,ct,rhs,0)    ! for cffall
+        cffall(1:ifull,:)=rhs(1:ifull,:)
       endif    ! (ldr.ne.0)
 
       !--------------------------------------------------------------

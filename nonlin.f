@@ -65,6 +65,7 @@
       if(ldr.ne.0)then
         qfgsav(1:ifull,:)=qfg(1:ifull,:)
         qlgsav(1:ifull,:)=qlg(1:ifull,:)
+        qrgsav(1:ifull,:)=qrg(1:ifull,:)
       endif   ! (ldr.ne.0)
 
       if(ngas>=1)then
