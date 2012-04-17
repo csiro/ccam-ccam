@@ -2255,7 +2255,7 @@ c     stuff from insoil  for soilv.h
      &         wb(iq,1),wb(iq,2),
      &         cloudlo(iq),cloudmi(iq)+1.,cloudhi(iq)+2.,
      &         cloudtot(iq)+3.,
-     &         fg(iq),eg(iq),0.,rnet(iq),sgsave(iq),
+     &         fg(iq),eg(iq),0.,0.,rnet(iq),sgsave(iq),
      &         qg(iq,1)*1.e3,uzon,vmer,precc(iq),
      &         qg(iq,2)*1.e3,rh1,rh2,0.,0.,
      &         0.,0.,.01*ps(iq),wbav,
