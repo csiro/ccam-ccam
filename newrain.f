@@ -540,11 +540,11 @@ c Re-create qrg field
       qrg(1:ifull,nl)=0.
       do k=1,nl-1
         do mg=1,ln2
-          qrg(mg,k)=rhor(mg,k)/rhoa(mg,k)
-          if(qrg(mg,k)<0.)then
-            print *,'k,mg,lg,qrg_rhor ',k,mg,qrg(mg,k)
-            stop
-          endif
+          qrg(mg,k)=max(rhor(mg,k)/rhoa(mg,k),0.)
+          !if(qrg(mg,k)<0.)then
+          !  print *,'k,mg,lg,qrg_rhor ',k,mg,qrg(mg,k)
+          !  stop
+          !endif
         enddo
       enddo
 
