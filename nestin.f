@@ -2412,7 +2412,7 @@ c        write(6,*) 'n,n1,dist,wt,wt1 ',n,n1,dist,wt,wt1
         end do
         if (myid.eq.0) then
           call ccmpi_gather(diff(:,1:kd),diffv_g(:,1:kd))
-          do k=1,kl
+          do k=1,kd
             x_g=diffu_g(:,k)
             xx_g=diffv_g(:,k)
             diffu_g(:,k)=ax_g*x_g+bx_g*xx_g
