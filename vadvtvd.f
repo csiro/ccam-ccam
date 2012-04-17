@@ -14,7 +14,22 @@ c                              vadvbott & vadvyu at bottom
       use tracers_m
       use vvel_m
       use xarrs_m
+      implicit none
       include 'newmpar.h'
+c     split vertical advection routine; tvd scheme; used with nonlin or upglobal
+c     In flux limiter, assuming zero gradient for all top and bottom
+c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
+      include 'kuocom.h'     ! also with kbsav,ktsav
+      include 'parm.h'
+      include 'parmdyn.h'
+      include 'parmvert.h' ! nthub,nimp,ntvd
+      real tarr(ifull,kl),uarr(ifull,kl),varr(ifull,kl)
+      real tfact
+      integer num,iaero,nqq,npslx,nvadh_pass
+      integer ntr,k
+      data num/0/
+      save num
+      parameter (npslx=1)  ! 0 off, 1 on for nvad=-4
       parameter (nqq=0)    ! 0 off, 3 possible
 !     parameter (nimp=1)  !  0 for original explicit non-flux TVD term
 !                            1 for implicit non-flux TVD term
@@ -25,19 +40,8 @@ c                              vadvbott & vadvyu at bottom
 !                            2 MC phitvd flux-limiter
 !                            3 superbee flux-limiter
 !                            0 (not available now) was equivalent to van Leer
-c     split vertical advection routine; tvd scheme; used with nonlin or upglobal
-c     In flux limiter, assuming zero gradient for all top and bottom
-c     variables; except extrap at bottom for qg and trace gases  Thu  06-19-1997
-      include 'kuocom.h'     ! also with kbsav,ktsav
-      include 'parm.h'
-      include 'parmdyn.h'
-      include 'parmvert.h' ! nthub,nimp,ntvd
-      real tarr(ifull,kl),uarr(ifull,kl),varr(ifull,kl)
-      integer num,iaero
-      data num/0/
-      save num
 
-      tfact=1./nvadh_pass 
+      tfact=1./real(nvadh_pass)
 
       if(num==0)then
         num=1
@@ -89,7 +93,7 @@ c     pslx
       if(mspec==1.and.abs(nvad).ne.9)then   ! advect qg and gases after preliminary step
 
 c      qg
-       call vadvsub(pslx(1:ifull,:),tfact,nqq)
+       call vadvsub(qg(1:ifull,:),tfact,nqq)
        if( diag .and. mydiag )then
         write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
         write (6,"('qg# ',3p9f8.2)") diagvals(qg(:,nlv)) 

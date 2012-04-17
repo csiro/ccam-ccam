@@ -273,7 +273,7 @@ c     Calculate precipitation and related processes
       call newrain(land,1,dt,fluxc,rhoa,dz,ccrain,prf,cdso4,  !Inputs
      &    cfa,qca,                                            !Inputs
      &    t(1:ifull,:),qlg(1:ifull,:),qfg(1:ifull,:),qrg(1:ifull,:),
-     &    precs,qg(1:ifull,:),cfrac,cffall,ccov, !In and Out
+     &    precs,qg(1:ifull,:),cfrac,cffall(1:ifull,:),ccov, !In and Out
      &    preci,qevap,qsubl,qauto,qcoll,qaccr,fluxr,fluxi,  !Outputs
      &    fluxm,pfstay,pqfsed,slopes,prscav)     !Outputs
       if(nmaxpr==1.and.mydiag)then

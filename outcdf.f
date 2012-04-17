@@ -1647,7 +1647,8 @@ c      "extra" outputs
         !call histwrt4(qsg(1:ifullw,:),'qsg',idnc,iarch,local,.true.)
         !call histwrt4(qgrau(1:ifullw,:),'qgrau',idnc,iarch,local,.true.)
         call histwrt4(cfrac,'cfrac',idnc,iarch,local,.true.)
-        call histwrt4(cffall,'cfrain',idnc,iarch,local,.true.)
+        call histwrt4(cffall(1:ifullw,:),'cfrain',idnc,iarch,local,
+     &                .true.)
       endif
       
       ! TURBULENT MIXING --------------------------------------------

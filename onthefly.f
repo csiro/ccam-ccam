@@ -1439,7 +1439,7 @@ c       incorporate other target land mask effects
              call doints4(ucc,u_k(:,k),nface4,xg4,yg4,nord,dk,ifg)
            end if ! iotest
           enddo  ! k loop
-          call vertint(u_k,cffall,5,kk,sigin)
+          call vertint(u_k,cffall(1:ifull,:),5,kk,sigin)
         end if ! (nested.eq.0)
 
         !--------------------------------------------------

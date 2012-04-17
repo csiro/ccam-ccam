@@ -16,7 +16,7 @@ implicit none
 
 integer, intent(in) :: ifull,iextra,kl
 
-allocate(cfrac(ifull,kl),cffall(ifull,kl))
+allocate(cfrac(ifull,kl),cffall(ifull+iextra,kl))
 cfrac=0.
 cffall=0.
 
