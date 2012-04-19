@@ -12,7 +12,7 @@
       use nlin_m
       use sbar_m
       use sigs_m
-      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
+      use tkeeps, only : tke,eps
       use tracers_m
       use unn_m
       use vecsuv_m

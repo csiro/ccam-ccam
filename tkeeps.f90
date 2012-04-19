@@ -24,13 +24,12 @@ module tkeeps
 implicit none
 
 private
-public tkeinit,tkemix,tkeend,tke,eps,tkesav,epssav,shear
+public tkeinit,tkemix,tkeend,tke,eps,shear
 public mintke,cm0,cq,minl,maxl
 
 integer, save :: ifull,iextra,kl
 real, dimension(:,:), allocatable, save :: shear
 real, dimension(:,:), allocatable, save :: tke,eps
-real, dimension(:,:), allocatable, save :: tkesav,epssav
 
 ! model constants
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
@@ -92,14 +91,11 @@ iextra=iextrain
 kl=klin
 
 allocate(tke(ifull+iextra,kl),eps(ifull+iextra,kl))
-allocate(tkesav(ifull,kl),epssav(ifull,kl))
 allocate(shear(ifull,kl))
 
 cm34=cm0**0.75
 tke=mintke
 eps=cm34*mintke*sqrt(mintke)/minl
-tkesav=tke(1:ifull,:)
-epssav=eps(1:ifull,:)
 shear=0.
 
 return
@@ -391,13 +387,15 @@ if (mode.ne.1) then ! mass flux
           zi(i)=zidry
         end if
 
+        ! update boundary layer height
+        zi(i)=alpha*zi(i)+(1.-alpha)*ziold
+
         ! update surface boundary conditions
         wstar(i)=(grav*zi(i)*wtv0(i)/thetav(i,1))**(1./3.)
         tke(i,1)=cm12*ustar(i)*ustar(i)+ce3*wstar(i)*wstar(i)
         tke(i,1)=max(tke(i,1),mintke)
 
-        ! update boundary layer height
-        zi(i)=alpha*zi(i)+(1.-alpha)*ziold
+        ! check for convergence
         if (abs(zi(i)-ziold).lt.1.) exit
         ziold=zi(i)
       end do
@@ -604,7 +602,6 @@ do k=2,kl-2
   gamhl(:,k)=min(gamhl(:,k),(qg(:,k)-qgmin)*dz_fl(:,k)/dt+gamhl(:,k-1))
   dd(:,k)=qtot(:,k)+dt*(gamhl(:,k-1)-gamhl(:,k))/dz_fl(:,k)
 end do
-gamhl(:,kl-2)=min(gamhl(:,kl-2),(qg(:,kl-1)-qgmin)*dz_fl(:,kl-1)/dt)
 dd(:,kl-1)=qtot(:,kl-1)+dt*gamhl(:,kl-2)/dz_fl(:,kl-1)
 call thomas(qtot(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 
@@ -618,9 +615,6 @@ end do
 
 ! Update diffusion coeffs
 call updatekmo(kmo,km,zz,zzh) ! output sigmh levels
-
-tkesav=tke(1:ifull,:) ! Not needed, but for consistancy when not using CCAM
-epssav=eps(1:ifull,:) ! Not needed, but for consistancy when not using CCAM
 
 return
 end subroutine tkemix
@@ -813,7 +807,6 @@ integer, intent(in) :: diag
 if (diag.gt.0) write(6,*) "Terminate TKE-eps scheme"
 
 deallocate(tke,eps)
-deallocate(tkesav,epssav)
 deallocate(shear)
 
 return

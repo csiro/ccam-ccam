@@ -362,7 +362,7 @@ c Call frozen precipitation routine
 c Add flux of rain due to autoconversion to qrg
           qrg(mg,k)=qrg(mg,k)+fluxa(mg,k)/rhodz
           rhor(mg,k)=qrg(mg,k)*rhoa(mg,k)
-          cfrain(mg,k)=max(cfrain(mg,k),cffall(mg,k)) ! max overlap autoconvection and rain from previous time step
+          cfrain(mg,k)=max(cfrain(mg,k),cffall(mg,k)) ! max overlap autoconversion and rain from previous time step
           cftemp=cfrain(mg,k)+cfmelt(mg,k)-cfrain(mg,k)*cfmelt(mg,k)
           qrgtemp=qrg(mg,k)+fluxm(mg,k)/rhodz/real(njumps)
           vr(mg,k)=vr(mg,k+1)
@@ -404,7 +404,8 @@ c Now work down through the levels...
 
             ! The following flag detects max/random overlap clouds
             ! that are separated by a clear layer
-            if (clfr(mg,k).eq.0..or.nmr.eq.0) then
+            if ((clfr(mg,k).eq.0..and.cfrain(mg,k).eq.0.)
+     &          .or.nmr.eq.0) then
               ! combine max overlap from last cloud with net random overlap
               rdclfr(mg)=rdclfr(mg)+mxclfr(mg)-rdclfr(mg)*mxclfr(mg)
               mxclfr(mg)=0.

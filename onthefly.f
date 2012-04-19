@@ -207,7 +207,7 @@
       use screen_m                              ! Screen level diagnostics
       use sigs_m                                ! Atmosphere sigma levels
       use soil_m                                ! Soil and surface data
-      use tkeeps, only : tke,eps,tkesav,epssav  ! TKE-EPS boundary layer
+      use tkeeps, only : tke,eps                ! TKE-EPS boundary layer
       use tracers_m                             ! Tracer data
       use utilities                             ! Grid utilities
       use vecsuv_m                              ! Map to cartesian coordinates
@@ -1477,8 +1477,6 @@ c       incorporate other target land mask effects
             end if ! iotest
           end do
           call vertint(v_k,eps(1:ifull,:),5,kk,sigin)
-          tkesav=tke(1:ifull,:)
-          epssav=eps(1:ifull,:)
         end if
 
         !------------------------------------------------------------

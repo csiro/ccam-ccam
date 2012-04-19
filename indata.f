@@ -1014,7 +1014,7 @@
 !        presetting wb when no soil moisture available initially
         iyr=kdate/10000
         imo=(kdate-10000*iyr)/100
-	if (nsib==CABLE.or.nsib==6.or.nsib==7) then
+	if (nsib==6.or.nsib==7) then
 	 where (land)
 	  wb(:,ms)=0.5*(swilt(isoilm)+sfc(isoilm))
 	 end where
@@ -1057,7 +1057,7 @@
             endif
           endif    ! (land(iq))\
          enddo     ! iq loop
-        end if ! (nsib==CABLE.or.nsib==6.or.nsib==7)
+        end if ! (nsib==6.or.nsib==7)
         do k=1,ms-1
          wb(:,k)=wb(:,ms)
         enddo    !  k loop

@@ -14,7 +14,6 @@
       use savuvt_m
       use sigs_m
       use tbar2d_m
-      use tkeeps, only : tke,eps,tkesav,epssav
       use tracers_m
       use unn_m
       use vecsuv_m
@@ -95,14 +94,6 @@
          enddo    ! k  loop
         enddo     ! ng loop
       endif       ! (ngas>=1)
- 
-      !--------------------------------------------------------------
-      ! MJT tke
-      if(nvmix==6)then
-        tkesav(1:ifull,:)=tke(1:ifull,:)
-        epssav(1:ifull,:)=eps(1:ifull,:)
-      endif       ! (nvmix==6)
-      !--------------------------------------------------------------
       
       !--------------------------------------------------------------
       ! MJT aerosols

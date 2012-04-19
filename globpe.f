@@ -149,7 +149,7 @@
      & ,nlocal,nvsplit,nbarewet,nsigmf,qgmin
      & ,io_clim ,io_in,io_nest,io_out,io_rest,io_spec,localhist   
      & ,m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss
-     & ,mfix_tr,mfix_ke,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv
+     & ,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv
      & ,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
@@ -2029,7 +2029,7 @@
       data nritch_t/300/,nrot/1/,nxmap/0/,
      &     epsp/-15./,epsu/0./,epsf/0./,precon/-2900/,restol/4.e-7/
       data helmmeth/0/
-      data mfix_tr/0/,mfix_ke/0/,mfix_aero/0/
+      data mfix_tr/0/,mfix_aero/0/
       data schmidt/1./,rlong0/0./,rlat0/90./,nrun/0/,nrunx/0/
 !     Horiz advection options
       data ndept/1/,nt_adv/7/,mh_bs/4/

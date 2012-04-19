@@ -14,7 +14,6 @@
       use pbl_m
       use sigs_m
       use tbar2d_m
-      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
 !     rml 19/09/07 replace gasmin from tracers.h with tracmin from tracermodule
       use tracermodule, only: tracmin
       use tracers_m
@@ -654,17 +653,6 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         end do
       endif       !  (mfix_tr.ne.0.and.mspec==1.and.ngas>0)
 
-      !--------------------------------------------------------------
-      ! TKE and EPS conservation
-      if (mfix_ke.ne.0.and.mspec==1.and.nvmix==6) then
-        tke=max(tke,0.)
-        eps=max(eps,0.)
-        call massfix(mfix_ke,tke(1:ifull,:),tkesav(1:ifull,:),
-     &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
-        call massfix(mfix_ke,eps(1:ifull,:),epssav(1:ifull,:),
-     &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
-      end if
-      
       !--------------------------------------------------------------
       ! Aerosol conservation
       if (mfix_aero.ne.0.and.mspec==1.and.abs(iaero)==2) then

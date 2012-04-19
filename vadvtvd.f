@@ -10,7 +10,7 @@ c                              vadvbott & vadvyu at bottom
       use map_m
       use nharrs_m
       use sigs_m
-      use tkeeps, only : tke,eps,tkesav,epssav ! MJT tke
+      use tkeeps, only : tke,eps
       use tracers_m
       use vvel_m
       use xarrs_m
