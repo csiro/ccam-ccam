@@ -801,12 +801,12 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         case(0) ! no counter gradient
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,
-     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,qgmin,1,0)
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,1,0)
          rkh=rkm
         case(1,2,3,4,5,6) ! KCN counter gradient method
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,
-     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,qgmin,1,0)
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,1,0)
          rkh=rkm
          uav(1:ifull,:)=av_vmod*u(1:ifull,:)
      &                 +(1.-av_vmod)*savu(1:ifull,:)
@@ -816,7 +816,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
         case(7) ! mass-flux counter gradient
          call tkemix(rkm,rhs,qg(1:ifull,:),qlg(1:ifull,:),
      &             qfg(1:ifull,:),cfrac,pblh,wt0,wq0,
-     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,qgmin,0,0)
+     &             ps(1:ifull),ustar,zg,zgh,sig,sigkap,dt,0,0)
          rkh=rkm
         case DEFAULT
           write(6,*) "ERROR: Unknown nlocal option for nvmix=6"
@@ -954,7 +954,7 @@ c       now do qrg
 c       now do cffall
         rhs(1:ifull,:)=cffall(1:ifull,:)
         call trim(at,ct,rhs,0)    ! for cffall
-        cffall(1:ifull,:)=rhs(1:ifull,:)
+        cffall(1:ifull,:)=min(max(rhs(1:ifull,:),0.),1.)
       endif    ! (ldr.ne.0)
 
       !--------------------------------------------------------------

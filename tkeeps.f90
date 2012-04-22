@@ -107,13 +107,13 @@ end subroutine tkeinit
 ! mode=0 mass flux with moist convection
 ! mode=1 no mass flux
 
-subroutine tkemix(kmo,theta,qg,qlg,qfg,cfrac,zi,wt0,wq0,ps,ustar,zz,zzh,sig,sigkap,dt,qgmin,mode,diag)
+subroutine tkemix(kmo,theta,qg,qlg,qfg,cfrac,zi,wt0,wq0,ps,ustar,zz,zzh,sig,sigkap,dt,mode,diag)
 
 implicit none
 
 integer, intent(in) :: diag,mode
 integer k,i,klcl,icount,jcount,ncount
-real, intent(in) :: dt,qgmin
+real, intent(in) :: dt
 real, dimension(ifull,kl), intent(inout) :: theta,qg
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull,kl), intent(in) :: zz,cfrac,qlg,qfg
@@ -435,6 +435,7 @@ end if
 
 ! calculate tke and eps at 1st level
 z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
+z_on_l=min(z_on_l,10.)
 where (z_on_l.lt.0.)
   phim=(1.-16.*z_on_l)**(-0.25)
 elsewhere !(z_on_l.le.0.4)
@@ -596,10 +597,8 @@ dd(:,kl-1)=thetal(:,kl-1)+dt*gamhl(:,kl-2)/dz_fl(:,kl-1)
 call thomas(thetal(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 
 call updategam(gamhl,gamqt,zz,zzm,zi)
-gamhl(:,1)=min(gamhl(:,1),(qg(:,1)-qgmin)*dz_fl(:,1)/dt+wq0)
 dd(:,1)=qtot(:,1)-dt*gamhl(:,1)/dz_fl(:,1)+dt*wq0/dz_fl(:,1)
 do k=2,kl-2
-  gamhl(:,k)=min(gamhl(:,k),(qg(:,k)-qgmin)*dz_fl(:,k)/dt+gamhl(:,k-1))
   dd(:,k)=qtot(:,k)+dt*(gamhl(:,k-1)-gamhl(:,k))/dz_fl(:,k)
 end do
 dd(:,kl-1)=qtot(:,kl-1)+dt*gamhl(:,kl-2)/dz_fl(:,kl-1)

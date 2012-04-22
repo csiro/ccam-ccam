@@ -341,9 +341,11 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
       if (nvmix.eq.6) then
         tke(1:ifull,:)=max(tke(1:ifull,:),mintke)
         eps(1:ifull,:)=min(eps(1:ifull,:),
-     &                 (cm0**0.75)*(tke(1:ifull,:)**1.5)/minl)
+     &                 (cm0**0.75)*tke(1:ifull,:)
+     &                 *sqrt(tke(1:ifull,:))/minl)
         eps(1:ifull,:)=max(eps(1:ifull,:),
-     &                 (cm0**0.75)*(tke(1:ifull,:)**1.5)/maxl)
+     &                 (cm0**0.75)*tke(1:ifull,:)
+     &                 *sqrt(tke(1:ifull,:))/maxl)
         hdif=dt*cm0/(ds*ds)
         do k=1,kl
           t_kh(1:ifull,k)=max(tke(1:ifull,k)*tke(1:ifull,k)
@@ -486,6 +488,43 @@ c       do t diffusion based on potential temperature ff
      &                 ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
      &                   yfact(iq,k)+yfact(isv(iq),k))
            end do              !  iq loop
+        end do
+        ! cloud microphysics
+        ee=qlg(1:ifull,:)
+        call bounds(ee)
+        do k=1,kl
+          qlg(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
+     &      xfact(1:ifull,k)*ee(ie,k) +
+     &      xfact(iwu,k)*ee(iw,k) +
+     &      yfact(1:ifull,k)*ee(in,k) +
+     &      yfact(isv,k)*ee(is,k) ) /
+     &      ( 1./em(1:ifull)**2 +
+     &        xfact(1:ifull,k) + xfact(iwu,k) +
+     &        yfact(1:ifull,k) + yfact(isv,k) )
+        end do
+        ee=qfg(1:ifull,:)
+        call bounds(ee)
+        do k=1,kl
+          qfg(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
+     &      xfact(1:ifull,k)*ee(ie,k) +
+     &      xfact(iwu,k)*ee(iw,k) +
+     &      yfact(1:ifull,k)*ee(in,k) +
+     &      yfact(isv,k)*ee(is,k) ) /
+     &      ( 1./em(1:ifull)**2 +
+     &        xfact(1:ifull,k) + xfact(iwu,k) +
+     &        yfact(1:ifull,k) + yfact(isv,k) )
+        end do
+        ee=qrg(1:ifull,:)
+        call bounds(ee)
+        do k=1,kl
+          qrg(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
+     &      xfact(1:ifull,k)*ee(ie,k) +
+     &      xfact(iwu,k)*ee(iw,k) +
+     &      yfact(1:ifull,k)*ee(in,k) +
+     &      yfact(isv,k)*ee(is,k) ) /
+     &      ( 1./em(1:ifull)**2 +
+     &        xfact(1:ifull,k) + xfact(iwu,k) +
+     &        yfact(1:ifull,k) + yfact(isv,k) )
         end do
       endif                    ! (nhorps.ne.-2)
        

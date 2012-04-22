@@ -2,6 +2,7 @@
       use aerosolldr
       use arrays_m
       use cc_mpi
+      use cfrac_m
       use diag_m
       use dpsdt_m
       use epst_m
@@ -634,6 +635,8 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         qfg=max(qfg,0.)
         qlg=max(qlg,0.)
         qrg=max(qrg,0.)
+        cfrac=min(max(cfrac,0.),1.)
+        cffall=min(max(cffall,0.),1.)
         call massfix(mfix_qg,qfg(1:ifull,:),qfgsav(1:ifull,:),
      &               ps(1:ifull),ps_sav(1:ifull),wts(1:ifull))
         call massfix(mfix_qg,qlg(1:ifull,:),qlgsav(1:ifull,:),

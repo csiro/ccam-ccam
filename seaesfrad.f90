@@ -613,7 +613,7 @@ do j=1,jl,imax/il
       p2(:,k)=ps(istart:iend)*sig(k)
       call getqsat(imax,qsat,dumt(:,k),p2(:,k))
       Atmos_input%deltaz(:,1,kr) =(-dsig(k)/sig(k))*rdry*dumt(:,k)/grav
-      Atmos_input%rh2o(:,1,kr)   =max(qg(istart:iend,k),qgmin)
+      Atmos_input%rh2o(:,1,kr)   =max(qg(istart:iend,k),2.E-7)
       Atmos_input%temp(:,1,kr)   =min(max(dumt(:,k),100.),370.)      
       Atmos_input%press(:,1,kr)  =p2(:,k)
       Atmos_input%rel_hum(:,1,kr)=min(qg(istart:iend,k)/qsat,1.)

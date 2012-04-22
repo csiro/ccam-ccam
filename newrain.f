@@ -116,7 +116,7 @@ C Local work arrays and variables
       real fracr(ln2,nl)
       real mxclfr(ln2)
       real rdclfr(ln2)
-      real vr(ln2,nl-1)
+      real vr(ln2,nl)
       real rhor(ln2,nl-1)
       real fout(ln2,nl-1)
       real fthru(ln2,nl-1)
