@@ -515,10 +515,10 @@ c Re-create qfg field
       do k=1,nl
         do mg=1,ln2
           qfg(mg,k)=rhoi(mg,k)/rhoa(mg,k)
-          if(qfg(mg,k)<0.)then
-            print *,'k,mg,lg,qfg_rhoi ',k,mg,lg,qfg(mg,k)
-            stop
-          endif
+          !if(qfg(mg,k)<0.)then
+          !  print *,'k,mg,lg,qfg_rhoi ',k,mg,lg,qfg(mg,k)
+          !  stop
+          !endif
         enddo
       enddo
 

@@ -14,7 +14,7 @@
       use nlin_m
       use parmhdff_m
       use sigs_m
-      use tkeeps, only : tke,eps,shear,mintke,cm0,minl,maxl
+      use tkeeps, only : tke,eps,shear,mintke,mineps,cm0,minl,maxl
       use vecsuv_m
       use vvel_m
       implicit none
@@ -346,6 +346,7 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
         eps(1:ifull,:)=max(eps(1:ifull,:),
      &                 (cm0**0.75)*tke(1:ifull,:)
      &                 *sqrt(tke(1:ifull,:))/maxl)
+        eps(1:ifull,:)=max(eps(1:ifull,:),mineps)
         hdif=dt*cm0/(ds*ds)
         do k=1,kl
           t_kh(1:ifull,k)=max(tke(1:ifull,k)*tke(1:ifull,k)

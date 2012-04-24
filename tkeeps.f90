@@ -25,7 +25,7 @@ implicit none
 
 private
 public tkeinit,tkemix,tkeend,tke,eps,shear
-public mintke,cm0,cq,minl,maxl
+public mintke,mineps,cm0,cq,minl,maxl
 
 integer, save :: ifull,iextra,kl
 real, dimension(:,:), allocatable, save :: shear
@@ -35,11 +35,11 @@ real, dimension(:,:), allocatable, save :: tke,eps
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
 real, parameter :: be      = 1.     ! Hurley (2007) 1., Soares et al (2004) 0.3
-real, parameter :: cm0     = 0.03   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
-real, parameter :: ce0     = 0.42   ! Hurley (2007) 0.69, Duynkerke 1988 0.42
+real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
+real, parameter :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke 1988 0.42
 real, parameter :: ce1     = 1.46
 real, parameter :: ce2     = 1.83
-real, parameter :: ce3     = 0.35   ! Hurley (2007) 0.45, Dynkerke et al 1987 0.35
+real, parameter :: ce3     = 0.45   ! Hurley (2007) 0.45, Dynkerke et al 1987 0.35
 real, parameter :: cq      = 2.5
 
 ! physical constants
@@ -69,8 +69,9 @@ integer, parameter :: icm1     = 40    ! iterations for calculating pblh
 real, parameter :: alpha    = 0.3      ! weight for updating pblh
 real, parameter :: maxdt    = 120.     ! sub timestep for tke-eps
 real, parameter :: mintke   = 1.E-8    ! min value for tke
-real, parameter :: minl     = 1.       ! min value for L (constraint on eps)
-real, parameter :: maxl     = 1000.    ! max value for L (constraint on eps)
+real, parameter :: mineps   = 1.E-10   ! min value for eps
+real, parameter :: minl     = 5.       ! min value for L (constraint on eps)
+real, parameter :: maxl     = 500.     ! max value for L (constraint on eps)
 
 contains
 
@@ -95,7 +96,7 @@ allocate(shear(ifull,kl))
 
 cm34=cm0**0.75
 tke=mintke
-eps=cm34*mintke*sqrt(mintke)/minl
+eps=mineps
 shear=0.
 
 return
@@ -141,7 +142,7 @@ real ziold,ddt,tlc,qtc,w2c,mfc
 logical sconv
 
 cm12=1./sqrt(cm0)
-cm34=cm0**0.75
+cm34=sqrt(sqrt(cm0**3))
 
 if (diag.gt.0) write(6,*) "Update PBL mixing with TKE-eps turbulence closure"
 
@@ -153,7 +154,7 @@ if (diag.gt.0) write(6,*) "Update PBL mixing with TKE-eps turbulence closure"
 tke(1:ifull,:)=max(tke(1:ifull,:),mintke)
 ff=cm34*tke(1:ifull,:)*sqrt(tke(1:ifull,:))/minl
 eps(1:ifull,:)=min(eps(1:ifull,:),ff)
-ff=ff*minl/maxl
+ff=max(ff*minl/maxl,mineps)
 eps(1:ifull,:)=max(eps(1:ifull,:),ff)
 
 
@@ -197,7 +198,7 @@ call updatekmo(kmo,km,zz,zzm) ! interpolate diffusion coeffs to internal half le
 
 ! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
 pps(:,2:kl-1)=km(:,2:kl-1)*shear(:,2:kl-1)
-pps(:,kl)=pps(:,kl-1)
+pps(:,kl)=0.
 
 
 
@@ -444,11 +445,11 @@ elsewhere !(z_on_l.le.0.4)
 !  phim=aa1*bb1*(z_on_l**bb1)*(1.+cc1/bb1*z_on_l**(1.-bb1)) ! Luhar (2007)
 end where
 tke(1:ifull,1)=cm12*ustar*ustar+ce3*wstar*wstar
-eps(1:ifull,1)=ustar*ustar*ustar*phim/(vkar*zz(:,1))+grav*wtv0/thetav(:,1)
+eps(1:ifull,1)=ustar*ustar*ustar*(phim-z_on_l)/(vkar*zz(:,1))
 tke(1:ifull,1)=max(tke(1:ifull,1),mintke)
 ff(:,1)=cm34*tke(1:ifull,1)*sqrt(tke(1:ifull,1))/minl
 eps(1:ifull,1)=min(eps(1:ifull,1),ff(:,1))
-ff(:,1)=ff(:,1)*minl/maxl
+ff(:,1)=max(ff(:,1)*minl/maxl,mineps)
 eps(1:ifull,1)=max(eps(1:ifull,1),ff(:,1))
 
 
@@ -496,7 +497,7 @@ select case(buoymeth)
     write(6,*) "ERROR: Unsupported buoyancy option ",buoymeth
     stop
 end select
-ppb(:,kl)=ppb(:,kl-1)
+ppb(:,kl)=0.
 
 
 
@@ -517,7 +518,7 @@ do icount=1,ncount
     ppt(:,k)=(kmo(:,k)*(tke(1:ifull,k+1)-tke(1:ifull,k))/dz_hl(:,k) &
              -kmo(:,k-1)*(tke(1:ifull,k)-tke(1:ifull,k-1))/dz_hl(:,k-1))/dz_fl(:,k)
   end do
-  ppt(:,kl)=ppt(:,kl-1)
+  ppt(:,kl)=0.
 
   ! Update non-linear terms
   do k=2,kl
@@ -562,13 +563,10 @@ do icount=1,ncount
   dd(:,kl)=eps(1:ifull,kl)
   call thomas(epsnew(:,2:kl),aa(:,3:kl),bb(:,2:kl),cc(:,2:kl-1),dd(:,2:kl))
 
-  tkenew(:,kl)=mintke
-  epsnew(:,kl)=cm34*mintke*sqrt(mintke)/minl
-
   tke(1:ifull,2:kl)=max(tkenew(:,2:kl),mintke)
   ff(:,2:kl)=cm34*tke(1:ifull,2:kl)*sqrt(tke(1:ifull,2:kl))/minl
   eps(1:ifull,2:kl)=min(epsnew(:,2:kl),ff(:,2:kl))
-  ff(:,2:kl)=ff(:,2:kl)*minl/maxl
+  ff(:,2:kl)=max(ff(:,2:kl)*minl/maxl,mineps)
   eps(1:ifull,2:kl)=max(eps(1:ifull,2:kl),ff(:,2:kl))
 
   km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
