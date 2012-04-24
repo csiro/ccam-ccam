@@ -1755,7 +1755,7 @@ srcp=sig**(rdry/cp)
 atu=a_u-w_u(:,1)
 atv=a_v-w_v(:,1)
 vmag=sqrt(atu*atu+atv*atv)
-vmagn=max(vmag,0.2)
+vmagn=max(vmag,0.01)
 rho=a_ps/(rdry*w_temp(:,1))
 
 call getqsat(qsat,dqdt,w_temp(:,1),a_ps)
@@ -2849,7 +2849,7 @@ dtsurf=min(i_tsurf,273.16)
 uu=a_u-i_u
 vv=a_v-i_v
 vmag=sqrt(uu*uu+vv*vv)
-vmagn=max(vmag,0.2)
+vmagn=max(vmag,0.01)
 sig=exp(-grav*a_zmins/(rdry*a_temp))
 srcp=sig**(rdry/cp)
 rho=a_ps/(rdry*dtsurf)
@@ -2926,8 +2926,8 @@ do ll=1,20
   vv=a_v-newiv
   du=w_u(:,1)-newiu
   dv=w_v(:,1)-newiv
-  vmagn=max(sqrt(uu*uu+vv*vv),0.2)
-  icemagn=max(sqrt(du*du+dv*dv),0.0002)
+  vmagn=max(sqrt(uu*uu+vv*vv),0.01)
+  icemagn=max(sqrt(du*du+dv*dv),0.0001)
 
   g=i_u-newiu+dt*(rho*p_cdice*vmagn*uu+d_rho(:,1)*0.00536*icemagn*du)/imass
   h=i_v-newiv+dt*(rho*p_cdice*vmagn*vv+d_rho(:,1)*0.00536*icemagn*dv)/imass
@@ -2960,8 +2960,8 @@ uu=a_u-newiu
 vv=a_v-newiv
 du=w_u(:,1)-newiu
 dv=w_v(:,1)-newiv
-vmagn=max(sqrt(uu*uu+vv*vv),0.2)
-icemagn=max(sqrt(du*du+dv*dv),0.0002)
+vmagn=max(sqrt(uu*uu+vv*vv),0.01)
+icemagn=max(sqrt(du*du+dv*dv),0.0001)
 p_tauxica=rho*p_cdice*vmagn*uu
 p_tauyica=rho*p_cdice*vmagn*vv
 d_tauxicw=-d_rho(:,1)*0.00536*icemagn*du
@@ -3011,7 +3011,7 @@ atv=a_v-w_v(:,1)
 call scrntile(tscrn,qgscrn,uscrn,u10,p_zo,p_zoh,p_zoq,w_temp(:,1),smixr,atu,atv,a_temp,a_qg,a_zmin,a_zmins,diag)
 p_tscrn=tscrn
 p_qgscrn=qgscrn
-dmag=max(sqrt(atu*atu+atv*atv),0.2)
+dmag=max(sqrt(atu*atu+atv*atv),0.01)
 atu=(a_u-w_u(:,1))*uscrn/dmag+w_u(:,1)
 atv=(a_v-w_v(:,1))*uscrn/dmag+w_v(:,1)
 p_uscrn=sqrt(atu*atu+atv*atv)
@@ -3027,7 +3027,7 @@ atv=a_v-i_v
 call scrntile(tscrn,qgscrn,uscrn,u10,p_zoice,p_zohice,p_zoqice,i_tsurf,smixr,atu,atv,a_temp,a_qg,a_zmin,a_zmins,diag)
 p_tscrn=(1.-i_fracice)*p_tscrn+i_fracice*tscrn
 p_qgscrn=(1.-i_fracice)*p_qgscrn+i_fracice*qgscrn
-dmag=max(sqrt(atu*atu+atv*atv),0.2)
+dmag=max(sqrt(atu*atu+atv*atv),0.01)
 atu=(a_u-i_u)*uscrn/dmag+i_u
 atv=(a_v-i_v)*uscrn/dmag+i_v
 p_uscrn=(1.-i_fracice)*p_uscrn+i_fracice*sqrt(atu*atu+atv*atv)
@@ -3065,7 +3065,7 @@ real, parameter    ::  d_1    = 0.35
 real, parameter    ::  z0     = 1.5
 real, parameter    ::  z10    = 10.
 
-umag=max(sqrt(a_u*a_u+a_v*a_v),0.2)
+umag=max(sqrt(a_u*a_u+a_v*a_v),0.01)
 sig=exp(-grav*a_zmins/(rdry*a_temp))
 scrp=sig**(rdry/cp)
 thetav=a_temp*(1.+0.61*a_qg)/scrp

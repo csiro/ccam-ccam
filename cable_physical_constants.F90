@@ -37,7 +37,6 @@ MODULE physical_constants
   REAL(r_1), PARAMETER :: zetpos = 1.0  ! positive limit on za/L when niter>=3
   REAL(r_1), PARAMETER :: zdlin  = 1.0  ! height frac of d below which TL linear
   ! for run 9
-  REAL(r_1), PARAMETER :: umin   = 0.2 ! MJT for CCAM
-  !REAL(r_1), PARAMETER :: umin   = 0.01  
+  REAL(r_1), PARAMETER :: umin   = 0.01  
 
 END MODULE physical_constants

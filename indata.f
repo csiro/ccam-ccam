@@ -22,7 +22,6 @@
       use morepbl_m                            ! Additional boundary layer diagnostics
       use nsibd_m                              ! Land-surface arrays
       use pbl_m                                ! Boundary layer arrays
-      use physical_constants, only : umin      ! CABLE physical constants
       use permsurf_m                           ! Fixed surface arrays
       use sigs_m                               ! Atmosphere sigma levels
       use soil_m                               ! Soil and surface data
@@ -359,7 +358,6 @@
         call rdnsib
         if (nsib==6.or.nsib==7) then
           ! albvisnir at this point holds soil albedo for cable initialisation
-          vmodmin=umin
           call loadcbmparm(vegfile,vegprev,vegnext)
           ! albvisnir now is the net albedo
         elseif (nsib==CABLE) then

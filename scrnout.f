@@ -433,7 +433,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       scrp=(sig)**(rdry/cp)
       thetav=temp*(1.+0.61*mixr)/scrp
       sthetav=stemp*(1.+0.61*smixr)
-      umagn=max(umag,0.2)
+      umagn=max(umag,vmodmin)
 
       ! Roughness length for heat
       lzom=log(zmin/zo)
