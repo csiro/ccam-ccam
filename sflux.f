@@ -1703,6 +1703,12 @@ c                                               combined fluxes
         qsttg(iq)= .622*es/(ps(iq)-es)  ! recal for scrnout, esp. snow    
 
       enddo   ! ip=1,ipland
+      
+      ! Calculate fraction of canopy which is wet
+      fwet=0.
+      where (land)
+        fwet=cansto/rmcmax
+      end where
 
       if((ntest==1.or.diag).and.mydiag) then
        if (land(idjd))then ! MJT bugfix

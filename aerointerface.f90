@@ -389,6 +389,7 @@ use latlong_m
 use liqwpar_m
 use map_m
 use morepbl_m
+use nharrs_m
 use nsibd_m
 use ozoneread
 use pbl_m
@@ -453,6 +454,7 @@ zg(:,1)=bet(1)*t(1:ifull,1)/grav
 do k=2,kl
   zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav ! height above surface in meters
 end do
+zg=zg+phi_nh/grav
 dxy=ds*ds/(em*em)       ! grid spacing in m**2
 mcmax=0.1*max(vlai,0.1) ! maximum water stored in canopy (kg/m**2)
 do k=1,kl

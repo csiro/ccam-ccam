@@ -82,6 +82,7 @@ module cable_ccam
   use infile
   use latlong_m
   use morepbl_m
+  use nharrs_m
   use nsibd_m
   use pbl_m
   use permsurf_m
@@ -136,7 +137,7 @@ module cable_ccam
   met%precip_sn=conds(cmap) ! in mm not mm/sec
   met%hod=(met%doy-int(met%doy))*24. + rlongg(cmap)*180./(15.*pi)
   met%hod=mod(met%hod,24.)
-  rough%za_tq=-rdry*t(cmap,1)*log(sig(1))/grav   ! reference height
+  rough%za_tq=(bet(1)*t(1:ifull,1)+phi_nh(:,1))/grav ! reference height
   rough%za_uv=rough%za_tq
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
@@ -240,6 +241,7 @@ module cable_ccam
   epot(iperm(1:ipland))=0.
   tss(iperm(1:ipland))=0.
   cansto=0.
+  fwet=0.
   fnee=0.
   fpn=0.
   frd=0.
@@ -307,6 +309,8 @@ module cable_ccam
                                         +sv(pind(nb,1):pind(nb,2))*rad%trad(pind(nb,1):pind(nb,2))**4 ! ave longwave radiation
       cansto(cmap(pind(nb,1):pind(nb,2)))=cansto(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*canopy%cansto(pind(nb,1):pind(nb,2))
+      fwet(cmap(pind(nb,1):pind(nb,2)))=fwet(cmap(pind(nb,1):pind(nb,2))) &
+                                        +sv(pind(nb,1):pind(nb,2))*veg%fwet(pind(nb,1):pind(nb,2))
       fnee(cmap(pind(nb,1):pind(nb,2)))=fnee(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*canopy%fnee(pind(nb,1):pind(nb,2))
       fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2))) &

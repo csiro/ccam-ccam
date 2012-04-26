@@ -499,6 +499,8 @@ c       For time varying surface fields
      &              itype)
         lname = 'Surface albedo'
         call attrib(idnc,idim,3,'alb',lname,'none',0.,1.,0,itype)
+        lname = 'Fraction of canopy that is wet'
+        call attrib(idnc,idim,3,'fwet',lname,'none',0.,1.,0,itype)
 
         lname = 'Snow depth (liquid water)'
         call attrib(idnc,idim,3,'snd',lname,'mm',0.,6500.,0,-1)  ! -1=long
@@ -1270,6 +1272,7 @@ c      set time to number of minutes since start
       call histwrt3(runoff,'runoff',idnc,iarch,local,.true.)
       aa(:)=swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
       call histwrt3(aa,'alb',idnc,iarch,local,.true.)
+      call histwrt3(fwet,'fwet',idnc,iarch,local,.true.)
 
       ! MLO ---------------------------------------------------------      
       if (nmlo.ne.0) then
