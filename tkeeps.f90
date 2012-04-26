@@ -244,9 +244,10 @@ if (mode.ne.1) then ! mass flux
         ttup(1)=thup(1)/sigkap(1)                        ! temp,up
         call getqsat(1,qupsat(1),ttup(1),pres(1))        ! estimate of saturated mixing ratio in plume (LDR trick)
         ! update updraft velocity and mass flux
-        nn=grav*be*wtv0(i)/(thetav(i,1)*sqrt(tke(i,1)))  ! Hurley 2007
-        w2up(1)=2.*dzht*b2*nn/(1.+2.*dzht*b1*ee)         ! Hurley 2007
-        mflx(i,1)=0.1*sqrt(w2up(1))                      ! Hurley 2007
+        nn=grav*be*wtv0(i)/(thetav(i,1)*sqrt(tke(i,1)))                           ! Hurley 2007
+        !w2up(1)=2.*dzht*b2*nn/(1.+2.*dzht*b1*ee)                                 ! Hurley 2007
+        w2up(1)=(0.25*wstar(i)*wstar(i)+2.*dzht*b2*nn)/(1.+2.*dzht*b1*ee)         ! Angevine et al (2010)
+        mflx(i,1)=0.1*sqrt(w2up(1))                                               ! Hurley 2007
         ! check for lcl
         sconv=.false.
         if (qtup(i,1).ge.qupsat(1)) then
@@ -435,7 +436,7 @@ if (mode.ne.1) then ! mass flux
 end if
 
 ! calculate tke and eps at 1st level
-z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-10))
+z_on_l=-vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar*ustar*ustar,1.E-20))
 z_on_l=min(z_on_l,10.)
 where (z_on_l.lt.0.)
   phim=(1.-16.*z_on_l)**(-0.25)
