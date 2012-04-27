@@ -1,5 +1,3 @@
-#include "cable_directives.h"
-
 module cable_ccam
 
   ! CABLE interface originally developed by the CABLE group
@@ -47,10 +45,10 @@ module cable_ccam
   ! 9       land ice
 
   use air_module
-  use cab_albedo_module
-  use cable_variables
+  use albedo_module
   use canopy_module
   use carbon_module
+  use cable_common_module
   use define_dimensions, cbm_ms => ms
   use define_types
   use physical_constants
@@ -69,6 +67,17 @@ module cable_ccam
   integer, dimension(:), allocatable, save :: cmap
   integer, dimension(5,2), save :: pind  
   real, dimension(:), allocatable, save :: sv,vl1,vl2,vl3
+  type (air_type), save :: air
+  type (bgc_pool_type), save :: bgc
+  type (met_type), save :: met
+  type (balances_type), save :: bal
+  type (radiation_type), save :: rad
+  type (roughness_type), save :: rough
+  type (soil_parameter_type), save :: soil
+  type (soil_snow_type), save :: ssoil
+  type (sum_flux_type), save :: sum_flux
+  type (veg_parameter_type), save :: veg
+  type (canopy_type), save :: canopy
 
   contains
   ! ****************************************************************************
@@ -110,7 +119,6 @@ module cable_ccam
   real, dimension(mp) :: swnet,deltat
   integer jyear,jmonth,jday,jhour,jmin
   integer k,mins,nb,iq
-  character(len=3) :: DIAG_SOIL_RESP = FDIAG_SOIL_RESP
 
   ! abort calculation if no land points on this processor  
   if (mp.le.0) return
@@ -173,19 +181,18 @@ module cable_ccam
 
   !--------------------------------------------------------------
   ! CABLE
+  ktau_gl=900
+  kend_gl=999
   veg%meth = 1
-  call ruff_resist(veg,rough,ssoil,soil,met)
+  cable_user%fwsoil_switch="standard"
+  call ruff_resist(veg,rough,ssoil,soil,met,canopy)
   call define_air(met,air)
-  call init_radiation(met,rad,veg) ! need to be called at every dt
-  call cab_albedo(999,dt,ssoil,veg,air,met,rad,soil,.false.) ! set L_RADUM=.false. as we want to update snow age
-  call define_canopy(999,bal,rad,rough,air,met,dt,ssoil,soil,veg,bgc,canopy,.true.)
-  bal%owbtot=0.
-  do k=1,ms
-    bal%owbtot=bal%owbtot+ssoil%wb(:,k)*1000.*soil%zse(k)
-  end do
+  call init_radiation(met,rad,veg,canopy)
+  call surface_albedo(ssoil,veg,met,rad,soil,canopy)
+  call define_canopy(bal,rad,rough,air,met,dt,ssoil,soil,veg,canopy)
   ssoil%otss = ssoil%tss
   ssoil%owetfac = ssoil%wetfac
-  call soil_snow(dt,999,soil,ssoil,canopy,met,bal,veg,999)
+  call soil_snow(dt,soil,ssoil,canopy,met,bal,veg)
   ! adjust for new soil temperature
   deltat = ssoil%tss - ssoil%otss
   canopy%fhs = canopy%fhs + deltat*ssoil%dfh_dtg
@@ -199,22 +206,22 @@ module cable_ccam
   canopy%rnet = canopy%fns + canopy%fnv
   ! Calculate radiative/skin temperature:
   rad%trad = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssoil%tss**4 )**0.25
-  if (DIAG_SOIL_RESP == 'on')  then 
-    sum_flux%sumpn = sum_flux%sumpn+canopy%fpn*dt
-    sum_flux%sumrp = sum_flux%sumrp+canopy%frp*dt
-    sum_flux%sumrpw = sum_flux%sumrpw+canopy%frpw*dt
-    sum_flux%sumrpr = sum_flux%sumrpr+canopy%frpr*dt
-    sum_flux%sumrd = sum_flux%sumrd+canopy%frday*dt
-    sum_flux%dsumpn = sum_flux%dsumpn+canopy%fpn*dt
-    sum_flux%dsumrp = sum_flux%dsumrp+canopy%frp*dt
-    sum_flux%dsumrd = sum_flux%dsumrd+canopy%frday*dt
-    call plantcarb(veg,bgc,met,canopy)
-    call soilcarb(soil,ssoil,veg,bgc,met,canopy)
-    call carbon_pl(dt,soil,ssoil,veg,canopy,bgc)
-    sum_flux%sumrs = sum_flux%sumrs+canopy%frs*dt
-  endif  
+
+  call plantcarb(veg,bgc,met,canopy)
+  call soilcarb(soil,ssoil,veg,bgc,met,canopy)
+  call carbon_pl(dt,soil,ssoil,veg,canopy,bgc)
   canopy%fnpp = -canopy%fpn - canopy%frp
   canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
+  
+  sum_flux%sumpn  = sum_flux%sumpn  + canopy%fpn*dt
+  sum_flux%sumrd  = sum_flux%sumrd  + canopy%frday*dt
+  sum_flux%dsumpn = sum_flux%dsumpn + canopy%fpn*dt
+  sum_flux%dsumrd = sum_flux%dsumrd + canopy%frday*dt
+  sum_flux%sumrpw = sum_flux%sumrpw + canopy%frpw*dt
+  sum_flux%sumrpr = sum_flux%sumrpr + canopy%frpr*dt
+  sum_flux%sumrp  = sum_flux%sumrp  + canopy%frp*dt
+  sum_flux%dsumrp = sum_flux%dsumrp + canopy%frp*dt
+  sum_flux%sumrs  = sum_flux%sumrs  + canopy%frs*dt
   !--------------------------------------------------------------
       
   ! Unpack tiles into grid point averages.
@@ -310,7 +317,7 @@ module cable_ccam
       cansto(cmap(pind(nb,1):pind(nb,2)))=cansto(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*canopy%cansto(pind(nb,1):pind(nb,2))
       fwet(cmap(pind(nb,1):pind(nb,2)))=fwet(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*veg%fwet(pind(nb,1):pind(nb,2))
+                                        +sv(pind(nb,1):pind(nb,2))*canopy%fwet(pind(nb,1):pind(nb,2))
       fnee(cmap(pind(nb,1):pind(nb,2)))=fnee(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*canopy%fnee(pind(nb,1):pind(nb,2))
       fpn(cmap(pind(nb,1):pind(nb,2)))=fpn(cmap(pind(nb,1):pind(nb,2))) &
@@ -344,8 +351,8 @@ module cable_ccam
                                         +sv(pind(nb,1):pind(nb,2))*canopy%uscrn(pind(nb,1):pind(nb,2))
       qgscrn(cmap(pind(nb,1):pind(nb,2)))=qgscrn(cmap(pind(nb,1):pind(nb,2))) &
                                         +sv(pind(nb,1):pind(nb,2))*canopy%qscrn(pind(nb,1):pind(nb,2))
-      u10(cmap(pind(nb,1):pind(nb,2)))=u10(cmap(pind(nb,1):pind(nb,2))) &
-                                        +sv(pind(nb,1):pind(nb,2))*canopy%ua_10m(pind(nb,1):pind(nb,2))
+      !u10(cmap(pind(nb,1):pind(nb,2)))=u10(cmap(pind(nb,1):pind(nb,2))) &
+      !                                  +sv(pind(nb,1):pind(nb,2))*canopy%ua_10m(pind(nb,1):pind(nb,2))
     end if
   end do
   where (land)
@@ -681,12 +688,16 @@ module cable_ccam
   cplant=0.
   csoil=0.
   pind=ifull+1
+  mvtype=mxvt
+  mstype=mxst
 
   ! calculate length of CABLE vectors
   mp=0
+  mland=0
   do iq=1,ifull
     if (land(iq)) then
       mp=mp+count(svs(iq,:).gt.0.)
+      mland=mland+1
     end if
   end do
   
@@ -794,10 +805,10 @@ module cable_ccam
     veg%refl(:,1) = refl(veg%iveg,1)
     veg%refl(:,2) = refl(veg%iveg,2)  
     veg%extkn     = extkn(veg%iveg)
-    soil%rs20     = rs20(veg%iveg)
+    veg%rs20      = rs20(veg%iveg)
     veg%vegcf     = vegcf(veg%iveg)
     do k=1,ms
-      soil%froot(:,k)=froot2(veg%iveg,k)
+      veg%froot(:,k)=froot2(veg%iveg,k)
     end do
 
     ! Calculate LAI and veg fraction diagnostics
@@ -841,6 +852,11 @@ module cable_ccam
     bgc%ratecs(:) = ratecs(:)
 
     ! store bare soil albedo and define snow free albedo
+
+    soil%albsoil(:,1)=albvisnir(cmap,1)
+    soil%albsoil(:,2)=albvisnir(cmap,2)
+    soil%albsoil(:,3)=0.05
+    
     where (land)
       albsoil(:)=0.5*sum(albvisnir,2)
     end where
@@ -867,7 +883,6 @@ module cable_ccam
     albnirdir=albvisnir(:,2) ! To be updated by CABLE
     albnirdif=albvisnir(:,2) ! To be updated by CABLE
 
-    soil%albsoil=albsoil(cmap)
     ssoil%albsoilsn(:,1)=albsoilsn(cmap,1) ! overwritten by CABLE
     ssoil%albsoilsn(:,2)=albsoilsn(cmap,2) ! overwritten by CABLE
     ssoil%albsoilsn(:,3)=0.05
@@ -875,7 +890,7 @@ module cable_ccam
     ssoil%t_snwlr=0.05
     ssoil%pudsmx=0.
   
-    rad%albedo_T=soil%albsoil
+    rad%albedo_T=albsoil(cmap)
     rad%trad=tss(cmap)
     rad%latitude=rlatt(cmap)*180./pi
     rad%longitude=rlongg(cmap)*180./pi
@@ -1444,8 +1459,8 @@ module cable_ccam
       end if
     end do
     if (iq.gt.0) then
-      yy=min(xx(n),(soil%ssat(iq)-ssoil%wb(iq,ms))*1000.*soil%zse(ms))
-      ssoil%wb(iq,ms)=ssoil%wb(iq,ms)+yy/(1000.*soil%zse(ms))
+      yy=min(xx(n),(soil%ssat(iq)-ssoil%wb(iq,cbm_ms))*1000.*soil%zse(cbm_ms))
+      ssoil%wb(iq,cbm_ms)=ssoil%wb(iq,cbm_ms)+yy/(1000.*soil%zse(cbm_ms))
       xx(n)=max(xx(n)-yy,0.)
       inflow=inflow+sv(iq)*xx(n)
     else

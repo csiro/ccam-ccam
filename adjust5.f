@@ -153,7 +153,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
        enddo    ! iq loop
       enddo     ! k loop
 
-      if(nh>0)then
+      if(nh.ne.0.and.(ktau.gt.knh.or.lrestart))then
 !       add in departure values of p-related nh terms  & omgfnl terms    
         if (abs(epsp).le.1.) then
           const_nh=2.*rdry/(dt*grav*grav*(1.+abs(epsp))**2)
@@ -177,7 +177,7 @@ c      p(iq,1)=zs(iq)+bet(1)*tx(iq,1)+rdry*tbar2d(iq)*pslxint(iq) ! Eq. 146
           print *,'adjust5 wrk1 ',(wrk1(idjd,k),k=1,kl)
         endif
         p(1:ifull,:)=p(1:ifull,:)+wrk1(:,:)  ! nh
-      endif     ! (nh>0)
+      endif     ! (nh.ne.0.and.(ktau.gt.knh.or.lrestart))
 
 !     form divergence of rhs (xu & xv) terms
       do k=1,kl

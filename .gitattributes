@@ -13,7 +13,8 @@
 /cable_common.F90 -text
 /cable_define_dimensions.F90 -text
 /cable_define_types.F90 -text
-/cable_directives.h -text
+/cable_diag.F90 -text
+/cable_iovars.F90 -text
 /cable_math_constants.F90 -text
 /cable_other_constants.F90 -text
 /cable_photosynthetic_constants.F90 -text
@@ -21,7 +22,6 @@
 /cable_radiation.F90 -text
 /cable_roughness.F90 -text
 /cable_soilsnow.F90 -text
-/cable_variables.F90 -text
 /carbpools_m.f90 -text
 /cfrac_m.f90 -text
 /cldcom_m.f90 -text

@@ -821,7 +821,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      &                  tss,t(1:ifull,1),qsttg,qg(1:ifull,1),           ! land
      &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! land
      &                       v(1:ifull,1)*v(1:ifull,1)),                ! land
-     &                  ps(1:ifull),.not.land,zmin,sig(1))              ! land
+     &                  ps(1:ifull),.not.land,azmin,sig(1))              ! land
            end if                                                       ! land
         case(CABLE)                                                     ! cable
          write(6,*) "nsib==CABLE option not avaliable"                  ! cable
@@ -852,7 +852,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      &                  tss,t(1:ifull,1),smixr,qg(1:ifull,1),           ! cable
      &                  sqrt(u(1:ifull,1)*u(1:ifull,1)+                 ! cable
      &                       v(1:ifull,1)*v(1:ifull,1)),                ! cable
-     &                  ps(1:ifull),land,zmin,sig(1))                   ! cable
+     &                  ps(1:ifull),land,azmin,sig(1))                  ! cable
          end if                                                         ! cable
          smixr=wetfac*qsttg+(1.-wetfac)*min(qsttg,qg(1:ifull,1))        ! cable
          ! The following patch overrides CABLE screen level diagnostics ! cable
@@ -861,7 +861,7 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      &                tss,t(1:ifull,1),smixr,qg(1:ifull,1),             ! cable
      &                sqrt(u(1:ifull,1)*u(1:ifull,1)+                   ! cable
      &                     v(1:ifull,1)*v(1:ifull,1)),                  ! cable
-     &                ps(1:ifull),.not.land,zmin,sig(1))                ! cable
+     &                ps(1:ifull),.not.land,azmin,sig(1))               ! cable
          end if                                                         ! cable
          if (myid==0.and.nmaxpr==1) then                                ! cable
            write(6,*) "After CABLE"                                     ! cable

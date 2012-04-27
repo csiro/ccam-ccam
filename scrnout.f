@@ -357,14 +357,14 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       real, dimension(ifull), intent(inout) :: qgscrn,tscrn,uscrn,u10
       real, dimension(ifull), intent(inout) :: rhscrn
       real, dimension(ifull), intent(in) :: zo,zoh,tsu,temp,smixr
-      real, dimension(ifull), intent(in) :: qg,umag,ps
-      real, intent(in) :: zmin,sig
+      real, dimension(ifull), intent(in) :: qg,umag,ps,zmin
+      real, intent(in) :: sig
       real, dimension(ifull) :: qgscrn_pack,tscrn_pack
       real, dimension(ifull) :: uscrn_pack,u10_pack
       real, dimension(ifull) :: rhscrn_pack,zo_pack,zoh_pack
       real, dimension(ifull) :: stemp_pack,temp_pack
       real, dimension(ifull) :: smixr_pack,mixr_pack
-      real, dimension(ifull) :: umag_pack,ps_pack
+      real, dimension(ifull) :: umag_pack,ps_pack,zmin_pack
       logical, dimension(ifull), intent(in) :: land
       
       pfull=count(.not.land)
@@ -379,6 +379,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       mixr_pack(1:pfull)=pack(qg,.not.land)
       umag_pack(1:pfull)=pack(umag,.not.land)
       ps_pack(1:pfull)=pack(ps,.not.land)
+      zmin_pack(1:pfull)=pack(zmin,.not.land)
 
       call scrncalc(pfull,qgscrn_pack(1:pfull),tscrn_pack(1:pfull),
      &              uscrn_pack(1:pfull),u10_pack(1:pfull),
@@ -386,7 +387,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
      &              zoh_pack(1:pfull),stemp_pack(1:pfull),
      &              temp_pack(1:pfull),smixr_pack(1:pfull),
      &              mixr_pack(1:pfull),umag_pack(1:pfull),
-     &              ps_pack(1:pfull),zmin,sig)
+     &              ps_pack(1:pfull),zmin_pack,sig)
 
       qgscrn=unpack(qgscrn_pack(1:pfull),.not.land,qgscrn)
       tscrn=unpack(tscrn_pack(1:pfull),.not.land,tscrn)
@@ -411,7 +412,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       real, dimension(pfull), intent(out) :: qscrn,tscrn,uscrn,u10
       real, dimension(pfull), intent(out) :: rhscrn
       real, dimension(pfull), intent(in) :: zo,zoh,stemp,temp,umag
-      real, dimension(pfull), intent(in) :: smixr,mixr,ps
+      real, dimension(pfull), intent(in) :: smixr,mixr,ps,zmin
       real, dimension(pfull) :: lzom,lzoh,thetav,sthetav
       real, dimension(pfull) :: thetavstar,z_on_l,z0_on_l,zt_on_l
       real, dimension(pfull) :: pm0,ph0,pm1,ph1,integralm,integralh
@@ -419,7 +420,7 @@ c                   1:($2*(log(38/$3)**2/log(10/$3)**2))
       real, dimension(pfull) :: neutral,neutral10,pm10
       real, dimension(pfull) :: integralm10
       real, dimension(pfull) :: esatb,qsatb,tstar,umagn
-      real, intent(in) :: zmin,sig
+      real, intent(in) :: sig
       real scrp
       integer, parameter ::  nc     = 5
       real, parameter    ::  vkar   = 0.4
@@ -537,6 +538,7 @@ c-------Beljaars and Holtslag (1991) heat function
       
       use arrays_m
       use mlo
+      use nharrs_m
       use pbl_m
       use permsurf_m
       use screen_m
@@ -554,10 +556,11 @@ c-------Beljaars and Holtslag (1991) heat function
       
       integer iq
       real es
-      real, dimension(ifull) :: umag
+      real, dimension(ifull) :: umag,zminx
       real, dimension(ifull) :: ou,ov,atu,atv,iu,iv
       real, parameter :: vkar = 0.4
       
+      zminx=(bet(1)*t(1:ifull,1)+phi_nh(:,1))/grav
       ps(1:ifull)=1.E5*exp(psl(1:ifull))
       ou=0.
       ov=0.
@@ -578,7 +581,7 @@ c-------Beljaars and Holtslag (1991) heat function
       
       call scrncalc(ifull,qgscrn,tscrn,uscrn,u10,rhscrn,zo,zoh,
      &              tss,t(1:ifull,1),qsttg,qg(1:ifull,1),umag,
-     &              ps(1:ifull),zmin,sig(1))
+     &              ps(1:ifull),zminx,sig(1))
      
       atu=(u(1:ifull,1)-ou)*uscrn/max(umag,0.2)+ou
       atv=(v(1:ifull,1)-ov)*uscrn/max(umag,0.2)+ov

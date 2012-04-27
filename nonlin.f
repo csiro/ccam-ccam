@@ -94,7 +94,7 @@
          enddo    ! k  loop
         enddo     ! ng loop
       endif       ! (ngas>=1)
-      
+ 
       !--------------------------------------------------------------
       ! MJT aerosols
       if (abs(iaero)==2) then
@@ -250,17 +250,13 @@ cx      enddo      ! k  loop
       endif     ! (ntbar==-4)
       
       ! update hydrostatic phi and add non-hydrostatic component
-      if(nh==0.or.(ktau.le.1.and..not.lrestart))then
-        phi_nh=0. ! set to hydrostatic approximation
-      end if
       phi(:,1)=zs(1:ifull)+bet(1)*t(1:ifull,1) 
       do k=2,kl
        phi(:,k)=phi(:,k-1)+bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1)
       enddo    ! k  loop
-      phi=phi+phi_nh
-      
       ! update non-hydrostatic terms from Miller-White height equation
-      if (nh.gt.0) then
+      if (nh.ne.0.and.(ktau.gt.knh.or.lrestart)) then
+        phi=phi+phi_nh
         if (abs(epsp).le.1.) then
           ! MJT exact treatment of constant epsp terms
           const_nh=2.*rdry/(dt*grav*grav*(1.-epsp*epsp))
@@ -337,7 +333,10 @@ cx      enddo      ! k  loop
           endif
           call maxmin(h_nh,'h_',ktau,1.,kl)
         endif
-      endif      ! (nh==0 ..else..)
+      else
+        phi_nh=0. ! set to hydrostatic approximation
+        h_nh=0.
+      endif      ! (nh.ne.0.and.(ktau.gt.knh.or.lrestart)) ..else..
 
       do k=1,kl
        do iq=1,ifull

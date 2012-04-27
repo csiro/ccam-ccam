@@ -8,7 +8,7 @@
      &        io_clim,io_in,io_out,io_rest,io_spec,                      &
      &        nwt,nqg,nrun,nrunx,nextout,nclim,m_fly,nsemble,            &
      &        nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss,kbotmlo,ktopmlo,   &
-     &        mloalpha,nud_ouv,nud_sfh,rescrn
+     &        mloalpha,nud_ouv,nud_sfh,rescrn,knh
       real qgmin,                                                        &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
      &     ds,dt,dtin,timea,panfg,panzo,bpyear
@@ -32,7 +32,7 @@
      &                kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh
 
       common/parmtime/ktau,ntau,nperavg,nperday,ds,dt,dtin,timea,nmaxpr, &
-     &                diag,nlv,ia,ib,ja,jb,id,jd,idjd,ndi,ndi2
+     &                diag,nlv,ia,ib,ja,jb,id,jd,idjd,ndi,ndi2,knh
 
       common/parmio/io_clim,io_in,io_out,io_rest,io_spec,                &  ! type of I/O
      &            nwt,nqg,nrun,nrunx,nextout,nclim,m_fly,localhist  

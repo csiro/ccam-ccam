@@ -1,15 +1,16 @@
-!#include "include/cable_directives.h"
 
 MODULE carbon_module
   USE define_types
-  USE define_dimensions, ONLY: r_1,i_d,mp,ms
-  !USE define_dimensions, ONLY: r_1,i_d,mp,ms,mvtype,
+  USE define_dimensions, ONLY: r_1,i_d,mp,ms,mvtype,mstype
   IMPLICIT NONE
   PRIVATE
   PUBLIC carbon_pl, soilcarb, plantcarb
 CONTAINS
 
   SUBROUTINE carbon_pl(dels, soil, ssoil, veg, canopy, bgc)
+      use cable_common_module, only : cable_runtime, cable_user
+      use cable_diag_module, only : cable_stat
+   implicit none
     REAL(r_1), INTENT(IN)                 :: dels     ! integration time step (s)
     TYPE (soil_parameter_type), INTENT(IN):: soil   ! soil parameters
     TYPE (soil_snow_type), INTENT(IN)     :: ssoil  ! soil/snow variables
@@ -34,40 +35,40 @@ CONTAINS
 
     REAL(r_1), DIMENSION(mp) :: wbav ! water stress index 
 
-    !ALLOCATE( rw(mvtype), tfcl(mvtype), tvclst(mvtype) )
-    ALLOCATE( rw(17), tfcl(17), tvclst(17) )
+      if( cable_user%RUN_DIAG_LEVEL == 'BASIC' ) &    
+         call cable_stat('carbon_pl')
 
-    !ALLOCATE( trnl(mvtype), trnr(mvtype), trnsf(mvtype), trnw(mvtype) )
-    ALLOCATE( trnl(17), trnr(17), trnsf(17), trnw(17) )
+    ALLOCATE( rw(mvtype), tfcl(mvtype), tvclst(mvtype) )
+
+    ALLOCATE( trnl(mvtype), trnr(mvtype), trnsf(mvtype), trnw(mvtype) )
     trnl = 3.17e-8
     trnr = 4.53e-9
     trnsf = 1.057e-10
     trnw = 6.342e-10
-    !mvtype = 17
 
-    !SELECT CASE (mvtype)
-    !  CASE (13)     ! CASA vegetation types
-    !    rw   = (/ 16., 8.7, 12.5, 16., 18., 7.5, &
-    !            & 6.1, .84, 10.4, 15.1, 9., 5.8, 0.001 /)
-    !    tfcl = (/ 0.248, 0.345, 0.31, 0.42, 0.38, 0.35, &
-    !            & 0.997, 0.95, 2.4, 0.73, 2.4, 0.55, 0.9500 /)
-    !    tvclst = (/ 283., 278., 278., 235., 268., 278.0, &
-    !              & 278.0, 278.0, 278.0, 235., 278., 278., 268. /)
-    !  CASE (15)     ! CSIRO types for UM
-    !    rw   = (/ 16., 16., 18., 8.7, 10.4, 6.1, 6.1, 6.1, &
-    !              5.8, 5.8, 0.001, 9.0, 0.001, 0.001, 0.001 /)
-    !    tfcl = (/ 0.42, 0.248, 0.38, 0.345, 2.4, 0.997, 0.997, 0.997, &
-    !              0.55, 0.55, 0.9500, 2.4, 0.9500, 0.9500, 0.9500 /)
-    !    tvclst = (/ 235., 283., 268., 278., 278.0, 278.0, 278.0, 278.0, &
-    !                278., 278., 278.0, 278., 278., 278., 268. /)
-    !  CASE (16)     ! IGBP vegetation types without water bodies
-    !    rw   = (/ 16., 16., 18., 8.7, 12.5, 15.1, 10.4, 7.5, &
-    !            & 6.1, 6.1, 0.001, 5.8, 0.001, 5.8, 0.001, 9.0 /)
-    !    tfcl = (/ 0.42, 0.248, 0.38, 0.345, 0.31, 0.73, 2.4, 0.35, &
-    !            & 0.997, 0.997, 0.9500, 0.55, 0.9500, 0.55, 0.9500, 2.4 /)
-    !    tvclst = (/ 235., 283., 268., 278., 278., 235., 278.0, 278.0, &
-    !              & 278.0, 278.0, 278.0, 278., 278., 278., 268., 278. /)
-    !  CASE (17)     ! IGBP vegetation types with water bodies
+    SELECT CASE (mvtype)
+      CASE (13)     ! CASA vegetation types
+        rw   = (/ 16., 8.7, 12.5, 16., 18., 7.5, &
+                & 6.1, .84, 10.4, 15.1, 9., 5.8, 0.001 /)
+        tfcl = (/ 0.248, 0.345, 0.31, 0.42, 0.38, 0.35, &
+                & 0.997, 0.95, 2.4, 0.73, 2.4, 0.55, 0.9500 /)
+        tvclst = (/ 283., 278., 278., 235., 268., 278.0, &
+                  & 278.0, 278.0, 278.0, 235., 278., 278., 268. /)
+      CASE (15)     ! CSIRO types for UM
+        rw   = (/ 16., 16., 18., 8.7, 10.4, 6.1, 6.1, 6.1, &
+                  5.8, 5.8, 0.001, 9.0, 0.001, 0.001, 0.001 /)
+        tfcl = (/ 0.42, 0.248, 0.38, 0.345, 2.4, 0.997, 0.997, 0.997, &
+                  0.55, 0.55, 0.9500, 2.4, 0.9500, 0.9500, 0.9500 /)
+        tvclst = (/ 235., 283., 268., 278., 278.0, 278.0, 278.0, 278.0, &
+                    278., 278., 278.0, 278., 278., 278., 268. /)
+      CASE (16)     ! IGBP vegetation types without water bodies
+        rw   = (/ 16., 16., 18., 8.7, 12.5, 15.1, 10.4, 7.5, &
+                & 6.1, 6.1, 0.001, 5.8, 0.001, 5.8, 0.001, 9.0 /)
+        tfcl = (/ 0.42, 0.248, 0.38, 0.345, 0.31, 0.73, 2.4, 0.35, &
+                & 0.997, 0.997, 0.9500, 0.55, 0.9500, 0.55, 0.9500, 2.4 /)
+        tvclst = (/ 235., 283., 268., 278., 278., 235., 278.0, 278.0, &
+                  & 278.0, 278.0, 278.0, 278., 278., 278., 268., 278. /)
+      CASE (17)     ! IGBP vegetation types with water bodies
 !! rml: may not be the best values for our current 17 types, but will be superceeded by 
 !! CASA-CNP anyway
         rw   = (/ 16., 16., 18., 8.7, 12.5, 15.1, 10.4, 7.5, &
@@ -76,16 +77,16 @@ CONTAINS
                 & 0.997, 0.9500, 0.55, 0.9500, 0.55, 0.9500, 2.4, 0.9500 /)
         tvclst = (/ 235., 283., 268., 278., 278., 235., 278.0, 278.0, &
                   & 278.0, 278.0, 278.0, 278., 278., 278., 268., 278., 278. /)
-    !  CASE DEFAULT
-    !    PRINT *, 'Error! Dimension not compatible with CASA or CSIRO or IGBP types!'
-    !    PRINT *, 'Dimension =', mvtype
-    !    PRINT *, 'At the rw section.'
-    !    STOP
-    !END SELECT
+      CASE DEFAULT
+        PRINT *, 'Error! Dimension not compatible with CASA or CSIRO or IGBP types!'
+        PRINT *, 'Dimension =', mvtype
+        PRINT *, 'At the rw section.'
+        STOP
+    END SELECT
 
       ! Limit size of exponent to avoif overflow when tv is very cold
       coef_cold = EXP(MIN(1., -(canopy%tv - tvclst(veg%iveg)))) 
-      wbav = REAL(SUM(soil%froot * ssoil%wb, 2),r_1)
+      wbav = REAL(SUM(veg%froot * ssoil%wb, 2),r_1)
       wbav = max(0.01,wbav)  ! EAK Jan2011
       ! drought stress
       coef_drght = EXP(5.*( MIN(1., MAX(1.,wbav**(2-soil%ibp2)-1.) / & 
@@ -144,8 +145,6 @@ CONTAINS
 
     use physical_constants
     use cable_common_module   
-!   use checksum_m
-!   use arraydiag_m
 
     TYPE (soil_parameter_type), INTENT(IN)   :: soil
     TYPE (soil_snow_type), INTENT(IN)        :: ssoil
@@ -153,7 +152,6 @@ CONTAINS
     TYPE (bgc_pool_type), INTENT(IN)         :: bgc
     TYPE (met_type), INTENT(IN)              :: met 
     TYPE (canopy_type), INTENT(OUT)          :: canopy
-    character(len=3) :: diag_soil_resp 
 
     REAL(r_1), DIMENSION(mp)  :: den ! sib3  
     INTEGER(i_d)                             :: k
@@ -165,18 +163,16 @@ CONTAINS
     REAL(r_1), PARAMETER                     :: t0 = -46.0
     REAL(r_1), DIMENSION(mp)  :: tref   
     REAL(r_1), DIMENSION(mp)  :: tsoil 
-    REAL(r_1), DIMENSION(10)             :: rswch
-    REAL(r_1), DIMENSION(10)             :: soilcf
+    REAL(r_1), DIMENSION(mstype)             :: rswch
+    REAL(r_1), DIMENSION(mstype)             :: soilcf
     REAL(r_1), DIMENSION(mp)            :: avgtrs !root weighted mean soil temperature
     REAL(r_1), DIMENSION(mp)            :: avgwrs !root weighted mean soil moisture
 
-!   logical stats
-
-    call cable_switch_status('DIAG_SOIL_RESP is ', diag_soil_resp)
-    if (diag_soil_resp == 'off')  then
-      avgwrs = sum(soil%froot * ssoil%wb,2)
-      avgtrs = max(0.0,sum(soil%froot * ssoil%tgg,2)-tfrz)
-      canopy%frs = soil%rs20 * min(1.0, max(0.0, min(&
+    if (cable_user%DIAG_SOIL_RESP == 'off' .OR. &
+         cable_user%DIAG_SOIL_RESP == 'OFF'    )  then
+      avgwrs = sum(veg%froot * ssoil%wb,2)
+      avgtrs = max(0.0,sum(veg%froot * ssoil%tgg,2)-tfrz)
+      canopy%frs = veg%rs20 * min(1.0, max(0.0, min(&
            -0.0178+0.2883*avgwrs+5.0176*avgwrs*avgwrs-4.5128*avgwrs*avgwrs*avgwrs, &
            0.3320+22.6726*exp(-5.8184*avgwrs)))) &
            * min(1.0, max(0.0, min( 0.0104*(avgtrs**1.3053), 5.5956-0.1189*avgtrs)))
@@ -193,16 +189,16 @@ CONTAINS
       soilcf = 1.0
 
       den = max(0.07,soil%sfc - soil%swilt)
-      rswc = MAX(0.0001, soil%froot(:,1)*(REAL(ssoil%wb(:,2),r_1) - soil%swilt))&
+      rswc = MAX(0.0001, veg%froot(:,1)*(REAL(ssoil%wb(:,2),r_1) - soil%swilt))&
          & / den
-      tsoil = soil%froot(:,1) * ssoil%tgg(:,2) - tfrz
+      tsoil = veg%froot(:,1) * ssoil%tgg(:,2) - tfrz
     
       tref = MAX(0.,ssoil%tgg(:,ms) - (tfrz-.05) )
     
       DO k = 2,ms 
-         rswc = rswc + MAX(0.0001, soil%froot(:,k) &
+         rswc = rswc + MAX(0.0001, veg%froot(:,k) &
             & * (REAL(ssoil%wb(:,k),r_1) - soil%swilt)) / den
-         tsoil = tsoil + soil%froot(:,k) * ssoil%tgg(:,k)
+         tsoil = tsoil + veg%froot(:,k) * ssoil%tgg(:,k)
       ENDDO
       rswc = MIN(1.,rswc)
       tsoil = MAX(t0 + 2., tsoil)
