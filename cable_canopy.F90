@@ -989,8 +989,11 @@ end subroutine within_canopy
                if( ssoil%wbice(j,1) > 0. ) &
                    ssoil%wetfac(j) = ssoil%wetfac(j)*max(0.5,1.-min(0.2,(ssoil%wbice(j,1)/ssoil%wb(j,1))**2))
                if ( ssoil%snowd(j) > 0.1) ssoil%wetfac(j) = 0.9
-               if ( veg%iveg(j) == 16 .and. met%tk(j) >= tfrz + 5.) ssoil%wetfac(j) = 1.0
-               if ( veg%iveg(j) == 16 .and. met%tk(j) < tfrz + 5.) ssoil%wetfac(j) = 0.7
+               ! MJT - IGBP replace CSIRO
+               !if ( veg%iveg(j) == 16 .and. met%tk(j) >= tfrz + 5.) ssoil%wetfac(j) = 1.0
+               !if ( veg%iveg(j) == 16 .and. met%tk(j) < tfrz + 5.) ssoil%wetfac(j) = 0.7
+               if ( veg%iveg(j) == 17 .and. met%tk(j) >= tfrz + 5.) ssoil%wetfac(j) = 1.0
+               if ( veg%iveg(j) == 17 .and. met%tk(j) < tfrz + 5.) ssoil%wetfac(j) = 0.7
             enddo 
             
     
