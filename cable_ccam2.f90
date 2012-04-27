@@ -131,7 +131,7 @@ module cable_ccam
   call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
   met%doy=fjd
   met%tk=theta(cmap)
-  met%tc=met%tk-273.16
+  !met%tc=met%tk-273.16
   met%tvair=met%tk
   met%tvrad=met%tk
   met%ua=vmod(cmap)
@@ -145,7 +145,7 @@ module cable_ccam
   met%precip_sn=conds(cmap) ! in mm not mm/sec
   met%hod=(met%doy-int(met%doy))*24. + rlongg(cmap)*180./(15.*pi)
   met%hod=mod(met%hod,24.)
-  rough%za_tq=(bet(1)*t(1:ifull,1)+phi_nh(:,1))/grav ! reference height
+  rough%za_tq=(bet(1)*t(cmap,1)+phi_nh(cmap,1))/grav ! reference height
   rough%za_uv=rough%za_tq
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
@@ -153,7 +153,6 @@ module cable_ccam
   swnet=sgsave(cmap)/(1.-swrsave(cmap)*albvisnir(cmap,1)-(1.-swrsave(cmap))*albvisnir(cmap,2)) ! short wave down (positive) W/m^2
   met%fsd(:,1)=swrsave(cmap)*swnet
   met%fsd(:,2)=(1.-swrsave(cmap))*swnet
-  met%fsd(:,3)=0. ! dummy for now
   rad%fbeam(:,1)=fbeamvis(cmap)
   rad%fbeam(:,2)=fbeamnir(cmap)
   rad%fbeam(:,3)=0. ! dummy for now
