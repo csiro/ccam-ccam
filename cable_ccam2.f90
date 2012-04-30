@@ -182,7 +182,6 @@ module cable_ccam
   ! CABLE
   ktau_gl=900
   kend_gl=999
-  veg%meth = 1
   cable_user%fwsoil_switch="standard"
   call ruff_resist(veg,rough,ssoil,soil,met,canopy)
   call define_air(met,air)
@@ -194,17 +193,19 @@ module cable_ccam
   call soil_snow(dt,soil,ssoil,canopy,met,bal,veg)
   ! adjust for new soil temperature
   deltat = ssoil%tss - ssoil%otss
-  canopy%fhs = canopy%fhs + deltat*ssoil%dfh_dtg
-  canopy%fes = canopy%fes + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
-  canopy%fh  = canopy%fhv + canopy%fhs
+  canopy%fhs     = canopy%fhs + deltat*ssoil%dfh_dtg
+  canopy%fes     = canopy%fes + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
+  canopy%fhs_cor = canopy%fhs_cor + deltat*ssoil%dfh_dtg
+  canopy%fes_cor = canopy%fes_cor + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
+  canopy%fh      = canopy%fhv + canopy%fhs
   ! need to adjust fe after soilsnow
-  canopy%fev = canopy%fevc + canopy%fevw
+  canopy%fev     = canopy%fevc + canopy%fevw
   ! Calculate total latent heat flux:
-  canopy%fe = canopy%fev + canopy%fes
+  canopy%fe      = canopy%fev + canopy%fes
   ! Calculate net radiation absorbed by soil + veg
-  canopy%rnet = canopy%fns + canopy%fnv
+  canopy%rnet    = canopy%fns + canopy%fnv
   ! Calculate radiative/skin temperature:
-  rad%trad = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssoil%tss**4 )**0.25
+  rad%trad       = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssoil%tss**4 )**0.25
 
   call plantcarb(veg,bgc,met,canopy)
   call soilcarb(soil,ssoil,veg,bgc,met,canopy)
@@ -786,6 +787,7 @@ module cable_ccam
 
     ! Load CABLE arrays
     ivegt=ivs(:,1) ! diagnostic
+    veg%meth      = 1
     veg%hc        = hc(veg%iveg)
     veg%canst1    = canst1(veg%iveg)
     veg%ejmax     = ejmax(veg%iveg)
@@ -806,6 +808,7 @@ module cable_ccam
     veg%extkn     = extkn(veg%iveg)
     veg%rs20      = rs20(veg%iveg)
     veg%vegcf     = vegcf(veg%iveg)
+    !veg%wai       = wai(veg%iveg)
     do k=1,ms
       veg%froot(:,k)=froot2(veg%iveg,k)
     end do
@@ -847,6 +850,9 @@ module cable_ccam
     soil%ibp2    = ibp2(soil%isoilm)
     soil%i2bp3   = i2bp3(soil%isoilm)
     soil%pwb_min = (soil%swilt/soil%ssat)**soil%ibp2
+    soil%clay    = clay(soil%isoilm)
+    soil%sand    = sand(soil%isoilm)
+    soil%silt    = silt(soil%isoilm)
     bgc%ratecp(:) = ratecp(:)
     bgc%ratecs(:) = ratecs(:)
 
@@ -893,9 +899,14 @@ module cable_ccam
     rad%trad=tss(cmap)
     rad%latitude=rlatt(cmap)*180./pi
     rad%longitude=rlongg(cmap)*180./pi
-  
+
+    canopy%oldcansto=0.  
     canopy%ghflux=0.
     canopy%sghflux=0.
+    canopy%ga=0.
+    canopy%dgdtg=0.
+    canopy%fhs_cor=0.
+    canopy%fes_cor=0.
     ssoil%wb_lake=0. ! not used when mlo.f90 is active
     canopy%ga=0.
     canopy%dgdtg=0.
