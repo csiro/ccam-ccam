@@ -89,20 +89,10 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       real, dimension(:), allocatable, save :: timeconv
       real, dimension(:), allocatable, save :: factnb
       integer, save:: klon2,klon3
-      logical lanx(ifull+iextra)
+      logical, dimension(ifull+iextra) :: lanx
       data nuv/0/
       include 'establ.h'
       
-      ! MJT landsea mask fix
-      if(alflnd<0)then
-        ee=0.
-        where (land)
-          ee(1:ifull)=1.
-        end where
-        call bounds(ee)
-        lanx=ee.gt.0.5
-      end if
-
       kcl_top=kl-2
       if (.not.allocated(alfqarr)) then
         allocate(alfqarr(ifull))
@@ -132,6 +122,13 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
           endif
         enddo
         if(alfsea<0.)then
+          ! MJT landsea mask fix
+          ee=0.
+          where (land)
+            ee(1:ifull)=1.
+          end where
+          call bounds(ee)
+          lanx=ee.gt.0.5
           do iq=1,ifull
 !           if(land(in(iq)).or.land(ie(iq)).or.land(iw(iq)).
 !     &                     or.land(is(iq)))alfqarr(iq)=abs(alflnd)
