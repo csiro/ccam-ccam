@@ -34,7 +34,8 @@ real, dimension(:,:), allocatable, save :: tke,eps
 ! model constants
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
-real, parameter :: be      = 1.     ! Hurley (2007) 1., Soares et al (2004) 0.3
+real, parameter :: be      = 7.     ! MJT suggestion be=10/sqrt(ce3)
+!real, parameter :: be      = 1.     ! Hurley (2007) 1., Soares et al (2004) 0.3
 real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
 real, parameter :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke 1988 0.42
 real, parameter :: ce1     = 1.46
@@ -108,16 +109,16 @@ end subroutine tkeinit
 ! mode=0 mass flux with moist convection
 ! mode=1 no mass flux
 
-subroutine tkemix(kmo,theta,qg,qlg,qfg,cfrac,zi,wt0,wq0,ps,ustar,zz,zzh,sig,sigkap,dt,mode,diag)
+subroutine tkemix(kmo,theta,qg,qlg,qfg,cfrac,zi,wt0,wq0,ps,ustar,zz,zzh,sig,sigkap,dt,qgmin,mode,diag)
 
 implicit none
 
 integer, intent(in) :: diag,mode
 integer k,i,klcl,icount,jcount,ncount
-real, intent(in) :: dt
-real, dimension(ifull,kl), intent(inout) :: theta,qg
+real, intent(in) :: dt,qgmin
+real, dimension(ifull,kl), intent(inout) :: theta,qg,qlg,qfg
 real, dimension(ifull,kl), intent(out) :: kmo
-real, dimension(ifull,kl), intent(in) :: zz,cfrac,qlg,qfg
+real, dimension(ifull,kl), intent(in) :: zz,cfrac
 real, dimension(ifull,kl-1), intent(in) :: zzh
 real, dimension(ifull), intent(inout) :: zi
 real, dimension(ifull), intent(in) :: wt0,wq0,ps,ustar
@@ -127,6 +128,7 @@ real, dimension(ifull,kl) :: gamtl,gamtv,gamth,gamqt,gamqv,gamhl
 real, dimension(ifull,kl) :: tkenew,epsnew,qsat,bb,cc,dd,ff,gg,rr
 real, dimension(ifull,kl) :: mflx,tlup,qtup
 real, dimension(ifull,kl) :: thetavhl,thetahl,qsathl,qlghl,qfghl
+real, dimension(ifull,kl) :: qlfnet,qlfx,fice
 real, dimension(ifull,2:kl) :: aa,qq,pps,ppt,ppb
 real, dimension(ifull,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl ! dz_hl(k)=zz(k+1)-zz(k)
@@ -603,10 +605,15 @@ end do
 dd(:,kl-1)=qtot(:,kl-1)+dt*gamhl(:,kl-2)/dz_fl(:,kl-1)
 call thomas(qtot(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 
-
-
 ! Convert back to theta and qg
-qg=qtot-qlg-qfg
+qlfnet=qlg+qfg
+qg=qtot-qlfnet
+fice=qfg/max(qlfnet,1.E-12)
+qlfx=max(min(qg,0.),-qlfnet)
+qg=qg-qlfx
+qlfnet=qlfnet+qlfx
+qlg=(1.-fice)*qlfnet
+qfg=fice*qlfnet
 do k=1,kl
   theta(:,k)=thetal(:,k)+sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
 end do
@@ -715,14 +722,12 @@ integer k
 real, dimension(ifull,kl), intent(in) :: km,zz
 real, dimension(ifull,kl), intent(out) :: kmo
 real, dimension(ifull,kl-1), intent(in) :: zhl
-real, dimension(ifull) :: xp
 integer, parameter :: interpmode = 1 ! 0=linear, 1=quadratic
 
 select case(interpmode)
   case(0)
     do k=1,kl-1
-      xp=(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k))
-      kmo(:,k)=(1.-xp)*km(:,k)+xp*km(:,k+1)
+      kmo(:,k)=km(:,k)+(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k))*(km(:,k+1)-km(:,k))
     end do
   case(1)
     kmo(:,1)=km(:,2)+(zhl(:,1)-zz(:,2))/(zz(:,3)-zz(:,1))*               &
@@ -732,7 +737,7 @@ select case(interpmode)
                ((km(:,3)-km(:,2))/(zz(:,3)-zz(:,2))                      &
                -(km(:,2)-km(:,1))/(zz(:,2)-zz(:,1)))
     where (kmo(:,1).lt.0.)
-      kmo(:,1)=0.5*(km(:,1)+km(:,2))
+      kmo(:,1)=km(:,1)+(zhl(:,1)-zz(:,1))/(zz(:,2)-zz(:,1))*(km(:,2)-km(:,1))
     end where
     do k=2,kl-1
       kmo(:,k)=km(:,k)+(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k-1))*                 &
@@ -742,7 +747,7 @@ select case(interpmode)
                  ((km(:,k+1)-km(:,k))/(zz(:,k+1)-zz(:,k))                        &
                  -(km(:,k)-km(:,k-1))/(zz(:,k)-zz(:,k-1)))
       where (kmo(:,k).lt.0.)
-        kmo(:,k)=0.5*(km(:,k)+km(:,k+1))
+        kmo(:,k)=km(:,k)+(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k))*(km(:,k+1)-km(:,k))
       end where
     end do
   case DEFAULT
@@ -775,7 +780,7 @@ gamhl(:,1)=gamin(:,2)+(zhl(:,1)-zz(:,2))/(zz(:,3)-zz(:,1))*                &
          +(zhl(:,1)-zz(:,2))**2/(zz(:,3)-zz(:,1))*                         &
            ((gamin(:,3)-gamin(:,2))/(zz(:,3)-zz(:,2))                      &
            -(gamin(:,2)-gamin(:,1))/(zz(:,2)-zz(:,1)))
-where (zhl(:,1).gt.zi)
+where (zhl(:,1).gt.zi.or.gamin(:,1).eq.0.)
   gamhl(:,1)=0.
 end where
 do k=2,kl-1
@@ -785,7 +790,7 @@ do k=2,kl-1
            +(zhl(:,k)-zz(:,k))**2/(zz(:,k+1)-zz(:,k-1))*                           &
              ((gamin(:,k+1)-gamin(:,k))/(zz(:,k+1)-zz(:,k))                        &
              -(gamin(:,k)-gamin(:,k-1))/(zz(:,k)-zz(:,k-1)))
-  where (zhl(:,k).gt.zi)
+  where (zhl(:,k).gt.zi.or.gamin(:,k).eq.0.)
     gamhl(:,k)=0.
   end where
 end do

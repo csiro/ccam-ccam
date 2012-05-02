@@ -33,6 +33,7 @@ c     N.B. no trace_gases yet
 c     has jlm nhorx option as last digit of nhor, e.g. -157
       include 'newmpar.h'
       include 'const_phys.h'
+      include 'kuocom.h'
       include 'parm.h'
  
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
@@ -491,42 +492,68 @@ c       do t diffusion based on potential temperature ff
            end do              !  iq loop
         end do
         ! cloud microphysics
-        ee=qlg(1:ifull,:)
-        call bounds(ee)
-        do k=1,kl
-          qlg(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
-     &      xfact(1:ifull,k)*ee(ie,k) +
-     &      xfact(iwu,k)*ee(iw,k) +
-     &      yfact(1:ifull,k)*ee(in,k) +
-     &      yfact(isv,k)*ee(is,k) ) /
-     &      ( 1./em(1:ifull)**2 +
-     &        xfact(1:ifull,k) + xfact(iwu,k) +
-     &        yfact(1:ifull,k) + yfact(isv,k) )
-        end do
-        ee=qfg(1:ifull,:)
-        call bounds(ee)
-        do k=1,kl
-          qfg(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
-     &      xfact(1:ifull,k)*ee(ie,k) +
-     &      xfact(iwu,k)*ee(iw,k) +
-     &      yfact(1:ifull,k)*ee(in,k) +
-     &      yfact(isv,k)*ee(is,k) ) /
-     &      ( 1./em(1:ifull)**2 +
-     &        xfact(1:ifull,k) + xfact(iwu,k) +
-     &        yfact(1:ifull,k) + yfact(isv,k) )
-        end do
-        ee=qrg(1:ifull,:)
-        call bounds(ee)
-        do k=1,kl
-          qrg(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
-     &      xfact(1:ifull,k)*ee(ie,k) +
-     &      xfact(iwu,k)*ee(iw,k) +
-     &      yfact(1:ifull,k)*ee(in,k) +
-     &      yfact(isv,k)*ee(is,k) ) /
-     &      ( 1./em(1:ifull)**2 +
-     &        xfact(1:ifull,k) + xfact(iwu,k) +
-     &        yfact(1:ifull,k) + yfact(isv,k) )
-        end do
+	if (ldr.ne.0) then
+          ee=qlg(1:ifull,:)
+          call bounds(ee)
+          do k=1,kl
+            qlg(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
+     &        xfact(1:ifull,k)*ee(ie,k) +
+     &        xfact(iwu,k)*ee(iw,k) +
+     &        yfact(1:ifull,k)*ee(in,k) +
+     &        yfact(isv,k)*ee(is,k) ) /
+     &        ( 1./em(1:ifull)**2 +
+     &          xfact(1:ifull,k) + xfact(iwu,k) +
+     &          yfact(1:ifull,k) + yfact(isv,k) )
+          end do
+          ee=qfg(1:ifull,:)
+          call bounds(ee)
+          do k=1,kl
+            qfg(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
+     &        xfact(1:ifull,k)*ee(ie,k) +
+     &        xfact(iwu,k)*ee(iw,k) +
+     &        yfact(1:ifull,k)*ee(in,k) +
+     &        yfact(isv,k)*ee(is,k) ) /
+     &        ( 1./em(1:ifull)**2 +
+     &          xfact(1:ifull,k) + xfact(iwu,k) +
+     &          yfact(1:ifull,k) + yfact(isv,k) )
+          end do
+          ee=qrg(1:ifull,:)
+          call bounds(ee)
+          do k=1,kl
+            qrg(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
+     &        xfact(1:ifull,k)*ee(ie,k) +
+     &        xfact(iwu,k)*ee(iw,k) +
+     &        yfact(1:ifull,k)*ee(in,k) +
+     &        yfact(isv,k)*ee(is,k) ) /
+     &        ( 1./em(1:ifull)**2 +
+     &          xfact(1:ifull,k) + xfact(iwu,k) +
+     &          yfact(1:ifull,k) + yfact(isv,k) )
+          end do
+          ee=cfrac(1:ifull,:)
+          call bounds(ee)
+          do k=1,kl
+            cfrac(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
+     &        xfact(1:ifull,k)*ee(ie,k) +
+     &        xfact(iwu,k)*ee(iw,k) +
+     &        yfact(1:ifull,k)*ee(in,k) +
+     &        yfact(isv,k)*ee(is,k) ) /
+     &        ( 1./em(1:ifull)**2 +
+     &          xfact(1:ifull,k) + xfact(iwu,k) +
+     &          yfact(1:ifull,k) + yfact(isv,k) )
+          end do
+          ee=cffall(1:ifull,:)
+          call bounds(ee)
+          do k=1,kl
+            cffall(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
+     &        xfact(1:ifull,k)*ee(ie,k) +
+     &        xfact(iwu,k)*ee(iw,k) +
+     &        yfact(1:ifull,k)*ee(in,k) +
+     &        yfact(isv,k)*ee(is,k) ) /
+     &        ( 1./em(1:ifull)**2 +
+     &          xfact(1:ifull,k) + xfact(iwu,k) +
+     &          yfact(1:ifull,k) + yfact(isv,k) )
+          end do
+        end if                 ! (ldr.ne.0)
       endif                    ! (nhorps.ne.-2)
        
       ! MJT aerosols

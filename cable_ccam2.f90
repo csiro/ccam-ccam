@@ -177,7 +177,7 @@ module cable_ccam
       write(6,*) "ERROR: Unsupported hruffmethod ",hruffmethod
       stop
   end select
-
+  
   !--------------------------------------------------------------
   ! CABLE
   ktau_gl=900
@@ -1214,10 +1214,10 @@ module cable_ccam
     ssoil%wbice=max(ssoil%wbice,0.)
     ssoil%smass=max(ssoil%smass,0.)
     ssoil%rtsoil=max(ssoil%rtsoil,0.)
+    ssoil%snowd=max(ssoil%snowd,0.)
     canopy%cansto=max(canopy%cansto,0.)
     bgc%cplant=max(bgc%cplant,0.)
     bgc%csoil=max(bgc%csoil,0.)
-    ssoil%snowd=max(ssoil%snowd,0.)
 
     ! overwritten by CABLE
     ssoil%osnowd=ssoil%snowd                                ! overwritten by CABLE
