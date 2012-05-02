@@ -633,7 +633,7 @@
       call nlin_init(ifull,iextra,kl)
       call morepbl_init(ifull,iextra,kl)
       call nharrs_init(ifull,iextra,kl)
-      call nsibd_init(ifull,iextra,kl,nsib,nurban)
+      call nsibd_init(ifull,iextra,kl,nsib)
       call parmhdff_init(ifull,iextra,kl)
       call pbl_init(ifull,iextra,kl)
       call permsurf_init(ifull,iextra,kl)
@@ -1212,7 +1212,7 @@
       end if
       select case(ldr)
         case(-2,-1,1,2)
-          call leoncld(cfrac,cffall,iaero) ! LDR microphysics scheme
+          call leoncld(cfrac,cffall(1:ifull,:),iaero) ! LDR microphysics scheme
       end select
       do k=1,kl
        riwp_ave(:)=riwp_ave(:)-qfrad(:,k)*dsig(k)*ps(1:ifull)/grav ! ice water path

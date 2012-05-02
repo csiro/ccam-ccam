@@ -950,10 +950,10 @@ c       now do qlg
         rhs(1:ifull,:)=qlg(1:ifull,:)
         call trim(at,ct,rhs,0)    ! for qlg
         qlg(1:ifull,:)=rhs(1:ifull,:)
-c       now do cfrac
-        rhs(1:ifull,:)=cfrac(1:ifull,:)
-        call trim(at,ct,rhs,0)    ! for cfrac
-        cfrac(1:ifull,:)=min(max(rhs(1:ifull,:),0.),1.)
+!c       now do cfrac
+!        rhs(1:ifull,:)=cfrac(1:ifull,:)
+!        call trim(at,ct,rhs,0)    ! for cfrac
+!        cfrac(1:ifull,:)=min(max(rhs(1:ifull,:),0.),1.)
 c       now do qrg
         rhs(1:ifull,:)=qrg(1:ifull,:)
         call trim(at,ct,rhs,0)    ! for qrg

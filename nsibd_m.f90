@@ -12,11 +12,11 @@ integer, dimension(:), allocatable, save :: ivegt,isoilm
 
 contains
 
-subroutine nsibd_init(ifull,iextra,kl,nsib,nurban)
+subroutine nsibd_init(ifull,iextra,kl,nsib)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl,nsib,nurban
+integer, intent(in) :: ifull,iextra,kl,nsib
 
 
 allocate(ivegt(ifull),isoilm(ifull))

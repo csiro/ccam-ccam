@@ -181,7 +181,9 @@ c     Stuff from cldset
          if(amipo3)then
 c           AMIP2 ozone
             call o3read_amip
-            print *,'AMIP2 ozone input'
+            if (myid==0) then
+	      print *,'AMIP2 ozone input'
+	    end if
         else
 c          Stuff from o3set
 c          Rearrange the seasonal mean O3 data to allow interpolation

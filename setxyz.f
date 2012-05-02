@@ -67,6 +67,7 @@ c     character*80 chars
       integer iq11,iq12,iq13,iq22,iq32,iqcc,iqnn
       integer imin,imax,jmin,jmax,numpts
       integer ::  iqm,iqp, n_n, n_e, n_w, n_s
+      integer iquadx
       real dsfact,xin,yin,zin
       real den, dot,eps,dx2,dy2,sumwts,rlat,rlong,ratmin,ratmax,rat
       real rlatdeg,rlondeg
@@ -80,6 +81,7 @@ c     a, b denote unit vectors in the direction of x, y (e & n) respectively
       idjd_g = id+il_g*(jd-1)  ! Global value
       schmidt=abs(schmidtin)
       ikk=abs(ik)
+      iquadx=1+ik*((8*npanels)/(npanels+4))
       
       if(schmidtin<0.)go to 2
       do iq=1,ifull_g
@@ -306,9 +308,9 @@ c     calculate grid information using quadruple resolution grid
 2     call jimcc(em4,ax4,ay4,az4,xx4,yy4,ikk,myid)
 c     call jimcc(em4,ax4,ay4,az4,myid)
       if(ktau<=1.and.myid==0)then
-        print *,'xx4 first & last ',xx4(1,1),xx4(iquad,iquad)
+        print *,'xx4 first & last ',xx4(1,1),xx4(iquadx,iquadx)
         print *,'xx4 (5,5),(7,7),(9,9) ',xx4(5,5),xx4(7,7),xx4(9,9)
-        print *,'yy4 first & last ',yy4(1,1),yy4(iquad,iquad)
+        print *,'yy4 first & last ',yy4(1,1),yy4(iquadx,iquadx)
         print *,'yy4 (5,5),(7,7),(9,9) ',yy4(5,5),yy4(7,7),yy4(9,9)
         print *,'xx4, yy4 central',xx4(2*ikk+1,2*ikk+1),
      &                               yy4(2*ikk+1,2*ikk+1)
@@ -386,10 +388,10 @@ c      also provide latitudes and longitudes (-pi to pi)
         ds=rearth/dsfact
 c       extend em4 to uppermost i and j rows
         do j=1,4*ikk
-         em4(iquad,j)=em4(1,j)
+         em4(iquadx,j)=em4(1,j)
         enddo
         do i=1,4*ikk
-         em4(i,iquad)=em4(i,1)
+         em4(i,iquadx)=em4(i,1)
         enddo
         do j=1,ikk
          do i=1,ikk

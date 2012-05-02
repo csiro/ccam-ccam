@@ -180,10 +180,10 @@ c     above code independent of k
           dvdy(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
      &              /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
         end do
-        dudx(:,kl)=dudx(:,kl-1) ! just a simple approximiation
-        dvdx(:,kl)=dvdx(:,kl-1)
-        dudy(:,kl)=dudy(:,kl-1)
-        dvdy(:,kl)=dvdy(:,kl-1)
+        dudx(:,kl)=0.5*(u(ieu,kl)-u(iwu,kl))*em(1:ifull)/ds ! just a simple approximiation
+        dvdx(:,kl)=0.5*(v(iev,kl)-v(iwv,kl))*em(1:ifull)/ds
+        dudy(:,kl)=0.5*(u(inu,kl)-u(isu,kl))*em(1:ifull)/ds
+        dvdy(:,kl)=0.5*(v(inv,kl)-v(isv,kl))*em(1:ifull)/ds
 
         ! calculate vertical velocity in m/s
         do k=1,kl        
@@ -234,8 +234,8 @@ c     above code independent of k
           dwdy(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
      &              /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
         end do
-        dwdx(:,kl)=dwdx(:,kl-1)
-        dwdy(:,kl)=dwdy(:,kl-1)
+        dwdx(:,kl)=0.5*(ww(ie,kl)-ww(iw,kl))*em(1:ifull)/ds
+        dwdy(:,kl)=0.5*(ww(in,kl)-ww(is,kl))*em(1:ifull)/ds
         
         ! calculate vertical gradients
         r1=0.
@@ -258,7 +258,7 @@ c     above code independent of k
         end do
         dudz(:,kl)=0.
         dvdz(:,kl)=0.
-        dudz(:,kl)=0.
+        dwdz(:,kl)=0.
 
       end if   ! nhorjlm==0.or.nvmix==6
       if (nhorjlm==1.or.nhorjlm==2.or.
@@ -427,30 +427,26 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
          ee(1:ifull,:)=tke(1:ifull,:)
          call bounds(ee)
          do k=1,kl
-           do iq=1,ifull
-             emi=1./em(iq)**2
-             tke(iq,k) = ( ee(iq,k)*emi +
-     &                     xfact(iq,k)*ee(ie(iq),k) +
-     &                     xfact(iwu(iq),k)*ee(iw(iq),k) +
-     &                     yfact(iq,k)*ee(in(iq),k) +
-     &                     yfact(isv(iq),k)*ee(is(iq),k) ) /
-     &                   ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
-     &                     yfact(iq,k)+yfact(isv(iq),k))
-           enddo           !  iq loop
+           tke(1:ifull,k) = ( ee(1:ifull,k)/(em(1:ifull)**2) +
+     &                     xfact(1:ifull,k)*ee(ie,k) +
+     &                     xfact(iwu,k)*ee(iw,k) +
+     &                     yfact(1:ifull,k)*ee(in,k) +
+     &                     yfact(isv,k)*ee(is,k) ) /
+     &                   ( 1./(em(1:ifull)**2) +
+     &                     xfact(1:ifull,k) + xfact(iwu,k) +
+     &                     yfact(1:ifull,k) + yfact(isv,k))
          end do
          ee(1:ifull,:)=eps(1:ifull,:)
          call bounds(ee)
          do k=1,kl
-           do iq=1,ifull
-             emi=1./em(iq)**2
-             eps(iq,k) = ( ee(iq,k)*emi +
-     &                     xfact(iq,k)*ee(ie(iq),k) +
-     &                     xfact(iwu(iq),k)*ee(iw(iq),k) +
-     &                     yfact(iq,k)*ee(in(iq),k) +
-     &                     yfact(isv(iq),k)*ee(is(iq),k) ) /
-     &                   ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
-     &                     yfact(iq,k)+yfact(isv(iq),k))
-           end do           !  iq loop
+           eps(1:ifull,k) = ( ee(1:ifull,k)/(em(1:ifull)**2) +
+     &                     xfact(1:ifull,k)*ee(ie,k) +
+     &                     xfact(iwu,k)*ee(iw,k) +
+     &                     yfact(1:ifull,k)*ee(in,k) +
+     &                     yfact(isv,k)*ee(is,k) ) /
+     &                   ( 1./(em(1:ifull)**2) +
+     &                     xfact(1:ifull,k) + xfact(iwu,k) +
+     &                     yfact(1:ifull,k) + yfact(isv,k))
          end do
       end if
        
@@ -492,8 +488,8 @@ c       do t diffusion based on potential temperature ff
            end do              !  iq loop
         end do
         ! cloud microphysics
-	if (ldr.ne.0) then
-          ee=qlg(1:ifull,:)
+        if (ldr.ne.0) then
+          ee(1:ifull,:)=qlg(1:ifull,:)
           call bounds(ee)
           do k=1,kl
             qlg(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
@@ -505,7 +501,7 @@ c       do t diffusion based on potential temperature ff
      &          xfact(1:ifull,k) + xfact(iwu,k) +
      &          yfact(1:ifull,k) + yfact(isv,k) )
           end do
-          ee=qfg(1:ifull,:)
+          ee(1:ifull,:)=qfg(1:ifull,:)
           call bounds(ee)
           do k=1,kl
             qfg(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
@@ -517,7 +513,7 @@ c       do t diffusion based on potential temperature ff
      &          xfact(1:ifull,k) + xfact(iwu,k) +
      &          yfact(1:ifull,k) + yfact(isv,k) )
           end do
-          ee=qrg(1:ifull,:)
+          ee(1:ifull,:)=qrg(1:ifull,:)
           call bounds(ee)
           do k=1,kl
             qrg(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
@@ -529,19 +525,19 @@ c       do t diffusion based on potential temperature ff
      &          xfact(1:ifull,k) + xfact(iwu,k) +
      &          yfact(1:ifull,k) + yfact(isv,k) )
           end do
-          ee=cfrac(1:ifull,:)
-          call bounds(ee)
-          do k=1,kl
-            cfrac(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
-     &        xfact(1:ifull,k)*ee(ie,k) +
-     &        xfact(iwu,k)*ee(iw,k) +
-     &        yfact(1:ifull,k)*ee(in,k) +
-     &        yfact(isv,k)*ee(is,k) ) /
-     &        ( 1./em(1:ifull)**2 +
-     &          xfact(1:ifull,k) + xfact(iwu,k) +
-     &          yfact(1:ifull,k) + yfact(isv,k) )
-          end do
-          ee=cffall(1:ifull,:)
+!          ee(1:ifull,:)=cfrac(1:ifull,:)
+!          call bounds(ee)
+!          do k=1,kl
+!            cfrac(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
+!     &        xfact(1:ifull,k)*ee(ie,k) +
+!     &        xfact(iwu,k)*ee(iw,k) +
+!     &        yfact(1:ifull,k)*ee(in,k) +
+!     &        yfact(isv,k)*ee(is,k) ) /
+!     &        ( 1./em(1:ifull)**2 +
+!     &          xfact(1:ifull,k) + xfact(iwu,k) +
+!     &          yfact(1:ifull,k) + yfact(isv,k) )
+!          end do
+          ee(1:ifull,:)=cffall(1:ifull,:)
           call bounds(ee)
           do k=1,kl
             cffall(1:ifull,k) = ( ee(1:ifull,k)/em(1:ifull)**2 +
@@ -562,16 +558,14 @@ c       do t diffusion based on potential temperature ff
           ee(1:ifull,:)=xtg(1:ifull,:,l)
           call bounds(ee)
           do k=1,kl
-            do iq=1,ifull
-              emi=1./em(iq)**2
-              xtg(iq,k,l) = ( ee(iq,k)*emi +
-     &                    xfact(iq,k)*ee(ie(iq),k) +
-     &                    xfact(iwu(iq),k)*ee(iw(iq),k) +
-     &                    yfact(iq,k)*ee(in(iq),k) +
-     &                    yfact(isv(iq),k)*ee(is(iq),k) ) /
-     &                  ( emi + xfact(iq,k) + xfact(iwu(iq),k) +
-     &                    yfact(iq,k)+yfact(isv(iq),k))
-            enddo           !  iq loop
+            xtg(1:ifull,k,l) = ( ee(1:ifull,k)/em(1:ifull)**2 +
+     &        xfact(1:ifull,k)*ee(ie,k) +
+     &        xfact(iwu,k)*ee(iw,k) +
+     &        yfact(1:ifull,k)*ee(in,k) +
+     &        yfact(isv,k)*ee(is,k) ) /
+     &        ( 1./em(1:ifull)**2 +
+     &          xfact(1:ifull,k) + xfact(iwu,k) +
+     &          yfact(1:ifull,k) + yfact(isv,k) )
           end do
         end do
       end if

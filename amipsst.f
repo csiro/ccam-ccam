@@ -23,7 +23,8 @@
       real, allocatable, save, dimension(:) :: ssta, sstb, sstc
       real, allocatable, save, dimension(:) :: aice, bice, cice
       real, allocatable, save, dimension(:) :: asal, bsal, csal
-      real, dimension(ifull) :: duma,sssb,res
+      real, allocatable, save, dimension(:) :: res
+      real, dimension(ifull) :: duma,sssb
       real, dimension(ifull,2) :: dumb
       real fraciceb(ifull), x, c2, c3, c4
       integer, dimension(0:13) :: mdays
@@ -96,6 +97,7 @@
       if (ktau==0) then
          if(namip==-1)then
 c          c1=0.
+           allocate(res(ifull))
            do iq=1,ifull  
             if(.not.land(iq))then
               c2=ssta(iq)

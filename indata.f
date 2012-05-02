@@ -560,7 +560,7 @@
         if (myid==0) write(6,*) 'Read initial conditions from ifile'
         kdate_sav=kdate_s
         ktime_sav=ktime_s
-        zss=zs
+        zss=zs(1:ifull)
         if (abs(io_in)==1) then
           call onthefly(0,kdate,ktime,psl(1:ifull),zss,tss,sicedep,
      &         fracice,t(1:ifull,:),u(1:ifull,:),v(1:ifull,:),

@@ -4,7 +4,7 @@
 !     N.B. nevapcc option has been removed
       use aerosolldr
       use arrays_m   
-      use cc_mpi, only : mydiag, myid
+      use cc_mpi, only : mydiag, myid, bounds
       use cfrac_m
       use diag_m
       use indices_m
@@ -83,13 +83,25 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
       integer kdown(ifull)
       real entr(ifull),qentr(ifull),sentr(ifull),factr(ifull)
       real fluxqs,fluxt_k(kl)
-      real cfraclim(ifull),convtim(ifull)    
+      real cfraclim(ifull),convtim(ifull)
+      real ee(ifull+iextra)
       real, save:: detrainin
       real, dimension(:), allocatable, save :: timeconv
       real, dimension(:), allocatable, save :: factnb
       integer, save:: klon2,klon3
+      logical lanx(ifull+iextra)
       data nuv/0/
       include 'establ.h'
+      
+      ! MJT landsea mask fix
+      if(alflnd<0)then
+        ee=0.
+        where (land)
+          ee(1:ifull)=1.
+        end where
+        call bounds(ee)
+        lanx=ee.gt.0.5
+      end if
 
       kcl_top=kl-2
       if (.not.allocated(alfqarr)) then
@@ -121,8 +133,10 @@ c     parameter (ncubase=2)    ! 2 from 4/06, more like 0 before  - usual
         enddo
         if(alfsea<0.)then
           do iq=1,ifull
-           if(land(in(iq)).or.land(ie(iq)).or.land(iw(iq)).
-     &                     or.land(is(iq)))alfqarr(iq)=abs(alflnd)
+!           if(land(in(iq)).or.land(ie(iq)).or.land(iw(iq)).
+!     &                     or.land(is(iq)))alfqarr(iq)=abs(alflnd)
+           if(lanx(in(iq)).or.lanx(ie(iq)).or.lanx(iw(iq)).
+     &                     or.lanx(is(iq)))alfqarr(iq)=abs(alflnd)
           enddo
         endif
         if(alflnd<0)then
