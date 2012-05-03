@@ -136,9 +136,9 @@ real, dimension(ifull,kl-1) :: zzm
 real, dimension(ifull) :: wstar,z_on_l,phim,hh,jj,dqsdt
 real, dimension(ifull) :: dum,wtv0
 real, dimension(kl) :: w2up,ttup,tvup,thup,qvup
-real, dimension(kl) :: qupsat,pres
+real, dimension(kl) :: qupsat,pres,nn
 real, dimension(kl-1) :: wpv_flux
-real xp,ee,dtr,nn,as,bs,cs,cm12,cm34,qlup
+real xp,ee,dtr,as,bs,cs,cm12,cm34,qlup
 real zht,dzht,zidry,zilcl,oldqupsat
 real ziold,ddt,tlc,qtc,w2c,mfc
 logical sconv
@@ -246,9 +246,9 @@ if (mode.ne.1) then ! mass flux
         ttup(1)=thup(1)/sigkap(1)                        ! temp,up
         call getqsat(1,qupsat(1),ttup(1),pres(1))        ! estimate of saturated mixing ratio in plume (LDR trick)
         ! update updraft velocity and mass flux
-        nn=grav*be*wtv0(i)/(thetav(i,1)*sqrt(tke(i,1)))                           ! Hurley 2007
-        !w2up(1)=2.*dzht*b2*nn/(1.+2.*dzht*b1*ee)                                 ! Hurley 2007
-        w2up(1)=(0.25*wstar(i)*wstar(i)+2.*dzht*b2*nn)/(1.+2.*dzht*b1*ee)         ! Angevine et al (2010)
+        nn(1)=grav*be*wtv0(i)/(thetav(i,1)*sqrt(tke(i,1)))                        ! Hurley 2007
+        !w2up(1)=2.*dzht*b2*nn(1)/(1.+2.*dzht*b1*ee)                              ! Hurley 2007
+        w2up(1)=(0.25*wstar(i)*wstar(i)+2.*dzht*b2*nn(1))/(1.+2.*dzht*b1*ee)      ! Angevine et al (2010)
         mflx(i,1)=0.1*sqrt(w2up(1))                                               ! Hurley 2007
         ! check for lcl
         sconv=.false.
@@ -278,16 +278,16 @@ if (mode.ne.1) then ! mass flux
           call getqsat(1,qupsat(k),ttup(k),pres(k)) ! estimate of saturated mixing ratio in plume
           tvup(k)=thup(k)+theta(i,k)*0.61*qtup(i,k) ! thetav,up
           ! calculate buoyancy
-          nn=grav*(tvup(k)-thetav(i,k))/thetav(i,k)
+          nn(k)=grav*(tvup(k)-thetav(i,k))/thetav(i,k)
           ! update updraft velocity
-          w2up(k)=(w2up(k-1)+2.*dzht*b2*nn)/(1.+2.*dzht*b1*ee)
+          w2up(k)=(w2up(k-1)+2.*dzht*b2*nn(k))/(1.+2.*dzht*b1*ee)
           ! update mass flux
           mflx(i,k)=mflx(i,k-1)/(1.+dzht*(dtr-ee))
           ! check for lcl
           if (.not.sconv) then
             if (qtup(i,k).ge.qupsat(k)) then
               ! estimate LCL when saturation occurs
-              as=ee/dzht*(qupsat(k)-qupsat(k-1))
+              as=ee*(qupsat(k)-qupsat(k-1))/dzht
               bs=(qupsat(k)-qupsat(k-1))/dzht+ee*(qupsat(k-1)-qtot(i,k))
               cs=qupsat(k-1)-qtup(i,k-1)
               xp=0.5*(-bs-sqrt(bs*bs-4.*as*cs))/as
@@ -298,13 +298,16 @@ if (mode.ne.1) then ! mass flux
               ! use dry convection to advect to lcl
               tlc=(tlup(i,k-1)+xp*ee*thetal(i,k))/(1.+xp*ee)
               qtc=(qtup(i,k-1)+xp*ee*qtot(i,k)  )/(1.+xp*ee)
-              w2c=(w2up(k-1)+2.*xp*b2*nn)/(1.+2.*xp*b1*ee)
+              w2c=(w2up(k-1)+2.*xp*b2*nn(k))/(1.+2.*xp*b1*ee)
               mfc=mflx(i,k-1)/(1.+xp*(dtr-ee))
             end if
           end if
           ! test if maximum plume height is reached
           if (w2up(k).le.0.) then
-            xp=-0.5*w2up(k-1)/(b2*nn)
+            as=2.*b2*(nn(k)-nn(k-1))/dzht
+            bs=2.*b2*nn(k-1)
+            cs=w2up(k-1)
+            xp=0.5*(-bs-sqrt(bs*bs-4.*as*cs))/as
             xp=min(max(xp,0.),dzht)
             zidry=xp+zz(i,k-1)
             mflx(i,k)=0.
@@ -339,12 +342,12 @@ if (mode.ne.1) then ! mass flux
           if (xp.lt.273.16) ttup(klcl)=xp                                       ! temp,up - frozen case
           thup(klcl)=ttup(klcl)*sigkap(klcl)                                    ! theta,up
           tvup(klcl)=thup(klcl)+theta(i,klcl)*(1.61*qvup(klcl)-qtup(i,klcl))    ! thetav,up
-          nn=grav*(tvup(klcl)-thetav(i,klcl))/thetav(i,klcl)                    ! buoyancy
-          w2up(klcl)=(w2c+2.*dzht*b2*nn)/(1.+2.*dzht*b1*ee)
+          nn(klcl)=grav*(tvup(klcl)-thetav(i,klcl))/thetav(i,klcl)              ! buoyancy
+          w2up(klcl)=(w2c+2.*dzht*b2*nn(klcl))/(1.+2.*dzht*b1*ee)
           mflx(i,klcl)=mfc/(1.+dzht*(dtr-ee))
           ! check for plume top
           if (w2up(klcl).le.0.) then
-            xp=-0.5*w2up(k-1)/(b2*nn)
+            xp=-0.5*w2up(k-1)/(b2*nn(klcl))
             xp=min(max(xp,0.),dzht)
             zi(i)=xp+zz(i,klcl-1)
             mflx(i,klcl)=0.
@@ -372,14 +375,17 @@ if (mode.ne.1) then ! mass flux
               thup(k)=ttup(k)*sigkap(k)                              ! theta,up
               tvup(k)=thup(k)+theta(i,k)*(1.61*qvup(k)-qtup(i,k))    ! thetav,up
               ! calculate buoyancy
-              nn=grav*(tvup(k)-thetav(i,k))/thetav(i,k)
+              nn(k)=grav*(tvup(k)-thetav(i,k))/thetav(i,k)
               ! update updraft velocity
-              w2up(k)=(w2up(k-1)+2.*dzht*b2*nn)/(1.+2.*dzht*b1*ee)
+              w2up(k)=(w2up(k-1)+2.*dzht*b2*nn(k))/(1.+2.*dzht*b1*ee)
               ! update mass flux
               mflx(i,k)=mflx(i,k-1)/(1.+dzht*(dtr-ee))
               ! test if maximum plume height is reached
               if (w2up(k).le.0.) then
-                xp=-0.5*w2up(k-1)/(b2*nn)
+                as=2.*b2*(nn(k)-nn(k-1))/dzht
+                bs=2.*b2*nn(k-1)
+                cs=w2up(k-1)
+                xp=0.5*(-bs-sqrt(bs*bs-4.*as*cs))/as
                 xp=min(max(xp,0.),dzht)
                 zi(i)=xp+zz(i,k-1)
                 mflx(i,k)=0.
@@ -772,28 +778,40 @@ real, dimension(ifull), intent(in) :: zi
 real, dimension(ifull,kl), intent(in) :: gamin,zz
 real, dimension(ifull,kl), intent(out) :: gamhl
 real, dimension(ifull,kl-1), intent(in) :: zhl
+integer, parameter :: interpmode = 1 ! 0=linear, 1=quadratic
 
-gamhl=0.
-gamhl(:,1)=gamin(:,2)+(zhl(:,1)-zz(:,2))/(zz(:,3)-zz(:,1))*                &
-           ((zz(:,2)-zz(:,1))*(gamin(:,3)-gamin(:,2))/(zz(:,3)-zz(:,2))    &
-           +(zz(:,3)-zz(:,2))*(gamin(:,2)-gamin(:,1))/(zz(:,2)-zz(:,1)))   &
-         +(zhl(:,1)-zz(:,2))**2/(zz(:,3)-zz(:,1))*                         &
-           ((gamin(:,3)-gamin(:,2))/(zz(:,3)-zz(:,2))                      &
-           -(gamin(:,2)-gamin(:,1))/(zz(:,2)-zz(:,1)))
-where (zhl(:,1).gt.zi.or.gamin(:,1).eq.0.)
-  gamhl(:,1)=0.
-end where
-do k=2,kl-1
-  gamhl(:,k)=gamin(:,k)+(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k-1))*                  &
-             ((zz(:,k)-zz(:,k-1))*(gamin(:,k+1)-gamin(:,k))/(zz(:,k+1)-zz(:,k))    &
-             +(zz(:,k+1)-zz(:,k))*(gamin(:,k)-gamin(:,k-1))/(zz(:,k)-zz(:,k-1)))   &
-           +(zhl(:,k)-zz(:,k))**2/(zz(:,k+1)-zz(:,k-1))*                           &
-             ((gamin(:,k+1)-gamin(:,k))/(zz(:,k+1)-zz(:,k))                        &
-             -(gamin(:,k)-gamin(:,k-1))/(zz(:,k)-zz(:,k-1)))
-  where (zhl(:,k).gt.zi.or.gamin(:,k).eq.0.)
-    gamhl(:,k)=0.
-  end where
-end do
+select case(interpmode)
+  case(0)
+    do k=1,kl-1
+      gamhl(:,k)=gamin(:,k)+(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k))*(gamin(:,k+1)-gamin(:,k))
+    end do
+  case(1)
+    gamhl=0.
+    gamhl(:,1)=gamin(:,2)+(zhl(:,1)-zz(:,2))/(zz(:,3)-zz(:,1))*                &
+               ((zz(:,2)-zz(:,1))*(gamin(:,3)-gamin(:,2))/(zz(:,3)-zz(:,2))    &
+               +(zz(:,3)-zz(:,2))*(gamin(:,2)-gamin(:,1))/(zz(:,2)-zz(:,1)))   &
+             +(zhl(:,1)-zz(:,2))**2/(zz(:,3)-zz(:,1))*                         &
+               ((gamin(:,3)-gamin(:,2))/(zz(:,3)-zz(:,2))                      &
+               -(gamin(:,2)-gamin(:,1))/(zz(:,2)-zz(:,1)))
+    where (gamin(:,1)*gamin(:,2).le.0..or.gamhl(:,1)*gamin(:,1).le.0.)
+      gamhl(:,1)=gamin(:,1)+(zhl(:,1)-zz(:,1))/(zz(:,2)-zz(:,1))*(gamin(:,2)-gamin(:,1))
+    end where
+    do k=2,kl-1
+      gamhl(:,k)=gamin(:,k)+(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k-1))*                  &
+                 ((zz(:,k)-zz(:,k-1))*(gamin(:,k+1)-gamin(:,k))/(zz(:,k+1)-zz(:,k))    &
+                 +(zz(:,k+1)-zz(:,k))*(gamin(:,k)-gamin(:,k-1))/(zz(:,k)-zz(:,k-1)))   &
+               +(zhl(:,k)-zz(:,k))**2/(zz(:,k+1)-zz(:,k-1))*                           &
+                 ((gamin(:,k+1)-gamin(:,k))/(zz(:,k+1)-zz(:,k))                        &
+                 -(gamin(:,k)-gamin(:,k-1))/(zz(:,k)-zz(:,k-1)))
+      where (gamin(:,k)*gamin(:,k+1).le.0..or.gamhl(:,k)*gamin(:,k).le.0.)
+        gamhl(:,k)=gamin(:,k)+(zhl(:,k)-zz(:,k))/(zz(:,k+1)-zz(:,k))*(gamin(:,k+1)-gamin(:,k))
+      end where
+    end do
+  case DEFAULT
+    write(6,*) "ERROR: Unknown interpmode ",interpmode
+    stop
+end select
+
 
 return
 end subroutine updategam
