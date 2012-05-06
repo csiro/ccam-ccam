@@ -131,7 +131,6 @@ module cable_ccam
   call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
   met%doy=fjd
   met%tk=theta(cmap)
-  !met%tc=met%tk-273.16
   met%tvair=met%tk
   met%tvrad=met%tk
   met%ua=vmod(cmap)
@@ -185,6 +184,9 @@ module cable_ccam
   cable_user%fwsoil_switch="standard"
   call ruff_resist(veg,rough,ssoil,soil,met,canopy)
   call define_air(met,air)
+  air%cmolar=ps(cmap)/(rgas*tss(cmap))  ! MJT patch
+  air%volm=1./air%cmolar                ! MJT patch
+  air%rho=min(1.3,rmair*air%cmolar)     ! MJT patch
   call init_radiation(met,rad,veg,canopy)
   call surface_albedo(ssoil,veg,met,rad,soil,canopy)
   call define_canopy(bal,rad,rough,air,met,dt,ssoil,soil,veg,canopy)
@@ -198,13 +200,9 @@ module cable_ccam
   canopy%fhs_cor = canopy%fhs_cor + deltat*ssoil%dfh_dtg
   canopy%fes_cor = canopy%fes_cor + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
   canopy%fh      = canopy%fhv + canopy%fhs
-  ! need to adjust fe after soilsnow
   canopy%fev     = canopy%fevc + canopy%fevw
-  ! Calculate total latent heat flux:
   canopy%fe      = canopy%fev + canopy%fes
-  ! Calculate net radiation absorbed by soil + veg
   canopy%rnet    = canopy%fns + canopy%fnv
-  ! Calculate radiative/skin temperature:
   rad%trad       = ( (1.-rad%transd)*canopy%tv**4 + rad%transd*ssoil%tss**4 )**0.25
 
   call plantcarb(veg,bgc,met,canopy)
@@ -857,7 +855,6 @@ module cable_ccam
     bgc%ratecs(:) = ratecs(:)
 
     ! store bare soil albedo and define snow free albedo
-
     soil%albsoil(:,1)=albvisnir(cmap,1)
     soil%albsoil(:,2)=albvisnir(cmap,2)
     soil%albsoil(:,3)=0.05
@@ -1241,6 +1238,8 @@ module cable_ccam
     ssoil%wetfac=max(0.,min(1.,(ssoil%wb(:,1)-soil%swilt)/(soil%sfc-soil%swilt)))
     ssoil%owetfac=ssoil%wetfac
     ssoil%wbtot=0.
+    ssoil%wbtot1=0.
+    ssoil%wbtot2=0.
     ssoil%tggav=0.
     do k = 1,ms
       ssoil%wbtot=ssoil%wbtot+ssoil%wb(:,k)*1000.0*soil%zse(k)

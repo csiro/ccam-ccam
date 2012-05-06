@@ -27,6 +27,7 @@
       use mlo                            ! Ocean physics and prognostic arrays
       use mlodynamics                    ! Ocean dynamics routines
       use morepbl_m                      ! Additional boundary layer diagnostics
+      use nharrs_m                       ! Non-hydrostatic atmosphere arrays
       use nsibd_m                        ! Land-surface arrays
       use pbl_m                          ! Boundary layer arrays
       use permsurf_m                     ! Fixed surface arrays
@@ -75,7 +76,7 @@
       real uav(ifull),vav(ifull)
       real, dimension(ifull) :: neta,oldrunoff,newrunoff,rid,fhd
       real, dimension(ifull) :: fgf,rgg,fev,af,dirad,dfgdt,factch
-      real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,smixr
+      real, dimension(ifull) :: degdt,cie,aft,fh,ri,gamm,smixr,rho
 
       integer, parameter :: nblend=0  ! 0 for original non-blended, 1 for blended af
       integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
@@ -152,7 +153,7 @@ c     using av_vmod (1. for no time averaging)
 !      *****  check next comment
 !       sflux called at beginning of time loop, hence savu, savv
 
-      azmin=-rdry*t(1:ifull,1)*log(sig(1))/grav
+      azmin=(bet(1)*t(1:ifull,1)+phi_nh(:,1))/grav
       srcp =sig(1)**(rdry/cp)
       ga(:)=0.              !  for ocean points in ga_ave diagnostic
       theta(:)=t(1:ifull,1)/srcp
@@ -582,14 +583,12 @@ c       Surface stresses taux, tauy: diagnostic only - unstag now       ! sice
           rnet=sgsave-rgsave-stefbo*tss**4                              ! MLO
           factch=sqrt(zo/zoh)                                           ! MLO
           sno=sno+conds                                                 ! MLO
+          cduv=sqrt(ustar*ustar*cduv) ! cduv=cd*vmod                    ! MLO
         elsewhere                                                       ! MLO
           fg=rho*chnsea*cp*fhd*(tpan-theta)                             ! MLO
           ga=sgsave-rgsave-5.67e-8*tpan**4-panfg*fg                     ! MLO
           tpan=tpan+ga*dt/(4186.*.254*1000.)                            ! MLO
         endwhere                                                        ! MLO
-        where (.not.land.and.vmod.gt.0.)                                ! MLO
-          cduv=ustar*ustar/vmod                                         ! MLO
-        end where                                                       ! MLO
         do iq=1,ifull                                                   ! MLO
           if (.not.land(iq)) then                                       ! MLO
             esatf = establ(tss(iq))                                     ! MLO
@@ -750,7 +749,7 @@ c                Now heat ; allow for smaller zo via aft and factch     ! land
             write(6,*) 'before sib3 zo,zolnd,af ',zo(idjd),zolnd(idjd)  ! land
      &                                        ,af(idjd)                 ! land
           endif                                                         ! land
-          call sib3(nalpha,taftfh,taftfhg,aft) ! for nsib=3, 5          ! land
+          call sib3(nalpha,taftfh,taftfhg,aft,rho) ! for nsib=3, 5      ! land
           if(diag.or.ntest>0)then                                       ! land
             if (mydiag) write(6,*) 'before call scrnout'                ! land
             call maxmin(t,' t',ktau,1.,kl)                              ! land
@@ -977,7 +976,7 @@ c***  end of surface updating loop
       end
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      subroutine sib3(nalpha,taftfh,taftfhg,aft)
+      subroutine sib3(nalpha,taftfh,taftfhg,aft,rho)
 
       ! This is the standard land-surface scheme
       
@@ -1018,7 +1017,7 @@ c***  end of surface updating loop
       real wbav,f1,f2,f3,f4,esatf,qsatgf,beta,etr,betetrdt
       real prz,dirad1,dqg,devf,residp,sstgf,ewwwa,delta_t0
       real delta_t,deltat,es
-      real, dimension(ifull), intent(in) :: taftfh,taftfhg
+      real, dimension(ifull), intent(in) :: taftfh,taftfhg,rho
       real, dimension(ifull), intent(inout) :: aft
       real airr(ifull),cc(ifull),condxg(ifull),delta_tx(ifull),
      . evapfb1(ifull),evapfb2(ifull),evapfb3(ifull),evapfb4(ifull),

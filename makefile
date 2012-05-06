@@ -171,7 +171,7 @@ scrnout.o : arrays_m.o cc_mpi.o diag_m.o liqwpar_m.o mlo.o morepbl_m.o nsibd_m.o
 seaesfrad.o : aerointerface.o aerosolldr.o arrays_m.o ateb.o cable_ccam2.o cc_mpi.o cfrac_m.o esfsw_driver.o esfsw_parameters.o extraout_m.o histave_m.o infile.o latlong_m.o longwave_params.o microphys_rad.o mlo.o nsibd_m.o ozoneread.o pbl_m.o raddiag_m.o radisw_m.o rad_utilities.o sealw99.o sigs_m.o soil_m.o soilsnow_m.o work3f_m.o zenith.o const_phys.h establ.h filnames.h kuocom.h newmpar.h parm.h
 sealw99.o : gas_tf.o longwave_clouds.o longwave_fluxes.o longwave_params.o longwave_tables.o lw_gases_stdtf.o optical_path.o rad_utilities.o
 setxyz.o : indices_m.o latlong_m.o map_m.o utilities.o workglob_m.o const_phys.h newmpar.h parm.h
-sflux.o : arrays_m.o ateb.o cable_ccam2.o cc_mpi.o diag_m.o extraout_m.o gdrag_m.o latlong_m.o liqwpar_m.o map_m.o mlo.o mlodynamics.o morepbl_m.o nsibd_m.o pbl_m.o permsurf_m.o prec_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o vecsuv_m.o vegpar_m.o vvel_m.o work2_m.o work3_m.o xyzinfo_m.o const_phys.h dates.h establ.h newmpar.h parm.h parmgeom.h parmsurf.h soilv.h trcom2.h
+sflux.o : arrays_m.o ateb.o cable_ccam2.o cc_mpi.o diag_m.o extraout_m.o gdrag_m.o latlong_m.o liqwpar_m.o map_m.o mlo.o mlodynamics.o morepbl_m.o nharrs_m.o nsibd_m.o pbl_m.o permsurf_m.o prec_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o vecsuv_m.o vegpar_m.o vvel_m.o work2_m.o work3_m.o xyzinfo_m.o const_phys.h dates.h establ.h newmpar.h parm.h parmgeom.h parmsurf.h soilv.h trcom2.h
 soilsnow.o : arrays_m.o cc_mpi.o diag_m.o morepbl_m.o nsibd_m.o permsurf_m.o sigs_m.o soil_m.o soilsnow_m.o work2_m.o work3_m.o work3b_m.o const_phys.h newmpar.h parm.h soilv.h
 spa88.o :  cldcom_m.o kdacom_m.o lwout_m.o radisw_m.o rdflux_m.o srccom_m.o tfcom_m.o hcon.h newmpar.h rdparm.h rnddta.h
 staguv.o : cc_mpi.o indices_m.o map_m.o vecsuv_m.o newmpar.h parm.h parmdyn.h
@@ -186,5 +186,5 @@ upglobal.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o diag_m.o epst_m.o indice
 utilities.o : const_phys.h 
 vadv30.o : aerosolldr.o arrays_m.o cc_mpi.o indices_m.o liqwpar_m.o map_m.o sigs_m.o tkeeps.o tracers_m.o vvel_m.o xarrs_m.o kuocom.h newmpar.h parm.h parmdyn.h parmvert.h
 vadvtvd.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o diag_m.o liqwpar_m.o map_m.o nharrs_m.o sigs_m.o tkeeps.o tracers_m.o vvel_m.o xarrs_m.o kuocom.h newmpar.h parm.h parmdyn.h parmvert.h
-vertmix.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o diag_m.o extraout_m.o indices_m.o kuocomb_m.o liqwpar_m.o map_m.o morepbl_m.o nharrs_m.o nlin_m.o pbl_m.o permsurf_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o tkeeps.o tracers_m.o trvmix.o work2_m.o const_phys.h dates.h establ.h kuocom.h newmpar.h parm.h
+vertmix.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o diag_m.o extraout_m.o indices_m.o kuocomb_m.o liqwpar_m.o map_m.o mlo.o morepbl_m.o nharrs_m.o nlin_m.o pbl_m.o permsurf_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o tkeeps.o tracers_m.o trvmix.o const_phys.h dates.h establ.h kuocom.h newmpar.h parm.h
 

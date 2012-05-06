@@ -558,6 +558,7 @@ c-------Beljaars and Holtslag (1991) heat function
       real es
       real, dimension(ifull) :: umag,zminx
       real, dimension(ifull) :: ou,ov,atu,atv,iu,iv
+      real, dimension(ifull) :: au,av
       real, parameter :: vkar = 0.4
       
       zminx=(bet(1)*t(1:ifull,1)+phi_nh(:,1))/grav
@@ -565,6 +566,8 @@ c-------Beljaars and Holtslag (1991) heat function
       ou=0.
       ov=0.
       if (nmlo.ne.0) then
+        iu=0.
+        iv=0.
         call mloexport(2,ou,1,0)
         call mloexport(3,ov,1,0)
         call mloexpice(iu,9,0)
@@ -572,8 +575,9 @@ c-------Beljaars and Holtslag (1991) heat function
         ou=(1.-fracice)*ou+fracice*iu
         ov=(1.-fracice)*ov+fracice*iv
       end if
-      umag=sqrt((u(1:ifull,1)-ou)**2
-     &         +(v(1:ifull,1)-ov)**2)
+      au=u(1:ifull,1)-ou
+      av=v(1:ifull,1)-ov
+      umag=max(sqrt(au*au+av*av),vmodmin)
       do iq=1,ifull
         es = establ(tss(iq))
         qsttg(iq)= .622*es/(ps(iq)-es)
@@ -583,11 +587,11 @@ c-------Beljaars and Holtslag (1991) heat function
      &              tss,t(1:ifull,1),qsttg,qg(1:ifull,1),umag,
      &              ps(1:ifull),zminx,sig(1))
      
-      atu=(u(1:ifull,1)-ou)*uscrn/max(umag,0.2)+ou
-      atv=(v(1:ifull,1)-ov)*uscrn/max(umag,0.2)+ov
+      atu=au*uscrn/umag+ou
+      atv=av*uscrn/umag+ov
       uscrn=sqrt(atu*atu+atv*atv)
-      atu=(u(1:ifull,1)-ou)*u10/max(umag,0.2)+ou
-      atv=(v(1:ifull,1)-ov)*u10/max(umag,0.2)+ov      
+      atu=au*u10/umag+ou
+      atv=av*u10/umag+ov      
       u10=sqrt(atu*atu+atv*atv)
      
       return
