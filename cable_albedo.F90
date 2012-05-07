@@ -31,7 +31,8 @@ MODULE albedo_module
       if (.not. allocated(c1)) &
          allocate( c1(mp,nrb), rhoch(mp,nrb) )
 
-      if(cable_runtime%um) &
+      ! MJT bug fix --------------------------------------------------
+      !if(cable_runtime%um) &
          call surface_albedosn(ssoil, veg, met, soil)
 
       !jhan:Eva has added this

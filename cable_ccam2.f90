@@ -109,6 +109,7 @@ module cable_ccam
 
   include 'newmpar.h'
   include 'const_phys.h'
+  include 'dates.h'
   include 'establ.h'
   include 'parm.h'
 
@@ -142,7 +143,7 @@ module cable_ccam
   met%pmb=0.01*ps(cmap)     ! pressure in mb at ref height
   met%precip=condx(cmap)    ! in mm not mm/sec
   met%precip_sn=conds(cmap) ! in mm not mm/sec
-  met%hod=(met%doy-int(met%doy))*24. + rlongg(cmap)*180./(15.*pi)
+  met%hod=(mtimer+real(jhour)*60.+real(jmin))/60.+rlongg(cmap)*12./pi
   met%hod=mod(met%hod,24.)
   rough%za_tq=(bet(1)*t(cmap,1)+phi_nh(cmap,1))/grav ! reference height
   rough%za_uv=rough%za_tq
@@ -184,11 +185,9 @@ module cable_ccam
   cable_user%fwsoil_switch="standard"
   call ruff_resist(veg,rough,ssoil,soil,met,canopy)
   call define_air(met,air)
-  air%cmolar=ps(cmap)/(rgas*tss(cmap))  ! MJT patch
-  air%volm=1./air%cmolar                ! MJT patch
-  air%rho=min(1.3,rmair*air%cmolar)     ! MJT patch
   call init_radiation(met,rad,veg,canopy)
   call surface_albedo(ssoil,veg,met,rad,soil,canopy)
+  canopy%oldcansto=canopy%cansto
   call define_canopy(bal,rad,rough,air,met,dt,ssoil,soil,veg,canopy)
   ssoil%otss = ssoil%tss
   ssoil%owetfac = ssoil%wetfac
