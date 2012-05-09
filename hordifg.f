@@ -43,6 +43,7 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull) :: z1,z2,z3,z4
       real, dimension(ifull+iextra,kl) :: ww
       real, dimension(ifull+iextra,0:kl-1) :: zgh
+      real, dimension(ifull,kl) :: zg
       real, dimension(ifull,kl) :: dudx,dudy,dvdx,dvdy
       real, dimension(ifull,kl) :: dudz,dvdz
       real, dimension(ifull,kl) :: dwdx,dwdy,dwdz
@@ -111,10 +112,18 @@ c     above code independent of k
       if (nhorjlm==0.or.nvmix==6) then
         ! Calculate du/dx,dv/dx,du/dy,dv/dy, etc 
 
+        ! calculate height on full levels
+        zg(:,1)=bet(1)*t(1:ifull,1)/grav
+        do k=2,kl
+         zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
+     &                     +betm(k)*t(1:ifull,k-1))/grav
+        end do ! k  loop
+        zg=zg+phi_nh/grav ! add non-hydrostatic component
+
         ! estimate height from geopotential at half levels
         zgh(1:ifull,0)=zs(1:ifull)/grav
         do k=1,kl-1
-          zgh(1:ifull,k)=(ratha(k)*phi(:,k+1)+rathb(k)*phi(:,k))/grav
+          zgh(1:ifull,k)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k)
         end do
         call bounds(zgh)
        

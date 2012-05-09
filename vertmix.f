@@ -813,7 +813,7 @@ c     &             (t(idjd,k)+hlcp*qs(idjd,k),k=1,kl)
      &                    +betm(k)*t(1:ifull,k-1))/grav
        end do ! k  loop
        zg=zg+phi_nh/grav ! add non-hydrostatic component
-       rrhoa=rdry*t(1:ifull,1)/(sigmh(1)*ps(1:ifull))
+       rrhoa=rdry*t(1:ifull,1)/(sig(1)*ps(1:ifull))
        wq0=eg*rrhoa/hl
        wt0=fg*rrhoa/cp
        select case(nlocal)

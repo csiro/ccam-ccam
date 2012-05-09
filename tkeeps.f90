@@ -34,7 +34,7 @@ real, dimension(:,:), allocatable, save :: tke,eps
 ! model constants
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
-real, parameter :: be      = 7.     ! MJT suggestion be=10/sqrt(ce3)
+real, parameter :: be      = 7.     ! MJT suggestion be=10/sqrt(ce3)=7.
 !real, parameter :: be      = 1.     ! Hurley (2007) 1., Soares et al (2004) 0.3
 real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
 real, parameter :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke 1988 0.42

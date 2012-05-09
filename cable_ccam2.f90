@@ -117,7 +117,7 @@ module cable_ccam
   real fjd,r1,dlt,slag,dhr,alp,x,esatf
   real, dimension(ifull) :: coszro2,taudar2,tmps,hruff_grmx,atmco2
   real, dimension(ifull) :: wetfac
-  real, dimension(mp) :: swnet,deltat
+  real, dimension(mp) :: swdwn,deltat
   integer jyear,jmonth,jday,jhour,jmin
   integer k,mins,nb,iq
 
@@ -143,16 +143,16 @@ module cable_ccam
   met%pmb=0.01*ps(cmap)     ! pressure in mb at ref height
   met%precip=condx(cmap)    ! in mm not mm/sec
   met%precip_sn=conds(cmap) ! in mm not mm/sec
-  met%hod=(mtimer+real(jhour)*60.+real(jmin))/60.+rlongg(cmap)*12./pi
+  met%hod=real(mtimer+jhour*60+jmin)/60.+rlongg(cmap)*12./pi
   met%hod=mod(met%hod,24.)
   rough%za_tq=(bet(1)*t(cmap,1)+phi_nh(cmap,1))/grav ! reference height
   rough%za_uv=rough%za_tq
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
   ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
-  swnet=sgsave(cmap)/(1.-swrsave(cmap)*albvisnir(cmap,1)-(1.-swrsave(cmap))*albvisnir(cmap,2)) ! short wave down (positive) W/m^2
-  met%fsd(:,1)=swrsave(cmap)*swnet
-  met%fsd(:,2)=(1.-swrsave(cmap))*swnet
+  swdwn=sgsave(cmap)/(1.-swrsave(cmap)*albvisnir(cmap,1)-(1.-swrsave(cmap))*albvisnir(cmap,2)) ! short wave down (positive) W/m^2
+  met%fsd(:,1)=swrsave(cmap)*swdwn
+  met%fsd(:,2)=(1.-swrsave(cmap))*swdwn
   rad%fbeam(:,1)=fbeamvis(cmap)
   rad%fbeam(:,2)=fbeamnir(cmap)
   rad%fbeam(:,3)=0. ! dummy for now
@@ -185,6 +185,9 @@ module cable_ccam
   cable_user%fwsoil_switch="standard"
   call ruff_resist(veg,rough,ssoil,soil,met,canopy)
   call define_air(met,air)
+  air%cmolar=100.*met%pmb*sig(1)/(rgas*met%tvair) ! MJT patch
+  air%volm=1./air%cmolar                          ! MJT patch
+  air%rho=min(1.3,rmair*air%cmolar)               ! MJT patch
   call init_radiation(met,rad,veg,canopy)
   call surface_albedo(ssoil,veg,met,rad,soil,canopy)
   canopy%oldcansto=canopy%cansto
@@ -208,7 +211,7 @@ module cable_ccam
   call soilcarb(soil,ssoil,veg,bgc,met,canopy)
   call carbon_pl(dt,soil,ssoil,veg,canopy,bgc)
   canopy%fnpp = -canopy%fpn - canopy%frp
-  canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
+  canopy%fnee =  canopy%fpn + canopy%frs + canopy%frp
   
   sum_flux%sumpn  = sum_flux%sumpn  + canopy%fpn*dt
   sum_flux%sumrd  = sum_flux%sumrd  + canopy%frday*dt
@@ -550,6 +553,7 @@ module cable_ccam
   integer, intent(in) :: jyear,jmonth,jday,jhour,jmin
   integer monthstart,nb,leap
   integer, dimension(12) :: imonth
+  real, parameter :: vextkn = 0.4
   real, dimension(ifull), intent(out) :: sigmf
   real x
   common/leap_yr/leap  ! 1 to allow leap years
@@ -569,7 +573,7 @@ module cable_ccam
   do nb=1,5
     if (pind(nb,1).le.mp) then
       sigmf(cmap(pind(nb,1):pind(nb,2)))=sigmf(cmap(pind(nb,1):pind(nb,2))) &
-        +sv(pind(nb,1):pind(nb,2))*(1.-exp(-veg%extkn(pind(nb,1):pind(nb,2))*veg%vlai(pind(nb,1):pind(nb,2))))
+        +sv(pind(nb,1):pind(nb,2))*(1.-exp(-vextkn*veg%vlai(pind(nb,1):pind(nb,2))))
     end if
   end do
   
@@ -627,27 +631,27 @@ module cable_ccam
     stop
   end if
 
-  hc=(/ 17.,35.,15.5,20.,19.25,0.6,0.6,7.0426,14.3379,0.567,0.5,0.55,6.017,0.55,0.2,0.2,0.2 /)
-  xfang=(/ 0.01,0.1,0.01,0.25,0.125,-0.3,0.01,-0.3,-0.3,-0.3,0.,-0.3,0.,-0.3,0.,0.1,0. /)
-  dleaf=(/ 0.055,0.1,0.04,0.15,0.1,0.1,0.1,0.233,0.129,0.3,0.3,0.3,0.242,0.3,0.03,0.03,0.03 /)
+  hc=(/ 17.,35.,15.5,20.,19.3,0.6,0.6,7.,8.,0.6,0.5,0.6,6.,0.6,0.01,0.2,0.2 /)
+  xfang=(/ 0.01,0.1,0.01,0.25,0.13,0.,0.,-0.14,-0.01,-0.3,0.,0.,-0.17,0.,0.01,0.01,0. /)
+  dleaf=(/ 0.055,0.1,0.04,0.15,0.1,0.1,0.1,0.232,0.129,0.3,0.3,0.3,0.242,0.3,0.05,0.03,0.03 /)
   canst1=0.1
   shelrb=2.
-  extkn=0.7
+  extkn=0.001 ! new definition for nitrogen (CABLE v1.9b)
   refl(:,1)=(/ 0.062,0.076,0.062,0.092,0.069,0.100,0.100,0.091,0.075,0.107,0.107,0.101,0.097,0.101,0.159,0.159,0.159 /)
   refl(:,2)=(/ 0.302,0.350,0.302,0.380,0.336,0.400,0.400,0.414,0.347,0.469,0.469,0.399,0.396,0.399,0.305,0.305,0.305 /)
   taul(:,1)=(/ 0.050,0.050,0.050,0.050,0.050,0.054,0.054,0.062,0.053,0.070,0.070,0.067,0.062,0.067,0.026,0.026,0.026 /)
   taul(:,2)=(/ 0.100,0.250,0.100,0.250,0.158,0.240,0.240,0.221,0.166,0.250,0.250,0.225,0.232,0.250,0.126,0.126,0.126 /)
-  vegcf=(/ 0.91, 1.95, 0.73, 1.50, 1.55, 0.60, 2.05, 2.80, 2.75, 2.75, 0.00, 2.80, 0.00, 2.80, 0.00, 0.40, 0.40 /)
+  vegcf=(/ 0.91, 1.95, 0.73, 1.50, 1.50, 2.80, 2.80, 2.80, 2.80, 2.75, 2.00, 2.80, 0.00, 2.80, 0.60, 0.60, 0.40 /)
   vcmax=(/ 65.2E-6,65.E-6,70.E-6,85.0E-6,80.E-6,20.E-6,20.E-6,10.E-6,20.E-6,10.E-6,50.E-6,80.E-6,1.E-6,80.E-6, &
-           17.E-6,17.E-6,17.E-6 /)
+                0.,17.E-6,17.E-6 /)
   ejmax=2.*vcmax
-  rp20=(/ 3.3039,1.1342,3.2879,1.4733,2.3704,5.,5.,1.05,2.,0.8037,1.,3.,1.,3.,0.1,0.1,0.1 /)
+  rp20=(/ 3.3039,1.1342,3.2879,1.4733,2.3704,5.,5.,1.05,2.,0.8037,1.,3.,1.,3.,0.,0.,0.1 /)
   rpcoef=0.0832
   rs20=(/ 1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,0.,0.,0. /)
-  tminvj=(/ -15.,-15.,5.,5.,5.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15. /)
+  tminvj=(/ -15.,-15., 5., 5., 5.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15.,-15. /)
   tmaxvj=(/ -10.,-10.,10.,15.,10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10.,-10. /)
-  vbeta=(/ 2.,2.,2.,2.,2.,4.,4.,4.,4.,4.,2.,2.,2.,2.,4.,4.,4. /)
-  rootbeta=(/ 0.943,0.962,0.966,0.961,0.966,0.914,0.964,0.972,0.943,0.943,0.961,0.961,0.961,0.961,0.961,0.975,0.975 /)
+  vbeta=(/    2.,  2., 2., 2., 2.,  4.,  4.,  4.,  4.,  4.,  2.,  2.,  2.,  2.,  4.,  4.,  4. /)
+  rootbeta=(/ 0.943,0.962,0.966,0.961,0.966,0.970,0.970,0.972,0.972,0.943,0.960,0.961,0.960,0.961,0.961,0.975,0.975 /)
   tcplant(:,1)=(/ 200.  ,300.  ,200.  ,300.  ,200.  ,150. ,150. ,250. ,250. ,250. ,250.,150.,0.1,150.,0.,1.,0. /)
   tcplant(:,2)=(/ 10217.,16833.,5967. ,12000.,10217.,5000.,5000.,5247.,5247.,0.   ,0.  ,0.  ,0. ,0.  ,0.,0.,0. /)
   tcplant(:,3)=(/ 876.  ,1443. ,511.  ,1029. ,876.  ,500. ,500. ,1124.,1124.,500. ,500.,607.,0.1,607.,0.,1.,0. /)
@@ -862,22 +866,22 @@ module cable_ccam
       albsoil(:)=0.5*sum(albvisnir,2)
     end where
     where ((albsoil.le.0.14).and.land)
-      !sfact=0.5 for alb <= 0.14 (see cable_soilsnow.f90)
+      !sfact=0.5 for alb <= 0.14
       albsoilsn(:,1)=(1.00/1.50)*albsoil(:)
       albsoilsn(:,2)=(2.00/1.50)*albsoil(:)
     elsewhere ((albsoil(:).le.0.2).and.land)
-      !sfact=0.62 for 0.14 < alb <= 0.20 (see cable_soilsnow.f90)
+      !sfact=0.62 for 0.14 < alb <= 0.20
       albsoilsn(:,1)=(1.24/1.62)*albsoil(:)
       albsoilsn(:,2)=(2.00/1.62)*albsoil(:)
     elsewhere (land)
-      !sfact=0.68 for 0.2 < alb (see cable_soilsnow.f90)
+      !sfact=0.68 for 0.2 < alb
       albsoilsn(:,1)=(1.36/1.68)*albsoil(:)
       albsoilsn(:,2)=(2.00/1.68)*albsoil(:)
     end where
     ! MJT suggestion to get an approx inital albedo (before cable is called)
     where (land)
-      albvisnir(:,1)=albsoilsn(:,1)*(1.-sigmf)+0.1*sigmf
-      albvisnir(:,2)=albsoilsn(:,2)*(1.-sigmf)+0.3*sigmf
+      albvisnir(:,1)=albsoilsn(:,1)*(1.-sigmf)+0.02*sigmf
+      albvisnir(:,2)=albsoilsn(:,2)*(1.-sigmf)+0.10*sigmf
     end where
     albvisdir=albvisnir(:,1) ! To be updated by CABLE
     albvisdif=albvisnir(:,1) ! To be updated by CABLE
