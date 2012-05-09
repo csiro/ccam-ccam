@@ -880,8 +880,8 @@ module cable_ccam
     end where
     ! MJT suggestion to get an approx inital albedo (before cable is called)
     where (land)
-      albvisnir(:,1)=albsoilsn(:,1)*(1.-sigmf)+0.02*sigmf
-      albvisnir(:,2)=albsoilsn(:,2)*(1.-sigmf)+0.10*sigmf
+      albvisnir(:,1)=albsoilsn(:,1)*(1.-sigmf)+0.03*sigmf
+      albvisnir(:,2)=albsoilsn(:,2)*(1.-sigmf)+0.20*sigmf
     end where
     albvisdir=albvisnir(:,1) ! To be updated by CABLE
     albvisdif=albvisnir(:,1) ! To be updated by CABLE
