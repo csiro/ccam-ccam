@@ -113,7 +113,7 @@ c     above code independent of k
         ! Calculate du/dx,dv/dx,du/dy,dv/dy, etc 
 
         ! calculate height on full levels
-        zg(:,1)=bet(1)*t(1:ifull,1)/grav
+        zg(:,1)=(zs(1:ifull)+bet(1)*t(1:ifull,1))/grav
         do k=2,kl
          zg(:,k)=zg(:,k-1)+(bet(k)*t(1:ifull,k)
      &                     +betm(k)*t(1:ifull,k-1))/grav
@@ -121,7 +121,7 @@ c     above code independent of k
         zg=zg+phi_nh/grav ! add non-hydrostatic component
 
         ! estimate height from geopotential at half levels
-        zgh(1:ifull,0)=0.
+        zgh(1:ifull,0)=zs(1:ifull)/grav
         do k=1,kl-1
           zgh(1:ifull,k)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k)
         end do
