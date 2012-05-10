@@ -121,7 +121,7 @@ c     above code independent of k
         zg=zg+phi_nh/grav ! add non-hydrostatic component
 
         ! estimate height from geopotential at half levels
-        zgh(1:ifull,0)=zs(1:ifull)/grav
+        zgh(1:ifull,0)=0.
         do k=1,kl-1
           zgh(1:ifull,k)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k)
         end do
@@ -138,11 +138,11 @@ c     above code independent of k
         z3=zgh(iw,0)
         z4=zgh(iw,1)
         dudx(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &            /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds      
+     &            /(z2-z1+z4-z3))*em(1:ifull)/ds      
         r2=ratha(1)*v(iev,2)+rathb(1)*v(iev,1)
         r4=ratha(1)*v(iwv,2)+rathb(1)*v(iwv,1)
         dvdx(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &            /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds 
+     &            /(z2-z1+z4-z3))*em(1:ifull)/ds 
         r2=ratha(1)*u(inu,2)+rathb(1)*u(inu,1)
         r4=ratha(1)*u(isu,2)+rathb(1)*u(isu,1)
         z1=zgh(in,0)
@@ -150,11 +150,11 @@ c     above code independent of k
         z3=zgh(is,0)
         z4=zgh(is,1)
         dudy(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &            /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds 
+     &            /(z2-z1+z4-z3))*em(1:ifull)/ds 
         r2=ratha(1)*v(inv,2)+rathb(1)*v(inv,1)
         r4=ratha(1)*v(isv,2)+rathb(1)*v(isv,1)
         dvdy(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &            /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds 
+     &            /(z2-z1+z4-z3))*em(1:ifull)/ds 
         do k=2,kl-1
           r1=ratha(k-1)*u(ieu,k)+rathb(k-1)*u(ieu,k-1)
           r2=ratha(k)*u(ieu,k+1)+rathb(k)*u(ieu,k)
@@ -165,13 +165,13 @@ c     above code independent of k
           z3=zgh(iw,k-1)
           z4=zgh(iw,k)
           dudx(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &              /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+     &              /(z2-z1+z4-z3))*em(1:ifull)/ds
           r1=ratha(k-1)*v(iev,k)+rathb(k-1)*v(iev,k-1)
           r2=ratha(k)*v(iev,k+1)+rathb(k)*v(iev,k)
           r3=ratha(k-1)*v(iwv,k)+rathb(k-1)*v(iwv,k-1)
           r4=ratha(k)*v(iwv,k+1)+rathb(k)*v(iwv,k)
           dvdx(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &              /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+     &              /(z2-z1+z4-z3))*em(1:ifull)/ds
           r1=ratha(k-1)*u(inu,k)+rathb(k-1)*u(inu,k-1)
           r2=ratha(k)*u(inu,k+1)+rathb(k)*u(inu,k)
           r3=ratha(k-1)*u(isu,k)+rathb(k-1)*u(isu,k-1)
@@ -181,13 +181,13 @@ c     above code independent of k
           z3=zgh(is,k-1)
           z4=zgh(is,k)
           dudy(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &              /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+     &              /(z2-z1+z4-z3))*em(1:ifull)/ds
           r1=ratha(k-1)*v(inv,k)+rathb(k-1)*v(inv,k-1)
           r2=ratha(k)*v(inv,k+1)+rathb(k)*v(inv,k)
           r3=ratha(k-1)*v(isv,k)+rathb(k-1)*v(isv,k-1)
           r4=ratha(k)*v(isv,k+1)+rathb(k)*v(isv,k)
           dvdy(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &              /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+     &              /(z2-z1+z4-z3))*em(1:ifull)/ds
         end do
         dudx(:,kl)=0.5*(u(ieu,kl)-u(iwu,kl))*em(1:ifull)/ds ! just a simple approximiation
         dvdx(:,kl)=0.5*(v(iev,kl)-v(iwv,kl))*em(1:ifull)/ds
@@ -211,7 +211,7 @@ c     above code independent of k
         z3=zgh(iw,0)
         z4=zgh(iw,1)
         dwdx(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &            /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+     &            /(z2-z1+z4-z3))*em(1:ifull)/ds
         r2=ratha(1)*ww(in,2)+rathb(1)*ww(in,1)
         r4=ratha(1)*ww(is,2)+rathb(1)*ww(is,1)
         z1=zgh(in,0)
@@ -219,7 +219,7 @@ c     above code independent of k
         z3=zgh(is,0)
         z4=zgh(is,1)
         dwdy(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &            /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+     &            /(z2-z1+z4-z3))*em(1:ifull)/ds
         do k=2,kl-1
           r1=ratha(k-1)*ww(ie,k)+rathb(k-1)*ww(ie,k-1)
           r2=ratha(k)*ww(ie,k+1)+rathb(k)*ww(ie,k)
@@ -230,7 +230,7 @@ c     above code independent of k
           z3=zgh(iw,k-1)
           z4=zgh(iw,k)
           dwdx(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &              /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+     &              /(z2-z1+z4-z3))*em(1:ifull)/ds
         
           r1=ratha(k-1)*ww(in,k)+rathb(k-1)*ww(in,k-1)
           r2=ratha(k)*ww(in,k+1)+rathb(k)*ww(in,k)
@@ -241,7 +241,7 @@ c     above code independent of k
           z3=zgh(is,k-1)
           z4=zgh(is,k)
           dwdy(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &              /max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+     &              /(z2-z1+z4-z3))*em(1:ifull)/ds
         end do
         dwdx(:,kl)=0.5*(ww(ie,kl)-ww(iw,kl))*em(1:ifull)/ds
         dwdy(:,kl)=0.5*(ww(in,kl)-ww(is,kl))*em(1:ifull)/ds

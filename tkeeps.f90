@@ -34,7 +34,7 @@ real, dimension(:,:), allocatable, save :: tke,eps
 ! model constants
 real, parameter :: b1      = 2.     ! Soares et al (2004) 1., Siebesma et al (2003) 2.
 real, parameter :: b2      = 1./3.  ! Soares et al (2004) 2., Siebesma et al (2003) 1./3.
-real, parameter :: be      = 7.     ! MJT suggestion be=10/sqrt(ce3)=7.
+real, parameter :: be      = 7.     ! MJT suggestion be=10/sqrt(ce3)
 !real, parameter :: be      = 1.     ! Hurley (2007) 1., Soares et al (2004) 0.3
 real, parameter :: cm0     = 0.09   ! Hurley (2007) 0.09, Duynkerke 1988 0.03
 real, parameter :: ce0     = 0.69   ! Hurley (2007) 0.69, Duynkerke 1988 0.42
@@ -132,7 +132,6 @@ real, dimension(ifull,kl) :: qlfnet,qlfx,fice,rhoa,rhoar,rhoahl
 real, dimension(ifull,2:kl) :: aa,qq,pps,ppt,ppb
 real, dimension(ifull,kl) :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(ifull,kl-1) :: dz_hl ! dz_hl(k)=zz(k+1)-zz(k)
-real, dimension(ifull,kl-1) :: zzm
 real, dimension(ifull) :: wstar,z_on_l,phim,hh,jj,dqsdt
 real, dimension(ifull) :: dum,wtv0
 real, dimension(kl) :: w2up,ttup,tvup,thup,qvup
@@ -163,15 +162,14 @@ eps(1:ifull,:)=max(eps(1:ifull,:),ff)
 ! Calculate dz at half levels
 do k=1,kl-1
   dz_hl(:,k)=zz(:,k+1)-zz(:,k)
-  zzm(:,k)=0.5*(zz(:,k+1)+zz(:,k))
 end do
 
 ! Calculate dz at full levels
-dz_fl(:,1)=zzm(:,1)
+dz_fl(:,1)=zzh(:,1)
 do k=2,kl-1
-  dz_fl(:,k)=zzm(:,k)-zzm(:,k-1)
+  dz_fl(:,k)=zzh(:,k)-zzh(:,k-1)
 end do
-dz_fl(:,kl)=zz(:,kl)-zz(:,kl-1)
+dz_fl(:,kl)=zz(:,kl)-zz(:,kl-1) ! not used
 
 do k=1,kl
   ! calculate saturated mixing ratio
@@ -184,7 +182,7 @@ do k=1,kl
   rhoa(:,k)=dum/(rd*temp(:,k))
   rhoar(:,k)=1./rhoa(:,k)
 end do
-call updategam(rhoahl,rhoa,zz,zzm,zi)
+call updategam(rhoahl,rhoa,zz,zzh,zi)
 
 ! Set-up thermodynamic variables theta_l,theta_v,qtot and surface fluxes
 qtot=qg+qlg+qfg
@@ -199,7 +197,7 @@ wtv0=wt0+theta(:,1)*0.61*wq0
 
 ! Calculate first approximation to diffusion coeffs
 km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
-call updatekmo(kmo,km,zz,zzm) ! interpolate diffusion coeffs to internal half levels (zzm)
+call updatekmo(kmo,km,zz,zzh) ! interpolate diffusion coeffs to half levels
 
 ! Calculate shear term on full levels (see hordifg.f for calculation of horizontal shear)
 pps(:,2:kl-1)=km(:,2:kl-1)*shear(:,2:kl-1)
@@ -435,10 +433,10 @@ if (mode.ne.1) then ! mass flux
             xp=min(max(xp,0.),1.)
             if (xp.lt.0.5) then
               xp=xp/0.5
-              zi(i)=(1.-xp)*zzm(i,k-1)+xp*zz(i,k)
+              zi(i)=(1.-xp)*zzh(i,k-1)+xp*zz(i,k)
             else
               xp=(xp-0.5)/0.5
-              zi(i)=(1.-xp)*zz(i,k)+xp*zzm(i,k)
+              zi(i)=(1.-xp)*zz(i,k)+xp*zzh(i,k)
             end if
             exit
           end if
@@ -470,17 +468,17 @@ eps(1:ifull,1)=max(eps(1:ifull,1),ff(:,1))
 ! Calculate buoyancy term
 select case(buoymeth)
   case(0) ! Hurley 2007 (dry-PBL with counter gradient term)
-    call updatekmo(thetavhl,thetav,zz,zzm)
+    call updatekmo(thetavhl,thetav,zz,zzh)
     do k=2,kl-1
       ppb(:,k)=-grav*km(:,k)*(thetavhl(:,k)-thetavhl(:,k-1))/(thetav(:,k)*dz_fl(:,k))
       ppb(:,k)=ppb(:,k)+grav*gamtv(:,k)/thetav(:,k)
     end do
   case(3) ! saturated conditions from Durran and Klemp JAS 1982 (see also WRF)
-    call updatekmo(thetahl,theta,zz,zzm)
-    call updatekmo(thetavhl,thetav,zz,zzm)
-    call updatekmo(qsathl,qsat,zz,zzm)
-    call updatekmo(qlghl,qlg,zz,zzm)
-    call updatekmo(qfghl,qfg,zz,zzm)
+    call updatekmo(thetahl,theta,zz,zzh)
+    call updatekmo(thetavhl,thetav,zz,zzh)
+    call updatekmo(qsathl,qsat,zz,zzh)
+    call updatekmo(qlghl,qlg,zz,zzh)
+    call updatekmo(qfghl,qfg,zz,zzh)
     do k=2,kl-1
       ! saturated
       bb(:,k)=-grav*km(:,k)*(gg(:,k)*((thetahl(:,k)-thetahl(:,k-1))/theta(:,k)                     &
@@ -583,7 +581,7 @@ do icount=1,ncount
   eps(1:ifull,2:kl)=max(eps(1:ifull,2:kl),ff(:,2:kl))
 
   km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
-  call updatekmo(kmo,km,zz,zzm) ! interpolate diffusion coeffs to internal half levels (zzm)
+  call updatekmo(kmo,km,zz,zzh) ! interpolate diffusion coeffs to half levels
 
 end do
 
@@ -592,7 +590,7 @@ end do
 ! Update thetal and qtot due to non-local terms (host model will update diffusion terms)
 ! (Here we use quadratic interpolation to determine the explicit
 ! counter gradient terms)
-call updategam(gamhl,gamtl,zz,zzm,zi)
+call updategam(gamhl,gamtl,zz,zzh,zi)
 gamhl=gamhl*rhoahl
 thetal(:,1)=thetal(:,1)-dt*gamhl(:,1)*rhoar(:,1)/dz_fl(:,1)
 do k=2,kl-2
@@ -600,7 +598,7 @@ do k=2,kl-2
 end do
 thetal(:,kl-1)=thetal(:,kl-1)+dt*gamhl(:,kl-2)*rhoar(:,kl-1)/dz_fl(:,kl-1)
 
-call updategam(gamhl,gamqt,zz,zzm,zi)
+call updategam(gamhl,gamqt,zz,zzh,zi)
 gamhl=gamhl*rhoahl
 qtot(:,1)=qtot(:,1)-dt*gamhl(:,1)*rhoar(:,1)/dz_fl(:,1)
 do k=2,kl-2
@@ -609,7 +607,7 @@ end do
 qtot(:,kl-1)=qtot(:,kl-1)+dt*gamhl(:,kl-2)*rhoar(:,kl-1)/dz_fl(:,kl-1)
 
 ! updating diffusion and non-local terms for qtot and thetal
-!call updategam(gamhl,gamtl,zz,zzm,zi)
+!call updategam(gamhl,gamtl,zz,zzh,zi)
 !cc(:,1)=-dt*kmo(:,1)*rhoahl(:,1)*rhoar(:,1)/(dz_hl(:,1)*dz_fl(:,1))
 !bb(:,1)=1.-cc(:,1)
 !dd(:,1)=thetal(:,1)-dt*gamhl(:,1)*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)+dt*wt0*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)
@@ -624,7 +622,7 @@ qtot(:,kl-1)=qtot(:,kl-1)+dt*gamhl(:,kl-2)*rhoar(:,kl-1)/dz_fl(:,kl-1)
 !dd(:,kl-1)=thetal(:,kl-1)+dt*gamhl(:,kl-2)*rhoahl(:,kl-2)*rhoar(:,kl-1)/dz_fl(:,kl-1)
 !call thomas(thetal(:,1:kl-1),aa(:,2:kl-1),bb(:,1:kl-1),cc(:,1:kl-2),dd(:,1:kl-1))
 !
-!call updategam(gamhl,gamqt,zz,zzm,zi)
+!call updategam(gamhl,gamqt,zz,zzh,zi)
 !dd(:,1)=qtot(:,1)-dt*gamhl(:,1)*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)+dt*wq0*rhoahl(:,1)*rhoar(:,1)/dz_fl(:,1)
 !do k=2,kl-2
 !  dd(:,k)=qtot(:,k)+dt*(gamhl(:,k-1)*rhoahl(:,k-1)-gamhl(:,k)*rhoahl(:,k))*rhoar(:,k)/dz_fl(:,k)
@@ -646,9 +644,6 @@ qfg=fice*qlfnet
 do k=1,kl
   theta(:,k)=thetal(:,k)+sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
 end do
-
-! Update diffusion coeffs on external half levels
-call updatekmo(kmo,km,zz,zzh) ! output sigmh levels
 
 return
 end subroutine tkemix

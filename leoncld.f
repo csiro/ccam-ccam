@@ -60,7 +60,8 @@ c Local variables
       real qsg(ifullw,kl)     !Saturation mixing ratio
       real qcl(ifullw,kl)     !Vapour mixing ratio inside convective cloud
       real qenv(ifullw,kl)    !Vapour mixing ratio outside convective cloud
-      real tenv(ifullw,kl)    !Temperature outside convective cloud
+      real tenv(ifullw,kl)    !Temperature outside convective cloud\
+      real tnhs(ifullw,kl)    !Non-hydrostatic temperature adjusement
 
 c These outputs are not used in this model at present
       real qevap(ifullw,kl)
@@ -95,22 +96,20 @@ c These outputs are not used in this model at present
         enddo
       enddo
       
+      ! Non-hydrostatic terms
+      tnhs(:,1)=phi_nh(:,1)/bet(1)
+      do k=2,kl
+        ! representing non-hydrostatic term as a correction to air temperature
+        tnhs(:,k)=(phi_nh(:,k)-phi_nh(:,k-1)-betm(k)*tnhs(:,k-1))/bet(k)
+      end do
+      
       ! Calculate droplet concentration from aerosols
       call aerodrop(iaero,1,ifull,kl,cdso4,rhoa,land,rlatt)
 
       kbase(:)=0  ! default
       ktop(:) =0  ! default
       dz(:,:)=100.*dprf(:,:)/(rhoa(:,:)*grav)
-      ! add non-hydrostatic component to dz - MJT
-      dz(:,1)=dz(:,1)+(ratha(1)*phi_nh(:,2)+rathb(1)*phi_nh(:,1))/grav
-      do k=2,kl-1
-        dz(:,k)=dz(:,k)+(ratha(k)*phi_nh(:,k+1)
-     &    +(rathb(k)-ratha(k-1))*phi_nh(:,k)
-     &    -rathb(k-1)*phi_nh(:,k-1))/grav
-      end do
-      dz(:,kl)=dz(:,kl)-(ratha(kl-1)*phi_nh(:,kl)
-     &                  +rathb(kl-1)*phi_nh(:,kl-1))/grav
-      dz=max(dz,0.01)
+     &        *(1.+tnhs(1:ifull,:)/t(1:ifull,:))
 c     fluxc(:,:)=rnrt3d(:,:)*1.e-3*dt ! kg/m2 (should be same level as rnrt3d)
       fluxc(:,:)=0. !For now... above line may be wrong
       ccrain(:,:)=0.1  !Assume this for now

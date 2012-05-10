@@ -1631,6 +1631,7 @@ c      "extra" outputs
 
       ! ATMOSPHERE DYNAMICS ------------------------------------------
       if(myid == 0 ) write(6,*) 'netcdf save of 3d variables'
+      lwrite=ktau>0
       call histwrt4(t(1:ifull,:),'temp',idnc,iarch,local,.true.)
       call histwrt4(u(1:ifull,:),'u',idnc,iarch,local,.true.)
       call histwrt4(v(1:ifull,:),'v',idnc,iarch,local,.true.)
@@ -1639,7 +1640,7 @@ c      "extra" outputs
         tmpry(iq,k)=ps(iq)*dpsldt(iq,k)
        enddo
       enddo
-      call histwrt4(tmpry,'omega',idnc,iarch,local,.true.)
+      call histwrt4(tmpry,'omega',idnc,iarch,local,lwrite)
       call histwrt4(qg(1:ifull,:),'mixr',idnc,iarch,local,.true.)
       
       ! MICROPHYSICS ------------------------------------------------

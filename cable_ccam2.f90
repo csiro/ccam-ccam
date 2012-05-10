@@ -185,9 +185,6 @@ module cable_ccam
   cable_user%fwsoil_switch="standard"
   call ruff_resist(veg,rough,ssoil,soil,met,canopy)
   call define_air(met,air)
-  air%cmolar=100.*met%pmb*sig(1)/(rgas*met%tvair) ! MJT patch
-  air%volm=1./air%cmolar                          ! MJT patch
-  air%rho=min(1.3,rmair*air%cmolar)               ! MJT patch
   call init_radiation(met,rad,veg,canopy)
   call surface_albedo(ssoil,veg,met,rad,soil,canopy)
   canopy%oldcansto=canopy%cansto
@@ -887,6 +884,10 @@ module cable_ccam
     albvisdif=albvisnir(:,1) ! To be updated by CABLE
     albnirdir=albvisnir(:,2) ! To be updated by CABLE
     albnirdif=albvisnir(:,2) ! To be updated by CABLE
+
+    ! MJT patch
+    soil%albsoil(:,1)=albsoil(cmap)
+    soil%albsoil(:,2)=albsoil(cmap)
 
     ssoil%albsoilsn(:,1)=albsoilsn(cmap,1) ! overwritten by CABLE
     ssoil%albsoilsn(:,2)=albsoilsn(cmap,2) ! overwritten by CABLE
