@@ -191,6 +191,8 @@
       
       use aerosolldr, only : xtg,ssn,naero      ! LDR aerosol scheme
       use ateb, only : atebdwn                  ! Urban
+      use casadimension, only : mplant,mlitter, ! CASA dimensions
+     &      msoil
       use carbpools_m                           ! Carbon pools
       use cc_mpi                                ! CC MPI routines
       use cfrac_m                               ! Cloud fraction
@@ -1142,8 +1144,9 @@ c       incorporate other target land mask effects
         end if
 
         !--------------------------------------------------
-        ! Read CABLE aggregate carbon pools
+        ! Read CABLE/CASA aggregate C+N+P pools
         if (nsib.eq.4.or.nsib.ge.6) then
+         if (ccycle.eq.0) then
           do k=1,ncp
             ucc=0.
             write(vname,'("cplant",I1.1)') k
@@ -1192,6 +1195,227 @@ c       incorporate other target land mask effects
               end if ! iotest
             end if
           end do
+         else
+          do k=1,mplant
+            ucc=0.
+            write(vname,'("cplant",I1.1)') k
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   ucc,6*ik*ik)
+            if (ier.eq.0) then
+              if (iotest) then
+                if (myid==0) then
+                  call ccmpi_distribute(cplant(:,k),ucc)
+                else
+                  call ccmpi_distribute(cplant(:,k))
+                end if
+              else
+                if (myid==0) then
+                  where (.not.land_a(:))
+                    ucc=spval
+                  end where
+                  call fill_cc(ucc,spval,ik,0)
+                end if
+                call doints4(ucc,cplant(:,k),nface4,xg4,yg4,
+     &                     nord,dk,ifg)
+              end if ! iotest
+            end if
+            write(vname,'("nplant",I1.1)') k
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   ucc,6*ik*ik)
+            if (ier.eq.0) then
+              if (iotest) then
+                if (myid==0) then
+                  call ccmpi_distribute(niplant(:,k),ucc)
+                else
+                  call ccmpi_distribute(niplant(:,k))
+                end if
+              else
+                if (myid==0) then
+                  where (.not.land_a(:))
+                    ucc=spval
+                  end where
+                  call fill_cc(ucc,spval,ik,0)
+                end if
+                call doints4(ucc,niplant(:,k),nface4,xg4,yg4,
+     &                     nord,dk,ifg)
+              end if ! iotest
+            end if
+            write(vname,'("pplant",I1.1)') k
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   ucc,6*ik*ik)
+            if (ier.eq.0) then
+              if (iotest) then
+                if (myid==0) then
+                  call ccmpi_distribute(pplant(:,k),ucc)
+                else
+                  call ccmpi_distribute(pplant(:,k))
+                end if
+              else
+                if (myid==0) then
+                  where (.not.land_a(:))
+                    ucc=spval
+                  end where
+                  call fill_cc(ucc,spval,ik,0)
+                end if
+                call doints4(ucc,pplant(:,k),nface4,xg4,yg4,
+     &                     nord,dk,ifg)
+              end if ! iotest
+            end if
+          end do
+          do k=1,mlitter
+            ucc=0.
+            write(vname,'("clitter",I1.1)') k
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   ucc,6*ik*ik)
+            if (ier.eq.0) then
+              if (iotest) then
+                if (myid==0) then
+                  call ccmpi_distribute(clitter(:,k),ucc)
+                else
+                  call ccmpi_distribute(clitter(:,k))
+                end if
+              else
+                if (myid==0) then
+                  where (.not.land_a(:))
+                    ucc=spval
+                  end where
+                  call fill_cc(ucc,spval,ik,0)
+                end if
+                call doints4(ucc,clitter(:,k),nface4,xg4,yg4,
+     &                     nord,dk,ifg)
+              end if ! iotest
+            end if
+            write(vname,'("nlitter",I1.1)') k
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   ucc,6*ik*ik)
+            if (ier.eq.0) then
+              if (iotest) then
+                if (myid==0) then
+                  call ccmpi_distribute(nilitter(:,k),ucc)
+                else
+                  call ccmpi_distribute(nilitter(:,k))
+                end if
+              else
+                if (myid==0) then
+                  where (.not.land_a(:))
+                    ucc=spval
+                  end where
+                  call fill_cc(ucc,spval,ik,0)
+                end if
+                call doints4(ucc,nilitter(:,k),nface4,xg4,yg4,
+     &                     nord,dk,ifg)
+              end if ! iotest
+            end if
+            write(vname,'("plitter",I1.1)') k
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   ucc,6*ik*ik)
+            if (ier.eq.0) then
+              if (iotest) then
+                if (myid==0) then
+                  call ccmpi_distribute(plitter(:,k),ucc)
+                else
+                  call ccmpi_distribute(plitter(:,k))
+                end if
+              else
+                if (myid==0) then
+                  where (.not.land_a(:))
+                    ucc=spval
+                  end where
+                  call fill_cc(ucc,spval,ik,0)
+                end if
+                call doints4(ucc,plitter(:,k),nface4,xg4,yg4,
+     &                     nord,dk,ifg)
+              end if ! iotest
+            end if
+          end do         
+          do k=1,msoil
+            ucc=0.
+            write(vname,'("csoil",I1.1)') k
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   ucc,6*ik*ik)
+            if (ier.eq.0) then
+              if (iotest) then
+                if (myid==0) then
+                  call ccmpi_distribute(csoil(:,k),ucc)
+                else
+                  call ccmpi_distribute(csoil(:,k))
+                end if
+              else
+                if (myid==0) then
+                  where (.not.land_a(:))
+                    ucc=spval
+                  end where
+                  call fill_cc(ucc,spval,ik,0)
+                end if
+                call doints4(ucc,csoil(:,k),nface4,xg4,yg4,
+     &                     nord,dk,ifg)
+              end if ! iotest
+            end if
+            write(vname,'("nsoil",I1.1)') k
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   ucc,6*ik*ik)
+            if (ier.eq.0) then
+              if (iotest) then
+                if (myid==0) then
+                  call ccmpi_distribute(nisoil(:,k),ucc)
+                else
+                  call ccmpi_distribute(nisoil(:,k))
+                end if
+              else
+                if (myid==0) then
+                  where (.not.land_a(:))
+                    ucc=spval
+                  end where
+                  call fill_cc(ucc,spval,ik,0)
+                end if
+                call doints4(ucc,nisoil(:,k),nface4,xg4,yg4,
+     &                     nord,dk,ifg)
+              end if ! iotest
+            end if
+            write(vname,'("psoil",I1.1)') k
+            call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
+     &                   ucc,6*ik*ik)
+            if (ier.eq.0) then
+              if (iotest) then
+                if (myid==0) then
+                  call ccmpi_distribute(psoil(:,k),ucc)
+                else
+                  call ccmpi_distribute(psoil(:,k))
+                end if
+              else
+                if (myid==0) then
+                  where (.not.land_a(:))
+                    ucc=spval
+                  end where
+                  call fill_cc(ucc,spval,ik,0)
+                end if
+                call doints4(ucc,psoil(:,k),nface4,xg4,yg4,
+     &                     nord,dk,ifg)
+              end if ! iotest
+            end if
+          end do
+          ucc=0.
+          call histrd1(ncid,iarchi,ier,'glai',ik,6*ik,
+     &                 ucc,6*ik*ik)
+          if (ier.eq.0) then
+            if (iotest) then
+              if (myid==0) then
+                call ccmpi_distribute(glai,ucc)
+              else
+                call ccmpi_distribute(glai)
+              end if
+            else
+              if (myid==0) then
+                where (.not.land_a(:))
+                  ucc=spval
+                end where
+                call fill_cc(ucc,spval,ik,0)
+              end if
+              call doints4(ucc,glai,nface4,xg4,yg4,
+     &                   nord,dk,ifg)
+            end if ! iotest
+          end if
+         end if
         end if
 
         !--------------------------------------------------

@@ -52,7 +52,6 @@ use aerointerface
 use aerosolldr
 use arrays_m
 use ateb
-use cable_ccam, only : CABLE
 use cc_mpi
 use cfrac_m
 use extraout_m
@@ -448,7 +447,7 @@ do j=1,jl,imax/il
 
     ! Set-up albedo
     ! Land albedo ---------------------------------------------------
-    if (nsib.eq.CABLE.or.nsib.ge.6) then
+    if (nsib.eq.6.or.nsib.eq.7) then
       ! CABLE version
       where (land(istart:iend))
         cuvrf_dir(1:imax) = albvisdir(istart:iend) ! from cable (inc snow)

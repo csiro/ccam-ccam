@@ -234,13 +234,13 @@ do k=1,wlev
   z2=dephladj(ie,k)
   z3=dephladj(iw,k-1)
   z4=dephladj(iw,k)
-  dudx=0.25*((s1+s2-s3-s4)-(s2-s1+s4-s3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+  dudx=0.25*((s1+s2-s3-s4)-(s2-s1+s4-s3)*(z1+z2-z3-z4)/(z2-z1+z4-z3))*em(1:ifull)/ds
 
   s1=vhl(iev,k-1)
   s2=vhl(iev,k)
   s3=vhl(iwv,k-1)
   s4=vhl(iwv,k)
-  dvdx=0.25*((s1+s2-s3-s4)-(s2-s1+s4-s3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+  dvdx=0.25*((s1+s2-s3-s4)-(s2-s1+s4-s3)*(z1+z2-z3-z4)/(z2-z1+z4-z3))*em(1:ifull)/ds
   
   s1=uhl(inu,k-1)
   s2=uhl(inu,k)
@@ -250,13 +250,13 @@ do k=1,wlev
   z2=dephladj(in,k)
   z3=dephladj(is,k-1)
   z4=dephladj(is,k)
-  dudy=0.25*((s1+s2-s3-s4)-(s2-s1+s4-s3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+  dudy=0.25*((s1+s2-s3-s4)-(s2-s1+s4-s3)*(z1+z2-z3-z4)/(z2-z1+z4-z3))*em(1:ifull)/ds
 
   s1=vhl(inv,k-1)
   s2=vhl(inv,k)
   s3=vhl(isv,k-1)
   s4=vhl(isv,k)
-  dvdy=0.25*((s1+s2-s3-s4)-(s2-s1+s4-s3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*em(1:ifull)/ds
+  dvdy=0.25*((s1+s2-s3-s4)-(s2-s1+s4-s3)*(z1+z2-z3-z4)/(z2-z1+z4-z3))*em(1:ifull)/ds
 
   ! Smagorinsky
   cc=(dudx-dvdy)**2+(dudy+dvdx)**2

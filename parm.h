@@ -8,7 +8,7 @@
      &        io_clim,io_in,io_out,io_rest,io_spec,                      &
      &        nwt,nqg,nrun,nrunx,nextout,nclim,m_fly,nsemble,            &
      &        nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss,kbotmlo,ktopmlo,   &
-     &        mloalpha,nud_ouv,nud_sfh,rescrn,knh
+     &        mloalpha,nud_ouv,nud_sfh,rescrn,knh,ccycle
       real qgmin,                                                        &
      &     aleadfr,av_vmod,vmodmin,snmin,tss_sh,charnock,chn10,zobgin,   &
      &     ds,dt,dtin,timea,panfg,panzo,bpyear
@@ -25,7 +25,7 @@
       common/parmsfce/newrough,newsoilm,nsib,nsoil,ntsea,ntsur,ntsur2,   &
      &                lgwd,newztsea,aleadfr,av_vmod,vmodmin,snmin,       &
      &                tss_sh,nglacier,charnock,chn10,zobgin,ntaft,       &
-     &                panfg,panzo,nurban,nmr,nmlo,bpyear,rescrn
+     &                panfg,panzo,nurban,nmr,nmlo,bpyear,rescrn,ccycle
 
       common/parmnudg/nbd,kbotdav,kbotu,nbox,nud_p,nud_q,nud_t,nud_uv,   &
      &                nud_hrs,nudu_hrs,mbd,ktopdav,nud_sst,nud_sss,      &

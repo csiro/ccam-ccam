@@ -14,7 +14,6 @@
       use aerointerface
       use arrays_m
       use ateb
-      use cable_ccam, only : CABLE
       use cc_mpi
       use cfrac_m
       use cldcom_m
@@ -182,8 +181,8 @@ c     Stuff from cldset
 c           AMIP2 ozone
             call o3read_amip
             if (myid==0) then
-	      print *,'AMIP2 ozone input'
-	    end if
+              print *,'AMIP2 ozone input'
+            end if
         else
 c          Stuff from o3set
 c          Rearrange the seasonal mean O3 data to allow interpolation
@@ -278,7 +277,7 @@ c     Set up ozone for this time and row
 !     Set up surface albedo. The input value is > 1 over ocean points where
 !     the zenith angle dependent formula should be used.
       ! LAND --------------------------------------------------------
-      if (nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7) then ! cable
+      if (nsib.eq.6.or.nsib.eq.7) then ! cable
         where(land(istart:iend))                        ! cable
           cuvrf(1:imax,1)=albsav(istart:iend)           ! cable
           cirrf(1:imax,1)=albnirsav(istart:iend)        ! cable

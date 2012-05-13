@@ -23,6 +23,8 @@
 /cable_roughness.F90 -text
 /cable_soilsnow.F90 -text
 /carbpools_m.f90 -text
+/casa_cnp.F90 -text
+/casa_variable.F90 -text
 /cfrac_m.f90 -text
 /cldcom_m.f90 -text
 /co2dta_m.f90 -text

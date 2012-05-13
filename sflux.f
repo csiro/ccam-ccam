@@ -17,7 +17,7 @@
       
       use arrays_m                       ! Atmosphere dyamics prognostic arrays
       use ateb                           ! Urban
-      use cable_ccam, only : CABLE,sib4  ! CABLE interface
+      use cable_ccam, only : sib4        ! CABLE interface
       use cc_mpi                         ! CC MPI routines
       use diag_m                         ! Diagnostic routines
       use extraout_m                     ! Additional diagnostics
@@ -822,9 +822,6 @@ c            Surface stresses taux, tauy: diagnostic only - unstaggered now
      &                       v(1:ifull,1)*v(1:ifull,1)),                ! land
      &                  ps(1:ifull),.not.land,azmin,sig(1))              ! land
            end if                                                       ! land
-        case(CABLE)                                                     ! cable
-         write(6,*) "nsib==CABLE option not avaliable"                  ! cable
-         stop                                                           ! cable
         case(6,7)                                                       ! cable
          if (myid==0.and.nmaxpr==1) then                                ! cable
            write(6,*) "Before CABLE"                                    ! cable

@@ -5,8 +5,8 @@
       use arrays_m                             ! Atmosphere dyamics prognostic arrays
       use ateb                                 ! Urban
       use bigxy4_m                             ! Grid interpolation
-      use cable_ccam, only : CABLE,            ! CABLE interface
-     &  loadcbmparm,loadtile
+      use cable_ccam, only : loadcbmparm,      ! CABLE interface
+     &  loadtile
       use cc_mpi                               ! CC MPI routines
       use dava_m                               ! Far-field nudging (weights)
       use diag_m                               ! Diagnostic routines
@@ -358,12 +358,8 @@
         call rdnsib
         if (nsib==6.or.nsib==7) then
           ! albvisnir at this point holds soil albedo for cable initialisation
-          call loadcbmparm(vegfile,vegprev,vegnext)
+          call loadcbmparm(vegfile,vegprev,vegnext,phenfile,casafile)
           ! albvisnir now is the net albedo
-        elseif (nsib==CABLE) then
-          write(6,*) "nsib=CABLE option is not supported in "
-     &              ,"this version of CCAM"
-          call MPI_Abort(MPI_COMM_WORLD,-1,ierr)
         elseif (nsib==3) then
          ! special options for standard land surface scheme
          if(nspecial==35)then      ! test for Andy Cottrill
@@ -898,7 +894,7 @@
               enddo
             enddo
           enddo
-       enddo
+        enddo
         call printa('t   ',t,0,nlv,ia,ib,ja,jb,200.,1.)
       endif  ! io_in==27, cold bubble test
 
@@ -1703,7 +1699,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       !--------------------------------------------------------------
       ! UPDATE BIOSPHERE DATA (nsib)
       select case(nsib)
-       case(4,6,7)
+       case(6,7)
         ! Load CABLE data
         if (myid==0) write(6,*) 'Importing CABLE data'
         call loadtile
@@ -2060,7 +2056,6 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       use arrays_m                 ! Atmosphere dyamics prognostic arrays
       use cc_mpi                   ! CC MPI routines
-      use cable_ccam, only : CABLE ! CABLE interface
       use map_m                    ! Grid map arrays
       use nsibd_m                  ! Land-surface arrays
       use pbl_m                    ! Boundary layer arrays
@@ -2098,7 +2093,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       else
         albvisnir(:,2)=albvisnir(:,1)
       end if
-      if (nsib.ne.CABLE.and.nsib.le.5) then 
+      if (nsib.le.5) then 
         call readreal(rsmfile,rsmin,ifull)  ! not used these days
         call readreal(zofile,zolnd,ifull)
       else
@@ -2122,7 +2117,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
      &      mismatch = .true.
       if( rdatacheck(land,albvisnir(:,2),'albn',idatafix,falbdflt))
      &      mismatch = .true.
-      if (nsib.ne.CABLE.and.nsib.ne.6.and.nsib.ne.7) then
+      if (nsib.ne.6.and.nsib.ne.7) then
         if( rdatacheck(land,rsmin,'rsmin',idatafix,frsdflt))
      &        mismatch = .true.
         if( rdatacheck(land,zolnd,'zolnd',idatafix,fzodflt))
@@ -2148,7 +2143,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
      &                  MPI_COMM_WORLD, ierr )
       call MPI_Allreduce(ivegmax, ivegmax_g, 1, MPI_INTEGER, MPI_MAX, 
      &                  MPI_COMM_WORLD, ierr )
-      if((ivegmax_g<14).and.nsib.ne.CABLE.and.nsib.ne.6
+      if((ivegmax_g<14).and.nsib.ne.6
      &    .and.nsib.ne.7) then
         if ( mydiag ) write(6,*)
      &      '**** in this run veg types increased from 1-13 to 32-44'

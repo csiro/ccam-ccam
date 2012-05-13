@@ -301,6 +301,8 @@ c       create the attributes of the header record of the file
       use arrays_m                              ! Atmosphere dyamics prognostic arrays
       use ateb                                  ! Urban
       use cable_ccam, only : savetile           ! CABLE interface
+      use casadimension, only : mplant,mlitter, ! CASA dimensions
+     &      msoil
       use carbpools_m                           ! Carbon pools
       use cc_mpi                                ! CC MPI routines
       use cfrac_m                               ! Cloud fraction
@@ -872,8 +874,9 @@ c       For time varying surface fields
         end if
 
         ! CABLE -----------------------------------------------------
-        if (nsib.eq.4.or.nsib.ge.6) then
+        if (nsib.eq.6.or.nsib.eq.7) then
           if (nextout>=1.or.itype==-1) then
+           if (ccycle.eq.0) then
             lname = 'Carbon leaf pool'
             call attrib(idnc,idim,3,'cplant1',lname,'gC/m2',0.,6500.,
      &                  0,itype)
@@ -889,6 +892,92 @@ c       For time varying surface fields
             lname = 'Carbon soil slow pool'
             call attrib(idnc,idim,3,'csoil2',lname,'gC/m2',0.,6500.,
      &                  0,itype)
+           else
+            lname = 'Carbon leaf pool'
+            call attrib(idnc,idim,3,'cplant1',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Nitrogen leaf pool'
+            call attrib(idnc,idim,3,'nplant1',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Phosphor leaf pool'
+            call attrib(idnc,idim,3,'pplant1',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Carbon wood pool'
+            call attrib(idnc,idim,3,'cplant2',lname,'gC/m2',0.,65000.,
+     &                  0,itype)
+            lname = 'Nitrogen wood pool'
+            call attrib(idnc,idim,3,'nplant2',lname,'gC/m2',0.,65000.,
+     &                  0,itype)
+            lname = 'Phosphor wood pool'
+            call attrib(idnc,idim,3,'pplant2',lname,'gC/m2',0.,65000.,
+     &                  0,itype)
+            lname = 'Carbon root pool'
+            call attrib(idnc,idim,3,'cplant3',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Nitrogen root pool'
+            call attrib(idnc,idim,3,'nplant3',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Phosphor root pool'
+            call attrib(idnc,idim,3,'pplant3',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Carbon met pool'
+            call attrib(idnc,idim,3,'clitter1',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Nitrogen met pool'
+            call attrib(idnc,idim,3,'nlitter1',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Phosphor met pool'
+            call attrib(idnc,idim,3,'plitter1',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Carbon str pool'
+            call attrib(idnc,idim,3,'clitter2',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Nitrogen str pool'
+            call attrib(idnc,idim,3,'nlitter2',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Phosphor str pool'
+            call attrib(idnc,idim,3,'plitter2',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Carbon CWD pool'
+            call attrib(idnc,idim,3,'clitter3',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Nitrogen CWD pool'
+            call attrib(idnc,idim,3,'nlitter3',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Phosphor CWD pool'
+            call attrib(idnc,idim,3,'plitter3',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Carbon mic pool'
+            call attrib(idnc,idim,3,'csoil1',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Nitrogen mic pool'
+            call attrib(idnc,idim,3,'nsoil1',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Phosphor mic pool'
+            call attrib(idnc,idim,3,'psoil1',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Carbon slow pool'
+            call attrib(idnc,idim,3,'csoil2',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Nitrogen slow pool'
+            call attrib(idnc,idim,3,'nsoil2',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Phosphor slow pool'
+            call attrib(idnc,idim,3,'psoil2',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Carbon pass pool'
+            call attrib(idnc,idim,3,'csoil3',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Nitrogen pass pool'
+            call attrib(idnc,idim,3,'nsoil3',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Phosphor pass pool'
+            call attrib(idnc,idim,3,'psoil3',lname,'gC/m2',0.,6500.,
+     &                  0,itype)
+            lname = 'Prognostic LAI'
+            call attrib(idnc,idim,3,'glai',lname,'none',0.,
+     &                  13.,0,itype)
+           end if
           end if
           if (nextout>=1.and.itype.ne.-1) then
             lname = 'Avg Net CO2 flux'
@@ -1257,6 +1346,7 @@ c      set time to number of minutes since start
       endif   ! (ktau>0.and.nwt.ne.nperday.and.itype.ne.-1)
 
       ! BASIC -------------------------------------------------------
+      lwrite=ktau>0
       call histwrt3(sigmf,'sigmf',idnc,iarch,local,.true.)
       call histwrt3(psl,'psf',idnc,iarch,local,.true.)
       call mslp(aa,psl,zs,t(1:ifull,:))
@@ -1266,13 +1356,13 @@ c      set time to number of minutes since start
       call histwrt3(vlai,'lai',idnc,iarch,local,.true.)
       call histwrt3(tss,'tsu',idnc,iarch,local,.true.)
       call histwrt3(tpan,'tpan',idnc,iarch,local,.true.)
-      call histwrt3(precip,'rnd',idnc,iarch,local,.true.)
-      call histwrt3(precc,'rnc',idnc,iarch,local,.true.)
-      call histwrt3(sno,'sno',idnc,iarch,local,.true.)
-      call histwrt3(runoff,'runoff',idnc,iarch,local,.true.)
+      call histwrt3(precip,'rnd',idnc,iarch,local,lwrite)
+      call histwrt3(precc,'rnc',idnc,iarch,local,lwrite)
+      call histwrt3(sno,'sno',idnc,iarch,local,lwrite)
+      call histwrt3(runoff,'runoff',idnc,iarch,local,lwrite)
       aa(:)=swrsave*albvisnir(:,1)+(1.-swrsave)*albvisnir(:,2)
       call histwrt3(aa,'alb',idnc,iarch,local,.true.)
-      call histwrt3(fwet,'fwet',idnc,iarch,local,.true.)
+      call histwrt3(fwet,'fwet',idnc,iarch,local,lwrite)
 
       ! MLO ---------------------------------------------------------      
       if (nmlo.ne.0) then
@@ -1574,13 +1664,41 @@ c      "extra" outputs
       end if
 
       ! CABLE -------------------------------------------------------
-      if (nsib.eq.4.or.nsib.eq.6.or.nsib.eq.7) then
+      if (nsib.eq.6.or.nsib.eq.7) then
         if (nextout>=1.or.itype==-1) then
+         if (ccycle==0) then
           call histwrt3(cplant(:,1),'cplant1',idnc,iarch,local,.true.)
           call histwrt3(cplant(:,2),'cplant2',idnc,iarch,local,.true.)
           call histwrt3(cplant(:,3),'cplant3',idnc,iarch,local,.true.)
           call histwrt3(csoil(:,1),'csoil1',idnc,iarch,local,.true.)
           call histwrt3(csoil(:,2),'csoil2',idnc,iarch,local,.true.)
+         else
+          do k=1,mplant
+            write(vname,'("cplant",I1.1)') k
+            call histwrt3(cplant(:,k),vname,idnc,iarch,local,.true.)
+            write(vname,'("nplant",I1.1)') k
+            call histwrt3(niplant(:,k),vname,idnc,iarch,local,.true.)
+            write(vname,'("pplant",I1.1)') k
+            call histwrt3(pplant(:,k),vname,idnc,iarch,local,.true.)
+          end do
+          do k=1,mlitter
+            write(vname,'("clitter",I1.1)') k
+            call histwrt3(clitter(:,k),vname,idnc,iarch,local,.true.)
+            write(vname,'("nlitter",I1.1)') k
+            call histwrt3(nilitter(:,k),vname,idnc,iarch,local,.true.)
+            write(vname,'("plitter",I1.1)') k
+            call histwrt3(plitter(:,k),vname,idnc,iarch,local,.true.)
+          end do
+          do k=1,msoil
+            write(vname,'("csoil",I1.1)') k
+            call histwrt3(csoil(:,k),vname,idnc,iarch,local,.true.)
+            write(vname,'("nsoil",I1.1)') k
+            call histwrt3(nisoil(:,k),vname,idnc,iarch,local,.true.)
+            write(vname,'("psoil",I1.1)') k
+            call histwrt3(psoil(:,k),vname,idnc,iarch,local,.true.)
+          end do
+          call histwrt3(glai,'glai',idnc,iarch,local,.true.)
+         end if
         end if
         if (nextout>=1.and.itype.ne.-1) then
           lwrite=mod(ktau,nperavg)==0.or.ktau==ntau

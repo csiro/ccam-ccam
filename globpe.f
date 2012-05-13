@@ -151,7 +151,7 @@
      & ,m_fly,mstn,nqg,nurban,nmr,ktopdav,nud_sst,nud_sss
      & ,mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv
      & ,nud_sfh,bpyear,rescrn,helmmeth,nmlo,ol,mxd,mindep,minwater
-     & ,knh
+     & ,knh,ccycle
       namelist/skyin/mins_rad,ndiur
       namelist/datafile/ifile,ofile,albfile,co2emfile,eigenv,
      &    hfile,icefile,mesonest,nmifile,o3file,radfile,restfile,
@@ -172,7 +172,7 @@
      &        ,nuvconv,rhcv,rhmois,rhsat
      &        ,sigcb,sigcll,sig_ct,sigkscb,sigksct
      &        ,tied_con,tied_over,tied_rh,comm
-     &        ,acon,bcon,rcm,rcrit_l,rcrit_s
+     &        ,acon,bcon,rcm,rcrit_l,rcrit_s,ncloud
 
       data nscrn/0/,nversion/0/,lapsbot/0/
       data npc/40/,nmi/0/,io_nest/1/,iaero/0/,newsnow/0/      
@@ -621,7 +621,7 @@
       allocate(speed(ifull,kl))
       allocate(spmean(kl),div(kl))
       call arrays_init(ifull,iextra,kl)
-      call carbpools_init(ifull,iextra,kl,nsib)
+      call carbpools_init(ifull,iextra,kl,nsib,ccycle)
       call cfrac_init(ifull,iextra,kl)
       call dpsdt_init(ifull,iextra,kl)
       call epst_init(ifull,iextra,kl)
@@ -2062,6 +2062,7 @@ c     data nstag/99/,nstagu/99/
       data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
       data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
       data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
+      data ncloud/0/
 !     Soil, canopy, PBL options
       data nbarewet/0/,newrough/0/,nglacier/1/,
      &     nrungcm/-1/,nsib/3/,nsigmf/1/,
@@ -2069,7 +2070,7 @@ c     data nstag/99/,nstagu/99/
      &     vmodmin/.2/,zobgin/.02/,charnock/.018/,chn10/.00125/
       data newsoilm/0/,newztsea/1/,newtop/1/,nem/2/                    
       data snmin/.11/  ! 1000. for 1-layer; ~.11 to turn on 3-layer snow
-      data nurban/0/,nmr/0/,bpyear/0./,rescrn/0/
+      data nurban/0/,nmr/0/,bpyear/0./,rescrn/0/,ccycle/0/
 !     Special and test options
       data namip/0/,amipo3/.false./,nhstest/0/,nsemble/0/,nspecial/0/,
      &     panfg/4./,panzo/.001/,nplens/0/

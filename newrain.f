@@ -77,6 +77,7 @@ C Argument list
       real dz(ln2,nl)
       real ccrain(ln2,nl)
       real prf(ln2,nl)
+      real cdrop(ln2,nl)
       real ttg(ln2,nl)
       real qlg(ln2,nl)
       real qfg(ln2,nl)
@@ -98,21 +99,22 @@ C Argument list
       real pfstay(ln2,nl)
       real slopes(ln2,nl)
       real prscav(ln2,nl)
+      real fluxr(ln2,nl)
+      real fluxi(ln2,nl)
+      real fluxm(ln2,nl)
 
 C Local work arrays and variables
       real clfr(ln2,nl)
-      real qsg(ln2,nl),fluxr(ln2,nl)
+      real qsg(ln2,nl)
       real cifr(ln2,nl)
-      real fluxm(ln2,nl)
       real frclr(ln2,nl)
-      real fluxi(ln2,nl),qsl(ln2,nl)
+      real qsl(ln2,nl)
       real fluxa(ln2,nl)
       real clfra(ln2)
       real ccra(ln2)
       real cfrain(ln2,nl)
       real cfmelt(ln2,nl)
       real fluxrain(ln2)
-      real cdrop(ln2,nl)
       real fracr(ln2,nl)
       real mxclfr(ln2)
       real rdclfr(ln2)
@@ -161,7 +163,6 @@ C Local work arrays and variables
 
 C Local data, functions etc
       parameter (ntest=0)  ! 0=off, 1=on
-      integer, parameter :: autoconvmeth=1 ! Autoconv scheme (0=Old, 1=New)
 
       real esdiff(-40:0)  !Table of es(liq) - es(ice) (MKS), -40 <= t <= 0 C
       data esdiff / 
@@ -246,9 +247,8 @@ c Previous line not good for roundoff; next few lines are better
 c Define cdrop  - passed through as cdso4, defined in leoncld.f
 
 ***************** Cut here to insert new auto scheme ********************            
-      select case(autoconvmeth)
+      if (ncloud.gt.0) then
 c Using new (subgrid) autoconv scheme... 
-       case(1)
         do k=nl-1,1,-1
           do mg=1,ln2
             cfrain(mg,k)=0.0
@@ -303,7 +303,7 @@ c Following is Liu & Daum (JAS, 2004)
         enddo
 
 c Or, using old autoconv scheme...
-       case(0)
+       else
         do k=nl-1,1,-1
           do mg=1,ln2
             cfrain(mg,k)=0.0
@@ -338,10 +338,7 @@ c               selfcoll=min(ql1,ql1*cdt/(1+0.5*cdt))
             endif
           enddo
         enddo
-       case default
-        write(6,*) "ERROR: Unknown autoconvmeth ",autoconvmeth
-        stop
-      end select
+      endif ! (ncloud.gt.0)
 
 c Call frozen precipitation routine
 
@@ -353,7 +350,7 @@ c Call frozen precipitation routine
       ! Set up prognostic rain - MJT
       ! The following is based on LDR flux divergence calculation
       ! (see icefall.f).  LDR's original scheme can be recovered
-      ! by setting fout=1 and fthru=1.
+      ! by setting fout=1 and fthru=1 or using ncloud.le.1.
 
       vr=0.1
       do k=nl-1,1,-1
@@ -379,6 +376,11 @@ c Add flux of rain due to autoconversion to qrg
           fthru(mg,k)=1.-fout(mg,k)/alph !analytical
         end do
       end do
+      
+      if (ncloud.le.1) then
+        fout=1.
+        fthru=1.
+      end if
 
       ! The following has been modified to track the random overlap rain fraction (rdclfr)
       ! and the max overlap rain fraction (mxclfr) so than both random overlaped and
