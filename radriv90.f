@@ -181,7 +181,7 @@ c     Stuff from cldset
 c           AMIP2 ozone
             call o3read_amip
             if (myid==0) then
-              print *,'AMIP2 ozone input'
+              write(6,*) 'AMIP2 ozone input'
             end if
         else
 c          Stuff from o3set
@@ -266,13 +266,23 @@ c     Set up ozone for this time and row
      &                     sigh, ps(1+(j-1)*il:(j-1)*il+imax), qo3 )
          qo3(:,:)=max(1.e-10,qo3(:,:))    ! July 2008
       else
-         call o3set(imax,istart,mins,duo3n,sig,ps(1+(j-1)*il))
+         call o3set(rlatt(1+(j-1)*il:(j-1)*il+imax),imax,istart,mins,
+     &     duo3n,sig,ps(1+(j-1)*il:(j-1)*il+imax))
          do k=1,kl
             do i=1,imax
               qo3(i,k) = duo3n(i,k)
             end do
          end do
       end if
+      if(ntest.eq.1.and.mydiag)then
+        do i=1,imax
+          iq=i+(j-1)*il
+          if (iq.eq.idjd) then
+            write(6,*) "qo3 ",qo3(i,:)
+          end if
+	end do
+      end if
+
 
 !     Set up surface albedo. The input value is > 1 over ocean points where
 !     the zenith angle dependent formula should be used.
@@ -349,9 +359,14 @@ c                   where cs = 0.2, cn = 0.5, b = 2.0
 c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
              cc=min(1.,snr/max(snr+zolnd(iq),0.02))
 
-            !alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
-            cuvrf(i,1)=(1.-snrat)*cuvrf(i,1) + snrat*alv
-            cirrf(i,1)=(1.-snrat)*cirrf(i,1) + snrat*alir
+             !alss = (1.-snrat)*albsav(iq) + snrat*talb ! canopy free surface albedo
+             if (nsib.eq.3) then           
+              cuvrf(i,1)=(1.-snrat)*cuvrf(i,1) + snrat*talb
+              cirrf(i,1)=(1.-snrat)*cirrf(i,1) + snrat*talb
+	     else
+              cuvrf(i,1)=(1.-snrat)*cuvrf(i,1) + snrat*alv
+              cirrf(i,1)=(1.-snrat)*cirrf(i,1) + snrat*alir
+	    end if
             if(ntest.gt.0.and.i.eq.idrad.and.j.eq.jdrad)then
               print *,'i,j,land,sicedep,snowd,snrat ',
      .                 i,j,land(iq),sicedep(iq),snowd(iq),snrat

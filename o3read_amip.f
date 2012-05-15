@@ -11,7 +11,6 @@
       include 'mpif.h'
       include 'filnames.h'
 
-      character(len=80)  :: finame
       character(len=120) :: label
       real, parameter :: amd = 28.9644, amo = 48.0000
       real, parameter :: massratio = amo / amd
@@ -26,6 +25,7 @@
       real :: prsubc  ! =     upper boundary pressure (mb)
       real :: altubc  ! =     upper boundary altitude (km)
 
+      ! Allocate ozone arrays
       call o3amip_init
 
       !--------------------------------------------------------------

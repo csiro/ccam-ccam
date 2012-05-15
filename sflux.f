@@ -136,15 +136,15 @@ c     degdt is degdt (was ceva in surfupa/b)
         if (mydiag) then
          if (land(idjd)) then
           write(6,*) 'entering sflux ktau,nsib,ivegt,isoilm,land '
-     .         ,ktau,nsib,ivegt(idjd),isoilm(idjd),land(idjd)
-          write(6,*) 'idjd,id,jd,slwa,sgsave ',
-     .           idjd,id,jd,slwa(idjd),sgsave(idjd)
-          write(6,*) 'snowd,sicedep,condx ',
-     .           snowd(idjd),sicedep(idjd),condx(idjd)
+     &         ,ktau,nsib,ivegt(idjd),isoilm(idjd),land(idjd)
+          write(6,*) 'slwa,sgsave,albsav',
+     &                slwa(idjd),sgsave(idjd),albsav(idjd)
+          write(6,*) 'sflux_in:snage,snowd,sicedep,condx',
+     &           snage(idjd),snowd(idjd),sicedep(idjd),condx(idjd)
           write(6,*) 't1,tss ',t(idjd,1),tss(idjd)
           write(6,*) 'wb ',(wb(idjd,k),k=1,ms)
           write(6,*) 'tgg ',(tgg(idjd,k),k=1,ms)
-	   endif
+         endif
         end if
         call maxmin(t,' t',ktau,1.,kl)
       endif
