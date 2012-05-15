@@ -1104,8 +1104,10 @@ c     dt  - time step
       enddo   ! ip=1,ipland           land points
       if(ntest>0.and.mydiag)then
         iq=idjd
+	isoil=isoilm(iq)
         print *,'ga,gammzz ',ga(iq),gammzz(iq,1)
         print *,'rhs_tgg ',(tgg(iq,k),k=1,ms)
+	print *,'dgdtg ',dgdtg(iq)
         print *,'ssat,css,rhos,cswat,rhowat,csice ',
      .            ssat(isoil),css(isoil),rhos(isoil),cswat,rhowat,csice
         print *,'wblf1,wbfice1,zse1,cgsnow ',

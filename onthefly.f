@@ -917,7 +917,9 @@ c       incorporate other target land mask effects
           call histrd1(ncid,iarchi,ier,vname,ik,6*ik,
      &                   ucc,6*ik*ik)
           if (ier.ne.0) then
-            if (k.le.3) then
+	    if (k.eq.1) then
+	      ucc=tss_a
+	    else if (k.le.3) then
               call histrd1(ncid,iarchi,ier,'tgg2',ik,6*ik,
      &                 ucc,6*ik*ik)
               if (ier.ne.0) then
@@ -2060,7 +2062,7 @@ c       incorporate other target land mask effects
           end if ! iotest
         end do
 
-        if (nmlo==0..and.abs(nmlo).le.9) then ! otherwise already read above
+        if (nmlo==0.or.abs(nmlo).gt.9) then ! otherwise already read above
           tggsn_a(:,:)= 280.
           call histrd1(ncid,iarchi,ier,'tggsn1',ik,6*ik,tggsn_a(:,1),
      &                 6*ik*ik)

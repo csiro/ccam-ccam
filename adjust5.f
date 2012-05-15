@@ -674,7 +674,7 @@ c    &              rhsl(idjd,nlv),rhsl(idjd+il,nlv),rhsl(idjd-il,nlv)
         write (6,"('dpsdt# mb/d ',9f8.1)") diagvals(dpsdt) 
         write (6,"('qg_a4 ',3p10f8.3)") qg(idjd,:)
         write (6,"('qgs',3p10f8.3)")
-     &                         (qgsav(idjd,k)/ps_sav(idjd),k=1,kl)
+     &                         (qgsav(idjd,k),k=1,kl)
         write (6,"('qf_a4',3p10f8.3)") qfg(idjd,:)
         write (6,"('ql_a4',3p10f8.3)") qlg(idjd,:)
       endif

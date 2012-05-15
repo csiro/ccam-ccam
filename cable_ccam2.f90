@@ -787,6 +787,9 @@ if (cbm_ms.ne.ms) then
   stop
 end if
 
+! redefine rhos
+rhos=(/1600.,1595.,1381.,1373.,1476.,1521.,1373.,1537.,1455.,2600.,2600.,2600.,2600. /)
+
 hc=(/ 17.,35.,15.5,20.,19.25,0.6,0.6,7.0426,14.3379,0.567,0.5,0.55,6.017,0.55,0.2,0.2,0.2 /)
 xfang=(/ 0.01,0.1,0.01,0.25,0.125,-0.3,0.01,-0.3,-0.3,-0.3,0.,-0.3,0.,-0.3,0.,0.1,0. /)
 dleaf=(/ 0.055,0.1,0.04,0.15,0.1,0.1,0.1,0.233,0.129,0.3,0.3,0.3,0.242,0.3,0.03,0.03,0.03 /)
@@ -885,14 +888,21 @@ if (mp.gt.0) then
   
   ! froot is now calculated from soil depth and the new parameter rootbeta 
   ! according to Jackson et al. 1996, Oceologica, 108:389-411
-  totdepth = 0.
-  do k=1,ms
-    totdepth = totdepth + soil%zse(k)*100.
-    froot2(:,k) = min(1.,1.-rootbeta(:)**totdepth)
-  enddo
-  do k = ms, 2, -1
-    froot2(:,k) = froot2(:,k) - froot2(:,k-1)
-  enddo
+  !totdepth = 0.
+  !do k=1,ms
+  !  totdepth = totdepth + soil%zse(k)*100.
+  !  froot2(:,k) = min(1.,1.-rootbeta(:)**totdepth)
+  !enddo
+  !do k = ms, 2, -1
+  !  froot2(:,k) = froot2(:,k) - froot2(:,k-1)
+  !enddo
+  
+  froot2(:,1)=0.05
+  froot2(:,2)=0.20
+  froot2(:,3)=0.20
+  froot2(:,4)=0.20
+  froot2(:,5)=0.20
+  froot2(:,6)=0.15
  
   sv=0.
   vl1=0.

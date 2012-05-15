@@ -78,7 +78,7 @@ c     expect power nf to be about 1 or 2 (see data statement)
       if (kmax.lt.0) then
         kmax=1
         do k=2,kl
-          if (sig(k).ge.0.2) then
+          if (sig(k).ge.0.25) then
             kmax=k
           else
             exit
@@ -497,7 +497,7 @@ c       do t diffusion based on potential temperature ff
            end do              !  iq loop
         end do
         ! cloud microphysics
-        if (ldr.ne.0) then
+        if (ldr.ne.0.and.ncloud.ne.0) then
           ee(1:ifull,:)=qlg(1:ifull,:)
           call bounds(ee)
           do k=1,kl

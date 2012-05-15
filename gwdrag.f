@@ -9,6 +9,7 @@
       use soil_m
 !     parameter(fc2=.5,ndzx=0)    !  as per Hal      gwd1a
       parameter(fc2=1.,ndzx=1)    !  as per jlm      gwd1b
+      parameter(ntest=0)          ! ntest= 0 for diags off; ntest= 1 for diags on
       include 'newmpar.h'
       include 'const_phys.h'
       include 'parm.h'
@@ -175,5 +176,21 @@ c**** = -alam.v*/wmag.uu(t+1)**2.max(--,0)
          endif  ! (ngwd.gt.0)then   ! tendencies used
        endif    ! (npanels.eq.0) then .. else ..
       enddo     ! k loop
+      
+      if(ntest==1)then
+        write(6,*) 'from gwdrag, ngwd,alam,fnii,apuw,apvw,wmag',
+     &    ngwd,alam(idjd),fnii(idjd),apuw(idjd),apvw(idjd),wmag(idjd)
+        write(6,*) 'temp,bvng,he,tss',
+     &  temp(idjd),bvng(idjd),he(idjd),tss(idjd)
+        write(6,*) 't',t(idjd,:)
+        write(6,*) 'thf',thf(idjd,:)
+        write(6,*) 'bvnf',bvnf(idjd,:)
+        write(6,*) 'dthdz',dthdz(idjd,:)
+        write(6,*) 'fni',fni(idjd,:)
+        write(6,*) 'uu',uu(idjd,:)
+        write(6,*) 'un',vn(idjd,:)
+        write(6,*) 'vn',vn(idjd,:)
+      endif
+
       return
       end

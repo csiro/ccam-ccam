@@ -1668,7 +1668,8 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
         call MPI_Reduce(aamax, aamax_g, 1, MPI_REAL, MPI_MAX, 0,
      &                  MPI_COMM_WORLD, ierr )
         if(myid==0)write(6,*)'for lgwd>0, aamax: ',aamax_g
-
+      end if ! lgwd>0
+      if (ngwd.ne.0) then
         hemax=0.
         do iq=1,ifull
          hemax=max(he(iq),hemax)
@@ -2073,11 +2074,11 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       include 'parm.h'             ! Model configuration
       include 'soilv.h'            ! Soil parameters
       
-      integer ivegdflt,isoildflt,ico2dflt
+      integer ivegdflt,isoildflt
       integer idatafix,iq,ierr
-      real falbdflt,fsoildflt,frsdflt,fzodflt
-      parameter( ivegdflt=1, isoildflt=7, ico2dflt = 999 )
-      parameter( falbdflt=0., fsoildflt=0.15, frsdflt=990.)
+      real falbdflt,frsdflt,fzodflt
+      parameter( ivegdflt=0, isoildflt=0)
+      parameter( falbdflt=0., frsdflt=990.)
       parameter( fzodflt=1.)
       data idatafix/0/
       logical rdatacheck,idatacheck,mismatch

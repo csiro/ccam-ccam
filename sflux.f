@@ -748,6 +748,8 @@ c                Now heat ; allow for smaller zo via aft and factch     ! land
           if(ntest>0.and.mydiag)then                                    ! land
             write(6,*) 'before sib3 zo,zolnd,af ',zo(idjd),zolnd(idjd)  ! land
      &                                        ,af(idjd)                 ! land
+            write(6,*) 'av_vmod,u,savu,v,savv',                         ! land
+     &          av_vmod,u(idjd,1),savu(idjd,1),v(idjd,1),savv(idjd,1)   ! land
           endif                                                         ! land
           call sib3(nalpha,taftfh,taftfhg,aft,rho) ! for nsib=3, 5      ! land
           if(diag.or.ntest>0)then                                       ! land
@@ -1355,6 +1357,12 @@ c         evaporation from the bare ground
      .                                  (1.-tsigmf(iq))
         enddo   ! ip=1,ipland
       endif     ! (nsigmf==1)
+
+      if(ntest==1.and.mydiag)then
+         iq=idjd
+         write(6,*)'dgdtg,dirad,dfgdt,cls,degdt,tsigmf',
+     &      dgdtg(iq),dirad(iq),dfgdt(iq),cls(iq),degdt(iq),tsigmf(iq) 
+      endif
 
 ! ----------------------------------------------
       if(itnmeth==0) then  ! old, not vectorized

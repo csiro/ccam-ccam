@@ -708,7 +708,7 @@
       call maxmin(qfg,'qf',ktau,1.e3,kl)
       call maxmin(qlg,'ql',ktau,1.e3,kl)
       call maxmin(wb,'wb',ktau,1.,ms)
-      call maxmin(tggsn,'tggsn',ktau,1.,3)
+      call maxmin(tggsn,'tS',ktau,1.,3)
       call maxmin(tgg,'tgg',ktau,1.,ms)
       pwatr_l=0.   ! in mm
       do k=1,kl
@@ -2145,10 +2145,7 @@ c     stuff from insoil  for soilv.h
      *             800.e-6, 1.e-6, 34.e-6, 7.e-6, 1.3e-6, 2.5e-6/  ! ksat
       data sucs/-.106, -.591, -.405, -.348, -.153, -.49, -.299,
      &          -.356, -.153, -.218, -.478, -.405, -.63/           ! phisat (m)
-      data rhos/1600., 1595., 1381., 1373., 1476., 1521., 1373., 1537.,
-     &          1455., 4*2600. /
-      ! soil density changed to the line above by YP using the relationship
-      ! rho = (1  - ssat) * 2650  ----- (3Nov2007)
+      data rhos/7*2600., 1300.,  910., 4*2600./      ! soil density
       data  css/7* 850., 1920., 2100., 4*850./       ! heat capacity
 
       data zse/.022, .058, .154, .409, 1.085, 2.872/ ! layer thickness
