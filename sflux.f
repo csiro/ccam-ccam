@@ -55,7 +55,7 @@
       include 'trcom2.h'                 ! Station data
 
       integer iq,k,it,ip,iqmin1,iqmax1,iqmin2,iqmax2
-      real, intent(in) :: nalpha
+      integer, intent(in) :: nalpha
       real ri_max,zologbgin,ztv,z1onzt,chnsea
       real srcp,dtsoil,afrootpan,es,constz,drst
       real xx,consea,afroot,fm,con,dtsol,daf
@@ -1009,13 +1009,13 @@ c***  end of surface updating loop
       integer nbarewet,nsigmf
       common/nsib/nbarewet,nsigmf      ! Land-surface options
 
-      integer iq,k,iveg,tsoil,layer,isoil,ip,icount
-      real, intent(in) :: nalpha
+      integer iq,k,iveg,layer,isoil,ip,icount
+      integer, intent(in) :: nalpha
       real xxx,tgss,esattg,tgss2,fle,frac,conw_fh,qtgnet
       real qtgair,eg1,eg2,deg,egg_alph1,sstar,ff,rsi,den
       real wbav,f1,f2,f3,f4,esatf,qsatgf,beta,etr,betetrdt
       real prz,dirad1,dqg,devf,residp,sstgf,ewwwa,delta_t0
-      real delta_t,deltat,es
+      real delta_t,deltat,es,tsoil
       real, dimension(ifull), intent(in) :: taftfh,taftfhg,rho
       real, dimension(ifull), intent(inout) :: aft
       real airr(ifull),cc(ifull),condxg(ifull),delta_tx(ifull),
