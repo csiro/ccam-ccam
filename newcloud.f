@@ -165,15 +165,15 @@ C Start code : ----------------------------------------------------------
       root6i=1./root6
 
       if(diag.and.mydiag)then
-          write(6,*)'entering newcloud IPASS=1'
+          print *,'entering newcloud IPASS=1'
 !	   qtg(idjd,kl)=2.e-6
 !	   qfg(idjd,kl)=10.e-6
           write(6,91)'prf ',(prf(idjd,k),k=1,nl)
           write(6,91)'ttg ',(ttg(idjd,k),k=1,nl)
           write(6,9)'qtg ',(qtg(idjd,k),k=1,nl)
-          write(6,*)'qlg ',(qlg(idjd,k),k=1,nl)
-          write(6,*)'qfg ',(qfg(idjd,k),k=1,nl)
-          write(6,*)
+          write(6,9)'qlg ',(qlg(idjd,k),k=1,nl)
+          write(6,9)'qfg ',(qfg(idjd,k),k=1,nl)
+          print *
       endif
 
 c Define cdrop  - passed through as cdso4, defined in leoncld.f
@@ -324,12 +324,12 @@ c         qvc(mg,k)=qs !Vapour mixing ratio in cloud
           cfrac(mg,k)=1.
           qcg(mg,k)=al*qc
           if(qc<delq)then
-            cfrac(mg,k)=max(1.e-6 , 1.-.5*((qc-delq)/delq)**2) ! for roundoff
-            qcg(mg,k)=al*(qc-(qc-delq)**3/(6*delq**2))
+            cfrac(mg,k)=max(1.e-6 , 1.-.5*((qc-delq)/delq)**2)     ! for roundoff
+            qcg(mg,k)=max(1.e-8,al*(qc-(qc-delq)**3/(6.*delq**2))) ! for roundoff
           endif
           if(qc<=0.)then
             cfrac(mg,k)=max(1.e-6 , .5*((qc+delq)/delq)**2)    ! for roundoff
-            qcg(mg,k)=al*(qc+delq)**3/(6*delq**2)
+            qcg(mg,k)=max(1.e-8, al*(qc+delq)**3/(6.*delq**2)) ! for roundoff
           endif
           if(qc<=-delq)then
             cfrac(mg,k)=0.
@@ -524,8 +524,8 @@ c            ccov(mg,k)=cfrac(mg,k)**(2./3)
           write(6,9)'qca ',  qca(idjd,:)
           write(6,9)'qtot ', qtot(idjd,:)
           write(6,9)'qcg ',  qcg(idjd,:)
-          write(6,*)'qlg ',  qlg(idjd,:)
-          write(6,*)'qfg ',  qfg(idjd,:)
+          write(6,9)'qlg ',  qlg(idjd,:)
+          write(6,9)'qfg ',  qfg(idjd,:)
       endif
 c 91   format(a6,30f10.3)
 c 9    format(a6,30g10.3)
