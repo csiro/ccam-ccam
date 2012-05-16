@@ -165,15 +165,15 @@ C Start code : ----------------------------------------------------------
       root6i=1./root6
 
       if(diag.and.mydiag)then
-          print *,'entering newcloud IPASS=1'
+          write(6,*)'entering newcloud IPASS=1'
 !	   qtg(idjd,kl)=2.e-6
 !	   qfg(idjd,kl)=10.e-6
           write(6,91)'prf ',(prf(idjd,k),k=1,nl)
           write(6,91)'ttg ',(ttg(idjd,k),k=1,nl)
           write(6,9)'qtg ',(qtg(idjd,k),k=1,nl)
-          write(6,9)'qlg ',(qlg(idjd,k),k=1,nl)
-          write(6,9)'qfg ',(qfg(idjd,k),k=1,nl)
-          print *
+          write(6,*)'qlg ',(qlg(idjd,k),k=1,nl)
+          write(6,*)'qfg ',(qfg(idjd,k),k=1,nl)
+          write(6,*)
       endif
 
 c Define cdrop  - passed through as cdso4, defined in leoncld.f
@@ -335,12 +335,11 @@ c         qvc(mg,k)=qs !Vapour mixing ratio in cloud
             cfrac(mg,k)=0.
             qcg(mg,k)=0.
           endif
-
-          ! Roundoff check
-          if ( qcg(mg,k) <= 0. ) then
-             cfrac(mg,k) = 0.
-             qcg  (mg,k) = 0.  ! added Oct '06
-          end if
+c          ! Roundoff check
+c          if ( qcg(mg,k) <= 0. ) then
+c             cfrac(mg,k) = 0.
+c             qcg  (mg,k) = 0.  ! added Oct '06
+c          end if
 
 c Calculate the cloud fraction (cfa) in which ql exceeds qcrit, and
 c the corresponding gridbox-mean cloud water mixing ratio qca. 
@@ -525,8 +524,8 @@ c            ccov(mg,k)=cfrac(mg,k)**(2./3)
           write(6,9)'qca ',  qca(idjd,:)
           write(6,9)'qtot ', qtot(idjd,:)
           write(6,9)'qcg ',  qcg(idjd,:)
-          write(6,9)'qlg ',  qlg(idjd,:)
-          write(6,9)'qfg ',  qfg(idjd,:)
+          write(6,*)'qlg ',  qlg(idjd,:)
+          write(6,*)'qfg ',  qfg(idjd,:)
       endif
 c 91   format(a6,30f10.3)
 c 9    format(a6,30g10.3)
