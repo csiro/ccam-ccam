@@ -570,7 +570,7 @@ module canopy_module
 !         if( cable_runtime%um) then
                swilt_eff = soil%swilt/2.0    
 !         else
-!               swilt_eff = soil%swilt    
+!              swilt_eff = soil%swilt
 !         endif
          !jhan:NB %evapfbl
          !frescale = soil%zse(1) * 1000.  - ssoil%evapfbl(:,1) * air%rlam / dels         
@@ -975,7 +975,7 @@ end subroutine within_canopy
 !         if( cable_runtime%um) then
                swilt_eff = soil%swilt/2.0
 !         else
-!               swilt_eff = soil%swilt
+!              swilt_eff = soil%swilt
 !         endif
 
          ! Calculate fraction of canopy which is wet:

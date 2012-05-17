@@ -196,22 +196,20 @@ end select
 ! CABLE
 ktau_gl=900
 kend_gl=999
-cable_user%fwsoil_switch="standard"
+canopy%oldcansto=canopy%cansto
+ssoil%otss = ssoil%tss
+ssoil%owetfac = ssoil%wetfac
 call ruff_resist(veg,rough,ssoil,soil,met,canopy)
 call define_air(met,air)
 call init_radiation(met,rad,veg,canopy)
 call surface_albedo(ssoil,veg,met,rad,soil,canopy)
-canopy%oldcansto=canopy%cansto
 call define_canopy(bal,rad,rough,air,met,dt,ssoil,soil,veg,canopy)
-ssoil%otss = ssoil%tss
-ssoil%owetfac = ssoil%wetfac
 call soil_snow(dt,soil,ssoil,canopy,met,bal,veg)
-! adjust for new soil temperature
-deltat = ssoil%tss - ssoil%otss
-canopy%fhs     = canopy%fhs + deltat*ssoil%dfh_dtg
-canopy%fes     = canopy%fes + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
-canopy%fhs_cor = canopy%fhs_cor + deltat*ssoil%dfh_dtg
-canopy%fes_cor = canopy%fes_cor + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
+deltat = ssoil%tss - ssoil%otss ! adjust for new soil temperature
+!canopy%fhs     = canopy%fhs + deltat*ssoil%dfh_dtg
+!canopy%fes     = canopy%fes + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
+!canopy%fhs_cor = canopy%fhs_cor + deltat*ssoil%dfh_dtg
+!canopy%fes_cor = canopy%fes_cor + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
 canopy%fh      = canopy%fhv + canopy%fhs
 canopy%fev     = canopy%fevc + canopy%fevw
 canopy%fe      = canopy%fev + canopy%fes
@@ -834,6 +832,7 @@ do n=1,5
 end do
 
 icycle=ccycle
+cable_user%fwsoil_switch="standard"
 
 if (myid==0) write(6,*) "Define CABLE and CASA CNP arrays"
 

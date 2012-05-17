@@ -2096,7 +2096,7 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       end if
       if (nsib.le.5) then 
         call readreal(rsmfile,rsmin,ifull)  ! not used these days
-        !call readreal(zofile,zolnd,ifull)
+        call readreal(zofile,zolnd,ifull)
       else
         zolnd=zobgin ! updated in cable_ccam2.f90
       end if
@@ -2121,8 +2121,8 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
       if (nsib.ne.6.and.nsib.ne.7) then
         if( rdatacheck(land,rsmin,'rsmin',idatafix,frsdflt))
      &        mismatch = .true.
-        if( rdatacheck(land,zolnd,'zolnd',idatafix,fzodflt))
-     &        mismatch = .true.
+    !    if( rdatacheck(land,zolnd,'zolnd',idatafix,fzodflt))
+    ! &        mismatch = .true.
       end if
       ivegmin=100
       ivegmax=-100

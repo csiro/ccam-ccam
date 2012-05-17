@@ -441,7 +441,7 @@ do j=1,jl,imax/il
       call o3set_amip ( rlatt(istart:iend), imax, mins,sigh, ps(istart:iend), Rad_gases%qo3(:,1,:) )
       Rad_gases%qo3(:,1,:)=max(1.e-10,Rad_gases%qo3(:,1,:))
     else
-      call o3set(rlatt(istart:iend),imax,istart,mins,duo3n,sig,ps(istart:iend))
+      call o3set(imax,istart,mins,duo3n,sig,ps(istart:iend))
       Rad_gases%qo3(:,1,:) = max(1.e-10,duo3n)
     end if
 

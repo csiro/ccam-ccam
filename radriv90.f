@@ -266,8 +266,8 @@ c     Set up ozone for this time and row
      &                     sigh, ps(1+(j-1)*il:(j-1)*il+imax), qo3 )
          qo3(:,:)=max(1.e-10,qo3(:,:))    ! July 2008
       else
-         call o3set(rlatt(1+(j-1)*il:(j-1)*il+imax),imax,istart,mins,
-     &     duo3n,sig,ps(1+(j-1)*il:(j-1)*il+imax))
+         call o3set(imax,istart,mins,duo3n,sig,
+     &     ps(1+(j-1)*il:(j-1)*il+imax))
          do k=1,kl
             do i=1,imax
               qo3(i,k) = duo3n(i,k)
@@ -379,12 +379,21 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
       end if ! else nsib.eq.CABLE.or.nsib.eq.6.or.nsib.eq.7
 
       ! OCEAN/WATER -------------------------------------------------
-      where (.not.land(istart:iend))
-        cuvrf(1:imax,1)=.85*fracice(istart:iend)+
-     .     (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
-        cirrf(1:imax,1)=.45*fracice(istart:iend)+
-     .     (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
-      end where
+      if (nsib.eq.3) then
+        where (.not.land(istart:iend))
+          cuvrf(1:imax,1)=.65*fracice(istart:iend)+
+     &       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
+          cirrf(1:imax,1)=.65*fracice(istart:iend)+
+     &       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
+        end where
+      else
+        where (.not.land(istart:iend))
+          cuvrf(1:imax,1)=.85*fracice(istart:iend)+
+     &       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
+          cirrf(1:imax,1)=.45*fracice(istart:iend)+
+     &       (1.-fracice(istart:iend))*.05/(coszro(1:imax)+0.15)
+        end where      
+      end if
       
       ! MLO ---------------------------------------------------------
       call mloalb2(istart,imax,coszro,cuvrf(:,1),cirrf(:,1),0)
@@ -452,6 +461,11 @@ c     Calculate half level pressures and temperatures by linear interp
          temp2(i,1) = temp(i,1)
          temp2(i,lp1) = temp(i,lp1)
       end do ! i=1,imax
+      
+      if(ndi<0.and.nmaxpr==1.and.idjd<=imax.and.mydiag)then
+        write(6,*) "press2 ",press2(idjd,:)
+	write(6,*) "temp2  ",temp2(idjd,:)
+      end if
       
       if(ldr.ne.0)then  
 c       Stuff needed for cloud2 routine...    

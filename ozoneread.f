@@ -209,7 +209,7 @@ c         o3dat are in the order DJF, MAM, JJA, SON
 ! Version of o3set for global CC model. Based on GCM o3set.f, Revision 1.7 
 
 ! In this version the latitude may be different for each point
-      subroutine o3set(alat,npts,istart,mins,duo3n,sig,ps)
+      subroutine o3set(npts,istart,mins,duo3n,sig,ps)
 c
 c  This routine interpolates in latitude and time to set the ozone 
 c  amounts.
@@ -230,7 +230,7 @@ c
       integer j,ilat,m,iend
       real date,rang,rsin1,rcos1,rcos2,theta,angle,than
       real do3,do3p
-      real, dimension(npts), intent(in) :: ps,alat
+      real, dimension(npts), intent(in) :: ps
       real, dimension(kl), intent(in) :: sig
       real, dimension(npts,kl), intent(out) :: duo3n
 
@@ -264,7 +264,7 @@ c       Use year of exactly 365 days
         rcos2 = cos(2.0*rang)
 c
         do j=1,npts
-           theta=90.-alat(j)*180./pi
+           theta=90.-rlatt(istart+j-1)*180./pi
            ilat = theta/5.
            angle = 5 * ilat
            than = (theta-angle)/5.

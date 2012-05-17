@@ -138,7 +138,7 @@ real, dimension(kl) :: qupsat,pres,nn
 real, dimension(kl-1) :: wpv_flux
 real xp,ee,dtr,as,bs,cs,cm12,cm34,qlup
 real zht,dzht,zidry,zilcl,oldqupsat
-real ziold,ddt,tlc,qtc,w2c,mfc
+real ziold,ddt,tlc,qtc,w2c,mfc,fi
 logical sconv
 
 cm12=1./sqrt(cm0)
@@ -170,19 +170,6 @@ do k=2,kl-1
 end do
 dz_fl(:,kl)=zz(:,kl)-zz(:,kl-1) ! not used
 
-do k=1,kl
-  ! calculate saturated mixing ratio
-  temp(:,k)=theta(:,k)/sigkap(k)
-  dum=ps*sig(k)
-  call getqsat(ifull,qsat(:,k),temp(:,k),dum)
-  ! prepare arrays for calculating buoyancy of saturated air
-  ! (i.e., related to the saturated adiabatic lapse rate)
-  gg(:,k)=(1.+lv*qsat(:,k)/(rd*temp(:,k)))/(1.+lv*lv*qsat(:,k)/(cp*rv*temp(:,k)*temp(:,k)))
-  rhoa(:,k)=dum/(rd*temp(:,k))
-  rhoar(:,k)=1./rhoa(:,k)
-end do
-call updategam(rhoahl,rhoa,zz,zzh,zi)
-
 ! Set-up thermodynamic variables theta_l,theta_v,qtot and surface fluxes
 qtot=qg+qlg+qfg
 thetav=theta*(1.+0.61*qg-qlg-qfg)
@@ -192,6 +179,20 @@ end do
 wtv0=wt0+theta(:,1)*0.61*wq0
 !wtl0=wt0
 !wqt0=wq0
+
+do k=1,kl
+  ! calculate saturated mixing ratio
+  temp(:,k)=thetal(:,k)/sigkap(k) ! this is templ
+  dum=ps*sig(k)
+  call getqsat(ifull,qsat(:,k),temp(:,k),dum)
+  temp(:,k)=theta(:,k)/sigkap(k)  ! this is temp
+  ! prepare arrays for calculating buoyancy of saturated air
+  ! (i.e., related to the saturated adiabatic lapse rate)
+  gg(:,k)=(1.+lv*qsat(:,k)/(rd*temp(:,k)))/(1.+lv*lv*qsat(:,k)/(cp*rv*temp(:,k)*temp(:,k)))
+  rhoa(:,k)=dum/(rd*temp(:,k))
+  rhoar(:,k)=1./rhoa(:,k)
+end do
+call updategam(rhoahl,rhoa,zz,zzh,zi)
 
 ! Calculate first approximation to diffusion coeffs
 km=cm0*tke(1:ifull,:)*tke(1:ifull,:)/eps(1:ifull,:)
@@ -240,7 +241,7 @@ if (mode.ne.1) then ! mass flux
         ! diagnose thermodynamic variables assuming no condensation
         thup(1)=tlup(i,1)                                ! theta,up
         tvup(1)=thup(1)+theta(i,1)*0.61*qtup(i,1)        ! thetav,up
-        ttup(1)=thup(1)/sigkap(1)                        ! temp,up
+        ttup(1)=thup(1)/sigkap(1)                        ! temp,up (same as templ,up)
         call getqsat(1,qupsat(1),ttup(1),pres(1))        ! estimate of saturated mixing ratio in plume (LDR trick)
         ! update updraft velocity and mass flux
         nn(1)=grav*be*wtv0(i)/(thetav(i,1)*sqrt(tke(i,1)))                        ! Hurley 2007
@@ -271,7 +272,7 @@ if (mode.ne.1) then ! mass flux
           qtup(i,k)=(qtup(i,k-1)+dzht*ee*qtot(i,k)  )/(1.+dzht*ee)
           ! diagnose thermodynamic variables assuming no condensation         
           thup(k)=tlup(i,k)                         ! theta,up
-          ttup(k)=thup(k)/sigkap(k)                 ! temp,up
+          ttup(k)=thup(k)/sigkap(k)                 ! temp,up (same as templ,up)
           call getqsat(1,qupsat(k),ttup(k),pres(k)) ! estimate of saturated mixing ratio in plume
           tvup(k)=thup(k)+theta(i,k)*0.61*qtup(i,k) ! thetav,up
           ! calculate buoyancy
@@ -335,8 +336,15 @@ if (mode.ne.1) then ! mass flux
           qvup(klcl)=min(qtup(i,klcl),qupsat(klcl))                             ! qv,up
           qlup=qtup(i,klcl)-qvup(klcl)                                          ! ql,up (or qf,up if frozen)
           ttup(klcl)=bb(i,1)+lv*qlup/cp                                         ! temp,up - trial liquid case
-          xp=ttup(klcl)+lf*qlup/cp
-          if (xp.lt.273.16) ttup(klcl)=xp                                       ! temp,up - frozen case
+          if (ttup(klcl).lt.273.16) then
+            xp=ttup(klcl)+lf*qlup/cp
+            if (xp.lt.233.16) then
+              ttup(klcl)=xp                                     ! frozen case
+            else
+              ttup(klcl)=(bb(i,1)+(273.16*lf/40.+lv)*qlup/cp) & ! mixed case
+                        /(1.+lf/40.*qlup/cp)
+            end if
+          end if
           thup(klcl)=ttup(klcl)*sigkap(klcl)                                    ! theta,up
           tvup(klcl)=thup(klcl)+theta(i,klcl)*(1.61*qvup(klcl)-qtup(i,klcl))    ! thetav,up
           nn(klcl)=grav*(tvup(klcl)-thetav(i,klcl))/thetav(i,klcl)              ! buoyancy
@@ -367,8 +375,15 @@ if (mode.ne.1) then ! mass flux
               qvup(k)=min(qtup(i,k),qupsat(k))                       ! qv,up
               qlup=qtup(i,k)-qvup(k)                                 ! ql,up (or qf,up if frozen)
               ttup(k)=bb(i,1)+lv*qlup/cp                             ! temp,up - trial liquid case
-              xp=ttup(k)+lf*qlup/cp
-              if (xp.lt.273.16) ttup(k)=xp                           ! temp,up - frozen case
+              if (ttup(k).lt.273.16) then
+                xp=ttup(k)+lf*qlup/cp
+                if (xp.lt.233.16) then
+                  ttup(k)=xp                                     ! frozen case
+                else
+                  ttup(k)=(bb(i,1)+(273.16*lf/40.+lv)*qlup/cp) & ! mixed case
+                         /(1.+lf/40.*qlup/cp)
+                end if
+              end if
               thup(k)=ttup(k)*sigkap(k)                              ! theta,up
               tvup(k)=thup(k)+theta(i,k)*(1.61*qvup(k)-qtup(i,k))    ! thetav,up
               ! calculate buoyancy
