@@ -163,14 +163,19 @@ C Local work arrays and variables
 
 C Local data, functions etc
       parameter (ntest=0)  ! 0=off, 1=on
+      real tdiffx,tx_,esdiffx                                                  ! MJT suggestion
 
-      real esdiff(-40:0)  !Table of es(liq) - es(ice) (MKS), -40 <= t <= 0 C
+      real esdiff(-40:1)  !Table of es(liq) - es(ice) (MKS), -40 <= t <= 0 C   ! MJT suggestion
       data esdiff / 
      & 6.22, 6.76, 7.32, 7.92, 8.56, 9.23, 9.94,10.68,11.46,12.27,
      & 13.11,13.99,14.89,15.82,16.76,17.73,18.70,19.68,20.65,21.61,
      & 22.55,23.45,24.30,25.08,25.78,26.38,26.86,27.18,27.33,27.27,
      & 26.96,26.38,25.47,24.20,22.51,20.34,17.64,14.34,10.37, 5.65,
-     & 0.08 /
+     & 0.08, 0. /                                                              ! MJT suggestion
+      tdiffx(tx_)=min(max( tx_-tfrz, -40.), 0.)                                ! MJT suggestion
+      esdiffx(tx_) =                                                           ! MJT suggestion
+     &    (1.-(tdiffx(tx_)-aint(tdiffx(tx_))))*esdiff(int(tdiffx(tx_)))        ! MJT suggestion
+     &  + (tdiffx(tx_)-aint(tdiffx(tx_)))*esdiff(int(tdiffx(tx_))+1)           ! MJT suggestion
       real tablei
       common /esitable/ tablei(0:220) !Table of es values wrt ice
 
@@ -425,8 +430,10 @@ c Evaporation of rain
               pk=100.0*prf(mg,k)
               qsg(mg,k)=qsati(pk,ttg(mg,k))
               if(ttg(mg,k).lt.tfrz.and.ttg(mg,k).ge.tice)then
-                qsl(mg,k)=qsg(mg,k)+epsil
-     &             *esdiff(nint(ttg(mg,k)-tfrz))/(100.0*prf(mg,k))
+!              qsl(mg,k)=qsg(mg,k)+epsil                            ! MJT suggestion
+!     &             *esdiff(nint(ttg(mg,k)-tfrz))/(100.0*prf(mg,k)) ! MJT suggestion
+              qsl(mg,k)=qsg(mg,k)+epsil                             ! MJT suggestion
+     &             *esdiffx(ttg(mg,k))/(100.0*prf(mg,k))            ! MJT suggestion
               else
                 qsl(mg,k)=qsg(mg,k)
               endif             !qsl is qs value over liquid surface
