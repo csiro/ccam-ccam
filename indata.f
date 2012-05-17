@@ -1387,6 +1387,82 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
       enddo    ! iq loop
       tpan(1:ifull)=t(1:ifull,1) ! default for land_sflux and outcdf
 
+      ! albedo and roughness fixes
+      select case(nsib)
+       case(5)
+        ! MODIS input with standard surface scheme
+        osnowd = snowd
+        zolog=log(zmin/zolnd)   ! for land use in sflux
+        sigmf=0.
+        where (land)
+          sigmf(:)=max(0.01,min(0.98,1.-exp(-0.4*vlai(:))))
+        end where
+       case(3)
+        ! usual input with standard surface scheme
+        osnowd = snowd
+        zolog=log(zmin/zolnd)   ! for land use in sflux
+        sigmf=0.
+        do iq=1,ifull
+         if(land(iq))then
+           isoil = isoilm(iq)
+           iveg  = ivegt(iq)
+           sigmf(iq)=min(.8,.95*vegpsig(ivegt(iq)))  ! moved from rdnsib
+           if(jlmsigmf==1)then  ! fix-up for dean's veg-fraction
+             sigmf(iq)=((sfc(isoil)-wb(iq,3))*vegpmin(iveg)
+     &                 +(wb(iq,3)-swilt(isoil))*vegpmax(iveg))/
+     &                         (sfc(isoil)-swilt(isoil)) 
+             sigmf(iq)=max(vegpmin(iveg),min(sigmf(iq),.8)) ! for odd wb
+           endif   ! (jlmsigmf==1)
+!          following just for rsmin diags for nstn and outcdf	
+           tstom=298.
+           if(iveg==6+31)tstom=302.
+           if(iveg>=10.and.iveg<=21.and.
+     &        abs(rlatt(iq)*180./pi)<25.)tstom=302.
+           tsoil=min(tstom, .5*(.3333*tgg(iq,2)+.6667*tgg(iq,3)
+     &               +.95*tgg(iq,4) + .05*tgg(iq,5)))
+           ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
+!          which is same as:  ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
+!                             if( tsoil >= tstom ) ftsoil=1.
+           rlai(iq)=  max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil))
+           rsmin(iq) = rsunc44(iveg)/rlai(iq)
+         endif   ! (land(iq)) 
+        enddo    !  iq loop
+      end select
+      if(jalbfix==1)then ! jlm fix for albedos, esp. for bare sandy soil
+        if(mydiag)then
+          isoil=isoilm(idjd)
+          if (isoil.gt.0) then
+          write(6,*)'before jalbfix isoil,sand,alb,rsmin ',
+     &                    isoil,sand(isoil),albvisnir(idjd,1),
+     &                    rsmin(idjd)
+          else
+          write(6,*)'before jalbfix isoil,sand,alb,rsmin ',
+     &                    isoil,0.,albvisnir(idjd,1),
+     &                    rsmin(idjd)
+          end if
+        endif
+        do ip=1,ipland  
+          iq=iperm(ip)
+          isoil = isoilm(iq)
+          albvisnir(iq,1)=max(albvisnir(iq,1),
+     &      sigmf(iq)*albvisnir(iq,1)
+     &      +(1.-sigmf(iq))*(sand(isoil)*.35+(1.-sand(isoil))*.06))
+          albvisnir(iq,2)=albvisnir(iq,1)
+        enddo                  !  ip=1,ipland
+        if(mydiag)then
+          write(6,*)'after jalbfix sigmf,alb ',sigmf(idjd)
+     &           ,albvisnir(idjd,1)
+        endif
+      endif  ! (jalbfix==1)
+      if(newrough>0)then
+        call calczo
+        if(mydiag)write(6,*)'after calczo zolnd ',zolnd(idjd)
+        if ( mydiag ) then
+          write(6,*)'after calczo with newrough = ',newrough
+          write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
+        end if
+      endif ! (newrough>0)
+
       if ( mydiag ) then
          write(6,*)'near end of indata id+-1, jd+-1'
          write(6,"('tss#    ',9f8.2)") diagvals(tss)
@@ -1699,87 +1775,11 @@ c              linearly between 0 and 1/abs(nud_hrs) over 6 rows
 
       !--------------------------------------------------------------
       ! UPDATE BIOSPHERE DATA (nsib)
-      select case(nsib)
-       case(6,7)
+      if (nsib.eq.6.or.nsib.eq.7) then
         ! Load CABLE data
         if (myid==0) write(6,*) 'Importing CABLE data'
         call loadtile
-       case(5)
-        ! MODIS input with standard surface scheme
-        osnowd = snowd
-        zolog=log(zmin/zolnd)   ! for land use in sflux
-        sigmf=0.
-        where (land)
-          sigmf(:)=max(0.01,min(0.98,1.-exp(-0.4*vlai(:))))
-        end where
-       case(3)
-        ! usual input with standard surface scheme
-        osnowd = snowd
-        zolog=log(zmin/zolnd)   ! for land use in sflux
-        sigmf=0.
-        do iq=1,ifull
-         if(land(iq))then
-           isoil = isoilm(iq)
-           iveg  = ivegt(iq)
-           sigmf(iq)=min(.8,.95*vegpsig(ivegt(iq)))  ! moved from rdnsib
-           if(jlmsigmf==1)then  ! fix-up for dean's veg-fraction
-             sigmf(iq)=((sfc(isoil)-wb(iq,3))*vegpmin(iveg)
-     &                 +(wb(iq,3)-swilt(isoil))*vegpmax(iveg))/
-     &                         (sfc(isoil)-swilt(isoil)) 
-             sigmf(iq)=max(vegpmin(iveg),min(sigmf(iq),.8)) ! for odd wb
-           endif   ! (jlmsigmf==1)
-!          following just for rsmin diags for nstn and outcdf	
-           tstom=298.
-           if(iveg==6+31)tstom=302.
-           if(iveg>=10.and.iveg<=21.and.
-     &        abs(rlatt(iq)*180./pi)<25.)tstom=302.
-           tsoil=min(tstom, .5*(.3333*tgg(iq,2)+.6667*tgg(iq,3)
-     &               +.95*tgg(iq,4) + .05*tgg(iq,5)))
-           ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
-!          which is same as:  ftsoil=max(0.,1.-.0016*(tstom-tsoil)**2)
-!                             if( tsoil >= tstom ) ftsoil=1.
-           rlai(iq)=  max(.1,rlaim44(iveg)-slveg44(iveg)*(1.-ftsoil))
-           rsmin(iq) = rsunc44(iveg)/rlai(iq)
-         endif   ! (land(iq)) 
-        enddo    !  iq loop
-        if(jalbfix==1)then ! jlm fix for albedos, esp. for bare sandy soil
-          if(mydiag)then
-            isoil=isoilm(idjd)
-            if (isoil.gt.0) then
-            write(6,*)'before jalbfix isoil,sand,alb,rsmin ',
-     &                      isoil,sand(isoil),albvisnir(idjd,1),
-     &                      rsmin(idjd)
-            else
-            write(6,*)'before jalbfix isoil,sand,alb,rsmin ',
-     &                      isoil,0.,albvisnir(idjd,1),
-     &                      rsmin(idjd)
-            end if
-          endif
-          do ip=1,ipland  
-            iq=iperm(ip)
-            isoil = isoilm(iq)
-            albvisnir(iq,1)=max(albvisnir(iq,1),
-     &        sigmf(iq)*albvisnir(iq,1)
-     &        +(1.-sigmf(iq))*(sand(isoil)*.35+(1.-sand(isoil))*.06))
-            albvisnir(iq,2)=albvisnir(iq,1)
-          enddo                  !  ip=1,ipland
-          if(mydiag)then
-            write(6,*)'after jalbfix sigmf,alb ',sigmf(idjd)
-     &             ,albvisnir(idjd,1)
-          endif
-        endif  ! (jalbfix==1)
-        if(newrough>0)then
-          call calczo
-          if(mydiag)write(6,*)'after calczo zolnd ',zolnd(idjd)
-          if ( mydiag ) then
-            write(6,*)'after calczo with newrough = ',newrough
-            write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
-          end if
-        endif ! (newrough>0)
-       case DEFAULT
-        write(6,*) "ERROR: Unknown nsib option ",nsib
-        stop
-      end select
+      end if
 
 
       !-----------------------------------------------------------------
