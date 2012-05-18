@@ -1427,41 +1427,41 @@ c     &            min(.99,max(0.,.99*(273.1-tgg(iq,k))/5.))*wb(iq,k) ! jlm
            rsmin(iq) = rsunc44(iveg)/rlai(iq)
          endif   ! (land(iq)) 
         enddo    !  iq loop
-      end select
-      if(jalbfix==1)then ! jlm fix for albedos, esp. for bare sandy soil
-        if(mydiag)then
-          isoil=isoilm(idjd)
-          if (isoil.gt.0) then
-          write(6,*)'before jalbfix isoil,sand,alb,rsmin ',
+        if(jalbfix==1)then ! jlm fix for albedos, esp. for bare sandy soil
+          if(mydiag)then
+            isoil=isoilm(idjd)
+            if (isoil.gt.0) then
+            write(6,*)'before jalbfix isoil,sand,alb,rsmin ',
      &                    isoil,sand(isoil),albvisnir(idjd,1),
-     &                    rsmin(idjd)
-          else
-          write(6,*)'before jalbfix isoil,sand,alb,rsmin ',
-     &                    isoil,0.,albvisnir(idjd,1),
-     &                    rsmin(idjd)
+     &                      rsmin(idjd)
+            else
+            write(6,*)'before jalbfix isoil,sand,alb,rsmin ',
+     &                      isoil,0.,albvisnir(idjd,1),
+     &                      rsmin(idjd)
+            end if
+          endif
+          do ip=1,ipland  
+            iq=iperm(ip)
+            isoil = isoilm(iq)
+            albvisnir(iq,1)=max(albvisnir(iq,1),
+     &        sigmf(iq)*albvisnir(iq,1)
+     &        +(1.-sigmf(iq))*(sand(isoil)*.35+(1.-sand(isoil))*.06))
+            albvisnir(iq,2)=albvisnir(iq,1)
+          enddo                  !  ip=1,ipland
+          if(mydiag)then
+            write(6,*)'after jalbfix sigmf,alb ',sigmf(idjd)
+     &             ,albvisnir(idjd,1)
+          endif
+        endif  ! (jalbfix==1)
+        if(newrough>0)then
+          call calczo
+          if(mydiag)write(6,*)'after calczo zolnd ',zolnd(idjd)
+          if ( mydiag ) then
+            write(6,*)'after calczo with newrough = ',newrough
+            write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
           end if
-        endif
-        do ip=1,ipland  
-          iq=iperm(ip)
-          isoil = isoilm(iq)
-          albvisnir(iq,1)=max(albvisnir(iq,1),
-     &      sigmf(iq)*albvisnir(iq,1)
-     &      +(1.-sigmf(iq))*(sand(isoil)*.35+(1.-sand(isoil))*.06))
-          albvisnir(iq,2)=albvisnir(iq,1)
-        enddo                  !  ip=1,ipland
-        if(mydiag)then
-          write(6,*)'after jalbfix sigmf,alb ',sigmf(idjd)
-     &           ,albvisnir(idjd,1)
-        endif
-      endif  ! (jalbfix==1)
-      if(newrough>0)then
-        call calczo
-        if(mydiag)write(6,*)'after calczo zolnd ',zolnd(idjd)
-        if ( mydiag ) then
-          write(6,*)'after calczo with newrough = ',newrough
-          write(6,"('zo#    ',9f8.2)") diagvals(zolnd)
-        end if
-      endif ! (newrough>0)
+        endif ! (newrough>0)
+      end select
 
       if ( mydiag ) then
          write(6,*)'near end of indata id+-1, jd+-1'

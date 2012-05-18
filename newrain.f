@@ -196,25 +196,23 @@ c These give the ice values needed for the qcloud scheme
 
 C Start code : ----------------------------------------------------------
 
-        if(ntest>0.and.mydiag)then
-          mg=idjd
-          write(25,'(a,3i3)')'IPASS=1, Before newrain ktau= ',ktau
-          write(25,91)'rhoa',(rhoa(mg,k),k=1,nl)
-          write(25,91)'dz',(dz(mg,k),k=1,nl)
-          write(25,91)'ccrain',(ccrain(mg,k),k=1,nl)
-          write(25,91)'prf',(prf(mg,k),k=1,nl)
-          write(25,9)'cdrop',(cdrop(mg,k),k=1,nl)
-          write(25,91)'ttg ',(ttg(mg,k),k=1,nl)
-          write(25,9)'qtg ',(qtg(mg,k),k=1,nl)
-          write(25,9)'qsg ',(qsg(mg,k),k=1,nl)
-          write(25,9)'cfrac ',(cfrac(mg,k),k=1,nl)
-          write(25,9)'qlg ',(qlg(mg,k),k=1,nl)
-          write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
-          write(25,9)'cfa ',(cfa(mg,k),k=1,nl)
-          write(25,9)'qca ',(qca(mg,k),k=1,nl)
-          write(25,9)'fluxc ',(fluxc(mg,k),k=1,nl)
-          write(25,*)
-        endif  ! (ntest>0)
+        if(diag.and.mydiag)then ! JLM
+          write(6,*) 'entering newrain ktau= ',ktau
+          write(6,91) 'rhoa',(rhoa(idjd,k),k=1,nl)
+          write(6,91) 'dz',(dz(idjd,k),k=1,nl)
+          write(6,91) 'ccrain',(ccrain(idjd,k),k=1,nl)
+          write(6,91) 'prf',(prf(idjd,k),k=1,nl)
+          write(6,91) 'ttg ',(ttg(idjd,k),k=1,nl)
+          write(6,*) 'cdrop',(cdrop(idjd,k),k=1,nl)
+          write(6,*) 'qtg ',(qtg(idjd,k),k=1,nl)
+          write(6,*) 'qsg ',(qsg(idjd,k),k=1,nl)
+          write(6,*) 'cfrac ',(cfrac(idjd,k),k=1,nl)
+          write(6,*) 'qlg ',(qlg(idjd,k),k=1,nl)
+          write(6,*) 'qfg ',(qfg(idjd,k),k=1,nl)
+          write(6,*) 'cfa ',(cfa(idjd,k),k=1,nl)
+          write(6,*) 'qca ',(qca(idjd,k),k=1,nl)
+          write(6,*) 'fluxc ',(fluxc(idjd,k),k=1,nl)
+        endif  ! (diag.and.mydiag)
 
       delt=tdt
       njumps=nint(tdt/delt)
@@ -344,6 +342,14 @@ c               selfcoll=min(ql1,ql1*cdt/(1+0.5*cdt))
           enddo
         enddo
       endif ! (ncloud.gt.0)
+
+        if(diag.and.mydiag)then ! JLM
+          write(6,*) 'in newrain about to call icefall'
+          write(6,*) 'clfr',(clfr(idjd,k),k=1,nl)
+          write(6,*) 'qauto ',(qauto(idjd,k),k=1,nl)
+          write(6,*) 'qlg ',(qlg(idjd,k),k=1,nl)
+          write(6,*) 'fluxa ',(fluxa(idjd,k),k=1,nl)
+        endif  ! (diag.and.mydiag)
 
 c Call frozen precipitation routine
 

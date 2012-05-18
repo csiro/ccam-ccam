@@ -27,7 +27,7 @@ zo=0.
 zoh=0.
 vmod=0.
 qsttg=0.
-wetfac=0.
+wetfac=1.
 if (nsib.eq.3.or.nsib.eq.5) then
   allocate(dgdtg(ifull))
   dgdtg=0.

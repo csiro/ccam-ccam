@@ -47,7 +47,7 @@
       use zenith_m
       include 'newmpar.h'
       parameter (ntest=0) ! N.B. usually j=1,7,13,19,...
-!        for diag prints set ntest=1
+!        for diag prints set ntest=0
 !        or, usefully can edit 'ntest.gt.0' to 'ktau.gt.nnn'
       integer ixin
       integer kcl_top       !max level for cloud top (conjob,radrive,vertmix)

@@ -171,37 +171,14 @@ c          qacci(mg,k)=0.
         enddo
       enddo
 
-      if(nmaxpr==1.and.mydiag)then
-        print *,'diags from icefall for idjd ',idjd
-        write (6,"('clfra ',9f8.3/6x,9f8.3)") clfr(idjd,:)
-      endif
-      if(ntest>0.and.mydiag)then
-          mg=idjd
-          write(25,'(a,3i3)')'IPASS=1, before icefall.'
-          write(25,91)'cfrac ',(cfrac(mg,k),k=1,nl)
-          write(25,91)'cifr ',(cifr(mg,k),k=1,nl)
-          write(25,91)'clfr ',(clfr(mg,k),k=1,nl)
-          write(25,9)'qlg ',(qlg(mg,k),k=1,nl)
-          write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
-          write(25,*)
-      endif  ! (ntest>0)
-      if(ntest==2.and.mydiag)then
-        do k=1,nl
-          do mg=1,ln2
-            if(cfrac(mg,k)>0)then
-              if(qlg(mg,k)==0.and.qfg(mg,k)==0)then
-                print*,
-     &         'start icefall cloud with zero water: cfrac=',cfrac(mg,k)
-              endif
-            else
-              if(qlg(mg,k)>0.or.qfg(mg,k)>0)then
-             print*,'start icefall cloud water with no cloud: qfg,qlg=',
-     &               qfg(mg,k),qlg(mg,k)
-              endif
-            endif
-          enddo
-        enddo
-      endif  ! (ntest==2)
+      if(diag.and.mydiag)then  ! JLM
+          write(6,*) 'entering icefall.'
+          write(6,*) 'cfrac ',cfrac(idjd,:)
+          write(6,*) 'cifr ',cifr(idjd,:)
+          write(6,*) 'clfr ',clfr(idjd,:)
+          write(6,*) 'qlg ',qlg(idjd,:)
+          write(6,*) 'qfg ',qfg(idjd,:)
+      endif  ! (diag.and.mydiag)
 
 c Set up ice fall speed field and other arrays
 
@@ -364,7 +341,8 @@ c Now work down through the levels...
             ! that are separated by a clear layer
             if (cifr(mg,k).eq.0..or.nmr.eq.0) then
               ! combine max overlap from last cloud with net random overlap
-              rdclfr(mg)=rdclfr(mg)+mxclfr(mg)-rdclfr(mg)*mxclfr(mg)
+              rdclfr(mg)=max(0.01,rdclfr(mg)+mxclfr(mg)
+     &                           -rdclfr(mg)*mxclfr(mg))
               mxclfr(mg)=0.
             end if
 
@@ -429,7 +407,7 @@ c (since subl occurs only outside cloud), so add sublflux back to fluxice.
             endif
 
 
-            if(fsclr.lt.1.E-15)then
+            if(fsclr==0.)then
               rdclfr(mg)=0.
               mxclfr(mg)=0.
             end if
@@ -524,64 +502,29 @@ c Re-create qfg field
       enddo
 
 c Diagnostics for debugging
-      if(nmaxpr==1.and.mydiag)then
-        write (6,"('vi2 ',9f8.3/4x,9f8.3)") vi2(idjd,:)
-        write (6,"('cfraci',9f8.3/6x,9f8.3)") cfrac(idjd,:)
-        write (6,"('cifr  ',9f8.3/6x,9f8.3)") cifr(idjd,:)
-        write (6,"('clfrb ',9f8.3/6x,9f8.3)") clfr(idjd,:)
-        write (6,"('qfg   ',3p9f8.3/6x,9f8.3)") qfg(idjd,:)
-      endif
-
-      if(ntest>0.and.mydiag)then
-          mg=idjd
-          write(25,'(a,3i3)')'IPASS=1, after icefall.'
-          write(25,91)'cfrac ',(cfrac(mg,k),k=1,nl)
-          write(25,91)'cifr ',(cifr(mg,k),k=1,nl)
-          write(25,91)'clfr ',(clfr(mg,k),k=1,nl)
-          write(25,9)'qlg ',(qlg(mg,k),k=1,nl)
-          write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
-          write(25,9)'qsubl ',(qsubl(mg,k),k=1,nl)
-          write(25,9)'vi2 ',(vi2(mg,k),k=1,nl)
-          write(25,9)'dz ',(dz(mg,k),k=1,nl)
-          write(25,9)'rhoa ',(rhoa(mg,k),k=1,nl)
-          write(25,9)'fluxi ',(fluxi(mg,k),k=1,nl)
-c          write(25,9)'qfdiv ',(qfdiv(mg,k),k=1,nl)
-          write(25,*)
-
-c          ma=(ns-1)*lon
-C***          do k=1,nl
-C***            do mg=1+ma,lon+ma
-C***              mb=mg-ma
-C***              if(qfg(mg,k)>0.1)then
-C***                print*,'end icefall qfg = ',qfg(mg,k)
-C***                print*,'lg,ns,mg,k ',lg,ns,mb,k
-C***              endif
-C***              
-C***              if(cfrac(mg,k)>0)then
-C***                if(qlg(mg,k)<=0.and.qfg(mg,k)<=0)then
-C***                  print*,'end icefall cloud with zero/neg water:cfrac=',
-C***     &                 cfrac(mg,k)
-C***                  print*,'cifr ,clfr ',cifr(mg,k),clfr(mg,k)
-C***                  print*,'qfg, qlg=', qfg(mg,k),qlg(mg,k)
-C***                  print*,'lg,ns,mg,k ',lg,ns,mb,k
-C***                  print*
-C***                endif
-C***              else
-C***                if(qlg(mg,k)>0.or.qfg(mg,k)>0)then
-C***                  print*,'end icefall, cloud water/no cloud: qfg,qlg=',
-C***     &                 qfg(mg,k),qlg(mg,k)
-C***                  print*,'cifr ,clfr ',cifr(mg,k),clfr(mg,k)
-C***                  print*,'ns,lg,k,mg ',ns,lg,k,mb
-C***                  print*
-C***                endif
-C***              endif
-C***            enddo
-C***          enddo
-      endif  ! (ntest>0)
-
- 1    format(3(a,g10.3))
- 91   format(a,30f10.3)
- 9    format(a,30g10.3)
+      if(diag.and.mydiag)then  ! JLM
+          write(6,*) 'near end of icefall.'
+          write(6,*) 'vi2',vi2(idjd,:)
+          write(6,*) 'cfraci ',cfrac(idjd,:)
+          write(6,*) 'cifr',cifr(idjd,:)
+          write(6,*) 'clfr',clfr(idjd,:)
+          write(6,*) 'ttg',ttg(idjd,:)
+          write(6,*) 'qsg',qsg(idjd,:)         
+          write(6,*) 'qlg',qlg(idjd,:)
+          write(6,*) 'qfg',qfg(idjd,:)
+          write(6,*) 'qsubl',qsubl(idjd,:)
+          write(6,*) 'rhoa',rhoa(idjd,:)
+          write(6,*) 'rhoi',rhoi(idjd,:)
+          write(6,*) 'fluxi ',fluxi(idjd,:)
+          write(6,*) 'gam',gam(idjd,:)
+          write(6,*) 'fout',fout(idjd,:)
+          write(6,*) 'fthru',fthru(idjd,:)
+          write(6,*) 'pqfsed',pqfsed(idjd,:)
+          write(6,*) 'cfmelt',cfmelt(idjd,:)
+          write(6,*) 'fluxm',fluxm(idjd,:)
+          write(6,*) 'cifra,fluxice,rica',
+     &          cifra(idjd),fluxice(idjd),rica(idjd)
+      endif  ! (diag.and.mydiag)
 
       return
 

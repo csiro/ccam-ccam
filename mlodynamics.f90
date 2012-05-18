@@ -158,12 +158,12 @@ include 'parm.h'
 integer k,i,iq
 real hdif,xp
 real, dimension(ifull+iextra,0:wlev) :: uhl,vhl,dephladj
-real, dimension(ifull+iextra,wlev) :: u,v
+real, dimension(ifull+iextra,wlev) :: u,v,uc,vc,wc
 real, dimension(ifull+iextra,wlev) :: t_kh,xfact,yfact,gg
 real, dimension(ifull,wlev) :: ff,base
 real, dimension(ifull+iextra) :: odum
 real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
-real, dimension(ifull) :: eta,cc,emi,nu,nv
+real, dimension(ifull) :: eta,cc,emi,nu,nv,nw
 real, dimension(ifull) :: s1,s2,s3,s4,z1,z2,z3,z4
 logical, dimension(ifull+iextra) :: wtr
 
@@ -274,26 +274,66 @@ do k=1,wlev
 end do
 call boundsuv(xfact,yfact)
 
-! viscosity terms
+! viscosity terms (closure #1)
+do k=1,wlev
+  uc(1:ifull,k)=ax(1:ifull)*u(1:ifull,k)+bx(1:ifull)*v(1:ifull,k)
+  vc(1:ifull,k)=ay(1:ifull)*u(1:ifull,k)+by(1:ifull)*v(1:ifull,k)
+  wc(1:ifull,k)=az(1:ifull)*u(1:ifull,k)+bz(1:ifull)*v(1:ifull,k)
+end do
+call bounds(uc)
+call bounds(vc)
+call bounds(wc)
+
 do k=1,wlev
 
   base(:,k)=emi+xfact(1:ifull,k)+xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k)
 
-  nu=(u(1:ifull,k)*emi+2.*xfact(1:ifull,k)*u(ieu,k)+2.*xfact(iwu,k)*u(iwu,k) &
-    +yfact(1:ifull,k)*u(inu,k)+yfact(isv,k)*u(isu,k)                         &
-    +(yfact(1:ifull,k)-yfact(isv,k))*0.5*(v(iev,k)-v(iwv,k))                 &
-    +t_kh(1:ifull,k)*0.5*(v(inv,k)+v(iev,k)-v(isv,k)-v(iwv,k)))              &
-    /(emi+2.*xfact(1:ifull,k)+2.*xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k))
-  nv=(v(1:ifull,k)*emi+2.*yfact(1:ifull,k)*v(inv,k)+2.*yfact(isv,k)*v(isv,k) &
-    +xfact(1:ifull,k)*v(iev,k)+xfact(iwu,k)*v(iwv,k)                         &
-    +(xfact(1:ifull,k)-xfact(iwu,k))*0.5*(u(inu,k)-u(isu,k))                 &
-    +t_kh(1:ifull,k)*0.5*(u(inu,k)+u(ieu,k)-u(isu,k)-u(iwu,k)))              &
-    /(emi+2.*yfact(1:ifull,k)+2.*yfact(isv,k)+xfact(1:ifull,k)+xfact(iwu,k))
+  nu = ( uc(1:ifull,k)*emi +                 &
+         xfact(1:ifull,k)*uc(ie,k) +         &
+         xfact(iwu,k)*uc(iw,k) +             &
+         yfact(1:ifull,k)*uc(in,k) +         &
+         yfact(isv,k)*uc(is,k) ) / base(:,k)
 
-  call mloimport(2,nu,k,0)
-  call mloimport(3,nv,k,0)
+  nv = ( vc(1:ifull,k)*emi +                 &
+         xfact(1:ifull,k)*vc(ie,k) +         &
+         xfact(iwu,k)*vc(iw,k) +             &
+         yfact(1:ifull,k)*vc(in,k) +         &
+         yfact(isv,k)*vc(is,k) ) / base(:,k)
+
+  nw = ( wc(1:ifull,k)*emi +                 &
+         xfact(1:ifull,k)*wc(ie,k) +         &
+         xfact(iwu,k)*wc(iw,k) +             &
+         yfact(1:ifull,k)*wc(in,k) +         &
+         yfact(isv,k)*wc(is,k) ) / base(:,k)
+
+  u(1:ifull,k)=ax(1:ifull)*nu+ay(1:ifull)*nv+az(1:ifull)*nw
+  v(1:ifull,k)=bx(1:ifull)*nu+by(1:ifull)*nv+bz(1:ifull)*nw
+
+  call mloimport(2,u(1:ifull,k),k,0)
+  call mloimport(3,v(1:ifull,k),k,0)
 
 end do
+
+! viscosity terms (closure #2)
+!do k=1,wlev
+!
+!  base(:,k)=emi+xfact(1:ifull,k)+xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k)
+!
+!  nu=(u(1:ifull,k)*emi+2.*xfact(1:ifull,k)*u(ieu,k)+2.*xfact(iwu,k)*u(iwu,k) &
+!    +yfact(1:ifull,k)*u(inu,k)+yfact(isv,k)*u(isu,k)                         &
+!    +(yfact(1:ifull,k)-yfact(isv,k))*0.5*(v(iev,k)-v(iwv,k))                 &
+!    +t_kh(1:ifull,k)*0.5*(v(inv,k)+v(iev,k)-v(isv,k)-v(iwv,k)))              &
+!    /(emi+2.*xfact(1:ifull,k)+2.*xfact(iwu,k)+yfact(1:ifull,k)+yfact(isv,k))
+!  nv=(v(1:ifull,k)*emi+2.*yfact(1:ifull,k)*v(inv,k)+2.*yfact(isv,k)*v(isv,k) &
+!    +xfact(1:ifull,k)*v(iev,k)+xfact(iwu,k)*v(iwv,k)                         &
+!    +(xfact(1:ifull,k)-xfact(iwu,k))*0.5*(u(inu,k)-u(isu,k))                 &
+!    +t_kh(1:ifull,k)*0.5*(u(inu,k)+u(ieu,k)-u(isu,k)-u(iwu,k)))              &
+!    /(emi+2.*yfact(1:ifull,k)+2.*yfact(isv,k)+xfact(1:ifull,k)+xfact(iwu,k))
+!
+!  call mloimport(2,nu,k,0)
+!  call mloimport(3,nv,k,0)
+!
+!end do
 
 ! update scalar variables
 do i=0,1

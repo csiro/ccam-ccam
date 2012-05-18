@@ -197,18 +197,18 @@ c     before calling newcloud
       end if
       !------------------------------------------------------------------------
       tenv(:,:)=t(1:ifull,:) !Assume T is the same in and out of convective cloud
-!     if(diag.and.mydiag)then
-      if(nmaxpr==1.and.mydiag)then
-        print *,'before newcloud',ktau
-        write (6,"('t   ',9f8.2/4x,9f8.2)") t(idjd,:)
-        write (6,"('qg  ',3p9f8.3/4x,9f8.3)") qg(idjd,:)
-        write (6,"('qf  ',3p9f8.3/4x,9f8.3)") qfg(idjd,:)
-        write (6,"('ql  ',3p9f8.3/4x,9f8.3)") qlg(idjd,:)
-        write (6,"('qnv ',3p9f8.3/4x,9f8.3)") qenv(idjd,:)
-        write (6,"('qsg ',3p9f8.3/4x,9f8.3)") qsg(idjd,:)
-        write (6,"('qcl ',3p9f8.3/4x,9f8.3)") qcl(idjd,:)
-        write (6,"('clc ',9f8.3/4x,9f8.3)") clcon(idjd,:)
-        print *,'cldcon,kbase,ktop ',cldcon(idjd),kbase(idjd),ktop(idjd)
+      if(diag.and.mydiag)then  ! JLM
+         print *,'in leoncld before newcloud',ktau
+         write(6,*) 't',t(idjd,:)
+         write(6,*) 'qg',qg(idjd,:)
+         write(6,*) 'qlg',qlg(idjd,:)
+         write(6,*) 'qfg',qfg(idjd,:)
+         write(6,*) 'qenv',qenv(idjd,:)
+         write(6,*) 'qsg',qsg(idjd,:)
+         write(6,*) 'qcl',qcl(idjd,:)
+         write(6,*) 'clcon',clcon(idjd,:)
+         write(6,*) 'cldcon,kbase,ktop',
+     &               cldcon(idjd),kbase(idjd),ktop(idjd)
       endif
 
 c     Calculate cloud fraction and cloud water mixing ratios

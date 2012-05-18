@@ -460,9 +460,8 @@ mcmax=0.1*max(vlai,0.1) ! maximum water stored in canopy (kg/m**2)
 do k=1,kl
   rhoa(:,k)=ps*sig(k)/(rdry*t(:,k)) !density of air (kg/m**3)
 end do
-where (land)
-  wg=max(min((wb(:,1)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm)),1.),0.) ! soil moisture as a fraction of field capacity
-elsewhere
+wg=wetfac ! soil moisture as a fraction of field capacity
+where (.not.land)
   wg=1.
 end where
 
