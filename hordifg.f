@@ -13,6 +13,8 @@
       use nharrs_m
       use nlin_m
       use parmhdff_m
+      use savuvt_m
+      use savuv1_m
       use sigs_m
       use tkeeps, only : tke,eps,shear,mintke,mineps,cm0,minl,maxl
       use vecsuv_m
@@ -39,9 +41,9 @@ c     has jlm nhorx option as last digit of nhor, e.g. -157
       real, dimension(ifull+iextra,kl) :: uc, vc, wc, ee, ff, xfact,
      &                                    yfact, t_kh
       real, dimension(ifull) :: ptemp, tx_fact, ty_fact
-      real, dimension(ifull) :: r1,r2,r3,r4
-      real, dimension(ifull) :: z1,z2,z3,z4
-      real, dimension(ifull+iextra,kl) :: ww
+      real, dimension(ifull) :: sx_fact,sy_fact
+      real, dimension(ifull) :: r1,r2
+      real, dimension(ifull+iextra,kl) :: ww,uav,vav
       real, dimension(ifull+iextra,0:kl-1) :: zgh
       real, dimension(ifull,kl) :: zg
       real, dimension(ifull,kl) :: dudx,dudy,dvdx,dvdy
@@ -97,6 +99,8 @@ c     expect power nf to be about 1 or 2 (see data statement)
        ptemp(iq)=ps(iq)**.286
        tx_fact(iq)=1./(1.+(abs(zs(ie(iq))-zs(iq))/delphi)**nf)
        ty_fact(iq)=1./(1.+(abs(zs(in(iq))-zs(iq))/delphi)**nf)
+       sx_fact(iq)=1./(1.+(0.5*abs(zs(ie(iq))-zs(iw(iq)))/delphi)**nf)
+       sy_fact(iq)=1./(1.+(0.5*abs(zs(in(iq))-zs(is(iq)))/delphi)**nf)
       enddo   !  iq loop
 c     above code independent of k
 
@@ -126,74 +130,14 @@ c     above code independent of k
           zgh(1:ifull,k)=ratha(k)*zg(:,k+1)+rathb(k)*zg(:,k)
         end do
         call bounds(zgh)
-       
-        ! calculate horizontal gradients using POM stencil (see Shchepetkin and McWilliams 2003)
-        call boundsuv(u,v,allvec=.true.)
-        r1=0.
-        r2=ratha(1)*u(ieu,2)+rathb(1)*u(ieu,1)
-        r3=0.
-        r4=ratha(1)*u(iwu,2)+rathb(1)*u(iwu,1)
-        z1=zgh(ie,0)
-        z2=zgh(ie,1)
-        z3=zgh(iw,0)
-        z4=zgh(iw,1)
-        dudx(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &            /(z2-z1+z4-z3))*em(1:ifull)/ds      
-        r2=ratha(1)*v(iev,2)+rathb(1)*v(iev,1)
-        r4=ratha(1)*v(iwv,2)+rathb(1)*v(iwv,1)
-        dvdx(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &            /(z2-z1+z4-z3))*em(1:ifull)/ds 
-        r2=ratha(1)*u(inu,2)+rathb(1)*u(inu,1)
-        r4=ratha(1)*u(isu,2)+rathb(1)*u(isu,1)
-        z1=zgh(in,0)
-        z2=zgh(in,1)
-        z3=zgh(is,0)
-        z4=zgh(is,1)
-        dudy(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &            /(z2-z1+z4-z3))*em(1:ifull)/ds 
-        r2=ratha(1)*v(inv,2)+rathb(1)*v(inv,1)
-        r4=ratha(1)*v(isv,2)+rathb(1)*v(isv,1)
-        dvdy(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &            /(z2-z1+z4-z3))*em(1:ifull)/ds 
-        do k=2,kl-1
-          r1=ratha(k-1)*u(ieu,k)+rathb(k-1)*u(ieu,k-1)
-          r2=ratha(k)*u(ieu,k+1)+rathb(k)*u(ieu,k)
-          r3=ratha(k-1)*u(iwu,k)+rathb(k-1)*u(iwu,k-1)
-          r4=ratha(k)*u(iwu,k+1)+rathb(k)*u(iwu,k)
-          z1=zgh(ie,k-1)
-          z2=zgh(ie,k)
-          z3=zgh(iw,k-1)
-          z4=zgh(iw,k)
-          dudx(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &              /(z2-z1+z4-z3))*em(1:ifull)/ds
-          r1=ratha(k-1)*v(iev,k)+rathb(k-1)*v(iev,k-1)
-          r2=ratha(k)*v(iev,k+1)+rathb(k)*v(iev,k)
-          r3=ratha(k-1)*v(iwv,k)+rathb(k-1)*v(iwv,k-1)
-          r4=ratha(k)*v(iwv,k+1)+rathb(k)*v(iwv,k)
-          dvdx(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &              /(z2-z1+z4-z3))*em(1:ifull)/ds
-          r1=ratha(k-1)*u(inu,k)+rathb(k-1)*u(inu,k-1)
-          r2=ratha(k)*u(inu,k+1)+rathb(k)*u(inu,k)
-          r3=ratha(k-1)*u(isu,k)+rathb(k-1)*u(isu,k-1)
-          r4=ratha(k)*u(isu,k+1)+rathb(k)*u(isu,k)
-          z1=zgh(in,k-1)
-          z2=zgh(in,k)
-          z3=zgh(is,k-1)
-          z4=zgh(is,k)
-          dudy(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &              /(z2-z1+z4-z3))*em(1:ifull)/ds
-          r1=ratha(k-1)*v(inv,k)+rathb(k-1)*v(inv,k-1)
-          r2=ratha(k)*v(inv,k+1)+rathb(k)*v(inv,k)
-          r3=ratha(k-1)*v(isv,k)+rathb(k-1)*v(isv,k-1)
-          r4=ratha(k)*v(isv,k+1)+rathb(k)*v(isv,k)
-          dvdy(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &              /(z2-z1+z4-z3))*em(1:ifull)/ds
-        end do
-        dudx(:,kl)=0.5*(u(ieu,kl)-u(iwu,kl))*em(1:ifull)/ds ! just a simple approximiation
-        dvdx(:,kl)=0.5*(v(iev,kl)-v(iwv,kl))*em(1:ifull)/ds
-        dudy(:,kl)=0.5*(u(inu,kl)-u(isu,kl))*em(1:ifull)/ds
-        dvdy(:,kl)=0.5*(v(inv,kl)-v(isv,kl))*em(1:ifull)/ds
 
+        uav(1:ifull,:)=av_vmod*u(1:ifull,:)
+     &               +(1.-av_vmod)*savu(1:ifull,:)
+        vav(1:ifull,:)=av_vmod*v(1:ifull,:)
+     &               +(1.-av_vmod)*savv(1:ifull,:)
+
+        ! calculate horizontal gradients using JLM reduction factor
+        call boundsuv(uav,vav,allvec=.true.)
         ! calculate vertical velocity in m/s
         do k=1,kl        
           ! omega=ps*dpsldt
@@ -202,73 +146,47 @@ c     above code independent of k
      &        -qlg(1:ifull,k)-qfg(1:ifull,k))
         end do
         call bounds(ww)
-        r1=0.
-        r2=ratha(1)*ww(ie,2)+rathb(1)*ww(ie,1)
-        r3=0.
-        r4=ratha(1)*ww(iw,2)+rathb(1)*ww(iw,1)
-        z1=zgh(ie,0)
-        z2=zgh(ie,1)
-        z3=zgh(iw,0)
-        z4=zgh(iw,1)
-        dwdx(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &            /(z2-z1+z4-z3))*em(1:ifull)/ds
-        r2=ratha(1)*ww(in,2)+rathb(1)*ww(in,1)
-        r4=ratha(1)*ww(is,2)+rathb(1)*ww(is,1)
-        z1=zgh(in,0)
-        z2=zgh(in,1)
-        z3=zgh(is,0)
-        z4=zgh(is,1)
-        dwdy(:,1)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &            /(z2-z1+z4-z3))*em(1:ifull)/ds
-        do k=2,kl-1
-          r1=ratha(k-1)*ww(ie,k)+rathb(k-1)*ww(ie,k-1)
-          r2=ratha(k)*ww(ie,k+1)+rathb(k)*ww(ie,k)
-          r3=ratha(k-1)*ww(iw,k)+rathb(k-1)*ww(iw,k-1)
-          r4=ratha(k)*ww(iw,k+1)+rathb(k)*ww(iw,k)
-          z1=zgh(ie,k-1)
-          z2=zgh(ie,k)
-          z3=zgh(iw,k-1)
-          z4=zgh(iw,k)
-          dwdx(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &              /(z2-z1+z4-z3))*em(1:ifull)/ds
-        
-          r1=ratha(k-1)*ww(in,k)+rathb(k-1)*ww(in,k-1)
-          r2=ratha(k)*ww(in,k+1)+rathb(k)*ww(in,k)
-          r3=ratha(k-1)*ww(is,k)+rathb(k-1)*ww(is,k-1)
-          r4=ratha(k)*ww(is,k+1)+rathb(k)*ww(is,k)
-          z1=zgh(in,k-1)
-          z2=zgh(in,k)
-          z3=zgh(is,k-1)
-          z4=zgh(is,k)
-          dwdy(:,k)=0.25*((r1+r2-r3-r4)-(r2-r1+r4-r3)*(z1+z2-z3-z4)
-     &              /(z2-z1+z4-z3))*em(1:ifull)/ds
+
+        do k=1,kl
+          dudx(:,k)=0.5*(uav(ieu,k)-uav(iwu,k))*em(1:ifull)/ds
+          dudy(:,k)=0.5*(uav(inu,k)-uav(isu,k))*em(1:ifull)/ds
+          dvdx(:,k)=0.5*(vav(iev,k)-vav(iwv,k))*em(1:ifull)/ds
+          dvdy(:,k)=0.5*(vav(inv,k)-vav(isv,k))*em(1:ifull)/ds
+          dwdx(:,k)=0.5*(ww(ie,k)-ww(iw,k))*em(1:ifull)/ds
+          dwdy(:,k)=0.5*(ww(in,k)-ww(is,k))*em(1:ifull)/ds
         end do
-        dwdx(:,kl)=0.5*(ww(ie,kl)-ww(iw,kl))*em(1:ifull)/ds
-        dwdy(:,kl)=0.5*(ww(in,kl)-ww(is,kl))*em(1:ifull)/ds
         
         ! calculate vertical gradients
-        r1=0.
-        r2=ratha(1)*u(1:ifull,2)+rathb(1)*u(1:ifull,1)          
-        dudz(:,1)=(r2-r1)/(zgh(1:ifull,1)-zgh(1:ifull,0))
-        r2=ratha(1)*v(1:ifull,2)+rathb(1)*v(1:ifull,1)          
-        dvdz(:,1)=(r2-r1)/(zgh(1:ifull,1)-zgh(1:ifull,0))          
+        r1=uav(1:ifull,1)
+        r2=ratha(1)*uav(1:ifull,2)+rathb(1)*uav(1:ifull,1)          
+        dudz(:,1)=(r2-r1)/(zgh(1:ifull,1)-zg(1:ifull,1))
+        r1=vav(1:ifull,1)
+        r2=ratha(1)*vav(1:ifull,2)+rathb(1)*vav(1:ifull,1)
+        dvdz(:,1)=(r2-r1)/(zgh(1:ifull,1)-zg(1:ifull,1))
+        r1=ww(1:ifull,1)
         r2=ratha(1)*ww(1:ifull,2)+rathb(1)*ww(1:ifull,1)          
-        dwdz(:,1)=(r2-r1)/(zgh(1:ifull,1)-zgh(1:ifull,0))
+        dwdz(:,1)=(r2-r1)/(zgh(1:ifull,1)-zg(1:ifull,1))
         do k=2,kl-1
-          r1=ratha(k-1)*u(1:ifull,k)+rathb(k-1)*u(1:ifull,k-1)
-          r2=ratha(k)*u(1:ifull,k+1)+rathb(k)*u(1:ifull,k)          
+          r1=ratha(k-1)*uav(1:ifull,k)+rathb(k-1)*uav(1:ifull,k-1)
+          r2=ratha(k)*uav(1:ifull,k+1)+rathb(k)*uav(1:ifull,k)          
           dudz(:,k)=(r2-r1)/(zgh(1:ifull,k)-zgh(1:ifull,k-1))
-          r1=ratha(k-1)*v(1:ifull,k)+rathb(k-1)*v(1:ifull,k-1)
-          r2=ratha(k)*v(1:ifull,k+1)+rathb(k)*v(1:ifull,k)          
+          r1=ratha(k-1)*vav(1:ifull,k)+rathb(k-1)*vav(1:ifull,k-1)
+          r2=ratha(k)*vav(1:ifull,k+1)+rathb(k)*vav(1:ifull,k)          
           dvdz(:,k)=(r2-r1)/(zgh(1:ifull,k)-zgh(1:ifull,k-1))          
           r1=ratha(k-1)*ww(1:ifull,k)+rathb(k-1)*ww(1:ifull,k-1)
           r2=ratha(k)*ww(1:ifull,k+1)+rathb(k)*ww(1:ifull,k)          
           dwdz(:,k)=(r2-r1)/(zgh(1:ifull,k)-zgh(1:ifull,k-1))
         end do
-        dudz(:,kl)=0.
-        dvdz(:,kl)=0.
-        dwdz(:,kl)=0.
-
+        r1=ratha(kl-1)*uav(1:ifull,kl)+rathb(kl-1)*uav(1:ifull,kl-1)
+        r2=uav(1:ifull,kl)          
+        dudz(:,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,kl-1))
+        r1=ratha(kl-1)*vav(1:ifull,kl)+rathb(kl-1)*vav(1:ifull,kl-1)
+        r2=vav(1:ifull,kl)          
+        dvdz(:,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,kl-1))          
+        r1=ratha(kl-1)*ww(1:ifull,kl)+rathb(kl-1)*ww(1:ifull,kl-1)
+        r2=ww(1:ifull,kl)          
+        dwdz(:,kl)=(r2-r1)/(zg(1:ifull,kl)-zgh(1:ifull,kl-1))
+        
       end if   ! nhorjlm==0.or.nvmix==6
       if (nhorjlm==1.or.nhorjlm==2.or.
      &    nhorps==0.or.nhorps==-2) then ! usual deformation for nhorjlm=1 or nhorjlm=2
@@ -361,12 +279,37 @@ c      jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
         do k=1,kl
           t_kh(1:ifull,k)=max(tke(1:ifull,k)*tke(1:ifull,k)
      &    /eps(1:ifull,k)*hdif,t_kh(1:ifull,k))
-
-          shear(:,k)=2.*(dudx(:,k)**2+dvdy(:,k)**2+dwdz(:,k)**2)
+        end do
+        if (nhorx.eq.1) then
+          do k=1,kl
+            shear(:,k)=2.*((dudx(:,k)*sx_fact)**2
+     &                    +(dvdy(:,k)*sy_fact)**2+dwdz(:,k)**2)
+     &              +(dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2
+     &              +(dudz(:,k)+dwdx(:,k)*sx_fact)**2
+     &              +(dvdz(:,k)+dwdy(:,k)*sy_fact)**2
+          end do
+        else if (nhorx.ge.7) then
+          do k=1,kmax
+            shear(:,k)=2.*((dudx(:,k)*sx_fact)**2
+     &                    +(dvdy(:,k)*sy_fact)**2+dwdz(:,k)**2)
+     &              +(dudy(:,k)*sy_fact+dvdx(:,k)*sx_fact)**2
+     &              +(dudz(:,k)+dwdx(:,k)*sx_fact)**2
+     &              +(dvdz(:,k)+dwdy(:,k)*sy_fact)**2
+          end do
+          do k=kmax+1,kl
+            shear(:,k)=2.*(dudx(:,k)**2+dvdy(:,k)**2+dwdz(:,k)**2)
      &              +(dudy(:,k)+dvdx(:,k))**2
      &              +(dudz(:,k)+dwdx(:,k))**2
      &              +(dvdz(:,k)+dwdy(:,k))**2
-        end do
+          end do
+        else
+          do k=1,kl
+            shear(:,k)=2.*(dudx(:,k)**2+dvdy(:,k)**2+dwdz(:,k)**2)
+     &              +(dudy(:,k)+dvdx(:,k))**2
+     &              +(dudz(:,k)+dwdx(:,k))**2
+     &              +(dvdz(:,k)+dwdy(:,k))**2
+          end do
+        end if
       end if
 
       call bounds(t_kh)

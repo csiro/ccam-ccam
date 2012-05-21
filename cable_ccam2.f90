@@ -196,20 +196,21 @@ end select
 ! CABLE
 ktau_gl=900
 kend_gl=999
-canopy%oldcansto=canopy%cansto
-ssoil%otss = ssoil%tss
 ssoil%owetfac = ssoil%wetfac
+canopy%oldcansto=canopy%cansto
 call ruff_resist(veg,rough,ssoil,soil,met,canopy)
 call define_air(met,air)
 call init_radiation(met,rad,veg,canopy)
 call surface_albedo(ssoil,veg,met,rad,soil,canopy)
 call define_canopy(bal,rad,rough,air,met,dt,ssoil,soil,veg,canopy)
+ssoil%otss = ssoil%tss
 call soil_snow(dt,soil,ssoil,canopy,met,bal,veg)
-deltat = ssoil%tss - ssoil%otss ! adjust for new soil temperature
-!canopy%fhs     = canopy%fhs + deltat*ssoil%dfh_dtg
-!canopy%fes     = canopy%fes + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
-!canopy%fhs_cor = canopy%fhs_cor + deltat*ssoil%dfh_dtg
-!canopy%fes_cor = canopy%fes_cor + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
+! adjust for new soil temperature
+deltat = ssoil%tss - ssoil%otss
+canopy%fhs     = canopy%fhs + deltat*ssoil%dfh_dtg
+canopy%fes     = canopy%fes + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
+canopy%fhs_cor = canopy%fhs_cor + deltat*ssoil%dfh_dtg
+canopy%fes_cor = canopy%fes_cor + deltat*ssoil%cls*ssoil%dfe_ddq*ssoil%ddq_dtg
 canopy%fh      = canopy%fhv + canopy%fhs
 canopy%fev     = canopy%fevc + canopy%fevw
 canopy%fe      = canopy%fev + canopy%fes
@@ -786,7 +787,7 @@ if (cbm_ms.ne.ms) then
 end if
 
 ! redefine rhos
-rhos=(/1600.,1595.,1381.,1373.,1476.,1521.,1373.,1537.,1455.,2600.,2600.,2600.,2600. /)
+rhos=(/ 1600.,1595.,1381.,1373.,1476.,1521.,1373.,1537.,1455.,2600.,2600.,2600.,2600. /)
 
 hc=(/ 17.,35.,15.5,20.,19.25,0.6,0.6,7.0426,14.3379,0.567,0.5,0.55,6.017,0.55,0.2,0.2,0.2 /)
 xfang=(/ 0.01,0.1,0.01,0.25,0.125,-0.3,0.01,-0.3,-0.3,-0.3,0.,-0.3,0.,-0.3,0.,0.1,0. /)
@@ -892,9 +893,10 @@ if (mp.gt.0) then
   !  totdepth = totdepth + soil%zse(k)*100.
   !  froot2(:,k) = min(1.,1.-rootbeta(:)**totdepth)
   !enddo
-  !do k = ms, 2, -1
+  !do k = ms-1, 2, -1
   !  froot2(:,k) = froot2(:,k) - froot2(:,k-1)
   !enddo
+  !froot2(:,ms)=1.-sum(froot(:,1:ms-1),2)
   
   froot2(:,1)=0.05
   froot2(:,2)=0.20
@@ -1516,6 +1518,7 @@ if (ierr.ne.0) then
     ssoil%rtsoil=100.
     canopy%cansto=0.
     ssoil%pudsto=0.
+    ssoil%wetfac=0.
     if (icycle==0) then
       do k=1,ncp
         bgc%cplant(:,k) = cplant(cmap,k)
@@ -1593,6 +1596,9 @@ else
     write(vname,'("pudsto_",I1.1)') n
     call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
     if (pind(n,1).le.mp) ssoil%pudsto(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
+    write(vname,'("wetfac_",I1.1)') n
+    call histrd1(ncid,iarchi-1,ierr,vname,il_g,jl_g,dat,ifull)
+    if (pind(n,1).le.mp) ssoil%wetfac(pind(n,1):pind(n,2))=dat(cmap(pind(n,1):pind(n,2)))
     if (icycle==0) then
       do k=1,ncp
         write(vname,'("cplant",I1.1,"_",I1.1)') k,n
@@ -1690,6 +1696,7 @@ if (mp.gt.0) then
   ssoil%smass=max(ssoil%smass,0.)
   ssoil%rtsoil=max(ssoil%rtsoil,0.)
   ssoil%snowd=max(ssoil%snowd,0.)
+  ssoil%wetfac=min(max(ssoil%wetfac,0.),1.)
   canopy%cansto=max(canopy%cansto,0.)
 
   ! overwritten by CABLE
@@ -1711,7 +1718,6 @@ if (mp.gt.0) then
       ssoil%sdepth(:,k)=ssoil%sconds(:,1)                 ! overwritten by CABLE
     end where
   end do  
-  ssoil%wetfac=max(0.,min(1.,(ssoil%wb(:,1)-soil%swilt)/(soil%sfc-soil%swilt)))
   ssoil%owetfac=ssoil%wetfac
   ssoil%wbtot=0.
   ssoil%wbtot1=0.
@@ -1849,6 +1855,9 @@ if (myid.eq.0) then
     write(lname,'("pudsto tile ",I1.1)') n
     write(vname,'("pudsto_",I1.1)') n
     call attrib(idnc,idim,3,vname,lname,'none',0.,13.,0,-1)
+    write(lname,'("wetfac tile ",I1.1)') n
+    write(vname,'("wetfac_",I1.1)') n
+    call attrib(idnc,idim,3,vname,lname,'none',0.,6.5,0,-1)
     if (icycle==0) then
       write(lname,'("Carbon leaf pool tile ",I1.1)') n
       write(vname,'("cplant1_",I1.1)') n    
@@ -2000,6 +2009,10 @@ do n=1,5
   dat=0.
   if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%pudsto(pind(n,1):pind(n,2))
   write(vname,'("pudsto_",I1.1)') n
+  call histwrt3(dat,vname,idnc,iarch,local,.true.)
+  dat=0.
+  if (pind(n,1).le.mp) dat(cmap(pind(n,1):pind(n,2)))=ssoil%wetfac(pind(n,1):pind(n,2))
+  write(vname,'("wetfac_",I1.1)') n
   call histwrt3(dat,vname,idnc,iarch,local,.true.)
   if (icycle==0) then
     do k=1,ncp

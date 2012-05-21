@@ -24,7 +24,9 @@ integer, parameter :: salfilt=0    ! additional salinity filter (0=off, 1=Katzfe
 integer, parameter :: usetide=1    ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode=2    ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: basinmd=1    ! basin mode (0=soil, 1=global)
+integer, parameter :: nf     =2    ! power for horizontal diffusion reduction factor
 real, parameter :: k_smag=0.4      ! horizontal diffusion (2. in Griffies (2000), 0.7-1. in POM (Mellor 2004))
+real, parameter :: delphi=200.     ! horizontal diffusion reduction factor gradient
 real, parameter :: rhosn =330.     ! density snow (kg m^-3)
 real, parameter :: rhoic =900.     ! density ice  (kg m^-3)
 real, parameter :: grav  =9.80616  ! gravitational constant (m s^-2)
@@ -157,14 +159,12 @@ include 'parm.h'
 
 integer k,i,iq
 real hdif,xp
-real, dimension(ifull+iextra,0:wlev) :: uhl,vhl,dephladj
 real, dimension(ifull+iextra,wlev) :: u,v,uc,vc,wc
 real, dimension(ifull+iextra,wlev) :: t_kh,xfact,yfact,gg
 real, dimension(ifull,wlev) :: ff,base
-real, dimension(ifull+iextra) :: odum
-real, dimension(ifull) :: dudx,dvdx,dudy,dvdy
+real, dimension(ifull+iextra) :: odum,depadj
+real, dimension(ifull) :: dudx,dvdx,dudy,dvdy,tx_fact,ty_fact
 real, dimension(ifull) :: eta,cc,emi,nu,nv,nw
-real, dimension(ifull) :: s1,s2,s3,s4,z1,z2,z3,z4
 logical, dimension(ifull+iextra) :: wtr
 
 hdif=dt*(k_smag/pi)**2
@@ -183,94 +183,29 @@ call boundsuv(u,v,allvec=.true.)
 odum(1:ifull)=max(1.+eta/dd(1:ifull),mindep/dd(1:ifull))
 call bounds(odum)
 
-! set-up depth arrays with free surface adjustment
-dephladj(:,0)=0.
+! calculate (appproximate) gradients
 do k=1,wlev
-  dephladj(:,k)=gosigh(k)*dd*odum
-end do
-
-uhl(:,0)=u(:,1)
-vhl(:,0)=v(:,1)
-xp=gosigh(1)-gosig(2)
-uhl(:,1)=u(:,2)+xp/(gosig(3)-gosig(1))*((gosig(2)-gosig(1))          &
-         *(u(:,3)-u(:,2))/(gosig(3)-gosig(2))                        &
-         +(gosig(3)-gosig(2))*(u(:,2)-u(:,1))/(gosig(2)-gosig(1)))   &
-         +xp*xp/(gosig(3)-gosig(1))                                  &
-         *((u(:,3)-u(:,2))/(gosig(3)-gosig(2))                       &
-         -(u(:,2)-u(:,1))/(gosig(2)-gosig(1)))
-vhl(:,1)=v(:,2)+xp/(gosig(3)-gosig(1))*((gosig(2)-gosig(1))          &
-         *(v(:,3)-v(:,2))/(gosig(3)-gosig(2))                        &
-         +(gosig(3)-gosig(2))*(v(:,2)-v(:,1))/(gosig(2)-gosig(1)))   &
-         +xp*xp/(gosig(3)-gosig(1))                                  &
-         *((v(:,3)-v(:,2))/(gosig(3)-gosig(2))                       &
-         -(v(:,2)-v(:,1))/(gosig(2)-gosig(1)))
-do k=2,wlev-1
-  xp=gosigh(k)-gosig(k)
-  uhl(:,k)=u(:,k)+xp/(gosig(k+1)-gosig(k-1))*((gosig(k)-gosig(k-1))          &
-           *(u(:,k+1)-u(:,k))/(gosig(k+1)-gosig(k))                          &
-           +(gosig(k+1)-gosig(k))*(u(:,k)-u(:,k-1))/(gosig(k)-gosig(k-1)))   &
-           +xp*xp/(gosig(k+1)-gosig(k-1))                                    &
-           *((u(:,k+1)-u(:,k))/(gosig(k+1)-gosig(k))                         &
-           -(u(:,k)-u(:,k-1))/(gosig(k)-gosig(k-1)))
-  vhl(:,k)=v(:,k)+xp/(gosig(k+1)-gosig(k-1))*((gosig(k)-gosig(k-1))          &
-           *(v(:,k+1)-v(:,k))/(gosig(k+1)-gosig(k))                          &
-           +(gosig(k+1)-gosig(k))*(v(:,k)-v(:,k-1))/(gosig(k)-gosig(k-1)))   &
-           +xp*xp/(gosig(k+1)-gosig(k-1))                                    &
-           *((v(:,k+1)-v(:,k))/(gosig(k+1)-gosig(k))                         &
-           -(v(:,k)-v(:,k-1))/(gosig(k)-gosig(k-1)))
-end do
-uhl(:,wlev)=0.
-vhl(:,wlev)=0.
-
-! calculate Smagorinsky diffusion
-do k=1,wlev
-
-  ! estimate velocity gradients using POM stencile
-  s1=uhl(ieu,k-1)
-  s2=uhl(ieu,k)
-  s3=uhl(iwu,k-1)
-  s4=uhl(iwu,k)
-  z1=dephladj(ie,k-1)
-  z2=dephladj(ie,k)
-  z3=dephladj(iw,k-1)
-  z4=dephladj(iw,k)
-  dudx=0.25*((s1+s2-s3-s4)-(s2-s1+s4-s3)*(z1+z2-z3-z4)/(z2-z1+z4-z3))*em(1:ifull)/ds
-
-  s1=vhl(iev,k-1)
-  s2=vhl(iev,k)
-  s3=vhl(iwv,k-1)
-  s4=vhl(iwv,k)
-  dvdx=0.25*((s1+s2-s3-s4)-(s2-s1+s4-s3)*(z1+z2-z3-z4)/(z2-z1+z4-z3))*em(1:ifull)/ds
-  
-  s1=uhl(inu,k-1)
-  s2=uhl(inu,k)
-  s3=uhl(isu,k-1)
-  s4=uhl(isu,k)
-  z1=dephladj(in,k-1)
-  z2=dephladj(in,k)
-  z3=dephladj(is,k-1)
-  z4=dephladj(is,k)
-  dudy=0.25*((s1+s2-s3-s4)-(s2-s1+s4-s3)*(z1+z2-z3-z4)/(z2-z1+z4-z3))*em(1:ifull)/ds
-
-  s1=vhl(inv,k-1)
-  s2=vhl(inv,k)
-  s3=vhl(isv,k-1)
-  s4=vhl(isv,k)
-  dvdy=0.25*((s1+s2-s3-s4)-(s2-s1+s4-s3)*(z1+z2-z3-z4)/(z2-z1+z4-z3))*em(1:ifull)/ds
-
+  dudx=0.5*(u(ieu,k)-u(iwu,k))*em(1:ifull)/ds
+  dvdx=0.5*(v(iev,k)-v(iwv,k))*em(1:ifull)/ds
+  dudy=0.5*(u(inu,k)-u(isu,k))*em(1:ifull)/ds
+  dvdy=0.5*(v(inv,k)-v(isv,k))*em(1:ifull)/ds
   ! Smagorinsky
   cc=(dudx-dvdy)**2+(dudy+dvdx)**2
   t_kh(1:ifull,k)=sqrt(cc)*hdif*emi  ! this one with em in D terms
-
 end do
 call bounds(t_kh)
   
 ! convert to staggered coordinates
 do k=1,wlev
+  depadj=gosig(k)*dd*odum
+  tx_fact=1./(1.+(abs(depadj(ie)-depadj(1:ifull))/delphi)**nf)
+  ty_fact=1./(1.+(abs(depadj(in)-depadj(1:ifull))/delphi)**nf)
   xfact(1:ifull,k)=(t_kh(ie,k)+t_kh(1:ifull,k))*0.5 ! staggered
   yfact(1:ifull,k)=(t_kh(in,k)+t_kh(1:ifull,k))*0.5 ! staggered
   xfact(1:ifull,k)=xfact(1:ifull,k)*eeu(1:ifull) ! land boundary
   yfact(1:ifull,k)=yfact(1:ifull,k)*eev(1:ifull) ! land boundary
+  xfact(1:ifull,k)=xfact(1:ifull,k)*tx_fact ! reduction factor
+  yfact(1:ifull,k)=yfact(1:ifull,k)*ty_fact ! reduction factor
 end do
 call boundsuv(xfact,yfact)
 
@@ -895,26 +830,12 @@ end do
 !                                                     -gosig(ii)*(dd(in)-dd(1:ifull))))*emv(1:ifull)/ds
 !  drhobardyv(:,ii)=drhobardyv(:,ii)*eev(1:ifull)
 !end do
-! method 2: Use POM stencil with background profile removed (see Shchepetkin and McWilliams 2003)
-! Compute reference density which is only a function of depth
-!tau=273.16
-!tav=0.
-!call mloexpdensity(rhobak,alphadum,betadum,tau,tav,depdum,dzdum,pice(1:ifull),0)
-!rhobarm(1:ifull,1)=(rho(1:ifull,1)-rhobak(:,1))*godsig(1)
-!do ii=2,wlev
-!  rhobarm(1:ifull,ii)=rhobarm(1:ifull,ii-1)+(rho(1:ifull,ii)-rhobak(:,ii))*godsig(ii)
-!end do
-!do ii=1,wlev
-!  rhobarm(1:ifull,ii)=rhobarm(1:ifull,ii)/gosigh(ii)
-!end do
-!call bounds(rhobarm,corner=.true.)
-!call pomdelta(rhobarm,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 ! method 3: Use POM stencil with potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
 call bounds(dalpha)
 call bounds(dbeta)
 call bounds(nt,corner=.true.)
 call bounds(ns,corner=.true.)
-call tsjacobi(nt,ns,dalpha,dbeta,ndum,stwgt(1:ifull,:),drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+call tsjacobi(nt,ns,dalpha,dbeta,neta,oeu,oev,stwgt(1:ifull,:),drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 drhobardxu(:,1)=drhobardxu(:,1)*godsig(1)
 drhobardxv(:,1)=drhobardxv(:,1)*godsig(1)
 drhobardyu(:,1)=drhobardyu(:,1)*godsig(1)
@@ -1071,7 +992,7 @@ call bounds(dalpha)
 call bounds(dbeta)
 call bounds(nt,corner=.true.)
 call bounds(ns,corner=.true.)
-call tsjacobi(nt,ns,dalpha,dbeta,ndum,stwgt(1:ifull,:),drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+call tsjacobi(nt,ns,dalpha,dbeta,neta,oeu,oev,stwgt(1:ifull,:),drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 drhobardxu(:,1)=drhobardxu(:,1)*godsig(1)
 drhobardxv(:,1)=drhobardxv(:,1)*godsig(1)
 drhobardyu(:,1)=drhobardyu(:,1)*godsig(1)
@@ -2992,7 +2913,7 @@ end subroutine mlotvd
 ! Use potential temperature and salinity Jacobians to calculate
 ! density Jacobian
 
-subroutine tsjacobi(nti,nsi,alphabar,betabar,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+subroutine tsjacobi(nti,nsi,alphabar,betabar,neta,oeu,oev,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 use indices_m
 use mlo, only : wlev
@@ -3004,7 +2925,8 @@ include 'newmpar.h'
 integer ii
 real, dimension(ifull+iextra,wlev), intent(in) :: nti,nsi,alphabar,betabar
 real, dimension(ifull,2), intent(in) :: stwgt
-real, dimension(ifull+iextra), intent(in) :: ndum
+real, dimension(ifull+iextra), intent(in) :: neta
+real, dimension(ifull), intent(in) :: oeu,oev
 real, dimension(ifull,wlev), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
 real, dimension(ifull+iextra,wlev) :: nt,ns
 real, dimension(ifull,wlev) :: absu,bbsu,absv,bbsv
@@ -3021,8 +2943,8 @@ do ii=1,wlev
   bbsv(:,ii)=0.5*(betabar(1:ifull,ii)+betabar(in,ii))
 end do
 
-call pomdelta(nt,ndum,stwgt,dntdxu,dntdyu,dntdxv,dntdyv)
-call pomdelta(ns,ndum,stwgt,dnsdxu,dnsdyu,dnsdxv,dnsdyv)
+call seekdelta(nt,neta,oeu,oev,stwgt,dntdxu,dntdyu,dntdxv,dntdyv)
+call seekdelta(ns,neta,oeu,oev,stwgt,dnsdxu,dnsdyu,dnsdxv,dnsdyv)
 
 drhobardxu=-absu*dntdxu+bbsu*dnsdxu
 drhobardxv=-absv*dntdxv+bbsv*dnsdxv
@@ -3033,9 +2955,9 @@ return
 end subroutine tsjacobi
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! POM style stencile for density gradient
+! Calculate gradients using an interpolation method
 
-subroutine pomdelta(rhobar,ndum,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
+subroutine seekdelta(rhobar,neta,oeu,oev,stwgt,drhobardxu,drhobardyu,drhobardxv,drhobardyv)
 
 use indices_m
 use map_m
@@ -3046,86 +2968,139 @@ implicit none
 include 'newmpar.h'
 include 'parm.h'
 
-integer ii
-real xp
+integer iqw,ii
+integer sdi,sde,sdw,sdn,sds,sdne,sdse,sden,sdwn
+real ddux,ddvy,ri,re,rw,rn,rs,rne,rse,ren,rwn
+real mxi,mxe,mxw,mxn,mxs,mxne,mxse,mxen,mxwn
+real, dimension(wlev) :: ddi,dde,ddw,ddn,dds,ddne,ddse,dden,ddwn
+real, dimension(wlev) :: ssi,sse,ssw,ssn,sss,ssne,ssse,ssen,sswn
 real, dimension(ifull+iextra,wlev), intent (in) :: rhobar
 real, dimension(ifull,2), intent(in) :: stwgt
-real, dimension(ifull+iextra), intent(in) :: ndum
+real, dimension(ifull+iextra), intent(in) :: neta
+real, dimension(ifull), intent(in) :: oeu,oev
 real, dimension(ifull,wlev), intent(out) :: drhobardxu,drhobardyu,drhobardxv,drhobardyv
-real, dimension(ifull+iextra,0:wlev) :: rhobarhl,dephladj
-real, dimension(ifull) :: rho1,rho2,rho3,rho4,z1,z2,z3,z4
 
-! set-up level depths
-dephladj(:,0)=0.
-do ii=1,wlev
-  dephladj(:,ii)=gosigh(ii)*dd*ndum
+do iqw=1,ifull
+  mxi=dd(iqw)
+  mxe=dd(ie(iqw))
+  mxn=dd(in(iqw))
+  ssi=rhobar(iqw,:)
+  sse=rhobar(ie(iqw),:)
+  ssn=rhobar(in(iqw),:)
+  ddi=gosigh(:)*mxi
+  dde=gosigh(:)*mxe
+  ddn=gosigh(:)*mxn
+  if (eeu(iqw).gt.0.5) then ! water
+    sdi=2
+    sde=2
+    sdn=2
+    sds=2
+    sdne=2
+    sdse=2
+    mxs=dd(is(iqw))
+    mxne=dd(ine(iqw))
+    mxse=dd(ise(iqw))
+    sss=rhobar(is(iqw),:)
+    ssne=rhobar(ine(iqw),:)
+    ssse=rhobar(ise(iqw),:)
+    dds=gosigh(:)*mxs
+    ddne=gosigh(:)*mxne
+    ddse=gosigh(:)*mxse
+    do ii=1,wlev
+      ! process staggered u locations
+      ! use scaled depths (i.e., assume neta is small compared to dd)
+      ddux=gosigh(ii)*ddu(iqw) ! seek depth
+      if (mxi.lt.ddux.or.mxe.lt.ddux) then
+        drhobardxu(iqw,ii)=0. ! assume zero gradient for bathymetry
+      else
+        call seekval(ri,ssi(:),ddi(:),ddux,sdi)
+        call seekval(re,sse(:),dde(:),ddux,sde)
+        drhobardxu(iqw,ii)=eeu(iqw)*(re-ri)*emu(iqw)/ds
+      end if
+      if (mxn.lt.ddux.or.mxne.lt.ddux.or.mxs.lt.ddux.or.mxse.lt.ddux) then
+        drhobardyu(iqw,ii)=0. ! assume zero gradient for bathymetry
+      else
+        call seekval(rn,ssn(:),ddn(:),ddux,sdn)
+        call seekval(rne,ssne(:),ddne(:),ddux,sdne)
+        call seekval(rs,sss(:),dds(:),ddux,sds)
+        call seekval(rse,ssse(:),ddse(:),ddux,sdse)
+        drhobardyu(iqw,ii)=stwgt(iqw,1)*0.25*(rn+rne-rs-rse)*emu(iqw)/ds
+      end if
+    end do
+  else
+    drhobardxu(iqw,:)=0.
+    drhobardyu(iqw,:)=0.
+  end if
+  if (eev(iqw).gt.0.5) then ! water
+    sdi=2
+    sdn=2
+    sde=2
+    sdw=2
+    sden=2
+    sdwn=2
+    mxw=dd(iw(iqw))
+    mxen=dd(ien(iqw))
+    mxwn=dd(iwn(iqw))
+    ssw=rhobar(iw(iqw),:)
+    ssen=rhobar(ien(iqw),:)
+    sswn=rhobar(iwn(iqw),:)
+    ddw=gosigh(:)*mxw
+    dden=gosigh(:)*mxen
+    ddwn=gosigh(:)*mxwn
+    do ii=1,wlev
+      ! now process staggered v locations
+      ddvy=gosigh(ii)*ddv(iqw) ! seek depth
+      if (mxi.lt.ddvy.or.mxn.lt.ddvy) then
+        drhobardyv(iqw,ii)=0. ! assume zero gradient for bathymetry
+      else
+        call seekval(ri,ssi(:),ddi(:),ddvy,sdi)
+        call seekval(rn,ssn(:),ddn(:),ddvy,sdn)
+        drhobardyv(iqw,ii)=eev(iqw)*(rn-ri)*emv(iqw)/ds
+      end if
+      if (mxe.lt.ddvy.or.mxen.lt.ddvy.or.mxw.lt.ddvy.or.mxwn.lt.ddvy) then
+        drhobardxv(iqw,ii)=0. ! assume zero gradient for bathymetry
+      else
+        call seekval(re,sse(:),dde(:),ddvy,sde)
+        call seekval(ren,ssen(:),dden(:),ddvy,sden)
+        call seekval(rw,ssw(:),ddw(:),ddvy,sdw)
+        call seekval(rwn,sswn(:),ddwn(:),ddvy,sdwn)
+        drhobardxv(iqw,ii)=stwgt(iqw,2)*0.25*(re+ren-rw-rwn)*emv(iqw)/ds
+      end if
+    end do
+  else
+    drhobardyv(iqw,:)=0.
+    drhobardxv(iqw,:)=0. 
+  end if
 end do
+ 
+return
+end subroutine seekdelta
 
-! estimate rhobar at half levels
-rhobarhl(:,0)=rhobar(:,1)
-xp=gosigh(1)-gosig(2)
-rhobarhl(:,1)=rhobar(:,2)+xp/(gosig(3)-gosig(1))*((gosig(2)-gosig(1))                    &
-               *(rhobar(:,3)-rhobar(:,2))/(gosig(3)-gosig(2))                            &
-               +(gosig(3)-gosig(2))*(rhobar(:,2)-rhobar(:,1))/(gosig(2)-gosig(1)))       &
-               +xp*xp/(gosig(3)-gosig(1))                                                &
-               *((rhobar(:,3)-rhobar(:,2))/(gosig(3)-gosig(2))                           &
-               -(rhobar(:,2)-rhobar(:,1))/(gosig(2)-gosig(1)))
-do ii=2,wlev-1
-  xp=gosigh(ii)-gosig(ii)
-  rhobarhl(:,ii)=rhobar(:,ii)+xp/(gosig(ii+1)-gosig(ii-1))*((gosig(ii)-gosig(ii-1))               &
-                 *(rhobar(:,ii+1)-rhobar(:,ii))/(gosig(ii+1)-gosig(ii))                           &
-                 +(gosig(ii+1)-gosig(ii))*(rhobar(:,ii)-rhobar(:,ii-1))/(gosig(ii)-gosig(ii-1)))  &
-                 +xp*xp/(gosig(ii+1)-gosig(ii-1))                                                 &
-                 *((rhobar(:,ii+1)-rhobar(:,ii))/(gosig(ii+1)-gosig(ii))                          &
-                 -(rhobar(:,ii)-rhobar(:,ii-1))/(gosig(ii)-gosig(ii-1)))
-end do
-rhobarhl(:,wlev)=rhobar(:,wlev)
+subroutine seekval(rout,ssin,ddin,ddseek,sindx)
 
-! calculate gradients
-do ii=1,wlev
-  rho1=rhobarhl(ie,ii-1)
-  rho2=rhobarhl(ie,ii)
-  rho3=rhobarhl(1:ifull,ii-1)
-  rho4=rhobarhl(1:ifull,ii)
-  z1=dephladj(ie,ii-1)
-  z2=dephladj(ie,ii)
-  z3=dephladj(1:ifull,ii-1)
-  z4=dephladj(1:ifull,ii)
-  drhobardxu(:,ii)=0.5*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*emu(1:ifull)/ds
-  drhobardxu(:,ii)=drhobardxu(:,ii)*eeu(1:ifull) 
-  rho1=0.5*(rhobarhl(in,ii-1)+rhobarhl(ine,ii-1))
-  rho2=0.5*(rhobarhl(in,ii)+rhobarhl(ine,ii))
-  rho3=0.5*(rhobarhl(is,ii-1)+rhobarhl(ise,ii-1))
-  rho4=0.5*(rhobarhl(is,ii)+rhobarhl(ise,ii))
-  z1=0.5*(dephladj(in,ii-1)+dephladj(ine,ii-1))
-  z2=0.5*(dephladj(in,ii)+dephladj(ine,ii))
-  z3=0.5*(dephladj(is,ii-1)+dephladj(ise,ii-1))
-  z4=0.5*(dephladj(is,ii)+dephladj(ise,ii))
-  drhobardyu(:,ii)=stwgt(:,1)*0.25*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*emu(1:ifull)/ds
-  rho1=0.5*(rhobarhl(ie,ii-1)+rhobarhl(ien,ii-1))
-  rho2=0.5*(rhobarhl(ie,ii)+rhobarhl(ien,ii))
-  rho3=0.5*(rhobarhl(iw,ii-1)+rhobarhl(iwn,ii-1))
-  rho4=0.5*(rhobarhl(iw,ii)+rhobarhl(iwn,ii))
-  z1=0.5*(dephladj(ie,ii-1)+dephladj(ien,ii-1))
-  z2=0.5*(dephladj(ie,ii)+dephladj(ien,ii))
-  z3=0.5*(dephladj(iw,ii-1)+dephladj(iwn,ii-1))
-  z4=0.5*(dephladj(iw,ii)+dephladj(iwn,ii))
-  drhobardxv(:,ii)=stwgt(:,2)*0.25*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*emv(1:ifull)/ds
-  rho1=rhobarhl(in,ii-1)
-  rho2=rhobarhl(in,ii)
-  rho3=rhobarhl(1:ifull,ii-1)
-  rho4=rhobarhl(1:ifull,ii)
-  z1=dephladj(in,ii-1)
-  z2=dephladj(in,ii)
-  z3=dephladj(1:ifull,ii-1)
-  z4=dephladj(1:ifull,ii)
-  drhobardyv(:,ii)=0.5*((rho1+rho2-rho3-rho4)-(rho2-rho1+rho4-rho3)*(z1+z2-z3-z4)/max(z2-z1+z4-z3,1.E-8))*emv(1:ifull)/ds
-  drhobardyv(:,ii)=drhobardyv(:,ii)*eev(1:ifull) 
+use mlo, only : wlev
+
+implicit none
+
+integer, intent(inout) :: sindx
+integer nindx
+real, intent(in) :: ddseek
+real, intent(out) :: rout
+real, dimension(wlev), intent(in) :: ssin,ddin
+real xp
+
+do nindx=sindx,wlev
+  if (ddin(nindx).ge.ddseek) exit
 end do
+sindx=nindx
+
+xp=(ddseek-ddin(sindx-1))/(ddin(sindx)-ddin(sindx))
+xp=max(min(xp,1.),0.)
+
+rout=ssin(sindx-1)+xp*(ssin(sindx)-ssin(sindx-1))
 
 return
-end subroutine pomdelta
-
+end subroutine seekval
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate tidal potential

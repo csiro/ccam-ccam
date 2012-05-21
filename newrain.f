@@ -196,23 +196,25 @@ c These give the ice values needed for the qcloud scheme
 
 C Start code : ----------------------------------------------------------
 
-        if(diag.and.mydiag)then ! JLM
-          write(6,*) 'entering newrain ktau= ',ktau
-          write(6,91) 'rhoa',(rhoa(idjd,k),k=1,nl)
-          write(6,91) 'dz',(dz(idjd,k),k=1,nl)
-          write(6,91) 'ccrain',(ccrain(idjd,k),k=1,nl)
-          write(6,91) 'prf',(prf(idjd,k),k=1,nl)
-          write(6,91) 'ttg ',(ttg(idjd,k),k=1,nl)
-          write(6,*) 'cdrop',(cdrop(idjd,k),k=1,nl)
-          write(6,*) 'qtg ',(qtg(idjd,k),k=1,nl)
-          write(6,*) 'qsg ',(qsg(idjd,k),k=1,nl)
-          write(6,*) 'cfrac ',(cfrac(idjd,k),k=1,nl)
-          write(6,*) 'qlg ',(qlg(idjd,k),k=1,nl)
-          write(6,*) 'qfg ',(qfg(idjd,k),k=1,nl)
-          write(6,*) 'cfa ',(cfa(idjd,k),k=1,nl)
-          write(6,*) 'qca ',(qca(idjd,k),k=1,nl)
-          write(6,*) 'fluxc ',(fluxc(idjd,k),k=1,nl)
-        endif  ! (diag.and.mydiag)
+        if(ntest>0.and.mydiag)then
+          mg=idjd
+          write(25,'(a,3i3)')'IPASS=1, Before newrain ktau= ',ktau
+          write(25,91)'rhoa',(rhoa(mg,k),k=1,nl)
+          write(25,91)'dz',(dz(mg,k),k=1,nl)
+          write(25,91)'ccrain',(ccrain(mg,k),k=1,nl)
+          write(25,91)'prf',(prf(mg,k),k=1,nl)
+          write(25,9)'cdrop',(cdrop(mg,k),k=1,nl)
+          write(25,91)'ttg ',(ttg(mg,k),k=1,nl)
+          write(25,9)'qtg ',(qtg(mg,k),k=1,nl)
+          write(25,9)'qsg ',(qsg(mg,k),k=1,nl)
+          write(25,9)'cfrac ',(cfrac(mg,k),k=1,nl)
+          write(25,9)'qlg ',(qlg(mg,k),k=1,nl)
+          write(25,9)'qfg ',(qfg(mg,k),k=1,nl)
+          write(25,9)'cfa ',(cfa(mg,k),k=1,nl)
+          write(25,9)'qca ',(qca(mg,k),k=1,nl)
+          write(25,9)'fluxc ',(fluxc(mg,k),k=1,nl)
+          write(25,*)
+        endif  ! (ntest>0)
 
       delt=tdt
       njumps=nint(tdt/delt)
@@ -343,14 +345,6 @@ c               selfcoll=min(ql1,ql1*cdt/(1+0.5*cdt))
         enddo
       endif ! (ncloud.gt.0)
 
-        if(diag.and.mydiag)then ! JLM
-          write(6,*) 'in newrain about to call icefall'
-          write(6,*) 'clfr',(clfr(idjd,k),k=1,nl)
-          write(6,*) 'qauto ',(qauto(idjd,k),k=1,nl)
-          write(6,*) 'qlg ',(qlg(idjd,k),k=1,nl)
-          write(6,*) 'fluxa ',(fluxa(idjd,k),k=1,nl)
-        endif  ! (diag.and.mydiag)
-
 c Call frozen precipitation routine
 
       call icefall(lg,tdt,rhoa,dz,prf, !Inputs
@@ -430,8 +424,8 @@ c Add flux of melted snow to fluxrain
             
 c Evaporation of rain
 
-            qpf=fluxrain(mg)/rhodz !Mix ratio of rain which falls into layer
-            clrevap=(1.-clfr(mg,k))*qpf
+            qpf=fluxrain(mg)/rhodz !Mix ratio of rain which falls into layer  ! MJT suggestion
+            clrevap=(1.-clfr(mg,k))*qpf                                       ! MJT suggestion
             if(fluxrain(mg).gt.0.and.cfrac(mg,k).lt.1.0)then
               pk=100.0*prf(mg,k)
               qsg(mg,k)=qsati(pk,ttg(mg,k))
@@ -468,7 +462,7 @@ c              Vr=5./sqrt(rhoa(mg,k))                !Nominal fall speed
               qtg(mg,k)=qtg(mg,k)+evap
               ttg(mg,k)=ttg(mg,k)-hlcp*evap
             endif
-            frclr(mg,k)=rhodz*(clrevap-evap)             !over delt
+            frclr(mg,k)=rhodz*(clrevap-evap) !over delt ! MJT suggestion
             
 
 c Now do the collection term.

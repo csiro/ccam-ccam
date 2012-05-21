@@ -86,7 +86,7 @@ stacklimit.o: stacklimit.c
 %.o : %.mod
 
 # Dependencies
-adjust5.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o diag_m.o dpsdt_m.o epst_m.o indices_m.o liqwpar_m.o map_m.o morepbl_m.o nharrs_m.o nlin_m.o pbl_m.o sigs_m.o tbar2d_m.o tkeeps.o tracermodule.o tracers_m.o vecsuv_m.o vecs_m.o vvel_m.o work3sav_m.o xarrs_m.o xyzinfo_m.o const_phys.h kuocom.h newmpar.h parm.h parmdyn.h parmvert.h
+adjust5.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o diag_m.o dpsdt_m.o epst_m.o indices_m.o liqwpar_m.o map_m.o morepbl_m.o nharrs_m.o nlin_m.o pbl_m.o sigs_m.o tbar2d_m.o tracermodule.o tracers_m.o vecsuv_m.o vecs_m.o vvel_m.o work3sav_m.o xarrs_m.o xyzinfo_m.o const_phys.h kuocom.h newmpar.h parm.h parmdyn.h parmvert.h
 aerointerface.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o extraout_m.o infile.o kuocomb_m.o latlong_m.o liqwpar_m.o map_m.o morepbl_m.o nharrs_m.o nsibd_m.o ozoneread.o pbl_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o vegpar_m.o work2_m.o zenith.o const_phys.h cparams.h kuocom.h newmpar.h parm.h parmgeom.h soilv.h
 amipsst.o : arrays_m.o cc_mpi.o latlong_m.o mlo.o pbl_m.o permsurf_m.o soil_m.o soilsnow_m.o dates.h filnames.h newmpar.h parm.h parmgeom.h
 bett_cuc.o : betts1_m.o newmpar.h 
@@ -137,7 +137,7 @@ gwdrag.o : arrays_m.o gdrag_m.o morepbl_m.o nlin_m.o pbl_m.o sigs_m.o soil_m.o c
 hconst.o : hcon.h 
 helmsol.o : cc_mpi.o ilu_m.o indices_m.o sumdd_m.o newmpar.h parm.h parmdyn.h
 helmsor.o : cc_mpi.o diag_m.o ilu_m.o indices_m.o sumdd_m.o vecs_m.o newmpar.h parm.h parmdyn.h parmgeom.h
-hordifg.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o diag_m.o dpsdt_m.o indices_m.o liqwpar_m.o map_m.o morepbl_m.o nharrs_m.o nlin_m.o parmhdff_m.o sigs_m.o tkeeps.o vecsuv_m.o vvel_m.o const_phys.h kuocom.h newmpar.h parm.h
+hordifg.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o diag_m.o dpsdt_m.o indices_m.o liqwpar_m.o map_m.o morepbl_m.o nharrs_m.o nlin_m.o parmhdff_m.o savuvt_m.o sigs_m.o tkeeps.o vecsuv_m.o vvel_m.o const_phys.h kuocom.h newmpar.h parm.h
 hs_phys.o : arrays_m.o latlong_m.o nlin_m.o sigs_m.o newmpar.h parm.h 
 icefall.o : cc_mpi.o kuocomb_m.o morepbl_m.o const_phys.h cparams.h kuocom.h newmpar.h parm.h params.h
 ilu_m.o : cc_mpi.o indices_m.o newmpar.h

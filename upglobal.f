@@ -374,6 +374,7 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
              call ints(qlg,intsch,nface,xg,yg,4)
              call ints(qfg,intsch,nface,xg,yg,4)
              call ints(qrg,intsch,nface,xg,yg,4)
+             !call ints(cffrac,intsch,nface,xg,yg,4)
              call ints(cffall,intsch,nface,xg,yg,4)
           endif                 ! ldr.ne.0
           if(ngas>0.or.nextout>=4)then
@@ -399,8 +400,8 @@ c      nvsplit=3,4 stuff moved down before or after Coriolis on 15/3/07
 	     endif
           endif  ! (ngas>0.or.nextout>=4)
           if(nvmix.eq.6)then                       ! MJT tke
-             call ints(tke,intsch,nface,xg,yg,5)   ! MJT tke
-             call ints(eps,intsch,nface,xg,yg,5)   ! MJT tke
+             call ints(tke,intsch,nface,xg,yg,2)   ! MJT tke
+             call ints(eps,intsch,nface,xg,yg,2)   ! MJT tke
           endif                 ! nvmix.eq.6       ! MJT tke
           if (abs(iaero)==2) then                        ! MJT aerosols
             do l=1,naero                                 ! MJT aerosols
